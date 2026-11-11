@@ -203,6 +203,22 @@ export function revenuePerH100eYear(s: GameState) {
   return 40000 * Math.pow(Math.min(m, 8), 0.3);
 }
 
+/** Revenue target if the public model were at progress p (for UI previews). */
+export function revenueTargetIf(s: GameState, publicP: number) {
+  const old = s.model.publicP;
+  s.model.publicP = publicP;
+  const r = revenueTarget(s);
+  s.model.publicP = old;
+  return r;
+}
+
+/** Revenue run-rate the market converges to ($B/yr). */
+export function revenueTarget(s: GameState) {
+  const productCompute = s.company.compute * s.allocation.product;
+  const demand = clamp(1 + s.pub.approval / 250, 0.6, 1.3) * competitionFactor(s) * (s.policies.militaryWork ? 1.04 : 1) * (s.policies.openWeightsOld ? 0.95 : 1);
+  return (productCompute * revenuePerH100eYear(s) * demand) / 1e9;
+}
+
 export function competitionFactor(s: GameState) {
   let f = 1;
   for (const l of s.labs) if (!l.absorbed && l.p > s.model.publicP - 0.05) f *= 0.88;
@@ -215,12 +231,22 @@ export function monthlyOrder(s: GameState) {
   // Grow the whole contracted fleet (installed + pipeline), so deliveries track the target growth rate
   const inPipe = s.company.pipeline.reduce((a, o) => a + o.amount, 0);
   const want = (s.company.compute + inPipe) * (Math.pow(1 + s.policies.expansion, 1 / 12) - 1);
-  return Math.max(0, Math.min(want, worldCompute(s) * 0.25 - s.company.compute - inPipe));
+  return Math.max(0, Math.min(want, worldCompute(s) * COMPUTE_CAP - s.company.compute - inPipe));
+}
+
+/** Max share of world AI compute a single lab can contract (AI 2027 leader ~20%; DPA consolidation can exceed it). */
+export const COMPUTE_CAP = 0.35;
+
+export function computeCapped(s: GameState) {
+  const inPipe = s.company.pipeline.reduce((a, o) => a + o.amount, 0);
+  return s.company.compute + inPipe >= worldCompute(s) * COMPUTE_CAP * 0.98;
 }
 
 export function monthlyCosts(s: GameState) {
   const yrs = s.day / 365;
-  const perH100eYr = 14000 * Math.pow(0.8, yrs); // AI27: ~$16K (2025) -> $10K (2026) -> $9K (2027)
+  // AI27: ~$16K (2025) -> $10K (2026) -> $9K (2027); scarcity premium above 20% of world supply [design]
+  const share = s.company.compute / worldCompute(s);
+  const perH100eYr = 14000 * Math.pow(0.8, yrs) * (1 + 2 * Math.max(0, share - 0.2));
   const computeCost = (s.company.compute * perH100eYr) / 1e9 / 12;
   const staffCost = (s.company.staff * 0.6) / 1000 / 12;
   const taxes = techTaxes(s).cashPerMonth;
@@ -246,10 +272,8 @@ function economyAndCompute(s: GameState, rng: Rng) {
     if (amt > 0) c.pipeline.push({ day: s.day + 180, amount: amt });
   }
   // Revenue
-  const productCompute = c.compute * s.allocation.product;
-  const demand = clamp(1 + s.pub.approval / 250, 0.6, 1.3) * competitionFactor(s) * (s.policies.militaryWork ? 1.04 : 1);
-  const target = (productCompute * revenuePerH100eYear(s) * demand) / 1e9;
-  c.revenueRun += (target - c.revenueRun) * 0.02; // adoption lag
+  const target = revenueTarget(s);
+  c.revenueRun += (target - c.revenueRun) * 0.04; // adoption lag (~1 month)
   const costs = monthlyCosts(s);
   c.cash += c.revenueRun / 365 - costs.total / 30;
   // Valuation: revenue multiple with hype from R&D multiplier and lead
@@ -469,7 +493,8 @@ export function securityTarget(s: GameState) {
   let lvl = 2.2 + 0.55 * Math.min(s.day / 365 + 0.5, 2);
   if (s.techs.sl3.done && s.techs.sl3.active) lvl = Math.max(lvl, 3);
   if (s.techs.sl4.done && s.techs.sl4.active) lvl = Math.max(lvl, 4);
-  if (s.techs.sl5.done && s.techs.sl5.active) lvl = Math.max(lvl, s.gov.rung >= 2 ? 5 : 4.4); // SL5 needs government help
+  if (s.techs.sl5.done && s.techs.sl5.active) lvl = Math.max(lvl, s.gov.rung >= 2 || s.flags.govSecurityHelp ? 5 : 4.4); // SL5 needs government help
+  if (s.flags.govSecurityHelp) lvl += 0.3; // officials and IC support on security (AI 2027 Feb 2027)
   lvl += clamp((s.allocation.security - 0.03) * 6, -0.3, 0.5) + clamp((s.staffSplit.security - 0.08) * 3, -0.2, 0.3);
   return clamp(lvl, 1, 5.2);
 }
@@ -490,7 +515,7 @@ function security(s: GameState, rng: Rng) {
   c.securityLevel += clamp(target - c.securityLevel, -0.01, 0.006); // ~2 levels/yr max
   // Spies: expected compromised privileged employees (0.5% -> 1% under adversary priority)
   const r = s.china.espionage > 60 ? 0.01 : 0.005;
-  const targetSpies = c.privileged * r * (s.gov.rung >= 3 ? 0.3 : 1);
+  const targetSpies = c.privileged * r * (s.gov.rung >= 3 ? 0.3 : 1) * (s.policies.shareWithAllies ? 1.15 : 1);
   s.china.spies += (targetSpies - s.china.spies) * 0.01;
   // Algorithmic secrets leak while SSL is low
   const ssl = c.securityLevel - 0.6;
@@ -511,11 +536,21 @@ function security(s: GameState, rng: Rng) {
       s.china.p = Math.max(s.china.p, s.p - (progressBreakdown(s).rate * 60) / 365); // ~2 months behind after theft
       s.flags.heist = s.day;
       log(s, 'alert', `${s.model.name} weights stolen. Traffic monitor flags the exfiltration after the fact.`, 5, 'Feb 2027');
+      if (s.flags.bioRisk) {
+        s.pub.concern = clamp(s.pub.concern + 10, 0, 100);
+        s.gov.nationalization = clamp(s.gov.nationalization + 15, 0, 100);
+        log(s, 'gov', 'Stolen weights include unsafeguarded bioweapon uplift. Washington is alarmed.', 4);
+      }
     }
   }
 }
 
 // ---------------- China ----------------
+
+/** Capability of the older model you open-source: ~85% of your public model. */
+export function openWeightsLevel(s: GameState) {
+  return s.model.publicP * 0.85;
+}
 
 function chinaTick(s: GameState, rng: Rng) {
   const ch = s.china;
@@ -545,7 +580,7 @@ function chinaTick(s: GameState, rng: Rng) {
   // Distillation from released US models (open weights / API)
   const pub = Math.max(s.model.publicP, ...s.labs.filter((l) => l.openness > 60).map((l) => l.p));
   if (pub > ch.p) ch.p += (pub - ch.p) * 0.0015 * pre.openSource;
-  if (s.policies.openWeightsOld && s.model.publicP - 0.3 > ch.p) ch.p += (s.model.publicP - 0.3 - ch.p) * 0.003;
+  if (s.policies.openWeightsOld && openWeightsLevel(s) > ch.p) ch.p += (openWeightsLevel(s) - ch.p) * 0.003;
   ch.espionage = clamp(ch.espionage + (lead > 60 ? 0.03 : -0.01) * pre.theft, 0, 100);
   // Taiwan
   const tTarget = 35 + (pre.taiwan - 1) * 25 + (s.gov.chinaRung >= 3 ? 15 : 0) + (lead > 200 && ch.rung >= 2 ? 15 : 0);
@@ -568,6 +603,7 @@ function rivalsTick(s: GameState, rng: Rng) {
     l.p += (actorRate(s, l.p, comp, 0.8 * (1 - 0.25 * (l.safety / 100))) * (s.gov.treaty ? TREATY_SLOWDOWN : 1)) / 365;
     // Catch up via public models (distillation, papers, poaching)
     if (s.model.publicP > l.p) l.p += (s.model.publicP - l.p) * 0.002;
+    if (s.policies.openWeightsOld && openWeightsLevel(s) > l.p) l.p += (openWeightsLevel(s) - l.p) * 0.002;
     l.computeShare = clamp(l.computeShare * (1 + rng.normal(0, 0.0008)), 0.01, 0.2);
     if (l.p > s.model.publicP + 0.02 && !s.flags[`rivalAhead_${l.id}`]) {
       s.flags[`rivalAhead_${l.id}`] = s.day;
@@ -599,7 +635,7 @@ function govTick(s: GameState) {
   g.securityDemand += (clamp(sdTarget, 0, 100) - g.securityDemand) * 0.004;
   // Trust: transparency, security compliance, lobbying fit, military work
   let tTarget = 50 + (brief - 1) * 8 + (s.company.securityLevel - 3) * 8 + (s.policies.militaryWork ? 10 * gp.transactional : -5);
-  tTarget += s.policies.lobbying * (gp.reg > 1 ? 8 : -6);
+  tTarget += s.policies.lobbying * (gp.reg > 1 ? 8 : -6) + (s.policies.shareWithAllies ? 5 : 0) + (s.flags.govSecurityHelp ? 4 : 0);
   tTarget -= misalignment(s, true) * 20 * (g.awareness / 100);
   g.trust += (clamp(tTarget, 0, 100) - g.trust) * 0.005;
   // Regulation stance follows preset, public concern and lobbying
@@ -644,7 +680,7 @@ function publicTick(s: GameState) {
   pb.xrisk += (clamp(40 + (s.flags.leak ? 25 : 0) + s.model.milestone * 2, 0, 100) * pp.xrisk ** 0.3 - pb.xrisk) * 0.003;
   // Approval of OpenBrain: product benefits vs jobs vs PR
   const pr = Math.min(1, s.policies.prPerMonth / 1) * 10;
-  const apTarget = -15 + pr - pb.unemploymentShock * 6 * pp.jobs - (pb.concern - 50) * 0.5 + (s.allocation.product - 0.3) * 20 * pp.benefit;
+  const apTarget = -15 + pr - pb.unemploymentShock * 6 * pp.jobs - (pb.concern - 50) * 0.5 + (s.allocation.product - 0.3) * 20 * pp.benefit + (s.policies.openWeightsOld ? 4 : 0);
   pb.approval += (clamp(apTarget, -100, 100) - pb.approval) * decay;
   // Salience (% naming AI top problem)
   const salTarget = 1 + Math.max(0, pb.concern - 45) * 0.25 + pb.unemploymentShock * 3 + (s.flags.leak ? 15 : 0);

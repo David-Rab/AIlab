@@ -29,6 +29,16 @@ const adj = (v: number, d: number, lo = 0, hi = 100) => clamp(v + d, lo, hi);
 
 export const EVENTS: EventDef[] = [
   {
+    id: 'cashCrunch', title: 'Cash crunch', icon: 'company', repeat: 45,
+    when: (s) => s.company.cash < 3,
+    text: (s) => `Cash is down to $${s.company.cash.toFixed(1)}B. Compute bills and payroll are due. Below −$5B the company fails.`,
+    choices: [
+      { label: 'Emergency raise', hint: 'Cash from investors on bad terms · board confidence −10', apply: (s) => { s.company.cash += s.company.valuation * 0.05; s.company.boardConfidence = adj(s.company.boardConfidence, -10); s.company.lastRaiseDay = s.day; } },
+      { label: 'Freeze expansion', hint: 'Expansion to 0% · no new compute deposits', apply: (s) => { s.policies.expansion = 0; } },
+      { label: 'Sell 15% of compute', hint: 'Cash now · progress and revenue fall', tone: 'neg', apply: (s) => { const sold = s.company.compute * 0.15; s.company.compute -= sold; s.company.cash += (sold * 15000) / 1e9; } },
+    ],
+  },
+  {
     id: 'rivalCatchup', title: 'Rival catches up', icon: 'rival', canon: 'Early 2026', repeat: 150,
     // AI 2027 releases stop at SC level (Agent-3-mini); no public frontier releases during takeoff
     when: (s) => s.model.milestone <= 3 && s.labs.some((l) => !l.absorbed && l.p > s.model.publicP + 0.03) && s.p > s.model.publicP + 0.08,
@@ -109,7 +119,7 @@ export const EVENTS: EventDef[] = [
     when: (s) => s.model.milestone >= 3,
     text: () => 'You promised the UK AISI pre-deployment access. Internal use is technically not "deployment".',
     choices: [
-      { label: 'Share with UK AISI', hint: 'Ally trust · small leak risk', tone: 'pos', apply: (s) => { s.policies.shareWithAllies = true; } },
+      { label: 'Share with UK AISI', hint: 'Gov trust up · more people see the model (spy risk)', tone: 'pos', apply: (s) => { s.policies.shareWithAllies = true; s.flags.alliesDark = false; } },
       { label: 'Use the loophole', hint: 'Outrage later if exposed', apply: (s) => { s.policies.shareWithAllies = false; s.flags.alliesDark = true; } },
     ],
   },
@@ -221,8 +231,8 @@ export const EVENT_BY_ID: Record<string, EventDef> = Object.fromEntries(EVENTS.m
 // ---------------- Helpers used by choices and UI actions ----------------
 
 export function release(s: GameState, behind: number) {
-  const p = Math.max(s.model.publicP, s.p - behind * Math.max(0.3, s.p - s.model.publicP));
-  s.model.publicP = p;
+  // behind = 0: ship the frontier; 0.3: a distilled mini at ~70% of the way from the current public model
+  s.model.publicP = s.model.publicP + (1 - behind) * Math.max(0, s.p - s.model.publicP);
   s.model.publicName = behind > 0.1 ? `${s.model.name}-mini` : s.model.name;
   s.pub.concern = adj(s.pub.concern, 2);
   log(s, 'company', `${s.model.publicName} released to the public.`, 2);
@@ -251,12 +261,22 @@ function rollback(s: GameState) {
 
 function leakEffects(s: GameState, k: number) {
   s.flags.leak = s.day;
+  if (s.flags.hidReplication) {
+    s.pub.approval = adj(s.pub.approval, -10, -100, 100);
+    s.gov.trust = adj(s.gov.trust, -10);
+    log(s, 'gov', 'The leak reveals you hid escape-capability evals from the government.', 4);
+  }
   s.pub.concern = adj(s.pub.concern, 15 * k);
   s.pub.approval = adj(s.pub.approval, -20 * k, -100, 100);
   s.pub.salience = adj(s.pub.salience, 12 * k);
   s.gov.awareness = adj(s.gov.awareness, 30);
   s.china.diplomacy = adj(s.china.diplomacy, 15);
-  if (s.flags.alliesDark) log(s, 'gov', 'European leaders accuse the US of building rogue AGI; pause summit called.', 3, 'Oct 2027');
+  if (s.flags.alliesDark && !s.policies.shareWithAllies) {
+    s.gov.trust = adj(s.gov.trust, -5);
+    s.pub.approval = adj(s.pub.approval, -5, -100, 100);
+    s.china.diplomacy = adj(s.china.diplomacy, 10);
+    log(s, 'gov', 'European leaders accuse the US of building rogue AGI; pause summit called.', 3, 'Oct 2027');
+  }
 }
 
 function dpa(s: GameState) {

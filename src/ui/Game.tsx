@@ -6,7 +6,7 @@ import { MILESTONES, horizonAt, milestoneThresholds } from '../data/world';
 import { EVENT_BY_ID, release } from '../engine/events';
 import { clamp } from '../engine/rng';
 import {
-  alignEffort, bestRival, copiesOf, leadDays, misalignment, monthlyCosts, monthlyOrder, progressBreakdown, revenuePerH100eYear, securityTarget, speedOf, worldCompute,
+  alignEffort, bestRival, computeCapped, copiesOf, leadDays, misalignment, monthlyCosts, monthlyOrder, revenueTarget, revenueTargetIf, progressBreakdown, revenuePerH100eYear, securityTarget, speedOf, worldCompute,
 } from '../engine/sim';
 import { dateOf, fmtDate, fmtMonth } from '../engine/time';
 import type { GameState } from '../engine/types';
@@ -67,6 +67,11 @@ function Stat({ icon, label, value, tone, tip }: { icon: ReactNode; label: strin
   );
 }
 
+function Trend({ now, target }: { now: number; target: number }) {
+  if (Math.abs(target - now) / Math.max(1, now) < 0.03) return null;
+  return <span className={target > now ? 'tone-pos' : 'tone-neg'}>{target > now ? '▲' : '▼'}</span>;
+}
+
 function TopBar({ s }: { s: GameState }) {
   const c = s.company;
   const costs = monthlyCosts(s);
@@ -106,8 +111,9 @@ function TopBar({ s }: { s: GameState }) {
             { label: 'Net / mo', value: fmtB(net), tone: net >= 0 ? 'pos' : 'neg' },
           ]} footer="Below −$5B the company fails. Raise capital from the Strategy panel." />
         )} />
-        <Stat icon={<TrendingUp size={15} />} label="Revenue" value={`${fmtB(c.revenueRun)}/yr`} tip={() => (
+        <Stat icon={<TrendingUp size={15} />} label="Revenue" value={<>{fmtB(c.revenueRun)}/yr <Trend now={c.revenueRun} target={revenueTarget(s)} /></>} tip={() => (
           <TipCard title="Revenue run-rate" value={fmtB(c.revenueRun)} rows={[
+            { label: 'Heading to', value: fmtB(revenueTarget(s)), tone: revenueTarget(s) >= c.revenueRun ? 'pos' : 'neg' },
             { label: 'Product compute', value: fmtNum(c.compute * s.allocation.product) },
             { label: 'Value per H100e-yr', value: `$${fmtNum(revenuePerH100eYear(s))}` },
             { label: <>Sold model (<Term id="publicModel" />)</>, value: s.model.publicName },
@@ -260,9 +266,9 @@ function StrategyPanel({ s }: { s: GameState }) {
       </Section>
       <Section title="Growth">
         <div className="alloc-row">
-          <Tip className="alloc-label has-tip" content={() => <TipCard title="Compute expansion" value={`+${fmtNum(monthlyOrder(s))}/mo`}>Target growth per year. Orders arrive after ~6 months; 25% deposit up front. Capped at a quarter of world supply. AI 2027 leader: ~3x/yr.</TipCard>}>Expansion</Tip>
+          <Tip className="alloc-label has-tip" content={() => <TipCard title="Compute expansion" value={`+${fmtNum(monthlyOrder(s))}/mo`}>Target growth per year. Orders arrive after ~6 months; 25% deposit up front. Capped at 35% of world supply, with a price premium above 20%. AI 2027 leader: ~3.4x/yr.{computeCapped(s) ? ' You are at the cap: more expansion does nothing.' : ''}</TipCard>}>Expansion</Tip>
           <Slider value={s.policies.expansion} min={0} max={4} step={0.1} width={96} onChange={(v) => act((st) => { st.policies.expansion = v; })} />
-          <span className="num alloc-val">+{Math.round(s.policies.expansion * 100)}%</span>
+          <span className={`num alloc-val ${computeCapped(s) && s.policies.expansion > 0 ? 'tone-warn' : ''}`}>{computeCapped(s) && s.policies.expansion > 0 ? 'cap' : `+${Math.round(s.policies.expansion * 100)}%`}</span>
         </div>
         <div className="alloc-row">
           <span className="alloc-label">Hires/mo</span>
@@ -276,12 +282,13 @@ function StrategyPanel({ s }: { s: GameState }) {
         </Tip>
       </Section>
       <Section title="Model" right={<span className="dim">{s.model.publicName} public</span>}>
+        <Row label="Public lags internal by"><span className="num">{fmtDays(Math.max(0, leadDays(s, s.model.publicP)))}</span></Row>
         <div className="btn-row">
-          <Tip content={() => <TipCard title="Release frontier">Ship your internal model. Revenue up; rivals and China can distill it; job disruption grows.</TipCard>}>
-            <button className="btn btn-sm" disabled={gap < 0.02} onClick={() => act((st) => release(st, 0))}>Release</button>
+          <Tip content={() => <ReleaseTip s={s} frac={1} title={`Release ${s.model.name}`} body="Ship your internal frontier. Revenue up; rivals and China can distill it; job disruption grows." />}>
+            <button className="btn btn-sm" disabled={gap < 0.01} onClick={() => act((st) => release(st, 0))}>Release</button>
           </Tip>
-          <Tip content={() => <TipCard title="Release mini">A cheaper distilled version. Smaller boost, keeps most of your lead.</TipCard>}>
-            <button className="btn btn-sm" disabled={gap < 0.05} onClick={() => act((st) => release(st, 0.3))}>Release mini</button>
+          <Tip content={() => <ReleaseTip s={s} frac={0.7} title="Release mini" body="A cheaper distilled version, ~70% of the way to your frontier. Keeps most of your lead." />}>
+            <button className="btn btn-sm" disabled={gap < 0.01} onClick={() => act((st) => release(st, 0.3))}>Release mini</button>
           </Tip>
         </div>
         <Row label="Pause frontier R&D" tip={() => <TipCard title="Pause">Progress drops to 5%. Board confidence falls. Gives safety research time.</TipCard>}>
@@ -325,6 +332,20 @@ function StrategyPanel({ s }: { s: GameState }) {
         </Row>
       </Section>
     </aside>
+  );
+}
+
+function ReleaseTip({ s, frac, title, body }: { s: GameState; frac: number; title: string; body: string }) {
+  const gap = s.p - s.model.publicP;
+  const newP = s.model.publicP + frac * Math.max(0, gap);
+  return (
+    <TipCard title={title} rows={[
+      { label: 'Revenue target now', value: fmtB(revenueTarget(s)) },
+      { label: 'After release', value: fmtB(revenueTargetIf(s, newP)), tone: 'pos' },
+      { label: 'Public lags internal', value: fmtDays(Math.max(0, leadDays(s, s.model.publicP))) },
+    ]} footer={gap < 0.01 ? 'Disabled: your public model is already your frontier.' : 'Revenue moves toward the target over ~1 month.'}>
+      {body}
+    </TipCard>
   );
 }
 

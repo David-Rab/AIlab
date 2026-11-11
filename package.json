@@ -8,7 +8,9 @@
     "build": "tsc --noEmit -p . && vite build",
     "typecheck": "tsc --noEmit -p .",
     "sim": "tsx scripts/simtest.ts",
-    "shots": "node scripts/shot.mjs"
+    "shots": "node scripts/shot.mjs",
+    "test:effects": "tsx scripts/controltest.ts",
+    "test:ui": "vite build && node scripts/uitest.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.72.0",
