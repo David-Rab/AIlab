@@ -166,7 +166,7 @@ export function makeWorld(rng: Rng, preset: WorldPresetId, align: AlignDiffId, b
   let w: World;
   switch (preset) {
     case 'ai2027':
-      w = build('AI 2027 scenario', { h0, T: 4.74, growth: 'super', decay: 0.1, g0: 24, cs: 3.9, share: 0.5, pEx: 0.15, sEx: 4, G: [4.19, 16, 49.5] });
+      w = build('AI 2027 scenario', { h0, T: 4.74, growth: 'super', decay: 0.1, g0: 20, cs: 3.9, share: 0.5, pEx: 0.15, sEx: 4, G: [4.19, 16, 49.5] });
       w.neuraleseBoost = 1.3;
       break;
     case 'authors2026':

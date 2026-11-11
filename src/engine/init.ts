@@ -1,7 +1,7 @@
 import { CHINA_PRESETS, GOV_PRESETS, LAB_ARCHETYPES, PUBLIC_PRESETS, RIVAL_NAMES } from '../data/actors';
 import { TECHS } from '../data/techs';
 import { TRAITS } from '../data/traits';
-import { BASELINES, makeWorld } from '../data/world';
+import { BASELINES, makeWorld, multiplierAt } from '../data/world';
 import { Rng } from './rng';
 import type { GameState, Lab, Setup, TraitState } from './types';
 
@@ -34,7 +34,7 @@ const START_TRAITS: Record<string, number> = {
 export function newGame(setup: Setup): GameState {
   const rng = new Rng(setup.seed);
   const base = BASELINES.find((b) => b.id === setup.baseline) ?? BASELINES[0];
-  const world = makeWorld(rng, setup.world, setup.alignment);
+  const world = makeWorld(rng, setup.world, setup.alignment, setup.baseline);
   const s = base.start;
 
   const traits: Record<string, TraitState> = {};
@@ -56,7 +56,8 @@ export function newGame(setup: Setup): GameState {
   const labs: Lab[] = [];
   for (let i = 0; i < 3; i++) {
     const arch = pickPreset(rng, LAB_ARCHETYPES, setup.rivals);
-    const gap = rng.range(arch.gapYears[0], arch.gapYears[1]);
+    // Reality: the frontier is shared by ~3 labs within 0-2 months (research/09).
+    const gap = rng.range(arch.gapYears[0], arch.gapYears[1]) * (setup.baseline === 'reality' ? 0.3 : 1);
     labs.push({
       id: `lab${i}`,
       name: RIVAL_NAMES[i],
@@ -80,7 +81,7 @@ export function newGame(setup: Setup): GameState {
     day: 0,
     startDate: base.startDate,
     p: startP,
-    rdMult: world.mult[0],
+    rdMult: multiplierAt(world, 0),
     milestoneDays: { 0: 0 },
     allocation: { capabilities: 0.62, alignment: 0.02, product: 0.32, security: 0.04 },
     staffSplit: { capabilities: 0.82, alignment: 0.1, security: 0.08 },

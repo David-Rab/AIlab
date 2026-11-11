@@ -18,14 +18,24 @@ export interface Setup {
 
 /** Hidden world parameters, sampled at game start. */
 export interface World {
-  /** Human-only research-years (at reference compute) from game start to Superhuman Coder */
-  pSC: number;
-  /** Human-only research-years between later milestones */
-  gapSAR: number;
-  gapSIAR: number;
-  gapASI: number;
-  /** R&D multiplier at each milestone index 0..6 */
-  mult: number[];
+  label: string;
+  /** 80% time horizon at game start (minutes) and horizon needed for Superhuman Coder */
+  h0: number;
+  hSC: number;
+  /** Horizon doubling time (months) and growth type */
+  T: number;
+  growth: 'super' | 'exp' | 'sub';
+  decay: number;
+  /** Months of 2025-pace progress for horizon growth (g0) + cost/speed gap (cs) = base0 */
+  g0: number;
+  cs: number;
+  base0: number;
+  /** Software share of progress, present and SC multiplier excess (M = 1 + p*(s/p)^f) */
+  share: number;
+  pEx: number;
+  sEx: number;
+  /** Human-only research-years SC->SAR, SAR->SIAR, SIAR->ASI */
+  G: [number, number, number];
   /** Elasticity of progress to capabilities compute relative to reference path */
   computeElasticity: number;
   /** Global compute growth per year */
@@ -38,7 +48,6 @@ export interface World {
   chinaEfficiency: number;
   /** Neuralese speedup to progress if adopted */
   neuraleseBoost: number;
-  label: string;
 }
 
 export interface Allocation {
