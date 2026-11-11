@@ -196,3 +196,4 @@
 .ending-grid { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 10px; }
 .ending-traits { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; }
 .ending-trait { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 12px; }
+.ending .row-value { white-space: nowrap; }

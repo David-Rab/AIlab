@@ -1,0 +1,16 @@
+import { chromium } from 'playwright-core';
+import path from 'node:path';
+const url = 'file:///' + path.resolve('dist/index.html').split(path.sep).join('/');
+const browser = await chromium.launch({ channel: 'msedge', headless: true });
+const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+const errors = [];
+page.on('pageerror', (e) => errors.push(e.message));
+await page.goto(url);
+await page.getByRole('button', { name: 'New game' }).click();
+await page.getByRole('button', { name: /Start/ }).click();
+await page.evaluate(() => { const s = window.ai27.state; s.p = 999; s.model.milestone = 5; for (let i = 1; i <= 6; i++) s.milestoneDays[i] = 200 + i * 60; s.day = 900; });
+await page.keyboard.press('Digit1');
+await page.waitForTimeout(2500);
+await page.screenshot({ path: 'scripts/shots/8-ending.png' });
+console.log(errors.join('\n') || 'no errors');
+await browser.close();

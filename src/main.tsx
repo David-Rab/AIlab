@@ -2,10 +2,13 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { GameScreen } from './ui/Game';
 import { SetupScreen, StartScreen } from './ui/Menus';
-import { useStore } from './ui/store';
+import { store, useStore } from './ui/store';
 import { TooltipProvider } from './ui/Tooltip';
 import './ui/styles.css';
 import './ui/layout.css';
+
+// Debug handle: window.ai27.state in the console
+(window as unknown as { ai27: typeof store }).ai27 = store;
 
 function App() {
   const st = useStore();

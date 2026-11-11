@@ -1,6 +1,7 @@
 import { Banknote, Brain, Building2, ChevronsRight, Cpu, Flag, Gauge, Home, Landmark, Pause, Play, Save, ShieldAlert, Swords, TrendingUp, Users } from 'lucide-react';
 import { useEffect, type ReactNode } from 'react';
 import { CHINA_PRESETS, GOV_PRESETS, LAB_ARCHETYPES, PUBLIC_PRESETS } from '../data/actors';
+import { TRAIT_BY_ID } from '../data/traits';
 import { MILESTONES, horizonAt, milestoneThresholds } from '../data/world';
 import { EVENT_BY_ID, release } from '../engine/events';
 import { clamp } from '../engine/rng';
@@ -420,7 +421,7 @@ function EndingScreen({ s }: { s: GameState }) {
           </Section>
           <Section title="Your timeline vs AI 2027">
             {MILESTONES.map((m) => (
-              <Row key={m.idx} label={m.name}>
+              <Row key={m.idx} label={m.short}>
                 <span className="num">{s.milestoneDays[m.idx] !== undefined ? fmtMonth(dateOf(s, s.milestoneDays[m.idx])) : '—'}</span>
                 <span className="dim num"> · {m.canon}</span>
               </Row>
@@ -431,7 +432,7 @@ function EndingScreen({ s }: { s: GameState }) {
             <div className="ending-traits">
               {Object.entries(s.model.traits).filter(([, t]) => t.value > 0.15 || t.est > 0.15).sort((a, b) => b[1].value - a[1].value).slice(0, 12).map(([id, t]) => (
                 <div key={id} className="ending-trait">
-                  <span>{id}</span>
+                  <span>{TRAIT_BY_ID[id]?.name ?? id}</span>
                   <Meter value={t.value} max={1} color="var(--neg)" marker={t.est} width={90} />
                 </div>
               ))}
