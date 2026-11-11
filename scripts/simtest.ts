@@ -26,11 +26,11 @@ for (let r = 0; r < runs; r++) {
   }
   while (!s.ending && s.day < 365 * 6) {
     if (s.day % 30 === 0) {
-      if (s.company.cash < 15 && s.day - s.company.lastRaiseDay > 120) {
+      if (bot !== 'passive' && s.company.cash < 15 && s.day - s.company.lastRaiseDay > 120) {
         s.company.cash += s.company.valuation * 0.08;
         s.company.lastRaiseDay = s.day;
       }
-      if (s.p - s.model.publicP > 0.25) {
+      if (bot !== 'passive' && s.p - s.model.publicP > 0.25) {
         s.model.publicP = s.p - 0.1;
         s.model.publicName = s.model.name + '-mini';
       }
