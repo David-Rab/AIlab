@@ -36,6 +36,12 @@ export interface World {
   sEx: number;
   /** Human-only research-years SC->SAR, SAR->SIAR, SIAR->ASI */
   G: [number, number, number];
+  /** Progress already made at game start (sampled worlds start mid-trajectory) */
+  p0: number;
+  /** Use AI Futures Model compute tables instead of AI 2027 growth rates */
+  aifm: boolean;
+  /** Override the SAR multiplier anchor (default max(25, 1+sEx)) */
+  sarSpeed?: number;
   /** Elasticity of progress to capabilities compute relative to reference path */
   computeElasticity: number;
   /** Global compute growth per year */

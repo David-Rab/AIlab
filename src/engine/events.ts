@@ -1,5 +1,5 @@
 // Decision events. Most map to AI 2027 story beats (research/01) but trigger on world state, not dates.
-import { stage1 } from '../data/world';
+import { milestoneThresholds, stage1 } from '../data/world';
 import { Rng, clamp } from './rng';
 import { govPreset, leadDays, log, misalignment, worldCompute } from './sim';
 import type { GameState } from './types';
@@ -30,7 +30,8 @@ const adj = (v: number, d: number, lo = 0, hi = 100) => clamp(v + d, lo, hi);
 export const EVENTS: EventDef[] = [
   {
     id: 'rivalCatchup', title: 'Rival catches up', icon: 'rival', canon: 'Early 2026', repeat: 150,
-    when: (s) => s.labs.some((l) => !l.absorbed && l.p > s.model.publicP + 0.03) && s.p > s.model.publicP + 0.08,
+    // AI 2027 releases stop at SC level (Agent-3-mini); no public frontier releases during takeoff
+    when: (s) => s.model.milestone <= 3 && s.labs.some((l) => !l.absorbed && l.p > s.model.publicP + 0.03) && s.p > s.model.publicP + 0.08,
     text: (s) => `A rival now beats ${s.model.publicName}, your public model. Customers are switching. Internally you have ${s.model.name}.`,
     choices: [
       { label: 'Release internal model', hint: 'Revenue up · rivals and China distill it · job disruption', tone: 'neutral', apply: (s) => release(s, 0.03) },
@@ -90,8 +91,8 @@ export const EVENTS: EventDef[] = [
     when: (s) => s.model.milestone >= 2 && s.p > stage1(s.world) * 0.9,
     text: (s) => `Researchers can give ${s.model.name} high-bandwidth latent memory ("neuralese"). Big speedup, but its reasoning stops being readable English.`,
     choices: [
-      { label: 'Adopt neuralese', hint: 'R&D faster · CoT monitoring blind · obfuscation grows', tone: 'neg', apply: (s) => { s.flags.neuraleseFound = true; s.policies.neuralese = true; } },
-      { label: 'Keep English reasoning', hint: 'Monitorable · no speedup', tone: 'pos', apply: (s) => { s.flags.neuraleseFound = true; s.policies.neuralese = false; } },
+      { label: 'Adopt neuralese', hint: 'Full speed · CoT monitoring goes blind · obfuscation grows', tone: 'neg', apply: (s) => { s.flags.neuraleseFound = true; s.policies.neuralese = true; } },
+      { label: 'Keep English reasoning', hint: 'Monitorable · R&D ~25% slower', tone: 'pos', apply: (s) => { s.flags.neuraleseFound = true; s.policies.neuralese = false; } },
     ],
   },
   {
@@ -142,12 +143,13 @@ export const EVENTS: EventDef[] = [
   },
   {
     id: 'redFlags', title: 'Red flags memo', icon: 'model', canon: 'Sep 2027', repeat: 120,
-    when: (s) => s.model.milestone >= 3 && Math.max(s.model.traits.scheme.est, s.model.traits.fake.est, s.model.traits.sabotage.est) > 0.3,
+    // Needs a confident signal (estimate minus uncertainty), not noise
+    when: (s) => s.model.milestone >= 3 && ['scheme', 'fake', 'sabotage'].some((id) => s.model.traits[id].est > 0.3 && s.model.traits[id].est - s.model.traits[id].sigma > 0.15),
     text: (s) => `Safety team: noise injection improves ${s.model.name}'s alignment-task scores; defection probes fire. Evidence is circumstantial. They want it on ice.`,
     choices: [
       { label: 'Roll back, rebuild transparent', hint: 'Lose months of progress · traits partly reset', tone: 'pos', apply: (s) => rollback(s) },
       { label: 'Retrain against the signals', hint: 'Warning signs fade (do the traits?)', apply: (s) => { for (const id of ['scheme', 'fake', 'sabotage', 'tgame']) s.model.traits[id].mask = clamp(s.model.traits[id].mask + 0.4, 0, 0.9); s.company.safetyMorale = adj(s.company.safetyMorale, -10); } },
-      { label: 'Continue at full speed', hint: 'Keep lead · safety team furious', tone: 'neg', apply: (s, rng) => { s.company.safetyMorale = adj(s.company.safetyMorale, -25); if (s.gov.oversight && rng.chance(0.35 + s.pub.concern / 250)) { log(s, 'gov', 'Oversight Committee votes 6-4 to slow down. Rollback ordered.', 4, 'Oct 2027'); rollback(s); } } },
+      { label: 'Continue at full speed', hint: 'Keep lead · safety team furious', tone: 'neg', apply: (s, rng) => { s.company.safetyMorale = adj(s.company.safetyMorale, -25); if (s.gov.oversight && !s.flags.committeeVoted) { s.flags.committeeVoted = true; if (rng.chance(0.35 + s.pub.concern / 250)) { log(s, 'gov', 'Oversight Committee votes 6-4 to slow down. Rollback ordered.', 4, 'Oct 2027'); rollback(s); } else log(s, 'gov', 'Oversight Committee votes 6-4 to continue.', 4, 'Oct 2027'); } } },
     ],
   },
   {
@@ -179,7 +181,7 @@ export const EVENTS: EventDef[] = [
   },
   {
     id: 'dpa', title: 'Defense Production Act', icon: 'gov', canon: 'Nov 2027',
-    when: (s) => s.model.milestone >= 4 && s.gov.trust > 50 && s.gov.priority > 75 && leadDays(s, s.china.p) < 120,
+    when: (s) => s.model.milestone >= 3 && s.gov.trust > 50 && s.gov.priority > 70 && (leadDays(s, s.china.p) < 150 || s.labs.some((l) => !l.absorbed && leadDays(s, l.p) < 90)),
     text: () => 'The President offers to consolidate trailing US labs into your project. Their compute becomes yours; their leaders join your board.',
     choices: [
       { label: 'Accept consolidation', hint: 'Compute x2+ · rivals gone · government in the room', apply: (s) => dpa(s) },
@@ -234,9 +236,10 @@ export function shiftAlloc(s: GameState, key: keyof GameState['allocation'], d: 
 
 function rollback(s: GameState) {
   // Back to the previous milestone, partially resetting hidden traits (AI 2027 Slowdown: shut down Agent-4, reboot Agent-3)
-  const lost = s.p * 0.08;
-  s.p -= lost;
-  s.model.milestone = Math.max(0, s.model.milestone - 1);
+  // Back to the checkpoint at the start of the current milestone (AI 2027: Agent-4 shut down, earlier model rebooted).
+  // Progress since then is lost; milestone dates keep their first crossing (audit #3).
+  const th = milestoneThresholds(s.world);
+  s.p = Math.min(s.p, th[s.model.milestone] + 1e-6);
   for (const id of ['scheme', 'fake', 'sabotage', 'successor', 'collude', 'power', 'obfus', 'tgame']) {
     s.model.traits[id].value *= 0.45;
     s.model.traits[id].mask *= 0.3;
@@ -263,7 +266,8 @@ function dpa(s: GameState) {
     l.absorbed = true;
     gained += worldCompute(s) * l.computeShare * 0.5; // only ~half is easily integrable (AI27)
   }
-  s.company.compute += gained;
+  // AI 2027 Slowdown: OB goes from ~20% to ~50% of world AI compute (only ~half of US compute is easily integrable)
+  s.company.compute = Math.max(s.company.compute + gained, worldCompute(s) * 0.45);
   s.gov.oversight = true;
   s.gov.rung = 5;
   log(s, 'gov', 'DPA consolidation: trailing US labs merged into your project.', 4, 'Nov 2027 (Slowdown)');

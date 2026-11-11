@@ -2,10 +2,11 @@
 import { CHINA_PRESETS, GOV_PRESETS, LAB_ARCHETYPES, PUBLIC_PRESETS } from '../data/actors';
 import { TECHS, TECH_BY_ID } from '../data/techs';
 import { TRAITS, TRAIT_BY_ID, VIRTUES, VIRTUE_BLOCKS, type Pressure } from '../data/traits';
-import { BASELINES, MILESTONES, capIndex, globalCompute, milestoneAt, multiplierAt, refCapCompute, stage1 } from '../data/world';
+import { BASELINES, MILESTONES, capIndex, computePace, globalCompute, laborSlowdown, milestoneAt, multiplierAt, refCapCompute, stage1 } from '../data/world';
 import { checkEndings } from './endings';
 import { checkEvents } from './events';
 import { Rng, clamp } from './rng';
+import { decimalYear } from './time';
 import type { GameState, LogEntry } from './types';
 
 export const govPreset = (s: GameState) => GOV_PRESETS.find((p) => p.id === s.gov.preset) ?? GOV_PRESETS[0];
@@ -38,7 +39,7 @@ export function techTaxes(s: GameState) {
 
 export function worldCompute(s: GameState) {
   const base = BASELINES.find((b) => b.id === s.setup.baseline) ?? BASELINES[0];
-  return globalCompute(base.start.globalCompute, s.day / 365, s.world.computeGrowth);
+  return globalCompute(s.world, base.start.globalCompute, s.day / 365);
 }
 
 /** Alignment effort: scales counter strength and detection clarity. 1.0 at ~3% compute + 250 staff. */
@@ -68,31 +69,40 @@ export interface ProgressBreakdown {
   rate: number; // years of progress per year
 }
 
+/** A verified US-China treaty slows every frontier project (AI 2027 Slowdown-style deal). [design] */
+export const TREATY_SLOWDOWN = 0.35;
+
 export function progressBreakdown(s: GameState): ProgressBreakdown {
   const w = s.world;
   const taxes = techTaxes(s);
   const capShare = Math.max(0.02, s.allocation.capabilities - taxes.computeShare);
   const capCompute = s.company.compute * capShare;
-  const computeFactor = clamp(Math.pow(capCompute / refCapCompute(s.day / 365, w.computeGrowth), w.computeElasticity), 0.15, 4);
-  const talentFactor = clamp(Math.pow((s.company.staff * s.staffSplit.capabilities) / 2050, 0.25), 0.4, 1.6);
-  const neuralese = s.policies.neuralese && s.flags.neuraleseFound ? w.neuraleseBoost : 1;
+  const computeFactor = clamp(Math.pow(capCompute / refCapCompute(w, s.day / 365), w.computeElasticity), 0.15, 4);
+  // Labor growth is already in the 2024-pace baseline: normalise to the default hiring path (audit #12)
+  const refStaff = 2050 + 0.82 * 60 * (s.day / 30.4);
+  const talentFactor = clamp(Math.pow((s.company.staff * s.staffSplit.capabilities) / refStaff, 0.25), 0.4, 1.6);
+  // The scenario path includes neuralese; refusing it costs speed (audit #10)
+  const neuralese = s.flags.neuraleseFound && !s.policies.neuralese ? 1 / w.neuraleseBoost : 1;
   const silo = [1, 0.96, 0.9][s.policies.siloing] ?? 1;
   const sabotage = 1 - (s.flags.chinaSabotage as number || 0);
   const mult = multiplierAt(w, s.p);
   const human = talentFactor * taxes.rdFactor * neuralese * silo * sabotage;
+  const yr = decimalYear(s);
   let rate: number;
-  if (s.p < stage1(w)) rate = w.share * mult * human + (1 - w.share) * computeFactor;
+  if (s.p < stage1(w)) rate = w.share * laborSlowdown(mult * human, yr) + (1 - w.share) * computeFactor * computePace(yr);
   else rate = mult * computeFactor * human;
   if (s.flags.paused) rate *= 0.05;
+  if (s.gov.treaty) rate *= TREATY_SLOWDOWN;
   return { mult, computeFactor, talentFactor, taxFactor: taxes.rdFactor, neuralese, silo, sabotage, rate };
 }
 
 /** Rival / China progress rate using the same engine with their compute */
 function actorRate(s: GameState, p: number, compute: number, eff: number) {
   const w = s.world;
-  const cf = clamp(Math.pow(compute / refCapCompute(s.day / 365, w.computeGrowth), w.computeElasticity), 0.05, 4);
+  const cf = clamp(Math.pow(compute / refCapCompute(w, s.day / 365), w.computeElasticity), 0.05, 4);
   const mult = multiplierAt(w, p);
-  return p < stage1(w) ? w.share * mult * eff + (1 - w.share) * cf : mult * cf * eff;
+  const yr = decimalYear(s);
+  return p < stage1(w) ? w.share * laborSlowdown(mult * eff, yr) + (1 - w.share) * cf * computePace(yr) : mult * cf * eff;
 }
 
 /** Days since OpenBrain was at progress p (lead in days). Negative if other is ahead. */
@@ -175,7 +185,7 @@ function checkMilestone(s: GameState) {
   const m = milestoneAt(s.world, s.p);
   if (m > s.model.milestone) {
     for (let i = s.model.milestone + 1; i <= m; i++) {
-      s.milestoneDays[i] = s.day;
+      if (s.milestoneDays[i] === undefined) s.milestoneDays[i] = s.day; // first crossing
       const ms = MILESTONES[i];
       const safer = s.techs.cotkeep?.done && s.techs.cotkeep.active && s.techs.goaltrain?.done;
       s.model.name = safer ? `Safer-${Math.max(1, i - 2)}` : ms.model;
@@ -189,7 +199,8 @@ function checkMilestone(s: GameState) {
 
 export function revenuePerH100eYear(s: GameState) {
   const m = multiplierAt(s.world, s.model.publicP);
-  return 32000 * Math.pow(m, 0.45);
+  // Compute forecast: ~$47k/H100e-yr external deployment (2025) rising to ~$75k (2027) (audit #14)
+  return 40000 * Math.pow(Math.min(m, 8), 0.3);
 }
 
 export function competitionFactor(s: GameState) {
@@ -201,8 +212,9 @@ export function competitionFactor(s: GameState) {
 
 /** H100e contracted per month: expansion target, capped at a quarter of world supply. */
 export function monthlyOrder(s: GameState) {
-  const want = s.company.compute * (Math.pow(1 + s.policies.expansion, 1 / 12) - 1);
+  // Grow the whole contracted fleet (installed + pipeline), so deliveries track the target growth rate
   const inPipe = s.company.pipeline.reduce((a, o) => a + o.amount, 0);
+  const want = (s.company.compute + inPipe) * (Math.pow(1 + s.policies.expansion, 1 / 12) - 1);
   return Math.max(0, Math.min(want, worldCompute(s) * 0.25 - s.company.compute - inPipe));
 }
 
@@ -243,7 +255,7 @@ function economyAndCompute(s: GameState, rng: Rng) {
   // Valuation: revenue multiple with hype from R&D multiplier and lead
   const lead = leadDays(s, Math.max(bestRival(s)?.p ?? 0, s.china.p));
   const hype = 1 + 0.08 * Math.log(s.rdMult) + clamp(lead / 365, -0.3, 0.5);
-  // AI27 dashboard: ~50x revenue at $12B, ~33x at $300B, ~21x at $950B
+  // [design] AI 2027 gives no valuation path; revenue multiple shrinks with scale
   const multiple = 50 * Math.pow(Math.max(1, c.revenueRun) / 12, -0.2);
   const target_val = c.revenueRun * multiple * hype * clamp(c.boardConfidence / 70, 0.5, 1.3);
   c.valuation += (target_val - c.valuation) * 0.01;
@@ -321,11 +333,12 @@ function pressures(s: GameState): Record<Pressure, number> {
 /** Number of parallel copies of the best model running research (AI27 copies x speed). */
 export function copiesOf(s: GameState) {
   const rd = s.company.compute * s.allocation.capabilities * 0.1;
-  return Math.max(1000, rd * 0.4 * Math.pow(s.rdMult, 0.3));
+  return Math.max(1000, rd * 0.4 * Math.pow(Math.min(s.rdMult, 10), 0.3));
 }
 
 export function speedOf(s: GameState) {
-  return 8 + 6 * Math.log2(s.rdMult) * 1.8;
+  const v = 8 + 10.8 * Math.log2(s.rdMult);
+  return s.model.milestone >= 6 ? v : Math.min(50, v); // scenario: ~50x at Agent-4
 }
 
 function traitsTick(s: GameState, rng: Rng, dLogMult: number) {
@@ -452,10 +465,11 @@ function incidents(s: GameState, rng: Rng) {
 // ---------------- Security & theft ----------------
 
 export function securityTarget(s: GameState) {
-  let lvl = 2.2;
-  if (s.techs.sl3.done && s.techs.sl3.active) lvl = 3;
-  if (s.techs.sl4.done && s.techs.sl4.active) lvl = 4;
-  if (s.techs.sl5.done && s.techs.sl5.active) lvl = s.gov.rung >= 2 ? 5 : 4.4; // SL5 needs government help
+  // Status quo drift: WSL 2.2 (Dec 2024) -> 3.3 (Dec 2026) with no special effort (security forecast)
+  let lvl = 2.2 + 0.55 * Math.min(s.day / 365 + 0.5, 2);
+  if (s.techs.sl3.done && s.techs.sl3.active) lvl = Math.max(lvl, 3);
+  if (s.techs.sl4.done && s.techs.sl4.active) lvl = Math.max(lvl, 4);
+  if (s.techs.sl5.done && s.techs.sl5.active) lvl = Math.max(lvl, s.gov.rung >= 2 ? 5 : 4.4); // SL5 needs government help
   lvl += clamp((s.allocation.security - 0.03) * 6, -0.3, 0.5) + clamp((s.staffSplit.security - 0.08) * 3, -0.2, 0.3);
   return clamp(lvl, 1, 5.2);
 }
@@ -466,8 +480,8 @@ export function theftP2mo(attacker: number, defence: number) {
 }
 
 export function attackerLevel(s: GameState) {
-  const spies = s.china.spies;
-  return 4 + (s.china.rung >= 2 ? 1 : 0) + 0.5 * Math.min(2, spies * (s.policies.siloing === 2 ? 0.3 : 1));
+  // OC4 (standard state ops) until China prioritises theft, then OC5. Insiders are already inside OC3+.
+  return s.china.rung >= 2 ? 5 : 4;
 }
 
 function security(s: GameState, rng: Rng) {
@@ -481,18 +495,20 @@ function security(s: GameState, rng: Rng) {
   // Algorithmic secrets leak while SSL is low
   const ssl = c.securityLevel - 0.6;
   if (s.china.p < s.p && ssl < 3.5) {
-    const leak = 0.0006 * s.china.spies * clamp(3.5 - ssl, 0, 2);
+    const leak = 0.00015 * s.china.spies * clamp(3.5 - ssl, 0, 2);
     s.china.p += (s.p - s.china.p) * leak;
   }
   // Weight theft
   const ch = chinaPreset(s);
   if (s.model.milestone >= 2 && !s.china.stoleWeights && s.china.espionage > 50 && s.china.p < s.p - 0.05) {
-    const p2 = theftP2mo(attackerLevel(s), c.securityLevel);
+    const spiesEff = s.china.spies * (s.policies.siloing === 2 ? 0.3 : 1);
+    const def = c.securityLevel < 3 ? c.securityLevel - 0.3 * Math.min(1, spiesEff / 5) : c.securityLevel;
+    const p2 = theftP2mo(attackerLevel(s), def);
     const h = (-Math.log(1 - p2) / 61) * ch.theft * (s.china.espionage / 100);
     if (rng.chance(h)) {
       s.china.stoleWeights = true;
       s.china.theftAttempts++;
-      s.china.p = Math.max(s.china.p, s.p - 0.02);
+      s.china.p = Math.max(s.china.p, s.p - (progressBreakdown(s).rate * 60) / 365); // ~2 months behind after theft
       s.flags.heist = s.day;
       log(s, 'alert', `${s.model.name} weights stolen. Traffic monitor flags the exfiltration after the fact.`, 5, 'Feb 2027');
     }
@@ -523,9 +539,9 @@ function chinaTick(s: GameState, rng: Rng) {
   if (ch.rung >= 2) ch.centralization = clamp(ch.centralization + 0.12 * pre.centralize, 0, 75);
   // Compute share: slow decline under export controls, offset by domestic chips
   ch.computeShare = clamp(ch.computeShare + (s.gov.chinaRung >= 3 ? -0.00004 : -0.00001), 0.06, 0.2);
-  const chinaAI = worldCompute(s) * ch.computeShare * (0.3 + 0.6 * (ch.centralization / 100)) * 0.6;
+  const chinaAI = worldCompute(s) * ch.computeShare * (0.4 + 0.5 * Math.min(1, ch.centralization / 75)) * 0.6;
   const eff = s.world.chinaEfficiency * pre.efficiency * (ch.stoleWeights ? 1.1 : 1);
-  ch.p += (actorRate(s, ch.p, chinaAI, eff) * (1 - (s.flags.usSabotage as number || 0))) / 365;
+  ch.p += (actorRate(s, ch.p, chinaAI, eff) * (1 - (s.flags.usSabotage as number || 0)) * (s.gov.treaty ? TREATY_SLOWDOWN : 1)) / 365;
   // Distillation from released US models (open weights / API)
   const pub = Math.max(s.model.publicP, ...s.labs.filter((l) => l.openness > 60).map((l) => l.p));
   if (pub > ch.p) ch.p += (pub - ch.p) * 0.0015 * pre.openSource;
@@ -548,7 +564,8 @@ function rivalsTick(s: GameState, rng: Rng) {
     if (l.absorbed) continue;
     const arch = labArch(l.archetype);
     const comp = worldCompute(s) * l.computeShare * 0.6;
-    l.p += actorRate(s, l.p, comp, 0.8) / 365;
+    // Rivals pay their own safety tax in proportion to their safety posture
+    l.p += (actorRate(s, l.p, comp, 0.8 * (1 - 0.25 * (l.safety / 100))) * (s.gov.treaty ? TREATY_SLOWDOWN : 1)) / 365;
     // Catch up via public models (distillation, papers, poaching)
     if (s.model.publicP > l.p) l.p += (s.model.publicP - l.p) * 0.002;
     l.computeShare = clamp(l.computeShare * (1 + rng.normal(0, 0.0008)), 0.01, 0.2);
@@ -607,7 +624,8 @@ function govTick(s: GameState) {
     g.chinaRung = 3;
     log(s, 'gov', 'Full chip and HBM export ban to China. Secondary sanctions on transit countries.', 3);
   }
-  if (g.chinaRung >= 2 && s.model.milestone >= 4) s.flags.usSabotage = clamp(0.03 * (s.model.milestone - 3), 0, 0.25);
+  // AI 2027: US cyberattacks slow DeepCent ~25% (Dec 2027) to ~40% (Feb 2028) once AIs out-hack theirs
+  if (g.chinaRung >= 2 && s.model.milestone >= 3) s.flags.usSabotage = clamp(0.1 * (s.model.milestone - 2), 0, 0.4);
 }
 
 // ---------------- Public ----------------

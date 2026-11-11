@@ -1,9 +1,11 @@
 // Milestones, world presets and sampling, baselines.
-// Engine follows the AI 2027 timelines/takeoff code (uvafan/timelines-takeoff-ai-2027), see research/03:
-//  Stage 1 (to Superhuman Coder): progress in months of 2025-pace progress must reach base0 = g0 + cs,
-//    g0 = time-horizon doubling work. Rate = share*M + (1-share)*C, with M = 1 + p*(s/p)^f.
+// Engine follows the AI 2027 timelines/takeoff code (uvafan/timelines-takeoff-ai-2027); audited against the
+// primary sources in research/11-engine-audit.md (numbers in comments refer to its discrepancy table).
+//  Stage 1 (to Superhuman Coder): progress in months of 2024/25-pace progress must reach base0 = g0 + cs,
+//    g0 = time-horizon doubling work. Rate = share*M + (1-share)*C, with M = 1 + p*(s/p)^f (patched form).
+//    From 2029 compute rate halves and M -> sqrt(0.5M(M-0.5)) (simple_forecasting_timelines.py l.273-319).
 //  Stage 2 (SC -> SAR -> SIAR -> ASI): human-only research-years per gap, spent at multipliers
-//    interpolated geometrically between 1+s, 25, 250, 2000.
+//    interpolated geometrically between anchors (takeoff/params.yaml: 5, 25, 250, 2000).
 // Game unit for progress `p`: years. Stage 1 occupies [0, base0/12]; each later unit = 1 human-only year.
 
 import { Rng } from '../engine/rng';
@@ -21,26 +23,32 @@ export interface Milestone {
 
 export const MILESTONES: Milestone[] = [
   { idx: 0, short: 'A0', name: 'Agent-0', label: 'Unreliable Agent', model: 'Agent-0', canon: '2025-05', desc: 'Stumbling agents. Useful for coding, unreliable elsewhere.' },
-  { idx: 1, short: 'A1', name: 'Reliable Agent', label: 'Reliable Agent', model: 'Agent-1', canon: '2026-01', desc: 'Good at AI R&D and hacking. R&D ~1.5x faster.' },
-  { idx: 2, short: 'A2', name: 'Online Learner', label: 'Reliable Agent', model: 'Agent-2', canon: '2027-01', desc: 'Continuous online learning. Near top research engineers. Could survive if it escaped.' },
+  { idx: 1, short: 'A1', name: 'Reliable Agent', label: 'Reliable Agent', model: 'Agent-1', canon: '2026-01', desc: 'Good at AI R&D and hacking. Algorithmic progress 50% faster.' },
+  { idx: 2, short: 'A2', name: 'Online Learner', label: 'Reliable Agent', model: 'Agent-2', canon: '2027-01', desc: 'Continuous online learning. Triples algorithmic progress. Could survive if it escaped.' },
   { idx: 3, short: 'SC', name: 'Superhuman Coder', label: 'Superhuman Coder', model: 'Agent-3', canon: '2027-03', desc: 'Any coding task as well as the best engineer, 30x faster, 5% of the cost.' },
   { idx: 4, short: 'SAR', name: 'Superhuman AI Researcher', label: 'Superhuman AI Researcher', model: 'Agent-4', canon: '2027-08', desc: 'Better than the best human AI researchers at all research tasks.' },
   { idx: 5, short: 'SIAR', name: 'Superintelligent AI Researcher', label: 'Superintelligent AI Researcher', model: 'Agent-5', canon: '2027-11', desc: 'Vastly better than the best humans at AI research.' },
   { idx: 6, short: 'ASI', name: 'Artificial Superintelligence', label: 'Generally Superintelligent', model: 'ASI', canon: '2027-12', desc: 'Vastly better than the best humans at every cognitive task.' },
 ];
 
-/** Fractions of Stage 1 at which Agent-1 / Agent-2 are reached (fit to scenario dates). */
-const F_A1 = 0.35;
-const F_A2 = 0.8;
-
 export function stage1(w: World) {
   return w.base0 / 12;
+}
+
+/** Stage-1 fractions where M reaches 1.5x (Agent-1) and 3x (Agent-2), per the scenario (audit #2). */
+function agentFractions(w: World): [number, number] {
+  const span = Math.log(w.sEx / w.pEx);
+  if (span <= 0) return [0.3, 0.75];
+  const f1 = Math.min(0.5, Math.max(0.15, Math.log(0.5 / w.pEx) / span));
+  const f2 = Math.min(0.9, Math.max(f1 + 0.2, Math.log(2 / w.pEx) / span));
+  return [f1, f2];
 }
 
 export function milestoneThresholds(w: World): number[] {
   const s1 = stage1(w);
   const [g1, g2, g3] = w.G;
-  return [0, s1 * F_A1, s1 * F_A2, s1, s1 + g1, s1 + g1 + g2, s1 + g1 + g2 + g3];
+  const [f1, f2] = agentFractions(w);
+  return [0, s1 * f1, s1 * f2, s1, s1 + g1, s1 + g1 + g2, s1 + g1 + g2 + g3];
 }
 
 export function milestoneAt(w: World, p: number): number {
@@ -50,13 +58,14 @@ export function milestoneAt(w: World, p: number): number {
   return m;
 }
 
-/** Stage 2 multipliers at SC, SAR, SIAR, ASI */
+/** Stage 2 multipliers at SC, SAR, SIAR, ASI. Starts at 1+sEx for continuity with Stage 1. */
 export function speeds(w: World): number[] {
   const sc = 1 + w.sEx;
-  return [sc, Math.max(sc * 1.5, 25), 250, 2000];
+  const sar = w.sarSpeed ?? Math.max(25, sc);
+  return [sc, sar, Math.max(250, sar), 2000];
 }
 
-/** AI R&D progress multiplier M at progress p. */
+/** AI R&D progress multiplier M at progress p, before the post-2029 labor slowdown. */
 export function multiplierAt(w: World, p: number): number {
   const s1 = stage1(w);
   if (p < s1) {
@@ -74,6 +83,16 @@ export function multiplierAt(w: World, p: number): number {
     start += g;
   }
   return sp[3];
+}
+
+/** Post-2029 human-labor slowdown on the multiplier (AI 2027 code). */
+export function laborSlowdown(m: number, year: number) {
+  return year >= 2029 ? Math.sqrt(Math.max(0, 0.5 * m * (m - 0.5))) : m;
+}
+
+/** Compute-rate factor of the 2024 pace: halves from 2029 (AI 2027 code). */
+export function computePace(year: number) {
+  return year >= 2029 ? 0.5 : 1;
 }
 
 /** Fractional capability index 0..6 */
@@ -119,11 +138,11 @@ export interface WorldPreset {
 }
 
 export const WORLD_PRESETS: WorldPreset[] = [
-  { id: 'sampled', name: 'Unknown world', short: 'Sampled', desc: 'Hidden parameters drawn from the AI 2027 forecast distributions (Lifland, Apr 2025). Revealed at the end.' },
-  { id: 'ai2027', name: 'AI 2027 scenario', short: 'Scenario', desc: 'Default play follows the published story: SC Mar 2027, SAR Aug 2027, ASI Dec 2027.' },
-  { id: 'authors2026', name: "Authors' 2026 model", short: 'AIFM', desc: 'AI Futures Model, Aug 2026 central forecast (Lifland). Automated coder ~2030.' },
-  { id: 'fast', name: 'Fast takeoff', short: 'Fast', desc: 'Kokotajlo Aug 2026 timelines with a fast takeoff: SC to ASI in months.' },
-  { id: 'slow', name: 'Skeptic world', short: 'Skeptic', desc: 'Plain METR exponential, little AI speedup, slow takeoff (titotal critique).' },
+  { id: 'sampled', name: 'Unknown world', short: 'Sampled', desc: 'Hidden parameters drawn from Lifland\'s Apr 2025 AI 2027 distributions, with the Dec 2025 interpolation fix (median SC ≈ mid-2028). Revealed at the end.' },
+  { id: 'ai2027', name: 'AI 2027 scenario', short: 'Scenario', desc: 'Calibrated to the published story at reference compute: 1.5x Jan 2026, 3x Dec 2026, SC Mar 2027, SAR Aug 2027, ASI Dec 2027.' },
+  { id: 'authors2026', name: "Authors' 2026 model", short: 'AIFM', desc: 'AI Futures Model, Aug 2026, Lifland\'s model median: automated coder Mar 2029, ASI ≈ 2033.7.' },
+  { id: 'fast', name: 'Fast takeoff', short: 'Fast', desc: 'Kokotajlo\'s Aug 2026 timelines (automated coder late 2027) with AI 2027\'s 10th-percentile takeoff (SC to ASI in ~2.5 months).' },
+  { id: 'slow', name: 'Skeptic world', short: 'Skeptic', desc: 'METR\'s plain 7-month doubling, little AI speedup, slow takeoff. Automated coding ~2034.' },
 ];
 
 export const ALIGN_PRESETS: { id: AlignDiffId; name: string; desc: string }[] = [
@@ -137,14 +156,12 @@ const Z90 = 1.2815515655446004;
 const lnFrom80 = (lo: number, hi: number, z: number) =>
   Math.exp((Math.log(lo) + Math.log(hi)) / 2 + z * ((Math.log(hi) - Math.log(lo)) / (2 * Z90)));
 
-function common(): Omit<World, 'label' | 'h0' | 'hSC' | 'T' | 'growth' | 'decay' | 'g0' | 'cs' | 'base0' | 'share' | 'pEx' | 'sEx' | 'G'> {
-  return { computeElasticity: 0.5, computeGrowth: 2.25, alignDifficulty: 1, doomThreshold: 0.4, chinaEfficiency: 0.85, neuraleseBoost: 1.3 };
-}
+type BuildOpts = {
+  h0: number; T: number; growth: World['growth']; decay: number; hSCmin?: number; g0?: number; cs: number;
+  share: number; pEx: number; sEx: number; G: [number, number, number];
+};
 
-function build(
-  label: string,
-  o: { h0: number; T: number; growth: World['growth']; decay: number; hSCmin?: number; g0?: number; cs: number; share: number; pEx: number; sEx: number; G: [number, number, number] },
-): World {
+function build(label: string, o: BuildOpts): World {
   let hSC = o.hSCmin ?? 0;
   let g0 = o.g0 ?? 0;
   if (o.g0 !== undefined) {
@@ -155,39 +172,49 @@ function build(
   } else {
     g0 = doublingWork(o.T, Math.log2(hSC / o.h0), o.growth, o.decay);
   }
-  return { ...common(), label, h0: o.h0, hSC, T: o.T, growth: o.growth, decay: o.decay, g0, cs: o.cs, base0: Math.max(2, g0 + o.cs), share: o.share, pEx: o.pEx, sEx: o.sEx, G: o.G };
+  return {
+    label, h0: o.h0, hSC, T: o.T, growth: o.growth, decay: o.decay, g0, cs: o.cs, base0: Math.max(2, g0 + o.cs),
+    share: o.share, pEx: o.pEx, sEx: o.sEx, G: o.G, p0: 0, aifm: false,
+    computeElasticity: 0.5, computeGrowth: 2.25, alignDifficulty: 1, doomThreshold: 0.4, chinaEfficiency: 0.7, neuraleseBoost: 1.3,
+  };
 }
 
 const WORK_MONTH_MIN = 167 * 60;
 
-export function makeWorld(rng: Rng, preset: WorldPresetId, align: AlignDiffId, baseline: BaselineId): World {
-  // Horizon of the frontier at game start (Jul 2025): AI27 trend ~22 min; METR measured GPT-5 p80 = 38 min (Aug 2025).
-  const h0 = baseline === 'reality' ? 38 : 22;
+export function makeWorld(rng: Rng, preset: WorldPresetId, align: AlignDiffId, _baseline: BaselineId): World {
   let w: World;
   switch (preset) {
     case 'ai2027':
-      w = build('AI 2027 scenario', { h0, T: 4.74, growth: 'super', decay: 0.1, g0: 20, cs: 3.9, share: 0.5, pEx: 0.15, sEx: 4, G: [4.19, 16, 49.5] });
-      w.neuraleseBoost = 1.3;
+      // Audit #1: g0 28.5, pEx 0.25 reproduce 1.5x Jan 2026, 3x Dec 2026, SC 2027-03-31, SAR end-Aug, ASI Dec 31 2027.
+      w = build('AI 2027 scenario', { h0: 22, T: 4.74, growth: 'super', decay: 0.1, g0: 28.5, cs: 3.9, share: 0.5, pEx: 0.25, sEx: 4, G: [4.19, 16, 49.5] });
       break;
     case 'authors2026':
-      w = build("Authors' 2026 model", { h0, T: 4.5, growth: 'super', decay: 0.03, hSCmin: 125 * 12 * WORK_MONTH_MIN, cs: 0, share: 0.6, pEx: 0.1, sEx: 2, G: [1.2, 115, 2970] });
-      w.computeGrowth = 2.0;
+      // Audit #8 / §5.3: AIFM sampling_config(_q2_eli).yaml medians; cs and G fitted to AC p50 2029.16, AC->ASI 4.56 y.
+      w = build("Authors' 2026 model", { h0: 38, T: 4.5, growth: 'super', decay: 0.08, hSCmin: 125 * 12 * WORK_MONTH_MIN, cs: 17, share: 0.6, pEx: 0.1, sEx: 2, G: [1.52, 101, 1340] });
+      w.aifm = true;
+      w.computeGrowth = 2.5;
       break;
     case 'fast':
-      w = build('Fast takeoff', { h0, T: 4.0, growth: 'super', decay: 0.08, hSCmin: 12 * WORK_MONTH_MIN, cs: 0, share: 0.6, pEx: 0.15, sEx: 3, G: [0, 2.31, 0.8] });
-      w.computeGrowth = 2.4;
+      // Audit #9 / §5.4: Daniel Aug-2026 (AC p50 2027.92) + AI 2027 p10 takeoff (SC->ASI ~0.21 y).
+      w = build('Fast takeoff', { h0: 26, T: 4.0, growth: 'super', decay: 0.08, hSCmin: 12 * WORK_MONTH_MIN, cs: 10.3, share: 0.6, pEx: 0.15, sEx: 3, G: [0, 7.67, 47.5] });
+      w.aifm = true;
+      w.computeGrowth = 2.5;
       w.neuraleseBoost = 1.4;
       break;
     case 'slow':
-      w = build('Skeptic world', { h0, T: 7, growth: 'exp', decay: 0, hSCmin: 120 * WORK_MONTH_MIN, cs: 6, share: 0.5, pEx: 0.01, sEx: 0.6, G: [10, 394, 2000] });
+      // Audit #22 / §5.5: METR 7-month exponential; AI 2027 median h_SC and cs; SAR anchor lowered to avoid a 1.6->25 jump.
+      w = build('Skeptic world', { h0: 38, T: 7, growth: 'exp', decay: 0, hSCmin: 120 * WORK_MONTH_MIN, cs: 3.87, share: 0.5, pEx: 0.01, sEx: 0.6, G: [10, 394, 2000] });
+      w.sarSpeed = 10;
       w.computeGrowth = 1.8;
       w.computeElasticity = 0.7;
       w.neuraleseBoost = 1.15;
       break;
     default: {
-      // Lifland Apr-2025 distributions (research/03 §1.4.1-1.4.2), Gaussian copula rho=0.7 on (T, cs, type).
+      // Lifland Apr-2025 distributions (simple_params.yaml); Gaussian copula with pairwise rho 0.7 on (T, cs, type).
       const zc = rng.normal();
-      const corr = () => 0.7 * zc + Math.sqrt(1 - 0.49) * rng.normal();
+      const a = Math.sqrt(0.7);
+      const b = Math.sqrt(0.3);
+      const corr = () => a * zc + b * rng.normal();
       const zT = corr();
       const zcs = corr();
       const u = 0.5 * (1 + erf(corr() / Math.SQRT2));
@@ -198,27 +225,30 @@ export function makeWorld(rng: Rng, preset: WorldPresetId, align: AlignDiffId, b
       const hSCmonths = lnFrom80(1, 14400, rng.normal());
       const cs = lnFrom80(0.5, 30, zcs);
       const delay = lnFrom80(0.25, 6, rng.normal());
-      // Takeoff gaps
+      const pEx = lnFrom80(0.03, 0.3, zp);
+      const sEx = lnFrom80(1.5, 40, zs);
+      // Takeoff gaps (takeoff/params.yaml, forecasting_takeoff.py)
       const zS = rng.normal();
       const zA = 0.8 * zS + 0.6 * rng.normal();
-      const G1 = rng.chance(0.15) ? 0 : lnFrom80(1.5, 10, zS);
+      let G1 = rng.chance(0.15) ? 0 : lnFrom80(1.5, 10, zS);
       const A = lnFrom80(1, 25, zA);
       const x = 10 + A;
       const G2 = (x * x * x) / 100 - x;
       const E = lnFrom80(0.3, 7.5, rng.normal());
       const x2 = x + G2;
-      const G3 = Math.min(20000, x2 * Math.pow(x2 / x, E) - x2);
-      // AI27 h0 = 15 min at 2025.25; advance to game start (~3 months of progress) plus internal-vs-public delay.
-      const pre = 3.2 + delay;
-      const w0 = build('Sampled world', { h0: 15, T, growth, decay: 0.1, hSCmin: hSCmonths * WORK_MONTH_MIN, cs, share: 0.5, pEx: lnFrom80(0.03, 0.3, zp), sEx: lnFrom80(1.5, 40, zs), G: [G1, G2, G3] });
-      const nPre = growth === 'exp' ? pre / T : growth === 'super' ? Math.log(Math.max(0.01, 1 - (pre * 0.1) / T)) / Math.log(0.9) : Math.log(1 + (pre * 0.1) / T) / Math.log(1.1);
-      w0.h0 = 15 * Math.pow(2, nPre);
-      w0.g0 = Math.max(0, w0.g0 - pre);
-      w0.base0 = Math.max(2, w0.g0 + cs);
-      if (baseline === 'reality') w0.h0 = Math.max(w0.h0, 38);
-      w0.computeGrowth = rng.normal80(1.9, 2.5);
+      const G3 = Math.min(20000, x2 * Math.pow(x2 / x, E) - x2); // game cap (source caps at 1000 calendar years)
+      // Audit #6: our Stage 2 starts at 1+sEx; stretch G1 so calendar time matches their fixed 5->25 phase.
+      const s0 = 1 + sEx;
+      const ref = (25 * 5 * Math.log(5)) / 20;
+      G1 = s0 < 25 ? (G1 * ((25 * s0 * Math.log(25 / s0)) / (25 - s0))) / ref : (G1 * s0) / ref;
+      const w0 = build('Sampled world', { h0: 15, T, growth, decay: 0.1, hSCmin: hSCmonths * WORK_MONTH_MIN, cs, share: 0.5, pEx, sEx, G: [G1, G2, G3] });
+      // Audit #19: their run starts at 2025.25 minus the internal-vs-public delay; we start at 2025.5 already advanced.
+      w0.p0 = (3 + delay) / 12;
+      // Condition on observed history: no superhuman coder existed at game start (Jul 2025).
+      w0.base0 = Math.max(w0.base0, w0.p0 * 12 + 3);
+      w0.computeGrowth = 2.25;
       w0.computeElasticity = rng.range(0.35, 0.7);
-      w0.chinaEfficiency = rng.range(0.7, 1.0);
+      w0.chinaEfficiency = rng.range(0.6, 0.9); // AI 2027: DeepCent at ~half OB's pace with half its compute
       w0.neuraleseBoost = rng.range(1.15, 1.5);
       w = w0;
     }
@@ -245,7 +275,7 @@ export interface Baseline {
   start: {
     cash: number; // $B
     revenueRun: number; // $B/yr
-    valuation: number; // $B
+    valuation: number; // $B [design: AI 2027 gives no valuation]
     compute: number; // H100e
     globalCompute: number; // H100e
     staff: number;
@@ -263,36 +293,58 @@ export const BASELINES: Baseline[] = [
   {
     id: 'classic',
     name: 'AI 2027 Classic',
-    desc: 'The world as written in April 2025: start state from the scenario dashboard and supplements.',
+    desc: 'The world as written in April 2025: start state from the scenario and its supplements.',
     startDate: '2025-07-01',
     start: {
       cash: 40, revenueRun: 12, valuation: 610, compute: 1.2e6, globalCompute: 13e6, staff: 2500,
-      chinaShare: 0.12, chinaGapYears: 0.45, approval: -25, concern: 50, jobAnxiety: 65, xrisk: 40, securityLevel: 2.4,
+      chinaShare: 0.12, chinaGapYears: 0.6, approval: -25, concern: 50, jobAnxiety: 65, xrisk: 40, securityLevel: 2.4,
     },
   },
   {
     id: 'reality',
     name: 'Reality-Updated',
-    desc: 'Calibrated to measured data through 2026 (METR horizons, polls, compute).',
+    desc: 'Calibrated to measured data through 2026 (METR horizons, polls, multi-lab frontier).',
     startDate: '2025-07-01',
     start: {
       cash: 45, revenueRun: 13, valuation: 300, compute: 1.0e6, globalCompute: 14e6, staff: 3000,
-      chinaShare: 0.13, chinaGapYears: 0.5, approval: -5, concern: 50, jobAnxiety: 71, xrisk: 43, securityLevel: 2.4,
+      chinaShare: 0.13, chinaGapYears: 0.6, approval: -5, concern: 50, jobAnxiety: 71, xrisk: 43, securityLevel: 2.4,
     },
   },
 ];
 
-/** Global AI compute (H100e) t years after start: 2.25x/yr to 2027, slower after (wafer limits). */
-export function globalCompute(start: number, years: number, growth: number) {
-  const pre = Math.min(years, 2.5);
-  const post = Math.max(0, years - 2.5);
-  return start * Math.pow(growth, pre) * Math.pow(Math.min(growth, 1.7), post);
+// AIFM inputs/input_data.csv (audit #18): world_H100e and total_ai_company_H100e (leading company), by year.
+const AIFM_YEARS = [2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032];
+const AIFM_WORLD = [8.6e6, 22.4e6, 57.1e6, 135e6, 289e6, 537e6, 913e6, 1.51e9];
+const AIFM_LEADER = [0.516e6, 1.79e6, 6.85e6, 21.6e6, 57.8e6, 107e6, 183e6, 300e6];
+
+function logInterp(xs: number[], ys: number[], x: number) {
+  if (x <= xs[0]) return ys[0] * Math.pow(ys[1] / ys[0], x - xs[0]);
+  for (let i = 0; i < xs.length - 1; i++) {
+    if (x <= xs[i + 1]) {
+      const t = (x - xs[i]) / (xs[i + 1] - xs[i]);
+      return Math.exp(Math.log(ys[i]) + t * (Math.log(ys[i + 1]) - Math.log(ys[i])));
+    }
+  }
+  const n = xs.length - 1;
+  return ys[n] * Math.pow(ys[n] / ys[n - 1], x - xs[n]);
 }
 
-/** Reference path for OpenBrain R&D compute (AI27 trajectory), used to normalise progress speed. */
-export function refCapCompute(years: number, growth: number) {
-  // ~1.2M total mid-2025, ~62% internal R&D; OB share grows ~1.4x/yr on top of global growth until 2028.
+/** Global AI compute (H100e) `years` after the Jul 2025 start. */
+export function globalCompute(w: World, start: number, years: number) {
+  if (w.aifm) return logInterp(AIFM_YEARS, AIFM_WORLD, 2025.5 + years);
+  // AI 2027 compute forecast: 2.25x/yr; slower after 2029 (audit #18)
+  const pre = Math.min(years, 3.5);
+  const post = Math.max(0, years - 3.5);
+  return start * Math.pow(w.computeGrowth, pre) * Math.pow(Math.min(w.computeGrowth, 1.5), post);
+}
+
+/**
+ * Reference R&D compute path of the leading lab (H100e). Progress speed is normalised to it, so a player
+ * tracking it reproduces the source medians. AI 2027: 3.4x/yr for the leader, R&D ≈ 68% (audit #11).
+ */
+export function refCapCompute(w: World, years: number) {
+  if (w.aifm) return 0.68 * logInterp(AIFM_YEARS, AIFM_LEADER, 2025.5 + years);
   const pre = Math.min(years, 2.5);
   const post = Math.max(0, years - 2.5);
-  return 1.2e6 * 0.62 * Math.pow(growth * 1.4, pre) * Math.pow(1.5, post);
+  return 0.68e6 * Math.pow(3.4, pre) * Math.pow(1.6, post);
 }

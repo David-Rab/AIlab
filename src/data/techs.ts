@@ -79,7 +79,7 @@ export const TECHS: TechDef[] = [
   {
     id: 'mona', name: 'Myopic Optimization', branch: 'align', cost: 300, prereqs: ['envhard', 'w2s'], minCap: 2,
     desc: 'Reward only short-horizon, human-approved steps.',
-    counters: { hack: 0.3, power: 0.3, rseek: 0.25, selfpres: 0.15 }, tax: { rd: 0.04 },
+    counters: { hack: 0.3, power: 0.3, rseek: 0.25, selfpres: 0.15 }, tax: { rd: 0.03 },
     limits: 'Costs capability on long tasks.',
     basis: 'Farquhar et al. 2025 (MONA)',
   },
@@ -108,7 +108,7 @@ export const TECHS: TechDef[] = [
   {
     id: 'goaltrain', name: 'Goal Training (Safer-2)', branch: 'oversight', cost: 2500, prereqs: ['debate', 'cotkeep', 'organisms'], minCap: 3,
     desc: 'Train for the right goals, not for appearing to have them.',
-    counters: { scheme: 0.45, fake: 0.4, tgame: 0.4, power: 0.3, selfpres: 0.3, sandbag: 0.3, successor: 0.35 }, grows: { honest: 0.3, corrig: 0.35 }, tax: { rd: 0.08 },
+    counters: { scheme: 0.45, fake: 0.4, tgame: 0.4, power: 0.3, selfpres: 0.3, sandbag: 0.3, successor: 0.35 }, grows: { honest: 0.3, corrig: 0.35 }, tax: { rd: 0.05 },
     limits: 'Very expensive; success never certain.',
     basis: 'AI27 Slowdown ending: Safer-2/3 path',
   },
@@ -165,7 +165,7 @@ export const TECHS: TechDef[] = [
   {
     id: 'cotkeep', name: 'Faithful CoT (Safer-1)', branch: 'detect', cost: 500, prereqs: ['cotmon'], minCap: 2,
     desc: 'Forbid neuralese and CoT optimization; keep reasoning legible.',
-    counters: { obfus: 0.5 }, grows: { honest: 0.1 }, tax: { rd: 0.15 },
+    counters: { obfus: 0.5 }, grows: { honest: 0.1 }, tax: { rd: 0.1 },
     limits: 'Large capability tax (AI27: Safer-1 ~20x vs Agent-4 ~70x).',
     basis: 'AI27 Slowdown Safer-1',
   },
@@ -215,14 +215,14 @@ export const TECHS: TechDef[] = [
   {
     id: 'resample', name: 'Resample & Defer', branch: 'control', cost: 180, prereqs: ['trusted'],
     desc: 'Resample suspicious actions; defer to trusted model.',
-    control: 0.2, tax: { rd: 0.03 },
+    control: 0.2, tax: { rd: 0.02 },
     limits: '~5% usefulness cost (measured, Ctrl-Z).',
     basis: 'Bhatt et al. 2025 Ctrl-Z',
   },
   {
     id: 'lockdown', name: 'Comms Lockdown', branch: 'control', cost: 350, prereqs: ['trusted'], minCap: 2,
     desc: 'English-only agent messages; no shared latent memory.',
-    control: 0.15, counters: { collude: 0.5 }, tax: { rd: 0.05 },
+    control: 0.15, counters: { collude: 0.5 }, tax: { rd: 0.04 },
     limits: 'Agents lose shared memory; slower research.',
     basis: 'AI27 Slowdown: shared memory locked',
   },
@@ -264,7 +264,7 @@ export const TECHS: TechDef[] = [
   {
     id: 'sl5', name: 'Security SL5', branch: 'security', cost: 1200, prereqs: ['sl4'], minCap: 2,
     desc: 'Defends against top nation-state operations. Needs government help.',
-    tax: { cashPerMonth: 400, rd: 0.04 },
+    tax: { cashPerMonth: 400, rd: 0.03 },
     limits: 'No company reaches SL5 alone (63% of experts).',
     basis: 'RAND SL5; AI27: WSL3→5 in ~12 months with government priority',
   },

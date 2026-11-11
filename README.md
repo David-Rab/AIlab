@@ -24,7 +24,11 @@ A real-time strategy / tycoon game built on the [AI 2027](https://ai-2027.com/) 
 - **Worlds:** *Unknown* (sampled from Lifland's Apr 2025 distributions with the source's copulas), *AI 2027 scenario* (scripted: SC Mar 2027, ASI Dec 2027 under race play), *Authors' 2026 model* (AIFM Aug 2026), *Fast takeoff*, *Skeptic*.
 - **Alignment difficulty:** Unknown / Easy / Medium / Hard.
 
-Calibration (`npm run sim -- ai2027 3 race`): AI-2027-style racing reaches SC ~Apr–May 2027, SAR ~Aug–Sep, ASI ~Nov–Dec 2027 and ends in takeover. A safety-heavy policy reaches ASI ~Aug 2028 with Committee or Treaty endings, mirroring the Slowdown branch.
+Calibration (`npm run sim -- <preset> <runs> <race|safe|passive>`), audited against the primary sources in `research/11-engine-audit.md`:
+
+- **AI 2027 scenario, race play** (AI 2027 compute split, race choices): Agent-1 Jan 2026, Agent-2 Dec 2026, SC Apr 2027, SAR Aug-Sep 2027, ASI Nov 2027-Mar 2028, takeover. Passive play is the same through SC and a few months slower after (it never shifts compute from product to R&D).
+- **AI 2027 scenario, safety play:** SC Jun 2027, then mostly survival (long road / Committee), sometimes a misaligned DeepCent wins.
+- **Fast:** SC Dec 2027, ASI Feb 2028 (target: Kokotajlo AC 2027.9 + AI 2027 p10 takeoff). **Authors' 2026:** SC Aug 2029 (target 2029.7). **Skeptic:** no SC by 2030 (target ~2034). **Sampled:** SC p10 ~2026, median ~2028 (target 2026.05 / 2028.37), conditioned on no SC before game start.
 
 ## Research
 

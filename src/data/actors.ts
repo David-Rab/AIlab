@@ -30,8 +30,8 @@ export interface ChinaPreset {
 }
 // Weights from research/10-china.md (China deep dive, incl. Chinese-language sources), which supersedes 07.
 export const CHINA_PRESETS: ChinaPreset[] = [
-  { id: 'fastfollower', name: 'Fast Follower', weight: 35, desc: 'Distill and diffuse. Stays months behind at a fraction of the cost. Theft is opportunistic.', centralize: 0.5, theft: 0.7, taiwan: 0.8, treaty: 1, openSource: 1.3, efficiency: 1.25, hawk: 40 },
-  { id: 'diffuser', name: 'Open-Source Diffuser', weight: 20, desc: 'Open weights as geopolitics. Wins the Global South, pushes norms at the UN.', centralize: 0.6, theft: 0.8, taiwan: 0.7, treaty: 1.2, openSource: 1.8, efficiency: 1.1, hawk: 35 },
+  { id: 'fastfollower', name: 'Fast Follower', weight: 35, desc: 'Distill and diffuse. Stays months behind at a fraction of the cost. Theft is opportunistic.', centralize: 0.5, theft: 0.7, taiwan: 0.8, treaty: 1, openSource: 1.3, efficiency: 1.1, hawk: 40 },
+  { id: 'diffuser', name: 'Open-Source Diffuser', weight: 20, desc: 'Open weights as geopolitics. Wins the Global South, pushes norms at the UN.', centralize: 0.6, theft: 0.8, taiwan: 0.7, treaty: 1.2, openSource: 1.8, efficiency: 1.05, hawk: 35 },
   { id: 'selfreliant', name: 'Self-Reliance Fortress', weight: 20, desc: 'Refuses US chips, builds Huawei/SMIC. Patient; avoids military risk until chip parity.', centralize: 1, theft: 0.9, taiwan: 0.6, treaty: 1, openSource: 1, efficiency: 1, hawk: 45 },
   { id: 'nationalizer', name: 'Centralized Sprint', weight: 10, desc: "AI 2027's China. National collective, CDZ at Tianwan, theft as policy, Taiwan as lever.", centralize: 1.6, theft: 1.6, taiwan: 1.3, treaty: 0.7, openSource: 0.3, efficiency: 1, hawk: 65 },
   { id: 'gambler', name: 'Hawkish Gambler', weight: 5, desc: 'Centralized Sprint that sees a closing window. Willing to blockade Taiwan.', centralize: 1.6, theft: 1.6, taiwan: 2, treaty: 0.4, openSource: 0.3, efficiency: 1, hawk: 80 },

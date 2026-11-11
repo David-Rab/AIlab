@@ -26,6 +26,8 @@ for (let i = 0; i < 40; i++) {
   const modal = await page.$('.modal-choices .choice');
   if (modal) { await page.screenshot({ path: `scripts/shots/4-event.png` }); await modal.click(); await page.keyboard.press('Digit5'); }
 }
+await page.keyboard.press('Space');
+for (let k = 0; k < 5; k++) { const m = await page.$('.modal-choices .choice'); if (!m) break; await m.click(); await page.waitForTimeout(100); }
 await page.screenshot({ path: 'scripts/shots/5-later.png' });
 for (const tab of ['Model', 'Research', 'World']) {
   await page.getByRole('button', { name: tab, exact: true }).click();

@@ -72,7 +72,7 @@ export function newGame(setup: Setup): GameState {
     });
   }
 
-  const startP = 0;
+  const startP = world.p0;
   return {
     version: SAVE_VERSION,
     setup,
@@ -96,7 +96,7 @@ export function newGame(setup: Setup): GameState {
       shareWithAllies: false,
       siloing: 0,
       hiringPerMonth: 60,
-      expansion: 2,
+      expansion: 2.4,
     },
     company: {
       name: setup.companyName,
@@ -105,8 +105,8 @@ export function newGame(setup: Setup): GameState {
       valuation: s.valuation,
       compute: s.compute,
       pipeline: [
-        { day: 60, amount: 250000 },
-        { day: 150, amount: 350000 },
+        { day: 60, amount: 400000 },
+        { day: 150, amount: 500000 },
       ],
       staff: s.staff,
       safetyMorale: 65,
