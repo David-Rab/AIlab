@@ -79,7 +79,8 @@ export interface Policies {
   /** Cap on employees with privileged access (siloing) */
   siloing: number; // 0 none .. 2 strict
   hiringPerMonth: number; // net hires target
-  computeOrders: number; // H100e per month being contracted
+  /** Target compute expansion per year (2 = +200%/yr); orders arrive ~6 months later */
+  expansion: number;
 }
 
 export interface TraitState {

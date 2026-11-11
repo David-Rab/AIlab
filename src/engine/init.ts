@@ -96,7 +96,7 @@ export function newGame(setup: Setup): GameState {
       shareWithAllies: false,
       siloing: 0,
       hiringPerMonth: 60,
-      computeOrders: 120000,
+      expansion: 2,
     },
     company: {
       name: setup.companyName,

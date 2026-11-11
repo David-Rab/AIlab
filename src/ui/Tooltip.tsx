@@ -15,6 +15,7 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { useStore } from './store';
 
 const OPEN_MS = 250;
 const LOCK_MS = 700;
@@ -112,6 +113,7 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
 }
 
 function TipBox({ entry, api }: { entry: TipEntry; api: TipApi }) {
+  useStore(); // re-render with live game state
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: -9999, top: -9999 });
 

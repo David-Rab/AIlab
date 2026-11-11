@@ -200,7 +200,7 @@ export const EVENTS: EventDef[] = [
     when: (s) => s.china.taiwan > 70 && s.china.rung >= 2,
     text: () => 'PLA coast guard begins inspecting ships bound for Taiwan. TSMC shipments stall.',
     choices: [
-      { label: 'Brace', hint: 'Compute pipeline halved', tone: 'neg', apply: (s) => { s.company.pipeline.forEach((o) => { o.amount *= 0.5; }); s.policies.computeOrders = Math.round(s.policies.computeOrders * 0.6); } },
+      { label: 'Brace', hint: 'Compute pipeline halved', tone: 'neg', apply: (s) => { s.company.pipeline.forEach((o) => { o.amount *= 0.5; }); s.policies.expansion *= 0.6; } },
     ],
   },
   {

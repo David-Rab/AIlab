@@ -199,6 +199,13 @@ export function competitionFactor(s: GameState) {
   return f;
 }
 
+/** H100e contracted per month: expansion target, capped at a quarter of world supply. */
+export function monthlyOrder(s: GameState) {
+  const want = s.company.compute * (Math.pow(1 + s.policies.expansion, 1 / 12) - 1);
+  const inPipe = s.company.pipeline.reduce((a, o) => a + o.amount, 0);
+  return Math.max(0, Math.min(want, worldCompute(s) * 0.25 - s.company.compute - inPipe));
+}
+
 export function monthlyCosts(s: GameState) {
   const yrs = s.day / 365;
   const perH100eYr = 14000 * Math.pow(0.8, yrs); // AI27: ~$16K (2025) -> $10K (2026) -> $9K (2027)
@@ -206,7 +213,7 @@ export function monthlyCosts(s: GameState) {
   const staffCost = (s.company.staff * 0.6) / 1000 / 12;
   const taxes = techTaxes(s).cashPerMonth;
   const pr = s.policies.prPerMonth;
-  const orders = (s.policies.computeOrders * perH100eYr * 0.25) / 1e9; // 25% deposit on new capacity
+  const orders = (monthlyOrder(s) * perH100eYr * 0.25) / 1e9; // 25% deposit on new capacity
   const security = s.allocation.security * computeCost * 0.3;
   return { computeCost, staffCost, taxes, pr, orders, security, total: computeCost + staffCost + taxes + pr + orders + security };
 }
@@ -222,9 +229,8 @@ function economyAndCompute(s: GameState, rng: Rng) {
     }
     return true;
   });
-  if (s.day % 30 === 0 && s.policies.computeOrders > 0) {
-    const cap = worldCompute(s) * 0.25; // can't contract more than a quarter of world supply
-    const amt = Math.min(s.policies.computeOrders, Math.max(0, cap - c.compute));
+  if (s.day % 30 === 0 && s.policies.expansion > 0) {
+    const amt = monthlyOrder(s);
     if (amt > 0) c.pipeline.push({ day: s.day + 180, amount: amt });
   }
   // Revenue
@@ -255,6 +261,11 @@ function economyAndCompute(s: GameState, rng: Rng) {
   c.safetyMorale += (clamp(moraleTarget, 0, 100) - c.safetyMorale) * 0.01;
   // Compute rental market noise
   if (rng.chance(0.002)) log(s, 'news', 'Chip supply crunch: HBM shortages slow new datacenter deliveries.');
+  if (c.cash < 5 && !s.flags.lowCash) {
+    s.flags.lowCash = true;
+    log(s, 'alert', 'Cash below $5B. Raise capital or cut expansion; below −$5B the company fails.', 4);
+  }
+  if (c.cash > 15) s.flags.lowCash = false;
 }
 
 // ---------------- Research ----------------

@@ -26,7 +26,6 @@ for (let r = 0; r < runs; r++) {
   }
   while (!s.ending && s.day < 365 * 6) {
     if (s.day % 30 === 0) {
-      s.policies.computeOrders = Math.round(s.policies.computeOrders * 1.07);
       if (s.company.cash < 15 && s.day - s.company.lastRaiseDay > 120) {
         s.company.cash += s.company.valuation * 0.08;
         s.company.lastRaiseDay = s.day;
