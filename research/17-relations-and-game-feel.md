@@ -261,120 +261,297 @@ Real evidence on China's safety posture is an input to its hidden profile (§1.6
 
 ## 1.6 Rival and China hidden alignment profiles
 
-**Goal (REDESIGN §9 row 11).** Each rival model accrues hidden traits through the **same causal model as the player's** (REDESIGN §5). The coefficients come from the lab's **safety posture**, and the player sees the posture only through observables.
+**Goal (REDESIGN §9 row 11).** Each rival model accrues hidden traits through the **same causal model as the player's** (REDESIGN §5). The coefficients come from the lab's **safety posture**. The player sees that posture only through observables:
+- the lab's published framework;
+- named external testers;
+- FLI-style grades;
+- incidents.
 
-### Hidden posture parameters per lab (0-1)
+### 1.6.1 What the labs' own frameworks commit to (primary)
 
-| Param | Meaning | Observable proxies (what the player can see) |
+| Lab | Latest framework | Thresholds → response | Who decides / external check | Competitor or relaxation clause (verbatim where verified) |
+|---|---|---|---|---|
+| **Anthropic** | RSP v3.0, effective 24 Feb 2026, a full rewrite [V]. Current version is v3.4, 8 Jul 2026 [P]. Earlier versions: v1.0 (19 Sep 2023), v2.0 (15 Oct 2024) [V, changelog]. | Separates "our plans as a company" from "industry-wide recommendations". **Risk Reports every 3-6 months**, plus a Frontier Safety Roadmap. ASLs are kept only as labels for current mitigations [V]. | CEO + Responsible Scaling Officer. Board + LTBT when the marginal-risk argument is used. Full **external review** of Risk Reports with a public written report. Anonymous noncompliance reporting [V]. | The intro says it "cannot commit to following [industry-wide recommendations] unilaterally". The reason given: if one developer paused "while others moved forward… the developers with the weakest protections would set the pace". **Appendix A** [V] lists three cases: (1) "Anthropic in the lead": "delay… until and unless we no longer believe we have a significant lead"; (2) "competitors have strong safety measures": "meet or exceed" their posture; (3) "general upleveling": copy a better mitigation, but "will not necessarily delay". |
+| **OpenAI** | Preparedness Framework v2, 15 Apr 2025, still cited as current in 2026 [V PDF; currency per FLI]. | Tracked categories: Bio/Chem, Cyber, AI Self-improvement. **High** = do not deploy until risks are "sufficiently minimized". **Critical** = safeguards required during development as well [V]. | The Safety Advisory Group assesses residual risk; leadership decides; a Board committee oversees (sub-agent [P]). | **§4.3 Marginal risk** [V]: if another developer releases a High/Critical system "without instituting comparable safeguards", OpenAI "could adjust accordingly the level of safeguards", but only if (a) this "does not meaningfully increase the overall risk"; (b) it "publicly acknowledge[s]" the change; and (c) "to avoid a race to the bottom", it keeps safeguards "more protective than the other AI developer". |
+| **Google DeepMind** | FSF v3.0 (22 Sep 2025), with v3.1 (17 Apr 2026) adding Tracked Capability Levels [V blog]. | Critical Capability Levels for CBRN, cyber, ML R&D and **harmful manipulation**. Misalignment covers interference with operators' ability to "direct, modify or shut down". Safety-case reviews before external launch, **and before large-scale internal deployment** for ML R&D CCLs [V]. | A "governance function" (vague, per FLI) [P]. | According to the sub-agent, FSF 3.1 says mitigations work "only if all relevant organizations provide similar levels of protection" [P]. FLI tracks the pause language: v1 "would put on hold", v2 "may involve", v3 no pause [P]. |
+| **Meta** | Advanced AI Scaling Framework v2, 7 Apr 2026 [V]. The sub-agent reports a v2.1 "Superintelligence Scaling Framework" in Oct 2026 [P]. | Domains: Chem/Bio, Cyber, **Loss of Control**. The changelog states [V]: Critical "changed from 'Stop' to 'Develop with Mitigations'"; High from "Do not release" to "Deploy with mitigations"; "all thresholds now permit proceeding with sufficient mitigations". | Chief AI Officer and/or Director of Alignment & Risk [V]. | No explicit competitor clause. The relaxation is unconditional: the hard stop was removed [V]. |
+| **xAI** | Risk Management Framework, 20 Aug 2025 [V]. Replaced by a Frontier AI Framework, 31 Dec 2025 [P]. | Deployment acceptance [V]: answer rate on restricted bio/chem queries "less than 1 out of 20"; **dishonesty "less than 1 out of 2 on MASK"**. Cyber relies on a "basic refusal policy". | Says it "may publish" adherence reviews and benchmark results, and that it allows anonymous nonadherence reports [V]. | Benefit override: "expected benefits… may outweigh the risks identified by a particular benchmark" [P]. FLI calls it "effectively non-binding" [P]. |
+| **Chinese labs** (DeepSeek, Zhipu/Z.ai, Alibaba, MiniMax) | No published frontier framework, per FLI Summer 2026 [P]. Zhipu and MiniMax signed the Seoul commitments [V gov.uk]. 17 firms signed the CAICT/AIIA "AI Safety Commitments" (Dec 2024) [unverified]. | Reference framework: Shanghai AI Lab + Concordia, Jul 2025. Green/yellow/red zones across 7 areas; red = suspend [P arXiv 2507.16534]. | Floor set by state rules (CAC/TC260) rather than by the lab. FLI says China grades "largely reflect the Chinese regulatory environment" [P]. | n/a: a state directive replaces market-driven relaxation. |
+
+**The cross-lab finding that drives the mechanic.** The FLI AI Safety Index, Summer 2026 (7 Jul 2026), says [V]: "Anthropic, OpenAI, Google DeepMind, and Meta have weakened or voided pledges to pause unilaterally if redlines are approached, some citing competitor-contingent conditions. Reviewers call this 'moving goalpost'." It also says [V]: "Safety rhetoric outpaces revealed behavior… making stated commitments an unreliable proxy for actual safety practice."
+
+The game should therefore model a public framework, **plus** a hidden gap between that framework and actual practice, **plus** competitor-contingent clauses that loosen under race pressure.
+
+### 1.6.2 FLI AI Safety Index as the in-game "grade card" (methodology, primary)
+
+- **Summer 2026 edition** [V]:
+  - 9 companies, **37 indicators** in 6 domains: Risk Assessment 6, Current Harms 9, Safety Frameworks 4, Existential Safety 4, Governance & Accountability 4, Information Sharing 10.
+  - US GPA grade scale: A+ = 4.3 down to F = 0.
+  - Domain scores average the reviewers' grades, and the overall score derives from the domain scores.
+  - An expert panel grades evidence plus company survey responses.
+- **Overall grades Summer 2026** [V]:
+
+  | Company | Grade | Score |
+  |---|---|---|
+  | Anthropic | C+ | 2.66 |
+  | OpenAI | C | 2.28 |
+  | Google DeepMind | C | 2.01 [P] |
+  | Meta | D+ | 1.32 |
+  | Z.ai | D- | 0.88 |
+  | Alibaba | D- | 0.87 |
+  | xAI | F | 0.65 |
+  | DeepSeek | F | 0.47 |
+  | Mistral | F | 0.33 |
+
+- **Existential Safety:** "No company exceeds C-" [V].
+- **Earlier editions** [P]: Dec 2024 (6 companies), Summer 2025 (7 companies, 33 indicators), Winter 2025.
+- **Game use.** Publish a fictional "Index" event twice a year. It grades each lab, including the player, on the same 6 domains from **observable** behaviour only: frameworks, named testers, disclosures, governance. It never grades hidden traits. Grades move the Safety and Science blocs (08) and talent pull. The gap between the grade and true alignment is the "unreliable proxy" lesson.
+
+### 1.6.3 Hidden posture parameters (0-1)
+
+| Param | Meaning | Grounded in | Observable proxy |
+|---|---|---|---|
+| `safety_investment` | Share of compute and staff on alignment and control | FLI Existential Safety + Governance domains | Safety paper output; Index grade |
+| `eval_rigor` | Breadth and elicitation strength of pre-deployment evals | FLI Risk Assessment; number of named external testers | System cards; testers named (CAISI, UK AISI, METR, Apollo) |
+| `external_access` | Depth and independence of outside testing | METR GPT-5 report: about 4 weeks of pre-release access under NDA [P] | Evaluator reports appear (§1.4 A2) |
+| `disclosure_rate` | P(an incident becomes public via the lab itself) | FLI Information Sharing; self-published damaging findings | Incident history |
+| `race_relaxation` | Loosening of thresholds as competitor pressure rises | The framework clauses in 1.6.1 | Framework revisions ("moving goalpost" events) |
+| `bindingness` | Can anyone outside the CEO stop a launch? | RSO + Board/LTBT + external review (Anthropic) vs exec decision (Meta) vs no defined authority (xAI) | Governance section of the framework |
+| `rhetoric_gap` | Hidden noise between stated and actual practice | FLI "unreliable proxy" finding | Revealed only by leaks and whistleblowers |
+| `rl_intensity` / `pref_intensity` | Training mix, which drives reward hacking and sycophancy | REDESIGN §5 | Product behaviour incidents |
+| `security_level` | RAND SL1-5 | 02-compute-security | Theft and leak events |
+
+### 1.6.4 Archetype defaults
+
+These are [D] values, anchored on the documents above. Realistic mode applies ±0.15 noise.
+
+| Archetype (07) | Anchor | safety_inv | eval_rigor | ext_access | disclosure | race_relax | binding | rhetoric_gap |
+|---|---|---|---|---|---|---|---|---|
+| Safety Rival | Anthropic: RSP v3 App. A, FLI C+ | 0.65 | 0.70 | 0.55 | 0.85 | 0.55 | 0.60 | 0.10 |
+| Scale Leader (fits OpenBrain itself; use for a rival if needed) | OpenAI: PF v2 §4.3, FLI C | 0.55 | 0.75 | 0.70 | 0.65 | 0.50 | 0.40 | 0.25 |
+| Big Tech Incumbent | GDM: FSF v3, FLI C | 0.50 | 0.60 | 0.50 | 0.65 | 0.60 | 0.30 | 0.25 |
+| Open-Weights Spoiler | Meta: "Stop" → "Develop with Mitigations", FLI D+ | 0.30 | 0.45 | 0.50 | 0.40 | 0.70 | 0.30 | 0.20 |
+| Maverick Accelerationist | xAI: MASK < 1/2, benefit override, FLI F | 0.10 | 0.20 | 0.10 | 0.35 | 0.90 | 0.10 | 0.35 |
+| Boutique Upstart | [D] | 0.50 | 0.40 | 0.30 | 0.30 | 0.50 | 0.30 | 0.20 |
+| China / DeepCent | DeepSeek: no framework, FLI F; CAISI jailbreak 94% vs 8% [V] | 0.10 → rising | 0.10 | 0.05 | 0.25 | `state_directive` replaces it | 0.10 (state can halt: see 10) | 0.20 |
+
+`race_relaxation` calibration, from the clause type:
+
+| Clause type | Example | Value |
 |---|---|---|
-| `safety_investment` | Share of compute and staff on alignment | FLI Index safety-framework / risk-assessment domains; safety paper output |
-| `eval_rigor` | Breadth and elicitation strength of pre-deployment evals | System cards published? Named external testers (CAISI/UK AISI/METR/Apollo)? |
-| `disclosure_rate` | P(an incident becomes public) | Incident history; transparency reports |
-| `race_relaxation` | How much thresholds loosen when a competitor leads | Framework clauses that allow adjustment if another developer ships a high-risk system (reported for OpenAI's Preparedness Framework v2 [unverified pending sub-study]) |
-| `security_level` | RAND SL1-5 | Theft or leak incidents; government agreements |
-| `rl_intensity` / `pref_intensity` | Training mix (drives reward hacking / sycophancy) | Product behaviour incidents (e.g. sycophancy rollbacks) |
-| `openness` | Weights release | Directly visible |
+| Conditional, with public acknowledgement | OpenAI §4.3; Anthropic App. A | 0.5 |
+| "Only works if all adopt", no pause | GDM | 0.6 |
+| Unconditional "develop with mitigations" | Meta | 0.7 |
+| Benefit override with no decision authority | xAI | 0.9 |
 
-### Mechanics
+### 1.6.5 Mechanics
 
-- **Trait drift per model** = the same base drift as the player's (driven by `rl_intensity` and `pref_intensity`) × (1 - `safety_investment` × technique_efficacy).
-  - The pool of known techniques is shared, and it grows when **anyone publishes** (A4). That is why publishing is the player's lever on global safety.
-  - Under race pressure, `safety_investment` falls by `race_relaxation` × lead_gap_pressure.
-- **Incidents** fire with P ∝ trait × deployment breadth × (1 - mitigation).
-  - **Visibility** = `disclosure_rate` + P(external tester) + P(leak).
-  - So a low-disclosure lab looks *clean* until a big incident. That is the game's lesson about absence of evidence.
-- **The intel card** for each rival shows: grade bands (A-F, FLI-style), list of named external testers, known incidents, and a **posterior band** on its misalignment, not a point estimate. Posteriors tighten as evidence comes in, for example after a CAISI report or a whistleblower event.
-- **Rival ASI endings.** Use the rival's accrued hidden traits instead of a coin flip.
+1. **Effective safety:**
+   `eff_safety = safety_investment × (1 - race_relaxation × pressure) × (1 - rhetoric_gap_noise)`
+   - `pressure` = clamp((months the lab trails the leader, or months it is led by), 0, 1).
+   - Following the Anthropic App. A logic, a lab **in the lead** with `binding` > 0.5 slows down instead: `pressure` is set to 0, and it pays a speed penalty of 0.2 × `binding`.
+2. **Trait drift per model** = the base drift from `rl_intensity` and `pref_intensity` × (1 - `eff_safety` × technique_efficacy).
+   - Technique efficacy comes from a **shared, public pool** that grows when anyone publishes (§1.4 A4). That is why publishing is the player's only lever on other labs' alignment.
+3. **"Moving goalpost" event.** When `pressure` > 0.6 for 90 days, roll P = `race_relaxation` × 0.3 per quarter.
+   - On success, the lab publishes a weaker framework version: its `binding` drops by 0.1.
+   - The Index grade falls at the next edition, and the Safety bloc reacts.
+   - Real templates: Meta's Stop → Develop, and the loss of GDM's pause language.
+4. **Incidents** fire with P ∝ trait × deployment breadth × (1 - mitigation).
+   - **Visibility** = `disclosure_rate` + `external_access` × 0.5 + P(leak).
+   - Once SB 53 / RAISE apply, statutory reporting sets a floor on visibility for US labs (§1.7). A low-disclosure lab looks clean until a big incident: the lesson about absence of evidence.
+5. **Intel card per rival** shows:
+   - the latest framework version and its clause type;
+   - named testers;
+   - the Index grade;
+   - known incidents;
+   - a **posterior band** on misalignment.
 
-### Archetype defaults
+   The band narrows after evaluator reports, CAISI-style public evals of Chinese models, whistleblowers and incidents.
+6. **Rival ASI endings** use the rival's accrued hidden traits, not a coin flip.
 
-Mapped onto the 07 presets. Values are [D], anchored on public posture.
+## 1.7 Statutory floors that change relations mid-game (primary via sub-agent)
 
-| Archetype | safety_inv | eval_rigor | disclosure | race_relax | security |
-|---|---|---|---|---|---|
-| Safety Rival | 0.7 | 0.8 | 0.7 | 0.3 | SL3 |
-| Big Tech Incumbent | 0.5 | 0.6 | 0.4 | 0.4 | SL3-4 (own chips and infra) |
-| Maverick Accelerationist | 0.2 | 0.3 | 0.3 | 0.8 | SL2 |
-| Open-Weights Spoiler | 0.3 | 0.4 | 0.5 (weights are public) | 0.6 | SL2 |
-| Boutique Upstart | 0.5 | 0.4 | 0.3 | 0.5 | SL2 |
-| China / DeepCent | 0.3 (rising with Concordia-reported trend) | 0.3 (CAISI: 94% jailbreak compliance) [V] | 0.2 | 0.7 | SL3 for state, SL2 for firms (10) |
-
-**Realistic mode** applies ±0.15 of noise. The noise makes the intel card genuinely uncertain.
+- **CA SB 53** (signed 29 Sep 2025, in force 1 Jan 2026) [P]:
+  - publish a frontier AI framework, reviewed yearly; publish material changes within 30 days;
+  - transparency report at deployment;
+  - critical safety incidents to Cal OES within **15 days**, or **24 h** if there is imminent risk to life;
+  - whistleblower protections.
+- **NY RAISE** (chapter amendment S8828, signed 27 Mar 2026, effective 1 Jan 2027) [P]:
+  - applies above 10^26 FLOP and $500M revenue;
+  - **72 h** incident reports to a DFS office (24 h if imminent);
+  - "deceptive techniques to subvert developer controls" counts as a critical safety incident;
+  - fines of $1M first, then $3M.
+- **EU GPAI Code of Practice** signatory list (updated 7 Oct 2026) [P]:
+  - signed: Anthropic, OpenAI, Google, Microsoft, Amazon, Mistral and others;
+  - **xAI signed only the Safety & Security chapter**;
+  - not listed: Meta, DeepSeek, Alibaba, Zhipu.
+- **Game effect.** When these switch on, `disclosure_rate` gets a floor for in-scope labs. Hiding an incident becomes a legal risk (fines plus a Trust ×3 loss) rather than only a reputational one. Framework edits become public within 30 days, so "moving goalpost" events become visible.
 
 ---
 
 # PART 2 - GAME-READY SPEC: ENGAGEMENT AND GAME FEEL
 
-The designer-source claims in this part are from memory. They are tagged [unverified] until the game-design sub-study returns its URLs.
+Designer statements were gathered from GDC Vault listings, designers' own blogs and devlogs, and official studio pages. Tags:
+- **[V]**: the primary page was fetched.
+- **[V-press]**: press, but quoting the designer directly.
+- **[unverified]**: no primary source was found.
 
-## 2.1 Lessons from reference games
+Quotes passed through a summarising fetch tool. Spot-check the wording before publishing it.
 
-| Game | Mechanism worth stealing | Translation to the AI-lab game |
-|---|---|---|
-| **Plague Inc.** (James Vaill, Ndemic) | Two meters race: spread vs cure. Severity is a self-harming upgrade, because it raises detection and so speeds the cure. Point bubbles pull attention to the map. Real-world framing earned CDC interest [unverified]. | **Capability vs Understanding** race. Capability upgrades raise Scrutiny (detection) and the government ladders. Clickable "finding" bubbles on the risk map. |
-| **Frostpunk** (11 bit) | Two social meters (Hope / Discontent) plus the Book of Laws: irreversible laws with moral cost, and a constant external clock (cold) [unverified]. | **Commitments** as irreversible law-like cards. A constant external clock comes from rivals and China, not the calendar. |
-| **Victoria 3 / CK3** (Paradox) | Nested tooltips that answer "why is this number" [unverified]. Interest groups with approval and clout. | Every number gets a breakdown tooltip (already a user rule). The blocs in 08 already use clout and approval. |
-| **RimWorld** (Tynan Sylvester) | Game as a "story generator". The AI storyteller paces threats around player state, with rest periods after crises [unverified]. | An **Event Director** paces incidents by tension curve, not uniform chance (§2.5). |
-| **Democracy 3/4** (Cliff Harris) | A policy web where hovering shows causal lines between policies, groups and outcomes [unverified]. | A **relations web**: hover an action to see arrows to each counterparty and currency (§1.5 triangles). |
-| **Papers, Please** (Lucas Pope) | Rules escalate each day. The mechanic *is* the moral message: speed vs scrutiny vs family [unverified]. | Regulations add **checklist steps** to launches (SB 53 publication, A1 window, incident reporting), and the player feels compliance friction. |
-| **Universal Paperclips** (Frank Lantz) | Staged reveal: whole new resource panels appear as phases change. The theme is a paperclip maximiser [unverified]. | Phase unlocks: Startup → Frontier → Automation (AI labour panel) → Takeoff (Oversight Committee panel). |
-| **Factorio** | Production statistics make the bottleneck obvious [unverified]. | **Bottleneck bar** (REDESIGN §3) and a risk-source view. |
-| **Into the Breach** (Subset) | Telegraphed enemy intent, so the player solves a known problem [unverified]. | Telegraph actor reactions: "If you ship now: Gov ladder +1 rung in about 20 days (Scrutiny 72)". |
+## 2.1 What the designers say, and what to take
+
+**Plague Inc. (James Vaughan, Ndemic Creations).** The designer's name is Vaughan; "Vaill" in the brief was wrong.
+- **Design intent.** His aim over Pandemic 2 was "deeper narrative, giving the player more strategic choices… providing graphs and data lists and vastly increasing the realism." The systems have "hundreds of variables", were modelled in Excel, and "the only real way to see how they feel is to play" [V-press, PocketGamer.biz Q&A].
+- **Positioning.** Ndemic bills it as "a unique mix of high strategy and terrifyingly realistic simulation" [V].
+- **CDC.** The CDC invited Vaughan "to talk about how Plague Inc. models the spread of infectious disease" (Mar 2013) [V, Ndemic news].
+- **The Cure (2020/21).** This version inverts the player's role. Built with WHO, CEPI and GOARN input, it asks the player to balance health measures, research, economy and **public trust**: "People won't comply with poorly designed quarantine/lock down measures." It is disclaimed as "a game, not a scientific simulation" [V, Ndemic].
+- **CEPI on simplification.** The game "has to simplify a number of really complex concepts" [V, cepi.net].
+- **GDC talks.** The 2013 and 2015 talks are about business and porting, not design [V, GDC Vault listings].
+- **Gap.** No designer write-up explains the infectivity/severity/lethality split, the DNA bubbles or the cure race [unverified]. Treat those as observed mechanics.
+- **Take:**
+  - the dual race;
+  - self-harming upgrades: severity speeds the cure, so capability raises Scrutiny;
+  - a trust-gated compliance meter, from The Cure; this is our Public and Gov Trust;
+  - expert grounding plus an honest disclaimer.
+
+**Universal Paperclips (Frank Lantz).**
+- **The player is the AI.** He wanted "a first person perspective of what it's like to be the AI in this thought experiment."
+- **The arc.** "You do more and more things to gain their trust", until "you no longer really need your human managers." Trust is earned, then oversight drops away.
+- **Theme.** "It's about this kind of exponential growth."
+- **Feel.** He wants players to "fall into it, and… lean back from it" [V-press, YC podcast transcript].
+- **Take:** staged reveals of whole new panels, and trust as a resource that unlocks autonomy. In our game this runs in reverse: the player grants autonomy to their own AI.
+
+**Frostpunk (11 bit studios).**
+- **Values first.** Lead designer Jakub Stokalski: "all games are about human values." Each layer has its own value conflict, and the strategic one is "Will you cross the line". The Book of Laws is "a set of choices that shape the rules for your people". The story is emergent ("not a single NPC") [V, Stokalski's article on Game Developer].
+- **GDC 2021, Marta Fijak.** "Ghost in the Machine: Authorial Voice in System Design" asks "can mathematics be an expression of our world view?" [V, GDC Vault].
+- **Reflection.** Fijak says players don't empathise with 500 numbers, but they do ask afterwards "would I have done this in real life?" She called the judgemental ending commentary "problematic" [V-press].
+- **Hope and Discontent** are independent meters [unverified, interview truncated].
+- **Take:**
+  - Commitments work like laws: chosen, hard to undo, with a moral cast.
+  - The argument lives in the system's maths, not in text.
+  - Endings should not moralise.
+
+**RimWorld (Tynan Sylvester).**
+- **Official framing.** "RimWorld is a story generator." Pacing is a chosen personality: "Cassandra Classic goes for rising tension, and Phoebe Chillax likes to relax" [V, rimworldgame.com].
+- **GDC 2017 talk.** Defines the game "not as a game, but as a story generator" [V, GDC Vault].
+- **"The Simulation Dream".**
+  - "The whole value of a game is in the mental model of itself it projects into the player's mind." Simulation that never reaches that model is worthless.
+  - Apophenia is "the key to making a simulation game work".
+  - Avoid "hair complexity", meaning detail that affects nothing else [V].
+- **Take:**
+  - The Event Director is a selectable storyteller.
+  - Every hidden variable needs a visible proxy, or it gets cut.
+  - Hidden traits stay hidden, but their **symptoms** must be legible.
+
+**Democracy 3/4 (Cliff Harris, Positech).**
+- **Cause-and-effect icons.** Democracy 3 added a row of icons under each chart, "filtered" to the policies that directly affect that metric. Indirect effects were left out because "indirectly everything affects everything" [V, Positech blog 2013].
+- **Built UI-first.** Democracy 4 was built "GUI first and Mechanics / Content second" [V].
+- **Honest about his own charts.** He admitted they did not "make much sense to anybody who didn't code the game" and redesigned them to a single love/hate axis [V].
+- **Event frequency** is tuned by hand from telemetry [V].
+- **Priorities.** "Make a fun game first, and an accurate political-economic model second" [V-press].
+- **Take:**
+  - Every meter gets a "recent direct causes" icon strip. Only first-order effects; deeper causes go in nested tooltips.
+  - One axis per relation is visible on top (Trust), with the rest one level down.
+
+**Papers, Please (Lucas Pope).**
+- **Devlog: both extremes fail.** The goal is "process people as quickly as possible and not make any mistakes." Letting everyone in makes you "responsible for spy/terrorist/smuggler activity"; refusing everyone gets you fired. The day-to-day is "random within parameters; the story is scripted" [V, dukope.com devlog].
+- **Postmortem: one escalation at a time.**
+  - "Motivate each new mechanic with a story element."
+  - Avoid "too many things happen at once".
+  - An economy creates "constant money pressure".
+  - Features that weakened the "powerless cog" premise were cut.
+  - Lasting rules live in the rulebook, "the proper long-term place".
+  - Endings are neutral [V, dukope.com].
+- **Take:** compliance steps arrive one per story beat, for example an SB 53 checklist appearing when the law passes. Racing flat-out and pure caution must both lose. Use one canonical rulebook (the Codex).
+
+**Paradox (CK3 / Victoria 3).**
+- **CK3 Dev Diary #16** introduced nested tooltips: blue terms open further tooltips, and the default is a timer lock with a middle-click lock alternative. It also added a searchable Encyclopedia generated from the game's script files, so it stays current [P, crusaderkings.com news mirror via search; forum blocked].
+- **Victoria 3 Dev Diary #29 "User Experience"** credits CK3 for the feature [P, title only].
+- **Take:** this is already a user rule. The source confirms the implementation pattern: concept links, lock modes and a script-generated codex.
+
+**Factorio (Wube).**
+- **FFF #241, new-player experience** [V]:
+  - "Teaching by experimentation instead of jumping through arbitrary tasks."
+  - Goals come through the tech tree.
+  - "Unify the channels the player gets information from".
+  - Many messages "just flood the player with noise".
+- **Production statistics.** FFF #337 and #408 cover the production statistics GUI [P]. Players asked for steadier stats to spot bottlenecks, and a community "Bottleneck Analyzer" mod fills the gap [P, forum and mods site].
+- **Take:**
+  - Build the explicit bottleneck bar that Factorio players had to mod in.
+  - Use a single alert channel.
+  - Unlock goals through the model and agenda tree, not tutorial tasks.
+
+**Other references.**
+- Sid Meier's GDC 2012 talk "Interesting Decisions" covers which decisions are interesting, and what information and feedback players need [V, listing].
+- Into the Breach's GDC 2019 postmortem listing covers RNG and difficulty. The "telegraphed intent" principle is well known but was not confirmed in the listing [unverified].
 
 ## 2.2 Core loop (one quarter of play ≈ 3-6 real minutes) [D]
 
-1. **Read.** Main screen shows the race bars, the bottleneck bar, and alerts.
-2. **Allocate.** Compute, people and cash across the 4 departments.
-3. **Decide 1-3 chunky choices.** Train or launch a model, respond to a finding, make a relations action.
-4. **Watch consequences arrive with lag**, telegraphed in advance.
-5. **New information.** Findings, rival intel and evaluator reports change what you believe.
+1. **Read.** Race bars, bottleneck bar, alerts (Factorio: one channel).
+2. **Allocate.** Compute, people and cash across 4 departments.
+3. **Make 1-3 chunky decisions.** Train or launch, respond to a finding, or take a relations action. Each decision is a Meier-style interesting decision: real alternatives, information shown up front.
+4. **Consequences arrive with lag** and are telegraphed. Democracy-style cause icons appear on the meters they hit.
+5. **New information.** Findings, rival intel, evaluator reports and the Index.
 
-The meta-loop is the model generation (A-1 → A-2 …). Each generation is a "level", with a launch decision as its climax.
+The meta-loop is a model generation. Each one ends in a launch decision.
 
-## 2.3 The central tensions
+## 2.3 The three central tensions
 
-1. **Capability vs Understanding.** These are the two race meters, like Plague Inc's infection vs cure. The bars are your best model's capability and your *verified* alignment confidence. The gap between them is the risk.
-2. **Speed vs Scrutiny.** Moving fast raises Scrutiny, Security_Demand and rival responses, the detection mechanic. Moving slow lets rivals and China overtake you.
-3. **Openness vs Control.** Disclosure, access, publication and open weights buy trust and global safety, and cost leakage and lost moat (§1.5).
+1. **Capability vs Understanding.** This is Plague Inc's dual race. Show your best model's capability against your *verified* alignment confidence.
+2. **Speed vs Scrutiny.** Severity raises detection in Plague Inc; Papers, Please makes both extremes fail. Racing raises Scrutiny, `Security_Demand` and rivals' `race_relaxation`. Going slow lets rivals and China overtake you, and lets their weaker frameworks set the pace. That is the collective-action problem the RSP v3 intro names [V].
+3. **Openness vs Control.** In The Cure, compliance depends on trust. Disclosure, access and publishing buy Trust and lift global safety, at the cost of leakage and lost moat (§1.5).
 
-## 2.4 Main screen (terse, icons-first, per the user's UI rule)
+## 2.4 Main screen
 
+The user's UI rule applies: terse, icons first.
 - **Top strip:**
-  - cash runway (months);
-  - compute (own / contracted);
-  - the two race bars, Capability vs Understanding, with a gap readout;
-  - the lead over the nearest rival, and China's lead or lag, in months;
+  - cash runway;
+  - compute;
+  - the two race bars with a gap readout;
+  - lead in months over the nearest rival and over China;
   - Scrutiny.
-- **Centre:** the **risk map**. Nodes are deployments (internal, government, enterprise, consumer, open), labs and China. Edges show flows: theft and distillation, talent, data. Incidents pulse on the map.
-- **Right rail:** the bottleneck bar, then the Obligations panel, then the relations mini-web (5 counterparties, each with Trust, Access rung and Favors).
-- **Bottom:** alert/event queue. Each alert carries its telegraphed outcome and a deadline timer.
 
-## 2.5 Making every lever a trade-off [D]
+  Each meter has a Democracy-style cause strip on hover.
+- **Centre: risk map.** Nodes are deployments, labs and China. Edges are flows: theft, distillation, talent, data. Incidents pulse on it. Plague Inc's map legibility applies.
+- **Right rail:**
+  - bottleneck bar;
+  - Obligations (Commitments);
+  - relations mini-web: 5 counterparties, each with Trust, Access rung and Favors;
+  - rival intel cards, each with a posterior band.
+- **Bottom: event queue.** Each event shows its telegraphed outcome and a deadline.
 
-- **Different currencies.** Each action card lists its cost in one currency and its gain in another, plus its exposure (§1.4). No action may cost and pay in the same currency.
-- **Delayed costs are shown in advance** as a ghost bar on the affected meter.
-- **Real downside on the "good" option.** Safety is never free: it costs compute or schedule, and disclosure costs Scrutiny. Racing is never free either: it costs Trust, raises incident odds, and accelerates the government ladders.
-- **Diminishing returns** on every lever, so specialising in one lever stalls.
+## 2.5 Making every lever a trade-off [D, grounded]
+
+- **Cost and gain in different currencies**, plus an **exposure** line (§1.4). Pope's rule that both extremes must fail is the design test: simulate pure-race and pure-safety bots, and both must lose more often than mixed strategies. The existing simtest harness can run this.
+- **Delayed costs** appear as ghost bars before you commit.
+- **Diminishing returns** on every lever.
+- **Prune with the Sylvester test.** Any variable that cannot be read through some proxy (an icon, a breakdown, an event) gets cut.
 
 ## 2.6 Pacing over 1-3 hours
 
-| Act | Real time | Game time | New systems |
-|---|---|---|---|
-| 1 Startup | 0-20 min | 2025-26 | Finance, departments, the first model. Relations limited to Gov and Public. |
-| 2 Frontier race | 20-60 min | | Rivals' intel cards, research bodies, the Commitments panel. The first evaluator report. |
-| 3 Automation | 60-100 min | | AI-labour panel, a rising R&D multiplier, China theft and distillation. Government ladder rungs 1-3. |
-| 4 Takeoff | | | Oversight Committee, treaty or lockdown branches. Tension peaks: more pauses, fewer quiet weeks. |
+| Act | Real time | New systems (Pope/Paperclips: one per beat) |
+|---|---|---|
+| 1 Startup | 0-20 min | Finance, departments, the first model. Gov and Public relations only. |
+| 2 Frontier race | 20-60 min | Rival intel cards, research bodies, Commitments, the first evaluator report, the first Index edition. |
+| 3 Automation | 60-100 min | AI-labour panel, a rising multiplier, China theft and distillation, statutory floors (§1.7), government ladder rungs 1-3. |
+| 4 Takeoff | 100-180 min | Oversight Committee, treaty or lockdown. Peak tension. |
 
-- **Event Director (RimWorld-style).** Tension = f(gap, Scrutiny, incident backlog). After a major crisis it guarantees 2-4 quiet weeks, and it caps concurrent crises at 2.
-- **Fast-forward.** Auto-run quiet years.
+- **Selectable storyteller** (RimWorld). The Event Director preset sets the tension curve: "Rising" (Cassandra-like), "Chaotic" or "Measured". It guarantees quiet weeks after big crises and caps concurrent crises at 2.
+- **Fast-forward** through quiet stretches.
 
 ## 2.7 Tutorialisation
 
-- **Staged unlocks** (Paperclips): never show a panel before it matters.
-- **The first model is scripted.** One forced finding teaches the disclosure dilemma.
-- **First-time contextual hints** in 1-line terse form, with depth in tooltips.
-- **End-screen "what happened and why".** A causal replay of the 5 biggest decisions, plus a comparison against AI 2027 (REDESIGN §9 row 4).
-- **Primary-source codex.** Each mechanic links to its real precedent in Part 4. This is the educational layer.
+- **Learn by experimentation (Factorio FFF #241).**
+  - Goals come through the model and agenda tree.
+  - The first model is lightly scripted: one forced finding teaches the disclosure dilemma.
+  - Story is scripted while day-to-day play is random within parameters, as Pope describes.
+- **Staged unlocks:** no panel appears before it matters.
+- **One information channel**, the Codex. It is generated from game data like CK3's encyclopedia, and every mechanic links to its Part 4 precedent.
+- **Reflective, non-judgemental end screen** (Fijak, Pope).
+  - A causal replay of your 5 biggest decisions.
+  - What the rivals' hidden profiles really were.
+  - A comparison with AI 2027.
+  - No moral verdict.
 
 ---
 
