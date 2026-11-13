@@ -4,7 +4,9 @@ import { chromium } from 'playwright-core';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const md = fs.readFileSync('design/REDESIGN.md', 'utf8');
+const src = process.argv[2] ?? 'design/REDESIGN.md';
+const prefix = process.argv[3] ?? 'D';
+const md = fs.readFileSync(src, 'utf8');
 const blocks = [...md.matchAll(/```mermaid\n([\s\S]*?)```/g)].map((m) => m[1]);
 const lib = path.resolve('node_modules/mermaid/dist/mermaid.min.js').split(path.sep).join('/');
 const browser = await chromium.launch({ channel: 'msedge', headless: true });
@@ -20,8 +22,8 @@ for (const code of blocks) {
     document.getElementById('out').innerHTML = svg;
     return svg;
   }, { code, i });
-  fs.writeFileSync(`design/diagrams/D${i}.svg`, svg);
-  await page.locator('#out svg').screenshot({ path: `design/diagrams/D${i}.png` });
-  console.log(`D${i} rendered`);
+  fs.writeFileSync(`design/diagrams/${prefix}${i}.svg`, svg);
+  await page.locator('#out svg').screenshot({ path: `design/diagrams/${prefix}${i}.png` });
+  console.log(`${prefix}${i} rendered`);
 }
 await browser.close();
