@@ -10,7 +10,10 @@
     "sim": "tsx scripts/simtest.ts",
     "shots": "node scripts/shot.mjs",
     "test:effects": "tsx scripts/controltest.ts",
-    "test:ui": "vite build && node scripts/uitest.mjs"
+    "test:ui": "vite build && node scripts/uitest.mjs",
+    "test:v2": "tsc --noEmit -p scripts/v2/tsconfig.json && tsx scripts/v2/golden-timelines.ts && tsx scripts/v2/fixtures.ts && tsx scripts/v2/hygiene.ts && tsx scripts/v2/lint-hidden.ts && tsx scripts/v2/lint-tradeoffs.ts",
+    "fixtures:v2": "tsx scripts/v2/fixtures.ts",
+    "dev:v2": "vite --open /?v2"
   },
   "dependencies": {
     "lucide-react": "^1.72.0",

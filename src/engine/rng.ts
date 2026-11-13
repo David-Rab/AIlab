@@ -35,6 +35,31 @@ export class Rng {
     const z90 = 1.2815515655446004;
     return this.normal((p10 + p90) / 2, (p90 - p10) / (2 * z90));
   }
+  /** Gamma(shape, 1) by Marsaglia–Tsang (2000); shape < 1 via the u^(1/shape) boost. (v2 addition) */
+  gamma(shape: number): number {
+    if (shape <= 0) return 0;
+    if (shape < 1) return this.gamma(shape + 1) * Math.pow(Math.max(1e-12, this.next()), 1 / shape);
+    const d = shape - 1 / 3;
+    const c = 1 / Math.sqrt(9 * d);
+    for (;;) {
+      let x: number;
+      let v: number;
+      do {
+        x = this.normal();
+        v = 1 + c * x;
+      } while (v <= 0);
+      v = v * v * v;
+      const u = Math.max(1e-12, this.next());
+      if (u < 1 - 0.0331 * x * x * x * x) return d * v;
+      if (Math.log(u) < 0.5 * x * x + d * (1 - v + Math.log(v))) return d * v;
+    }
+  }
+  /** Beta(a, b) from two gammas. (v2 addition) */
+  beta(a: number, b: number): number {
+    const x = this.gamma(a);
+    const y = this.gamma(b);
+    return x + y > 0 ? x / (x + y) : 0.5;
+  }
   pick<T>(items: readonly T[]): T {
     return items[Math.floor(this.next() * items.length)];
   }

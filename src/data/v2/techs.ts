@@ -1,0 +1,35 @@
+// World technologies W01–W29 (= research/16 T1–T29, §3.2). Owner: WS5.
+// TODO(WS5, M1): gates, effort, lag, benefits/risks as data.
+export interface WorldTechDef { id: string; name: string; /** progress 0..1 at Jul 2025 (1 = discovered) */ start: number }
+
+export const WORLD_TECHS: WorldTechDef[] = [
+  { id: 'W01', name: 'Protein structure and design', start: 1 },
+  { id: 'W02', name: 'ML weather forecasting', start: 1 },
+  { id: 'W03', name: 'AI drug-candidate pipeline', start: 0.5 },
+  { id: 'W04', name: 'Autonomous labs', start: 0 },
+  { id: 'W05', name: 'In-silico trials', start: 0 },
+  { id: 'W06', name: 'New antibiotics and antivirals', start: 0 },
+  { id: 'W07', name: 'Cancer therapeutics wave', start: 0 },
+  { id: 'W08', name: 'Precision gene editing', start: 0 },
+  { id: 'W09', name: 'Longevity interventions', start: 0 },
+  { id: 'W10', name: 'Materials discovery engine', start: 0.4 },
+  { id: 'W11', name: 'Grid-scale storage', start: 0 },
+  { id: 'W12', name: 'Fusion', start: 0 },
+  { id: 'W13', name: 'Cheap solar / geothermal', start: 0 },
+  { id: 'W14', name: 'AI chip-design automation', start: 0 },
+  { id: 'W15', name: 'Fault-tolerant quantum computing', start: 0 },
+  { id: 'W16', name: 'General-purpose robotics', start: 0 },
+  { id: 'W17', name: 'Self-replicating factories', start: 0 },
+  { id: 'W18', name: 'Molecular nanotechnology', start: 0 },
+  { id: 'W19', name: 'Autonomous vehicles at scale', start: 0 },
+  { id: 'W20', name: 'Whole-brain emulation', start: 0 },
+  { id: 'W21', name: 'Brain–computer interfaces', start: 0 },
+  { id: 'W22', name: 'Automated mathematics', start: 0.6 },
+  { id: 'W23', name: 'Superhuman persuasion', start: 0 },
+  { id: 'W24', name: 'Autonomous cyber offense/defense', start: 0.4 },
+  { id: 'W25', name: 'Enhanced pathogen design', start: 0.3 },
+  { id: 'W26', name: 'Autonomous weapons', start: 0 },
+  { id: 'W27', name: 'Counter-second-strike', start: 0 },
+  { id: 'W28', name: 'Verifiable AI / treaty verification', start: 0 },
+  { id: 'W29', name: 'Space industrialization', start: 0 },
+];
