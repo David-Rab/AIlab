@@ -615,3 +615,53 @@ The user's UI rule applies: terse, icons first.
 - xAI v. OpenAI (Sep 2025): https://www.legaltechmonitor.com/2025/09/xai-sues-openai-in-ca-federal-court-for-allegedly-stealing-trade-secrets/
 - Bartz v. Anthropic settlement: https://www.authorsalliance.org/2025/09/28/bartz-v-anthropic-settlement-gets-preliminary-approval-key-takeaways/
 - CAISI May 2026 agreements: https://www.hpcwire.com/off-the-wire/nists-caisi-announces-new-frontier-ai-testing-agreements-with-google-deepmind-microsoft-xai/
+
+**Lab frameworks and safety index (added in pass 2):**
+- [V, PDF text extracted] OpenAI Preparedness Framework v2 (15 Apr 2025), §4.3: https://cdn.openai.com/pdf/18a02b5d-6b67-4cec-ab64-68cdfbddebcd/preparedness-framework-v2.pdf
+- [V, PDF text extracted] Anthropic RSP v3.0 (24 Feb 2026), intro and Appendix A: https://www-cdn.anthropic.com/e670587677525f28df69b59e5fb4c22cc5461a17.pdf. Version index: https://www.anthropic.com/responsible-scaling-policy
+- [P] Anthropic RSP v3.4 (8 Jul 2026): https://www-cdn.anthropic.com/files/4zrzovbb/website/0bacdc8440ea96e62a8766d99ebe1d4eea6d5f3a.pdf
+- [V] Google DeepMind, Strengthening our FSF (v3, 22 Sep 2025; v3.1, 17 Apr 2026): https://deepmind.google/blog/strengthening-our-frontier-safety-framework/
+- [P] GDM FSF 3.1 PDF: https://storage.googleapis.com/deepmind-media/DeepMind.com/Blog/strengthening-our-frontier-safety-framework/frontier-safety-framework_3-1.pdf
+- [V, PDF text extracted] Meta Advanced AI Scaling Framework v2 (thresholds table and changelog): https://ai.meta.com/static-resource/Meta_Advanced-AI-Scaling-Framework-v2
+- [P] Meta Superintelligence Scaling Framework v2.1: https://research.meta.ai/static/meta-superintelligence-scaling-framework
+- [V, PDF text extracted] xAI Risk Management Framework (20 Aug 2025): https://data.x.ai/2025-08-20-xai-risk-management-framework.pdf
+- [P] xAI Frontier AI Framework (31 Dec 2025): https://data.x.ai/2025-12-31-xai-frontier-artificial-intelligence-framework.pdf
+- [P] Microsoft Frontier Governance Framework (Feb 2026): https://cdn-dynmedia-1.microsoft.com/is/content/microsoftcorp/microsoft/msc/documents/presentations/CSR/Frontier-Governance-Framework-Feb-2026.pdf
+- [P] METR framework tracker: https://metr.org/fsp
+- [V, PDF text extracted] FLI AI Safety Index Summer 2026 (findings, methodology, grades): https://futureoflife.org/wp-content/uploads/2026/07/AI-Safety-Index-Summer-2026-Digital.pdf
+- [P] FLI AI Safety Index, Dec 2024: https://futureoflife.org/wp-content/uploads/2024/12/AI-Safety-Index-2024-Full-Report-11-Dec-24.pdf
+- [P] FLI index page: https://futureoflife.org/index/ai-safety-index/
+- [P] Shanghai AI Lab Frontier AI Risk Management Framework: https://arxiv.org/abs/2507.16534
+- [P] Anthropic, Agentic misalignment: https://www.anthropic.com/research/agentic-misalignment
+- [P] EU GPAI Code of Practice signatories: https://digital-strategy.ec.europa.eu/en/policies/contents-code-gpai
+- [P] NY S8828 (RAISE amendments): https://www.nysenate.gov/legislation/bills/2025/S8828
+- [P] CA SB 53 signing: https://www.gov.ca.gov/2025/09/29/governor-newsom-signs-sb-53-advancing-californias-world-leading-artificial-intelligence-industry/
+
+**Game design (added in pass 2; [V] = designer or studio page fetched):**
+- [V] GDC Vault, Plague Inc business talk (2013): https://gdcvault.com/play/1018014/Plague-Inc-How-Its-Business
+- [V] GDC Vault, Evolving Plague Inc (2015): https://gdcvault.com/play/1021963/Evolving-Plague-Inc-Taking-a
+- [V-press] Vaughan Q&A, PocketGamer.biz: https://www.pocketgamer.biz/plague-vs-pandemic-qanda-with-james-vaughan-founder-of-ndemic-studios/
+- [V] Ndemic, Plague Inc page: https://www.ndemiccreations.com/en/22-plague-inc
+- [V] Ndemic, Plague Inc at the CDC: https://cdn.ndemiccreations.com/en/news/43-plague-inc-at-the-cdc
+- [V] Ndemic, The Cure: https://cdn.ndemiccreations.com/en/57-plague-inc-cure
+- [V] Ndemic, WHO plays The Cure: https://cdn.ndemiccreations.com/en/news/188-world-health-organization-plays-plague-inc-the-cure
+- [V] CEPI on Plague Inc: https://cepi.net/plague-inc
+- [V] Steam, Plague Inc: Evolved: https://store.steampowered.com/app/246620/Plague_Inc_Evolved/
+- [V-press] Frank Lantz, Y Combinator podcast transcript: https://ycombinator.com/blog/frank-lantz-director-of-nyus-game-center-and-creator-of-universal-paperclips
+- [V] Stokalski, Human values in game design (Frostpunk): https://www.gamedeveloper.com/design/human-values-in-game-design---an-approach-for-designing-emergent-storytelling
+- [V] GDC Vault, Fijak, Ghost in the Machine (2021): https://www.gdcvault.com/play/1027186/Independent-Games-Summit-Ghost-in
+- [V-press] Fijak, PCGamesInsider: https://www.pcgamesinsider.biz/news/67933/11bits-marta-fijak-empathising-with-500-people-is-hard-in-frostpunk/
+- [V] RimWorld official site: https://rimworldgame.com/
+- [V] GDC Vault, RimWorld contrarian methods (2017): https://gdcvault.com/play/1024686/-RimWorld-Contrarian-Ridiculous-and
+- [V] Sylvester, The Simulation Dream: https://www.gamedeveloper.com/design/the-simulation-dream
+- [V] Positech, Democracy 3 cause icons: https://www.positech.co.uk/cliffsblog/2013/08/16/one-final-democracy-3-feature-just-got-added/
+- [V] Positech, Democracy 4 GUI first: https://positech.co.uk/cliffsblog/2019/11/09/democracy-4-gui-update
+- [V] Positech, voter model: https://positech.co.uk/cliffsblog/2020/10/21/modelling-voter-happiness-in-a-video-game-is-interesting-but-also-horrendous
+- [V] Positech, events balance: https://www.positech.co.uk/cliffsblog/2021/08/07/improving-democracy-4-events-balance-by-using-a-lot-of-data/
+- [V] Lucas Pope, Papers, Please devlog (start): https://dukope.com/devlogs/papers-please/tig-00
+- [V] Lucas Pope, Papers, Please devlog (postmortem): https://dukope.com/devlogs/papers-please/tig-10
+- [P] CK3 Dev Diary #16, Tutorials, Tooltips, Encyclopedias: https://www.crusaderkings.com/de/news/dev-diary-16-tutorials-and-tooltips-and-encyclopedias-oh-my
+- [V] Factorio FFF #241, new player experience: https://factorio.com/blog/post/fff-241
+- [P] Factorio FFF #408, statistics: https://www.factorio.com/blog/post/fff-408
+- [V] GDC Vault, Sid Meier, Interesting Decisions (2012): https://www.gdcvault.com/play/1015756/Interesting
+- [V listing] GDC Vault, Into the Breach postmortem: https://www.gdcvault.com/play/1025772/-Into-the-Breach-Design
