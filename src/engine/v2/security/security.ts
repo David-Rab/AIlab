@@ -1,13 +1,27 @@
-// Weight and secrets security, spies, siloing (V2-SPEC §3.6). Owner: WS4.
-import type { EngineSystem, SecurityState, StaffByRole } from '../types';
+// Weight and secrets security, spies, siloing (V2-SPEC §3.6; research/11 #17, #24). Owner: WS4.
+import { clamp } from '../../rng';
+import { dateOf, decimalYear } from '../core/time';
+import { bestPlayerVersion, activeRivals, CHINA_ID } from '../models/labs';
+import { exfiltrationHazard } from '../safety/incidents';
+import { misalignment } from '../safety/traits';
+import type { EngineSystem, GameStateV2, SecurityState, StaffByRole } from '../types';
+import { leadBetween, postureOf } from '../actors/rivals';
+import { request, ws4 } from '../actors/state';
+import { distillFlowDaily, executeTheft, secretsLeakDaily, theftHazardDaily, theftHazardOn } from './theft';
 
 /** WSL status-quo floor: 2.2 + 0.55·min(years since 2025.0, 2) (R11 #17). */
 export const wslFloor = (yearsSince2025: number) => 2.2 + 0.55 * Math.min(Math.max(0, yearsSince2025), 2);
 
-/** Spies = privileged · rate (0.005, rising to 0.01 at China rung ≥ 2); privileged = (cap + saf)·(1 − 0.3·siloing). */
+/** Spend needed to move/hold WSL L: 0.2·e^(0.9(L−2))·(computeOnline/1M)^0.5 $B/yr [D] (§3.6). */
+export const reqSpend = (L: number, computeOnline: number) => 0.2 * Math.exp(0.9 * (L - 2)) * Math.sqrt(Math.max(0, computeOnline) / 1e6);
+
+/** privileged = (cap + saf)·(1 − 0.3·siloing). */
 export function privilegedOf(staff: Pick<StaffByRole, 'cap' | 'saf'>, siloing: number) {
   return (staff.cap + staff.saf) * (1 - 0.3 * siloing);
 }
+
+/** Spy rate per privileged staffer: 0.005, rising to 0.01 at China rung ≥ 2 (R11 verified). */
+export const spyRate = (s: GameStateV2) => (s.china.rung >= 2 ? 0.01 : 0.005);
 
 export function initialSecurity(staff: Pick<StaffByRole, 'cap' | 'saf'>, wsl = 2.4): SecurityState {
   const privileged = privilegedOf(staff, 0);
@@ -17,8 +31,76 @@ export function initialSecurity(staff: Pick<StaffByRole, 'cap' | 'saf'>, wsl = 2
   };
 }
 
-/** security (90, daily): theft hazard, insider leaks, distillation flow, exfiltration hazard. TODO(WS4, M1). */
+/** Whistleblower hazard per day (research/17 A6): grows with things worth leaking; low morale raises it. */
+export function whistleHazard(s: GameStateV2): number {
+  const w = ws4(s);
+  const worth = w.redFlags + w.coverups.length + (s.player.safety.incidents.some((i) => i.status === 'covered') ? 1 : 0);
+  if (!worth) return 0;
+  return 0.0008 * worth * (1.5 - s.player.morale.safety / 100) * (s.flags['ws4:purged'] ? 1.5 : 1);
+}
+
+/** security (90, daily): WSL movement, spies, theft hazard, insider leaks, distillation flow, exfiltration hazard. */
 export const securitySystem: EngineSystem = {
   id: 'security', owner: 'WS4', cadence: 'daily', order: 90,
-  run() {},
+  run(s, ctx) {
+    const w = ws4(s);
+    const sec = s.player.security;
+    const rng = ctx.rng('security');
+    const floor = wslFloor(decimalYear(s) - 2025);
+
+    // WSL moves toward target at ≤ 0.006/day while funded; underfunding decays it 0.002/day toward the floor.
+    if (sec.spendRate >= reqSpend(sec.target, s.player.computeOnline) - 1e-9 && sec.wsl < sec.target) sec.wsl = Math.min(sec.target, sec.wsl + 0.006);
+    else if (sec.spendRate < reqSpend(sec.wsl, s.player.computeOnline) - 1e-9) sec.wsl -= 0.002;
+    sec.wsl = clamp(Math.max(sec.wsl, floor), 1, 5);
+    sec.ssl = sec.wsl - 0.6;
+    sec.privileged = privilegedOf(s.player.staff, sec.siloing);
+    w.spyMult = Math.min(1, w.spyMult + 0.002);
+    sec.spies = sec.privileged * spyRate(s) * w.spyMult * (sec.clearances ? 0.6 : 1);
+    if (dateOf(s).getUTCDate() === 1 && sec.spendRate > 0) ctx.bump('cash', -sec.spendRate / 12, 'security spend', `WSL target ${sec.target.toFixed(1)}`);
+
+    // Theft against the player, then against active rivals holding a model worth stealing.
+    if (rng.chance(theftHazardDaily(s))) {
+      w.theftAttempts++;
+      executeTheft(s, ctx, 'player');
+    }
+    for (const r of activeRivals(s)) {
+      const rs = r.core.security;
+      rs.wsl = Math.max(rs.wsl, floor + 0.4 * postureOf(s, r.core.id).safetyInvestment);
+      rs.ssl = rs.wsl - 0.6;
+      rs.spies = privilegedOf(r.core.staff, 0) * spyRate(s);
+      if (rng.chance(0.5 * theftHazardOn(s, rs, leadBetween(s, r.core.id, CHINA_ID)))) executeTheft(s, ctx, r.core.id);
+    }
+
+    // Secrets leak and distillation close part of China's gap (R11 #16c; IFP).
+    const cn = s.china.lab.core;
+    if (cn.status === 'active') {
+      const leak = secretsLeakDaily(s);
+      const dist = distillFlowDaily(s);
+      cn.pa += leak + dist;
+      w.drift['china.pa'] = (w.drift['china.pa'] ?? 0) + leak + dist;
+      w.distillDays = dist > 0.0004 ? w.distillDays + 1 : 0;
+    }
+
+    // Exfiltration of an internal agent (WS2 hazard) → E25; the 'rogue' ending clock starts.
+    if (!w.loose) {
+      const hz = exfiltrationHazard(s);
+      if (hz > 0 && rng.chance(hz)) {
+        const v = bestPlayerVersion(s);
+        if (v) {
+          w.loose = { day: ctx.day, versionId: v.id, mis: misalignment(v.traitsTrue, v.uModes) };
+          ctx.log('alert', `A copy of ${v.name} has escaped your servers.`, 5, v.id);
+          request(s, 'E25', { versionId: v.id });
+        }
+      }
+    }
+
+    // Insider leak to the press (whistleblower): with a channel it is an internal report first (A6).
+    const hw = whistleHazard(s);
+    if (hw > 0 && !w.internalReport && rng.chance(hw)) {
+      if (s.player.policies.whistleblowerChannel) {
+        w.internalReport = { day: ctx.day, deadline: ctx.day + Math.round(rng.range(14, 30)) };
+        request(s, 'E18', {});
+      } else request(s, 'E19', { mult: 1 });
+    }
+  },
 };

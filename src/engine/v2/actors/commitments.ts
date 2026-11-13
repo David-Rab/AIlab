@@ -1,21 +1,151 @@
-// Relation commitments: predicates, breaks, amendments, statutory floors (V2-SPEC §3.9.4). Owner: WS4.
-import type { Commitment, GameStateV2 } from '../types';
+// Relation commitments: predicates, signing, breaks, amendments, statutory floors (V2-SPEC §3.9.4). Owner: WS4.
+//
+// A predicate returns TRUE when the commitment currently BINDS against the player's state: something the player
+// did (or is doing) would violate it. The director raises E30 (Honour / Amend / Break) for live commitments whose
+// predicate is true; other workstreams can call `blockingCommitments` before an action to telegraph the cost.
+import type { Commitment, CounterpartyId, DomainId, GameStateV2, ModelVersion, SystemCtx } from '../types';
+import { cred, trust } from './fx';
+import { ws4, ws4r } from './state';
 
-export type CommitmentPredicate = (s: GameStateV2, params: Commitment['condition']['params']) => boolean;
+export type CommitmentPredicate = (s: GameStateV2, params: Commitment['condition']['params'], c?: Commitment) => boolean;
 
-/** Predicate registry by id; true = the commitment currently BLOCKS/binds. TODO(WS4, M1): implement each. */
+const external = (ch: string) => ch !== 'internal' && ch !== 'trusted';
+const versionOf = (s: GameStateV2, id: string): ModelVersion | undefined => s.player.models.versions.find((v) => v.id === id);
+
+/** Measured domain level ≈ measured general level + the version's domain offset (the player sees no truer number). */
+export function measuredDomain(v: ModelVersion, d: DomainId): number {
+  const mL = v.evals.measuredL ?? v.Lg;
+  return mL + (v.domains[d] - v.Lg);
+}
+
+/** Predicate registry by id; true = the commitment currently BLOCKS/binds. */
 export const PREDICATES: Record<string, CommitmentPredicate> = {
-  noDeployAbove: () => false,
-  preDeployTesting: () => false,
-  monitorabilityPledge: () => false,
-  noSurveillance: () => false,
-  noAutonomousWeapons: () => false,
-  pauseIfRedline: () => false,
-  incidentReporting: () => false,
-  whistleblower: () => false,
-  communityPledge: () => false,
+  /** Cannot deploy externally if measured L_domain ≥ level without the mitigation (classifiers | trusted | hazard). */
+  noDeployAbove: (s, p) => {
+    const dom = String(p.domain ?? 'BIO') as DomainId;
+    const level = Number(p.level ?? 10);
+    const mit = String(p.mitigation ?? 'classifiers');
+    return s.player.deployments.some((d) => {
+      if (d.status !== 'live' || !external(d.channel)) return false;
+      const v = versionOf(s, d.versionId);
+      if (!v || measuredDomain(v, dom) < level) return false;
+      if (mit === 'classifiers') return !(d.safeguards === 'classifiers' || d.safeguards === 'hardened');
+      if (mit === 'hazard') return !s.player.models.bases.find((b) => b.id === v.baseId)?.design.curation.hazard;
+      return true; // 'trusted': only trusted/internal channels allowed
+    });
+  },
+  /** External launch must wait `days` for an evaluator slot. */
+  preDeployTesting: (s, p, c) => {
+    const days = Number(p.days ?? 21);
+    const since = c?.signedDay ?? 0;
+    return s.player.deployments.some((d) => {
+      if (d.status !== 'live' || !external(d.channel) || d.startDay < since) return false;
+      const v = versionOf(s, d.versionId);
+      return !!v && v.day > since && d.startDay - v.day < days;
+    });
+  },
+  /** No latent reasoning and no CoT-pressure runs after signing. */
+  monitorabilityPledge: (s, _p, c) => {
+    const since = c?.signedDay ?? 0;
+    return s.player.models.runs.some((r) => r.startDay >= since && r.status !== 'cancelled' && (r.post?.cot === 'latent' || r.post?.cot === 'pressured' || r.base?.shape === 'latent'));
+  },
+  noSurveillance: (s) => s.player.deployments.some((d) => d.status === 'live' && d.channel === 'gov' && !d.usagePolicy.noSurveillance),
+  noAutonomousWeapons: (s) => s.player.deployments.some((d) => d.status === 'live' && d.channel === 'gov' && !d.usagePolicy.noAutonomousWeapons),
+  /** If belief(est) ≥ threshold on the internal version: frontier runs must pause until clarity ≥ 0.7 and est < threshold. */
+  pauseIfRedline: (s, p) => {
+    const trait = String(p.trait ?? 'SCHEME') as keyof ModelVersion['beliefs'];
+    const thr = Number(p.belief ?? 0.3);
+    const v = s.player.models.versions.find((x) => x.id === s.player.models.internalAgent);
+    const b = v?.beliefs[trait];
+    if (!b || b.est < thr) return false;
+    const running = s.player.models.runs.some((r) => r.status === 'running' && (r.kind === 'base' || r.kind === 'post'));
+    return running && ws4r(s).frontierPauseUntil < s.time.day;
+  },
+  /** Statutory or voluntary: no covered-up incident, and public incidents reported within `hours`. */
+  incidentReporting: (s, p, c) => {
+    const days = Number(p.hours ?? 360) / 24;
+    const since = c?.signedDay ?? 0;
+    return s.player.safety.incidents.some((i) => i.day >= since && (i.status === 'covered' || (i.status === 'open' && i.exposure !== 'internal' && s.time.day - i.day > days)));
+  },
+  /** A6: an internal report left past its deadline. */
+  whistleblower: (s) => {
+    const r = ws4r(s).internalReport;
+    return !!r && s.time.day > r.deadline;
+  },
+  /** F1: pay own power and grid costs: every new site needs a community package. */
+  communityPledge: (s) => s.player.sites.some((x) => x.stage !== 'blocked' && !x.communityPackage && x.stage !== 'live'),
 };
 
 export function liveCommitments(s: GameStateV2): Commitment[] {
   return s.commitments.filter((c) => c.status === 'live');
+}
+
+/** Live commitments whose predicate currently binds (UI: the Obligations panel; others: before an action). */
+export function blockingCommitments(s: GameStateV2): Commitment[] {
+  return liveCommitments(s).filter((c) => PREDICATES[c.condition.predicate]?.(s, c.condition.params, c));
+}
+
+export function hasCommitment(s: GameStateV2, predicate: string): boolean {
+  return s.commitments.some((c) => c.status === 'live' && c.condition.predicate === predicate);
+}
+
+/** Sign a commitment card (§3.9.4). Returns the card; re-signing an identical live card is a no-op. */
+export function signCommitment(
+  s: GameStateV2, ctx: SystemCtx, kind: Commitment['kind'], title: string, predicate: string,
+  params: Commitment['condition']['params'], audience: CounterpartyId[], breakCost: Commitment['breakCost'],
+): Commitment {
+  const existing = s.commitments.find((c) => c.status === 'live' && c.condition.predicate === predicate && JSON.stringify(c.condition.params) === JSON.stringify(params));
+  if (existing) return existing;
+  const c: Commitment = {
+    id: `C${s.commitments.length + 1}`, kind, title, condition: { predicate, params }, audience, breakCost,
+    signedDay: s.time.day, status: 'live', amendments: 0,
+  };
+  s.commitments.push(c);
+  ctx.log('company', `Commitment signed: ${title}.`, 1, c.id);
+  return c;
+}
+
+/** Break: trust loss with every audience member (×3 asymmetry via trustDelta) and a credibility hit. */
+export function breakCommitment(s: GameStateV2, ctx: SystemCtx, c: Commitment, why = 'commitment broken') {
+  c.status = 'broken';
+  for (const cp of c.audience) trust(s, ctx, cp, -Math.abs(c.breakCost.trust), why, c.title);
+  cred(ctx, -Math.abs(c.breakCost.credibility), why, c.title);
+  ctx.bump('relations.scrutiny', 8, why, c.title);
+  ws4(s).goalposts.player = (ws4(s).goalposts.player ?? 0) + 1;
+  ctx.log('company', `You broke a commitment: ${c.title}.`, 3, c.id);
+}
+
+/** Amend ("moving goalposts", E30): credibility −8 and an Index penalty; after the trigger fired it is a break. */
+export function amendCommitment(s: GameStateV2, ctx: SystemCtx, c: Commitment, triggered: boolean) {
+  if (triggered) return breakCommitment(s, ctx, c, 'amended after trigger');
+  c.status = 'amended';
+  c.amendments++;
+  cred(ctx, -8, 'moving goalposts', c.title);
+  ws4(s).goalposts.player = (ws4(s).goalposts.player ?? 0) + 1;
+  ctx.headline('goalposts', `${s.player.name} quietly rewrites its safety pledge.`);
+}
+
+/** Share of commitments kept (live or kept) — Freedom/democratic outcome rule (§5.2). 1 if none signed. */
+export function keptShare(s: GameStateV2): number {
+  if (!s.commitments.length) return 1;
+  return s.commitments.filter((c) => c.status === 'live' || c.status === 'kept').length / s.commitments.length;
+}
+
+/** Statutory floors (§3.9.4, research/17 §1.7): SB 53 15-day / RAISE 72-hour reporting. A covered-up incident
+ *  under statute is a legal fine plus ×3 trust loss; checked daily by actorsDaily. */
+export function statutoryDaily(s: GameStateV2, ctx: SystemCtx) {
+  const st = s.gov.statutes;
+  if (!st.sb53 && !st.raise) return;
+  const hours = st.raise ? 72 : 360;
+  for (const i of s.player.safety.incidents) {
+    if (i.exposure === 'internal' || i.severity < 3) continue;
+    const late = i.status === 'covered' || (i.status === 'open' && ctx.day - i.day > hours / 24);
+    const key = `stat:${i.id}`;
+    if (!late || s.flags[key]) continue;
+    s.flags[key] = true;
+    ctx.bump('cash', st.raise ? -0.003 : -0.001, 'statutory fine', st.raise ? 'RAISE' : 'SB 53');
+    for (const cp of ['exec', 'states', 'evalGov'] as CounterpartyId[]) trust(s, ctx, cp, -4, 'unreported incident');
+    cred(ctx, -5, 'unreported incident');
+    ctx.log('gov', 'Regulators fine you for a late incident report.', 3);
+  }
 }
