@@ -271,6 +271,27 @@ flowchart LR
   CN -->|pressure| Gov
 ```
 
+## 8b. The outside world (D9)
+
+Deployed models change the world. The world changes what actors want from you.
+
+```mermaid
+flowchart LR
+  Deployed[Deployed models: capability profile x reach] --> Sectors[Sectors: software, services, finance, health, science, manufacturing, logistics, government, military]
+  Sectors --> Jobs[Jobs automated and created, wages]
+  Sectors --> GDP[Productivity and GDP growth]
+  Deployed --> Tech[Technologies: drug discovery, materials, robotics, energy, cyber, bio]
+  Tech --> GDP
+  Tech --> Threats[New threats: bioweapons, cyberweapons]
+  Deployed --> Control[AI integration: share of decisions in economy, government, military run through AI]
+  Jobs --> Public[Public mood and politics]
+  GDP --> Investors[Investor appetite]
+  Threats --> Gov[Government and China posture]
+  Control --> Risk[Takeover leverage of a misaligned model]
+```
+
+Every model you deploy, and every rival or Chinese model, moves these meters. A misaligned model is far more dangerous when it already runs much of the economy and government (AI 2027's Agent-5).
+
 ## 9. Answers to the playtest points
 
 | # | Point | Proposal |
