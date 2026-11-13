@@ -21,11 +21,12 @@ It builds on 07 (actor meters and ladders), 08 (blocs, agencies and policy instr
 | **[D]** | Design choice. |
 | **[A27]** | From the AI 2027 text. |
 
-**Status.** Two sub-studies were still running when this file was written:
-- a game-design primary-source sweep (GDC and devlog pages);
-- a lab safety-framework comparison (framework documents and FLI Index methodology).
-
-Part 2 and §1.6 are therefore built from design knowledge and are tagged [unverified] where no URL was checked. Patch in their findings when the sweeps return.
+**Status.** Complete. Part 2 and §1.6 are grounded in designer sources and lab frameworks. The key clauses were checked by extracting text from the primary PDFs:
+- OpenAI PF v2 §4.3;
+- Anthropic RSP v3.0 intro and Appendix A;
+- Meta AASF v2 changelog;
+- xAI RMF thresholds;
+- FLI Summer 2026 findings and methodology.
 
 ---
 
@@ -188,7 +189,7 @@ Costs and effects are [D] calibrations. Each precedent row names a real primary 
 **C3. Joint evals / standards body.**
 - **Gains:** rivals' `eval_rigor` drifts up, Safety Rival cooperation ++, and global credibility of evals +.
 - **Side effects:** Maverick labs cry "cartel", which raises antitrust Scrutiny.
-- **Precedents:** the Frontier Model Forum (est. 2023: best practices, safety science, information sharing) [V]; the OpenAI-Anthropic cross-evaluation (Aug 2025) [unverified pending sub-study].
+- **Precedents:** the Frontier Model Forum (est. 2023: best practices, safety science, information sharing) [V]; the OpenAI-Anthropic cross-evaluation (Aug 2025) [unverified; Anthropic's page errored and openai.com returns 403].
 
 **C4. Poach / acqui-hire.**
 - **Gains:** a talent jump, plus tacit knowledge that closes the gap with that rival.
@@ -561,9 +562,21 @@ The user's UI rule applies: terse, icons first.
 - **CAISI program scope.**
   - A NIST slide deck (Mar 2026) lists "3 MOUs with Frontier labs" [P].
   - The 5 May 2026 extension to Google DeepMind, Microsoft and xAI is reported only secondhand. The NIST page URL tried returned 404 [unverified].
-- **Pending sub-studies.** Patch them into Part 2 and §1.6:
-  - (a) Designer primary sources: GDC Vault, the Ndemic blog, Paradox dev diaries, Factorio FFF, Positech blog, Lucas Pope devlog, Frank Lantz.
-  - (b) Lab frameworks: OpenAI Preparedness v2, Anthropic RSP, GDM FSF v3, Meta, xAI, Chinese frameworks; FLI Index methodology and grades; system-card external testers.
+- **Framework versions move fast.**
+  - Anthropic: RSP v3.0 → v3.4 within 2026.
+  - Meta: renamed twice.
+  - xAI: replaced its RMF in Dec 2025.
+
+  FLI's own tables lag the versions. Use the dates in §1.6.1 and re-check them before quoting.
+- **Remaining gaps** [unverified]:
+  - OpenAI pages return 403, so the sycophancy postmortem and the Frontier Governance Framework (May 2026) were not read.
+  - The Anthropic-OpenAI joint evaluation page (Aug 2025) errored.
+  - CAICT/AIIA commitment text is unconfirmed.
+  - Grok incident statements are unconfirmed.
+  - Paradox forum dev diaries sit behind a browser wall.
+  - Into the Breach's telegraphing claim is unconfirmed.
+  - The CDC blog returned 503.
+- **Military AI as a relations axis.** FLI Summer 2026 flags that Anthropic, OpenAI, GDM and Meta reversed earlier military-use bans between 2024 and 2026 [V]. This supports the §1.4 B2 usage-terms slider as a live cross-pressure: Defense bloc against safety talent.
 
 # PART 4 - SOURCES
 
