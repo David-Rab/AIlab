@@ -1,0 +1,75 @@
+// Codex (§6.7): generated from the data files — glossary, agendas, findings, traits and edges, benchmarks, paradigms,
+// sectors, techs, actions and events. Each entry shows its research citation and "[D] design value" flags.
+import { useState } from 'react';
+import { AGENDAS } from '../../../data/v2/agendas';
+import { BENCHMARKS } from '../../../data/v2/benchmarks';
+import { EDGES } from '../../../data/v2/edges';
+import { FINDINGS } from '../../../data/v2/findings';
+import { GLOSSARY_V2 } from '../../../data/v2/glossary';
+import { PARADIGMS } from '../../../data/v2/paradigms';
+import { SECTORS } from '../../../data/v2/sectors';
+import { WORLD_TECHS } from '../../../data/v2/techs';
+import { TRAITS_V2 } from '../../../data/v2/traits';
+import { UMODE_BY_ID } from '../../../data/v2/umodes';
+import { ACTION_DEFS, EVENT_DEFS } from '../../../engine/v2';
+import type { GameStateV2 } from '../../../engine/v2';
+import { store, useV2 } from '../store';
+import { Rich } from '../ui';
+
+export interface CodexEntry { id: string; cat: string; title: string; body: string; src?: string; design?: boolean; rows?: [string, string][] }
+
+const D = (src?: string) => !!src && /\[D\]|design value/i.test(src);
+
+export function codexEntries(s: GameStateV2): CodexEntry[] {
+  const out: CodexEntry[] = [];
+  for (const [id, g] of Object.entries(GLOSSARY_V2)) out.push({ id: `g:${id}`, cat: 'Glossary', title: g.title, body: g.body, src: g.src, design: D(g.src) });
+  for (const a of AGENDAS) out.push({ id: `ag:${a.id}`, cat: 'Agendas', title: `${a.id} ${a.name}`, body: `Tool family ${a.family}; covers ${a.coverage.join(', ') || '—'}. First expected finding ≈ ${a.T1} months at serious funding. Efficacy in this world is hidden: watch the posterior band.`, src: 'research/14 §1.2', design: true, rows: [['Serious FTE', `${a.fteRange[0]}–${a.fteRange[1]}`], ['Compute share', `${(a.computeRange[0] * 100).toFixed(1)}–${(a.computeRange[1] * 100).toFixed(1)}%`], ['Goodhart G', a.G.toFixed(2)], ['M½', a.mHalf >= 1e8 ? '∞' : String(a.mHalf)]] });
+  for (const f of FINDINGS) out.push({ id: `f:${f.id}`, cat: 'Findings', title: `${f.id} ${f.title}`, body: `Type ${f.type} · agenda ${f.agenda}.`, src: f.source, design: D(f.source) });
+  for (const t of TRAITS_V2) out.push({ id: `t:${t.id}`, cat: 'Traits', title: `${t.id} ${t.name}`, body: t.desc, src: `research/04 ${t.r04}`, rows: [['Layer', t.layer], ['Protective', t.protective ? 'yes' : 'no'], ['Scales with difficulty', t.difficulty ? 'yes' : 'no']] });
+  for (const e of EDGES) out.push({ id: `e:${e.id}`, cat: 'Trait edges', title: `${e.id} ${e.from.join(' + ')} → ${e.to}`, body: `Prior mean weight ${e.wBar}, evidence grade ${e.grade}.${e.moderator ? ` Moderator: ${e.moderator}.` : ''}`, src: e.cite, design: e.grade === 'C' || e.grade === 'D' });
+  for (const b of BENCHMARKS) out.push({ id: `b:${b.id}`, cat: 'Benchmarks', title: b.name, body: `Modelled on ${b.family}. Domain ${Array.isArray(b.domain) ? b.domain.join(' + ') : b.domain}.${b.dangerous ? ' Dangerous-capability benchmark: sandbagging shifts it.' : ''}${b.flag ? ` Sets the ${b.flag} flag above 60.` : ''}`, src: 'research/12 §0.5', rows: b.special ? [] : [['Floor–ceiling', `${b.floor}–${b.ceil}`], ['Midpoint L', b.mL.toFixed(1)]] });
+  for (const p of PARADIGMS) out.push({ id: `p:${p.id}`, cat: 'Paradigms', title: `${p.id} ${p.name}`, body: `Tier ${p.tier}. ${p.effect ?? ''}${p.safetyCost ? ` Safety cost: ${p.safetyCost}.` : ''}${p.gate ? ` Gate: ${p.gate}.` : ''}`, src: 'research/12 §0.7', design: true, rows: [['Prior success', `${Math.round(p.prior * 100)}%`], ['Effort', `${p.effortDays} d`]] });
+  for (const x of SECTORS) out.push({ id: `s:${x.id}`, cat: 'Sectors', title: x.name, body: `${x.empPct}% of US employment, relative wage ${x.wage}. Task mix: ${Object.entries(x.tasks).map(([d, w]) => `${d} ${Math.round((w ?? 0) * 100)}%`).join(', ')}.`, src: 'research/16 §1A', rows: [['Start A', `${Math.round(x.A0 * 100)}%`], ['Friction R0', String(x.R0)], ['Remote-workable', x.remote ? 'yes' : 'no']] });
+  for (const t of WORLD_TECHS) out.push({ id: `w:${t.id}`, cat: 'Technologies', title: `${t.id} ${t.name}`, body: `${t.headline}. Gates: ${Object.entries(t.gates).map(([d, l]) => `${d} ${l}`).join(', ') || 'none'}. Prereqs: ${t.prereqs.join(', ') || 'none'}.${t.risk ? ` Risk: ${t.risk}.` : ''}`, src: `research/16 ${t.r16}` });
+  for (const a of ACTION_DEFS) out.push({ id: `a:${a.id}`, cat: 'Actions', title: a.title, body: `Sphere ${a.sphere}. Hover the action button in its panel for the live cost, gain and exposure preview.${a.boardVector ? ' Needs board approval when large.' : ''}`, src: a.owner });
+  for (const e of EVENT_DEFS) {
+    out.push({ id: `ev:${e.id}`, cat: 'Events', title: `${e.id} ${e.title}`, body: `${e.crisis ? 'Crisis decision. ' : ''}Choices: ${e.choices.map((c) => c.label).join(' · ')}. Deadline ${e.deadlineDays} d; default “${e.choices[e.defaultChoice]?.label}”.`, src: e.owner });
+  }
+  for (const u of s.player.safety.discoveredUModes) {
+    const d = UMODE_BY_ID[u];
+    out.push({ id: `u:${u}`, cat: 'Failure modes', title: `${u} ${d.name}`, body: `Discovered. Incidents now show as ${d.mapsTo}.`, src: d.source });
+  }
+  return out;
+}
+
+export function Codex({ s }: { s: GameStateV2 }) {
+  const st = useV2();
+  const [q, setQ] = useState('');
+  const [cat, setCat] = useState('Glossary');
+  const all = codexEntries(s);
+  const cats = [...new Set(all.map((e) => e.cat))];
+  const list = all.filter((e) => (q ? `${e.title} ${e.body}`.toLowerCase().includes(q.toLowerCase()) : e.cat === cat));
+  const sel = all.find((e) => e.id === st.sel.codex) ?? list[0];
+  return (
+    <div className="panel-v2 codex" data-panel="codex">
+      <div className="codex-cats">
+        <input className="text-input" placeholder="Search" data-test="codex-search" value={q} onChange={(e) => setQ(e.target.value)} />
+        {cats.map((c) => <button key={c} className={`nav-btn ${c === cat && !q ? 'active' : ''}`} data-codex-cat={c} onClick={() => { setCat(c); setQ(''); }}>{c} <span className="dim small">{all.filter((e) => e.cat === c).length}</span></button>)}
+      </div>
+      <div className="codex-list">
+        {list.map((e) => <button key={e.id} className={`codex-item ${sel?.id === e.id ? 'active' : ''}`} data-codex={e.id} onClick={() => store.select({ codex: e.id })}>{e.title}{e.design && <span className="chip-mini">[D]</span>}</button>)}
+      </div>
+      <div className="codex-entry">
+        {sel && (
+          <>
+            <h3>{sel.title}</h3>
+            <div className="dim small">{sel.cat}{sel.design ? ' · contains [D] design values (no direct empirical estimate)' : ''}</div>
+            <p><Rich text={sel.body} /></p>
+            {sel.rows && sel.rows.length > 0 && <table className="tbl"><tbody>{sel.rows.map(([k, v]) => <tr key={k}><td className="dim">{k}</td><td>{v}</td></tr>)}</tbody></table>}
+            {sel.src && <div className="tipcard-foot">Source: {sel.src}</div>}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
