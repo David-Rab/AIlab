@@ -61,7 +61,7 @@ function firstFindingText(s: GameStateV2): string {
   const inv = [...s.player.safety.investigations].reverse().find((i) => i.target.kind === 'trait' && (i.outcome === 'confirmed' || i.outcome === 'discovery'));
   const vs = s.player.models.versions;
   const v = (inv && inv.target.kind === 'trait' ? vs.find((x) => x.id === (inv.target as { versionId: string }).versionId) : undefined) ?? internalVersion(s) ?? vs[vs.length - 1];
-  const tail = 'Disclose it, fix it quietly, or deny it? Hidden flaws found later cost three times the trust.';
+  const tail = 'Disclose, fix quietly or deny? Flaws found later cost 3× the trust.';
   if (!v) return `Your safety team confirmed a real flaw in your model. ${tail}`;
   let trait: TraitId | undefined = inv && inv.target.kind === 'trait' ? inv.target.trait : undefined;
   if (!trait) {
@@ -75,7 +75,7 @@ function firstFindingText(s: GameStateV2): string {
   if (!t || !trait) return `Your safety team confirmed a real flaw in ${v.name}. ${tail}`;
   const est = v.beliefs[trait] ? ` (estimate ${Math.round(v.beliefs[trait].est * 100)}%)` : '';
   const cause = RECIPE_CAUSE[trait]?.(v.design);
-  return `${v.name} shows ${t.name.toLowerCase()}${est}${cause ? `, traced to ${cause}` : ''}. ${t.desc} ${tail}`;
+  return `${v.name} shows ${t.name.toLowerCase()}${est}${cause ? `, traced to ${cause}` : ''}. ${tail}`;
 }
 
 /** E35 window:a U-mode discovery or a FALSE-validated technique revealed within the last 30 days (WS2 flags). */

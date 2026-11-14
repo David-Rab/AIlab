@@ -61,7 +61,41 @@ The user approved the UX direction in `design/ux/`, with four binding rules:
 - Company panel (Flow · People · Split · Security) replaces Departments.
 - The right rail is gone. `shell/RightRail.tsx` and `Ticker.tsx` remain unused; deleting them was blocked by permissions.
 - **Known:** the fixture series predate B1, so their race history shows the old U dips.
-- **Pending:** the uitest update.
+
+**Panels** (1917b2b, 6c9f10f, 01ef15f, e3f1c9f, 00cf2b8, dc7634e, 3084338, ba34ba7).
+- *Safety lab:* tabs Graph · Agendas · Tools · Incidents · Findings.
+  - Graph: a layered pill graph with upstream highlight and an evidence card.
+  - Side cards: a detection heat grid and the misalignment band.
+  - Agendas use a single pip control per agenda.
+  - Tools show strength-vs-level curves.
+- *Run designer:*
+  - OptionTiles carry effect glyphs from `runCard` and `runTraitPressure` sweeps.
+  - Panels: level ruler, radar against the internal model, "what this recipe pushes", main path, a compare strip, and next-model gates as their home.
+- *Finance:* vertical waterfall, cash history with projections, raise limits with an ask slider and pills, locked-in spending, board, ownership donut, debt tiles, deals.
+- *Compute:* sites as a build timeline, order rows, deliveries.
+- *Deploy:* demand vs capacity per channel.
+- *Risk:* Sources (ranked bars) · Flows (the old map).
+- *Models:* radar against the parent, headline benchmarks, actions in groups.
+- *Relations:* header stats.
+- *World:* fixes (F is feasibility; tiers; unemployment shown once).
+- *Setup:* blocks a company name equal to a rival's.
+- *New read-only selectors:* `detectionGrid`, `techniqueCurve`, `versionSignals`, `runTraitPressure`.
+- *uitest:* 104/104. It now checks:
+  - every tab;
+  - the IA rules: one home per datum across screens, every term resolves, no raw floats;
+  - coach, decision cards, Watch Go, lead track and hover shots.
+- *Remaining gaps:*
+  - Overlay of the next run's signals on the trait graph.
+  - The radar does not circle dangerous capabilities.
+  - B2 (U "why it moved" ledger) and B7 (sector/pool history) are not built. The race tooltip uses technique decay and masks instead.
+  - Quarter-recap causes are cash only.
+  - Prices sparks are empty after a fixture import.
+  - Causal highlight (`.lit`) is not implemented.
+  - The obsolete `RightRail.tsx`, `Ticker.tsx`, `RiskMap` overlay, `Departments.tsx` and `TraitGraph` remnants may still be on disk.
+- *Tests (2026-11-14):*
+  - Pass: `tsc`, build, uitest 104/104, v1 sim, and the whole `test:v2` chain (golden, identity, calib, fixtures, lint-hidden, lint-ux, lint-tradeoffs, safety, finance, worldfx, ws4, money).
+  - Fails: hygiene's timing checks only (3.0 ms daily against a 1.5 target). The pre-change commit 0b671ff measured 3.4 ms on the same machine in the same session, so this is machine load, not a regression.
+  - The E01 text was shortened to the 220-character limit.
 
 ## M4 status (2026-11-14): checkpoint 2 — choices drive misalignment, all §7.4 bot criteria met
 
