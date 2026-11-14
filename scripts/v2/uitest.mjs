@@ -285,7 +285,8 @@ await check('Raise ask slider', `document.querySelector('[data-act="fin.raise"]'
 await check('Debt kind', `document.querySelector('[data-panel=finance]').innerHTML`, () => page.click('[data-panel=finance] [data-debt-kind=gpuTerm]'));
 await nav('rundesigner');
 await check('Run designer: kind base', `document.querySelector('[data-panel=rundesigner]').innerText`, () => page.click('[data-panel=rundesigner] [data-rd-kind=base]'));
-await check('Run designer: shape latent', `document.querySelector('[data-panel=rundesigner]').innerHTML`, () => page.click('[data-panel=rundesigner] [data-opt="shape:latent"]'));
+ok("Run designer: locked option shows its reason", await page.$eval(`[data-panel=rundesigner] [data-opt="shape:latent"]`, (b) => b.disabled && b.innerText.length > 8));
+await check("Run designer: shape overtrained", `document.querySelector("[data-panel=rundesigner]").innerHTML`, () => page.click(`[data-panel=rundesigner] [data-opt="shape:overtrained"]`));
 await page.click('[data-panel=rundesigner] [data-opt="shape:dense"]');
 await check('Run designer: save template', 'localStorage.getItem("ai27.v2.runTemplates")', () => page.click('[data-test=rd-save]'));
 await check('Launch base run', `s.player.models.runs.filter(r => r.kind === 'base').length`, () => page.click('[data-act=launchBase]'));

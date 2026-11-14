@@ -175,10 +175,12 @@ export const METERS: Partial<Record<CostLine['currency'], Meter>> = {
   security: { label: 'WSL', term: 'wsl', icon: ICON.wsl, get: (s) => s.player.security.wsl, lo: 0, hi: () => 5, fmt: (x) => x.toFixed(1), upGood: true },
 };
 /** Net effect per currency of a view: gains − costs (exposure kept apart as probabilistic). */
+/** Currencies where a higher meter is worse: a cost RAISES them, a gain lowers them. */
+export const BAD_UP = new Set<CostLine['currency']>(['scrutiny', 'chinaTension', 'dilution']);
 export function netByCurrency(v: Pick<ActionView, 'costs' | 'gains'>) {
   const m = new Map<CostLine['currency'], { d: number; target?: string }>();
-  for (const c of v.gains) { const e = m.get(c.currency) ?? { d: 0, target: c.target }; e.d += c.amount; m.set(c.currency, e); }
-  for (const c of v.costs) { const e = m.get(c.currency) ?? { d: 0, target: c.target }; e.d -= Math.abs(c.amount); m.set(c.currency, e); }
+  for (const c of v.gains) { const e = m.get(c.currency) ?? { d: 0, target: c.target }; e.d += (BAD_UP.has(c.currency) ? -1 : 1) * c.amount; m.set(c.currency, e); }
+  for (const c of v.costs) { const e = m.get(c.currency) ?? { d: 0, target: c.target }; e.d -= (BAD_UP.has(c.currency) ? -1 : 1) * Math.abs(c.amount); m.set(c.currency, e); }
   return m;
 }
 /** Before→after bar for one meter (hypothetical; the "before" tick is an unlabeled reference mark). */
@@ -217,8 +219,8 @@ export function CostPills({ v }: { v: Pick<ActionView, 'costs' | 'gains' | 'expo
   const meta = (c: CostLine) => [c.target, c.probability !== undefined && c.probability < 1 ? `p ${Math.round(c.probability * 100)}%` : '', c.lagDays ? `in ${Math.round(c.lagDays)} d` : ''].filter(Boolean).join(' · ');
   return (
     <span className="pills">
-      {v.costs.filter((c) => c.amount !== 0).map((c, i) => <Pill key={`c${i}`} kind="cost" title={meta(c)}>−{lineAmt(c)}</Pill>)}
-      {v.gains.filter((c) => c.amount !== 0).map((c, i) => <Pill key={`g${i}`} kind="gain" title={meta(c)}>+{lineAmt(c)}</Pill>)}
+      {v.costs.filter((c) => c.amount !== 0).map((c, i) => <Pill key={`c${i}`} kind="cost" title={meta(c)}>{BAD_UP.has(c.currency) ? '+' : '−'}{lineAmt(c)}</Pill>)}
+      {v.gains.filter((c) => c.amount !== 0).map((c, i) => <Pill key={`g${i}`} kind="gain" title={meta(c)}>{BAD_UP.has(c.currency) ? '−' : '+'}{lineAmt(c)}</Pill>)}
       {v.exposure.filter((c) => c.amount !== 0).map((c, i) => <Pill key={`e${i}`} kind="exp" title={meta(c)}>{c.amount < 0 ? '−' : '+'}{lineAmt(c)}{c.probability !== undefined && c.probability < 1 ? ` · p ${Math.round(c.probability * 100)}%` : ''}</Pill>)}
     </span>
   );
