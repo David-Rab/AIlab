@@ -18,25 +18,24 @@ Single source of truth for where the build stands. Update at every milestone or 
 | M4 calibration and balance (bot criteria) | Not started | |
 | M5 polish, tutorial, codex, v1 removal | Not started | |
 
-## M2 step 5 status (2026-11-14)
+## M2 step 5 status (2026-11-14, updated at each checkpoint)
 
-Failing at HEAD f8ff4c9:
-- **calib:** T1 slow SC about 3 months early; two China-lead checks (the uncommitted work fixes the latter).
-- **hygiene:**
-  - stream isolation (safety, market);
-  - cadences over 2 years;
-  - tick about 1.5 ms per day.
-- **ws4:**
-  - E3 true lead;
-  - E5 endings ousted and asiContested unreachable;
-  - T3 China lead band, and the lead after a theft.
-- **safety, finance, worldfx:** too slow (more than 10 minutes each).
+Checkpoints: bf93f24 (5a tick speed, hygiene), 0987ced (5b lead metric, theft, China), c0594e5 (5c S1, safety),
+25ad13c (5d releases/serving, rivals release, worldfx).
 
-The integration agent stopped twice:
-1. on a network error (ECONNREFUSED);
-2. on a session usage limit.
+| Script | Status |
+|---|---|
+| tsc (app + scripts/v2) | green |
+| golden-timelines, identity, fixtures, lint-hidden, lint-tradeoffs, money | green |
+| hygiene | green (idle daily tick ≈ 0.85 ms avg, worst quarter tick < 8 ms) |
+| safety | green (≈ 11 min: S4/S5 play many full games) |
+| worldfx | green (≈ 2 min) |
+| ws4 | green (≈ 3 min) |
+| calib | T1 slow SC refit (calShift slow −0.165 → −0.197), re-running |
+| finance | failing: F7 2026 capex (median $127B, want ≥ 150), F7 end-2026 valuation (median $0.74T, want ≥ 1T), F8 distress-free share (67%, want ≥ 75%); F10 test fixed (director off), not yet re-run |
 
-Its edits are in the working tree and were snapshotted to `refs/wip/m2-step5-1` (9d73814).
+Earlier history: at HEAD f8ff4c9 calib, hygiene and ws4 failed and safety/finance/worldfx timed out. The integration
+agent stopped twice (network error, session limit); its WIP was snapshotted to `refs/wip/m2-step5-1` (9d73814).
 
 ## Leftover worktrees
 
