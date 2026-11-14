@@ -96,9 +96,10 @@ export const ECON = {
   LS0: 0.56, psi: 0.1,
   /** Income Gini (Census money income). [R16 §4.4] */
   gini0: 0.48,
-  /** Hiring index: HireRate = 1 − slope·ΔF vs the pre-LLM (late-2022) feasibility. R16 writes 1.5 [D]; 1.2 [fit] puts
+  /** Hiring index: HireRate = 1 − slope·ΔF vs the pre-LLM (late-2022) feasibility. R16 writes 1.5 [D]. (The WS5 probe
+   *  fit 1.2; on integrated RefBot play, whose public minis trail the probe's public model, R16's 1.5 puts
    *  "hiring of programmers nearly stopped" in mid-2027 on the reference path (§7.3). */
-  hireSlope: 1.2,
+  hireSlope: 1.5,
   /** Youth (22–25) employment relaxes toward the hire rate with this time constant (years) [D]. */
   youthTau: 2,
   /** Canaries: exposed 22–25-year-olds −13% vs counterfactual in 2025 (−19% by Aug 2026). [V, R16 N2a] */

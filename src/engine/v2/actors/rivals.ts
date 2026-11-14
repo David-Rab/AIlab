@@ -302,8 +302,21 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   }
 
   // Releases: the public model lags the internal one (§3.10.3).
+  // A lab whose lag exceeds its post-training interval (6–10 weeks) never had an internal version `lag` days old (each
+  // post resets internalDay), so it never released: once the public model is a post interval staler than the lag,
+  // release the frontier as it stood `lag` days ago (internal pm − lag·rate; `day` = that as-of day).
   const lag = RELEASE_LAG[arch] ?? 60;
-  if ((!r.publicModel || r.publicModel.id !== r.internal.id) && day - w.internalDay[id] >= lag) {
+  const age = day - w.internalDay[id];
+  let rel: SimpleModel | undefined;
+  if (!r.publicModel || (r.publicModel.id !== r.internal.id && !r.publicModel.id.startsWith(`${r.internal.id}~`))) {
+    if (age >= lag) rel = r.internal;
+    else if (day - (r.publicModel?.day ?? -1e9) >= lag + 56) {
+      const pm = Math.max(r.publicModel?.pm ?? -Infinity, r.internal.pm - ((lag - age) / 365) * rateOf(s, id));
+      const wl = s.hidden.timeline;
+      rel = { ...r.internal, id: `${r.internal.id}~${day}`, day: day - lag, pm, Lg: levelOf(wl, pm), domains: domainsOf(wl, pm) };
+    }
+  } else if (r.publicModel.id !== r.internal.id && age >= lag) rel = r.internal;
+  if (rel) {
     const gapToFrontier = leadBetween(s, leaderOf(s), id);
     let open = false;
     if (arch === 'openweights') {
@@ -311,8 +324,8 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
       open = gapToFrontier < 183 && r.meters.openness > 50;
     }
     if (r.core.kind === 'china') open = s.china.meters.openWeights > 50 && s.china.rung < 3;
-    r.publicModel = { ...r.internal, traitsTrue: { ...r.internal.traitsTrue }, uModes: [...r.internal.uModes], isPublic: true, openWeights: open };
-    if (open) openWeightsReleased(s, ctx, id, r.internal.pm);
+    r.publicModel = { ...rel, traitsTrue: { ...rel.traitsTrue }, uModes: [...rel.uModes], isPublic: true, openWeights: open };
+    if (open) openWeightsReleased(s, ctx, id, rel.pm);
   }
 
   // Incidents: WS2's per-trait hazards on the lab's deployed model (§3.5.10, same κ table as the player's) plus a

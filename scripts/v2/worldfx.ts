@@ -1,7 +1,8 @@
 // WS5 acceptance: outside world and revenue (V2-SPEC §7.3, F11 with WS3; research/16 §6–7). Owner: WS5.
 //
-// Reference play = scripts/v2/worldfx-refplay.ts probe (AI 2027 compute path, public release lag, serving
-// rebalanced to demand) while WS1/WS3/WS4 systems are M0 stubs. Date targets use ±3 months (R16 §7 test 1).
+// Reference play = real RefBot games on the integrated engine (WS1 models and releases, WS3 compute and finance, WS4
+// actors; endings skipped so the world keeps running past ASI). The worldfx-refplay.ts probe is kept only for W2, a
+// controlled experiment with capabilities frozen at Agent-1 level. Date targets use ±3 months (R16 §7 test 1).
 import { dayOfDate, decimalYear } from '../../src/engine/v2/core/time';
 import { makeCtx, tick } from '../../src/engine/v2/core/loop';
 import { ACTIONS } from '../../src/engine/v2/core/registry';
@@ -13,7 +14,18 @@ import { POLICY_FLAGS } from '../../src/engine/v2/worldfx/policy';
 import { firmAdoption, remoteWorkAutomation, youthExposedEmployment } from '../../src/engine/v2/worldfx/readouts';
 import { revenueOf } from '../../src/engine/v2/worldfx/revenue';
 import type { GameStateV2, SetupV2, TickOptions } from '../../src/engine/v2/types';
-import { check, finish, validateJson } from './lib';
+import { refBot } from '../../src/engine/v2/bots/ref';
+import { newGame, defaultSetupV2 } from '../../src/engine/v2/core/init';
+import { resolve } from '../../src/engine/v2/core/loop';
+import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
+import { engine } from '../../src/engine/v2/index';
+import { WORLD_TECHS } from '../../src/data/v2/techs';
+import { internalVersion } from '../../src/engine/v2/models/labs';
+import { techBlocker } from '../../src/engine/v2/worldfx/techtree';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { deserialize } from '../../src/engine/v2/core/save';
+import { FIXTURE_DIR, check, finish, validateJson } from './lib';
 import { refGame, refPlayProbe } from './worldfx-refplay';
 
 const START = '2025-07-01';
@@ -35,14 +47,24 @@ interface Trace {
 
 const MARKS = ['2025-07-31', '2026-01-01', '2026-11-01', '2026-12-31', '2027-07-01', '2027-10-01', '2027-12-31'];
 
-function run(over: Partial<SetupV2>, days: number, opts: Parameters<typeof refPlayProbe>[1] = {}, extra: TickOptions = {}): Trace {
-  const s = refGame(over);
-  const probe = refPlayProbe(s, opts);
+/** One day of real reference play: RefBot decides pending events, acts, then the engine ticks (endings skipped). */
+function refDay(s: GameStateV2, opts: { noSez?: boolean } = {}) {
+  for (const p of [...s.events.pending]) {
+    const c = refBot.decide(s, p);
+    if (resolve(s, p.instance, c)) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0);
+  }
+  refBot.act(s, engine);
+  tick(s, { skip: ['endings'] });
+  if (opts.noSez) delete s.flags[POLICY_FLAGS.sez]; // W3 counterfactual: SEZs never open
+}
+const refGameV2 = (over: Partial<SetupV2> = {}) => newGame(defaultSetupV2({ seed: 2027, world: 'ai2027', alignment: 'medium', baseline: 'classic', tutorial: false, ...over }));
+
+function run(over: Partial<SetupV2>, days: number, opts: { noSez?: boolean } = {}): Trace {
+  const s = refGameV2(over);
   const tr: Trace = { s, annual: {}, U: [], at: {} };
   const marks = new Map(MARKS.map((m) => [D(m), m]));
-  const tickOpts: TickOptions = { ...extra, extraSystems: [probe, ...(extra.extraSystems ?? [])] };
   while (s.time.day < days) {
-    tick(s, tickOpts);
+    refDay(s, opts);
     const d = s.time.day;
     const W = s.world;
     const rev = s.player.deployments.reduce((a, x) => a + (x.revenueRate ?? 0), 0);
@@ -109,7 +131,7 @@ check(c.s.player.deployments.filter((d) => d.channel !== 'internal').every((d) =
   const s = refGame({ econ: 'normal' });
   const pmA1 = thresholds(s.hidden.timeline)[1];
   const probe = refPlayProbe(s, { freezeAt: pmA1, publicLag: 0 });
-  const opts: TickOptions = { extraSystems: [probe], skip: ['production', 'continual'] };
+  const opts: TickOptions = { extraSystems: [probe], skip: ['production', 'continual', 'endings'] };
   tick(s, opts);
   const tfp0 = automationTfp(s);
   while (s.time.day < 3651) tick(s, opts);
@@ -119,22 +141,20 @@ check(c.s.player.deployments.filter((d) => d.channel !== 'internal').every((d) =
 
 // ───────────── 4. W3: cognitive-only automation ≤ 2.2× GDP without W17 ─────────────
 for (const econ of ['ai2027', 'gate'] as const) {
-  const t = run({ econ }, D('2031-01-01'), { publicLag: 0 });
+  const t = run({ econ }, D('2031-01-01'), { noSez: true });
   const X = Math.max(...(['US', 'CN', 'ROW'] as const).map((r) => t.s.world.fx.autoLevel[r]));
   check(t.s.world.techs.W17.discoveredDay === undefined && X <= 2.2, `W3 ${econ}: no SEZ → no W17, automation output factor ≤ 2.2`, `X ${X.toFixed(2)}, ASI-level models, g ${pct(t.s.world.macro.US.g)}`);
 }
 
 // ───────────── 5. SEZ path: robots, W17, explosive growth ─────────────
 {
-  const s = refGame();
-  const probe = refPlayProbe(s, { publicLag: 0 });
-  const opts: TickOptions = { extraSystems: [probe] };
-  while (s.time.day < D('2028-01-01')) tick(s, opts);
-  s.flags[POLICY_FLAGS.sez] = true;
+  const s = refGameV2();
+  while (s.time.day < D('2028-01-01')) refDay(s, { noSez: true });
   let maxG = 0;
   let d1M: number | undefined;
   while (s.time.day < D('2031-01-01')) {
-    tick(s, opts);
+    s.flags[POLICY_FLAGS.sez] = true; // SEZs open in Jan 2028 and stay open
+    refDay(s);
     maxG = Math.max(maxG, s.world.macro.US.g);
     if (d1M === undefined && (s.world.robots.prodPerYear + s.world.fx.humanoidProd) / 12 >= 1e6) d1M = s.time.day;
   }
@@ -148,14 +168,14 @@ for (const econ of ['ai2027', 'gate'] as const) {
   const lev = leverage(s, 'player');
   check(lev >= 0 && lev < 1 && ['none', 'entrenched', 'indispensable', 'decisive'].includes(leverageTier(s, lev)), 'leverage(player) in [0,1) with a tier', `${lev.toFixed(3)} (${leverageTier(s, lev)}; thresholds ${Object.values(LEVERAGE_THRESHOLDS).join('/')})`);
   const s2 = refGame();
-  for (let i = 0; i < 30; i++) tick(s2);
+  for (let i = 0; i < 30; i++) tick(s2, { skip: ['endings'] });
   const ctx = makeCtx(s2);
   const wa = ACTIONS.filter((a) => a.owner === 'WS5');
   check(wa.length === 3, 'three World actions registered', wa.map((a) => a.id).join(', '));
   const cash0 = s2.player.finance.cash;
   const tf = wa.find((a) => a.id === 'wfx.transitionFund')!;
   tf.apply(s2, ctx, { amount: 10 });
-  for (let i = 0; i < 365; i++) tick(s2);
+  for (let i = 0; i < 365; i++) tick(s2, { skip: ['endings'] });
   check(s2.player.policies.transitionFund === 10 && s2.player.finance.cash < cash0 + 1e3, 'transition fund: set and paid from cash');
   const sp = wa.find((a) => a.id === 'wfx.sectorProduct')!;
   const ok = sp.available(s2);
@@ -163,12 +183,19 @@ for (const econ of ['ai2027', 'gate'] as const) {
   const host = s2.player.deployments.find((d) => d.sectorFocus.includes('LEGAL'));
   check(ok === true && !!host && s2.world.fx.certDay.LEGAL === s2.time.day + 120, 'sector product: focus added, certification in 120 days');
   const ms = wa.find((a) => a.id === 'wfx.moonshot')!;
-  const pv = ms.preview(s2, { tech: 'W03', share: 0.05 });
-  ms.apply(s2, makeCtx(s2), { tech: 'W03', share: 0.05 });
-  const prog0 = s2.world.techs.W03.prog;
-  for (let i = 0; i < 60; i++) tick(s2);
-  check((s2.world.techs.W03.playerProject?.computeShare ?? 0) > 0 && (s2.world.techs.W03.prog > prog0 || s2.world.techs.W03.discoveredDay !== undefined) && pv.costs.some((x) => x.currency === 'compute'),
-    'moonshot: compute assigned, tech advances, preview costs compute', `W03 ${prog0.toFixed(3)} → ${s2.world.techs.W03.prog.toFixed(3)}`);
+  // [M2 test fix] At day 30 the start model researches nothing (every tech is gated: W03 needs REASON 7), so the
+  // action is unavailable there; use the day-900 fixture, where a beneficial non-risk tech is researchable.
+  const s3 = deserialize(readFileSync(join(FIXTURE_DIR, 'day900.json'), 'utf8'));
+  const iv = internalVersion(s3);
+  const tech = WORLD_TECHS.find((x) => s3.world.techs[x.id]?.discoveredDay === undefined && x.effects.benefit && !x.risk && iv && techBlocker(s3, x, iv.domains) === undefined)?.id ?? 'W03';
+  const avail = ms.available(s3);
+  const pv = ms.preview(s3, { tech, share: 0.05 });
+  ms.apply(s3, makeCtx(s3), { tech, share: 0.05 });
+  const prog0 = s3.world.techs[tech].prog;
+  for (let i = 0; i < 60; i++) tick(s3, { skip: ['endings'] });
+  const ts = s3.world.techs[tech];
+  check(avail === true && (ts.playerProject?.computeShare ?? 0) > 0 && (ts.prog > prog0 || ts.discoveredDay !== undefined) && pv.costs.some((x) => x.currency === 'compute'),
+    'moonshot: compute assigned, tech advances, preview costs compute', `${tech} ${prog0.toFixed(3)} → ${ts.prog.toFixed(3)}`);
 }
 
 finish('worldfx');

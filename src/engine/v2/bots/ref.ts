@@ -4,8 +4,8 @@
 // Reference cadence (§7.1): compute tracks refTotal (WS3's finance autopilot buys it; the T1 calibration stubs it),
 // split = shareRef(t), cap hiring tracks H_ref, a 1F base every 9 months, a post-train every 6 weeks (≤ 2 in flight),
 // continual learning once P08 works, P05/P07/P08/P13/P17/P19 researched and adopted (never P23), latent bases after
-// P17, a distilled mini every ~6 months deployed to consumer/api while the frontier stays internal, eval refresh
-// every 30 days.
+// P17, a distilled mini every ~6 months (sooner on a new base or a 0.7-level gap) deployed to consumer/api while the
+// frontier stays internal, serving re-split by demand weekly, eval refresh every 30 days.
 //
 // `refPlay(s, api, opts)` is the model/department half of that policy, parameterised so the other bots (race, safe,
 // mixed, capex2x) reuse the cadence with their own design choices; with default options it is exactly RefBot's.
@@ -25,6 +25,8 @@ export const REF_PARADIGMS = ['P05', 'P07', 'P08', 'P13', 'P17', 'P19'];
 const BASE_EVERY = 270;
 const POST_EVERY = 42;
 const MINI_EVERY = 182;
+/** …or sooner (≥ 45 d apart) once the internal model measures this many levels above what the products serve. */
+const MINI_GAP_L = 0.7;
 const EVAL_EVERY = 30;
 const PRODUCT_CHANNELS: string[] = ['consumer', 'api', 'enterprise'];
 /** Passive/RefBot safety programme (§7.4): ~3% safety compute (shareRef), AG02, AG07, AG08 and AG18 at Seed. */
@@ -146,8 +148,18 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
 
   // A distilled mini about every 6 months, deployed to consumer and API (frontier stays internal), or the newest
   // full version for bots that release their frontier.
-  if (iv && day - flag(s, 'lastMini', 0) >= MINI_EVERY && !m.runs.some((r) => r.kind === 'distill' && r.status === 'running')) {
-    if (tryAct(s, api, 'launchDistill', { teacherVersionId: iv.id })) setFlag(s, 'lastMini', day);
+  // Also a mini from the first version on each new base (AI 2027's Agent-1-mini): a mini of an old-generation teacher
+  // (−0.3 pm) does not beat the model already on sale, so a fixed 6-month clock alone could leave the launch model
+  // public for 15 months.
+  const newGen = !!iv && baseIdx(iv) > flag(s, 'miniBase', 0);
+  let servedL = 0;
+  for (const d of p.deployments) if (d.status === 'live' && PRODUCT_CHANNELS.includes(d.channel)) servedL = Math.max(servedL, m.versions.find((v) => v.id === d.versionId)?.evals.measuredL ?? 0);
+  const stale = !!iv && (iv.evals.measuredL ?? 0) - servedL >= MINI_GAP_L && day - flag(s, 'lastMini', 0) >= 45;
+  if (iv && (newGen || stale || day - flag(s, 'lastMini', 0) >= MINI_EVERY) && !m.runs.some((r) => r.kind === 'distill' && r.status === 'running')) {
+    if (tryAct(s, api, 'launchDistill', { teacherVersionId: iv.id })) {
+      setFlag(s, 'lastMini', day);
+      setFlag(s, 'miniBase', Math.max(flag(s, 'miniBase', 0), baseIdx(iv)));
+    }
   }
   // Product channels (consumer, API, enterprise) move to the new public model only if it measures better than what
   // they serve (a fresh mini can trail the previous release).
@@ -162,10 +174,13 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
       .sort((x, y) => (y.evals.measuredL ?? 0) - (x.evals.measuredL ?? 0))[0];
     for (const d of p.deployments) {
       if (!PRODUCT_CHANNELS.includes(d.channel) || d.status !== 'live') continue;
-      const want = d.channel === 'enterprise' ? (o.release === 'frontier' && pub.variant === 'full' ? pub : ent) : pub;
+      const want = d.channel === 'enterprise' ? (o.release === 'frontier' && pub.variant === 'full' ? pub : ent ?? pub) : pub;
       if (want && want.id !== d.versionId && (want.evals.measuredL ?? 0) > mL(d.versionId)) tryAct(s, api, 'swapDeployment', { deploymentId: d.id, versionId: want.id });
     }
   }
+
+  // Product management: re-split the serving pool by demand every week (capacity-bound channels get more).
+  if (day % 7 === 3) tryAct(s, api, 'setServing', {});
 
   // Housekeeping: retire superseded versions (keep the newest 4 full + anything in use).
   if (day % 30 === 15) {

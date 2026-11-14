@@ -54,6 +54,11 @@ export function alphaOf(def: SectorDef, Lagency: number): number {
 }
 
 /** Pre-LLM (late 2022) feasibility per sector: hiring baseline for ΔF. */
+/** Consumer SOCIAL level at which the AI-friend share is half its ceiling (research/16 §2.1) [D]. M2: 7 → 6.5 on
+ *  integrated RefBot play, whose consumer channel serves distilled minis (SOCIAL ≈ 0.5 L below the WS5 probe's
+ *  "internal − 0.5 L" public model). */
+const FRIEND_SOCIAL_MID = 6.5;
+
 const F_PRE: Record<SectorId, number> = (() => {
   const le = {} as Record<DomainId, number>;
   for (const k of Object.keys(AGENT0_PROFILE) as DomainId[]) le[k] = k === 'PHYS' ? 0 : PRE_LLM_LEVEL;
@@ -309,7 +314,7 @@ export const worldDailySystem: EngineSystem = {
     const reachStar = 0.35 + 0.55 * sigmoid((cons.best - 6) / 1.2);
     if (fx.consumerReach < reachStar) fx.consumerReach += (1 + 2 * fx.consumerReach) * (reachStar - fx.consumerReach) * dt;
     else fx.consumerReach -= 0.2 * (fx.consumerReach - reachStar) * dt;
-    const friendStar = 0.03 + 0.18 * sigmoid((cons.social - 7) / 1) * fx.consumerReach * (pol.companionBan ? 0.4 : 1);
+    const friendStar = 0.03 + 0.18 * sigmoid((cons.social - FRIEND_SOCIAL_MID) / 1) * fx.consumerReach * (pol.companionBan ? 0.4 : 1);
     W.friendShare += (friendStar - W.friendShare) * 3 * dt;
 
     // The player transition fund is charged only by WS3's payroll system (finance ledger); its effects on workers

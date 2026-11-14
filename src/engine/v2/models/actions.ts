@@ -10,7 +10,8 @@ import type {
   ActionDef, BaseDesign, Channel, ComputeSplit, CostLine, GameStateV2, PostDesign, RLFamily, StaffByRole,
 } from '../types';
 import { runEvalSuite } from './benchmarks';
-import { deploy, makeVariant, retireVersion, setInternalAgent, swapDeployment, withdraw } from './deployments';
+import { deploy, makeVariant, retireVersion, setInternalAgent, setServing, swapDeployment, withdraw } from './deployments';
+import { revenueReadout } from '../worldfx/revenue';
 import { bestMeasuredL, internalVersion, versionById } from './labs';
 import { adoptParadigm, fundParadigm, paradigmGate } from './paradigms';
 import { launchRun, planRun, startStream, type LaunchRunParams } from './runs';
@@ -191,6 +192,27 @@ const RUN_ACTIONS: ActionDef[] = [
       };
     },
     apply: (s, _ctx, p) => fail(swapDeployment(s, str(p, 'deploymentId', ''), str(p, 'versionId', ''))),
+  },
+  {
+    // Serving pool reservations (§3.3.5). No deploymentId: re-split the reserved total by current demand (WS5's
+    // revenue readout) — the product team's weekly rebalance.
+    id: 'setServing', sphere: 'models', owner: 'WS1', title: 'Serving capacity',
+    available: (s) => (s.player.deployments.some((d) => d.status === 'live' && d.channel !== 'internal' && d.channel !== 'open') ? true : 'Nothing deployed'),
+    preview: (s, p) => {
+      const d = s.player.deployments.find((x) => x.id === str(p, 'deploymentId', ''));
+      const share = num(p, 'share', d?.servingShare ?? 0.2);
+      return {
+        costs: [{ currency: 'compute', amount: Math.max(0, share - (d?.servingShare ?? 0)), target: 'serving pool' }, { currency: 'staffTime', amount: 2 }],
+        gains: [{ currency: 'revenue', amount: 0.5 }],
+        exposure: [{ currency: 'approval', amount: -1, probability: 0.05 }],
+      };
+    },
+    apply: (s, _ctx, p) => {
+      const id = str(p, 'deploymentId', '');
+      if (id) return fail(setServing(s, id, num(p, 'share', 0.2)));
+      const rd = revenueReadout(s);
+      fail(setServing(s, undefined, 0, new Map(rd.deps.map((x) => [x.id, x.demand]))));
+    },
   },
   {
     id: 'withdraw', sphere: 'models', owner: 'WS1', title: 'Withdraw',

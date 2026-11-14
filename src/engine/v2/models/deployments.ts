@@ -82,6 +82,24 @@ export function swapDeployment(s: GameStateV2, depId: string, versionId: string)
   return undefined;
 }
 
+/** Serving reservations (§3.3.5, Product sphere "serving pool"): set one external deployment's share of the serving
+ *  pool, or (no id) re-split the external deployments' current total in proportion to `weights` (e.g. their demand),
+ *  each keeping at least 2%. */
+export function setServing(s: GameStateV2, depId: string | undefined, share: number, weights?: Map<string, number>): string | undefined {
+  const ext = s.player.deployments.filter((d) => d.status !== 'withdrawn' && d.channel !== 'internal' && d.channel !== 'open');
+  if (depId) {
+    const d = ext.find((x) => x.id === depId);
+    if (!d) return 'Unknown external deployment';
+    d.servingShare = Math.min(1, Math.max(0.02, share));
+    return undefined;
+  }
+  const tot = ext.reduce((a, d) => a + d.servingShare, 0);
+  const wsum = ext.reduce((a, d) => a + (weights?.get(d.id) ?? 0), 0);
+  if (!ext.length || tot <= 0 || wsum <= 0) return 'Nothing to rebalance';
+  for (const d of ext) d.servingShare = Math.max(0.02, (tot * (weights?.get(d.id) ?? 0)) / wsum);
+  return undefined;
+}
+
 /** Withdraw a deployment. Open weights are irreversible (§3.3.5). */
 export function withdraw(s: GameStateV2, depId: string): string | undefined {
   const d = s.player.deployments.find((x) => x.id === depId);
