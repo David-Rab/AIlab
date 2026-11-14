@@ -1,32 +1,104 @@
 // Intel: rival and China lead estimates and misalignment bands; risk-source view (V2-SPEC §3.10.3, §6.6). Owner: WS4.
-// leadDays/riskSources are EngineApi selectors: built from intel and BELIEFS, never from truth.
-import { activeRivals } from '../models/labs';
-import type { EngineSystem, GameStateV2, LabId, RiskSource } from '../types';
+// leadDays/riskSources are EngineApi selectors: built from intel and BELIEFS, never from truth. The weekly intel
+// system is engine code: it turns truth into noisy evidence, always against the player's best INTERNAL version.
+import { clamp, sigmoid } from '../../rng';
+import { activeRivals, bestPm, internalVersion } from '../models/labs';
+import { misalignmentEstimate } from '../safety/traits';
+import { understanding } from '../safety/understanding';
+import type { EngineSystem, GameStateV2, LabId, RivalLab, RiskSource, SystemCtx } from '../types';
+import { leadBetween, rateOf, rivalMis, RELEASE_LAG } from './rivals';
+import { ws4, ws4r } from './state';
 
 /** EngineApi.leadDays: player's estimate of its lead over `other` (positive = player ahead), vs its best INTERNAL
- *  model (v1 bug fix). */
+ *  model (v1 bug fix). Inactive labs return {0, 0}. */
 export function leadDays(s: GameStateV2, other: LabId): { est: number; sd: number } {
   const r = other === 'china' ? s.china.lab : s.rivals.find((x) => x.core.id === other);
-  if (!r) return { est: 0, sd: 0 };
+  if (!r || r.core.status !== 'active') return { est: 0, sd: 0 };
   return { est: r.intel.leadDaysEst, sd: r.intel.leadDaysSd };
 }
 
-/** EngineApi.riskSources. M0 PLACEHOLDER rows with flat bands; TODO(WS4 + WS2, M2): drivers from beliefs/intel. */
-export function riskSources(s: GameStateV2): RiskSource[] {
-  const row = (id: string, label: string, kind: RiskSource['kind']): RiskSource => ({ id, label, kind, estimate: 0.02, band: [0, 0.05], drivers: [] });
-  return [
-    row('own', s.player.name, 'ownModel'),
-    ...activeRivals(s).map((r) => row(`rival:${r.core.id}`, r.core.name, 'rival')),
-    row('china', s.china.lab.core.name, 'china'),
-    row('misuse', 'Misuse', 'misuse'),
-    row('theft', 'Theft', 'theft'),
-    row('rogue', 'Rogue copies', 'rogue'),
-    row('war', 'War', 'war'),
-  ];
+/** The lag the player ASSUMES between a lab's public and internal model, from its visible framework clause. */
+const ASSUMED_LAG: Record<string, number> = { conditional: 90, allAdopt: 60, unconditional: 50, override: 20, state: 45 };
+
+/** Prior misalignment band by visible clause type (research/17 §1.6.4: the framework is the main observable). */
+const PRIOR_BAND: Record<string, [number, number]> = {
+  conditional: [0.08, 0.45], allAdopt: [0.12, 0.5], unconditional: [0.15, 0.6], override: [0.2, 0.7], state: [0.15, 0.65],
+};
+
+/** One lab's weekly intel update. Evidence: public releases, evaluator reports (external access), known incidents,
+ *  stolen-model knowledge and the Index. sd shrinks with evidence; the estimate is vs the player's INTERNAL frontier. */
+export function updateIntel(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
+  const rate = (rateOf(s, 'player') + rateOf(s, r.core.id)) / 2;
+  const rng = ctx.rng('actors');
+  const id = r.core.id;
+  const playerPm = bestPm(s, 'player'); // best INTERNAL version (hidden pm): what the player's own evals track
+  const pub = r.publicModel ?? r.internal;
+  const vsPublic = ((playerPm - pub.pm) / rate) * 365;
+  const access = r.core.kind === 'china' ? 0.05 : s.hidden.rivalPostures[id]?.externalAccess ?? 0.3;
+  const evidence = (r.publicModel ? 1 : 0) + 1.5 * access + 0.2 * r.intel.knownIncidents.length + (r.core.security.stolen.length ? 0.5 : 0) + (r.visible.testers.length ? 0.5 : 0);
+  const sd = 20 + 80 * Math.exp(-0.6 * evidence);
+  const trueLag = Math.max(0, ctx.day - (ws4(s).internalDay[id] ?? r.internal.day)) <= (RELEASE_LAG[r.archetype] ?? 60) ? ((r.internal.pm - pub.pm) / rate) * 365 : 0;
+  const assumed = ASSUMED_LAG[r.visible.clauseType] ?? 60;
+  // Raw read: lead vs their public model minus the assumed hidden lag; evaluator access reveals part of the truth.
+  const truthLead = leadBetween(s, 'player', id);
+  const raw = (1 - access) * (vsPublic - assumed) + access * truthLead + rng.normal(0, sd * 0.5);
+  r.intel.leadDaysEst = Math.round(0.6 * r.intel.leadDaysEst + 0.4 * raw);
+  r.intel.leadDaysSd = Math.round(sd + 0.25 * Math.abs(trueLag - assumed));
+  // Misalignment band: prior from the clause type; narrows toward the truth with evaluator access, incidents
+  // and thefts (seeing the model); incidents shift it up.
+  const [lo0, hi0] = PRIOR_BAND[r.visible.clauseType] ?? [0.1, 0.6];
+  const info = clamp(0.35 * access + 0.08 * r.intel.knownIncidents.length + (r.core.security.stolen.length ? 0.2 : 0), 0, 0.8);
+  const c0 = (lo0 + hi0) / 2 + 0.02 * r.intel.knownIncidents.length;
+  const c = (1 - info) * c0 + info * rivalMis(r);
+  const half = ((hi0 - lo0) / 2) * (1 - 0.6 * info);
+  r.intel.misalignBand = [Math.round(clamp(c - half, 0, 1) * 100) / 100, Math.round(clamp(c + half, 0, 1) * 100) / 100];
+  r.intel.lastReportDay = ctx.day;
 }
 
-/** intel (210, weekly): rival/China lead posteriors vs the player's internal frontier. TODO(WS4, M1). */
+/** intel (210, weekly): rival/China lead posteriors vs the player's internal frontier. */
 export const intelSystem: EngineSystem = {
   id: 'intel', owner: 'WS4', cadence: 'weekly', order: 210,
-  run() {},
+  run(s, ctx) {
+
+    for (const r of activeRivals(s)) updateIntel(s, ctx, r);
+    if (s.china.lab.core.status === 'active') updateIntel(s, ctx, s.china.lab);
+  },
 };
+
+/** EngineApi.riskSources: rows from BELIEFS and intel only (§6.6). Estimates are P(catastrophic outcome via this
+ *  source) on a 0..1 scale; bands from intel/belief sd. Inactive labs are never listed. */
+export function riskSources(s: GameStateV2): RiskSource[] {
+  const out: RiskSource[] = [];
+  const v = internalVersion(s);
+  const doom = 0.4; // the player does not know the world's threshold; uses the published-default 0.40
+  const curve = (mis: number) => sigmoid((mis - doom) / 0.06);
+  const u = understanding(s);
+  if (v) {
+    const m = misalignmentEstimate(v);
+    const sdAvg = Object.values(v.beliefs).reduce((a, b) => a + b.sd, 0) / Math.max(1, Object.keys(v.beliefs).length);
+    const marginRisk = clamp(-u.margin / 3, 0, 1);
+    const est = clamp(curve(m) * 0.7 + 0.3 * marginRisk, 0, 1);
+    out.push({ id: 'own', label: s.player.name, kind: 'ownModel', estimate: est, band: [clamp(curve(m - sdAvg), 0, 1), clamp(curve(m + sdAvg) * 0.7 + 0.3 * marginRisk, 0, 1)], drivers: [{ label: 'Belief misalignment', share: 0.7 }, { label: 'Understanding gap', share: 0.3 }] });
+  }
+  const labRow = (r: RivalLab, kind: 'rival' | 'china'): RiskSource => {
+    const [lo, hi] = r.intel.misalignBand;
+    const mid = (lo + hi) / 2;
+    const first = clamp(0.5 - r.intel.leadDaysEst / 365, 0.02, 0.98); // P(they reach ASI first), from lead estimate
+    return {
+      id: kind === 'china' ? 'china' : `rival:${r.core.id}`, label: r.core.name, kind,
+      estimate: clamp(first * curve(mid), 0, 1), band: [clamp(first * curve(lo), 0, 1), clamp(first * curve(hi), 0, 1)],
+      drivers: [{ label: 'Chance they get there first', share: 0.5 }, { label: 'Misalignment band', share: 0.5 }],
+    };
+  };
+  for (const r of activeRivals(s)) out.push(labRow(r, 'rival'));
+  if (s.china.lab.core.status === 'active') out.push(labRow(s.china.lab, 'china'));
+  const w = ws4r(s);
+  const misuseLevel = Math.max(0, ...(v ? [v.flags.bioUplift ? 0.3 : 0, v.flags.cyberOffense ? 0.25 : 0] : [0]));
+  out.push({ id: 'misuse', label: 'Misuse', kind: 'misuse', estimate: clamp(0.02 + misuseLevel, 0, 1), band: [0.01, clamp(0.05 + 2 * misuseLevel, 0, 1)], drivers: [{ label: 'Dangerous capability flags', share: 1 }] });
+  const theftEst = clamp(0.05 + (3.5 - s.player.security.wsl) * 0.15 + s.china.meters.theftIntent / 300, 0, 1);
+  out.push({ id: 'theft', label: 'Theft', kind: 'theft', estimate: theftEst, band: [clamp(theftEst - 0.1, 0, 1), clamp(theftEst + 0.1, 0, 1)], drivers: [{ label: 'Weight security', share: 0.6 }, { label: 'China intent', share: 0.4 }] });
+  out.push({ id: 'rogue', label: 'Rogue copies', kind: 'rogue', estimate: w.loose ? 0.5 : 0.01, band: w.loose ? [0.2, 0.8] : [0, 0.05], drivers: [{ label: w.loose ? 'A copy is loose' : 'No known escape', share: 1 }] });
+  const war = clamp(0.005 + 0.04 * s.china.rung, 0, 1);
+  out.push({ id: 'war', label: 'War', kind: 'war', estimate: war, band: [war / 2, Math.min(1, war * 2)], drivers: [{ label: 'China posture ladder', share: 0.7 }, { label: 'Taiwan tension', share: 0.3 }] });
+  return out;
+}

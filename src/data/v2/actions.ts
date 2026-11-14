@@ -1,6 +1,6 @@
 // Relations action catalog metadata (V2-SPEC §3.9.2, research/17 §1.4). Owner: WS4.
 // Behaviour (ActionDef with preview/apply) lives in src/engine/v2/actors/actions.ts; this is the data table.
-export interface ActionMeta { id: string; title: string; group: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' }
+export interface ActionMeta { id: string; title: string; group: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'S' | 'X' }
 
 export const RELATION_ACTION_META: ActionMeta[] = [
   { id: 'A1', title: 'Pre-deploy testing', group: 'A' },
@@ -30,4 +30,9 @@ export const RELATION_ACTION_META: ActionMeta[] = [
   { id: 'F1', title: 'Community benefits', group: 'F' },
   { id: 'F2', title: 'Transition fund', group: 'F' },
   { id: 'F3', title: 'No drop-in agents', group: 'F' },
+  // Security sphere (§3.6) and Retire (§5.1 #10).
+  { id: 'SEC_TARGET', title: 'Security target', group: 'S' },
+  { id: 'SEC_SILO', title: 'Siloing', group: 'S' },
+  { id: 'SEC_CI', title: 'Counter-intel', group: 'S' },
+  { id: 'RETIRE', title: 'Retire', group: 'X' },
 ];
