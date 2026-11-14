@@ -1,9 +1,9 @@
 // Departments (§6.3): headcount, hiring target, morale, cost per department; compute split (7 sliders + presets);
 // per-department projects; star hire, siloing, KYC, WSL target.
 import { useState } from 'react';
-import { agendaRows, inPipeline, payrollPerYear, poolsOf, SPLIT_KEYS, SPLIT_PRESETS, weeklyHireCap } from '../../../engine/v2';
+import { agendaRows, engine, inPipeline, payrollPerYear, poolsOf, SPLIT_KEYS, SPLIT_PRESETS, weeklyHireCap } from '../../../engine/v2';
 import type { ComputeSplit, GameStateV2, StaffByRole } from '../../../engine/v2';
-import { ActBtn, fmtB, fmtNum, Meter, pct, Row, Slider, Stack, Term, Why } from '../ui';
+import { ActBtn, fmtB, fmtMult, fmtNum, Gate, Meter, pct, Row, Slider, Stack, Term, Why } from '../ui';
 
 const ROLES: { id: keyof StaffByRole; label: string }[] = [
   { id: 'cap', label: 'Capabilities' }, { id: 'saf', label: 'Safety' }, { id: 'sec', label: 'Security' }, { id: 'prod', label: 'Product' }, { id: 'ops', label: 'Ops' },
@@ -12,6 +12,27 @@ const ZERO: StaffByRole = { cap: 0, saf: 0, sec: 0, prod: 0, ops: 0 };
 export const SPLIT_COLOR: Record<keyof ComputeSplit, string> = {
   training: '#5aa9ff', experiments: '#2f7fd6', agents: '#a58cff', synthetic: '#66768a', serving: '#4cc38a', safety: '#e9b44c', security: '#ef6b6b',
 };
+
+/** AI-labour readout (act 3): agent copies × speed, AI FTE vs human FTE, the agents pool and taste. */
+function AiLabour({ s }: { s: GameStateV2 }) {
+  const p = engine.production(s, 'player');
+  const ai = p.labor.aiFTE;
+  const hum = p.labor.wH;
+  return (
+    <div className="grid2">
+      <div>
+        <Row label="Agent copies × speed"><span className="num">{fmtNum(p.labor.copies)} × {p.labor.speed.toFixed(1)}</span></Row>
+        <Row label="AI FTE · human FTE"><span className="num">{fmtNum(ai)} · {fmtNum(hum)}</span></Row>
+        <Stack parts={[{ v: ai, color: 'var(--violet)', label: 'AI' }, { v: hum, color: 'var(--accent)', label: 'human' }]} />
+      </div>
+      <div>
+        <Row label="Agents pool"><span className="num">{fmtNum(poolsOf(s).agents)} H100e</span></Row>
+        <Row label="AI taste (SD over median)"><span className="num">{p.sdAI.toFixed(2)}</span></Row>
+        <Row label="2× agents → M"><span className="num">{fmtMult(p.whatIf.agents2)}</span></Row>
+      </div>
+    </div>
+  );
+}
 
 export function Departments({ s }: { s: GameStateV2 }) {
   const p = s.player;
@@ -80,6 +101,10 @@ export function Departments({ s }: { s: GameStateV2 }) {
           <Row label={`Counter-intel ${pct(p.security.counterIntel)}`}><ActBtn id="SEC_CI" /></Row>
           <Row label="Security spend"><span className="num">{fmtB(p.security.spendRate)}/yr · privileged {p.security.privileged}</span></Row>
           <Row label={<Term id="kyc">KYC</Term>}><span className="small dim">{p.deployments.filter((d) => d.status === 'live').map((d) => `${d.channel} ${d.kyc}`).join(' · ') || 'set per deployment'}</span></Row>
+        </section>
+        <section className="section span2" data-test="ai-labour">
+          <div className="section-head"><span className="section-title">AI labour</span><span className="dim small">copies × speed</span></div>
+          <Gate s={s} k="aiLabour"><AiLabour s={s} /></Gate>
         </section>
       </div>
     </div>

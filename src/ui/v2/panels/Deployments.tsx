@@ -52,7 +52,7 @@ export function Deployments({ s }: { s: GameStateV2 }) {
                   <td><Tip content={() => <TipCard title="Distillation leak" value={pct(leak)}>{`Channel coefficient × China [[distill|distillation]] access × (1 − 0.25 × [[kyc|KYC]] ${d.kyc}).`}</TipCard>}><Meter value={leak} max={1} width={50} color="var(--warn)" /></Tip></td>
                   <td className="btn-cell">
                     {others[0] && <ActBtn id="swapDeployment" params={{ deploymentId: d.id, versionId: others[others.length - 1].id }} label="Swap" inline={false} />}
-                    <ActBtn id="withdraw" params={{ deploymentId: d.id }} inline={false} />
+                    {d.channel !== "internal" && d.channel !== "open" && <ActBtn id="withdraw" params={{ deploymentId: d.id }} inline={false} />}
                   </td>
                 </tr>
               );

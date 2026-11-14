@@ -6,7 +6,7 @@ import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { AI2027_COMPUTE_TABLE } from '../../../data/v2/calibration';
 import { TRAIT_ORDER } from '../../../data/v2/traits';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
-import { agendaRows, dateOf, decimalYear, eventDef, fmtDate, MILESTONE_NAMES, safetyTruth, selectHidden, topDecisions } from '../../../engine/v2';
+import { actionDef, agendaRows, dateOf, decimalYear, eventDef, fmtDate, MILESTONE_NAMES, safetyTruth, selectHidden, topDecisions } from '../../../engine/v2';
 import type { GameStateV2, SafetyLatents } from '../../../engine/v2';
 import { store } from '../store';
 import { Band, fmtB, fmtNum, Section, Soon } from '../ui';
@@ -110,8 +110,8 @@ export function EndScreen({ s }: { s: GameStateV2 }) {
           {replay.map((r, i) => (
             <div className="replay" key={i}>
               <span className="num dim">{fmtDate(dateOf(s, r.decision.day))}</span>
-              <b>{r.decision.eventId ? eventDef(r.decision.eventId)?.title ?? r.decision.eventId : r.decision.actionId}</b>
-              <span className="small">“{r.decision.choice.slice(0, 40)}”</span>
+              <b>{r.decision.eventId ? eventDef(r.decision.eventId)?.title ?? r.decision.eventId : actionDef(r.decision.actionId ?? "")?.title ?? r.decision.actionId}</b>
+              {r.decision.eventId ? <span className="small">“{r.decision.choice.slice(0, 40)}”</span> : null}
               <span className="small dim">{r.caused}</span>
             </div>
           ))}

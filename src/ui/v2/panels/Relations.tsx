@@ -45,7 +45,7 @@ export function Relations({ s }: { s: GameStateV2 }) {
               if (!unlocked2(s, k)) return null;
               return (
                 <tr key={k}>
-                  <td>{CP_LABEL[k] ?? k.replace('rival:', '')}</td>
+                  <td>{CP_LABEL[k] ?? s.rivals.find((r) => `rival:${r.core.id}` === k)?.core.name ?? k.replace('rival:', '')}</td>
                   <td><Why k={`trust:${k}`} title={`Trust · ${CP_LABEL[k] ?? k}`} value={st.trust.toFixed(0)}><Meter value={st.trust} width={70} color={trustColor(st.trust)} /> <span className="num">{st.trust.toFixed(0)}</span></Why></td>
                   <td><span className="rungs">{[1, 2, 3, 4].map((r) => <i key={r} className={st.access >= r ? 'on' : ''} />)}</span></td>
                   <td className="num">{st.favors.filter((d) => d > s.time.day).length}</td>
@@ -101,7 +101,7 @@ export function Relations({ s }: { s: GameStateV2 }) {
           <div className="grades">
             {Object.entries(rb.index.grades).map(([lab, g]) => (
               <Tip key={lab} content={() => <TipCard title={lab} value={g.letter} rows={Object.entries(g.domains).map(([k, v]) => ({ label: k, value: v.toFixed(1) }))} />}>
-                <span className="grade"><b>{g.letter}</b> {lab === 'player' ? s.player.name : activeRivals(s).find((r) => r.core.id === lab)?.core.name ?? lab}</span>
+                <span className="grade"><b>{g.letter}</b> {lab === 'player' ? s.player.name : lab === 'china' ? s.china.lab.core.name : s.rivals.find((r) => r.core.id === lab)?.core.name ?? lab}</span>
               </Tip>
             ))}
           </div>
@@ -120,7 +120,7 @@ export function Relations({ s }: { s: GameStateV2 }) {
         <Row label="Public approval · concern"><Why k="pub.approval" title="Net approval" body="See [[approval]]."><span className="num">{s.pub.approval.toFixed(0)}</span></Why><Why k="pub.concern" title="Concern"><span className="num"> · {s.pub.concern.toFixed(0)}</span></Why></Row>
       </Section>
 
-      <Section title="Action catalog">
+      <div className="span2"><Section title="Action catalog">
         <div className="catalog">
           {Object.keys(GROUPS).map((g) => (
             <div key={g} className="cat-group">
@@ -136,7 +136,7 @@ export function Relations({ s }: { s: GameStateV2 }) {
             </div>
           ))}
         </div>
-      </Section>
+      </Section></div>
     </div>
   );
 }

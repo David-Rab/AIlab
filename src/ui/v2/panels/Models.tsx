@@ -27,15 +27,21 @@ function Lineage({ s, sel }: { s: GameStateV2; sel?: string }) {
           ]} />}>
             <div className="lin-base-row"><b>{b.name}</b><span className="dim small">{b.design.scale} · {b.design.shape} · {b.design.data}</span></div>
           </Tip>
-          {m.versions.filter((v) => v.baseId === b.id && !v.parentVersionId).map((v) => (
-            <div key={v.id}>
-              <VersionRow s={s} v={v} sel={sel} depth={1} />
-              {m.versions.filter((x) => x.parentVersionId === v.id).map((x) => <VersionRow key={x.id} s={s} v={x} sel={sel} depth={2} />)}
-            </div>
+          {m.versions.filter((v) => v.baseId === b.id && !m.versions.some((p) => p.id === v.parentVersionId && p.baseId === b.id)).map((v) => (
+            <VersionTree key={v.id} s={s} v={v} sel={sel} depth={1} />
           ))}
         </div>
       ))}
     </div>
+  );
+}
+function VersionTree({ s, v, sel, depth }: { s: GameStateV2; v: ModelVersion; sel?: string; depth: number }) {
+  const kids = s.player.models.versions.filter((x) => x.parentVersionId === v.id && x.baseId === v.baseId);
+  return (
+    <>
+      <VersionRow s={s} v={v} sel={sel} depth={Math.min(depth, 4)} />
+      {kids.map((x) => <VersionTree key={x.id} s={s} v={x} sel={sel} depth={depth + 1} />)}
+    </>
   );
 }
 function VersionRow({ s, v, sel, depth }: { s: GameStateV2; v: ModelVersion; sel?: string; depth: number }) {
@@ -66,7 +72,7 @@ export function ModelCard({ s, v }: { s: GameStateV2; v: ModelVersion }) {
           <Row label="Horizon h50"><span className="num">{horizon ? `${horizon.score.toFixed(0)} min` : '—'}</span></Row>
           <Row label="Appeal"><span className="num">{v.appeal?.toFixed(2) ?? '—'}</span></Row>
           <Row label="Last eval"><span className="num">{v.evals.suiteDay !== undefined ? fmtDate(dateOf(s, v.evals.suiteDay)) : 'never'}</span></Row>
-          <Row label="Flags"><span className={flags.length ? 'tone-neg small' : 'dim small'}>{flags.join(', ') || 'none'}</span></Row>
+          <div className="small"><span className="dim">Flags </span><span className={flags.length ? 'tone-neg' : 'dim'}>{flags.join(', ') || 'none'}</span></div>
         </div>
         <div>
           <table className="tbl">

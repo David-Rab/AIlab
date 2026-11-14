@@ -46,7 +46,7 @@ export function SafetyLab({ s }: { s: GameStateV2 }) {
               {sv.agendas.map((a) => (
                 <tr key={a.id} data-agenda={a.id} className={a.status === 'deadEnd' ? 'dim' : ''}>
                   <td><Tip content={() => <TipCard title={`${a.id} ${a.name}`} value={a.status} rows={[{ label: 'Posterior mean', value: a.band.mean.toFixed(2) }, { label: 'Band', value: `${a.band.lo.toFixed(2)}–${a.band.hi.toFixed(2)} (${a.band.label})` }, { label: 'Findings', value: a.findings }, { label: 'Compute share', value: pct(a.computeShare) }, ...(a.refresh ? [{ label: `Refresh ${a.refresh.techniqueId}`, value: pct(a.refresh.progress) }] : [])]} footer={`T1 ${AGENDA_BY_ID[a.id].T1} mo`} />}>{a.name}</Tip></td>
-                  <td><Seg value={a.level as (typeof LEVELS)[number]} options={LEVELS.map((l) => ({ v: l, label: l[0].toUpperCase() }))} onChange={(l) => (l === 'off' ? store_act('safety.cut', { agenda: a.id }) : store_act('safety.fund', { agenda: a.id, level: l }))} /></td>
+                  <td><Seg value={a.level as (typeof LEVELS)[number]} options={LEVELS.map((l) => ({ v: l, label: { off: '—', seed: 'seed', serious: 'ser', major: 'maj' }[l], tip: l }))} onChange={(l) => (l === 'off' ? store_act('safety.cut', { agenda: a.id }) : store_act('safety.fund', { agenda: a.id, level: l }))} /></td>
                   <td className="num">{Math.round(a.fte)}</td>
                   <td><Band lo={a.band.lo} hi={a.band.hi} mid={a.band.mean} width={80} /></td>
                   <td className="num">{a.findingsPerYear.toFixed(1)}</td>

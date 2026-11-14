@@ -14,7 +14,7 @@ const EDGE_COLOR: Record<Edge['kind'], string> = { theft: '#ef6b6b', distill: '#
 export function RiskMap({ s }: { s: GameStateV2 }) {
   const [overlay, setOverlay] = useState<'flows' | 'risk'>('flows');
   const W = 900;
-  const H = 520;
+  const H = 545;
   const lev = leverageAll(s);
   const risks = engine.riskSources(s);
   const riskOf = (id: string) => risks.find((r) => r.id === id)?.estimate;
@@ -43,18 +43,18 @@ export function RiskMap({ s }: { s: GameStateV2 }) {
     if (r.publicModel?.openWeights) edges.push({ from: id, to: 'world', kind: 'open', w: 0.6, label: 'open weights' });
     if (isCN) {
       const theft = riskOf('theft') ?? 0;
-      edges.push({ from: 'player', to: id, kind: 'theft', w: theft, label: `theft risk ${pct(theft)}` });
+      if (unlocked(s, 'theftMap')) edges.push({ from: 'player', to: id, kind: 'theft', w: theft, label: `theft risk ${pct(theft)}` });
       edges.push({ from: 'world', to: id, kind: 'chips', w: s.market.exportPolicy === 'strict' ? 0.1 : s.market.exportPolicy === 'caseByCase' ? 0.4 : 0.8, label: `chip exports: ${s.market.exportPolicy}` });
     }
   });
-  nodes.push({ id: 'world', label: 'Chips · open', sub: s.market.binding, x: W / 2, y: 60, r: 14, color: 'var(--text-3)', halo: 0, pulse: false, panel: 'compute', tip: () => <TipCard title="Chip market" rows={[{ label: 'Binding', value: s.market.binding }, { label: 'List price', value: `$${s.market.listPrice.toFixed(1)}K` }, { label: 'Export policy', value: s.market.exportPolicy }]} /> });
+  nodes.push({ id: 'world', label: 'Chips · open', sub: s.market.binding, x: W - 70, y: 50, r: 14, color: 'var(--text-3)', halo: 0, pulse: false, panel: 'compute', tip: () => <TipCard title="Chip market" rows={[{ label: 'Binding', value: s.market.binding }, { label: 'List price', value: `$${s.market.listPrice.toFixed(1)}K` }, { label: 'Export policy', value: s.market.exportPolicy }]} /> });
   const deps = s.player.deployments.filter((d) => d.status !== 'withdrawn');
   deps.forEach((d, i) => {
-    const a = (i / Math.max(1, deps.length)) * Math.PI;
+    const a = deps.length === 1 ? 0.3 * Math.PI : 0.12 * Math.PI + (i / (deps.length - 1)) * 0.76 * Math.PI + (i % 2 ? 0.04 : 0);
     const v = versionById(s, d.versionId);
     const id = `dep:${d.id}`;
     nodes.push({
-      id, label: d.channel, sub: v?.name ?? '', x: W / 2 + Math.cos(a) * 170, y: H / 2 + 40 + Math.sin(a) * 140, r: 11, color: 'var(--pos)', halo: 0,
+      id, label: d.channel, sub: v?.name ?? '', x: W / 2 + Math.cos(a) * (200 + (i % 2) * 40), y: H / 2 + Math.sin(a) * (150 + (i % 2) * 30), r: 11, color: 'var(--pos)', halo: 0,
       pulse: openInc.some((x) => x.deploymentId === d.id), panel: 'deployments',
       tip: () => <TipCard title={`${d.channel} · ${v?.name ?? d.versionId}`} rows={[{ label: 'Revenue', value: `$${(d.revenueRate ?? 0).toFixed(1)}B/yr` }, { label: 'Binding', value: d.demandBound ?? '—' }, { label: 'Safeguards', value: d.safeguards }, { label: 'KYC', value: d.kyc }]} />,
     });
@@ -80,14 +80,17 @@ export function RiskMap({ s }: { s: GameStateV2 }) {
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="riskmap">
         <defs>
-          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#66768a" /></marker>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#66768a" /></marker>
         </defs>
         {edges.map((e, i) => {
           const a = at(e.from);
           const b = at(e.to);
           if (!a || !b) return null;
+          const len = Math.max(1, Math.hypot(b.x - a.x, b.y - a.y));
+          const ex = b.x - ((b.x - a.x) / len) * (b.r + 4);
+          const ey = b.y - ((b.y - a.y) / len) * (b.r + 4);
           return (
-            <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={EDGE_COLOR[e.kind]} strokeWidth={1 + 5 * Math.max(0, Math.min(1, e.w))} opacity={overlay === 'risk' ? 0.25 : 0.7} markerEnd="url(#arr)" strokeDasharray={e.kind === 'theft' ? '6 4' : undefined}>
+            <line key={i} x1={a.x} y1={a.y} x2={ex} y2={ey} stroke={EDGE_COLOR[e.kind]} strokeWidth={1 + 5 * Math.max(0, Math.min(1, e.w))} opacity={overlay === 'risk' ? 0.25 : 0.7} markerEnd="url(#arr)" strokeDasharray={e.kind === 'theft' ? '6 4' : undefined}>
               <title>{e.label}</title>
             </line>
           );
