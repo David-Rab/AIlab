@@ -27,3 +27,88 @@ export { act, resolve, tick } from './core/loop';
 export * from './core/selectors';
 export { serialize, deserialize, stateHash, AUTOSAVE_KEY, SLOT_KEYS, V1_SAVE_KEY, SCHEMA_REV } from './core/save';
 export type * from './types';
+
+// ───────────── M3 UI selectors (WS6/WS7; read-only, additive) ─────────────
+// The UI may only read the visible world. These wrap engine modules so src/ui/v2 never imports internals.
+import type { ActionDef, CostLine, EventDefV2, GameStateV2, ModelVersion, DomainId } from './types';
+import { ACTIONS as REG_ACTIONS, ACTION_BY_ID as REG_ACTION_BY_ID, EVENTS as REG_EVENTS, EVENT_BY_ID as REG_EVENT_BY_ID } from './core/registry';
+import { planRun as planRunUI, type LaunchRunParams as LaunchRunParamsUI } from './models/runs';
+import { measuredDomain } from './actors/commitments';
+import { DOMAIN_IDS } from '../../data/v2/calibration';
+
+export const ACTION_DEFS: readonly ActionDef[] = REG_ACTIONS;
+export const EVENT_DEFS: readonly EventDefV2[] = REG_EVENTS;
+export const actionDef = (id: string): ActionDef | undefined => REG_ACTION_BY_ID.get(id);
+export const eventDef = (id: string): EventDefV2 | undefined => REG_EVENT_BY_ID.get(id);
+
+export interface ActionView { id: string; title: string; ok: true | string; costs: CostLine[]; gains: CostLine[]; exposure: CostLine[] }
+/** Availability plus cost/gain/exposure preview of an action with `params` (never throws). */
+export function actionView(s: GameStateV2, id: string, params: Record<string, number | string | boolean> = {}): ActionView {
+  const a = REG_ACTION_BY_ID.get(id);
+  if (!a) return { id, title: id, ok: 'unknown action', costs: [], gains: [], exposure: [] };
+  let ok: true | string;
+  try {
+    const r = a.available(s);
+    ok = r === true ? true : typeof r === 'string' ? r : 'Unavailable';
+  } catch (e) {
+    ok = e instanceof Error ? e.message : 'Unavailable';
+  }
+  try {
+    return { id, title: a.title, ok, ...a.preview(s, params) };
+  } catch {
+    return { id, title: a.title, ok, costs: [], gains: [], exposure: [] };
+  }
+}
+
+/** Preview of a decision choice (never throws). */
+export function choiceView(s: GameStateV2, eventId: string, choice: number): Omit<ActionView, 'id'> {
+  const c = REG_EVENT_BY_ID.get(eventId)?.choices[choice];
+  if (!c) return { title: '?', ok: 'unknown', costs: [], gains: [], exposure: [] };
+  let ok: true | string = true;
+  try {
+    const r = c.available?.(s) ?? true;
+    ok = r === true ? true : typeof r === 'string' ? r : 'Unavailable';
+  } catch {
+    ok = 'Unavailable';
+  }
+  try {
+    return { title: c.label, ok, ...c.preview(s) };
+  } catch {
+    return { title: c.label, ok, costs: [], gains: [], exposure: [] };
+  }
+}
+
+/** Run card for the run designer: the predicted band under UI-safe names (a prediction, not truth). */
+export function runCard(s: GameStateV2, p: LaunchRunParamsUI) {
+  const plan = planRunUI(s, p);
+  const pr = plan.prediction;
+  return {
+    band: pr.Lg, domains: pr.domains, signals: pr.signals, etaDays: plan.etaDays, serveCost: pr.serveCost, monitorability: pr.monitorability,
+    flop: plan.flopNeeded, cash: plan.cashCost, poolShare: plan.poolShare, minDays: plan.minDays, reason: plan.reason,
+  };
+}
+
+/** Predicted band of a launched run (run queue). */
+export const runBand = (r: { predicted: { Lg: [number, number] } }): [number, number] => r.predicted.Lg;
+
+/** Measured domain levels of a version (what the player's evals show). */
+export function measuredDomains(v: ModelVersion): Record<DomainId, number> {
+  return Object.fromEntries(DOMAIN_IDS.map((d) => [d, measuredDomain(v, d)])) as Record<DomainId, number>;
+}
+
+export { runwayOf } from './finance/runway';
+export { debtHeadroom, totalDebt, interestPerYear, debtRatePct } from './finance/debt';
+export { dealMenu, dealPreview } from './finance/actions';
+export { liveLedger, commitmentsPerYear, ledgerDue, qOf } from './finance/ledger';
+export { orderQuote, spotRentalCap } from './compute/orders';
+export { idleChips, oppositionOdds } from './compute/sites';
+export { ownedOnline, rentedOnline, poolsOf } from './compute/power';
+export { spotPrice, cloudPricePerYear } from './compute/market';
+export { liveCommitments, keptShare } from './actors/commitments';
+export { leverageAll, leverageTier, playerLeverageByLineage, LEVERAGE_THRESHOLDS, CONTROL_DOMAINS } from './worldfx/control';
+export { revenueReadout } from './worldfx/revenue';
+export { techBlocker } from './worldfx/techtree';
+export { canonicalKey } from './core/causes';
+export { quarterIndex, dayOfQuarter, dayOfDate } from './core/time';
+// End screen only (truth): the causal replay.
+export { topDecisions } from './endings/replay';

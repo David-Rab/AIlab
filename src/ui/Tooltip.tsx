@@ -42,7 +42,8 @@ const DepthCtx = createContext(0);
 
 let nextId = 1;
 
-export function TooltipProvider({ children }: { children: ReactNode }) {
+/** `useLive` re-renders open tooltips on game-state changes (v1 store by default; v2 passes its own hook). */
+export function TooltipProvider({ children, useLive = useStore }: { children: ReactNode; useLive?: () => unknown }) {
   const [stack, setStack] = useState<TipEntry[]>([]);
   const stackRef = useRef(stack);
   stackRef.current = stack;
@@ -105,15 +106,15 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
     <TipCtx.Provider value={api}>
       {children}
       {createPortal(
-        stack.map((t) => <TipBox key={t.id} entry={t} api={api} />),
+        stack.map((t) => <TipBox key={t.id} entry={t} api={api} useLive={useLive} />),
         document.body,
       )}
     </TipCtx.Provider>
   );
 }
 
-function TipBox({ entry, api }: { entry: TipEntry; api: TipApi }) {
-  useStore(); // re-render with live game state
+function TipBox({ entry, api, useLive }: { entry: TipEntry; api: TipApi; useLive: () => unknown }) {
+  useLive(); // re-render with live game state
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: -9999, top: -9999 });
 
@@ -156,7 +157,7 @@ export function Tip({
   content: () => ReactNode;
   children: ReactNode;
   className?: string;
-  as?: 'span' | 'div';
+  as?: 'span' | 'div' | 'g';
 }) {
   const api = useContext(TipCtx);
   const depth = useContext(DepthCtx);
