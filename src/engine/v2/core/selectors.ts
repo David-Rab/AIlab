@@ -3,10 +3,14 @@
 // UI code imports from here (or src/engine/v2/index.ts) only. Selectors return what the PLAYER knows: measured
 // levels, beliefs, intel. `selectHidden` is for the end screen only (scripts/v2/lint-hidden.ts enforces this).
 import { bestLg, bestPm, internalVersion, measuredLOf, PLAYER_ID } from '../models/labs';
-import { misalignment } from '../safety/traits';
-import { understanding } from '../safety/understanding';
+import { misalignment, predictBeliefs, type Signals } from '../safety/traits';
+import { detectionAt, understanding } from '../safety/understanding';
+import { mAtLevel } from '../safety/common';
+import { strengthBelieved } from '../safety/techniques';
+import { planRun, type LaunchRunParams } from '../models/runs';
+import { CRITICAL_TRAITS } from '../../../data/v2/traits';
 import { leadDays } from '../actors/intel';
-import type { DecisionSnapshot, GameStateV2, HiddenWorld } from '../types';
+import type { DecisionSnapshot, GameStateV2, HiddenWorld, SignalId, TraitId } from '../types';
 
 export { production, productionWhatIf, nextModelGate } from '../production/readout';
 export type { NextModelGate } from '../production/readout';
@@ -68,3 +72,51 @@ export function decisionSnapshot(s: GameStateV2): DecisionSnapshot {
 
 /** True frontier progress of a lab (hidden; for tests and end screen). */
 export const truePm = (s: GameStateV2, lab: string) => bestPm(s, lab);
+
+// ───────── M5 UX read-only selectors (Safety lab, Run designer). Player-visible data only. ─────────
+
+/** Detection-by-level heat grid (PLAN B4): believed detection of each critical trait on the internal model at
+ *  levels around its measured level L (2·span + 1 columns centred on round(L), shifted to stay in 0…15). */
+export function detectionGrid(s: GameStateV2, span = 4): { L: number; levels: number[]; rows: { trait: TraitId; det: number[] }[] } {
+  const v = internalVersion(s);
+  const L = measuredLOf(s, v).L;
+  const c = Math.round(L);
+  const levels: number[] = [];
+  const lo = Math.max(0, Math.min(15 - 2 * span, c - span));
+  for (let l = lo; l <= Math.min(15, lo + 2 * span); l++) levels.push(l);
+  if (!v) return { L, levels, rows: CRITICAL_TRAITS.map((trait) => ({ trait, det: levels.map(() => 0) })) };
+  return { L, levels, rows: CRITICAL_TRAITS.map((trait) => ({ trait, det: levels.map((l) => detectionAt(s, v, trait, l)) })) };
+}
+
+/** Believed strength of a technique against capability level (Tools tab small multiples): strength at each level
+ *  in `levels`, the level at which the overseen model reaches the tool's M½, and the current measured level. */
+export function techniqueCurve(s: GameStateV2, id: string, levels: number[]): { strength: number[]; mHalfL: number | undefined; L: number } | undefined {
+  const t = s.player.safety.techniques[id];
+  if (!t) return undefined;
+  const w = s.hidden.timeline;
+  const L = measuredLOf(s, internalVersion(s)).L;
+  let mHalfL: number | undefined;
+  if (t.k > 0 && t.mHalf < 1e8) for (let l = 0; l <= 15; l += 0.05) if (mAtLevel(w, l) >= t.mHalf) { mHalfL = Math.round(l * 100) / 100; break; }
+  return { strength: levels.map((l) => strengthBelieved(s, t, mAtLevel(w, l))), mHalfL, L };
+}
+
+/** Training-signal pressure of the run(s) that built a version (the player's own recipe). */
+export function versionSignals(s: GameStateV2, versionId?: string): Partial<Record<SignalId, number>> {
+  const v = (versionId ? s.player.models.versions.find((x) => x.id === versionId) : undefined) ?? internalVersion(s);
+  return { ...(v?.build?.signals ?? {}) };
+}
+
+/** Run trait pressure (PLAN B3): the beliefs the engine would predict for the run's version (public edge weights,
+ *  player moderators, safety-training removal), relative to the internal model's current beliefs. Visible only. */
+export function runTraitPressure(s: GameStateV2, p: LaunchRunParams): Partial<Record<TraitId, number>> {
+  const v = internalVersion(s);
+  const prior = v?.beliefs;
+  if (!prior) return {};
+  const plan = planRun(s, p);
+  const base = p.baseId ? s.player.models.bases.find((b) => b.id === p.baseId) : undefined;
+  const omega = p.kind === 'base' ? 1 : p.kind === 'continue' ? 0.5 : p.kind === 'distill' ? 0.4 : 0.6;
+  const next = predictBeliefs(s, prior, plan.prediction.signals as Signals, omega, p.kind === 'post' ? p.post : undefined, base?.lineage ?? 'L-unknown');
+  const out: Partial<Record<TraitId, number>> = {};
+  for (const t of Object.keys(next) as TraitId[]) out[t] = next[t].est - (prior[t]?.est ?? 0);
+  return out;
+}
