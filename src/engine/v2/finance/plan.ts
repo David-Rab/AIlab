@@ -35,7 +35,7 @@ export const CAPEX2X_AUTOPILOT: AutopilotOpts = { mult: 2, strategic: true, offB
 /** Quarters ahead the autopilot plans site MW for [fit: F7 2026 capex]. */
 export const SITE_HORIZON_Q = 9;
 /** Prudent bots stop new capex below this runway (quarters) [D]. */
-export const GUARD_Q = 4.25;
+export const GUARD_Q = 4.0;
 /** Chip orders (short-lived, resellable) use a looser guard [D]. */
 export const GUARD_CHIPS_Q = 3.5;
 const years = (_s: GameStateV2, day: number) => day / 365;
