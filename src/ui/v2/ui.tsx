@@ -1,10 +1,11 @@
 // Shared v2 UI pieces (WS6): action buttons with engine previews, "why" tooltips from the cause ledger, glossary
 // terms, unlock rules (§1.5, §6.8), small charts. Selectors only — never hidden truth.
 import type { ReactNode } from 'react';
-import { Lock } from 'lucide-react';
+import { Lock, type LucideIcon } from 'lucide-react';
 import { actionView, causeStrip, choiceView } from '../../engine/v2';
 import type { ActionView, CostLine, GameStateV2 } from '../../engine/v2';
 import { GLOSSARY_V2 } from '../../data/v2/glossary';
+import { SIGNALS, TRAIT_BY_ID } from '../../data/v2/traits';
 import { Tip, TipCard as BaseTipCard } from '../Tooltip';
 import { fmtNum } from '../components';
 import { store, useV2 } from './store';
@@ -23,7 +24,7 @@ export type Params = Record<string, number | string | boolean>;
 export const ACT_NAMES = ['', 'Startup', 'Frontier race', 'Automation', 'Takeoff'] as const;
 /** Act at which a panel or panel section unlocks (§1.5); tutorial off = all. */
 export const UNLOCK_ACT: Record<string, 1 | 2 | 3 | 4> = {
-  map: 1, finance: 1, departments: 1, models: 1, rundesigner: 1, deployments: 1, relations: 1, safety: 1, codex: 1,
+  overview: 1, company: 1, map: 1, finance: 1, departments: 1, models: 1, rundesigner: 1, deployments: 1, relations: 1, safety: 1, codex: 1,
   compute: 2, risk: 2, world: 3,
   baseRuns: 2, deals: 2, rivalIntel: 2, researchBodies: 2, commitments: 2, agendas: 2, index: 2, paradigms: 2,
   aiLabour: 3, paradigmT3: 3, chinaLadder: 3, theftMap: 3, statutes: 3, govLadder: 3,
@@ -48,13 +49,25 @@ export function Gate({ s, k, children }: { s: GameStateV2; k: string; children: 
 
 // ───────────────────────── glossary ─────────────────────────
 export function Term({ id, children }: { id: string; children?: ReactNode }) {
-  const g = GLOSSARY_V2[id];
-  if (!g) return <>{children ?? id}</>;
+  const g = termEntry(id);
+  if (!g) return <span data-term={id} data-term-missing="1">{children ?? id}</span>;
   return (
     <Tip className="term" content={() => <TipCard title={g.title} footer={g.src}><Rich text={g.body} /></TipCard>}>
-      {children ?? g.title}
+      <span data-term={id}>{children ?? g.title}</span>
     </Tip>
   );
+}
+/** Glossary entry, or a generated one for trait:<ID> and sig:<ID> (from the trait data). */
+export function termEntry(id: string): { title: string; body: string; src?: string } | undefined {
+  if (id.startsWith('trait:')) {
+    const t = TRAIT_BY_ID[id.slice(6) as keyof typeof TRAIT_BY_ID];
+    return t && { title: t.name, body: `${t.desc} ${t.protective ? 'Protective: higher is better.' : 'A [[traits|hidden trait]]: you see a [[belief]] band, never the truth.'}`, src: `research/04 ${t.r04}` };
+  }
+  if (id.startsWith('sig:')) {
+    const x = SIGNALS.find((q) => q.id === id.slice(4));
+    return x && { title: `${x.id} ${x.name}`, body:'A [[signal|training signal]]: how strongly your run recipes push this pressure into the model. It feeds the [[traitGraph|trait graph]].' };
+  }
+  return GLOSSARY_V2[id];
 }
 /** Text with [[id]] / [[id|label]] glossary links as nested tooltips. */
 export function Rich({ text }: { text: string }) {
@@ -65,7 +78,7 @@ export function Rich({ text }: { text: string }) {
   let k = 0;
   while ((m = re.exec(text))) {
     if (m.index > last) parts.push(text.slice(last, m.index));
-    parts.push(<Term key={k++} id={m[1]}>{m[2] ?? GLOSSARY_V2[m[1]]?.title ?? m[1]}</Term>);
+    parts.push(<Term key={k++} id={m[1]}>{m[2] ?? termEntry(m[1])?.title ?? m[1]}</Term>);
     last = m.index + m[0].length;
   }
   if (last < text.length) parts.push(text.slice(last));
@@ -105,7 +118,7 @@ function lineMeta(c: CostLine): string {
 }
 /** Full preview rows for tooltips. */
 export function PreviewRows({ v }: { v: Pick<ActionView, 'costs' | 'gains' | 'exposure'> }) {
-  const sect = (title: string, xs: CostLine[], tone: string, sign: boolean) =>
+  const sect = (title: string, all: CostLine[], tone: string, sign: boolean, xs = all.filter((c) => c.amount !== 0 || !!c.target)) =>
     xs.length ? (
       <div className="pv-sect">
         <div className={`pv-title ${tone}`}>{title}</div>
@@ -140,8 +153,8 @@ export function PreviewInline({ v }: { v: Pick<ActionView, 'costs' | 'gains' | '
 
 /** Action button: label, inline cost/gain preview, full preview + unavailable reason on hover. */
 export function ActBtn({
-  id, params = {}, label, primary, small = true, onDone, inline = true, testId, block,
-}: { id: string; params?: Params; label?: ReactNode; primary?: boolean; small?: boolean; onDone?: () => void; inline?: boolean; testId?: string; /** Extra UI-side blocker (e.g. the run plan's reason). */ block?: string }) {
+  id, params = {}, label, primary, small = true, onDone, inline = false, testId, block, icon: Icon, reason = false, anchor,
+}: { id: string; params?: Params; label?: ReactNode; primary?: boolean; small?: boolean; onDone?: () => void; inline?: boolean; testId?: string; /** Extra UI-side blocker (e.g. the run plan's reason). */ block?: string; icon?: LucideIcon; /** Show the disabled reason inline under the button. */ reason?: boolean; anchor?: string }) {
   const st = useV2();
   const s = st.state;
   if (!s) return null;
@@ -157,18 +170,22 @@ export function ActBtn({
         </TipCard>
       )}
     >
-      <button
-        className={`btn ${small ? 'btn-sm' : ''} ${primary ? 'btn-primary' : ''} act-btn`}
-        disabled={off}
-        data-act={testId ?? id}
-        onClick={() => {
-          const err = store.act(id, params);
-          if (!err) onDone?.();
-        }}
-      >
-        <span>{label ?? v.title}</span>
-        {inline && <PreviewInline v={v} />}
-      </button>
+      <span className="act-col" id={anchor ? `ctl-${anchor}` : undefined}>
+        <button
+          className={`btn ${small ? 'btn-sm' : ''} ${primary ? 'btn-primary' : ''} act-btn ${off ? 'is-off' : ''}`}
+          disabled={off}
+          data-act={testId ?? id}
+          onClick={() => {
+            const err = store.act(id, params);
+            if (!err) onDone?.();
+          }}
+        >
+          {Icon && <Icon size={13} />}
+          <span>{label ?? v.title}</span>
+          {inline && <PreviewInline v={v} />}
+        </button>
+        {reason && off && <span className="act-reason">{v.ok}</span>}
+      </span>
     </Tip>
   );
 }
@@ -197,19 +214,46 @@ export function causeRows(s: GameStateV2, key: string, fmt: (x: number) => strin
     tone: (r.delta >= 0 ? 'pos' : 'neg') as 'pos' | 'neg',
   }));
 }
-/** Tooltip card listing the cause strip for a meter key (§2.6), plus optional extra rows/body. */
-export function WhyCard({ s, k, title, value, body, rows, fmt }: { s: GameStateV2; k: string; title: ReactNode; value?: ReactNode; body?: ReactNode; rows?: { label: ReactNode; value: ReactNode; tone?: 'pos' | 'neg' | 'neutral' }[]; fmt?: (x: number) => string }) {
-  const why = causeRows(s, k, fmt);
+/** Ledger source strings in player words (PLAN B8, UI side). */
+const SOURCE_WORDS: Record<string, string> = {
+  'chip deposit': 'Chip order deposit', 'revenue share': 'Revenue share', drift: 'Drift (no single cause)', 'weekly sum': 'Weekly total',
+};
+export const sourceWords = (x: string) => SOURCE_WORDS[x] ?? x.charAt(0).toUpperCase() + x.slice(1);
+/** Diverging cause bars (Democracy-style strip): one row per source, bar ∝ |Δ|, gain right, loss left. */
+export function CauseBars({ s, k, fmt = (x) => x.toFixed(1), days: d = 30, invert = false }: { s: GameStateV2; k: string; fmt?: (x: number) => string; days?: number; /** true when "up" is bad (scrutiny, risk). */ invert?: boolean }) {
+  const rows = causeStrip(s, k, d, 6);
+  if (!rows.length) return <div className="dim small">No recorded change in {d} d</div>;
+  const max = Math.max(1e-9, ...rows.map((r) => Math.abs(r.delta)));
   return (
-    <TipCard title={title} value={value} rows={[...(rows ?? []), ...(why.length ? [{ label: <b className="dim">Why · 30 d</b>, value: '' }, ...why] : [{ label: <span className="dim">No recorded change in 30 d</span>, value: '' }])]}>
-      {body}
+    <div className="cbars">
+      {rows.map((r, i) => {
+        const good = invert ? r.delta < 0 : r.delta > 0;
+        const w = (Math.abs(r.delta) / max) * 50;
+        return (
+          <div className="cbar" key={i}>
+            <span className="cbar-lbl ellip">{sourceWords(r.source)}{r.n > 1 ? <span className="dim"> ×{r.n}</span> : null}</span>
+            <span className="cbar-track"><i style={{ left: r.delta >= 0 ? '50%' : `${50 - w}%`, width: `${w}%`, background: good ? 'var(--good)' : 'var(--bad)' }} /></span>
+            <span className={`cbar-val num ${good ? 'tone-pos' : 'tone-neg'}`}>{r.delta >= 0 ? '+' : '−'}{fmt(Math.abs(r.delta))}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+/** Tooltip card for a meter (§2.6, DESIGN-SYSTEM §5.1): value, optional breakdown rows, cause bars, levers. */
+export function WhyCard({ s, k, title, value, body, rows, fmt, levers, invert }: { s: GameStateV2; k: string; title: ReactNode; value?: ReactNode; body?: ReactNode; rows?: { label: ReactNode; value: ReactNode; tone?: 'pos' | 'neg' | 'neutral' }[]; fmt?: (x: number) => string; levers?: ReactNode; invert?: boolean }) {
+  return (
+    <TipCard title={title} value={value} rows={rows}>
+      {body && <div className="why-body">{typeof body === 'string' ? <Rich text={body} /> : body}</div>}
+      <div className="tip-sec"><div className="tip-cap">Why it moved · 30 d</div><CauseBars s={s} k={k} fmt={fmt} invert={invert} /></div>
+      {levers && <div className="tip-sec"><div className="tip-cap">Levers</div><div className="btn-row wrap">{levers}</div></div>}
     </TipCard>
   );
 }
 /** Wrap a meter so it shows its "why" on hover. */
-export function Why({ k, title, value, body, rows, fmt, children, className }: { k: string; title: ReactNode; value?: ReactNode; body?: ReactNode; rows?: { label: ReactNode; value: ReactNode; tone?: 'pos' | 'neg' | 'neutral' }[]; fmt?: (x: number) => string; children: ReactNode; className?: string }) {
+export function Why({ k, title, value, body, rows, fmt, children, className, levers, invert }: { k: string; title: ReactNode; value?: ReactNode; body?: ReactNode; rows?: { label: ReactNode; value: ReactNode; tone?: 'pos' | 'neg' | 'neutral' }[]; fmt?: (x: number) => string; children: ReactNode; className?: string; levers?: ReactNode; invert?: boolean }) {
   return (
-    <Tip className={`has-tip ${className ?? ''}`} content={() => (store.state ? <WhyCard s={store.state} k={k} title={title} value={value} body={body} rows={rows} fmt={fmt} /> : null)}>
+    <Tip className={`has-tip ${className ?? ''}`} content={() => (store.state ? <WhyCard s={store.state} k={k} title={title} value={value} body={body} rows={rows} fmt={fmt} levers={levers} invert={invert} /> : null)}>
       {children}
     </Tip>
   );

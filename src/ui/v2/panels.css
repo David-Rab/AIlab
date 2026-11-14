@@ -1,0 +1,28 @@
+/* M5 UX panel styles (Company and shared panel pieces). Panel-specific files may add their own blocks below. */
+.row-i { display: inline-flex; align-items: center; gap: 6px; }
+.big { font-size: 16px; color: #fff; }
+.company { display: flex; flex-direction: column; gap: 12px; }
+.company-flow { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 12px; align-items: start; }
+.flow-wrap { position: relative; }
+.flow-svg { width: 100%; height: auto; display: block; }
+.flow-cap { fill: var(--text-3); font: 700 10.5px var(--sans); letter-spacing: .09em; }
+.flow-lbl { fill: #fff; font: 600 12.5px var(--sans); }
+.flow-lbl.bad { fill: var(--bad); }
+.flow-out { fill: #cfe3ff; }
+.flow-sub { fill: var(--text-2); font: 11px var(--sans); }
+.flow-tag { font: 700 10.5px var(--sans); }
+.flow-tag.warn { fill: var(--watch); }
+.flow-tag.bad { fill: var(--bad); }
+.flow-tag.good { fill: var(--good); }
+.flow-click { cursor: pointer; }
+.rs-chain { display: flex; align-items: center; gap: 4px; }
+.rs-node { display: flex; flex-direction: column; align-items: center; padding: 6px 10px; border: 1px solid var(--line-2); border-radius: 7px; background: var(--panel-2); font-size: 11px; color: var(--text-2); }
+.rs-node b { color: #fff; font-size: 14px; }
+.rs-node.hero { border-color: var(--cap); background: rgba(155,107,224,.1); }
+.rs-chain .ar { color: var(--text-3); }
+.rs-lev { display: grid; grid-template-columns: minmax(0, 1fr) 70px 54px auto; gap: 8px; align-items: center; font-size: 12px; padding: 3px 0; }
+.dept-cards { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.dept-card .proj-list { margin-top: 6px; border-top: 1px solid var(--line); padding-top: 4px; min-height: 30px; }
+.stack2 { display: flex; height: 10px; border-radius: 3px; overflow: hidden; gap: 2px; margin: 4px 0; }
+.split-bar { display: flex; height: 14px; border-radius: 4px; overflow: hidden; gap: 2px; margin-bottom: 10px; }
+.split-row { display: grid; grid-template-columns: 160px 280px 54px 1fr; gap: 10px; align-items: center; padding: 3px 4px; }

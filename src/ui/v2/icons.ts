@@ -1,0 +1,51 @@
+// One icon per concept (DESIGN-SYSTEM §1). Panels never pick their own lucide icon for a concept in this map.
+import {
+  Armchair, Atom, Award, BadgeCheck, Banknote, Binary, Biohazard, BookOpen, Bot, Boxes, Brain, Bug, Building2, Cctv, Check, ChevronRight,
+  ChevronsRight, CircleHelp, ClipboardCheck, ClipboardX, ClockAlert, Cloud, CodeXml, Copy, CopyX, Cpu, Crown, Database, Dna, Drama, Eye, EyeOff,
+  Factory, FastForward, FileSearch, FlaskConical, Flag, Fuel, Funnel, Gamepad2, Gauge, Gem, Ghost, GitFork, Glasses, Globe, GraduationCap, Hand,
+  HandCoins, Handshake, HeartHandshake, Hexagon, Hourglass, Image, Joystick, KeyRound, Landmark, Lightbulb, Lock, Map as MapIcon, Megaphone, Menu,
+  MessageSquareOff, Microscope, Milestone, Network, Newspaper, PackageX, Pause, Play, PlugZap, Radar, RefreshCw, Rocket, Scale, ScanEye, ScrollText,
+  Search, SearchCheck, Server, Settings2, Shield, ShieldAlert, Siren, Skull, SkipForward, SlidersHorizontal, Smile, Sparkles, Split, Star, Swords,
+  Target, ThumbsUp, Timer, TrendingUp, TriangleAlert, Turtle, UserPlus, Users, UsersRound, VenetianMask, Vote, Wallet, Workflow, Zap, ZapOff,
+  type LucideIcon,
+} from 'lucide-react';
+
+export const ICON = {
+  // resources
+  cash: Wallet, runway: Fuel, revenue: TrendingUp, valuation: Gem, compute: Cpu, serving: Server, idle: PlugZap, power: Zap, noPower: ZapOff,
+  sites: Factory, cloud: Cloud, staff: Users, hiring: UserPlus, morale: Smile, taste: Sparkles, data: Database, raise: HandCoins, debt: Banknote,
+  // spheres / departments
+  capabilities: Brain, safety: Microscope, security: Shield, product: Boxes, ops: Settings2, agents: Bot, experiments: FlaskConical, run: Rocket,
+  // race and top meters
+  L: Brain, U: Microscope, blind: EyeOff, risk: Skull, lead: Timer, scrutiny: Eye, M: Gauge, control: Joystick, trust: HeartHandshake,
+  credibility: Award, approval: Vote, wsl: Lock,
+  // events
+  decision: Split, incident: Siren, finding: FileSearch, milestone: Milestone, headline: Newspaper, securityEvent: ShieldAlert, theft: KeyRound,
+  commitment: ScrollText, alert: TriangleAlert, alerts: ClockAlert,
+  // risk sources
+  ownModel: Brain, rival: Building2, china: Flag, misuse: Biohazard, rogue: CopyX, war: Swords,
+  // actors
+  you: Hexagon, exec: Landmark, congress: Scale, states: MapIcon, evalGov: ClipboardCheck, evalIndep: SearchCheck, academia: GraduationCap,
+  public: Users, blocs: Megaphone, board: Armchair,
+  // nav
+  overview: Radar, company: Workflow, finance: Landmark, computePanel: Server, models: Brain, runs: Rocket, deploy: Boxes, risks: Skull,
+  relations: Handshake, world: Globe, codex: BookOpen,
+  // time and actions
+  pause: Pause, play: Play, speed2: ChevronsRight, speed3: FastForward, ff: SkipForward, go: ChevronRight, revalidate: RefreshCw,
+  investigate: Search, split: SlidersHorizontal, help: CircleHelp, menu: Menu, check: Check, locked: Lock,
+} satisfies Record<string, LucideIcon>;
+export type IconId = keyof typeof ICON;
+
+/** Model domains. */
+export const DOMAIN_ICON: Record<string, LucideIcon> = {
+  CODE: CodeXml, RSCH: FlaskConical, REASON: Lightbulb, AGENCY: Bot, SOCIAL: UsersRound, MEDIA: Image, CYBER: Binary, BIO: Dna, PHYS: Atom,
+};
+/** Traits (17). */
+export const TRAIT_ICON: Record<string, LucideIcon> = {
+  SYC: ThumbsUp, RH: Bug, PROXY: Target, SA: ScanEye, PERSONA: VenetianMask, OBF: EyeOff, EA: Glasses, TGAME: Gamepad2, CONCEAL: PackageX,
+  POWER: Crown, AF: Drama, SAND: Turtle, SCHEME: Ghost, COLLUDE: Network, SUCC: GitFork, HONEST: BadgeCheck, CORRIG: Hand,
+};
+/** Training signals S1–S8. */
+export const SIGNAL_ICON: Record<string, LucideIcon> = {
+  S1: Star, S2: ClipboardX, S3: Hourglass, S4: MessageSquareOff, S5: Database, S6: Funnel, S7: Cctv, S8: Copy,
+};

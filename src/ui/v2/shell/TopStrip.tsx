@@ -1,110 +1,203 @@
-// Top strip (§6.2): speed, date, cash·runway, compute, race bars L vs U, leads, scrutiny, M, menu.
+// Top strip (IA.md L0): time · the race (hero) · catastrophe risk · cash·runway · nearest lead · help · menu.
+// Each item is the HOME of its datum (data-home); hover = why, click = the panel that changes it.
 import { useState } from 'react';
-import { Cpu, DollarSign, Eye, Menu, Swords, Zap } from 'lucide-react';
-import {
-  activeRivals, dateOf, engine, fmtDate, idleChips, leadDays, measuredL, ownedOnline, poolsOf, raiseCeiling, rentedOnline, runwayOf, SLOT_KEYS,
-  SPLIT_KEYS,
-} from '../../../engine/v2';
-import type { GameStateV2 } from '../../../engine/v2';
-import { TRAIT_BY_ID } from '../../../data/v2/traits';
+import { activeRivals, dateOf, dayOfQuarter, engine, fmtDate, internalEval, leadDays, qOf, runwayOf, safetyView, SLOT_KEYS } from '../../../engine/v2';
+import type { GameStateV2, RiskSource } from '../../../engine/v2';
+import { CRITICAL_TRAITS, TRAIT_BY_ID } from '../../../data/v2/traits';
 import { store } from '../store';
-import { ACT_NAMES, fmtB, fmtMult, fmtNum, pct, Term, Tip, TipCard, Why } from '../ui';
+import { ACT_NAMES, Term, Tip, TipCard, WhyCard } from '../ui';
+import { Gauge, GoBtn, HBar, Spark2 } from '../kit';
+import * as F from '../fmt';
+import { ICON, TRAIT_ICON } from '../icons';
+import { C, runwayState, STATE_COLOR } from '../theme';
 import { SpeedControl } from './SpeedControl';
 
-const STATE_TONE: Record<string, string> = { healthy: 'tone-pos', tight: 'tone-warn', distress: 'tone-neg', insolvent: 'tone-neg' };
+/** What triggers each act (engine tutorial rules; shown in the date hover and the Goals card). */
+export const ACT_TRIGGER: Record<number, string> = { 2: 'capability L ≥ 6.5 or day 150', 3: 'capability L ≥ 8.5', 4: 'capability L ≥ 12 or R&D speed ≥ 25×' };
 
-export function bestRivalLead(s: GameStateV2) {
-  const rs = activeRivals(s).map((r) => ({ r, ...leadDays(s, r.core.id) }));
-  rs.sort((a, b) => a.est - b.est);
-  return rs[0];
+export function nearestRival(s: GameStateV2) {
+  const labs = [...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])];
+  const rs = labs.map((r) => ({ id: r.core.id, name: r.core.name, ...leadDays(s, r.core.id) })).sort((a, b) => a.est - b.est);
+  return { nearest: rs[0], all: rs };
+}
+/** Combined estimated P(catastrophe) and band from the risk sources (as the Risk panel combines them). */
+export function catRisk(s: GameStateV2) {
+  const rows = engine.riskSources(s);
+  const comb = (f: (r: RiskSource) => number) => 1 - rows.reduce((a, r) => a * (1 - Math.max(0, Math.min(1, f(r)))), 1);
+  return { est: comb((r) => r.estimate), lo: comb((r) => r.band[0]), hi: comb((r) => r.band[1]), rows };
+}
+/** Live runway state and, when the quarterly board review will change the official state, the review date. */
+export function runwayLive(s: GameStateV2) {
+  const rw = runwayOf(s);
+  const live = runwayState(rw.q);
+  const official = s.player.finance.state;
+  const review = dateOf(s, dayOfQuarter(s.time.startDate, qOf(s) + 1));
+  const flips = official !== 'insolvent' && official !== live;
+  return { rw, live, official, review, flips };
+}
+
+function RaceTip({ s }: { s: GameStateV2 }) {
+  const u = engine.understanding(s);
+  const ev = internalEval(s);
+  const sv = safetyView(s);
+  const decaying = sv.techniques.filter((t) => t.unlocked && t.active && t.role !== 'fix').sort((a, b) => b.decay - a.decay).slice(0, 3);
+  const masked = sv.techniques.filter((t) => t.unlocked && t.trainedAgainst > 0.05);
+  const hist = s.series.U.slice(-13);
+  return (
+    <TipCard title="The race: capability vs understanding" value={`${u.margin >= 0 ? '+' : '−'}${Math.abs(u.margin).toFixed(1)}`}>
+      <div className="why-body">Violet: the <Term id="L">measured level</Term> of your internal model{ev.evaluating ? ' (still in evaluation: last measured level of its line)' : ''}. Teal: <Term id="U">understanding</Term>, the highest level your tools still read. Past teal you are <Term id="gap">flying blind</Term>.</div>
+      <div className="tip-sec">
+        <div className="tip-cap">Can your tools see it? detection at L vs 50%</div>
+        {CRITICAL_TRAITS.map((t) => {
+          const p = u.perTrait[t] ?? 0;
+          const Ic = TRAIT_ICON[t];
+          return (
+            <div className="det-row" key={t}>
+              <span className="det-lbl">{Ic && <Ic size={12} />}<Term id={`trait:${t}`}>{TRAIT_BY_ID[t].name}</Term></span>
+              <HBar v={p} max={1} color={p >= 0.5 ? C.und : C.bad} w={130} mark={0.5} />
+              <span className={`num ${p >= 0.5 ? 'tone-pos' : 'tone-neg'}`}>{F.pct(p)}</span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="tip-sec">
+        <div className="tip-cap">Why understanding moves · last 90 d <Spark2 data={hist} w={70} h={14} /></div>
+        {decaying.map((t) => <div className="small" key={t.id}><ICON.revalidate size={11} /> <Term id="technique">{t.name}</Term> <span className="dim">decayed</span> <b className={t.decay > 0.5 ? 'tone-neg' : 'tone-warn'}>{F.pct(t.decay)}</b> <span className="dim">(<Term id="mHalf">capability outgrows it</Term>)</span></div>)}
+        {masked.map((t) => <div className="small" key={`m${t.id}`}><ICON.blind size={11} /> {t.name} <span className="tone-neg">masked {F.pct(t.trainedAgainst)}</span> <span className="dim">(<Term id="goodhart">trained against</Term>)</span></div>)}
+        {ev.evaluating && <div className="small"><ICON.finding size={11} /> {ev.name} is <Term id="evaluating">in evaluation</Term></div>}
+        {!decaying.length && !masked.length && <div className="small dim">No detection tools active yet: fund a safety agenda.</div>}
+      </div>
+      <div className="tip-sec"><div className="tip-cap">Levers</div><div className="btn-row wrap">
+        <GoBtn to={{ panel: 'safety', tab: 'tools' }} label="Re-validate tools" testId="race.tools" />
+        <GoBtn to={{ panel: 'safety', tab: 'agendas' }} label="Fund agendas" testId="race.agendas" />
+        <GoBtn to={{ panel: 'rundesigner' }} label="Safer recipe" testId="race.runs" />
+      </div></div>
+    </TipCard>
+  );
+}
+
+function RaceMeter({ s }: { s: GameStateV2 }) {
+  const u = engine.understanding(s);
+  const ev = internalEval(s);
+  const L = ev.L;
+  const U = u.U;
+  const W = 470;
+  const lo = 4;
+  const hi = 15;
+  const x = (v: number) => 4 + ((Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo)) * (W - 8);
+  const gap = u.margin;
+  return (
+    <Tip as="div" className="ts-race2" content={() => <RaceTip s={s} />}>
+      <div data-test="race" data-home="race" onClick={() => store.goto('safety', { tab: 'graph' })}>
+        <div className="race2-lbls">
+          <span className="race2-cap"><ICON.L size={12} /> CAPABILITY</span>
+          <b className="num" style={{ color: C.cap }} data-home="L">{F.level(L)}</b>
+          {ev.evaluating && <span className="tag2 warn" data-test="evaluating">evaluating</span>}
+          <span className="sp" />
+          <span className={`tag2 ${gap < 0 ? 'bad' : 'good'}`} data-home="gap">{gap < 0 ? <ICON.blind size={12} /> : <ICON.check size={12} />} {Math.abs(gap).toFixed(1)} {gap < 0 ? 'BLIND' : 'AHEAD'}</span>
+          <span className="sp" />
+          <b className="num" style={{ color: C.und }} data-home="U">{F.level(U)}</b>
+          <span className="race2-und">UNDERSTANDING <ICON.U size={12} /></span>
+        </div>
+        <svg width={W} height={28} className="race2-svg">
+          <defs><pattern id="hatch2" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2" height="5" fill={C.bad} /></pattern></defs>
+          <rect x={4} y={2} width={W - 8} height={8} rx={4} fill={C.line} />
+          <rect x={4} y={2} width={x(L) - 4} height={8} rx={4} fill={C.cap} opacity={ev.evaluating ? 0.6 : 1} />
+          <rect x={4} y={12} width={W - 8} height={8} rx={4} fill={C.line} />
+          <rect x={4} y={12} width={x(U) - 4} height={8} rx={4} fill={C.und} />
+          {U < L && <rect x={x(U)} y={12} width={x(L) - x(U)} height={8} fill="url(#hatch2)" opacity={0.9} />}
+          {([[6.5, 'agent'], [8.5, 'research'], [10, 'SC'], [12, 'SAR'], [15, 'ASI']] as const).map(([v, n]) => (
+            <g key={n}><line x1={x(v)} x2={x(v)} y1={0} y2={21} stroke={C.text3} strokeDasharray="2 2" opacity={0.7} /><text x={Math.min(W - 10, x(v))} y={28} textAnchor="middle" className="race2-ms">{n}</text></g>
+          ))}
+        </svg>
+      </div>
+    </Tip>
+  );
+}
+
+function RiskChip({ s }: { s: GameStateV2 }) {
+  const r = catRisk(s);
+  const col = r.est > 0.2 ? C.bad : r.est > 0.05 ? C.watch : C.good;
+  const top = [...r.rows].sort((a, b) => b.estimate - a.estimate).slice(0, 3);
+  return (
+    <Tip as="div" className="ts-stat" content={() => (
+      <TipCard title={<Term id="catRisk">Catastrophe risk</Term>} value={`${F.pct(r.est, 1)} (${F.pct(r.lo)}–${F.pct(r.hi)})`} rows={top.map((x) => ({ label: x.label, value: F.pct(x.estimate, 1), tone: x.estimate > 0.1 ? 'neg' : 'neutral' }))}>
+        Estimated from your beliefs, intel and exposure, never from the truth. Biggest <Term id="riskSource">sources</Term>:
+      </TipCard>
+    )}>
+      <div className="ts-click" data-test="risk" data-home="catRisk" onClick={() => store.setPanel('risk')}>
+        <Gauge value={r.est} max={1} band={[r.lo, r.hi]} fill={col} w={50} h={32} />
+        <div className="ts-col"><span className="ts-l">CATASTROPHE RISK</span><span className="ts-v num" style={{ color: col }}>{F.pct(r.est)} <span className="ts-sub">{F.pct(r.lo)}–{F.pct(r.hi)}</span></span></div>
+      </div>
+    </Tip>
+  );
+}
+
+const PART_WORD: Record<string, string> = { operating: 'Payroll & operations', commitments: 'Contracts (ledger)', chips: 'Chip balances', sites: 'Site capex', revenue: 'Revenue' };
+function CashChip({ s }: { s: GameStateV2 }) {
+  const f = s.player.finance;
+  const { rw, live, official, review, flips } = runwayLive(s);
+  const col = STATE_COLOR[f.state === 'insolvent' ? 'insolvent' : live];
+  return (
+    <Tip as="div" className="ts-stat" content={() => (
+      <WhyCard
+        s={s} k="cash" title={<span><Term id="cash">Cash</Term> · <Term id="runway">runway</Term></span>} value={`${F.money(f.cash)} · ${F.quarters(rw.q)}`} fmt={(x) => F.money(x)}
+        rows={[
+          { label: <Term id="liquidity">Liquidity</Term>, value: F.money(rw.liquidity) },
+          ...Object.entries(rw.parts).filter(([, v]) => Math.abs(v) > 1e-3).map(([k, v]) => ({ label: PART_WORD[k] ?? k, value: F.money(-v, { signed: true, perQ: true }), tone: (v > 0 ? 'neg' : 'pos') as 'neg' | 'pos' })),
+          { label: <Term id="netBurn">Net burn</Term>, value: F.money(rw.burnQ, { perQ: true }) },
+          ...(flips ? [{ label: <span>Board review {fmtDate(review)}</span>, value: <span style={{ color: STATE_COLOR[live] }}>{official} → {live}</span> }] : []),
+        ]}
+        body={`Runway zones: [[distress]] < 3q, [[tight]] < 6q, else [[healthy]].`}
+        levers={<><GoBtn to={{ panel: 'finance', anchor: 'raise' }} label="Raise" testId="cash.raise" /><GoBtn to={{ panel: 'finance', anchor: 'ledger' }} label="Contracts" testId="cash.ledger" /></>}
+      />
+    )}>
+      <div className="ts-click" data-test="cash" onClick={() => store.setPanel('finance')}>
+        <span className="ts-ic"><ICON.cash size={14} /></span>
+        <div className="ts-col"><span className="ts-l">CASH · RUNWAY</span><span className="ts-v num" data-home="cash">{F.money(f.cash)}</span></div>
+        <div className="ts-runway" data-home="runway">
+          <Gauge value={Math.min(10, rw.q)} max={10} zones={[{ to: 3, color: C.bad }, { to: 6, color: C.watch }, { to: 10, color: C.good }]} w={58} h={30} />
+          <span className="num" style={{ color: col }}>{F.quarters(rw.q)} {f.state === 'insolvent' ? 'insolvent' : live}</span>
+        </div>
+        {flips && <span className="tag2 warn ts-flip" title={`The board reviews runway on ${fmtDate(review)}`}>{live} on {fmtDate(review).replace(/,? \d{4}$/, '')}</span>}
+      </div>
+    </Tip>
+  );
+}
+
+function LeadChip({ s }: { s: GameStateV2 }) {
+  const { nearest, all } = nearestRival(s);
+  if (!nearest) return null;
+  return (
+    <Tip as="div" className="ts-stat" content={() => (
+      <TipCard title={<Term id="lead">Lead</Term>} rows={all.map((r) => ({ label: r.name, value: `${F.lead(r.est)} ± ${r.sd}`, tone: r.est >= 0 ? 'pos' : 'neg' }))}>
+        Days your best internal model is ahead of each lab (estimates, ± <Term id="intelError">intel error</Term>).
+      </TipCard>
+    )}>
+      <div className="ts-click" data-test="lead" onClick={() => store.goto('overview', { anchor: 'leadtrack' })}>
+        <span className="ts-ic" style={{ color: nearest.id === 'china' ? C.china : C.rival }}><ICON.lead size={14} /></span>
+        <div className="ts-col"><span className="ts-l">LEAD · NEAREST</span><span className="ts-v num" data-home="leadNearest"><span className={nearest.est >= 0 ? 'tone-pos' : 'tone-neg'}>{F.lead(nearest.est)}</span> <span className="ts-sub">{nearest.name}</span></span></div>
+      </div>
+    </Tip>
+  );
 }
 
 export function TopStrip({ s }: { s: GameStateV2 }) {
-  const f = s.player.finance;
-  const rw = runwayOf(s);
-  const L = measuredL(s);
-  const u = engine.understanding(s);
-  const prod = engine.production(s, 'player');
-  const best = bestRivalLead(s);
-  const cn = leadDays(s, 'china');
-  const pools = poolsOf(s);
+  const act = s.tutorial.act;
   return (
-    <div className="topstrip">
-      <SpeedControl s={s} />
-      <Tip content={() => <TipCard title="Date" value={`day ${s.time.day}`}>Act {s.tutorial.act} · {ACT_NAMES[s.tutorial.act]}</TipCard>}>
-        <div className="ts-date num" data-test="date">{fmtDate(dateOf(s))}</div>
-      </Tip>
-      <span className="act-chip">A{s.tutorial.act}</span>
-      <Why
-        k="cash" title="Cash · runway" value={fmtB(f.cash)} fmt={(x) => fmtB(x)}
-        body={<span><Term id="runway">Runway</Term> <b>{rw.q >= 99 ? '∞' : rw.q.toFixed(1)}q</b> · <span className={STATE_TONE[f.state]}>{f.state}</span></span>}
-        rows={[
-          { label: 'Liquidity', value: fmtB(rw.liquidity) },
-          ...Object.entries(rw.parts).map(([k, v]) => ({ label: `Burn/q · ${k}`, value: fmtB(v), tone: (v > 0 ? 'neg' : 'pos') as 'neg' | 'pos' })),
-          { label: 'Net burn / q', value: fmtB(rw.burnQ) },
-          { label: `Raise ceiling (${raiseCeiling(s).bound})`, value: fmtB(raiseCeiling(s).max) },
-        ]}
-      >
-        <div className="ts-item" data-test="cash">
-          <DollarSign size={13} className="dim" />
-          <span className={`num ${STATE_TONE[f.state]}`}>{fmtB(f.cash)}</span>
-          <span className="dim num">· {rw.q >= 99 ? '∞' : `${rw.q.toFixed(rw.q < 10 ? 1 : 0)}q`}</span>
-        </div>
-      </Why>
-      <Tip content={() => (
-        <TipCard title="Compute online" value={fmtNum(s.player.computeOnline)} rows={[
-          { label: 'Owned', value: fmtNum(ownedOnline(s)) }, { label: 'Rented', value: fmtNum(rentedOnline(s)) },
-          ...SPLIT_KEYS.map((k) => ({ label: `Pool · ${k}`, value: fmtNum(pools[k]) })),
-          { label: 'Idle chips (no power)', value: fmtNum(idleChips(s)), tone: idleChips(s) > 0 ? 'neg' : 'neutral' },
-        ]}>[[h100e|H100e]] online across your sites and cloud.</TipCard>
-      )}>
-        <div className="ts-item" data-test="compute"><Zap size={13} className="dim" /><span className="num">{fmtNum(s.player.computeOnline)}</span></div>
-      </Tip>
-      <Tip content={() => (
-        <TipCard title="Race: capability vs understanding" value={`margin ${u.margin >= 0 ? '+' : ''}${u.margin.toFixed(1)}`} rows={[
-          { label: 'L measured (internal agent)', value: L.toFixed(2) },
-          { label: 'U (detect critical traits ≥ 50%)', value: u.U.toFixed(2) },
-          ...Object.entries(u.perTrait).map(([t, p]) => ({ label: `Detect ${TRAIT_BY_ID[t as keyof typeof TRAIT_BY_ID]?.name ?? t} at L`, value: pct(p ?? 0), tone: ((p ?? 0) >= 0.5 ? 'pos' : 'neg') as 'pos' | 'neg' })),
-        ]} footer="U falls as techniques decay with capability, when you train against detectors, or when latent reasoning cuts monitorability.">
-          See [[L]] and [[U]].
-        </TipCard>
-      )}>
-        <div className="ts-race" data-test="race">
-          <span className="race-lbl">L</span><span className="num race-num">{L.toFixed(1)}</span>
-          <div className="race-bars">
-            <div className="race-bar"><div className="race-fill L" style={{ width: `${(L / 15) * 100}%` }} /></div>
-            <div className="race-bar"><div className="race-fill U" style={{ width: `${(u.U / 15) * 100}%` }} /></div>
-          </div>
-          <span className="race-lbl">U</span><span className="num race-num">{u.U.toFixed(1)}</span>
-          <span className={`num small ${u.margin >= 0 ? 'tone-pos' : u.margin > -1.5 ? 'tone-warn' : 'tone-neg'}`}>{u.margin >= 0 ? '+' : '−'}{Math.abs(u.margin).toFixed(1)}</span>
-        </div>
-      </Tip>
-      <Tip content={() => (
-        <TipCard title="Lead (estimates)" rows={[
-          ...activeRivals(s).map((r) => { const l = leadDays(s, r.core.id); return { label: r.core.name, value: `${l.est >= 0 ? '+' : ''}${l.est}d ± ${l.sd}`, tone: (l.est >= 0 ? 'pos' : 'neg') as 'pos' | 'neg' }; }),
-          { label: 'China', value: `${cn.est >= 0 ? '+' : ''}${cn.est}d ± ${cn.sd}`, tone: cn.est >= 0 ? 'pos' : 'neg' },
-        ]}>Your best internal model vs theirs. See [[lead]].</TipCard>
-      )}>
-        <div className="ts-item" data-test="lead">
-          <Swords size={13} className="dim" />
-          <span className={`num ${best && best.est < 0 ? 'tone-neg' : ''}`}>{best ? `${best.est >= 0 ? '+' : ''}${best.est}d` : '—'}</span>
-          <span className="dim">· CN</span>
-          <span className={`num ${cn.est < 0 ? 'tone-neg' : ''}`}>{cn.est >= 0 ? '+' : ''}{cn.est}d</span>
-        </div>
-      </Tip>
-      <Why k="relations.scrutiny" title="Scrutiny" value={s.relations.scrutiny.toFixed(0)} body="See [[scrutiny]].">
-        <div className="ts-item" data-test="scrutiny"><Eye size={13} className="dim" /><span className="num">{s.relations.scrutiny.toFixed(0)}</span></div>
-      </Why>
-      <Tip content={() => (
-        <TipCard title="R&D multiplier M" value={fmtMult(prod.M)} rows={[
-          { label: 'Base', value: fmtMult(prod.parts.base) }, { label: 'Agents', value: fmtMult(prod.parts.agents) },
-          { label: 'Taste', value: fmtMult(prod.parts.taste) }, { label: 'Other', value: fmtMult(prod.parts.other) },
-          { label: 'Progress rate', value: `${prod.rate.toFixed(2)} y/y` }, { label: 'Binding', value: prod.label },
-        ]}>See [[rdmult]].</TipCard>
-      )}>
-        <div className="ts-item" data-test="M"><Cpu size={13} className="dim" /><span className="num">M {fmtMult(prod.M)}</span></div>
-      </Tip>
-      <div className="ts-spacer" />
+    <div className="topstrip2">
+      <div className="ts-seg">
+        <SpeedControl s={s} />
+        <Tip content={() => <TipCard title={<Term id="act">{`Act ${act} · ${ACT_NAMES[act]}`}</Term>} value={`day ${s.time.day}`}>{act < 4 ? `Act ${act + 1} starts at ${ACT_TRIGGER[act + 1]}.` : 'The final act.'}</TipCard>}>
+          <div className="ts-date"><span className="num" data-test="date" data-home="date">{fmtDate(dateOf(s))}</span><span className="ts-act">Act {act} · {ACT_NAMES[act]}</span></div>
+        </Tip>
+      </div>
+      <RaceMeter s={s} />
+      <RiskChip s={s} />
+      <CashChip s={s} />
+      <LeadChip s={s} />
+      <span className="sp" />
+      <button className="btn btn-sm btn-icon ts-help" data-test="help" title="Help: controls and coach (?)" onClick={() => store.setHelp(!store.help)}><ICON.help size={15} /></button>
       <GameMenu />
     </div>
   );
@@ -116,7 +209,7 @@ function GameMenu() {
   const close = () => setOpen(false);
   return (
     <div className="ff-wrap">
-      <button className="btn btn-sm btn-icon" data-test="menu" onClick={() => setOpen((o) => !o)}><Menu size={14} /></button>
+      <button className="btn btn-sm btn-icon" data-test="menu" onClick={() => setOpen((o) => !o)}><ICON.menu size={15} /></button>
       {open && (
         <div className="ff-menu right" data-test="menu-list">
           {SLOT_KEYS.map((k, i) => (

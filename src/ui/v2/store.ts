@@ -2,12 +2,13 @@
 // auto-stop rules (V2-SPEC §1.4), autosave, save slots, export/import, and UI-only selection state.
 import { useSyncExternalStore } from 'react';
 import {
-  act as engineAct, AUTOSAVE_KEY, dateOf, defaultSetupV2, deserialize, newGame, quarterIndex, resolve as engineResolve,
+  act as engineAct, activeRivals, AUTOSAVE_KEY, dateOf, engine, leadDays, measuredL, defaultSetupV2, deserialize, newGame, quarterIndex, resolve as engineResolve,
   serialize, SLOT_KEYS, spotPrice, tick,
 } from '../../engine/v2';
 import type { GameStateV2, LogEntry, SetupV2 } from '../../engine/v2';
 
 export type Screen = 'start' | 'setup' | 'game';
+export interface QSnap { q: number; L: number; U: number; cash: number; lead: number }
 /** ms per in-game day for speeds 0..5 (§1.4). */
 export const SPEED_MS = [Infinity, 1000, 450, 180, 70, 12];
 /** Fast-forward batches up to this many ticks per animation frame. */
@@ -68,7 +69,12 @@ class StoreV2 {
   lastSpeed = 2;
   ff: FfTarget | undefined;
   version = 0;
-  panel = 'map';
+  panel = 'overview';
+  /** Active tab per panel (UI only). */
+  tab: Record<string, string> = {};
+  /** Help overlay open. */
+  help = false;
+  /** Coach card index dismissed per act (UI only; persisted in tutorial.seen as coach:<id>). */
   prefs: Prefs = { pauseOnMilestone: true, pauseOnIncident: true, pauseOnDecision: true };
   flash: Flash | undefined;
   /** Decision instance shown in the modal (crisis decisions open it automatically). */
@@ -119,13 +125,16 @@ class StoreV2 {
 
   private enter() {
     this.screen = 'game';
-    this.panel = 'map';
+    this.panel = 'overview';
+    this.tab = {};
     this.speed = 0;
     this.ff = undefined;
     this.modal = undefined;
     this.notices = [];
     this.sel = {};
     this.hist = {};
+    this.recap = undefined;
+    this.qSnap = this.state ? this.snap(this.state) : undefined;
     this.autosave(true);
     this.loop();
     this.notify();
@@ -238,7 +247,34 @@ class StoreV2 {
     this.notify();
   }
   setPanel(id: string) {
-    this.panel = id;
+    this.panel = id === 'map' ? 'overview' : id === 'departments' ? 'company' : id;
+    if (id === 'departments') this.tab.company = 'people';
+    const s = this.state;
+    if (s && !s.tutorial.seen.includes(`panel:${this.panel}`)) s.tutorial.seen.push(`panel:${this.panel}`);
+    this.notify();
+  }
+  setTab(panel: string, tab: string) {
+    this.tab = { ...this.tab, [panel]: tab };
+    this.notify();
+  }
+  /** Click = go (IA §4): open the panel (and tab), scroll to #ctl-<anchor> and pulse it once. */
+  goto(panel: string, opts: { tab?: string; anchor?: string } = {}) {
+    if (opts.tab) this.tab = { ...this.tab, [panel]: opts.tab };
+    this.setPanel(panel);
+    if (opts.anchor) {
+      const id = 'ctl-' + opts.anchor;
+      setTimeout(() => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        el.classList.remove('pulse-once');
+        void el.offsetWidth;
+        el.classList.add('pulse-once');
+      }, 60);
+    }
+  }
+  setHelp(open: boolean) {
+    this.help = open;
     this.notify();
   }
   select(sel: Partial<StoreV2['sel']>) {
@@ -283,6 +319,18 @@ class StoreV2 {
     this.notify();
   }
 
+  /** Quarter recap (tutorial on): snapshot at the start of each quarter, shown when the next one begins. */
+  recap: { label: string; from: QSnap; to: QSnap } | undefined;
+  private qSnap: QSnap | undefined;
+  closeRecap() {
+    this.recap = undefined;
+    this.notify();
+  }
+  private snap(s: GameStateV2): QSnap {
+    const leads = [...activeRivals(s).map((r) => leadDays(s, r.core.id).est), leadDays(s, 'china').est];
+    return { q: quarterIndex(s.time.startDate, s.time.day), L: measuredL(s), U: engine.understanding(s).U, cash: s.player.finance.cash, lead: Math.min(...leads) };
+  }
+
   /** UI-only weekly samples of visible market numbers (sparks); not saved. */
   hist: Record<string, number[]> = {};
   private sample(s: GameStateV2) {
@@ -314,6 +362,15 @@ class StoreV2 {
       if (crisis && !this.modal) this.modal = crisis.instance;
     }
     if (s.ending) return 'Game over';
+    if (s.setup.tutorial && b.q > a.q && !s.events.pending.some((p) => p.crisis)) {
+      const now = this.snap(s);
+      if (this.qSnap && this.qSnap.q === a.q) {
+        const d = dateOf(s, s.time.day - 1);
+        this.recap = { label: `Q${Math.floor(d.getUTCMonth() / 3) + 1} ${d.getUTCFullYear()}`, from: this.qSnap, to: now };
+      }
+      this.qSnap = now;
+      if (this.recap) return 'Quarter recap';
+    }
     if (this.speed === 5) return stopReason(a, b, s, this.ff);
     // Speeds 1–4: auto-pause per preference (§1.4).
     if (this.modal) return 'Crisis';

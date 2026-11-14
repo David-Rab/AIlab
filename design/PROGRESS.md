@@ -37,6 +37,32 @@ The user approved the UX direction in `design/ux/`, with four binding rules:
 - The right rail goes. Its blocks move to Company (research speed), Runs (next-model gates), Relations (obligations) and the Overview lead track.
 - Mockup: `design/ux/mockups/01-main-v2.png`, with its source `main-v2.html`.
 
+**Engine** (beeb0e0).
+- B1: `measuredLOf` gives a lineage fallback while a version is in evaluation. The new `internalEval` selector returns the level and an evaluating flag.
+- B6: E01 now names the version, the trait and the recipe cause.
+- `scripts/v2/lint-ux.ts`, added to `test:v2`, checks:
+  - an agent-switch regression;
+  - glossary link resolution;
+  - that every `Term` used in the UI resolves;
+  - the required terms.
+
+  `--doc` writes `design/ux/GLOSSARY.md`.
+- The glossary now has 258 entries (202 new).
+
+**Shell** (checkpoint 2).
+- New modules: `fmt.ts`, `theme.ts` (validated palette), `icons.ts` (one icon per concept), `kit.tsx` and `kit.css`. The kit has Card, Tabs, Gauge, CauseChain, GoBtn, Ref, Pill, OptionTile, ActionCard with before→after bars, and KV.
+- Store: `goto(panel, {tab, anchor})` pulses the target control; the quarter recap; `panel:` visit flags.
+- Top strip (L0): race meter, risk gauge, cash with a live runway gauge and a "flips at review" tag, nearest lead, help and menu.
+- Nav is grouped with badges.
+- Bottom bar: ring timers, one alert chip and one headline.
+- Overview (L1): lead track, race history, Watch (`shell/watch.ts`, 8 rules), Goals.
+- Onboarding: coach spotlight, quarter recap and a help overlay.
+- Decision modal: why-chain, ActionCards, lasting fixes, keys 1/2/3.
+- Company panel (Flow · People · Split · Security) replaces Departments.
+- The right rail is gone. `shell/RightRail.tsx` and `Ticker.tsx` remain unused; deleting them was blocked by permissions.
+- **Known:** the fixture series predate B1, so their race history shows the old U dips.
+- **Pending:** the uitest update.
+
 ## M4 status (2026-11-14): checkpoint 2 — choices drive misalignment, all §7.4 bot criteria met
 
 **Diagnosis (paired seeds, new harness diagnostic).** Race − mixed ΔMis ≈ 0. Mixed ended as misaligned as race because it spent longer drifting.
