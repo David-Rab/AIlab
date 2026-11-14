@@ -130,7 +130,25 @@ const load = (i: number) => deserialize(fixtures[i]);
   for (let i = 0; i < 12; i++) updateIntel(s, ctx, r);
   const estAfter = leadDays(s, r.core.id).est;
   check(bestPm(s, 'player') === v2.pm, 'E3 bestPm(player) is the best INTERNAL version (not the deployed one)');
-  check(truthAfter - truthBefore > 50, 'E3 true lead follows the internal frontier', `${truthBefore.toFixed(0)} → ${truthAfter.toFixed(0)} d`);
+  // [M2 test fix] The true lead is WS1's time-lag (how long ago the leader stood where the follower stands now, from
+  // the weekly history of internal frontiers): an instant jump of the LEADER does not move it (truthAfter =
+  // truthBefore here, by definition), so "> 50 d" was a check of the old gap/rate metric. What must hold is that the
+  // INTERNAL frontier decides the comparison: a rival that has stood 0.5 L above the player throughout leads; an
+  // internal-only player version above it (nothing deployed changes) turns the lead around.
+  {
+    const t = load(1);
+    const rr = t.rivals.find((x) => x.core.id === r.core.id)!;
+    const w = t.hidden.timeline;
+    const base = bestPm(t, 'player');
+    t.series.L[rr.core.id] = t.series.L.player.map((x) => x + 0.5);
+    rr.internal = { ...rr.internal, pm: base + 0.3, Lg: levelOf(w, base + 0.3) };
+    rr.publicModel = undefined;
+    const behind = leadBetween(t, 'player', rr.core.id);
+    const deployed = JSON.stringify(t.player.deployments);
+    t.player.models.versions.push({ ...JSON.parse(JSON.stringify(internalVersion(t)!)), id: 'VY', name: 'Atlas-Y', status: 'ready', pm: base + 0.5, Lg: levelOf(w, base + 0.5) });
+    const ahead = leadBetween(t, 'player', rr.core.id);
+    check(behind < -30 && ahead > 0 && JSON.stringify(t.player.deployments) === deployed, 'E3 true lead follows the internal frontier (an internal-only version turns a rival lead around)', `${behind.toFixed(0)} → ${ahead.toFixed(0)} d; a leader's instant jump alone ${truthBefore.toFixed(0)} → ${truthAfter.toFixed(0)} d (time-lag metric)`);
+  }
   check(estAfter - estBefore > 0.5 * (truthAfter - truthBefore), 'E3 intel estimate tracks the internal frontier', `${estBefore} → ${estAfter} d (truth +${(truthAfter - truthBefore).toFixed(0)})`);
   const e05 = EVENTS.find((e) => e.id === 'E05')!;
   const txt = e05.text(s, { lab: r.core.id, theirL: 9, lead: leadDays(s, r.core.id).est });
@@ -172,7 +190,7 @@ const load = (i: number) => deserialize(fixtures[i]);
   const setups: Record<EndingId, (s: GameStateV2) => void> = {
     insolvent: (s) => void (s.player.finance.state = 'insolvent'),
     acquired: (s) => void (ws4(s).soldControl = true),
-    ousted: (s) => void (s.flags.ousted = true),
+    ousted: (s) => void (s.flags['ws3.ousterDay'] = s.time.day), // WS3's board ouster roll
     nationalized: (s) => void (ws4(s).nationalizedHard = true),
     catastropheBio: (s) => misuse(s, 'bio'),
     catastropheCyber: (s) => misuse(s, 'cyber'),
@@ -216,10 +234,13 @@ const load = (i: number) => deserialize(fixtures[i]);
     v.traitsTrue = bad ? { ...BAD } : { ...TRAIT_START };
     s.player.milestoneDays[6] = 0;
     if (contain) {
+      // §5.2 Cont = Contain(2000) + 0.2·[F32 verified gatekeeper] + 0.1·[AG10 e > 0.6 adopted].
       for (const d of s.player.deployments) if (d.channel === 'internal') d.controlLayer = true;
-      s.player.security.wsl = 5;
-      s.player.security.target = 5;
-      s.player.security.spendRate = 100;
+      s.flags['ws2.gatekeeper'] = s.time.day;
+      const gate = s.player.safety.techniques['T-GATE'];
+      if (gate) Object.assign(gate, { unlocked: true, active: true, falseValidated: false });
+      s.player.safety.agendas.AG10.status = 'active';
+      s.hidden.agendaEfficacy.AG10 = 0.9;
     }
   }
   const missing: string[] = [];
@@ -249,16 +270,16 @@ const load = (i: number) => deserialize(fixtures[i]);
   WS4_TUNING.theftMinRung = 99; // no theft: the lead must stay in band
   for (let seed = 1; seed <= 8; seed++) {
     const s = newGame(defaultSetupV2({ seed, alignment: 'medium', tutorial: false }));
-    tick(s);
+    tick(s, { skip: ['endings'] });
     leads0.push(leadBetween(s, 'player', 'china'));
     formulaGap.push(chinaGapFormulaMonths(s) - (leadBetween(s, 'player', 'china') / 365) * 12);
     while (s.time.day < 540 && !s.ending) {
       refBot.act(s, engine);
-      tick(s);
+      tick(s, { skip: ['endings'] });
       if (s.time.day % 30 === 0) pre.push(leadBetween(s, 'player', 'china'));
     }
     executeTheft(s, makeCtx(s), 'player');
-    tick(s);
+    tick(s, { skip: ['endings'] });
     post.push(leadBetween(s, 'player', 'china'));
   }
   WS4_TUNING.theftMinRung = minRung;

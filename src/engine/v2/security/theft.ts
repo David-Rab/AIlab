@@ -1,6 +1,8 @@
 // Theft, secrets leak, distillation, insider leaks (V2-SPEC §3.6; research/11 #16, #24; research/02 §1.7–1.10). Owner: WS4.
 import { clamp } from '../../rng';
-import { domainsOf, levelOf, simplePaFor } from '../models/capability';
+import { domainsOf, frontierLevelAt, levelOf, simpleFrontierPm, simplePaFor } from '../models/capability';
+import { computeProduction } from '../production/production';
+import { pmOfLevel } from '../world/calibration';
 import { bestPlayerVersion, bestPm, CHINA_ID } from '../models/labs';
 import type { GameStateV2, LabId, RivalLab, SecurityState, SimpleModel, SystemCtx } from '../types';
 import { leadBetween, rateOf } from '../actors/rivals';
@@ -74,12 +76,46 @@ export function executeTheft(s: GameStateV2, ctx: SystemCtx, victim: LabId) {
   // stolen copy 60 d of the victim's model-frontier rate behind (pm), and China's know-how jumps (if higher) to the pa
   // at which its own frontier (WS1 simpleFrontierPm, with China's compute) equals that model — pm and pa are different
   // coordinates (pm = pa + compute term + design, §3.1.4).
+  // Against the player the lead is WS1's trueLeadDays (time since the player's frontier line stood at China's level),
+  // so the stolen copy sits where that line stood 60 d ago — exactly 60 lead-days, never above the source. Rival
+  // victims (and a player history too short) use the gap/rate conversion of the rival-vs-rival lead.
   const adopt = (src: { pm: number; Lg: number; domains: SimpleModel['domains'] }, srcLab: LabId) => {
     const w = s.hidden.timeline;
-    const pm = src.pm - (60 / 365) * rateOf(s, srcLab);
+    let pm = src.pm - (60 / 365) * rateOf(s, srcLab);
+    if (srcLab === 'player') {
+      const L = frontierLevelAt(s, 'player', ctx.day - 60, src.Lg);
+      if (L !== undefined) pm = Math.min(src.pm, pmOfLevel(w, L, src.pm - 3, src.pm));
+    }
     return { pm, Lg: levelOf(w, pm), domains: domainsOf(w, pm) };
   };
-  const knowHow = (pm: number) => simplePaFor(s, CHINA_ID, pm);
+  // The frontier's lag term depends on the lab's production rate, which jumps with the stolen model (q_dep): refresh
+  // the readout first, then settle pa so that simpleFrontierPm equals the stolen model (else the next tick's frontier
+  // tracking lifts China well past it). The frontier is discontinuous in pa where continual learning switches on
+  // (WS1 simpleLag at the Research-agent level), so take the largest pa whose frontier does not exceed the model.
+  const knowHow = (pm: number) => {
+    cn.core.prodCache = computeProduction(s, CHINA_ID) ?? cn.core.prodCache;
+    const pa0 = cn.core.pa;
+    const frontierAt = (pa: number) => {
+      cn.core.pa = pa;
+      return simpleFrontierPm(s, CHINA_ID);
+    };
+    let lo = pa0;
+    let hi = Math.max(pa0, simplePaFor(s, CHINA_ID, pm)) + 0.5;
+    let out = pa0;
+    if (frontierAt(lo) <= pm) {
+      if (frontierAt(hi) <= pm) out = hi;
+      else {
+        for (let i = 0; i < 30; i++) {
+          const mid = (lo + hi) / 2;
+          if (frontierAt(mid) <= pm) lo = mid;
+          else hi = mid;
+        }
+        out = lo;
+      }
+    }
+    cn.core.pa = pa0;
+    return out;
+  };
   if (victim === 'player') {
     const v = bestPlayerVersion(s);
     if (!v) return;

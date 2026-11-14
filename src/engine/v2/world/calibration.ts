@@ -31,6 +31,18 @@ export function levelOf(w: TimelineWorld, pm: number): number {
   return LEVEL_KNOTS[i] + (LEVEL_KNOTS[i + 1] - LEVEL_KNOTS[i]) * Math.min(1, ci - i);
 }
 
+/** Inverse of levelOf on [lo, hi]: the smallest pm there with levelOf(pm) ≥ L (bisection; levelOf is non-decreasing). */
+export function pmOfLevel(w: TimelineWorld, L: number, lo: number, hi: number): number {
+  if (levelOf(w, hi) <= L) return hi;
+  if (levelOf(w, lo) >= L) return lo;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (levelOf(w, mid) >= L) hi = mid;
+    else lo = mid;
+  }
+  return hi;
+}
+
 /** Reference AI R&D multiplier at progress p (unshifted world.ts, §3.2.3 identity target). */
 export function multiplierRef(w: TimelineWorld, p: number): number {
   return multiplierAt(asV1World(w), p);

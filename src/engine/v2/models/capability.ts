@@ -111,6 +111,8 @@ export function playerStart(w: TimelineWorld) {
 export const REF_BASE_AGE = 256;
 /** Average age of the newest post-trained version before continual learning (6-week cadence + eval) [D]. */
 export const REF_POST_AGE = 60;
+/** Progress over which continual learning phases in for simple-model labs (simpleLag) [D]. */
+const STREAM_RAMP = 0.3;
 
 /**
  * Typical lag (years) of a lab's deployed model behind its know-how frontier pa + pcRef under the reference cadence
@@ -121,8 +123,11 @@ export const REF_POST_AGE = 60;
 export function simpleLag(w: TimelineWorld, q: number, rate: number): number {
   const th = milestoneThresholds(asV1World(w));
   const stale = ((1 - w.share) * REF_BASE_AGE) / 365;
-  const stream = q >= th[2];
-  return stale + (stream ? (rate * 7) / 365 : ((1 - KAPPA.post) * rate * REF_BASE_AGE) / 365 + (rate * REF_POST_AGE) / 365);
+  // Continual learning phases in over STREAM_RAMP of progress past the Research-agent level: a hard switch made a
+  // simple lab's frontier jump ≈ 0.3 at once and left a band of models no know-how could reach (weights theft).
+  const f = clamp((q - th[2]) / STREAM_RAMP, 0, 1);
+  const pre = ((1 - KAPPA.post) * rate * REF_BASE_AGE) / 365 + (rate * REF_POST_AGE) / 365;
+  return stale + (1 - f) * pre + (f * rate * 7) / 365;
 }
 
 /** Software rate of a lab at reference inputs at q (for the start state). */
@@ -170,19 +175,53 @@ export function trainScaleTerm(s: GameStateV2, lab: LabId, day = s.time.day): nu
 
 // ───────────────────────────── lead (hidden) ─────────────────────────────
 
-/** Days since `lab`'s weekly level series first reached `L` (interpolated); undefined if never. */
-function daysSinceLevel(s: GameStateV2, lab: LabId, L: number): number | undefined {
+// A lab's frontier history is its weekly level series. A version lab's series is a staircase (each new version is a
+// step), so interpolating between adjacent samples would put every intermediate level at the step and make the lag of
+// a smoothly progressing follower jump by a whole version interval each time it passes a step. The frontier LINE runs
+// instead through the "corners": the first sample at each new record level, plus today's level if it is higher (a
+// version newer than the last weekly sample). A continuous series (rivals, China) is all corners, so nothing changes
+// for it.
+
+/** Days since `lab`'s frontier line first reached `L`; undefined if the history does not reach back that far. */
+function daysSinceLevel(s: GameStateV2, lab: LabId, L: number, nowL: number): number | undefined {
   const xs = s.series.L[lab];
   const days = s.series.day;
   if (!xs?.length) return undefined;
+  let pd = NaN;
+  let px = -Infinity;
+  const at = (d: number, x: number) => {
+    if (Number.isNaN(pd)) return undefined; // first corner already above L: history too short
+    const f = (L - px) / Math.max(1e-9, x - px);
+    return s.time.day - (pd + f * (d - pd));
+  };
   for (let i = 0; i < xs.length; i++) {
-    if (xs[i] >= L) {
-      if (i === 0) return undefined; // the history does not reach back far enough
-      const f = (L - xs[i - 1]) / Math.max(1e-9, xs[i] - xs[i - 1]);
-      return s.time.day - (days[i - 1] + f * (days[i] - days[i - 1]));
-    }
+    const x = xs[i];
+    if (x <= px) continue; // not a new record level: not a corner
+    if (x >= L) return at(days[i], x);
+    pd = days[i];
+    px = x;
   }
+  if (nowL > px && nowL >= L) return at(s.time.day, nowL);
   return undefined;
+}
+
+/** Level of `lab`'s frontier line on `day` (≤ today; see above); undefined before its history starts. The inverse of
+ *  daysSinceLevel: daysSinceLevel(frontierLevelAt(day)) = today − day wherever the line rises. */
+export function frontierLevelAt(s: GameStateV2, lab: LabId, day: Day, nowL: number): number | undefined {
+  const xs = s.series.L[lab];
+  const days = s.series.day;
+  if (!xs?.length || day < days[0]) return undefined;
+  let pd = days[0];
+  let px = xs[0];
+  for (let i = 1; i < xs.length; i++) {
+    const x = xs[i];
+    if (x <= px) continue;
+    if (days[i] >= day) return px + ((x - px) * (day - pd)) / Math.max(1e-9, days[i] - pd);
+    pd = days[i];
+    px = x;
+  }
+  if (nowL > px && s.time.day > pd) return px + ((nowL - px) * (day - pd)) / (s.time.day - pd);
+  return px;
 }
 
 /** Days a lab's true frontier lags the player's best internal version (positive = player ahead), from the weekly
@@ -196,7 +235,7 @@ export function trueLeadDays(s: GameStateV2, other: LabId): number {
   const ahead = pPl >= pOt;
   const leader = ahead ? PLAYER_ID : other;
   const followerL = levelOf(w, ahead ? pOt : pPl);
-  const d = daysSinceLevel(s, leader, followerL);
+  const d = daysSinceLevel(s, leader, followerL, levelOf(w, ahead ? pPl : pOt));
   if (d !== undefined && d >= 0) return ahead ? d : -d;
   // Fallback: gap / the leader's model progress rate (software rate + the Stage-1 compute share).
   const pr = labCore(s, leader)?.prodCache;

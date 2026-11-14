@@ -126,6 +126,15 @@ export function chinaDaily(s: GameStateV2, ctx: SystemCtx) {
   const exportF = s.market.exportPolicy === 'strict' ? 0.8 : s.market.exportPolicy === 'open' ? 1.1 : 1;
   m.computeAbs *= 1 + g * exportF;
   c.lab.core.computeOnline = m.computeAbs * (0.4 + 0.5 * Math.min(1, m.centralization / 75)) * 0.6;
+  // policy.chinaSez (WS5 POLICY_FLAGS, H32): China opens its own AI zones once the US has SEZs and Beijing has
+  // centralised its AI effort [D]; closed again if the US SEZs close or a verified treaty is signed.
+  if (day % 30 === 0) {
+    const on = !!s.flags['policy.sez'] && m.centralization >= 50 && s.gov.treaty !== 'verified';
+    if (on && !s.flags['policy.chinaSez']) {
+      s.flags['policy.chinaSez'] = true;
+      ctx.log('china', 'China opens special economic zones for AI and robotics.', 3);
+    } else if (!on && s.flags['policy.chinaSez']) delete s.flags['policy.chinaSez'];
+  }
   drift(s, M, 'chipSelfSufficiency', 5 / 365 * (s.market.exportPolicy === 'strict' ? 1.3 : 1), 0, 100, 'china.meters.chipSelfSufficiency');
   drift(s, M, 'distillationAccess', (distillTarget(s) - m.distillationAccess) * 0.004, 0, 100, 'china.meters.distillationAccess');
   const intentT = clamp(20 * pp.theft + (c.rung >= 2 ? 10 : 0) + (c.rung >= 4 ? 30 : 0), 0, 100);

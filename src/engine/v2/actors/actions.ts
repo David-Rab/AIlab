@@ -106,7 +106,8 @@ export const RELATION_ACTIONS: ActionDef[] = [
     apply(s, ctx) {
       const w = ws4(s);
       const leak = (9 / 365) * paceOf(s) * 0.3;
-      for (const r of [...activeRivals(s), s.china.lab]) if (r.core.status === 'active' && r.core.pa < bestPm(s, 'player')) r.core.pa += leak;
+      // Know-how leak: compares know-how with know-how (pa), not with model capability (pm).
+      for (const r of [...activeRivals(s), s.china.lab]) if (r.core.status === 'active' && r.core.pa < s.player.pa) r.core.pa += leak;
       s.knowledge.sharedTechniquePool = clamp(s.knowledge.sharedTechniquePool + 0.03, 0, 1);
       const f = s.player.safety.findings.find((x) => !x.published);
       if (f) publishFinding(s, ctx, f.id);
@@ -337,7 +338,11 @@ export const RELATION_ACTIONS: ActionDef[] = [
     apply(s, ctx, p) {
       const behind = Math.max(1, num(p, 'behind', 1));
       const pm = bestPm(s, 'player') - behind * 0.3 * paceOf(s);
-      for (const r of activeRivals(s)) if (r.core.pa < pm) r.core.pa += 0.3 * (pm - r.core.pa);
+      // Model-vs-model gap (pm); 30% of it is absorbed as know-how (like WS1's distillation leak).
+      for (const r of activeRivals(s)) {
+        const gap = pm - bestPm(s, r.core.id);
+        if (gap > 0) r.core.pa += 0.3 * gap;
+      }
       openWeightsReleased(s, ctx, 'player', pm);
       bloc(s, ctx, 'accel', 8, 0, 'C6 open weights');
       bloc(s, ctx, 'measurers', 4, 0, 'C6 open weights');
