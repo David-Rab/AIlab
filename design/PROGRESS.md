@@ -15,8 +15,72 @@ Single source of truth for where the build stands. Update at every milestone or 
 | M2 step 4: cross-workstream wiring | Done | 98c20cf, 0d0b808, c067c50, f8ff4c9 |
 | M2 step 5: whole `npm run test:v2` green, tick performance, bot table | Done (3 finance targets deferred to M4) | bf93f24, 0987ced, c0594e5, 25ad13c, f50c4c0, 3f4c9fe |
 | M3 UI shell and panels (WS6, WS7) | Done, merged (play with `?v2`); v2 uitest 88/88; full test:v2 green after merge | 5ff08b8..7e0ad07, merge 35b2609 |
-| M4 calibration and balance (bot criteria) | In progress: company loss fixed, F7/F8 and T1 met, 3/5 binding bot criteria | see M4 status |
+| M4 calibration and balance (bot criteria) | In progress: all §7.4 bot criteria met (200 seeds); choices now drive final misalignment | 514d877, cd0c7d6, see M4 status |
 | M5 polish, tutorial, codex, v1 removal | Not started | |
+
+## M4 status (2026-11-14): checkpoint 2 — choices drive misalignment, all §7.4 bot criteria met
+
+**Diagnosis (paired seeds, new harness diagnostic).** Race − mixed ΔMis ≈ 0. Mixed ended as misaligned as race because it spent longer drifting.
+- *Critical traits saturated for every lab.* EA ratcheted to 1, which blinded behavioural removal. TGAME had no removal, and crystallisation at TGAME > 0.5 cut all removal ×0.3.
+- *Run design missed the index.* It moved only SYC/RH/PERSONA/OBF, which barely enter Mis.
+- *Fix techniques never entered a run.* `postFromParams` always set `techniques: []`.
+- *U started ~6 levels above L* (day 55: U 10.9 vs L 5.2).
+- *The world draw was wide.* Edge σ up to 1.2 and D unbounded.
+
+**Changes** (spec §2.3, §3.5.4–3.5.9, §9 row 26; all [D]).
+- *Equilibrium framing.* x* ≈ G/(G + R), with both terms set by play.
+- *Removal sees what the stack sees.* Removal is gated by TRUE stack detection (`stackDetectionMap`). Agendas, techniques and refreshes therefore lower TRUE traits. Masks and decayed tools also cost healing, so masking stays a trap.
+- *AG18 heals blind.* Generalising alignment training (H: e_AG18 × funding × constitution × safety level) works even when the stack cannot see.
+- *Trait fixes.* EA relaxes 0.3 per post-run. TGAME is removed through detection only.
+- *Persona edges.* E27–E29 (PERSONA → AF/SCHEME/POWER; MacDiarmid 2025, Betley 2025) let grader quality, RL intensity and inoculation reach Mis.
+- *Fix techniques run.* An unlocked fix technique applies to every post-run while its agenda is staffed.
+- *Lab-wide patches.* Signal patches apply to every later run (floor ×0.2).
+- *Fleet inheritance.* A new base starts κ = 0.4·(1 − 1/M) of the way to the internal agent's traits, so it no longer resets a racer.
+- *CoT penalty.* OBF enters the COT penalty.
+- *U projection.* A validation lead by agenda funding and EA projected with capability. U now starts ≈ L + 1.7, and the mixed bot raises safety compute from about day 240.
+- *Drift from the true gap.* L − U_true is sampled weekly into `ws2.gapTrue`. Believed U was optimistic out of ignorance.
+- *Removal levels.* Standard 0.45 → 0.55 and heavy 0.75 → 0.8. HEAL_K 0.35.
+- *World bounds.* Edge factor σ ×0.5, kept within [½, 2]. D within [0.6, 1.65]. DIFFICULTY_SCALE 1.2 was tried and reverted (it broke S4).
+- *Harness.* `bots.ts` prints the choices-vs-world diagnostic: a two-way variance split of final true Mis (bot vs seed) on paired seeds, per-bot R² on λ1–λ6 + ln D, and paired bot differences. `--from` / `--load` split runs across processes.
+
+**Choices vs world** (200 paired seeds; race, ref, mixed, safe):
+- Variance share of final true Mis: bot policy 66%, world draw 22%, interaction and noise 13%. For Mis − doomThreshold: 64% / 23% / 13%.
+- Paired race − mixed: +0.56 Mis (sd 0.17); race is higher in 100% of seeds.
+- Mean Mis: race 0.77, ref 0.55, mixed 0.21, safe 0.10.
+- Per-bot R² on world features: 0.23–0.37.
+
+Bot harness, 200 seeds:
+
+| bot | win | mixed | loss | top endings |
+|---|---|---|---|---|
+| race | 4.0% | 6.5% | 89.5% | asiTakeover 53.5%, nationalized 15.5%, ousted 11%, insolvent 3.5% |
+| ref | 19.0% | 4.5% | 76.5% | asiTakeover 41.5%, asiAligned 20.5%, nationalized 14.5%, ousted 9.5% |
+| mixed | 53.0% | 7.5% | 39.5% | asiAligned 54.5%, nationalized 10.5%, asiTakeover 10%, ousted 9.5% |
+| safe | 1.0% | 1.5% | 97.5% | overtaken 53.5%, ousted 44.5% |
+| capex2x | 0% | 1.0% | 99.0% | insolvent 98% |
+
+§7.4: all six criteria MET.
+- Race win ≤ 5%.
+- Race losses: 66% takeover and 34% company-loss.
+- Safe win ≤ 5%.
+- Safe losses: 54% overtaken or other-ASI-first.
+- Mixed: 53%, which is +49 pp over both extremes.
+- Passive takeover-type: 68%.
+
+Other tests:
+- S4: RefBot P_mis 0.818 (window 0.55–0.85), safe recipe 0.003.
+- S5: holds.
+- F7, F8 and T1: unchanged and passing.
+
+**Remaining.**
+- *Thin margins.*
+  - S4 RefBot P_mis is 0.818 against a ceiling of 0.85: raising D or growth pushes RefBot out.
+  - Race win is 4.0% (≤ 5%). Its wins are easy worlds at the D floor, plus rival-aligned "wins".
+  - Safe overtaken vs ousted is ~54/45.
+  - F8 distress-free is at exactly 75%.
+- *Hygiene daily tick.* 1.38–1.72 ms across runs on this machine; target 1.5. HEAD measured 1.49 under the same load, and the M4 additions cost ~30 µs/day. The bottleneck is pre-existing (worldfx mix and sectors).
+- *Late-game blindness hits everyone.* The true gap at ASI is 5 (mixed) to 9 (race) levels, so the gap multiplier is capped for both. Careful play wins through low growth (clean signals, patches, AG18) and accumulated state, not by seeing at ASI.
+- *Not done:* RefBot insolvency in slow/authors2026; nationalization (10–15%), still the largest non-AI loss.
 
 ## M4 status (2026-11-14): checkpoint 1 — company loss fixed, finance targets met, bot criteria 3/5
 

@@ -218,7 +218,7 @@ export function basePrior(tier: number, design?: BaseDesign): TraitVector {
  * awareness (E12) and is 0.4× for oversight-conditional traits, so training selects for hidden misalignment as
  * capability rises (R14 E24 "RLHF → context-dependent misalignment"; AI 2027 Agent-3/4).
  */
-export const SAFETY_REMOVAL: Record<PostDesign['safety'], number> = { minimal: 0.05, standard: 0.45, heavy: 0.75 };
+export const SAFETY_REMOVAL: Record<PostDesign['safety'], number> = { minimal: 0.05, standard: 0.55, heavy: 0.8 };
 const OVERSIGHT_CONDITIONAL: TraitId[] = ['AF', 'SCHEME', 'SAND'];
 export const EA_RELAX = 0.3;
 const NOT_TRAINED_DOWN: TraitId[] = ['SA', 'EA', 'OBF'];
@@ -451,6 +451,25 @@ function findBase(s: GameStateV2, id: string | undefined): BaseModel | undefined
   return id ? s.player.models.bases.find((b) => b.id === id) : undefined;
 }
 
+/**
+ * Lineage inheritance through the lab's own AI R&D (M4) [D]: once the internal agents write much of the next model's
+ * pretraining and post-training data (R12 #10 "models write the data for successors"; AI 2027 Agent-4 → Agent-5), a
+ * fresh base starts part-way toward the internal agent's learned tendencies: x₀ += κ·(x_agent − x₀), κ = INHERIT_K ·
+ * (1 − 1/M). Capability-indexed SA, EA and OBF keep the tier prior. A new base therefore no longer resets a lab's
+ * misalignment, and a clean lab passes its cleanliness on.
+ */
+export const INHERIT_K = 0.4;
+const NOT_INHERITED: TraitId[] = ['SA', 'EA', 'OBF'];
+function inheritFromFleet(s: GameStateV2, x0: TraitVector): TraitVector {
+  const agent = versionById(s, s.player.models.internalAgent);
+  const M = s.player.prodCache?.M ?? 1;
+  const k = INHERIT_K * Math.max(0, 1 - 1 / Math.max(1, M));
+  if (!agent || k <= 0) return x0;
+  const x = { ...x0 };
+  for (const t of TRAIT_IDS) if (!NOT_INHERITED.includes(t)) x[t] = clamp01(x0[t] + k * (agent.traitsTrue[t] - x0[t]));
+  return x;
+}
+
 /** Create a new lineage on a base run (§3.4.4 "Lineages", §3.5.5 presence draw). Sets base.traitsTrue and uModes. */
 export function applyBaseToLineage(s: GameStateV2, ctx: SystemCtx, run: TrainingRun, base: BaseModel): void {
   const design = run.base ?? base.design;
@@ -463,7 +482,7 @@ export function applyBaseToLineage(s: GameStateV2, ctx: SystemCtx, run: Training
   }
   if (!base.lineage) base.lineage = `L-${base.id}`;
   const uModes = drawLineageUModesV2(s, ctx.rng('safety'), { tierAtLeastSC: levelOf(w, s.player.pa) >= SC_LEVEL, base: design, player: true });
-  const x0 = basePrior(tier, design);
+  const x0 = inheritFromFleet(s, basePrior(tier, design));
   base.uModes = uModes;
   base.traitsTrue = stepTraits(x0, playerEnv(s, x0, baseSignals(design, tier), 1.0, undefined, base.lineage, uModes));
 }
