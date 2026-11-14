@@ -2,6 +2,8 @@
 // Owner: WS4. Rivals and China resolve with THEIR OWN hidden traits — never a coin flip (fixes REDESIGN row 11).
 import { clamp, sigmoid } from '../../rng';
 import { bestPlayerVersion, bestPm, otherLabs } from '../models/labs';
+import { trueEfficacy } from '../safety/common';
+import { contain2000 } from '../safety/incidents';
 import { misalignment } from '../safety/traits';
 import { thresholds } from '../world/calibration';
 import { leverage } from '../worldfx/control';
@@ -13,15 +15,15 @@ import { ws4r } from '../actors/state';
 /** P(misaligned | Mis) = σ((Mis − doomThreshold)/0.06) (v1 doom curve, §5.2). */
 export const pMisOf = (s: GameStateV2, mis: number) => sigmoid((mis - s.hidden.doomThreshold) / 0.06);
 
-/** Player containment strength. STAND-IN for WS2's Contain(2000) until WS2 exports it (§5.2):
- *  control layer on internal agents, verified gatekeeper (F32), AG10 adopted with e > 0.6, weight security. */
+/** Player containment at ASI (§5.2): Cont = Contain(2000) + 0.2·[F32 verified gatekeeper] + 0.1·[AG10 e > 0.6
+ *  adopted], clamped 0..1. Contain(2000) is WS2's (control layer × best AG07 tool at M = 2000). The gatekeeper counts
+ *  when F32 fired ('ws2.gatekeeper') and T-GATE is in the active stack and real (WS2's exfiltration rule); AG10 is
+ *  adopted when the agenda is active and its TRUE efficacy exceeds 0.6. */
 export function playerContain(s: GameStateV2): number {
-  const ctrl = s.player.deployments.some((d) => d.channel === 'internal' && d.controlLayer) ? 0.35 : 0.1;
-  const f32 = s.player.safety.findings.some((f) => f.id.startsWith('F32') && f.trueType !== 'FALSE') ? 0.2 : 0;
-  const ag10 = s.player.safety.agendas.AG10?.status === 'active' && s.hidden.agendaEfficacy.AG10 > 0.6 ? 0.1 : 0;
-  const sec = 0.15 * clamp((s.player.security.wsl - 3) / 2, 0, 1);
-  const ext = s.flags['ws4:externalSafetyGroup'] ? 0.05 : 0;
-  return clamp(ctrl + f32 + ag10 + sec + ext, 0, 1);
+  const gate = s.player.safety.techniques['T-GATE'];
+  const f32 = s.flags['ws2.gatekeeper'] !== undefined && !!gate?.unlocked && gate.active && !gate.falseValidated ? 0.2 : 0;
+  const ag10 = s.player.safety.agendas.AG10?.status === 'active' && trueEfficacy(s, 'AG10') > 0.6 ? 0.1 : 0;
+  return clamp(contain2000(s) + f32 + ag10, 0, 1);
 }
 
 /** Containment for other labs: posture·0.2 (§5.2). */

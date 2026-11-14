@@ -52,6 +52,22 @@ export function automationShare(s: GameStateV2, r: RegionId = 'US'): number {
   return a / v;
 }
 
+/** Weight of each defensive technology's impact ramp in the defence index [D]: a fully ramped countermeasure removes
+ *  most, not all, of the civilisation-scale tail. */
+export const DEFENCE_TECHS: Record<'bio' | 'cyber', [string, number][]> = {
+  bio: [['W06', 0.6]], // new antibiotics and antivirals (medical countermeasures)
+  cyber: [['W24', 0.6]], // autonomous cyber defense (find and patch zero-days at scale)
+};
+
+/** Defence index 0..1 against misuse catastrophes (R16 §3.1: misuse P = Exposure × (1 − Defense) × intent), from the
+ *  ramps of the defensive world technologies; for one risk, or the mean over bio and cyber. Used by WS4's
+ *  catastrophe check (§5.1 #4). */
+export function defenceIndex(s: GameStateV2, risk?: 'bio' | 'cyber'): number {
+  const of = (k: 'bio' | 'cyber') => DEFENCE_TECHS[k].reduce((a, [id, w]) => a + w * (s.world.techs[id]?.ramp ?? 0), 0);
+  const d = risk ? of(risk) : (of('bio') + of('cyber')) / 2;
+  return d < 0 ? 0 : d > 1 ? 1 : d;
+}
+
 /** Year-to-date change of the equity index. */
 export const dowYtd = (s: GameStateV2) => (s.world.fx.dowJan ? s.world.dow / s.world.fx.dowJan - 1 : 0);
 

@@ -1,4 +1,5 @@
 // Research bodies: evalGov, evalIndep, academia (V2-SPEC §3.9.5; research/17 §1.3). Owner: WS4.
+import { observeExternal } from '../safety/detection';
 import type { GameStateV2, ResearchBodies, SystemCtx } from '../types';
 import { cred, talent, trust } from './fx';
 import { hasCommitment } from './commitments';
@@ -48,6 +49,9 @@ export function researchBodiesWeekly(s: GameStateV2, ctx: SystemCtx) {
     if (w.reportedVersions.length > 40) w.reportedVersions.shift();
     const v = s.player.models.versions.find((x) => x.id === rep.versionId);
     if (!v) continue;
+    // WS2: the evaluators' own observations (evalIndep: behavioural suite with stronger elicitation → beliefs and
+    // v.evals.safety; evalGov: misuse only, no trait observations).
+    observeExternal(s, ctx, rep.versionId, rep.by);
     const L = Math.round((v.Lg + r.normal(0, 0.2)) * 10) / 10; // evaluators measure well; truth-informed
     w.evalL = Math.max(w.evalL, L);
     if (rep.by === 'evalGov') {

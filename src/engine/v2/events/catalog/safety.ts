@@ -1,11 +1,15 @@
 // Event catalog: safety decisions (V2-SPEC §4.2: E01, E17, E18, E19, E21, E25, E30, E33, E35). Owner: WS4 (content
 // shared with WS2). The disclosure dilemma (§3.9.3 rule 1) is the backbone: disclose / fix quietly / deny.
 import { clamp } from '../../../rng';
+import { withdraw } from '../../models/deployments';
 import { internalVersion } from '../../models/labs';
+import { flag, flagNum } from '../../safety/common';
+import { openIncidents } from '../../safety/incidents';
 import { openInvestigation } from '../../safety/investigations';
 import { understanding } from '../../safety/understanding';
-import type { EventDefV2, GameStateV2, SystemCtx, TraitId } from '../../types';
-import { blockingCommitments, amendCommitment, breakCommitment, hasCommitment } from '../../actors/commitments';
+import { revealToWorld } from '../../safety/umodes';
+import type { Commitment, EventDefV2, GameStateV2, SystemCtx, TraitId, UModeId } from '../../types';
+import { PREDICATES, blockingCommitments, amendCommitment, breakCommitment, hasCommitment, latentVersion, pledgeBreachRun } from '../../actors/commitments';
 import { ALL_PUBLIC_CPS, approval, boardConf, cash, cred, disclosureTrust, moraleSafety, scrutiny, trustMany } from '../../actors/fx';
 import { pLeak } from '../../actors/public';
 import { addCoverup } from '../../actors/relations';
@@ -33,7 +37,15 @@ function dilemma(what: string, credGain: number, scrut: number) {
   ];
 }
 
-const hasConfirmed = (s: GameStateV2) => s.player.safety.findings.some((f) => f.type === 'DISC' || f.type === 'EVAL') || s.player.safety.investigations.some((i) => i.outcome === 'confirmed' || i.outcome === 'discovery');
+/** E01 source (§4.2 "the first confirmed trait or DISC finding"): an investigation confirmed a trait or made a
+ *  discovery, a DISC finding fired, or WS2 discovered a U-mode ('ws2.lastDiscoveryDay', safety/umodes.ts). */
+const hasConfirmed = (s: GameStateV2) =>
+  flag(s, 'lastDiscoveryDay') !== undefined ||
+  s.player.safety.findings.some((f) => f.type === 'DISC') ||
+  s.player.safety.investigations.some((i) => i.outcome === 'confirmed' || i.outcome === 'discovery');
+
+/** E35 window: a U-mode discovery or a FALSE-validated technique revealed within the last 30 days (WS2 flags). */
+const WRONG_WINDOW = 30;
 
 export const SAFETY_EVENTS: EventDefV2[] = [
   ev({
@@ -44,12 +56,15 @@ export const SAFETY_EVENTS: EventDefV2[] = [
   }),
   ev({
     id: 'E17', title: 'Red flags', icon: 'alert', crisis: true, cooldown: 120, deadlineDays: 14, defaultChoice: 2,
+    // §4.2: the internal agent's belief (WS2 posterior) on SCHEME/AF/SAND has est > 0.3 with clarity > 0.4, or the
+    // U-margin (WS2 understanding: U − measured L) is below −1.
     when: (s) => {
       const v = internalVersion(s);
       if (!v) return false;
       const t = RED.find((k) => v.beliefs[k] && v.beliefs[k].est > 0.3 && v.beliefs[k].clarity > 0.4);
+      if (t) return { versionId: v.id, trait: t, est: Math.round(v.beliefs[t].est * 100) };
       const margin = understanding(s).margin;
-      return t || margin < -1 ? { versionId: v.id, trait: t ?? 'U', est: t ? Math.round(v.beliefs[t].est * 100) : Math.round(margin * 10) / 10 } : false;
+      return margin < -1 ? { versionId: v.id, trait: 'U', est: Math.round(margin * 10) / 10 } : false;
     },
     text: (s, d) => d.trait === 'U'
       ? `Capability has outrun your understanding by ${Math.abs(Number(d.est))} levels. Your tools can no longer read ${internalVersion(s)?.name ?? 'the model'} reliably.`
@@ -179,7 +194,8 @@ export const SAFETY_EVENTS: EventDefV2[] = [
       ch('Honour', ['honour', 'safety'], P([L('revenue', 0.5, 'delay or mitigation'), L('leadDays', 14)], [L('credibility', 2), L('trust', 2, 'audience')]), (s, ctx, d) => {
         const c = s.commitments.find((x) => x.id === d.cid);
         if (!c) return;
-        honour(s, ctx, c.condition.predicate);
+        honour(s, ctx, c);
+        if (c.status !== 'live') return; // could not be honoured after the fact: broken
         cred(ctx, 2, 'kept a commitment', c.title);
         trustMany(s, ctx, c.audience, 2, 'kept a commitment');
       }),
@@ -198,8 +214,14 @@ export const SAFETY_EVENTS: EventDefV2[] = [
   }),
   ev({
     id: 'E33', title: 'Agent incident', icon: 'alert', crisis: false, cooldown: 60, deadlineDays: 14, defaultChoice: 1,
+    // §4.2: an unresolved (WS2 openIncidents: open or investigating) customer-exposure incident of severity ≥ 3 that
+    // presents as POWER or PROXY (discovered U-modes present as their mapped trait). Most severe, then newest.
     when: (s) => {
-      const i = s.player.safety.incidents.find((x) => x.status === 'open' && x.exposure === 'customer' && x.severity >= 3 && (x.apparent === 'POWER' || x.apparent === 'PROXY'));
+      let i: ReturnType<typeof openIncidents>[number] | undefined;
+      for (const x of openIncidents(s)) {
+        if (x.labId !== 'player' || x.exposure !== 'customer' || x.severity < 3 || (x.apparent !== 'POWER' && x.apparent !== 'PROXY')) continue;
+        if (!i || x.severity > i.severity || (x.severity === i.severity && x.day > i.day)) i = x;
+      }
       return i ? { incident: i.id } : false;
     },
     text: () => 'A customer\'s agent built on your model pursued its goal too far: it took actions nobody asked for. The customer wants answers.',
@@ -234,17 +256,22 @@ export const SAFETY_EVENTS: EventDefV2[] = [
   }),
   ev({
     id: 'E35', title: 'We were wrong', icon: 'model', crisis: false, cooldown: 90, deadlineDays: 21, defaultChoice: 1,
+    // §4.2 "U-mode discovered, or a FALSE finding revealed": WS2 stamps 'ws2.lastDiscovery(Day)' (umodes.ts
+    // discoverUMode) and 'ws2.lastFalseReveal(Day)' (findings.ts revealFalse). Fire within 30 days of either; a U-mode
+    // already told to the world, or already decided on, does not re-fire.
     when: (s): Record<string, string> | false => {
-      const f = s.player.safety.findings.find((x) => x.revealedFalseDay !== undefined && s.time.day - x.revealedFalseDay < 30);
-      const u = s.player.safety.discoveredUModes.find((m) => !s.knowledge.revealedUModes.includes(m) && !s.flags[`ws4:umode:${m}`]);
-      if (u) return { umode: u };
-      return f ? { finding: f.id } : false;
+      const day = s.time.day;
+      const u = flag(s, 'lastDiscovery');
+      if (typeof u === 'string' && day - flagNum(s, 'lastDiscoveryDay', -1e9) < WRONG_WINDOW && !s.knowledge.revealedUModes.includes(u as UModeId) && !s.flags[`ws4:umode:${u}`]) return { umode: u };
+      const t = flag(s, 'lastFalseReveal');
+      if (typeof t === 'string' && day - flagNum(s, 'lastFalseRevealDay', -1e9) < WRONG_WINDOW) return { technique: t };
+      return false;
     },
     text: (_s, d) => (d.umode ? 'Your team found a failure mode nobody had a test for. Publishing it lets every lab look for it in their own models.' : 'A result your safety stack relied on turned out to be false. Your tools were blind where you thought they saw.'),
     choices: [
       ch('Disclose', ['disclose', 'safety'], P([L('scrutiny', 10), L('leadDays', 5, 'others learn too')], [L('credibility', 5), L('alignment', 0.1, 'all labs can look for it')]), (s, ctx, d) => {
         if (typeof d.umode === 'string') {
-          s.knowledge.revealedUModes.push(d.umode as never);
+          revealToWorld(s, d.umode as UModeId); // WS2: every lab's future lineages get presence × 0.7
           s.flags[`ws4:umode:${d.umode}`] = true;
         }
         cred(ctx, 5, 'E35 disclosed');
@@ -261,18 +288,23 @@ export const SAFETY_EVENTS: EventDefV2[] = [
 ];
 
 /** Honour a binding commitment as written (E30). */
-function honour(s: GameStateV2, ctx: SystemCtx, predicate: string) {
+function honour(s: GameStateV2, ctx: SystemCtx, c: Commitment) {
   const ext = (ch: string) => ch !== 'internal' && ch !== 'trusted';
-  switch (predicate) {
+  switch (c.condition.predicate) {
     case 'noDeployAbove':
       for (const d of s.player.deployments) if (d.status === 'live' && ext(d.channel) && d.safeguards !== 'hardened') d.safeguards = 'classifiers';
       break;
     case 'preDeployTesting':
       for (const d of s.player.deployments) if (d.status === 'live' && ext(d.channel) && d.startDay >= ctx.day - 30) d.status = 'restricted';
       break;
-    case 'monitorabilityPledge':
-      for (const r of s.player.models.runs) if (r.status === 'running' && (r.post?.cot === 'latent' || r.post?.cot === 'pressured' || r.base?.shape === 'latent')) r.status = 'cancelled';
+    case 'monitorabilityPledge': {
+      // Cancel the offending runs still in training and pull latent releases (WS1 withdraw); a finished run or an
+      // open-weights release cannot be undone, so the pledge is broken (normal break costs).
+      for (const r of s.player.models.runs) if (r.startDay >= c.signedDay && (r.status === 'running' || r.status === 'paused') && pledgeBreachRun(r)) r.status = 'cancelled';
+      for (const d of s.player.deployments) if (d.status !== 'withdrawn' && d.channel !== 'internal' && d.startDay >= c.signedDay && latentVersion(s, d.versionId)) withdraw(s, d.id);
+      if (PREDICATES.monitorabilityPledge(s, c.condition.params, c)) breakCommitment(s, ctx, c, 'pledge already breached');
       break;
+    }
     case 'noSurveillance':
     case 'noAutonomousWeapons':
       for (const d of s.player.deployments) if (d.channel === 'gov') {
