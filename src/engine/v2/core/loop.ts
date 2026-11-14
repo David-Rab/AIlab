@@ -95,7 +95,11 @@ export function act(s: GameStateV2, actionId: string, params: Record<string, num
   if (!a) return `unknown action ${actionId}`;
   const ok = a.available(s);
   if (ok !== true) return typeof ok === 'string' ? ok : 'unavailable';
-  a.apply(s, makeCtx(s), params);
+  try {
+    a.apply(s, makeCtx(s), params);
+  } catch (e) {
+    return e instanceof Error ? e.message : String(e); // apply() validates before mutating
+  }
   s.decisions.push({ day: s.time.day, actionId, choice: JSON.stringify(params), tags: [a.sphere], snapshot: decisionSnapshot(s) });
   return undefined;
 }
