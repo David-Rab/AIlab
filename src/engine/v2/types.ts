@@ -14,6 +14,11 @@
 //    ParadigmState.retryDay/attempts/priorMult; RivalLab.managed.
 //  - ProductionReadout gains required `whatIf` and `sdAI` (only WS1 constructs readouts).
 //  - Coordinates: a model's v1-equivalent progress is q = pm + calShift (§3.1.5); V0 starts at pm = p0 − calShift.
+// M2 integration (SCHEMA_REV 2, migration 1 → 2 in core/save.ts):
+//  - WS3 working blocks folded in from finance/ext.ts: FinanceState.ws3, ChipMarket.ws3, PowerGrid.ws3, CapitalMarkets.ws3,
+//    Site.ws3 (required; `ensureWs3` fills them on older saves).
+//  - WS4 working state folded in from actors/state.ts: GameStateV2.ws4 (optional, created lazily by `ws4(s)`).
+//  - WS5 WorldEconomy.fx (WorldFxState) is part of the contract.
 //
 // Rules:
 //  - Everything under GameStateV2 is plain JSON (saves = JSON.stringify). No classes, Maps, Sets, functions,
@@ -126,6 +131,8 @@ export interface GameStateV2 {
   tutorial: TutorialState;
   flags: Record<string, number | boolean | string>;
   ending?: EndingV2;
+  /** WS4 working state (relations memory, timers, cover-ups, ladder bookkeeping). Created lazily by `ws4(s)`. */
+  ws4?: Ws4State;
 }
 
 export interface SetupV2 {
@@ -606,6 +613,8 @@ export interface FinanceState {
   narrative: number; // N_i premium 0.6..2.2
   deals: StrategicDeal[];
   covenantBreachDay?: Day;
+  /** WS3 working state (offers, inventory, tallies, runway bookkeeping). */
+  ws3: FinanceWS3;
 }
 
 export interface Ownership { founder: number; mission: number; fin: number; strat: Record<string, number>; public: number; }
@@ -661,6 +670,8 @@ export interface ChipMarket {
   exportPolicy: 'strict' | 'caseByCase' | 'open';
   demandQ: number; // D_t
   exoDemandQ: number; // hyperscalers/others not modelled as labs
+  /** WS3 market bookkeeping (quarter index, stock, lab orders). */
+  ws3: MarketWS3;
 }
 
 export interface ChipOrder {
@@ -684,6 +695,8 @@ export interface Site {
   installed: H100e;
   communityPackage: boolean;
   spvFunded: number; // share funded by SPV (residual value guarantee in ledger)
+  /** WS3 site bookkeeping (opposition roll, build quarters, financing). */
+  ws3: SiteWS3;
 }
 
 export interface PowerGrid {
@@ -692,6 +705,8 @@ export interface PowerGrid {
   capacityPrice: number; // κ_region uplift 0..0.15
   kWPerH100e: number;
   transformerLeadQ: number;
+  /** WS3 grid-pool bookkeeping. */
+  ws3: PowerWS3;
 }
 
 export interface CapitalMarkets {
@@ -704,6 +719,155 @@ export interface CapitalMarkets {
   bubbleX: number; // X_t
   busted?: { day: Day; recoverDay: Day };
   shocks: { kind: string; dH: number; halfLifeQ: number; day: Day }[];
+  /** WS3 investor-pool bookkeeping. */
+  ws3: CapitalWS3;
+}
+
+// ── WS3 finance/compute working state (folded from finance/ext.ts at M2) ──
+
+/** Per-calendar-year tallies (tests F7/F8, finance panel "where the money went"). $B unless noted. */
+export interface YearStats {
+  revenue: Money; payroll: Money; otherOpex: Money; computeCosts: Money; interest: Money;
+  capexChips: Money; capexSites: Money; capexSitesFinanced: Money; supplierFunding: Money;
+  equity: Money; dealEquity: Money; debtDrawn: Money; spvFinanced: Money; cloudFinanced: Money; leaseFinanced: Money; vendorNotes: Money;
+  minRunwayQ: number; distressDays: number;
+}
+
+/** A strategic-deal offer waiting for accept/decline (Seek partner action, events E03/E04). */
+export interface DealOffer {
+  id: string;
+  template: StrategicDeal['template'];
+  partner: string;
+  day: Day;
+  expiresDay: Day;
+  /** Up-front equity or cash in ($B) and conditional tranches. */
+  equityNow: Money;
+  equityLater: Money;
+  /** Take-or-pay commitment ($B per quarter) and its length (quarters). */
+  commitPerQ: Money;
+  commitQ: number;
+  /** Compute delivered by the deal (cloud capacity or chips per quarter). */
+  h100e: H100e;
+  /** Price paid per H100e ($K) for chip deals, or $K per H100e-year for cloud capacity. */
+  unitPrice: number;
+  /** Share of new-site capex funded by the partner (SPV / mega-JV). */
+  siteShare: number;
+  strings: StrategicDeal['strings'];
+  rescue: boolean;
+}
+
+export interface PendingRound {
+  day: Day;
+  ask: Money;
+  max: Money;
+  preMoney: Money;
+  anchor?: string;
+  ipo: boolean;
+}
+
+export interface FinanceWS3 {
+  pendingRound?: PendingRound;
+  offers: DealOffer[];
+  /** Delivered chips not yet installed: in transit (this quarter) and ready (installable), plus their book value. */
+  inventory: { transit: H100e; ready: H100e; book: Money };
+  /** Gross purchase cost of owned installed chips ($B) — O&M base and GPU-loan collateral. */
+  chipBook: Money;
+  /** Short-term spot rentals (inference cloud usage). */
+  rentals: { h100e: H100e; endDay: Day; perYear: Money }[];
+  /** Reserved supplier capacity (H100e/q) from funded expansions, and when it starts. */
+  reserved: { perQ: H100e; fromQ: number; toQ: number }[];
+  /** Action id → day until which the board has blocked it (§3.7.5: rejection blocks for 90 days). */
+  blockedUntil: Record<string, Day>;
+  /** Revenue plan for the quarter (board confidence +5 met / −10 missed). */
+  revenuePlan: Money;
+  /** Legacy-nonprofit recapitalisation (E02): start / completion days, or refused. */
+  recap: { startDay?: Day; doneDay?: Day; refused?: boolean };
+  /** Day cash first went negative after all options (insolvency grace). */
+  negativeSinceDay?: Day;
+  distressSinceDay?: Day;
+  lastRenegotiationDay?: Day;
+  /** Partner-funded share of capex for sites started before `untilDay` (mega-JV). */
+  jv?: { partner: string; share: number; untilDay: Day };
+  /** Day until which a custom-ASIC migration slows research (WS1 reads this, §3.7.4 −15% research efficiency). */
+  asicMigrationUntil?: Day;
+  /** Last quarter's net operating cash flow (rating input) and the cash at its start. */
+  opCashQ: Money;
+  cashAtQStart: Money;
+  /** Accumulators reset each quarter: revenue and operating costs ($B). */
+  accQ: { revenue: Money; opCosts: Money };
+  /** Cumulative capex at the last quarter boundary and capex in each of the last 4 quarters (bubble X_t). */
+  capexCumAtQ: Money;
+  capex4q: Money[];
+  years: Record<string, YearStats>;
+}
+
+/** Non-player lab order (rivals, China): kept on the market so WS4 can place them via `placeLabOrder`. */
+export interface LabOrder { id: string; lab: LabId; qty: H100e; dueQ: number; weight: number; delivered: H100e }
+
+export interface MarketWS3 {
+  /** Quarter index the market last cleared (Q3 2025 = 0). */
+  q: number;
+  /** Global installed stock (H100e), cumulative deliveries (test F3). */
+  stock: H100e;
+  /** Production (deliveries) this quarter and last quarter's D/S. */
+  shipped: H100e;
+  ds: number;
+  /** Supply by quarter for the last 8 quarters (β_eff denominator). */
+  supply8q: number[];
+  /** Exogenous-demand multiplier from shocks (test F4/F5 and events) and its decay per quarter toward 1. */
+  exoMult: number;
+  exoMultDecay: number;
+  /** Taiwan / Korea disruption quarters remaining; quarter the last wafer node conversion happened. */
+  twQ: number; krQ: number;
+  lastConversionQ: number;
+  labOrders: LabOrder[];
+  /** Labs whose orders WS4 places itself (their default demand is then off). */
+  managedLabs: LabId[];
+  /** Player's fill share of last quarter's orders and the reason weights (UI "your allocation"). */
+  playerFill: number;
+  playerWeight: number;
+  /** Lease (colocation) capacity available to labs this quarter, GW of facility power. */
+  leasePoolGW: number;
+}
+
+export interface PowerWS3 {
+  /** Grid pool still available to labs this quarter (GW). */
+  poolLeftGW: number;
+  /** Pre-ordered transformer capacity not yet assigned to a site (GW). */
+  transformersGW: number;
+}
+
+export interface CapitalWS3 {
+  /** Hype net of the decaying shock terms (H = base − Σ shocks). */
+  hypeBase: number;
+  /** Sector run-rate R_sector over the last 5 quarters (oldest first). */
+  rSectorHist: Money[];
+  /** This quarter's pool for the player (share × (A/4 + carry)) and how much of it has been raised. */
+  playerPoolQ: Money;
+  playerTakenQ: Money;
+  playerShare: number;
+  /** Lab partner anchors (each partner anchors at most one lab at a time, §3.7.4). */
+  anchors: Record<string, LabId>;
+  /** Public-frontier level a quarter ago (hype surprise term). */
+  lastFrontierL: number;
+  ipoOpenedDay?: Day;
+  spreadAddBp: number;
+}
+
+export interface SiteWS3 {
+  /** Opposition roll done (once, at the end of permitting). */
+  rolled: boolean;
+  delayedQ: number;
+  /** Day the grid interconnection request was filed (queue credit). */
+  queuedDay?: Day;
+  /** Planned building quarters (8 default, 4 crash; lease 1–3). */
+  buildQ: number;
+  /** Partner funding this site (SPV / JV) and the residual-value-guarantee penalty. */
+  financedBy?: string;
+  startDay: Day;
+  /** Day construction started and the day it went live (UI timeline, test F10). */
+  buildStartDay?: Day;
+  liveDay?: Day;
 }
 
 // ───────────────────────────── Rivals & China (§3.10) ─────────────────────────────
@@ -846,11 +1010,10 @@ export interface WorldEconomy {
   intelligenceCurse: boolean;
   /** Market share of each lab's models per sector (US); recomputed daily. */
   shares: Record<SectorId, Record<LabId, number>>;
-  /** WS5 ADDITIVE (M1, pending WS1 merge): bookkeeping for the world dynamics. See WorldFxState. */
+  /** World-dynamics bookkeeping (WS5). See WorldFxState. */
   fx: WorldFxState;
 }
 
-// ── WS5 ADDITIVE BLOCK (M1, pending WS1 merge) ──────────────────────────────────────────────────────────────
 /** World-dynamics bookkeeping owned by WS5 (worldfx/*). Plain JSON; observables only (no truth). */
 export interface WorldFxState {
   /** Share of adults using AI assistants (INFO channel reach, research/16 §2.1). 0..1 */
@@ -894,7 +1057,6 @@ export interface WorldFxState {
   /** Headline id → last day fired. */
   hl: Record<string, Day>;
 }
-// ── end WS5 ADDITIVE BLOCK ────────────────────────────────────────────────────────────────────────────────
 
 export interface SectorState {
   F: number; K: number; R: number; Astar: number; A: number; alpha: number;
@@ -1085,3 +1247,86 @@ export interface TickOptions {
 
 /** Risk-source view row (§6.9). Built from player BELIEFS, never truth. */
 export interface RiskSource { id: string; label: string; kind: 'ownModel' | 'rival' | 'china' | 'misuse' | 'theft' | 'war' | 'rogue'; estimate: number; band: [number, number]; drivers: { label: string; share: number }[]; }
+
+// ───────────────────────────── WS4 working state (folded from actors/state.ts at M2) ─────────────────────────────
+
+/** A quiet fix that outsiders may still discover (§3.9.3 rule 1). */
+export interface Coverup { id: string; day: Day; what: string; pDaily: number; audience: CounterpartyId[]; until: Day }
+
+/** A rival/China incident made public (drives E31 and intel bands). */
+export interface RivalIncident { lab: LabId; day: Day; severity: number; misuse: boolean }
+
+export interface Ws4State {
+  /** Level the government believes the player's frontier is at (§3.10.1: announced / leaked / evaluator-reported). */
+  govSeenL: number;
+  leakedL: number;
+  evalL: number;
+  /** Level the player has publicly claimed (best measured L of an external deployment). */
+  claimedL: number;
+  coverups: Coverup[];
+  /** Continue-through-red-flag counter (E09/E17); feeds leaks and the Index. */
+  redFlags: number;
+  theftAttempts: number;
+  /** Escaped copy of a player model (E25 / 'rogue' ending). */
+  loose?: { day: Day; versionId: string; mis: number };
+  /** Open internal whistleblower report (E18) and its fix-or-escalate deadline. */
+  internalReport?: { day: Day; deadline: Day };
+  /** Frontier runs paused until this day (E17 Pause, pauseIfRedline). WS1 reads it (cross-WS need). */
+  frontierPauseUntil: Day;
+  /** Consecutive days each competitor has led the player by ≥ 365 d after its SC (overtaken rule). */
+  overtakenDays: Record<LabId, number>;
+  taiwanDisrupted: boolean;
+  taiwanUntil: Day;
+  /** Per-counterparty access cap granted by specific agreements (§3.9.1 access rungs). */
+  accessCap: Record<string, number>;
+  /** Day an action was last used (cooldowns). */
+  actionDay: Record<string, Day>;
+  /** Dynamic posture changes on top of hidden postures (moving goalposts, joint evals). */
+  postureDelta: Record<LabId, Partial<SafetyPosture>>;
+  /** Moving-goalposts revisions per lab (Index penalty). */
+  goalposts: Record<LabId, number>;
+  rivalIncidents: RivalIncident[];
+  /** Next post-training day per non-player lab. */
+  nextPost: Record<LabId, Day>;
+  /** Day the current internal model of a non-player lab was finished (release lag). */
+  internalDay: Record<LabId, Day>;
+  /** Spy multiplier after purges (recovers over a year). */
+  spyMult: number;
+  /** Days China/rival distillation inflow has exceeded the E06 threshold. */
+  distillDays: number;
+  /** Days demand exceeded capacity by > 30% (E36). */
+  crunchDays: number;
+  /** Misalignment evidence made public (P-LEAK / R14 / G-SEC 5). */
+  misalignmentLeak: boolean;
+  /** Days DA−track conditions held (D2 needs 180 quiet days). */
+  lastTheftOrCyberDay: Day;
+  usProposedTalks: boolean;
+  treatyRejected: boolean;
+  /** Player G-SEC 5b acceptance (DPA consolidation) — government-held lab. */
+  dpaAccepted: boolean;
+  nationalizedHard: boolean;
+  soldControl: boolean;
+  retired: boolean;
+  /** Unrestricted surveillance / weapons contract signed (Freedom −10). */
+  unrestrictedDefense: boolean;
+  defenseContract: 'none' | 'limits' | 'unrestricted';
+  /** Disclosure record for the Index: disclosed vs leaked/covered incidents and findings. */
+  disclosed: number;
+  leaked: number;
+  papers: number;
+  /** World GDP (US) at game start, for Prosperity. */
+  gdp0: number;
+  /** Rolling drift accumulator per meter key, flushed to the cause ledger weekly. */
+  drift: Record<string, number>;
+  /** Pending evaluator reports (versionId → day due) and the last reported version. */
+  evalReports: { versionId: string; due: Day; by: 'evalGov' | 'evalIndep' }[];
+  reportedVersions: string[];
+  /** China gap history (lead days, weekly) for "widening"/"shrinking" rules. */
+  chinaLeadHist: number[];
+  /** Merged rival compute folded into the player by DPA / acquisition (WS3 should add to computeOnline). */
+  absorbedCompute: number;
+  /** Last day a crisis decision was queued (storyteller), and noise for the chaotic storyteller. */
+  storyNoise: number;
+  /** Event requests from WS4 systems; the director fires them under storyteller limits (E4). Expire after 60 d. */
+  requests: { id: string; day: Day; data: Record<string, number | string> }[];
+}

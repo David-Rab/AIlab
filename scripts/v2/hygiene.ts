@@ -8,7 +8,7 @@ import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { makeCtx, tick } from '../../src/engine/v2/core/loop';
 import { SYSTEMS } from '../../src/engine/v2/core/registry';
 import { STREAMS } from '../../src/engine/v2/core/rng';
-import { SAVE_BUDGET_BYTES, deserialize, serialize, stateHash } from '../../src/engine/v2/core/save';
+import { SAVE_BUDGET_BYTES, SCHEMA_REV, deserialize, serialize, stateHash } from '../../src/engine/v2/core/save';
 import { cadencesDue } from '../../src/engine/v2/core/time';
 import type { Cadence, EngineSystem, GameStateV2, SetupV2, StreamId } from '../../src/engine/v2/types';
 import { check, finish, runTo, validateJson } from './lib';
@@ -101,6 +101,27 @@ try {
   threw = true;
 }
 check(threw, 'save: v1 save is rejected (no migration)');
+// Migration 1 → 2: a schemaRev-1 save (before the WS3 blocks were folded into types.ts) loads and plays on.
+{
+  const old = JSON.parse(serialize(run(detSetup, 200))) as GameStateV2 & Record<string, unknown>;
+  old.schemaRev = 1;
+  const strip = (o: { ws3?: unknown }) => void delete o.ws3;
+  strip(old.player.finance);
+  strip(old.market);
+  strip(old.power);
+  strip(old.capital);
+  old.player.sites.forEach(strip);
+  delete old.ws4;
+  const mig = deserialize(JSON.stringify(old));
+  let ok = mig.schemaRev === SCHEMA_REV && !!mig.player.finance.ws3 && !!mig.market.ws3 && !!mig.power.ws3 && !!mig.capital.ws3;
+  try {
+    runTo(mig, 260);
+  } catch (e) {
+    ok = false;
+    console.log(`      migration run threw: ${(e as Error).message}`);
+  }
+  check(ok && validateJson(mig).length === 0, 'save: schemaRev 1 save migrates (ws3 blocks filled) and plays 60 more days');
+}
 
 // ---------- 6. Cadences ----------
 const counts: Record<Cadence, number> = { daily: 0, weekly: 0, monthly: 0, quarterly: 0, semiannual: 0 };

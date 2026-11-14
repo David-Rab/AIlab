@@ -1,8 +1,9 @@
 // Save format, migrations, state hash (V2-SPEC §2.5). Owner: WS1.
+import { ensureWs3 } from '../finance/ext';
 import type { GameStateV2 } from '../types';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
-export const SCHEMA_REV = 1;
+export const SCHEMA_REV = 2;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -10,7 +11,11 @@ export const V1_SAVE_KEY = 'ai27.save.v1';
 export const SAVE_BUDGET_BYTES = 1.5 * 1024 * 1024;
 
 /** migrations[rev] upgrades a state at schemaRev = rev to rev + 1. */
-export const migrations: Record<number, (s: Record<string, unknown>) => void> = {};
+export const migrations: Record<number, (s: Record<string, unknown>) => void> = {
+  /** 1 → 2 (M2): WS3 `ws3` blocks became required fields of FinanceState, ChipMarket, PowerGrid, CapitalMarkets and
+   *  Site; `GameStateV2.ws4` is optional and created lazily, so it needs nothing. */
+  1: (raw) => ensureWs3(raw as unknown as GameStateV2),
+};
 
 export function serialize(s: GameStateV2): string {
   return JSON.stringify(s);
