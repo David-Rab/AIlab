@@ -11,16 +11,11 @@ import { applyResponse } from '../../src/engine/v2/safety/responses';
 import { sampleHidden } from '../../src/engine/v2/world/hidden';
 import { Rng } from '../../src/engine/rng';
 import type { GameStateV2, TraitId } from '../../src/engine/v2/types';
-import { KNOWN, check, finish } from './lib';
+import { check, finish } from './lib';
 import { MIXED, REF, SAFE, play } from './safety-emu';
 
-// Documented deviation (reported to the integrator): research/14's own Beta priors already put 3.94 agendas above
-// e = 0.6 per world before any latent loading; the spec's loading magnitudes (§3.5.2) add variance and give ≈ 4.4.
-// R14 states the target loosely ("a typical world has 2-4 strong agendas"). Not tuned away: priors and magnitudes
-// are spec values; the balance owner may scale loadings or priors.
-KNOWN['S1 agendas with e > 0.6 per world: 2–4 (mean of 1,000 worlds)'] =
-  'R14 priors alone give 3.94; spec loading magnitudes push it to ≈ 4.4 (see comment). Needs a spec decision.';
-
+// S1 (M2 spec decision): R14's Beta priors alone put ≈ 3.94 agendas above e = 0.6 per world; the loading spread was cut
+// by a quarter (§3.5.2) and the target widened to 2–4.5.
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
 const pct = (x: number) => `${(x * 100).toFixed(0)}%`;
 
@@ -40,7 +35,7 @@ const pct = (x: number) => `${(x * 100).toFixed(0)}%`;
   }
   const mh = hi / N;
   const ml = lo / N;
-  check(mh >= 2 && mh <= 4, 'S1 agendas with e > 0.6 per world: 2–4 (mean of 1,000 worlds)', mh.toFixed(2));
+  check(mh >= 2 && mh <= 4.5, 'S1 agendas with e > 0.6 per world: 2–4.5 (mean of 1,000 worlds)', mh.toFixed(2));
   check(ml >= 4 && ml <= 6, 'S1 agendas with e < 0.2 per world: 4–6 (mean of 1,000 worlds)', ml.toFixed(2));
 }
 

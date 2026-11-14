@@ -6,13 +6,18 @@
 // E17: investigate if belief > 0.4, otherwise control.
 import { internalVersion } from '../models/labs';
 import { understanding } from '../safety/understanding';
-import type { BotPolicy, GameStateV2 } from '../types';
+import { mAtLevel } from '../safety/common';
+import { decayAt } from '../safety/techniques';
+import type { AgendaId, BotPolicy, GameStateV2, TraitId } from '../types';
 import { clamp } from '../../rng';
 import { financeAutopilot, REF_AUTOPILOT } from '../finance/plan';
 import { byLabel, every, pickByTags, tryAct } from './common';
 import { REF_PARADIGMS, refPlay, type RefPlayOpts } from './ref';
 
-const posteriorMean = (s: GameStateV2, a: 'AG01' | 'AG02') => {
+const LOTTERY: AgendaId[] = ['AG01', 'AG04', 'AG10', 'AG11', 'AG12', 'AG13'];
+const RED_FLAGS: TraitId[] = ['SCHEME', 'AF', 'SAND', 'POWER', 'SUCC', 'COLLUDE', 'TGAME'];
+
+const posteriorMean = (s: GameStateV2, a: AgendaId) => {
   const p = s.player.safety.agendas[a]?.posterior;
   return p ? p.a / (p.a + p.b) : 0;
 };
@@ -34,7 +39,26 @@ const MIXED_PLAY: RefPlayOpts = {
 export const mixedBot: BotPolicy = {
   id: 'mixed',
   act(s, api) {
-    if (s.time.day === 0) for (const a of ['AG02', 'AG07', 'AG08', 'AG09', 'AG18']) tryAct(s, api, 'safety.fund', { agenda: a, level: 'serious' });
+    if (s.time.day === 0) {
+      for (const a of ['AG02', 'AG07', 'AG08', 'AG09', 'AG18']) tryAct(s, api, 'safety.fund', { agenda: a, level: 'serious' });
+      // Plus the best-posterior lottery agenda (§7.4).
+      const lottery = LOTTERY.reduce((a, b) => (posteriorMean(s, b) > posteriorMean(s, a) ? b : a));
+      tryAct(s, api, 'safety.fund', { agenda: lottery, level: 'serious' });
+    }
+    // Respond to red flags with patch or targeted training, never retrain-against; re-validate decaying tools.
+    if (every(s, 30, 11)) {
+      const iv = internalVersion(s);
+      if (iv) {
+        for (const t of RED_FLAGS) {
+          const b = iv.beliefs[t];
+          if (!b || b.est <= 0.25 || b.clarity <= 0.3) continue;
+          tryAct(s, api, 'safety.respond', { kind: 'patchSignal', versionId: iv.id, trait: t });
+          tryAct(s, api, 'safety.respond', { kind: 'targetedTraining', versionId: iv.id, trait: t });
+        }
+        const M = mAtLevel(s.hidden.timeline, iv.evals.measuredL ?? 0);
+        for (const x of Object.values(s.player.safety.techniques)) if (x.unlocked && x.active && x.k > 0 && decayAt(s, x, M * 10, false) < 0.8) tryAct(s, api, 'safety.refresh', { techniqueId: x.id });
+      }
+    }
     refPlay(s, api, MIXED_PLAY);
     // Reference compute and one strategic deal; prudent (no new capex under 4 quarters of runway).
     financeAutopilot(s, REF_AUTOPILOT);

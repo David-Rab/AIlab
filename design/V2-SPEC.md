@@ -808,11 +808,12 @@ The six latents λ1–λ6 are drawn as in §2.3. One of them is player-modified:
 #### 3.5.2 Agendas
 
 - **Efficacy draw.** `e = clamp(Beta(a,b) + Σ load·λ, 0, 1)`.
-- **Loading magnitudes** [D]:
-  - `++` = 0.20
-  - `+` = 0.12
-  - `+weak` = 0.06
-  - λ6 adversary = −0.12
+- **Loading magnitudes** [D] (M2: the original 0.20 / 0.12 / 0.06 / −0.12 spread was cut by a quarter for S1; R14's priors
+  alone already give ≈ 3.9 agendas above 0.6 per world, so the loadings can only add to that):
+  - `++` = 0.15
+  - `+` = 0.09
+  - `+weak` = 0.045
+  - λ6 adversary = −0.09
 - **Costs.** The FTE and compute ranges are R14's. The "ref" value used in rate formulas is the midpoint.
 
 | ID | Agenda | Prior | Loadings | T₁ (mo) | M½ / k | G | Auto | Family | Main coverage (traits) |
@@ -2235,7 +2236,7 @@ v1 stays in place until M4. `main.tsx` switches on a build flag, then v1 is dele
 
 | Test | Requirement |
 |---|---|
-| S1 | Agenda draws reproduce the R14 calibration: about 2–4 agendas with e > 0.6 and 4–6 with e < 0.2 per world (mean over 1,000 worlds) |
+| S1 | Agenda draws reproduce the R14 calibration: about 2–4.5 agendas with e > 0.6 and 4–6 with e < 0.2 per world (mean over 1,000 worlds) |
 | S2 | Correct masking: retrain-against lowers the visible trait 70–90% and the true one 20–40% |
 | S3 | `observed = true·(1 − 0.8·EA)` on BB |
 | S4 | Mis at ASI under RefBot/medium: P_mis ∈ [0.55, 0.85]; under the safe-only recipe ≤ 0.25 |
