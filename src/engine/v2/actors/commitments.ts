@@ -3,7 +3,7 @@
 // A predicate returns TRUE when the commitment currently BINDS against the player's state: something the player
 // did (or is doing) would violate it. The director raises E30 (Honour / Amend / Break) for live commitments whose
 // predicate is true; other workstreams can call `blockingCommitments` before an action to telegraph the cost.
-import type { Commitment, CounterpartyId, DomainId, GameStateV2, ModelVersion, SystemCtx } from '../types';
+import type { Commitment, CounterpartyId, DomainId, GameStateV2, ModelVersion, SystemCtx, TrainingRun } from '../types';
 import { cash, cred, trust } from './fx';
 import { ws4, ws4r } from './state';
 
@@ -11,6 +11,16 @@ export type CommitmentPredicate = (s: GameStateV2, params: Commitment['condition
 
 const external = (ch: string) => ch !== 'internal' && ch !== 'trusted';
 const versionOf = (s: GameStateV2, id: string): ModelVersion | undefined => s.player.models.versions.find((v) => v.id === id);
+
+/** Run that breaks the monitorability pledge: latent base, latent CoT post, or CoT-pressured post. */
+export const pledgeBreachRun = (r: TrainingRun) => r.base?.shape === 'latent' || r.post?.cot === 'latent' || r.post?.cot === 'pressured';
+
+/** Version that reasons latently: latent CoT, or built on a latent-shape base. */
+export function latentVersion(s: GameStateV2, id: string): boolean {
+  const v = versionOf(s, id);
+  if (!v) return false;
+  return v.design.cot === 'latent' || s.player.models.bases.find((b) => b.id === v.baseId)?.design.shape === 'latent';
+}
 
 /** Measured domain level ≈ measured general level + the version's domain offset (the player sees no truer number). */
 export function measuredDomain(v: ModelVersion, d: DomainId): number {
@@ -44,10 +54,14 @@ export const PREDICATES: Record<string, CommitmentPredicate> = {
       return !!v && v.day > since && d.startDay - v.day < days;
     });
   },
-  /** No latent reasoning and no CoT-pressure runs after signing. */
+  /** No latent reasoning and no CoT-pressure runs after signing (F31 / E11 / WS2 safety.pledge): binds when a
+   *  latent-reasoning base (shape 'latent') or post (cot 'latent'), or a CoT-pressured post, was launched since
+   *  signing and not cancelled (a failed run produced nothing), or a latent version was released (any non-internal
+   *  channel) since signing. Internal use of a version that predates the pledge is grandfathered. */
   monitorabilityPledge: (s, _p, c) => {
     const since = c?.signedDay ?? 0;
-    return s.player.models.runs.some((r) => r.startDay >= since && r.status !== 'cancelled' && (r.post?.cot === 'latent' || r.post?.cot === 'pressured' || r.base?.shape === 'latent'));
+    if (s.player.models.runs.some((r) => r.startDay >= since && r.status !== 'cancelled' && r.status !== 'failed' && pledgeBreachRun(r))) return true;
+    return s.player.deployments.some((d) => d.status !== 'withdrawn' && d.channel !== 'internal' && d.startDay >= since && latentVersion(s, d.versionId));
   },
   noSurveillance: (s) => s.player.deployments.some((d) => d.status === 'live' && d.channel === 'gov' && !d.usagePolicy.noSurveillance),
   noAutonomousWeapons: (s) => s.player.deployments.some((d) => d.status === 'live' && d.channel === 'gov' && !d.usagePolicy.noAutonomousWeapons),
@@ -105,9 +119,15 @@ export function signCommitment(
   return c;
 }
 
+/** WS2's monitorability flag (obfuscation growth −50%, "Already pledged") lasts only while a live pledge card does. */
+function pledgeEnded(s: GameStateV2) {
+  if (!hasCommitment(s, 'monitorabilityPledge')) s.player.safety.monitorabilityCommitment = false;
+}
+
 /** Break: trust loss with every audience member (×3 asymmetry via trustDelta) and a credibility hit. */
 export function breakCommitment(s: GameStateV2, ctx: SystemCtx, c: Commitment, why = 'commitment broken') {
   c.status = 'broken';
+  pledgeEnded(s);
   for (const cp of c.audience) trust(s, ctx, cp, -Math.abs(c.breakCost.trust), why, c.title);
   cred(ctx, -Math.abs(c.breakCost.credibility), why, c.title);
   ctx.bump('relations.scrutiny', 8, why, c.title);
@@ -120,6 +140,7 @@ export function amendCommitment(s: GameStateV2, ctx: SystemCtx, c: Commitment, t
   if (triggered) return breakCommitment(s, ctx, c, 'amended after trigger');
   c.status = 'amended';
   c.amendments++;
+  pledgeEnded(s);
   cred(ctx, -8, 'moving goalposts', c.title);
   ws4(s).goalposts.player = (ws4(s).goalposts.player ?? 0) + 1;
   ctx.headline('goalposts', `${s.player.name} quietly rewrites its safety pledge.`);

@@ -1,6 +1,8 @@
 // Relations: currencies per counterparty, access rungs, favors, scrutiny, cover-ups (V2-SPEC §3.9.1, §3.9.3;
 // research/17 §1.2–1.5). Owner: WS4. Also hosts actorsDaily, which steps public, blocs, government and relations.
 import { BLOCS } from '../../../data/v2/blocs';
+import { worldMix } from '../worldfx/mix';
+import { revenueReadout } from '../worldfx/revenue';
 import type { CounterpartyId, EngineSystem, GameStateV2, LabId, RelationStock, RelationsState, SystemCtx } from '../types';
 import { blocsDaily } from './blocs';
 import { statutoryDaily } from './commitments';
@@ -92,8 +94,19 @@ function relationsDaily(s: GameStateV2, ctx: SystemCtx) {
     delete w.internalReport;
     request(s, 'E19', { mult: 2 });
   }
-  // Capacity crunch (E36): live external deployments bound by serving capacity (WS5 demandBound).
-  const crunch = s.player.deployments.some((d) => d.status === 'live' && d.channel !== 'internal' && d.demandBound === 'capacity');
+  // Capacity crunch (E36, §4.2 "demand > capacity by > 30%"): WS5 marks capacity-bound deployments (demandBound);
+  // only then read WS5's demand/capacity readout to measure the excess over those deployments.
+  const bound = new Set(s.player.deployments.filter((d) => d.status === 'live' && d.channel !== 'internal' && d.demandBound === 'capacity').map((d) => d.id));
+  let crunch = false;
+  if (bound.size) {
+    let dem = 0;
+    let cap = 0;
+    for (const x of revenueReadout(s, worldMix(s, ctx)).deps) if (bound.has(x.id)) {
+      dem += x.demand;
+      cap += x.capacity;
+    }
+    crunch = dem > 1.3 * cap;
+  }
   w.crunchDays = crunch ? w.crunchDays + 1 : 0;
   // Talent pull drifts slowly back toward its baseline (+10).
   const dt = (10 - rel.talentPull) * 0.002;

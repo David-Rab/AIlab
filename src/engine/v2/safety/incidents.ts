@@ -5,7 +5,7 @@
 // ('unexplained' for undiscovered U-modes) and severity; `trueSource` stays hidden.
 import { CHANNEL_EXPOSURE, INCIDENT_KAPPA } from '../../../data/v2/traits';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
-import { internalVersion } from '../models/labs';
+import { bestPlayerVersion, internalVersion } from '../models/labs';
 import type { CounterpartyId, Deployment, EngineSystem, GameStateV2, Incident, ModelVersion, RngLike, SystemCtx, TraitId, TraitVector, UModeId } from '../types';
 import { clamp01, flagNum, setFlag, versionById, versionM } from './common';
 import { monitoringCatch } from './detection';
@@ -220,6 +220,19 @@ export function exfiltrationHazard(s: GameStateV2): number {
   let p = 1e-4 * t.POWER * (1 + 4 * t.SCHEME) * Math.max(0, v.domains.AGENCY - 8) * (1 - s.player.security.wsl / 5) * (1 - contain);
   if (s.flags['ws2.gatekeeper'] !== undefined && s.player.safety.techniques['T-GATE']?.active) p *= 0.5;
   return Math.max(0, p);
+}
+
+/**
+ * Contain(M = 2000) of the player's internal fleet, for WS4's ASI resolution (§5.2 `Cont`): the control layer of the
+ * live internal deployment × the best AG07 containment tool at M = 2000 (TRUE strength), cut by U19 in the best
+ * version's lineage. Engine only.
+ */
+export function contain2000(s: GameStateV2): number {
+  const v = bestPlayerVersion(s);
+  if (!v) return 0;
+  const internal = s.player.deployments.filter((d) => d.channel === 'internal' && d.status !== 'withdrawn');
+  const dep = internal.find((d) => d.versionId === s.player.models.internalAgent) ?? internal[0];
+  return containment(s, 2000, !!dep?.controlLayer, false, uModeContainMult(v.uModes));
 }
 
 /** Hazards for a non-player lab's model (WS4 rolls them with its own stream; visibility per its posture). */

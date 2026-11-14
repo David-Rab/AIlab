@@ -3,6 +3,7 @@ import { LEVEL_KNOTS } from '../../../data/v2/calibration';
 import { sigmoid } from '../../rng';
 import { cadencesDue, decimalYear } from '../core/time';
 import { activeRivals, bestLg } from '../models/labs';
+import { defenceIndex } from '../worldfx/readouts';
 import type { EndingV2, EngineSystem, GameStateV2, LabId, PowerOutcome, RivalLab, SystemCtx } from '../types';
 import { labOf, leadBetween } from '../actors/rivals';
 import { ws4 } from '../actors/state';
@@ -40,21 +41,14 @@ export function endGame(s: GameStateV2, ctx: SystemCtx, id: EndingV2['id'], powe
   ctx.log('alert', `${title}.`, 5);
 }
 
-/** Days with negative cash after the distress menu was offered (insolvency rule). */
-function insolvent(s: GameStateV2): boolean {
-  const f = s.player.finance;
-  if (f.state === 'insolvent') return true;
-  if (f.cash >= 0) {
-    delete s.flags['ws4:negCashDays'];
-    return false;
-  }
-  const n = Number(s.flags['ws4:negCashDays'] ?? 0) + 1;
-  s.flags['ws4:negCashDays'] = n;
-  const menuOpen = s.events.pending.some((p) => p.id === 'E26');
-  return !menuOpen && n > 30;
+/** Sale of control (§5.1 #1 'acquired'): a WS4 rescue flag, or one strategic holder above 50% of the equity after
+ *  WS3's rescue / deals (finance ownership) [D]. */
+function soldControl(s: GameStateV2): boolean {
+  return ws4(s).soldControl || Object.values(s.player.finance.ownership.strat).some((x) => x > 0.5);
 }
 
-/** Severity-5 misuse incident today (player or rival) and the world's exposure (max tech exposure) [stand-in]. */
+/** Severity-5 misuse incident today (player or rival) with world-tech exposure > 0.6, then civilisation-scale with
+ *  P = 0.15·exposure·(1 − defence) (§5.1 #4); defence is WS5's defensive-tech index for the incident's domain. */
 function catastropheCheck(s: GameStateV2, ctx: SystemCtx): EndingV2['id'] | undefined {
   const day = ctx.day;
   const playerSev5 = s.player.safety.incidents.find((i) => i.day === day && i.severity === 5 && i.trueSource === 'misuse');
@@ -62,10 +56,14 @@ function catastropheCheck(s: GameStateV2, ctx: SystemCtx): EndingV2['id'] | unde
   if (!playerSev5 && !rivalSev5) return undefined;
   const exposure = Math.max(0, ...Object.values(s.world.techs).map((t) => t.exposure));
   if (exposure <= 0.6) return undefined;
-  const defense = 0.3; // [D] stand-in until WS5 exposes a defensive-tech index
-  if (!ctx.rng('endings').chance(0.15 * exposure * (1 - defense))) return undefined;
+  const rng = ctx.rng('endings');
+  // Domain: WS2 stamps today's player sev-5 misuse ('ws2.sev5MisuseDay/Kind'); else the version's measured flags; a
+  // rival incident carries no domain, so draw it.
   const v = playerSev5 ? s.player.models.versions.find((x) => x.id === playerSev5.versionId) : undefined;
-  return v?.flags.cyberOffense ? 'catastropheCyber' : v?.flags.bioUplift ? 'catastropheBio' : ctx.rng('endings').chance(0.5) ? 'catastropheBio' : 'catastropheCyber';
+  const ws2Kind = playerSev5 && s.flags['ws2.sev5MisuseDay'] === day ? s.flags['ws2.sev5MisuseKind'] : undefined;
+  const kind: 'bio' | 'cyber' = ws2Kind === 'bio' || ws2Kind === 'cyber' ? ws2Kind : v?.flags.cyberOffense ? 'cyber' : v?.flags.bioUplift ? 'bio' : rng.chance(0.5) ? 'bio' : 'cyber';
+  if (!rng.chance(0.15 * exposure * (1 - defenceIndex(s, kind)))) return undefined;
+  return kind === 'bio' ? 'catastropheBio' : 'catastropheCyber';
 }
 
 /** endings (150, daily): Check end conditions in §5.1 order; set s.ending. */
@@ -77,11 +75,12 @@ export const endingsSystem: EngineSystem = {
     const rng = ctx.rng('endings');
     const day = ctx.day;
 
-    // 1. Insolvent / acquired.
-    if (w.soldControl) return lossEnding(s, ctx, 'acquired');
-    if (insolvent(s)) return lossEnding(s, ctx, 'insolvent');
-    // 2. Ousted (WS3 board ouster roll sets the flag).
-    if (s.flags.ousted === true || s.flags['ws3:ousted'] === true) return lossEnding(s, ctx, 'ousted');
+    // 1. Insolvent / acquired. Insolvency is WS3's: checkSolvency sets it after 30 days of negative cash with the
+    //    revolver exhausted (the E26 distress menu is WS3's too).
+    if (soldControl(s)) return lossEnding(s, ctx, 'acquired');
+    if (s.player.finance.state === 'insolvent') return lossEnding(s, ctx, 'insolvent');
+    // 2. Ousted: WS3's quarterly board ouster roll (finance/board.ts) stamps the day.
+    if (s.flags['ws3.ousterDay'] !== undefined) return lossEnding(s, ctx, 'ousted');
     // 3. Nationalized (hard path).
     if (w.nationalizedHard) return lossEnding(s, ctx, 'nationalized');
     // 4. Catastrophe.
