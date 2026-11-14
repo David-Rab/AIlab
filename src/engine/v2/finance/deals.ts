@@ -9,7 +9,7 @@ import { addSeat, boardApproval, BOARD_VECTORS } from './board';
 import { DEBT_TERMS } from '../../../data/v2/deals';
 import { issue } from './equity';
 import { ensureWs3, yearStats, type DealOffer } from './ext';
-import { addLedger, commitmentsPerYear, qOf } from './ledger';
+import { addLedger, commitmentsPerYear, qOf, bookCash } from './ledger';
 import { runwayOf } from './runway';
 
 type Template = StrategicDeal['template'];
@@ -144,7 +144,7 @@ export function acceptDeal(s: GameStateV2, ctx: SystemCtx, template: Template, p
     if (amt <= 0) return;
     issue(f.ownership, amt / (V + amt), { kind: 'strat', name: partner });
     f.valuation = V + amt;
-    ctx.bump('cash', amt, label, partner);
+    bookCash(s, ctx, amt, 'financing', label, partner);
     ys.dealEquity += amt;
   };
   if (rescue) {
@@ -184,7 +184,7 @@ export function acceptDeal(s: GameStateV2, ctx: SystemCtx, template: Template, p
       }
       case 'vendorFinance':
         f.debts.push({ id: `D-vn-${s.time.day}`, kind: 'vendorNote', principal: t.equityNow, drawn: t.equityNow, spreadBp: DEBT_TERMS.vendorNote.spreadBp, maturityDay: s.time.day + DEBT_TERMS.vendorNote.years * 365, covenant: 'convertsAtIPO' });
-        ctx.bump('cash', t.equityNow, 'vendor note', partner);
+        bookCash(s, ctx, t.equityNow, 'financing', 'vendor note', partner);
         ys.vendorNotes += t.equityNow;
         break;
       case 'sovereign':

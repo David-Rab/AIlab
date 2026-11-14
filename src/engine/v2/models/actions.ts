@@ -14,6 +14,7 @@ import { deploy, makeVariant, retireVersion, setInternalAgent, swapDeployment, w
 import { bestMeasuredL, internalVersion, versionById } from './labs';
 import { adoptParadigm, fundParadigm, paradigmGate } from './paradigms';
 import { launchRun, planRun, startStream, type LaunchRunParams } from './runs';
+import { bookCash } from '../finance/ledger';
 
 type Params = Record<string, number | string | boolean>;
 type Preview = ReturnType<ActionDef['preview']>;
@@ -330,7 +331,7 @@ export const DEPARTMENT_ACTIONS: ActionDef[] = [
     }),
     apply: (s, ctx) => {
       s.player.tasteHire = Math.min(STAR_HIRE.maxTaste, s.player.tasteHire + STAR_HIRE.dTaste);
-      ctx.bump('cash', -STAR_HIRE.cost, 'star hire');
+      bookCash(s, ctx, -STAR_HIRE.cost, 'staff', 'star hire');
       for (const r of s.rivals) if (r.core.status === 'active') r.meters.cooperation = Math.max(-100, r.meters.cooperation + STAR_HIRE.cooperation / Math.max(1, s.rivals.length));
       ctx.log('company', 'A star researcher joins.', 1);
     },

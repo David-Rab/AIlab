@@ -2,7 +2,7 @@
 import { DEBT_TERMS, RATING_SPREAD_BP } from '../../../data/v2/deals';
 import type { Debt, FinanceState, GameStateV2, Money, SystemCtx } from '../types';
 import { yearStats } from './ext';
-import { commitmentsRemaining } from './ledger';
+import { commitmentsRemaining, bookCash } from './ledger';
 
 /** Effective annual rate (%) of a debt: SOFR + spread (revolver, GPU loans, vendor notes) or y10 + spread (bonds);
  *  plus sector spread widening and +300bp in distress [R15]. */
@@ -72,7 +72,7 @@ export function drawDebt(s: GameStateV2, ctx: SystemCtx, kind: Debt['kind'], amo
     if (kind === 'gpuTerm') d.collateralH100e = (amt / Math.max(0.001, s.market.listPrice * 0.7)) * 1e6;
     f.debts.push(d);
   }
-  ctx.bump('cash', amt, `${kind} draw`);
+  bookCash(s, ctx, amt, 'financing', `${kind} draw`);
   yearStats(s).debtDrawn += amt;
   if (s.player.board.preset === 'pbcTrust' && kind !== 'revolver') ctx.log('finance', 'Trust notified of new debt (5-day notice).');
   return amt;
@@ -91,7 +91,7 @@ export function repayDebt(s: GameStateV2, ctx: SystemCtx, amount: number, id?: s
     paid += x;
   }
   f.debts = f.debts.filter((d) => d.kind === 'revolver' || d.drawn > 1e-6);
-  if (paid > 0) ctx.bump('cash', -paid, 'debt repayment');
+  if (paid > 0) bookCash(s, ctx, -paid, 'financing', 'debt repayment');
   return paid;
 }
 
@@ -129,7 +129,7 @@ export function covenantsBreached(s: GameStateV2, ctx: SystemCtx): boolean {
           d.drawn -= x;
           left -= x;
         }
-        ctx.bump('cash', -sweep, 'GPU-loan cash sweep', 'collateral below 1.2× loan');
+        bookCash(s, ctx, -sweep, 'financing', 'GPU-loan cash sweep', 'collateral below 1.2× loan');
       } else breach = true;
     }
   }
@@ -147,7 +147,7 @@ export function rollMaturities(s: GameStateV2, ctx: SystemCtx): boolean {
       continue;
     }
     if (f.cash >= d.drawn) {
-      ctx.bump('cash', -d.drawn, 'debt maturity');
+      bookCash(s, ctx, -d.drawn, 'financing', 'debt maturity');
       d.drawn = 0;
     } else breach = true;
   }

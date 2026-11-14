@@ -6,7 +6,7 @@ import type { CapitalMarkets, EngineSystem, GameStateV2, Money, SystemCtx } from
 import { covenantsBreached, ratingOf, ratingScore, revolverCap, rollMaturities } from './debt';
 import { closePendingRound, valuationNow } from './equity';
 import { defaultCapitalWS3, ensureWs3, yearStats } from './ext';
-import { commitmentsPerYear } from './ledger';
+import { commitmentsPerYear, bookCash } from './ledger';
 
 /** Capital markets at Jul 2025. A_t = 4.0·R_sector·H·M(y10)·W with R_sector = private frontier-lab run-rates. */
 export function initialCapital(rSector: number): CapitalMarkets {
@@ -115,7 +115,7 @@ function settleTranches(s: GameStateV2, ctx: SystemCtx) {
   for (const t of f.tranches) {
     const met = !t.condition || trancheConditionMet(s, t.condition);
     if (t.dueDay <= s.time.day && met) {
-      ctx.bump('cash', t.amount, 'equity tranche', t.source);
+      bookCash(s, ctx, t.amount, 'financing', 'equity tranche', t.source);
       yearStats(s).equity += t.amount;
       continue;
     }
@@ -123,7 +123,7 @@ function settleTranches(s: GameStateV2, ctx: SystemCtx) {
       if (t.condition === 'recapitalisation') {
         // SoftBank precedent: $30B → $10B if the recapitalisation does not close by the deadline [R15].
         ctx.log('finance', `${t.source}: recapitalisation missed; the investor cuts the tranche to $10B.`, 2);
-        ctx.bump('cash', Math.min(10, t.amount), 'equity tranche', `${t.source} (reduced)`);
+        bookCash(s, ctx, Math.min(10, t.amount), 'financing', 'equity tranche', `${t.source} (reduced)`);
         yearStats(s).equity += Math.min(10, t.amount);
       } else ctx.log('finance', `${t.source}: condition (${t.condition}) not met; $${t.amount.toFixed(1)}B lapses.`, 2);
       continue;

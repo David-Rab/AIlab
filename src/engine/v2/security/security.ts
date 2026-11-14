@@ -1,6 +1,6 @@
 // Weight and secrets security, spies, siloing (V2-SPEC §3.6; research/11 #17, #24). Owner: WS4.
 import { clamp } from '../../rng';
-import { dateOf, decimalYear } from '../core/time';
+import { decimalYear } from '../core/time';
 import { bestPlayerVersion, activeRivals, CHINA_ID } from '../models/labs';
 import { exfiltrationHazard } from '../safety/incidents';
 import { misalignment } from '../safety/traits';
@@ -56,7 +56,7 @@ export const securitySystem: EngineSystem = {
     sec.privileged = privilegedOf(s.player.staff, sec.siloing);
     w.spyMult = Math.min(1, w.spyMult + 0.002);
     sec.spies = sec.privileged * spyRate(s) * w.spyMult * (sec.clearances ? 0.6 : 1);
-    if (dateOf(s).getUTCDate() === 1 && sec.spendRate > 0) ctx.bump('cash', -sec.spendRate / 12, 'security spend', `WSL target ${sec.target.toFixed(1)}`);
+    // Security spend is charged only by WS3's payroll system (finance ledger); this system keeps its effects.
 
     // Theft against the player, then against active rivals holding a model worth stealing.
     if (rng.chance(theftHazardDaily(s))) {

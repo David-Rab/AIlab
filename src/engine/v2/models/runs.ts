@@ -27,6 +27,7 @@ import { addOff, addSig, baseEffect, clampSignals, monitorabilityClass, postEffe
 import { domainsOf, levelOf, pcContinue, pcOfBase, pmOfBuild, refreshLevels, simpleFrontierPm } from './capability';
 import { DISTILL_PM_PENALTY, DISTILL_SERVE_FACTOR } from './distill';
 import { versionById } from './labs';
+import { bookCash } from '../finance/ledger';
 
 export interface LaunchRunParams {
   kind: RunKind;
@@ -212,7 +213,7 @@ export function launchRun(s: GameStateV2, ctx: SystemCtx, p: LaunchRunParams): T
   if (p.post) run.post = { ...p.post, rlFocus: Array.isArray(p.post.rlFocus) ? [...p.post.rlFocus] : 'broad', techniques: [...p.post.techniques], trainAgainst: [...p.post.trainAgainst] };
   if (p.ida) run.name = `IDA ${n}`;
   m.runs.push(run);
-  if (plan.cashCost > 0) ctx.bump('cash', -plan.cashCost, 'training run', run.name);
+  if (plan.cashCost > 0) bookCash(s, ctx, -plan.cashCost, 'training', 'training run', run.name);
   if (p.kind === 'base' && p.base?.scale === 'stretch') ctx.bump('relations.scrutiny', 5, 'stretch base run', run.name); // §3.4.3
   ctx.log('research', `Run launched: ${run.name} (ETA ${plan.etaDays} d).`, 1, run.id);
   return run;

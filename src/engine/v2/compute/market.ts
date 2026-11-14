@@ -6,7 +6,7 @@ import { asV1World } from '../world/calibration';
 import { decimalYear } from '../core/time';
 import type { BaselineId, ChipMarket, EngineSystem, GameStateV2, LabId, SystemCtx } from '../types';
 import { defaultMarketWS3, ensureWs3, type LabOrder } from '../finance/ext';
-import { qOf, yearStats } from '../finance/ledger';
+import { qOf, yearStats, bookCash } from '../finance/ledger';
 
 type Comp = keyof typeof COMPONENTS;
 const COMPS: Comp[] = ['pkg', 'hbm', 'wafer'];
@@ -421,7 +421,7 @@ function deliver(s: GameStateV2, ctx: SystemCtx, orderId: string, qty: number): 
   fx.inventory.transit += qty;
   fx.inventory.book += (qty * (o.kind === 'spot' ? spotPrice(s.market) : o.price)) / 1e6;
   if (pay > 0) {
-    ctx.bump('cash', -pay, 'chip delivery', `${(qty / 1e6).toFixed(2)}M H100e`);
+    bookCash(s, ctx, -pay, 'compute', 'chip delivery', `${(qty / 1e6).toFixed(2)}M H100e`);
     yearStats(s).capexChips += pay;
   }
   // LTA orders: next quarter's tranche stays open until ltaEndQ.

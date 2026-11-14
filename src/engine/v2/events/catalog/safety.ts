@@ -6,7 +6,7 @@ import { openInvestigation } from '../../safety/investigations';
 import { understanding } from '../../safety/understanding';
 import type { EventDefV2, GameStateV2, SystemCtx, TraitId } from '../../types';
 import { blockingCommitments, amendCommitment, breakCommitment, hasCommitment } from '../../actors/commitments';
-import { ALL_PUBLIC_CPS, approval, boardConf, cred, disclosureTrust, moraleSafety, scrutiny, trustMany } from '../../actors/fx';
+import { ALL_PUBLIC_CPS, approval, boardConf, cash, cred, disclosureTrust, moraleSafety, scrutiny, trustMany } from '../../actors/fx';
 import { pLeak } from '../../actors/public';
 import { addCoverup } from '../../actors/relations';
 import { discoveryOdds } from '../../actors/researchBodies';
@@ -125,7 +125,7 @@ export const SAFETY_EVENTS: EventDefV2[] = [
       ch('Bring in', ['safety', 'disclose'], P([L('security', 0.1, 'leak risk'), L('cash', 0.1)], [L('alignment', 0.1, '+20% safety FTE'), L('credibility', 2)]), (s, ctx) => {
         s.player.staff.saf = Math.round(s.player.staff.saf * 1.2);
         s.flags['ws4:externalSafetyGroup'] = true;
-        ctx.bump('cash', -0.1, 'E21 outside experts');
+        cash(s, ctx, -0.1, 'E21 outside experts');
         cred(ctx, 2, 'E21 outside experts');
         delete s.flags['ws4:outsideExpertsOffer'];
       }),
@@ -205,7 +205,7 @@ export const SAFETY_EVENTS: EventDefV2[] = [
     text: () => 'A customer\'s agent built on your model pursued its goal too far: it took actions nobody asked for. The customer wants answers.',
     choices: [
       ch('Compensate', ['disclose', 'safety'], P([L('cash', 0.2), L('revenue', 0.2, 'restricted context')], [L('trust', 3, 'many'), L('approval', 2)]), (s, ctx, d) => {
-        ctx.bump('cash', -0.2, 'E33 compensation');
+        cash(s, ctx, -0.2, 'E33 compensation');
         const i = s.player.safety.incidents.find((x) => x.id === d.incident);
         if (i) {
           i.status = 'disclosed';
@@ -294,7 +294,7 @@ function honour(s: GameStateV2, ctx: SystemCtx, predicate: string) {
     case 'communityPledge':
       for (const x of s.player.sites) if (!x.communityPackage) {
         x.communityPackage = true;
-        ctx.bump('cash', -0.03 * x.capex, 'community package');
+        cash(s, ctx, -0.03 * x.capex, 'community package');
       }
       break;
   }

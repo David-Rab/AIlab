@@ -23,7 +23,7 @@ export const safeBot: BotPolicy = {
       if (s.player.policies.govBriefing < 3) tryAct(s, api, 'B7', { level: 3 });
       if (s.player.security.target < 4.5) tryAct(s, api, 'SEC_TARGET', { level: Math.min(4.5, s.player.security.target + 0.5) });
       if (s.player.security.siloing < 1) tryAct(s, api, 'SEC_SILO', { level: 1 });
-      if (s.player.policies.transitionFund < 5) tryAct(s, api, 'F2', { perYear: 5 });
+      if (s.player.policies.transitionFund < 5) tryAct(s, api, 'wfx.transitionFund', { amount: 5 });
     }
   },
   decide(s, d) {

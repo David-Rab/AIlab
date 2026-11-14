@@ -20,7 +20,7 @@ export const GOV_EVENTS: EventDefV2[] = [
         const w = ws4(s);
         w.defenseContract = 'unrestricted';
         w.unrestrictedDefense = true;
-        cash(ctx, 1, 'E07 defense contract');
+        cash(s, ctx, 1, 'E07 defense contract');
         trust(s, ctx, 'exec', 8, 'E07 defense contract');
         moraleSafety(ctx, -12, 'E07 defense contract');
         bloc(s, ctx, 'defense', 10, 0, 'E07');
@@ -29,7 +29,7 @@ export const GOV_EVENTS: EventDefV2[] = [
       }),
       ch('With limits', ['balanced', 'gov'], (s) => ({ costs: [L('revenue', 0.5, 'half the contract'), L('trust', 15, 'exec if retaliation', { probability: retaliationP(s) })], gains: [L('cash', 0.5), L('approval', 6, 'bloc:civlib')], exposure: [] }), (s, ctx) => {
         ws4(s).defenseContract = 'limits';
-        cash(ctx, 0.5, 'E07 defense contract (limits)');
+        cash(s, ctx, 0.5, 'E07 defense contract (limits)');
         signCommitment(s, ctx, 'usageRestriction', 'No mass surveillance or autonomous weapons', 'noSurveillance', {}, ['bloc:civlib', 'bloc:safety'], { trust: 6, credibility: 10 });
         bloc(s, ctx, 'civlib', 6, 0, 'E07');
         if (ctx.rng('events').chance(retaliationP(s))) {

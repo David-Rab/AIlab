@@ -1,6 +1,6 @@
 // Player finance state and the commitment ledger (V2-SPEC §3.7.2, §3.7.6; research/15 §1.8). Owner: WS3.
 import { dayOfDate, quarterIndex } from '../core/time';
-import type { BaselineId, Commitment$, Day, FinanceState, GameStateV2, GovernancePresetId, Money } from '../types';
+import type { BaselineId, CashFlowKind, Commitment$, Day, FinanceState, GameStateV2, GovernancePresetId, Money, SystemCtx } from '../types';
 import { valuationMark } from './equity';
 import { defaultFinanceWS3, yearStats } from './ext';
 
@@ -100,3 +100,29 @@ export function addLedger(s: GameStateV2, e: Omit<Commitment$, 'id'> & { id?: st
 }
 
 export { yearStats };
+
+/**
+ * THE finance ledger entry point: every change to player cash, from any workstream, goes through here (M2 money-flow
+ * audit). Applies `amount` to cash (cause key 'cash', `source`/`detail` shown in the "why" strip) and books it under
+ * `kind` in this year's YearStats.flows. Revenue (kind 'revenue', booked once by WS5) also feeds WS3's revenue tallies.
+ * Returns the amount applied.
+ */
+export function bookCash(s: GameStateV2, ctx: SystemCtx, amount: Money, kind: CashFlowKind, source: string, detail?: string): Money {
+  if (!amount || !Number.isFinite(amount)) return 0;
+  const applied = ctx.bump('cash', amount, source, detail);
+  const ys = yearStats(s);
+  const fl = (ys.flows ??= {});
+  fl[kind] = (fl[kind] ?? 0) + applied;
+  if (kind === 'revenue') {
+    ys.revenue += applied;
+    s.player.finance.ws3.accQ.revenue += applied;
+  }
+  return applied;
+}
+
+/** Σ of all ledger flows over every year (the audit compares it with Δcash). */
+export function totalFlows(s: GameStateV2): Partial<Record<CashFlowKind, Money>> {
+  const out: Partial<Record<CashFlowKind, Money>> = {};
+  for (const ys of Object.values(s.player.finance.ws3.years)) for (const [k, v] of Object.entries(ys.flows ?? {})) out[k as CashFlowKind] = (out[k as CashFlowKind] ?? 0) + (v ?? 0);
+  return out;
+}

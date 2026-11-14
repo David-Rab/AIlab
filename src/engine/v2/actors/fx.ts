@@ -2,6 +2,7 @@
 // Owner: WS4. Every meter change goes through ctx.bump / ctx.cause so the "why" strip can explain it.
 import { clamp } from '../../rng';
 import type { BlocId, CostLine, CounterpartyId, Currency, GameStateV2, SystemCtx } from '../types';
+import { bookCash } from '../finance/ledger';
 import { trustDelta } from './relations';
 import { ws4 } from './state';
 
@@ -55,7 +56,8 @@ export const scrutiny = (ctx: SystemCtx, d: number, src: string, detail?: string
 export const talent = (ctx: SystemCtx, d: number, src: string, detail?: string) => ctx.bump('relations.talentPull', d, src, detail);
 export const approval = (ctx: SystemCtx, d: number, src: string, detail?: string) => ctx.bump('pub.approval', d, src, detail);
 export const concern = (ctx: SystemCtx, d: number, src: string, detail?: string) => ctx.bump('pub.concern', d, src, detail);
-export const cash = (ctx: SystemCtx, d: number, src: string, detail?: string) => ctx.bump('cash', d, src, detail);
+/** One-off relation costs/income (actions, events, fines) go through WS3's finance ledger (kind 'relations'). */
+export const cash = (s: GameStateV2, ctx: SystemCtx, d: number, src: string, detail?: string) => bookCash(s, ctx, d, 'relations', src, detail);
 export const morale = (ctx: SystemCtx, d: number, src: string, detail?: string) => ctx.bump('morale', d, src, detail);
 export const moraleSafety = (ctx: SystemCtx, d: number, src: string, detail?: string) => ctx.bump('morale.safety', d, src, detail);
 export const boardConf = (ctx: SystemCtx, d: number, src: string, detail?: string) => ctx.bump('board.confidence', d, src, detail);

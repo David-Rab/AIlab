@@ -2,6 +2,7 @@
 import { dayOfQuarter, quarterIndex } from '../core/time';
 import type { GameStateV2, Money, Ownership, SystemCtx } from '../types';
 import { ensureWs3, yearStats, type PendingRound } from './ext';
+import { bookCash } from './ledger';
 
 /** V = 22·(g/5)^0.4·(R/$20B)^−0.15·H·N·M·R (R15 §1.5). */
 export function valuationMark(g: number, R: number, H: number, N: number, M: number): number {
@@ -124,7 +125,7 @@ export function bookRound(s: GameStateV2, ctx: SystemCtx, amount: Money, pre: Mo
   const dv = post - f.valuation;
   f.valuation = post;
   ctx.cause('player.finance.valuation', dv, opts.ipo ? 'IPO' : 'equity round', `$${amount.toFixed(1)}B at $${pre.toFixed(0)}B pre`);
-  ctx.bump('cash', now, opts.ipo ? 'IPO' : 'equity round', `${(dil * 100).toFixed(1)}% dilution`);
+  bookCash(s, ctx, now, 'financing', opts.ipo ? 'IPO' : 'equity round', `${(dil * 100).toFixed(1)}% dilution`);
   f.raisedLast4q += amount;
   yearStats(s).equity += now;
   if (down) {

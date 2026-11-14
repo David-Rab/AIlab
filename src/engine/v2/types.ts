@@ -731,7 +731,19 @@ export interface YearStats {
   capexChips: Money; capexSites: Money; capexSitesFinanced: Money; supplierFunding: Money;
   equity: Money; dealEquity: Money; debtDrawn: Money; spvFinanced: Money; cloudFinanced: Money; leaseFinanced: Money; vendorNotes: Money;
   minRunwayQ: number; distressDays: number;
+  /** Cash booked through the finance ledger (`bookCash`, finance/ledger.ts) by flow kind, $B (signed). Every change to
+   *  player cash goes through it, so Σ flows = Δcash (M2 money-flow audit, scripts/v2/money.ts). */
+  flows?: Partial<Record<CashFlowKind, Money>>;
 }
+
+/** Cash-flow kinds of the finance ledger; each has exactly one owner (M2 money-flow audit).
+ *  WS5: revenue, world · WS3: payroll, security, transitionFund, opex, commitments, compute, financing ·
+ *  WS1: training, staff · WS4: relations (actions, events, statutory fines). */
+export type CashFlowKind =
+  | 'revenue' | 'world'
+  | 'payroll' | 'security' | 'transitionFund' | 'opex' | 'commitments' | 'compute' | 'financing'
+  | 'training' | 'staff'
+  | 'relations';
 
 /** A strategic-deal offer waiting for accept/decline (Seek partner action, events E03/E04). */
 export interface DealOffer {

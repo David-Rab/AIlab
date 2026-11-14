@@ -3,7 +3,7 @@
 import { MARKET } from '../../../data/v2/deals';
 import { dayOfDate, dayOfQuarter } from '../core/time';
 import type { BaselineId, ChipOrder, CloudContract, GameStateV2, Money, SystemCtx } from '../types';
-import { addLedger, qOf, yearStats } from '../finance/ledger';
+import { addLedger, qOf, yearStats, bookCash } from '../finance/ledger';
 import { cloudPricePerYear, spotPrice } from './market';
 
 /** Standard order of 1.0M H100e at $23K, 30% deposit paid, delivered Q4 2025 / Q1 2026 (§3.7.2). */
@@ -64,7 +64,7 @@ export function placeOrder(s: GameStateV2, ctx: SystemCtx, kind: OrderKind, qty:
   const o: ChipOrder = { id: `O${s.time.day}-${n}`, lab: 'player', qty, kind, price: quote.price, deposit, dueQ: quote.dueQ, prepayFrac: prepay, nonTW: !!opts.nonTW, delivered: 0 };
   s.player.orders.push(o);
   if (deposit > 0) {
-    ctx.bump('cash', -deposit, 'chip deposit', `${(qty / 1e6).toFixed(2)}M H100e`);
+    bookCash(s, ctx, -deposit, 'compute', 'chip deposit', `${(qty / 1e6).toFixed(2)}M H100e`);
     yearStats(s).capexChips += deposit;
   }
   return o;
@@ -103,7 +103,7 @@ export function fundSupplier(s: GameStateV2, ctx: SystemCtx, amount: Money): num
   const perQ = (amount / 1.0) * 1e5;
   s.market.pipe.pkg[s.market.pipe.pkg.length - 1] += perQ;
   s.player.finance.ws3.reserved.push({ perQ: perQ * 0.8, fromQ: qOf(s) + 4, toQ: qOf(s) + 12 }); // 80% reserved for 2 years [D]
-  ctx.bump('cash', -amount, 'supplier funding', `+${(perQ / 1e3).toFixed(0)}k H100e/q packaging`);
+  bookCash(s, ctx, -amount, 'compute', 'supplier funding', `+${(perQ / 1e3).toFixed(0)}k H100e/q packaging`);
   yearStats(s).supplierFunding += amount;
   return perQ;
 }

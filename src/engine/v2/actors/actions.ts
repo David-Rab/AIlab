@@ -122,7 +122,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     preview: () => pv([L('cash', 0.05, 'per year')], [L('credibility', 1), L('security', 0.1, 'misuse detection')]),
     apply(s, ctx) {
       s.flags['ws4:bugBounty'] = true;
-      cash(ctx, -0.05, 'A5 bug bounty');
+      cash(s, ctx, -0.05, 'A5 bug bounty');
       cred(ctx, 1, 'A5 bug bounty');
     },
   }),
@@ -148,7 +148,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
       grantAccess(s, 'exec', 2);
       grantFavor(s, 'exec');
       trust(s, ctx, 'exec', 5, 'B1 loss-leader contract');
-      cash(ctx, -0.3, 'B1 loss-leader contract');
+      cash(s, ctx, -0.3, 'B1 loss-leader contract');
     },
   }),
   def({
@@ -164,13 +164,13 @@ export const RELATION_ACTIONS: ActionDef[] = [
       ctx.bump('china.meters.hawkDove', 5, 'B2 defense contract');
       if (terms === 'unrestricted') {
         w.unrestrictedDefense = true;
-        cash(ctx, 1, 'B2 defense contract');
+        cash(s, ctx, 1, 'B2 defense contract');
         trust(s, ctx, 'exec', 8, 'B2 defense contract');
         moraleSafety(ctx, -12, 'B2 defense contract');
         bloc(s, ctx, 'defense', 10, 0, 'B2');
         bloc(s, ctx, 'civlib', -8, 5, 'B2');
       } else {
-        cash(ctx, 0.5, 'B2 defense contract (limits)');
+        cash(s, ctx, 0.5, 'B2 defense contract (limits)');
         trust(s, ctx, 'exec', 3, 'B2 defense contract (limits)');
         moraleSafety(ctx, -6, 'B2 defense contract (limits)');
         signCommitment(s, ctx, 'usageRestriction', 'No mass surveillance or autonomous weapons', 'noSurveillance', {}, ['bloc:civlib', 'bloc:safety'], { trust: 6, credibility: 10 });
@@ -188,7 +188,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     id: 'B3', title: 'Hire officials', cooldown: 365,
     preview: () => pv([L('cash', 0.02), L('scrutiny', 5)], [L('trust', 3, 'exec')], [L('scrutiny', 8, '"unfair access" press', { probability: 0.3 })]),
     apply(s, ctx) {
-      cash(ctx, -0.02, 'B3 former officials');
+      cash(s, ctx, -0.02, 'B3 former officials');
       scrutiny(ctx, 5, 'B3 former officials');
       const cap = ws4(s).accessCap.exec ?? 0;
       grantAccess(s, 'exec', Math.min(4, Math.max(cap, s.relations.stocks.exec.access) + 1));
@@ -205,7 +205,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     },
     apply(s, ctx, p) {
       const dereg = str(p, 'direction', 'deregulate') === 'deregulate';
-      cash(ctx, -0.05, 'B4 lobbying');
+      cash(s, ctx, -0.05, 'B4 lobbying');
       regStance(s, ctx, (dereg ? -10 : 10) * dealmakerMult(s), 'B4 lobbying');
       trust(s, ctx, 'exec', dereg ? 3 : 1, 'B4 lobbying');
       if (dereg) {
@@ -233,7 +233,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     id: 'B6', title: 'Sue', cooldown: 180,
     preview: (s, p) => pv([L('cash', 0.05), L('scrutiny', 8)], [L('trust', str(p, 'target', 'gov') === 'gov' ? 0 : 0, 'courts')], [L('approval', -5, 'sympathy backlash', { probability: str(p, 'target', 'gov') === 'critics' ? 0.8 : 0.2 }), L('freedom', 1, `injunction odds ${Math.round(s.gov.judicialCheck)}%`, { probability: s.gov.judicialCheck / 100 })]),
     apply(s, ctx, p) {
-      cash(ctx, -0.05, 'B6 lawsuit');
+      cash(s, ctx, -0.05, 'B6 lawsuit');
       scrutiny(ctx, 8, 'B6 lawsuit');
       const win = ctx.rng('actors').chance(s.gov.judicialCheck / 100);
       if (str(p, 'target', 'gov') === 'critics') {
@@ -288,7 +288,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     preview: (s) => pv([L('revenue', Math.max(0.01, s.player.finance.revenueRun * 0.01), '−1%'), L('trust', 5, 'china')], [L('approval', 5, 'bloc:hawks'), L('leadDays', 5, 'less distillation')]),
     apply(s, ctx) {
       s.flags['ws4:restrictAdversary'] = true;
-      cash(ctx, -s.player.finance.revenueRun * 0.01, 'C2 restricted entities');
+      cash(s, ctx, -s.player.finance.revenueRun * 0.01, 'C2 restricted entities');
       bloc(s, ctx, 'hawks', 5, 0, 'C2');
       trust(s, ctx, 'china', -5, 'C2 restricted entities');
     },
@@ -318,7 +318,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     apply(s, ctx, p) {
       const r = poachTarget(s, p);
       if (!r) return;
-      cash(ctx, -0.5, 'C4 poaching', r.core.name);
+      cash(s, ctx, -0.5, 'C4 poaching', r.core.name);
       const n = Math.max(5, Math.round(r.core.staff.cap * 0.03));
       r.core.staff.cap = Math.max(0, r.core.staff.cap - n);
       s.player.staff.cap += n;
@@ -328,7 +328,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
       trust(s, ctx, `rival:${r.core.id}`, -10, 'C4 poaching');
       talent(ctx, 4, 'C4 poaching');
       morale(ctx, -3, 'culture dilution', r.core.name);
-      if (ctx.rng('actors').chance(0.2)) cash(ctx, -0.5, 'trade-secret suit', r.core.name);
+      if (ctx.rng('actors').chance(0.2)) cash(s, ctx, -0.5, 'trade-secret suit', r.core.name);
     },
   }),
   def({
@@ -351,7 +351,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     id: 'D1', title: 'Academic grant', cooldown: 365,
     preview: () => pv([L('cash', 0.05), L('compute', 0.5)], [L('talent', 3, undefined, { lagDays: 270 }), L('trust', 8, 'academia')], [L('credibility', -2, 'academics publish what they find', { probability: 0.3 })]),
     apply(s, ctx) {
-      cash(ctx, -0.05, 'D1 academic grant');
+      cash(s, ctx, -0.05, 'D1 academic grant');
       grantAccess(s, 'academia', 1);
       trust(s, ctx, 'academia', 8, 'D1 academic grant');
       talent(ctx, 1, 'D1 academic grant');
@@ -361,7 +361,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     id: 'D2', title: 'Safety fellowship', cooldown: 365,
     preview: () => pv([L('cash', 0.02, '$15k compute per fellow-month'), L('security', 0.05, 'leak risk')], [L('talent', 2, 'safety pipeline'), L('credibility', 1)]),
     apply(s, ctx) {
-      cash(ctx, -0.02, 'D2 safety fellowship');
+      cash(s, ctx, -0.02, 'D2 safety fellowship');
       talent(ctx, 2, 'D2 safety fellowship');
       cred(ctx, 1, 'D2 safety fellowship');
       bloc(s, ctx, 'safety', 3, 0, 'D2');
@@ -373,7 +373,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     preview: (s) => pv([L('cash', Math.round((1 + 0.005 * s.player.dataAssets.unlicensedTokensT) * 100) / 100, 'licences up front')], [L('approval', 10, 'bloc:creatives')], [L('cash', 0, 'litigation hazard → 0')]),
     apply(s, ctx) {
       const d = s.player.dataAssets;
-      cash(ctx, -(1 + 0.005 * d.unlicensedTokensT), 'D3 data licences');
+      cash(s, ctx, -(1 + 0.005 * d.unlicensedTokensT), 'D3 data licences');
       d.licensedTokensT += d.unlicensedTokensT;
       d.unlicensedTokensT = 0;
       d.litigationRisk = 0;
@@ -425,7 +425,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
         bloc(s, ctx, 'hawks', 8, 0, 'E3');
         bloc(s, ctx, 'chip', -8, 5, 'E3');
         ctx.bump('gov.hawkishness', 5, 'E3 export-control lobbying');
-        if (ctx.rng('actors').chance(0.4)) cash(ctx, -0.2, 'rare-earth retaliation');
+        if (ctx.rng('actors').chance(0.4)) cash(s, ctx, -0.2, 'rare-earth retaliation');
       } else {
         bloc(s, ctx, 'chip', 8, 0, 'E3');
         bloc(s, ctx, 'hawks', -8, 5, 'E3');
@@ -441,27 +441,14 @@ export const RELATION_ACTIONS: ActionDef[] = [
     preview: (s) => pv([L('cash', Math.max(0.05, 0.03 * s.player.sites.reduce((a, x) => a + x.capex, 0)), '+3% site capex')], [L('approval', 10, 'bloc:ratepayers')], [L('freedom', 1, 'pledge binds new sites')]),
     apply(s, ctx) {
       s.player.policies.communityBenefits = true;
-      cash(ctx, -Math.max(0.05, 0.03 * s.player.sites.reduce((a, x) => a + x.capex, 0)), 'F1 community benefits');
+      cash(s, ctx, -Math.max(0.05, 0.03 * s.player.sites.reduce((a, x) => a + x.capex, 0)), 'F1 community benefits');
       for (const x of s.player.sites) x.communityPackage = true;
       signCommitment(s, ctx, 'communityPledge', 'Pay our own power and grid costs', 'communityPledge', {}, ['bloc:ratepayers', 'states'], { trust: 5, credibility: 8 });
       bloc(s, ctx, 'ratepayers', 10, 0, 'F1');
       ctx.bump('pub.dcNimby', -10, 'F1 community benefits');
     },
   }),
-  def({
-    id: 'F2', title: 'Transition fund',
-    preview: (_s, p) => pv([L('cash', num(p, 'perYear', 5), 'per year')], [L('approval', 6, 'bloc:labor'), L('approval', 2)]),
-    apply(s, ctx, p) {
-      const amt = Math.max(0, num(p, 'perYear', 5));
-      const up = amt > s.player.policies.transitionFund;
-      s.player.policies.transitionFund = amt;
-      if (up) {
-        bloc(s, ctx, 'labor', 6, 0, 'F2');
-        ctx.bump('pub.jobAnxiety', -3, 'F2 transition fund');
-        ctx.bump('pub.approval', 2, 'F2 transition fund');
-      }
-    },
-  }),
+  // F2 (transition fund) is WS5's wfx.transitionFund: one implementation, charged by WS3's payroll.
   def({
     id: 'F3', title: 'No drop-in agents', once: true,
     preview: (s) => pv([L('revenue', Math.max(0.05, s.player.finance.revenueRun * 0.05), 'α ≤ 0.5 in chosen sectors')], [L('approval', 10, 'bloc:labor')]),
@@ -520,8 +507,3 @@ export const RELATION_ACTIONS: ActionDef[] = [
   }),
 ];
 
-/** Monthly policy costs owned by WS4 (transition fund), charged on the 1st by actorsDaily. */
-export function relationPolicyCostsMonthly(s: GameStateV2, ctx: SystemCtx) {
-  const f = s.player.policies.transitionFund;
-  if (f > 0) cash(ctx, -f / 12, 'transition fund');
-}

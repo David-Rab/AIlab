@@ -312,9 +312,8 @@ export const worldDailySystem: EngineSystem = {
     const friendStar = 0.03 + 0.18 * sigmoid((cons.social - 7) / 1) * fx.consumerReach * (pol.companionBan ? 0.4 : 1);
     W.friendShare += (friendStar - W.friendShare) * 3 * dt;
 
-    // Player transition fund is paid daily from cash (research/16 §1A.3).
-    const fund = s.player.policies.transitionFund;
-    if (fund > 0) ctx.bump('cash', -fund / 365, 'transition fund');
+    // The player transition fund is charged only by WS3's payroll system (finance ledger); its effects on workers
+    // (Retrain) are computed here (research/16 §1A.3).
 
     updateControl(s, ctx, mix, pol);
     advanceRobots(s, ctx);

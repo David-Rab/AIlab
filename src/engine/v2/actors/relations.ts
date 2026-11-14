@@ -2,8 +2,6 @@
 // research/17 §1.2–1.5). Owner: WS4. Also hosts actorsDaily, which steps public, blocs, government and relations.
 import { BLOCS } from '../../../data/v2/blocs';
 import type { CounterpartyId, EngineSystem, GameStateV2, LabId, RelationStock, RelationsState, SystemCtx } from '../types';
-import { dateOf } from '../core/time';
-import { relationPolicyCostsMonthly } from './actions';
 import { blocsDaily } from './blocs';
 import { statutoryDaily } from './commitments';
 import { cred, flushDrift, scrutiny, trust } from './fx';
@@ -115,7 +113,6 @@ export const actorsDailySystem: EngineSystem = {
     govDaily(s, ctx);
     relationsDaily(s, ctx);
     statutoryDaily(s, ctx);
-    if (dateOf(s).getUTCDate() === 1) relationPolicyCostsMonthly(s, ctx);
     if (ctx.day % 7 === 0) {
       researchBodiesWeekly(s, ctx);
       flushDrift(s, ctx);

@@ -12,7 +12,7 @@ import { debtHeadroom, drawDebt, repayDebt } from './debt';
 import { acceptDeal, dealBlocker, dealTerms, declineDeal, partnerFor, rescueOffer, seekPartner } from './deals';
 import { bookRound, canRaise, raiseCeiling, startRaise } from './equity';
 import { ensureWs3, yearStats, type DealOffer } from './ext';
-import { commitmentsPerYear, qOf } from './ledger';
+import { commitmentsPerYear, qOf, bookCash } from './ledger';
 import { runwayOf } from './runway';
 
 type P = Record<string, number | string | boolean>;
@@ -459,7 +459,7 @@ const transformers: ActionDef = {
     const gw = Math.max(0.1, num(p, 'gw', 2));
     const cost = gw * TRANSFORMER.costPerGW;
     s.power.ws3.transformersGW += gw;
-    ctx.bump('cash', -cost, 'transformer pre-order', `${gw.toFixed(1)} GW`);
+    bookCash(s, ctx, -cost, 'compute', 'transformer pre-order', `${gw.toFixed(1)} GW`);
     yearStats(s).capexSites += cost;
   },
 };
@@ -529,7 +529,7 @@ const sell: ActionDef = {
       left -= y;
       s.player.finance.ws3.chipBook *= 1 - y / Math.max(1, total + 1e6);
     }
-    ctx.bump('cash', chipSaleValue(s, total), 'chip sale', `${(total / 1e6).toFixed(2)}M H100e`);
+    bookCash(s, ctx, chipSaleValue(s, total), 'compute', 'chip sale', `${(total / 1e6).toFixed(2)}M H100e`);
   },
 };
 const ownedChips = (s: GameStateV2) => s.player.sites.reduce((a, x) => a + x.installed, 0) + (s.player.finance.ws3 ? s.player.finance.ws3.inventory.ready + s.player.finance.ws3.inventory.transit : 0);

@@ -4,7 +4,7 @@
 // did (or is doing) would violate it. The director raises E30 (Honour / Amend / Break) for live commitments whose
 // predicate is true; other workstreams can call `blockingCommitments` before an action to telegraph the cost.
 import type { Commitment, CounterpartyId, DomainId, GameStateV2, ModelVersion, SystemCtx } from '../types';
-import { cred, trust } from './fx';
+import { cash, cred, trust } from './fx';
 import { ws4, ws4r } from './state';
 
 export type CommitmentPredicate = (s: GameStateV2, params: Commitment['condition']['params'], c?: Commitment) => boolean;
@@ -143,7 +143,7 @@ export function statutoryDaily(s: GameStateV2, ctx: SystemCtx) {
     const key = `stat:${i.id}`;
     if (!late || s.flags[key]) continue;
     s.flags[key] = true;
-    ctx.bump('cash', st.raise ? -0.003 : -0.001, 'statutory fine', st.raise ? 'RAISE' : 'SB 53');
+    cash(s, ctx, st.raise ? -0.003 : -0.001, 'statutory fine', st.raise ? 'RAISE' : 'SB 53');
     for (const cp of ['exec', 'states', 'evalGov'] as CounterpartyId[]) trust(s, ctx, cp, -4, 'unreported incident');
     cred(ctx, -5, 'unreported incident');
     ctx.log('gov', 'Regulators fine you for a late incident report.', 3);

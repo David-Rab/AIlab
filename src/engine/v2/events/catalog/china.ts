@@ -16,7 +16,7 @@ export const CHINA_EVENTS: EventDefV2[] = [
       ch('Ban + KYC', ['security', 'hawk'], (s) => ({ costs: [L('revenue', Math.max(0.05, s.player.finance.revenueRun * 0.02), '−2%')], gains: [L('leadDays', 20, 'distillation ×0.75'), L('approval', 4, 'bloc:hawks')], exposure: [] }), (s, ctx) => {
         s.flags['ws4:kycBan'] = true;
         for (const d of s.player.deployments) if (d.channel === 'api' || d.channel === 'agents') d.kyc = Math.min(3, d.kyc + 1) as 0 | 1 | 2 | 3;
-        cash(ctx, -s.player.finance.revenueRun * 0.02, 'E06 KYC lost customers');
+        cash(s, ctx, -s.player.finance.revenueRun * 0.02, 'E06 KYC lost customers');
         bloc(s, ctx, 'hawks', 4, 0, 'E06');
         ws4(s).distillDays = 0;
       }),
@@ -94,7 +94,7 @@ export const CHINA_EVENTS: EventDefV2[] = [
     text: () => 'Chinese forces have begun "inspections" of shipping around Taiwan. TSMC output is cut; chip prices are jumping.',
     choices: [
       ch('Non-TW chips', ['spend'], P([L('cash', 1, '+30% price')], [L('compute', 10, '% kept')]), (s, ctx) => {
-        cash(ctx, -1, 'E24 non-Taiwan allocation');
+        cash(s, ctx, -1, 'E24 non-Taiwan allocation');
         s.flags['ws4:nonTW'] = true;
       }),
       ch('Lobby escalation', ['hawk'], P([L('chinaTension', 10)], [L('approval', 6, 'bloc:hawks')]), (s, ctx) => {

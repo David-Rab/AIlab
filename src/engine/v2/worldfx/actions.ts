@@ -2,11 +2,12 @@
 // Every preview shows at least one cost in a currency that is not among its gains (V2-SPEC §2.7).
 import { SECTOR_BY_ID, SECTOR_IDS } from '../../../data/v2/sectors';
 import { TECH_BY_ID, WORLD_TECHS } from '../../../data/v2/techs';
-import type { ActionDef, CostLine, Deployment, GameStateV2, SectorId } from '../types';
+import type { ActionDef, CostLine, Deployment, GameStateV2, SectorId, SystemCtx } from '../types';
 import { paidDeployments, worldMix } from './mix';
 import { capacityOf, moonshotH100e, revenueReadout } from './revenue';
 import { mSci, lSci, scienceRate, techBlocker } from './techtree';
 import { internalVersion } from '../models/labs';
+import { bookCash } from '../finance/ledger';
 
 /** Sector product: certification time, cash and product-team time [D] (research/16 §1A.3 "costs months and money"). */
 export const PRODUCT = { days: 120, cash: 0.4, prodFTE: 15 };
@@ -73,13 +74,14 @@ const sectorProduct: ActionDef = {
     if (!sector || !host) return;
     if (!host.sectorFocus.includes(sector)) host.sectorFocus.push(sector);
     if (s.world.fx.certDay[sector] === undefined) s.world.fx.certDay[sector] = ctx.day + PRODUCT.days;
-    ctx.bump('cash', -PRODUCT.cash, 'sector product', SECTOR_BY_ID[sector].name);
+    bookCash(s, ctx, -PRODUCT.cash, 'world', 'sector product', SECTOR_BY_ID[sector].name);
     ctx.log('company', `${SECTOR_BY_ID[sector].name} product in certification (${PRODUCT.days} days).`);
   },
 };
 
 /** Transition fund: $B/yr to retraining and transition support (research/16 §1A.2 step 9: each $10B/yr adds +0.1
- *  Retrain, cap +0.5; research/07 JobAnxiety relief). Paid daily from cash by worldDaily. */
+ *  Retrain, cap +0.5; research/07 JobAnxiety relief). The single implementation of the fund: WS4 events call
+ *  `setTransitionFund`; WS3's payroll system charges it monthly through the finance ledger. */
 const transitionFund: ActionDef = {
   id: 'wfx.transitionFund',
   sphere: 'world',
@@ -113,7 +115,15 @@ const transitionFund: ActionDef = {
   },
   apply(s, ctx, p: P) {
     const cur = s.player.policies.transitionFund;
-    const amount = typeof p.amount === 'number' ? Math.max(0, Math.min(100, p.amount)) : cur + 5;
+    setTransitionFund(s, ctx, typeof p.amount === 'number' ? p.amount : cur + 5);
+  },
+};
+
+/** Set the transition fund ($B/yr, 0–100) with its one-off public effects. Used by wfx.transitionFund and events. */
+export function setTransitionFund(s: GameStateV2, ctx: SystemCtx, perYear: number): void {
+  {
+    const cur = s.player.policies.transitionFund;
+    const amount = Math.max(0, Math.min(100, perYear));
     const d = amount - cur;
     s.player.policies.transitionFund = amount;
     if (d > 0) {
@@ -124,9 +134,9 @@ const transitionFund: ActionDef = {
       ctx.bump('pub.approval', Math.max(-5, d * 0.4), 'transition fund cut');
       ctx.bump('trust:bloc:labor', Math.max(-12, d), 'transition fund cut');
     }
-    ctx.log('company', `Transition fund set to $${amount.toFixed(0)}B/yr.`);
-  },
-};
+    ctx.log('company', `Transition fund set to ${amount.toFixed(0)}B/yr.`);
+  }
+}
 
 /** Default moonshot target: a researchable, non-risk technology with benefits. */
 function defaultTech(s: GameStateV2): string | undefined {

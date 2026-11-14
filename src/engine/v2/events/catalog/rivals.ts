@@ -52,7 +52,7 @@ export const RIVALS_EVENTS: EventDefV2[] = [
       ch('Acquire', ['race', 'acquire'], () => ({ costs: [L('cash', 5), L('scrutiny', 20, 'antitrust')], gains: [L('compute', 20, '% more'), L('talent', 3)], exposure: [L('morale', -3, 'culture blend')] }), (s, ctx, d) => {
         const r = typeof d.lab === 'string' ? activeLab(s, d.lab) : undefined;
         if (!r) return;
-        cash(ctx, -Math.max(2, Math.min(10, r.finance.valuation * 0.5 || 5)), 'E32 acquisition', r.core.name);
+        cash(s, ctx, -Math.max(2, Math.min(10, r.finance.valuation * 0.5 || 5)), 'E32 acquisition', r.core.name);
         ws4(s).absorbedCompute += r.core.computeOnline;
         s.player.staff.cap += Math.round(r.core.staff.cap * 0.7);
         s.player.staff.saf += Math.round(r.core.staff.saf * 0.7);

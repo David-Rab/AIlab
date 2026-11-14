@@ -53,7 +53,7 @@ export const MODEL_EVENTS: EventDefV2[] = [
       }),
       ch('Price cut', ['finance'], P([L('cash', 0.5, 'margin')], [L('revenue', 0.3, 'share')]), (s, ctx) => {
         for (const d of s.player.deployments) if (d.status === 'live' && d.channel !== 'internal') d.priceIndex = Math.max(0.5, d.priceIndex * 0.85);
-        cash(ctx, -0.5, 'E05 price cut');
+        cash(s, ctx, -0.5, 'E05 price cut');
       }),
       ch('Hold', ['secrecy', 'decline'], P([L('revenue', 0.5, 'share erodes')], [L('leadDays', 5, 'secrecy kept')]), (_s, ctx) => {
         ctx.bump('pub.approval', -1, 'E05 rival product wins');

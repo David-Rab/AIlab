@@ -14,6 +14,7 @@ import { multiplierRef } from '../world/calibration';
 import type { Channel, Deployment, EngineSystem, GameStateV2, LabId, Money, RegionId, SystemCtx } from '../types';
 import { SECTOR_CHANNELS, paidDeployments, versionOf, worldMix, type WorldMix } from './mix';
 import { sigmoid } from './policy';
+import { bookCash } from '../finance/ledger';
 
 /** R11 #14: revenue per serving H100e-year at M = 1 ($). */
 export const RPH_BASE = 40e3;
@@ -197,8 +198,8 @@ export function labMarketRevenue(s: GameStateV2, lab: LabId): Money {
   return x;
 }
 
-/** revenue (60, daily): demand vs capacity per deployment → revenueRate; cash += revenue/365 (cause 'revenue');
- *  revenueRun = 30-day EWMA of the total. */
+/** revenue (60, daily): demand vs capacity per deployment → revenueRate; books revenue/365 ONCE through the finance
+ *  ledger (kind 'revenue'). WS3's opex system derives revenueRun (30-day smoothing of Σ revenueRate) from it. */
 export const revenueSystem: EngineSystem = {
   id: 'revenue', owner: 'WS5', cadence: 'daily', order: 60,
   run(s, ctx) {
@@ -221,11 +222,7 @@ export function applyRevenue(s: GameStateV2, ctx: SystemCtx): RevenueReadout {
     d.demandBound = x.bound;
     if (!top || x.revenue > top.revenue) top = x;
   }
-  if (rd.total > 0) ctx.bump('cash', rd.total / 365, 'revenue', top ? `${top.channel} ${top.bound}-bound` : undefined);
-  const f = s.player.finance;
-  const dR = (rd.total - f.revenueRun) / 30;
-  f.revenueRun += dR;
-  ctx.cause('revenueRun', dR, 'revenue');
+  if (rd.total > 0) bookCash(s, ctx, rd.total / 365, 'revenue', 'revenue', top ? `${top.channel} ${top.bound}-bound` : undefined);
 
   // Share erosion when capacity-bound (0.5%/day of the excess), slow recovery when there is slack.
   const pen = s.world.fx.capPenalty;

@@ -1,16 +1,19 @@
 // Daily accruals and monthly payments (V2-SPEC §3.7.6; research/15 §1.8). Owner: WS3.
 //
-// Cash semantics (WS3 owns the cash ledger): revenue is booked by WS5's revenue system (ctx.bump('cash')); WS3 reads
-// it via `revenueOf` to keep the run-rate. WS3 pays everything else that recurs: power & O&M, spot rentals, interest
+// Cash semantics (WS3 owns the cash ledger, `bookCash` in ledger.ts; every cash change goes through it): revenue is
+// booked ONCE by WS5's revenue system (kind 'revenue'); WS3 derives the run-rate from deployment.revenueRate via
+// `revenueOf` and never books revenue itself. WS3 pays everything else that recurs: power & O&M, spot rentals, interest
 // (daily); payroll, security spend, transition fund, revenue share and ledger instalments (monthly); chip balances
-// (on delivery, marketQ) and site capex (by stage, sitesQ). Other workstreams book one-off costs themselves
-// (e.g. WS1 run cash cost at launch) and must not deduct the items above.
+// (on delivery, marketQ) and site capex (by stage, sitesQ). Security spend and the transition fund are charged ONLY
+// here (WS4 keeps the security effects, WS5 the fund's effects on workers). Other workstreams book one-off costs
+// through `bookCash` themselves (WS1 run cash at launch, WS4 action/event costs) and must not deduct the items above.
 import { payrollPerYear } from '../departments/staffing';
 import { powerAndOMPerYear } from '../compute/power';
 import { revenueOf } from '../worldfx/revenue';
 import type { Commitment$, EngineSystem, GameStateV2, SystemCtx } from '../types';
 import { debtHeadroom, drawDebt, interestPerYear } from './debt';
 import { ensureWs3, yearStats } from './ext';
+import { bookCash } from './ledger';
 import { runwayOf } from './runway';
 
 /** Revenue run-rate implied by WS5's deployments, or undefined while WS5 has not priced any deployment. */
@@ -57,14 +60,12 @@ export const opexSystem: EngineSystem = {
       if (Math.abs(d) > 1e-6) ctx.bump('revenueRun', d, 'deployments');
     }
     const ys = yearStats(s);
-    ys.revenue += f.revenueRun / 365;
-    fx.accQ.revenue += f.revenueRun / 365;
     const power = powerAndOMPerYear(s) / 365;
     let rentals = 0;
     for (const r of fx.rentals) if (r.endDay > s.time.day) rentals += r.perYear / 365;
     const interest = interestPerYear(s) / 365;
     const cost = power + rentals + interest;
-    if (cost > 0) ctx.bump('cash', -cost, 'opex', 'power, O&M, rentals, interest');
+    if (cost > 0) bookCash(s, ctx, -cost, 'opex', 'opex', 'power, O&M, rentals, interest');
     ys.computeCosts += power + rentals;
     ys.interest += interest;
     fx.accQ.opCosts += cost;
@@ -85,19 +86,22 @@ export const payrollSystem: EngineSystem = {
     const f = p.finance;
     const ys = yearStats(s);
     const payroll = payrollPerYear(p.staff) / 12;
-    ctx.bump('cash', -payroll, 'payroll');
+    bookCash(s, ctx, -payroll, 'payroll', 'payroll');
     ys.payroll += payroll;
-    const other = (p.security.spendRate + p.policies.transitionFund) / 12;
-    if (other > 0) ctx.bump('cash', -other, 'security & programs');
+    const security = p.security.spendRate / 12;
+    const fund = p.policies.transitionFund / 12;
+    if (security > 0) bookCash(s, ctx, -security, 'security', 'security spend', `WSL target ${p.security.target.toFixed(1)}`);
+    if (fund > 0) bookCash(s, ctx, -fund, 'transitionFund', 'transition fund');
+    const other = security + fund;
     const share = (f.deals.reduce((a, d) => a + (d.strings.revenueShare ?? 0), 0) * f.revenueRun) / 12;
-    if (share > 0) ctx.bump('cash', -share, 'revenue share');
+    if (share > 0) bookCash(s, ctx, -share, 'opex', 'revenue share');
     ys.otherOpex += other + share;
     let total = payroll + other + share;
     const byKind: Partial<Record<Commitment$['kind'], number>> = {};
     for (const c of f.ledger) if (c.endDay > s.time.day) byKind[c.kind] = (byKind[c.kind] ?? 0) + c.perQuarter / 3;
     for (const [k, amt] of Object.entries(byKind) as [Commitment$['kind'], number][]) {
       if (amt <= 0) continue;
-      ctx.bump('cash', -amt, KIND_LABEL[k]);
+      bookCash(s, ctx, -amt, 'commitments', KIND_LABEL[k]);
       total += amt;
       if (k === 'lta') ys.capexChips += amt;
       else if (k === 'vendor') ys.interest += amt;

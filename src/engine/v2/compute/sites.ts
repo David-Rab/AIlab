@@ -4,7 +4,7 @@ import { BUILD_Q, DEAL_TERMS, FACILITY_PER_GW, LEASE, SITE_PATHS } from '../../.
 import { dayOfDate, dayOfQuarter } from '../core/time';
 import type { BaselineId, EngineSystem, GameStateV2, Money, Site, SystemCtx } from '../types';
 import { defaultSiteWS3, ensureWs3 } from '../finance/ext';
-import { addLedger, qOf, yearStats } from '../finance/ledger';
+import { addLedger, qOf, yearStats, bookCash } from '../finance/ledger';
 import { siteCapacityH } from './power';
 
 /** Player sites at Jul 2025 (§3.7.2): 2 live (0.6 GW, 0.5M H100e), S3 1.2 GW building, S4 2 GW permitting (grid). */
@@ -109,7 +109,7 @@ function payCapex(s: GameStateV2, ctx: SystemCtx, site: Site, amount: Money) {
   ys.capexSites += own;
   ys.capexSitesFinanced += amt - own;
   ys.spvFinanced += amt - own;
-  if (own > 0) ctx.bump('cash', -own, 'site capex', site.name);
+  if (own > 0) bookCash(s, ctx, -own, 'compute', 'site capex', site.name);
 }
 
 function enterBuilding(s: GameStateV2, ctx: SystemCtx, site: Site, q: number) {
