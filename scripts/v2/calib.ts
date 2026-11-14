@@ -138,11 +138,15 @@ for (const r of table) console.log('  ' + r);
   console.log(`      T4 over 40 seeds: min ${all[0].toFixed(1)}, median ${all[all.length >> 1].toFixed(1)}, max ${all[all.length - 1].toFixed(1)} months; ${(100 * inBand).toFixed(0)}% in 3–9 (archetype ranges: WS4)`);
   // The lead is read against the player's discrete releases, so it swings by ± a release interval; T3 tests the
   // mean over the pre-SC year and a loose band on every monthly sample.
+  // Sampled monthly until the first weight theft by China (from the player or any rival), which resets the gap.
+  const stolen = (x: GameStateV2) => x.player.security.stolen.length + x.rivals.reduce((n, r) => n + r.core.security.stolen.length, 0) > 0;
   const leads: number[] = [];
   for (let d = 30; d <= 540; d += 30) {
-    runRef(s, d);
+    runRef(s, d, stolen);
+    if (stolen(s)) break;
     leads.push(Math.round(trueLeadDays(s, 'china')));
   }
+  if (leads.length < 18) console.log(`      T3: first theft on day ${s.time.day}; ${leads.length} monthly samples before it`);
   const mean = leads.reduce((a, x) => a + x, 0) / leads.length;
   check(mean >= 150 && mean <= 200, 'T3 China mean lead 150–200 d before theft (days 30–540)', `mean ${mean.toFixed(0)} d; monthly ${leads.join(' ')}`);
   check(leads.every((d) => d >= 75 && d <= 275), 'T3 China lead stays within 75–275 d (release-interval band)', `min ${Math.min(...leads)} max ${Math.max(...leads)}`);

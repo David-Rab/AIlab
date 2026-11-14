@@ -14,8 +14,10 @@ export const KAPPA = { post: 0.7, continue: 0.85, stream: 1.0 };
  *  discount q_syn (research/13 §1.7). Data never binds on the reference path through 2029 (F(2030) ≈ 300T ≪ 900T). */
 export const SYN_YIELD_T_PER_H100E_DAY = 4e-6;
 export const SYN_QUALITY = 0.5;
-/** China research efficiency scale on chinaEfficiency × preset.efficiency (§3.2.2; [fit] to T3: 150–200 d lead). */
-export const CHINA_EFF_SCALE = 1.8;
+/** China research efficiency scale on chinaEfficiency × preset.efficiency (§3.2.2; [fit] to T3: 150–200 d lead).
+ *  Mutable so the T3 fit can sweep it; game code only reads it. M2: refit on integrated RefBot play (real compute and
+ *  finance, WS4's China compute path, WS1 distillation leak applied) — see scripts/v2/ws4.ts T3. */
+export const CHINA_CAL = { effScale: 2.6 };
 /** H100e per agent copy at SC (473k H100e / 200k copies, research/13 §1.9), scaled by serveCost/0.5. */
 export const H100E_PER_COPY_SC = 2.4;
 /** Agent serial speed cap (R11 #23: min(8 + 10.8·log2 M, 50)). */

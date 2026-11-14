@@ -10,7 +10,7 @@ import { TRAIT_IDS, TRAIT_START } from '../../../data/v2/traits';
 import { UMODES } from '../../../data/v2/umodes';
 import { Rng, clamp } from '../../rng';
 import { shareRefAt, normalizeSplit } from '../departments/split';
-import { domainsOf, levelOf } from '../models/capability';
+import { domainsOf, levelOf, trueLeadDays } from '../models/capability';
 import { activeRivals, bestPm, otherLabs } from '../models/labs';
 import { misalignment, rivalTraitStep as ws2RivalTraitStep } from '../safety/traits';
 import { labModelHazards } from '../safety/incidents';
@@ -126,13 +126,19 @@ export function addPosture(s: GameStateV2, lab: LabId, key: keyof SafetyPosture,
   pd[key] = (pd[key] ?? 0) + d;
 }
 
-/** Common pace for lead conversions: the player's current rate (years of progress per year). */
-export const paceOf = (s: GameStateV2) => Math.max(0.05, s.player.prodCache?.rate ?? 1);
+/** Model-frontier progress rate (years of progress per year): the know-how rate plus, in Stage 1, the compute term
+ *  (1 − share) that new bases add (pm = pa + pc + Δp, §3.1.3) — the same rate WS1's trueLeadDays uses. */
+function modelRate(s: GameStateV2, pr: { rate: number; stage: number } | undefined): number {
+  return Math.max(0.05, (pr?.rate ?? 1) + (pr?.stage === 2 ? 0 : 1 - s.hidden.timeline.share));
+}
 
-/** A lab's current progress rate (years/year) from its production readout. */
+/** Common pace for lead conversions: the player's current model-frontier rate (years of progress per year). */
+export const paceOf = (s: GameStateV2) => modelRate(s, s.player.prodCache);
+
+/** A lab's current model-frontier progress rate (years/year) from its production readout. */
 export function rateOf(s: GameStateV2, lab: LabId): number {
   const c = lab === 'player' ? s.player : lab === 'china' ? s.china.lab.core : s.rivals.find((r) => r.core.id === lab)?.core;
-  return Math.max(0.05, c?.prodCache?.rate ?? paceOf(s));
+  return c?.prodCache ? modelRate(s, c.prodCache) : paceOf(s);
 }
 
 /** TRUE lead in days of lab `a` over lab `b` (positive = a ahead), from internal frontiers. Engine use only.
@@ -140,6 +146,11 @@ export function rateOf(s: GameStateV2, lab: LabId): number {
  *  later, gap ≈ ∫ rate ≈ Δt·(rate_a + rate_b)/2, which stays ≈ Δt through takeoff (the leader's rate alone shrinks
  *  the apparent lead as rates explode — the v1/M0 artifact; see WS1's trueLeadDays TODO). */
 export function leadBetween(s: GameStateV2, a: LabId, b: LabId): number {
+  // Against the player, use the engine's truth helper (WS1 trueLeadDays: "how long ago the leader stood where the
+  // follower stands now", from the level history) so WS4 logic, intel and the T3/T4 tests share one definition.
+  if (a === b) return 0;
+  if (a === 'player') return trueLeadDays(s, b);
+  if (b === 'player') return -trueLeadDays(s, a);
   return ((bestPm(s, a) - bestPm(s, b)) / ((rateOf(s, a) + rateOf(s, b)) / 2)) * 365;
 }
 
@@ -339,9 +350,11 @@ export function openWeightsReleased(s: GameStateV2, ctx: SystemCtx, id: LabId, p
   if (pm <= k.openWeightsFrontier) return;
   k.openWeightsFrontier = pm;
   const cn = s.china.lab.core;
-  if (id !== 'china' && cn.status === 'active' && pm > cn.pa) {
-    const months = Math.min(2, ((pm - cn.pa) / paceOf(s)) * 12 * 0.5);
-    const dpa = (months / 12) * paceOf(s);
+  const cnPm = bestPm(s, 'china');
+  if (id !== 'china' && cn.status === 'active' && pm > cnPm) {
+    // Model-vs-model gap (both pm); China's know-how absorbs half of it, at most 2 months (R10 R13).
+    const months = Math.min(2, ((pm - cnPm) / paceOf(s)) * 12 * 0.5);
+    const dpa = (months / 12) * rateOf(s, 'china');
     cn.pa += dpa;
     ctx.cause('china.pa', dpa, 'open weights absorbed', id);
   }

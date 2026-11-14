@@ -1,7 +1,7 @@
 // WS2 acceptance tests S1–S6 (V2-SPEC §8.3) plus safety-state hygiene. Owner: WS2.
 //
-// WS1's run system is a stub until M1, so S4/S5 drive the trait model with a test-side stand-in (safety-emu.ts) that
-// follows the §7.1 reference cadence and calls the real WS2 hook `applyRunToTraits`.
+// S4/S5 play real games on the integrated engine (safety-emu.ts: RefBot, the safe-only recipe on reference finance,
+// the mixed bot); WS1's runs call the WS2 trait hooks on every completed run.
 import { AGENDA_IDS } from '../../src/data/v2/agendas';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { makeCtx } from '../../src/engine/v2/core/loop';

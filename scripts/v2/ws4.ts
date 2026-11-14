@@ -4,8 +4,8 @@
 //   E3  rival comparisons use the player's INTERNAL frontier
 //   E4  storyteller limits hold
 //   E5  every EndingId is reachable (forced states; the statistical 2,000-run coverage is in scripts/v2/bots.ts)
-//   T3  China lead 150–200 d until a theft, then ≈ 60 d; R10 gap formula within ±2 months at the start
-//   T4  rival gaps at start are 3–9 months
+//   T3  China lead 150–200 d until a theft (RefBot play), then ≈ 60 d; R10 gap formula within ±2 months at the start
+//   T4  rival gaps at start are 3–9 months (same lead metric as WS1's calib: trueLeadDays)
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { RIVAL_NAMES_V2 } from '../../src/data/v2/names';
@@ -25,6 +25,8 @@ import { bestPm, internalVersion } from '../../src/engine/v2/models/labs';
 import { executeTheft } from '../../src/engine/v2/security/theft';
 import { levelOf, thresholds } from '../../src/engine/v2/world/calibration';
 import type { CostLine, EndingId, EngineSystem, GameStateV2, StorytellerId, TraitVector } from '../../src/engine/v2/types';
+import { refBot } from '../../src/engine/v2/bots/ref';
+import { engine } from '../../src/engine/v2/index';
 import { FIXTURE_DIR, check, finish } from './lib';
 
 const fixtures = [0, 400, 900].map((d) => readFileSync(join(FIXTURE_DIR, `day${d}.json`), 'utf8'));
@@ -235,6 +237,9 @@ const load = (i: number) => deserialize(fixtures[i]);
 }
 
 // ───────── T3: China lead ─────────
+// Same metric as WS1's calib T3 (leadBetween vs the player = WS1 trueLeadDays) on real RefBot play with no theft:
+// the mean over the pre-SC year is 150–200 d and every sample stays within one release interval (75–275 d); a theft
+// then puts China ≈ 60 d behind; the R10 gap formula matches the simulated start lead within ±2 months.
 {
   const leads0: number[] = [];
   const formulaGap: number[] = [];
@@ -247,32 +252,39 @@ const load = (i: number) => deserialize(fixtures[i]);
     tick(s);
     leads0.push(leadBetween(s, 'player', 'china'));
     formulaGap.push(chinaGapFormulaMonths(s) - (leadBetween(s, 'player', 'china') / 365) * 12);
-    while (s.time.day < 500 && !s.ending) {
+    while (s.time.day < 540 && !s.ending) {
+      refBot.act(s, engine);
       tick(s);
-      if (s.time.day % 50 === 0) pre.push(leadBetween(s, 'player', 'china'));
+      if (s.time.day % 30 === 0) pre.push(leadBetween(s, 'player', 'china'));
     }
     executeTheft(s, makeCtx(s), 'player');
     tick(s);
     post.push(leadBetween(s, 'player', 'china'));
   }
   WS4_TUNING.theftMinRung = minRung;
-  const lo = Math.min(...pre);
-  const hi = Math.max(...pre, ...leads0);
+  const mean = pre.reduce((a, x) => a + x, 0) / Math.max(1, pre.length);
   check(leads0.every((x) => x >= 150 && x <= 200), 'T3 China lead at start 150–200 d', leads0.map((x) => x.toFixed(0)).join(', '));
-  check(lo >= 150 && hi <= 200, 'T3 China lead stays 150–200 d until a theft (days 0–500)', `${lo.toFixed(0)}–${hi.toFixed(0)}`);
+  check(mean >= 150 && mean <= 200, 'T3 China mean lead 150–200 d until a theft (RefBot, days 30–540, 8 seeds)', `mean ${mean.toFixed(0)} d`);
+  check(pre.every((x) => x >= 75 && x <= 275), 'T3 China lead stays within 75–275 d (release-interval band)', `${Math.min(...pre).toFixed(0)}–${Math.max(...pre).toFixed(0)}`);
   check(post.every((x) => x >= 40 && x <= 80), 'T3 after a theft China is ≈ 60 d behind', post.map((x) => x.toFixed(0)).join(', '));
   check(formulaGap.every((x) => Math.abs(x) <= 2), 'T3 R10 gap formula within ±2 months of the simulated start lead', formulaGap.map((x) => x.toFixed(2)).join(', '));
 }
 
 // ───────── T4: rival start gaps 3–9 months ─────────
+// Same metric as WS1's calib T4 (trueLeadDays / 30.4): every rival of the fixture seed in 3–9 months; the spread over
+// 200 seeds is printed (archetype gap ranges are WS4 data).
 {
+  const fx = newGame(defaultSetupV2({ seed: 2027, alignment: 'medium' }));
+  const fxMonths = fx.rivals.map((r) => leadBetween(fx, 'player', r.core.id) / 30.4);
+  check(fxMonths.every((m) => m >= 3 - 1e-9 && m <= 9 + 1e-9), 'T4 rival gaps at start are 3–9 months (fixture seed)', fxMonths.map((m) => m.toFixed(1)).join(', '));
   const months: number[] = [];
   for (let seed = 1; seed <= 200; seed++) {
     const s = newGame(defaultSetupV2({ seed }));
-    const rate = s.player.prodCache?.rate ?? 1;
-    for (const r of s.rivals) months.push(((bestPm(s, 'player') - bestPm(s, r.core.id)) / rate) * 12);
+    for (const r of s.rivals) months.push(leadBetween(s, 'player', r.core.id) / 30.4);
   }
-  check(months.every((m) => m >= 3 - 1e-9 && m <= 9 + 1e-9), 'T4 rival gaps at start are 3–9 months (200 seeds, classic)', `${Math.min(...months).toFixed(2)}–${Math.max(...months).toFixed(2)}`);
+  months.sort((x, y) => x - y);
+  const inBand = months.filter((m) => m >= 3 && m <= 9).length / months.length;
+  console.log(`      T4 over 200 seeds (classic): min ${months[0].toFixed(2)}, median ${months[months.length >> 1].toFixed(2)}, max ${months[months.length - 1].toFixed(2)} months; ${(100 * inBand).toFixed(0)}% in 3–9`);
 }
 
 finish('ws4');

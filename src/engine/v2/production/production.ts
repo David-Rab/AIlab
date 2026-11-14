@@ -8,7 +8,7 @@
 // q is the v1 progress coordinate (world.ts): q_dep = pm(internal agent) + δ_rsch + calShift. At reference inputs
 // (h = k = c = d = 1, τ_h = 1, eff = mods = 1) M = multiplierAt(w, q) exactly (acceptance test P1).
 import { laborSlowdown, multiplierAt, stage1 } from '../../../data/world';
-import { CHINA_EFF_SCALE, H100E_PER_COPY_SC, PROD_SPEED_CAP, REF_TECH } from '../../../data/v2/calibration';
+import { CHINA_CAL, H100E_PER_COPY_SC, PROD_SPEED_CAP, REF_TECH } from '../../../data/v2/calibration';
 import { CHINA_PRESETS } from '../../../data/actors';
 import { decimalYear } from '../core/time';
 import { shareRefAt } from '../departments/split';
@@ -138,10 +138,10 @@ export function tcoPerH100eYear(s: GameStateV2, yr: number): number {
   return r > 0 ? (r * 8760) / 1e9 : (14e3 * Math.pow(0.8, yr - 2025.5)) / 1e9;
 }
 
-/** eff_lab: 1 for the player and US rivals; China = chinaEfficiency × preset.efficiency × CHINA_EFF_SCALE [fit]. */
+/** eff_lab: 1 for the player and US rivals; China = chinaEfficiency × preset.efficiency × CHINA_CAL.effScale [fit]. */
 export function effLab(s: GameStateV2, lab: LabId): number {
   if (lab !== CHINA_ID) return 1;
-  return s.hidden.timeline.chinaEfficiency * (CHINA_PRESETS.find((p) => p.id === s.china.preset) ?? CHINA_PRESETS[0]).efficiency * CHINA_EFF_SCALE;
+  return s.hidden.timeline.chinaEfficiency * (CHINA_PRESETS.find((p) => p.id === s.china.preset) ?? CHINA_PRESETS[0]).efficiency * CHINA_CAL.effScale;
 }
 
 /** Version serve cost of a lab's internal model (player: internal agent version; others: reference 0.5). */

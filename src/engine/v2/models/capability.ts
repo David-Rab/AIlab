@@ -147,6 +147,17 @@ export function simpleStartPa(s: GameStateV2, lab: LabId, pm0: number): number {
   return pm0 + simpleLag(w, q, rate) - pcRefLab(w, 0) - trainScaleTerm(s, lab, 0);
 }
 
+/** Know-how pa at which a SimpleModel lab's frontier (simpleFrontierPm) equals `pm` today — the inverse WS4 uses when
+ *  a lab's model jumps (weights theft): its know-how is set consistently with the model it now holds. */
+export function simplePaFor(s: GameStateV2, lab: LabId, pm: number): number {
+  const w = s.hidden.timeline;
+  const day = s.time.day;
+  const core = labCore(s, lab);
+  const q = pm + w.calShift;
+  const rate = core?.prodCache?.rate ?? refSoftwareRate(w, q);
+  return pm + simpleLag(w, q, rate) - pcRefLab(w, day, core?.scDay) - trainScaleTerm(s, lab, day);
+}
+
 /** (1 − share)·ln(training pool / reference training pool)/ln gF: what the lab's base-run scale adds (§3.1.3). */
 export function trainScaleTerm(s: GameStateV2, lab: LabId, day = s.time.day): number {
   const core = labCore(s, lab);
