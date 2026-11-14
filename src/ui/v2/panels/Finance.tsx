@@ -89,7 +89,7 @@ function Waterfall({ s }: { s: GameStateV2 }) {
               <rect x={X(i) - 4} y={pt - 20} width={bw + 8} height={H - pt + 20} fill="transparent" />
               <rect x={X(i)} y={top} width={bw} height={h} rx={3} fill={i === 0 ? C.good : '#6b7c91'} />
               {i < bars.length && <line x1={X(i) + bw} x2={X(i + 1)} y1={Y(b.b)} y2={Y(b.b)} stroke={C.text3} strokeDasharray="2 3" />}
-              <text x={X(i) + bw / 2} y={top - 6} textAnchor="middle" className={`wf2-val ${i === 0 ? 'pos' : ''}`}>{F.money(b.v, { signed: true })}</text>
+              <text x={X(i) + bw / 2} y={top - 6} textAnchor="middle" className={`wf2-val ${i === 0 ? "pos" : ""}`}>{Math.abs(b.v) < 0.005 ? "$0" : F.money(b.v, { signed: true })}</text>
               {b.id === biggest.id && spend > 0 && -b.v > 0 && <text x={X(i) + bw / 2} y={top + h + 13} textAnchor="middle" className="wf2-note">{F.pct(-b.v / spend)} of spend</text>}
               <text x={X(i) + bw / 2} y={H - pb + 22} textAnchor="middle" className="wf2-lbl">{b.label}</text>
             </g>
@@ -148,7 +148,7 @@ function CashHistory({ s }: { s: GameStateV2 }) {
     <svg viewBox={`0 0 ${W} ${H}`} className="cash2" data-home="cashHistory" onMouseLeave={() => setHi(undefined)}
       onMouseMove={(e) => { const r = (e.currentTarget as SVGSVGElement).getBoundingClientRect(); const d = x0 + (((e.clientX - r.left) / r.width) * W - pl) / (W - pl - pr) * (x1 - x0); setHi(d <= now ? at(d) : undefined); }}>
       <rect x={X(now)} y={pt} width={X(x1) - X(now)} height={H - pt - pb} fill="rgba(255,255,255,.025)" />
-      {ticks.map((t) => <g key={t}><line x1={pl} x2={W - pr} y1={Y(t)} y2={Y(t)} stroke="#1f2a38" strokeDasharray="3 4" /><text x={pl - 6} y={Y(t) + 3} textAnchor="end" className="ch-ax">{F.money(t)}</text></g>)}
+      {ticks.map((t) => <g key={t}><line x1={pl} x2={W - pr} y1={Y(t)} y2={Y(t)} stroke="#1f2a38" strokeDasharray="3 4" /><text x={pl - 6} y={Y(t) + 3} textAnchor="end" className="ch-ax">{t === 0 ? "$0" : F.money(t)}</text></g>)}
       {months.map((d) => <text key={d} x={X(d)} y={H - 8} textAnchor="middle" className="ch-ax">{fmtMonth(dateOf(s, d))}</text>)}
       <polyline points={cash.map((v, i) => `${X(days[i])},${Y(v)}`).join(' ')} fill="none" stroke="#c9d4e2" strokeWidth={1.8} />
       <polyline points={`${X(now)},${Y(f.cash)} ${X(projEnd)},${Y(projEndV)}`} fill="none" stroke={C.watch} strokeWidth={1.6} strokeDasharray="5 4" />
@@ -281,7 +281,7 @@ function LockedIn({ s }: { s: GameStateV2 }) {
               <g>
                 <rect x={x} y={Y(d.firm)} width={bw} height={Math.max(0, Y(0) - Y(d.firm))} rx={2} fill="#6b7c91" />
                 {d.canc > 0 && <rect x={x + 0.5} y={Y(d.tot)} width={bw - 1} height={Math.max(0, Y(d.firm) - Y(d.tot))} rx={2} fill="rgba(107,124,145,.15)" stroke="#8a9bb0" strokeDasharray="3 2" />}
-                <text x={x + bw / 2} y={Y(d.tot) - 4} textAnchor="middle" className="ch-ax">{F.short(d.tot)}</text>
+                <text x={x + bw / 2} y={Y(d.tot) - 4} textAnchor="middle" className="ch-ax">{d.tot > 0.005 ? F.short(d.tot) : ""}</text>
                 <text x={x + bw / 2} y={H - 8} textAnchor="middle" className="ch-ax">{i === 0 ? qLabel(s, d.q) : `+${i}q`}</text>
               </g>
             </Tip>
