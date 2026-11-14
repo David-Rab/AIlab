@@ -45,6 +45,6 @@ Its edits are in the working tree and were snapshotted to `refs/wip/m2-step5-1` 
 ## Working rules (learned)
 
 - **Concurrency:** run at most 1-2 agents at once.
-- **Model choice:** prefer Sonnet for mechanical test fixing, Opus for design and engine work.
+- **Model choice:** Opus for all work, including every agent, at medium or high effort (user instruction). Manage usage by limiting concurrency, not by switching models.
 - **Commit often:** agents commit at each green checkpoint; otherwise snapshot WIP to `refs/wip/*`.
 - **Logging:** update this log at every milestone.
