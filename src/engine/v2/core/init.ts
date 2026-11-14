@@ -4,6 +4,7 @@
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
 import { PLAYER_MODEL_FAMILY } from '../../../data/v2/names';
 import { REFERENCE_BASE, REFERENCE_POST } from '../../../data/v2/runDesign';
+import { B0_DAY, B0_START_DAY, KAPPA, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { TRAIT_IDS, TRAIT_START } from '../../../data/v2/traits';
 import { BASELINES } from '../../../data/world';
 import { Rng, clamp } from '../../rng';
@@ -23,16 +24,18 @@ import { initialBoard } from '../finance/board';
 import { initialCapital } from '../finance/investors';
 import { initialFinance } from '../finance/ledger';
 import { benchScore } from '../models/benchmarks';
-import { domainsOf, levelOf } from '../models/capability';
+import { domainsOf, levelOf, playerStart, simpleStartPa, yearOfDay } from '../models/capability';
+import { labCore } from '../models/labs';
 import { initialParadigms } from '../models/paradigms';
-import { neutralReadout } from '../production/placeholder';
+import { frontierFlop } from '../production/knots';
+import { computeProduction } from '../production/production';
 import { initialSafetyDept } from '../safety/agendas';
 import { initialSecurity } from '../security/security';
-import { thresholds, referenceRate } from '../world/calibration';
+import { thresholds } from '../world/calibration';
 import { drawLineageUModes, sampleHidden } from '../world/hidden';
 import { initialWorld } from '../worldfx/sectors';
 import type {
-  Deployment, DomainId, EvalRecord, GameStateV2, MilestoneIdx, ModelVersion, PlayerLab, SetupV2, TimelineWorld, ToolFamily, TraitBelief, TraitId,
+  Deployment, DomainId, EvalRecord, GameStateV2, MilestoneIdx, ModelVersion, PlayerLab, SetupV2, TimelineWorld, ToolFamily, TraitBelief, TraitId, TrainingRun, VersionBuild,
 } from '../types';
 import { emptySeries, sampleSeries } from './record';
 import { seedStreams } from './rng';
@@ -77,11 +80,32 @@ function startEvals(domains: Record<DomainId, number>, measuredL: number, day: n
   return { suiteDay: day, bench, safety: {}, measuredL };
 }
 
+/** A reference post-training run on B0 already in flight at the start (launched day −42, 0.5 of the training pool),
+ *  so the next version lands about a month in, as under the reference 6-week cadence [D]. */
+function startRun(w: TimelineWorld, ps: ReturnType<typeof playerStart>, Lg: number, domains: Record<DomainId, number>): TrainingRun {
+  const start = -42;
+  const flopNeeded = 0.5 * frontierFlop(w, yearOfDay(start));
+  const perDay = 1e6 * 0.4 * 0.5 * PHI_FLOP_PER_H100E_DAY;
+  const zero = { S1: 0, S2: 0, S3: 0, S4: 0, S5: 0, S6: 0, S7: 0, S8: 0 };
+  return {
+    id: 'R0', kind: 'post', name: 'post 0', startDay: start, flopNeeded, flopDone: Math.min(0.9 * flopNeeded, -start * perDay), minDays: 77,
+    poolShare: 0.5, cashCost: 0, baseId: 'B0', post: { ...REFERENCE_POST, techniques: [], trainAgainst: [] },
+    predicted: {
+      Lg: [Lg, Lg + 0.5], domains: Object.fromEntries(Object.entries(domains).map(([d, v]) => [d, [v, v + 0.5]])) as Record<DomainId, [number, number]>,
+      signals: zero, etaDays: 35, serveCost: 0.5, monitorability: 'high',
+    },
+    status: 'running', restarts: 0, paAtStart: ps.pa0 + (ps.r0 * start) / 365, signals: {},
+  };
+}
+
 function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDate: string): PlayerLab {
   const { setup, hidden } = s;
   const w = hidden.timeline;
   const base = BASELINES.find((b) => b.id === setup.baseline) ?? BASELINES[0];
-  const pm0 = w.p0; // M0: pa(0) = pm(V0) = p0 (M1 solves pa(0) in closed form, §3.1.4)
+  // §3.1.4 initial state: B0 started day −120, V0 finished day −20; pa(0) solved so that pm(V0) = p0 − calShift.
+  const ps = playerStart(w);
+  const pm0 = ps.target;
+  const build: VersionBuild = { paBase: ps.paBase, paPost: ps.paPost, kappa: KAPPA.post, pc: ps.pcB0, dp: 0, off: {}, h80Mult: 1, misuseMult: 1, signals: {} };
   const staff = { ...START_STAFF[setup.baseline] };
   const Lg = levelOf(w, pm0);
   const domains = domainsOf(w, pm0);
@@ -96,7 +120,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   const V0: ModelVersion = {
     id: 'V0', name: `${PLAYER_MODEL_FAMILY}-1.0`, baseId: 'B0', day: -20, variant: 'full', design: { ...REFERENCE_POST },
     pm: pm0, Lg, domains, traitsTrue: { ...TRAIT_START }, masks, uModes, monitorability: 0.9, serveCost: 0.5,
-    evals: startEvals(domains, Math.round(Lg * 100) / 100, -20), beliefs, status: 'deployed', flags: {},
+    evals: startEvals(domains, Math.round(Lg * 100) / 100, -20), beliefs, status: 'deployed', flags: {}, build, appeal: 1,
   };
   const dep = (id: string, channel: Deployment['channel'], servingShare: number, kyc: Deployment['kyc']): Deployment => ({
     id, versionId: 'V0', channel, startDay: -20, priceIndex: 1, effort: 'max', servingShare,
@@ -104,25 +128,27 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: channel === 'consumer' },
     kyc, status: 'live',
   });
-  const rate0 = referenceRate(w, pm0, 2025.5);
   return {
     id: 'player', name: setup.companyName, kind: 'player', status: 'active',
-    pa: pm0,
+    pa: ps.pa0,
     computeOnline: setup.baseline === 'reality' ? 1.0e6 : 1.2e6,
     split: shareRefAt(2025.5),
     staff,
     tasteHire: 1,
     models: {
-      bases: [{ id: 'B0', name: `${PLAYER_MODEL_FAMILY}-1`, day: -120, flop: 1e27, paAtStart: pm0, pc: 0, design: { ...REFERENCE_BASE, curation: { ...REFERENCE_BASE.curation } }, lineage, traitsTrue: { ...TRAIT_START }, uModes: [...uModes] }],
+      bases: [{
+        id: 'B0', name: `${PLAYER_MODEL_FAMILY}-1`, day: B0_DAY, startDay: B0_START_DAY, flop: frontierFlop(w, yearOfDay(B0_START_DAY)), paAtStart: ps.paBase, pc: ps.pcB0,
+        design: { ...REFERENCE_BASE, curation: { ...REFERENCE_BASE.curation } }, dp: 0, off: {}, serve: 0.5, monitorability: 1, signals: {},
+        lineage, traitsTrue: { ...TRAIT_START }, uModes: [...uModes],
+      }],
       versions: [V0],
-      runs: [],
+      runs: [startRun(w, ps, Lg, domains)],
       internalAgent: 'V0',
       nextName: 1,
     },
     deployments: [dep('D1', 'consumer', 0.45, 0), dep('D2', 'api', 0.35, 1), dep('D3', 'enterprise', 0.2, 0), dep('D4', 'internal', 0, 0)],
     security: initialSecurity(staff, base.start.securityLevel),
     paradigms: initialParadigms(),
-    prodCache: neutralReadout(w, pm0, rate0),
     milestoneDays: initialMilestones(w, pm0),
     finance: initialFinance(setup.baseline, setup.governance, startDate),
     board: initialBoard(setup.governance),
@@ -146,11 +172,10 @@ export function newGame(setup: SetupV2): GameStateV2 {
   const base = BASELINES.find((b) => b.id === setup.baseline) ?? BASELINES[0];
 
   const player = buildPlayer(worldRng, { setup, hidden }, startDate);
-  const pm0 = player.pa;
+  const pm0 = player.models.versions[0].pm;
   const rivals = Array.from({ length: setup.rivalCount }, (_, i) => initialRival(worldRng, hidden, i, pm0, setup.baseline, base.start.globalCompute));
   const china = initialChina(worldRng, hidden, pm0, base.start.chinaGapYears);
   for (const r of [...rivals, china.lab]) {
-    r.core.prodCache = neutralReadout(w, r.core.pa, referenceRate(w, r.core.pa, 2025.5));
     r.core.milestoneDays = initialMilestones(w, Math.max(r.internal.pm, r.publicModel?.pm ?? -Infinity));
   }
   rngState.world = worldRng.state;
@@ -188,6 +213,13 @@ export function newGame(setup: SetupV2): GameStateV2 {
     tutorial: { act: 1, unlocked: setup.tutorial ? ['finance', 'departments', 'models', 'relations'] : ['*'], seen: [] },
     flags: {},
   };
+  // Non-player know-how: solve pa so that each lab's default frontier (simpleFrontierPm) equals its start model.
+  // Readouts first (the rate does not depend on pa), then each lab's pa from its start model and rate.
+  for (const id of labIds) {
+    const core = labCore(s, id);
+    if (core) core.prodCache = computeProduction(s, id);
+  }
+  for (const r of [...rivals, china.lab]) r.core.pa = simpleStartPa(s, r.core.id, r.internal.pm);
   sampleSeries(s);
   return s;
 }

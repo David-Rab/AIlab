@@ -4,12 +4,12 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { GOLDEN_EXPECTED, GOLDEN_SAMPLED, GOLDEN_TOL } from '../../src/data/v2/calibration';
-import { horizonAt } from '../../src/data/world';
+import { horizonAt, milestoneThresholds } from '../../src/data/world';
 import { Rng } from '../../src/engine/rng';
 import { defaultSetupV2 } from '../../src/engine/v2/core/init';
 import { hash32 } from '../../src/engine/v2/core/rng';
 import { START_DATE, decimalYearOf } from '../../src/engine/v2/core/time';
-import { multiplierRef, referenceRate, thresholds } from '../../src/engine/v2/world/calibration';
+import { multiplierRef, referenceRate } from '../../src/engine/v2/world/calibration';
 import { sampleHidden } from '../../src/engine/v2/world/hidden';
 import type { TimelineWorld, WorldPresetId } from '../../src/engine/v2/types';
 import { GOLDEN_PATH, KNOWN, check, finish } from './lib';
@@ -36,7 +36,7 @@ interface Run { days: Record<string, number>; years: Record<string, number>; M: 
 
 /** Integrate daily exactly as the M0 placeholder production does (rate at day d's year, crossing recorded d+1). */
 function integrate(w: TimelineWorld, maxDays: number, stopAt = 'ASI'): Run {
-  const thr = thresholds(w);
+  const thr = milestoneThresholds(w); // v1 (unshifted) thresholds: the golden is the audited v1 path
   let p = w.p0;
   const days: Record<string, number> = {};
   const M: Record<string, number> = {};

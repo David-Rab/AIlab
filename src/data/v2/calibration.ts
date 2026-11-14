@@ -3,11 +3,32 @@
 import type { ComputeSplit, DomainId, WorldPresetId } from '../../engine/v2/types';
 
 /** Per-preset milestone threshold shift (years) fitted so RefBot's best internal model hits the golden dates (§7.1).
- *  M0: 0 everywhere (the placeholder progress system integrates the v1 reference path directly). [fit] */
-export const CAL_SHIFT: Record<WorldPresetId, number> = { ai2027: 0, authors2026: 0, fast: 0, slow: 0, sampled: 0 };
+ *  [fit] by `npx tsx scripts/v2/calib.ts --fit` (bisection on SC, refined on a ±0.03 grid by the worst |Δ| over
+ *  SC…ASI because SC(calShift) is step-like). `sampled` uses the ai2027 value. Never tune for balance (§7.4). */
+export const CAL_SHIFT: Record<WorldPresetId, number> = { ai2027: 0.08, authors2026: 0.025, fast: 0.105, slow: -0.165, sampled: 0.08 };
 
 /** Post-training capability retention κ (§3.1.4). Adjust only globally (0.6–0.8), never per preset. */
 export const KAPPA = { post: 0.7, continue: 0.85, stream: 1.0 };
+
+/** Synthetic data: tokens (T) per H100e-day of the synthetic pool [D: ≈47 tok/s per H100 after filtering], quality
+ *  discount q_syn (research/13 §1.7). Data never binds on the reference path through 2029 (F(2030) ≈ 300T ≪ 900T). */
+export const SYN_YIELD_T_PER_H100E_DAY = 4e-6;
+export const SYN_QUALITY = 0.5;
+/** China research efficiency scale on chinaEfficiency × preset.efficiency (§3.2.2; [fit] to T3: 150–200 d lead). */
+export const CHINA_EFF_SCALE = 1.8;
+/** H100e per agent copy at SC (473k H100e / 200k copies, research/13 §1.9), scaled by serveCost/0.5. */
+export const H100E_PER_COPY_SC = 2.4;
+/** Agent serial speed cap (R11 #23: min(8 + 10.8·log2 M, 50)). */
+export const PROD_SPEED_CAP = 50;
+/** Which know-how a post-training run embodies: pa at completion (RL keeps absorbing algorithmic gains during the
+ *  run) [D]. 'start' would freeze it at launch like a base. */
+export const POST_PA_AT: 'start' | 'end' = 'end';
+/** Start-state timing (§3.1.4): B0 started day −120, V0 finished day −20. */
+export const B0_DAY = -120;
+/** B0 run start: completed day −120 after a reference-length run, so its age equals the average base age under the
+ *  reference cadence (REF_BASE_AGE = 256 d) and the start lag matches the steady state [D]. */
+export const B0_START_DAY = -256;
+export const V0_DAY = -20;
 
 /** Production-function parameters by preset (research/13 §1.4). `sampled` draws La = 1 + LN80[1, 200]. */
 export interface ProdPreset { rc: number; lam: number; La: number; Ca: number; slow10: number; m2b: number; kappa: number; etaSC: number }
@@ -15,6 +36,22 @@ export const PROD_DEFAULT: ProdPreset = { rc: -2, lam: 0.5, La: 100, Ca: 1000, s
 export const PROD_PRESETS: Partial<Record<WorldPresetId, Partial<ProdPreset>>> = {
   authors2026: { La: 15, slow10: 2.8, m2b: 3.7 },
 };
+
+/** Reference capabilities headcount H_ref = 2050 + 0.82·60 per month (research/13 §1.2, R11 #12). */
+export const H_REF_BASE = 2050;
+export const H_REF_PER_MONTH = 49.2;
+
+/** AI 2027 compute forecast: leading-lab average compute (H100e) by date (research/13 §1.2, R11 #11). Used only to
+ *  generate the knot R curve for the AI 2027-family presets, as research/13 §1.5 did (acceptance test P2). */
+export const AI2027_COMPUTE_TABLE: { year: number; h100e: number }[] = [
+  { year: 2025.5, h100e: 1e6 }, { year: 2026.5, h100e: 4e6 }, { year: 2027.125, h100e: 7e6 },
+  { year: 2027.375, h100e: 9e6 }, { year: 2027.625, h100e: 12e6 }, { year: 2027.875, h100e: 15e6 },
+];
+
+/** research/13 §1.5 Stage-1 AI taste SD by Stage-1 fraction f (interpolated for every preset, §3.2.4 step 2). */
+export const R13_TABLE_SD: [f: number, sd: number][] = [
+  [0, -2.0], [0.126, -1.9], [0.25, -1.7], [0.378, -1.4], [0.5, -1.2], [0.656, -0.7], [0.75, -0.4], [0.896, 0.1], [1, 0.5],
+];
 
 /** FLOP per H100e-day: 1e15 FLOP/s × 0.4 MFU × 86,400 (§3.1.1). */
 export const PHI_FLOP_PER_H100E_DAY = 3.46e19;
@@ -77,3 +114,7 @@ export const GOLDEN_EXPECTED: Record<Exclude<WorldPresetId, 'sampled'>, GoldenEx
 export const GOLDEN_SAMPLED = { p10: 2026.05, p50: 2028.37, p90: 2044, p50Tol: 0.3, seeds: 500 };
 /** Tolerances (years): ±0.08 for SC, ±0.12 after (§7.1). */
 export const GOLDEN_TOL = { SC: 0.08, after: 0.12 };
+
+/** Stage-2 reference technology (see production.ts referenceTech): automated research agents (P13 experiment
+ *  throughput ×1.5) and latent reasoning (ηmod 0.5/0.2 = 2.5) are part of the AI 2027 reference path after SC. */
+export const REF_TECH = { c: 1.5, k: 2.5, from: 100, to: 280 };

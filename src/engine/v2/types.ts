@@ -8,6 +8,12 @@
 //  - BotPolicy.id gains 'capex2x' (V2-SPEC §7.2 F8 bot).
 //  - EngineApi.tick accepts optional TickOptions (tests inject probe systems).
 //  - Fractions: world.control[*].P and sector A/alpha are 0..1 (research/16 uses %).
+// WS1 M1 additions (additive; optional fields unless noted, so no SCHEMA_REV bump):
+//  - ModelVersion.build (VersionBuild) and ModelVersion.appeal; BaseModel.startDay/dp/off/serve/monitorability/
+//    signals/parentBaseId; TrainingRun.holdUntil/paAtStart/signals; ModelsState.stream.paTrack;
+//    ParadigmState.retryDay/attempts/priorMult; RivalLab.managed.
+//  - ProductionReadout gains required `whatIf` and `sdAI` (only WS1 constructs readouts).
+//  - Coordinates: a model's v1-equivalent progress is q = pm + calShift (§3.1.5); V0 starts at pm = p0 − calShift.
 //
 // Rules:
 //  - Everything under GameStateV2 is plain JSON (saves = JSON.stringify). No classes, Maps, Sets, functions,
@@ -248,7 +254,7 @@ export interface ModelsState {
   /** Version powering internal research agents (p_dep for the production function). */
   internalAgent?: string;
   /** Continual-learning stream (P08) if active: the version id being updated in place. */
-  stream?: { versionId: string; startedDay: Day; lastAuditDay: Day };
+  stream?: { versionId: string; startedDay: Day; lastAuditDay: Day; /** pa seen by the stream (7-day lag) */ paTrack?: number };
   nextName: number; // naming counter
 }
 
@@ -260,6 +266,20 @@ export interface BaseModel {
   paAtStart: number;
   pc: number; // compute component (years) frozen at base start (§3.1.3)
   design: BaseDesign;
+  /** Day the run started (pc and paAtStart are frozen here, §3.1.3). Absent = `day`. */
+  startDay?: Day;
+  /** Design Δp of the base (shape, data, curation, data wall, paradigms), years. */
+  dp?: number;
+  /** Design domain offsets of the base (L units). */
+  off?: Partial<Record<DomainId, number>>;
+  /** Serve cost of models on this base (shape). */
+  serve?: number;
+  /** Monitorability cap from the base shape (latent = 0.05). */
+  monitorability?: number;
+  /** Trait-pressure signals from the base design (S4, S5, S6 …) for WS2. */
+  signals?: Partial<Record<SignalId, number>>;
+  /** Continue-train parent. */
+  parentBaseId?: string;
   lineage: string; // traits + U-mode family; distill/continue keep parent lineage
   traitsTrue: TraitVector; // hidden
   uModes: UModeId[]; // hidden: present in this lineage
@@ -288,6 +308,27 @@ export interface ModelVersion {
   status: 'evaluating' | 'ready' | 'deployed' | 'retired' | 'rolledBack';
   /** Dangerous-capability flags the player has measured (drive commitments and events). */
   flags: { bioUplift?: boolean; cyberOffense?: boolean; replication?: boolean; persuasion?: boolean };
+  /** How pm was built (§3.1.4); lets the engine recompute pm for streams and domains. Hidden (contains pa). */
+  build?: VersionBuild;
+  /** Consumer appeal from preference training (0.7–1.2, §3.3.2 D); visible, read by WS5 revenue. */
+  appeal?: number;
+}
+
+/** Capability build of a version (§3.1.4): pm = paBase + kappa·(paPost − paBase) + pc + dp. Hidden. */
+export interface VersionBuild {
+  paBase: number;
+  paPost: number;
+  kappa: number;
+  pc: number;
+  dp: number;
+  /** Design + paradigm domain offsets (L). */
+  off: Partial<Record<DomainId, number>>;
+  /** Horizon multiplier (long-horizon RL, P07, P12). */
+  h80Mult: number;
+  /** Misuse-incident hazard multiplier (minimal safety training ×2), for WS2. */
+  misuseMult: number;
+  /** Trait-pressure signals of the run(s) that produced it, for WS2 applyRunToTraits. */
+  signals: Partial<Record<SignalId, number>>;
 }
 
 export type Variant = 'full' | 'mini' | 'gov' | 'trusted' | 'internal' | 'open';
@@ -323,6 +364,12 @@ export interface TrainingRun {
   predicted: RunPrediction; // shown on the run card, with noise band
   status: 'running' | 'paused' | 'done' | 'failed' | 'cancelled';
   restarts: number; // loss-spike restarts (stretch/MoE risk)
+  /** Loss spike: no FLOP accrues until this day (§3.3.1 restarts). */
+  holdUntil?: Day;
+  /** Lab know-how pa at launch (base runs freeze it; §3.1.3). */
+  paAtStart?: number;
+  /** Trait-pressure signals S1–S8 of this run's design (for WS2 applyRunToTraits). */
+  signals?: Partial<Record<SignalId, number>>;
 }
 
 export interface BaseDesign {
@@ -388,6 +435,10 @@ export interface ParadigmState {
   fte: number;
   expShare: number; // share of experiment pool
   revealedDay?: Day;
+  /** Failed projects can be retried after this day with prior × priorMult (§3.3.3). */
+  retryDay?: Day;
+  attempts?: number;
+  priorMult?: number;
 }
 
 // ───────────────────────────── Production readout (§3.2.5) ─────────────────────────────
@@ -405,6 +456,10 @@ export interface ProductionReadout {
   labor: { A: number; aiFTE: number; copies: number; speed: number; wH: number };
   ratios: { h: number; k: number; c: number; d: number };
   Ddata: number;
+  /** What-ifs: M multiplier from 2× humans, 2×/0.1× agents, 2×/0.5× experiment compute (research/13 §1.6). */
+  whatIf: { humans2: number; agents2: number; agents01: number; exp2: number; exp05: number };
+  /** AI research taste in human SDs above the median (research/13 §2.4). */
+  sdAI: number;
 }
 
 // ───────────────────────────── Safety (§3.5) ─────────────────────────────
@@ -680,6 +735,9 @@ export interface RivalLab {
   meters: { poachAggression: number; cooperation: number; lobbyStance: number; openness: number };
   pressure: number; // race pressure 0..1 (research/17 §1.6.5)
   pressureDays: number;
+  /** Set by WS4 once it runs this lab's models and compute split itself. While unset, WS1 applies a default policy
+   *  (internal model tracks the lab's frontier; split tracks shareRef(t)). */
+  managed?: boolean;
 }
 
 export interface RivalIntel {

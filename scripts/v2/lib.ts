@@ -2,7 +2,12 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { tick } from '../../src/engine/v2/core/loop';
-import type { GameStateV2, TickOptions } from '../../src/engine/v2/types';
+import { newGame } from '../../src/engine/v2/core/init';
+import { decimalYear } from '../../src/engine/v2/core/time';
+import { refBot } from '../../src/engine/v2/bots/ref';
+import { engine } from '../../src/engine/v2/index';
+import { refTotal } from '../../src/engine/v2/production/knots';
+import type { EngineSystem, GameStateV2, SetupV2, TickOptions } from '../../src/engine/v2/types';
 
 export const HERE = dirname(fileURLToPath(import.meta.url));
 export const FIXTURE_DIR = join(HERE, 'fixtures');
@@ -27,6 +32,51 @@ export function validateJson(x: unknown, path = 's', errs: string[] = []): strin
     for (const [k, v] of Object.entries(x)) validateJson(v, `${path}.${k}`, errs);
   }
   return errs;
+}
+
+/**
+ * Stub compute (stands in for WS3 until merged): every lab's online compute tracks refTotal(t) at its start ratio
+ * (the player at exactly 1×, i.e. h,k,c ≈ 1). Runs right after computeOnline (order 20).
+ */
+export const refComputeStub: EngineSystem = {
+  id: 'stubRefCompute', owner: 'WS1', cadence: 'daily', order: 21,
+  run(s) {
+    const w = s.hidden.timeline;
+    const yr = decimalYear(s);
+    const ref = refTotal(w, yr);
+    s.player.computeOnline = ref;
+    for (const r of [...s.rivals, s.china.lab]) {
+      const key = `stub:ratio:${r.core.id}`;
+      if (s.flags[key] === undefined) s.flags[key] = r.core.computeOnline / refTotal(w, 2025.5);
+      r.core.computeOnline = ref * Number(s.flags[key]);
+    }
+  },
+};
+
+/** Stub finance for fixtures (until WS3/WS5 cash flows land): cash never falls below the start balance. */
+export const cashFloorStub: EngineSystem = {
+  id: 'stubCashFloor', owner: 'WS1', cadence: 'daily', order: 131,
+  run(s, ctx) {
+    const floor = Number(s.flags['stub:cash0'] ?? (s.flags['stub:cash0'] = s.player.finance.cash));
+    if (s.player.finance.cash < floor) ctx.bump('cash', floor - s.player.finance.cash, 'stub finance');
+  },
+};
+
+/** New game prepared for RefBot calibration runs: stub finance (cash effectively infinite). */
+export function refGame(setup: SetupV2): GameStateV2 {
+  const s = newGame(setup);
+  s.player.finance.cash = 1e6;
+  return s;
+}
+
+/** Run RefBot with the reference-compute stub until `day` or until `stop(s)` is true. */
+export function runRef(s: GameStateV2, day: number, stop?: (s: GameStateV2) => boolean, opts: TickOptions = {}) {
+  const o: TickOptions = { ...opts, extraSystems: [refComputeStub, ...(opts.extraSystems ?? [])] };
+  while (s.time.day < day && !s.ending && !stop?.(s)) {
+    refBot.act(s, engine);
+    tick(s, o);
+  }
+  return s;
 }
 
 let failures = 0;

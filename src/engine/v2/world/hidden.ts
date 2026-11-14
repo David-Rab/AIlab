@@ -112,7 +112,7 @@ export function sampleHidden(rng: Rng, setup: SetupV2): HiddenWorld {
 
 /** U-modes present in a new lineage (§3.5.5). M0 helper used for the starting lineages; WS2 owns the full rule
  *  (modifiers by design/paradigm) in safety/umodes.ts. Speculative modes need tier ≥ SC. */
-export function drawLineageUModes(rng: Rng, h: HiddenWorld, tierAtLeastSC: boolean): UModeId[] {
+export function drawLineageUModes(rng: Pick<Rng, 'chance'>, h: Pick<HiddenWorld, 'uModePropensity'>, tierAtLeastSC: boolean): UModeId[] {
   const out: UModeId[] = [];
   for (const u of UMODES) {
     if (u.kind === 'speculative' && !tierAtLeastSC) continue;

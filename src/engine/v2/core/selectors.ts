@@ -8,7 +8,19 @@ import { understanding } from '../safety/understanding';
 import { leadDays } from '../actors/intel';
 import type { DecisionSnapshot, GameStateV2, HiddenWorld } from '../types';
 
-export { production, nextModelGate } from '../production/readout';
+export { production, productionWhatIf, nextModelGate } from '../production/readout';
+export type { NextModelGate } from '../production/readout';
+// WS1 model / department selectors and helpers for the UI (visible data only).
+export { planRun, predictRun } from '../models/runs';
+export type { LaunchRunParams, RunPlan } from '../models/runs';
+export { paradigmGate, PARADIGM_BY_ID } from '../models/paradigms';
+export { benchName, benchGen, evalDaysFor } from '../models/benchmarks';
+export { deployGate, liveDeployments, CHANNEL_VARIANTS, distillationAccess } from '../models/deployments';
+export { bestMeasuredL, internalVersion, labPools, versionById } from '../models/labs';
+export { MILESTONE_NAMES } from '../models/capability';
+export { presetSplit, shareRefAt, SPLIT_KEYS, SPLIT_PRESETS } from '../departments/split';
+export { weeklyHireCap, payrollPerYear, inPipeline } from '../departments/staffing';
+export { baseFromParams, postFromParams, payrollAtTarget } from '../models/actions';
 export { understanding } from '../safety/understanding';
 export { leadDays, riskSources } from '../actors/intel';
 export { raiseCeiling } from '../finance/equity';
