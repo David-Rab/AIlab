@@ -71,12 +71,17 @@ check(stateHash(a) === stateHash(b), `determinism: same seed → same hash after
 check(stateHash(run({ ...detSetup, seed: 43 }, 10)) !== stateHash(run(detSetup, 10)), 'determinism: different seed → different hash');
 
 // ---------- 4. Stream isolation ----------
+const CONSUMED_STREAMS: StreamId[] = ['safety'];
 const probe = (stream: StreamId): EngineSystem => ({ id: `probe-${stream}`, owner: 'WS1', cadence: 'daily', order: 999, run: (_s, ctx) => void ctx.rng(stream).float() });
 for (const target of ['safety', 'market'] as StreamId[]) {
   const c = run(detSetup, 400, { extraSystems: [probe(target)] });
   const base = run(detSetup, 400);
   const others = STREAMS.filter((k) => k !== target);
   check(others.every((k) => c.rng[k] === base.rng[k]) && c.rng[target] !== base.rng[target], `stream isolation: extra '${target}' draws leave other streams unchanged`);
+  // [WS2 edit, for WS1 review] Once a stream has a consumer, extra draws on it legitimately change that consumer's
+  // outcomes (WS2 draws findings/observations from 'safety'), so the whole-state check only applies to streams that
+  // nothing consumes yet. The per-stream isolation check above still covers every target.
+  if (CONSUMED_STREAMS.includes(target)) continue;
   const strip = (s: GameStateV2) => stateHash({ ...s, rng: { ...s.rng, [target]: 0 } });
   check(strip(c) === strip(base), `stream isolation: rest of state identical with extra '${target}' draws`);
 }
