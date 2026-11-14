@@ -3,9 +3,10 @@ import { clamp } from '../../rng';
 import { decimalYear } from '../core/time';
 import { bestPlayerVersion, activeRivals, CHINA_ID } from '../models/labs';
 import { exfiltrationHazard } from '../safety/incidents';
+import { distillationLeak } from '../models/deployments';
 import { misalignment } from '../safety/traits';
 import type { EngineSystem, GameStateV2, SecurityState, StaffByRole } from '../types';
-import { leadBetween, postureOf } from '../actors/rivals';
+import { leadBetween, openWeightsReleased, postureOf } from '../actors/rivals';
 import { request, ws4 } from '../actors/state';
 import { distillFlowDaily, executeTheft, secretsLeakDaily, theftHazardDaily, theftHazardOn } from './theft';
 
@@ -71,14 +72,27 @@ export const securitySystem: EngineSystem = {
       if (rng.chance(0.5 * theftHazardOn(s, rs, leadBetween(s, r.core.id, CHINA_ID)))) executeTheft(s, ctx, r.core.id);
     }
 
-    // Secrets leak and distillation close part of China's gap (R11 #16c; IFP).
+    // Distillation of the player's external deployments (WS1 distillationLeak, §3.3.5) for every active lab; an
+    // open-weights deployment above the open frontier is absorbed through openWeightsReleased. China also distils
+    // rival public models and gains from secrets leaks (R11 #16c; IFP).
+    let chinaDist = 0;
+    for (const lab of [...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])]) {
+      const leak = distillationLeak(s, lab.core.id);
+      if (leak.dpaPerDay > 0) {
+        lab.core.pa += leak.dpaPerDay;
+        w.drift[`${lab.core.id}.pa`] = (w.drift[`${lab.core.id}.pa`] ?? 0) + leak.dpaPerDay;
+      }
+      if (lab.core.id === CHINA_ID) chinaDist += leak.dpaPerDay;
+      if (leak.openPm > s.knowledge.openWeightsFrontier) openWeightsReleased(s, ctx, 'player', leak.openPm);
+    }
     const cn = s.china.lab.core;
     if (cn.status === 'active') {
       const leak = secretsLeakDaily(s);
       const dist = distillFlowDaily(s);
       cn.pa += leak + dist;
       w.drift['china.pa'] = (w.drift['china.pa'] ?? 0) + leak + dist;
-      w.distillDays = dist > 0.0004 ? w.distillDays + 1 : 0;
+      chinaDist += dist;
+      w.distillDays = chinaDist > 0.0004 ? w.distillDays + 1 : 0;
     }
 
     // Exfiltration of an internal agent (WS2 hazard) → E25; the 'rogue' ending clock starts.

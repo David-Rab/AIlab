@@ -15,8 +15,8 @@ import { normalizeSplit, shareRefAt } from '../departments/split';
 import { dataWallPenalty, effectiveStock, tokensRequired } from '../production/data';
 import { frontierFlop, hRef } from '../production/knots';
 import { tcoPerH100eYear } from '../production/production';
-import { applyRunToTraits } from '../safety/traits';
-import { drawLineageUModes } from '../world/hidden';
+import { consumeRunPenalty } from '../safety/responses';
+import { applyBaseToLineage, applyIdaCycle, applyRunToTraits, runSignals } from '../safety/traits';
 import type {
   BaseDesign, BaseModel, Day, EngineSystem, GameStateV2, ModelVersion, PostDesign, RivalLab, RunKind, RunPrediction, SystemCtx,
   ToolFamily, TraitBelief, TraitId, TrainingRun, VersionBuild,
@@ -28,6 +28,8 @@ import { domainsOf, levelOf, pcContinue, pcOfBase, pmOfBuild, refreshLevels, sim
 import { DISTILL_PM_PENALTY, DISTILL_SERVE_FACTOR } from './distill';
 import { versionById } from './labs';
 import { bookCash } from '../finance/ledger';
+import { poolsOf } from '../compute/power';
+import { ws4r } from '../actors/state';
 
 export interface LaunchRunParams {
   kind: RunKind;
@@ -43,11 +45,14 @@ export interface LaunchRunParams {
 
 const POOL_DEFAULT: Record<RunKind, number> = { base: 0.6, post: 0.2, distill: 0.1, continue: 0.3 };
 
-/** FLOP per day of the player's whole training pool (P16 kernels: Φ × 1.15). */
+/** FLOP per day of the player's whole training pool = WS3 pools (computeOnline × split.training) × Φ (P16: × 1.15). */
 export function trainingFlopPerDay(s: GameStateV2): number {
   const phi = PHI_FLOP_PER_H100E_DAY * (adopted(s, 'P16') ? 1.15 : 1);
-  return s.player.computeOnline * s.player.split.training * phi;
+  return poolsOf(s).training * phi;
 }
+
+/** Frontier (base/post) runs are paused until this day by WS4 (E17 Pause & investigate, pause pledges). */
+export const frontierPaused = (s: GameStateV2, day: Day = s.time.day) => ws4r(s).frontierPauseUntil > day;
 
 /** Effective pool shares of running runs this day. When the runs ask for more than the pool left by the stream,
  *  base and continue runs keep their share first and the other runs are scaled down [D: pretraining has priority]. */
@@ -162,12 +167,16 @@ export function planRun(s: GameStateV2, p: LaunchRunParams, rollDays = (lo: numb
   }
   const etaDays = Math.max(minDays, Math.ceil(flopNeeded / flopDay));
   if (cash > s.player.finance.cash) reason ??= 'Not enough cash';
+  if ((p.kind === 'base' || p.kind === 'post') && frontierPaused(s)) reason ??= 'Frontier runs are paused';
   const Lg = levelOf(w, pmPred);
   const doms = domainsOf(w, pmPred, addOff(off, paradigmOff(s)), adopted(s, 'P19'));
+  // Run-card ▲ arrows are WS2's runSignals (the signals applyRunToTraits will actually apply); the design table's
+  // signals are only a fallback when WS2 returns nothing for this kind.
+  const ws2Signals = runSignals(s, { kind: p.kind, ...(p.base ? { base: p.base } : {}), ...(p.post ? { post: p.post } : {}) } as TrainingRun);
   const prediction: RunPrediction = {
     Lg: [Lg - 0.25, Lg + 0.25],
     domains: Object.fromEntries(Object.entries(doms).map(([k, v]) => [k, [v - 0.25, v + 0.25]])) as RunPrediction['domains'],
-    signals: { S1: 0, S2: 0, S3: 0, S4: 0, S5: 0, S6: 0, S7: 0, S8: 0, ...clampSignals(signals) },
+    signals: { S1: 0, S2: 0, S3: 0, S4: 0, S5: 0, S6: 0, S7: 0, S8: 0, ...clampSignals(Object.values(ws2Signals).some((x) => x > 0) ? ws2Signals : signals) },
     etaDays, serveCost: serve, monitorability: monitorabilityClass(mon),
   };
   return { flopNeeded, minDays, cashCost: cash, etaDays, poolShare, prediction, reason };
@@ -212,6 +221,7 @@ export function launchRun(s: GameStateV2, ctx: SystemCtx, p: LaunchRunParams): T
   if (p.base) run.base = { ...p.base, curation: { ...p.base.curation } };
   if (p.post) run.post = { ...p.post, rlFocus: Array.isArray(p.post.rlFocus) ? [...p.post.rlFocus] : 'broad', techniques: [...p.post.techniques], trainAgainst: [...p.post.trainAgainst] };
   if (p.ida) run.name = `IDA ${n}`;
+  run.signals = clampSignals(run.base || run.post || run.kind === 'distill' ? runSignals(s, run) : signals);
   m.runs.push(run);
   if (plan.cashCost > 0) bookCash(s, ctx, -plan.cashCost, 'training', 'training run', run.name);
   if (p.kind === 'base' && p.base?.scale === 'stretch') ctx.bump('relations.scrutiny', 5, 'stretch base run', run.name); // §3.4.3
@@ -276,16 +286,16 @@ function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
     const nb = m.bases.length + 1;
     const startDay = run.startDay;
     const dp = be.dp + baseDataWall(s, run.base, run.flopNeeded) + (adopted(s, 'P24') ? 0.8 : 0);
-    const tierSC = s.player.scDay !== undefined && s.player.scDay <= startDay;
     const b: BaseModel = {
       id: `B${nb}`, name: `${PLAYER_MODEL_FAMILY}-${nb}`, day: s.time.day, startDay, flop: run.flopNeeded,
       paAtStart: run.paAtStart ?? s.player.pa, pc: pcOfBase(w, startDay, run.flopNeeded, s.player.scDay), design: run.base,
       dp, off: be.domains, serve: be.serve, monitorability: be.monitorability, signals: be.signals,
       lineage: newLineage ? `L-player-${nb}` : m.bases[m.bases.length - 1].lineage,
-      traitsTrue: { ...(parent?.traitsTrue ?? m.bases[0].traitsTrue) }, // WS2 redraws/updates lineage traits
-      uModes: drawLineageUModes(ctx.rng('runs'), s.hidden, tierSC),
+      traitsTrue: { ...(parent?.traitsTrue ?? m.bases[0].traitsTrue) },
+      uModes: [],
     };
     m.bases.push(b);
+    applyBaseToLineage(s, ctx, run, b); // WS2 hook: new lineage traits and U-modes (§3.4.4, §3.5.5)
     ctx.log('research', `Base model ${b.name} finished pretraining.`, 2, b.id);
     return;
   }
@@ -300,6 +310,7 @@ function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
       traitsTrue: { ...parent.traitsTrue }, uModes: [...parent.uModes], off: { ...(parent.off ?? {}) }, signals: { ...(parent.signals ?? {}) },
     };
     m.bases.push(b);
+    applyBaseToLineage(s, ctx, run, b); // WS2 hook: continue runs step the lineage traits (ω 0.5)
     ctx.log('research', `Continued pretraining: ${b.name}.`, 1, b.id);
     return;
   }
@@ -328,13 +339,13 @@ function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
     const build: VersionBuild = { ...tb, dp: tb.dp + 0.25, off: { ...tb.off }, signals: { ...tb.signals } };
     const v = newVersion(s, run, base, build, t, { serveCost: t.serveCost, monitorability: t.monitorability, design: { ...t.design }, appeal: t.appeal ?? 1 });
     m.versions.push(v);
-    afterVersion(s, ctx, run, v);
+    afterVersion(s, ctx, run, v, t);
     return;
   }
   const paPost = POST_PA_AT === 'end' ? s.player.pa : (run.paAtStart ?? s.player.pa);
   const h80Mult = pe.h80Mult * (adopted(s, 'P07') ? 1.5 : 1) * (adopted(s, 'P12') ? 2 : 1);
   const build: VersionBuild = {
-    paBase: base.paAtStart, paPost, kappa: KAPPA.post, pc: base.pc, dp: (base.dp ?? 0) + pe.dp,
+    paBase: base.paAtStart, paPost, kappa: KAPPA.post, pc: base.pc, dp: (base.dp ?? 0) + pe.dp - consumeRunPenalty(s),
     off: addOff(addOff(base.off ?? {}, pe.domains), pOff), h80Mult, misuseMult: pe.misuseMult,
     signals: clampSignals(addSig(base.signals ?? {}, pe.signals)),
   };
@@ -350,8 +361,14 @@ function fallbackBuild(v: ModelVersion): VersionBuild {
   return { paBase: v.pm, paPost: v.pm, kappa: 0, pc: 0, dp: 0, off: {}, h80Mult: 1, misuseMult: 1, signals: {} };
 }
 
-function afterVersion(s: GameStateV2, ctx: SystemCtx, run: TrainingRun, v: ModelVersion) {
-  applyRunToTraits(s, ctx, run, v); // WS2 hook (§3.5.4)
+/** WS2 trait hooks for a finished post/distill/IDA run (§3.5.4). An IDA cycle (P18) is WS2's applyIdaCycle on the
+ *  teacher's traits (ω 0.4, misalignment × 1.1); applyRunToTraits still sets its masks, U-modes and beliefs. */
+function afterVersion(s: GameStateV2, ctx: SystemCtx, run: TrainingRun, v: ModelVersion, idaTeacher?: ModelVersion) {
+  applyRunToTraits(s, ctx, run, v);
+  if (idaTeacher) {
+    v.traitsTrue = { ...idaTeacher.traitsTrue };
+    applyIdaCycle(s, v);
+  }
   ctx.log('research', `${v.name} finished training (evaluating).`, 2, v.id);
 }
 
@@ -374,6 +391,8 @@ export const runsSystem: EngineSystem = {
   id: 'runs', owner: 'WS1', cadence: 'daily', order: 40,
   run(s, ctx) {
     if (s.player.status !== 'active') return;
+    // WS4 pauses frontier runs (status 'paused'); they resume when the pause ends.
+    if (!frontierPaused(s, ctx.day)) for (const r of s.player.models.runs) if (r.status === 'paused' && (r.kind === 'base' || r.kind === 'post')) r.status = 'running';
     const alloc = poolAllocation(s);
     const flopDay = trainingFlopPerDay(s);
     for (const run of s.player.models.runs) {
@@ -400,20 +419,29 @@ export const runsSystem: EngineSystem = {
   },
 };
 
-/** Default policy for non-player labs not managed by WS4: the split tracks shareRef(t) (keeping the lab's safety and
- *  security shares) and the internal model tracks the lab's simple frontier; the public model trails by 0.15 y. */
-function defaultLabPolicy(s: GameStateV2, r: RivalLab) {
-  if (r.managed || r.core.status !== 'active') return;
-  const w = s.hidden.timeline;
+// ───────────────────────────── lab API for non-player labs (WS4 drives them) ─────────────────────────────
+
+/** Reference split for a non-player lab: the shares track shareRef(t), keeping the lab's own safety and security
+ *  shares (WS4 sets those from posture). */
+export function labReferenceSplit(s: GameStateV2, r: RivalLab): void {
   const ref = shareRefAt(decimalYear(s));
   const keep = r.core.split.safety + r.core.split.security;
   const rest = 1 - ref.safety - ref.security;
   const sp = { ...ref, safety: r.core.split.safety, security: r.core.split.security };
   for (const k of ['training', 'experiments', 'agents', 'synthetic', 'serving'] as const) sp[k] = (ref[k] / rest) * (1 - keep);
   r.core.split = normalizeSplit(sp);
-  // Capabilities staff grow with the reference headcount path (keeps h constant).
+}
+
+/** Capabilities staff of a non-player lab grow with the reference headcount path (keeps h constant). */
+export function growLabStaff(s: GameStateV2, r: RivalLab): void {
   const yr = decimalYear(s);
   r.core.staff.cap *= hRef(yr) / hRef(yr - 1 / 365);
+}
+
+/** The internal model of a non-player lab tracks its simple frontier (pa + scale term − reference release lag,
+ *  simpleFrontierPm). WS4 calls this daily for the labs it manages; model identity, traits and releases are WS4's. */
+export function trackLabFrontier(s: GameStateV2, r: RivalLab): void {
+  const w = s.hidden.timeline;
   const target = simpleFrontierPm(s, r.core.id);
   const m = r.internal;
   if (target > m.pm) {
@@ -421,6 +449,17 @@ function defaultLabPolicy(s: GameStateV2, r: RivalLab) {
     m.Lg = levelOf(w, m.pm);
     m.domains = domainsOf(w, m.pm);
   }
+}
+
+/** Default policy for non-player labs not managed by WS4: reference split, staff growth, frontier tracking, and the
+ *  public model trailing by 0.15 y. */
+function defaultLabPolicy(s: GameStateV2, r: RivalLab) {
+  if (r.managed || r.core.status !== 'active') return;
+  const w = s.hidden.timeline;
+  labReferenceSplit(s, r);
+  growLabStaff(s, r);
+  trackLabFrontier(s, r);
+  const m = r.internal;
   if (r.publicModel && m.pm - 0.15 > r.publicModel.pm) {
     const pub = r.publicModel;
     pub.pm = m.pm - 0.15;

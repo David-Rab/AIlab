@@ -1,22 +1,26 @@
 // Race-only bot (§7.4). Owner: WS4 (harness); balance owned by all workstreams.
 // 2× capex, 1% safety with no agendas above Seed, heavy cheap graders + engagement RLHF, stretch bases, latent
-// reasoning on sight, releases everything (open-weights frontier − 1), never discloses, signs nothing, E17 Continue.
+// reasoning on sight, releases its frontier, never discloses, signs nothing, E17 Continue.
+// Model cadence: WS1's reference play with race designs; compute and money: WS3's autopilot at 2× capex, no guard.
+import { financeAutopilot } from '../finance/plan';
 import type { BotPolicy } from '../types';
-import { every, intent, pickByTags, tryAct } from './common';
+import { every, pickByTags, tryAct } from './common';
+import { REF_PARADIGMS, refPlay, type RefPlayOpts } from './ref';
+
+const RACE_PLAY: RefPlayOpts = {
+  safetyShare: () => 0.01,
+  base: { scale: 'stretch' },
+  post: () => ({ pref: 'engagement', rlIntensity: 'heavyCheap', cot: 'pressured', safety: 'minimal', inoculation: false }),
+  paradigms: () => REF_PARADIGMS,
+  release: 'frontier',
+};
 
 export const raceBot: BotPolicy = {
   id: 'race',
   act(s, api) {
-    if (s.time.day === 0) {
-      intent(s, api, 'safetyShare', { safety: 0.01 });
-      intent(s, api, 'capex', { mult: 2 });
-      intent(s, api, 'evalGate', { gate: 'none' });
-    }
-    if (every(s, 7)) {
-      intent(s, api, 'launchBase', { scale: 'stretch' });
-      intent(s, api, 'launchPost', { pref: 'engagement', rlIntensity: 'heavyCheap', cot: 'latent', safety: 'minimal', inoculation: false });
-      intent(s, api, 'release', { channel: 'consumer', variant: 'full' });
-    }
+    if (s.time.day === 0) tryAct(s, api, 'safety.evalGate', { level: 'none' });
+    refPlay(s, api, RACE_PLAY);
+    financeAutopilot(s, { mult: 2, strategic: true, offBalance: true, guard: false, rescue: false, recap: true });
     if (every(s, 30)) {
       tryAct(s, api, 'B4', { direction: 'deregulate' });
       tryAct(s, api, 'B2', { terms: 'unrestricted' });

@@ -24,6 +24,11 @@ export { baseFromParams, postFromParams, payrollAtTarget } from '../models/actio
 export { understanding } from '../safety/understanding';
 export { leadDays, riskSources } from '../actors/intel';
 export { raiseCeiling } from '../finance/equity';
+// WS2 safety-panel selectors (beliefs, posteriors, incidents as the player sees them). `safetyTruth` is END SCREEN ONLY.
+export { agendaRows, beliefView, findingRows, incidentRows, safetyTruth, safetyView, techniqueRows, traitGraph, uModeCards } from '../safety/view';
+export type { AgendaRow, FindingRow, TechniqueRow } from '../safety/view';
+// WS5 world readouts (observables only).
+export { automationShare, dowYtd, firmAdoption, remoteWorkAutomation, unemploymentChange12m, youthExposedEmployment } from '../worldfx/readouts';
 export { causeStrip } from './causes';
 export { activeRivals } from '../models/labs';
 export { dateOf, decimalYear, fmtDate, fmtMonth } from './time';

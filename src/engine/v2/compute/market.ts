@@ -95,7 +95,8 @@ export function globalRefQ(q: number): number {
 
 /** Default (reference) demand per quarter of a non-player lab that WS4 does not manage [D]: fleet grows at the global
  *  pace (2.25×/yr, AI 2027 compute forecast). */
-const RIVAL_GROWTH_Q = Math.pow(2.25, 0.25) - 1;
+/** Default quarterly compute growth of a US rival (2.25×/yr); WS4 scales its chip orders from it. */
+export const RIVAL_GROWTH_Q = Math.pow(2.25, 0.25) - 1;
 
 /** Exogenous demand (hyperscalers, enterprise, sovereign buyers not modelled as labs) for quarter q (§3.8). The
  *  reference player and default rivals are netted out, so with reference labs total demand ≈ globalRefQ. */
@@ -272,12 +273,10 @@ export function clearMarket(s: GameStateV2, ctx: SystemCtx): void {
   const q = qOf(s);
   w.q = q;
 
-  // 1. Geo: decay disruptions, roll new ones (market stream), geo_TW path, demand-shock decay.
+  // 1. Geo: decay disruptions, geo_TW path, demand-shock decay. New Taiwan/Korea disruptions are rolled by WS4's
+  //    geoQ (spec §2.2 order 440) through taiwanShock / koreaShock with taiwanHazardQ / KOREA_HAZARD_Q.
   if (w.twQ > 0 && --w.twQ === 0) m.disruptTW = 0;
   if (w.krQ > 0 && --w.krQ === 0) m.disruptKR = 0;
-  const rng = ctx.rng('market');
-  if (m.disruptTW === 0 && rng.chance(taiwanHazardQ(s))) taiwanShock(s, ctx, rng.range(0.8, 1.0), 4 + Math.floor(rng.float() * 9));
-  if (m.disruptKR === 0 && rng.chance(KOREA_HAZARD_Q)) koreaShock(s, ctx, rng.range(0.3, 0.7), 2 + Math.floor(rng.float() * 3));
   m.geoTW = geoTWAt(decimalYear(s));
   if (w.exoMultDecay > 0) w.exoMult = 1 + (w.exoMult - 1) * (1 - w.exoMultDecay);
 
@@ -376,9 +375,7 @@ export function clearMarket(s: GameStateV2, ctx: SystemCtx): void {
   w.playerFill = playerWant > 0 ? playerGot / playerWant : 1;
   w.playerWeight = orderWeight(s, 'standard', 0.3);
   w.labOrders = w.labOrders.filter((o) => o.qty - o.delivered > 1);
-  // China: exports + smuggling at the policy performance factor, plus domestic supply (~3.5% of global, 0.6 perf);
-  // about half of China's compute serves the national champion [R15, R10, AI27].
-  s.china.lab.core.computeOnline += 0.5 * (toChina * pol.perf + 0.035 * S0 * 0.6);
+  // China's compute is WS4's (china.meters.computeAbs, §3.10.4); exports to China only reduce the supply here.
 
   // 7. Bookkeeping: global production and stock, backlog signal, supplier expansion.
   const shipped = Math.min(S, outside + claims.reduce((a, c) => a + c.got, 0)) + toChina;

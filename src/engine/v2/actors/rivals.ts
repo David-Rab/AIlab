@@ -12,7 +12,10 @@ import { Rng, clamp } from '../../rng';
 import { shareRefAt, normalizeSplit } from '../departments/split';
 import { domainsOf, levelOf } from '../models/capability';
 import { activeRivals, bestPm, otherLabs } from '../models/labs';
-import { misalignment } from '../safety/traits';
+import { misalignment, rivalTraitStep as ws2RivalTraitStep } from '../safety/traits';
+import { labModelHazards } from '../safety/incidents';
+import { placeLabOrder, RIVAL_GROWTH_Q } from '../compute/market';
+import { growLabStaff, labReferenceSplit, trackLabFrontier } from '../models/runs';
 import { initialSecurity } from '../security/security';
 import { capIndexV2, referenceRate } from '../world/calibration';
 import { rivalId } from '../world/hidden';
@@ -247,7 +250,14 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   const day = ctx.day;
   const rng = ctx.rng(r.core.kind === 'china' ? 'china' : 'rivals');
   const arch = r.archetype;
-  const h = s.hidden;
+
+  // WS4 manages this lab (WS1's default policy is off): compute split and staff through WS1's lab API, and the
+  // internal model's capability tracks the lab's frontier (simpleFrontierPm); model identity, traits and releases
+  // follow WS4's cadence below.
+  r.managed = true;
+  labReferenceSplit(s, r);
+  growLabStaff(s, r);
+  trackLabFrontier(s, r);
 
   // Pressure (§3.10.3) and its persistence (moving-goalposts trigger).
   r.pressure = racePressure(s, id);
@@ -262,22 +272,22 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   const [gen, post] = genOf(r);
   const fam = famOf(s, r);
 
-  // Base cadence: a new lineage (U-modes redrawn; traits partly inherited: same lab, same methods).
+  // Base cadence: a new lineage. WS2's trait graph draws its U-modes and initial traits (§3.10.3 "Rivals and China
+  // use the same graph"), then a first post-train on it.
   if (day >= r.nextBaseDay) {
     const months = (BASE_MONTHS[arch] ?? 12) * rng.range(0.8, 1.2);
     r.nextBaseDay = day + Math.round(months * 30.4);
     const g2 = gen + 1;
-    const t: TraitVector = { ...TRAIT_START };
-    for (const k of TRAIT_IDS) t[k] = 0.6 * r.internal.traitsTrue[k] + 0.4 * TRAIT_START[k];
-    r.internal = { ...r.internal, id: `${id}-b${g2}p0`, name: `${fam}-${g2}`, day, traitsTrue: t, uModes: drawUModes(rng, h, r.internal.Lg >= 10), isPublic: false, openWeights: false };
+    r.internal = { ...r.internal, id: `${id}-b${g2}p0`, name: `${fam}-${g2}`, day, traitsTrue: { ...r.internal.traitsTrue }, uModes: [...r.internal.uModes], isPublic: false, openWeights: false };
     w.internalDay[id] = day;
-    rivalTraitStep(s, r, effSafety(s, r, rng.normal()), 2);
+    ws2RivalTraitStep(s, rng, r, 'base');
+    ws2RivalTraitStep(s, rng, r, 'post', { latent: s.flags[lk] === true });
   } else if (day >= w.nextPost[id]) {
     // Post-training cadence (6–10 weeks): same lineage, new version.
     w.nextPost[id] = day + Math.round(rng.range(42, 70));
-    r.internal = { ...r.internal, id: `${id}-b${gen}p${post + 1}`, name: `${fam}-${gen}.${post + 1}`, day, traitsTrue: { ...r.internal.traitsTrue } };
+    r.internal = { ...r.internal, id: `${id}-b${gen}p${post + 1}`, name: `${fam}-${gen}.${post + 1}`, day, traitsTrue: { ...r.internal.traitsTrue }, uModes: [...r.internal.uModes] };
     w.internalDay[id] = day;
-    rivalTraitStep(s, r, effSafety(s, r, rng.normal()));
+    ws2RivalTraitStep(s, rng, r, 'post', { latent: s.flags[lk] === true });
   }
 
   // Releases: the public model lags the internal one (§3.10.3).
@@ -294,13 +304,20 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
     if (open) openWeightsReleased(s, ctx, id, r.internal.pm);
   }
 
-  // Incidents (§3.5.10 hazard, research/17 §1.6.5 #4): visibility = disclosure + 0.5·access + leak, statutory floor.
+  // Incidents: WS2's per-trait hazards on the lab's deployed model (§3.5.10, same κ table as the player's) plus a
+  // misuse hazard like the player's (standard safeguards) [D: usage 0.5, mitigation from eval rigor and safety
+  // investment]; visibility = disclosure + 0.5·access + leak, statutory floor (research/17 §1.6.5 #4).
   const p = postureOf(s, id);
-  const mis = rivalMis(r);
-  const hz = 0.0015 * mis * (1 - 0.5 * p.evalRigor) + 0.0006 * (1 - p.safetyInvestment) * clamp(r.internal.Lg / 10, 0, 1.5);
-  if (rng.chance(hz)) {
-    const misuse = rng.chance(0.4);
-    const sev = clamp(1 + Math.floor(rng.float() * 3 + r.internal.Lg / 6), 1, 5);
+  const dep = r.publicModel ?? r.internal;
+  const mitigation = clamp(0.5 * p.evalRigor + 0.3 * p.safetyInvestment, 0, 0.9);
+  const rows = labModelHazards(dep.traitsTrue, dep.uModes, 1, 0.5, mitigation);
+  const misuseH = 1e-4 * Math.max(0, dep.Lg - 7) * (dep.openWeights ? 1 : 0.5) * (1 - 0.3) * (1 - 0.6 * p.evalRigor);
+  if (misuseH > 0) rows.push({ source: 'misuse', apparent: 'misuse', h: misuseH, severity: [3, 5] });
+  const H = rows.reduce((a, x) => a + x.h, 0);
+  if (H > 0 && rng.chance(Math.min(0.5, H))) {
+    const row = rng.weighted(rows.map((x) => ({ item: x, weight: x.h })));
+    const misuse = row.source === 'misuse';
+    const sev = clamp(row.severity[0] + Math.floor(rng.float() * (row.severity[1] - row.severity[0] + 1)), 1, 5);
     const floor = r.core.kind === 'rival' && (s.gov.statutes.sb53 || s.gov.statutes.raise) && sev >= 3 ? 0.6 : 0;
     const vis = Math.max(floor, clamp(p.disclosureRate + 0.5 * p.externalAccess + 0.1, 0, 1) * (sev >= 4 ? 1 : 0.6));
     if (rng.chance(vis)) {
@@ -363,7 +380,10 @@ export function rivalFinanceQ(s: GameStateV2, ctx: SystemCtx) {
         f.valuation = f.valuation * 1.25 + amt;
       }
     }
-    r.core.computeOnline *= 1 + 0.18 * clamp(f.cash / Math.max(1, spend), 0, 1);
+    // Compute grows by chip orders cleared in WS3's market (rationed with everyone else's): the default 2.25×/yr
+    // path, scaled down when the lab is short of cash (parent-funded labs always order in full).
+    const fund = parentFunded ? 1 : clamp(f.cash / Math.max(1, spend), 0.25, 1);
+    placeLabOrder(s, r.core.id, r.core.computeOnline * RIVAL_GROWTH_Q * fund, 1, 1.2);
     const wasDistress = f.distress;
     f.distress = f.cash < 0;
     if (f.distress && !wasDistress) {

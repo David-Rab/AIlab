@@ -8,6 +8,7 @@ const RULES: [RegExp, string][] = [
   [/\bhidden\s*\./, '`hidden.` access'],
   [/\[\s*['"]hidden['"]\s*\]/, "`['hidden']` access"],
   [/\bselectHidden\b/, 'selectHidden'],
+  [/\bsafetyTruth\b/, 'safetyTruth (end screen only)'],
   [/\b\w+True\b/, '`*True` field (truth)'],
   [/\.pm\b|\.Lg\b|\bdoomThreshold\b|\bagendaEfficacy\b|\bparadigmSuccess\b/, 'hidden capability/world field'],
 ];

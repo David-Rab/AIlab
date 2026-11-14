@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { tick } from '../../src/engine/v2/core/loop';
 import { newGame } from '../../src/engine/v2/core/init';
 import { decimalYear } from '../../src/engine/v2/core/time';
-import { refBot } from '../../src/engine/v2/bots/ref';
+import { refPlay } from '../../src/engine/v2/bots/ref';
 import { engine } from '../../src/engine/v2/index';
 import { refTotal } from '../../src/engine/v2/production/knots';
 import type { EngineSystem, GameStateV2, SetupV2, TickOptions } from '../../src/engine/v2/types';
@@ -69,11 +69,12 @@ export function refGame(setup: SetupV2): GameStateV2 {
   return s;
 }
 
-/** Run RefBot with the reference-compute stub until `day` or until `stop(s)` is true. */
+/** Run RefBot's model policy (refPlay) with the reference-compute stub until `day` or until `stop(s)` is true. The
+ *  endings system is skipped: T1 measures the capability timeline, not how the game would end. */
 export function runRef(s: GameStateV2, day: number, stop?: (s: GameStateV2) => boolean, opts: TickOptions = {}) {
-  const o: TickOptions = { ...opts, extraSystems: [refComputeStub, ...(opts.extraSystems ?? [])] };
+  const o: TickOptions = { ...opts, extraSystems: [refComputeStub, ...(opts.extraSystems ?? [])], skip: ['endings', ...(opts.skip ?? [])] };
   while (s.time.day < day && !s.ending && !stop?.(s)) {
-    refBot.act(s, engine);
+    refPlay(s, engine);
     tick(s, o);
   }
   return s;

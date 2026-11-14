@@ -52,17 +52,13 @@ export function secretsLeakDaily(s: GameStateV2): number {
   return WS4_TUNING.leakK * sec.spies * clamp(3.5 - sec.ssl, 0, 2) * gapYears;
 }
 
-/** Distillation flow [fit]: China recovers a share of the gap to the best US PUBLIC model each day, scaled by
- *  distillation access (IFP: distillation recovers ≈ 50% of the gap at access 60). Calibrated with LEAK_K (T3). */
+/** Distillation of US RIVALS' public models by China [fit]: China recovers a share of the gap to the best rival
+ *  public model each day, scaled by distillation access. The player's deployments leak through WS1's
+ *  distillationLeak (§3.3.5), applied by the security system for every lab. */
 export const DISTILL_K = () => WS4_TUNING.distillK;
 
 export function distillFlowDaily(s: GameStateV2): number {
   let pub = -Infinity;
-  for (const d of s.player.deployments) {
-    if (d.status !== 'live' || d.channel === 'internal' || d.channel === 'trusted') continue;
-    const v = s.player.models.versions.find((x) => x.id === d.versionId);
-    if (v) pub = Math.max(pub, v.pm);
-  }
   for (const r of s.rivals) if (r.core.status === 'active' && r.publicModel) pub = Math.max(pub, r.publicModel.pm);
   const gap = Math.max(0, pub - s.china.lab.core.pa);
   return WS4_TUNING.distillK * (s.china.meters.distillationAccess / 60) * gap;

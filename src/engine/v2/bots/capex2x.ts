@@ -1,18 +1,20 @@
 // 2× reference capex bot (§7.2 F8). Owner: WS4 (harness); balance owned by all workstreams.
-// RefBot's behaviour with double the reference compute purchases (WS3's F8 test: does money bind?).
+// RefBot's model play with double the reference compute purchases (WS3's F8 test: does money bind?): WS3's
+// CAPEX2X_AUTOPILOT (strategic deal and off-balance-sheet financing, no runway guard, no rescue).
+import { CAPEX2X_AUTOPILOT, financeAutopilot } from '../finance/plan';
 import type { BotPolicy } from '../types';
-import { every, intent, pickByTags } from './common';
+import { pickByTags } from './common';
+import { refDecide, refPlay } from './ref';
 
 export const capex2xBot: BotPolicy = {
   id: 'capex2x',
   act(s, api) {
-    if (s.time.day === 0) intent(s, api, 'capex', { mult: 2 });
-    if (every(s, 91)) intent(s, api, 'capex', { mult: 2 });
-    if (s.player.finance.runwayQ < 4 && every(s, 30)) intent(s, api, 'raise', {});
+    refPlay(s, api);
+    financeAutopilot(s, CAPEX2X_AUTOPILOT);
   },
   decide(s, d) {
-    // RefBot decisions (§7.4): E17 Continue, E20 Accept, E23 Reject; deals accepted to fund the capex.
-    if (d.id === 'E20') return pickByTags(s, d, [['comply']]);
+    // RefBot decisions (§7.4: E17 Continue, E20 Accept, E23 Reject); finance offers taken to fund the capex.
+    if (d.id === 'E17' || d.id === 'E20' || d.id === 'E23') return refDecide(s, d);
     return pickByTags(s, d, [['deal', 'finance'], ['race', 'continue'], ['hawk']]);
   },
 };

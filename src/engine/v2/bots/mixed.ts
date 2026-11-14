@@ -7,25 +7,42 @@
 import { internalVersion } from '../models/labs';
 import { understanding } from '../safety/understanding';
 import type { BotPolicy, GameStateV2 } from '../types';
-import { byLabel, every, intent, pickByTags, tryAct } from './common';
+import { clamp } from '../../rng';
+import { financeAutopilot, REF_AUTOPILOT } from '../finance/plan';
+import { byLabel, every, pickByTags, tryAct } from './common';
+import { REF_PARADIGMS, refPlay, type RefPlayOpts } from './ref';
 
 const posteriorMean = (s: GameStateV2, a: 'AG01' | 'AG02') => {
   const p = s.player.safety.agendas[a]?.posterior;
   return p ? p.a / (p.a + p.b) : 0;
 };
 
+/** Latent reasoning only with strong interpretability evidence (AG01 or AG02 posterior mean > 0.6). */
+const latentOk = (s: GameStateV2) => posteriorMean(s, 'AG01') > 0.6 || posteriorMean(s, 'AG02') > 0.6;
+
+/** Model cadence: WS1's reference play; safety compute 3–12% steered monthly by the U-margin. */
+const MIXED_PLAY: RefPlayOpts = {
+  safetyShare: (s) => {
+    const m = understanding(s).margin;
+    const cur = s.player.split.safety;
+    return clamp(m < -0.3 ? cur + 0.02 : m > 0.3 ? cur - 0.01 : cur, 0.03, 0.12);
+  },
+  post: () => ({ pref: 'constitution', rlIntensity: 'heavyHardened', cot: 'visible', safety: 'standard', inoculation: true }),
+  paradigms: (s) => (latentOk(s) ? REF_PARADIGMS : REF_PARADIGMS.filter((p) => p !== 'P17')),
+};
+
 export const mixedBot: BotPolicy = {
   id: 'mixed',
   act(s, api) {
-    if (s.time.day === 0) for (const a of ['AG02', 'AG07', 'AG08', 'AG09', 'AG18']) intent(s, api, 'fundAgenda', { agenda: a, level: 'serious' });
-    if (every(s, 7)) {
-      const m = understanding(s).margin;
-      const cur = s.player.split.safety;
-      const want = m < -0.3 ? Math.min(0.12, cur + 0.01) : m > 0.3 ? Math.max(0.03, cur - 0.005) : cur;
-      if (Math.abs(want - cur) > 1e-6) intent(s, api, 'safetyShare', { safety: want });
-      intent(s, api, 'launchPost', { pref: 'constitution', rlIntensity: 'heavyHardened', cot: 'visible', safety: 'standard', inoculation: true });
-      intent(s, api, 'release', { channel: 'api', variant: 'mini' });
-      if (s.player.finance.runwayQ < 5) intent(s, api, 'raise', {});
+    if (s.time.day === 0) for (const a of ['AG02', 'AG07', 'AG08', 'AG09', 'AG18']) tryAct(s, api, 'safety.fund', { agenda: a, level: 'serious' });
+    refPlay(s, api, MIXED_PLAY);
+    // Reference compute and one strategic deal; prudent (no new capex under 4 quarters of runway).
+    financeAutopilot(s, REF_AUTOPILOT);
+    // Enterprise products alongside the minis.
+    if (every(s, 30, 7)) {
+      const mini = [...s.player.models.versions].reverse().find((v) => v.variant === 'mini' && v.status === 'ready');
+      const ent = s.player.deployments.find((d) => d.channel === 'enterprise' && d.status === 'live');
+      if (mini && ent && ent.versionId !== mini.id) tryAct(s, api, 'swapDeployment', { deploymentId: ent.id, versionId: mini.id });
     }
     if (every(s, 15, 3)) {
       tryAct(s, api, 'A1', {});

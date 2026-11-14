@@ -11,6 +11,7 @@ import type { ChinaActor, EngineSystem, GameStateV2, HiddenWorld, StaffByRole, S
 import { drift } from './fx';
 import { goalpostsQ, leadBetween, rivalFinanceQ, simpleModel } from './rivals';
 import { request, ws4 } from './state';
+import { KOREA_HAZARD_Q, koreaShock, setExportPolicy, taiwanHazardQ, taiwanShock } from '../compute/market';
 
 export const chinaPresetOf = (id: string) => CHINA_PRESETS.find((p) => p.id === id) ?? CHINA_PRESETS[0];
 
@@ -252,31 +253,33 @@ export const geoQSystem: EngineSystem = {
     const lobby = Number(s.flags['ws4:exportLobby'] ?? 0);
     const want = s.gov.rungChn >= 3 || lobby > 0 ? 'strict' : s.gov.rungChn >= 1 || lobby === 0 ? 'caseByCase' : 'open';
     if (want !== s.market.exportPolicy) {
-      s.market.exportPolicy = want;
+      setExportPolicy(s, want);
       ctx.log('gov', `US chip export policy toward China: ${want === 'strict' ? 'strict denial' : want === 'open' ? 'open sales' : 'case-by-case'}.`, 2);
       if (want === 'strict') {
         ctx.bump('china.meters.domesticFab', 5, 'export controls (R1)');
         if (r.chance(0.4)) ctx.log('china', 'China retaliates with rare-earth controls.', 2);
       }
     }
-    // Taiwan: disruption roll (quarterly), driven by tension and the ladder (research/10 R9, rung 5).
+    // Taiwan: disruption roll (quarterly) = WS3's R15 hazard (tension × salience) × the China preset's Taiwan
+    // propensity, plus the ladder (research/10 R9, rung 5). Applied through WS3's taiwanShock (supply, prices,
+    // chips in transit); WS3's marketQ decays it.
     const day = ctx.day;
-    if (w.taiwanDisrupted && day >= w.taiwanUntil) {
-      s.market.disruptTW = 0;
+    if (w.taiwanDisrupted && s.market.disruptTW === 0) {
       w.taiwanDisrupted = false;
       ctx.log('world', 'Taiwan shipping normalises.', 2);
     }
     s.market.geoTW = c.meters.taiwanTension / 100;
-    const pTW = clamp(0.004 * (c.meters.taiwanTension / 40) ** 2 * pp.taiwan + (c.rung >= 5 ? 0.15 : 0), 0, 0.5);
-    if (!w.taiwanDisrupted && r.chance(pTW)) {
+    const pTW = clamp(taiwanHazardQ(s) * pp.taiwan + (c.rung >= 5 ? 0.15 : 0), 0, 0.5);
+    if (!w.taiwanDisrupted && s.market.disruptTW === 0 && r.chance(pTW)) {
+      const quarters = 1 + Math.floor(r.float() * 4);
       w.taiwanDisrupted = true;
-      w.taiwanUntil = day + Math.round(r.range(91, 365));
-      s.market.disruptTW = r.range(0.3, 0.5);
+      w.taiwanUntil = day + quarters * 91;
+      taiwanShock(s, ctx, r.range(0.3, 0.5), quarters);
       s.flags['ws4:taiwanEver'] = true;
       ctx.log('world', 'Taiwan crisis: chip shipments from TSMC are disrupted.', 4);
       request(s, 'E24', {});
     }
-    s.market.disruptKR = r.chance(0.003) ? r.range(0.1, 0.3) : 0;
+    if (s.market.disruptKR === 0 && r.chance(KOREA_HAZARD_Q)) koreaShock(s, ctx, r.range(0.3, 0.7), 2 + Math.floor(r.float() * 3));
     // Treaty track: talks → restraint (D4) → verified (D5) (research/10 §1.4).
     if (s.gov.treaty === 'talks' && c.deesc >= 4) s.gov.treaty = 'restraint';
     if ((s.gov.treaty === 'talks' || s.gov.treaty === 'restraint') && c.deesc >= 5 && c.meters.verificationWillingness > 50) {

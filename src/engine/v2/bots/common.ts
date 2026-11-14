@@ -1,9 +1,8 @@
 // Shared bot helpers (§7.4). Owner: WS4 (harness); balance owned by all workstreams.
 //
 // Bots act only through EngineApi actions (never by writing state) and decide by choice TAGS, so they keep working
-// as other workstreams add actions and events. Levers in other spheres are expressed as INTENTS mapped to candidate
-// action ids; an intent whose ids are not registered yet is skipped (cross-workstream need: WS1/WS2/WS3 register
-// these ids or update BOT_INTENTS).
+// as other workstreams add actions and events. All bots share WS1's reference model cadence (`refPlay`) and WS3's
+// finance autopilot with their own options.
 import { ACTION_BY_ID, EVENT_BY_ID } from '../core/registry';
 import type { EngineApi, GameStateV2, PendingDecision } from '../types';
 
@@ -21,16 +20,14 @@ export function tryAct(s: GameStateV2, api: EngineApi, id: string, params: Param
   }
 }
 
-/** Intent → candidate action ids in other spheres (first registered one is used) [cross-WS contract proposal]. */
+/** Intent → registered action ids in other spheres (first registered one is used). Model cadence, compute and money
+ *  are shared policies instead: WS1's `refPlay` (bots/ref.ts) and WS3's `financeAutopilot` (finance/plan.ts). */
 export const BOT_INTENTS: Record<string, string[]> = {
-  safetyShare: ['dept.split', 'split', 'setSplit'], // params { safety: fraction }
-  fundAgenda: ['safety.fund', 'fundAgenda'], // params { agenda, level }
-  capex: ['compute.order', 'orderChips'], // params { mult }
-  raise: ['finance.raise', 'raise'], // params { amount }
-  launchBase: ['models.base', 'launchBase'], // params { scale, ... }
-  launchPost: ['models.post', 'launchPost'], // params { pref, rlIntensity, cot, safety, inoculation }
-  release: ['models.deploy', 'deploy'], // params { channel, variant }
-  evalGate: ['safety.evalGate', 'setEvalGate'], // params { gate }
+  fundAgenda: ['safety.fund'], // params { agenda, level: off | seed | serious | major }
+  evalGate: ['safety.evalGate'], // params { level: none | basic | full | fullPlusExternal }
+  raise: ['fin.raise'],
+  split: ['setSplit'], // params: ComputeSplit keys (must sum to 1)
+  release: ['deploy'], // params { versionId, channel }
 };
 
 export function intent(s: GameStateV2, api: EngineApi, name: keyof typeof BOT_INTENTS, params: Params = {}): boolean {
