@@ -140,12 +140,13 @@ export function PreviewInline({ v }: { v: Pick<ActionView, 'costs' | 'gains' | '
 
 /** Action button: label, inline cost/gain preview, full preview + unavailable reason on hover. */
 export function ActBtn({
-  id, params = {}, label, primary, small = true, onDone, inline = true, testId,
-}: { id: string; params?: Params; label?: ReactNode; primary?: boolean; small?: boolean; onDone?: () => void; inline?: boolean; testId?: string }) {
+  id, params = {}, label, primary, small = true, onDone, inline = true, testId, block,
+}: { id: string; params?: Params; label?: ReactNode; primary?: boolean; small?: boolean; onDone?: () => void; inline?: boolean; testId?: string; /** Extra UI-side blocker (e.g. the run plan's reason). */ block?: string }) {
   const st = useV2();
   const s = st.state;
   if (!s) return null;
   const v = actionView(s, id, params);
+  if (v.ok === true && block) v.ok = block;
   const off = v.ok !== true;
   return (
     <Tip

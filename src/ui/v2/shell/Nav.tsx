@@ -28,7 +28,7 @@ export function Nav({ s }: { s: GameStateV2 }) {
         const emph = n.id === 'risk' && s.tutorial.act >= 4;
         const Icon = n.icon;
         return (
-          <Tip as="div" key={n.id} content={() => <TipCard title={n.label} value={ok ? undefined : `Act ${UNLOCK_ACT[n.id]}`}>{ok ? n.desc : `Unlocks in Act ${UNLOCK_ACT[n.id]} · ${ACT_NAMES[UNLOCK_ACT[n.id]]}`}</TipCard>}>
+          <Tip as="div" place="right" key={n.id} content={() => <TipCard title={n.label} value={ok ? undefined : `Act ${UNLOCK_ACT[n.id]}`}>{ok ? n.desc : `Unlocks in Act ${UNLOCK_ACT[n.id]} · ${ACT_NAMES[UNLOCK_ACT[n.id]]}`}</TipCard>}>
             <button className={`nav-btn ${st.panel === n.id ? 'active' : ''} ${ok ? '' : 'locked'} ${emph ? 'emph' : ''}`} data-nav={n.id} disabled={!ok} onClick={() => store.setPanel(n.id)}>
               {ok ? <Icon size={16} /> : <Lock size={14} />}
               <span>{n.label}</span>

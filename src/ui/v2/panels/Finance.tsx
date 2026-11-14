@@ -38,8 +38,9 @@ export function Finance({ s }: { s: GameStateV2 }) {
   const rw = runwayOf(s);
   const [anchor, setAnchor] = useState('');
   const ceil = raiseCeiling(s, Number.POSITIVE_INFINITY, { anchor: !!anchor });
-  const [askF, setAskF] = useState(1);
-  const ask = Math.max(0.1, Math.round(ceil.max * askF * 10) / 10);
+  const askMax = Math.max(5, Math.ceil(ceil.max * 2));
+  const [askIn, setAsk] = useState<number | undefined>(undefined);
+  const ask = Math.max(0.1, Math.round((askIn ?? ceil.max) * 10) / 10);
   const [tpl, setTpl] = useState('hyperscalerEquity');
   const [dk, setDk] = useState<Debt['kind']>('revolver');
   const head = debtHeadroom(s, dk);
@@ -72,7 +73,7 @@ export function Finance({ s }: { s: GameStateV2 }) {
           <Row key={k} label={k}><Meter value={v} max={Math.max(...Object.values(ceil.parts).filter((x) => x < 1e6), 1)} color={k === ceil.bound ? 'var(--warn)' : 'var(--accent)'} width={110} /><span className="num">{fmtB(v)}</span></Row>
         ))}
         <Row label="Anchor partner"><Seg value={anchor} options={[{ v: '', label: 'None' }, ...dealMenu(s).filter((d) => d.partner).slice(0, 3).map((d) => ({ v: d.partner as string, label: d.partner as string }))]} onChange={setAnchor} /></Row>
-        <Row label={`Ask ${fmtB(ask)}`}><Slider value={askF} min={0.1} max={2} step={0.05} onChange={setAskF} /></Row>
+        <Row label={`Ask ${fmtB(ask)}`}><Slider value={ask} min={0.1} max={askMax} step={0.1} onChange={setAsk} /><button className="mini" onClick={() => setAsk(undefined)} title="ask = ceiling">max</button></Row>
         <div className="btn-row">
           <ActBtn id="fin.raise" params={{ ask, ...(anchor ? { anchor } : {}) }} primary label={`Raise ${fmtB(ask)}`} />
           <ActBtn id="fin.downRound" />

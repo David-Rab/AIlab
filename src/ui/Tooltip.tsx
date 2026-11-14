@@ -27,11 +27,12 @@ interface TipEntry {
   rect: DOMRect;
   content: () => ReactNode;
   locked: boolean;
+  place?: "below" | "right";
   triggerHover: boolean;
 }
 
 interface TipApi {
-  open: (depth: number, rect: DOMRect, content: () => ReactNode) => number;
+  open: (depth: number, rect: DOMRect, content: () => ReactNode, place?: "below" | "right") => number;
   lock: (id: number) => void;
   triggerLeft: (id: number) => void;
   setHover: (id: number, inside: boolean) => void;
@@ -72,9 +73,9 @@ export function TooltipProvider({ children, useLive = useStore }: { children: Re
   }, [prune]);
 
   const api: TipApi = {
-    open: (depth, rect, content) => {
+    open: (depth, rect, content, place) => {
       const id = nextId++;
-      setStack((s) => [...s.slice(0, depth), { id, depth, rect, content, locked: false, triggerHover: true }]);
+      setStack((s) => [...s.slice(0, depth), { id, depth, rect, content, locked: false, triggerHover: true, place }]);
       return id;
     },
     lock: (id) => setStack((s) => s.map((t) => (t.id === id ? { ...t, locked: true } : t))),
@@ -126,8 +127,8 @@ function TipBox({ entry, api, useLive }: { entry: TipEntry; api: TipApi; useLive
     const h = el.offsetHeight;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    let left = rect.left;
-    let top = rect.bottom + 6;
+    let left = entry.place === "right" ? rect.right + 8 : rect.left;
+    let top = entry.place === "right" ? rect.top : rect.bottom + 6;
     if (left + w > vw - 8) left = Math.max(8, vw - w - 8);
     if (top + h > vh - 8) top = Math.max(8, rect.top - h - 6);
     setPos({ left, top });
@@ -153,11 +154,14 @@ export function Tip({
   children,
   className,
   as: As = 'span',
+  place,
 }: {
   content: () => ReactNode;
   children: ReactNode;
   className?: string;
   as?: 'span' | 'div' | 'g';
+  /** Where the tooltip opens relative to the trigger (default below). */
+  place?: 'below' | 'right';
 }) {
   const api = useContext(TipCtx);
   const depth = useContext(DepthCtx);
@@ -182,7 +186,7 @@ export function Tip({
         clear();
         openTimer.current = window.setTimeout(() => {
           if (!ref.current) return;
-          tipId.current = api.open(depth, ref.current.getBoundingClientRect(), content);
+          tipId.current = api.open(depth, ref.current.getBoundingClientRect(), content, place);
           lockTimer.current = window.setTimeout(() => {
             if (tipId.current) api.lock(tipId.current);
           }, LOCK_MS);

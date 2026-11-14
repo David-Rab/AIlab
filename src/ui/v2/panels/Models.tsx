@@ -108,7 +108,7 @@ export function ModelCard({ s, v }: { s: GameStateV2; v: ModelVersion }) {
         <ActBtn id="makeVariant" testId="makeVariant.open" params={{ versionId: v.id, variant: 'open' }} label="Open weights" />
         <ActBtn id="launchDistill" params={{ teacherVersionId: v.id }} label="Distill" />
         <ActBtn id="safety.respond" testId="rollback" params={{ kind: 'rollback', versionId: v.id }} label="Roll back" />
-        <ActBtn id="retireVersion" params={{ versionId: v.id }} />
+        <ActBtn id="retireVersion" params={{ versionId: v.id }} block={s.player.models.internalAgent === v.id ? "Powers the internal agents" : v.status === "retired" ? "Already retired" : undefined} />
         <ActBtn id="startStream" params={{ versionId: v.id }} />
         <ActBtn id="stopStream" />
         <ActBtn id="idaCycle" params={{ versionId: v.id }} />

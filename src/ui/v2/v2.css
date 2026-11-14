@@ -65,8 +65,8 @@
 /* modal */
 .modal.decision { width: 620px; }
 .modal.decision.crisis { border-color: var(--neg); }
-.modal .choice { border-left-color: var(--accent); }
-.modal .choice:disabled { opacity: .5; cursor: default; }
+.game-v2 .modal .choice { border-left-color: var(--accent); }
+.game-v2 .modal .choice:disabled { opacity: .5; cursor: default; }
 .choice-top { display: flex; gap: 8px; align-items: center; }
 .modal-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
 
@@ -121,7 +121,7 @@
 .halo { fill: rgba(90,169,255,.08); stroke: rgba(90,169,255,.35); stroke-dasharray: 3 3; }
 .pulse { fill: none; stroke: var(--neg); stroke-width: 2; animation: pulse 1.4s ease-out infinite; transform-box: fill-box; transform-origin: center; }
 @keyframes pulse { from { opacity: 1; transform: scale(.9) } to { opacity: 0; transform: scale(1.6) } }
-.legend i { display: inline-block; width: 12px; height: 3px; margin-right: 4px; vertical-align: middle; }
+.game-v2 .legend i { display: inline-block; width: 12px; height: 3px; margin-right: 4px; vertical-align: middle; }
 
 /* finance */
 .waterfall { display: flex; flex-direction: column; gap: 3px; margin-bottom: 6px; }
@@ -141,7 +141,7 @@
 .dept-cols { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
 .dept-col { margin-bottom: 0; }
 .proj-list { margin-top: 6px; border-top: 1px solid var(--line); padding-top: 4px; min-height: 30px; }
-.alloc-row { grid-template-columns: 110px 1fr 42px 46px; }
+.game-v2 .alloc-row { grid-template-columns: 110px 1fr 42px 46px; }
 
 /* models */
 .models-grid { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 10px; align-items: start; }
@@ -245,3 +245,4 @@
 .replay { display: flex; flex-direction: column; gap: 1px; padding: 4px 0; border-bottom: 1px solid #1c2531; }
 .sites { display: flex; flex-direction: column; gap: 3px; margin-bottom: 6px; }
 .site { display: grid; grid-template-columns: 10px 1fr 64px 60px 1fr auto; gap: 6px; align-items: center; font-size: 12px; }
+.tip:not(.tip-locked) { pointer-events: none; }

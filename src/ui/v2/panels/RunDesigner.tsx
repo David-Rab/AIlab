@@ -125,7 +125,7 @@ export function RunDesigner({ s }: { s: GameStateV2 }) {
           </>
         )}
         {warn.map((w) => <div key={w} className="warn-line tone-warn small">⚠ {w}</div>)}
-        <div className="btn-row"><ActBtn id={actionId} params={params} primary small={false} label={`Launch ${kind}`} /></div>
+        <div className="btn-row"><ActBtn id={actionId} params={params} primary small={false} label={`Launch ${kind}`} block={err || card?.reason} /></div>
       </Section>
     </div>
   );

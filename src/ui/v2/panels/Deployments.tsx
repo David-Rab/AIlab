@@ -71,7 +71,7 @@ export function Deployments({ s }: { s: GameStateV2 }) {
           <Row label={<Term id="kyc">KYC</Term>}><Seg value={kyc} options={[0, 1, 2, 3].map((k) => ({ v: k, label: String(k) }))} onChange={setKyc} /></Row>
           <Row label={`Serving share ${pct(serve)}`}><Slider value={serve} min={0.02} max={0.6} step={0.01} onChange={setServe} /></Row>
           <Row label="Gate"><span className={gate === true ? 'tone-pos small' : 'tone-neg small'}>{gate === true ? 'ok' : gate}</span></Row>
-          <div className="btn-row"><ActBtn id="deploy" params={{ versionId: vid, channel: ch, priceIndex: price, effort, kyc, servingShare: serve }} primary /></div>
+          <div className="btn-row"><ActBtn id="deploy" params={{ versionId: vid, channel: ch, priceIndex: price, effort, kyc, servingShare: serve }} primary block={gate === true ? undefined : gate} /></div>
         </Section>
         <Section title="Sector products · policy">
           <Row label="Sector"><select className="text-input" data-test="sector-pick" value={sector} onChange={(e) => setSector(e.target.value as typeof sector)}>{SECTORS.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></Row>
