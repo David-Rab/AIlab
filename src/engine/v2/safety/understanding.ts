@@ -5,7 +5,7 @@
 // computed from what the player BELIEVES: posterior-mean agenda efficacy, believed EA, the player's own
 // training-against history. It never reads true traits, true efficacy or masks (Sylvester rule).
 import { CRITICAL_TRAITS } from '../../../data/v2/traits';
-import { internalVersion } from '../models/labs';
+import { internalVersion, measuredLOf } from '../models/labs';
 import type { AgendaId, GameStateV2, ModelVersion, TechniqueState, ToolFamily, TraitId } from '../types';
 import { fundingMult } from './agendas';
 import { believedEfficacy, lambda2Delta, mAtLevel } from './common';
@@ -42,7 +42,7 @@ const eaAt = (ea0: number, dL: number) => (dL <= 0 ? ea0 : 1 - (1 - ea0) * Math.
 
 /** Believed detection of trait k at hypothetical level L (§3.5.7). */
 export function detectionAt(s: GameStateV2, v: ModelVersion, trait: TraitId, L: number, tools = detTools(s)): number {
-  return detector(s, v, tools)(trait, L);
+  return detector(s, v, tools, measuredLOf(s, v).L)(trait, L);
 }
 
 /**
@@ -50,7 +50,7 @@ export function detectionAt(s: GameStateV2, v: ModelVersion, trait: TraitId, L: 
  * that does not depend on L — believed efficacy, Goodhart factor, masks, the WB penalty, λ2, validation leads — is
  * computed once.
  */
-function detector(s: GameStateV2, v: ModelVersion, tools: TechniqueState[]) {
+function detector(s: GameStateV2, v: ModelVersion, tools: TechniqueState[], L0: number) {
   const w = s.hidden.timeline;
   const l2 = lambda2Delta(s);
   const latent = l2 <= -2;
@@ -58,7 +58,7 @@ function detector(s: GameStateV2, v: ModelVersion, tools: TechniqueState[]) {
   const ea0 = (v.beliefs.EA?.est ?? 0.15) * (1 - eaSuppression(s));
   const eaC = eaCoef(s);
   const obf = cotObfuscation(v.beliefs.OBF?.est ?? 0);
-  const L0 = v.evals.measuredL ?? 0;
+  // L0: the version's measured level (lineage fallback while it is in evaluation; see measuredLOf).
   const maskCache = new Map<string, number>();
   const maskOf = (family: ToolFamily, trait: TraitId) => {
     const p = pressured && (trait === 'RH' || trait === 'CONCEAL');
@@ -110,9 +110,9 @@ function meanDet(det: (trait: TraitId, L: number) => number, L: number): number 
 /** EngineApi.understanding: U, margin U − L (L = measured level of the internal agent), per-trait detection at L. */
 export function understanding(s: GameStateV2): UnderstandingReadout {
   const v = internalVersion(s);
-  const L = v?.evals.measuredL ?? 0;
+  const L = measuredLOf(s, v).L;
   if (!v) return { U: 0, margin: -L, perTrait: {} };
-  const det = detector(s, v, detTools(s));
+  const det = detector(s, v, detTools(s), L);
   let U: number;
   if (meanDet(det, 0) < 0.5) U = 0;
   else if (meanDet(det, 15) >= 0.5) U = 15;
@@ -135,7 +135,7 @@ export function understanding(s: GameStateV2): UnderstandingReadout {
 export function nearestDecay(s: GameStateV2): { id: string; name: string; decay: number } | undefined {
   const v = internalVersion(s);
   if (!v) return undefined;
-  const M = mAtLevel(s.hidden.timeline, v.evals.measuredL ?? 0);
+  const M = mAtLevel(s.hidden.timeline, measuredLOf(s, v).L);
   let best: { id: string; name: string; decay: number } | undefined;
   for (const t of detTools(s)) {
     if (t.k <= 0) continue;

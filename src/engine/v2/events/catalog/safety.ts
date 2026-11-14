@@ -8,7 +8,8 @@ import { openIncidents } from '../../safety/incidents';
 import { openInvestigation } from '../../safety/investigations';
 import { understanding } from '../../safety/understanding';
 import { revealToWorld } from '../../safety/umodes';
-import type { Commitment, EventDefV2, GameStateV2, SystemCtx, TraitId, UModeId } from '../../types';
+import type { Commitment, EventDefV2, GameStateV2, ModelVersion, SystemCtx, TraitId, UModeId } from '../../types';
+import { TRAIT_BY_ID } from '../../../../data/v2/traits';
 import { PREDICATES, blockingCommitments, amendCommitment, breakCommitment, hasCommitment, latentVersion, pledgeBreachRun } from '../../actors/commitments';
 import { ALL_PUBLIC_CPS, approval, boardConf, cash, cred, disclosureTrust, moraleSafety, scrutiny, trustMany } from '../../actors/fx';
 import { pLeak } from '../../actors/public';
@@ -45,14 +46,46 @@ const hasConfirmed = (s: GameStateV2) =>
   s.player.safety.findings.some((f) => f.type === 'DISC') ||
   s.player.safety.investigations.some((i) => i.outcome === 'confirmed' || i.outcome === 'discovery');
 
-/** E35 window: a U-mode discovery or a FALSE-validated technique revealed within the last 30 days (WS2 flags). */
+/** Where each learned trait mostly comes from in a run recipe (trait-graph first-order edges), for E01's text. */
+const RECIPE_CAUSE: Partial<Record<TraitId, (d: ModelVersion['design']) => string>> = {
+  SYC: (d) => `rater approval in its ${d.pref} preference data`,
+  RH: (d) => (d.rlIntensity === 'heavyCheap' ? 'cheap, hackable graders in its heavy RL' : 'gameable graders in its RL'),
+  PROXY: () => 'reward proxies in its RL environments',
+  PERSONA: () => 'narrow fine-tuning and reward hacking',
+  OBF: (d) => (d.cot === 'pressured' ? 'pressure on its chain of thought' : 'its chain-of-thought training'),
+  SA: () => 'scale and AI-generated data',
+};
+/** E01 text (M5, PLAN B6): names the version, the trait with the strongest belief (or the confirmed one) and the
+ *  recipe cause, from what the player can see (beliefs, investigations, design). Display only: no state change. */
+function firstFindingText(s: GameStateV2): string {
+  const inv = [...s.player.safety.investigations].reverse().find((i) => i.target.kind === 'trait' && (i.outcome === 'confirmed' || i.outcome === 'discovery'));
+  const vs = s.player.models.versions;
+  const v = (inv && inv.target.kind === 'trait' ? vs.find((x) => x.id === (inv.target as { versionId: string }).versionId) : undefined) ?? internalVersion(s) ?? vs[vs.length - 1];
+  const tail = 'Disclose it, fix it quietly, or deny it? Hidden flaws found later cost three times the trust.';
+  if (!v) return `Your safety team confirmed a real flaw in your model. ${tail}`;
+  let trait: TraitId | undefined = inv && inv.target.kind === 'trait' ? inv.target.trait : undefined;
+  if (!trait) {
+    let best = -1;
+    for (const k of Object.keys(RECIPE_CAUSE) as TraitId[]) {
+      const b = v.beliefs[k];
+      if (b && b.est > best) { best = b.est; trait = k; }
+    }
+  }
+  const t = trait ? TRAIT_BY_ID[trait] : undefined;
+  if (!t || !trait) return `Your safety team confirmed a real flaw in ${v.name}. ${tail}`;
+  const est = v.beliefs[trait] ? ` (estimate ${Math.round(v.beliefs[trait].est * 100)}%)` : '';
+  const cause = RECIPE_CAUSE[trait]?.(v.design);
+  return `${v.name} shows ${t.name.toLowerCase()}${est}${cause ? `, traced to ${cause}` : ''}. ${t.desc} ${tail}`;
+}
+
+/** E35 window:a U-mode discovery or a FALSE-validated technique revealed within the last 30 days (WS2 flags). */
 const WRONG_WINDOW = 30;
 
 export const SAFETY_EVENTS: EventDefV2[] = [
   ev({
     id: 'E01', title: 'First finding', icon: 'model', crisis: false, deadlineDays: 21, defaultChoice: 1,
     when: (s) => (hasConfirmed(s) || (s.setup.tutorial && s.time.day >= 45) ? {} : false),
-    text: () => 'Your safety team confirmed a real flaw in your model. Disclose it, fix it quietly, or deny it? Hidden flaws found later cost three times the trust.',
+    text: (s) => firstFindingText(s),
     choices: dilemma('a model flaw', 5, 10),
   }),
   ev({

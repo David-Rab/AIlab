@@ -16,7 +16,26 @@ Single source of truth for where the build stands. Update at every milestone or 
 | M2 step 5: whole `npm run test:v2` green, tick performance, bot table | Done (3 finance targets deferred to M4) | bf93f24, 0987ced, c0594e5, 25ad13c, f50c4c0, 3f4c9fe |
 | M3 UI shell and panels (WS6, WS7) | Done, merged (play with `?v2`); v2 uitest 88/88; full test:v2 green after merge | 5ff08b8..7e0ad07, merge 35b2609 |
 | M4 calibration and balance (bot criteria) | In progress: all §7.4 bot criteria met (200 seeds); choices now drive final misalignment | 514d877, cd0c7d6, see M4 status |
+| M5 UX redesign (IA, design system, panels) | In progress, see M5 UX status | 0af3dcd |
 | M5 polish, tutorial, codex, v1 removal | Not started | |
+
+## M5 UX status (2026-11-14)
+
+The user approved the UX direction in `design/ux/`, with four binding rules:
+- information hierarchy (a thin first glance);
+- one home per datum;
+- permanent areas hold top-level items only;
+- a tooltip for every term.
+
+**Step 1: information architecture** (0af3dcd).
+- `design/ux/IA.md` defines the levels:
+  - L0, 7 items: time, race, catastrophe risk, cash·runway gauge, nearest lead, nav, queue;
+  - L1, the Overview: lead track, race history, Watch, plus Goals while the tutorial runs;
+  - L2, panels;
+  - L3, tooltips and the Codex.
+- It also holds the datum→home table, the drill-down paths and the DOM markers (`data-home`, `data-ref`, `data-term`) that uitest checks.
+- The right rail goes. Its blocks move to Company (research speed), Runs (next-model gates), Relations (obligations) and the Overview lead track.
+- Mockup: `design/ux/mockups/01-main-v2.png`, with its source `main-v2.html`.
 
 ## M4 status (2026-11-14): checkpoint 2 — choices drive misalignment, all §7.4 bot criteria met
 

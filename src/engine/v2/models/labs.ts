@@ -61,6 +61,25 @@ export function internalVersion(s: GameStateV2): ModelVersion | undefined {
   return s.player.models.versions.find((v) => v.id === id);
 }
 
+/**
+ * Measured level of a version for display and for everything keyed on "measured L" (M5 fix, AUDIT #1): a version
+ * still in evaluation has no `measuredL`, so it inherits its parent chain's last measured level, then the best
+ * measured level of any live version. Without this the race readout showed L 0.0 and U collapsed (EA projected
+ * over a 0 → L gap) whenever the internal agent was a fresh, unevaluated version.
+ */
+export function measuredLOf(s: GameStateV2, v: ModelVersion | undefined): { L: number; evaluating: boolean } {
+  if (!v) return { L: 0, evaluating: false };
+  if (v.evals.measuredL !== undefined) return { L: v.evals.measuredL, evaluating: false };
+  const vs = s.player.models.versions;
+  let p = vs.find((x) => x.id === v.parentVersionId);
+  for (let i = 0; p && i < 50; i++) {
+    if (p.evals.measuredL !== undefined) return { L: p.evals.measuredL, evaluating: true };
+    const pid = p.parentVersionId;
+    p = vs.find((x) => x.id === pid);
+  }
+  return { L: bestMeasuredL(s), evaluating: true };
+}
+
 /** Player version by id. */
 export function versionById(s: GameStateV2, id: string | undefined): ModelVersion | undefined {
   return id === undefined ? undefined : s.player.models.versions.find((v) => v.id === id);

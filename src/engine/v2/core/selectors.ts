@@ -2,7 +2,7 @@
 //
 // UI code imports from here (or src/engine/v2/index.ts) only. Selectors return what the PLAYER knows: measured
 // levels, beliefs, intel. `selectHidden` is for the end screen only (scripts/v2/lint-hidden.ts enforces this).
-import { bestLg, bestPm, internalVersion, PLAYER_ID } from '../models/labs';
+import { bestLg, bestPm, internalVersion, measuredLOf, PLAYER_ID } from '../models/labs';
 import { misalignment } from '../safety/traits';
 import { understanding } from '../safety/understanding';
 import { leadDays } from '../actors/intel';
@@ -16,7 +16,7 @@ export type { LaunchRunParams, RunPlan } from '../models/runs';
 export { paradigmGate, PARADIGM_BY_ID } from '../models/paradigms';
 export { benchName, benchGen, evalDaysFor } from '../models/benchmarks';
 export { deployGate, liveDeployments, CHANNEL_VARIANTS, distillationAccess } from '../models/deployments';
-export { bestMeasuredL, internalVersion, labPools, versionById } from '../models/labs';
+export { bestMeasuredL, internalVersion, labPools, measuredLOf, versionById } from '../models/labs';
 export { MILESTONE_NAMES } from '../models/capability';
 export { presetSplit, shareRefAt, SPLIT_KEYS, SPLIT_PRESETS } from '../departments/split';
 export { weeklyHireCap, payrollPerYear, inPipeline } from '../departments/staffing';
@@ -35,7 +35,13 @@ export { dateOf, decimalYear, fmtDate, fmtMonth } from './time';
 
 /** Measured general level of the internal-agent version (what the player sees in the top strip). */
 export function measuredL(s: GameStateV2): number {
-  return internalVersion(s)?.evals.measuredL ?? 0;
+  return measuredLOf(s, internalVersion(s)).L;
+}
+
+/** The internal agent's measured level and whether it is still in evaluation (shown with an "evaluating" marker). */
+export function internalEval(s: GameStateV2): { L: number; evaluating: boolean; name?: string } {
+  const v = internalVersion(s);
+  return { ...measuredLOf(s, v), ...(v ? { name: v.name } : {}) };
 }
 
 /** END SCREEN ONLY. The hidden truth of this world. */

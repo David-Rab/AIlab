@@ -7,7 +7,7 @@ import { FINDING_BY_ID } from '../../../data/v2/findings';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { TRAITS_V2 } from '../../../data/v2/traits';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
-import { internalVersion } from '../models/labs';
+import { internalVersion, measuredLOf } from '../models/labs';
 import type { AgendaId, FindingType, GameStateV2, Incident, TraitBelief, TraitId, UModeId } from '../types';
 import { flagNum, mAtLevel, versionById } from './common';
 import { findingHazard, fundingLevel, posteriorBand, staffFactor } from './agendas';
@@ -41,7 +41,7 @@ export function agendaRows(s: GameStateV2): AgendaRow[] {
 
 export function techniqueRows(s: GameStateV2): TechniqueRow[] {
   const v = internalVersion(s);
-  const M = mAtLevel(s.hidden.timeline, v?.evals.measuredL ?? 0);
+  const M = mAtLevel(s.hidden.timeline, measuredLOf(s, v).L);
   return Object.values(s.player.safety.techniques).map((t) => ({
     id: t.id, name: TECHNIQUE_BY_ID[t.id]?.name ?? `AI-validated ${AGENDA_BY_ID[t.agenda].name} tool`, agenda: t.agenda, family: t.family,
     role: techniqueRole(t), unlocked: t.unlocked, active: t.active, strength: Math.round(strengthBelieved(s, t, M) * 100) / 100,
