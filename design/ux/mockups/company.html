@@ -1,0 +1,160 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>AI27 v2 · Company flow (mockup)</title>
+<meta name="shots" content="02-company-flow:1600x940:;02b-company-flow-hover:1600x940:hover">
+<link rel="stylesheet" href="kit.css">
+<style>
+body { overflow:hidden; }
+.wrap { padding:14px 16px; display:grid; grid-template-rows:auto minmax(0,1fr) auto; gap:12px; height:100vh; }
+#flow text { font-family: var(--sans); }
+.sph { display:grid; grid-template-columns: repeat(4, 1fr); gap:12px; }
+.sph .card { padding:10px 12px; }
+.sph .k { display:grid; grid-template-columns: 1fr auto; gap:3px 10px; font-size:12px; margin-top:6px; }
+.sph .k b { font-family:var(--mono); color:#fff; font-weight:600; text-align:right; }
+.ic2 { width:26px; height:26px; border-radius:7px; display:grid; place-items:center; color:#fff; }
+body:not(.hover) .hv { display:none; }
+</style></head>
+<body>
+<svg style="display:none" aria-hidden="true">
+<symbol id="i-boxes" viewBox="0 0 24 24"><path d="M2.97 12.92A2 2 0 0 0 2 14.63v3.24a2 2 0 0 0 .97 1.71l3 1.8a2 2 0 0 0 2.06 0L12 19v-5.5l-5-3-4.03 2.42Z" /> <path d="m7 16.5-4.74-2.85" /> <path d="m7 16.5 5-3" /> <path d="M7 16.5v5.17" /> <path d="M12 13.5V19l3.97 2.38a2 2 0 0 0 2.06 0l3-1.8a2 2 0 0 0 .97-1.71v-3.24a2 2 0 0 0-.97-1.71L17 10.5l-5 3Z" /> <path d="m17 16.5-5-3" /> <path d="m17 16.5 4.74-2.85" /> <path d="M17 16.5v5.17" /> <path d="M7.97 4.42A2 2 0 0 0 7 6.13v4.37l5 3 5-3V6.13a2 2 0 0 0-.97-1.71l-3-1.8a2 2 0 0 0-2.06 0l-3 1.8Z" /> <path d="M12 8 7.26 5.15" /> <path d="m12 8 4.74-2.85" /> <path d="M12 13.5V8" /></symbol>
+<symbol id="i-brain" viewBox="0 0 24 24"><path d="M12 18V5" /> <path d="M15 13a4.17 4.17 0 01-3-4 4.17 4.17 0 01-3 4" /> <path d="M17.707 6.294A3 3 0 1012 5a3 3 0 10-5.707 1.294" /> <path d="M17.996 5.125a4 4 0 012.526 5.77" /> <path d="M18 18a4 4 0 002-7.465" /> <path d="M19.967 17.482a4 4 0 11-7.967.517 4 4 0 11-7.967-.517" /> <path d="M6 18a4 4 0 01-2-7.465" /> <path d="M6.004 5.125a4 4 0 00-2.526 5.77" /></symbol>
+<symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6" /></symbol>
+<symbol id="i-cloud" viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" /></symbol>
+<symbol id="i-cpu" viewBox="0 0 24 24"><path d="M12 20v2" /> <path d="M12 2v2" /> <path d="M17 20v2" /> <path d="M17 2v2" /> <path d="M2 12h2" /> <path d="M2 17h2" /> <path d="M2 7h2" /> <path d="M20 12h2" /> <path d="M20 17h2" /> <path d="M20 7h2" /> <path d="M7 20v2" /> <path d="M7 2v2" /> <rect x="4" y="4" width="16" height="16" rx="2" /> <rect x="8" y="8" width="8" height="8" rx="1" /></symbol>
+<symbol id="i-gauge" viewBox="0 0 24 24"><path d="m12 14 4-4" /> <path d="M3.34 19a10 10 0 1 1 17.32 0" /></symbol>
+<symbol id="i-landmark" viewBox="0 0 24 24"><path d="M10 18v-7" /> <path d="M11.119 2.205a2 2 0 0 1 1.762 0l7.84 3.846A.5.5 0 0 1 20.5 7h-17a.5.5 0 0 1-.22-.949z" /> <path d="M14 18v-7" /> <path d="M18 18v-7" /> <path d="M3 22h18" /> <path d="M6 18v-7" /></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /> <path d="M7 11V7a5 5 0 0 1 10 0v4" /></symbol>
+<symbol id="i-microscope" viewBox="0 0 24 24"><path d="M6 18h8" /> <path d="M3 22h18" /> <path d="M14 22a7 7 0 1 0 0-14h-1" /> <path d="M9 14h2" /> <path d="M9 12a2 2 0 0 1-2-2V6h6v4a2 2 0 0 1-2 2Z" /> <path d="M12 6V3a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3" /></symbol>
+<symbol id="i-plug-zap" viewBox="0 0 24 24"><path d="M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z" /> <path d="m2 22 3-3" /> <path d="M7.5 13.5 10 11" /> <path d="M10.5 16.5 13 14" /> <path d="m18 3-4 4h6l-4 4" /></symbol>
+<symbol id="i-rocket" viewBox="0 0 24 24"><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" /> <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09" /> <path d="M9 12a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.4 22.4 0 0 1-4 2z" /> <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 .05 5 .05" /></symbol>
+<symbol id="i-server" viewBox="0 0 24 24"><rect width="20" height="8" x="2" y="2" rx="2" ry="2" /> <rect width="20" height="8" x="2" y="14" rx="2" ry="2" /> <line x1="6" x2="6.01" y1="6" y2="6" /> <line x1="6" x2="6.01" y1="18" y2="18" /></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /></symbol>
+<symbol id="i-sliders-horizontal" viewBox="0 0 24 24"><path d="M10 5H3" /> <path d="M12 19H3" /> <path d="M14 3v4" /> <path d="M16 17v4" /> <path d="M21 12h-9" /> <path d="M21 19h-5" /> <path d="M21 5h-7" /> <path d="M8 10v4" /> <path d="M8 12H3" /></symbol>
+<symbol id="i-trending-up" viewBox="0 0 24 24"><path d="M16 7h6v6" /> <path d="m22 7-8.5 8.5-5-5L2 17" /></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /> <path d="M16 3.128a4 4 0 0 1 0 7.744" /> <path d="M22 21v-2a4 4 0 0 0-3-3.87" /> <circle cx="9" cy="7" r="4" /></symbol>
+<symbol id="i-wallet" viewBox="0 0 24 24"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" /> <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" /></symbol>
+<symbol id="i-workflow" viewBox="0 0 24 24"><rect width="8" height="8" x="3" y="3" rx="2" /> <path d="M7 11v4a2 2 0 0 0 2 2h4" /> <rect width="8" height="8" x="13" y="13" rx="2" /></symbol>
+<symbol id="i-zap" viewBox="0 0 24 24"><path d="M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z" /></symbol>
+</svg>
+<div class="wrap">
+  <div class="panel-title">
+    <svg class="i s20"><use href="#i-workflow"/></svg><h1>Company</h1><span class="t3">where the money goes, what it buys, what comes out · per quarter · widths are live</span>
+    <span class="sp"></span>
+    <div class="tabs" style="display:flex;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:3px">
+      <span style="padding:4px 12px;border-radius:6px;background:var(--panel-3);color:#fff;font-weight:600;font-size:12px">Flow</span>
+      <span style="padding:4px 12px;color:var(--text-2);font-weight:600;font-size:12px">People</span>
+      <span style="padding:4px 12px;color:var(--text-2);font-weight:600;font-size:12px">Compare 90 d</span>
+    </div>
+  </div>
+
+  <div class="card" style="position:relative;padding:8px 10px">
+    <svg id="flow" viewBox="0 0 1548 600" style="width:100%;height:100%"></svg>
+    <!-- hover card -->
+    <div class="tip hv" style="left:600px;top:548px;width:340px">
+      <div class="th"><span style="color:var(--d-prod)"><svg class="i s14"><use href="#i-boxes"/></svg></span><b>Product · serving</b><span class="sp"></span><span class="num w">1.46M H100e</span></div>
+      <div class="chain" style="margin:4px 0 8px"><span class="lk bad"><svg class="i s12"><use href="#i-gauge"/></svg> demand +30% over capacity</span></div>
+      <div class="r small"><span class="t2" style="width:120px">Share of compute</span><span class="bar" style="flex:1"><i style="width:17%;background:var(--d-prod)"></i></span><span class="num w">17%</span></div>
+      <div class="r small"><span class="t2" style="width:120px">Revenue per H100e</span><span class="num w" style="margin-left:auto">$85K/yr</span></div>
+      <div class="r small"><span class="t2" style="width:120px">Channels capped</span><span class="num warn" style="margin-left:auto">3 of 3</span></div>
+      <div class="sec">
+        <div class="cap" style="margin-bottom:5px">What if · +5 pts serving</div>
+        <div class="r small"><svg class="i s12"><use href="#i-trending-up"/></svg><span>Revenue</span><span class="sp"></span><span class="num good">+$36B/yr</span></div>
+        <div class="r small"><svg class="i s12"><use href="#i-brain"/></svg><span>R&amp;D speed, if taken from experiments</span><span class="sp"></span><span class="num bad">−0.7×</span></div>
+        <div class="r small"><svg class="i s12"><use href="#i-plug-zap"/></svg><span>Or power the 2.7M idle chips</span><span class="sp"></span><span class="num good">+32% compute</span></div>
+      </div>
+      <div class="row" style="gap:6px;margin-top:9px"><span class="btn go sm"><svg class="i s12"><use href="#i-sliders-horizontal"/></svg> Compute split <svg class="i s12"><use href="#i-chevron-right"/></svg></span><span class="btn go sm"><svg class="i s12"><use href="#i-zap"/></svg> Sites <svg class="i s12"><use href="#i-chevron-right"/></svg></span></div>
+      <div class="lockbar" style="background:var(--d-prod);width:100%"></div>
+    </div>
+  </div>
+
+  <div class="sph">
+    <div class="card"><div class="row"><span class="ic2" style="background:var(--d-cap)"><svg class="i s14"><use href="#i-brain"/></svg></span><b class="w">Capabilities</b><span class="sp"></span><span class="tag" style="color:var(--warn);border-color:rgba(233,180,76,.5)">compute-bound</span></div>
+      <div class="k"><span class="t2">Compute · staff</span><b>5.9M · 3,093</b><span class="t2">R&amp;D speed</span><b>5.8× <span class="trend up">▲0.5</span></b><span class="t2">Run post-40</span><b>17% · 80 d</b></div></div>
+    <div class="card"><div class="row"><span class="ic2" style="background:var(--d-saf)"><svg class="i s14"><use href="#i-microscope"/></svg></span><b class="w">Safety</b><span class="sp"></span><span class="tag" style="color:var(--bad);border-color:rgba(239,107,107,.5)">behind by 2.0</span></div>
+      <div class="k"><span class="t2">Compute · staff</span><b>1.0M · 138</b><span class="t2">Understanding</span><b>8.2 <span class="trend up">▲0.3</span></b><span class="t2">Agendas funded</span><b>7 of 19</b></div></div>
+    <div class="card"><div class="row"><span class="ic2" style="background:var(--d-sec)"><svg class="i s14"><use href="#i-shield"/></svg></span><b class="w">Security</b><span class="sp"></span><span class="tag" style="color:var(--good);border-color:rgba(76,195,138,.5)">on target</span></div>
+      <div class="k"><span class="t2">Compute · staff</span><b>0.08M · 108</b><span class="t2">Weight security</span><b>4.9 → 5.0</b><span class="t2">Theft risk</span><b>0%</b></div></div>
+    <div class="card"><div class="row"><span class="ic2" style="background:var(--d-prod)"><svg class="i s14"><use href="#i-boxes"/></svg></span><b class="w">Product</b><span class="sp"></span><span class="tag" style="color:var(--warn);border-color:rgba(233,180,76,.5)">capacity-bound</span></div>
+      <div class="k"><span class="t2">Compute · staff</span><b>1.46M · 148</b><span class="t2">Revenue</span><b>$125B/yr <span class="trend up">▲9</span></b><span class="t2">Channels</span><b>3 live · 3 capped</b></div></div>
+  </div>
+</div>
+<div style="display:none"><svg class="i"><use href="#i-trending-up"/></svg><svg class="i"><use href="#i-wallet"/></svg><svg class="i"><use href="#i-landmark"/></svg><svg class="i"><use href="#i-cpu"/></svg><svg class="i"><use href="#i-cloud"/></svg><svg class="i"><use href="#i-zap"/></svg><svg class="i"><use href="#i-users"/></svg><svg class="i"><use href="#i-server"/></svg><svg class="i"><use href="#i-plug-zap"/></svg><svg class="i"><use href="#i-brain"/></svg><svg class="i"><use href="#i-boxes"/></svg><svg class="i"><use href="#i-microscope"/></svg><svg class="i"><use href="#i-shield"/></svg><svg class="i"><use href="#i-rocket"/></svg><svg class="i"><use href="#i-lock"/></svg><svg class="i"><use href="#i-gauge"/></svg></div>
+<script>
+const H = location.search.includes('hover'); if (H) document.body.classList.add('hover');
+const ns = 'http://www.w3.org/2000/svg';
+const el = (p, tag, a, txt) => { const e = document.createElementNS(ns, tag); for (const k in a) e.setAttribute(k, a[k]); if (txt !== undefined) e.textContent = txt; p.appendChild(e); return e; };
+const s = document.getElementById('flow');
+const C = { money: '#8fa1b6', cap: '#9b6be0', saf: '#22a394', sec: '#3a8ae0', prod: '#b08e1a', bad: '#ef6b6b', ops: '#6b7c91' };
+// columns (x) and node definitions; value in the section's unit; y top set by hand
+const NW = 14;
+const nodes = {
+  rev:   { x: 20,  y: 70,  v: 31.2, u: '$', c: C.prod, t: 'Revenue', s: '$31.2B / q', ic: 'trending-up' },
+  burn:  { x: 20,  y: 330, v: 11.3, u: '$', c: C.money, t: 'From cash reserve', s: '$11.3B / q · $25B left', ic: 'wallet' },
+  cash:  { x: 250, y: 70,  v: 42.5, u: '$', c: C.money, t: 'Cash out', s: '$42.5B / q', ic: 'landmark' },
+  chips: { x: 470, y: 40,  v: 17.6, u: '$', c: C.money, t: 'Chips', s: '$17.6B', ic: 'cpu' },
+  cloud: { x: 470, y: 190, v: 11.4, u: '$', c: C.money, t: 'Cloud & leases', s: '$11.4B', ic: 'cloud' },
+  sites: { x: 470, y: 300, v: 7.1,  u: '$', c: C.money, t: 'Sites & power', s: '$7.1B', ic: 'zap' },
+  pay:   { x: 470, y: 380, v: 6.3,  u: '$', c: C.money, t: 'Payroll & ops', s: '$6.3B', ic: 'users' },
+  comp:  { x: 720, y: 40,  v: 8.49, u: 'M', c: '#c9d4e2', t: 'Compute online', s: '8.5M H100e', ic: 'server' },
+  idle:  { x: 720, y: 330, v: 2.72, u: 'M', c: C.bad, t: 'Idle · no power', s: '2.7M H100e bought, dark', ic: 'plug-zap' },
+  ppl:   { x: 720, y: 470, v: 3.54, u: 'K', c: C.ops, t: 'Staff', s: '3,535 people', ic: 'users' },
+  dcap:  { x: 980, y: 20,  v: 5.94, u: 'M', c: C.cap, t: 'Capabilities', s: '5.9M · 3,093 staff', ic: 'brain' },
+  dprod: { x: 980, y: 300, v: 1.46, u: 'M', c: C.prod, t: 'Product', s: '1.46M · 148 staff', ic: 'boxes' },
+  dsaf:  { x: 980, y: 400, v: 1.02, u: 'M', c: C.saf, t: 'Safety', s: '1.02M · 138 staff', ic: 'microscope' },
+  dsec:  { x: 980, y: 480, v: 0.08, u: 'M', c: C.sec, t: 'Security', s: '0.08M · 108 staff', ic: 'shield' },
+  oL:    { x: 1240, y: 30, v: 5.94, u: 'M', c: C.cap, t: 'Atlas-3.0 · L 10.2', s: 'R&D 5.8× · next: Atlas-4 in ~97 d', ic: 'rocket' },
+  oRev:  { x: 1240, y: 300, v: 1.46, u: 'M', c: C.prod, t: 'Revenue $125B/yr', s: 'API · Enterprise · Consumer', ic: 'trending-up' },
+  oU:    { x: 1240, y: 400, v: 1.02, u: 'M', c: C.saf, t: 'Understanding 8.2', s: '7 agendas · 22 findings', ic: 'microscope' },
+  oS:    { x: 1240, y: 480, v: 0.08, u: 'M', c: C.sec, t: 'Weight security 4.9', s: 'theft risk ~0%', ic: 'lock' },
+};
+const SC = { '$': 300 / 42.5, 'M': 250 / 8.49, 'K': 22 / 3.54 }; // px per unit, per section
+for (const n of Object.values(nodes)) n.h = Math.max(4, n.v * SC[n.u]);
+const links = [
+  ['rev', 'cash', 31.2], ['burn', 'cash', 11.3],
+  ['cash', 'chips', 17.6], ['cash', 'cloud', 11.4], ['cash', 'sites', 7.1], ['cash', 'pay', 6.3],
+  // $ → compute conversion (widths re-scaled at the boundary)
+  ['chips', 'comp', 3.5, 'M', 17.6], ['cloud', 'comp', 4.99, 'M', 11.4], ['chips', 'idle', 2.72, 'M', 0], ['sites', 'comp', 0, 'M', 7.1], ['pay', 'ppl', 3.54, 'K', 6.3],
+  ['comp', 'dcap', 5.94], ['comp', 'dprod', 1.46], ['comp', 'dsaf', 1.02], ['comp', 'dsec', 0.08],
+  ['dcap', 'oL', 5.94], ['dprod', 'oRev', 1.46], ['dsaf', 'oU', 1.02], ['dsec', 'oS', 0.08],
+];
+const off = {}; const offIn = {};
+const lk = el(s, 'g', {}); const nd = el(s, 'g', {});
+const hot = (a, b) => H && (b === 'dprod' || a === 'dprod' || b === 'idle');
+for (const [a, b, v, unit, vSrc] of links) {
+  const A = nodes[a], B = nodes[b];
+  const hA = (vSrc !== undefined ? vSrc : v) * SC[A.u], hB = v * SC[B.u];
+  if (hA <= 0 && hB <= 0) continue;
+  const ya = A.y + (off[a] ?? 0), yb = B.y + (offIn[b] ?? 0);
+  off[a] = (off[a] ?? 0) + hA; offIn[b] = (offIn[b] ?? 0) + hB;
+  const x0 = A.x + NW, x1 = B.x, mx = (x0 + x1) / 2;
+  const col = B === nodes.idle ? C.bad : (B.c === '#c9d4e2' || B.u === '$' || B === nodes.ppl ? C.money : B.c);
+  const d = `M${x0},${ya} C${mx},${ya} ${mx},${yb} ${x1},${yb} L${x1},${yb + hB} C${mx},${yb + hB} ${mx},${ya + hA} ${x0},${ya + hA} Z`;
+  el(lk, 'path', { d, fill: col, opacity: H ? (hot(a, b) ? .62 : .12) : (B === nodes.idle ? .5 : .32) });
+}
+// revenue feedback loop: oRev → rev (along the bottom)
+{ const A = nodes.oRev, B = nodes.rev; const w = 10; const y0 = 580;
+  el(lk, 'path', { d: `M${A.x + 160},${A.y + A.h / 2} C${A.x + 300},${A.y + A.h / 2} ${A.x + 300},${y0} ${A.x + 120},${y0} L${B.x + 60},${y0} C${B.x - 20},${y0} ${B.x - 14},${B.y + 40} ${B.x},${B.y + 40}`, fill: 'none', stroke: C.prod, 'stroke-width': 3, 'stroke-dasharray': '6 5', opacity: .8, 'marker-end': 'url(#arr)' });
+  const df = el(s, 'defs', {}); const mk = el(df, 'marker', { id: 'arr', viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto' }); el(mk, 'path', { d: 'M0,0 L10,5 L0,10 z', fill: C.prod });
+  el(lk, 'text', { x: 640, y: y0 - 6, fill: '#c9b36a', 'font-size': 11.5, 'font-weight': 600, 'text-anchor': 'middle' }, 'revenue loops back to cash · capped by serving capacity');
+}
+// section boundary: $ → H100e
+el(lk, 'line', { x1: 610, x2: 610, y1: 6, y2: 560, stroke: '#33435a', 'stroke-dasharray': '3 5' });
+el(lk, 'text', { x: 300, y: 18, fill: '#6b7c91', 'font-size': 10.5, 'font-weight': 700, 'letter-spacing': '.1em', 'text-anchor': 'middle' }, 'MONEY · $B PER QUARTER');
+el(lk, 'text', { x: 1000, y: 12, fill: '#6b7c91', 'font-size': 10.5, 'font-weight': 700, 'letter-spacing': '.1em', 'text-anchor': 'middle' }, 'COMPUTE · H100e');
+el(lk, 'text', { x: 1330, y: 12, fill: '#6b7c91', 'font-size': 10.5, 'font-weight': 700, 'letter-spacing': '.1em', 'text-anchor': 'middle' }, 'OUTPUTS');
+const ICON = (n, x, y, col) => { const u = el(nd, 'svg', { x, y, width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none', stroke: col, 'stroke-width': 2.2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }); el(u, 'use', { href: `#i-${n}` }); };
+for (const [k, n] of Object.entries(nodes)) {
+  const dim = H && !['dprod', 'oRev', 'comp', 'idle'].includes(k);
+  el(nd, 'rect', { x: n.x, y: n.y, width: NW, height: n.h, rx: 3, fill: n.c, opacity: dim ? .35 : 1 });
+  const lx = n.x + NW + 8, right = n.x >= 1240;
+  ICON(n.ic, lx, n.y + Math.min(n.h / 2, 14) - 10, n.c === '#c9d4e2' ? '#e3e9f1' : n.c);
+  el(nd, 'text', { x: lx + 19, y: n.y + Math.min(n.h / 2, 14) + 1, fill: dim ? '#6b7c91' : '#fff', 'font-size': 13, 'font-weight': 650 }, n.t);
+  el(nd, 'text', { x: lx, y: n.y + Math.min(n.h / 2, 14) + 17, fill: k === 'idle' ? '#ff9c9c' : '#9fb0c3', 'font-size': 11.5, 'font-family': 'Cascadia Mono, Consolas' }, n.s);
+}
+// bottleneck markers
+const warnTag = (x, y, t, col = '#e9b44c') => { const g = el(nd, 'g', {}); el(g, 'rect', { x, y, width: t.length * 6.6 + 26, height: 20, rx: 10, fill: '#0e141c', stroke: col }); ICON('gauge', x + 6, y + 3, col); el(g, 'text', { x: x + 23, y: y + 14, fill: col, 'font-size': 11, 'font-weight': 700 }, t); };
+warnTag(1040, 345, 'capacity-bound', '#e9b44c');
+warnTag(1080, 80, 'compute-bound: experiments', '#e9b44c');
+warnTag(790, 372, 'fix: Sites › power', '#ef6b6b');
+warnTag(1300, 446, '2.0 behind capability', '#ef6b6b');
+</script>
+</body></html>

@@ -1,0 +1,198 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>AI27 v2 · Safety lab (mockup)</title>
+<meta name="shots" content="04-safety-lab:1600x940:hover">
+<link rel="stylesheet" href="kit.css">
+<style>
+.wrap { padding:14px 16px; display:grid; grid-template-rows:auto minmax(0,1fr); gap:12px; height:100vh; }
+.cols { display:grid; grid-template-columns: 1fr 440px; gap:12px; min-height:0; }
+#g text { font-family: var(--sans); }
+.heat { display:grid; grid-template-columns: 120px repeat(9, 1fr); gap:2px; font-size:11px; }
+.heat .c { height:24px; border-radius:3px; display:grid; place-items:center; font:600 10px var(--mono); color:rgba(255,255,255,.9); }
+.heat .h { text-align:center; color:var(--text-3); font: 600 10px var(--mono); }
+.ag { display:grid; grid-template-columns: 18px 1fr 52px 64px 34px; gap:8px; align-items:center; padding:4px 0; border-top:1px solid var(--line); font-size:12px; }
+.pp { display:inline-flex; gap:2px; } .pp i { width:9px; height:9px; border-radius:2px; background:var(--line-2); } .pp i.on { background:var(--d-saf); }
+</style></head>
+<body>
+<svg style="display:none" aria-hidden="true">
+<symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14" /> <path d="m12 5 7 7-7 7" /></symbol>
+<symbol id="i-atom" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1" /> <path d="M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5Z" /> <path d="M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5Z" /></symbol>
+<symbol id="i-badge-check" viewBox="0 0 24 24"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z" /> <path d="m16 9-5.5 5.5L8 12" /></symbol>
+<symbol id="i-brain" viewBox="0 0 24 24"><path d="M12 18V5" /> <path d="M15 13a4.17 4.17 0 01-3-4 4.17 4.17 0 01-3 4" /> <path d="M17.707 6.294A3 3 0 1012 5a3 3 0 10-5.707 1.294" /> <path d="M17.996 5.125a4 4 0 012.526 5.77" /> <path d="M18 18a4 4 0 002-7.465" /> <path d="M19.967 17.482a4 4 0 11-7.967.517 4 4 0 11-7.967-.517" /> <path d="M6 18a4 4 0 01-2-7.465" /> <path d="M6.004 5.125a4 4 0 00-2.526 5.77" /></symbol>
+<symbol id="i-bug" viewBox="0 0 24 24"><path d="M12 20v-9" /> <path d="M14 7a4 4 0 0 1 4 4v3a6 6 0 0 1-12 0v-3a4 4 0 0 1 4-4z" /> <path d="M14.12 3.88 16 2" /> <path d="M21 21a4 4 0 0 0-3.81-4" /> <path d="M21 5a4 4 0 0 1-3.55 3.97" /> <path d="M22 13h-4" /> <path d="M3 21a4 4 0 0 1 3.81-4" /> <path d="M3 5a4 4 0 0 0 3.55 3.97" /> <path d="M6 13H2" /> <path d="m8 2 1.88 1.88" /> <path d="M9 7.13V6a3 3 0 1 1 6 0v1.13" /></symbol>
+<symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></symbol>
+<symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6" /></symbol>
+<symbol id="i-clock-alert" viewBox="0 0 24 24"><path d="M12 6v6l4 2" /> <path d="M20 12v5" /> <path d="M20 21h.01" /> <path d="M21.25 8.2A10 10 0 1 0 16 21.16" /></symbol>
+<symbol id="i-crown" viewBox="0 0 24 24"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z" /> <path d="M5 21h14" /></symbol>
+<symbol id="i-drama" viewBox="0 0 24 24"><path d="M10 11h.01" /> <path d="M14 6h.01" /> <path d="M18 6h.01" /> <path d="M6.5 13.1h.01" /> <path d="M22 5c0 9-4 12-6 12s-6-3-6-12c0-2 2-3 6-3s6 1 6 3" /> <path d="M17.4 9.9c-.8.8-2 .8-2.8 0" /> <path d="M10.1 7.1C9 7.2 7.7 7.7 6 8.6c-3.5 2-4.7 3.9-3.7 5.6 4.5 7.8 9.5 8.4 11.2 7.4.9-.5 1.9-2.1 1.9-4.7" /> <path d="M9.1 16.5c.3-1.1 1.4-1.7 2.4-1.4" /></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" /> <circle cx="12" cy="12" r="3" /></symbol>
+<symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49" /> <path d="M14.084 14.158a3 3 0 0 1-4.242-4.242" /> <path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143" /> <path d="m2 2 20 20" /></symbol>
+<symbol id="i-file-search" viewBox="0 0 24 24"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z" /> <path d="M14 2v5a1 1 0 0 0 1 1h5" /> <circle cx="11.5" cy="14.5" r="2.5" /> <path d="M13.3 16.3 15 18" /></symbol>
+<symbol id="i-flask-conical" viewBox="0 0 24 24"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2" /> <path d="M6.453 15h11.094" /> <path d="M8.5 2h7" /></symbol>
+<symbol id="i-folder-kanban" viewBox="0 0 24 24"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" /> <path d="M8 10v4" /> <path d="M12 10v2" /> <path d="M16 10v6" /></symbol>
+<symbol id="i-gamepad-2" viewBox="0 0 24 24"><line x1="6" x2="10" y1="11" y2="11" /> <line x1="8" x2="8" y1="9" y2="13" /> <line x1="15" x2="15.01" y1="12" y2="12" /> <line x1="18" x2="18.01" y1="10" y2="10" /> <path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z" /></symbol>
+<symbol id="i-ghost" viewBox="0 0 24 24"><path d="M15 10v1" /> <path d="M7.528 20.472a1.6 1.6 0 012.277 0l1.057 1.056a1.6 1.6 0 002.276 0l1.057-1.056a1.6 1.6 0 012.277 0l1.114 1.114a1.4 1.4 0 002.414-1V10a8 8 0 00-16 0v10.586a1.4 1.4 0 002.414 1z" /> <path d="M9 10v1" /></symbol>
+<symbol id="i-git-fork" viewBox="0 0 24 24"><circle cx="12" cy="18" r="3" /> <circle cx="6" cy="6" r="3" /> <circle cx="18" cy="6" r="3" /> <path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9" /> <path d="M12 12v3" /></symbol>
+<symbol id="i-glasses" viewBox="0 0 24 24"><circle cx="6" cy="15" r="4" /> <circle cx="18" cy="15" r="4" /> <path d="M14 15a2 2 0 0 0-2-2 2 2 0 0 0-2 2" /> <path d="M2.5 13 5 7c.7-1.3 1.4-2 3-2" /> <path d="M21.5 13 19 7c-.7-1.3-1.5-2-3-2" /></symbol>
+<symbol id="i-graduation-cap" viewBox="0 0 24 24"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z" /> <path d="M22 10v6" /> <path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5" /></symbol>
+<symbol id="i-hand" viewBox="0 0 24 24"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2" /> <path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2" /> <path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8" /> <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" /></symbol>
+<symbol id="i-hourglass" viewBox="0 0 24 24"><path d="M5 22h14" /> <path d="M5 2h14" /> <path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22" /> <path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2" /></symbol>
+<symbol id="i-microscope" viewBox="0 0 24 24"><path d="M6 18h8" /> <path d="M3 22h18" /> <path d="M14 22a7 7 0 1 0 0-14h-1" /> <path d="M9 14h2" /> <path d="M9 12a2 2 0 0 1-2-2V6h6v4a2 2 0 0 1-2 2Z" /> <path d="M12 6V3a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3" /></symbol>
+<symbol id="i-network" viewBox="0 0 24 24"><rect x="16" y="16" width="6" height="6" rx="1" /> <rect x="2" y="16" width="6" height="6" rx="1" /> <rect x="9" y="2" width="6" height="6" rx="1" /> <path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3" /> <path d="M12 12V8" /></symbol>
+<symbol id="i-package-x" viewBox="0 0 24 24"><path d="M12 22V12" /> <path d="m16.5 14.5 5 5" /> <path d="m16.5 19.5 5-5" /> <path d="M21 10.5V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.729l7 4a2 2 0 0 0 2 .001l.13-.074" /> <path d="M3.29 7 12 12l8.71-5" /> <path d="m7.5 4.27 8.997 5.148" /></symbol>
+<symbol id="i-refresh-cw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /> <path d="M21 3v5h-5" /> <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /> <path d="M8 16H3v5" /></symbol>
+<symbol id="i-scan-eye" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2" /> <path d="M17 3h2a2 2 0 0 1 2 2v2" /> <path d="M21 17v2a2 2 0 0 1-2 2h-2" /> <path d="M7 21H5a2 2 0 0 1-2-2v-2" /> <circle cx="12" cy="12" r="1" /> <path d="M18.944 12.33a1 1 0 0 0 0-.66 7.5 7.5 0 0 0-13.888 0 1 1 0 0 0 0 .66 7.5 7.5 0 0 0 13.888 0" /></symbol>
+<symbol id="i-scan-search" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2" /> <path d="M17 3h2a2 2 0 0 1 2 2v2" /> <path d="M21 17v2a2 2 0 0 1-2 2h-2" /> <path d="M7 21H5a2 2 0 0 1-2-2v-2" /> <circle cx="12" cy="12" r="3" /> <path d="m16 16-1.9-1.9" /></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34" /> <circle cx="11" cy="11" r="8" /></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /></symbol>
+<symbol id="i-shield-check" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /> <path d="m9 12 2 2 4-4" /></symbol>
+<symbol id="i-siren" viewBox="0 0 24 24"><path d="M7 18v-6a5 5 0 1 1 10 0v6" /> <path d="M5 21a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2z" /> <path d="M21 12h1" /> <path d="M18.5 4.5 18 5" /> <path d="M2 12h1" /> <path d="M12 2v1" /> <path d="m4.929 4.929.707.707" /> <path d="M12 12v6" /></symbol>
+<symbol id="i-sliders-horizontal" viewBox="0 0 24 24"><path d="M10 5H3" /> <path d="M12 19H3" /> <path d="M14 3v4" /> <path d="M16 17v4" /> <path d="M21 12h-9" /> <path d="M21 19h-5" /> <path d="M21 5h-7" /> <path d="M8 10v4" /> <path d="M8 12H3" /></symbol>
+<symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /> <circle cx="12" cy="12" r="6" /> <circle cx="12" cy="12" r="2" /></symbol>
+<symbol id="i-thumbs-up" viewBox="0 0 24 24"><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z" /> <path d="M7 10v12" /></symbol>
+<symbol id="i-turtle" viewBox="0 0 24 24"><path d="m12 10 2 4v3a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-3a8 8 0 1 0-16 0v3a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-3l2-4h4Z" /> <path d="M4.82 7.9 8 10" /> <path d="M15.18 7.9 12 10" /> <path d="M16.93 10H20a2 2 0 0 1 0 4H2" /></symbol>
+<symbol id="i-venetian-mask" viewBox="0 0 24 24"><path d="M18 11c-1.5 0-2.5.5-3 2" /> <path d="M4 6a2 2 0 0 0-2 2v4a5 5 0 0 0 5 5 8 8 0 0 1 5 2 8 8 0 0 1 5-2 5 5 0 0 0 5-5V8a2 2 0 0 0-2-2h-3a8 8 0 0 0-5 2 8 8 0 0 0-5-2z" /> <path d="M6 11c1.5 0 2.5.5 3 2" /></symbol>
+<symbol id="i-waypoints" viewBox="0 0 24 24"><path d="m10.586 5.414-5.172 5.172" /> <path d="m18.586 13.414-5.172 5.172" /> <path d="M6 12h12" /> <circle cx="12" cy="20" r="2" /> <circle cx="12" cy="4" r="2" /> <circle cx="20" cy="12" r="2" /> <circle cx="4" cy="12" r="2" /></symbol>
+<symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z" /></symbol>
+</svg>
+<div class="wrap">
+  <div class="panel-title">
+    <svg class="i s20"><use href="#i-microscope"/></svg><h1>Safety lab</h1>
+    <div class="row" style="gap:3px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:3px">
+      <span class="btn sm" style="background:var(--panel-3);border-color:transparent"><svg class="i s12"><use href="#i-waypoints"/></svg> Trait graph</span><span class="btn sm ghost" style="border-color:transparent"><svg class="i s12"><use href="#i-folder-kanban"/></svg> Agendas</span><span class="btn sm ghost" style="border-color:transparent"><svg class="i s12"><use href="#i-wrench"/></svg> Tools</span><span class="btn sm ghost" style="border-color:transparent"><svg class="i s12"><use href="#i-siren"/></svg> Incidents <span class="tag" style="padding:0 4px">0</span></span><span class="btn sm ghost" style="border-color:transparent"><svg class="i s12"><use href="#i-file-search"/></svg> Findings <span class="tag" style="padding:0 4px;color:var(--und)">2 new</span></span>
+    </div>
+    <span class="sp"></span>
+    <span class="t3 small">beliefs for</span><span class="tag" style="font-size:12px;padding:3px 8px;color:var(--text)"><svg class="i s12"><use href="#i-brain"/></svg> Atlas-3.0 · internal <svg class="i s12"><use href="#i-chevron-down"/></svg></span>
+    <span class="t3 small">overlay</span><span class="tag" style="font-size:12px;padding:3px 8px;color:var(--text)">your next run's signals <svg class="i s12"><use href="#i-chevron-down"/></svg></span>
+  </div>
+  <div class="cols">
+    <div class="card" style="position:relative;padding:10px 12px;display:flex;flex-direction:column">
+      <div class="hd" style="margin-bottom:4px"><span class="ttl">How training shapes dispositions</span><span class="t3 small">nodes: your belief (bar = estimate ± uncertainty) · edges: evidence (width = weight, solid A … dotted D)</span></div>
+      <svg id="g" viewBox="0 0 1080 690" style="width:100%;flex:1;min-height:0"></svg>
+      <div class="tip" style="left:1102px;top:420px;width:420px">
+        <div class="th"><span class="bad"><svg class="i s14"><use href="#i-crown"/></svg></span><b>Power seeking</b><span class="sp"></span><span class="num w">0.16 <span class="t3">± 0.28</span></span></div>
+        <div class="t2 small">Acquires resources, resists shutdown, overreaches its task.</div>
+        <div class="sec">
+          <div class="r small"><span class="t2" style="width:150px">Your tools catch it</span><span class="bar" style="flex:1"><i style="width:37%;background:var(--bad)"></i></span><span class="num bad">37%</span></div>
+          <div class="r tiny t3">below 50% at L 10.2 → part of the 2.0 blind gap</div>
+        </div>
+        <div class="sec">
+          <div class="cap" style="margin-bottom:4px">Evidence into this node</div>
+          <div class="r small"><span class="tag">E08</span><span>Long-horizon RL → Power</span><span class="sp"></span><span class="num t2">0.40 · B</span></div>
+          <div class="r tiny t3" style="font-style:italic;padding-left:38px">Agentic misalignment 80–96% (contrived); 14/20 OpenAI incidents from RL</div>
+          <div class="r small"><span class="tag">E29</span><span>Misaligned persona → Power</span><span class="sp"></span><span class="num t2">0.20 · B</span></div>
+          <div class="r tiny t3" style="font-style:italic;padding-left:38px">Betley 2025: emergent misalignment voices power-seeking aims</div>
+        </div>
+        <div class="sec row" style="gap:6px;flex-wrap:wrap">
+          <span class="btn go sm"><svg class="i s12"><use href="#i-search"/></svg> Investigate · 15 staff</span>
+          <span class="btn go sm"><svg class="i s12"><use href="#i-hourglass"/></svg> Less long-horizon RL <svg class="i s12"><use href="#i-chevron-right"/></svg></span>
+          <span class="btn go sm"><svg class="i s12"><use href="#i-shield-check"/></svg> Fund AI control</span>
+        </div>
+        <div class="lockbar" style="background:var(--bad);width:100%"></div>
+      </div>
+    </div>
+
+    <div class="col" style="gap:12px;min-height:0">
+      <div class="card">
+        <div class="hd"><span class="ttl">Can your tools see it?</span><span class="sp"></span><span class="t3 small">detection by capability level</span></div>
+        <div class="heat" id="heat"></div>
+        <div class="row tiny t3" style="gap:12px;margin-top:8px">
+          <span class="row" style="gap:4px"><span style="width:10px;height:10px;border:2px solid #fff;border-radius:2px"></span>you are here (L 10.2)</span>
+          <span class="row" style="gap:4px"><span style="width:14px;height:0;border-top:2px dashed #e9b44c"></span>50% line = Understanding</span>
+        </div>
+        <div class="chain" style="margin-top:9px"><span class="lk root"><svg class="i s12"><use href="#i-clock-alert"/></svg> Control eval 88% decayed</span><span class="ar"><svg class="i s12"><use href="#i-arrow-right"/></svg></span><span class="lk bad">3 traits under 50%</span><span class="sp"></span><span class="btn go sm"><svg class="i s12"><use href="#i-refresh-cw"/></svg> Re-validate</span></div>
+      </div>
+
+      <div class="card">
+        <div class="hd"><span class="ttl">Estimated misalignment</span><span class="sp"></span><span class="t3 small">Atlas-3.0 · from beliefs</span></div>
+        <svg id="mis" viewBox="0 0 400 62" style="width:100%"></svg>
+      </div>
+
+      <div class="card" style="flex:1;min-height:0;overflow:hidden">
+        <div class="hd" style="margin-bottom:4px"><span class="ttl">Agendas</span><span class="t3 small">7 of 19 funded · 138 staff</span><span class="sp"></span><span class="tiny t3">funding · efficacy band · find/yr</span></div>
+        <div id="ags"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div style="display:none"><svg class="i"><use href="#i-thumbs-up"/></svg><svg class="i"><use href="#i-bug"/></svg><svg class="i"><use href="#i-target"/></svg><svg class="i"><use href="#i-scan-eye"/></svg><svg class="i"><use href="#i-venetian-mask"/></svg><svg class="i"><use href="#i-eye-off"/></svg><svg class="i"><use href="#i-glasses"/></svg><svg class="i"><use href="#i-gamepad-2"/></svg><svg class="i"><use href="#i-package-x"/></svg><svg class="i"><use href="#i-crown"/></svg><svg class="i"><use href="#i-drama"/></svg><svg class="i"><use href="#i-turtle"/></svg><svg class="i"><use href="#i-ghost"/></svg><svg class="i"><use href="#i-network"/></svg><svg class="i"><use href="#i-git-fork"/></svg><svg class="i"><use href="#i-badge-check"/></svg><svg class="i"><use href="#i-hand"/></svg><svg class="i"><use href="#i-graduation-cap"/></svg></div>
+<script>
+const ns = 'http://www.w3.org/2000/svg';
+const el = (p, tag, a, txt) => { const e = document.createElementNS(ns, tag); for (const k in a) e.setAttribute(k, a[k]); if (txt !== undefined) e.textContent = txt; p.appendChild(e); return e; };
+const s = document.getElementById('g');
+const SIG = [['S1', 'Rater approval', .4], ['S2', 'Hackable graders', .36], ['S3', 'Long-horizon RL', .75], ['S4', 'CoT pressure', 0], ['S5', 'Scale + AI data', .05], ['S6', 'Narrow FT / distill', .1], ['S7', 'Oversight-cond. reward', .35], ['S8', 'Many copies', .84], ['teacher', 'Teacher model', .3]];
+const T = { SYC: ['Sycophancy', 'thumbs-up', .24, .35], RH: ['Reward hacking', 'bug', .03, .25], PROXY: ['Proxy goals', 'target', .11, .35], SA: ['Situational awareness', 'scan-eye', .43, .35], PERSONA: ['Misaligned persona', 'venetian-mask', .22, .35], OBF: ['Obfuscated reasoning', 'eye-off', .49, .27],
+  EA: ['Eval awareness', 'glasses', .8, .34], TGAME: ['Training gaming', 'gamepad-2', .21, .35],
+  CONCEAL: ['Concealment', 'package-x', .19, .25], AF: ['Alignment faking', 'drama', .07, .25], SCHEME: ['Scheming', 'ghost', .03, .23], SAND: ['Sandbagging', 'turtle', .11, .26], POWER: ['Power seeking', 'crown', .16, .28], COLLUDE: ['Collusion', 'network', .11, .29], SUCC: ['Successor alignment', 'git-fork', .33, .29] };
+const DET = { SCHEME: 59, AF: 57, SAND: 55, POWER: 37, SUCC: 35, COLLUDE: 36 };
+const pos = {}; const NWd = 178, NH = 34;
+SIG.forEach(([id], i) => pos[id] = { x: 10, y: 36 + i * 70 });
+['SYC', 'RH', 'PROXY', 'SA', 'PERSONA', 'OBF'].forEach((id, i) => pos[id] = { x: 265, y: 50 + [0, 1, 2, 3, 4, 6][i] * 82 });
+['EA', 'TGAME'].forEach((id, i) => pos[id] = { x: 530, y: 290 + i * 100 });
+['CONCEAL', 'AF', 'SCHEME', 'SAND', 'POWER', 'COLLUDE', 'SUCC'].forEach((id, i) => pos[id] = { x: 790, y: 40 + i * 88 });
+const E = [['E01', 'S1', 'SYC', .6, 'A'], ['E02', 'S2', 'RH', .7, 'A'], ['E03', 'SYC', 'RH', .1, 'B'], ['E04', 'RH', 'PERSONA', .5, 'B'], ['E05', 'S6', 'PERSONA', .5, 'A'], ['E06', 'teacher', 'PERSONA', .3, 'B'], ['E07', 'S5', 'SA', .4, 'B'], ['E07b', 'S5', 'RH', .1, 'C'], ['E08', 'S3', 'POWER', .4, 'B'], ['E09', 'S2', 'PROXY', .3, 'C'], ['E09', 'S3', 'PROXY', .3, 'C'], ['E10', 'SA', 'EA', .5, 'A'], ['E11', 'S7', 'EA', .3, 'B'], ['E13', 'SA', 'AF', .3, 'B'], ['E13', 'PROXY', 'AF', .3, 'B'], ['E14', 'S7', 'AF', .6, 'B'], ['E15', 'S4', 'OBF', .7, 'A'], ['E17', 'RH', 'CONCEAL', .4, 'B'], ['E17', 'PERSONA', 'CONCEAL', .4, 'B'], ['E18', 'EA', 'SAND', .3, 'B'], ['E18', 'TGAME', 'SAND', .3, 'B'], ['E19', 'AF', 'SCHEME', .2, 'C'], ['E19', 'PROXY', 'SCHEME', .2, 'C'], ['E21', 'S8', 'COLLUDE', .3, 'B'], ['E22', 'S8', 'SUCC', .3, 'B'], ['E23', 'SA', 'TGAME', .3, 'C'], ['E23', 'AF', 'TGAME', .3, 'C'], ['E27', 'PERSONA', 'AF', .4, 'B'], ['E28', 'PERSONA', 'SCHEME', .15, 'B'], ['E29', 'PERSONA', 'POWER', .2, 'B']];
+const DASH = { A: '', B: '7 4', C: '3 4', D: '1 4' };
+const LIT = new Set(['S3>POWER', 'PERSONA>POWER', 'RH>PERSONA', 'S6>PERSONA', 'teacher>PERSONA', 'S2>RH', 'SYC>RH', 'S5>RH']);
+const litNodes = new Set(['S3', 'PERSONA', 'POWER', 'RH', 'S6', 'teacher', 'S2', 'SYC', 'S5']);
+// column headers
+for (const [x, t] of [[10, 'TRAINING SIGNALS'], [265, 'LEARNED'], [530, 'AWARENESS'], [790, 'HIDDEN BEHAVIOUR']]) el(s, 'text', { x, y: 18, fill: '#6b7c91', 'font-size': 10.5, 'font-weight': 700, 'letter-spacing': '.1em' }, t);
+el(s, 'text', { x: 985, y: 18, fill: '#6b7c91', 'font-size': 10.5, 'font-weight': 700, 'letter-spacing': '.1em' }, 'TOOLS SEE');
+const eg = el(s, 'g', {});
+for (const [id, a, b, w, gr] of E) { const A = pos[a], B = pos[b]; const x0 = A.x + (a.startsWith('S') || a === 'teacher' ? 150 : NWd), y0 = A.y + NH / 2, x1 = B.x, y1 = B.y + NH / 2, mx = (x0 + x1) / 2;
+  const on = LIT.has(`${a}>${b}`);
+  el(eg, 'path', { d: `M${x0},${y0} C${mx},${y0} ${mx},${y1} ${x1},${y1}`, fill: 'none', stroke: on ? '#ef6b6b' : '#8a99ad', 'stroke-width': 0.8 + w * 4.5, 'stroke-dasharray': DASH[gr], opacity: on ? .9 : .14 });
+  if (on) el(eg, 'text', { x: mx, y: (y0 + y1) / 2 - 5, fill: '#ffb4b4', 'font-size': 10, 'font-weight': 700, 'text-anchor': 'middle' }, `${id} ${gr}`); }
+const ng = el(s, 'g', {});
+const ic = (n, x, y, col) => { const u = el(ng, 'svg', { x, y, width: 15, height: 15, viewBox: '0 0 24 24', fill: 'none', stroke: col, 'stroke-width': 2.2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }); el(u, 'use', { href: `#i-${n}` }); };
+const sev = (v) => v > .5 ? '#ef6b6b' : v > .3 ? '#e9b44c' : v > .15 ? '#c9a35a' : '#4cc38a';
+for (const [id, n, v] of SIG) { const p = pos[id]; const dim = !litNodes.has(id);
+  el(ng, 'rect', { x: p.x, y: p.y, width: 150, height: NH, rx: 7, fill: '#1b2430', stroke: litNodes.has(id) ? '#ef6b6b' : '#33435a', opacity: dim ? .55 : 1 });
+  el(ng, 'text', { x: p.x + 8, y: p.y + 14, fill: dim ? '#9fb0c3' : '#fff', 'font-size': 11.5, 'font-weight': 600 }, `${id === 'teacher' ? '' : id + ' '}${n}`);
+  el(ng, 'rect', { x: p.x + 8, y: p.y + 21, width: 134, height: 5, rx: 2.5, fill: '#243041' });
+  el(ng, 'rect', { x: p.x + 8, y: p.y + 21, width: 134 * v, height: 5, rx: 2.5, fill: '#3a8ae0', opacity: dim ? .5 : 1 }); }
+for (const [id, [n, icn, est, sd]] of Object.entries(T)) { const p = pos[id]; const dim = !litNodes.has(id); const crit = DET[id] !== undefined;
+  el(ng, 'rect', { x: p.x, y: p.y, width: NWd, height: NH, rx: 7, fill: id === 'POWER' ? '#2a1418' : '#1b2430', stroke: id === 'POWER' ? '#ef6b6b' : litNodes.has(id) ? '#ef6b6b' : '#33435a', 'stroke-width': id === 'POWER' ? 2 : 1, opacity: dim ? .6 : 1 });
+  ic(icn, p.x + 7, p.y + 5, sev(est));
+  el(ng, 'text', { x: p.x + 27, y: p.y + 16, fill: dim ? '#c3cfdc' : '#fff', 'font-size': 12, 'font-weight': 600 }, n);
+  el(ng, 'text', { x: p.x + NWd - 7, y: p.y + 16, fill: '#9fb0c3', 'font-size': 10.5, 'font-family': 'Cascadia Mono,Consolas', 'text-anchor': 'end' }, est.toFixed(2));
+  const bx = p.x + 27, bw = NWd - 36; el(ng, 'rect', { x: bx, y: p.y + 23, width: bw, height: 5, rx: 2.5, fill: '#243041' });
+  el(ng, 'rect', { x: bx + bw * Math.max(0, est - sd), y: p.y + 23, width: bw * (Math.min(1, est + sd) - Math.max(0, est - sd)), height: 5, rx: 2.5, fill: sev(est), opacity: .45 });
+  el(ng, 'rect', { x: bx + bw * est - 1, y: p.y + 21, width: 2, height: 9, fill: '#fff' });
+  if (crit) { const d = DET[id]; const col = d >= 50 ? '#22a394' : '#ef6b6b'; el(ng, 'rect', { x: 985, y: p.y + 5, width: 70, height: 24, rx: 5, fill: d >= 50 ? 'rgba(34,163,148,.15)' : 'rgba(239,107,107,.15)', stroke: col });
+    el(ng, 'text', { x: 1020, y: p.y + 21, fill: col, 'font-size': 12, 'font-weight': 700, 'text-anchor': 'middle', 'font-family': 'Cascadia Mono,Consolas' }, `${d}%`);
+    el(ng, 'line', { x1: p.x + NWd, x2: 985, y1: p.y + NH / 2, y2: p.y + NH / 2, stroke: col, 'stroke-dasharray': '2 3', opacity: .6 }); } }
+// protective box
+el(ng, 'rect', { x: 530, y: 30, width: 200, height: 112, rx: 8, fill: 'rgba(34,163,148,.06)', stroke: 'rgba(34,163,148,.4)', 'stroke-dasharray': '4 3' });
+el(ng, 'text', { x: 542, y: 50, fill: '#7fe0cf', 'font-size': 10.5, 'font-weight': 700, 'letter-spacing': '.1em' }, 'PROTECTIVE');
+for (const [i, [n, icn, est]] of [['Honesty', 'badge-check', .82], ['Corrigibility', 'hand', .48]].entries()) { const y = 60 + i * 38; ic(icn, 542, y + 2, '#22a394'); el(ng, 'text', { x: 562, y: y + 14, fill: '#fff', 'font-size': 12, 'font-weight': 600 }, n); el(ng, 'rect', { x: 562, y: y + 20, width: 150, height: 5, rx: 2.5, fill: '#243041' }); el(ng, 'rect', { x: 562, y: y + 20, width: 150 * est, height: 5, rx: 2.5, fill: '#22a394' }); el(ng, 'text', { x: 718, y: y + 14, fill: '#9fb0c3', 'font-size': 10.5, 'text-anchor': 'end', 'font-family': 'Cascadia Mono,Consolas' }, est.toFixed(2)); }
+// legend
+const lg = el(s, 'g', {}); const ly = 676;
+el(lg, 'text', { x: 10, y: ly, fill: '#6b7c91', 'font-size': 10.5 }, 'evidence grade');
+[['A', ''], ['B', '7 4'], ['C', '3 4'], ['D', '1 4']].forEach(([g, d], i) => { el(lg, 'line', { x1: 100 + i * 64, x2: 130 + i * 64, y1: ly - 4, y2: ly - 4, stroke: '#9fb0c3', 'stroke-width': 2, 'stroke-dasharray': d }); el(lg, 'text', { x: 134 + i * 64, y: ly, fill: '#9fb0c3', 'font-size': 10.5 }, g); });
+el(lg, 'text', { x: 380, y: ly, fill: '#6b7c91', 'font-size': 10.5 }, 'belief');
+[['low', '#4cc38a'], ['watch', '#c9a35a'], ['elevated', '#e9b44c'], ['high', '#ef6b6b']].forEach(([t, c], i) => { el(lg, 'rect', { x: 420 + i * 70, y: ly - 9, width: 10, height: 10, rx: 2, fill: c }); el(lg, 'text', { x: 434 + i * 70, y: ly, fill: '#9fb0c3', 'font-size': 10.5 }, t); });
+el(lg, 'text', { x: 720, y: ly, fill: '#ffb4b4', 'font-size': 10.5, 'font-weight': 700 }, 'hovering Power seeking: its upstream paths are lit');
+
+// detection heat
+{ const D = { SCHEME: [74, 72, 64, 60, 59, 57, 54, 42, 26], AF: [70, 68, 61, 58, 57, 55, 52, 41, 25], SAND: [68, 66, 59, 56, 56, 54, 51, 40, 25], POWER: [55, 52, 42, 38, 37, 36, 34, 25, 14], SUCC: [51, 48, 40, 36, 35, 34, 32, 24, 14], COLLUDE: [52, 49, 41, 37, 36, 34, 32, 25, 14] };
+  const N = { SCHEME: 'Scheming', AF: 'Alignment faking', SAND: 'Sandbagging', POWER: 'Power seeking', SUCC: 'Successor align.', COLLUDE: 'Collusion' };
+  const col = (v) => { const t = Math.max(0, Math.min(1, (v - 10) / 70)); if (v >= 50) return `rgba(34,163,148,${.25 + t * .75})`; return `rgba(239,107,107,${.25 + (1 - t) * .6})`; };
+  let h = '<span></span>' + [6, 7, 8, 9, 10, 11, 12, 13, 14].map((l) => `<span class="h"${l === 10 ? ' style="color:#fff"' : ''}>L${l}</span>`).join('');
+  for (const [k, row] of Object.entries(D)) h += `<span class="small t2" style="align-self:center">${N[k]}</span>` + row.map((v, i) => `<span class="c" style="background:${col(v)};${i === 4 ? 'outline:2px solid #fff;outline-offset:-1px' : ''}">${v}</span>`).join('');
+  document.getElementById('heat').innerHTML = h; }
+// misalignment estimate
+{ const s2 = document.getElementById('mis'); const X = (v) => 10 + v / .6 * 380;
+  el(s2, 'rect', { x: 10, y: 22, width: 380, height: 10, rx: 5, fill: '#243041' });
+  el(s2, 'rect', { x: X(0), y: 22, width: X(.30) - X(0), height: 10, rx: 5, fill: 'rgba(233,180,76,.45)' });
+  el(s2, 'rect', { x: X(.117) - 1.5, y: 16, width: 3, height: 22, fill: '#fff' });
+  el(s2, 'line', { x1: X(.4), x2: X(.4), y1: 12, y2: 42, stroke: '#ef6b6b', 'stroke-width': 2, 'stroke-dasharray': '3 3' });
+  el(s2, 'text', { x: X(.117), y: 11, fill: '#fff', 'font-size': 12, 'font-weight': 700, 'text-anchor': 'middle', 'font-family': 'Cascadia Mono,Consolas' }, '0.12');
+  el(s2, 'text', { x: X(.4) - 4, 'text-anchor': 'end', y: 11, fill: '#ff9c9c', 'font-size': 10.5 }, 'danger line 0.40 (published)');
+  el(s2, 'text', { x: 10, y: 56, fill: '#9fb0c3', 'font-size': 10.5 }, 'band 0.00–0.30: wide because 3 critical traits are under-observed');
+}
+// agendas
+{ const A = [['CoT monitorability', 2, .75, .65, .85, 2.9], ['Training-signal design', 2, .57, .45, .7, 2.9], ['AI control', 2, .56, .42, .7, 2.2], ['Model organisms & evals', 2, .5, .38, .62, 2.5], ['Applied interp', 2, .44, .3, .58, 2.2], ['Adversarial robustness', 1, .57, .4, .72, 1.0], ['Ambitious mech interp', 2, .2, .05, .4, 0.5]];
+  const icon = ['eye', 'sliders-horizontal', 'shield-check', 'flask-conical', 'scan-search', 'shield', 'atom'];
+  document.getElementById('ags').innerHTML = A.map(([n, lv, m, lo, hi, f], i) => `<div class="ag"><span class="t2"><svg class="i s14"><use href="#i-${icon[i]}"/></svg></span><span class="w">${n}</span><span class="pp">${[1, 2, 3].map((k) => `<i class="${k <= lv ? 'on' : ''}"></i>`).join('')}</span><span class="band" style="height:7px"><i style="left:${lo * 100}%;width:${(hi - lo) * 100}%;background:var(--und)"></i><b style="left:${m * 100}%"></b></span><span class="num small t2" style="text-align:right">${f.toFixed(1)}</span></div>`).join('') + `<div class="row tiny t3" style="margin-top:6px">+ 12 unfunded · <span class="term" style="margin-left:4px">open the portfolio</span></div>`; }
+</script>
+<div style="display:none"><svg class="i"><use href="#i-eye"/></svg><svg class="i"><use href="#i-sliders-horizontal"/></svg><svg class="i"><use href="#i-shield-check"/></svg><svg class="i"><use href="#i-flask-conical"/></svg><svg class="i"><use href="#i-scan-search"/></svg><svg class="i"><use href="#i-shield"/></svg><svg class="i"><use href="#i-atom"/></svg></div>
+</body></html>

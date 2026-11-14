@@ -1,0 +1,444 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>AI27 v2 · Main screen (mockup)</title>
+<meta name="shots" content="01-main:1680x1000:;01b-main-hover-why:1680x1000:hover">
+<link rel="stylesheet" href="kit.css">
+<style>
+/* top strip */
+.speed { display:flex; gap:3px; }
+.speed .b { width:30px; height:30px; border-radius:7px; display:grid; place-items:center; background:var(--panel-2); border:1px solid var(--line-2); color:var(--text-2); position:relative; }
+.speed .b.on { background:#24364f; border-color:var(--you); color:#fff; }
+.speed .b .k { position:absolute; bottom:-1px; right:2px; font:700 8px var(--mono); color:var(--text-3); }
+.date .d { font:600 15px var(--mono); color:#fff; } .date .a { font-size:11px; color:var(--text-3); }
+.race { flex:0 0 470px; padding: 0 16px !important; flex-direction:column; align-items:stretch !important; justify-content:center; gap:3px !important; position:relative; }
+.race .lbls { display:flex; align-items:baseline; gap:6px; font-size:11px; }
+.race .lbls b { font:700 15px var(--mono); }
+.race svg { display:block; }
+.riskg { flex-direction:row; }
+.stat .sub { font-size:10.5px; color:var(--text-3); }
+/* center */
+.tabs { display:flex; gap:2px; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:3px; }
+.tabs span { padding:4px 12px; border-radius:6px; color:var(--text-2); font-weight:600; font-size:12px; display:inline-flex; gap:6px; align-items:center; }
+.tabs span.on { background:var(--panel-3); color:#fff; }
+.legend { display:flex; gap:14px; font-size:11.5px; color:var(--text-2); align-items:center; }
+.legend i { display:inline-block; width:14px; height:3px; border-radius:2px; margin-right:5px; vertical-align:3px; }
+#track text { font-family: var(--sans); }
+.world { display:grid; grid-template-columns: 1fr 330px; gap:12px; flex:1; min-height:0; }
+.region { display:flex; flex-direction:column; gap:6px; }
+.tiles { display:grid; grid-template-columns: repeat(7, 1fr); gap:3px; }
+.tile { height:34px; border-radius:4px; position:relative; display:flex; align-items:flex-end; justify-content:flex-start; padding:2px 4px; font:600 10px var(--mono); color:rgba(255,255,255,.85); }
+.tile .ab { position:absolute; top:3px; left:4px; font: 700 9px var(--sans); letter-spacing:.04em; opacity:.8; }
+.ctrl .r { display:grid; grid-template-columns: 54px 1fr 36px; gap:8px; align-items:center; margin:6px 0; font-size:12px; }
+.ctrlbar { position:relative; height:12px; border-radius:3px; background:var(--line); }
+.ctrlbar .f { position:absolute; left:0; top:0; bottom:0; display:flex; gap:1px; }
+.ctrlbar .thr { position:absolute; top:-3px; bottom:-3px; width:1px; background:var(--text-3); }
+/* rail */
+.chainv { display:flex; align-items:center; gap:4px; }
+.node { flex:1; background:var(--panel-2); border:1px solid var(--line-2); border-radius:7px; padding:6px 7px; text-align:center; }
+.node .v { font:700 13px var(--mono); color:#fff; } .node .l { font-size:10.5px; color:var(--text-3); }
+.node.bind { border-color: var(--warn); background: rgba(233,180,76,.08); }
+.lever { display:grid; grid-template-columns: 18px 1fr auto auto; gap:8px; align-items:center; padding:5px 0; border-top:1px solid var(--line); font-size:12px; }
+.lever .bar { width:60px; }
+.gate { display:grid; grid-template-columns: repeat(4,1fr); gap:6px; }
+.gate .g { background:var(--panel-2); border:1px solid var(--line-2); border-radius:7px; padding:6px 4px; text-align:center; font-size:10.5px; color:var(--text-3); }
+.gate .g .v { font:700 12px var(--mono); color:#fff; display:block; margin-top:2px; }
+.gate .g.bind { border-color:var(--warn); color:var(--warn); }
+.watch { display:flex; flex-direction:column; gap:7px; }
+.watch .w { display:flex; flex-direction:column; gap:5px; padding:8px; border-radius:7px; background:var(--panel-2); border:1px solid var(--line); }
+.watch .w .chain .lk { font-size:11.5px; padding:2px 6px; }
+.riv { display:grid; grid-template-columns: 22px 1fr 70px 44px 26px; gap:7px; align-items:center; padding:5px 0; border-top:1px solid var(--line); font-size:12px; }
+.mono { width:22px; height:22px; border-radius:50%; display:grid; place-items:center; font:700 10px var(--sans); color:#fff; }
+.ticker { font-size:12px; color:var(--text-2); white-space:nowrap; overflow:hidden; }
+body:not(.hover) .hv { display:none; }
+.top .stat, .top .seg { white-space:nowrap; flex-shrink:0; }
+.speed .b { width:26px !important; height:26px !important; }
+.date { white-space:nowrap; } .date .d { font-size:14px !important; }
+.center > * { min-width:0; } .rail > * { min-width:0; } #track { width:100%; height:auto; display:block; }
+.bottomrow { display:grid; grid-template-columns: 0.9fr 1.3fr 300px; gap:12px; flex:1; min-height:0; }
+.regrow { display:grid; grid-template-columns: 104px 1fr; gap:8px; align-items:center; }
+.tiles { grid-template-columns: repeat(7, 1fr) !important; gap:2px !important; }
+.tile { height:30px !important; padding:1px 4px !important; font-size:10px !important; }
+.tile .ab { font-size:9px !important; left:4px !important; top:2px !important; }
+</style></head>
+<body>
+<svg style="display:none" aria-hidden="true">
+<symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7" /> <path d="M19 12H5" /></symbol>
+<symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14" /> <path d="m12 5 7 7-7 7" /></symbol>
+<symbol id="i-biohazard" viewBox="0 0 24 24"><circle cx="12" cy="11.9" r="2" /> <path d="M6.7 3.4c-.9 2.5 0 5.2 2.2 6.7C6.5 9 3.7 9.6 2 11.6" /> <path d="m8.9 10.1 1.4.8" /> <path d="M17.3 3.4c.9 2.5 0 5.2-2.2 6.7 2.4-1.2 5.2-.6 6.9 1.5" /> <path d="m15.1 10.1-1.4.8" /> <path d="M16.7 20.8c-2.6-.4-4.6-2.6-4.7-5.3-.2 2.6-2.1 4.8-4.7 5.2" /> <path d="M12 13.9v1.6" /> <path d="M13.5 5.4c-1-.2-2-.2-3 0" /> <path d="M17 16.4c.7-.7 1.2-1.6 1.5-2.5" /> <path d="M5.5 13.9c.3.9.8 1.8 1.5 2.5" /></symbol>
+<symbol id="i-book-open" viewBox="0 0 24 24"><path d="M12 5v16" /> <path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z" /></symbol>
+<symbol id="i-bot" viewBox="0 0 24 24"><path d="M12 8V4H8" /> <rect width="16" height="12" x="4" y="8" rx="2" /> <path d="M2 14h2" /> <path d="M20 14h2" /> <path d="M15 13v2" /> <path d="M9 13v2" /></symbol>
+<symbol id="i-boxes" viewBox="0 0 24 24"><path d="M2.97 12.92A2 2 0 0 0 2 14.63v3.24a2 2 0 0 0 .97 1.71l3 1.8a2 2 0 0 0 2.06 0L12 19v-5.5l-5-3-4.03 2.42Z" /> <path d="m7 16.5-4.74-2.85" /> <path d="m7 16.5 5-3" /> <path d="M7 16.5v5.17" /> <path d="M12 13.5V19l3.97 2.38a2 2 0 0 0 2.06 0l3-1.8a2 2 0 0 0 .97-1.71v-3.24a2 2 0 0 0-.97-1.71L17 10.5l-5 3Z" /> <path d="m17 16.5-5-3" /> <path d="m17 16.5 4.74-2.85" /> <path d="M17 16.5v5.17" /> <path d="M7.97 4.42A2 2 0 0 0 7 6.13v4.37l5 3 5-3V6.13a2 2 0 0 0-.97-1.71l-3-1.8a2 2 0 0 0-2.06 0l-3 1.8Z" /> <path d="M12 8 7.26 5.15" /> <path d="m12 8 4.74-2.85" /> <path d="M12 13.5V8" /></symbol>
+<symbol id="i-brain" viewBox="0 0 24 24"><path d="M12 18V5" /> <path d="M15 13a4.17 4.17 0 01-3-4 4.17 4.17 0 01-3 4" /> <path d="M17.707 6.294A3 3 0 1012 5a3 3 0 10-5.707 1.294" /> <path d="M17.996 5.125a4 4 0 012.526 5.77" /> <path d="M18 18a4 4 0 002-7.465" /> <path d="M19.967 17.482a4 4 0 11-7.967.517 4 4 0 11-7.967-.517" /> <path d="M6 18a4 4 0 01-2-7.465" /> <path d="M6.004 5.125a4 4 0 00-2.526 5.77" /></symbol>
+<symbol id="i-briefcase" viewBox="0 0 24 24"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" /> <rect width="20" height="14" x="2" y="6" rx="2" /></symbol>
+<symbol id="i-building-2" viewBox="0 0 24 24"><path d="M10 12h4" /> <path d="M10 8h4" /> <path d="M14 21v-3a2 2 0 0 0-4 0v3" /> <path d="M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2" /> <path d="M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16" /></symbol>
+<symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6" /></symbol>
+<symbol id="i-chevrons-right" viewBox="0 0 24 24"><path d="m6 17 5-5-5-5" /> <path d="m13 17 5-5-5-5" /></symbol>
+<symbol id="i-circle-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /> <path d="M9 9.5a3 2.5 0 016 0c0 2-2 2-3 3.5" /> <path d="M12 17h.01" /></symbol>
+<symbol id="i-clock-alert" viewBox="0 0 24 24"><path d="M12 6v6l4 2" /> <path d="M20 12v5" /> <path d="M20 21h.01" /> <path d="M21.25 8.2A10 10 0 1 0 16 21.16" /></symbol>
+<symbol id="i-copy-x" viewBox="0 0 24 24"><path d="M4 16a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2" /> <rect x="8" y="8" width="14" height="14" rx="2" /> <path d="m12.5 12.5 5 5" /> <path d="m12.5 17.5 5-5" /></symbol>
+<symbol id="i-cpu" viewBox="0 0 24 24"><path d="M12 20v2" /> <path d="M12 2v2" /> <path d="M17 20v2" /> <path d="M17 2v2" /> <path d="M2 12h2" /> <path d="M2 17h2" /> <path d="M2 7h2" /> <path d="M20 12h2" /> <path d="M20 17h2" /> <path d="M20 7h2" /> <path d="M7 20v2" /> <path d="M7 2v2" /> <rect x="4" y="4" width="16" height="16" rx="2" /> <rect x="8" y="8" width="8" height="8" rx="1" /></symbol>
+<symbol id="i-crown" viewBox="0 0 24 24"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z" /> <path d="M5 21h14" /></symbol>
+<symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3" /> <path d="M3 5V19A9 3 0 0 0 21 19V5" /> <path d="M3 12A9 3 0 0 0 21 12" /></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" /> <circle cx="12" cy="12" r="3" /></symbol>
+<symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49" /> <path d="M14.084 14.158a3 3 0 0 1-4.242-4.242" /> <path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143" /> <path d="m2 2 20 20" /></symbol>
+<symbol id="i-factory" viewBox="0 0 24 24"><path d="M12 16h.01" /> <path d="M16 16h.01" /> <path d="M3 19a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.5a.5.5 0 0 0-.769-.422l-4.462 2.844A.5.5 0 0 1 15 10.5v-2a.5.5 0 0 0-.769-.422L9.77 10.922A.5.5 0 0 1 9 10.5V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2z" /> <path d="M8 16h.01" /></symbol>
+<symbol id="i-fast-forward" viewBox="0 0 24 24"><path d="M12 6a2 2 0 0 1 3.414-1.414l6 6a2 2 0 0 1 0 2.828l-6 6A2 2 0 0 1 12 18z" /> <path d="M2 6a2 2 0 0 1 3.414-1.414l6 6a2 2 0 0 1 0 2.828l-6 6A2 2 0 0 1 2 18z" /></symbol>
+<symbol id="i-flag" viewBox="0 0 24 24"><path d="M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528" /></symbol>
+<symbol id="i-flag-triangle-right" viewBox="0 0 24 24"><path d="M6 22V2.8a.8.8 0 0 1 1.17-.71l11.38 5.69a.8.8 0 0 1 0 1.44L6 15.5" /></symbol>
+<symbol id="i-flask-conical" viewBox="0 0 24 24"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2" /> <path d="M6.453 15h11.094" /> <path d="M8.5 2h7" /></symbol>
+<symbol id="i-gauge" viewBox="0 0 24 24"><path d="m12 14 4-4" /> <path d="M3.34 19a10 10 0 1 1 17.32 0" /></symbol>
+<symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /> <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" /> <path d="M2 12h20" /></symbol>
+<symbol id="i-graduation-cap" viewBox="0 0 24 24"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z" /> <path d="M22 10v6" /> <path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5" /></symbol>
+<symbol id="i-handshake" viewBox="0 0 24 24"><path d="m11 17 2 2a1 1 0 1 0 3-3" /> <path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4" /> <path d="m21 3 1 11h-2" /> <path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3" /> <path d="M3 4h8" /></symbol>
+<symbol id="i-hourglass" viewBox="0 0 24 24"><path d="M5 22h14" /> <path d="M5 2h14" /> <path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22" /> <path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2" /></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /> <path d="M12 16v-4" /> <path d="M12 8h.01" /></symbol>
+<symbol id="i-landmark" viewBox="0 0 24 24"><path d="M10 18v-7" /> <path d="M11.119 2.205a2 2 0 0 1 1.762 0l7.84 3.846A.5.5 0 0 1 20.5 7h-17a.5.5 0 0 1-.22-.949z" /> <path d="M14 18v-7" /> <path d="M18 18v-7" /> <path d="M3 22h18" /> <path d="M6 18v-7" /></symbol>
+<symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 5h16" /> <path d="M4 12h16" /> <path d="M4 19h16" /></symbol>
+<symbol id="i-microscope" viewBox="0 0 24 24"><path d="M6 18h8" /> <path d="M3 22h18" /> <path d="M14 22a7 7 0 1 0 0-14h-1" /> <path d="M9 14h2" /> <path d="M9 12a2 2 0 0 1-2-2V6h6v4a2 2 0 0 1-2 2Z" /> <path d="M12 6V3a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3" /></symbol>
+<symbol id="i-newspaper" viewBox="0 0 24 24"><path d="M15 18h-5" /> <path d="M18 14h-8" /> <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-4 0v-9a2 2 0 0 1 2-2h2" /> <rect width="8" height="4" x="10" y="6" rx="1" /></symbol>
+<symbol id="i-pause" viewBox="0 0 24 24"><rect x="14" y="3" width="5" height="18" rx="1" /> <rect x="5" y="3" width="5" height="18" rx="1" /></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z" /></symbol>
+<symbol id="i-plug-zap" viewBox="0 0 24 24"><path d="M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z" /> <path d="m2 22 3-3" /> <path d="M7.5 13.5 10 11" /> <path d="M10.5 16.5 13 14" /> <path d="m18 3-4 4h6l-4 4" /></symbol>
+<symbol id="i-radar" viewBox="0 0 24 24"><path d="M19.07 4.93A10 10 0 0 0 6.99 3.34" /> <path d="M4 6h.01" /> <path d="M2.29 9.62A10 10 0 1 0 21.31 8.35" /> <path d="M16.24 7.76A6 6 0 1 0 8.23 16.67" /> <path d="M12 18h.01" /> <path d="M17.99 11.66A6 6 0 0 1 15.77 16.67" /> <circle cx="12" cy="12" r="2" /> <path d="m13.41 10.59 5.66-5.66" /></symbol>
+<symbol id="i-refresh-cw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /> <path d="M21 3v5h-5" /> <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /> <path d="M8 16H3v5" /></symbol>
+<symbol id="i-rocket" viewBox="0 0 24 24"><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" /> <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09" /> <path d="M9 12a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.4 22.4 0 0 1-4 2z" /> <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 .05 5 .05" /></symbol>
+<symbol id="i-server" viewBox="0 0 24 24"><rect width="20" height="8" x="2" y="2" rx="2" ry="2" /> <rect width="20" height="8" x="2" y="14" rx="2" ry="2" /> <line x1="6" x2="6.01" y1="6" y2="6" /> <line x1="6" x2="6.01" y1="18" y2="18" /></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /></symbol>
+<symbol id="i-skip-forward" viewBox="0 0 24 24"><path d="M21 4v16" /> <path d="M6.029 4.285A2 2 0 0 0 3 6v12a2 2 0 0 0 3.029 1.715l9.997-5.998a2 2 0 0 0 .003-3.432z" /></symbol>
+<symbol id="i-skull" viewBox="0 0 24 24"><path d="m12.5 17-.5-1-.5 1h1z" /> <path d="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z" /> <circle cx="15" cy="12" r="1" /> <circle cx="9" cy="12" r="1" /></symbol>
+<symbol id="i-swords" viewBox="0 0 24 24"><path d="m13 19 6-6" /> <path d="M14.5 17.5 3.586 6.586A2 2 0 013 5.172V3h2.172a2 2 0 011.414.586L17.5 14.5" /> <path d="m14.828 6.172 2.586-2.586A2 2 0 0118.828 3H21v2.172a2 2 0 01-.586 1.414l-2.586 2.586" /> <path d="m16 16 4 4" /> <path d="m19 21 2-2" /> <path d="m5 14 4 4" /> <path d="m5 21-2-2" /> <path d="M7.5 16.5 4 20" /></symbol>
+<symbol id="i-timer" viewBox="0 0 24 24"><line x1="10" x2="14" y1="2" y2="2" /> <line x1="12" x2="15" y1="14" y2="11" /> <circle cx="12" cy="14" r="8" /></symbol>
+<symbol id="i-user-minus" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /> <circle cx="9" cy="7" r="4" /> <line x1="22" x2="16" y1="11" y2="11" /></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /> <path d="M16 3.128a4 4 0 0 1 0 7.744" /> <path d="M22 21v-2a4 4 0 0 0-3-3.87" /> <circle cx="9" cy="7" r="4" /></symbol>
+<symbol id="i-wallet" viewBox="0 0 24 24"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" /> <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" /></symbol>
+<symbol id="i-waypoints" viewBox="0 0 24 24"><path d="m10.586 5.414-5.172 5.172" /> <path d="m18.586 13.414-5.172 5.172" /> <path d="M6 12h12" /> <circle cx="12" cy="20" r="2" /> <circle cx="12" cy="4" r="2" /> <circle cx="20" cy="12" r="2" /> <circle cx="4" cy="12" r="2" /></symbol>
+<symbol id="i-workflow" viewBox="0 0 24 24"><rect width="8" height="8" x="3" y="3" rx="2" /> <path d="M7 11v4a2 2 0 0 0 2 2h4" /> <rect width="8" height="8" x="13" y="13" rx="2" /></symbol>
+<symbol id="i-zap" viewBox="0 0 24 24"><path d="M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z" /></symbol>
+<symbol id="i-zap-off" viewBox="0 0 24 24"><path d="M10.768 5.111 13.44 2.44a1.5 1.5 0 012.474 1.561l-1.633 4.625" /> <path d="m18.889 13.232.672-.672A1.5 1.5 0 0018.5 10h-2.844" /> <path d="m2 2 20 20" /> <path d="m7.94 7.94-3.5 3.499A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l5.5-5.5" /></symbol>
+</svg>
+<div class="app">
+  <!-- ───────── TOP STRIP ───────── -->
+  <div class="top">
+    <div class="seg">
+      <div class="speed">
+        <div class="b"><svg class="i s14"><use href="#i-pause"/></svg></div>
+        <div class="b on"><svg class="i s14"><use href="#i-play"/></svg><span class="k">1</span></div>
+        <div class="b"><svg class="i s14"><use href="#i-chevrons-right"/></svg><span class="k">2</span></div>
+        <div class="b"><svg class="i s14"><use href="#i-fast-forward"/></svg><span class="k">3</span></div>
+        <div class="b" title="Fast-forward to…"><svg class="i s14"><use href="#i-skip-forward"/></svg></div>
+      </div>
+      <div class="date col" style="gap:0"><span class="d">Jun 1, 2027</span><span class="a">Day 700 · Act 3 Automation</span></div>
+    </div>
+
+    <div class="seg race" id="race">
+      <div class="lbls">
+        <span style="color:var(--cap)"><svg class="i s12"><use href="#i-brain"/></svg> CAPABILITY</span><b style="color:var(--cap)">10.2</b><span class="trend up badup">▲1.2</span>
+        <span class="sp"></span>
+        <span class="tag" style="border-color:rgba(239,107,107,.5);color:var(--bad);background:var(--bad-bg)"><svg class="i s12"><use href="#i-eye-off"/></svg> 2.0 BLIND</span>
+        <span class="sp"></span>
+        <span class="trend up">▲0.3</span><b style="color:var(--und)">8.2</b><span style="color:var(--und);white-space:nowrap">UNDERSTANDING</span>
+      </div>
+      <svg id="racebar" width="440" height="24"></svg>
+    </div>
+
+    <div class="stat" style="padding-right:14px">
+      <svg id="riskgauge" width="44" height="30"></svg>
+      <div class="col" style="gap:1px"><span class="l">CATASTROPHE RISK</span><span class="row" style="gap:6px"><span class="v" style="color:var(--warn)">34%</span><span class="sub num">9–71</span></span></div>
+    </div>
+    <div class="stat">
+      <div class="ic"><svg class="i s14"><use href="#i-wallet"/></svg></div>
+      <div class="col" style="gap:1px"><span class="l">CASH · RUNWAY</span><span class="row" style="gap:6px"><span class="v">$25B</span><span class="d warn">3.5q</span></span></div>
+      <svg id="runwaypips" width="38" height="14"></svg>
+    </div>
+    <div class="stat">
+      <div class="ic"><svg class="i s14"><use href="#i-cpu"/></svg></div>
+      <div class="col" style="gap:1px"><span class="l">COMPUTE H100e</span><span class="row" style="gap:6px"><span class="v">8.5M</span><span class="d warn row" style="gap:2px"><svg class="i s12"><use href="#i-plug-zap"/></svg>2.7M idle</span></span></div>
+    </div>
+    <div class="stat">
+      <div class="ic" style="color:var(--china)"><svg class="i s14"><use href="#i-timer"/></svg></div>
+      <div class="col" style="gap:1px"><span class="l">LEAD · NEAREST</span><span class="row" style="gap:6px"><span class="v good">+203d</span><span class="sub">DeepCent</span></span></div>
+    </div>
+    <div class="stat" style="border-right:0">
+      <div class="ic"><svg class="i s14"><use href="#i-eye"/></svg></div>
+      <div class="col" style="gap:1px"><span class="l">SCRUTINY</span><span class="row" style="gap:6px"><span class="v">11</span><span class="trend dn gooddn">▼4</span></span></div>
+    </div>
+    <div class="sp"></div>
+    <div class="seg" style="border-right:0;border-left:1px solid var(--line)"><div class="speed"><div class="b"><svg class="i s14"><use href="#i-circle-help"/></svg></div><div class="b"><svg class="i s14"><use href="#i-menu"/></svg></div></div></div>
+  </div>
+
+  <div class="body">
+    <!-- ───────── NAV (grouped by sphere, with action badges) ───────── -->
+    <nav class="nav">
+      <div class="it on"><svg class="i s18"><use href="#i-radar"/></svg>Overview</div>
+      <div class="it"><svg class="i s18"><use href="#i-workflow"/></svg>Company</div>
+      <div class="grp">MONEY</div>
+      <div class="it"><svg class="i s18"><use href="#i-landmark"/></svg>Finance</div>
+      <div class="it" id="nav-compute"><svg class="i s18"><use href="#i-server"/></svg>Compute<span class="badge" style="background:var(--warn)">!</span></div>
+      <div class="grp">MODELS</div>
+      <div class="it"><svg class="i s18"><use href="#i-brain"/></svg>Models</div>
+      <div class="it"><svg class="i s18"><use href="#i-rocket"/></svg>Runs<span class="badge" style="background:var(--text-2)">1</span></div>
+      <div class="it"><svg class="i s18"><use href="#i-boxes"/></svg>Deploy<span class="badge" style="background:var(--warn)">3</span></div>
+      <div class="grp">SAFETY</div>
+      <div class="it" id="nav-safety"><svg class="i s18"><use href="#i-microscope"/></svg>Safety<span class="badge" style="background:var(--und)">5</span></div>
+      <div class="grp">WORLD</div>
+      <div class="it"><svg class="i s18"><use href="#i-handshake"/></svg>Relations</div>
+      <div class="it"><svg class="i s18"><use href="#i-globe"/></svg>World</div>
+      <div class="sp"></div>
+      <div class="it"><svg class="i s18"><use href="#i-book-open"/></svg>Codex</div>
+    </nav>
+
+    <!-- ───────── CENTER ───────── -->
+    <main class="center">
+      <div class="row">
+        <div class="tabs"><span class="on"><svg class="i s14"><use href="#i-flag"/></svg>Race</span><span><svg class="i s14"><use href="#i-globe"/></svg>World</span><span><svg class="i s14"><use href="#i-waypoints"/></svg>Flows</span><span><svg class="i s14"><use href="#i-skull"/></svg>Risk</span></div>
+        <span class="sp"></span>
+        <div class="legend">
+          <span><span class="dot" style="background:var(--you)"></span> You</span>
+          <span><span class="dot" style="background:var(--rival)"></span> US rivals</span>
+          <span><span class="dot" style="background:var(--china)"></span> China</span>
+          <span><i style="background:var(--und)"></i>Understanding frontier</span>
+          <span><i style="background:repeating-linear-gradient(45deg,var(--bad) 0 2px,transparent 2px 5px);height:8px"></i>Unverified zone</span>
+        </div>
+      </div>
+
+      <div class="card" style="padding:12px 14px 6px;position:relative" id="trackcard">
+        <div class="hd"><span class="ttl">The frontier</span><span class="t3 small">best internal model per lab · estimates ± intel error · click a lab for its card</span><span class="sp"></span><span class="tag"><svg class="i s12"><use href="#i-info"/></svg> level L, log-compute scale</span></div>
+        <svg id="track" viewBox="0 0 1222 280"></svg>
+      </div>
+
+      <div class="bottomrow">
+        <div class="card" style="display:flex;flex-direction:column">
+          <div class="hd"><span class="ttl">Race history</span><span class="sp"></span>
+            <span class="legend" style="gap:10px"><span><i style="background:var(--cap)"></i>Capability</span><span><i style="background:var(--und)"></i>Understanding</span></span></div>
+          <svg id="hist" viewBox="0 0 400 330" style="width:100%;flex:1;min-height:0"></svg>
+        </div>
+        <div class="card" style="display:flex;flex-direction:column;gap:9px">
+          <div class="hd" style="margin:0"><span class="ttl">Automation spread</span><span class="t3 small">AI share of tasks</span><span class="sp"></span>
+            <span class="row tiny t3">0%<span style="display:inline-block;width:70px;height:8px;border-radius:2px;background:linear-gradient(90deg,#16303a,#1d6f68,#22a394,#7fe0cf)"></span>35%</span></div>
+          <div class="col" style="gap:10px" id="regions"></div>
+          <div class="cap" style="margin-top:4px">Your models in use</div>
+          <div class="col" style="gap:6px" id="deps"></div>
+          <div class="row small t2" style="gap:14px;margin-top:auto;flex-wrap:wrap">
+            <span class="row" style="gap:5px"><svg class="i s14"><use href="#i-briefcase"/></svg> US jobless <b class="num w">4.4%</b> <span class="trend up badup">▲0.1</span></span>
+            <span class="row" style="gap:5px"><svg class="i s14"><use href="#i-user-minus"/></svg> Displaced <b class="num w">183K</b></span>
+            <span class="row" style="gap:5px"><svg class="i s14"><use href="#i-graduation-cap"/></svg> Youth jobless <b class="num w">11.8%</b></span>
+          </div>
+        </div>
+        <div class="card ctrl">
+          <div class="hd"><span class="ttl">Where risk comes from</span><span class="sp"></span><span class="num small warn">34%</span></div><div id="risks" style="margin-bottom:12px"></div><div class="hd" style="margin-bottom:4px"><span class="ttl">Control index</span><span class="sp"></span><span class="num small t2">you <b class="w">0.9%</b></span></div>
+          <div id="ctrl"></div>
+          <div class="row tiny t3" style="gap:10px;margin-top:8px"><span class="row" style="gap:4px"><span style="width:1px;height:10px;background:var(--text-3)"></span>leverage thresholds</span><span>bar = AI share of the domain · colour = whose models</span></div>
+        </div>
+      </div>
+
+      <!-- hover state: why is U 8.2 -->
+      <div class="tip hv" style="left:330px;top:4px;width:400px">
+        <div class="th"><b>Understanding</b><span class="num" style="color:var(--und)">8.2</span><span class="sp"></span><span class="num bad small">2.0 behind capability</span></div>
+        <div class="t2 small">Highest level at which your <span class="term">safety stack</span> still catches the <span class="term">critical traits</span> half the time.</div>
+        <div class="sec">
+          <div class="cap" style="margin-bottom:4px">Detection at your level (L 10.2)</div>
+          <div id="dets"></div>
+        </div>
+        <div class="sec">
+          <div class="cap" style="margin-bottom:5px">Why it moved · 90 d</div>
+          <div class="r small"><span class="trend dn">▼</span><span><span class="term">Control evaluation</span> decayed to 12% strength</span><span class="sp"></span><span class="num bad">−0.6</span></div>
+          <div class="r small"><span class="trend dn">▼</span><span>Internal agent switched to Atlas-3.0 (higher <span class="term">eval awareness</span>)</span><span class="sp"></span><span class="num bad">−0.4</span></div>
+          <div class="r small"><span class="trend up">▲</span><span>CoT monitorability agenda · serious</span><span class="sp"></span><span class="num good">+0.9</span></div>
+          <div class="r small"><span class="trend up">▲</span><span>Training-signal design findings (×2)</span><span class="sp"></span><span class="num good">+0.4</span></div>
+        </div>
+        <div class="sec">
+          <div class="cap" style="margin-bottom:6px">Levers</div>
+          <div class="row" style="flex-wrap:wrap;gap:6px">
+            <span class="btn go sm"><svg class="i s12"><use href="#i-refresh-cw"/></svg> Re-validate stale tools <svg class="i s12"><use href="#i-chevron-right"/></svg></span>
+            <span class="btn go sm"><svg class="i s12"><use href="#i-microscope"/></svg> Fund AI control <svg class="i s12"><use href="#i-chevron-right"/></svg></span>
+            <span class="btn go sm"><svg class="i s12"><use href="#i-gauge"/></svg> Slow next run <svg class="i s12"><use href="#i-chevron-right"/></svg></span>
+          </div>
+        </div>
+        <div class="tiny t3" style="margin-top:8px">Blue terms open nested tips · <span class="kbd">Alt</span> locks</div>
+        <div class="lockbar" style="background:var(--und);width:60%"></div>
+      </div>
+    </main>
+
+    <!-- ───────── RIGHT RAIL ───────── -->
+    <aside class="rail">
+      <div class="card" style="padding:10px 12px">
+        <div class="hd" style="margin-bottom:8px"><span class="ttl capt">Research speed</span><span class="sp"></span><span class="tag" style="color:var(--warn);border-color:rgba(233,180,76,.5)">compute-bound</span></div>
+        <div class="chainv">
+          <div class="node"><div class="v">8.5M</div><div class="l"><svg class="i s12"><use href="#i-cpu"/></svg> compute</div></div>
+          <span class="t3"><svg class="i s14"><use href="#i-arrow-right"/></svg></span>
+          <div class="node bind"><div class="v">1.65M</div><div class="l">experiments</div></div>
+          <span class="t3"><svg class="i s14"><use href="#i-arrow-right"/></svg></span>
+          <div class="node" style="border-color:var(--cap)"><div class="v" style="color:var(--cap)">5.8×</div><div class="l">R&amp;D speed</div></div>
+        </div>
+        <div style="margin-top:8px">
+          <div class="cap" style="margin-bottom:2px">Best lever per $</div>
+          <div class="lever"><span class="good"><svg class="i s14"><use href="#i-flask-conical"/></svg></span><span>+10% experiments</span><span class="bar"><i style="width:100%;background:var(--good)"></i></span><span class="num good">+4.5%</span></div>
+          <div class="lever"><span class="t2"><svg class="i s14"><use href="#i-bot"/></svg></span><span>+10% AI agents</span><span class="bar"><i style="width:33%;background:var(--text-2)"></i></span><span class="num t2">+1.5%</span></div>
+          <div class="lever t3"><span><svg class="i s14"><use href="#i-users"/></svg></span><span>+10% staff <span class="tiny">· saturated</span></span><span class="bar"><i style="width:1%;background:var(--text-3)"></i></span><span class="num">+0.0%</span></div>
+        </div>
+      </div>
+
+      <div class="card" style="padding:10px 12px">
+        <div class="hd" style="margin-bottom:8px"><span class="ttl capt">Next model · Atlas-4</span><span class="sp"></span><span class="small t3">gated by</span></div>
+        <div class="gate">
+          <div class="g bind"><svg class="i s14"><use href="#i-hourglass"/></svg><br>train<span class="v" style="color:var(--warn)">97 d</span></div>
+          <div class="g"><svg class="i s14"><use href="#i-database"/></svg><br>data<span class="v good">13.7×</span></div>
+          <div class="g"><svg class="i s14"><use href="#i-zap"/></svg><br>power<span class="v good">3.0 GW</span></div>
+          <div class="g"><svg class="i s14"><use href="#i-wallet"/></svg><br>cash<span class="v good">19%</span></div>
+        </div>
+      </div>
+
+      <div class="card" style="padding:10px 12px">
+        <div class="hd" style="margin-bottom:8px"><span class="ttl capt">Watch</span><span class="sp"></span><span class="small t3">cause → fix</span></div>
+        <div class="watch">
+          <div class="w">
+            <div class="chain"><span class="lk bad"><svg class="i s12"><use href="#i-cpu"/></svg> 2.7M H100e idle</span><span class="ar"><svg class="i s12"><use href="#i-arrow-left"/></svg></span><span class="lk root"><svg class="i s12"><use href="#i-zap-off"/></svg> no power</span></div>
+            <div class="row tiny t2">32% of your chips earn nothing<span class="sp"></span><span class="btn go sm">Sites <svg class="i s12"><use href="#i-chevron-right"/></svg></span></div>
+          </div>
+          <div class="w">
+            <div class="chain"><span class="lk bad"><svg class="i s12"><use href="#i-boxes"/></svg> 3 channels capped</span><span class="ar"><svg class="i s12"><use href="#i-arrow-left"/></svg></span><span class="lk root"><svg class="i s12"><use href="#i-server"/></svg> serving 17%</span></div>
+            <div class="row tiny t2">decision due in 3 d<span class="sp"></span><span class="btn go sm">Split <svg class="i s12"><use href="#i-chevron-right"/></svg></span></div>
+          </div>
+          <div class="w" id="watch-u">
+            <div class="chain"><span class="lk bad"><svg class="i s12"><use href="#i-crown"/></svg> Power seeking 37%</span><span class="ar"><svg class="i s12"><use href="#i-arrow-left"/></svg></span><span class="lk root"><svg class="i s12"><use href="#i-clock-alert"/></svg> tool 88% decayed</span></div>
+            <div class="row tiny t2">detection below 50% at L 10.2<span class="sp"></span><span class="btn go sm">Safety <svg class="i s12"><use href="#i-chevron-right"/></svg></span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="padding:10px 12px">
+        <div class="hd" style="margin-bottom:4px"><span class="ttl capt">Rivals</span><span class="sp"></span><span class="tiny t3">lead · index</span></div>
+        <div class="riv"><span class="mono" style="background:var(--china)">DC</span><span>DeepCent</span><span class="bar"><i style="width:50%;background:var(--good)"></i></span><span class="num good">+203d</span><span class="tag">D-</span></div>
+        <div class="riv"><span class="mono" style="background:var(--rival)">GL</span><span>Gemini Labs</span><span class="bar"><i style="width:53%;background:var(--good)"></i></span><span class="num good">+214d</span><span class="tag">C-</span></div>
+        <div class="riv"><span class="mono" style="background:var(--rival)">AN</span><span>Anthropos</span><span class="bar"><i style="width:65%;background:var(--good)"></i></span><span class="num good">+265d</span><span class="tag">C-</span></div>
+        <div class="riv"><span class="mono" style="background:var(--rival)">ME</span><span>Meridian</span><span class="bar"><i style="width:100%;background:var(--good)"></i></span><span class="num good">+406d</span><span class="tag">D+</span></div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ───────── BOTTOM: one alert channel ───────── -->
+  <div class="bottom">
+    <span class="dchip dec"><svg class="ring" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="none" stroke="#33435a" stroke-width="3"/><circle cx="10" cy="10" r="8" fill="none" stroke="#e9b44c" stroke-width="3" stroke-dasharray="5 50.3" transform="rotate(-90 10 10)"/></svg><span style="color:var(--d-prod)"><svg class="i s14"><use href="#i-boxes"/></svg></span><b>Capacity crunch</b><span class="n warn">3d</span></span>
+    <span class="dchip"><span style="color:var(--und)"><svg class="i s14"><use href="#i-flask-conical"/></svg></span>5 findings<span class="tag" style="padding:0 4px">2 new</span></span>
+    <span class="dchip"><span style="color:var(--cap)"><svg class="i s14"><use href="#i-rocket"/></svg></span>post-40<span class="bar" style="width:46px;height:4px"><i style="width:17%;background:var(--cap)"></i></span><span class="n t2">80d</span></span>
+    <span class="dchip"><span style="color:var(--china)"><svg class="i s14"><use href="#i-flag"/></svg></span>DeepCent hit Superhuman coder</span>
+    <span class="sp"></span>
+    <span class="ticker"><svg class="i s12"><use href="#i-newspaper"/></svg> May 2027 · Gov evaluators finished testing Atlas-3.0: level 10.1 · Robotaxi fleets pass 20 cities</span>
+  </div>
+</div>
+
+<script>
+const H = location.search.includes('hover'); if (H) document.body.classList.add('hover');
+const ns = 'http://www.w3.org/2000/svg';
+const el = (p, tag, a, txt) => { const e = document.createElementNS(ns, tag); for (const k in a) e.setAttribute(k, a[k]); if (txt !== undefined) e.textContent = txt; p.appendChild(e); return e; };
+const L = [5.18,5.18,5.12,5.12,5.12,5.12,5.12,5.1,5.1,5.1,5.1,5.1,5.43,5.43,5.43,5.43,5.01,5.01,5.01,5.01,5.14,5.14,5.14,5.14,5.52,5.52,5.52,5.52,5.52,5.52,5.52,7.01,7.01,7.01,7.01,7.01,7.01,7.01,7.22,7.22,7.22,7.22,7.22,7.22,6.56,6.56,6.56,6.56,6.56,6.56,7.12,7.12,7.12,7.12,7.59,7.59,7.59,7.59,7.69,7.69,7.69,7.69,7.69,7.79,7.79,7.79,7.79,7.84,7.84,7.84,7.84,7.84,7.84,8.71,8.71,8.71,8.71,8.98,8.98,8.98,8.98,9.39,9.39,9.39,9.39,9.39,9.04,9.04,9.04,9.04,9.98,9.98,9.98,9.98,10.05,10.05,10.05,10.05,10.17,10.17,10.17];
+const U = [6.85,7.05,7,7,7,6.95,6.95,6.9,6.9,6.9,6.9,6.9,7.15,7.15,7.15,7.15,6.85,6.85,6.85,6.85,6.8,6.8,6.8,6.8,7.1,7.1,7.1,7.1,7.1,7.1,7.1,7.45,7.45,7.45,7.45,7.5,7.5,7.5,7.7,7.7,7.25,7.25,7.25,7.25,7,7,7.9,7.8,7.8,7.8,7.8,7.8,7.8,7.9,7.7,7.6,7.75,7.95,8.4,8.4,8.25,8.4,8.45,8.05,8.1,8.1,8.1,7.8,7.75,7.9,7.85,7.85,7.85,8.25,8.45,8.3,8.5,7.7,7.85,8,7.95,7.9,7.85,7.8,8,8.2,8.65,8.5,8.9,9.45,10.75,10.65,10.7,10.7,8.95,9.8,9.7,10.15,8.1,8.15,8.2];
+const REV = [12,12.6,13,13.4,13.7,13.9,14,14.2,14.3,14.3,14.4,14.4,14.5,14.5,14.9,15.2,15.5,15.7,15.8,15.9,16,16.1,16.1,16.1,16.2,16.2,16.2,16.8,18,18,17.8,18,18.3,17.8,17.2,16.6,21.2,24.8,27.6,29.8,31.8,33,33.3,33.7,34.3,36,37.2,38.3,39.2,39.7,39.8,39,38.6,37.8,37.1,36.7,36.3,35.9,35.5,35.3,37.5,41.6,44.9,47.6,49.8,51.6,52.9,53.3,53.6,55.6,57.5,59.1,60.5,61.5,61.9,62.1,63.3,65.7,67.6,72.7,78.7,83.4,86.6,88.6,90.3,91.7,92.5,92.6,92.7,92.8,93,93.1,99.2,105.2,110,113.8,117,119.5,121.7,123.4,124.8];
+
+// race bar in the top strip: shared scale 5..15, milestone ticks, blind gap hatched
+{ const s = document.getElementById("racebar"); const W = 440, x = (v) => 4 + (v - 5) / 10 * (W - 8);
+  const d = el(s, 'defs', {}); const p = el(d, 'pattern', { id: 'hatch', width: 5, height: 5, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' }); el(p, 'rect', { width: 2, height: 5, fill: '#ef6b6b' });
+  el(s, 'rect', { x: 4, y: 3, width: W - 8, height: 7, rx: 3.5, fill: '#243041' });
+  el(s, 'rect', { x: 4, y: 3, width: x(10.17) - 4, height: 7, rx: 3.5, fill: 'var(--cap)' });
+  el(s, 'rect', { x: 4, y: 13, width: W - 8, height: 7, rx: 3.5, fill: '#243041' });
+  el(s, 'rect', { x: 4, y: 13, width: x(8.2) - 4, height: 7, rx: 3.5, fill: 'var(--und)' });
+  el(s, 'rect', { x: x(8.2), y: 13, width: x(10.17) - x(8.2), height: 7, fill: 'url(#hatch)', opacity: .9 });
+  for (const [v, n] of [[6.5, 'RA'], [8.5, 'RA+'], [10, 'SC'], [12, 'SAR'], [15, 'ASI']]) el(s, 'line', { x1: x(v), x2: x(v), y1: 0, y2: 23, stroke: '#6b7c91', 'stroke-width': 1, 'stroke-dasharray': '2 2', opacity: .6 });
+}
+// risk gauge
+{ const s = document.getElementById('riskgauge'); const cx = 22, cy = 26, r = 18; const arc = (a0, a1, col, w) => { const p = (a) => [cx + r * Math.cos(Math.PI * (1 - a)), cy - r * Math.sin(Math.PI * (1 - a))]; const [x0, y0] = p(a0), [x1, y1] = p(a1); el(s, 'path', { d: `M${x0},${y0} A${r},${r} 0 0 1 ${x1},${y1}`, stroke: col, 'stroke-width': w, fill: 'none', 'stroke-linecap': 'round' }); };
+  arc(0, 1, '#243041', 5); arc(0.085, 0.708, 'rgba(233,180,76,.35)', 5); arc(0, 0.343, '#e9b44c', 5); }
+// runway pips: 8 quarters, filled to 3.5, colour by state thresholds (<3 distress, <6 tight)
+{ const s = document.getElementById('runwaypips'); for (let i = 0; i < 8; i++) { const f = Math.max(0, Math.min(1, 3.5 - i)); el(s, 'rect', { x: i * 4.6, y: 2, width: 3.6, height: 10, rx: 1, fill: '#243041' }); if (f > 0) el(s, 'rect', { x: i * 4.6, y: 2 + 10 * (1 - f), width: 3.6, height: 10 * f, rx: 1, fill: '#e9b44c' }); } }
+// sparks
+for (const s of document.querySelectorAll('svg.spark')) { const d = { rev: REV }[s.dataset.s]; const w = +s.getAttribute('width'), h = +s.getAttribute('height'); const mx = Math.max(...d), mn = Math.min(...d); el(s, 'polyline', { points: d.map((v, i) => `${i / (d.length - 1) * w},${h - 2 - (v - mn) / (mx - mn) * (h - 4)}`).join(' '), fill: 'none', stroke: '#4cc38a', 'stroke-width': 1.5 }); }
+
+// ── the frontier track ──
+{ const s = document.getElementById('track'); const W = 1222, x0 = 150, x1 = 1060, Lmin = 4.5, Lmax = 15.5; const X = (v) => x0 + (v - Lmin) / (Lmax - Lmin) * (x1 - x0);
+  const d = el(s, 'defs', {}); const p = el(d, 'pattern', { id: 'hz', width: 7, height: 7, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' }); el(p, 'rect', { width: 2, height: 7, fill: 'rgba(239,107,107,.22)' });
+  const g = el(d, 'linearGradient', { id: 'yourg', x1: 0, x2: 1 }); el(g, 'stop', { offset: 0, 'stop-color': '#3a8ae0', 'stop-opacity': 0 }); el(g, 'stop', { offset: 1, 'stop-color': '#3a8ae0', 'stop-opacity': .35 });
+  const top = 28, laneH = 46, lanes = [
+    { n: 'Halcyon (you)', m: 'HA', c: 'var(--you)', L: 10.17, sd: 0.05, lead: 'internal Atlas-3.0', you: true },
+    { n: 'DeepCent', m: 'DC', c: 'var(--china)', L: 8.14, sd: 0.7, lead: '+203d ±72', g: 'D-', band: [.15, .65] },
+    { n: 'Gemini Labs', m: 'GL', c: 'var(--rival)', L: 8.03, sd: 0.65, lead: '+214d ±65', g: 'C-', band: [.11, .46] },
+    { n: 'Anthropos', m: 'AN', c: 'var(--rival)', L: 7.52, sd: 0.47, lead: '+265d ±47', g: 'C-', band: [.12, .43] },
+    { n: 'Meridian', m: 'ME', c: 'var(--rival)', L: 6.11, sd: 0.5, lead: '+406d ±50', g: 'D+', band: [.14, .53] }];
+  const bot = top + lanes.length * laneH;
+  // unverified zone (right of U)
+  el(s, 'rect', { x: X(8.2), y: top - 6, width: x1 - X(8.2) + 8, height: bot - top + 6, fill: 'url(#hz)' });
+  // milestones
+  for (const [v, n] of [[6.5, 'Reliable agent'], [8.5, 'Research agent'], [10, 'Superhuman coder'], [12, 'Superhuman AI researcher'], [15, 'Superintelligence']]) {
+    el(s, 'line', { x1: X(v), x2: X(v), y1: top - 8, y2: bot, stroke: '#33435a', 'stroke-dasharray': '3 4' });
+    el(s, 'text', { x: X(v), y: 12, 'text-anchor': 'middle', fill: '#9fb0c3', 'font-size': 11, 'font-weight': 600 }, n);
+  }
+  lanes.forEach((ln, i) => { const y = top + i * laneH + laneH / 2;
+    el(s, 'line', { x1: x0 - 6, x2: x1 + 8, y1: y, y2: y, stroke: '#1f2a38', 'stroke-width': 10, 'stroke-linecap': 'round' });
+    if (ln.you) el(s, 'rect', { x: x0, y: y - 5, width: X(ln.L) - x0, height: 10, rx: 5, fill: 'url(#yourg)' });
+    el(s, 'text', { x: 8, y: y + 4, fill: ln.you ? '#fff' : '#e3e9f1', 'font-size': 12.5, 'font-weight': ln.you ? 700 : 500 }, ln.n);
+    // uncertainty whisker
+    if (ln.sd > .1) { el(s, 'rect', { x: X(ln.L - ln.sd), y: y - 3, width: X(ln.L + ln.sd) - X(ln.L - ln.sd), height: 6, rx: 3, fill: ln.c, opacity: .3 }); }
+    el(s, 'circle', { cx: X(ln.L), cy: y, r: ln.you ? 13 : 11, fill: ln.c, stroke: '#0b0f15', 'stroke-width': 2 });
+    if (ln.you) el(s, 'circle', { cx: X(ln.L), cy: y, r: 16, fill: 'none', stroke: 'var(--cap)', 'stroke-width': 2 });
+    el(s, 'text', { x: X(ln.L), y: y + 3.5, 'text-anchor': 'middle', fill: '#fff', 'font-size': 9.5, 'font-weight': 700 }, ln.m);
+    // right column: lead + index + misalignment band
+    el(s, 'text', { x: x1 + 26, y: y + 4, fill: ln.you ? '#9fb0c3' : '#4cc38a', 'font-size': 12, 'font-family': 'Cascadia Mono, Consolas', 'font-weight': 600 }, ln.lead);
+    if (ln.g) { el(s, 'rect', { x: W - 30, y: y - 9, width: 26, height: 18, rx: 4, fill: 'none', stroke: '#33435a' }); el(s, 'text', { x: W - 17, y: y + 4, 'text-anchor': 'middle', fill: '#9fb0c3', 'font-size': 11, 'font-weight': 700 }, ln.g); }
+  });
+  // your understanding frontier
+  el(s, 'line', { x1: X(8.2), x2: X(8.2), y1: top - 10, y2: bot + 2, stroke: 'var(--und)', 'stroke-width': 2.5 });
+  el(s, 'rect', { x: X(8.2) - 124, y: bot + 6, width: 120, height: 20, rx: 10, fill: '#0f2a29', stroke: 'var(--und)' });
+  el(s, 'text', { x: X(8.2) - 64, y: bot + 20, 'text-anchor': 'middle', fill: '#7fe0cf', 'font-size': 11, 'font-weight': 700 }, 'Understanding 8.2');
+  el(s, 'line', { x1: X(8.2) + 4, x2: X(10.17) - 4, y1: bot + 16, y2: bot + 16, stroke: '#ef6b6b', 'stroke-width': 1.5 });
+  el(s, 'rect', { x: (X(8.2) + X(10.17)) / 2 - 62, y: bot + 6, width: 124, height: 20, rx: 10, fill: '#2a1418', stroke: '#ef6b6b' });
+  el(s, 'text', { x: (X(8.2) + X(10.17)) / 2, y: bot + 20, 'text-anchor': 'middle', fill: '#ff9c9c', 'font-size': 11, 'font-weight': 700 }, '2.0 levels unverified');
+  el(s, 'text', { x: x1 + 26, y: 12, fill: '#6b7c91', 'font-size': 10.5, 'font-weight': 700, 'letter-spacing': '.08em' }, 'YOUR LEAD');
+  el(s, 'text', { x: W - 17, y: 12, 'text-anchor': 'middle', fill: '#6b7c91', 'font-size': 10.5, 'font-weight': 700 }, 'INDEX');
+  // mini history: L vs U (two racing lines)
+}
+// ── race history: two racing lines, gap shaded where capability outruns understanding ──
+{ const s = document.getElementById('hist'); const W = 400, Ht = 330, pl = 26, pr = 6, pt = 8, pb = 22; const n = L.length;
+  const X = (i) => pl + i / (n - 1) * (W - pl - pr), Y = (v) => pt + (1 - (v - 4.5) / (11 - 4.5)) * (Ht - pt - pb);
+  for (const v of [5, 7, 9, 11]) { el(s, 'line', { x1: pl, x2: W - pr, y1: Y(v), y2: Y(v), stroke: '#1f2a38' }); el(s, 'text', { x: pl - 5, y: Y(v) + 3, 'text-anchor': 'end', fill: '#6b7c91', 'font-size': 9 }, v); }
+  // gap polygons where L > U
+  let seg = []; const flush = () => { if (seg.length > 1) el(s, 'path', { d: 'M' + seg.map((i) => `${X(i)},${Y(L[i])}`).join(' L') + ' L' + seg.slice().reverse().map((i) => `${X(i)},${Y(U[i])}`).join(' L') + 'Z', fill: 'rgba(239,107,107,.28)' }); seg = []; };
+  for (let i = 0; i < n; i++) { if (L[i] > U[i]) seg.push(i); else flush(); } flush();
+  el(s, 'polyline', { points: U.map((v, i) => `${X(i)},${Y(v)}`).join(' '), fill: 'none', stroke: 'var(--und)', 'stroke-width': 2, 'vector-effect': 'non-scaling-stroke' });
+  el(s, 'polyline', { points: L.map((v, i) => `${X(i)},${Y(v)}`).join(' '), fill: 'none', stroke: 'var(--cap)', 'stroke-width': 2, 'vector-effect': 'non-scaling-stroke' });
+  for (const [i, t] of [[0, 'Jul 25'], [26, 'Jan 26'], [52, 'Jul 26'], [78, 'Jan 27'], [100, 'Jun 27']]) el(s, 'text', { x: X(i), y: Ht - 6, 'text-anchor': i === 0 ? 'start' : i === 100 ? 'end' : 'middle', fill: '#6b7c91', 'font-size': 9 }, t);
+  // event markers (decisions that moved the lines)
+  for (const [i, t] of [[31, 'Atlas-2.0'], [73, 'Atlas-2.5'], [90, 'Atlas-3.0'], [97, 'internal → 3.0']]) { el(s, 'circle', { cx: X(i), cy: Y(L[i]), r: 3, fill: '#fff' }); }
+  el(s, 'text', { x: X(97) - 4, y: Y(10.17) - 10, 'text-anchor': 'end', fill: '#ff9c9c', 'font-size': 10, 'font-weight': 700 }, 'gap opened: −2.0');
+}
+
+// ── automation spread: 3 regions × 14 sector tiles ──
+{ const SEC = [['SOFT', 'Software'], ['MEDIA', 'Media'], ['OFFICE', 'Office'], ['FIN', 'Finance'], ['SCI', 'R&D'], ['LEGAL', 'Legal'], ['EDU', 'Educ.'], ['GOV', 'Gov'], ['MIL', 'Military'], ['HEALTH', 'Health'], ['SERV', 'Retail'], ['MFG', 'Manuf.'], ['LOG', 'Logist.'], ['ENGY', 'Energy']];
+  const A = { US: { SOFT: .327, OFFICE: .123, FIN: .099, LEGAL: .057, MEDIA: .164, SCI: .097, HEALTH: .005, EDU: .039, GOV: .03, MIL: .01, MFG: .007, LOG: .002, ENGY: .002, SERV: .006 },
+    CN: { SOFT: .198, OFFICE: .049, FIN: .052, LEGAL: .031, MEDIA: .075, SCI: .043, HEALTH: .002, EDU: .017, GOV: .014, MIL: .003, MFG: .002, LOG: .001, ENGY: .001, SERV: .002 },
+    ROW: { SOFT: .276, OFFICE: .08, FIN: .072, LEGAL: .04, MEDIA: .12, SCI: .068, HEALTH: .003, EDU: .024, GOV: .019, MIL: .005, MFG: .004, LOG: .001, ENGY: .001, SERV: .003 } };
+  const ramp = (a) => { const t = Math.min(1, Math.sqrt(a / .35)); const c0 = [22, 48, 58], c1 = [34, 163, 148], c2 = [127, 224, 207]; const m = t < .7 ? c0.map((v, i) => v + (c1[i] - v) * t / .7) : c1.map((v, i) => v + (c2[i] - v) * (t - .7) / .3); return `rgb(${m.map(Math.round)})`; };
+  const meta = { US: ['United States', '4.4%', '<svg class="i s12"><use href="#i-flag-triangle-right"/></svg>'], CN: ['China', '5.2%', ''], ROW: ['Rest of world', '5.5%', ''] };
+  const host = document.getElementById('regions');
+  const AB = { SOFT: 'SW', MEDIA: 'MED', OFFICE: 'OFF', FIN: 'FIN', SCI: 'R&D', LEGAL: 'LAW', EDU: 'EDU', GOV: 'GOV', MIL: 'MIL', HEALTH: 'HLT', SERV: 'RET', MFG: 'MFG', LOG: 'LOG', ENGY: 'NRG' };
+  for (const r of ['US', 'CN', 'ROW']) { const avg = Object.values(A[r]).reduce((a, b) => a + b, 0) / 14;
+    host.insertAdjacentHTML('beforeend', `<div class="regrow"><div class="col" style="gap:0"><b class="w small">${meta[r][0]}</b><span class="tiny t3">avg <b class="num t2">${(avg * 100).toFixed(1)}%</b> · jobless <b class="num t2">${meta[r][1]}</b></span></div><div class="tiles">${SEC.map(([k]) => `<div class="tile" style="background:${ramp(A[r][k])}" title="${k}"><span class="ab">${AB[k]}</span>${Math.round(A[r][k] * 100)}%</div>`).join('')}</div></div>`); }
+}
+// ── control index ──
+{ const C = { ECON: [.0401, { you: .7245, r: .27, cn: .0055 }], GOV: [.0861, { you: .5, r: .487, cn: .013 }], MIL: [.0071, { you: .5, r: .489, cn: .0115 }], INFRA: [.0715, { you: .686, r: .308, cn: .006 }] };
+  const host = document.getElementById('ctrl'); const scale = 0.12;
+  for (const [k, [P, sh]] of Object.entries(C)) { const w = P / scale * 100;
+    host.insertAdjacentHTML('beforeend', `<div class="r"><span class="t2">${{ ECON: '<svg class="i s12"><use href="#i-factory"/></svg> Econ', GOV: '<svg class="i s12"><use href="#i-landmark"/></svg> Gov', MIL: '<svg class="i s12"><use href="#i-shield"/></svg> Military', INFRA: '<svg class="i s12"><use href="#i-zap"/></svg> Infra' }[k]}</span><div class="ctrlbar"><div class="f" style="width:${w}%"><i style="flex:${sh.you};background:var(--you);border-radius:3px 0 0 3px"></i><i style="flex:${sh.r};background:var(--rival)"></i><i style="flex:${sh.cn};background:var(--china)"></i></div><span class="thr" style="left:${.02 / scale * 100}%"></span><span class="thr" style="left:${.05 / scale * 100}%"></span><span class="thr" style="left:${.1 / scale * 100}%"></span></div><span class="num small w">${(P * 100).toFixed(1)}%</span></div>`); }
+  host.insertAdjacentHTML('beforeend', `<div class="row tiny t3" style="justify-content:space-between;padding-left:62px;padding-right:44px"><span>0</span><span>2%</span><span>5%</span><span>10%</span><span>12%</span></div>`);
+}
+// deployments
+{ const D = [['API', 72.9, 'Atlas-3.0-mini'], ['Enterprise', 49.7, 'Atlas-3.0'], ['Consumer', 7.5, 'Atlas-3.0-mini']];
+  document.getElementById('deps').innerHTML = D.map(([n, r, v]) => `<div class="row small" style="gap:8px"><span style="width:76px" class="w">${n}</span><span class="t3 tiny" style="width:92px">${v}</span><span class="bar" style="flex:1;height:8px"><i style="width:${r / 75 * 100}%;background:var(--d-prod)"></i></span><span class="num w" style="width:56px;text-align:right">${r}B</span><span class="tag" style="color:var(--warn);border-color:rgba(233,180,76,.5)"><svg class="i s12"><use href="#i-gauge"/></svg> capped</span></div>`).join('');
+}
+// risk sources (estimates from beliefs, never truth)
+{ const R = [['<svg class="i s12"><use href="#i-swords"/></svg>', 'War', .125], ['<svg class="i s12"><use href="#i-brain"/></svg>', 'Your models', .104], ['<svg class="i s12"><use href="#i-flag"/></svg>', 'DeepCent', .079], ['<svg class="i s12"><use href="#i-building-2"/></svg>', 'US rivals', .047], ['<svg class="i s12"><use href="#i-biohazard"/></svg>', 'Misuse', .038], ['<svg class="i s12"><use href="#i-copy-x"/></svg>', 'Rogue copies', .01]];
+  document.getElementById('risks').innerHTML = R.map(([i, n, v]) => `<div class="row small" style="gap:7px;margin:4px 0"><span class="t2">${i}</span><span style="width:84px">${n}</span><span class="bar" style="flex:1;height:6px"><i style="width:${v / .13 * 100}%;background:var(--warn)"></i></span><span class="num w" style="width:40px;text-align:right">${(v * 100).toFixed(1)}%</span></div>`).join('');
+}
+// hover: detection rows + causal highlights
+if (H) { const det = [['Scheming', .588], ['Alignment faking', .567], ['Sandbagging', .552], ['Power seeking', .369], ['Successor alignment', .351], ['Collusion', .357]];
+  document.getElementById('dets').innerHTML = det.map(([n, v]) => `<div class="r small"><span style="width:130px">${n}</span><span class="bar" style="flex:1;height:6px"><i style="width:${v * 100}%;background:${v >= .5 ? 'var(--und)' : 'var(--bad)'}"></i></span><span class="num ${v >= .5 ? 'good' : 'bad'}" style="width:38px;text-align:right">${Math.round(v * 100)}%</span></div>`).join('') + `<div class="tiny t3" style="margin-top:2px">50% line: 3 of 6 traits now slip past your tools</div>`;
+  document.getElementById('race').classList.add('lit'); document.getElementById('nav-safety').classList.add('lit'); document.getElementById('watch-u').classList.add('lit'); }
+</script>
+</body></html>
