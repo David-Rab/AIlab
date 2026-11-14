@@ -1,4 +1,608 @@
-// Player actions in the Finance and Compute spheres (ActionDef catalog). Owner: WS3.
-import type { ActionDef } from '../types';
+// Player actions in the Finance and Compute spheres (ActionDef catalog, V2-SPEC §3.7–3.8). Owner: WS3.
+// Every preview lists a cost in a currency that is not among its gains (§2.7). Units: cash $B, compute H100e,
+// dilution % points, boardConf points.
+import { DEAL_TEMPLATES, DEAL_TERMS, SITE_PATHS, TRANSFORMER } from '../../../data/v2/deals';
+import { dayOfQuarter } from '../core/time';
+import { fundSupplier, addCloud, addSpotRental, orderQuote, placeOrder, spotRentalCap } from '../compute/orders';
+import { cloudPricePerYear } from '../compute/market';
+import { newSite, oppositionOdds, siteCapex, siteEtaQ, type SiteOpts } from '../compute/sites';
+import type { ActionDef, CostLine, Debt, GameStateV2, Site, StrategicDeal, SystemCtx } from '../types';
+import { boardApproval, boardBlocked, boardSupport, BOARD_VECTORS } from './board';
+import { debtHeadroom, drawDebt, repayDebt } from './debt';
+import { acceptDeal, dealBlocker, dealTerms, declineDeal, partnerFor, rescueOffer, seekPartner } from './deals';
+import { bookRound, canRaise, raiseCeiling, startRaise } from './equity';
+import { ensureWs3, yearStats, type DealOffer } from './ext';
+import { commitmentsPerYear, qOf } from './ledger';
+import { runwayOf } from './runway';
 
-export const FINANCE_ACTIONS: ActionDef[] = [];
+type P = Record<string, number | string | boolean>;
+type Preview = { costs: CostLine[]; gains: CostLine[]; exposure: CostLine[] };
+
+const num = (p: P, k: string, d: number) => (typeof p[k] === 'number' ? (p[k] as number) : typeof p[k] === 'string' && p[k] !== '' && !Number.isNaN(Number(p[k])) ? Number(p[k]) : d);
+const str = (p: P, k: string, d: string) => (typeof p[k] === 'string' && p[k] !== '' ? (p[k] as string) : d);
+const bool = (p: P, k: string, d = false) => (typeof p[k] === 'boolean' ? (p[k] as boolean) : d);
+const nextQDays = (s: GameStateV2) => Math.max(1, dayOfQuarter(s.time.startDate, qOf(s) + 1) - s.time.day);
+const blocked = (s: GameStateV2, id: string): true | string => {
+  const until = boardBlocked(s, id);
+  return until !== undefined ? `Board blocked until day ${until}` : true;
+};
+const notInsolvent = (s: GameStateV2): true | string => (s.player.finance.state === 'insolvent' ? 'Insolvent' : true);
+
+/** Board-approval exposure line for a would-be major decision. */
+function boardExposure(s: GameStateV2, v: readonly number[]): CostLine {
+  return { currency: 'boardConf', amount: -5, probability: Math.round((1 - boardSupport(s, v).p) * 100) / 100 };
+}
+
+/** Commitments check: the board votes when annual commitments would exceed 3× revenue (§3.7.5). */
+function needsCommitVote(s: GameStateV2, addPerYear: number) {
+  return addPerYear > 0 && commitmentsPerYear(s) + addPerYear > 3 * Math.max(1, s.player.finance.revenueRun);
+}
+function commitGate(s: GameStateV2, ctx: SystemCtx, addPerYear: number, id: string, force: boolean): boolean {
+  if (!needsCommitVote(s, addPerYear)) return true;
+  return boardApproval(s, ctx, BOARD_VECTORS.commitments, id, force).approved;
+}
+
+// ───────────────────────────── Equity ─────────────────────────────
+
+const raise: ActionDef = {
+  id: 'fin.raise', sphere: 'finance', owner: 'WS3', title: 'Raise',
+  boardVector: BOARD_VECTORS.dilution,
+  available: (s) => {
+    const b = blocked(s, 'fin.raise');
+    return b !== true ? b : canRaise(s);
+  },
+  preview(s, p) {
+    const anchor = str(p, 'anchor', '');
+    const ipo = bool(p, 'ipo');
+    const c = raiseCeiling(s, Number.POSITIVE_INFINITY, { anchor: !!anchor, ipo });
+    const ask = num(p, 'ask', c.max);
+    const V = Math.max(1, s.player.finance.valuation);
+    const over = Math.max(0, ask / Math.max(0.01, c.max) - 1);
+    const pre = V * (1 - Math.min(0.6, 0.5 * over));
+    const dil = ask / (pre + ask);
+    const exposure: CostLine[] = [];
+    if (over > 0) exposure.push({ currency: 'cash', amount: -ask, probability: Math.round((1 - Math.exp(-over)) * 100) / 100, lagDays: nextQDays(s) });
+    if (dil > 0.1) exposure.push(boardExposure(s, BOARD_VECTORS.dilution));
+    return { costs: [{ currency: 'dilution', amount: Math.round(dil * 1000) / 10 }], gains: [{ currency: 'cash', amount: ask, lagDays: nextQDays(s) }], exposure };
+  },
+  apply(s, ctx, p) {
+    const anchor = str(p, 'anchor', '');
+    const ipo = bool(p, 'ipo');
+    const c = raiseCeiling(s, Number.POSITIVE_INFINITY, { anchor: !!anchor, ipo });
+    const ask = Math.max(0.1, num(p, 'ask', c.max));
+    if (ask / (s.player.finance.valuation + ask) > 0.1 && !boardApproval(s, ctx, BOARD_VECTORS.dilution, 'fin.raise', bool(p, 'force')).approved) return;
+    startRaise(s, ctx, ask, { ...(anchor ? { anchor } : {}), ipo });
+  },
+};
+
+const downRound: ActionDef = {
+  id: 'fin.downRound', sphere: 'finance', owner: 'WS3', title: 'Down round',
+  available: (s) => (s.player.finance.state === 'distress' || s.player.finance.state === 'tight' ? true : 'Only when runway is tight or in distress'),
+  preview(s) {
+    const V = s.player.finance.valuation * 0.6;
+    const amt = downRoundSize(s);
+    return { costs: [{ currency: 'dilution', amount: Math.round((amt / (V + amt)) * 1000) / 10 }, { currency: 'boardConf', amount: -15 }], gains: [{ currency: 'cash', amount: amt }], exposure: [{ currency: 'talent', amount: -5 }] };
+  },
+  apply(s, ctx) {
+    const amt = downRoundSize(s);
+    const pre = s.player.finance.valuation * ctx.rng('finance').range(0.5, 0.7); // R15: down round at V × 0.5–0.7
+    bookRound(s, ctx, amt, pre, { source: 'Rescue round' });
+    if (s.player.finance.rounds.length) s.player.finance.rounds[s.player.finance.rounds.length - 1].down = true;
+  },
+};
+function downRoundSize(s: GameStateV2) {
+  return Math.max(10, Math.min(0.15 * s.player.finance.valuation * 0.6, 3 * Math.max(0, runwayOf(s).burnQ)));
+}
+
+// ───────────────────────────── Deals ─────────────────────────────
+
+/** Preview of a deal's terms (Finance panel, events). */
+export function dealPreview(s: GameStateV2, t: Omit<DealOffer, 'id' | 'day' | 'expiresDay'>): Preview {
+  const V = Math.max(10, s.player.finance.valuation);
+  const costs: CostLine[] = [];
+  const gains: CostLine[] = [];
+  const exposure: CostLine[] = [];
+  const eq = t.template === 'vendorFinance' ? 0 : t.equityNow + t.equityLater;
+  if (eq > 0) costs.push({ currency: 'dilution', amount: Math.round((eq / (V + eq)) * 1000) / 10, ...(t.equityNow <= 0 ? { lagDays: 182 } : {}) });
+  if (t.equityNow > 0) gains.push({ currency: 'cash', amount: t.equityNow });
+  if (t.equityLater > 0) gains.push({ currency: 'cash', amount: t.equityLater, lagDays: 182, probability: 0.8 });
+  if (t.h100e > 0) gains.push({ currency: 'compute', amount: t.h100e, lagDays: 91 });
+  if (t.commitPerQ > 0) costs.push({ currency: 'cash', amount: -t.commitPerQ * 4, target: `${t.partner} per year × ${(t.commitQ / 4).toFixed(0)} y` });
+  if (t.template === 'customASIC') costs.push({ currency: 'progress', amount: -0.15, lagDays: 0, target: 'research −15% for ~2.5 quarters' });
+  if (t.template === 'sovereign') costs.push({ currency: 'scrutiny', amount: 5 }, { currency: 'trust', amount: -5, target: 'congress' });
+  if (t.template === 'spv') {
+    gains.push({ currency: 'cash', amount: 0.8 * 10, target: 'per GW of site capex funded' });
+    costs.push({ currency: 'boardConf', amount: -2 }, { currency: 'cash', amount: -0.8 * 10 * DEAL_TERMS.spv.leaseRate, target: 'lease per GW-year' });
+    exposure.push({ currency: 'cash', amount: -0.8 * 10 * DEAL_TERMS.spv.rvgShare, target: 'residual value guarantee per GW if you walk away' });
+  }
+  if (t.template === 'megaJV') {
+    gains.push({ currency: 'cash', amount: 0.5 * 14, target: 'per GW of new sites for 2 years' });
+    costs.push({ currency: 'boardConf', amount: -3, target: 'partner board seat' });
+  }
+  if (t.template === 'vendorFinance') costs.push({ currency: 'boardConf', amount: -1 }, { currency: 'cash', amount: -t.equityNow * 0.08, target: 'interest per year' });
+  if (t.strings.exclusivity) exposure.push({ currency: 'freedom', amount: -1, target: 'vetoes deals with competitors' });
+  if (t.strings.revenueShare) costs.push({ currency: 'revenue', amount: -t.strings.revenueShare * s.player.finance.revenueRun, target: 'revenue share per year' });
+  if (t.rescue) costs.push({ currency: 'freedom', amount: -2, target: 'control: 2 seats, exclusivity, IP rights' });
+  if (needsCommitVote(s, t.commitPerQ * 4)) exposure.push(boardExposure(s, BOARD_VECTORS.commitments));
+  if (!costs.length) costs.push({ currency: 'staffTime', amount: 1 });
+  return { costs, gains, exposure };
+}
+
+const seek: ActionDef = {
+  id: 'fin.seekPartner', sphere: 'finance', owner: 'WS3', title: 'Seek partner',
+  available: notInsolvent,
+  preview(s, p) {
+    const tpl = str(p, 'template', 'hyperscalerEquity') as StrategicDeal['template'];
+    const partner = str(p, 'partner', partnerFor(s, tpl) ?? '');
+    const pv = partner ? dealPreview(s, dealTerms(s, tpl, partner)) : { costs: [], gains: [], exposure: [] };
+    return { costs: [{ currency: 'staffTime', amount: 2, target: 'prod staff, 2 weeks' }], gains: [], exposure: [...pv.gains.map((g) => ({ ...g, probability: 0.9 })), ...pv.costs] };
+  },
+  apply(s, ctx, p) {
+    const tpl = str(p, 'template', 'hyperscalerEquity') as StrategicDeal['template'];
+    const r = seekPartner(s, ctx, tpl, str(p, 'partner', '') || undefined);
+    if (typeof r === 'string') ctx.log('finance', r);
+  },
+};
+
+function offerFor(s: GameStateV2, p: P): Omit<DealOffer, 'id' | 'day' | 'expiresDay'> | undefined {
+  const offers = s.player.finance.ws3?.offers ?? [];
+  const id = str(p, 'offerId', '');
+  const o = id ? offers.find((x) => x.id === id) : offers[0];
+  if (o) return o;
+  const tpl = str(p, 'template', 'hyperscalerEquity') as StrategicDeal['template'];
+  const partner = str(p, 'partner', partnerFor(s, tpl) ?? '');
+  return partner ? dealTerms(s, tpl, partner) : undefined;
+}
+
+const accept: ActionDef = {
+  id: 'fin.acceptDeal', sphere: 'finance', owner: 'WS3', title: 'Accept deal',
+  boardVector: BOARD_VECTORS.commitments,
+  available: (s) => {
+    const b = blocked(s, 'fin.acceptDeal');
+    if (b !== true) return b;
+    return s.player.finance.ws3?.offers.length ? true : 'No open offer (seek a partner first)';
+  },
+  preview(s, p) {
+    const t = offerFor(s, p);
+    return t ? dealPreview(s, t) : { costs: [{ currency: 'staffTime', amount: 1 }], gains: [], exposure: [] };
+  },
+  apply(s, ctx, p) {
+    const offers = s.player.finance.ws3.offers;
+    const id = str(p, 'offerId', '');
+    const o = id ? offers.find((x) => x.id === id) : offers[0];
+    if (!o) return;
+    const err = acceptDeal(s, ctx, o.template, o.partner, { offerId: o.id, force: bool(p, 'force'), ...(str(p, 'siteId', '') ? { siteId: str(p, 'siteId', '') } : {}) });
+    if (err) ctx.log('finance', err, 2);
+  },
+};
+
+const decline: ActionDef = {
+  id: 'fin.declineDeal', sphere: 'finance', owner: 'WS3', title: 'Decline deal',
+  available: (s) => (s.player.finance.ws3?.offers.length ? true : 'No open offer'),
+  preview(s, p) {
+    const t = offerFor(s, p);
+    const lost: CostLine[] = t ? dealPreview(s, t).gains.map((g) => ({ ...g, amount: -g.amount })) : [];
+    return { costs: lost.length ? lost : [{ currency: 'cash', amount: 0 }], gains: [], exposure: [] };
+  },
+  apply(s, ctx, p) {
+    const offers = s.player.finance.ws3.offers;
+    const id = str(p, 'offerId', offers[0]?.id ?? '');
+    declineDeal(s, ctx, id);
+  },
+};
+
+const rescue: ActionDef = {
+  id: 'fin.rescue', sphere: 'finance', owner: 'WS3', title: 'Rescue',
+  available: (s) => (s.player.finance.state === 'distress' ? (rescueOffer(s) ? true : 'No partner will rescue you') : 'Only in distress'),
+  preview(s) {
+    const o = rescueOffer(s);
+    return o ? dealPreview(s, o) : { costs: [{ currency: 'freedom', amount: -2 }], gains: [], exposure: [] };
+  },
+  apply(s, ctx) {
+    const o = rescueOffer(s);
+    if (!o) return;
+    s.player.finance.ws3.offers.push(o);
+    acceptDeal(s, ctx, o.template, o.partner, { offerId: o.id });
+  },
+};
+
+// ───────────────────────────── Debt ─────────────────────────────
+
+const draw: ActionDef = {
+  id: 'fin.drawDebt', sphere: 'finance', owner: 'WS3', title: 'Borrow',
+  boardVector: BOARD_VECTORS.newDebt,
+  available: (s) => {
+    const b = blocked(s, 'fin.drawDebt');
+    if (b !== true) return b;
+    const h = (['revolver', 'gpuTerm', 'bond'] as const).map((k) => debtHeadroom(s, k));
+    return h.some((x) => x.max > 0) ? true : h[0].why ?? 'No debt capacity';
+  },
+  preview(s, p) {
+    const kind = str(p, 'kind', 'revolver') as Debt['kind'];
+    const h = debtHeadroom(s, kind);
+    const amt = Math.min(num(p, 'amount', h.max), h.max);
+    const rate = kind === 'bond' ? s.capital.y10 + 4.5 : s.capital.sofr + (kind === 'gpuTerm' ? 4.75 : 2);
+    const exposure: CostLine[] = [{ currency: 'cash', amount: -amt, target: 'covenant: called if breached', probability: 0.05 }];
+    if (kind !== 'revolver' && amt > 0.2 * s.player.finance.revenueRun) exposure.push(boardExposure(s, BOARD_VECTORS.newDebt));
+    return { costs: [{ currency: 'boardConf', amount: -1 }, { currency: 'cash', amount: -(amt * rate) / 100, target: 'interest per year' }], gains: [{ currency: 'cash', amount: amt }], exposure };
+  },
+  apply(s, ctx, p) {
+    const kind = str(p, 'kind', 'revolver') as Debt['kind'];
+    const h = debtHeadroom(s, kind);
+    const amt = Math.min(num(p, 'amount', h.max), h.max);
+    if (amt <= 0) return;
+    if (kind !== 'revolver' && amt > 0.2 * s.player.finance.revenueRun && !boardApproval(s, ctx, BOARD_VECTORS.newDebt, 'fin.drawDebt', bool(p, 'force')).approved) return;
+    drawDebt(s, ctx, kind, amt);
+    ctx.bump('board.confidence', -1, 'new borrowing');
+  },
+};
+
+const repay: ActionDef = {
+  id: 'fin.repayDebt', sphere: 'finance', owner: 'WS3', title: 'Repay',
+  available: (s) => (s.player.finance.debts.some((d) => d.drawn > 0) ? true : 'No drawn debt'),
+  preview(s, p) {
+    const drawn = s.player.finance.debts.reduce((a, d) => a + d.drawn, 0);
+    const amt = Math.min(num(p, 'amount', drawn), drawn, Math.max(0, s.player.finance.cash));
+    return { costs: [{ currency: 'cash', amount: -amt }], gains: [{ currency: 'boardConf', amount: 1 }], exposure: [] };
+  },
+  apply(s, ctx, p) {
+    const drawn = s.player.finance.debts.reduce((a, d) => a + d.drawn, 0);
+    const paid = repayDebt(s, ctx, num(p, 'amount', drawn), str(p, 'id', '') || undefined);
+    if (paid > 0) ctx.bump('board.confidence', 1, 'debt repaid');
+  },
+};
+
+// ───────────────────────────── Governance ─────────────────────────────
+
+const recap: ActionDef = {
+  id: 'fin.recap', sphere: 'finance', owner: 'WS3', title: 'Recapitalise',
+  available: (s) => {
+    const f = s.player.finance;
+    if (s.player.board.preset !== 'legacyNonprofit') return 'Only for the capped-profit nonprofit';
+    if (f.ws3?.recap.startDay !== undefined || f.ws3?.recap.refused) return 'Already decided';
+    if (s.time.day < 92) return 'The recapitalisation question comes up in Q4 2025 (E02)';
+    return true;
+  },
+  preview(s) {
+    const t = s.player.finance.tranches.find((x) => x.condition === 'recapitalisation');
+    return {
+      costs: [{ currency: 'scrutiny', amount: 5, target: 'Attorney General review' }, { currency: 'morale', amount: -3, target: 'safety staff' }],
+      gains: [{ currency: 'cash', amount: t ? t.amount - 10 : 20, lagDays: 365, target: 'frees the conditional tranche' }],
+      exposure: [{ currency: 'boardConf', amount: 5, lagDays: 365 }],
+    };
+  },
+  apply(s, ctx) {
+    ensureWs3(s);
+    s.player.finance.ws3.recap.startDay = s.time.day;
+    ctx.bump('relations.scrutiny', 5, 'recapitalisation', 'AG review');
+    ctx.bump('morale.safety', -3, 'recapitalisation');
+    ctx.log('finance', 'Recapitalisation begun: about four quarters of Attorney General review.');
+  },
+};
+
+const refuseRecap: ActionDef = {
+  id: 'fin.refuseRecap', sphere: 'finance', owner: 'WS3', title: 'Keep nonprofit',
+  available: recap.available,
+  preview(s) {
+    const t = s.player.finance.tranches.find((x) => x.condition === 'recapitalisation');
+    return { costs: [{ currency: 'cash', amount: -(t ? t.amount - 10 : 20), target: 'tranche cut to $10B' }], gains: [{ currency: 'morale', amount: 3, target: 'safety staff' }], exposure: [] };
+  },
+  apply(s, ctx) {
+    ensureWs3(s);
+    const f = s.player.finance;
+    f.ws3.recap.refused = true;
+    for (const t of f.tranches) {
+      if (t.condition !== 'recapitalisation') continue;
+      t.amount = Math.min(10, t.amount);
+      delete t.condition;
+      delete t.deadline;
+    }
+    ctx.bump('morale.safety', 3, 'kept the nonprofit structure');
+  },
+};
+
+// ───────────────────────────── Compute: chips ─────────────────────────────
+
+function orderAction(kind: 'spot' | 'standard' | 'lta', id: string, title: string): ActionDef {
+  return {
+    id, sphere: 'finance', owner: 'WS3', title,
+    ...(kind === 'lta' ? { boardVector: BOARD_VECTORS.commitments } : {}),
+    available: (s) => {
+      const b = blocked(s, id);
+      return b !== true ? b : notInsolvent(s);
+    },
+    preview(s, p) {
+      const qty = Math.max(1e4, num(p, 'qty', 0.5e6));
+      const nonTW = bool(p, 'nonTW');
+      const qt = orderQuote(s, kind, qty, nonTW);
+      const quarters = Math.round(num(p, 'quarters', 8));
+      const costs: CostLine[] = kind === 'lta'
+        ? [{ currency: 'cash', amount: -qt.later, target: `per quarter × ${quarters} (take-or-pay)` }]
+        : [{ currency: 'cash', amount: -qt.now }, { currency: 'cash', amount: -qt.later, lagDays: (qt.dueQ - qOf(s)) * 91, target: 'on delivery' }];
+      const fill = s.market.ws3?.playerFill ?? 1;
+      const exposure: CostLine[] = [];
+      if (fill < 0.99) exposure.push({ currency: 'compute', amount: -qty * (1 - fill), probability: 0.5, target: 'rationed: delivery rolls forward' });
+      exposure.push({ currency: 'compute', amount: 0, target: 'needs free MW to go online' });
+      if (kind === 'lta' && needsCommitVote(s, qt.later * 4)) exposure.push(boardExposure(s, BOARD_VECTORS.commitments));
+      return { costs, gains: [{ currency: 'compute', amount: kind === 'lta' ? qty * quarters : qty, lagDays: (qt.dueQ - qOf(s) + 1) * 91 }], exposure };
+    },
+    apply(s, ctx, p) {
+      const qty = Math.max(1e4, num(p, 'qty', 0.5e6));
+      if (kind === 'lta') {
+        const qt = orderQuote(s, kind, qty, bool(p, 'nonTW'));
+        if (!commitGate(s, ctx, qt.later * 4, id, bool(p, 'force'))) return;
+      }
+      placeOrder(s, ctx, kind, qty, { quarters: num(p, 'quarters', 8), nonTW: bool(p, 'nonTW'), prepay: num(p, 'prepay', 0.3) });
+    },
+  };
+}
+
+const fundSup: ActionDef = {
+  id: 'cmp.fundSupplier', sphere: 'finance', owner: 'WS3', title: 'Fund supplier',
+  available: notInsolvent,
+  preview(_s, p) {
+    const amt = Math.max(0.1, num(p, 'amount', 2));
+    return { costs: [{ currency: 'cash', amount: -amt }], gains: [{ currency: 'compute', amount: amt * 0.8e5 * 8, lagDays: 4 * 91, target: 'reserved for you over 2 years' }], exposure: [] };
+  },
+  apply(s, ctx, p) {
+    fundSupplier(s, ctx, Math.max(0.1, num(p, 'amount', 2)));
+  },
+};
+
+const cloud: ActionDef = {
+  id: 'cmp.cloudContract', sphere: 'finance', owner: 'WS3', title: 'Rent cloud',
+  boardVector: BOARD_VECTORS.commitments,
+  available: (s) => {
+    const b = blocked(s, 'cmp.cloudContract');
+    return b !== true ? b : notInsolvent(s);
+  },
+  preview(s, p) {
+    const h = Math.max(1e4, num(p, 'h100e', 0.5e6));
+    const years = Math.max(1, Math.min(5, num(p, 'years', 3)));
+    const canc = bool(p, 'cancellable');
+    const perYear = (h * cloudPricePerYear(s) * (canc ? 1.15 : 1)) / 1e6;
+    const exposure: CostLine[] = needsCommitVote(s, perYear) ? [boardExposure(s, BOARD_VECTORS.commitments)] : [];
+    return { costs: [{ currency: 'cash', amount: -perYear, target: `per year × ${years} ${canc ? '(1 q notice)' : '(take-or-pay)'}` }], gains: [{ currency: 'compute', amount: h, lagDays: nextQDays(s) }], exposure };
+  },
+  apply(s, ctx, p) {
+    const h = Math.max(1e4, num(p, 'h100e', 0.5e6));
+    const years = Math.max(1, Math.min(5, num(p, 'years', 3)));
+    const canc = bool(p, 'cancellable');
+    const perYear = (h * cloudPricePerYear(s) * (canc ? 1.15 : 1)) / 1e6;
+    if (!commitGate(s, ctx, perYear, 'cmp.cloudContract', bool(p, 'force'))) return;
+    addCloud(s, ctx, h, years, str(p, 'provider', 'Northwind Cloud'), { cancellable: canc });
+  },
+};
+
+const spotRent: ActionDef = {
+  id: 'cmp.spotRental', sphere: 'finance', owner: 'WS3', title: 'Spot rent',
+  available: (s) => (s.market.ws3 && spotRentalCap(s) > 0 ? notInsolvent(s) : 'No spot capacity'),
+  preview(s, p) {
+    const h = Math.max(1e4, num(p, 'h100e', 0.2e6));
+    return { costs: [{ currency: 'cash', amount: -(h * s.market.rental * 8760) / 1e9 / 4, target: 'for one quarter' }], gains: [{ currency: 'compute', amount: h, lagDays: 0 }], exposure: [] };
+  },
+  apply(s, ctx, p) {
+    const got = addSpotRental(s, Math.max(1e4, num(p, 'h100e', 0.2e6)));
+    ctx.log('finance', `Spot rental: ${(got / 1e3).toFixed(0)}k H100e for a quarter at $${s.market.rental.toFixed(2)}/h.`);
+  },
+};
+
+// ───────────────────────────── Compute: sites ─────────────────────────────
+
+function siteOpts(p: P): SiteOpts {
+  const path = str(p, 'path', 'brownfield') as Site['path'];
+  const def = SITE_PATHS[path] ?? SITE_PATHS.brownfield;
+  return { path: SITE_PATHS[path] ? path : 'brownfield', mw: Math.min(def.maxMW, num(p, 'mw', Math.min(1000, def.maxMW))), crash: bool(p, 'crash'), community: bool(p, 'community'), spv: bool(p, 'spv') };
+}
+
+const site: ActionDef = {
+  id: 'cmp.newSite', sphere: 'finance', owner: 'WS3', title: 'New site',
+  available: notInsolvent,
+  preview(s, p) {
+    const o = siteOpts(p);
+    const capex = siteCapex(o);
+    const own = capex * (o.spv ? 1 - DEAL_TERMS.spv.share : 1);
+    const odds = oppositionOdds(s, { path: o.path, crash: !!o.crash, communityPackage: !!o.community });
+    const eta = siteEtaQ(s, o) * 91;
+    const H = (o.mw * 1000) / s.power.kWPerH100e;
+    const costs: CostLine[] = o.path === 'lease'
+      ? [{ currency: 'cash', amount: -(o.mw / 1000) * 1.2, target: 'lease per year × 5 (non-cancellable)' }, { currency: 'cash', amount: -capex, target: 'network fit-out' }]
+      : [{ currency: 'cash', amount: -own, lagDays: eta, target: `capex${o.spv ? ' (20% share; SPV funds 80%)' : ''}` }];
+    if (o.spv) costs.push({ currency: 'boardConf', amount: -2 });
+    const exposure: CostLine[] = [];
+    if (odds.block > 0) exposure.push({ currency: 'compute', amount: -H, probability: Math.round(odds.block * 100) / 100, target: 'blocked by local opposition' });
+    if (odds.delay > 0) exposure.push({ currency: 'compute', amount: -H, probability: Math.round(odds.delay * 100) / 100, lagDays: 182, target: 'delayed 1–3 quarters' });
+    if (o.path === 'lease' && s.market.ws3 && o.mw / 1000 > s.market.ws3.leasePoolGW) exposure.push({ currency: 'compute', amount: -H, target: 'lease pool exhausted this quarter' });
+    return { costs, gains: [{ currency: 'compute', amount: H, lagDays: eta, target: 'MW to install chips' }], exposure };
+  },
+  apply(s, ctx, p) {
+    const o = siteOpts(p);
+    if (o.path === 'lease') o.mw = Math.min(o.mw, s.market.ws3.leasePoolGW * 1000);
+    if (o.mw < 50) {
+      ctx.log('finance', 'No colocation capacity left this quarter.');
+      return;
+    }
+    if (o.spv && !s.player.finance.deals.some((d) => d.template === 'spv')) s.player.finance.deals.push({ id: `DL${s.time.day}-spv`, template: 'spv', partner: 'Keystone Capital', day: s.time.day, strings: {} });
+    if (o.spv) ctx.bump('board.confidence', -2, 'off-balance-sheet guarantee');
+    newSite(s, ctx, o);
+  },
+};
+
+const community: ActionDef = {
+  id: 'cmp.communityPackage', sphere: 'finance', owner: 'WS3', title: 'Community deal',
+  available: (s) => (s.player.sites.some((x) => x.stage === 'permitting' && !x.communityPackage && !x.ws3?.rolled) ? true : 'No site in permitting'),
+  preview(s, p) {
+    const x = s.player.sites.find((y) => y.id === str(p, 'siteId', '')) ?? s.player.sites.find((y) => y.stage === 'permitting' && !y.communityPackage);
+    const capex = x ? x.capex * 0.03 : 0.3;
+    const odds = x ? oppositionOdds(s, x).block : 0.1;
+    const H = x ? (x.mw * 1000) / s.power.kWPerH100e : 1e6;
+    return { costs: [{ currency: 'cash', amount: -capex }], gains: [{ currency: 'compute', amount: H * odds * 0.5, target: 'block risk halved (expected)' }, { currency: 'approval', amount: 1 }], exposure: [] };
+  },
+  apply(s, ctx, p) {
+    const x = s.player.sites.find((y) => y.id === str(p, 'siteId', '')) ?? s.player.sites.find((y) => y.stage === 'permitting' && !y.communityPackage && !y.ws3?.rolled);
+    if (!x) return;
+    x.communityPackage = true;
+    x.capex *= 1.03;
+    ctx.bump('pub.approval', 1, 'community benefits package', x.name);
+  },
+};
+
+const transformers: ActionDef = {
+  id: 'cmp.preorderTransformers', sphere: 'finance', owner: 'WS3', title: 'Transformers',
+  available: notInsolvent,
+  preview(s, p) {
+    const gw = Math.max(0.1, num(p, 'gw', 2));
+    return { costs: [{ currency: 'cash', amount: -gw * TRANSFORMER.costPerGW * TRANSFORMER.depositShare, target: '20% deposit' }, { currency: 'cash', amount: -gw * TRANSFORMER.costPerGW * 0.8, lagDays: s.power.transformerLeadQ * 91 }], gains: [{ currency: 'leadDays', amount: (s.power.transformerLeadQ - 8) * 91 + 91, target: 'no transformer wait for new sites' }], exposure: [] };
+  },
+  apply(s, ctx, p) {
+    ensureWs3(s);
+    const gw = Math.max(0.1, num(p, 'gw', 2));
+    const cost = gw * TRANSFORMER.costPerGW;
+    s.power.ws3.transformersGW += gw;
+    ctx.bump('cash', -cost, 'transformer pre-order', `${gw.toFixed(1)} GW`);
+    yearStats(s).capexSites += cost;
+  },
+};
+
+// ───────────────────────────── Distress menu (E26) ─────────────────────────────
+
+const renegotiate: ActionDef = {
+  id: 'fin.renegotiate', sphere: 'finance', owner: 'WS3', title: 'Renegotiate',
+  available: (s) => {
+    const f = s.player.finance;
+    if (f.state !== 'distress' && f.state !== 'tight') return 'Only when runway is tight or in distress';
+    if (f.ws3?.lastRenegotiationDay !== undefined && s.time.day - f.ws3.lastRenegotiationDay < 365) return 'Suppliers will renegotiate once a year';
+    return true;
+  },
+  preview(s) {
+    const firm = s.player.finance.ledger.filter((c) => c.endDay > s.time.day && c.cancellableNoticeQ === null).reduce((a, c) => a + c.perQuarter, 0);
+    return { costs: [{ currency: 'dilution', amount: 2, target: 'warrants to suppliers' }], gains: [{ currency: 'cash', amount: firm * 0.35 * 4, target: '35% of next year’s commitments deferred' }], exposure: [] };
+  },
+  apply(s, ctx) {
+    const f = s.player.finance;
+    ensureWs3(s);
+    for (const c of f.ledger) {
+      if (c.endDay <= s.time.day || c.cancellableNoticeQ !== null) continue;
+      const left = c.endDay - s.time.day;
+      c.perQuarter *= 0.65; // suppliers accept a 25–50% deferral for warrants [R15]
+      c.endDay = s.time.day + Math.round(left / 0.65);
+    }
+    f.ws3.lastRenegotiationDay = s.time.day;
+    issueWarrants(s, 0.02);
+    ctx.log('finance', 'Suppliers accept a 35% payment deferral in exchange for warrants.');
+  },
+};
+function issueWarrants(s: GameStateV2, frac: number) {
+  const o = s.player.finance.ownership;
+  const k = 1 - frac;
+  o.founder *= k; o.mission *= k; o.public *= k; o.fin = o.fin * k + frac;
+  for (const n of Object.keys(o.strat)) o.strat[n] *= k;
+}
+
+/** Resale/sublease value of chips: ~1.5 years of spot rental [D]. */
+const chipSaleValue = (s: GameStateV2, h: number) => (h * s.market.rental * 8760 * 1.5) / 1e9;
+
+const sell: ActionDef = {
+  id: 'fin.sellChips', sphere: 'finance', owner: 'WS3', title: 'Sell chips',
+  available: (s) => (ownedChips(s) > 0 ? true : 'No owned chips'),
+  preview(s, p) {
+    const h = Math.min(ownedChips(s), Math.max(1e4, num(p, 'qty', 0.2e6)));
+    return { costs: [{ currency: 'compute', amount: -h }], gains: [{ currency: 'cash', amount: chipSaleValue(s, h) }], exposure: [] };
+  },
+  apply(s, ctx, p) {
+    ensureWs3(s);
+    let left = Math.min(ownedChips(s), Math.max(1e4, num(p, 'qty', 0.2e6)));
+    const total = left;
+    const inv = s.player.finance.ws3.inventory;
+    for (const k of ['ready', 'transit'] as const) {
+      const x = Math.min(left, inv[k]);
+      if (x > 0) {
+        inv.book *= 1 - x / Math.max(1, inv.ready + inv.transit);
+        inv[k] -= x;
+        left -= x;
+      }
+    }
+    for (const x of s.player.sites) {
+      if (left <= 0) break;
+      const y = Math.min(left, x.installed);
+      x.installed -= y;
+      left -= y;
+      s.player.finance.ws3.chipBook *= 1 - y / Math.max(1, total + 1e6);
+    }
+    ctx.bump('cash', chipSaleValue(s, total), 'chip sale', `${(total / 1e6).toFixed(2)}M H100e`);
+  },
+};
+const ownedChips = (s: GameStateV2) => s.player.sites.reduce((a, x) => a + x.installed, 0) + (s.player.finance.ws3 ? s.player.finance.ws3.inventory.ready + s.player.finance.ws3.inventory.transit : 0);
+
+const cancel: ActionDef = {
+  id: 'fin.cancelContract', sphere: 'finance', owner: 'WS3', title: 'Cancel contract',
+  available: (s) => (cancellable(s).length ? true : 'Nothing cancellable'),
+  preview(s, p) {
+    const c = pickCancellable(s, str(p, 'id', ''));
+    if (!c) return { costs: [{ currency: 'compute', amount: 0 }], gains: [], exposure: [] };
+    return { costs: [{ currency: 'compute', amount: -c.h100e }, { currency: 'cash', amount: -c.penalty, target: 'notice / forfeit' }], gains: [{ currency: 'cash', amount: c.saved, target: 'future payments avoided' }], exposure: [] };
+  },
+  apply(s, ctx, p) {
+    const c = pickCancellable(s, str(p, 'id', ''));
+    if (!c) return;
+    c.apply(ctx);
+  },
+};
+interface Cancellable { id: string; h100e: number; penalty: number; saved: number; apply(ctx: SystemCtx): void }
+function cancellable(s: GameStateV2): Cancellable[] {
+  const out: Cancellable[] = [];
+  for (const l of s.player.finance.ledger) {
+    if (l.endDay <= s.time.day || l.cancellableNoticeQ === null) continue;
+    const notice = l.cancellableNoticeQ;
+    const cl = s.player.cloud.find((c) => `L-${c.id}` === l.id);
+    const end = s.time.day + notice * 91;
+    out.push({
+      id: l.id, h100e: cl?.h100e ?? 0, penalty: 0, saved: (l.perQuarter * Math.max(0, l.endDay - end)) / 91,
+      apply(ctx) {
+        l.endDay = Math.min(l.endDay, end);
+        if (cl) cl.endDay = Math.min(cl.endDay, end);
+        ctx.log('finance', `Cancelled ${l.payee} (ends after ${notice} quarter${notice > 1 ? 's' : ''} notice).`);
+      },
+    });
+  }
+  for (const o of s.player.orders) {
+    if (o.kind !== 'standard' || o.delivered > 0) continue;
+    out.push({
+      id: o.id, h100e: o.qty, penalty: o.deposit, saved: (o.qty * o.price * (1 - o.prepayFrac)) / 1e6,
+      apply(ctx) {
+        s.player.orders = s.player.orders.filter((x) => x !== o);
+        ctx.log('finance', `Cancelled chip order ${o.id}; the $${o.deposit.toFixed(1)}B deposit is forfeit.`);
+      },
+    });
+  }
+  return out;
+}
+const pickCancellable = (s: GameStateV2, id: string) => {
+  const all = cancellable(s);
+  return all.find((c) => c.id === id) ?? all[0];
+};
+
+/** Accept every open offer of a given template (bots / tests convenience). */
+export function acceptAllOffers(s: GameStateV2, ctx: SystemCtx, template?: StrategicDeal['template']): number {
+  let n = 0;
+  for (const o of [...(s.player.finance.ws3?.offers ?? [])]) if (!template || o.template === template) n += acceptDeal(s, ctx, o.template, o.partner, { offerId: o.id }) ? 0 : 1;
+  return n;
+}
+
+/** Templates the Seek-partner picker shows, with availability. */
+export function dealMenu(s: GameStateV2): { template: StrategicDeal['template']; name: string; partner?: string; blocked?: string }[] {
+  return DEAL_TEMPLATES.map((t) => {
+    const partner = partnerFor(s, t.id);
+    return { template: t.id, name: t.name, ...(partner ? { partner } : { blocked: dealBlocker(s, t.id, partnerFor(s, t.id) ?? t.partnerKinds[0]) ?? 'No partner' }) };
+  });
+}
+
+export const FINANCE_ACTIONS: ActionDef[] = [
+  raise, seek, accept, decline, draw, repay, recap, refuseRecap,
+  orderAction('spot', 'cmp.orderSpot', 'Spot order'), orderAction('standard', 'cmp.orderStandard', 'Order chips'), orderAction('lta', 'cmp.orderLTA', 'Chip LTA'),
+  fundSup, cloud, spotRent, site, community, transformers,
+  downRound, rescue, renegotiate, sell, cancel,
+];
+
+
+
