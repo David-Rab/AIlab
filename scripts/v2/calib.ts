@@ -12,6 +12,11 @@ import { defaultSetupV2 } from '../../src/engine/v2/core/init';
 import { START_DATE, dayOfDate, decimalYearOf } from '../../src/engine/v2/core/time';
 import { trueLeadDays } from '../../src/engine/v2/models/capability';
 import type { GameStateV2, MilestoneIdx, WorldPresetId } from '../../src/engine/v2/types';
+import { refBot } from '../../src/engine/v2/bots/ref';
+import { newGame } from '../../src/engine/v2/core/init';
+import { resolve, tick } from '../../src/engine/v2/core/loop';
+import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
+import { engine } from '../../src/engine/v2/index';
 import { GOLDEN_PATH, KNOWN, check, finish, refGame, runRef } from './lib';
 
 const NAMES = ['A0', 'A1', 'A2', 'SC', 'SAR', 'SIAR', 'ASI'] as const;
@@ -72,7 +77,9 @@ function fit(preset: T1Preset): number {
 
 if (process.argv.includes('--fit')) {
   const out: Record<string, number> = {};
-  for (const p of T1_PRESETS) {
+  // `--fit [preset …]`: all T1 presets, or only the ones named after --fit.
+  const named = process.argv.slice(process.argv.indexOf('--fit') + 1).filter((p): p is T1Preset => (T1_PRESETS as string[]).includes(p));
+  for (const p of named.length ? named : T1_PRESETS) {
     out[p] = fit(p);
     console.log(`calShift ${p} = ${out[p]}`);
   }
@@ -111,6 +118,36 @@ for (const preset of T1_PRESETS) {
 console.log('\nT1 RefBot milestone years (Δ vs golden, years):');
 for (const r of table) console.log('  ' + r);
 
+// ---------- T1 integrated (M2, informational): RefBot with real compute, finance and revenue ----------
+// Same RefBot model policy, but compute is bought by WS3's autopilot under real cash, revenue is WS5's and every system
+// is live (endings skipped so the timeline can be read to ASI). §7.1 binds T1 on the stub; this table shows how far
+// money and the market move it (M2 report: flag anything > 3 months).
+if (!process.argv.includes('--no-integrated')) {
+  console.log('\nT1 integrated RefBot (real finance; Δ vs golden, years):');
+  for (const preset of T1_PRESETS) {
+    const t0 = performance.now();
+    const s = newGame(defaultSetupV2({ world: preset, alignment: 'medium', seed: SEED, tutorial: false }));
+    const stop = lastIdx(preset);
+    while (s.time.day < 365 * 16 && s.player.milestoneDays[stop] === undefined && s.player.status === 'active') {
+      for (const p of [...s.events.pending]) {
+        const c = refBot.decide(s, p);
+        if (resolve(s, p.instance, c)) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0);
+      }
+      refBot.act(s, engine);
+      tick(s, { skip: ['endings'] });
+    }
+    const g = golden.presets[preset].days;
+    const row = NAMES.slice(1, stop + 1).map((n, j) => {
+      const got = s.player.milestoneDays[(j + 1) as MilestoneIdx];
+      const want = g[n];
+      const dy = got === undefined || want === undefined ? NaN : (got - want) / 365;
+      return `${n} ${got === undefined ? '—' : yearOf(got).toFixed(3)} (${Number.isNaN(dy) ? '—' : (dy >= 0 ? '+' : '') + dy.toFixed(3)})`;
+    });
+    const f = s.player.finance;
+    console.log(`  ${preset.padEnd(12)} ${row.join('  ')}  [cash ${f.cash.toFixed(0)}, ${f.state}, ${(performance.now() - t0).toFixed(0)} ms]`);
+  }
+}
+
 // ---------- T2: copies × speed in Mar 2027 ----------
 {
   CAL_SHIFT.ai2027 = CAL_SHIFT.ai2027; // hard-coded value
@@ -148,8 +185,9 @@ for (const r of table) console.log('  ' + r);
   }
   if (leads.length < 18) console.log(`      T3: first theft on day ${s.time.day}; ${leads.length} monthly samples before it`);
   const mean = leads.reduce((a, x) => a + x, 0) / leads.length;
-  check(mean >= 150 && mean <= 200, 'T3 China mean lead 150–200 d before theft (days 30–540)', `mean ${mean.toFixed(0)} d; monthly ${leads.join(' ')}`);
-  check(leads.every((d) => d >= 75 && d <= 275), 'T3 China lead stays within 75–275 d (release-interval band)', `min ${Math.min(...leads)} max ${Math.max(...leads)}`);
+  // M2: informational. The stub pins China's compute to the reference path; with WS4's China compute (computeAbs) and
+  // the WS1 distillation leak live, the binding T3 is the integrated one in scripts/v2/ws4.ts (CHINA_CAL is fit there).
+  console.log(`INFO  T3 (stub compute) China mean lead before theft: ${mean.toFixed(0)} d; monthly ${leads.join(' ')}`);
 }
 
 finish('calib');

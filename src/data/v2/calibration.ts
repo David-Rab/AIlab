@@ -5,7 +5,7 @@ import type { ComputeSplit, DomainId, WorldPresetId } from '../../engine/v2/type
 /** Per-preset milestone threshold shift (years) fitted so RefBot's best internal model hits the golden dates (§7.1).
  *  [fit] by `npx tsx scripts/v2/calib.ts --fit` (bisection on SC, refined on a ±0.03 grid by the worst |Δ| over
  *  SC…ASI because SC(calShift) is step-like). `sampled` uses the ai2027 value. Never tune for balance (§7.4). */
-export const CAL_SHIFT: Record<WorldPresetId, number> = { ai2027: 0.08, authors2026: 0.025, fast: 0.105, slow: -0.165, sampled: 0.08 };
+export const CAL_SHIFT: Record<WorldPresetId, number> = { ai2027: 0.08, authors2026: 0.025, fast: 0.105, slow: -0.197, sampled: 0.08 };
 
 /** Post-training capability retention κ (§3.1.4). Adjust only globally (0.6–0.8), never per preset. */
 export const KAPPA = { post: 0.7, continue: 0.85, stream: 1.0 };
@@ -17,7 +17,8 @@ export const SYN_QUALITY = 0.5;
 /** China research efficiency scale on chinaEfficiency × preset.efficiency (§3.2.2; [fit] to T3: 150–200 d lead).
  *  Mutable so the T3 fit can sweep it; game code only reads it. M2: refit on integrated RefBot play (real compute and
  *  finance, WS4's China compute path, WS1 distillation leak applied) — see scripts/v2/ws4.ts T3. */
-export const CHINA_CAL = { effScale: 2.6 };
+// M2 step 5: refit with leakK 3e-4 (see WS4_TUNING) and the corner-line lead metric: mean 172 d, band 88–263 d.
+export const CHINA_CAL = { effScale: 2.4 };
 /** H100e per agent copy at SC (473k H100e / 200k copies, research/13 §1.9), scaled by serveCost/0.5. */
 export const H100E_PER_COPY_SC = 2.4;
 /** Agent serial speed cap (R11 #23: min(8 + 10.8·log2 M, 50)). */
