@@ -74,7 +74,7 @@ function Picker<K extends keyof SetupV2>({ label, k, opts }: { label: string; k:
   );
 }
 
-const presetOpts = (xs: { id: string; name: string; desc: string }[]): Opt<string>[] => [{ v: 'realistic', label: 'Realistic', desc: 'Drawn from research-weighted odds.' }, ...xs.map((x) => ({ v: x.id, label: x.name, desc: x.desc }))];
+const presetOpts = (xs: { id: string; name: string; desc: string }[]): Opt<string>[] => [{ v: 'realistic', label: 'Realistic', desc: 'Drawn from research-weighted odds.' }, ...xs.map((x) => ({ v: x.id, label: x.name, desc: x.desc.replace(/[^.]*AI 2027[^.]*\.\s*/g, '').trim() }))]; // canon names only in the World picker (§6.9)
 
 export function SetupScreen() {
   const st = useV2();
