@@ -8,8 +8,10 @@ import { computeProduction, evalProduction, labInputs, tcoPerH100eYear, type Lab
 import { trainingFlopPerDay } from '../models/runs';
 import type { GameStateV2, LabId, ProductionReadout } from '../types';
 
-/** EngineApi.production: the lab's readout (cached by the daily production system, recomputed if absent). */
+/** EngineApi.production: the lab's readout (cached by the daily production system, recomputed if absent). Other
+ *  labs' daily caches skip the ceilings and what-ifs, so their readout is recomputed in full here. */
 export function production(s: GameStateV2, lab: LabId): ProductionReadout {
+  if (lab !== 'player') return computeProduction(s, lab) ?? computeProduction(s, 'player')!;
   const core = lab === 'player' ? s.player : lab === 'china' ? s.china.lab.core : s.rivals.find((r) => r.core.id === lab)?.core;
   return core?.prodCache ?? computeProduction(s, lab) ?? computeProduction(s, 'player')!;
 }

@@ -7,10 +7,10 @@ import { causeStrip } from '../../src/engine/v2/core/causes';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { makeCtx, tick } from '../../src/engine/v2/core/loop';
 import { SYSTEMS } from '../../src/engine/v2/core/registry';
-import { STREAMS } from '../../src/engine/v2/core/rng';
+import { STREAMS, StreamRng } from '../../src/engine/v2/core/rng';
 import { SAVE_BUDGET_BYTES, SCHEMA_REV, deserialize, serialize, stateHash } from '../../src/engine/v2/core/save';
 import { cadencesDue } from '../../src/engine/v2/core/time';
-import type { Cadence, EngineSystem, GameStateV2, SetupV2, StreamId } from '../../src/engine/v2/types';
+import type { Cadence, EngineSystem, GameStateV2, SetupV2, StreamId, WorkstreamId } from '../../src/engine/v2/types';
 import { check, finish, runTo, validateJson } from './lib';
 
 const N = 1500;
@@ -71,19 +71,106 @@ check(stateHash(a) === stateHash(b), `determinism: same seed → same hash after
 check(stateHash(run({ ...detSetup, seed: 43 }, 10)) !== stateHash(run(detSetup, 10)), 'determinism: different seed → different hash');
 
 // ---------- 4. Stream isolation ----------
-const CONSUMED_STREAMS: StreamId[] = ['safety'];
+// Isolation means a stream's sequence depends only on its own draws. Every StreamRng draw is instrumented: the state it
+// loads must equal the stream's seed advanced by exactly the mulberry32 steps its own earlier draws consumed (so no
+// code writes, reseeds or cross-wires another stream's state), and the final state must match too. This is checked on
+// a baseline run and with extra probe draws on consumed streams — whose consumers then legitimately change outcomes
+// (and how many draws other systems make later), so comparing whole sequences across runs would be meaningless. A
+// stream nothing consumes must also leave the rest of the state untouched. Ownership: each system draws only from its
+// workstream's streams (V2-CONTRACT §5), except documented cross-workstream hooks (another owner's function drawing
+// ITS OWN stream inside the caller's system).
+const STREAM_OWNER: Record<StreamId, WorkstreamId> = {
+  world: 'WS1', prod: 'WS1', runs: 'WS1', safety: 'WS2', incidents: 'WS2', market: 'WS3', finance: 'WS3',
+  security: 'WS4', actors: 'WS4', rivals: 'WS4', china: 'WS4', events: 'WS4', endings: 'WS4', worldfx: 'WS5',
+};
+/** [system id, stream, why] — a hook owned by the stream's workstream, called from another workstream's system. */
+const CROSS_HOOKS: [string, StreamId, string][] = [
+  ['actorsDaily', 'safety', 'WS2 observeExternal (evaluator reports, WS4)'],
+  ['intel', 'safety', 'WS2 observeExternal (evaluator reports, WS4)'],
+  ['director', 'safety', 'WS2 hooks in WS4 event choices'],
+  ['runs', 'safety', 'WS2 applyBaseToLineage / applyRunToTraits (WS1 run completion)'],
+];
+const MOD = 1n << 32n;
+const STEP = 0x6d2b79f5n;
+const STEP_INV = (() => {
+  // modular inverse of the (odd) mulberry32 increment mod 2^32 (extended Euclid)
+  let [r0, r1, t0, t1] = [MOD, STEP, 0n, 1n];
+  while (r1 !== 0n) {
+    const q = r0 / r1;
+    [r0, r1] = [r1, r0 - q * r1];
+    [t0, t1] = [t1, t0 - q * t1];
+  }
+  return ((t0 % MOD) + MOD) % MOD;
+})();
+const stepsBetween = (from: number, to: number) => Number(((((BigInt(to) - BigInt(from)) % MOD) + MOD) % MOD * STEP_INV) % MOD);
+const advance = (state: number, steps: number) => Number((BigInt(state) + BigInt(steps) * STEP) % MOD);
+interface DrawLog { expected: Partial<Record<StreamId, number>>; broken: Set<string>; draws: Partial<Record<StreamId, number>>; bySystem: Map<string, Set<StreamId>> }
+let current = '(outside tick)';
+let log: DrawLog | undefined;
+type Holder = { id: StreamId; holder: { rng: Record<StreamId, number> }; r: { state: number }; __loaded?: number };
+const proto = StreamRng.prototype as unknown as { load(this: Holder): unknown; save<T>(this: Holder, v: T): T };
+const load0 = proto.load;
+const save0 = proto.save;
+proto.load = function (this: Holder) {
+  if (log) {
+    const st = this.holder.rng[this.id];
+    if (log.expected[this.id] === undefined) log.expected[this.id] = st;
+    else if (log.expected[this.id] !== st) log.broken.add(`${this.id} (state changed outside its draws, in ${current})`);
+    this.__loaded = st;
+    log.draws[this.id] = (log.draws[this.id] ?? 0) + 1;
+    let set = log.bySystem.get(current);
+    if (!set) log.bySystem.set(current, (set = new Set()));
+    set.add(this.id);
+  }
+  return load0.call(this);
+};
+proto.save = function <T>(this: Holder, v: T): T {
+  const out = save0.call(this, v) as T;
+  if (log && this.__loaded !== undefined) log.expected[this.id] = advance(this.__loaded, stepsBetween(this.__loaded, this.r.state));
+  return out;
+};
+for (const sys of SYSTEMS) {
+  const run0 = sys.run;
+  sys.run = (s, ctx) => {
+    const prev = current;
+    current = sys.id;
+    try {
+      run0(s, ctx);
+    } finally {
+      current = prev;
+    }
+  };
+}
+const logged = (opts?: Parameters<typeof tick>[1]) => {
+  log = { expected: {}, broken: new Set(), draws: {}, bySystem: new Map() };
+  const s = run(detSetup, 400, opts);
+  const out = log;
+  log = undefined;
+  for (const k of STREAMS) if (out.expected[k] !== undefined && s.rng[k] !== out.expected[k]) out.broken.add(`${k} (final state)`);
+  return { s, log: out };
+};
 const probe = (stream: StreamId): EngineSystem => ({ id: `probe-${stream}`, owner: 'WS1', cadence: 'daily', order: 999, run: (_s, ctx) => void ctx.rng(stream).float() });
-for (const target of ['safety', 'market'] as StreamId[]) {
-  const c = run(detSetup, 400, { extraSystems: [probe(target)] });
-  const base = run(detSetup, 400);
-  const others = STREAMS.filter((k) => k !== target);
-  check(others.every((k) => c.rng[k] === base.rng[k]) && c.rng[target] !== base.rng[target], `stream isolation: extra '${target}' draws leave other streams unchanged`);
-  // [WS2 edit, for WS1 review] Once a stream has a consumer, extra draws on it legitimately change that consumer's
-  // outcomes (WS2 draws findings/observations from 'safety'), so the whole-state check only applies to streams that
-  // nothing consumes yet. The per-stream isolation check above still covers every target.
-  if (CONSUMED_STREAMS.includes(target)) continue;
+const base = logged();
+const consumed = STREAMS.filter((k) => (base.log.draws[k] ?? 0) > 0);
+console.log(`      draws in 400 days: ${STREAMS.map((k) => `${k} ${base.log.draws[k] ?? 0}`).join(', ')}`);
+check(base.log.broken.size === 0, 'stream isolation: every stream advances only through its own draws (baseline)', [...base.log.broken].join('; '));
+for (const target of ['safety', 'market', 'events', 'rivals', 'worldfx'] as StreamId[]) {
+  const c = logged({ extraSystems: [probe(target)] });
+  const tag = consumed.includes(target) ? 'consumed' : 'unconsumed';
+  check(c.log.broken.size === 0 && c.s.rng[target] !== base.s.rng[target], `stream isolation: with extra '${target}' draws (${tag}) every stream still advances only through its own draws`, [...c.log.broken].join('; '));
+  if (consumed.includes(target)) continue;
   const strip = (s: GameStateV2) => stateHash({ ...s, rng: { ...s.rng, [target]: 0 } });
-  check(strip(c) === strip(base), `stream isolation: rest of state identical with extra '${target}' draws`);
+  check(strip(c.s) === strip(base.s), `stream isolation: rest of state identical with extra '${target}' draws (unconsumed stream)`);
+}
+{
+  const owner = new Map(SYSTEMS.map((x) => [x.id, x.owner]));
+  const violations: string[] = [];
+  for (const [sys, streams] of base.log.bySystem) {
+    const o = owner.get(sys);
+    if (!o) continue; // outside a tick (newGame)
+    for (const k of streams) if (STREAM_OWNER[k] !== o && !CROSS_HOOKS.some(([id, st]) => id === sys && st === k)) violations.push(`${sys} (${o}) draws '${k}' (${STREAM_OWNER[k]})`);
+  }
+  check(violations.length === 0, 'stream ownership: systems draw only from their own streams (or documented cross-WS hooks)', violations.join('; '));
 }
 
 // ---------- 5. Save round trip + size ----------
@@ -129,7 +216,7 @@ const expected: Record<Cadence, number> = { daily: 0, weekly: 0, monthly: 0, qua
 const counters: EngineSystem[] = (Object.keys(counts) as Cadence[]).map((c, i) => ({ id: `count-${c}`, owner: 'WS1', cadence: c, order: 990 + i, run: () => void counts[c]++ }));
 const cs = newGame(defaultSetupV2({ seed: 7 }));
 for (let d = 1; d <= 730; d++) for (const c of cadencesDue(cs.time.startDate, d)) expected[c]++;
-runTo(cs, 730, { extraSystems: counters });
+runTo(cs, 730, { extraSystems: counters, skip: ['endings'] }); // an idle player may be ousted; cadences only
 check(JSON.stringify(counts) === JSON.stringify(expected) && counts.quarterly === 8 && counts.semiannual === 4 && counts.monthly === 24, 'cadences over 2 years', JSON.stringify(counts));
 
 // ---------- 7. Cause ledger ----------

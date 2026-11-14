@@ -73,10 +73,14 @@ export function tasteOf(sd: number, m2b: number): number {
   return F * Phi(sd) + Phi(s - sd);
 }
 
-/** Inverse of tasteOf: AI taste in human SDs from aggregate taste T (≥ 1). */
+/** Inverse of tasteOf: AI taste in human SDs from aggregate taste T (≥ 1). Pure; the last result is memoised (one
+ *  production readout asks for the same T up to ten times: what-ifs and ceilings share the lab's T_ref). */
+let lastTaste: [number, number, number] | undefined;
 export function tasteSD(T: number, m2b: number): number {
-  if (T <= tasteOf(-6, m2b)) return -6;
-  return bisect((x) => tasteOf(x, m2b) - T, -6, 40, 80);
+  if (lastTaste && lastTaste[0] === T && lastTaste[1] === m2b) return lastTaste[2];
+  const out = T <= tasteOf(-6, m2b) ? -6 : bisect((x) => tasteOf(x, m2b) - T, -6, 40, 80);
+  lastTaste = [T, m2b, out];
+  return out;
 }
 
 // ───────────────────────────── reference paths (§3.1.1, §3.2.1) ─────────────────────────────

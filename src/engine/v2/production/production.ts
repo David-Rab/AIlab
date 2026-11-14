@@ -64,8 +64,10 @@ export function evalM(w: TimelineWorld, inp: Pick<LabInputs, 'qDep' | 'h' | 'k' 
 
 const speedOf = (M: number) => Math.min(PROD_SPEED_CAP, 8 + 10.8 * Math.log2(Math.max(1, M))); // R11 #23
 
-/** Full production readout (§3.2.5). Pure function of the world and inputs. */
-export function evalProduction(w: TimelineWorld, inp: LabInputs): ProductionReadout {
+/** Full production readout (§3.2.5). Pure function of the world and inputs. `detail` = false skips the ceilings and
+ *  what-ifs (8 extra evaluations of M; reported as 1 = no change): the daily readouts of non-player labs, which the
+ *  engine reads only for M, rate and stage (the production selector recomputes them in full on request). */
+export function evalProduction(w: TimelineWorld, inp: LabInputs, detail = true): ProductionReadout {
   const Pp = w.prod;
   const e = evalM(w, inp);
   const stage: 1 | 2 = inp.qDep >= stage1(asV1World(w)) ? 2 : 1;
@@ -100,11 +102,10 @@ export function evalProduction(w: TimelineWorld, inp: LabInputs): ProductionRead
   const at = (o: Partial<Pick<LabInputs, 'h' | 'k' | 'c'>>) => evalM(w, { ...inp, ...o }).M / e.M;
   // "∞" = the input × 1e9, research/13 §1.9's convention (its §1.6 table: ∞ agents ×8.7 at SC).
   const BIG = 1e9;
-  const ceilings = { humans: at({ h: inp.h * BIG }), agents: at({ k: inp.k * BIG }), exp: at({ c: inp.c * BIG }) };
-  const whatIf = {
-    humans2: at({ h: inp.h * 2 }), agents2: at({ k: inp.k * 2 }), agents01: at({ k: inp.k * 0.1 }),
-    exp2: at({ c: inp.c * 2 }), exp05: at({ c: inp.c * 0.5 }),
-  };
+  const ceilings = detail ? { humans: at({ h: inp.h * BIG }), agents: at({ k: inp.k * BIG }), exp: at({ c: inp.c * BIG }) } : { humans: 1, agents: 1, exp: 1 };
+  const whatIf = detail
+    ? { humans2: at({ h: inp.h * 2 }), agents2: at({ k: inp.k * 2 }), agents01: at({ k: inp.k * 0.1 }), exp2: at({ c: inp.c * 2 }), exp05: at({ c: inp.c * 0.5 }) }
+    : { humans2: 1, agents2: 1, agents01: 1, exp2: 1, exp05: 1 };
 
   let binding: ProductionReadout['binding'] = 'experiments';
   const pd = perDollar;
@@ -240,7 +241,7 @@ export function advanceLab(s: GameStateV2, lab: LabId): ProductionReadout | unde
   if (!core || core.status !== 'active') return undefined;
   const inp = labInputs(s, lab, s.time.day - 1);
   if (!inp) return undefined;
-  const r = evalProduction(s.hidden.timeline, inp);
+  const r = evalProduction(s.hidden.timeline, inp, lab === PLAYER_ID);
   core.prodCache = r;
   core.pa += r.rate / 365;
   return r;
