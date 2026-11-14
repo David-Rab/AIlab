@@ -3,7 +3,7 @@
 import { CHINA_PRESETS, GOV_PRESETS, LAB_ARCHETYPES, PUBLIC_PRESETS } from '../../../data/actors';
 import { AGENDAS } from '../../../data/v2/agendas';
 import { CAL_SHIFT, PROD_DEFAULT, PROD_PRESETS } from '../../../data/v2/calibration';
-import { EDGES, GRADE_SIGMA } from '../../../data/v2/edges';
+import { EDGE_FACTOR_RANGE, EDGE_SIGMA_SCALE, EDGES, GRADE_SIGMA, type EdgeDef } from '../../../data/v2/edges';
 import { PARADIGMS } from '../../../data/v2/paradigms';
 import { ARCHETYPE_POSTURES, CHINA_POSTURE_BASE } from '../../../data/v2/postures';
 import { UMODES } from '../../../data/v2/umodes';
@@ -14,9 +14,18 @@ import type {
   AgendaId, EconPresetId, HiddenWorld, LabId, ProdParams, SafetyLatents, SafetyPosture, SetupV2, TimelineWorld, UModeId,
 } from '../types';
 
-/** Balance knob #1 (§7.4): global scale on difficultyMult [D]. Tried 1.4 in M4: it hurts the mixed bot more than
- *  the race bot (Mis at ASI is world-driven), so it stays 1. */
+/** Balance knob #1 (§7.4): global scale on difficultyMult [D]. M4: 1.4 (step 1) hurt the mixed bot more than the race
+ *  bot; 1.2 (step 2) pushed RefBot past S4 (P_mis 0.89), so it stays 1. */
 export const DIFFICULTY_SCALE = 1;
+/** M4 [D]: difficultyMult is kept within [0.6, 1.65] (|λ6 − λ4| ≲ 1.4 sd) so a hard world raises trait growth by
+ *  at most 65%: the world sets how hard alignment is, the player's training and safety choices decide the outcome. */
+export const DIFFICULTY_RANGE: [number, number] = [0.6, 1.65];
+
+/** Realised edge weight (§2.3 step 6, M4 bounds). */
+function drawEdge(rng: Rng, e: EdgeDef, schemingDefault: number): number {
+  const wBar = e.schemingScaled ? e.wBar * Math.exp(0.5 * schemingDefault) : e.wBar;
+  return wBar * clamp(Math.exp(rng.normal(0, GRADE_SIGMA[e.grade] * EDGE_SIGMA_SCALE)), EDGE_FACTOR_RANGE[0], EDGE_FACTOR_RANGE[1]);
+}
 
 export function pickWeighted<T extends { id: string; weight: number }>(rng: Rng, list: readonly T[], choice: string): T {
   if (choice !== 'realistic') return list.find((p) => p.id === choice) ?? list[0];
@@ -60,7 +69,7 @@ export function sampleHidden(rng: Rng, setup: SetupV2): HiddenWorld {
   const shift = setup.alignment === 'easy' ? 0.8 : setup.alignment === 'hard' ? -0.8 : 0;
   latents.benignGeneralization += shift;
   latents.schemingDefault -= shift;
-  const difficultyMult = DIFFICULTY_SCALE * Math.exp(0.35 * (latents.schemingDefault - latents.benignGeneralization));
+  const difficultyMult = DIFFICULTY_SCALE * clamp(Math.exp(0.35 * (latents.schemingDefault - latents.benignGeneralization)), DIFFICULTY_RANGE[0], DIFFICULTY_RANGE[1]);
 
   // 4. Agenda efficacy.
   const agendaEfficacy = {} as Record<AgendaId, number>;
@@ -76,10 +85,7 @@ export function sampleHidden(rng: Rng, setup: SetupV2): HiddenWorld {
 
   // 6. Edge weights.
   const edgeWeights: Record<string, number> = {};
-  for (const e of EDGES) {
-    const wBar = e.schemingScaled ? e.wBar * Math.exp(0.5 * latents.schemingDefault) : e.wBar;
-    edgeWeights[e.id] = wBar * Math.exp(rng.normal(0, GRADE_SIGMA[e.grade]));
-  }
+  for (const e of EDGES) if (!e.late) edgeWeights[e.id] = drawEdge(rng, e, latents.schemingDefault);
 
   // 7. U-mode propensity.
   const uModePropensity = {} as Record<UModeId, number>;
@@ -105,6 +111,8 @@ export function sampleHidden(rng: Rng, setup: SetupV2): HiddenWorld {
     rivalPostures[rivalId(i)] = noisyPosture(rng, ARCHETYPE_POSTURES[arch] ?? ARCHETYPE_POSTURES.bigtech, noise);
   }
   const chinaPosture = noisyPosture(rng, CHINA_POSTURE_BASE, noise / 3);
+  // 11. Edges added in M4 (drawn last so the earlier draws are unchanged).
+  for (const e of EDGES) if (e.late) edgeWeights[e.id] = drawEdge(rng, e, latents.schemingDefault);
 
   // 10. Doom threshold: drawn inside makeWorld (0.40, or U(0.30, 0.50) when alignment is sampled).
   return {

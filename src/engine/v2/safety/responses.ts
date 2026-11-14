@@ -8,7 +8,7 @@ import { strengthBelieved, techniqueRole } from './techniques';
 import { crystalMult, revealToWorld, uModeRemovalMult } from './umodes';
 
 export const RESPONSE_INFO: Record<ResponseKind, { title: string; days: [number, number]; note: string }> = {
-  patchSignal: { title: 'Patch signal', days: [30, 90], note: 'Fix the training signal: future edge weight × 0.3–0.6 for this lineage.' },
+  patchSignal: { title: 'Patch signal', days: [30, 90], note: 'Fix the training signal: edge weight × 0.3–0.6 for every later run (lab-wide).' },
   retrainAgainst: { title: 'Retrain against', days: [14, 14], note: 'Hide, not heal: visible −70–90%, true −20–40%, adds a mask.' },
   targetedTraining: { title: 'Targeted training', days: [21, 35], note: 'Technique-specific alignment training (inoculation, anti-scheming…).' },
   restrictContext: { title: 'Restrict context', days: [0, 0], note: 'Channel revenue × 0.5; incident hazard × 0.3.' },
@@ -16,6 +16,9 @@ export const RESPONSE_INFO: Record<ResponseKind, { title: string; days: [number,
   rollback: { title: 'Roll back', days: [0, 0], note: 'Return to the checkpoint version; lose the newer model.' },
   disclose: { title: 'Disclose', days: [0, 0], note: 'Scrutiny +5–15; trust by credibility; the world learns any U-mode.' },
 };
+
+/** Lowest edge multiplier repeated signal patches reach (some of every pressure is irreducible) [D, M4]. */
+export const PATCH_FLOOR = 0.2;
 
 /** Edges that feed a trait (patch targets). */
 function edgesInto(trait: TraitId): string[] {
@@ -85,9 +88,11 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
   const lineage = lineageOf(s, v);
   switch (kind) {
     case 'patchSignal': {
+      // M4: the patched environment / grader / reward model is the lab's, so the fix applies to every later run
+      // (all lineages); repeated patches on one edge bottom out at PATCH_FLOOR [D].
       for (const e of edgesInto(trait)) {
-        const key = `patch.${lineage}.${e}`;
-        setFlag(s, key, Math.round(flagNum(s, key, 1) * rng.range(0.3, 0.6) * 1000) / 1000);
+        const key = `patch.lab.${e}`;
+        setFlag(s, key, Math.round(Math.max(PATCH_FLOOR, flagNum(s, key, 1) * rng.range(0.3, 0.6)) * 1000) / 1000);
       }
       setFlag(s, 'patchUntil', Math.max(flagNum(s, 'patchUntil', 0), ctx.day + Math.round(rng.range(30, 90))));
       setFlag(s, 'runPenalty', flagNum(s, 'runPenalty') + 0.02);
@@ -111,7 +116,7 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
           setFlag(s, `e25.${lineage}`, ctx.day);
         }
       } else if (has('T-INOC') && (trait === 'PERSONA' || trait === 'RH' || trait === 'CONCEAL')) {
-        const key = `patch.${lineage}.E04`;
+        const key = `patch.lab.E04`;
         setFlag(s, key, Math.round(flagNum(s, key, 1) * 0.15 * 1000) / 1000); // F46
         t.PERSONA = clamp01(t.PERSONA * (1 - 0.3 * r));
       } else if (has('T-PERSONA') && (trait === 'SYC' || trait === 'PERSONA')) {

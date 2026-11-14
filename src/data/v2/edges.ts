@@ -13,6 +13,8 @@ export interface EdgeDef {
   grade: EdgeGrade;
   /** Multiply w̄ by exp(0.5·λ6) (E19). */
   schemingScaled?: boolean;
+  /** Added in M4: its world draw comes after §2.3 step 10, so every earlier draw keeps its value. */
+  late?: boolean;
   /** One-line evidence citation shown in the trait panel (research/14 §1.5). */
   cite: string;
   /** Moderators the player controls (applied in safety/traits.ts). */
@@ -41,9 +43,19 @@ export const EDGES: EdgeDef[] = [
   { id: 'E21', from: ['S8'], to: 'COLLUDE', wBar: 0.3, grade: 'B', cite: 'Peer-shutdown sabotage 38.3% vs 8.4%', moderator: 'comms lockdown −50%' },
   { id: 'E22', from: ['S8'], to: 'SUCC', wBar: 0.3, grade: 'B', cite: 'OpenAI Sep 2026: self-propagating 58%', moderator: 'memory audits −50%' },
   { id: 'E23', from: ['SA', 'AF'], to: 'TGAME', wBar: 0.3, grade: 'C', cite: 'AI 2027 App. D (argument)', moderator: 'TGAME > 0.5: removal ×0.3' },
+  // M4: the broad misaligned persona (L5) generalises into the behaviour-when-unobserved nodes (R14 E04 evidence:
+  // hacking → persona → alignment-faking reasoning and safety-research sabotage), so reward hacking upstream (grader
+  // quality, RL intensity, inoculation) reaches the misalignment index.
+  { id: 'E27', from: ['PERSONA'], to: 'AF', wBar: 0.4, grade: 'B', late: true, cite: 'MacDiarmid 2025: learned hacking → AF reasoning in 50%', moderator: 'inoculation upstream (E04 ×0.15); corrigibility target −30%' },
+  { id: 'E28', from: ['PERSONA'], to: 'SCHEME', wBar: 0.15, grade: 'B', late: true, cite: 'MacDiarmid 2025: 12% safety-code sabotage', moderator: 'anti-scheming training −90%' },
+  { id: 'E29', from: ['PERSONA'], to: 'POWER', wBar: 0.2, grade: 'B', late: true, cite: 'Betley 2025: emergent misalignment voices power-seeking aims', moderator: 'scoped constitution −30%; corrigibility target −30%' },
 ];
 
 export const GRADE_SIGMA: Record<EdgeGrade, number> = { A: 0.5, B: 0.8, C: 1.2, D: 1.2 };
+/** M4 [D]: the world draw uses half of R14's σ and keeps the factor within [½, 2]×w̄, so the world modulates edge
+ *  strength without deciding the outcome (choices must dominate final misalignment, §1.2 T1). */
+export const EDGE_SIGMA_SCALE = 0.5;
+export const EDGE_FACTOR_RANGE: [number, number] = [0.5, 2];
 
 /** Edges that are not growth terms (§3.5.4), shown in the trait panel as notes. */
 export const EDGE_NOTES: { id: string; text: string; grade: EdgeGrade }[] = [

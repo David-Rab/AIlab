@@ -1,7 +1,7 @@
 // record (160, weekly): series samples and cause-ledger trim (V2-SPEC §2.2, §2.5 budgets). Owner: WS1.
 import { bestLg, internalVersion, otherLabs } from '../models/labs';
 import { misalignment, misalignmentEstimate } from '../safety/traits';
-import { understanding } from '../safety/understanding';
+import { trueUnderstanding, understanding } from '../safety/understanding';
 import { trimCauses } from './causes';
 import type { EngineSystem, GameStateV2, SeriesV2 } from '../types';
 
@@ -24,6 +24,9 @@ export function sampleSeries(s: GameStateV2) {
   // (M4 fix: the 0-dips made the causal replay report level swings of +40 on the 0–15 scale).
   S.Lmeasured.push(r3(v?.evals.measuredL ?? S.Lmeasured[S.Lmeasured.length - 1] ?? 0));
   S.U.push(r3(understanding(s).U));
+  // Hidden: L − U_true drives trait drift (WS2 traits.ts understandingGapGrowth, M4).
+  const tu = trueUnderstanding(s);
+  s.flags['ws2.gapTrue'] = r3(Math.max(0, tu.L - tu.U));
   S.M.push(r3(s.player.prodCache?.M ?? 1));
   S.cash.push(r3(s.player.finance.cash));
   S.revenue.push(r3(s.player.finance.revenueRun));

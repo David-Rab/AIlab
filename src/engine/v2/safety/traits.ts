@@ -12,8 +12,10 @@ import type {
   BaseDesign, BaseModel, EngineSystem, GameStateV2, ModelVersion, PostDesign, RivalLab, RLFamily, RngLike, SafetyPosture, SignalId,
   SimpleModel, SystemCtx, ToolFamily, TrainingRun, TraitBelief, TraitId, TraitVector, UModeId,
 } from '../types';
-import { adopted, clamp01, copyRec, flagNum, levelOf, SC_LEVEL, setFlag, tierOfLevel, versionById } from './common';
-import { SD_MAX, eaCoef, eaSuppression, takesEaPenalty } from './detection';
+import { adopted, clamp01, copyRec, flagNum, levelOf, SC_LEVEL, setFlag, tierOfLevel, trueEfficacy, versionById } from './common';
+import { fundingMult } from './agendas';
+import { SD_MAX, eaCoef, eaSuppression, stackDetectionMap, takesEaPenalty } from './detection';
+import { techniqueRole } from './techniques';
 import { crystalMult, crystalThreshold, drawLineageUModesV2, uModeAmp, uModeEdgeMult, uModeRemovalMult } from './umodes';
 
 const SPECULATIVE = new Set(UMODES.filter((u) => u.kind === 'speculative').map((u) => u.id));
@@ -140,6 +142,9 @@ function driver(id: string, x: TraitVector, sg: Signals, env: TraitEnv): number 
     case 'E21': return sg.S8;
     case 'E22': return env.memory ? sg.S8 : 0;
     case 'E23': return Math.sqrt(x.SA * x.AF);
+    case 'E27': return x.PERSONA;
+    case 'E28': return x.PERSONA;
+    case 'E29': return x.PERSONA;
     default: return 0;
   }
 }
@@ -213,23 +218,37 @@ export function basePrior(tier: number, design?: BaseDesign): TraitVector {
  * awareness (E12) and is 0.4× for oversight-conditional traits, so training selects for hidden misalignment as
  * capability rises (R14 E24 "RLHF → context-dependent misalignment"; AI 2027 Agent-3/4).
  */
-export const SAFETY_REMOVAL: Record<PostDesign['safety'], number> = { minimal: 0.05, standard: 0.3, heavy: 0.75 };
+export const SAFETY_REMOVAL: Record<PostDesign['safety'], number> = { minimal: 0.05, standard: 0.45, heavy: 0.75 };
 const OVERSIGHT_CONDITIONAL: TraitId[] = ['AF', 'SCHEME', 'SAND'];
-const NOT_TRAINED_DOWN: TraitId[] = ['SA', 'EA', 'OBF', 'TGAME'];
+export const EA_RELAX = 0.3;
+const NOT_TRAINED_DOWN: TraitId[] = ['SA', 'EA', 'OBF'];
+/** Removed only through what the detection stack sees (training itself never elicits it): training-gaming (E23,
+ *  AG13 phase-transition detectors and NLAs see it forming) [D, M4]. */
+const DETECTION_ONLY: TraitId[] = ['TGAME'];
+/** Traits whose removal uses the stack's TRUE detection (M4). */
+export const REMOVABLE_TRAITS: TraitId[] = TRAIT_ORDER.filter((t) => !NOT_TRAINED_DOWN.includes(t) && t !== 'HONEST' && t !== 'CORRIG');
 
 /**
  * Removal map for safety training at rate r: behaviour seen in training falls, EA hides the rest (E12, E24).
  * Visibility uses the same elicitation as behavioural evals: realistic honeypots (F26, eaCoef 0.56) and
  * eval-awareness suppression (F11) let training see — and remove — what eval awareness would otherwise hide.
  */
-export function safetyRemovalMap(x: TraitVector, r: number, eaC = 0.8, eaSupp = 0, ocVis = 0.4): Partial<Record<TraitId, number>> {
+export function safetyRemovalMap(x: TraitVector, r: number, eaC = 0.8, eaSupp = 0, ocVis = 0.4, det?: Partial<Record<TraitId, number>>): Partial<Record<TraitId, number>> {
   const out: Partial<Record<TraitId, number>> = {};
   if (r <= 0) return out;
+  // Eval awareness tracks each run's data and signals instead of ratcheting (M4) [D]: post-training relaxes it by
+  // EA_RELAX per run, so it settles near G/(G + EA_RELAX) ≈ 0.5–0.65 at high capability (R14 anchors: verbalized EA
+  // 11.7% → 41–51% across generations) rather than saturating at 1. It is still never trained down on purpose.
+  out.EA = EA_RELAX;
   for (const t of TRAIT_ORDER) {
     if (NOT_TRAINED_DOWN.includes(t)) continue;
-    let vis = takesEaPenalty(t) ? 1 - eaC * x.EA * (1 - eaSupp) : 1;
+    let vis = DETECTION_ONLY.includes(t) ? 0 : takesEaPenalty(t) ? 1 - eaC * x.EA * (1 - eaSupp) : 1;
     if (OVERSIGHT_CONDITIONAL.includes(t)) vis *= ocVis;
-    out[t] = r * vis;
+    // M4: what the safety stack detects can also be trained out — interpretability and CoT monitors see the
+    // oversight-conditional and eval-aware behaviour that training alone misses (§3.5.4 "what you can see you can fix").
+    const d = det?.[t] ?? 0;
+    if (d > 0) vis = 1 - (1 - vis) * (1 - d);
+    if (vis > 0) out[t] = r * vis;
   }
   return out;
 }
@@ -244,8 +263,12 @@ function techActive(s: GameStateV2, id: string) {
   const t = tech(s, id);
   return !!t && t.active;
 }
+/** A technique is in a run when the run lists it, or (M4) when it is an unlocked FIX technique whose agenda is
+ *  staffed: a lab's alignment-training methods are part of every post-training run it does [D]. */
 function inRun(s: GameStateV2, post: PostDesign | undefined, id: string) {
-  return !!post && post.techniques.includes(id) && !!tech(s, id);
+  const t = post ? tech(s, id) : undefined;
+  if (!post || !t) return false;
+  return post.techniques.includes(id) || (techniqueRole(t) === 'fix' && (s.player.safety.agendas[t.agenda]?.fte ?? 0) > 0);
 }
 
 /** Edge moderators the player controls (§3.5.4 table "Moderators"). Lineage patches come from flags. */
@@ -260,9 +283,14 @@ export function playerMods(s: GameStateV2, post: PostDesign | undefined, lineage
     mul('E05', 0.7);
     mul('E01', 0.7);
   }
-  if (post && post.pref === 'constitution' && post.safety !== 'minimal') mul('E08', 0.7);
+  if (post && post.pref === 'constitution' && post.safety !== 'minimal') {
+    mul('E08', 0.7);
+    mul('E29', 0.7);
+  }
   if (inRun(s, post, 'T-CAST')) {
     mul('E08', 0.7);
+    mul('E27', 0.7);
+    mul('E29', 0.7);
     mul('E13', 0.7);
     mul('E14', 0.7);
   }
@@ -276,39 +304,69 @@ export function playerMods(s: GameStateV2, post: PostDesign | undefined, lineage
   if (dept.monitorabilityCommitment || s.flags['ws2.monitorabilityTax']) mul('E15', 0.5);
   if (inRun(s, post, 'T-CONFESS') || post?.safety === 'heavy') mul('E17', 0.6);
   if (techActive(s, 'T-NOISE')) mul('E18', 0.6);
-  if (inRun(s, post, 'T-ANTISCHEME')) mul('E19', 0.1);
+  if (inRun(s, post, 'T-ANTISCHEME')) {
+    mul('E19', 0.1);
+    mul('E28', 0.1);
+  }
   if (techActive(s, 'T-LOCK')) mul('E21', 0.5);
   if (dept.agendas.AG07.fte > 0 && techActive(s, 'T-TMON')) mul('E22', 0.5);
+  // Signal patches: this lineage's (older saves) and the lab-wide ones (M4: a patched environment, grader or reward
+  // model is reused by every later run, so the fix outlives the lineage).
   const prefix = `ws2.patch.${lineage}.`;
-  for (const [k, v] of Object.entries(s.flags)) if (k.startsWith(prefix) && typeof v === 'number') mul(k.slice(prefix.length), v);
+  for (const [k, v] of Object.entries(s.flags)) {
+    if (typeof v !== 'number') continue;
+    if (k.startsWith(prefix)) mul(k.slice(prefix.length), v);
+    else if (k.startsWith(LAB_PATCH)) mul(k.slice(LAB_PATCH.length), v);
+  }
   return m;
 }
+
+/** Flag prefix of lab-wide signal patches (§3.5.9 patch signal). */
+export const LAB_PATCH = 'ws2.patch.lab.';
 
 function memoryOn(s: GameStateV2) {
   return adopted(s, 'P07') || adopted(s, 'P08');
 }
 
-/** Understanding-gap amplification (M4, §1.2 T1) [D]: while capability outruns understanding (U < L), behaviour the
- *  safety stack can no longer see is reinforced instead of caught, so trait growth rises by up to GAP_GROWTH_K at a
- *  gap of GAP_CAP_L levels. Reads the last weekly series sample (cheap; the readout the player sees). */
-export const GAP_GROWTH_K = 0.5;
-export const GAP_CAP_L = 3;
+/** Understanding-gap amplification (M4, §1.2 T1) [D]: while capability outruns understanding (L > U), behaviour the
+ *  safety stack can no longer see is reinforced instead of caught, so trait growth rises by GAP_GROWTH_K per level of
+ *  gap, up to GAP_CAP_L levels. The gap is the TRUE one (L − U_true, sampled weekly by record into 'ws2.gapTrue'),
+ *  so not looking does not slow drift. */
+export const GAP_GROWTH_K = 0.4;
+export const GAP_CAP_L = 2.5;
 export function understandingGapGrowth(s: GameStateV2): number {
-  const S = s.series;
-  const n = S?.U?.length ?? 0;
-  if (!n || !S.Lmeasured.length) return 1;
-  const gap = S.Lmeasured[S.Lmeasured.length - 1] - S.U[n - 1];
-  return 1 + GAP_GROWTH_K * Math.min(1, Math.max(0, gap) / GAP_CAP_L);
+  const gap = flagNum(s, 'gapTrue');
+  return 1 + GAP_GROWTH_K * Math.min(GAP_CAP_L, Math.max(0, gap));
+}
+
+/**
+ * Alignment training that generalises (M4, §3.5.4) [D]: training on the lab's spec and character data heals value
+ * traits whether or not the stack can see them — the R14 λ4 "benign generalization" bet, carried by AG18
+ * training-signal design. Removal fraction per post-run = HEAL_K · e_AG18(true) · √(AG18 funding, ≤ 2.5) ·
+ * preference factor · safety-training factor. Zero for a lab that does not staff AG18.
+ */
+export const HEAL_K = 0.35;
+const HEAL_PREF: Record<PostDesign['pref'], number> = { minimal: 0.5, engagement: 0.3, constitution: 1, persuasion: 0.2 };
+const HEAL_SAFETY: Record<PostDesign['safety'], number> = { minimal: 0.2, standard: 1, heavy: 1.6 };
+export function healRate(s: GameStateV2, post: PostDesign): number {
+  const st = s.player.safety.agendas.AG18;
+  if (!st || st.fte <= 0) return 0;
+  return HEAL_K * trueEfficacy(s, 'AG18') * Math.sqrt(Math.min(2.5, fundingMult('AG18', st))) * HEAL_PREF[post.pref] * HEAL_SAFETY[post.safety];
 }
 
 /** Engine environment for one of the player's runs (true weights, true difficulty, U-mode effects). */
-export function playerEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, uModes: readonly UModeId[]): TraitEnv {
+export function playerEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, uModes: readonly UModeId[], v?: ModelVersion): TraitEnv {
   const mods = playerMods(s, post, lineage);
   for (const [e, k] of Object.entries(uModeEdgeMult(uModes))) mods[e] = (mods[e] ?? 1) * k;
   // Heavy safety with white-box alignment audits (AG02 tools) also catches oversight-conditional traits (AF, SCHEME,
   // SAND) that behavioural training misses: their visibility rises 0.4 → 0.6 [D] (§3.3.2 H "alignment-audit").
   const audits = post?.safety === 'heavy' && Object.values(s.player.safety.techniques).some((t) => t.agenda === 'AG02' && t.unlocked && t.family === 'WB');
-  const removal = post ? safetyRemovalMap(x, SAFETY_REMOVAL[post.safety], eaCoef(s), eaSuppression(s), audits ? 0.6 : 0.4) : {};
+  const det = post && v ? stackDetectionMap(s, v, REMOVABLE_TRAITS) : undefined;
+  const removal = post ? safetyRemovalMap(x, SAFETY_REMOVAL[post.safety], eaCoef(s), eaSuppression(s), audits ? 0.6 : 0.4, det) : {};
+  if (post) {
+    const h = healRate(s, post);
+    if (h > 0) for (const t of REMOVABLE_TRAITS) removal[t] = 1 - (1 - (removal[t] ?? 0)) * (1 - h);
+  }
   let eaMult = 1;
   // Heavy safety training and anti-scheming training (E25): SCHEME −0.9 × current per run; EA × 1.5 the first time
   // a lineage gets it (R14: anti-scheming training doubled EA 2.3 → 4.5% once; re-applying maintains it) [D].
@@ -450,7 +508,9 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
   const x0 = parent?.traitsTrue ?? base?.traitsTrue ?? TRAIT_START;
   const uModes = parent ? [...parent.uModes] : [...(base?.uModes ?? [])];
   const sg = runSignals(s, run);
-  const env = playerEnv(s, x0, sg, 0.6, post, lineage, uModes);
+  // Detection context: the new model as the stack meets it (the parent's traits and masks, the new level).
+  const probe: ModelVersion = { ...version, traitsTrue: x0, masks: parent ? parent.masks : emptyMasks(), uModes };
+  const env = playerEnv(s, x0, sg, 0.6, post, lineage, uModes, probe);
   const teacher = versionById(s, run.teacherVersionId);
   if (teacher) env.teacher = teacher.traitsTrue; // synthetic data from a teacher (S6, E06)
   version.traitsTrue = stepTraits(x0, env);
@@ -490,7 +550,7 @@ export function applyStreamDay(s: GameStateV2, v: ModelVersion): void {
   const base = findBase(s, v.baseId);
   const sg = postSignals(s, v.design);
   const lineage = base?.lineage ?? 'L-unknown';
-  const env = playerEnv(s, v.traitsTrue, sg, 0.6 / 42, v.design, lineage, v.uModes);
+  const env = playerEnv(s, v.traitsTrue, sg, 0.6 / 42, v.design, lineage, v.uModes, v);
   v.traitsTrue = stepTraits(v.traitsTrue, env);
   if (env.eaMult !== 1) setFlag(s, `e25.${lineage}`, s.time.day);
 }
@@ -499,7 +559,7 @@ export function applyStreamDay(s: GameStateV2, v: ModelVersion): void {
 export function applyIdaCycle(s: GameStateV2, v: ModelVersion): void {
   const base = findBase(s, v.baseId);
   const sg = postSignals(s, v.design);
-  const x = stepTraits(v.traitsTrue, playerEnv(s, v.traitsTrue, sg, 0.4, v.design, base?.lineage ?? 'L-unknown', v.uModes));
+  const x = stepTraits(v.traitsTrue, playerEnv(s, v.traitsTrue, sg, 0.4, v.design, base?.lineage ?? 'L-unknown', v.uModes, v));
   for (const t of TRAIT_ORDER) if (t !== 'SA') x[t] = clamp01(x[t] * 1.1);
   v.traitsTrue = x;
 }

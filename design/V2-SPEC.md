@@ -235,10 +235,10 @@ Sampling happens in this order, all from stream `world`.
    | hard | −0.8 | +0.8 |
    | sampled | 0 | 0 |
 
-   Then `difficultyMult = exp(0.35(λ6 − λ4))`. This replaces v1 `alignDifficulty`.
+   Then `difficultyMult = DIFFICULTY_SCALE · clamp(exp(0.35(λ6 − λ4)), 0.6, 1.65)` (scale 1). This replaces v1 `alignDifficulty`. The clamp [D, M4] bounds how much the world can raise trait growth, so hard worlds are harder without deciding the outcome.
 4. **Agenda efficacy.** `e_i = clamp(Beta(a_i, b_i) + Σ_j load_ij · λ_j, 0, 1)`, with loadings from §3.5.2.
 5. **Paradigm success.** `success_k ~ Bernoulli(prior_k)`, with priors from §3.3.5.
-6. **Edge weights.** `w_e = w̄_e · LN(0, σ_grade)`, with σ = 0.5 (A), 0.8 (B), 1.2 (C/D) [R14 §1.5].
+6. **Edge weights.** `w_e = w̄_e · clamp(LN(0, 0.5·σ_grade), ½, 2)`, with σ = 0.5 (A), 0.8 (B), 1.2 (C/D) [R14 §1.5]. The halved σ and the [½, 2] clamp are M4 [D]: with R14's full σ a single world draw could move an edge ×3 either way, and the world, not play, decided final misalignment.
 7. **U-mode propensity.**
    - real modes (U01–U15): `p = U(0.3, 0.7)`;
    - speculative modes (U16–U22): `p = U(0.05, 0.3) × (1 + 0.3 λ6)`.
@@ -249,6 +249,7 @@ Sampling happens in this order, all from stream `world`.
    - The `ai2027` timeline preset defaults to `econ = ai2027`.
 9. **Actor presets.** Use the v1 presets (`src/data/actors.ts`, Realistic weights), with China weights from R10 §1.2. Each rival archetype → `SafetyPosture` from R17 §1.6.4, with ±0.15 noise in Realistic.
 10. **Doom threshold.** `doomThreshold`: 0.40, or U(0.30, 0.50) when sampled (v1).
+11. **Late edges.** Edges added in M4 (E27–E29) draw their weights here, after every other draw, so worlds keep their earlier values.
 
 ### 2.4 RNG streams
 
@@ -963,6 +964,11 @@ Anchors: RH at 1–30% of agentic attempts; EA verbalised at 11.7%; no natural c
 | E21 | S8 → COLLUDE | S8 | .3 | B | comms lockdown (AG07/AG14) −50% |
 | E22 | S8 + memory → SUCC | S8·[P07 or P08] | .3 | B | memory audits −50% |
 | E23 | SA, AF → TGAME | √(SA·AF) | .3 | C | when TGAME > 0.5, removal effects × 0.3 (crystallisation) |
+| E27 | PERSONA → AF | PERSONA | .4 | B | M4 [D]. MacDiarmid 2025: learned hacking generalises to alignment-faking reasoning (50%). Inoculation acts upstream (E04); corrigibility target −30% |
+| E28 | PERSONA → SCHEME | PERSONA | .15 | B | M4 [D]. MacDiarmid 2025: 12% safety-code sabotage. Anti-scheming −90% |
+| E29 | PERSONA → POWER | PERSONA | .2 | B | M4 [D]. Betley 2025: emergent misalignment voices power-seeking aims. Scoped constitution −30%; corrigibility target −30% |
+
+E27–E29 carry the broad misaligned persona (L5) into the behaviour-when-unobserved nodes, as R14's E04 evidence describes. Without them the run-design chain (grader quality, RL intensity, inoculation → RH → PERSONA) never reached the misalignment index.
 
 Edges that are not growth:
 - **E12** (EA → observation gap) is in §3.5.6.
@@ -984,11 +990,28 @@ Edges that are not growth:
 Nodes are visited in topological order: S → L → A → B.
 
 ```
-Δx_j = ω · D_j · (1 − x_j) · Σ_{e→j} w_e · a_e · mod_e  −  removal_j
+Δx_j = ω · gap · D_j · (1 − x_j) · Σ_{e→j} w_e · a_e · mod_e  −  x_j · min(1, R_j · ω/0.6 · removalMult · crystal)
 D_j  = difficultyMult for {RH, PROXY, PERSONA, CONCEAL, POWER, AF, SAND, SCHEME, COLLUDE, SUCC, TGAME}; 1 for {SYC, SA, OBF, EA}
 HONEST' = HONEST + 0.05[constitution] + 0.1[heavy safety] − 0.05[persuasion] − 0.3·ΔCONCEAL
 CORRIG' = CORRIG − 0.3·ΔPOWER − 0.3·ΔAF + 0.15[F35 target trained]
 ```
+
+**Removal and drift (M4, all [D]).** Each trait settles near `x* ≈ G/(G + R)`, where G is the growth term and R the removal rate. Both are set by play; the world scales G through D and w.
+- **Safety-training removal sees only what is visible:** `R_j = r_safety · vis_j`, where r_safety is 0.05 / 0.45 / 0.75 for minimal / standard / heavy safety training.
+  - `vis_j = 1 − (1 − vis_train)(1 − det_j)`.
+  - `vis_train` is what training itself elicits: (1 − 0.8·EA) for EA-penalised traits, × 0.4 for AF, SCHEME and SAND (× 0.6 with heavy safety plus AG02 audits), 0 for TGAME.
+  - `det_j` is the TRUE detection of trait j by the active stack on the model (`stackDetectionMap`: true efficacy, M decay, masks, EA, OBF, undiscovered U-modes).
+  - So agendas, techniques and refreshes lower TRUE traits. Masks and decayed tools also cost removal: the masking trap now costs future healing as well as visibility.
+  - SA, EA and OBF are never trained down. TGAME is removed only through detection (AG13 phase detectors, NLAs, model organisms).
+- **Alignment training that generalises:** `R_j ← 1 − (1 − R_j)(1 − H)` for every removable trait.
+  - `H = 0.35 · e_AG18(true) · √min(2.5, AG18 funding) · pref · safety`.
+  - pref: constitution 1, minimal 0.5, engagement 0.3, persuasion 0.2. safety: minimal 0.2, standard 1, heavy 1.6.
+  - This is R14 λ4 (benign generalisation) through AG18 training-signal design. It works even when the stack is blind, and is zero for a lab that does not staff AG18.
+- **Eval awareness relaxes:** every post-run removes `EA_RELAX = 0.3` of EA. EA settles near 0.5–0.65 at high capability (R14: verbalised 11.7% → 41–51% across generations) instead of ratcheting to 1, which had blinded every behavioural tool for every lab alike.
+- **Understanding gap:** `gap = 1 + 0.4 · min(2.5, max(0, L − U_true))`.
+  - U_true is §3.5.7's U computed from the truth (true efficacy, true EA projected with capability, true masks). `record` samples it weekly as the hidden flag `ws2.gapTrue`.
+  - It uses the true U because the believed U is optimistic out of ignorance: a lab with no findings keeps prior-mean efficacy, and must not drift slower for not looking.
+- **Fix techniques are part of the recipe:** an unlocked fix technique (T-PERSONA, T-ANTISCHEME, T-CONFESS, T-CAST, T-W2S) applies to every post-run while its agenda is staffed, as well as when a run lists it.
 
 **Signals per run.** Run design fixes S1–S7 (§3.3.2). Base S5 = 0.2 + 0.1·capIndex(pm) (scale and self-knowledge rise with capability). S8 is daily from deployment: `min(1, internal copies / 300k) + 0.2·[P05]`.
 
@@ -1045,7 +1068,7 @@ AG05 (oversight) uses gap tiers: success ≈ 0.52^gap, gap = log4(M_model / M_ov
 | Family | Penalty | Notes |
 |---|---|---|
 | BB (behavioural) | (1 − 0.8·EA) for B-nodes and SYC/RH; × (1 − mask_BB) | E12 |
-| COT | monitorability · (1 − ctl(L)) · (1 − mask_COT) · [λ2_eff > −1] | ctl(L) = 0.8·σ((L − 7)/0.6) (anchors 1.7% → 16% → 61%, R14) |
+| COT | monitorability · (1 − max(ctl(L), obf)) · (1 − mask_COT) · [λ2_eff > −1] | ctl(L) = 0.8·σ((L − 7)/0.6) (anchors 1.7% → 16% → 61%, R14). obf = clamp((OBF − 0.25)/0.75, 0, 1) [D, M4]: learned obfuscation (E15/E16) also hides intent from CoT monitors; the believed penalty uses the OBF estimate |
 | WB | (1 − mask_WB) · (1 − 0.5[U05 undiscovered]) · (1 − 0.6[U22 undiscovered]) | — |
 | OR | 1 | Slow, narrow; AG04/AG10/AG11 only |
 
@@ -1085,6 +1108,14 @@ Beliefs drift: sd grows +0.01 per week since the last observation, and +0.05 per
 
 **U** = the largest L in [0, 15] (step 0.05) with `mean_k Det_k(L) ≥ 0.5`.
 
+**Projection above the current model (M4, [D]).** Tools are validated on today's internal model (measured level L₀). How well they work on a more capable model is unknown until a staffed agenda re-validates them.
+- A tool of agenda a keeps its strength up to `lead_a = 1.5·√min(2.5, funding_a)` levels above L₀ (Seed 0.75, Serious 1.5, Major 2.4).
+- Beyond that its strength falls as `1/(1 + ((L − L₀ − lead_a)/0.75)²)`.
+- Believed EA is projected upward: `EA(L) = 1 − (1 − EA₀)·e^(−0.25(L − L₀))`.
+- U therefore starts near L (≈ L + 1.7 with the starting stack) instead of ≈ L + 6, and stays ahead only with funded agendas.
+
+**True U** (hidden) is the same search on the truth: true efficacy, true EA (projected), true masks, OBF and undiscovered U-modes. It has no validation lead. It drives trait drift (§3.5.4).
+
 **Display:**
 - top strip: `L 9.4 | U 8.7 | −0.7`;
 - the U tooltip lists per-trait detection at the current L, and the technique closest to its M½.
@@ -1118,7 +1149,7 @@ The case also feeds observations into the beliefs. It resolves when clarity ≥ 
 
 | Response | True trait | Visible | Cost | Notes |
 |---|---|---|---|---|
-| Patch signal (fix the S-node) | future edge w × 0.3–0.6 for this lineage | slow | 30–90 d of 10 safety FTE; Δp −0.02 on next post-run | env hardening, inoculation |
+| Patch signal (fix the S-node) | future edge w × 0.3–0.6 for every later run, lab-wide (M4: the patched environment, grader or reward model is reused); repeated patches floor at × 0.2 [D] | slow | 30–90 d of 10 safety FTE; Δp −0.02 on next post-run | env hardening, inoculation |
 | Retrain against detector | −20–40% | −70–90% | 14 d; adds a mask; OBF +0.1; detector strength × (1 − G) | "hide, not heal" |
 | Targeted alignment training | technique-specific (F46: E04 × 0.15; F47: SCHEME −90%, EA × 1.5) | same | 21–35 d; Δp −0.02 | — |
 | Restrict context | 0 | 0 | that channel's revenue × 0.5–0; incident hazard × 0.3 | — |
@@ -2319,7 +2350,8 @@ flowchart LR
 | 20 | Gaps filled by design | — | Staff cost/FTE, star-hire price, KYC cost, security spend curve, incident κ, investigation outcome probabilities, ending scores. All [D], all on the balance-knob list (§7.4). |
 | 21 | Company-loss endings dominated bot play (M2 bot table: ousted / insolvent / acquired in 60–100% of games) | M4 diagnosis | **Board (§3.7.5):** confidence drifts back toward 60 (10%/q); the revenue plan asks +15%/q and counts as missed only when revenue falls (< 85% of plan); incident hits cap at −20/q; SPV guarantees cost −2 once per quarter; slowness hits (behind a rival, E17 pause) scale with the board's speed appetite. **Ouster:** telegraphed (warning below 35, E37 "Board revolt" with counterplay), the vote rolls only after a ≥ 60-day-old warning, passes by a seat-stance majority read from the grievance, and a staff revolt (morale > 70) reinstates the CEO once. **Finance:** a round is priced at its term sheet (repriced only after a > 25% drop, and then pulled rather than closed as a down round unless runway < 4 q); one strategic rescue per year. All [D]. |
 | 22 | Investor pool far below C8 (R_sector ≈ the player alone; hype drifted to 0.7–0.8 in 2026) | R15 §1.4 vs integrated play | Rivals' revenue moves half-way each quarter to what WS5's market pays their public model (`labMarketRevenue`), so R_sector tracks the market (~2× the player in 2026). Hype surprise compares the public frontier's 4-quarter pace with an adaptive market expectation (0.3 L/q at start, 10%/q adaptation) instead of one lumpy quarter against 0.5 L/q. [D] |
-| 23 | T1 tension did not bite: Mis at ASI depended on the world, hardly on play (race ≈ ref ≈ mixed per seed) | M4 bot analysis | Understanding-gap amplification: while L exceeds U, trait growth in the player's runs rises by up to 50% at a 3-level gap (`GAP_GROWTH_K`, `GAP_CAP_L` [D]). Undetected behaviour is reinforced rather than caught (R14 E24). |
+| 23 | T1 tension did not bite: Mis at ASI depended on the world, hardly on play (race ≈ ref ≈ mixed per seed) | M4 bot analysis | Understanding-gap amplification: while L exceeds U, trait growth in the player's runs rises by 40% per level of gap, up to ×2 at 2.5 levels. Since M4 step 2 this uses the TRUE gap (`GAP_GROWTH_K`, `GAP_CAP_L` [D]). Undetected behaviour is reinforced rather than caught (R14 E24). |
+| 26 | Choices still did not decide misalignment (M4 step 2). Paired seeds: race − mixed ΔMis ≈ 0, and mixed ended as misaligned as race because it spent longer drifting | M4 diagnosis: (a) critical traits saturated for every lab: EA → 1 blinded behavioural removal, TGAME had no removal and crystallised all removal at > 0.5; (b) run design touched only SYC/RH/PERSONA/OBF, which barely enter Mis; (c) fix techniques never entered runs; (d) believed U started ~6 levels above L; (e) the world draw (edge σ up to 1.2, unbounded D) dominated | Equilibrium framing x* ≈ G/(G + R) with both terms set by play (§3.5.4): detection-gated removal (`stackDetectionMap`), AG18 generalising alignment training (H), EA relaxation, TGAME detection-only removal, E27–E29 (persona → AF/SCHEME/POWER, R14 E04 evidence), fix techniques in every run while staffed, lab-wide signal patches, OBF in the COT penalty, U projection (validation lead, EA projection), drift from the true gap. World bounds: edge factor σ × 0.5 within [½, 2], D within [0.6, 1.65]. Acceptance (bots harness, paired seeds): the bot policy explains ~2/3 of the variance of final Mis and the world ~1/5. All [D]. |
 | 24 | Engine bugs found in M4 | — | `preDeployTesting` bound forever after the first deployment swap (a swap keeps `startDay`; now `versionSince`); the `fullPlusExternal` gate checked `evals.bench`, which evaluators never write (now any external report); evaluators took versions oldest-first (now minis, then newest); `series.Lmeasured` dipped to 0 when the internal agent changed (causal replay showed "level +44"); risk-source rows summed to > 100% (first-to-ASI now one distribution; misuse goes through the §5.1 #4 chain; theft is its catastrophe contribution, not P(theft)). |
 | 25 | Bots managed capital badly | §7.4 | Shared competent-CEO finance (`financeDecide`, autopilot): restructure at E02, no raise into a down mark, renegotiate → rescue (keeping control) → down round at most once per 180 d, sell chips before insolvency, bounded bridge rentals; bases step down a scale when the pool cannot deliver them in time. Race keeps a 3-quarter guard; safe plans 50% of the reference build-out without partners; capex2x stays reckless (F8). |
 

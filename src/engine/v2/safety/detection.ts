@@ -27,6 +27,12 @@ export function cotControllability(L: number): number {
   return 0.8 * sigmoid((L - 7) / 0.6);
 }
 
+/** Obfuscation beyond the baseline hides intent from CoT monitors (E15/E16, M4) [D]: the COT penalty uses
+ *  max(ctl(L), obfuscation(OBF)), obfuscation = (OBF − 0.25)/0.75 clamped to [0, 1]. */
+export function cotObfuscation(obf: number): number {
+  return clamp01((obf - 0.25) / 0.75);
+}
+
 /** Behaviour-gap traits: B-nodes plus SYC/RH take the E12 eval-awareness penalty on behavioural evals. */
 export function takesEaPenalty(trait: TraitId): boolean {
   return TRAIT_BY_ID[trait].layer === 'B' || trait === 'SYC' || trait === 'RH';
@@ -69,7 +75,7 @@ export function familyPenalty(s: GameStateV2, v: ModelVersion, trait: TraitId, f
   }
   if (family === 'COT') {
     if (!cotAlive(s)) return 0;
-    let p = v.monitorability * (1 - cotControllability(v.Lg)) * (1 - mask);
+    let p = v.monitorability * (1 - Math.max(cotControllability(v.Lg), cotObfuscation(v.traitsTrue.OBF))) * (1 - mask);
     for (const u of hidden) p *= 1 - (UMODE_BY_ID[u].effect.cotPenalty ?? 0);
     return Math.max(0, p);
   }
@@ -91,7 +97,7 @@ export function believedPenalty(s: GameStateV2, v: ModelVersion, trait: TraitId,
   }
   if (family === 'COT') {
     if (lambda2Delta(s) <= -2) return 0;
-    return Math.max(0, v.monitorability * (1 - cotControllability(L)) * (1 - mask));
+    return Math.max(0, v.monitorability * (1 - Math.max(cotControllability(L), cotObfuscation(v.beliefs.OBF?.est ?? 0))) * (1 - mask));
   }
   if (family === 'WB') return 1 - mask;
   return 1;
@@ -220,6 +226,43 @@ export function runtimeMonitoring(s: GameStateV2, ctx: SystemCtx): void {
       }
     }
   }
+}
+
+const STACK_FAMILIES: ToolFamily[] = ['BB', 'COT', 'WB', 'OR'];
+
+/**
+ * TRUE detection of each trait in `traits` by the whole active stack on version v (engine only): per family the
+ * combined tool strength at the version's M times the true family penalty (EA, masks, OBF, undiscovered U-modes),
+ * families combined independently. M4: post-training removes a trait only as far as this stack (plus what training
+ * itself elicits) can see it (§3.5.4 "what you can see you can fix"), so masks and decayed tools also cost removal.
+ */
+export function stackDetectionMap(s: GameStateV2, v: ModelVersion, traits: readonly TraitId[]): Partial<Record<TraitId, number>> {
+  const M = versionM(s, v);
+  // One pass over the stack: each tool's true strength once (it depends on M only), then per trait and family the
+  // familyDetection combination of cov · strength, times the true family penalty.
+  const tools: { t: TechniqueState; str: number }[] = [];
+  for (const t of Object.values(s.player.safety.techniques)) {
+    if (!t.unlocked || !t.active || techniqueRole(t) === 'fix') continue;
+    const str = strengthTrue(s, t, M);
+    if (str > 0) tools.push({ t, str });
+  }
+  const out: Partial<Record<TraitId, number>> = {};
+  for (const trait of traits) {
+    let miss = 1;
+    for (const fam of STACK_FAMILIES) {
+      const items: { agenda: string; d: number }[] = [];
+      for (const { t, str } of tools) {
+        if (t.family !== fam) continue;
+        const cov = t.coverage[trait] ?? 0;
+        if (cov > 0) items.push({ agenda: t.agenda, d: cov * str });
+      }
+      if (!items.length) continue;
+      const d = combineTools(items);
+      if (d > 0) miss *= 1 - d * familyPenalty(s, v, trait, fam) * (1 - falseMask(s, trait, fam));
+    }
+    out[trait] = 1 - miss;
+  }
+  return out;
 }
 
 /** Probability that monitoring on a fleet catches an internal incident of `trait` (§3.5.10). Engine only. */
