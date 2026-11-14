@@ -1,0 +1,72 @@
+/* Finance panel (PROPOSALS §5, mockups/06-finance.png). */
+.fin { display: flex; flex-direction: column; gap: 12px; }
+.fin-top { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 12px; align-items: stretch; }
+.fin .g3, .fin .g2 { align-items: stretch; }
+.fin .btn-row { flex-wrap: wrap; align-items: flex-start; margin-bottom: 0; }
+.fin-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 8px 0; }
+.fin-foot { display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--line); margin-top: 10px; padding-top: 8px; font-size: 12px; }
+.fin-tbl { margin-top: 8px; }
+.fin-tbl th.r, .fin-tbl td.r { text-align: right; }
+.fin-tbl td.ellip { max-width: 160px; }
+.legend2 i.dash { background: none !important; border: 1px dashed #8a9bb0; height: 8px; vertical-align: 0; }
+
+/* waterfall */
+.wf2 { width: 100%; height: auto; display: block; }
+.wf2-bar { cursor: default; }
+.wf2-bar:hover rect:not([fill="transparent"]) { filter: brightness(1.2); }
+.wf2-val { fill: #fff; font: 700 12.5px var(--mono); }
+.wf2-val.pos { fill: var(--good); }
+.wf2-val.neg { fill: var(--bad); }
+.wf2-lbl { fill: var(--text-2); font: 12px var(--sans); }
+.wf2-lbl.strong { fill: #fff; font-weight: 700; }
+.wf2-note { fill: var(--watch); font: 600 10.5px var(--sans); }
+
+/* cash history + ledger charts */
+.cash2, .ledger2 { width: 100%; height: auto; display: block; }
+.ch-ax { fill: var(--text-3); font: 10.5px var(--mono); }
+.ch-note { font: 600 10.5px var(--sans); fill: var(--text-2); }
+.ch-note.bad { fill: var(--bad); }
+.ch-note.good { fill: var(--good); }
+.ch-tt { fill: #e3e9f1; font: 11.5px var(--sans); }
+
+/* raise */
+.lim-rows { display: flex; flex-direction: column; gap: 8px; }
+.lim-row { display: grid; grid-template-columns: 130px minmax(0, 1fr) 64px; gap: 10px; align-items: center; font-size: 12.5px; }
+.lim-row .num { text-align: right; }
+.ask-head { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.ask-head b { color: #fff; font-size: 14px; }
+.ask-slider { position: relative; margin: 6px 0 10px; }
+.ask-slider input { width: 100%; display: block; }
+.ask-ceil { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--watch); pointer-events: none; transform: translateX(-1px); }
+
+/* board */
+.seats { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px 6px; }
+.seat { display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; min-width: 0; }
+.seat-av { position: relative; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; border: 1.5px solid var(--line-2); background: var(--panel-2); color: var(--text-2); }
+.seat-av.founder { border-color: var(--d-sec); color: #9cc8ff; }
+.seat-av.mission { border-color: var(--d-saf); color: #7fe0cf; }
+.seat-av.financial { border-color: var(--d-prod); color: #e0c46a; }
+.seat-av.strategic { border-color: var(--d-cap); color: #c8aef5; }
+.seat-av i { position: absolute; right: -8px; bottom: -4px; font: 700 9.5px var(--mono); font-style: normal; background: var(--cap); color: #fff; border-radius: 6px; padding: 0 3px; }
+.seat-name { font-size: 11.5px; color: var(--text-2); max-width: 100%; }
+.seat-st { font: 600 10.5px var(--mono); }
+
+/* ownership */
+.own { display: flex; align-items: center; gap: 16px; }
+.own-leg { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; }
+.own-row { display: grid; grid-template-columns: 10px minmax(0, 1fr) 48px; gap: 8px; align-items: center; }
+.own-row i { width: 10px; height: 10px; border-radius: 2px; }
+.own-row b { text-align: right; color: #fff; }
+
+/* markets */
+.mk-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #1c2531; font-size: 12.5px; color: var(--text-2); }
+.mk-row:last-child { border-bottom: 0; }
+.mk-row b { min-width: 92px; text-align: right; color: #fff; }
+
+/* debt */
+.dk-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+.dk-tiles > .act-wrap, .dk-tiles > span { display: block; }
+.dk-tiles .otile { width: 100%; }
+
+/* deals */
+.offer2 { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid var(--line-2); border-radius: 7px; background: var(--panel-2); margin-bottom: 8px; }
