@@ -14,6 +14,10 @@ import type {
   AgendaId, EconPresetId, HiddenWorld, LabId, ProdParams, SafetyLatents, SafetyPosture, SetupV2, TimelineWorld, UModeId,
 } from '../types';
 
+/** Balance knob #1 (§7.4): global scale on difficultyMult [D]. Tried 1.4 in M4: it hurts the mixed bot more than
+ *  the race bot (Mis at ASI is world-driven), so it stays 1. */
+export const DIFFICULTY_SCALE = 1;
+
 export function pickWeighted<T extends { id: string; weight: number }>(rng: Rng, list: readonly T[], choice: string): T {
   if (choice !== 'realistic') return list.find((p) => p.id === choice) ?? list[0];
   return rng.weighted(list.map((p) => ({ item: p, weight: p.weight })));
@@ -56,7 +60,7 @@ export function sampleHidden(rng: Rng, setup: SetupV2): HiddenWorld {
   const shift = setup.alignment === 'easy' ? 0.8 : setup.alignment === 'hard' ? -0.8 : 0;
   latents.benignGeneralization += shift;
   latents.schemingDefault -= shift;
-  const difficultyMult = Math.exp(0.35 * (latents.schemingDefault - latents.benignGeneralization));
+  const difficultyMult = DIFFICULTY_SCALE * Math.exp(0.35 * (latents.schemingDefault - latents.benignGeneralization));
 
   // 4. Agenda efficacy.
   const agendaEfficacy = {} as Record<AgendaId, number>;

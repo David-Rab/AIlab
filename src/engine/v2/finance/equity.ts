@@ -3,6 +3,7 @@ import { dayOfQuarter, quarterIndex } from '../core/time';
 import type { GameStateV2, Money, Ownership, SystemCtx } from '../types';
 import { ensureWs3, yearStats, type PendingRound } from './ext';
 import { bookCash } from './ledger';
+import { runwayOf } from './runway';
 
 /** V = 22·(g/5)^0.4·(R/$20B)^−0.15·H·N·M·R (R15 §1.5). */
 export function valuationMark(g: number, R: number, H: number, N: number, M: number): number {
@@ -139,6 +140,12 @@ export function bookRound(s: GameStateV2, ctx: SystemCtx, amount: Money, pre: Mo
   return now;
 }
 
+/** Runway (quarters) below which a repriced round closes even as a down round [D, M4]. */
+export const DOWN_ROUND_RUNWAY_Q = 4;
+
+/** A pending round reprices only if the quarterly mark falls more than this below its term-sheet pre-money [D, M4]. */
+export const REPRICE_DROP = 0.25;
+
 /** Close the pending round at a quarter boundary: P(close) = exp(−(ask/max − 1)) above the ceiling; valuation discount
  *  0.5·(ask/max − 1) [R15]. */
 export function closePendingRound(s: GameStateV2, ctx: SystemCtx): void {
@@ -152,7 +159,17 @@ export function closePendingRound(s: GameStateV2, ctx: SystemCtx): void {
     ctx.bump('board.confidence', -5, 'failed raise');
     return;
   }
-  const pre = f.valuation * (1 - Math.min(0.6, 0.5 * over));
+  // The term sheet (pre-money when the round opened) protects the price if the quarterly mark dips (M4), unless it
+  // fell by more than REPRICE_DROP, when investors reprice to today's mark; a higher mark prices the round [D].
+  const mark = f.valuation;
+  const base = mark < r.preMoney * (1 - REPRICE_DROP) ? mark : Math.max(mark, r.preMoney);
+  const pre = base * (1 - Math.min(0.6, 0.5 * over));
+  // A repriced round that would now be a down round closes only if the company needs the cash (runway under
+  // DOWN_ROUND_RUNWAY_Q); otherwise the CEO pulls it (M4: the player never agreed to a down round) [D].
+  if (base === mark && pre < lastPostMoney(s) && runwayOf(s).q >= DOWN_ROUND_RUNWAY_Q) {
+    ctx.log('finance', `Investors repriced the $${r.ask.toFixed(0)}B round below the last valuation; you pulled it.`, 2);
+    return;
+  }
   const now = bookRound(s, ctx, r.ask, pre, { ...(r.anchor ? { anchor: r.anchor } : {}), ipo: r.ipo });
   if (r.ipo) {
     s.capital.ipoWindow = true;

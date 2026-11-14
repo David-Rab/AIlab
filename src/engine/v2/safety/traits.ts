@@ -288,6 +288,19 @@ function memoryOn(s: GameStateV2) {
   return adopted(s, 'P07') || adopted(s, 'P08');
 }
 
+/** Understanding-gap amplification (M4, §1.2 T1) [D]: while capability outruns understanding (U < L), behaviour the
+ *  safety stack can no longer see is reinforced instead of caught, so trait growth rises by up to GAP_GROWTH_K at a
+ *  gap of GAP_CAP_L levels. Reads the last weekly series sample (cheap; the readout the player sees). */
+export const GAP_GROWTH_K = 0.5;
+export const GAP_CAP_L = 3;
+export function understandingGapGrowth(s: GameStateV2): number {
+  const S = s.series;
+  const n = S?.U?.length ?? 0;
+  if (!n || !S.Lmeasured.length) return 1;
+  const gap = S.Lmeasured[S.Lmeasured.length - 1] - S.U[n - 1];
+  return 1 + GAP_GROWTH_K * Math.min(1, Math.max(0, gap) / GAP_CAP_L);
+}
+
 /** Engine environment for one of the player's runs (true weights, true difficulty, U-mode effects). */
 export function playerEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, uModes: readonly UModeId[]): TraitEnv {
   const mods = playerMods(s, post, lineage);
@@ -306,7 +319,7 @@ export function playerEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: nu
   const tier = tierOfLevel(levelOf(s.hidden.timeline, s.player.pa));
   return {
     signals: sg, omega, D: s.hidden.difficultyMult, w: s.hidden.edgeWeights, mods, amp: uModeAmp(uModes), removal,
-    removalMult: uModeRemovalMult(uModes), crystalAt: crystalThreshold(uModes), tierF: tier / 3, memory: memoryOn(s), growthMult: 1,
+    removalMult: uModeRemovalMult(uModes), crystalAt: crystalThreshold(uModes), tierF: tier / 3, memory: memoryOn(s), growthMult: understandingGapGrowth(s),
     bracket: { constitution: post?.pref === 'constitution', heavy: post?.safety === 'heavy', persuasion: post?.pref === 'persuasion', cast: inRun(s, post, 'T-CAST') },
     eaMult,
   };

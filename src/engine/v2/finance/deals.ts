@@ -153,6 +153,7 @@ export function acceptDeal(s: GameStateV2, ctx: SystemCtx, template: Template, p
     issue(f.ownership, Math.max(0, stake - (f.ownership.strat[partner] ?? 0)), { kind: 'strat', name: partner });
     addSeat(s, 'strategic', partner, 2);
     ctx.bump('board.confidence', 10, 'strategic rescue');
+    fx.lastRescueDay = s.time.day;
     ctx.log('alert', `${partner} rescues the company: $${t.equityNow.toFixed(0)}B for ${Math.round(stake * 100)}%, two board seats, exclusivity and IP rights.`, 4);
   } else {
     switch (template) {

@@ -65,6 +65,8 @@ const F_PRE: Record<SectorId, number> = (() => {
   return Object.fromEntries(SECTORS.map((d) => [d.id, feasibility(d, le)])) as Record<SectorId, number>;
 })();
 
+/** Hiring-rate adjustment time (years) [D, M4]. */
+export const HIRE_TAU = 0.05;
 export const hireRateOf = (sid: SectorId, F: number) => clamp01(1 - ECON.hireSlope * Math.max(0, F - F_PRE[sid]));
 
 /** Friction R_s for a region (research/16 §1A.2 step 4). */
@@ -226,7 +228,9 @@ function updateRegion(s: GameStateV2, ctx: SystemCtx, r: RegionId, mix: WorldMix
     const attrition = (ECON.attritionPerMonth * 12 * dt) * st.E;
     if (-dE > attrition) layoffs += -dE - attrition;
     st.E = target;
-    st.hireRate = hireRateOf(def.id, st.F);
+    // Hiring adjusts with a lag (M4) [D]: postings follow what the newest model can do over ~HIRE_TAU years instead
+    // of jumping on the release day.
+    st.hireRate += (hireRateOf(def.id, st.F) - st.hireRate) * Math.min(1, dt / HIRE_TAU);
     st.binding = bindingOf(st.F, st.K, st.R, st.A, st.Astar);
     Dw += D * st.E0;
     Ew += st.E0;

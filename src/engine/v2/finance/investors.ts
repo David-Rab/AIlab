@@ -78,14 +78,29 @@ function publicFrontierL(s: GameStateV2): number {
   return L;
 }
 
+/** Markets' initial expected public-frontier pace, levels per quarter (the 2025–26 reference release path) [D, M4]. */
+export const EXPECTED_DL_Q = 0.3;
+/** Quarterly adaptation of that expectation toward the observed pace [D, M4]. */
+export const EXPECT_ADAPT = 0.1;
+
 /** Hype update (R15): H_base' = 1 + 0.85(H_base − 1) + 0.15·surprise + 0.10·(g_sector − 3)/3; H = H_base − Σ shocks. */
 function updateHype(s: GameStateV2, gSector: number) {
   const c = s.capital;
   const w = c.ws3;
   const L = publicFrontierL(s);
-  const dL = w.lastFrontierL > 0 ? L - w.lastFrontierL : 0.5;
+  // Surprise = the public frontier's pace over the last four quarters against the expected pace (M4: releases are
+  // lumpy, so a one-quarter difference read every quiet quarter as a disappointment) [D].
+  const hist = (w.frontierHist ??= []);
+  const first = hist.length ? hist[0] : w.lastFrontierL;
+  const rate = first > 0 ? (L - first) / Math.max(1, hist.length) : EXPECTED_DL_Q;
+  hist.push(L);
+  if (hist.length > 4) hist.shift();
   w.lastFrontierL = L;
-  const surprise = Math.max(-1, Math.min(2, (dL - 0.5) / 0.5)); // ~0.5 levels/q expected [D]
+  // Adaptive expectations: the market's expected pace moves 10% a quarter toward the observed pace (floor 0.1 L/q),
+  // so a slow world is not a permanent disappointment and only a real acceleration surprises.
+  const expected = w.expectedDL ?? EXPECTED_DL_Q;
+  const surprise = Math.max(-1, Math.min(2, (rate - expected) / expected));
+  w.expectedDL = Math.max(0.1, expected + EXPECT_ADAPT * (rate - expected));
   w.hypeBase = 1 + 0.85 * (w.hypeBase - 1) + 0.15 * surprise + (0.1 * (gSector - 3)) / 3;
   c.shocks = c.shocks.filter((sh) => shockNow(sh, s.time.day) > 0.005);
   const shock = c.shocks.reduce((a, sh) => a + shockNow(sh, s.time.day), 0);

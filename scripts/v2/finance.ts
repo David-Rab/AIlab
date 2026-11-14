@@ -21,19 +21,9 @@ import { refDecide, refPlay } from '../../src/engine/v2/bots/ref';
 import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
 import { engine } from '../../src/engine/v2/index';
 import type { CostLine, EngineSystem, GameStateV2 } from '../../src/engine/v2/types';
-import { FIXTURE_DIR, KNOWN, check, finish, validateJson } from './lib';
+import { FIXTURE_DIR, check, finish, validateJson } from './lib';
 
-// M2 step 5, deferred to M4 (balance): on integrated play RefBot's 2026 revenue is in band ($40B median) but WS3's
-// autopilot (calibrated on the M1 reference revenue path) builds less and runs closer to the distress line. Tried in
-// step 5 without success: longer site horizon (11-12 q), tighter guards (4.5 q sites, 4 q chips), lump-aware runway,
-// accepting runway-improving deals — the distressed seeds are those that start the most sites in Q3-Q4 2025, whose
-// building-stage capex arrives in Q1 2026. The end-2026 mark is the Oct 2026 round's post-money (the next round, at
-// ~$1.4T median, closes on 1 Jan 2027). Values at f50c4c0+: capex median $127B, valuation $0.74T, 67% distress-free.
-Object.assign(KNOWN, {
-  'F7 RefBot 2026 capex $200B (±25%)': 'M4 balance: integrated RefBot builds ~$127B (autopilot guard binds; see comment).',
-  'F7 RefBot end-2026 valuation $1–3T': 'M4 balance: last round post-money $0.74T; the 1 Jan 2027 round marks ~$1.4T.',
-  'F8 RefBot stays out of distress through 2026 (≥ 75% of seeds)': 'M4 balance: 8/12 seeds (Q1 2026 site capex crunch on low-hype seeds).',
-});
+// M4: the M2 deferrals (F7 capex/valuation, F8 distress-free share) now pass on integrated play; see design/PROGRESS.md.
 
 const START = '2025-07-01';
 const END_2026 = dayOfDate(START, '2027-01-01');

@@ -420,6 +420,8 @@ export interface Deployment {
   versionId: string;
   channel: Channel;
   startDay: Day;
+  /** Day the current version went into this deployment (M4: a swap keeps startDay; set by swapDeployment). */
+  versionSince?: Day;
   priceIndex: number; // 1 = market reference price; player sets 0.5..2
   effort: 'low' | 'max' | 'deep'; // §3.3.2 effort setting (deep needs P05)
   servingShare: number; // share of the serving pool reserved (internal uses the agents pool)
@@ -798,6 +800,15 @@ export interface FinanceWS3 {
   negativeSinceDay?: Day;
   distressSinceDay?: Day;
   lastRenegotiationDay?: Day;
+  /** M4 board telegraph (§3.7.5): day the board first warned the CEO (E37) in the current low-confidence spell; the
+   *  ouster roll needs a prior warning. Cleared when confidence recovers. */
+  boardWarnDay?: Day;
+  /** Day the CEO was reinstated after an ouster vote (staff revolt, Nov 2023 precedent; once per game). */
+  reinstatedDay?: Day;
+  /** Quarter index of the last board-confidence charge for SPV guarantees (one charge per quarter). */
+  spvBcQ?: number;
+  /** Day of the last strategic rescue (one per year). */
+  lastRescueDay?: Day;
   /** Partner-funded share of capex for sites started before `untilDay` (mega-JV). */
   jv?: { partner: string; share: number; untilDay: Day };
   /** Day until which a custom-ASIC migration slows research (WS1 reads this, §3.7.4 −15% research efficiency). */
@@ -862,6 +873,10 @@ export interface CapitalWS3 {
   anchors: Record<string, LabId>;
   /** Public-frontier level a quarter ago (hype surprise term). */
   lastFrontierL: number;
+  /** Public-frontier level at the last 4 quarter marks (oldest first; M4 smoothed surprise). */
+  frontierHist?: number[];
+  /** Markets' expected public-frontier pace (levels/quarter), adapting to the observed pace (M4). */
+  expectedDL?: number;
   ipoOpenedDay?: Day;
   spreadAddBp: number;
 }

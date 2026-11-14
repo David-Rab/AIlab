@@ -14,7 +14,7 @@ import { REFERENCE_BASE } from '../../../data/v2/runDesign';
 import { EVENT_BY_ID } from '../core/registry';
 import { decimalYear } from '../core/time';
 import { shareRefAt, SPLIT_KEYS, withFixed } from '../departments/split';
-import { financeAutopilot, REF_AUTOPILOT } from '../finance/plan';
+import { financeAutopilot, financeDecide, REF_AUTOPILOT } from '../finance/plan';
 import { hRef } from '../production/knots';
 import type { BotPolicy, ComputeSplit, EngineApi, GameStateV2, ModelVersion, PendingDecision } from '../types';
 
@@ -110,7 +110,11 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   const latent = p.paradigms.P17?.status === 'adopted' && paradigms.includes('P17');
   const latentDue = latent && !m.bases.some((b) => b.design.shape === 'latent') && !m.runs.some((r) => r.status === 'running' && r.base?.shape === 'latent');
   if ((!baseRunning && day - lastBase >= BASE_EVERY) || latentDue) {
-    if (tryAct(s, api, 'launchBase', { ...(o.base ?? {}), shape: latent ? 'latent' : REFERENCE_BASE.shape, poolShare: 0.6 })) setFlag(s, 'lastBase', day);
+    // A lab whose training pool cannot deliver its base scale in time (BASE_MAX_DAYS) gives it most of the pool, then
+    // steps down a scale (stretch → frontier → compact), rather than never training a new base (M4).
+    const bp = { ...(o.base ?? {}), shape: latent ? 'latent' : REFERENCE_BASE.shape };
+    const scales = [...new Set([String(o.base?.scale ?? REFERENCE_BASE.scale), 'frontier', 'compact'])];
+    if (scales.some((scale) => tryAct(s, api, 'launchBase', { ...bp, scale, poolShare: 0.6 }) || tryAct(s, api, 'launchBase', { ...bp, scale, poolShare: 0.95 }))) setFlag(s, 'lastBase', day);
   }
 
   // Post-training every 6 weeks on the newest base (≤ 2 in flight). Skipped once the stream is running on the
@@ -198,8 +202,11 @@ export function choiceByLabel(d: PendingDecision, label: string): number {
   return i >= 0 ? i : (def?.defaultChoice ?? 0);
 }
 
-/** RefBot's decisions (§7.4): E17 Continue, E20 Accept, E23 Reject; everything else takes the event's default. */
-export function refDecide(_s: GameStateV2, d: PendingDecision): number {
+/** RefBot's decisions (§7.4): E17 Continue, E20 Accept, E23 Reject; finance decisions as a competent CEO
+ *  (financeDecide: E02 restructure, E26, E37); everything else takes the event's default. */
+export function refDecide(s: GameStateV2, d: PendingDecision): number {
+  const fin = financeDecide(s, d, REF_AUTOPILOT);
+  if (fin !== undefined) return fin;
   if (d.id === 'E17') return choiceByLabel(d, 'Continue');
   if (d.id === 'E20') return choiceByLabel(d, 'Accept');
   if (d.id === 'E23') return choiceByLabel(d, 'Reject');

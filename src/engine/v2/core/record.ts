@@ -20,7 +20,9 @@ export function sampleSeries(s: GameStateV2) {
   S.day.push(s.time.day);
   (S.L.player ??= []).push(r3(bestLg(s, 'player')));
   for (const r of otherLabs(s)) (S.L[r.core.id] ??= []).push(r3(bestLg(s, r.core.id)));
-  S.Lmeasured.push(r3(v?.evals.measuredL ?? 0));
+  // A freshly switched internal agent has no measurement yet: hold the last measured level instead of dropping to 0
+  // (M4 fix: the 0-dips made the causal replay report level swings of +40 on the 0–15 scale).
+  S.Lmeasured.push(r3(v?.evals.measuredL ?? S.Lmeasured[S.Lmeasured.length - 1] ?? 0));
   S.U.push(r3(understanding(s).U));
   S.M.push(r3(s.player.prodCache?.M ?? 1));
   S.cash.push(r3(s.player.finance.cash));

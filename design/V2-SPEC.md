@@ -1322,15 +1322,24 @@ If the board rejects, the action is blocked for 90 days and BC −5. If the play
 
 | Trigger | Change |
 |---|---|
-| Revenue plan met (per quarter) | +5 |
-| Plan missed | −10 |
+| Revenue plan met (per quarter; the next plan asks +15%/q) | +5 |
+| Plan missed (run-rate < 85% of plan, i.e. revenue fell) [M4] | −10 |
 | Down round | −15 |
-| Public incident | −10 to −30 |
+| Public incident | −10 to −30 each; at most −20 per quarter [M4] |
 | Covenant breach | −20 |
-| Lead over the best rival < 0 for a quarter | −5 |
+| Lead over the best rival < 0 for a quarter | −5 × board speed appetite [M4] |
+| Pause of frontier runs (E17) | −5 × board speed appetite [M4] |
+| Off-balance-sheet guarantee (SPV site) | −2, once per quarter [M4] |
 | Index grade ≥ B | +3 |
+| No news: drift toward 60 | 10% of the gap per quarter [M4] |
 
-**Ouster.** When BC < 25, roll p = 0.15/q (× 2 for the legacy preset). Ouster ends the game; the 'ousted' ending is reinstated instead if `morale.overall > 70`, which plays as an event chain (the Nov 2023 precedent).
+**Board speed appetite** = the voting seats' weighted mean speed stance plus the outside-ownership drift, clamped to 0.25–1.5. A mission-heavy board forgives caution that a growth board punishes.
+
+**Ouster (M4: telegraphed, with counterplay).**
+- **Warning.** When BC falls below 35 at a quarterly review, the board warns the CEO (alert) and E37 "Board revolt" fires (§4.2). The warning clears when BC is back at 45.
+- **Vote.** Only when BC < 25 **and** a warning is at least 60 days old: a vote is called with p = 0.15/q (× 2 for the legacy preset). It passes with P(weighted yes > half) over the voting seats other than the CEO's. The grievance is read from the last year's BC hits: public incidents ⇒ "too reckless" (replace with a careful CEO, v = [−0.5, 0.5, 1, 0.5]); down rounds, tight runway, covenants, failed raises, guarantees ⇒ "burning the company" (v = [−0.3, 1, 0, 0]); the rest ⇒ "too slow" (v = [1, 0.5, −0.5, −0.5]). Each seat votes yes with σ(stance′·v / 0.5), stance′ = stance + outside drift on speed and fin. A mission board shields a cautious CEO and turns on a reckless one (Nov 2023); financial and strategic seats do the opposite.
+- **Reinstatement** (the Nov 2023 precedent). If the vote passes while `morale.overall > 70`, staff revolt and the CEO is reinstated once per game: BC resets to 45 and a mission seat becomes an independent. Otherwise the game ends 'ousted'.
+- **Strategic rescue**: at most one per year.
 
 #### 3.7.6 Cash flow, ledger, runway
 
@@ -1764,6 +1773,7 @@ H1–H32 come from R16 §5. Each one fires once or with a cooldown.
 | E34 | Stale evals | Stream active and last audit > 21 d | **Freeze for audit**: stream paused 10 d (lag); beliefs refresh. **Continue**: sd keeps growing. |
 | E35 | We were wrong | U-mode discovered, or a FALSE finding revealed | **Disclose**: world learns (presence × 0.7 for all labs); credibility +5; scrutiny +10. **Keep secret**: advantage; P(leak) by access → ×3 trust loss. |
 | E36 | Capacity crunch | Demand > capacity by > 30% for 30 d | **Buy cloud now**: commitment; cash. **Raise price**: revenue holds; share −. **Ration**: brand −. |
+| E37 | Board revolt [M4] | Board confidence < 35 | **New directors**: two independents join (BC +15; a mission board shields you less). **Capex freeze**: no new sites or chip orders for 90 d (BC +10). **Rally staff**: morale −5; BC +15 with P = (morale − 40)/40, else −5. **Ignore**: BC −2; the ouster vote stays live. |
 
 **Coverage check.** These replace all 21 v1 events. Their mapping is listed in the WS4 README:
 - v1 `cashCrunch` → E26;
@@ -2307,4 +2317,9 @@ flowchart LR
 | 18 | Governance default | R15 four presets; OpenAI was legacy until Oct 2025 | Classic default is `legacyNonprofit`, with the recapitalisation decision (E02) as the first chunky finance choice. |
 | 19 | Compute-split reference | AI 2027 table vs AIFM definitions | AI 2027 usage shares by date (§3.2.1). Ratios to reference make the definitional difference irrelevant (R13 §2.11). |
 | 20 | Gaps filled by design | — | Staff cost/FTE, star-hire price, KYC cost, security spend curve, incident κ, investigation outcome probabilities, ending scores. All [D], all on the balance-knob list (§7.4). |
+| 21 | Company-loss endings dominated bot play (M2 bot table: ousted / insolvent / acquired in 60–100% of games) | M4 diagnosis | **Board (§3.7.5):** confidence drifts back toward 60 (10%/q); the revenue plan asks +15%/q and counts as missed only when revenue falls (< 85% of plan); incident hits cap at −20/q; SPV guarantees cost −2 once per quarter; slowness hits (behind a rival, E17 pause) scale with the board's speed appetite. **Ouster:** telegraphed (warning below 35, E37 "Board revolt" with counterplay), the vote rolls only after a ≥ 60-day-old warning, passes by a seat-stance majority read from the grievance, and a staff revolt (morale > 70) reinstates the CEO once. **Finance:** a round is priced at its term sheet (repriced only after a > 25% drop, and then pulled rather than closed as a down round unless runway < 4 q); one strategic rescue per year. All [D]. |
+| 22 | Investor pool far below C8 (R_sector ≈ the player alone; hype drifted to 0.7–0.8 in 2026) | R15 §1.4 vs integrated play | Rivals' revenue moves half-way each quarter to what WS5's market pays their public model (`labMarketRevenue`), so R_sector tracks the market (~2× the player in 2026). Hype surprise compares the public frontier's 4-quarter pace with an adaptive market expectation (0.3 L/q at start, 10%/q adaptation) instead of one lumpy quarter against 0.5 L/q. [D] |
+| 23 | T1 tension did not bite: Mis at ASI depended on the world, hardly on play (race ≈ ref ≈ mixed per seed) | M4 bot analysis | Understanding-gap amplification: while L exceeds U, trait growth in the player's runs rises by up to 50% at a 3-level gap (`GAP_GROWTH_K`, `GAP_CAP_L` [D]). Undetected behaviour is reinforced rather than caught (R14 E24). |
+| 24 | Engine bugs found in M4 | — | `preDeployTesting` bound forever after the first deployment swap (a swap keeps `startDay`; now `versionSince`); the `fullPlusExternal` gate checked `evals.bench`, which evaluators never write (now any external report); evaluators took versions oldest-first (now minis, then newest); `series.Lmeasured` dipped to 0 when the internal agent changed (causal replay showed "level +44"); risk-source rows summed to > 100% (first-to-ASI now one distribution; misuse goes through the §5.1 #4 chain; theft is its catastrophe contribution, not P(theft)). |
+| 25 | Bots managed capital badly | §7.4 | Shared competent-CEO finance (`financeDecide`, autopilot): restructure at E02, no raise into a down mark, renegotiate → rescue (keeping control) → down round at most once per 180 d, sell chips before insolvency, bounded bridge rentals; bases step down a scale when the pool cannot deliver them in time. Race keeps a 3-quarter guard; safe plans 50% of the reference build-out without partners; capex2x stays reckless (F8). |
 

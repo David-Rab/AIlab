@@ -18,6 +18,7 @@ import { placeLabOrder, RIVAL_GROWTH_Q } from '../compute/market';
 import { growLabStaff, labReferenceSplit, trackLabFrontier } from '../models/runs';
 import { initialSecurity } from '../security/security';
 import { capIndexV2, referenceRate } from '../world/calibration';
+import { labMarketRevenue } from '../worldfx/revenue';
 import { rivalId } from '../world/hidden';
 import type {
   BaselineId, EngineSystem, GameStateV2, HiddenWorld, LabId, RivalLab, RngLike, SafetyPosture, SimpleModel, StaffByRole, SystemCtx, TraitVector, UModeId,
@@ -387,13 +388,21 @@ export function deactivateRival(s: GameStateV2, ctx: SystemCtx, lab: LabId, stat
   ctx.log('rival', status === 'merged' ? `${r.core.name} is absorbed${into ? ` into ${into === 'player' ? s.player.name : (labOf(s, into)?.core.name ?? 'another lab')}` : ''}.` : `${r.core.name} shuts down its frontier program.`, 3);
 }
 
+/** Share of the gap to market revenue a rival closes each quarter [D, M4]. */
+export const RIVAL_REVENUE_TRACK = 0.5;
+
 /** Quarterly rival finance (geoQ): revenue, burn, raises, distress → merger offer / absorption / bankruptcy. */
 export function rivalFinanceQ(s: GameStateV2, ctx: SystemCtx) {
   const rng = ctx.rng('rivals');
   for (const r of activeRivals(s)) {
     const f = r.finance;
     const lead = leadBetween(s, 'player', r.core.id);
-    f.revenueRun *= 1.2 + 0.1 * clamp(-lead / 180, -1, 1);
+    // Revenue (M4): half-way each quarter toward what WS5's market pays this lab's public model (demand-side share of
+    // sector and consumer spend), so the private-lab sector run-rate — and with it the investor pool (R15 §1.4) —
+    // tracks the market [D]. Labs without a priced public model keep the archetype growth rule.
+    const mkt = labMarketRevenue(s, r.core.id);
+    if (mkt > 0) f.revenueRun += RIVAL_REVENUE_TRACK * (mkt - f.revenueRun);
+    else f.revenueRun *= 1.2 + 0.1 * clamp(-lead / 180, -1, 1);
     const spend = (r.core.computeOnline * 14e-6) * 1.1 + 0.4; // $B/yr ≈ $14k per H100e-yr all-in [D]
     f.cash += (f.revenueRun - spend) / 4;
     const parentFunded = r.archetype === 'bigtech' || r.archetype === 'openweights';

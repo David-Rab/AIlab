@@ -15,7 +15,8 @@ import { pLeak } from '../../actors/public';
 import { addCoverup } from '../../actors/relations';
 import { discoveryOdds } from '../../actors/researchBodies';
 import { ws4 } from '../../actors/state';
-import { L, P, ch, ev, requestOnly } from '../kit';
+import { L, P, ch, ev, pv, requestOnly } from '../kit';
+import { boardSpeedAppetite } from '../../finance/board';
 
 const RED: TraitId[] = ['SCHEME', 'AF', 'SAND'];
 
@@ -70,11 +71,11 @@ export const SAFETY_EVENTS: EventDefV2[] = [
       ? `Capability has outrun your understanding by ${Math.abs(Number(d.est))} levels. Your tools can no longer read ${internalVersion(s)?.name ?? 'the model'} reliably.`
       : `Probes suggest ${internalVersion(s)?.name ?? 'your internal model'} may be ${d.trait === 'SCHEME' ? 'scheming' : d.trait === 'AF' ? 'faking alignment' : 'sandbagging'} (estimate ${d.est}%).`,
     choices: [
-      ch('Pause & investigate', ['pause', 'safety', 'investigate'], P([L('leadDays', 60, 'frontier runs paused'), L('boardConf', 5)], [L('alignment', 0.2, 'investigation'), L('credibility', 2)]), (s, ctx, d) => {
+      ch('Pause & investigate', ['pause', 'safety', 'investigate'], (s) => pv([L('leadDays', 60, 'frontier runs paused'), L('boardConf', Math.round(5 * boardSpeedAppetite(s) * 10) / 10)], [L('alignment', 0.2, 'investigation'), L('credibility', 2)]), (s, ctx, d) => {
         ws4(s).frontierPauseUntil = ctx.day + 60;
         for (const r of s.player.models.runs) if (r.status === 'running' && (r.kind === 'base' || r.kind === 'post')) r.status = 'paused';
         if (typeof d.versionId === 'string' && d.trait !== 'U') openInvestigation(s, ctx, { kind: 'trait', versionId: d.versionId, trait: d.trait as TraitId }, 20);
-        boardConf(ctx, -5, 'E17 pause');
+        boardConf(ctx, -5 * boardSpeedAppetite(s), 'E17 pause');
         s.flags['ws4:outsideExpertsOffer'] = ctx.day;
       }),
       ch('Continue + control', ['control', 'balanced'], P([L('progress', 5, '% control tax')], [L('alignment', 0.1, 'control layer')]), (s) => {

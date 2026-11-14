@@ -1,6 +1,7 @@
 // Variants, deployments, the internal-agent version and distillation leakage (V2-SPEC §3.3.5). Owner: WS1
 // (revenue per deployment: WS5 writes deployment.revenueRate).
 import { PREDICATES, liveCommitments } from '../actors/commitments';
+import { ws4r } from '../actors/state';
 import type { Channel, Deployment, GameStateV2, LabId, ModelVersion, SystemCtx, Variant } from '../types';
 import { CHINA_ID, bestPm, rivalLab, versionById } from './labs';
 
@@ -22,6 +23,13 @@ export function liveDeployments(s: GameStateV2, channel?: Channel): Deployment[]
 
 const external = (c: Channel) => c !== 'internal';
 
+/** An external evaluator has tested this version (M4 fix: evaluators file reports — WS4's evalReports, and
+ *  evalIndep's behavioural suite in evals.safety — but never write evals.bench, so the old bench-only check could
+ *  never pass and a fullPlusExternal gate blocked every launch). */
+export function externallyEvaluated(s: GameStateV2, v: ModelVersion): boolean {
+  return ws4r(s).reportedVersions.includes(v.id) || Object.values(v.evals.bench).some((r) => r.by !== 'self') || Object.values(v.evals.safety).some((r) => r.by !== 'self');
+}
+
 /** Pre-deployment gate (§3.3.5): external channels need a suite ≤ 30 days old at the eval-gate depth. */
 export function deployGate(s: GameStateV2, v: ModelVersion, channel: Channel): true | string {
   if (!CHANNEL_VARIANTS[channel].includes(v.variant)) return `${channel} needs a ${CHANNEL_VARIANTS[channel].join('/')} variant`;
@@ -31,7 +39,7 @@ export function deployGate(s: GameStateV2, v: ModelVersion, channel: Channel): t
   const gate = s.player.safety.evalGate;
   if (gate !== 'none') {
     if (v.evals.suiteDay === undefined || s.time.day - v.evals.suiteDay > EVAL_MAX_AGE) return 'Eval suite older than 30 days';
-    if (gate === 'fullPlusExternal' && !Object.values(v.evals.bench).some((r) => r.by !== 'self')) return 'Needs an external evaluation';
+    if (gate === 'fullPlusExternal' && !externallyEvaluated(s, v)) return 'Needs an external evaluation';
   }
   for (const c of liveCommitments(s)) {
     const pred = PREDICATES[c.condition.predicate];
@@ -77,6 +85,7 @@ export function swapDeployment(s: GameStateV2, depId: string, versionId: string)
   const ok = deployGate(s, v, d.channel);
   if (ok !== true) return ok;
   d.versionId = v.id;
+  d.versionSince = s.time.day;
   if (d.channel === 'internal') s.player.models.internalAgent = v.id;
   if (v.status !== 'deployed') v.status = 'deployed';
   return undefined;

@@ -191,9 +191,17 @@ const decline: ActionDef = {
   },
 };
 
+/** One strategic rescue per year [D, M4]: a second rescue inside a year is a sale of control in all but name. */
+export const RESCUE_COOLDOWN_D = 365;
+
 const rescue: ActionDef = {
   id: 'fin.rescue', sphere: 'finance', owner: 'WS3', title: 'Rescue',
-  available: (s) => (s.player.finance.state === 'distress' ? (rescueOffer(s) ? true : 'No partner will rescue you') : 'Only in distress'),
+  available: (s) => {
+    const f = s.player.finance;
+    if (f.state !== 'distress') return 'Only in distress';
+    if (f.ws3?.lastRescueDay !== undefined && s.time.day - f.ws3.lastRescueDay < RESCUE_COOLDOWN_D) return 'Partners will not rescue you twice in a year';
+    return rescueOffer(s) ? true : 'No partner will rescue you';
+  },
   preview(s) {
     const o = rescueOffer(s);
     return o ? dealPreview(s, o) : { costs: [{ currency: 'freedom', amount: -2 }], gains: [], exposure: [] };
@@ -397,7 +405,10 @@ function siteOpts(p: P): SiteOpts {
 
 const site: ActionDef = {
   id: 'cmp.newSite', sphere: 'finance', owner: 'WS3', title: 'New site',
-  available: notInsolvent,
+  available: (s) => {
+    const b = blocked(s, 'cmp.newSite');
+    return b !== true ? b : notInsolvent(s);
+  },
   preview(s, p) {
     const o = siteOpts(p);
     const capex = siteCapex(o);
@@ -408,7 +419,7 @@ const site: ActionDef = {
     const costs: CostLine[] = o.path === 'lease'
       ? [{ currency: 'cash', amount: -(o.mw / 1000) * 1.2, target: 'lease per year × 5 (non-cancellable)' }, { currency: 'cash', amount: -capex, target: 'network fit-out' }]
       : [{ currency: 'cash', amount: -own, lagDays: eta, target: `capex${o.spv ? ' (20% share; SPV funds 80%)' : ''}` }];
-    if (o.spv) costs.push({ currency: 'boardConf', amount: -2 });
+    if (o.spv && s.player.finance.ws3?.spvBcQ !== qOf(s)) costs.push({ currency: 'boardConf', amount: -2, target: 'once per quarter' });
     const exposure: CostLine[] = [];
     if (odds.block > 0) exposure.push({ currency: 'compute', amount: -H, probability: Math.round(odds.block * 100) / 100, target: 'blocked by local opposition' });
     if (odds.delay > 0) exposure.push({ currency: 'compute', amount: -H, probability: Math.round(odds.delay * 100) / 100, lagDays: 182, target: 'delayed 1–3 quarters' });
@@ -423,7 +434,11 @@ const site: ActionDef = {
       return;
     }
     if (o.spv && !s.player.finance.deals.some((d) => d.template === 'spv')) s.player.finance.deals.push({ id: `DL${s.time.day}-spv`, template: 'spv', partner: 'Keystone Capital', day: s.time.day, strings: {} });
-    if (o.spv) ctx.bump('board.confidence', -2, 'off-balance-sheet guarantee');
+    // The board reviews off-balance-sheet guarantees once a quarter, not per site [D, M4].
+    if (o.spv && s.player.finance.ws3.spvBcQ !== qOf(s)) {
+      s.player.finance.ws3.spvBcQ = qOf(s);
+      ctx.bump('board.confidence', -2, 'off-balance-sheet guarantee');
+    }
     newSite(s, ctx, o);
   },
 };

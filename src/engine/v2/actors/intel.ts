@@ -8,6 +8,7 @@ import { understanding } from '../safety/understanding';
 import type { EngineSystem, GameStateV2, LabId, RivalLab, RiskSource, SystemCtx } from '../types';
 import { leadBetween, rateOf, rivalMis, RELEASE_LAG } from './rivals';
 import { ws4, ws4r } from './state';
+import { defenceIndex } from '../worldfx/readouts';
 
 /** EngineApi.leadDays: player's estimate of its lead over `other` (positive = player ahead), vs its best INTERNAL
  *  model (v1 bug fix). Inactive labs return {0, 0}. */
@@ -73,17 +74,27 @@ export function riskSources(s: GameStateV2): RiskSource[] {
   const doom = 0.4; // the player does not know the world's threshold; uses the published-default 0.40
   const curve = (mis: number) => sigmoid((mis - doom) / 0.06);
   const u = understanding(s);
+  // Who reaches ASI first (M4): one distribution over the player and every active lab, w ∝ exp(−days behind the
+  // estimated leader / 180) (the scoring epilogue's weights), so the lab rows no longer add up to more than 100%.
+  const labs: RivalLab[] = [...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])];
+  const behind = labs.map((r) => r.intel.leadDaysEst); // > 0: the player leads that lab
+  const lead = Math.max(0, ...behind.map((b) => -b)); // days the best lab is ahead of the player
+  const wPlayer = Math.exp(-lead / 180);
+  const wLab = behind.map((b) => Math.exp(-(lead + b) / 180));
+  const wSum = wPlayer + wLab.reduce((a, x) => a + x, 0);
+  const firstShare = (i: number) => wLab[i] / wSum;
   if (v) {
     const m = misalignmentEstimate(v);
     const sdAvg = Object.values(v.beliefs).reduce((a, b) => a + b.sd, 0) / Math.max(1, Object.keys(v.beliefs).length);
     const marginRisk = clamp(-u.margin / 3, 0, 1);
-    const est = clamp(curve(m) * 0.7 + 0.3 * marginRisk, 0, 1);
-    out.push({ id: 'own', label: s.player.name, kind: 'ownModel', estimate: est, band: [clamp(curve(m - sdAvg), 0, 1), clamp(curve(m + sdAvg) * 0.7 + 0.3 * marginRisk, 0, 1)], drivers: [{ label: 'Belief misalignment', share: 0.7 }, { label: 'Understanding gap', share: 0.3 }] });
+    const pFirst = wPlayer / wSum;
+    const est = clamp(pFirst * (curve(m) * 0.7 + 0.3 * marginRisk), 0, 1);
+    out.push({ id: 'own', label: s.player.name, kind: 'ownModel', estimate: est, band: [clamp(pFirst * curve(m - sdAvg) * 0.7, 0, 1), clamp(pFirst * (curve(m + sdAvg) * 0.7 + 0.3 * marginRisk), 0, 1)], drivers: [{ label: 'Belief misalignment', share: 0.7 }, { label: 'Understanding gap', share: 0.3 }] });
   }
   const labRow = (r: RivalLab, kind: 'rival' | 'china'): RiskSource => {
     const [lo, hi] = r.intel.misalignBand;
     const mid = (lo + hi) / 2;
-    const first = clamp(0.5 - r.intel.leadDaysEst / 365, 0.02, 0.98); // P(they reach ASI first), from lead estimate
+    const first = firstShare(labs.indexOf(r)); // P(they reach ASI first), from the lead estimates
     return {
       id: kind === 'china' ? 'china' : `rival:${r.core.id}`, label: r.core.name, kind,
       estimate: clamp(first * curve(mid), 0, 1), band: [clamp(first * curve(lo), 0, 1), clamp(first * curve(hi), 0, 1)],
@@ -94,9 +105,19 @@ export function riskSources(s: GameStateV2): RiskSource[] {
   if (s.china.lab.core.status === 'active') out.push(labRow(s.china.lab, 'china'));
   const w = ws4r(s);
   const misuseLevel = Math.max(0, ...(v ? [v.flags.bioUplift ? 0.3 : 0, v.flags.cyberOffense ? 0.25 : 0] : [0]));
-  out.push({ id: 'misuse', label: 'Misuse', kind: 'misuse', estimate: clamp(0.02 + misuseLevel, 0, 1), band: [0.01, clamp(0.05 + 2 * misuseLevel, 0, 1)], drivers: [{ label: 'Dangerous capability flags', share: 1 }] });
-  const theftEst = clamp(0.05 + (3.5 - s.player.security.wsl) * 0.15 + s.china.meters.theftIntent / 300, 0, 1);
-  out.push({ id: 'theft', label: 'Theft', kind: 'theft', estimate: theftEst, band: [clamp(theftEst - 0.1, 0, 1), clamp(theftEst + 0.1, 0, 1)], drivers: [{ label: 'Weight security', share: 0.6 }, { label: 'China intent', share: 0.4 }] });
+  // M4 recalibration: the flags give the chance of a severity-5 misuse incident; it turns civilisation-scale only
+  // through the §5.1 #4 chain (world tech exposure > 0.6, then P = 0.15·exposure·(1 − defence)). The old row read the
+  // flag level itself as P(catastrophe) (32% on the day-900 fixture).
+  const exposure = Math.max(0, ...Object.values(s.world.techs).map((t) => t.exposure));
+  const chain = exposure > 0.6 ? 0.15 * exposure * (1 - defenceIndex(s)) : 0.15 * exposure * 0.5 * (1 - defenceIndex(s));
+  const misuseEst = clamp(0.005 + misuseLevel * chain, 0, 1);
+  out.push({ id: 'misuse', label: 'Misuse', kind: 'misuse', estimate: misuseEst, band: [clamp(misuseEst / 2, 0, 1), clamp(0.01 + 2 * misuseLevel * Math.max(chain, 0.05), 0, 1)], drivers: [{ label: 'Dangerous capability flags', share: 0.6 }, { label: 'World tech exposure and defences', share: 0.4 }] });
+  // Theft: P(a weight theft) times what it adds to China's row (a stolen frontier puts DeepCent in the race) [D, M4];
+  // the row used to show the theft probability itself as a catastrophe probability.
+  const pTheft = clamp(0.05 + (3.5 - s.player.security.wsl) * 0.15 + s.china.meters.theftIntent / 300, 0, 1);
+  const cnMid = s.china.lab.core.status === 'active' ? (s.china.lab.intel.misalignBand[0] + s.china.lab.intel.misalignBand[1]) / 2 : 0;
+  const theftEst = clamp(pTheft * 0.3 * curve(cnMid), 0, 1);
+  out.push({ id: 'theft', label: 'Theft', kind: 'theft', estimate: theftEst, band: [clamp(theftEst / 2, 0, 1), clamp(Math.min(1, pTheft + 0.1) * 0.3 * curve(cnMid) + 0.01, 0, 1)], drivers: [{ label: 'Weight security', share: 0.6 }, { label: 'China intent', share: 0.4 }] });
   out.push({ id: 'rogue', label: 'Rogue copies', kind: 'rogue', estimate: w.loose ? 0.5 : 0.01, band: w.loose ? [0.2, 0.8] : [0, 0.05], drivers: [{ label: w.loose ? 'A copy is loose' : 'No known escape', share: 1 }] });
   const war = clamp(0.005 + 0.04 * s.china.rung, 0, 1);
   out.push({ id: 'war', label: 'War', kind: 'war', estimate: war, band: [war / 2, Math.min(1, war * 2)], drivers: [{ label: 'China posture ladder', share: 0.7 }, { label: 'Taiwan tension', share: 0.3 }] });

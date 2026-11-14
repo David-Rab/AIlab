@@ -35,8 +35,11 @@ export function researchBodiesWeekly(s: GameStateV2, ctx: SystemCtx) {
   const r = ctx.rng('actors');
   const day = ctx.day;
   const recent = (by: 'evalGov' | 'evalIndep') => w.evalReports.filter((x) => x.by === by).length;
-  for (const v of s.player.models.versions) {
-    if (v.status !== 'ready' && v.status !== 'deployed') continue;
+  // Release candidates first (M4): minis before full versions, newest first — evaluators used to take versions in
+  // creation order, so a lab with a fullPlusExternal gate saw its minis wait behind every internal checkpoint.
+  const queue = s.player.models.versions.filter((v) => v.status === 'ready' || v.status === 'deployed')
+    .sort((a, b) => (a.variant === 'mini' ? 0 : 1) - (b.variant === 'mini' ? 0 : 1) || b.day - a.day);
+  for (const v of queue) {
     if (w.reportedVersions.includes(v.id) || w.evalReports.some((x) => x.versionId === v.id)) continue;
     if (v.id === 'V0') continue;
     if (evalGovAccess(s) && recent('evalGov') < rb.evalGov.capacityPerQ) w.evalReports.push({ versionId: v.id, due: day + Math.round(r.range(14, 30)), by: 'evalGov' });

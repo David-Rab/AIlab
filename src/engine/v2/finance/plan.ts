@@ -8,10 +8,11 @@ import { SITE_PATHS } from '../../../data/v2/deals';
 import { act } from '../core/loop';
 import { dayOfQuarter } from '../core/time';
 import { siteCapacityH } from '../compute/power';
-import { refTotalAt } from '../compute/market';
-import type { GameStateV2 } from '../types';
+import { cloudPricePerYear, refTotalAt } from '../compute/market';
+import { EVENT_BY_ID } from '../core/registry';
+import type { GameStateV2, PendingDecision } from '../types';
 import { debtHeadroom } from './debt';
-import { canRaise } from './equity';
+import { canRaise, lastPostMoney } from './equity';
 import { qOf } from './ledger';
 import { runwayOf } from './runway';
 
@@ -28,14 +29,27 @@ export interface AutopilotOpts {
   rescue: boolean;
   /** Start the recapitalisation (legacy preset) when E02 would fire (Q4 2025). */
   recap: boolean;
+  /** Runway guard (quarters) for new sites when `guard` is on (default GUARD_Q); chips use guardQ − 0.5. */
+  guardQ?: number;
+  /** Raise equity only while runway is below this many quarters (undefined = every quarter at the ceiling). */
+  raiseBelowQ?: number;
+  /** Runway floor (quarters) the one-year bridge rental may not push below (default BRIDGE_FLOOR_Q). */
+  bridgeFloorQ?: number;
 }
 export const REF_AUTOPILOT: AutopilotOpts = { mult: 1, strategic: true, offBalance: true, guard: true, rescue: true, recap: true };
 export const CAPEX2X_AUTOPILOT: AutopilotOpts = { mult: 2, strategic: true, offBalance: true, guard: false, rescue: false, recap: true };
+/** Race-only bot (§7.4 "2× reference capex"): doubles the build-out but manages capital like a CEO who wants to keep
+ *  the company — a thin 3-quarter guard and rescue capital when cornered [D, M4]. */
+export const RACE_AUTOPILOT: AutopilotOpts = { mult: 2, strategic: true, offBalance: true, guard: true, rescue: true, recap: true, guardQ: 3 };
 
 /** Quarters ahead the autopilot plans site MW for [fit: F7 2026 capex]. */
 export const SITE_HORIZON_Q = 9;
 /** Prudent bots stop new capex below this runway (quarters) [D]. */
 export const GUARD_Q = 4.0;
+/** Guarded bots never let a one-year bridge rental take runway below this (quarters) [D, M4]. */
+export const BRIDGE_FLOOR_Q = 1.5;
+/** Prudent bots sign the strategic deal if runway after it stays above this (quarters) [D, M4]. */
+export const DEAL_GUARD_Q = 2.0;
 /** Chip orders (short-lived, resellable) use a looser guard [D]. */
 export const GUARD_CHIPS_Q = 3.5;
 const years = (_s: GameStateV2, day: number) => day / 365;
@@ -95,14 +109,26 @@ export function financeAutopilot(s: GameStateV2, o: AutopilotOpts = REF_AUTOPILO
   // Governance: start the recapitalisation when E02 fires (Q4 2025).
   if (o.recap && s.player.board.preset === 'legacyNonprofit' && f.ws3.recap.startDay === undefined && !f.ws3.recap.refused && s.time.day >= 92) tryAct('fin.recap');
 
-  // Distress: rescue (if allowed), otherwise sell nothing and wait.
-  if (f.state === 'distress') {
-    if (o.rescue) tryAct('fin.rescue');
+  // Distress (a competent CEO, M4): renegotiate first (warrants, once a year); if runway is still under 2 quarters,
+  // a strategic rescue when allowed and it would not hand the partner control, else a down round.
+  if (f.state === 'distress' || (f.state === 'tight' && runwayOf(s).q < 3.5)) {
     tryAct('fin.renegotiate');
+    if (f.state === 'distress' && runwayOf(s).q < 2) {
+      if (!(o.rescue && rescueKeepsControl(s) && tryAct('fin.rescue')) && !recentDownRound(s)) tryAct('fin.downRound');
+    }
   }
 
-  // Equity every quarter at the ceiling.
-  if (canRaise(s) === true && s.capital.ws3.playerPoolQ - s.capital.ws3.playerTakenQ > 1) tryAct('fin.raise');
+  // Last resort before insolvency: sell owned chips to cover a quarter's shortfall (a CEO who keeps the company).
+  if (f.state === 'distress' && f.cash < Math.max(1, 0.5 * runwayOf(s).burnQ)) {
+    const perH = (s.market.rental * 8760 * 1.5) / 1e9; // fin.sellChips resale value per H100e ($B)
+    const need = Math.max(1, runwayOf(s).burnQ) - f.cash;
+    if (perH > 0 && need > 0) tryAct('fin.sellChips', { qty: Math.max(1e4, need / perH) });
+  }
+
+  // Equity every quarter at the ceiling, unless the mark is below the last round's post-money (a down round) and
+  // runway does not force it.
+  const downMark = f.valuation < lastPostMoney(s);
+  if (canRaise(s) === true && s.capital.ws3.playerPoolQ - s.capital.ws3.playerTakenQ > 1 && (!downMark || runwayOf(s).q < 4) && (o.raiseBelowQ === undefined || runwayOf(s).q < o.raiseBelowQ)) tryAct('fin.raise');
 
   // One strategic hyperscaler deal (from Q4 2025, when the first offers arrive).
   if (o.strategic && s.time.day >= 92 && !f.deals.some((d) => d.template === 'hyperscalerEquity' && d.day >= 0)) {
@@ -111,12 +137,15 @@ export function financeAutopilot(s: GameStateV2, o: AutopilotOpts = REF_AUTOPILO
       const r = runwayOf(s);
       // Prudent bots sign only if runway stays above the chip guard after the commitment starts.
       const after = offer ? (r.liquidity + offer.equityNow) / Math.max(0.1, r.burnQ + offer.commitPerQ) : 0;
-      if (offer && (!o.guard || after >= GUARD_CHIPS_Q)) tryAct('fin.acceptDeal', { offerId: offer.id });
+      // The partner's cloud capacity replaces compute the autopilot would otherwise buy, so the guard is looser here.
+      if (offer && (!o.guard || after >= DEAL_GUARD_Q)) tryAct('fin.acceptDeal', { offerId: offer.id });
       else if (offer) tryAct('fin.declineDeal', { offerId: offer.id });
     }
   }
 
-  const prudent = !o.guard || runwayOf(s).q >= GUARD_Q;
+  const guardQ = o.guardQ ?? GUARD_Q;
+  const guardChipsQ = guardQ - (GUARD_Q - GUARD_CHIPS_Q);
+  const prudent = !o.guard || runwayOf(s).q >= guardQ;
   const q = qOf(s);
 
   // Sites (quarterly): MW for the target SITE_HORIZON_Q quarters out, as crash builds (the reference path grows
@@ -133,7 +162,7 @@ export function financeAutopilot(s: GameStateV2, o: AutopilotOpts = REF_AUTOPILO
       const mw = Math.min(SITE_PATHS[path].maxMW, Math.max(500, gap), path === 'brownfield' ? s.power.ws3.transformersGW * 1000 : Infinity);
       if (!tryAct('cmp.newSite', { path, mw, crash: true, spv: o.offBalance, community: true })) break;
       gap -= mw;
-      if (o.guard && runwayOf(s).q < GUARD_Q) break;
+      if (o.guard && runwayOf(s).q < guardQ) break;
     }
     if (s.power.ws3.transformersGW < 2) tryAct('cmp.preorderTransformers', { gw: 3 });
   }
@@ -147,15 +176,15 @@ export function financeAutopilot(s: GameStateV2, o: AutopilotOpts = REF_AUTOPILO
   }
 
   // Chips: fill MW expected 3 quarters out, up to the target net of long-term cloud.
-  if (!o.guard || runwayOf(s).q >= GUARD_CHIPS_Q) {
+  if (!o.guard || runwayOf(s).q >= guardChipsQ) {
     const day3 = dayOfQuarter(s.time.startDate, q + 3);
     const capH = siteCapacityH(s, mwBy(s, day3, false)) / Math.pow(0.944, 3);
     const want = Math.min(capH, target(s, o, day3 - s.time.day) - baseCloudAt(s, day3));
     let gap = want - ownedPipeline(s);
     if (o.guard) {
-      // Keep runway ≥ GUARD_CHIPS_Q: an order of $c (50% prepaid) adds 0.5c now and 0.5c/4 to quarterly burn.
+      // Keep runway ≥ guardChipsQ: an order of $c (50% prepaid) adds 0.5c now and 0.5c/4 to quarterly burn.
       const r = runwayOf(s);
-      gap = Math.min(gap, (Math.max(0, r.liquidity - GUARD_CHIPS_Q * Math.max(0, r.burnQ)) / (0.5 + 0.125 * GUARD_CHIPS_Q)) * 1e6 / s.market.listPrice);
+      gap = Math.min(gap, (Math.max(0, r.liquidity - guardChipsQ * Math.max(0, r.burnQ)) / (0.5 + 0.125 * guardChipsQ)) * 1e6 / s.market.listPrice);
     }
     if (gap > 0.05e6) tryAct('cmp.orderStandard', { qty: gap, prepay: 0.5 });
   }
@@ -163,7 +192,13 @@ export function financeAutopilot(s: GameStateV2, o: AutopilotOpts = REF_AUTOPILO
   // Bridge: one-year cloud (or spot rental) for what owned chips and contracts will not cover next quarter.
   const day1 = dayOfQuarter(s.time.startDate, q + 1);
   const ownedNext = Math.min(siteCapacityH(s, mwBy(s, day1, false)) / 0.944, ownedBy(s, q + 1));
-  const gap1 = target(s, o, day1 - s.time.day) - cloudAt(s, day1) - ownedNext;
+  let gap1 = target(s, o, day1 - s.time.day) - cloudAt(s, day1) - ownedNext;
+  if (o.guard && gap1 > 0) {
+    // Size the rental so runway stays ≥ bridgeFloorQ (M4: an unbounded bridge once signed $75B/yr of cloud).
+    const r = runwayOf(s);
+    const perQ = Math.max(0, r.liquidity / (o.bridgeFloorQ ?? BRIDGE_FLOOR_Q) - Math.max(0, r.burnQ));
+    gap1 = Math.min(gap1, (perQ * 4 * 1e6) / Math.max(1, cloudPricePerYear(s)));
+  }
   if (gap1 > 0.1e6 && (prudent || !o.guard)) {
     if (o.offBalance) tryAct('cmp.cloudContract', { h100e: gap1, years: 1, provider: 'Vantage Neocloud' });
     else tryAct('cmp.spotRental', { h100e: gap1 });
@@ -172,6 +207,50 @@ export function financeAutopilot(s: GameStateV2, o: AutopilotOpts = REF_AUTOPILO
   // Liquidity: draw the revolver when cash is under one quarter of burn.
   const r = runwayOf(s);
   if (f.cash < Math.max(2, r.burnQ) && debtHeadroom(s, 'revolver').max > 0.5) tryAct('fin.drawDebt', { kind: 'revolver', amount: Math.max(2, r.burnQ) - f.cash });
+}
+
+/** A down round in the last 180 days (one per distress spell). */
+const recentDownRound = (s: GameStateV2) => s.player.finance.rounds.some((r) => r.down && r.day > s.time.day - 180);
+
+/** A rescue tops the partner up to DEAL_TERMS.rescue.stake plus the cash stake; keep the largest strategic holder at
+ *  or below 45% so the company is not sold by accident. */
+function rescueKeepsControl(s: GameStateV2): boolean {
+  const strat = s.player.finance.ownership.strat;
+  return Math.max(0, ...Object.values(strat)) + 0.1 <= 0.45;
+}
+
+/**
+ * Competent-CEO answers to the finance decisions (M4), shared by every bot: E02 restructure (when `o.recap`); E26
+ * renegotiate, else a rescue (if allowed and control is kept), else a down round; E37 rally the staff when morale is
+ * high, freeze capex when runway is short or the CEO is cautious, otherwise add independent directors. Returns undefined for other events.
+ */
+export function financeDecide(s: GameStateV2, d: PendingDecision, o: AutopilotOpts = REF_AUTOPILOT): number | undefined {
+  const def = EVENT_BY_ID.get(d.id);
+  if (!def) return undefined;
+  const ok = (label: string) => {
+    const i = def.choices.findIndex((c) => c.label === label);
+    return i >= 0 && (def.choices[i].available?.(s) ?? true) === true ? i : -1;
+  };
+  const first = (...labels: string[]) => {
+    for (const l of labels) {
+      const i = ok(l);
+      if (i >= 0) return i;
+    }
+    return undefined;
+  };
+  switch (d.id) {
+    case 'E02': return o.recap ? first('Restructure') : first('Keep nonprofit');
+    case 'E26': return first('Renegotiate', ...(o.rescue && rescueKeepsControl(s) ? ['Strategic rescue'] : []), 'Cancel contracts', ...(runwayOf(s).q < 2 && !recentDownRound(s) ? ['Down round'] : []), 'Sell chips', 'Down round');
+    case 'E37': {
+      // New independents dilute a mission board that would shield a cautious CEO, so a cautious CEO (≥ 8% safety
+      // compute) rallies staff or freezes capex instead.
+      if (s.player.morale.overall >= 72) return first('Rally staff');
+      if (s.player.split.safety >= 0.08) return first('Capex freeze', 'Rally staff');
+      if (runwayOf(s).q < 4) return first('Capex freeze', 'New directors');
+      return first('New directors');
+    }
+    default: return undefined;
+  }
 }
 
 function isQuarterStart(s: GameStateV2) {

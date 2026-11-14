@@ -48,10 +48,19 @@ export const PREDICATES: Record<string, CommitmentPredicate> = {
   preDeployTesting: (s, p, c) => {
     const days = Number(p.days ?? 21);
     const since = c?.signedDay ?? 0;
+    // Gate check for a candidate launch (deployGate passes versionId/channel): the version must be `days` old.
+    if (p.versionId !== undefined) {
+      const v = versionOf(s, String(p.versionId));
+      return !!v && external(String(p.channel ?? 'api')) && v.day > since && s.time.day - v.day < days;
+    }
+    // Standing check: a live external deployment whose current version went in before its testing window closed,
+    // while that window is still open (M4 fix: a swap keeps startDay, so the old startDay − v.day test bound forever
+    // after the first swap and blocked every later launch).
     return s.player.deployments.some((d) => {
-      if (d.status !== 'live' || !external(d.channel) || d.startDay < since) return false;
+      if (d.status !== 'live' || !external(d.channel)) return false;
       const v = versionOf(s, d.versionId);
-      return !!v && v.day > since && d.startDay - v.day < days;
+      const inSince = d.versionSince ?? d.startDay;
+      return !!v && v.day > since && inSince >= since && inSince - v.day < days && s.time.day - v.day < days;
     });
   },
   /** No latent reasoning and no CoT-pressure runs after signing (F31 / E11 / WS2 safety.pledge): binds when a

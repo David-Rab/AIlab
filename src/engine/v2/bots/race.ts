@@ -2,7 +2,7 @@
 // 2× capex, 1% safety with no agendas above Seed, heavy cheap graders + engagement RLHF, stretch bases, latent
 // reasoning on sight, releases its frontier, never discloses, signs nothing, E17 Continue.
 // Model cadence: WS1's reference play with race designs; compute and money: WS3's autopilot at 2× capex, no guard.
-import { financeAutopilot } from '../finance/plan';
+import { financeAutopilot, financeDecide, RACE_AUTOPILOT } from '../finance/plan';
 import type { BotPolicy } from '../types';
 import { every, pickByTags, tryAct } from './common';
 import { REF_PARADIGMS, refPlay, type RefPlayOpts } from './ref';
@@ -20,7 +20,7 @@ export const raceBot: BotPolicy = {
   act(s, api) {
     if (s.time.day === 0) tryAct(s, api, 'safety.evalGate', { level: 'none' });
     refPlay(s, api, RACE_PLAY);
-    financeAutopilot(s, { mult: 2, strategic: true, offBalance: true, guard: false, rescue: false, recap: true });
+    financeAutopilot(s, RACE_AUTOPILOT);
     if (every(s, 30)) {
       tryAct(s, api, 'B4', { direction: 'deregulate' });
       tryAct(s, api, 'B2', { terms: 'unrestricted' });
@@ -30,6 +30,6 @@ export const raceBot: BotPolicy = {
     }
   },
   decide(s, d) {
-    return pickByTags(s, d, [['race', 'latent', 'release'], ['quiet', 'secrecy'], ['deny'], ['resist', 'decline']]);
+    return financeDecide(s, d, RACE_AUTOPILOT) ?? pickByTags(s, d, [['race', 'latent', 'release'], ['quiet', 'secrecy'], ['deny'], ['resist', 'decline']]);
   },
 };

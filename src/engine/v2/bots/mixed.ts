@@ -10,7 +10,7 @@ import { mAtLevel } from '../safety/common';
 import { decayAt } from '../safety/techniques';
 import type { AgendaId, BotPolicy, GameStateV2, TraitId } from '../types';
 import { clamp } from '../../rng';
-import { financeAutopilot, REF_AUTOPILOT } from '../finance/plan';
+import { financeAutopilot, financeDecide, REF_AUTOPILOT } from '../finance/plan';
 import { byLabel, every, pickByTags, tryAct } from './common';
 import { REF_PARADIGMS, refPlay, type RefPlayOpts } from './ref';
 
@@ -30,7 +30,8 @@ const MIXED_PLAY: RefPlayOpts = {
   safetyShare: (s) => {
     const m = understanding(s).margin;
     const cur = s.player.split.safety;
-    return clamp(m < -0.3 ? cur + 0.02 : m > 0.3 ? cur - 0.01 : cur, 0.03, 0.12);
+    // Act before the margin goes negative (M4): +3 points a month once it is under +0.5, −1 above +2.
+    return clamp(m < 0.5 ? cur + 0.03 : m > 2 ? cur - 0.01 : cur, 0.03, 0.12);
   },
   post: () => ({ pref: 'constitution', rlIntensity: 'heavyHardened', cot: 'visible', safety: 'standard', inoculation: true }),
   paradigms: (s) => (latentOk(s) ? REF_PARADIGMS : REF_PARADIGMS.filter((p) => p !== 'P17')),
@@ -82,6 +83,8 @@ export const mixedBot: BotPolicy = {
     }
   },
   decide(s, d) {
+    const fin = financeDecide(s, d, REF_AUTOPILOT);
+    if (fin !== undefined) return fin;
     switch (d.id) {
       case 'E03': return s.player.finance.deals.length ? byLabel(d, 'Decline', 2) : byLabel(d, 'Accept');
       case 'E04': return byLabel(d, 'Decline', 2);
