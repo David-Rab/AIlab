@@ -14,7 +14,7 @@ Single source of truth for where the build stands. Update at every milestone or 
 | M2 step 3: single finance ledger | Done | fc2ae9f |
 | M2 step 4: cross-workstream wiring | Done | 98c20cf, 0d0b808, c067c50, f8ff4c9 |
 | M2 step 5: whole `npm run test:v2` green, tick performance, bot table | Done (3 finance targets deferred to M4) | bf93f24, 0987ced, c0594e5, 25ad13c, f50c4c0, 3f4c9fe |
-| M3 UI shell and panels (WS6, WS7) | Not started | |
+| M3 UI shell and panels (WS6, WS7) | Done, merged (play with `?v2`); v2 uitest 88/88; full test:v2 green after merge | 5ff08b8..7e0ad07, merge 35b2609 |
 | M4 calibration and balance (bot criteria) | In progress: company loss fixed, F7/F8 and T1 met, 3/5 binding bot criteria | see M4 status |
 | M5 polish, tutorial, codex, v1 removal | Not started | |
 
