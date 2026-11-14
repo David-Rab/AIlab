@@ -846,7 +846,55 @@ export interface WorldEconomy {
   intelligenceCurse: boolean;
   /** Market share of each lab's models per sector (US); recomputed daily. */
   shares: Record<SectorId, Record<LabId, number>>;
+  /** WS5 ADDITIVE (M1, pending WS1 merge): bookkeeping for the world dynamics. See WorldFxState. */
+  fx: WorldFxState;
 }
+
+// ── WS5 ADDITIVE BLOCK (M1, pending WS1 merge) ──────────────────────────────────────────────────────────────
+/** World-dynamics bookkeeping owned by WS5 (worldfx/*). Plain JSON; observables only (no truth). */
+export interface WorldFxState {
+  /** Share of adults using AI assistants (INFO channel reach, research/16 §2.1). 0..1 */
+  consumerReach: number;
+  /** Share erosion from serving shortfall (V2-SPEC §3.11.3), by market. 0..0.9 */
+  capPenalty: { consumer: number; sector: number };
+  /** US employment of 22–25-year-olds vs counterfactual, by sector (Canaries, research/16 §1A.2 step 8). */
+  youthRel: Record<SectorId, number>;
+  /** Friction added by major incidents (+0.05 each) and court rulings; decays over a year. Per sector. */
+  incidentR: Record<SectorId, number>;
+  /** Day a player sector product becomes certified (+0.5 L, −0.1 R). */
+  certDay: Partial<Record<SectorId, Day>>;
+  /** AI automation output factor X (CES-bounded, research/16 §4.3), by region. 1 = no AI. */
+  autoLevel: Record<RegionId, number>;
+  /** GDP of the human (non-SEZ, no-automation) economy, $B, by region. */
+  trend: Record<RegionId, number>;
+  /** US SEZ output, $B/yr (0 until SEZs open). */
+  sezY: number;
+  /** Equity sentiment (Dow PE): hype and fear indices. */
+  hype: number;
+  fear: number;
+  /** Dow earnings base and the 1 Jan level (YTD headline). */
+  earn0: number;
+  dowJan: number;
+  /** US unemployment (%) at the last 13 month starts (newest last). */
+  uHist: number[];
+  /** AI capex $B/yr at the last macro tick; AI-lab revenue at start; best public level at start. */
+  aiCapexPrev: number;
+  aiRev0: number;
+  Lpub0: number;
+  /** US persons laid off in the last ~30 days (EWMA); youth unemployment at the last macro tick. */
+  layoffs30: number;
+  youthPrev: number;
+  /** Day SEZs opened (−1 = never). */
+  sezDay: Day;
+  /** Humanoid production (robots/yr), SEZ robot production (HWE/yr, included in robots.prodPerYear) and the US
+   *  share of the robot stock. */
+  humanoidProd: number;
+  sezProd: number;
+  robotUS: number;
+  /** Headline id → last day fired. */
+  hl: Record<string, Day>;
+}
+// ── end WS5 ADDITIVE BLOCK ────────────────────────────────────────────────────────────────────────────────
 
 export interface SectorState {
   F: number; K: number; R: number; Astar: number; A: number; alpha: number;
