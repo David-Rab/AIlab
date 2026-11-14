@@ -1,6 +1,7 @@
-// v2 UI wiring test (M3): boots v2 in a real browser (Edge, headless), starts games, clicks every control, tab and
+// v2 UI wiring test (M3, M5 UX): boots v2 in a real browser (Edge, headless), starts games, clicks every control, tab and
 // action button and checks the game state changes; opens and resolves a decision; runs fast-forward; screenshots
-// every panel to scripts/v2/shots/ (gitignored).
+// every panel and tab to scripts/v2/shots/ (gitignored). IA checks (design/ux/IA.md): every datum has one home
+// (data-home unique across screens), every Term resolves (no data-term-missing), no raw floats in rendered text.
 // Run: npm run build && node scripts/v2/uitest.mjs
 import { chromium } from 'playwright-core';
 import { mkdirSync, readFileSync } from 'node:fs';
@@ -46,7 +47,11 @@ async function check(name, expr, action, settle = 120) {
 /** Resolve any open decision modal (first enabled choice) and acknowledge notices. */
 async function closeModals() {
   for (let i = 0; i < 12; i++) {
-    const ch = await page.$('[data-test=decision] .choice:not([disabled])');
+    const rc = await page.$('[data-test=recap-ok]');
+    if (rc) { await rc.click(); await wait(40); continue; }
+    const hp = await page.$('[data-test=help-overlay]');
+    if (hp) { await page.evaluate(() => window.ai27v2.setHelp(false)); await wait(40); continue; }
+    const ch = await page.$('[data-test=decision] [data-choice]:not([disabled])');
     if (ch) { await ch.click(); await wait(60); continue; }
     const n = await page.$('[data-test=notice-ok]');
     if (n) { await n.click(); await wait(40); continue; }
@@ -63,6 +68,28 @@ const shot = (name) => page.screenshot({ path: path.join(SHOTS, `${name}.png`) }
 const clearTips = async () => { await page.mouse.move(1, 1); await page.keyboard.press('Escape'); };
 const nav = async (id) => { await closeModals(); await clearTips(); await page.click(`[data-nav=${id}]`); await wait(100); };
 const sig = `s ? s.decisions.length + ':' + JSON.stringify(s).length : 0`;
+/** IA checks on the current screen: homes (per screen), missing terms, raw floats. */
+const homesByScreen = new Map();
+const iaIssues = [];
+async function iaScan(screen) {
+  const r = await page.evaluate(() => {
+    const homes = [...document.querySelectorAll('main.center [data-home]')].map((e) => e.getAttribute('data-home'));
+    const shell = [...document.querySelectorAll('.topstrip2 [data-home], .nav2 [data-home], .bottombar2 [data-home]')].map((e) => e.getAttribute('data-home'));
+    const missing = [...document.querySelectorAll('[data-term-missing]')].map((e) => e.getAttribute('data-term'));
+    const text = document.body.innerText;
+    const floats = text.match(/\d\.\d{5,}/g) ?? [];
+    return { homes, shell, missing, floats };
+  });
+  const dupHere = r.homes.filter((h, i) => r.homes.indexOf(h) !== i);
+  if (dupHere.length) iaIssues.push(`${screen}: two homes for ${[...new Set(dupHere)].join(', ')}`);
+  for (const h of r.homes) if (r.shell.includes(h)) iaIssues.push(`${screen}: ${h} has a home in the shell AND in the panel`);
+  for (const h of new Set(r.homes)) { const set = homesByScreen.get(h) ?? new Set(); set.add(screen.replace(/^\w+:/, '')); homesByScreen.set(h, set); }
+  if (r.missing.length) iaIssues.push(`${screen}: unresolved terms ${[...new Set(r.missing)].join(', ')}`);
+  if (r.floats.length) iaIssues.push(`${screen}: raw floats ${r.floats.slice(0, 3).join(', ')}`);
+}
+/** Tabs of the current panel ([data-tabs] [data-tab]). */
+const tabsOf = () => page.$$eval('main.center [data-tabs] [data-tab]', (els) => els.map((e) => e.getAttribute('data-tab')));
+const tabTo = async (t) => { await clearTips(); await page.click(`main.center [data-tabs] [data-tab="${t}"]`); await wait(80); };
 
 // ───────────────────────── start + setup ─────────────────────────
 ok('Start screen', !!(await page.$('[data-test=start]')));
@@ -73,6 +100,9 @@ ok('Setup screen', !!(await page.$('[data-test=setup]')));
 for (const [k, v] of [['baseline', 'reality'], ['world', 'fast'], ['alignment', 'hard'], ['econ', 'gate'], ['governance', 'founder'], ['storyteller', 'chaotic'], ['gov', 'hawk'], ['public', 'doomer'], ['china', 'bargainer'], ['rivals', 'safety'], ['rivalCount', '3'], ['tutorial', 'false']]) {
   await check(`Setup ${k}=${v}`, `store.draftSetup.${k}`, () => page.click(`[data-picker=${k}] [data-opt="${v}"]`), 30);
 }
+await page.fill('[data-test=company]', 'Meridian');
+await wait(30);
+ok('Setup blocks a rival name', !!(await page.$('[data-test=name-clash]')) && (await page.$eval('[data-test=start-game]', (b) => b.disabled)));
 await check('Setup company name', 'store.draftSetup.companyName', () => page.fill('[data-test=company]', 'TestLab'), 30);
 await check('Setup seed', 'store.draftSetup.seed', () => page.fill('[data-test=seed]', '2027'), 30);
 await shot('01-setup');
@@ -84,9 +114,15 @@ await page.click('[data-test=start-game]');
 await wait(200);
 ok('Game started', (await get('store.screen')) === '"game"');
 ok('Company name applied', (await get('s.player.name')) === '"TestLab"' || (await get('s.setup.companyName')) === '"TestLab"');
-ok('Risk map is default center', (await get('store.panel')) === '"map"' && !!(await page.$('[data-panel=map]')));
+ok('Overview is the default centre', (await get('store.panel')) === '"overview"' && !!(await page.$('[data-panel=overview]')));
+ok('L0: no right rail', !(await page.$('.rail')));
+ok('L0: race, risk, cash, lead in the top strip', !!(await page.$('[data-test=race]')) && !!(await page.$('[data-test=risk]')) && !!(await page.$('[data-test=cash]')) && !!(await page.$('[data-test=lead]')));
+ok('Goals card in act 1', !!(await page.$('[data-test=goals]')));
 ok('Compute panel locked in act 1', await page.$eval('[data-nav=compute]', (b) => b.disabled));
 ok('World panel locked in act 1', await page.$eval('[data-nav=world]', (b) => b.disabled));
+ok('Coach card shows (race first)', (await page.$eval('[data-test=coach]', (e) => e.getAttribute('data-coach-step')).catch(() => '')) === 'race');
+await page.click('[data-test=coach-next]');
+await wait(80);
 ok('Coach card: first run', !!(await page.$('[data-coach=firstRun]')));
 await shot('02-game-act1');
 
@@ -106,6 +142,7 @@ await page.mouse.move(5, 500);
 await wait(300);
 // Coach card → run designer
 await check('Coach card opens run designer', 'store.panel', () => page.click('[data-coach=firstRun]'));
+await page.click('[data-test=coach-skip]').catch(() => {});
 await check('Recommended post-train', 'document.querySelector("[data-panel=rundesigner]").innerText', () => page.click('[data-test=rd-recommended]'));
 await check('Launch post-train', `s.player.models.runs.filter(r => r.status === 'running').length`, () => page.click('[data-act=launchPost]'));
 
@@ -140,10 +177,13 @@ if (pend.length) {
   if (!(await page.$('[data-test=decision]'))) await page.click(`[data-decision="${pend[0]}"]`);
   await wait(100);
   ok('Decision modal opens', !!(await page.$('[data-test=decision]')));
-  ok('Choices show previews', (await page.$$('[data-test=decision] .choice .pv')).length > 0);
+  ok('Choices show cards with previews', (await page.$$('[data-test=decision] .acard')).length > 0 && (await page.$$('[data-test=decision] .acard .pill2, [data-test=decision] .acard .ba')).length > 0);
+  await check('Decision: Later closes, key 1 not consumed by speed', 'store.modal || ""', () => page.click('[data-test=later]'));
+  if (!(await page.$('[data-test=decision]'))) await page.click(`[data-decision="${pend[0]}"]`);
+  await wait(80);
   await shot('03-decision');
   const inst = await page.$eval('[data-test=decision]', (el) => el.closest('.modal-backdrop') ? 1 : 0);
-  await check('Resolve decision', 's.events.pending.length + ":" + s.decisions.length', () => page.click('[data-test=decision] .choice:not([disabled])'));
+  await check('Resolve decision', 's.events.pending.length + ":" + s.decisions.length', () => page.click('[data-test=decision] [data-choice]:not([disabled])'));
   void inst;
 }
 // FF quarter + date + milestone, +1 day
@@ -165,6 +205,9 @@ await check('FF to date', 's.time.day', async () => {
 await closeModals();
 await pause();
 
+// Help overlay
+await check('Help overlay opens', `!!document.querySelector('[data-test=help-overlay]')`, () => page.click('[data-test=help]'), 60);
+await page.evaluate(() => window.ai27v2.setHelp(false));
 // Save / load / prefs / quit / continue
 await check('Menu opens', `!!document.querySelector('[data-test=menu-list]')`, () => page.click('[data-test=menu]'), 50);
 await check('Save slot 1', 'localStorage.getItem("ai27.v2.slot1") ? localStorage.getItem("ai27.v2.slot1").length : 0', () => page.click('[data-save="1"]'));
@@ -185,7 +228,7 @@ ok('Tutorial off unlocks compute', !(await page.$eval('[data-nav=compute]', (b) 
 // Advance a little so deployments/finance have content.
 await page.evaluate(() => window.ai27v2.step(20));
 await closeModals();
-const PANELS = ['finance', 'map', 'compute', 'departments', 'models', 'rundesigner', 'deployments', 'safety', 'relations', 'world', 'risk', 'codex'];
+const PANELS = ['finance', 'overview', 'company', 'compute', 'models', 'rundesigner', 'deployments', 'safety', 'relations', 'world', 'risk', 'codex'];
 for (const p of PANELS) await check(`Tab ${p}`, 'store.panel', () => nav(p), 60);
 
 // Click every enabled action button in every panel; skip the game-ending RETIRE (tested last).
@@ -194,6 +237,9 @@ const tally = { changed: 0, same: 0, rejected: 0 };
 const rejected = [];
 for (const p of PANELS) {
   await nav(p);
+  const tabs = await tabsOf();
+  for (const t of tabs.length ? tabs : ['']) {
+  if (t) { if ((await get('store.panel')) !== `"${p}"`) { await nav(p); if (t) await tabTo(t); } await tabTo(t); }
   const ids = await page.$$eval('[data-panel] [data-act]', (els) => [...new Set(els.filter((e) => !e.disabled).map((e) => e.getAttribute('data-act')))]);
   for (const id of ids) {
     if (SKIP.has(id)) continue;
@@ -212,28 +258,35 @@ for (const p of PANELS) {
     else if (flash) { tally.rejected++; rejected.push(`${p}:${id} → ${flash}`); }
     else tally.same++;
     if (JSON.parse(await get('s && s.ending ? 1 : 0'))) break;
+    if (t && (await get(`store.tab.${p} || ''`)) !== `"${t}"`) { await nav(p); await tabTo(t); }
   }
   await closeModals();
-  await shot(`10-${p}`);
+  await shot(`10-${p}${t ? '-' + t : ''}`);
+  }
 }
 ok(`Action buttons: ${tally.changed} changed state`, tally.changed >= 40, `${tally.same} no-op, ${tally.rejected} rejected`);
 for (const r of rejected) console.log(`     rejected ${r}`);
 
 // Controls that are not action buttons: segs, sliders, selects, toggles
-await nav('departments');
-await check('Split slider moves draft', `document.querySelector('[data-panel=departments]').innerText`, () => setSlider(page.locator('[data-panel=departments] .alloc-row input[type=range]').first(), 0.6));
+await nav('company');
+await tabTo('split');
+await check('Split slider moves draft', `document.querySelector('[data-panel=company]').innerText`, () => setSlider(page.locator('[data-panel=company] .split-row input[type=range]').first(), 0.6));
 await check('Apply split', 'JSON.stringify(s.player.split)', () => page.click('[data-act=setSplit]'));
+await tabTo('people');
 await check('Hiring slider + Set', 's.player.hiring.target.saf', async () => {
   await setSlider(page.locator('[data-dept=saf] input[type=range]'), 120);
   await page.click('[data-dept=saf] [data-act=hireTarget]');
 });
+await tabTo('flow');
+ok('Company flow renders', !!(await page.$('[data-home=computeFlow]')) && !!(await page.$('[data-home=M]')));
+await check('Flow pool click goes to the split', 'store.tab.company', () => page.click('[data-pool=experiments]'));
 await nav('finance');
 await check('Raise ask slider', `document.querySelector('[data-act="fin.raise"]').innerText`, () => setSlider(page.locator('[data-panel=finance] input[type=range]').first(), 3.3));
-await check('Debt kind seg', `document.querySelector('[data-panel=finance]').innerText`, () => page.locator('[data-panel=finance] .seg-btn', { hasText: 'gpuTerm' }).click());
+await check('Debt kind', `document.querySelector('[data-panel=finance]').innerHTML`, () => page.click('[data-panel=finance] [data-debt-kind=gpuTerm]'));
 await nav('rundesigner');
-await check('Run designer: kind base', `document.querySelector('[data-panel=rundesigner]').innerText`, () => page.locator('[data-panel=rundesigner] .seg-btn', { hasText: 'Base' }).first().click());
-await check('Run designer: shape latent', `document.querySelector('[data-panel=rundesigner]').innerText`, () => page.locator('[data-panel=rundesigner] .seg-btn', { hasText: 'latent' }).first().click());
-await page.locator('[data-panel=rundesigner] .seg-btn', { hasText: 'dense' }).first().click();
+await check('Run designer: kind base', `document.querySelector('[data-panel=rundesigner]').innerText`, () => page.click('[data-panel=rundesigner] [data-rd-kind=base]'));
+await check('Run designer: shape latent', `document.querySelector('[data-panel=rundesigner]').innerHTML`, () => page.click('[data-panel=rundesigner] [data-opt="shape:latent"]'));
+await page.click('[data-panel=rundesigner] [data-opt="shape:dense"]');
 await check('Run designer: save template', 'localStorage.getItem("ai27.v2.runTemplates")', () => page.click('[data-test=rd-save]'));
 await check('Launch base run', `s.player.models.runs.filter(r => r.kind === 'base').length`, () => page.click('[data-act=launchBase]'));
 await closeModals();
@@ -241,7 +294,7 @@ await nav('models');
 const vids = JSON.parse(await get('s.player.models.versions.map(v => v.id)'));
 if (vids.length > 1) await check('Select version in lineage', 'store.sel.versionId', () => page.click(`[data-version="${vids[0]}"]`));
 await nav('deployments');
-await check('Deploy channel seg', `document.querySelector('[data-panel=deployments]').innerText`, () => page.locator('[data-panel=deployments] .seg-btn', { hasText: 'enterprise' }).click());
+await check('Deploy channel', `document.querySelector('[data-panel=deployments]').innerHTML`, () => page.click('[data-panel=deployments] [data-channel-opt=enterprise]'));
 const dep = JSON.parse(await get(`(s.player.deployments.find(d => d.status === 'live' && d.channel !== 'internal' && d.channel !== 'open') || {}).id || ''`));
 if (dep) {
   await check('setServing: per-deployment share', `s.player.deployments.find(d => d.id === "${dep}").servingShare`, async () => {
@@ -250,21 +303,26 @@ if (dep) {
   });
 }
 await nav('safety');
-await check('Agenda level seg', 'JSON.stringify(s.player.safety.agendas.AG02)', () => page.locator('[data-agenda=AG02] .seg-btn', { hasText: 'M' }).click());
-await check('Eval gate seg', 's.player.safety.evalGate', () => page.locator('[data-panel=safety] .seg-btn', { hasText: 'basic' }).click());
+for (const t of await tabsOf()) await check(`Safety tab ${t}`, 'store.tab.safety || ""', () => tabTo(t), 30).catch(() => {});
+await tabTo('graph');
+ok('Trait graph is the first tab', !!(await page.$('[data-test=traitgraph]')));
 await nav('codex');
 await check('Codex category', `document.querySelector('.codex-entry').innerText`, () => page.click('[data-codex-cat="Traits"]'));
 await check('Codex search', `document.querySelector('.codex-list').innerText`, () => page.fill('[data-test=codex-search]', 'scheming'));
-await nav('map');
-await check('Risk overlay', `document.querySelector('[data-panel=map]').innerHTML.length`, () => page.locator('[data-panel=map] .seg-btn', { hasText: 'Risk overlay' }).click());
-await check('Map node opens panel', 'store.panel', () => page.click('[data-node=player]'));
+await nav('risk');
+await tabTo('flows');
+await check('Flows node opens panel', 'store.panel', () => page.click('[data-node=player]'));
 
-// Right rail and bottom bar
-await nav('map');
-await check('Rail: relations link', 'store.panel', () => page.click('[data-test=miniweb] .mini'));
-ok('Bottleneck bar renders', !!(await page.$('[data-test=bottleneck] .stack')));
-ok('Rival cards render', (await page.$$('[data-test=rivals] .rival-card')).length >= 3);
-ok('Ticker renders', !!(await page.$('[data-test=ticker]')));
+// Overview (L1) and bottom bar
+await nav('overview');
+ok('Lead track lanes', (await page.$$('[data-lane]')).length >= 3);
+ok('Watch card renders', !!(await page.$('[data-test=watch]')));
+await check('Lead lane opens Relations', 'store.panel', () => page.click('[data-lane]'));
+await nav('overview');
+const go = await page.$('[data-test=watch] [data-go]');
+if (go) await check('Watch Go jumps to the control', 'store.panel', () => go.click());
+ok('Headline renders', !!(await page.$('[data-test=ticker]')));
+await check('Race meter click opens Safety graph', 'store.panel + store.tab.safety', () => page.click('[data-test=race]'));
 
 // ───────────────────────── Game C: day-400 fixture, screenshots of every panel ─────────────────────────
 const fx = readFileSync(path.resolve('scripts/v2/fixtures/day400.json'), 'utf8');
@@ -273,20 +331,48 @@ ok('Import day-400 fixture', err === '', err);
 await page.evaluate(() => { window.ai27v2.state.setup.tutorial = false; window.ai27v2.notify(); });
 for (const p of PANELS) {
   await nav(p);
-  await wait(80);
-  await shot(`20-day400-${p}`);
+  const tabs = await tabsOf();
+  for (const t of tabs.length ? tabs : ['']) {
+    if (t) await tabTo(t);
+    await wait(80);
+    await iaScan(`day400:${p}${t ? '.' + t : ''}`);
+    await shot(`20-day400-${p}${t ? '-' + t : ''}`);
+  }
 }
 const fx9 = readFileSync(path.resolve('scripts/v2/fixtures/day900.json'), 'utf8');
 await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
 await page.evaluate(() => { window.ai27v2.state.setup.tutorial = false; window.ai27v2.notify(); });
-for (const p of ['map', 'safety', 'world', 'risk', 'relations', 'models']) { await nav(p); await shot(`30-day900-${p}`); }
+for (const p of PANELS) {
+  await nav(p);
+  const tabs = await tabsOf();
+  for (const t of tabs.length ? tabs : ['']) {
+    if (t) await tabTo(t);
+    await wait(60);
+    await iaScan(`day900:${p}${t ? '.' + t : ''}`);
+    await shot(`30-day900-${p}${t ? '-' + t : ''}`);
+  }
+}
+// Hover states for the record
+await nav('overview');
+await page.hover('[data-test=race]');
+await wait(500);
+await shot('32-day900-hover-race');
+await clearTips();
+await page.hover('[data-test=cash]');
+await wait(500);
+await shot('33-day900-hover-cash');
+await clearTips();
+const multi = [...homesByScreen.entries()].filter(([, v]) => v.size > 1);
+for (const [h, v] of multi) iaIssues.push(`${h} has homes on several screens: ${[...v].join(', ')}`);
+ok('IA: one home per datum, terms resolve, no raw floats', iaIssues.length === 0, iaIssues.slice(0, 8).join(' | '));
+for (const x of iaIssues.slice(8, 30)) console.log('     ' + x);
 
 // Speed-4 run on the fixture for 2 s: no errors, alerts appear
 await page.click('[data-speed="4"]');
 await wait(2000);
 await pause();
 await closeModals();
-ok('Alerts/decisions shown in queue', (await page.$$('.queue-row .alert-chip, .queue-row .dec-chip')).length > 0);
+ok('Alerts/decisions shown in queue', (await page.$$('.queue-row .alert-chip2, .queue-row .dec-chip2')).length > 0);
 await shot('31-day900-running');
 
 // ───────────────────────── end screen ─────────────────────────

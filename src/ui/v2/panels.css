@@ -26,3 +26,17 @@
 .stack2 { display: flex; height: 10px; border-radius: 3px; overflow: hidden; gap: 2px; margin: 4px 0; }
 .split-bar { display: flex; height: 14px; border-radius: 4px; overflow: hidden; gap: 2px; margin-bottom: 10px; }
 .split-row { display: grid; grid-template-columns: 160px 280px 54px 1fr; gap: 10px; align-items: center; padding: 3px 4px; }
+/* models */
+.models-grid { gap: 12px; }
+.col2 { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.card-grid2 { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 16px; }
+.act-groups { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+.act-group { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+/* relations, world */
+.rel-stats { display: inline-flex; gap: 8px; }
+.rel-stat { display: inline-flex; align-items: center; gap: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 7px; padding: 4px 10px; font-size: 12px; color: var(--text-2); }
+.rel-stat b { color: #fff; font-size: 14px; }
+.ctrl-thr-l { position: absolute; top: 14px; left: 2px; font-size: 9px; color: var(--text-3); white-space: nowrap; }
+.ctrl-row { margin: 4px 0 14px; }
+.heat td { color: #fff; }
+.heat-v { text-shadow: 0 1px 2px rgba(0,0,0,.6); }

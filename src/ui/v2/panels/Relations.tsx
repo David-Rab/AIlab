@@ -5,7 +5,11 @@ import { RELATION_ACTION_META } from '../../../data/v2/actions';
 import { actionView, activeRivals, dateOf, fmtDate, keptShare, liveCommitments } from '../../../engine/v2';
 import type { CounterpartyId, GameStateV2 } from '../../../engine/v2';
 import { ActBtn, Bipolar, Gate, Meter, pct, Row, Section, Term, Tip, TipCard, Why, type Params } from '../ui';
-import { trustColor } from '../shell/RightRail';
+import { PanelHead } from '../kit';
+import { ICON } from '../icons';
+export function trustColor(t: number) {
+  return t >= 65 ? 'var(--good)' : t >= 45 ? 'var(--accent)' : t >= 25 ? 'var(--watch)' : 'var(--bad)';
+}
 
 const CP_LABEL: Record<string, string> = { exec: 'Executive', congress: 'Congress', states: 'States', evalGov: 'Gov evaluators', evalIndep: 'Indep. evaluators', academia: 'Academia', china: 'China' };
 const GROUPS: Record<string, string> = { A: 'Testing & transparency', B: 'Government', C: 'Rivals', D: 'Research & data', E: 'China & allies', F: 'Public', S: 'Security', X: 'Exit' };
@@ -27,7 +31,7 @@ function Arrows({ id, p, s }: { id: string; p: Params; s: GameStateV2 }) {
   const t = sum('trust');
   const c = sum('credibility');
   const arrow = (x: number) => (x > 0 ? <span className="tone-pos">▲</span> : x < 0 ? <span className="tone-neg">▼</span> : <span className="dim">·</span>);
-  return <span className="arrows small" title="trust · credibility">{arrow(t)}T {arrow(c)}C</span>;
+  return <Tip content={() => <TipCard title="Effect on trust and credibility">▲ raises, ▼ lowers. T = [[trust]] of the counterparty, C = your [[credibility]]. Hover the button for amounts.</TipCard>}><span className="arrows small">{arrow(t)}T {arrow(c)}C</span></Tip>;
 }
 
 export function Relations({ s }: { s: GameStateV2 }) {
@@ -36,9 +40,16 @@ export function Relations({ s }: { s: GameStateV2 }) {
   const rb = s.researchBodies;
   return (
     <div className="panel-v2 grid2" data-panel="relations">
-      <Section title="Counterparties" right={<span className="num small"><Why k="relations.credibility" title="Credibility" body="See [[credibility]]."><span>cred {s.relations.credibility.toFixed(0)}</span></Why> · <Why k="relations.scrutiny" title="Scrutiny"><span>scrutiny {s.relations.scrutiny.toFixed(0)}</span></Why></span>}>
+      <div className="span2"><PanelHead icon={ICON.relations} title="Relations" sub="government, public, rivals, China and evaluators" right={
+        <span className="rel-stats">
+          <Why k="relations.credibility" title="Credibility" body="See [[credibility]]."><span className="rel-stat" data-home="credibility"><ICON.credibility size={14} /><Term id="credibility">Credibility</Term> <b className="num">{s.relations.credibility.toFixed(0)}</b></span></Why>
+          <Why k="relations.scrutiny" title="Scrutiny" body="See [[scrutiny]]." invert><span className="rel-stat" data-home="scrutiny"><ICON.scrutiny size={14} /><Term id="scrutiny">Scrutiny</Term> <b className="num">{s.relations.scrutiny.toFixed(0)}</b></span></Why>
+          <Why k="pub.approval" title="Net approval" body="See [[approval]]."><span className="rel-stat" data-home="approval"><ICON.approval size={14} /><Term id="approval">Approval</Term> <b className="num">{s.pub.approval > 0 ? '+' : ''}{s.pub.approval.toFixed(0)}</b></span></Why>
+          <Why k="pub.concern" title="Concern" body="See [[concern]]." invert><span className="rel-stat" data-home="concern"><Term id="concern">Concern</Term> <b className="num">{s.pub.concern.toFixed(0)}</b></span></Why>
+        </span>} /></div>
+      <Section title={<Term id="counterparty">Counterparties</Term>}>
         <table className="tbl">
-          <thead><tr><th>Who</th><th><Term id="trust">Trust</Term></th><th><Term id="access">Access</Term></th><th><Term id="favors">Favors</Term></th><th>Dep on you / yours</th></tr></thead>
+          <thead><tr><th>Who</th><th><Term id="trust">Trust</Term></th><th><Term id="access">Access</Term></th><th><Term id="favors">Favors</Term></th><th><Term id="dependence">Dependence</Term> on you / yours</th></tr></thead>
           <tbody>
             {cps.map((k) => {
               const st = stocks[k];
@@ -58,24 +69,24 @@ export function Relations({ s }: { s: GameStateV2 }) {
       </Section>
 
       <Section title="Government · China">
-        <Row label="Gov preset · priority"><span className="small">{s.gov.preset} · AI priority {s.gov.aiPriority.toFixed(0)} · reg {s.gov.regStance.toFixed(0)}</span></Row>
-        <Row label="Security demand"><Why k="gov.securityDemand" title="Security demand"><Meter value={s.gov.securityDemand} width={90} color="var(--gov)" /><span className="num">{s.gov.securityDemand.toFixed(0)}</span></Why></Row>
-        <Row label="Nationalization"><Why k="gov.nationalization" title="Nationalization pressure"><Meter value={s.gov.nationalization} width={90} color="var(--neg)" /><span className="num">{s.gov.nationalization.toFixed(0)}</span></Why></Row>
+        <Row label="Government · AI priority"><span className="small">{s.gov.preset} · AI priority {s.gov.aiPriority.toFixed(0)} · reg {s.gov.regStance.toFixed(0)}</span></Row>
+        <Row label={<Term id="securityDemand">Security demand</Term>}><Why k="gov.securityDemand" title="Security demand"><Meter value={s.gov.securityDemand} width={90} color="var(--gov)" /><span className="num">{s.gov.securityDemand.toFixed(0)}</span></Why></Row>
+        <Row label={<Term id="nationalization">Nationalization</Term>}><Why k="gov.nationalization" title="Nationalization pressure"><Meter value={s.gov.nationalization} width={90} color="var(--neg)" /><span className="num">{s.gov.nationalization.toFixed(0)}</span></Why></Row>
         <Gate s={s} k="govLadder">
           <Row label={<Term id="ladderSec">G-SEC</Term>}><Ladder n={5} at={s.gov.rungSec} /><span className="small">{SEC_RUNG[s.gov.rungSec]}</span></Row>
           <Row label="G-CHN"><Ladder n={4} at={s.gov.rungChn} /><span className="small">{CHN_RUNG[s.gov.rungChn]}</span></Row>
         </Gate>
         <Gate s={s} k="statutes">
-          <Row label="Statutes"><span className="small">{Object.entries(s.gov.statutes).filter(([, x]) => x).map(([k]) => k).join(', ') || 'none'}</span></Row>
+          <Row label={<Term id="statute">Statutes</Term>}><span className="small">{Object.entries(s.gov.statutes).filter(([, x]) => x).map(([k]) => k).join(', ') || 'none'}</span></Row>
         </Gate>
         <Gate s={s} k="oversight">
-          <Row label="Oversight · treaty"><span className="small">{s.gov.oversight ? 'committee formed' : 'no committee'} · {s.gov.treaty}</span></Row>
+          <Row label={<span><Term id="oversight">Oversight</Term> · <Term id="treaty">treaty</Term></span>}><span className="small">{s.gov.oversight ? 'committee formed' : 'no committee'} · {s.gov.treaty}</span></Row>
         </Gate>
         <Gate s={s} k="chinaLadder">
           <Row label={<Term id="ladderChn">China rung</Term>}><Ladder n={6} at={s.china.rung} danger /><span className="small">{CN_RUNG[s.china.rung]}</span></Row>
-          <Row label="De-escalation"><Ladder n={5} at={s.china.deesc} /><span className="small">D{s.china.deesc}</span></Row>
-          <Row label="Theft intent · Taiwan"><Why k="china.theftIntent" title="China theft intent"><span className="num">{s.china.meters.theftIntent.toFixed(0)}</span></Why><span className="num"> · {s.china.meters.taiwanTension.toFixed(0)}</span></Row>
-          <Row label="Hawk–dove"><Bipolar value={s.china.meters.hawkDove} /></Row>
+          <Row label={<Term id="deesc">De-escalation</Term>}><Ladder n={5} at={s.china.deesc} /><span className="small">D{s.china.deesc}</span></Row>
+          <Row label={<span><Term id="theftIntent">Theft intent</Term> · <Term id="taiwanTension">Taiwan</Term></span>}><Why k="china.theftIntent" title="China theft intent"><span className="num">{s.china.meters.theftIntent.toFixed(0)}</span></Why><span className="num"> · {s.china.meters.taiwanTension.toFixed(0)}</span></Row>
+          <Row label={<Term id="hawkDove">Hawk–dove</Term>}><Bipolar value={s.china.meters.hawkDove} /></Row>
         </Gate>
       </Section>
 
@@ -90,11 +101,11 @@ export function Relations({ s }: { s: GameStateV2 }) {
         </Gate>
       </Section>
 
-      <Section title="Research bodies · Index">
+      <Section title={<Term id="researchBodies">Research bodies · Index</Term>}>
         <Gate s={s} k="researchBodies">
-          <Row label="Gov evaluators"><span className="small">slots {rb.evalGov.capacityPerQ}/q · queue {rb.evalGov.queue.length} · publish {rb.evalGov.publishPressure.toFixed(0)}</span></Row>
-          <Row label="Indep. evaluators"><span className="small">slots {rb.evalIndep.capacityPerQ}/q · queue {rb.evalIndep.queue.length} · publish {rb.evalIndep.publishPressure.toFixed(0)}</span></Row>
-          <Row label="Academia"><span className="small">pipeline {rb.academia.pipeline.toFixed(0)} · lag {rb.academia.publishLagDays} d</span></Row>
+          <Row label={<Term id="evalGov">Gov evaluators</Term>}><span className="small">slots {rb.evalGov.capacityPerQ}/q · queue {rb.evalGov.queue.length} · publish {rb.evalGov.publishPressure.toFixed(0)}</span></Row>
+          <Row label={<Term id="evalIndep">Indep. evaluators</Term>}><span className="small">slots {rb.evalIndep.capacityPerQ}/q · queue {rb.evalIndep.queue.length} · publish {rb.evalIndep.publishPressure.toFixed(0)}</span></Row>
+          <Row label={<Term id="academia">Academia</Term>}><span className="small">pipeline {rb.academia.pipeline.toFixed(0)} · lag {rb.academia.publishLagDays} d</span></Row>
         </Gate>
         <Gate s={s} k="index">
           <Row label={<Term id="index">Index</Term>}><span className="small">{rb.index.lastEdition !== undefined ? fmtDate(dateOf(s, rb.index.lastEdition)) : 'no edition yet'}</span></Row>
@@ -108,16 +119,15 @@ export function Relations({ s }: { s: GameStateV2 }) {
         </Gate>
       </Section>
 
-      <Section title="Blocs">
+      <Section title={<Term id="bloc">Blocs</Term>}>
         <table className="tbl">
-          <thead><tr><th>Bloc</th><th>Clout</th><th>Mobilized</th><th>Approval of you</th></tr></thead>
+          <thead><tr><th>Bloc</th><th><Term id="clout">Clout</Term></th><th><Term id="mobilization">Mobilized</Term></th><th>Approval of you</th></tr></thead>
           <tbody>
             {Object.entries(s.pub.blocs).sort((a, b) => b[1].clout - a[1].clout).map(([id, b]) => (
               <tr key={id}><td>{BLOC_BY_ID[id as keyof typeof BLOC_BY_ID]?.name ?? id}</td><td><Meter value={b.clout} width={50} /></td><td><Meter value={b.mobilization} width={50} color="var(--warn)" /></td><td><Bipolar value={b.approval} width={60} /></td></tr>
             ))}
           </tbody>
         </table>
-        <Row label="Public approval · concern"><Why k="pub.approval" title="Net approval" body="See [[approval]]."><span className="num">{s.pub.approval.toFixed(0)}</span></Why><Why k="pub.concern" title="Concern"><span className="num"> · {s.pub.concern.toFixed(0)}</span></Why></Row>
       </Section>
 
       <div className="span2"><Section title="Action catalog">

@@ -9,8 +9,11 @@ import {
 } from '../../../engine/v2';
 import type { DomainId, GameStateV2 } from '../../../engine/v2';
 import { ActBtn, fmtB, fmtNum, Gate, Meter, pct, Row, Section, Slider, Spark, Term, Tip, TipCard, Why } from '../ui';
+import { PanelHead } from '../kit';
+import { ICON } from '../icons';
+import { seq } from '../theme';
 
-const LAB_COLOR = (id: string) => (id === 'player' ? '#5aa9ff' : id.startsWith('player') ? '#2f7fd6' : id === 'china' ? '#e2584f' : ['#f08a4b', '#c9a35a', '#a58cff', '#4cc3c3'][id.charCodeAt(id.length - 1) % 4]);
+const LAB_COLOR = (id: string) => (id === 'player' ? '#3a8ae0' : id.startsWith('player') ? '#2f6fb8' : id === 'china' ? '#c43c8c' : ['#d4732a', '#b5622a', '#e08a4c', '#a8581e'][id.charCodeAt(id.length - 1) % 4]);
 
 export function World({ s }: { s: GameStateV2 }) {
   const [fund, setFund] = useState(s.player.policies.transitionFund + 5);
@@ -23,17 +26,17 @@ export function World({ s }: { s: GameStateV2 }) {
   const names = (id: string) => (id === 'player' ? s.player.name : id === 'china' ? 'China' : id === 'player:open' ? 'Your open weights' : s.rivals.find((r) => r.core.id === id)?.core.name ?? id);
   return (
     <div className="panel-v2" data-panel="world">
+      <PanelHead icon={ICON.world} title="World" sub="automation spread, jobs, who controls what" />
       <div className="macro-strip" data-test="macro">
-        <Tip content={() => <TipCard title="US GDP growth" value={pct(us.g, 1)} />}><span>GDP g <b className="num">{pct(us.g, 1)}</b></span></Tip>
-        <Why k="world.unemployment.US" title="US unemployment" fmt={(x) => `${x.toFixed(2)} pp`}><span>U <b className="num">{s.world.unemployment.US.toFixed(1)}%</b></span></Why>
-        <span>Dow <b className="num">{fmtNum(s.world.dow)}</b> <span className={dowYtd(s) >= 0 ? 'tone-pos' : 'tone-neg'}>{pct(dowYtd(s), 1)} ytd</span></span>
-        <span>Gini <b className="num">{us.gini.toFixed(2)}</b></span>
-        <span>AI-owner share <b className="num">{pct(s.world.aiOwnerShare, 1)}</b></span>
-        <span>Robots/mo <b className="num">{fmtNum(s.world.robots.prodPerYear / 12)}</b></span>
-        <span>Labour share <b className="num">{pct(us.laborShare)}</b></span>
+        <Tip content={() => <TipCard title="US GDP growth" value={pct(us.g, 1)} />}><span><Term id="gdpG">GDP growth</Term> <b className="num">{pct(us.g, 1)}</b></span></Tip>
+        <span><Term id="dow">Dow</Term> <b className="num">{fmtNum(s.world.dow)}</b> <span className={dowYtd(s) >= 0 ? 'tone-pos' : 'tone-neg'}>{pct(dowYtd(s), 1)} ytd</span></span>
+        <span><Term id="gini">Gini</Term> <b className="num">{us.gini.toFixed(2)}</b></span>
+        <span><Term id="aiOwnerShare">AI-owner share</Term> <b className="num">{pct(s.world.aiOwnerShare, 1)}</b></span>
+        <span><Term id="robots">Robots</Term>/mo <b className="num">{fmtNum(s.world.robots.prodPerYear / 12)}</b></span>
+        <span><Term id="laborShare">Labour share</Term> <b className="num">{pct(us.laborShare)}</b></span>
       </div>
       <div className="grid2">
-        <Section title={<Term id="sector">Sectors · A vs F</Term>} right={<span className="dim small">cell = automated share · F friction · binding</span>}>
+        <Section title={<Term id="sector">Automation spread</Term>} right={<span className="dim small">cell = <Term id="sectorA">automated share A</Term> · hover for <Term id="friction">friction</Term> and <Term id="binding">binding</Term></span>}>
           <table className="tbl heat">
             <thead><tr><th>Sector</th>{REGIONS.map((r) => <th key={r}>{r}</th>)}</tr></thead>
             <tbody>
@@ -43,9 +46,9 @@ export function World({ s }: { s: GameStateV2 }) {
                   {REGIONS.map((r) => {
                     const st = s.world.sectors[r][sec.id];
                     return (
-                      <td key={r} style={{ background: `rgba(90,169,255,${0.08 + st.A * 0.8})` }}>
-                        <Tip content={() => <TipCard title={`${sec.name} · ${r}`} rows={[{ label: 'Automated A', value: pct(st.A, 1) }, { label: 'Target A*', value: pct(st.Astar, 1) }, { label: 'Friction F', value: st.F.toFixed(2) }, { label: 'Employment vs start', value: pct(st.E / Math.max(1, st.E0)) }, { label: 'Binding', value: st.binding }, { label: 'Your share (US)', value: pct(s.world.shares[sec.id]?.player ?? 0) }]} />}>
-                          <span className="num small">{pct(st.A)}</span> <span className="dim small">F{st.F.toFixed(1)} {st.binding[0]}</span>
+                      <td key={r} style={{ background: seq(Math.sqrt(st.A / 0.6)) }}>
+                        <Tip content={() => <TipCard title={`${sec.name} · ${r}`} rows={[{ label: 'Automated A', value: pct(st.A, 1) }, { label: 'Target A*', value: pct(st.Astar, 1) }, { label: 'Feasibility F (share AI can do)', value: pct(st.F) }, { label: 'Employment vs start', value: pct(st.E / Math.max(1, st.E0)) }, { label: 'Binding', value: st.binding }, { label: 'Your share (US)', value: pct(s.world.shares[sec.id]?.player ?? 0) }]} />}>
+                          <span className="num small heat-v">{pct(st.A)}</span>
                         </Tip>
                       </td>
                     );
@@ -57,13 +60,13 @@ export function World({ s }: { s: GameStateV2 }) {
         </Section>
         <div>
           <Section title="Jobs">
-            {REGIONS.map((r) => <Row key={r} label={`Unemployment ${r}`}><Meter value={s.world.unemployment[r]} max={25} width={90} color="var(--neg)" /><span className="num">{s.world.unemployment[r].toFixed(1)}%</span></Row>)}
+            {REGIONS.map((r) => <Row key={r} label={`Unemployment ${r}`}><Meter value={s.world.unemployment[r]} max={25} width={90} color="var(--neg)" /><Why k={`world.unemployment.${r}`} title={`Unemployment ${r}`} fmt={(x) => `${x.toFixed(2)} pp`} invert><span className="num" data-home={`unemp.${r}`}>{s.world.unemployment[r].toFixed(1)}%</span></Why></Row>)}
             <Row label="US 12-month change"><span className="num">{unemploymentChange12m(s) >= 0 ? '+' : ''}{unemploymentChange12m(s).toFixed(2)} pp</span><Spark data={s.world.fx.uHist} w={60} h={16} color="var(--neg)" /></Row>
-            <Row label="Youth unemployment · exposed jobs"><span className="num">{s.world.youthUnemployment.toFixed(1)}% · {pct(youthExposedEmployment(s))}</span></Row>
-            <Row label="Displaced (US)"><span className="num">{fmtNum(s.world.displacedPool.US)}</span></Row>
-            <Row label="Remote work automated · firm adoption"><span className="num">{pct(remoteWorkAutomation(s))} · {pct(firmAdoption(s))}</span></Row>
+            <Row label={<Term id="youthUnemp">Youth unemployment · exposed jobs</Term>}><span className="num">{s.world.youthUnemployment.toFixed(1)}% · {pct(youthExposedEmployment(s))}</span></Row>
+            <Row label={<Term id="displaced">Displaced (US)</Term>}><span className="num">{fmtNum(s.world.displacedPool.US)}</span></Row>
+            <Row label={<span><Term id="remoteWork">Remote work automated</Term> · <Term id="firmAdoption">firm adoption</Term></span>}><span className="num">{pct(remoteWorkAutomation(s))} · {pct(firmAdoption(s))}</span></Row>
             <Row label="Automation share US"><span className="num">{pct(automationShare(s, 'US'), 1)}</span></Row>
-            <Row label={`Transition fund ${fmtB(fund)}/yr`}><Slider value={fund} min={0} max={100} step={1} onChange={setFund} /><ActBtn id="wfx.transitionFund" params={{ amount: fund }} label="Set" /></Row>
+            <Row label={<span><Term id="transitionFund">Transition fund</Term> {fmtB(fund)}/yr</span>}><Slider value={fund} min={0} max={100} step={1} onChange={setFund} /><ActBtn id="wfx.transitionFund" params={{ amount: fund }} label="Set" /></Row>
           </Section>
           <Section title={<Term id="leverage">Control index</Term>} right={<span className="small">you {pct(lev.player ?? 0, 1)}</span>}>
             <Gate s={s} k="world">
@@ -71,14 +74,14 @@ export function World({ s }: { s: GameStateV2 }) {
                 const c = s.world.control[d];
                 const ent = Object.entries(c.shares).filter(([, x]) => x > 0.001).sort((a, b) => b[1] - a[1]);
                 return (
-                  <Tip as="div" key={d} content={() => <TipCard title={`${d} · P ${pct(c.P)}`} rows={[...ent.map(([k, x]) => ({ label: names(k), value: pct(x, 1) })), { label: 'Tiers T1–T4', value: c.tiers.map((t) => pct(t)).join(' / ') }, { label: 'Acceptance', value: pct(c.accept) }, { label: 'Tier cap', value: c.tierCap }]} />}>
+                  <Tip as="div" key={d} content={() => <TipCard title={`${d} · P ${pct(c.P)}`} rows={[...ent.map(([k, x]) => ({ label: names(k), value: pct(x, 1) })), { label: <Term id="tiers">Tiers tool / advisor / on-loop / out-of-loop</Term>, value: c.tiers.map((t) => pct(t)).join(' / ') }, { label: 'Acceptance', value: pct(c.accept) }, { label: 'Tier cap', value: c.tierCap }]} />}>
                     <div className="ctrl-row">
                       <span className="small ctrl-lbl">{d}</span>
                       <div className="ctrl-bar">
                         <div className="ctrl-fill" style={{ width: `${c.P * 100}%` }}>
                           {ent.map(([k, x]) => <div key={k} className={`ctrl-seg tier-${c.tierCap}`} style={{ width: `${x * 100}%`, background: LAB_COLOR(k) }} />)}
                         </div>
-                        {Object.entries(LEVERAGE_THRESHOLDS).map(([n, t]) => <div key={n} className="ctrl-thr" style={{ left: `${t * 100}%` }} title={n} />)}
+                        {Object.entries(LEVERAGE_THRESHOLDS).map(([n, t]) => <div key={n} className="ctrl-thr" style={{ left: `${t * 100}%` }} title={n}><span className="ctrl-thr-l">{n}</span></div>)}
                       </div>
                       <span className="num small">{pct(c.P)}</span>
                     </div>
@@ -90,7 +93,7 @@ export function World({ s }: { s: GameStateV2 }) {
           </Section>
         </div>
       </div>
-      <Section title="Technology tree" right={<span className="dim small">discovered · ramping · locked</span>}>
+      <Section title={<Term id="wtech">Technology tree</Term>} right={<span className="dim small">discovered · ramping · locked</span>}>
         <div className="techtree">
           {WORLD_TECHS.map((t) => {
             const st = s.world.techs[t.id];
@@ -114,7 +117,7 @@ export function World({ s }: { s: GameStateV2 }) {
             );
           })}
         </div>
-        <Row label={`Moonshot ${tech || 'auto'} · ${pct(share)} of compute`}><Slider value={share} min={0} max={0.3} step={0.01} onChange={setShare} /><ActBtn id="wfx.moonshot" params={{ ...(tech ? { tech } : {}), share }} /></Row>
+        <Row label={<span><Term id="moonshot">Moonshot</Term> {tech || 'auto'} · {pct(share)} of compute</span>}><Slider value={share} min={0} max={0.3} step={0.01} onChange={setShare} /><ActBtn id="wfx.moonshot" params={{ ...(tech ? { tech } : {}), share }} /></Row>
       </Section>
     </div>
   );

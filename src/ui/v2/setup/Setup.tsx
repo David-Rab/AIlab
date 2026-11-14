@@ -3,6 +3,15 @@ import { useRef } from 'react';
 import { CHINA_PRESETS, GOV_PRESETS, LAB_ARCHETYPES, PUBLIC_PRESETS } from '../../../data/actors';
 import { AUTOSAVE_KEY, SLOT_KEYS, V1_SAVE_KEY } from '../../../engine/v2';
 import type { SetupV2 } from '../../../engine/v2';
+import { CHINA_LAB_NAME, RIVAL_NAMES_V2 } from '../../../data/v2/names';
+
+/** AUDIT §2.4: the company may not take a rival's name (two "Meridian" nodes, rows and end lines). */
+export function nameClash(name: string): string | undefined {
+  const n = name.trim().toLowerCase();
+  if (!n) return 'Name your company';
+  const hit = [...RIVAL_NAMES_V2, CHINA_LAB_NAME].find((x) => x.toLowerCase() === n);
+  return hit ? `${hit} is a rival lab: pick another name` : undefined;
+}
 import { useV2 } from '../store';
 import { Soon, Tip, TipCard } from '../ui';
 
@@ -114,7 +123,8 @@ export function SetupScreen() {
           <div>
             <div className="picker-label">Company · seed</div>
             <div className="picker-opts">
-              <input className="text-input" data-test="company" value={d.companyName} onChange={(e) => set({ companyName: e.target.value })} />
+              <input className={`text-input ${nameClash(d.companyName) ? 'bad-input' : ''}`} data-test="company" value={d.companyName} onChange={(e) => set({ companyName: e.target.value })} />
+              {nameClash(d.companyName) && <span className="small tone-neg" data-test="name-clash">{nameClash(d.companyName)}</span>}
               <input className="text-input" data-test="seed" style={{ width: 130 }} value={d.seed} onChange={(e) => set({ seed: Math.max(0, Math.floor(Number(e.target.value) || 0)) })} />
               <button className="btn btn-sm" onClick={() => set({ seed: Math.floor(Math.random() * 1e9) })}>Random</button>
             </div>
@@ -124,7 +134,7 @@ export function SetupScreen() {
       </div>
       <div className="setup-actions">
         <button className="btn" onClick={() => st.go('start')}>Back</button>
-        <button className="btn btn-primary" data-test="start-game" onClick={() => st.start(st.draftSetup)}>Start</button>
+        <button className="btn btn-primary" data-test="start-game" disabled={!!nameClash(d.companyName)} title={nameClash(d.companyName)} onClick={() => st.start(st.draftSetup)}>Start</button>
       </div>
     </div>
   );
