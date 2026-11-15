@@ -47,7 +47,7 @@ export function activeLabIds(s: GameStateV2): LabId[] {
 /** Compute pools of a lab in H100e: online compute × split (§3.4.2). */
 export function labPools(s: GameStateV2, id: LabId): ComputeSplit {
   const c = labCore(s, id);
-  const out = { training: 0, experiments: 0, agents: 0, synthetic: 0, serving: 0, safety: 0, security: 0 } as ComputeSplit;
+  const out: ComputeSplit = { training: 0, experiments: 0, agents: 0, synthetic: 0, serving: 0, safety: 0 };
   if (!c) return out;
   for (const k of Object.keys(out) as (keyof ComputeSplit)[]) out[k] = c.computeOnline * c.split[k];
   return out;

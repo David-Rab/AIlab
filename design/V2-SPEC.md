@@ -429,14 +429,18 @@ Implement R13 Part 1 as written. Only the integration points are listed here.
 
 **Reference shares `shareRef(t)`** are interpolated linearly by date and held constant after the last row. They come from the AI 2027 compute-usage table (R13 §1.2, R11 #11).
 
-| Date | training | experiments | agents | synthetic | serving | safety | security |
-|---|---|---|---|---|---|---|---|
-| 2025.50 | .40 | .05 | .03 | .20 | .29 | .02 | .01 |
-| 2026.50 | .40 | .06 | .04 | .20 | .27 | .02 | .01 |
-| 2027.125 | .30 | .14 | .06 | .27 | .19 | .03 | .01 |
-| 2027.375 | .27 | .21 | .06 | .23 | .19 | .03 | .01 |
-| 2027.625 | .22 | .28 | .06 | .22 | .175 | .035 | .01 |
-| 2027.875 | .20 | .35 | .06 | .22 | .13 | .035 | .005 |
+| Date | training | experiments | agents | synthetic | serving | safety |
+|---|---|---|---|---|---|---|
+| 2025.50 | .40 | .05 | .03 | .21 | .29 | .02 |
+| 2026.50 | .40 | .06 | .04 | .21 | .27 | .02 |
+| 2027.125 | .30 | .14 | .06 | .28 | .19 | .03 |
+| 2027.375 | .27 | .21 | .06 | .24 | .19 | .03 |
+| 2027.625 | .22 | .28 | .06 | .23 | .175 | .035 |
+| 2027.875 | .20 | .35 | .06 | .225 | .13 | .035 |
+
+The AI 2027 usage table has no security compute line (R11 #25); the earlier 1% security column was a game invention and
+is folded into synthetic data (folding it into serving raised revenue and AI adoption past their targets). Experiments + agents together are the reference **research** compute; how a lab splits them is
+its own choice (below).
 
 #### 3.2.2 Equations
 
@@ -446,11 +450,24 @@ These are R13 §1.3 verbatim:
 Lrel  = [(1−A)^(1−ρc)·h^ρc + A^(1−ρc)·(R·k)^ρc]^(1/ρc)      (A ≥ 1 ⇒ Lrel = R·k)
 ℓ     = Lrel^λ
 X     = [u·c^(ζρ) + v·ℓ^ρ]^(1/ρ)
-Tref  = M_ref(p_dep) / X(1, ℓ_ref(p_dep))
+Tref  = M_ref(p_dep) / X(1, ℓ_ref(p_dep))                      (research/13 taste curve, unchanged)
+X*    = max over f of X(f·cu, Lrel(h=1, R·(1−f)·ku)^λ),   cu = (s_exp+s_ag)/s_exp, ku = (s_exp+s_ag)/s_ag at shareRef(t)
 τ     = 1 + (τ_h − 1)·(1 − Φ(sdAI(p_dep)))
-M     = Tref · τ · X · eff_lab
-Ddata = min(1, S_eff / N_req(F(t)))^0.3 · d^0.15                                      (R13 §1.7)
+norm  = X(1, ℓ_ref(p_dep)) / X*(p_dep, t)
+M     = Tref · τ · X · norm · eff_lab
 ```
+
+**Why X\* and not X(1, ℓ_ref).** R13 normalised every input to the AI 2027 usage table and set Tref so that a lab using
+the table's own experiments/agents split hits M_ref. Under the AIFM CES that split is not the best one: re-splitting the
+same research compute raises M by 6–19% depending on the world (identity test), and a lab that also moved its synthetic
+compute into experiments gained 15–40%. AI 2027 never derived its split from this formula (its table is a forecast of
+OpenBrain's choices; the CES comes later, from the AIFM), so nothing tied the two together. v2 assumes the reference lab
+splits its research compute in the best way: X* is the experiment capacity of a reference-resourced lab at its best mix,
+and `norm` scales M so that lab hits M_ref exactly (Tref keeps its taste meaning). Every lab (player on Auto, rivals, China) re-splits experiments vs agents to its best
+mix each day (`applyBestMix`). The table still fixes how much compute goes to research in total.
+
+**Synthetic data is a training input.** It builds the data stock that new bases need (data wall penalty on bases,
+§3.3.2) and no longer multiplies the research rate (the old `Ddata` factor is dropped: on the reference path it was 1).
 
 - **`eff_lab`** = 1 for the player and US rivals.
 - **China:** `eff_lab = chinaEfficiency × preset.efficiency`. Retune per R11 #16 targets: China about 150–200 days behind until a theft, about 60 days after it.
@@ -462,9 +479,10 @@ Ddata = min(1, S_eff / N_req(F(t)))^0.3 · d^0.15                               
 
 #### 3.2.3 Identity requirement (acceptance test P1)
 
-For every preset and every p on a 200-point grid:
-- set h = k = c = d = 1, τ_h = 1 and eff = 1;
-- then `M == multiplierAt(w, p)` must hold to within 1e-9.
+For every preset, every p on a 200-point grid and two dates:
+- set h = 1, τ_h = 1, eff = 1, and split the reference research compute at the best mix;
+- then `M == multiplierAt(w, p)` must hold to within 1e-9;
+- and the table's own split (h = k = c = 1) must never beat the best mix.
 
 #### 3.2.4 Knot generation (per preset, at `newGame`, cached by preset id)
 
@@ -736,9 +754,10 @@ Live commitments can block a deployment (§3.9.4).
 |---|---|---|---|---|
 | cap (capabilities R&D, infra included) | 2,050 | 2,450 | 0.8 | `h` in the production function; paradigm projects; run staffing |
 | saf (safety & alignment) | 140 | 170 | 0.7 | agendas, investigations, eval suites, refresh projects |
-| sec (security) | 110 | 130 | 0.4 | WSL maintenance; counter-intel |
-| prod (product, GTM, policy) | 150 | 180 | 0.4 | deployment launch speed; sector products; relations actions' staff time |
-| ops (G&A) | 50 | 70 | 0.3 | — |
+
+
+Security, product and G&A staff were dropped (2026-11-15): nothing in the engine read them. Security is a $-spend lever
+(§3.6); product launch speed and relations staff time were never built.
 
 **Payroll.**
 - Totals: classic ≈ $2.0B/yr, reality ≈ $2.4B/yr. Small next to compute, as in reality.
@@ -769,20 +788,22 @@ Live commitments can block a deployment (§3.9.4).
 
 #### 3.4.2 Compute split
 
-- The player sets `split` with seven sliders that sum to 1:
-  - training;
-  - experiments;
-  - agents (internal inference);
-  - synthetic;
-  - serving;
-  - safety;
-  - security.
-- **Defaults** come from `shareRef` at the start date.
+- The player sets **four top-level shares** that sum to 1:
+  - **Training**: training runs, plus a **data generation** sub-share (synthetic data, feeds the data stock);
+  - **Research**: experiments plus capabilities agents, with a **mix**: *Auto* (default) re-splits to the best mix every
+    day for the lab's staff, model and compute; *Manual* holds the player's experiments share;
+  - **Serving**: external deployments;
+  - **Safety**: agendas, investigations, runtime monitoring and safety agents (§3.5.2).
+- Internally the split keeps six pools (training, experiments, agents, synthetic, serving, safety).
+- **Defaults** come from `shareRef` at the start date (then the best research mix).
 - **Constraints:**
-  - live external deployments need serving ≥ their reserved shares;
-  - running runs keep `poolShare` of training;
-  - P20 lifts the cap of agents ≤ 35%.
-- **Presets** (one click): Reference, Race (training/experiments/agents +, safety 1%), Balanced, Safety (safety 15%, serving −).
+  - live external deployments need serving ≥ 3%;
+  - running runs need training (runs) ≥ 2%.
+  - There is no agents cap (the old 35% cap had no source and the CES already punishes too many agents).
+- **Presets** (one click, top-level shares only; sub-shares kept): Reference, Race (safety 1%, serving −30%, freed
+  compute to training and research), Balanced (safety 6%), Safety (safety 15%, serving −30%).
+- **Trade-off readouts** (Company › Compute split): research speed for every experiments/agents mix (current and best
+  marked), and response curves of research speed to ×¼ … ×4 of researchers, research compute, experiments and agents.
 
 #### 3.4.3 What each department decides
 
@@ -848,7 +869,20 @@ The six latents λ1–λ6 are drawn as in §2.3. One of them is player-modified:
 | Serious | 1× |
 | Major | 2.5× |
 
-Compute follows the same ratio as a share of the safety pool. AG17 needs a version with measured L ≥ 10.
+Compute follows the same ratio as a share of the safety pool. AG17 needs a safety agent model with measured L ≥ 10;
+automating any agenda or investigation needs one with measured L ≥ 8.5.
+
+**Safety agents (fleet).** AI labour on safety work runs on its own fleet:
+- compute = safety pool × `agentShare` (player-set, 0–60%; the Automate action starts it at 20% if it is 0);
+- model = `agentVersion` (default: the capabilities internal agent). An older, trusted version is weaker but its own
+  sabotage odds apply (FALSE findings, corrupted investigations);
+- AI FTE = compute × R(q_model) · ηmod · H_ref / C_agents,ref (the production function's conversion);
+- the fleet is shared by automated agendas (weight aiLabour × FTE × Auto) and investigations (aiLabour × FTE);
+- labour multiplier of a piece of work = min(cap, √(1 + Auto · AI FTE / human FTE)), with
+  cap = 1 + aiLabour · Auto · min(10, √M_model) (agendas) or 1 + 1.5 · aiLabour (investigations).
+
+The safety pool is therefore split into monitoring, investigations, agents and agendas; the **department load** readout
+shows staff (agendas, investigations, patches, free/short) and compute (used by each, idle).
 
 #### 3.5.3 Findings
 

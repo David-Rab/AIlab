@@ -12,8 +12,10 @@ import { CRITICAL_TRAITS } from '../../../data/v2/traits';
 import { leadDays } from '../actors/intel';
 import type { DecisionSnapshot, GameStateV2, HiddenWorld, SignalId, TraitId } from '../types';
 
-export { production, productionWhatIf, nextModelGate } from '../production/readout';
-export type { NextModelGate } from '../production/readout';
+export { production, productionWhatIf, nextModelGate, researchMixCurve, responseCurves, RESPONSE_SCALES } from '../production/readout';
+export type { MixCurve, NextModelGate, ResponseCurves } from '../production/readout';
+export { specOf, topOf, TOP_KEYS } from '../departments/split';
+export type { SplitSpec, TopKey, TopSplit } from '../departments/split';
 // WS1 model / department selectors and helpers for the UI (visible data only).
 export { planRun, predictRun } from '../models/runs';
 export type { LaunchRunParams, RunPlan } from '../models/runs';
@@ -29,8 +31,9 @@ export { understanding } from '../safety/understanding';
 export { leadDays, riskSources } from '../actors/intel';
 export { raiseCeiling } from '../finance/equity';
 // WS2 safety-panel selectors (beliefs, posteriors, incidents as the player sees them). `safetyTruth` is END SCREEN ONLY.
-export { agendaRows, beliefView, findingRows, incidentRows, safetyTruth, safetyView, techniqueRows, traitGraph, uModeCards } from '../safety/view';
-export type { AgendaRow, FindingRow, TechniqueRow } from '../safety/view';
+export { agendaRows, beliefView, findingRows, incidentRows, safetyTruth, safetyUtilisation, safetyView, techniqueRows, traitGraph, uModeCards } from '../safety/view';
+export type { AgendaRow, FindingRow, SafetyUtilisation, TechniqueRow } from '../safety/view';
+export { safetyAgentVersion, safetyFleet } from '../safety/agents';
 // WS5 world readouts (observables only).
 export { automationShare, dowYtd, firmAdoption, remoteWorkAutomation, unemploymentChange12m, youthExposedEmployment } from '../worldfx/readouts';
 export { causeStrip } from './causes';

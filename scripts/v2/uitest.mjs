@@ -272,6 +272,16 @@ await nav('company');
 await tabTo('split');
 await check('Split slider moves draft', `document.querySelector('[data-panel=company]').innerText`, () => setSlider(page.locator('[data-panel=company] .split-row input[type=range]').first(), 0.6));
 await check('Apply split', 'JSON.stringify(s.player.split)', () => page.click('[data-act=setSplit]'));
+ok('Research mix chart and response curves render', !!(await page.$('[data-test=mix-chart] path')) && (await page.$$('[data-test=response-charts] .rc-mult')).length === 4);
+await check('Research mix: manual + slider + apply', 'JSON.stringify([s.player.researchManual, s.player.split.experiments])', async () => {
+  await page.click('#ctl-split-experiments .seg-btn:has-text("Manual")');
+  await setSlider(page.locator('#ctl-split-experiments input[type=range]'), 0.3);
+  await page.click('[data-act=setSplit]');
+});
+await check('Research mix: back to auto', 'JSON.stringify(s.player.researchManual)', async () => {
+  await page.click('#ctl-split-experiments .seg-btn:has-text("Auto")');
+  await page.click('[data-act=setSplit]');
+});
 await tabTo('people');
 await check('Hiring slider + Set', 's.player.hiring.target.saf', async () => {
   await setSlider(page.locator('[data-dept=saf] input[type=range]'), 120);
@@ -304,6 +314,14 @@ if (dep) {
   });
 }
 await nav('safety');
+await tabTo('agendas');
+ok('Safety department load renders', !!(await page.$('[data-home=safetyLoad] [data-test=load-staff]')) && !!(await page.$('[data-home=safetyLoad] [data-test=load-compute]')));
+if (await page.$('[data-home=safetyAgents] [data-act="safety.agents"]:not([disabled])')) {
+  await check('Safety agents: share + apply', 'JSON.stringify(s.player.safety.agentShare)', async () => {
+    await setSlider(page.locator('[data-home=safetyAgents] input[type=range]').first(), 0.3);
+    await page.click('[data-act="safety.agents"]');
+  });
+}
 for (const t of await tabsOf()) await check(`Safety tab ${t}`, 'store.tab.safety || ""', () => tabTo(t), 30).catch(() => {});
 await tabTo('graph');
 ok('Trait graph is the first tab', !!(await page.$('[data-test=traitgraph]')));
@@ -368,13 +386,18 @@ for (const [h, v] of multi) iaIssues.push(`${h} has homes on several screens: ${
 ok('IA: one home per datum, terms resolve, no raw floats', iaIssues.length === 0, iaIssues.slice(0, 8).join(' | '));
 for (const x of iaIssues.slice(8, 30)) console.log('     ' + x);
 
-// Speed-4 run on the fixture for 2 s: no errors, alerts appear
+// Speed-4 run for 2 s from the day-400 fixture (the day-900 fixture can end within days, e.g. another lab's ASI):
+// no errors, alerts appear. Then back to day 900 for the end screen.
+await page.evaluate((j) => window.ai27v2.importJson(j), fx);
+await page.evaluate(() => { window.ai27v2.state.setup.tutorial = false; window.ai27v2.notify(); });
+await closeModals();
 await page.click('[data-speed="4"]');
 await wait(2000);
 await pause();
 await closeModals();
 ok('Alerts/decisions shown in queue', (await page.$$('.queue-row .alert-chip2, .queue-row .dec-chip2')).length > 0);
-await shot('31-day900-running');
+await shot('31-day400-running');
+await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
 
 // ───────────────────────── end screen ─────────────────────────
 await closeModals();

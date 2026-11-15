@@ -1,8 +1,22 @@
 // Compute split across pools (V2-SPEC §3.4.2). Owner: WS1.
+//
+// The player sets four top-level shares that sum to 1: Training, Research, Serving, Safety.
+//   Training = training runs + data generation (synthetic data; the data-generation share is a sub-slider).
+//   Research = experiments + internal capabilities agents. By default the mix is re-split every day to the best one
+//              for the lab's situation (production.ts applyBestMix); the player can set it by hand instead.
+// Internally the split keeps the six pools (training, experiments, agents, synthetic, serving, safety).
+// AI 2027's usage table has no security compute line (research/11 #25): security is a $-spend lever only.
 import { SHARE_REF } from '../../../data/v2/calibration';
 import type { ComputeSplit, GameStateV2 } from '../types';
 
-export const SPLIT_KEYS: (keyof ComputeSplit)[] = ['training', 'experiments', 'agents', 'synthetic', 'serving', 'safety', 'security'];
+export const SPLIT_KEYS: (keyof ComputeSplit)[] = ['training', 'experiments', 'agents', 'synthetic', 'serving', 'safety'];
+
+/** The four player-facing groups. */
+export const TOP_KEYS = ['training', 'research', 'serving', 'safety'] as const;
+export type TopKey = (typeof TOP_KEYS)[number];
+export type TopSplit = Record<TopKey, number>;
+/** A full player split: top-level shares, data generation share of Training, experiments share of Research. */
+export interface SplitSpec { top: TopSplit; dataShare: number; expShare: number }
 
 /** Reference shares at a decimal year (linear interpolation, held constant outside the table). */
 export function shareRefAt(year: number): ComputeSplit {
@@ -23,13 +37,10 @@ export function shareRefAt(year: number): ComputeSplit {
 export function normalizeSplit(sp: ComputeSplit): ComputeSplit {
   const out = {} as ComputeSplit;
   let sum = 0;
-  for (const k of SPLIT_KEYS) sum += Math.max(0, sp[k]);
-  for (const k of SPLIT_KEYS) out[k] = sum > 0 ? Math.max(0, sp[k]) / sum : 1 / SPLIT_KEYS.length;
+  for (const k of SPLIT_KEYS) sum += Math.max(0, sp[k] ?? 0);
+  for (const k of SPLIT_KEYS) out[k] = sum > 0 ? Math.max(0, sp[k] ?? 0) / sum : 1 / SPLIT_KEYS.length;
   return out;
 }
-
-export const SPLIT_PRESETS = ['reference', 'race', 'balanced', 'safety'] as const;
-export type SplitPreset = (typeof SPLIT_PRESETS)[number];
 
 /** Set some pools to fixed shares and rescale the others proportionally so the split sums to 1. */
 export function withFixed(base: ComputeSplit, fixed: Partial<ComputeSplit>): ComputeSplit {
@@ -41,37 +52,75 @@ export function withFixed(base: ComputeSplit, fixed: Partial<ComputeSplit>): Com
   return normalizeSplit(out);
 }
 
-/** One-click presets (§3.4.2) at decimal year `yr`. [D] */
-export function presetSplit(preset: SplitPreset, yr: number): ComputeSplit {
-  const ref = shareRefAt(yr);
+const ratio = (a: number, b: number, dflt: number) => (a + b > 1e-12 ? a / (a + b) : dflt);
+
+/** Top-level view of a pool split. */
+export function topOf(sp: ComputeSplit): TopSplit {
+  return { training: sp.training + sp.synthetic, research: sp.experiments + sp.agents, serving: sp.serving, safety: sp.safety };
+}
+
+/** Player-facing spec of a pool split. */
+export function specOf(sp: ComputeSplit): SplitSpec {
+  return { top: topOf(sp), dataShare: ratio(sp.synthetic, sp.training, 1 / 3), expShare: ratio(sp.experiments, sp.agents, 0.6) };
+}
+
+/** Pool split from a spec (top-level shares normalised to 1; sub-shares clamped to [0, 1]). */
+export function fromSpec(spec: SplitSpec): ComputeSplit {
+  const t = spec.top;
+  const sum = TOP_KEYS.reduce((a, k) => a + Math.max(0, t[k]), 0) || 1;
+  const n = (k: TopKey) => Math.max(0, t[k]) / sum;
+  const ds = Math.min(1, Math.max(0, spec.dataShare));
+  const es = Math.min(1, Math.max(0, spec.expShare));
+  return {
+    training: n('training') * (1 - ds), synthetic: n('training') * ds,
+    experiments: n('research') * es, agents: n('research') * (1 - es),
+    serving: n('serving'), safety: n('safety'),
+  };
+}
+
+export const SPLIT_PRESETS = ['reference', 'race', 'balanced', 'safety'] as const;
+export type SplitPreset = (typeof SPLIT_PRESETS)[number];
+
+/** Set some top-level groups to fixed shares and rescale the others proportionally so the split sums to 1. */
+function withFixedTop(base: TopSplit, fixed: Partial<TopSplit>): TopSplit {
+  const fixedSum = Object.values(fixed).reduce((a, x) => a + (x ?? 0), 0);
+  const free = TOP_KEYS.filter((k) => fixed[k] === undefined);
+  const freeSum = free.reduce((a, k) => a + base[k], 0);
+  const out = { ...base, ...fixed } as TopSplit;
+  for (const k of free) out[k] = freeSum > 0 ? (base[k] / freeSum) * Math.max(0, 1 - fixedSum) : 0;
+  return out;
+}
+
+/** One-click presets (§3.4.2) at decimal year `yr`; they set the top-level shares and keep the sub-shares. [D] */
+export function presetTop(preset: SplitPreset, yr: number): TopSplit {
+  const ref = topOf(shareRefAt(yr));
   switch (preset) {
     case 'race': {
-      // Safety 1%, serving −30%; the freed compute goes to training, experiments and agents.
+      // Safety 1%, serving −30%; the freed compute goes to training and research.
       const freed = ref.safety - 0.01 + ref.serving * 0.3;
-      const tea = ref.training + ref.experiments + ref.agents;
-      return withFixed(ref, {
-        safety: 0.01, serving: ref.serving * 0.7, synthetic: ref.synthetic, security: ref.security,
-        training: ref.training + (freed * ref.training) / tea, experiments: ref.experiments + (freed * ref.experiments) / tea,
-        agents: ref.agents + (freed * ref.agents) / tea,
-      });
+      const tr = ref.training + ref.research;
+      return { safety: 0.01, serving: ref.serving * 0.7, training: ref.training + (freed * ref.training) / tr, research: ref.research + (freed * ref.research) / tr };
     }
     case 'balanced':
-      return withFixed(ref, { safety: 0.06, security: 0.02 });
+      return withFixedTop(ref, { safety: 0.06 });
     case 'safety':
-      return withFixed(ref, { safety: 0.15, serving: ref.serving * 0.7, security: 0.02 });
+      return withFixedTop(ref, { safety: 0.15, serving: ref.serving * 0.7 });
     default:
       return ref;
   }
 }
 
-/** Agents pool cap without P20 (§3.4.2). */
-export const AGENTS_CAP = 0.35;
+/** Pool split of a preset, keeping the player's current sub-shares. */
+export function presetSplit(preset: SplitPreset, yr: number, cur?: ComputeSplit): ComputeSplit {
+  const sub = specOf(cur ?? shareRefAt(yr));
+  return fromSpec({ top: presetTop(preset, yr), dataShare: sub.dataShare, expShare: sub.expShare });
+}
 
-/** Validate and apply a split for the player (§3.4.2 constraints). Returns an error string or undefined. */
+/** Validate and apply a split for the player (§3.4.2 constraints). Returns an error string or undefined. The caller
+ *  re-applies the best research mix when the mix is automatic. */
 export function setSplit(s: GameStateV2, sp: ComputeSplit): string | undefined {
   const n = normalizeSplit(sp);
   const p = s.player;
-  if (n.agents > AGENTS_CAP + 1e-9 && p.paradigms.P20?.status !== 'adopted') return `Agents capped at ${AGENTS_CAP * 100}% (needs P20)`;
   const reserved = p.deployments.some((d) => d.status === 'live' && d.channel !== 'internal' && d.servingShare > 0);
   if (reserved && n.serving < 0.03) return 'Live deployments need serving compute';
   if (p.models.runs.some((r) => r.status === 'running') && n.training < 0.02) return 'Running runs need training compute';

@@ -4,7 +4,8 @@
 import { PARADIGMS } from '../../../data/v2/paradigms';
 import { REFERENCE_BASE, REFERENCE_POST, STREAM_POOL_SHARE } from '../../../data/v2/runDesign';
 import { decimalYear } from '../core/time';
-import { SPLIT_KEYS, presetSplit, setSplit, type SplitPreset } from '../departments/split';
+import { SPLIT_KEYS, TOP_KEYS, fromSpec, presetSplit, setSplit, specOf, type SplitPreset } from '../departments/split';
+import { applyBestMix } from '../production/production';
 import { ROLES, STAFF_COST_M, STAR_HIRE, payrollPerYear } from '../departments/staffing';
 import type {
   ActionDef, BaseDesign, Channel, ComputeSplit, CostLine, GameStateV2, PostDesign, RLFamily, StaffByRole,
@@ -288,10 +289,27 @@ const RUN_ACTIONS: ActionDef[] = [
 
 // ───────────────────────────── departments ─────────────────────────────
 
+/** Split from action params: either top-level shares (training, research, serving, safety) with optional dataShare
+ *  and expShare, or the six pool keys (bots, saves). Missing values keep the current split. */
 function splitFromParams(s: GameStateV2, p: Params): ComputeSplit {
+  if (TOP_KEYS.some((k) => k === 'research' && typeof p[k] === 'number') || typeof p.dataShare === 'number' || typeof p.expShare === 'number') {
+    const cur = specOf(s.player.split);
+    const top = { ...cur.top };
+    for (const k of TOP_KEYS) if (typeof p[k] === 'number') top[k] = p[k] as number;
+    return fromSpec({ top, dataShare: num(p, 'dataShare', cur.dataShare), expShare: num(p, 'expShare', cur.expShare) });
+  }
   const out = { ...s.player.split };
   for (const k of SPLIT_KEYS) if (typeof p[k] === 'number') out[k] = p[k] as number;
   return out;
+}
+
+/** Apply a split, the manual/auto research-mix choice (param `manual` 1/0), then the best mix when automatic. */
+function applySplit(s: GameStateV2, sp: ComputeSplit, p: Params): string | undefined {
+  const err = setSplit(s, sp);
+  if (err) return err;
+  if (typeof p.manual === 'number') s.player.researchManual = p.manual > 0 ? true : undefined;
+  applyBestMix(s, 'player');
+  return undefined;
 }
 
 function splitPreview(s: GameStateV2, next: ComputeSplit): Preview {
@@ -299,7 +317,7 @@ function splitPreview(s: GameStateV2, next: ComputeSplit): Preview {
   const costs: CostLine[] = [];
   const gains: CostLine[] = [];
   const cur2cur: Record<keyof ComputeSplit, CostLine['currency']> = {
-    training: 'progress', experiments: 'progress', agents: 'progress', synthetic: 'progress', serving: 'revenue', safety: 'alignment', security: 'security',
+    training: 'progress', experiments: 'progress', agents: 'progress', synthetic: 'progress', serving: 'revenue', safety: 'alignment',
   };
   const agg: Partial<Record<CostLine['currency'], number>> = {};
   for (const k of SPLIT_KEYS) agg[cur2cur[k]] = (agg[cur2cur[k]] ?? 0) + (next[k] - cur[k]);
@@ -316,13 +334,13 @@ export const DEPARTMENT_ACTIONS: ActionDef[] = [
     id: 'setSplit', sphere: 'departments', owner: 'WS1', title: 'Compute split',
     available: () => true,
     preview: (s, p) => splitPreview(s, splitFromParams(s, p)),
-    apply: (s, _ctx, p) => fail(setSplit(s, splitFromParams(s, p))),
+    apply: (s, _ctx, p) => fail(applySplit(s, splitFromParams(s, p), p)),
   },
   {
     id: 'splitPreset', sphere: 'departments', owner: 'WS1', title: 'Split preset',
     available: () => true,
-    preview: (s, p) => splitPreview(s, presetSplit(str(p, 'preset', 'reference') as SplitPreset, decimalYear(s))),
-    apply: (s, _ctx, p) => fail(setSplit(s, presetSplit(str(p, 'preset', 'reference') as SplitPreset, decimalYear(s)))),
+    preview: (s, p) => splitPreview(s, presetSplit(str(p, 'preset', 'reference') as SplitPreset, decimalYear(s), s.player.split)),
+    apply: (s, _ctx, p) => fail(applySplit(s, presetSplit(str(p, 'preset', 'reference') as SplitPreset, decimalYear(s), s.player.split), p)),
   },
   {
     id: 'hireTarget', sphere: 'departments', owner: 'WS1', title: 'Hiring target',
@@ -332,7 +350,7 @@ export const DEPARTMENT_ACTIONS: ActionDef[] = [
       const n = num(p, 'target', s.player.hiring.target[role] ?? 0);
       const d = n - (s.player.hiring.target[role] ?? 0);
       const dollars = (d * STAFF_COST_M[role]) / 1000;
-      const what: CostLine['currency'] = role === 'cap' ? 'progress' : role === 'saf' ? 'alignment' : role === 'sec' ? 'security' : 'revenue';
+      const what: CostLine['currency'] = role === 'cap' ? 'progress' : 'alignment';
       return d >= 0
         ? { costs: [{ currency: 'cash', amount: -dollars, target: '$B/yr payroll' }], gains: [{ currency: what, amount: d, lagDays: 42 }], exposure: [] }
         : { costs: [{ currency: 'morale', amount: Math.max(-15, (100 * d) / Math.max(1, s.player.staff[role])) }, { currency: what, amount: d }], gains: [{ currency: 'cash', amount: -dollars, target: '$B/yr payroll' }], exposure: [] };

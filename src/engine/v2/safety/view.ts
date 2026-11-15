@@ -15,6 +15,9 @@ import { decayAt, strengthBelieved, techniqueRole } from './techniques';
 import { labMisalignment, misalignment, misalignmentBand, misalignmentEstimate } from './traits';
 import { nearestDecay, understanding } from './understanding';
 import { exfiltrationHazard } from './incidents';
+import { investigationFte } from './investigations';
+import { patchFte } from './responses';
+import { safetyAgentVersion, safetyFleet } from './agents';
 
 export interface AgendaRow {
   id: AgendaId; name: string; level: string; fte: number; computeShare: number; aiLabour: number;
@@ -87,6 +90,44 @@ export function traitGraph(s: GameStateV2) {
   };
 }
 
+/** What the safety department's people, compute and agents are doing right now (used / idle / short). */
+export interface SafetyUtilisation {
+  staff: { total: number; agendas: number; investigations: number; patches: number; free: number; short: number };
+  /** H100e. agendasWanted = what funded agendas ask for; agendasGot = what they get after monitoring, investigations
+   *  and agents take their shares; idle = safety compute nobody uses. */
+  compute: { pool: number; monitoring: number; investigations: number; agents: number; agendasWanted: number; agendasGot: number; idle: number };
+  fleet: { versionId?: string; versionName?: string; level: number; copies: number; aiFte: number; perFte: number; automated: number; idle: boolean };
+}
+
+export function safetyUtilisation(s: GameStateV2): SafetyUtilisation {
+  const dept = s.player.safety;
+  const agendasFte = Object.values(dept.agendas).reduce((a, g) => a + g.fte, 0);
+  const inv = investigationFte(s);
+  const patches = patchFte(s);
+  const assigned = agendasFte + inv + patches;
+  const total = s.player.staff.saf;
+  const online = s.player.computeOnline;
+  const pool = online * s.player.split.safety;
+  const monitoring = pool * dept.monitoringShare;
+  const invC = pool * dept.investigations.filter((i) => !i.outcome).reduce((a, i) => a + i.computeShare, 0);
+  const agents = pool * (dept.agentShare ?? 0);
+  let wanted = 0;
+  let got = 0;
+  for (const a of AGENDAS) {
+    const st = dept.agendas[a.id];
+    wanted += online * (st.fte / a.fteRef) * a.computeRef;
+    got += pool * st.computeShare;
+  }
+  const fl = safetyFleet(s);
+  const v = safetyAgentVersion(s);
+  const automated = Object.values(dept.agendas).filter((g) => g.aiLabour > 0 && g.fte > 0).length + dept.investigations.filter((i) => !i.outcome && i.aiLabour > 0).length;
+  return {
+    staff: { total, agendas: agendasFte, investigations: inv, patches, free: Math.max(0, total - assigned), short: Math.max(0, assigned - total) },
+    compute: { pool, monitoring, investigations: invC, agents, agendasWanted: wanted, agendasGot: got, idle: Math.max(0, pool - monitoring - invC - agents - got) },
+    fleet: { versionId: v?.id, versionName: v?.name, level: v?.evals.measuredL ?? 0, copies: fl.copies, aiFte: fl.aiFte, perFte: fl.perFte, automated, idle: fl.compute > 0 && automated === 0 },
+  };
+}
+
 /** Everything the Safety Lab panel needs in one call. */
 export function safetyView(s: GameStateV2) {
   const u = understanding(s);
@@ -102,6 +143,7 @@ export function safetyView(s: GameStateV2) {
     beliefs: beliefView(s),
     evalGate: s.player.safety.evalGate,
     monitoringShare: s.player.safety.monitoringShare,
+    utilisation: safetyUtilisation(s),
     monitorabilityCommitment: s.player.safety.monitorabilityCommitment,
   };
 }

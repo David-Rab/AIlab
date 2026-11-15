@@ -28,6 +28,35 @@ lag are "installing"). Size tables `SITE_TIERS` / `CHIP_TIERS` in `data/v2/deals
 Compute tab (user: no concrete fix action). Not touched by request: opening chip order, Lone Pine, Act 1 unlocks.
 `npm run test:v2` and `uitest` (104/104) green.
 
+## Compute split, staff and safety agents restructure (2026-11-15, branch `compute-split`, worktree ../AI27-split)
+
+Per the user's decisions:
+- **Staff:** only capabilities and safety. Security, product and ops staff are gone (nothing read them).
+- **Compute split:** four top-level shares: Training (with a data-generation sub-share), Research
+  (experiments + agents, Auto best mix by default or Manual), Serving, Safety. The security pool is dropped: AI 2027 has
+  no such line, and its 1% went to synthetic data (serving pushed revenue and adoption past their targets). The 35% agents cap is removed.
+- **Calibration:** a normalising factor X(1,ℓ_ref)/X* (taste curve unchanged) makes a reference lab with the *best* research mix hit multiplierAt
+  (`refBestX`). All labs re-split experiments vs agents daily (`applyBestMix`). Synthetic data no longer multiplies the
+  research rate; it is a training input (data stock and data wall).
+- **Safety agents:** a fleet on a share of the safety pool, on a selectable model. AI labour scales with fleet AI FTE,
+  capped by the old multiplier. Sabotage uses the safety model's traits. `safety.agents` action;
+  `safetyUtilisation` selector.
+- **UI:** Company › Compute split (four sliders, data sub-slider, mix Auto/Manual, mix chart, response curves); People
+  (two roles; the "AI FTE · human FTE" bug is fixed); Safety › Agendas (department load, safety agents card with model
+  picker, a per-agenda Automate that now passes its agenda).
+- **Bug:** the AG17 threshold now uses AG17_MIN_L = 10 (separate from AUTOMATE_MIN_L = 8.5), both on the safety
+  agent model.
+- **Save schemaRev 3:** migration 2 → 3 moves the old security share into synthetic and drops the removed staff roles.
+- **Tests (uncommitted):**
+  - test:v2 suites all pass except the hygiene tick timing (2.0–2.3 ms vs 1.5). It is machine load: in the same session
+    base af31d62 measured 1.37–1.59 ms and also failed once. A profile puts the new mix search at about 70 µs/day.
+  - uitest 108/108. Its speed-4 alert check now runs from the day-400 fixture: the day-900 fixture's game ends within
+    days.
+  - bots (40 seeds): all six §7.4 criteria MET (base: 5/6 at 40 seeds), outcomes within noise.
+- **Known shift:** with synthetic data out of the research rate, small labs lose their old d^0.15 handicap. China is
+  slightly faster: T3 lead before theft is 83 d vs 88 d on base. In the fixture seed China reaches SC level with the
+  player, and DeepCent leads by 49 d at day 900. Retune `CHINA_CAL.effScale` if that is too strong.
+
 ## Handoff for the next session (2026-11-15)
 
 The session that built v2 ended here. Start new work from this section.

@@ -20,7 +20,7 @@ export function initialChina(rng: Rng, h: HiddenWorld, playerPm: number, chinaGa
   const p = chinaPresetOf(h.actorPresets.china);
   const pm = playerPm - chinaGapYears;
   const uModes = drawLineageUModes(rng, h, false);
-  const staff: StaffByRole = { cap: 1500, saf: 60, sec: 80, prod: 120, ops: 40 };
+  const staff: StaffByRole = { cap: 1500, saf: 60 };
   const meters: ChinaActor['meters'] = {
     computeShare: 13, computeAbs: 1.5e6, chipSelfSufficiency: 30, domesticFab: 20, distillationAccess: 60,
     intelCapability: 75, theftIntent: 20, centralization: 0, stateSteering: 35, safetyConcern: 30, openWeights: 85,

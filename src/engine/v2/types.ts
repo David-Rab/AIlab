@@ -220,12 +220,12 @@ export interface HiddenWorld {
 
 // ───────────────────────────── Labs, models, runs ─────────────────────────────
 
-export interface StaffByRole { cap: number; saf: number; sec: number; prod: number; ops: number; }
+export interface StaffByRole { cap: number; saf: number; }
 
 /** Compute pools a lab splits its online compute into (§3.4.2). Fractions sum to 1. */
 export interface ComputeSplit {
   training: number; experiments: number; agents: number; synthetic: number;
-  serving: number; safety: number; security: number;
+  serving: number; safety: number;
 }
 
 export interface LabCore {
@@ -240,6 +240,8 @@ export interface LabCore {
   scDay?: Day;
   computeOnline: H100e;
   split: ComputeSplit;
+  /** Research mix set by hand. Absent/false: experiments vs agents is re-split to the best mix every day. */
+  researchManual?: boolean;
   staff: StaffByRole;
   /** τ_h, star-hire taste multiplier (research/13). */
   tasteHire: number;
@@ -483,6 +485,10 @@ export interface SafetyDept {
   /** Pre-deployment eval gate level: what runs before any external deployment. */
   evalGate: 'none' | 'basic' | 'full' | 'fullPlusExternal';
   monitoringShare: number; // share of safety compute on runtime monitoring
+  /** Share of safety compute running safety agents (AI labour for automated agendas and investigations). */
+  agentShare?: number;
+  /** Version running the safety agents; absent = the capabilities internal agent. */
+  agentVersion?: string;
   monitorabilityCommitment: boolean; // F31 / faithful-CoT pledge
   edgeGrades: Record<string, 'A' | 'B' | 'C' | 'D'>; // player-visible grade, can be raised by AG08 (§3.5.4)
   edgeRevealed: Record<string, boolean>; // true weight revealed for this world

@@ -3,7 +3,7 @@ import { ensureWs3 } from '../finance/ext';
 import type { GameStateV2 } from '../types';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
-export const SCHEMA_REV = 2;
+export const SCHEMA_REV = 3;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -15,6 +15,20 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   /** 1 → 2 (M2): WS3 `ws3` blocks became required fields of FinanceState, ChipMarket, PowerGrid, CapitalMarkets and
    *  Site; `GameStateV2.ws4` is optional and created lazily, so it needs nothing. */
   1: (raw) => ensureWs3(raw as unknown as GameStateV2),
+  /** 2 → 3: the security compute pool is gone (its share moves to data generation); security, product and ops staff are gone. */
+  2: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const cores = [s.player, s.china?.lab?.core, ...(s.rivals ?? []).map((r) => r.core)].filter(Boolean) as unknown as { split: Record<string, number>; staff: Record<string, number> }[];
+    const fix = (o: Record<string, number> | undefined, drop: string[]) => { if (o) for (const k of drop) delete o[k]; };
+    for (const c of cores) {
+      c.split.synthetic = (c.split.synthetic ?? 0) + (c.split.security ?? 0);
+      fix(c.split, ['security']);
+      fix(c.staff, ['sec', 'prod', 'ops']);
+    }
+    const hiring = (s.player as unknown as { hiring?: { target?: Record<string, number>; pipeline?: { role: string }[] } }).hiring;
+    fix(hiring?.target, ['sec', 'prod', 'ops']);
+    if (hiring?.pipeline) hiring.pipeline = hiring.pipeline.filter((p) => p.role === 'cap' || p.role === 'saf');
+  },
 };
 
 export function serialize(s: GameStateV2): string {

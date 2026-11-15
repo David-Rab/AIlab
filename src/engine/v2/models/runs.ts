@@ -421,13 +421,13 @@ export const runsSystem: EngineSystem = {
 
 // ───────────────────────────── lab API for non-player labs (WS4 drives them) ─────────────────────────────
 
-/** Reference split for a non-player lab: the shares track shareRef(t), keeping the lab's own safety and security
- *  shares (WS4 sets those from posture). */
+/** Reference split for a non-player lab: the shares track shareRef(t), keeping the lab's own safety share (WS4 sets
+ *  it from posture). The research mix is re-split to the best one by the production system. */
 export function labReferenceSplit(s: GameStateV2, r: RivalLab): void {
   const ref = shareRefAt(decimalYear(s));
-  const keep = r.core.split.safety + r.core.split.security;
-  const rest = 1 - ref.safety - ref.security;
-  const sp = { ...ref, safety: r.core.split.safety, security: r.core.split.security };
+  const keep = r.core.split.safety;
+  const rest = 1 - ref.safety;
+  const sp = { ...ref, safety: r.core.split.safety };
   for (const k of ['training', 'experiments', 'agents', 'synthetic', 'serving'] as const) sp[k] = (ref[k] / rest) * (1 - keep);
   r.core.split = normalizeSplit(sp);
 }

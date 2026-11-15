@@ -59,6 +59,28 @@ export function Lrel(P: CesP, A: number, h: number, ai: number): number {
   return Math.pow(Math.pow(1 - A, 1 - P.rc) * Math.pow(h, P.rc) + Math.pow(A, 1 - P.rc) * Math.pow(ai, P.rc), 1 / P.rc);
 }
 
+/**
+ * Best experiments share f ∈ [0.01, 0.99] of a research budget: maximises X(f·cu, Lrel(h, R·(1−f)·ku)^λ), where cu
+ * and ku are the ratios c and k a lab would have with all of its research compute on experiments or on agents.
+ * Golden-section search (X is unimodal in f).
+ */
+export function bestMix(P: CesP, A: number, R: number, h: number, cu: number, ku: number): { f: number; X: number } {
+  const X = (f: number) => Xces(P, Math.max(1e-12, f * cu), Math.pow(Math.max(1e-12, Lrel(P, A, h, Math.max(1e-12, R * (1 - f) * ku))), P.lam));
+  const g = (Math.sqrt(5) - 1) / 2;
+  let lo = 0.01;
+  let hi = 0.99;
+  let x1 = hi - g * (hi - lo);
+  let x2 = lo + g * (hi - lo);
+  let f1 = X(x1);
+  let f2 = X(x2);
+  for (let i = 0; i < 24; i++) {
+    if (f1 < f2) { lo = x1; x1 = x2; f1 = f2; x2 = lo + g * (hi - lo); f2 = X(x2); }
+    else { hi = x2; x2 = x1; f2 = f1; x1 = hi - g * (hi - lo); f1 = X(x1); }
+  }
+  const f = (lo + hi) / 2;
+  return { f, X: X(f) };
+}
+
 // ───────────────────────────── taste (research/13 §2.4; AIFM taste_distribution.py) ─────────────────────────────
 
 const Z999 = 3.090232306167813; // 99.9th percentile z (AIFM TOP_RESEARCHER_SD)

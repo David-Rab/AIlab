@@ -1,6 +1,7 @@
 // Production-function acceptance tests P1–P3 (V2-SPEC §3.2.3, §7.1). Owner: WS1.
-//   P1  identity: at h = k = c = d = 1, τ_h = 1, eff = mods = 1, M == multiplierAt(w, q) within 1e-9 (every preset,
-//       200-point grid).
+//   P1  identity: at h = 1 with reference research compute split in the best way between experiments and agents,
+//       τ_h = 1, eff = mods = 1, M == multiplierAt(w, q) within 1e-9 (every preset, 200-point grid, two dates). The
+//       AI 2027 table's own experiments/agents split (h = k = c = 1) is never better than the best mix.
 //   P2  ai2027 knot table within 2% of research/13 §1.5 (A, R, ℓ_ref, X_ref, T_ref; sdAI ±0.1).
 //   P3  elasticities at the reference points within ±0.02 of research/13 §1.6 (what-ifs and ceilings reported).
 import { R13_AI2027_KNOTS } from '../../src/data/v2/calibration';
@@ -8,7 +9,8 @@ import { milestoneThresholds, multiplierAt, stage1 } from '../../src/data/world'
 import { Rng } from '../../src/engine/rng';
 import { defaultSetupV2 } from '../../src/engine/v2/core/init';
 import { hash32 } from '../../src/engine/v2/core/rng';
-import { Lrel, Xces, bisect, buildKnotsDetailed, knotAt, tasteSD } from '../../src/engine/v2/production/knots';
+import { Lrel, Xces, bestMix, bisect, buildKnotsDetailed, knotAt, tasteSD } from '../../src/engine/v2/production/knots';
+import { shareRefAt } from '../../src/engine/v2/departments/split';
 import { evalM, evalProduction, type LabInputs } from '../../src/engine/v2/production/production';
 import { sampleHidden } from '../../src/engine/v2/world/hidden';
 import type { TimelineWorld, WorldPresetId } from '../../src/engine/v2/types';
@@ -18,9 +20,20 @@ const worldFor = (preset: WorldPresetId, seed: number): TimelineWorld =>
   sampleHidden(new Rng(hash32(seed, 'world')), defaultSetupV2({ world: preset, alignment: 'medium', seed })).timeline;
 
 const refInputs = (q: number): LabInputs => ({
-  qDep: q, yr: 2026, h: 1, k: 1, c: 1, d: 1, stock: 1, tasteHire: 1, eff: 1, mods: 1, rateMult: 1,
+  qDep: q, yr: 2026, h: 1, k: 1, c: 1, d: 1, mixUnit: { c: 0.08 / 0.05, k: 0.08 / 0.03, C: 8e4, load: 0, off: false }, stock: 1, tasteHire: 1, eff: 1, mods: 1, rateMult: 1,
   abs: { H: 2050, Cagents: 3e4, Cexp: 5e4, serveCost: 0.5, tcoPerYr: 1.4e-5, staffCostPerYr: 0.8e-3 },
 });
+
+/** Reference resources at `yr` with the best experiments/agents mix. */
+function bestRefInputs(w: TimelineWorld, q: number, yr: number): LabInputs {
+  const kn = knotAt(w.prod.knots, q);
+  const sh = shareRefAt(yr);
+  const r = sh.experiments + sh.agents;
+  const cu = r / sh.experiments;
+  const ku = r / sh.agents;
+  const f = bestMix(w.prod, kn.A, kn.R, 1, cu, ku).f;
+  return { ...refInputs(q), yr, c: f * cu, k: (1 - f) * ku, mixUnit: { c: cu, k: ku, C: 8e4, load: 0, off: false } };
+}
 
 // ---------- P1 identity ----------
 const worlds: [string, TimelineWorld][] = [
@@ -31,12 +44,20 @@ for (const [name, w] of worlds) {
   const th = milestoneThresholds(w);
   const top = th[6] * 1.05;
   let worst = 0;
-  for (let i = 0; i < 200; i++) {
-    const q = (i / 199) * top;
-    const M = evalM(w, refInputs(q)).M;
-    worst = Math.max(worst, Math.abs(M / multiplierAt(w, q) - 1));
+  let tableGap = 0;
+  let tableWorse = 0;
+  for (const yr of [2026, 2027.6]) {
+    for (let i = 0; i < 200; i++) {
+      const q = (i / 199) * top;
+      const M = evalM(w, bestRefInputs(w, q, yr)).M;
+      worst = Math.max(worst, Math.abs(M / multiplierAt(w, q) - 1));
+      const Mtable = evalM(w, { ...refInputs(q), yr }).M;
+      tableGap = Math.max(tableGap, 1 - Mtable / M);
+      if (Mtable > M * (1 + 1e-6)) tableWorse++;
+    }
   }
-  check(worst <= 1e-9, `P1 identity ${name}`, `max rel err ${worst.toExponential(2)} over 200 points`);
+  check(worst <= 1e-9, `P1 identity ${name}`, `max rel err ${worst.toExponential(2)} over 2×200 points`);
+  check(tableWorse === 0, `P1 best mix ≥ table mix ${name}`, `table split costs up to ${(tableGap * 100).toFixed(1)}% of M`);
   const kb = buildKnotsDetailed(w, w.prod);
   check(kb.ok, `knots valid ${name} (T_ref ≥ 1, monotone)`, kb.problems.join('; ') || `${kb.knots.length} knots`);
 }

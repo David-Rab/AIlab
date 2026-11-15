@@ -68,7 +68,6 @@ export function initialRival(rng: Rng, h: HiddenWorld, i: number, playerPm: numb
   const totalStaff = Math.round(2500 * Math.max(0.3, arch.computeMult));
   const staff: StaffByRole = {
     cap: Math.round(totalStaff * 0.8), saf: Math.round(totalStaff * 0.15 * posture.safetyInvestment + 10),
-    sec: Math.round(totalStaff * 0.04), prod: Math.round(totalStaff * 0.06), ops: Math.round(totalStaff * 0.02),
   };
   const split = normalizeSplit({ ...shareRefAt(2025.5), safety: posture.safetyInvestment * 0.15 });
   const f = FIN[arch.id] ?? FIN.bigtech;

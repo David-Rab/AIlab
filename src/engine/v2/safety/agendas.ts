@@ -1,5 +1,6 @@
 // Safety agendas: funding, finding hazards, posteriors (V2-SPEC §3.5.2–3.5.3). Owner: WS2.
-import { AGENDAS, AGENDA_BY_ID, FUNDING_LEVELS, FUNDING_LEVEL_IDS, type FundingLevel } from '../../../data/v2/agendas';
+import { AG17_MIN_L, AGENDAS, AGENDA_BY_ID, FUNDING_LEVELS, FUNDING_LEVEL_IDS, type FundingLevel } from '../../../data/v2/agendas';
+import { fleetMultiplier, safetyAgentVersion, safetyFleet } from './agents';
 import { EDGES } from '../../../data/v2/edges';
 import type { AgendaId, AgendaState, EngineSystem, GameStateV2, SafetyDept, SystemCtx, TechniqueId } from '../types';
 import { adopted, clamp01, flag, flagNum, setFlag, versionById, versionM } from './common';
@@ -39,6 +40,7 @@ export function initialSafetyDept(): SafetyDept {
     discoveredUModes: [],
     evalGate: 'full',
     monitoringShare: 0.2,
+    agentShare: 0,
     monitorabilityCommitment: false,
     edgeGrades: Object.fromEntries(EDGES.map((e) => [e.id, e.grade])),
     edgeRevealed: Object.fromEntries(EDGES.map((e) => [e.id, false])),
@@ -70,7 +72,7 @@ function investigationShare(dept: SafetyDept): number {
  * column); requests are scaled down when the pool (after monitoring and investigations) is too small.
  */
 export function recomputeComputeShares(dept: SafetyDept, safetySplit: number): number {
-  const pool = Math.max(0, safetySplit * (1 - dept.monitoringShare - investigationShare(dept)));
+  const pool = Math.max(0, safetySplit * (1 - dept.monitoringShare - (dept.agentShare ?? 0) - investigationShare(dept)));
   let req = 0;
   for (const a of AGENDAS) req += fundingMult(a.id, dept.agendas[a.id]) * a.computeRef;
   const scale = req > 0 ? Math.min(1, pool / req) : 1;
@@ -96,7 +98,8 @@ function ag17Mult(s: GameStateV2): number {
 
 /**
  * Finding hazard per day (§3.5.3):
- *   λ = (1/(30·T₁)) · (FTE/FTE_ref)^0.5 · (C/C_ref)^0.3 · (1 + aiLabour · Auto · min(10, M_internal^0.5))
+ *   λ = (1/(30·T₁)) · (FTE/FTE_ref)^0.5 · (C/C_ref)^0.3 · AIx
+ *   AIx = min(1 + aiLabour·Auto·min(10, M_safetyModel^0.5), √(1 + Auto·AI FTE / FTE))   (safety fleet, agents.ts)
  * plus: refresh projects take 30% of the staff; dead-end agendas ×0.5; F44 AARs ×3 on AG18/AG03/AG16 (with AI
  * labour); P27 × (1 + 3·aiLabour). Uses only visible inputs (FTE, compute, M from the production readout).
  */
@@ -107,9 +110,13 @@ export function findingHazard(s: GameStateV2, ag: AgendaId, staff = staffFactor(
   const fteR = (st.fte * staff * (st.refresh ? 0.7 : 1)) / def.fteRef;
   const split = s.player.split.safety;
   const cR = Math.max(0.05, split > 0 ? (st.computeShare * split) / def.computeRef : 0);
-  const M = s.player.prodCache?.M ?? 1;
   const auto = def.auto * ag17Mult(s);
-  let lam = (1 / (30 * def.T1)) * Math.sqrt(fteR) * Math.pow(Math.min(cR, 4), 0.3) * (1 + st.aiLabour * auto * Math.min(10, Math.sqrt(M)));
+  let aix = 1;
+  if (st.aiLabour > 0) {
+    const M = versionM(s, safetyAgentVersion(s));
+    aix = fleetMultiplier(safetyFleet(s), st.aiLabour, auto, 1 + st.aiLabour * auto * Math.min(10, Math.sqrt(M)));
+  }
+  let lam = (1 / (30 * def.T1)) * Math.sqrt(fteR) * Math.pow(Math.min(cR, 4), 0.3) * aix;
   if (st.status === 'deadEnd') lam *= 0.5;
   if (flag(s, 'aar') !== undefined && st.aiLabour > 0 && (ag === 'AG18' || ag === 'AG03' || ag === 'AG16')) lam *= 3;
   if (adopted(s, 'P27')) lam *= 1 + 3 * st.aiLabour;
@@ -129,8 +136,8 @@ export function setAgendaFunding(s: GameStateV2, ag: AgendaId, level: FundingLev
   const st = s.player.safety.agendas[ag];
   if (!st) return 'Unknown agenda';
   if (ag === 'AG17' && level !== 'off') {
-    const v = versionById(s, s.player.models.internalAgent);
-    if ((v?.evals.measuredL ?? 0) < 10) return 'Needs a model with measured level ≥ 10';
+    const v = safetyAgentVersion(s);
+    if ((v?.evals.measuredL ?? 0) < AG17_MIN_L) return `Needs a safety agent model at measured level ≥ ${AG17_MIN_L}`;
   }
   st.fte = Math.round(AGENDA_BY_ID[ag].fteRef * FUNDING_LEVELS[level] * 10) / 10;
   if (level === 'off') {
