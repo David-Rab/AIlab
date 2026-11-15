@@ -205,7 +205,7 @@ export function choiceByLabel(d: PendingDecision, label: string): number {
 }
 
 /** RefBot's decisions (§7.4): E17 Continue, E20 Accept, E23 Reject; finance decisions as a competent CEO
- *  (financeDecide: E02 restructure, E26, E37); everything else takes the event's default. */
+ *  (financeDecide: E37); everything else takes the event's default. */
 export function refDecide(s: GameStateV2, d: PendingDecision): number {
   const fin = financeDecide(s, d, REF_AUTOPILOT);
   if (fin !== undefined) return fin;

@@ -55,7 +55,7 @@ export function watchItems(s: GameStateV2): WatchItem[] {
   if (rl.flips && (rl.live === 'tight' || rl.live === 'distress')) {
     out.push({
       id: 'runway', sphere: 'company', sev: rl.live === 'distress' ? 4 : 2.5,
-      chain: [{ label: 'burn exceeds income', icon: ICON.cash, kind: 'root', detail: `Net burn ${F.money(rl.rw.burnQ, { perQ: true })}` }, { label: `runway ${rl.live}`, icon: ICON.runway, kind: 'bad', detail: `${F.quarters(rl.rw.q)} left` }],
+      chain: [{ label: 'burn exceeds income', icon: ICON.cash, kind: 'root', detail: `Net burn ${F.money(rl.rw.burnQ, { perQ: true })}` }, { label: `runway ${rl.live}`, icon: ICON.runway, kind: 'bad', detail: `${F.runway(rl.rw.q)} left` }],
       why: `the board reviews it on ${rl.review.toISOString().slice(0, 10)}`, go: { panel: 'finance', anchor: 'raise' }, goLabel: 'Finance',
     });
   }

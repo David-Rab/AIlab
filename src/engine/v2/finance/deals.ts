@@ -171,7 +171,7 @@ export function acceptDeal(s: GameStateV2, ctx: SystemCtx, template: Template, p
       case 'chipVendorEquity': {
         const id = `LTA${q}-${s.time.day}-${s.player.orders.length}`;
         s.player.orders.push({ id, lab: 'player', qty: t.h100e, kind: 'lta', price: t.unitPrice, deposit: 0, dueQ: q + 2, ltaEndQ: q + 2 + t.commitQ, prepayFrac: 0, nonTW: false, delivered: 0 });
-        addLedger(s, { payee: partner, kind: 'lta', perQuarter: t.commitPerQ, endDay: dayOfQuarter(s.time.startDate, q + 2 + t.commitQ), cancellableNoticeQ: null, penalty: 0 });
+        addLedger(s, { payee: partner, kind: 'lta', perQuarter: t.commitPerQ, startDay: dayOfQuarter(s.time.startDate, q + 2), endDay: dayOfQuarter(s.time.startDate, q + 2 + t.commitQ), cancellableNoticeQ: null, penalty: 0 });
         if (template === 'customASIC') {
           // Separate supply pool (TPU/Trainium): served outside rationing; migration slows research 2–3 quarters [R15].
           fx.reserved.push({ perQ: t.h100e, fromQ: q + 2, toQ: q + 2 + t.commitQ });

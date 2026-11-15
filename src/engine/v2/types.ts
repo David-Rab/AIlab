@@ -637,6 +637,9 @@ export interface Commitment$ {
   payee: string;
   kind: 'cloud' | 'lta' | 'lease' | 'spvRVG' | 'vendor' | 'power';
   perQuarter: Money;
+  /** First day payments fall due; absent = already paying. LTAs pay from the first tranche, cloud from the contract
+   *  start, colocation leases from handover. */
+  startDay?: Day;
   endDay: Day;
   cancellableNoticeQ: number | null; // null = non-cancellable
   penalty: Money;
@@ -1246,6 +1249,8 @@ export interface EventDefV2 {
   owner: WorkstreamId;
   crisis: boolean;
   cooldown?: number; // days; omitted = once per game
+  /** Fire at most once per game for each key of the trigger data (e.g. once per trait), on top of `cooldown`. */
+  onceKey?: (data: Record<string, number | string>) => string;
   deadlineDays: number;
   defaultChoice: number; // applied on expiry
   when(s: GameStateV2): Record<string, number | string> | false; // returns data bound into text

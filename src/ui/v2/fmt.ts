@@ -52,8 +52,10 @@ export function days(d: number, signed = false): string {
 }
 /** Lead in days, always signed (+ = you are ahead). */
 export const lead = (d: number) => `${d > 0 ? '+' : d < 0 ? MINUS : ''}${Math.abs(Math.round(d))}d`;
-/** Quarters of runway. */
+/** Quarters (of spending, of cover). */
 export const quarters = (q: number) => (q >= 99 ? '∞' : `${q.toFixed(q < 10 ? 1 : 0)}q`);
+/** Runway in quarters: "8q+" when cash lasts the whole projection (RUNWAY_CAP in engine finance/runway.ts). */
+export const runway = (q: number, cap = 8) => (q >= cap ? `${cap}q+` : quarters(q));
 /** Multipliers: 1.37×, 12.4×, 140×. */
 export const mult = (m: number) => `${m >= 100 ? m.toFixed(0) : m >= 10 ? m.toFixed(1) : m.toFixed(2)}×`;
 /** Megawatts / gigawatts. */

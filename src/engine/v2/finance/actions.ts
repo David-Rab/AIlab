@@ -498,9 +498,10 @@ const renegotiate: ActionDef = {
     ensureWs3(s);
     for (const c of f.ledger) {
       if (c.endDay <= s.time.day || c.cancellableNoticeQ !== null) continue;
-      const left = c.endDay - s.time.day;
+      const from = Math.max(s.time.day, c.startDay ?? -Infinity);
+      const left = c.endDay - from;
       c.perQuarter *= 0.65; // suppliers accept a 25–50% deferral for warrants [R15]
-      c.endDay = s.time.day + Math.round(left / 0.65);
+      c.endDay = from + Math.round(left / 0.65);
     }
     f.ws3.lastRenegotiationDay = s.time.day;
     issueWarrants(s, 0.02);
@@ -572,7 +573,7 @@ function cancellable(s: GameStateV2): Cancellable[] {
     const cl = s.player.cloud.find((c) => `L-${c.id}` === l.id);
     const end = s.time.day + notice * 91;
     out.push({
-      id: l.id, h100e: cl?.h100e ?? 0, penalty: 0, saved: (l.perQuarter * Math.max(0, l.endDay - end)) / 91,
+      id: l.id, h100e: cl?.h100e ?? 0, penalty: 0, saved: (l.perQuarter * Math.max(0, l.endDay - Math.max(end, l.startDay ?? -Infinity))) / 91,
       apply(ctx) {
         l.endDay = Math.min(l.endDay, end);
         if (cl) cl.endDay = Math.min(cl.endDay, end);

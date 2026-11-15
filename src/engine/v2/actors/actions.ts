@@ -130,7 +130,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
   def({
     id: 'A6', title: 'Whistleblower channel',
     available: (s) => (s.player.policies.whistleblowerChannel ? 'Channel already open' : true),
-    preview: () => pv([L('staffTime', 3, 'fix-or-escalate timers (14–30 d)')], [L('talent', 3), L('morale', 5, 'safety staff')], [L('trust', -10, 'ignored reports go external at 2×', { probability: 0.2 })]),
+    preview: () => pv([L('staffTime', 3, 'handling reports')], [L('talent', 3), L('morale', 5, 'safety staff'), L('trust', 2, 'insider concerns handled internally, not leaked')]),
     apply(s, ctx) {
       s.player.policies.whistleblowerChannel = true;
       signCommitment(s, ctx, 'whistleblower', 'Right-to-warn whistleblower channel', 'whistleblower', {}, ['bloc:safety', 'evalIndep'], { trust: 6, credibility: 10 });

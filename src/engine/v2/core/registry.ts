@@ -37,12 +37,10 @@ import { geoQSystem } from '../actors/china';
 import { indexSystem } from '../actors/index';
 import { RELATION_ACTIONS } from '../actors/actions';
 import { COMPANY_EVENTS } from '../events/catalog/company';
-import { MODEL_EVENTS } from '../events/catalog/model';
 import { SAFETY_EVENTS } from '../events/catalog/safety';
 import { GOV_EVENTS } from '../events/catalog/gov';
 import { CHINA_EVENTS } from '../events/catalog/china';
 import { RIVALS_EVENTS } from '../events/catalog/rivals';
-import { WORLD_EVENTS } from '../events/catalog/world';
 // WS5
 import { revenueSystem } from '../worldfx/revenue';
 import { worldDailySystem } from '../worldfx/sectors';
@@ -87,7 +85,7 @@ export const ACTIONS: readonly ActionDef[] = [...MODEL_ACTIONS, ...SAFETY_ACTION
 
 /** Decision events (§4.2). */
 export const EVENTS: readonly EventDefV2[] = [
-  ...COMPANY_EVENTS, ...MODEL_EVENTS, ...SAFETY_EVENTS, ...GOV_EVENTS, ...CHINA_EVENTS, ...RIVALS_EVENTS, ...WORLD_EVENTS,
+  ...COMPANY_EVENTS, ...SAFETY_EVENTS, ...GOV_EVENTS, ...CHINA_EVENTS, ...RIVALS_EVENTS,
 ];
 
 export const ACTION_BY_ID = new Map(ACTIONS.map((a) => [a.id, a]));

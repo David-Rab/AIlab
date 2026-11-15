@@ -55,7 +55,8 @@ export function placeOrder(s: GameStateV2, ctx: SystemCtx, kind: OrderKind, qty:
     const quarters = Math.max(4, Math.min(12, Math.round(opts.quarters ?? 8)));
     const o: ChipOrder = { id: `LTA${q}-${s.time.day}-${n}`, lab: 'player', qty, kind, price: quote.price, deposit: 0, dueQ: quote.dueQ, ltaEndQ: quote.dueQ + quarters, prepayFrac: 0, nonTW: !!opts.nonTW, delivered: 0 };
     s.player.orders.push(o);
-    addLedger(s, { payee: 'Chip LTA', kind: 'lta', perQuarter: (qty * quote.price) / 1e6, endDay: dayOfQuarter(s.time.startDate, quote.dueQ + quarters), cancellableNoticeQ: null, penalty: 0 });
+    // Pay per tranche from the first delivery quarter: `quarters` payments for `quarters` tranches.
+    addLedger(s, { payee: 'Chip LTA', kind: 'lta', perQuarter: (qty * quote.price) / 1e6, startDay: dayOfQuarter(s.time.startDate, quote.dueQ), endDay: dayOfQuarter(s.time.startDate, quote.dueQ + quarters), cancellableNoticeQ: null, penalty: 0 });
     ctx.log('finance', `Signed a ${quarters}-quarter chip LTA: ${(qty / 1e6).toFixed(2)}M H100e per quarter at $${quote.price.toFixed(1)}K.`);
     return o;
   }
@@ -80,7 +81,7 @@ export function addCloud(s: GameStateV2, ctx: SystemCtx, h100e: number, years: n
   const endDay = startDay + Math.round(years * 365);
   const c: CloudContract = { id: `C${s.time.day}-${s.player.cloud.length}`, provider, h100e, costPerYear, startDay, endDay, cancellableNoticeQ: cancellable ? 1 : null };
   s.player.cloud.push(c);
-  addLedger(s, { id: `L-${c.id}`, payee: provider, kind: 'cloud', perQuarter: costPerYear / 4, endDay, cancellableNoticeQ: cancellable ? 1 : null, penalty: 0 });
+  addLedger(s, { id: `L-${c.id}`, payee: provider, kind: 'cloud', perQuarter: costPerYear / 4, startDay, endDay, cancellableNoticeQ: cancellable ? 1 : null, penalty: 0 });
   // Capacity financed by the provider instead of your balance sheet (test F8): equivalent owned capex.
   yearStats(s).cloudFinanced += (h100e * (s.market.listPrice * (1 + MARKET.networkShare) + 10 * s.power.kWPerH100e)) / 1e6;
   ctx.log('finance', `${provider}: ${(h100e / 1e6).toFixed(2)}M H100e for ${years} y at $${perH.toFixed(1)}K/H100e-yr${cancellable ? ' (cancellable)' : ''}.`);

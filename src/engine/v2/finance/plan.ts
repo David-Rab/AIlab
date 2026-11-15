@@ -106,7 +106,7 @@ export function financeAutopilot(s: GameStateV2, o: AutopilotOpts = REF_AUTOPILO
   if (f.state === 'insolvent') return;
   const tryAct = (id: string, p: Record<string, number | string | boolean> = {}) => act(s, id, p) === undefined;
 
-  // Governance: start the recapitalisation when E02 fires (Q4 2025).
+  // Governance: start the recapitalisation when it becomes available (Q4 2025).
   if (o.recap && s.player.board.preset === 'legacyNonprofit' && f.ws3.recap.startDay === undefined && !f.ws3.recap.refused && s.time.day >= 92) tryAct('fin.recap');
 
   // Distress (a competent CEO, M4): renegotiate first (warrants, once a year); if runway is still under 2 quarters,
@@ -220,11 +220,11 @@ function rescueKeepsControl(s: GameStateV2): boolean {
 }
 
 /**
- * Competent-CEO answers to the finance decisions (M4), shared by every bot: E02 restructure (when `o.recap`); E26
- * renegotiate, else a rescue (if allowed and control is kept), else a down round; E37 rally the staff when morale is
- * high, freeze capex when runway is short or the CEO is cautious, otherwise add independent directors. Returns undefined for other events.
+ * Competent-CEO answer to the finance decision (M4), shared by every bot: E37 rally the staff when morale is high,
+ * freeze capex when runway is short or the CEO is cautious, otherwise add independent directors. (Recapitalisation
+ * and distress are actions the autopilot takes directly.) Returns undefined for other events.
  */
-export function financeDecide(s: GameStateV2, d: PendingDecision, o: AutopilotOpts = REF_AUTOPILOT): number | undefined {
+export function financeDecide(s: GameStateV2, d: PendingDecision, _o: AutopilotOpts = REF_AUTOPILOT): number | undefined {
   const def = EVENT_BY_ID.get(d.id);
   if (!def) return undefined;
   const ok = (label: string) => {
@@ -239,8 +239,6 @@ export function financeDecide(s: GameStateV2, d: PendingDecision, o: AutopilotOp
     return undefined;
   };
   switch (d.id) {
-    case 'E02': return o.recap ? first('Restructure') : first('Keep nonprofit');
-    case 'E26': return first('Renegotiate', ...(o.rescue && rescueKeepsControl(s) ? ['Strategic rescue'] : []), 'Cancel contracts', ...(runwayOf(s).q < 2 && !recentDownRound(s) ? ['Down round'] : []), 'Sell chips', 'Down round');
     case 'E37': {
       // New independents dilute a mission board that would shield a cautious CEO, so a cautious CEO (≥ 8% safety
       // compute) rallies staff or freezes capex instead.

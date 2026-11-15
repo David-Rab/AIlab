@@ -47,8 +47,11 @@ export function initialFinance(baseline: BaselineId, governance: GovernancePrese
   return f;
 }
 
-/** Live ledger entries. */
+/** Live ledger entries (paying now, or signed and starting later). */
 export const liveLedger = (s: GameStateV2) => s.player.finance.ledger.filter((c) => c.endDay > s.time.day);
+
+/** Is ledger entry `c` paying on `day`? */
+export const ledgerPaying = (c: Commitment$, day: Day) => c.endDay > day && (c.startDay ?? -Infinity) <= day;
 
 /** Quarter index (Q3 2025 = 0) of a day. */
 export const qOf = (s: GameStateV2, day: Day = s.time.day) => quarterIndex(s.time.startDate, day);
@@ -59,7 +62,7 @@ export function ledgerDue(s: GameStateV2, quarter: number): Money {
   let sum = 0;
   for (const c of s.player.finance.ledger) {
     if (c.endDay <= s.time.day) continue;
-    if (qOf(s, c.endDay - 1) >= quarter && quarter >= qNow) sum += c.perQuarter;
+    if (qOf(s, c.endDay - 1) >= quarter && quarter >= qNow && (c.startDay === undefined || qOf(s, c.startDay) <= quarter)) sum += c.perQuarter;
   }
   return sum;
 }
@@ -74,7 +77,7 @@ export function commitmentsPerYear(s: GameStateV2, firmOnly = false): Money {
 /** Remaining (undiscounted) ledger payments $B — "commitments" in the finance panel and the rating PV term. */
 export function commitmentsRemaining(s: GameStateV2): Money {
   let sum = 0;
-  for (const c of s.player.finance.ledger) if (c.endDay > s.time.day) sum += (c.perQuarter * (c.endDay - s.time.day)) / 91.25;
+  for (const c of s.player.finance.ledger) if (c.endDay > s.time.day) sum += (c.perQuarter * (c.endDay - Math.max(s.time.day, c.startDay ?? -Infinity))) / 91.25;
   return sum;
 }
 
@@ -94,7 +97,7 @@ export function orderBalances(s: GameStateV2, quarters = 99): Money {
 
 /** Add a ledger entry (returns it). */
 export function addLedger(s: GameStateV2, e: Omit<Commitment$, 'id'> & { id?: string }): Commitment$ {
-  const c: Commitment$ = { id: e.id ?? `L${s.time.day}-${s.player.finance.ledger.length}`, payee: e.payee, kind: e.kind, perQuarter: e.perQuarter, endDay: e.endDay, cancellableNoticeQ: e.cancellableNoticeQ, penalty: e.penalty };
+  const c: Commitment$ = { id: e.id ?? `L${s.time.day}-${s.player.finance.ledger.length}`, payee: e.payee, kind: e.kind, perQuarter: e.perQuarter, ...(e.startDay !== undefined ? { startDay: e.startDay } : {}), endDay: e.endDay, cancellableNoticeQ: e.cancellableNoticeQ, penalty: e.penalty };
   s.player.finance.ledger.push(c);
   return c;
 }

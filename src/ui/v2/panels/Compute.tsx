@@ -463,11 +463,18 @@ function SitesTab({ s }: { s: GameStateV2 }) {
 function Deliveries({ s }: { s: GameStateV2 }) {
   const q0 = qOf(s);
   const open = s.player.orders.filter((o) => o.qty > o.delivered);
-  const last = Math.max(q0 + 7, ...open.map((o) => o.dueQ));
+  // One entry per quarterly batch: an LTA's later tranches are batches too.
+  const batches = open.flatMap((o) => {
+    const first = Math.max(q0, o.dueQ);
+    const later = o.kind === 'lta' ? Math.max(0, (o.ltaEndQ ?? 0) - o.dueQ - 1) : 0;
+    return [{ o, q: first, key: o.id, left: o.qty - o.delivered, delivered: o.delivered },
+      ...Array.from({ length: later }, (_, i) => ({ o, q: first + i + 1, key: `${o.id}-${i + 1}`, left: o.qty, delivered: 0 }))];
+  });
+  const last = Math.max(q0 + 7, ...batches.map((b) => b.q));
   const qs = Array.from({ length: Math.min(12, last - q0 + 1) }, (_, i) => q0 + i);
   const byQ = qs.map((q) => {
-    const os = open.filter((o) => Math.max(q0, o.dueQ) === q);
-    return { q, os, tot: os.reduce((a, o) => a + o.qty - o.delivered, 0) };
+    const os = batches.filter((b) => b.q === q);
+    return { q, os, tot: os.reduce((a, b) => a + b.left, 0) };
   });
   const max = Math.max(1, ...byQ.map((b) => b.tot));
   return (
@@ -475,11 +482,11 @@ function Deliveries({ s }: { s: GameStateV2 }) {
       right={<span className="legend2">{(['spot', 'standard', 'lta'] as const).map((k) => <span key={k}><i style={{ background: KIND_COLOR[k] }} />{k === 'lta' ? 'LTA' : k}</span>)}</span>}>
       {open.length > 0 && <div className="dlv">
         {byQ.map((b) => (
-          <Tip as="div" key={b.q} content={() => <TipCard title={qLabel(s, b.q)} value={`${F.count(b.tot)} H100e`} rows={b.os.map((o) => ({ label: `${o.kind}${o.nonTW ? ' · non-TW' : ''} · $${o.price.toFixed(1)}K`, value: `${F.count(o.delivered)} / ${F.count(o.qty)}` }))}>{b.os.length ? 'Undelivered chips due this quarter (delivered / ordered).' : 'Nothing due.'}</TipCard>}>
+          <Tip as="div" key={b.q} content={() => <TipCard title={qLabel(s, b.q)} value={`${F.count(b.tot)} H100e`} rows={b.os.map(({ o, delivered }) => ({ label: `${o.kind === 'lta' ? 'LTA tranche' : o.kind}${o.nonTW ? ' · non-TW' : ''} · $${o.price.toFixed(1)}K`, value: `${F.count(delivered)} / ${F.count(o.qty)}` }))}>{b.os.length ? 'Undelivered chips due this quarter (delivered / ordered). An LTA delivers one tranche every quarter to its end.' : 'Nothing due.'}</TipCard>}>
             <div className="dlv-col">
               <span className="num dlv-v">{b.tot > 0 ? F.count(b.tot) : ''}</span>
               <span className="dlv-bar">
-                {b.os.map((o) => <i key={o.id} style={{ height: `${((o.qty - o.delivered) / max) * 100}%`, background: KIND_COLOR[o.kind] }} />)}
+                {b.os.map((x) => <i key={x.key} style={{ height: `${(x.left / max) * 100}%`, background: KIND_COLOR[x.o.kind] }} />)}
               </span>
               <span className="dlv-q">{b.q === q0 ? qLabel(s, b.q) : `+${b.q - q0}q`}</span>
             </div>

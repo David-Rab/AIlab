@@ -12,7 +12,7 @@ import { KIND_ICON, KIND_PANEL, kindTag, Ring } from './AlertQueue';
 import { watchItems } from './watch';
 
 /** Which Watch rules explain an event, by event id first, then by its kind. */
-const WHY_BY_EVENT: Record<string, string[]> = { E36: ['capped', 'idle'], E17: ['unseen'], E37: ['board', 'runway'], E01: ['unseen'] };
+const WHY_BY_EVENT: Record<string, string[]> = { E17: ['unseen'], E37: ['board', 'runway'], E01: ['unseen'] };
 const WHY_BY_KIND: Record<string, string[]> = { finance: ['runway', 'board'], company: ['morale', 'idle'], model: ['unseen', 'stale'], incident: ['incident', 'unseen'], research: ['unseen'], alert: ['unseen', 'incident'] };
 /** Lasting fixes per kind when no Watch rule matches. */
 const FIXES: Record<string, { to: GoTarget; label: string }[]> = {

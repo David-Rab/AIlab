@@ -86,12 +86,7 @@ export const mixedBot: BotPolicy = {
     const fin = financeDecide(s, d, REF_AUTOPILOT);
     if (fin !== undefined) return fin;
     switch (d.id) {
-      case 'E03': return s.player.finance.deals.length ? byLabel(d, 'Decline', 2) : byLabel(d, 'Accept');
-      case 'E04': return byLabel(d, 'Decline', 2);
-      case 'E07': return byLabel(d, 'With limits', 1);
-      case 'E08': return byLabel(d, 'Full briefing');
       case 'E10': return byLabel(d, 'Public + retaliate');
-      case 'E11': return posteriorMean(s, 'AG01') > 0.6 || posteriorMean(s, 'AG02') > 0.6 ? byLabel(d, 'Internal only', 1) : byLabel(d, 'Reject + pledge', 2);
       case 'E12': return byLabel(d, 'Comply');
       case 'E17': {
         const v = internalVersion(s);
@@ -102,7 +97,6 @@ export const mixedBot: BotPolicy = {
       case 'E20': return byLabel(d, 'Accept');
       case 'E22': return byLabel(d, 'Decline', 1);
       case 'E23': return byLabel(d, 'Verified talks');
-      case 'E26': return byLabel(d, 'Down round');
       case 'E30': return byLabel(d, 'Honour');
       case 'E32': return s.player.finance.cash > 20 ? byLabel(d, 'Acquire') : byLabel(d, 'Decline', 1);
       default: return pickByTags(s, d, [['disclose', 'honour'], ['balanced', 'control'], ['cooperate', 'community'], ['safety']]);

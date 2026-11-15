@@ -19,6 +19,28 @@ Single source of truth for where the build stands. Update at every milestone or 
 | M5 UX redesign (IA, design system, panels) | Done: uitest 104/104, lint-ux green | 0af3dcd..babe8b2 |
 | M5 polish, tutorial, codex, v1 removal | Onboarding and codex exist; v1 removed (2026-11-15), `npm run build` builds the current game | |
 
+## Cash projection, LTA fixes, event cut (2026-11-15, branch `cash-events`, worktree ../AI27-cash)
+
+Per the user's decisions after a playtest ("LTA buys one quarter", "event spam", "flush at 15q, then 1q next quarter"):
+- **Runway = cash projection** (`finance/runway.ts`): the rest of this quarter plus 8 quarters. Each known payment
+  sits in the quarter it falls due: ledger between `startDay` and `endDay`, chip balances at delivery, site capex on
+  its build schedule, unconditional tranches when they land, debt maturities only when the market is closed. Revenue
+  is held flat at today's run rate. Runway = quarters until liquidity (cash + undrawn revolver) falls below minimum
+  operating cash (one month of running costs), capped at `RUNWAY_CAP` = 8 ("8q+"). `burnQ`/`parts` are 4-quarter
+  averages of the same flows; `path`, `low`, `floor`, `zeroDay` feed the top-strip tooltip and the Finance cash chart.
+  The zones (distress < 3q, tight < 6q) are unchanged. The old ratio blew up near break-even (99 ↔ 3q in 30 days) and
+  smeared lumps over a sliding 4-quarter window.
+- **LTA bugs:** ledger entries now have `startDay`, so an LTA pays from its first tranche (it paid from signing: 10
+  payments for 8 tranches). Cloud contracts pay from their start, colocation leases from handover. A finished LTA leaves
+  the order book. Orders › Deliveries shows every future LTA tranche (it showed only the current one).
+- **Events 37 → 15.** Dropped (a regular mechanism does it, or a nag): E02–E09, E11, E13–E15, E18, E21, E24, E26, E28,
+  E31, E33–E36. Kept: E01, E10, E12, E16, E17, E19, E20, E22, E23, E25, E27, E29, E30, E32, E37. Requests now obey
+  cooldowns (the leak fired ~2.3×/game "once"); `onceKey` makes E17 fire once per red flag; E16/E19/E37 cooldown 365.
+  Side effects that used to go through dropped events: copyright suits settle automatically (china.ts), a Taiwan crisis
+  is a headline, a whistleblower-channel report is handled internally (security.ts). E22/E32 previews no longer promise
+  compute they never delivered. Bots: ~11 decisions/game (was ~51), about one per quarter.
+- **Known:** bots size chip orders without the projection, so their runway swings (order → 1q → raise → 8q+) are real.
+
 ## Compute tab redesign (2026-11-15)
 
 Per `design/ux/COMPUTE.md`: Overview (verdicts, capacity and fleet forecast, order chips / build data centre / rent

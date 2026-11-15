@@ -108,12 +108,14 @@ export const securitySystem: EngineSystem = {
       }
     }
 
-    // Insider leak to the press (whistleblower): with a channel it is an internal report first (A6).
+    // Insider leak to the press (whistleblower). With a channel (A6) the concern is raised and handled internally
+    // instead: safety morale +5, one red flag fewer toward the next leak.
     const hw = whistleHazard(s);
     if (hw > 0 && !w.internalReport && rng.chance(hw)) {
       if (s.player.policies.whistleblowerChannel) {
-        w.internalReport = { day: ctx.day, deadline: ctx.day + Math.round(rng.range(14, 30)) };
-        request(s, 'E18', {});
+        ctx.bump('morale.safety', 5, 'internal report handled');
+        w.redFlags = Math.max(0, w.redFlags - 1);
+        ctx.log('company', 'An employee raised a safety concern through the whistleblower channel; it was handled internally.', 2);
       } else request(s, 'E19', { mult: 1 });
     }
   },

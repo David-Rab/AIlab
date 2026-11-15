@@ -35,8 +35,9 @@ const load = (i: number) => deserialize(fixtures[i]);
 // ───────── E1: catalog shape + trade-off lint on every choice ─────────
 {
   const ids = new Set(EVENTS.map((e) => e.id));
-  const want = Array.from({ length: 35 }, (_, i) => `E${String(i + 2).padStart(2, '0')}`).concat('E01');
-  check(want.every((id) => ids.has(id)), 'E1 catalog: E01–E36 all present', `${EVENTS.length} events`);
+  // 2026-11-15 cut: events are rare decisions the regular mechanisms do not model (15 kept, 22 removed).
+  const want = ['E01', 'E10', 'E12', 'E16', 'E17', 'E19', 'E20', 'E22', 'E23', 'E25', 'E27', 'E29', 'E30', 'E32', 'E37'];
+  check(want.every((id) => ids.has(id)) && ids.size === want.length, 'E1 catalog: exactly the 15 kept events', `${EVENTS.length} events`);
   const okLint = (p: { costs: CostLine[]; gains: CostLine[] }) => {
     const g = new Set(p.gains.map((x) => x.currency));
     return p.costs.some((c) => !g.has(c.currency));
@@ -83,7 +84,7 @@ const load = (i: number) => deserialize(fixtures[i]);
       const into = s.rivals.find((_x, j) => j !== i && !(mask & (1 << j)))?.core.id ?? 'player';
       gone.push(r.core.name);
       // Leave a stale request and a stale pending decision about the lab behind before it goes.
-      request(s, 'E31', { lab: r.core.id, severity: 3 });
+      request(s, 'E32', { lab: r.core.id });
       s.events.pending.push({ id: 'E32', instance: `E32@stale${i}`, day: s.time.day, deadline: s.time.day + 30, data: { lab: r.core.id }, crisis: false });
       deactivateRival(s, ctx, r.core.id, seed % 2 ? 'merged' : 'bankrupt', seed % 2 ? into : undefined);
       // Simulate a stale pending decision added after deactivation (e.g. by another workstream).
@@ -150,9 +151,6 @@ const load = (i: number) => deserialize(fixtures[i]);
     check(behind < -30 && ahead > 0 && JSON.stringify(t.player.deployments) === deployed, 'E3 true lead follows the internal frontier (an internal-only version turns a rival lead around)', `${behind.toFixed(0)} → ${ahead.toFixed(0)} d; a leader's instant jump alone ${truthBefore.toFixed(0)} → ${truthAfter.toFixed(0)} d (time-lag metric)`);
   }
   check(estAfter - estBefore > 0.5 * (truthAfter - truthBefore), 'E3 intel estimate tracks the internal frontier', `${estBefore} → ${estAfter} d (truth +${(truthAfter - truthBefore).toFixed(0)})`);
-  const e05 = EVENTS.find((e) => e.id === 'E05')!;
-  const txt = e05.text(s, { lab: r.core.id, theirL: 9, lead: leadDays(s, r.core.id).est });
-  check(txt.includes(String(leadDays(s, r.core.id).est)), 'E3 E05 text states the internal lead estimate');
 }
 
 // ───────── E4: storyteller limits ─────────
@@ -164,7 +162,11 @@ const load = (i: number) => deserialize(fixtures[i]);
     for (let seed = 1; seed <= 12; seed++) {
       const s = newGame(defaultSetupV2({ seed, storyteller: st, tutorial: false }));
       const spam: EngineSystem = { id: 'spam', owner: 'WS4', cadence: 'daily', order: 139, run: (x) => {
-        for (const id of ['E10', 'E19', 'E24', 'E25']) request(x, id, { n: x.time.day });
+        // Requests obey cooldowns, so clear the record each day to keep the pressure on the storyteller limits.
+        for (const id of ['E10', 'E19', 'E20', 'E25']) {
+          delete x.events.fired[id];
+          request(x, id, { n: x.time.day });
+        }
       } };
       let prev = new Set<string>();
       let lastEnd = -1e9;
