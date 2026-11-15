@@ -1,7 +1,7 @@
 // Chip orders, cloud contracts, spot rentals, supplier funding (V2-SPEC §3.8 player chip actions; research/15 §1.2).
 // Owner: WS3.
 import { MARKET } from '../../../data/v2/deals';
-import { dayOfDate, dayOfQuarter } from '../core/time';
+import { dateOf, dayOfDate, dayOfQuarter } from '../core/time';
 import type { BaselineId, ChipOrder, CloudContract, GameStateV2, Money, SystemCtx } from '../types';
 import { addLedger, qOf, yearStats, bookCash } from '../finance/ledger';
 import { cloudPricePerYear, spotPrice } from './market';
@@ -57,7 +57,8 @@ export function placeOrder(s: GameStateV2, ctx: SystemCtx, kind: OrderKind, qty:
     s.player.orders.push(o);
     // Pay per tranche from the first delivery quarter: `quarters` payments for `quarters` tranches.
     addLedger(s, { payee: 'Chip LTA', kind: 'lta', perQuarter: (qty * quote.price) / 1e6, startDay: dayOfQuarter(s.time.startDate, quote.dueQ), endDay: dayOfQuarter(s.time.startDate, quote.dueQ + quarters), cancellableNoticeQ: null, penalty: 0 });
-    ctx.log('finance', `Signed a ${quarters}-quarter chip LTA: ${(qty / 1e6).toFixed(2)}M H100e per quarter at $${quote.price.toFixed(1)}K.`);
+    const first = dateOf(s, dayOfQuarter(s.time.startDate, quote.dueQ));
+    ctx.log('finance', `Signed a ${quarters}-quarter chip LTA: ${(qty / 1e6).toFixed(2)}M H100e per quarter at $${quote.price.toFixed(1)}K. First tranche and first payment in Q${Math.floor(first.getUTCMonth() / 3) + 1} ${first.getUTCFullYear()}.`);
     return o;
   }
   const prepay = kind === 'standard' ? Math.max(0.3, Math.min(1, opts.prepay ?? 0.3)) : 0;

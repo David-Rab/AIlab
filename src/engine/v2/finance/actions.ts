@@ -30,16 +30,17 @@ const notInsolvent = (s: GameStateV2): true | string => (s.player.finance.state 
 
 /** Board-approval exposure line for a would-be major decision. */
 function boardExposure(s: GameStateV2, v: readonly number[]): CostLine {
-  return { currency: 'boardConf', amount: -5, probability: Math.round((1 - boardSupport(s, v).p) * 100) / 100 };
+  return { currency: 'boardConf', amount: -5, probability: Math.round((1 - boardSupport(s, v).p) * 100) / 100, target: 'board vote: a veto cancels it and blocks it for 90 days' };
 }
 
 /** Commitments check: the board votes when annual commitments would exceed 3× revenue (§3.7.5). */
 function needsCommitVote(s: GameStateV2, addPerYear: number) {
   return addPerYear > 0 && commitmentsPerYear(s) + addPerYear > 3 * Math.max(1, s.player.finance.revenueRun);
 }
-function commitGate(s: GameStateV2, ctx: SystemCtx, addPerYear: number, id: string, force: boolean): boolean {
-  if (!needsCommitVote(s, addPerYear)) return true;
-  return boardApproval(s, ctx, BOARD_VECTORS.commitments, id, force).approved;
+/** Undefined when the commitment may go ahead; otherwise why the board stopped it. */
+function commitGate(s: GameStateV2, ctx: SystemCtx, addPerYear: number, id: string, force: boolean): string | undefined {
+  if (!needsCommitVote(s, addPerYear)) return undefined;
+  return boardApproval(s, ctx, BOARD_VECTORS.commitments, id, force).why;
 }
 
 // ───────────────────────────── Equity ─────────────────────────────
@@ -70,7 +71,10 @@ const raise: ActionDef = {
     const ipo = bool(p, 'ipo');
     const c = raiseCeiling(s, Number.POSITIVE_INFINITY, { anchor: !!anchor, ipo });
     const ask = Math.max(0.1, num(p, 'ask', c.max));
-    if (ask / (s.player.finance.valuation + ask) > 0.1 && !boardApproval(s, ctx, BOARD_VECTORS.dilution, 'fin.raise', bool(p, 'force')).approved) return;
+    if (ask / (s.player.finance.valuation + ask) > 0.1) {
+      const vote = boardApproval(s, ctx, BOARD_VECTORS.dilution, 'fin.raise', bool(p, 'force'));
+      if (!vote.approved) return vote.why;
+    }
     startRaise(s, ctx, ask, { ...(anchor ? { anchor } : {}), ipo });
   },
 };
@@ -140,7 +144,10 @@ const seek: ActionDef = {
   apply(s, ctx, p) {
     const tpl = str(p, 'template', 'hyperscalerEquity') as StrategicDeal['template'];
     const r = seekPartner(s, ctx, tpl, str(p, 'partner', '') || undefined);
-    if (typeof r === 'string') ctx.log('finance', r);
+    if (typeof r === 'string') {
+      ctx.log('finance', r);
+      return r;
+    }
   },
 };
 
@@ -172,7 +179,10 @@ const accept: ActionDef = {
     const o = id ? offers.find((x) => x.id === id) : offers[0];
     if (!o) return;
     const err = acceptDeal(s, ctx, o.template, o.partner, { offerId: o.id, force: bool(p, 'force'), ...(str(p, 'siteId', '') ? { siteId: str(p, 'siteId', '') } : {}) });
-    if (err) ctx.log('finance', err, 2);
+    if (err) {
+      ctx.log('finance', err, 2);
+      return err;
+    }
   },
 };
 
@@ -239,7 +249,10 @@ const draw: ActionDef = {
     const h = debtHeadroom(s, kind);
     const amt = Math.min(num(p, 'amount', h.max), h.max);
     if (amt <= 0) return;
-    if (kind !== 'revolver' && amt > 0.2 * s.player.finance.revenueRun && !boardApproval(s, ctx, BOARD_VECTORS.newDebt, 'fin.drawDebt', bool(p, 'force')).approved) return;
+    if (kind !== 'revolver' && amt > 0.2 * s.player.finance.revenueRun) {
+      const vote = boardApproval(s, ctx, BOARD_VECTORS.newDebt, 'fin.drawDebt', bool(p, 'force'));
+      if (!vote.approved) return vote.why;
+    }
     drawDebt(s, ctx, kind, amt);
     ctx.bump('board.confidence', -1, 'new borrowing');
   },
@@ -338,7 +351,8 @@ function orderAction(kind: 'spot' | 'standard' | 'lta', id: string, title: strin
       const qty = Math.max(1e4, num(p, 'qty', 0.5e6));
       if (kind === 'lta') {
         const qt = orderQuote(s, kind, qty, bool(p, 'nonTW'));
-        if (!commitGate(s, ctx, qt.later * 4, id, bool(p, 'force'))) return;
+        const no = commitGate(s, ctx, qt.later * 4, id, bool(p, 'force'));
+        if (no) return no;
       }
       placeOrder(s, ctx, kind, qty, { quarters: num(p, 'quarters', 8), nonTW: bool(p, 'nonTW'), prepay: num(p, 'prepay', 0.3) });
     },
@@ -377,7 +391,8 @@ const cloud: ActionDef = {
     const years = Math.max(1, Math.min(5, num(p, 'years', 3)));
     const canc = bool(p, 'cancellable');
     const perYear = (h * cloudPricePerYear(s) * (canc ? 1.15 : 1)) / 1e6;
-    if (!commitGate(s, ctx, perYear, 'cmp.cloudContract', bool(p, 'force'))) return;
+    const no = commitGate(s, ctx, perYear, 'cmp.cloudContract', bool(p, 'force'));
+    if (no) return no;
     addCloud(s, ctx, h, years, str(p, 'provider', 'Northwind Cloud'), { cancellable: canc });
   },
 };

@@ -287,13 +287,21 @@ class StoreV2 {
   }
 
   // ───── player input ─────
-  /** Run an engine action; returns the error string (also flashed) or undefined. */
+  /** Run an engine action; returns the error string (also flashed) or undefined. On success, flashes the last log line
+   *  the action wrote (e.g. "Signed a chip LTA … first tranche Q1 2026"), so an action is never silent. */
   act(id: string, params: Record<string, number | string | boolean> = {}): string | undefined {
     if (!this.state) return 'No game';
+    const log = this.state.log;
+    const lastBefore = log[log.length - 1];
     const err = engineAct(this.state, id, params);
-    if (err) this.say(err, 'neg');
+    if (err) {
+      this.say(err, 'neg');
+      return err;
+    }
+    const written = log.slice(log.lastIndexOf(lastBefore) + 1);
+    if (written.length) this.say(written[written.length - 1].text, 'pos');
     else this.notify();
-    return err;
+    return undefined;
   }
   resolve(instance: string, choice: number): string | undefined {
     if (!this.state) return 'No game';
