@@ -1229,7 +1229,8 @@ export interface ActionDef<P = Record<string, number | string | boolean>> {
   title: string; // one or two words
   available(s: GameStateV2): boolean | string; // string = reason shown when unavailable
   preview(s: GameStateV2, p: P): { costs: CostLine[]; gains: CostLine[]; exposure: CostLine[] };
-  apply(s: GameStateV2, ctx: SystemCtx, p: P): void;
+  /** Returns a string when the action did not go through (e.g. the board voted it down); its side effects stand. */
+  apply(s: GameStateV2, ctx: SystemCtx, p: P): void | string;
   /** Board approval vector (speed, fin, safety, mission) if this is a major decision (§3.7.5). */
   boardVector?: [number, number, number, number];
 }

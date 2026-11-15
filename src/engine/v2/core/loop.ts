@@ -96,7 +96,8 @@ export function act(s: GameStateV2, actionId: string, params: Record<string, num
   const ok = a.available(s);
   if (ok !== true) return typeof ok === 'string' ? ok : 'unavailable';
   try {
-    a.apply(s, makeCtx(s), params);
+    const no = a.apply(s, makeCtx(s), params);
+    if (typeof no === 'string') return no; // did not go through (e.g. a board veto); its side effects stand
   } catch (e) {
     return e instanceof Error ? e.message : String(e); // apply() validates before mutating
   }

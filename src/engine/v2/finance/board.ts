@@ -71,7 +71,7 @@ export function boardBlocked(s: GameStateV2, actionId: string): number | undefin
  * Roll board approval for a major decision (§3.7.5). Rejection blocks `actionId` for 90 days and costs BC −5. The
  * founder preset may force it (BC −20). Uses the 'finance' stream.
  */
-export function boardApproval(s: GameStateV2, ctx: SystemCtx, v: readonly number[], actionId: string, force = false): { approved: boolean; p: number } {
+export function boardApproval(s: GameStateV2, ctx: SystemCtx, v: readonly number[], actionId: string, force = false): { approved: boolean; p: number; why?: string } {
   ensureWs3(s);
   const { p } = boardSupport(s, v);
   if (ctx.rng('finance').chance(p)) return { approved: true, p };
@@ -81,8 +81,10 @@ export function boardApproval(s: GameStateV2, ctx: SystemCtx, v: readonly number
   }
   s.player.finance.ws3.blockedUntil[actionId] = s.time.day + 90;
   ctx.bump('board.confidence', -5, 'board rejected', actionId);
-  ctx.log('finance', `The board rejected "${actionId}" (support ${(p * 100).toFixed(0)}%). Blocked for 90 days.`, 2);
-  return { approved: false, p };
+  const pct = (p * 100).toFixed(0);
+  const why = `The board voted it down (${pct}% support): board confidence −5, blocked for 90 days.`;
+  ctx.log('finance', `The board voted down "${actionId}" (${pct}% support). Blocked for 90 days.`, 2);
+  return { approved: false, p, why };
 }
 
 /** Add (or upgrade) a partner's seat. */
