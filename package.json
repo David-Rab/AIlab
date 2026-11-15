@@ -7,15 +7,12 @@
     "dev": "vite",
     "build": "tsc --noEmit -p . && vite build",
     "typecheck": "tsc --noEmit -p .",
-    "sim": "tsx scripts/simtest.ts",
-    "shots": "node scripts/shot.mjs",
-    "test:effects": "tsx scripts/controltest.ts",
-    "test:ui": "vite build && node scripts/uitest.mjs",
+    "test:ui": "npm run build && node scripts/v2/uitest.mjs",
     "test:v2": "tsc --noEmit -p scripts/v2/tsconfig.json && tsx scripts/v2/golden-timelines.ts && tsx scripts/v2/identity.ts && tsx scripts/v2/calib.ts && tsx scripts/v2/fixtures.ts && tsx scripts/v2/hygiene.ts && tsx scripts/v2/lint-hidden.ts && tsx scripts/v2/lint-ux.ts && tsx scripts/v2/lint-tradeoffs.ts && tsx scripts/v2/safety.ts && tsx scripts/v2/finance.ts && tsx scripts/v2/worldfx.ts && tsx scripts/v2/ws4.ts && tsx scripts/v2/money.ts",
     "test:worldfx": "tsx scripts/v2/worldfx.ts",
     "bots:v2": "tsx scripts/v2/bots.ts",
     "fixtures:v2": "tsx scripts/v2/fixtures.ts",
-    "dev:v2": "vite --open /?v2"
+    "test": "npm run test:v2"
   },
   "dependencies": {
     "lucide-react": "^1.72.0",

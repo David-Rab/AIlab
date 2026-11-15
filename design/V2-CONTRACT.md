@@ -119,7 +119,7 @@ The keys are the spec's: `trust:<counterparty>`, `relations.credibility`, `relat
 
   Add your own script to the chain. Every script exits non-zero on failure.
 - **Fixtures.** `npm run fixtures:v2` writes `scripts/v2/fixtures/day0.json`, `day400.json` and `day900.json`. These use the ai2027 preset, seed 2027, classic baseline and medium alignment. Load them with `deserialize(readFileSync(...))`. They are the UI's canned states and the lint's canned states.
-- **Running the v2 UI.** Use `npm run dev:v2`, or open any build with `?v2`. A build made with `VITE_V2=1` mounts v2 by default. v1 stays the default until M4.
+- **Running the UI.** `npm run dev`, or `npm run build` and open `dist/index.html`. (Until 2026-11-15 v1 was the default and v2 needed `?v2`.)
 - **Determinism for your unit scripts.** Use `tick(s, { extraSystems, skip })` to inject probes or skip systems.
 
 ## 8. M0 placeholders and deviations (WS1 removes them in M1)

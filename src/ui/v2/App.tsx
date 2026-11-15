@@ -1,9 +1,9 @@
-// v2 app root (WS6, M5 UX). Mounted by src/main.tsx when VITE_V2=1 at build time or `?v2` is in the URL.
+// App root (WS6, M5 UX), mounted by src/main.tsx.
 // Screens: start → setup → game → end. Game shell per design/ux/IA.md: L0 = top strip + nav + bottom bar; the
 // centre shows the Overview (L1) or one panel (L2). There is no right rail.
 import { useEffect, type ReactNode } from 'react';
 import type { GameStateV2 } from '../../engine/v2';
-import { TooltipProvider } from '../Tooltip';
+import { TooltipProvider } from './Tooltip';
 import { EndScreen } from './end/EndScreen';
 import { Codex } from './panels/Codex';
 import { Company } from './panels/Company';
@@ -29,6 +29,9 @@ import './v2.css';
 import './kit.css';
 import './shell.css';
 import './panels.css';
+// Base and layout rules load last, as they did when src/main.tsx imported them after the app.
+import './base.css';
+import './layout.css';
 
 const PANELS: Record<string, (p: { s: GameStateV2 }) => ReactNode> = {
   overview: Overview, company: Company, finance: Finance, compute: Compute, models: Models, rundesigner: RunDesigner,

@@ -1,10 +1,6 @@
-import {
-  AlertTriangle, Building2, Cpu, Flag, Landmark, Brain, Users, Swords, Shield, FlaskConical, Activity,
-  type LucideIcon,
-} from 'lucide-react';
+// Small UI primitives shared by the v2 panels (formatters, meters, sliders, segmented controls).
 import type { ReactNode } from 'react';
-import { GLOSSARY } from '../data/glossary';
-import { Tip, TipCard } from './Tooltip';
+import { Tip } from './Tooltip';
 
 // ---------------- Format ----------------
 export const fmtB = (b: number) => (Math.abs(b) >= 1000 ? `$${(b / 1000).toFixed(b >= 10000 ? 0 : 1)}T` : `$${b.toFixed(b < 10 ? 1 : 0)}B`);
@@ -17,50 +13,6 @@ export function fmtDays(d: number) {
   const s = a >= 60 ? `${(a / 30.4).toFixed(1)} mo` : `${Math.round(a)} d`;
   return d < 0 ? `−${s}` : s;
 }
-export function fmtMinutes(m: number) {
-  if (m < 60) return `${Math.round(m)} min`;
-  if (m < 60 * 24 * 2) return `${(m / 60).toFixed(m < 600 ? 1 : 0)} h`;
-  const wm = m / (167 * 60);
-  if (wm < 12) return `${(m / (40 * 60)).toFixed(0)} wk`;
-  return `${(wm / 12).toFixed(wm < 120 ? 1 : 0)} yr`;
-}
-
-export const KIND_ICON: Record<string, LucideIcon> = {
-  gov: Landmark, china: Flag, public: Users, model: Brain, rival: Swords, company: Building2, alert: AlertTriangle,
-  incident: AlertTriangle, milestone: Cpu, research: FlaskConical, news: Activity, security: Shield,
-};
-export const KIND_COLOR: Record<string, string> = {
-  gov: 'var(--gov)', china: 'var(--china)', public: 'var(--pub)', model: 'var(--model)', rival: 'var(--rival)', company: 'var(--accent)',
-  alert: 'var(--neg)', incident: 'var(--warn)', milestone: 'var(--violet)', research: 'var(--pos)', news: 'var(--text-2)',
-};
-
-// ---------------- Rich text with glossary terms ----------------
-export function Term({ id, children }: { id: string; children?: ReactNode }) {
-  const g = GLOSSARY[id];
-  if (!g) return <>{children}</>;
-  return (
-    <Tip className="term" content={() => <TipCard title={g.title} footer={g.src}><Rich text={g.body} /></TipCard>}>
-      {children ?? g.title}
-    </Tip>
-  );
-}
-
-/** Renders text, turning [[id]] / [[id|label]] into nested-tooltip terms. */
-export function Rich({ text }: { text: string }) {
-  const parts: ReactNode[] = [];
-  const re = /\[\[([a-zA-Z0-9]+)(?:\|([^\]]+))?\]\]/g;
-  let last = 0;
-  let m: RegExpExecArray | null;
-  let k = 0;
-  while ((m = re.exec(text))) {
-    if (m.index > last) parts.push(text.slice(last, m.index));
-    parts.push(<Term key={k++} id={m[1]}>{m[2]}</Term>);
-    last = m.index + m[0].length;
-  }
-  if (last < text.length) parts.push(text.slice(last));
-  return <>{parts}</>;
-}
-
 // ---------------- Visual primitives ----------------
 export function Meter({ value, max = 100, color = 'var(--accent)', sigma, marker, width }: { value: number; max?: number; color?: string; sigma?: number; marker?: number; width?: number }) {
   const pct = Math.max(0, Math.min(1, value / max)) * 100;

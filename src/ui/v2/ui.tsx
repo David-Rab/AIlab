@@ -6,12 +6,12 @@ import { actionView, causeStrip, choiceView } from '../../engine/v2';
 import type { ActionView, CostLine, GameStateV2 } from '../../engine/v2';
 import { GLOSSARY_V2 } from '../../data/v2/glossary';
 import { SIGNALS, TRAIT_BY_ID } from '../../data/v2/traits';
-import { Tip, TipCard as BaseTipCard } from '../Tooltip';
-import { fmtNum } from '../components';
+import { Tip, TipCard as BaseTipCard } from './Tooltip';
+import { fmtNum } from './components';
 import { store, useV2 } from './store';
 
-export { fmtB, fmtNum, fmtPct, fmtMult, fmtSigned, fmtDays, Meter, Bipolar, Spark, Slider, Seg, Toggle, Section, Row, Soon } from '../components';
-export { Tip } from '../Tooltip';
+export { fmtB, fmtNum, fmtPct, fmtMult, fmtSigned, fmtDays, Meter, Bipolar, Spark, Slider, Seg, Toggle, Section, Row, Soon } from './components';
+export { Tip } from './Tooltip';
 
 /** TipCard whose string children render [[glossary]] links as nested tooltips. */
 export function TipCard(p: Parameters<typeof BaseTipCard>[0]) {

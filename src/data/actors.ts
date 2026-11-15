@@ -50,4 +50,3 @@ export const LAB_ARCHETYPES: LabArchetype[] = [
   { id: 'upstart', name: 'Boutique Upstart', weight: 10, desc: 'Elite small team of ex-OpenBrain staff. Poaches talent.', safety: 55, openness: 20, lobby: 0, computeMult: 0.3, gapYears: [0.5, 1.1] },
 ];
 
-export const RIVAL_NAMES = ['Anthropos', 'Gemini Labs', 'xLab', 'Meridian', 'Helix AI'];

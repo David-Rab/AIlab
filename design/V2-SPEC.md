@@ -2280,7 +2280,7 @@ src/ui/v2/  App.tsx store.ts shell/{TopStrip,Nav,RightRail,AlertQueue,Ticker,Spe
 scripts/v2/ calib.ts identity.ts finance.ts worldfx.ts bots.ts hygiene.ts lint-tradeoffs.ts lint-hidden.ts golden/
 ```
 
-v1 stays in place until M4. `main.tsx` switches on a build flag, then v1 is deleted.
+v1 stayed in place until M5; it was deleted on 2026-11-15 and `main.tsx` mounts v2 only.
 
 ### 8.2 Reuse from v1
 

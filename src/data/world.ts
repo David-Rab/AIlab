@@ -51,13 +51,6 @@ export function milestoneThresholds(w: World): number[] {
   return [0, s1 * f1, s1 * f2, s1, s1 + g1, s1 + g1 + g2, s1 + g1 + g2 + g3];
 }
 
-export function milestoneAt(w: World, p: number): number {
-  const th = milestoneThresholds(w);
-  let m = 0;
-  for (let i = 0; i < th.length; i++) if (p >= th[i]) m = i;
-  return m;
-}
-
 /** Stage 2 multipliers at SC, SAR, SIAR, ASI. Starts at 1+sEx for continuity with Stage 1. */
 export function speeds(w: World): number[] {
   const sc = 1 + w.sEx;
@@ -127,30 +120,6 @@ function doublingWork(T: number, n: number, growth: World['growth'], decay: numb
   if (growth === 'super') return (T * (1 - Math.pow(1 - decay, n))) / decay;
   return (T * (Math.pow(1 + decay, n) - 1)) / decay;
 }
-
-// ---------------- World presets ----------------
-
-export interface WorldPreset {
-  id: WorldPresetId;
-  name: string;
-  short: string;
-  desc: string;
-}
-
-export const WORLD_PRESETS: WorldPreset[] = [
-  { id: 'sampled', name: 'Unknown world', short: 'Sampled', desc: 'Hidden parameters drawn from Lifland\'s Apr 2025 AI 2027 distributions, with the Dec 2025 interpolation fix (median SC ≈ mid-2028). Revealed at the end.' },
-  { id: 'ai2027', name: 'AI 2027 scenario', short: 'Scenario', desc: 'Calibrated to the published story at reference compute: 1.5x Jan 2026, 3x Dec 2026, SC Mar 2027, SAR Aug 2027, ASI Dec 2027.' },
-  { id: 'authors2026', name: "Authors' 2026 model", short: 'AIFM', desc: 'AI Futures Model, Aug 2026, Lifland\'s model median: automated coder Mar 2029, ASI ≈ 2033.7.' },
-  { id: 'fast', name: 'Fast takeoff', short: 'Fast', desc: 'Kokotajlo\'s Aug 2026 timelines (automated coder late 2027) with AI 2027\'s 10th-percentile takeoff (SC to ASI in ~2.5 months).' },
-  { id: 'slow', name: 'Skeptic world', short: 'Skeptic', desc: 'METR\'s plain 7-month doubling, little AI speedup, slow takeoff. Automated coding ~2034.' },
-];
-
-export const ALIGN_PRESETS: { id: AlignDiffId; name: string; desc: string }[] = [
-  { id: 'sampled', name: 'Unknown', desc: 'Drawn at random. You will not know.' },
-  { id: 'easy', name: 'Easy', desc: 'Traits drift slowly; standard methods mostly work.' },
-  { id: 'medium', name: 'Medium', desc: 'Real but manageable drift.' },
-  { id: 'hard', name: 'Hard', desc: 'Misalignment is the default without serious investment.' },
-];
 
 const Z90 = 1.2815515655446004;
 const lnFrom80 = (lo: number, hi: number, z: number) =>

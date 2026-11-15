@@ -15,7 +15,6 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { useStore } from './store';
 
 const OPEN_MS = 250;
 const LOCK_MS = 700;
@@ -43,8 +42,8 @@ const DepthCtx = createContext(0);
 
 let nextId = 1;
 
-/** `useLive` re-renders open tooltips on game-state changes (v1 store by default; v2 passes its own hook). */
-export function TooltipProvider({ children, useLive = useStore }: { children: ReactNode; useLive?: () => unknown }) {
+/** `useLive` re-renders open tooltips on game-state changes (the app passes its store hook). */
+export function TooltipProvider({ children, useLive }: { children: ReactNode; useLive: () => unknown }) {
   const [stack, setStack] = useState<TipEntry[]>([]);
   const stackRef = useRef(stack);
   stackRef.current = stack;

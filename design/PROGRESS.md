@@ -17,7 +17,7 @@ Single source of truth for where the build stands. Update at every milestone or 
 | M3 UI shell and panels (WS6, WS7) | Done, merged (play with `?v2`); v2 uitest 88/88; full test:v2 green after merge | 5ff08b8..7e0ad07, merge 35b2609 |
 | M4 calibration and balance (bot criteria) | Done: all §7.4 bot criteria met (200 seeds); choices now drive final misalignment | 514d877, cd0c7d6, 8eec058 |
 | M5 UX redesign (IA, design system, panels) | Done: uitest 104/104, lint-ux green | 0af3dcd..babe8b2 |
-| M5 polish, tutorial, codex, v1 removal | Partly done (onboarding + codex exist); v1 still present | |
+| M5 polish, tutorial, codex, v1 removal | Onboarding and codex exist; v1 removed (2026-11-15), `npm run build` builds the current game | |
 
 ## Compute tab redesign (2026-11-15)
 
@@ -62,7 +62,7 @@ Per the user's decisions:
 The session that built v2 ended here. Start new work from this section.
 
 **State:**
-- v2 is playable with `?v2`; v1 is still the default page.
+- v2 is the only game: `npm run build` → `dist/index.html` (no `?v2` needed). v1 was removed 2026-11-15 (in git history before that date).
 - Last playable snapshot: `play/ai27-v2-2026-11-15.html` (gitignored).
 - `npm run test:v2` (about 15 min), `node scripts/v2/uitest.mjs` (after `npm run build`), `tsc` and the build all pass.
 
@@ -82,9 +82,7 @@ The session that built v2 ended here. Start new work from this section.
 - **Balance issues not yet fixed:**
   - RefBot insolvency in the slow and authors2026 worlds;
   - nationalization at 10-15% is the largest non-AI loss.
-- **M5 remainder:**
-  - make v2 the default and remove v1 (src/engine/*.ts, src/ui/*.tsx v1 files, scripts/simtest.ts, controltest.ts, uitest.mjs);
-  - update the README for v2.
+- **v1 removal (done 2026-11-15):** v1 engine, UI and scripts deleted. v2 still shares a small core outside `v2/` folders: `data/world.ts` (calibrated timeline maths), `data/actors.ts`, `data/glossary.ts` (base terms), `engine/rng.ts`, `engine/types.ts` (World types). The v1 stylesheets live on as `ui/v2/base.css` and `ui/v2/layout.css` (the start screen and shared controls use them).
 
 **Housekeeping:**
 - The merged agent branches `worktree-agent-*` and the `refs/wip/*` snapshots still exist; all of their content is on master. Deleting them was blocked by the permission settings. They are safe to delete: `git branch -D <name>`, `git update-ref -d refs/wip/<name>`.

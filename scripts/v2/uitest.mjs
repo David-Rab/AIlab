@@ -9,7 +9,7 @@ import path from 'node:path';
 
 const SHOTS = path.resolve('scripts/v2/shots');
 mkdirSync(SHOTS, { recursive: true });
-const url = 'file:///' + path.resolve('dist/index.html').split(path.sep).join('/') + '?v2';
+const url = 'file:///' + path.resolve('dist/index.html').split(path.sep).join('/');
 const browser = await chromium.launch({ channel: 'msedge', headless: true });
 const page = await browser.newPage({ viewport: { width: 1680, height: 1000 } });
 const errors = [];

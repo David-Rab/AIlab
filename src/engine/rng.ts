@@ -75,5 +75,4 @@ export class Rng {
 }
 
 export const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
-export const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 export const sigmoid = (x: number) => 1 / (1 + Math.exp(-x));
