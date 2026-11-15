@@ -1,7 +1,7 @@
 // Top strip (IA.md L0): time · the race (hero) · catastrophe risk · cash·runway · nearest lead · help · menu.
 // Each item is the HOME of its datum (data-home); hover = why, click = the panel that changes it.
 import { useState } from 'react';
-import { activeRivals, dateOf, dayOfQuarter, engine, fmtDate, internalEval, leadDays, qOf, runwayOf, safetyView, SLOT_KEYS } from '../../../engine/v2';
+import { activeRivals, dateOf, dayOfQuarter, engine, fmtDate, internalEval, leadDays, qOf, RUNWAY_CAP, runwayOf, safetyView, SLOT_KEYS } from '../../../engine/v2';
 import type { GameStateV2, RiskSource } from '../../../engine/v2';
 import { CRITICAL_TRAITS, TRAIT_BY_ID } from '../../../data/v2/traits';
 import { store } from '../store';
@@ -133,7 +133,7 @@ function RiskChip({ s }: { s: GameStateV2 }) {
   );
 }
 
-const PART_WORD: Record<string, string> = { operating: 'Payroll & operations', commitments: 'Contracts (ledger)', chips: 'Chip balances', sites: 'Site capex', revenue: 'Revenue' };
+const PART_WORD: Record<string, string> = { operating: 'Payroll & operations', commitments: 'Contracts (ledger)', chips: 'Chip balances', sites: 'Site capex', revenue: 'Revenue', funding: 'Equity tranches', debt: 'Debt repayment' };
 function CashChip({ s }: { s: GameStateV2 }) {
   const f = s.player.finance;
   const { rw, live, official, review, flips } = runwayLive(s);
@@ -141,14 +141,16 @@ function CashChip({ s }: { s: GameStateV2 }) {
   return (
     <Tip as="div" className="ts-stat" content={() => (
       <WhyCard
-        s={s} k="cash" title={<span><Term id="cash">Cash</Term> · <Term id="runway">runway</Term></span>} value={`${F.money(f.cash)} · ${F.quarters(rw.q)}`} fmt={(x) => F.money(x)}
+        s={s} k="cash" title={<span><Term id="cash">Cash</Term> · <Term id="runway">runway</Term></span>} value={`${F.money(f.cash)} · ${F.runway(rw.q, RUNWAY_CAP)}`} fmt={(x) => F.money(x)}
         rows={[
           { label: <Term id="liquidity">Liquidity</Term>, value: F.money(rw.liquidity) },
+          ...(rw.low.day > s.time.day ? [{ label: 'Lowest ahead', value: `${F.money(rw.low.liquidity)} · ${fmtDate(dateOf(s, rw.low.day))}`, tone: (rw.low.liquidity < rw.floor ? 'neg' : 'pos') as 'neg' | 'pos' }] : []),
+          { label: 'Minimum cash', value: F.money(rw.floor) },
           ...Object.entries(rw.parts).filter(([, v]) => Math.abs(v) > 1e-3).map(([k, v]) => ({ label: PART_WORD[k] ?? k, value: F.money(-v, { signed: true, perQ: true }), tone: (v > 0 ? 'neg' : 'pos') as 'neg' | 'pos' })),
           { label: <Term id="netBurn">Net burn</Term>, value: F.money(rw.burnQ, { perQ: true }) },
           ...(flips ? [{ label: <span>Board review {fmtDate(review)}</span>, value: <span style={{ color: STATE_COLOR[live] }}>{official} → {live}</span> }] : []),
         ]}
-        body={`Runway zones: [[distress]] < 3q, [[tight]] < 6q, else [[healthy]].`}
+        body={`Projected cash over the next ${RUNWAY_CAP} quarters, each payment in the quarter it falls due (rows: per quarter, next 4 quarters). Runway zones: [[distress]] < 3q, [[tight]] < 6q, else [[healthy]].`}
         levers={<><GoBtn to={{ panel: 'finance', anchor: 'raise' }} label="Raise" testId="cash.raise" /><GoBtn to={{ panel: 'finance', anchor: 'ledger' }} label="Contracts" testId="cash.ledger" /></>}
       />
     )}>
@@ -156,8 +158,8 @@ function CashChip({ s }: { s: GameStateV2 }) {
         <span className="ts-ic"><ICON.cash size={14} /></span>
         <div className="ts-col"><span className="ts-l">CASH · RUNWAY</span><span className="ts-v num" data-home="cash">{F.money(f.cash)}</span></div>
         <div className="ts-runway" data-home="runway">
-          <Gauge value={Math.min(10, rw.q)} max={10} zones={[{ to: 3, color: C.bad }, { to: 6, color: C.watch }, { to: 10, color: C.good }]} w={58} h={30} />
-          <span className="num" style={{ color: col }}>{F.quarters(rw.q)} {f.state === 'insolvent' ? 'insolvent' : live}</span>
+          <Gauge value={Math.min(RUNWAY_CAP, rw.q)} max={RUNWAY_CAP} zones={[{ to: 3, color: C.bad }, { to: 6, color: C.watch }, { to: RUNWAY_CAP, color: C.good }]} w={58} h={30} />
+          <span className="num" style={{ color: col }}>{F.runway(rw.q, RUNWAY_CAP)} {f.state === 'insolvent' ? 'insolvent' : live}</span>
         </div>
         {flips && <span className="tag2 warn ts-flip" title={`The board reviews runway on ${fmtDate(review)}`}>{live} on {fmtDate(review).replace(/,? \d{4}$/, '')}</span>}
       </div>

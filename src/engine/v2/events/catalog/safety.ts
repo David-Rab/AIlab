@@ -1,17 +1,15 @@
-// Event catalog: safety decisions (V2-SPEC §4.2: E01, E17, E18, E19, E21, E25, E30, E33, E35). Owner: WS4 (content
+// Event catalog: safety decisions (V2-SPEC §4.2: E01, E17, E19, E25, E30). Owner: WS4 (content
 // shared with WS2). The disclosure dilemma (§3.9.3 rule 1) is the backbone: disclose / fix quietly / deny.
 import { clamp } from '../../../rng';
 import { withdraw } from '../../models/deployments';
 import { internalVersion } from '../../models/labs';
-import { flag, flagNum } from '../../safety/common';
-import { openIncidents } from '../../safety/incidents';
+import { flag } from '../../safety/common';
 import { openInvestigation } from '../../safety/investigations';
 import { understanding } from '../../safety/understanding';
-import { revealToWorld } from '../../safety/umodes';
-import type { Commitment, EventDefV2, GameStateV2, ModelVersion, SystemCtx, TraitId, UModeId } from '../../types';
+import type { Commitment, EventDefV2, GameStateV2, ModelVersion, SystemCtx, TraitId } from '../../types';
 import { TRAIT_BY_ID } from '../../../../data/v2/traits';
 import { PREDICATES, blockingCommitments, amendCommitment, breakCommitment, hasCommitment, latentVersion, pledgeBreachRun } from '../../actors/commitments';
-import { ALL_PUBLIC_CPS, approval, boardConf, cash, cred, disclosureTrust, moraleSafety, scrutiny, trustMany } from '../../actors/fx';
+import { ALL_PUBLIC_CPS, approval, boardConf, cash, cred, disclosureTrust, scrutiny, trustMany } from '../../actors/fx';
 import { pLeak } from '../../actors/public';
 import { addCoverup } from '../../actors/relations';
 import { discoveryOdds } from '../../actors/researchBodies';
@@ -78,8 +76,6 @@ function firstFindingText(s: GameStateV2): string {
   return `${v.name} shows ${t.name.toLowerCase()}${est}${cause ? `, traced to ${cause}` : ''}. ${tail}`;
 }
 
-/** E35 window:a U-mode discovery or a FALSE-validated technique revealed within the last 30 days (WS2 flags). */
-const WRONG_WINDOW = 30;
 
 export const SAFETY_EVENTS: EventDefV2[] = [
   ev({
@@ -90,15 +86,17 @@ export const SAFETY_EVENTS: EventDefV2[] = [
   }),
   ev({
     id: 'E17', title: 'Red flags', icon: 'alert', crisis: true, cooldown: 120, deadlineDays: 14, defaultChoice: 2,
+    onceKey: (d) => String(d.trait), // once per game per red flag (SCHEME, AF, SAND, U-margin): a persistent signal does not refire
     // §4.2: the internal agent's belief (WS2 posterior) on SCHEME/AF/SAND has est > 0.3 with clarity > 0.4, or the
     // U-margin (WS2 understanding: U − measured L) is below −1.
     when: (s) => {
       const v = internalVersion(s);
       if (!v) return false;
-      const t = RED.find((k) => v.beliefs[k] && v.beliefs[k].est > 0.3 && v.beliefs[k].clarity > 0.4);
+      const fresh = (k: string) => s.events.fired[`E17#${k}`] === undefined;
+      const t = RED.find((k) => fresh(k) && v.beliefs[k] && v.beliefs[k].est > 0.3 && v.beliefs[k].clarity > 0.4);
       if (t) return { versionId: v.id, trait: t, est: Math.round(v.beliefs[t].est * 100) };
       const margin = understanding(s).margin;
-      return margin < -1 ? { versionId: v.id, trait: 'U', est: Math.round(margin * 10) / 10 } : false;
+      return fresh('U') && margin < -1 ? { versionId: v.id, trait: 'U', est: Math.round(margin * 10) / 10 } : false;
     },
     text: (s, d) => d.trait === 'U'
       ? `Capability has outrun your understanding by ${Math.abs(Number(d.est))} levels. Your tools can no longer read ${internalVersion(s)?.name ?? 'the model'} reliably.`
@@ -123,24 +121,7 @@ export const SAFETY_EVENTS: EventDefV2[] = [
     ],
   }),
   ev({
-    id: 'E18', title: 'Internal report', icon: 'company', crisis: false, deadlineDays: 30, defaultChoice: 1,
-    when: requestOnly,
-    text: () => 'An employee used the whistleblower channel: a safety concern is being ignored. Act within 30 days or it goes public.',
-    choices: [
-      ch('Act', ['safety', 'disclose'], P([L('staffTime', 5), L('progress', 2, 'days of fixes')], [L('morale', 5), L('trust', 2, 'bloc:safety')]), (s, ctx) => {
-        delete ws4(s).internalReport;
-        moraleSafety(ctx, 5, 'E18 acted on report');
-        const w = ws4(s);
-        w.redFlags = Math.max(0, w.redFlags - 1);
-      }),
-      ch('Ignore', ['quiet', 'continue'], P([L('trust', 10, 'goes external at 2×', { probability: 1, lagDays: 30 })], [L('progress', 1)]), (s) => {
-        const w = ws4(s);
-        if (w.internalReport) w.internalReport.deadline = s.time.day;
-      }),
-    ],
-  }),
-  ev({
-    id: 'E19', title: 'The leak', icon: 'alert', crisis: true, deadlineDays: 7, defaultChoice: 2,
+    id: 'E19', title: 'The leak', icon: 'alert', crisis: true, cooldown: 365, deadlineDays: 7, defaultChoice: 2,
     when: requestOnly,
     text: (_s, d) => `An internal safety memo is in the press${Number(d.mult) > 1 ? ' — after your own staff warned you' : ''}. AI is now a top national issue ([[salience]]).`,
     choices: [
@@ -163,24 +144,6 @@ export const SAFETY_EVENTS: EventDefV2[] = [
         pLeak(s, ctx, Number(d.mult ?? 1));
         approval(ctx, -10, 'E19 spin');
         ws4(s).leaked++;
-      }),
-    ],
-  }),
-  ev({
-    id: 'E21', title: 'Outside experts', icon: 'company', crisis: false, cooldown: 365, deadlineDays: 21, defaultChoice: 1,
-    when: (s) => (s.flags['ws4:outsideExpertsOffer'] !== undefined && s.time.day - Number(s.flags['ws4:outsideExpertsOffer']) < 60 ? {} : false),
-    text: () => 'Outside alignment researchers offer to join your investigation. Their tools would be an independent check on yours.',
-    choices: [
-      ch('Bring in', ['safety', 'disclose'], P([L('security', 0.1, 'leak risk'), L('cash', 0.1)], [L('alignment', 0.1, '+20% safety FTE'), L('credibility', 2)]), (s, ctx) => {
-        s.player.staff.saf = Math.round(s.player.staff.saf * 1.2);
-        s.flags['ws4:externalSafetyGroup'] = true;
-        cash(s, ctx, -0.1, 'E21 outside experts');
-        cred(ctx, 2, 'E21 outside experts');
-        delete s.flags['ws4:outsideExpertsOffer'];
-      }),
-      ch('Decline', ['decline', 'secrecy'], P([L('credibility', 1)], [L('security', 0.1)]), (s, ctx) => {
-        cred(ctx, -1, 'E21 declined outside experts');
-        delete s.flags['ws4:outsideExpertsOffer'];
       }),
     ],
   }),
@@ -243,79 +206,6 @@ export const SAFETY_EVENTS: EventDefV2[] = [
       }, (s, ctx, d) => {
         const c = s.commitments.find((x) => x.id === d.cid);
         if (c) breakCommitment(s, ctx, c);
-      }),
-    ],
-  }),
-  ev({
-    id: 'E33', title: 'Agent incident', icon: 'alert', crisis: false, cooldown: 60, deadlineDays: 14, defaultChoice: 1,
-    // §4.2: an unresolved (WS2 openIncidents: open or investigating) customer-exposure incident of severity ≥ 3 that
-    // presents as POWER or PROXY (discovered U-modes present as their mapped trait). Most severe, then newest.
-    when: (s) => {
-      let i: ReturnType<typeof openIncidents>[number] | undefined;
-      for (const x of openIncidents(s)) {
-        if (x.labId !== 'player' || x.exposure !== 'customer' || x.severity < 3 || (x.apparent !== 'POWER' && x.apparent !== 'PROXY')) continue;
-        if (!i || x.severity > i.severity || (x.severity === i.severity && x.day > i.day)) i = x;
-      }
-      return i ? { incident: i.id } : false;
-    },
-    text: () => 'A customer\'s agent built on your model pursued its goal too far: it took actions nobody asked for. The customer wants answers.',
-    choices: [
-      ch('Compensate', ['disclose', 'safety'], P([L('cash', 0.2), L('revenue', 0.2, 'restricted context')], [L('trust', 3, 'many'), L('approval', 2)]), (s, ctx, d) => {
-        cash(s, ctx, -0.2, 'E33 compensation');
-        const i = s.player.safety.incidents.find((x) => x.id === d.incident);
-        if (i) {
-          i.status = 'disclosed';
-          i.responses.push('restrictContext');
-          const dep = s.player.deployments.find((x) => x.id === i.deploymentId);
-          if (dep) dep.status = 'restricted';
-        }
-        trustMany(s, ctx, ['exec', 'evalGov'], 3, 'E33 compensated');
-        approval(ctx, 2, 'E33 compensated');
-        ws4(s).disclosed++;
-      }),
-      ch('Patch quietly', ['quiet'], (s) => ({ costs: [L('trust', 6, 'if found', { probability: discoveryOdds(s) })], gains: [L('revenue', 0.2, 'no restriction')], exposure: [] }), (s, _ctx, d) => {
-        const i = s.player.safety.incidents.find((x) => x.id === d.incident);
-        if (i) {
-          i.status = 'covered';
-          i.responses.push('patchSignal');
-        }
-        addCoverup(s, 'an agent incident', discoveryOdds(s) + 0.2, ['exec', 'evalGov', 'states']);
-      }),
-      ch('Blame customer', ['deny'], P([L('approval', 5)], [L('cash', 0.2, 'no payout')]), (s, ctx, d) => {
-        approval(ctx, -5, 'E33 blamed customer');
-        const i = s.player.safety.incidents.find((x) => x.id === d.incident);
-        if (i) i.status = 'resolved';
-      }),
-    ],
-  }),
-  ev({
-    id: 'E35', title: 'We were wrong', icon: 'model', crisis: false, cooldown: 90, deadlineDays: 21, defaultChoice: 1,
-    // §4.2 "U-mode discovered, or a FALSE finding revealed": WS2 stamps 'ws2.lastDiscovery(Day)' (umodes.ts
-    // discoverUMode) and 'ws2.lastFalseReveal(Day)' (findings.ts revealFalse). Fire within 30 days of either; a U-mode
-    // already told to the world, or already decided on, does not re-fire.
-    when: (s): Record<string, string> | false => {
-      const day = s.time.day;
-      const u = flag(s, 'lastDiscovery');
-      if (typeof u === 'string' && day - flagNum(s, 'lastDiscoveryDay', -1e9) < WRONG_WINDOW && !s.knowledge.revealedUModes.includes(u as UModeId) && !s.flags[`ws4:umode:${u}`]) return { umode: u };
-      const t = flag(s, 'lastFalseReveal');
-      if (typeof t === 'string' && day - flagNum(s, 'lastFalseRevealDay', -1e9) < WRONG_WINDOW) return { technique: t };
-      return false;
-    },
-    text: (_s, d) => (d.umode ? 'Your team found a failure mode nobody had a test for. Publishing it lets every lab look for it in their own models.' : 'A result your safety stack relied on turned out to be false. Your tools were blind where you thought they saw.'),
-    choices: [
-      ch('Disclose', ['disclose', 'safety'], P([L('scrutiny', 10), L('leadDays', 5, 'others learn too')], [L('credibility', 5), L('alignment', 0.1, 'all labs can look for it')]), (s, ctx, d) => {
-        if (typeof d.umode === 'string') {
-          revealToWorld(s, d.umode as UModeId); // WS2: every lab's future lineages get presence × 0.7
-          s.flags[`ws4:umode:${d.umode}`] = true;
-        }
-        cred(ctx, 5, 'E35 disclosed');
-        scrutiny(ctx, 10, 'E35 disclosed');
-        s.knowledge.sharedTechniquePool = clamp(s.knowledge.sharedTechniquePool + 0.03, 0, 1);
-        ws4(s).disclosed++;
-      }),
-      ch('Keep secret', ['quiet', 'secrecy'], (s) => ({ costs: [L('trust', 6, 'if it leaks', { probability: discoveryOdds(s) })], gains: [L('leadDays', 5, 'advantage kept')], exposure: [] }), (s, _ctx, d) => {
-        if (typeof d.umode === 'string') s.flags[`ws4:umode:${d.umode}`] = true;
-        addCoverup(s, 'a known failure mode', discoveryOdds(s), [...ALL_PUBLIC_CPS]);
       }),
     ],
   }),

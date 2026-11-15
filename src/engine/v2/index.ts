@@ -96,7 +96,7 @@ export function measuredDomains(v: ModelVersion): Record<DomainId, number> {
   return Object.fromEntries(DOMAIN_IDS.map((d) => [d, measuredDomain(v, d)])) as Record<DomainId, number>;
 }
 
-export { runwayOf } from './finance/runway';
+export { runwayOf, RUNWAY_CAP } from './finance/runway';
 export { debtHeadroom, totalDebt, interestPerYear, debtRatePct } from './finance/debt';
 export { dealMenu, dealPreview } from './finance/actions';
 export { liveLedger, commitmentsPerYear, ledgerDue, qOf } from './finance/ledger';

@@ -350,7 +350,6 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
       r.intel.knownIncidents.push(`${day}:${sev}${misuse ? 'm' : ''}`);
       if (r.intel.knownIncidents.length > 20) r.intel.knownIncidents.shift();
       ctx.log(r.core.kind === 'china' ? 'china' : 'rival', `${r.core.name}: ${misuse ? 'misuse' : 'model'} incident (severity ${sev}) made public.`, sev >= 3 ? 3 : 2, id);
-      if (sev >= 3) request(s, 'E31', { lab: id, severity: sev });
       if (sev >= 4 && !misuse) ctx.bump('china.meters.safetyConcern', 10, 'global misalignment scare (R14)', r.core.name);
     }
   }

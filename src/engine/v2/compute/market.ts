@@ -441,8 +441,9 @@ export const marketQSystem: EngineSystem = {
   id: 'marketQ', owner: 'WS3', cadence: 'quarterly', order: 400,
   run(s, ctx) {
     clearMarket(s, ctx);
-    // Completed player orders leave the book (LTAs roll quarterly until their end).
-    s.player.orders = s.player.orders.filter((o) => o.qty - o.delivered > 1 || (o.kind === 'lta' && (o.ltaEndQ ?? 0) > o.dueQ));
+    // Completed player orders leave the book. An LTA rolls to its next tranche on delivery (`deliver`), so it stays
+    // open until its last tranche is in.
+    s.player.orders = s.player.orders.filter((o) => o.qty - o.delivered > 1);
   },
 };
 

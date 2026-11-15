@@ -85,7 +85,7 @@ export function newSite(s: GameStateV2, ctx: SystemCtx, o: SiteOpts): Site {
     s.market.ws3.leasePoolGW = Math.max(0, s.market.ws3.leasePoolGW - mw / 1000);
     site.ws3.buildStartDay = s.time.day;
     yearStats(s).leaseFinanced += (mw / 1000) * FACILITY_PER_GW; // facility capex the lessor funds
-    addLedger(s, { id: `L-lease-${id}`, payee: 'Colocation lease', kind: 'lease', perQuarter: ((mw / 1000) * LEASE.perGWYear) / 4, endDay: site.stageEndDay + LEASE.years * 365, cancellableNoticeQ: null, penalty: 0 });
+    addLedger(s, { id: `L-lease-${id}`, payee: 'Colocation lease', kind: 'lease', perQuarter: ((mw / 1000) * LEASE.perGWYear) / 4, startDay: site.stageEndDay, endDay: site.stageEndDay + LEASE.years * 365, cancellableNoticeQ: null, penalty: 0 });
   } else {
     site.stageEndDay = dayOfQuarter(s.time.startDate, q + Math.max(1, p.permitQ));
     if (p.usesGridPool) {

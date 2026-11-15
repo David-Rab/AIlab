@@ -8,7 +8,7 @@ import { CHINA_ID, activeRivals } from '../models/labs';
 import { initialSecurity } from '../security/security';
 import { drawLineageUModes } from '../world/hidden';
 import type { ChinaActor, EngineSystem, GameStateV2, HiddenWorld, StaffByRole, SystemCtx } from '../types';
-import { drift } from './fx';
+import { cash, drift } from './fx';
 import { goalpostsQ, leadBetween, rivalFinanceQ, simpleModel } from './rivals';
 import { request, ws4 } from './state';
 import { KOREA_HAZARD_Q, koreaShock, setExportPolicy, taiwanHazardQ, taiwanShock } from '../compute/market';
@@ -286,7 +286,7 @@ export const geoQSystem: EngineSystem = {
       taiwanShock(s, ctx, r.range(0.3, 0.5), quarters);
       s.flags['ws4:taiwanEver'] = true;
       ctx.log('world', 'Taiwan crisis: chip shipments from TSMC are disrupted.', 4);
-      request(s, 'E24', {});
+      ctx.headline('taiwan', 'Taiwan crisis: chip shipments from TSMC disrupted');
     }
     if (s.market.disruptKR === 0 && r.chance(KOREA_HAZARD_Q)) koreaShock(s, ctx, r.range(0.3, 0.7), 2 + Math.floor(r.float() * 3));
     // Treaty track: talks → restraint (D4) → verified (D5) (research/10 §1.4).
@@ -295,9 +295,18 @@ export const geoQSystem: EngineSystem = {
       s.gov.treaty = 'verified';
       ctx.log('china', 'The US and China sign a verified agreement on frontier AI.', 4);
     }
-    // Copyright litigation hazard 0.02·unlicensedT/100 per quarter (§3.9.1 data licences; R17 D3).
-    const lit = 0.02 * s.player.dataAssets.unlicensedTokensT / 100;
-    if (lit > 0 && ctx.rng('actors').chance(Math.min(0.5, lit))) request(s, 'E28', {});
+    // Copyright litigation hazard 0.02·unlicensedT/100 per quarter (§3.9.1 data licences; R17 D3). A suit settles
+    // automatically ($1.5B per 270T unlicensed tokens, the Bartz v. Anthropic scale), at most once a year; licensing
+    // the data (D3) is the way to avoid it.
+    const d = s.player.dataAssets;
+    const lit = 0.02 * d.unlicensedTokensT / 100;
+    const lastSuit = Number(s.flags['ws4:lastSuitDay'] ?? -1e9);
+    if (lit > 0 && day - lastSuit >= 365 && ctx.rng('actors').chance(Math.min(0.5, lit))) {
+      s.flags['ws4:lastSuitDay'] = day;
+      const amt = 1.5 * clamp(d.unlicensedTokensT / 270, 0.2, 3);
+      cash(s, ctx, -amt, 'copyright settlement');
+      ctx.log('company', `Authors and publishers sued over ${Math.round(d.unlicensedTokensT)}T tokens of unlicensed training data; you settled for $${amt.toFixed(1)}B. Licensing the data stops further suits.`, 3);
+    }
     rivalFinanceQ(s, ctx);
     goalpostsQ(s, ctx);
   },

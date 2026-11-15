@@ -58,8 +58,8 @@ function Waterfall({ s }: { s: GameStateV2 }) {
       { label: 'Power, O&M, rentals, other', value: F.money(otherQ) },
     ] },
     { id: 'commitments', label: 'Contracts', term: 'ledger', icon: ICON.commitment, v: -p.commitments, body: 'Payments on your commitment ledger (cloud, leases, LTAs).', rows: ledger.slice().sort((a, b) => b.perQuarter - a.perQuarter).slice(0, 6).map((c) => ({ label: `${c.payee} · ${c.kind}`, value: F.money(c.perQuarter) })) },
-    { id: 'chips', label: 'Chips', term: 'capex', icon: ICON.compute, v: -p.chips, body: 'Chip-order balances due on delivery within 4 quarters, spread per quarter.', rows: orders.slice(0, 6).map((o) => ({ label: `${o.kind} · ${F.count(o.qty - o.delivered)} H100e`, value: `due ${o.dueQ - q0 <= 0 ? 'now' : `+${o.dueQ - q0}q`}` })) },
-    { id: 'sites', label: 'Sites & power', term: 'site', icon: ICON.sites, v: -p.sites, body: 'Site capex falling due within 4 quarters, spread per quarter.', rows: building.slice(0, 6).map((x) => ({ label: `${x.name} · ${x.stage}`, value: `${F.money(x.capex - x.capexPaid)} left` })) },
+    { id: 'chips', label: 'Chips', term: 'capex', icon: ICON.compute, v: -p.chips, body: 'Chip-order balances paid on delivery, per quarter averaged over the next 4 quarters.', rows: orders.slice(0, 6).map((o) => ({ label: `${o.kind} · ${F.count(o.qty - o.delivered)} H100e`, value: `due ${o.dueQ - q0 <= 0 ? 'now' : `+${o.dueQ - q0}q`}` })) },
+    { id: 'sites', label: 'Sites & power', term: 'site', icon: ICON.sites, v: -p.sites, body: 'Site capex on each site\'s build schedule, per quarter averaged over the next 4 quarters.', rows: building.slice(0, 6).map((x) => ({ label: `${x.name} · ${x.stage}`, value: `${F.money(x.capex - x.capexPaid)} left` })) },
   ];
   const net = -rw.burnQ;
   const spend = steps.slice(1).reduce((a, x) => a - x.v, 0);
@@ -118,14 +118,16 @@ function CashHistory({ s }: { s: GameStateV2 }) {
   const days = S.day.slice(0, n);
   const cash = S.cash.slice(0, n);
   if (n < 2) return <div className="dim small">Cash history starts after the first week.</div>;
-  const burnD = rw.burnQ / 91.25;
-  const horizon = 540;
-  const dry = burnD > 0 ? now + f.cash / burnD : undefined;
-  const projEnd = dry !== undefined ? Math.min(now + horizon, dry) : now + horizon;
-  const projEndV = Math.max(0, f.cash - burnD * (projEnd - now));
+  // Projection: the runway's quarter-by-quarter cash path (each payment in the quarter it falls due).
+  const proj = rw.path.map((p) => [p.day, p.cash]);
+  const dry = rw.zeroDay;
   const pend = f.ws3.pendingRound;
   const nq = nextQDay(s);
-  const pendPts = pend ? [[now, f.cash], [nq, Math.max(0, f.cash - burnD * (nq - now))], [nq, Math.max(0, f.cash - burnD * (nq - now)) + pend.ask], [now + horizon, Math.max(0, f.cash - burnD * horizon + pend.ask)]] : [];
+  const pendPts: number[][] = [];
+  if (pend) for (const [d, v] of proj) {
+    if (d >= nq && pendPts.length && pendPts[pendPts.length - 1][0] < nq) pendPts.push([nq, v], [nq, v + pend.ask]);
+    pendPts.push([d, v + (d >= nq ? pend.ask : 0)]);
+  }
   const W = 620;
   const H = 260;
   const pl = 46;
@@ -133,8 +135,8 @@ function CashHistory({ s }: { s: GameStateV2 }) {
   const pt = 14;
   const pb = 26;
   const x0 = days[0];
-  const x1 = now + horizon;
-  const vMax = Math.max(1, ...cash, f.cash, projEndV, ...pendPts.map((p) => p[1]));
+  const x1 = proj[proj.length - 1][0];
+  const vMax = Math.max(1, ...cash, f.cash, ...proj.map((p) => p[1]), ...pendPts.map((p) => p[1]));
   const step = niceStep(vMax / 3);
   const yMax = step * Math.ceil((vMax * 1.05) / step);
   const X = (d: number) => pl + ((d - x0) / Math.max(1, x1 - x0)) * (W - pl - pr);
@@ -151,12 +153,12 @@ function CashHistory({ s }: { s: GameStateV2 }) {
       {ticks.map((t) => <g key={t}><line x1={pl} x2={W - pr} y1={Y(t)} y2={Y(t)} stroke="#1f2a38" strokeDasharray="3 4" /><text x={pl - 6} y={Y(t) + 3} textAnchor="end" className="ch-ax">{t === 0 ? "$0" : F.money(t)}</text></g>)}
       {months.map((d) => <text key={d} x={X(d)} y={H - 8} textAnchor="middle" className="ch-ax">{fmtMonth(dateOf(s, d))}</text>)}
       <polyline points={cash.map((v, i) => `${X(days[i])},${Y(v)}`).join(' ')} fill="none" stroke="#c9d4e2" strokeWidth={1.8} />
-      <polyline points={`${X(now)},${Y(f.cash)} ${X(projEnd)},${Y(projEndV)}`} fill="none" stroke={C.watch} strokeWidth={1.6} strokeDasharray="5 4" />
+      <polyline points={proj.map(([d, v]) => `${X(d)},${Y(v)}`).join(' ')} fill="none" stroke={C.watch} strokeWidth={1.6} strokeDasharray="5 4" />
       {pend && <polyline points={pendPts.map(([d, v]) => `${X(d)},${Y(v)}`).join(' ')} fill="none" stroke={C.good} strokeWidth={1.6} strokeDasharray="5 4" />}
-      {dry !== undefined && dry <= now + horizon && (
+      {dry !== undefined && (
         <g>
           <circle cx={X(dry)} cy={Y(0)} r={4} fill={C.bad} />
-          <text x={Math.min(X(dry), W - pr - 4)} y={Y(0) - 8} textAnchor="end" className="ch-note bad">cash $0 ≈ {fmtMonth(dateOf(s, dry))}</text>
+          <text x={Math.min(X(dry), W - pr - 4)} y={Y(0) - 8} textAnchor="end" className="ch-note bad">runway ends ≈ {fmtMonth(dateOf(s, dry))}</text>
         </g>
       )}
       {rounds.map((r) => { const i = at(r.day); return (

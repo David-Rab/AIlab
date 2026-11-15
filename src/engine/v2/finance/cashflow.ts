@@ -13,7 +13,7 @@ import { revenueOf } from '../worldfx/revenue';
 import type { Commitment$, EngineSystem, GameStateV2, SystemCtx } from '../types';
 import { debtHeadroom, drawDebt, interestPerYear } from './debt';
 import { ensureWs3, yearStats } from './ext';
-import { bookCash } from './ledger';
+import { bookCash, ledgerPaying } from './ledger';
 import { runwayOf } from './runway';
 
 /** Revenue run-rate implied by WS5's deployments, or undefined while WS5 has not priced any deployment. */
@@ -98,7 +98,7 @@ export const payrollSystem: EngineSystem = {
     ys.otherOpex += other + share;
     let total = payroll + other + share;
     const byKind: Partial<Record<Commitment$['kind'], number>> = {};
-    for (const c of f.ledger) if (c.endDay > s.time.day) byKind[c.kind] = (byKind[c.kind] ?? 0) + c.perQuarter / 3;
+    for (const c of f.ledger) if (ledgerPaying(c, s.time.day)) byKind[c.kind] = (byKind[c.kind] ?? 0) + c.perQuarter / 3;
     for (const [k, amt] of Object.entries(byKind) as [Commitment$['kind'], number][]) {
       if (amt <= 0) continue;
       bookCash(s, ctx, -amt, 'commitments', KIND_LABEL[k]);
