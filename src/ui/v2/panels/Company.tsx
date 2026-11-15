@@ -83,8 +83,8 @@ function Flow({ s }: { s: GameStateV2 }) {
           <g data-home="computeOnline"><rect x={cx[0]} y={top} width={nodeW} height={onH} rx={3} fill="#c9d4e2" /><text x={cx[0] + nodeW + 6} y={top + 14} className="flow-lbl">Compute online</text><text x={cx[0] + nodeW + 6} y={top + 29} className="flow-sub">{F.count(online)} H100e</text></g>
         </Tip>
         {idle > 0 && (
-          <Tip as="g" content={() => <TipCard title={<Term id="idleChips">Idle chips</Term>} value={F.count(idle)}>Delivered chips with no powered site. They cost money and earn nothing. Fix: build or power sites.</TipCard>}>
-            <g data-home="idleChips" onClick={() => store.goto('compute', { anchor: 'sites' })} className="flow-click"><rect x={cx[0]} y={idleY} width={nodeW} height={Math.max(3, idle * k)} rx={3} fill={C.bad} /><text x={cx[0] + 120} y={idleY + 12} className="flow-lbl bad">Idle · no power</text><text x={cx[0] + 120} y={idleY + 27} className="flow-sub">{F.count(idle)} H100e dark · fix: Sites ›</text></g>
+          <Tip as="g" content={() => <TipCard title={<Term id="idleChips">Idle chips</Term>}>Delivered chips with no rack space. Details on Compute.</TipCard>}>
+            <g onClick={() => store.goto('compute', { tab: 'overview' })} className="flow-click"><rect x={cx[0]} y={idleY} width={nodeW} height={Math.max(3, idle * k)} rx={3} fill={C.bad} /><text x={cx[0] + 120} y={idleY + 12} className="flow-lbl bad">Idle · racks full</text><text x={cx[0] + 120} y={idleY + 27} className="flow-sub">Compute ›</text></g>
           </Tip>
         )}
         {keys.map((x) => (

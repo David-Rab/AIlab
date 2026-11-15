@@ -221,8 +221,6 @@ export function installInventory(s: GameStateV2): number {
   return put;
 }
 
-/** Idle chips (delivered, no MW): UI "idle: no power". */
-export const idleChips = (s: GameStateV2) => s.player.finance.ws3.inventory.ready + s.player.finance.ws3.inventory.transit;
 
 /** sitesQ (410, quarterly): grid pool, kW efficiency, permitting/power/build stages and rolls, capex, installs. */
 export const sitesQSystem: EngineSystem = {

@@ -21,8 +21,8 @@ export function watchItems(s: GameStateV2): WatchItem[] {
     const share = idle / Math.max(1, p.computeOnline + idle);
     out.push({
       id: 'idle', sphere: 'company', sev: 2 + share * 2,
-      chain: [{ label: 'no power', icon: ICON.noPower, kind: 'root', detail: 'Live sites have no free megawatts for delivered chips' }, { label: 'chips idle', icon: ICON.idle, kind: 'bad', detail: `${F.count(idle)} H100e dark (${F.pct(share)} of your chips)` }],
-      why: 'chips you paid for earn nothing', go: { panel: 'compute', anchor: 'sites' }, goLabel: 'Sites',
+      chain: [{ label: 'racks full', icon: ICON.noPower, kind: 'root', detail: 'Live sites have no free megawatts for delivered chips' }, { label: 'chips idle', icon: ICON.idle, kind: 'bad', detail: `${F.count(idle)} H100e dark (${F.pct(share)} of your chips)` }],
+      why: 'chips you paid for earn nothing', go: { panel: 'compute', tab: 'overview' }, goLabel: 'Compute',
     });
   }
   // 2. channels capped by serving capacity

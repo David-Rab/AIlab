@@ -2,18 +2,18 @@
 import {
   Armchair, Atom, Award, BadgeCheck, Banknote, Binary, Biohazard, BookOpen, Bot, Boxes, Brain, Bug, Building2, Cctv, Check, ChevronRight,
   ChevronsRight, CircleHelp, ClipboardCheck, ClipboardX, ClockAlert, Cloud, CodeXml, Copy, CopyX, Cpu, Crown, Database, Dna, Drama, Eye, EyeOff,
-  Factory, FastForward, FileSearch, FlaskConical, Flag, Fuel, Funnel, Gamepad2, Gauge, Gem, Ghost, GitFork, Glasses, Globe, GraduationCap, Hand,
+  Factory, FastForward, FileSearch, Flame, FlaskConical, Flag, Fuel, Funnel, Gamepad2, Gauge, Gem, Ghost, GitFork, Glasses, Globe, GraduationCap, Hand, HardHat,
   HandCoins, Handshake, HeartHandshake, Hexagon, Hourglass, Image, Joystick, KeyRound, Landmark, Lightbulb, Lock, Map as MapIcon, Megaphone, Menu,
   MessageSquareOff, Microscope, Milestone, Network, Newspaper, PackageX, Pause, Play, PlugZap, Radar, RefreshCw, Rocket, Scale, ScanEye, ScrollText,
   Search, SearchCheck, Server, Settings2, Shield, ShieldAlert, Siren, Skull, SkipForward, SlidersHorizontal, Smile, Sparkles, Split, Star, Swords,
-  Target, ThumbsUp, Timer, TrendingUp, TriangleAlert, Turtle, UserPlus, Users, UsersRound, VenetianMask, Vote, Wallet, Workflow, Zap, ZapOff,
+  Target, ThumbsUp, Timer, TrendingUp, TriangleAlert, Truck, Turtle, UserPlus, Users, UsersRound, UtilityPole, VenetianMask, Vote, Wallet, Warehouse, Workflow, Zap, ZapOff,
   type LucideIcon,
 } from 'lucide-react';
 
 export const ICON = {
   // resources
   cash: Wallet, runway: Fuel, revenue: TrendingUp, valuation: Gem, compute: Cpu, serving: Server, idle: PlugZap, power: Zap, noPower: ZapOff,
-  sites: Factory, cloud: Cloud, staff: Users, hiring: UserPlus, morale: Smile, taste: Sparkles, data: Database, raise: HandCoins, debt: Banknote,
+  sites: Factory, cloud: Cloud, supply: Truck, pathLease: Warehouse, pathBrownfield: HardHat, pathGas: Flame, pathGrid: UtilityPole, pathNuclear: Atom, staff: Users, hiring: UserPlus, morale: Smile, taste: Sparkles, data: Database, raise: HandCoins, debt: Banknote,
   // spheres / departments
   capabilities: Brain, safety: Microscope, security: Shield, product: Boxes, ops: Settings2, agents: Bot, experiments: FlaskConical, run: Rocket,
   // race and top meters

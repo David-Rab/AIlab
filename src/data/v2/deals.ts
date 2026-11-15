@@ -134,6 +134,18 @@ export const SITE_PATHS: Record<Site['path'], PathDef> = {
   grid: { permitQ: 1, powerQ: [12, 16, 24], overlapQ: 4, maxMW: 5000, capexPerGW: FACILITY_PER_GW + NETWORK_PER_GW + 0.5, powerCostMult: 1, gas: false, needsTransformers: true, usesGridPool: true },
   nuclear: { permitQ: 2, powerQ: [12, 16, 20], overlapQ: 8, maxMW: 1000, capexPerGW: FACILITY_PER_GW + NETWORK_PER_GW + 4, powerCostMult: 0.8, gas: false, needsTransformers: true, usesGridPool: false },
 };
+/** Data-centre sizes offered by the build card. Hall ≈ one ~100 MW AI hall (Stargate Abilene phase 1: 206 MW over two
+ *  halls); campus ≈ the largest live sites in 2026 (~1 GW, Epoch AI data centers hub); multi-GW ≈ 5 GW announced
+ *  campuses (Meta Hyperion) [D]. */
+export const SITE_TIERS = [
+  { id: 'hall', name: 'Hall', full: 'Data hall', mw: 100 },
+  { id: 'building', name: 'Building', full: 'Data-centre building', mw: 300 },
+  { id: 'campus', name: 'Campus', full: 'Campus', mw: 1000 },
+  { id: 'large', name: 'Large campus', full: 'Large campus', mw: 2500 },
+  { id: 'multi', name: 'Multi-GW', full: 'Multi-gigawatt campus', mw: 5000 },
+] as const;
+/** Fixed chip order and cloud sizes, H100e [D]. */
+export const CHIP_TIERS = [100e3, 250e3, 500e3, 1e6, 2.5e6] as const;
 /** Construction quarters: default 8 (Epoch median ≈ 2 y), crash 4 at +35% capex (xAI Colossus 2) [R15]. */
 export const BUILD_Q = { normal: 8, crash: 4, crashCapexMult: 1.35, communityCapexMult: 1.03, leaseLo: 1, leaseHi: 3 };
 /** Lease ≈ 12%/yr of $10B per GW facility [R15]; 5-year non-cancellable term [D]. */

@@ -39,7 +39,7 @@ Binding for the UX implementation. It overrides PLAN.md and PROPOSALS.md where t
 Also in the strip, as controls rather than data: `?` help and `≡` menu.
 
 **Removed from L0** (each moves to one home below):
-- Compute online and idle chips → Company, Flow tab.
+- Compute online → Company, Flow tab. Idle chips → Compute, Overview (design/ux/COMPUTE.md).
 - Scrutiny → Relations.
 - R&D multiplier M → Company, Research speed.
 - The act chip → under the date.
@@ -65,7 +65,7 @@ Three cards. Nothing else.
 | — | Overview (`overview`) | — | Lead track |
 | COMPANY | Company (`company`) | Flow · People · Split · Security | Flow diagram: compute online → pools by department → outputs |
 | | Finance (`finance`) | — | Cash-flow waterfall |
-| | Compute (`compute`) | — | Sites build timeline; chip market |
+| | Compute (`compute`) | Overview · Sites · Orders · Market | Verdicts (idle chips, racks ahead, vendor fill); capacity and fleet forecast; order chips / build data centre / rent cloud |
 | MODELS | Models (`models`) | — | Model card (radar against the previous version) |
 | | Runs (`rundesigner`) | — | Recipe tiles with effect glyphs, plus "What this recipe pushes" |
 | | Deploy (`deployments`) | — | Demand vs capacity per channel |
@@ -128,16 +128,18 @@ Inside a panel the same rule repeats: one primary visual at the top, then second
 | Datum | Home | References |
 |---|---|---|
 | Compute online; owned vs rented | L2 Company › Flow | — |
-| Idle chips (no power) | L2 Company › Flow (red band) | Watch chip; nav badge |
+| Idle chips (no rack space), installing, empty racks ahead | L2 Compute › Overview verdicts | Company › Flow red band (link, no number); watch chip → Compute; Sites tab badge |
+| Capacity and fleet forecast | L2 Compute › Overview chart | — |
 | Pools by use (training, experiments, …) | L2 Company › Flow | Split tab (percent shares are the control) |
 | Compute split % | L2 Company › Split | — |
 | Research speed M, binding input, best levers | L2 Company › Flow, Research speed card | — |
 | Headcount, hiring target, pipeline, payroll, morale | L2 Company › People | Watch (morale < 40) |
 | WSL, target, siloing, counter-intel, security spend | L2 Company › Security | Risk theft row (→) |
 | AI labour (agent copies, AI FTE) | L2 Company › People | — |
-| Chip supply, prices, allocation, export policy | L2 Compute › Market | — |
+| Vendor fill | L2 Compute › Overview verdict | — |
+| Chip supply, prices, order weight, export policy | L2 Compute › Market | — |
 | Orders pipeline, cloud contracts | L2 Compute › Orders | — |
-| Sites (stage, MW, ETA, risk), MW used/cap, grid, transformers | L2 Compute › Sites & power | Watch "no power" → Sites |
+| Sites (stage, MW, ETA, risk), MW used/cap, grid, transformers | L2 Compute › Sites | Forecast chart events |
 
 ### Models
 

@@ -101,7 +101,9 @@ export { debtHeadroom, totalDebt, interestPerYear, debtRatePct } from './finance
 export { dealMenu, dealPreview } from './finance/actions';
 export { liveLedger, commitmentsPerYear, ledgerDue, qOf } from './finance/ledger';
 export { orderQuote, spotRentalCap } from './compute/orders';
-export { idleChips, oppositionOdds } from './compute/sites';
+export { oppositionOdds, siteCapex, siteEtaQ } from './compute/sites';
+export { chipFit, computeForecast, idleChips, siteLiveQ } from './compute/forecast';
+export type { ChipFit, ForecastEvent, ForecastQ } from './compute/forecast';
 export { ownedOnline, rentedOnline, poolsOf } from './compute/power';
 export { spotPrice, cloudPricePerYear } from './compute/market';
 export { liveCommitments, keptShare } from './actors/commitments';
