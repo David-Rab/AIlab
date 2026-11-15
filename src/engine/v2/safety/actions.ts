@@ -7,7 +7,8 @@ import { TRAIT_IDS } from '../../../data/v2/traits';
 import { internalVersion } from '../models/labs';
 import type { ActionDef, AgendaId, CostLine, GameStateV2, ResponseKind, SafetyDept, TraitId } from '../types';
 import { clamp01, mAtLevel, versionById } from './common';
-import { findingHazard, fundingMult, posteriorBand, setAgendaFunding, staffFactor, startRefresh } from './agendas';
+import { findingHazard, fundingMult, posteriorBand, recomputeComputeShares, setAgendaFunding, staffFactor, startRefresh } from './agendas';
+import { safetyAgentVersion, safetyFleet } from './agents';
 import { publishFinding } from './findings';
 import { closeInvestigation, investigationFte, openInvestigation } from './investigations';
 import { RESPONSE_INFO, applyResponse, responseTrait } from './responses';
@@ -107,16 +108,21 @@ const CUT: ActionDef = {
   },
 };
 
-/** Visible sabotage estimate of the internal model (from beliefs, never truth). */
+/** Measured level of the model running the safety agents. */
+function safetyAgentL(s: GameStateV2): number {
+  return safetyAgentVersion(s)?.evals.measuredL ?? 0;
+}
+
+/** Visible sabotage estimate of the safety agent model (from beliefs, never truth). */
 function believedSab(s: GameStateV2): number {
-  const v = internalVersion(s);
+  const v = safetyAgentVersion(s);
   if (!v) return 0;
   return (v.beliefs.SAND?.est ?? 0) + (v.beliefs.SCHEME?.est ?? 0);
 }
 
 const AUTOMATE: ActionDef = {
   id: 'safety.automate', sphere: 'safety', owner: 'WS2', title: 'Automate',
-  available: (s) => measuredL(s) >= AUTOMATE_MIN_L || `Needs a model at measured level ≥ ${AUTOMATE_MIN_L}`,
+  available: (s) => safetyAgentL(s) >= AUTOMATE_MIN_L || `Needs a safety agent model at measured level ≥ ${AUTOMATE_MIN_L}`,
   preview(s, p) {
     const dept = s.player.safety;
     const ag = isAgenda(str(p, 'agenda')) ? (str(p, 'agenda') as AgendaId) : (AGENDAS.find((a) => dept.agendas[a.id].fte > 0) ?? AGENDAS[0]).id;
@@ -124,8 +130,9 @@ const AUTOMATE: ActionDef = {
     const st = dept.agendas[ag];
     const dYield = r2(findingsPerYearAt(s, ag, st.fte, share) - findingsPerYearAt(s, ag, st.fte));
     const sab = believedSab(s);
+    const fleet = safetyFleet(s);
     return {
-      costs: [{ currency: 'compute', amount: r2(share * st.fte * 0.002 * 100), target: '% of compute (agent inference)' }],
+      costs: [{ currency: 'compute', amount: fleet.compute > 0 ? 0 : r2(SAFETY_AGENT_DEFAULT_SHARE * 100), target: fleet.compute > 0 ? 'shares the safety agent fleet' : '% of safety pool to start safety agents' }],
       gains: [{ currency: 'alignment', amount: dYield, target: 'findings / yr' }],
       exposure: [{ currency: 'alignment', amount: -r2(share * sab), probability: r2(clamp01(share * sab)), target: 'false findings if the model sabotages (estimate)' }],
     };
@@ -134,6 +141,11 @@ const AUTOMATE: ActionDef = {
     const ag = str(p, 'agenda');
     if (!isAgenda(ag) || s.player.safety.agendas[ag].fte <= 0) return void ctx.log('alert', 'Automate: pick a funded agenda.');
     s.player.safety.agendas[ag].aiLabour = clamp01(num(p, 'share') ?? 0.5);
+    if (!(s.player.safety.agentShare ?? 0) && s.player.safety.agendas[ag].aiLabour > 0) {
+      s.player.safety.agentShare = SAFETY_AGENT_DEFAULT_SHARE;
+      recomputeComputeShares(s.player.safety, s.player.split.safety);
+      ctx.log('company', `Safety agents started on ${Math.round(SAFETY_AGENT_DEFAULT_SHARE * 100)}% of safety compute.`, 1);
+    }
     ctx.log('company', `${AGENDA_BY_ID[ag].name}: AI labour share ${Math.round(s.player.safety.agendas[ag].aiLabour * 100)}%.`, 1, ag);
   },
 };
@@ -364,6 +376,47 @@ const EVAL_GATE: ActionDef = {
   },
 };
 
+/** Share of the safety pool the Automate action gives the safety agents when none run yet [D]. */
+const SAFETY_AGENT_DEFAULT_SHARE = 0.2;
+
+const SAFETY_AGENTS: ActionDef = {
+  id: 'safety.agents', sphere: 'safety', owner: 'WS2', title: 'Safety agents',
+  available: (s) => safetyAgentL(s) >= AUTOMATE_MIN_L || (s.player.safety.agentShare ?? 0) > 0 || `Needs a safety agent model at measured level ≥ ${AUTOMATE_MIN_L}`,
+  preview(s, p) {
+    const dept = s.player.safety;
+    const cur = dept.agentShare ?? 0;
+    const to = Math.max(0, Math.min(0.6, num(p, 'share') ?? cur));
+    const d = to - cur;
+    const vId = str(p, 'versionId');
+    const v = vId ? versionById(s, vId) : safetyAgentVersion(s);
+    const sab = v ? (v.beliefs.SAND?.est ?? 0) + (v.beliefs.SCHEME?.est ?? 0) : 0;
+    const L = v?.evals.measuredL ?? 0;
+    const lines = { costs: [] as CostLine[], gains: [] as CostLine[], exposure: [] as CostLine[] };
+    if (d > 0) {
+      lines.costs.push({ currency: 'compute', amount: r2(d * 100), target: '% of safety pool taken from agendas' });
+      lines.gains.push({ currency: 'alignment', amount: r2(d), target: 'AI labour on automated work' });
+    } else if (d < 0) {
+      lines.costs.push({ currency: 'alignment', amount: r2(d), target: 'AI labour on automated work' });
+      lines.gains.push({ currency: 'compute', amount: r2(-d * 100), target: '% of safety pool to agendas' });
+    }
+    if (vId) lines.exposure.push({ currency: 'alignment', amount: -r2(sab), probability: r2(clamp01(sab)), target: `false findings if ${v?.name ?? 'it'} (level ${L.toFixed(1)}) sabotages (estimate)` });
+    if (!lines.costs.length) lines.costs.push({ currency: 'compute', amount: 0, target: 'no change' });
+    return lines;
+  },
+  apply(s, ctx, p) {
+    const dept = s.player.safety;
+    const sh = num(p, 'share');
+    if (sh !== undefined) dept.agentShare = Math.max(0, Math.min(0.6, sh));
+    const vId = str(p, 'versionId');
+    if (vId) {
+      const v = versionById(s, vId);
+      if (!v || v.status === 'retired' || v.status === 'rolledBack') return void ctx.log('alert', 'Safety agents: pick a live version.');
+      dept.agentVersion = v.id === s.player.models.internalAgent ? undefined : v.id;
+    }
+    recomputeComputeShares(dept, s.player.split.safety);
+  },
+};
+
 const MONITORING: ActionDef = {
   id: 'safety.monitoring', sphere: 'safety', owner: 'WS2', title: 'Monitoring',
   available: () => true,
@@ -417,5 +470,5 @@ const REFRESH: ActionDef = {
   },
 };
 
-export const SAFETY_ACTIONS: ActionDef[] = [FUND, CUT, AUTOMATE, INVESTIGATE, CLOSE_CASE, RESPOND, PUBLISH, POLICY, PLEDGE, EVAL_GATE, MONITORING, TECHNIQUE, REFRESH];
+export const SAFETY_ACTIONS: ActionDef[] = [FUND, CUT, AUTOMATE, SAFETY_AGENTS, INVESTIGATE, CLOSE_CASE, RESPOND, PUBLISH, POLICY, PLEDGE, EVAL_GATE, MONITORING, TECHNIQUE, REFRESH];
 

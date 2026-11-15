@@ -2,11 +2,16 @@
 //
 //   Lrel = [(1−A)^(1−ρc)·h^ρc + A^(1−ρc)·(R·k)^ρc]^(1/ρc)      (A ≥ 1 ⇒ R·k)
 //   ℓ = Lrel^λ;  X = [u·c^(ζρ) + v·ℓ^ρ]^(1/ρ);  Tref = M_ref(q)/X(1, ℓ_ref(q));  τ = 1 + (τ_h − 1)(1 − Φ(sdAI))
-//   M = Tref·τ·X·eff·mods
-//   Stage 1: dpa/dt = share·laborSlowdown(M, yr)·Ddata;  Stage 2: dpa/dt = M·Ddata^0.5;  × pause × treaty
+//   norm = X(1, ℓ_ref(q)) / X*(q, yr)
+//   M = Tref·τ·X·norm·eff·mods
+//   Stage 1: dpa/dt = share·laborSlowdown(M, yr);  Stage 2: dpa/dt = M;  × pause × treaty
 //
-// q is the v1 progress coordinate (world.ts): q_dep = pm(internal agent) + δ_rsch + calShift. At reference inputs
-// (h = k = c = d = 1, τ_h = 1, eff = mods = 1) M = multiplierAt(w, q) exactly (acceptance test P1).
+// q is the v1 progress coordinate (world.ts): q_dep = pm(internal agent) + δ_rsch + calShift.
+// Tref keeps research/13's meaning (the taste curve). X*(q, yr) is the experiment capacity of a reference lab (h = 1, reference research compute = experiments + agents
+// shares of shareRef(yr)) that splits its research compute between experiments and agents in the best way. So a lab
+// with reference resources and the best research mix has M = multiplierAt(w, q) exactly (acceptance test P1): the
+// reference lab optimises its mix, the AI 2027 usage table fixes only how much compute goes to research in total.
+// Synthetic data is a training input (data stock and the data wall on bases, data.ts), not a research input.
 import { laborSlowdown, multiplierAt, stage1 } from '../../../data/world';
 import { CHINA_CAL, H100E_PER_COPY_SC, PROD_SPEED_CAP, REF_TECH } from '../../../data/v2/calibration';
 import { CHINA_PRESETS } from '../../../data/actors';
@@ -19,9 +24,9 @@ import { asV1World } from '../world/calibration';
 import { poolsOf } from '../compute/power';
 import { rivalSpeedMult } from '../actors/rivals';
 import { ws4r } from '../actors/state';
-import { syntheticAccrual, dataStockRatio, dFactor } from './data';
-import { Lrel, Phi, Xces, hRef, knotAt, refTotal, tasteSD } from './knots';
-import type { EngineSystem, GameStateV2, LabId, ProdParams, ProductionReadout, TimelineWorld } from '../types';
+import { syntheticAccrual, dataStockRatio } from './data';
+import { Lrel, Phi, Xces, bestMix, hRef, knotAt, refTotal, tasteSD } from './knots';
+import type { EngineSystem, GameStateV2, LabId, ModelVersion, ProdParams, ProductionReadout, TimelineWorld } from '../types';
 
 /** Inputs of one lab's production function for one day (ratios vs the dated reference path, §3.2.1). */
 export interface LabInputs {
@@ -29,6 +34,9 @@ export interface LabInputs {
   qDep: number;
   yr: number;
   h: number; k: number; c: number; d: number;
+  /** c and k this lab would have with all of its research compute (experiments + agents) on experiments / on agents;
+   *  C = that research compute (H100e), load = paradigm share of the experiment pool, off = agents switched off. */
+  mixUnit: { c: number; k: number; C: number; load: number; off: boolean };
   /** min(1, S_eff / N_req(F(t))) — data-stock adequacy (§3.2.2). */
   stock: number;
   tasteHire: number;
@@ -44,22 +52,41 @@ export interface LabInputs {
 
 type P = ProdParams;
 
+/** X* of the reference lab with the best research mix at (q, yr); memoised per world (a few distinct keys a day). */
+const xOptMemo = new WeakMap<ProdParams, Map<string, number>>();
+export function refBestX(Pp: P, A: number, R: number, q: number, yr: number): number {
+  let m = xOptMemo.get(Pp);
+  if (!m) xOptMemo.set(Pp, (m = new Map()));
+  const key = `${q.toFixed(5)}|${yr.toFixed(4)}`;
+  let x = m.get(key);
+  if (x === undefined) {
+    const sh = shareRefAt(yr);
+    const r = sh.experiments + sh.agents;
+    x = bestMix(Pp, A, R, 1, r / sh.experiments, r / sh.agents).X;
+    if (m.size > 4000) m.clear();
+    m.set(key, x);
+  }
+  return x;
+}
+
 /** M and its pieces for a set of inputs. Pure. */
-export function evalM(w: TimelineWorld, inp: Pick<LabInputs, 'qDep' | 'h' | 'k' | 'c' | 'tasteHire' | 'eff' | 'mods'>) {
+export function evalM(w: TimelineWorld, inp: Pick<LabInputs, 'qDep' | 'yr' | 'h' | 'k' | 'c' | 'tasteHire' | 'eff' | 'mods'>) {
   const Pp: P = w.prod;
   const q = inp.qDep;
   const Mref = multiplierAt(asV1World(w), q);
   const kn = knotAt(Pp.knots, q);
   const lRef = Math.pow(Lrel(Pp, kn.A, 1, kn.R), Pp.lam);
-  const Tref = Mref / Xces(Pp, 1, lRef);
+  const Xref = Xces(Pp, 1, lRef);
+  const Tref = Mref / Xref;
+  const norm = Xref / refBestX(Pp, kn.A, kn.R, q, inp.yr);
   const ai = kn.R * inp.k;
   const L = Lrel(Pp, kn.A, inp.h, ai);
   const l = Math.pow(L, Pp.lam);
   const X = Xces(Pp, inp.c, l);
   const sdAI = inp.tasteHire !== 1 ? tasteSD(Tref, Pp.m2b) : 0;
   const tau = inp.tasteHire !== 1 ? 1 + (inp.tasteHire - 1) * (1 - Phi(sdAI)) : 1;
-  const M = Tref * tau * X * inp.eff * inp.mods;
-  return { M, Mref, A: kn.A, R: kn.R, Tref, tau, sdAI, L, l, X, ai };
+  const M = Tref * tau * X * norm * inp.eff * inp.mods;
+  return { M, Mref, A: kn.A, R: kn.R, Tref, tau, sdAI, L, l, X, ai, norm };
 }
 
 const speedOf = (M: number) => Math.min(PROD_SPEED_CAP, 8 + 10.8 * Math.log2(Math.max(1, M))); // R11 #23
@@ -71,12 +98,12 @@ export function evalProduction(w: TimelineWorld, inp: LabInputs, detail = true):
   const Pp = w.prod;
   const e = evalM(w, inp);
   const stage: 1 | 2 = inp.qDep >= stage1(asV1World(w)) ? 2 : 1;
-  const dataF = Math.pow(inp.stock, 0.3) * dFactor(inp.d);
-  const rate = (stage === 1 ? w.share * laborSlowdown(e.M, inp.yr) * dataF : e.M * Math.sqrt(dataF)) * inp.rateMult;
+  const rate = (stage === 1 ? w.share * laborSlowdown(e.M, inp.yr) : e.M) * inp.rateMult;
 
   // (a) decomposition — multiplies to M.
   const Xh = Xces(Pp, inp.c, Math.pow(Math.max(1e-9, inp.h), Pp.lam));
-  const parts = { base: Xh, agents: e.X / Xh, taste: e.Tref * e.tau, other: inp.eff * inp.mods };
+  // base carries the best-mix normalisation (a reference lab at its best mix has base·agents = X*/X*·… = M_ref/Tref).
+  const parts = { base: Xh * e.norm, agents: e.X / Xh, taste: e.Tref * e.tau, other: inp.eff * inp.mods };
 
   // (b) elasticities ∂lnM/∂ln x (research/13 §1.6).
   const cT = Pp.u * Math.pow(inp.c, Pp.zeta * Pp.rho);
@@ -91,7 +118,7 @@ export function evalProduction(w: TimelineWorld, inp: LabInputs, detail = true):
     agents: Pp.lam * sL * (1 - wH),
     taste: inp.tasteHire < 1.5 ? 1 - Phi(e.sdAI || tasteSD(e.Tref, Pp.m2b)) : 0,
     train: stage === 1 ? (1 - w.share) / Math.log(gF) : 0,
-    data: (inp.stock < 1 ? 0.3 : 0) + 0.15,
+    data: 0,
   };
   // Marginal % of M per $B/yr: elasticity / annual cost of the current input.
   const costExp = Math.max(1e-6, inp.abs.Cexp * inp.abs.tcoPerYr);
@@ -113,8 +140,7 @@ export function evalProduction(w: TimelineWorld, inp: LabInputs, detail = true):
   else if (pd.agents > pd.exp && pd.agents > pd.humans) binding = 'agents';
   const lnM = Math.log(Math.max(1.0001, e.M));
   const tasteShare = Math.log(Math.max(1, parts.taste)) / lnM;
-  if (dataF < 0.95) binding = 'data';
-  else if (tasteShare > 0.6 && e.Mref >= 25) binding = 'taste';
+  if (tasteShare > 0.6 && e.Mref >= 25) binding = 'taste';
   let label: ProductionReadout['label'] = elast.humans + elast.agents > elast.exp ? 'labor-bound' : 'compute-bound';
   if (e.Mref >= 25 && tasteShare > 0.6) label = 'taste-bound';
   else if (label === 'labor-bound' && wH > 0.5) label = 'human-bound';
@@ -125,7 +151,7 @@ export function evalProduction(w: TimelineWorld, inp: LabInputs, detail = true):
     M: e.M, rate, stage, parts, elast, perDollar, ceilings, binding, label,
     labor: { A: e.A, aiFTE: e.ai * hRef(inp.yr), copies, speed: speedOf(e.M), wH },
     ratios: { h: inp.h, k: inp.k, c: inp.c, d: inp.d },
-    Ddata: dataF,
+    Ddata: 1,
     whatIf,
     sdAI: e.sdAI || tasteSD(e.Tref, Pp.m2b),
   };
@@ -219,11 +245,17 @@ export function labInputs(s: GameStateV2, lab: LabId, day = s.time.day): LabInpu
   const c = (cMult * Cexp) / Math.max(1, ref * sh.experiments * rt.c);
   const d = Csyn / Math.max(1, ref * sh.synthetic);
   const stock = isPlayer ? dataStockRatio(s, yr) : 1;
+  const Cres = pools.experiments + pools.agents;
+  const mixUnit = {
+    c: (cMult * Cres * (1 - load.expShare)) / Math.max(1, ref * sh.experiments * rt.c),
+    k: agentsOff ? 0 : (Cres * etaMod * (1 - controlTax)) / Math.max(1, ref * sh.agents * rt.k),
+    C: Cres, load: load.expShare, off: agentsOff,
+  };
   // pauseMult 0.1 during a voluntary or committee pause of frontier experiments (§3.1.2; WS4 frontierPauseUntil).
   const pause = isPlayer && (s.flags.paused || ws4r(s).frontierPauseUntil > day) ? 0.1 : 1;
   const treaty = s.gov.treaty === 'verified' ? 0.65 : 1;
   return {
-    qDep, yr, h, k, c, d, stock,
+    qDep, yr, h, k, c, d, mixUnit, stock,
     tasteHire: core.tasteHire, eff: effLab(s, lab), mods, rateMult: pause * treaty,
     abs: { H, Cagents: Cag, Cexp, serveCost: serve, tcoPerYr: tcoPerH100eYear(s, yr), staffCostPerYr: 0.8e-3 },
   };
@@ -235,11 +267,48 @@ export function computeProduction(s: GameStateV2, lab: LabId): ProductionReadout
   return inp ? evalProduction(s.hidden.timeline, inp) : undefined;
 }
 
+/** AI researcher-equivalents per H100e of agent inference running version `v` today: R(q_v)·ηmod·H_ref / C_agents,ref
+ *  (the production function's own conversion, §3.2.1). Used for the safety agent fleet. */
+export function aiFtePerH100e(s: GameStateV2, v: Pick<ModelVersion, 'pm' | 'build' | 'serveCost'>): number {
+  const w = s.hidden.timeline;
+  const yr = decimalYear(s);
+  const q = v.pm + deltaRsch(w, v) + w.calShift;
+  const kn = knotAt(w.prod.knots, q);
+  const eta = Math.min(2.5, Math.max(0.5, 0.5 / v.serveCost));
+  return (kn.R * eta * hRef(yr)) / Math.max(1, refTotal(w, yr) * shareRefAt(yr).agents);
+}
+
+/** Best experiments share of a lab's research compute (experiments + agents) for its current inputs. */
+export function bestResearchMix(s: GameStateV2, inp: LabInputs): number {
+  const Pp = s.hidden.timeline.prod;
+  const kn = knotAt(Pp.knots, inp.qDep);
+  return bestMix(Pp, kn.A, kn.R, inp.h, inp.mixUnit.c, inp.mixUnit.k).f;
+}
+
+/** Inputs with the research compute re-split at experiments share f (same total). */
+export function inputsAtMix(inp: LabInputs, f: number): LabInputs {
+  const u = inp.mixUnit;
+  return { ...inp, c: f * u.c, k: (1 - f) * u.k, abs: { ...inp.abs, Cexp: f * u.C * (1 - u.load), Cagents: u.off ? 0 : (1 - f) * u.C } };
+}
+
+/** Re-split a lab's research share between experiments and agents in the best way (auto mix; the player can switch
+ *  to a manual mix). Keeps experiments + agents unchanged. Returns the inputs at the new mix (or `inp` unchanged). */
+export function applyBestMix(s: GameStateV2, lab: LabId, day = s.time.day, inp = labInputs(s, lab, day)): LabInputs | undefined {
+  const core = labCore(s, lab);
+  if (!core || !inp || core.researchManual) return inp;
+  const r = core.split.experiments + core.split.agents;
+  if (r <= 0) return inp;
+  const f = bestResearchMix(s, inp);
+  core.split.experiments = r * f;
+  core.split.agents = r * (1 - f);
+  return inputsAtMix(inp, f);
+}
+
 /** Advance one lab's know-how by one day: readout at day−1 inputs, then pa += rate/365 (§3.1.2). */
 export function advanceLab(s: GameStateV2, lab: LabId): ProductionReadout | undefined {
   const core = labCore(s, lab);
   if (!core || core.status !== 'active') return undefined;
-  const inp = labInputs(s, lab, s.time.day - 1);
+  const inp = applyBestMix(s, lab, s.time.day - 1);
   if (!inp) return undefined;
   const r = evalProduction(s.hidden.timeline, inp, lab === PLAYER_ID);
   core.prodCache = r;

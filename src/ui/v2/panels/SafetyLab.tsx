@@ -5,16 +5,17 @@
 import { useMemo, useState } from 'react';
 import { ListChecks, Waypoints, Wrench, Ruler, Telescope, Ban, TrendingDown, Droplets } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { CRITICAL_TRAITS, TRAIT_BY_ID, TRAIT_IDS } from '../../../data/v2/traits';
-import { beliefView, dateOf, detectionGrid, fmtDate, internalVersion, safetyView, techniqueCurve, versionById } from '../../../engine/v2';
-import type { AgendaRow, GameStateV2, ResponseKind, TechniqueRow, TraitId } from '../../../engine/v2';
+import { beliefView, dateOf, detectionGrid, fmtDate, internalVersion, safetyAgentVersion, safetyUtilisation, safetyView, techniqueCurve, versionById } from '../../../engine/v2';
+import type { AgendaRow, GameStateV2, ResponseKind, SafetyUtilisation, TechniqueRow, TraitId } from '../../../engine/v2';
 import { store } from '../store';
 import { ActBtn, Gate, Slider, Term, Tip, TipCard, unlocked } from '../ui';
 import { Card, CauseChain, GoBtn, HBar, PanelHead, Pill, Ref, tabOf, Tabs } from '../kit';
 import * as F from '../fmt';
 import { ICON, TRAIT_ICON } from '../icons';
-import { C, div } from '../theme';
+import { C, div, seq } from '../theme';
 import { TraitGraph, traitSev } from './TraitGraph';
 import './safety.css';
 
@@ -154,7 +155,6 @@ function MisCard({ s, versionId }: { s: GameStateV2; versionId?: string }) {
 // ───────── Agendas tab ─────────
 function AgendasTab({ s, rows }: { s: GameStateV2; rows: AgendaRow[] }) {
   const [all, setAll] = useState(false);
-  const [autoShare, setAutoShare] = useState(0.5);
   const funded = rows.filter((a) => a.fte > 0);
   const rest = rows.filter((a) => a.fte <= 0);
   const max = Math.max(1, ...rows.map((a) => a.findingsPerYear));
@@ -167,12 +167,89 @@ function AgendasTab({ s, rows }: { s: GameStateV2; rows: AgendaRow[] }) {
         {!funded.length && <div className="dim small">No agenda funded. Show all to pick one.</div>}
         {all && <><div className="tip-cap" style={{ marginTop: 10 }}>Unfunded · {rest.length}</div>{rest.map((a) => <AgendaLine key={a.id} a={a} max={max} />)}</>}
       </Card>
-      {unlocked(s, 'aiLabour') && (
-        <Card title={<Term id="automateSafety">Automate safety research</Term>} sub="share of agenda work done by your internal model">
-          <div className="row-i"><Slider value={autoShare} min={0} max={1} step={0.05} onChange={setAutoShare} /><span className="num">{F.pct(autoShare)}</span><ActBtn id="safety.automate" params={{ share: autoShare }} reason /></div>
-        </Card>
-      )}
+      <DeptLoad u={safetyUtilisation(s)} />
+      {unlocked(s, 'aiLabour') && <SafetyAgents s={s} funded={funded} />}
     </div>
+  );
+}
+
+/** What the department's people and compute are doing: used, idle, short. Shades of the safety hue for uses, the
+ *  agents' hue for the fleet, the track colour for free/idle; every segment is keyed in the legend under its bar. */
+const LOAD_COL = { agendas: C.und, monitoring: seq(1), investigations: seq(0.35), patches: C.neutral, agents: C.cap, free: C.line2 } as const;
+function LoadLegend({ items }: { items: { k: keyof typeof LOAD_COL; label: ReactNode; v: string }[] }) {
+  return <div className="small dim load-legend">{items.map((x) => <span key={x.k} className="load-key"><i style={{ background: LOAD_COL[x.k] }} />{x.label} <span className="num">{x.v}</span></span>)}</div>;
+}
+function DeptLoad({ u }: { u: SafetyUtilisation }) {
+  const st = u.staff;
+  const cp = u.compute;
+  const sTot = Math.max(1, st.total, st.agendas + st.investigations + st.patches);
+  const cTot = Math.max(1, cp.pool);
+  const seg = (v: number, tot: number, k: keyof typeof LOAD_COL) => (v > 0 ? <i key={k} style={{ flex: v / tot, background: LOAD_COL[k] }} title={k} /> : null);
+  const starved = cp.agendasWanted > cp.agendasGot * 1.05;
+  return (
+    <Card title={<Term id="safetyLoad">Department load</Term>} sub="what staff and compute are doing" home="safetyLoad">
+      <div className="load-row" data-test="load-staff">
+        <span className="small">Staff <span className="num">{F.count(st.total)}</span></span>
+        <div className="stack2 load-bar">{seg(st.agendas, sTot, 'agendas')}{seg(st.investigations, sTot, 'investigations')}{seg(st.patches, sTot, 'patches')}{seg(st.free, sTot, 'free')}</div>
+        <span className="small">{st.short > 0 ? <span className="tone-neg">short {F.count(st.short)}</span> : st.free > 0 ? <span>free {F.count(st.free)}</span> : <span className="dim">all assigned</span>}</span>
+      </div>
+      <LoadLegend items={[
+        { k: 'agendas', label: 'agendas', v: F.count(st.agendas) }, { k: 'investigations', label: 'investigations', v: F.count(st.investigations) },
+        ...(st.patches ? [{ k: 'patches' as const, label: 'patches', v: F.count(st.patches) }] : []), { k: 'free', label: st.short > 0 ? 'short: every agenda slowed' : 'free', v: F.count(st.short > 0 ? st.short : st.free) },
+      ]} />
+      <div className="load-row" data-test="load-compute">
+        <span className="small">Compute <span className="num">{F.count(cp.pool)}</span></span>
+        <div className="stack2 load-bar">{seg(cp.agendasGot, cTot, 'agendas')}{seg(cp.monitoring, cTot, 'monitoring')}{seg(cp.investigations, cTot, 'investigations')}{seg(cp.agents, cTot, 'agents')}{seg(cp.idle, cTot, 'free')}</div>
+        <span className="small">{starved ? <span className="tone-neg">agendas get {F.pct(cp.agendasGot / Math.max(1, cp.agendasWanted))}</span> : cp.idle > cp.pool * 0.02 ? <span>idle {F.count(cp.idle)}</span> : <span className="dim">all used</span>}</span>
+      </div>
+      <LoadLegend items={[
+        { k: 'agendas', label: starved ? `agendas (want ${F.count(cp.agendasWanted)})` : 'agendas', v: F.count(cp.agendasGot) },
+        { k: 'monitoring', label: <Term id="runtimeMonitoring">monitoring</Term>, v: F.count(cp.monitoring) },
+        { k: 'investigations', label: 'investigations', v: F.count(cp.investigations) },
+        { k: 'agents', label: <Term id="safetyAgents">agents</Term>, v: F.count(cp.agents) },
+        { k: 'free', label: 'idle', v: F.count(cp.idle) },
+      ]} />
+    </Card>
+  );
+}
+
+/** The safety agent fleet: which model, how much of the safety pool, and what it automates. */
+function SafetyAgents({ s, funded }: { s: GameStateV2; funded: AgendaRow[] }) {
+  const dept = s.player.safety;
+  const u = safetyUtilisation(s).fleet;
+  const sv = safetyAgentVersion(s);
+  const [share, setShare] = useState(dept.agentShare ?? 0);
+  const [vid, setVid] = useState(sv?.id ?? '');
+  const [ag, setAg] = useState<string>(funded[0]?.id ?? '');
+  const [auto, setAuto] = useState(0.5);
+  const vs = s.player.models.versions.filter((v) => v.status !== 'retired' && v.status !== 'rolledBack' && v.evals.measuredL !== undefined);
+  const agRow = funded.find((a) => a.id === ag) ?? funded[0];
+  return (
+    <Card title={<Term id="safetyAgents">Safety agents</Term>} sub="AI labour on safety work, from the safety pool" home="safetyAgents">
+      <div className="g2 sa-grid">
+        <div>
+          <div className="kv"><span className="kv-k">Model</span><span className="row-i">
+            <select className="text-input" style={{ minWidth: 220 }} data-test="sa-version" value={vid} onChange={(e) => setVid(e.target.value)}>{vs.map((v) => <option key={v.id} value={v.id}>{v.name} · L{F.level(v.evals.measuredL ?? 0)}{v.id === s.player.models.internalAgent ? ' · in R&D use' : ''}</option>)}</select>
+          </span></div>
+          <div className="kv"><span className="kv-k">Share of safety compute</span><span className="row-i"><Slider value={share} min={0} max={0.6} step={0.05} onChange={setShare} width={120} /><span className="num">{F.pct(share)}</span></span></div>
+          <div className="btn-row"><ActBtn id="safety.agents" testId="safety.agents" params={{ share, ...(vid && vid !== sv?.id ? { versionId: vid } : {}) }} label="Apply" reason /></div>
+        </div>
+        <div data-test="sa-fleet">
+          <div className="kv"><span className="kv-k"><Term id="agentCopies">Copies</Term> · <Term id="aiFte">AI FTE</Term></span><span className="num">{F.count(u.copies)} · {F.count(u.aiFte)}</span></div>
+          <div className="kv"><span className="kv-k">Running</span><span>{u.versionName ?? '—'} <span className="dim">L{F.level(u.level)}</span></span></div>
+          <div className="kv"><span className="kv-k">Automated work</span><span>{u.automated ? <span className="num">{u.automated}</span> : <span className={u.idle ? 'tone-warn' : 'dim'}>{u.idle ? 'none · fleet idle' : 'none'}</span>}</span></div>
+          <div className="kv"><span className="kv-k"><Term id="aiFte">AI FTE</Term> per staffer</span><span className="num">{F.num(u.perFte, 1)}</span></div>
+        </div>
+      </div>
+      <div className="tip-cap" style={{ marginTop: 8 }}><Term id="automateSafety">Automate an agenda</Term></div>
+      {funded.length ? (
+        <div className="row-i">
+          <select className="text-input" data-test="sa-agenda" value={agRow?.id ?? ''} onChange={(e) => setAg(e.target.value)}>{funded.map((a) => <option key={a.id} value={a.id}>{a.name} · AI {F.pct(a.aiLabour)}</option>)}</select>
+          <Slider value={auto} min={0} max={1} step={0.05} onChange={setAuto} width={110} /><span className="num">{F.pct(auto)}</span>
+          <ActBtn id="safety.automate" params={{ agenda: agRow?.id ?? '', share: auto }} reason />
+        </div>
+      ) : <div className="small dim">Fund an agenda first.</div>}
+    </Card>
   );
 }
 function AgendaLine({ a, max }: { a: AgendaRow; max: number }) {

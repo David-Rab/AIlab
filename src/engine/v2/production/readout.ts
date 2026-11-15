@@ -4,7 +4,7 @@
 import { decimalYear } from '../core/time';
 import { dataStockRatio, effectiveStock, tokensRequired } from './data';
 import { frontierFlop } from './knots';
-import { computeProduction, evalProduction, labInputs, tcoPerH100eYear, type LabInputs } from './production';
+import { bestResearchMix, computeProduction, evalM, evalProduction, inputsAtMix, labInputs, tcoPerH100eYear, type LabInputs } from './production';
 import { trainingFlopPerDay } from '../models/runs';
 import type { GameStateV2, LabId, ProductionReadout } from '../types';
 
@@ -20,6 +20,52 @@ export function production(s: GameStateV2, lab: LabId): ProductionReadout {
 export function productionWhatIf(s: GameStateV2, lab: LabId, change: Partial<Pick<LabInputs, 'h' | 'k' | 'c' | 'd' | 'tasteHire'>>): ProductionReadout | undefined {
   const inp = labInputs(s, lab);
   return inp ? evalProduction(s.hidden.timeline, { ...inp, ...change }) : undefined;
+}
+
+/** Research-mix trade-off: research speed M as the research compute (experiments + agents) is re-split, from all
+ *  agents (f = 0) to all experiments (f = 1). `current` is today's experiments share, `best` the best one. */
+export interface MixCurve { points: { f: number; M: number }[]; current: number; best: number; Mcurrent: number; Mbest: number; manual: boolean; research: number }
+
+export function researchMixCurve(s: GameStateV2, n = 41): MixCurve | undefined {
+  const inp = labInputs(s, 'player');
+  if (!inp) return undefined;
+  const w = s.hidden.timeline;
+  const at = (f: number) => evalM(w, inputsAtMix(inp, f)).M;
+  const points: { f: number; M: number }[] = [];
+  for (let i = 0; i < n; i++) {
+    const f = 0.02 + (0.96 * i) / (n - 1);
+    points.push({ f, M: at(f) });
+  }
+  const sp = s.player.split;
+  const r = sp.experiments + sp.agents;
+  const current = r > 0 ? sp.experiments / r : 0.5;
+  const best = bestResearchMix(s, inp);
+  return { points, current, best, Mcurrent: evalM(w, inp).M, Mbest: at(best), manual: !!s.player.researchManual, research: s.player.computeOnline * r };
+}
+
+/** Response of research speed to scaling one input from ×0.25 to ×4 (today = ×1), others held. Research compute
+ *  scales experiments and agents together at the best mix; humans are capabilities staff. */
+export interface ResponseCurves { scales: number[]; humans: number[]; research: number[]; experiments: number[]; agents: number[] }
+
+export const RESPONSE_SCALES = [0.25, 0.35, 0.5, 0.7, 1, 1.4, 2, 2.8, 4];
+
+export function responseCurves(s: GameStateV2): ResponseCurves | undefined {
+  const inp = labInputs(s, 'player');
+  if (!inp) return undefined;
+  const w = s.hidden.timeline;
+  const M0 = evalM(w, inp).M;
+  const rel = (o: Partial<LabInputs>) => evalM(w, { ...inp, ...o }).M / M0;
+  const fBest = (x: number) => bestResearchMix(s, { ...inp, mixUnit: { ...inp.mixUnit, c: inp.mixUnit.c * x, k: inp.mixUnit.k * x } });
+  return {
+    scales: RESPONSE_SCALES,
+    humans: RESPONSE_SCALES.map((x) => rel({ h: inp.h * x })),
+    research: RESPONSE_SCALES.map((x) => {
+      const f = s.player.researchManual ? (inp.c / Math.max(1e-12, inp.mixUnit.c)) : fBest(x);
+      return rel({ c: f * inp.mixUnit.c * x, k: (1 - f) * inp.mixUnit.k * x });
+    }),
+    experiments: RESPONSE_SCALES.map((x) => rel({ c: inp.c * x })),
+    agents: RESPONSE_SCALES.map((x) => rel({ k: inp.k * x })),
+  };
 }
 
 /** "Next model" mini-bar (§3.2.5): what gates the next frontier base run. */

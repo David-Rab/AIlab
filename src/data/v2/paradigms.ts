@@ -55,7 +55,7 @@ export const PARADIGMS: ParadigmDef[] = [
   { id: 'P17', name: 'Neuralese recurrence', tier: 3, effortDays: 120, prior: 0.7, gate: 'L ≥ 9.5', g: { minL: 9.5 }, effect: 'Latent base shape (+0.4 y, serve 0.2)', safetyCost: 'CoT monitoring dies (λ2 −2)' },
   { id: 'P18', name: 'Iterated distillation & amplification', tier: 3, effortDays: 120, prior: 0.65, gate: 'P05, P04', g: { requires: ['P05', 'P04'] }, effect: '+0.25 y per 21-day cycle', safetyCost: 'traits ×1.1 per cycle' },
   { id: 'P19', name: 'Learned research taste', tier: 3, effortDays: 150, prior: 0.6, gate: 'P13', g: { requires: ['P13'] }, effect: 'Removes the RSCH −0.5 penalty', safetyCost: 'AI sets research direction' },
-  { id: 'P20', name: 'Massive agent societies', tier: 3, effortDays: 90, prior: 0.8, gate: 'inference ≥ 2M H100e', g: { inference: 2e6 }, effect: 'Agents pool cap lifted', safetyCost: 'S8 = 1; collusion' },
+  { id: 'P20', name: 'Massive agent societies', tier: 3, effortDays: 90, prior: 0.8, gate: 'inference ≥ 2M H100e', g: { inference: 2e6 }, effect: 'Agent throughput ×1.1', safetyCost: 'S8 = 1; collusion' },
   { id: 'P21', name: 'Brain-like sample efficiency', tier: 3, effortDays: 210, prior: 0.45, gate: 'P08, P19', g: { requires: ['P08', 'P19'] }, effect: 'PHYS +1', safetyCost: 'evals lag' },
   { id: 'P22', name: 'Robotics foundation models', tier: 3, effortDays: 180, prior: 0.6, gate: 'multimodal', g: { multimodalBase: true }, effect: 'PHYS +2; robotics tech progress', safetyCost: 'physical reach' },
   { id: 'P23', name: 'Faithful-CoT architecture', tier: 3, effortDays: 120, prior: 0.75, gate: 'AG09 TECH', g: { agendaTech: 'AG09' }, effect: 'Faithful CoT option', safetyCost: '−0.24 y tax' },

@@ -108,3 +108,11 @@
 .umode-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
 .umode2 { border: 1px solid rgba(155,107,224,.5); background: rgba(155,107,224,.06); border-radius: 7px; padding: 7px 9px; display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; }
 .umode2 b { color: #fff; }
+
+/* department load, safety agents */
+.load-row { display: grid; grid-template-columns: 110px minmax(0, 1fr) 110px; gap: 10px; align-items: center; margin-top: 4px; }
+.load-bar { height: 12px; }
+.load-legend { margin: 0 0 6px 120px; }
+.sa-grid { gap: 16px; }
+.load-key { display: inline-flex; align-items: center; gap: 4px; margin-right: 12px; }
+.load-key i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }

@@ -55,7 +55,6 @@ const sectorProduct: ActionDef = {
   available(s) {
     if (!productHost(s)) return 'Needs a live enterprise, API or agents deployment';
     if (!defaultSector(s)) return 'Every sector already has a product';
-    if (s.player.staff.prod < PRODUCT.prodFTE) return `Needs ${PRODUCT.prodFTE} product staff`;
     return true;
   },
   preview(s, p: P) {

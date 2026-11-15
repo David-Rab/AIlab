@@ -13,7 +13,7 @@
 import { REFERENCE_BASE } from '../../../data/v2/runDesign';
 import { EVENT_BY_ID } from '../core/registry';
 import { decimalYear } from '../core/time';
-import { shareRefAt, SPLIT_KEYS, withFixed } from '../departments/split';
+import { shareRefAt, TOP_KEYS, topOf, withFixed } from '../departments/split';
 import { financeAutopilot, financeDecide, REF_AUTOPILOT } from '../finance/plan';
 import { hRef } from '../production/knots';
 import type { BotPolicy, ComputeSplit, EngineApi, GameStateV2, ModelVersion, PendingDecision } from '../types';
@@ -84,7 +84,9 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   if (day % 30 === 0) {
     const safShare = o.safetyShare?.(s);
     const ref: ComputeSplit = safShare === undefined ? shareRefAt(yr) : withFixed(shareRefAt(yr), { safety: safShare });
-    const diff = SPLIT_KEYS.some((k) => Math.abs(ref[k] - p.split[k]) > 1e-3);
+    const now = topOf(p.split);
+    const want = topOf(ref);
+    const diff = TOP_KEYS.some((k) => Math.abs(want[k] - now[k]) > 1e-3) || Math.abs(ref.synthetic - p.split.synthetic) > 1e-3;
     if (diff) tryAct(s, api, 'setSplit', { ...ref });
     const target = Math.round(hRef(yr + 0.12));
     if (target > p.hiring.target.cap) tryAct(s, api, 'hireTarget', { role: 'cap', target });

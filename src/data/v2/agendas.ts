@@ -81,8 +81,9 @@ export const FUNDING_LEVEL_IDS = Object.keys(FUNDING_LEVELS) as FundingLevel[];
 export const AG09_LATENT = { mHalf: 5, k: 2 };
 /** AG05 overseer gap (R14 §1.6A): success ≈ 0.52^gap, gap = log4(M_model / M_overseer). M_overseer [D] = 5. */
 export const AG05_GAP = { base: 0.52, overseerM: 5 };
-/** Measured level needed to fund AG17 (§3.5.2) and to automate any agenda [D]. */
+/** Measured level of the safety agent model needed to fund AG17, automated alignment research (§3.5.2). */
 export const AG17_MIN_L = 10;
+/** Measured level of the safety agent model needed to automate any agenda or investigation [D]. */
 export const AUTOMATE_MIN_L = 8.5;
 /** Tool verifiability for investigation corruption (§3.5.8). */
 export const VERIFIABILITY: Record<ToolFamily, number> = { WB: 0.7, OR: 0.9, BB: 0.5, COT: 0.6 };

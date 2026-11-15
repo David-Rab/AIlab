@@ -5,16 +5,17 @@ import type { BaselineId, EngineSystem, GameStateV2, StaffByRole, SystemCtx } fr
 
 /** Start headcounts (classic / reality). */
 export const START_STAFF: Record<BaselineId, StaffByRole> = {
-  classic: { cap: 2050, saf: 140, sec: 110, prod: 150, ops: 50 },
-  reality: { cap: 2450, saf: 170, sec: 130, prod: 180, ops: 70 },
+  classic: { cap: 2050, saf: 140 },
+  reality: { cap: 2450, saf: 170 },
 };
 /** Cost $M per FTE-year [D]. */
-export const STAFF_COST_M: StaffByRole = { cap: 0.8, saf: 0.7, sec: 0.4, prod: 0.4, ops: 0.3 };
-/** Weekly base arrivals per role (cap reference ≈ +60/month, R11 #12); ops [D]. */
-export const HIRING_BASE: StaffByRole = { cap: 15, saf: 3, sec: 3, prod: 4, ops: 1 };
+export const STAFF_COST_M: StaffByRole = { cap: 0.8, saf: 0.7 };
+/** Weekly base arrivals per role (cap reference ≈ +60/month, R11 #12). */
+export const HIRING_BASE: StaffByRole = { cap: 15, saf: 3 };
 export const PIPELINE_DAYS = 42;
 export const ATTRITION_BASE = 0.12;
-export const ROLES: (keyof StaffByRole)[] = ['cap', 'saf', 'sec', 'prod', 'ops'];
+/** Only capabilities and safety staff are modelled: security is a $-spend lever; product and G&A are not modelled. */
+export const ROLES: (keyof StaffByRole)[] = ['cap', 'saf'];
 /** Star hire (§3.4.1): +0.05 τ_h up to 1.5 for $0.3B and rival cooperation −20. */
 export const STAR_HIRE = { dTaste: 0.05, maxTaste: 1.5, cost: 0.3, cooperation: -20 };
 
@@ -25,7 +26,7 @@ export function payrollPerYear(staff: StaffByRole): number {
   return m / 1000;
 }
 
-export const totalStaff = (s: StaffByRole) => s.cap + s.saf + s.sec + s.prod + s.ops;
+export const totalStaff = (s: StaffByRole) => s.cap + s.saf;
 
 /** Hiring multiplier from morale (0.5 at 0, 1 at 50, 1.5 at 100) [D]. */
 export const moraleFactor = (morale: number) => Math.min(1.5, Math.max(0.5, 0.5 + morale / 100));

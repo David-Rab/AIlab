@@ -1,11 +1,14 @@
 // Company (IA.md L2): Flow · People · Split · Security. Flow is the HOME of compute online, idle chips, pools by use
-// and research speed; People of headcount, hiring, payroll, morale and AI labour; Split of the compute split %;
-// Security of WSL, siloing and counter-intel. Money lives in Finance (referenced, never repeated).
+// and research speed; People of headcount, hiring, payroll, morale and AI labour; Split of the compute split % and the
+// research trade-off charts; Security of WSL, siloing and counter-intel. Money lives in Finance (referenced, never
+// repeated). Two departments have staff: capabilities and safety.
 import { useState } from 'react';
-import { agendaRows, engine, idleChips, inPipeline, ownedOnline, payrollPerYear, poolsOf, rentedOnline, revenueReadout, SPLIT_KEYS, SPLIT_PRESETS, weeklyHireCap } from '../../../engine/v2';
-import type { ComputeSplit, GameStateV2, StaffByRole } from '../../../engine/v2';
+import type { ReactNode } from 'react';
+import { agendaRows, engine, idleChips, inPipeline, ownedOnline, payrollPerYear, poolsOf, rentedOnline, revenueReadout, specOf, SPLIT_KEYS, SPLIT_PRESETS, TOP_KEYS, weeklyHireCap } from '../../../engine/v2';
+import type { GameStateV2, SplitSpec, StaffByRole, TopKey } from '../../../engine/v2';
+import { MixChart, ResponseCharts } from './ResearchCharts';
 import { store } from '../store';
-import { ActBtn, pct as pct0, Slider, Term, Tip, TipCard, Why } from '../ui';
+import { ActBtn, pct as pct0, Seg, Slider, Term, Tip, TipCard, Why } from '../ui';
 import { Card, GoBtn, HBar, KV, PanelHead, Ref, tabOf, Tabs } from '../kit';
 import * as F from '../fmt';
 import { ICON } from '../icons';
@@ -13,12 +16,14 @@ import { C, POOL_COLOR, SPHERE } from '../theme';
 
 const ROLES: { id: keyof StaffByRole; label: string; color: string; icon: typeof ICON.L }[] = [
   { id: 'cap', label: 'Capabilities', color: SPHERE.cap, icon: ICON.capabilities }, { id: 'saf', label: 'Safety', color: SPHERE.saf, icon: ICON.safety },
-  { id: 'sec', label: 'Security', color: SPHERE.sec, icon: ICON.security }, { id: 'prod', label: 'Product', color: SPHERE.prod, icon: ICON.product },
-  { id: 'ops', label: 'Ops', color: SPHERE.ops, icon: ICON.ops },
 ];
-const ZERO: StaffByRole = { cap: 0, saf: 0, sec: 0, prod: 0, ops: 0 };
-const POOL_TERM: Record<string, string> = { training: 'poolTraining', experiments: 'poolExperiments', agents: 'poolAgents', synthetic: 'poolSynthetic', serving: 'poolServing', safety: 'poolSafety', security: 'poolSecurity' };
-const POOL_DEPT: Record<string, 'cap' | 'prod' | 'saf' | 'sec'> = { training: 'cap', experiments: 'cap', agents: 'cap', synthetic: 'cap', serving: 'prod', safety: 'saf', security: 'sec' };
+const ZERO: StaffByRole = { cap: 0, saf: 0 };
+const POOL_TERM: Record<string, string> = { training: 'poolTraining', experiments: 'poolExperiments', agents: 'poolAgents', synthetic: 'poolSynthetic', serving: 'poolServing', safety: 'poolSafety' };
+type Dept = 'cap' | 'serve' | 'saf';
+const POOL_DEPT: Record<string, Dept> = { training: 'cap', experiments: 'cap', agents: 'cap', synthetic: 'cap', serving: 'serve', safety: 'saf' };
+const POOL_LABEL: Record<string, string> = { training: 'Training runs', experiments: 'Experiments', agents: 'Agents', synthetic: 'Data generation', serving: 'Serving', safety: 'Safety' };
+const TOP_TERM: Record<TopKey, string> = { training: 'poolTraining', research: 'poolResearch', serving: 'poolServing', safety: 'poolSafety' };
+const TOP_COLOR: Record<TopKey, string> = { training: POOL_COLOR.training, research: POOL_COLOR.experiments, serving: POOL_COLOR.serving, safety: POOL_COLOR.safety };
 
 // ───────── Flow: compute online → pools → departments → outputs ─────────
 function Flow({ s }: { s: GameStateV2 }) {
@@ -47,11 +52,10 @@ function Flow({ s }: { s: GameStateV2 }) {
   const pos1: Record<string, { y: number; h: number }> = {};
   for (const x of keys) { const h = Math.max(2, pools[x] * k); pos1[x] = { y: y1, h }; y1 += h + 10; }
   // column 2 departments
-  const depts: { id: 'cap' | 'prod' | 'saf' | 'sec'; label: string; color: string; v: number }[] = [
+  const depts: { id: Dept; label: string; color: string; v: number }[] = [
     { id: 'cap', label: 'Capabilities', color: SPHERE.cap, v: keys.filter((x) => POOL_DEPT[x] === 'cap').reduce((a, x) => a + pools[x], 0) },
-    { id: 'prod', label: 'Product', color: SPHERE.prod, v: pools.serving },
+    { id: 'serve', label: 'Serving', color: SPHERE.prod, v: pools.serving },
     { id: 'saf', label: 'Safety', color: SPHERE.saf, v: pools.safety },
-    { id: 'sec', label: 'Security', color: SPHERE.sec, v: pools.security },
   ];
   let y2 = top;
   const pos2: Record<string, { y: number; h: number; fill: number }> = {};
@@ -66,9 +70,8 @@ function Flow({ s }: { s: GameStateV2 }) {
   const bands1 = keys.map((x) => { const d = POOL_DEPT[x]; const p2 = pos2[d]; const h = Math.max(1, pools[x] * k); const b = band(cx[1] + nodeW, pos1[x].y, cx[2], p2.y + p2.fill, h, POOL_COLOR[x], `${x}>${d}`); p2.fill += h; return b; });
   const out: Record<string, { label: string; tag?: { t: string; tone: string }; ref: string; to: { panel: string; tab?: string } }> = {
     cap: { label: 'R&D speed', tag: { t: prod.label, tone: 'warn' }, ref: 'M', to: { panel: 'company' } },
-    prod: { label: 'Revenue', tag: capped ? { t: `${capped} capped`, tone: 'bad' } : undefined, ref: 'revenueRun', to: { panel: 'finance' } },
+    serve: { label: 'Revenue', tag: capped ? { t: `${capped} capped`, tone: 'bad' } : undefined, ref: 'revenueRun', to: { panel: 'finance' } },
     saf: { label: 'Understanding', tag: u.margin < 0 ? { t: `${Math.abs(u.margin).toFixed(1)} behind`, tone: 'bad' } : { t: 'ahead', tone: 'good' }, ref: 'U', to: { panel: 'safety', tab: 'graph' } },
-    sec: { label: 'Weight security', ref: 'wsl', to: { panel: 'company', tab: 'security' } },
   };
   return (
     <div className="flow-wrap" data-home="computeFlow">
@@ -88,10 +91,10 @@ function Flow({ s }: { s: GameStateV2 }) {
           </Tip>
         )}
         {keys.map((x) => (
-          <Tip as="g" key={x} content={() => <TipCard title={<Term id={POOL_TERM[x]}>{F.words(x)}</Term>} value={`${F.count(pools[x])} H100e`}>Set by your compute split. Click to change it.</TipCard>}>
+          <Tip as="g" key={x} content={() => <TipCard title={<Term id={POOL_TERM[x]}>{POOL_LABEL[x]}</Term>} value={`${F.count(pools[x])} H100e`}>Set by your compute split. Click to change it.</TipCard>}>
             <g onMouseEnter={() => setHover(x)} onClick={() => store.goto('company', { tab: 'split', anchor: `split-${x}` })} className="flow-click" data-pool={x}>
               <rect x={cx[1]} y={pos1[x].y} width={nodeW} height={pos1[x].h} rx={3} fill={POOL_COLOR[x]} />
-              <text x={cx[1] + nodeW + 6} y={pos1[x].y + Math.min(pos1[x].h, 14) - 2 + 4} className="flow-lbl">{F.words(x)} <tspan className="flow-sub">{F.count(pools[x])}</tspan></text>
+              <text x={cx[1] + nodeW + 6} y={pos1[x].y + Math.min(pos1[x].h, 14) - 2 + 4} className="flow-lbl">{POOL_LABEL[x]} <tspan className="flow-sub">{F.count(pools[x])}</tspan></text>
             </g>
           </Tip>
         ))}
@@ -102,7 +105,7 @@ function Flow({ s }: { s: GameStateV2 }) {
             <g key={d.id} onMouseEnter={() => setHover(d.id)}>
               <rect x={cx[2]} y={p2.y} width={nodeW} height={p2.h} rx={3} fill={d.color} />
               <text x={cx[2] + nodeW + 8} y={p2.y + 13} className="flow-lbl">{d.label}</text>
-              <text x={cx[2] + nodeW + 8} y={p2.y + 28} className="flow-sub">{F.count(d.v)} H100e · {F.count(s.player.staff[d.id])} staff</text>
+              <text x={cx[2] + nodeW + 8} y={p2.y + 28} className="flow-sub">{F.count(d.v)} H100e{d.id !== 'serve' ? ` · ${F.count(s.player.staff[d.id])} staff` : ''}</text>
               <path d={`M${cx[2] + 150},${p2.y + 10} L${cx[3] + 10},${p2.y + 10}`} stroke={d.color} strokeWidth={2} strokeDasharray="4 3" opacity={0.6} />
               <g className="flow-click" data-ref={o.ref} onClick={() => store.goto(o.to.panel, o.to)}><text x={cx[3] + 20} y={p2.y + 14} className="flow-lbl flow-out">{o.label} ›</text></g>
               {o.tag && <text x={cx[3] + 20} y={p2.y + 30} className={`flow-tag ${o.tag.tone}`}>{o.tag.t}</text>}
@@ -150,9 +153,6 @@ function People({ s }: { s: GameStateV2 }) {
   const projects: Record<keyof StaffByRole, string[]> = {
     cap: [...p.models.runs.filter((r) => r.status === 'running').map((r) => `Run ${r.name}`), ...Object.entries(p.paradigms).filter(([, x]) => x.status === 'researching').map(([id]) => `Paradigm ${id}`)],
     saf: agendaRows(s).filter((a) => a.fte > 0).map((a) => `${a.name} · ${a.level}`),
-    sec: [`WSL target ${p.security.target.toFixed(1)}`],
-    prod: p.deployments.filter((d) => d.status === 'live').map((d) => `${d.channel}`),
-    ops: [],
   };
   return (
     <>
@@ -181,8 +181,9 @@ function People({ s }: { s: GameStateV2 }) {
         <Card title="AI labour" sub="your agents doing research" term="aiFte">
           <div data-test="ai-labour">
             <KV k="Agent copies × speed" term="agentCopies">{F.count(prod.labor.copies)} × {prod.labor.speed.toFixed(1)}</KV>
-            <KV k="AI FTE · human FTE" term="aiFte">{F.count(prod.labor.aiFTE)} · {F.count(prod.labor.wH)}</KV>
-            <div className="stack2"><i style={{ flex: Math.max(0.001, prod.labor.aiFTE), background: C.cap }} /><i style={{ flex: Math.max(0.001, prod.labor.wH), background: C.you }} /></div>
+            <KV k="AI FTE · researchers" term="aiFte">{F.count(prod.labor.aiFTE)} · {F.count(p.staff.cap)}</KV>
+            <KV k="Coding work by humans" term="humanShare">{F.pct(prod.labor.wH)}</KV>
+            <div className="stack2"><i style={{ flex: Math.max(0.001, 1 - prod.labor.wH), background: C.cap }} /><i style={{ flex: Math.max(0.001, prod.labor.wH), background: C.you }} /></div>
             <KV k="AI taste (SD over median)" term="researchTaste">{prod.sdAI.toFixed(2)}</KV>
           </div>
         </Card>
@@ -192,28 +193,67 @@ function People({ s }: { s: GameStateV2 }) {
 }
 
 // ───────── Split ─────────
+const TOP_LABEL: Record<TopKey, string> = { training: 'Training', research: 'Research', serving: 'Serving', safety: 'Safety' };
+
 function Split({ s }: { s: GameStateV2 }) {
   const p = s.player;
-  const [split, setSplit] = useState<ComputeSplit>({ ...p.split });
-  const sum = SPLIT_KEYS.reduce((a, k) => a + split[k], 0);
-  const norm = Object.fromEntries(SPLIT_KEYS.map((k) => [k, split[k] / Math.max(1e-6, sum)])) as unknown as ComputeSplit;
-  const changed = SPLIT_KEYS.some((k) => Math.abs(norm[k] - p.split[k]) > 1e-3);
-  return (
-    <Card title={<Term id="split">Compute split</Term>} sub="how online compute is divided; drag, then apply" home="split" right={<div className="btn-row">{SPLIT_PRESETS.map((x) => <ActBtn key={x} id="splitPreset" testId={`splitPreset.${x}`} params={{ preset: x }} label={F.words(x)} onDone={() => setSplit({ ...s.player.split })} />)}</div>}>
-      <div className="split-bar">{SPLIT_KEYS.map((k) => <i key={k} style={{ flex: Math.max(0.0001, norm[k]), background: POOL_COLOR[k] }} title={k} />)}</div>
-      {SPLIT_KEYS.map((k) => (
-        <div className="alloc-row split-row" key={k} id={`ctl-split-${k}`}>
-          <span className="alloc-label"><span className="dot" style={{ background: POOL_COLOR[k] }} /><Term id={POOL_TERM[k]}>{F.words(k)}</Term></span>
-          <Slider value={split[k]} min={0} max={0.8} step={0.01} onChange={(v) => setSplit({ ...split, [k]: v })} width={260} />
-          <span className="alloc-val num">{pct0(norm[k])}</span>
-          <span className={`num small ${Math.abs(norm[k] - p.split[k]) > 1e-3 ? 'tone-warn' : 'dim'}`}>{Math.abs(norm[k] - p.split[k]) > 1e-3 ? `was ${pct0(p.split[k])}` : ''}</span>
-        </div>
-      ))}
-      <div className="btn-row">
-        <ActBtn id="setSplit" params={norm as unknown as Record<string, number>} label={changed ? 'Apply split' : 'Split (no change)'} primary={changed} />
-        <button className="btn btn-sm" onClick={() => setSplit({ ...p.split })}>Reset</button>
+  const cur = specOf(p.split);
+  const [spec, setSpec] = useState<SplitSpec>(cur);
+  const [manual, setManual] = useState(!!p.researchManual);
+  const sum = TOP_KEYS.reduce((a, k) => a + spec.top[k], 0) || 1;
+  const norm = Object.fromEntries(TOP_KEYS.map((k) => [k, spec.top[k] / sum])) as Record<TopKey, number>;
+  const changed = TOP_KEYS.some((k) => Math.abs(norm[k] - cur.top[k]) > 1e-3) || Math.abs(spec.dataShare - cur.dataShare) > 1e-3 || manual !== !!p.researchManual || (manual && Math.abs(spec.expShare - cur.expShare) > 1e-3);
+  const params: Record<string, number> = { ...norm, dataShare: spec.dataShare, manual: manual ? 1 : 0, ...(manual ? { expShare: spec.expShare } : {}) };
+  const reset = () => { setSpec(specOf(s.player.split)); setManual(!!s.player.researchManual); };
+  const row = (k: TopKey, sub?: ReactNode) => (
+    <div key={k} className="split-group" id={`ctl-split-${k}`}>
+      <div className="alloc-row split-row">
+        <span className="alloc-label"><span className="dot" style={{ background: TOP_COLOR[k] }} /><Term id={TOP_TERM[k]}>{TOP_LABEL[k]}</Term></span>
+        <Slider value={spec.top[k]} min={0} max={0.9} step={0.01} onChange={(v) => setSpec({ ...spec, top: { ...spec.top, [k]: v } })} width={260} />
+        <span className="alloc-val num">{pct0(norm[k])}</span>
+        <span className={`num small ${Math.abs(norm[k] - cur.top[k]) > 1e-3 ? 'tone-warn' : 'dim'}`}>{Math.abs(norm[k] - cur.top[k]) > 1e-3 ? `was ${pct0(cur.top[k])}` : ''}</span>
       </div>
-    </Card>
+      {sub}
+    </div>
+  );
+  return (
+    <div className="split-page">
+      <Card title={<Term id="split">Compute split</Term>} sub="drag, then apply" home="split" right={<div className="btn-row">{SPLIT_PRESETS.map((x) => <ActBtn key={x} id="splitPreset" testId={`splitPreset.${x}`} params={{ preset: x }} label={F.words(x)} onDone={reset} />)}</div>}>
+        <div className="split-bar">{TOP_KEYS.map((k) => <i key={k} style={{ flex: Math.max(0.0001, norm[k]), background: TOP_COLOR[k] }} title={TOP_LABEL[k]} />)}</div>
+        {row('training', (
+          <div className="alloc-row split-row split-sub" id="ctl-split-synthetic">
+            <span className="alloc-label small"><Term id="poolSynthetic">Data generation</Term></span>
+            <Slider value={spec.dataShare} min={0} max={0.8} step={0.01} onChange={(v) => setSpec({ ...spec, dataShare: v })} width={260} />
+            <span className="alloc-val num small">{pct0(spec.dataShare)}</span>
+            <span className="small dim">of training</span>
+          </div>
+        ))}
+        {row('research', (
+          <div className="alloc-row split-row split-sub" id="ctl-split-experiments">
+            <span className="alloc-label small"><Term id="researchMix">Mix</Term> <Seg value={manual ? 'manual' : 'auto'} options={[{ v: 'auto', label: 'Auto', tip: 'Best mix, re-set every day' }, { v: 'manual', label: 'Manual', tip: 'Hold your own mix' }]} onChange={(v) => setManual(v === 'manual')} /></span>
+            {manual
+              ? <Slider value={spec.expShare} min={0.02} max={0.98} step={0.01} onChange={(v) => setSpec({ ...spec, expShare: v })} width={260} />
+              : <span className="small dim" style={{ width: 260 }}>follows the best mix</span>}
+            <span className="alloc-val num small">{pct0(manual ? spec.expShare : cur.expShare)}</span>
+            <span className="small dim">experiments · rest <Term id="poolAgents">agents</Term></span>
+          </div>
+        ))}
+        {row('serving')}
+        {row('safety')}
+        <div className="btn-row">
+          <ActBtn id="setSplit" params={params} label={changed ? 'Apply split' : 'Split (no change)'} primary={changed} onDone={reset} />
+          <button className="btn btn-sm" onClick={reset}>Reset</button>
+        </div>
+      </Card>
+      <div className="g2">
+        <Card title={<Term id="researchMix">Research mix</Term>} sub="R&D speed by experiments vs agents">
+          <MixChart s={s} preview={manual ? spec.expShare : undefined} />
+        </Card>
+        <Card title={<Term id="responseCurve">What more of each buys</Term>} sub="R&D speed at ×¼ … ×4 of one input">
+          <ResponseCharts s={s} />
+        </Card>
+      </div>
+    </div>
   );
 }
 
