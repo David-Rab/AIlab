@@ -15,9 +15,47 @@ Single source of truth for where the build stands. Update at every milestone or 
 | M2 step 4: cross-workstream wiring | Done | 98c20cf, 0d0b808, c067c50, f8ff4c9 |
 | M2 step 5: whole `npm run test:v2` green, tick performance, bot table | Done (3 finance targets deferred to M4) | bf93f24, 0987ced, c0594e5, 25ad13c, f50c4c0, 3f4c9fe |
 | M3 UI shell and panels (WS6, WS7) | Done, merged (play with `?v2`); v2 uitest 88/88; full test:v2 green after merge | 5ff08b8..7e0ad07, merge 35b2609 |
-| M4 calibration and balance (bot criteria) | In progress: all §7.4 bot criteria met (200 seeds); choices now drive final misalignment | 514d877, cd0c7d6, see M4 status |
-| M5 UX redesign (IA, design system, panels) | In progress, see M5 UX status | 0af3dcd |
-| M5 polish, tutorial, codex, v1 removal | Not started | |
+| M4 calibration and balance (bot criteria) | Done: all §7.4 bot criteria met (200 seeds); choices now drive final misalignment | 514d877, cd0c7d6, 8eec058 |
+| M5 UX redesign (IA, design system, panels) | Done: uitest 104/104, lint-ux green | 0af3dcd..babe8b2 |
+| M5 polish, tutorial, codex, v1 removal | Partly done (onboarding + codex exist); v1 still present | |
+
+## Handoff for the next session (2026-11-15)
+
+The session that built v2 ended here. Start new work from this section.
+
+**State:**
+- v2 is playable with `?v2`; v1 is still the default page.
+- Last playable snapshot: `play/ai27-v2-2026-11-15.html` (gitignored).
+- `npm run test:v2` (about 15 min), `node scripts/v2/uitest.mjs` (after `npm run build`), `tsc` and the build all pass.
+
+**Known open items:**
+- **Hygiene tick timing** sometimes fails (2-3 ms per day vs a 1.5 ms target). It looks like machine load; re-measure on an idle machine.
+- **UX gaps:**
+  - an Understanding "why it moved" ledger;
+  - linked-element highlight on hover;
+  - signal overlay on the trait graph;
+  - per-sector history and replay in World;
+  - quarter-recap causes beyond cash;
+  - price sparklines after a save import.
+- **Deployments panel:** cannot edit a live deployment's price, safeguards or usage policy (no engine actions yet).
+- **Balance margins are thin:**
+  - race wins 4% vs a 5% cap;
+  - S4 is near its ceiling.
+- **Balance issues not yet fixed:**
+  - RefBot insolvency in the slow and authors2026 worlds;
+  - nationalization at 10-15% is the largest non-AI loss.
+- **M5 remainder:**
+  - make v2 the default and remove v1 (src/engine/*.ts, src/ui/*.tsx v1 files, scripts/simtest.ts, controltest.ts, uitest.mjs);
+  - update the README for v2.
+
+**Housekeeping:**
+- The merged agent branches `worktree-agent-*` and the `refs/wip/*` snapshots still exist; all of their content is on master. Deleting them was blocked by the permission settings. They are safe to delete: `git branch -D <name>`, `git update-ref -d refs/wip/<name>`.
+- `.claude/worktrees/agent-a48574afd3ee0d110` is unregistered, but its folder was locked; delete it manually.
+- `research/_scratch` (gitignored) and the scratch folders outside the repo can also be removed by hand:
+  - `C:\Users\david\scratch_ai27`
+  - `C:\Users\david\m4scratch`
+  - `C:\Users\david\ai27-ux-scratch`
+  - `C:\Users\david\scratch\ux`
 
 ## M5 UX status (2026-11-14)
 

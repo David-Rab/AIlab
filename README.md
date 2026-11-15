@@ -1,5 +1,7 @@
 # AI 2027: The Game
 
+> **v2** (the current game) is a full rebuild: four spheres (finance, departments, model design, relations) plus a simulated outside world, uncertain safety science and a layered UI. Play it with `?v2` (`npm run build`, open `dist/index.html?v2`, or `npm run dev` and open `/?v2`). Design: `design/V2-SPEC.md`, UX: `design/ux/`, build status and handoff: `design/PROGRESS.md`. Tests: `npm run test:v2`, `node scripts/v2/uitest.mjs`. The sections below describe v1, which remains the default page until it is removed.
+
 A real-time strategy / tycoon game built on the [AI 2027](https://ai-2027.com/) scenario and the AI Futures Project's forecasting models. You run OpenBrain from July 2025, one day per tick, through the intelligence explosion.
 
 ## Play
