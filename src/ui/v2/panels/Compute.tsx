@@ -3,7 +3,7 @@
 // HOME of idle chips, empty racks, vendor fill, the forecast, sites & power, orders, cloud contracts and the chip
 // market. Compute online and the split live in Company and are only linked here.
 import { useEffect, useState, type ReactNode } from 'react';
-import { actionView, chipFit, cloudPricePerYear, computeForecast, dateOf, dayOfQuarter, fmtDate, fmtMonth, oppositionOdds, orderQuote, qOf, siteEtaQ, spotPrice } from '../../../engine/v2';
+import { actionView, chipFit, cloudPricePerYear, computeForecast, computeHistory, dateOf, dayOfQuarter, fmtDate, fmtMonth, oppositionOdds, orderQuote, qOf, siteEtaQ, spotPrice } from '../../../engine/v2';
 import type { ChipOrder, ForecastEvent, ForecastQ, GameStateV2, Site } from '../../../engine/v2';
 import { CHIP_TIERS, SITE_PATHS, SITE_TIERS } from '../../../data/v2/deals';
 import { store } from '../store';
@@ -112,29 +112,28 @@ function Status({ s, fc }: { s: GameStateV2; fc: ForecastQ[] }) {
   );
 }
 
-/** Capacity and fleet: owned racks + cloud (line) against chips by state (bars), now and planned quarters. */
+/** Capacity and fleet: owned racks + cloud (line) against chips by state (bars): recorded past quarters, now, planned. */
 function Forecast({ s, fc, later }: { s: GameStateV2; fc: ForecastQ[]; later: { q: number; ev: ForecastEvent }[] }) {
   const [hover, setHover] = useState<number>();
   const [box, ref] = useBox(1000, 470);
   const W = box.w, H = box.h, L = 54, R = 14, T = 30, B = 34;
   const n = fc.length;
   const bw = (W - L - R) / n;
-  // Scale to the fleet; a far larger capacity step (a new multi-GW site) runs off the top with its value marked.
-  const stack = Math.max(1, ...fc.map((q) => q.cloud + q.running + q.installing + q.idle));
-  const lineMax = Math.max(...fc.map((q) => q.racks + q.cloud));
-  const raw = Math.max(stack, Math.min(lineMax, stack * 2.5)) * 1.08;
+  const nowIdx = Math.max(0, fc.findIndex((q) => q.now));
+  const planned = (q: ForecastQ) => !q.now && !q.past;
+  const raw = Math.max(1, ...fc.map((q) => Math.max(q.racks + q.cloud, q.cloud + q.running + q.installing + q.idle))) * 1.08;
   const step = [0.25e6, 0.5e6, 1e6, 2e6, 2.5e6, 5e6, 10e6, 20e6, 25e6, 50e6, 100e6].find((x) => raw / x <= 6) ?? 200e6;
   const ymax = Math.ceil(raw / step) * step;
-  const y = (v: number) => T + (H - T - B) * (1 - Math.min(v, ymax) / ymax);
+  const y = (v: number) => T + (H - T - B) * (1 - v / ymax);
   const x = (i: number) => L + i * bw;
   const ticks: number[] = [];
   for (let v = 0; v <= ymax + 1; v += step) ticks.push(v);
   const line = fc.map((q, i) => `${i ? 'L' : 'M'}${x(i)},${y(q.racks + q.cloud)} L${x(i) + bw},${y(q.racks + q.cloud)}`).join(' ');
-  const firstEmpty = fc.findIndex((q) => q.empty > Math.max(50e3, 0.1 * q.racks));
+  const firstEmpty = fc.findIndex((q, i) => i >= nowIdx && q.empty > Math.max(50e3, 0.1 * q.racks));
   const labels: { i: number; e: ForecastEvent }[] = [];
   fc.forEach((q, i) => q.events.filter((e) => e.kind !== 'delivery').forEach((e) => labels.push({ i, e })));
   return (
-    <Card title="Capacity and fleet" sub="H100e by quarter · now and planned" home="computeForecast" className="cfc"
+    <Card title="Capacity and fleet" sub="H100e by quarter · past, now and planned" home="computeForecast" className="cfc"
       right={<span className="legend2 cfc-leg">
         <span><i className="ln" /><Term id="poweredCapacity">Powered capacity</Term></span>
         <span><i style={{ background: FC.run }} />Running</span><span><i style={{ background: FC.cloud }} />Cloud</span>
@@ -151,10 +150,10 @@ function Forecast({ s, fc, later }: { s: GameStateV2; fc: ForecastQ[]; later: { 
         {ticks.map((v) => (
           <g key={v}><line x1={L} x2={W - R} y1={y(v)} y2={y(v)} stroke="#243041" /><text x={L - 8} y={y(v) + 4} className="cfc-ax" textAnchor="end">{axisLabel(v)}</text></g>
         ))}
-        <rect x={x(1)} y={T - 8} width={W - R - x(1)} height={H - T - B + 8} fill="rgba(255,255,255,.018)" />
-        <line x1={x(1)} x2={x(1)} y1={T - 22} y2={H - B} stroke="#5aa9ff" strokeDasharray="3 3" />
-        <text x={x(1) - 6} y={T - 12} className="cfc-now" textAnchor="end">today</text>
-        <text x={x(1) + 6} y={T - 12} className="cfc-ax">planned</text>
+        <rect x={x(nowIdx + 1)} y={T - 8} width={W - R - x(nowIdx + 1)} height={H - T - B + 8} fill="rgba(255,255,255,.018)" />
+        <line x1={x(nowIdx + 1)} x2={x(nowIdx + 1)} y1={T - 22} y2={H - B} stroke="#5aa9ff" strokeDasharray="3 3" />
+        <text x={x(nowIdx + 1) - 6} y={T - 12} className="cfc-now" textAnchor="end">today</text>
+        <text x={x(nowIdx + 1) + 6} y={T - 12} className="cfc-ax">planned</text>
         {hover !== undefined && <rect x={x(hover)} y={T - 6} width={bw} height={H - T - B + 6} fill="rgba(90,169,255,.07)" stroke="rgba(90,169,255,.35)" />}
         {fc.map((q, i) => {
           const x0 = x(i) + bw * 0.2, w = bw * 0.6;
@@ -165,10 +164,11 @@ function Forecast({ s, fc, later }: { s: GameStateV2; fc: ForecastQ[]; later: { 
             segs.push(<rect key={k} x={x0} y={y(base + v)} width={w} height={Math.max(0.5, y(base) - y(base + v))} fill={fill} rx={1.5} />);
             base += v;
           };
-          seg(q.cloud, q.now ? FC.cloud : 'url(#cfcCloud)', 'c');
-          seg(q.running, q.now ? FC.run : 'url(#cfcRun)', 'r');
-          seg(q.installing, q.now ? FC.inst : 'url(#cfcInst)', 'i');
-          seg(q.idle, q.now ? FC.idle : 'url(#cfcIdle)', 'x');
+          const plan = planned(q);
+          seg(q.cloud, plan ? 'url(#cfcCloud)' : FC.cloud, 'c');
+          seg(q.running, plan ? 'url(#cfcRun)' : FC.run, 'r');
+          seg(q.installing, plan ? 'url(#cfcInst)' : FC.inst, 'i');
+          seg(q.idle, plan ? 'url(#cfcIdle)' : FC.idle, 'x');
           const lineY = q.racks + q.cloud;
           const filled = q.cloud + q.running + q.installing;
           const showEmpty = q.empty > Math.max(50e3, 0.1 * q.racks);
@@ -176,7 +176,7 @@ function Forecast({ s, fc, later }: { s: GameStateV2; fc: ForecastQ[]; later: { 
             <Tip as="g" key={q.q} content={() => <QuarterTip s={s} q={q} />}>
               <g onMouseEnter={() => setHover(i)} data-q={q.q}>
                 <rect x={x(i)} y={T} width={bw} height={H - T - B} fill="transparent" />
-                {segs}
+                <g opacity={q.past ? 0.7 : 1}>{segs}</g>
                 {showEmpty && <rect x={x0} y={y(lineY)} width={w} height={Math.max(0, y(filled) - y(lineY))} fill="none" stroke={C.watch} strokeDasharray="4 3" rx={2} />}
                 {showEmpty && i === firstEmpty && y(filled) - y(lineY) > 18 && <text x={x(i) + bw / 2} y={(y(lineY) + y(filled)) / 2 + 4} className="cfc-empty" textAnchor="middle">empty</text>}
                 <text x={x(i) + bw / 2} y={H - B + 20} className={q.now ? 'cfc-now' : 'cfc-ax'} textAnchor="middle">{qLabel(s, q.q)}</text>
@@ -204,7 +204,6 @@ function Forecast({ s, fc, later }: { s: GameStateV2; fc: ForecastQ[]; later: { 
             {l.ev.kind === 'siteLive' ? `${l.ev.name} (${F.power(l.ev.mw)}) ≈ ${qLabel(s, l.q)} ›` : `${evText(l.ev)} ${qLabel(s, l.q)} ›`}
           </text>
         ))}
-        {fc.map((q, i) => (q.racks + q.cloud > ymax ? <text key={i} x={x(i) + bw / 2} y={T - 2} className="cfc-ax" textAnchor="middle" pointerEvents="none">↑ {F.count(q.racks + q.cloud)}</text> : null))}
       </svg></div>
     </Card>
   );
@@ -221,7 +220,7 @@ function QuarterTip({ s, q }: { s: GameStateV2; q: ForecastQ }) {
   if (q.idle > 0) rows.push({ label: <Term id="idleChips">Idle</Term>, value: F.count(q.idle), tone: 'neg' });
   if (q.empty > 0) rows.push({ label: <Term id="emptyRacks">Empty racks</Term>, value: F.count(q.empty) });
   for (const e of q.events) rows.push({ label: e.kind === 'siteLive' && !e.firm ? `${evText(e)} (est.${e.block > 0 ? `, block ${F.pct(e.block)}` : ''})` : evText(e), value: evSigned(e), tone: e.kind === 'cloudEnd' ? 'neg' : 'pos' });
-  return <TipCard title={qLabel(s, q.q)} value={q.now ? 'now' : 'planned'} rows={rows}>{q.now ? undefined : 'Assumes open orders fill in full and sites go live on schedule.'}</TipCard>;
+  return <TipCard title={qLabel(s, q.q)} value={q.now ? 'now' : q.past ? 'end of quarter' : 'planned'} rows={rows}>{!q.now && !q.past ? 'Assumes open orders fill in full and sites go live on schedule.' : undefined}</TipCard>;
 }
 
 // ───────── three ways to add compute ─────────
@@ -350,11 +349,12 @@ function CloudCard({ s }: { s: GameStateV2 }) {
 
 function Overview({ s }: { s: GameStateV2 }) {
   const { quarters, later } = computeForecast(s, 10);
+  const past = computeHistory(s, 4);
   return (
     <>
       <Status s={s} fc={quarters} />
       <div className="cmp-main">
-        <Forecast s={s} fc={quarters} later={later} />
+        <Forecast s={s} fc={[...past, ...quarters]} later={later} />
         <div className="cac-col">
           <OrderCard s={s} />
           <BuildCard s={s} />

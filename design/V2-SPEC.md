@@ -199,6 +199,7 @@ Within a cadence, systems run in ascending `order`.
 | 210 | `intel` (WS4) | weekly | Rival and China intel posteriors. Lead-day estimates vs the player's **internal** frontier. |
 | 300 | `payroll` (WS3) | monthly | Payroll, commitment payments due, lease payments. |
 | 310 | `macro` (WS5) | monthly | GDP, unemployment, wages, Gini, Dow, AI-capex share. |
+| 399 | `computeHistQ` (WS3) | quarterly | End-of-quarter compute snapshot (racks, cloud, running, installing, idle) for the Compute chart. |
 | 400 | `marketQ` (WS3) | quarterly | Supply pipelines, orders, clearing, price, deliveries → inventory → install. Supplier capacity orders. |
 | 410 | `sitesQ` (WS3) | quarterly | Permitting, power and build stage rolls. Grid pool allocation. |
 | 420 | `capitalQ` (WS3) | quarterly | Hype, investor pool, bubble roll. Raises close and tranches land. Rating. |

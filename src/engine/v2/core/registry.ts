@@ -22,6 +22,7 @@ import { computeOnlineSystem } from '../compute/power';
 import { opexSystem, payrollSystem } from '../finance/cashflow';
 import { marketQSystem } from '../compute/market';
 import { sitesQSystem } from '../compute/sites';
+import { computeHistQSystem } from '../compute/forecast';
 import { capitalQSystem } from '../finance/investors';
 import { boardQSystem } from '../finance/board';
 import { FINANCE_ACTIONS } from '../finance/actions';
@@ -72,6 +73,7 @@ export const SYSTEMS: readonly EngineSystem[] = [
   intelSystem, // 210 WS4 weekly
   payrollSystem, // 300 WS3 monthly
   macroSystem, // 310 WS5 monthly
+  computeHistQSystem, // 399 WS3 quarterly
   marketQSystem, // 400 WS3 quarterly
   sitesQSystem, // 410 WS3 quarterly
   capitalQSystem, // 420 WS3 quarterly

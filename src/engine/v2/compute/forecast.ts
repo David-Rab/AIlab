@@ -2,7 +2,7 @@
 // player can see (schedules, stages, odds), never a future roll. Owner: WS3.
 import { BUILD_Q, SITE_PATHS } from '../../../data/v2/deals';
 import { dayOfQuarter, quarterIndex } from '../core/time';
-import type { GameStateV2, Site } from '../types';
+import type { EngineSystem, GameStateV2, Site } from '../types';
 import { siteCapacityH } from './power';
 import { oppositionOdds } from './sites';
 
@@ -59,6 +59,8 @@ export interface ForecastQ {
   /** Quarter index (Q3 2025 = 0). */
   q: number;
   now: boolean;
+  /** A recorded past quarter (end-of-quarter snapshot). */
+  past?: boolean;
   /** Owned racks (H100e that fit in live sites at that quarter's kW per H100e). */
   racks: number;
   cloud: number;
@@ -139,3 +141,31 @@ export function computeForecast(s: GameStateV2, ahead = 10): { quarters: Forecas
   later.sort((a, b) => a.q - b.q);
   return { quarters, later };
 }
+
+/** Recorded past quarters (oldest first, at most `n`), in the forecast's shape. */
+export function computeHistory(s: GameStateV2, n = 4): ForecastQ[] {
+  const q0 = quarterIndex(s.time.startDate, s.time.day);
+  return (s.player.finance.ws3?.computeHist ?? [])
+    .filter((h) => h.q < q0)
+    .slice(-n)
+    .map((h) => ({ ...h, now: false, past: true, empty: Math.max(0, h.racks - h.running - h.installing), events: [] }));
+}
+
+/** computeHistQ (399, quarterly): snapshot the quarter that just ended, before this quarter's deliveries and installs. */
+export const computeHistQSystem: EngineSystem = {
+  id: 'computeHistQ', owner: 'WS3', cadence: 'quarterly', order: 399,
+  run(s) {
+    const fx = s.player.finance.ws3;
+    if (!fx || s.time.day === 0) return;
+    const fit = chipFit(s);
+    const end = s.time.day - 1;
+    let racks = 0;
+    for (const x of s.player.sites) if (x.stage === 'live') racks += siteCapacityH(s, x.mw);
+    let cloud = 0;
+    for (const c of s.player.cloud) if (c.startDay <= end && c.endDay > end) cloud += c.h100e;
+    for (const r of fx.rentals) if (r.endDay > end) cloud += r.h100e;
+    const hist = (fx.computeHist ??= []);
+    hist.push({ q: quarterIndex(s.time.startDate, end), racks, cloud, running: fit.installed, installing: fit.installing, idle: fit.idle });
+    if (hist.length > 8) hist.splice(0, hist.length - 8);
+  },
+};

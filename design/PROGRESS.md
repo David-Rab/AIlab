@@ -19,11 +19,11 @@ Single source of truth for where the build stands. Update at every milestone or 
 | M5 UX redesign (IA, design system, panels) | Done: uitest 104/104, lint-ux green | 0af3dcd..babe8b2 |
 | M5 polish, tutorial, codex, v1 removal | Partly done (onboarding + codex exist); v1 still present | |
 
-## Compute tab redesign (2026-11-15, uncommitted at time of writing)
+## Compute tab redesign (2026-11-15)
 
 Per `design/ux/COMPUTE.md`: Overview (verdicts, capacity and fleet forecast, order chips / build data centre / rent
 cloud with fixed sizes and folded options), Sites, Orders, Market tabs. Engine: `compute/forecast.ts` (`chipFit`,
-`computeForecast`, `siteLiveQ`); `idleChips` now counts only chips with no rack space (chips in the one-quarter install
+`computeForecast`, `siteLiveQ`, `computeHistory`, quarterly `computeHistQ` snapshots in `finance.ws3.computeHist`); `idleChips` now counts only chips with no rack space (chips in the one-quarter install
 lag are "installing"). Size tables `SITE_TIERS` / `CHIP_TIERS` in `data/v2/deals.ts`. The idle watch alert still opens the
 Compute tab (user: no concrete fix action). Not touched by request: opening chip order, Lone Pine, Act 1 unlocks.
 `npm run test:v2` and `uitest` (104/104) green.

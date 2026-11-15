@@ -37,10 +37,10 @@ reason in the tooltip.
 
 ## Built differences from the mockup
 
-- The chart starts at the current quarter and projects 10 quarters (the engine keeps no capacity history). Events past
-  the horizon (a site going live, a cloud contract ending) are listed at the top right.
-- A capacity step far above the fleet (a new multi-GW site) runs off the top with its value marked, so the fleet stays
-  readable.
+- The chart shows up to 4 recorded past quarters (end-of-quarter snapshots kept by `computeHistQ`, dimmed), the
+  current quarter and 10 planned quarters. Events past the horizon (a site going live, a cloud contract ending) are
+  listed at the top right.
+- The y-axis always fits the tallest value, including a new multi-GW site, so nothing runs off the top.
 - The second verdict also covers chips that will arrive with no racks (peak and the quarter it clears).
 - Site stage "building" is shown as "construction" so it doesn't clash with the Building size.
 

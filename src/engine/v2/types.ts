@@ -779,7 +779,12 @@ export interface PendingRound {
   ipo: boolean;
 }
 
+/** End-of-quarter compute snapshot (H100e) for the Compute chart's past quarters. */
+export interface ComputeSnap { q: number; racks: H100e; cloud: H100e; running: H100e; installing: H100e; idle: H100e }
+
 export interface FinanceWS3 {
+  /** Last 8 end-of-quarter compute snapshots (computeHistQ). Missing on saves made before it. */
+  computeHist?: ComputeSnap[];
   pendingRound?: PendingRound;
   offers: DealOffer[];
   /** Delivered chips not yet installed: in transit (this quarter) and ready (installable), plus their book value. */

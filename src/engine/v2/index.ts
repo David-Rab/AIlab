@@ -102,7 +102,7 @@ export { dealMenu, dealPreview } from './finance/actions';
 export { liveLedger, commitmentsPerYear, ledgerDue, qOf } from './finance/ledger';
 export { orderQuote, spotRentalCap } from './compute/orders';
 export { oppositionOdds, siteCapex, siteEtaQ } from './compute/sites';
-export { chipFit, computeForecast, idleChips, siteLiveQ } from './compute/forecast';
+export { chipFit, computeForecast, computeHistory, idleChips, siteLiveQ } from './compute/forecast';
 export type { ChipFit, ForecastEvent, ForecastQ } from './compute/forecast';
 export { ownedOnline, rentedOnline, poolsOf } from './compute/power';
 export { spotPrice, cloudPricePerYear } from './compute/market';
