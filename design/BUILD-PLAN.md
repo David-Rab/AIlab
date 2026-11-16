@@ -202,6 +202,10 @@ unique per the v3 IA notes; each milestone rewrites its uitest section. Replace:
 RunDesigner→Blueprint, SafetyLab→Safety. New: Research. Adapt: Company, Models, TopStrip, Overview, Setup, Codex,
 Nav, Finance, Compute. Reuse: TraitGraph, RiskMap, RiskSources, ResearchCharts.
 
-**Parallelism (≤ 2 streams).** Stream A: R3→R8 serial. Stream B: R2 ∥ R3; R9 prep ∥ R5/R6; R10 shell parts. Serial:
+**Parallelism: none (user decision 2026-11-16).** Agents run one at a time to stay within session limits. Order:
+R1 → R3 → R2 (merge from branch gs-leader-lab, worktree ../AI27-leader, which may hold partial work from a stopped
+run) → R4 → R5 → R6 → R7 → R8 → R9 → R10. The original two-stream note below is kept for reference.
+
+**Original parallelism note (superseded).** Stream A: R3→R8 serial. Stream B: R2 ∥ R3; R9 prep ∥ R5/R6; R10 shell parts. Serial:
 R1 first; R9 integration after R8; R10 gates last. Shared files (types.ts, init.ts, save.ts, registry.ts, hygiene
 tables, bots/ref.ts): stream B stays out of PlayerLab internals; the stream merging second rebases.
