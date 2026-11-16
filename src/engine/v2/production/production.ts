@@ -12,6 +12,7 @@
 // with reference resources and the best research mix has M = multiplierAt(w, q) exactly (acceptance test P1): the
 // reference lab optimises its mix, the AI 2027 usage table fixes only how much compute goes to research in total.
 // Synthetic data is a training input (data stock and the data wall on bases, data.ts), not a research input.
+import { playerH } from '../departments/teams';
 import { laborSlowdown, multiplierAt, stage1 } from '../../../data/world';
 import { CHINA_CAL, H100E_PER_COPY_SC, PROD_SPEED_CAP, REF_TECH } from '../../../data/v2/calibration';
 import { CHINA_PRESETS } from '../../../data/actors';
@@ -218,7 +219,8 @@ export function labInputs(s: GameStateV2, lab: LabId, day = s.time.day): LabInpu
   let controlTax = 0;
   let cMult = 1;
   let mods = 1;
-  let H = core.staff.cap;
+  // Player: capabilities research engineers carry h (R3: h = RE_cap / (0.55·H_ref)); other labs: their capabilities staff.
+  let H = isPlayer ? playerH(s.player) : core.staff.cap;
   if (isPlayer) {
     const par = s.player.paradigms;
     if (par.P05?.status === 'adopted') etaMod *= 1.3;

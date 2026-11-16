@@ -93,7 +93,7 @@ export type CounterpartyId =
 
 export type StreamId =
   | 'world' | 'prod' | 'runs' | 'safety' | 'incidents' | 'security' | 'market' | 'finance'
-  | 'actors' | 'rivals' | 'china' | 'worldfx' | 'events' | 'endings';
+  | 'actors' | 'rivals' | 'china' | 'worldfx' | 'events' | 'endings' | 'company';
 
 export type WorkstreamId = 'WS1' | 'WS2' | 'WS3' | 'WS4' | 'WS5' | 'WS6' | 'WS7';
 
@@ -594,10 +594,62 @@ export interface PlayerLab extends LabCore {
   orders: ChipOrder[];
   cloud: CloudContract[];
   safety: SafetyDept;
-  hiring: { target: StaffByRole; pipeline: { day: Day; role: keyof StaffByRole; n: number }[] };
+  /** Teams by role (STRUCTURE §4.1, R3). `staff.cap/saf` are derived from their heads; for the player `tasteHire`
+   *  (τ_h) is derived from science-team quality and stars. */
+  teams: Team[];
+  /** Star hires (named people): +0.05 τ_h each. */
+  stars: number;
+  hiring: TeamHiring;
   morale: { overall: number; safety: number }; // 0..100
   dataAssets: { licensedTokensT: number; unlicensedTokensT: number; syntheticTokensT: number; litigationRisk: number };
   policies: PlayerPolicies;
+}
+
+// ───────────────────────────── Teams (STRUCTURE §4.1, R3) ─────────────────────────────
+
+export type TeamRole = 'eng' | 're' | 'sci';
+export type TeamDept = 'cap' | 'saf';
+export type TeamQuality = 'solid' | 'strong' | 'elite';
+/** The six tree columns: a science team's specialty (R4 projects). */
+export type Column = 'pretraining' | 'posttraining' | 'systems' | 'alignment' | 'interp' | 'evals';
+/** Hiring-target keys: engineers (one shared pool, paid from the capabilities budget) and research engineers and
+ *  scientists per department. */
+export type TeamKey = 'eng' | 're.cap' | 're.saf' | 'sci.cap' | 'sci.saf';
+
+export interface Team {
+  id: string;
+  role: TeamRole;
+  dept: TeamDept;
+  /** Fixed size per role (150 / 100 / 40). */
+  size: number;
+  /** People on the team now (attrition lowers it, hiring refills it; fractional is fine). */
+  heads: number;
+  quality: TeamQuality;
+  specialty?: Column;
+  name?: string;
+  /** R4: the tree project a science team works on. */
+  projectId?: string;
+}
+
+/** A team on the candidate list (drawn weekly from the 'company' stream). */
+export interface TeamCandidate {
+  id: string;
+  role: TeamRole;
+  dept: TeamDept;
+  quality: TeamQuality;
+  specialty?: Column;
+  /** Day it leaves the list. */
+  until: Day;
+}
+
+export interface TeamHiring {
+  /** "Keep hiring to N teams" per key (a policy: it hires, it never lays off). */
+  targets: Record<TeamKey, number>;
+  candidates: TeamCandidate[];
+  /** Teams being filled, in order; one hiring lane per department. A team arrives when its heads reach its size. */
+  filling: Team[];
+  /** Counter for team and candidate ids. */
+  nextId: number;
 }
 
 export interface PlayerPolicies {

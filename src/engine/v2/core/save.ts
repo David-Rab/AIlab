@@ -1,9 +1,11 @@
 // Save format, migrations, state hash (V2-SPEC §2.5). Owner: WS1.
 import { ensureWs3 } from '../finance/ext';
-import type { GameStateV2 } from '../types';
+import { keyOf, staffOf, teamsFromStaff } from '../departments/teams';
+import type { GameStateV2, PlayerLab, StaffByRole, TeamHiring } from '../types';
+import { hash32 } from './rng';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
-export const SCHEMA_REV = 4;
+export const SCHEMA_REV = 5;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -37,6 +39,25 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       setup.start ??= 'leader';
       setup.leaderLab ??= false;
     }
+  },
+  /** 4 → 5 (restructure R3): staff become teams. Headcounts (plus people still in the old hiring pipeline) are cut into
+   *  whole Strong teams in the reference split; keep-hiring targets come from the old headcount targets; star hires
+   *  come from τ_h. The candidate list starts empty (the weekly tick fills it). */
+  4: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    s.rng.company ??= hash32(s.setup.seed, 'company');
+    const p = s.player as unknown as Omit<PlayerLab, 'hiring'> & { hiring?: { target?: StaffByRole; pipeline?: { role: keyof StaffByRole; n: number }[] } | TeamHiring };
+    if (Array.isArray(p.teams)) return;
+    const old = (p.hiring ?? {}) as { target?: StaffByRole; pipeline?: { role: keyof StaffByRole; n: number }[] };
+    const staff: StaffByRole = { cap: p.staff?.cap ?? 0, saf: p.staff?.saf ?? 0 };
+    for (const e of old.pipeline ?? []) if (e.role === 'cap' || e.role === 'saf') staff[e.role] += e.n;
+    const hiring: TeamHiring = { targets: { eng: 0, 're.cap': 0, 'sci.cap': 0, 're.saf': 0, 'sci.saf': 0 }, candidates: [], filling: [], nextId: 1 };
+    p.teams = teamsFromStaff(hiring, staff);
+    const tgt = teamsFromStaff({ nextId: 0 }, { cap: Math.max(staff.cap, old.target?.cap ?? 0), saf: Math.max(staff.saf, old.target?.saf ?? 0) });
+    for (const t of tgt) hiring.targets[keyOf(t)]++;
+    p.hiring = hiring;
+    p.stars = Math.max(0, Math.round(((p.tasteHire ?? 1) - 1) / 0.05));
+    p.staff = staffOf(p.teams);
   },
 };
 

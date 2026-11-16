@@ -4,6 +4,7 @@ import type { EventDefV2 } from '../../types';
 import { cred, hasFavor, morale, natPressure, scrutiny, spendFavor, trust } from '../../actors/fx';
 import { deactivateRival } from '../../actors/rivals';
 import { ws4 } from '../../actors/state';
+import { changeHeads } from '../../departments/teams';
 import { L, P, ch, ev, requestOnly } from '../kit';
 
 
@@ -69,7 +70,7 @@ export const GOV_EVENTS: EventDefV2[] = [
         w.dpaAccepted = true;
         for (const r of activeRivals(s)) {
           w.absorbedCompute += r.core.computeOnline;
-          s.player.staff.cap += Math.round(r.core.staff.cap * 0.5);
+          changeHeads(s, 'cap', Math.round(r.core.staff.cap * 0.5));
           deactivateRival(s, ctx, r.core.id, 'merged', 'player');
         }
         s.gov.rungSec = 5;

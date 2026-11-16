@@ -20,7 +20,104 @@ Single source of truth for where the build stands. Update at every milestone or 
 | M5 polish, tutorial, codex, v1 removal | Onboarding and codex exist; v1 removed (2026-11-15), `npm run build` builds the current game | |
 | **R0 Tycoon restructure: design** | Done (2026-11-16): STRUCTURE.md, TECH-TREE.md, LIMITS.md, research/18–19, mockups-v3. Approved by the user | 168ef39 (branch `game-structure`, worktree `../AI27-structure`) |
 | **R1 Restructure: baseline, bugs, scaffolding** | Done (2026-11-16): B1–B5, LIMITS removals, setup/meta fields, ref-trace tool, schemaRev 4; all §7.4 bot criteria MET (200 seeds) | "R1: commitment scope, …" on `game-structure` |
-| **R2–R10 Tycoon restructure: build** | Next: R2 ∥ R3 per design/BUILD-PLAN.md; milestones logged below | |
+| **R3 Restructure: teams and roles** | Done (2026-11-16): fixed-size teams in three roles, h from capabilities research engineers, τ_h from science quality + stars, keep-hiring policy, offers, Company › People teams + hiring cards, schemaRev 5; no CAL_SHIFT refit; all §7.4 bot criteria MET (40 seeds) | "R3: teams and roles, …" on `game-structure` |
+| **R2, R4–R10 Tycoon restructure: build** | Next: R2 (merge `gs-leader-lab`), then R4 … R10 serially (BUILD-PLAN parallelism note); milestones logged below | |
+
+## R3 Teams and roles (2026-11-16, branch `game-structure`, worktree ../AI27-structure)
+
+Per design/BUILD-PLAN.md §2 R3, STRUCTURE §4.1, research/19 Part 1.
+
+**State.** `PlayerLab.teams: Team[]` (`role` eng/re/sci, `dept` cap/saf, fixed `size` 150/100/40, fractional `heads`,
+`quality` solid/strong/elite, `specialty?: Column` for science, `name?`, `projectId?` for R4), `stars`, and
+`hiring: TeamHiring { targets: Record<TeamKey, n>; candidates; filling: Team[]; nextId }` with `TeamKey` =
+eng · re.cap · sci.cap · re.saf · sci.saf. `staff.cap/saf` (all arrived heads by department) and the player's
+`tasteHire` are derived by `syncTeams` after every roster change, so every existing reader works. Rivals and China
+are untouched. New RNG stream `'company'` (owner WS1; hygiene table updated).
+
+**Data `src/data/v2/teams.ts`.** Sizes; `REF_ROLE_SHARE` .30/.55/.15; safety split 90/50; `QUALITY` (output/cost:
+solid 0.8/0.8, strong 1/1, elite 1.25/1.6); cost per person (cap 0.70/0.80/1.00, saf RE 0.65, sci 0.80);
+`HIRING_BASE` per department lane (cap 15/wk, safety 3/wk, as before); start teams (classic 4 · 11+1 · 8+2 = 2,020
+capabilities + 180 safety; reality 5 · 13+1 · 9+2); start specialties; offers (one a week, 4 weeks, ≤ 4).
+
+**Engine `departments/teams.ts` (replaces staffing.ts, deleted).** Weekly `hiring` system (same id/order): attrition
+off heads; one new offer from `'company'`; keep-hiring policy queues one standard Strong team per key while teams +
+queued < N (never lays off); per lane the weekly hires go first to vacancies (in proportion to each gap), then to
+queued teams by weight (heads to go + the key's unqueued deficit), leftovers in queue order; a team arrives when full.
+FIFO filling was tried first: in a short lane it hired roles in equal team counts (34% RE instead of 55%) and the slow
+preset's late h fell 5% below R1; the weighted fill fixed it. Player `H = Σ RE_cap heads × quality / 0.55` in
+`labInputs` (so h = RE_cap/(0.55·H_ref); paradigm FTE and the E12 sideline still apply). `τ_h = 1 + Σ_capSci
+heads·(q−1)/(0.15·H_ref) + 0.05·stars`, clamped 0.5–1.5 (exactly 1 for Strong teams, so identity holds). Payroll =
+Σ heads × role cost × quality cost over teams and queued teams (`payrollOf`; cashflow, runway and Finance use it;
+start $1.75B/yr vs $1.74B before). Readouts only: `buildCapacity` (eng heads/150 × quality × min(10, 1/(1−A_eng))),
+`aiShareByRole` (A_eng = 1−(1−A)², RE 1−wH, sci Φ(sdAI)). Staff changes from events and actions (poaching, E16 let
+go, E22 absorb, E32 acquire, down-round attrition) go through `changeHeads`: losses come off every team of the
+department in proportion; gains fill vacancies, then form whole Strong teams in the reference split.
+
+**Actions** (`departments/teamActions.ts`): `teams.hire` (an offer, or a standard team by key; queued ahead of
+policy teams), `teams.release` (arrived or queued team; morale −1 per 1% of the department, max 15; lowers the
+target), `teams.move` (RE team cap↔saf; safety→cap −5 safety morale; targets follow), `teams.target`. `hireTarget`
+removed; `starHire` now adds a star. Registry verb tags updated. `teamGain` gives each preview's gain (build capacity,
+research speed via h or taste, safety staff).
+
+**RefBot** (D2): monthly targets `round(share·H_ref(yr+0.12)/size)` per role; the safe bot's safety staff share is
+split 90/50 into RE/science teams.
+
+**Save.** `SCHEMA_REV` 5. Migration 4 → 5 (cheap): headcounts plus the old pipeline become whole Strong teams in the
+reference split (leftover people as vacancies), targets from the old headcount targets, stars from τ_h, `'company'`
+stream seeded. Checked on the three rev-4 fixtures (load, tick 30 d). Fixtures regenerated at rev 5.
+
+**UI** (Company › People; good-ui pass, screenshots checked). Teams card: payroll / morale / safety-morale chips
+(homes `payroll`, `morale`, `moraleSafety`), engineer pile with build capacity, RE piles (capabilities with h,
+safety) with Move / Let go, scientist cards per team (specialty icon, quality dots, people, let go), taste and Star,
+AI share per role (home until R7's lanes), move-cost rule in the footer. Hiring card: talent pull, keep-hiring
+steppers per key, filling queue with progress and ETA (cancel), offers with cost, ETA, expiry and a gain chip
+(taste chips are red for Solid science teams). AI labour card kept (agent lanes are R7). New glossary terms: team,
+roleEng, roleRE, roleSci, teamQuality, specialty, buildCapacity, keepHiring, hiringQueue, teamOffer, moveTeam;
+payroll, researchTaste, headcount, weeklyHireCap rewritten; hiringTarget/hirePipeline dropped. New icons for roles,
+columns and team verbs.
+
+**Results.**
+- `npm run typecheck`, `tsc -p scripts/v2`: clean. Identity and golden timelines unchanged and passing.
+- test:v2 scripts individually: golden-timelines, identity, calib, fixtures, lint-hidden, lint-ux, lint-tradeoffs,
+  safety, finance (payroll), ws4, money pass. Known baseline failures unchanged: hygiene absolute perf budget,
+  worldfx HireRate_SOFT (2027-03-21, same value).
+- **Calibration:** T1 within tolerance on all presets with the existing CAL_SHIFT (no refit): SC 633 vs 634 (ai2027),
+  1475 vs 1476 (authors2026), 858 vs 859 (fast).
+- **ref-trace** vs the R1 reference: mean h +0.5% (ai2027 stub), −0.2% (authors2026), +0.5% (fast), −0.3% (slow),
+  +0.4% (integrated); milestone days within 2 d (SC slow +2 d); runs and paradigm adoption 0 d; revenue/cash within
+  1.2%. The tool now has a `mean h` category (±1%) and a monthly h tolerance of one team (10%): h steps by whole RE
+  teams (start h₀ = 0.976, D2). Remaining monthly-series excesses are expected and not gates: pa after SC (absolute
+  0.1 tolerance on values 20–1,500; worst 3.3 on 1,465), slow-preset k 6.7% and sdAI 0.12 in its last month.
+- **Performance** (hygiene §8 loop, seed 9, 3 reps per run, baseline worktree at 737475e and R3 alternated twice on a
+  loaded machine): daily tick 3.39 ms (R1) vs 3.49 ms (R3) mean, +3% (within noise); worst quarter 14.7 vs 13.4 ms.
+- `npm run test:ui`: 124/124 (new: science cards per team, piles, keep-hiring +/−, policy covers the target after a
+  week, offer hire, cancel, move with the safety-morale cost, let go; action loop 120 changed, 0 rejected).
+- **Bots, 40 seeds:** all six §7.4 criteria MET.
+
+| bot | win | mixed | loss | med. day | top endings |
+|---|---|---|---|---|---|
+| race | 2.5% | 7.5% | 90.0% | 806 | asiTakeover 55%, ousted 20%, nationalized 10% |
+| safe | 2.5% | 0.0% | 97.5% | 1490 | overtaken 57.5%, ousted 40% |
+| mixed | 52.5% | 5.0% | 42.5% | 1019 | asiAligned 52.5%, asiTakeover 12.5%, nationalized 10%, ousted 10% |
+| capex2x | 2.5% | 0.0% | 97.5% | 304 | insolvent 92.5% |
+| ref | 17.5% | 2.5% | 80.0% | 981 | asiTakeover 40%, asiAligned 17.5%, ousted 15% |
+
+Choices vs world (final Mis): bot policy 66%, world 21%, rest 14%.
+
+**Deviations / deferred.**
+- `hiring.filling` is a list (one lane per department) rather than a single `filling?`; the policy hires standard
+  Strong teams (offers are the player's way to buy Solid/Elite teams and specialties), so RefBot stays at τ_h = 1.
+- RE team quality scales H (Elite RE ×1.25 labour); the plan only said `reCapHeads/0.55`.
+- Safety science teams do not affect τ_h; scientists' headcount does nothing until R4 projects (UI says so in the
+  taste tooltip and the role glossary).
+- A temporary baseline worktree for the perf and uitest comparisons is left at
+  `%TEMP%/r3perf/base` (detached 737475e) with a `node_modules` junction to this worktree: removing it was denied.
+  Remove the junction with `rmdir` first (never a recursive delete), then `git worktree prune`.
+- BUILD-PLAN.md's parallelism change in the working tree (user's) is left uncommitted.
+
+**Notes for R4.** Science teams carry `specialty` and `projectId`; R4 sets progress from Σ size × quality (×1.5 on
+match). Paradigm FTE is still subtracted from H (R4 removes it; expect h +~2–4% and a refit). `fillWeeks`,
+`laneWeights`, `teamGain` are the UI helpers to reuse. The build-capacity readout is ready for R5.
 
 ## R1 Baseline, bugs, scaffolding (2026-11-16, branch `game-structure`, worktree ../AI27-structure)
 

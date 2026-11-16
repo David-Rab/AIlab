@@ -282,13 +282,17 @@ await check('Research mix: back to auto', 'JSON.stringify(s.player.researchManua
   await page.click('#ctl-split-experiments .seg-btn:has-text("Auto")');
   await page.click('[data-act=setSplit]');
 });
+// R3 People: teams by role, keep-hiring targets, offers, filling queue, move and let go.
 await tabTo('people');
-await check('Hiring target (no UI cap) + Set', 's.player.hiring.target.saf', async () => {
-  const big = JSON.parse(await get('Math.round(Math.max(200, s.player.staff.saf * 3) + 150)')); // above the old slider cap
-  await page.fill('[data-test=hire-target-saf]', String(big));
-  await page.click('[data-dept=saf] [data-act=hireTarget]');
-});
-ok('Hiring target above the old UI cap applies', JSON.parse(await get('s.player.hiring.target.saf > Math.max(200, s.player.staff.saf * 3)')));
+ok('Teams card: one science card per science team', JSON.parse(await get(`document.querySelectorAll('[data-panel=company] .sci-card').length === s.player.teams.filter((t) => t.role === 'sci').length`)));
+ok('Teams card: piles for engineers and both research-engineering departments', JSON.parse(await get(`['eng', 're.cap', 're.saf'].every((k) => !!document.querySelector('[data-panel=company] [data-pile="' + k + '"]'))`)));
+await check('Keep hiring: + raises the research-engineering target', 's.player.hiring.targets["re.cap"]', () => page.click('[data-act="teams.target.up.re.cap"]'));
+await check('Offer: Hire queues the team', 'JSON.stringify([s.player.hiring.candidates.length, s.player.hiring.filling.length])', () => page.click('[data-panel=company] .offer [data-act="teams.hire"]'));
+await check('Filling: cancel removes a queued team', 's.player.hiring.filling.length', () => page.click('[data-panel=company] [data-act="teams.cancel"]'));
+await check('Move: safety research-engineering team to capabilities', 'JSON.stringify([s.player.teams.filter((t) => t.role === "re" && t.dept === "saf").length, Math.round(s.player.morale.safety)])', () => page.click('[data-pile="re.saf"] [data-act="teams.move"]'));
+ok('Move: safety morale paid', JSON.parse(await get('s.causes.byKey["morale.safety"] ? s.causes.byKey["morale.safety"].some((c) => /moved/.test(c.source)) : false')));
+await check('Let go: a science team', 's.player.teams.length', () => page.click('[data-panel=company] .sci-card [data-act="teams.release"]'));
+await shot('20-company-people');
 // B4: one WSL target range for the slider and the engine.
 await tabTo('security');
 ok('Security target slider range matches the engine (2–5)', JSON.parse(await get(`(() => { const r = document.querySelector('[data-panel=company] [data-home=wsl] input[type=range]'); return !!r && r.min === '2' && r.max === '5'; })()`)));
@@ -310,6 +314,14 @@ await check("Run designer: shape overtrained", `document.querySelector("[data-pa
 await page.click('[data-panel=rundesigner] [data-opt="shape:dense"]');
 await check('Run designer: save template', 'localStorage.getItem("ai27.v2.runTemplates")', () => page.click('[data-test=rd-save]'));
 await check('Launch base run', `s.player.models.runs.filter(r => r.kind === 'base').length`, () => page.click('[data-act=launchBase]'));
+// R3 keep-hiring policy (needs a week; run after the run-designer checks so the time step does not change them).
+await page.evaluate(() => window.ai27v2.step(7));
+await closeModals();
+await pause();
+ok('Keep hiring: after a week the policy has the target covered (teams + queued)', JSON.parse(await get(`(() => { const k = (t) => t.role === 'eng' ? 'eng' : t.role + '.' + t.dept; const n = [...s.player.teams, ...s.player.hiring.filling].filter((t) => k(t) === 're.cap').length; return n >= s.player.hiring.targets['re.cap']; })()`)));
+await nav('company');
+await tabTo('people');
+await check('Keep hiring: − lowers the target', 's.player.hiring.targets["re.cap"]', () => page.click('[data-act="teams.target.down.re.cap"]'));
 await closeModals();
 // Split floors are gone: a zero training share applies (with a warning first) and running runs show as paused.
 await nav('company');

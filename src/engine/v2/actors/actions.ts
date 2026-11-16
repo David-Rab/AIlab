@@ -15,6 +15,7 @@ import {
 import { govPresetOf } from './gov';
 import { addPosture, archetypeOf, openWeightsReleased, paceOf } from './rivals';
 import { ws4, ws4r } from './state';
+import { changeHeads } from '../departments/teams';
 
 type P = Record<string, number | string | boolean>;
 
@@ -322,7 +323,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
       cash(s, ctx, -0.5, 'C4 poaching', r.core.name);
       const n = Math.max(5, Math.round(r.core.staff.cap * 0.03));
       r.core.staff.cap = Math.max(0, r.core.staff.cap - n);
-      s.player.staff.cap += n;
+      changeHeads(s, 'cap', n);
       ctx.bump('player.pa', (5 / 365) * paceOf(s), 'C4 tacit knowledge', r.core.name);
       rivalMeter(s, ctx, r.core.id, 'cooperation', -20, 'C4 poaching');
       rivalMeter(s, ctx, r.core.id, 'poachAggression', 20, 'C4 poaching');

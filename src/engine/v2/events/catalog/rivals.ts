@@ -5,6 +5,7 @@ import type { EventDefV2 } from '../../types';
 import { cash, morale, scrutiny } from '../../actors/fx';
 import { deactivateRival, leadBetween, postureOf } from '../../actors/rivals';
 import { ws4 } from '../../actors/state';
+import { changeHeads } from '../../departments/teams';
 import { L, P, activeLab, ch, ev, labName } from '../kit';
 
 export const RIVALS_EVENTS: EventDefV2[] = [
@@ -24,8 +25,8 @@ export const RIVALS_EVENTS: EventDefV2[] = [
         if (!r) return;
         cash(s, ctx, -Math.max(2, Math.min(10, r.finance.valuation * 0.5 || 5)), 'E32 acquisition', r.core.name);
         ws4(s).absorbedCompute += r.core.computeOnline;
-        s.player.staff.cap += Math.round(r.core.staff.cap * 0.7);
-        s.player.staff.saf += Math.round(r.core.staff.saf * 0.7);
+        changeHeads(s, 'cap', Math.round(r.core.staff.cap * 0.7));
+        changeHeads(s, 'saf', Math.round(r.core.staff.saf * 0.7));
         scrutiny(ctx, 20, 'E32 antitrust');
         ctx.bump('relations.talentPull', 3, 'E32 acquisition');
         // Culture: their posture blends into morale (safety labs lift safety morale, mavericks lower it).

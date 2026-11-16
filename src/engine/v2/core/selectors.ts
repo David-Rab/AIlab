@@ -25,8 +25,9 @@ export { deployGate, effortLock, liveDeployments, CHANNEL_VARIANTS, distillation
 export { bestMeasuredL, internalVersion, labPools, measuredLOf, versionById } from '../models/labs';
 export { MILESTONE_NAMES } from '../models/capability';
 export { presetSplit, shareRefAt, SPLIT_KEYS, SPLIT_PRESETS } from '../departments/split';
-export { weeklyHireCap, payrollPerYear, inPipeline } from '../departments/staffing';
-export { baseFromParams, postFromParams, payrollAtTarget } from '../models/actions';
+export { teamGain } from '../departments/teamActions';
+export { aiShareByRole, buildCapacity, fillWeeks, laneWeights, fullTeamPayroll, keyOf, payrollOf, playerH, queuedOfKey, teamLabel, teamPayroll, teamsOfKey, weeklyHireCap } from '../departments/teams';
+export { baseFromParams, postFromParams } from '../models/actions';
 export { understanding } from '../safety/understanding';
 export { leadDays, riskSources } from '../actors/intel';
 export { raiseCeiling } from '../finance/equity';

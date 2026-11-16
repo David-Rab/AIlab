@@ -4,8 +4,12 @@
 // repeated). Two departments have staff: capabilities and safety.
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { MANUAL_MIX_RANGE, WSL_TARGET_RANGE, agendaRows, engine, idleChips, inPipeline, ownedOnline, payrollPerYear, poolsOf, rentedOnline, revenueReadout, specOf, SPLIT_KEYS, SPLIT_PRESETS, TOP_KEYS, weeklyHireCap } from '../../../engine/v2';
-import type { GameStateV2, SplitSpec, StaffByRole, TopKey } from '../../../engine/v2';
+import {
+  MANUAL_MIX_RANGE, WSL_TARGET_RANGE, aiShareByRole, buildCapacity, engine, fillWeeks, fullTeamPayroll, idleChips, ownedOnline, payrollOf, poolsOf, queuedOfKey,
+  rentedOnline, revenueReadout, specOf, SPLIT_KEYS, SPLIT_PRESETS, teamGain, teamPayroll, teamsOfKey, TOP_KEYS, weeklyHireCap,
+} from '../../../engine/v2';
+import { COLUMN_LABEL, MOVE_SAFETY_MORALE, QUALITY, TEAM_KEYS, TEAM_SIZE } from '../../../data/v2/teams';
+import type { Column, GameStateV2, SplitSpec, Team, TeamDept, TeamKey, TeamQuality, TeamRole, TopKey } from '../../../engine/v2';
 import { MixChart, ResponseCharts } from './ResearchCharts';
 import { store } from '../store';
 import { ActBtn, pct as pct0, Seg, Slider, Term, Tip, TipCard, Why } from '../ui';
@@ -14,10 +18,6 @@ import * as F from '../fmt';
 import { ICON } from '../icons';
 import { C, POOL_COLOR, SPHERE } from '../theme';
 
-const ROLES: { id: keyof StaffByRole; label: string; color: string; icon: typeof ICON.L }[] = [
-  { id: 'cap', label: 'Capabilities', color: SPHERE.cap, icon: ICON.capabilities }, { id: 'saf', label: 'Safety', color: SPHERE.saf, icon: ICON.safety },
-];
-const ZERO: StaffByRole = { cap: 0, saf: 0 };
 const POOL_TERM: Record<string, string> = { training: 'poolTraining', experiments: 'poolExperiments', agents: 'poolAgents', synthetic: 'poolSynthetic', serving: 'poolServing', safety: 'poolSafety' };
 type Dept = 'cap' | 'serve' | 'saf';
 const POOL_DEPT: Record<string, Dept> = { training: 'cap', experiments: 'cap', agents: 'cap', synthetic: 'cap', serving: 'serve', safety: 'saf' };
@@ -145,50 +145,208 @@ function ResearchSpeed({ s }: { s: GameStateV2 }) {
   );
 }
 
-// ───────── People ─────────
-function People({ s }: { s: GameStateV2 }) {
-  const p = s.player;
-  const [targets, setTargets] = useState<StaffByRole>({ ...p.hiring.target });
-  const prod = engine.production(s, 'player');
-  const projects: Record<keyof StaffByRole, string[]> = {
-    cap: [...p.models.runs.filter((r) => r.status === 'running').map((r) => `Run ${r.name}`), ...Object.entries(p.paradigms).filter(([, x]) => x.status === 'researching').map(([id]) => `Paradigm ${id}`)],
-    saf: agendaRows(s).filter((a) => a.fte > 0).map((a) => `${a.name} · ${a.level}`),
-  };
+// ───────── People: teams by role, hiring (STRUCTURE §4.1; mockups-v3 v3-company without the agent lanes) ─────────
+const ROLE_ICON: Record<TeamRole, typeof ICON.L> = { eng: ICON.roleEng, re: ICON.roleRE, sci: ICON.roleSci };
+const ROLE_TERM: Record<TeamRole, string> = { eng: 'roleEng', re: 'roleRE', sci: 'roleSci' };
+const COL_ICON: Record<Column, typeof ICON.L> = { pretraining: ICON.colPretraining, posttraining: ICON.colPosttraining, systems: ICON.colSystems, alignment: ICON.colAlignment, interp: ICON.colInterp, evals: ICON.colEvals };
+const Q_N: Record<TeamQuality, number> = { solid: 1, strong: 2, elite: 3 };
+const KEY_SHORT: Record<TeamKey, string> = { eng: 'Engineering', 're.cap': 'Research eng.', 'sci.cap': 'Science', 're.saf': 'Research eng.', 'sci.saf': 'Science' };
+const keyIcon = (k: TeamKey) => ROLE_ICON[k === 'eng' ? 'eng' : (k.split('.')[0] as TeamRole)];
+const teamIcon = (t: Pick<Team, 'role' | 'specialty'>) => (t.role === 'sci' && t.specialty ? COL_ICON[t.specialty] : ROLE_ICON[t.role]);
+const teamTitle = (t: Pick<Team, 'role' | 'dept' | 'specialty'>) => (t.role === 'sci' ? `Science · ${t.specialty ? COLUMN_LABEL[t.specialty] : ''}` : t.role === 'eng' ? 'Engineering' : `Research eng. · ${t.dept === 'saf' ? 'safety' : 'capabilities'}`);
+/** AI share of a role's work (home until R7's agent lanes). */
+const AiShare = ({ v }: { v: number }) => (
+  <Tip content={() => <TipCard title="AI share of the work" value={F.pct(v)}>Engineers: 1 − (1 − A)² on coding automation A. Research engineers: the AI part of research labour. Agents take engineers' work first.</TipCard>}>
+    <span className="small dim" data-test="ai-share"><ICON.agents size={12} /> AI <b className="num">{F.pct(v)}</b></span>
+  </Tip>
+);
+
+/** Quality as 1–3 filled dots (Solid / Strong / Elite). */
+function QDots({ q }: { q: TeamQuality }) {
   return (
-    <>
-      <div className="dept-cards">
-        {ROLES.map((r) => (
-          <Card key={r.id} className="dept-card" title={<span className="row-i" style={{ color: r.color }}><r.icon size={15} /> {r.label}</span>} right={<span className="num big" data-home={`headcount.${r.id}`}>{F.count(p.staff[r.id])}</span>}>
-            <div data-dept={r.id}>
-              <KV k="Hiring target" term="hiringTarget"><input className="text-input num" type="number" min={0} step={10} value={targets[r.id]} data-test={`hire-target-${r.id}`} style={{ width: 100 }}
-                onChange={(e) => setTargets({ ...targets, [r.id]: Math.max(0, Math.round(Number(e.target.value) || 0)) })} /></KV>
-              <KV k="In pipeline · cap/wk" term="hirePipeline">{F.count(inPipeline(s, r.id))} · {F.count(weeklyHireCap(s, r.id))}</KV>
-              <KV k="Payroll" term="payroll">{F.money(payrollPerYear({ ...ZERO, [r.id]: p.staff[r.id] }), { perYear: true })}</KV>
-              <ActBtn id="hireTarget" params={{ role: r.id, target: targets[r.id] }} label="Set target" reason />
-              <div className="proj-list">{projects[r.id].slice(0, 4).map((x) => <div key={x} className="small dim ellip">{x}</div>)}</div>
-            </div>
-          </Card>
-        ))}
+    <Tip content={() => <TipCard title={<Term id="teamQuality">{QUALITY[q].label}</Term>}>Output ×{QUALITY[q].out} · cost ×{QUALITY[q].cost}</TipCard>}>
+      <span className={`qdots q-${q}`} data-q={q}>{[1, 2, 3].map((i) => <i key={i} className={i <= Q_N[q] ? 'on' : ''} />)}</span>
+    </Tip>
+  );
+}
+
+/** What a team adds, as one short chip (build capacity, research speed, taste, safety staff). */
+function GainChip({ s, t }: { s: GameStateV2; t: Pick<Team, 'role' | 'dept' | 'quality' | 'specialty'> }) {
+  const g = teamGain(s, t);
+  const text = g.currency === 'staffTime' ? `+${g.amount.toFixed(1)} build` : g.currency === 'alignment' ? `+${F.count(g.amount)} safety staff` : g.amount === 0 ? 'taste ±0' : `${t.role === 'sci' ? 'taste' : 'speed'} ${F.pct(g.amount, 1, true)}`;
+  return <Tip content={() => <TipCard title="If hired">{g.currency === 'staffTime' ? 'Build capacity, engineering team-weeks per week (before AI speed-up).' : g.currency === 'alignment' ? 'Safety staff: agendas, tool validation, investigations.' : t.role === 'sci' ? 'Research speed through research taste: Elite teams raise it, Solid teams lower it, Strong teams leave it. Scientists will also staff tree projects.' : 'Research speed through research labour h.'}</TipCard>}><span className={`pill2 ${g.amount < 0 ? 'cost' : 'gain'}`} data-test="team-gain">{text}</span></Tip>;
+}
+
+function Teams({ s }: { s: GameStateV2 }) {
+  const p = s.player;
+  const people = p.teams.reduce((a, t) => a + t.heads, 0);
+  const bc = buildCapacity(s);
+  const ai = aiShareByRole(s);
+  const prod = engine.production(s, 'player');
+  const pay = payrollOf(p);
+  const byKey = (k: TeamKey) => teamsOfKey(p, k);
+  const role = (r: TeamRole) => p.teams.filter((t) => t.role === r);
+  const heads = (ts: Team[]) => ts.reduce((a, t) => a + t.heads, 0);
+  const vacant = (ts: Team[]) => ts.reduce((a, t) => a + t.size - t.heads, 0);
+  const RoleHead = ({ r, right }: { r: TeamRole; right?: ReactNode }) => {
+    const Ic = ROLE_ICON[r];
+    return (
+      <div className="role-hd" data-role={r}>
+        <Ic size={15} /><Term id={ROLE_TERM[r]}>{r === 'eng' ? 'Engineers' : r === 're' ? 'Research eng.' : 'Scientists'}</Term>
+        <b className="num">{role(r).length}</b><span className="dim num">· {F.count(heads(role(r)))}</span>
+        <span className="sp" />{right}
       </div>
-      <div className="g2">
-        <Card title="Morale and talent">
-          <KV k="Morale" term="morale" home="morale"><Why k="morale" title="Morale" body="See [[morale]]."><HBar v={p.morale.overall} max={100} color={p.morale.overall < 40 ? C.bad : C.good} w={110} /> {F.idx(p.morale.overall)}</Why></KV>
-          <KV k="Safety staff morale" term="morale" home="moraleSafety"><Why k="morale.safety" title="Safety staff morale"><HBar v={p.morale.safety} max={100} color={C.und} w={110} /> {F.idx(p.morale.safety)}</Why></KV>
-          <KV k="Talent pull" term="talentPull" home="talentPull"><Why k="relations.talentPull" title="Talent pull">{F.idx(s.relations.talentPull)}</Why></KV>
-          <KV k="Research taste" term="researchTaste">{p.tasteHire.toFixed(2)}</KV>
-          <div className="btn-row"><ActBtn id="starHire" icon={ICON.hiring} reason /></div>
-        </Card>
+    );
+  };
+  const Pile = ({ k, label, sub, actions }: { k: TeamKey; label: ReactNode; sub?: ReactNode; actions?: ReactNode }) => {
+    const ts = byKey(k);
+    const v = vacant(ts);
+    return (
+      <div className={`team-pile ${ts.length > 1 ? 'stacked' : ''}`} data-pile={k}>
+        <div className="pile-top"><b className="num">×{ts.length}</b><span>{label}</span><span className="sp" />{ts.map((t) => <QDots key={t.id} q={t.quality} />).slice(0, 6)}</div>
+        <div className="pile-sub small">{sub}{v >= 1 && <span className="tone-warn"> · {F.count(v)} seats open</span>}<span className="sp" />{actions}</div>
+      </div>
+    );
+  };
+  const newest = (k: TeamKey) => byKey(k)[byKey(k).length - 1];
+  const releaseBtn = (t: Team | undefined, label = 'Let go') => t && <ActBtn id="teams.release" params={{ team: t.id }} icon={ICON.release} label={label} />;
+  const moveBtn = (t: Team | undefined) => t && <ActBtn id="teams.move" params={{ team: t.id }} icon={ICON.move} label="Move" />;
+  const sci = (dept: TeamDept) => p.teams.filter((t) => t.role === 'sci' && t.dept === dept);
+  const payTip = () => (
+    <TipCard title={<Term id="payroll">Payroll</Term>} value={F.money(pay, { perYear: true })} rows={(['eng', 're', 'sci'] as const).map((r) => ({ label: r === 'eng' ? 'Engineers' : r === 're' ? 'Research engineers' : 'Scientists', value: F.money(p.teams.filter((t) => t.role === r).reduce((a, t) => a + teamPayroll(t), 0), { perYear: true }) })).concat([{ label: 'Queued teams', value: F.money(p.hiring.filling.reduce((a, t) => a + teamPayroll(t), 0), { perYear: true }) }])}>Paid monthly from cash.</TipCard>
+  );
+  return (
+    <Card title={<span className="row-i"><ICON.staff size={15} /><Term id="team">Teams</Term></span>} sub={`${p.teams.length} teams · ${F.count(people)} people`} home="teams" className="teams-card"
+      right={(
+        <span className="row-i chips">
+          <Tip content={payTip}><span className="chip2" data-home="payroll"><Term id="payroll">Payroll</Term> <b className="num">{F.money(pay, { perYear: true })}</b></span></Tip>
+          <span className="chip2" data-home="morale"><Why k="morale" title="Morale" body="See [[morale]]."><ICON.morale size={13} /> Morale <b className="num">{F.idx(p.morale.overall)}</b></Why></span>
+          <span className="chip2" data-home="moraleSafety"><Why k="morale.safety" title="Safety staff morale"><ICON.safety size={13} /> Safety morale <b className="num">{F.idx(p.morale.safety)}</b></Why></span>
+        </span>
+      )}>
+      <div className="teams-body">
+        <div className="teams-col">
+          <RoleHead r="eng" right={<AiShare v={ai.eng} />} />
+          <Pile k="eng" label="shared pool"
+            sub={<Tip content={() => <TipCard title={<Term id="buildCapacity">Build capacity</Term>} value={`${bc.capacity.toFixed(1)} team-wk/wk`} rows={[{ label: 'Human (teams × quality)', value: bc.human.toFixed(1) }, { label: 'AI share of engineers\' work', value: F.pct(bc.aEng) }]}>What engineers can build each week. The build queue arrives with blueprints.</TipCard>}><span><ICON.build size={12} /> <Term id="buildCapacity">build</Term> <b className="num">{bc.capacity.toFixed(1)}</b> team-wk/wk</span></Tip>}
+            actions={releaseBtn(newest('eng'))} />
+          <RoleHead r="re" right={<AiShare v={ai.re} />} />
+          <Pile k="re.cap" label="Capabilities"
+            sub={<Tip content={() => <TipCard title="Research labour h" value={prod.ratios.h.toFixed(2)}>Capabilities research engineers ÷ (0.55 × the reference lab's staff). ×1 = the AI 2027 leader.</TipCard>}><span>labour <b className="num">h {prod.ratios.h.toFixed(2)}</b></span></Tip>}
+            actions={<>{moveBtn(newest('re.cap'))}{releaseBtn(newest('re.cap'))}</>} />
+          <Pile k="re.saf" label="Safety" sub={<span>tools · investigations</span>} actions={<>{moveBtn(newest('re.saf'))}{releaseBtn(newest('re.saf'))}</>} />
+        </div>
+        <div className="teams-col wide">
+          <RoleHead r="sci" right={(
+            <span className="row-i small">
+              <Tip content={() => <TipCard title={<Term id="researchTaste">Research taste</Term>} value={`×${p.tasteHire.toFixed(2)}`} rows={[{ label: 'Stars', value: String(p.stars) }, { label: 'AI share (taste)', value: F.pct(ai.sci) }]}>From capabilities science-team quality and stars.</TipCard>}>
+                <span><ICON.taste size={12} /> taste <b className="num">×{p.tasteHire.toFixed(2)}</b></span>
+              </Tip>
+              <ActBtn id="starHire" icon={ICON.hiring} label="Star" />
+            </span>
+          )} />
+          {(['cap', 'saf'] as const).map((d) => (
+            <div key={d}>
+              <div className="sec-cap" style={{ color: d === 'cap' ? SPHERE.cap : SPHERE.saf }}>{d === 'cap' ? 'Capabilities' : 'Safety'} · {sci(d).length}</div>
+              <div className="sci-grid">
+                {sci(d).map((t) => {
+                  const Ic = teamIcon(t);
+                  return (
+                    <div key={t.id} className={`sci-card ${d}`} data-team={t.id}>
+                      <div className="row-i"><Ic size={13} /><b>{t.specialty ? COLUMN_LABEL[t.specialty] : 'Science'}</b><span className="sp" /><QDots q={t.quality} /></div>
+                      <div className="row-i small dim">{t.heads < t.size - 0.5 ? `${F.count(t.heads)}/${t.size} people` : `${t.size} people`}<span className="sp" />{releaseBtn(t, '')}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="teams-foot small dim"><ICON.move size={12} /> <Term id="moveTeam">Safety → capabilities move</Term>: safety morale {MOVE_SAFETY_MORALE}</div>
+    </Card>
+  );
+}
+
+function Hiring({ s }: { s: GameStateV2 }) {
+  const p = s.player;
+  const h = p.hiring;
+  const nextOffer = 7 - (s.time.day % 7);
+  return (
+    <Card title={<span className="row-i"><ICON.hiring size={15} />Hiring</span>} home="hiring" className="hiring-card"
+      right={<span className="small" data-home="talentPull"><Why k="relations.talentPull" title="Talent pull"><Term id="talentPull">Talent pull</Term> <b className="num">{F.num(s.relations.talentPull, 0, true)}</b></Why></span>}>
+      <div className="sec-cap"><Term id="keepHiring">Keep hiring to</Term></div>
+      {TEAM_KEYS.map((k) => {
+        const Ic = keyIcon(k);
+        const n = h.targets[k] ?? 0;
+        const have = teamsOfKey(p, k).length;
+        const q = queuedOfKey(p, k).length;
+        return (
+          <div key={k} className="hire-row" data-key={k}>
+            <Ic size={13} /><span>{KEY_SHORT[k]}{k !== 'eng' && <span className={`dept-tag ${k.endsWith('saf') ? 'saf' : 'cap'}`}>{k.endsWith('saf') ? 'SAF' : 'CAP'}</span>}</span>
+            <span className="sp" />
+            {(have + q !== n || q > 0) && <span className="small dim num">{have} now{q ? ` · ${q} filling` : ''}</span>}
+            <span className="stepper">
+              <ActBtn id="teams.target" testId={`teams.target.down.${k}`} params={{ key: k, n: Math.max(0, n - 1) }} icon={ICON.minus} label="" block={n <= 0 ? 'Already 0' : undefined} />
+              <b className="num" data-test={`target-${k}`}>{n}</b>
+              <ActBtn id="teams.target" testId={`teams.target.up.${k}`} params={{ key: k, n: n + 1 }} icon={ICON.plus} label="" />
+            </span>
+          </div>
+        );
+      })}
+      {h.filling.length > 0 && (
+        <>
+          <div className="sec-cap"><Term id="hiringQueue">Filling</Term> <span className="dim">· <Term id="weeklyHireCap">{F.count(weeklyHireCap(s, 'cap'))}/wk</Term> cap · {F.count(weeklyHireCap(s, 'saf'))}/wk safety</span></div>
+          {h.filling.map((t) => {
+            const Ic = teamIcon(t);
+            const wk = fillWeeks(s, t);
+            return (
+              <div key={t.id} className="fill-row" data-filling={t.id}>
+                <Ic size={13} /><span className="ellip">{teamTitle(t)}</span><QDots q={t.quality} />
+                <HBar v={t.heads} max={t.size} color={t.dept === 'saf' ? SPHERE.saf : SPHERE.cap} w={70} />
+                <span className="small dim num">{Number.isFinite(wk) ? `${wk} wk` : 'stalled'}</span>
+                <ActBtn id="teams.release" testId="teams.cancel" params={{ team: t.id }} icon={ICON.release} label="" />
+              </div>
+            );
+          })}
+        </>
+      )}
+      <div className="sec-cap row-i"><Term id="teamOffer">Offers</Term><span className="sp" /><span className="dim">next in {nextOffer} d</span></div>
+      {h.candidates.length === 0 && <div className="small dim">No offers this week.</div>}
+      {h.candidates.map((c) => {
+        const Ic = teamIcon(c);
+        const wk = fillWeeks(s, { ...c, size: TEAM_SIZE[c.role], heads: 0 });
+        return (
+          <div key={c.id} className="offer" data-offer={c.id}>
+            <span className={`offer-ic ${c.dept}`}><Ic size={16} /></span>
+            <div className="offer-main">
+              <div className="row-i"><b>{teamTitle(c)}</b><QDots q={c.quality} /></div>
+              <div className="row-i small"><span className="num">{F.money(fullTeamPayroll(c.role, c.dept, c.quality), { perYear: true })}</span><span className="dim">· {Number.isFinite(wk) ? `${wk} wk` : 'stalled'} · until {c.until - s.time.day} d</span><GainChip s={s} t={c} /></div>
+            </div>
+            <ActBtn id="teams.hire" params={{ candidate: c.id }} icon={ICON.hiring} label="Hire" primary />
+          </div>
+        );
+      })}
+    </Card>
+  );
+}
+
+function People({ s }: { s: GameStateV2 }) {
+  const prod = engine.production(s, 'player');
+  return (
+    <div className="people-grid">
+      <Teams s={s} />
+      <div className="col2">
+        <Hiring s={s} />
         <Card title="AI labour" sub="your agents doing research" term="aiFte">
           <div data-test="ai-labour">
             <KV k="Agent copies × speed" term="agentCopies">{F.count(prod.labor.copies)} × {prod.labor.speed.toFixed(1)}</KV>
-            <KV k="AI FTE · researchers" term="aiFte">{F.count(prod.labor.aiFTE)} · {F.count(p.staff.cap)}</KV>
-            <KV k="Coding work by humans" term="humanShare">{F.pct(prod.labor.wH)}</KV>
-            <div className="stack2"><i style={{ flex: Math.max(0.001, 1 - prod.labor.wH), background: C.cap }} /><i style={{ flex: Math.max(0.001, prod.labor.wH), background: C.you }} /></div>
+            <KV k="AI FTE · research eng." term="aiFte">{F.count(prod.labor.aiFTE)} · {F.count(teamsOfKey(s.player, 're.cap').reduce((a, t) => a + t.heads, 0))}</KV>
             <KV k="AI taste (SD over median)" term="researchTaste">{prod.sdAI.toFixed(2)}</KV>
           </div>
         </Card>
       </div>
-    </>
+    </div>
   );
 }
 

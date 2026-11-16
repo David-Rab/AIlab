@@ -7,6 +7,7 @@ import {
   MessageSquareOff, Microscope, Milestone, Network, Newspaper, PackageX, Pause, Play, PlugZap, Radar, RefreshCw, Rocket, Scale, ScanEye, ScrollText,
   Search, SearchCheck, Server, Settings2, Shield, ShieldAlert, Siren, Skull, SkipForward, SlidersHorizontal, Smile, Sparkles, Split, Star, Swords,
   Target, ThumbsUp, Timer, TrendingUp, TriangleAlert, Truck, Turtle, UserPlus, Users, UsersRound, UtilityPole, VenetianMask, Vote, Wallet, Warehouse, Workflow, Zap, ZapOff,
+  Wrench, TestTubeDiagonal, Telescope, Layers, WandSparkles, Cog, Compass, ScanSearch, ListChecks, ArrowLeftRight, UserMinus, Minus, Plus, CircuitBoard,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -33,6 +34,9 @@ export const ICON = {
   // time and actions
   pause: Pause, play: Play, speed2: ChevronsRight, speed3: FastForward, ff: SkipForward, go: ChevronRight, revalidate: RefreshCw,
   investigate: Search, split: SlidersHorizontal, help: CircleHelp, menu: Menu, check: Check, locked: Lock,
+  // people (R3): roles, tree-column specialties, team verbs
+  roleEng: Wrench, roleRE: TestTubeDiagonal, roleSci: Telescope, build: Cog, move: ArrowLeftRight, release: UserMinus, minus: Minus, plus: Plus,
+  colPretraining: Layers, colPosttraining: WandSparkles, colSystems: CircuitBoard, colAlignment: Compass, colInterp: ScanSearch, colEvals: ListChecks,
 } satisfies Record<string, LucideIcon>;
 export type IconId = keyof typeof ICON;
 

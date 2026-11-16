@@ -6,9 +6,11 @@ import { REFERENCE_BASE, REFERENCE_POST, STREAM_POOL_SHARE } from '../../../data
 import { decimalYear } from '../core/time';
 import { SPLIT_KEYS, TOP_KEYS, fromSpec, presetSplit, setSplit, specOf, type SplitPreset } from '../departments/split';
 import { applyBestMix } from '../production/production';
-import { ROLES, STAFF_COST_M, STAR_HIRE, payrollPerYear } from '../departments/staffing';
+import { STAR_HIRE } from '../../../data/v2/teams';
+import { hireStar } from '../departments/teams';
+import { TEAM_ACTIONS } from '../departments/teamActions';
 import type {
-  ActionDef, BaseDesign, Channel, ComputeSplit, CostLine, GameStateV2, PostDesign, RLFamily, StaffByRole,
+  ActionDef, BaseDesign, Channel, ComputeSplit, CostLine, GameStateV2, PostDesign, RLFamily,
 } from '../types';
 import { runEvalSuite } from './benchmarks';
 import { deploy, makeVariant, retireVersion, setInternalAgent, setServing, swapDeployment, withdraw } from './deployments';
@@ -342,25 +344,7 @@ export const DEPARTMENT_ACTIONS: ActionDef[] = [
     preview: (s, p) => splitPreview(s, presetSplit(str(p, 'preset', 'reference') as SplitPreset, decimalYear(s), s.player.split)),
     apply: (s, _ctx, p) => fail(applySplit(s, presetSplit(str(p, 'preset', 'reference') as SplitPreset, decimalYear(s), s.player.split), p)),
   },
-  {
-    id: 'hireTarget', sphere: 'departments', owner: 'WS1', title: 'Hiring target',
-    available: () => true,
-    preview: (s, p) => {
-      const role = str(p, 'role', 'cap') as keyof StaffByRole;
-      const n = num(p, 'target', s.player.hiring.target[role] ?? 0);
-      const d = n - (s.player.hiring.target[role] ?? 0);
-      const dollars = (d * STAFF_COST_M[role]) / 1000;
-      const what: CostLine['currency'] = role === 'cap' ? 'progress' : 'alignment';
-      return d >= 0
-        ? { costs: [{ currency: 'cash', amount: -dollars, target: '$B/yr payroll' }], gains: [{ currency: what, amount: d, lagDays: 42 }], exposure: [] }
-        : { costs: [{ currency: 'morale', amount: Math.max(-15, (100 * d) / Math.max(1, s.player.staff[role])) }, { currency: what, amount: d }], gains: [{ currency: 'cash', amount: -dollars, target: '$B/yr payroll' }], exposure: [] };
-    },
-    apply: (s, _ctx, p) => {
-      const role = str(p, 'role', 'cap') as keyof StaffByRole;
-      if (!ROLES.includes(role)) fail('Unknown role');
-      s.player.hiring.target[role] = Math.max(0, Math.round(num(p, 'target', s.player.hiring.target[role])));
-    },
-  },
+  ...TEAM_ACTIONS,
   {
     id: 'starHire', sphere: 'departments', owner: 'WS1', title: 'Star hire',
     available: (s) => (s.player.tasteHire >= STAR_HIRE.maxTaste ? 'Taste bench is full' : s.player.finance.cash < STAR_HIRE.cost ? 'Not enough cash' : true),
@@ -370,7 +354,7 @@ export const DEPARTMENT_ACTIONS: ActionDef[] = [
       exposure: [],
     }),
     apply: (s, ctx) => {
-      s.player.tasteHire = Math.min(STAR_HIRE.maxTaste, s.player.tasteHire + STAR_HIRE.dTaste);
+      hireStar(s);
       bookCash(s, ctx, -STAR_HIRE.cost, 'staff', 'star hire');
       for (const r of s.rivals) if (r.core.status === 'active') r.meters.cooperation = Math.max(-100, r.meters.cooperation + STAR_HIRE.cooperation / Math.max(1, s.rivals.length));
       ctx.log('company', 'A star researcher joins.', 1);
@@ -380,6 +364,3 @@ export const DEPARTMENT_ACTIONS: ActionDef[] = [
 
 /** Models + Departments spheres (registered in core/registry.ts). */
 export const MODEL_ACTIONS: ActionDef[] = [...RUN_ACTIONS, ...DEPARTMENT_ACTIONS];
-
-/** Annual payroll at the current hiring targets ($B/yr) — UI helper. */
-export const payrollAtTarget = (s: GameStateV2) => payrollPerYear(s.player.hiring.target);

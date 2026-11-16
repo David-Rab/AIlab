@@ -10,7 +10,7 @@ import { recordSystem } from './record';
 import { productionSystem } from '../production/production';
 import { continualSystem, runsSystem } from '../models/runs';
 import { milestonesSystem } from '../models/capability';
-import { hiringSystem } from '../departments/staffing';
+import { hiringSystem } from '../departments/teams';
 import { MODEL_ACTIONS } from '../models/actions';
 // WS2
 import { safetyResearchSystem } from '../safety/agendas';
@@ -105,7 +105,7 @@ const VERB_TAG: Record<string, [ActionVerb, StructureSystem]> = {
   runEvals: ['policy', 'models'], retireVersion: ['launch', 'models'], makeVariant: ['launch', 'products'],
   deploy: ['launch', 'products'], swapDeployment: ['launch', 'products'], setServing: ['launch', 'products'], withdraw: ['launch', 'products'],
   setInternalAgent: ['policy', 'models'], fundParadigm: ['research', 'research'], adoptParadigm: ['research', 'research'],
-  setSplit: ['policy', 'compute'], splitPreset: ['policy', 'compute'], hireTarget: ['hire', 'people'], starHire: ['hire', 'people'],
+  setSplit: ['policy', 'compute'], splitPreset: ['policy', 'compute'], 'teams.hire': ['hire', 'people'], 'teams.release': ['hire', 'people'], 'teams.move': ['hire', 'people'], 'teams.target': ['policy', 'people'], starHire: ['hire', 'people'],
   'safety.fund': ['research', 'safety'], 'safety.cut': ['research', 'safety'], 'safety.automate': ['policy', 'safety'], 'safety.agents': ['policy', 'safety'],
   'safety.investigate': ['respond', 'safety'], 'safety.closeCase': ['respond', 'safety'], 'safety.respond': ['respond', 'safety'],
   'safety.publishPolicy': ['policy', 'safety'], 'safety.evalGate': ['policy', 'safety'], 'safety.monitoring': ['policy', 'safety'],

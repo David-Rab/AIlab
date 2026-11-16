@@ -16,7 +16,8 @@ import { decimalYear } from '../core/time';
 import { shareRefAt, TOP_KEYS, topOf, withFixed } from '../departments/split';
 import { financeAutopilot, financeDecide, REF_AUTOPILOT } from '../finance/plan';
 import { hRef } from '../production/knots';
-import type { BotPolicy, ComputeSplit, EngineApi, GameStateV2, ModelVersion, PendingDecision } from '../types';
+import { REF_ROLE_SHARE, SAF_ROLE_SHARE, TEAM_SIZE } from '../../../data/v2/teams';
+import type { BotPolicy, ComputeSplit, EngineApi, GameStateV2, ModelVersion, PendingDecision, TeamKey } from '../types';
 
 type Params = Record<string, number | string | boolean>;
 
@@ -88,12 +89,14 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
     const want = topOf(ref);
     const diff = TOP_KEYS.some((k) => Math.abs(want[k] - now[k]) > 1e-3) || Math.abs(ref.synthetic - p.split.synthetic) > 1e-3;
     if (diff) tryAct(s, api, 'setSplit', { ...ref });
-    const target = Math.round(hRef(yr + 0.12));
-    if (target > p.hiring.target.cap) tryAct(s, api, 'hireTarget', { role: 'cap', target });
+    // Whole teams in the reference split (D2): round(share · H_ref(t + 6 wk) / size) per role.
+    const H = hRef(yr + 0.12);
+    const teamsWanted: [TeamKey, number][] = (['eng', 're', 'sci'] as const).map((r) => [r === 'eng' ? 'eng' : `${r}.cap`, Math.round((REF_ROLE_SHARE[r] * H) / TEAM_SIZE[r])]);
     if (o.safStaffShare !== undefined) {
-      const saf = Math.round((o.safStaffShare / (1 - o.safStaffShare)) * Math.max(target, p.staff.cap));
-      if (saf > p.hiring.target.saf) tryAct(s, api, 'hireTarget', { role: 'saf', target: saf });
+      const saf = (o.safStaffShare / (1 - o.safStaffShare)) * Math.max(H, p.staff.cap);
+      teamsWanted.push(['re.saf', Math.round((SAF_ROLE_SHARE.re * saf) / TEAM_SIZE.re)], ['sci.saf', Math.round((SAF_ROLE_SHARE.sci * saf) / TEAM_SIZE.sci)]);
     }
+    for (const [key, n] of teamsWanted) if (n > (p.hiring.targets[key] ?? 0)) tryAct(s, api, 'teams.target', { key, n });
   }
 
   // Paradigms: fund open reference projects; adopt successes; retry failures when allowed.

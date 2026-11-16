@@ -141,10 +141,12 @@ function record(only?: Set<string>): Trace[] {
 
 // ───────────────────────────── diff ─────────────────────────────
 
-/** Tolerances: days are absolute, `rel*` relative (fraction), `abs*` absolute. Override with --tol key=value,… */
+/** Tolerances: days are absolute, `rel*` relative (fraction), `abs*` absolute. Override with --tol key=value,…
+ *  R3: the player's h now moves in whole research-engineering teams (one team ≈ 9% of h at the start), so the monthly
+ *  h tolerance is one team; the calibration gate on labour is the mean h over the common months (relMeanH). */
 export const TOL: Record<string, number> = {
   milestoneDays: 10, paradigmDays: 14, runDays: 7,
-  relM: 0.05, relH: 0.01, relK: 0.05, relC: 0.05, absSdAI: 0.1, absPa: 0.1, absL: 0.15,
+  relM: 0.05, relH: 0.1, relMeanH: 0.01, relK: 0.05, relC: 0.05, absSdAI: 0.1, absPa: 0.1, absL: 0.15,
   relRevenue: 0.1, relCash: 0.1, absU: 0.25,
 };
 
@@ -206,6 +208,10 @@ function diffTrace(cur: Trace, ref: Trace): Row[] {
     }));
   series('M', 'monthly M', TOL.relM, true, 0.5);
   series('h', 'monthly h', TOL.relH, true);
+  const meanOf = (xs: number[]) => xs.reduce((a, x) => a + x, 0) / Math.max(1, xs.length);
+  const mhA = meanOf(months.map((m) => m.h));
+  const mhB = meanOf(months.map((m) => rm.get(m.day)!.h));
+  add('mean h', TOL.relMeanH, '%', [[rel(mhA, mhB, 0.05), `${mhA.toFixed(4)} vs ${mhB.toFixed(4)} over ${months.length} months`]]);
   series('k', 'monthly k', TOL.relK, true);
   series('c', 'monthly c', TOL.relC, true);
   series('sdAI', 'monthly sdAI', TOL.absSdAI, false);

@@ -9,7 +9,7 @@
 //   schedule, unconditional equity tranches, debt maturities that cannot roll.
 // Runway = quarters until projected liquidity (cash + undrawn revolver) falls below a minimum operating cash of one
 // month of running costs, capped at the horizon.
-import { payrollPerYear } from '../departments/staffing';
+import { payrollOf } from '../departments/teams';
 import { powerAndOMPerYear } from '../compute/power';
 import { dayOfQuarter } from '../core/time';
 import type { Day, FinanceState, GameStateV2, Money } from '../types';
@@ -34,7 +34,7 @@ export const RUNWAY_CAP = PROJECTION_Q;
 export function operatingCostsPerYear(s: GameStateV2): Money {
   const p = s.player;
   const share = p.finance.deals.reduce((a, d) => a + (d.strings.revenueShare ?? 0), 0) * p.finance.revenueRun;
-  return payrollPerYear(p.staff) + p.security.spendRate + p.policies.transitionFund + powerAndOMPerYear(s) + interestPerYear(s) + share;
+  return payrollOf(p) + p.security.spendRate + p.policies.transitionFund + powerAndOMPerYear(s) + interestPerYear(s) + share;
 }
 
 export type CashPart = 'revenue' | 'operating' | 'commitments' | 'chips' | 'sites' | 'funding' | 'debt';

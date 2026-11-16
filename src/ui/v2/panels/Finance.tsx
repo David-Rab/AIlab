@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import {
   actionView, dateOf, dayOfQuarter, dealMenu, dealPreview, debtHeadroom, debtRatePct, fmtDate, fmtMonth, interestPerYear, ledgerDue, liveLedger,
-  payrollPerYear, qOf, raiseCeiling, runwayOf, totalDebt,
+  payrollOf, qOf, raiseCeiling, runwayOf, totalDebt,
 } from '../../../engine/v2';
 import type { BoardSeat, Debt, GameStateV2 } from '../../../engine/v2';
 import { ActBtn, CauseBars, Gate, Seg, Term, Tip, TipCard, Why } from '../ui';
@@ -40,7 +40,7 @@ function Waterfall({ s }: { s: GameStateV2 }) {
   const rw = runwayOf(s);
   const p = rw.parts;
   const pl = s.player;
-  const payQ = payrollPerYear(pl.staff) / 4;
+  const payQ = payrollOf(pl) / 4;
   const secQ = pl.security.spendRate / 4;
   const fundQ = pl.policies.transitionFund / 4;
   const intQ = interestPerYear(s) / 4;

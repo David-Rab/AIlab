@@ -19,7 +19,7 @@ import { initialCloud, initialOrders } from '../compute/orders';
 import { initialPower } from '../compute/power';
 import { initialSites } from '../compute/sites';
 import { shareRefAt } from '../departments/split';
-import { START_STAFF } from '../departments/staffing';
+import { seedCandidates, staffOf, startTeams } from '../departments/teams';
 import { initialBoard } from '../finance/board';
 import { initialCapital } from '../finance/investors';
 import { initialFinance } from '../finance/ledger';
@@ -38,7 +38,7 @@ import type {
   Deployment, DomainId, EvalRecord, GameStateV2, MilestoneIdx, ModelVersion, PlayerLab, SetupV2, TimelineWorld, ToolFamily, TraitBelief, TraitId, TrainingRun, VersionBuild,
 } from '../types';
 import { emptySeries, sampleSeries } from './record';
-import { seedStreams } from './rng';
+import { seedStreams, StreamRng } from './rng';
 import { SCHEMA_REV } from './save';
 import { START_DATE } from './time';
 
@@ -108,7 +108,8 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   const ps = playerStart(w);
   const pm0 = ps.target;
   const build: VersionBuild = { paBase: ps.paBase, paPost: ps.paPost, kappa: KAPPA.post, pc: ps.pcB0, dp: 0, off: {}, h80Mult: 1, misuseMult: 1, signals: {} };
-  const staff = { ...START_STAFF[setup.baseline] };
+  const roster = startTeams(setup.baseline);
+  const staff = staffOf(roster.teams);
   const Lg = levelOf(w, pm0);
   const domains = domainsOf(w, pm0);
   const lineage = 'L-player-1';
@@ -158,7 +159,9 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     orders: initialOrders(setup.baseline),
     cloud: initialCloud(setup.baseline, startDate),
     safety: initialSafetyDept(),
-    hiring: { target: { ...staff }, pipeline: [] },
+    teams: roster.teams,
+    stars: 0,
+    hiring: roster.hiring,
     morale: { overall: 70, safety: 65 },
     dataAssets: { licensedTokensT: 30, unlicensedTokensT: 270, syntheticTokensT: 20, litigationRisk: (0.02 * 270) / 100 },
     policies: { whistleblowerChannel: false, publishSafety: 'selective', govBriefing: 1, shareWithAllies: false, transitionFund: 0, communityBenefits: false },
@@ -224,6 +227,7 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
     if (core) core.prodCache = computeProduction(s, id);
   }
   for (const r of [...rivals, china.lab]) r.core.pa = simpleStartPa(s, r.core.id, r.internal.pm);
+  seedCandidates(s.player.hiring, new StreamRng(s, 'company'));
   sampleSeries(s);
   return s;
 }

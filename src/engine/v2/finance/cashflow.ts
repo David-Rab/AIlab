@@ -7,7 +7,7 @@
 // (on delivery, marketQ) and site capex (by stage, sitesQ). Security spend and the transition fund are charged ONLY
 // here (WS4 keeps the security effects, WS5 the fund's effects on workers). Other workstreams book one-off costs
 // through `bookCash` themselves (WS1 run cash at launch, WS4 action/event costs) and must not deduct the items above.
-import { payrollPerYear } from '../departments/staffing';
+import { payrollOf } from '../departments/teams';
 import { powerAndOMPerYear } from '../compute/power';
 import { revenueOf } from '../worldfx/revenue';
 import type { Commitment$, EngineSystem, GameStateV2, SystemCtx } from '../types';
@@ -87,7 +87,7 @@ export const payrollSystem: EngineSystem = {
     const p = s.player;
     const f = p.finance;
     const ys = yearStats(s);
-    const payroll = payrollPerYear(p.staff) / 12;
+    const payroll = payrollOf(p) / 12;
     bookCash(s, ctx, -payroll, 'payroll', 'payroll');
     ys.payroll += payroll;
     const security = p.security.spendRate / 12;

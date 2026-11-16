@@ -3,6 +3,7 @@ import { dayOfQuarter, quarterIndex } from '../core/time';
 import type { GameStateV2, Money, Ownership, RepricedRound, SystemCtx } from '../types';
 import { ensureWs3, yearStats, type PendingRound } from './ext';
 import { bookCash } from './ledger';
+import { changeHeads } from '../departments/teams';
 
 /** V = 22·(g/5)^0.4·(R/$20B)^−0.15·H·N·M·R (R15 §1.5). */
 export function valuationMark(g: number, R: number, H: number, N: number, M: number): number {
@@ -131,7 +132,9 @@ export function bookRound(s: GameStateV2, ctx: SystemCtx, amount: Money, pre: Mo
   yearStats(s).equity += now;
   if (down) {
     ctx.bump('board.confidence', -15, 'down round');
-    ctx.bump('player.staff.cap', -0.05 * s.player.staff.cap, 'down round', 'senior attrition');
+    const lost = 0.05 * s.player.staff.cap;
+    changeHeads(s, 'cap', -lost);
+    ctx.cause('player.staff.cap', -lost, 'down round', 'senior attrition');
     // Anti-dilution: prior investors receive shares worth 20% of the value gap [R15 Design].
     const gap = (lastPostMoney(s) - pre) / Math.max(1, lastPostMoney(s));
     issue(f.ownership, Math.min(0.1, 0.2 * gap * outsideShare(f.ownership)), { kind: 'fin' });
