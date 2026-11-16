@@ -20,7 +20,7 @@ import { decimalYear } from '../core/time';
 import { shareRefAt } from '../departments/split';
 import { CHINA_ID, PLAYER_ID, internalVersion, labCore, otherLabs } from '../models/labs';
 import { deltaRsch } from '../models/capability';
-import { paradigmLoad } from '../models/paradigms';
+import { payoffOf } from '../models/tree';
 import { asV1World } from '../world/calibration';
 import { poolsOf } from '../compute/power';
 import { rivalSpeedMult } from '../actors/rivals';
@@ -36,7 +36,7 @@ export interface LabInputs {
   yr: number;
   h: number; k: number; c: number; d: number;
   /** c and k this lab would have with all of its research compute (experiments + agents) on experiments / on agents;
-   *  C = that research compute (H100e), load = paradigm share of the experiment pool, off = agents switched off. */
+   *  C = that research compute (H100e), load = 0 (paradigm projects took experiment compute before R4), off = agents switched off. */
   mixUnit: { c: number; k: number; C: number; load: number; off: boolean };
   /** min(1, S_eff / N_req(F(t))) — data-stock adequacy (§3.2.2). */
   stock: number;
@@ -224,21 +224,20 @@ export function labInputs(s: GameStateV2, lab: LabId, day = s.time.day): LabInpu
   if (isPlayer) {
     const par = s.player.paradigms;
     if (par.P05?.status === 'adopted') etaMod *= 1.3;
-    if (par.P20?.status === 'adopted') etaMod *= 1.1; // agent societies [D]
-    if (par.P13?.status === 'adopted') cMult = 1.5;
+    // R4: no capability gates, so P13 and P20 pay off with what they need (models/tree.ts payoffOf).
+    if (par.P20?.status === 'adopted') etaMod *= 1 + 0.1 * payoffOf(s, 'P20'); // agent societies [D]
+    if (par.P13?.status === 'adopted') cMult = 1 + 0.5 * payoffOf(s, 'P13');
     if (s.player.deployments.some((d) => d.channel === 'internal' && d.status === 'live' && d.controlLayer)) controlTax = 0.05;
     mods *= 1 - 0.05 * s.player.security.siloing; // research speed −5% per silo level (§3.4.3)
     if (Number(s.flags['ws4:sidelinedUntil'] ?? -1) > day) H *= 0.9; // E12 clearances sideline 5–15% of staff for 60 d (§3.4.1)
     if ((s.player.finance.ws3.asicMigrationUntil ?? -1) > day) mods *= 0.85; // custom-ASIC migration: −15% research efficiency (§3.7.4)
   } else mods *= rivalSpeedMult(s, lab); // a binding leader slows itself (§3.10.3, WS4)
-  // Paradigm projects tie up research FTE and a share of the experiment pool (§3.3.3).
-  const load = isPlayer ? paradigmLoad(s) : { fte: 0, expShare: 0 };
-  H = Math.max(1, H - load.fte);
+  H = Math.max(1, H);
   // Pools are WS3's: computeOnline × split (§3.4.2). Internal agents switched off (E25 shutdown & hunt) → no agent pool.
   const pools = poolsOf(s, lab);
   const agentsOff = isPlayer && Number(s.flags['ws4:agentsOffUntil'] ?? -1) > day;
   const Cag = agentsOff ? 0 : pools.agents;
-  const Cexp = pools.experiments * (1 - load.expShare);
+  const Cexp = pools.experiments;
   const Csyn = pools.synthetic;
   const h = H / hRef(yr);
   const qDep = pDepOf(s, lab) + w.calShift;
@@ -249,9 +248,9 @@ export function labInputs(s: GameStateV2, lab: LabId, day = s.time.day): LabInpu
   const stock = isPlayer ? dataStockRatio(s, yr) : 1;
   const Cres = pools.experiments + pools.agents;
   const mixUnit = {
-    c: (cMult * Cres * (1 - load.expShare)) / Math.max(1, ref * sh.experiments * rt.c),
+    c: (cMult * Cres) / Math.max(1, ref * sh.experiments * rt.c),
     k: agentsOff ? 0 : (Cres * etaMod * (1 - controlTax)) / Math.max(1, ref * sh.agents * rt.k),
-    C: Cres, load: load.expShare, off: agentsOff,
+    C: Cres, load: 0, off: agentsOff,
   };
   // pauseMult 0.1 during a voluntary or committee pause of frontier experiments (§3.1.2; WS4 frontierPauseUntil).
   const pause = isPlayer && (s.flags.paused || ws4r(s).frontierPauseUntil > day) ? 0.1 : 1;

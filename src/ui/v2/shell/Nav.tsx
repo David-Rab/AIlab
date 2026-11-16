@@ -1,7 +1,7 @@
 // Left navigation (IA.md L0): panels grouped by sphere; badges show where action waits (Watch count, decisions per
 // sphere, new findings, idle chips). Locked panels show the act and its trigger.
 import type { LucideIcon } from 'lucide-react';
-import { eventDef } from '../../../engine/v2';
+import { eventDef, idleTeams } from '../../../engine/v2';
 import type { GameStateV2 } from '../../../engine/v2';
 import { store, useV2 } from '../store';
 import { ACT_NAMES, Tip, TipCard, UNLOCK_ACT, unlocked } from '../ui';
@@ -15,7 +15,8 @@ export const NAV: NavItem[] = [
   { id: 'company', label: 'Company', icon: ICON.company, desc: 'Where compute goes and what it produces; people, compute split, security.', group: 'COMPANY' },
   { id: 'finance', label: 'Finance', icon: ICON.finance, desc: 'Cash flow, raising, contracts, debt, board and markets.', group: 'COMPANY' },
   { id: 'compute', label: 'Compute', icon: ICON.computePanel, desc: 'Chip market, orders, sites and power.', group: 'COMPANY' },
-  { id: 'models', label: 'Models', icon: ICON.models, desc: 'Lineage, model card, runs in progress, paradigms.', group: 'MODELS' },
+  { id: 'research', label: 'Research', icon: ICON.research, desc: 'Know-how, the tech tree, research projects and the queue.', group: 'MODELS' },
+  { id: 'models', label: 'Models', icon: ICON.models, desc: 'Lineage, model card and runs in progress.', group: 'MODELS' },
   { id: 'rundesigner', label: 'Runs', icon: ICON.runs, desc: 'Design and launch training runs; see what a recipe pushes.', group: 'MODELS' },
   { id: 'deployments', label: 'Deploy', icon: ICON.deploy, desc: 'Channels, pricing, serving capacity and demand.', group: 'MODELS' },
   { id: 'safety', label: 'Safety', icon: ICON.safety, desc: 'Trait graph, agendas, tools, incidents and findings.', group: 'SAFETY' },
@@ -37,6 +38,8 @@ export function navBadges(s: GameStateV2): Record<string, { n: string; tone: 'wa
   for (const [id, n] of Object.entries(dec)) if (id !== 'overview') b[id] = { n: String(n), tone: 'warn' };
   const fresh = s.player.safety.findings.filter((f) => s.time.day - f.day <= 30).length;
   if (fresh && !b.safety) b.safety = { n: String(fresh), tone: 'info' };
+  const idleSci = idleTeams(s).length;
+  if (idleSci) b.research = { n: String(idleSci), tone: 'warn' };
   if (w.some((x) => x.id === 'idle') && !b.compute) b.compute = { n: '!', tone: 'warn' };
   if (w.some((x) => x.id === 'capped') && !b.deployments) b.deployments = { n: '!', tone: 'warn' };
   return b;

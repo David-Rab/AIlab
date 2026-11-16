@@ -22,7 +22,123 @@ Single source of truth for where the build stands. Update at every milestone or 
 | **R1 Restructure: baseline, bugs, scaffolding** | Done (2026-11-16): B1–B5, LIMITS removals, setup/meta fields, ref-trace tool, schemaRev 4; all §7.4 bot criteria MET (200 seeds) | "R1: commitment scope, …" on `game-structure` |
 | **R3 Restructure: teams and roles** | Done (2026-11-16): fixed-size teams in three roles, h from capabilities research engineers, τ_h from science quality + stars, keep-hiring policy, offers, Company › People teams + hiring cards, schemaRev 5; no CAL_SHIFT refit; all §7.4 bot criteria MET (40 seeds) | "R3: teams and roles, …" on `game-structure` |
 | **R2 Restructure: leader lab in the world** | Done (2026-11-16): simulated AI 2027 leader "Polaris AI" behind `setup.leaderLab` (default off), T1L passes with LEADER_CAL, `--fit-leader`; flag off identical (ref-trace, bots); no schemaRev change | "R2: leader lab …" on `game-structure` |
-| **R4–R10 Tycoon restructure: build** | Next: R4 … R10 serially (BUILD-PLAN parallelism note); milestones logged below. `gs-leader-lab` held no work beyond R1 and was not merged | |
+| **R4 Restructure: tech tree and capability projects** | Done (2026-11-17): 93-node shared tree, science teams on projects (√ capacity, ×1.5 specialty, absolute M), per-world rolls and retries, design-option locks, auto-assign, Research panel, schemaRev 6; fitted efforts; CAL_SHIFT refit (authors2026, fast, slow) and LEADER_CAL refit; all §7.4 bot criteria MET (200 seeds); one new worldfx failure (GOV accept) documented | "R4: tech tree …" on `game-structure` |
+| **R5–R10 Tycoon restructure: build** | Next: R5 … R10 serially (BUILD-PLAN parallelism note); milestones logged below. `gs-leader-lab` held no work beyond R1 and was not merged | |
+
+## R4 Tech tree and capability projects (2026-11-17, branch `game-structure`, worktree ../AI27-structure)
+
+Per design/BUILD-PLAN.md §2 R4, TECH-TREE.md, STRUCTURE §4.2–4.3, mockups-v3/v3-research*.
+
+**Data `src/data/v2/tree.ts`.** 93 nodes of TECH-TREE §2 (pretraining 13, post-training 18, systems 22, alignment 11,
+interpretability 10, evals & control 19; max depth 4): id, column, layer, needs, effort class, `effortTM`, odds (paradigm
+prior or own odds), star, design options unlocked (`OPTION_NODE` slot:value → node), cash cost (P12 $1B), effect arrows
+and card text. Paradigms keep their P-ids (P01–P04 are ★). Safety-column nodes carry their technique / agenda and are
+read-only mirrors (known when the technique is unlocked; P27 stays a researchable paradigm). Product-feature nodes
+(Coding agent, Voice & vision, Deep research) are `soon: 'products'` (not researchable until R6). `data/v2/paradigms.ts`
+keeps id, name, prior (world-draw order unchanged) and display text; tiers, gates, effortDays and FTE constants are gone.
+
+**Engine `models/tree.ts` (+ `treeActions.ts`).** `player.tree[id] {status researching|known|failed, progress, day,
+attempts, priorMult, retryDay}` (sparse; locked/open/queued/active derived by `nodeStatus`) and `player.research {queue,
+autoAssign}`. `researchSystem` (daily, order 35): progress/day = M · √capacity / (effortTM · 30), capacity = Σ heads/40 ×
+quality × 1.5 in the specialty column (D3: M = the production readout's absolute M). Rolls: a paradigm's first attempt
+uses `hidden.paradigmSuccess`; every other attempt (new nodes, and all retries) `hash32(seed, 'node:'+id[+':'+n])` vs
+odds × ½ per failure; retry after 180 d. Success → known and `paradigms[id].status='adopted'` at once. Auto-assign policy
+(default on): idle capabilities science teams join the top ready project in their specialty, else the least-staffed; a
+ready project with no team takes one from the largest project (so RefBot's projects run side by side as the old 30-FTE
+projects did). Safety scientists are not assignable (agendas until R8). `optionLocked(s, slot, value)` is used by
+`planRun` (shape, data, curation, preference, RL focus families, RL intensity, CoT, inoculation) and `effortLock` (deep
+effort); options of read-only safety nodes (hazard filter, safety pretraining, inoculation) stay open until R8. Removed:
+tier/L gates, `paradigmGate`, `fundParadigm`, `adoptParadigm`, `paradigmLoad` and the FTE / experiment-share subtraction
+from H and c. Without gates P13/P20/P24 pay off with what they need (`payoffOf`: P13 c ×(1 + 0.5·ramp of RSCH 6.5→8.5),
+P20 with the agent pool / 2M, P24 +0.8 y × AI share of research labour 50→90%); Quantization ×0.8 and Speculative
+decoding ×0.85 serve cost on new versions; Fault-tolerant training halves restart risk. Actions: `research.queue` (adds
+missing researchable prerequisites first), `research.start` (top of the queue), `research.dequeue`, `research.move`,
+`research.assign`, `research.unassign`, `research.autoAssign`. Known at start: ★ nodes, mirrored known techniques, and
+(leader start, until R9's start data) the features the game already has (Agents product, Sector packs, KYC tiers).
+`knowHow()` selector for the know-how bar. `SCHEMA_REV` 6, cheap migration 5 → 6 (adopted/succeeded → known, researching
+→ queued with its progress, failed keeps retry date and odds); checked on the three rev-5 fixtures (load, 30 d RefBot,
+plain JSON). Fixtures regenerated.
+
+**Bots.** `REF_PARADIGMS` → `REF_TREE` (TreeGoal {id, when}) with the old gate pacing (P05/P07 day 0, P08 L ≥ 7, RL focus:
+ML research L ≥ 6.5 (P13's new prerequisite), P13 L ≥ 6.5 and RSCH ≥ 8.5, P17 L ≥ 9.5, P19 L ≥ 8.5), queued when their
+prerequisites are known, a failed one again from its retry date. Safe bot: REF_TREE − P17 + P23 (old gate: L ≥ 8.5 and an
+AG09 technique; CoT monitor is known at start). Race and mixed unchanged apart from the goal type.
+
+**Calibration.** `calib.ts --fit-tree [presets]` scales RefBot's node efforts until every attempt lasts its pre-R4
+duration (damped; ai2027): **P05 7.43, P07 5.63, P08 30.14, P13 81.34, P17 40.5 team-months**; other paradigms = old
+effortDays × 0.2; new nodes S/M/L/XL = 3/8/25/50. **CAL_SHIFT refit (logged in calibration.ts):** ai2027 0.08
+(unchanged: +0.01 fits the stub trace better but moves the integrated one 14 d), authors2026 0.025 → 0.03, fast 0.105 →
+0.075, slow −0.197 → −0.172. **LEADER_CAL refit** for those presets: authors2026 0.063 → 0.068, fast 0.085 → 0.053, slow
+−0.029 → −0.004. T1, T1L, T2 (177k copies, 30.9×) pass; T1 SC Δ: ai2027 +0.003, authors2026 −0.044, fast −0.049,
+slow −0.038 y.
+- ref-trace vs R1: milestones stub ai2027 ≤ 7 d, integrated ≤ 4 d; fast SC +3 d (A1 −11, informational); slow SC −1 d
+  (A1 −68, a step of the discrete runs); authors2026 SC +3 d but SIAR +19 / ASI +30 d (8-year horizon). Adoption days:
+  integrated within 4 d; stub ai2027/authors2026 P07, P08, P13, P17 within 16 d **except P05**: the old retry drew from
+  the 'runs' stream (succeeded at day 301 in the stub traces, failed in the integrated one); the per-world hash draw fails
+  it on seed 2027 in every trace. fast P13 is now adopted (886) and slow P13 later: with absolute M (D3) late projects run
+  faster in the fast world and slower in the slow one. Mean h +1.1–1.4% (paradigm FTE no longer subtracted; expected).
+  Integrated revenue at day 822 +130% and cash +15%: a mini release lands at a different time.
+
+**Gates.**
+- `npm run typecheck`, `tsc -p scripts/v2`: clean. identity and golden-timelines unchanged and passing.
+- test:v2 scripts individually: golden-timelines, identity, calib, fixtures, lint-hidden, lint-ux, lint-tradeoffs (101
+  actions), safety, finance, ws4, money pass; hygiene passes except the known absolute performance budget (machine under
+  load; the leader lab's paired cost +6.6%). **worldfx: the known HireRate_SOFT failure (now 2027-01-07) plus one new
+  failure, "Dec 2027 (±3 mo): GOV T1 Accept ≥ 0.85" at 2028-03-31 (base 2027-12-26).** Traced: in the worldfx reference
+  play RefBot's enterprise channel ends up on the continual-learning stream version, whose rising level keeps the
+  "served" level up, so the staleness rule stops distilling public minis after day ~870 and the government's model
+  stalls. RefBot's release rule meets a different path; it was not changed here (that would tune the reference bot to a
+  test). Left open for the user / R6 (products replace the swap logic).
+- Performance (`_perf.ts`, seed 9, 1,500 days; baseline worktree at a4084e7 and R4 alternated 4 × 2 runs on a loaded
+  machine): daily 2.35 ms (base) vs 2.34 ms (R4); worst quarter 20.3 vs 17.7 ms. No regression.
+- `npm run test:ui`: 140/140 (new Research section: know-how bar, tree, node card, Start now, auto-assign, second idea
+  queued, team picker assign, auto-assign toggle, reorder, Safety filter, minimap, drop; run designer overtrained locked
+  behind its node; the deep-effort lock names the node). Screenshots 40–42 and day-400/900 research checked.
+- **Bots, 200 seeds** (`--seeds 50 --from 0/50/100/150` merged with `--load`): all six §7.4 criteria MET.
+
+| bot | win | mixed | loss | med. day | top endings |
+|---|---|---|---|---|---|
+| race | 3.5% | 7.0% | 89.5% | 815 | asiTakeover 60.5%, ousted 15%, nationalized 8.5% |
+| safe | 0.0% | 3.0% | 97.0% | 1462 | overtaken 62.5%, ousted 33.5% |
+| mixed | 50.5% | 6.5% | 43.0% | 1027 | asiAligned 51%, asiTakeover 12.5%, ousted 11.5%, nationalized 10.5% |
+| capex2x | 1.5% | 0.5% | 98.0% | 304 | insolvent 93% |
+| ref | 19.0% | 5.0% | 76.0% | 979 | asiTakeover 38%, asiAligned 19.5%, ousted 14% |
+
+§7.4: race win 3.5%; race losses 73% takeover / 27% company-loss; safe win 0%; safe losses 65% other-first; mixed 50.5%,
++47 pp over both extremes; passive takeover-type 64%. Choices vs world (final Mis): bot policy 65%, world 21%, rest 14%.
+E5 14/17.
+- **Beelining** (scratch, 24 seeds each, RefBot's policy with other goals): P07 → P17 from day 0 gets neuralese at a
+  median day 319 (RefBot 705) and SC at 558 vs 615; win 21% vs 17%, takeover 11/24 vs 10/24. Queuing every capability
+  idea at once (P13, P19, P24, …) spreads the teams: SC 618, win 25% (noise at n = 24). A real strategy (≈ 2 months to
+  SC for monitorability lost), not a dominating exploit.
+
+**UI.** `panels/Research.tsx` + `research.css` per v3-research (good-ui pass): header know-how bar (home `knowHow`:
+months not trained in, Train link) and a Research-speed link to Company; tree card (home `tree`): six lanes, columns =
+depth from what you know (Known pills, Depth 1–3, "+N ›" deeper), All/Capability/Safety filter, legend, minimap (all 93
+ideas; click toggles the whole tree), nodes with state icon, effect arrows, layer badge, effort·odds / needs / queue no.
+/ progress / retry date / Safety line; edges measured from the DOM (amber dashed when a missing prerequisite matters
+now); node card (effect, pays-off now, odds or research-line link, effort and ETA with breakdown, needs, unlocks with
+Runs/Deploy links, Start now / Assign teams / Queue / Drop); team picker (bonus ×1.5/×1.0, ETA before → after, cost on
+the project the team leaves, assign / take off); active-project cards (home `projects`: team chips, ×1.5, progress,
+ETA, odds, idle count, auto-assign toggle) and the queue (home `queue`: wait reason, reorder, drop). Nav: Research
+(badge = idle science teams); Models lost its paradigm section; Codex lists the tree. New glossary terms: techTree,
+knowHow, trainedIn, depth, layer (+4 layers), effortClass, teamMonth, odds, researchLine, specialtyBonus,
+diminishingReturns, projectQueue, autoAssign, retryRule; paradigm and roleSci rewritten.
+
+**Deviations / deferred.**
+- Retries of paradigm nodes use the per-world hash, not the 'runs' stream (deterministic; P05 is lost on seed 2027).
+- Option locks from safety nodes and safety projects for safety scientists: R8. Product-feature nodes: R6. Each start's
+  known nodes: R9 (`leaderKnown` marks the three the game already has).
+- The worldfx GOV T1 Accept failure (above) is left open; ref-trace stub P05, fast/slow P13 adoption and the late
+  authors2026 milestones are outside the ±14 d / ±10 d tolerances for the reasons above.
+- Scratch scripts `scripts/v2/_r4*.ts` (gitignored) could not be deleted (permission). Baseline worktree left at
+  `C:\tmp\r4\base` (detached a4084e7, `node_modules` junction): remove the junction with `rmdir` first, then
+  `git worktree prune`.
+
+**Notes for R5.** Engineers' build capacity should gate Scaffold-layer nodes (feature builds); `nodeKnown` /
+`optionLocked` are the readers for blueprint slots. Fault-tolerant training already halves restart risk; the serve
+multipliers (`serveTechMult`) belong in R5's serve ∝ √size formula. The worldfx release-cadence issue will move again
+with R6's products.
 
 ## R2 Leader lab in the world (2026-11-16, branch `game-structure`, worktree ../AI27-structure)
 

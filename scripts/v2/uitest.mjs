@@ -228,7 +228,7 @@ ok('Tutorial off unlocks compute', !(await page.$eval('[data-nav=compute]', (b) 
 // Advance a little so deployments/finance have content.
 await page.evaluate(() => window.ai27v2.step(20));
 await closeModals();
-const PANELS = ['finance', 'overview', 'company', 'compute', 'models', 'rundesigner', 'deployments', 'safety', 'relations', 'world', 'risk', 'codex'];
+const PANELS = ['finance', 'overview', 'company', 'compute', 'research', 'models', 'rundesigner', 'deployments', 'safety', 'relations', 'world', 'risk', 'codex'];
 for (const p of PANELS) await check(`Tab ${p}`, 'store.panel', () => nav(p), 60);
 
 // Click every enabled action button in every panel; skip the game-ending RETIRE (tested last).
@@ -310,7 +310,8 @@ await check('Debt kind', `document.querySelector('[data-panel=finance]').innerHT
 await nav('rundesigner');
 await check('Run designer: kind base', `document.querySelector('[data-panel=rundesigner]').innerText`, () => page.click('[data-panel=rundesigner] [data-rd-kind=base]'));
 ok("Run designer: locked option shows its reason", await page.$eval(`[data-panel=rundesigner] [data-opt="shape:latent"]`, (b) => b.disabled && b.innerText.length > 8));
-await check("Run designer: shape overtrained", `document.querySelector("[data-panel=rundesigner]").innerHTML`, () => page.click(`[data-panel=rundesigner] [data-opt="shape:overtrained"]`));
+await check("Run designer: shape dense", `document.querySelector("[data-panel=rundesigner]").innerHTML`, () => page.click(`[data-panel=rundesigner] [data-opt="shape:dense"]`));
+ok("Run designer: overtrained is locked behind its tree node", JSON.parse(await get(`(() => { const b = document.querySelector('[data-panel=rundesigner] [data-opt="shape:overtrained"]'); return !!b && b.outerHTML.includes("Overtrained compact"); })()`)));
 await page.click('[data-panel=rundesigner] [data-opt="shape:dense"]');
 await check('Run designer: save template', 'localStorage.getItem("ai27.v2.runTemplates")', () => page.click('[data-test=rd-save]'));
 await check('Launch base run', `s.player.models.runs.filter(r => r.kind === 'base').length`, () => page.click('[data-act=launchBase]'));
@@ -342,7 +343,7 @@ if (vids.length > 1) await check('Select version in lineage', 'store.sel.version
 await nav('deployments');
 // B5: deep effort is a locked option with its reason until orchestration (P05) is adopted.
 if (!JSON.parse(await get(`s.player.paradigms.P05 && s.player.paradigms.P05.status === 'adopted'`))) {
-  ok('Deploy: deep effort locked with its reason', await page.$eval('[data-test=dep-effort] [data-opt=deep]', (b) => b.disabled && (b.getAttribute('data-locked') ?? '').includes('P05')).catch(() => false));
+  ok('Deploy: deep effort locked with its reason', await page.$eval('[data-test=dep-effort] [data-opt=deep]', (b) => b.disabled && (b.getAttribute('data-locked') ?? '').includes('orchestration')).catch(() => false));
 }
 await check('Deploy channel', `document.querySelector('[data-panel=deployments]').innerHTML`, () => page.click('[data-panel=deployments] [data-channel-opt=enterprise]'));
 const dep = JSON.parse(await get(`(s.player.deployments.find(d => d.status === 'live' && d.channel !== 'internal' && d.channel !== 'open') || {}).id || ''`));
@@ -370,6 +371,47 @@ await check('Codex search', `document.querySelector('.codex-list').innerText`, (
 await nav('risk');
 await tabTo('flows');
 await check('Flows node opens panel', 'store.panel', () => page.click('[data-node=player]'));
+
+// R4 Research: know-how bar, lane tree, node card, start / queue / drop, team picker, auto-assign, queue order, filters.
+await nav('research');
+await wait(80);
+{
+  const kh = !!(await page.$('[data-test=knowhow]'));
+  const nn = (await page.$$('[data-panel=research] .rs-node')).length;
+  ok('Research: know-how bar and tree render', kh && nn >= 10, `knowhow ${kh}, nodes ${nn}`);
+}
+await check('Research: click an idea opens its node card', 'store.tab["research.sel"] || ""', () => page.click('[data-panel=research] .rs-node[data-node=P05]'));
+ok('Research: node card shows odds and effort', JSON.parse(await get(`(() => { const c = document.querySelector('[data-test=node-card]'); return !!c && /Odds/i.test(c.innerText) && /team-months/.test(c.innerText); })()`)));
+await check('Research: Start now queues the project at the top', 'JSON.stringify(s.player.research.queue)', () => page.click('[data-act="research.start.P05"]'));
+await page.evaluate(() => window.ai27v2.step(1));
+await wait(60);
+ok('Research: auto-assign puts idle teams on it', JSON.parse(await get('s.player.teams.some((t) => t.projectId === "P05")')) && !!(await page.$('[data-project=P05]')));
+await check('Research: Queue a second idea from its card', 'JSON.stringify(s.player.research.queue)', async () => { await page.click('[data-panel=research] .rs-node[data-node=quantization]'); await page.click('[data-act="research.queue.quantization"]'); });
+await page.click('[data-test=node-close]').catch(() => {});
+await check('Research: team picker assigns a team', 'JSON.stringify(s.player.teams.map((t) => t.projectId || ""))', async () => { await page.click('[data-panel=research] .rs-node[data-node=quantization]'); await page.click('[data-test=assign-open]'); await page.locator('[data-test=team-picker] [data-act^="research.assign."]:not([disabled])').first().click(); });
+await page.click('[data-test=picker-close]').catch(() => {});
+await check('Research: auto-assign toggle', 's.player.research.autoAssign', () => page.click('[data-test=auto-assign]'));
+await check('Research: auto-assign back on', 's.player.research.autoAssign', () => page.click('[data-test=auto-assign]'));
+{
+  const q = JSON.parse(await get('s.player.research.queue'));
+  const last = q[q.length - 1];
+  if (q.length > 1 && (await page.$(`[data-test="queue-up.${last}"]:not([disabled])`))) await check('Research: queue reorder', 'JSON.stringify(s.player.research.queue)', () => page.click(`[data-test="queue-up.${last}"]`));
+}
+await check('Research: Safety filter hides capability lanes', 'document.querySelectorAll("[data-panel=research] .rs-lane-l").length', () => page.click('[data-test=tree-filter] [data-opt=saf]'));
+await page.click('[data-test=tree-filter] [data-opt=all]');
+await check('Research: minimap toggles the whole tree', 'store.tab["research.view"] || ""', () => page.click('[data-test=minimap]'));
+await shot('40-research-all');
+await page.click('[data-test=minimap]');
+await page.click('[data-panel=research] .rs-node[data-node=P17]').catch(() => {});
+await wait(60);
+await shot('41-research-node');
+await page.click('[data-test=node-close]').catch(() => {});
+await page.click('[data-test="add-team.P05"]').catch(() => {});
+await wait(60);
+await shot('42-research-picker');
+await page.click('[data-test=picker-close]').catch(() => {});
+if (await page.$('[data-test^="queue-drop."]')) await check('Research: Drop from the queue', 'JSON.stringify(s.player.research.queue)', () => page.locator('[data-test^="queue-drop."]').first().click());
+ok('Research: no paradigm section left in Models', await (async () => { await nav('models'); return !(await page.$('[data-paradigm]')); })());
 
 // Overview (L1) and bottom bar
 await nav('overview');

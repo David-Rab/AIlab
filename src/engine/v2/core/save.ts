@@ -3,9 +3,10 @@ import { ensureWs3 } from '../finance/ext';
 import { keyOf, staffOf, teamsFromStaff } from '../departments/teams';
 import type { GameStateV2, PlayerLab, StaffByRole, TeamHiring } from '../types';
 import { hash32 } from './rng';
+import { initialResearch, initialTree } from '../models/tree';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
-export const SCHEMA_REV = 5;
+export const SCHEMA_REV = 6;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -58,6 +59,31 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     p.hiring = hiring;
     p.stars = Math.max(0, Math.round(((p.tasteHire ?? 1) - 1) / 0.05));
     p.staff = staffOf(p.teams);
+  },
+  /** 5 → 6 (restructure R4): paradigm projects become tech-tree nodes. Adopted (or succeeded) paradigms are known
+   *  nodes; a running project keeps its progress (queued, teams assign tomorrow); a failed one keeps its retry date
+   *  and odds; ★ nodes are known. Paradigm FTE and experiment shares are dropped. */
+  5: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const p = s.player as PlayerLab;
+    if (p.tree && p.research) return;
+    p.tree = initialTree(s.setup);
+    p.research = initialResearch();
+    type Old = { status: string; progress?: number; revealedDay?: number; retryDay?: number; attempts?: number; priorMult?: number; fte?: number; expShare?: number };
+    for (const [id, o] of Object.entries((p.paradigms ?? {}) as unknown as Record<string, Old>)) {
+      const day = o.revealedDay ?? 0;
+      if (o.status === 'adopted' || o.status === 'succeeded') {
+        p.tree[id] = { status: 'known', progress: 1, day };
+        p.paradigms[id] = { status: 'adopted', progress: 1, revealedDay: day };
+      } else if (o.status === 'researching') {
+        p.tree[id] = { status: 'researching', progress: o.progress ?? 0, attempts: o.attempts ?? 1, ...(o.priorMult !== undefined ? { priorMult: o.priorMult } : {}) };
+        p.research.queue.push(id);
+        p.paradigms[id] = { status: 'researching', progress: o.progress ?? 0 };
+      } else if (o.status === 'failed') {
+        p.tree[id] = { status: 'failed', progress: 0, day, attempts: o.attempts ?? 1, priorMult: o.priorMult ?? 0.5, retryDay: o.retryDay ?? day + 180 };
+        p.paradigms[id] = { status: 'failed', progress: 0, revealedDay: day };
+      } else p.paradigms[id] = { status: 'available', progress: 0 };
+    }
   },
 };
 

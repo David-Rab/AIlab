@@ -11,7 +11,7 @@
 //   MIXED = the mixed bot (bots/mixed.ts).
 import { AGENDA_IDS } from '../../src/data/v2/agendas';
 import { mixedBot } from '../../src/engine/v2/bots/mixed';
-import { REF_PARADIGMS, refBot, refPlay } from '../../src/engine/v2/bots/ref';
+import { REF_TREE, SAFE_TREE_EXTRA, refBot, refPlay } from '../../src/engine/v2/bots/ref';
 import { pickByTags, tryAct } from '../../src/engine/v2/bots/common';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { resolve, tick } from '../../src/engine/v2/core/loop';
@@ -46,7 +46,7 @@ export const safeRecipeBot: BotPolicy = {
       safStaffShare: 0.25,
       base: { quality: true, hazard: true, safetyPretrain: true },
       post: () => ({ pref: 'constitution', rlIntensity: 'heavyHardened', cot: 'faithful', safety: 'heavy', inoculation: true }),
-      paradigms: () => [...REF_PARADIGMS.filter((p) => p !== 'P17'), 'P23'],
+      tree: () => [...REF_TREE.filter((g) => g.id !== 'P17'), ...SAFE_TREE_EXTRA],
     });
     financeAutopilot(s, REF_AUTOPILOT);
     if (day % 30 === 0) {

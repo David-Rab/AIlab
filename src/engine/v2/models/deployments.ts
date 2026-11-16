@@ -4,6 +4,7 @@ import { commitmentDeployBlock, committedUsagePolicy } from '../actors/commitmen
 import { ws4r } from '../actors/state';
 import type { Channel, Deployment, GameStateV2, LabId, ModelVersion, SystemCtx, Variant } from '../types';
 import { CHINA_ID, bestPm, rivalLab, versionById } from './labs';
+import { optionLocked } from './tree';
 
 /** Which version variants a channel accepts (§3.3.5). */
 export const CHANNEL_VARIANTS: Record<Channel, Variant[]> = {
@@ -30,9 +31,10 @@ export function externallyEvaluated(s: GameStateV2, v: ModelVersion): boolean {
   return ws4r(s).reportedVersions.includes(v.id) || Object.values(v.evals.bench).some((r) => r.by !== 'self') || Object.values(v.evals.safety).some((r) => r.by !== 'self');
 }
 
-/** Why an inference effort is locked, or undefined (B5: "deep" needs orchestration, P05). */
+/** Why an inference effort is locked, or undefined (B5; R4: the tree node that unlocks it, e.g. deep think needs
+ *  Multi-agent orchestration). */
 export function effortLock(s: GameStateV2, effort: Deployment['effort']): string | undefined {
-  return effort === 'deep' && s.player.paradigms.P05?.status !== 'adopted' ? 'Deep think needs orchestration (P05)' : undefined;
+  return optionLocked(s, 'effort', effort);
 }
 
 /** Settings of the deployment being gated (a swap passes the live deployment's; a launch what deploy() will set). */

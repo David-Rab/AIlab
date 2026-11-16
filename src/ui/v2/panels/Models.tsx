@@ -1,12 +1,11 @@
 // Models (§6.3): lineage tree (bases → versions → variants), model card (measured L, domain radar with error bars,
-// benchmarks with saturation marks, horizon, serve cost, monitorability, trait beliefs, flags), run queue, paradigm
-// tree; set internal agent, evals, variants, distill, roll back, retire, streams.
+// benchmarks with saturation marks, horizon, serve cost, monitorability, trait beliefs, flags), run queue (paradigms moved to
+// Research in R4); set internal agent, evals, variants, distill, roll back, retire, streams.
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
-import { PARADIGMS } from '../../../data/v2/paradigms';
-import { benchName, dateOf, fmtDate, internalVersion, measuredDomains, paradigmGate, runBand, runStall, versionById } from '../../../engine/v2';
+import { benchName, dateOf, fmtDate, internalVersion, measuredDomains, runBand, runStall, versionById } from '../../../engine/v2';
 import type { GameStateV2, ModelVersion } from '../../../engine/v2';
 import { store, useV2 } from '../store';
-import { ActBtn, Gate, Meter, pct, Radar, Section, Term, Tip, TipCard, unlocked } from '../ui';
+import { ActBtn, Meter, Radar, Term, Tip, TipCard } from '../ui';
 import { useState } from 'react';
 import { Card, KV, PanelHead, Ref } from '../kit';
 import * as F from '../fmt';
@@ -156,39 +155,6 @@ export function RunQueue({ s }: { s: GameStateV2 }) {
   );
 }
 
-function ParadigmTree({ s }: { s: GameStateV2 }) {
-  return (
-    <Section title={<Term id="paradigm">Paradigms</Term>}>
-      <div className="ptree">
-        {([1, 2, 3, 4] as const).map((tier) => (
-          <div className="ptier" key={tier}>
-            <div className="branch-label">Tier {tier}</div>
-            {(tier >= 3 ? unlocked(s, 'paradigmT3') : tier === 2 ? unlocked(s, 'paradigms') : true) ? PARADIGMS.filter((x) => x.tier === tier).map((x) => {
-              const st = s.player.paradigms[x.id];
-              const gate = paradigmGate(s, x.id);
-              const status = st?.status ?? 'locked';
-              return (
-                <Tip as="div" key={x.id} content={() => <TipCard title={`${x.id} ${x.name}`} value={status} rows={[
-                  { label: 'Prior success', value: pct(x.prior) }, { label: 'Effort', value: `${x.effortDays} d` },
-                  { label: 'Gate', value: gate === true ? 'open' : gate, tone: gate === true ? 'pos' : 'neg' },
-                  ...(x.effect ? [{ label: 'Effect', value: x.effect }] : []), ...(x.safetyCost ? [{ label: 'Safety cost', value: x.safetyCost, tone: 'neg' as const }] : []),
-                ]} />}>
-                  <div className={`ptech st-${status}`} data-paradigm={x.id}>
-                    <span className="small ellip">{x.name}</span>
-                    {status === 'researching' && st && <Meter value={st.progress} max={1} width={50} />}
-                    {(status === 'available' || status === 'failed' || status === 'researching') && gate === true && <ActBtn id="fundParadigm" testId={`fundParadigm.${x.id}`} params={{ id: x.id, fte: 30, expShare: 0.02 }} label={status === 'researching' ? 'Fund' : 'Research'} inline={false} />}
-                    {status === 'succeeded' && <ActBtn id="adoptParadigm" testId={`adoptParadigm.${x.id}`} params={{ id: x.id }} inline={false} />}
-                  </div>
-                </Tip>
-              );
-            }) : <div className="locked-note small">Act {tier >= 3 ? 3 : 2}</div>}
-          </div>
-        ))}
-      </div>
-    </Section>
-  );
-}
-
 export function Models({ s }: { s: GameStateV2 }) {
   useV2();
   const v = selectedVersion(s);
@@ -200,7 +166,6 @@ export function Models({ s }: { s: GameStateV2 }) {
         {v ? <ModelCard s={s} v={v} /> : <Card title="Model card"><div className="dim">No versions</div></Card>}
         <RunQueue s={s} />
       </div>
-      <div className="span2"><Gate s={s} k="models"><ParadigmTree s={s} /></Gate></div>
     </div>
   );
 }

@@ -13,6 +13,7 @@ import { Finance } from './panels/Finance';
 import { Models } from './panels/Models';
 import { Overview } from './panels/Overview';
 import { Relations } from './panels/Relations';
+import { Research } from './panels/Research';
 import { RiskSources } from './panels/RiskSources';
 import { RunDesigner } from './panels/RunDesigner';
 import { SafetyLab } from './panels/SafetyLab';
@@ -34,7 +35,7 @@ import './base.css';
 import './layout.css';
 
 const PANELS: Record<string, (p: { s: GameStateV2 }) => ReactNode> = {
-  overview: Overview, company: Company, finance: Finance, compute: Compute, models: Models, rundesigner: RunDesigner,
+  overview: Overview, research: Research, company: Company, finance: Finance, compute: Compute, models: Models, rundesigner: RunDesigner,
   deployments: Deployments, safety: SafetyLab, relations: Relations, world: World, risk: RiskSources, codex: Codex,
 };
 

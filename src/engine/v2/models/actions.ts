@@ -1,7 +1,6 @@
 // Player actions in the Models and Departments spheres (ActionDef catalog, V2-SPEC §2.7, §3.3, §3.4). Owner: WS1.
 // Every preview shows ≥ 1 cost in a currency that is not among its gains (lint-tradeoffs). Previews must work with
 // empty params (defaults below). apply() throws on an invalid request; core/loop act() turns that into an error.
-import { PARADIGMS } from '../../../data/v2/paradigms';
 import { REFERENCE_BASE, REFERENCE_POST, STREAM_POOL_SHARE } from '../../../data/v2/runDesign';
 import { decimalYear } from '../core/time';
 import { SPLIT_KEYS, TOP_KEYS, fromSpec, presetSplit, setSplit, specOf, type SplitPreset } from '../departments/split';
@@ -16,7 +15,7 @@ import { runEvalSuite } from './benchmarks';
 import { deploy, makeVariant, retireVersion, setInternalAgent, setServing, swapDeployment, withdraw } from './deployments';
 import { revenueReadout } from '../worldfx/revenue';
 import { bestMeasuredL, internalVersion, versionById } from './labs';
-import { adoptParadigm, fundParadigm, paradigmGate } from './paradigms';
+import { TREE_ACTIONS } from './treeActions';
 import { launchRun, planRun, startStream, type LaunchRunParams } from './runs';
 import { bookCash } from '../finance/ledger';
 
@@ -263,30 +262,6 @@ const RUN_ACTIONS: ActionDef[] = [
       else runEvalSuite(s, ctx, v.id, str(p, 'by', 'self') as 'self' | 'evalGov' | 'evalIndep');
     },
   },
-  {
-    id: 'fundParadigm', sphere: 'models', owner: 'WS1', title: 'Research',
-    available: (s) => (PARADIGMS.some((x) => paradigmGate(s, x.id) === true && ['available', 'researching', 'failed'].includes(s.player.paradigms[x.id]?.status ?? '')) ? true : 'No open projects'),
-    preview: (_s, p) => {
-      const fte = num(p, 'fte', 30);
-      return {
-        costs: [{ currency: 'staffTime', amount: fte }, { currency: 'compute', amount: num(p, 'expShare', 0.02), target: 'experiment pool share' }],
-        gains: [{ currency: 'progress', amount: 0.1, probability: 0.7 }],
-        exposure: [{ currency: 'alignment', amount: -0.05, probability: 0.3 }],
-      };
-    },
-    apply: (s, _ctx, p) => fail(fundParadigm(s, str(p, 'id', ''), num(p, 'fte', 30), num(p, 'expShare', 0.02))),
-  },
-  {
-    id: 'adoptParadigm', sphere: 'models', owner: 'WS1', title: 'Adopt',
-    available: (s) => (Object.values(s.player.paradigms).some((x) => x.status === 'succeeded') ? true : 'Nothing to adopt'),
-    preview: (_s, p) => {
-      const id = str(p, 'id', '');
-      if (id === 'P17') return { costs: [{ currency: 'monitorability', amount: -0.85 }], gains: [{ currency: 'progress', amount: 0.4 }], exposure: [{ currency: 'trust', amount: -5, probability: 0.5, target: 'evalGov' }] };
-      if (id === 'P23') return { costs: [{ currency: 'progress', amount: -0.24 }], gains: [{ currency: 'monitorability', amount: 0.08 }], exposure: [] };
-      return { costs: [{ currency: 'staffTime', amount: 10, target: 'integration' }], gains: [{ currency: 'progress', amount: 0.1 }], exposure: [{ currency: 'alignment', amount: -0.05, probability: 0.3 }] };
-    },
-    apply: (s, _ctx, p) => fail(adoptParadigm(s, str(p, 'id', ''))),
-  },
 ];
 
 // ───────────────────────────── departments ─────────────────────────────
@@ -363,4 +338,4 @@ export const DEPARTMENT_ACTIONS: ActionDef[] = [
 ];
 
 /** Models + Departments spheres (registered in core/registry.ts). */
-export const MODEL_ACTIONS: ActionDef[] = [...RUN_ACTIONS, ...DEPARTMENT_ACTIONS];
+export const MODEL_ACTIONS: ActionDef[] = [...RUN_ACTIONS, ...TREE_ACTIONS, ...DEPARTMENT_ACTIONS];

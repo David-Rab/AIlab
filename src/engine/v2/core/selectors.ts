@@ -19,7 +19,9 @@ export type { SplitSpec, TopKey, TopSplit } from '../departments/split';
 // WS1 model / department selectors and helpers for the UI (visible data only).
 export { planRun, predictRun, POOL_SHARE_RANGE, runStall } from '../models/runs';
 export type { LaunchRunParams, RunPlan } from '../models/runs';
-export { paradigmGate, PARADIGM_BY_ID } from '../models/paradigms';
+export { PARADIGM_BY_ID } from '../models/paradigms';
+export { assignBlock, effortOf, idleTeams, knowHow, isMirror, isProject, missingNeeds, nodeKnown, nodeOdds, nodeStatus, optionLocked, payoffOf, projectCapacity, projectEta, projectRate, projectReady, projectTeams, researchSpeed, teamCapacity, teamsOn, treeCounts } from '../models/tree';
+export type { NodeStatus } from '../models/tree';
 export { benchName, benchGen, evalDaysFor } from '../models/benchmarks';
 export { deployGate, effortLock, liveDeployments, CHANNEL_VARIANTS, distillationAccess } from '../models/deployments';
 export { bestMeasuredL, internalVersion, labPools, measuredLOf, versionById } from '../models/labs';

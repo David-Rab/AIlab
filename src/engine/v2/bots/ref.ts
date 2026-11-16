@@ -3,7 +3,7 @@
 //
 // Reference cadence (§7.1): compute tracks refTotal (WS3's finance autopilot buys it; the T1 calibration stubs it),
 // split = shareRef(t), cap hiring tracks H_ref, a 1F base every 9 months, a post-train every 6 weeks (≤ 2 in flight),
-// continual learning once P08 works, P05/P07/P08/P13/P17/P19 researched and adopted (never P23), latent bases after
+// continual learning once P08 works, P05/P07/P08/P13/P17/P19 researched on the tree (REF_TREE; never P23), latent bases after
 // P17, a distilled mini every ~6 months (sooner on a new base or a 0.7-level gap) deployed to consumer/api while the
 // frontier stays internal, serving re-split by demand weekly, eval refresh every 30 days.
 //
@@ -18,11 +18,31 @@ import { financeAutopilot, financeDecide, REF_AUTOPILOT } from '../finance/plan'
 import { hRef } from '../production/knots';
 import { REF_ROLE_SHARE, SAF_ROLE_SHARE, TEAM_SIZE } from '../../../data/v2/teams';
 import type { BotPolicy, ComputeSplit, EngineApi, GameStateV2, ModelVersion, PendingDecision, TeamKey } from '../types';
+import { bestMeasuredL } from '../models/labs';
+import { measuredDomain } from '../models/paradigms';
+import { missingNeeds, nodeKnown } from '../models/tree';
 
 type Params = Record<string, number | string | boolean>;
 
-/** Paradigms RefBot researches and adopts (§3.3.3 "RefBot paradigm policy"). */
-export const REF_PARADIGMS = ['P05', 'P07', 'P08', 'P13', 'P17', 'P19'];
+/** A tree project a bot queues once `when` holds (and its prerequisites are known). */
+export interface TreeGoal { id: string; when?: (s: GameStateV2) => boolean }
+const L = (s: GameStateV2) => bestMeasuredL(s);
+/** RefBot's research (§3.3.3 "RefBot paradigm policy", R4): the engine has no capability gates, so the bot keeps the
+ *  old pacing by starting each project when the old gate would have opened (tier 2: measured L ≥ 6.5, tier 3: 8.5;
+ *  P08 L ≥ 7; P13 RSCH ≥ 8.5; P17 L ≥ 9.5). RL focus: ML research is P13's prerequisite on the tree. */
+export const REF_TREE: TreeGoal[] = [
+  { id: 'P07' },
+  { id: 'P05' },
+  { id: 'P08', when: (s) => L(s) >= 7 },
+  { id: 'rl.mlResearch', when: (s) => L(s) >= 6.5 },
+  { id: 'P13', when: (s) => L(s) >= 6.5 && measuredDomain(s, 'RSCH') >= 8.5 },
+  { id: 'P17', when: (s) => L(s) >= 9.5 },
+  { id: 'P19', when: (s) => L(s) >= 8.5 },
+];
+/** The safe bot's extra research: faithful-CoT architecture, paced like its old gate (tier 3, an AG09 technique). */
+export const SAFE_TREE_EXTRA: TreeGoal[] = [
+  { id: 'P23', when: (s) => L(s) >= 8.5 && s.player.safety.findings.some((f) => f.agenda === 'AG09' && f.type === 'TECH') },
+];
 const BASE_EVERY = 270;
 const POST_EVERY = 42;
 const MINI_EVERY = 182;
@@ -44,8 +64,8 @@ export interface RefPlayOpts {
   /** launchPost params (pref, rlFocus, rlIntensity, cot, safety, inoculation). cot 'faithful' falls back to 'visible'
    *  until P23 is adopted; a latent base always forces latent CoT. */
   post?: (s: GameStateV2) => Params;
-  /** Paradigms researched and adopted (default REF_PARADIGMS); a function lets a bot decide over time. */
-  paradigms?: (s: GameStateV2) => string[];
+  /** Tree projects (default REF_TREE); a function lets a bot decide over time. */
+  tree?: (s: GameStateV2) => TreeGoal[];
   /** Release policy: 'mini' (distilled minis to consumer/api; frontier internal) or 'frontier' (newest full version
    *  to consumer/api). */
   release?: 'mini' | 'frontier';
@@ -99,20 +119,24 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
     for (const [key, n] of teamsWanted) if (n > (p.hiring.targets[key] ?? 0)) tryAct(s, api, 'teams.target', { key, n });
   }
 
-  // Paradigms: fund open reference projects; adopt successes; retry failures when allowed.
-  const paradigms = o.paradigms?.(s) ?? REF_PARADIGMS;
-  for (const id of paradigms) {
-    const st = p.paradigms[id];
-    if (!st) continue;
-    if (st.status === 'succeeded') tryAct(s, api, 'adoptParadigm', { id });
-    else if (st.status === 'available' || (st.status === 'failed' && (st.retryDay ?? 0) <= day)) tryAct(s, api, 'fundParadigm', { id, fte: 30, expShare: 0.02 });
+  // Research: queue each goal once its start condition holds and its prerequisites are known (a failed idea again
+  // from its retry date); idle science teams join by the auto-assign policy.
+  const goals = o.tree?.(s) ?? REF_TREE;
+  const queue = p.research.queue;
+  for (const g of goals) {
+    if (queue.includes(g.id) || nodeKnown(s, g.id) || missingNeeds(s, g.id).length) continue;
+    const st = p.tree[g.id];
+    if (st?.status === 'failed' && (st.retryDay ?? 0) > day) continue;
+    if (g.when && !g.when(s)) continue;
+    tryAct(s, api, 'research.queue', { id: g.id });
   }
+  if (!p.research.autoAssign) tryAct(s, api, 'research.autoAssign', { on: true });
 
   // Base runs: a frontier base every 9 months; once neuralese (P17) is adopted the next base is latent and starts
   // at once (AI 2027's Agent-3 is a neuralese model at SC).
   const baseRunning = m.runs.some((r) => r.kind === 'base' && r.status === 'running');
   const lastBase = flag(s, 'lastBase', m.bases[m.bases.length - 1]?.startDay ?? -120);
-  const latent = p.paradigms.P17?.status === 'adopted' && paradigms.includes('P17');
+  const latent = p.paradigms.P17?.status === 'adopted' && goals.some((g) => g.id === 'P17');
   const latentDue = latent && !m.bases.some((b) => b.design.shape === 'latent') && !m.runs.some((r) => r.status === 'running' && r.base?.shape === 'latent');
   if ((!baseRunning && day - lastBase >= BASE_EVERY) || latentDue) {
     // A lab whose training pool cannot deliver its base scale in time (BASE_MAX_DAYS) gives it most of the pool, then

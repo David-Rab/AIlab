@@ -27,6 +27,7 @@ import { benchScore } from '../models/benchmarks';
 import { domainsOf, levelOf, playerStart, simpleStartPa, yearOfDay } from '../models/capability';
 import { labCore } from '../models/labs';
 import { initialParadigms } from '../models/paradigms';
+import { initialResearch, initialTree } from '../models/tree';
 import { frontierFlop } from '../production/knots';
 import { computeProduction } from '../production/production';
 import { initialSafetyDept } from '../safety/agendas';
@@ -162,6 +163,8 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     teams: roster.teams,
     stars: 0,
     hiring: roster.hiring,
+    tree: initialTree(setup),
+    research: initialResearch(),
     morale: { overall: 70, safety: 65 },
     dataAssets: { licensedTokensT: 30, unlicensedTokensT: 270, syntheticTokensT: 20, litigationRisk: (0.02 * 270) / 100 },
     policies: { whistleblowerChannel: false, publishSafety: 'selective', govBriefing: 1, shareWithAllies: false, transitionFund: 0, communityBenefits: false },

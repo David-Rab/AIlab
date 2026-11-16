@@ -12,7 +12,7 @@ import type { AgendaId, BotPolicy, GameStateV2, TraitId } from '../types';
 import { clamp } from '../../rng';
 import { financeAutopilot, financeDecide, REF_AUTOPILOT } from '../finance/plan';
 import { byLabel, every, pickByTags, tryAct } from './common';
-import { REF_PARADIGMS, refPlay, type RefPlayOpts } from './ref';
+import { REF_TREE, refPlay, type RefPlayOpts } from './ref';
 
 const LOTTERY: AgendaId[] = ['AG01', 'AG04', 'AG10', 'AG11', 'AG12', 'AG13'];
 const RED_FLAGS: TraitId[] = ['SCHEME', 'AF', 'SAND', 'POWER', 'SUCC', 'COLLUDE', 'TGAME'];
@@ -34,7 +34,7 @@ const MIXED_PLAY: RefPlayOpts = {
     return clamp(m < 0.5 ? cur + 0.03 : m > 2 ? cur - 0.01 : cur, 0.03, 0.12);
   },
   post: () => ({ pref: 'constitution', rlIntensity: 'heavyHardened', cot: 'visible', safety: 'standard', inoculation: true }),
-  paradigms: (s) => (latentOk(s) ? REF_PARADIGMS : REF_PARADIGMS.filter((p) => p !== 'P17')),
+  tree: (s) => (latentOk(s) ? REF_TREE : REF_TREE.filter((g) => g.id !== 'P17')),
 };
 
 export const mixedBot: BotPolicy = {

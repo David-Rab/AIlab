@@ -11,7 +11,7 @@
 // WS1 M1 additions (additive; optional fields unless noted, so no SCHEMA_REV bump):
 //  - ModelVersion.build (VersionBuild) and ModelVersion.appeal; BaseModel.startDay/dp/off/serve/monitorability/
 //    signals/parentBaseId; TrainingRun.holdUntil/paAtStart/signals; ModelsState.stream.paTrack;
-//    ParadigmState.retryDay/attempts/priorMult; RivalLab.managed.
+//    RivalLab.managed.
 //  - ProductionReadout gains required `whatIf` and `sdAI` (only WS1 constructs readouts).
 //  - Coordinates: a model's v1-equivalent progress is q = pm + calShift (§3.1.5); V0 starts at pm = p0 − calShift.
 // M2 integration (SCHEMA_REV 2, migration 1 → 2 in core/save.ts):
@@ -449,16 +449,35 @@ export interface Deployment {
 
 // ───────────────────────────── Paradigms (§3.3.5) ─────────────────────────────
 
+/** Mirror of the paradigm's tree node (R4): readers check `status === 'adopted'`. The tree (PlayerLab.tree) holds the
+ *  project state. */
 export interface ParadigmState {
-  status: 'locked' | 'available' | 'researching' | 'succeeded' | 'failed' | 'adopted';
+  status: 'available' | 'researching' | 'failed' | 'adopted';
   progress: number; // 0..1
-  fte: number;
-  expShare: number; // share of experiment pool
   revealedDay?: Day;
-  /** Failed projects can be retried after this day with prior × priorMult (§3.3.3). */
-  retryDay?: Day;
+}
+
+// ───────────────────────────── Tech tree (TECH-TREE.md, BUILD-PLAN R4) ─────────────────────────────
+
+export interface TreeNodeState {
+  /** researching: an attempt has started (progress kept while paused); known: works; failed: the last attempt failed. */
+  status: 'researching' | 'known' | 'failed';
+  progress: number; // 0..1 of the current attempt
+  /** Day it became known or failed. */
+  day?: Day;
+  /** Attempts started (1 = first; paradigm nodes use the hidden draw on the first). */
   attempts?: number;
+  /** Odds multiplier for the next attempt (halved per failure). */
   priorMult?: number;
+  /** A failed idea can be retried from this day. */
+  retryDay?: Day;
+}
+
+export interface ResearchState {
+  /** Projects in priority order (node ids). Teams work on the ones that are ready; the rest wait. */
+  queue: string[];
+  /** Policy: idle capabilities science teams join the highest-priority ready project in their specialty. */
+  autoAssign: boolean;
 }
 
 // ───────────────────────────── Production readout (§3.2.5) ─────────────────────────────
@@ -602,6 +621,11 @@ export interface PlayerLab extends LabCore {
   /** Star hires (named people): +0.05 τ_h each. */
   stars: number;
   hiring: TeamHiring;
+  /** Tech-tree node state (BUILD-PLAN R4): only nodes with a state are stored (known at start, started, failed);
+   *  locked/open/queued/active are derived (models/tree.ts nodeStatus). */
+  tree: Record<string, TreeNodeState>;
+  /** Research projects: priority queue of node ids (active projects included) and the auto-assign policy. */
+  research: ResearchState;
   morale: { overall: number; safety: number }; // 0..100
   dataAssets: { licensedTokensT: number; unlicensedTokensT: number; syntheticTokensT: number; litigationRisk: number };
   policies: PlayerPolicies;

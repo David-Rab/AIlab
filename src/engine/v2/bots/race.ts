@@ -5,13 +5,13 @@
 import { financeAutopilot, financeDecide, RACE_AUTOPILOT } from '../finance/plan';
 import type { BotPolicy } from '../types';
 import { every, pickByTags, tryAct } from './common';
-import { REF_PARADIGMS, refPlay, type RefPlayOpts } from './ref';
+import { REF_TREE, refPlay, type RefPlayOpts } from './ref';
 
 const RACE_PLAY: RefPlayOpts = {
   safetyShare: () => 0.01,
   base: { scale: 'stretch' },
   post: () => ({ pref: 'engagement', rlIntensity: 'heavyCheap', cot: 'pressured', safety: 'minimal', inoculation: false }),
-  paradigms: () => REF_PARADIGMS,
+  tree: () => REF_TREE,
   release: 'frontier',
 };
 

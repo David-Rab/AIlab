@@ -21,7 +21,8 @@ import type {
   BaseDesign, BaseModel, Day, EngineSystem, GameStateV2, ModelVersion, PostDesign, RivalLab, RunKind, RunPrediction, SystemCtx,
   ToolFamily, TraitBelief, TraitId, TrainingRun, VersionBuild,
 } from '../types';
-import { advanceParadigms, adopted, paradigmOff } from './paradigms';
+import { adopted, paradigmOff } from './paradigms';
+import { nodeKnown, optionLocked, payoffOf } from './tree';
 import { evalDaysFor, runEvalSuite } from './benchmarks';
 import { addOff, addSig, baseEffect, clampSignals, monitorabilityClass, postEffect, type Off } from './design';
 import { domainsOf, levelOf, pcContinue, pcOfBase, pmOfBuild, refreshLevels, simpleFrontierPm } from './capability';
@@ -52,6 +53,15 @@ export function trainingFlopPerDay(s: GameStateV2): number {
   const phi = PHI_FLOP_PER_H100E_DAY * (adopted(s, 'P16') ? 1.15 : 1);
   return poolsOf(s).training * phi;
 }
+
+/** Serve-cost multiplier of efficiency ideas for new post-trained versions: AI kernels (P16) ×0.75, quantization ×0.8,
+ *  speculative decoding ×0.85. */
+export function serveTechMult(s: GameStateV2): number {
+  return (adopted(s, 'P16') ? 0.75 : 1) * (nodeKnown(s, 'quantization') ? 0.8 : 1) * (nodeKnown(s, 'specDecoding') ? 0.85 : 1);
+}
+
+/** AI-designed successor (P24): next base +0.8 y, paid off with the AI share of research labour. */
+const p24Dp = (s: GameStateV2) => (adopted(s, 'P24') ? 0.8 * payoffOf(s, 'P24') : 0);
 
 /** Frontier (base/post) runs are paused until this day by WS4 (E17 Pause & investigate, pause pledges). */
 export const frontierPaused = (s: GameStateV2, day: Day = s.time.day) => ws4r(s).frontierPauseUntil > day;
@@ -116,7 +126,8 @@ export function planRun(s: GameStateV2, p: LaunchRunParams, rollDays = (lo: numb
   if (p.kind === 'base') {
     const d = p.base;
     if (!d) return failPlan('No design');
-    if (d.shape === 'latent' && !adopted(s, 'P17')) reason = 'Needs neuralese (P17)';
+    reason = optionLocked(s, 'shape', d.shape) ?? optionLocked(s, 'data', d.data) ?? (d.curation.hazard ? optionLocked(s, 'curation', 'hazard') : undefined)
+      ?? (d.curation.safetyPretrain ? optionLocked(s, 'curation', 'safetyPretrain') : undefined);
     if (d.data === 'synthetic' && !teacher) reason = 'Synthetic data needs a teacher version';
     if (d.scale === 'continue') reason = 'Use a continue run';
     const be = baseEffect(d);
@@ -125,7 +136,7 @@ export function planRun(s: GameStateV2, p: LaunchRunParams, rollDays = (lo: numb
     cash = flopCost(s, flopNeeded) * be.cashMult + d.licensedShare * 1.0 * Math.sqrt(BASE_SCALE[d.scale].F); // licensed data [D]
     if (flopNeeded / flopDay > BASE_MAX_DAYS) reason = `Training pool too small (>${BASE_MAX_DAYS} d)`;
     const pc = pcOfBase(w, s.time.day, flopNeeded, s.player.scDay);
-    pmPred = s.player.pa + pc + be.dp + baseDataWall(s, d, flopNeeded) + (adopted(s, 'P24') ? 0.8 : 0);
+    pmPred = s.player.pa + pc + be.dp + baseDataWall(s, d, flopNeeded) + p24Dp(s);
     off = be.domains;
     signals = be.signals;
     serve = be.serve;
@@ -134,10 +145,11 @@ export function planRun(s: GameStateV2, p: LaunchRunParams, rollDays = (lo: numb
     if (!base) return failPlan('Pick a base');
     const d = p.post;
     if (!d) return failPlan('No design');
-    if (d.cot === 'faithful' && !adopted(s, 'P23')) reason = 'Needs faithful-CoT architecture (P23)';
+    reason = optionLocked(s, 'pref', d.pref) ?? optionLocked(s, 'rlIntensity', d.rlIntensity) ?? (d.cot !== 'latent' ? optionLocked(s, 'cot', d.cot) : undefined)
+      ?? (d.inoculation ? optionLocked(s, 'inoculation', true) : undefined);
+    if (d.rlFocus !== 'broad') for (const f of d.rlFocus) reason ??= optionLocked(s, 'rlFocus', f);
     if (d.cot === 'latent' && base.design.shape !== 'latent') reason = 'Latent CoT needs a latent base';
     if (base.design.shape === 'latent' && d.cot !== 'latent') reason = 'A latent base forces latent CoT';
-    if (d.rlFocus !== 'broad' && d.rlFocus.includes('computerUse') && !adopted(s, 'P06')) reason = 'Needs computer use (P06)';
     if (d.rlFocus !== 'broad' && d.rlFocus.length > 2) reason = 'Pick at most 2 RL families';
     const pe = postEffect(d);
     if (p.ida) {
@@ -156,7 +168,7 @@ export function planRun(s: GameStateV2, p: LaunchRunParams, rollDays = (lo: numb
     else if (d.rlIntensity === 'heavyHardened') cash += 0.1 * flopCost(s, flopNeeded); // P15: hardened graders at the cheap price
     off = addOff(base.off ?? {}, pe.domains);
     signals = addSig(base.signals ?? {}, pe.signals);
-    serve = (base.serve ?? 0.5) * pe.serve * (adopted(s, 'P16') ? 0.75 : 1);
+    serve = (base.serve ?? 0.5) * pe.serve * serveTechMult(s);
     mon = Math.min(base.monitorability ?? 1, pe.monitorability);
   } else if (p.kind === 'distill') {
     if (!teacher) return failPlan('Pick a teacher version');
@@ -295,7 +307,7 @@ function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
     const newLineage = true;
     const nb = m.bases.length + 1;
     const startDay = run.startDay;
-    const dp = be.dp + baseDataWall(s, run.base, run.flopNeeded) + (adopted(s, 'P24') ? 0.8 : 0);
+    const dp = be.dp + baseDataWall(s, run.base, run.flopNeeded) + p24Dp(s);
     const b: BaseModel = {
       id: `B${nb}`, name: `${PLAYER_MODEL_FAMILY}-${nb}`, day: s.time.day, startDay, flop: run.flopNeeded,
       paAtStart: run.paAtStart ?? s.player.pa, pc: pcOfBase(w, startDay, run.flopNeeded, s.player.scDay), design: run.base,
@@ -360,7 +372,7 @@ function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
     signals: clampSignals(addSig(base.signals ?? {}, pe.signals)),
   };
   const v = newVersion(s, run, base, build, parent, {
-    serveCost: (base.serve ?? 0.5) * pe.serve * (adopted(s, 'P16') ? 0.75 : 1),
+    serveCost: (base.serve ?? 0.5) * pe.serve * serveTechMult(s),
     monitorability: Math.min(base.monitorability ?? 1, pe.monitorability), appeal: pe.appeal,
   });
   m.versions.push(v);
@@ -396,7 +408,7 @@ function promoteEvaluated(s: GameStateV2, ctx: SystemCtx) {
 }
 
 /** runs (40, daily): add FLOP to running runs; on completion create base/version, call WS2 applyRunToTraits,
- *  queue the eval. Also advances paradigm projects (§3.3.3). */
+ *  queue the eval. (Paradigm projects moved to the research system, models/tree.ts, in R4.) */
 export const runsSystem: EngineSystem = {
   id: 'runs', owner: 'WS1', cadence: 'daily', order: 40,
   run(s, ctx) {
@@ -410,7 +422,7 @@ export const runsSystem: EngineSystem = {
       const share = alloc.get(run.id) ?? 0;
       run.flopDone += share * flopDay;
       // Loss spikes (stretch / MoE): restart probability spread over the run's expected length (§3.3.1).
-      const risk = run.base ? baseEffect(run.base).restart : 0;
+      const risk = run.base ? baseEffect(run.base).restart * (nodeKnown(s, 'faultTolerant') ? 0.5 : 1) : 0;
       if (risk > 0 && run.restarts === 0 && (run.holdUntil === undefined || run.holdUntil <= ctx.day)) {
         const rng = ctx.rng('runs');
         if (rng.chance(risk / Math.max(30, run.minDays))) {
@@ -423,7 +435,6 @@ export const runsSystem: EngineSystem = {
       if (run.flopDone >= run.flopNeeded && ctx.day - run.startDay >= run.minDays) completeRun(s, ctx, run);
     }
     promoteEvaluated(s, ctx);
-    advanceParadigms(s, ctx);
     // Finished runs are kept for 120 days for the UI, then dropped (save budget).
     s.player.models.runs = s.player.models.runs.filter((r) => r.status === 'running' || r.status === 'paused' || ctx.day - r.startDay < 400);
   },

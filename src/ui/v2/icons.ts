@@ -29,7 +29,7 @@ export const ICON = {
   you: Hexagon, exec: Landmark, congress: Scale, states: MapIcon, evalGov: ClipboardCheck, evalIndep: SearchCheck, academia: GraduationCap,
   public: Users, blocs: Megaphone, board: Armchair,
   // nav
-  overview: Radar, company: Workflow, finance: Landmark, computePanel: Server, models: Brain, runs: Rocket, deploy: Boxes, risks: Skull,
+  overview: Radar, research: FlaskConical, company: Workflow, finance: Landmark, computePanel: Server, models: Brain, runs: Rocket, deploy: Boxes, risks: Skull,
   relations: Handshake, world: Globe, codex: BookOpen,
   // time and actions
   pause: Pause, play: Play, speed2: ChevronsRight, speed3: FastForward, ff: SkipForward, go: ChevronRight, revalidate: RefreshCw,

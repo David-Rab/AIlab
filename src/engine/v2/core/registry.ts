@@ -11,6 +11,7 @@ import { productionSystem } from '../production/production';
 import { continualSystem, runsSystem } from '../models/runs';
 import { milestonesSystem } from '../models/capability';
 import { hiringSystem } from '../departments/teams';
+import { researchSystem } from '../models/tree';
 import { MODEL_ACTIONS } from '../models/actions';
 // WS2
 import { safetyResearchSystem } from '../safety/agendas';
@@ -52,6 +53,7 @@ export const SYSTEMS: readonly EngineSystem[] = [
   clockSystem, // 10 WS1 daily
   computeOnlineSystem, // 20 WS3 daily
   productionSystem, // 30 WS1 daily
+  researchSystem, // 35 WS1 daily (R4 tree projects)
   runsSystem, // 40 WS1 daily
   continualSystem, // 45 WS1+WS2 daily
   milestonesSystem, // 50 WS1 daily
@@ -104,7 +106,9 @@ const VERB_TAG: Record<string, [ActionVerb, StructureSystem]> = {
   idaCycle: ['train', 'models'], cancelRun: ['train', 'models'], startStream: ['train', 'models'], stopStream: ['train', 'models'],
   runEvals: ['policy', 'models'], retireVersion: ['launch', 'models'], makeVariant: ['launch', 'products'],
   deploy: ['launch', 'products'], swapDeployment: ['launch', 'products'], setServing: ['launch', 'products'], withdraw: ['launch', 'products'],
-  setInternalAgent: ['policy', 'models'], fundParadigm: ['research', 'research'], adoptParadigm: ['research', 'research'],
+  setInternalAgent: ['policy', 'models'],
+  'research.queue': ['research', 'research'], 'research.start': ['research', 'research'], 'research.dequeue': ['research', 'research'], 'research.move': ['research', 'research'],
+  'research.assign': ['research', 'research'], 'research.unassign': ['research', 'research'], 'research.autoAssign': ['policy', 'research'],
   setSplit: ['policy', 'compute'], splitPreset: ['policy', 'compute'], 'teams.hire': ['hire', 'people'], 'teams.release': ['hire', 'people'], 'teams.move': ['hire', 'people'], 'teams.target': ['policy', 'people'], starHire: ['hire', 'people'],
   'safety.fund': ['research', 'safety'], 'safety.cut': ['research', 'safety'], 'safety.automate': ['policy', 'safety'], 'safety.agents': ['policy', 'safety'],
   'safety.investigate': ['respond', 'safety'], 'safety.closeCase': ['respond', 'safety'], 'safety.respond': ['respond', 'safety'],

@@ -7,7 +7,7 @@ import { AGENDA_IDS } from '../../../data/v2/agendas';
 import { financeAutopilot, financeDecide, type AutopilotOpts } from '../finance/plan';
 import { runwayOf } from '../finance/runway';
 import { every, pickByTags, tryAct } from './common';
-import { REF_PARADIGMS, refPlay, type RefPlayOpts } from './ref';
+import { REF_TREE, SAFE_TREE_EXTRA, refPlay, type RefPlayOpts } from './ref';
 
 const MAJOR = ['AG01', 'AG02', 'AG03', 'AG07', 'AG08'];
 /** Model cadence: WS1's reference play with safe designs (no latent reasoning; faithful CoT once P23 exists). */
@@ -16,7 +16,7 @@ const SAFE_PLAY: RefPlayOpts = {
   safStaffShare: 0.25,
   base: { safetyPretrain: true, hazard: true },
   post: () => ({ pref: 'constitution', rlIntensity: 'heavyHardened', cot: 'faithful', safety: 'heavy', inoculation: true }),
-  paradigms: () => [...REF_PARADIGMS.filter((p) => p !== 'P17'), 'P23'],
+  tree: () => [...REF_TREE.filter((g) => g.id !== 'P17'), ...SAFE_TREE_EXTRA],
 };
 
 /** Reference compute with no strategic deal and no debt (§7.4); SPV sites, leases and neocloud capacity are allowed

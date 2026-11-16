@@ -22,6 +22,8 @@ import { resolve, tick } from '../../src/engine/v2/core/loop';
 import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
 import { engine } from '../../src/engine/v2/index';
 import { GOLDEN_PATH, KNOWN, check, finish, refGame, runRef } from './lib';
+import { TREE_BY_ID } from '../../src/data/v2/tree';
+import { effortOf } from '../../src/engine/v2/models/tree';
 
 const NAMES = ['A0', 'A1', 'A2', 'SC', 'SAR', 'SIAR', 'ASI'] as const;
 const SEED = 2027;
@@ -155,6 +157,62 @@ if (process.argv.includes('--fit-leader')) {
     console.log(`LEADER_CAL ${p} = ${out[p]}`);
   }
   console.log(`LEADER_CAL = ${JSON.stringify(out)}  (sampled: use the ai2027 value)`);
+  process.exit(0);
+}
+
+// ---------- --fit-tree (R4): reference efforts of RefBot's tree projects ----------
+// RefBot starts each project when the old gate would have opened (bots/ref.ts REF_TREE). Before R4 a project took a
+// fixed number of days at RefBot's staffing (30 FTE + 2% of the experiment pool); now it takes effort / (M · √capacity).
+// The fit scales each node's effort (standard-team-months at M = 1) until every RefBot attempt (first and retries)
+// lasts its old duration, so adoption days stay where they were (D3: absolute M, fitted on RefBot). Presets: the named
+// ones (default ai2027); several presets combine by the geometric mean of their ratios. Prints `effortTM` values to
+// paste into src/data/v2/tree.ts.
+/** Pre-R4 effortDays of RefBot's paradigm projects (data/v2/paradigms.ts before R4). */
+const OLD_EFFORT_DAYS: Record<string, number> = { P05: 60, P07: 60, P08: 150, P13: 150, P17: 120 };
+function attemptDurations(preset: T1Preset): Record<string, number[]> {
+  const s = refGame(defaultSetupV2({ world: preset, alignment: 'medium', seed: SEED }));
+  const start: Record<string, number> = {};
+  const out: Record<string, number[]> = {};
+  const stop = lastIdx(preset);
+  runRef(s, 365 * 16, (x) => {
+    for (const id of Object.keys(OLD_EFFORT_DAYS)) {
+      const st = x.player.tree[id];
+      if (!st) continue;
+      const k = `${id}@${st.attempts ?? 1}`;
+      if (st.status === 'researching' && start[k] === undefined) start[k] = x.time.day;
+      // First two attempts only: later retries depend on the 'runs' stream draw and would make the fit chase noise.
+      if (st.status !== 'researching' && start[k] !== undefined && st.day === x.time.day && (st.attempts ?? 1) <= 2) (out[id] ??= []).push(x.time.day - start[k] + 1);
+    }
+    return x.player.milestoneDays[stop] !== undefined;
+  });
+  return out;
+}
+if (process.argv.includes('--fit-tree')) {
+  const named = process.argv.slice(process.argv.indexOf('--fit-tree') + 1).filter((p): p is T1Preset => (T1_PRESETS as string[]).includes(p));
+  const presets = named.length ? named : (['ai2027'] as T1Preset[]);
+  for (let iter = 0; iter < 10; iter++) {
+    const logR: Record<string, number[]> = {};
+    const rows: string[] = [];
+    for (const p of presets) {
+      const d = attemptDurations(p);
+      for (const [id, ds] of Object.entries(d)) {
+        const mean = ds.reduce((a, x) => a + x, 0) / ds.length;
+        (logR[id] ??= []).push(Math.log(OLD_EFFORT_DAYS[id] / Math.max(1, mean)));
+        rows.push(`${p}:${id} ${ds.join('/')} d`);
+      }
+    }
+    console.log(`  iter ${iter}: ${rows.join('  ')}`);
+    let worst = 0;
+    for (const [id, lr] of Object.entries(logR)) {
+      const ratio = Math.exp(lr.reduce((a, x) => a + x, 0) / lr.length);
+      worst = Math.max(worst, Math.abs(Math.log(ratio)));
+      const n = TREE_BY_ID[id];
+      // Damped (the projects share teams, so a full step makes P08 and P13 alternate).
+      n.effortTM = Math.round(effortOf(n) * Math.pow(ratio, 0.6) * 100) / 100;
+    }
+    if (worst < 0.02) break;
+  }
+  console.log(`effortTM = ${JSON.stringify(Object.fromEntries(Object.keys(OLD_EFFORT_DAYS).map((id) => [id, TREE_BY_ID[id].effortTM])))}`);
   process.exit(0);
 }
 
