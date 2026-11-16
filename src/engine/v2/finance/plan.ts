@@ -12,7 +12,7 @@ import { cloudPricePerYear, refTotalAt } from '../compute/market';
 import { EVENT_BY_ID } from '../core/registry';
 import type { GameStateV2, PendingDecision } from '../types';
 import { debtHeadroom } from './debt';
-import { canRaise, lastPostMoney } from './equity';
+import { canRaise, DOWN_ROUND_RUNWAY_Q, lastPostMoney } from './equity';
 import { qOf } from './ledger';
 import { runwayOf } from './runway';
 
@@ -101,10 +101,13 @@ function ownedBy(s: GameStateV2, qq: number) {
 
 /** Run one autopilot step (call every day before the tick; acts on the 1st of each month). */
 export function financeAutopilot(s: GameStateV2, o: AutopilotOpts = REF_AUTOPILOT): void {
-  if (s.time.day % 30 !== 0 && !isQuarterStart(s)) return;
   const f = s.player.finance;
-  if (f.state === 'insolvent') return;
   const tryAct = (id: string, p: Record<string, number | string | boolean> = {}) => act(s, id, p) === undefined;
+  // A round repriced into a down round (decided at once, whatever the day): a competent CEO takes it only when the
+  // company needs the cash (runway under DOWN_ROUND_RUNWAY_Q), otherwise pulls it (the pre-R1 automatic rule, M4).
+  if (f.ws3?.repricedRound && f.state !== 'insolvent') tryAct(runwayOf(s).q < DOWN_ROUND_RUNWAY_Q ? 'fin.acceptRepriced' : 'fin.pullRepriced');
+  if (s.time.day % 30 !== 0 && !isQuarterStart(s)) return;
+  if (f.state === 'insolvent') return;
 
   // Governance: start the recapitalisation when it becomes available (Q4 2025).
   if (o.recap && s.player.board.preset === 'legacyNonprofit' && f.ws3.recap.startDay === undefined && !f.ws3.recap.refused && s.time.day >= 92) tryAct('fin.recap');

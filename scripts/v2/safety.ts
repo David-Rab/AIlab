@@ -8,6 +8,8 @@ import { makeCtx } from '../../src/engine/v2/core/loop';
 import { expectedObservation, familyPenalty, observeVersion } from '../../src/engine/v2/safety/detection';
 import { fireFinding } from '../../src/engine/v2/safety/findings';
 import { applyResponse } from '../../src/engine/v2/safety/responses';
+import { aiLabourGate, safetyAgentVersion, safetyFleet } from '../../src/engine/v2/safety/agents';
+import { openInvestigation } from '../../src/engine/v2/safety/investigations';
 import { sampleHidden } from '../../src/engine/v2/world/hidden';
 import { Rng } from '../../src/engine/rng';
 import type { GameStateV2, TraitId } from '../../src/engine/v2/types';
@@ -153,6 +155,22 @@ check(median(mm) >= -0.5, 'S5 Mixed-bot funding keeps U ≥ L − 0.5 up to SAR 
   console.log(`      FALSE share: ai 0 → ${pct(r00)}; ai .5·sab .1 → ${pct(rLo)}; ai .5·sab .8 → ${pct(rMid)}; ai 1·sab .8 → ${pct(rHi)}; ai 1·sab 1.6 → ${pct(rHiHi)}`);
   check(r00 === 0, 'S6 no FALSE findings without AI labour');
   check(rLo < rMid && rMid < rHi && rHi < rHiHi, 'S6 FALSE finding rate rises with aiLabour × hidden sabotage');
+}
+
+// ───────── B3 (R1): one AI-labour gate for agendas, investigations and the fleet ─────────
+{
+  const s = newGame(defaultSetupV2({ seed: 7, alignment: 'medium' }));
+  const ctx = makeCtx(s);
+  const v = safetyAgentVersion(s) ?? s.player.models.versions[0];
+  s.player.staff.saf = Math.max(60, s.player.staff.saf);
+  s.player.safety.agentShare = 0.3;
+  v.evals.measuredL = 6;
+  check(aiLabourGate(s) !== true, 'B3 a model below the gate fails it');
+  const r = openInvestigation(s, ctx, { kind: 'trait', versionId: v.id, trait: 'SCHEME' }, 10, { aiLabour: 0.5 });
+  check(typeof r === 'string' && r.includes('AI labour'), 'B3 investigations with AI labour need the gate', String(typeof r === 'string' ? r : r.id));
+  check(safetyFleet(s).aiFte === 0, 'B3 the safety fleet supplies no AI labour below the gate');
+  v.evals.measuredL = 9;
+  check(aiLabourGate(s) === true && safetyFleet(s).aiFte > 0, 'B3 above the gate the fleet works');
 }
 
 console.log(`      (${((performance.now() - t0) / 1000).toFixed(1)} s for the emulated games)`);

@@ -9,7 +9,7 @@
 // with human FTE n and AI FTE a gets labour multiplier min(cap, √(1 + Auto·a/n)), where cap = 1 + aiLabour·Auto·
 // min(10, √M_model) is the pre-fleet multiplier (§3.5.3): compute decides how close to the cap you get.
 import { H100E_PER_COPY_SC } from '../../../data/v2/calibration';
-import { AGENDA_BY_ID } from '../../../data/v2/agendas';
+import { AGENDA_BY_ID, AUTOMATE_MIN_L } from '../../../data/v2/agendas';
 import { internalVersion } from '../models/labs';
 import { aiFtePerH100e } from '../production/production';
 import type { AgendaId, GameStateV2, ModelVersion } from '../types';
@@ -21,6 +21,17 @@ export function safetyAgentVersion(s: GameStateV2): ModelVersion | undefined {
   const v = id ? versionById(s, id) : undefined;
   if (v && v.status !== 'retired' && v.status !== 'rolledBack') return v;
   return internalVersion(s);
+}
+
+/** Measured level of a model (default: the one running the safety agents). */
+export function safetyAgentL(s: GameStateV2, v: ModelVersion | undefined = safetyAgentVersion(s)): number {
+  return v?.evals.measuredL ?? 0;
+}
+
+/** The one gate on safety AI labour (B3): agendas, investigations and the safety agent fleet all need a model at
+ *  measured level ≥ AUTOMATE_MIN_L. Returns true or the reason. */
+export function aiLabourGate(s: GameStateV2, v: ModelVersion | undefined = safetyAgentVersion(s)): true | string {
+  return safetyAgentL(s, v) >= AUTOMATE_MIN_L || `Needs a safety agent model at measured level ≥ ${AUTOMATE_MIN_L}`;
 }
 
 /** H100e on safety agents. */
@@ -42,7 +53,8 @@ export interface SafetyFleet {
 export function safetyFleet(s: GameStateV2): SafetyFleet {
   const v = safetyAgentVersion(s);
   const compute = safetyAgentCompute(s);
-  const aiFte = v ? compute * aiFtePerH100e(s, v) : 0;
+  // Below the AI-labour gate the fleet supplies no labour (its compute still shows as reserved).
+  const aiFte = v && aiLabourGate(s, v) === true ? compute * aiFtePerH100e(s, v) : 0;
   const copies = v ? compute / (H100E_PER_COPY_SC * (v.serveCost / 0.5)) : 0;
   const dept = s.player.safety;
   let weight = 0;

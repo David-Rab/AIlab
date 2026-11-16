@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { CRITICAL_TRAITS, SIGNALS, TRAIT_BY_ID } from '../../../data/v2/traits';
 import {
-  baseFromParams, dateOf, evalDaysFor, fmtDate, internalEval, internalVersion, liveCommitments, measuredDomains, nextModelGate, postFromParams,
+  POOL_SHARE_RANGE, baseFromParams, dateOf, evalDaysFor, fmtDate, internalEval, internalVersion, liveCommitments, measuredDomains, nextModelGate, postFromParams,
   runCard, runTraitPressure, traitGraph,
 } from '../../../engine/v2';
 import type { GameStateV2, LaunchRunParams, RLFamily, TraitId } from '../../../engine/v2';
@@ -151,7 +151,7 @@ export function RunDesigner({ s }: { s: GameStateV2 }) {
         opts[`${r.field}:${String(v)}`] = { ...glyphs(cur, alt), alt };
       }
     }
-    const ends = [0.1, 1].map((ps) => evaluate(s, kind, { ...p, poolShare: ps }).card);
+    const ends = POOL_SHARE_RANGE.map((ps) => evaluate(s, kind, { ...p, poolShare: ps }).card);
     return { cur, ref, opts, ends };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
@@ -241,11 +241,11 @@ export function RunDesigner({ s }: { s: GameStateV2 }) {
           <div className="rd-row" id="ctl-runpool">
             <div className="rd-rl"><b><Term id="trainingPool">Compute share</Term></b><span className="dim small">of the training pool</span></div>
             <div className="rd-pool">
-              <Slider value={Number(p.poolShare)} min={0.1} max={1} step={0.05} onChange={(v) => set('poolShare', v)} width={300} />
+              <Slider value={Number(p.poolShare)} min={POOL_SHARE_RANGE[0]} max={POOL_SHARE_RANGE[1]} step={0.05} onChange={(v) => set('poolShare', v)} width={300} />
               <div className="rd-pool-ends small dim">
-                <span>10% · {ends[0] ? F.days(ends[0].etaDays) : '—'}</span>
+                <span>{F.pct(POOL_SHARE_RANGE[0])} · {ends[0] ? F.days(ends[0].etaDays) : '—'}</span>
                 <b className="num">{F.pct(Number(p.poolShare))}</b>
-                <span>100% · {ends[1] ? F.days(ends[1].etaDays) : '—'}</span>
+                <span>{F.pct(POOL_SHARE_RANGE[1])} · {ends[1] ? F.days(ends[1].etaDays) : '—'}</span>
               </div>
             </div>
           </div>

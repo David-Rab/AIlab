@@ -2,7 +2,7 @@
 // shares and the distillation leak. Revenue run-rate lives in Finance; the compute split in Company › Split.
 import { useState } from 'react';
 import { SECTORS } from '../../../data/v2/sectors';
-import { CHANNEL_VARIANTS, deployGate, distillationAccess, revenueReadout, versionById } from '../../../engine/v2';
+import { CHANNEL_VARIANTS, deployGate, distillationAccess, effortLock, revenueReadout, versionById } from '../../../engine/v2';
 import type { Channel, GameStateV2 } from '../../../engine/v2';
 import { ActBtn, Seg, Term, Tip, TipCard } from '../ui';
 import { Card, GoBtn, HBar, PanelHead, Pill, Ref } from '../kit';
@@ -34,7 +34,8 @@ export function Deployments({ s }: { s: GameStateV2 }) {
   const [ch, setCh] = useState<Channel>('api');
   const [price, setPrice] = useState(1);
   const [kyc, setKyc] = useState(1);
-  const [effort, setEffort] = useState<'low' | 'max' | 'deep'>('max');
+  const [effortPick, setEffort] = useState<'low' | 'max' | 'deep'>('max');
+  const effort = effortLock(s, effortPick) ? 'max' : effortPick;
   const [serve, setServe] = useState(0.2);
   const [shares, setShares] = useState<Record<string, number>>({});
   const [sector, setSector] = useState(SECTORS[0].id);
@@ -138,7 +139,7 @@ export function Deployments({ s }: { s: GameStateV2 }) {
           </div>
           <div className="dep-row">
             <span className="dim small"><Term id="effort">Effort</Term></span>
-            <Seg value={effort} options={[{ v: 'low', label: 'low' }, { v: 'max', label: 'max' }, { v: 'deep', label: 'deep' }]} onChange={setEffort} />
+            <Seg testId="dep-effort" value={effort} options={(['low', 'max', 'deep'] as const).map((e) => ({ v: e, label: e, locked: effortLock(s, e) }))} onChange={setEffort} />
             <span className="dim small"><Term id="kyc">KYC</Term></span>
             <Seg value={kyc} options={[0, 1, 2, 3].map((k) => ({ v: k, label: String(k) }))} onChange={setKyc} />
           </div>

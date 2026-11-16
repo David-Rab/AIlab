@@ -283,10 +283,20 @@ await check('Research mix: back to auto', 'JSON.stringify(s.player.researchManua
   await page.click('[data-act=setSplit]');
 });
 await tabTo('people');
-await check('Hiring slider + Set', 's.player.hiring.target.saf', async () => {
-  await setSlider(page.locator('[data-dept=saf] input[type=range]'), 120);
+await check('Hiring target (no UI cap) + Set', 's.player.hiring.target.saf', async () => {
+  const big = JSON.parse(await get('Math.round(Math.max(200, s.player.staff.saf * 3) + 150)')); // above the old slider cap
+  await page.fill('[data-test=hire-target-saf]', String(big));
   await page.click('[data-dept=saf] [data-act=hireTarget]');
 });
+ok('Hiring target above the old UI cap applies', JSON.parse(await get('s.player.hiring.target.saf > Math.max(200, s.player.staff.saf * 3)')));
+// B4: one WSL target range for the slider and the engine.
+await tabTo('security');
+ok('Security target slider range matches the engine (2–5)', JSON.parse(await get(`(() => { const r = document.querySelector('[data-panel=company] [data-home=wsl] input[type=range]'); return !!r && r.min === '2' && r.max === '5'; })()`)));
+await check('Security target: slider at the floor + Set', 's.player.security.target', async () => {
+  await setSlider(page.locator('[data-panel=company] [data-home=wsl] input[type=range]'), 2);
+  await page.click('[data-panel=company] [data-act=SEC_TARGET]');
+});
+ok('Security target set to the slider value', JSON.parse(await get('s.player.security.target === 2')));
 await tabTo('flow');
 ok('Company flow renders', !!(await page.$('[data-home=computeFlow]')) && !!(await page.$('[data-home=M]')));
 await check('Flow pool click goes to the split', 'store.tab.company', () => page.click('[data-pool=experiments]'));
@@ -301,10 +311,27 @@ await page.click('[data-panel=rundesigner] [data-opt="shape:dense"]');
 await check('Run designer: save template', 'localStorage.getItem("ai27.v2.runTemplates")', () => page.click('[data-test=rd-save]'));
 await check('Launch base run', `s.player.models.runs.filter(r => r.kind === 'base').length`, () => page.click('[data-act=launchBase]'));
 await closeModals();
+// Split floors are gone: a zero training share applies (with a warning first) and running runs show as paused.
+await nav('company');
+await tabTo('split');
+await setSlider(page.locator('#ctl-split-training input[type=range]').first(), 0);
+await wait(60);
+ok('Split: zero training warns before apply', !!(await page.$('[data-test=split-warn]')));
+await check('Split: zero training share applies (no rejection)', 'JSON.stringify(s.player.split.training < 1e-6)', () => page.click('[data-act=setSplit]'));
+await nav('models');
+ok('Run queue: paused, no training compute', ((await page.$eval('[data-test=run-stall]', (e) => e.textContent).catch(() => '')) ?? '').includes('no training compute'));
+await nav('company');
+await tabTo('split');
+await page.click('[data-act="splitPreset.reference"]');
+await closeModals();
 await nav('models');
 const vids = JSON.parse(await get('s.player.models.versions.map(v => v.id)'));
 if (vids.length > 1) await check('Select version in lineage', 'store.sel.versionId', () => page.click(`[data-version="${vids[0]}"]`));
 await nav('deployments');
+// B5: deep effort is a locked option with its reason until orchestration (P05) is adopted.
+if (!JSON.parse(await get(`s.player.paradigms.P05 && s.player.paradigms.P05.status === 'adopted'`))) {
+  ok('Deploy: deep effort locked with its reason', await page.$eval('[data-test=dep-effort] [data-opt=deep]', (b) => b.disabled && (b.getAttribute('data-locked') ?? '').includes('P05')).catch(() => false));
+}
 await check('Deploy channel', `document.querySelector('[data-panel=deployments]').innerHTML`, () => page.click('[data-panel=deployments] [data-channel-opt=enterprise]'));
 const dep = JSON.parse(await get(`(s.player.deployments.find(d => d.status === 'live' && d.channel !== 'internal' && d.channel !== 'open') || {}).id || ''`));
 if (dep) {

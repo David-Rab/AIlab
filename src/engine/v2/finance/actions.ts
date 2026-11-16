@@ -10,7 +10,7 @@ import type { ActionDef, CostLine, Debt, GameStateV2, Site, StrategicDeal, Syste
 import { boardApproval, boardBlocked, boardSupport, BOARD_VECTORS } from './board';
 import { debtHeadroom, drawDebt, repayDebt } from './debt';
 import { acceptDeal, dealBlocker, dealTerms, declineDeal, partnerFor, rescueOffer, seekPartner } from './deals';
-import { bookRound, canRaise, raiseCeiling, startRaise } from './equity';
+import { acceptRepriced, bookRound, canRaise, lastPostMoney, pullRepriced, raiseCeiling, startRaise } from './equity';
 import { ensureWs3, yearStats, type DealOffer } from './ext';
 import { commitmentsPerYear, qOf, bookCash } from './ledger';
 import { runwayOf } from './runway';
@@ -77,6 +77,37 @@ const raise: ActionDef = {
     }
     startRaise(s, ctx, ask, { ...(anchor ? { anchor } : {}), ipo });
   },
+};
+
+// ───────────────────────────── Repriced round: the player decides (LIMITS: no silent pull) ─────────────────────────────
+
+const repricedAvail = (s: GameStateV2) => (s.player.finance.ws3?.repricedRound ? true : 'No repriced round to decide on');
+
+const acceptRound: ActionDef = {
+  id: 'fin.acceptRepriced', sphere: 'finance', owner: 'WS3', title: 'Accept round',
+  available: repricedAvail,
+  preview(s) {
+    const r = s.player.finance.ws3?.repricedRound;
+    const ask = r?.ask ?? 0;
+    const pre = r?.pre ?? Math.max(1, s.player.finance.valuation);
+    const down = !r || pre < (r.lastPost || lastPostMoney(s));
+    return {
+      costs: [{ currency: 'dilution', amount: Math.round((ask / (pre + ask || 1)) * 1000) / 10 }, ...(down ? [{ currency: 'boardConf' as const, amount: -15, target: 'down round' }, { currency: 'talent' as const, amount: -5, target: 'senior attrition' }] : [])],
+      gains: [{ currency: 'cash', amount: ask >= 20 ? ask * 0.5 : ask, target: ask >= 20 ? 'now; the rest as a tranche' : 'now' }],
+      exposure: [],
+    };
+  },
+  apply: (s, ctx) => acceptRepriced(s, ctx),
+};
+
+const pullRound: ActionDef = {
+  id: 'fin.pullRepriced', sphere: 'finance', owner: 'WS3', title: 'Pull round',
+  available: repricedAvail,
+  preview(s) {
+    const r = s.player.finance.ws3?.repricedRound;
+    return { costs: [{ currency: 'cash', amount: -(r?.ask ?? 0), target: 'money you do not raise' }], gains: [{ currency: 'dilution', amount: 0, target: 'no dilution' }, { currency: 'boardConf', amount: 0, target: 'no down-round hit' }], exposure: [] };
+  },
+  apply: (s, ctx) => pullRepriced(s, ctx),
 };
 
 const downRound: ActionDef = {
@@ -632,7 +663,7 @@ export const FINANCE_ACTIONS: ActionDef[] = [
   raise, seek, accept, decline, draw, repay, recap, refuseRecap,
   orderAction('spot', 'cmp.orderSpot', 'Spot order'), orderAction('standard', 'cmp.orderStandard', 'Order chips'), orderAction('lta', 'cmp.orderLTA', 'Chip LTA'),
   fundSup, cloud, spotRent, site, community, transformers,
-  downRound, rescue, renegotiate, sell, cancel,
+  downRound, rescue, renegotiate, sell, cancel, acceptRound, pullRound,
 ];
 
 

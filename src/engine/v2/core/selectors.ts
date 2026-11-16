@@ -14,14 +14,14 @@ import type { DecisionSnapshot, GameStateV2, HiddenWorld, SignalId, TraitId } fr
 
 export { production, productionWhatIf, nextModelGate, researchMixCurve, responseCurves, RESPONSE_SCALES } from '../production/readout';
 export type { MixCurve, NextModelGate, ResponseCurves } from '../production/readout';
-export { specOf, topOf, TOP_KEYS } from '../departments/split';
+export { MANUAL_MIX_RANGE, specOf, topOf, TOP_KEYS } from '../departments/split';
 export type { SplitSpec, TopKey, TopSplit } from '../departments/split';
 // WS1 model / department selectors and helpers for the UI (visible data only).
-export { planRun, predictRun } from '../models/runs';
+export { planRun, predictRun, POOL_SHARE_RANGE, runStall } from '../models/runs';
 export type { LaunchRunParams, RunPlan } from '../models/runs';
 export { paradigmGate, PARADIGM_BY_ID } from '../models/paradigms';
 export { benchName, benchGen, evalDaysFor } from '../models/benchmarks';
-export { deployGate, liveDeployments, CHANNEL_VARIANTS, distillationAccess } from '../models/deployments';
+export { deployGate, effortLock, liveDeployments, CHANNEL_VARIANTS, distillationAccess } from '../models/deployments';
 export { bestMeasuredL, internalVersion, labPools, measuredLOf, versionById } from '../models/labs';
 export { MILESTONE_NAMES } from '../models/capability';
 export { presetSplit, shareRefAt, SPLIT_KEYS, SPLIT_PRESETS } from '../departments/split';
@@ -33,7 +33,7 @@ export { raiseCeiling } from '../finance/equity';
 // WS2 safety-panel selectors (beliefs, posteriors, incidents as the player sees them). `safetyTruth` is END SCREEN ONLY.
 export { agendaRows, beliefView, findingRows, incidentRows, safetyTruth, safetyUtilisation, safetyView, techniqueRows, traitGraph, uModeCards } from '../safety/view';
 export type { AgendaRow, FindingRow, SafetyUtilisation, TechniqueRow } from '../safety/view';
-export { safetyAgentVersion, safetyFleet } from '../safety/agents';
+export { aiLabourGate, safetyAgentVersion, safetyFleet } from '../safety/agents';
 // WS5 world readouts (observables only).
 export { automationShare, dowYtd, firmAdoption, remoteWorkAutomation, unemploymentChange12m, youthExposedEmployment } from '../worldfx/readouts';
 export { causeStrip } from './causes';
@@ -123,3 +123,4 @@ export function runTraitPressure(s: GameStateV2, p: LaunchRunParams): Partial<Re
   for (const t of Object.keys(next) as TraitId[]) out[t] = next[t].est - (prior[t]?.est ?? 0);
   return out;
 }
+export { WSL_TARGET_RANGE } from '../security/security';

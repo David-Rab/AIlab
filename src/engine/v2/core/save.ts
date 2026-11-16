@@ -3,7 +3,7 @@ import { ensureWs3 } from '../finance/ext';
 import type { GameStateV2 } from '../types';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
-export const SCHEMA_REV = 3;
+export const SCHEMA_REV = 4;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -28,6 +28,15 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     const hiring = (s.player as unknown as { hiring?: { target?: Record<string, number>; pipeline?: { role: string }[] } }).hiring;
     fix(hiring?.target, ['sec', 'prod', 'ops']);
     if (hiring?.pipeline) hiring.pipeline = hiring.pipeline.filter((p) => p.role === 'cap' || p.role === 'saf');
+  },
+  /** 3 → 4 (restructure R1): setup gains the start type (every earlier game is the frontier-leader start) and the
+   *  leader-lab flag (off). Later restructure milestones may reject pre-restructure saves instead (BUILD-PLAN D8). */
+  3: (raw) => {
+    const setup = (raw as { setup?: Record<string, unknown> }).setup;
+    if (setup) {
+      setup.start ??= 'leader';
+      setup.leaderLab ??= false;
+    }
   },
 };
 

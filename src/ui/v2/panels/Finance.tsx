@@ -236,6 +236,18 @@ function RaiseCard({ s }: { s: GameStateV2 }) {
         <ActBtn id="fin.downRound" label={<Term id="downRound">Down round</Term>} />
         <ActBtn id="fin.rescue" label={<Term id="rescue">Rescue</Term>} />
       </div>
+      {f.ws3.repricedRound && (() => {
+        const rr = f.ws3.repricedRound;
+        return (
+          <div className="fin-row" data-test="repriced-round">
+            <span className="tag2 warn"><Term id="repricedRound">Repriced</Term></span>
+            <span className="small"><b className="num">{F.money(rr.ask)}</b> at <b className="num">{F.money(rr.pre)}</b> pre <span className="dim">(last post {F.money(rr.lastPost)}) · decide by {fmtDate(dateOf(s, rr.deadline))}</span></span>
+            <span className="sp" />
+            <ActBtn id="fin.acceptRepriced" label="Accept down round" />
+            <ActBtn id="fin.pullRepriced" label="Pull" />
+          </div>
+        );
+      })()}
       <div className="fin-foot">
         {pend ? <span><span className="dim">Pending</span> <b className="num">{F.money(pend.ask)}</b> <span className="dim">closes {fmtDate(dateOf(s, nextQDay(s)))}</span></span> : <span className="dim">No round in progress</span>}
         <span className="sp" />

@@ -4,7 +4,7 @@
 // repeated). Two departments have staff: capabilities and safety.
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { agendaRows, engine, idleChips, inPipeline, ownedOnline, payrollPerYear, poolsOf, rentedOnline, revenueReadout, specOf, SPLIT_KEYS, SPLIT_PRESETS, TOP_KEYS, weeklyHireCap } from '../../../engine/v2';
+import { MANUAL_MIX_RANGE, WSL_TARGET_RANGE, agendaRows, engine, idleChips, inPipeline, ownedOnline, payrollPerYear, poolsOf, rentedOnline, revenueReadout, specOf, SPLIT_KEYS, SPLIT_PRESETS, TOP_KEYS, weeklyHireCap } from '../../../engine/v2';
 import type { GameStateV2, SplitSpec, StaffByRole, TopKey } from '../../../engine/v2';
 import { MixChart, ResponseCharts } from './ResearchCharts';
 import { store } from '../store';
@@ -160,8 +160,8 @@ function People({ s }: { s: GameStateV2 }) {
         {ROLES.map((r) => (
           <Card key={r.id} className="dept-card" title={<span className="row-i" style={{ color: r.color }}><r.icon size={15} /> {r.label}</span>} right={<span className="num big" data-home={`headcount.${r.id}`}>{F.count(p.staff[r.id])}</span>}>
             <div data-dept={r.id}>
-              <KV k="Hiring target" term="hiringTarget"><span className="num">{F.count(targets[r.id])}</span></KV>
-              <Slider value={targets[r.id]} min={0} max={Math.max(200, p.staff[r.id] * 3)} step={5} onChange={(v) => setTargets({ ...targets, [r.id]: v })} width={170} />
+              <KV k="Hiring target" term="hiringTarget"><input className="text-input num" type="number" min={0} step={10} value={targets[r.id]} data-test={`hire-target-${r.id}`} style={{ width: 100 }}
+                onChange={(e) => setTargets({ ...targets, [r.id]: Math.max(0, Math.round(Number(e.target.value) || 0)) })} /></KV>
               <KV k="In pipeline · cap/wk" term="hirePipeline">{F.count(inPipeline(s, r.id))} · {F.count(weeklyHireCap(s, r.id))}</KV>
               <KV k="Payroll" term="payroll">{F.money(payrollPerYear({ ...ZERO, [r.id]: p.staff[r.id] }), { perYear: true })}</KV>
               <ActBtn id="hireTarget" params={{ role: r.id, target: targets[r.id] }} label="Set target" reason />
@@ -205,11 +205,15 @@ function Split({ s }: { s: GameStateV2 }) {
   const changed = TOP_KEYS.some((k) => Math.abs(norm[k] - cur.top[k]) > 1e-3) || Math.abs(spec.dataShare - cur.dataShare) > 1e-3 || manual !== !!p.researchManual || (manual && Math.abs(spec.expShare - cur.expShare) > 1e-3);
   const params: Record<string, number> = { ...norm, dataShare: spec.dataShare, manual: manual ? 1 : 0, ...(manual ? { expShare: spec.expShare } : {}) };
   const reset = () => { setSpec(specOf(s.player.split)); setManual(!!s.player.researchManual); };
+  // What a zero share does (no floors: the split always applies; these say what stops).
+  const warns: string[] = [];
+  if (norm.training * (1 - spec.dataShare) <= 1e-4 && p.models.runs.some((r) => r.status === 'running')) warns.push('Running training runs pause: no training compute');
+  if (norm.serving <= 1e-4 && p.deployments.some((d) => d.status === 'live' && d.channel !== 'internal' && d.channel !== 'open')) warns.push('Every product goes capacity-bound: no serving compute');
   const row = (k: TopKey, sub?: ReactNode) => (
     <div key={k} className="split-group" id={`ctl-split-${k}`}>
       <div className="alloc-row split-row">
         <span className="alloc-label"><span className="dot" style={{ background: TOP_COLOR[k] }} /><Term id={TOP_TERM[k]}>{TOP_LABEL[k]}</Term></span>
-        <Slider value={spec.top[k]} min={0} max={0.9} step={0.01} onChange={(v) => setSpec({ ...spec, top: { ...spec.top, [k]: v } })} width={260} />
+        <Slider value={spec.top[k]} min={0} max={1} step={0.01} onChange={(v) => setSpec({ ...spec, top: { ...spec.top, [k]: v } })} width={260} />
         <span className="alloc-val num">{pct0(norm[k])}</span>
         <span className={`num small ${Math.abs(norm[k] - cur.top[k]) > 1e-3 ? 'tone-warn' : 'dim'}`}>{Math.abs(norm[k] - cur.top[k]) > 1e-3 ? `was ${pct0(cur.top[k])}` : ''}</span>
       </div>
@@ -223,7 +227,7 @@ function Split({ s }: { s: GameStateV2 }) {
         {row('training', (
           <div className="alloc-row split-row split-sub" id="ctl-split-synthetic">
             <span className="alloc-label small"><Term id="poolSynthetic">Data generation</Term></span>
-            <Slider value={spec.dataShare} min={0} max={0.8} step={0.01} onChange={(v) => setSpec({ ...spec, dataShare: v })} width={260} />
+            <Slider value={spec.dataShare} min={0} max={1} step={0.01} onChange={(v) => setSpec({ ...spec, dataShare: v })} width={260} />
             <span className="alloc-val num small">{pct0(spec.dataShare)}</span>
             <span className="small dim">of training</span>
           </div>
@@ -232,7 +236,7 @@ function Split({ s }: { s: GameStateV2 }) {
           <div className="alloc-row split-row split-sub" id="ctl-split-experiments">
             <span className="alloc-label small"><Term id="researchMix">Mix</Term> <Seg value={manual ? 'manual' : 'auto'} options={[{ v: 'auto', label: 'Auto', tip: 'Best mix, re-set every day' }, { v: 'manual', label: 'Manual', tip: 'Hold your own mix' }]} onChange={(v) => setManual(v === 'manual')} /></span>
             {manual
-              ? <Slider value={spec.expShare} min={0.02} max={0.98} step={0.01} onChange={(v) => setSpec({ ...spec, expShare: v })} width={260} />
+              ? <Slider value={spec.expShare} min={MANUAL_MIX_RANGE[0]} max={MANUAL_MIX_RANGE[1]} step={0.01} onChange={(v) => setSpec({ ...spec, expShare: v })} width={260} />
               : <span className="small dim" style={{ width: 260 }}>follows the best mix</span>}
             <span className="alloc-val num small">{pct0(manual ? spec.expShare : cur.expShare)}</span>
             <span className="small dim">experiments · rest <Term id="poolAgents">agents</Term></span>
@@ -240,6 +244,7 @@ function Split({ s }: { s: GameStateV2 }) {
         ))}
         {row('serving')}
         {row('safety')}
+        {warns.map((w) => <div key={w} className="small tone-warn" data-test="split-warn">{w}</div>)}
         <div className="btn-row">
           <ActBtn id="setSplit" params={params} label={changed ? 'Apply split' : 'Split (no change)'} primary={changed} onDone={reset} />
           <button className="btn btn-sm" onClick={reset}>Reset</button>
@@ -260,12 +265,13 @@ function Split({ s }: { s: GameStateV2 }) {
 // ───────── Security ─────────
 function Security({ s }: { s: GameStateV2 }) {
   const p = s.player;
-  const [wsl, setWsl] = useState(Math.min(5, Math.round((p.security.target + 0.5) * 2) / 2));
+  const [wslLo, wslHi] = WSL_TARGET_RANGE;
+  const [wsl, setWsl] = useState(Math.max(wslLo, Math.min(wslHi, Math.round((p.security.target + 0.5) * 2) / 2)));
   return (
     <div className="g2">
       <Card title={<Term id="wsl">Weight security</Term>} home="wsl" right={<span className="num big">{p.security.wsl.toFixed(1)}</span>}>
         <KV k="Level now → target" term="wslTarget"><HBar v={p.security.wsl} max={5} color={SPHERE.sec} w={140} mark={p.security.target} /> {p.security.wsl.toFixed(1)} → {p.security.target.toFixed(1)}</KV>
-        <div className="kv"><span className="kv-k">New target {wsl.toFixed(1)}</span><span className="row-i"><Slider value={wsl} min={1} max={5} step={0.5} onChange={setWsl} /><ActBtn id="SEC_TARGET" params={{ level: wsl }} label="Set" reason /></span></div>
+        <div className="kv"><span className="kv-k">New target {wsl.toFixed(1)}</span><span className="row-i"><Slider value={wsl} min={wslLo} max={wslHi} step={0.5} onChange={setWsl} /><ActBtn id="SEC_TARGET" params={{ level: wsl }} label="Set" reason /></span></div>
         <KV k="Security spend" term="opex">{F.money(p.security.spendRate, { perYear: true })}</KV>
         <KV k="Privileged staff" term="privileged">{F.count(p.security.privileged)}</KV>
         <div className="small dim" style={{ marginTop: 6 }}>Theft risk: <Ref id="risk.theft" to={{ panel: 'risk' }}>Risk › theft</Ref></div>

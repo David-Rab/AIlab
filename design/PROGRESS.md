@@ -19,7 +19,96 @@ Single source of truth for where the build stands. Update at every milestone or 
 | M5 UX redesign (IA, design system, panels) | Done: uitest 104/104, lint-ux green | 0af3dcd..babe8b2 |
 | M5 polish, tutorial, codex, v1 removal | Onboarding and codex exist; v1 removed (2026-11-15), `npm run build` builds the current game | |
 | **R0 Tycoon restructure: design** | Done (2026-11-16): STRUCTURE.md, TECH-TREE.md, LIMITS.md, research/18–19, mockups-v3. Approved by the user | 168ef39 (branch `game-structure`, worktree `../AI27-structure`) |
-| **R1+ Tycoon restructure: build** | In progress: plan in design/BUILD-PLAN.md; milestones logged below | |
+| **R1 Restructure: baseline, bugs, scaffolding** | Done (2026-11-16): B1–B5, LIMITS removals, setup/meta fields, ref-trace tool, schemaRev 4; all §7.4 bot criteria MET (200 seeds) | "R1: commitment scope, …" on `game-structure` |
+| **R2–R10 Tycoon restructure: build** | Next: R2 ∥ R3 per design/BUILD-PLAN.md; milestones logged below | |
+
+## R1 Baseline, bugs, scaffolding (2026-11-16, branch `game-structure`, worktree ../AI27-structure)
+
+Per design/BUILD-PLAN.md §2 R1.
+
+**Bugs (LIMITS B1–B5).**
+- **B1/B2 commitments:** `actors/commitments.ts` gains `DEPLOY_SCOPE` (which predicates can block a launch, on which
+  channels), `deployClause` (the clause a candidate breaks) and `commitmentDeployBlock`. `models/deployments.ts
+  deployGate(s, v, channel, {safeguards, usagePolicy})` judges the candidate only against in-scope commitments; the
+  reason reads `Blocked by "<title>": <clause>`. Out-of-scope commitments (pause pledge, incident reporting,
+  whistleblower, community pledge) never block launches; `PREDICATES.noDeployAbove` checks the candidate when given
+  `versionId`. A swap is judged with the live deployment's safeguards and usage policy; a new government deployment
+  starts with the usage policy that live usage commitments require (`committedUsagePolicy`). Standing predicates
+  (E30) are unchanged.
+- **B3:** one AI-labour gate `safety/agents.ts aiLabourGate` (measured L ≥ AUTOMATE_MIN_L) used by Automate, Safety
+  agents (a below-gate model is a locked option in the picker and rejected by the action), investigations
+  (`openInvestigation` with AI labour) and the fleet itself (no AI FTE below the gate; the card says so).
+- **B4:** `security.ts WSL_TARGET_RANGE = [2, 5]` used by SEC_TARGET and the Company › Security slider.
+- **B5:** `deployments.ts effortLock`; "deep" is a locked option with its reason in the Deployments effort picker
+  (`Seg` options take `locked`).
+
+**LIMITS removals (no calibration change).**
+- Company UI caps: the hiring target is a number field (no `max(200, 3× staff)`); top-level split and data-generation
+  sliders go 0–100%. The manual research mix keeps 2–98%, now as one engine range `split.ts MANUAL_MIX_RANGE`
+  (= the Auto best-mix search range; at 0% or 100% the production function gives NaN or M = 0), used by `fromSpec`
+  and the slider.
+- Pool share: `runs.ts POOL_SHARE_RANGE = [0.1, 1]` for the engine clamp (was 0.01) and the run designer slider.
+- `split.ts setSplit` no longer rejects (2% training with runs, 3% serving with products). `runs.ts runStall`: the
+  run queue shows "paused: no training compute"; products with no serving show capacity-bound (revenue readout, as
+  before). The Split card warns before applying a zero training or serving share.
+- `equity.ts`: a round repriced into a down round is no longer pulled (runway ≥ 4q) or closed (runway < 4q) silently.
+  It becomes `finance.ws3.repricedRound` with an alert; the Finance raise card shows it with **Accept down round** /
+  **Pull** (`fin.acceptRepriced`, `fin.pullRepriced`); undecided after 30 days it is pulled; no new raise meanwhile.
+  Bots: the finance autopilot applies the old rule (accept if runway < 4q, else pull) on the same day.
+
+**Scaffolding.** `SetupV2.start: 'spinout'|'challenger'|'bigtech'|'leader'` (default 'leader') and
+`SetupV2.leaderLab` (default false); `newGame` fills them for older callers. Optional `EngineSystem.system`
+(`StructureSystem`) and `ActionDef.verb` (`ActionVerb`) + `system`, filled from tables in `core/registry.ts` for 27 of
+29 systems (security and index left) and the obvious actions (models, departments, safety, finance; relations,
+security and most world actions left for R10). `SCHEMA_REV` 4: migration 3 → 4 sets `setup.start='leader'`,
+`leaderLab=false`.
+
+**Tooling.** `scripts/v2/ref-trace.ts`: `--write` records `scripts/v2/golden/ref-trace.json` (stub:ai2027,
+stub:authors2026, stub:fast, stub:slow: refPlay + reference-compute stub, seed 2027, to the last golden milestone;
+integrated:ai2027: full RefBot, real finance, to ASI). Per trace: run start/finish days, paradigm adoption days,
+milestone days, monthly M, h, k, c, sdAI, pa, best L; quarterly revenue per channel, cash, U. Without `--write` it
+diffs against the file with tolerances (milestones ±10 d, adoption ±14 d, runs ±7 d, M/k/c ±5%, h ±1%, sdAI ±0.1,
+pa ±0.1, L ±0.15, revenue and cash ±10% (integrated only), U ±0.25; `--tol key=v,…`, `--only id,…`) and exits 1 on
+any excess. About 60–90 s.
+- **Before/after B1/B2:** recorded from a temporary worktree at 1be9dd6 (since removed) into `ref-trace-pre-r1.json`
+  (left untracked in scripts/v2/golden/: deleting it was blocked by permissions) and after the bug fixes. The traces
+  are **identical**: RefBot never meets a binding commitment on these seeds. With the LIMITS changes the diff is still
+  zero on all five traces. `ref-trace.json` (recorded after B1–B5, before the LIMITS changes) is the reference for R3+.
+
+**Tests.**
+- `npm run typecheck` and `tsc -p scripts/v2` clean. New checks: ws4 C1 (B1/B2 scope and clause), safety B3, finance
+  R1 repriced round (waits, no raise meanwhile, accept books a down round, pulled after 30 d).
+- test:v2 scripts: golden-timelines, identity, calib, fixtures (regenerated, schemaRev 4), lint-hidden, lint-ux,
+  lint-tradeoffs, safety, finance, ws4 and money all pass. **Known baseline failures (pre-existing at 1be9dd6):**
+  hygiene performance (absolute 1.5 ms budget; machine load) and worldfx "Jul 2027 (±3 mo): HireRate_SOFT ≤ 10% —
+  2027-03-21" (same value as at baseline; not touched).
+- **Performance** (hygiene §8 loop, seed 9, 1,500 days; baseline and R1 alternated on the same loaded machine):
+  daily tick 3.68 / 2.75 / 3.09 ms at 1be9dd6 vs 3.26 / 2.94 / 2.63 ms at R1 (mean 3.17 → 2.94); worst quarter
+  13.3 → 13.5 ms (+1.5%, noise). No regression.
+- `npm run test:ui`: 116/116 (new: hiring above the old cap, WSL range 2–5 and set at 2, zero-training split
+  applies with a warning, run queue "paused: no training compute", deep effort locked with its reason). Screenshots
+  checked (Deploy effort lock, Company people field).
+
+**Bot baseline (200 seeds; `bots.ts --seeds 50 --from 0/50/100/150` merged with `--load`, same seeds as one run):**
+
+| bot | win | mixed | loss | med. day | top endings |
+|---|---|---|---|---|---|
+| race | 3.0% | 8.5% | 88.5% | 818 | asiTakeover 56%, ousted 17%, nationalized 7.5%, chinaAligned 5%, chinaTakeover 5% |
+| safe | 1.0% | 1.5% | 97.5% | 1462 | overtaken 62.5%, ousted 34.5%, chinaTakeover 1%, asiAligned 1% |
+| mixed | 52.0% | 6.0% | 42.0% | 1040 | asiAligned 53.5%, asiTakeover 12.5%, ousted 12.5%, nationalized 9.5% |
+| capex2x | 1.5% | 1.0% | 97.5% | 304 | insolvent 91.5%, asiTakeover 2.5%, ousted 2.5% |
+| ref | 17.0% | 5.0% | 78.0% | 990 | asiTakeover 38.5%, asiAligned 17.5%, ousted 13%, chinaTakeover 10%, nationalized 9.5% |
+
+§7.4: all six MET (race win 3.0%; race losses 72% takeover / 28% company-loss; safe win 1.0%; safe losses 64%
+other-first; mixed win 52% and +49 pp over both extremes; passive takeover-type 66%). Choices vs world (final Mis):
+bot policy 63%, world 23%, rest 14%. E5: 14/17 endings (war, acquired and retired only in the forced-state test).
+
+**Deferred / for the next milestones.**
+- Structure tags are partial; R10's lint-structure must fill security, index, relations and world actions.
+- `PREDICATES.preDeployTesting`'s candidate branch is no longer used by deployGate (deployClause covers it); kept for
+  callers that pass `versionId`.
+- The serving-share range (engine 2–100%, UI 0–80%) is left for R6 (gone with the Auto serving split).
+- Bot result JSON stays in the session temp dir, not committed.
 
 ## Cash projection, LTA fixes, event cut (2026-11-15, branch `cash-events`, worktree ../AI27-cash)
 

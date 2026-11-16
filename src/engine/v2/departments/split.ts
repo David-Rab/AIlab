@@ -52,6 +52,11 @@ export function withFixed(base: ComputeSplit, fixed: Partial<ComputeSplit>): Com
   return normalizeSplit(out);
 }
 
+/** Experiments share of Research when the mix is set by hand: the same range the Auto best-mix search covers. At 0%
+ *  or 100% the production function has no meaning (it needs both experiments and agents), so this is a real engine
+ *  range, shown on the slider, not a UI-only cap. */
+export const MANUAL_MIX_RANGE: readonly [number, number] = [0.02, 0.98];
+
 const ratio = (a: number, b: number, dflt: number) => (a + b > 1e-12 ? a / (a + b) : dflt);
 
 /** Top-level view of a pool split. */
@@ -70,7 +75,7 @@ export function fromSpec(spec: SplitSpec): ComputeSplit {
   const sum = TOP_KEYS.reduce((a, k) => a + Math.max(0, t[k]), 0) || 1;
   const n = (k: TopKey) => Math.max(0, t[k]) / sum;
   const ds = Math.min(1, Math.max(0, spec.dataShare));
-  const es = Math.min(1, Math.max(0, spec.expShare));
+  const es = Math.min(MANUAL_MIX_RANGE[1], Math.max(MANUAL_MIX_RANGE[0], spec.expShare));
   return {
     training: n('training') * (1 - ds), synthetic: n('training') * ds,
     experiments: n('research') * es, agents: n('research') * (1 - es),
@@ -116,14 +121,11 @@ export function presetSplit(preset: SplitPreset, yr: number, cur?: ComputeSplit)
   return fromSpec({ top: presetTop(preset, yr), dataShare: sub.dataShare, expShare: sub.expShare });
 }
 
-/** Validate and apply a split for the player (§3.4.2 constraints). Returns an error string or undefined. The caller
- *  re-applies the best research mix when the mix is automatic. */
+/** Apply a split for the player (normalised to 1). The caller re-applies the best research mix when the mix is
+ *  automatic. Any split is allowed (LIMITS: the old floors of 2% training with runs and 3% serving with products are
+ *  gone): runs with no training compute show "paused: no training compute" (runStall), products with no serving show
+ *  capacity-bound. Returns undefined (kept for callers that treat a string as a rejection). */
 export function setSplit(s: GameStateV2, sp: ComputeSplit): string | undefined {
-  const n = normalizeSplit(sp);
-  const p = s.player;
-  const reserved = p.deployments.some((d) => d.status === 'live' && d.channel !== 'internal' && d.servingShare > 0);
-  if (reserved && n.serving < 0.03) return 'Live deployments need serving compute';
-  if (p.models.runs.some((r) => r.status === 'running') && n.training < 0.02) return 'Running runs need training compute';
-  p.split = n;
+  s.player.split = normalizeSplit(sp);
   return undefined;
 }

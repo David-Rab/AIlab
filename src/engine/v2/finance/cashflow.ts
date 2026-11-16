@@ -12,6 +12,7 @@ import { powerAndOMPerYear } from '../compute/power';
 import { revenueOf } from '../worldfx/revenue';
 import type { Commitment$, EngineSystem, GameStateV2, SystemCtx } from '../types';
 import { debtHeadroom, drawDebt, interestPerYear } from './debt';
+import { expireRepriced } from './equity';
 import { ensureWs3, yearStats } from './ext';
 import { bookCash, ledgerPaying } from './ledger';
 import { runwayOf } from './runway';
@@ -52,6 +53,7 @@ export const opexSystem: EngineSystem = {
   id: 'opex', owner: 'WS3', cadence: 'daily', order: 130,
   run(s, ctx) {
     ensureWs3(s);
+    expireRepriced(s, ctx);
     const f = s.player.finance;
     const fx = f.ws3;
     const target = deploymentRevenue(s);

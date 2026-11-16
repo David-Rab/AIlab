@@ -8,7 +8,7 @@ import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { CRITICAL_TRAITS, TRAIT_BY_ID, TRAIT_IDS } from '../../../data/v2/traits';
-import { beliefView, dateOf, detectionGrid, fmtDate, internalVersion, safetyAgentVersion, safetyUtilisation, safetyView, techniqueCurve, versionById } from '../../../engine/v2';
+import { aiLabourGate, beliefView, dateOf, detectionGrid, fmtDate, internalVersion, safetyAgentVersion, safetyUtilisation, safetyView, techniqueCurve, versionById } from '../../../engine/v2';
 import type { AgendaRow, GameStateV2, ResponseKind, SafetyUtilisation, TechniqueRow, TraitId } from '../../../engine/v2';
 import { store } from '../store';
 import { ActBtn, Gate, Slider, Term, Tip, TipCard, unlocked } from '../ui';
@@ -224,19 +224,20 @@ function SafetyAgents({ s, funded }: { s: GameStateV2; funded: AgendaRow[] }) {
   const [auto, setAuto] = useState(0.5);
   const vs = s.player.models.versions.filter((v) => v.status !== 'retired' && v.status !== 'rolledBack' && v.evals.measuredL !== undefined);
   const agRow = funded.find((a) => a.id === ag) ?? funded[0];
+  const gate = aiLabourGate(s, sv);
   return (
     <Card title={<Term id="safetyAgents">Safety agents</Term>} sub="AI labour on safety work, from the safety pool" home="safetyAgents">
       <div className="g2 sa-grid">
         <div>
           <div className="kv"><span className="kv-k">Model</span><span className="row-i">
-            <select className="text-input" style={{ minWidth: 220 }} data-test="sa-version" value={vid} onChange={(e) => setVid(e.target.value)}>{vs.map((v) => <option key={v.id} value={v.id}>{v.name} · L{F.level(v.evals.measuredL ?? 0)}{v.id === s.player.models.internalAgent ? ' · in R&D use' : ''}</option>)}</select>
+            <select className="text-input" style={{ minWidth: 220 }} data-test="sa-version" value={vid} onChange={(e) => setVid(e.target.value)}>{vs.map((v) => { const g = aiLabourGate(s, v); return <option key={v.id} value={v.id} disabled={g !== true} title={g === true ? undefined : g}>{v.name} · L{F.level(v.evals.measuredL ?? 0)}{v.id === s.player.models.internalAgent ? ' · in R&D use' : ''}{g === true ? '' : ' · locked: below the AI-labour level'}</option>; })}</select>
           </span></div>
           <div className="kv"><span className="kv-k">Share of safety compute</span><span className="row-i"><Slider value={share} min={0} max={0.6} step={0.05} onChange={setShare} width={120} /><span className="num">{F.pct(share)}</span></span></div>
           <div className="btn-row"><ActBtn id="safety.agents" testId="safety.agents" params={{ share, ...(vid && vid !== sv?.id ? { versionId: vid } : {}) }} label="Apply" reason /></div>
         </div>
         <div data-test="sa-fleet">
           <div className="kv"><span className="kv-k"><Term id="agentCopies">Copies</Term> · <Term id="aiFte">AI FTE</Term></span><span className="num">{F.count(u.copies)} · {F.count(u.aiFte)}</span></div>
-          <div className="kv"><span className="kv-k">Running</span><span>{u.versionName ?? '—'} <span className="dim">L{F.level(u.level)}</span></span></div>
+          <div className="kv"><span className="kv-k">Running</span><span>{u.versionName ?? '—'} <span className="dim">L{F.level(u.level)}</span>{gate !== true && <Tip content={() => <TipCard title="No AI labour" value="locked">{gate}</TipCard>}><span className="tone-warn small" data-test="sa-gate"> · below the AI-labour level</span></Tip>}</span></div>
           <div className="kv"><span className="kv-k">Automated work</span><span>{u.automated ? <span className="num">{u.automated}</span> : <span className={u.idle ? 'tone-warn' : 'dim'}>{u.idle ? 'none · fleet idle' : 'none'}</span>}</span></div>
           <div className="kv"><span className="kv-k"><Term id="aiFte">AI FTE</Term> per staffer</span><span className="num">{F.num(u.perFte, 1)}</span></div>
         </div>

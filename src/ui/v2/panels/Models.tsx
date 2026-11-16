@@ -3,7 +3,7 @@
 // tree; set internal agent, evals, variants, distill, roll back, retire, streams.
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
 import { PARADIGMS } from '../../../data/v2/paradigms';
-import { benchName, dateOf, fmtDate, internalVersion, measuredDomains, paradigmGate, runBand, versionById } from '../../../engine/v2';
+import { benchName, dateOf, fmtDate, internalVersion, measuredDomains, paradigmGate, runBand, runStall, versionById } from '../../../engine/v2';
 import type { GameStateV2, ModelVersion } from '../../../engine/v2';
 import { store, useV2 } from '../store';
 import { ActBtn, Gate, Meter, pct, Radar, Section, Term, Tip, TipCard, unlocked } from '../ui';
@@ -140,13 +140,14 @@ export function RunQueue({ s }: { s: GameStateV2 }) {
       {runs.map((r) => {
         const done = Math.min(1, r.flopDone / Math.max(1, r.flopNeeded));
         const band = runBand(r);
+        const stall = runStall(s, r);
         return (
           <div className="run-row" key={r.id} data-run={r.id}>
             <span className="ellip"><b>{r.name}</b> <span className="dim small">{r.kind}</span></span>
             <Meter value={done} max={1} width={90} color={r.status === 'running' ? 'var(--accent)' : 'var(--text-3)'} />
             <span className="num small">{F.pct(done)}</span>
             <span className="num small dim">L {F.level(band[0])}–{F.level(band[1])}</span>
-            <span className="small">{r.status}{r.holdUntil !== undefined && r.holdUntil > s.time.day ? ' · spike' : ''}</span>
+            <span className={`small ${stall ? 'tone-warn' : ''}`} data-test={stall ? 'run-stall' : undefined}>{stall ?? r.status}</span>
             {r.status === 'running' && <ActBtn id="cancelRun" params={{ runId: r.id }} label="Cancel" inline={false} />}
           </div>
         );

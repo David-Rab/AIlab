@@ -44,6 +44,8 @@ export interface LaunchRunParams {
 }
 
 const POOL_DEFAULT: Record<RunKind, number> = { base: 0.6, post: 0.2, distill: 0.1, continue: 0.3 };
+/** Share of the training pool a run can take (LIMITS: one range for the engine and the run designer slider). */
+export const POOL_SHARE_RANGE: readonly [number, number] = [0.1, 1];
 
 /** FLOP per day of the player's whole training pool = WS3 pools (computeOnline × split.training) × Φ (P16: × 1.15). */
 export function trainingFlopPerDay(s: GameStateV2): number {
@@ -53,6 +55,14 @@ export function trainingFlopPerDay(s: GameStateV2): number {
 
 /** Frontier (base/post) runs are paused until this day by WS4 (E17 Pause & investigate, pause pledges). */
 export const frontierPaused = (s: GameStateV2, day: Day = s.time.day) => ws4r(s).frontierPauseUntil > day;
+
+/** Why a running run makes no progress today, or undefined (run queue readout). */
+export function runStall(s: GameStateV2, r: TrainingRun): string | undefined {
+  if (r.status !== 'running') return undefined;
+  if (r.holdUntil !== undefined && r.holdUntil > s.time.day) return 'loss spike: restarting';
+  if (trainingFlopPerDay(s) <= 0) return 'paused: no training compute';
+  return undefined;
+}
 
 /** Effective pool shares of running runs this day. When the runs ask for more than the pool left by the stream,
  *  base and continue runs keep their share first and the other runs are scaled down [D: pretraining has priority]. */
@@ -90,7 +100,7 @@ export function planRun(s: GameStateV2, p: LaunchRunParams, rollDays = (lo: numb
   const yr = decimalYear(s);
   const F = frontierFlop(w, yr);
   const m = s.player.models;
-  const poolShare = clamp(p.poolShare ?? (p.ida ? 0.3 : POOL_DEFAULT[p.kind]), 0.01, 1);
+  const poolShare = clamp(p.poolShare ?? (p.ida ? 0.3 : POOL_DEFAULT[p.kind]), POOL_SHARE_RANGE[0], POOL_SHARE_RANGE[1]);
   const flopDay = Math.max(1, trainingFlopPerDay(s) * poolShare);
   let flopNeeded = 0;
   let minDays = 0;

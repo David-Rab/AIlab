@@ -4,7 +4,7 @@
 import { clamp } from '../../rng';
 import { bestPm, activeRivals } from '../models/labs';
 import { publishFinding } from '../safety/findings';
-import { reqSpend } from '../security/security';
+import { reqSpend, WSL_TARGET_RANGE } from '../security/security';
 import type { ActionDef, CounterpartyId, GameStateV2, SystemCtx } from '../types';
 import { signCommitment, hasCommitment } from './commitments';
 import { addCoverup } from './relations';
@@ -468,13 +468,13 @@ export const RELATION_ACTIONS: ActionDef[] = [
     id: 'SEC_TARGET', title: 'Security target', sphere: 'security',
     preview: (s, p) => {
       const sec = s.player.security;
-      const t = clamp(num(p, 'level', Math.min(5, sec.target + 0.5)), 2, 5);
+      const t = clamp(num(p, 'level', Math.min(WSL_TARGET_RANGE[1], sec.target + 0.5)), WSL_TARGET_RANGE[0], WSL_TARGET_RANGE[1]);
       const spend = reqSpend(t, s.player.computeOnline) * 1.05;
       return pv([L('cash', Math.max(0, spend - sec.spendRate), '$B/yr more'), L('staffTime', 1)], [L('security', t - sec.wsl, `WSL → ${t.toFixed(1)} at ≤ 0.006/day`)]);
     },
     apply(s, _ctx, p) {
       const sec = s.player.security;
-      sec.target = clamp(num(p, 'level', Math.min(5, sec.target + 0.5)), 2, 5);
+      sec.target = clamp(num(p, 'level', Math.min(WSL_TARGET_RANGE[1], sec.target + 0.5)), WSL_TARGET_RANGE[0], WSL_TARGET_RANGE[1]);
       sec.spendRate = Math.round(reqSpend(sec.target, s.player.computeOnline) * 1.05 * 1000) / 1000;
     },
   }),

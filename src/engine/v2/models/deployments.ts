@@ -1,6 +1,6 @@
 // Variants, deployments, the internal-agent version and distillation leakage (V2-SPEC §3.3.5). Owner: WS1
 // (revenue per deployment: WS5 writes deployment.revenueRate).
-import { PREDICATES, liveCommitments } from '../actors/commitments';
+import { commitmentDeployBlock, committedUsagePolicy } from '../actors/commitments';
 import { ws4r } from '../actors/state';
 import type { Channel, Deployment, GameStateV2, LabId, ModelVersion, SystemCtx, Variant } from '../types';
 import { CHINA_ID, bestPm, rivalLab, versionById } from './labs';
@@ -30,8 +30,17 @@ export function externallyEvaluated(s: GameStateV2, v: ModelVersion): boolean {
   return ws4r(s).reportedVersions.includes(v.id) || Object.values(v.evals.bench).some((r) => r.by !== 'self') || Object.values(v.evals.safety).some((r) => r.by !== 'self');
 }
 
-/** Pre-deployment gate (§3.3.5): external channels need a suite ≤ 30 days old at the eval-gate depth. */
-export function deployGate(s: GameStateV2, v: ModelVersion, channel: Channel): true | string {
+/** Why an inference effort is locked, or undefined (B5: "deep" needs orchestration, P05). */
+export function effortLock(s: GameStateV2, effort: Deployment['effort']): string | undefined {
+  return effort === 'deep' && s.player.paradigms.P05?.status !== 'adopted' ? 'Deep think needs orchestration (P05)' : undefined;
+}
+
+/** Settings of the deployment being gated (a swap passes the live deployment's; a launch what deploy() will set). */
+export interface GateOpts { safeguards?: Deployment['safeguards']; usagePolicy?: Deployment['usagePolicy'] }
+
+/** Pre-deployment gate (§3.3.5): external channels need a suite ≤ 30 days old at the eval-gate depth; commitments
+ *  block only launches inside their own scope, judged on this candidate (B1/B2), and the reason names the clause. */
+export function deployGate(s: GameStateV2, v: ModelVersion, channel: Channel, opts: GateOpts = {}): true | string {
   if (!CHANNEL_VARIANTS[channel].includes(v.variant)) return `${channel} needs a ${CHANNEL_VARIANTS[channel].join('/')} variant`;
   if (v.status === 'retired' || v.status === 'rolledBack') return 'Version is retired';
   if (!external(channel)) return true;
@@ -41,11 +50,10 @@ export function deployGate(s: GameStateV2, v: ModelVersion, channel: Channel): t
     if (v.evals.suiteDay === undefined || s.time.day - v.evals.suiteDay > EVAL_MAX_AGE) return 'Eval suite older than 30 days';
     if (gate === 'fullPlusExternal' && !externallyEvaluated(s, v)) return 'Needs an external evaluation';
   }
-  for (const c of liveCommitments(s)) {
-    const pred = PREDICATES[c.condition.predicate];
-    if (pred?.(s, { ...c.condition.params, versionId: v.id, channel })) return `Blocked by commitment: ${c.title}`;
-  }
-  return true;
+  const block = commitmentDeployBlock(s, {
+    versionId: v.id, channel, safeguards: opts.safeguards ?? 'classifiers', usagePolicy: opts.usagePolicy ?? committedUsagePolicy(s, channel),
+  });
+  return block ?? true;
 }
 
 export type DeployParams = Partial<Omit<Deployment, 'id' | 'startDay' | 'status'>> & { versionId: string; channel: Channel };
@@ -54,9 +62,12 @@ export type DeployParams = Partial<Omit<Deployment, 'id' | 'startDay' | 'status'
 export function deploy(s: GameStateV2, ctx: SystemCtx, p: DeployParams): Deployment | string {
   const v = versionById(s, p.versionId);
   if (!v) return 'Unknown version';
-  const ok = deployGate(s, v, p.channel);
+  const cu = committedUsagePolicy(s, p.channel);
+  const usagePolicy = { ...(p.usagePolicy ?? { noDropInReplacement: false, noSurveillance: cu.noSurveillance, noAutonomousWeapons: cu.noAutonomousWeapons, minorsProtections: p.channel === 'consumer' }) };
+  const ok = deployGate(s, v, p.channel, { safeguards: p.safeguards ?? 'classifiers', usagePolicy });
   if (ok !== true) return ok;
-  if (p.effort === 'deep' && s.player.paradigms.P05?.status !== 'adopted') return 'Deep think needs orchestration (P05)';
+  const lock = effortLock(s, p.effort ?? 'max');
+  if (lock) return lock;
   if (p.channel === 'internal') {
     setInternalAgent(s, v.id);
     return s.player.deployments.find((d) => d.channel === 'internal' && d.status === 'live') as Deployment;
@@ -67,7 +78,7 @@ export function deploy(s: GameStateV2, ctx: SystemCtx, p: DeployParams): Deploym
     versionId: v.id, channel: p.channel, startDay: s.time.day, priceIndex: p.priceIndex ?? 1, effort: p.effort ?? 'max',
     servingShare: p.servingShare ?? DEFAULT_SERVING[p.channel], safeguards: p.safeguards ?? 'classifiers', controlLayer: p.controlLayer ?? false,
     sectorFocus: [...(p.sectorFocus ?? [])],
-    usagePolicy: { ...(p.usagePolicy ?? { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: p.channel === 'consumer' }) },
+    usagePolicy,
     kyc: p.kyc ?? (p.channel === 'api' || p.channel === 'agents' ? 1 : 0), status: 'live',
   };
   s.player.deployments.push(d);
@@ -82,7 +93,7 @@ export function swapDeployment(s: GameStateV2, depId: string, versionId: string)
   const v = versionById(s, versionId);
   if (!d || !v) return 'Unknown deployment or version';
   if (d.channel === 'open') return 'Open weights cannot be replaced';
-  const ok = deployGate(s, v, d.channel);
+  const ok = deployGate(s, v, d.channel, { safeguards: d.safeguards, usagePolicy: d.usagePolicy });
   if (ok !== true) return ok;
   d.versionId = v.id;
   d.versionSince = s.time.day;

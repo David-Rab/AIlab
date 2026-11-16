@@ -1,14 +1,14 @@
 // Player actions in the Safety sphere (ActionDef catalog, V2-SPEC §3.4.3 Safety row, §3.5). Owner: WS2.
 // Every preview shows costs, gains and exposure computed from VISIBLE inputs (posteriors, beliefs, FTE, compute);
 // none reads truth. Each has ≥ 1 cost in a currency that is not among its gains (§2.7, lint-tradeoffs).
-import { AGENDAS, AGENDA_BY_ID, AUTOMATE_MIN_L, FUNDING_LEVELS, FUNDING_LEVEL_IDS, type FundingLevel } from '../../../data/v2/agendas';
+import { AGENDAS, AGENDA_BY_ID, FUNDING_LEVELS, FUNDING_LEVEL_IDS, type FundingLevel } from '../../../data/v2/agendas';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { TRAIT_IDS } from '../../../data/v2/traits';
 import { internalVersion } from '../models/labs';
 import type { ActionDef, AgendaId, CostLine, GameStateV2, ResponseKind, SafetyDept, TraitId } from '../types';
 import { clamp01, mAtLevel, versionById } from './common';
 import { findingHazard, fundingMult, posteriorBand, recomputeComputeShares, setAgendaFunding, staffFactor, startRefresh } from './agendas';
-import { safetyAgentVersion, safetyFleet } from './agents';
+import { aiLabourGate, safetyAgentVersion, safetyFleet } from './agents';
 import { publishFinding } from './findings';
 import { closeInvestigation, investigationFte, openInvestigation } from './investigations';
 import { RESPONSE_INFO, applyResponse, responseTrait } from './responses';
@@ -108,11 +108,6 @@ const CUT: ActionDef = {
   },
 };
 
-/** Measured level of the model running the safety agents. */
-function safetyAgentL(s: GameStateV2): number {
-  return safetyAgentVersion(s)?.evals.measuredL ?? 0;
-}
-
 /** Visible sabotage estimate of the safety agent model (from beliefs, never truth). */
 function believedSab(s: GameStateV2): number {
   const v = safetyAgentVersion(s);
@@ -122,7 +117,7 @@ function believedSab(s: GameStateV2): number {
 
 const AUTOMATE: ActionDef = {
   id: 'safety.automate', sphere: 'safety', owner: 'WS2', title: 'Automate',
-  available: (s) => safetyAgentL(s) >= AUTOMATE_MIN_L || `Needs a safety agent model at measured level ≥ ${AUTOMATE_MIN_L}`,
+  available: (s) => aiLabourGate(s),
   preview(s, p) {
     const dept = s.player.safety;
     const ag = isAgenda(str(p, 'agenda')) ? (str(p, 'agenda') as AgendaId) : (AGENDAS.find((a) => dept.agendas[a.id].fte > 0) ?? AGENDAS[0]).id;
@@ -381,7 +376,7 @@ const SAFETY_AGENT_DEFAULT_SHARE = 0.2;
 
 const SAFETY_AGENTS: ActionDef = {
   id: 'safety.agents', sphere: 'safety', owner: 'WS2', title: 'Safety agents',
-  available: (s) => safetyAgentL(s) >= AUTOMATE_MIN_L || (s.player.safety.agentShare ?? 0) > 0 || `Needs a safety agent model at measured level ≥ ${AUTOMATE_MIN_L}`,
+  available: (s) => (s.player.safety.agentShare ?? 0) > 0 || aiLabourGate(s),
   preview(s, p) {
     const dept = s.player.safety;
     const cur = dept.agentShare ?? 0;
@@ -403,16 +398,18 @@ const SAFETY_AGENTS: ActionDef = {
     if (!lines.costs.length) lines.costs.push({ currency: 'compute', amount: 0, target: 'no change' });
     return lines;
   },
-  apply(s, ctx, p) {
+  apply(s, _ctx, p) {
     const dept = s.player.safety;
+    const vId = str(p, 'versionId');
+    const v = vId ? versionById(s, vId) : undefined;
+    if (vId) {
+      if (!v || v.status === 'retired' || v.status === 'rolledBack') return 'Pick a live version';
+      const g = aiLabourGate(s, v);
+      if (g !== true) return `${v.name}: ${g}`;
+    }
     const sh = num(p, 'share');
     if (sh !== undefined) dept.agentShare = Math.max(0, Math.min(0.6, sh));
-    const vId = str(p, 'versionId');
-    if (vId) {
-      const v = versionById(s, vId);
-      if (!v || v.status === 'retired' || v.status === 'rolledBack') return void ctx.log('alert', 'Safety agents: pick a live version.');
-      dept.agentVersion = v.id === s.player.models.internalAgent ? undefined : v.id;
-    }
+    if (v) dept.agentVersion = v.id === s.player.models.internalAgent ? undefined : v.id;
     recomputeComputeShares(dept, s.player.split.safety);
   },
 };

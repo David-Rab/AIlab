@@ -13,7 +13,7 @@ import { cadencesDue, dayOfDate, decimalYear } from '../../src/engine/v2/core/ti
 import { demandShock, impliedMargin, rentalBase, spotRental } from '../../src/engine/v2/compute/market';
 import { newSite } from '../../src/engine/v2/compute/sites';
 import { FINANCE_ACTIONS } from '../../src/engine/v2/finance/actions';
-import { dMax, raiseCeiling, valuationMark } from '../../src/engine/v2/finance/equity';
+import { acceptRepriced, closePendingRound, dMax, raiseCeiling, REPRICED_DECIDE_DAYS, valuationMark } from '../../src/engine/v2/finance/equity';
 import { FINANCE_EVENTS } from '../../src/engine/v2/finance/events';
 import { applyShock } from '../../src/engine/v2/finance/investors';
 import { CAPEX2X_AUTOPILOT, financeAutopilot, REF_AUTOPILOT, type AutopilotOpts } from '../../src/engine/v2/finance/plan';
@@ -233,5 +233,30 @@ for (const a of FINANCE_ACTIONS) {
   const errs = validateJson(s);
   check(!err && errs.length === 0, `action ${a.id} applies and the game runs on (plain JSON)`, err || errs.slice(0, 2).join('; '));
 }
+// ───────── R1: a round repriced into a down round is the player's decision (no silent pull) ─────────
+{
+  const setup = (s: GameStateV2) => {
+    const f = s.player.finance;
+    const V = Math.max(10, f.valuation);
+    f.rounds.push({ day: s.time.day - 200, amount: 10, postMoney: V * 3, dilution: 0.03, down: false });
+    f.ws3.pendingRound = { day: s.time.day - 90, ask: 5, max: 100, preMoney: V * 2, ipo: false };
+    return f.rounds.length;
+  };
+  const a = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
+  const n0 = setup(a);
+  const cash0 = a.player.finance.cash;
+  closePendingRound(a, makeCtx(a));
+  check(!!a.player.finance.ws3.repricedRound && a.player.finance.rounds.length === n0 && a.player.finance.cash === cash0, 'R1 repriced down round waits for the player (no round booked, no cash)');
+  check(FINANCE_ACTIONS.find((x) => x.id === 'fin.raise')?.available(a) !== true, 'R1 no new raise while the repriced round is undecided');
+  acceptRepriced(a, makeCtx(a));
+  const last = a.player.finance.rounds[a.player.finance.rounds.length - 1];
+  check(!a.player.finance.ws3.repricedRound && a.player.finance.rounds.length === n0 + 1 && last.down && a.player.finance.cash > cash0, 'R1 accept books the down round', `down ${last.down}, cash ${cash0.toFixed(1)} → ${a.player.finance.cash.toFixed(1)}`);
+  const b = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
+  const m0 = setup(b);
+  closePendingRound(b, makeCtx(b));
+  for (let i = 0; i <= REPRICED_DECIDE_DAYS; i++) tick(b, { skip: ['endings'] });
+  check(!b.player.finance.ws3.repricedRound && b.player.finance.rounds.length === m0, `R1 an undecided repriced round is pulled after ${REPRICED_DECIDE_DAYS} days`);
+}
+
 console.log(`finance: ${FINANCE_ACTIONS.length} actions (${applied} applied on day400), ${FINANCE_EVENTS.length} events`);
 finish('finance');

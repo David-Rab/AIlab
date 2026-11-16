@@ -3,7 +3,7 @@
 // A case on (version, trait) or on an incident. Monthly clarity gain = combine_t(cov·strength·penalty)·(FTE/15)^0.5;
 // it feeds observations into beliefs and resolves at clarity ≥ 0.8, on close, or after 120 days. The outcome is drawn
 // from the truth (engine) but the player only sees the outcome label and a severity estimate.
-import { fleetMultiplier, safetyAgentVersion, safetyFleet } from './agents';
+import { aiLabourGate, fleetMultiplier, safetyAgentVersion, safetyFleet } from './agents';
 import { VERIFIABILITY } from '../../../data/v2/agendas';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { CRITICAL_TRAITS, TRAIT_IDS } from '../../../data/v2/traits';
@@ -67,6 +67,9 @@ export function openInvestigation(s: GameStateV2, ctx: SystemCtx, target: Invest
   if (fte < INV_FTE[0] || fte > INV_FTE[1]) return `Assign ${INV_FTE[0]}–${INV_FTE[1]} FTE`;
   const committed = investigationFte(s) + Object.values(dept.agendas).reduce((a, g) => a + g.fte, 0);
   if (committed + fte > s.player.staff.saf + 1e-9) return 'Not enough safety staff';
+  // B3: the same AI-labour gate as automated agendas (it used to have none).
+  const gate = (opts.aiLabour ?? 0) > 0 ? aiLabourGate(s) : true;
+  if (gate !== true) return `AI labour: ${gate}`;
   if (target.kind === 'trait') {
     if (!versionById(s, target.versionId)) return 'Unknown model';
     if (!TRAIT_IDS.includes(target.trait)) return 'Unknown trait';

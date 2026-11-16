@@ -28,21 +28,91 @@ export function measuredDomain(v: ModelVersion, d: DomainId): number {
   return mL + (v.domains[d] - v.Lg);
 }
 
+/** Why a deployment of `versionId` on `channel` with `safeguards` breaks a noDeployAbove framework, if it does. */
+function noDeployAboveBreach(s: GameStateV2, p: Commitment['condition']['params'], versionId: string, channel: string, safeguards: string): string | undefined {
+  if (!external(channel)) return undefined;
+  const dom = String(p.domain ?? 'BIO') as DomainId;
+  const level = Number(p.level ?? 10);
+  const mit = String(p.mitigation ?? 'classifiers');
+  const v = versionOf(s, versionId);
+  if (!v || measuredDomain(v, dom) < level) return undefined;
+  const at = `${v.name} measures ${dom} ${measuredDomain(v, dom).toFixed(1)} ≥ ${level}`;
+  if (mit === 'classifiers') return safeguards === 'classifiers' || safeguards === 'hardened' ? undefined : `${at}; needs classifier safeguards`;
+  if (mit === 'hazard') return s.player.models.bases.find((b) => b.id === v.baseId)?.design.curation.hazard ? undefined : `${at}; needs a hazard-filtered base`;
+  return `${at}; trusted and internal channels only`;
+}
+
+/** A launch or swap checked by the deploy gate, with the safeguards and usage policy the deployment will have. */
+export interface DeployCandidate {
+  versionId: string;
+  channel: string;
+  safeguards: string;
+  usagePolicy: { noSurveillance: boolean; noAutonomousWeapons: boolean };
+}
+
+/** Scope of each commitment over launches (B1): only these predicates can block a deploy or swap, and only on the
+ *  channels they cover. The others (pause pledge, incident reporting, whistleblower, community pledge) never do. */
+export const DEPLOY_SCOPE: Record<string, (channel: string) => boolean> = {
+  noDeployAbove: external,
+  preDeployTesting: external,
+  monitorabilityPledge: (ch) => ch !== 'internal',
+  noSurveillance: (ch) => ch === 'gov',
+  noAutonomousWeapons: (ch) => ch === 'gov',
+};
+
+/** The clause a candidate launch breaks under one commitment, or undefined (kept, or outside its scope). */
+export function deployClause(s: GameStateV2, c: Commitment, cand: DeployCandidate): string | undefined {
+  const pred = c.condition.predicate;
+  if (!DEPLOY_SCOPE[pred]?.(cand.channel)) return undefined;
+  const p = c.condition.params;
+  const v = versionOf(s, cand.versionId);
+  if (!v) return undefined;
+  switch (pred) {
+    case 'noDeployAbove':
+      return noDeployAboveBreach(s, p, v.id, cand.channel, cand.safeguards);
+    case 'preDeployTesting': {
+      const days = Number(p.days ?? 21);
+      const left = days - (s.time.day - v.day);
+      return v.day > c.signedDay && left > 0 ? `external launches wait ${days} days for government testing (${left} d left)` : undefined;
+    }
+    case 'monitorabilityPledge':
+      return latentVersion(s, v.id) ? `no release of a latent-reasoning model (${v.name})` : undefined;
+    case 'noSurveillance':
+      return cand.usagePolicy.noSurveillance ? undefined : 'government deployments need the no-surveillance usage policy';
+    case 'noAutonomousWeapons':
+      return cand.usagePolicy.noAutonomousWeapons ? undefined : 'government deployments need the no-autonomous-weapons usage policy';
+    default:
+      return undefined;
+  }
+}
+
+/** The first live commitment a candidate launch would break, as `Blocked by "<title>": <clause>`, or undefined. */
+export function commitmentDeployBlock(s: GameStateV2, cand: DeployCandidate): string | undefined {
+  for (const c of liveCommitments(s)) {
+    const why = deployClause(s, c, cand);
+    if (why) return `Blocked by "${c.title}": ${why}`;
+  }
+  return undefined;
+}
+
+/** Usage policy a new deployment on `channel` starts with: live usage commitments apply as written (a government
+ *  deployment under "no mass surveillance or autonomous weapons" gets both clauses), so keeping them needs no extra step. */
+export function committedUsagePolicy(s: GameStateV2, channel: string): DeployCandidate['usagePolicy'] {
+  const gov = channel === 'gov';
+  return {
+    noSurveillance: gov && hasCommitment(s, 'noSurveillance'),
+    noAutonomousWeapons: gov && (hasCommitment(s, 'noAutonomousWeapons') || hasCommitment(s, 'noSurveillance')),
+  };
+}
+
 /** Predicate registry by id; true = the commitment currently BLOCKS/binds. */
 export const PREDICATES: Record<string, CommitmentPredicate> = {
-  /** Cannot deploy externally if measured L_domain ≥ level without the mitigation (classifiers | trusted | hazard). */
+  /** Cannot deploy externally if measured L_domain ≥ level without the mitigation (classifiers | trusted | hazard).
+   *  With `params.versionId` (a candidate launch) it checks that candidate (B2: it used to check only the existing
+   *  deployments, so it never blocked the launch that broke it and then blocked everything after). */
   noDeployAbove: (s, p) => {
-    const dom = String(p.domain ?? 'BIO') as DomainId;
-    const level = Number(p.level ?? 10);
-    const mit = String(p.mitigation ?? 'classifiers');
-    return s.player.deployments.some((d) => {
-      if (d.status !== 'live' || !external(d.channel)) return false;
-      const v = versionOf(s, d.versionId);
-      if (!v || measuredDomain(v, dom) < level) return false;
-      if (mit === 'classifiers') return !(d.safeguards === 'classifiers' || d.safeguards === 'hardened');
-      if (mit === 'hazard') return !s.player.models.bases.find((b) => b.id === v.baseId)?.design.curation.hazard;
-      return true; // 'trusted': only trusted/internal channels allowed
-    });
+    if (p.versionId !== undefined) return !!noDeployAboveBreach(s, p, String(p.versionId), String(p.channel ?? 'api'), p.safeguards === undefined ? 'classifiers' : String(p.safeguards));
+    return s.player.deployments.some((d) => d.status === 'live' && !!noDeployAboveBreach(s, p, d.versionId, d.channel, d.safeguards));
   },
   /** External launch must wait `days` for an evaluator slot. */
   preDeployTesting: (s, p, c) => {

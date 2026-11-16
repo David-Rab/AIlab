@@ -150,7 +150,14 @@ export interface SetupV2 {
   tutorial: boolean;
   seed: number;
   companyName: string;
+  /** Start type (STRUCTURE §4.8, BUILD-PLAN R9). Only 'leader' (today's start) is playable until R9. */
+  start: StartType;
+  /** Add the simulated AI-2027 leader lab to the world (BUILD-PLAN R2, D1). Off until R2 builds it. */
+  leaderLab: boolean;
 }
+
+/** The four starts (BUILD-PLAN R9): a spinout, a challenger, a big-tech lab, or the frontier leader. */
+export type StartType = 'spinout' | 'challenger' | 'bigtech' | 'leader';
 
 export interface TimeState {
   day: Day;
@@ -788,6 +795,19 @@ export interface PendingRound {
   ipo: boolean;
 }
 
+/** A round investors repriced below the last valuation at close: the player accepts the down round or pulls it
+ *  (LIMITS: the CEO used to pull it silently). Pulled at `deadline` if the player does nothing. */
+export interface RepricedRound {
+  day: Day;
+  deadline: Day;
+  ask: Money;
+  /** Pre-money investors now offer, and the last round's post-money it falls below. */
+  pre: Money;
+  lastPost: Money;
+  anchor?: string;
+  ipo: boolean;
+}
+
 /** End-of-quarter compute snapshot (H100e) for the Compute chart's past quarters. */
 export interface ComputeSnap { q: number; racks: H100e; cloud: H100e; running: H100e; installing: H100e; idle: H100e }
 
@@ -795,6 +815,7 @@ export interface FinanceWS3 {
   /** Last 8 end-of-quarter compute snapshots (computeHistQ). Missing on saves made before it. */
   computeHist?: ComputeSnap[];
   pendingRound?: PendingRound;
+  repricedRound?: RepricedRound;
   offers: DealOffer[];
   /** Delivered chips not yet installed: in transit (this quarter) and ready (installable), plus their book value. */
   inventory: { transit: H100e; ready: H100e; book: Money };
@@ -1205,11 +1226,19 @@ export interface SystemCtx {
 }
 
 /** One engine system. The loop runs systems in ascending `order` within each cadence (§2.2). */
+/** The game systems of STRUCTURE §4 that every engine system and player action belongs to (R3; R10 lints it). */
+export type StructureSystem = 'people' | 'research' | 'models' | 'products' | 'safety' | 'compute' | 'finance' | 'relations' | 'world' | 'core';
+/** The one verb set of STRUCTURE R2: hire · research · design & train · launch / update · set a policy · make a deal ·
+ *  respond (R10 lints that every action has one). */
+export type ActionVerb = 'hire' | 'research' | 'train' | 'launch' | 'policy' | 'deal' | 'respond';
+
 export interface EngineSystem {
   id: string;
   owner: WorkstreamId;
   cadence: Cadence;
   order: number;
+  /** Structure system this belongs to (optional until R10's lint-structure). */
+  system?: StructureSystem;
   run(s: GameStateV2, ctx: SystemCtx): void;
 }
 
@@ -1233,6 +1262,9 @@ export interface ActionDef<P = Record<string, number | string | boolean>> {
   apply(s: GameStateV2, ctx: SystemCtx, p: P): void | string;
   /** Board approval vector (speed, fin, safety, mission) if this is a major decision (§3.7.5). */
   boardVector?: [number, number, number, number];
+  /** Structure verb (STRUCTURE R2) and system (§4); optional until R10's lint-structure. */
+  verb?: ActionVerb;
+  system?: StructureSystem;
 }
 
 export interface ChoiceV2 {

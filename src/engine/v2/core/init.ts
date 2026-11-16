@@ -56,6 +56,8 @@ export function defaultSetupV2(over: Partial<SetupV2> = {}): SetupV2 {
     tutorial: true,
     seed: Math.floor(Math.random() * 1e9),
     companyName: 'OpenBrain',
+    start: 'leader',
+    leaderLab: false,
     ...over,
   };
 }
@@ -163,7 +165,9 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   };
 }
 
-export function newGame(setup: SetupV2): GameStateV2 {
+export function newGame(setupIn: SetupV2): GameStateV2 {
+  // R1 setup fields: callers built before them (older UI drafts, scripts) get today's start.
+  const setup: SetupV2 = { ...setupIn, start: setupIn.start ?? 'leader', leaderLab: setupIn.leaderLab ?? false };
   const startDate = START_DATE;
   const rngState = seedStreams(setup.seed);
   const worldRng = new Rng(rngState.world);
