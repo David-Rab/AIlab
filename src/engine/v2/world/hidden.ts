@@ -29,7 +29,8 @@ function drawEdge(rng: Rng, e: EdgeDef, schemingDefault: number): number {
 
 export function pickWeighted<T extends { id: string; weight: number }>(rng: Rng, list: readonly T[], choice: string): T {
   if (choice !== 'realistic') return list.find((p) => p.id === choice) ?? list[0];
-  return rng.weighted(list.map((p) => ({ item: p, weight: p.weight })));
+  // Weight-0 entries (the leader archetype) are never drawn; filtering them keeps the draw identical.
+  return rng.weighted(list.filter((p) => p.weight > 0).map((p) => ({ item: p, weight: p.weight })));
 }
 
 /** Production parameters for the world (§2.3 step 2). */
@@ -46,7 +47,7 @@ const LATENT_KEYS: (keyof SafetyLatents)[] = ['legibility', 'cotLoadBearing', 'v
 /** Rival lab ids in order (stable for saves): 'r0'..'r3'. */
 export const rivalId = (i: number): LabId => `r${i}`;
 
-function noisyPosture(rng: Rng, p: SafetyPosture, noise: number): SafetyPosture {
+export function noisyPosture(rng: Rng, p: SafetyPosture, noise: number): SafetyPosture {
   const out = { ...p };
   if (noise > 0) for (const k of Object.keys(out) as (keyof SafetyPosture)[]) out[k] = clamp(out[k] + rng.range(-noise, noise), 0, 1);
   return out;

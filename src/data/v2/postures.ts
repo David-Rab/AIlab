@@ -9,7 +9,12 @@ export const ARCHETYPE_POSTURES: Record<string, SafetyPosture> = {
   openweights: { safetyInvestment: 0.3, evalRigor: 0.45, externalAccess: 0.5, disclosureRate: 0.4, raceRelaxation: 0.7, bindingness: 0.3, rhetoricGap: 0.2, rlIntensity: 0.6, prefIntensity: 0.5 },
   maverick: { safetyInvestment: 0.1, evalRigor: 0.2, externalAccess: 0.1, disclosureRate: 0.35, raceRelaxation: 0.9, bindingness: 0.1, rhetoricGap: 0.35, rlIntensity: 0.8, prefIntensity: 0.8 },
   upstart: { safetyInvestment: 0.5, evalRigor: 0.4, externalAccess: 0.3, disclosureRate: 0.3, raceRelaxation: 0.5, bindingness: 0.3, rhetoricGap: 0.2, rlIntensity: 0.6, prefIntensity: 0.5 },
+  // AI 2027 leader lab (setup.leaderLab, BUILD-PLAN R2): a racer. Its base bindingness is capped at
+  // LEADER_MAX_BINDINGNESS after noise, so rivalSpeedMult (which slows a leader above 0.5) never slows the anchor.
+  leader: { safetyInvestment: 0.35, evalRigor: 0.5, externalAccess: 0.45, disclosureRate: 0.5, raceRelaxation: 0.8, bindingness: 0.2, rhetoricGap: 0.3, rlIntensity: 0.75, prefIntensity: 0.7 },
 };
+/** Cap on the leader lab's base bindingness (after Realistic noise). */
+export const LEADER_MAX_BINDINGNESS = 0.3;
 
 /** DeepCent: safetyInvestment = 0.10 + 0.4·safetyConcern/100 (recomputed by WS4); state directive replaces raceRelaxation. */
 export const CHINA_POSTURE_BASE: SafetyPosture = {
@@ -18,5 +23,5 @@ export const CHINA_POSTURE_BASE: SafetyPosture = {
 
 /** Framework clause type shown on rival intel cards (research/17 §1.6.4 calibration table). */
 export const ARCHETYPE_CLAUSE: Record<string, 'conditional' | 'allAdopt' | 'unconditional' | 'override' | 'state'> = {
-  safety: 'conditional', scale: 'conditional', bigtech: 'allAdopt', openweights: 'unconditional', maverick: 'override', upstart: 'conditional',
+  safety: 'conditional', scale: 'conditional', bigtech: 'allAdopt', openweights: 'unconditional', maverick: 'override', upstart: 'conditional', leader: 'conditional',
 };

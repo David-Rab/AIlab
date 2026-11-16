@@ -119,15 +119,17 @@ const STREAM_RAMP = 0.3;
  * (what RefBot experiences on average): base staleness (1 − share)·age, plus before continual learning the κ loss
  * (1 − κ)·r·age and the version age r·60 d; with continual learning (from the Research-agent level, q ≥ thr[2], the
  * AI 2027 online learner) only the 7-day stream lag r·7 d. `rate` is the lab's software rate (years/year).
+ * `extra` (the leader lab's LEADER_CAL, progress years, default 0) is added as is. A time lag (r·years) was tried
+ * first: in takeoff it compounds through the lab's own research feedback (0.05 y moved ASI by +0.35 y).
  */
-export function simpleLag(w: TimelineWorld, q: number, rate: number): number {
+export function simpleLag(w: TimelineWorld, q: number, rate: number, extra = 0): number {
   const th = milestoneThresholds(asV1World(w));
   const stale = ((1 - w.share) * REF_BASE_AGE) / 365;
   // Continual learning phases in over STREAM_RAMP of progress past the Research-agent level: a hard switch made a
   // simple lab's frontier jump ≈ 0.3 at once and left a band of models no know-how could reach (weights theft).
   const f = clamp((q - th[2]) / STREAM_RAMP, 0, 1);
   const pre = ((1 - KAPPA.post) * rate * REF_BASE_AGE) / 365 + (rate * REF_POST_AGE) / 365;
-  return stale + (1 - f) * pre + (f * rate * 7) / 365;
+  return stale + (1 - f) * pre + (f * rate * 7) / 365 + extra;
 }
 
 /** Software rate of a lab at reference inputs at q (for the start state). */
@@ -141,7 +143,8 @@ export function simpleFrontierPm(s: GameStateV2, lab: LabId, day = s.time.day): 
   const w = s.hidden.timeline;
   const F = core.pa + pcRefLab(w, day, core.scDay) + trainScaleTerm(s, lab, day);
   const rate = core.prodCache?.rate ?? refSoftwareRate(w, F + w.calShift);
-  return F - simpleLag(w, F + w.calShift - simpleLag(w, F + w.calShift, rate), rate);
+  const x = core.lagCal ?? 0;
+  return F - simpleLag(w, F + w.calShift - simpleLag(w, F + w.calShift, rate, x), rate, x);
 }
 
 /** Start know-how pa of a SimpleModel lab whose start model is `pm0` (inverse of simpleFrontierPm at day 0). */
@@ -160,7 +163,7 @@ export function simplePaFor(s: GameStateV2, lab: LabId, pm: number): number {
   const core = labCore(s, lab);
   const q = pm + w.calShift;
   const rate = core?.prodCache?.rate ?? refSoftwareRate(w, q);
-  return pm + simpleLag(w, q, rate) - pcRefLab(w, day, core?.scDay) - trainScaleTerm(s, lab, day);
+  return pm + simpleLag(w, q, rate, core?.lagCal ?? 0) - pcRefLab(w, day, core?.scDay) - trainScaleTerm(s, lab, day);
 }
 
 /** (1 − share)·ln(training pool / reference training pool)/ln gF: what the lab's base-run scale adds (§3.1.3). */

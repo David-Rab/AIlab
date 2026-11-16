@@ -21,7 +21,76 @@ Single source of truth for where the build stands. Update at every milestone or 
 | **R0 Tycoon restructure: design** | Done (2026-11-16): STRUCTURE.md, TECH-TREE.md, LIMITS.md, research/18–19, mockups-v3. Approved by the user | 168ef39 (branch `game-structure`, worktree `../AI27-structure`) |
 | **R1 Restructure: baseline, bugs, scaffolding** | Done (2026-11-16): B1–B5, LIMITS removals, setup/meta fields, ref-trace tool, schemaRev 4; all §7.4 bot criteria MET (200 seeds) | "R1: commitment scope, …" on `game-structure` |
 | **R3 Restructure: teams and roles** | Done (2026-11-16): fixed-size teams in three roles, h from capabilities research engineers, τ_h from science quality + stars, keep-hiring policy, offers, Company › People teams + hiring cards, schemaRev 5; no CAL_SHIFT refit; all §7.4 bot criteria MET (40 seeds) | "R3: teams and roles, …" on `game-structure` |
-| **R2, R4–R10 Tycoon restructure: build** | Next: R2 (merge `gs-leader-lab`), then R4 … R10 serially (BUILD-PLAN parallelism note); milestones logged below | |
+| **R2 Restructure: leader lab in the world** | Done (2026-11-16): simulated AI 2027 leader "Polaris AI" behind `setup.leaderLab` (default off), T1L passes with LEADER_CAL, `--fit-leader`; flag off identical (ref-trace, bots); no schemaRev change | "R2: leader lab …" on `game-structure` |
+| **R4–R10 Tycoon restructure: build** | Next: R4 … R10 serially (BUILD-PLAN parallelism note); milestones logged below. `gs-leader-lab` held no work beyond R1 and was not merged | |
+
+## R2 Leader lab in the world (2026-11-16, branch `game-structure`, worktree ../AI27-structure)
+
+Per design/BUILD-PLAN.md §2 R2, STRUCTURE §4.8, decision D1.
+
+**Engine.** `actors/rivals.ts initialLeaderLab` builds `LEADER_ID = 'rL'` (models/labs.ts), name **Polaris AI**, model
+family Polaris (data/v2/names.ts), archetype `leader` (data/actors.ts, weight 0: never sampled; `pickWeighted` drops
+weight-0 entries, which keeps the draw identical; the Setup rivals picker hides it and the company name may not take
+it). Posture `ARCHETYPE_POSTURES.leader` (racer: safety 0.35, race relaxation 0.8, bindingness 0.2, Realistic noise,
+then capped at `LEADER_MAX_BINDINGNESS` 0.3, so `rivalSpeedMult` never slows it; bindingness only ever falls).
+`newGame` appends it after the sampled rivals only when `setup.leaderLab`, from `Rng(hash32(seed,'leaderLab'))`
+(posture noise, U-modes, first base day); it writes its archetype/posture into `hidden`. Start: internal and public
+model = player V0 pm, pa via `simpleStartPa`, staff.cap = hRef, saf from posture, compute = refTotal, split =
+shareRefAt, tasteHire 1, finance $40B / $12B/yr / $300B. Daily (`labDaily`): computeOnline = refTotal (set at order 100
+for the next day's production, which reads day − 1 inputs, so k = c = 1 exactly); release lag 30 d, base cadence 9
+mo, latent-reasoning P 0.8. Quarterly: no chip orders; never distressed (cash floor like a parent-funded lab).
+`compute/market.ts`: while the leader is active, `exoRefQ` no longer nets the reference lab's growth out (the leader
+owns it; the player's orders are extra demand) and the leader is excluded from the rivals netting and the default
+unmanaged-rival claims. It flows through relations (`rival:rL`), world labIds, series, the market mix, intel, index,
+theft and endings via `s.rivals`. The ref-compute stub (scripts/v2/lib.ts) skips it.
+
+**LEADER_CAL** (`data/v2/calibration.ts`, stored per lab as `core.lagCal` at newGame): an extra lag in progress
+years added by `simpleLag(w, q, rate, extra = 0)` inside `simpleFrontierPm` and `simplePaFor` (not in
+`simpleStartPa`, so the start model stays V0). A time lag (× rate) was tried first and rejected: post-SC it compounds
+through the lab's own research feedback (0.046 y moved ASI by +0.35 y). Fitted by `calib.ts --fit-leader` (bisection
+on SC, then a grid over the worst |Δ|/tolerance over SC…last): **ai2027 0.083, authors2026 0.063, fast 0.085,
+slow −0.029, sampled = ai2027**. At 0 the leader hit SC 0.12–0.13 y early (fast A2→SC, its stream lag drops at A2)
+and ran SC→ASI ~30 d slower than RefBot (no P05/P13/P17 adoption), so one constant trades SC against ASI.
+
+**T1L** (calib.ts, leader on, passive player, endings skipped; SC and later bind, A1/A2 printed):
+
+| preset | SC | SAR | SIAR | ASI |
+|---|---|---|---|---|
+| ai2027 | −0.044 | −0.008 | +0.033 | +0.068 |
+| authors2026 | −0.038 | +0.008 | +0.038 | +0.055 |
+| fast | −0.038 | −0.038 | +0.019 | +0.055 |
+| slow | −0.003 | — | — | — |
+
+**Gates.**
+- Typecheck (app and scripts) clean. test:v2 scripts individually: golden-timelines, identity, calib (T1 unchanged,
+  T1L pass), fixtures, lint-hidden, lint-ux, lint-tradeoffs, safety, finance, ws4, money pass. Known baseline
+  failures unchanged: hygiene absolute perf budget; worldfx HireRate_SOFT (2027-03-21).
+- Flag off identical: ref-trace output byte-identical to the run at bcfdb22 (same 6 pre-existing excesses); bots
+  (40 seeds) give exactly R3's table; all six §7.4 criteria MET.
+- Hygiene: two leader-on newGame setups (ai2027 default; authors2026 / 3 maverick rivals): plain JSON, 5/4 rivals,
+  relation counterparties, leader appended last, start model = V0 = its reference frontier, compute = refTotal, staff
+  = hRef, bindingness ≤ 0.3, and 'world' draws / hidden world / sampled rivals / China / player identical to the flag
+  off. Save round trip with the leader (400 + 100 days) hash-equal.
+- **Performance.** Flag off: no regression (separate processes alternated with a baseline worktree at bcfdb22 on a
+  loaded machine: daily 2.88 ms base vs 2.91 ms R2, mean of 6). Leader on: its own cost, measured on one day-200 state
+  ticked with and without it (paired, alternated), is **+8–12%** (≈ +250–300 µs/day: production +110, rivalsChina
+  +70, revenue +40, worldDaily +20). Hygiene has a second performance case (leader on: absolute budget, plus this
+  paired cost ≤ +20%; last run +11.8%). Whole-game comparisons overstate it (the passive player is overtaken and
+  the game ends unless endings are skipped). Per-sector share caching in worldfx/mix.ts was not added: the mix grows
+  by ~20 µs per provider and its inputs (approval → brand, robots → PHYS cap) change daily, so an exact cache would
+  rarely hit; the cost is in the extra lab's best-mix search and labDaily.
+- `npm run test:ui`: 126/126 (new: a leader-on game shows the Polaris AI race lane on Overview and the Relations row;
+  screenshots 50/51 checked). The Overview lane tooltip calls it "The frontier leader".
+
+**Notes for R4/R9.**
+- D1: nothing forces `leaderLab` off for `start: 'leader'`; R9 must set it from the start type (on for spinout,
+  challenger, big-tech; off for leader). T1L runs it with the leader start's player only as a passive bystander.
+- With the leader on, a passive or slow player loses to `overtaken` (the leader reaches SAR first) and the leader
+  earns market revenue the player would; R9 bots and difficulty labels must be run with the flag on.
+- The leader carries reference tech implicitly (no paradigm/tree adoption). If R4 makes the tree change RefBot's
+  speed, refit LEADER_CAL (`calib.ts --fit-leader`, ~10 min) together with CAL_SHIFT.
+- If the leader's cost matters later (R10 budget), memoise its best research mix (inputs are reference) or move
+  part of `labDaily` (hazards, pressure) to a slower cadence.
 
 ## R3 Teams and roles (2026-11-16, branch `game-structure`, worktree ../AI27-structure)
 

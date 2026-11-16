@@ -259,6 +259,8 @@ export interface LabCore {
   /** Cached production readout from the last daily tick (not authoritative; recomputable). */
   prodCache?: ProductionReadout;
   milestoneDays: Partial<Record<MilestoneIdx, Day>>; // first crossings only (v1 bug #3 fix)
+  /** Leader lab only (BUILD-PLAN R2): extra release lag (progress years) added to simpleLag (LEADER_CAL at newGame). */
+  lagCal?: number;
 }
 
 export type MilestoneIdx = 0 | 1 | 2 | 3 | 4 | 5 | 6;

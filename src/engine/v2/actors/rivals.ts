@@ -4,14 +4,15 @@
 // Bug fixes from v1 (§3.10.3): every comparison uses the player's best INTERNAL version (bestPm / trueLeadDays),
 // and labs with status !== 'active' are never chosen as subjects or named (activeRivals).
 import { LAB_ARCHETYPES } from '../../../data/actors';
-import { ARCHETYPE_CLAUSE } from '../../../data/v2/postures';
-import { RIVAL_MODEL_FAMILIES, RIVAL_NAMES_V2 } from '../../../data/v2/names';
+import { ARCHETYPE_CLAUSE, ARCHETYPE_POSTURES, LEADER_MAX_BINDINGNESS } from '../../../data/v2/postures';
+import { LEADER_CAL } from '../../../data/v2/calibration';
+import { LEADER_LAB_NAME, LEADER_MODEL_FAMILY, RIVAL_MODEL_FAMILIES, RIVAL_NAMES_V2 } from '../../../data/v2/names';
 import { TRAIT_IDS, TRAIT_START } from '../../../data/v2/traits';
 import { UMODES } from '../../../data/v2/umodes';
 import { Rng, clamp } from '../../rng';
 import { shareRefAt, normalizeSplit } from '../departments/split';
-import { domainsOf, levelOf, trueLeadDays } from '../models/capability';
-import { activeRivals, bestPm, otherLabs } from '../models/labs';
+import { domainsOf, levelOf, trueLeadDays, yearOfDay } from '../models/capability';
+import { LEADER_ID, activeRivals, bestPm, otherLabs } from '../models/labs';
 import { misalignment, rivalTraitStep as ws2RivalTraitStep } from '../safety/traits';
 import { labModelHazards } from '../safety/incidents';
 import { placeLabOrder, RIVAL_GROWTH_Q } from '../compute/market';
@@ -19,9 +20,11 @@ import { growLabStaff, labReferenceSplit, trackLabFrontier } from '../models/run
 import { initialSecurity } from '../security/security';
 import { capIndexV2, referenceRate } from '../world/calibration';
 import { labMarketRevenue } from '../worldfx/revenue';
-import { rivalId } from '../world/hidden';
+import { noisyPosture, rivalId } from '../world/hidden';
+import { hRef, refTotal } from '../production/knots';
+import { decimalYear } from '../core/time';
 import type {
-  BaselineId, EngineSystem, GameStateV2, HiddenWorld, LabId, RivalLab, RngLike, SafetyPosture, SimpleModel, StaffByRole, SystemCtx, TraitVector, UModeId,
+  BaselineId, EngineSystem, GameStateV2, HiddenWorld, LabId, RivalLab, RngLike, SafetyPosture, SetupV2, SimpleModel, StaffByRole, SystemCtx, TraitVector, UModeId,
 } from '../types';
 import { chinaDaily } from './china';
 import { request, ws4 } from './state';
@@ -37,14 +40,15 @@ const FIN: Record<string, { cash: number; revenueRun: number; valuation: number 
   maverick: { cash: 12, revenueRun: 1, valuation: 120 },
   openweights: { cash: 40, revenueRun: 0.5, valuation: 0 },
   upstart: { cash: 4, revenueRun: 0.2, valuation: 30 },
+  leader: { cash: 40, revenueRun: 12, valuation: 300 }, // the frontier leader at the start (STRUCTURE §4.8 table)
 };
 
 /** Public-model release lag behind the internal model, days (§3.10.3). Safety = 90 d + ~30 d of evals. */
-export const RELEASE_LAG: Record<string, number> = { safety: 120, bigtech: 60, maverick: 15, openweights: 60, upstart: 60, deepcent: 45 };
+export const RELEASE_LAG: Record<string, number> = { safety: 120, bigtech: 60, maverick: 15, openweights: 60, upstart: 60, deepcent: 45, leader: 30 };
 /** Base-model cadence, months (§3.10.3: 9–15 by archetype) [D]. */
-const BASE_MONTHS: Record<string, number> = { safety: 13, bigtech: 12, maverick: 9, openweights: 12, upstart: 15, deepcent: 12 };
+const BASE_MONTHS: Record<string, number> = { safety: 13, bigtech: 12, maverick: 9, openweights: 12, upstart: 15, deepcent: 12, leader: 9 };
 /** P(adopting latent reasoning) at the latent-reasoning era (§3.10.3 S4). */
-const LATENT_P: Record<string, number> = { maverick: 0.7, openweights: 0.6, bigtech: 0.5, safety: 0.2, upstart: 0.5, deepcent: 0.6 };
+const LATENT_P: Record<string, number> = { maverick: 0.7, openweights: 0.6, bigtech: 0.5, safety: 0.2, upstart: 0.5, deepcent: 0.6, leader: 0.8 };
 
 export function simpleModel(h: HiddenWorld, id: string, name: string, day: number, pm: number, uModes: SimpleModel['uModes'], isPublic: boolean, openWeights = false): SimpleModel {
   const w = h.timeline;
@@ -88,6 +92,47 @@ export function initialRival(rng: Rng, h: HiddenWorld, i: number, playerPm: numb
     visible: { frameworkVersion: 1, clauseType: ARCHETYPE_CLAUSE[arch.id] ?? 'conditional', testers: posture.externalAccess > 0.4 ? ['evalGov', 'evalIndep'] : [] },
     intel: { leadDaysEst: Math.round((leadMonths * 365) / 12), leadDaysSd: 60, misalignBand: [0.05, 0.4], knownIncidents: [] },
     meters: { poachAggression: arch.id === 'upstart' ? 70 : arch.id === 'maverick' ? 60 : 40, cooperation: 20, lobbyStance: arch.lobby, openness: arch.openness },
+    pressure: 0,
+    pressureDays: 0,
+  };
+}
+
+/** Build the simulated AI 2027 leader lab (setup.leaderLab, BUILD-PLAN R2) at reference inputs: the player's start
+ *  model (playerStart(w).target), capabilities staff hRef, compute refTotal, split shareRef, taste 1. Appended after
+ *  the sampled rivals with the fixed id LEADER_ID; its draws come from its own `rng` (Rng(hash32(seed,'leaderLab'))),
+ *  never from 'world'. Its posture and archetype are written into `h` here. pa is solved later (simpleStartPa). */
+export function initialLeaderLab(rng: Rng, h: HiddenWorld, setup: Pick<SetupV2, 'rivals' | 'world'>, playerPm: number): RivalLab {
+  const id = LEADER_ID;
+  const w = h.timeline;
+  const yr0 = yearOfDay(0);
+  const posture = noisyPosture(rng, ARCHETYPE_POSTURES.leader, setup.rivals === 'realistic' ? 0.15 : 0);
+  posture.bindingness = Math.min(posture.bindingness, LEADER_MAX_BINDINGNESS);
+  h.actorPresets.rivals[id] = 'leader';
+  h.rivalPostures[id] = posture;
+  const arch = archetypeOf('leader');
+  const uModes = drawUModes(rng, h, false);
+  const internal = simpleModel(h, `${id}-b1p0`, `${LEADER_MODEL_FAMILY}-1`, -20, playerPm, uModes, false);
+  const publicModel = simpleModel(h, `${id}-b0`, `${LEADER_MODEL_FAMILY}-1 public`, -20, playerPm, uModes, true);
+  const staff: StaffByRole = { cap: hRef(yr0), saf: Math.round(hRef(yr0) * 0.15 * posture.safetyInvestment + 10) };
+  const f = FIN.leader;
+  return {
+    core: {
+      id, name: LEADER_LAB_NAME, kind: 'rival', status: 'active',
+      pa: playerPm,
+      computeOnline: refTotal(w, yr0),
+      split: shareRefAt(yr0), staff, tasteHire: 1,
+      security: initialSecurity(staff, 2.2),
+      milestoneDays: {},
+      lagCal: LEADER_CAL[setup.world] ?? 0,
+    },
+    archetype: arch.id,
+    internal,
+    publicModel,
+    nextBaseDay: Math.round(rng.range(120, 270)),
+    finance: { ...f, commitments: f.cash * 2, distress: false },
+    visible: { frameworkVersion: 1, clauseType: ARCHETYPE_CLAUSE.leader, testers: posture.externalAccess > 0.4 ? ['evalGov', 'evalIndep'] : [] },
+    intel: { leadDaysEst: 0, leadDaysSd: 60, misalignBand: [0.05, 0.4], knownIncidents: [] },
+    meters: { poachAggression: 50, cooperation: 20, lobbyStance: arch.lobby, openness: arch.openness },
     pressure: 0,
     pressureDays: 0,
   };
@@ -245,6 +290,7 @@ export const rivalMis = (r: RivalLab) => misalignment(r.internal.traitsTrue, r.i
 
 function famOf(s: GameStateV2, r: RivalLab): string {
   if (r.core.kind === 'china') return r.internal.name.split('-')[0];
+  if (r.core.id === LEADER_ID) return LEADER_MODEL_FAMILY;
   const i = s.rivals.indexOf(r);
   return RIVAL_MODEL_FAMILIES[i % RIVAL_MODEL_FAMILIES.length];
 }
@@ -266,6 +312,9 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   // internal model's capability tracks the lab's frontier (simpleFrontierPm); model identity, traits and releases
   // follow WS4's cadence below.
   r.managed = true;
+  // The leader lab runs at the reference compute path (no chip orders, BUILD-PLAN R2): set today for tomorrow's
+  // production readout, which reads the inputs as of today (production uses day − 1).
+  if (id === LEADER_ID) r.core.computeOnline = refTotal(s.hidden.timeline, decimalYear(s));
   labReferenceSplit(s, r);
   growLabStaff(s, r);
   trackLabFrontier(s, r);
@@ -403,7 +452,9 @@ export function rivalFinanceQ(s: GameStateV2, ctx: SystemCtx) {
     else f.revenueRun *= 1.2 + 0.1 * clamp(-lead / 180, -1, 1);
     const spend = (r.core.computeOnline * 14e-6) * 1.1 + 0.4; // $B/yr ≈ $14k per H100e-yr all-in [D]
     f.cash += (f.revenueRun - spend) / 4;
-    const parentFunded = r.archetype === 'bigtech' || r.archetype === 'openweights';
+    // The leader lab (R2) is never short of money: its compute is the reference path, not bought here.
+    const leader = r.core.id === LEADER_ID;
+    const parentFunded = r.archetype === 'bigtech' || r.archetype === 'openweights' || leader;
     if (parentFunded) f.cash = Math.max(f.cash, spend / 2);
     else if (f.cash < spend / 2 && f.valuation > 0) {
       const ok = rng.chance(clamp(0.9 - 0.004 * Math.max(0, lead - 90) - (s.capital.busted ? 0.4 : 0), 0.05, 0.95));
@@ -416,7 +467,7 @@ export function rivalFinanceQ(s: GameStateV2, ctx: SystemCtx) {
     // Compute grows by chip orders cleared in WS3's market (rationed with everyone else's): the default 2.25×/yr
     // path, scaled down when the lab is short of cash (parent-funded labs always order in full).
     const fund = parentFunded ? 1 : clamp(f.cash / Math.max(1, spend), 0.25, 1);
-    placeLabOrder(s, r.core.id, r.core.computeOnline * RIVAL_GROWTH_Q * fund, 1, 1.2);
+    if (!leader) placeLabOrder(s, r.core.id, r.core.computeOnline * RIVAL_GROWTH_Q * fund, 1, 1.2);
     const wasDistress = f.distress;
     f.distress = f.cash < 0;
     if (f.distress && !wasDistress) {

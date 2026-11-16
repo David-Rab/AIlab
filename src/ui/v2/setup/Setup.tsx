@@ -3,13 +3,13 @@ import { useRef } from 'react';
 import { CHINA_PRESETS, GOV_PRESETS, LAB_ARCHETYPES, PUBLIC_PRESETS } from '../../../data/actors';
 import { AUTOSAVE_KEY, SLOT_KEYS, V1_SAVE_KEY } from '../../../engine/v2';
 import type { SetupV2 } from '../../../engine/v2';
-import { CHINA_LAB_NAME, RIVAL_NAMES_V2 } from '../../../data/v2/names';
+import { CHINA_LAB_NAME, LEADER_LAB_NAME, RIVAL_NAMES_V2 } from '../../../data/v2/names';
 
 /** AUDIT §2.4: the company may not take a rival's name (two "Meridian" nodes, rows and end lines). */
 export function nameClash(name: string): string | undefined {
   const n = name.trim().toLowerCase();
   if (!n) return 'Name your company';
-  const hit = [...RIVAL_NAMES_V2, CHINA_LAB_NAME].find((x) => x.toLowerCase() === n);
+  const hit = [...RIVAL_NAMES_V2, CHINA_LAB_NAME, LEADER_LAB_NAME].find((x) => x.toLowerCase() === n);
   return hit ? `${hit} is a rival lab: pick another name` : undefined;
 }
 import { useV2 } from '../store';
@@ -117,7 +117,7 @@ export function SetupScreen() {
           <Picker label="Government" k="gov" opts={presetOpts(GOV_PRESETS)} />
           <Picker label="Public" k="public" opts={presetOpts(PUBLIC_PRESETS)} />
           <Picker label="China" k="china" opts={presetOpts(CHINA_PRESETS)} />
-          <Picker label="Rivals" k="rivals" opts={presetOpts(LAB_ARCHETYPES)} />
+          <Picker label="Rivals" k="rivals" opts={presetOpts(LAB_ARCHETYPES.filter((a) => a.weight > 0))} />
           <Picker label="Rival labs" k="rivalCount" opts={[{ v: 3, label: '3' }, { v: 4, label: '4' }]} />
           <Picker label="Tutorial (panels unlock by act)" k="tutorial" opts={[{ v: true, label: 'On' }, { v: false, label: 'Off: everything unlocked' }]} />
           <div>

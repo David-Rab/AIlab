@@ -7,6 +7,11 @@ import type { ComputeSplit, DomainId, WorldPresetId } from '../../engine/v2/type
  *  SC…ASI because SC(calShift) is step-like). `sampled` uses the ai2027 value. Never tune for balance (§7.4). */
 export const CAL_SHIFT: Record<WorldPresetId, number> = { ai2027: 0.08, authors2026: 0.025, fast: 0.105, slow: -0.197, sampled: 0.08 };
 
+/** Extra release lag (progress years, added to simpleLag) of the simulated leader lab
+ *  (setup.leaderLab, BUILD-PLAN R2) so its milestones hit the golden days (T1L). [fit] by
+ *  `npx tsx scripts/v2/calib.ts --fit-leader`; 0 = the reference simpleLag. `sampled` uses the ai2027 value. */
+export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: 0.083, authors2026: 0.063, fast: 0.085, slow: -0.029, sampled: 0.083 };
+
 /** Post-training capability retention κ (§3.1.4). Adjust only globally (0.6–0.8), never per preset. */
 export const KAPPA = { post: 0.7, continue: 0.85, stream: 1.0 };
 

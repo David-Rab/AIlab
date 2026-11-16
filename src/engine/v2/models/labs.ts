@@ -9,6 +9,8 @@ import type { ComputeSplit, GameStateV2, LabCore, LabId, ModelVersion, RivalLab 
 
 export const PLAYER_ID: LabId = 'player';
 export const CHINA_ID: LabId = 'china';
+/** Fixed id of the simulated AI 2027 leader lab (setup.leaderLab, BUILD-PLAN R2), appended after the sampled rivals. */
+export const LEADER_ID: LabId = 'rL';
 
 export type AnyLabCore = Omit<LabCore, 'deployments' | 'models' | 'paradigms'>;
 

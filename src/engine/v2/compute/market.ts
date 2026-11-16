@@ -7,6 +7,7 @@ import { decimalYear } from '../core/time';
 import type { BaselineId, ChipMarket, EngineSystem, GameStateV2, LabId, SystemCtx } from '../types';
 import { defaultMarketWS3, ensureWs3, type LabOrder } from '../finance/ext';
 import { qOf, yearStats, bookCash } from '../finance/ledger';
+import { LEADER_ID } from '../models/labs';
 
 type Comp = keyof typeof COMPONENTS;
 const COMPS: Comp[] = ['pkg', 'hbm', 'wafer'];
@@ -99,12 +100,15 @@ export function globalRefQ(q: number): number {
 export const RIVAL_GROWTH_Q = Math.pow(2.25, 0.25) - 1;
 
 /** Exogenous demand (hyperscalers, enterprise, sovereign buyers not modelled as labs) for quarter q (§3.8). The
- *  reference player and default rivals are netted out, so with reference labs total demand ≈ globalRefQ. */
+ *  reference player and default rivals are netted out, so with reference labs total demand ≈ globalRefQ.
+ *  With the leader lab (setup.leaderLab, R2) active, the reference lab's growth is the leader's: it stays in the
+ *  exogenous demand (the leader places no orders) and the player's orders are extra demand. */
 export function exoRefQ(s: GameStateV2, q: number): number {
   const y = q / 4;
-  const playerRef = Math.max(0, refTotalAt(s, y + 0.25) - refTotalAt(s, y));
+  const leaderActive = s.rivals.some((r) => r.core.id === LEADER_ID && r.core.status === 'active');
+  const playerRef = leaderActive ? 0 : Math.max(0, refTotalAt(s, y + 0.25) - refTotalAt(s, y));
   let rivals = 0;
-  for (const r of s.rivals) if (r.core.status === 'active') rivals += r.core.computeOnline * RIVAL_GROWTH_Q;
+  for (const r of s.rivals) if (r.core.status === 'active' && r.core.id !== LEADER_ID) rivals += r.core.computeOnline * RIVAL_GROWTH_Q;
   return Math.max(0.2 * globalRefQ(q), globalRefQ(q) - playerRef - rivals);
 }
 
@@ -333,7 +337,7 @@ export function clearMarket(s: GameStateV2, ctx: SystemCtx): void {
   }
   // Default demand of rivals WS4 does not manage; WS4-managed labs place explicit orders (placeLabOrder).
   for (const r of s.rivals) {
-    if (r.core.status !== 'active' || w.managedLabs.includes(r.core.id)) continue;
+    if (r.core.status !== 'active' || w.managedLabs.includes(r.core.id) || r.core.id === LEADER_ID) continue; // leader: in exo demand
     const qty = r.core.computeOnline * RIVAL_GROWTH_Q;
     claims.push({ kind: 'lab', ref: r.core.id, qty, weight: 1.2, got: 0 });
     D += qty;

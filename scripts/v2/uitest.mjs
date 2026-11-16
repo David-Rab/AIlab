@@ -438,6 +438,20 @@ ok('Alerts/decisions shown in queue', (await page.$$('.queue-row .alert-chip2, .
 await shot('31-day400-running');
 await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
 
+// ───────────────────────── R2: the simulated leader lab (setup.leaderLab) ─────────────────────────
+await closeModals();
+await page.evaluate(() => { const st = window.ai27v2; st.start({ ...st.draftSetup, tutorial: false, seed: 4243, companyName: 'OpenBrain', leaderLab: true }); });
+await wait(150);
+await page.evaluate(() => window.ai27v2.step(30));
+await closeModals();
+await nav('overview');
+ok('Leader lab: Overview race lane', !!(await page.$('[data-home=leadTrack] [data-lane="rL"]')));
+await shot('50-leader-overview');
+await nav('relations');
+ok('Leader lab: Relations lists it', (await page.locator('[data-panel=relations]').innerText()).includes('Polaris AI'));
+await shot('51-leader-relations');
+await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
+
 // ───────────────────────── end screen ─────────────────────────
 await closeModals();
 await page.evaluate(() => window.ai27v2.act('RETIRE'));

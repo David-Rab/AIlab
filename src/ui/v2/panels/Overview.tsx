@@ -52,7 +52,7 @@ function LeadTrack({ s }: { s: GameStateV2 }) {
               { label: <Term id="misalign">Misalignment</Term>, value: `${F.num(r.intel.misalignBand[0], 2)}–${F.num(r.intel.misalignBand[1], 2)}` },
               { label: 'Public model', value: r.publicModel?.name ?? '—' },
               { label: 'Known incidents', value: r.intel.knownIncidents.length },
-            ]}>{cn ? 'China\'s national lab.' : 'US rival.'} Estimates from releases, evaluators and intel. Click for Relations.</TipCard>
+            ]}>{cn ? 'China\'s national lab.' : r.archetype === 'leader' ? 'The frontier leader: a US lab on the reference pace.' : 'US rival.'} Estimates from releases, evaluators and intel. Click for Relations.</TipCard>
           )}>
             <g className="lt-lane" data-lane={r.core.id} onClick={() => store.setPanel('relations')}>
               <line x1={x0 - 6} x2={x1 + 8} y1={y} y2={y} stroke="#1f2a38" strokeWidth={12} strokeLinecap="round" />

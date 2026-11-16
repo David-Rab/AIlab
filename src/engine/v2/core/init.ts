@@ -13,7 +13,7 @@ import { initialGov } from '../actors/gov';
 import { initialPublic } from '../actors/public';
 import { initialRelations } from '../actors/relations';
 import { initialResearchBodies } from '../actors/researchBodies';
-import { initialRival } from '../actors/rivals';
+import { initialLeaderLab, initialRival } from '../actors/rivals';
 import { initialMarket } from '../compute/market';
 import { initialCloud, initialOrders } from '../compute/orders';
 import { initialPower } from '../compute/power';
@@ -38,7 +38,7 @@ import type {
   Deployment, DomainId, EvalRecord, GameStateV2, MilestoneIdx, ModelVersion, PlayerLab, SetupV2, TimelineWorld, ToolFamily, TraitBelief, TraitId, TrainingRun, VersionBuild,
 } from '../types';
 import { emptySeries, sampleSeries } from './record';
-import { seedStreams, StreamRng } from './rng';
+import { hash32, seedStreams, StreamRng } from './rng';
 import { SCHEMA_REV } from './save';
 import { START_DATE } from './time';
 
@@ -181,6 +181,9 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
   const player = buildPlayer(worldRng, { setup, hidden }, startDate);
   const pm0 = player.models.versions[0].pm;
   const rivals = Array.from({ length: setup.rivalCount }, (_, i) => initialRival(worldRng, hidden, i, pm0, setup.baseline, base.start.globalCompute));
+  // The AI 2027 leader lab (BUILD-PLAN R2): after the sampled rivals, from its own stream, so 'world' draws (and
+  // everything sampled from them) are the same with the flag on or off.
+  if (setup.leaderLab) rivals.push(initialLeaderLab(new Rng(hash32(setup.seed, 'leaderLab')), hidden, setup, pm0));
   const china = initialChina(worldRng, hidden, pm0, base.start.chinaGapYears);
   for (const r of [...rivals, china.lab]) {
     r.core.milestoneDays = initialMilestones(w, Math.max(r.internal.pm, r.publicModel?.pm ?? -Infinity));
