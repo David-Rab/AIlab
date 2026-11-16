@@ -1,0 +1,270 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>AI27 v3 · Company</title>
+<link rel="stylesheet" href="kit.css"><link rel="stylesheet" href="kit-crs.css">
+<style>
+.card { position:relative; }
+.lower { display:grid; grid-template-columns: minmax(0,1fr) 404px; gap:12px; flex:1; min-height:0; }
+
+/* agents at work */
+.agw { display:grid; grid-template-columns: minmax(0,1fr) 262px; gap:16px; }
+.lanes { display:grid; grid-template-columns: 24px 176px 136px 158px 150px minmax(0,1fr) 76px 112px; align-items:center; column-gap:12px; }
+.lanes > .h { font-size:10.5px; letter-spacing:.07em; text-transform:uppercase; color:var(--text-3); font-weight:700; padding-bottom:5px; border-bottom:1px solid var(--line); white-space:nowrap; }
+.lanes > .c { height:52px; display:flex; flex-direction:column; justify-content:center; gap:3px; border-bottom:1px solid #1d2632; min-width:0; }
+.lanes > .c.last { border-bottom:0; }
+.ord { width:22px; height:22px; border-radius:50%; display:grid; place-items:center; font:700 11px var(--mono); color:#0b0f15; background:var(--ai); }
+.ord.n2 { background:#3fbfae; } .ord.n3 { background:#1d6f68; color:#cfeee8; } .ord.s { background:transparent; border:1px solid var(--und); color:var(--und); }
+.use { font-size:13px; font-weight:600; color:#fff; white-space:nowrap; }
+.use + .t3 { font-size:11.5px; white-space:nowrap; }
+.mchip { display:inline-flex; align-items:center; gap:6px; height:26px; padding:0 8px; border-radius:6px; border:1px solid var(--line-2); background:var(--panel-2); font-size:12px; color:#fff; font-weight:600; white-space:nowrap; width:max-content; max-width:100%; }
+.mchip svg.cv { color:var(--text-3); margin-left:2px; }
+.mchip .cr { font:600 11px var(--mono); color:var(--text-2); }
+.mchip.none { color:var(--text-3); font-weight:500; border-style:dashed; background:transparent; }
+.mchip.open { border-color:#5aa9ff; background:#1a2b42; box-shadow:0 0 0 1px #5aa9ff; }
+.cbar { display:flex; align-items:center; gap:7px; }
+.cbar .bx { flex:1; height:7px; border-radius:2px; background:var(--line); position:relative; }
+.cbar .bx i { position:absolute; left:0; top:0; bottom:0; border-radius:2px; }
+.cbar b { font:600 12px var(--mono); color:#fff; width:30px; text-align:right; }
+.bud { font:700 9.5px var(--sans); letter-spacing:.06em; padding:0 4px; border-radius:3px; border:1px solid; }
+.bud.cap { color:#b79be8; border-color:rgba(155,107,224,.5); } .bud.saf { color:#5fc9b9; border-color:rgba(34,163,148,.5); }
+.cs { font:500 11px var(--mono); color:var(--text-3); }
+.share { display:flex; align-items:center; gap:9px; }
+.share .bx { flex:1; height:16px; border-radius:4px; background:var(--human); position:relative; overflow:hidden; }
+.share .bx i { position:absolute; left:0; top:0; bottom:0; background:linear-gradient(90deg, #4fd1bd, var(--ai)); }
+.share b { font:700 16px var(--mono); color:#fff; width:42px; text-align:right; }
+.share + .t3 { font-size:11px; }
+.cost { font:600 12.5px var(--mono); color:#fff; }
+.risk { display:flex; gap:4px; align-items:center; }
+.rk { width:22px; height:20px; border-radius:4px; display:grid; place-items:center; border:1px solid var(--line-2); color:var(--text-3); background:var(--panel-2); }
+.rk svg { width:12px; height:12px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.rk.w { color:var(--warn); border-color:rgba(233,180,76,.45); background:rgba(233,180,76,.08); }
+.rk.b { color:var(--bad); border:1px dashed rgba(239,107,107,.7); background:rgba(239,107,107,.08); }
+.speedbox { border-left:1px solid var(--line); padding-left:16px; display:flex; flex-direction:column; gap:6px; }
+.mbig { font:700 32px var(--mono); color:#fff; line-height:1; }
+.lev { display:grid; grid-template-columns: 1fr 70px 46px; align-items:center; gap:8px; font-size:12px; }
+.lev .bx { height:7px; border-radius:2px; background:var(--line); position:relative; }
+.lev .bx i { position:absolute; left:0; top:0; bottom:0; border-radius:2px; background:#5b6f89; }
+.lev.bind .bx i { background:var(--warn); }
+.lev .n { font:600 12px var(--mono); text-align:right; }
+
+/* teams */
+.teams { display:grid; grid-template-columns: 318px minmax(0,1fr); gap:18px; flex:1; min-height:0; }
+.role { display:flex; flex-direction:column; gap:8px; }
+.rh { display:flex; align-items:center; gap:8px; }
+.rh .nm { font-size:13.5px; font-weight:600; color:#fff; }
+.rh .ct { font:600 12px var(--mono); color:var(--text-2); }
+.prod { display:inline-flex; align-items:center; gap:4px; font-size:11.5px; color:#cfe3ff; padding:2px 8px; border-radius:6px; border:1px solid #36507a; background:#142033; white-space:nowrap; }
+.pile { position:relative; height:70px; border-radius:7px; background:var(--panel-2); border:1px solid var(--line-2); padding:8px 11px; display:flex; flex-direction:column; justify-content:space-between; box-shadow: 4px 4px 0 -1px #18202b, 4px 4px 0 0 var(--line-2), 8px 8px 0 -1px #141b25, 8px 8px 0 0 var(--line); margin-right:8px; }
+.pile .x { font:700 15px var(--mono); color:#fff; }
+.toks { display:flex; gap:3px; } .toks i { width:14px; height:14px; border-radius:3px; display:block; }
+.sgrid { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:8px; }
+.tcard { height:64px; border-radius:7px; background:var(--panel-2); border:1px solid var(--line-2); border-left:3px solid var(--cl); padding:7px 10px 7px 9px; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden; }
+.tcard .s { display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600; color:#fff; white-space:nowrap; }
+.tcard .s svg { color:var(--cl); }
+.tcard .nm { font-size:11px; color:#d9c27a; font-weight:600; }
+.tcard .as { display:flex; align-items:center; gap:5px; font-size:11.5px; color:var(--text-2); white-space:nowrap; overflow:hidden; }
+.tcard .as span.n { overflow:hidden; text-overflow:ellipsis; }
+.cap-c { --cl: var(--cap); } .saf-c { --cl: var(--und); }
+.grp { display:flex; align-items:center; gap:6px; font-size:11px; letter-spacing:.07em; font-weight:700; color:var(--text-3); text-transform:uppercase; }
+.pols { margin-top:auto; gap:7px; padding-top:10px; border-top:1px solid var(--line); }
+.prow { display:flex; align-items:center; gap:9px; font-size:12px; color:var(--text-2); }
+
+/* hiring */
+.pol { display:grid; grid-template-columns: 1fr auto; row-gap:6px; align-items:center; font-size:12.5px; }
+.step { display:inline-flex; align-items:center; border:1px solid var(--line-2); border-radius:6px; overflow:hidden; }
+.step span { padding:1px 8px; font:600 12px var(--mono); color:var(--text-2); background:var(--panel-2); }
+.step b { padding:1px 10px; font:600 12.5px var(--mono); color:#fff; border-left:1px solid var(--line-2); border-right:1px solid var(--line-2); }
+.cand { display:grid; grid-template-columns: 30px minmax(0,1fr) auto; align-items:center; gap:10px; padding:8px 10px; border-radius:7px; background:var(--panel-2); border:1px solid var(--line-2); }
+.cand .ic { width:30px; height:30px; border-radius:7px; display:grid; place-items:center; background:#1f2a38; color:var(--text-2); }
+.cand .t { font-size:12.5px; font-weight:600; color:#fff; white-space:nowrap; }
+.cand .m { font-size:11.5px; color:var(--text-3); display:flex; gap:7px; align-items:center; white-space:nowrap; }
+.cand .m b { font:600 11.5px var(--mono); color:var(--text-2); }
+
+/* model picker (hover state) */
+.picker { position:absolute; z-index:45; width:830px; background:#121a24; border:1px solid #46597a; border-radius:10px; box-shadow:0 18px 50px rgba(0,0,0,.65); padding:12px 14px; }
+.pk { display:grid; grid-template-columns: 22px minmax(0,1fr) 96px 96px 120px 70px 120px; align-items:center; gap:10px; padding:8px; border-radius:7px; font-size:12px; }
+.pk.h { padding-top:0; padding-bottom:3px; font-size:10.5px; letter-spacing:.06em; font-weight:700; color:var(--text-3); text-transform:uppercase; }
+.pk.cur { background:#18222f; }
+.pk.on { background:#1a2b42; box-shadow:inset 0 0 0 1px #5aa9ff; }
+.pk .t { color:#fff; font-weight:600; white-space:nowrap; }
+.pk .s { font-size:11px; color:var(--text-3); }
+</style></head>
+<body data-nav="company">
+<!--ICONS-->
+<div class="app"><div class="body"><main class="center">
+
+  <div class="ph">
+    <svg class="i s20 t2"><use href="#i-workflow"/></svg><h1>Company</h1>
+    <span class="sp"></span>
+    <span class="chipl"><svg class="i s14"><use href="#i-wallet"/></svg><u>Payroll</u> <b>$1.97B</b><span class="u">/yr</span></span>
+    <span class="chipl"><svg class="i s14"><use href="#i-smile"/></svg><u>Morale</u> <b>71</b></span>
+    <span class="chipl warn"><svg class="i s14"><use href="#i-microscope"/></svg>Safety morale <b>64</b></span>
+    <span class="chipl link">Team list <svg class="i s12"><use href="#i-chevron-right"/></svg></span>
+  </div>
+
+  <!-- L1 #1: agent packages (STRUCTURE §4.9) -->
+  <div class="card" id="agents">
+    <div class="hd"><svg class="i s14" style="color:var(--ai)"><use href="#i-bot"/></svg><span class="ttl">Agents at work</span><span class="sub">model + monitor + compute per use · 75K <span class="term">H100e</span> · $1.01B/yr</span><span class="sp"></span>
+      <span class="row small t2" style="gap:7px"><span class="tog on"></span><u>Auto split</u> experiments ↔ agents</span></div>
+    <div class="agw">
+      <div class="lanes">
+        <span class="h"></span><span class="h">Use · automates</span><span class="h">Model</span><span class="h"><u>Monitor</u> · catch</span><span class="h">Compute · budget</span><span class="h">AI share of the work</span><span class="h">Cost/yr</span><span class="h"><u>Risk</u></span>
+
+        <span class="c"><span class="ord">1</span></span>
+        <span class="c"><span class="use">Engineering</span><span class="t3">engineers' coding</span></span>
+        <span class="c"><span class="mchip"><svg class="i s14 t2"><use href="#i-brain"/></svg>Atlas-3-mini<svg class="i s12 cv"><use href="#i-chevron-down"/></svg></span></span>
+        <span class="c"><span class="mchip none"><svg class="i s14"><use href="#i-cctv"/></svg>none<svg class="i s12 cv"><use href="#i-chevron-down"/></svg></span></span>
+        <span class="c"><span class="cbar"><span class="bx"><i style="width:40%;background:#8a6ac0"></i></span><b>18K</b><span class="bud cap">CAP</span></span><span class="cs">41K × 9</span></span>
+        <span class="c"><span class="share"><span class="bx"><i style="width:62%"></i></span><b>62%</b></span><span class="t3">of engineers' work</span></span>
+        <span class="c"><span class="cost">$0.23B</span></span>
+        <span class="c"><span class="risk"><span class="rk w"><svg><use href="#i-thumbs-up"/></svg></span><span class="rk"><svg><use href="#i-gamepad-2"/></svg></span><span class="rk"><svg><use href="#i-ghost"/></svg></span><span class="rk"><svg><use href="#i-crown"/></svg></span></span></span>
+
+        <span class="c"><span class="ord n2">2</span></span>
+        <span class="c"><span class="use">Routine research</span><span class="t3">research engineers</span></span>
+        <span class="c"><span class="mchip" id="pick21"><svg class="i s14" style="color:var(--cap)"><use href="#i-brain"/></svg>Atlas-3.1<svg class="i s12 cv"><use href="#i-chevron-down"/></svg></span></span>
+        <span class="c"><span class="mchip"><svg class="i s14 t2"><use href="#i-cctv"/></svg>Atlas-3-mini <span class="cr">61%</span><svg class="i s12 cv"><use href="#i-chevron-down"/></svg></span></span>
+        <span class="c"><span class="cbar"><span class="bx"><i style="width:100%;background:#8a6ac0"></i></span><b>45K</b><span class="bud cap">CAP</span></span><span class="cs">27K × 11</span></span>
+        <span class="c"><span class="share"><span class="bx"><i style="width:38%"></i></span><b>38%</b></span><span class="t3">of research engineers' work</span></span>
+        <span class="c"><span class="cost">$0.63B</span></span>
+        <span class="c"><span class="risk"><span class="rk w"><svg><use href="#i-thumbs-up"/></svg></span><span class="rk w"><svg><use href="#i-gamepad-2"/></svg></span><span class="rk b"><svg><use href="#i-ghost"/></svg></span><span class="rk"><svg><use href="#i-crown"/></svg></span></span></span>
+
+        <span class="c"><span class="ord n3">3</span></span>
+        <span class="c"><span class="use">Frontier research</span><span class="t3">scientists' taste</span></span>
+        <span class="c"><span class="mchip"><svg class="i s14" style="color:var(--cap)"><use href="#i-brain"/></svg>Atlas-3.1<svg class="i s12 cv"><use href="#i-chevron-down"/></svg></span></span>
+        <span class="c"><span class="mchip"><svg class="i s14 t2"><use href="#i-cctv"/></svg>Atlas-3-mini <span class="cr">61%</span><svg class="i s12 cv"><use href="#i-chevron-down"/></svg></span></span>
+        <span class="c"><span class="cbar"><span class="bx"><i style="width:18%;background:#8a6ac0"></i></span><b>8K</b><span class="bud cap">CAP</span></span><span class="cs">4.8K × 11</span></span>
+        <span class="c"><span class="share"><span class="bx"><i style="width:4%"></i></span><b>4%</b></span><span class="t3">of scientists' work · <u>AI taste</u> −1.4 SD</span></span>
+        <span class="c"><span class="cost">$0.10B</span></span>
+        <span class="c"><span class="risk"><span class="rk w"><svg><use href="#i-thumbs-up"/></svg></span><span class="rk w"><svg><use href="#i-gamepad-2"/></svg></span><span class="rk b"><svg><use href="#i-ghost"/></svg></span><span class="rk"><svg><use href="#i-crown"/></svg></span></span></span>
+
+        <span class="c last"><span class="ord s"><svg class="i s12"><use href="#i-microscope"/></svg></span></span>
+        <span class="c last"><span class="use">Safety research</span><span class="t3">safety researchers</span></span>
+        <span class="c last"><span class="mchip"><svg class="i s14 t2"><use href="#i-brain"/></svg>Atlas-3.0<svg class="i s12 cv"><use href="#i-chevron-down"/></svg></span></span>
+        <span class="c last"><span class="mchip none"><svg class="i s14"><use href="#i-cctv"/></svg>none<svg class="i s12 cv"><use href="#i-chevron-down"/></svg></span></span>
+        <span class="c last"><span class="cbar"><span class="bx"><i style="width:9%;background:#1f8577"></i></span><b>4K</b><span class="bud saf">SAF</span></span><span class="cs">2.6K × 10</span></span>
+        <span class="c last"><span class="prod" style="width:max-content">Trusted to AI · set on Safety <svg class="i s12"><use href="#i-chevron-right"/></svg></span></span>
+        <span class="c last"><span class="cost">$0.05B</span></span>
+        <span class="c last"><span class="risk"><span class="rk w"><svg><use href="#i-thumbs-up"/></svg></span><span class="rk w"><svg><use href="#i-gamepad-2"/></svg></span><span class="rk b"><svg><use href="#i-ghost"/></svg></span><span class="rk"><svg><use href="#i-crown"/></svg></span></span></span>
+      </div>
+
+      <div class="speedbox" id="rspeed">
+        <div class="row"><svg class="i s14 t2"><use href="#i-gauge"/></svg><span class="ttl w" style="font-weight:600"><u>Research speed</u></span><span class="sp"></span><span class="tag" style="color:var(--warn);border-color:rgba(233,180,76,.5);background:var(--warn-bg)"><svg class="i s12"><use href="#i-cpu"/></svg>compute-bound</span></div>
+        <div class="row" style="gap:10px;align-items:flex-end;margin:4px 0 6px"><span class="mbig">1.9×</span><span class="trend up" style="margin-bottom:3px">▲ 0.2 <span class="t3" style="font-weight:400">/90 d</span></span></div>
+        <div class="cap">+10% of input → speed</div>
+        <div class="lev bind"><span class="row" style="gap:6px"><svg class="i s14 warn"><use href="#i-flask-conical"/></svg>Experiments</span><span class="bx"><i style="width:100%"></i></span><span class="n warn">+3.1%</span></div>
+        <div class="lev"><span class="row" style="gap:6px"><svg class="i s14 t3"><use href="#i-users"/></svg>Research eng.</span><span class="bx"><i style="width:42%"></i></span><span class="n t2">+1.3%</span></div>
+        <div class="lev"><span class="row" style="gap:6px"><svg class="i s14 t3"><use href="#i-bot"/></svg>Agents</span><span class="bx"><i style="width:29%"></i></span><span class="n t2">+0.9%</span></div>
+        <div class="row" style="margin-top:auto"><span class="sp"></span><span class="btn go sm"><svg class="i s14"><use href="#i-sliders-horizontal"/></svg>Compute split <svg class="i s12"><use href="#i-chevron-right"/></svg></span></div>
+      </div>
+    </div>
+    <div class="row tiny t3" style="gap:14px;margin-top:8px">
+      <span class="row" style="gap:4px"><span class="rk" style="width:16px;height:14px"><svg style="width:10px;height:10px;fill:none;stroke:currentColor;stroke-width:2"><use href="#i-crown"/></svg></span>low</span>
+      <span class="row" style="gap:4px"><span class="rk w" style="width:16px;height:14px"><svg style="width:10px;height:10px;fill:none;stroke:currentColor;stroke-width:2"><use href="#i-thumbs-up"/></svg></span>watch</span>
+      <span class="row" style="gap:4px"><span class="rk b" style="width:16px;height:14px"><svg style="width:10px;height:10px;fill:none;stroke:currentColor;stroke-width:2"><use href="#i-ghost"/></svg></span>unseen by tools</span>
+      <span>· risk families of the model: People-pleasing · Gaming · Deception · Power</span>
+    </div>
+  </div>
+
+  <div class="lower">
+    <!-- L1 #2: teams by role -->
+    <div class="card" style="display:flex;flex-direction:column;min-height:0">
+      <div class="hd"><svg class="i s14 t2"><use href="#i-users"/></svg><span class="ttl">Teams</span><span class="sub">29 teams · 2,490 people</span><span class="sp"></span>
+        <span class="tag"><span class="q"><i class="on"></i><i></i><i></i></span>Solid</span><span class="tag"><span class="q"><i class="on"></i><i class="on"></i><i></i></span>Strong</span><span class="tag"><span class="q"><i class="on"></i><i class="on"></i><i class="on"></i></span>Elite</span></div>
+      <div class="teams">
+        <div class="col" style="gap:12px">
+          <div class="role">
+            <div class="rh"><svg class="i s16 t2"><use href="#i-hammer"/></svg><span class="nm">Engineers</span><span class="ct">5 · 750</span><span class="sp"></span><span class="prod">Build queue <svg class="i s12"><use href="#i-chevron-right"/></svg></span></div>
+            <div class="pile">
+              <div class="row"><span class="x">×5</span><span class="t2 small">shared pool</span><span class="sp"></span><span class="q"><i class="on"></i><i class="on"></i><i></i></span></div>
+              <div class="row" style="gap:10px"><span class="toks"><i style="background:#8fbff0"></i><i style="background:#8fbff0"></i><i style="background:#b08e1a"></i><i style="background:#5b6f89"></i><i style="background:#5b6f89"></i></span><span class="tiny t2">run 2 · feature 1 · safeguards 2</span></div>
+            </div>
+          </div>
+          <div class="role">
+            <div class="rh"><svg class="i s16 t2"><use href="#i-flask-conical"/></svg><span class="nm">Research engineers</span><span class="ct">13 · 1,300</span></div>
+            <div class="pile">
+              <div class="row"><span class="x" style="color:var(--cap)">×12</span><span class="t2 small">Capabilities</span><span class="sp"></span><span class="q"><i class="on"></i><i class="on"></i><i></i></span></div>
+              <div class="row"><span class="prod">Know-how <svg class="i s12"><use href="#i-chevron-right"/></svg></span><span class="sp"></span><span class="btn sm ghost" style="padding:2px 7px"><svg class="i s12"><use href="#i-arrow-left-right"/></svg> Move</span></div>
+            </div>
+            <div class="pile" style="margin-top:6px">
+              <div class="row"><span class="x" style="color:var(--und)">×1</span><span class="t2 small">Safety</span><span class="sp"></span><span class="q"><i class="on"></i><i class="on"></i><i></i></span></div>
+              <div class="row"><span class="prod">Tools · investigation <svg class="i s12"><use href="#i-chevron-right"/></svg></span><span class="sp"></span><span class="btn sm ghost" style="padding:2px 7px"><svg class="i s12"><use href="#i-arrow-left-right"/></svg> Move</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="role">
+          <div class="rh"><svg class="i s16 t2"><use href="#i-sparkles"/></svg><span class="nm">Scientists</span><span class="ct">11 · 440</span><span class="t3 small">· all assigned</span><span class="sp"></span><span class="prod">Projects <svg class="i s12"><use href="#i-chevron-right"/></svg></span></div>
+          <div class="grp" style="color:#b79be8"><svg class="i s12"><use href="#i-brain"/></svg>Capabilities · 7</div>
+          <div class="sgrid">
+            <div class="tcard cap-c"><div class="s"><svg class="i s14"><use href="#i-layers"/></svg>Pretraining<span class="sp"></span><span class="q"><i class="on"></i><i class="on"></i><i></i></span></div><div class="as"><svg class="i s12"><use href="#i-flask-conical"/></svg><span class="n">Synthetic data flywheel</span></div></div>
+            <div class="tcard cap-c"><div class="s"><svg class="i s14"><use href="#i-layers"/></svg>Pretraining<span class="sp"></span><span class="q"><i class="on"></i><i></i><i></i></span></div><div class="as"><svg class="i s12"><use href="#i-flask-conical"/></svg><span class="n">Synthetic data flywheel</span></div></div>
+            <div class="tcard cap-c"><div class="s"><svg class="i s14"><use href="#i-dumbbell"/></svg>Post-training<span class="sp"></span><span class="q"><i class="on"></i><i class="on"></i><i class="on"></i></span></div><div class="as"><span class="nm">Reasoning group</span><span class="t3">·</span><span class="n">Self-play curricula</span></div></div>
+            <div class="tcard cap-c"><div class="s"><svg class="i s14"><use href="#i-dumbbell"/></svg>Post-training<span class="sp"></span><span class="q"><i class="on"></i><i class="on"></i><i></i></span></div><div class="as"><svg class="i s12"><use href="#i-flask-conical"/></svg><span class="n">Continual learning</span></div></div>
+            <div class="tcard cap-c"><div class="s"><svg class="i s14"><use href="#i-dumbbell"/></svg>Post-training<span class="sp"></span><span class="q"><i class="on"></i><i class="on"></i><i></i></span></div><div class="as"><svg class="i s12"><use href="#i-flask-conical"/></svg><span class="n">Continual learning</span></div></div>
+            <div class="tcard cap-c"><div class="s"><svg class="i s14"><use href="#i-blocks"/></svg>Systems<span class="sp"></span><span class="q"><i class="on"></i><i class="on"></i><i></i></span></div><div class="as"><svg class="i s12"><use href="#i-flask-conical"/></svg><span class="n">Automated AI research agents</span></div></div>
+            <div class="tcard cap-c"><div class="s"><svg class="i s14"><use href="#i-blocks"/></svg>Systems<span class="sp"></span><span class="q"><i class="on"></i><i class="on"></i><i></i></span></div><div class="as"><svg class="i s12"><use href="#i-flask-conical"/></svg><span class="n">Automated AI research agents</span></div></div>
+          </div>
+          <div class="grp" style="color:#5fc9b9;margin-top:2px"><svg class="i s12"><use href="#i-microscope"/></svg>Safety · 4</div>
+          <div class="sgrid">
+            <div class="tcard saf-c"><div class="s"><svg class="i s14"><use href="#i-compass"/></svg>Alignment<span class="sp"></span><span class="q"><i class="on"></i><i class="on"></i><i></i></span></div><div class="as"><svg class="i s12"><use href="#i-flask-conical"/></svg><span class="n">Honesty &amp; confession</span></div></div>
+            <div class="tcard saf-c"><div class="s"><svg class="i s14"><use href="#i-compass"/></svg>Alignment<span class="sp"></span><span class="q"><i class="on"></i><i class="on"></i><i></i></span></div><div class="as"><svg class="i s12"><use href="#i-flask-conical"/></svg><span class="n">Honesty &amp; confession</span></div></div>
+            <div class="tcard saf-c"><div class="s"><svg class="i s14"><use href="#i-scan-search"/></svg>Interpretability<span class="sp"></span><span class="q"><i class="on"></i><i class="on"></i><i class="on"></i></span></div><div class="as"><span class="nm">Probe team</span><span class="t3">·</span><span class="n">Deception probe</span></div></div>
+            <div class="tcard saf-c"><div class="s"><svg class="i s14"><use href="#i-list-checks"/></svg>Evals &amp; control<span class="sp"></span><span class="q"><i class="on"></i><i class="on"></i><i></i></span></div><div class="as"><svg class="i s12"><use href="#i-flask-conical"/></svg><span class="n">Realistic honeypots</span></div></div>
+          </div>
+          <div class="role pols">
+            <div class="row" style="gap:22px">
+              <div class="prow"><span class="tog on"></span><span>Engineers work build queue by priority</span></div>
+              <div class="prow"><svg class="i s14" style="color:var(--warn)"><use href="#i-arrow-left-right"/></svg><span>Safety → capabilities move: <span class="warn">safety morale ▼</span></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- L1 #3: hiring -->
+    <div class="card" style="display:flex;flex-direction:column;gap:8px;min-height:0">
+      <div class="hd" style="margin-bottom:0"><svg class="i s14 t2"><use href="#i-user-plus"/></svg><span class="ttl">Hiring</span><span class="sp"></span><span class="small t3"><u>Talent pull</u> <b class="num good">+6</b></span></div>
+      <div class="cap">Keep hiring to</div>
+      <div class="pol">
+        <span class="row" style="gap:6px"><svg class="i s14 t3"><use href="#i-hammer"/></svg>Engineering</span><span class="step"><span>−</span><b>5</b><span>+</span></span>
+        <span class="row" style="gap:6px"><svg class="i s14 t3"><use href="#i-flask-conical"/></svg>Research eng.</span><span class="step"><span>−</span><b>13</b><span>+</span></span>
+        <span class="row" style="gap:6px"><svg class="i s14 t3"><use href="#i-sparkles"/></svg>Science</span><span class="step"><span>−</span><b>11</b><span>+</span></span>
+      </div>
+      <div class="row" style="margin-top:2px"><span class="cap">Candidates</span><span class="sp"></span><span class="tiny t3">refresh in 18 d</span></div>
+      <div class="cand"><span class="ic"><svg class="i s16"><use href="#i-hammer"/></svg></span>
+        <div style="min-width:0"><div class="t">Engineering team <span class="q" style="margin-left:4px"><i class="on"></i><i class="on"></i><i></i></span></div><div class="m"><b>$105M</b>/yr · 6 wk <span class="pill gain">+20% build</span></div></div>
+        <span class="btn sm pri"><svg class="i s14"><use href="#i-user-plus"/></svg>Hire</span></div>
+      <div class="cand"><span class="ic"><svg class="i s16"><use href="#i-flask-conical"/></svg></span>
+        <div style="min-width:0"><div class="t">Research-eng. team <span class="q" style="margin-left:4px"><i class="on"></i><i></i><i></i></span></div><div class="m"><b>$80M</b>/yr · 4 wk <span class="pill gain">speed +1.0%</span></div></div>
+        <span class="btn sm pri"><svg class="i s14"><use href="#i-user-plus"/></svg>Hire</span></div>
+      <div class="cand"><span class="ic" style="color:var(--und)"><svg class="i s16"><use href="#i-compass"/></svg></span>
+        <div style="min-width:0"><div class="t">Science · Alignment <span class="q" style="margin-left:4px"><i class="on"></i><i class="on"></i><i class="on"></i></span></div><div class="m"><b>$64M</b>/yr · 8 wk <span class="pill gain">Honesty −0.6 mo</span></div></div>
+        <span class="btn sm pri"><svg class="i s14"><use href="#i-user-plus"/></svg>Hire</span></div>
+      <div class="cand"><span class="ic" style="color:var(--cap)"><svg class="i s16"><use href="#i-blocks"/></svg></span>
+        <div style="min-width:0"><div class="t">Science · Systems <span class="q" style="margin-left:4px"><i class="on"></i><i class="on"></i><i></i></span></div><div class="m"><b>$48M</b>/yr · 8 wk <span class="pill gain">AI agents −0.8 mo</span></div></div>
+        <span class="btn sm pri"><svg class="i s14"><use href="#i-user-plus"/></svg>Hire</span></div>
+    </div>
+  </div>
+
+  <!-- hover state: model picker open on routine research -->
+  <div class="picker only-hover" id="picker">
+    <div class="row" style="margin-bottom:8px"><svg class="i s16" style="color:var(--ai)"><use href="#i-bot"/></svg><b class="w">Model · Routine research</b><span class="tag" style="color:#b79be8">Capabilities budget</span><span class="sp"></span><span class="tiny t3">compute stays 45K H100e</span></div>
+    <div class="pk h"><span></span><span>Model</span><span>Copies × speed</span><span>AI share</span><span><u>Research speed</u></span><span>Cost/yr</span><span>Risk</span></div>
+    <div class="pk cur"><svg class="i s14" style="color:var(--good)"><use href="#i-check"/></svg><div><div class="t">Atlas-3.1 <span class="num t3" style="font-weight:500">L 7.3</span></div><div class="s">current · newest</div></div><span class="num t2">27K × 11</span><span class="num w">38%</span><span class="num w">1.9×</span><span class="num t2">$0.63B</span>
+      <span class="risk"><span class="rk w"><svg><use href="#i-thumbs-up"/></svg></span><span class="rk w"><svg><use href="#i-gamepad-2"/></svg></span><span class="rk b"><svg><use href="#i-ghost"/></svg></span><span class="rk"><svg><use href="#i-crown"/></svg></span></span></div>
+    <div class="pk"><span></span><div><div class="t">Atlas-3.0 <span class="num t3" style="font-weight:500">L 7.1</span></div><div class="s">live in products</div></div><span class="num t2">31K × 10</span><span class="num"><span class="t3">38 →</span> <b class="bad">33%</b></span><span class="num"><span class="t3">1.9 →</span> <b class="bad">1.8×</b></span><span class="num t3">same</span>
+      <span class="risk"><span class="rk w"><svg><use href="#i-thumbs-up"/></svg></span><span class="rk w"><svg><use href="#i-gamepad-2"/></svg></span><span class="rk b"><svg><use href="#i-ghost"/></svg></span><span class="rk"><svg><use href="#i-crown"/></svg></span></span></div>
+    <div class="pk on"><span></span><div><div class="t">Atlas-3-mini <span class="num t3" style="font-weight:500">L 6.8</span></div><div class="s"><span class="good">below U 6.9</span> · tools see it</div></div><span class="num t2">100K × 9</span><span class="num"><span class="t3">38 →</span> <b class="bad">24%</b></span><span class="num"><span class="t3">1.9 →</span> <b class="bad">1.6×</b></span><span class="num t3">same</span>
+      <span class="risk"><span class="rk w"><svg><use href="#i-thumbs-up"/></svg></span><span class="rk"><svg><use href="#i-gamepad-2"/></svg></span><span class="rk"><svg><use href="#i-ghost"/></svg></span><span class="rk"><svg><use href="#i-crown"/></svg></span></span></div>
+    <div class="row" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line)"><span class="tiny t3">Trade: <span class="bad">−0.3× research speed</span> for <span class="good">Deception seen</span></span><span class="sp"></span><span class="btn ghost sm">Cancel</span><span class="btn pri sm"><svg class="i s14"><use href="#i-check"/></svg>Use Atlas-3-mini</span></div>
+  </div>
+
+</main></div></div>
+<script src="shell-crs.js"></script>
+<script>
+if (location.hash === '#hover') {
+  const chip = document.getElementById('pick21'); chip.classList.add('open');
+  const c = document.querySelector('.center').getBoundingClientRect(), r = chip.getBoundingClientRect();
+  const p = document.getElementById('picker'); p.style.left = (r.left - c.left - 8) + 'px'; p.style.top = (r.bottom - c.top + 6) + 'px';
+}
+</script>
+</body></html>
