@@ -360,3 +360,18 @@ M3, PR1, ST2, ST1) is J2 by decision and not listed again below.
 
 **Counts:** 11 Major done (M1, M2, B1, B2, B3, PR2, F1, F2, C1, O1, RL1); 41 of 44 Minor/Polish done (AG1 UI part),
 3 skipped to J2 (P4, M6, O3) plus the engine halves of AG1 and RK1.
+
+## J2 scope (user, 2026-11-17)
+
+In:
+1. **R2:** science teams spread across the best few projects instead of piling onto one; auto-assign keeps taking
+   **only queued projects** (no auto-pick from open projects).
+2. **P1:** engineers **and their agents** get real work (build load that scales: run setup with model size, product
+   launches, features, sector packs, product upkeep, safety tooling crews); too few engineers visibly slows shipping.
+3. **PR1 (part):** spare serving compute flows to **research** by default (shown).
+4. **AG1, RK1 (engine halves):** a model monitoring a copy of itself gets a lower catch rate (collusion); risk sources
+   get engine what-ifs (how much each lever moves the risk).
+5. **R7 deferral:** frontier-research agent compute adds AI science capacity on tree projects (efforts refit so the
+   reference path holds).
+
+Not now: R1 auto-pick from open projects, P2, P4, M3 best-model policy, M6, the PR1 shortfall policy, O3, ST1, ST2.
