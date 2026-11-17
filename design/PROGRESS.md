@@ -19,6 +19,7 @@ Single source of truth for where the build stands. Update at every milestone or 
 | M5 UX redesign (IA, design system, panels) | Done: uitest 104/104, lint-ux green | 0af3dcd..babe8b2 |
 | M5 polish, tutorial, codex, v1 removal | Onboarding and codex exist; v1 removed (2026-11-15), `npm run build` builds the current game | |
 | **Tycoon restructure merged to master** | Done (2026-11-17): R1–R10 merged; typecheck and `npm run build` clean. Next: full jank audit | a82b5e8 |
+| **J1 jank batch 1** | Done (2026-11-17, branch `jank-audit`, not merged): M1/M2 measured level and U, F1 cash causes, B1–B4, PR2–PR8, F2–F5, C1–C4, O1 (89.8% rendered tooltip coverage, lint), RL1/RL2 and the UI-only Minor/Polish list; slow calibration refit; all §7.4 criteria MET (40 seeds). J2 next: group A + engine Minor/Polish | jank-audit |
 | **R0 Tycoon restructure: design** | Done (2026-11-16): STRUCTURE.md, TECH-TREE.md, LIMITS.md, research/18–19, mockups-v3. Approved by the user | 168ef39 (branch `game-structure`, worktree `../AI27-structure`) |
 | **R1 Restructure: baseline, bugs, scaffolding** | Done (2026-11-16): B1–B5, LIMITS removals, setup/meta fields, ref-trace tool, schemaRev 4; all §7.4 bot criteria MET (200 seeds) | "R1: commitment scope, …" on `game-structure` |
 | **R3 Restructure: teams and roles** | Done (2026-11-16): fixed-size teams in three roles, h from capabilities research engineers, τ_h from science quality + stars, keep-hiring policy, offers, Company › People teams + hiring cards, schemaRev 5; no CAL_SHIFT refit; all §7.4 bot criteria MET (40 seeds) | "R3: teams and roles, …" on `game-structure` |
@@ -30,6 +31,55 @@ Single source of truth for where the build stands. Update at every milestone or 
 | **R8 Restructure: safety on the tree** | Done (2026-11-17): safety nodes are projects for safety science teams (completion = one result from `fireFinding`, efficacy-driven type draw unchanged; a working result unlocks the node, other results restart it; follow-up project per line), funding levels / hazard / refresh projects removed, effort = T₁ at serious staffing (SERIOUS_CAP 4 team-capacity), line health from the Beta posterior, dead-end team-months and "promising lines idle", tool upkeep and validation lead from safety research engineers (no ×8 ceiling), investigations staffed by safety RE (5–40, 120 d shown), option locks from safety ideas, four risk-family aggregates, Safety panel (Overview / Research lines / Investigations / Trait graph / Incidents) replaces Safety lab, schemaRev 10 with migration; safety hiring lane 3 → 8/wk; all §7.4 bot criteria MET (200 seeds); bot-policy variance share 63% (below M4's 66%) | "R8: safety on the tree …" on `game-structure` |
 | **R9 Restructure: start types** | Done (2026-11-17): data/v2/starts.ts (four starts: teams, known nodes, products, features, cash, compute, board, lag, modifiers, labels), buildPlayer(start) with model lag, spinout imported V0 (D6), big-tech parent budget (finance/parent.ts) with equity/deals/debt unavailable and no insolvency, `parent` board, leader lab per start (D1), knowledge diffusion from the leader lab (K 2.0, follower starts only), Setup start picker, big-tech Finance variant, bots --start with a follower plan, safe bot answers red flags; all §7.4 criteria MET (200 seeds), bot-policy variance share 73%; catch-up targets not met; labels lowered to the data (challenger Hard, big tech and spinout Impossible) | "R9: start types …" on `game-structure` |
 | **R10 Restructure: UI completion and structure tests** | Done (2026-11-17): top strip revenue chip (users in its tooltip; Finance links to it) and "tools validated to" in the race tooltip; Overview "Your company" core-loop diagram (a verdict per system, links to homes); codex Structure (core loop, simulated-from-outside note, verb set) and Limits categories; 24-limit registry `data/v2/limits.ts` shown where each binds (`Limit`, `data-limit`, checked by uitest); research-speed limit lines (frontier methods you lack, serial cap, serve-cost clamp, pause, knowledge diffusion); `system` / `verb` tags required on every engine system and action (lint-structure); idle test (idle.ts) with idle serving compute in Watch; 23 new glossary terms; dead code removed; no engine behaviour change (ref-trace 0 deviation vs R9); all §7.4 criteria MET (200 seeds). Follower starts accepted as is (user decision 2026-11-17: measured labels kept, catch-up deferred) | "R10: UI completion …" on `game-structure` |
+
+## J1 Jank batch 1 (2026-11-17, branch `jank-audit`, worktree ../AI27-structure)
+
+Per design/JANK-AUDIT.md triage: Major groups B (M1, M2) and C (B1–B3, PR2, F1, F2, C1, O1, RL1) and every UI-only
+Minor/Polish finding. Per-finding status: JANK-AUDIT.md "J1 status". 11 Majors done; 41 of 44 Minor/Polish done; P4,
+M6, O3 (and the engine halves of AG1, RK1) skipped to J2 as engine changes. Group A stays J2.
+
+**Engine (approved changes).**
+- M1 `models/benchmarks.ts runEvalSuite`: a version's measurement error e ~ N(0, 0.2) is drawn at its first suite (hidden
+  `evals.errTrue`) and narrows as e/√n (`evals.nSuites`, `measuredSd`); start models are exact (16 suites). The normal is
+  still drawn every suite, so the 'runs' stream is unchanged. An unchanged model's reading moves only toward its truth;
+  "L drops" per game on a fixed model (passive leader, 3 seeds) 10.7 → 0; remaining drops are a different (new) version.
+- M2 `core/record.ts`: weekly U drivers (internal model, measured level, tools, believed EA, re-validation) → cause key
+  'U' when U moves ≥ 0.2 (race tooltip, Overview chart hover). U jumps that remain are real input changes (EA belief after
+  an eval, a new tool).
+- F1 `core/causes.ts`: `cash` entries merge per day and source (cap 600); other keys keep the 40-entry ring (board ouster
+  odds read `board.confidence`). money.ts audit now counts increments of merged entries.
+- Calibration: RefBot's paradigm gates read the best measured level; without the 30-day re-roll lottery they fire later
+  (P08 +61 d, A2 +44 d on stub ai2027 seed 2027). Refit: CAL_SHIFT slow −0.172 → −0.127 (`--fit slow`), LEADER_CAL slow
+  −0.004 → 0.041 (`--fit-leader slow`); other presets unchanged and passing.
+- ref-trace vs 97eeba8 (C:/tmp/j1/ref-base.json): leader ai2027 traces move (stub: A2 +44 d, P08 +61 d, M −23% at day
+  870; integrated: milestones within 5 d, P13 −23 d, revenue/cash/U shifts). Verified as M1 only: with the old re-roll
+  formula restored temporarily the ai2027 stub and integrated traces are 0 deviation.
+
+**UI.** Blueprint card lines with their own five-field effect, size defaults and long-run marking; one revenue definition
+(strip 30-day average, cards and previews "now"); Finance tabs, division budget readout, raise before → after; compute
+before → after (copy-of-state what-if, ~10 ms); Relations hierarchy; Watch-first alert list; and the Minor/Polish list.
+Tooltips: Pill / KV / CauseBars default tooltips plus per-screen work. `Tip` marks its trigger `data-tip`.
+
+**Tests added.** lint-ux "Numbers have a tooltip" (scripts/v2/lint-tips.ts, oxc parser from rolldown since TS 7 has no JS
+API; 288/320 number sites tipped, 32 allow-listed with reasons, 0 failing). uitest: rendered coverage ≥ 85% over every
+panel and tab at day 400 + 900 (89.8%), and J1 checks (B1, B2, F1, F2, F3, RL1, RL2, M4, M5, C1).
+
+**Gates.**
+- typecheck, scripts tsc clean; golden-timelines, identity pass, unchanged; calib all pass (T1, T2, T1L after the slow
+  refit). Fixtures regenerated once (state now carries `nSuites` / `errTrue` and merged cash causes), then byte-stable.
+- test:v2 individually: golden, identity, calib, fixtures, lint-hidden, lint-ux, lint-tradeoffs, lint-structure, safety
+  (S4 0.755 / 0.012, was 0.792 / 0.020: M1 on the reference path), finance, ws4, products, money, idle pass; hygiene only
+  the absolute performance budget; worldfx only HireRate_SOFT (both known).
+- Performance (`_perf.ts` 2 runs × 3 alternations vs 97eeba8): daily mean 3,533 µs (base) vs 3,420 µs (J1), worst quarter
+  13.1 vs 12.2 ms: no regression (absolute numbers higher than R10's on this machine today for both).
+- `npm run test:ui` 222/222. Screenshots looked at: Blueprint (leader 400, spinout 0/400), Products, Finance (leader,
+  big tech), Compute overview, Relations, Research, Safety overview, Company people, Overview.
+- Bots, 40 seeds, leader start: all six §7.4 criteria MET (race 2.5% win, 61% takeover / 37% company-loss; safe 2.5% win,
+  50% overtaken/other-first — on the line; mixed 50.0%, +47.5 pp; passive takeover-type 90%); bot-policy variance share 77%.
+
+**Notes / open.** The spinout's post-train on its import takes ~10 years at the default (ST1, J2); the Blueprint now shows
+it in red and opens on post-training. Safety chart dips that remain at day 400 are switches to a different internal
+version (M3 territory, J2). Scratch scripts `scripts/v2/_j1*` untracked; baseline worktree C:\tmp\r4\base now at 97eeba8.
 
 ## R10 UI completion and structure tests (2026-11-17, branch `game-structure`, worktree ../AI27-structure)
 
