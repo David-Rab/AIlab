@@ -27,7 +27,123 @@ Single source of truth for where the build stands. Update at every milestone or 
 | **R6 Restructure: products and live edit** | Done (2026-11-17): deployments become products (kind, price tier, mini free tier, monitor, features), live product.update with before → after preview (next tick, D7), launch/retire, features built once by engineers and switched on per product, Auto serving split (most $ per H100e first, cut recorded and shown), monitors (catch rate, D7 overhead, incident hook), auto-evaluate replaces the 30-day eval expiry, Agents time-horizon gate, upgrade-to-newest policy, Products panel, schemaRev 8; RefBot staleness fix (worldfx GOV accept passes again); spare training default → data; one calibration line (serve-cost exponent 0.5 → 0.3); all §7.4 bot criteria MET (200 seeds; safe win 1.0%) | "R6: products …" on `game-structure` |
 | **R7 Restructure: internal agent packages and monitors** | Done (2026-11-17): four internal uses (engineering, routine research, frontier research, safety research), each model + optional monitor + compute; internalAgent → routine research, safety agent model/share → the safety package, monitoringShare → per-use monitors (standard package = today's 20% of the safety pool), per-agenda/case AI labour → one Trusted-to-AI policy (B3 gate, 50% cap until P27); evalM optional qTaste (frontier model's taste), k nets the engineering share, engineering agents set A_eng; Company › Agents at work lanes with before → after preview, shared package chips on Products, compute split moved to Compute › Split, Safety links; schemaRev 9; ref-trace identical to R6, no refit; all §7.4 bot criteria MET (40 seeds) | "R7: internal agent packages …" on `game-structure` |
 | **R8 Restructure: safety on the tree** | Done (2026-11-17): safety nodes are projects for safety science teams (completion = one result from `fireFinding`, efficacy-driven type draw unchanged; a working result unlocks the node, other results restart it; follow-up project per line), funding levels / hazard / refresh projects removed, effort = T₁ at serious staffing (SERIOUS_CAP 4 team-capacity), line health from the Beta posterior, dead-end team-months and "promising lines idle", tool upkeep and validation lead from safety research engineers (no ×8 ceiling), investigations staffed by safety RE (5–40, 120 d shown), option locks from safety ideas, four risk-family aggregates, Safety panel (Overview / Research lines / Investigations / Trait graph / Incidents) replaces Safety lab, schemaRev 10 with migration; safety hiring lane 3 → 8/wk; all §7.4 bot criteria MET (200 seeds); bot-policy variance share 63% (below M4's 66%) | "R8: safety on the tree …" on `game-structure` |
-| **R9–R10 Tycoon restructure: build** | Next: R9, R10 serially (BUILD-PLAN parallelism note); milestones logged below. `gs-leader-lab` held no work beyond R1 and was not merged | |
+| **R9 Restructure: start types** | Done (2026-11-17): data/v2/starts.ts (four starts: teams, known nodes, products, features, cash, compute, board, lag, modifiers, labels), buildPlayer(start) with model lag, spinout imported V0 (D6), big-tech parent budget (finance/parent.ts) with equity/deals/debt unavailable and no insolvency, `parent` board, leader lab per start (D1), knowledge diffusion from the leader lab (K 2.0, follower starts only), Setup start picker, big-tech Finance variant, bots --start with a follower plan, safe bot answers red flags; all §7.4 criteria MET (200 seeds), bot-policy variance share 73%; catch-up targets not met; labels lowered to the data (challenger Hard, big tech and spinout Impossible) | "R9: start types …" on `game-structure` |
+| **R10 Tycoon restructure: UI completion and final gates** | Next. Follower catch-up needs a design decision first (R9 notes) | |
+
+## R9 Start types (2026-11-17, branch `game-structure`, worktree ../AI27-structure)
+
+Per design/BUILD-PLAN.md §2 R9, STRUCTURE §4.8 / §4.1, research/18 §5–§6, decisions D1, D6.
+
+**Data `src/data/v2/starts.ts`.** Four starts (one rule set, only the start state differs): teams by key per the
+STRUCTURE §4.1 table with science specialties per analogues (challenger safety science = interpretability; spinout
+science Elite), extra known nodes (research/18 §5, minus paradigm nodes and nodes whose prerequisites are unknown:
+the leader start, the calibration anchor, researches those), live products and built features (challenger: Coding
+agent on API; big tech: Voice & vision on Chat; spinout: none), cash, revenue and history, valuation premium, ownership,
+compute owned / rented, board preset, model lag, D6 `imported` flag, modifiers (talent-pull anchor 30/20/0/10, star cost
+×0.7/1/1.5/1, spinout patient investors: no revenue plan for 4 quarters), difficulty label, one-line character.
+`PARENT_BUDGET`: $16B in year one, ×1.75/yr for three years (Alphabet capex path), then ×1.3/yr. The leader row is display
+only: the leader start keeps today's initialisers. `tree.ts`: `leaderKnown` removed (its three nodes moved to the leader row).
+
+**Engine.**
+- `core/init.ts buildPlayer(start)`: lag like `initialRival` (pm − lag/12·referenceRate, the same shift on pa₀, the start
+  base and the in-flight post run); spinout V0 = `Open-weight import` (variant `imported`, D6: internal use and
+  post-training only; distilling it is refused), no run in flight, no products, 25K rented. Known safety nodes unlock their
+  tools. Rivals, China and the leader lab are placed against the reference V0 (`playerStart(w).target`), not the lagged
+  player; intel estimates start at −lag. `newGame`/`defaultSetupV2`: `leaderLab` follows the start unless set (D1); a
+  non-leader start sets `setup.governance` to its board; talent pull starts at its anchor; no power-queue site.
+- `core/starts.ts`: `startCompute` (owned in live sites — a colocation lease for the challenger, two parent campuses for
+  big tech — rented as one cloud contract + ledger), `startFinance`, `startBoard` (challenger: 2nd financial seat + Azimuth
+  observer). `departments/teams.ts startTeams(baseline, start)`.
+- `finance/parent.ts` (big tech): quarterly payment from `capitalQ` (Q3 2025's is in the $4B + $4B start cash), schedule
+  `parentSchedule`; revenue booked then transferred to the parent; runway projects the payments as funding; no valuation
+  mark, no revolver, no insolvency (overdraft carried), `soldControl` off; `fin.raise / downRound / rescue / seekPartner /
+  acceptDeal / drawDebt` unavailable with `DIVISION_REASON`. Board preset `parent` (Division head + Parent company ×2,
+  stance [0.5, 1, 0.2, 0]); no ouster vote or telegraph (STRUCTURE: no parent-confidence mechanic). GOV_FACTOR 0, Index
+  governance 0.45.
+- Board "behind a rival" (−5/q) applies only past the start's own lag (a board that backed a follower expects it).
+- **Knowledge diffusion (new, logged):** `production.ts diffusionPerDay`: while the simulated leader lab's public model is
+  ahead of the player's best model, pa += K_DIFFUSION × gap / 365 (`calibration.ts` K_DIFFUSION = 2.0 [D, fit]). Without it
+  a follower's lag grew without bound (rate ∝ compute^0.4 at a fraction of the leader's compute: big tech 7 → 25 months
+  behind in two years). Only the leader lab diffuses: model-vs-model diffusion from any rival moved the leader start
+  (RefBot's best version trails the simple rivals' frontier in 11–70% of days; ref-trace 32 failures) and know-how vs
+  know-how is not comparable across labs (43 failures). The leader start has no leader lab: ref-trace, T1, T2 unchanged.
+
+**Bots.** `bots.ts --start` (results carry `start`). Follower plan in `refPlay` / `financeAutopilot` (leader start
+untouched): compute target ramps from the start's share of the reference to 1 over two years, two more quarters of runway
+guard and bridge floor; hiring one team per role a month while runway ≥ 6 q; base sizes ×0.7/0.5/0.35/0.25 before ×0.1, up
+to 200 days, at most 60% of the pool; one post run at a time; launch Chat/API/Enterprise when missing; a division never
+sells chips. `sizedTarget`: safety-team plans scale with the company (spinout 12 → 2 teams). **Carried-over R8 gate:** the
+safe bot now answers red flags on its internal model like the mixed bot (patch + targeted training, belief > 0.2, ten
+traits) — it never did. Line priority (AG15 first: 0.150) and moving 3 RE teams to safety on day 0 (0.131) were tried at
+40 seeds and did nothing; the response loop took the safe bot's mean Mis 0.126 → 0.033 (40 seeds).
+
+**UI.** Setup: "Start as" picker (four cards: name, difficulty tag, one-line character; tooltip with cash, staff, compute,
+lag, board, leader lab); choosing a start sets the leader lab and, for non-leader starts, replaces the Governance picker with
+the start's board. Finance (big tech): Parent budget card (home `parentBudget`: 8 quarters as bars, this/next year,
+the reason equity is unavailable) replaces Raise; Ownership, Markets, Debt and Deals hidden; revenue run-rate marked "(to
+the parent)". Glossary: parentBudget, startType. Screenshots checked (setup, big-tech finance, spinout/challenger day 400).
+
+**Gates.**
+- typecheck, scripts tsc: clean. identity, golden-timelines: pass. calib: T1, T2 (179k, 31.4×), T1L pass. ref-trace vs R8
+  (recorded at 577b851): all within tolerance, worst 0. Leader fixtures byte-identical.
+- safety.ts: S4 RefBot 0.792, safe recipe 0.020; S5 −0.14 (53%) / −0.08 (65%) — identical to R8.
+- test:v2 individually: golden, identity, calib, fixtures (+ start-challenger/spinout-day400), lint-hidden, lint-ux,
+  lint-tradeoffs, safety, finance, ws4, products, money pass; hygiene: only the absolute perf budget (now incl. the
+  leader-lab worst quarter 10.0 ms on a loaded machine); worldfx: only HireRate_SOFT (2027-02-07). Hygiene newGame covers
+  all four starts (leader lab, teams, owned/rented, known nodes, features, products, board, lag, D6).
+- Perf (`_perf.ts`, seed 9, 1,500 d, R8 worktree at 577b851 and R9 alternated, 2 × 3 runs): daily 3,303 µs (R8) vs
+  3,123 µs (R9), −5%; worst quarter 7.3–14.8 vs 8.9–12.5 ms. No regression.
+- `npm run test:ui`: 199/199 (new: four starts with labels, spinout sets leader lab + board, tooltip values, leader start
+  keeps Governance; big tech division with Polaris, parent budget schedule, no raise/ownership, reason shown; spinout and
+  challenger day-400 fixtures load; R9 IA scan on 11 screens clean).
+- **Bots, 200 seeds, leader start:** all six §7.4 criteria MET; **choices vs world (final Mis): bot policy 73%** (R8 63%),
+  world 14%, rest 13%. race/mixed/capex2x/ref identical to R8; safe win 0.5%, mixed 2.5%, mean Mis 0.032 (R8 0.177).
+
+| bot | win | mixed | loss | med. day | top endings |
+|---|---|---|---|---|---|
+| race | 1.5% | 4.0% | 94.5% | 806 | asiTakeover 58.5%, ousted 16%, nationalized 10% |
+| safe | 0.5% | 2.5% | 97.0% | 1449 | overtaken 55.5%, ousted 40.5% |
+| mixed | 48.0% | 6.0% | 46.0% | 1027 | asiAligned 50%, asiTakeover 15%, ousted 14% |
+| capex2x | 0.5% | 0.5% | 99.0% | 304 | insolvent 93.5% |
+| ref | 19.0% | 5.0% | 76.0% | 981 | asiTakeover 40%, asiAligned 19.5%, ousted 14% |
+
+**Per start (40 seeds × 5 bots, leader lab on) and difficulty labels.** Rule (logged in starts.ts): best bot's win rate
+≥ 30% Easy, 10–30% Medium, 1–10% Hard, < 1% Impossible. The proposed labels (challenger/big tech Medium, spinout Hard)
+were lowered to the data.
+
+| start | label | best win | race | safe | mixed | capex2x | ref | main losses |
+|---|---|---|---|---|---|---|---|---|
+| leader | Easy | 48% (mixed) | 1.5% | 0.5% | 48% | 0.5% | 19% | (200 seeds, above) |
+| challenger | **Hard** (was Medium) | 5% (race) | 5.0% | 0% | 2.5% | 0% | 0% | ousted 52–78%, overtaken 12–33%; capex2x insolvent day 31 |
+| bigtech | **Impossible** (was Medium) | 0% | 0% | 0% | 0% | 0% | 0% | overtaken 82–100% |
+| spinout | **Impossible** (was Hard) | 0% | 0% | 0% | 0% | 0% | 0% | overtaken ~50%, ousted ~45%; capex2x insolvent |
+
+**Catch-up targets (`scripts/v2/starts.ts`, 10 seeds × mixed/race): all FAIL** (not in the test:v2 chain). Months behind
+the leader lab, median at months 0/6/12/18/24: challenger race 4.1/8.4/2.8/6.5/8.5, mixed 4.1/8.5/10.1/5.7/9.4; big
+tech race 7.2/5.5/6.4/12.3/18.2, mixed 7.2/8.6/8.0/13.9/19.9; spinout 7.7/13.6/19.5/25.4/31.3.
+- big tech 6 → 3–5 in months 9–15: median 5.9 (race-bot games 4.0–4.7: in band; mixed 5.9–7.4).
+- challenger parity in months 12–18: best 1.3 months (no game ≤ 0.5).
+- spinout first own model: never (0/20) — 25K H100e cannot post-train a frontier-size import (post FLOP scales with the
+  reference frontier) or train a base in time; it is ousted or overtaken.
+- After the pre-takeoff catch-up, takeoff pulls the leader lab away (its compute is refTotal, which costs the reference
+  lab $120B in 2026 and $330B in 2027; big tech's budget is $28B / $49B).
+
+**Deviations / deferred.**
+- Catch-up and winnability of follower starts are not met: needs a design decision (see notes). Labels follow the data.
+- Not modelled from research/18 §6: big tech approval lag +30 d, own chips ×0.7, unspent cash returning to the parent,
+  parent confidence / reorg (STRUCTURE: none); spinout "+1 science project slot"; challenger compute-for-equity verb.
+- Leader start keeps its pre-R9 values (no P05/P06/P07 or CoT monitor known; no attrition ×1.2, talent pull 10) — it is the
+  calibration anchor. Big-tech and challenger start with no chip orders or sites under construction.
+- No `SCHEMA_REV` bump: no state shape changed (new union members `imported`, `parent` only).
+- Scratch scripts `scripts/v2/_r9*.ts` are gitignored.
+
+**Notes for R10.**
+- Follower starts need a catch-up design before release: options (a) finance (big-tech budget or follower raises that can
+  track the reference spend), (b) a stronger or broader diffusion (any lab ahead, with a deadband so the leader start
+  stays neutral), (c) follower efficiency levers (cheaper post-training of imports, distillation of public models), (d)
+  softer follower boards (challengers are mostly ousted for missed revenue plans as their models fall behind).
+- `scripts/v2/starts.ts` and `bots.ts --start` are the checks to rerun; labels live in `data/v2/starts.ts`.
+- Known: hygiene absolute perf (now also leader-lab worst quarter on a loaded machine), worldfx HireRate_SOFT.
 
 ## R8 Safety on the tree (2026-11-17, branch `game-structure`, worktree ../AI27-structure)
 

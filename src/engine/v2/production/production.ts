@@ -16,11 +16,11 @@ import { aEngOf, playerH } from '../departments/teams';
 import { agentVersion, capShare } from '../departments/agents';
 import { ENG_REF_SHARE } from '../../../data/v2/agents';
 import { laborSlowdown, multiplierAt, stage1 } from '../../../data/world';
-import { CHINA_CAL, H100E_PER_COPY_SC, PROD_SPEED_CAP, REF_TECH } from '../../../data/v2/calibration';
+import { CHINA_CAL, H100E_PER_COPY_SC, K_DIFFUSION, PROD_SPEED_CAP, REF_TECH } from '../../../data/v2/calibration';
 import { CHINA_PRESETS } from '../../../data/actors';
 import { decimalYear } from '../core/time';
 import { shareRefAt } from '../departments/split';
-import { CHINA_ID, PLAYER_ID, internalVersion, labCore, otherLabs } from '../models/labs';
+import { CHINA_ID, LEADER_ID, PLAYER_ID, bestPlayerVersion, internalVersion, labCore, otherLabs } from '../models/labs';
 import { deltaRsch } from '../models/capability';
 import { payoffOf } from '../models/tree';
 import { idleTrainingShare } from '../models/runs';
@@ -377,6 +377,18 @@ export function advanceLab(s: GameStateV2, lab: LabId): ProductionReadout | unde
   return r;
 }
 
+/** Knowledge diffusion to the player (R9; data/v2/calibration.ts K_DIFFUSION): K × (the frontier leader lab's public
+ *  model − the player's best model) per year while positive. Only the simulated AI 2027 leader (Polaris, in every start
+ *  but the leader's) diffuses: the other rivals are modelled from the outside and already ride the reference scaling
+ *  term (simpleFrontierPm), and in the leader start there is no such lab, so its calibration path is untouched. */
+export function diffusionPerDay(s: GameStateV2): { dpa: number; from?: string } {
+  const L = s.rivals.find((r) => r.core.id === LEADER_ID);
+  const pub = L && L.core.status === 'active' ? L.publicModel?.pm : undefined;
+  if (pub === undefined) return { dpa: 0 };
+  const gap = pub - (bestPlayerVersion(s)?.pm ?? s.player.pa);
+  return gap > 0 ? { dpa: (K_DIFFUSION * gap) / 365, from: L!.core.name } : { dpa: 0 };
+}
+
 /** production (30, daily): for player, rivals and China — readout, then pa += rate/365 (§3.2). Memoised readouts
  *  are cached on each lab (`prodCache`) and under ctx.memo 'WS1:production:<lab>'. */
 export const productionSystem: EngineSystem = {
@@ -385,6 +397,11 @@ export const productionSystem: EngineSystem = {
     const r = advanceLab(s, PLAYER_ID);
     if (r) {
       ctx.cause('player.pa', r.rate / 365, 'production', `M ${r.M.toFixed(2)}×, ${r.label}`);
+      const dif = diffusionPerDay(s);
+      if (dif.dpa > 0) {
+        s.player.pa += dif.dpa;
+        ctx.cause('player.pa', dif.dpa, 'knowledge diffusion', dif.from);
+      }
       ctx.memo.set('WS1:production:player', r);
       syntheticAccrual(s);
     }

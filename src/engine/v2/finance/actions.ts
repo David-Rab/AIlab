@@ -13,6 +13,7 @@ import { acceptDeal, dealBlocker, dealTerms, declineDeal, partnerFor, rescueOffe
 import { acceptRepriced, bookRound, canRaise, lastPostMoney, pullRepriced, raiseCeiling, startRaise } from './equity';
 import { ensureWs3, yearStats, type DealOffer } from './ext';
 import { commitmentsPerYear, qOf, bookCash } from './ledger';
+import { divisionBlock } from './parent';
 import { runwayOf } from './runway';
 
 type P = Record<string, number | string | boolean>;
@@ -49,7 +50,7 @@ const raise: ActionDef = {
   id: 'fin.raise', sphere: 'finance', owner: 'WS3', title: 'Raise',
   boardVector: BOARD_VECTORS.dilution,
   available: (s) => {
-    const b = blocked(s, 'fin.raise');
+    const b = divisionBlock(s) ?? blocked(s, 'fin.raise');
     return b !== true ? b : canRaise(s);
   },
   preview(s, p) {
@@ -112,7 +113,7 @@ const pullRound: ActionDef = {
 
 const downRound: ActionDef = {
   id: 'fin.downRound', sphere: 'finance', owner: 'WS3', title: 'Down round',
-  available: (s) => (s.player.finance.state === 'distress' || s.player.finance.state === 'tight' ? true : 'Only when runway is tight or in distress'),
+  available: (s) => divisionBlock(s) ?? (s.player.finance.state === 'distress' || s.player.finance.state === 'tight' ? true : 'Only when runway is tight or in distress'),
   preview(s) {
     const V = s.player.finance.valuation * 0.6;
     const amt = downRoundSize(s);
@@ -165,7 +166,7 @@ export function dealPreview(s: GameStateV2, t: Omit<DealOffer, 'id' | 'day' | 'e
 
 const seek: ActionDef = {
   id: 'fin.seekPartner', sphere: 'finance', owner: 'WS3', title: 'Seek partner',
-  available: notInsolvent,
+  available: (s) => divisionBlock(s) ?? notInsolvent(s),
   preview(s, p) {
     const tpl = str(p, 'template', 'hyperscalerEquity') as StrategicDeal['template'];
     const partner = str(p, 'partner', partnerFor(s, tpl) ?? '');
@@ -196,7 +197,7 @@ const accept: ActionDef = {
   id: 'fin.acceptDeal', sphere: 'finance', owner: 'WS3', title: 'Accept deal',
   boardVector: BOARD_VECTORS.commitments,
   available: (s) => {
-    const b = blocked(s, 'fin.acceptDeal');
+    const b = divisionBlock(s) ?? blocked(s, 'fin.acceptDeal');
     if (b !== true) return b;
     return s.player.finance.ws3?.offers.length ? true : 'No open offer (seek a partner first)';
   },
@@ -239,6 +240,8 @@ const rescue: ActionDef = {
   id: 'fin.rescue', sphere: 'finance', owner: 'WS3', title: 'Rescue',
   available: (s) => {
     const f = s.player.finance;
+    const div = divisionBlock(s);
+    if (div) return div;
     if (f.state !== 'distress') return 'Only in distress';
     if (f.ws3?.lastRescueDay !== undefined && s.time.day - f.ws3.lastRescueDay < RESCUE_COOLDOWN_D) return 'Partners will not rescue you twice in a year';
     return rescueOffer(s) ? true : 'No partner will rescue you';
@@ -261,7 +264,7 @@ const draw: ActionDef = {
   id: 'fin.drawDebt', sphere: 'finance', owner: 'WS3', title: 'Borrow',
   boardVector: BOARD_VECTORS.newDebt,
   available: (s) => {
-    const b = blocked(s, 'fin.drawDebt');
+    const b = divisionBlock(s) ?? blocked(s, 'fin.drawDebt');
     if (b !== true) return b;
     const h = (['revolver', 'gpuTerm', 'bond'] as const).map((k) => debtHeadroom(s, k));
     return h.some((x) => x.max > 0) ? true : h[0].why ?? 'No debt capacity';

@@ -98,6 +98,7 @@ export function measuredDomains(v: ModelVersion): Record<DomainId, number> {
 }
 
 export { runwayOf, RUNWAY_CAP } from './finance/runway';
+export { parentSchedule, parentYear, parentPaymentQ, DIVISION_REASON } from './finance/parent';
 export { debtHeadroom, totalDebt, interestPerYear, debtRatePct } from './finance/debt';
 export { dealMenu, dealPreview } from './finance/actions';
 export { liveLedger, commitmentsPerYear, ledgerDue, qOf } from './finance/ledger';

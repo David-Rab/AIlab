@@ -17,6 +17,15 @@ export const CAL_SHIFT: Record<WorldPresetId, number> = { ai2027: 0.08, authors2
  *  whose CAL_SHIFT moved (authors2026 0.063 → 0.068, fast 0.085 → 0.053, slow −0.029 → −0.004). */
 export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: 0.083, authors2026: 0.068, fast: 0.053, slow: -0.004, sampled: 0.083 };
 
+/** Knowledge diffusion to a follower (BUILD-PLAN R9, research/18 §0.2) [D, fit]: while the frontier leader lab's PUBLIC
+ *  model is ahead of the player's best model, the player's know-how gains K_DIFFUSION × the gap per year (papers, staff
+ *  moves, distilling public outputs). Without it a follower's lag grew without bound (its rate ∝ compute^0.4 with a
+ *  fraction of the leader's compute: big tech 7 → 25 months behind in two years). Fitted on scripts/v2/starts.ts: at 1.0
+ *  big tech stayed 7–13 months behind in months 9–15 (target 3–5); at 2.0 the race bot's division reaches 4–5 and the
+ *  challenger 1.5–3, before takeoff pulls the leader away. Zero in the leader start (no leader lab: its calibration path
+ *  is untouched). Rivals' symmetric term is WS1's distillation leak. */
+export const K_DIFFUSION = 2.0;
+
 /** Post-training capability retention κ (§3.1.4). Adjust only globally (0.6–0.8), never per preset. */
 export const KAPPA = { post: 0.7, continue: 0.85, stream: 1.0 };
 

@@ -18,13 +18,14 @@ import { EVENT_BY_ID } from '../core/registry';
 import { decimalYear } from '../core/time';
 import { shareRefAt, TOP_KEYS, topOf, withFixed } from '../departments/split';
 import { financeAutopilot, financeDecide, REF_AUTOPILOT } from '../finance/plan';
+import { runwayOf } from '../finance/runway';
 import { hRef } from '../production/knots';
 import { REF_ROLE_SHARE, SAF_ROLE_SHARE, TEAM_SIZE } from '../../../data/v2/teams';
 import type { BotPolicy, ComputeSplit, EngineApi, GameStateV2, ModelVersion, PendingDecision, TeamKey, TrainingRun } from '../types';
 import { bestMeasuredL } from '../models/labs';
 import { measuredDomain } from '../models/paradigms';
 import { missingNeeds, nodeKnown, optionLocked } from '../models/tree';
-import { staffLines, type LinePlan } from './common';
+import { sizedTarget, staffLines, type LinePlan } from './common';
 
 type Params = Record<string, number | string | boolean>;
 
@@ -48,6 +49,11 @@ export const SAFE_TREE_EXTRA: TreeGoal[] = [
   { id: 'P23', when: (s) => L(s) >= 8.5 && s.player.safety.findings.some((f) => f.agenda === 'AG09' && f.type === 'TECH') },
 ];
 const BASE_EVERY = 270;
+/** Follower starts (R9): extra base sizes between ×1 and ×0.1, a longer allowed base run, and hiring only while runway
+ *  is at least this many quarters. */
+const FOLLOWER_SIZES = [0.7, 0.5, 0.35, 0.25];
+const FOLLOWER_MAX_BASE_DAYS = 200;
+const FOLLOWER_GROW_Q = 6;
 /** RefBot's limit on a base run's wall time at its requested share (the engine's pre-R5 BASE_MAX_DAYS, now a bot
  *  policy: the engine shows staleness instead of capping). */
 const BOT_MAX_BASE_DAYS = 150;
@@ -130,6 +136,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   const p = s.player;
   if (p.status !== 'active') return;
   const day = s.time.day;
+  const follower = (s.setup.start ?? 'leader') !== 'leader';
   const yr = decimalYear(s);
   const m = p.models;
 
@@ -148,7 +155,16 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
       const saf = (o.safStaffShare / (1 - o.safStaffShare)) * Math.max(H, p.staff.cap);
       teamsWanted.push(['re.saf', Math.round((SAF_ROLE_SHARE.re * saf) / TEAM_SIZE.re)], ['sci.saf', Math.round((SAF_ROLE_SHARE.sci * saf) / TEAM_SIZE.sci)]);
     }
-    for (const [key, n] of teamsWanted) if (n > (p.hiring.targets[key] ?? 0)) tryAct(s, api, 'teams.target', { key, n });
+    // Follower starts (R9) grow toward the reference roster one team per role a month, and only while the money lasts
+    // (queued teams count in payroll at once); the leader start is unchanged.
+    if (!follower) {
+      for (const [key, n] of teamsWanted) if (n > (p.hiring.targets[key] ?? 0)) tryAct(s, api, 'teams.target', { key, n });
+    } else if (runwayOf(s).q >= FOLLOWER_GROW_Q) {
+      for (const [key, n] of teamsWanted) {
+        const cur = p.hiring.targets[key] ?? 0;
+        if (n > cur) tryAct(s, api, 'teams.target', { key, n: cur + 1 });
+      }
+    }
   }
 
   const spare = o.spareTraining ?? 'data';
@@ -178,15 +194,19 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
     // requested share. A lab whose pool cannot deliver its size in time gives it most of the pool, then steps down a
     // size (×3 → ×1 → ×0.1), rather than never training a new base (M4).
     const bp = { ...known(s, o.base ?? {}), shape: latent ? 'latent' : REFERENCE_BASE.shape };
-    const sizes = [...new Set([Number(o.base?.size ?? REFERENCE_BASE.size), 1, 0.1])];
+    // A follower start (R9) has a fraction of the reference compute: it steps down through intermediate sizes (and
+    // accepts a longer run) rather than dropping straight to ×0.1, as smaller labs train smaller frontier bases.
+    const sizes = [...new Set([Number(o.base?.size ?? REFERENCE_BASE.size), 1, ...(follower ? FOLLOWER_SIZES : []), 0.1])];
+    const maxDays = follower ? FOLLOWER_MAX_BASE_DAYS : BOT_MAX_BASE_DAYS;
     const launch = (size: number, poolShare: number) => {
       const plan = planRun(s, { kind: 'base', base: baseFromParams({ ...bp, size }), poolShare });
-      if (plan.flopNeeded / Math.max(1, trainingFlopPerDay(s) * poolShare) > BOT_MAX_BASE_DAYS) return false;
+      if (plan.flopNeeded / Math.max(1, trainingFlopPerDay(s) * poolShare) > maxDays) return false;
       if (!tryAct(s, api, 'launchBase', { ...bp, size, poolShare })) return false;
       setFlag(s, 'baseShare', poolShare);
       return true;
     };
-    if (sizes.some((size) => launch(size, 0.6) || launch(size, 0.95))) setFlag(s, 'lastBase', day);
+    // Followers keep 40% of the pool for post-training (their pool is small; a 0.95 base starves every other run).
+    if (sizes.some((size) => launch(size, 0.6) || (!follower && launch(size, 0.95)))) setFlag(s, 'lastBase', day);
   }
 
   // Post-training every 6 weeks on the newest base (≤ 2 in flight). Skipped once the stream is running on the
@@ -195,7 +215,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   const postsRunning = m.runs.filter((r) => r.kind === 'post' && r.status === 'running').length;
   const streamOnNewest = m.stream && m.versions.find((v) => v.id === m.stream?.versionId)?.baseId === newestBase?.id;
   const hasVersionOnNewest = m.versions.some((v) => v.baseId === newestBase?.id && v.variant === 'full');
-  if (newestBase && postsRunning < 2 && day - flag(s, 'lastPost') >= POST_EVERY && (!streamOnNewest || !hasVersionOnNewest)) {
+  if (newestBase && postsRunning < (follower ? 1 : 2) && day - flag(s, 'lastPost') >= POST_EVERY && (!streamOnNewest || !hasVersionOnNewest)) {
     const pending = m.runs.some((r) => r.kind === 'post' && r.status === 'running' && r.baseId === newestBase.id);
     if (!(streamOnNewest && pending)) {
       const design = known(s, o.post?.(s) ?? {});
@@ -257,6 +277,12 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
       const want = d.channel === 'enterprise' ? (o.release === 'frontier' && pub.variant === 'full' ? pub : ent ?? pub) : pub;
       if (want && want.id !== d.versionId && (want.evals.measuredL ?? 0) > mL(d.versionId)) tryAct(s, api, 'product.update', { id: d.id, versionId: want.id });
     }
+  }
+
+  // A follower start without a product (the spinout) launches Chat, API and Enterprise once it has a model it may
+  // sell (an imported model must be post-trained first, D6); the updates above then keep them current.
+  if (follower && day % 30 === 0) {
+    for (const ch of PRODUCT_CHANNELS) if (!p.deployments.some((d) => d.channel === ch && d.status !== 'withdrawn')) tryAct(s, api, 'product.launch', { channel: ch });
   }
 
   syncPoolShares(s, api);
@@ -331,7 +357,7 @@ export function refDecide(s: GameStateV2, d: PendingDecision): number {
 export const refBot: BotPolicy = {
   id: 'ref',
   act(s, api) {
-    if (s.time.day === 0) tryAct(s, api, 'teams.target', { key: 'sci.saf', n: REF_SAFETY_SCI_TEAMS });
+    if (s.time.day === 0) tryAct(s, api, 'teams.target', { key: 'sci.saf', n: sizedTarget(s, REF_SAFETY_SCI_TEAMS) });
     staffLines(s, api, REF_LINES);
     refPlay(s, api);
     financeAutopilot(s, REF_AUTOPILOT);

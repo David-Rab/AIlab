@@ -1,0 +1,155 @@
+// Start types (STRUCTURE §4.8, §4.1; research/18 §5–§6; BUILD-PLAN R9, decisions D1 and D6). Owner: WS1.
+//
+// All four starts use the same rules; only the start state differs. The frontier-leader start is today's start and
+// the calibration anchor: its values live where they always did (data/v2/teams.ts START_TEAMS, finance/ledger.ts,
+// compute/sites.ts …) and buildPlayer leaves them untouched. The other three are built from this table, with the
+// simulated AI 2027 leader lab added to the world (D1). Difficulty is a label only; scoring is the same for every start.
+// [D] derivation, [Design] game choice (research/18 tags).
+import type { Channel, Column, GovernancePresetId, StartType, TeamDept, TeamKey, TeamQuality } from '../../engine/v2/types';
+import type { FeatureId } from './features';
+
+export type Difficulty = 'Easy' | 'Medium' | 'Hard' | 'Impossible';
+
+/** A live product at the start: channel, share of the serving pool, the features switched on for it. */
+export interface StartProduct { channel: Exclude<Channel, 'internal' | 'open'>; servingShare: number; features?: FeatureId[] }
+
+export interface StartDef {
+  id: StartType;
+  name: string;
+  /** Setup label (STRUCTURE §4.8 Q11), set from bot games (PROGRESS R9; bots.ts --start, 40 seeds × 5 bots): best
+   *  bot's win rate ≥ 30% Easy, 10–30% Medium, 1–10% Hard, < 1% Impossible. R9 data: leader 48% (mixed), challenger 5%
+   *  (race), big tech 0/200, spinout 0/200. Proposed labels (STRUCTURE: challenger and big tech Medium, spinout Hard)
+   *  were lowered to the data; revisit when follower catch-up is redesigned. */
+  difficulty: Difficulty;
+  /** One line of character for the Setup picker. */
+  character: string;
+  analogues: string;
+  /** D1: the simulated AI 2027 leader lab is in the world (on for every start but the leader's). */
+  leaderLab: boolean;
+  /** Teams by key (STRUCTURE §4.1 start table; fixed sizes 150 / 100 / 40). */
+  teams: Record<TeamKey, number>;
+  /** Science specialties in hiring order per department (follow the analogues). */
+  specialties: Record<TeamDept, Column[]>;
+  /** Quality of the start teams (spinout: Elite science, "elite taste"). */
+  quality?: Partial<Record<TeamKey, TeamQuality>>;
+  /** Extra tree nodes known at the start, beyond the ★ nodes (research/18 §5). Paradigm nodes are never granted (the
+   *  leader start, the calibration anchor, researches them) and nodes whose prerequisites are not known are skipped. */
+  known: string[];
+  /** Live products and the features built at the start (D5: the leader's set is the ×1 baseline). */
+  products: StartProduct[];
+  features: FeatureId[];
+  /** Cash on hand ($B), revenue run-rate ($B/yr) and the last four quarterly run-rates (oldest first). */
+  cash: number;
+  revenueRun: number;
+  revenueHistory: number[];
+  /** Valuation premium N (finance/equity.ts valuationMark); 0 = no valuation (a division). */
+  narrative: number;
+  /** Ownership split (founder, financial, strategic partner). */
+  ownership: { founder: number; fin: number; strat?: Record<string, number> };
+  /** Compute owned (installed in live sites) and rented (cloud contract), H100e. */
+  owned: number;
+  rented: number;
+  /** Board preset ('parent' = a big-tech parent company, new in R9). */
+  board: GovernancePresetId;
+  /** Months behind the leader on the capabilities index (research/18 §0.1): the start model's lag. */
+  lagMonths: number;
+  /** D6: the start model is an imported open-weight model (post-trainable, not sellable as is). */
+  imported?: boolean;
+  /** Modifiers (research/18 §6). talentPull: the anchor talent pull drifts to (leader 10). starCost: × star hire cost.
+   *  patientQ: quarters without a revenue plan (patient investors). */
+  mods: { talentPull: number; starCost: number; patientQ: number };
+}
+
+export const STARTS: StartDef[] = [
+  {
+    id: 'spinout', name: 'Well-funded spinout', difficulty: 'Impossible', analogues: 'Anthropic 2021, SSI, Thinking Machines',
+    character: 'Elite founders and patient money; no compute, no product, no revenue, and an open-weight model to start from.',
+    leaderLab: true,
+    // 290 people (analogues ≈ 110, rounded up to whole teams; STRUCTURE §4.1).
+    teams: { eng: 1, 're.cap': 1, 'sci.cap': 1, 're.saf': 0, 'sci.saf': 0 },
+    specialties: { cap: ['posttraining', 'pretraining', 'systems'], saf: ['alignment', 'interp', 'evals'] },
+    quality: { 'sci.cap': 'elite' },
+    known: ['rl.math', 'T-PROBE'],
+    products: [], features: [],
+    cash: 3, revenueRun: 0, revenueHistory: [0, 0, 0, 0],
+    // TML raised $2B at $12B with no product: a pre-revenue founder premium [Design].
+    narrative: 5,
+    ownership: { founder: 0.75, fin: 0.25 },
+    owned: 0, rented: 25e3,
+    board: 'founder', lagMonths: 6.5, imported: true,
+    mods: { talentPull: 30, starCost: 0.7, patientQ: 4 },
+  },
+  {
+    id: 'challenger', name: 'Challenger lab', difficulty: 'Hard', analogues: 'Anthropic, xAI (mid-2025)',
+    character: 'Near the frontier with real revenue; you must raise about once a year to keep up.',
+    leaderLab: true,
+    teams: { eng: 3, 're.cap': 7, 'sci.cap': 4, 're.saf': 1, 'sci.saf': 1 },
+    specialties: { cap: ['posttraining', 'pretraining', 'systems', 'posttraining'], saf: ['interp', 'alignment', 'evals'] },
+    known: ['agentsProduct', 'kyc', 'rl.swe', 'codingAgent', 'multimodal', 'T-PROBE', 'T-SAE'],
+    products: [
+      { channel: 'consumer', servingShare: 0.3 },
+      { channel: 'api', servingShare: 0.45, features: ['codingAgent'] },
+      { channel: 'enterprise', servingShare: 0.25 },
+    ],
+    features: ['codingAgent'],
+    cash: 8, revenueRun: 3, revenueHistory: [1, 1.5, 2, 2.5], narrative: 1.2,
+    ownership: { founder: 0.4, fin: 0.45, strat: { Azimuth: 0.15 } },
+    owned: 100e3, rented: 300e3,
+    board: 'founder', lagMonths: 3,
+    mods: { talentPull: 20, starCost: 1, patientQ: 0 },
+  },
+  {
+    id: 'bigtech', name: 'Big-tech AI division', difficulty: 'Impossible', analogues: 'Google DeepMind, Meta, Microsoft AI',
+    character: 'Compute and distribution, and you cannot go broke; a fixed budget from the parent and a weak pull on talent.',
+    leaderLab: true,
+    teams: { eng: 7, 're.cap': 18, 'sci.cap': 11, 're.saf': 1, 'sci.saf': 1 },
+    specialties: { cap: ['pretraining', 'systems', 'posttraining', 'pretraining', 'systems', 'posttraining', 'pretraining', 'systems', 'posttraining', 'pretraining', 'systems'], saf: ['interp', 'alignment', 'evals'] },
+    known: ['multimodal', 'voiceVision', 'rl.math'],
+    products: [
+      { channel: 'consumer', servingShare: 0.55, features: ['voiceVision'] },
+      { channel: 'api', servingShare: 0.2 },
+      { channel: 'enterprise', servingShare: 0.25 },
+    ],
+    features: ['voiceVision'],
+    // $4B on hand; the parent's budget is paid quarterly (finance/parent.ts). Revenue (~$4B attributed) goes to the parent.
+    cash: 4, revenueRun: 4, revenueHistory: [2.5, 3, 3.5, 3.8], narrative: 0,
+    ownership: { founder: 0, fin: 0 },
+    owned: 800e3, rented: 0,
+    board: 'parent', lagMonths: 6,
+    mods: { talentPull: 0, starCost: 1.5, patientQ: 0 },
+  },
+  {
+    id: 'leader', name: 'Frontier leader', difficulty: 'Easy', analogues: 'OpenAI (mid-2025)',
+    character: 'Everything now: the best model, the most compute and revenue; a fragile board and the largest commitments.',
+    leaderLab: false,
+    // The leader's own values are today's (START_TEAMS, initialFinance, initialSites …); these rows are for display.
+    teams: { eng: 4, 're.cap': 11, 'sci.cap': 8, 're.saf': 1, 'sci.saf': 2 },
+    specialties: { cap: [], saf: [] },
+    known: ['agentsProduct', 'sectorPacks', 'kyc'],
+    products: [{ channel: 'consumer', servingShare: 0.45 }, { channel: 'api', servingShare: 0.35 }, { channel: 'enterprise', servingShare: 0.2 }],
+    features: ['sectorPacks'],
+    cash: 40, revenueRun: 12, revenueHistory: [4.5, 6, 8, 10], narrative: 1.5,
+    ownership: { founder: 0.3, fin: 0.17 },
+    owned: 500e3, rented: 700e3,
+    board: 'legacyNonprofit', lagMonths: 0,
+    mods: { talentPull: 10, starCost: 1, patientQ: 0 },
+  },
+];
+
+export const START_BY_ID = Object.fromEntries(STARTS.map((x) => [x.id, x])) as Record<StartType, StartDef>;
+/** Setup picker order: hardest first is confusing; the leader (today's game) first. */
+export const START_ORDER: StartType[] = ['leader', 'challenger', 'bigtech', 'spinout'];
+export const startOf = (s: { setup: { start?: StartType } }): StartDef => START_BY_ID[s.setup.start ?? 'leader'];
+/** The player is a big-tech division (no equity, no bankruptcy, the parent's budget; R9). */
+export const isDivision = (s: { setup: { start?: StartType } }) => startOf(s).board === 'parent';
+
+/** Big-tech parent budget ($B per game year, Jul–Jun; research/18 §3.2): $16B in year one (the leader's 2025 compute
+ *  spend in the AI 2027 compute forecast), growing with the parent's capex path — Alphabet 52.5 → 91.4 → ~180 in
+ *  2024–26 (≈ ×1.75/yr) for three years, then ×1.3/yr as hyperscaler capex growth slows [D]. Paid quarterly from Q4 2025;
+ *  the schedule is fixed and shown in advance. No parent-confidence mechanic (STRUCTURE §4.8). */
+export const PARENT_BUDGET = { year0: 16, fastGrowth: 1.75, fastYears: 3, slowGrowth: 1.3 };
+export function parentBudgetYear(y: number): number {
+  const fast = Math.min(Math.max(0, y), PARENT_BUDGET.fastYears);
+  const slow = Math.max(0, y - PARENT_BUDGET.fastYears);
+  return PARENT_BUDGET.year0 * PARENT_BUDGET.fastGrowth ** fast * PARENT_BUDGET.slowGrowth ** slow;
+}

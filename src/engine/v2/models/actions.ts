@@ -2,6 +2,7 @@
 // Every preview shows ≥ 1 cost in a currency that is not among its gains (lint-tradeoffs). Previews must work with
 // empty params (defaults below). apply() throws on an invalid request; core/loop act() turns that into an error.
 import { REFERENCE_BASE, REFERENCE_POST, STREAM_POOL_SHARE } from '../../../data/v2/runDesign';
+import { startOf } from '../../../data/v2/starts';
 import { decimalYear } from '../core/time';
 import { SPLIT_KEYS, TOP_KEYS, fromSpec, presetSplit, setSplit, specOf, type SplitPreset } from '../departments/split';
 import { applyBestMix } from '../production/production';
@@ -23,6 +24,9 @@ import { poolsOf } from '../compute/power';
 import { clamp } from '../../rng';
 import { sizeScrutiny } from '../../../data/v2/runDesign';
 import { bookCash } from '../finance/ledger';
+
+/** Star hire cost: × the start type's modifier (spinout ×0.7 founder brand, big tech ×1.5; research/18 §6, R9). */
+const starCost = (s: GameStateV2) => STAR_HIRE.cost * startOf(s).mods.starCost;
 
 type Params = Record<string, number | string | boolean>;
 type Preview = ReturnType<ActionDef['preview']>;
@@ -288,15 +292,15 @@ export const DEPARTMENT_ACTIONS: ActionDef[] = [
   ...AGENT_ACTIONS,
   {
     id: 'starHire', sphere: 'departments', owner: 'WS1', title: 'Star hire',
-    available: (s) => (s.player.tasteHire >= STAR_HIRE.maxTaste ? 'Taste bench is full' : s.player.finance.cash < STAR_HIRE.cost ? 'Not enough cash' : true),
+    available: (s) => (s.player.tasteHire >= STAR_HIRE.maxTaste ? 'Taste bench is full' : s.player.finance.cash < starCost(s) ? 'Not enough cash' : true),
     preview: (s) => ({
-      costs: [{ currency: 'cash', amount: STAR_HIRE.cost }, { currency: 'trust', amount: STAR_HIRE.cooperation, target: 'rivals' }],
+      costs: [{ currency: 'cash', amount: starCost(s) }, { currency: 'trust', amount: STAR_HIRE.cooperation, target: 'rivals' }],
       gains: [{ currency: 'progress', amount: Math.round((s.player.prodCache?.elast.taste ?? 0.5) * STAR_HIRE.dTaste * 1000) / 1000 }],
       exposure: [],
     }),
     apply: (s, ctx) => {
       hireStar(s);
-      bookCash(s, ctx, -STAR_HIRE.cost, 'staff', 'star hire');
+      bookCash(s, ctx, -starCost(s), 'staff', 'star hire');
       for (const r of s.rivals) if (r.core.status === 'active') r.meters.cooperation = Math.max(-100, r.meters.cooperation + STAR_HIRE.cooperation / Math.max(1, s.rivals.length));
       ctx.log('company', 'A star researcher joins.', 1);
     },

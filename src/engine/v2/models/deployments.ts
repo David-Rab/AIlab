@@ -11,7 +11,7 @@ import { tierOfIndex } from '../../../data/v2/features';
 /** Which version variants a channel accepts (§3.3.5). */
 export const CHANNEL_VARIANTS: Record<Channel, Variant[]> = {
   consumer: ['full', 'mini'], api: ['full', 'mini'], agents: ['full'], enterprise: ['full'],
-  gov: ['gov'], trusted: ['trusted'], internal: ['full', 'mini', 'gov', 'trusted', 'internal', 'open'], open: ['open'],
+  gov: ['gov'], trusted: ['trusted'], internal: ['full', 'mini', 'gov', 'trusted', 'internal', 'open', 'imported'], open: ['open'],
 };
 /** Distillation leak coefficient per channel (× gap × DA), §3.3.5. Open weights = full absorption. */
 export const LEAK_COEF: Record<Channel, number> = { consumer: 0.3, api: 1.0, agents: 0.5, enterprise: 0.2, gov: 0, trusted: 0.05, internal: 0, open: 1 };

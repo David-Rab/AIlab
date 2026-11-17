@@ -4,6 +4,8 @@ import { CHINA_PRESETS, GOV_PRESETS, LAB_ARCHETYPES, PUBLIC_PRESETS } from '../.
 import { AUTOSAVE_KEY, SLOT_KEYS, V1_SAVE_KEY } from '../../../engine/v2';
 import type { SetupV2 } from '../../../engine/v2';
 import { CHINA_LAB_NAME, LEADER_LAB_NAME, RIVAL_NAMES_V2 } from '../../../data/v2/names';
+import { START_BY_ID, START_ORDER, parentBudgetYear, type Difficulty, type StartDef } from '../../../data/v2/starts';
+import type { StartType } from '../../../engine/v2';
 
 /** AUDIT §2.4: the company may not take a rival's name (two "Meridian" nodes, rows and end lines). */
 export function nameClash(name: string): string | undefined {
@@ -83,6 +85,46 @@ function Picker<K extends keyof SetupV2>({ label, k, opts }: { label: string; k:
   );
 }
 
+const DIFF_TONE: Record<Difficulty, string> = { Easy: 'good', Medium: 'warn', Hard: 'bad', Impossible: 'bad' };
+const BOARD_LABEL: Record<string, string> = { founder: 'Founder-controlled', parent: 'Parent company', legacyNonprofit: 'Capped-profit nonprofit' };
+const kH = (h: number) => (h >= 1e6 ? `${(h / 1e6).toFixed(1)}M` : `${Math.round(h / 1e3)}K`);
+const staffOfStart = (d: StartDef) => d.teams.eng * 150 + (d.teams['re.cap'] + d.teams['re.saf']) * 100 + (d.teams['sci.cap'] + d.teams['sci.saf']) * 40;
+
+/** Start type picker (R9): name, difficulty label, one line of character; the start values in the tooltip. */
+function StartPicker() {
+  const st = useV2();
+  const cur = st.draftSetup.start ?? 'leader';
+  const pick = (id: StartType) => {
+    const d = START_BY_ID[id];
+    // The leader lab follows the start (D1); the board is the start's own unless you lead (then Governance picks it).
+    st.draftSetup = { ...st.draftSetup, start: id, leaderLab: d.leaderLab, ...(id === 'leader' ? {} : { governance: d.board }) };
+    st.notify();
+  };
+  return (
+    <div data-picker="start">
+      <div className="picker-label">Start as</div>
+      <div className="start-opts">
+        {START_ORDER.map((id) => {
+          const d = START_BY_ID[id];
+          const money = d.board === 'parent' ? `$${d.cash}B + $${parentBudgetYear(0)}B/yr from the parent` : id === 'leader' ? '$40B (cash + committed round)' : `$${d.cash}B`;
+          return (
+            <Tip key={id} content={() => (
+              <TipCard title={`${d.name} · ${d.difficulty}`}>
+                {`${d.character} Like ${d.analogues}. Cash ${money}; staff ${staffOfStart(d).toLocaleString('en-US')}; compute ${kH(d.owned)} owned / ${kH(d.rented)} rented H100e; model ${d.lagMonths ? `${d.lagMonths} months behind the leader${d.imported ? ' (an imported open-weight model)' : ''}` : 'at the frontier'}; board ${BOARD_LABEL[d.board] ?? d.board}.${d.leaderLab ? ` The AI 2027 leader (${LEADER_LAB_NAME}) races you.` : ''} Scoring is the same for every start.`}
+              </TipCard>
+            )}>
+              <button className={`start-opt ${cur === id ? 'active' : ''}`} data-opt={id} onClick={() => pick(id)}>
+                <span className="start-opt-head"><b>{d.name}</b><span className={`tag2 ${DIFF_TONE[d.difficulty]}`} data-difficulty={d.difficulty}>{d.difficulty}</span></span>
+                <span className="start-opt-desc">{d.character}</span>
+              </button>
+            </Tip>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const presetOpts = (xs: { id: string; name: string; desc: string }[]): Opt<string>[] => [{ v: 'realistic', label: 'Realistic', desc: 'Drawn from research-weighted odds.' }, ...xs.map((x) => ({ v: x.id, label: x.name, desc: x.desc.replace(/[^.]*AI 2027[^.]*\.\s*/g, '').trim() }))]; // canon names only in the World picker (§6.9)
 
 export function SetupScreen() {
@@ -94,7 +136,8 @@ export function SetupScreen() {
   };
   return (
     <div className="menu" data-test="setup">
-      <h2 className="setup-title">New game · Frontier lab CEO</h2>
+      <h2 className="setup-title">New game · AI lab CEO</h2>
+      <StartPicker />
       <div className="setup-grid">
         <div className="setup-col">
           <Picker label="Baseline" k="baseline" opts={[{ v: 'classic', label: 'Classic', desc: 'Start state of the April 2025 scenario world.' }, { v: 'reality', label: 'Reality', desc: 'Start state from 2025–26 reporting.' }]} />
@@ -107,10 +150,14 @@ export function SetupScreen() {
           ]} />
           <Picker label="Alignment difficulty" k="alignment" opts={[{ v: 'sampled', label: 'Unknown' }, { v: 'easy', label: 'Easy' }, { v: 'medium', label: 'Medium' }, { v: 'hard', label: 'Hard' }]} />
           <Picker label="Economy" k="econ" opts={[{ v: 'sampled', label: 'Unknown' }, { v: 'normal', label: 'Normal', desc: 'Standard diffusion frictions.' }, { v: 'ai2027', label: 'Fast diffusion', desc: 'Rapid adoption and displacement.' }, { v: 'gate', label: 'Gated', desc: 'Strong frictions: law, trust, integration.' }]} />
-          <Picker label="Governance" k="governance" opts={[
-            { v: 'legacyNonprofit', label: 'Legacy nonprofit', desc: 'Mission board; recapitalisation needed to raise at scale.' },
-            { v: 'nonprofitPBC', label: 'Nonprofit + PBC' }, { v: 'pbcTrust', label: 'PBC + trust' }, { v: 'founder', label: 'Founder control' },
-          ]} />
+          {(d.start ?? 'leader') === 'leader' ? (
+            <Picker label="Governance" k="governance" opts={[
+              { v: 'legacyNonprofit', label: 'Legacy nonprofit', desc: 'Mission board; recapitalisation needed to raise at scale.' },
+              { v: 'nonprofitPBC', label: 'Nonprofit + PBC' }, { v: 'pbcTrust', label: 'PBC + trust' }, { v: 'founder', label: 'Founder control' },
+            ]} />
+          ) : (
+            <div data-test="start-board"><div className="picker-label">Governance</div><div className="small dim">{BOARD_LABEL[START_BY_ID[d.start].board]} (set by the start)</div></div>
+          )}
           <Picker label="Storyteller" k="storyteller" opts={[{ v: 'rising', label: 'Rising', desc: 'Tension builds with each act.' }, { v: 'measured', label: 'Measured' }, { v: 'chaotic', label: 'Chaotic' }]} />
         </div>
         <div className="setup-col">

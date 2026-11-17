@@ -4,8 +4,9 @@
 import { useState } from 'react';
 import {
   actionView, dateOf, dayOfQuarter, dealMenu, dealPreview, debtHeadroom, debtRatePct, fmtDate, fmtMonth, interestPerYear, ledgerDue, liveLedger,
-  payrollOf, qOf, raiseCeiling, runwayOf, totalDebt,
+  parentSchedule, parentYear, payrollOf, qOf, raiseCeiling, runwayOf, totalDebt, DIVISION_REASON,
 } from '../../../engine/v2';
+import { isDivision } from '../../../data/v2/starts';
 import type { BoardSeat, Debt, GameStateV2 } from '../../../engine/v2';
 import { ActBtn, CauseBars, Gate, Seg, Term, Tip, TipCard, Why } from '../ui';
 import { Card, CostPills, GoBtn, HBar, KV, PanelHead, Pill } from '../kit';
@@ -257,6 +258,34 @@ function RaiseCard({ s }: { s: GameStateV2 }) {
   );
 }
 
+// ───────── parent budget (big-tech division, R9): HOME of the budget schedule; replaces raising and ownership ─────────
+function ParentBudget({ s }: { s: GameStateV2 }) {
+  const sched = parentSchedule(s, 8);
+  const max = Math.max(...sched.map((x) => x.amount), 1e-9);
+  const y = Math.floor(qOf(s) / 4);
+  return (
+    <Card title={<Term id="parentBudget">Parent budget</Term>} home="parentBudget" id="ctl-parent"
+      right={<span className="row-i small"><span className="dim">this year</span><b className="num">{F.money(parentYear(y), { perYear: true })}</b></span>}>
+      <div className="lim-rows">
+        {sched.map((x) => (
+          <div className="lim-row" key={x.q} data-q={x.q}>
+            <span className="small">{qLabel(s, x.q)}</span>
+            <HBar v={x.amount} max={max} w="100%" h={8} color={C.good} />
+            <Tip content={() => <TipCard title={`Budget ${qLabel(s, x.q)}`}>{`Paid on ${fmtDate(dateOf(s, x.day))}: a quarter of the ${F.money(parentYear(Math.floor(x.q / 4)), { perYear: true })} budget year.`}</TipCard>}>
+              <span className="num">{F.money(x.amount)}</span>
+            </Tip>
+          </div>
+        ))}
+      </div>
+      <div className="fin-foot">
+        <span className="dim">next year</span> <b className="num">{F.money(parentYear(y + 1), { perYear: true })}</b>
+        <span className="sp" />
+        <span className="dim small" data-test="division-reason">{DIVISION_REASON}</span>
+      </div>
+    </Card>
+  );
+}
+
 // ───────── locked-in spending: 8-quarter firm vs cancellable against the revenue line ─────────
 function LockedIn({ s }: { s: GameStateV2 }) {
   const [show, setShow] = useState(false);
@@ -494,13 +523,14 @@ function Deals({ s }: { s: GameStateV2 }) {
 export function Finance({ s }: { s: GameStateV2 }) {
   const f = s.player.finance;
   const dLeft = Math.max(0, nextQDay(s) - s.time.day);
+  const division = isDivision(s);
   return (
     <div className="panel-v2 fin" data-panel="finance">
       <PanelHead icon={ICON.finance} title="Finance" sub={`per quarter unless marked · ${qLabel(s, qOf(s) + 1)} starts in ${dLeft} d`}
-        right={<div className="btn-row"><GoBtn to={{ panel: 'finance', anchor: 'raise' }} label="Raise" testId="fin.go.raise" /><GoBtn to={{ panel: 'finance', anchor: 'partner' }} label="Seek partner" testId="fin.go.partner" /><GoBtn to={{ panel: 'finance', anchor: 'borrow' }} label="Borrow" testId="fin.go.borrow" /></div>} />
+        right={division ? undefined : <div className="btn-row"><GoBtn to={{ panel: 'finance', anchor: 'raise' }} label="Raise" testId="fin.go.raise" /><GoBtn to={{ panel: 'finance', anchor: 'partner' }} label="Seek partner" testId="fin.go.partner" /><GoBtn to={{ panel: 'finance', anchor: 'borrow' }} label="Borrow" testId="fin.go.borrow" /></div>} />
       <div className="fin-top">
         <Card title={<Term id="netBurn">Cash flow this quarter</Term>} sub="$ per quarter · hover a bar for its lines"
-          right={<span className="row-i small"><span className="dim"><Term id="revenueRun">revenue run-rate</Term></span><Why k="revenueRun" title="Revenue run-rate" value={F.money(f.revenueRun, { perYear: true })} fmt={(x) => F.money(x)} levers={<GoBtn to={{ panel: 'products' }} label="Products" />}><b className="num" data-home="revenueRun">{F.money(f.revenueRun, { perYear: true })}</b></Why></span>}>
+          right={<span className="row-i small"><span className="dim"><Term id="revenueRun">revenue run-rate</Term>{division ? ' (to the parent)' : ''}</span><Why k="revenueRun" title="Revenue run-rate" value={F.money(f.revenueRun, { perYear: true })} fmt={(x) => F.money(x)} levers={<GoBtn to={{ panel: 'products' }} label="Products" />}><b className="num" data-home="revenueRun">{F.money(f.revenueRun, { perYear: true })}</b></Why></span>}>
           <Waterfall s={s} />
         </Card>
         <Card title="Cash history" sub="weekly · current cash is in the top strip"
@@ -509,7 +539,7 @@ export function Finance({ s }: { s: GameStateV2 }) {
         </Card>
       </div>
       <div className="g3">
-        <RaiseCard s={s} />
+        {division ? <ParentBudget s={s} /> : <RaiseCard s={s} />}
         <LockedIn s={s} />
         <Card title="Why cash moved · 30 d" sub="every booked inflow and outflow" home="cashCauses">
           <CauseBars s={s} k="cash" fmt={(x) => F.money(x)} />
@@ -517,13 +547,15 @@ export function Finance({ s }: { s: GameStateV2 }) {
       </div>
       <div className="g3">
         <BoardCard s={s} />
-        <Ownership s={s} />
-        <Markets s={s} />
+        {!division && <Ownership s={s} />}
+        {!division && <Markets s={s} />}
       </div>
-      <div className="g2">
-        <DebtCard s={s} />
-        <Deals s={s} />
-      </div>
+      {!division && (
+        <div className="g2">
+          <DebtCard s={s} />
+          <Deals s={s} />
+        </div>
+      )}
     </div>
   );
 }

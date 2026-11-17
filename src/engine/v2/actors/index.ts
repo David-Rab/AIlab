@@ -18,7 +18,8 @@ const LETTERS: [number, string][] = [
 ];
 export const letterOf = (gpa: number) => LETTERS.find(([t]) => gpa >= t)![1];
 
-const GOV_SCORE: Record<string, number> = { legacyNonprofit: 0.65, nonprofitPBC: 0.75, pbcTrust: 0.6, founder: 0.3 };
+// R9 parent: a corporate division with a responsibility council but no independent safety board (GDM: C−) [D].
+const GOV_SCORE: Record<string, number> = { legacyNonprofit: 0.65, nonprofitPBC: 0.75, pbcTrust: 0.6, founder: 0.3, parent: 0.45 };
 
 function grade(d: IndexGrade['domains']): IndexGrade {
   const vals = Object.values(d);

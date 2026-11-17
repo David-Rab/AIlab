@@ -10,7 +10,7 @@ import { understanding } from '../safety/understanding';
 import type { AgendaId, BotPolicy, GameStateV2, TraitId } from '../types';
 import { clamp } from '../../rng';
 import { financeAutopilot, financeDecide, REF_AUTOPILOT } from '../finance/plan';
-import { byLabel, every, pickByTags, staffLines, tryAct, type LinePlan } from './common';
+import { byLabel, every, pickByTags, sizedTarget, staffLines, tryAct, type LinePlan } from './common';
 import { REF_TREE, refPlay, type RefPlayOpts } from './ref';
 
 const LOTTERY: AgendaId[] = ['AG01', 'AG04', 'AG10', 'AG11', 'AG12', 'AG13'];
@@ -50,8 +50,8 @@ export const mixedBot: BotPolicy = {
   id: 'mixed',
   act(s, api) {
     if (s.time.day === 0) {
-      tryAct(s, api, 'teams.target', { key: 'sci.saf', n: MIXED_SCI_TEAMS });
-      tryAct(s, api, 'teams.target', { key: 're.saf', n: MIXED_RE_TEAMS });
+      tryAct(s, api, 'teams.target', { key: 'sci.saf', n: sizedTarget(s, MIXED_SCI_TEAMS) });
+      tryAct(s, api, 'teams.target', { key: 're.saf', n: sizedTarget(s, MIXED_RE_TEAMS) });
       // Plus the best-posterior lottery line (§7.4), chosen once.
       s.flags['mixed:lottery'] = LOTTERY.indexOf(LOTTERY.reduce((a, b) => (posteriorMean(s, b) > posteriorMean(s, a) ? b : a)));
     }

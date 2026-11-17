@@ -1,5 +1,6 @@
 // Board: seats, stances, approvals, confidence, runway state machine, ouster (V2-SPEC §3.7.5–3.7.6; research/15 §1.6,
 // §1.8). Owner: WS3.
+import { startOf } from '../../../data/v2/starts';
 import { leadDays } from '../actors/intel';
 import { activeRivals } from '../models/labs';
 import type { Board, BoardSeat, EngineSystem, GameStateV2, GovernancePresetId, SystemCtx } from '../types';
@@ -30,9 +31,14 @@ export const BOARD_VECTORS = {
 
 const seat = (kind: BoardSeat['kind'], holder: string, weight = 1): BoardSeat => ({ kind, holder, stance: [...SEAT_STANCE[kind]], weight });
 
+/** The big-tech parent's seat (research/18 §3.2): votes speed +0.5, finance +1.0, safety +0.2, mission 0 [Design]. */
+export const PARENT_STANCE: [number, number, number, number] = [0.5, 1, 0.2, 0];
+
 export function initialBoard(preset: GovernancePresetId): Board {
   const seats: BoardSeat[] =
-    preset === 'founder'
+    preset === 'parent'
+      ? [seat('founder', 'Division head'), { kind: 'strategic', holder: 'Parent company', stance: [...PARENT_STANCE], weight: 2 }]
+      : preset === 'founder'
       ? [seat('founder', 'CEO', 2), seat('financial', 'Lead investor'), seat('independent', 'Independent')]
       : preset === 'legacyNonprofit'
         ? [seat('founder', 'CEO'), seat('mission', 'Nonprofit board'), seat('mission', 'Nonprofit board'), seat('independent', 'Independent'), seat('independent', 'Independent'), seat('strategic', 'Northwind Cloud (observer)', 0)]
@@ -170,6 +176,9 @@ export const REINSTATE_MORALE = 70;
 /** Quarterly ouster probability once the vote is live (0 when BC ≥ 25 or no warning yet). UI: board panel. */
 export function ousterRiskQ(s: GameStateV2): number {
   const fx = s.player.finance.ws3;
+  // A division head answers to the parent, which has no confidence vote (STRUCTURE §4.8: no parent-confidence
+  // mechanic, R9).
+  if (s.player.board.preset === 'parent') return 0;
   if (s.player.board.confidence >= OUSTER_BC || fx?.boardWarnDay === undefined || s.time.day - fx.boardWarnDay < OUSTER_NOTICE_D) return 0;
   return 0.15 * (s.player.board.preset === 'legacyNonprofit' ? 2 : 1) * ousterMajorityP(s);
 }
@@ -237,14 +246,17 @@ export const boardQSystem: EngineSystem = {
     const rev = BC_REVERT_Q * (BC_ANCHOR - b.confidence);
     if (Math.abs(rev) >= 0.5) ctx.bump('board.confidence', rev, 'board memory fades');
     // Revenue plan (+5 met / −10 missed); the next plan asks PLAN_GROWTH_Q more.
-    if (fx.revenuePlan > 0) {
+    // Patient investors (spinout start, R9): no revenue plan for the first quarters.
+    if (fx.revenuePlan > 0 && s.time.day >= startOf(s).mods.patientQ * 91) {
       if (f.revenueRun >= fx.revenuePlan * 0.97) ctx.bump('board.confidence', 5, 'revenue plan met');
       else if (f.revenueRun < fx.revenuePlan * PLAN_MISS) ctx.bump('board.confidence', -10, 'revenue plan missed');
     }
     fx.revenuePlan = f.revenueRun * PLAN_GROWTH_Q;
-    // Lead over the best rival < 0 for a quarter: −5 (uses the intel estimate, never truth).
+    // Lead over the best rival < 0 for a quarter: −5 (uses the intel estimate, never truth). A board that backed a
+    // follower (R9 start types) expects its start lag; it minds only falling further behind than that.
     const rivals = activeRivals(s);
-    if (rivals.length && Math.min(...rivals.map((r) => leadDays(s, r.core.id).est)) < 0) ctx.bump('board.confidence', -5 * boardSpeedAppetite(s), 'behind a rival');
+    const expected = (startOf(s).lagMonths * 365) / 12;
+    if (rivals.length && Math.min(...rivals.map((r) => leadDays(s, r.core.id).est)) < -expected) ctx.bump('board.confidence', -5 * boardSpeedAppetite(s), 'behind a rival');
     // Safety Index grade ≥ B: +3.
     const g = s.researchBodies.index.grades.player?.letter;
     if (g && (g.startsWith('A') || g.startsWith('B'))) ctx.bump('board.confidence', 3, 'Safety Index grade');
@@ -260,7 +272,7 @@ export const boardQSystem: EngineSystem = {
     }
     updateRunwayState(s, ctx);
     // Telegraph: the board warns below BC_WARN; the warning clears once confidence recovers.
-    if (b.confidence < BC_WARN && fx.boardWarnDay === undefined) {
+    if (b.confidence < BC_WARN && fx.boardWarnDay === undefined && b.preset !== 'parent') {
       fx.boardWarnDay = s.time.day;
       ctx.log('alert', `The board is losing confidence (${b.confidence.toFixed(0)}). Below ${OUSTER_BC} directors may vote to remove you at a quarterly review.`, 4);
     } else if (b.confidence >= BC_CLEAR && fx.boardWarnDay !== undefined) {

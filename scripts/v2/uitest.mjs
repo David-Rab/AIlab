@@ -103,6 +103,17 @@ for (const [k, v] of [['baseline', 'reality'], ['world', 'fast'], ['alignment', 
 await page.fill('[data-test=company]', 'Meridian');
 await wait(30);
 ok('Setup blocks a rival name', !!(await page.$('[data-test=name-clash]')) && (await page.$eval('[data-test=start-game]', (b) => b.disabled)));
+// R9: start picker (four starts with difficulty labels); a non-leader start turns the leader lab on and fixes the board.
+ok('Setup: four starts with difficulty labels', (await page.$$('[data-picker=start] [data-opt] [data-difficulty]')).length === 4);
+await check('Setup start=spinout', 'store.draftSetup.start', () => page.click('[data-picker=start] [data-opt="spinout"]'), 30);
+ok('Setup: spinout turns the leader lab on and sets the board', (await get('store.draftSetup.leaderLab')) === 'true' && (await get('store.draftSetup.governance')) === '"founder"' && !!(await page.$('[data-test=start-board]')));
+await check('Setup start=bigtech', 'store.draftSetup.start', () => page.click('[data-picker=start] [data-opt="bigtech"]'), 30);
+await page.hover('[data-picker=start] [data-opt="bigtech"]');
+await wait(300);
+ok('Setup: start tooltip shows the start values', (await page.evaluate(() => document.body.innerText)).includes('from the parent'));
+await clearTips();
+await check('Setup start=leader', 'store.draftSetup.start', () => page.click('[data-picker=start] [data-opt="leader"]'), 30);
+ok('Setup: leader start has no leader lab and a Governance picker', (await get('store.draftSetup.leaderLab')) === 'false' && !!(await page.$('[data-picker=governance]')));
 await check('Setup company name', 'store.draftSetup.companyName', () => page.fill('[data-test=company]', 'TestLab'), 30);
 await check('Setup seed', 'store.draftSetup.seed', () => page.fill('[data-test=seed]', '2027'), 30);
 await shot('01-setup');
@@ -620,6 +631,34 @@ await shot('50-leader-overview');
 await nav('relations');
 ok('Leader lab: Relations lists it', (await page.locator('[data-panel=relations]').innerText()).includes('Polaris AI'));
 await shot('51-leader-relations');
+await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
+
+// ───────────────────────── R9: start types (big-tech Finance variant; spinout and challenger fixtures) ─────────────────────────
+const ia9 = iaIssues.length;
+await closeModals();
+await page.evaluate(() => { const st = window.ai27v2; st.start({ ...st.draftSetup, tutorial: false, seed: 4244, companyName: 'OpenBrain', start: 'bigtech', leaderLab: true, governance: 'parent' }); });
+await wait(150);
+await page.evaluate(() => window.ai27v2.step(5));
+await closeModals();
+ok('Big tech: a division with the leader lab', (await get('s.setup.start')) === '"bigtech"' && (await get('s.player.board.preset')) === '"parent"' && (await get('s.rivals.some((r) => r.core.id === "rL")')) === 'true');
+await nav('finance');
+ok('Big tech Finance: parent budget schedule, no raise card or ownership', !!(await page.$('[data-home=parentBudget] [data-q]')) && !(await page.$('#ctl-raise-card')) && !(await page.$('[data-home=ownership]')));
+ok('Big tech Finance: equity unavailable with its reason', (await page.locator('[data-test=division-reason]').innerText().catch(() => '')).includes('no outside equity'));
+await iaScan('finance:bigtech');
+await shot('60-bigtech-finance');
+for (const start of ['spinout', 'challenger']) {
+  const fxs = readFileSync(`scripts/v2/fixtures/start-${start}-day400.json`, 'utf8');
+  await page.evaluate((j) => window.ai27v2.importJson(j), fxs);
+  await page.evaluate(() => { window.ai27v2.state.setup.tutorial = false; window.ai27v2.notify(); });
+  await closeModals();
+  ok(`${start} fixture loads (day 400)`, (await get('s.setup.start')) === `"${start}"` && (await get('s.time.day')) === '400');
+  for (const id of ['overview', 'company', 'models', 'products', 'finance']) {
+    await nav(id);
+    await iaScan(`${id}:${start}`);
+  }
+  await shot(`61-${start}-day400`);
+}
+ok('R9 IA: start screens keep one home per datum, terms resolve, no raw floats', iaIssues.length === ia9, iaIssues.slice(ia9, ia9 + 6).join(' | '));
 await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
 
 // ───────────────────────── end screen ─────────────────────────

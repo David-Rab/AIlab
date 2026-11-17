@@ -19,6 +19,7 @@ import { SECTOR_CHANNELS, paidDeployments, versionOf, worldMix, type WorldMix } 
 import { freeTierShare, monitorOverhead, productDomains, productServeMult } from '../models/products';
 import { sigmoid } from './policy';
 import { bookCash } from '../finance/ledger';
+import { revenueToParent } from '../finance/parent';
 
 /** R11 #14: revenue per serving H100e-year at M = 1 ($). */
 export const RPH_BASE = 40e3;
@@ -313,6 +314,7 @@ export function applyRevenue(s: GameStateV2, ctx: SystemCtx): RevenueReadout {
     if (!top || x.revenue > top.revenue) top = x;
   }
   if (rd.total > 0) bookCash(s, ctx, rd.total / 365, 'revenue', 'revenue', top ? `${top.channel} ${top.bound}-bound` : undefined);
+  revenueToParent(s, ctx, rd.total / 365); // a division's revenue goes to the parent (R9)
 
   // Share erosion when capacity-bound (0.5%/day of the excess), slow recovery when there is slack.
   const pen = s.world.fx.capPenalty;

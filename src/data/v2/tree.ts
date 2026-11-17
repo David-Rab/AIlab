@@ -49,8 +49,6 @@ export interface TreeNodeDef {
   followUp?: boolean;
   /** Known at the start by every company (public knowledge in Jul 2025). */
   star?: boolean;
-  /** Known at the frontier-leader start (features the game already has) until the start types (R9) set known nodes. */
-  leaderKnown?: boolean;
   /** Not researchable yet: product features become projects with live products. */
   soon?: 'products';
   /** Design options this node unlocks. */
@@ -143,11 +141,11 @@ export const TREE: TreeNodeDef[] = [
   N('specDecoding', 'Speculative decoding', 'systems', 'scaffold', ['P04'], 'S', 0.95, {}, { cap: 'Serve cost ×0.85 for new models' }),
   P('P05', 'Multi-agent orchestration', 'systems', 'scaffold', ['P03'], 'M', { cap: 1, saf: -1 }, { options: [['effort', 'deep']], cap: 'Deep-think effort; agent research throughput ×1.3', saf: 'Many-copies pressure +', cost: 'Tokens ×10 for deep think' }),
   P('P07', 'Long context + memory', 'systems', 'scaffold', [], 'M', { cap: 1, saf: -1 }, { cap: 'Time horizon ×1.5; memory', saf: 'Memory → successor-risk pressure' }),
-  N('agentsProduct', 'Agents product', 'systems', 'scaffold', ['P02'], 'M', 0.95, { cap: 1, saf: -1 }, { leaderKnown: true, cap: 'Agents product', saf: 'Overreach exposure', payoff: 'Pays off when the time horizon covers the tasks sold' }),
+  N('agentsProduct', 'Agents product', 'systems', 'scaffold', ['P02'], 'M', 0.95, { cap: 1, saf: -1 }, { cap: 'Agents product', saf: 'Overreach exposure', payoff: 'Pays off when the time horizon covers the tasks sold' }),
   N('codingAgent', 'Coding agent', 'systems', 'scaffold', ['rl.swe', 'agentsProduct'], 'S', 0.95, { cap: 1 }, { cap: 'Agents in Software & IT +0.5 L' }),
   N('voiceVision', 'Voice & vision', 'systems', 'scaffold', ['multimodal'], 'S', 0.95, { cap: 1 }, { cap: 'Consumer appeal +' }),
   N('deepResearch', 'Deep research', 'systems', 'scaffold', ['P05'], 'S', 0.95, { cap: 1 }, { cap: 'Consumer and enterprise quality +', cost: 'Tokens' }),
-  N('sectorPacks', 'Sector packs', 'systems', 'scaffold', ['enterprise'], 'S', 0.95, { cap: 1 }, { leaderKnown: true, cap: 'Sector products: sector level +0.5', cost: 'Cash, build time' }),
+  N('sectorPacks', 'Sector packs', 'systems', 'scaffold', ['enterprise'], 'S', 0.95, { cap: 1 }, { cap: 'Sector products: sector level +0.5', cost: 'Cash, build time' }),
   P('P13', 'Automated AI research agents', 'systems', 'lab', ['rl.mlResearch'], 'L', { cap: 2, saf: -1 }, { cap: 'Experiment throughput up to ×1.5', saf: 'Sandbagging; AI research sabotage risk ↑', payoff: 'Pays off with your internal model\'s RSCH level (none at 6.5, full at 8.5)' }),
   P('P16', 'AI kernels / HW co-design', 'systems', 'lab', ['P13'], 'M', { cap: 1 }, { cap: 'Training FLOP ×1.15', cost: 'Serve ×0.75 (a saving)' }),
   P('P19', 'Learned research taste', 'systems', 'lab', ['P13'], 'L', { cap: 2, saf: -1 }, { cap: 'Removes the RSCH −0.5 penalty', saf: 'AI sets research direction' }),
@@ -186,7 +184,7 @@ export const TREE: TreeNodeDef[] = [
   S('T-MO', 'Model organisms', 'evals', 'lab', [], 'AG08', undefined, { saf: 1 }, { star: true, saf: 'Detects; reveals failure modes' }),
   S('T-TMON', 'Trusted monitoring', 'evals', 'lab', [], 'AG07', undefined, { saf: 1 }, { star: true, saf: 'Contains power-seeking, scheming, collusion' }),
   S('T-CCLASS', 'Misuse classifiers', 'evals', 'scaffold', [], 'AG16', undefined, { saf: 1 }, { star: true, saf: 'Misuse ×0.7', cost: 'Serving cost +' }),
-  S('kyc', 'KYC tiers', 'evals', 'scaffold', [], undefined, 'S', { saf: 1 }, { leaderKnown: true, saf: 'Distillation access ×0.75 per tier', cost: 'Demand −2% per tier' }),
+  S('kyc', 'KYC tiers', 'evals', 'scaffold', [], undefined, 'S', { saf: 1 }, { saf: 'Distillation access ×0.75 per tier', cost: 'Demand −2% per tier' }),
   S('T-PROP', 'Propensity evals', 'evals', 'lab', ['T-MO'], 'AG08', 'M', { saf: 1 }, { saf: 'Detects reward hacking, sycophancy, power-seeking' }),
   S('T-COTMON', 'CoT monitor', 'evals', 'lab', ['P01'], 'AG09', 'M', { saf: 2 }, { saf: 'Detects hacking, concealment, faking, scheming; useless on latent reasoning' }),
   S('T-LOCK', 'Comms lockdown', 'evals', 'lab', ['T-TMON'], 'AG07', 'S', { saf: 1 }, { saf: 'Contains collusion, successor risk' }),

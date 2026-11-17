@@ -248,6 +248,8 @@ export function planRun(s: GameStateV2, p: LaunchRunParams, rollDays = (lo: numb
     mon = Math.min(base.monitorability ?? 1, pe.monitorability);
   } else if (p.kind === 'distill') {
     if (!teacher) return failPlan('Pick a teacher version');
+    // D6: an imported open-weight model is not yours to sell until you post-train it (a distilled mini would be).
+    if (teacher.variant === 'imported') reason = 'An imported model must be post-trained before it can teach a mini';
     flopNeeded = DISTILL_F * F;
     minDays = DISTILL_DAYS;
     pmPred = teacher.pm - DISTILL_PM_PENALTY;

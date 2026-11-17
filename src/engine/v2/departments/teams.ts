@@ -15,10 +15,11 @@ import {
   HIRING_BASE, MOVE_SAFETY_MORALE, QUALITY, REF_ROLE_SHARE, SAF_ROLE_SHARE, START_SPECIALTIES, START_TEAMS, STAR_HIRE,
   TEAM_COST_M, TEAM_KEYS, TEAM_SIZE,
 } from '../../../data/v2/teams';
+import { START_BY_ID } from '../../../data/v2/starts';
 import { decimalYear } from '../core/time';
 import { hRef, Phi } from '../production/knots';
 import type {
-  BaselineId, Column, EngineSystem, GameStateV2, PlayerLab, RngLike, StaffByRole, SystemCtx, Team, TeamCandidate, TeamDept,
+  BaselineId, Column, EngineSystem, GameStateV2, PlayerLab, RngLike, StaffByRole, StartType, SystemCtx, Team, TeamCandidate, TeamDept,
   TeamHiring, TeamKey, TeamQuality, TeamRole,
 } from '../types';
 
@@ -50,17 +51,22 @@ function nextSpecialty(teams: readonly Team[], dept: TeamDept): Column {
 }
 
 /** Start roster (STRUCTURE §4.1): all Strong, full. */
-export function startTeams(baseline: BaselineId): { teams: Team[]; hiring: TeamHiring } {
-  const counts = START_TEAMS[baseline];
+export function startTeams(baseline: BaselineId, start: StartType = 'leader'): { teams: Team[]; hiring: TeamHiring } {
+  // The leader start keeps today's roster (START_TEAMS by baseline); the other starts follow data/v2/starts.ts (R9).
+  const def = START_BY_ID[start];
+  const leader = start === 'leader';
+  const counts = leader ? START_TEAMS[baseline] : def.teams;
+  const specs = leader ? START_SPECIALTIES : def.specialties;
   const hiring: TeamHiring = { targets: { ...counts }, candidates: [], filling: [], nextId: 1 };
   const teams: Team[] = [];
   const spec: Record<TeamDept, number> = { cap: 0, saf: 0 };
   for (const k of TEAM_KEYS) {
     const role = roleOfKey(k);
     const dept = deptOfKey(k);
+    const q: TeamQuality = (!leader && def.quality?.[k]) || 'strong';
     for (let i = 0; i < counts[k]; i++) {
-      const sp = role === 'sci' ? START_SPECIALTIES[dept][spec[dept]++ % START_SPECIALTIES[dept].length] : undefined;
-      teams.push(newTeam(hiring, role, dept, 'strong', sp));
+      const sp = role === 'sci' ? specs[dept][spec[dept]++ % specs[dept].length] : undefined;
+      teams.push(newTeam(hiring, role, dept, q, sp));
     }
   }
   return { teams, hiring };

@@ -39,7 +39,8 @@ export type WorldPresetId = 'sampled' | 'ai2027' | 'authors2026' | 'fast' | 'slo
 export type AlignDiffId = 'sampled' | 'easy' | 'medium' | 'hard';
 export type EconPresetId = 'normal' | 'ai2027' | 'gate';
 export type StorytellerId = 'rising' | 'measured' | 'chaotic';
-export type GovernancePresetId = 'legacyNonprofit' | 'nonprofitPBC' | 'pbcTrust' | 'founder';
+/** Board presets; 'parent' = a big-tech parent company (start type 'bigtech', R9). */
+export type GovernancePresetId = 'legacyNonprofit' | 'nonprofitPBC' | 'pbcTrust' | 'founder' | 'parent';
 
 /** Capability domains (§3.3.1). Union of research/12 (model card) and research/16 (sector) domains. */
 export type DomainId = 'CODE' | 'RSCH' | 'REASON' | 'AGENCY' | 'SOCIAL' | 'MEDIA' | 'CYBER' | 'BIO' | 'PHYS';
@@ -150,9 +151,9 @@ export interface SetupV2 {
   tutorial: boolean;
   seed: number;
   companyName: string;
-  /** Start type (STRUCTURE §4.8, BUILD-PLAN R9). Only 'leader' (today's start) is playable until R9. */
+  /** Start type (STRUCTURE §4.8, BUILD-PLAN R9; data/v2/starts.ts). */
   start: StartType;
-  /** Add the simulated AI-2027 leader lab to the world (BUILD-PLAN R2, D1). Off until R2 builds it. */
+  /** Add the simulated AI-2027 leader lab to the world (BUILD-PLAN R2, D1): on for every start but the leader's. */
   leaderLab: boolean;
 }
 
@@ -347,7 +348,8 @@ export interface VersionBuild {
   signals: Partial<Record<SignalId, number>>;
 }
 
-export type Variant = 'full' | 'mini' | 'gov' | 'trusted' | 'internal' | 'open';
+/** 'imported' (D6, spinout start): an open-weight model brought in from outside; post-trainable, internal use only. */
+export type Variant = 'full' | 'mini' | 'gov' | 'trusted' | 'internal' | 'open' | 'imported';
 
 export type TraitVector = Record<TraitId, number>; // 0..1 propensity strength
 

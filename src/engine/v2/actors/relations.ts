@@ -1,6 +1,7 @@
 // Relations: currencies per counterparty, access rungs, favors, scrutiny, cover-ups (V2-SPEC §3.9.1, §3.9.3;
 // research/17 §1.2–1.5). Owner: WS4. Also hosts actorsDaily, which steps public, blocs, government and relations.
 import { BLOCS } from '../../../data/v2/blocs';
+import { startOf } from '../../../data/v2/starts';
 import { worldMix } from '../worldfx/mix';
 import { revenueReadout } from '../worldfx/revenue';
 import type { CounterpartyId, EngineSystem, GameStateV2, LabId, RelationStock, RelationsState, SystemCtx } from '../types';
@@ -108,8 +109,8 @@ function relationsDaily(s: GameStateV2, ctx: SystemCtx) {
     crunch = dem > 1.3 * cap;
   }
   w.crunchDays = crunch ? w.crunchDays + 1 : 0;
-  // Talent pull drifts slowly back toward its baseline (+10).
-  const dt = (10 - rel.talentPull) * 0.002;
+  // Talent pull drifts back to the start type's anchor (leader 10; spinout 30, challenger 20, big tech 0; R9).
+  const dt = (startOf(s).mods.talentPull - rel.talentPull) * 0.002;
   rel.talentPull += dt;
   w.drift['relations.talentPull'] = (w.drift['relations.talentPull'] ?? 0) + dt;
 }

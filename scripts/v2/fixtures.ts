@@ -6,7 +6,11 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { GOLDEN_TOL } from '../../src/data/v2/calibration';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
-import { serialize } from '../../src/engine/v2/core/save';
+import { deserialize, serialize, stateHash } from '../../src/engine/v2/core/save';
+import { engine } from '../../src/engine/v2';
+import { refBot } from '../../src/engine/v2/bots/ref';
+import { resolve, tick } from '../../src/engine/v2/core/loop';
+import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
 import { internalVersion } from '../../src/engine/v2/models/labs';
 import type { MilestoneIdx } from '../../src/engine/v2/types';
 import { FIXTURE_DIR, GOLDEN_PATH, cashFloorStub, check, finish, runRef, validateJson } from './lib';
@@ -39,4 +43,22 @@ NAMES.forEach((n, i) => {
   const tol = (i === 3 ? GOLDEN_TOL.SC : GOLDEN_TOL.after) * 365;
   check(got !== undefined && Math.abs(got - want) <= tol, `player ${n} on the golden timeline`, `got ${got} want ${want} ±${Math.round(tol)} d`);
 });
+// R9: day-400 fixtures for the challenger and spinout starts (RefBot with real finance and compute; endings skipped so
+// the fixture exists whatever the run's fate). Written as start-<type>-day400.json.
+for (const start of ['challenger', 'spinout'] as const) {
+  const t = newGame(defaultSetupV2({ ...FIXTURE_SETUP, start, leaderLab: true }));
+  while (t.time.day < 400) {
+    for (const p of [...t.events.pending]) if (resolve(t, p.instance, refBot.decide(t, p))) resolve(t, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0);
+    refBot.act(t, engine);
+    tick(t, { skip: ['endings'] });
+  }
+  const errs = validateJson(t);
+  check(errs.length === 0 && t.setup.start === start && t.setup.leaderLab, `fixture ${start} day 400 is plain JSON with the leader lab`, errs.slice(0, 3).join('; '));
+  const back = deserialize(serialize(t));
+  check(stateHash(back) === stateHash(t), `fixture ${start} day 400 round-trips`);
+  const file = join(FIXTURE_DIR, `start-${start}-day400.json`);
+  writeFileSync(file, serialize(t));
+  const v = internalVersion(t);
+  console.log(`      wrote ${file} (internal ${v?.name}, measured L ${v?.evals.measuredL}, cash ${t.player.finance.cash.toFixed(1)}, ending skipped)`);
+}
 finish('fixtures');
