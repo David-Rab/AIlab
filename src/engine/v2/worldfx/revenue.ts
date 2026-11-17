@@ -24,7 +24,7 @@ import { revenueToParent } from '../finance/parent';
 /** R11 #14: revenue per serving H100e-year at M = 1 ($). */
 export const RPH_BASE = 40e3;
 /** Research multiplier above which a better model earns no more per token (R11 #14). */
-const RPH_MCAP = 8;
+export const RPH_MCAP = 8;
 /** Serve-cost factor of the revenue rate: (0.5 ÷ serve cost)^x, clamped 0.5–3 [D]. A cheaper-to-serve model (a mini,
  *  serve ×0.25) sells more answers per H100e at a lower price per token. Refit 0.5 → 0.3 in R6 (calibration line,
  *  PROGRESS R6): the R5 reference path reserved serving by demand $, so the full model on Enterprise took a third of
@@ -35,7 +35,7 @@ const RPH_SERVE_EXP = 0.3;
 /** Channel weights splitting the player's sector demand between its deployments [D]. */
 const CH_WEIGHT: Partial<Record<Channel, number>> = { api: 1, agents: 1.5, enterprise: 1, trusted: 0.15, gov: 2 };
 /** Trusted access sells at a premium (×3) to a small volume (R12 §0.6) [D]. */
-const TRUSTED_PREMIUM = 3;
+export const TRUSTED_PREMIUM = 3;
 const GOV_SECTORS = new Set(['GOV', 'MIL']);
 /** Ceiling on share erosion from serving shortfall (a capacity-bound leader keeps a core of customers) [D]. */
 export const PENALTY_MAX = 0.75;
@@ -280,7 +280,7 @@ export function labMarketRevenue(s: GameStateV2, lab: LabId): Money {
 /** revenue (60, daily): demand vs capacity per deployment → revenueRate (Auto serving split, R6); books revenue/365 ONCE through the finance ledger (kind 'revenue'). WS3's opex system derives
  *  revenueRun (30-day smoothing of Σ revenueRate) from it. */
 export const revenueSystem: EngineSystem = {
-  id: 'revenue', owner: 'WS5', cadence: 'daily', order: 60,
+  id: 'revenue', owner: 'WS5', cadence: 'daily', order: 60, system: 'products',
   run(s, ctx) {
     applyRevenue(s, ctx);
   },

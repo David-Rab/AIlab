@@ -52,7 +52,7 @@ function investigationGain(s: GameStateV2, versionId: string, trait: TraitId, ft
 }
 
 const INVESTIGATE: ActionDef = {
-  id: 'safety.investigate', sphere: 'safety', owner: 'WS2', title: 'Investigate',
+  id: 'safety.investigate', verb: 'respond', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Investigate',
   available: (s) => {
     const free = safetyReHeads(s) - investigationFte(s) - patchFte(s);
     return free >= INV_FTE[0] || `Not enough free safety research engineers (a case needs ${INV_FTE[0]}–${INV_FTE[1]})`;
@@ -90,7 +90,7 @@ const INVESTIGATE: ActionDef = {
 };
 
 const CLOSE_CASE: ActionDef = {
-  id: 'safety.closeCase', sphere: 'safety', owner: 'WS2', title: 'Close case',
+  id: 'safety.closeCase', verb: 'respond', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Close case',
   available: (s) => s.player.safety.investigations.some((i) => !i.outcome) || 'No open investigation',
   preview(s, p) {
     const inv = s.player.safety.investigations.find((i) => i.id === str(p, 'id')) ?? s.player.safety.investigations.find((i) => !i.outcome);
@@ -162,7 +162,7 @@ function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | 
 }
 
 const RESPOND: ActionDef = {
-  id: 'safety.respond', sphere: 'safety', owner: 'WS2', title: 'Respond',
+  id: 'safety.respond', verb: 'respond', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Respond',
   available: (s) => s.player.models.versions.length > 0 || 'No models',
   preview(s, p) {
     const kind = (str(p, 'kind') as ResponseKind) ?? 'patchSignal';
@@ -179,7 +179,7 @@ const RESPOND: ActionDef = {
 };
 
 const PUBLISH: ActionDef = {
-  id: 'safety.publish', sphere: 'safety', owner: 'WS2', title: 'Publish',
+  id: 'safety.publish', verb: 'respond', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Publish',
   available: (s) => s.player.safety.findings.some((f) => !f.published) || 'Nothing unpublished',
   preview(s, p) {
     const f = s.player.safety.findings.find((x) => x.id === str(p, 'findingId')) ?? s.player.safety.findings.find((x) => !x.published);
@@ -198,7 +198,7 @@ const PUBLISH: ActionDef = {
 };
 
 const POLICY: ActionDef = {
-  id: 'safety.publishPolicy', sphere: 'safety', owner: 'WS2', title: 'Publish policy',
+  id: 'safety.publishPolicy', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Publish policy',
   available: () => true,
   preview(_s, p) {
     const pol = str(p, 'policy') ?? 'all';
@@ -215,7 +215,7 @@ const POLICY: ActionDef = {
 };
 
 const PLEDGE: ActionDef = {
-  id: 'safety.pledge', sphere: 'safety', owner: 'WS2', title: 'Monitorability pledge',
+  id: 'safety.pledge', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Monitorability pledge',
   available: (s) => !s.player.safety.monitorabilityCommitment || 'Already pledged',
   preview: () => ({
     costs: [{ currency: 'progress', amount: -0.4, target: 'no latent reasoning (forgo +0.4 Δp)' }, { currency: 'leadDays', amount: -30, target: 'vs rivals who adopt neuralese' }],
@@ -242,7 +242,7 @@ const GATE_DAYS: Record<SafetyDept['evalGate'], number> = { none: 0, basic: 7, f
 const GATES = Object.keys(GATE_DAYS) as SafetyDept['evalGate'][];
 
 const EVAL_GATE: ActionDef = {
-  id: 'safety.evalGate', sphere: 'safety', owner: 'WS2', title: 'Eval gate',
+  id: 'safety.evalGate', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Eval gate',
   available: () => true,
   preview(s, p) {
     const g = (str(p, 'level') as SafetyDept['evalGate']) ?? 'fullPlusExternal';
@@ -260,7 +260,7 @@ const EVAL_GATE: ActionDef = {
 };
 
 const TECHNIQUE: ActionDef = {
-  id: 'safety.technique', sphere: 'safety', owner: 'WS2', title: 'Safety stack',
+  id: 'safety.technique', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Safety stack',
   available: (s) => Object.values(s.player.safety.techniques).some((t) => t.unlocked && techniqueRole(t) !== 'fix') || 'No tools unlocked',
   preview(s, p) {
     const t = s.player.safety.techniques[str(p, 'id') ?? ''] ?? Object.values(s.player.safety.techniques).find((x) => x.unlocked && techniqueRole(x) !== 'fix');

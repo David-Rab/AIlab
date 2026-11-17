@@ -14,14 +14,6 @@ export function tokensRequired(flop: number, overtrained = false): number {
   return 20 * Math.sqrt(flop / 120) * (overtrained ? 5 : 1);
 }
 
-/** d^0.15 with a floor (d = 0 would stop research outright; floor 0.02 → ×0.56) [D]. */
-export const dFactor = (d: number) => Math.pow(Math.max(0.02, d), 0.15);
-
-/** Ddata = min(1, S_eff / N_req)^0.3 · d^0.15 (§3.2.2). */
-export function dataFactor(sEff: number, nReq: number, d: number): number {
-  return Math.pow(Math.min(1, sEff / Math.max(1, nReq)), 0.3) * dFactor(d);
-}
-
 /** Data-wall penalty on a base (§3.3.2): −0.25·ln(N_req/S_eff), capped at −0.5. */
 export function dataWallPenalty(sEff: number, nReq: number): number {
   return nReq > sEff ? Math.max(-0.5, -0.25 * Math.log(nReq / sEff)) : 0;

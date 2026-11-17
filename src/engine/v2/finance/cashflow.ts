@@ -53,7 +53,7 @@ export function checkSolvency(s: GameStateV2, ctx: SystemCtx): void {
 
 /** opex (130, daily): revenue run-rate (from WS5), power and O&M, spot rentals, interest; solvency check. */
 export const opexSystem: EngineSystem = {
-  id: 'opex', owner: 'WS3', cadence: 'daily', order: 130,
+  id: 'opex', owner: 'WS3', cadence: 'daily', order: 130, system: 'finance',
   run(s, ctx) {
     ensureWs3(s);
     expireRepriced(s, ctx);
@@ -84,7 +84,7 @@ const KIND_LABEL: Record<Commitment$['kind'], string> = { cloud: 'cloud contract
 /** payroll (300, monthly): payroll, security spend, transition fund, revenue share, ledger instalments; expire
  *  finished contracts; refresh the runway readout. */
 export const payrollSystem: EngineSystem = {
-  id: 'payroll', owner: 'WS3', cadence: 'monthly', order: 300,
+  id: 'payroll', owner: 'WS3', cadence: 'monthly', order: 300, system: 'finance',
   run(s, ctx) {
     ensureWs3(s);
     const p = s.player;

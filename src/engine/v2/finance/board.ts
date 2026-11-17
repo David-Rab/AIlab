@@ -235,7 +235,7 @@ export function ousterMajorityP(s: GameStateV2): number {
 
 /** boardQ (430, quarterly): board confidence and approvals, runway state machine, ouster roll (§3.7.5). */
 export const boardQSystem: EngineSystem = {
-  id: 'boardQ', owner: 'WS3', cadence: 'quarterly', order: 430,
+  id: 'boardQ', owner: 'WS3', cadence: 'quarterly', order: 430, system: 'finance',
   run(s, ctx) {
     ensureWs3(s);
     const f = s.player.finance;

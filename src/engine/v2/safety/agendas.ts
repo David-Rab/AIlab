@@ -69,8 +69,6 @@ export const lineMultCapped = (s: GameStateV2, ag: AgendaId) => Math.min(LINE_MU
 
 /** Teams on a line's projects. */
 export const lineTeams = (s: GameStateV2, ag: AgendaId): Team[] => s.player.teams.filter((t) => t.role === 'sci' && lineOfTeam(t) === ag);
-/** People (science heads) on a line's projects. */
-export const lineHeads = (s: GameStateV2, ag: AgendaId) => lineTeams(s, ag).reduce((a, t) => a + t.heads, 0);
 /** Whether any team works on the line (the pre-R8 "funded"). */
 export const lineStaffed = (s: GameStateV2, ag: AgendaId) => s.player.teams.some((t) => t.role === 'sci' && lineOfTeam(t) === ag);
 
@@ -287,7 +285,7 @@ function suiteHook(s: GameStateV2, ctx: SystemCtx) {
  *  monitoring; belief drift. Line projects progress and resolve in the research system (models/tree.ts). U is computed
  *  on demand by understanding(). */
 export const safetyResearchSystem: EngineSystem = {
-  id: 'safetyResearch', owner: 'WS2', cadence: 'daily', order: 70,
+  id: 'safetyResearch', owner: 'WS2', cadence: 'daily', order: 70, system: 'safety',
   run(s, ctx) {
     const dept = s.player.safety;
     recomputeComputeShares(s);

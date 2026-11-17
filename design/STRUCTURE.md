@@ -354,6 +354,9 @@ capabilities index.
 **Difficulty is labelled, scoring is the same.** Some starts are simply harder; the setup screen says so
 (Easy / Medium / Hard / Impossible). Labels are checked with bot games before release. Proposed: leader Easy,
 big-tech division Medium, challenger Medium, spinout Hard. Impossible is reserved for future starts.
+**2026-11-17: labels follow the bot data** (leader Easy, challenger Hard, big-tech division Impossible, spinout Impossible);
+follower catch-up deferred — options in PROGRESS R9 notes. Knowledge diffusion from the leader lab stays and is shown in the
+research-speed breakdown.
 
 | Start type | Analogues | Cash | Board | Staff | Compute owned / rented (H100e) | Model lag | Revenue | Products | Extra known nodes | Character |
 |---|---|---|---|---|---|---|---|---|---|---|

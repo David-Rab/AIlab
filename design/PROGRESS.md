@@ -28,7 +28,110 @@ Single source of truth for where the build stands. Update at every milestone or 
 | **R7 Restructure: internal agent packages and monitors** | Done (2026-11-17): four internal uses (engineering, routine research, frontier research, safety research), each model + optional monitor + compute; internalAgent → routine research, safety agent model/share → the safety package, monitoringShare → per-use monitors (standard package = today's 20% of the safety pool), per-agenda/case AI labour → one Trusted-to-AI policy (B3 gate, 50% cap until P27); evalM optional qTaste (frontier model's taste), k nets the engineering share, engineering agents set A_eng; Company › Agents at work lanes with before → after preview, shared package chips on Products, compute split moved to Compute › Split, Safety links; schemaRev 9; ref-trace identical to R6, no refit; all §7.4 bot criteria MET (40 seeds) | "R7: internal agent packages …" on `game-structure` |
 | **R8 Restructure: safety on the tree** | Done (2026-11-17): safety nodes are projects for safety science teams (completion = one result from `fireFinding`, efficacy-driven type draw unchanged; a working result unlocks the node, other results restart it; follow-up project per line), funding levels / hazard / refresh projects removed, effort = T₁ at serious staffing (SERIOUS_CAP 4 team-capacity), line health from the Beta posterior, dead-end team-months and "promising lines idle", tool upkeep and validation lead from safety research engineers (no ×8 ceiling), investigations staffed by safety RE (5–40, 120 d shown), option locks from safety ideas, four risk-family aggregates, Safety panel (Overview / Research lines / Investigations / Trait graph / Incidents) replaces Safety lab, schemaRev 10 with migration; safety hiring lane 3 → 8/wk; all §7.4 bot criteria MET (200 seeds); bot-policy variance share 63% (below M4's 66%) | "R8: safety on the tree …" on `game-structure` |
 | **R9 Restructure: start types** | Done (2026-11-17): data/v2/starts.ts (four starts: teams, known nodes, products, features, cash, compute, board, lag, modifiers, labels), buildPlayer(start) with model lag, spinout imported V0 (D6), big-tech parent budget (finance/parent.ts) with equity/deals/debt unavailable and no insolvency, `parent` board, leader lab per start (D1), knowledge diffusion from the leader lab (K 2.0, follower starts only), Setup start picker, big-tech Finance variant, bots --start with a follower plan, safe bot answers red flags; all §7.4 criteria MET (200 seeds), bot-policy variance share 73%; catch-up targets not met; labels lowered to the data (challenger Hard, big tech and spinout Impossible) | "R9: start types …" on `game-structure` |
-| **R10 Tycoon restructure: UI completion and final gates** | Next. Follower catch-up needs a design decision first (R9 notes) | |
+| **R10 Restructure: UI completion and structure tests** | Done (2026-11-17): top strip revenue chip (users in its tooltip; Finance links to it) and "tools validated to" in the race tooltip; Overview "Your company" core-loop diagram (a verdict per system, links to homes); codex Structure (core loop, simulated-from-outside note, verb set) and Limits categories; 24-limit registry `data/v2/limits.ts` shown where each binds (`Limit`, `data-limit`, checked by uitest); research-speed limit lines (frontier methods you lack, serial cap, serve-cost clamp, pause, knowledge diffusion); `system` / `verb` tags required on every engine system and action (lint-structure); idle test (idle.ts) with idle serving compute in Watch; 23 new glossary terms; dead code removed; no engine behaviour change (ref-trace 0 deviation vs R9); all §7.4 criteria MET (200 seeds). Follower starts accepted as is (user decision 2026-11-17: measured labels kept, catch-up deferred) | "R10: UI completion …" on `game-structure` |
+
+## R10 UI completion and structure tests (2026-11-17, branch `game-structure`, worktree ../AI27-structure)
+
+Per design/BUILD-PLAN.md §2 R10, STRUCTURE §1 (R2, R3, R5, R11), §5, §8, LIMITS.md "Show" verdicts, mockups-v3 *-IA.md glossary lists.
+**Decision (user, 2026-11-17): follower starts accepted as is for now.** The measured difficulty labels stay (leader Easy,
+challenger Hard, big-tech division Impossible, spinout Impossible) and nothing in follower balance changes (start data, finance,
+boards, diffusion, bot follower plans untouched). Follower catch-up is deferred; the options are in the R9 notes. Knowledge
+diffusion from the leader lab stays and is visible in the research-speed breakdown (below). Recorded in STRUCTURE §4.8.
+
+**Structure tags (lint-structure).** `EngineSystem.system` and `ActionDef.verb` + `system` are required in `types.ts`; every
+literal carries its tag in its owner module (the R1 tables in `core/registry.ts` are gone). New tags: security, index → relations;
+relations catalog (A1–A6 policy, B1/B4/B5/B7/C1/C3/D1/D2/E1–E3 deal, B3 hire, B6 respond, C2/F3 policy, C4 hire·people, C6
+launch·models, D3 deal·models, F1 deal·world, SEC_* policy·relations, RETIRE respond·core); safety.publish respond, pledge and
+technique policy; fin.recap / refuseRecap / cancelContract deal·finance, sellChips / communityPackage / preorderTransformers
+deal·compute; wfx.transitionFund / moonshot deal·world. `scripts/v2/lint-structure.ts`: every system and action tagged, every §4
+system covered, every R2 verb used, unique ids, titles ≤ 4 words; prints the system × verb table (102 actions, 32 systems).
+
+**Limits (R11).** `src/data/v2/limits.ts`: 24 limits (id, title, rule, source, engine file, home screen). `ui.tsx Limit` renders the
+live reading with a ⊘ mark (grey = not binding, amber / red = binding) and the rule + source as a tooltip, `data-limit=<id>`.
+Engine readouts in `core/limitsView.ts` (pure selectors). Shown where they bind:
+- Company › Flow, research speed card, "Limits" lines: **frontier methods you lack** (from 100 d after SC: × the M you lose to
+  the reference lab's P13 / latent-base normalisation, counting only the methods you lack, with a link to the ideas), **serial
+  speed** (n× of 50×, capped), **serve-cost benefit** (copies ×0.5–2.5), **pause** (×0.1, only while active), **knowledge
+  diffusion** (+% of your know-how growth from the leader lab; follower starts only). R11 diffusion visibility done.
+- Research node card: retry rule (if it fails: retry after 180 d at ½ odds; failed: date and odds). Models: run queue stream row
+  (always shown: "takes 15% first when on"), model card "Research boost" (design offset, cap ±6 mo).
+- Compute overview forms: order terms (LTA 4–12 q, deposit 30–100%), spot rental ("you'd get N of M"), site size (50 MW to
+  the source's max, lease pool left). World: moonshot (from serving, max 30%).
+- Products: share erosion on the share block when capacity-bound (−x%, max 75%), revenue-per-chip research-speed cap (run-cost
+  tooltip), demand modifiers (binding tooltip). Company › Agents: Trusted to AI max. Company › Security: WSL floor (now / 2027).
+- Safety: case card (5–40 people, 120 d max), incident public timer (SB 53 ≤ 15 d / RAISE ≤ 3 d named), diminishing patches
+  (patched-to ×, floor ×0.2; `responses.ts patchLevel`). Finance board: public-incident hit at the next review (cap −20/q).
+- Codex only: understanding-gap penalty cap (2.5 levels), rivals simplified, bound-leader slowdown.
+Older `data-limit` attributes (Blueprint size tiles, raise limits) renamed `data-tile` / `data-cap`.
+
+**Idle test (STRUCTURE §8, R5).** `core/limitsView.ts idleStocks`: stocks with no default use — dark chips, science teams with no
+project, serving compute no product needs (> 25% of the pool and > 5K H100e). Default uses are not listed: spare training
+compute → experiments / data, safety RE → upkeep and validation lead, agent compute, cash. Alerts: chips → Watch "idle" + Compute
+badge; science teams → Research nav badge (they still add research taste, so no Watch nag; at day 0 the leader start has 8 with
+nothing queued); serving → new Watch item "idleServing" (→ Compute › Split). `navBadges` moved to `shell/watch.ts` and
+`runwayLive` / `catRisk` / `nearestRival` to `shell/selectors.ts` so node scripts can read the alert channel.
+`scripts/v2/idle.ts`: ref / mixed / safe / race × leader / challenger × 2 seeds to day 1,100, weekly samples; every stock idle ≥ 30 d
+has its alert; spare training compute runs experiments. Result: 2,083 samples, idle ≥ 30 d seen chips 137, science teams 1,174,
+serving 613, no miss.
+
+**UI.**
+- Top strip (STRUCTURE §5 L0): new Revenue chip (home of `revenueRun`: run-rate, 3-month spark; tooltip per product with its
+  customers, Chat's weekly users) between Cash and Lead; Finance's cash-flow card now links ("revenue · in the top strip").
+  Race tooltip: "Tools validated to L x" row (U shown only). The runway flip tag moved under the cash value (it overlapped the
+  gauge label).
+- Overview: "Your company" card on top — the core loop of STRUCTURE §2 as a clickable diagram (`panels/CoreLoop.tsx`):
+  Financing → Cash → Teams → Research → Models → Assurance → Products → Customers, Compute feeding Research / Models / Products,
+  "customers pay" back to Cash, the takeoff loop with the AI share of each role. Each node shows a verdict colour and a short
+  summary (runway state, teams · idle, projects active, best model · runs, ahead / blind, live · capacity-bound, top share · behind
+  in N, chips powered); numbers in tooltips; click opens the home. No `data-home` on the loop.
+- Codex: opens on a new **Structure** category (the core loop diagram, "Simulated from the outside" — rivals and the world are
+  simplified, the bound-leader rule, the AI 2027 leader lab — and "One verb set" generated from the action tags) and a **Limits**
+  category generated from the registry. Agenda entries reworded for R8 (serious staffing, line health; FTE row gone).
+- Glossary: coreLoop, takeoffLoop, limit, diffusion, frontierMethods, designOffset, staleness, moe, nativeMultimodal,
+  hardenedGraders, constitution, honestyTraining, antiScheming, detector, unseen, estimateBand, releaseClearance, agentTasks,
+  bestRivalProduct, qualityBound, priceBound, autoSplit, verbSet; lint-ux requires 115 more restructure terms (all present).
+  Products use qualityBound / priceBound terms on the binding chip.
+- Fixed: the Agents launch card printed a raw time horizon (5756149384967488.0 h) — now `F.minutes`; uitest's raw-number check
+  also catches 12+ digit runs. Nav descriptions for Overview and Codex.
+
+**Dead code removed.** Deployments / RunDesigner / SafetyLab / staffing.ts were already gone. Removed now: `dataFactor` /
+`dFactor` (LIMITS "synthetic-data floor: Remove if unused"), `TREE_PARADIGMS`, `lineHeads`, run-designer graph helpers
+(`traitPushes`, `mainPath`, `signalDelta`), unused `ui.tsx` pieces (`ChoiceBtn`, `causeRows`, `Stack`, `sgn`, `Kpi`).
+
+**Not done.** R7 deferral "frontier-research agent compute adds AI science capacity on tree projects": not calibration-neutral
+at the reference without a tree-effort refit (RefBot runs 15% frontier compute, so any capacity term moves its project dates);
+tree projects already speed up with research speed M, which counts frontier agents through k and taste. Left for the balance pass.
+
+**Gates.**
+- typecheck, scripts tsc: clean. identity, golden-timelines: pass, unchanged. calib: T1, T2, T1L pass. Fixtures byte-identical.
+- **ref-trace vs R9** (recorded at 832747d into a temp file): every category 0 deviation on all five traces (stub ai2027,
+  authors2026, fast, slow; integrated ai2027).
+- test:v2 scripts individually: golden, identity, calib, fixtures, lint-hidden, lint-ux, lint-tradeoffs, **lint-structure (new)**,
+  safety (S4 0.792 / 0.020, S5 −0.14 / −0.08: identical to R9), finance, ws4, products, money, **idle (new)** pass; hygiene: only
+  the performance budget (see perf); worldfx: only the known HireRate_SOFT.
+- Performance (`_perf.ts`, seed 9, 1,500 d, passive player; the R9 worktree at 832747d and R10 alternated, 2 × 3 runs, idle
+  machine): daily 1,993 µs (R9) vs 1,814 µs (R10), −9% (noise; no engine change); worst quarter 5.1–15.0 vs 4.4–12.3 ms. No
+  regression. Hygiene run alone fails only the absolute daily budget (1,797 µs; leader lab 2,202 µs vs 1.5 ms); the leader-lab
+  "+20% own cost" check failed once at +21% while four bot processes ran and passes on an idle machine.
+- `npm run test:ui`: 212/212 (new R10 section: 24 limits found on their home screens or the codex Limits list with conditional
+  state set — pause, a customer incident with a public timer, an open case, the challenger fixture for diffusion — every
+  `data-limit` in the registry, codex structure diagram and simulated-world note, revenue chip is the only revenue home and its
+  tooltip lists products and weekly users, race tooltip "validated to", Overview loop with nine systems and node → home click;
+  IA scan clean; raw-number check now also catches 12+ digit runs). Screenshots checked at day 0 (tutorial), 400 and 900 and on
+  the challenger / spinout fixtures: Overview loop, Company flow limits, Compute forms, Products, Models, Safety incidents,
+  Finance, Codex, revenue hover.
+- **Bots, 200 seeds, leader start** (four processes of 50, merged with `--load`): all six §7.4 criteria MET, table identical to R9
+  (race 1.5% win, 71% takeover / 29% company-loss; safe 0.5%, 57% other-first; mixed 48.0%, +46.5 pp; capex2x 0.5%; ref 19.0%;
+  passive takeover-type 74%). Choices vs world (final Mis): bot policy 73%, world 14%, rest 13%. E5 13/17.
+
+**Remaining issues seen in screenshots (not fixed, outside R10 or balance):** Enterprise at day 900 earns $0 (Auto serves it
+last at the lowest $ per H100e and the pool is short); Chat's model chip and some feature names truncate in narrow product cards;
+the challenger's diffusion line reads "+495% know-how from Polaris AI" (diffusion dominates its own research at day 400 — R9
+calibration, deferred with follower catch-up); bots leave science teams without projects for long stretches (Research badge).
+
+**Notes for the jank audit.** `idle.ts` and `lint-structure.ts` are in test:v2. New limits go into `data/v2/limits.ts` with a
+`Limit` where they bind; uitest fails until they show. Scratch scripts `scripts/v2/_r10*` are untracked / gitignored. The R9
+baseline worktree `C:\tmp\r4\base` is now detached at 832747d.
 
 ## R9 Start types (2026-11-17, branch `game-structure`, worktree ../AI27-structure)
 

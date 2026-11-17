@@ -80,7 +80,7 @@ function usageOf(s: GameStateV2, d: Deployment): number {
   return d.servingShare;
 }
 
-function outsidersWithAccess(s: GameStateV2): CounterpartyId[] {
+export function outsidersWithAccess(s: GameStateV2): CounterpartyId[] {
   return (['evalGov', 'evalIndep', 'academia', 'exec'] as CounterpartyId[]).filter((cp) => (s.relations.stocks[cp]?.access ?? 0) >= 2);
 }
 
@@ -186,7 +186,7 @@ function tickTimers(s: GameStateV2, ctx: SystemCtx, rng: RngLike) {
 
 /** incidents (80, daily): hazard per deployment × trait/U-mode; detection and exposure timers; misuse. */
 export const incidentsSystem: EngineSystem = {
-  id: 'incidents', owner: 'WS2', cadence: 'daily', order: 80,
+  id: 'incidents', owner: 'WS2', cadence: 'daily', order: 80, system: 'safety',
   run(s, ctx) {
     const rng = ctx.rng('incidents');
     const disc = (u: UModeId) => isDiscovered(s, u);

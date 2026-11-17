@@ -55,7 +55,7 @@ function hireSpec(s: GameStateV2, p: Params): { role: TeamRole; dept: TeamDept; 
 
 export const TEAM_ACTIONS: ActionDef[] = [
   {
-    id: 'teams.hire', sphere: 'departments', owner: 'WS1', title: 'Hire team',
+    id: 'teams.hire', verb: 'hire', system: 'people', sphere: 'departments', owner: 'WS1', title: 'Hire team',
     available: () => true,
     preview: (s, p) => {
       const t = hireSpec(s, p);
@@ -73,7 +73,7 @@ export const TEAM_ACTIONS: ActionDef[] = [
     },
   },
   {
-    id: 'teams.release', sphere: 'departments', owner: 'WS1', title: 'Let go',
+    id: 'teams.release', verb: 'hire', system: 'people', sphere: 'departments', owner: 'WS1', title: 'Let go',
     available: (s) => (s.player.teams.length + s.player.hiring.filling.length > 0 ? true : 'No teams'),
     preview: (s, p) => {
       const t = pickTeam(s, p);
@@ -91,7 +91,7 @@ export const TEAM_ACTIONS: ActionDef[] = [
     },
   },
   {
-    id: 'teams.move', sphere: 'departments', owner: 'WS1', title: 'Move team',
+    id: 'teams.move', verb: 'hire', system: 'people', sphere: 'departments', owner: 'WS1', title: 'Move team',
     available: (s) => (s.player.teams.some((t) => t.role === 're') ? true : 'No research-engineering team'),
     preview: (s, p) => {
       const t = pickTeam(s, p, 're');
@@ -107,7 +107,7 @@ export const TEAM_ACTIONS: ActionDef[] = [
     },
   },
   {
-    id: 'teams.target', sphere: 'departments', owner: 'WS1', title: 'Keep hiring',
+    id: 'teams.target', verb: 'policy', system: 'people', sphere: 'departments', owner: 'WS1', title: 'Keep hiring',
     available: () => true,
     preview: (s, p) => {
       const k = str(p, 'key', 're.cap') as TeamKey;

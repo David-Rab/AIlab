@@ -10,11 +10,11 @@ import {
   projectReady, projectTeams, researchSpeed, teamCapacity, teamsOn, treeCounts,
 } from '../../../engine/v2';
 import type { Column, GameStateV2, NodeStatus, Team, TeamQuality } from '../../../engine/v2';
-import { SAFETY_COLUMNS, TREE, TREE_CHILDREN, PROJECT_BY_ID, isLineNode, type Layer, type TreeNodeDef } from '../../../data/v2/tree';
+import { SAFETY_COLUMNS, TREE, TREE_CHILDREN, TREE_RETRY_DAYS, PROJECT_BY_ID, isLineNode, type Layer, type TreeNodeDef } from '../../../data/v2/tree';
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { COLUMNS, COLUMN_LABEL, QUALITY } from '../../../data/v2/teams';
 import { store, useV2 } from '../store';
-import { ActBtn, Term, Tip, TipCard } from '../ui';
+import { ActBtn, Limit, Term, Tip, TipCard } from '../ui';
 import { Card, PanelHead, Ref } from '../kit';
 import { ICON } from '../icons';
 import { C } from '../theme';
@@ -292,7 +292,8 @@ function NodeCard({ s, n, st }: { s: GameStateV2; n: TreeNodeDef; st: NodeStatus
           ? <div className="row-i"><b className="num">{health(odds)}</b><span className="dim small">estimated {F.pct(odds)} a result here is a working tool</span><Ref id="lineHealth" to={{ panel: 'safety', tab: 'lines' }}>{AGENDA_BY_ID[n.agenda as keyof typeof AGENDA_BY_ID]?.name ?? 'Research line'}</Ref></div>
           : n.star ? <div className="dim">Known by every lab</div>
           : <div className="row-i"><b className="num">{F.pct(odds)}</b><span className="dim small">{n.paradigm ? 'known chance; the result is drawn for this world' : 'chance it works'}{(ts?.attempts ?? 0) > 0 ? ` · attempt ${(ts?.attempts ?? 0) + (ts?.status === 'failed' ? 1 : 0)}` : ''}</span>
-            {st === 'failed' && <span className="tone-neg small">· <Term id="retryRule">retry</Term> from {fmtDate(dateOf(s, ts?.retryDay ?? 0))}</span>}</div>}
+            </div>}
+        {!line && !n.star && st !== 'known' && <Limit id="tree.retry" tone={st === 'failed' ? 'warn' : 'quiet'}>{st === 'failed' ? <>failed · <Term id="retryRule">retry</Term> from {fmtDate(dateOf(s, ts?.retryDay ?? 0))} at {F.pct(odds)}</> : <>if it fails: <Term id="retryRule">retry</Term> after {TREE_RETRY_DAYS} d at {F.pct(odds / 2)}</>}</Limit>}
       </div>
       {project && (
         <div className="sec">

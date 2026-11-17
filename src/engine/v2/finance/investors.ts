@@ -164,7 +164,7 @@ export function trancheConditionMet(s: GameStateV2, cond: string): boolean {
 /** capitalQ (420, quarterly): hype, investor pool, bubble roll, raises close, tranches land, valuation mark, rating,
  *  covenants, legacy recapitalisation. */
 export const capitalQSystem: EngineSystem = {
-  id: 'capitalQ', owner: 'WS3', cadence: 'quarterly', order: 420,
+  id: 'capitalQ', owner: 'WS3', cadence: 'quarterly', order: 420, system: 'finance',
   run(s, ctx) {
     ensureWs3(s);
     const c = s.capital;

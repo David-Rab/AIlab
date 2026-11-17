@@ -188,7 +188,7 @@ function launchVersion(s: GameStateV2, ch: Channel): ModelVersion | undefined {
 
 export const PRODUCT_ACTIONS: ActionDef[] = [
   {
-    id: 'product.launch', sphere: 'models', owner: 'WS1', title: 'Launch product',
+    id: 'product.launch', verb: 'launch', system: 'products', sphere: 'models', owner: 'WS1', title: 'Launch product',
     available: (s) => (s.player.models.versions.some(usable) ? true : 'No evaluated version'),
     preview: (s, p) => {
       const ch = str(p, 'channel', 'agents') as Channel;
@@ -230,7 +230,7 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
     },
   },
   {
-    id: 'product.update', sphere: 'models', owner: 'WS1', title: 'Update product',
+    id: 'product.update', verb: 'launch', system: 'products', sphere: 'models', owner: 'WS1', title: 'Update product',
     available: (s) => (firstProduct(s) ? true : 'No live product'),
     preview: (s, p) => {
       const d = productOf(s, str(p, 'id', '')) ?? firstProduct(s);
@@ -255,7 +255,7 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
     },
   },
   {
-    id: 'product.retire', sphere: 'models', owner: 'WS1', title: 'Retire product',
+    id: 'product.retire', verb: 'launch', system: 'products', sphere: 'models', owner: 'WS1', title: 'Retire product',
     available: (s) => (firstProduct(s) ? true : 'No live product'),
     preview: (s, p) => {
       const d = productOf(s, str(p, 'id', '')) ?? firstProduct(s);
@@ -274,7 +274,7 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
   },
   {
     // Manual serving share for one product: switches the Auto policy off (the override).
-    id: 'product.serving', sphere: 'models', owner: 'WS1', title: 'Serving share',
+    id: 'product.serving', verb: 'policy', system: 'products', sphere: 'models', owner: 'WS1', title: 'Serving share',
     available: (s) => (firstProduct(s) ? true : 'No live product'),
     preview: (s, p) => {
       const d = productOf(s, str(p, 'id', '')) ?? firstProduct(s);
@@ -293,7 +293,7 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
     },
   },
   {
-    id: 'feature.build', sphere: 'models', owner: 'WS1', title: 'Build feature',
+    id: 'feature.build', verb: 'launch', system: 'products', sphere: 'models', owner: 'WS1', title: 'Build feature',
     available: () => true,
     preview: (s, p) => {
       const f = FEATURE_BY_ID[str(p, 'id', 'memory') as FeatureId];
@@ -322,7 +322,7 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
     },
   },
   {
-    id: 'feature.toggle', sphere: 'models', owner: 'WS1', title: 'Feature on/off',
+    id: 'feature.toggle', verb: 'launch', system: 'products', sphere: 'models', owner: 'WS1', title: 'Feature on/off',
     available: (s) => (firstProduct(s) ? true : 'No live product'),
     preview: (s, p) => {
       const d = productOf(s, str(p, 'product', '')) ?? firstProduct(s);
@@ -351,7 +351,7 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
   },
   {
     // Product policies: Auto serving split, upgrade to the newest cleared model, auto-evaluate.
-    id: 'products.policy', sphere: 'models', owner: 'WS1', title: 'Product policy',
+    id: 'products.policy', verb: 'policy', system: 'products', sphere: 'models', owner: 'WS1', title: 'Product policy',
     available: () => true,
     preview: (s, p) => {
       const costs: CostLine[] = [{ currency: 'staffTime', amount: -1 }];

@@ -45,7 +45,7 @@ export const LOG_CAP = 600;
 export const HEADLINE_CAP = 200;
 
 export const recordSystem: EngineSystem = {
-  id: 'record', owner: 'WS1', cadence: 'weekly', order: 160,
+  id: 'record', owner: 'WS1', cadence: 'weekly', order: 160, system: 'core',
   run(s) {
     sampleSeries(s);
     trimCauses(s);

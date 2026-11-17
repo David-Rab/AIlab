@@ -116,3 +116,4 @@ export { canonicalKey } from './core/causes';
 export { quarterIndex, dayOfQuarter, dayOfDate } from './core/time';
 // End screen only (truth): the causal replay.
 export { topDecisions } from './endings/replay';
+export * from './core/limitsView';

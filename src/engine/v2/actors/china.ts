@@ -244,7 +244,7 @@ function reweight(s: GameStateV2, ctx: SystemCtx) {
 
 /** geoQ (440, quarterly): Taiwan/Korea rolls, export policy, China preset re-weighting, rival finance and orders. */
 export const geoQSystem: EngineSystem = {
-  id: 'geoQ', owner: 'WS4', cadence: 'quarterly', order: 440,
+  id: 'geoQ', owner: 'WS4', cadence: 'quarterly', order: 440, system: 'relations',
   run(s, ctx) {
     const w = ws4(s);
     const c = s.china;

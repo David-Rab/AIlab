@@ -490,7 +490,7 @@ function promoteEvaluated(s: GameStateV2, ctx: SystemCtx) {
 /** runs (40, daily): add FLOP to running runs; on completion create base/version, call WS2 applyRunToTraits,
  *  queue the eval. (Paradigm projects moved to the research system, models/tree.ts, in R4.) */
 export const runsSystem: EngineSystem = {
-  id: 'runs', owner: 'WS1', cadence: 'daily', order: 40,
+  id: 'runs', owner: 'WS1', cadence: 'daily', order: 40, system: 'models',
   run(s, ctx) {
     if (s.player.status !== 'active') return;
     // WS4 pauses frontier runs (status 'paused'); they resume when the pause ends.
@@ -615,7 +615,7 @@ export function startStream(s: GameStateV2, versionId: string, day: Day = s.time
 
 /** continual (45, daily): stream versions track pa; default frontier tracking for unmanaged rival/China labs. */
 export const continualSystem: EngineSystem = {
-  id: 'continual', owner: 'WS1', cadence: 'daily', order: 45,
+  id: 'continual', owner: 'WS1', cadence: 'daily', order: 45, system: 'models',
   run(s) {
     advanceStream(s);
     for (const r of [...s.rivals, s.china.lab]) defaultLabPolicy(s, r);

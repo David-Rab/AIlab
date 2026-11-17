@@ -7,7 +7,7 @@ const Y10_SD_DAILY = 0.25 / Math.sqrt(91); // σ = 25bp per quarter
 const Y10_REVERT_DAILY = 0.15 / 91; // [D] mean reversion ≈15% of the gap per quarter
 
 export const clockSystem: EngineSystem = {
-  id: 'clock', owner: 'WS1', cadence: 'daily', order: 10,
+  id: 'clock', owner: 'WS1', cadence: 'daily', order: 10, system: 'core',
   run(s, ctx) {
     s.time.day += 1;
     const c = s.capital;

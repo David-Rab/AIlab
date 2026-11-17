@@ -1395,8 +1395,8 @@ export interface EngineSystem {
   owner: WorkstreamId;
   cadence: Cadence;
   order: number;
-  /** Structure system this belongs to (optional until R10's lint-structure). */
-  system?: StructureSystem;
+  /** Structure system this belongs to (STRUCTURE §4; scripts/v2/lint-structure.ts). */
+  system: StructureSystem;
   run(s: GameStateV2, ctx: SystemCtx): void;
 }
 
@@ -1420,9 +1420,9 @@ export interface ActionDef<P = Record<string, number | string | boolean>> {
   apply(s: GameStateV2, ctx: SystemCtx, p: P): void | string;
   /** Board approval vector (speed, fin, safety, mission) if this is a major decision (§3.7.5). */
   boardVector?: [number, number, number, number];
-  /** Structure verb (STRUCTURE R2) and system (§4); optional until R10's lint-structure. */
-  verb?: ActionVerb;
-  system?: StructureSystem;
+  /** Structure verb (STRUCTURE R2) and system (§4); required (scripts/v2/lint-structure.ts). */
+  verb: ActionVerb;
+  system: StructureSystem;
 }
 
 export interface ChoiceV2 {

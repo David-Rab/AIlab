@@ -163,7 +163,7 @@ const load = (i: number) => deserialize(fixtures[i]);
     const lim = STORYTELLERS[st];
     for (let seed = 1; seed <= 12; seed++) {
       const s = newGame(defaultSetupV2({ seed, storyteller: st, tutorial: false }));
-      const spam: EngineSystem = { id: 'spam', owner: 'WS4', cadence: 'daily', order: 139, run: (x) => {
+      const spam: EngineSystem = { id: 'spam', owner: 'WS4', cadence: 'daily', order: 139, system: 'core', run: (x) => {
         // Requests obey cooldowns, so clear the record each day to keep the pressure on the storyteller limits.
         for (const id of ['E10', 'E19', 'E20', 'E25']) {
           delete x.events.fired[id];
@@ -172,7 +172,7 @@ const load = (i: number) => deserialize(fixtures[i]);
       } };
       let prev = new Set<string>();
       let lastEnd = -1e9;
-      const probe: EngineSystem = { id: 'probe', owner: 'WS4', cadence: 'daily', order: 141, run: (x) => {
+      const probe: EngineSystem = { id: 'probe', owner: 'WS4', cadence: 'daily', order: 141, system: 'core', run: (x) => {
         const cur = new Set(x.events.pending.filter((p) => p.crisis).map((p) => p.instance));
         if (cur.size > lim.maxCrises) bad.push(`${st}/${seed} day ${x.time.day}: ${cur.size} crises`);
         const ended = [...prev].some((i) => !cur.has(i));

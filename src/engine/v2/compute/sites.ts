@@ -224,7 +224,7 @@ export function installInventory(s: GameStateV2): number {
 
 /** sitesQ (410, quarterly): grid pool, kW efficiency, permitting/power/build stages and rolls, capex, installs. */
 export const sitesQSystem: EngineSystem = {
-  id: 'sitesQ', owner: 'WS3', cadence: 'quarterly', order: 410,
+  id: 'sitesQ', owner: 'WS3', cadence: 'quarterly', order: 410, system: 'compute',
   run(s, ctx) {
     ensureWs3(s);
     const q = qOf(s);

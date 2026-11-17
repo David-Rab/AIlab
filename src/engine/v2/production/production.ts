@@ -392,7 +392,7 @@ export function diffusionPerDay(s: GameStateV2): { dpa: number; from?: string } 
 /** production (30, daily): for player, rivals and China — readout, then pa += rate/365 (§3.2). Memoised readouts
  *  are cached on each lab (`prodCache`) and under ctx.memo 'WS1:production:<lab>'. */
 export const productionSystem: EngineSystem = {
-  id: 'production', owner: 'WS1', cadence: 'daily', order: 30,
+  id: 'production', owner: 'WS1', cadence: 'daily', order: 30, system: 'research',
   run(s, ctx) {
     const r = advanceLab(s, PLAYER_ID);
     if (r) {

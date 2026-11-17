@@ -383,7 +383,7 @@ function Limits({ s, card, prev }: { s: GameStateV2; card?: Card_; prev?: Card_ 
     <div className={`bp-lims n${tiles.length}`}>
       {tiles.map((t) => (
         <Tip key={t.id} as="div" content={t.tip}>
-          <div className={`bp-lim ${t.tone} ${t.old ? 'chg' : ''}`} data-limit={t.id}>
+          <div className={`bp-lim ${t.tone} ${t.old ? 'chg' : ''}`} data-tile={t.id}>
             <span className="lh"><t.icon size={13} /><Term id={t.term}>{t.label}</Term></span>
             <span className="lv">{t.old && <span className="was">{t.old} →</span>}{t.v}{t.u && <span className="u">{t.u}</span>}</span>
             {t.bar && <span className="bp-lbar"><i style={{ width: `${t.bar.f * 100}%` }} />{t.bar.mark !== undefined && <b style={{ left: `${t.bar.mark * 100}%` }} />}</span>}

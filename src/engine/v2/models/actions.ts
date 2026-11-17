@@ -95,7 +95,7 @@ function runPreview(s: GameStateV2, lp: LaunchRunParams): Preview {
 }
 
 const runAction = (id: string, title: string, kind: LaunchRunParams['kind'], extra?: (s: GameStateV2) => true | string): ActionDef => ({
-  id, sphere: 'models', owner: 'WS1', title,
+  id, verb: 'train', system: 'models', sphere: 'models', owner: 'WS1', title,
   available: (s) => (s.player.status !== 'active' ? 'Lab inactive' : extra ? extra(s) : true),
   preview: (s, p) => runPreview(s, runParams(s, kind, p)),
   apply: (s, ctx, p) => {
@@ -112,7 +112,7 @@ const RUN_ACTIONS: ActionDef[] = [
   runAction('launchDistill', 'Distill mini', 'distill'),
   runAction('launchContinue', 'Continue base', 'continue', (s) => (s.player.models.bases.length ? true : 'No base')),
   {
-    id: 'idaCycle', sphere: 'models', owner: 'WS1', title: 'Amplify',
+    id: 'idaCycle', verb: 'train', system: 'models', sphere: 'models', owner: 'WS1', title: 'Amplify',
     available: p18,
     preview: (s) => ({
       costs: [{ currency: 'compute', amount: 0.3, target: 'training pool share' }],
@@ -126,7 +126,7 @@ const RUN_ACTIONS: ActionDef[] = [
     },
   },
   {
-    id: 'runs.setShare', sphere: 'models', owner: 'WS1', title: 'Pool share',
+    id: 'runs.setShare', verb: 'train', system: 'models', sphere: 'models', owner: 'WS1', title: 'Pool share',
     available: (s) => (s.player.models.runs.some((r) => r.status === 'running') ? true : 'No running runs'),
     preview: (s, p) => {
       const r = s.player.models.runs.find((x) => x.id === str(p, 'runId', '')) ?? s.player.models.runs.find((x) => x.status === 'running');
@@ -145,7 +145,7 @@ const RUN_ACTIONS: ActionDef[] = [
     },
   },
   {
-    id: 'runs.spareTraining', sphere: 'models', owner: 'WS1', title: 'Spare training compute',
+    id: 'runs.spareTraining', verb: 'policy', system: 'models', sphere: 'models', owner: 'WS1', title: 'Spare training compute',
     available: () => true,
     preview: (s, p) => {
       const use = str(p, 'use', s.player.policies.spareTraining === 'data' ? 'research' : 'data');
@@ -163,7 +163,7 @@ const RUN_ACTIONS: ActionDef[] = [
     },
   },
   {
-    id: 'cancelRun', sphere: 'models', owner: 'WS1', title: 'Cancel run',
+    id: 'cancelRun', verb: 'train', system: 'models', sphere: 'models', owner: 'WS1', title: 'Cancel run',
     available: (s) => (s.player.models.runs.some((r) => r.status === 'running') ? true : 'No running runs'),
     preview: (s, p) => {
       const r = s.player.models.runs.find((x) => x.id === str(p, 'runId', '')) ?? s.player.models.runs.find((x) => x.status === 'running');
@@ -176,7 +176,7 @@ const RUN_ACTIONS: ActionDef[] = [
     },
   },
   {
-    id: 'startStream', sphere: 'models', owner: 'WS1', title: 'Continual learning',
+    id: 'startStream', verb: 'train', system: 'models', sphere: 'models', owner: 'WS1', title: 'Continual learning',
     available: (s) => (s.player.paradigms.P08?.status === 'adopted' ? true : 'Needs continual learning (P08)'),
     preview: () => ({
       costs: [{ currency: 'compute', amount: STREAM_POOL_SHARE, target: 'training pool share' }, { currency: 'monitorability', amount: -0.1 }],
@@ -186,7 +186,7 @@ const RUN_ACTIONS: ActionDef[] = [
     apply: (s, _ctx, p) => fail(startStream(s, str(p, 'versionId', internalVersion(s)?.id ?? ''))),
   },
   {
-    id: 'stopStream', sphere: 'models', owner: 'WS1', title: 'Stop stream',
+    id: 'stopStream', verb: 'train', system: 'models', sphere: 'models', owner: 'WS1', title: 'Stop stream',
     available: (s) => (s.player.models.stream ? true : 'No stream'),
     preview: () => ({ costs: [{ currency: 'progress', amount: -0.1 }], gains: [{ currency: 'compute', amount: STREAM_POOL_SHARE }, { currency: 'monitorability', amount: 0.05 }], exposure: [] }),
     apply: (s) => {
@@ -194,7 +194,7 @@ const RUN_ACTIONS: ActionDef[] = [
     },
   },
   {
-    id: 'makeVariant', sphere: 'models', owner: 'WS1', title: 'Make variant',
+    id: 'makeVariant', verb: 'launch', system: 'products', sphere: 'models', owner: 'WS1', title: 'Make variant',
     available: () => true,
     preview: (_s, p) => {
       const v = str(p, 'variant', 'gov');
@@ -208,13 +208,13 @@ const RUN_ACTIONS: ActionDef[] = [
     },
   },
   {
-    id: 'retireVersion', sphere: 'models', owner: 'WS1', title: 'Retire',
+    id: 'retireVersion', verb: 'launch', system: 'models', sphere: 'models', owner: 'WS1', title: 'Retire',
     available: () => true,
     preview: () => ({ costs: [{ currency: 'progress', amount: 0, target: 'option value' }], gains: [{ currency: 'compute', amount: 0.01 }], exposure: [] }),
     apply: (s, _ctx, p) => fail(retireVersion(s, str(p, 'versionId', ''))),
   },
   {
-    id: 'runEvals', sphere: 'models', owner: 'WS1', title: 'Run evals',
+    id: 'runEvals', verb: 'policy', system: 'models', sphere: 'models', owner: 'WS1', title: 'Run evals',
     available: () => true,
     preview: (_s, p) => {
       const by = str(p, 'by', 'self');
@@ -276,13 +276,13 @@ function splitPreview(s: GameStateV2, next: ComputeSplit): Preview {
 
 export const DEPARTMENT_ACTIONS: ActionDef[] = [
   {
-    id: 'setSplit', sphere: 'departments', owner: 'WS1', title: 'Compute split',
+    id: 'setSplit', verb: 'policy', system: 'compute', sphere: 'departments', owner: 'WS1', title: 'Compute split',
     available: () => true,
     preview: (s, p) => splitPreview(s, splitFromParams(s, p)),
     apply: (s, _ctx, p) => fail(applySplit(s, splitFromParams(s, p), p)),
   },
   {
-    id: 'splitPreset', sphere: 'departments', owner: 'WS1', title: 'Split preset',
+    id: 'splitPreset', verb: 'policy', system: 'compute', sphere: 'departments', owner: 'WS1', title: 'Split preset',
     available: () => true,
     preview: (s, p) => splitPreview(s, presetSplit(str(p, 'preset', 'reference') as SplitPreset, decimalYear(s), s.player.split)),
     apply: (s, _ctx, p) => fail(applySplit(s, presetSplit(str(p, 'preset', 'reference') as SplitPreset, decimalYear(s), s.player.split), p)),
@@ -291,7 +291,7 @@ export const DEPARTMENT_ACTIONS: ActionDef[] = [
   ...BUILD_ACTIONS,
   ...AGENT_ACTIONS,
   {
-    id: 'starHire', sphere: 'departments', owner: 'WS1', title: 'Star hire',
+    id: 'starHire', verb: 'hire', system: 'people', sphere: 'departments', owner: 'WS1', title: 'Star hire',
     available: (s) => (s.player.tasteHire >= STAR_HIRE.maxTaste ? 'Taste bench is full' : s.player.finance.cash < starCost(s) ? 'Not enough cash' : true),
     preview: (s) => ({
       costs: [{ currency: 'cash', amount: starCost(s) }, { currency: 'trust', amount: STAR_HIRE.cooperation, target: 'rivals' }],

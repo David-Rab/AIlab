@@ -49,7 +49,7 @@ function productGain(s: GameStateV2, sector: SectorId): number {
 }
 
 const sectorProduct: ActionDef = {
-  id: 'wfx.sectorProduct',
+  id: 'wfx.sectorProduct', verb: 'launch', system: 'products',
   sphere: 'world',
   owner: 'WS5',
   title: 'Sector product',
@@ -84,7 +84,7 @@ const sectorProduct: ActionDef = {
  *  Retrain, cap +0.5; research/07 JobAnxiety relief). The single implementation of the fund: WS4 events call
  *  `setTransitionFund`; WS3's payroll system charges it monthly through the finance ledger. */
 const transitionFund: ActionDef = {
-  id: 'wfx.transitionFund',
+  id: 'wfx.transitionFund', verb: 'deal', system: 'world',
   sphere: 'world',
   owner: 'WS5',
   title: 'Transition fund',
@@ -156,7 +156,7 @@ function defaultTech(s: GameStateV2): string | undefined {
 /** Science moonshot: assign a share of compute to one world technology (research/16 §3.1). Taken from the serving
  *  pool first, so it is a revenue sink; benefits and approval on discovery; dual-use exposure for risk techs. */
 const moonshot: ActionDef = {
-  id: 'wfx.moonshot',
+  id: 'wfx.moonshot', verb: 'deal', system: 'world',
   sphere: 'world',
   owner: 'WS5',
   title: 'Moonshot',

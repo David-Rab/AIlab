@@ -671,7 +671,7 @@ const MASK_DECAY_DAILY = Math.pow(0.98, 12 / 365); // 2 %/month
 
 /** traitsDaily (75, daily): deployment signal S8, continual-learning drift, memory drift, mask decay. */
 export const traitsDailySystem: EngineSystem = {
-  id: 'traitsDaily', owner: 'WS2', cadence: 'daily', order: 75,
+  id: 'traitsDaily', owner: 'WS2', cadence: 'daily', order: 75, system: 'safety',
   run(s) {
     setFlag(s, 'S8', Math.round(deploymentS8(s) * 1000) / 1000);
     const stream = s.player.models.stream;

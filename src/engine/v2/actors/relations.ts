@@ -118,7 +118,7 @@ function relationsDaily(s: GameStateV2, ctx: SystemCtx) {
 /** actorsDaily (120, daily): public meters, bloc mobilization decay, gov ladder hold-days, favor expiry, scrutiny
  *  decay; weekly research-body work and drift flush. */
 export const actorsDailySystem: EngineSystem = {
-  id: 'actorsDaily', owner: 'WS4', cadence: 'daily', order: 120,
+  id: 'actorsDaily', owner: 'WS4', cadence: 'daily', order: 120, system: 'relations',
   run(s, ctx) {
     const w = ws4(s);
     if (!w.gdp0) w.gdp0 = s.world.macro.US.gdp;

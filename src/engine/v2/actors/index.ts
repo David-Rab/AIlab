@@ -66,7 +66,7 @@ export function gradeRival(s: GameStateV2, lab: LabId): IndexGrade {
 
 /** index (500, semiannual): Safety Index edition: grades from observables only. */
 export const indexSystem: EngineSystem = {
-  id: 'index', owner: 'WS4', cadence: 'semiannual', order: 500,
+  id: 'index', owner: 'WS4', cadence: 'semiannual', order: 500, system: 'relations',
   run(s, ctx) {
     const idx = s.researchBodies.index;
     const grades: Record<LabId, IndexGrade> = { player: gradePlayer(s) };

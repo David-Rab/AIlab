@@ -77,7 +77,7 @@ async function iaScan(screen) {
     const shell = [...document.querySelectorAll('.topstrip2 [data-home], .nav2 [data-home], .bottombar2 [data-home]')].map((e) => e.getAttribute('data-home'));
     const missing = [...document.querySelectorAll('[data-term-missing]')].map((e) => e.getAttribute('data-term'));
     const text = document.body.innerText;
-    const floats = text.match(/\d\.\d{5,}/g) ?? [];
+    const floats = text.match(/\d\.\d{5,}|\d{12,}/g) ?? [];
     return { homes, shell, missing, floats };
   });
   const dupHere = r.homes.filter((h, i) => r.homes.indexOf(h) !== i);
@@ -345,14 +345,14 @@ await check('Debt kind', `document.querySelector('[data-panel=finance]').innerHT
 await nav('blueprint');
 await page.click('[data-panel=blueprint] [data-bp-kind=base]').catch(() => {});
 await wait(80);
-ok('Blueprint: size card with 7 limit tiles', (await page.$$('[data-panel=blueprint] [data-limit]')).length === 7);
+ok('Blueprint: size card with 7 limit tiles', (await page.$$('[data-panel=blueprint] [data-tile]')).length === 7);
 ok('Blueprint: slot table by layer (Backbone, Training, Scaffold)', JSON.parse(await get(`(() => { const t = document.querySelector('[data-home=blueprintSlots]')?.innerText ?? ''; return /BACKBONE/.test(t) && /TRAINING/.test(t) && /SCAFFOLD/.test(t); })()`)));
-await check('Blueprint: size ×4 changes the wall time', `document.querySelector('[data-panel=blueprint] [data-limit=wall]').innerText`, () => page.click('[data-panel=blueprint] [data-size="4"]'));
+await check('Blueprint: size ×4 changes the wall time', `document.querySelector('[data-panel=blueprint] [data-tile=wall]').innerText`, () => page.click('[data-panel=blueprint] [data-size="4"]'));
 ok('Blueprint: tiles show before → after on a size change', (await page.$$('[data-panel=blueprint] .bp-lim.chg .was')).length >= 4);
-ok('Blueprint: ×4 serves at 2× the ×1 cost (√size)', JSON.parse(await get(`(() => { const t = document.querySelector('[data-panel=blueprint] [data-limit=serve]').innerText; const m = t.match(/([0-9.]+)\\s*→\\s*([0-9.]+)/); return !!m && Math.abs(Number(m[2]) / Number(m[1]) - 2) < 0.03; })()`)));
+ok('Blueprint: ×4 serves at 2× the ×1 cost (√size)', JSON.parse(await get(`(() => { const t = document.querySelector('[data-panel=blueprint] [data-tile=serve]').innerText; const m = t.match(/([0-9.]+)\\s*→\\s*([0-9.]+)/); return !!m && Math.abs(Number(m[2]) / Number(m[1]) - 2) < 0.03; })()`)));
 await clearTips();
 await shot('43-blueprint-x4');
-await page.hover('[data-panel=blueprint] [data-limit=behind] .lv');
+await page.hover('[data-panel=blueprint] [data-tile=behind] .lv');
 await wait(500);
 ok('Blueprint: limit tile tooltip states its rule', JSON.parse(await get(`/judgement/.test(document.querySelector('.tip')?.innerText ?? '')`)));
 await clearTips();
@@ -659,6 +659,88 @@ for (const start of ['spinout', 'challenger']) {
   await shot(`61-${start}-day400`);
 }
 ok('R9 IA: start screens keep one home per datum, terms resolve, no raw floats', iaIssues.length === ia9, iaIssues.slice(ia9, ia9 + 6).join(' | '));
+
+// ───────────────────────── R10: limits registry (data-limit), top strip revenue, Overview core loop, codex ─────────────────────────
+// Every limit of src/data/v2/limits.ts must show (data-limit) on its home screen, or in the codex's Limits category when
+// its home is the codex. Conditional limits get the state that makes them bind (pause, a public timer, a case).
+const LIMIT_DEFS = [...readFileSync('src/data/v2/limits.ts', 'utf8').matchAll(/\{ id: '([^']+)', title: [^\n]*?home: \{ panel: '(\w+)'(?:, tab: '(\w+)')? \}/g)].map((m) => ({ id: m[1], panel: m[2], tab: m[3] }));
+const limitSeen = new Set();
+const collectLimits = async () => { for (const id of await page.$$eval('[data-limit]', (els) => els.map((e) => e.getAttribute('data-limit')))) limitSeen.add(id); };
+const hoverCollect = async (sel) => { const el = await page.$(sel); if (!el) return; await el.hover(); await wait(450); await collectLimits(); await clearTips(); };
+ok('Limits registry parsed', LIMIT_DEFS.length >= 20, `${LIMIT_DEFS.length} limits`);
+// the challenger fixture (leader lab on) is loaded: knowledge diffusion shows on research speed
+await nav('company');
+await tabTo('flow');
+await collectLimits();
+ok('R10 challenger: research speed shows knowledge diffusion', limitSeen.has('speed.diffusion'));
+await shot('70-challenger-speed-limits');
+await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
+await page.evaluate(() => {
+  const st = window.ai27v2;
+  const s = st.state;
+  s.setup.tutorial = false;
+  s.flags.paused = true;
+  const inc = s.player.safety.incidents.find((i) => i.status === 'open');
+  if (inc) { inc.exposure = 'customer'; inc.publicTimerDays = 9; }
+  st.notify();
+});
+await closeModals();
+await page.evaluate(() => window.ai27v2.act('safety.investigate', { trait: 'SUCC', fte: 20 }));
+for (const l of LIMIT_DEFS.filter((x) => x.panel !== 'codex')) {
+  if (limitSeen.has(l.id)) continue;
+  await nav(l.panel);
+  if (l.tab) await tabTo(l.tab);
+  if (l.panel === 'research') {
+    const ids = await page.$$eval('[data-panel=research] .rs-node:not(.st-known):not(.st-soon)', (els) => els.map((e) => e.getAttribute('data-node')));
+    for (const id of ids.slice(0, 12)) {
+      await page.click(`[data-panel=research] .rs-node[data-node="${id}"]`).catch(() => {});
+      await wait(60);
+      if (await page.$('[data-limit="tree.retry"]')) break;
+    }
+  }
+  await wait(80);
+  await collectLimits();
+  if (l.panel === 'products') { await hoverCollect('[data-panel=products] .pc-cost'); await hoverCollect('[data-panel=products] [data-test^="prod-bind."]'); }
+}
+await nav('company');
+await tabTo('flow');
+await shot('71-day900-speed-limits');
+await nav('codex');
+await page.click('[data-codex-cat="Limits"]');
+await wait(80);
+const codexLimits = await page.$$eval('[data-codex^="lim:"]', (els) => els.map((e) => e.getAttribute('data-codex').slice(4)));
+for (const l of LIMIT_DEFS.filter((x) => x.panel === 'codex')) if (codexLimits.includes(l.id)) limitSeen.add(l.id);
+const missingLimits = LIMIT_DEFS.filter((l) => !limitSeen.has(l.id)).map((l) => `${l.id} (${l.panel}${l.tab ? '.' + l.tab : ''})`);
+ok(`R10 limits: every registry limit is shown where it binds (${LIMIT_DEFS.length})`, missingLimits.length === 0, missingLimits.join(', '));
+ok('R10 codex: every limit listed under Limits', codexLimits.length === LIMIT_DEFS.length, `${codexLimits.length} of ${LIMIT_DEFS.length}`);
+const unknownLimits = [...limitSeen].filter((id) => !LIMIT_DEFS.some((l) => l.id === id));
+ok('R10 limits: every data-limit is in the registry', unknownLimits.length === 0, unknownLimits.join(', '));
+await page.evaluate(() => { window.ai27v2.state.flags.paused = false; window.ai27v2.notify(); });
+// Codex opens on the structure diagram; the simulated-world note is there.
+await page.click('[data-codex-cat="Structure"]');
+await wait(80);
+ok('R10 codex: core-loop structure diagram', !!(await page.$('.codex-entry [data-test=coreloop-static] [data-loop=teams]')));
+await check('R10 codex: simulated-from-outside note', `document.querySelector('.codex-entry').innerText`, () => page.click('[data-codex="s:outside"]'));
+ok('R10 codex: rivals are simplified', (await page.locator('.codex-entry').innerText()).includes('simulated from the outside'));
+await shot('72-codex-structure');
+// Top strip: revenue only, users in its tooltip; U with "validated to" in the race tooltip.
+ok('R10 top strip: revenue chip is the revenue home', !!(await page.$('.topstrip2 [data-test=revenue] [data-home=revenueRun]')) && !(await page.$('main.center [data-home=revenueRun]')));
+await page.hover('[data-test=revenue]');
+await wait(450);
+ok('R10 top strip: revenue tooltip lists products and weekly users', /weekly users/i.test(await page.evaluate(() => document.body.innerText)));
+await shot('73-hover-revenue');
+await clearTips();
+await page.hover('[data-test=race]');
+await wait(450);
+ok('R10 top strip: race tooltip shows tools validated to', !!(await page.$('[data-test=validated-to]')));
+await clearTips();
+// Overview: the core loop, a verdict per system, nodes link to their homes.
+await nav('overview');
+ok('R10 Overview: core loop with nine systems', (await page.$$('[data-test=coreloop] [data-loop]')).length === 9);
+await check('R10 Overview: a loop node opens its home', 'store.panel', () => page.click('[data-test=coreloop] [data-loop=research]'));
+await nav('overview');
+await iaScan('overview:r10');
+await shot('74-overview-loop');
 await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
 
 // ───────────────────────── end screen ─────────────────────────

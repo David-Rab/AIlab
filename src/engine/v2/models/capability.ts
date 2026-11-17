@@ -250,7 +250,7 @@ export function trueLeadDays(s: GameStateV2, other: LabId): number {
 
 /** milestones (50, daily): first-crossing record per lab (fixes v1 bug #3), SC day, act transitions. */
 export const milestonesSystem: EngineSystem = {
-  id: 'milestones', owner: 'WS1', cadence: 'daily', order: 50,
+  id: 'milestones', owner: 'WS1', cadence: 'daily', order: 50, system: 'models',
   run(s, ctx) {
     const w = s.hidden.timeline;
     const thr = thresholds(w);

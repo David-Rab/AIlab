@@ -70,7 +70,7 @@ function catastropheCheck(s: GameStateV2, ctx: SystemCtx): EndingV2['id'] | unde
 
 /** endings (150, daily): Check end conditions in §5.1 order; set s.ending. */
 export const endingsSystem: EngineSystem = {
-  id: 'endings', owner: 'WS4', cadence: 'daily', order: 150,
+  id: 'endings', owner: 'WS4', cadence: 'daily', order: 150, system: 'core',
   run(s, ctx) {
     if (s.ending) return;
     const w = ws4(s);

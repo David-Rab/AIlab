@@ -45,7 +45,7 @@ export function whistleHazard(s: GameStateV2): number {
 
 /** security (90, daily): WSL movement, spies, theft hazard, insider leaks, distillation flow, exfiltration hazard. */
 export const securitySystem: EngineSystem = {
-  id: 'security', owner: 'WS4', cadence: 'daily', order: 90,
+  id: 'security', owner: 'WS4', cadence: 'daily', order: 90, system: 'relations',
   run(s, ctx) {
     const w = ws4(s);
     const sec = s.player.security;

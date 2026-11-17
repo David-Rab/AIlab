@@ -16,7 +16,6 @@
 //    When a node becomes known its teams move on to the line's next open node, else the line's follow-up project.
 // Product-feature nodes wait for live products (R6).
 import { AG17_MIN_L, AGENDAS } from '../../../data/v2/agendas';
-import { PARADIGMS } from '../../../data/v2/paradigms';
 import { START_BY_ID } from '../../../data/v2/starts';
 import {
   CAPACITY_UNIT, EFFORT_TM, OPTION_NODE, PROJECT_BY_ID, SPECIALTY_BONUS, TREE, TREE_RETRY_DAYS, isLineNode, lineNodeId,
@@ -478,9 +477,6 @@ export function treeCounts(s: GameStateV2): { known: number; total: number } {
   for (const n of TREE) if (nodeKnown(s, n.id)) known++;
   return { known, total: TREE.length };
 }
-
-/** Paradigm ids in the tree (sanity: every paradigm has a node). */
-export const TREE_PARADIGMS = PARADIGMS.map((p) => p.id).filter((id) => TREE.some((n) => n.id === id));
 
 /** Know-how (STRUCTURE §4.2): the lab's know-how and how much of it the internal model embodies (its base's know-how
  *  plus κ of what came after, or the stream's tracked know-how). The gap is the reason to train. Years of progress. */

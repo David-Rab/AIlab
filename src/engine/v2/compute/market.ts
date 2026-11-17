@@ -442,7 +442,7 @@ function deliverToLab(s: GameStateV2, lab: LabId, qty: number) {
 /** marketQ (400, quarterly): supply pipelines, orders, clearing, price, deliveries → inventory. Installation into
  *  sites happens in sitesQ (410) once power is ready. */
 export const marketQSystem: EngineSystem = {
-  id: 'marketQ', owner: 'WS3', cadence: 'quarterly', order: 400,
+  id: 'marketQ', owner: 'WS3', cadence: 'quarterly', order: 400, system: 'compute',
   run(s, ctx) {
     clearMarket(s, ctx);
     // Completed player orders leave the book. An LTA rolls to its next tranche on delivery (`deliver`), so it stays

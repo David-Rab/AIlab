@@ -184,3 +184,13 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
   return undefined;
 }
 
+
+/** Current lab-wide patch multipliers on the edges into a trait (1 = never patched; PATCH_FLOOR = as low as patches go):
+ *  the response card's "diminishing patches" readout (LIMITS response.patchFloor). */
+export function patchLevel(s: GameStateV2, trait: TraitId): { lo: number; hi: number; atFloor: boolean } {
+  const xs = edgesInto(trait).map((e) => flagNum(s, `patch.lab.${e}`, 1));
+  if (!xs.length) return { lo: 1, hi: 1, atFloor: false };
+  const lo = Math.min(...xs);
+  const hi = Math.max(...xs);
+  return { lo, hi, atFloor: hi <= PATCH_FLOOR + 1e-9 };
+}

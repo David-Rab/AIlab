@@ -40,20 +40,20 @@ export function nodePreview(s: GameStateV2, id: string): Preview {
 
 export const TREE_ACTIONS: ActionDef[] = [
   {
-    id: 'research.queue', sphere: 'models', owner: 'WS1', title: 'Queue',
+    id: 'research.queue', verb: 'research', system: 'research', sphere: 'models', owner: 'WS1', title: 'Queue',
     available: (s) => (s.player.status === 'active' ? true : 'Lab inactive'),
     preview: (s, p) => nodePreview(s, nodeParam(s, p)),
     apply: (s, _ctx, p) => fail(queueNode(s, nodeParam(s, p), typeof p.at === 'number' ? num(p, 'at', 0) : undefined)),
   },
   {
-    id: 'research.start', sphere: 'models', owner: 'WS1', title: 'Start now',
+    id: 'research.start', verb: 'research', system: 'research', sphere: 'models', owner: 'WS1', title: 'Start now',
     available: (s) => (s.player.status === 'active' ? true : 'Lab inactive'),
     preview: (s, p) => nodePreview(s, nodeParam(s, p)),
     // Top of the queue: the next idle team joins it (auto-assign), or assign one by hand.
     apply: (s, _ctx, p) => fail(queueNode(s, nodeParam(s, p), 0)),
   },
   {
-    id: 'research.dequeue', sphere: 'models', owner: 'WS1', title: 'Drop',
+    id: 'research.dequeue', verb: 'research', system: 'research', sphere: 'models', owner: 'WS1', title: 'Drop',
     available: (s) => (s.player.research.queue.length ? true : 'No projects'),
     preview: (s, p) => {
       const id = str(p, 'id', s.player.research.queue[0] ?? '');
@@ -63,7 +63,7 @@ export const TREE_ACTIONS: ActionDef[] = [
     apply: (s, _ctx, p) => fail(dequeueNode(s, str(p, 'id', s.player.research.queue[0] ?? ''))),
   },
   {
-    id: 'research.move', sphere: 'models', owner: 'WS1', title: 'Reorder',
+    id: 'research.move', verb: 'research', system: 'research', sphere: 'models', owner: 'WS1', title: 'Reorder',
     available: (s) => (s.player.research.queue.length > 1 ? true : 'Nothing to reorder'),
     preview: (s, p) => {
       const id = str(p, 'id', s.player.research.queue[s.player.research.queue.length - 1] ?? '');
@@ -72,7 +72,7 @@ export const TREE_ACTIONS: ActionDef[] = [
     apply: (s, _ctx, p) => fail(moveInQueue(s, str(p, 'id', ''), num(p, 'to', 0))),
   },
   {
-    id: 'research.assign', sphere: 'models', owner: 'WS1', title: 'Assign',
+    id: 'research.assign', verb: 'research', system: 'research', sphere: 'models', owner: 'WS1', title: 'Assign',
     available: (s) => (projectTeams(s).length ? true : 'No science teams'),
     preview: (s, p) => {
       const id = nodeParam(s, p);
@@ -89,7 +89,7 @@ export const TREE_ACTIONS: ActionDef[] = [
     apply: (s, _ctx, p) => fail(assignTeam(s, teamParam(s, p), nodeParam(s, p))),
   },
   {
-    id: 'research.unassign', sphere: 'models', owner: 'WS1', title: 'Take off',
+    id: 'research.unassign', verb: 'research', system: 'research', sphere: 'models', owner: 'WS1', title: 'Take off',
     available: (s) => (s.player.teams.some((t) => t.projectId) ? true : 'No team on a project'),
     preview: (s, p) => {
       const team = s.player.teams.find((t) => t.id === str(p, 'team', s.player.teams.find((t) => t.projectId)?.id ?? ''));
@@ -100,7 +100,7 @@ export const TREE_ACTIONS: ActionDef[] = [
     apply: (s, _ctx, p) => fail(unassignTeam(s, teamParam(s, p))),
   },
   {
-    id: 'research.autoAssign', sphere: 'models', owner: 'WS1', title: 'Auto-assign',
+    id: 'research.autoAssign', verb: 'policy', system: 'research', sphere: 'models', owner: 'WS1', title: 'Auto-assign',
     available: () => true,
     preview: (s, p) => {
       const on = p.on === undefined ? !s.player.research.autoAssign : p.on === true;

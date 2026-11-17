@@ -285,7 +285,7 @@ export function teamLabel(t: Pick<Team, 'role' | 'dept' | 'specialty'>): string 
 
 /** hiring (200, weekly): team attrition, offers, keep-hiring policy, team arrivals. */
 export const hiringSystem: EngineSystem = {
-  id: 'hiring', owner: 'WS1', cadence: 'weekly', order: 200,
+  id: 'hiring', owner: 'WS1', cadence: 'weekly', order: 200, system: 'people',
   run(s, ctx) {
     if (s.player.status !== 'active') return;
     teamsWeek(s, ctx);

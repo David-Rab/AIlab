@@ -1,16 +1,18 @@
-// Overview (IA.md L1, the main screen): lead track · race history · Watch, plus Goals while the tutorial runs.
-// Nothing else: every other datum lives one level down.
+// Overview (IA.md L1, the main screen): your company as the core loop (STRUCTURE §2, a verdict per system linking to
+// its home) · lead track · race history · Watch, plus Goals while the tutorial runs. Nothing else: every other datum
+// lives one level down.
 import { useState } from 'react';
 import { activeRivals, dateOf, fmtDate, fmtMonth, leadDays } from '../../../engine/v2';
 import type { GameStateV2 } from '../../../engine/v2';
 import { store } from '../store';
 import { Term, Tip, TipCard } from '../ui';
-import { Card, CauseChain, GoBtn } from '../kit';
+import { Card, CauseChain, GoBtn, Ref } from '../kit';
 import * as F from '../fmt';
 import { ICON } from '../icons';
 import { C } from '../theme';
 import { watchItems } from '../shell/watch';
 import { Goals, goalsActive } from '../shell/Onboarding';
+import { CoreLoop } from './CoreLoop';
 
 function monogram(name: string) {
   const w = name.split(/[\s-]+/).filter(Boolean);
@@ -145,6 +147,9 @@ export function Overview({ s }: { s: GameStateV2 }) {
   const goals = goalsActive(s);
   return (
     <div className="panel-v2 overview" data-panel="overview">
+      <Card title="Your company" sub="the core loop · a verdict per system · hover for numbers, click for its screen" id="ctl-coreloop" right={<Ref id="codex.loop" to={{ panel: 'codex' }}>How it works</Ref>}>
+        <CoreLoop s={s} live />
+      </Card>
       <Card title="Who is close" sub="each lab's best internal model, relative to yours · estimates ± intel error · hover a lane, click for the lab" id="ctl-leadtrack"
         right={<span className="legend2"><span><i style={{ background: C.rival }} />US rival</span><span><i style={{ background: C.china }} />China</span></span>}>
         <LeadTrack s={s} />

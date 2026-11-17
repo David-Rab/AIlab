@@ -182,7 +182,7 @@ check(share(x2.map((r) => r.firstDistress >= 0 && r.firstDistress < END_2027)) >
   s.player.finance.cash = 1e6; // isolate the stage machine from money
   // Neutral sentiment: hold WS4's data-centre opposition (pub.dcNimby) at its start value for the site rolls.
   const nimby0 = s.pub.dcNimby;
-  const neutral: EngineSystem = { id: 'testNeutralNimby', owner: 'WS3', cadence: 'daily', order: 405, run: (x) => void (x.pub.dcNimby = nimby0) };
+  const neutral: EngineSystem = { id: 'testNeutralNimby', owner: 'WS3', cadence: 'daily', order: 405, system: 'core', run: (x) => void (x.pub.dcNimby = nimby0) };
   // C15 is the permitting roll: WS4's director is off too, else E27 "Site blocked" (default: community deal) re-permits
   // every blocked site over the 5 years.
   while (s.time.day < 365 * 5) tick(s, { skip: ['marketQ', 'endings', 'director'], extraSystems: [neutral] });

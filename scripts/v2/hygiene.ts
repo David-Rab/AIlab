@@ -207,7 +207,7 @@ const logged = (opts?: Parameters<typeof tick>[1]) => {
   for (const k of STREAMS) if (out.expected[k] !== undefined && s.rng[k] !== out.expected[k]) out.broken.add(`${k} (final state)`);
   return { s, log: out };
 };
-const probe = (stream: StreamId): EngineSystem => ({ id: `probe-${stream}`, owner: 'WS1', cadence: 'daily', order: 999, run: (_s, ctx) => void ctx.rng(stream).float() });
+const probe = (stream: StreamId): EngineSystem => ({ id: `probe-${stream}`, owner: 'WS1', cadence: 'daily', order: 999, system: 'core', run: (_s, ctx) => void ctx.rng(stream).float() });
 const base = logged();
 const consumed = STREAMS.filter((k) => (base.log.draws[k] ?? 0) > 0);
 console.log(`      draws in 400 days: ${STREAMS.map((k) => `${k} ${base.log.draws[k] ?? 0}`).join(', ')}`);
@@ -271,7 +271,7 @@ check(threw, 'save: v1 save is rejected (no migration)');
 // ---------- 6. Cadences ----------
 const counts: Record<Cadence, number> = { daily: 0, weekly: 0, monthly: 0, quarterly: 0, semiannual: 0 };
 const expected: Record<Cadence, number> = { daily: 0, weekly: 0, monthly: 0, quarterly: 0, semiannual: 0 };
-const counters: EngineSystem[] = (Object.keys(counts) as Cadence[]).map((c, i) => ({ id: `count-${c}`, owner: 'WS1', cadence: c, order: 990 + i, run: () => void counts[c]++ }));
+const counters: EngineSystem[] = (Object.keys(counts) as Cadence[]).map((c, i) => ({ id: `count-${c}`, owner: 'WS1', cadence: c, order: 990 + i, system: 'core', run: () => void counts[c]++ }));
 const cs = newGame(defaultSetupV2({ seed: 7 }));
 for (let d = 1; d <= 730; d++) for (const c of cadencesDue(cs.time.startDate, d)) expected[c]++;
 runTo(cs, 730, { extraSystems: counters, skip: ['endings'] }); // an idle player may be ousted; cadences only

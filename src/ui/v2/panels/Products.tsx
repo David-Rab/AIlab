@@ -16,11 +16,11 @@ import { AGENT_TASK_HOURS, FEATURES, PRICE_TIER_IDS, PRICE_TIERS, PRODUCT_DEFS, 
 import { TREE_BY_ID } from '../../../data/v2/tree';
 import {
   CHANNEL_VARIANTS, agentsGate, buildEtas, catchRate, dateOf, deployGate, editBlock, editedProduct, effortLock, fmtDate, isProduct, measuredHorizonH,
-  measuredLOf, nodeKnown, previewEdit, productReadouts, servingPool, versionById,
+  demandModifiers, measuredLOf, nodeKnown, PENALTY_MAX, previewEdit, productReadouts, revenueSpeedCap, servingPool, versionById,
 } from '../../../engine/v2';
 import type { Channel, Deployment, GameStateV2, ModelVersion, PriceTier, ProductChanges, ProductRead } from '../../../engine/v2';
 import { store } from '../store';
-import { ActBtn, Seg, Term, Tip, TipCard, type Params } from '../ui';
+import { ActBtn, Limit, Seg, Term, Tip, TipCard, type Params } from '../ui';
 import { Card, PanelHead, Spark2 } from '../kit';
 import * as F from '../fmt';
 import { ICON } from '../icons';
@@ -156,6 +156,7 @@ function ProductCard({ s, d, r, draft, setDraft }: { s: GameStateV2; d: Deployme
         { label: 'Serving it uses', value: `${F.h100e(Math.min(r.servedH100e, r.needH100e))} H100e` },
         { label: <Term id="monitor">Monitor overhead</Term>, value: d.monitorId ? `+${F.pct(r.monitorOverhead, 1)} of serving` : 'no monitor' },
         { label: <Term id="revPerH100e">Revenue per H100e</Term>, value: rate(r.rpH) },
+        { label: 'Model research speed', value: (() => { const c = revenueSpeedCap(s, v); return <Limit id="revenue.speedCap" tone={c.capped ? 'warn' : 'quiet'}>{F.mult(c.M)}{c.capped ? ` → counts as ${c.cap}×` : ` · counts up to ${c.cap}×`}</Limit>; })() },
       ] : []}>Serving compute at the rental-equivalent price of an H100e.</TipCard>}>
         <div className="pc-cost"><ICON.cash size={12} /><b>{r ? F.money(r.runCost, { perYear: true }) : '—'}</b><span className="dim">to run</span><span className="sp" />{d.monitorId && r && <span className="dim">monitor +{F.pct(r.monitorOverhead)}</span>}</div>
       </Tip>
@@ -174,7 +175,7 @@ function ProductCard({ s, d, r, draft, setDraft }: { s: GameStateV2; d: Deployme
         </Tip>
       )}
 
-      {r && <Share d={d} r={r} />}
+      {r && <Share s={s} d={d} r={r} />}
       {r && <Binding s={s} d={d} r={r} set={set} />}
 
       <Features s={s} d={d} />
@@ -216,7 +217,8 @@ function ProductCard({ s, d, r, draft, setDraft }: { s: GameStateV2; d: Deployme
   );
 }
 
-function Share({ d, r }: { d: Deployment; r: ProductRead }) {
+function Share({ s, d, r }: { s: GameStateV2; d: Deployment; r: ProductRead }) {
+  const erosion = s.world.fx.capPenalty[d.channel === 'consumer' ? 'consumer' : 'sector'];
   const max = Math.max(r.share, r.rival?.share ?? 0, 0.01);
   const def = PRODUCT_DEFS[d.channel];
   return (
@@ -229,6 +231,7 @@ function Share({ d, r }: { d: Deployment; r: ProductRead }) {
         <div className="pc-cap"><Term id="segmentShare">Share</Term><span className="dim">· {def?.segment}</span></div>
         <div className="sh"><span className="who">You</span><span className="b"><i style={{ width: `${(r.share / max) * 100}%`, background: C.you }} /></span><span className="n">{F.pct(r.share)}</span></div>
         {r.rival && <div className="sh"><span className="who">{r.rival.name}</span><span className="b"><i style={{ width: `${(r.rival.share / max) * 100}%`, background: C.rival }} /></span><span className="n">{F.pct(r.rival.share)}</span></div>}
+        {erosion > 0.005 && <Limit id="product.erosion" tone={erosion >= PENALTY_MAX - 1e-6 ? 'bind' : 'warn'}>capacity-bound: share −{F.pct(erosion)} (max {F.pct(PENALTY_MAX)})</Limit>}
       </div>
     </Tip>
   );
@@ -262,9 +265,10 @@ function Binding({ s, d, r, set }: { s: GameStateV2; d: Deployment; r: ProductRe
       { label: <><Term id="servingShare">Served</Term> (<Term id="autoServing">{s.player.policies.servingAuto ? 'Auto rule' : 'your share'}</Term>)</>, value: `${F.h100e(r.servedH100e)} H100e` },
       { label: <Term id="servingCut">Unserved</Term>, value: r.cutH100e > 0 ? `${F.h100e(r.cutH100e)} H100e · ${F.money(r.unserved, { perYear: true })}` : 'none', tone: r.cutH100e > 0 ? 'neg' : 'neutral' },
       { label: <Term id="revPerH100e">Revenue per H100e</Term>, value: rate(r.rpH) },
+      { label: 'Demand modifiers', value: (() => { const m = demandModifiers(d); return <Limit id="product.demandMods">{m.length ? m.map((x) => Number.isNaN(x.mult) ? x.label : `${x.label} ×${x.mult.toFixed(2)}`).join(' · ') : 'none'}</Limit>; })() },
     ]} footer={lever ? 'Click the lever to preview it.' : undefined} />}>
       <button className={`pc-bind ${r.bound}`} data-test={`prod-bind.${d.id}`} onClick={() => lever?.act()}>
-        <span className="bt"><Term id={r.bound === 'capacity' ? 'capacityBound' : 'bindingCause'}>{BOUND[r.bound]}</Term></span>
+        <span className="bt"><Term id={r.bound === 'capacity' ? 'capacityBound' : r.bound === 'quality' ? 'qualityBound' : r.bound === 'price' ? 'priceBound' : 'bindingCause'}>{BOUND[r.bound]}</Term></span>
         {lever && <span className="lvr">→ {lever.label} <b className={lever.gain >= 0 ? '' : 'neg'}>{F.money(lever.gain, { signed: true, perYear: true })}</b></span>}
       </button>
     </Tip>
@@ -391,10 +395,10 @@ function LaunchCard({ s, live }: { s: GameStateV2; live: Deployment[] }) {
       </div>
       <div className="dim small">{PRODUCT_DEFS[ch]?.blurb}</div>
       {ch === 'agents' && (
-        <Tip content={() => <TipCard title={<Term id="timeHorizon">Time horizon</Term>} value={h !== undefined ? `${h.toFixed(1)} h` : 'not measured'} rows={[{ label: 'Needed', value: `${AGENT_TASK_HOURS} h (half-day tasks)` }, { label: 'Model', value: v?.name ?? '—' }]}>{String(agentsGate(v) === true ? 'Covers the tasks Agents sells.' : agentsGate(v))}</TipCard>}>
+        <Tip content={() => <TipCard title={<Term id="timeHorizon">Time horizon</Term>} value={h !== undefined ? F.minutes(h * 60) : 'not measured'} rows={[{ label: 'Needed', value: `${AGENT_TASK_HOURS} h (half-day tasks)` }, { label: 'Model', value: v?.name ?? '—' }]}>{String(agentsGate(v) === true ? 'Covers the tasks Agents sells.' : agentsGate(v))}</TipCard>}>
           <div className="pc-gate" data-test="agents-gate">
             <div className="pc-cap"><Lock size={10} /> Needs</div>
-            <div className="gate-row"><Term id="timeHorizon">Time horizon</Term><span className="sp" /><b>{h !== undefined ? `${h.toFixed(1)} h` : '—'}</b><span className="dim"> / {AGENT_TASK_HOURS} h</span></div>
+            <div className="gate-row"><Term id="timeHorizon">Time horizon</Term><span className="sp" /><b>{h !== undefined ? F.minutes(h * 60) : '—'}</b><span className="dim"> / {AGENT_TASK_HOURS} h</span></div>
             <div className="gate-bar"><i style={{ width: `${Math.min(100, ((h ?? 0) / (AGENT_TASK_HOURS * 1.5)) * 100)}%`, background: (h ?? 0) >= AGENT_TASK_HOURS ? C.good : C.cap }} /><em style={{ left: `${(1 / 1.5) * 100}%` }} /></div>
             <div className="dim small">{v?.name ?? 'no model'} · measured</div>
           </div>

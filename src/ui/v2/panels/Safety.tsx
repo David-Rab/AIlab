@@ -12,12 +12,12 @@ import { CRITICAL_TRAITS, TRAIT_BY_ID, TRAIT_IDS } from '../../../data/v2/traits
 import { PROJECT_BY_ID, TREE, isLineNode } from '../../../data/v2/tree';
 import { COLUMN_LABEL } from '../../../data/v2/teams';
 import {
-  beliefView, dateOf, detectionGrid, fmtDate, INV_FTE, INV_MAX_DAYS, internalVersion, monitorBudget, monitoredUses, nodeKnown, projectEta,
+  beliefView, dateOf, detectionGrid, fmtDate, INV_FTE, INV_MAX_DAYS, internalVersion, monitorBudget, monitoredUses, nodeKnown, PATCH_FLOOR, patchLevel, projectEta, publicTimerRules,
   projectReady, riskFamilies, safetyAgentVersion, safetyView, teamsOn, trustedMax, understanding, versionById,
 } from '../../../engine/v2';
 import type { FindingType, GameStateV2, LineRow, ResponseKind, TraitId } from '../../../engine/v2';
 import { store } from '../store';
-import { ActBtn, Term, Tip, TipCard } from '../ui';
+import { ActBtn, Limit, Term, Tip, TipCard } from '../ui';
 import { Card, CauseChain, GoBtn, HBar, PanelHead, Pill, Ref, tabOf, Tabs, type ChainLink } from '../kit';
 import * as F from '../fmt';
 import { ICON, TRAIT_ICON } from '../icons';
@@ -529,7 +529,7 @@ function CasesTab({ s, sv }: { s: GameStateV2; sv: SV }) {
           <Tip content={() => <TipCard title={<Term id="caseStaffing">Case staffing</Term>} value={`${F.count(x.fte)} people`}>Safety research engineers on the case: {INV_FTE[0]}–{INV_FTE[1]}. Clarity grows with √(people ÷ 15); the engineers come out of tool upkeep while it runs.</TipCard>}>
             <span className="small" data-test="case-staff"><ICON.roleRE size={12} /> {F.count(x.fte)} research engineers <span className="dim">({INV_FTE[0]}–{INV_FTE[1]})</span></span>
           </Tip>
-          <span className="small dim" data-test="case-close">{x.outcome ? `opened ${fmtDate(dateOf(s, x.startDay))}` : `closes by ${fmtDate(dateOf(s, closeDay))} · ${INV_MAX_DAYS} d max`}</span>
+          <Limit id="case.staffing"><span data-test="case-close">{x.outcome ? `opened ${fmtDate(dateOf(s, x.startDay))}` : `closes by ${fmtDate(dateOf(s, closeDay))} · ${INV_MAX_DAYS} d max · ${INV_FTE[0]}–${INV_FTE[1]} people`}</span></Limit>
         </div>
       </div>
     );
@@ -666,13 +666,13 @@ function IncidentsTab({ s, sv }: { s: GameStateV2; sv: SV }) {
           {TI && <TI size={13} />}<b>{i.apparent === 'unexplained' || i.apparent === 'misuse' ? F.words(i.apparent) : <Term id={`trait:${i.apparent}`}>{tname(i.apparent)}</Term>}</b>
           <span className="dim small">{vn} · {i.exposure} · {fmtDate(dateOf(s, i.day))}</span>
           <span className="sp" />
-          {i.publicTimerDays !== undefined && i.status === 'open' && <span className="tag2 bad"><ICON.lead size={12} /> public in {F.days(i.publicTimerDays)}</span>}
+          {i.publicTimerDays !== undefined && i.status === 'open' && (() => { const pr = publicTimerRules(s); return <Limit id="incident.publicTimer" tone="bind">public in {F.days(i.publicTimerDays)}{pr.raise ? ' · RAISE ≤ 3 d' : pr.sb53 ? ' · SB 53 ≤ 15 d' : ''}</Limit>; })()}
           <span className={`tag2 ${isLive ? 'warn' : ''}`}>{i.status}</span>
         </div>
         {i.responses.length > 0 && <div className="small dim">Done: {i.responses.map((r) => RESPONSES.find((x) => x.k === r)?.label ?? r).join(', ')}</div>}
         {isLive && (
           <div className="inc-menu">
-            <span className="tip-cap"><Term id="response">Respond</Term></span>
+            <span className="row-i"><span className="tip-cap"><Term id="response">Respond</Term></span>{(() => { const tr = i.apparent !== 'unexplained' && i.apparent !== 'misuse' ? patchLevel(s, i.apparent) : undefined; return <Limit id="response.patchFloor" tone={tr?.atFloor ? 'bind' : tr && tr.lo < 1 ? 'warn' : 'quiet'}>{tr && tr.lo < 1 ? `patched to ×${tr.hi.toFixed(2)}` : 'patch ×0.3–0.6'} · floor ×{PATCH_FLOOR}</Limit>; })()}</span>
             <div className="btn-row wrap">
               {RESPONSES.map((r) => <ActBtn key={r.k} id="safety.respond" testId={`safety.respond.${r.k}`} params={{ kind: r.k, incidentId: i.id, versionId: i.versionId }} label={r.label} />)}
               <ActBtn id="safety.investigate" testId="safety.investigate.incident" params={{ incidentId: i.id, fte: 15 }} icon={ICON.investigate} label="Investigate" />

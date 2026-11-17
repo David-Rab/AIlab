@@ -503,7 +503,7 @@ export function goalpostsQ(s: GameStateV2, ctx: SystemCtx) {
 
 /** rivalsChina (100, daily): their runs, releases, posture pressure and incidents; China meters and ladder. */
 export const rivalsChinaSystem: EngineSystem = {
-  id: 'rivalsChina', owner: 'WS4', cadence: 'daily', order: 100,
+  id: 'rivalsChina', owner: 'WS4', cadence: 'daily', order: 100, system: 'relations',
   run(s, ctx) {
     for (const r of activeRivals(s)) labDaily(s, ctx, r);
     if (s.china.lab.core.status === 'active') labDaily(s, ctx, s.china.lab);

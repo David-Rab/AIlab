@@ -216,7 +216,7 @@ function changeOf(p: Params): AgentChange {
 }
 
 const AGENTS_SET: ActionDef = {
-  id: 'agents.set', sphere: 'departments', owner: 'WS1', title: 'Agent package',
+  id: 'agents.set', verb: 'policy', system: 'people', sphere: 'departments', owner: 'WS1', title: 'Agent package',
   available: () => true,
   preview(s, p) {
     const use = isUse(str(p, 'use')) ? (str(p, 'use') as AgentUse) : 'capRoutine';
@@ -257,7 +257,7 @@ const AGENTS_SET: ActionDef = {
 };
 
 const AGENTS_TRUSTED: ActionDef = {
-  id: 'agents.trusted', sphere: 'safety', owner: 'WS2', title: 'Trusted to AI',
+  id: 'agents.trusted', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Trusted to AI',
   available: (s) => s.player.policies.trustedToAI > 0 || aiLabourGate(s),
   preview(s, p) {
     const share = Math.max(0, Math.min(trustedMax(s), num(p, 'share') ?? Math.min(trustedMax(s), s.player.policies.trustedToAI + 0.2)));

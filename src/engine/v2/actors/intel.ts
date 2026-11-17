@@ -58,7 +58,7 @@ export function updateIntel(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
 
 /** intel (210, weekly): rival/China lead posteriors vs the player's internal frontier. */
 export const intelSystem: EngineSystem = {
-  id: 'intel', owner: 'WS4', cadence: 'weekly', order: 210,
+  id: 'intel', owner: 'WS4', cadence: 'weekly', order: 210, system: 'relations',
   run(s, ctx) {
 
     for (const r of activeRivals(s)) updateIntel(s, ctx, r);

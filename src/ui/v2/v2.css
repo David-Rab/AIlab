@@ -258,3 +258,5 @@
 .btn-primary .pv-inline span { color: #e8f1ff !important; opacity: .85; }
 .game-v2 .modal .choice .pv { flex-direction: row; gap: 22px; }
 .game-v2 .modal .choice .pv-sect { min-width: 150px; }
+.codex-diagram { margin: 8px 0 10px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 6px; padding: 6px; }
+.codex-diagram .coreloop .cl-in { font-size: 14px; } .codex-diagram .coreloop .cl-t { font-size: 15px; } .codex-diagram .coreloop .cl-edge { font-size: 14px; }

@@ -3,12 +3,12 @@
 // live in the top strip (L0) and are never repeated here.
 import { useState } from 'react';
 import {
-  actionView, dateOf, dayOfQuarter, dealMenu, dealPreview, debtHeadroom, debtRatePct, fmtDate, fmtMonth, interestPerYear, ledgerDue, liveLedger,
+  actionView, dateOf, dayOfQuarter, dealMenu, dealPreview, debtHeadroom, debtRatePct, fmtDate, fmtMonth, incidentBoardHit, interestPerYear, ledgerDue, liveLedger,
   parentSchedule, parentYear, payrollOf, qOf, raiseCeiling, runwayOf, totalDebt, DIVISION_REASON,
 } from '../../../engine/v2';
 import { isDivision } from '../../../data/v2/starts';
 import type { BoardSeat, Debt, GameStateV2 } from '../../../engine/v2';
-import { ActBtn, CauseBars, Gate, Seg, Term, Tip, TipCard, Why } from '../ui';
+import { ActBtn, Limit, CauseBars, Gate, Seg, Term, Tip, TipCard, Why } from '../ui';
 import { Card, CostPills, GoBtn, HBar, KV, PanelHead, Pill } from '../kit';
 import * as F from '../fmt';
 import { ICON } from '../icons';
@@ -207,7 +207,7 @@ function RaiseCard({ s }: { s: GameStateV2 }) {
       right={<span className="tag2 warn">bound by {boundLabel}</span>}>
       <div className="lim-rows">
         {limits.map((l) => (
-          <div className="lim-row" key={l.k} data-limit={l.k}>
+          <div className="lim-row" key={l.k} data-cap={l.k}>
             <span className="row-i"><l.icon size={13} /><Term id={l.term}>{l.label}</Term></span>
             <HBar v={l.v} max={lmax} w="100%" h={8} color={l.k === ceil.bound ? C.watch : '#6b7c91'} />
             <span className={`num ${l.k === ceil.bound ? 'tone-warn' : ''}`}>{F.money(l.v)}</span>
@@ -376,6 +376,7 @@ function BoardCard({ s }: { s: GameStateV2 }) {
           );
         })}
       </div>
+      {(() => { const h = incidentBoardHit(s); return <div className="limit-row"><span className="dim small">Public incidents at the next review</span><Limit id="board.incidentCap" tone={h.raw > h.cap ? 'warn' : h.capped > 0 ? 'bind' : 'quiet'}>{h.capped > 0 ? `−${h.capped}` : 'none'}{h.raw > h.cap ? ` (${h.raw} capped)` : ''} · max −{h.cap}/q</Limit></div>; })()}
       {b.pendingApprovals.length > 0 && (
         <div className="tip-sec">
           <div className="tip-cap">Waiting for the board</div>
@@ -530,7 +531,7 @@ export function Finance({ s }: { s: GameStateV2 }) {
         right={division ? undefined : <div className="btn-row"><GoBtn to={{ panel: 'finance', anchor: 'raise' }} label="Raise" testId="fin.go.raise" /><GoBtn to={{ panel: 'finance', anchor: 'partner' }} label="Seek partner" testId="fin.go.partner" /><GoBtn to={{ panel: 'finance', anchor: 'borrow' }} label="Borrow" testId="fin.go.borrow" /></div>} />
       <div className="fin-top">
         <Card title={<Term id="netBurn">Cash flow this quarter</Term>} sub="$ per quarter · hover a bar for its lines"
-          right={<span className="row-i small"><span className="dim"><Term id="revenueRun">revenue run-rate</Term>{division ? ' (to the parent)' : ''}</span><Why k="revenueRun" title="Revenue run-rate" value={F.money(f.revenueRun, { perYear: true })} fmt={(x) => F.money(x)} levers={<GoBtn to={{ panel: 'products' }} label="Products" />}><b className="num" data-home="revenueRun">{F.money(f.revenueRun, { perYear: true })}</b></Why></span>}>
+          right={<span className="row-i small"><Why k="revenueRun" title="Revenue run-rate" value={F.money(f.revenueRun, { perYear: true })} fmt={(x) => F.money(x)} levers={<GoBtn to={{ panel: 'products' }} label="Products" />}><span className="dim"><Term id="revenueRun">revenue</Term>{division ? ' goes to the parent' : ''} · in the top strip</span></Why></span>}>
           <Waterfall s={s} />
         </Card>
         <Card title="Cash history" sub="weekly · current cash is in the top strip"

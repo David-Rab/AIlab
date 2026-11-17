@@ -9,7 +9,7 @@ import {
   aiLabourGate, agentChangeBlock, agentsView, dateOf, fmtDate, previewAgentChange, previewTrusted, versionById,
 } from '../../../engine/v2';
 import type { AgentChange, AgentLane, AgentUse, AgentsView, GameStateV2, RiskBadge } from '../../../engine/v2';
-import { ActBtn, Term, Tip, TipCard, type Params } from '../ui';
+import { ActBtn, Limit, Term, Tip, TipCard, type Params } from '../ui';
 import { Card, HBar, Ref } from '../kit';
 import * as F from '../fmt';
 import { ICON } from '../icons';
@@ -126,6 +126,7 @@ function Trusted({ s, v }: { s: GameStateV2; v: AgentsView }) {
         <ActBtn id="agents.trusted" testId="agents.trusted.down" params={{ share: at(t.policy - 0.1) }} icon={ICON.minus} label="" block={t.policy <= 0 ? 'Already 0%' : undefined} />
         <ActBtn id="agents.trusted" testId="agents.trusted.up" params={{ share: at(t.policy + 0.1) }} icon={ICON.plus} label="" block={t.policy >= t.max - 1e-9 ? `Capped at ${F.pct(t.max)}` : t.gate !== true ? t.gate : undefined} />
       </span>
+      <Limit id="trusted.cap" tone={t.policy >= t.max - 1e-9 ? 'warn' : 'quiet'}>max {F.pct(t.max)}</Limit>
     </div>
   );
 }

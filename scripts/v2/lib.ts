@@ -40,7 +40,7 @@ export function validateJson(x: unknown, path = 's', errs: string[] = []): strin
  * (the player at exactly 1×, i.e. h,k,c ≈ 1). Runs right after computeOnline (order 20).
  */
 export const refComputeStub: EngineSystem = {
-  id: 'stubRefCompute', owner: 'WS1', cadence: 'daily', order: 21,
+  id: 'stubRefCompute', owner: 'WS1', cadence: 'daily', order: 21, system: 'core',
   run(s) {
     const w = s.hidden.timeline;
     const yr = decimalYear(s);
@@ -57,7 +57,7 @@ export const refComputeStub: EngineSystem = {
 
 /** Stub finance for fixtures (until WS3/WS5 cash flows land): cash never falls below the start balance. */
 export const cashFloorStub: EngineSystem = {
-  id: 'stubCashFloor', owner: 'WS1', cadence: 'daily', order: 131,
+  id: 'stubCashFloor', owner: 'WS1', cadence: 'daily', order: 131, system: 'core',
   run(s, ctx) {
     const floor = Number(s.flags['stub:cash0'] ?? (s.flags['stub:cash0'] = s.player.finance.cash));
     if (s.player.finance.cash < floor) ctx.bump('cash', floor - s.player.finance.cash, 'stub finance');

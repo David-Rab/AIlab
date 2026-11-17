@@ -4,12 +4,12 @@
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
 import { AGENT_USE_DEF } from '../../../data/v2/agents';
 import {
-  POOL_SHARE_RANGE, benchName, dateOf, fmtDate, idleTrainingShare, internalVersion, measuredDomains, poolAllocation, runBand, runEtaDays, runStall, streamShare,
+  POOL_SHARE_RANGE, benchName, dateOf, designOffsetView, fmtDate, idleTrainingShare, internalVersion, measuredDomains, poolAllocation, runBand, runEtaDays, runStall, streamShare,
   usesOf, versionById,
 } from '../../../engine/v2';
 import type { GameStateV2, ModelVersion } from '../../../engine/v2';
 import { store, useV2 } from '../store';
-import { ActBtn, Meter, Radar, Term, Tip, TipCard } from '../ui';
+import { ActBtn, Limit, Meter, Radar, Term, Tip, TipCard } from '../ui';
 import { useState } from 'react';
 import { Card, KV, PanelHead, Ref } from '../kit';
 import * as F from '../fmt';
@@ -85,6 +85,7 @@ export function ModelCard({ s, v }: { s: GameStateV2; v: ModelVersion }) {
         <div>
           <KV k="Monitorability" term="monitorability"><Meter value={v.monitorability} max={1} width={80} /> {v.monitorability.toFixed(2)}</KV>
           <KV k="Serve cost" term="serveCost">{F.mult(v.serveCost)}</KV>
+          {(() => { const o = designOffsetView(s, v); return <KV k="Research boost" term="designOffset"><Limit id="model.designOffset" tone={o.capped ? 'warn' : 'quiet'}>{o.years === 0 ? 'none' : `${o.years > 0 ? '+' : '−'}${Math.abs(o.years * 12).toFixed(1)} mo`}{o.capped ? ' (cap ±6 mo)' : ' · cap ±6 mo'}</Limit></KV>; })()}
           <KV k="Time horizon (50%)" term="horizon">{horizon ? F.minutes(hMin) : "—"}</KV>
           <KV k="Appeal" term="appeal">{v.appeal !== undefined ? v.appeal.toFixed(2) : '—'}</KV>
           <KV k="Last eval suite" term="evals">{v.evals.suiteDay !== undefined ? fmtDate(dateOf(s, v.evals.suiteDay)) : 'never'}</KV>
@@ -179,7 +180,7 @@ export function RunQueue({ s }: { s: GameStateV2 }) {
           </div>
         );
       })}
-      {stream > 0 && <div className="run-row run-pool small" data-run="stream"><span className="ellip"><b><Term id="stream">Stream</Term></b> <span className="dim">continual learning</span></span><span /><span /><span className="num">{F.pct(stream)}</span><span /><span className="dim">fixed share</span><span /></div>}
+      <div className="run-row run-pool small" data-run="stream"><span className="ellip"><b><Term id="stream">Stream</Term></b> <span className="dim">{stream > 0 ? 'continual learning' : 'off'}</span></span><span /><span /><span className="num">{F.pct(stream)}</span><span /><Limit id="run.stream" tone={stream > 0 ? 'warn' : 'quiet'}>{stream > 0 ? 'taken first' : 'takes 15% first when on'}</Limit><span /></div>
       <div className="run-row run-pool small" data-run="spare">
         <span className="ellip"><b><Term id="spareTraining">Spare</Term></b></span><span /><span />
         <span className="num" data-test="spare-share">{F.pct(spare)}</span>

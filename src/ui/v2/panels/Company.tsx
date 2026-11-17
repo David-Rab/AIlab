@@ -7,13 +7,13 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   BUILD_AI_CAP, WSL_TARGET_RANGE, buildBacklogTW, buildCapacity, buildEtas, engine, fillWeeks, fullTeamPayroll, idleChips, ownedOnline, payrollOf, poolsOf, queuedOfKey,
-  rentedOnline, revenueReadout, SPLIT_KEYS, teamGain, teamPayroll, teamsOfKey, weeklyHireCap,
+  rentedOnline, researchSpeedLimits, revenueReadout, securityFloorView, SPLIT_KEYS, teamGain, teamPayroll, teamsOfKey, weeklyHireCap,
 } from '../../../engine/v2';
 import { COLUMN_LABEL, MOVE_SAFETY_MORALE, QUALITY, TEAM_KEYS, TEAM_SIZE } from '../../../data/v2/teams';
-import type { Column, GameStateV2, Team, TeamDept, TeamKey, TeamQuality, TeamRole } from '../../../engine/v2';
+import type { Column, GameStateV2, SpeedLimitLine, Team, TeamDept, TeamKey, TeamQuality, TeamRole } from '../../../engine/v2';
 import { AgentsAtWork } from './Agents';
 import { store } from '../store';
-import { ActBtn, Slider, Term, Tip, TipCard, Why } from '../ui';
+import { ActBtn, Limit, Slider, Term, Tip, TipCard, Why } from '../ui';
 import { Card, GoBtn, HBar, KV, PanelHead, Ref, tabOf, Tabs } from '../kit';
 import * as F from '../fmt';
 import { ICON } from '../icons';
@@ -116,6 +116,30 @@ function Flow({ s }: { s: GameStateV2 }) {
   );
 }
 
+const SPEED_LIMIT_LABEL: Record<SpeedLimitLine['id'], ReactNode> = {
+  'speed.frontierMethods': 'Frontier methods',
+  'speed.serialCap': <Term id="agentCopies">Serial speed</Term>,
+  'speed.etaMod': <Term id="serveCost">Serve-cost benefit</Term>,
+  'speed.pause': 'Pause',
+  'speed.diffusion': <Term id="diffusion">Knowledge diffusion</Term>,
+};
+/** The limits on research speed (R11, LIMITS "Research speed"): one quiet line each, red / amber when binding. */
+function SpeedLimits({ s }: { s: GameStateV2 }) {
+  const lines = researchSpeedLimits(s);
+  return (
+    <div className="rs-limits" data-test="speed-limits">
+      <div className="tip-cap" style={{ marginTop: 10 }}>Limits</div>
+      {lines.map((l) => (
+        <div className="rs-lim" key={l.id}>
+          <span className="dim">{SPEED_LIMIT_LABEL[l.id]}</span>
+          <Limit id={l.id} tone={l.binding ? (l.mult < 1 ? 'bind' : 'warn') : 'quiet'}>{l.text}</Limit>
+          {l.id === 'speed.frontierMethods' && l.binding && l.fix && l.fix.length > 0 && <Ref id="techTree" to={{ panel: 'research' }}>{l.fix.join(' · ')}</Ref>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /** Research speed (HOME of M): experiments → binding input → R&D speed; levers ranked per dollar. */
 function ResearchSpeed({ s }: { s: GameStateV2 }) {
   const p = engine.production(s, 'player');
@@ -140,6 +164,7 @@ function ResearchSpeed({ s }: { s: GameStateV2 }) {
           <GoBtn to={l.to} label="Go" testId={`lever.${l.id}`} />
         </div>
       ))}
+      <SpeedLimits s={s} />
     </Card>
   );
 }
@@ -350,6 +375,7 @@ function Security({ s }: { s: GameStateV2 }) {
     <div className="g2">
       <Card title={<Term id="wsl">Weight security</Term>} home="wsl" right={<span className="num big">{p.security.wsl.toFixed(1)}</span>}>
         <KV k="Level now → target" term="wslTarget"><HBar v={p.security.wsl} max={5} color={SPHERE.sec} w={140} mark={p.security.target} /> {p.security.wsl.toFixed(1)} → {p.security.target.toFixed(1)}</KV>
+        {(() => { const fl = securityFloorView(s); return <KV k="Floor" term="wsl"><Limit id="security.floor" tone={fl.binding ? 'warn' : 'quiet'}>WSL {fl.now.toFixed(1)} now · {fl.max.toFixed(1)} from 2027</Limit></KV>; })()}
         <div className="kv"><span className="kv-k">New target {wsl.toFixed(1)}</span><span className="row-i"><Slider value={wsl} min={wslLo} max={wslHi} step={0.5} onChange={setWsl} /><ActBtn id="SEC_TARGET" params={{ level: wsl }} label="Set" reason /></span></div>
         <KV k="Security spend" term="opex">{F.money(p.security.spendRate, { perYear: true })}</KV>
         <KV k="Privileged staff" term="privileged">{F.count(p.security.privileged)}</KV>

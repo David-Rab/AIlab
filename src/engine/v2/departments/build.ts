@@ -63,7 +63,7 @@ export const runWaiting = (r: TrainingRun) => r.setupId !== undefined && r.ready
 
 /** build (38, daily): the engineers work the queue by priority; a finished run setup lets its run train. */
 export const buildSystem: EngineSystem = {
-  id: 'build', owner: 'WS1', cadence: 'daily', order: 38,
+  id: 'build', owner: 'WS1', cadence: 'daily', order: 38, system: 'people',
   run(s, ctx) {
     const b = s.player.build;
     if (!b.queue.length) return;
@@ -107,7 +107,7 @@ export function prioritizeBuild(s: GameStateV2, id: string): string | undefined 
 
 export const BUILD_ACTIONS: ActionDef[] = [
   {
-    id: 'build.first', sphere: 'departments', owner: 'WS1', title: 'Build first',
+    id: 'build.first', verb: 'policy', system: 'people', sphere: 'departments', owner: 'WS1', title: 'Build first',
     available: (s) => (s.player.build.queue.length > 1 ? true : 'Nothing else on the build queue'),
     preview: (s, p) => {
       const q = s.player.build.queue;
