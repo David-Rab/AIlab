@@ -3,24 +3,23 @@
 // S4/S5 run on real games: every registered system, WS1's runs/models (the WS2 trait hooks fire on every completed
 // run), WS3 finance and compute, WS4 actors and events, WS5 world. The endings system is skipped so each game reaches
 // the player's own ASI (S4 measures the player's model, not who ends the game first).
-//   REF   = RefBot (bots/ref.ts: reference play + reference finance autopilot + Seed agendas).
+//   REF   = RefBot (bots/ref.ts: reference play + reference finance autopilot + one team on each of four lines).
 //   SAFE  = the safe-only RECIPE (§7.4 safe bot's training and safety choices: 20% safety compute, ~25% safety staff,
-//           all agendas Serious / five Major, curated bases, heavy safety + inoculation, faithful CoT once P23, no latent
-//           reasoning, fix techniques, responds to every red flag, re-validates decaying tools) on reference finance, so
+//           a science team on every research line with the five major lines doubled (R8), curated bases, heavy safety +
+//           inoculation, faithful CoT once P23, no latent reasoning, fix techniques, responds to every red flag; tool
+//           upkeep by its safety research engineers) on reference finance, so
 //           it reaches ASI — the S4 bound is about the recipe, not the safe bot's business plan.
 //   MIXED = the mixed bot (bots/mixed.ts).
-import { AGENDA_IDS } from '../../src/data/v2/agendas';
 import { mixedBot } from '../../src/engine/v2/bots/mixed';
 import { REF_TREE, SAFE_TREE_EXTRA, refBot, refPlay } from '../../src/engine/v2/bots/ref';
-import { pickByTags, tryAct } from '../../src/engine/v2/bots/common';
+import { pickByTags, staffLines, tryAct } from '../../src/engine/v2/bots/common';
+import { SAFE_LINES, SAFE_SCI_TEAMS } from '../../src/engine/v2/bots/safe';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { resolve, tick } from '../../src/engine/v2/core/loop';
 import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
 import { financeAutopilot, REF_AUTOPILOT } from '../../src/engine/v2/finance/plan';
 import { engine } from '../../src/engine/v2/index';
 import { bestPlayerVersion, internalVersion } from '../../src/engine/v2/models/labs';
-import { mAtLevel } from '../../src/engine/v2/safety/common';
-import { decayAt } from '../../src/engine/v2/safety/techniques';
 import { misalignment, pMis } from '../../src/engine/v2/safety/traits';
 import { understanding } from '../../src/engine/v2/safety/understanding';
 import type { AlignDiffId, BotPolicy, GameStateV2, TraitId } from '../../src/engine/v2/types';
@@ -28,7 +27,6 @@ import { validateJson } from './lib';
 
 const FIX = ['T-PERSONA', 'T-ANTISCHEME', 'T-CONFESS', 'T-CAST', 'T-W2S'];
 const RED: TraitId[] = ['SCHEME', 'AF', 'SAND', 'POWER', 'SUCC', 'COLLUDE', 'TGAME'];
-const MAJOR = ['AG02', 'AG07', 'AG08', 'AG09', 'AG18'];
 
 /** Safe-only recipe on reference finance (see header). */
 export const safeRecipeBot: BotPolicy = {
@@ -40,7 +38,8 @@ export const safeRecipeBot: BotPolicy = {
       tryAct(s, api, 'safety.pledge', {});
       tryAct(s, api, 'safety.publishPolicy', { policy: 'all' });
     }
-    if (day % 182 === 0) for (const a of AGENDA_IDS) tryAct(s, api, 'safety.fund', { agenda: a, level: MAJOR.includes(a) ? 'major' : 'serious' });
+    if (day === 0) tryAct(s, api, 'teams.target', { key: 'sci.saf', n: SAFE_SCI_TEAMS });
+    staffLines(s, api, SAFE_LINES);
     refPlay(s, api, {
       safetyShare: () => 0.2,
       safStaffShare: 0.25,
@@ -59,8 +58,6 @@ export const safeRecipeBot: BotPolicy = {
           tryAct(s, api, 'safety.respond', { kind: 'patchSignal', versionId: iv.id, trait: t });
           tryAct(s, api, 'safety.respond', { kind: 'targetedTraining', versionId: iv.id, trait: t });
         }
-        const M = mAtLevel(s.hidden.timeline, iv.evals.measuredL ?? 0);
-        for (const t of Object.values(s.player.safety.techniques)) if (t.unlocked && t.active && t.k > 0 && decayAt(s, t, M * 10, false) < 0.8) tryAct(s, api, 'safety.refresh', { techniqueId: t.id });
       }
     }
   },

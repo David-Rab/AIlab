@@ -1,7 +1,7 @@
 // Safety research agendas AG01–AG18 (V2-SPEC §3.5.2, research/14 §1.2). Owner: WS2.
 // Every numeric parameter is a research/14 [D] value (R14 states there is no expert survey of per-agenda credences);
 // FTE and compute ranges are R14's "serious programme at one frontier lab" columns, `fteRef` is their midpoint.
-import type { AgendaId, SafetyLatents, ToolFamily, TraitId } from '../../engine/v2/types';
+import type { AgendaId, Column, SafetyLatents, ToolFamily, TraitId } from '../../engine/v2/types';
 
 export type AgendaFamily = ToolFamily | 'fix' | 'contain' | 'meta' | 'BB+';
 
@@ -13,14 +13,14 @@ export interface AgendaDef {
   /** Latent loadings: e = clamp(Beta + Σ load·λ, 0, 1). Magnitudes [D] (M2: spread × 0.75 for S1): ++ .15, + .09,
    *  weak .045, λ6 adversary −.09. */
   loadings: Partial<Record<keyof SafetyLatents, number>>;
-  /** Months to first expected finding at serious funding. */
+  /** Months to the first expected result at serious staffing (R8: the effort of every project on the line). */
   T1: number;
   /** Capability robustness: strength halves at M = mHalf (Infinity encoded as 1e9); k = slope. */
   mHalf: number;
   k: number;
   /** Goodhart susceptibility G. */
   G: number;
-  /** Automation factor (AI labour multiplier on finding hazard). */
+  /** Automation factor (how much AI labour speeds the line's projects). */
   auto: number;
   family: AgendaFamily;
   coverage: TraitId[];
@@ -33,14 +33,14 @@ export interface AgendaDef {
   computeRef: number;
   /** Latent the agenda's tools mainly rest on: tools sharing it are correlated evidence (§3.5.6, R14 §1.6B). */
   mainLatent: keyof SafetyLatents | 'none';
-  /** Refresh projects double M½ up to this ceiling [D] (8× the base M½). */
-  mHalfCap: number;
+  /** Tree column of the line's follow-up project (the column most of its nodes sit in). */
+  column: Column;
 }
 
 const INF = 1e9;
 const mid = (r: [number, number]) => (r[0] + r[1]) / 2;
 
-type Row = Omit<AgendaDef, 'fteRef' | 'computeRef' | 'mHalfCap'>;
+type Row = Omit<AgendaDef, 'fteRef' | 'computeRef' | 'column'>;
 const ROWS: Row[] = [
   { id: 'AG01', name: 'Ambitious mech interp', prior: [1.5, 4], loadings: { legibility: 0.09 }, T1: 9, mHalf: 2000, k: 0.5, G: 0.5, auto: 0.6, family: 'WB', coverage: ['SCHEME', 'AF', 'SUCC'], fteRange: [40, 80], computeRange: [0.03, 0.08], mainLatent: 'legibility' },
   { id: 'AG02', name: 'Applied interp', prior: [3, 3], loadings: { legibility: 0.09 }, T1: 4, mHalf: 250, k: 0.7, G: 0.8, auto: 0.9, family: 'WB', coverage: ['EA', 'TGAME', 'AF', 'SCHEME'], fteRange: [15, 30], computeRange: [0.01, 0.03], mainLatent: 'legibility' },
@@ -63,19 +63,52 @@ const ROWS: Row[] = [
   { id: 'AG18', name: 'Training-signal design', prior: [3.5, 3], loadings: { benignGeneralization: 0.15 }, T1: 3, mHalf: 25, k: 1, G: 0.5, auto: 1.0, family: 'fix', coverage: ['SYC', 'RH', 'PERSONA', 'CONCEAL', 'SCHEME'], fteRange: [15, 40], computeRange: [0.02, 0.1], mainLatent: 'benignGeneralization' },
 ];
 
+/** Column of each line's follow-up project (TECH-TREE §2.4–2.6: where its nodes sit). */
+const LINE_COLUMN: Record<AgendaId, Column> = {
+  AG01: 'interp', AG02: 'interp', AG03: 'interp', AG04: 'evals', AG05: 'evals', AG06: 'alignment', AG07: 'evals', AG08: 'evals', AG09: 'evals',
+  AG10: 'evals', AG11: 'evals', AG12: 'alignment', AG13: 'interp', AG14: 'evals', AG15: 'alignment', AG16: 'evals', AG17: 'evals', AG18: 'alignment',
+};
+
 export const AGENDAS: AgendaDef[] = ROWS.map((r) => ({
   ...r,
   fteRef: mid(r.fteRange),
   computeRef: Math.max(0.0005, mid(r.computeRange)),
-  mHalfCap: r.mHalf >= INF ? INF : r.mHalf * 8,
+  column: LINE_COLUMN[r.id],
 }));
 
 export const AGENDA_IDS: AgendaId[] = AGENDAS.map((a) => a.id);
 export const AGENDA_BY_ID = Object.fromEntries(AGENDAS.map((a) => [a.id, a])) as Record<AgendaId, AgendaDef>;
-/** Funding levels as multiples of the serious FTE midpoint (§3.5.2). */
-export const FUNDING_LEVELS = { off: 0, seed: 0.25, serious: 1, major: 2.5 } as const;
-export type FundingLevel = keyof typeof FUNDING_LEVELS;
-export const FUNDING_LEVEL_IDS = Object.keys(FUNDING_LEVELS) as FundingLevel[];
+/** Research lines are tree projects for safety science teams (R8, STRUCTURE §4.5): a project's result is one finding,
+ *  arriving when its progress reaches 1. Progress/day = √(capacity ÷ SERIOUS_CAP) / (30·T₁) × compute × AI labour, so
+ *  a line staffed at "serious" capacity gets its first result after T₁ months, the pre-R8 hazard's expected time at
+ *  Serious funding (λ = 1/(30·T₁)·√(FTE/FTE_ref)). SERIOUS_CAP is a serious programme's capacity in standard science
+ *  teams (heads/40 × quality × 1.5 in the team's specialty) [calibration: RefBot keeps one team on each of its four
+ *  lines, ≈ its pre-R8 Seed funding (a quarter of serious): a non-matching Strong team is 0.25, a matching one 0.375].
+ *  6 (a matching team exactly at Seed) left the mixed bot unable to keep up before SAR (S5); 2–3 made RefBot's
+ *  understanding hold at SAR (S5). */
+export const SERIOUS_CAP = 4;
+/** Cap on the line multiplier (capacity ÷ SERIOUS_CAP) where the pre-R8 code read funding (AG18 healing): the old Major
+ *  level. */
+export const LINE_MULT_MAX = 2.5;
+
+/** Validation lead (STRUCTURE §4.5: from safety research engineers, not funding): free safety research engineers per
+ *  research line with tools in the stack at which tools are validated as far ahead as a pre-R8 Serious agenda (VAL_LEAD
+ *  levels) [calibration: the start lab's one team of 100 over four lines ≈ Seed]. */
+export const RE_SERIOUS = 100;
+
+/** Tool upkeep (R8, TECH-TREE "tool upkeep without chores"): safety research engineers not on investigations or patches
+ *  re-validate tools on the current models. A tool whose strength factor D(M) on the internal model has fallen below
+ *  UPKEEP_D needs upkeep; the free engineers are shared among those tools, and each one's M½ doubles every
+ *  UPKEEP_DAYS ÷ min(UPKEEP_MAX, (engineers per tool − UPKEEP_MIN) ÷ UPKEEP_REF) days: re-validating a tool takes a
+ *  crew, so engineers spread thinner than UPKEEP_MIN per fading tool re-validate nothing. Upkeep stops once a tool holds
+ *  again on today's model, so M½ follows capability; there is no ceiling (pre-R8: refresh projects capped at ×8) [D;
+ *  calibration: the start lab's single team keeps nothing up once several tools fade (S5 "RefBot falls behind"), five
+ *  teams keep up (S5 mixed)]. */
+export const UPKEEP_D = 0.8;
+export const UPKEEP_DAYS = 90;
+export const UPKEEP_MIN = 15;
+export const UPKEEP_REF = 40;
+export const UPKEEP_MAX = 1.5;
 
 /** AG09 under latent reasoning (R14 §1.2: "250 / 1 legible → 5 / 2 neuralese"). */
 export const AG09_LATENT = { mHalf: 5, k: 2 };

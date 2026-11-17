@@ -14,7 +14,7 @@ import type {
   SimpleModel, SystemCtx, ToolFamily, TrainingRun, TraitBelief, TraitId, TraitVector, UModeId,
 } from '../types';
 import { adopted, clamp01, copyRec, flagNum, levelOf, SC_LEVEL, setFlag, tierOfLevel, trueEfficacy, versionById } from './common';
-import { fundingMult } from './agendas';
+import { lineMultCapped, lineStaffed } from './agendas';
 import { SD_MAX, eaCoef, eaSuppression, stackDetectionMap, takesEaPenalty } from './detection';
 import { techniqueRole } from './techniques';
 import { routineMonitor } from '../departments/agents';
@@ -265,12 +265,12 @@ function techActive(s: GameStateV2, id: string) {
   const t = tech(s, id);
   return !!t && t.active;
 }
-/** A technique is in a run when the run lists it, or (M4) when it is an unlocked FIX technique whose agenda is
+/** A technique is in a run when the run lists it, or (M4) when it is an unlocked FIX technique whose research line is
  *  staffed: a lab's alignment-training methods are part of every post-training run it does [D]. */
 function inRun(s: GameStateV2, post: PostDesign | undefined, id: string) {
   const t = post ? tech(s, id) : undefined;
   if (!post || !t) return false;
-  return post.techniques.includes(id) || (techniqueRole(t) === 'fix' && (s.player.safety.agendas[t.agenda]?.fte ?? 0) > 0);
+  return post.techniques.includes(id) || (techniqueRole(t) === 'fix' && lineStaffed(s, t.agenda));
 }
 
 /** Edge moderators the player controls (§3.5.4 table "Moderators"). Lineage patches come from flags. */
@@ -302,7 +302,7 @@ export function playerMods(s: GameStateV2, post: PostDesign | undefined, lineage
   }
   if (post?.rlFocus === 'broad') mul('E09', 0.7);
   if (techActive(s, 'T-HONEY')) mul('E10', 0.7);
-  if (dept.agendas.AG07.fte > 0 && techActive(s, 'T-TMON') && routineMonitor(s) >= 0.5) mul('E14', 0.5); // R7: monitors at ≥ half today's default strength
+  if (lineStaffed(s, 'AG07') && techActive(s, 'T-TMON') && routineMonitor(s) >= 0.5) mul('E14', 0.5); // R7: monitors at ≥ half today's default strength
   if (dept.monitorabilityCommitment || s.flags['ws2.monitorabilityTax']) mul('E15', 0.5);
   if (inRun(s, post, 'T-CONFESS') || post?.safety === 'heavy') mul('E17', 0.6);
   if (techActive(s, 'T-NOISE')) mul('E18', 0.6);
@@ -311,7 +311,7 @@ export function playerMods(s: GameStateV2, post: PostDesign | undefined, lineage
     mul('E28', 0.1);
   }
   if (techActive(s, 'T-LOCK')) mul('E21', 0.5);
-  if (dept.agendas.AG07.fte > 0 && techActive(s, 'T-TMON')) mul('E22', 0.5);
+  if (lineStaffed(s, 'AG07') && techActive(s, 'T-TMON')) mul('E22', 0.5);
   // Signal patches: this lineage's (older saves) and the lab-wide ones (M4: a patched environment, grader or reward
   // model is reused by every later run, so the fix outlives the lineage).
   const prefix = `ws2.patch.${lineage}.`;
@@ -344,16 +344,15 @@ export function understandingGapGrowth(s: GameStateV2): number {
 /**
  * Alignment training that generalises (M4, §3.5.4) [D]: training on the lab's spec and character data heals value
  * traits whether or not the stack can see them — the R14 λ4 "benign generalization" bet, carried by AG18
- * training-signal design. Removal fraction per post-run = HEAL_K · e_AG18(true) · √(AG18 funding, ≤ 2.5) ·
+ * training-signal design. Removal fraction per post-run = HEAL_K · e_AG18(true) · √(AG18 line multiplier, ≤ 2.5) ·
  * preference factor · safety-training factor. Zero for a lab that does not staff AG18.
  */
 export const HEAL_K = 0.35;
 const HEAL_PREF: Record<PostDesign['pref'], number> = { minimal: 0.5, engagement: 0.3, constitution: 1, persuasion: 0.2 };
 const HEAL_SAFETY: Record<PostDesign['safety'], number> = { minimal: 0.2, standard: 1, heavy: 1.6 };
 export function healRate(s: GameStateV2, post: PostDesign): number {
-  const st = s.player.safety.agendas.AG18;
-  if (!st || st.fte <= 0) return 0;
-  return HEAL_K * trueEfficacy(s, 'AG18') * Math.sqrt(Math.min(2.5, fundingMult('AG18', st))) * HEAL_PREF[post.pref] * HEAL_SAFETY[post.safety];
+  if (!lineStaffed(s, 'AG18')) return 0;
+  return HEAL_K * trueEfficacy(s, 'AG18') * Math.sqrt(lineMultCapped(s, 'AG18')) * HEAL_PREF[post.pref] * HEAL_SAFETY[post.safety];
 }
 
 /** Engine environment for one of the player's runs (true weights, true difficulty, U-mode effects). */

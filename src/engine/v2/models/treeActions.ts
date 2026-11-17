@@ -1,7 +1,7 @@
 // Research verbs (STRUCTURE §4.2, BUILD-PLAN R4): queue a project, start it now, reorder, drop it, assign or take off a
 // science team, and the auto-assign policy. Owner: WS1. Previews work with empty params (defaults: the first open idea,
 // the first capabilities science team) and show ≥ 1 cost in a currency not among the gains (lint-tradeoffs).
-import { TREE, TREE_BY_ID } from '../../../data/v2/tree';
+import { PROJECT_BY_ID, TREE } from '../../../data/v2/tree';
 import type { ActionDef, CostLine, GameStateV2 } from '../types';
 import {
   assignTeam, dequeueNode, effortOf, idleTeams, moveInQueue, nodeOdds, nodeStatus, projectCapacity, projectEta, projectTeams,
@@ -24,7 +24,7 @@ const days = (x: number) => (Number.isFinite(x) ? Math.round(x) : 9999);
 /** What researching a node costs and gives: team-months of science; capability (progress) or safety (alignment) gain
  *  with its odds; safety side effects as exposure. */
 export function nodePreview(s: GameStateV2, id: string): Preview {
-  const n = TREE_BY_ID[id];
+  const n = PROJECT_BY_ID[id];
   if (!n) return { costs: [{ currency: 'staffTime', amount: 0 }], gains: [], exposure: [] };
   const odds = nodeOdds(s, id);
   const costs: CostLine[] = [{ currency: 'staffTime', amount: Math.round(effortOf(n) * 10) / 10, target: 'science team-months' }];
@@ -58,7 +58,7 @@ export const TREE_ACTIONS: ActionDef[] = [
     preview: (s, p) => {
       const id = str(p, 'id', s.player.research.queue[0] ?? '');
       const heads = s.player.teams.filter((t) => t.projectId === id).reduce((a, t) => a + t.heads, 0);
-      return { costs: [{ currency: 'progress', amount: -0.05, target: TREE_BY_ID[id]?.name ?? 'project' }], gains: [{ currency: 'staffTime', amount: Math.round(heads), target: 'scientists freed' }], exposure: [] };
+      return { costs: [{ currency: 'progress', amount: -0.05, target: PROJECT_BY_ID[id]?.name ?? 'project' }], gains: [{ currency: 'staffTime', amount: Math.round(heads), target: 'scientists freed' }], exposure: [] };
     },
     apply: (s, _ctx, p) => fail(dequeueNode(s, str(p, 'id', s.player.research.queue[0] ?? ''))),
   },
@@ -67,13 +67,13 @@ export const TREE_ACTIONS: ActionDef[] = [
     available: (s) => (s.player.research.queue.length > 1 ? true : 'Nothing to reorder'),
     preview: (s, p) => {
       const id = str(p, 'id', s.player.research.queue[s.player.research.queue.length - 1] ?? '');
-      return { costs: [{ currency: 'staffTime', amount: 0, target: 'idle teams follow the new order' }], gains: [{ currency: 'progress', amount: 0, target: TREE_BY_ID[id]?.name ?? 'project' }], exposure: [] };
+      return { costs: [{ currency: 'staffTime', amount: 0, target: 'idle teams follow the new order' }], gains: [{ currency: 'progress', amount: 0, target: PROJECT_BY_ID[id]?.name ?? 'project' }], exposure: [] };
     },
     apply: (s, _ctx, p) => fail(moveInQueue(s, str(p, 'id', ''), num(p, 'to', 0))),
   },
   {
     id: 'research.assign', sphere: 'models', owner: 'WS1', title: 'Assign',
-    available: (s) => (projectTeams(s).length ? true : 'No capabilities science teams'),
+    available: (s) => (projectTeams(s).length ? true : 'No science teams'),
     preview: (s, p) => {
       const id = nodeParam(s, p);
       const team = s.player.teams.find((t) => t.id === teamParam(s, p));
@@ -82,9 +82,9 @@ export const TREE_ACTIONS: ActionDef[] = [
       const costs: CostLine[] = [{ currency: 'staffTime', amount: Math.round(team?.heads ?? 0), target: 'scientists' }];
       if (team?.projectId && team.projectId !== id) {
         const from = team.projectId;
-        costs.push({ currency: 'leadDays', amount: -Math.max(0, days(projectEta(s, from, projectCapacity(s, from, undefined, team.id))) - days(projectEta(s, from))), target: TREE_BY_ID[from]?.name ?? 'project' });
+        costs.push({ currency: 'leadDays', amount: -Math.max(0, days(projectEta(s, from, projectCapacity(s, from, undefined, team.id))) - days(projectEta(s, from))), target: PROJECT_BY_ID[from]?.name ?? 'project' });
       }
-      return { costs, gains: [{ currency: 'progress', amount: Math.max(0, days(before) - days(after)), target: `${TREE_BY_ID[id]?.name ?? 'project'} (days sooner)` }], exposure: [] };
+      return { costs, gains: [{ currency: 'progress', amount: Math.max(0, days(before) - days(after)), target: `${PROJECT_BY_ID[id]?.name ?? 'project'} (days sooner)` }], exposure: [] };
     },
     apply: (s, _ctx, p) => fail(assignTeam(s, teamParam(s, p), nodeParam(s, p))),
   },
@@ -95,7 +95,7 @@ export const TREE_ACTIONS: ActionDef[] = [
       const team = s.player.teams.find((t) => t.id === str(p, 'team', s.player.teams.find((t) => t.projectId)?.id ?? ''));
       const id = team?.projectId ?? '';
       const delay = id && team ? Math.max(0, days(projectEta(s, id, projectCapacity(s, id, undefined, team.id))) - days(projectEta(s, id))) : 0;
-      return { costs: [{ currency: 'leadDays', amount: -delay, target: TREE_BY_ID[id]?.name ?? 'project' }], gains: [{ currency: 'staffTime', amount: Math.round(team?.heads ?? 0), target: 'scientists free' }], exposure: [] };
+      return { costs: [{ currency: 'leadDays', amount: -delay, target: PROJECT_BY_ID[id]?.name ?? 'project' }], gains: [{ currency: 'staffTime', amount: Math.round(team?.heads ?? 0), target: 'scientists free' }], exposure: [] };
     },
     apply: (s, _ctx, p) => fail(unassignTeam(s, teamParam(s, p))),
   },

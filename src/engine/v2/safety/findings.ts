@@ -7,7 +7,8 @@ import { safetyAgentVersion, trustedShare } from './agents';
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { EDGES } from '../../../data/v2/edges';
 import { FINDINGS, FINDING_BY_ID, type FindingDef } from '../../../data/v2/findings';
-import { TECHNIQUES } from '../../../data/v2/techniques';
+import { TECHNIQUES, TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
+import { PROJECT_BY_ID } from '../../../data/v2/tree';
 import { UMODE_BY_ID, UMODES } from '../../../data/v2/umodes';
 import { CHINA_ID, internalVersion } from '../models/labs';
 import type { AgendaId, FindingRecord, FindingType, GameStateV2, SystemCtx, TechniqueState, ToolFamily, TraitId, UModeId } from '../types';
@@ -194,9 +195,10 @@ export function revealFalse(s: GameStateV2, ctx: SystemCtx, techniqueId: string)
 
 /**
  * Fire one finding for an agenda (§3.5.3): draw the type, select the catalog row (or a generic upgrade), apply its
- * effects, move the posterior, record it, auto-publish under the 'all' policy.
+ * effects, move the posterior, record it, auto-publish under the 'all' policy. R8: called when a research-line
+ * project (`nodeId`) reaches progress 1; the type draw is unchanged (driven by the line's hidden efficacy).
  */
-export function fireFinding(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId): FindingRecord | undefined {
+export function fireFinding(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId, nodeId?: string): FindingRecord | undefined {
   const dept = s.player.safety;
   const st = dept.agendas[agenda];
   const def = AGENDA_BY_ID[agenda];
@@ -223,7 +225,30 @@ export function fireFinding(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId): F
   switch (type) {
     case 'TECH': {
       const rows = candidates(s, agenda, ['TECH', 'EVAL']);
-      if (rows.length) {
+      // R8: a working result of a node's project is that node's catalog row (or its generic tool, or the idea itself);
+      // a follow-up, or a node whose row cannot fire in this world (e.g. F05 needs e > 0.7), takes the line's next row.
+      const n = nodeId ? PROJECT_BY_ID[nodeId] : undefined;
+      const tech = n && !n.followUp ? n.technique : undefined;
+      const own = n && !n.followUp ? rows.find((r) => r.id === n.finding || (!!tech && r.effects.includes(`unlock:${tech}`))) : undefined;
+      const generic = tech && TECHNIQUE_BY_ID[tech]?.unlockedBy === 'generic' && !dept.techniques[tech]?.unlocked;
+      if (own) {
+        id = own.id;
+        shown = own.type;
+        title = own.title;
+        applyEffects(s, ctx, agenda, own.effects);
+      } else if (generic && tech) {
+        unlockTechnique(s, tech);
+        shown = def.family === 'BB' || def.family === 'BB+' ? 'EVAL' : 'TECH';
+        id = nextId(s, `${agenda}-${shown}`);
+        title = `${TECHNIQUE_BY_ID[tech].name} validated`;
+        ctx.log('research', `New tool: ${TECHNIQUE_BY_ID[tech].name}.`, 2, tech);
+      } else if (n && !n.followUp && !n.technique && !n.finding) {
+        // An idea with no catalog row (safety pretraining): it works.
+        id = nextId(s, `${agenda}-TECH`);
+        shown = 'TECH';
+        title = `${n.name} works`;
+        s.player.tree[n.id] = { status: 'known', progress: 1, day: ctx.day };
+      } else if (rows.length) {
         const row = rows[0];
         id = row.id;
         shown = row.type;
@@ -312,9 +337,8 @@ export function fireFinding(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId): F
     }
   }
   if (!id) return undefined;
-  const rec: FindingRecord = { id, agenda, type: shown, trueType: type, day: ctx.day, published: false };
+  const rec: FindingRecord = { id, agenda, type: shown, trueType: type, day: ctx.day, published: false, ...(nodeId ? { nodeId } : {}) };
   dept.findings.push(rec);
-  st.hazardAcc = 0;
   ctx.log('research', `${def.name}: ${title}.`, type === 'DISC' || type === 'NEG' ? 3 : 2, id);
   if (s.player.policies.publishSafety === 'all' && type !== 'SPILL') publishFinding(s, ctx, id);
   return rec;
@@ -350,7 +374,4 @@ export function publishFinding(s: GameStateV2, ctx: SystemCtx, findingId: string
   if (rec.id.startsWith('DISC-')) revealToWorld(s, rec.id.slice(5, 8) as UModeId);
 }
 
-/** Expected findings per year for an agenda at its current funding (visible; for previews). */
-export function expectedFindingsPerYear(lambdaPerDay: number): number {
-  return lambdaPerDay * 365;
-}
+

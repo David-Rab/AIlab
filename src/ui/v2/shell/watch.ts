@@ -44,11 +44,11 @@ export function watchItems(s: GameStateV2): WatchItem[] {
     const tool = sv.techniques.filter((t) => t.unlocked && t.active && t.role !== 'fix').sort((a, b) => b.decay - a.decay)[0];
     const root: WatchLink = tool && tool.decay > 0.3
       ? { label: `${tool.name} decayed`, icon: ICON.revalidate, kind: 'root', detail: `${F.pct(tool.decay)} of its strength lost as capability grew` }
-      : { label: 'no tool covers them', icon: ICON.safety, kind: 'root', detail: 'Fund a detection agenda' };
+      : { label: 'no tool covers them', icon: ICON.safety, kind: 'root', detail: 'Staff a detection research line' };
     out.push({
       id: 'unseen', sphere: 'safety', sev: 2 + unseen.length / 2,
       chain: [root, { label: `${unseen.length} trait${unseen.length > 1 ? 's' : ''} unseen`, icon: ICON.blind, kind: 'bad', detail: 'Detection below 50% at your level' }],
-      why: 'your tools no longer read them at this level', go: tool && tool.decay > 0.3 ? { panel: 'safety', tab: 'tools' } : { panel: 'safety', tab: 'agendas' }, goLabel: tool && tool.decay > 0.3 ? 'Tools' : 'Agendas',
+      why: 'your tools no longer read them at this level', go: { panel: 'safety', tab: 'lines' }, goLabel: tool && tool.decay > 0.3 ? 'Tool upkeep' : 'Research lines',
     });
   }
   // 4. runway state will change at the next board review

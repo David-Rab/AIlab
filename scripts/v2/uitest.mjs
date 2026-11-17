@@ -444,14 +444,42 @@ if (await page.$('[data-test=agents-gate]')) ok('Products: Agents card shows its
   const ent = JSON.parse(await get(`(s.player.deployments.find(d => d.channel === 'enterprise' && d.status === 'live') || {}).id || ''`));
   if (ent) await check('Products: Retire withdraws a product', `s.player.deployments.find(d => d.id === "${ent}").status`, () => page.click(`[data-act="product.retire.${ent}"]`));
 }
+// R8 Safety: overview (verdict, race chart, four risk families, policies), research lines, investigations.
 await nav('safety');
-await tabTo('agendas');
-ok('Safety department load renders', !!(await page.$('[data-home=safetyLoad] [data-test=load-staff]')) && !!(await page.$('[data-home=safetyLoad] [data-test=load-compute]')));
-await tabTo('tools');
-ok('Safety: internal agents summary links to Company (D4)', !!(await page.$('[data-test=agents-summary] [data-ref=trustedToAI]')));
+await tabTo('overview');
+ok('Safety overview: verdict, race chart, 4 risk families, policies', !!(await page.$('[data-home=safetyVerdict]')) && !!(await page.$('[data-test=race-chart]')) && (await page.$$('[data-home=riskFamilies] [data-family]')).length === 4 && !!(await page.$('[data-home=safetyPolicy]')));
+ok('Safety: Trusted to AI and monitors link to Company (D4)', !!(await page.$('[data-home=safetyPolicy] [data-ref=trustedToAI]')) && !!(await page.$('[data-home=safetyPolicy] [data-ref=agentMonitor]')));
+await check('Safety: evaluate-before-release toggle', 's.player.safety.evalGate', () => page.click('[data-act="safety.evalGate.toggle"]'));
+await page.click('[data-act="safety.evalGate.toggle"]');
+await page.hover('[data-test=u-point]');
+await wait(250);
+ok('Safety: U tooltip shows tools validated to and per-family levels', JSON.parse(await get(`/validated to/i.test(document.body.innerText) && /Deception seen to/.test(document.body.innerText)`)));
+await clearTips();
+await tabTo('lines');
+ok('Research lines: staffed lines with health and teams', (await page.$$('[data-home=researchLines] [data-line]')).length >= 2 && !!(await page.$('[data-home=researchLines] [data-line] [data-team]')) && /Promising|Mixed|Struggling/.test(await page.$eval('[data-home=researchLines]', (e) => e.textContent ?? '')));
+ok('Research lines: tool upkeep card (research engineers)', !!(await page.$('[data-home=toolUpkeep] [data-test=re-bar]')));
+{
+  const tid = JSON.parse(await get('(s.player.teams.find((t) => t.role === "sci" && t.dept === "saf" && t.projectId) || {}).id || ""'));
+  const line = JSON.parse(await get(`(() => { const t = s.player.teams.find((x) => x.id === "${tid}"); const r = document.querySelector('[data-line] [data-team="${tid}"]'); return r ? r.closest('[data-line]').getAttribute('data-line') : ''; })()`));
+  if (tid && line) {
+    await page.evaluate((id) => { window.ai27v2.state.player.research.autoAssign = false; window.ai27v2.act('research.unassign', { team: id }); }, tid);
+    await wait(80);
+    if (!(await page.$(`[data-test="line-add.${line}"]`))) await page.click('[data-test=lines-all]');
+    await wait(60);
+    await page.click(`[data-test="line-add.${line}"]`);
+    await check('Research lines: + team assigns an idle safety team to the line', `(s.player.teams.find((t) => t.id === "${tid}") || {}).projectId || ""`, () => page.click(`[data-act="line-assign.${tid}"]`));
+    await page.evaluate(() => { window.ai27v2.state.player.research.autoAssign = true; });
+  }
+}
+await check('Research lines: show all / staffed only', 'document.querySelectorAll("[data-home=researchLines] [data-line]").length', () => page.click('[data-test=lines-all]'));
+await check('Research lines: tools list opens', 'document.querySelectorAll("[data-technique]").length', () => page.click('[data-test=tools-open]'));
+await tabTo('cases');
+await check('Investigations: open a case with 20 engineers', 'JSON.stringify(s.player.safety.investigations.filter((i) => !i.outcome).map((i) => i.fte))', async () => { await page.selectOption('[data-test=inv-trait]', 'SUCC'); await page.selectOption('[data-test=inv-fte]', '20'); await page.click('[data-panel=safety] [data-home=investigations] [data-act="safety.investigate"]'); });
+ok('Investigations: case card shows the 5–40 staffing and the 120-day close', JSON.parse(await get(`(() => { const c = document.querySelector('[data-case]'); return !!c && /5–40/.test(c.textContent) && /120 d max/.test(c.textContent); })()`)));
 for (const t of await tabsOf()) await check(`Safety tab ${t}`, 'store.tab.safety || ""', () => tabTo(t), 30).catch(() => {});
 await tabTo('graph');
-ok('Trait graph is the first tab', !!(await page.$('[data-test=traitgraph]')));
+ok('Trait graph tab renders the graph', !!(await page.$('[data-test=traitgraph]')));
+await tabTo('overview');
 await nav('codex');
 await check('Codex category', `document.querySelector('.codex-entry').innerText`, () => page.click('[data-codex-cat="Traits"]'));
 await check('Codex search', `document.querySelector('.codex-list').innerText`, () => page.fill('[data-test=codex-search]', 'scheming'));
@@ -509,7 +537,7 @@ await nav('overview');
 const go = await page.$('[data-test=watch] [data-go]');
 if (go) await check('Watch Go jumps to the control', 'store.panel', () => go.click());
 ok('Headline renders', !!(await page.$('[data-test=ticker]')));
-await check('Race meter click opens Safety graph', 'store.panel + store.tab.safety', () => page.click('[data-test=race]'));
+await check('Race meter click opens Safety overview', 'store.panel + store.tab.safety', () => page.click('[data-test=race]'));
 
 // ───────────────────────── Game C: day-400 fixture, screenshots of every panel ─────────────────────────
 const fx = readFileSync(path.resolve('scripts/v2/fixtures/day400.json'), 'utf8');

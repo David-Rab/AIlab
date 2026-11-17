@@ -1,15 +1,15 @@
 // Save format, migrations, state hash (V2-SPEC §2.5). Owner: WS1.
 import { ensureWs3 } from '../finance/ext';
 import { keyOf, staffOf, teamsFromStaff } from '../departments/teams';
-import type { GameStateV2, PlayerLab, StaffByRole, TeamHiring } from '../types';
+import type { AgendaId, GameStateV2, PlayerLab, StaffByRole, TeamHiring } from '../types';
 import { hash32 } from './rng';
-import { initialResearch, initialTree } from '../models/tree';
+import { initialResearch, initialTree, nextLineProject } from '../models/tree';
 import { LEADER_FEATURES, PRICE_TIERS, tierOfIndex } from '../../../data/v2/features';
 import { TRUSTED_MAX_P27 } from '../../../data/v2/agents';
 import { initialAgents } from '../departments/agents';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
-export const SCHEMA_REV = 9;
+export const SCHEMA_REV = 10;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -154,6 +154,29 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     delete sd.agentVersion;
     delete sd.agentShare;
     delete sd.monitoringShare;
+  },
+  /** 9 → 10 (restructure R8): research lines are tree projects. Funding levels, hazards and refresh projects go; each
+   *  safety science team without a project joins a line, the most-funded lines first (its next idea, else its
+   *  follow-up). Tools keep their M½ (upkeep by safety research engineers takes over). */
+  9: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const p = s.player as PlayerLab;
+    const ags = p.safety.agendas as unknown as Record<string, { fte?: number; hazardAcc?: number; refresh?: unknown; deadEndTM?: number }>;
+    const byFte = Object.entries(ags).filter(([, a]) => (a.fte ?? 0) > 0).sort((x, y) => (y[1].fte ?? 0) - (x[1].fte ?? 0)).map(([id]) => id);
+    for (const a of Object.values(ags)) {
+      delete a.fte;
+      delete a.hazardAcc;
+      delete a.refresh;
+      a.deadEndTM ??= 0;
+    }
+    const idle = p.teams.filter((t) => t.role === 'sci' && t.dept === 'saf' && !t.projectId);
+    for (const [i, t] of idle.entries()) {
+      const ag = byFte[i % Math.max(1, byFte.length)] as AgendaId | undefined;
+      const id = ag ? nextLineProject(s, ag) : undefined;
+      if (!id) continue;
+      t.projectId = id;
+      if (!p.research.queue.includes(id)) p.research.queue.push(id);
+    }
   },
 };
 

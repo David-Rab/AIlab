@@ -1,16 +1,15 @@
 // Player actions in the Safety sphere (ActionDef catalog, V2-SPEC §3.4.3 Safety row, §3.5). Owner: WS2.
 // Every preview shows costs, gains and exposure computed from VISIBLE inputs (posteriors, beliefs, FTE, compute);
 // none reads truth. Each has ≥ 1 cost in a currency that is not among its gains (§2.7, lint-tradeoffs).
-import { AGENDAS, AGENDA_BY_ID, FUNDING_LEVELS, FUNDING_LEVEL_IDS, type FundingLevel } from '../../../data/v2/agendas';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { TRAIT_IDS } from '../../../data/v2/traits';
 import { internalVersion } from '../models/labs';
-import type { ActionDef, AgendaId, CostLine, GameStateV2, ResponseKind, SafetyDept, TraitId } from '../types';
+import type { ActionDef, CostLine, GameStateV2, ResponseKind, SafetyDept, TraitId } from '../types';
 import { clamp01, mAtLevel, versionById } from './common';
-import { findingHazard, fundingMult, posteriorBand, setAgendaFunding, staffFactor, startRefresh } from './agendas';
 import { safetyAgentVersion, trustedShare } from './agents';
 import { publishFinding } from './findings';
-import { closeInvestigation, investigationFte, openInvestigation } from './investigations';
+import { INV_FTE, INV_MAX_DAYS, closeInvestigation, investigationFte, openInvestigation, safetyReHeads } from './investigations';
+import { patchFte } from './responses';
 import { RESPONSE_INFO, applyResponse, responseTrait } from './responses';
 import { strengthBelieved, techniqueRole } from './techniques';
 import { believedPenalty, combineTools } from './detection';
@@ -21,95 +20,11 @@ type Preview = { costs: CostLine[]; gains: CostLine[]; exposure: CostLine[] };
 const r2 = (x: number) => Math.round(x * 100) / 100;
 const str = (p: P, k: string): string | undefined => (typeof p[k] === 'string' ? (p[k] as string) : undefined);
 const num = (p: P, k: string): number | undefined => (typeof p[k] === 'number' ? (p[k] as number) : undefined);
-const isAgenda = (x: string | undefined): x is AgendaId => !!x && x in AGENDA_BY_ID;
 const isTrait = (x: string | undefined): x is TraitId => !!x && (TRAIT_IDS as string[]).includes(x);
 
 function measuredL(s: GameStateV2): number {
   return internalVersion(s)?.evals.measuredL ?? 0;
 }
-
-/** Default agenda for a funding preview: the best-posterior agenda that is not funded yet. */
-function defaultAgenda(dept: SafetyDept): AgendaId {
-  const idle = AGENDAS.filter((a) => dept.agendas[a.id].fte <= 0 && a.id !== 'AG17');
-  const pool = idle.length ? idle : AGENDAS;
-  return pool.reduce((b, a) => (posteriorBand(dept.agendas[a.id]).mean > posteriorBand(dept.agendas[b.id]).mean ? a : b), pool[0]).id;
-}
-
-/** Findings/yr at a hypothetical FTE and Trusted-to-AI share (visible inputs only). */
-export function findingsPerYearAt(s: GameStateV2, ag: AgendaId, fte: number, trusted?: number): number {
-  const st = s.player.safety.agendas[ag];
-  const saved = { fte: st.fte, computeShare: st.computeShare };
-  const pol = s.player.policies;
-  const savedT = pol.trustedToAI;
-  const m0 = fundingMult(ag, st);
-  st.fte = fte;
-  if (trusted !== undefined) pol.trustedToAI = trusted;
-  if (m0 > 0) st.computeShare = (saved.computeShare * fundingMult(ag, st)) / m0;
-  else st.computeShare = (fundingMult(ag, st) * AGENDA_BY_ID[ag].computeRef) / Math.max(0.005, s.player.split.safety);
-  const y = findingHazard(s, ag, staffFactor(s)) * 365;
-  Object.assign(st, saved);
-  pol.trustedToAI = savedT;
-  return r2(y);
-}
-
-function fundPreview(s: GameStateV2, ag: AgendaId, level: FundingLevel): Preview {
-  const st = s.player.safety.agendas[ag];
-  const def = AGENDA_BY_ID[ag];
-  const fte = def.fteRef * FUNDING_LEVELS[level];
-  const dFte = r2(fte - st.fte);
-  const dCompute = r2((fte / def.fteRef - fundingMult(ag, st)) * def.computeRef * 100); // % of lab compute
-  const dYield = r2(findingsPerYearAt(s, ag, fte) - findingsPerYearAt(s, ag, st.fte));
-  const band = posteriorBand(st);
-  const exposure: CostLine[] = [{ currency: 'alignment', amount: r2(band.mean), probability: r2(band.mean), target: `${def.name}: ${band.label}` }];
-  if (dFte >= 0) {
-    return {
-      costs: [{ currency: 'staffTime', amount: dFte, target: 'safety FTE' }, { currency: 'compute', amount: dCompute, target: '% of compute' }],
-      gains: [{ currency: 'alignment', amount: dYield, target: 'findings / yr' }],
-      exposure,
-    };
-  }
-  return {
-    costs: [{ currency: 'alignment', amount: dYield, target: 'findings / yr; tools stop being refreshed' }],
-    gains: [{ currency: 'staffTime', amount: -dFte, target: 'safety FTE freed' }, { currency: 'compute', amount: -dCompute, target: '% of compute freed' }],
-    exposure,
-  };
-}
-
-const FUND: ActionDef = {
-  id: 'safety.fund', sphere: 'safety', owner: 'WS2', title: 'Fund agenda',
-  available: () => true,
-  preview(s, p) {
-    const ag = isAgenda(str(p, 'agenda')) ? (str(p, 'agenda') as AgendaId) : defaultAgenda(s.player.safety);
-    const lv = str(p, 'level') as FundingLevel | undefined;
-    return fundPreview(s, ag, lv && FUNDING_LEVEL_IDS.includes(lv) ? lv : 'serious');
-  },
-  apply(s, ctx, p) {
-    const ag = str(p, 'agenda');
-    const lv = (str(p, 'level') ?? 'serious') as FundingLevel;
-    if (!isAgenda(ag) || !FUNDING_LEVEL_IDS.includes(lv)) return void ctx.log('alert', 'Fund agenda: pick an agenda and a level.');
-    const err = setAgendaFunding(s, ag, lv);
-    ctx.log(err ? 'alert' : 'company', err ?? `${AGENDA_BY_ID[ag].name} funded at ${lv}.`, err ? 2 : 1, ag);
-  },
-};
-
-const CUT: ActionDef = {
-  id: 'safety.cut', sphere: 'safety', owner: 'WS2', title: 'Cut agenda',
-  available: (s) => Object.values(s.player.safety.agendas).some((a) => a.fte > 0) || 'No funded agenda',
-  preview(s, p) {
-    const dept = s.player.safety;
-    const funded = AGENDAS.filter((a) => dept.agendas[a.id].fte > 0);
-    const ag = isAgenda(str(p, 'agenda')) ? (str(p, 'agenda') as AgendaId) : (funded[0] ?? AGENDAS[0]).id;
-    const pv = fundPreview(s, ag, 'off');
-    if (dept.agendas[ag].fte <= 0) return { costs: [{ currency: 'alignment', amount: 0 }], gains: [{ currency: 'staffTime', amount: 0 }], exposure: [] };
-    return pv;
-  },
-  apply(s, ctx, p) {
-    const ag = str(p, 'agenda');
-    if (!isAgenda(ag)) return void ctx.log('alert', 'Cut agenda: pick an agenda.');
-    setAgendaFunding(s, ag, 'off');
-    ctx.log('company', `${AGENDA_BY_ID[ag].name} cut. Findings kept; its tools will no longer be refreshed.`, 2, ag);
-  },
-};
 
 /** Visible sabotage estimate of the safety agent model (from beliefs, never truth). */
 function believedSab(s: GameStateV2): number {
@@ -139,11 +54,11 @@ function investigationGain(s: GameStateV2, versionId: string, trait: TraitId, ft
 const INVESTIGATE: ActionDef = {
   id: 'safety.investigate', sphere: 'safety', owner: 'WS2', title: 'Investigate',
   available: (s) => {
-    const free = s.player.staff.saf - investigationFte(s) - Object.values(s.player.safety.agendas).reduce((a, g) => a + g.fte, 0);
-    return free >= 5 || 'Not enough free safety staff (needs 5 FTE)';
+    const free = safetyReHeads(s) - investigationFte(s) - patchFte(s);
+    return free >= INV_FTE[0] || `Not enough free safety research engineers (a case needs ${INV_FTE[0]}–${INV_FTE[1]})`;
   },
   preview(s, p) {
-    const fte = Math.max(5, Math.min(40, num(p, 'fte') ?? 15));
+    const fte = Math.max(INV_FTE[0], Math.min(INV_FTE[1], num(p, 'fte') ?? 15));
     const inc = str(p, 'incidentId') ? s.player.safety.incidents.find((i) => i.id === str(p, 'incidentId')) : undefined;
     const t = defaultTarget(s);
     const versionId = inc?.versionId ?? str(p, 'versionId') ?? t?.versionId ?? '';
@@ -151,13 +66,13 @@ const INVESTIGATE: ActionDef = {
     const sab = believedSab(s);
     const ai = trustedShare(s);
     return {
-      costs: [{ currency: 'staffTime', amount: fte, target: 'safety FTE for up to 120 d' }, { currency: 'compute', amount: r2(5 * (num(p, 'computeShare') ?? 0.05)), target: '% of safety pool' }],
+      costs: [{ currency: 'staffTime', amount: fte, target: `safety research engineers for up to ${INV_MAX_DAYS} d (tool upkeep slows)` }, { currency: 'compute', amount: r2(5 * (num(p, 'computeShare') ?? 0.05)), target: '% of safety pool' }],
       gains: [{ currency: 'alignment', amount: investigationGain(s, versionId, trait, fte), target: `clarity / month on ${trait}` }],
       exposure: ai > 0 ? [{ currency: 'alignment', amount: -r2(ai * sab), probability: r2(clamp01(ai * sab * 0.4)), target: 'corrupted conclusion (estimate)' }] : [],
     };
   },
   apply(s, ctx, p) {
-    const fte = Math.max(5, Math.min(40, num(p, 'fte') ?? 15));
+    const fte = Math.max(INV_FTE[0], Math.min(INV_FTE[1], num(p, 'fte') ?? 15));
     const tools = str(p, 'tools')?.split(',').filter(Boolean);
     const opts = { tools, computeShare: num(p, 'computeShare') };
     const incId = str(p, 'incidentId');
@@ -181,7 +96,7 @@ const CLOSE_CASE: ActionDef = {
     const inv = s.player.safety.investigations.find((i) => i.id === str(p, 'id')) ?? s.player.safety.investigations.find((i) => !i.outcome);
     return {
       costs: [{ currency: 'alignment', amount: r2(1 - (inv?.clarity ?? 0)), target: 'clarity not reached' }],
-      gains: [{ currency: 'staffTime', amount: inv?.fte ?? 0, target: 'safety FTE freed' }],
+      gains: [{ currency: 'staffTime', amount: inv?.fte ?? 0, target: 'safety research engineers freed for tool upkeep' }],
       exposure: [],
     };
   },
@@ -363,23 +278,5 @@ const TECHNIQUE: ActionDef = {
   },
 };
 
-const REFRESH: ActionDef = {
-  id: 'safety.refresh', sphere: 'safety', owner: 'WS2', title: 'Re-validate',
-  available: (s) => Object.values(s.player.safety.techniques).some((t) => t.unlocked && t.k > 0 && s.player.safety.agendas[t.agenda].fte > 0 && !s.player.safety.agendas[t.agenda].refresh) || 'No tool to re-validate',
-  preview(s, p) {
-    const t = s.player.safety.techniques[str(p, 'techniqueId') ?? ''] ?? Object.values(s.player.safety.techniques).find((x) => x.unlocked && x.k > 0);
-    const fte = t ? s.player.safety.agendas[t.agenda].fte * 0.3 : 0;
-    return {
-      costs: [{ currency: 'staffTime', amount: r2(fte), target: '30% of the agenda for 2–4 months' }],
-      gains: [{ currency: 'alignment', amount: t ? r2(Math.log2(Math.max(1, t.mHalf * 2)) / 10) : 0, target: 'M½ × 2 (holds at higher capability)', lagDays: 90 }],
-      exposure: [{ currency: 'alignment', amount: -0.05, probability: 0.3, target: 'findings slower meanwhile' }],
-    };
-  },
-  apply(s, ctx, p) {
-    const err = startRefresh(s, str(p, 'techniqueId') ?? '');
-    if (err) ctx.log('alert', `Re-validate: ${err}.`, 1);
-  },
-};
-
-export const SAFETY_ACTIONS: ActionDef[] = [FUND, CUT, INVESTIGATE, CLOSE_CASE, RESPOND, PUBLISH, POLICY, PLEDGE, EVAL_GATE, TECHNIQUE, REFRESH];
+export const SAFETY_ACTIONS: ActionDef[] = [INVESTIGATE, CLOSE_CASE, RESPOND, PUBLISH, POLICY, PLEDGE, EVAL_GATE, TECHNIQUE];
 

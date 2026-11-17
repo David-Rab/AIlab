@@ -13,8 +13,7 @@ import { setInternalAgent } from '../models/deployments';
 import { bestResearchMix, evalProduction, inputsAtMix, labInputs, tcoPerH100eYear } from '../production/production';
 import { Phi } from '../production/knots';
 import { aiLabourGate, safetyAgentVersion, safetyFleet, trustedShare } from '../safety/agents';
-import { findingsPerYearAt } from '../safety/actions';
-import { AGENDAS } from '../../../data/v2/agendas';
+import { resultsPerYearAt } from '../safety/agendas';
 import type { ActionDef, AgentPackage, AgentUse, CostLine, GameStateV2, ModelVersion, ProductionReadout } from '../types';
 import {
   agentSplitShare, agentVersion, capShare, isCapUse, monitorBudget, monitorH100e, monitorStrength, monitorVersion, riskBadges,
@@ -191,13 +190,11 @@ export function previewAgentChange(s: GameStateV2, use: AgentUse, c: AgentChange
   return { before: agentsView(s), after: agentsView(hypo(s, withAgentChange(s, use, c))), use, block: agentChangeBlock(s, use, c), fromDay: s.time.day + 1 };
 }
 
-/** Before → after of a Trusted-to-AI change (safety findings per year across funded agendas, AI FTE). */
+/** Before → after of a Trusted-to-AI change (safety results per year across staffed research lines). */
 export function previewTrusted(s: GameStateV2, share: number): { findingsBefore: number; findingsAfter: number } {
   const t = Math.max(0, Math.min(trustedMax(s), share));
   const s2 = hypo(s, startAgents(s, t), t);
-  const funded = AGENDAS.filter((a) => s.player.safety.agendas[a.id].fte > 0);
-  const fy = (x: GameStateV2, tt: number) => funded.reduce((acc, a) => acc + findingsPerYearAt(x, a.id, x.player.safety.agendas[a.id].fte, tt), 0);
-  return { findingsBefore: fy(s, s.player.policies.trustedToAI), findingsAfter: fy(s2, t) };
+  return { findingsBefore: resultsPerYearAt(s, s.player.policies.trustedToAI), findingsAfter: resultsPerYearAt(s2, t) };
 }
 
 /** Packages after turning Trusted to AI on: safety agents get the default share of the safety pool if none run. */

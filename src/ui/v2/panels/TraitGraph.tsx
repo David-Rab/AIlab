@@ -231,7 +231,7 @@ function EvidenceCard({ s, id, versionId, edges, det, pinned, onClose }: { s: Ga
           <span className="small">Your tools catch it</span>
           <HBar v={det} max={1} w={150} h={6} color={det >= 0.5 ? C.und : C.bad} mark={0.5} />
           <span className={`num ${det >= 0.5 ? 'tone-pos' : 'tone-neg'}`}>{F.pct(det)}</span>
-          <div className="dim small" style={{ gridColumn: '1 / -1' }}>{det >= 0.5 ? 'Above' : 'Below'} 50% at your level · counts toward <Ref id="U" to={{ panel: 'safety', tab: 'graph' }}>Understanding</Ref></div>
+          <div className="dim small" style={{ gridColumn: '1 / -1' }}>{det >= 0.5 ? 'Above' : 'Below'} 50% at your level · counts toward <Ref id="U" to={{ panel: 'safety', tab: 'overview' }}>Understanding</Ref></div>
         </div>
       )}
       {inc.length > 0 && (
@@ -249,10 +249,10 @@ function EvidenceCard({ s, id, versionId, edges, det, pinned, onClose }: { s: Ga
       )}
       {!inc.length && <div className="dim small tip-sec">No known causes in the graph: it moves through training and the tools you use.</div>}
       <div className="tip-sec btn-row wrap">
-        {versionId && <ActBtn id="safety.investigate" testId="safety.investigate.trait" params={{ versionId, trait: id, fte: 15 }} icon={ICON.investigate} label="Investigate · 15 staff" />}
+        {versionId && <ActBtn id="safety.investigate" testId="safety.investigate.trait" params={{ versionId, trait: id, fte: 15 }} icon={ICON.investigate} label="Investigate · 15 engineers" />}
         {sigIn && <GoBtn to={{ panel: 'blueprint' }} label={`Less ${SIGNAL_SHORT[sigIn].toLowerCase()}`} testId={`tg.recipe.${sigIn}`} />}
-        {critical && det !== undefined && det < 0.5 && <GoBtn to={{ panel: 'safety', tab: 'tools' }} label="Re-validate tools" testId="tg.tools" />}
-        <GoBtn to={{ panel: 'safety', tab: 'agendas' }} label="Fund agendas" testId="tg.agendas" />
+        {critical && det !== undefined && det < 0.5 && <GoBtn to={{ panel: 'safety', tab: 'lines' }} label="Tool upkeep" testId="tg.upkeep" />}
+        <GoBtn to={{ panel: 'safety', tab: 'lines' }} label="Research lines" testId="tg.lines" />
       </div>
     </div>
   );

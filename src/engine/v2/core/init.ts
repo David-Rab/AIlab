@@ -168,7 +168,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     stars: 0,
     hiring: roster.hiring,
     tree: initialTree(setup),
-    research: initialResearch(),
+    research: initialResearch(roster.teams),
     build: initialBuild(),
     // Leader start (D5): the features today's game has are built (sector packs); R9 sets them per start type.
     features: [...LEADER_FEATURES],

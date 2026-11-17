@@ -125,6 +125,7 @@ const CROSS_HOOKS: [string, StreamId, string][] = [
   ['director', 'safety', 'WS2 hooks in WS4 event choices'],
   ['runs', 'safety', 'WS2 applyBaseToLineage / applyRunToTraits (WS1 run completion)'],
   ['products', 'safety', 'WS2 observe (eval suites of the auto-evaluate policy, R6)'],
+  ['research', 'safety', 'WS2 fireFinding when a research-line project completes (R8)'],
 ];
 const MOD = 1n << 32n;
 const STEP = 0x6d2b79f5n;

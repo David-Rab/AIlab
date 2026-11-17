@@ -1,20 +1,29 @@
 // Heuristic mixed bot (§7.4). Owner: WS4 (harness); balance owned by all workstreams.
-// Keeps U-margin ≥ −0.3 by moving safety compute between 3% and 12%; funds AG02/07/08/09/18 at Serious; hardened
+// Keeps U-margin ≥ −0.3 by moving safety compute between 3% and 12%; staffs AG02/07/08/09/18 and a lottery line (R8:
+// a science team each, a second on AG08/AG18/AG02, three safety research-engineering teams for tool upkeep); hardened
 // graders with inoculation and visible CoT; latent reasoning only if AG01 or AG02's posterior mean > 0.6; reference
 // capex with one strategic deal, runway ≥ 5 q; releases minis and enterprise products; discloses findings; signs
 // A1 and A2; briefs government at level 2; patches or targets, never retrains-against; pursues the China D-track;
 // E17: investigate if belief > 0.4, otherwise control.
 import { internalVersion } from '../models/labs';
 import { understanding } from '../safety/understanding';
-import { mAtLevel } from '../safety/common';
-import { decayAt } from '../safety/techniques';
 import type { AgendaId, BotPolicy, GameStateV2, TraitId } from '../types';
 import { clamp } from '../../rng';
 import { financeAutopilot, financeDecide, REF_AUTOPILOT } from '../finance/plan';
-import { byLabel, every, pickByTags, tryAct } from './common';
+import { byLabel, every, pickByTags, staffLines, tryAct, type LinePlan } from './common';
 import { REF_TREE, refPlay, type RefPlayOpts } from './ref';
 
 const LOTTERY: AgendaId[] = ['AG01', 'AG04', 'AG10', 'AG11', 'AG12', 'AG13'];
+const MIXED_SCI_TEAMS = 12;
+const MIXED_RE_TEAMS = 5;
+/** One team on each of five lines and the lottery line, then a second on AG08, AG18 and AG02. */
+function mixedLines(s: GameStateV2): LinePlan[] {
+  const lottery = LOTTERY[Number(s.flags['mixed:lottery'] ?? 0)] ?? 'AG01';
+  return [
+    ...(['AG02', 'AG08', 'AG18', 'AG09', 'AG07', lottery] as AgendaId[]).map((ag) => ({ ag, teams: 1 })),
+    ...(['AG02', 'AG08', 'AG18', 'AG09', 'AG07', lottery] as AgendaId[]).map((ag) => ({ ag, teams: 2 })),
+  ];
+}
 const RED_FLAGS: TraitId[] = ['SCHEME', 'AF', 'SAND', 'POWER', 'SUCC', 'COLLUDE', 'TGAME'];
 
 const posteriorMean = (s: GameStateV2, a: AgendaId) => {
@@ -41,12 +50,14 @@ export const mixedBot: BotPolicy = {
   id: 'mixed',
   act(s, api) {
     if (s.time.day === 0) {
-      for (const a of ['AG02', 'AG07', 'AG08', 'AG09', 'AG18']) tryAct(s, api, 'safety.fund', { agenda: a, level: 'serious' });
-      // Plus the best-posterior lottery agenda (§7.4).
-      const lottery = LOTTERY.reduce((a, b) => (posteriorMean(s, b) > posteriorMean(s, a) ? b : a));
-      tryAct(s, api, 'safety.fund', { agenda: lottery, level: 'serious' });
+      tryAct(s, api, 'teams.target', { key: 'sci.saf', n: MIXED_SCI_TEAMS });
+      tryAct(s, api, 'teams.target', { key: 're.saf', n: MIXED_RE_TEAMS });
+      // Plus the best-posterior lottery line (§7.4), chosen once.
+      s.flags['mixed:lottery'] = LOTTERY.indexOf(LOTTERY.reduce((a, b) => (posteriorMean(s, b) > posteriorMean(s, a) ? b : a)));
     }
-    // Respond to red flags with patch or targeted training, never retrain-against; re-validate decaying tools.
+    staffLines(s, api, mixedLines(s));
+    // Respond to red flags with patch or targeted training, never retrain-against (tool upkeep is the safety research
+    // engineers' job since R8).
     if (every(s, 30, 11)) {
       const iv = internalVersion(s);
       if (iv) {
@@ -56,8 +67,6 @@ export const mixedBot: BotPolicy = {
           tryAct(s, api, 'safety.respond', { kind: 'patchSignal', versionId: iv.id, trait: t });
           tryAct(s, api, 'safety.respond', { kind: 'targetedTraining', versionId: iv.id, trait: t });
         }
-        const M = mAtLevel(s.hidden.timeline, iv.evals.measuredL ?? 0);
-        for (const x of Object.values(s.player.safety.techniques)) if (x.unlocked && x.active && x.k > 0 && decayAt(s, x, M * 10, false) < 0.8) tryAct(s, api, 'safety.refresh', { techniqueId: x.id });
       }
     }
     refPlay(s, api, MIXED_PLAY);

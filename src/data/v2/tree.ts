@@ -9,10 +9,15 @@
 // months at research speed M = 1. Paradigm nodes (P-ids) roll the hidden paradigm draw on their first attempt; new nodes
 // roll hash32(seed, 'node:'+id). A failed idea can be retried after 180 days at half the previous odds.
 //
-// Safety nodes (alignment, interpretability, evals & control) mirror the safety techniques and agenda findings until R8
-// turns them into projects for safety science teams: read-only, known when their technique is unlocked.
+// Safety nodes (alignment, interpretability, evals & control) are projects for safety science teams (R8). A node with a
+// research line (`agenda`) does not roll odds: each time its progress reaches 1 the line produces one result
+// (safety/findings.ts fireFinding, drawn from the line's hidden efficacy); a working-tool result unlocks the node's
+// technique and makes the node known, any other result (dead end, negative, discovery…) restarts the project. Its effort
+// is the line's T₁ at serious staffing (data/v2/agendas.ts SERIOUS_CAP). Every line also has a follow-up project
+// (LINE_NODES, not drawn on the tree) that keeps producing results once its ideas are known.
 // Product-feature nodes (Scaffold) are projects like any other; a known feature node lets the engineers build the feature (R6).
 import type { AgendaId, Column } from '../../engine/v2/types';
+import { AGENDAS, AGENDA_BY_ID, SERIOUS_CAP } from './agendas';
 
 export type Layer = 'backbone' | 'training' | 'scaffold' | 'lab';
 export type EffortClass = 'S' | 'M' | 'L' | 'XL';
@@ -36,8 +41,12 @@ export interface TreeNodeDef {
   paradigm?: boolean;
   /** Safety nodes: the research line whose hidden efficacy decides results. */
   agenda?: AgendaId;
-  /** Safety nodes: the technique this node mirrors (known when it is unlocked). */
+  /** Safety nodes: the technique this node unlocks (known when it is unlocked, by this project or another result). */
   technique?: string;
+  /** Safety nodes without a technique: the catalog finding a working result of this project is (e.g. aar → F44). */
+  finding?: string;
+  /** A line's follow-up project (LINE_NODES): never known, each result is the line's next finding. */
+  followUp?: boolean;
   /** Known at the start by every company (public knowledge in Jul 2025). */
   star?: boolean;
   /** Known at the frontier-leader start (features the game already has) until the start types (R9) set known nodes. */
@@ -84,7 +93,7 @@ const N = (id: string, name: string, column: Column, layer: Layer, needs: string
   ({ id, name, column, layer, needs, effort, odds, fx, ...text });
 const STAR = (id: string, name: string, column: Column, layer: Layer, fx: TreeNodeDef['fx'], text: Partial<TreeNodeDef> = {}): TreeNodeDef =>
   ({ id, name, column, layer, needs: [], star: true, fx, ...text });
-/** Safety node mirroring a technique (read-only until R8). */
+/** Safety node: a project for safety science teams on its research line (R8). */
 const S = (id: string, name: string, column: Column, layer: Layer, needs: string[], agenda: AgendaId | undefined, effort: EffortClass | undefined, fx: TreeNodeDef['fx'], text: Partial<TreeNodeDef> = {}): TreeNodeDef =>
   ({ id, name, column, layer, needs, effort, fx, ...(agenda ? { agenda } : {}), ...(id.startsWith('T-') ? { technique: id } : {}), ...text });
 
@@ -148,7 +157,7 @@ export const TREE: TreeNodeDef[] = [
   P('P26', 'Superhuman persuasion', 'systems', 'training', ['persuasion'], 'M', { cap: 1, saf: -1 }, { cap: 'Relation actions ×1.5', saf: 'Manipulation', payoff: 'Pays off with SOCIAL ≥ 12' }),
   P('P25', 'Formal verification at scale', 'systems', 'lab', ['P11'], 'L', { saf: 1 }, { saf: 'Security +0.5' }),
 
-  // ── Alignment (Training unless noted; read-only until R8) ──
+  // ── Alignment (Training unless noted) ──
   S('T-SPEC', 'Constitution / spec', 'alignment', 'training', [], 'AG18', undefined, { saf: 1 }, { star: true, options: [['pref', 'constitution']], cap: 'Appeal 1.0', saf: 'Honesty +0.05; generalising removal', cost: '8 safety FTE-weeks per run' }),
   S('T-HARDEN', 'Environment hardening', 'alignment', 'training', [], 'AG18', undefined, { saf: 1 }, { star: true, saf: 'Patchable reward signals' }),
   S('T-CONFESS', 'Honesty & confession training', 'alignment', 'training', ['T-SPEC'], 'AG18', 'M', { saf: 1 }, { saf: 'Concealment removal' }),
@@ -161,7 +170,7 @@ export const TREE: TreeNodeDef[] = [
   S('T-ANTISCHEME', 'Anti-scheming training', 'alignment', 'training', ['T-CONFESS', 'T-PROBE'], 'AG18', 'L', { saf: 2 }, { saf: 'Scheming −90% in training', cost: 'Eval awareness ×1.5' }),
   S('T-CAST', 'Corrigibility target', 'alignment', 'training', ['T-W2S'], 'AG12', 'XL', { saf: 2 }, { saf: 'Corrigibility +', cost: 'Long shot' }),
 
-  // ── Interpretability (Lab: detection tools; read-only until R8) ──
+  // ── Interpretability (Lab: detection tools) ──
   S('T-NOISE', 'Noise-injection elicitation', 'interp', 'lab', [], 'AG02', undefined, { saf: 1 }, { star: true, saf: 'Detects sandbagging' }),
   S('T-PROBE', 'Linear probes', 'interp', 'lab', [], 'AG02', 'M', { saf: 1 }, { saf: 'Detects alignment faking, scheming, concealment' }),
   S('T-STEER', 'Activation steering', 'interp', 'lab', [], 'AG03', 'S', { saf: 1 }, { saf: 'Detects sycophancy, persona, eval awareness' }),
@@ -173,7 +182,7 @@ export const TREE: TreeNodeDef[] = [
   S('T-CIRCUIT', 'Circuit tracing', 'interp', 'lab', ['T-SAE'], 'AG01', 'L', { saf: 2 }, { saf: 'Detects scheming, alignment faking, concealment' }),
   S('T-ENUM', 'Enumerative audit', 'interp', 'lab', ['T-CIRCUIT'], 'AG01', 'XL', { saf: 2 }, { saf: 'Detects nearly all critical traits', cost: 'Long shot' }),
 
-  // ── Evaluation & control (Lab tools; Scaffold for safeguards; read-only until R8 except P27) ──
+  // ── Evaluation & control (Lab tools; Scaffold for safeguards) ──
   S('T-MO', 'Model organisms', 'evals', 'lab', [], 'AG08', undefined, { saf: 1 }, { star: true, saf: 'Detects; reveals failure modes' }),
   S('T-TMON', 'Trusted monitoring', 'evals', 'lab', [], 'AG07', undefined, { saf: 1 }, { star: true, saf: 'Contains power-seeking, scheming, collusion' }),
   S('T-CCLASS', 'Misuse classifiers', 'evals', 'scaffold', [], 'AG16', undefined, { saf: 1 }, { star: true, saf: 'Misuse ×0.7', cost: 'Serving cost +' }),
@@ -188,7 +197,7 @@ export const TREE: TreeNodeDef[] = [
   S('T-COLLEVAL', 'Collusion evals', 'evals', 'lab', ['T-LOCK'], 'AG14', 'M', { saf: 1 }, { saf: 'Detects collusion, successor risk' }),
   S('T-RESAMPLE', 'Resample protocols', 'evals', 'lab', ['T-TMON'], 'AG07', 'M', { saf: 1 }, { saf: 'Contains power-seeking, scheming' }),
   S('T-CEVAL', 'Control evaluation', 'evals', 'lab', ['T-RESAMPLE'], 'AG07', 'M', { saf: 1 }, { saf: 'Measures containment' }),
-  S('aar', 'Automated alignment research', 'evals', 'lab', ['P13'], 'AG17', 'L', { saf: 2 }, { saf: 'Lets the safety AI-labour policy exceed 50%', payoff: 'Pays off with a safety model at level ≥ 10' }),
+  S('aar', 'Automated alignment research', 'evals', 'lab', ['P13'], 'AG17', 'L', { saf: 2 }, { finding: 'F44', saf: 'Lets the safety AI-labour policy exceed 50%', payoff: 'Pays off with a safety model at level ≥ 10' }),
   S('T-MAD', 'Mechanistic anomaly detection', 'evals', 'lab', ['T-CIRCUIT'], 'AG04', 'XL', { saf: 2 }, { cost: 'Long shot' }),
   S('T-SCIAI', 'Harm-probability guardrail', 'evals', 'lab', ['T-CEVAL'], 'AG11', 'XL', { saf: 2 }, { cost: 'Long shot' }),
   S('T-GATE', 'Verified gatekeeper', 'evals', 'lab', ['P25'], 'AG10', 'XL', { saf: 2 }, { saf: 'Contains exfiltration', cost: 'Long shot' }),
@@ -197,7 +206,30 @@ export const TREE: TreeNodeDef[] = [
 
 for (const n of TREE) if (n.paradigm && !n.star) n.effortTM = FITTED_EFFORT_TM[n.id] ?? Math.round(OLD_EFFORT_DAYS[n.id] * TM_PER_OLD_DAY * 10) / 10;
 
+/** Effort of a research-line project: T₁ at serious staffing, in standard-team-months (progress/day = √capacity ÷
+ *  (effort · 30) = √(capacity ÷ SERIOUS_CAP) ÷ (30·T₁)). The class shown follows it. */
+export const lineEffortTM = (agenda: AgendaId) => AGENDA_BY_ID[agenda].T1 * Math.sqrt(SERIOUS_CAP);
+const classOfTM = (tm: number): EffortClass => (tm <= 6 ? 'S' : tm <= 12 ? 'M' : tm <= 24 ? 'L' : 'XL');
+/** A research-line node (safety column, has an agenda, not a paradigm): its result is the line's next finding. */
+export const isLineNode = (n: Pick<TreeNodeDef, 'agenda' | 'paradigm'>) => !!n.agenda && !n.paradigm;
+for (const n of TREE) {
+  if (!n.agenda || n.paradigm || n.star) continue;
+  n.effortTM = lineEffortTM(n.agenda);
+  n.effort = classOfTM(n.effortTM);
+}
+
+/** Each research line's follow-up project (not on the tree): more results from the line once its ideas are known or
+ *  while they wait for prerequisites — sharper tools, measured evidence, discoveries, or dead ends. */
+export const LINE_NODES: TreeNodeDef[] = AGENDAS.map((a) => ({
+  id: `line:${a.id}`, name: `${a.name}: follow-up`, column: a.column, layer: 'lab', needs: [], agenda: a.id, followUp: true,
+  effortTM: lineEffortTM(a.id), effort: classOfTM(lineEffortTM(a.id)), fx: { saf: 1 },
+  saf: 'More results from the line: sharper tools, measured evidence, discoveries', cost: 'A result can also be a dead end',
+}));
+export const lineNodeId = (agenda: AgendaId) => `line:${agenda}`;
+
 export const TREE_BY_ID: Record<string, TreeNodeDef> = Object.fromEntries(TREE.map((n) => [n.id, n]));
+/** Every project: tree nodes and the research lines' follow-ups. */
+export const PROJECT_BY_ID: Record<string, TreeNodeDef> = Object.fromEntries([...TREE, ...LINE_NODES].map((n) => [n.id, n]));
 
 /** Depth of each node: 0 for nodes with no prerequisites, else 1 + the deepest prerequisite. */
 export const TREE_DEPTH: Record<string, number> = (() => {
@@ -222,5 +254,5 @@ export const TREE_CHILDREN: Record<string, string[]> = (() => {
 /** Which node unlocks a design option (slot:value). */
 export const OPTION_NODE: Record<string, string> = Object.fromEntries(TREE.flatMap((n) => (n.options ?? []).map(([slot, v]) => [`${slot}:${v}`, n.id])));
 
-/** Capability columns (projects for capabilities science teams in R4). */
+/** Safety columns (projects for safety science teams, R8). */
 export const SAFETY_COLUMNS: Column[] = ['alignment', 'interp', 'evals'];

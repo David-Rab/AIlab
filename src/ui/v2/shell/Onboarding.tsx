@@ -32,7 +32,7 @@ function goals(s: GameStateV2): Goal[] {
   return [
     { id: 'chips', text: 'Order chips or start a site', done: p.orders.some((o) => o.qty > 0) || p.sites.length > 1, go: { panel: 'compute' }, goLabel: 'Compute' },
     { id: 'base', text: <>Launch a <Term id="baseRun">base run</Term></>, done: p.models.runs.some((r) => r.kind === 'base' && r.startDay > 0), go: { panel: 'blueprint' }, goLabel: 'Blueprint' },
-    { id: 'agenda', text: <>Fund a safety <Term id="agenda">agenda</Term></>, done: Object.values(p.safety.agendas).some((a) => a.fte > 0), go: { panel: 'safety', tab: 'agendas' }, goLabel: 'Agendas' },
+    { id: 'agenda', text: <>Staff a safety <Term id="researchLine">research line</Term></>, done: p.teams.some((t) => t.role === 'sci' && t.dept === 'saf' && !!t.projectId), go: { panel: 'safety', tab: 'lines' }, goLabel: 'Research lines' },
     { id: 'company', text: 'See where your compute goes', done: seen(s, 'panel:company'), go: { panel: 'company' }, goLabel: 'Company' },
     { id: 'commit', text: <>Make a public <Term id="commitment">commitment</Term></>, done: s.commitments.length > 0, go: { panel: 'relations' }, goLabel: 'Relations' },
   ];

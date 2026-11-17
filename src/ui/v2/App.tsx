@@ -16,7 +16,7 @@ import { Relations } from './panels/Relations';
 import { Research } from './panels/Research';
 import { RiskSources } from './panels/RiskSources';
 import { Blueprint } from './panels/Blueprint';
-import { SafetyLab } from './panels/SafetyLab';
+import { Safety } from './panels/Safety';
 import { World } from './panels/World';
 import { SetupScreen, StartScreen } from './setup/Setup';
 import { AlertQueue } from './shell/AlertQueue';
@@ -36,7 +36,7 @@ import './layout.css';
 
 const PANELS: Record<string, (p: { s: GameStateV2 }) => ReactNode> = {
   overview: Overview, research: Research, company: Company, finance: Finance, compute: Compute, models: Models, blueprint: Blueprint,
-  products: Products, safety: SafetyLab, relations: Relations, world: World, risk: RiskSources, codex: Codex,
+  products: Products, safety: Safety, relations: Relations, world: World, risk: RiskSources, codex: Codex,
 };
 
 function Game({ s }: { s: GameStateV2 }) {

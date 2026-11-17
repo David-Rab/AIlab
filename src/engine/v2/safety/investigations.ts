@@ -1,7 +1,9 @@
 // Investigations (V2-SPEC §3.5.8). Owner: WS2.
 //
-// A case on (version, trait) or on an incident. Monthly clarity gain = combine_t(cov·strength·penalty)·(FTE/15)^0.5;
-// it feeds observations into beliefs and resolves at clarity ≥ 0.8, on close, or after 120 days. The outcome is drawn
+// A case on (version, trait) or on an incident. R8: staffed by safety research engineers (5–40 people from the safety
+// research-engineering teams; the rest of them keep tools validated). Monthly clarity gain =
+// combine_t(cov·strength·penalty)·(people/15)^0.5; it feeds observations into beliefs and resolves at clarity ≥ 0.8, on
+// close, or after 120 days. The outcome is drawn
 // from the truth (engine) but the player only sees the outcome label and a severity estimate.
 import { fleetMultiplier, safetyAgentVersion, safetyFleet, trustedShare } from './agents';
 import { VERIFIABILITY } from '../../../data/v2/agendas';
@@ -14,6 +16,15 @@ import { combineTools, familyPenalty, observeVersion } from './detection';
 import { revealFalse } from './findings';
 import { strengthTrue, techniqueRole } from './techniques';
 import { discoverUMode, isDiscovered, sabOf } from './umodes';
+import { patchFte } from './responses';
+import { QUALITY } from '../../../data/v2/teams';
+
+/** Safety research engineers (heads × quality): who staffs cases, patches and tool upkeep (R8). */
+export function safetyReHeads(s: GameStateV2): number {
+  let h = 0;
+  for (const t of s.player.teams) if (t.role === 're' && t.dept === 'saf') h += t.heads * QUALITY[t.quality].out;
+  return h;
+}
 
 export const INV_FTE: [number, number] = [5, 40];
 export const INV_MAX_DAYS = 120;
@@ -23,7 +34,7 @@ export interface OpenInvestigationOpts {
   computeShare?: number;
 }
 
-/** FTE committed to open investigations. */
+/** Safety research engineers committed to open investigations. */
 export function investigationFte(s: GameStateV2): number {
   return s.player.safety.investigations.filter((i) => !i.outcome).reduce((a, i) => a + i.fte, 0);
 }
@@ -63,9 +74,8 @@ function defaultTools(s: GameStateV2, traits: TraitId[]): string[] {
 /** Open a case (§3.5.8). Returns the investigation or a reason string. */
 export function openInvestigation(s: GameStateV2, ctx: SystemCtx, target: Investigation['target'], fte: number, opts: OpenInvestigationOpts = {}): Investigation | string {
   const dept = s.player.safety;
-  if (fte < INV_FTE[0] || fte > INV_FTE[1]) return `Assign ${INV_FTE[0]}–${INV_FTE[1]} FTE`;
-  const committed = investigationFte(s) + Object.values(dept.agendas).reduce((a, g) => a + g.fte, 0);
-  if (committed + fte > s.player.staff.saf + 1e-9) return 'Not enough safety staff';
+  if (fte < INV_FTE[0] || fte > INV_FTE[1]) return `Assign ${INV_FTE[0]}–${INV_FTE[1]} research engineers`;
+  if (investigationFte(s) + patchFte(s) + fte > safetyReHeads(s) + 1e-9) return 'Not enough free safety research engineers';
   if (target.kind === 'trait') {
     if (!versionById(s, target.versionId)) return 'Unknown model';
     if (!TRAIT_IDS.includes(target.trait)) return 'Unknown trait';

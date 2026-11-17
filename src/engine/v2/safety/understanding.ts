@@ -5,9 +5,10 @@
 // computed from what the player BELIEVES: posterior-mean agenda efficacy, believed EA, the player's own
 // training-against history. It never reads true traits, true efficacy or masks (Sylvester rule).
 import { CRITICAL_TRAITS } from '../../../data/v2/traits';
+import { RISK_FAMILIES } from '../../../data/v2/agents';
 import { internalVersion, measuredLOf } from '../models/labs';
 import type { AgendaId, GameStateV2, ModelVersion, TechniqueState, ToolFamily, TraitId } from '../types';
-import { fundingMult } from './agendas';
+import { reValidationMult } from './agendas';
 import { believedEfficacy, lambda2Delta, mAtLevel } from './common';
 import { combineTools, cotControllability, cotObfuscation, eaCoef, eaSuppression, familyPenalty, takesEaPenalty } from './detection';
 import { believedMask, decayAt, strengthTrue, techniqueRole } from './techniques';
@@ -21,18 +22,18 @@ function detTools(s: GameStateV2): TechniqueState[] {
 /**
  * Projection beyond the model the tools were checked on (M4, §3.5.7) [D]. Detectors are validated on today's
  * internal model; how well they work on a more capable one is unknown until they are re-validated, which takes a
- * staffed agenda (R14 §1.6A refresh). A tool of agenda a keeps its strength up to VAL_LEAD·√(funding) levels above
+ * staffed validation effort (R14 §1.6A). A tool keeps its strength up to VAL_LEAD·√(validation multiplier) levels above
  * the current measured level L₀, then falls as 1/(1 + ((L − L₀ − lead)/VAL_W)²). Believed eval awareness is also
  * projected upward with capability (R14: verbalized EA 11.7% → 41–51% across generations):
  * EA(L) = 1 − (1 − EA₀)·exp(−EA_PROJ·(L − L₀)). Both only apply above L₀, so U starts near L and stays ahead only
- * with funded agendas.
+ * with enough safety research engineers (R8, STRUCTURE §4.5: free engineers per line with tools ÷ RE_SERIOUS replaces
+ * funding; agendas.ts reValidationMult).
  */
 export const VAL_LEAD = 1.5;
 export const VAL_W = 0.75;
 export const EA_PROJ = 0.25;
 export function validationLead(s: GameStateV2, agenda: AgendaId): number {
-  const st = s.player.safety.agendas[agenda];
-  return st ? VAL_LEAD * Math.sqrt(Math.min(2.5, fundingMult(agenda, st))) : 0;
+  return s.player.safety.agendas[agenda] ? VAL_LEAD * Math.sqrt(reValidationMult(s)) : 0;
 }
 function valAt(dL: number, lead: number): number {
   const x = dL - lead;
@@ -129,6 +130,34 @@ export function understanding(s: GameStateV2): UnderstandingReadout {
   const perTrait: Partial<Record<TraitId, number>> = {};
   for (const k of CRITICAL_TRAITS) perTrait[k] = Math.round(det(k, L) * 1000) / 1000;
   return { U, margin: Math.round((U - L) * 100) / 100, perTrait };
+}
+
+/** Level up to which the tools see each risk family (STRUCTURE §4.5; the U tooltip): the largest L at which the
+ *  family's mean believed detection (over its critical traits, if it has any) is ≥ 0.5 (bisection, as U). Believed
+ *  inputs only. */
+export function familySeenTo(s: GameStateV2, v: ModelVersion): Record<(typeof RISK_FAMILIES)[number]['id'], number> {
+  const det = detector(s, v, detTools(s), measuredLOf(s, v).L);
+  const out = {} as Record<(typeof RISK_FAMILIES)[number]['id'], number>;
+  for (const f of RISK_FAMILIES) {
+    // A family with critical traits is seen as far as U sees those (deception: scheming, faking, sandbagging; power);
+    // the others over all their traits.
+    const crit = f.traits.filter((k) => CRITICAL_TRAITS.includes(k));
+    const ks = crit.length ? crit : f.traits;
+    const mean = (L: number) => ks.reduce((a, k) => a + det(k, L), 0) / ks.length;
+    if (mean(0) < 0.5) out[f.id] = 0;
+    else if (mean(15) >= 0.5) out[f.id] = 15;
+    else {
+      let lo = 0;
+      let hi = 15;
+      while (hi - lo > 0.05) {
+        const mid = (lo + hi) / 2;
+        if (mean(mid) >= 0.5) lo = mid;
+        else hi = mid;
+      }
+      out[f.id] = Math.round(lo * 20) / 20;
+    }
+  }
+  return out;
 }
 
 /** Technique closest to (or past) its M½ at the current measured level — the U tooltip's "next to decay". */

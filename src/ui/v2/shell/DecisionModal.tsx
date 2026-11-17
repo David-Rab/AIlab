@@ -19,7 +19,7 @@ const FIXES: Record<string, { to: GoTarget; label: string }[]> = {
   finance: [{ to: { panel: 'finance', anchor: 'raise' }, label: 'Raise capital' }, { to: { panel: 'finance', anchor: 'ledger' }, label: 'Cut contracts' }],
   company: [{ to: { panel: 'company', tab: 'people' }, label: 'People' }, { to: { panel: 'compute', tab: 'split' }, label: 'Compute split' }],
   model: [{ to: { panel: 'safety', tab: 'graph' }, label: 'Trait graph' }, { to: { panel: 'blueprint' }, label: 'Safer recipe' }],
-  incident: [{ to: { panel: 'safety', tab: 'incidents' }, label: 'Incident responses' }, { to: { panel: 'safety', tab: 'tools' }, label: 'Monitoring' }],
+  incident: [{ to: { panel: 'safety', tab: 'incidents' }, label: 'Incident responses' }, { to: { panel: 'company', tab: 'people', anchor: 'agents' }, label: 'Monitors' }],
   gov: [{ to: { panel: 'relations' }, label: 'Government relations' }],
   public: [{ to: { panel: 'relations' }, label: 'Public' }],
   china: [{ to: { panel: 'relations' }, label: 'China' }, { to: { panel: 'company', tab: 'security' }, label: 'Security' }],

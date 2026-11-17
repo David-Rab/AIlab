@@ -5,7 +5,7 @@
 //   model    = agents.safety.versionId (default: the routine-research model). An older, trusted model is weaker but
 //              its sabotage odds are its own.
 //   AI FTE   = compute × AI FTE per H100e of that model (the production function's R(q) and ηmod, §3.2.1)
-// Trusted to AI (one policy, R7; it replaced per-agenda automation) is the share t of every funded agenda's and open
+// Trusted to AI (one policy, R7; it replaced per-agenda automation) is the share t of every research line's and open
 // investigation's work handed to the fleet. A piece of work with human FTE n and AI FTE a gets labour multiplier
 // min(cap, √(1 + Auto·a/n)), where cap = 1 + t·Auto·min(10, √M_model) is the pre-fleet multiplier (§3.5.3): compute
 // decides how close to the cap you get. Below the AI-labour gate (B3) t is 0.
@@ -13,7 +13,8 @@ import { H100E_PER_COPY_SC } from '../../../data/v2/calibration';
 import { AGENDA_BY_ID, AUTOMATE_MIN_L } from '../../../data/v2/agendas';
 import { agentVersion, trustedMax } from '../departments/agents';
 import { aiFtePerH100e } from '../production/production';
-import type { AgendaId, GameStateV2, ModelVersion } from '../types';
+import type { GameStateV2, ModelVersion } from '../types';
+import { lineOfTeam } from './agendas';
 
 /** Version running the safety agents (falls back to the routine-research model when unset or retired). */
 export function safetyAgentVersion(s: GameStateV2): ModelVersion | undefined {
@@ -64,7 +65,11 @@ export function safetyFleet(s: GameStateV2): SafetyFleet {
   const t = trustedShare(s);
   let weight = 0;
   if (t > 0) {
-    for (const [ag, st] of Object.entries(dept.agendas)) if (st.fte > 0) weight += t * st.fte * AGENDA_BY_ID[ag as AgendaId].auto;
+    // R8: the people on each research line's projects (science heads) and on each open case (research engineers).
+    for (const tm of s.player.teams) {
+      const ag = tm.role === 'sci' ? lineOfTeam(tm) : undefined;
+      if (ag) weight += t * tm.heads * AGENDA_BY_ID[ag].auto;
+    }
     for (const inv of dept.investigations) if (!inv.outcome) weight += t * inv.fte;
   }
   return { versionId: v?.id, compute, copies, aiFte, weight, perFte: weight > 0 ? aiFte / weight : 0 };

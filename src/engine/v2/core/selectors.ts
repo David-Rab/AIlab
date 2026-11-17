@@ -23,7 +23,7 @@ export { buildBacklogTW, buildEtas, buildPerDay, runSetupTW, runWaiting } from '
 export { SIZE_RANGE, SIZE_SNAPS, STREAM_POOL_SHARE, sizeMinDays } from '../../../data/v2/runDesign';
 export type { LaunchRunParams, RunPlan } from '../models/runs';
 export { PARADIGM_BY_ID } from '../models/paradigms';
-export { assignBlock, effortOf, idleTeams, knowHow, isMirror, isProject, missingNeeds, nodeKnown, nodeOdds, nodeStatus, optionLocked, payoffOf, projectCapacity, projectEta, projectRate, projectReady, projectTeams, researchSpeed, teamCapacity, teamsOn, treeCounts } from '../models/tree';
+export { assignBlock, effortOf, idleTeams, knowHow, isProject, missingNeeds, nextLineProject, nodeDept, nodeKnown, nodeOdds, nodeStatus, optionLocked, payoffOf, projectCapacity, projectEta, projectRate, projectReady, projectTeams, researchSpeed, teamCapacity, teamsOn, treeCounts } from '../models/tree';
 export type { NodeStatus } from '../models/tree';
 export { benchName, benchGen, evalDaysFor } from '../models/benchmarks';
 export { deployGate, effortLock, liveDeployments, CHANNEL_VARIANTS, distillationAccess } from '../models/deployments';
@@ -37,8 +37,11 @@ export { understanding } from '../safety/understanding';
 export { leadDays, riskSources } from '../actors/intel';
 export { raiseCeiling } from '../finance/equity';
 // WS2 safety-panel selectors (beliefs, posteriors, incidents as the player sees them). `safetyTruth` is END SCREEN ONLY.
-export { agendaRows, beliefView, findingRows, incidentRows, safetyTruth, safetyUtilisation, safetyView, techniqueRows, traitGraph, uModeCards } from '../safety/view';
-export type { AgendaRow, FindingRow, SafetyUtilisation, TechniqueRow } from '../safety/view';
+export { beliefView, findingRows, incidentRows, lineBadges, lineRows, riskFamilies, safetyTruth, safetyUtilisation, safetyView, techniqueRows, traitGraph, uModeCards, upkeepView } from '../safety/view';
+export type { FindingRow, LineRow, SafetyUtilisation, TechniqueRow } from '../safety/view';
+export { lineMult, lineRate, lineResultsPerYear, posteriorBand, promisingIdle, safetyRe } from '../safety/agendas';
+export { familySeenTo } from '../safety/understanding';
+export { INV_FTE, INV_MAX_DAYS } from '../safety/investigations';
 export { aiLabourGate, safetyAgentVersion, safetyFleet, trustedShare } from '../safety/agents';
 // R7 internal agent packages (Company › Agents at work).
 export { agentVersion, monitorBudget, monitoredUses, monitorVersion, riskBadges, trustedMax, usesOf } from '../departments/agents';

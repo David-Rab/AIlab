@@ -28,8 +28,10 @@ export const TEAM_COST_M: Record<TeamDept, Record<TeamRole, number>> = {
   saf: { eng: 0.7, re: 0.65, sci: 0.8 },
 };
 
-/** Weekly hires per department lane, before talent pull and morale (cap ≈ +60/month, R11 #12; safety 3/wk as before). */
-export const HIRING_BASE: Record<TeamDept, number> = { cap: 15, saf: 3 };
+/** Weekly hires per department lane, before talent pull and morale (cap ≈ +60/month, R11 #12). Safety 8/wk since R8
+ *  (was 3): research lines need whole safety science teams and tool upkeep needs research engineers, where before R8 the
+ *  start staff could fund several agendas at once; at 3/wk a safety-minded lab needed years to staff them [D, R8]. */
+export const HIRING_BASE: Record<TeamDept, number> = { cap: 15, saf: 8 };
 /** Attrition 12%/yr × (1.5 − morale/100), floor 0.2 (V2-SPEC §3.4.1). */
 export const ATTRITION_BASE = 0.12;
 

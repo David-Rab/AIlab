@@ -65,11 +65,11 @@ function RaceTip({ s }: { s: GameStateV2 }) {
         {decaying.map((t) => <div className="small" key={t.id}><ICON.revalidate size={11} /> <Term id="technique">{t.name}</Term> <span className="dim">decayed</span> <b className={t.decay > 0.5 ? 'tone-neg' : 'tone-warn'}>{F.pct(t.decay)}</b> <span className="dim">(<Term id="mHalf">capability outgrows it</Term>)</span></div>)}
         {masked.map((t) => <div className="small" key={`m${t.id}`}><ICON.blind size={11} /> {t.name} <span className="tone-neg">masked {F.pct(t.trainedAgainst)}</span> <span className="dim">(<Term id="goodhart">trained against</Term>)</span></div>)}
         {ev.evaluating && <div className="small"><ICON.finding size={11} /> {ev.name} is <Term id="evaluating">in evaluation</Term></div>}
-        {!decaying.length && !masked.length && <div className="small dim">No detection tools active yet: fund a safety agenda.</div>}
+        {!decaying.length && !masked.length && <div className="small dim">No detection tools active yet: staff a safety research line.</div>}
       </div>
       <div className="tip-sec"><div className="tip-cap">Levers</div><div className="btn-row wrap">
-        <GoBtn to={{ panel: 'safety', tab: 'tools' }} label="Re-validate tools" testId="race.tools" />
-        <GoBtn to={{ panel: 'safety', tab: 'agendas' }} label="Fund agendas" testId="race.agendas" />
+        <GoBtn to={{ panel: 'safety', tab: 'lines' }} label="Research lines" testId="race.lines" />
+        <GoBtn to={{ panel: 'company', tab: 'people' }} label="Safety RE teams" testId="race.upkeep" />
         <GoBtn to={{ panel: 'blueprint' }} label="Safer recipe" testId="race.runs" />
       </div></div>
     </TipCard>
@@ -88,7 +88,7 @@ function RaceMeter({ s }: { s: GameStateV2 }) {
   const gap = u.margin;
   return (
     <Tip as="div" className="ts-race2" content={() => <RaceTip s={s} />}>
-      <div data-test="race" data-home="race" onClick={() => store.goto('safety', { tab: 'graph' })}>
+      <div data-test="race" data-home="race" onClick={() => store.goto('safety', { tab: 'overview' })}>
         <div className="race2-lbls">
           <span className="race2-cap"><ICON.L size={12} /> CAPABILITY</span>
           <b className="num" style={{ color: C.cap }} data-home="L">{F.level(L)}</b>

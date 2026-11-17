@@ -499,12 +499,15 @@ export interface TreeNodeState {
   priorMult?: number;
   /** A failed idea can be retried from this day. */
   retryDay?: Day;
+  /** Research-line projects (R8): team-months spent on the current attempt (counted as lost if it dead-ends). */
+  tm?: number;
 }
 
 export interface ResearchState {
   /** Projects in priority order (node ids). Teams work on the ones that are ready; the rest wait. */
   queue: string[];
-  /** Policy: idle capabilities science teams join the highest-priority ready project in their specialty. */
+  /** Policy: idle science teams join the highest-priority ready project of their department in their specialty; a
+   *  safety team whose project resolves keeps working its research line (R8). */
   autoAssign: boolean;
 }
 
@@ -546,13 +549,14 @@ export interface SafetyDept {
   edgeRevealed: Record<string, boolean>; // true weight revealed for this world
 }
 
+/** A research line (R8): its projects are tree nodes worked by safety science teams; staffing lives on the teams. */
 export interface AgendaState {
-  fte: number;
-  computeShare: number; // of the safety pool
-  hazardAcc: number; // accumulates λ; a finding fires when ≥ next threshold
+  computeShare: number; // of the safety pool (requested in proportion to the line's team capacity)
   posterior: { a: number; b: number }; // visible Beta posterior on efficacy (shown as a band)
+  /** idle: no team on the line; active: teams on it; deadEnd: posterior mean < 0.25 (projects run at half speed). */
   status: 'idle' | 'active' | 'deadEnd';
-  refresh?: { techniqueId: TechniqueId; progress: number }; // re-validation project
+  /** Team-months spent on attempts that ended in a dead end. */
+  deadEndTM: number;
 }
 
 export interface TechniqueState {
@@ -562,7 +566,7 @@ export interface TechniqueState {
   unlocked: boolean;
   active: boolean; // part of the deployed safety stack
   s0: number; // base strength
-  mHalf: number; // multiplier at which strength halves (doubles on refresh, ↓ on NEG)
+  mHalf: number; // multiplier at which strength halves (raised by tool upkeep, ↓ on NEG)
   k: number;
   goodhart: number; // G
   trainedAgainst: number; // 0..1 cumulative
@@ -580,6 +584,8 @@ export interface FindingRecord {
   day: Day;
   published: boolean;
   revealedFalseDay?: Day;
+  /** The project whose result it was (R8). */
+  nodeId?: string;
 }
 
 export interface Investigation {

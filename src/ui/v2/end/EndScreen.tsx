@@ -6,7 +6,7 @@ import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { AI2027_COMPUTE_TABLE } from '../../../data/v2/calibration';
 import { TRAIT_ORDER } from '../../../data/v2/traits';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
-import { actionDef, agendaRows, dateOf, decimalYear, eventDef, fmtDate, MILESTONE_NAMES, safetyTruth, selectHidden, topDecisions } from '../../../engine/v2';
+import { actionDef, lineRows, dateOf, decimalYear, eventDef, fmtDate, MILESTONE_NAMES, safetyTruth, selectHidden, topDecisions } from '../../../engine/v2';
 import type { GameStateV2, SafetyLatents } from '../../../engine/v2';
 import { store } from '../store';
 import { Band, fmtB, fmtNum, Section, Soon } from '../ui';
@@ -37,7 +37,7 @@ export function EndScreen({ s }: { s: GameStateV2 }) {
   const e = s.ending!;
   const h = selectHidden(s);
   const truth = safetyTruth(s);
-  const rows = agendaRows(s);
+  const rows = lineRows(s);
   const replay = topDecisions(s, 5);
   const pts = s.player.models.versions.flatMap((v) => TRAIT_ORDER.filter((t) => v.beliefs[t]).map((t) => ({ x: v.traitsTrue[t], y: v.beliefs[t].est, label: `${v.name} ${t}` })));
   const present = [...new Set(s.player.models.bases.flatMap((b) => b.uModes))];

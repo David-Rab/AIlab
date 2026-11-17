@@ -115,7 +115,6 @@ const VERB_TAG: Record<string, [ActionVerb, StructureSystem]> = {
   'research.queue': ['research', 'research'], 'research.start': ['research', 'research'], 'research.dequeue': ['research', 'research'], 'research.move': ['research', 'research'],
   'research.assign': ['research', 'research'], 'research.unassign': ['research', 'research'], 'research.autoAssign': ['policy', 'research'],
   setSplit: ['policy', 'compute'], splitPreset: ['policy', 'compute'], 'teams.hire': ['hire', 'people'], 'teams.release': ['hire', 'people'], 'teams.move': ['hire', 'people'], 'teams.target': ['policy', 'people'], starHire: ['hire', 'people'],
-  'safety.fund': ['research', 'safety'], 'safety.cut': ['research', 'safety'], 
   'safety.investigate': ['respond', 'safety'], 'safety.closeCase': ['respond', 'safety'], 'safety.respond': ['respond', 'safety'],
   'safety.publishPolicy': ['policy', 'safety'], 'safety.evalGate': ['policy', 'safety'],
   'fin.raise': ['deal', 'finance'], 'fin.seekPartner': ['deal', 'finance'], 'fin.acceptDeal': ['deal', 'finance'], 'fin.declineDeal': ['deal', 'finance'],

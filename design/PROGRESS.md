@@ -26,7 +26,145 @@ Single source of truth for where the build stands. Update at every milestone or 
 | **R5 Restructure: build queue and blueprint** | Done (2026-11-17): free base size (×¼…×8; minDays, S5, restart, serve ∝ √size as functions of size; BASE_MAX_DAYS gone), staleness and data readouts, proportional pool allocation, spare training compute → experiments (policy; RefBot → data), engineers' build queue with run setups, Blueprint panel, run queue share/ETA, schemaRev 7; ref-trace identical to R4, no refit; all §7.4 bot criteria MET (40 seeds) | "R5: build queue …" on `game-structure` |
 | **R6 Restructure: products and live edit** | Done (2026-11-17): deployments become products (kind, price tier, mini free tier, monitor, features), live product.update with before → after preview (next tick, D7), launch/retire, features built once by engineers and switched on per product, Auto serving split (most $ per H100e first, cut recorded and shown), monitors (catch rate, D7 overhead, incident hook), auto-evaluate replaces the 30-day eval expiry, Agents time-horizon gate, upgrade-to-newest policy, Products panel, schemaRev 8; RefBot staleness fix (worldfx GOV accept passes again); spare training default → data; one calibration line (serve-cost exponent 0.5 → 0.3); all §7.4 bot criteria MET (200 seeds; safe win 1.0%) | "R6: products …" on `game-structure` |
 | **R7 Restructure: internal agent packages and monitors** | Done (2026-11-17): four internal uses (engineering, routine research, frontier research, safety research), each model + optional monitor + compute; internalAgent → routine research, safety agent model/share → the safety package, monitoringShare → per-use monitors (standard package = today's 20% of the safety pool), per-agenda/case AI labour → one Trusted-to-AI policy (B3 gate, 50% cap until P27); evalM optional qTaste (frontier model's taste), k nets the engineering share, engineering agents set A_eng; Company › Agents at work lanes with before → after preview, shared package chips on Products, compute split moved to Compute › Split, Safety links; schemaRev 9; ref-trace identical to R6, no refit; all §7.4 bot criteria MET (40 seeds) | "R7: internal agent packages …" on `game-structure` |
-| **R8–R10 Tycoon restructure: build** | Next: R8 … R10 serially (BUILD-PLAN parallelism note); milestones logged below. `gs-leader-lab` held no work beyond R1 and was not merged | |
+| **R8 Restructure: safety on the tree** | Done (2026-11-17): safety nodes are projects for safety science teams (completion = one result from `fireFinding`, efficacy-driven type draw unchanged; a working result unlocks the node, other results restart it; follow-up project per line), funding levels / hazard / refresh projects removed, effort = T₁ at serious staffing (SERIOUS_CAP 4 team-capacity), line health from the Beta posterior, dead-end team-months and "promising lines idle", tool upkeep and validation lead from safety research engineers (no ×8 ceiling), investigations staffed by safety RE (5–40, 120 d shown), option locks from safety ideas, four risk-family aggregates, Safety panel (Overview / Research lines / Investigations / Trait graph / Incidents) replaces Safety lab, schemaRev 10 with migration; safety hiring lane 3 → 8/wk; all §7.4 bot criteria MET (200 seeds); bot-policy variance share 63% (below M4's 66%) | "R8: safety on the tree …" on `game-structure` |
+| **R9–R10 Tycoon restructure: build** | Next: R9, R10 serially (BUILD-PLAN parallelism note); milestones logged below. `gs-leader-lab` held no work beyond R1 and was not merged | |
+
+## R8 Safety on the tree (2026-11-17, branch `game-structure`, worktree ../AI27-structure)
+
+Per design/BUILD-PLAN.md §2 R8, STRUCTURE §4.5, TECH-TREE §1.3, §2.4–2.6, §4, mockups-v3 v3-safety* / v3-safety-IA.md.
+
+**Types.** `AgendaState` = { computeShare, posterior, status, deadEndTM } (removed: fte, hazardAcc, refresh). `TreeNodeState.tm`
+(team-months on the current attempt of a line project). `FindingRecord.nodeId`. `Investigation.fte` = safety research
+engineers on the case. `TreeNodeDef.finding` / `followUp`.
+
+**Data.** `data/v2/tree.ts`: research-line nodes (safety column, agenda, not a paradigm) get effort = T₁·√SERIOUS_CAP
+team-months (class shown from it); `LINE_NODES` = one follow-up project per line (`line:AGxx`, not drawn on the tree);
+`PROJECT_BY_ID`; aar → F44. `data/v2/agendas.ts`: funding levels and `mHalfCap` gone; `column` per line; `SERIOUS_CAP` 4,
+`RE_SERIOUS` 100, upkeep `UPKEEP_D` 0.8 / `UPKEEP_DAYS` 90 / `UPKEEP_MIN` 15 / `UPKEEP_REF` 40 / `UPKEEP_MAX` 1.5.
+`data/v2/teams.ts`: safety hiring lane `HIRING_BASE.saf` 3 → 8/wk (see Calibration).
+
+**Engine.**
+- `models/tree.ts`: the tree serves both departments (capability columns → capabilities scientists, safety columns incl.
+  P27 and KYC → safety scientists; `nodeDept`, `assignBlock`). Line projects progress at `safety/agendas.ts lineRate` =
+  √(capacity ÷ SERIOUS_CAP)/(30·T₁) × (C/C_ref)^0.3 × AIx (× ½ dead-end line, AAR ×3, P27), i.e. the pre-R8 hazard λ with
+  FTE/FTE_ref → capacity/SERIOUS_CAP and no research speed. At progress 1 `resolveLine` calls `fireFinding(s, ctx, ag,
+  nodeId)`: a TECH draw is the node's own catalog row (or its generic tool, or the idea itself for safety pretraining) if
+  it can fire in this world (F05 still needs e > 0.7), else today's row order; any other result restarts the project, a
+  DEAD adds the attempt's team-months to `deadEndTM`. A known node's teams move to the line's next open idea, else its
+  follow-up (auto-assign on). Auto-assign per department; an idle safety team with nothing queued joins a line (unstaffed
+  first, best estimate, specialty). `nodeOdds` of a line node = the line's posterior mean (health). The AG17 model gate
+  (L ≥ 10) is a project readiness reason. `initialResearch(teams)` puts the start teams on T-CONFESS (alignment) and
+  T-DECEPT (interp). Safety option locks (inoculation, hazard filter, safety pretraining) now apply (`optionLocked`).
+- `safety/agendas.ts`: `lineCapacity` / `lineMult` (replaces fundingMult: validation of fix techniques "in run", E14/E22,
+  AG18 healing), `recomputeComputeShares(s)` (requests m·computeRef), `lineRate`, `lineResultsPerYear`, `resultsPerYearAt`
+  (Trusted-to-AI preview), `posteriorBand` (health), `promisingIdle`, `deadEndTotal`, `safetyRe` (RE heads → cases,
+  patches, upkeep), `reValidationMult` (validation lead from free RE per line with tools, STRUCTURE §4.5), tool upkeep
+  (`upkeepState`: tools with D(M_internal) < 0.8 share the free RE; M½ doubles every 90 d ÷ min(1.5, (RE per tool − 15)/40);
+  no ceiling, need-driven). Removed: `setAgendaFunding`, `findingHazard`, `staffFactor`, refresh projects.
+- Investigations draw 5–40 safety research engineers (`safetyReHeads`); the case card shows the clamp and the 120-day close.
+- Fleet weight (Trusted to AI) counts science heads on lines + case engineers. Actions removed: `safety.fund`, `safety.cut`,
+  `safety.refresh`; staffing is `research.assign` / `unassign` / auto-assign.
+- `safety/view.ts`: `lineRows`, `lineBadges`, `riskFamilies` (worst belief ± band, clarity, case open, seen-to level),
+  `upkeepView` (tools validated to, upkeep vs capability L/mo, behind-in), `safetyUtilisation` (sci on lines / RE on cases,
+  patches, upkeep). `understanding.ts familySeenTo` (critical traits of a family when it has any).
+- `SCHEMA_REV` 10; migration 9 → 10 drops funding/hazard/refresh and puts each idle safety science team on a line (most
+  funded first). Checked on the three rev-9 fixtures (load, 30 d RefBot, round trip, plain JSON). Fixtures regenerated.
+- hygiene: documented cross-WS hook `research` → `safety` stream (fireFinding).
+
+**Bots.** `bots/common.ts staffLines(plan)` + `BOT_IDEAS` (ideas a bot's recipe uses first: inoculation, filtering,
+pretraining, deception probe, honeypots, resampling). RefBot: hires two safety science teams (target 4) and keeps one on
+each of AG18 (honesty, anti-scheming), AG02, AG08, AG07 in the pre-R8 catalog order, then follow-ups. Safe bot (and the
+S4 safe recipe): target 23 science teams, every line one team (the five major first: AG18, AG08, AG02, AG07, AG09, the
+recipe's set) then the five major doubled; tool
+upkeep replaces its re-validation. Mixed: 12 science teams (AG02/08/18/09/07 + lottery, one then two each), 5 safety RE
+teams, refresh calls gone. Bots drop design options whose safety idea is not known yet (`known()` in refPlay).
+
+**Calibration (logged).**
+- SERIOUS_CAP 4: a matching Strong team = 0.375 of serious, a non-matching one 0.25 (RefBot ≈ its pre-R8 Seed lines).
+  Probes (20 seeds, S5): 6 → mixed min margin −0.7 (fail); 2–3 → RefBot U − L at SAR ≥ 0 (fail); 4 passes both.
+- Safety hiring lane 3 → 8/wk. Mechanism: before R8 the 180 start safety staff funded six Serious agendas on day 0
+  (mixed); with teams, research needs whole teams and only the lane adds them. At 3/wk mixed's median min margin to SAR
+  was −2.2…−2.6 even with 12 teams; at 8/wk −0.08.
+- Mixed bot: inoculation first on AG18 (it trains with inoculation, now locked until T-INOC) took the min margin from
+  −2.2 to −1.4; 5 RE teams (upkeep + validation lead) to −0.6 (lane 6) / −0.08 (lane 8).
+- Upkeep crew minimum (15 RE per fading tool) and RE-based validation lead: RefBot's one RE team keeps little up (S5
+  "RefBot without refresh falls behind"); √-scaled upkeep without a minimum held RefBot's U at SAR above L.
+- Not changed: CAL_SHIFT, LEADER_CAL, tree efforts of capability nodes, agenda T₁/efficacy/finding catalog.
+
+**Gates.**
+- `npm run typecheck`, scripts tsc: clean. identity, golden-timelines: pass, unchanged. calib: T1, T2 (179k copies,
+  31.4×; R7 177k, 30.9×), T1L pass; build queue worst wait 0 d.
+- safety.ts: S4 RefBot P_mis 0.792 (R7 0.815), safe recipe 0.020 (R7 0.002); S5 RefBot median U − L at SAR −0.14, below
+  in 53% of worlds (R7 −1.49, 65%); S5 mixed median min margin −0.08, holds in 65% (R7 +0.51, 75%); S6, B3 pass. S5 passes
+  with thin margins: the RefBot/mixed contrast in U is smaller than before (see notes).
+- test:v2 scripts individually: golden, identity, calib, fixtures, lint-hidden, lint-ux, lint-tradeoffs (102 actions),
+  safety, finance, ws4, products, money pass; hygiene: only the known absolute performance budget; worldfx: only the known
+  HireRate_SOFT.
+- Performance (`_perf.ts`, seed 9, 1,500 days, passive player; the R7 worktree at a0f15dd and R8 alternated, 2 × 3 runs on a
+  loaded machine): warm daily 1,994 µs (R7) vs 1,906 µs (R8), −4%; cold +2.5%; worst quarter 5.4–5.8 vs 4.5–7.8 ms. No
+  regression > 10%.
+- ref-trace vs R7 (recorded at a0f15dd into a temp file): integrated ai2027 milestones, adoption days, runs, M, h, k, c,
+  sdAI, pa, L, revenue, cash within tolerance; only quarterly U differs (by design: research lines, RE-based validation
+  lead, upkeep). Stub traces deviate through safety → capability couplings (spillover pa, sandbagging on measured L, run
+  cadence): authors2026 A1 +49 d, P13 +18 d, M −44% at day 1,560; slow SC +11 d; ai2027 distill #8 end −99 d. T1, T1L and
+  T2 still pass (no CAL_SHIFT / LEADER_CAL refit).
+- `npm run test:ui`: 186/186 (new Safety section: overview verdict / race chart / 4 families / policies, D4 links, eval
+  toggle, U tooltip "validated to" and per-family levels, research lines with health and teams, + team picker assigns,
+  show all, tools list, case with 20 engineers and the 5–40 / 120 d card; Safety tabs). Screenshots checked (day 400/900
+  overview, lines, cases; Research with safety projects).
+- **Bots, 200 seeds** (four processes of 50 seeds, merged with `--load`; the safe bot re-run after its plan change): all
+  six §7.4 criteria MET. **Choices vs world (final Mis): bot policy 63%, world 21%, rest 15%, below M4's 66%** (R1 63%,
+  R4 65%, R6 65% at 200 seeds; R7 68% at 40). Mechanism: the safe bot is weaker early (its 23 teams arrive over two
+  years through the hiring lane, where pre-R8 it funded every agenda on day 0): mean Mis safe 0.177, mixed 0.235, ref
+  0.537, race 0.875; paired mixed − safe ΔMis only +0.057. Moving the safe bot's majors to its recipe's set (AG18, AG08,
+  AG02, AG07, AG09) left it unchanged (0.178 → 0.177). E5 12/17.
+
+| bot | win | mixed | loss | med. day | top endings |
+|---|---|---|---|---|---|
+| race | 1.5% | 4.0% | 94.5% | 806 | asiTakeover 58.5%, ousted 16%, nationalized 10% |
+| safe | 1.5% | 3.5% | 95.0% | 1454 | overtaken 57%, ousted 38.5%, rivalAligned 2% |
+| mixed | 48.0% | 6.0% | 46.0% | 1027 | asiAligned 50%, asiTakeover 15%, ousted 14%, nationalized 9% |
+| capex2x | 0.5% | 0.5% | 99.0% | 304 | insolvent 93.5%, asiTakeover 4% |
+| ref | 19.0% | 5.0% | 76.0% | 981 | asiTakeover 40%, asiAligned 19.5%, ousted 14%, nationalized 8.5% |
+
+  §7.4: race losses 71% takeover / 29% company-loss; safe losses 59% other-first; mixed +46.5 pp over both extremes;
+  passive takeover-type 74%.
+
+**UI.** `panels/Safety.tsx` (+ safety.css `sf-*`) replaces `SafetyLab.tsx`. Overview: verdict banner (lags / barely ahead /
+ahead, blind levels, trend, tools behind in N mo) with two cause → fix chains (weakest critical family → the detection
+idea that covers it › Research; tool upkeep slow → safety RE teams › Company); capability vs understanding chart (6 mo
+back, 4 ahead, blind hatching, projections, "U if <idea> works" from a hypothetical unlock, hover per week, U point
+tooltip = per-family seen-to, tools validated to, upkeep vs capability per month); risk families (model tabs, est ± 90%
+band, seen / unseen (clarity < 30%, as Company badges) / under investigation); policies (evaluate before release toggle +
+external review, monitors and Trusted to AI as links to Company per D4, publish results, pledge). Research lines (home of
+line health, teams, project progress + ETA to next result, results by type, dead-end team-months; + team picker; show
+all; tool upkeep card with RE split and crew rule; results feed with publish; tools list with on/off). Investigations
+(case cards with clarity, staffing 5–40, closes-by date; open a case with trait + engineers). Trait graph (graph,
+detection grid, misalignment band, failure modes). Incidents. Tab badges: "N idle" (promising lines with no team), "N
+team-mo lost", open cases, open incidents. Research: safety nodes are projects (odds = line health linking to Safety ›
+Research lines; effort tooltip shows T₁ at serious staffing; team picker lists the node's department). Links into the
+old Safety tabs (tools / agendas) now point to Research lines / Overview; RiskSources and decision levers updated.
+Glossary: lineHealth, deadEnd, seriousStaffing, followUp, toolUpkeep, validatedTo, blind, caseStaffing; researchLine,
+agenda, mHalf, refresh, safetyLoad, investigation rewritten.
+
+**Deviations / deferred.**
+- RefBot is ≈ but slightly above its pre-R8 Seed level on three lines (matching specialty, 0.375 of serious) and drops
+  AG16 (the start funding's fifth line). It hires its two extra teams in the first months (lane 8/wk).
+- Line projects do not use research speed M (as the pre-R8 hazard); P27 and KYC (no line) roll like capability nodes.
+- Follow-up projects keep lines producing results after their ideas are known (generic upgrades, DISC, NEG as before).
+- The passive start now runs two lines (AG02, AG18 at 0.375) instead of three Serious + two Seed: day-0 U 5.9 (R7 6.8).
+- R7 deferral (frontier-research agent compute as AI science capacity on tree projects): not done; it touches capability
+  calibration and was not cheap at the reference.
+- Scratch scripts `scripts/v2/_r8*.ts` are gitignored; `scripts/v2/_r8shot.mjs` (Safety screenshots from a fixture) is
+  untracked. The R7 baseline worktree `C:\tmp\r4\base` is now detached at a0f15dd (holds gitignored `_r8*.ts` copies).
+
+**Notes for R9.**
+- Start types should set safety teams and their start projects (`initialResearch(teams)` reads specialties via
+  `START_SAFETY_PROJECTS`) and the safety RE count (upkeep crew minimum 15 per fading tool; validation lead from RE per
+  line). A spinout with no safety RE has no tool upkeep and no validation lead.
+- S5's RefBot/mixed contrast is thin (−0.14 / −0.08 vs thresholds 0 / −0.5); any change to start safety staffing or the
+  safety lane moves it. Re-run `safety.ts` after start data.
+- `nextLineProject` / `staffLines` / `BOT_IDEAS` are the hooks for bots playing other starts.
 
 ## R7 Internal agent packages and monitors (2026-11-17, branch `game-structure`, worktree ../AI27-structure)
 
@@ -392,7 +530,7 @@ Choices vs world (final Mis): bot policy 70%, world 17%, rest 13%.
 - Blueprint's "planned package" line (R7) and Honesty/Anti-scheming alignment cards (R8 nodes) are not shown; the
   Alignment row keeps today's options (standard / heavy / minimal safety training, inoculation).
 - Removing the scratch file `scripts/v2/_r5noidle.ts` was denied (gitignored, harmless). Scratch `scripts/v2/_r5*.ts` and
-  `scripts/v2/shots/_r5*.mjs` are gitignored. The temp baseline worktree `C:	mp4ase` now sits at 72e16c0
+  `scripts/v2/shots/_r5*.mjs` are gitignored. The temp baseline worktree `C:\tmp\r4\base` now sits at 72e16c0
   (detached, `node_modules` junction): remove the junction with `rmdir` first, then `git worktree prune`.
 
 **Notes for R6.** `queueBuild(s, kind, ref, needTW)` and `BuildItem.kind` 'feature' | 'harness' | 'safeguard' are ready

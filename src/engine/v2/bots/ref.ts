@@ -23,7 +23,8 @@ import { REF_ROLE_SHARE, SAF_ROLE_SHARE, TEAM_SIZE } from '../../../data/v2/team
 import type { BotPolicy, ComputeSplit, EngineApi, GameStateV2, ModelVersion, PendingDecision, TeamKey, TrainingRun } from '../types';
 import { bestMeasuredL } from '../models/labs';
 import { measuredDomain } from '../models/paradigms';
-import { missingNeeds, nodeKnown } from '../models/tree';
+import { missingNeeds, nodeKnown, optionLocked } from '../models/tree';
+import { staffLines, type LinePlan } from './common';
 
 type Params = Record<string, number | string | boolean>;
 
@@ -58,8 +59,18 @@ const PRODUCT_CHANNELS: string[] = ['consumer', 'api', 'enterprise'];
 /** The public release (where the minis go). Staleness is measured against it, not against Enterprise: Enterprise can
  *  sit on the continual-learning stream (updated in place), which hid how far the public release trailed (R6 fix). */
 const PUBLIC_CHANNELS: string[] = ['consumer', 'api'];
-/** Passive/RefBot safety programme (§7.4): ~3% safety compute (shareRef), AG02, AG07, AG08 and AG18 at Seed. */
-const REF_AGENDAS = ['AG02', 'AG07', 'AG08', 'AG18'];
+/** Passive/RefBot safety programme (§7.4): ~3% safety compute (shareRef) and, since R8, one safety science team on each
+ *  of AG18, AG02, AG08 and AG07 (≈ the pre-R8 Seed funding of those four: data/v2/agendas.ts SERIOUS_CAP). It starts
+ *  with two teams and hires two more. Each line works the ideas RefBot uses in the pre-R8 catalog order (training-signal
+ *  design: honesty, then anti-scheming; applied interp: deception probe, verbalizer; evals: honeypots, auditing agents;
+ *  control: resampling, control evals, comms lockdown), then the line's follow-up. */
+export const REF_LINES: LinePlan[] = [
+  { ag: 'AG18', teams: 1, ideas: ['T-CONFESS', 'T-ANTISCHEME'] },
+  { ag: 'AG02', teams: 1, ideas: ['T-DECEPT', 'T-NLA'] },
+  { ag: 'AG08', teams: 1, ideas: ['T-HONEY', 'T-AUDIT'] },
+  { ag: 'AG07', teams: 1, ideas: ['T-RESAMPLE', 'T-CEVAL', 'T-LOCK'] },
+];
+const REF_SAFETY_SCI_TEAMS = 4;
 
 /** Options of the reference play (all optional; {} = RefBot). */
 export interface RefPlayOpts {
@@ -84,6 +95,15 @@ export interface RefPlayOpts {
 }
 
 const flag = (s: GameStateV2, k: string, d = -1e9) => Number(s.flags[`ref:${k}`] ?? d);
+/** Design options a bot asks for that the tree has not unlocked yet fall back to off (R8: safety ideas such as
+ *  inoculation, hazard filtering and safety pretraining are research projects now). */
+function known(s: GameStateV2, p: Params): Params {
+  const out = { ...p };
+  if (out.inoculation === true && optionLocked(s, 'inoculation', true)) out.inoculation = false;
+  if (out.hazard === true && optionLocked(s, 'curation', 'hazard')) out.hazard = false;
+  if (out.safetyPretrain === true && optionLocked(s, 'curation', 'safetyPretrain')) out.safetyPretrain = false;
+  return out;
+}
 const setFlag = (s: GameStateV2, k: string, v: number) => {
   s.flags[`ref:${k}`] = v;
 };
@@ -157,7 +177,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
     // The bot's own staleness rule (the engine has no cap since R5): a base must train within BOT_MAX_BASE_DAYS at its
     // requested share. A lab whose pool cannot deliver its size in time gives it most of the pool, then steps down a
     // size (×3 → ×1 → ×0.1), rather than never training a new base (M4).
-    const bp = { ...(o.base ?? {}), shape: latent ? 'latent' : REFERENCE_BASE.shape };
+    const bp = { ...known(s, o.base ?? {}), shape: latent ? 'latent' : REFERENCE_BASE.shape };
     const sizes = [...new Set([Number(o.base?.size ?? REFERENCE_BASE.size), 1, 0.1])];
     const launch = (size: number, poolShare: number) => {
       const plan = planRun(s, { kind: 'base', base: baseFromParams({ ...bp, size }), poolShare });
@@ -178,7 +198,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   if (newestBase && postsRunning < 2 && day - flag(s, 'lastPost') >= POST_EVERY && (!streamOnNewest || !hasVersionOnNewest)) {
     const pending = m.runs.some((r) => r.kind === 'post' && r.status === 'running' && r.baseId === newestBase.id);
     if (!(streamOnNewest && pending)) {
-      const design = o.post?.(s) ?? {};
+      const design = known(s, o.post?.(s) ?? {});
       let cot = String(design.cot ?? 'visible');
       if (cot === 'faithful' && p.paradigms.P23?.status !== 'adopted') cot = 'visible';
       if (newestBase.design.shape === 'latent') cot = 'latent';
@@ -311,7 +331,8 @@ export function refDecide(s: GameStateV2, d: PendingDecision): number {
 export const refBot: BotPolicy = {
   id: 'ref',
   act(s, api) {
-    if (s.time.day === 0) for (const a of REF_AGENDAS) tryAct(s, api, 'safety.fund', { agenda: a, level: 'seed' });
+    if (s.time.day === 0) tryAct(s, api, 'teams.target', { key: 'sci.saf', n: REF_SAFETY_SCI_TEAMS });
+    staffLines(s, api, REF_LINES);
     refPlay(s, api);
     financeAutopilot(s, REF_AUTOPILOT);
   },
