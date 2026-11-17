@@ -1,8 +1,10 @@
 // record (160, weekly): series samples and cause-ledger trim (V2-SPEC §2.2, §2.5 budgets). Owner: WS1.
-import { bestLg, internalVersion, otherLabs } from '../models/labs';
+import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
+import { bestLg, internalVersion, measuredLOf, otherLabs } from '../models/labs';
+import { reValidationMult } from '../safety/agendas';
 import { misalignment, misalignmentEstimate } from '../safety/traits';
 import { trueUnderstanding, understanding } from '../safety/understanding';
-import { trimCauses } from './causes';
+import { recordCause, trimCauses } from './causes';
 import type { EngineSystem, GameStateV2, SeriesV2 } from '../types';
 
 export function emptySeries(labIds: string[]): SeriesV2 {
@@ -23,7 +25,9 @@ export function sampleSeries(s: GameStateV2) {
   // A freshly switched internal agent has no measurement yet: hold the last measured level instead of dropping to 0
   // (M4 fix: the 0-dips made the causal replay report level swings of +40 on the 0–15 scale).
   S.Lmeasured.push(r3(v?.evals.measuredL ?? S.Lmeasured[S.Lmeasured.length - 1] ?? 0));
-  S.U.push(r3(understanding(s).U));
+  const U = r3(understanding(s).U);
+  noteUnderstandingMove(s, U, S.U[S.U.length - 1]);
+  S.U.push(U);
   // Hidden: L − U_true drives trait drift (WS2 traits.ts understandingGapGrowth, M4).
   const tu = trueUnderstanding(s);
   s.flags['ws2.gapTrue'] = r3(Math.max(0, tu.L - tu.U));
@@ -39,6 +43,44 @@ export function sampleSeries(s: GameStateV2) {
   S.unemp.push(r3(s.world.unemployment.US));
   S.misTrue.push(r3(v ? misalignment(v.traitsTrue, v.uModes) : 0));
   S.misEst.push(r3(v ? misalignmentEstimate(v) : 0));
+}
+
+/**
+ * Why understanding moved (jank M2): U is recomputed from what the player believes, so it steps when one of its inputs
+ * changes. Each weekly sample compares the visible drivers with the last sample's and, when U moved by ≥ 0.2, records
+ * the move under cause key 'U' (source = the first driver that changed, detail = all of them; read by the race chart
+ * tooltip). Believed inputs only.
+ */
+function noteUnderstandingMove(s: GameStateV2, U: number, prevU: number | undefined) {
+  const v = internalVersion(s);
+  const tools = Object.values(s.player.safety.techniques).filter((t) => t.unlocked && t.active);
+  const now = {
+    model: v?.id ?? '',
+    L: measuredLOf(s, v).L,
+    tools: tools.map((t) => t.id).sort().join(','),
+    ea: Math.round((v?.beliefs.EA?.est ?? 0) * 100) / 100,
+    val: Math.round(reValidationMult(s) * 100) / 100,
+  };
+  const prev = s.flags['ws2.uDrivers'];
+  s.flags['ws2.uDrivers'] = JSON.stringify(now);
+  if (prevU === undefined || typeof prev !== 'string' || Math.abs(U - prevU) < 0.2) return;
+  const p = JSON.parse(prev) as typeof now;
+  const why: [source: string, text: string][] = [];
+  if (p.model !== now.model) why.push(['new internal model', `internal model now ${v?.name ?? '—'}`]);
+  else if (Math.abs(p.L - now.L) >= 0.01) why.push(['measured level', `measured level ${p.L.toFixed(2)} → ${now.L.toFixed(2)}`]);
+  if (p.tools !== now.tools) {
+    const a = new Set(p.tools.split(',').filter(Boolean));
+    const b = new Set(now.tools.split(',').filter(Boolean));
+    const added = [...b].filter((x) => !a.has(x));
+    const lost = [...a].filter((x) => !b.has(x));
+    const nm = (id: string) => TECHNIQUE_BY_ID[id]?.name ?? id;
+    if (added.length) why.push(['new tool', `new tool ${added.map(nm).join(', ')}`]);
+    if (lost.length) why.push(['tool off', `tool off ${lost.map(nm).join(', ')}`]);
+  }
+  if (Math.abs(p.ea - now.ea) >= 0.03) why.push(['eval awareness', `believed eval awareness ${Math.round(p.ea * 100)}% → ${Math.round(now.ea * 100)}%`]);
+  if (Math.abs(p.val - now.val) >= 0.05) why.push(['re-validation', `re-validation staffing ×${p.val.toFixed(2)} → ×${now.val.toFixed(2)}`]);
+  if (!why.length) why.push(['tool decay', 'tools weaken as capability grows']);
+  recordCause(s, 'U', U - prevU, why[0][0], why.map((w) => w[1]).join(' · '));
 }
 
 export const LOG_CAP = 600;

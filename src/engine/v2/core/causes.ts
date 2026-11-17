@@ -77,11 +77,26 @@ export function recordCause(s: GameStateV2, key: string, delta: number, source: 
   if (!delta || !Number.isFinite(delta)) return;
   const k = canonicalKey(key);
   const buf = (s.causes.byKey[k] ??= []);
+  if (DAILY_KEYS[k]) {
+    // Jank F1: cash moves every day from several sources; one entry per day and source, so the ledger covers the
+    // window its readout names ("Why cash moved · 30 d") instead of the last 40 postings (≈ 17 days).
+    for (let i = buf.length - 1; i >= 0 && buf[i].day === day; i--) {
+      if (buf[i].source === source) {
+        buf[i].delta += delta;
+        return;
+      }
+    }
+  }
   const e: CauseEntry = { day, delta, source };
   if (detail) e.detail = detail;
   buf.push(e);
-  if (buf.length > CAUSE_RING) buf.splice(0, buf.length - CAUSE_RING);
+  const cap = DAILY_KEYS[k] ?? CAUSE_RING;
+  if (buf.length > cap) buf.splice(0, buf.length - cap);
 }
+
+/** Keys aggregated per day and source, with their entry cap (UI-only readers; ≥ 60 days of daily sources). Engine
+ *  readers of other keys (board ouster odds read 'board.confidence') keep the 40-entry ring unchanged. */
+const DAILY_KEYS: Record<string, number> = { cash: 600 };
 
 /** Apply Δ to the meter (clamped) and record the applied amount. Throws on an unknown path (catch typos early). */
 export function bumpMeter(s: GameStateV2, key: string, delta: number, source: string, detail?: string): number {

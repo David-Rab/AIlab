@@ -5,17 +5,21 @@ import type { ComputeSplit, DomainId, WorldPresetId } from '../../engine/v2/type
 /** Per-preset milestone threshold shift (years) fitted so RefBot's best internal model hits the golden dates (§7.1).
  *  [fit] by `npx tsx scripts/v2/calib.ts --fit` (bisection on SC, refined on a ±0.03 grid by the worst |Δ| over
  *  SC…ASI because SC(calShift) is step-like). `sampled` uses the ai2027 value. Never tune for balance (§7.4).
+ *  J1 refit (jank M1: a version's measured level no longer re-rolls every 30 days, so RefBot's measured-level gates
+ *  for paradigms (P08 L ≥ 7, P13 RSCH ≥ 8.5, …) no longer fire early on a lucky re-roll; the slow world, with the most
+ *  re-rolls near each gate, lost the most): slow −0.172 → −0.127 (`--fit slow`); the other presets still pass.
  *  R4 refit (tree projects replace paradigm FTE; RefBot loses P05 on seed 2027 to the per-world retry draw): each preset
  *  moved within ±0.03 to the offset closest to the R1 ref-trace milestone days (ai2027 unchanged: +0.01 fits the stub
  *  trace better but moves the integrated trace 14 d; authors2026 +0.005 (+0.015 fits the trace better but leaves T1 SC
  *  at −0.079 y), fast −0.03, slow +0.025; a scan of SC…last against scripts/v2/golden/ref-trace.json). */
-export const CAL_SHIFT: Record<WorldPresetId, number> = { ai2027: 0.08, authors2026: 0.03, fast: 0.075, slow: -0.172, sampled: 0.08 };
+export const CAL_SHIFT: Record<WorldPresetId, number> = { ai2027: 0.08, authors2026: 0.03, fast: 0.075, slow: -0.127, sampled: 0.08 };
 
 /** Extra release lag (progress years, added to simpleLag) of the simulated leader lab
  *  (setup.leaderLab, BUILD-PLAN R2) so its milestones hit the golden days (T1L). [fit] by
  *  `npx tsx scripts/v2/calib.ts --fit-leader`; 0 = the reference simpleLag. `sampled` uses the ai2027 value. R4: refit for the presets
- *  whose CAL_SHIFT moved (authors2026 0.063 → 0.068, fast 0.085 → 0.053, slow −0.029 → −0.004). */
-export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: 0.083, authors2026: 0.068, fast: 0.053, slow: -0.004, sampled: 0.083 };
+ *  whose CAL_SHIFT moved (authors2026 0.063 → 0.068, fast 0.085 → 0.053, slow −0.029 → −0.004). J1: slow −0.004 → 0.041 with the
+ *  slow CAL_SHIFT refit (`--fit-leader slow`). */
+export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: 0.083, authors2026: 0.068, fast: 0.053, slow: 0.041, sampled: 0.083 };
 
 /** Knowledge diffusion to a follower (BUILD-PLAN R9, research/18 §0.2) [D, fit]: while the frontier leader lab's PUBLIC
  *  model is ahead of the player's best model, the player's know-how gains K_DIFFUSION × the gap per year (papers, staff
