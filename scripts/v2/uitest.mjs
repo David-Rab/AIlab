@@ -338,7 +338,9 @@ await tabTo('flow');
 ok('Company flow renders', !!(await page.$('[data-home=computeFlow]')) && !!(await page.$('[data-home=M]')));
 await check('Flow pool click goes to the split (Compute)', 'JSON.stringify([store.panel, store.tab.compute])', () => page.click('[data-pool=experiments]'));
 await nav('finance');
+await page.click('[data-tabs=finance] [data-tab=cash]'); await wait(80); // J1 F3: Finance has tabs
 await check('Raise ask slider', `document.querySelector('[data-act="fin.raise"]').innerText`, () => setSlider(page.locator('[data-panel=finance] input[type=range]').first(), 3.3));
+await page.click('[data-tabs=finance] [data-tab=deals]'); await wait(80);
 await check('Debt kind', `document.querySelector('[data-panel=finance]').innerHTML`, () => page.click('[data-panel=finance] [data-debt-kind=gpuTerm]'));
 // R5 blueprint: size card with its limit tiles (before → after on a size change), slot table by layer with locked
 // cards linking to Research, predicted and plan cards; run queue with actual share and ETA; spare-training policy.
@@ -555,6 +557,26 @@ const fx = readFileSync(path.resolve('scripts/v2/fixtures/day400.json'), 'utf8')
 const err = await page.evaluate((j) => window.ai27v2.importJson(j) ?? '', fx);
 ok('Import day-400 fixture', err === '', err);
 await page.evaluate(() => { window.ai27v2.state.setup.tutorial = false; window.ai27v2.notify(); });
+// J1 (jank O1): rendered tooltip coverage. Every visible leaf element in the centre panel whose text holds a digit
+// (≤ 40 chars; not a button, tab or chart) must sit inside a tooltip trigger ([data-tip]). Codex excluded (it is L3).
+const tipCov = { tipped: 0, n: 0, miss: [] };
+const coverage = async (where) => {
+  if (where.includes('codex')) return;
+  const r = await page.evaluate(() => {
+    const m = document.querySelector('main.center');
+    if (!m) return { n: 0, tipped: 0, miss: [] };
+    const els = [...m.querySelectorAll('*')].filter((e) => {
+      if (e.children.length) return false;
+      const tx = (e.textContent ?? '').trim();
+      if (!/\d/.test(tx) || tx.length > 40) return false;
+      const b = e.getBoundingClientRect();
+      return b.width > 4 && b.height > 4 && e.closest('svg') === null && !e.closest('button') && !e.closest('[data-tabs]') && !e.closest('select');
+    });
+    const miss = els.filter((e) => !e.closest('[data-tip]')).map((e) => (e.textContent ?? '').trim().slice(0, 24));
+    return { n: els.length, tipped: els.length - miss.length, miss };
+  });
+  tipCov.n += r.n; tipCov.tipped += r.tipped; tipCov.miss.push(...r.miss.map((x) => `${where}: ${x}`));
+};
 for (const p of PANELS) {
   await nav(p);
   const tabs = await tabsOf();
@@ -562,6 +584,7 @@ for (const p of PANELS) {
     if (t) await tabTo(t);
     await wait(80);
     await iaScan(`day400:${p}${t ? '.' + t : ''}`);
+    await coverage(`day400:${p}${t ? '.' + t : ''}`);
     await shot(`20-day400-${p}${t ? '-' + t : ''}`);
   }
 }
@@ -575,9 +598,35 @@ for (const p of PANELS) {
     if (t) await tabTo(t);
     await wait(60);
     await iaScan(`day900:${p}${t ? '.' + t : ''}`);
+    await coverage(`day900:${p}${t ? '.' + t : ''}`);
     await shot(`30-day900-${p}${t ? '-' + t : ''}`);
   }
 }
+{
+  const pctCov = tipCov.n ? tipCov.tipped / tipCov.n : 1;
+  ok(`J1 O1: rendered tooltip coverage ≥ 85% (day 400 + day 900, every panel and tab)`, pctCov >= 0.85, `${tipCov.tipped}/${tipCov.n} = ${(pctCov * 100).toFixed(1)}% · e.g. ${tipCov.miss.slice(0, 6).join(' ; ')}`);
+}
+// J1: jank fixes on the day-900 fixture.
+await nav('blueprint');
+ok('J1 B1: blueprint layer note is not squeezed (one line)', await page.evaluate(() => { const e = document.querySelector('.bp-grp .bp-rebuild'); return !!e && e.getBoundingClientRect().height < 24; }));
+ok('J1 B2: every card line shows its own effect (no "ref" on alternatives)', await page.evaluate(() => {
+  const lines = [...document.querySelectorAll('.bp-line[data-line]')];
+  return lines.length > 4 && lines.some((l) => !l.classList.contains('sel') && /[+−]\d/.test(l.textContent ?? ''));
+}));
+await nav('finance');
+await page.click('[data-tabs=finance] [data-tab=cash]'); await wait(80);
+ok('J1 F1: why cash moved counts days, not the last 40 postings', await page.evaluate(() => { const r = [...document.querySelectorAll('[data-home=cashCauses] .cbar-lbl')].map((x) => x.textContent ?? ''); const m = r.map((x) => Number((x.match(/×(\d+)/) ?? [])[1] ?? 0)); return Math.max(0, ...m) >= 28; }));
+ok('J1 F3: Finance opens on cash flow, history and the raise; the rest on tabs', (await page.$$('[data-tabs=finance] [data-tab]')).length >= 3 && !(await page.$('[data-home=ledger]')));
+await nav('relations');
+ok('J1 RL1: Retire stands apart behind a confirm', !!(await page.$('[data-test=retire-open]')) && !(await page.$('.catalog [data-act=RETIRE]')));
+ok('J1 RL2: no security actions in the Relations catalogue', !(await page.$('[data-panel=relations] [data-act^="SEC_"]')));
+await nav('models');
+ok('J1 M4: a best badge per variant in the lineage', (await page.$$('[data-test=best-badge]')).length >= 1);
+ok('J1 M5: runs are named by their target', !(await page.locator('[data-panel=models]').innerText()).match(/\b(post|base|distill) \d+ (post|base|distill)\b/));
+await nav('compute');
+await tabTo('overview');
+await wait(200);
+ok('J1 C1: order, build and rent show before → after (cash, runway)', await page.evaluate(() => ['cmp.orderStandard', 'cmp.newSite', 'cmp.cloudContract'].every((id) => /cash.*→.*runway.*→/s.test(document.querySelector(`[data-test="preview.${id}"]`)?.textContent ?? ''))));
 // Hover states for the record
 await nav('overview');
 await page.hover('[data-test=race]');
@@ -629,6 +678,7 @@ await nav('overview');
 ok('Leader lab: Overview race lane', !!(await page.$('[data-home=leadTrack] [data-lane="rL"]')));
 await shot('50-leader-overview');
 await nav('relations');
+if (await page.$('[data-test=rel-all-cp]')) { await page.click('[data-test=rel-all-cp]'); await wait(60); } // J1 RL1: top 4 by default
 ok('Leader lab: Relations lists it', (await page.locator('[data-panel=relations]').innerText()).includes('Polaris AI'));
 await shot('51-leader-relations');
 await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
@@ -645,6 +695,7 @@ await nav('finance');
 ok('Big tech Finance: parent budget schedule, no raise card or ownership', !!(await page.$('[data-home=parentBudget] [data-q]')) && !(await page.$('#ctl-raise-card')) && !(await page.$('[data-home=ownership]')));
 ok('Big tech Finance: equity unavailable with its reason', (await page.locator('[data-test=division-reason]').innerText().catch(() => '')).includes('no outside equity'));
 await iaScan('finance:bigtech');
+ok('J1 F2: big tech: parent budget is the inflow bar; no runway or distress readout', !!(await page.$('[data-wf=parent]')) && !!(await page.$('[data-test=division-budget]')) && !(await page.locator('.topstrip2').innerText()).match(/distress|tight/i));
 await shot('60-bigtech-finance');
 for (const start of ['spinout', 'challenger']) {
   const fxs = readFileSync(`scripts/v2/fixtures/start-${start}-day400.json`, 'utf8');

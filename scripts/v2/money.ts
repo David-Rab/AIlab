@@ -47,7 +47,8 @@ function audit(bot: BotPolicy, seed: number): Audit {
   const s = newGame(defaultSetupV2({ seed, tutorial: false }));
   const cash0 = s.player.finance.cash;
   const flows0 = totalFlows(s);
-  const seen = new Set<CauseEntry>(s.causes.byKey.cash ?? []);
+  // J1 (jank F1): cash causes merge per day and source, so an entry can grow after it was first seen: count increments.
+  const seen = new Map<CauseEntry, number>((s.causes.byKey.cash ?? []).map((e) => [e, e.delta]));
   const a: Audit = {
     causeSum: 0, dCash: 0, flows: {}, bySource: {}, overflow: false, revenueExpected: 0, revenueEntriesMaxPerDay: 0,
     securityExpected: 0, securityCharges: 0, fundExpected: 0, fundCharges: 0, months: 0, trainingRunsPaid: 0, trainingCharges: 0,
@@ -59,14 +60,16 @@ function audit(bot: BotPolicy, seed: number): Audit {
     if (buf.length && !seen.has(buf[0]) && seen.size > 0 && buf.length >= 40) a.overflow = true;
     let revenueToday = 0;
     for (const e of buf) {
-      if (seen.has(e)) continue;
-      seen.add(e);
-      a.causeSum += e.delta;
-      a.bySource[e.source] = (a.bySource[e.source] ?? 0) + e.delta;
-      if (e.source === 'revenue') revenueToday++;
-      if (e.source === 'security spend') a.securityCharges++;
-      if (e.source === 'transition fund') a.fundCharges++;
-      if (e.source === 'training run') a.trainingCharges++;
+      const before = seen.get(e);
+      if (before !== undefined && before === e.delta) continue;
+      const add = e.delta - (before ?? 0);
+      seen.set(e, e.delta);
+      a.causeSum += add;
+      a.bySource[e.source] = (a.bySource[e.source] ?? 0) + add;
+      if (e.source === 'revenue' && before === undefined) revenueToday++;
+      if (e.source === 'security spend' && before === undefined) a.securityCharges++;
+      if (e.source === 'transition fund' && before === undefined) a.fundCharges++;
+      if (e.source === 'training run' && before === undefined) a.trainingCharges++;
     }
     a.revenueEntriesMaxPerDay = Math.max(a.revenueEntriesMaxPerDay, revenueToday);
   };

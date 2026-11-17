@@ -56,10 +56,21 @@ export function Limit({ id, children, tone, block }: { id: string; children: Rea
   const body = <span className={`limit ${tone ?? 'quiet'}`} data-limit={id}><Ban size={10} />{children}</span>;
   if (!d) return body;
   return (
-    <Tip as={block ? 'div' : 'span'} content={() => <TipCard title={d.title} footer={`Source: ${d.source}`}>{d.rule}</TipCard>}>
+    <Tip as={block ? 'div' : 'span'} content={() => <TipCard title={d.title} footer={playerSource(d.source) ? `Source: ${playerSource(d.source)}` : undefined}>{d.rule}</TipCard>}>
       {body}
     </Tip>
   );
+}
+
+/** Jank O5: player-facing sources. Internal design documents (V2-SPEC, STRUCTURE, TECH-TREE, design/…) are developer
+ *  references, not sources: they are dropped; a design value ([D]) with no research source reads "design choice". */
+const DEV_DOC = /^(design\/|V2-SPEC|STRUCTURE|TECH-TREE|BUILD-PLAN|LIMITS|IA\b|IA\.md|PROPOSALS|COMPUTE|DESIGN|PLAN|M\d|WS\d|R\d+\b|v2-interfaces)/i;
+export function playerSource(src?: string): string | undefined {
+  if (!src) return undefined;
+  const parts = src.split(';').map((x) => x.trim()).filter(Boolean);
+  const keep = parts.filter((x) => !DEV_DOC.test(x)).map((x) => x.replace(/\s*\[D\]\s*/g, ' ').trim()).filter(Boolean);
+  if (keep.length) return keep.join('; ');
+  return /\[D\]|design value/i.test(src) ? 'design choice' : undefined;
 }
 
 // ───────────────────────── glossary ─────────────────────────
@@ -67,7 +78,7 @@ export function Term({ id, children }: { id: string; children?: ReactNode }) {
   const g = termEntry(id);
   if (!g) return <span data-term={id} data-term-missing="1">{children ?? id}</span>;
   return (
-    <Tip className="term" content={() => <TipCard title={g.title} footer={g.src}><Rich text={g.body} /></TipCard>}>
+    <Tip className="term" content={() => <TipCard title={g.title} footer={playerSource(g.src)}><Rich text={g.body} /></TipCard>}>
       <span data-term={id}>{children ?? g.title}</span>
     </Tip>
   );
@@ -221,11 +232,16 @@ export function CauseBars({ s, k, fmt = (x) => x.toFixed(1), days: d = 30, inver
         const good = invert ? r.delta < 0 : r.delta > 0;
         const w = (Math.abs(r.delta) / max) * 50;
         return (
-          <div className="cbar" key={i}>
-            <span className="cbar-lbl ellip">{sourceWords(r.source)}{r.n > 1 ? <span className="dim"> ×{r.n}</span> : null}</span>
-            <span className="cbar-track"><i style={{ left: r.delta >= 0 ? '50%' : `${50 - w}%`, width: `${w}%`, background: good ? 'var(--good)' : 'var(--bad)' }} /></span>
-            <span className={`cbar-val num ${good ? 'tone-pos' : 'tone-neg'}`}>{r.delta >= 0 ? '+' : '−'}{fmt(Math.abs(r.delta))}</span>
-          </div>
+          <Tip as="div" key={i} content={() => <TipCard title={sourceWords(r.source)} value={`${r.delta >= 0 ? '+' : '−'}${fmt(Math.abs(r.delta))}`} rows={[
+            { label: r.n > 1 ? 'Postings (days it moved)' : 'Postings', value: String(r.n) },
+            ...r.details.map((d) => ({ label: 'e.g.', value: d })),
+          ]}>{`Sum over the last ${d} days.`}</TipCard>}>
+            <div className="cbar">
+              <span className="cbar-lbl ellip">{sourceWords(r.source)}{r.n > 1 ? <span className="dim"> ×{r.n}</span> : null}</span>
+              <span className="cbar-track"><i style={{ left: r.delta >= 0 ? '50%' : `${50 - w}%`, width: `${w}%`, background: good ? 'var(--good)' : 'var(--bad)' }} /></span>
+              <span className={`cbar-val num ${good ? 'tone-pos' : 'tone-neg'}`}>{r.delta >= 0 ? '+' : '−'}{fmt(Math.abs(r.delta))}</span>
+            </div>
+          </Tip>
         );
       })}
     </div>

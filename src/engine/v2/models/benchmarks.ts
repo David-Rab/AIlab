@@ -48,6 +48,11 @@ export function measureBench(s: GameStateV2, v: ModelVersion, b: BenchmarkDef, b
   return Math.round(Math.min(b.ceil, Math.max(b.floor, x)) * 10) / 10;
 }
 
+/** SD of a version's first measured-level reading (L); later suites narrow it as 1/√n (M1). */
+export const MEASURE_SD = 0.2;
+/** Band (±1 SD, L) of a version's measured level after its suites so far (the start models count as long known). */
+export const measuredSd = (v: Pick<ModelVersion, 'evals'>) => MEASURE_SD / Math.sqrt(Math.max(1, v.evals.nSuites ?? 0));
+
 /** Eval-suite duration in days by gate depth (§3.3.5): full 14, external +21 [D within +14–30]. */
 export function evalDaysFor(s: GameStateV2): number {
   const g = s.player.safety.evalGate;
@@ -56,7 +61,13 @@ export function evalDaysFor(s: GameStateV2): number {
 
 /**
  * Run a full eval suite on a version: capability benchmarks (noisy, sandbagging-biased on dangerous ones), safety
- * evals (traits through the eval-awareness confound and BB masks), measuredL = Lg + N(0, 0.2), flags.
+ * evals (traits through the eval-awareness confound and BB masks), the measured level, flags.
+ *
+ * Measured level (jank M1, STRUCTURE R9): the error of a version's measurement is drawn once, at its first suite,
+ * e ~ N(0, MEASURE_SD), and each later suite narrows it: measuredL = Lg + e/√n after n suites. So for an unchanged model
+ * the reading never re-rolls; it moves monotonically toward the truth by shrinking steps and its band
+ * (MEASURE_SD/√n, `measuredSd`) narrows. The normal is drawn on every suite so the 'runs' stream stays aligned with the
+ * draws other systems take from it.
  */
 export function runEvalSuite(s: GameStateV2, ctx: SystemCtx, versionId: string, by: Evaluator = 'self'): void {
   const v = versionById(s, versionId);
@@ -78,7 +89,11 @@ export function runEvalSuite(s: GameStateV2, ctx: SystemCtx, versionId: string, 
     for (const t of e.traits) observe(s, ctx, v.id, t, 'BB', 1); // WS2 turns observations into beliefs
   }
   v.evals.suiteDay = day;
-  v.evals.measuredL = Math.round((v.Lg + rng.normal(0, 0.2)) * 100) / 100;
+  const z = rng.normal(0, MEASURE_SD);
+  const n = (v.evals.nSuites ?? 0) + 1;
+  if (v.evals.errTrue === undefined) v.evals.errTrue = z;
+  v.evals.nSuites = n;
+  v.evals.measuredL = Math.round((v.Lg + v.evals.errTrue / Math.sqrt(n)) * 100) / 100;
   checkSaturation(s, ctx);
 }
 

@@ -24,6 +24,7 @@ import * as F from '../fmt';
 import { DOMAIN_ICON, ICON } from '../icons';
 import { C } from '../theme';
 import { arrows } from './runEffects';
+import { runTitle } from './Models';
 import './blueprint.css';
 
 type Kind = 'base' | 'post' | 'distill' | 'continue';
@@ -133,6 +134,24 @@ function effectOf(cur: Eval, base: Eval, ref: boolean): Effect {
   };
 }
 
+/** A base run longer than this is shown as infeasible (red snap) and is never the default size [D: the reference base
+ *  runs take 4–7 months; a year-long base finishes far behind]. */
+const FEASIBLE_DAYS = 240;
+const LONG_DAYS = 365;
+const wallOf = (c?: Card_) => (c ? (c.limits?.wallDays ?? c.etaDays) : Infinity);
+/** Wall time of each size snap on today's pool (the reference design). */
+function snapWalls(s: GameStateV2, p: Params = DEFAULTS): number[] {
+  return (SIZE_SNAPS as readonly number[]).map((v) => wallOf(evaluate(s, 'base', { ...p, size: v, poolShare: POOL_DEFAULT.base }).card));
+}
+/** Default base size: ×1 if it finishes within FEASIBLE_DAYS, else the largest snap below ×1 that does; `ok` false when
+ *  even the smallest snap takes longer (then the smallest). */
+function feasibleSize(s: GameStateV2): { size: number; ok: boolean } {
+  const snaps = SIZE_SNAPS as readonly number[];
+  const walls = snapWalls(s);
+  for (let i = snaps.length - 1; i >= 0; i--) if (snaps[i] <= 1 && walls[i] <= FEASIBLE_DAYS) return { size: snaps[i], ok: true };
+  return { size: snaps[0], ok: false };
+}
+
 function loadTemplates(): Record<string, { kind: Kind; p: Params }> {
   try {
     return JSON.parse(localStorage.getItem(TPL_KEY) ?? '{}');
@@ -145,8 +164,11 @@ export function Blueprint({ s }: { s: GameStateV2 }) {
   const m = s.player.models;
   const lastBase = m.bases[m.bases.length - 1];
   const kinds: Kind[] = [...(unlocked(s, 'baseRuns') ? (['base'] as Kind[]) : []), 'post', 'distill', ...(unlocked(s, 'baseRuns') ? (['continue'] as Kind[]) : [])];
-  const [kind, setKindRaw] = useState<Kind>(unlocked(s, 'baseRuns') ? 'base' : 'post');
-  const defFor = (k: Kind, baseId = lastBase?.id ?? ''): Params => ({ ...DEFAULTS, poolShare: POOL_DEFAULT[k], baseId, ...(m.bases.find((b) => b.id === baseId)?.design.shape === 'latent' ? { cot: 'latent' } : {}) });
+  // Jank B3: the default size is the largest that finishes in reasonable time on your pool; a lab with no feasible
+  // base size (the spinout) opens on post-training its model.
+  const [fit] = useState(() => feasibleSize(s));
+  const [kind, setKindRaw] = useState<Kind>(unlocked(s, 'baseRuns') && (fit.ok || !lastBase) ? 'base' : 'post');
+  const defFor = (k: Kind, baseId = lastBase?.id ?? ''): Params => ({ ...DEFAULTS, size: fit.size, poolShare: POOL_DEFAULT[k], baseId, ...(m.bases.find((b) => b.id === baseId)?.design.shape === 'latent' ? { cot: 'latent' } : {}) });
   const [p, setP] = useState<Params>(() => defFor(kind));
   const [prev, setPrev] = useState<Card_ | undefined>(undefined);
   const [tpls, setTpls] = useState(loadTemplates);
@@ -157,17 +179,29 @@ export function Blueprint({ s }: { s: GameStateV2 }) {
   };
   const set = (np: Params) => setP(np.baseId !== p.baseId && m.bases.find((b) => b.id === np.baseId)?.design.shape === 'latent' ? { ...np, cot: 'latent' } : np);
   const key = `${s.time.day}|${kind}|${JSON.stringify(p)}`;
-  const { cur, rows, sizeEff } = useMemo(() => {
+  const { cur, opts, sizeEff } = useMemo(() => {
     const cur = evaluate(s, kind, p);
-    const rows: Record<string, Effect> = {};
+    // Jank B2 (STRUCTURE §4.3): every card shows its own effect in the five fields: the design with this card in its
+    // slot vs the same design with the slot at the reference card (toggles: on vs off).
+    const opts: Record<string, Record<string, Effect>> = {};
     const slots = kind === 'base' ? BACKBONE : kind === 'post' ? TRAINING : [];
     for (const sl of slots) {
       const rp = atRef(sl, p);
-      const same = JSON.stringify(rp) === JSON.stringify(p);
-      rows[sl.field] = effectOf(cur, same ? cur : evaluate(s, kind, rp), same);
+      const ref = evaluate(s, kind, rp);
+      const row: Record<string, Effect> = {};
+      for (const o of sl.opts) {
+        if (sl.multi === 'toggle') {
+          row[String(o.v)] = effectOf(evaluate(s, kind, { ...p, [String(o.v)]: true }), evaluate(s, kind, { ...p, [String(o.v)]: false }), false);
+          continue;
+        }
+        const op = sl.multi === 'focus' ? { ...rp, rlFocus: String(o.v) } : sl.field === 'safety' && o.v === 'inoculation' ? { ...rp, inoculation: true } : { ...rp, [sl.field]: o.v };
+        const isRef = JSON.stringify(op) === JSON.stringify(rp);
+        row[String(o.v)] = effectOf(isRef ? ref : evaluate(s, kind, op), ref, isRef);
+      }
+      opts[sl.field] = row;
     }
     const sizeEff = kind === 'base' ? effectOf(cur, Number(p.size) === 1 ? cur : evaluate(s, kind, { ...p, size: 1 }), Number(p.size) === 1) : undefined;
-    return { cur, rows, sizeEff };
+    return { cur, opts, sizeEff };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   const card = cur.card;
@@ -230,18 +264,18 @@ export function Blueprint({ s }: { s: GameStateV2 }) {
             {kind === 'base' ? (
               <>
                 <div className="sl"><Term id="baseSize">Size</Term></div>
-                <div className="sc"><span className="bp-opt on"><Check size={12} />{F.size(Number(p.size))} · {card?.limits ? sci(card.flop) : '—'}</span><span className="dim small">set above</span></div>
+                <div className="sc"><Tip content={() => <TipCard title={<Term id="baseSize">Size</Term>} value={F.size(Number(p.size))}>Set on the size card above; this row shows its effect against ×1.</TipCard>}><span className="bp-opt on"><Check size={12} />{F.size(Number(p.size))}</span></Tip><span className="dim small">set above · effect vs ×1</span></div>
                 {sizeEff && <Effects s={s} e={sizeEff} />}
-                {BACKBONE.map((sl) => <SlotRow key={sl.field} s={s} kind={kind} sl={sl} p={p} e={rows[sl.field]} onPick={(np) => set(np)} />)}
+                {BACKBONE.map((sl) => <SlotRow key={sl.field} s={s} kind={kind} sl={sl} p={p} effs={opts[sl.field]} onPick={(np) => set(np)} />)}
                 <div className="sl"><Term id="licensedShare">Licensed data</Term></div>
-                <div className="sc bp-lic"><Slider value={Number(p.licensedShare)} min={0} max={1} step={0.05} onChange={(v) => set({ ...p, licensedShare: v })} width={200} /><span className="num small">{F.pct(Number(p.licensedShare))}</span></div>
+                <div className="sc bp-lic"><Slider value={Number(p.licensedShare)} min={0} max={1} step={0.05} onChange={(v) => set({ ...p, licensedShare: v })} width={200} /><Tip content={() => <TipCard title={<Term id="licensedShare">Licensed data</Term>} value={F.pct(Number(p.licensedShare))}>Share of the training data you pay to license. Below 30%: litigation risk; more costs cash at launch.</TipCard>}><span className="num small">{F.pct(Number(p.licensedShare))}</span></Tip></div>
                 <span className="bp-span" />
               </>
             ) : (
               <BaseSummary s={s} kind={kind} p={params} onNewBase={unlocked(s, 'baseRuns') ? () => setKind('base') : undefined} />
             )}
             <Group icon={WandSparkles} layer="layerTraining" name="Training" rebuild="post-train on a base" />
-            {kind === 'post' ? TRAINING.map((sl) => <SlotRow key={sl.field} s={s} kind={kind} sl={sl} p={p} e={rows[sl.field]} onPick={(np) => set(np)} />) : (
+            {kind === 'post' ? TRAINING.map((sl) => <SlotRow key={sl.field} s={s} kind={kind} sl={sl} p={p} effs={opts[sl.field]} onPick={(np) => set(np)} />) : (
               <div className="bp-note small dim">{kind === 'base' ? <>Set on the post-train after this base. <button className="btn btn-sm btn-ghost" data-test="bp-to-post" onClick={() => setKind('post')}>Post-train ›</button></> : kind === 'distill' ? <>A <Term id="distillRun">distilled</Term> mini keeps its teacher's training and traits.</> : <>A <Term id="continueRun">continue run</Term> keeps the base's lineage, traits and failure modes.</>}</div>
             )}
             <Group icon={Wrench} layer="layerScaffold" name="Scaffold" rebuild="engineering build, no training" />
@@ -271,10 +305,18 @@ function SizeCtl({ s, size, ghost, card, onSize }: { s: GameStateV2; size: numbe
   const F1 = card?.limits ? card.flop / Math.max(1e-9, card.limits.size) : 0;
   const lastBase = s.player.models.bases[s.player.models.bases.length - 1];
   const pos = (i: number) => `${(i / (snaps.length - 1)) * 100}%`;
+  const walls = useMemo(() => snapWalls(s), [s.time.day]); // eslint-disable-line react-hooks/exhaustive-deps
+  const flopTip = (v: number, i: number) => () => (
+    <TipCard title={<>{F.size(v)} of today's <Term id="frontierRun">frontier run</Term></>} value={F1 ? `${sci(F1 * v)} FLOP` : undefined} rows={[
+      { label: <Term id="wallTime">Wall time</Term>, value: Number.isFinite(walls[i]) ? F.days(walls[i]) : '—', tone: walls[i] > LONG_DAYS ? 'neg' : walls[i] > FEASIBLE_DAYS ? undefined : 'pos' },
+    ]} footer={walls[i] > LONG_DAYS ? 'Takes over a year on your training pool: the base would finish far behind. Buy or rent compute, or post-train an existing base.' : 'At today\'s training pool with the reference design and pool share.'}>
+      Training compute of the base run, as a multiple of the largest run the frontier labs train today.
+    </TipCard>
+  );
   return (
     <div className="bp-size" id="ctl-size">
       <div className="row-i bp-size-h"><b><Term id="baseSize">Size</Term></b><span className="tag2"><Layers size={11} /> <Term id="layerBackbone">Backbone</Term></span><span className="sp" /><span className="dim small">× today's <Term id="frontierRun">frontier run</Term></span></div>
-      <div className="bp-big"><span className="num">{F.size(size)}</span><span className="u">{card ? sci(card.flop) : '—'} <Term id="flop">FLOP</Term></span></div>
+      <Tip content={flopTip(size, idx(size))}><div className="bp-big"><span className="num">{F.size(size)}</span><span className="u">{walls[idx(size)] > LONG_DAYS ? <span className="tone-neg">takes {F.days(walls[idx(size)])}</span> : <>of the frontier run</>}</span></div></Tip>
       <div className="bp-track">
         <div className="bp-rail" />
         <div className="bp-fill" style={{ width: pos(idx(size)) }} />
@@ -282,9 +324,11 @@ function SizeCtl({ s, size, ghost, card, onSize }: { s: GameStateV2; size: numbe
         {ghost !== undefined && ghost !== size && <span className="bp-ghost" style={{ left: pos(idx(ghost)) }} />}
         <span className="bp-thumb" style={{ left: pos(idx(size)) }} />
         {snaps.map((v, i) => (
-          <button key={v} className={`bp-snap ${v === size ? 'on' : ''}`} style={{ left: pos(i) }} data-size={v} onClick={() => onSize(v)}>
-            <i /><b>{F.size(v)}</b><span className="num">{F1 ? sci(F1 * v) : ''}</span>
-          </button>
+          <Tip key={v} content={flopTip(v, i)}>
+            <button className={`bp-snap ${v === size ? 'on' : ''} ${walls[i] > LONG_DAYS ? 'long' : ''}`} style={{ left: pos(i) }} data-size={v} onClick={() => onSize(v)}>
+              <i /><b>{F.size(v)}</b><span className="num">{Number.isFinite(walls[i]) ? F.days(walls[i]) : ''}</span>
+            </button>
+          </Tip>
         ))}
       </div>
     </div>
@@ -298,7 +342,7 @@ function KindCtl({ s, kind, p }: { s: GameStateV2; kind: Kind; p: Params }) {
   return (
     <div className="bp-size">
       <div className="row-i bp-size-h"><b><Term id={KIND_TERM[kind]}>{KIND_LABEL[kind]}</Term></b><span className="tag2">{kind === 'post' ? <><WandSparkles size={11} /> <Term id="layerTraining">Training</Term></> : <><Layers size={11} /> <Term id="layerBackbone">Backbone</Term></>}</span></div>
-      <div className="bp-big"><span className="num">{kind === 'distill' ? (t?.name ?? '—') : (b?.name ?? '—')}</span><span className="u">{kind === 'distill' ? 'teacher' : b ? `${F.size(b.design.size)} · ${b.design.shape === 'moe' ? 'MoE' : F.words(b.design.shape)}` : ''}</span></div>
+      <div className="bp-big bp-big-name"><span className="num">{kind === 'distill' ? (t?.name ?? '—') : (b?.name ?? '—')}</span><span className="u">{kind === 'distill' ? 'teacher' : b ? `${F.size(b.design.size)} · ${b.design.shape === 'moe' ? 'MoE' : F.words(b.design.shape)}` : ''}</span></div>
       <div className="dim small">{kind === 'post' ? 'Captures 70% of the know-how gained since the base.' : kind === 'distill' ? 'A mini: −0.3 years, a quarter of the serving cost.' : '0.3 × the frontier run on the same base.'}</div>
     </div>
   );
@@ -318,7 +362,7 @@ function Limits({ s, card, prev }: { s: GameStateV2; card?: Card_; prev?: Card_ 
   const pWall = P?.wallDays ?? prev?.etaDays;
   tiles.push({
     id: 'wall', icon: Hourglass, term: 'wallTime', label: 'Wall time', v: `${Math.round(wall)}`, u: 'd', old: pWall !== undefined && pWall !== wall ? `${Math.round(pWall)}` : undefined,
-    sub: <>ends {fmtDate(dateOf(s, day + wall))}</>, tone: 'neu', bar: { f: Math.min(1, card.minDays / Math.max(1, wall)) },
+    sub: wall > LONG_DAYS ? <span className="tone-neg">over a year: ends {fmtDate(dateOf(s, day + wall))}</span> : <>ends {fmtDate(dateOf(s, day + wall))}</>, tone: wall > LONG_DAYS ? 'bad' : wall > FEASIBLE_DAYS ? 'warn' : 'neu', bar: { f: Math.min(1, card.minDays / Math.max(1, wall)) },
     tip: () => <TipCard title={<Term id="wallTime">Wall time</Term>} value={F.days(wall)} rows={[
       { label: <Term id="flop">FLOP</Term>, value: sci(card.flop) },
       { label: <><Term id="poolShare">Pool share</Term> asked → gets</>, value: `${F.pct(card.poolShare)} → ${F.pct(card.effShare)}` },
@@ -372,7 +416,7 @@ function Limits({ s, card, prev }: { s: GameStateV2; card?: Card_; prev?: Card_ 
   });
   const pTW = prev?.setupTW;
   tiles.push({
-    id: 'eng', icon: ICON.roleEng, term: 'runSetup', label: 'Engineers', v: card.setupTW.toFixed(card.setupTW < 1 ? 2 : 1), u: 't-wk', old: pTW !== undefined && Math.abs(pTW - card.setupTW) > 0.005 ? pTW.toFixed(pTW < 1 ? 2 : 1) : undefined,
+    id: 'eng', icon: ICON.roleEng, term: 'runSetup', label: 'Engineers', v: card.setupTW.toFixed(1), u: 'team-wk', old: pTW !== undefined && Math.abs(pTW - card.setupTW) > 0.005 ? pTW.toFixed(pTW < 1 ? 2 : 1) : undefined,
     sub: card.setupDays <= 1 ? 'built within a day' : <>waits {F.days(card.setupDays)} for engineers</>, tone: card.setupDays <= 1 ? 'good' : card.setupDays <= 7 ? 'warn' : 'bad',
     tip: () => <TipCard title={<Term id="runSetup">Run setup</Term>} value={`${card.setupTW.toFixed(2)} team-weeks`} rows={[
       { label: <Term id="buildQueue">Build queue ahead</Term>, value: `${s.player.build.queue.length} item${s.player.build.queue.length === 1 ? '' : 's'}` },
@@ -397,7 +441,8 @@ function Limits({ s, card, prev }: { s: GameStateV2; card?: Card_; prev?: Card_ 
 
 // ───────── slot table ─────────
 function Group({ icon: I, layer, name, rebuild }: { icon: LucideIcon; layer: string; name: string; rebuild: string }) {
-  return <div className="bp-grp"><I size={13} /><span className="ln"><Term id={layer}>{name.toUpperCase()}</Term></span><span className="rb">change = <b>{rebuild}</b></span></div>;
+  // Jank B1: the note had class `rb`, which a global rule lays out as a grid (one word per line over the cards).
+  return <div className="bp-grp"><I size={13} /><span className="ln"><Term id={layer}>{name.toUpperCase()}</Term></span><span className="bp-rebuild">change = <b>{rebuild}</b></span></div>;
 }
 
 function Effects({ s, e }: { s: GameStateV2; e: Effect }) {
@@ -407,11 +452,17 @@ function Effects({ s, e }: { s: GameStateV2; e: Effect }) {
   return (
     <>
       <Tip content={() => <TipCard title="Capability" value={e.ref ? 'reference' : `L ${F.dLevel(e.dL)}`} rows={dom.slice(0, 5).map(([d, v]) => ({ label: d, value: F.dLevel(v) }))}>General level vs the reference card{dom.length ? '; domains beyond the general shift:' : '.'}</TipCard>}>
-        <span className={`e ${e.ref ? 'ref' : ''}`}>{e.ref ? 'ref' : top && Math.abs(e.dL) < 0.05 ? `${top[0]} ${F.dLevel(top[1])}` : Math.abs(e.dL) < 0.05 ? '–' : F.dLevel(e.dL)}</span>
+        <span className={`e ${e.ref ? 'ref' : e.dL >= 0.05 ? 'pos' : e.dL <= -0.05 ? 'neg' : ''}`}>{e.ref ? 'ref' : top && Math.abs(e.dL) < 0.05 ? `${top[0]} ${F.dLevel(top[1])}` : Math.abs(e.dL) < 0.05 ? '–' : F.dLevel(e.dL)}</span>
       </Tip>
-      <span className={`e ${e.ref || Math.abs(e.dDays) < 1 ? 'no' : ''}`}>{e.ref ? '' : Math.abs(e.dDays) < 1 ? '–' : F.days(e.dDays, true)}</span>
-      <span className={`e ${e.ref || Math.abs(e.dCash) < 0.05 ? 'no' : ''}`}>{e.ref ? '' : Math.abs(e.dCash) < 0.05 ? '–' : F.money(e.dCash, { signed: true })}</span>
-      <span className={`e ${e.ref || Math.abs(e.serve - 1) < 0.01 ? 'no' : ''}`}>{e.ref ? 'ref' : Math.abs(e.serve - 1) < 0.01 ? '–' : `×${e.serve.toFixed(2)}`}</span>
+      <Tip content={() => <TipCard title={<Term id="wallTime">Time</Term>} value={e.ref ? 'reference' : F.days(e.dDays, true)} rows={e.cur.card && e.base.card ? [{ label: 'With this card', value: F.days(e.cur.card.etaDays) }, { label: 'With the reference card', value: F.days(e.base.card.etaDays) }] : []}>Days until the run is done (FLOP and minimum length).</TipCard>}>
+        <span className={`e ${e.ref || Math.abs(e.dDays) < 1 ? 'no' : e.dDays > 0 ? 'neg' : 'pos'}`}>{e.ref ? '' : Math.abs(e.dDays) < 1 ? '–' : F.days(e.dDays, true)}</span>
+      </Tip>
+      <Tip content={() => <TipCard title={<Term id="cash">Cash at launch</Term>} value={e.ref ? 'reference' : F.money(e.dCash, { signed: true })} rows={e.cur.card && e.base.card ? [{ label: 'With this card', value: F.money(e.cur.card.cash) }, { label: 'With the reference card', value: F.money(e.base.card.cash) }] : []}>Data licences and RL environments paid when the run starts.</TipCard>}>
+        <span className={`e ${e.ref || Math.abs(e.dCash) < 0.05 ? 'no' : e.dCash > 0 ? 'neg' : 'pos'}`}>{e.ref ? '' : Math.abs(e.dCash) < 0.05 ? '–' : F.money(e.dCash, { signed: true })}</span>
+      </Tip>
+      <Tip content={() => <TipCard title={<Term id="serveCost">Serving cost</Term>} value={e.ref ? 'reference' : `×${e.serve.toFixed(2)}`} rows={e.cur.card && e.base.card ? [{ label: 'With this card', value: e.cur.card.serveCost.toFixed(2) }, { label: 'With the reference card', value: e.base.card.serveCost.toFixed(2) }] : []}>H100e per agent copy, relative to the reference card.</TipCard>}>
+        <span className={`e ${e.ref || Math.abs(e.serve - 1) < 0.01 ? 'no' : e.serve > 1 ? 'neg' : 'pos'}`}>{e.ref ? '' : Math.abs(e.serve - 1) < 0.01 ? '–' : `×${e.serve.toFixed(2)}`}</span>
+      </Tip>
       <span className="rk">
         {FAMILIES.map((f, i) => {
           const a = arrows(e.fam[i]);
@@ -427,21 +478,29 @@ function Effects({ s, e }: { s: GameStateV2; e: Effect }) {
   );
 }
 
-function SlotRow({ s, kind, sl, p, e, onPick }: { s: GameStateV2; kind: Kind; sl: Slot; p: Params; e?: Effect; onPick: (p: Params) => void }) {
+/** One slot: the label spans one line per card; each card line shows the card's own effect (B2). Selected cards first,
+ *  then the alternatives (up to four lines, "+N" for the rest). */
+function SlotRow({ s, kind, sl, p, effs, onPick }: { s: GameStateV2; kind: Kind; sl: Slot; p: Params; effs?: Record<string, Effect>; onPick: (p: Params) => void }) {
   const [more, setMore] = useState(false);
   const on = sl.opts.filter((o) => isOn(sl, p, o.v));
   const off = sl.opts.filter((o) => !isOn(sl, p, o.v));
   const shown = more ? off : off.slice(0, Math.max(0, 4 - on.length));
   const hidden = off.length - shown.length;
+  const lines = on.length + shown.length + (hidden > 0 ? 1 : 0);
   return (
     <>
-      <div className="sl"><Term id={sl.term}>{sl.label}</Term>{sl.sub && <small>{sl.sub}</small>}</div>
-      <div className="sc">
-        {on.map((o) => <OptBtn key={String(o.v)} s={s} kind={kind} sl={sl} o={o} p={p} on onPick={onPick} />)}
-        {shown.map((o) => <OptBtn key={String(o.v)} s={s} kind={kind} sl={sl} o={o} p={p} onPick={onPick} />)}
-        {hidden > 0 && <button className="bp-more small" onClick={() => setMore(true)}>+{hidden}</button>}
-      </div>
-      {e ? <Effects s={s} e={e} /> : <span className="bp-span" />}
+      <div className="sl" style={{ gridRow: `span ${lines}` }}><Term id={sl.term}>{sl.label}</Term>{sl.sub && <small>{sl.sub}</small>}</div>
+      {[...on, ...shown].map((o, i) => {
+        const e = effs?.[String(o.v)];
+        const sel = i < on.length;
+        return (
+          <div key={String(o.v)} className={`bp-line ${sel ? 'sel' : ''}`} data-line={`${sl.field}:${String(o.v)}`}>
+            <div className="sc"><OptBtn s={s} kind={kind} sl={sl} o={o} p={p} on={sel} onPick={onPick} /></div>
+            {e ? <Effects s={s} e={e} /> : <span className="bp-span" />}
+          </div>
+        );
+      })}
+      {hidden > 0 && <div className="bp-line"><button className="bp-more small" onClick={() => setMore(true)}>+{hidden} more</button></div>}
     </>
   );
 }
@@ -525,7 +584,7 @@ function Predicted({ s, card, err, cur }: { s: GameStateV2; card?: Card_; err?: 
           </svg>
           <div className="tip-cap"><Term id="domains">Domains</Term></div>
           <div className="bp-chips">
-            {dChips.map(([d, v]) => { const I = DOMAIN_ICON[d]; return <span key={d} className="dch"><I size={11} /><span className="k">{d}</span><b className={v >= 0 ? 'tone-pos' : 'tone-neg'}>{F.dLevel(v)}</b></span>; })}
+            {dChips.map(([d, v]) => { const I = DOMAIN_ICON[d]; return <Tip key={d} content={() => <TipCard title={<Term id="domains">{d}</Term>} value={`${F.dLevel(v)} L`} rows={[{ label: 'Predicted', value: F.level(mid(card.domains[d])) }, { label: iv?.name ?? 'Today', value: F.level(doms?.[d] ?? 0) }]}>This domain's predicted level vs your internal model.</TipCard>}><span className="dch"><I size={11} /><span className="k">{d}</span><b className={v >= 0 ? 'tone-pos' : 'tone-neg'}>{F.dLevel(v)}</b></span></Tip>; })}
           </div>
           <div className="tip-cap"><Term id="riskFamily">Risk pressure</Term> <span className="dim">vs {iv?.name ?? 'today'}</span></div>
           <div className="bp-chips">
@@ -569,12 +628,16 @@ function Plan({ s, kind, card, p, setShare, warn, children }: { s: GameStateV2; 
     }>
       {card && (
         <>
-          <div className="small dim bp-gets row-i">{card.effShare < card.poolShare - 1e-6 ? <span>gets <b className="tone-warn">{F.pct(card.effShare)}</b> now: running runs share the pool</span> : <span>gets {F.pct(card.effShare)} of the <Term id="trainingPool">training pool</Term></span>}<span className="sp" /><span>ready <b data-test="bp-ready">{fmtDate(dateOf(s, day + ready))}</b></span></div>
+          <div className="small dim bp-gets row-i">
+            <Tip content={() => <TipCard title={<Term id="poolShare">Pool share</Term>} rows={[{ label: 'Asks', value: F.pct(card.poolShare) }, { label: 'Gets now', value: F.pct(card.effShare) }]}>Runs that ask for more than the pool are scaled down together.</TipCard>}>{card.effShare < card.poolShare - 1e-6 ? <span>gets <b className="tone-warn">{F.pct(card.effShare)}</b> now: running runs share the pool</span> : <span>gets {F.pct(card.effShare)} of the <Term id="trainingPool">training pool</Term></span>}</Tip>
+            <span className="sp" />
+            <Tip content={() => <TipCard title="Ready" value={fmtDate(dateOf(s, day + ready))} rows={[{ label: 'Training', value: F.days(card.etaDays) }, ...(post ? [{ label: 'Reference post-train', value: F.days(post) }] : []), ...(evals ? [{ label: <Term id="evals">Evals</Term>, value: F.days(evals) }] : [])]}>When the model can be used.</TipCard>}><span>ready <b data-test="bp-ready">{fmtDate(dateOf(s, day + ready))}</b></span></Tip>
+          </div>
           <div className="bp-gantt">
             {running.slice(0, 3).map((r) => {
               const left = Math.max(0, r.flopNeeded - r.flopDone) / Math.max(1, r.flopNeeded);
               const stall = runStall(s, r);
-              return <div className="bp-lane" key={r.id}><span className="bp-ll small dim">{r.name}</span><span className="bp-track2"><span className="bp-bar run" style={{ width: f(Math.max(3, left * (r.minDays || 60))) }} />{stall && <span className="small tone-warn bp-bl">{stall}</span>}</span></div>;
+              return <div className="bp-lane" key={r.id}><Tip content={() => <TipCard title={runTitle(s, r)} rows={[{ label: 'FLOP left', value: F.pct(left) }]}>A run already training; it shares the pool with this one.</TipCard>}><span className="bp-ll small dim">{runTitle(s, r)}</span></Tip><span className="bp-track2"><span className="bp-bar run" style={{ width: f(Math.max(3, left * (r.minDays || 60))) }} />{stall && <span className="small tone-warn bp-bl">{stall}</span>}</span></div>;
             })}
             <div className="bp-lane me"><span className="bp-ll small"><b>{KIND_LABEL[kind]}</b></span>
               <span className="bp-track2">
@@ -587,7 +650,7 @@ function Plan({ s, kind, card, p, setShare, warn, children }: { s: GameStateV2; 
             </div>
             {kind === 'base' && card.limits && (
               <div className="bp-lane"><span className="bp-ll small dim"><Term id="knowHow">Know-how</Term></span>
-                <span className="bp-track2"><svg className="bp-wedge" viewBox="0 0 100 20" preserveAspectRatio="none" style={{ width: f(card.etaDays) }}><polygon points="0,20 100,20 100,0" fill="rgba(229,96,96,.35)" stroke={C.bad} strokeWidth={0.6} vectorEffect="non-scaling-stroke" /></svg><span className="small tone-neg bp-bl" style={{ left: f(card.etaDays) }}><Term id="behindAtFinish">behind</Term> ›</span></span>
+                <span className="bp-track2"><svg className="bp-wedge" viewBox="0 0 100 20" preserveAspectRatio="none" style={{ width: f(card.etaDays) }}><polygon points="0,20 100,20 100,0" fill="rgba(229,96,96,.35)" stroke={C.bad} strokeWidth={0.6} vectorEffect="non-scaling-stroke" /></svg><span className="small tone-neg bp-bl" style={card.etaDays / total > 0.8 ? { right: 0 } : { left: f(card.etaDays) }}><Term id="behindAtFinish">behind</Term> ›</span></span>
               </div>
             )}
             <div className="bp-axis small dim">{months.map((d) => <span key={d} style={{ left: f(d) }}>{fmtMonth(dateOf(s, day + d))}</span>)}</div>

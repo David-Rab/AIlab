@@ -62,15 +62,14 @@ export function Safety({ s }: { s: GameStateV2 }) {
         title="Safety"
         tabs={<Tabs panel="safety" def="overview" tabs={[
           { id: 'overview', label: 'Overview', icon: ICON.overview }, { id: 'lines', label: 'Research lines', icon: ListChecks, badge: lineBadge },
-          { id: 'cases', label: 'Investigations', icon: ICON.investigate, badge: openCases || undefined }, { id: 'graph', label: 'Trait graph', icon: Waypoints },
-          { id: 'incidents', label: 'Incidents', icon: ICON.incident, badge: openInc || undefined },
+          { id: 'cases', label: 'Cases', icon: ICON.incident, badge: openCases + openInc || undefined }, { id: 'graph', label: 'Trait graph', icon: Waypoints },
         ]} />}
       />
       {tab === 'overview' && <Overview s={s} sv={sv} />}
       {tab === 'lines' && <LinesTab s={s} sv={sv} />}
-      {tab === 'cases' && <CasesTab s={s} sv={sv} />}
+      {/* Jank S4: incidents and investigations share one Cases tab (each was one line on an empty page most of the game). */}
+      {(tab === 'cases' || tab === 'incidents') && <div className="sf-cases2"><IncidentsTab s={s} sv={sv} /><CasesTab s={s} sv={sv} /></div>}
       {tab === 'graph' && <GraphTab s={s} sv={sv} />}
-      {tab === 'incidents' && <IncidentsTab s={s} sv={sv} />}
     </div>
   );
 }
@@ -120,8 +119,10 @@ function bestIdea(s: GameStateV2, fams: Fams): { id: string; name: string; fam: 
 function Verdict({ sv, fams, cand }: { sv: SV; fams: Fams; cand: ReturnType<typeof bestIdea> }) {
   const m = sv.understanding.margin;
   const up = sv.upkeep;
-  const tone = m < 0 ? 'bad' : m < 0.5 ? 'warn' : 'good';
-  const title = m < 0 ? 'Understanding lags capability' : m < 0.5 ? 'Understanding barely ahead' : 'Understanding ahead of capability';
+  const tone = m < 0 ? 'bad' : m < 0.5 || fams.some((f) => f.unseen) ? 'warn' : 'good';
+  // Jank S1: the verdict counts what the tools cannot see.
+  const unseen = fams.filter((f) => f.unseen);
+  const title = m < 0 ? 'Understanding lags capability' : m < 0.5 ? 'Understanding barely ahead' : unseen.length ? `Understanding ahead, but ${unseen.length} of ${fams.length} risk families unseen` : 'Understanding ahead of capability';
   const widening = up.capPerMo > up.upkeepPerMo + 0.02;
   const sub = [m < 0 ? `${F.num(-m, 1)} levels blind` : `${F.num(m, 1)} levels ahead`, widening ? 'gap widening' : 'holding',
     up.behindInMonths !== undefined && up.behindInMonths > 0 ? `tools fall behind in ~${Math.max(1, Math.round(up.behindInMonths))} mo` : up.behindInMonths === 0 ? 'tools already behind' : ''].filter(Boolean).join(' · ');
@@ -141,7 +142,11 @@ function Verdict({ sv, fams, cand }: { sv: SV; fams: Fams; cand: ReturnType<type
       {m < 0 ? <ICON.blind size={22} /> : <Eye size={22} />}
       <div className="sf-vt">
         <b>{title}</b>
-        <span className="small">{sub}</span>
+        <Tip content={() => <TipCard title={<Term id="U">Understanding vs capability</Term>} value={`${F.num(m, 1, true)} levels`} rows={[
+          { label: 'Capability (measured)', value: F.level(up.L) }, { label: 'Understanding', value: F.level(up.L + m) },
+          { label: 'Capability per month', value: `+${F.num(up.capPerMo, 2)} L` }, { label: 'Tool upkeep per month', value: `+${F.num(up.upkeepPerMo, 2)} L` },
+          ...fams.map((f) => ({ label: `${f.label} seen to`, value: `L ${F.num(f.seenTo, 1)}${f.unseen ? ' · unseen' : ''}`, tone: (f.unseen ? 'neg' : 'neutral') as 'neg' | 'neutral' })),
+        ]}>Positive: your tools read the model past its level. The gap widens when capability grows faster than tool upkeep.</TipCard>}><span className="small">{sub}</span></Tip>
       </div>
       <span className="sp" />
       {chains.map((c, i) => (
@@ -319,20 +324,20 @@ function Policies({ s, sv }: { s: GameStateV2; sv: SV }) {
     <Card title="Policies" home="safetyPolicy" id="ctl-policy" className="sf-pol">
       <div className="sf-prow">
         <ClipboardCheck size={18} />
-        <span><b><Term id="evalGate">Evaluate before release</Term></b><br /><span className="small dim">+{GATE_DAYS[gate]} d per release{gate === 'fullPlusExternal' ? ' · external review' : ''}</span></span>
+        <span><b><Term id="evalGate">Evaluate before release</Term></b><br /><Tip content={() => <TipCard title={<Term id="evalGate">Eval gate</Term>} value={`+${GATE_DAYS[gate]} d`}>Days a new version waits in evaluation before it can be used or sold.</TipCard>}><span className="small dim">+{GATE_DAYS[gate]} d per release{gate === 'fullPlusExternal' ? ' · external review' : ''}</span></Tip></span>
         <span className="sp" />
         {on && <span className={`sf-mini ${gate === 'fullPlusExternal' ? 'on' : ''}`}><ActBtn id="safety.evalGate" testId="safety.evalGate.external" params={{ level: gate === 'fullPlusExternal' ? 'full' : 'fullPlusExternal' }} label="external" /></span>}
         <span className={`sf-toggle ${on ? 'on' : ''}`}><ActBtn id="safety.evalGate" testId="safety.evalGate.toggle" params={{ level: on ? 'none' : 'full' }} label={<i />} /></span>
       </div>
       <div className="sf-prow">
         <ICON.agents size={18} />
-        <span><b><Term id="agentMonitor">Monitor internal agents</Term></b><br /><span className="small dim">{mon.length} of 4 uses · {F.pct(mb.poolShare)} of safety compute</span></span>
+        <span><b><Term id="agentMonitor">Monitor internal agents</Term></b><br /><Tip content={() => <TipCard title={<Term id="agentMonitor">Monitors</Term>} rows={[{ label: 'Uses with a monitor', value: `${mon.length} of 4` }, { label: 'Safety compute on monitors', value: F.pct(mb.poolShare) }]}>Set per use on Company › Agents at work.</TipCard>}><span className="small dim">{mon.length} of 4 uses · {F.pct(mb.poolShare)} of safety compute</span></Tip></span>
         <span className="sp" />
         <Ref id="agentMonitor" to={company}>Company</Ref>
       </div>
       <div className="sf-prow">
         <ICON.roleSci size={18} />
-        <span><b><Term id="trustedToAI">Trusted to AI</Term></b> <span className="num">{F.pct(s.player.policies.trustedToAI)}</span> <span className="small dim">of safety work · max {F.pct(trustedMax(s))}</span><br /><span className="small dim">safety-research model {sm?.name ?? '—'}</span></span>
+        <Tip content={() => <TipCard title={<Term id="trustedToAI">Trusted to AI</Term>} value={F.pct(s.player.policies.trustedToAI)} rows={[{ label: 'Max now', value: F.pct(trustedMax(s)) }, { label: 'Safety-research model', value: sm?.name ?? '—' }]}>Share of safety research done by AI agents. Set on Company › Agents at work.</TipCard>}><span><b><Term id="trustedToAI">Trusted to AI</Term></b> <span className="num">{F.pct(s.player.policies.trustedToAI)}</span> <span className="small dim">of safety work · max {F.pct(trustedMax(s))}</span><br /><span className="small dim">safety-research model {sm?.name ?? '—'}</span></span></Tip>
         <span className="sp" />
         <Ref id="trustedToAI" to={company}>Company</Ref>
       </div>
@@ -410,14 +415,14 @@ function LineRowView({ s, l }: { s: GameStateV2; l: LineRow }) {
           <span key={p.id} className="sf-pj" onClick={() => { if (!p.followUp) { store.setTab('research.sel', p.id); store.goto('research'); } }}>
             <span className="ellip small">{p.followUp ? 'Follow-up' : p.name}</span>
             <span className="rs-bar"><i style={{ width: `${p.progress * 100}%` }} /></span>
-            <span className="num small">{eta(p.eta)}</span>
+            <Tip content={() => <TipCard title="ETA" value={eta(p.eta)} rows={[{ label: 'Progress', value: F.pct(p.progress) }]}>At today's teams and research speed.</TipCard>}><span className="num small">{eta(p.eta)}</span></Tip>
           </span>
         )) : <span className="dim small ellip">{l.next ? <>next: {PROJECT_BY_ID[l.next]?.followUp ? 'follow-up' : PROJECT_BY_ID[l.next]?.name}</> : l.nextReason}</span>}
       </span>
       <Tip content={() => <TipCard title="Results" value={l.findings} rows={[...resTypes.filter((t) => l.results[t]).map((t) => ({ label: FTYPE[t].label, value: l.results[t] as number })), { label: 'Per year now', value: F.num(l.resultsPerYear, 1) }]} />}>
         <span className="sf-res">{resTypes.filter((t) => l.results[t]).map((t) => { const I = FTYPE[t].icon; return <span key={t} className={`ftype2 ${FTYPE[t].tone}`}><I size={11} />{l.results[t]}</span>; })}{!l.findings && <span className="dim small">—</span>}</span>
       </Tip>
-      <span className="num small">{l.deadEndTM >= 0.05 ? `${F.num(l.deadEndTM, 1)} tm` : <span className="dim">—</span>}</span>
+      <Tip content={() => <TipCard title={<Term id="deadEnd">Dead ends</Term>} value={`${F.num(l.deadEndTM, 1)} team-months`}>Team time spent on results that went nowhere in this line.</TipCard>}><span className="num small">{l.deadEndTM >= 0.05 ? `${F.num(l.deadEndTM, 1)} tm` : <span className="dim">—</span>}</span></Tip>
       <span />
       {pick && target && (
         <div className="sf-pick" data-test="line-picker">
@@ -438,11 +443,13 @@ function UpkeepCard({ sv }: { sv: SV }) {
   return (
     <Card title={<Term id="toolUpkeep">Tool upkeep</Term>} sub="safety research engineers" home="toolUpkeep" id="ctl-upkeep">
       <div className="stack2 load-bar" data-test="re-bar">{seg(up.investigations, C.watch, 'inv')}{seg(up.patches, C.neutral, 'pat')}{seg(up.upkeepHeads, C.und, 'upk')}</div>
+      <Tip as="div" content={() => <TipCard title="Safety research engineers" value={F.count(up.heads)} rows={[{ label: 'Tool upkeep', value: F.count(up.upkeepHeads) }, { label: 'Cases', value: F.count(up.investigations) }, { label: 'Patches', value: F.count(up.patches) }]}>Where the safety research engineers work now.</TipCard>}>
       <div className="small dim load-legend">
         <span className="load-key"><i style={{ background: C.und }} />upkeep <span className="num">{F.count(up.upkeepHeads)}</span></span>
         <span className="load-key"><i style={{ background: C.watch }} />cases <span className="num">{F.count(up.investigations)}</span></span>
         {up.patches > 0 && <span className="load-key"><i style={{ background: C.neutral }} />patches <span className="num">{F.count(up.patches)}</span></span>}
       </div>
+      </Tip>
       <Tip as="div" content={() => <TipCard title={<Term id="toolUpkeep">Tool upkeep</Term>} value={up.doublingDays ? `M½ ×2 per ${F.days(up.doublingDays)}` : 'none needed'} rows={[
         { label: 'Tools fading on today\'s model', value: `${up.toolsInUpkeep} of ${up.toolsTotal}` }, { label: 'Engineers per fading tool', value: F.count(up.perTool) },
       ]}>Research engineers re-validate tools that start to fade on your newest model, so they keep working as capability rises. Each fading tool needs a crew of about {UPKEEP_MIN}; beyond that, more engineers per tool means faster upkeep.</TipCard>}>
@@ -527,7 +534,7 @@ function CasesTab({ s, sv }: { s: GameStateV2; sv: SV }) {
             <span className="row-i"><span className="small dim">clarity</span><HBar v={x.clarity} max={1} w={110} mark={0.8} /><span className="num small">{F.pct(x.clarity)}</span></span>
           </Tip>
           <Tip content={() => <TipCard title={<Term id="caseStaffing">Case staffing</Term>} value={`${F.count(x.fte)} people`}>Safety research engineers on the case: {INV_FTE[0]}–{INV_FTE[1]}. Clarity grows with √(people ÷ 15); the engineers come out of tool upkeep while it runs.</TipCard>}>
-            <span className="small" data-test="case-staff"><ICON.roleRE size={12} /> {F.count(x.fte)} research engineers <span className="dim">({INV_FTE[0]}–{INV_FTE[1]})</span></span>
+            <span className="small" data-test="case-staff"><ICON.roleRE size={12} /> {F.count(x.fte)} safety research engineers <span className="dim">({INV_FTE[0]}–{INV_FTE[1]})</span></span>
           </Tip>
           <Limit id="case.staffing"><span data-test="case-close">{x.outcome ? `opened ${fmtDate(dateOf(s, x.startDay))}` : `closes by ${fmtDate(dateOf(s, closeDay))} · ${INV_MAX_DAYS} d max · ${INV_FTE[0]}–${INV_FTE[1]} people`}</span></Limit>
         </div>
@@ -536,7 +543,7 @@ function CasesTab({ s, sv }: { s: GameStateV2; sv: SV }) {
   };
   return (
     <div className="sf-cases">
-      <Card title={<Term id="investigation">Investigations</Term>} sub={`${open.length} open · ${F.count(free)} research engineers free`} home="investigations" id="ctl-investigate">
+      <Card title={<Term id="investigation">Investigations</Term>} sub={`${open.length} open · ${F.count(free)} safety research engineers free`} home="investigations" id="ctl-investigate">
         {open.map(card)}
         {!open.length && <div className="dim small">No open case.</div>}
         <div className="inv-new">
@@ -544,7 +551,7 @@ function CasesTab({ s, sv }: { s: GameStateV2; sv: SV }) {
           <select className="text-input" data-test="inv-trait" value={trait} onChange={(e) => setTrait(e.target.value as TraitId)}>{TRAIT_IDS.map((t) => <option key={t} value={t}>{TRAIT_BY_ID[t].name}</option>)}</select>
           <span className="small dim">in {v?.name ?? '—'} with</span>
           <select className="text-input" data-test="inv-fte" value={fte} onChange={(e) => setFte(Number(e.target.value))}>{[5, 10, 15, 20, 30, 40].map((n) => <option key={n} value={n}>{n}</option>)}</select>
-          <span className="small dim">engineers</span>
+          <span className="small dim">safety research engineers</span>
           <ActBtn id="safety.investigate" params={{ versionId: v?.id ?? '', trait, fte }} icon={ICON.investigate} label="Investigate" primary reason />
         </div>
         {done.length > 0 && <><div className="tip-cap sf-sep">Closed</div>{done.map(card)}</>}
@@ -594,7 +601,12 @@ function DetectionCard({ s, sv }: { s: GameStateV2; sv: SV }) {
             <span key={r.trait} className="det-t"><Icon size={12} /><Term id={`trait:${r.trait}`}>{tname(r.trait).replace('Successor alignment to self', 'Successor align.')}</Term></span>,
             ...r.det.map((d, i) => {
               const edge = d >= 0.5 && (r.det[i + 1] ?? 1) < 0.5;
-              return <span key={`${r.trait}${i}`} className={`det-c num ${g.levels[i] === cur ? 'cur' : ''} ${edge ? 'edge' : ''}`} style={{ background: div((d - 0.5) * 2.2) }}>{F.idx(d * 100)}</span>;
+              // Jank S5: colours carry the heatmap; the number is on hover (and in your own level's column).
+              return (
+                <Tip key={`${r.trait}${i}`} content={() => <TipCard title={`${tname(r.trait)} at L${g.levels[i]}`} value={`${F.idx(d * 100)}% detected`}>{d >= 0.5 ? 'Your tools would see it at this level.' : 'Below 50%: your tools would likely miss it at this level.'}</TipCard>}>
+                  <span className={`det-c num ${g.levels[i] === cur ? 'cur' : ''} ${edge ? 'edge' : ''}`} style={{ background: div((d - 0.5) * 2.2) }}>{g.levels[i] === cur ? F.idx(d * 100) : ''}</span>
+                </Tip>
+              );
             }),
           ];
         })}
@@ -603,7 +615,7 @@ function DetectionCard({ s, sv }: { s: GameStateV2; sv: SV }) {
         <span className="row-i"><i className="det-sw cur" /> your level</span>
         <span className="row-i"><i className="det-sw edge" /> 50% line ({CRITICAL_TRAITS.length} critical traits average = <Ref id="U" to={{ panel: 'safety', tab: 'overview' }}>Understanding</Ref>)</span>
       </div>
-      {sv.nextDecay && <div className="small dim">Next to fade: {TECHNIQUE_BY_ID[sv.nextDecay.id]?.name ?? sv.nextDecay.id} ({F.pct(1 - sv.nextDecay.decay)} faded) · <Ref id="toolUpkeep" to={{ panel: 'safety', tab: 'lines' }}>Tool upkeep</Ref></div>}
+      {sv.nextDecay && <Tip as="div" content={() => <TipCard title="Next to fade" value={`${F.pct(1 - (sv.nextDecay?.decay ?? 1))} faded`}>The tool closest to losing half its strength on your newest model; tool upkeep slows it.</TipCard>}><div className="small dim">Next to fade: {TECHNIQUE_BY_ID[sv.nextDecay.id]?.name ?? sv.nextDecay.id} ({F.pct(1 - sv.nextDecay.decay)} faded) · <Ref id="toolUpkeep" to={{ panel: 'safety', tab: 'lines' }}>Tool upkeep</Ref></div></Tip>}
     </Card>
   );
 }
@@ -620,12 +632,14 @@ function MisCard({ s, versionId }: { s: GameStateV2; versionId?: string }) {
   const col = bv.misEst >= DANGER ? C.bad : bv.misEst >= DANGER / 2 ? C.watch : C.good;
   return (
     <Card title={<Term id="misalign">Estimated misalignment</Term>} sub={`${name ?? ''} · from beliefs`} home="misBand">
+      <Tip as="div" content={() => <TipCard title={<Term id="misalign">Estimated misalignment</Term>} value={F.num(bv.misEst, 2)} rows={[{ label: <Term id="misBand">90% band</Term>, value: `${F.num(lo, 2)}–${F.num(hi, 2)}` }, { label: <Term id="dangerLine">Danger line</Term>, value: F.num(DANGER, 2) }, { label: 'Critical traits under-observed', value: String(thin) }]}>From your trait beliefs on {name ?? 'this model'}; the true value stays unknown.</TipCard>}>
       <div className="mis-bar">
         <span className="mis-band" style={{ left: f(lo), width: `calc(${f(hi)} - ${f(lo)})`, background: col }} />
         <span className="mis-est" style={{ left: f(bv.misEst) }}><b className="num">{F.num(bv.misEst, 2)}</b></span>
         <span className="mis-danger" style={{ left: f(DANGER) }}><span><Term id="dangerLine">danger line</Term> <span className="num">{F.num(DANGER, 2)}</span> (published)</span></span>
       </div>
       <div className="small dim"><Term id="misBand">band</Term> <span className="num">{F.num(lo, 2)}–{F.num(hi, 2)}</span>: {thin ? <>wide because {thin} critical traits are under-observed</> : 'your evidence on the critical traits is fresh'}</div>
+      </Tip>
       <div className="btn-row" style={{ marginTop: 8 }}><GoBtn to={{ panel: 'risk' }} label="Risk sources" testId="mis.risk" /></div>
     </Card>
   );
@@ -684,7 +698,7 @@ function IncidentsTab({ s, sv }: { s: GameStateV2; sv: SV }) {
   };
   return (
     <div className="saf-inc">
-      <Card title={<Term id="incident">Incidents</Term>} sub={`${live.length} open`} home="incidents" id="ctl-incidents">
+      <Card title={<Term id="incident">Incidents</Term>} sub={<Tip content={() => <TipCard title={<Term id="incident">Open incidents</Term>} value={String(live.length)}>Incidents not yet resolved: respond or investigate.</TipCard>}><span>{live.length} open</span></Tip>} home="incidents" id="ctl-incidents">
         {live.map(card)}
         {!live.length && <div className="row-i small"><ICON.check size={14} className="tone-pos" /> No open incidents</div>}
         {past.length > 0 && <><div className="tip-cap" style={{ marginTop: 10 }}>Closed</div>{past.map(card)}</>}

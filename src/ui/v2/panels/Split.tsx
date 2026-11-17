@@ -47,6 +47,7 @@ export function Split({ s }: { s: GameStateV2 }) {
   const [spec, setSpec] = useState<SplitSpec>(cur);
   const [manual, setManual] = useState(!!p.researchManual);
   const sum = TOP_KEYS.reduce((a, k) => a + spec.top[k], 0) || 1;
+  const totalH = s.player.computeOnline;
   const norm = Object.fromEntries(TOP_KEYS.map((k) => [k, spec.top[k] / sum])) as Record<TopKey, number>;
   const changed = TOP_KEYS.some((k) => Math.abs(norm[k] - cur.top[k]) > 1e-3) || Math.abs(spec.dataShare - cur.dataShare) > 1e-3 || manual !== !!p.researchManual || (manual && Math.abs(spec.expShare - cur.expShare) > 1e-3);
   const params: Record<string, number> = { ...norm, dataShare: spec.dataShare, manual: manual ? 1 : 0, ...(manual ? { expShare: spec.expShare } : {}) };
@@ -60,8 +61,8 @@ export function Split({ s }: { s: GameStateV2 }) {
       <div className="alloc-row split-row">
         <span className="alloc-label"><span className="dot" style={{ background: TOP_COLOR[k] }} /><Term id={TOP_TERM[k]}>{TOP_LABEL[k]}</Term></span>
         <Slider value={spec.top[k]} min={0} max={1} step={0.01} onChange={(v) => setSpec({ ...spec, top: { ...spec.top, [k]: v } })} width={260} />
-        <span className="alloc-val num">{pct0(norm[k])}</span>
-        <span className={`num small ${Math.abs(norm[k] - cur.top[k]) > 1e-3 ? 'tone-warn' : 'dim'}`}>{Math.abs(norm[k] - cur.top[k]) > 1e-3 ? `was ${pct0(cur.top[k])}` : ''}</span>
+        <Tip content={() => <TipCard title={<Term id={TOP_TERM[k]}>{TOP_LABEL[k]}</Term>} value={pct0(norm[k])} rows={[{ label: 'Now', value: `${pct0(cur.top[k])} · ${F.h100e(cur.top[k] * totalH)} H100e` }, { label: 'After apply', value: `${pct0(norm[k])} · ${F.h100e(norm[k] * totalH)} H100e` }]}>Share of your compute online.</TipCard>}><span className="alloc-val num">{pct0(norm[k])}</span></Tip>
+        <Tip content={() => <TipCard title="Before the change" value={pct0(cur.top[k])}>Apply to make the new split take effect.</TipCard>}><span className={`num small ${Math.abs(norm[k] - cur.top[k]) > 1e-3 ? 'tone-warn' : 'dim'}`}>{Math.abs(norm[k] - cur.top[k]) > 1e-3 ? `was ${pct0(cur.top[k])}` : ''}</span></Tip>
       </div>
       {sub}
     </div>
@@ -74,7 +75,7 @@ export function Split({ s }: { s: GameStateV2 }) {
           <div className="alloc-row split-row split-sub" id="ctl-split-synthetic">
             <span className="alloc-label small"><Term id="poolSynthetic">Data generation</Term></span>
             <Slider value={spec.dataShare} min={0} max={1} step={0.01} onChange={(v) => setSpec({ ...spec, dataShare: v })} width={260} />
-            <span className="alloc-val num small">{pct0(spec.dataShare)}</span>
+            <Tip content={() => <TipCard title={<Term id="poolSynthetic">Data generation</Term>} value={pct0(spec.dataShare)}>Share of the training pool that generates synthetic data for bigger bases.</TipCard>}><span className="alloc-val num small">{pct0(spec.dataShare)}</span></Tip>
             <span className="small dim">of training</span>
           </div>
           <SpareRow s={s} />
@@ -85,7 +86,7 @@ export function Split({ s }: { s: GameStateV2 }) {
             {manual
               ? <Slider value={spec.expShare} min={MANUAL_MIX_RANGE[0]} max={MANUAL_MIX_RANGE[1]} step={0.01} onChange={(v) => setSpec({ ...spec, expShare: v })} width={260} />
               : <span className="small dim" style={{ width: 260 }}>follows the best mix</span>}
-            <span className="alloc-val num small">{pct0(manual ? spec.expShare : cur.expShare)}</span>
+            <Tip content={() => <TipCard title={<Term id="researchMix">Research mix</Term>} value={`${pct0(manual ? spec.expShare : cur.expShare)} experiments`}>The rest of the research pool runs AI research agents.</TipCard>}><span className="alloc-val num small">{pct0(manual ? spec.expShare : cur.expShare)}</span></Tip>
             <span className="small dim">experiments · rest <Term id="poolAgents">agents</Term></span><Ref id="agentPackage" to={{ panel: 'company', tab: 'people', anchor: 'agents' }}>agents by use</Ref>
           </div>
         ))}

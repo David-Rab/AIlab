@@ -7,6 +7,7 @@ import type { GameStateV2, LogEntry } from '../../../engine/v2';
 import { store } from '../store';
 import { Rich, Tip, TipCard } from '../ui';
 import { ICON } from '../icons';
+import { watchItems } from './watch';
 import { C } from '../theme';
 
 export const KIND_PANEL: Record<string, string> = {
@@ -54,6 +55,8 @@ export function Ring({ left, total, size = 20 }: { left: number; total: number; 
 
 export function AlertQueue({ s }: { s: GameStateV2 }) {
   const [dismissed, setDismissed] = useState<string[]>([]);
+  const [open, setOpen] = useState(false);
+  const watch = watchItems(s);
   const pend = [...s.events.pending].sort((a, b) => a.deadline - b.deadline);
   const groups = alertGroups(s).filter((g) => !dismissed.includes(g.key));
   const nAlerts = groups.reduce((a, g) => a + g.items.length, 0);
@@ -80,20 +83,46 @@ export function AlertQueue({ s }: { s: GameStateV2 }) {
             </Tip>
           );
         })}
-        {nAlerts > 0 && (
-          <Tip content={() => (
-            <TipCard title={`${nAlerts} alert${nAlerts > 1 ? 's' : ''} · 30 d`} rows={groups.slice(0, 10).flatMap((g) => g.items.slice(-2).map((e) => {
-              const I = KIND_ICON[g.kind] ?? ICON.alert;
-              return { label: <span className="small"><I size={11} /> {e.text}</span>, value: <span className="dim small">{fmtDate(dateOf(s, e.day))}</span> };
-            }))}>Click to open the most urgent one's panel; right-click to clear.</TipCard>
-          )}>
-            <button className={`alert-chip2 sev-${sevMax}`} data-alert={groups[0].kind} onClick={() => store.setPanel(KIND_PANEL[groups[0].kind] ?? 'overview')}
+        {/* Jank O2: one alert channel. The chip opens a list: Watch items (cause → fix, the same as the Overview's Watch)
+            first, then the last 30 days' alerts, each with a jump and a visible Clear. */}
+        {(nAlerts > 0 || watch.length > 0) && (
+          <span className="alert-wrap">
+            <button className={`alert-chip2 sev-${Math.max(sevMax, watch.length ? 3 : 0)}`} data-alert={groups[0]?.kind ?? 'watch'} data-test="alert-chip" onClick={() => setOpen(!open)}
               onContextMenu={(e) => { e.preventDefault(); setDismissed((h) => [...h, ...groups.map((g) => g.key)]); }}>
-              <ICON.alerts size={14} /> {nAlerts} alert{nAlerts > 1 ? 's' : ''}
+              <ICON.alerts size={14} /> {watch.length > 0 && <>{watch.length} to watch</>}{watch.length > 0 && nAlerts > 0 && ' · '}{nAlerts > 0 && <>{nAlerts} alert{nAlerts > 1 ? 's' : ''}</>}
             </button>
-          </Tip>
+            {open && (
+              <div className="alert-pop" data-test="alert-list">
+                {watch.length > 0 && <div className="tip-cap">Watch · cause → fix</div>}
+                {watch.map((w) => (
+                  <div key={w.id} className="alert-row" data-watch-row={w.id}>
+                    <span className="small"><b>{w.chain[0]?.label}</b> <span className="dim">{w.why}</span></span>
+                    <span className="sp" />
+                    <button className="btn btn-sm" onClick={() => { setOpen(false); store.goto(w.go.panel, w.go); }}>{w.goLabel} ›</button>
+                  </div>
+                ))}
+                {groups.length > 0 && <div className="tip-cap">Alerts · 30 d</div>}
+                {groups.slice(0, 8).map((g) => {
+                  const I = KIND_ICON[g.kind] ?? ICON.alert;
+                  const e = g.items[g.items.length - 1];
+                  return (
+                    <div key={g.key} className="alert-row" data-alert-row={g.kind}>
+                      <span className="small"><I size={11} /> {e.text}{g.items.length > 1 ? <span className="dim"> (+{g.items.length - 1})</span> : null} <span className="dim">· {fmtDate(dateOf(s, e.day))}</span></span>
+                      <span className="sp" />
+                      <button className="btn btn-sm btn-ghost" onClick={() => { setOpen(false); store.setPanel(KIND_PANEL[g.kind] ?? 'overview'); }}>Open ›</button>
+                    </div>
+                  );
+                })}
+                <div className="btn-row">
+                  {groups.length > 0 && <button className="btn btn-sm" data-test="alerts-clear" onClick={() => { setDismissed((h) => [...h, ...groups.map((g) => g.key)]); setOpen(false); }}>Clear alerts</button>}
+                  <span className="sp" />
+                  <button className="btn btn-sm btn-ghost" onClick={() => setOpen(false)}>Close</button>
+                </div>
+              </div>
+            )}
+          </span>
         )}
-        {!pend.length && !nAlerts && <span className="dim small">No decisions or alerts</span>}
+        {!pend.length && !nAlerts && !watch.length && <span className="dim small">No decisions or alerts</span>}
         {store.flash && performance.now() - store.flash.at < 6000 && <span className={`flash tone-${store.flash.tone}`} data-test="flash">{store.flash.text}</span>}
         <span className="sp" />
         {heads[0] && (

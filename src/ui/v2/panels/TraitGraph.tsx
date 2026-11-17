@@ -127,7 +127,7 @@ export function TraitGraph({ s, versionId }: { s: GameStateV2; versionId?: strin
       <g key={id} data-signal={id} opacity={on ? 1 : 0.35} className="tg-node" onMouseEnter={() => enter(id)} onMouseLeave={leave}>
         <rect x={p.x} y={p.y} width={PW - 10} height={PH} rx={6} className="tg-pill sig" stroke={hotEdge ? C.bad : C.line2} />
         <Icon x={p.x + 8} y={p.y + 6} width={13} height={13} color={C.text3} />
-        <text x={p.x + 26} y={p.y + 16} className="tg-name sig">{id !== 'teacher' ? `${id} ` : ''}{SIGNAL_SHORT[id]}</text>
+        <text x={p.x + 26} y={p.y + 16} className="tg-name sig">{SIGNAL_SHORT[id]}</text>
         <rect x={p.x + 10} y={p.y + 25} width={PW - 30} height={4} rx={2} fill={C.line} />
         <rect x={p.x + 10} y={p.y + 25} width={(PW - 30) * Math.max(0, Math.min(1, v))} height={4} rx={2} fill={C.you} />
       </g>

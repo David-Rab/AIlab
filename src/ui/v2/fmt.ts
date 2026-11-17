@@ -12,7 +12,8 @@ const sign = (x: number, always: boolean) => (x < 0 ? MINUS : always && x > 0 ? 
 export function money(b: number, opts: { signed?: boolean; perYear?: boolean; perQ?: boolean } = {}): string {
   const a = Math.abs(b);
   const s = sign(b, !!opts.signed);
-  const body = a >= 1000 ? `$${sig(a / 1000, 1)}T` : a >= 1 || a === 0 ? `$${sig(a, 1)}B` : `$${Math.round(a * 1000)}M`;
+  // Jank AG2: one money format; zero is "$0", not "$0.0B" next to "$160M".
+  const body = a === 0 ? '$0' : a >= 1000 ? `$${sig(a / 1000, 1)}T` : a >= 1 ? `$${sig(a, 1)}B` : `$${Math.round(a * 1000)}M`;
   return `${s}${body}${opts.perYear ? '/yr' : opts.perQ ? '/q' : ''}`;
 }
 /** Counts: 1.2K, 8.5M, 3.1B (H100e, people, robots). */
@@ -70,14 +71,13 @@ export const power = (mw: number) => (Math.abs(mw) >= 1000 ? `${(mw / 1000).toFi
 export const idx = (x: number) => `${Math.round(x)}`;
 /** Generic short number (auto decimals). */
 export const short = (x: number) => (Math.abs(x) >= 1000 ? count(x) : Math.abs(x) >= 10 ? x.toFixed(0) : Math.abs(x) >= 1 ? x.toFixed(1) : x.toFixed(2));
-/** A duration in minutes (time horizons): 40 min, 3.2 h, 5 wk (40 h), 2.1 yr (work-years), > 1000 yr. */
+/** A duration in minutes (time horizons): 40 min, 3.2 h, 5 wk (40 h), > 1 yr (work-years; jank PR8: beyond a year of
+ *  work the exact figure means nothing). */
 export function minutes(m: number): string {
   if (m < 60) return `${Math.round(m)} min`;
   if (m < 60 * 40) return `${(m / 60).toFixed(m < 600 ? 1 : 0)} h`;
   const wk = m / (40 * 60);
-  if (wk < 52) return `${wk.toFixed(wk < 10 ? 1 : 0)} wk`;
-  const yr = wk / 52;
-  return yr >= 1000 ? '> 1000 yr' : `${yr.toFixed(yr < 10 ? 1 : 0)} yr`;
+  return wk < 52 ? `${wk.toFixed(wk < 10 ? 1 : 0)} wk` : '> 1 yr';
 }
 /** Benchmark score: special rows (horizon minutes, speedrun ×) get their own units. */
 export function bench(score: number, special?: 'horizon' | 'speedrun'): string {

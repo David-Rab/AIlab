@@ -2,7 +2,7 @@
 // its home) · lead track · race history · Watch, plus Goals while the tutorial runs. Nothing else: every other datum
 // lives one level down.
 import { useState } from 'react';
-import { activeRivals, dateOf, fmtDate, fmtMonth, leadDays } from '../../../engine/v2';
+import { activeRivals, dateOf, engine, fmtDate, fmtMonth, internalEval, leadDays } from '../../../engine/v2';
 import type { GameStateV2 } from '../../../engine/v2';
 import { store } from '../store';
 import { Term, Tip, TipCard } from '../ui';
@@ -84,7 +84,12 @@ function RaceHistory({ s }: { s: GameStateV2 }) {
   const pr = 10;
   const pt = 14;
   const pb = 26;
-  if (n < 2) return <div className="dim small empty-chart">The race history starts after the first week.</div>;
+  // Jank O4: day 0 shows the start point, not a large empty card.
+  if (n < 2) {
+    const ev = internalEval(s);
+    const u = engine.understanding(s);
+    return <Tip as="div" content={() => <TipCard title="The race at the start" rows={[{ label: <Term id="L">Capability</Term>, value: F.level(ev.L) }, { label: <Term id="U">Understanding</Term>, value: F.level(u.U) }]}>The chart draws one point a week from here.</TipCard>}><div className="small rh-start" data-test="race-start"><span className="dim">Start:</span> <b style={{ color: C.cap }}>capability {F.level(ev.L)}</b> · <b style={{ color: C.und }}>understanding {F.level(u.U)}</b> <span className="dim">· the history fills in week by week</span></div></Tip>;
+  }
   const L = S.Lmeasured.slice(0, n);
   const U = S.U.slice(0, n);
   const lo = Math.max(0, Math.floor(Math.min(...L.filter((x) => x > 0), ...U) - 0.5));
@@ -99,8 +104,13 @@ function RaceHistory({ s }: { s: GameStateV2 }) {
   const levels = [5, 6.5, 8.5, 10, 12, 15].filter((v) => v > lo && v < top);
   const years: number[] = [];
   for (let i = 1; i < n; i++) if (dateOf(s, S.day[i]).getUTCMonth() !== dateOf(s, S.day[i - 1]).getUTCMonth() && dateOf(s, S.day[i]).getUTCMonth() % 6 === 0) years.push(i);
-  const releases = s.player.models.versions.filter((v) => v.variant === 'full' && v.day > 0 && v.evals.measuredL !== undefined)
+  const releases0 = s.player.models.versions.filter((v) => v.variant === 'full' && v.day > 0 && v.evals.measuredL !== undefined)
     .map((v) => ({ v, i: S.day.findIndex((d) => d >= v.day) })).filter((x) => x.i > 0).slice(-6);
+  // Jank O4: thin release labels so they never overlap (keep the later one when two are closer than a label).
+  const releases: typeof releases0 = [];
+  for (let k = releases0.length - 1; k >= 0; k--) if (!releases.length || X(releases[releases.length - 1].i) - X(releases0[k].i) >= 74) releases.push(releases0[k]);
+  // Jank M2: why understanding moved in the hovered week (the engine's weekly U drivers).
+  const uWhy = (i: number) => (s.causes.byKey.U ?? []).filter((e) => e.day <= S.day[i] && e.day > S.day[i] - 7).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))[0];
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="racehist" data-home="raceHistory" onMouseLeave={() => setHi(undefined)}
       onMouseMove={(e) => { const r = (e.currentTarget as SVGSVGElement).getBoundingClientRect(); const fx = ((e.clientX - r.left) / r.width) * W; setHi(Math.max(0, Math.min(n - 1, Math.round(((fx - pl) / (W - pl - pr)) * (n - 1))))); }}>
@@ -114,12 +124,20 @@ function RaceHistory({ s }: { s: GameStateV2 }) {
         <g>
           <line x1={X(hi)} x2={X(hi)} y1={pt} y2={H - pb} stroke="#fff" opacity={0.4} />
           <circle cx={X(hi)} cy={Y(L[hi])} r={3.5} fill={C.cap} /><circle cx={X(hi)} cy={Y(U[hi])} r={3.5} fill={C.und} />
-          <g transform={`translate(${Math.min(W - 190, X(hi) + 8)}, ${pt + 18})`}>
-            <rect width={180} height={52} rx={6} fill="#0e141c" stroke="#46597a" />
-            <text x={10} y={17} className="rh-tt">{fmtDate(dateOf(s, S.day[hi]))}</text>
-            <text x={10} y={33} className="rh-tt" fill={C.cap}>Capability {L[hi].toFixed(1)}</text>
-            <text x={10} y={47} className="rh-tt" fill={C.und}>Understanding {U[hi].toFixed(1)} ({F.num(U[hi] - L[hi], 1, true)})</text>
-          </g>
+          {(() => {
+            const why = uWhy(hi);
+            const txt = why ? `U ${F.num(why.delta, 1, true)}: ${(why.detail ?? why.source).split(' · ')[0]}` : '';
+            const w = Math.max(180, Math.min(330, txt.length * 6.4 + 20));
+            return (
+              <g transform={`translate(${Math.min(W - w - 10, X(hi) + 8)}, ${pt + 18})`}>
+                <rect width={w} height={why ? 68 : 52} rx={6} fill="#0e141c" stroke="#46597a" />
+                <text x={10} y={17} className="rh-tt">{fmtDate(dateOf(s, S.day[hi]))}</text>
+                <text x={10} y={33} className="rh-tt" fill={C.cap}>Capability {L[hi].toFixed(1)}</text>
+                <text x={10} y={47} className="rh-tt" fill={C.und}>Understanding {U[hi].toFixed(1)} ({F.num(U[hi] - L[hi], 1, true)})</text>
+                {why && <text x={10} y={62} className="rh-tt" fill="#c9d4e2" data-test="u-why">{txt}</text>}
+              </g>
+            );
+          })()}
         </g>
       )}
     </svg>

@@ -12,7 +12,7 @@ import * as F from '../fmt';
 import { ICON, TRAIT_ICON } from '../icons';
 import { C, STATE_COLOR } from '../theme';
 import { SpeedControl } from './SpeedControl';
-import { catRisk, nearestRival, runwayLive } from './selectors';
+import { catRisk, divisionBudget, nearestRival, runwayLive } from './selectors';
 
 export { catRisk, nearestRival, runwayLive };
 
@@ -23,7 +23,10 @@ function RaceTip({ s }: { s: GameStateV2 }) {
   const u = engine.understanding(s);
   const ev = internalEval(s);
   const sv = safetyView(s);
-  const decaying = sv.techniques.filter((t) => t.unlocked && t.active && t.role !== 'fix').sort((a, b) => b.decay - a.decay).slice(0, 3);
+  // Jank S2: list tools that are fading now; tools that no longer work at all are one line, not "decayed 100%".
+  const active = sv.techniques.filter((t) => t.unlocked && t.active && t.role !== 'fix');
+  const decaying = active.filter((t) => t.decay > 0.05 && t.decay < 0.99).sort((a, b) => b.decay - a.decay).slice(0, 3);
+  const gone = active.filter((t) => t.decay >= 0.99);
   const masked = sv.techniques.filter((t) => t.unlocked && t.trainedAgainst > 0.05);
   const hist = s.series.U.slice(-13);
   const up = upkeepView(s);
@@ -32,6 +35,7 @@ function RaceTip({ s }: { s: GameStateV2 }) {
       <div className="why-body">Violet: the <Term id="L">measured level</Term> of your internal model{ev.evaluating ? ' (still in evaluation: last measured level of its line)' : ''}. Teal: <Term id="U">understanding</Term>, the highest level your tools still read. Past teal you are <Term id="gap">flying blind</Term>.</div>
       <div className="tip-sec">
         <div className="det-row"><span className="det-lbl"><ICON.U size={12} /><Term id="validatedTo">Tools validated to</Term></span><span /><span className="num" data-test="validated-to">{up.validatedTo !== undefined ? `L ${F.level(up.validatedTo)}` : '—'}</span></div>
+        <div className="small dim">How far above today's model your tools were re-checked. Understanding can sit lower: it is where detection of the critical traits stays at 50% or more.</div>
       </div>
       <div className="tip-sec">
         <div className="tip-cap">Can your tools see it? detection at L vs 50%</div>
@@ -48,11 +52,14 @@ function RaceTip({ s }: { s: GameStateV2 }) {
         })}
       </div>
       <div className="tip-sec">
-        <div className="tip-cap">Why understanding moves · last 90 d <Spark2 data={hist} w={70} h={14} /></div>
-        {decaying.map((t) => <div className="small" key={t.id}><ICON.revalidate size={11} /> <Term id="technique">{t.name}</Term> <span className="dim">decayed</span> <b className={t.decay > 0.5 ? 'tone-neg' : 'tone-warn'}>{F.pct(t.decay)}</b> <span className="dim">(<Term id="mHalf">capability outgrows it</Term>)</span></div>)}
+        <div className="tip-cap">Why understanding moved · last 90 d <Spark2 data={hist} w={70} h={14} /></div>
+        {/* Jank M2: the engine's weekly U drivers (new model, tools, eval-awareness belief, re-validation). */}
+        {(s.causes.byKey.U ?? []).filter((e) => e.day > s.time.day - 90).slice(-4).reverse().map((e, i) => <div className="small" key={`u${i}`} data-test="u-cause"><span className={e.delta >= 0 ? 'tone-pos' : 'tone-neg'}>{F.num(e.delta, 1, true)}</span> <span className="dim">{fmtDate(dateOf(s, e.day)).replace(/,? \d{4}$/, '')}</span> {e.detail ?? e.source}</div>)}
+        {decaying.map((t) => <div className="small" key={t.id}><ICON.revalidate size={11} /> <Term id="technique">{t.name}</Term> <span className="dim">fading</span> <b className={t.decay > 0.5 ? 'tone-neg' : 'tone-warn'}>{F.pct(t.decay)}</b> <span className="dim">(<Term id="mHalf">capability outgrows it</Term>)</span></div>)}
+        {gone.length > 0 && <div className="small dim"><ICON.revalidate size={11} /> {gone.length} tool{gone.length > 1 ? 's' : ''} no longer work at this capability: {gone.map((t) => t.name).join(', ')}</div>}
         {masked.map((t) => <div className="small" key={`m${t.id}`}><ICON.blind size={11} /> {t.name} <span className="tone-neg">masked {F.pct(t.trainedAgainst)}</span> <span className="dim">(<Term id="goodhart">trained against</Term>)</span></div>)}
         {ev.evaluating && <div className="small"><ICON.finding size={11} /> {ev.name} is <Term id="evaluating">in evaluation</Term></div>}
-        {!decaying.length && !masked.length && <div className="small dim">No detection tools active yet: staff a safety research line.</div>}
+        {!active.length && <div className="small dim">No detection tools active yet: staff a safety research line.</div>}
       </div>
       <div className="tip-sec"><div className="tip-cap">Levers</div><div className="btn-row wrap">
         <GoBtn to={{ panel: 'safety', tab: 'lines' }} label="Research lines" testId="race.lines" />
@@ -121,9 +128,39 @@ function RiskChip({ s }: { s: GameStateV2 }) {
 }
 
 const PART_WORD: Record<string, string> = { operating: 'Payroll & operations', commitments: 'Contracts (ledger)', chips: 'Chip balances', sites: 'Site capex', revenue: 'Revenue', funding: 'Equity tranches', debt: 'Debt repayment' };
+/** Big-tech division (jank F2): cash against the parent's budget; no runway, no distress (the parent covers you). */
+function DivisionCashChip({ s }: { s: GameStateV2 }) {
+  const f = s.player.finance;
+  const b = divisionBudget(s);
+  return (
+    <Tip as="div" className="ts-stat" content={() => (
+      <WhyCard
+        s={s} k="cash" title={<span><Term id="cash">Cash</Term> · <Term id="parentBudget">parent budget</Term></span>} value={F.money(f.cash)} fmt={(x) => F.money(x)}
+        rows={[
+          { label: <Term id="parentBudget">Parent budget</Term>, value: F.money(b.parentQ, { perQ: true }), tone: 'pos' },
+          { label: 'Spending (next 4 q, average)', value: F.money(-b.spendQ, { signed: true, perQ: true }), tone: 'neg' },
+          { label: b.over ? 'Over budget' : 'Within budget', value: F.money(Math.abs(b.overQ), { perQ: true }), tone: b.over ? 'neg' : 'pos' },
+        ]}
+        body="A division of the parent: it pays a budget every quarter and covers any shortfall (cash below zero is an advance against the next payment). A division cannot go broke; spending over budget only shows here."
+        levers={<GoBtn to={{ panel: 'finance', anchor: 'parent' }} label="Budget" testId="cash.parent" />}
+      />
+    )}>
+      <div className="ts-click" data-test="cash" onClick={() => store.setPanel('finance')}>
+        <span className="ts-ic"><ICON.cash size={14} /></span>
+        <div className="ts-col"><span className="ts-l">CASH · BUDGET</span><span className="ts-v num" data-home="cash">{F.money(f.cash)}</span></div>
+        <div className="ts-runway" data-home="runway" data-test="division-budget">
+          <span className="num" style={{ color: b.over ? C.watch : C.good }}>{b.over ? `over ${F.money(b.overQ)}/q` : 'within budget'}</span>
+          <span className="ts-sub">parent covers</span>
+        </div>
+      </div>
+    </Tip>
+  );
+}
+
 function CashChip({ s }: { s: GameStateV2 }) {
   const f = s.player.finance;
-  const { rw, live, official, review, flips } = runwayLive(s);
+  const { rw, live, official, review, flips, division } = runwayLive(s);
+  if (division) return <DivisionCashChip s={s} />;
   const col = STATE_COLOR[f.state === 'insolvent' ? 'insolvent' : live];
   return (
     <Tip as="div" className="ts-stat" content={() => (
@@ -161,16 +198,18 @@ function RevenueChip({ s }: { s: GameStateV2 }) {
   return (
     <Tip as="div" className="ts-stat" content={() => {
       const rd = productReadouts(s);
-      const rows = s.player.deployments.filter((d) => d.status === 'live' && rd.has(d.id)).map((d) => ({ d, r: rd.get(d.id)! })).sort((a, b) => (b.d.revenueRate ?? 0) - (a.d.revenueRate ?? 0));
+      const rows = s.player.deployments.filter((d) => d.status === 'live' && rd.has(d.id)).map((d) => ({ d, r: rd.get(d.id)! })).sort((a, b) => b.r.revenue - a.r.revenue);
+      const now = rows.reduce((a, x) => a + x.r.revenue, 0);
       return (
-        <TipCard title={<Term id="revenueRun">Revenue run-rate</Term>} value={F.money(f.revenueRun, { perYear: true })} rows={[
-          ...rows.map(({ d, r }) => ({ label: <span>{PRODUCT_DEFS[d.channel]?.name ?? d.channel} <span className="dim">· {F.count(r.customers)} {PRODUCT_DEFS[d.channel]?.customers ?? ''}</span></span>, value: F.money(d.revenueRate ?? 0, { perYear: true }) })),
-        ]} footer={big ? 'A division books revenue to its parent.' : undefined}>Annualised revenue of your live products (30-day average). Click for Products.</TipCard>
+        <TipCard title={<Term id="revenueRun">Revenue · 30-day average</Term>} value={F.money(f.revenueRun, { perYear: true })} rows={[
+          ...rows.map(({ d, r }) => ({ label: <span>{PRODUCT_DEFS[d.channel]?.name ?? d.channel} now <span className="dim">· {F.count(r.customers)} {PRODUCT_DEFS[d.channel]?.customers ?? ''}</span></span>, value: F.money(r.revenue, { perYear: true }) })),
+          { label: <b><Term id="revenueNow">All products, now</Term></b>, value: <b>{F.money(now, { perYear: true })}</b> },
+        ]} footer={big ? 'A division books revenue to its parent.' : 'The 30-day average is what the board and investors judge; it trails the figure now.'}>Annualised revenue of your live products, averaged over 30 days. Click for Products.</TipCard>
       );
     }}>
       <div className="ts-click" data-test="revenue" onClick={() => store.setPanel('products')}>
         <span className="ts-ic"><ICON.revenue size={14} /></span>
-        <div className="ts-col"><span className="ts-l">REVENUE</span><span className="ts-v num" data-home="revenueRun">{F.money(f.revenueRun)}<span className="ts-sub">/yr</span></span></div>
+        <div className="ts-col"><span className="ts-l">REVENUE · 30 D</span><span className="ts-v num" data-home="revenueRun">{F.money(f.revenueRun)}<span className="ts-sub">/yr</span></span></div>
         {hist.length > 2 && <Spark2 data={hist} w={44} h={18} color={C.good} />}
       </div>
     </Tip>

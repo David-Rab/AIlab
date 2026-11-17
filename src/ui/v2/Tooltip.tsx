@@ -156,7 +156,10 @@ export function Tip({
   as: As = 'span',
   place,
   style,
+  closeOnClick,
 }: {
+  /** Jank O6: close on click and stay closed until the pointer leaves (nav buttons: the tip covered the new panel). */
+  closeOnClick?: boolean;
   content: () => ReactNode;
   children: ReactNode;
   className?: string;
@@ -172,6 +175,7 @@ export function Tip({
   const openTimer = useRef<number | null>(null);
   const lockTimer = useRef<number | null>(null);
   const tipId = useRef<number | null>(null);
+  const muted = useRef(false);
 
   const clear = () => {
     if (openTimer.current) window.clearTimeout(openTimer.current);
@@ -179,15 +183,23 @@ export function Tip({
   };
   useEffect(() => clear, []);
 
-  if (!api) return <As className={className} style={style}>{children}</As>;
+  if (!api) return <As className={className} style={style} data-tip="">{children}</As>;
 
   return (
     <As
       ref={ref as never}
       className={className}
       style={style}
+      data-tip=""
+      onMouseDown={closeOnClick ? () => {
+        clear();
+        muted.current = true;
+        if (tipId.current) api.triggerLeft(tipId.current);
+        tipId.current = null;
+      } : undefined}
       onMouseEnter={() => {
         clear();
+        if (muted.current) return;
         openTimer.current = window.setTimeout(() => {
           if (!ref.current) return;
           tipId.current = api.open(depth, ref.current.getBoundingClientRect(), content, place);
@@ -198,6 +210,7 @@ export function Tip({
       }}
       onMouseLeave={() => {
         clear();
+        muted.current = false;
         if (tipId.current) api.triggerLeft(tipId.current);
         tipId.current = null;
       }}

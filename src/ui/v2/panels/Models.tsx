@@ -4,7 +4,7 @@
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
 import { AGENT_USE_DEF } from '../../../data/v2/agents';
 import {
-  POOL_SHARE_RANGE, benchName, dateOf, designOffsetView, fmtDate, idleTrainingShare, internalVersion, measuredDomains, poolAllocation, runBand, runEtaDays, runStall, streamShare,
+  POOL_SHARE_RANGE, benchName, dateOf, designOffsetView, fmtDate, idleTrainingShare, internalVersion, measuredDomains, measuredSd, poolAllocation, runBand, runEtaDays, runStall, streamShare,
   usesOf, versionById,
 } from '../../../engine/v2';
 import type { GameStateV2, ModelVersion } from '../../../engine/v2';
@@ -16,6 +16,15 @@ import * as F from '../fmt';
 import { ICON } from '../icons';
 
 const STATUS_TONE: Record<string, string> = { evaluating: 'tone-warn', ready: 'tone-pos', deployed: 'tone-pos', retired: 'dim', rolledBack: 'tone-neg' };
+const RUN_KIND: Record<string, string> = { base: 'base run', post: 'post-train', distill: 'distill', continue: 'continue' };
+/** Jank M5: a run named by its target ("Atlas-3 base · post-train"), not its internal id ("post 21 post"). */
+export function runTitle(s: GameStateV2, r: GameStateV2['player']['models']['runs'][number]): string {
+  const base = s.player.models.bases.find((b) => b.id === r.baseId);
+  const teacher = r.teacherVersionId ? versionById(s, r.teacherVersionId) : undefined;
+  if (r.kind === 'base') return `New base${r.base ? ` · ${F.size(r.base.size)}` : ''}`;
+  if (r.kind === 'distill') return `Mini of ${teacher?.name ?? base?.name ?? 'a teacher'}`;
+  return `${base?.name ?? 'Base'} · ${RUN_KIND[r.kind] ?? r.kind}`;
+}
 
 export function selectedVersion(s: GameStateV2): ModelVersion | undefined {
   return versionById(s, store.sel.versionId) ?? internalVersion(s) ?? s.player.models.versions[s.player.models.versions.length - 1];
@@ -26,7 +35,7 @@ function Lineage({ s, sel }: { s: GameStateV2; sel?: string }) {
   return (
     <div className="lineage" data-test="lineage">
       {m.bases.map((b) => (
-        <div key={b.id} className="lin-base">
+        <div key={b.id} className="lin-base" data-base={b.id}>
           <Tip as="div" content={() => <TipCard title={b.name} rows={[
             { label: 'Done', value: fmtDate(dateOf(s, b.day)) }, { label: <Term id="baseSize">Size</Term>, value: `${F.size(b.design.size)} · ${b.design.shape}` },
             { label: 'Data', value: b.design.data }, { label: <Term id="licensedShare">Licensed share</Term>, value: F.pct(b.design.licensedShare) }, { label: <Term id="flop">FLOP</Term>, value: b.flop.toExponential(1) },
@@ -36,6 +45,10 @@ function Lineage({ s, sel }: { s: GameStateV2; sel?: string }) {
           {m.versions.filter((v) => v.baseId === b.id && !m.versions.some((p) => p.id === v.parentVersionId && p.baseId === b.id)).map((v) => (
             <VersionTree key={v.id} s={s} v={v} sel={sel} depth={1} />
           ))}
+          {/* Jank M5: a finished base with no version yet says what it needs. */}
+          {!m.versions.some((v) => v.baseId === b.id) && (
+            <div className="lin-ver lin-note small dim" data-test="base-needs-post">{m.runs.some((r) => r.baseId === b.id && (r.status === 'running' || r.status === 'paused')) ? 'base done · post-training now' : 'base done · needs post-training'}<button className="btn btn-sm btn-ghost" onClick={() => store.goto('blueprint')}>Blueprint ›</button></div>
+          )}
         </div>
       ))}
     </div>
@@ -50,16 +63,39 @@ function VersionTree({ s, v, sel, depth }: { s: GameStateV2; v: ModelVersion; se
     </>
   );
 }
+/** Jank M4: the best usable version of each variant (highest measured level), so "newest" is not mistaken for "best". */
+function bestOfVariant(s: GameStateV2): Set<string> {
+  const best = new Map<string, ModelVersion>();
+  for (const v of s.player.models.versions) {
+    if ((v.status !== 'ready' && v.status !== 'deployed') || v.evals.measuredL === undefined) continue;
+    const b = best.get(v.variant);
+    if (!b || v.evals.measuredL > (b.evals.measuredL ?? 0)) best.set(v.variant, v);
+  }
+  return new Set([...best.values()].map((v) => v.id));
+}
 function VersionRow({ s, v, sel, depth }: { s: GameStateV2; v: ModelVersion; sel?: string; depth: number }) {
   const internal = usesOf(s, v.id).model.length > 0;
+  const best = bestOfVariant(s).has(v.id);
   return (
     <button className={`lin-ver ${sel === v.id ? 'active' : ''}`} style={{ paddingLeft: 8 + depth * 14 }} data-version={v.id} onClick={() => store.select({ versionId: v.id })}>
       <span>{v.name}</span>
       {v.variant !== 'full' && <span className="chip-mini">{v.variant}</span>}
+      {best && <Tip content={() => <TipCard title="Best of its kind">{`The ${v.variant} version with the highest measured level that is ready to use.`}</TipCard>}><span className="chip-mini tone-pos" data-test="best-badge">best</span></Tip>}
       {internal && <span className="chip-mini tone-pos"><Term id="internalAgent">internal</Term></span>}
       <span className={`small ${STATUS_TONE[v.status]}`}>{v.status}</span>
-      <span className="num small">{v.evals.measuredL !== undefined ? `L ${F.level(v.evals.measuredL)}` : '—'}</span>
+      <Tip content={() => <LevelTip s={s} v={v} />}><span className="num small">{v.evals.measuredL !== undefined ? `L ${F.level(v.evals.measuredL)}` : '—'}</span></Tip>
     </button>
+  );
+}
+/** Measured level with its band (jank M1): drawn once per version, narrowing with each eval suite. */
+function LevelTip({ s, v }: { s: GameStateV2; v: ModelVersion }) {
+  if (v.evals.measuredL === undefined) return <TipCard title={<Term id="L">Measured level</Term>} value="evaluating">The eval suite reports a level when it finishes.</TipCard>;
+  const sd = measuredSd(v);
+  return (
+    <TipCard title={<Term id="L">Measured level</Term>} value={`L ${F.level(v.evals.measuredL)} ± ${sd.toFixed(2)}`} rows={[
+      { label: 'Eval suites run', value: String(v.evals.nSuites ?? 1) },
+      { label: 'Last suite', value: v.evals.suiteDay !== undefined ? fmtDate(dateOf(s, v.evals.suiteDay)) : '—' },
+    ]} footer="A model does not change between suites; each new suite narrows the band (±0.2 after one, ±0.1 after four).">The estimate your evals give of this version's general level.</TipCard>
   );
 }
 
@@ -76,7 +112,7 @@ export function ModelCard({ s, v }: { s: GameStateV2; v: ModelVersion }) {
   const hMin = horizon ? horizon.score : 0;
   return (
     <Card title={<span>{v.name} <span className="dim">· <Term id="variant">{v.variant}</Term> · {v.status}</span></span>} home="modelCard"
-      right={<span className="num big">L {v.evals.measuredL !== undefined ? F.level(v.evals.measuredL) : '—'}{v.evals.measuredL === undefined && <span className="tag2 warn" style={{ marginLeft: 6 }}><Term id="evaluating">evaluating</Term></span>}</span>}>
+      right={<Tip content={() => <LevelTip s={s} v={v} />}><span className="num big">L {v.evals.measuredL !== undefined ? F.level(v.evals.measuredL) : '—'}{v.evals.measuredL !== undefined && <span className="dim small"> ± {measuredSd(v).toFixed(2)}</span>}{v.evals.measuredL === undefined && <span className="tag2 warn" style={{ marginLeft: 6 }}><Term id="evaluating">evaluating</Term></span>}</span></Tip>}>
       <div className="card-grid2">
         <div>
           <Radar values={dom} err={0.4} size={230} compare={parent ? measuredDomains(parent) : undefined} />
@@ -100,7 +136,8 @@ export function ModelCard({ s, v }: { s: GameStateV2; v: ModelVersion }) {
                 return (
                   <tr key={b.id}>
                     <td><Tip content={() => <TipCard title={benchName(s, b)} value={b.family}>{`Domain ${Array.isArray(b.domain) ? b.domain.join('+') : b.domain}${b.dangerous ? ' · dangerous-capability' : ''}${sat ? ' · saturated' : ''} · measured by ${r.by}`}</TipCard>}>{benchName(s, b)}</Tip>{sat && <span className="chip-mini"><Term id="saturated">sat</Term></span>}{b.dangerous && <span className="tone-warn small"> ⚠</span>}</td>
-                    <td className="num">{F.bench(r.score, b.special)}</td><td className="num dim">{b.special ? "" : r.sd.toFixed(1)}</td>
+                    <td className="num"><Tip content={() => <TipCard title={benchName(s, b)} value={F.bench(r.score, b.special)} rows={[{ label: 'Measured', value: fmtDate(dateOf(s, r.day)) }, { label: 'By', value: r.by === 'self' ? 'your evals' : r.by === 'evalGov' ? 'government evaluators' : 'independent evaluators' }, ...(b.special ? [] : [{ label: 'Noise (±1 SD)', value: r.sd.toFixed(1) }])]} />}><span>{F.bench(r.score, b.special)}</span></Tip></td>
+                    <td className="num dim">{b.special ? "" : <Tip content={() => <TipCard title="Measurement noise" value={`± ${r.sd.toFixed(1)}`}>One standard deviation of this evaluator's score on this benchmark.</TipCard>}><span>{r.sd.toFixed(1)}</span></Tip>}</td>
                   </tr>
                 );
               })}
@@ -127,7 +164,7 @@ export function ModelCard({ s, v }: { s: GameStateV2; v: ModelVersion }) {
           <ActBtn id="makeVariant" params={{ versionId: v.id, variant: 'gov' }} label="Gov" />
           <ActBtn id="makeVariant" testId="makeVariant.trusted" params={{ versionId: v.id, variant: 'trusted' }} label="Trusted" />
           <ActBtn id="makeVariant" testId="makeVariant.open" params={{ versionId: v.id, variant: 'open' }} label="Open weights" />
-          <ActBtn id="launchDistill" params={{ teacherVersionId: v.id }} label="Distill a mini" />
+          <ActBtn id="launchDistill" params={{ teacherVersionId: v.id }} label="Distill a mini" block={v.variant === 'imported' ? 'Post-train the imported model first (Blueprint › Post-train)' : undefined} />
         </div>
         <div className="act-group"><span className="tip-cap">Retire</span>
           <ActBtn id="safety.respond" testId="rollback" params={{ kind: 'rollback', versionId: v.id }} label="Roll back" />
@@ -158,9 +195,9 @@ export function RunQueue({ s }: { s: GameStateV2 }) {
         const step = (d: number) => Math.round(Math.min(POOL_SHARE_RANGE[1], Math.max(POOL_SHARE_RANGE[0], r.poolShare + d)) * 100) / 100;
         return (
           <div className="run-row" key={r.id} data-run={r.id}>
-            <span className="ellip"><b>{r.name}</b> <span className="dim small">{r.kind}</span></span>
+            <Tip content={() => <TipCard title={runTitle(s, r)} rows={[{ label: 'Kind', value: r.kind }, { label: 'Started', value: fmtDate(dateOf(s, r.startDay)) }, { label: 'FLOP done', value: F.pct(done) }]} />}><span className="ellip"><b>{runTitle(s, r)}</b></span></Tip>
             <Meter value={done} max={1} width={80} color={r.status === 'running' ? 'var(--accent)' : 'var(--text-3)'} />
-            <span className="num small dim">L {F.level(band[0])}–{F.level(band[1])}</span>
+            <Tip content={() => <TipCard title="Predicted level" value={`L ${F.level(band[0])}–${F.level(band[1])}`}>The run's predicted general level when it finishes (a band: the result is drawn at the end).</TipCard>}><span className="num small dim">L {F.level(band[0])}–{F.level(band[1])}</span></Tip>
             {live ? (
               <Tip content={() => <TipCard title={<Term id="poolShare">Pool share</Term>} value={F.pct(got)} rows={[
                 { label: 'Asks', value: F.pct(r.poolShare) }, { label: 'Gets today', value: F.pct(got) },
@@ -175,15 +212,15 @@ export function RunQueue({ s }: { s: GameStateV2 }) {
                 <ActBtn id="runs.setShare" params={{ runId: r.id, share: step(0.1) }} label="+" testId={`run-share-up.${r.id}`} block={r.poolShare >= POOL_SHARE_RANGE[1] - 1e-9 ? 'At the whole pool' : undefined} />
               </span>
             ) : <span />}
-            <span className={`small ${stall ? 'tone-warn' : ''}`} data-test={stall ? 'run-stall' : undefined}>{stall ?? r.status}{live && Number.isFinite(eta) ? <span className="dim"> · {fmtDate(dateOf(s, s.time.day + eta))}</span> : ''}</span>
+            <Tip content={() => <TipCard title={stall ?? r.status} value={live && Number.isFinite(eta) ? fmtDate(dateOf(s, s.time.day + eta)) : undefined}>{live ? 'Expected finish at today\'s pool share; evals follow.' : 'Finished runs stay here for a while.'}</TipCard>}><span className={`small ${stall ? 'tone-warn' : ''}`} data-test={stall ? 'run-stall' : undefined}>{stall ?? r.status}{live && Number.isFinite(eta) ? <span className="dim"> · {fmtDate(dateOf(s, s.time.day + eta))}</span> : ''}</span></Tip>
             {r.status === 'running' && <ActBtn id="cancelRun" params={{ runId: r.id }} label="Cancel" inline={false} />}
           </div>
         );
       })}
-      <div className="run-row run-pool small" data-run="stream"><span className="ellip"><b><Term id="stream">Stream</Term></b> <span className="dim">{stream > 0 ? 'continual learning' : 'off'}</span></span><span /><span /><span className="num">{F.pct(stream)}</span><span /><Limit id="run.stream" tone={stream > 0 ? 'warn' : 'quiet'}>{stream > 0 ? 'taken first' : 'takes 15% first when on'}</Limit><span /></div>
+      <div className="run-row run-pool small" data-run="stream"><span className="ellip"><b><Term id="stream">Stream</Term></b> <span className="dim">{stream > 0 ? 'continual learning' : 'off'}</span></span><span /><span /><Tip content={() => <TipCard title={<Term id="stream">Stream share</Term>} value={F.pct(stream)}>Share of the training pool the continual-learning stream takes before any run.</TipCard>}><span className="num">{F.pct(stream)}</span></Tip><span /><Limit id="run.stream" tone={stream > 0 ? 'warn' : 'quiet'}>{stream > 0 ? 'taken first' : 'takes 15% first when on'}</Limit><span /></div>
       <div className="run-row run-pool small" data-run="spare">
         <span className="ellip"><b><Term id="spareTraining">Spare</Term></b></span><span /><span />
-        <span className="num" data-test="spare-share">{F.pct(spare)}</span>
+        <Tip content={() => <TipCard title={<Term id="spareTraining">Spare training compute</Term>} value={F.pct(spare)}>Share of the training pool no run uses now; it goes to {spareUse === 'research' ? 'experiments' : 'data generation'}.</TipCard>}><span className="num" data-test="spare-share">{F.pct(spare)}</span></Tip>
         <span className="run-spare">
           <span className="dim">→ {spareUse === 'research' ? 'experiments' : 'data generation'}</span>
           <Ref id="spareTraining" to={{ panel: 'compute', tab: 'split', anchor: 'split-spare' }}>Split</Ref>

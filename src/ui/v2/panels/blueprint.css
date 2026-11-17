@@ -106,3 +106,18 @@
 .bp-launch { display: flex; flex-direction: column; align-items: stretch; gap: 6px; margin-top: 10px; }
 .bp-launch .act-col, .bp-launch .act-wrap { display: flex; flex-direction: column; }
 .bp-launch .btn-primary { justify-content: center; padding: 10px 14px; font-size: 14px; }
+/* J1 (jank B1/B2/B3): card lines with their own effect; rebuild note; long sizes */
+.bp-rebuild { color: var(--text-3); }
+.bp-rebuild b { color: var(--text-2); font-weight: 600; }
+.bp-line { grid-column: 2 / -1; display: grid; grid-template-columns: subgrid; align-items: center; border-radius: 4px; min-height: 30px; }
+.bp-line.sel { background: rgba(90, 140, 220, .07); }
+.bp-line:hover { background: rgba(255, 255, 255, .03); }
+.bp-line > .bp-more { grid-column: 1 / 2; justify-self: start; }
+.bp-grid .e.pos { color: var(--good); }
+.bp-grid .e.neg { color: var(--bad); }
+.bp-grid .sl { align-self: stretch; }
+.bp-snap.long b, .bp-snap.long .num { color: var(--bad); }
+.bp-snap.long i { background: var(--bad); }
+.bp-grid > [data-tip], .bp-line > [data-tip] { text-align: right; }
+.bp-snap .num { white-space: nowrap; }
+.bp-big.bp-big-name .num { font-size: 22px; line-height: 1.2; }

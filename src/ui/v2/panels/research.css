@@ -107,3 +107,16 @@
 .rs-qrow .w { font-size: 10.5px; color: var(--text-3); }
 .rs-qrow .rs-qn { margin-left: 0; }
 .rs-qrow .btn { padding: 1px 4px; }
+/* J1 (jank R3/R4): effort icon, no spilling names */
+.rs-node .nm span { min-width: 0; }
+.rs-node > [data-tip] { min-width: 0; }
+.rs-node .eff { display: inline-flex; align-items: center; gap: 1px; font: 700 10px var(--mono); color: var(--text-3); letter-spacing: -1px; }
+.rs-node .lay { display: inline-flex; align-items: center; }
+.rs-canvas { overflow-x: scroll; } /* J1 R4: the scrollbar shows there is more tree to the right */
+.rs-node > [data-tip] { width: 100%; }
+.rs-node .nm { overflow: hidden; }
+.rs-node .mt > [data-tip]:last-child { margin-left: auto; min-width: 0; overflow: hidden; }
+.rs-node .mt > [data-tip]:last-child .eo { display: block; max-width: 100%; margin-left: 0; }
+.rs-node .mt { width: 100%; min-width: 0; overflow: hidden; }
+.rs-node .mt > * { flex-shrink: 0; }
+.rs-node .mt > [data-tip]:last-child { flex-shrink: 1; }

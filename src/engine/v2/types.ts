@@ -359,7 +359,11 @@ export interface EvalRecord {
   suiteDay?: Day; // last full suite run
   bench: Record<BenchmarkId, { score: number; sd: number; day: Day; by: 'self' | 'evalGov' | 'evalIndep' }>;
   safety: Record<string, { rate: number; sd: number; day: Day; by: 'self' | 'evalGov' | 'evalIndep' }>;
-  measuredL?: number; // displayed general level (noisy, sandbagging-biased)
+  measuredL?: number; // displayed general level: truth + this version's measurement error, shrinking with each suite (M1)
+  /** Full suites run on this version (M1: the estimate's band narrows as 0.2/√n). */
+  nSuites?: number;
+  /** Hidden: this version's measurement error, drawn once at its first suite (engine only, never shown). */
+  errTrue?: number;
 }
 
 export type RunKind = 'base' | 'post' | 'continue' | 'distill';

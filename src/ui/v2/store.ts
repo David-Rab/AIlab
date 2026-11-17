@@ -26,6 +26,10 @@ interface Sig {
   statutes: number; thefts: number; playerMs: number; q: number;
 }
 const RUNWAY_RANK: Record<string, number> = { healthy: 0, tight: 1, distress: 2, insolvent: 3 };
+/** Anchors that live on a tab other than the panel's first (links name the anchor, the store opens its tab). */
+const ANCHOR_TAB: Record<string, string> = {
+  'finance#raise': 'cash', 'finance#parent': 'cash', 'finance#ledger': 'contracts', 'finance#board': 'owners', 'finance#partner': 'deals', 'finance#borrow': 'deals',
+};
 
 function sig(s: GameStateV2): Sig {
   const p = s.player;
@@ -36,7 +40,7 @@ function sig(s: GameStateV2): Sig {
     pending: s.events.pending.length,
     incidents3: p.safety.incidents.filter((i) => i.severity >= 3).length,
     runsDone: p.models.runs.filter((r) => r.status === 'done').length,
-    runway: RUNWAY_RANK[p.finance.state] ?? 0,
+    runway: p.board.preset === 'parent' ? 0 : RUNWAY_RANK[p.finance.state] ?? 0, // a division never stops on runway (jank F2)
     findings: p.safety.findings.filter((f) => f.type === 'DISC' || f.type === 'NEG' || f.revealedFalseDay !== undefined).length,
     otherMs,
     statutes: Object.values(s.gov.statutes).filter(Boolean).length,
@@ -259,7 +263,8 @@ class StoreV2 {
   }
   /** Click = go (IA §4): open the panel (and tab), scroll to #ctl-<anchor> and pulse it once. */
   goto(panel: string, opts: { tab?: string; anchor?: string } = {}) {
-    if (opts.tab) this.tab = { ...this.tab, [panel]: opts.tab };
+    const tab = opts.tab ?? (opts.anchor ? ANCHOR_TAB[`${panel}#${opts.anchor}`] : undefined);
+    if (tab) this.tab = { ...this.tab, [panel]: tab };
     this.setPanel(panel);
     if (opts.anchor) {
       const id = 'ctl-' + opts.anchor;
@@ -308,6 +313,8 @@ class StoreV2 {
     const err = engineResolve(this.state, instance, choice);
     if (err) this.say(err, 'neg');
     if (!err && this.modal === instance) this.modal = undefined;
+    // Jank E2: the "New decision" stop message goes once the decision is made.
+    if (!err && (this.flash?.text === 'New decision' || this.flash?.text === 'Crisis') && !(this.state.events.pending.length)) this.flash = undefined;
     this.notify();
     return err;
   }

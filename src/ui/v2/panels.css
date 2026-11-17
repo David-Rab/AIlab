@@ -120,3 +120,13 @@
 .coreloop .cl-r.tone-bad { color: var(--neg); }
 .coreloop .cl-edge { font: 11px var(--sans); fill: var(--text-3); }
 .coreloop .cl-edge.takeoff { fill: #b28cf0; }
+/* J1 (jank RL1): relations action groups and the separated exit */
+.rel-groups { margin-bottom: 8px; }
+.rel-exit { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.rh-start { padding: 6px 0; }
+.sf-cases2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+/* J1 (jank O2): the bottom chip opens the alert channel */
+.alert-wrap { position: relative; }
+.alert-pop { position: absolute; bottom: 34px; left: 0; width: 520px; max-height: 60vh; overflow: auto; z-index: 60; background: #121922; border: 1px solid var(--line-2); border-radius: 8px; padding: 10px 12px; box-shadow: 0 10px 30px rgba(0,0,0,.55); display: flex; flex-direction: column; gap: 6px; }
+.alert-row { display: flex; align-items: center; gap: 8px; }
+.nowrap { white-space: nowrap; }

@@ -81,3 +81,10 @@
 .sv-man { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 8px; }
 .sv-m { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
 .sv-m input { width: 90px; }
+/* J1: model chip on its own line (PR3), compact edit preview inside the card (PR4) */
+.pc .mchip { flex-wrap: wrap; }
+.pc .mchip > [data-tip]:has(> .msel.sub) { flex: 1 0 100%; padding-left: 19px; }
+.pc .mchip .msel.sub { width: 100%; }
+.pc .pv { grid-template-columns: auto minmax(0, 1fr); }
+.pc .pv .ba { flex-wrap: wrap; font-size: 11.5px; gap: 4px; }
+.pc-pop { max-height: calc(100% - 120px); overflow: auto; }

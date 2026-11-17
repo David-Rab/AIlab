@@ -9,7 +9,7 @@ import { C } from './theme';
 import * as F from './fmt';
 import { ICON } from './icons';
 import { store } from './store';
-import { Term, Tip, TipCard } from './ui';
+import { Rich, Term, termEntry, Tip, TipCard } from './ui';
 
 // ───────── layout ─────────
 export function Card({ title, sub, right, children, home, id, className, term }: { title?: ReactNode; sub?: ReactNode; right?: ReactNode; children?: ReactNode; home?: string; id?: string; className?: string; term?: string }) {
@@ -75,7 +75,9 @@ export function Ref({ id, to, children }: { id: string; to: GoTarget; children: 
 
 // ───────── chips and pills ─────────
 export function Pill({ kind = 'neu', children, title }: { kind?: 'cost' | 'gain' | 'exp' | 'neu' | 'warn' | 'bad' | 'good'; children: ReactNode; title?: string }) {
-  return <span className={`pill2 ${kind}`} title={title}>{children}</span>;
+  // Jank O1: the explanation is a real tooltip (it was a native title the tooltip coverage could not see).
+  const pill = <span className={`pill2 ${kind}`}>{children}</span>;
+  return title ? <Tip content={() => <TipCard title={children}>{title}</TipCard>}>{pill}</Tip> : pill;
 }
 export interface ChainLink { label: ReactNode; icon?: LucideIcon; kind?: 'root' | 'bad' | 'mid'; to?: GoTarget; tip?: () => ReactNode }
 /** Cause chain: root (amber, actionable) ▸ … ▸ symptom (red). Each link may jump or explain. */
@@ -247,10 +249,13 @@ export function ActionCard({ s, v, keyHint, isDefault, disabled, onClick, note, 
 /** A labelled value whose label is a glossary term (for card rows). */
 export function KV({ k, term, children, home, tip }: { k: ReactNode; term?: string; children: ReactNode; home?: string; tip?: () => ReactNode }) {
   const v = <span className="kv-v num" data-home={home}>{children}</span>;
+  // Jank O1: every value opens a tooltip; without a breakdown of its own it explains the term it measures.
+  const g = term ? termEntry(term) : undefined;
+  const dflt = () => <TipCard title={term ? <Term id={term}>{k}</Term> : k} value={children}>{g ? <Rich text={g.body} /> : undefined}</TipCard>;
   return (
     <div className="kv">
       <span className="kv-k">{term ? <Term id={term}>{k}</Term> : k}</span>
-      {tip ? <Tip content={tip}>{v}</Tip> : v}
+      <Tip content={tip ?? dflt}>{v}</Tip>
     </div>
   );
 }
