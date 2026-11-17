@@ -5,6 +5,8 @@ import { ws4r } from '../actors/state';
 import type { Channel, Deployment, GameStateV2, LabId, ModelVersion, SystemCtx, Variant } from '../types';
 import { CHINA_ID, bestPm, rivalLab, versionById } from './labs';
 import { optionLocked } from './tree';
+import { agentsGate, kindOfChannel, priceIndexOf } from './products';
+import { tierOfIndex } from '../../../data/v2/features';
 
 /** Which version variants a channel accepts (§3.3.5). */
 export const CHANNEL_VARIANTS: Record<Channel, Variant[]> = {
@@ -15,8 +17,6 @@ export const CHANNEL_VARIANTS: Record<Channel, Variant[]> = {
 export const LEAK_COEF: Record<Channel, number> = { consumer: 0.3, api: 1.0, agents: 0.5, enterprise: 0.2, gov: 0, trusted: 0.05, internal: 0, open: 1 };
 /** Default serving-pool reservation per channel [D]. */
 export const DEFAULT_SERVING: Record<Channel, number> = { consumer: 0.4, api: 0.3, agents: 0.2, enterprise: 0.15, gov: 0.05, trusted: 0.03, internal: 0, open: 0 };
-/** An eval suite must be no older than this on external channels (§3.3.5). */
-export const EVAL_MAX_AGE = 30;
 
 export function liveDeployments(s: GameStateV2, channel?: Channel): Deployment[] {
   return s.player.deployments.filter((d) => d.status !== 'withdrawn' && (!channel || d.channel === channel));
@@ -40,8 +40,10 @@ export function effortLock(s: GameStateV2, effort: Deployment['effort']): string
 /** Settings of the deployment being gated (a swap passes the live deployment's; a launch what deploy() will set). */
 export interface GateOpts { safeguards?: Deployment['safeguards']; usagePolicy?: Deployment['usagePolicy'] }
 
-/** Pre-deployment gate (§3.3.5): external channels need a suite ≤ 30 days old at the eval-gate depth; commitments
- *  block only launches inside their own scope, judged on this candidate (B1/B2), and the reason names the clause. */
+/** Pre-deployment gate (§3.3.5): external channels need an eval suite (R6: no expiry; the auto-evaluate policy keeps
+ *  suites current instead of a 30-day expiry that blocked launches) at the eval-gate depth; the Agents product needs a
+ *  measured time horizon covering its tasks; commitments block only launches inside their own scope, judged on this
+ *  candidate (B1/B2), and the reason names the clause. */
 export function deployGate(s: GameStateV2, v: ModelVersion, channel: Channel, opts: GateOpts = {}): true | string {
   if (!CHANNEL_VARIANTS[channel].includes(v.variant)) return `${channel} needs a ${CHANNEL_VARIANTS[channel].join('/')} variant`;
   if (v.status === 'retired' || v.status === 'rolledBack') return 'Version is retired';
@@ -49,8 +51,12 @@ export function deployGate(s: GameStateV2, v: ModelVersion, channel: Channel, op
   if (v.status === 'evaluating') return 'Still in evaluation';
   const gate = s.player.safety.evalGate;
   if (gate !== 'none') {
-    if (v.evals.suiteDay === undefined || s.time.day - v.evals.suiteDay > EVAL_MAX_AGE) return 'Eval suite older than 30 days';
+    if (v.evals.suiteDay === undefined) return 'Not evaluated yet';
     if (gate === 'fullPlusExternal' && !externallyEvaluated(s, v)) return 'Needs an external evaluation';
+  }
+  if (channel === 'agents') {
+    const g = agentsGate(v);
+    if (g !== true) return g;
   }
   const block = commitmentDeployBlock(s, {
     versionId: v.id, channel, safeguards: opts.safeguards ?? 'classifiers', usagePolicy: opts.usagePolicy ?? committedUsagePolicy(s, channel),
@@ -58,7 +64,7 @@ export function deployGate(s: GameStateV2, v: ModelVersion, channel: Channel, op
   return block ?? true;
 }
 
-export type DeployParams = Partial<Omit<Deployment, 'id' | 'startDay' | 'status'>> & { versionId: string; channel: Channel };
+export type DeployParams = Partial<Omit<Deployment, 'id' | 'startDay' | 'status' | 'kind'>> & { versionId: string; channel: Channel };
 
 /** Create a deployment (pre-deployment gate, commitments check). Returns the deployment or a reason. */
 export function deploy(s: GameStateV2, ctx: SystemCtx, p: DeployParams): Deployment | string {
@@ -75,11 +81,13 @@ export function deploy(s: GameStateV2, ctx: SystemCtx, p: DeployParams): Deploym
     return s.player.deployments.find((d) => d.channel === 'internal' && d.status === 'live') as Deployment;
   }
   const n = s.player.deployments.length + 1;
+  const price = p.price ?? tierOfIndex(p.priceIndex ?? 1);
   const d: Deployment = {
-    id: `D${n}${s.player.deployments.some((x) => x.id === `D${n}`) ? `-${s.time.day}` : ''}`,
-    versionId: v.id, channel: p.channel, startDay: s.time.day, priceIndex: p.priceIndex ?? 1, effort: p.effort ?? 'max',
+    id: `D${n}${s.player.deployments.some((x) => x.id === `D${n}`) ? `-${s.time.day}` : ''}`, kind: kindOfChannel(p.channel),
+    versionId: v.id, channel: p.channel, startDay: s.time.day, price, priceIndex: priceIndexOf(price), effort: p.effort ?? 'max',
     servingShare: p.servingShare ?? DEFAULT_SERVING[p.channel], safeguards: p.safeguards ?? 'classifiers', controlLayer: p.controlLayer ?? false,
-    sectorFocus: [...(p.sectorFocus ?? [])],
+    sectorFocus: [...(p.sectorFocus ?? [])], features: [...(p.features ?? [])],
+    ...(p.monitorId ? { monitorId: p.monitorId } : {}), ...(p.miniVersionId ? { miniVersionId: p.miniVersionId } : {}),
     usagePolicy,
     kyc: p.kyc ?? (p.channel === 'api' || p.channel === 'agents' ? 1 : 0), status: 'live',
   };
@@ -104,21 +112,11 @@ export function swapDeployment(s: GameStateV2, depId: string, versionId: string)
   return undefined;
 }
 
-/** Serving reservations (§3.3.5, Product sphere "serving pool"): set one external deployment's share of the serving
- *  pool, or (no id) re-split the external deployments' current total in proportion to `weights` (e.g. their demand),
- *  each keeping at least 2%. */
-export function setServing(s: GameStateV2, depId: string | undefined, share: number, weights?: Map<string, number>): string | undefined {
-  const ext = s.player.deployments.filter((d) => d.status !== 'withdrawn' && d.channel !== 'internal' && d.channel !== 'open');
-  if (depId) {
-    const d = ext.find((x) => x.id === depId);
-    if (!d) return 'Unknown external deployment';
-    d.servingShare = Math.min(1, Math.max(0.02, share));
-    return undefined;
-  }
-  const tot = ext.reduce((a, d) => a + d.servingShare, 0);
-  const wsum = ext.reduce((a, d) => a + (weights?.get(d.id) ?? 0), 0);
-  if (!ext.length || tot <= 0 || wsum <= 0) return 'Nothing to rebalance';
-  for (const d of ext) d.servingShare = Math.max(0.02, (tot * (weights?.get(d.id) ?? 0)) / wsum);
+/** Manual serving share of one product (used when the Auto serving policy is off, R6). */
+export function setServing(s: GameStateV2, depId: string, share: number): string | undefined {
+  const d = s.player.deployments.find((x) => x.id === depId && x.status !== 'withdrawn' && x.channel !== 'internal' && x.channel !== 'open');
+  if (!d) return 'Unknown product';
+  d.servingShare = Math.min(1, Math.max(0, share));
   return undefined;
 }
 
@@ -142,8 +140,8 @@ export function setInternalAgent(s: GameStateV2, versionId: string): string | un
   const d = s.player.deployments.find((x) => x.channel === 'internal' && x.status === 'live');
   if (d) d.versionId = v.id;
   else s.player.deployments.push({
-    id: `D${s.player.deployments.length + 1}-int`, versionId: v.id, channel: 'internal', startDay: s.time.day, priceIndex: 1, effort: 'max', servingShare: 0,
-    safeguards: 'standard', controlLayer: false, sectorFocus: [], usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: false }, kyc: 0, status: 'live',
+    id: `D${s.player.deployments.length + 1}-int`, kind: 'internal', versionId: v.id, channel: 'internal', startDay: s.time.day, price: 'standard', priceIndex: 1, effort: 'max', servingShare: 0,
+    safeguards: 'standard', controlLayer: false, sectorFocus: [], features: [], usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: false }, kyc: 0, status: 'live',
   });
   if (v.status === 'ready') v.status = 'deployed';
   return undefined;
@@ -173,6 +171,7 @@ export function retireVersion(s: GameStateV2, versionId: string): string | undef
   if (s.player.models.internalAgent === v.id) return 'Powers the internal agents';
   if (s.player.models.stream?.versionId === v.id) return 'Is the continual-learning stream';
   if (s.player.deployments.some((d) => d.versionId === v.id && d.status !== 'withdrawn')) return 'Has live deployments';
+  if (s.player.deployments.some((d) => d.status !== 'withdrawn' && (d.monitorId === v.id || d.miniVersionId === v.id))) return 'Monitors or serves a free tier on a live product';
   v.status = 'retired';
   compactRetired(s);
   return undefined;

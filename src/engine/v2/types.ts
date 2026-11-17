@@ -431,16 +431,35 @@ export interface RunPrediction {
 
 export type Channel = 'consumer' | 'api' | 'agents' | 'enterprise' | 'gov' | 'trusted' | 'internal' | 'open';
 
+/** What a deployment is (R6): a product customers buy, the internal research fleet, or an open-weights release. */
+export type DeploymentKind = 'product' | 'internal' | 'open';
+/** Product price tier (R6): budget / standard / premium → priceIndex (data/v2/features.ts PRICE_TIERS). */
+export type PriceTier = 'budget' | 'standard' | 'premium';
+
+/** A deployment. External ones are products (STRUCTURE §4.4): a package of model (+ optional mini free tier) and an
+ *  optional monitor, a price tier, safeguards, KYC, effort and features, all editable while live (R4, R6). */
 export interface Deployment {
   id: string;
+  kind: DeploymentKind;
   versionId: string;
+  /** Mini serving the product's free tier (Chat, API): FREE_TIER_SHARE of its usage (R6). */
+  miniVersionId?: string;
+  /** Monitor model watching this product's outputs (R6, D7): catches incidents before customers see them, at a
+   *  serving overhead. */
+  monitorId?: string;
   channel: Channel;
   startDay: Day;
   /** Day the current version went into this deployment (M4: a swap keeps startDay; set by swapDeployment). */
   versionSince?: Day;
-  priceIndex: number; // 1 = market reference price; player sets 0.5..2
+  /** Price tier (R6); priceIndex is kept equal to its index. */
+  price: PriceTier;
+  priceIndex: number; // 1 = market reference price (derived from the tier)
   effort: 'low' | 'max' | 'deep'; // §3.3.2 effort setting (deep needs P05)
-  servingShare: number; // share of the serving pool reserved (internal uses the agents pool)
+  /** Share of the serving pool: set by hand when the Auto serving policy is off; with Auto on it is written daily
+   *  from the split (what this product actually gets). Internal uses the agents pool. */
+  servingShare: number;
+  /** Features switched on for this product (built lab-wide first, R6). */
+  features: string[];
   safeguards: 'minimal' | 'standard' | 'classifiers' | 'hardened';
   controlLayer: boolean; // AG07 protocols active (usefulness tax)
   sectorFocus: SectorId[]; // sector products (+0.5 L in that sector, certification)
@@ -450,6 +469,12 @@ export interface Deployment {
   // derived each day
   revenueRate?: Money; // $B/yr
   demandBound?: 'capacity' | 'demand' | 'price' | 'quality';
+  /** Serving H100e it needs (incl. monitor), gets, and what Auto cut (R6; derived each day). */
+  needH100e?: number;
+  servedH100e?: number;
+  cutH100e?: number;
+  /** Revenue run-rate at each 30-day mark, last 12 (product card chart). */
+  hist?: number[];
 }
 
 // ───────────────────────────── Paradigms (§3.3.5) ─────────────────────────────
@@ -633,6 +658,8 @@ export interface PlayerLab extends LabCore {
   research: ResearchState;
   /** Engineers' build queue (BUILD-PLAN R5): run setups now; product features, eval harnesses and safeguards from R6. */
   build: BuildState;
+  /** Product features built lab-wide (R6; ids of data/v2/features.ts). Switched on per product (Deployment.features). */
+  features: string[];
   morale: { overall: number; safety: number }; // 0..100
   dataAssets: { licensedTokensT: number; unlicensedTokensT: number; syntheticTokensT: number; litigationRisk: number };
   policies: PlayerPolicies;
@@ -713,8 +740,15 @@ export interface PlayerPolicies {
   shareWithAllies: boolean;
   transitionFund: Money; // $B/yr
   communityBenefits: boolean;
-  /** Where training compute that no run uses goes (R5): research experiments (default) or data generation. */
+  /** Where training compute that no run uses goes (R5): data generation (default since R6) or research experiments. */
   spareTraining: 'research' | 'data';
+  /** Auto serving (R6): serve the products earning most per H100e first; the cut is recorded. Off = shares by hand. */
+  servingAuto: boolean;
+  /** Move products to the newest cleared model of the same kind when it measures better (R6). */
+  upgradeToNewest: boolean;
+  /** Re-run the eval suite every 30 days on the internal model and models updated in place (R6, replaces the 30-day
+   *  eval expiry that blocked launches). */
+  autoEvaluate: boolean;
 }
 
 // ───────────────────────────── Finance (§3.7) ─────────────────────────────

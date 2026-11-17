@@ -27,7 +27,7 @@ const SPEC: [string, string, Cadence, number][] = [
   ['revenue', 'WS5', 'daily', 60], ['safetyResearch', 'WS2', 'daily', 70], ['traitsDaily', 'WS2', 'daily', 75],
   ['incidents', 'WS2', 'daily', 80], ['security', 'WS4', 'daily', 90], ['rivalsChina', 'WS4', 'daily', 100],
   ['worldDaily', 'WS5', 'daily', 110], ['actorsDaily', 'WS4', 'daily', 120], ['opex', 'WS3', 'daily', 130],
-  ['director', 'WS4', 'daily', 140], ['endings', 'WS4', 'daily', 150], ['record', 'WS1', 'weekly', 160],
+  ['director', 'WS4', 'daily', 140], ['endings', 'WS4', 'daily', 150], ['products', 'WS1', 'daily', 155], ['record', 'WS1', 'weekly', 160],
   ['hiring', 'WS1', 'weekly', 200], ['intel', 'WS4', 'weekly', 210], ['payroll', 'WS3', 'monthly', 300],
   ['macro', 'WS5', 'monthly', 310], ['computeHistQ', 'WS3', 'quarterly', 399], ['marketQ', 'WS3', 'quarterly', 400], ['sitesQ', 'WS3', 'quarterly', 410],
   ['capitalQ', 'WS3', 'quarterly', 420], ['boardQ', 'WS3', 'quarterly', 430], ['geoQ', 'WS4', 'quarterly', 440],
@@ -124,6 +124,7 @@ const CROSS_HOOKS: [string, StreamId, string][] = [
   ['intel', 'safety', 'WS2 observeExternal (evaluator reports, WS4)'],
   ['director', 'safety', 'WS2 hooks in WS4 event choices'],
   ['runs', 'safety', 'WS2 applyBaseToLineage / applyRunToTraits (WS1 run completion)'],
+  ['products', 'safety', 'WS2 observe (eval suites of the auto-evaluate policy, R6)'],
 ];
 const MOD = 1n << 32n;
 const STEP = 0x6d2b79f5n;

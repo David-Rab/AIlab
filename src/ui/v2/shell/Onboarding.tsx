@@ -26,7 +26,7 @@ function goals(s: GameStateV2): Goal[] {
       { id: 'ff', text: <>Fast-forward to the result <span className="kbd">F</span></>, done: postDone },
       { id: 'finding', text: 'Decide on your first finding', done: s.decisions.some((d) => d.eventId === 'E01') },
       { id: 'runway', text: <>Check how long the money lasts (<Term id="runway">runway</Term>)</>, done: seen(s, 'panel:finance'), go: { panel: 'finance' }, goLabel: 'Finance' },
-      { id: 'ship', text: <>Ship a model to a <Term id="channel">channel</Term></>, done: p.deployments.some((d) => d.startDay > 0 && d.channel !== 'internal'), go: { panel: 'deployments' }, goLabel: 'Deploy' },
+      { id: 'ship', text: <>Put a new model on a <Term id="product">product</Term></>, done: p.deployments.some((d) => d.channel !== 'internal' && ((d.versionSince ?? d.startDay) > 0 || d.startDay > 0)), go: { panel: 'products' }, goLabel: 'Products' },
     ];
   }
   return [

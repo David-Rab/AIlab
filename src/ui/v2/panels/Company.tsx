@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
-  BUILD_AI_CAP, MANUAL_MIX_RANGE, WSL_TARGET_RANGE, aiShareByRole, buildBacklogTW, buildCapacity, buildEtas, engine, fillWeeks, fullTeamPayroll, idleChips, ownedOnline, payrollOf, poolsOf, queuedOfKey,
+  BUILD_AI_CAP, MANUAL_MIX_RANGE, WSL_TARGET_RANGE, actionView, aiShareByRole, idleTrainingShare, buildBacklogTW, buildCapacity, buildEtas, engine, fillWeeks, fullTeamPayroll, idleChips, ownedOnline, payrollOf, poolsOf, queuedOfKey,
   rentedOnline, revenueReadout, specOf, SPLIT_KEYS, SPLIT_PRESETS, teamGain, teamPayroll, teamsOfKey, TOP_KEYS, weeklyHireCap,
 } from '../../../engine/v2';
 import { COLUMN_LABEL, MOVE_SAFETY_MORALE, QUALITY, TEAM_KEYS, TEAM_SIZE } from '../../../data/v2/teams';
@@ -357,6 +357,30 @@ function People({ s }: { s: GameStateV2 }) {
 // ───────── Split ─────────
 const TOP_LABEL: Record<TopKey, string> = { training: 'Training', research: 'Research', serving: 'Serving', safety: 'Safety' };
 
+/** Spare training compute (R5 policy; R6 default data generation): where training compute no run uses goes, with what
+ *  each choice gives today. Home of the policy; the run queue shows the spare share and links here. */
+function SpareRow({ s }: { s: GameStateV2 }) {
+  const use = s.player.policies.spareTraining;
+  const spareH = idleTrainingShare(s) * poolsOf(s).training;
+  const toResearch = actionView(s, 'runs.spareTraining', { use: 'research' });
+  const gain = [...toResearch.gains, ...toResearch.costs].find((c) => c.currency === 'progress')?.amount ?? 0;
+  return (
+    <div className="alloc-row split-row split-sub" id="ctl-split-spare" data-home="spareTraining">
+      <Tip content={() => <TipCard title={<Term id="spareTraining">Spare training compute</Term>} value={`${F.h100e(spareH)} H100e idle now`} rows={[
+        { label: 'Data generation', value: 'synthetic tokens for bigger bases (the reference lab)' },
+        { label: 'Research experiments', value: `research speed +${F.pct(gain, 1)} today` },
+      ]}>Training compute that no run uses between runs. Nothing is wasted: it goes to one of these.</TipCard>}>
+        <span className="alloc-label small"><Term id="spareTraining">Spare</Term> <span className="num dim">{spareH >= 1 ? `${F.h100e(spareH)} idle` : 'none idle now'}</span></span>
+      </Tip>
+      <span className="row-i">
+        {(['data', 'research'] as const).map((u) => u === use
+          ? <span key={u} className="tag2 good" data-test={`spare-on.${u}`}>{u === 'data' ? 'Data generation' : 'Research experiments'}</span>
+          : <ActBtn key={u} id="runs.spareTraining" params={{ use: u }} testId={`spare.${u}`} label={u === 'data' ? 'Use for data' : <>Use for experiments{gain > 5e-4 && <span className="tone-pos"> +{F.pct(gain, 1)} speed</span>}</>} />)}
+      </span>
+    </div>
+  );
+}
+
 function Split({ s }: { s: GameStateV2 }) {
   const p = s.player;
   const cur = specOf(p.split);
@@ -386,14 +410,15 @@ function Split({ s }: { s: GameStateV2 }) {
     <div className="split-page">
       <Card title={<Term id="split">Compute split</Term>} sub="drag, then apply" home="split" right={<div className="btn-row">{SPLIT_PRESETS.map((x) => <ActBtn key={x} id="splitPreset" testId={`splitPreset.${x}`} params={{ preset: x }} label={F.words(x)} onDone={reset} />)}</div>}>
         <div className="split-bar">{TOP_KEYS.map((k) => <i key={k} style={{ flex: Math.max(0.0001, norm[k]), background: TOP_COLOR[k] }} title={TOP_LABEL[k]} />)}</div>
-        {row('training', (
+        {row('training', (<>
           <div className="alloc-row split-row split-sub" id="ctl-split-synthetic">
             <span className="alloc-label small"><Term id="poolSynthetic">Data generation</Term></span>
             <Slider value={spec.dataShare} min={0} max={1} step={0.01} onChange={(v) => setSpec({ ...spec, dataShare: v })} width={260} />
             <span className="alloc-val num small">{pct0(spec.dataShare)}</span>
             <span className="small dim">of training</span>
           </div>
-        ))}
+          <SpareRow s={s} />
+        </>))}
         {row('research', (
           <div className="alloc-row split-row split-sub" id="ctl-split-experiments">
             <span className="alloc-label small"><Term id="researchMix">Mix</Term> <Seg value={manual ? 'manual' : 'auto'} options={[{ v: 'auto', label: 'Auto', tip: 'Best mix, re-set every day' }, { v: 'manual', label: 'Manual', tip: 'Hold your own mix' }]} onChange={(v) => setManual(v === 'manual')} /></span>

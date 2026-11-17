@@ -8,7 +8,7 @@ import { EndScreen } from './end/EndScreen';
 import { Codex } from './panels/Codex';
 import { Company } from './panels/Company';
 import { Compute } from './panels/Compute';
-import { Deployments } from './panels/Deployments';
+import { Products } from './panels/Products';
 import { Finance } from './panels/Finance';
 import { Models } from './panels/Models';
 import { Overview } from './panels/Overview';
@@ -36,7 +36,7 @@ import './layout.css';
 
 const PANELS: Record<string, (p: { s: GameStateV2 }) => ReactNode> = {
   overview: Overview, research: Research, company: Company, finance: Finance, compute: Compute, models: Models, blueprint: Blueprint,
-  deployments: Deployments, safety: SafetyLab, relations: Relations, world: World, risk: RiskSources, codex: Codex,
+  products: Products, safety: SafetyLab, relations: Relations, world: World, risk: RiskSources, codex: Codex,
 };
 
 function Game({ s }: { s: GameStateV2 }) {

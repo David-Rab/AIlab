@@ -25,13 +25,14 @@ export function watchItems(s: GameStateV2): WatchItem[] {
       why: 'chips you paid for earn nothing', go: { panel: 'compute', tab: 'overview' }, goLabel: 'Compute',
     });
   }
-  // 2. channels capped by serving capacity
+  // 2. products capped by serving capacity (R6: what the Auto split cuts, lowest $ per H100e first)
   const rd = revenueReadout(s);
   const capped = rd.deps.filter((d) => d.bound === 'capacity');
   if (capped.length) {
+    const cutH = rd.deps.reduce((a, d) => a + d.cutH100e, 0);
     out.push({
       id: 'capped', sphere: 'models', sev: 2 + Math.min(2, (rd.demand - rd.total) / Math.max(1, rd.total)),
-      chain: [{ label: 'serving share low', icon: ICON.serving, kind: 'root', detail: `Serving pool gets ${F.pct(p.split.serving)} of compute` }, { label: `${capped.length} channel${capped.length > 1 ? 's' : ''} capped`, icon: ICON.product, kind: 'bad', detail: `Demand ${F.money(rd.demand, { perYear: true })} vs capacity ${F.money(rd.capacity, { perYear: true })}` }],
+      chain: [{ label: 'serving compute short', icon: ICON.serving, kind: 'root', detail: `Serving pool gets ${F.pct(p.split.serving)} of compute; ${p.policies.servingAuto ? 'Auto' : 'your shares'} cut ${F.count(cutH)} H100e` }, { label: `${capped.length} product${capped.length > 1 ? 's' : ''} capped`, icon: ICON.product, kind: 'bad', detail: `Demand ${F.money(rd.demand, { perYear: true })} vs capacity ${F.money(rd.capacity, { perYear: true })}` }],
       why: 'demand you are not booking', go: { panel: 'company', tab: 'split', anchor: 'split-serving' }, goLabel: 'Split',
     });
   }
@@ -59,17 +60,8 @@ export function watchItems(s: GameStateV2): WatchItem[] {
       why: `the board reviews it on ${rl.review.toISOString().slice(0, 10)}`, go: { panel: 'finance', anchor: 'raise' }, goLabel: 'Finance',
     });
   }
-  // 5. a ready version whose eval suite is stale (blocks deployment behind the eval gate)
-  if (p.safety.evalGate !== 'none') {
-    const stale = p.models.versions.filter((v) => v.status === 'ready' && v.variant === 'full' && (v.evals.suiteDay === undefined || s.time.day - v.evals.suiteDay > 30));
-    if (stale.length) {
-      out.push({
-        id: 'stale', sphere: 'models', sev: 1.5,
-        chain: [{ label: 'evals older than 30 d', icon: ICON.finding, kind: 'root', detail: stale.map((v) => v.name).join(', ') }, { label: `${stale.length} version${stale.length > 1 ? 's' : ''} can't ship`, icon: ICON.product, kind: 'bad' }],
-        why: 'the eval gate blocks deployment', go: { panel: 'models' }, goLabel: 'Models',
-      });
-    }
-  }
+  // 5. (R6) eval suites no longer expire: the auto-evaluate policy keeps the internal model current, so the old
+  // "evals older than 30 d" alert is gone (rule R7, no chores).
   // 6. board
   const bc = p.board.confidence;
   if (bc < 40) {

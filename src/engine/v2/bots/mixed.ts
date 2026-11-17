@@ -67,7 +67,7 @@ export const mixedBot: BotPolicy = {
     if (every(s, 30, 7)) {
       const mini = [...s.player.models.versions].reverse().find((v) => v.variant === 'mini' && v.status === 'ready');
       const ent = s.player.deployments.find((d) => d.channel === 'enterprise' && d.status === 'live');
-      if (mini && ent && ent.versionId !== mini.id) tryAct(s, api, 'swapDeployment', { deploymentId: ent.id, versionId: mini.id });
+      if (mini && ent && ent.versionId !== mini.id) tryAct(s, api, 'product.update', { id: ent.id, versionId: mini.id });
     }
     if (every(s, 15, 3)) {
       tryAct(s, api, 'A1', {});

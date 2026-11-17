@@ -246,7 +246,7 @@ export function Blueprint({ s }: { s: GameStateV2 }) {
             )}
             <Group icon={Wrench} layer="layerScaffold" name="Scaffold" rebuild="engineering build, no training" />
             <div className="sl">Serving</div>
-            <div className="bp-scaf small dim">effort · tools · safeguards · features<span className="sp" /><button className="btn btn-sm" data-go="deployments" onClick={() => store.goto('deployments')}>Products ›</button></div>
+            <div className="bp-scaf small dim">effort · tools · safeguards · features<span className="sp" /><button className="btn btn-sm" data-go="products" onClick={() => store.goto('products')}>Products ›</button></div>
           </div>
         </Card>
         <div className="bp-rcol">

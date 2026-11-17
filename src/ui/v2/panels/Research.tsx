@@ -322,7 +322,7 @@ function NodeCard({ s, n, st }: { s: GameStateV2; n: TreeNodeDef; st: NodeStatus
           <div className="k">Unlocks</div>
           {(n.options ?? []).map(([slot, v]) => (
             <div key={slot + v} className="row-i small">{slot === 'effort' ? <ICON.deploy size={12} /> : <ICON.run size={12} />}<span>{SLOT_LABEL[slot]}: <b>{v === 'true' ? 'on' : F.words(v)}</b></span><span className="sp" />
-              <Ref id="designOption" to={{ panel: slot === 'effort' ? 'deployments' : 'blueprint' }}>{slot === 'effort' ? 'Deploy' : 'Blueprint'}</Ref></div>
+              <Ref id="designOption" to={{ panel: slot === 'effort' ? 'products' : 'blueprint' }}>{slot === 'effort' ? 'Products' : 'Blueprint'}</Ref></div>
           ))}
           {children.length > 0 && <div className="dim small">Leads to {children.map((c) => TREE_BY_ID[c]?.name ?? c).join(', ')}</div>}
         </div>

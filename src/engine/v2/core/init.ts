@@ -1,6 +1,7 @@
 // newGame: build a complete, valid GameStateV2 (V2-SPEC §2.3, §3 start values). Owner: WS1.
 // Composes the owner-provided initialisers (initialFinance, initialGov, initialWorld, …) so each workstream owns
 // its start values in its own module. All newGame randomness comes from stream 'world' (§2.3).
+import { LEADER_FEATURES } from '../../../data/v2/features';
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
 import { PLAYER_MODEL_FAMILY } from '../../../data/v2/names';
 import { REFERENCE_BASE, REFERENCE_POST } from '../../../data/v2/runDesign';
@@ -130,8 +131,8 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     evals: startEvals(domains, Math.round(Lg * 100) / 100, -20), beliefs, status: 'deployed', flags: {}, build, appeal: 1,
   };
   const dep = (id: string, channel: Deployment['channel'], servingShare: number, kyc: Deployment['kyc']): Deployment => ({
-    id, versionId: 'V0', channel, startDay: -20, priceIndex: 1, effort: 'max', servingShare,
-    safeguards: channel === 'internal' ? 'standard' : 'classifiers', controlLayer: false, sectorFocus: [],
+    id, kind: channel === 'internal' ? 'internal' : 'product', versionId: 'V0', channel, startDay: -20, price: 'standard', priceIndex: 1, effort: 'max', servingShare,
+    safeguards: channel === 'internal' ? 'standard' : 'classifiers', controlLayer: false, sectorFocus: [], features: [],
     usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: channel === 'consumer' },
     kyc, status: 'live',
   });
@@ -169,9 +170,11 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     tree: initialTree(setup),
     research: initialResearch(),
     build: initialBuild(),
+    // Leader start (D5): the features today's game has are built (sector packs); R9 sets them per start type.
+    features: [...LEADER_FEATURES],
     morale: { overall: 70, safety: 65 },
     dataAssets: { licensedTokensT: 30, unlicensedTokensT: 270, syntheticTokensT: 20, litigationRisk: (0.02 * 270) / 100 },
-    policies: { whistleblowerChannel: false, publishSafety: 'selective', govBriefing: 1, shareWithAllies: false, transitionFund: 0, communityBenefits: false, spareTraining: 'research' },
+    policies: { whistleblowerChannel: false, publishSafety: 'selective', govBriefing: 1, shareWithAllies: false, transitionFund: 0, communityBenefits: false, spareTraining: 'data', servingAuto: true, upgradeToNewest: false, autoEvaluate: true },
   };
 }
 

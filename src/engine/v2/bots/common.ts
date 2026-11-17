@@ -27,7 +27,7 @@ export const BOT_INTENTS: Record<string, string[]> = {
   evalGate: ['safety.evalGate'], // params { level: none | basic | full | fullPlusExternal }
   raise: ['fin.raise'],
   split: ['setSplit'], // params: ComputeSplit keys (must sum to 1)
-  release: ['deploy'], // params { versionId, channel }
+  release: ['product.launch'], // params { versionId, channel }
 };
 
 export function intent(s: GameStateV2, api: EngineApi, name: keyof typeof BOT_INTENTS, params: Params = {}): boolean {

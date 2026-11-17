@@ -13,6 +13,7 @@ import { CHINA_ID } from '../models/labs';
 import type { Deployment, DomainId, GameStateV2, LabId, ModelVersion, RegionId, SectorId, SystemCtx } from '../types';
 import { robotAvail } from './robots';
 import { techRamp } from './policy';
+import { productAppeal, productBonusSectors, productDomains } from '../models/products';
 
 export const SHARE_SLOPE = 2.1; // §3.11.1 [D]
 export const PRICE_ELASTICITY = 1.5; // §3.11.1 [D]
@@ -184,11 +185,13 @@ function computeMix(s: GameStateV2): WorldMix {
 
   // Capped domain vectors: non-player providers, and player candidate deployments.
   const pvec: (number[] | undefined)[] = providers.map((p) => (p.dom ? capVec(p.dom) : undefined));
-  const cands: { dep: Deployment; v: number[]; ch: Deployment['channel']; focus: Set<SectorId>; price: number }[] = [];
+  // R6: a product's domains include its mini free tier and features (productDomains = the model's own without them).
+  const cands: { dep: Deployment; dom: Record<DomainId, number>; v: number[]; ch: Deployment['channel']; focus: Set<SectorId>; bonus: Set<SectorId>; price: number; appeal: number }[] = [];
   for (const d of paid) {
     const mv = ver.get(d.versionId);
     if (!mv) continue;
-    cands.push({ dep: d, v: capVec(mv.domains, depOffset(d)), ch: d.channel, focus: new Set(d.sectorFocus), price: d.priceIndex });
+    const dom = productDomains(s, d, mv)!;
+    cands.push({ dep: d, dom, v: capVec(dom, depOffset(d)), ch: d.channel, focus: new Set(d.sectorFocus), bonus: new Set(productBonusSectors(s, d)), price: d.priceIndex, appeal: productAppeal(s, d) });
   }
   const fxCert = s.world.fx.certDay;
   const certified = (sec: SectorId) => {
@@ -200,7 +203,7 @@ function computeMix(s: GameStateV2): WorldMix {
   let bestPublicLg = 0;
   for (const c of cands) {
     const mv = ver.get(c.dep.versionId)!;
-    for (const k of DOMAIN_IDS) bestPublic[k] = Math.max(bestPublic[k], mv.domains[k] + depOffset(c.dep));
+    for (const k of DOMAIN_IDS) bestPublic[k] = Math.max(bestPublic[k], c.dom[k] + depOffset(c.dep));
     bestPublicLg = Math.max(bestPublicLg, mv.Lg);
   }
   for (const p of providers) {
@@ -233,7 +236,7 @@ function computeMix(s: GameStateV2): WorldMix {
         if (cd.ch === 'consumer' || (cd.ch === 'gov' && !t.gov)) continue;
         let L = 0;
         for (let k = 0; k < t.idx.length; k++) L += t.w[k] * cd.v[t.idx[k]];
-        const b = cd.focus.has(t.id) && certified(t.id) ? PRODUCT_BONUS : 0;
+        const b = (cd.focus.has(t.id) && certified(t.id)) || cd.bonus.has(t.id) ? PRODUCT_BONUS : 0;
         // PHYS part is region-specific; compare on the cognitive part plus the provider's raw PHYS potential.
         const Lc = L + b + t.physW * cd.v[PHYS];
         if (Lc > bL) {
@@ -329,7 +332,7 @@ function computeMix(s: GameStateV2): WorldMix {
         cLevel[playerIdx] = L;
         cDep = c.dep.id;
         cPrice[playerIdx] = c.price;
-        cApp[playerIdx] = appealOf(ver.get(c.dep.versionId));
+        cApp[playerIdx] = appealOf(ver.get(c.dep.versionId)) * c.appeal;
         cSocial[playerIdx] = c.v[I.SOCIAL];
       }
     }

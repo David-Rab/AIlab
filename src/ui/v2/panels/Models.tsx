@@ -181,8 +181,8 @@ export function RunQueue({ s }: { s: GameStateV2 }) {
         <span className="ellip"><b><Term id="spareTraining">Spare</Term></b></span><span /><span />
         <span className="num" data-test="spare-share">{F.pct(spare)}</span>
         <span className="run-spare">
-          <span className="dim">→ {spareUse === 'research' ? 'experiments' : 'data'}</span>
-          {(['research', 'data'] as const).filter((u) => u !== spareUse).map((u) => <ActBtn key={u} id="runs.spareTraining" params={{ use: u }} label={u === 'research' ? 'Use for experiments' : 'Use for data'} testId={`spare.${u}`} />)}
+          <span className="dim">→ {spareUse === 'research' ? 'experiments' : 'data generation'}</span>
+          <Ref id="spareTraining" to={{ panel: 'company', tab: 'split', anchor: 'split-spare' }}>Split</Ref>
         </span>
       </div>
     </Card>

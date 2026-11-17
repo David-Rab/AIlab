@@ -500,7 +500,7 @@ export function Finance({ s }: { s: GameStateV2 }) {
         right={<div className="btn-row"><GoBtn to={{ panel: 'finance', anchor: 'raise' }} label="Raise" testId="fin.go.raise" /><GoBtn to={{ panel: 'finance', anchor: 'partner' }} label="Seek partner" testId="fin.go.partner" /><GoBtn to={{ panel: 'finance', anchor: 'borrow' }} label="Borrow" testId="fin.go.borrow" /></div>} />
       <div className="fin-top">
         <Card title={<Term id="netBurn">Cash flow this quarter</Term>} sub="$ per quarter · hover a bar for its lines"
-          right={<span className="row-i small"><span className="dim"><Term id="revenueRun">revenue run-rate</Term></span><Why k="revenueRun" title="Revenue run-rate" value={F.money(f.revenueRun, { perYear: true })} fmt={(x) => F.money(x)} levers={<GoBtn to={{ panel: 'deployments' }} label="Deploy" />}><b className="num" data-home="revenueRun">{F.money(f.revenueRun, { perYear: true })}</b></Why></span>}>
+          right={<span className="row-i small"><span className="dim"><Term id="revenueRun">revenue run-rate</Term></span><Why k="revenueRun" title="Revenue run-rate" value={F.money(f.revenueRun, { perYear: true })} fmt={(x) => F.money(x)} levers={<GoBtn to={{ panel: 'products' }} label="Products" />}><b className="num" data-home="revenueRun">{F.money(f.revenueRun, { perYear: true })}</b></Why></span>}>
           <Waterfall s={s} />
         </Card>
         <Card title="Cash history" sub="weekly · current cash is in the top strip"

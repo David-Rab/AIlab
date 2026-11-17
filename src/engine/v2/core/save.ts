@@ -4,9 +4,10 @@ import { keyOf, staffOf, teamsFromStaff } from '../departments/teams';
 import type { GameStateV2, PlayerLab, StaffByRole, TeamHiring } from '../types';
 import { hash32 } from './rng';
 import { initialResearch, initialTree } from '../models/tree';
+import { LEADER_FEATURES, PRICE_TIERS, tierOfIndex } from '../../../data/v2/features';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
-export const SCHEMA_REV = 7;
+export const SCHEMA_REV = 8;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -100,6 +101,25 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     for (const r of p.models.runs) fix(r.base as unknown as { scale?: string } | undefined);
     p.build ??= { queue: [], nextId: 1 };
     p.policies.spareTraining ??= 'research';
+  },
+  /** 7 → 8 (restructure R6): deployments become products (kind, price tier from the nearest price index, no features,
+   *  no mini or monitor); the lab has the leader start's features (sector packs); policies Auto serving on, upgrade
+   *  off, auto-evaluate on. The spare-training choice of the saved game is kept. */
+  7: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const p = s.player as PlayerLab;
+    for (const d of p.deployments) {
+      d.kind ??= d.channel === 'internal' ? 'internal' : d.channel === 'open' ? 'open' : 'product';
+      if (!d.price) {
+        d.price = tierOfIndex(d.priceIndex ?? 1);
+        d.priceIndex = PRICE_TIERS[d.price];
+      }
+      d.features ??= [];
+    }
+    p.features ??= [...LEADER_FEATURES];
+    p.policies.servingAuto ??= true;
+    p.policies.upgradeToNewest ??= false;
+    p.policies.autoEvaluate ??= true;
   },
 };
 

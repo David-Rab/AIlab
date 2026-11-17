@@ -24,7 +24,151 @@ Single source of truth for where the build stands. Update at every milestone or 
 | **R2 Restructure: leader lab in the world** | Done (2026-11-16): simulated AI 2027 leader "Polaris AI" behind `setup.leaderLab` (default off), T1L passes with LEADER_CAL, `--fit-leader`; flag off identical (ref-trace, bots); no schemaRev change | "R2: leader lab …" on `game-structure` |
 | **R4 Restructure: tech tree and capability projects** | Done (2026-11-17): 93-node shared tree, science teams on projects (√ capacity, ×1.5 specialty, absolute M), per-world rolls and retries, design-option locks, auto-assign, Research panel, schemaRev 6; fitted efforts; CAL_SHIFT refit (authors2026, fast, slow) and LEADER_CAL refit; all §7.4 bot criteria MET (200 seeds); one new worldfx failure (GOV accept) documented | "R4: tech tree …" on `game-structure` |
 | **R5 Restructure: build queue and blueprint** | Done (2026-11-17): free base size (×¼…×8; minDays, S5, restart, serve ∝ √size as functions of size; BASE_MAX_DAYS gone), staleness and data readouts, proportional pool allocation, spare training compute → experiments (policy; RefBot → data), engineers' build queue with run setups, Blueprint panel, run queue share/ETA, schemaRev 7; ref-trace identical to R4, no refit; all §7.4 bot criteria MET (40 seeds) | "R5: build queue …" on `game-structure` |
-| **R6–R10 Tycoon restructure: build** | Next: R6 … R10 serially (BUILD-PLAN parallelism note); milestones logged below. `gs-leader-lab` held no work beyond R1 and was not merged | |
+| **R6 Restructure: products and live edit** | Done (2026-11-17): deployments become products (kind, price tier, mini free tier, monitor, features), live product.update with before → after preview (next tick, D7), launch/retire, features built once by engineers and switched on per product, Auto serving split (most $ per H100e first, cut recorded and shown), monitors (catch rate, D7 overhead, incident hook), auto-evaluate replaces the 30-day eval expiry, Agents time-horizon gate, upgrade-to-newest policy, Products panel, schemaRev 8; RefBot staleness fix (worldfx GOV accept passes again); spare training default → data; one calibration line (serve-cost exponent 0.5 → 0.3); all §7.4 bot criteria MET (200 seeds; safe win 1.0%) | "R6: products …" on `game-structure` |
+| **R7–R10 Tycoon restructure: build** | Next: R7 … R10 serially (BUILD-PLAN parallelism note); milestones logged below. `gs-leader-lab` held no work beyond R1 and was not merged | |
+
+## R6 Products and live edit (2026-11-17, branch `game-structure`, worktree ../AI27-structure)
+
+Per design/BUILD-PLAN.md §2 R6 (D5, D7), STRUCTURE §4.4, §4.9, §9 (mockup review), mockups-v3/v3-products*.
+
+**Types.** `Deployment` gains `kind` ('product' | 'internal' | 'open'), `price` ('budget' | 'standard' | 'premium'; `priceIndex`
+is kept equal to the tier's index 0.7 / 1 / 1.4), `miniVersionId?` (mini free tier), `monitorId?`, `features[]`, and the
+derived `needH100e` / `servedH100e` / `cutH100e` and `hist` (revenue at each 30-day mark, 12 kept). `player.features`
+(built lab-wide). Policies `servingAuto` (on), `upgradeToNewest` (off), `autoEvaluate` (on).
+
+**Data `src/data/v2/features.ts`.** Products by channel (name, customer noun and revenue per customer for the customer
+readout, segment), price tiers, `FREE_TIER_SHARE` (Chat 60%, API 30% of use on the mini), `MONITOR_OVERHEAD` 0.25 (D7),
+`MONITOR_CATCH_BASE` 0.85, `AGENT_TASK_HOURS` 4, `AUTO_EVAL_DAYS` 30, and eight features, each mapped to an existing term:
+Memory (P07: Chat appeal ×1.1, AGENCY +0.3; successor incidents ×1.2), Deep think (P05: effort deep), Computer use (P06:
+AGENCY +0.4; power-seeking incidents ×1.3), Voice & vision (appeal ×1.1, MEDIA +0.3), Deep research (REASON/RSCH +0.3,
+serving ×1.1), Coding agent (Software & IT +0.5 L, the sector-product bonus; reward-hacking incidents ×1.2), Companion
+mode (engagement node: appeal ×1.2; sycophancy ×1.5), Sector packs (today's sector products). D5: the leader start has
+sector packs built (`LEADER_FEATURES`); every other feature is a gain when on. The three product-feature tree nodes lost
+`soon` (researchable now).
+
+**Engine.**
+- `models/products.ts`: package effects every reader uses. `productDomains` (model blended with the free-tier mini by
+  use, plus feature offsets; returns the model's own record when nothing changes it, so the reference configuration is
+  bit-identical), `productAppeal`, `productServeMult`, `productBonusSectors`, `productHazardMult`, `monitorOverhead`
+  (D7), `catchRate` (0.85 × 0.52^gap, gap = log4 of the M ratio at measured levels — the AG05 rule — then AG07
+  containment tools at believed strength halve what slips through), `agentsGate` (measured h50 ≥ 4 h),
+  `featureBuildBlock` / `featureToggleBlock`, `autoEvaluate`, `newestCleared`.
+- `worldfx/mix.ts`, `revenue.ts`, `control.ts` read `productDomains` / appeal / bonus sectors. `revenue.ts`:
+  `rphOf` (model rate blended with the mini by use, ÷ feature serve multiplier, ÷ (1 + monitor overhead)) and
+  `servingSplit`: Auto needs demand ÷ rate, serves products in order of revenue per H100e, records the cut, and spreads
+  spare pool by need; manual = hand-set shares (scaled if > 100%). The silent rescale is gone; `servingShare` is written
+  daily from the split under Auto (incident usage reads it). `capacityOf(s, d, h)`.
+- `worldfx/productView.ts`: per-product readouts (revenue, customers, share of segment spend vs the best rival product,
+  binding cause, need / served / cut, run cost at the rental-equivalent TCO, monitor overhead, catch) and
+  `previewDeployments` (recompute mix + revenue on a copy of the state: the preview is what the next tick computes).
+- `models/productOps.ts`: actions `product.launch` (one live product per channel; Agents behind its horizon gate),
+  `product.update` (model, mini, monitor, tier, safeguards, KYC, effort, features; live, same id and start day; deep
+  think ⇔ the Deep think feature), `product.retire`, `product.serving` (hand-set share; turns Auto off), `feature.build`
+  (cash + `queueBuild('feature')`; the build system adds it to `player.features` when done), `feature.toggle`,
+  `products.policy`. New system `products` (155, daily, after endings): auto-evaluate and upgrade-to-newest at the
+  close of the day (see Calibration for why it sits there).
+- `deployments.ts`: `EVAL_MAX_AGE` removed (a version launches once evaluated at the gate depth); Agents gate; deploy
+  sets kind/tier/features; `setServing` is per product only; versions used as a monitor or free tier cannot be retired.
+- `safety/incidents.ts`: feature hazard multipliers; a product's monitor rolls its catch rate on model-behaviour incidents
+  (not misuse): caught ones stay internal (no public timer or penalty). No monitor = no roll (the pre-R6 behaviour).
+- Old actions `deploy`, `swapDeployment`, `setServing`, `withdraw` removed (verbs: launch / update / retire / policy).
+  Watch: the stale-evals alert is gone; the capacity alert names what is cut.
+- `SCHEMA_REV` 8; cheap migration 7 → 8 (kind, nearest tier, no features, leader features, policies; the save's
+  spare-training choice kept), checked on the three rev-7 fixtures (load, 30 d RefBot, round trip). Fixtures regenerated.
+
+**Bots.** RefBot: no weekly `setServing` (Auto), swaps via `product.update`, no 30-day `runEvals` (auto-evaluate policy);
+the safe bot's 24-day mini re-evals are gone (suites no longer expire); the mixed bot's enterprise swap uses
+`product.update` (still refused: Enterprise takes full models).
+
+**Carried over.**
+1. *worldfx GOV T1 Accept.* RefBot's mini staleness rule measured the public release against Chat, API **and
+   Enterprise**; once Enterprise sat on the continual-learning stream (updated in place) "what the products serve" rose
+   with the internal model and the 0.7-level trigger never fired, so minis came only every 182 days (from day ~720). The
+   rule now measures the public release (Chat, API; `PUBLIC_CHANNELS`), as its comment always said. Pre-R4 traces show
+   Enterprise on the stream too (days 660–840); the bug only bit when R4 moved the timing. GOV Accept ≥ 0.85: 2028-03-31
+   (R5, fail) → **2028-03-01 (pass)**.
+2. *Spare training default* → `'data'` for new games (matches the reference path). The choice moved to its home on
+   Company › Compute split (Training: "Spare · N idle", the policy in use and the other option with its effect, e.g.
+   "Use for experiments +x% speed"); the run queue keeps the spare share and links there.
+
+**Calibration (one line).** The Auto split serves the most $ per H100e first. RefBot's R5 split (shares ∝ demand $) gave
+the full model on Enterprise a third of the pool; Auto serves the minis (×2 revenue per H100e from their ¼ serve cost)
+and cuts Enterprise. With `RPH_BASE` and the serve factor unchanged the reference lab's 2027 revenue rose to $216B
+(target $140B ±30%). Refitting `RPH_BASE` alone (34K) put 2027 on target but cut 2025 revenue (no minis yet, Auto =
+proportional), and RefBot's 2026 distress rate fell below F8 (33% vs ≥ 75%). The gain comes from the serve-cost factor,
+so that is the refit: revenue serve factor (0.5 ÷ serve cost)^x, **x 0.5 → 0.3** (a [D] term, not part of R11 #14's
+formula; start unchanged). Reference path: Jul 2025 $13.8B, 2026 $50.1B, 2027 $175.2B (R5: 13.8 / 50.7 / 172.5).
+- Auto-evaluate placement: inside the runs system the eval's 'runs' draws moved after the bot's same-day launches,
+  which re-drew measured-L noise and moved stub ai2027 A2 +33 d / P08 +50 d. At the close of the day (system 155) the
+  suite runs where RefBot's pre-tick `runEvals` did, stamped with the same date: back to ≤ 1 d.
+
+**Gates.**
+- `npm run typecheck`, `tsc -p scripts/v2`: clean. identity and golden-timelines unchanged and passing. calib: T1, T2
+  (177k copies, 30.9×), T1L pass; T1 SC Δ ai2027 +0.003, authors2026 −0.047, fast −0.044, slow +0.011 y; build queue
+  worst wait 0 d.
+- test:v2 scripts individually: golden-timelines, identity, calib, fixtures, lint-hidden, lint-ux, lint-tradeoffs (107
+  actions), safety, finance (all; F8 75%, as R5), ws4, **products (new, 40 checks)**, money pass; hygiene: only the known
+  absolute performance budget; **worldfx: only the known HireRate_SOFT (2027-02-07); GOV T1 Accept passes; revenue
+  targets pass with no rebaseline**.
+- **ref-trace vs R5** (recorded at 1299436 into a temp file): milestones stub ai2027 ≤ 1 d, authors2026 ≤ 10 d (A2),
+  fast ≤ 2 d, integrated ≤ 2 d; **stub slow SC +18 d** (13-year trace; +13 d of it is the staleness fix: extra minis take
+  training-pool share — measured by reverting it). Adoption days ≤ 14 d (integrated P13 +14). Integrated quarterly
+  cash ≤ 15.5% (one quarter, day 457). **Revenue per channel is outside ±10% by design**: Auto serves Chat/API (minis)
+  first and cuts Enterprise, where R5's demand split left Chat capacity-bound and eroding (day 822 Chat $59.6B vs $9.8B);
+  totals match (above).
+- Performance (`_perf.ts`, seed 9, 1,500 days, passive player; R5 worktree at 1299436 and R6 alternated 3 × 3 runs):
+  daily 1,644 µs (R5) vs 1,737 µs (R6), +5.7%; worst quarter 7.2 vs 6.4 ms. No regression > 10%.
+- `npm run test:ui`: 166/166 (new Products section: cards per product, deep think locked with its reason, an edit opens
+  the before → after preview with "stays live" and the date, Apply updates monitor + tier live with the same start day,
+  catch rate on the card, Cancel, feature Build on the engineers' queue, locked features name their idea, serving bar,
+  Override → manual share → Auto back on, upgrade policy, Agents horizon gate, Retire; spare training on the split;
+  the action loop skips Retire). Screenshots (day-400 fixture: products, edit preview, capacity tooltip, split) checked.
+- **Bots, 200 seeds** (`--seeds 50 --from 0/50/100/150` merged with `--load`): all six §7.4 criteria MET; **safe win 1.0%**
+  (R5's 40-seed run sat on the 5% cap; R4's 200-seed run 0%).
+
+| bot | win | mixed | loss | med. day | top endings |
+|---|---|---|---|---|---|
+| race | 2.5% | 5.5% | 92.0% | 808 | asiTakeover 55.5%, ousted 16.5%, nationalized 10% |
+| safe | 1.0% | 2.5% | 96.5% | 1472 | overtaken 62.5%, ousted 34% |
+| mixed | 50.0% | 8.0% | 42.0% | 1031 | asiAligned 51%, asiTakeover 12%, ousted 12%, nationalized 8.5% |
+| capex2x | 2.0% | 0.5% | 97.5% | 304 | insolvent 94% |
+| ref | 19.0% | 5.5% | 75.5% | 980 | asiTakeover 39.5%, asiAligned 19.5%, ousted 12.5%, nationalized 10.5% |
+
+  §7.4: race losses 68% takeover / 30% company-loss; safe losses 64% other-first; mixed +47.5 pp over both extremes;
+  passive takeover-type 64%. Choices vs world (final Mis): bot policy 65%, world 22%, rest 14%. E5 14/17.
+
+**UI.** `panels/Products.tsx` + `products.css` replace `Deployments.tsx` / `deploy.css` (route `products`, nav
+"Products"; good-ui pass). Per product card: package (model select with measured L, mini free-tier select on Chat/API,
+monitor select with catch rate and its breakdown tooltip, run cost with monitor overhead), revenue hero with the
+30-day trend and a line of the last months, customers, share of segment spend vs the best rival product, binding cause
+with its best lever and gain (capacity → serving compute, price → cheaper tier, quality → a better cleared model; click
+previews it), features (built → switch, building → ETA, buildable → cost + Build, locked → its idea, opens Research),
+settings (tier, safeguards with usage policy in the tooltip, KYC on API/Agents, effort with deep think locked with its
+reason, Retire). An edit opens the before → after popover (changes, customers, revenue, all products, share, catch,
+binding, serving need, run cost; Apply / Cancel; "stays live", "from <date>"). Launch card (product picker; Agents shows
+the time-horizon bar vs 4 h). Serving card (home `servingSplit`): bar by product with what Auto cuts as a dashed ghost,
+Auto switch (off = per-product sliders), the Auto order with $ per H100e-yr, Budget link. Header: upgrade policy with
+"N on an older model", auto-evaluate. New glossary terms: product, priceTier, freeTier, monitor, catchRate, runCost,
+autoServing, servingCut, upgradePolicy, autoEvaluate, feature, sectorPack, timeHorizon, segmentShare, bindingCause,
+revPerH100e; channel, priceIndex, effort, servingShare, capacityBound, evalGate, spareTraining rewritten. `Tip` takes a
+`style`.
+
+**Deviations / deferred.**
+- Calibration line above (serve-cost exponent). Per-channel revenue no longer tracks R5 (Auto rule, user decision).
+- stub:slow SC +18 d vs R5 (outside ±10 d) from the requested staleness fix.
+- Monitors catch model-behaviour incidents, not misuse (safeguards cover misuse); default package = no monitor (exactly
+  today's behaviour). R7 generalises monitors to internal uses (the same `catchRate`).
+- Price on a product that is not the player's best candidate in a sector (e.g. API when Enterprise carries the level)
+  changes revenue per H100e but not demand: a pre-existing property of the mix (one player candidate per sector).
+- Customer counts are revenue ÷ a revenue per customer [D] (readout only).
+- Scratch scripts `scripts/v2/_r6*.ts`, `scripts/v2/shots/_r6shot.mjs` are gitignored; the R5 baseline worktree is
+  `C:\tmp\r4\base` (now detached at 1299436, `node_modules` junction): remove the junction with `rmdir` first, then
+  `git worktree prune`.
+
+**Notes for R7.** `catchRate(s, watched, monitor)` and `monitorOverhead` are ready for internal packages; the
+`products` system (155) is the place for package policies. Product kind `internal` exists on the internal deployment.
+Features with incident multipliers are the hook for R8's risk families. The Agents gate reads the measured horizon
+bench (V0 has none until its first auto-eval at day ~10).
 
 ## R5 Build queue and blueprint (2026-11-17, branch `game-structure`, worktree ../AI27-structure)
 

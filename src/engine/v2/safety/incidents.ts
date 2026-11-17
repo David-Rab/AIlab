@@ -11,6 +11,7 @@ import { clamp01, flagNum, setFlag, versionById, versionM } from './common';
 import { monitoringCatch } from './detection';
 import { containment, strengthTrue } from './techniques';
 import { isDiscovered, uModeContainMult } from './umodes';
+import { productCatch, productHazardMult } from '../models/products';
 
 /** Hazard intensity of an undiscovered/discovered U-mode (it borrows the κ of its mapped trait) [D]. */
 export const UMODE_X = 0.25;
@@ -123,7 +124,10 @@ function fireIncident(s: GameStateV2, ctx: SystemCtx, rng: RngLike, v: ModelVers
       return;
     }
   }
-  const exposure: Incident['exposure'] = internal ? 'internal' : d.channel === 'consumer' || d.channel === 'open' ? 'public' : 'customer';
+  // R6: a product's monitor catches model-behaviour incidents before customers see them (catch rate, D7); caught ones
+  // stay internal. No monitor → no roll (the pre-R6 behaviour).
+  const caught = !internal && row.source !== 'misuse' && !!d.monitorId && d.channel !== 'open' && rng.chance(productCatch(s, d));
+  const exposure: Incident['exposure'] = internal || caught ? 'internal' : d.channel === 'consumer' || d.channel === 'open' ? 'public' : 'customer';
   const inc: Incident = {
     id: newIncidentId(s), day: ctx.day, labId: 'player', versionId: v.id, deploymentId: d.id,
     trueSource: row.source, apparent: row.apparent, severity: sev, exposure, status: 'open', responses: [],
@@ -135,7 +139,7 @@ function fireIncident(s: GameStateV2, ctx: SystemCtx, rng: RngLike, v: ModelVers
     if (drop >= 0) s.player.safety.incidents.splice(drop, 1);
   }
   const label = row.apparent === 'unexplained' ? 'Unexplained behaviour' : row.apparent === 'misuse' ? `${row.domain === 'BIO' ? 'Bio' : 'Cyber'} misuse` : `${row.apparent} incident`;
-  ctx.log('incident', `${label} (severity ${sev}) on ${v.name}, ${d.channel}.`, sev, inc.id);
+  ctx.log('incident', `${label} (severity ${sev}) on ${v.name}, ${d.channel}${caught ? ': caught by its monitor before customers saw it' : ''}.`, sev, inc.id);
   if (exposure === 'public') publicPenalty(s, ctx, inc, 1, inc.id);
   if (row.source === 'misuse' && sev === 5) {
     setFlag(s, 'sev5MisuseDay', ctx.day);
@@ -192,8 +196,10 @@ export const incidentsSystem: EngineSystem = {
       const internal = d.channel === 'internal';
       const contain = deploymentContain(s, v, d);
       const restricted = d.status === 'restricted' ? 0.3 : 1;
+      // Product features scale their traits' hazards (e.g. Companion mode: sycophancy ×1.5); ×1 without features.
+      const feat = d.features.length ? (r: HazardRow) => (typeof r.source === 'string' && !r.source.startsWith('U') && r.source !== 'misuse' ? productHazardMult(s, d, r.source as TraitId) : 1) : () => 1;
       const rows = [
-        ...modelHazards(v.traitsTrue, v.uModes, CHANNEL_EXPOSURE[d.channel], usageOf(s, d), contain, internal, disc).map((r) => ({ ...r, h: r.h * restricted })),
+        ...modelHazards(v.traitsTrue, v.uModes, CHANNEL_EXPOSURE[d.channel], usageOf(s, d), contain, internal, disc).map((r) => ({ ...r, h: r.h * restricted * feat(r) })),
         ...misuseHazards(s, v, d),
       ];
       let H = 0;

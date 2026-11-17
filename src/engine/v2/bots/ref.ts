@@ -4,8 +4,9 @@
 // Reference cadence (§7.1): compute tracks refTotal (WS3's finance autopilot buys it; the T1 calibration stubs it),
 // split = shareRef(t), cap hiring tracks H_ref, a 1F base every 9 months, a post-train every 6 weeks (≤ 2 in flight),
 // continual learning once P08 works, P05/P07/P08/P13/P17/P19 researched on the tree (REF_TREE; never P23), latent bases after
-// P17, a distilled mini every ~6 months (sooner on a new base or a 0.7-level gap) deployed to consumer/api while the
-// frontier stays internal, serving re-split by demand weekly, eval refresh every 30 days.
+// P17, a distilled mini every ~6 months (sooner on a new base or once the public release trails the internal model by
+// 0.7 levels) put on Chat/API while the frontier stays internal. R6: serving is the Auto policy (no weekly re-split),
+// model swaps are live product updates, and the auto-evaluate policy refreshes the internal model's evals.
 //
 // `refPlay(s, api, opts)` is the model/department half of that policy, parameterised so the other bots (race, safe,
 // mixed, capex2x) reuse the cadence with their own design choices; with default options it is exactly RefBot's.
@@ -53,8 +54,10 @@ const POST_EVERY = 42;
 const MINI_EVERY = 182;
 /** …or sooner (≥ 45 d apart) once the internal model measures this many levels above what the products serve. */
 const MINI_GAP_L = 0.7;
-const EVAL_EVERY = 30;
 const PRODUCT_CHANNELS: string[] = ['consumer', 'api', 'enterprise'];
+/** The public release (where the minis go). Staleness is measured against it, not against Enterprise: Enterprise can
+ *  sit on the continual-learning stream (updated in place), which hid how far the public release trailed (R6 fix). */
+const PUBLIC_CHANNELS: string[] = ['consumer', 'api'];
 /** Passive/RefBot safety programme (§7.4): ~3% safety compute (shareRef), AG02, AG07, AG08 and AG18 at Seed. */
 const REF_AGENDAS = ['AG02', 'AG07', 'AG08', 'AG18'];
 
@@ -195,9 +198,11 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
     if (cur && m.internalAgent !== cur) tryAct(s, api, 'setInternalAgent', { versionId: cur });
   } else if (nv && m.internalAgent !== nv.id) tryAct(s, api, 'setInternalAgent', { versionId: nv.id });
 
-  // Evals: refresh the internal version's suite every 30 days (streams go stale).
+  // Evals: the auto-evaluate policy refreshes the internal version's suite every 30 days (streams go stale); R6
+  // replaced the bot's own 30-day runEvals. Serving: the Auto policy.
   const iv = m.versions.find((v) => v.id === m.internalAgent);
-  if (iv && iv.status !== 'evaluating' && day - (iv.evals.suiteDay ?? -1e9) >= EVAL_EVERY) tryAct(s, api, 'runEvals', { versionId: iv.id });
+  if (!p.policies.autoEvaluate) tryAct(s, api, 'products.policy', { autoEvaluate: true });
+  if (!p.policies.servingAuto) tryAct(s, api, 'products.policy', { servingAuto: true });
 
   // A distilled mini about every 6 months, deployed to consumer and API (frontier stays internal), or the newest
   // full version for bots that release their frontier.
@@ -206,7 +211,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   // public for 15 months.
   const newGen = !!iv && baseIdx(iv) > flag(s, 'miniBase', 0);
   let servedL = 0;
-  for (const d of p.deployments) if (d.status === 'live' && PRODUCT_CHANNELS.includes(d.channel)) servedL = Math.max(servedL, m.versions.find((v) => v.id === d.versionId)?.evals.measuredL ?? 0);
+  for (const d of p.deployments) if (d.status === 'live' && PUBLIC_CHANNELS.includes(d.channel)) servedL = Math.max(servedL, m.versions.find((v) => v.id === d.versionId)?.evals.measuredL ?? 0);
   const stale = !!iv && (iv.evals.measuredL ?? 0) - servedL >= MINI_GAP_L && day - flag(s, 'lastMini', 0) >= 45;
   if (iv && (newGen || stale || day - flag(s, 'lastMini', 0) >= MINI_EVERY) && !m.runs.some((r) => r.kind === 'distill' && r.status === 'running')) {
     if (tryAct(s, api, 'launchDistill', { teacherVersionId: iv.id })) {
@@ -228,14 +233,11 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
     for (const d of p.deployments) {
       if (!PRODUCT_CHANNELS.includes(d.channel) || d.status !== 'live') continue;
       const want = d.channel === 'enterprise' ? (o.release === 'frontier' && pub.variant === 'full' ? pub : ent ?? pub) : pub;
-      if (want && want.id !== d.versionId && (want.evals.measuredL ?? 0) > mL(d.versionId)) tryAct(s, api, 'swapDeployment', { deploymentId: d.id, versionId: want.id });
+      if (want && want.id !== d.versionId && (want.evals.measuredL ?? 0) > mL(d.versionId)) tryAct(s, api, 'product.update', { id: d.id, versionId: want.id });
     }
   }
 
   syncPoolShares(s, api);
-
-  // Product management: re-split the serving pool by demand every week (capacity-bound channels get more).
-  if (day % 7 === 3) tryAct(s, api, 'setServing', {});
 
   // Housekeeping: retire superseded versions (keep the newest 4 full + anything in use).
   if (day % 30 === 15) {

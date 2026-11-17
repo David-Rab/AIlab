@@ -4,9 +4,10 @@ import { SECTOR_BY_ID, SECTOR_IDS } from '../../../data/v2/sectors';
 import { TECH_BY_ID, WORLD_TECHS } from '../../../data/v2/techs';
 import type { ActionDef, CostLine, Deployment, GameStateV2, SectorId, SystemCtx } from '../types';
 import { paidDeployments, worldMix } from './mix';
-import { capacityOf, moonshotH100e, revenueReadout } from './revenue';
+import { moonshotH100e, revenueReadout } from './revenue';
 import { mSci, lSci, scienceRate, techBlocker } from './techtree';
 import { internalVersion } from '../models/labs';
+import { nodeKnown } from '../models/tree';
 import { bookCash } from '../finance/ledger';
 
 /** Sector product: certification time, cash and product-team time [D] (research/16 §1A.3 "costs months and money"). */
@@ -53,6 +54,7 @@ const sectorProduct: ActionDef = {
   owner: 'WS5',
   title: 'Sector product',
   available(s) {
+    if (!nodeKnown(s, 'sectorPacks')) return 'Needs the idea Sector packs (Research)';
     if (!productHost(s)) return 'Needs a live enterprise, API or agents deployment';
     if (!defaultSector(s)) return 'Every sector already has a product';
     return true;
@@ -170,16 +172,9 @@ const moonshot: ActionDef = {
     const dShare = share - cur;
     // Revenue at stake: the serving capacity removed (or returned), valued at the average capacity rate.
     const rd = revenueReadout(s);
-    const deps = paidDeployments(s);
-    const scale = deps.reduce((a, d) => a + d.servingShare, 0);
-    let capRate = 0;
     let h = 0;
-    for (const d of deps) {
-      const c = capacityOf(s, d, scale > 1 ? 1 / scale : 1);
-      capRate += c.capacity;
-      h += c.h;
-    }
-    const perH = h > 0 ? capRate / h : 0;
+    for (const x of rd.deps) h += x.servingH100e;
+    const perH = h > 0 ? rd.capacity / h : 0;
     const dH = s.player.computeOnline * dShare;
     const util = rd.capacity > 0 ? Math.min(1, rd.total / rd.capacity) : 0;
     const revLoss = Math.round(dH * perH * Math.max(0.3, util) * 100) / 100;

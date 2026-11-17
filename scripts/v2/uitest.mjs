@@ -228,7 +228,7 @@ ok('Tutorial off unlocks compute', !(await page.$eval('[data-nav=compute]', (b) 
 // Advance a little so deployments/finance have content.
 await page.evaluate(() => window.ai27v2.step(20));
 await closeModals();
-const PANELS = ['finance', 'overview', 'company', 'compute', 'research', 'models', 'blueprint', 'deployments', 'safety', 'relations', 'world', 'risk', 'codex'];
+const PANELS = ['finance', 'overview', 'company', 'compute', 'research', 'models', 'blueprint', 'products', 'safety', 'relations', 'world', 'risk', 'codex'];
 for (const p of PANELS) await check(`Tab ${p}`, 'store.panel', () => nav(p), 60);
 
 // Click every enabled action button in every panel; skip the game-ending RETIRE (tested last).
@@ -242,7 +242,7 @@ for (const p of PANELS) {
   if (t) { if ((await get('store.panel')) !== `"${p}"`) { await nav(p); if (t) await tabTo(t); } await tabTo(t); }
   const ids = await page.$$eval('[data-panel] [data-act]', (els) => [...new Set(els.filter((e) => !e.disabled).map((e) => e.getAttribute('data-act')))]);
   for (const id of ids) {
-    if (SKIP.has(id)) continue;
+    if (SKIP.has(id) || id.startsWith('product.retire.')) continue; // retiring products is tested in the Products section
     await closeModals();
     if ((await get('store.panel')) !== `"${p}"`) await nav(p);
     const loc = page.locator(`[data-panel] [data-act="${id}"]:not([disabled])`).first();
@@ -342,8 +342,15 @@ await nav('models');
   ok('Run queue: actual share and ETA per run', rq[0], rq[1] + ' | spare ' + rq[2]);
 }
 await check('Run queue: − lowers a pool share', 'JSON.stringify(s.player.models.runs.map((r) => r.poolShare))', () => page.locator('[data-act^="run-share-dn."]:not([disabled])').first().click());
-await check('Run queue: spare training compute switches use', 's.player.policies.spareTraining', () => page.click('[data-act^="spare."]'));
-await check('Run queue: spare training compute switches back', 's.player.policies.spareTraining', () => page.click('[data-act^="spare."]'));
+ok('Run queue: spare row links to the policy on the split', !!(await page.$('[data-home=runQueue] [data-run=spare] [data-ref=spareTraining]')));
+await nav('company');
+await tabTo('split');
+{
+  const use = JSON.parse(await get('s.player.policies.spareTraining'));
+  ok('Split: spare training shows the policy in use', !!(await page.$(`[data-home=spareTraining] [data-test="spare-on.${use}"]`)), use);
+  await check('Split: spare training switches use (effect on the button)', 's.player.policies.spareTraining', () => page.click('[data-home=spareTraining] [data-act^="spare."]'));
+  await check('Split: spare training switches back', 's.player.policies.spareTraining', () => page.click('[data-home=spareTraining] [data-act^="spare."]'));
+}
 await nav('company');
 await tabTo('people');
 ok('Company: engineers show the build queue', !!(await page.$('[data-panel=company] [data-test=build-queue]')));
@@ -372,18 +379,47 @@ await closeModals();
 await nav('models');
 const vids = JSON.parse(await get('s.player.models.versions.map(v => v.id)'));
 if (vids.length > 1) await check('Select version in lineage', 'store.sel.versionId', () => page.click(`[data-version="${vids[0]}"]`));
-await nav('deployments');
-// B5: deep effort is a locked option with its reason until orchestration (P05) is adopted.
-if (!JSON.parse(await get(`s.player.paradigms.P05 && s.player.paradigms.P05.status === 'adopted'`))) {
-  ok('Deploy: deep effort locked with its reason', await page.$eval('[data-test=dep-effort] [data-opt=deep]', (b) => b.disabled && (b.getAttribute('data-locked') ?? '').includes('orchestration')).catch(() => false));
+// ── Products (R6): cards, live edit with before → after preview, features, settings, Auto serving, Agents gate. ──
+await nav('products');
+ok('Products: one card per live product', (await page.$$('[data-panel=products] [data-product]')).length >= 3);
+// B5 / R6: deep think is a locked option with its reason until its idea and feature exist.
+if (!JSON.parse(await get(`s.player.features.includes('deepThink')`))) {
+  ok('Products: deep think locked with its reason', await page.$eval('[data-panel=products] [data-test^=prod-effort] [data-opt=deep]', (b) => b.disabled && (b.getAttribute('data-locked') ?? '').length > 5).catch(() => false));
 }
-await check('Deploy channel', `document.querySelector('[data-panel=deployments]').innerHTML`, () => page.click('[data-panel=deployments] [data-channel-opt=enterprise]'));
-const dep = JSON.parse(await get(`(s.player.deployments.find(d => d.status === 'live' && d.channel !== 'internal' && d.channel !== 'open') || {}).id || ''`));
-if (dep) {
-  await check('setServing: per-deployment share', `s.player.deployments.find(d => d.id === "${dep}").servingShare`, async () => {
-    await setSlider(page.locator(`[data-deployment="${dep}"] input[type=range]`), 0.35);
-    await page.click(`[data-act="setServing.${dep}"]`);
+const apiId = JSON.parse(await get(`(s.player.deployments.find(d => d.channel === 'api' && d.status === 'live') || {}).id || ''`));
+if (apiId) {
+  const card = `[data-panel=products] [data-product="${apiId}"]`;
+  await page.selectOption(`${card} select[data-test^=prod-monitor]`, { index: 1 });
+  await page.click(`${card} [data-test^=prod-price] [data-opt=premium]`);
+  await wait(120);
+  const pop = JSON.parse(await get(`(() => { const p = document.querySelector('[data-test="prod-edit.${apiId}"]'); return p ? p.innerText : ''; })()`));
+  ok('Products: an edit opens the before → after preview (stays live, effective date)', /stays live/.test(pop) && /→/.test(pop) && /from /.test(pop), pop.replace(/\n/g, ' ').slice(0, 120));
+  await check('Products: Apply updates the live product (monitor + premium)', `(() => { const d = s.player.deployments.find(x => x.id === "${apiId}"); return [d.monitorId, d.price, d.status, d.startDay]; })()`, () => page.click(`[data-act="product.update.${apiId}"]`));
+  ok('Products: the product stayed live with its start day', JSON.parse(await get(`(() => { const d = s.player.deployments.find(x => x.id === "${apiId}"); return d.status === 'live' && d.price === 'premium' && !!d.monitorId; })()`)));
+  ok('Products: the card shows the monitor catch rate', !!(await page.$(`${card} [data-test="prod-catch.${apiId}"]`)));
+  await page.click(`${card} [data-test^=prod-price] [data-opt=standard]`);
+  await wait(80);
+  await check('Products: Cancel drops a draft edit', `!!document.querySelector('[data-test="prod-edit.${apiId}"]')`, () => page.click(`[data-test="prod-cancel.${apiId}"]`));
+}
+const buildBtn = await page.$('[data-panel=products] [data-act^="feature.build."]:not([disabled])');
+if (buildBtn) await check('Products: Build a feature (engineers\' queue)', `s.player.build.queue.filter(i => i.kind === 'feature').length`, () => buildBtn.click());
+ok('Products: locked features name their idea', !!(await page.$('[data-panel=products] .ft.locked[data-node]')));
+ok('Products: serving split bar by product', (await page.$$('[data-panel=products] [data-test=serving-bar] [data-serve]')).length >= 3);
+await check('Products: Override turns Auto serving off', 's.player.policies.servingAuto', () => page.click('[data-act="products.policy.servingAuto"]'));
+const prodA = JSON.parse(await get(`(s.player.deployments.find(d => d.status === 'live' && d.channel !== 'internal' && d.channel !== 'open') || {}).id || ''`));
+if (prodA && await page.$('[data-test=serving-manual]')) {
+  await check('Products: hand-set serving share', `s.player.deployments.find(d => d.id === "${prodA}").servingShare`, async () => {
+    await setSlider(page.locator(`[data-test=serving-manual] input[type=range]`).first(), 0.35);
+    await page.click(`[data-act="product.serving.${prodA}"]`);
   });
+}
+await check('Products: Auto serving back on', 's.player.policies.servingAuto', () => page.click('[data-act="products.policy.servingAuto"]'));
+await check('Products: upgrade-to-newest policy', 's.player.policies.upgradeToNewest', () => page.click('[data-act="products.policy.upgradeToNewest"]'));
+await page.click('[data-act="products.policy.upgradeToNewest"]');
+if (await page.$('[data-test=agents-gate]')) ok('Products: Agents card shows its time-horizon gate', /h/.test(await page.$eval('[data-test=agents-gate]', (e) => e.textContent ?? '')));
+{
+  const ent = JSON.parse(await get(`(s.player.deployments.find(d => d.channel === 'enterprise' && d.status === 'live') || {}).id || ''`));
+  if (ent) await check('Products: Retire withdraws a product', `s.player.deployments.find(d => d.id === "${ent}").status`, () => page.click(`[data-act="product.retire.${ent}"]`));
 }
 await nav('safety');
 await tabTo('agendas');

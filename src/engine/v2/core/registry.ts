@@ -13,6 +13,7 @@ import { milestonesSystem } from '../models/capability';
 import { hiringSystem } from '../departments/teams';
 import { researchSystem } from '../models/tree';
 import { buildSystem } from '../departments/build';
+import { productsSystem } from '../models/productOps';
 import { MODEL_ACTIONS } from '../models/actions';
 // WS2
 import { safetyResearchSystem } from '../safety/agendas';
@@ -70,6 +71,7 @@ export const SYSTEMS: readonly EngineSystem[] = [
   opexSystem, // 130 WS3 daily
   directorSystem, // 140 WS4 daily
   endingsSystem, // 150 WS4 daily
+  productsSystem, // 155 WS1 daily (R6 product policies: auto-evaluate, upgrade)
   recordSystem, // 160 WS1 weekly
   hiringSystem, // 200 WS1 weekly
   intelSystem, // 210 WS4 weekly
@@ -107,7 +109,8 @@ const VERB_TAG: Record<string, [ActionVerb, StructureSystem]> = {
   launchBase: ['train', 'models'], launchPost: ['train', 'models'], launchDistill: ['train', 'models'], launchContinue: ['train', 'models'],
   idaCycle: ['train', 'models'], cancelRun: ['train', 'models'], 'runs.setShare': ['train', 'models'], 'runs.spareTraining': ['policy', 'models'], 'build.first': ['policy', 'people'], startStream: ['train', 'models'], stopStream: ['train', 'models'],
   runEvals: ['policy', 'models'], retireVersion: ['launch', 'models'], makeVariant: ['launch', 'products'],
-  deploy: ['launch', 'products'], swapDeployment: ['launch', 'products'], setServing: ['launch', 'products'], withdraw: ['launch', 'products'],
+  'product.launch': ['launch', 'products'], 'product.update': ['launch', 'products'], 'product.retire': ['launch', 'products'],
+  'product.serving': ['policy', 'products'], 'products.policy': ['policy', 'products'], 'feature.build': ['launch', 'products'], 'feature.toggle': ['launch', 'products'],
   setInternalAgent: ['policy', 'models'],
   'research.queue': ['research', 'research'], 'research.start': ['research', 'research'], 'research.dequeue': ['research', 'research'], 'research.move': ['research', 'research'],
   'research.assign': ['research', 'research'], 'research.unassign': ['research', 'research'], 'research.autoAssign': ['policy', 'research'],

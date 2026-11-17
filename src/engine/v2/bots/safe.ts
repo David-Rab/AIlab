@@ -31,12 +31,8 @@ export const safeBot: BotPolicy = {
     // All agendas Serious (five Major); re-applied twice a year as the safety staff grows.
     if (every(s, 182)) for (const a of AGENDA_IDS) tryAct(s, api, 'safety.fund', { agenda: a, level: MAJOR.includes(a) ? 'major' : 'serious' });
     refPlay(s, api, SAFE_PLAY);
-    // Releases wait for external review (fullPlusExternal), which lands 2–8 weeks after a version is ready: keep the
-    // newest mini's own eval suite fresh so it can launch the day the report arrives.
-    if (every(s, 10, 5)) {
-      const mini = [...s.player.models.versions].reverse().find((v) => v.variant === 'mini' && v.status === 'ready');
-      if (mini && s.time.day - (mini.evals.suiteDay ?? -1e9) >= 24) tryAct(s, api, 'runEvals', { versionId: mini.id });
-    }
+    // Releases wait for external review (fullPlusExternal), which lands 2–8 weeks after a version is ready; since R6
+    // eval suites do not expire, so the mini launches the day the report arrives (no 24-day re-evals).
     financeAutopilot(s, SAFE_AUTOPILOT);
     if (every(s, 15)) {
       for (const id of ['A1', 'A2', 'A6', 'B5', 'F3', 'C1', 'C3', 'E1', 'E2']) tryAct(s, api, id, {});

@@ -11,7 +11,7 @@
 //
 // Safety nodes (alignment, interpretability, evals & control) mirror the safety techniques and agenda findings until R8
 // turns them into projects for safety science teams: read-only, known when their technique is unlocked.
-// Product-feature nodes (`soon: 'products'`) become researchable with live products (R6).
+// Product-feature nodes (Scaffold) are projects like any other; a known feature node lets the engineers build the feature (R6).
 import type { AgendaId, Column } from '../../engine/v2/types';
 
 export type Layer = 'backbone' | 'training' | 'scaffold' | 'lab';
@@ -135,9 +135,9 @@ export const TREE: TreeNodeDef[] = [
   P('P05', 'Multi-agent orchestration', 'systems', 'scaffold', ['P03'], 'M', { cap: 1, saf: -1 }, { options: [['effort', 'deep']], cap: 'Deep-think effort; agent research throughput ×1.3', saf: 'Many-copies pressure +', cost: 'Tokens ×10 for deep think' }),
   P('P07', 'Long context + memory', 'systems', 'scaffold', [], 'M', { cap: 1, saf: -1 }, { cap: 'Time horizon ×1.5; memory', saf: 'Memory → successor-risk pressure' }),
   N('agentsProduct', 'Agents product', 'systems', 'scaffold', ['P02'], 'M', 0.95, { cap: 1, saf: -1 }, { leaderKnown: true, cap: 'Agents product', saf: 'Overreach exposure', payoff: 'Pays off when the time horizon covers the tasks sold' }),
-  N('codingAgent', 'Coding agent', 'systems', 'scaffold', ['rl.swe', 'agentsProduct'], 'S', 0.95, { cap: 1 }, { soon: 'products', cap: 'Agents in Software & IT +0.5 L' }),
-  N('voiceVision', 'Voice & vision', 'systems', 'scaffold', ['multimodal'], 'S', 0.95, { cap: 1 }, { soon: 'products', cap: 'Consumer appeal +' }),
-  N('deepResearch', 'Deep research', 'systems', 'scaffold', ['P05'], 'S', 0.95, { cap: 1 }, { soon: 'products', cap: 'Consumer and enterprise quality +', cost: 'Tokens' }),
+  N('codingAgent', 'Coding agent', 'systems', 'scaffold', ['rl.swe', 'agentsProduct'], 'S', 0.95, { cap: 1 }, { cap: 'Agents in Software & IT +0.5 L' }),
+  N('voiceVision', 'Voice & vision', 'systems', 'scaffold', ['multimodal'], 'S', 0.95, { cap: 1 }, { cap: 'Consumer appeal +' }),
+  N('deepResearch', 'Deep research', 'systems', 'scaffold', ['P05'], 'S', 0.95, { cap: 1 }, { cap: 'Consumer and enterprise quality +', cost: 'Tokens' }),
   N('sectorPacks', 'Sector packs', 'systems', 'scaffold', ['enterprise'], 'S', 0.95, { cap: 1 }, { leaderKnown: true, cap: 'Sector products: sector level +0.5', cost: 'Cash, build time' }),
   P('P13', 'Automated AI research agents', 'systems', 'lab', ['rl.mlResearch'], 'L', { cap: 2, saf: -1 }, { cap: 'Experiment throughput up to ×1.5', saf: 'Sandbagging; AI research sabotage risk ↑', payoff: 'Pays off with your internal model\'s RSCH level (none at 6.5, full at 8.5)' }),
   P('P16', 'AI kernels / HW co-design', 'systems', 'lab', ['P13'], 'M', { cap: 1 }, { cap: 'Training FLOP ×1.15', cost: 'Serve ×0.75 (a saving)' }),

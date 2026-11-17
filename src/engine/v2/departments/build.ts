@@ -3,7 +3,8 @@
 // Engineering teams work one shared queue in priority order. Capacity (team-weeks per week) = Σ engineer heads/150 ×
 // quality × 1/(1 − A_eng), capped (departments/teams.ts buildCapacity). In R5 the queue holds run setups: a run is
 // launched at once but trains only when its setup is built ("waiting for engineers"); bigger base runs need more.
-// R6 adds product features, eval harnesses and safeguards (BuildKind).
+// R6: product features (built once lab-wide, then switched on per product).
+import { FEATURE_BY_ID, type FeatureId } from '../../../data/v2/features';
 import type { ActionDef, BuildItem, BuildKind, EngineSystem, GameStateV2, RunKind, TrainingRun } from '../types';
 import { buildCapacity } from './teams';
 
@@ -85,6 +86,10 @@ export const buildSystem: EngineSystem = {
       if (r) {
         r.readyDay = ctx.day;
         if (ctx.day - r.startDay > 1) ctx.log('research', `Engineers finished setting up ${r.name}: training started.`, 1, r.id);
+      }
+      if (it.kind === 'feature' && !s.player.features.includes(it.ref)) {
+        s.player.features.push(it.ref);
+        ctx.log('company', `Engineers finished building ${FEATURE_BY_ID[it.ref as FeatureId]?.name ?? it.ref}: switch it on for your products.`, 1, it.ref);
       }
     }
   },

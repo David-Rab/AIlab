@@ -65,7 +65,7 @@ export function RiskFlows({ s }: { s: GameStateV2 }) {
     const id = `dep:${d.id}`;
     nodes.push({
       id, label: d.channel, sub: v?.name ?? '', x: W / 2 + Math.cos(a) * (300 + (i % 2) * 50), y: H / 2 - 20 + Math.sin(a) * (150 + (i % 2) * 30), r: 11, color: SPHERE.prod, halo: 0,
-      pulse: openInc.some((x) => x.deploymentId === d.id), panel: 'deployments',
+      pulse: openInc.some((x) => x.deploymentId === d.id), panel: 'products',
       tip: () => <TipCard title={`${d.channel} · ${v?.name ?? d.versionId}`} rows={[{ label: 'Revenue', value: F.money(d.revenueRate ?? 0, { perYear: true }) }, { label: 'Binding', value: d.demandBound ?? '—' }, { label: <Term id="safeguards">Safeguards</Term>, value: d.safeguards }, { label: <Term id="kyc">KYC</Term>, value: d.kyc }]} />,
     });
     edges.push({ from: 'player', to: id, kind: 'serve', w: Math.min(1, (d.revenueRate ?? 0) / 20), label: '' });

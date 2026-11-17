@@ -18,7 +18,7 @@ export const NAV: NavItem[] = [
   { id: 'research', label: 'Research', icon: ICON.research, desc: 'Know-how, the tech tree, research projects and the queue.', group: 'MODELS' },
   { id: 'models', label: 'Models', icon: ICON.models, desc: 'Lineage, model card and runs in progress.', group: 'MODELS' },
   { id: 'blueprint', label: 'Blueprint', icon: ICON.runs, desc: 'Design your next model and start its training run: size, slots, limits and plan.', group: 'MODELS' },
-  { id: 'deployments', label: 'Deploy', icon: ICON.deploy, desc: 'Channels, pricing, serving capacity and demand.', group: 'MODELS' },
+  { id: 'products', label: 'Products', icon: ICON.deploy, desc: 'What customers buy: model and monitor, features, price, safeguards (all live), and the serving split.', group: 'MODELS' },
   { id: 'safety', label: 'Safety', icon: ICON.safety, desc: 'Trait graph, agendas, tools, incidents and findings.', group: 'SAFETY' },
   { id: 'risk', label: 'Risk', icon: ICON.risks, desc: 'Where catastrophe risk comes from, and the flows that feed it.', group: 'SAFETY' },
   { id: 'relations', label: 'Relations', icon: ICON.relations, desc: 'Government, public, rivals, China, evaluators; commitments.', group: 'WORLD' },
@@ -41,7 +41,7 @@ export function navBadges(s: GameStateV2): Record<string, { n: string; tone: 'wa
   const idleSci = idleTeams(s).length;
   if (idleSci) b.research = { n: String(idleSci), tone: 'warn' };
   if (w.some((x) => x.id === 'idle') && !b.compute) b.compute = { n: '!', tone: 'warn' };
-  if (w.some((x) => x.id === 'capped') && !b.deployments) b.deployments = { n: '!', tone: 'warn' };
+  if (w.some((x) => x.id === 'capped') && !b.products) b.products = { n: '!', tone: 'warn' };
   return b;
 }
 

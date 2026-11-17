@@ -10,11 +10,11 @@ import { hireStar } from '../departments/teams';
 import { TEAM_ACTIONS } from '../departments/teamActions';
 import { BUILD_ACTIONS } from '../departments/build';
 import type {
-  ActionDef, BaseDesign, Channel, ComputeSplit, CostLine, GameStateV2, PostDesign, RLFamily,
+  ActionDef, BaseDesign, ComputeSplit, CostLine, GameStateV2, PostDesign, RLFamily,
 } from '../types';
 import { runEvalSuite } from './benchmarks';
-import { deploy, makeVariant, retireVersion, setInternalAgent, setServing, swapDeployment, withdraw } from './deployments';
-import { revenueReadout } from '../worldfx/revenue';
+import { makeVariant, retireVersion, setInternalAgent } from './deployments';
+import { PRODUCT_ACTIONS } from './productOps';
 import { bestMeasuredL, internalVersion, versionById } from './labs';
 import { TREE_ACTIONS } from './treeActions';
 import { POOL_SHARE_RANGE, idleTrainingShare, launchRun, planRun, startStream, type LaunchRunParams } from './runs';
@@ -204,70 +204,6 @@ const RUN_ACTIONS: ActionDef[] = [
     apply: (s, _ctx, p) => fail(setInternalAgent(s, str(p, 'versionId', ''))),
   },
   {
-    id: 'deploy', sphere: 'models', owner: 'WS1', title: 'Deploy',
-    available: (s) => (s.player.models.versions.some((v) => v.status === 'ready' || v.status === 'deployed') ? true : 'No evaluated version'),
-    preview: (_s, p) => {
-      const ch = str(p, 'channel', 'api') as Channel;
-      const costs: CostLine[] = [{ currency: 'compute', amount: num(p, 'servingShare', 0.2), target: 'serving pool' }];
-      const exposure: CostLine[] = [];
-      if (ch === 'api' || ch === 'agents' || ch === 'consumer') exposure.push({ currency: 'leadDays', amount: -10, lagDays: 30, probability: 0.6 });
-      if (ch === 'open') costs.push({ currency: 'leadDays', amount: -60, target: 'rivals and China absorb the weights' });
-      exposure.push({ currency: 'approval', amount: -2, probability: 0.2, lagDays: 60 });
-      return { costs, gains: ch === 'open' ? [{ currency: 'trust', amount: 3, target: 'academia' }] : [{ currency: 'revenue', amount: 1 }], exposure };
-    },
-    apply: (s, ctx, p) => {
-      const r = deploy(s, ctx, {
-        versionId: str(p, 'versionId', ''), channel: str(p, 'channel', 'api') as Channel, priceIndex: num(p, 'priceIndex', 1),
-        effort: str(p, 'effort', 'max') as 'low' | 'max' | 'deep', kyc: Math.round(num(p, 'kyc', 1)) as 0 | 1 | 2 | 3,
-        ...(p.servingShare !== undefined ? { servingShare: num(p, 'servingShare', 0.2) } : {}),
-      });
-      if (typeof r === 'string') fail(r);
-    },
-  },
-  {
-    id: 'swapDeployment', sphere: 'models', owner: 'WS1', title: 'Swap model',
-    available: (s) => (s.player.deployments.some((d) => d.status === 'live' && d.channel !== 'open') ? true : 'Nothing deployed'),
-    preview: (s, p) => {
-      const v = versionById(s, str(p, 'versionId', ''));
-      return {
-        costs: [{ currency: 'staffTime', amount: 5 }],
-        gains: [{ currency: 'revenue', amount: v ? 0.5 : 0 }],
-        exposure: [{ currency: 'leadDays', amount: -5, lagDays: 30, probability: 0.5 }, { currency: 'approval', amount: -1, probability: 0.1 }],
-      };
-    },
-    apply: (s, _ctx, p) => fail(swapDeployment(s, str(p, 'deploymentId', ''), str(p, 'versionId', ''))),
-  },
-  {
-    // Serving pool reservations (§3.3.5). No deploymentId: re-split the reserved total by current demand (WS5's
-    // revenue readout) — the product team's weekly rebalance.
-    id: 'setServing', sphere: 'models', owner: 'WS1', title: 'Serving capacity',
-    available: (s) => (s.player.deployments.some((d) => d.status === 'live' && d.channel !== 'internal' && d.channel !== 'open') ? true : 'Nothing deployed'),
-    preview: (s, p) => {
-      const d = s.player.deployments.find((x) => x.id === str(p, 'deploymentId', ''));
-      const share = num(p, 'share', d?.servingShare ?? 0.2);
-      return {
-        costs: [{ currency: 'compute', amount: Math.max(0, share - (d?.servingShare ?? 0)), target: 'serving pool' }, { currency: 'staffTime', amount: 2 }],
-        gains: [{ currency: 'revenue', amount: 0.5 }],
-        exposure: [{ currency: 'approval', amount: -1, probability: 0.05 }],
-      };
-    },
-    apply: (s, _ctx, p) => {
-      const id = str(p, 'deploymentId', '');
-      if (id) return fail(setServing(s, id, num(p, 'share', 0.2)));
-      const rd = revenueReadout(s);
-      fail(setServing(s, undefined, 0, new Map(rd.deps.map((x) => [x.id, x.demand]))));
-    },
-  },
-  {
-    id: 'withdraw', sphere: 'models', owner: 'WS1', title: 'Withdraw',
-    available: (s) => (s.player.deployments.some((d) => d.status === 'live' && d.channel !== 'internal' && d.channel !== 'open') ? true : 'Nothing to withdraw'),
-    preview: (s, p) => {
-      const d = s.player.deployments.find((x) => x.id === str(p, 'deploymentId', ''));
-      return { costs: [{ currency: 'revenue', amount: -(d?.revenueRate ?? 1) }], gains: [{ currency: 'compute', amount: d?.servingShare ?? 0.1, target: 'serving pool' }], exposure: [{ currency: 'trust', amount: -1, probability: 0.3 }] };
-    },
-    apply: (s, _ctx, p) => fail(withdraw(s, str(p, 'deploymentId', ''))),
-  },
-  {
     id: 'makeVariant', sphere: 'models', owner: 'WS1', title: 'Make variant',
     available: () => true,
     preview: (_s, p) => {
@@ -381,4 +317,4 @@ export const DEPARTMENT_ACTIONS: ActionDef[] = [
 ];
 
 /** Models + Departments spheres (registered in core/registry.ts). */
-export const MODEL_ACTIONS: ActionDef[] = [...RUN_ACTIONS, ...TREE_ACTIONS, ...DEPARTMENT_ACTIONS];
+export const MODEL_ACTIONS: ActionDef[] = [...RUN_ACTIONS, ...PRODUCT_ACTIONS, ...TREE_ACTIONS, ...DEPARTMENT_ACTIONS];
