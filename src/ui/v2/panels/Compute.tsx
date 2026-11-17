@@ -7,8 +7,10 @@ import { actionView, chipFit, cloudPricePerYear, computeForecast, computeHistory
 import type { ChipOrder, ForecastEvent, ForecastQ, GameStateV2, Site } from '../../../engine/v2';
 import { CHIP_TIERS, SITE_PATHS, SITE_TIERS } from '../../../data/v2/deals';
 import { store } from '../store';
+import { act as engineAct, runwayOf } from '../../../engine/v2';
+import type { CostLine } from '../../../engine/v2';
 import { ActBtn, Limit, Gate, Seg, Term, Tip, TipCard, Toggle } from '../ui';
-import { Card, CostPills, HBar, KV, OptionTile, PanelHead, Pill, Ref, Spark2, tabOf, Tabs } from '../kit';
+import { Card, HBar, KV, OptionTile, PanelHead, Pill, Ref, Spark2, tabOf, Tabs } from '../kit';
 import * as F from '../fmt';
 import { ICON } from '../icons';
 import { C } from '../theme';
@@ -108,7 +110,7 @@ function Status({ s, fc }: { s: GameStateV2; fc: ForecastQ[] }) {
     <div className="cst-row">
       {tile(t1, 'idleChips', 'sites')}
       {tile(t2, 'emptyRacks', 'orders')}
-      {tile({ ...t3 }, 'vendorFill', 'market')}
+      {tile({ ...t3 }, 'vendorFill', 'orders')}
     </div>
   );
 }
@@ -202,7 +204,7 @@ function Forecast({ s, fc, later }: { s: GameStateV2; fc: ForecastQ[]; later: { 
         })}
         {later.slice(0, 2).map((l, j) => (
           <text key={j} x={W - R - 2} y={T + 12 + j * 15} className="cfc-ev" fill="#9fb0c3" textAnchor="end" pointerEvents="none">
-            {l.ev.kind === 'siteLive' ? `${l.ev.name} (${F.power(l.ev.mw)}) ≈ ${qLabel(s, l.q)} ›` : `${evText(l.ev)} ${qLabel(s, l.q)} ›`}
+            {l.ev.kind === 'siteLive' ? `${l.ev.name} (${F.power(l.ev.mw)}) live ≈ ${qLabel(s, l.q)} ›` : `${evText(l.ev)} ${qLabel(s, l.q)} ›`}
           </text>
         ))}
       </svg></div>
@@ -226,6 +228,55 @@ function QuarterTip({ s, q }: { s: GameStateV2; q: ForecastQ }) {
 
 // ───────── three ways to add compute ─────────
 
+/** Jank C1: every order, build or rental shows what it does before the click: labelled cost lines (when each payment
+ *  falls due), then cash, runway and chips without racks before → after (the action applied to a copy of the game). */
+function peakNoRacks(s: GameStateV2): { h: number; q?: number } {
+  let best = { h: 0, q: undefined as number | undefined };
+  for (const q of computeForecast(s, 10).quarters) if (q.idle > best.h) best = { h: q.idle, q: q.q };
+  return best;
+}
+interface WhatIf { cash: number; runway: number; racks: { h: number; q?: number } }
+function whatIf(s: GameStateV2, id: string, params: Record<string, number | string | boolean>): WhatIf | undefined {
+  const c = structuredClone(s);
+  if (engineAct(c, id, params)) return undefined;
+  return { cash: c.player.finance.cash - s.player.finance.cash, runway: runwayOf(c).q, racks: peakNoRacks(c) };
+}
+function ComputePreview({ s, id, params, arrives }: { s: GameStateV2; id: string; params: Record<string, number | string | boolean>; arrives: ReactNode }) {
+  const v = actionView(s, id, params);
+  const week = Math.floor(s.time.day / 7);
+  const key = `${week}|${id}|${JSON.stringify(params)}`;
+  const [memo, setMemo] = useState<{ key: string; r: ReturnType<typeof whatIf>; rw: number; racks: ReturnType<typeof peakNoRacks> } | undefined>(undefined);
+  useEffect(() => {
+    if (memo?.key === key) return;
+    setMemo({ key, r: whatIf(s, id, params), rw: runwayOf(s).q, racks: peakNoRacks(s) });
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const lbl = (c: CostLine) => c.target ?? (c.lagDays ? `in ${F.days(c.lagDays)}` : 'now');
+  const m = memo?.key === key ? memo : undefined;
+  const w = m?.r;
+  const runCap = 8;
+  return (
+    <div className="cac-pv2" data-test={`preview.${id}`}>
+      <div className="cac-lines">
+        {v.costs.filter((c) => c.amount !== 0).map((c, i) => <span key={`c${i}`} className="cac-line"><span className="dim">{lbl(c)}</span> <b className="num tone-neg">{F.money(c.amount, { signed: true })}</b></span>)}
+        {v.gains.filter((c) => c.amount !== 0 && c.currency === 'compute').map((c, i) => <span key={`g${i}`} className="cac-line"><span className="dim">{arrives}</span> <b className="num tone-pos">+{F.count(c.amount)} H100e</b></span>)}
+      </div>
+      {m && w && (
+        <Tip content={() => <TipCard title="Before → after" rows={[
+          { label: <Term id="cash">Cash now</Term>, value: `${F.money(s.player.finance.cash)} → ${F.money(s.player.finance.cash + w.cash)}` },
+          { label: <Term id="runway">Runway</Term>, value: `${F.runway(m.rw, runCap)} → ${F.runway(w.runway, runCap)}`, tone: w.runway < m.rw - 0.05 ? 'neg' : 'neutral' },
+          { label: <Term id="idleChips">Chips with no racks</Term>, value: `${F.count(m.racks.h)} → ${F.count(w.racks.h)} H100e (peak, next 10 q)`, tone: w.racks.h > m.racks.h + 1 ? 'neg' : 'neutral' },
+        ]} footer="The action applied to a copy of today's game: every payment in the quarter it falls due.">What this commits you to.</TipCard>}>
+          <div className="cac-ba small">
+            <span className="dim">cash</span> <span className="num">{F.money(s.player.finance.cash)} → <b>{F.money(s.player.finance.cash + w.cash)}</b></span>
+            <span className="dim">runway</span> <span className="num">{F.runway(m.rw, runCap)} → <b className={w.runway < m.rw - 0.05 ? (w.runway < 3 ? 'tone-neg' : 'tone-warn') : ''}>{F.runway(w.runway, runCap)}</b></span>
+            {w.racks.h > m.racks.h + 1 && <span className="tone-neg">⚠ {F.count(w.racks.h - m.racks.h)} H100e with no racks{w.racks.q !== undefined ? ` from ${qLabel(s, w.racks.q)}` : ''}</span>}
+          </div>
+        </Tip>
+      )}
+    </div>
+  );
+}
+
 function OrderCard({ s }: { s: GameStateV2 }) {
   const [tier, setTier] = useState(2);
   const [kind, setKind] = useState<ChipOrder['kind']>('standard');
@@ -246,7 +297,7 @@ function OrderCard({ s }: { s: GameStateV2 }) {
             tip={() => <TipCard title={`${F.count(h)} H100e`} rows={[{ label: <Term id="mw">Racks needed</Term>, value: F.power((h * kW) / 1000) }, { label: 'Price each', value: `$${orderQuote(s, kind, h, nonTW).price.toFixed(1)}K` }]} />} />
         ))}
       </div>
-      <div className="cac-pv"><CostPills v={actionView(s, id, params)} /><span className="dim small">arrives {qLabel(s, qt.dueQ)}</span><Limit id="order.terms">{kind === 'lta' ? 'LTA 4–12 q' : kind === 'standard' ? 'deposit 30–100%' : 'no deposit'}</Limit></div>
+      <div className="cac-pv"><ComputePreview s={s} id={id} params={params} arrives={<>arrive {qLabel(s, qt.dueQ)}</>} /><Limit id="order.terms">{kind === 'lta' ? 'LTA 4–12 q' : kind === 'standard' ? 'deposit 30–100%' : 'no deposit'}</Limit></div>
       {open && (
         <div className="cac-opts">
           <div className="cmp-row"><span className="dim small">Contract</span><Seg value={kind} options={[{ v: 'standard', label: 'Standard', tip: '30% deposit, 2 quarters' }, { v: 'spot', label: 'Spot', tip: 'next quarter, spot price, lowest priority' }, { v: 'lta', label: 'LTA', tip: 'every quarter at 95% of list, take-or-pay' }]} onChange={setKind} /></div>
@@ -301,7 +352,7 @@ function BuildCard({ s }: { s: GameStateV2 }) {
           );
         })}
       </div>
-      <div className="cac-pv"><CostPills v={actionView(s, 'cmp.newSite', params)} /><span className="dim small">live ≈ {qLabel(s, liveQ)}</span>{(() => { const z = siteSizeView(s, path); const short = z.leaseGW !== undefined && z.leaseGW * 1000 < mw; return <Limit id="site.mw" tone={short ? 'bind' : 'quiet'}>{F.power(z.min)}–{F.power(z.max)}{z.leaseGW !== undefined ? ` · lease pool ${F.power(z.leaseGW * 1000)}` : ''}</Limit>; })()}</div>
+      <div className="cac-pv"><ComputePreview s={s} id="cmp.newSite" params={params} arrives={<>racks for, live ≈ {qLabel(s, liveQ)}</>} />{(() => { const z = siteSizeView(s, path); const short = z.leaseGW !== undefined && z.leaseGW * 1000 < mw; return <Limit id="site.mw" tone={short ? 'bind' : 'quiet'}>{F.power(z.min)}–{F.power(z.max)}{z.leaseGW !== undefined ? ` · lease pool ${F.power(z.leaseGW * 1000)}` : ''}</Limit>; })()}</div>
       {open && (
         <div className="cac-opts">
           <Toggle on={crash} onChange={setCrash} label={<><Term id="crashBuild">Crash build</Term> · 4q, +35%</>} />
@@ -332,7 +383,7 @@ function CloudCard({ s }: { s: GameStateV2 }) {
         {CHIP_TIERS.map((h, i) => <OptionTile key={h} label={F.count(h)} active={tier === i} onClick={() => setTier(i)} testId={`cloud-${i}`} />)}
       </div>
       <div className="cmp-row"><span className="dim small">Term</span><Seg value={years} options={[1, 3, 5].map((v) => ({ v, label: `${v} yr` }))} onChange={setYears} /></div>
-      <div className="cac-pv"><CostPills v={actionView(s, 'cmp.cloudContract', params)} /><span className="dim small">online {qLabel(s, qOf(s) + 1)}</span>{(() => { const sp = spotRentalView(s, h100e); return <Limit id="rent.spotCap" tone={sp.get < h100e ? 'warn' : 'quiet'}>spot: you'd get {F.count(sp.get)} of {F.count(h100e)}</Limit>; })()}</div>
+      <div className="cac-pv"><ComputePreview s={s} id="cmp.cloudContract" params={params} arrives={<>online {qLabel(s, qOf(s) + 1)}</>} />{(() => { const sp = spotRentalView(s, h100e); return <Limit id="rent.spotCap" tone={sp.get < h100e ? 'warn' : 'quiet'}>spot: you'd get {F.count(sp.get)} of {F.count(h100e)}</Limit>; })()}</div>
       {open && (
         <div className="cac-opts">
           <Toggle on={cancellable} onChange={setCancellable} label={<>Cancellable · 1q notice, +15%</>} />
@@ -419,7 +470,7 @@ function SiteTimeline({ s }: { s: GameStateV2 }) {
                 )}
                 {x.stage === 'blocked' && <i className="stl-seg blocked" style={{ left: X(start), width: W(start, now) }} />}
               </span>
-              <span className="small stl-st">{x.stage === 'live' ? <span className="tone-pos">live</span> : x.stage === 'blocked' ? <span className="tone-neg">blocked</span> : <><Term id={STAGE_TERM[x.stage] ?? 'site'}>{STAGE_LABEL[x.stage]}</Term> <span className="dim">→ {fmtMonth(dateOf(s, x.stageEndDay))}</span></>}</span>
+              <span className="small stl-st">{x.stage === 'live' ? <span className="tone-pos">live</span> : x.stage === 'blocked' ? <span className="tone-neg">blocked</span> : <><Term id={STAGE_TERM[x.stage] ?? 'site'}>{STAGE_LABEL[x.stage]}</Term> <span className="dim">until {fmtMonth(dateOf(s, x.stageEndDay))} · live ≈ {qLabel(s, qOf(s, live))}</span></>}</span>
               <span className="stl-act">
                 {x.stage === 'permitting' && odds.block > 0.005 && <Pill kind={odds.block > 0.1 ? 'bad' : 'warn'} title="chance local opposition blocks the site">block {F.pct(odds.block)}</Pill>}
                 {x.stage === 'permitting' && !x.communityPackage && <ActBtn id="cmp.communityPackage" params={{ siteId: x.id }} label="Community deal" />}
@@ -541,19 +592,21 @@ function Market({ s }: { s: GameStateV2 }) {
       </div>
       <div className="tip-cap">Supply by component</div>
       {COMP.map((c) => {
-        const bind = m.binding === c.bind;
+        // Jank C2: the lowest component caps supply, but it only binds when demand reaches supply.
+        const lowest = m.binding === c.bind;
+        const bind = lowest && m.demandQ >= 0.95 * m.supplyQ;
         return (
           <div className="cmp-bar" key={c.k}>
-            <span><Term id={c.term}>{c.label}</Term>{bind && <span className="tag2 warn" style={{ marginLeft: 6 }}>binding</span>}</span>
+            <span><Term id={c.term}>{c.label}</Term>{lowest && <Tip content={() => <TipCard title={bind ? 'Binding' : 'Tightest, not binding'} rows={[{ label: 'Supply this quarter', value: `${F.count(m.supplyQ)} H100e` }, { label: 'Demand this quarter', value: `${F.count(m.demandQ)} H100e` }]}>{bind ? 'The scarcest component caps chip supply and demand meets that cap: orders are rationed by order weight.' : 'The scarcest component sets the supply cap, but demand is below it: orders fill.'}</TipCard>}><span className={`tag2 ${bind ? 'warn' : ''}`} style={{ marginLeft: 6 }}>{bind ? 'binding' : 'tightest'}</span></Tip>}</span>
             <HBar v={m[c.k]} max={kmax} w="100%" h={8} color={bind ? C.watch : '#6b7c91'} />
             <span className={`num ${bind ? 'tone-warn' : ''}`}>{F.count(m[c.k])}</span>
           </div>
         );
       })}
       <KV k="Supply · demand this quarter">{F.count(m.supplyQ)} · {F.count(m.demandQ)} H100e</KV>
-      <KV k="Your order weight" term="allocation">{m.ws3.playerWeight.toFixed(2)}</KV>
+      <KV k="Your order weight" term="allocation">×{m.ws3.playerWeight.toFixed(2)} a new buyer's</KV>
       <KV k="Export policy" term="exportPolicy">{F.words(m.exportPolicy)}</KV>
-      <KV k="Taiwan risk" term="taiwanRisk">{m.geoTW.toFixed(2)}</KV>
+      <KV k="Made in Taiwan" term="taiwanRisk">{F.pct(m.geoTW)} of leading chips</KV>
       <div className="btn-row" style={{ marginTop: 6 }}><Gate s={s} k="compute"><ActBtn id="cmp.fundSupplier" params={{ amount: 2 }} label="Fund a supplier ($2B)" icon={ICON.raise} /></Gate></div>
     </Card>
   );
@@ -567,12 +620,12 @@ export function Compute({ s }: { s: GameStateV2 }) {
   return (
     <div className="panel-v2 cmp" data-panel="compute">
       <PanelHead icon={ICON.computePanel} title="Compute" sub="chips, sites and cloud"
-        tabs={<Tabs panel="compute" def="overview" tabs={[{ id: 'overview', label: 'Overview', icon: ICON.overview }, { id: 'sites', label: 'Sites', icon: ICON.sites, badge: sitesBadge }, { id: 'split', label: 'Split', icon: ICON.split }, { id: 'orders', label: 'Orders', icon: ICON.compute }, { id: 'market', label: 'Market', icon: ICON.supply }]} />}
+        tabs={<Tabs panel="compute" def="overview" tabs={[{ id: 'overview', label: 'Overview', icon: ICON.overview }, { id: 'sites', label: 'Sites', icon: ICON.sites, badge: sitesBadge }, { id: 'split', label: 'Split', icon: ICON.split }, { id: 'orders', label: 'Orders & market', icon: ICON.supply }]} />}
         right={<span className="row-i"><Ref id="computeOnline" to={{ panel: 'company', tab: 'flow' }}>Compute online</Ref></span>} />
       {tab === 'overview' && <Overview s={s} />}
       {tab === 'sites' && <SitesTab s={s} />}
-      {tab === 'orders' && <div className="g2"><Deliveries s={s} /><Cloud s={s} /></div>}
-      {tab === 'market' && <Market s={s} />}
+      {/* Jank C4: orders, cloud and the chip market share one tab (each used under 40% of the screen alone). */}
+      {(tab === 'orders' || tab === 'market') && <div className="g3"><Deliveries s={s} /><Cloud s={s} /><Market s={s} /></div>}
       {tab === 'split' && <Split s={s} />}
     </div>
   );

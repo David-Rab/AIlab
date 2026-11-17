@@ -9,6 +9,7 @@ import {
   BUILD_AI_CAP, WSL_TARGET_RANGE, buildBacklogTW, buildCapacity, buildEtas, engine, fillWeeks, fullTeamPayroll, idleChips, ownedOnline, payrollOf, poolsOf, queuedOfKey,
   rentedOnline, researchSpeedLimits, revenueReadout, securityFloorView, SPLIT_KEYS, teamGain, teamPayroll, teamsOfKey, weeklyHireCap,
 } from '../../../engine/v2';
+import { PROJECT_BY_ID } from '../../../data/v2/tree';
 import { COLUMN_LABEL, MOVE_SAFETY_MORALE, QUALITY, TEAM_KEYS, TEAM_SIZE } from '../../../data/v2/teams';
 import type { Column, GameStateV2, SpeedLimitLine, Team, TeamDept, TeamKey, TeamQuality, TeamRole } from '../../../engine/v2';
 import { AgentsAtWork } from './Agents';
@@ -132,7 +133,8 @@ function SpeedLimits({ s }: { s: GameStateV2 }) {
       {lines.map((l) => (
         <div className="rs-lim" key={l.id}>
           <span className="dim">{SPEED_LIMIT_LABEL[l.id]}</span>
-          <Limit id={l.id} tone={l.binding ? (l.mult < 1 ? 'bind' : 'warn') : 'quiet'}>{l.text}</Limit>
+          {/* Jank ST4: diffusion above 100% read like a bug; show it as a multiple of your own know-how growth. */}
+          <Limit id={l.id} tone={l.binding ? (l.mult < 1 ? 'bind' : 'warn') : 'quiet'}>{l.id === 'speed.diffusion' && l.binding ? l.text.replace(/^\+(\d+)% know-how from (.*)$/, (_, n: string, who: string) => `know-how ×${(1 + Number(n) / 100).toFixed(1)} your own rate, from ${who}`) : l.text}</Limit>
           {l.id === 'speed.frontierMethods' && l.binding && l.fix && l.fix.length > 0 && <Ref id="techTree" to={{ panel: 'research' }}>{l.fix.join(' · ')}</Ref>}
         </div>
       ))}
@@ -151,16 +153,16 @@ function ResearchSpeed({ s }: { s: GameStateV2 }) {
   return (
     <Card title={<Term id="rdmult">Research speed</Term>} right={<span className="tag2 warn"><Term id={p.label === 'compute-bound' ? 'computeBound' : p.label === 'labor-bound' ? 'laborBound' : p.label === 'human-bound' ? 'humanBound' : 'tasteBound'}>{p.label}</Term></span>} home="M">
       <div className="rs-chain">
-        <span className="rs-node"><b className="num">{F.count(pools.experiments)}</b><span><Term id="experiments">experiments</Term></span></span><span className="ar">›</span>
-        <span className="rs-node"><b className="num">{F.count(p.labor.aiFTE)}</b><span><Term id="aiFte">AI FTE</Term></span></span><span className="ar">›</span>
-        <span className="rs-node hero"><b className="num">{F.mult(p.M)}</b><span><Term id="rdmult">R&D speed</Term></span></span>
+        <Tip content={() => <TipCard title={<Term id="experiments">Experiments</Term>} value={`${F.count(pools.experiments)} H100e`} rows={[{ label: 'More experiments', value: `+10% → ${F.pct(Math.pow(1.1, p.elast.exp) - 1, 1, true)} speed` }]}>Compute running research experiments (Compute › Split).</TipCard>}><span className="rs-node"><b className="num">{F.count(pools.experiments)}</b><span><Term id="experiments">experiments</Term></span></span></Tip><span className="ar">›</span>
+        <Tip content={() => <TipCard title={<Term id="aiFte">AI FTE</Term>} value={F.count(p.labor.aiFTE)} rows={[{ label: 'More AI agents', value: `+10% → ${F.pct(Math.pow(1.1, p.elast.agents) - 1, 1, true)} speed` }]}>AI research agents counted in full-time researchers.</TipCard>}><span className="rs-node"><b className="num">{F.count(p.labor.aiFTE)}</b><span><Term id="aiFte">AI FTE</Term></span></span></Tip><span className="ar">›</span>
+        <Tip content={() => <TipCard title={<Term id="rdmult">Research speed</Term>} value={F.mult(p.M)} rows={[{ label: 'Binding', value: p.label }]}>How fast your lab gains know-how, as a multiple of a 2025 lab with no AI help.</TipCard>}><span className="rs-node hero"><b className="num">{F.mult(p.M)}</b><span><Term id="rdmult">R&D speed</Term></span></span></Tip>
       </div>
       <div className="tip-cap" style={{ marginTop: 10 }}>Best lever per dollar</div>
       {lev.map((l) => (
         <div className="rs-lev" key={l.id}>
           <span><l.icon size={13} /> {l.label}{l.gain < 0.001 ? <span className="dim"> · saturated</span> : null}</span>
           <HBar v={l.gain} max={maxG} color={C.good} w={70} />
-          <span className="num tone-pos">+{(l.gain * 100).toFixed(1)}%</span>
+          <Tip content={() => <TipCard title={l.label} value={`${F.pct(l.gain, 1, true)} research speed`} rows={[{ label: 'Per $1B a year', value: F.pct(l.perD, 2, true) }]}>Research speed from 10% more of this input, holding the rest.</TipCard>}><span className="num tone-pos">+{(l.gain * 100).toFixed(1)}%</span></Tip>
           <GoBtn to={l.to} label="Go" testId={`lever.${l.id}`} />
         </div>
       ))}
@@ -253,7 +255,7 @@ function Teams({ s }: { s: GameStateV2 }) {
             actions={releaseBtn(newest('eng'))} />
           <RoleHead r="re" />
           <Pile k="re.cap" label="Capabilities"
-            sub={<Tip content={() => <TipCard title="Research labour h" value={prod.ratios.h.toFixed(2)}>Capabilities research engineers ÷ (0.55 × the reference lab's staff). ×1 = the AI 2027 leader.</TipCard>}><span>labour <b className="num">h {prod.ratios.h.toFixed(2)}</b></span></Tip>}
+            sub={<Tip content={() => <TipCard title="Research labour" value={`×${prod.ratios.h.toFixed(2)} the reference lab`}>Capabilities research engineers ÷ (0.55 × the reference lab's staff). ×1 = the AI 2027 leader.</TipCard>}><span>labour <b className="num">×{prod.ratios.h.toFixed(2)}</b> <span className="dim">of the leader's</span></span></Tip>}
             actions={<>{moveBtn(newest('re.cap'))}{releaseBtn(newest('re.cap'))}</>} />
           <Pile k="re.saf" label="Safety" sub={<span>tools · investigations</span>} actions={<>{moveBtn(newest('re.saf'))}{releaseBtn(newest('re.saf'))}</>} />
         </div>
@@ -275,7 +277,7 @@ function Teams({ s }: { s: GameStateV2 }) {
                   return (
                     <div key={t.id} className={`sci-card ${d}`} data-team={t.id}>
                       <div className="row-i"><Ic size={13} /><b>{t.specialty ? COLUMN_LABEL[t.specialty] : 'Science'}</b><span className="sp" /><QDots q={t.quality} /></div>
-                      <div className="row-i small dim">{t.heads < t.size - 0.5 ? `${F.count(t.heads)}/${t.size} people` : `${t.size} people`}<span className="sp" />{releaseBtn(t, '')}</div>
+                      <div className="row-i small dim"><Tip content={() => <TipCard title={teamTitle(t)} rows={[{ label: 'People', value: `${F.count(t.heads)} of ${t.size}` }, { label: 'Project', value: t.projectId ? (PROJECT_BY_ID[t.projectId]?.name ?? t.projectId) : 'none (idle)' }]}>Click Research to change its project.</TipCard>}><span>{t.heads < t.size - 0.5 ? `${F.count(t.heads)}/${t.size} people` : `${t.size} people`}</span></Tip><span className="sp" />{releaseBtn(t, '')}</div>
                     </div>
                   );
                 })}
@@ -342,7 +344,12 @@ function Hiring({ s }: { s: GameStateV2 }) {
             <span className={`offer-ic ${c.dept}`}><Ic size={16} /></span>
             <div className="offer-main">
               <div className="row-i"><b>{teamTitle(c)}</b><QDots q={c.quality} /></div>
-              <div className="row-i small"><span className="num">{F.money(fullTeamPayroll(c.role, c.dept, c.quality), { perYear: true })}</span><span className="dim">· {Number.isFinite(wk) ? `${wk} wk` : 'stalled'} · until {c.until - s.time.day} d</span><GainChip s={s} t={c} /></div>
+              <div className="row-i small">
+                <Tip content={() => <TipCard title={<Term id="payroll">Payroll</Term>} value={F.money(fullTeamPayroll(c.role, c.dept, c.quality), { perYear: true })}>The team's yearly cost once it is full.</TipCard>}><span className="num">{F.money(fullTeamPayroll(c.role, c.dept, c.quality), { perYear: true })}</span></Tip>
+                <Tip content={() => <TipCard title="Ramp-up" value={Number.isFinite(wk) ? `${wk} weeks` : 'stalled'}>Weeks until the team is full, at today's hiring pace (talent pull and the hiring lane).</TipCard>}><span className="dim">· fills in {Number.isFinite(wk) ? `${wk} wk` : '— (stalled)'}</span></Tip>
+                <Tip content={() => <TipCard title="Offer expires" value={`in ${c.until - s.time.day} d`}>Hire before then or the candidate team takes another offer.</TipCard>}><span className="dim">· offer ends in {c.until - s.time.day} d</span></Tip>
+                <GainChip s={s} t={c} />
+              </div>
             </div>
             <ActBtn id="teams.hire" params={{ candidate: c.id }} icon={ICON.hiring} label="Hire" primary />
           </div>
@@ -384,7 +391,8 @@ function Security({ s }: { s: GameStateV2 }) {
       <Card title="Controls">
         <KV k={`Siloing ${p.security.siloing}`} term="siloing"><span className="row-i"><ActBtn id="SEC_SILO" params={{ level: Math.min(2, p.security.siloing + 1) }} label="Silo +1" /><ActBtn id="SEC_SILO" testId="SEC_SILO.down" params={{ level: Math.max(0, p.security.siloing - 1) }} label="Silo −1" /></span></KV>
         <KV k={`Counter-intel ${F.pct(p.security.counterIntel)}`} term="counterIntel"><ActBtn id="SEC_CI" /></KV>
-        <KV k="KYC per channel" term="kyc"><span className="small dim">{p.deployments.filter((d) => d.status === 'live').map((d) => `${d.channel} ${d.kyc}`).join(' · ') || 'set per deployment'}</span></KV>
+        {/* Jank PR6: KYC has one home, the product card; Security links there. */}
+        <KV k="KYC" term="kyc"><Ref id="kyc" to={{ panel: 'products' }}>set per product on Products</Ref></KV>
       </Card>
     </div>
   );

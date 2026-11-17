@@ -24,6 +24,7 @@ import * as F from '../fmt';
 import { DOMAIN_ICON, ICON } from '../icons';
 import { C } from '../theme';
 import { arrows } from './runEffects';
+import { runTitle } from './Models';
 import './blueprint.css';
 
 type Kind = 'base' | 'post' | 'distill' | 'continue';
@@ -632,7 +633,7 @@ function Plan({ s, kind, card, p, setShare, warn, children }: { s: GameStateV2; 
             {running.slice(0, 3).map((r) => {
               const left = Math.max(0, r.flopNeeded - r.flopDone) / Math.max(1, r.flopNeeded);
               const stall = runStall(s, r);
-              return <div className="bp-lane" key={r.id}><span className="bp-ll small dim">{r.name}</span><span className="bp-track2"><span className="bp-bar run" style={{ width: f(Math.max(3, left * (r.minDays || 60))) }} />{stall && <span className="small tone-warn bp-bl">{stall}</span>}</span></div>;
+              return <div className="bp-lane" key={r.id}><span className="bp-ll small dim">{runTitle(s, r)}</span><span className="bp-track2"><span className="bp-bar run" style={{ width: f(Math.max(3, left * (r.minDays || 60))) }} />{stall && <span className="small tone-warn bp-bl">{stall}</span>}</span></div>;
             })}
             <div className="bp-lane me"><span className="bp-ll small"><b>{KIND_LABEL[kind]}</b></span>
               <span className="bp-track2">

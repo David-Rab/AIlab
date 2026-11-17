@@ -43,7 +43,7 @@ export function Nav({ s }: { s: GameStateV2 }) {
         return (
           <div key={n.id} className={n.id === 'codex' ? 'nav2-bottom' : undefined}>
             {head}
-            <Tip as="div" place="right" content={() => <TipCard title={n.label} value={ok ? undefined : `Act ${act}`}>{ok ? n.desc : `Unlocks in Act ${act} · ${ACT_NAMES[act]} (${ACT_TRIGGER[act] ?? ''}).`}</TipCard>}>
+            <Tip as="div" place="right" closeOnClick content={() => <TipCard title={n.label} value={ok ? undefined : `Act ${act}`}>{ok ? n.desc : `Unlocks in Act ${act} · ${ACT_NAMES[act]} (${ACT_TRIGGER[act] ?? ''}).`}</TipCard>}>
               <button className={`nav2-it ${st.panel === n.id ? 'on' : ''} ${ok ? '' : 'lock'}`} data-nav={n.id} disabled={!ok} onClick={() => store.setPanel(n.id)}>
                 {ok ? <Icon size={18} /> : <ICON.locked size={16} />}
                 <span>{n.label}</span>

@@ -93,7 +93,7 @@ export function World({ s }: { s: GameStateV2 }) {
           </Section>
         </div>
       </div>
-      <Section title={<Term id="wtech">Technology tree</Term>} right={<span className="dim small">discovered · ramping · locked</span>}>
+      <Section title={<Term id="wtech">World technologies</Term>} right={<span className="dim small">discovered · ramping · locked</span>}>
         <div className="techtree">
           {WORLD_TECHS.map((t) => {
             const st = s.world.techs[t.id];
@@ -117,7 +117,7 @@ export function World({ s }: { s: GameStateV2 }) {
             );
           })}
         </div>
-        <Row label={<span><Term id="moonshot">Moonshot</Term> {tech || 'auto'} · {pct(share)} of compute <Limit id="moonshot.serving" tone={share >= 0.3 ? 'warn' : 'quiet'}>from serving · max 30%</Limit></span>}><Slider value={share} min={0} max={0.3} step={0.01} onChange={setShare} /><ActBtn id="wfx.moonshot" params={{ ...(tech ? { tech } : {}), share }} /></Row>
+        <Row label={<span><Term id="moonshot">Moonshot</Term> {tech || 'auto'} · {pct(share)} of compute <Limit id="moonshot.serving" tone={share >= 0.3 ? 'warn' : 'quiet'}>from serving · max 30%</Limit></span>}><Slider value={share} min={0} max={0.3} step={0.01} onChange={setShare} /><ActBtn id="wfx.moonshot" params={{ ...(tech ? { tech } : {}), share }} reason /></Row>
       </Section>
     </div>
   );

@@ -15,9 +15,10 @@ type Lever = { label: string; act?: { id: string; params?: Record<string, string
 const LEVERS: Record<RiskSource['kind'], Lever[]> = {
   ownModel: [{ label: 'Research lines', go: { panel: 'safety', tab: 'lines' } }, { label: 'Tighten eval gate', act: { id: 'safety.evalGate', params: { level: 'full' } } }, { label: 'Investigate scheming', act: { id: 'safety.investigate', params: { trait: 'SCHEME' } } }],
   rival: [{ label: 'Joint evals', act: { id: 'C3' } }, { label: 'Share threat intel', act: { id: 'C1' } }, { label: 'Publish research', act: { id: 'A4' } }],
-  china: [{ label: 'Track-2 dialogue', act: { id: 'E1' } }, { label: 'Gov-gov agreement', act: { id: 'E2' } }, { label: 'Raise security', act: { id: 'SEC_TARGET' } }],
+  // Jank RL2: security controls have one home (Company › Security); Risk links there.
+  china: [{ label: 'Track-2 dialogue', act: { id: 'E1' } }, { label: 'Gov-gov agreement', act: { id: 'E2' } }, { label: 'Security', go: { panel: 'company', tab: 'security' } }],
   misuse: [{ label: 'Classifier safeguards', go: { panel: 'products' } }, { label: 'Bug bounty', act: { id: 'A5' } }],
-  theft: [{ label: 'Raise WSL target', act: { id: 'SEC_TARGET' } }, { label: 'Counter-intel', act: { id: 'SEC_CI' } }, { label: 'Siloing', act: { id: 'SEC_SILO' } }],
+  theft: [{ label: 'Security target, siloing, counter-intel', go: { panel: 'company', tab: 'security' } }],
   rogue: [{ label: 'Control research', go: { panel: 'safety', tab: 'lines' } }, { label: 'Monitors', go: { panel: 'company', tab: 'people', anchor: 'agents' } }],
   war: [{ label: 'De-escalate', act: { id: 'E1' } }, { label: 'Loosen export controls', act: { id: 'E3', params: { direction: 'loosen' } } }],
 };
@@ -31,6 +32,16 @@ const DRIVER_REF: Partial<Record<RiskSource['kind'], { id: string; label: string
   misuse: { id: 'servingSplit', label: 'Products', to: { panel: 'products' } },
 };
 const DRV_COLORS = ['#c9d4e2', '#8a9bb0', '#5b6b80', '#3d4b5e'];
+/** Why a source carries risk, in one line (the drivers give the split). */
+const KIND_WHY: Record<RiskSource['kind'], string> = {
+  ownModel: 'Chance your own models cause a catastrophe: their believed misalignment, how capable they are and how much they do unwatched.',
+  rival: 'A rival lab adds risk from its own models (its safety culture and capability) even when it is behind you: being behind does not make its models safe.',
+  china: 'China\'s lab: its capability, safety culture and the race pressure on it.',
+  misuse: 'Misuse of your products: capability in dangerous domains, safeguards and how many users can reach it.',
+  theft: 'Your weights stolen and run without your safeguards: security level against attacker intent.',
+  rogue: 'An AI acting on its own outside oversight: autonomy, monitoring and control research.',
+  war: 'Conflict over AI: China\'s escalation ladder, Taiwan tension and export controls.',
+};
 const sevColor = (x: number) => (x > 0.2 ? C.bad : x > 0.05 ? C.watch : C.good);
 
 function Sources({ s }: { s: GameStateV2 }) {
@@ -65,7 +76,10 @@ function Sources({ s }: { s: GameStateV2 }) {
                 <i className="rs2-fill" style={{ width: X(r.estimate), background: sevColor(r.estimate) }} />
               </span>
             </Tip>
-            <span className="num rs2-v" style={{ color: sevColor(r.estimate) }}>{F.pct(r.estimate, 1)}</span>
+            {/* Jank RK1: every risk figure opens its breakdown (drivers, band, what moves it). */}
+            <Tip content={() => <TipCard title={r.label} value={`${F.pct(r.estimate, 1)} (${F.pct(r.band[0], 1)}–${F.pct(r.band[1], 1)})`} rows={r.drivers.map((d) => ({ label: d.label, value: F.pct(d.share) }))} footer={`Levers: ${LEVERS[r.kind].map((l) => l.label).join(' · ')}`}>{KIND_WHY[r.kind]}</TipCard>}>
+              <span className="num rs2-v" style={{ color: sevColor(r.estimate) }}>{F.pct(r.estimate, 1)}</span>
+            </Tip>
             <span className="rs2-lev">
               {ref && <Ref id={ref.id} to={ref.to}>{ref.label}</Ref>}
               {LEVERS[r.kind].map((l) => l.act

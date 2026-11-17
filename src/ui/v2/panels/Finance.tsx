@@ -7,6 +7,8 @@ import {
   parentSchedule, parentYear, payrollOf, qOf, raiseCeiling, runwayOf, totalDebt, DIVISION_REASON, RUNWAY_CAP,
 } from '../../../engine/v2';
 import { isDivision } from '../../../data/v2/starts';
+import { boardReview } from '../shell/selectors';
+import { OUSTER_NOTICE_D } from '../../../engine/v2';
 import type { BoardSeat, Debt, GameStateV2 } from '../../../engine/v2';
 import { ActBtn, Limit, CauseBars, Gate, Seg, Term, Tip, TipCard, Why } from '../ui';
 import { Card, CostPills, GoBtn, HBar, KV, PanelHead, Pill, tabOf, Tabs } from '../kit';
@@ -400,6 +402,21 @@ function BoardCard({ s }: { s: GameStateV2 }) {
           );
         })}
       </div>
+      {(() => {
+        // Jank ST3: when the board next decides and what it needs.
+        const br = boardReview(s);
+        if (br.division) return null;
+        return (
+          <Tip content={() => <TipCard title="Next board review" value={fmtDate(br.date)} rows={[
+            { label: <Term id="boardConf">Confidence</Term>, value: F.idx(br.bc), tone: br.bc < br.line ? 'neg' : 'neutral' },
+            { label: 'Ouster vote possible below', value: String(br.line) },
+            { label: 'Notice before a vote', value: `${OUSTER_NOTICE_D} d after the warning` },
+            { label: 'Ouster odds at this review', value: br.live ? F.pct(br.p) : 'none' },
+          ]}>The board meets every quarter. Plans met, revenue and a calm safety record raise confidence.</TipCard>}>
+            <div className="limit-row" data-test="board-review"><span className="dim small">Next review {fmtDate(br.date)} (in {br.inDays} d)</span><span className={`small ${br.live ? 'tone-neg' : br.bc < 35 ? 'tone-warn' : 'dim'}`}>confidence {F.idx(br.bc)} · needs {br.line}+{br.live ? ` · ouster odds ${F.pct(br.p)}` : ''}</span></div>
+          </Tip>
+        );
+      })()}
       {(() => { const h = incidentBoardHit(s); return <div className="limit-row"><span className="dim small">Public incidents at the next review</span><Limit id="board.incidentCap" tone={h.raw > h.cap ? 'warn' : h.capped > 0 ? 'bind' : 'quiet'}>{h.capped > 0 ? `−${h.capped}` : 'none'}{h.raw > h.cap ? ` (${h.raw} capped)` : ''} · max −{h.cap}/q</Limit></div>; })()}
       {b.pendingApprovals.length > 0 && (
         <div className="tip-sec">

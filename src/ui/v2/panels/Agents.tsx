@@ -82,6 +82,8 @@ function EditPop({ s, use, c, close }: { s: GameStateV2; use: AgentUse; c: Agent
     <div className="ag-pop" data-test={`agent-edit.${use}`}>
       <div className="pop-h"><Pencil size={12} /><b>{AGENT_USE_DEF[use].name}</b><span className="dim">· {use === 'safety' ? 'Safety budget' : 'Capabilities budget'}</span></div>
       <div className="pop-ch">{lines.map(([k, f, t]) => <div key={k}><span className="tag2">{k}</span> {f} → <b>{t}</b></div>)}</div>
+      {/* Jank M4: warn when the change moves the package to a model that measures below the one it replaces. */}
+      {c.versionId !== undefined && la.version && lb.version && la.L < lb.L - 0.05 && <div className="small tone-warn" data-test={`agent-worse.${use}`}>⚠ {la.version.name} measures L {F.level(la.L)}, below {lb.version.name} (L {F.level(lb.L)})</div>}
       {block ? <div className="tone-neg small">{block}</div> : (
         <div className="pv">
           {row(<Term id="rdmult">Research speed</Term>, b.M, a.M, (x) => F.mult(x))}
@@ -113,6 +115,7 @@ function Trusted({ s, v }: { s: GameStateV2; v: AgentsView }) {
     return (
       <TipCard title={<Term id="trustedToAI">Trusted to AI</Term>} value={F.pct(t.policy)} rows={[
         { label: 'In effect', value: t.gate === true ? F.pct(t.effective) : 'off (below the gate)' },
+        ...(t.gate !== true ? [{ label: 'Unlocks when', value: String(t.gate) }] : []),
         { label: 'Cap', value: `${F.pct(t.max)}${t.max < 1 ? ' until Automated alignment research' : ''}` },
         { label: 'Safety findings / yr', value: `${pv.findingsBefore.toFixed(1)} now · ${pv.findingsAfter.toFixed(1)} at +10%` },
         { label: <Term id="aiFte">AI FTE</Term>, value: F.count(v.safetyAiFte) },
@@ -122,6 +125,8 @@ function Trusted({ s, v }: { s: GameStateV2; v: AgentsView }) {
   return (
     <div className="ag-trust" data-home="trustedToAI">
       <Tip content={tip}><span className="row-i"><Term id="trustedToAI">Trusted to AI</Term> <b className="num" data-test="trusted-share">{F.pct(t.policy)}</b>{t.gate !== true && <span className="tag2 warn" data-test="trusted-gate">locked</span>}</span></Tip>
+      {/* Jank AG3: name what unlocks the gate where it binds. */}
+      {t.gate !== true && <span className="small dim" data-test="trusted-why">{t.gate}</span>}
       <span className="stepper">
         <ActBtn id="agents.trusted" testId="agents.trusted.down" params={{ share: at(t.policy - 0.1) }} icon={ICON.minus} label="" block={t.policy <= 0 ? 'Already 0%' : undefined} />
         <ActBtn id="agents.trusted" testId="agents.trusted.up" params={{ share: at(t.policy + 0.1) }} icon={ICON.plus} label="" block={t.policy >= t.max - 1e-9 ? `Capped at ${F.pct(t.max)}` : t.gate !== true ? t.gate : undefined} />
@@ -157,16 +162,20 @@ function Lane({ s, v, use, draft, setDraft }: { s: GameStateV2; v: AgentsView; u
       </div>
       <PkgChip kind="model" testId={`agent-model.${use}`} value={modelVal} options={models} changed={draft?.versionId !== undefined} onPick={(x) => setDraft({ ...(draft ?? {}), versionId: x || null })} />
       <PkgChip kind="monitor" testId={`agent-monitor.${use}`} value={monVal} options={monitors} changed={draft?.monitorId !== undefined} onPick={(x) => setDraft({ ...(draft ?? {}), monitorId: x || null })}
-        extra={l.monitor && <CatchX rate={l.catch} gap={l.gap} coverage={v.monitors.coverage} testId={`agent-catch.${use}`} note={<>Internal incidents on this fleet are caught with your detection tools × (½ + ½ × monitor strength {F.pct(l.strength)}). Paid from the safety budget.</>} />} />
+        extra={l.monitor && <>
+          <CatchX rate={l.catch} gap={l.gap} coverage={v.monitors.coverage} testId={`agent-catch.${use}`} note={<>Internal incidents on this fleet are caught with your detection tools × (½ + ½ × monitor strength {F.pct(l.strength)}). Paid from the safety budget.</>} />
+          {/* Jank AG1: a model watching a copy of itself can collude; say so where the monitor is chosen. */}
+          {(pkg.monitorId === MONITOR_SAME || (pkg.monitorId && pkg.monitorId === (pkg.versionId ?? routine?.id))) && <Tip content={() => <TipCard title="Same model watching itself">A copy of the model it monitors shares its goals and blind spots: if the model schemes, the monitor may cover for it. A different model (ideally weaker but trusted) is the standard control setup.</TipCard>}><span className="tag2 warn" data-test={`same-monitor.${use}`}>same model</span></Tip>}
+        </>} />
       <div className="ag-cmp">
         <Tip content={() => <TipCard title={<Term id="agentBudget">Compute</Term>} value={`${F.h100e(l.compute)} H100e`} rows={[
           { label: use === 'safety' ? 'Share of the safety pool' : 'Share of the agent pool', value: F.pct(l.share) },
           { label: <Term id="agentCopies">Copies × speed</Term>, value: `${F.count(l.copies)} × ${l.speed.toFixed(0)}` },
           ...(l.monitor ? [{ label: <Term id="agentMonitor">Monitor (safety pool)</Term>, value: `${F.h100e(l.monitorH100e)} H100e` }] : []),
         ]}>{use === 'safety' ? 'Safety research agents run on a share of the safety budget.' : 'Engineering, routine and frontier research agents share the capabilities agent pool; Auto splits that budget between experiments and agents.'}</TipCard>}>
-          <div className="row-i"><HBar v={l.share} max={1} color={def.budget === 'saf' ? SPHERE.saf : SPHERE.cap} w={64} /><b className="num">{F.h100e(l.compute)}</b><span className={`dept-tag ${def.budget}`}>{budget}</span></div>
+          <div className="row-i"><HBar v={l.share} max={1} color={def.budget === 'saf' ? SPHERE.saf : SPHERE.cap} w={64} /><b className="num">{F.h100e(l.compute)}</b><span className={`dept-tag ${def.budget}`}>{budget}</span>{l.compute <= 0 && <span className="tag2" data-test={`lane-off.${use}`}>off</span>}</div>
         </Tip>
-        <div className="row-i small dim"><span className="num">{F.count(l.copies)} × {l.speed.toFixed(0)}</span><span className="sp" />
+        <div className="row-i small dim"><Tip content={() => <TipCard title={<Term id="agentCopies">Copies × speed</Term>} rows={[{ label: 'Copies running', value: F.count(l.copies) }, { label: 'Speed of each', value: `${l.speed.toFixed(0)}× a human` }]}>How many agent instances run at once and how fast each thinks.</TipCard>}><span className="num">{F.count(l.copies)} copies × {l.speed.toFixed(0)}</span></Tip><span className="sp" />
           <span className="stepper mini">
             <ActBtn id="agents.set" testId={`agents.compute.down.${use}`} params={{ use, compute: shareNext(-STEP) }} icon={ICON.minus} label="" block={l.share <= 0 ? 'Already 0%' : undefined} />
             <ActBtn id="agents.set" testId={`agents.compute.up.${use}`} params={{ use, compute: shareNext(STEP) }} icon={ICON.plus} label="" block={l.share >= (use === 'safety' ? 0.6 : 1) - 1e-9 ? 'At the maximum' : undefined} />

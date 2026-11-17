@@ -12,7 +12,8 @@ const sign = (x: number, always: boolean) => (x < 0 ? MINUS : always && x > 0 ? 
 export function money(b: number, opts: { signed?: boolean; perYear?: boolean; perQ?: boolean } = {}): string {
   const a = Math.abs(b);
   const s = sign(b, !!opts.signed);
-  const body = a >= 1000 ? `$${sig(a / 1000, 1)}T` : a >= 1 || a === 0 ? `$${sig(a, 1)}B` : `$${Math.round(a * 1000)}M`;
+  // Jank AG2: one money format; zero is "$0", not "$0.0B" next to "$160M".
+  const body = a === 0 ? '$0' : a >= 1000 ? `$${sig(a / 1000, 1)}T` : a >= 1 ? `$${sig(a, 1)}B` : `$${Math.round(a * 1000)}M`;
   return `${s}${body}${opts.perYear ? '/yr' : opts.perQ ? '/q' : ''}`;
 }
 /** Counts: 1.2K, 8.5M, 3.1B (H100e, people, robots). */

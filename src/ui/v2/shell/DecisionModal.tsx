@@ -19,13 +19,16 @@ const FIXES: Record<string, { to: GoTarget; label: string }[]> = {
   finance: [{ to: { panel: 'finance', anchor: 'raise' }, label: 'Raise capital' }, { to: { panel: 'finance', anchor: 'ledger' }, label: 'Cut contracts' }],
   company: [{ to: { panel: 'company', tab: 'people' }, label: 'People' }, { to: { panel: 'compute', tab: 'split' }, label: 'Compute split' }],
   model: [{ to: { panel: 'safety', tab: 'graph' }, label: 'Trait graph' }, { to: { panel: 'blueprint' }, label: 'Safer recipe' }],
-  incident: [{ to: { panel: 'safety', tab: 'incidents' }, label: 'Incident responses' }, { to: { panel: 'company', tab: 'people', anchor: 'agents' }, label: 'Monitors' }],
+  incident: [{ to: { panel: 'safety', tab: 'cases' }, label: 'Incident responses' }, { to: { panel: 'company', tab: 'people', anchor: 'agents' }, label: 'Monitors' }],
   gov: [{ to: { panel: 'relations' }, label: 'Government relations' }],
   public: [{ to: { panel: 'relations' }, label: 'Public' }],
   china: [{ to: { panel: 'relations' }, label: 'China' }, { to: { panel: 'company', tab: 'security' }, label: 'Security' }],
   rival: [{ to: { panel: 'overview', anchor: 'leadtrack' }, label: 'Lead track' }],
   world: [{ to: { panel: 'world' }, label: 'World' }],
 };
+
+/** Jank E1: what the default choice means when its cost is not obvious from its lines. */
+const DEFAULT_NOTE: Record<string, string> = { E32: 'another lab buys them instead and takes their staff' };
 
 export function DecisionModal({ s }: { s: GameStateV2 }) {
   const p = s.events.pending.find((x) => x.instance === store.modal);
@@ -95,7 +98,7 @@ export function DecisionModal({ s }: { s: GameStateV2 }) {
             return (
               <ActionCard key={i} s={s} v={v} keyHint={String(i + 1)} isDefault={i === def.defaultChoice} disabled={v.ok === true ? undefined : v.ok}
                 onClick={() => store.resolve(p.instance, i)} testAttr={{ choice: i }}
-                note={i === def.defaultChoice ? `happens on its own in ${left} d` : c.tags?.includes('secrecy') ? 'hidden flaws found later cost three times the trust' : undefined} />
+                note={i === def.defaultChoice ? `${DEFAULT_NOTE[def.id] ? `${DEFAULT_NOTE[def.id]} · ` : ''}happens on its own in ${left} d` : c.tags?.includes('secrecy') ? 'hidden flaws found later cost three times the trust' : undefined} />
             );
           })}
         </div>

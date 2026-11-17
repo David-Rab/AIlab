@@ -23,7 +23,10 @@ function RaceTip({ s }: { s: GameStateV2 }) {
   const u = engine.understanding(s);
   const ev = internalEval(s);
   const sv = safetyView(s);
-  const decaying = sv.techniques.filter((t) => t.unlocked && t.active && t.role !== 'fix').sort((a, b) => b.decay - a.decay).slice(0, 3);
+  // Jank S2: list tools that are fading now; tools that no longer work at all are one line, not "decayed 100%".
+  const active = sv.techniques.filter((t) => t.unlocked && t.active && t.role !== 'fix');
+  const decaying = active.filter((t) => t.decay > 0.05 && t.decay < 0.99).sort((a, b) => b.decay - a.decay).slice(0, 3);
+  const gone = active.filter((t) => t.decay >= 0.99);
   const masked = sv.techniques.filter((t) => t.unlocked && t.trainedAgainst > 0.05);
   const hist = s.series.U.slice(-13);
   const up = upkeepView(s);
@@ -32,6 +35,7 @@ function RaceTip({ s }: { s: GameStateV2 }) {
       <div className="why-body">Violet: the <Term id="L">measured level</Term> of your internal model{ev.evaluating ? ' (still in evaluation: last measured level of its line)' : ''}. Teal: <Term id="U">understanding</Term>, the highest level your tools still read. Past teal you are <Term id="gap">flying blind</Term>.</div>
       <div className="tip-sec">
         <div className="det-row"><span className="det-lbl"><ICON.U size={12} /><Term id="validatedTo">Tools validated to</Term></span><span /><span className="num" data-test="validated-to">{up.validatedTo !== undefined ? `L ${F.level(up.validatedTo)}` : '—'}</span></div>
+        <div className="small dim">How far above today's model your tools were re-checked. Understanding can sit lower: it is where detection of the critical traits stays at 50% or more.</div>
       </div>
       <div className="tip-sec">
         <div className="tip-cap">Can your tools see it? detection at L vs 50%</div>
@@ -48,11 +52,14 @@ function RaceTip({ s }: { s: GameStateV2 }) {
         })}
       </div>
       <div className="tip-sec">
-        <div className="tip-cap">Why understanding moves · last 90 d <Spark2 data={hist} w={70} h={14} /></div>
-        {decaying.map((t) => <div className="small" key={t.id}><ICON.revalidate size={11} /> <Term id="technique">{t.name}</Term> <span className="dim">decayed</span> <b className={t.decay > 0.5 ? 'tone-neg' : 'tone-warn'}>{F.pct(t.decay)}</b> <span className="dim">(<Term id="mHalf">capability outgrows it</Term>)</span></div>)}
+        <div className="tip-cap">Why understanding moved · last 90 d <Spark2 data={hist} w={70} h={14} /></div>
+        {/* Jank M2: the engine's weekly U drivers (new model, tools, eval-awareness belief, re-validation). */}
+        {(s.causes.byKey.U ?? []).filter((e) => e.day > s.time.day - 90).slice(-4).reverse().map((e, i) => <div className="small" key={`u${i}`} data-test="u-cause"><span className={e.delta >= 0 ? 'tone-pos' : 'tone-neg'}>{F.num(e.delta, 1, true)}</span> <span className="dim">{fmtDate(dateOf(s, e.day)).replace(/,? \d{4}$/, '')}</span> {e.detail ?? e.source}</div>)}
+        {decaying.map((t) => <div className="small" key={t.id}><ICON.revalidate size={11} /> <Term id="technique">{t.name}</Term> <span className="dim">fading</span> <b className={t.decay > 0.5 ? 'tone-neg' : 'tone-warn'}>{F.pct(t.decay)}</b> <span className="dim">(<Term id="mHalf">capability outgrows it</Term>)</span></div>)}
+        {gone.length > 0 && <div className="small dim"><ICON.revalidate size={11} /> {gone.length} tool{gone.length > 1 ? 's' : ''} no longer work at this capability: {gone.map((t) => t.name).join(', ')}</div>}
         {masked.map((t) => <div className="small" key={`m${t.id}`}><ICON.blind size={11} /> {t.name} <span className="tone-neg">masked {F.pct(t.trainedAgainst)}</span> <span className="dim">(<Term id="goodhart">trained against</Term>)</span></div>)}
         {ev.evaluating && <div className="small"><ICON.finding size={11} /> {ev.name} is <Term id="evaluating">in evaluation</Term></div>}
-        {!decaying.length && !masked.length && <div className="small dim">No detection tools active yet: staff a safety research line.</div>}
+        {!active.length && <div className="small dim">No detection tools active yet: staff a safety research line.</div>}
       </div>
       <div className="tip-sec"><div className="tip-cap">Levers</div><div className="btn-row wrap">
         <GoBtn to={{ panel: 'safety', tab: 'lines' }} label="Research lines" testId="race.lines" />

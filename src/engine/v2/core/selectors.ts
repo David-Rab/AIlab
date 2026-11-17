@@ -25,7 +25,7 @@ export type { LaunchRunParams, RunPlan } from '../models/runs';
 export { PARADIGM_BY_ID } from '../models/paradigms';
 export { assignBlock, effortOf, idleTeams, knowHow, isProject, missingNeeds, nextLineProject, nodeDept, nodeKnown, nodeOdds, nodeStatus, optionLocked, payoffOf, projectCapacity, projectEta, projectRate, projectReady, projectTeams, researchSpeed, teamCapacity, teamsOn, treeCounts } from '../models/tree';
 export type { NodeStatus } from '../models/tree';
-export { benchName, benchGen, evalDaysFor } from '../models/benchmarks';
+export { benchName, benchGen, evalDaysFor, measuredSd } from '../models/benchmarks';
 export { deployGate, effortLock, liveDeployments, CHANNEL_VARIANTS, distillationAccess } from '../models/deployments';
 export { bestMeasuredL, internalVersion, labPools, measuredLOf, versionById } from '../models/labs';
 export { MILESTONE_NAMES } from '../models/capability';
@@ -146,3 +146,4 @@ export { editBlock, editedProduct, previewEdit } from '../models/productOps';
 export type { ProductChanges } from '../models/productOps';
 export { activeFeatures, agentsGate, catchRate, featureBuildBlock, featureToggleBlock, freeTierShare, isProduct, measuredHorizonH, monitorOverhead } from '../models/products';
 export { servingPool } from '../worldfx/revenue';
+export { ousterRiskQ, OUSTER_BC, OUSTER_NOTICE_D } from '../finance/board'; // jank ST3: board review readout

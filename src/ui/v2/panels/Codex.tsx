@@ -18,7 +18,7 @@ import { ACTION_DEFS, EVENT_DEFS } from '../../../engine/v2';
 import { CoreLoop } from './CoreLoop';
 import type { GameStateV2 } from '../../../engine/v2';
 import { store, useV2 } from '../store';
-import { Rich } from '../ui';
+import { playerSource, Rich } from '../ui';
 
 const PARADIGM_ODDS: Record<string, number> = Object.fromEntries(PARADIGMS.map((p) => [p.id, p.prior]));
 
@@ -82,7 +82,7 @@ export function Codex({ s }: { s: GameStateV2 }) {
             {sel.diagram === 'loop' && <div className="codex-diagram"><CoreLoop s={s} live={false} /></div>}
             <p><Rich text={sel.body} /></p>
             {sel.rows && sel.rows.length > 0 && <table className="tbl"><tbody>{sel.rows.map(([k, v]) => <tr key={k}><td className="dim">{k}</td><td>{v}</td></tr>)}</tbody></table>}
-            {sel.src && <div className="tipcard-foot">Source: {sel.src}</div>}
+            {playerSource(sel.src) && <div className="tipcard-foot">Source: {playerSource(sel.src)}</div>}
           </>
         )}
       </div>

@@ -7,7 +7,7 @@ import { CRITICAL_TRAITS } from '../../../data/v2/traits';
 import { ICON } from '../icons';
 import * as F from '../fmt';
 import type { GoTarget } from '../kit';
-import { runwayLive } from './selectors';
+import { boardReview, runwayLive } from './selectors';
 
 export interface WatchLink { label: string; icon?: LucideIcon; kind: 'root' | 'bad'; detail?: string }
 export interface WatchItem { id: string; sphere: 'company' | 'models' | 'safety' | 'world'; sev: number; chain: WatchLink[]; why: string; go: GoTarget; goLabel: string }
@@ -77,10 +77,12 @@ export function watchItems(s: GameStateV2): WatchItem[] {
   // 6. board
   const bc = p.board.confidence;
   if (bc < 40) {
+    // Jank ST3: say when the board decides and what it needs.
+    const br = boardReview(s);
     out.push({
       id: 'board', sphere: 'company', sev: bc < 30 ? 4 : 3,
-      chain: [{ label: 'board confidence low', icon: ICON.board, kind: 'root', detail: `Confidence ${Math.round(bc)} (warning below 35, ouster risk below 25)` }, { label: 'ouster risk', icon: ICON.alert, kind: 'bad' }],
-      why: 'missed plans, burn and incidents erode it', go: { panel: 'finance', anchor: 'board' }, goLabel: 'Board',
+      chain: [{ label: 'board confidence low', icon: ICON.board, kind: 'root', detail: `Confidence ${Math.round(bc)} (warning below 35, ouster risk below 25)` }, { label: br.live ? `ouster vote ${Math.round(br.p * 100)}%` : 'ouster risk', icon: ICON.alert, kind: 'bad' }],
+      why: `board review in ${br.inDays} d: confidence ${Math.round(bc)}, needs ${br.line}+ to rule out a vote`, go: { panel: 'finance', anchor: 'board' }, goLabel: 'Board',
     });
   }
   // 7. morale
@@ -97,7 +99,7 @@ export function watchItems(s: GameStateV2): WatchItem[] {
     out.push({
       id: 'incident', sphere: 'safety', sev: 3 + inc.severity / 5,
       chain: [{ label: `incident S${inc.severity} open`, icon: ICON.incident, kind: 'root', detail: inc.apparent }, { label: `public in ${inc.publicTimerDays} d`, icon: ICON.headline, kind: 'bad' }],
-      why: 'respond or disclose before it leaks', go: { panel: 'safety', tab: 'incidents' }, goLabel: 'Incidents',
+      why: 'respond or disclose before it leaks', go: { panel: 'safety', tab: 'cases' }, goLabel: 'Incidents',
     });
   }
   return out.sort((a, b) => b.sev - a.sev);

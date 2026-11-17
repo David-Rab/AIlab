@@ -56,10 +56,21 @@ export function Limit({ id, children, tone, block }: { id: string; children: Rea
   const body = <span className={`limit ${tone ?? 'quiet'}`} data-limit={id}><Ban size={10} />{children}</span>;
   if (!d) return body;
   return (
-    <Tip as={block ? 'div' : 'span'} content={() => <TipCard title={d.title} footer={`Source: ${d.source}`}>{d.rule}</TipCard>}>
+    <Tip as={block ? 'div' : 'span'} content={() => <TipCard title={d.title} footer={playerSource(d.source) ? `Source: ${playerSource(d.source)}` : undefined}>{d.rule}</TipCard>}>
       {body}
     </Tip>
   );
+}
+
+/** Jank O5: player-facing sources. Internal design documents (V2-SPEC, STRUCTURE, TECH-TREE, design/…) are developer
+ *  references, not sources: they are dropped; a design value ([D]) with no research source reads "design choice". */
+const DEV_DOC = /^(design\/|V2-SPEC|STRUCTURE|TECH-TREE|BUILD-PLAN|LIMITS|IA\b|IA\.md|PROPOSALS|COMPUTE|DESIGN|PLAN|M\d|WS\d|R\d+\b|v2-interfaces)/i;
+export function playerSource(src?: string): string | undefined {
+  if (!src) return undefined;
+  const parts = src.split(';').map((x) => x.trim()).filter(Boolean);
+  const keep = parts.filter((x) => !DEV_DOC.test(x)).map((x) => x.replace(/\s*\[D\]\s*/g, ' ').trim()).filter(Boolean);
+  if (keep.length) return keep.join('; ');
+  return /\[D\]|design value/i.test(src) ? 'design choice' : undefined;
 }
 
 // ───────────────────────── glossary ─────────────────────────
@@ -67,7 +78,7 @@ export function Term({ id, children }: { id: string; children?: ReactNode }) {
   const g = termEntry(id);
   if (!g) return <span data-term={id} data-term-missing="1">{children ?? id}</span>;
   return (
-    <Tip className="term" content={() => <TipCard title={g.title} footer={g.src}><Rich text={g.body} /></TipCard>}>
+    <Tip className="term" content={() => <TipCard title={g.title} footer={playerSource(g.src)}><Rich text={g.body} /></TipCard>}>
       <span data-term={id}>{children ?? g.title}</span>
     </Tip>
   );

@@ -313,6 +313,8 @@ class StoreV2 {
     const err = engineResolve(this.state, instance, choice);
     if (err) this.say(err, 'neg');
     if (!err && this.modal === instance) this.modal = undefined;
+    // Jank E2: the "New decision" stop message goes once the decision is made.
+    if (!err && (this.flash?.text === 'New decision' || this.flash?.text === 'Crisis') && !(this.state.events.pending.length)) this.flash = undefined;
     this.notify();
     return err;
   }
