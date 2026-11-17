@@ -10,9 +10,10 @@ import type { ActionDef, CostLine, Debt, GameStateV2, Site, StrategicDeal, Syste
 import { boardApproval, boardBlocked, boardSupport, BOARD_VECTORS } from './board';
 import { debtHeadroom, drawDebt, repayDebt } from './debt';
 import { acceptDeal, dealBlocker, dealTerms, declineDeal, partnerFor, rescueOffer, seekPartner } from './deals';
-import { bookRound, canRaise, raiseCeiling, startRaise } from './equity';
+import { acceptRepriced, bookRound, canRaise, lastPostMoney, pullRepriced, raiseCeiling, startRaise } from './equity';
 import { ensureWs3, yearStats, type DealOffer } from './ext';
 import { commitmentsPerYear, qOf, bookCash } from './ledger';
+import { divisionBlock } from './parent';
 import { runwayOf } from './runway';
 
 type P = Record<string, number | string | boolean>;
@@ -46,10 +47,10 @@ function commitGate(s: GameStateV2, ctx: SystemCtx, addPerYear: number, id: stri
 // ───────────────────────────── Equity ─────────────────────────────
 
 const raise: ActionDef = {
-  id: 'fin.raise', sphere: 'finance', owner: 'WS3', title: 'Raise',
+  id: 'fin.raise', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Raise',
   boardVector: BOARD_VECTORS.dilution,
   available: (s) => {
-    const b = blocked(s, 'fin.raise');
+    const b = divisionBlock(s) ?? blocked(s, 'fin.raise');
     return b !== true ? b : canRaise(s);
   },
   preview(s, p) {
@@ -79,9 +80,40 @@ const raise: ActionDef = {
   },
 };
 
+// ───────────────────────────── Repriced round: the player decides (LIMITS: no silent pull) ─────────────────────────────
+
+const repricedAvail = (s: GameStateV2) => (s.player.finance.ws3?.repricedRound ? true : 'No repriced round to decide on');
+
+const acceptRound: ActionDef = {
+  id: 'fin.acceptRepriced', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Accept round',
+  available: repricedAvail,
+  preview(s) {
+    const r = s.player.finance.ws3?.repricedRound;
+    const ask = r?.ask ?? 0;
+    const pre = r?.pre ?? Math.max(1, s.player.finance.valuation);
+    const down = !r || pre < (r.lastPost || lastPostMoney(s));
+    return {
+      costs: [{ currency: 'dilution', amount: Math.round((ask / (pre + ask || 1)) * 1000) / 10 }, ...(down ? [{ currency: 'boardConf' as const, amount: -15, target: 'down round' }, { currency: 'talent' as const, amount: -5, target: 'senior attrition' }] : [])],
+      gains: [{ currency: 'cash', amount: ask >= 20 ? ask * 0.5 : ask, target: ask >= 20 ? 'now; the rest as a tranche' : 'now' }],
+      exposure: [],
+    };
+  },
+  apply: (s, ctx) => acceptRepriced(s, ctx),
+};
+
+const pullRound: ActionDef = {
+  id: 'fin.pullRepriced', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Pull round',
+  available: repricedAvail,
+  preview(s) {
+    const r = s.player.finance.ws3?.repricedRound;
+    return { costs: [{ currency: 'cash', amount: -(r?.ask ?? 0), target: 'money you do not raise' }], gains: [{ currency: 'dilution', amount: 0, target: 'no dilution' }, { currency: 'boardConf', amount: 0, target: 'no down-round hit' }], exposure: [] };
+  },
+  apply: (s, ctx) => pullRepriced(s, ctx),
+};
+
 const downRound: ActionDef = {
-  id: 'fin.downRound', sphere: 'finance', owner: 'WS3', title: 'Down round',
-  available: (s) => (s.player.finance.state === 'distress' || s.player.finance.state === 'tight' ? true : 'Only when runway is tight or in distress'),
+  id: 'fin.downRound', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Down round',
+  available: (s) => divisionBlock(s) ?? (s.player.finance.state === 'distress' || s.player.finance.state === 'tight' ? true : 'Only when runway is tight or in distress'),
   preview(s) {
     const V = s.player.finance.valuation * 0.6;
     const amt = downRoundSize(s);
@@ -133,8 +165,8 @@ export function dealPreview(s: GameStateV2, t: Omit<DealOffer, 'id' | 'day' | 'e
 }
 
 const seek: ActionDef = {
-  id: 'fin.seekPartner', sphere: 'finance', owner: 'WS3', title: 'Seek partner',
-  available: notInsolvent,
+  id: 'fin.seekPartner', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Seek partner',
+  available: (s) => divisionBlock(s) ?? notInsolvent(s),
   preview(s, p) {
     const tpl = str(p, 'template', 'hyperscalerEquity') as StrategicDeal['template'];
     const partner = str(p, 'partner', partnerFor(s, tpl) ?? '');
@@ -162,10 +194,10 @@ function offerFor(s: GameStateV2, p: P): Omit<DealOffer, 'id' | 'day' | 'expires
 }
 
 const accept: ActionDef = {
-  id: 'fin.acceptDeal', sphere: 'finance', owner: 'WS3', title: 'Accept deal',
+  id: 'fin.acceptDeal', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Accept deal',
   boardVector: BOARD_VECTORS.commitments,
   available: (s) => {
-    const b = blocked(s, 'fin.acceptDeal');
+    const b = divisionBlock(s) ?? blocked(s, 'fin.acceptDeal');
     if (b !== true) return b;
     return s.player.finance.ws3?.offers.length ? true : 'No open offer (seek a partner first)';
   },
@@ -187,7 +219,7 @@ const accept: ActionDef = {
 };
 
 const decline: ActionDef = {
-  id: 'fin.declineDeal', sphere: 'finance', owner: 'WS3', title: 'Decline deal',
+  id: 'fin.declineDeal', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Decline deal',
   available: (s) => (s.player.finance.ws3?.offers.length ? true : 'No open offer'),
   preview(s, p) {
     const t = offerFor(s, p);
@@ -205,9 +237,11 @@ const decline: ActionDef = {
 export const RESCUE_COOLDOWN_D = 365;
 
 const rescue: ActionDef = {
-  id: 'fin.rescue', sphere: 'finance', owner: 'WS3', title: 'Rescue',
+  id: 'fin.rescue', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Rescue',
   available: (s) => {
     const f = s.player.finance;
+    const div = divisionBlock(s);
+    if (div) return div;
     if (f.state !== 'distress') return 'Only in distress';
     if (f.ws3?.lastRescueDay !== undefined && s.time.day - f.ws3.lastRescueDay < RESCUE_COOLDOWN_D) return 'Partners will not rescue you twice in a year';
     return rescueOffer(s) ? true : 'No partner will rescue you';
@@ -227,10 +261,10 @@ const rescue: ActionDef = {
 // ───────────────────────────── Debt ─────────────────────────────
 
 const draw: ActionDef = {
-  id: 'fin.drawDebt', sphere: 'finance', owner: 'WS3', title: 'Borrow',
+  id: 'fin.drawDebt', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Borrow',
   boardVector: BOARD_VECTORS.newDebt,
   available: (s) => {
-    const b = blocked(s, 'fin.drawDebt');
+    const b = divisionBlock(s) ?? blocked(s, 'fin.drawDebt');
     if (b !== true) return b;
     const h = (['revolver', 'gpuTerm', 'bond'] as const).map((k) => debtHeadroom(s, k));
     return h.some((x) => x.max > 0) ? true : h[0].why ?? 'No debt capacity';
@@ -259,7 +293,7 @@ const draw: ActionDef = {
 };
 
 const repay: ActionDef = {
-  id: 'fin.repayDebt', sphere: 'finance', owner: 'WS3', title: 'Repay',
+  id: 'fin.repayDebt', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Repay',
   available: (s) => (s.player.finance.debts.some((d) => d.drawn > 0) ? true : 'No drawn debt'),
   preview(s, p) {
     const drawn = s.player.finance.debts.reduce((a, d) => a + d.drawn, 0);
@@ -276,7 +310,7 @@ const repay: ActionDef = {
 // ───────────────────────────── Governance ─────────────────────────────
 
 const recap: ActionDef = {
-  id: 'fin.recap', sphere: 'finance', owner: 'WS3', title: 'Recapitalise',
+  id: 'fin.recap', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Recapitalise',
   available: (s) => {
     const f = s.player.finance;
     if (s.player.board.preset !== 'legacyNonprofit') return 'Only for the capped-profit nonprofit';
@@ -302,7 +336,7 @@ const recap: ActionDef = {
 };
 
 const refuseRecap: ActionDef = {
-  id: 'fin.refuseRecap', sphere: 'finance', owner: 'WS3', title: 'Keep nonprofit',
+  id: 'fin.refuseRecap', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Keep nonprofit',
   available: recap.available,
   preview(s) {
     const t = s.player.finance.tranches.find((x) => x.condition === 'recapitalisation');
@@ -326,7 +360,7 @@ const refuseRecap: ActionDef = {
 
 function orderAction(kind: 'spot' | 'standard' | 'lta', id: string, title: string): ActionDef {
   return {
-    id, sphere: 'finance', owner: 'WS3', title,
+    id, verb: 'deal', system: 'compute', sphere: 'finance', owner: 'WS3', title,
     ...(kind === 'lta' ? { boardVector: BOARD_VECTORS.commitments } : {}),
     available: (s) => {
       const b = blocked(s, id);
@@ -360,7 +394,7 @@ function orderAction(kind: 'spot' | 'standard' | 'lta', id: string, title: strin
 }
 
 const fundSup: ActionDef = {
-  id: 'cmp.fundSupplier', sphere: 'finance', owner: 'WS3', title: 'Fund supplier',
+  id: 'cmp.fundSupplier', verb: 'deal', system: 'compute', sphere: 'finance', owner: 'WS3', title: 'Fund supplier',
   available: notInsolvent,
   preview(_s, p) {
     const amt = Math.max(0.1, num(p, 'amount', 2));
@@ -372,7 +406,7 @@ const fundSup: ActionDef = {
 };
 
 const cloud: ActionDef = {
-  id: 'cmp.cloudContract', sphere: 'finance', owner: 'WS3', title: 'Rent cloud',
+  id: 'cmp.cloudContract', verb: 'deal', system: 'compute', sphere: 'finance', owner: 'WS3', title: 'Rent cloud',
   boardVector: BOARD_VECTORS.commitments,
   available: (s) => {
     const b = blocked(s, 'cmp.cloudContract');
@@ -398,7 +432,7 @@ const cloud: ActionDef = {
 };
 
 const spotRent: ActionDef = {
-  id: 'cmp.spotRental', sphere: 'finance', owner: 'WS3', title: 'Spot rent',
+  id: 'cmp.spotRental', verb: 'deal', system: 'compute', sphere: 'finance', owner: 'WS3', title: 'Spot rent',
   available: (s) => (s.market.ws3 && spotRentalCap(s) > 0 ? notInsolvent(s) : 'No spot capacity'),
   preview(s, p) {
     const h = Math.max(1e4, num(p, 'h100e', 0.2e6));
@@ -419,7 +453,7 @@ function siteOpts(p: P): SiteOpts {
 }
 
 const site: ActionDef = {
-  id: 'cmp.newSite', sphere: 'finance', owner: 'WS3', title: 'New site',
+  id: 'cmp.newSite', verb: 'deal', system: 'compute', sphere: 'finance', owner: 'WS3', title: 'New site',
   available: (s) => {
     const b = blocked(s, 'cmp.newSite');
     return b !== true ? b : notInsolvent(s);
@@ -459,7 +493,7 @@ const site: ActionDef = {
 };
 
 const community: ActionDef = {
-  id: 'cmp.communityPackage', sphere: 'finance', owner: 'WS3', title: 'Community deal',
+  id: 'cmp.communityPackage', verb: 'deal', system: 'compute', sphere: 'finance', owner: 'WS3', title: 'Community deal',
   available: (s) => (s.player.sites.some((x) => x.stage === 'permitting' && !x.communityPackage && !x.ws3?.rolled) ? true : 'No site in permitting'),
   preview(s, p) {
     const x = s.player.sites.find((y) => y.id === str(p, 'siteId', '')) ?? s.player.sites.find((y) => y.stage === 'permitting' && !y.communityPackage);
@@ -478,7 +512,7 @@ const community: ActionDef = {
 };
 
 const transformers: ActionDef = {
-  id: 'cmp.preorderTransformers', sphere: 'finance', owner: 'WS3', title: 'Transformers',
+  id: 'cmp.preorderTransformers', verb: 'deal', system: 'compute', sphere: 'finance', owner: 'WS3', title: 'Transformers',
   available: notInsolvent,
   preview(s, p) {
     const gw = Math.max(0.1, num(p, 'gw', 2));
@@ -497,7 +531,7 @@ const transformers: ActionDef = {
 // ───────────────────────────── Distress menu (E26) ─────────────────────────────
 
 const renegotiate: ActionDef = {
-  id: 'fin.renegotiate', sphere: 'finance', owner: 'WS3', title: 'Renegotiate',
+  id: 'fin.renegotiate', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Renegotiate',
   available: (s) => {
     const f = s.player.finance;
     if (f.state !== 'distress' && f.state !== 'tight') return 'Only when runway is tight or in distress';
@@ -534,7 +568,7 @@ function issueWarrants(s: GameStateV2, frac: number) {
 const chipSaleValue = (s: GameStateV2, h: number) => (h * s.market.rental * 8760 * 1.5) / 1e9;
 
 const sell: ActionDef = {
-  id: 'fin.sellChips', sphere: 'finance', owner: 'WS3', title: 'Sell chips',
+  id: 'fin.sellChips', verb: 'deal', system: 'compute', sphere: 'finance', owner: 'WS3', title: 'Sell chips',
   available: (s) => (ownedChips(s) > 0 ? true : 'No owned chips'),
   preview(s, p) {
     const h = Math.min(ownedChips(s), Math.max(1e4, num(p, 'qty', 0.2e6)));
@@ -566,7 +600,7 @@ const sell: ActionDef = {
 const ownedChips = (s: GameStateV2) => s.player.sites.reduce((a, x) => a + x.installed, 0) + (s.player.finance.ws3 ? s.player.finance.ws3.inventory.ready + s.player.finance.ws3.inventory.transit : 0);
 
 const cancel: ActionDef = {
-  id: 'fin.cancelContract', sphere: 'finance', owner: 'WS3', title: 'Cancel contract',
+  id: 'fin.cancelContract', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Cancel contract',
   available: (s) => (cancellable(s).length ? true : 'Nothing cancellable'),
   preview(s, p) {
     const c = pickCancellable(s, str(p, 'id', ''));
@@ -632,7 +666,7 @@ export const FINANCE_ACTIONS: ActionDef[] = [
   raise, seek, accept, decline, draw, repay, recap, refuseRecap,
   orderAction('spot', 'cmp.orderSpot', 'Spot order'), orderAction('standard', 'cmp.orderStandard', 'Order chips'), orderAction('lta', 'cmp.orderLTA', 'Chip LTA'),
   fundSup, cloud, spotRent, site, community, transformers,
-  downRound, rescue, renegotiate, sell, cancel,
+  downRound, rescue, renegotiate, sell, cancel, acceptRound, pullRound,
 ];
 
 

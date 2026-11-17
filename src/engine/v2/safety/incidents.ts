@@ -11,6 +11,8 @@ import { clamp01, flagNum, setFlag, versionById, versionM } from './common';
 import { monitoringCatch } from './detection';
 import { containment, strengthTrue } from './techniques';
 import { isDiscovered, uModeContainMult } from './umodes';
+import { productCatch, productHazardMult } from '../models/products';
+import { internalFleets } from '../departments/agents';
 
 /** Hazard intensity of an undiscovered/discovered U-mode (it borrows the κ of its mapped trait) [D]. */
 export const UMODE_X = 0.25;
@@ -78,7 +80,7 @@ function usageOf(s: GameStateV2, d: Deployment): number {
   return d.servingShare;
 }
 
-function outsidersWithAccess(s: GameStateV2): CounterpartyId[] {
+export function outsidersWithAccess(s: GameStateV2): CounterpartyId[] {
   return (['evalGov', 'evalIndep', 'academia', 'exec'] as CounterpartyId[]).filter((cp) => (s.relations.stocks[cp]?.access ?? 0) >= 2);
 }
 
@@ -123,7 +125,10 @@ function fireIncident(s: GameStateV2, ctx: SystemCtx, rng: RngLike, v: ModelVers
       return;
     }
   }
-  const exposure: Incident['exposure'] = internal ? 'internal' : d.channel === 'consumer' || d.channel === 'open' ? 'public' : 'customer';
+  // R6: a product's monitor catches model-behaviour incidents before customers see them (catch rate, D7); caught ones
+  // stay internal. No monitor → no roll (the pre-R6 behaviour).
+  const caught = !internal && row.source !== 'misuse' && !!d.monitorId && d.channel !== 'open' && rng.chance(productCatch(s, d));
+  const exposure: Incident['exposure'] = internal || caught ? 'internal' : d.channel === 'consumer' || d.channel === 'open' ? 'public' : 'customer';
   const inc: Incident = {
     id: newIncidentId(s), day: ctx.day, labId: 'player', versionId: v.id, deploymentId: d.id,
     trueSource: row.source, apparent: row.apparent, severity: sev, exposure, status: 'open', responses: [],
@@ -135,7 +140,7 @@ function fireIncident(s: GameStateV2, ctx: SystemCtx, rng: RngLike, v: ModelVers
     if (drop >= 0) s.player.safety.incidents.splice(drop, 1);
   }
   const label = row.apparent === 'unexplained' ? 'Unexplained behaviour' : row.apparent === 'misuse' ? `${row.domain === 'BIO' ? 'Bio' : 'Cyber'} misuse` : `${row.apparent} incident`;
-  ctx.log('incident', `${label} (severity ${sev}) on ${v.name}, ${d.channel}.`, sev, inc.id);
+  ctx.log('incident', `${label} (severity ${sev}) on ${v.name}, ${d.channel}${caught ? ': caught by its monitor before customers saw it' : ''}.`, sev, inc.id);
   if (exposure === 'public') publicPenalty(s, ctx, inc, 1, inc.id);
   if (row.source === 'misuse' && sev === 5) {
     setFlag(s, 'sev5MisuseDay', ctx.day);
@@ -181,26 +186,40 @@ function tickTimers(s: GameStateV2, ctx: SystemCtx, rng: RngLike) {
 
 /** incidents (80, daily): hazard per deployment × trait/U-mode; detection and exposure timers; misuse. */
 export const incidentsSystem: EngineSystem = {
-  id: 'incidents', owner: 'WS2', cadence: 'daily', order: 80,
+  id: 'incidents', owner: 'WS2', cadence: 'daily', order: 80, system: 'safety',
   run(s, ctx) {
     const rng = ctx.rng('incidents');
     const disc = (u: UModeId) => isDiscovered(s, u);
-    for (const d of s.player.deployments) {
-      if (d.status === 'withdrawn') continue;
-      const v = versionById(s, d.versionId);
-      if (!v || v.status === 'retired') continue;
+    const roll = (d: Deployment, v: ModelVersion, usage: number) => {
       const internal = d.channel === 'internal';
       const contain = deploymentContain(s, v, d);
       const restricted = d.status === 'restricted' ? 0.3 : 1;
+      // Product features scale their traits' hazards (e.g. Companion mode: sycophancy ×1.5); ×1 without features.
+      const feat = d.features.length ? (r: HazardRow) => (typeof r.source === 'string' && !r.source.startsWith('U') && r.source !== 'misuse' ? productHazardMult(s, d, r.source as TraitId) : 1) : () => 1;
       const rows = [
-        ...modelHazards(v.traitsTrue, v.uModes, CHANNEL_EXPOSURE[d.channel], usageOf(s, d), contain, internal, disc).map((r) => ({ ...r, h: r.h * restricted })),
+        ...modelHazards(v.traitsTrue, v.uModes, CHANNEL_EXPOSURE[d.channel], usage, contain, internal, disc).map((r) => ({ ...r, h: r.h * restricted * feat(r) })),
         ...misuseHazards(s, v, d),
       ];
       let H = 0;
       for (const r of rows) H += r.h;
-      if (H <= 0 || !rng.chance(Math.min(0.5, H))) continue;
+      if (H <= 0 || !rng.chance(Math.min(0.5, H))) return;
       const row = rng.weighted(rows.map((r) => ({ item: r, weight: r.h })));
       fireIncident(s, ctx, rng, v, d, row);
+    };
+    for (const d of s.player.deployments) {
+      if (d.status === 'withdrawn') continue;
+      const v = versionById(s, d.versionId);
+      if (!v || v.status === 'retired') continue;
+      if (d.channel !== 'internal') {
+        roll(d, v, usageOf(s, d));
+        continue;
+      }
+      // R7: the internal deployment carries every internal fleet. Each model running internal uses rolls with usage =
+      // its share of internal agent compute (one fleet at usage 1 when every use runs the routine model, as before).
+      for (const f of internalFleets(s)) {
+        if (f.v.status === 'retired') continue;
+        roll(d, f.v, f.v.id === v.id ? usageOf(s, d) * f.usage : f.usage);
+      }
     }
     tickTimers(s, ctx, rng);
   },
@@ -231,7 +250,7 @@ export function contain2000(s: GameStateV2): number {
   const v = bestPlayerVersion(s);
   if (!v) return 0;
   const internal = s.player.deployments.filter((d) => d.channel === 'internal' && d.status !== 'withdrawn');
-  const dep = internal.find((d) => d.versionId === s.player.models.internalAgent) ?? internal[0];
+  const dep = internal.find((d) => d.versionId === s.player.agents.capRoutine.versionId) ?? internal[0];
   return containment(s, 2000, !!dep?.controlLayer, false, uModeContainMult(v.uModes));
 }
 

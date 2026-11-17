@@ -8,14 +8,15 @@ import { EndScreen } from './end/EndScreen';
 import { Codex } from './panels/Codex';
 import { Company } from './panels/Company';
 import { Compute } from './panels/Compute';
-import { Deployments } from './panels/Deployments';
+import { Products } from './panels/Products';
 import { Finance } from './panels/Finance';
 import { Models } from './panels/Models';
 import { Overview } from './panels/Overview';
 import { Relations } from './panels/Relations';
+import { Research } from './panels/Research';
 import { RiskSources } from './panels/RiskSources';
-import { RunDesigner } from './panels/RunDesigner';
-import { SafetyLab } from './panels/SafetyLab';
+import { Blueprint } from './panels/Blueprint';
+import { Safety } from './panels/Safety';
 import { World } from './panels/World';
 import { SetupScreen, StartScreen } from './setup/Setup';
 import { AlertQueue } from './shell/AlertQueue';
@@ -34,8 +35,8 @@ import './base.css';
 import './layout.css';
 
 const PANELS: Record<string, (p: { s: GameStateV2 }) => ReactNode> = {
-  overview: Overview, company: Company, finance: Finance, compute: Compute, models: Models, rundesigner: RunDesigner,
-  deployments: Deployments, safety: SafetyLab, relations: Relations, world: World, risk: RiskSources, codex: Codex,
+  overview: Overview, research: Research, company: Company, finance: Finance, compute: Compute, models: Models, blueprint: Blueprint,
+  products: Products, safety: Safety, relations: Relations, world: World, risk: RiskSources, codex: Codex,
 };
 
 function Game({ s }: { s: GameStateV2 }) {

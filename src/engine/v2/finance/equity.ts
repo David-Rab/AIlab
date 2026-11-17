@@ -1,9 +1,9 @@
 // Valuation, raises, dilution and the raise ceiling (V2-SPEC §3.7.3; research/15 §1.5). Owner: WS3.
 import { dayOfQuarter, quarterIndex } from '../core/time';
-import type { GameStateV2, Money, Ownership, SystemCtx } from '../types';
+import type { GameStateV2, Money, Ownership, RepricedRound, SystemCtx } from '../types';
 import { ensureWs3, yearStats, type PendingRound } from './ext';
 import { bookCash } from './ledger';
-import { runwayOf } from './runway';
+import { changeHeads } from '../departments/teams';
 
 /** V = 22·(g/5)^0.4·(R/$20B)^−0.15·H·N·M·R (R15 §1.5). */
 export function valuationMark(g: number, R: number, H: number, N: number, M: number): number {
@@ -87,6 +87,7 @@ export function canRaise(s: GameStateV2): true | string {
   ensureWs3(s);
   // A round takes one quarter to close, which is also the minimum gap between priced rounds (R15 §1.5).
   if (f.ws3.pendingRound) return 'A round is already in progress';
+  if (f.ws3.repricedRound) return 'Decide on the repriced round first';
   if (f.state === 'distress' || f.state === 'insolvent') return 'Distress: only rescue capital (down round, strategic rescue)';
   return true;
 }
@@ -131,7 +132,9 @@ export function bookRound(s: GameStateV2, ctx: SystemCtx, amount: Money, pre: Mo
   yearStats(s).equity += now;
   if (down) {
     ctx.bump('board.confidence', -15, 'down round');
-    ctx.bump('player.staff.cap', -0.05 * s.player.staff.cap, 'down round', 'senior attrition');
+    const lost = 0.05 * s.player.staff.cap;
+    changeHeads(s, 'cap', -lost);
+    ctx.cause('player.staff.cap', -lost, 'down round', 'senior attrition');
     // Anti-dilution: prior investors receive shares worth 20% of the value gap [R15 Design].
     const gap = (lastPostMoney(s) - pre) / Math.max(1, lastPostMoney(s));
     issue(f.ownership, Math.min(0.1, 0.2 * gap * outsideShare(f.ownership)), { kind: 'fin' });
@@ -140,8 +143,11 @@ export function bookRound(s: GameStateV2, ctx: SystemCtx, amount: Money, pre: Mo
   return now;
 }
 
-/** Runway (quarters) below which a repriced round closes even as a down round [D, M4]. */
+/** Runway (quarters) below which a competent CEO accepts a repriced down round (bots' finance autopilot) [D, M4]. */
 export const DOWN_ROUND_RUNWAY_Q = 4;
+
+/** Days the player has to accept or pull a repriced round; it is pulled after that [D]. */
+export const REPRICED_DECIDE_DAYS = 30;
 
 /** A pending round reprices only if the quarterly mark falls more than this below its term-sheet pre-money [D, M4]. */
 export const REPRICE_DROP = 0.25;
@@ -164,18 +170,52 @@ export function closePendingRound(s: GameStateV2, ctx: SystemCtx): void {
   const mark = f.valuation;
   const base = mark < r.preMoney * (1 - REPRICE_DROP) ? mark : Math.max(mark, r.preMoney);
   const pre = base * (1 - Math.min(0.6, 0.5 * over));
-  // A repriced round that would now be a down round closes only if the company needs the cash (runway under
-  // DOWN_ROUND_RUNWAY_Q); otherwise the CEO pulls it (M4: the player never agreed to a down round) [D].
-  if (base === mark && pre < lastPostMoney(s) && runwayOf(s).q >= DOWN_ROUND_RUNWAY_Q) {
-    ctx.log('finance', `Investors repriced the $${r.ask.toFixed(0)}B round below the last valuation; you pulled it.`, 2);
+  // A repriced round that would now be a down round waits for the player: accept the down round or pull it
+  // (LIMITS: the CEO used to pull it silently when runway was ≥ 4 quarters, and close it silently otherwise).
+  if (base === mark && pre < lastPostMoney(s)) {
+    const rr: RepricedRound = { day: s.time.day, deadline: s.time.day + REPRICED_DECIDE_DAYS, ask: r.ask, pre, lastPost: lastPostMoney(s), ipo: r.ipo };
+    if (r.anchor) rr.anchor = r.anchor;
+    f.ws3.repricedRound = rr;
+    ctx.log('alert', `Investors repriced the $${r.ask.toFixed(0)}B round to $${pre.toFixed(0)}B pre-money, below the last round's $${rr.lastPost.toFixed(0)}B. Accept the down round or pull it in Finance within ${REPRICED_DECIDE_DAYS} days.`, 3);
     return;
   }
-  const now = bookRound(s, ctx, r.ask, pre, { ...(r.anchor ? { anchor: r.anchor } : {}), ipo: r.ipo });
-  if (r.ipo) {
+  closeRound(s, ctx, r.ask, pre, r.anchor, r.ipo);
+}
+
+/** Book a priced round and its IPO side effects (closePendingRound, acceptRepriced). */
+function closeRound(s: GameStateV2, ctx: SystemCtx, ask: Money, pre: Money, anchor: string | undefined, ipo: boolean): void {
+  const now = bookRound(s, ctx, ask, pre, { ...(anchor ? { anchor } : {}), ipo });
+  if (ipo) {
     s.capital.ipoWindow = true;
     if (!s.player.board.seats.some((x) => x.kind === 'independent' && x.holder === 'Listing independent')) {
       s.player.board.seats.push({ kind: 'independent', holder: 'Listing independent', stance: [0, 0.5, 0.3, 0.3], weight: 1 });
     }
   }
-  ctx.log('finance', `Round closed: $${r.ask.toFixed(1)}B ($${now.toFixed(1)}B now) at $${pre.toFixed(0)}B pre-money.`);
+  ctx.log('finance', `Round closed: $${ask.toFixed(1)}B ($${now.toFixed(1)}B now) at $${pre.toFixed(0)}B pre-money.`);
+}
+
+/** Accept a repriced round as a down round (cash now, dilution, down-round penalties). */
+export function acceptRepriced(s: GameStateV2, ctx: SystemCtx): string | undefined {
+  const f = s.player.finance;
+  const r = f.ws3.repricedRound;
+  if (!r) return 'No repriced round';
+  delete f.ws3.repricedRound;
+  closeRound(s, ctx, r.ask, r.pre, r.anchor, r.ipo);
+  return undefined;
+}
+
+/** Pull a repriced round: no cash, no dilution. `why` is logged (player choice or the decision window ran out). */
+export function pullRepriced(s: GameStateV2, ctx: SystemCtx, why = 'you pulled it'): string | undefined {
+  const f = s.player.finance;
+  const r = f.ws3.repricedRound;
+  if (!r) return 'No repriced round';
+  delete f.ws3.repricedRound;
+  ctx.log('finance', `The repriced $${r.ask.toFixed(0)}B round is off: ${why}.`, 2);
+  return undefined;
+}
+
+/** Daily: a repriced round nobody decided on is pulled at its deadline (the player never agreed to a down round). */
+export function expireRepriced(s: GameStateV2, ctx: SystemCtx): void {
+  const r = s.player.finance.ws3.repricedRound;
+  if (r && s.time.day >= r.deadline) pullRepriced(s, ctx, 'no decision within the window');
 }

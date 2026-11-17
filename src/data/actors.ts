@@ -48,5 +48,8 @@ export const LAB_ARCHETYPES: LabArchetype[] = [
   { id: 'maverick', name: 'Maverick Accelerationist', weight: 20, desc: 'Founder-driven, fastest build-out, weakest safety.', safety: 20, openness: 50, lobby: -70, computeMult: 1, gapYears: [0.2, 0.5] },
   { id: 'openweights', name: 'Open-Weights Spoiler', weight: 15, desc: 'Releases near-frontier weights to commoditize rivals.', safety: 30, openness: 85, lobby: -40, computeMult: 0.7, gapYears: [0.35, 0.7] },
   { id: 'upstart', name: 'Boutique Upstart', weight: 10, desc: 'Elite small team of ex-OpenBrain staff. Poaches talent.', safety: 55, openness: 20, lobby: 0, computeMult: 0.3, gapYears: [0.5, 1.1] },
+  // The AI 2027 leading lab (BUILD-PLAN R2): never sampled (weight 0); added after the sampled rivals when
+  // setup.leaderLab is on, at reference inputs (compute = refTotal, h = 1). computeMult/gapYears are unused.
+  { id: 'leader', name: 'Frontier Leader', weight: 0, desc: 'The leading lab at the reference pace: the most compute, racing, thin safety.', safety: 35, openness: 25, lobby: -30, computeMult: 1, gapYears: [0, 0] },
 ];
 

@@ -12,14 +12,18 @@
 // with reference resources and the best research mix has M = multiplierAt(w, q) exactly (acceptance test P1): the
 // reference lab optimises its mix, the AI 2027 usage table fixes only how much compute goes to research in total.
 // Synthetic data is a training input (data stock and the data wall on bases, data.ts), not a research input.
+import { aEngOf, playerH } from '../departments/teams';
+import { agentVersion, capShare } from '../departments/agents';
+import { ENG_REF_SHARE } from '../../../data/v2/agents';
 import { laborSlowdown, multiplierAt, stage1 } from '../../../data/world';
-import { CHINA_CAL, H100E_PER_COPY_SC, PROD_SPEED_CAP, REF_TECH } from '../../../data/v2/calibration';
+import { CHINA_CAL, H100E_PER_COPY_SC, K_DIFFUSION, PROD_SPEED_CAP, REF_TECH } from '../../../data/v2/calibration';
 import { CHINA_PRESETS } from '../../../data/actors';
 import { decimalYear } from '../core/time';
 import { shareRefAt } from '../departments/split';
-import { CHINA_ID, PLAYER_ID, internalVersion, labCore, otherLabs } from '../models/labs';
+import { CHINA_ID, LEADER_ID, PLAYER_ID, bestPlayerVersion, internalVersion, labCore, otherLabs } from '../models/labs';
 import { deltaRsch } from '../models/capability';
-import { paradigmLoad } from '../models/paradigms';
+import { payoffOf } from '../models/tree';
+import { idleTrainingShare } from '../models/runs';
 import { asV1World } from '../world/calibration';
 import { poolsOf } from '../compute/power';
 import { rivalSpeedMult } from '../actors/rivals';
@@ -32,11 +36,17 @@ import type { EngineSystem, GameStateV2, LabId, ModelVersion, ProdParams, Produc
 export interface LabInputs {
   /** v1-coordinate progress of the internally deployed model incl. δ_rsch (q_dep = p_dep + calShift). */
   qDep: number;
+  /** v1-coordinate progress of the frontier-research agents' model (R7): sets the taste curve Tref and AI taste sdAI.
+   *  Absent = qDep (the same model in routine and frontier research: today's production function exactly). */
+  qTaste?: number;
+  /** AI share of engineers' work from the engineering agents (R7, player): A_eng of their model × coverage. */
+  aEng?: number;
   yr: number;
   h: number; k: number; c: number; d: number;
   /** c and k this lab would have with all of its research compute (experiments + agents) on experiments / on agents;
-   *  C = that research compute (H100e), load = paradigm share of the experiment pool, off = agents switched off. */
-  mixUnit: { c: number; k: number; C: number; load: number; off: boolean };
+   *  C = that research compute (H100e), load = 0 (paradigm projects took experiment compute before R4), off = agents switched off.
+   *  idle = training compute no run uses (H100e, player only, R5): it runs experiments on top of the mix (cIdle in c units). */
+  mixUnit: { c: number; k: number; C: number; load: number; off: boolean; idle?: number; cIdle?: number };
   /** min(1, S_eff / N_req(F(t))) — data-stock adequacy (§3.2.2). */
   stock: number;
   tasteHire: number;
@@ -70,14 +80,15 @@ export function refBestX(Pp: P, A: number, R: number, q: number, yr: number): nu
 }
 
 /** M and its pieces for a set of inputs. Pure. */
-export function evalM(w: TimelineWorld, inp: Pick<LabInputs, 'qDep' | 'yr' | 'h' | 'k' | 'c' | 'tasteHire' | 'eff' | 'mods'>) {
+export function evalM(w: TimelineWorld, inp: Pick<LabInputs, 'qDep' | 'yr' | 'h' | 'k' | 'c' | 'tasteHire' | 'eff' | 'mods'> & { qTaste?: number }) {
   const Pp: P = w.prod;
   const q = inp.qDep;
   const Mref = multiplierAt(asV1World(w), q);
   const kn = knotAt(Pp.knots, q);
   const lRef = Math.pow(Lrel(Pp, kn.A, 1, kn.R), Pp.lam);
   const Xref = Xces(Pp, 1, lRef);
-  const Tref = Mref / Xref;
+  // R7: research taste comes from the frontier-research model (q_taste); the default (q_taste = q_dep) is exact.
+  const Tref = inp.qTaste === undefined || inp.qTaste === q ? Mref / Xref : tasteCurve(w, inp.qTaste);
   const norm = Xref / refBestX(Pp, kn.A, kn.R, q, inp.yr);
   const ai = kn.R * inp.k;
   const L = Lrel(Pp, kn.A, inp.h, ai);
@@ -87,6 +98,14 @@ export function evalM(w: TimelineWorld, inp: Pick<LabInputs, 'qDep' | 'yr' | 'h'
   const tau = inp.tasteHire !== 1 ? 1 + (inp.tasteHire - 1) * (1 - Phi(sdAI)) : 1;
   const M = Tref * tau * X * norm * inp.eff * inp.mods;
   return { M, Mref, A: kn.A, R: kn.R, Tref, tau, sdAI, L, l, X, ai, norm };
+}
+
+/** The taste curve Tref(q) = M_ref(q) / X(1, ℓ_ref(q)) (research/13): the part of the reference multiplier that is not
+ *  the labour–experiment CES. Read at the frontier-research model's q (R7). */
+export function tasteCurve(w: TimelineWorld, q: number): number {
+  const Pp = w.prod;
+  const kn = knotAt(Pp.knots, q);
+  return multiplierAt(asV1World(w), q) / Xces(Pp, 1, Math.pow(Lrel(Pp, kn.A, 1, kn.R), Pp.lam));
 }
 
 const speedOf = (M: number) => Math.min(PROD_SPEED_CAP, 8 + 10.8 * Math.log2(Math.max(1, M))); // R11 #23
@@ -149,7 +168,7 @@ export function evalProduction(w: TimelineWorld, inp: LabInputs, detail = true):
   const copies = inp.abs.Cagents / Math.max(1e-6, perCopy);
   return {
     M: e.M, rate, stage, parts, elast, perDollar, ceilings, binding, label,
-    labor: { A: e.A, aiFTE: e.ai * hRef(inp.yr), copies, speed: speedOf(e.M), wH },
+    labor: { A: e.A, aiFTE: e.ai * hRef(inp.yr), copies, speed: speedOf(e.M), wH, ...(inp.aEng !== undefined ? { aEng: inp.aEng } : {}) },
     ratios: { h: inp.h, k: inp.k, c: inp.c, d: inp.d },
     Ddata: 1,
     whatIf,
@@ -218,47 +237,89 @@ export function labInputs(s: GameStateV2, lab: LabId, day = s.time.day): LabInpu
   let controlTax = 0;
   let cMult = 1;
   let mods = 1;
-  let H = core.staff.cap;
+  // Player: capabilities research engineers carry h (R3: h = RE_cap / (0.55·H_ref)); other labs: their capabilities staff.
+  let H = isPlayer ? playerH(s.player) : core.staff.cap;
   if (isPlayer) {
     const par = s.player.paradigms;
     if (par.P05?.status === 'adopted') etaMod *= 1.3;
-    if (par.P20?.status === 'adopted') etaMod *= 1.1; // agent societies [D]
-    if (par.P13?.status === 'adopted') cMult = 1.5;
+    // R4: no capability gates, so P13 and P20 pay off with what they need (models/tree.ts payoffOf).
+    if (par.P20?.status === 'adopted') etaMod *= 1 + 0.1 * payoffOf(s, 'P20'); // agent societies [D]
+    if (par.P13?.status === 'adopted') cMult = 1 + 0.5 * payoffOf(s, 'P13');
     if (s.player.deployments.some((d) => d.channel === 'internal' && d.status === 'live' && d.controlLayer)) controlTax = 0.05;
     mods *= 1 - 0.05 * s.player.security.siloing; // research speed −5% per silo level (§3.4.3)
     if (Number(s.flags['ws4:sidelinedUntil'] ?? -1) > day) H *= 0.9; // E12 clearances sideline 5–15% of staff for 60 d (§3.4.1)
     if ((s.player.finance.ws3.asicMigrationUntil ?? -1) > day) mods *= 0.85; // custom-ASIC migration: −15% research efficiency (§3.7.4)
   } else mods *= rivalSpeedMult(s, lab); // a binding leader slows itself (§3.10.3, WS4)
-  // Paradigm projects tie up research FTE and a share of the experiment pool (§3.3.3).
-  const load = isPlayer ? paradigmLoad(s) : { fte: 0, expShare: 0 };
-  H = Math.max(1, H - load.fte);
+  H = Math.max(1, H);
   // Pools are WS3's: computeOnline × split (§3.4.2). Internal agents switched off (E25 shutdown & hunt) → no agent pool.
   const pools = poolsOf(s, lab);
   const agentsOff = isPlayer && Number(s.flags['ws4:agentsOffUntil'] ?? -1) > day;
   const Cag = agentsOff ? 0 : pools.agents;
-  const Cexp = pools.experiments * (1 - load.expShare);
+  const Cexp = pools.experiments;
   const Csyn = pools.synthetic;
   const h = H / hRef(yr);
   const qDep = pDepOf(s, lab) + w.calShift;
   const rt = isPlayer ? referenceTech(core.scDay, day) : { k: 1, c: 1 };
-  const k = (Cag * etaMod * (1 - controlTax)) / Math.max(1, ref * sh.agents * rt.k);
-  const c = (cMult * Cexp) / Math.max(1, ref * sh.experiments * rt.c);
+  // R7 agent packages (player): k counts routine + frontier research agents against the reference agent compute net of
+  // the engineering share (ref·sh.agents·(1 − s_engRef)); the frontier model sets taste (qTaste); engineering agents
+  // set the AI share of engineers' work. Exactly today's inputs at the default packages.
+  const pk = isPlayer ? agentPackageInputs(s, qDep, serve) : undefined;
+  const agentMult = pk?.agentMult ?? 1;
+  const k = (Cag * etaMod * agentMult * (1 - controlTax)) / Math.max(1, ref * sh.agents * rt.k);
+  // R5: training compute that no run (or stream) uses runs research experiments (nothing is wasted silently).
+  const idle = isPlayer && s.player.policies.spareTraining !== 'data' ? idleTrainingShare(s) * pools.training : 0;
+  const cIdle = (cMult * idle) / Math.max(1, ref * sh.experiments * rt.c);
+  const c = (cMult * Cexp) / Math.max(1, ref * sh.experiments * rt.c) + cIdle;
   const d = Csyn / Math.max(1, ref * sh.synthetic);
   const stock = isPlayer ? dataStockRatio(s, yr) : 1;
   const Cres = pools.experiments + pools.agents;
   const mixUnit = {
-    c: (cMult * Cres * (1 - load.expShare)) / Math.max(1, ref * sh.experiments * rt.c),
-    k: agentsOff ? 0 : (Cres * etaMod * (1 - controlTax)) / Math.max(1, ref * sh.agents * rt.k),
-    C: Cres, load: load.expShare, off: agentsOff,
+    c: (cMult * Cres) / Math.max(1, ref * sh.experiments * rt.c),
+    k: agentsOff ? 0 : (Cres * etaMod * agentMult * (1 - controlTax)) / Math.max(1, ref * sh.agents * rt.k),
+    C: Cres, load: 0, off: agentsOff, idle, cIdle,
   };
   // pauseMult 0.1 during a voluntary or committee pause of frontier experiments (§3.1.2; WS4 frontierPauseUntil).
   const pause = isPlayer && (s.flags.paused || ws4r(s).frontierPauseUntil > day) ? 0.1 : 1;
   const treaty = s.gov.treaty === 'verified' ? 0.65 : 1;
   return {
-    qDep, yr, h, k, c, d, mixUnit, stock,
+    qDep, ...(pk?.qTaste !== undefined ? { qTaste: pk.qTaste } : {}), ...(pk ? { aEng: pk.aEng } : {}), yr, h, k, c, d, mixUnit, stock,
     tasteHire: core.tasteHire, eff: effLab(s, lab), mods, rateMult: pause * treaty,
-    abs: { H, Cagents: Cag, Cexp, serveCost: serve, tcoPerYr: tcoPerH100eYear(s, yr), staffCostPerYr: 0.8e-3 },
+    abs: { H, Cagents: Cag, Cexp: Cexp + idle, serveCost: pk?.serveCopies ?? serve, tcoPerYr: tcoPerH100eYear(s, yr), staffCostPerYr: 0.8e-3 },
   };
+}
+
+const etaOf = (serve: number) => Math.min(2.5, Math.max(0.5, 0.5 / serve));
+/** q of a model version in the production function's coordinate (pm + δ_rsch + calShift). */
+export const qOfVersion = (w: TimelineWorld, v: ModelVersion) => v.pm + deltaRsch(w, v) + w.calShift;
+
+/**
+ * The player's agent packages as production inputs (R7):
+ *   agentMult  research agents' share of the agent pool ÷ (1 − s_engRef), × their compute-weighted ηmod relative to the
+ *              routine model's (1 when frontier runs the routine model): k = Cag·ηmod·agentMult / (ref·sh.agents)
+ *   qTaste     the frontier model's q when it differs from routine's and has compute
+ *   aEng       A_eng = 1 − (1 − A(q_eng))² × coverage, coverage = min(1, eng share ÷ s_engRef × ηmod_eng ÷ ηmod_routine)
+ *   serveCopies serve cost for the copies readout (harmonic, compute-weighted over the three models)
+ */
+export function agentPackageInputs(s: GameStateV2, qDep: number, serveR: number): { agentMult: number; qTaste?: number; aEng: number; serveCopies: number } {
+  const w = s.hidden.timeline;
+  const se = capShare(s, 'eng');
+  const sr = capShare(s, 'capRoutine');
+  const sf = capShare(s, 'capFrontier');
+  const vr = internalVersion(s);
+  const vf = agentVersion(s, 'capFrontier');
+  const ve = agentVersion(s, 'eng');
+  let agentMult = se === ENG_REF_SHARE ? 1 : (sr + sf) / (1 - ENG_REF_SHARE);
+  let qTaste: number | undefined;
+  let serveCopies = serveR;
+  const frontierOwn = !!vf && vf.id !== vr?.id;
+  const engOwn = !!ve && ve.id !== vr?.id;
+  if (frontierOwn && sr + sf > 0) agentMult *= (sr + (sf * etaOf(vf.serveCost)) / etaOf(serveR)) / (sr + sf);
+  if (frontierOwn && sf > 0) qTaste = qOfVersion(w, vf);
+  if (frontierOwn || engOwn) serveCopies = 1 / (sr / serveR + sf / (vf?.serveCost ?? serveR) + se / (ve?.serveCost ?? serveR));
+  const qE = engOwn ? qOfVersion(w, ve) : qDep;
+  const cover = Math.min(1, (se / ENG_REF_SHARE) * (engOwn ? etaOf(ve.serveCost) / etaOf(serveR) : 1));
+  const aEng = aEngOf(knotAt(w.prod.knots, qE).A) * cover;
+  return { agentMult, ...(qTaste !== undefined ? { qTaste } : {}), aEng, serveCopies };
 }
 
 /** Production readout for a lab, computed from current state (§3.2.2/§3.2.5). */
@@ -282,13 +343,13 @@ export function aiFtePerH100e(s: GameStateV2, v: Pick<ModelVersion, 'pm' | 'buil
 export function bestResearchMix(s: GameStateV2, inp: LabInputs): number {
   const Pp = s.hidden.timeline.prod;
   const kn = knotAt(Pp.knots, inp.qDep);
-  return bestMix(Pp, kn.A, kn.R, inp.h, inp.mixUnit.c, inp.mixUnit.k).f;
+  return bestMix(Pp, kn.A, kn.R, inp.h, inp.mixUnit.c, inp.mixUnit.k, inp.mixUnit.cIdle ?? 0).f;
 }
 
 /** Inputs with the research compute re-split at experiments share f (same total). */
 export function inputsAtMix(inp: LabInputs, f: number): LabInputs {
   const u = inp.mixUnit;
-  return { ...inp, c: f * u.c, k: (1 - f) * u.k, abs: { ...inp.abs, Cexp: f * u.C * (1 - u.load), Cagents: u.off ? 0 : (1 - f) * u.C } };
+  return { ...inp, c: f * u.c + (u.cIdle ?? 0), k: (1 - f) * u.k, abs: { ...inp.abs, Cexp: f * u.C * (1 - u.load) + (u.idle ?? 0), Cagents: u.off ? 0 : (1 - f) * u.C } };
 }
 
 /** Re-split a lab's research share between experiments and agents in the best way (auto mix; the player can switch
@@ -316,14 +377,31 @@ export function advanceLab(s: GameStateV2, lab: LabId): ProductionReadout | unde
   return r;
 }
 
+/** Knowledge diffusion to the player (R9; data/v2/calibration.ts K_DIFFUSION): K × (the frontier leader lab's public
+ *  model − the player's best model) per year while positive. Only the simulated AI 2027 leader (Polaris, in every start
+ *  but the leader's) diffuses: the other rivals are modelled from the outside and already ride the reference scaling
+ *  term (simpleFrontierPm), and in the leader start there is no such lab, so its calibration path is untouched. */
+export function diffusionPerDay(s: GameStateV2): { dpa: number; from?: string } {
+  const L = s.rivals.find((r) => r.core.id === LEADER_ID);
+  const pub = L && L.core.status === 'active' ? L.publicModel?.pm : undefined;
+  if (pub === undefined) return { dpa: 0 };
+  const gap = pub - (bestPlayerVersion(s)?.pm ?? s.player.pa);
+  return gap > 0 ? { dpa: (K_DIFFUSION * gap) / 365, from: L!.core.name } : { dpa: 0 };
+}
+
 /** production (30, daily): for player, rivals and China — readout, then pa += rate/365 (§3.2). Memoised readouts
  *  are cached on each lab (`prodCache`) and under ctx.memo 'WS1:production:<lab>'. */
 export const productionSystem: EngineSystem = {
-  id: 'production', owner: 'WS1', cadence: 'daily', order: 30,
+  id: 'production', owner: 'WS1', cadence: 'daily', order: 30, system: 'research',
   run(s, ctx) {
     const r = advanceLab(s, PLAYER_ID);
     if (r) {
       ctx.cause('player.pa', r.rate / 365, 'production', `M ${r.M.toFixed(2)}×, ${r.label}`);
+      const dif = diffusionPerDay(s);
+      if (dif.dpa > 0) {
+        s.player.pa += dif.dpa;
+        ctx.cause('player.pa', dif.dpa, 'knowledge diffusion', dif.from);
+      }
       ctx.memo.set('WS1:production:player', r);
       syntheticAccrual(s);
     }

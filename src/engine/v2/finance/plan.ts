@@ -5,6 +5,7 @@
 // `mult × refTotal(t)` online compute: chips 2–3 quarters ahead, sites ~6 quarters ahead (SPV-funded), leases and
 // neocloud capacity for near-term gaps; it raises equity every quarter at the ceiling and draws the revolver when short.
 import { SITE_PATHS } from '../../../data/v2/deals';
+import { isDivision } from '../../../data/v2/starts';
 import { act } from '../core/loop';
 import { dayOfQuarter } from '../core/time';
 import { siteCapacityH } from '../compute/power';
@@ -12,7 +13,7 @@ import { cloudPricePerYear, refTotalAt } from '../compute/market';
 import { EVENT_BY_ID } from '../core/registry';
 import type { GameStateV2, PendingDecision } from '../types';
 import { debtHeadroom } from './debt';
-import { canRaise, lastPostMoney } from './equity';
+import { canRaise, DOWN_ROUND_RUNWAY_Q, lastPostMoney } from './equity';
 import { qOf } from './ledger';
 import { runwayOf } from './runway';
 
@@ -35,6 +36,21 @@ export interface AutopilotOpts {
   raiseBelowQ?: number;
   /** Runway floor (quarters) the one-year bridge rental may not push below (default BRIDGE_FLOOR_Q). */
   bridgeFloorQ?: number;
+  /** Fraction of the target path to track (follower starts, R9; default 1). */
+  scale?: number;
+}
+
+/** Follower starts (R9: spinout, challenger, big-tech division): start from their own compute, aim to close on the
+ *  reference path over FOLLOWER_RAMP_D days, and keep two more quarters of runway than the leader-start policy (a
+ *  smaller company cannot carry the leader's commitments). The leader start's options are unchanged. */
+export const FOLLOWER_RAMP_D = 730;
+export function followerOpts(s: GameStateV2, o: AutopilotOpts): AutopilotOpts {
+  if ((s.setup.start ?? 'leader') === 'leader') return o;
+  const r0 = refTotalAt(s, 0);
+  const own0 = Number(s.flags['plan:own0'] ?? (s.flags['plan:own0'] = s.player.computeOnline));
+  const phi0 = Math.min(1, own0 / Math.max(1, r0));
+  const scale = phi0 + (1 - phi0) * Math.min(1, s.time.day / FOLLOWER_RAMP_D);
+  return { ...o, scale, guardQ: (o.guardQ ?? GUARD_Q) + 2, bridgeFloorQ: (o.bridgeFloorQ ?? BRIDGE_FLOOR_Q) + 2 };
 }
 export const REF_AUTOPILOT: AutopilotOpts = { mult: 1, strategic: true, offBalance: true, guard: true, rescue: true, recap: true };
 export const CAPEX2X_AUTOPILOT: AutopilotOpts = { mult: 2, strategic: true, offBalance: true, guard: false, rescue: false, recap: true };
@@ -57,7 +73,7 @@ const years = (_s: GameStateV2, day: number) => day / 365;
 const target = (s: GameStateV2, o: AutopilotOpts, dayAhead: number) => {
   // "2× capex" doubles the build-out since the start, not the day-0 fleet.
   const r0 = refTotalAt(s, 0);
-  return r0 + o.mult * (refTotalAt(s, years(s, s.time.day + dayAhead)) - r0);
+  return (o.scale ?? 1) * (r0 + o.mult * (refTotalAt(s, years(s, s.time.day + dayAhead)) - r0));
 };
 const kWAt = (s: GameStateV2, qAhead: number) => s.power.kWPerH100e * Math.pow(0.944, qAhead);
 
@@ -100,11 +116,15 @@ function ownedBy(s: GameStateV2, qq: number) {
 }
 
 /** Run one autopilot step (call every day before the tick; acts on the 1st of each month). */
-export function financeAutopilot(s: GameStateV2, o: AutopilotOpts = REF_AUTOPILOT): void {
-  if (s.time.day % 30 !== 0 && !isQuarterStart(s)) return;
+export function financeAutopilot(s: GameStateV2, o0: AutopilotOpts = REF_AUTOPILOT): void {
+  const o = followerOpts(s, o0);
   const f = s.player.finance;
-  if (f.state === 'insolvent') return;
   const tryAct = (id: string, p: Record<string, number | string | boolean> = {}) => act(s, id, p) === undefined;
+  // A round repriced into a down round (decided at once, whatever the day): a competent CEO takes it only when the
+  // company needs the cash (runway under DOWN_ROUND_RUNWAY_Q), otherwise pulls it (the pre-R1 automatic rule, M4).
+  if (f.ws3?.repricedRound && f.state !== 'insolvent') tryAct(runwayOf(s).q < DOWN_ROUND_RUNWAY_Q ? 'fin.acceptRepriced' : 'fin.pullRepriced');
+  if (s.time.day % 30 !== 0 && !isQuarterStart(s)) return;
+  if (f.state === 'insolvent') return;
 
   // Governance: start the recapitalisation when it becomes available (Q4 2025).
   if (o.recap && s.player.board.preset === 'legacyNonprofit' && f.ws3.recap.startDay === undefined && !f.ws3.recap.refused && s.time.day >= 92) tryAct('fin.recap');
@@ -119,7 +139,8 @@ export function financeAutopilot(s: GameStateV2, o: AutopilotOpts = REF_AUTOPILO
   }
 
   // Last resort before insolvency: sell owned chips to cover a quarter's shortfall (a CEO who keeps the company).
-  if (f.state === 'distress' && f.cash < Math.max(1, 0.5 * runwayOf(s).burnQ)) {
+  // (A division cannot go broke: it never sells its compute, R9.)
+  if (f.state === 'distress' && !isDivision(s) && f.cash < Math.max(1, 0.5 * runwayOf(s).burnQ)) {
     const perH = (s.market.rental * 8760 * 1.5) / 1e9; // fin.sellChips resale value per H100e ($B)
     const need = Math.max(1, runwayOf(s).burnQ) - f.cash;
     if (perH > 0 && need > 0) tryAct('fin.sellChips', { qty: Math.max(1e4, need / perH) });

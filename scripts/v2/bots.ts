@@ -2,7 +2,10 @@
 // actors, Rising storyteller. Reports win / mixed / loss, the ending mix, the §7.4 pass criteria and ending coverage
 // (E5, statistical). Owner: WS4.
 //
-//   npx tsx scripts/v2/bots.ts [--seeds 200] [--bots race,safe,mixed,capex2x,ref] [--json out.json]
+//   npx tsx scripts/v2/bots.ts [--seeds 200] [--bots race,safe,mixed,capex2x,ref] [--start leader] [--json out.json]
+//
+// --start spinout|challenger|bigtech|leader (R9): the start type; the leader lab follows it (D1: on for every start
+// but the leader's). The §7.4 criteria are defined on the leader start; other starts report the difficulty table.
 //
 // The criteria are informational until integration (M2+): with M0 placeholders, progress and traits do not respond
 // to player levers, so every bot reaches the same milestones on the same days.
@@ -18,7 +21,7 @@ import { resolve, tick } from '../../src/engine/v2/core/loop';
 import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
 import { bestPlayerVersion } from '../../src/engine/v2/models/labs';
 import { misalignment } from '../../src/engine/v2/safety/traits';
-import type { AlignDiffId, BotPolicy, EndingId, EndingV2, GameStateV2, TraitId, WorldPresetId } from '../../src/engine/v2/types';
+import type { AlignDiffId, BotPolicy, EndingId, EndingV2, GameStateV2, StartType, TraitId, WorldPresetId } from '../../src/engine/v2/types';
 
 const arg = (k: string, d: string) => {
   const i = process.argv.indexOf(`--${k}`);
@@ -27,13 +30,14 @@ const arg = (k: string, d: string) => {
 const SEEDS = Number(arg('seeds', '200'));
 const ALL: Record<string, BotPolicy> = { race: raceBot, safe: safeBot, mixed: mixedBot, capex2x: capex2xBot, ref: refBot };
 const BOTS = arg('bots', 'race,safe,mixed,capex2x,ref').split(',').filter((b) => ALL[b]);
+const START = arg('start', 'leader') as StartType;
 const COMBOS: { world: WorldPresetId; alignment: AlignDiffId }[] = [
   { world: 'ai2027', alignment: 'medium' }, { world: 'ai2027', alignment: 'sampled' },
   { world: 'sampled', alignment: 'medium' }, { world: 'sampled', alignment: 'sampled' },
 ];
 
 export interface RunResult {
-  bot: string; seed: number; world: string; alignment: string; ending: EndingId; verdict: EndingV2['verdict']; day: number; scores: EndingV2['scores']; power: string;
+  bot: string; seed: number; start?: string; world: string; alignment: string; ending: EndingId; verdict: EndingV2['verdict']; day: number; scores: EndingV2['scores']; power: string;
   /** TRUE Mis of the player's best version at the end (hidden; the choices-vs-world diagnostic) and at the player's ASI. */
   mis: number; misAsi?: number; L: number; U: number; gapTrue: number;
   /** World features for the diagnostic: λ1–λ6, ln D, doomThreshold. */
@@ -171,16 +175,16 @@ function main() {
     for (let i = FROM; i < FROM + SEEDS; i++) {
       const combo = COMBOS[i % COMBOS.length];
       const seed = 10_000 + i;
-      const s = newGame(defaultSetupV2({ seed, ...combo, econ: combo.world === 'ai2027' ? 'ai2027' : 'sampled', storyteller: 'rising', tutorial: false, gov: 'realistic', public: 'realistic', china: 'realistic', rivals: 'realistic' }));
+      const s = newGame(defaultSetupV2({ seed, ...combo, econ: combo.world === 'ai2027' ? 'ai2027' : 'sampled', storyteller: 'rising', tutorial: false, gov: 'realistic', public: 'realistic', china: 'realistic', rivals: 'realistic', start: START }));
       playBot(bot, s);
       const e = s.ending!;
-      results.push({ bot: name, seed, ...combo, ending: e.id, verdict: e.verdict, day: e.day, scores: e.scores, power: e.power, ...misRecord(s) });
+      results.push({ bot: name, seed, start: START, ...combo, ending: e.id, verdict: e.verdict, day: e.day, scores: e.scores, power: e.power, ...misRecord(s) });
     }
     process.stderr.write(`  ${name}: ${SEEDS} runs (${((performance.now() - t0) / 1000).toFixed(0)} s)\n`);
   }
 
   const pct = (n: number, d: number) => `${((100 * n) / Math.max(1, d)).toFixed(1)}%`.padStart(6);
-  console.log(`\nBot harness — ${Math.round(results.length / Math.max(1, BOTS.length))} seeds per bot (${COMBOS.map((c) => `${c.world}/${c.alignment}`).join(', ')}), Rising storyteller\n`);
+  console.log(`\nBot harness — start ${START} — ${Math.round(results.length / Math.max(1, BOTS.length))} seeds per bot (${COMBOS.map((c) => `${c.world}/${c.alignment}`).join(', ')}), Rising storyteller\n`);
   console.log('bot      runs   win    mixed  loss   med.day  top endings');
   const winRate: Record<string, number> = {};
   for (const name of BOTS) {

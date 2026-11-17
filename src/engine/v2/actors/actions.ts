@@ -4,8 +4,8 @@
 import { clamp } from '../../rng';
 import { bestPm, activeRivals } from '../models/labs';
 import { publishFinding } from '../safety/findings';
-import { reqSpend } from '../security/security';
-import type { ActionDef, CounterpartyId, GameStateV2, SystemCtx } from '../types';
+import { reqSpend, WSL_TARGET_RANGE } from '../security/security';
+import type { ActionDef, ActionVerb, CounterpartyId, GameStateV2, StructureSystem, SystemCtx } from '../types';
 import { signCommitment, hasCommitment } from './commitments';
 import { addCoverup } from './relations';
 import {
@@ -15,11 +15,14 @@ import {
 import { govPresetOf } from './gov';
 import { addPosture, archetypeOf, openWeightsReleased, paceOf } from './rivals';
 import { ws4, ws4r } from './state';
+import { changeHeads } from '../departments/teams';
 
 type P = Record<string, number | string | boolean>;
 
 interface Spec {
   id: string;
+  verb: ActionVerb;
+  system: StructureSystem;
   title: string;
   sphere?: ActionDef['sphere'];
   /** Days before it can be used again (omitted = always available unless `once`). */
@@ -33,7 +36,7 @@ interface Spec {
 
 function def(x: Spec): ActionDef {
   return {
-    id: x.id, sphere: x.sphere ?? 'relations', owner: 'WS4', title: x.title,
+    id: x.id, verb: x.verb, system: x.system, sphere: x.sphere ?? 'relations', owner: 'WS4', title: x.title,
     available(s) {
       if (s.player.status !== 'active') return 'Company inactive';
       const last = ws4r(s).actionDay[x.id];
@@ -65,7 +68,7 @@ function poachTarget(s: GameStateV2, p: P) {
 export const RELATION_ACTIONS: ActionDef[] = [
   // ───────── A. Testing and transparency ─────────
   def({
-    id: 'A1', title: 'Pre-deploy testing',
+    id: 'A1', verb: 'policy', system: 'relations', title: 'Pre-deploy testing',
     available: (s) => (hasCommitment(s, 'preDeployTesting') ? 'Already signed' : true),
     preview: () => pv([L('leadDays', 21, 'each frontier launch'), L('staffTime', 5)], [L('trust', 8, 'exec'), L('trust', 6, 'evalGov'), L('credibility', 2)], [L('security', 15, 'gov awareness → security demand', { lagDays: 30 })]),
     apply(s, ctx) {
@@ -80,7 +83,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     },
   }),
   def({
-    id: 'A2', title: 'Evaluator access', once: true,
+    id: 'A2', verb: 'policy', system: 'relations', title: 'Evaluator access', once: true,
     preview: () => pv([L('leadDays', 30, 'early access'), L('compute', 0.5)], [L('credibility', 5, undefined, { probability: 0.7 }), L('trust', 8, 'evalIndep')], [L('credibility', -15, 'report contradicts claims', { probability: 0.3, lagDays: 45 })]),
     apply(s, ctx) {
       grantAccess(s, 'evalIndep', 2);
@@ -90,7 +93,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     },
   }),
   def({
-    id: 'A3', title: 'Publish framework',
+    id: 'A3', verb: 'policy', system: 'relations', title: 'Publish framework',
     available: (s) => (hasCommitment(s, 'noDeployAbove') ? 'Framework already live' : true),
     preview: (_s, p) => pv([L('freedom', p.strong ? 2 : 1, 'thresholds bind')], [L('credibility', 5), L('approval', 6, 'bloc:safety')], [L('credibility', -8, 'moving goalposts if relaxed', { probability: 0.3 })]),
     apply(s, ctx, p) {
@@ -101,7 +104,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     },
   }),
   def({
-    id: 'A4', title: 'Publish research', cooldown: 90,
+    id: 'A4', verb: 'policy', system: 'relations', title: 'Publish research', cooldown: 90,
     preview: (s) => pv([L('leadDays', 9, 'capability leak to rivals and China')], [L('credibility', 3), L('talent', 2), L('trust', 3, 'academia')], [L('approval', -1, 'model-organism papers raise concern', { probability: 0.3 }), L('alignment', s.knowledge.sharedTechniquePool < 0.9 ? 0.03 : 0, 'shared technique pool (all labs)')]),
     apply(s, ctx) {
       const w = ws4(s);
@@ -119,7 +122,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     },
   }),
   def({
-    id: 'A5', title: 'Bug bounty', once: true,
+    id: 'A5', verb: 'policy', system: 'relations', title: 'Bug bounty', once: true,
     preview: () => pv([L('cash', 0.05, 'per year')], [L('credibility', 1), L('security', 0.1, 'misuse detection')]),
     apply(s, ctx) {
       s.flags['ws4:bugBounty'] = true;
@@ -128,7 +131,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     },
   }),
   def({
-    id: 'A6', title: 'Whistleblower channel',
+    id: 'A6', verb: 'policy', system: 'relations', title: 'Whistleblower channel',
     available: (s) => (s.player.policies.whistleblowerChannel ? 'Channel already open' : true),
     preview: () => pv([L('staffTime', 3, 'handling reports')], [L('talent', 3), L('morale', 5, 'safety staff'), L('trust', 2, 'insider concerns handled internally, not leaked')]),
     apply(s, ctx) {
@@ -141,7 +144,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
   }),
   // ───────── B. Government ─────────
   def({
-    id: 'B1', title: 'Loss-leader contract', cooldown: 365,
+    id: 'B1', verb: 'deal', system: 'relations', title: 'Loss-leader contract', cooldown: 365,
     preview: (s) => pv([L('revenue', Math.max(0.1, s.player.finance.revenueRun * 0.02), 'priced at $1 for a year'), L('cash', 0.3, 'serving cost')], [L('trust', 5, 'exec')], [L('trust', -3, 'favors decay when price normalises', { lagDays: 365 })]),
     apply(s, ctx) {
       const st = s.relations.stocks.exec;
@@ -153,7 +156,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     },
   }),
   def({
-    id: 'B2', title: 'Defense contract', once: true,
+    id: 'B2', verb: 'deal', system: 'relations', title: 'Defense contract', once: true,
     preview: (_s, p) => (str(p, 'terms', 'limits') === 'unrestricted'
       ? pv([L('morale', 12, 'safety staff'), L('approval', 8, 'bloc:civlib')], [L('cash', 1, 'contract value'), L('trust', 8, 'exec')], [L('chinaTension', 5, 'China hawk +5')])
       : pv([L('morale', 6, 'safety staff'), L('revenue', 0.5, 'half the contract')], [L('cash', 0.5), L('trust', 3, 'exec')], [L('trust', -15, 'retaliation roll (0.35)', { probability: 0.35 })])),
@@ -186,7 +189,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     },
   }),
   def({
-    id: 'B3', title: 'Hire officials', cooldown: 365,
+    id: 'B3', verb: 'hire', system: 'relations', title: 'Hire officials', cooldown: 365,
     preview: () => pv([L('cash', 0.02), L('scrutiny', 5)], [L('trust', 3, 'exec')], [L('scrutiny', 8, '"unfair access" press', { probability: 0.3 })]),
     apply(s, ctx) {
       cash(s, ctx, -0.02, 'B3 former officials');
@@ -199,7 +202,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     },
   }),
   def({
-    id: 'B4', title: 'Lobby', cooldown: 91,
+    id: 'B4', verb: 'deal', system: 'relations', title: 'Lobby', cooldown: 91,
     preview: (s, p) => {
       const dereg = str(p, 'direction', 'deregulate') === 'deregulate';
       return pv([L('cash', 0.05), L('approval', 6, dereg ? 'bloc:safety' : 'bloc:accel')], [L('trust', 3, 'exec')], [L('scrutiny', 10, 'exposure', { probability: clamp(s.relations.scrutiny / 200, 0, 1) })]);
@@ -221,7 +224,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     },
   }),
   def({
-    id: 'B5', title: 'Voluntary accord',
+    id: 'B5', verb: 'deal', system: 'relations', title: 'Voluntary accord',
     available: (s) => (hasCommitment(s, 'incidentReporting') ? 'Already signed' : true),
     preview: () => pv([L('freedom', 1, '72-hour incident reporting')], [L('trust', 3, 'many')], [L('trust', -3, 'small but broad break cost', { probability: 0.2 })]),
     apply(s, ctx) {
@@ -231,7 +234,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     },
   }),
   def({
-    id: 'B6', title: 'Sue', cooldown: 180,
+    id: 'B6', verb: 'respond', system: 'relations', title: 'Sue', cooldown: 180,
     preview: (s, p) => pv([L('cash', 0.05), L('scrutiny', 8)], [L('trust', str(p, 'target', 'gov') === 'gov' ? 0 : 0, 'courts')], [L('approval', -5, 'sympathy backlash', { probability: str(p, 'target', 'gov') === 'critics' ? 0.8 : 0.2 }), L('freedom', 1, `injunction odds ${Math.round(s.gov.judicialCheck)}%`, { probability: s.gov.judicialCheck / 100 })]),
     apply(s, ctx, p) {
       cash(s, ctx, -0.05, 'B6 lawsuit');
@@ -251,7 +254,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     },
   }),
   def({
-    id: 'B7', title: 'Brief officials',
+    id: 'B7', verb: 'deal', system: 'relations', title: 'Brief officials',
     preview: (s, p) => {
       const lvl = clamp(Math.round(num(p, 'level', Math.min(3, s.player.policies.govBriefing + 1))), 0, 3);
       const up = lvl - s.player.policies.govBriefing;
@@ -273,7 +276,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
   }),
   // ───────── C. Rivals ─────────
   def({
-    id: 'C1', title: 'Share threat intel', once: true,
+    id: 'C1', verb: 'deal', system: 'relations', title: 'Share threat intel', once: true,
     preview: () => pv([L('security', 1, 'reveals detection methods'), L('trust', 5, 'china')], [L('trust', 5, 'rivals'), L('leadDays', 10, 'China distillation −10')]),
     apply(s, ctx) {
       s.flags['ws4:threatIntel'] = true;
@@ -285,7 +288,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     },
   }),
   def({
-    id: 'C2', title: 'Restrict adversaries', once: true,
+    id: 'C2', verb: 'policy', system: 'relations', title: 'Restrict adversaries', once: true,
     preview: (s) => pv([L('revenue', Math.max(0.01, s.player.finance.revenueRun * 0.01), '−1%'), L('trust', 5, 'china')], [L('approval', 5, 'bloc:hawks'), L('leadDays', 5, 'less distillation')]),
     apply(s, ctx) {
       s.flags['ws4:restrictAdversary'] = true;
@@ -295,7 +298,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     },
   }),
   def({
-    id: 'C3', title: 'Joint evals', cooldown: 91,
+    id: 'C3', verb: 'deal', system: 'relations', title: 'Joint evals', cooldown: 91,
     preview: () => pv([L('staffTime', 4)], [L('trust', 6, 'rivals'), L('alignment', 0.05, 'rivals eval rigor')], [L('scrutiny', 5, 'maverick cries "cartel"', { probability: 0.5 })]),
     apply(s, ctx) {
       for (const r of activeRivals(s)) {
@@ -310,7 +313,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     },
   }),
   def({
-    id: 'C4', title: 'Poach', cooldown: 180,
+    id: 'C4', verb: 'hire', system: 'people', title: 'Poach', cooldown: 180,
     available: (s) => (activeRivals(s).length ? true : 'No active rivals'),
     preview: (s, p) => {
       const r = poachTarget(s, p);
@@ -322,7 +325,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
       cash(s, ctx, -0.5, 'C4 poaching', r.core.name);
       const n = Math.max(5, Math.round(r.core.staff.cap * 0.03));
       r.core.staff.cap = Math.max(0, r.core.staff.cap - n);
-      s.player.staff.cap += n;
+      changeHeads(s, 'cap', n);
       ctx.bump('player.pa', (5 / 365) * paceOf(s), 'C4 tacit knowledge', r.core.name);
       rivalMeter(s, ctx, r.core.id, 'cooperation', -20, 'C4 poaching');
       rivalMeter(s, ctx, r.core.id, 'poachAggression', 20, 'C4 poaching');
@@ -333,7 +336,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     },
   }),
   def({
-    id: 'C6', title: 'Open weights', cooldown: 180,
+    id: 'C6', verb: 'launch', system: 'models', title: 'Open weights', cooldown: 180,
     preview: (_s, p) => pv([L('leadDays', 60 / Math.max(1, num(p, 'behind', 1)), 'rivals and China close the gap'), L('approval', 8, 'bloc:hawks')], [L('approval', 8, 'bloc:accel'), L('credibility', 2, 'open science')], [L('chinaTension', -3), L('scrutiny', 3)]),
     apply(s, ctx, p) {
       const behind = Math.max(1, num(p, 'behind', 1));
@@ -353,7 +356,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
   }),
   // ───────── D. Research bodies and academia ─────────
   def({
-    id: 'D1', title: 'Academic grant', cooldown: 365,
+    id: 'D1', verb: 'deal', system: 'relations', title: 'Academic grant', cooldown: 365,
     preview: () => pv([L('cash', 0.05), L('compute', 0.5)], [L('talent', 3, undefined, { lagDays: 270 }), L('trust', 8, 'academia')], [L('credibility', -2, 'academics publish what they find', { probability: 0.3 })]),
     apply(s, ctx) {
       cash(s, ctx, -0.05, 'D1 academic grant');
@@ -363,7 +366,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     },
   }),
   def({
-    id: 'D2', title: 'Safety fellowship', cooldown: 365,
+    id: 'D2', verb: 'deal', system: 'relations', title: 'Safety fellowship', cooldown: 365,
     preview: () => pv([L('cash', 0.02, '$15k compute per fellow-month'), L('security', 0.05, 'leak risk')], [L('talent', 2, 'safety pipeline'), L('credibility', 1)]),
     apply(s, ctx) {
       cash(s, ctx, -0.02, 'D2 safety fellowship');
@@ -374,7 +377,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     },
   }),
   def({
-    id: 'D3', title: 'License data', once: true,
+    id: 'D3', verb: 'deal', system: 'models', title: 'License data', once: true,
     preview: (s) => pv([L('cash', Math.round((1 + 0.005 * s.player.dataAssets.unlicensedTokensT) * 100) / 100, 'licences up front')], [L('approval', 10, 'bloc:creatives')], [L('cash', 0, 'litigation hazard → 0')]),
     apply(s, ctx) {
       const d = s.player.dataAssets;
@@ -388,7 +391,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
   }),
   // ───────── E. China ─────────
   def({
-    id: 'E1', title: 'Track-2 dialogue', cooldown: 180,
+    id: 'E1', verb: 'deal', system: 'relations', title: 'Track-2 dialogue', cooldown: 180,
     preview: () => pv([L('staffTime', 2), L('approval', 3, 'bloc:hawks')], [L('trust', 5, 'china'), L('chinaTension', 3)], [L('leadDays', -1, 'small leak')]),
     apply(s, ctx) {
       ctx.bump('china.meters.safetyConcern', 4, 'E1 Track-2 dialogue');
@@ -400,7 +403,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     },
   }),
   def({
-    id: 'E2', title: 'Gov-gov agreement', cooldown: 365,
+    id: 'E2', verb: 'deal', system: 'relations', title: 'Gov-gov agreement', cooldown: 365,
     available: (s) => (s.relations.stocks.exec.trust >= 45 || hasFavor(s, 'exec') ? true : 'Needs exec trust ≥ 45 or a favor'),
     preview: (s) => pv([hasFavor(s, 'exec') ? L('trust', 0, 'spend an exec favor') : L('trust', 3, 'exec'), L('approval', 5, 'bloc:hawks')], [L('chinaTension', 5, 'China D-track step')], [L('chinaTension', -5, 'fails if linked to export controls', { probability: Number(s.flags['ws4:exportLobby'] ?? 0) > 0 ? 0.8 : 0.1 })]),
     apply(s, ctx) {
@@ -417,7 +420,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     },
   }),
   def({
-    id: 'E3', title: 'Lobby export controls', cooldown: 182,
+    id: 'E3', verb: 'deal', system: 'relations', title: 'Lobby export controls', cooldown: 182,
     preview: (_s, p) => (str(p, 'direction', 'tighten') === 'tighten'
       ? pv([L('trust', 10, 'china'), L('chinaTension', 5)], [L('approval', 8, 'bloc:hawks'), L('leadDays', 20, 'China compute growth slows')], [L('cash', -0.2, 'rare-earth retaliation', { probability: 0.4 })])
       : pv([L('approval', 8, 'bloc:hawks')], [L('approval', 8, 'bloc:chip'), L('trust', 5, 'china')], [L('leadDays', -15, 'China gets more chips')])),
@@ -441,7 +444,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
   }),
   // ───────── F. Public ─────────
   def({
-    id: 'F1', title: 'Community benefits',
+    id: 'F1', verb: 'deal', system: 'world', title: 'Community benefits',
     available: (s) => (s.player.policies.communityBenefits ? 'Already pledged' : true),
     preview: (s) => pv([L('cash', Math.max(0.05, 0.03 * s.player.sites.reduce((a, x) => a + x.capex, 0)), '+3% site capex')], [L('approval', 10, 'bloc:ratepayers')], [L('freedom', 1, 'pledge binds new sites')]),
     apply(s, ctx) {
@@ -455,7 +458,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
   }),
   // F2 (transition fund) is WS5's wfx.transitionFund: one implementation, charged by WS3's payroll.
   def({
-    id: 'F3', title: 'No drop-in agents', once: true,
+    id: 'F3', verb: 'policy', system: 'world', title: 'No drop-in agents', once: true,
     preview: (s) => pv([L('revenue', Math.max(0.05, s.player.finance.revenueRun * 0.05), 'α ≤ 0.5 in chosen sectors')], [L('approval', 10, 'bloc:labor')]),
     apply(s, ctx) {
       for (const d of s.player.deployments) d.usagePolicy.noDropInReplacement = true;
@@ -465,21 +468,21 @@ export const RELATION_ACTIONS: ActionDef[] = [
   }),
   // ───────── Security sphere (§3.6) ─────────
   def({
-    id: 'SEC_TARGET', title: 'Security target', sphere: 'security',
+    id: 'SEC_TARGET', verb: 'policy', system: 'relations', title: 'Security target', sphere: 'security',
     preview: (s, p) => {
       const sec = s.player.security;
-      const t = clamp(num(p, 'level', Math.min(5, sec.target + 0.5)), 2, 5);
+      const t = clamp(num(p, 'level', Math.min(WSL_TARGET_RANGE[1], sec.target + 0.5)), WSL_TARGET_RANGE[0], WSL_TARGET_RANGE[1]);
       const spend = reqSpend(t, s.player.computeOnline) * 1.05;
       return pv([L('cash', Math.max(0, spend - sec.spendRate), '$B/yr more'), L('staffTime', 1)], [L('security', t - sec.wsl, `WSL → ${t.toFixed(1)} at ≤ 0.006/day`)]);
     },
     apply(s, _ctx, p) {
       const sec = s.player.security;
-      sec.target = clamp(num(p, 'level', Math.min(5, sec.target + 0.5)), 2, 5);
+      sec.target = clamp(num(p, 'level', Math.min(WSL_TARGET_RANGE[1], sec.target + 0.5)), WSL_TARGET_RANGE[0], WSL_TARGET_RANGE[1]);
       sec.spendRate = Math.round(reqSpend(sec.target, s.player.computeOnline) * 1.05 * 1000) / 1000;
     },
   }),
   def({
-    id: 'SEC_SILO', title: 'Siloing', sphere: 'security',
+    id: 'SEC_SILO', verb: 'policy', system: 'relations', title: 'Siloing', sphere: 'security',
     preview: (s, p) => {
       const lvl = clamp(Math.round(num(p, 'level', Math.min(2, s.player.security.siloing + 1))), 0, 2);
       const d = lvl - s.player.security.siloing;
@@ -493,7 +496,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     },
   }),
   def({
-    id: 'SEC_CI', title: 'Counter-intel', sphere: 'security',
+    id: 'SEC_CI', verb: 'policy', system: 'relations', title: 'Counter-intel', sphere: 'security',
     available: (s) => (s.player.security.counterIntel >= 0.9 ? 'At maximum' : true),
     preview: () => pv([L('cash', 0.1, 'per year')], [L('security', 0.2, 'theft detection')]),
     apply(s) {
@@ -504,7 +507,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
   }),
   // ───────── Retire (§5.1 #10: always available) ─────────
   def({
-    id: 'RETIRE', title: 'Retire', sphere: 'relations',
+    id: 'RETIRE', verb: 'respond', system: 'core', title: 'Retire', sphere: 'relations',
     preview: () => pv([L('freedom', 1, 'you hand over the company'), L('progress', 1, 'the race goes on without you')], [L('boardConf', 0)]),
     apply(s) {
       ws4(s).retired = true;

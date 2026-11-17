@@ -153,7 +153,7 @@ export function computeHistory(s: GameStateV2, n = 4): ForecastQ[] {
 
 /** computeHistQ (399, quarterly): snapshot the quarter that just ended, before this quarter's deliveries and installs. */
 export const computeHistQSystem: EngineSystem = {
-  id: 'computeHistQ', owner: 'WS3', cadence: 'quarterly', order: 399,
+  id: 'computeHistQ', owner: 'WS3', cadence: 'quarterly', order: 399, system: 'compute',
   run(s) {
     const fx = s.player.finance.ws3;
     if (!fx || s.time.day === 0) return;

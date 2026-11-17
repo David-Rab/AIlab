@@ -14,6 +14,8 @@ import { chinaGapFormulaMonths } from '../../src/engine/v2/actors/china';
 import { updateIntel, leadDays } from '../../src/engine/v2/actors/intel';
 import { deactivateRival, leadBetween } from '../../src/engine/v2/actors/rivals';
 import { request, ws4 } from '../../src/engine/v2/actors/state';
+import { blockingCommitments, measuredDomain, signCommitment } from '../../src/engine/v2/actors/commitments';
+import { deployGate } from '../../src/engine/v2/models/deployments';
 import { WS4_TUNING } from '../../src/engine/v2/actors/tuning';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { makeCtx, tick } from '../../src/engine/v2/core/loop';
@@ -161,7 +163,7 @@ const load = (i: number) => deserialize(fixtures[i]);
     const lim = STORYTELLERS[st];
     for (let seed = 1; seed <= 12; seed++) {
       const s = newGame(defaultSetupV2({ seed, storyteller: st, tutorial: false }));
-      const spam: EngineSystem = { id: 'spam', owner: 'WS4', cadence: 'daily', order: 139, run: (x) => {
+      const spam: EngineSystem = { id: 'spam', owner: 'WS4', cadence: 'daily', order: 139, system: 'core', run: (x) => {
         // Requests obey cooldowns, so clear the record each day to keep the pressure on the storyteller limits.
         for (const id of ['E10', 'E19', 'E20', 'E25']) {
           delete x.events.fired[id];
@@ -170,7 +172,7 @@ const load = (i: number) => deserialize(fixtures[i]);
       } };
       let prev = new Set<string>();
       let lastEnd = -1e9;
-      const probe: EngineSystem = { id: 'probe', owner: 'WS4', cadence: 'daily', order: 141, run: (x) => {
+      const probe: EngineSystem = { id: 'probe', owner: 'WS4', cadence: 'daily', order: 141, system: 'core', run: (x) => {
         const cur = new Set(x.events.pending.filter((p) => p.crisis).map((p) => p.instance));
         if (cur.size > lim.maxCrises) bad.push(`${st}/${seed} day ${x.time.day}: ${cur.size} crises`);
         const ended = [...prev].some((i) => !cur.has(i));
@@ -308,6 +310,40 @@ const load = (i: number) => deserialize(fixtures[i]);
   months.sort((x, y) => x - y);
   const inBand = months.filter((m) => m >= 3 && m <= 9).length / months.length;
   console.log(`      T4 over 200 seeds (classic): min ${months[0].toFixed(2)}, median ${months[months.length >> 1].toFixed(2)}, max ${months[months.length - 1].toFixed(2)} months; ${(100 * inBand).toFixed(0)}% in 3–9`);
+}
+
+// ───────── C1 (R1 B1/B2): a commitment blocks only launches in its own scope, judged on the candidate ─────────
+{
+  const s = deserialize(fixtures[1]);
+  const ctx = makeCtx(s);
+  s.player.safety.evalGate = 'none';
+  const v = [...s.player.models.versions].reverse().find((x) => x.variant === 'full' && (x.status === 'ready' || x.status === 'deployed'));
+  check(!!v, 'C1 fixture has a deployable full version');
+  if (v) {
+    check(deployGate(s, v, 'api') === true, 'C1 baseline: the version can launch on the API');
+    // B1: a breached whistleblower pledge binds (E30) but has nothing to do with launches.
+    signCommitment(s, ctx, 'whistleblower', 'Right-to-warn whistleblower channel', 'whistleblower', {}, [], { trust: 1, credibility: 1 });
+    ws4(s).internalReport = { day: s.time.day - 40, deadline: s.time.day - 1 };
+    check(blockingCommitments(s).some((c) => c.condition.predicate === 'whistleblower'), 'C1 the whistleblower pledge binds');
+    check(deployGate(s, v, 'api') === true, 'C1 (B1) an out-of-scope binding commitment does not block a launch', String(deployGate(s, v, 'api')));
+    // B2: the framework judges the candidate. Make the version measure BIO ≥ 10.
+    const bio = measuredDomain(v, 'BIO');
+    v.domains.BIO += 10.5 - bio;
+    signCommitment(s, ctx, 'framework', 'Frontier safety framework: no BIO ≥ 10 deployment without classifiers', 'noDeployAbove', { domain: 'BIO', level: 10, mitigation: 'classifiers' }, [], { trust: 1, credibility: 1 });
+    const g1 = deployGate(s, v, 'api', { safeguards: 'standard' });
+    check(typeof g1 === 'string' && g1.includes('Frontier safety framework') && g1.includes('classifier'), 'C1 (B2) the framework blocks the candidate that breaks it, naming the commitment and clause', String(g1));
+    check(deployGate(s, v, 'api', { safeguards: 'classifiers' }) === true, 'C1 the same launch with classifiers passes');
+    check(deployGate(s, v, 'internal') === true, 'C1 internal use is outside the framework scope');
+    // An existing violating deployment does not block an unrelated, compliant launch.
+    const dep = s.player.deployments.find((d) => d.status === 'live' && d.channel === 'api');
+    if (dep) {
+      dep.versionId = v.id;
+      dep.safeguards = 'standard';
+      check(blockingCommitments(s).some((c) => c.condition.predicate === 'noDeployAbove'), 'C1 the standing breach binds (E30 shows it)');
+      const other = s.player.models.versions.find((x) => x.id !== v.id && x.variant === 'full' && (x.status === 'ready' || x.status === 'deployed') && measuredDomain(x, 'BIO') < 10);
+      if (other) check(deployGate(s, other, 'enterprise') === true, 'C1 (B2) a standing breach no longer blocks other launches', String(deployGate(s, other, 'enterprise')));
+    }
+  }
 }
 
 finish('ws4');

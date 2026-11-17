@@ -1,0 +1,372 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>AI27 v3 · Research</title>
+<link rel="stylesheet" href="kit.css"><link rel="stylesheet" href="kit-crs.css">
+<style>
+.card { position:relative; }
+/* know-how */
+.kh { display:flex; align-items:center; gap:10px; margin-left:22px; padding:5px 12px; border-radius:8px; background:var(--panel); border:1px solid var(--line); }
+.khbar { width:300px; height:12px; border-radius:6px; background:var(--line); position:relative; overflow:hidden; display:flex; }
+.khbar .in { width:74%; background:var(--cap); }
+.khbar .out { width:26%; background:repeating-linear-gradient(135deg, rgba(155,107,224,.85) 0 3px, rgba(155,107,224,.18) 3px 7px); }
+.kh .lbl { font-size:11.5px; color:var(--text-2); white-space:nowrap; }
+.kh .lbl b { font:700 13px var(--mono); color:#fff; }
+
+/* tree */
+.tree { flex:1; min-height:0; display:flex; flex-direction:column; padding-bottom:10px; }
+.seg2 { display:inline-flex; padding:2px; background:var(--bg-2); border:1px solid var(--line); border-radius:7px; }
+.seg2 span { padding:2px 10px; border-radius:5px; font-size:12px; color:var(--text-2); font-weight:600; }
+.seg2 span.on { background:#1d2a3b; color:#fff; }
+.lgd { display:flex; gap:12px; align-items:center; font-size:11.5px; color:var(--text-2); }
+.tb { position:relative; flex:1; min-height:0; overflow:hidden; border-radius:6px; }
+.lane { position:absolute; left:0; right:0; border-top:1px solid #1c2531; }
+.lane .ln { position:absolute; left:10px; top:0; bottom:0; display:flex; align-items:center; gap:7px; font-size:12px; font-weight:600; color:var(--text-2); width:118px; }
+.lane .ln svg { color:var(--lc); }
+.colhd { position:absolute; top:0; font-size:10.5px; letter-spacing:.08em; color:var(--text-3); font-weight:700; text-transform:uppercase; }
+.fade { position:absolute; top:0; bottom:0; right:0; width:10px; background:linear-gradient(90deg, rgba(21,28,38,0), var(--panel) 85%); pointer-events:none; }
+svg.edges { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+
+.node { position:absolute; width:188px; height:54px; border-radius:7px; background:var(--panel-2); border:1px solid var(--line-2); padding:6px 9px 0; display:flex; flex-direction:column; gap:4px; overflow:hidden; }
+.node .nm { display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600; color:#fff; white-space:nowrap; }
+.node .nm span { overflow:hidden; text-overflow:ellipsis; }
+.node .mt { display:flex; align-items:center; gap:7px; font-size:11px; color:var(--text-3); white-space:nowrap; }
+.node .mt .eo { margin-left:auto; max-width:112px; overflow:hidden; text-overflow:ellipsis; font:600 10.5px var(--mono); color:var(--text-3); }
+.node.active { border-color:#5aa9ff; background:#17253a; }
+.node.active .pb { position:absolute; left:0; right:0; bottom:0; height:3px; background:#24364f; }
+.node.active .pb i { position:absolute; left:0; top:0; bottom:0; background:#5aa9ff; }
+.node.locked { background:#141b24; border-style:dashed; }
+.node.locked .nm { color:var(--text-2); }
+.node.queued { border-color:rgba(233,180,76,.6); }
+.node.sel { box-shadow:0 0 0 2px #ffd84d, 0 0 20px rgba(255,216,77,.25); }
+.qn { font:700 10px var(--mono); color:#1a1400; background:var(--warn); border-radius:3px; padding:0 4px; }
+.lay { font:700 9.5px var(--mono); color:var(--text-2); border:1px solid var(--line-2); border-radius:3px; padding:0 3px; line-height:13px; }
+.ef { display:inline-flex; align-items:center; gap:1px; font:700 10px var(--mono); }
+.ef.cu { color:#b58cf0; } .ef.su { color:#3fcfbc; } .ef.dn { color:var(--bad); }
+.ef svg.i { width:12px; height:12px; }
+.pill2 { position:absolute; height:21px; border-radius:11px; padding:0 9px 0 6px; display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text-2); background:#18212c; border:1px solid var(--line); white-space:nowrap; }
+.pill2 svg { color:var(--good); }
+.pill2.fail { border-color:rgba(239,107,107,.45); color:#ffb4b4; }
+.pill2.fail svg { color:var(--bad); }
+.ring { width:13px; height:13px; border-radius:50%; flex-shrink:0; background:conic-gradient(#5aa9ff calc(var(--p) * 1%), #2b3a50 0); -webkit-mask:radial-gradient(circle, transparent 3.2px, #000 3.6px); }
+
+/* minimap */
+.mini { position:relative; width:150px; height:34px; background:rgba(11,15,21,.9); border:1px solid var(--line-2); border-radius:5px; margin-left:12px; overflow:hidden; }
+.mini .vp { position:absolute; border:1.5px solid #ffd84d; border-radius:3px; background:rgba(255,216,77,.06); }
+
+/* projects bar */
+.proj { flex:0 0 auto; display:grid; grid-template-columns: minmax(0,1fr) 252px; gap:12px; }
+.pcards { display:grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap:8px; }
+.pcard { position:relative; height:150px; border-radius:7px; background:var(--panel-2); border:1px solid var(--line-2); border-top:3px solid var(--lc); padding:7px 9px 8px; display:flex; flex-direction:column; gap:6px; }
+.pcard .nm { font-size:12.5px; font-weight:600; color:#fff; line-height:1.25; height:31px; flex-shrink:0; overflow:hidden; display:flex; gap:6px; }
+.pcard .nm svg { color:var(--lc); margin-top:1px; }
+.tchips { display:flex; gap:4px; align-items:center; }
+.tch { width:24px; height:20px; border-radius:4px; background:#24324a; border:1px solid #3a4d6b; display:grid; place-items:center; color:#cfe3ff; }
+.tch.el { border-color:#d9c27a; box-shadow: inset 0 0 0 1px rgba(217,194,122,.35); }
+.tch.add { background:transparent; border:1px dashed var(--line-2); color:var(--text-3); }
+.tch.ghost { border:1.5px dashed var(--warn); background:rgba(233,180,76,.12); color:#ffe0a0; }
+.mxb { font:700 10px var(--mono); color:#9ff0c8; margin-left:2px; }
+.pcard .pr { display:flex; align-items:center; gap:6px; }
+.pcard .pr .bar { flex:1; height:6px; }
+.pcard .pr b { font:600 11.5px var(--mono); color:#fff; width:30px; text-align:right; }
+.pcard .ft { display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--text-2); white-space:nowrap; }
+.pcard .ft:last-child { margin-top:auto; }
+.pcard .ft .num { color:#fff; font-weight:600; }
+.hl { font-size:11px; font-weight:600; display:inline-flex; align-items:center; gap:3px; }
+.hl.pro { color:var(--good); } .hl.mix { color:var(--warn); } .hl.str { color:var(--bad); }
+.lnk { display:inline-flex; align-items:center; gap:5px; padding:2px 7px; border-radius:6px; border:1px solid #36507a; background:#142033; color:#cfe3ff; font-size:12px; white-space:nowrap; }
+.lnk.sm { padding:0 5px 0 6px; gap:3px; }
+.queue { display:flex; flex-direction:column; gap:6px; }
+.qrow { display:flex; align-items:center; gap:7px; padding:6px 8px; border-radius:6px; background:var(--panel-2); border:1px solid var(--line-2); font-size:12px; }
+.qrow .w { font-size:10.5px; color:var(--text-3); }
+.qrow .nm { color:#fff; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* L2 node card */
+.ncard { position:absolute; z-index:45; width:430px; background:#121a24; border:1px solid #46597a; border-radius:10px; box-shadow:0 18px 50px rgba(0,0,0,.65); padding:14px 16px; }
+.ncard h2 { margin:0; font-size:17px; color:#fff; font-weight:650; }
+.ncard .sec { border-top:1px solid var(--line); margin-top:11px; padding-top:10px; }
+.ncard .k { font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--text-3); font-weight:700; margin-bottom:6px; }
+.efrow { display:grid; grid-template-columns: 22px 92px 1fr; align-items:center; gap:8px; padding:3px 0; font-size:12.5px; }
+.efrow .v { font:600 12.5px var(--mono); }
+.prq { display:flex; align-items:center; gap:7px; font-size:12.5px; padding:2px 0; }
+/* picker */
+.picker { position:absolute; z-index:45; width:610px; background:#121a24; border:1px solid #46597a; border-radius:10px; box-shadow:0 18px 50px rgba(0,0,0,.65); padding:12px 14px; }
+.prow2 { display:grid; grid-template-columns: 24px minmax(0,1fr) 50px 96px 150px; align-items:center; gap:8px; padding:7px 8px; border-radius:7px; font-size:12px; }
+.prow2.on { background:#1a2b42; box-shadow:inset 0 0 0 1px #5aa9ff; }
+.prow2 .t { color:#fff; font-weight:600; white-space:nowrap; }
+.prow2 .s { font-size:11px; color:var(--text-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mult { font:700 12px var(--mono); text-align:center; border-radius:5px; padding:2px 0; }
+.mult.m { color:#0b2a1c; background:var(--good); } .mult.n { color:var(--text-2); background:var(--panel-3); }
+</style></head>
+<body data-nav="research">
+<!--ICONS-->
+<div class="app"><div class="body"><main class="center">
+
+  <div class="ph">
+    <svg class="i s20 t2"><use href="#i-flask-conical"/></svg><h1>Research</h1>
+    <div class="kh">
+      <span class="lbl"><u>Know-how</u></span>
+      <div class="khbar"><div class="in"></div><div class="out"></div></div>
+      <span class="lbl"><span class="dot" style="background:var(--cap)"></span> in Atlas-3.1</span>
+      <span class="lbl"><b>+2.6 mo</b> not trained in</span>
+      <span class="btn go sm"><svg class="i s14"><use href="#i-rocket"/></svg>Train <svg class="i s12"><use href="#i-chevron-right"/></svg></span>
+    </div>
+    <span class="sp"></span>
+    <span class="chipl link"><svg class="i s14"><use href="#i-gauge"/></svg>Research speed <svg class="i s12"><use href="#i-chevron-right"/></svg></span>
+  </div>
+
+  <div class="card tree">
+    <div class="hd">
+      <svg class="i s14 t2"><use href="#i-git-merge"/></svg><span class="ttl">Tree</span><span class="sub">around active projects · 31 of 88 ideas known</span>
+      <span class="seg2" style="margin-left:10px"><span class="on">All</span><span>Capability</span><span>Safety</span></span>
+      <span class="sp"></span>
+      <span class="lgd">
+        <span class="ef cu"><svg class="i"><use href="#i-brain"/></svg>▲</span>capability
+        <span class="ef su"><svg class="i"><use href="#i-microscope"/></svg>▲</span>safety
+        <span class="ef dn">▼</span>cost
+        <span style="width:1px;height:14px;background:var(--line-2)"></span>
+        <span class="lay">B</span><span class="lay">T</span><span class="lay">S</span><span class="lay">L</span><u>layer</u>
+        <span style="width:1px;height:14px;background:var(--line-2)"></span>
+        <svg class="i s14" style="color:var(--warn)"><use href="#i-lock"/></svg>needs
+      </span>
+      <div class="mini" id="mini"></div><span class="speed" style="margin-left:8px"><span class="b" style="width:26px;height:26px"><svg class="i s14"><use href="#i-zoom-out"/></svg></span><span class="b" style="width:26px;height:26px"><svg class="i s14"><use href="#i-zoom-in"/></svg></span></span>
+    </div>
+    <div class="tb" id="tb">
+      <svg class="edges" id="edges"></svg>
+      <div class="fade"></div>
+    </div>
+  </div>
+
+  <div class="proj">
+    <div class="card" style="padding:10px 12px">
+      <div class="hd" style="margin-bottom:8px"><svg class="i s14 t2"><use href="#i-flask-conical"/></svg><span class="ttl">Active projects</span><span class="sub">7 · 11 science teams</span><span class="sp"></span>
+        <span class="row small t2" style="gap:7px"><span class="tog on"></span>Auto-assign idle teams</span></div>
+      <div class="pcards" id="pcards"></div>
+    </div>
+    <div class="card" style="padding:10px 12px">
+      <div class="hd" style="margin-bottom:8px"><svg class="i s14 t2"><use href="#i-list-ordered"/></svg><span class="ttl">Queue</span><span class="sp"></span><span class="tiny t3">drag to reorder</span></div>
+      <div class="queue">
+        <div class="qrow" id="q1"><svg class="i s14 t3"><use href="#i-grip-vertical"/></svg><span class="qn">1</span><div style="min-width:0"><div class="nm">Anti-scheming training</div><div class="w">after Honesty &amp; confession</div></div></div>
+        <div class="qrow"><svg class="i s14 t3"><use href="#i-grip-vertical"/></svg><span class="qn">2</span><div style="min-width:0"><div class="nm">Learned research taste</div><div class="w">after Automated AI research agents</div></div></div>
+        <div class="qrow"><svg class="i s14 t3"><use href="#i-grip-vertical"/></svg><span class="qn">3</span><div style="min-width:0"><div class="nm">AI kernels</div><div class="w">after Automated AI research agents</div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───── L2: node card (state #node) ───── -->
+  <div class="scrim only-node"></div>
+  <div class="ncard only-node" style="left:1000px;top:58px">
+    <div class="row" style="gap:10px;align-items:flex-start">
+      <span style="width:34px;height:34px;border-radius:8px;display:grid;place-items:center;background:rgba(34,163,148,.14);color:var(--und)"><svg class="i s20"><use href="#i-compass"/></svg></span>
+      <div style="flex:1"><h2>Anti-scheming training</h2>
+        <div class="row" style="gap:6px;margin-top:4px"><span class="tag" style="color:#5fc9b9">Alignment</span><span class="tag"><span class="lay" style="border:0;padding:0">T</span> <u>Training layer</u></span><span class="tag"><span class="qn">1</span> queued</span></div></div>
+      <svg class="i s16 t3"><use href="#i-x"/></svg>
+    </div>
+
+    <div class="sec">
+      <div class="k">Effect</div>
+      <div class="efrow"><svg class="i s16" style="color:var(--und)"><use href="#i-microscope"/></svg><span class="t2">Safety</span><span><span class="ef su" style="font-size:12px">▲▲</span> <span class="term">Scheming</span> <b class="num good">−90%</b> <span class="t3 small">in training</span></span></div>
+      <div class="efrow"><svg class="i s16" style="color:var(--bad)"><use href="#i-glasses"/></svg><span class="t2">Side effect</span><span><span class="ef dn" style="font-size:12px">▼</span> <span class="term">Eval awareness</span> <b class="num bad">×1.5</b></span></div>
+      <div class="efrow"><svg class="i s16 t3"><use href="#i-brain"/></svg><span class="t2">Capability</span><span class="t3">none</span></div>
+    </div>
+
+    <div class="sec">
+      <div class="row"><span class="k" style="margin:0">Odds</span><span class="sp"></span><span class="lnk"><span class="hl mix"><svg class="i s14"><use href="#i-circle-dot"/></svg>Mixed</span><span class="t2">· Training-signal design</span><svg class="i s12"><use href="#i-chevron-right"/></svg></span></div>
+      <div class="tiny t3" style="margin-top:5px;text-align:right">research-line estimate · detail on Safety</div>
+    </div>
+
+    <div class="sec">
+      <div class="k">Effort</div>
+      <div class="row small" style="gap:8px"><span class="tag">L</span><b class="num w">36</b><span class="t2">team-months</span><span class="sp"></span><span class="t2">2 Alignment teams</span><b class="num w">≈ 11 mo</b></div>
+    </div>
+
+    <div class="sec">
+      <div class="k">Needs</div>
+      <div class="prq"><span class="ring" style="--p:55"></span><span class="w">Honesty &amp; confession</span><span class="sp"></span><span class="num small t2">55% · 2.5 mo</span></div>
+      <div class="prq"><svg class="i s14 good"><use href="#i-circle-check"/></svg><span class="w">Linear probes</span><span class="sp"></span><span class="small t3">known</span></div>
+    </div>
+
+    <div class="sec">
+      <div class="k">Unlocks</div>
+      <div class="prq"><svg class="i s14 t2"><use href="#i-brain"/></svg><span>Blueprint card <b class="w">Anti-scheming</b></span><span class="sp"></span><span class="prod-l">Models <svg class="i s12"><use href="#i-chevron-right"/></svg></span></div>
+      <div class="prq t3 small"><svg class="i s14"><use href="#i-refresh-cw"/></svg>Use: <span class="t2">post-training run</span> · no new base</div>
+      <div class="prq t3 small"><svg class="i s14"><use href="#i-link"/></svg>Offsets side effect: <span class="term">Eval-awareness suppression</span></div>
+    </div>
+
+    <div class="row" style="margin-top:14px;gap:8px">
+      <span class="btn" style="opacity:.45"><svg class="i s14"><use href="#i-play"/></svg>Start now</span>
+      <span class="btn"><svg class="i s14"><use href="#i-users"/></svg>Assign teams</span>
+      <span class="sp"></span>
+      <span class="btn ghost sm"><svg class="i s14"><use href="#i-list-ordered"/></svg>Queue #1</span>
+    </div>
+  </div>
+
+  <!-- ───── assign state (#assign): picker on Continual learning ───── -->
+  <div class="picker only-assign" id="picker">
+    <div class="row" style="margin-bottom:8px"><svg class="i s16 t2"><use href="#i-users"/></svg><b class="w">Add a team · Continual learning</b><span class="tag" style="color:#b79be8">Post-training</span><span class="sp"></span><span class="tiny t3">or drag a team card</span></div>
+    <div class="prow2 cap t3" style="padding-top:0;padding-bottom:2px;font-size:10.5px;letter-spacing:.06em;font-weight:700"><span></span><span>TEAM · NOW ON</span><span style="text-align:center"><u>BONUS</u></span><span>THIS PROJECT</span><span>COST ELSEWHERE</span></div>
+    <div class="prow2 on"><svg class="i s16" style="color:var(--cap)"><use href="#i-dumbbell"/></svg><div style="min-width:0"><div class="t">Reasoning group <span class="q"><i class="on"></i><i class="on"></i><i class="on"></i></span></div><div class="s">Post-training · Self-play curricula</div></div><span class="mult m">×1.5</span><span class="num small" id="etaHover"><span class="t3">7.0 →</span> <b class="good">5.4 mo</b></span><span class="num small bad">Self-play paused</span></div>
+    <div class="prow2"><svg class="i s16" style="color:var(--cap)"><use href="#i-blocks"/></svg><div style="min-width:0"><div class="t">Systems team <span class="q"><i class="on"></i><i class="on"></i><i></i></span></div><div class="s">Systems · Auto. AI research agents</div></div><span class="mult n">×1.0</span><span class="num small"><span class="t3">7.0 →</span> <b class="w">6.1 mo</b></span><span class="num small bad">AI agents 4.5 → 6.4</span></div>
+    <div class="prow2"><svg class="i s16" style="color:var(--und)"><use href="#i-compass"/></svg><div style="min-width:0"><div class="t">Alignment team <span class="q"><i class="on"></i><i class="on"></i><i></i></span></div><div class="s">Alignment · Honesty &amp; confession</div></div><span class="mult n">×1.0</span><span class="num small"><span class="t3">7.0 →</span> <b class="w">6.1 mo</b></span><span class="num small bad">Honesty 2.5 → 3.5</span></div>
+    <div class="prow2"><svg class="i s16" style="color:var(--cap)"><use href="#i-layers"/></svg><div style="min-width:0"><div class="t">Pretraining team <span class="q"><i class="on"></i><i></i><i></i></span></div><div class="s">Pretraining · Synthetic data flywheel</div></div><span class="mult n">×1.0</span><span class="num small"><span class="t3">7.0 →</span> <b class="w">6.2 mo</b></span><span class="num small bad">Synthetic 2.0 → 2.7</span></div>
+    <div class="row" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line)"><span class="tiny t3">No idle science teams · hire one in</span><span class="prod-l">Company <svg class="i s12"><use href="#i-chevron-right"/></svg></span><span class="sp"></span><span class="btn ghost sm">Cancel</span><span class="btn pri sm"><svg class="i s14"><use href="#i-check"/></svg>Assign Reasoning group</span></div>
+  </div>
+  <div class="tip only-assign" id="assignTip" style="width:300px">
+    <div class="th"><b>ETA 7.0 → 5.4 mo</b><span class="t3 small">Continual learning</span></div>
+    <div class="r small"><span class="t2">Team capacity</span><span class="sp"></span><b class="num w">3.0 → 4.95</b></div>
+    <div class="r tiny t3" style="padding-left:10px"><span>Reasoning group: Elite 1.3 × <span class="term">specialty</span> 1.5</span><span class="sp"></span><span class="num good">+1.95</span></div>
+    <div class="r small"><span class="t2">Progress ∝ √capacity</span><span class="sp"></span><b class="num w">×1.28</b></div>
+    <div class="r small"><span class="t2"><span class="term">Research speed</span></span><span class="sp"></span><b class="num w">1.9×</b></div>
+    <div class="sec tiny t3">Off-specialty ×1.0 · <span class="term">diminishing returns</span></div>
+    <div class="lockbar on" style="right:30%"></div>
+  </div>
+
+</main></div></div>
+<script src="shell-crs.js"></script>
+<script>
+const I = (n, c = '') => `<svg class="i ${c}"><use href="#i-${n}"/></svg>`;
+const LANES = [
+  ['pre', 'Pretraining', 'layers', 'var(--cap)'], ['post', 'Post-training', 'dumbbell', 'var(--cap)'], ['sys', 'Systems', 'blocks', 'var(--cap)'],
+  ['ali', 'Alignment', 'compass', 'var(--und)'], ['int', 'Interpretability', 'scan-search', 'var(--und)'], ['evl', 'Evals & control', 'list-checks', 'var(--und)'],
+];
+// pills: known prerequisites (depth 0 column) · [id, lane, slot, label, fail]
+const PILLS = [
+  ['codemath', 'pre', 0, 'Code & math data'],
+  ['visr', 'post', 0, 'Visible reasoning'], ['rlmath', 'post', 1, 'RL focus: math'], ['rlml', 'post', 2, 'RL focus: ML research'],
+  ['longctx', 'sys', 0, 'Long context + memory'], ['distil', 'sys', 1, 'Distillation'], ['tttrain', 'sys', 2, 'Test-time training', true],
+  ['const', 'ali', 0, 'Constitution'], ['envh', 'ali', 1, 'Environment hardening'],
+  ['probes', 'int', 0, 'Linear probes'], ['sae', 'int', 1, 'SAE feature search'],
+  ['cotmon', 'evl', 0, 'CoT monitor'], ['trust', 'evl', 1, 'Trusted monitoring'], ['prop', 'evl', 2, 'Propensity evals'],
+];
+// nodes: [id, lane, depth(1-3), slot, name, state, layer, effects, effort·odds | progress, queue#]
+// effects: c+ c++ c- s+ s++ s-  ; states: active, avail, locked, queued
+const N = [
+  ['synth', 'pre', 1, 0, 'Synthetic data flywheel', 'active', 'B', 'c+ s-', 63],
+  ['neur', 'pre', 1, 1, 'Neuralese recurrence', 'avail', 'B', 'c++ s--', 'XL · 70%'],
+  ['fcot', 'pre', 2, 0, 'Faithful-CoT architecture', 'avail', 'B', 'c- s++', 'L · 75%'],
+  ['cl', 'post', 1, 0, 'Continual learning', 'active', 'T', 'c+ s-', 21],
+  ['igt', 'post', 1, 1, 'Interp-guided training', 'avail', 'T', 's+', 'M · 60%'],
+  ['self', 'post', 2, 0, 'Self-play curricula', 'active', 'T', 'c++ s-', 12],
+  ['spec', 'sys', 1, 0, 'Speculative decoding', 'avail', 'S', '$', 'S · 95%'],
+  ['aara', 'sys', 2, 0, 'Automated AI research agents', 'active', 'L', 'c++ s-', 46],
+  ['taste', 'sys', 3, 0, 'Learned research taste', 'queued', 'L', 'c++ s-', 'needs AI research agents', 2],
+  ['kern', 'sys', 3, 1, 'AI kernels', 'queued', 'L', 'c+', 'needs AI research agents', 3],
+  ['hon', 'ali', 1, 0, 'Honesty & confession', 'active', 'T', 's+', 55],
+  ['inoc', 'ali', 1, 1, 'Inoculation prompting', 'avail', 'T', 's+', 'S'],
+  ['antis', 'ali', 2, 0, 'Anti-scheming training', 'queued', 'T', 's++ s-', 'needs Honesty', 1],
+  ['w2s', 'ali', 2, 1, 'Weak-to-strong training', 'locked', 'T', 's+', 'needs Honesty'],
+  ['corr', 'ali', 3, 0, 'Corrigibility target', 'locked', 'T', 's++', 'needs Weak-to-strong'],
+  ['decp', 'int', 1, 0, 'Deception probe', 'active', 'L', 's++', 71],
+  ['verb', 'int', 2, 0, 'Activation verbalizer', 'locked', 'L', 's+', 'needs Deception probe'],
+  ['circ', 'int', 2, 1, 'Circuit tracing', 'avail', 'L', 's++', 'L'],
+  ['enum', 'int', 3, 0, 'Enumerative audit', 'locked', 'L', 's++', 'needs Circuit tracing'],
+  ['comms', 'evl', 1, 0, 'Comms lockdown', 'avail', 'L', 's+', 'S'],
+  ['honey', 'evl', 2, 0, 'Realistic honeypots', 'active', 'L', 's+', 30],
+  ['mons', 'evl', 2, 1, 'Monitorability suite', 'avail', 'L', 's+', 'M'],
+  ['aar', 'evl', 3, 0, 'Automated alignment research', 'locked', 'L', 's++', 'needs AI research agents'],
+];
+// edges [from, to]; "missing" if the source is not yet known
+const E = [['codemath', 'synth'], ['visr', 'neur'], ['longctx', 'neur'], ['cotmon', 'fcot'], ['longctx', 'cl'], ['probes', 'igt'], ['rlmath', 'self'], ['rlml', 'aara'],
+  ['aara', 'taste'], ['aara', 'kern'], ['aara', 'aar'], ['const', 'hon'], ['envh', 'inoc'], ['hon', 'antis'], ['probes', 'antis'], ['hon', 'w2s'], ['w2s', 'corr'],
+  ['probes', 'decp'], ['decp', 'verb'], ['sae', 'circ'], ['circ', 'enum'], ['trust', 'comms'], ['prop', 'honey'], ['cotmon', 'mons'], ['distil', 'spec']];
+const known = new Set(PILLS.filter((p) => !p[4]).map((p) => p[0]));
+
+const tb = document.getElementById('tb');
+const W = tb.clientWidth, H = tb.clientHeight;
+const TOP = 20, laneH = (H - TOP) / 6, GUT = 112, D0W = 152, CW = 186, CG = 8, DW = 2 * CW + CG + 22;
+const colX = (d) => GUT + D0W + 14 + (d - 1) * DW;
+const pos = {};
+// column headers
+tb.insertAdjacentHTML('beforeend', `<span class="colhd" style="left:${GUT}px;top:3px">known</span>` + [1, 2, 3].map((d) => `<span class="colhd" style="left:${colX(d)}px;top:3px">depth ${d}</span>`).join('') + `<span class="colhd" style="right:8px;top:3px">depth 4–6 ›</span>`);
+LANES.forEach(([k, n, ic, c], i) => {
+  const y = TOP + i * laneH;
+  tb.insertAdjacentHTML('beforeend', `<div class="lane" style="top:${y}px;height:${laneH}px;--lc:${c};background:${i < 3 ? 'rgba(155,107,224,.035)' : 'rgba(34,163,148,.035)'}"><div class="ln">${I(ic, 's14')}${n}</div></div>`);
+});
+const laneY = (k) => TOP + LANES.findIndex((l) => l[0] === k) * laneH;
+PILLS.forEach(([id, lane, slot, label, fail]) => {
+  const n = PILLS.filter((p) => p[1] === lane).length, ph = 21, gap = 3;
+  const y0 = laneY(lane) + (laneH - (n * ph + (n - 1) * gap)) / 2 + slot * (ph + gap);
+  const x = GUT;
+  tb.insertAdjacentHTML('beforeend', `<div class="pill2${fail ? ' fail' : ''}" id="p-${id}" style="left:${x}px;top:${y0}px">${I(fail ? 'circle-x' : 'circle-check', 's12')}${label}</div>`);
+  const el = document.getElementById('p-' + id);
+  pos[id] = { x0: x, x1: x + el.offsetWidth, y: y0 + ph / 2 };
+});
+const eff = (s) => s === '$' ? `<span class="ef" style="color:var(--text-2)">${I('server')}▼</span>` : s.split(' ').map((t) => {
+  const cap = t[0] === 'c', up = t.includes('+'), n = (t.match(/[+-]/g) || []).length;
+  return `<span class="ef ${up ? (cap ? 'cu' : 'su') : 'dn'}">${I(cap ? 'brain' : 'microscope')}${(up ? '▲' : '▼').repeat(n)}</span>`;
+}).join('');
+N.forEach(([id, lane, d, slot, name, st, lay, ef, info, q]) => {
+  const x = colX(d) + slot * (CW + CG), y = laneY(lane) + (laneH - 54) / 2 + 2;
+  const icon = st === 'active' ? `<span class="ring" style="--p:${info}"></span>` : st === 'avail' ? I('circle-dashed', 's14 t3') : I('lock', 's14 warn');
+  const right = st === 'active' ? '' : (st === 'locked' || st === 'queued') ? `<span class="eo" style="font-family:var(--sans);font-weight:500;color:#c9a456">${info}</span>` : `<span class="eo">${info}</span>`;
+  const qb = q ? `<span class="qn">${q}</span>` : '';
+  tb.insertAdjacentHTML('beforeend', `<div class="node ${st}" id="n-${id}" style="left:${x}px;top:${y}px">
+    <div class="nm">${icon}<span>${name}</span></div>
+    <div class="mt">${eff(ef)}<span class="lay">${lay}</span>${qb}${right}</div>${st === 'active' ? `<div class="pb"><i style="width:${info}%"></i></div>` : ''}</div>`);
+  pos[id] = { x0: x, x1: x + CW, y: y + 27 };
+});
+// edges
+let s = '';
+E.forEach(([a, b]) => {
+  const A = pos[a], B = pos[b]; if (!A || !B) return;
+  const miss = !known.has(a);
+  const x0 = A.x1, x1 = B.x0, mx = (x0 + x1) / 2;
+  const cross = Math.abs(A.y - B.y) > laneH * 0.6;
+  s += `<path data-e="${a}>${b}" d="M${x0},${A.y} C${mx},${A.y} ${mx},${B.y} ${x1},${B.y}" fill="none" stroke="${miss ? '#c9a456' : '#46586f'}" stroke-width="${miss ? 1.6 : 1.3}" ${miss ? 'stroke-dasharray="4 3"' : ''} opacity="${cross && !miss ? .32 : 1}"/>`;
+});
+document.getElementById('edges').innerHTML = s;
+document.querySelectorAll('.node, .pill2, .lane').forEach((e) => tb.insertBefore(e, document.querySelector('.fade')));
+
+
+// minimap: all 88 ideas by depth 0–6 and column; viewport outline
+{ const m = document.getElementById('mini'); const mw = 150, mh = 34; let h = '<svg width="' + mw + '" height="' + mh + '">';
+  const counts = [[9, 2, 1, 2, 2, 1, 0], [6, 7, 3, 1, 1, 0, 0], [8, 7, 3, 4, 2, 1, 0], [4, 4, 2, 1, 0, 0, 0], [3, 3, 3, 1, 0, 0, 0], [4, 5, 4, 3, 2, 1, 1]];
+  let seed = 7; const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+  counts.forEach((row, li) => row.forEach((c, d) => { for (let k = 0; k < c; k++) { const x = 3 + d * 21 + rnd() * 15, y = 2 + li * 5.2 + rnd() * 2; const knownD = d === 0 || (d === 1 && rnd() < .5);
+    h += '<rect x="' + x + '" y="' + y + '" width="3" height="2.2" fill="' + (knownD ? '#4cc38a' : li < 3 ? '#8a6ac0' : '#22a394') + '" opacity="' + (knownD ? .5 : .95) + '"/>'; } }));
+  [[1, 0], [2, 1], [1, 1], [2, 2], [1, 3], [1, 4], [2, 5]].forEach(([d, l]) => { h += '<rect x="' + (3 + d * 21 + 6) + '" y="' + (1.5 + l * 5.2) + '" width="5" height="3.4" fill="#5aa9ff"/>'; });
+  h += '<rect x="1" y="0.7" width="' + (4 * 21 + 1) + '" height="' + (mh - 1.4) + '" fill="rgba(255,216,77,.06)" stroke="#ffd84d" stroke-width="1.2" rx="2"/>';
+  m.innerHTML = h + '</svg>'; }
+
+// project cards
+const P = [
+  ['Synthetic data flywheel', 'pre', 'layers', [['layers', 0], ['layers', 0]], 63, 'odds', '80%', '2 mo'],
+  ['Automated AI research agents', 'sys', 'blocks', [['blocks', 0], ['blocks', 0]], 46, 'odds', '75%', '4.5 mo'],
+  ['Continual learning', 'post', 'dumbbell', [['dumbbell', 0], ['dumbbell', 0]], 21, 'odds', '70%', '7 mo'],
+  ['Self-play curricula', 'post', 'dumbbell', [['dumbbell', 1]], 12, 'odds', '60%', '9 mo'],
+  ['Deception probe', 'int', 'scan-search', [['scan-search', 1]], 71, 'line', 'pro', '1 mo'],
+  ['Honesty & confession training', 'ali', 'compass', [['compass', 0], ['compass', 0]], 55, 'line', 'mix', '2.5 mo'],
+  ['Realistic honeypots', 'evl', 'list-checks', [['list-checks', 0]], 30, 'line', 'pro', '3 mo'],
+];
+const HL = { pro: ['pro', 'Promising', 'circle-check'], mix: ['mix', 'Mixed', 'circle-dot'], str: ['str', 'Struggling', 'circle-alert'] };
+document.getElementById('pcards').innerHTML = P.map(([n, lane, ic, teams, p, kind, o, eta], i) => {
+  const lc = ['pre', 'post', 'sys'].includes(lane) ? 'var(--cap)' : 'var(--und)';
+  const odds = kind === 'odds' ? `<span class="t3">odds</span> <span class="num">${o}</span>` : `<span class="lnk sm"><span class="hl ${HL[o][0]}">${I(HL[o][2], 's12')}${HL[o][1]}</span>${I('chevron-right', 's12')}</span>`;
+  return `<div class="pcard" id="pc-${i}" style="--lc:${lc}"><div class="nm">${I(ic, 's14')}<span>${n}</span></div>
+    <div class="tchips">${teams.map(([t, el]) => `<span class="tch${el ? ' el' : ''}">${I(t, 's12')}</span>`).join('')}<span class="mxb">×1.5</span><span class="sp"></span><span class="tch add">${I('plus', 's12')}</span></div>
+    <div class="pr"><div class="bar"><i style="width:${p}%;background:#5aa9ff"></i></div><b>${p}%</b></div>
+    <div class="ft"><span class="t3">ETA</span><span class="sp"></span><span class="num eta">${eta}</span></div>
+    <div class="ft" style="margin-top:0">${odds}</div></div>`;
+}).join('');
+
+// states
+const st = location.hash.slice(1);
+const rel = (el) => { const a = el.getBoundingClientRect(), c = document.querySelector('.center').getBoundingClientRect(); return { x: a.left - c.left, y: a.top - c.top, w: a.width, h: a.height }; };
+if (st === 'node') {
+  const n = document.getElementById('n-antis'); n.classList.add('sel'); n.style.zIndex = 42; n.style.position = 'absolute';
+  // lift the node and its prerequisite path above the scrim
+  ['n-hon', 'p-probes'].forEach((id) => { const e = document.getElementById(id); e.style.zIndex = 42; e.style.boxShadow = '0 0 0 1px #c9a456'; });
+  const ed = document.getElementById('edges'); ed.style.zIndex = 41; ed.querySelectorAll('path').forEach((p) => { if (!['hon>antis', 'probes>antis'].includes(p.dataset.e)) p.remove(); else { p.setAttribute('stroke-width', 2.2); if (p.dataset.e === 'probes>antis') { p.setAttribute('stroke', '#4cc38a'); p.setAttribute('opacity', 1); } } });
+  tb.style.zIndex = 'auto';
+  document.querySelector('.tree').style.zIndex = 'auto';
+}
+if (st === 'assign') {
+  const card = document.getElementById('pc-2'); card.style.boxShadow = '0 0 0 2px #5aa9ff'; card.style.zIndex = 44;
+  const add = card.querySelector('.tch.add'); add.outerHTML = `<span class="tch el ghost">${I('dumbbell', 's12')}</span><span class="tch add" style="border-color:#5aa9ff;color:#5aa9ff">${I('plus', 's12')}</span>`;
+  card.querySelector('.ft .eta').innerHTML = `<span class="t3" style="text-decoration:line-through;font-weight:400">7</span> <span style="color:var(--warn)">5.4 mo</span>`;
+  const r = rel(card), pk = document.getElementById('picker');
+  pk.style.left = (r.x - 10) + 'px'; pk.style.top = (r.y - 312) + 'px';
+  const self = document.getElementById('pc-3'); self.style.opacity = .55; self.querySelector('.tchips .tch').classList.add('ghost');
+  const e = document.getElementById('etaHover').getBoundingClientRect(), c = document.querySelector('.center').getBoundingClientRect();
+  const tip = document.getElementById('assignTip'); tip.style.left = (e.right - c.left + 190) + 'px'; tip.style.top = (e.top - c.top - 30) + 'px';
+}
+</script>
+</body></html>

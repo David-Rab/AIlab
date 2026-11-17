@@ -85,6 +85,7 @@ export function runCard(s: GameStateV2, p: LaunchRunParamsUI) {
   return {
     band: pr.Lg, domains: pr.domains, signals: pr.signals, etaDays: plan.etaDays, serveCost: pr.serveCost, monitorability: pr.monitorability,
     flop: plan.flopNeeded, cash: plan.cashCost, poolShare: plan.poolShare, minDays: plan.minDays, reason: plan.reason,
+    effShare: plan.effShare, setupTW: plan.setupTW, setupDays: plan.setupDays, limits: plan.limits,
   };
 }
 
@@ -97,6 +98,7 @@ export function measuredDomains(v: ModelVersion): Record<DomainId, number> {
 }
 
 export { runwayOf, RUNWAY_CAP } from './finance/runway';
+export { parentSchedule, parentYear, parentPaymentQ, DIVISION_REASON } from './finance/parent';
 export { debtHeadroom, totalDebt, interestPerYear, debtRatePct } from './finance/debt';
 export { dealMenu, dealPreview } from './finance/actions';
 export { liveLedger, commitmentsPerYear, ledgerDue, qOf } from './finance/ledger';
@@ -114,3 +116,4 @@ export { canonicalKey } from './core/causes';
 export { quarterIndex, dayOfQuarter, dayOfDate } from './core/time';
 // End screen only (truth): the causal replay.
 export { topDecisions } from './endings/replay';
+export * from './core/limitsView';

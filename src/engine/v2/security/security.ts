@@ -10,6 +10,9 @@ import { leadBetween, openWeightsReleased, postureOf } from '../actors/rivals';
 import { request, ws4 } from '../actors/state';
 import { distillFlowDaily, executeTheft, secretsLeakDaily, theftHazardDaily, theftHazardOn } from './theft';
 
+/** The weight-security target the player can set (B4: one range for the engine and the slider). */
+export const WSL_TARGET_RANGE: readonly [number, number] = [2, 5];
+
 /** WSL status-quo floor: 2.2 + 0.55·min(years since 2025.0, 2) (R11 #17). */
 export const wslFloor = (yearsSince2025: number) => 2.2 + 0.55 * Math.min(Math.max(0, yearsSince2025), 2);
 
@@ -42,7 +45,7 @@ export function whistleHazard(s: GameStateV2): number {
 
 /** security (90, daily): WSL movement, spies, theft hazard, insider leaks, distillation flow, exfiltration hazard. */
 export const securitySystem: EngineSystem = {
-  id: 'security', owner: 'WS4', cadence: 'daily', order: 90,
+  id: 'security', owner: 'WS4', cadence: 'daily', order: 90, system: 'relations',
   run(s, ctx) {
     const w = ws4(s);
     const sec = s.player.security;

@@ -5,6 +5,7 @@ import { activeRivals } from '../../models/labs';
 import type { EventDefV2 } from '../../types';
 import { bloc, cash, morale, rivalMeter, scrutiny, trust } from '../../actors/fx';
 import { paceOf } from '../../actors/rivals';
+import { changeHeads } from '../../departments/teams';
 import { L, P, activeLab, ch, ev, labName } from '../kit';
 
 export const COMPANY_EVENTS: EventDefV2[] = [
@@ -25,7 +26,7 @@ export const COMPANY_EVENTS: EventDefV2[] = [
       }),
       ch('Let go', ['decline'], () => ({ costs: [L('staffTime', 3, '3% of capabilities staff'), L('leadDays', 36, 'that rival closes 0.1 y')], gains: [L('cash', 0.1, 'payroll saved')], exposure: [] }), (s, _ctx, d) => {
         const n = Math.round(s.player.staff.cap * 0.03);
-        s.player.staff.cap -= n;
+        changeHeads(s, 'cap', -n);
         const r = activeLab(s, d.lab);
         if (r) {
           r.core.staff.cap += n;

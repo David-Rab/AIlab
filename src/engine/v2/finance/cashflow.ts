@@ -7,11 +7,13 @@
 // (on delivery, marketQ) and site capex (by stage, sitesQ). Security spend and the transition fund are charged ONLY
 // here (WS4 keeps the security effects, WS5 the fund's effects on workers). Other workstreams book one-off costs
 // through `bookCash` themselves (WS1 run cash at launch, WS4 action/event costs) and must not deduct the items above.
-import { payrollPerYear } from '../departments/staffing';
+import { isDivision } from '../../../data/v2/starts';
+import { payrollOf } from '../departments/teams';
 import { powerAndOMPerYear } from '../compute/power';
 import { revenueOf } from '../worldfx/revenue';
 import type { Commitment$, EngineSystem, GameStateV2, SystemCtx } from '../types';
 import { debtHeadroom, drawDebt, interestPerYear } from './debt';
+import { expireRepriced } from './equity';
 import { ensureWs3, yearStats } from './ext';
 import { bookCash, ledgerPaying } from './ledger';
 import { runwayOf } from './runway';
@@ -40,6 +42,8 @@ export function checkSolvency(s: GameStateV2, ctx: SystemCtx): void {
     return;
   }
   f.ws3.negativeSinceDay ??= s.time.day;
+  // A division cannot go broke (R9): the parent carries the overdraft against its next payment.
+  if (isDivision(s)) return;
   if (f.state !== 'insolvent' && s.time.day - f.ws3.negativeSinceDay >= INSOLVENCY_GRACE_DAYS) {
     f.state = 'insolvent';
     ctx.log('alert', `Insolvent: cash has been negative for ${INSOLVENCY_GRACE_DAYS} days with no options left.`, 5);
@@ -49,9 +53,10 @@ export function checkSolvency(s: GameStateV2, ctx: SystemCtx): void {
 
 /** opex (130, daily): revenue run-rate (from WS5), power and O&M, spot rentals, interest; solvency check. */
 export const opexSystem: EngineSystem = {
-  id: 'opex', owner: 'WS3', cadence: 'daily', order: 130,
+  id: 'opex', owner: 'WS3', cadence: 'daily', order: 130, system: 'finance',
   run(s, ctx) {
     ensureWs3(s);
+    expireRepriced(s, ctx);
     const f = s.player.finance;
     const fx = f.ws3;
     const target = deploymentRevenue(s);
@@ -79,13 +84,13 @@ const KIND_LABEL: Record<Commitment$['kind'], string> = { cloud: 'cloud contract
 /** payroll (300, monthly): payroll, security spend, transition fund, revenue share, ledger instalments; expire
  *  finished contracts; refresh the runway readout. */
 export const payrollSystem: EngineSystem = {
-  id: 'payroll', owner: 'WS3', cadence: 'monthly', order: 300,
+  id: 'payroll', owner: 'WS3', cadence: 'monthly', order: 300, system: 'finance',
   run(s, ctx) {
     ensureWs3(s);
     const p = s.player;
     const f = p.finance;
     const ys = yearStats(s);
-    const payroll = payrollPerYear(p.staff) / 12;
+    const payroll = payrollOf(p) / 12;
     bookCash(s, ctx, -payroll, 'payroll', 'payroll');
     ys.payroll += payroll;
     const security = p.security.spendRate / 12;

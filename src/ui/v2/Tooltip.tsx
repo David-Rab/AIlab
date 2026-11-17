@@ -12,6 +12,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
@@ -154,6 +155,7 @@ export function Tip({
   className,
   as: As = 'span',
   place,
+  style,
 }: {
   content: () => ReactNode;
   children: ReactNode;
@@ -161,6 +163,8 @@ export function Tip({
   as?: 'span' | 'div' | 'g';
   /** Where the tooltip opens relative to the trigger (default below). */
   place?: 'below' | 'right';
+  /** Inline style of the wrapper (e.g. a bar segment's width). */
+  style?: CSSProperties;
 }) {
   const api = useContext(TipCtx);
   const depth = useContext(DepthCtx);
@@ -175,12 +179,13 @@ export function Tip({
   };
   useEffect(() => clear, []);
 
-  if (!api) return <As className={className}>{children}</As>;
+  if (!api) return <As className={className} style={style}>{children}</As>;
 
   return (
     <As
       ref={ref as never}
       className={className}
+      style={style}
       onMouseEnter={() => {
         clear();
         openTimer.current = window.setTimeout(() => {

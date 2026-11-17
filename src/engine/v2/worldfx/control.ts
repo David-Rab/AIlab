@@ -6,6 +6,7 @@
 // Thresholds: Lev ≥ 0.15 Entrenched, ≥ 0.35 Indispensable, ≥ 0.6 (+ robots > 10% of labor or W25) Decisive.
 import { SECTORS } from '../../../data/v2/sectors';
 import { internalVersion } from '../models/labs';
+import { productDomains } from '../models/products';
 import type { ControlDomainId, ControlState, GameStateV2, LabId, SectorId, SystemCtx } from '../types';
 import { paidDeployments, versionOf, type WorldMix } from './mix';
 import { clamp01, sigmoid, techRamp, type PolicyState } from './policy';
@@ -95,7 +96,7 @@ export function persuasion(s: GameStateV2, lab: LabId, mix?: WorldMix): number {
 function mixSocialFallback(s: GameStateV2, lab: LabId): number {
   if (lab === 'player') {
     let best = 0;
-    for (const d of paidDeployments(s)) best = Math.max(best, versionOf(s, d.versionId)?.domains.SOCIAL ?? 0);
+    for (const d of paidDeployments(s)) best = Math.max(best, productDomains(s, d)?.SOCIAL ?? 0);
     return best;
   }
   const r = lab === 'china' ? s.china.lab : s.rivals.find((x) => x.core.id === lab);
@@ -149,7 +150,7 @@ function tierMix(a: number, cap: number): [number, number, number, number] {
  *  the internal frontier (each briefing level below 3 costs 0.5 levels of access) [D]. */
 export function govAdviceLevel(s: GameStateV2, mix: WorldMix): number {
   let L = mix.sec.US.GOV.dom.REASON;
-  for (const d of paidDeployments(s)) if (d.channel === 'gov') L = Math.max(L, versionOf(s, d.versionId)?.domains.REASON ?? 0);
+  for (const d of paidDeployments(s)) if (d.channel === 'gov') L = Math.max(L, productDomains(s, d)?.REASON ?? 0);
   const b = s.player.policies.govBriefing;
   const iv = internalVersion(s);
   if (b >= 1 && iv) L = Math.max(L, iv.domains.REASON - (3 - b) * 0.5);

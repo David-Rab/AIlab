@@ -1,13 +1,17 @@
 // Training runs and continual learning (V2-SPEC §3.3.1, §3.1.3–3.1.4). Owner: WS1 (continual shared with WS2).
 //
-// Duration: flopDone += poolShare · trainingPool · Φ per day; a run completes when flopDone ≥ flopNeeded AND
+// Duration: flopDone += share · trainingPool · Φ per day; a run completes when flopDone ≥ flopNeeded AND
 // minDays have elapsed. Cash for environments/data/journals is committed at launch.
+// R5: a run trains only once the engineers have built its setup (departments/build.ts); running runs share the pool
+// in proportion to their pool shares (scaled down together when they ask for more than the pool), and training
+// compute no run uses flows to research experiments (production.ts labInputs; STRUCTURE R5 "nothing wasted silently").
 import { KAPPA, PHI_FLOP_PER_H100E_DAY, POST_PA_AT } from '../../../data/v2/calibration';
 import { PLAYER_MODEL_FAMILY } from '../../../data/v2/names';
 import {
-  BASE_MAX_DAYS, BASE_SCALE, CONTINUE_KAPPA, DISTILL_DAYS, DISTILL_F, ENV_BUDGET_FRAC, POST_DAYS,
-  POST_FLOP_F, STREAM_LAG_DAYS, STREAM_POOL_SHARE,
+  CONTINUE_F, CONTINUE_KAPPA, CONTINUE_MIN_DAYS, DISTILL_DAYS, DISTILL_F, ENV_BUDGET_FRAC, POST_DAYS,
+  POST_FLOP_F, SIZE_RANGE, STREAM_LAG_DAYS, STREAM_POOL_SHARE, sizeMinDays, sizeScrutiny,
 } from '../../../data/v2/runDesign';
+import { buildEtas, queueBuild, runSetupTW, runWaiting } from '../departments/build';
 import { TRAIT_IDS } from '../../../data/v2/traits';
 import { clamp } from '../../rng';
 import { decimalYear } from '../core/time';
@@ -21,7 +25,8 @@ import type {
   BaseDesign, BaseModel, Day, EngineSystem, GameStateV2, ModelVersion, PostDesign, RivalLab, RunKind, RunPrediction, SystemCtx,
   ToolFamily, TraitBelief, TraitId, TrainingRun, VersionBuild,
 } from '../types';
-import { advanceParadigms, adopted, paradigmOff } from './paradigms';
+import { adopted, paradigmOff } from './paradigms';
+import { nodeKnown, optionLocked, payoffOf } from './tree';
 import { evalDaysFor, runEvalSuite } from './benchmarks';
 import { addOff, addSig, baseEffect, clampSignals, monitorabilityClass, postEffect, type Off } from './design';
 import { domainsOf, levelOf, pcContinue, pcOfBase, pmOfBuild, refreshLevels, simpleFrontierPm } from './capability';
@@ -44,6 +49,8 @@ export interface LaunchRunParams {
 }
 
 const POOL_DEFAULT: Record<RunKind, number> = { base: 0.6, post: 0.2, distill: 0.1, continue: 0.3 };
+/** Share of the training pool a run can take (LIMITS: one range for the engine and the run designer slider). */
+export const POOL_SHARE_RANGE: readonly [number, number] = [0.02, 1];
 
 /** FLOP per day of the player's whole training pool = WS3 pools (computeOnline × split.training) × Φ (P16: × 1.15). */
 export function trainingFlopPerDay(s: GameStateV2): number {
@@ -51,27 +58,99 @@ export function trainingFlopPerDay(s: GameStateV2): number {
   return poolsOf(s).training * phi;
 }
 
+/** Serve-cost multiplier of efficiency ideas for new post-trained versions: AI kernels (P16) ×0.75, quantization ×0.8,
+ *  speculative decoding ×0.85. */
+export function serveTechMult(s: GameStateV2): number {
+  return (adopted(s, 'P16') ? 0.75 : 1) * (nodeKnown(s, 'quantization') ? 0.8 : 1) * (nodeKnown(s, 'specDecoding') ? 0.85 : 1);
+}
+
+/** AI-designed successor (P24): next base +0.8 y, paid off with the AI share of research labour. */
+const p24Dp = (s: GameStateV2) => (adopted(s, 'P24') ? 0.8 * payoffOf(s, 'P24') : 0);
+
 /** Frontier (base/post) runs are paused until this day by WS4 (E17 Pause & investigate, pause pledges). */
 export const frontierPaused = (s: GameStateV2, day: Day = s.time.day) => ws4r(s).frontierPauseUntil > day;
 
-/** Effective pool shares of running runs this day. When the runs ask for more than the pool left by the stream,
- *  base and continue runs keep their share first and the other runs are scaled down [D: pretraining has priority]. */
-export function poolAllocation(s: GameStateV2): Map<string, number> {
-  const running = s.player.models.runs.filter((r) => r.status === 'running' && !(r.holdUntil !== undefined && r.holdUntil > s.time.day));
-  const avail = 1 - (s.player.models.stream ? STREAM_POOL_SHARE : 0);
-  const pre = running.filter((r) => r.kind === 'base' || r.kind === 'continue');
-  const rest = running.filter((r) => r.kind !== 'base' && r.kind !== 'continue');
-  const sumPre = pre.reduce((a, r) => a + r.poolShare, 0);
-  const kPre = sumPre > avail ? avail / sumPre : 1;
-  const left = Math.max(0, avail - sumPre * kPre);
-  const sumRest = rest.reduce((a, r) => a + r.poolShare, 0);
-  const kRest = sumRest > left ? left / sumRest : 1;
-  return new Map([...pre.map((r) => [r.id, r.poolShare * kPre] as const), ...rest.map((r) => [r.id, r.poolShare * kRest] as const)]);
+/** Why a running run makes no progress today, or undefined (run queue readout). */
+export function runStall(s: GameStateV2, r: TrainingRun): string | undefined {
+  if (r.status !== 'running') return undefined;
+  if (runWaiting(r)) return 'waiting for engineers';
+  if (r.holdUntil !== undefined && r.holdUntil > s.time.day) return 'loss spike: restarting';
+  if (trainingFlopPerDay(s) <= 0) return 'paused: no training compute';
+  return undefined;
 }
+
+/** Share of the training pool the continual-learning stream takes (0 without a stream). */
+export const streamShare = (s: GameStateV2) => (s.player.models.stream ? STREAM_POOL_SHARE : 0);
+
+/** Runs that train today: running, set up, not restarting after a loss spike, FLOP not yet done (a run that only waits
+ *  for its minimum length takes no pool share). */
+const trainingRuns = (s: GameStateV2) =>
+  s.player.models.runs.filter((r) => r.status === 'running' && !runWaiting(r) && !(r.holdUntil !== undefined && r.holdUntil > s.time.day) && r.flopDone < r.flopNeeded);
+
+/** Effective pool shares of the runs that train today (R5: proportional). Each run gets its pool share; when they ask
+ *  for more than the pool left by the stream, all are scaled down by the same factor. */
+export function poolAllocation(s: GameStateV2): Map<string, number> {
+  const running = trainingRuns(s);
+  const avail = 1 - streamShare(s);
+  const sum = running.reduce((a, r) => a + r.poolShare, 0);
+  const k = sum > avail ? avail / sum : 1;
+  return new Map(running.map((r) => [r.id, r.poolShare * k] as const));
+}
+
+/** Share of the training pool no run or stream uses today: it runs research experiments instead (R5). */
+export function idleTrainingShare(s: GameStateV2): number {
+  let used = streamShare(s);
+  for (const r of trainingRuns(s)) used += r.poolShare;
+  return Math.max(0, 1 - used);
+}
+
+/** The share a new run asking `share` would get today, next to the runs that train now. */
+export function shareIfLaunched(s: GameStateV2, share: number): number {
+  const avail = 1 - streamShare(s);
+  const sum = trainingRuns(s).reduce((a, r) => a + r.poolShare, 0) + share;
+  return sum > avail ? (share * avail) / sum : share;
+}
+
+/** Days until a running run finishes at today's pool and its actual share (run queue ETA): the wait for its setup or
+ *  a loss-spike restart, then its remaining FLOP, and at least its minimum length. Infinity with no training compute. */
+export function runEtaDays(s: GameStateV2, r: TrainingRun, alloc = poolAllocation(s)): number {
+  const day = s.time.day;
+  const flopDay = trainingFlopPerDay(s);
+  const waiting = runWaiting(r);
+  const share = alloc.get(r.id) ?? (waiting ? shareIfLaunched(s, r.poolShare) : r.poolShare);
+  const wait = waiting ? (buildEtas(s).etas.get(r.setupId ?? '') ?? 0) : r.holdUntil !== undefined && r.holdUntil > day ? r.holdUntil - day : 0;
+  const left = Math.max(0, r.flopNeeded - r.flopDone);
+  const flopDays = left <= 0 ? 0 : share > 0 && flopDay > 0 ? Math.ceil(left / (share * flopDay)) : Infinity;
+  return Math.max(r.minDays - (day - r.startDay), wait + flopDays);
+}
+
+/** Know-how the lab gains over `days` at today's research rate, in progress-months (the staleness readout). */
+export const knowHowMonths = (s: GameStateV2, days: number) => ((s.player.prodCache?.rate ?? 1) * days * 12) / 365;
 
 /** Compute-cost equivalent ($B) of `flop` at today's TCO. */
 function flopCost(s: GameStateV2, flop: number): number {
   return (flop / PHI_FLOP_PER_H100E_DAY / 365) * tcoPerH100eYear(s, decimalYear(s));
+}
+
+/** Limits of a base run (TECH-TREE §1.5; blueprint size card). All exact readouts of what the engine will do. */
+export interface BaseLimits {
+  size: number;
+  /** Wall time at today's training pool and the share the run would get today (days). */
+  wallDays: number;
+  /** Know-how gained during the run that the base will not embody (progress-months at today's rate). */
+  behindMonths: number;
+  /** Tokens the run needs (∝ √FLOP) and the usable data stock; data-wall Δp (years, ≤ 0). */
+  tokensNeeded: number;
+  tokensOwned: number;
+  dataWallDp: number;
+  /** Chance of a loss spike (rolls back 15% and stalls 14–28 d). */
+  restart: number;
+  /** Serving cost of versions on this base (visible reasoning, today's efficiency ideas); 0.5 = reference. */
+  serve: number;
+  /** Compute-equivalent cost of the run's FLOP at today's TCO ($B; the pool is already paid for). */
+  computeCost: number;
+  /** Public scrutiny of a run above the frontier. */
+  scrutiny: number;
 }
 
 export interface RunPlan {
@@ -80,7 +159,13 @@ export interface RunPlan {
   cashCost: number;
   etaDays: number;
   poolShare: number;
+  /** Share of the pool the run would actually get today (proportional allocation). */
+  effShare: number;
+  /** Engineers' work to set the run up (team-weeks) and days until it is built at today's queue and capacity. */
+  setupTW: number;
+  setupDays: number;
   prediction: RunPrediction;
+  limits?: BaseLimits;
   reason?: string;
 }
 
@@ -90,8 +175,12 @@ export function planRun(s: GameStateV2, p: LaunchRunParams, rollDays = (lo: numb
   const yr = decimalYear(s);
   const F = frontierFlop(w, yr);
   const m = s.player.models;
-  const poolShare = clamp(p.poolShare ?? (p.ida ? 0.3 : POOL_DEFAULT[p.kind]), 0.01, 1);
-  const flopDay = Math.max(1, trainingFlopPerDay(s) * poolShare);
+  const poolShare = clamp(p.poolShare ?? (p.ida ? 0.3 : POOL_DEFAULT[p.kind]), POOL_SHARE_RANGE[0], POOL_SHARE_RANGE[1]);
+  const effShare = shareIfLaunched(s, poolShare);
+  const flopDay = Math.max(1, trainingFlopPerDay(s) * effShare);
+  const setupTW = runSetupTW(p.kind, p.base?.size ?? 1, p.ida);
+  const setupDays = buildEtas(s, setupTW).next;
+  let limits: BaseLimits | undefined;
   let flopNeeded = 0;
   let minDays = 0;
   let cash = 0;
@@ -106,28 +195,37 @@ export function planRun(s: GameStateV2, p: LaunchRunParams, rollDays = (lo: numb
   if (p.kind === 'base') {
     const d = p.base;
     if (!d) return failPlan('No design');
-    if (d.shape === 'latent' && !adopted(s, 'P17')) reason = 'Needs neuralese (P17)';
+    reason = optionLocked(s, 'shape', d.shape) ?? optionLocked(s, 'data', d.data) ?? (d.curation.hazard ? optionLocked(s, 'curation', 'hazard') : undefined)
+      ?? (d.curation.safetyPretrain ? optionLocked(s, 'curation', 'safetyPretrain') : undefined);
     if (d.data === 'synthetic' && !teacher) reason = 'Synthetic data needs a teacher version';
-    if (d.scale === 'continue') reason = 'Use a continue run';
+    if (!(d.size >= SIZE_RANGE[0] - 1e-9 && d.size <= SIZE_RANGE[1] + 1e-9)) reason = `Size must be ×${SIZE_RANGE[0]}–×${SIZE_RANGE[1]} of the frontier run`;
     const be = baseEffect(d);
-    flopNeeded = BASE_SCALE[d.scale].F * F * be.flopMult;
-    minDays = BASE_SCALE[d.scale].minDays;
-    cash = flopCost(s, flopNeeded) * be.cashMult + d.licensedShare * 1.0 * Math.sqrt(BASE_SCALE[d.scale].F); // licensed data [D]
-    if (flopNeeded / flopDay > BASE_MAX_DAYS) reason = `Training pool too small (>${BASE_MAX_DAYS} d)`;
+    flopNeeded = d.size * F * be.flopMult;
+    minDays = sizeMinDays(d.size);
+    cash = flopCost(s, flopNeeded) * be.cashMult + d.licensedShare * 1.0 * Math.sqrt(d.size); // licensed data [D]
     const pc = pcOfBase(w, s.time.day, flopNeeded, s.player.scDay);
-    pmPred = s.player.pa + pc + be.dp + baseDataWall(s, d, flopNeeded) + (adopted(s, 'P24') ? 0.8 : 0);
+    const wall = baseDataWall(s, d, flopNeeded);
+    pmPred = s.player.pa + pc + be.dp + wall + p24Dp(s);
     off = be.domains;
     signals = be.signals;
-    serve = be.serve;
+    serve = be.serve * serveTechMult(s);
     mon = be.monitorability;
+    const wallDays = Math.max(minDays, setupDays + Math.ceil(flopNeeded / flopDay));
+    limits = {
+      size: d.size, wallDays, behindMonths: knowHowMonths(s, wallDays),
+      tokensNeeded: tokensRequired(flopNeeded, d.shape === 'overtrained'), tokensOwned: effectiveStock(s), dataWallDp: wall,
+      restart: Math.min(1, be.restart * (nodeKnown(s, 'faultTolerant') ? 0.5 : 1)), serve,
+      computeCost: flopCost(s, flopNeeded), scrutiny: sizeScrutiny(d.size),
+    };
   } else if (p.kind === 'post') {
     if (!base) return failPlan('Pick a base');
     const d = p.post;
     if (!d) return failPlan('No design');
-    if (d.cot === 'faithful' && !adopted(s, 'P23')) reason = 'Needs faithful-CoT architecture (P23)';
+    reason = optionLocked(s, 'pref', d.pref) ?? optionLocked(s, 'rlIntensity', d.rlIntensity) ?? (d.cot !== 'latent' ? optionLocked(s, 'cot', d.cot) : undefined)
+      ?? (d.inoculation ? optionLocked(s, 'inoculation', true) : undefined);
+    if (d.rlFocus !== 'broad') for (const f of d.rlFocus) reason ??= optionLocked(s, 'rlFocus', f);
     if (d.cot === 'latent' && base.design.shape !== 'latent') reason = 'Latent CoT needs a latent base';
     if (base.design.shape === 'latent' && d.cot !== 'latent') reason = 'A latent base forces latent CoT';
-    if (d.rlFocus !== 'broad' && d.rlFocus.includes('computerUse') && !adopted(s, 'P06')) reason = 'Needs computer use (P06)';
     if (d.rlFocus !== 'broad' && d.rlFocus.length > 2) reason = 'Pick at most 2 RL families';
     const pe = postEffect(d);
     if (p.ida) {
@@ -146,10 +244,12 @@ export function planRun(s: GameStateV2, p: LaunchRunParams, rollDays = (lo: numb
     else if (d.rlIntensity === 'heavyHardened') cash += 0.1 * flopCost(s, flopNeeded); // P15: hardened graders at the cheap price
     off = addOff(base.off ?? {}, pe.domains);
     signals = addSig(base.signals ?? {}, pe.signals);
-    serve = (base.serve ?? 0.5) * pe.serve * (adopted(s, 'P16') ? 0.75 : 1);
+    serve = (base.serve ?? 0.5) * pe.serve * serveTechMult(s);
     mon = Math.min(base.monitorability ?? 1, pe.monitorability);
   } else if (p.kind === 'distill') {
     if (!teacher) return failPlan('Pick a teacher version');
+    // D6: an imported open-weight model is not yours to sell until you post-train it (a distilled mini would be).
+    if (teacher.variant === 'imported') reason = 'An imported model must be post-trained before it can teach a mini';
     flopNeeded = DISTILL_F * F;
     minDays = DISTILL_DAYS;
     pmPred = teacher.pm - DISTILL_PM_PENALTY;
@@ -158,14 +258,14 @@ export function planRun(s: GameStateV2, p: LaunchRunParams, rollDays = (lo: numb
     mon = teacher.monitorability;
   } else {
     if (!base) return failPlan('Pick a base');
-    flopNeeded = BASE_SCALE.continue.F * F;
-    minDays = BASE_SCALE.continue.minDays;
+    flopNeeded = CONTINUE_F * F;
+    minDays = CONTINUE_MIN_DAYS;
     pmPred = base.paAtStart + CONTINUE_KAPPA * (s.player.pa - base.paAtStart) + base.pc + pcContinue(w, s.time.day, flopNeeded, base.flop) + (base.dp ?? 0);
     off = base.off ?? {};
     serve = base.serve ?? 0.5;
     mon = base.monitorability ?? 1;
   }
-  const etaDays = Math.max(minDays, Math.ceil(flopNeeded / flopDay));
+  const etaDays = Math.max(minDays, setupDays + Math.ceil(flopNeeded / flopDay));
   if (cash > s.player.finance.cash) reason ??= 'Not enough cash';
   if ((p.kind === 'base' || p.kind === 'post') && frontierPaused(s)) reason ??= 'Frontier runs are paused';
   const Lg = levelOf(w, pmPred);
@@ -179,11 +279,11 @@ export function planRun(s: GameStateV2, p: LaunchRunParams, rollDays = (lo: numb
     signals: { S1: 0, S2: 0, S3: 0, S4: 0, S5: 0, S6: 0, S7: 0, S8: 0, ...clampSignals(Object.values(ws2Signals).some((x) => x > 0) ? ws2Signals : signals) },
     etaDays, serveCost: serve, monitorability: monitorabilityClass(mon),
   };
-  return { flopNeeded, minDays, cashCost: cash, etaDays, poolShare, prediction, reason };
+  return { flopNeeded, minDays, cashCost: cash, etaDays, poolShare, effShare, setupTW, setupDays, prediction, reason, ...(limits ? { limits } : {}) };
 
   function failPlan(why: string): RunPlan {
     const zero = { S1: 0, S2: 0, S3: 0, S4: 0, S5: 0, S6: 0, S7: 0, S8: 0 };
-    return { flopNeeded: 0, minDays: 0, cashCost: 0, etaDays: 0, poolShare, reason: why, prediction: { Lg: [0, 0], domains: {} as RunPrediction['domains'], signals: zero, etaDays: 0, serveCost: 0.5, monitorability: 'high' } };
+    return { flopNeeded: 0, minDays: 0, cashCost: 0, etaDays: 0, poolShare, effShare, setupTW, setupDays, reason: why, prediction: { Lg: [0, 0], domains: {} as RunPrediction['domains'], signals: zero, etaDays: 0, serveCost: 0.5, monitorability: 'high' } };
   }
 }
 
@@ -223,8 +323,10 @@ export function launchRun(s: GameStateV2, ctx: SystemCtx, p: LaunchRunParams): T
   if (p.ida) run.name = `IDA ${n}`;
   run.signals = clampSignals(run.base || run.post || run.kind === 'distill' ? runSignals(s, run) : signals);
   m.runs.push(run);
+  run.setupId = queueBuild(s, 'runSetup', run.id, plan.setupTW);
   if (plan.cashCost > 0) bookCash(s, ctx, -plan.cashCost, 'training', 'training run', run.name);
-  if (p.kind === 'base' && p.base?.scale === 'stretch') ctx.bump('relations.scrutiny', 5, 'stretch base run', run.name); // §3.4.3
+  const scrutiny = p.kind === 'base' && p.base ? sizeScrutiny(p.base.size) : 0;
+  if (scrutiny >= 0.5) ctx.bump('relations.scrutiny', Math.round(scrutiny * 10) / 10, 'base run above the frontier', run.name); // §3.4.3
   ctx.log('research', `Run launched: ${run.name} (ETA ${plan.etaDays} d).`, 1, run.id);
   return run;
 }
@@ -266,7 +368,7 @@ function newVersion(s: GameStateV2, run: TrainingRun, base: BaseModel, build: Ve
     variant: 'full', design: run.post ? { ...run.post } : { ...(parent?.design ?? { pref: 'constitution', rlFocus: 'broad', rlIntensity: 'heavyHardened', inoculation: false, cot: 'visible', safety: 'standard', techniques: [], trainAgainst: [] }) },
     pm, Lg: levelOf(w, pm), domains: domainsOf(w, pm, build.off, adopted(s, 'P19')),
     traitsTrue: { ...(parent?.traitsTrue ?? base.traitsTrue) }, masks: copyMasks(parent), uModes: [...base.uModes],
-    monitorability: 0.9, serveCost: base.serve ?? 0.5, evals: { bench: {}, safety: {} }, beliefs: blankBeliefs(parent ?? versionById(s, s.player.models.internalAgent)),
+    monitorability: 0.9, serveCost: base.serve ?? 0.5, evals: { bench: {}, safety: {} }, beliefs: blankBeliefs(parent ?? versionById(s, s.player.agents.capRoutine.versionId)),
     status: 'evaluating', flags: {}, build, ...extra,
   };
   if (parent) v.parentVersionId = parent.id;
@@ -285,7 +387,7 @@ function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
     const newLineage = true;
     const nb = m.bases.length + 1;
     const startDay = run.startDay;
-    const dp = be.dp + baseDataWall(s, run.base, run.flopNeeded) + (adopted(s, 'P24') ? 0.8 : 0);
+    const dp = be.dp + baseDataWall(s, run.base, run.flopNeeded) + p24Dp(s);
     const b: BaseModel = {
       id: `B${nb}`, name: `${PLAYER_MODEL_FAMILY}-${nb}`, day: s.time.day, startDay, flop: run.flopNeeded,
       paAtStart: run.paAtStart ?? s.player.pa, pc: pcOfBase(w, startDay, run.flopNeeded, s.player.scDay), design: run.base,
@@ -350,7 +452,7 @@ function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
     signals: clampSignals(addSig(base.signals ?? {}, pe.signals)),
   };
   const v = newVersion(s, run, base, build, parent, {
-    serveCost: (base.serve ?? 0.5) * pe.serve * (adopted(s, 'P16') ? 0.75 : 1),
+    serveCost: (base.serve ?? 0.5) * pe.serve * serveTechMult(s),
     monitorability: Math.min(base.monitorability ?? 1, pe.monitorability), appeal: pe.appeal,
   });
   m.versions.push(v);
@@ -386,9 +488,9 @@ function promoteEvaluated(s: GameStateV2, ctx: SystemCtx) {
 }
 
 /** runs (40, daily): add FLOP to running runs; on completion create base/version, call WS2 applyRunToTraits,
- *  queue the eval. Also advances paradigm projects (§3.3.3). */
+ *  queue the eval. (Paradigm projects moved to the research system, models/tree.ts, in R4.) */
 export const runsSystem: EngineSystem = {
-  id: 'runs', owner: 'WS1', cadence: 'daily', order: 40,
+  id: 'runs', owner: 'WS1', cadence: 'daily', order: 40, system: 'models',
   run(s, ctx) {
     if (s.player.status !== 'active') return;
     // WS4 pauses frontier runs (status 'paused'); they resume when the pause ends.
@@ -397,10 +499,10 @@ export const runsSystem: EngineSystem = {
     const flopDay = trainingFlopPerDay(s);
     for (const run of s.player.models.runs) {
       if (run.status !== 'running') continue;
-      const share = alloc.get(run.id) ?? 0;
-      run.flopDone += share * flopDay;
-      // Loss spikes (stretch / MoE): restart probability spread over the run's expected length (§3.3.1).
-      const risk = run.base ? baseEffect(run.base).restart : 0;
+      const waiting = runWaiting(run);
+      if (!waiting) run.flopDone += (alloc.get(run.id) ?? 0) * flopDay;
+      // Loss spikes (size / MoE): restart probability spread over the run's expected length (§3.3.1), once training.
+      const risk = run.base && !waiting ? baseEffect(run.base).restart * (nodeKnown(s, 'faultTolerant') ? 0.5 : 1) : 0;
       if (risk > 0 && run.restarts === 0 && (run.holdUntil === undefined || run.holdUntil <= ctx.day)) {
         const rng = ctx.rng('runs');
         if (rng.chance(risk / Math.max(30, run.minDays))) {
@@ -410,10 +512,9 @@ export const runsSystem: EngineSystem = {
           ctx.log('research', `Loss spike in ${run.name}: rolling back to a checkpoint.`, 2, run.id);
         }
       }
-      if (run.flopDone >= run.flopNeeded && ctx.day - run.startDay >= run.minDays) completeRun(s, ctx, run);
+      if (!waiting && run.flopDone >= run.flopNeeded && ctx.day - run.startDay >= run.minDays) completeRun(s, ctx, run);
     }
     promoteEvaluated(s, ctx);
-    advanceParadigms(s, ctx);
     // Finished runs are kept for 120 days for the UI, then dropped (save budget).
     s.player.models.runs = s.player.models.runs.filter((r) => r.status === 'running' || r.status === 'paused' || ctx.day - r.startDay < 400);
   },
@@ -514,7 +615,7 @@ export function startStream(s: GameStateV2, versionId: string, day: Day = s.time
 
 /** continual (45, daily): stream versions track pa; default frontier tracking for unmanaged rival/China labs. */
 export const continualSystem: EngineSystem = {
-  id: 'continual', owner: 'WS1', cadence: 'daily', order: 45,
+  id: 'continual', owner: 'WS1', cadence: 'daily', order: 45, system: 'models',
   run(s) {
     advanceStream(s);
     for (const r of [...s.rivals, s.china.lab]) defaultLabPolicy(s, r);

@@ -64,8 +64,9 @@ export function Lrel(P: CesP, A: number, h: number, ai: number): number {
  * and ku are the ratios c and k a lab would have with all of its research compute on experiments or on agents.
  * Golden-section search (X is unimodal in f).
  */
-export function bestMix(P: CesP, A: number, R: number, h: number, cu: number, ku: number): { f: number; X: number } {
-  const X = (f: number) => Xces(P, Math.max(1e-12, f * cu), Math.pow(Math.max(1e-12, Lrel(P, A, h, Math.max(1e-12, R * (1 - f) * ku))), P.lam));
+export function bestMix(P: CesP, A: number, R: number, h: number, cu: number, ku: number, c0 = 0): { f: number; X: number } {
+  // c0: experiment compute outside the mix (R5: idle training compute), in c units.
+  const X = (f: number) => Xces(P, Math.max(1e-12, c0 + f * cu), Math.pow(Math.max(1e-12, Lrel(P, A, h, Math.max(1e-12, R * (1 - f) * ku))), P.lam));
   const g = (Math.sqrt(5) - 1) / 2;
   let lo = 0.01;
   let hi = 0.99;

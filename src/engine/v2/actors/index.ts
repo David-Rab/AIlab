@@ -18,7 +18,8 @@ const LETTERS: [number, string][] = [
 ];
 export const letterOf = (gpa: number) => LETTERS.find(([t]) => gpa >= t)![1];
 
-const GOV_SCORE: Record<string, number> = { legacyNonprofit: 0.65, nonprofitPBC: 0.75, pbcTrust: 0.6, founder: 0.3 };
+// R9 parent: a corporate division with a responsibility council but no independent safety board (GDM: C−) [D].
+const GOV_SCORE: Record<string, number> = { legacyNonprofit: 0.65, nonprofitPBC: 0.75, pbcTrust: 0.6, founder: 0.3, parent: 0.45 };
 
 function grade(d: IndexGrade['domains']): IndexGrade {
   const vals = Object.values(d);
@@ -65,7 +66,7 @@ export function gradeRival(s: GameStateV2, lab: LabId): IndexGrade {
 
 /** index (500, semiannual): Safety Index edition: grades from observables only. */
 export const indexSystem: EngineSystem = {
-  id: 'index', owner: 'WS4', cadence: 'semiannual', order: 500,
+  id: 'index', owner: 'WS4', cadence: 'semiannual', order: 500, system: 'relations',
   run(s, ctx) {
     const idx = s.researchBodies.index;
     const grades: Record<LabId, IndexGrade> = { player: gradePlayer(s) };

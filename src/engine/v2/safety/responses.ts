@@ -146,7 +146,10 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
       const parent = versionById(s, v.parentVersionId);
       if (!parent || parent.status === 'retired') return 'No checkpoint to roll back to';
       for (const d of s.player.deployments) if (d.versionId === v.id) d.versionId = parent.id;
-      if (s.player.models.internalAgent === v.id) s.player.models.internalAgent = parent.id;
+      for (const a of Object.values(s.player.agents)) {
+        if (a.versionId === v.id) a.versionId = parent.id;
+        if (a.monitorId === v.id) a.monitorId = parent.id;
+      }
       if (s.player.models.stream?.versionId === v.id) delete s.player.models.stream;
       v.status = 'rolledBack';
       break;
@@ -181,3 +184,13 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
   return undefined;
 }
 
+
+/** Current lab-wide patch multipliers on the edges into a trait (1 = never patched; PATCH_FLOOR = as low as patches go):
+ *  the response card's "diminishing patches" readout (LIMITS response.patchFloor). */
+export function patchLevel(s: GameStateV2, trait: TraitId): { lo: number; hi: number; atFloor: boolean } {
+  const xs = edgesInto(trait).map((e) => flagNum(s, `patch.lab.${e}`, 1));
+  if (!xs.length) return { lo: 1, hi: 1, atFloor: false };
+  const lo = Math.min(...xs);
+  const hi = Math.max(...xs);
+  return { lo, hi, atFloor: hi <= PATCH_FLOOR + 1e-9 };
+}

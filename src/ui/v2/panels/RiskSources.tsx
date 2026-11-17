@@ -13,12 +13,12 @@ import './risk.css';
 
 type Lever = { label: string; act?: { id: string; params?: Record<string, string | number | boolean> }; go?: GoTarget };
 const LEVERS: Record<RiskSource['kind'], Lever[]> = {
-  ownModel: [{ label: 'Fund detection agendas', act: { id: 'safety.fund', params: { level: 'serious' } } }, { label: 'Tighten eval gate', act: { id: 'safety.evalGate', params: { level: 'full' } } }, { label: 'Investigate scheming', act: { id: 'safety.investigate', params: { trait: 'SCHEME' } } }],
+  ownModel: [{ label: 'Research lines', go: { panel: 'safety', tab: 'lines' } }, { label: 'Tighten eval gate', act: { id: 'safety.evalGate', params: { level: 'full' } } }, { label: 'Investigate scheming', act: { id: 'safety.investigate', params: { trait: 'SCHEME' } } }],
   rival: [{ label: 'Joint evals', act: { id: 'C3' } }, { label: 'Share threat intel', act: { id: 'C1' } }, { label: 'Publish research', act: { id: 'A4' } }],
   china: [{ label: 'Track-2 dialogue', act: { id: 'E1' } }, { label: 'Gov-gov agreement', act: { id: 'E2' } }, { label: 'Raise security', act: { id: 'SEC_TARGET' } }],
-  misuse: [{ label: 'Classifier safeguards', go: { panel: 'deployments' } }, { label: 'Bug bounty', act: { id: 'A5' } }],
+  misuse: [{ label: 'Classifier safeguards', go: { panel: 'products' } }, { label: 'Bug bounty', act: { id: 'A5' } }],
   theft: [{ label: 'Raise WSL target', act: { id: 'SEC_TARGET' } }, { label: 'Counter-intel', act: { id: 'SEC_CI' } }, { label: 'Siloing', act: { id: 'SEC_SILO' } }],
-  rogue: [{ label: 'Control protocols', go: { panel: 'safety', tab: 'tools' } }, { label: 'Monitoring', act: { id: 'safety.monitoring' } }],
+  rogue: [{ label: 'Control research', go: { panel: 'safety', tab: 'lines' } }, { label: 'Monitors', go: { panel: 'company', tab: 'people', anchor: 'agents' } }],
   war: [{ label: 'De-escalate', act: { id: 'E1' } }, { label: 'Loosen export controls', act: { id: 'E3', params: { direction: 'loosen' } } }],
 };
 const KIND_ICON: Record<RiskSource['kind'], typeof ICON.risk> = { ownModel: ICON.ownModel, rival: ICON.rival, china: ICON.china, misuse: ICON.misuse, theft: ICON.theft, rogue: ICON.rogue, war: ICON.war };
@@ -28,7 +28,7 @@ const DRIVER_REF: Partial<Record<RiskSource['kind'], { id: string; label: string
   ownModel: { id: 'misBand', label: 'Misalignment band', to: { panel: 'safety', tab: 'graph' } },
   theft: { id: 'wsl', label: 'Weight security', to: { panel: 'company', tab: 'security' } },
   rival: { id: 'leadTrack', label: 'Lead track', to: { panel: 'overview' } },
-  misuse: { id: 'channelRevenue', label: 'Deployments', to: { panel: 'deployments' } },
+  misuse: { id: 'servingSplit', label: 'Products', to: { panel: 'products' } },
 };
 const DRV_COLORS = ['#c9d4e2', '#8a9bb0', '#5b6b80', '#3d4b5e'];
 const sevColor = (x: number) => (x > 0.2 ? C.bad : x > 0.05 ? C.watch : C.good);

@@ -1,10 +1,11 @@
 // Shared v2 UI pieces (WS6): action buttons with engine previews, "why" tooltips from the cause ledger, glossary
 // terms, unlock rules (§1.5, §6.8), small charts. Selectors only — never hidden truth.
 import type { ReactNode } from 'react';
-import { Lock, type LucideIcon } from 'lucide-react';
-import { actionView, causeStrip, choiceView } from '../../engine/v2';
+import { Ban, Lock, type LucideIcon } from 'lucide-react';
+import { actionView, causeStrip } from '../../engine/v2';
 import type { ActionView, CostLine, GameStateV2 } from '../../engine/v2';
 import { GLOSSARY_V2 } from '../../data/v2/glossary';
+import { LIMIT_BY_ID } from '../../data/v2/limits';
 import { SIGNALS, TRAIT_BY_ID } from '../../data/v2/traits';
 import { Tip, TipCard as BaseTipCard } from './Tooltip';
 import { fmtNum } from './components';
@@ -24,10 +25,10 @@ export type Params = Record<string, number | string | boolean>;
 export const ACT_NAMES = ['', 'Startup', 'Frontier race', 'Automation', 'Takeoff'] as const;
 /** Act at which a panel or panel section unlocks (§1.5); tutorial off = all. */
 export const UNLOCK_ACT: Record<string, 1 | 2 | 3 | 4> = {
-  overview: 1, company: 1, map: 1, finance: 1, departments: 1, models: 1, rundesigner: 1, deployments: 1, relations: 1, safety: 1, codex: 1,
+  overview: 1, research: 1, company: 1, map: 1, finance: 1, departments: 1, models: 1, blueprint: 1, products: 1, relations: 1, safety: 1, codex: 1,
   compute: 2, risk: 2, world: 3,
-  baseRuns: 2, deals: 2, rivalIntel: 2, researchBodies: 2, commitments: 2, agendas: 2, index: 2, paradigms: 2,
-  aiLabour: 3, paradigmT3: 3, chinaLadder: 3, theftMap: 3, statutes: 3, govLadder: 3,
+  baseRuns: 2, deals: 2, rivalIntel: 2, researchBodies: 2, commitments: 2, agendas: 2, index: 2,
+  aiLabour: 3, chinaLadder: 3, theftMap: 3, statutes: 3, govLadder: 3,
   oversight: 4, treaty: 4,
 };
 export function unlocked(s: GameStateV2, key: string): boolean {
@@ -45,6 +46,20 @@ export function LockedNote({ k }: { k: string }) {
 /** Renders children only once `k` is unlocked; otherwise a lock line. */
 export function Gate({ s, k, children }: { s: GameStateV2; k: string; children: ReactNode }) {
   return unlocked(s, k) ? <>{children}</> : <LockedNote k={k} />;
+}
+
+// ───────────────────────── limits (R11) ─────────────────────────
+/** A cap, floor or gate where the player hits it (data/v2/limits.ts). Children = the live reading; hover = the rule
+ *  and its source. `data-limit` is what uitest checks. `tone` = whether it binds now. */
+export function Limit({ id, children, tone, block }: { id: string; children: ReactNode; tone?: 'bind' | 'warn' | 'quiet'; block?: boolean }) {
+  const d = LIMIT_BY_ID[id];
+  const body = <span className={`limit ${tone ?? 'quiet'}`} data-limit={id}><Ban size={10} />{children}</span>;
+  if (!d) return body;
+  return (
+    <Tip as={block ? 'div' : 'span'} content={() => <TipCard title={d.title} footer={`Source: ${d.source}`}>{d.rule}</TipCard>}>
+      {body}
+    </Tip>
+  );
 }
 
 // ───────────────────────── glossary ─────────────────────────
@@ -190,30 +205,6 @@ export function ActBtn({
   );
 }
 
-/** Decision-choice button with its preview. */
-export function ChoiceBtn({ s, eventId, instance, idx, isDefault }: { s: GameStateV2; eventId: string; instance: string; idx: number; isDefault?: boolean }) {
-  const v = choiceView(s, eventId, idx);
-  const off = v.ok !== true;
-  return (
-    <button className="choice" disabled={off} data-choice={idx} onClick={() => store.resolve(instance, idx)}>
-      <div className="choice-top">
-        <span className="choice-label">{v.title}</span>
-        {isDefault && <span className="chip-mini dim">default</span>}
-        {off && <span className="tone-neg small">{v.ok}</span>}
-      </div>
-      <PreviewRows v={v} />
-    </button>
-  );
-}
-
-// ───────────────────────── why tooltips ─────────────────────────
-export function causeRows(s: GameStateV2, key: string, fmt: (x: number) => string = (x) => x.toFixed(1)) {
-  return causeStrip(s, key, 30, 5).map((r) => ({
-    label: <span>{r.source}{r.n > 1 ? <span className="dim"> ×{r.n}</span> : null}</span>,
-    value: `${r.delta >= 0 ? '+' : '−'}${fmt(Math.abs(r.delta))}`,
-    tone: (r.delta >= 0 ? 'pos' : 'neg') as 'pos' | 'neg',
-  }));
-}
 /** Ledger source strings in player words (PLAN B8, UI side). */
 const SOURCE_WORDS: Record<string, string> = {
   'chip deposit': 'Chip order deposit', 'revenue share': 'Revenue share', drift: 'Drift (no single cause)', 'weekly sum': 'Weekly total',
@@ -259,17 +250,6 @@ export function Why({ k, title, value, body, rows, fmt, children, className, lev
   );
 }
 
-// ───────────────────────── small visuals ─────────────────────────
-export function Stack({ parts, h = 8 }: { parts: { v: number; color: string; label?: string }[]; h?: number }) {
-  const tot = parts.reduce((a, p) => a + Math.max(0, p.v), 0) || 1;
-  return (
-    <div className="stack" style={{ height: h }}>
-      {parts.map((p, i) => (
-        <div key={i} title={p.label} style={{ width: `${(Math.max(0, p.v) / tot) * 100}%`, background: p.color }} />
-      ))}
-    </div>
-  );
-}
 export function Band({ lo, hi, mid, max = 1, color = 'var(--accent)', width = 90 }: { lo: number; hi: number; mid?: number; max?: number; color?: string; width?: number }) {
   const f = (x: number) => `${Math.max(0, Math.min(1, x / max)) * 100}%`;
   return (
@@ -312,18 +292,7 @@ export function Radar({ values, err = 0.4, max = 15, size = 170, compare }: { va
   );
 }
 export const pct = (x: number, d = 0) => `${(x * 100).toFixed(d)}%`;
-export const sgn = (x: number, d = 0) => `${x >= 0 ? '+' : '−'}${Math.abs(x).toFixed(d)}`;
 export const days = (d: number) => `${d >= 0 ? '+' : '−'}${Math.abs(Math.round(d))}d`;
 export function tone(x: number, good = 0) {
   return x > good ? 'tone-pos' : x < good ? 'tone-neg' : 'tone-neutral';
-}
-export function Kpi({ label, value, sub, tip }: { label: string; value: ReactNode; sub?: ReactNode; tip?: () => ReactNode }) {
-  const body = (
-    <div className="kpi">
-      <div className="kpi-label">{label}</div>
-      <div className="kpi-value num">{value}</div>
-      {sub && <div className="small dim">{sub}</div>}
-    </div>
-  );
-  return tip ? <Tip as="div" content={tip}>{body}</Tip> : body;
 }

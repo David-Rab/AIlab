@@ -9,12 +9,14 @@
 //   schedule, unconditional equity tranches, debt maturities that cannot roll.
 // Runway = quarters until projected liquidity (cash + undrawn revolver) falls below a minimum operating cash of one
 // month of running costs, capped at the horizon.
-import { payrollPerYear } from '../departments/staffing';
+import { payrollOf } from '../departments/teams';
 import { powerAndOMPerYear } from '../compute/power';
 import { dayOfQuarter } from '../core/time';
 import type { Day, FinanceState, GameStateV2, Money } from '../types';
 import { interestPerYear } from './debt';
 import { ledgerPaying, qOf } from './ledger';
+import { parentPaymentQ } from './parent';
+import { isDivision } from '../../../data/v2/starts';
 
 /** Healthy ≥ 6q, Tight 3–6q, Distress < 3q (or covenant breach), Insolvent if cash < 0 after all options. */
 export function runwayState(runwayQ: number, covenantBreach = false, cash = 1): FinanceState['state'] {
@@ -34,7 +36,7 @@ export const RUNWAY_CAP = PROJECTION_Q;
 export function operatingCostsPerYear(s: GameStateV2): Money {
   const p = s.player;
   const share = p.finance.deals.reduce((a, d) => a + (d.strings.revenueShare ?? 0), 0) * p.finance.revenueRun;
-  return payrollPerYear(p.staff) + p.security.spendRate + p.policies.transitionFund + powerAndOMPerYear(s) + interestPerYear(s) + share;
+  return payrollOf(p) + p.security.spendRate + p.policies.transitionFund + powerAndOMPerYear(s) + interestPerYear(s) + share;
 }
 
 export type CashPart = 'revenue' | 'operating' | 'commitments' | 'chips' | 'sites' | 'funding' | 'debt';
@@ -70,8 +72,10 @@ export function cashFlows(s: GameStateV2): Flow[] {
   const q0 = qOf(s);
   const nextQ = (d: Day) => dayOfQuarter(start, Math.max(q0 + 1, qOf(s, d) + (dayOfQuarter(start, qOf(s, d)) < d ? 1 : 0)));
   const far = dayOfQuarter(start, q0 + PROJECTION_Q + 2);
+  const division = isDivision(s);
   const out: Flow[] = [
-    { part: 'revenue', perDay: f.revenueRun / 365, from: day, to: far },
+    // A division's revenue goes to the parent; its budget lands at each quarter start (finance/parent.ts, R9).
+    { part: 'revenue', perDay: division ? 0 : f.revenueRun / 365, from: day, to: far },
     { part: 'operating', perDay: -operatingCostsPerYear(s) / 365, from: day, to: far },
   ];
   for (const r of f.ws3?.rentals ?? []) if (r.endDay > day) out.push({ part: 'operating', perDay: -r.perYear / 365, from: day, to: r.endDay });
@@ -100,6 +104,7 @@ export function cashFlows(s: GameStateV2): Flow[] {
       out.push({ part: 'sites', amount: -pay * own, day: D });
     }
   }
+  if (division) for (let k = 1; k <= PROJECTION_Q + 1; k++) out.push({ part: 'funding', amount: parentPaymentQ(q0 + k), day: dayOfQuarter(start, q0 + k) });
   // Unconditional tranches land at the quarterly capital step on or after their due day.
   for (const t of f.tranches) if (!t.condition) out.push({ part: 'funding', amount: t.amount, day: nextQ(Math.max(t.dueDay, day + 1)) });
   // Debt rolls at maturity while the market is open; otherwise it is repaid from cash.

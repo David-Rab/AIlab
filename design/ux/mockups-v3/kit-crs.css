@@ -1,0 +1,69 @@
+/* Extensions to kit.css for the v3 Company / Research / Safety mockups (shell + shared components). */
+:root {
+  /* tree columns = science specialties. Capability-side columns take the capabilities hue family,
+     safety-side columns the safety hue family; within a family they are told apart by icon + label. */
+  --c-pre: #9b6be0; --c-post: #9b6be0; --c-sys: #9b6be0;
+  --c-ali: #22a394; --c-int: #22a394; --c-evl: #22a394;
+  --ai: #7fe0cf;      /* AI share of work (sequential top step, DESIGN-SYSTEM) */
+  --ai-dim: #1d6f68;
+  --human: #4a5b72;
+}
+.body { grid-template-columns: 76px minmax(0, 1fr) !important; }
+.speed { display:flex; gap:3px; }
+.speed .b { width:30px; height:30px; border-radius:7px; display:grid; place-items:center; background:var(--panel-2); border:1px solid var(--line-2); color:var(--text-2); position:relative; }
+.speed .b.on { background:#24364f; border-color:var(--you); color:#fff; }
+.speed .b .k { position:absolute; bottom:-1px; right:2px; font:700 8px var(--mono); color:var(--text-3); }
+.date .d { font:600 15px var(--mono); color:#fff; } .date .a { font-size:11px; color:var(--text-3); }
+.race { flex:0 0 404px; padding:0 14px !important; flex-direction:column; align-items:stretch !important; justify-content:center; gap:2px !important; background:linear-gradient(90deg, rgba(155,107,224,.07), rgba(34,163,148,.07)); }
+.race .lbls { display:flex; align-items:baseline; gap:7px; font-size:11px; font-weight:600; letter-spacing:.04em; }
+.race .lbls b { font:700 17px var(--mono); }
+u { text-decoration:none; border-bottom:1px dotted currentColor; }
+.stat .sub { font-size:10.5px; color:var(--text-3); }
+.stat .v .u { font-size:11px; color:var(--text-3); font-weight:500; }
+.stat .l u { border-bottom-color:#5aa9ff; }
+.nav .it { padding:6px 2px 5px; }
+
+/* page header */
+.ph { display:flex; align-items:center; gap:12px; min-height:34px; }
+.ph h1 { margin:0; font-size:18px; font-weight:650; color:#fff; }
+.chipl { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:7px; background:var(--panel); border:1px solid var(--line); font-size:12px; color:var(--text-2); white-space:nowrap; }
+.chipl b { font:600 13px var(--mono); color:#fff; }
+.chipl.link { border-color:#36507a; background:#142033; color:#cfe3ff; }
+.chipl.warn b { color:var(--warn); }
+.u { color:var(--text-3); font-weight:500; }
+
+/* card headers */
+.hd .ttl { font-size:14px; }
+.hd .sub { font-size:11.5px; color:var(--text-3); }
+
+/* level markers (mockup annotation only) */
+.lv { position:absolute; z-index:90; font:700 10px var(--mono); color:#1a1400; background:#ffd84d; border-radius:4px; padding:1px 5px; opacity:.92; }
+.lv.l1 { background:#7fe0cf; } .lv.l2 { background:#bcd8ff; }
+
+/* quality pips: Solid 1 · Strong 2 · Elite 3 */
+.q { display:inline-flex; gap:2px; vertical-align:1px; } .q i { width:6px; height:6px; border-radius:50%; background:var(--line-2); } .q i.on { background:#d9c27a; }
+
+/* toggles */
+.tog { width:28px; height:16px; border-radius:8px; background:var(--line-2); position:relative; flex-shrink:0; }
+.tog::after { content:''; position:absolute; top:2px; left:2px; width:12px; height:12px; border-radius:50%; background:#9fb0c3; }
+.tog.on { background:#2f7fd6; } .tog.on::after { left:14px; background:#fff; }
+
+/* tooltip extras */
+.tip .lockbar.on { background:var(--you); }
+.tip .hint { font-size:10.5px; color:var(--text-3); margin-top:8px; display:flex; gap:6px; align-items:center; }
+.cb { display:grid; grid-template-columns: 16px 1fr 90px 46px; align-items:center; gap:6px; padding:2px 0; font-size:12px; }
+.cb .bx { position:relative; height:8px; } .cb .bx::before { content:''; position:absolute; left:50%; top:-2px; bottom:-2px; width:1px; background:var(--line-2); }
+.cb .bx i { position:absolute; top:0; bottom:0; border-radius:2px; }
+.cb .n { font:600 11.5px var(--mono); text-align:right; }
+
+/* hide/show per state */
+.only-hover, .only-node, .only-assign { display:none !important; }
+body.st-hover .only-hover, body.st-node .only-node, body.st-assign .only-assign { display:block !important; }
+body.st-hover .only-hover.flex, body.st-node .only-node.flex, body.st-assign .only-assign.flex { display:flex !important; }
+.scrim { position:absolute; inset:0; background:rgba(5,8,12,.55); z-index:40; }
+.prod-l { display:inline-flex; align-items:center; gap:3px; font-size:11.5px; color:#cfe3ff; padding:1px 7px; border-radius:6px; border:1px solid #36507a; background:#142033; white-space:nowrap; }
+
+.top .stat { padding:0 11px; white-space:nowrap; } .top .stat .l, .date .d, .date .a { white-space:nowrap; } .top > .seg { padding:0 12px; }
+.race .lbls { white-space:nowrap; } .race .lbls .tag { padding:0 5px; }
+.speed .b { width:28px; height:28px; }
+.top .stat .ic { width:26px; height:26px; }

@@ -3,16 +3,17 @@
 // HOME of idle chips, empty racks, vendor fill, the forecast, sites & power, orders, cloud contracts and the chip
 // market. Compute online and the split live in Company and are only linked here.
 import { useEffect, useState, type ReactNode } from 'react';
-import { actionView, chipFit, cloudPricePerYear, computeForecast, computeHistory, dateOf, dayOfQuarter, fmtDate, fmtMonth, oppositionOdds, orderQuote, qOf, siteEtaQ, spotPrice } from '../../../engine/v2';
+import { actionView, chipFit, cloudPricePerYear, computeForecast, computeHistory, dateOf, dayOfQuarter, fmtDate, fmtMonth, oppositionOdds, orderQuote, qOf, siteEtaQ, siteSizeView, spotPrice, spotRentalView } from '../../../engine/v2';
 import type { ChipOrder, ForecastEvent, ForecastQ, GameStateV2, Site } from '../../../engine/v2';
 import { CHIP_TIERS, SITE_PATHS, SITE_TIERS } from '../../../data/v2/deals';
 import { store } from '../store';
-import { ActBtn, Gate, Seg, Term, Tip, TipCard, Toggle } from '../ui';
+import { ActBtn, Limit, Gate, Seg, Term, Tip, TipCard, Toggle } from '../ui';
 import { Card, CostPills, HBar, KV, OptionTile, PanelHead, Pill, Ref, Spark2, tabOf, Tabs } from '../kit';
 import * as F from '../fmt';
 import { ICON } from '../icons';
 import { C } from '../theme';
 import './compute.css';
+import { Split } from './Split';
 
 const PATHS: { id: Site['path']; label: string; term: string; icon: typeof ICON.sites }[] = [
   { id: 'lease', label: 'Colo', term: 'colo', icon: ICON.pathLease }, { id: 'brownfield', label: 'Brownfield', term: 'brownfield', icon: ICON.pathBrownfield },
@@ -245,7 +246,7 @@ function OrderCard({ s }: { s: GameStateV2 }) {
             tip={() => <TipCard title={`${F.count(h)} H100e`} rows={[{ label: <Term id="mw">Racks needed</Term>, value: F.power((h * kW) / 1000) }, { label: 'Price each', value: `$${orderQuote(s, kind, h, nonTW).price.toFixed(1)}K` }]} />} />
         ))}
       </div>
-      <div className="cac-pv"><CostPills v={actionView(s, id, params)} /><span className="dim small">arrives {qLabel(s, qt.dueQ)}</span></div>
+      <div className="cac-pv"><CostPills v={actionView(s, id, params)} /><span className="dim small">arrives {qLabel(s, qt.dueQ)}</span><Limit id="order.terms">{kind === 'lta' ? 'LTA 4–12 q' : kind === 'standard' ? 'deposit 30–100%' : 'no deposit'}</Limit></div>
       {open && (
         <div className="cac-opts">
           <div className="cmp-row"><span className="dim small">Contract</span><Seg value={kind} options={[{ v: 'standard', label: 'Standard', tip: '30% deposit, 2 quarters' }, { v: 'spot', label: 'Spot', tip: 'next quarter, spot price, lowest priority' }, { v: 'lta', label: 'LTA', tip: 'every quarter at 95% of list, take-or-pay' }]} onChange={setKind} /></div>
@@ -300,7 +301,7 @@ function BuildCard({ s }: { s: GameStateV2 }) {
           );
         })}
       </div>
-      <div className="cac-pv"><CostPills v={actionView(s, 'cmp.newSite', params)} /><span className="dim small">live ≈ {qLabel(s, liveQ)}</span></div>
+      <div className="cac-pv"><CostPills v={actionView(s, 'cmp.newSite', params)} /><span className="dim small">live ≈ {qLabel(s, liveQ)}</span>{(() => { const z = siteSizeView(s, path); const short = z.leaseGW !== undefined && z.leaseGW * 1000 < mw; return <Limit id="site.mw" tone={short ? 'bind' : 'quiet'}>{F.power(z.min)}–{F.power(z.max)}{z.leaseGW !== undefined ? ` · lease pool ${F.power(z.leaseGW * 1000)}` : ''}</Limit>; })()}</div>
       {open && (
         <div className="cac-opts">
           <Toggle on={crash} onChange={setCrash} label={<><Term id="crashBuild">Crash build</Term> · 4q, +35%</>} />
@@ -331,7 +332,7 @@ function CloudCard({ s }: { s: GameStateV2 }) {
         {CHIP_TIERS.map((h, i) => <OptionTile key={h} label={F.count(h)} active={tier === i} onClick={() => setTier(i)} testId={`cloud-${i}`} />)}
       </div>
       <div className="cmp-row"><span className="dim small">Term</span><Seg value={years} options={[1, 3, 5].map((v) => ({ v, label: `${v} yr` }))} onChange={setYears} /></div>
-      <div className="cac-pv"><CostPills v={actionView(s, 'cmp.cloudContract', params)} /><span className="dim small">online {qLabel(s, qOf(s) + 1)}</span></div>
+      <div className="cac-pv"><CostPills v={actionView(s, 'cmp.cloudContract', params)} /><span className="dim small">online {qLabel(s, qOf(s) + 1)}</span>{(() => { const sp = spotRentalView(s, h100e); return <Limit id="rent.spotCap" tone={sp.get < h100e ? 'warn' : 'quiet'}>spot: you'd get {F.count(sp.get)} of {F.count(h100e)}</Limit>; })()}</div>
       {open && (
         <div className="cac-opts">
           <Toggle on={cancellable} onChange={setCancellable} label={<>Cancellable · 1q notice, +15%</>} />
@@ -566,12 +567,13 @@ export function Compute({ s }: { s: GameStateV2 }) {
   return (
     <div className="panel-v2 cmp" data-panel="compute">
       <PanelHead icon={ICON.computePanel} title="Compute" sub="chips, sites and cloud"
-        tabs={<Tabs panel="compute" def="overview" tabs={[{ id: 'overview', label: 'Overview', icon: ICON.overview }, { id: 'sites', label: 'Sites', icon: ICON.sites, badge: sitesBadge }, { id: 'orders', label: 'Orders', icon: ICON.compute }, { id: 'market', label: 'Market', icon: ICON.supply }]} />}
-        right={<span className="row-i"><Ref id="computeOnline" to={{ panel: 'company', tab: 'flow' }}>Compute online</Ref><Ref id="split" to={{ panel: 'company', tab: 'split' }}>Compute split</Ref></span>} />
+        tabs={<Tabs panel="compute" def="overview" tabs={[{ id: 'overview', label: 'Overview', icon: ICON.overview }, { id: 'sites', label: 'Sites', icon: ICON.sites, badge: sitesBadge }, { id: 'split', label: 'Split', icon: ICON.split }, { id: 'orders', label: 'Orders', icon: ICON.compute }, { id: 'market', label: 'Market', icon: ICON.supply }]} />}
+        right={<span className="row-i"><Ref id="computeOnline" to={{ panel: 'company', tab: 'flow' }}>Compute online</Ref></span>} />
       {tab === 'overview' && <Overview s={s} />}
       {tab === 'sites' && <SitesTab s={s} />}
       {tab === 'orders' && <div className="g2"><Deliveries s={s} /><Cloud s={s} /></div>}
       {tab === 'market' && <Market s={s} />}
+      {tab === 'split' && <Split s={s} />}
     </div>
   );
 }

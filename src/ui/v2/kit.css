@@ -120,3 +120,10 @@ body.v2 .term { color: #bcd8ff; border-bottom: 1px dotted #5aa9ff; cursor: help;
 .ba-delta.bad { background: var(--bad); }
 .ba-track b { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #fff; }
 .ba-val { text-align: right; }
+
+/* R11 limits (ui.tsx Limit): a quiet inline note where a cap binds; amber / red when it binds now. */
+.limit { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; color: var(--text-3); white-space: nowrap; cursor: help; }
+.limit svg { opacity: .7; flex: none; }
+.limit.warn { color: var(--warn); }
+.limit.bind { color: var(--neg); }
+.limit-row { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; }

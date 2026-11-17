@@ -7,6 +7,7 @@ import { decimalYear } from '../../src/engine/v2/core/time';
 import { refPlay } from '../../src/engine/v2/bots/ref';
 import { engine } from '../../src/engine/v2/index';
 import { refTotal } from '../../src/engine/v2/production/knots';
+import { LEADER_ID } from '../../src/engine/v2/models/labs';
 import type { EngineSystem, GameStateV2, SetupV2, TickOptions } from '../../src/engine/v2/types';
 
 export const HERE = dirname(fileURLToPath(import.meta.url));
@@ -39,13 +40,14 @@ export function validateJson(x: unknown, path = 's', errs: string[] = []): strin
  * (the player at exactly 1×, i.e. h,k,c ≈ 1). Runs right after computeOnline (order 20).
  */
 export const refComputeStub: EngineSystem = {
-  id: 'stubRefCompute', owner: 'WS1', cadence: 'daily', order: 21,
+  id: 'stubRefCompute', owner: 'WS1', cadence: 'daily', order: 21, system: 'core',
   run(s) {
     const w = s.hidden.timeline;
     const yr = decimalYear(s);
     const ref = refTotal(w, yr);
     s.player.computeOnline = ref;
     for (const r of [...s.rivals, s.china.lab]) {
+      if (r.core.id === LEADER_ID) continue; // the leader lab sets its own reference compute (R2)
       const key = `stub:ratio:${r.core.id}`;
       if (s.flags[key] === undefined) s.flags[key] = r.core.computeOnline / refTotal(w, 2025.5);
       r.core.computeOnline = ref * Number(s.flags[key]);
@@ -55,7 +57,7 @@ export const refComputeStub: EngineSystem = {
 
 /** Stub finance for fixtures (until WS3/WS5 cash flows land): cash never falls below the start balance. */
 export const cashFloorStub: EngineSystem = {
-  id: 'stubCashFloor', owner: 'WS1', cadence: 'daily', order: 131,
+  id: 'stubCashFloor', owner: 'WS1', cadence: 'daily', order: 131, system: 'core',
   run(s, ctx) {
     const floor = Number(s.flags['stub:cash0'] ?? (s.flags['stub:cash0'] = s.player.finance.cash));
     if (s.player.finance.cash < floor) ctx.bump('cash', floor - s.player.finance.cash, 'stub finance');

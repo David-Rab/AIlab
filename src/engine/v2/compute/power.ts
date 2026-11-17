@@ -64,7 +64,7 @@ export function powerAndOMPerYear(s: GameStateV2): number {
 /** computeOnline (20, daily): player online H100e; pools memoised for the tick. Rivals' and China's online compute
  *  grows by chip deliveries in marketQ (installed directly; no site model for non-player labs). */
 export const computeOnlineSystem: EngineSystem = {
-  id: 'computeOnline', owner: 'WS3', cadence: 'daily', order: 20,
+  id: 'computeOnline', owner: 'WS3', cadence: 'daily', order: 20, system: 'compute',
   run(s, ctx) {
     ensureWs3(s);
     s.player.computeOnline = computeOnlineOf(s);

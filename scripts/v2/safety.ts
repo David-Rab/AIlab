@@ -4,10 +4,12 @@
 // the mixed bot); WS1's runs call the WS2 trait hooks on every completed run.
 import { AGENDA_IDS } from '../../src/data/v2/agendas';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
-import { makeCtx } from '../../src/engine/v2/core/loop';
+import { act, makeCtx } from '../../src/engine/v2/core/loop';
 import { expectedObservation, familyPenalty, observeVersion } from '../../src/engine/v2/safety/detection';
 import { fireFinding } from '../../src/engine/v2/safety/findings';
 import { applyResponse } from '../../src/engine/v2/safety/responses';
+import { aiLabourGate, safetyAgentVersion, safetyFleet, trustedShare } from '../../src/engine/v2/safety/agents';
+import { openInvestigation } from '../../src/engine/v2/safety/investigations';
 import { sampleHidden } from '../../src/engine/v2/world/hidden';
 import { Rng } from '../../src/engine/rng';
 import type { GameStateV2, TraitId } from '../../src/engine/v2/types';
@@ -123,7 +125,7 @@ const mm = mixed.map((o) => o.minMarginToSar);
 const mixedOk = mm.filter((m) => m >= -0.5).length / mm.length;
 check(median(mm) >= -0.5, 'S5 Mixed-bot funding keeps U ≥ L − 0.5 up to SAR (median world)', `median min margin ${median(mm).toFixed(2)}; holds in ${pct(mixedOk)} of worlds; U@SAR mean ${mean(mixed.map((o) => o.uAtSar ?? 0)).toFixed(2)} vs RefBot ${mean(refU.map((o) => o.uAtSar ?? 0)).toFixed(2)}`);
 
-// ───────────────────────────── S6: FALSE findings rise with aiLabour × sabotage ─────────────────────────────
+// ──────────────────── S6: FALSE findings rise with Trusted to AI × sabotage (R7: one policy) ────────────────────
 {
   const base = newGame(defaultSetupV2({ seed: 6, alignment: 'medium' }));
   const rate = (ai: number, sab: number) => {
@@ -132,7 +134,9 @@ check(median(mm) >= -0.5, 'S5 Mixed-bot funding keeps U ≥ L − 0.5 up to SAR 
     v.uModes = [];
     v.traitsTrue.SAND = sab / 2;
     v.traitsTrue.SCHEME = sab / 2;
-    s.player.safety.agendas.AG08.aiLabour = ai;
+    s.player.policies.trustedToAI = ai;
+    v.evals.measuredL = 9; // above the AI-labour gate (B3)
+    s.player.paradigms.P27 = { status: 'adopted', progress: 1, revealedDay: 0 }; // lifts the 50% cap
     s.player.policies.publishSafety = 'none';
     const snap = JSON.stringify(s.player.safety);
     const ctx = makeCtx(s);
@@ -152,7 +156,26 @@ check(median(mm) >= -0.5, 'S5 Mixed-bot funding keeps U ≥ L − 0.5 up to SAR 
   const rHiHi = rate(1, 1.6);
   console.log(`      FALSE share: ai 0 → ${pct(r00)}; ai .5·sab .1 → ${pct(rLo)}; ai .5·sab .8 → ${pct(rMid)}; ai 1·sab .8 → ${pct(rHi)}; ai 1·sab 1.6 → ${pct(rHiHi)}`);
   check(r00 === 0, 'S6 no FALSE findings without AI labour');
-  check(rLo < rMid && rMid < rHi && rHi < rHiHi, 'S6 FALSE finding rate rises with aiLabour × hidden sabotage');
+  check(rLo < rMid && rMid < rHi && rHi < rHiHi, 'S6 FALSE finding rate rises with Trusted to AI × hidden sabotage');
+}
+
+// ───────── B3 (R1): one AI-labour gate for agendas, investigations and the fleet ─────────
+{
+  const s = newGame(defaultSetupV2({ seed: 7, alignment: 'medium' }));
+  const ctx = makeCtx(s);
+  const v = safetyAgentVersion(s) ?? s.player.models.versions[0];
+  s.player.staff.saf = Math.max(60, s.player.staff.saf);
+  s.player.agents.safety.compute = 0.3;
+  s.player.policies.trustedToAI = 0.5;
+  v.evals.measuredL = 6;
+  check(aiLabourGate(s) !== true, 'B3 a model below the gate fails it');
+  check(trustedShare(s) === 0, 'B3 Trusted to AI does nothing below the gate (agendas and investigations)');
+  check(!!act(s, 'agents.trusted', { share: 0.3 }), 'B3 raising Trusted to AI below the gate is refused');
+  const r = openInvestigation(s, ctx, { kind: 'trait', versionId: v.id, trait: 'SCHEME' }, 10, {});
+  check(typeof r !== 'string', 'B3 investigations open without AI labour below the gate', String(typeof r === 'string' ? r : r.id));
+  check(safetyFleet(s).aiFte === 0, 'B3 the safety fleet supplies no AI labour below the gate');
+  v.evals.measuredL = 9;
+  check(aiLabourGate(s) === true && safetyFleet(s).aiFte > 0 && trustedShare(s) === 0.5, 'B3 above the gate the fleet works and Trusted to AI applies');
 }
 
 console.log(`      (${((performance.now() - t0) / 1000).toFixed(1)} s for the emulated games)`);

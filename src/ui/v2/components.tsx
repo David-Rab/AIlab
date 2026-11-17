@@ -1,6 +1,7 @@
 // Small UI primitives shared by the v2 panels (formatters, meters, sliders, segmented controls).
 import type { ReactNode } from 'react';
-import { Tip } from './Tooltip';
+import { Lock } from 'lucide-react';
+import { Tip, TipCard } from './Tooltip';
 
 // ---------------- Format ----------------
 export const fmtB = (b: number) => (Math.abs(b) >= 1000 ? `$${(b / 1000).toFixed(b >= 10000 ? 0 : 1)}T` : `$${b.toFixed(b < 10 ? 1 : 0)}B`);
@@ -55,11 +56,16 @@ export function Slider({ value, min, max, step, onChange, width = 120 }: { value
   return <input className="slider" type="range" min={min} max={max} step={step} value={value} style={{ width }} onChange={(e) => onChange(Number(e.target.value))} />;
 }
 
-export function Seg<T extends string | number>({ value, options, onChange }: { value: T; options: { v: T; label: string; tip?: string }[]; onChange: (v: T) => void }) {
+/** Segmented picker. An option with `locked` is disabled, shows a lock and gives its reason on hover. */
+export function Seg<T extends string | number>({ value, options, onChange, testId }: { value: T; options: { v: T; label: string; tip?: string; locked?: string }[]; onChange: (v: T) => void; testId?: string }) {
   return (
-    <div className="seg">
-      {options.map((o) => (
-        <button key={String(o.v)} className={`seg-btn ${o.v === value ? 'active' : ''}`} onClick={() => onChange(o.v)} title={o.tip}>
+    <div className="seg" data-test={testId}>
+      {options.map((o) => o.locked ? (
+        <Tip key={String(o.v)} content={() => <TipCard title={o.label} value="locked">{o.locked}</TipCard>}>
+          <button className="seg-btn locked" disabled data-opt={String(o.v)} data-locked={o.locked}><Lock size={10} /> {o.label}</button>
+        </Tip>
+      ) : (
+        <button key={String(o.v)} className={`seg-btn ${o.v === value ? 'active' : ''}`} onClick={() => onChange(o.v)} title={o.tip} data-opt={String(o.v)}>
           {o.label}
         </button>
       ))}

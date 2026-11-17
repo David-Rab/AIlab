@@ -10,7 +10,10 @@ import { recordSystem } from './record';
 import { productionSystem } from '../production/production';
 import { continualSystem, runsSystem } from '../models/runs';
 import { milestonesSystem } from '../models/capability';
-import { hiringSystem } from '../departments/staffing';
+import { hiringSystem } from '../departments/teams';
+import { researchSystem } from '../models/tree';
+import { buildSystem } from '../departments/build';
+import { productsSystem } from '../models/productOps';
 import { MODEL_ACTIONS } from '../models/actions';
 // WS2
 import { safetyResearchSystem } from '../safety/agendas';
@@ -52,6 +55,8 @@ export const SYSTEMS: readonly EngineSystem[] = [
   clockSystem, // 10 WS1 daily
   computeOnlineSystem, // 20 WS3 daily
   productionSystem, // 30 WS1 daily
+  researchSystem, // 35 WS1 daily (R4 tree projects)
+  buildSystem, // 38 WS1 daily (R5 engineers' build queue)
   runsSystem, // 40 WS1 daily
   continualSystem, // 45 WS1+WS2 daily
   milestonesSystem, // 50 WS1 daily
@@ -66,6 +71,7 @@ export const SYSTEMS: readonly EngineSystem[] = [
   opexSystem, // 130 WS3 daily
   directorSystem, // 140 WS4 daily
   endingsSystem, // 150 WS4 daily
+  productsSystem, // 155 WS1 daily (R6 product policies: auto-evaluate, upgrade)
   recordSystem, // 160 WS1 weekly
   hiringSystem, // 200 WS1 weekly
   intelSystem, // 210 WS4 weekly

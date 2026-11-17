@@ -1,6 +1,8 @@
 // Investor pool, hype, bubble, tranches, valuation marks, rating, covenants (V2-SPEC §3.7.3–3.7.4; research/15 §1.4–1.7).
 // Owner: WS3.
 import { GOV_FACTOR } from '../../../data/v2/deals';
+import { isDivision } from '../../../data/v2/starts';
+import { payParent } from './parent';
 import { dayOfDate, decimalYear } from '../core/time';
 import type { CapitalMarkets, EngineSystem, GameStateV2, Money, SystemCtx } from '../types';
 import { covenantsBreached, ratingOf, ratingScore, revolverCap, rollMaturities } from './debt';
@@ -162,7 +164,7 @@ export function trancheConditionMet(s: GameStateV2, cond: string): boolean {
 /** capitalQ (420, quarterly): hype, investor pool, bubble roll, raises close, tranches land, valuation mark, rating,
  *  covenants, legacy recapitalisation. */
 export const capitalQSystem: EngineSystem = {
-  id: 'capitalQ', owner: 'WS3', cadence: 'quarterly', order: 420,
+  id: 'capitalQ', owner: 'WS3', cadence: 'quarterly', order: 420, system: 'finance',
   run(s, ctx) {
     ensureWs3(s);
     const c = s.capital;
@@ -226,11 +228,15 @@ export const capitalQSystem: EngineSystem = {
       ctx.log('finance', 'Recapitalisation complete: the company is now a nonprofit-controlled PBC. Conditional tranches are freed.');
     }
 
-    // Valuation mark (formula), then raises close at it, tranches land; revenue history rolls.
-    const v = valuationNow(s);
-    const dv = v.V - f.valuation;
-    f.valuation = v.V;
-    ctx.cause('player.finance.valuation', dv, 'quarterly mark', `g ${v.g.toFixed(1)} · H ${v.H.toFixed(2)} · N ${v.N.toFixed(1)} · M ${v.M.toFixed(2)}`);
+    // Valuation mark (formula), then raises close at it, tranches land; revenue history rolls. A division (R9) has no
+    // valuation; the parent's quarterly budget lands instead.
+    if (!isDivision(s)) {
+      const v = valuationNow(s);
+      const dv = v.V - f.valuation;
+      f.valuation = v.V;
+      ctx.cause('player.finance.valuation', dv, 'quarterly mark', `g ${v.g.toFixed(1)} · H ${v.H.toFixed(2)} · N ${v.N.toFixed(1)} · M ${v.M.toFixed(2)}`);
+    }
+    payParent(s, ctx);
     closePendingRound(s, ctx);
     settleTranches(s, ctx);
     f.revenueHistory.push(f.revenueRun);

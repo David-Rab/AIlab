@@ -25,7 +25,7 @@ for (const fx of ['day400.json', 'day900.json']) {
   const U0 = understanding(s).U;
   const child = { ...structuredClone(v), id: `${v.id}-uxtest`, name: `${v.name}-test`, parentVersionId: v.id, status: 'evaluating' as const, evals: { bench: {}, safety: {} } };
   s.player.models.versions.push(child);
-  s.player.models.internalAgent = child.id;
+  s.player.agents.capRoutine.versionId = child.id;
   const e = internalEval(s);
   const U1 = understanding(s).U;
   ok(`${fx}: L kept while evaluating`, Math.abs(e.L - L0) < 1e-9 && e.evaluating, `L ${L0} → ${e.L} (evaluating ${e.evaluating})`);
@@ -59,6 +59,18 @@ const REQUIRED = [
   'bottleneck', 'computeBound', 'catRisk', 'lead', 'idleChips', 'computeOnline', 'pool', 'split', 'burn', 'netBurn', 'liquidity', 'ledger',
   'raiseCeiling', 'valuation', 'boardConf', 'rdmult', 'misalign', 'agenda', 'technique', 'finding', 'traitGraph', 'evidenceGrade', 'evalGate',
   'channel', 'servingShare', 'capacityBound', 'kyc', 'leverage', 'sector', 'trust', 'credibility', 'scrutiny', 'access', 'commitment', 'watch',
+  // R10: the tycoon-restructure vocabulary (STRUCTURE, TECH-TREE, mockups-v3 *-IA.md glossary lists).
+  'coreLoop', 'takeoffLoop', 'verbSet', 'limit', 'startType', 'parentBudget', 'revenueRun',
+  'team', 'roleEng', 'roleRE', 'roleSci', 'teamQuality', 'specialty', 'specialtyBonus', 'keepHiring', 'talentPull', 'payroll', 'morale', 'buildCapacity',
+  'techTree', 'knowHow', 'trainedIn', 'depth', 'layer', 'layerBackbone', 'layerTraining', 'layerScaffold', 'layerLab', 'effortClass', 'teamMonth', 'odds',
+  'researchLine', 'lineHealth', 'diminishingReturns', 'projectQueue', 'autoAssign', 'retryRule', 'diffusion', 'frontierMethods',
+  'blueprint', 'frontierRun', 'baseRun', 'postTrain', 'distillRun', 'continueRun', 'flop', 'wallTime', 'behindAtFinish', 'staleness', 'dataWall', 'restartRisk',
+  'faultTolerant', 'serveCost', 'buildQueue', 'teamWeek', 'poolShare', 'spareTraining', 'moe', 'neuralese', 'nativeMultimodal', 'hazardFilter', 'safetyPretrain',
+  'rlFocus', 'hardenedGraders', 'cot', 'constitution', 'inoculation', 'honestyTraining', 'antiScheming', 'riskFamily', 'designOffset', 'evals', 'autoEvaluate',
+  'product', 'segmentShare', 'bestRivalProduct', 'bindingCause', 'qualityBound', 'priceBound', 'priceTier', 'safeguards', 'sectorPack',
+  'feature', 'releaseClearance', 'freeTier', 'autoServing', 'servingCut', 'upgradePolicy', 'timeHorizon', 'agentTasks', 'runCost', 'revPerH100e',
+  'agentPackage', 'agentMonitor', 'monitor', 'catchRate', 'agentCopies', 'agentBudget', 'autoSplit', 'aiShareWork', 'researchTaste', 'trustedToAI', 'unseen',
+  'validatedTo', 'blind', 'detector', 'estimateBand', 'toolUpkeep', 'deadEnd', 'seriousStaffing', 'followUp', 'investigation', 'caseStaffing', 'clarity',
 ];
 const req = REQUIRED.filter((id) => !GLOSSARY_V2[id]);
 ok(`Required terms present (${REQUIRED.length})`, req.length === 0, req.join(', '));

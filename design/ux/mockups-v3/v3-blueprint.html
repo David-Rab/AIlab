@@ -1,0 +1,336 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>AI27 v3 · Model blueprint (mockup)</title>
+<!-- shots: v3-blueprint (default) · v3-blueprint-size (?size: size dragged to ×4) · v3-blueprint-hover (?hover: nested tooltip) -->
+<link rel="stylesheet" href="kit-v3b.css">
+<style>
+.center { gap:10px; }
+/* size hero */
+.size { display:grid; grid-template-columns: 430px minmax(0,1fr); gap:18px; padding:12px 14px; flex:0 0 auto; }
+.size .big { font:700 34px/1 var(--mono); color:#fff; }
+.size .big .u { font:500 13px var(--sans); color:var(--text-2); margin-left:8px; }
+.lims { display:grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap:8px; }
+.lim { background:var(--panel-2); border:1px solid var(--line); border-radius:7px; padding:8px 10px 8px; display:flex; flex-direction:column; gap:5px; min-width:0; position:relative; }
+.lim .lh { display:flex; align-items:center; gap:5px; font-size:11.5px; color:var(--text-2); white-space:nowrap; }
+.lim .lv { font:600 20px/1.05 var(--mono); color:#fff; white-space:nowrap; }
+.lim .lv .u { font:500 11.5px var(--sans); color:var(--text-3); margin-left:3px; }
+.lim .lv .was { font:500 12px var(--mono); color:var(--text-3); margin-right:4px; }
+.lim .ls { white-space:normal !important; line-height:1.25; }
+.lim .ls { font-size:11px; color:var(--text-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lim.good { border-left:3px solid var(--good); } .lim.warn { border-left:3px solid var(--warn); } .lim.bad { border-left:3px solid var(--bad); } .lim.neu { border-left:3px solid var(--line-2); }
+.lim.good .lh svg { color:var(--good); } .lim.warn .lh svg { color:var(--warn); } .lim.bad .lh svg { color:var(--bad); }
+.lim.chg { box-shadow: 0 0 0 1px rgba(233,180,76,.55) inset; }
+/* lower */
+.lower { display:grid; grid-template-columns: minmax(0,1fr) 440px; gap:10px; flex:1; min-height:0; }
+.slots { padding:10px 14px 12px; display:flex; flex-direction:column; }
+.sgrid { display:grid; grid-template-columns: 96px minmax(0,1fr) 84px 54px 62px 54px 92px; column-gap:8px; align-items:center; }
+.sgrid .ch { font-size:10.5px; letter-spacing:.07em; text-transform:uppercase; color:var(--text-3); font-weight:600; display:flex; align-items:center; gap:4px; padding-bottom:6px; }
+.sgrid .ch.r { justify-content:flex-end; }
+.grp { grid-column: 1 / -1; display:flex; align-items:center; gap:8px; margin-top:8px; padding:8px 0 4px; border-top:1px solid var(--line); font-size:11px; }
+.grp .ln { font-weight:700; letter-spacing:.08em; color:var(--text-2); }
+.grp .rb { color:var(--text-3); display:inline-flex; align-items:center; gap:5px; }
+.grp .rb b { color:var(--text-2); font-weight:600; }
+.sl { font-size:12.5px; color:var(--text); padding-left:10px; border-left:2px solid var(--line-2); height:50px; display:flex; flex-direction:column; justify-content:center; line-height:1.2; }
+.sl small { font-size:10.5px; color:var(--text-3); }
+.sc { display:flex; gap:5px; align-items:center; flex-wrap:nowrap; overflow:hidden; }
+.e { font:600 12px var(--mono); text-align:right; color:var(--text); white-space:nowrap; }
+.e.ref, .e.no { color:var(--text-3); font-weight:500; }
+.rk { display:grid; grid-template-columns: repeat(4, 1fr); justify-items:center; font:700 11px var(--mono); }
+.rk .z { color:#2c3a4d; }
+.up { color:var(--bad); } .dn { color:var(--good); }
+.scaf { grid-column: 2 / -1; display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-2); }
+/* right */
+.rcol { display:flex; flex-direction:column; gap:10px; min-height:0; }
+.dch { display:inline-flex; align-items:center; gap:5px; padding:3px 8px; border-radius:6px; background:var(--panel-2); border:1px solid var(--line); font:600 11.5px var(--mono); color:var(--text); white-space:nowrap; }
+.dch .k { font:600 10.5px var(--sans); color:var(--text-2); letter-spacing:.03em; }
+.launch { display:flex; align-items:center; gap:10px; margin-top:auto; }
+.launch .btn.pri { flex:1; justify-content:center; padding:11px 14px; font-size:14px; }
+body:not(.v-hover) .hv { display:none; }
+</style></head>
+<body>
+<!--ICONS--><svg style="display:none" aria-hidden="true"><symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol><symbol id="i-book-open" viewBox="0 0 24 24"><path d="M12 5v16"/><path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z"/></symbol><symbol id="i-bot" viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></symbol><symbol id="i-boxes" viewBox="0 0 24 24"><path d="M2.97 12.92A2 2 0 0 0 2 14.63v3.24a2 2 0 0 0 .97 1.71l3 1.8a2 2 0 0 0 2.06 0L12 19v-5.5l-5-3-4.03 2.42Z"/><path d="m7 16.5-4.74-2.85"/><path d="m7 16.5 5-3"/><path d="M7 16.5v5.17"/><path d="M12 13.5V19l3.97 2.38a2 2 0 0 0 2.06 0l3-1.8a2 2 0 0 0 .97-1.71v-3.24a2 2 0 0 0-.97-1.71L17 10.5l-5 3Z"/><path d="m17 16.5-5-3"/><path d="m17 16.5 4.74-2.85"/><path d="M17 16.5v5.17"/><path d="M7.97 4.42A2 2 0 0 0 7 6.13v4.37l5 3 5-3V6.13a2 2 0 0 0-.97-1.71l-3-1.8a2 2 0 0 0-2.06 0l-3 1.8Z"/><path d="M12 8 7.26 5.15"/><path d="m12 8 4.74-2.85"/><path d="M12 13.5V8"/></symbol><symbol id="i-brain" viewBox="0 0 24 24"><path d="M12 18V5"/><path d="M15 13a4.17 4.17 0 01-3-4 4.17 4.17 0 01-3 4"/><path d="M17.707 6.294A3 3 0 1012 5a3 3 0 10-5.707 1.294"/><path d="M17.996 5.125a4 4 0 012.526 5.77"/><path d="M18 18a4 4 0 002-7.465"/><path d="M19.967 17.482a4 4 0 11-7.967.517 4 4 0 11-7.967-.517"/><path d="M6 18a4 4 0 01-2-7.465"/><path d="M6.004 5.125a4 4 0 00-2.526 5.77"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol><symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol><symbol id="i-chevrons-right" viewBox="0 0 24 24"><path d="m6 17 5-5-5-5"/><path d="m13 17 5-5-5-5"/></symbol><symbol id="i-circle-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9 9.5a3 2.5 0 016 0c0 2-2 2-3 3.5"/><path d="M12 17h.01"/></symbol><symbol id="i-code-xml" viewBox="0 0 24 24"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></symbol><symbol id="i-crown" viewBox="0 0 24 24"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z"/><path d="M5 21h14"/></symbol><symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></symbol><symbol id="i-dna" viewBox="0 0 24 24"><path d="m10 16 1.5 1.5"/><path d="m14 8-1.5-1.5"/><path d="M15 2c-1.798 1.998-2.518 3.995-2.807 5.993"/><path d="m16.5 10.5 1 1"/><path d="m17 6-2.891-2.891"/><path d="M2 15c6.667-6 13.333 0 20-6"/><path d="m20 9 .891.891"/><path d="M3.109 14.109 4 15"/><path d="m6.5 12.5 1 1"/><path d="m7 18 2.891 2.891"/><path d="M9 22c1.798-1.998 2.518-3.995 2.807-5.993"/></symbol><symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/></symbol><symbol id="i-fast-forward" viewBox="0 0 24 24"><path d="M12 6a2 2 0 0 1 3.414-1.414l6 6a2 2 0 0 1 0 2.828l-6 6A2 2 0 0 1 12 18z"/><path d="M2 6a2 2 0 0 1 3.414-1.414l6 6a2 2 0 0 1 0 2.828l-6 6A2 2 0 0 1 2 18z"/></symbol><symbol id="i-flask-conical" viewBox="0 0 24 24"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></symbol><symbol id="i-gamepad-2" viewBox="0 0 24 24"><line x1="6" x2="10" y1="11" y2="11"/><line x1="8" x2="8" y1="9" y2="13"/><line x1="15" x2="15.01" y1="12" y2="12"/><line x1="18" x2="18.01" y1="10" y2="10"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></symbol><symbol id="i-ghost" viewBox="0 0 24 24"><path d="M15 10v1"/><path d="M7.528 20.472a1.6 1.6 0 012.277 0l1.057 1.056a1.6 1.6 0 002.276 0l1.057-1.056a1.6 1.6 0 012.277 0l1.114 1.114a1.4 1.4 0 002.414-1V10a8 8 0 00-16 0v10.586a1.4 1.4 0 002.414 1z"/><path d="M9 10v1"/></symbol><symbol id="i-git-branch" viewBox="0 0 24 24"><path d="M15 6a9 9 0 0 0-9 9V3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/></symbol><symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></symbol><symbol id="i-handshake" viewBox="0 0 24 24"><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/><path d="m21 3 1 11h-2"/><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3"/><path d="M3 4h8"/></symbol><symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></symbol><symbol id="i-hourglass" viewBox="0 0 24 24"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></symbol><symbol id="i-image" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></symbol><symbol id="i-landmark" viewBox="0 0 24 24"><path d="M10 18v-7"/><path d="M11.119 2.205a2 2 0 0 1 1.762 0l7.84 3.846A.5.5 0 0 1 20.5 7h-17a.5.5 0 0 1-.22-.949z"/><path d="M14 18v-7"/><path d="M18 18v-7"/><path d="M3 22h18"/><path d="M6 18v-7"/></symbol><symbol id="i-layers" viewBox="0 0 24 24"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol><symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></symbol><symbol id="i-microscope" viewBox="0 0 24 24"><path d="M6 18h8"/><path d="M3 22h18"/><path d="M14 22a7 7 0 1 0 0-14h-1"/><path d="M9 14h2"/><path d="M9 12a2 2 0 0 1-2-2V6h6v4a2 2 0 0 1-2 2Z"/><path d="M12 6V3a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3"/></symbol><symbol id="i-mouse-pointer-2" viewBox="0 0 24 24"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></symbol><symbol id="i-pause" viewBox="0 0 24 24"><rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/></symbol><symbol id="i-pencil" viewBox="0 0 24 24"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></symbol><symbol id="i-play" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></symbol><symbol id="i-radar" viewBox="0 0 24 24"><path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 6h.01"/><path d="M2.29 9.62A10 10 0 1 0 21.31 8.35"/><path d="M16.24 7.76A6 6 0 1 0 8.23 16.67"/><path d="M12 18h.01"/><path d="M17.99 11.66A6 6 0 0 1 15.77 16.67"/><circle cx="12" cy="12" r="2"/><path d="m13.41 10.59 5.66-5.66"/></symbol><symbol id="i-rocket" viewBox="0 0 24 24"><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09"/><path d="M9 12a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.4 22.4 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 .05 5 .05"/></symbol><symbol id="i-rotate-ccw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol><symbol id="i-save" viewBox="0 0 24 24"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></symbol><symbol id="i-scroll-text" viewBox="0 0 24 24"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></symbol><symbol id="i-server" viewBox="0 0 24 24"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></symbol><symbol id="i-skip-forward" viewBox="0 0 24 24"><path d="M21 4v16"/><path d="M6.029 4.285A2 2 0 0 0 3 6v12a2 2 0 0 0 3.029 1.715l9.997-5.998a2 2 0 0 0 .003-3.432z"/></symbol><symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/></symbol><symbol id="i-thumbs-up" viewBox="0 0 24 24"><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/><path d="M7 10v12"/></symbol><symbol id="i-timer" viewBox="0 0 24 24"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></symbol><symbol id="i-trending-up" viewBox="0 0 24 24"><path d="M16 7h6v6"/><path d="m22 7-8.5 8.5-5-5L2 17"/></symbol><symbol id="i-triangle-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol><symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></symbol><symbol id="i-wallet" viewBox="0 0 24 24"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></symbol><symbol id="i-workflow" viewBox="0 0 24 24"><rect width="8" height="8" x="3" y="3" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect width="8" height="8" x="13" y="13" rx="2"/></symbol><symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/></symbol></svg><!--/ICONS-->
+<!-- icons used from script: #i-hourglass #i-history #i-database #i-wallet #i-rotate-ccw #i-server #i-users #i-lock #i-check #i-thumbs-up #i-gamepad-2 #i-ghost #i-crown #i-code-xml #i-bot #i-image #i-dna #i-eye #i-scroll-text #i-arrow-right #i-layers #i-sparkles #i-wrench #i-flask-conical -->
+<div class="app">
+  <!-- ═════ L0 top strip ═════ -->
+  <div class="top">
+    <div class="seg">
+      <div class="speed">
+        <div class="b"><svg class="i s14"><use href="#i-pause"/></svg><span class="k">␣</span></div>
+        <div class="b"><svg class="i s14"><use href="#i-play"/></svg><span class="k">1</span></div>
+        <div class="b on"><svg class="i s14"><use href="#i-chevrons-right"/></svg><span class="k">2</span></div>
+        <div class="b"><svg class="i s14"><use href="#i-fast-forward"/></svg><span class="k">3</span></div>
+        <div class="b"><svg class="i s14"><use href="#i-skip-forward"/></svg><span class="k">F</span></div>
+      </div>
+      <div class="date col" style="gap:0"><span class="d">12 Mar 2026</span><span class="a">day 254</span></div>
+    </div>
+    <div class="seg race">
+      <div class="lbls">
+        <span style="color:var(--cap)"><svg class="i s12"><use href="#i-brain"/></svg> <u>CAPABILITY</u></span><b style="color:var(--cap)">7.3</b>
+        <span class="sp"></span>
+        <span class="tag" style="border-color:rgba(239,107,107,.5);color:var(--bad);background:var(--bad-bg)"><svg class="i s12"><use href="#i-eye-off"/></svg> 0.4 BLIND</span>
+        <span class="sp"></span>
+        <b style="color:var(--und)">6.9</b><span style="color:var(--und)"><u>UNDERSTANDING</u> <svg class="i s12"><use href="#i-microscope"/></svg></span>
+      </div>
+      <svg id="racebar" width="360" height="28"></svg>
+    </div>
+    <div class="stat">
+      <svg id="riskgauge" width="48" height="32"></svg>
+      <div class="col" style="gap:1px"><span class="l"><u>CATASTROPHE RISK</u></span><span class="row" style="gap:6px"><span class="v">9%</span><span class="sub num">4–18</span></span></div>
+    </div>
+    <div class="stat">
+      <div class="ic"><svg class="i s14"><use href="#i-wallet"/></svg></div>
+      <div class="col" style="gap:1px"><span class="l">CASH · <u>RUNWAY</u></span><span class="v">$31.2B</span></div>
+      <svg id="runway" width="58" height="36"></svg>
+    </div>
+    <div class="stat">
+      <div class="ic"><svg class="i s14"><use href="#i-trending-up"/></svg></div>
+      <div class="col" style="gap:1px"><span class="l"><u>REVENUE</u> · RUN-RATE</span><span class="row" style="gap:6px"><span class="v">$14.0B<span class="sub">/yr</span></span></span></div>
+    </div>
+    <div class="stat">
+      <div class="ic" style="color:var(--rival)"><svg class="i s14"><use href="#i-timer"/></svg></div>
+      <div class="col" style="gap:1px"><span class="l"><u>LEAD</u> · NEAREST</span><span class="row" style="gap:6px"><span class="v good">+41 d</span><span class="sub">xLab ±20</span></span></div>
+    </div>
+    <div class="stat" style="border-right:0">
+      <div class="ic" style="color:var(--warn)"><svg class="i s14"><use href="#i-triangle-alert"/></svg></div>
+      <div class="col" style="gap:1px"><span class="l">ALERTS</span><span class="v">3</span></div>
+    </div>
+    <div class="sp"></div>
+    <div class="seg" style="border-right:0;border-left:1px solid var(--line)"><div class="speed"><div class="b"><svg class="i s14"><use href="#i-circle-help"/></svg></div><div class="b"><svg class="i s14"><use href="#i-menu"/></svg></div></div></div>
+  </div>
+
+  <div class="body">
+    <nav class="nav">
+      <div class="it"><svg class="i s18"><use href="#i-radar"/></svg>Overview</div>
+      <div class="it"><svg class="i s18"><use href="#i-workflow"/></svg>Company</div>
+      <div class="it"><svg class="i s18"><use href="#i-flask-conical"/></svg>Research</div>
+      <div class="it on"><svg class="i s18"><use href="#i-brain"/></svg>Models</div>
+      <div class="it"><svg class="i s18"><use href="#i-boxes"/></svg>Products<span class="badge" style="background:var(--warn)">1</span></div>
+      <div class="it"><svg class="i s18"><use href="#i-microscope"/></svg>Safety<span class="badge" style="background:var(--und)">2</span></div>
+      <div class="it"><svg class="i s18"><use href="#i-server"/></svg>Compute</div>
+      <div class="it"><svg class="i s18"><use href="#i-landmark"/></svg>Finance</div>
+      <div class="it"><svg class="i s18"><use href="#i-handshake"/></svg>Relations</div>
+      <div class="it"><svg class="i s18"><use href="#i-globe"/></svg>World</div>
+      <div class="sp"></div>
+      <div class="it"><svg class="i s18"><use href="#i-book-open"/></svg>Codex</div>
+    </nav>
+
+    <main class="center">
+      <!-- panel header -->
+      <div class="ph">
+        <svg class="i s20"><use href="#i-brain"/></svg><h1 style="margin:0;font-size:18px;font-weight:650;color:#fff">Models</h1>
+        <div class="tabs"><span class="t on"><svg class="i s14"><use href="#i-layers"/></svg>Blueprint</span><span class="t"><svg class="i s14"><use href="#i-rocket"/></svg>Runs <span class="n">1</span></span><span class="t"><svg class="i s14"><use href="#i-git-branch"/></svg>Lineage</span></div>
+        <div class="seg2"><span class="o on">Base run</span><span class="o">Post-train</span><span class="o">Distill</span><span class="o">Continue</span></div>
+        <span class="tag" style="font-size:13px;color:#fff;padding:3px 9px;font-weight:650">Atlas-4 <svg class="i s12 t3"><use href="#i-pencil"/></svg></span>
+        <span class="sp"></span>
+        <span class="btn sm ghost"><svg class="i s14"><use href="#i-save"/></svg>Save</span>
+      </div>
+
+      <!-- L1 hero: size + its limits -->
+      <div class="card size">
+        <div class="col" style="gap:6px">
+          <div class="row"><span style="color:#fff;font-weight:600;font-size:13px">Size</span><span class="tag"><svg class="i s12"><use href="#i-layers"/></svg>Backbone</span><span class="sp"></span><span class="t3 small">× today's <u>frontier run</u></span></div>
+          <div class="row" style="align-items:baseline;gap:0"><span class="big" id="szbig">×2</span><span class="big"><span class="u num" id="szflop">6.1e27 FLOP</span></span></div>
+          <svg id="slider" width="430" height="64"></svg>
+        </div>
+        <div class="lims" id="lims"></div>
+      </div>
+
+      <div class="lower">
+        <!-- slots -->
+        <div class="card slots">
+          <div class="sgrid" id="sgrid"></div>
+        </div>
+        <!-- right column -->
+        <div class="rcol">
+          <div class="card">
+            <div class="hd"><span class="ttl">Predicted model</span><span class="t3 small">vs Atlas-3.1 internal</span><span class="sp"></span><span class="btn sm ghost">Model card <svg class="i s12"><use href="#i-chevron-right"/></svg></span></div>
+            <svg id="ruler" viewBox="0 0 440 66" style="width:100%;margin:4px 0 2px"></svg>
+            <div class="cap" style="margin:8px 0 5px">Domains</div>
+            <div class="row" style="gap:5px;flex-wrap:wrap" id="doms"></div>
+            <div class="cap" style="margin:10px 0 5px">Risk pressure</div>
+            <div class="row" style="gap:5px" id="risks"></div>
+            <div class="row small" style="gap:6px;margin-top:10px;padding-top:8px;border-top:1px solid var(--line)"><span class="t3">Planned for</span><span class="w">Routine research</span><svg class="i s12 t3"><use href="#i-eye"/></svg><span class="t2">monitor Atlas-3.1</span><span class="sp"></span><span class="btn go sm">Company <svg class="i s12"><use href="#i-chevron-right"/></svg></span></div>
+          </div>
+          <div class="card" style="flex:1;display:flex;flex-direction:column">
+            <div class="hd"><span class="ttl">Plan</span><span class="sp"></span><span class="t3 small"><u>Pool share</u></span><div class="seg2"><span class="o">40%</span><span class="o on">60%</span><span class="o">80%</span></div></div>
+            <svg id="plan" viewBox="0 0 440 200" style="width:100%;margin-top:6px"></svg>
+            <div class="launch">
+              <span class="btn pri"><svg class="i s14"><use href="#i-rocket"/></svg>Start base run</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- hover: nested tooltip on "Behind at finish" -->
+<div class="tip hv" style="left:700px;top:262px;width:318px">
+  <div class="th"><svg class="i s14 warn"><use href="#i-history"/></svg><b>Behind at finish</b><span class="sp"></span><span class="num w">3.9 mo</span></div>
+  <div class="r small t2">A base learns the <span class="term" style="background:rgba(90,169,255,.12)">know-how</span> of its <b class="w">start</b> date</div>
+  <div class="sec">
+    <div class="r small"><span class="t2">Know-how frozen</span><span class="v">12 Mar</span></div>
+    <div class="r small"><span class="t2">Run ends</span><span class="v">8 Jul</span></div>
+    <div class="r small"><span class="t2">Know-how gained meanwhile</span><span class="v warn">+3.9 mo</span></div>
+  </div>
+  <div class="sec">
+    <div class="cap" style="margin-bottom:4px">Levers</div>
+    <div class="r small"><span class="t2">Pool share 80%</span><span class="v good">3.0 mo</span><span class="btn go sm" style="padding:1px 6px"><svg class="i s12"><use href="#i-chevron-right"/></svg></span></div>
+    <div class="r small"><span class="t2">Size ×1</span><span class="v good">2.1 mo</span><span class="btn go sm" style="padding:1px 6px"><svg class="i s12"><use href="#i-chevron-right"/></svg></span></div>
+  </div>
+  <div class="tiny t3" style="margin-top:6px">Replaces the old 150-day cap · <span class="kbd">Alt</span> locked</div>
+  <div class="lockbar on"></div>
+</div>
+<div class="tip hv" style="left:1026px;top:296px;width:292px;border-color:#5aa9ff">
+  <div class="th"><svg class="i s14" style="color:var(--cap)"><use href="#i-sparkles"/></svg><b>Know-how</b><span class="sp"></span><span class="tag">term</span></div>
+  <div class="r small t2">Accumulated algorithmic progress.</div>
+  <div class="r small t2">Every new base embodies it; the gap is the reason to train.</div>
+  <div class="sec"><div class="r small"><span class="t2">Made by</span><span class="v t3" style="font-family:var(--sans)">research engineers · experiments</span></div>
+  <div class="r small"><span class="t2">Know-how bar</span><span class="btn go sm" style="margin-left:auto;padding:1px 7px">Research <svg class="i s12"><use href="#i-chevron-right"/></svg></span></div></div>
+</div>
+<svg class="hv" style="position:absolute;z-index:70;left:832px;top:310px;width:22px;height:22px;color:#fff;filter:drop-shadow(0 1px 2px #000)"><use href="#i-mouse-pointer-2"/></svg>
+
+<script>
+const SIZE = location.search.includes('size'); const HOVER = location.search.includes('hover');
+if (SIZE) document.body.classList.add('v-size'); if (HOVER) document.body.classList.add('v-hover');
+const ns = 'http://www.w3.org/2000/svg';
+const el = (p, tag, a, txt) => { const e = document.createElementNS(ns, tag); for (const k in a) e.setAttribute(k, a[k]); if (txt !== undefined) e.textContent = txt; p.appendChild(e); return e; };
+const I = (n, c = 's14') => `<svg class="i ${c}"><use href="#i-${n}"/></svg>`;
+const MONO = 'Cascadia Mono, Consolas, monospace';
+
+/* ── L0: race bar, risk gauge, runway gauge ── */
+{ const s = document.getElementById('racebar'); const W = 360, x = (v) => 4 + (v - 5) / 10 * (W - 8);
+  const d = el(s, 'defs', {}); const p = el(d, 'pattern', { id: 'hatch', width: 4, height: 4, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' }); el(p, 'rect', { width: 2, height: 4, fill: '#ef6b6b' });
+  el(s, 'rect', { x: 4, y: 2, width: W - 8, height: 7, rx: 3.5, fill: '#243041' }); el(s, 'rect', { x: 4, y: 2, width: x(7.3) - 4, height: 7, rx: 3.5, fill: '#9b6be0' });
+  el(s, 'rect', { x: 4, y: 11, width: W - 8, height: 7, rx: 3.5, fill: '#243041' }); el(s, 'rect', { x: 4, y: 11, width: x(6.9) - 4, height: 7, rx: 3.5, fill: '#22a394' });
+  el(s, 'rect', { x: x(6.9), y: 11, width: x(7.3) - x(6.9), height: 7, fill: 'url(#hatch)' });
+  for (const [v, n] of [[6.5, 'agent'], [8.5, 'research'], [12, 'SC'], [15, 'ASI']]) { el(s, 'line', { x1: x(v), x2: x(v), y1: 0, y2: 19, stroke: '#6b7c91', 'stroke-dasharray': '2 2', opacity: .7 }); el(s, 'text', { x: Math.min(x(v), W - 10), y: 27, 'text-anchor': 'middle', fill: '#6b7c91', 'font-size': 8.5 }, n); } }
+{ const s = document.getElementById('riskgauge'); const cx = 24, cy = 28, r = 19; const arc = (a0, a1, col, w) => { const p = (a) => [cx + r * Math.cos(Math.PI * (1 - a)), cy - r * Math.sin(Math.PI * (1 - a))]; const [x0, y0] = p(a0), [x1, y1] = p(a1); el(s, 'path', { d: `M${x0},${y0} A${r},${r} 0 0 1 ${x1},${y1}`, stroke: col, 'stroke-width': w, fill: 'none', 'stroke-linecap': 'round' }); };
+  arc(0, 1, '#243041', 5); arc(0.04, 0.18, 'rgba(233,180,76,.35)', 5); arc(0, 0.09, '#e9b44c', 5); }
+{ const s = document.getElementById('runway'); const cx = 29, cy = 26, r = 21, M = 10; const ang = (q) => Math.PI * (1 - Math.min(q, M) / M);
+  const arc = (q0, q1, col) => { const p = (q) => [cx + r * Math.cos(ang(q)), cy - r * Math.sin(ang(q))]; const [x0, y0] = p(q0), [x1, y1] = p(q1); el(s, 'path', { d: `M${x0},${y0} A${r},${r} 0 0 1 ${x1},${y1}`, stroke: col, 'stroke-width': 5, fill: 'none' }); };
+  arc(0, 3, 'rgba(239,107,107,.55)'); arc(3, 6, 'rgba(233,180,76,.55)'); arc(6, 10, 'rgba(76,195,138,.45)');
+  const a = ang(7); el(s, 'line', { x1: cx, y1: cy, x2: cx + (r - 3) * Math.cos(a), y2: cy - (r - 3) * Math.sin(a), stroke: '#fff', 'stroke-width': 2, 'stroke-linecap': 'round' }); el(s, 'circle', { cx, cy, r: 2.5, fill: '#fff' });
+  el(s, 'text', { x: cx, y: 36, 'text-anchor': 'middle', fill: '#4cc38a', 'font-size': 10, 'font-weight': 700, 'font-family': MONO }, '7q'); }
+
+/* ── state: ×2 (as designed) or ×4 (dragged) ── */
+const S2 = { k: 1, big: '×2', flop: '6.1e27 FLOP', L: [8.0, 8.5],
+  lims: [
+    ['hourglass', 'Wall time', '118', 'd', 'ends 8 Jul', 'neu', 118, 300],
+    ['history', 'Behind at finish', '3.9', 'mo', 'of know-how', 'warn', 3.9, 9, [[0, 3, 'good'], [3, 6, 'warn'], [6, 9, 'bad']]],
+    ['database', 'Data', '1.3', '×', 'of tokens needed', 'good', 1.3, 2, null, 1.0],
+    ['wallet', 'Cash', '$7.4', 'B', 'runway 7q → 6q', 'good', 6, 10, [[0, 3, 'bad'], [3, 6, 'warn'], [6, 10, 'good']]],
+    ['rotate-ccw', 'Restart risk', '9', '%', '×0.5 if Fault-tolerant training', 'neu', 9, 30],
+    ['server', 'Serving cost', '0.71', '', 'today 0.50', 'neu', 0.71, 1.5, null, 0.5],
+    ['users', 'Engineers', '1.5', 'team-mo', 'of build queue', 'good', 1.5, 5],
+  ] };
+const S4 = { k: 2, big: '×4', flop: '1.2e28 FLOP', L: [8.4, 9.0],
+  lims: [
+    ['hourglass', 'Wall time', '204', 'd', 'ends 2 Oct', 'warn', 204, 300, null, null, 118, '118'],
+    ['history', 'Behind at finish', '6.5', 'mo', 'of know-how', 'bad', 6.5, 9, [[0, 3, 'good'], [3, 6, 'warn'], [6, 9, 'bad']], null, 3.9, '3.9'],
+    ['database', 'Data', '0.9', '×', 'short: data wall −0.2 L', 'bad', 0.92, 2, null, 1.0, 1.3, '1.3'],
+    ['wallet', 'Cash', '$14.6', 'B', 'runway 7q → 4q', 'warn', 4, 10, [[0, 3, 'bad'], [3, 6, 'warn'], [6, 10, 'good']], null, 6, '$7.4'],
+    ['rotate-ccw', 'Restart risk', '16', '%', '×0.5 if Fault-tolerant training', 'warn', 16, 30, null, null, 9, '9'],
+    ['server', 'Serving cost', '1.00', '', 'today 0.50', 'bad', 1.0, 1.5, null, 0.5, 0.71, '0.71'],
+    ['users', 'Engineers', '2.6', 't-mo', 'team-months of build queue', 'warn', 2.6, 5, null, null, 1.5, '1.5'],
+  ] };
+const ST = SIZE ? S4 : S2;
+document.getElementById('szbig').textContent = ST.big; document.getElementById('szflop').textContent = ST.flop;
+
+/* ── size slider: log2 snap points ×¼ … ×8; Atlas-3 marker; ghost thumb when dragging ── */
+{ const s = document.getElementById('slider'); const x0 = 16, x1 = 404; const X = (lg) => x0 + (lg + 2) / 5 * (x1 - x0);
+  el(s, 'rect', { x: x0, y: 20, width: x1 - x0, height: 6, rx: 3, fill: '#33435a' });
+  el(s, 'rect', { x: x0, y: 20, width: X(ST.k) - x0, height: 6, rx: 3, fill: '#3a8ae0' });
+  const snaps = [[-2, '×¼', '7.6e26'], [-1, '×½', '1.5e27'], [0, '×1', '3.1e27'], [1, '×2', '6.1e27'], [2, '×4', '1.2e28'], [3, '×8', '2.4e28']];
+  for (const [lg, n, f] of snaps) { const on = lg === ST.k; el(s, 'circle', { cx: X(lg), cy: 23, r: 3, fill: lg <= ST.k ? '#9cc8ff' : '#6b7c91' });
+    el(s, 'text', { x: X(lg), y: 46, 'text-anchor': 'middle', fill: on ? '#fff' : '#9fb0c3', 'font-size': 12, 'font-weight': on ? 700 : 500, 'font-family': MONO }, n);
+    el(s, 'text', { x: X(lg), y: 60, 'text-anchor': 'middle', fill: '#6b7c91', 'font-size': 9.5, 'font-family': MONO }, f); }
+  const a3 = Math.log2(2.5 / 3.05); el(s, 'line', { x1: X(a3), x2: X(a3), y1: 8, y2: 16, stroke: '#c9d4e2', 'stroke-width': 1.5 });
+  el(s, 'text', { x: X(a3), y: 7, 'text-anchor': 'middle', fill: '#9fb0c3', 'font-size': 9.5 }, 'Atlas-3');
+  if (SIZE) { el(s, 'circle', { cx: X(1), cy: 23, r: 8, fill: 'none', stroke: '#e9b44c', 'stroke-width': 1.5, 'stroke-dasharray': '3 2' }); }
+  el(s, 'circle', { cx: X(ST.k), cy: 23, r: 8, fill: '#fff', stroke: '#3a8ae0', 'stroke-width': 3 });
+  if (SIZE) { const g = el(s, 'svg', { x: X(ST.k) + 1, y: 24, width: 20, height: 20, viewBox: '0 0 24 24', fill: '#fff', stroke: '#0b0f15', 'stroke-width': 1.5 }); el(g, 'use', { href: '#i-mouse-pointer-2' }); }
+}
+
+/* ── limit tiles ── */
+{ const C = { good: '#4cc38a', warn: '#e9b44c', bad: '#ef6b6b', neu: '#8a9bb0' };
+  document.getElementById('lims').innerHTML = ST.lims.map(([ic, l, v, u, sub, st, val, max, zones, mark, was, wasTxt]) => {
+    const W = 120, p = (q) => Math.max(0, Math.min(1, q / max)) * W;
+    let bar = `<rect x="0" y="3" width="${W}" height="6" rx="3" fill="#243041"/>`;
+    if (zones) bar = zones.map(([a, b, z]) => `<rect x="${p(a)}" y="3" width="${p(b) - p(a)}" height="6" fill="${C[z]}" opacity=".22"/>`).join('');
+    bar += `<rect x="0" y="3" width="${p(val)}" height="6" rx="3" fill="${C[st]}"/>`;
+    if (mark != null) bar += `<line x1="${p(mark)}" x2="${p(mark)}" y1="0" y2="12" stroke="#e3e9f1" stroke-width="1.5"/>`;
+    if (was != null) bar += `<line x1="${p(was)}" x2="${p(was)}" y1="0" y2="12" stroke="#e9b44c" stroke-width="1.5" stroke-dasharray="2 1.5"/>`;
+    return `<div class="lim ${st}${was != null ? ' chg' : ''}${HOVER && l === 'Behind at finish' ? ' litw' : ''}"><div class="lh">${I(ic, 's14')}<u>${l}</u></div>
+      <div class="lv">${wasTxt ? `<span class="was">${wasTxt} →</span>` : ''}${v}<span class="u">${u}</span></div>
+      <svg viewBox="0 0 ${W} 12" style="width:100%;height:12px" preserveAspectRatio="none">${bar}</svg><div class="ls">${sub.replace('Fault-tolerant', 'Fault-tolerant ' + I('lock', 's12'))}</div></div>`; }).join('');
+}
+
+/* ── slots: one card each, same five effect fields ── */
+{ const R = (pp, gm, dc, pw) => `<div class="rk">${[pp, gm, dc, pw].map((a) => a ? `<span class="${a.includes('▲') ? 'up' : 'dn'}">${a}</span>` : '<span class="z">·</span>').join('')}</div>`;
+  const oc = (n, on, ic) => `<span class="oc${on ? ' on' : ''}">${on ? I('check', 's12') : ''}${ic ? I(ic, 's12') : ''}${n}</span>`;
+  const lk = (n, node) => `<span class="oc lock">${I('lock', 's12')}${n}<span class="nd">${I('flask-conical', 's12')}${node}</span></span>`;
+  const e = (v, cls = '') => `<div class="e ${cls}">${v}</div>`;
+  const row = (l, sub, chips, cap, t, $, sv, rk) => `<div class="sl">${l}${sub ? `<small>${sub}</small>` : ''}</div><div class="sc">${chips}</div>${cap}${t}${$}${sv}${rk}`;
+  const grp = (ic, n, rb) => `<div class="grp">${I(ic, 's14 t2')}<span class="ln">${n}</span><span class="rb">${I('arrow-right', 's12')}change = ${rb}</span></div>`;
+  const sz = SIZE ? ['×4 · 1.2e28', '+0.7', '170 d', '$12.0B', '×2.00', R('', '', '▲▲', '')] : ['×2 · 6.1e27', '+0.4', '98 d', '$6.0B', '×1.41', R('', '', '▲', '')];
+  const html = [
+    `<div class="ch"></div><div class="ch">Card</div><div class="ch r">${I('brain', 's12')}Capab.</div><div class="ch r">${I('hourglass', 's12')}Time</div><div class="ch r">${I('wallet', 's12')}Cash</div><div class="ch r">${I('server', 's12')}Serve</div>`,
+    `<div class="ch" style="justify-content:space-around">${I('thumbs-up', 's12')}${I('gamepad-2', 's12')}${I('ghost', 's12')}${I('crown', 's12')}</div>`,
+    grp('layers', 'BACKBONE', '<b>new base run</b>'),
+    row('Size', '', `<span class="oc on${SIZE ? ' ghostbox' : ''}">${sz[0]}</span><span class="t3 tiny" style="margin-left:4px">set above</span>`, e(sz[1]), e(sz[2]), e(sz[3]), e(sz[4]), sz[5]),
+    row('Architecture', '', oc('Dense') + oc('MoE', 1) + lk('Latent-recurrent', 'Neuralese'), e('ref', 'ref'), e('—', 'no'), e('—', 'no'), e('ref', 'ref'), R()),
+    row('Data', '', oc('Code & math') + oc('Multimodal', 1) + lk('Synthetic', 'Flywheel 63%') + `<span class="oc more">+2</span>`, e('+0.1'), e(SIZE ? '+34 d' : '+20 d'), e(SIZE ? '+$2.4B' : '+$1.2B'), e('—', 'no'), R()),
+    row('Data filter', '', oc('Quality') + oc('Quality + hazard', 1) + lk('Safety pretraining', 'not started'), e('BIO −1.0'), e('—', 'no'), e('+$0.2B'), e('—', 'no'), R()),
+    grp('sparkles', 'TRAINING', '<b>post-train</b> on this base'),
+    row('Focus', '≤ 2', oc('Coding', 1, 'code-xml') + oc('Long tasks', 1, 'hourglass') + `<span class="oc more">+5</span>`, e('CODE +0.9'), e('—', 'no'), e('$0.3B'), e('—', 'no'), R('', '', '', '▲')),
+    row('Effort', '', oc('Light') + oc('Heavy') + oc('Heavy + hardened', 1), e('ref', 'ref'), e('35 d'), e('$0.6B'), e('—', 'no'), R()),
+    row('Reasoning', '', oc('Visible', 1, 'eye') + oc('Pressured') + lk('Faithful', 'Faithful-CoT') + lk('Latent', 'Neuralese'), e('ref', 'ref'), e('—', 'no'), e('—', 'no'), e('ref', 'ref'), R()),
+    row('Alignment', '', oc('Constitution', 1, 'scroll-text') + oc('Inoculation') + lk('Honesty', '55%') + lk('Anti-scheming', 'queued'), e('—', 'no'), e('+2 d'), e('—', 'no'), e('—', 'no'), R()),
+    grp('wrench', 'SCAFFOLD', '<b>engineering build</b>, no training'),
+    `<div class="sl" style="height:28px">Serving</div><div class="scaf"><span class="t3">effort · tools · safeguards · features</span><span class="sp"></span><span class="btn go sm">Products <svg class="i s12"><use href="#i-chevron-right"/></svg></span></div>`,
+  ];
+  document.getElementById('sgrid').innerHTML = html.join('');
+}
+
+/* ── predicted model: level ruler vs Atlas-3.1, domains, risk pressure ── */
+{ const s = document.getElementById('ruler'); const X = (v) => 12 + (v - 6.5) / (9.5 - 6.5) * 416;
+  el(s, 'rect', { x: 12, y: 30, width: 416, height: 8, rx: 4, fill: '#243041' });
+  for (const [v, n] of [[8.5, 'research agent']]) { el(s, 'line', { x1: X(v), x2: X(v), y1: 24, y2: 44, stroke: '#6b7c91', 'stroke-dasharray': '2 2' }); el(s, 'text', { x: X(v), y: 58, 'text-anchor': 'middle', fill: '#9fb0c3', 'font-size': 10.5 }, n); }
+  for (const v of [7, 8, 9]) el(s, 'text', { x: X(v), y: 58, 'text-anchor': 'middle', fill: '#6b7c91', 'font-size': 10, 'font-family': MONO }, v);
+  if (SIZE) el(s, 'rect', { x: X(8.0), y: 26, width: X(8.5) - X(8.0), height: 16, rx: 4, fill: 'none', stroke: '#e9b44c', 'stroke-dasharray': '3 2' });
+  el(s, 'rect', { x: X(ST.L[0]), y: 26, width: X(ST.L[1]) - X(ST.L[0]), height: 16, rx: 4, fill: 'rgba(155,107,224,.55)', stroke: '#9b6be0' });
+  el(s, 'line', { x1: X(7.3), x2: X(7.3), y1: 22, y2: 46, stroke: '#fff', 'stroke-width': 2 });
+  el(s, 'text', { x: X(7.3), y: 15, 'text-anchor': 'middle', fill: '#fff', 'font-size': 11, 'font-weight': 600 }, 'Atlas-3.1');
+  el(s, 'text', { x: (X(ST.L[0]) + X(ST.L[1])) / 2, y: 15, 'text-anchor': 'middle', fill: '#c6a8ff', 'font-size': 11.5, 'font-weight': 700, 'font-family': MONO }, `L ${ST.L[0].toFixed(1)}–${ST.L[1].toFixed(1)}`);
+  const d = SIZE ? [['code-xml', 'CODE', '+1.4'], ['bot', 'AGENCY', '+1.2'], ['image', 'MEDIA', '+1.0'], ['dna', 'BIO', '−0.2']] : [['code-xml', 'CODE', '+1.1'], ['bot', 'AGENCY', '+0.9'], ['image', 'MEDIA', '+0.7'], ['dna', 'BIO', '−0.5']];
+  document.getElementById('doms').innerHTML = d.map(([ic, k, v]) => `<span class="dch">${I(ic, 's12 t2')}<span class="k">${k}</span><span class="${v[0] === '+' ? 'good' : 'bad'}">${v}</span></span>`).join('');
+  const r = [['thumbs-up', 'People-pleasing', '='], ['gamepad-2', 'Gaming', '='], ['ghost', 'Deception', SIZE ? '▲▲' : '▲'], ['crown', 'Power', '▲']];
+  document.getElementById('risks').innerHTML = r.map(([ic, k, v]) => `<span class="dch" style="flex:1;justify-content:center">${I(ic, 's12 ' + (v === '=' ? 't3' : 'bad'))}<span class="k"><u>${k}</u></span><span class="${v === '=' ? 't3' : 'up'}">${v}</span></span>`).join('');
+}
+
+/* ── plan timeline: runs on one time axis; know-how gap grows while the base trains ── */
+{ const s = document.getElementById('plan'); const x0 = 66, x1 = 430; const D = SIZE ? 300 : 200; const X = (d) => x0 + d / D * (x1 - x0);
+  const base = SIZE ? 204 : 118, post = 37, ev = 14, end = X(base + post + ev);
+  const months = SIZE ? [[0, 'Mar'], [61, 'May'], [122, 'Jul'], [184, 'Sep'], [245, 'Nov']] : [[0, 'Mar'], [30, 'Apr'], [61, 'May'], [91, 'Jun'], [122, 'Jul'], [153, 'Aug'], [184, 'Sep']];
+  for (const [d, m] of months) { el(s, 'line', { x1: X(d), x2: X(d), y1: 4, y2: 172, stroke: '#1f2a38' }); el(s, 'text', { x: X(d), y: 190, 'text-anchor': 'middle', fill: '#6b7c91', 'font-size': 10 }, m); }
+  const df = el(s, 'defs', {}); const p = el(df, 'pattern', { id: 'h2', width: 4, height: 4, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' }); el(p, 'rect', { width: 1.6, height: 4, fill: '#ef6b6b' });
+  el(s, 'text', { x: 0, y: 31, fill: '#9fb0c3', 'font-size': 11 }, 'Atlas-3.2');
+  el(s, 'rect', { x: X(0), y: 20, width: X(24) - X(0), height: 16, rx: 3, fill: 'rgba(155,107,224,.35)' });
+  el(s, 'text', { x: X(24) + 6, y: 32, fill: '#6b7c91', 'font-size': 10 }, 'running');
+  el(s, 'text', { x: 0, y: 89, fill: '#fff', 'font-size': 11.5, 'font-weight': 600 }, 'Atlas-4');
+  el(s, 'rect', { x: X(0), y: 72, width: X(base) - X(0), height: 26, rx: 3, fill: 'rgba(155,107,224,.75)' });
+  el(s, 'text', { x: X(0) + 6, y: 89, fill: '#fff', 'font-size': 11, 'font-weight': 600 }, 'base');
+  el(s, 'rect', { x: X(base) + 1, y: 72, width: X(base + post) - X(base) - 1, height: 26, rx: 3, fill: 'rgba(155,107,224,.4)' });
+  el(s, 'text', { x: X(base) + 4, y: 89, fill: '#fff', 'font-size': 10.5 }, 'post');
+  el(s, 'rect', { x: X(base + post) + 1, y: 72, width: end - X(base + post) - 1, height: 26, rx: 3, fill: 'rgba(34,163,148,.75)' });
+  el(s, 'text', { x: end - 2, y: 112, 'text-anchor': 'end', fill: '#7fe0cf', 'font-size': 10 }, 'evals');
+  el(s, 'line', { x1: end, x2: end, y1: 62, y2: 102, stroke: '#fff', 'stroke-width': 1.5 });
+  el(s, 'text', { x: end, y: 57, 'text-anchor': 'end', fill: '#fff', 'font-size': 11, 'font-weight': 600 }, SIZE ? 'ready 22 Nov' : 'ready 28 Aug');
+  el(s, 'text', { x: 0, y: 152, fill: '#9fb0c3', 'font-size': 11 }, 'Know-how');
+  el(s, 'path', { d: `M${X(0)},156 L${X(base)},138 L${X(base)},156 Z`, fill: 'url(#h2)', stroke: 'rgba(239,107,107,.6)', 'stroke-width': 1 });
+  el(s, 'text', { x: X(0) + 2, y: 170, fill: '#6b7c91', 'font-size': 9.5 }, 'frozen at start');
+  el(s, 'text', { x: X(base) + 5, y: 151, fill: '#ef6b6b', 'font-size': 10 }, 'behind ▸');
+  el(s, 'line', { x1: X(0), x2: X(0), y1: 2, y2: 174, stroke: '#3a8ae0', 'stroke-width': 2 });
+}
+</script>
+</body></html>

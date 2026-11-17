@@ -1,22 +1,32 @@
 // Player actions in the Models and Departments spheres (ActionDef catalog, V2-SPEC §2.7, §3.3, §3.4). Owner: WS1.
 // Every preview shows ≥ 1 cost in a currency that is not among its gains (lint-tradeoffs). Previews must work with
 // empty params (defaults below). apply() throws on an invalid request; core/loop act() turns that into an error.
-import { PARADIGMS } from '../../../data/v2/paradigms';
 import { REFERENCE_BASE, REFERENCE_POST, STREAM_POOL_SHARE } from '../../../data/v2/runDesign';
+import { startOf } from '../../../data/v2/starts';
 import { decimalYear } from '../core/time';
 import { SPLIT_KEYS, TOP_KEYS, fromSpec, presetSplit, setSplit, specOf, type SplitPreset } from '../departments/split';
 import { applyBestMix } from '../production/production';
-import { ROLES, STAFF_COST_M, STAR_HIRE, payrollPerYear } from '../departments/staffing';
+import { STAR_HIRE } from '../../../data/v2/teams';
+import { hireStar } from '../departments/teams';
+import { TEAM_ACTIONS } from '../departments/teamActions';
+import { BUILD_ACTIONS } from '../departments/build';
 import type {
-  ActionDef, BaseDesign, Channel, ComputeSplit, CostLine, GameStateV2, PostDesign, RLFamily, StaffByRole,
+  ActionDef, BaseDesign, ComputeSplit, CostLine, GameStateV2, PostDesign, RLFamily,
 } from '../types';
 import { runEvalSuite } from './benchmarks';
-import { deploy, makeVariant, retireVersion, setInternalAgent, setServing, swapDeployment, withdraw } from './deployments';
-import { revenueReadout } from '../worldfx/revenue';
+import { makeVariant, retireVersion } from './deployments';
+import { AGENT_ACTIONS } from '../departments/agentActions';
+import { PRODUCT_ACTIONS } from './productOps';
 import { bestMeasuredL, internalVersion, versionById } from './labs';
-import { adoptParadigm, fundParadigm, paradigmGate } from './paradigms';
-import { launchRun, planRun, startStream, type LaunchRunParams } from './runs';
+import { TREE_ACTIONS } from './treeActions';
+import { POOL_SHARE_RANGE, idleTrainingShare, launchRun, planRun, startStream, type LaunchRunParams } from './runs';
+import { poolsOf } from '../compute/power';
+import { clamp } from '../../rng';
+import { sizeScrutiny } from '../../../data/v2/runDesign';
 import { bookCash } from '../finance/ledger';
+
+/** Star hire cost: × the start type's modifier (spinout ×0.7 founder brand, big tech ×1.5; research/18 §6, R9). */
+const starCost = (s: GameStateV2) => STAR_HIRE.cost * startOf(s).mods.starCost;
 
 type Params = Record<string, number | string | boolean>;
 type Preview = ReturnType<ActionDef['preview']>;
@@ -34,7 +44,7 @@ const latestFull = (s: GameStateV2) => [...s.player.models.versions].reverse().f
 export function baseFromParams(p: Params): BaseDesign {
   const r = REFERENCE_BASE;
   return {
-    scale: str(p, 'scale', r.scale) as BaseDesign['scale'], shape: str(p, 'shape', r.shape) as BaseDesign['shape'],
+    size: num(p, 'size', r.size), shape: str(p, 'shape', r.shape) as BaseDesign['shape'],
     data: str(p, 'data', r.data) as BaseDesign['data'],
     curation: { quality: bool(p, 'quality', r.curation.quality), hazard: bool(p, 'hazard', r.curation.hazard), safetyPretrain: bool(p, 'safetyPretrain', r.curation.safetyPretrain) },
     licensedShare: num(p, 'licensedShare', r.licensedShare),
@@ -79,12 +89,13 @@ function runPreview(s: GameStateV2, lp: LaunchRunParams): Preview {
   const sig = plan.prediction.signals;
   const pressure = Object.values(sig).reduce((a, x) => a + x, 0);
   if (pressure > 0) exposure.push({ currency: 'alignment', amount: -pressure, lagDays: plan.etaDays, probability: 0.5 });
-  if (lp.base?.scale === 'stretch') exposure.push({ currency: 'scrutiny', amount: 5 });
+  const scrutiny = lp.base ? sizeScrutiny(lp.base.size) : 0;
+  if (scrutiny >= 0.5) exposure.push({ currency: 'scrutiny', amount: Math.round(scrutiny * 10) / 10 });
   return { costs, gains: [{ currency: 'progress', amount: Math.round(gainL * 100) / 100, lagDays: plan.etaDays }], exposure };
 }
 
 const runAction = (id: string, title: string, kind: LaunchRunParams['kind'], extra?: (s: GameStateV2) => true | string): ActionDef => ({
-  id, sphere: 'models', owner: 'WS1', title,
+  id, verb: 'train', system: 'models', sphere: 'models', owner: 'WS1', title,
   available: (s) => (s.player.status !== 'active' ? 'Lab inactive' : extra ? extra(s) : true),
   preview: (s, p) => runPreview(s, runParams(s, kind, p)),
   apply: (s, ctx, p) => {
@@ -101,7 +112,7 @@ const RUN_ACTIONS: ActionDef[] = [
   runAction('launchDistill', 'Distill mini', 'distill'),
   runAction('launchContinue', 'Continue base', 'continue', (s) => (s.player.models.bases.length ? true : 'No base')),
   {
-    id: 'idaCycle', sphere: 'models', owner: 'WS1', title: 'Amplify',
+    id: 'idaCycle', verb: 'train', system: 'models', sphere: 'models', owner: 'WS1', title: 'Amplify',
     available: p18,
     preview: (s) => ({
       costs: [{ currency: 'compute', amount: 0.3, target: 'training pool share' }],
@@ -115,7 +126,44 @@ const RUN_ACTIONS: ActionDef[] = [
     },
   },
   {
-    id: 'cancelRun', sphere: 'models', owner: 'WS1', title: 'Cancel run',
+    id: 'runs.setShare', verb: 'train', system: 'models', sphere: 'models', owner: 'WS1', title: 'Pool share',
+    available: (s) => (s.player.models.runs.some((r) => r.status === 'running') ? true : 'No running runs'),
+    preview: (s, p) => {
+      const r = s.player.models.runs.find((x) => x.id === str(p, 'runId', '')) ?? s.player.models.runs.find((x) => x.status === 'running');
+      const share = clamp(num(p, 'share', r?.poolShare ?? 0.5), POOL_SHARE_RANGE[0], POOL_SHARE_RANGE[1]);
+      const d = share - (r?.poolShare ?? share);
+      const line = { currency: 'compute' as const, amount: Math.round(Math.abs(d) * 100) / 100, target: 'training pool share' };
+      // More share: the run finishes sooner, other runs (or idle research compute) get less; less share: the reverse.
+      return d >= 0
+        ? { costs: [line], gains: [{ currency: 'progress', amount: Math.round(d * 100) / 100, target: r?.name ?? 'run' }], exposure: [] }
+        : { costs: [{ currency: 'progress', amount: Math.round(d * 100) / 100, target: r?.name ?? 'run' }], gains: [line], exposure: [] };
+    },
+    apply: (s, _ctx, p) => {
+      const r = s.player.models.runs.find((x) => x.id === str(p, 'runId', '') && (x.status === 'running' || x.status === 'paused'));
+      if (!r) return fail('Unknown run');
+      r.poolShare = clamp(num(p, 'share', r.poolShare), POOL_SHARE_RANGE[0], POOL_SHARE_RANGE[1]);
+    },
+  },
+  {
+    id: 'runs.spareTraining', verb: 'policy', system: 'models', sphere: 'models', owner: 'WS1', title: 'Spare training compute',
+    available: () => true,
+    preview: (s, p) => {
+      const use = str(p, 'use', s.player.policies.spareTraining === 'data' ? 'research' : 'data');
+      const spare = Math.round(idleTrainingShare(s) * poolsOf(s).training);
+      const toData = { currency: 'compute' as const, amount: spare, target: 'data generation' };
+      const exp = s.player.prodCache?.elast.exp ?? 0.3;
+      const pool = poolsOf(s);
+      const research = { currency: 'progress' as const, amount: Math.round(exp * Math.log1p(spare / Math.max(1, pool.experiments)) * 1e4) / 1e4, target: 'research speed' };
+      return use === 'data' ? { costs: [research], gains: [toData], exposure: [] } : { costs: [toData], gains: [research], exposure: [] };
+    },
+    apply: (s, _ctx, p) => {
+      const use = str(p, 'use', '');
+      if (use !== 'research' && use !== 'data') return fail('Use research or data');
+      s.player.policies.spareTraining = use;
+    },
+  },
+  {
+    id: 'cancelRun', verb: 'train', system: 'models', sphere: 'models', owner: 'WS1', title: 'Cancel run',
     available: (s) => (s.player.models.runs.some((r) => r.status === 'running') ? true : 'No running runs'),
     preview: (s, p) => {
       const r = s.player.models.runs.find((x) => x.id === str(p, 'runId', '')) ?? s.player.models.runs.find((x) => x.status === 'running');
@@ -128,7 +176,7 @@ const RUN_ACTIONS: ActionDef[] = [
     },
   },
   {
-    id: 'startStream', sphere: 'models', owner: 'WS1', title: 'Continual learning',
+    id: 'startStream', verb: 'train', system: 'models', sphere: 'models', owner: 'WS1', title: 'Continual learning',
     available: (s) => (s.player.paradigms.P08?.status === 'adopted' ? true : 'Needs continual learning (P08)'),
     preview: () => ({
       costs: [{ currency: 'compute', amount: STREAM_POOL_SHARE, target: 'training pool share' }, { currency: 'monitorability', amount: -0.1 }],
@@ -138,7 +186,7 @@ const RUN_ACTIONS: ActionDef[] = [
     apply: (s, _ctx, p) => fail(startStream(s, str(p, 'versionId', internalVersion(s)?.id ?? ''))),
   },
   {
-    id: 'stopStream', sphere: 'models', owner: 'WS1', title: 'Stop stream',
+    id: 'stopStream', verb: 'train', system: 'models', sphere: 'models', owner: 'WS1', title: 'Stop stream',
     available: (s) => (s.player.models.stream ? true : 'No stream'),
     preview: () => ({ costs: [{ currency: 'progress', amount: -0.1 }], gains: [{ currency: 'compute', amount: STREAM_POOL_SHARE }, { currency: 'monitorability', amount: 0.05 }], exposure: [] }),
     apply: (s) => {
@@ -146,86 +194,7 @@ const RUN_ACTIONS: ActionDef[] = [
     },
   },
   {
-    id: 'setInternalAgent', sphere: 'models', owner: 'WS1', title: 'Internal agents',
-    available: () => true,
-    preview: (s, p) => {
-      const v = versionById(s, str(p, 'versionId', '')) ?? internalVersion(s);
-      const cur = internalVersion(s);
-      const dL = (v?.evals.measuredL ?? 0) - (cur?.evals.measuredL ?? 0);
-      return {
-        costs: [{ currency: 'security', amount: -0.05, target: 'exfiltration hazard' }],
-        gains: [{ currency: 'progress', amount: Math.round(dL * 100) / 100 }],
-        exposure: [{ currency: 'alignment', amount: -0.05, probability: 0.3 }],
-      };
-    },
-    apply: (s, _ctx, p) => fail(setInternalAgent(s, str(p, 'versionId', ''))),
-  },
-  {
-    id: 'deploy', sphere: 'models', owner: 'WS1', title: 'Deploy',
-    available: (s) => (s.player.models.versions.some((v) => v.status === 'ready' || v.status === 'deployed') ? true : 'No evaluated version'),
-    preview: (_s, p) => {
-      const ch = str(p, 'channel', 'api') as Channel;
-      const costs: CostLine[] = [{ currency: 'compute', amount: num(p, 'servingShare', 0.2), target: 'serving pool' }];
-      const exposure: CostLine[] = [];
-      if (ch === 'api' || ch === 'agents' || ch === 'consumer') exposure.push({ currency: 'leadDays', amount: -10, lagDays: 30, probability: 0.6 });
-      if (ch === 'open') costs.push({ currency: 'leadDays', amount: -60, target: 'rivals and China absorb the weights' });
-      exposure.push({ currency: 'approval', amount: -2, probability: 0.2, lagDays: 60 });
-      return { costs, gains: ch === 'open' ? [{ currency: 'trust', amount: 3, target: 'academia' }] : [{ currency: 'revenue', amount: 1 }], exposure };
-    },
-    apply: (s, ctx, p) => {
-      const r = deploy(s, ctx, {
-        versionId: str(p, 'versionId', ''), channel: str(p, 'channel', 'api') as Channel, priceIndex: num(p, 'priceIndex', 1),
-        effort: str(p, 'effort', 'max') as 'low' | 'max' | 'deep', kyc: Math.round(num(p, 'kyc', 1)) as 0 | 1 | 2 | 3,
-        ...(p.servingShare !== undefined ? { servingShare: num(p, 'servingShare', 0.2) } : {}),
-      });
-      if (typeof r === 'string') fail(r);
-    },
-  },
-  {
-    id: 'swapDeployment', sphere: 'models', owner: 'WS1', title: 'Swap model',
-    available: (s) => (s.player.deployments.some((d) => d.status === 'live' && d.channel !== 'open') ? true : 'Nothing deployed'),
-    preview: (s, p) => {
-      const v = versionById(s, str(p, 'versionId', ''));
-      return {
-        costs: [{ currency: 'staffTime', amount: 5 }],
-        gains: [{ currency: 'revenue', amount: v ? 0.5 : 0 }],
-        exposure: [{ currency: 'leadDays', amount: -5, lagDays: 30, probability: 0.5 }, { currency: 'approval', amount: -1, probability: 0.1 }],
-      };
-    },
-    apply: (s, _ctx, p) => fail(swapDeployment(s, str(p, 'deploymentId', ''), str(p, 'versionId', ''))),
-  },
-  {
-    // Serving pool reservations (§3.3.5). No deploymentId: re-split the reserved total by current demand (WS5's
-    // revenue readout) — the product team's weekly rebalance.
-    id: 'setServing', sphere: 'models', owner: 'WS1', title: 'Serving capacity',
-    available: (s) => (s.player.deployments.some((d) => d.status === 'live' && d.channel !== 'internal' && d.channel !== 'open') ? true : 'Nothing deployed'),
-    preview: (s, p) => {
-      const d = s.player.deployments.find((x) => x.id === str(p, 'deploymentId', ''));
-      const share = num(p, 'share', d?.servingShare ?? 0.2);
-      return {
-        costs: [{ currency: 'compute', amount: Math.max(0, share - (d?.servingShare ?? 0)), target: 'serving pool' }, { currency: 'staffTime', amount: 2 }],
-        gains: [{ currency: 'revenue', amount: 0.5 }],
-        exposure: [{ currency: 'approval', amount: -1, probability: 0.05 }],
-      };
-    },
-    apply: (s, _ctx, p) => {
-      const id = str(p, 'deploymentId', '');
-      if (id) return fail(setServing(s, id, num(p, 'share', 0.2)));
-      const rd = revenueReadout(s);
-      fail(setServing(s, undefined, 0, new Map(rd.deps.map((x) => [x.id, x.demand]))));
-    },
-  },
-  {
-    id: 'withdraw', sphere: 'models', owner: 'WS1', title: 'Withdraw',
-    available: (s) => (s.player.deployments.some((d) => d.status === 'live' && d.channel !== 'internal' && d.channel !== 'open') ? true : 'Nothing to withdraw'),
-    preview: (s, p) => {
-      const d = s.player.deployments.find((x) => x.id === str(p, 'deploymentId', ''));
-      return { costs: [{ currency: 'revenue', amount: -(d?.revenueRate ?? 1) }], gains: [{ currency: 'compute', amount: d?.servingShare ?? 0.1, target: 'serving pool' }], exposure: [{ currency: 'trust', amount: -1, probability: 0.3 }] };
-    },
-    apply: (s, _ctx, p) => fail(withdraw(s, str(p, 'deploymentId', ''))),
-  },
-  {
-    id: 'makeVariant', sphere: 'models', owner: 'WS1', title: 'Make variant',
+    id: 'makeVariant', verb: 'launch', system: 'products', sphere: 'models', owner: 'WS1', title: 'Make variant',
     available: () => true,
     preview: (_s, p) => {
       const v = str(p, 'variant', 'gov');
@@ -239,13 +208,13 @@ const RUN_ACTIONS: ActionDef[] = [
     },
   },
   {
-    id: 'retireVersion', sphere: 'models', owner: 'WS1', title: 'Retire',
+    id: 'retireVersion', verb: 'launch', system: 'models', sphere: 'models', owner: 'WS1', title: 'Retire',
     available: () => true,
     preview: () => ({ costs: [{ currency: 'progress', amount: 0, target: 'option value' }], gains: [{ currency: 'compute', amount: 0.01 }], exposure: [] }),
     apply: (s, _ctx, p) => fail(retireVersion(s, str(p, 'versionId', ''))),
   },
   {
-    id: 'runEvals', sphere: 'models', owner: 'WS1', title: 'Run evals',
+    id: 'runEvals', verb: 'policy', system: 'models', sphere: 'models', owner: 'WS1', title: 'Run evals',
     available: () => true,
     preview: (_s, p) => {
       const by = str(p, 'by', 'self');
@@ -260,30 +229,6 @@ const RUN_ACTIONS: ActionDef[] = [
       if (!v) fail('Unknown version');
       else runEvalSuite(s, ctx, v.id, str(p, 'by', 'self') as 'self' | 'evalGov' | 'evalIndep');
     },
-  },
-  {
-    id: 'fundParadigm', sphere: 'models', owner: 'WS1', title: 'Research',
-    available: (s) => (PARADIGMS.some((x) => paradigmGate(s, x.id) === true && ['available', 'researching', 'failed'].includes(s.player.paradigms[x.id]?.status ?? '')) ? true : 'No open projects'),
-    preview: (_s, p) => {
-      const fte = num(p, 'fte', 30);
-      return {
-        costs: [{ currency: 'staffTime', amount: fte }, { currency: 'compute', amount: num(p, 'expShare', 0.02), target: 'experiment pool share' }],
-        gains: [{ currency: 'progress', amount: 0.1, probability: 0.7 }],
-        exposure: [{ currency: 'alignment', amount: -0.05, probability: 0.3 }],
-      };
-    },
-    apply: (s, _ctx, p) => fail(fundParadigm(s, str(p, 'id', ''), num(p, 'fte', 30), num(p, 'expShare', 0.02))),
-  },
-  {
-    id: 'adoptParadigm', sphere: 'models', owner: 'WS1', title: 'Adopt',
-    available: (s) => (Object.values(s.player.paradigms).some((x) => x.status === 'succeeded') ? true : 'Nothing to adopt'),
-    preview: (_s, p) => {
-      const id = str(p, 'id', '');
-      if (id === 'P17') return { costs: [{ currency: 'monitorability', amount: -0.85 }], gains: [{ currency: 'progress', amount: 0.4 }], exposure: [{ currency: 'trust', amount: -5, probability: 0.5, target: 'evalGov' }] };
-      if (id === 'P23') return { costs: [{ currency: 'progress', amount: -0.24 }], gains: [{ currency: 'monitorability', amount: 0.08 }], exposure: [] };
-      return { costs: [{ currency: 'staffTime', amount: 10, target: 'integration' }], gains: [{ currency: 'progress', amount: 0.1 }], exposure: [{ currency: 'alignment', amount: -0.05, probability: 0.3 }] };
-    },
-    apply: (s, _ctx, p) => fail(adoptParadigm(s, str(p, 'id', ''))),
   },
 ];
 
@@ -331,47 +276,31 @@ function splitPreview(s: GameStateV2, next: ComputeSplit): Preview {
 
 export const DEPARTMENT_ACTIONS: ActionDef[] = [
   {
-    id: 'setSplit', sphere: 'departments', owner: 'WS1', title: 'Compute split',
+    id: 'setSplit', verb: 'policy', system: 'compute', sphere: 'departments', owner: 'WS1', title: 'Compute split',
     available: () => true,
     preview: (s, p) => splitPreview(s, splitFromParams(s, p)),
     apply: (s, _ctx, p) => fail(applySplit(s, splitFromParams(s, p), p)),
   },
   {
-    id: 'splitPreset', sphere: 'departments', owner: 'WS1', title: 'Split preset',
+    id: 'splitPreset', verb: 'policy', system: 'compute', sphere: 'departments', owner: 'WS1', title: 'Split preset',
     available: () => true,
     preview: (s, p) => splitPreview(s, presetSplit(str(p, 'preset', 'reference') as SplitPreset, decimalYear(s), s.player.split)),
     apply: (s, _ctx, p) => fail(applySplit(s, presetSplit(str(p, 'preset', 'reference') as SplitPreset, decimalYear(s), s.player.split), p)),
   },
+  ...TEAM_ACTIONS,
+  ...BUILD_ACTIONS,
+  ...AGENT_ACTIONS,
   {
-    id: 'hireTarget', sphere: 'departments', owner: 'WS1', title: 'Hiring target',
-    available: () => true,
-    preview: (s, p) => {
-      const role = str(p, 'role', 'cap') as keyof StaffByRole;
-      const n = num(p, 'target', s.player.hiring.target[role] ?? 0);
-      const d = n - (s.player.hiring.target[role] ?? 0);
-      const dollars = (d * STAFF_COST_M[role]) / 1000;
-      const what: CostLine['currency'] = role === 'cap' ? 'progress' : 'alignment';
-      return d >= 0
-        ? { costs: [{ currency: 'cash', amount: -dollars, target: '$B/yr payroll' }], gains: [{ currency: what, amount: d, lagDays: 42 }], exposure: [] }
-        : { costs: [{ currency: 'morale', amount: Math.max(-15, (100 * d) / Math.max(1, s.player.staff[role])) }, { currency: what, amount: d }], gains: [{ currency: 'cash', amount: -dollars, target: '$B/yr payroll' }], exposure: [] };
-    },
-    apply: (s, _ctx, p) => {
-      const role = str(p, 'role', 'cap') as keyof StaffByRole;
-      if (!ROLES.includes(role)) fail('Unknown role');
-      s.player.hiring.target[role] = Math.max(0, Math.round(num(p, 'target', s.player.hiring.target[role])));
-    },
-  },
-  {
-    id: 'starHire', sphere: 'departments', owner: 'WS1', title: 'Star hire',
-    available: (s) => (s.player.tasteHire >= STAR_HIRE.maxTaste ? 'Taste bench is full' : s.player.finance.cash < STAR_HIRE.cost ? 'Not enough cash' : true),
+    id: 'starHire', verb: 'hire', system: 'people', sphere: 'departments', owner: 'WS1', title: 'Star hire',
+    available: (s) => (s.player.tasteHire >= STAR_HIRE.maxTaste ? 'Taste bench is full' : s.player.finance.cash < starCost(s) ? 'Not enough cash' : true),
     preview: (s) => ({
-      costs: [{ currency: 'cash', amount: STAR_HIRE.cost }, { currency: 'trust', amount: STAR_HIRE.cooperation, target: 'rivals' }],
+      costs: [{ currency: 'cash', amount: starCost(s) }, { currency: 'trust', amount: STAR_HIRE.cooperation, target: 'rivals' }],
       gains: [{ currency: 'progress', amount: Math.round((s.player.prodCache?.elast.taste ?? 0.5) * STAR_HIRE.dTaste * 1000) / 1000 }],
       exposure: [],
     }),
     apply: (s, ctx) => {
-      s.player.tasteHire = Math.min(STAR_HIRE.maxTaste, s.player.tasteHire + STAR_HIRE.dTaste);
-      bookCash(s, ctx, -STAR_HIRE.cost, 'staff', 'star hire');
+      hireStar(s);
+      bookCash(s, ctx, -starCost(s), 'staff', 'star hire');
       for (const r of s.rivals) if (r.core.status === 'active') r.meters.cooperation = Math.max(-100, r.meters.cooperation + STAR_HIRE.cooperation / Math.max(1, s.rivals.length));
       ctx.log('company', 'A star researcher joins.', 1);
     },
@@ -379,7 +308,4 @@ export const DEPARTMENT_ACTIONS: ActionDef[] = [
 ];
 
 /** Models + Departments spheres (registered in core/registry.ts). */
-export const MODEL_ACTIONS: ActionDef[] = [...RUN_ACTIONS, ...DEPARTMENT_ACTIONS];
-
-/** Annual payroll at the current hiring targets ($B/yr) — UI helper. */
-export const payrollAtTarget = (s: GameStateV2) => payrollPerYear(s.player.hiring.target);
+export const MODEL_ACTIONS: ActionDef[] = [...RUN_ACTIONS, ...PRODUCT_ACTIONS, ...TREE_ACTIONS, ...DEPARTMENT_ACTIONS];

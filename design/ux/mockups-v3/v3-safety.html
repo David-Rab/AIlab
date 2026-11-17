@@ -1,0 +1,198 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>AI27 v3 · Safety</title>
+<link rel="stylesheet" href="kit.css"><link rel="stylesheet" href="kit-crs.css">
+<style>
+.card { position:relative; }
+.tabs { display:flex; gap:2px; margin-left:16px; padding:3px; background:var(--bg-2); border:1px solid var(--line); border-radius:8px; }
+.tabs span { display:inline-flex; align-items:center; gap:6px; padding:4px 11px; border-radius:6px; font-size:12.5px; color:var(--text-2); font-weight:600; white-space:nowrap; }
+.tabs span.on { background:#1d2a3b; color:#fff; box-shadow: inset 0 -2px 0 var(--you); }
+.tabs .cnt { font:700 10.5px var(--mono); padding:0 5px; border-radius:4px; }
+.tabs .cnt.w { color:#ffe0a0; background:var(--warn-bg); border:1px solid rgba(233,180,76,.4); }
+.tabs .cnt.b { color:#ffb4b4; background:var(--bad-bg); border:1px solid rgba(239,107,107,.4); }
+.tabs .cnt.n { color:var(--text-2); background:var(--panel-3); border:1px solid var(--line-2); }
+.verdict { display:flex; align-items:center; gap:14px; padding:10px 14px; border-radius:var(--radius); border:1px solid rgba(239,107,107,.45); background:linear-gradient(90deg, rgba(239,107,107,.13), var(--panel) 55%); }
+.verdict .ic { width:34px; height:34px; border-radius:8px; display:grid; place-items:center; background:rgba(239,107,107,.16); color:var(--bad); flex-shrink:0; }
+.verdict .t { font-size:15px; font-weight:650; color:#fff; }
+.verdict .s { font-size:12px; color:var(--text-2); }
+.grid { flex:1; min-height:0; display:grid; grid-template-columns: minmax(0,1fr) 520px; grid-template-rows: minmax(0,1fr); gap:12px; }
+.rcol { display:flex; flex-direction:column; gap:12px; min-height:0; }
+.legend { display:flex; gap:12px; font-size:11.5px; color:var(--text-2); align-items:center; }
+.legend i { display:inline-block; width:14px; height:3px; border-radius:2px; margin-right:5px; vertical-align:3px; }
+.fam { display:grid; grid-template-columns: 22px 122px minmax(0,1fr) 100px 22px; align-items:center; gap:10px; padding:19px 0; border-bottom:1px solid #1d2632; }
+.fam:last-of-type { border-bottom:0; }
+.fam .n { font-size:13px; font-weight:600; color:#fff; display:flex; flex-direction:column; gap:4px; }
+.fam .n .tr { display:flex; gap:4px; color:var(--text-3); }
+.fam .n .tr svg { width:12px; height:12px; }
+.fam .v { font:600 13px var(--mono); color:#fff; text-align:right; }
+.fam .v span { color:var(--text-3); font-weight:500; font-size:11.5px; }
+.scale { position:relative; height:16px; border-radius:4px; overflow:hidden; background:linear-gradient(90deg, rgba(76,195,138,.10) 0 20%, rgba(233,180,76,.10) 20% 50%, rgba(239,107,107,.12) 50% 100%); }
+.scale .bd { position:absolute; top:3px; bottom:3px; border-radius:3px; }
+.scale .es { position:absolute; top:0; bottom:0; width:3px; border-radius:1px; background:#fff; margin-left:-1px; }
+.axis { display:grid; grid-template-columns: 22px 122px minmax(0,1fr) 100px 22px; gap:10px; font:10.5px var(--mono); color:var(--text-3); }
+.axis .t { position:relative; height:12px; }
+.axis .t span { position:absolute; transform:translateX(-50%); }
+.mtabs { display:inline-flex; padding:2px; background:var(--bg-2); border:1px solid var(--line); border-radius:7px; }
+.mtabs span { padding:2px 9px; border-radius:5px; font-size:12px; color:var(--text-2); font-weight:600; }
+.mtabs span.on { background:#1d2a3b; color:#fff; }
+.pols { display:flex; flex-direction:column; }
+.pols .pt { padding:17px 0; border-bottom:1px solid #1d2632; } .pols .pt:last-child { border-bottom:0; padding-bottom:2px; }
+.pt { display:grid; grid-template-columns: 34px minmax(0,1fr) auto; gap:12px; align-items:center; }
+.pt .ic { width:34px; height:34px; border-radius:8px; display:grid; place-items:center; background:var(--panel-2); color:var(--text-2); }
+.pt .t { font-size:13px; color:#fff; font-weight:600; }
+.pt .s { font-size:11.5px; color:var(--text-3); margin-top:2px; }
+.slider { position:relative; width:150px; height:6px; border-radius:3px; background:var(--line-2); }
+.slider i { position:absolute; left:0; top:0; bottom:0; width:20%; border-radius:3px; background:var(--ai); }
+.slider b { position:absolute; top:-5px; left:20%; width:16px; height:16px; margin-left:-8px; border-radius:50%; background:#fff; border:3px solid #1d6f68; }
+.slider .cap50 { position:absolute; left:50%; top:-4px; bottom:-4px; width:2px; background:var(--warn); }
+.slider .lock { position:absolute; left:50%; right:0; top:0; bottom:0; background:repeating-linear-gradient(135deg, rgba(233,180,76,.35) 0 2px, transparent 2px 5px); border-radius:0 3px 3px 0; }
+.lchip { display:inline-flex; align-items:center; gap:5px; height:24px; padding:0 8px; border-radius:6px; border:1px solid #36507a; background:#142033; font-size:12px; color:#cfe3ff; white-space:nowrap; }
+.lchip.none { border-style:dashed; color:var(--text-3); background:transparent; border-color:var(--line-2); }
+</style></head>
+<body data-nav="safety">
+<!--ICONS-->
+<div class="app"><div class="body"><main class="center">
+
+  <div class="ph">
+    <svg class="i s20 t2"><use href="#i-microscope"/></svg><h1>Safety</h1>
+    <span class="tabs">
+      <span class="on">Overview</span>
+      <span>Research lines <span class="cnt w">2 idle</span><span class="cnt b">6 team-mo lost</span></span>
+      <span>Investigations <span class="cnt n">1</span></span>
+      <span>Trait graph</span>
+      <span>Incidents</span>
+    </span>
+  </div>
+
+  <!-- L1 #1: verdict + what to do -->
+  <div class="verdict">
+    <span class="ic"><svg class="i s20"><use href="#i-eye-off"/></svg></span>
+    <div><div class="t">Understanding lags capability</div><div class="s">gap widening · tools fall behind in ~2 mo</div></div>
+    <span class="sp"></span>
+    <div class="chain"><span class="lk bad"><svg class="i s14"><use href="#i-ghost"/></svg>Deception unseen</span><span class="ar"><svg class="i s12"><use href="#i-chevron-right"/></svg></span><span class="lk root"><svg class="i s14"><use href="#i-scan-search"/></svg>Deception probe</span></div>
+    <span class="btn go sm">Research <svg class="i s12"><use href="#i-chevron-right"/></svg></span>
+    <span style="width:1px;height:26px;background:var(--line-2)"></span>
+    <div class="chain"><span class="lk bad"><svg class="i s14"><use href="#i-refresh-cw"/></svg>Tool upkeep slow</span><span class="ar"><svg class="i s12"><use href="#i-chevron-right"/></svg></span><span class="lk root"><svg class="i s14"><use href="#i-flask-conical"/></svg>Safety RE teams</span></div>
+    <span class="btn go sm">Company <svg class="i s12"><use href="#i-chevron-right"/></svg></span>
+  </div>
+
+  <div class="grid">
+    <!-- L1 #2: the race, past and projected (U only) -->
+    <div class="card" style="display:flex;flex-direction:column">
+      <div class="hd" style="margin-bottom:4px"><svg class="i s14 t2"><use href="#i-scale"/></svg><span class="ttl">Capability vs understanding</span><span class="sub">internal model · 6 mo back, 4 ahead</span><span class="sp"></span>
+        <span class="legend"><span><i style="background:var(--cap)"></i>Capability</span><span><i style="background:var(--und)"></i><u>Understanding</u></span><span><i style="background:repeating-linear-gradient(135deg,#ef6b6b 0 2px,transparent 2px 4px);height:9px;width:12px;vertical-align:-1px"></i>blind</span><span><i style="background:repeating-linear-gradient(90deg,#9fb0c3 0 4px,transparent 4px 7px);height:2px"></i>projected</span></span></div>
+      <svg id="race" style="flex:1;min-height:0;width:100%"></svg>
+    </div>
+
+    <div class="rcol">
+    <!-- L1 #3: risk families -->
+    <div class="card" style="display:flex;flex-direction:column">
+      <div class="hd"><svg class="i s14 t2"><use href="#i-triangle-alert"/></svg><span class="ttl"><u>Risk families</u></span><span class="sp"></span>
+        <span class="mtabs"><span class="on">Atlas-3.1 <span class="t3" style="font-weight:500">internal</span></span><span>3.0</span><span>3-mini</span></span></div>
+      <div class="axis"><span></span><span></span><span class="t"><span style="left:0;transform:none">0</span><span style="left:20%">0.1</span><span style="left:50%">0.25</span><span style="left:100%;transform:translateX(-100%)">0.5</span></span><span style="text-align:right">est. ± band</span><span></span></div>
+      <div class="fam"><svg class="i s18" style="color:var(--text-2)"><use href="#i-thumbs-up"/></svg><span class="n">People-pleasing<span class="tr"><svg class="i"><use href="#i-thumbs-up"/></svg><svg class="i"><use href="#i-venetian-mask"/></svg></span></span>
+        <div class="scale"><span class="bd" style="left:32%;width:24%;background:rgba(233,180,76,.55)"></span><span class="es" style="left:44%"></span></div>
+        <span class="v">0.22 <span>±0.06</span></span><svg class="i s16 t3"><use href="#i-eye"/></svg></div>
+      <div class="fam"><svg class="i s18" style="color:var(--text-2)"><use href="#i-gamepad-2"/></svg><span class="n">Gaming<span class="tr"><svg class="i"><use href="#i-bug"/></svg><svg class="i"><use href="#i-target"/></svg><svg class="i"><use href="#i-gamepad-2"/></svg></span></span>
+        <div class="scale"><span class="bd" style="left:22%;width:28%;background:rgba(233,180,76,.55)"></span><span class="es" style="left:36%"></span></div>
+        <span class="v">0.18 <span>±0.07</span></span><svg class="i s16" style="color:var(--warn)"><use href="#i-search"/></svg></div>
+      <div class="fam"><svg class="i s18" style="color:var(--text-2)"><use href="#i-ghost"/></svg><span class="n">Deception<span class="tr"><svg class="i"><use href="#i-glasses"/></svg><svg class="i"><use href="#i-package-x"/></svg><svg class="i"><use href="#i-eye-off"/></svg><svg class="i"><use href="#i-drama"/></svg><svg class="i"><use href="#i-turtle"/></svg><svg class="i"><use href="#i-ghost"/></svg></span></span>
+        <div class="scale"><span class="bd" style="left:2%;width:32%;background:repeating-linear-gradient(135deg, rgba(239,107,107,.75) 0 2px, rgba(239,107,107,.15) 2px 5px)"></span><span class="es" style="left:18%"></span></div>
+        <span class="v">0.09 <span>±0.08</span></span><svg class="i s16" style="color:var(--bad)"><use href="#i-eye-off"/></svg></div>
+      <div class="fam"><svg class="i s18" style="color:var(--text-2)"><use href="#i-crown"/></svg><span class="n">Power<span class="tr"><svg class="i"><use href="#i-crown"/></svg><svg class="i"><use href="#i-git-fork"/></svg><svg class="i"><use href="#i-network"/></svg></span></span>
+        <div class="scale"><span class="bd" style="left:0%;width:18%;background:rgba(76,195,138,.5)"></span><span class="es" style="left:8%"></span></div>
+        <span class="v">0.04 <span>±0.05</span></span><svg class="i s16 t3"><use href="#i-eye"/></svg></div>
+      <div class="row tiny t3" style="margin-top:6px;gap:14px;padding-top:8px;border-top:1px solid var(--line)">
+        <span class="row" style="gap:4px"><svg class="i s12"><use href="#i-eye"/></svg>tools see it</span>
+        <span class="row" style="gap:4px"><svg class="i s12 bad"><use href="#i-eye-off"/></svg>unseen at L 7.3</span>
+        <span class="row" style="gap:4px"><svg class="i s12 warn"><use href="#i-search"/></svg>under investigation</span>
+      </div>
+    </div>
+
+    <!-- L1 #4: policies -->
+    <div class="card pols" style="flex:1">
+      <div class="hd" style="margin-bottom:0"><svg class="i s14 t2"><use href="#i-sliders-horizontal"/></svg><span class="ttl">Policies</span></div>
+      <div class="pt"><span class="ic"><svg class="i s18"><use href="#i-clipboard-check"/></svg></span><div><div class="t">Evaluate before release</div><div class="s">+14 d per release</div></div><span class="tog on"></span></div>
+      <div class="pt"><span class="ic"><svg class="i s18"><use href="#i-cctv"/></svg></span><div><div class="t">Monitor internal agents</div><div class="s">2 of 4 uses · 2% of compute</div></div><span class="tog on"></span></div>
+      <div class="pt"><span class="ic" style="color:var(--ai)"><svg class="i s18"><use href="#i-bot"/></svg></span>
+        <div><div class="t row" style="gap:8px"><u>Trusted to AI</u> <b class="num" style="color:var(--ai)">20%</b><span class="s" style="margin:0">of safety work</span></div>
+          <div class="row" style="gap:10px;margin-top:7px"><div class="slider"><span class="lock"></span><i></i><span class="cap50"></span><b></b></div><span class="s" style="margin:0">max 50%</span></div></div>
+        <div class="col" style="gap:5px;align-items:flex-end"><span class="lchip"><svg class="i s14"><use href="#i-brain"/></svg>Atlas-3.0 <svg class="i s12"><use href="#i-chevron-right"/></svg></span><span class="lchip none"><svg class="i s14"><use href="#i-cctv"/></svg>no monitor <svg class="i s12"><use href="#i-chevron-right"/></svg></span></div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- L3 hover: Understanding U (tools validated lives here) -->
+  <div class="tip only-hover" id="uTip" style="width:356px">
+    <div class="th"><svg class="i s14" style="color:var(--und)"><use href="#i-microscope"/></svg><b>Understanding · 12 Mar</b><span class="sp"></span><b class="num" style="color:var(--und)">6.9</b></div>
+    <div class="small t3" style="margin-bottom:4px">level up to which tools see every risk family</div>
+    <div class="r small"><svg class="i s14 t3"><use href="#i-thumbs-up"/></svg><span class="t2">People-pleasing seen to</span><span class="sp"></span><b class="num w">7.6</b></div>
+    <div class="r small"><svg class="i s14 t3"><use href="#i-gamepad-2"/></svg><span class="t2">Gaming seen to</span><span class="sp"></span><b class="num w">7.6</b></div>
+    <div class="r small"><svg class="i s14 bad"><use href="#i-ghost"/></svg><span class="t2">Deception seen to</span><span class="sp"></span><b class="num bad">6.9</b><span class="tiny t3">lowest</span></div>
+    <div class="r small"><svg class="i s14 t3"><use href="#i-crown"/></svg><span class="t2">Power seen to</span><span class="sp"></span><b class="num w">7.6</b></div>
+    <div class="sec small">
+      <div class="r"><span class="t2"><span class="term" style="background:rgba(90,169,255,.15)">Tools validated to</span></span><span class="sp"></span><b class="num w">L 7.6</b></div>
+      <div class="r tiny t3" style="padding-left:2px"><span>upkeep +0.15/mo · capability +0.3/mo</span><span class="sp"></span><span class="bad">behind in ~2 mo</span></div>
+    </div>
+    <div class="sec small">
+      <div class="r"><svg class="i s14" style="color:var(--warn)"><use href="#i-scan-search"/></svg><span class="t2">Deception probe works</span><span class="sp"></span><span class="num t2">6.9 → <b style="color:var(--warn)">≈ 7.4</b></span></div>
+    </div>
+    <div class="hint"><span class="kbd">Alt</span> locked · hover a term</div>
+    <div class="lockbar on"></div>
+  </div>
+  <div class="tip only-hover" id="vTip" style="width:280px;z-index:60">
+    <div class="th"><b>Tools validated to</b><span class="t3 small">term</span></div>
+    <div class="small t2">Highest capability at which your detection tools are still checked against known cases.</div>
+    <div class="sec small">
+      <div class="r"><span class="t2">Kept rising by</span><span class="sp"></span><span><span class="term">safety research engineers</span> ×1</span></div>
+      <div class="r"><span class="t2">Speeds up with</span><span class="sp"></span><span>Trusted to AI</span></div>
+    </div>
+    <div class="hint">Codex <svg class="i s12"><use href="#i-chevron-right"/></svg></div>
+    <div class="lockbar"></div>
+  </div>
+
+</main></div></div>
+<script src="shell-crs.js"></script>
+<script>
+const svg = document.getElementById('race'); const rc = svg.getBoundingClientRect(); const W = rc.width, H = rc.height;
+const pl = 34, pr = 100, pt = 16, pb = 22;
+const T1 = 10, NOW = 6.38; // months since 1 Sep 2025
+const X = (t) => pl + t / T1 * (W - pl - pr), Y = (v) => pt + (1 - (v - 5.9) / (8.6 - 5.9)) * (H - pt - pb);
+const L = [[0, 6.2], [2.65, 6.2], [2.65, 6.9], [3.4, 6.9], [3.4, 7.1], [4.6, 7.1], [4.6, 7.3], [NOW, 7.3]];
+const U = [[0, 6.4], [1.5, 6.45], [2.65, 6.5], [3.4, 6.6], [4.6, 6.7], [5.5, 6.85], [NOW, 6.9]];
+let s = '<defs><pattern id="hb" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2" height="5" fill="rgba(239,107,107,.75)"/></pattern><pattern id="hb2" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="1.4" height="5" fill="rgba(239,107,107,.32)"/></pattern></defs>';
+for (const v of [6, 6.5, 7, 7.5, 8, 8.5]) s += `<line x1="${pl}" x2="${W - pr}" y1="${Y(v)}" y2="${Y(v)}" stroke="#1f2a38"/><text x="${pl - 6}" y="${Y(v) + 4}" text-anchor="end" fill="#6b7c91" font-size="10.5" font-family="Cascadia Mono, Consolas">${v.toFixed(1)}</text>`;
+['Sep', 'Oct', 'Nov', 'Dec', 'Jan 26', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'].forEach((m, i) => s += `<text x="${X(i)}" y="${H - 6}" text-anchor="middle" fill="${i === 6 ? '#e3e9f1' : '#6b7c91'}" font-size="10.5">${m}</text>`);
+s += `<rect x="${X(NOW)}" y="${pt - 6}" width="${X(T1) - X(NOW)}" height="${H - pt - pb + 6}" fill="rgba(255,255,255,.02)"/>`;
+s += `<line x1="${X(NOW)}" x2="${X(NOW)}" y1="${pt - 8}" y2="${H - pb}" stroke="#5aa9ff" stroke-dasharray="3 3"/><text x="${X(NOW) + 5}" y="${pt + 2}" fill="#9fc6f5" font-size="10.5" font-weight="600">today</text>`;
+const lAt = (t) => { let v = L[0][1]; for (const [tt, vv] of L) if (tt <= t) v = vv; return v; };
+const uAt = (t) => { for (let i = 1; i < U.length; i++) if (t <= U[i][0]) { const [a, b] = [U[i - 1], U[i]]; return a[1] + (b[1] - a[1]) * (t - a[0]) / (b[0] - a[0]); } return U[U.length - 1][1]; };
+const gT = [], gB = [];
+for (let t = 2.65; t <= NOW + 1e-6; t += 0.05) { const l = lAt(t), u = uAt(t); if (l > u) { gT.push([t, l]); gB.push([t, u]); } }
+s += `<path d="M${gT.map(([t, v]) => `${X(t)},${Y(v)}`).join(' L')} L${gB.reverse().map(([t, v]) => `${X(t)},${Y(v)}`).join(' L')}Z" fill="url(#hb)"/>`;
+const lEnd = 7.3 + 0.3 * (T1 - NOW), uEnd = 6.9 + 0.04 * (T1 - NOW);
+s += `<path d="M${X(NOW)},${Y(7.3)} L${X(T1)},${Y(lEnd)} L${X(T1)},${Y(uEnd)} L${X(NOW)},${Y(6.9)}Z" fill="url(#hb2)"/>`;
+s += `<line x1="${X(NOW)}" y1="${Y(7.3)}" x2="${X(T1)}" y2="${Y(lEnd)}" stroke="#9b6be0" stroke-width="2" stroke-dasharray="6 4" opacity=".85"/>`;
+s += `<line x1="${X(NOW)}" y1="${Y(6.9)}" x2="${X(T1)}" y2="${Y(uEnd)}" stroke="#22a394" stroke-width="2" stroke-dasharray="6 4" opacity=".85"/>`;
+const up = [[NOW, 6.9], [7.38, 6.9], [7.38, 7.4], [T1, 7.4 + 0.12 * (T1 - 7.38)]];
+s += `<polyline points="${up.map(([t, v]) => `${X(t)},${Y(v)}`).join(' ')}" fill="none" stroke="#e9b44c" stroke-width="1.8" stroke-dasharray="5 4"/>`;
+s += `<text x="${X(7.45)}" y="${Y(7.4) - 8}" fill="#e9b44c" font-size="11" font-weight="600">if Deception probe works</text>`;
+s += `<polyline points="${U.map(([t, v]) => `${X(t)},${Y(v)}`).join(' ')}" fill="none" stroke="#22a394" stroke-width="2.6"/>`;
+s += `<polyline points="${L.map(([t, v]) => `${X(t)},${Y(v)}`).join(' ')}" fill="none" stroke="#9b6be0" stroke-width="2.6"/>`;
+[[2.65, 'Atlas-3'], [4.6, 'Atlas-3.1']].forEach(([t, n]) => { s += `<circle cx="${X(t)}" cy="${Y(lAt(t + .01))}" r="3.5" fill="#fff"/><text x="${X(t) + 6}" y="${Y(lAt(t + .01)) - 7}" fill="#9fb0c3" font-size="10.5">${n}</text>`; });
+s += `<line x1="${X(9.25)}" x2="${X(9.25)}" y1="${pt}" y2="${H - pb}" stroke="#33435a" stroke-dasharray="2 3"/><text x="${X(9.25) - 4}" y="${pt + 2}" fill="#9fb0c3" font-size="10.5" text-anchor="end">Atlas-4 base ›</text>`;
+s += `<text x="${X(T1) + 6}" y="${Y(lEnd) + 4}" fill="#b58cf0" font-size="11" font-weight="600">capability</text>`;
+s += `<text x="${X(T1) + 6}" y="${Y(7.4 + 0.12 * (T1 - 7.38)) + 4}" fill="#e9b44c" font-size="11">U, if probe</text>`;
+s += `<text x="${X(T1) + 6}" y="${Y(uEnd) + 4}" fill="#3fcfbc" font-size="11" font-weight="600">understanding</text>`;
+s += `<text x="${X(8.9)}" y="${Y(7.15)}" fill="#ef6b6b" font-size="11" font-weight="600" text-anchor="middle">blind gap widens</text>`;
+s += `<circle id="uDot" cx="${X(NOW)}" cy="${Y(6.9)}" r="4.5" fill="#22a394" stroke="#0b0f15" stroke-width="2"/>`;
+svg.innerHTML = s;
+
+if (location.hash === '#hover') {
+  const c = document.querySelector('.center').getBoundingClientRect(), d = document.getElementById('uDot').getBoundingClientRect();
+  document.getElementById('uDot').setAttribute('r', 7); document.getElementById('uDot').setAttribute('stroke', '#fff');
+  const t = document.getElementById('uTip'); t.style.left = (d.right - c.left + 12) + 'px'; t.style.top = (d.top - c.top - 70) + 'px';
+  const t2 = document.getElementById('vTip'); t2.style.left = (d.right - c.left + 380) + 'px'; t2.style.top = (d.top - c.top + 90) + 'px';
+}
+</script>
+</body></html>

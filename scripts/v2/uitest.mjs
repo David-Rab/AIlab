@@ -77,7 +77,7 @@ async function iaScan(screen) {
     const shell = [...document.querySelectorAll('.topstrip2 [data-home], .nav2 [data-home], .bottombar2 [data-home]')].map((e) => e.getAttribute('data-home'));
     const missing = [...document.querySelectorAll('[data-term-missing]')].map((e) => e.getAttribute('data-term'));
     const text = document.body.innerText;
-    const floats = text.match(/\d\.\d{5,}/g) ?? [];
+    const floats = text.match(/\d\.\d{5,}|\d{12,}/g) ?? [];
     return { homes, shell, missing, floats };
   });
   const dupHere = r.homes.filter((h, i) => r.homes.indexOf(h) !== i);
@@ -103,6 +103,17 @@ for (const [k, v] of [['baseline', 'reality'], ['world', 'fast'], ['alignment', 
 await page.fill('[data-test=company]', 'Meridian');
 await wait(30);
 ok('Setup blocks a rival name', !!(await page.$('[data-test=name-clash]')) && (await page.$eval('[data-test=start-game]', (b) => b.disabled)));
+// R9: start picker (four starts with difficulty labels); a non-leader start turns the leader lab on and fixes the board.
+ok('Setup: four starts with difficulty labels', (await page.$$('[data-picker=start] [data-opt] [data-difficulty]')).length === 4);
+await check('Setup start=spinout', 'store.draftSetup.start', () => page.click('[data-picker=start] [data-opt="spinout"]'), 30);
+ok('Setup: spinout turns the leader lab on and sets the board', (await get('store.draftSetup.leaderLab')) === 'true' && (await get('store.draftSetup.governance')) === '"founder"' && !!(await page.$('[data-test=start-board]')));
+await check('Setup start=bigtech', 'store.draftSetup.start', () => page.click('[data-picker=start] [data-opt="bigtech"]'), 30);
+await page.hover('[data-picker=start] [data-opt="bigtech"]');
+await wait(300);
+ok('Setup: start tooltip shows the start values', (await page.evaluate(() => document.body.innerText)).includes('from the parent'));
+await clearTips();
+await check('Setup start=leader', 'store.draftSetup.start', () => page.click('[data-picker=start] [data-opt="leader"]'), 30);
+ok('Setup: leader start has no leader lab and a Governance picker', (await get('store.draftSetup.leaderLab')) === 'false' && !!(await page.$('[data-picker=governance]')));
 await check('Setup company name', 'store.draftSetup.companyName', () => page.fill('[data-test=company]', 'TestLab'), 30);
 await check('Setup seed', 'store.draftSetup.seed', () => page.fill('[data-test=seed]', '2027'), 30);
 await shot('01-setup');
@@ -143,7 +154,7 @@ await wait(300);
 // Coach card → run designer
 await check('Coach card opens run designer', 'store.panel', () => page.click('[data-coach=firstRun]'));
 await page.click('[data-test=coach-skip]').catch(() => {});
-await check('Recommended post-train', 'document.querySelector("[data-panel=rundesigner]").innerText', () => page.click('[data-test=rd-recommended]'));
+await check('Blueprint: pick a training card (light effort)', 'document.querySelector("[data-panel=blueprint]").innerText', () => page.click('[data-panel=blueprint] [data-opt="rlIntensity:light"]'));
 await check('Launch post-train', `s.player.models.runs.filter(r => r.status === 'running').length`, () => page.click('[data-act=launchPost]'));
 
 // FF to run completion
@@ -228,7 +239,7 @@ ok('Tutorial off unlocks compute', !(await page.$eval('[data-nav=compute]', (b) 
 // Advance a little so deployments/finance have content.
 await page.evaluate(() => window.ai27v2.step(20));
 await closeModals();
-const PANELS = ['finance', 'overview', 'company', 'compute', 'models', 'rundesigner', 'deployments', 'safety', 'relations', 'world', 'risk', 'codex'];
+const PANELS = ['finance', 'overview', 'company', 'compute', 'research', 'models', 'blueprint', 'products', 'safety', 'relations', 'world', 'risk', 'codex'];
 for (const p of PANELS) await check(`Tab ${p}`, 'store.panel', () => nav(p), 60);
 
 // Click every enabled action button in every panel; skip the game-ending RETIRE (tested last).
@@ -242,7 +253,7 @@ for (const p of PANELS) {
   if (t) { if ((await get('store.panel')) !== `"${p}"`) { await nav(p); if (t) await tabTo(t); } await tabTo(t); }
   const ids = await page.$$eval('[data-panel] [data-act]', (els) => [...new Set(els.filter((e) => !e.disabled).map((e) => e.getAttribute('data-act')))]);
   for (const id of ids) {
-    if (SKIP.has(id)) continue;
+    if (SKIP.has(id) || id.startsWith('product.retire.')) continue; // retiring products is tested in the Products section
     await closeModals();
     if ((await get('store.panel')) !== `"${p}"`) await nav(p);
     const loc = page.locator(`[data-panel] [data-act="${id}"]:not([disabled])`).first();
@@ -268,9 +279,10 @@ ok(`Action buttons: ${tally.changed} changed state`, tally.changed >= 40, `${tal
 for (const r of rejected) console.log(`     rejected ${r}`);
 
 // Controls that are not action buttons: segs, sliders, selects, toggles
-await nav('company');
+// R7: the compute split lives on Compute › Split (one home per control).
+await nav('compute');
 await tabTo('split');
-await check('Split slider moves draft', `document.querySelector('[data-panel=company]').innerText`, () => setSlider(page.locator('[data-panel=company] .split-row input[type=range]').first(), 0.6));
+await check('Split slider moves draft', `document.querySelector('[data-panel=compute]').innerText`, () => setSlider(page.locator('[data-panel=compute] .split-row input[type=range]').first(), 0.6));
 await check('Apply split', 'JSON.stringify(s.player.split)', () => page.click('[data-act=setSplit]'));
 ok('Research mix chart and response curves render', !!(await page.$('[data-test=mix-chart] path')) && (await page.$$('[data-test=response-charts] .rc-mult')).length === 4);
 await check('Research mix: manual + slider + apply', 'JSON.stringify([s.player.researchManual, s.player.split.experiments])', async () => {
@@ -282,55 +294,250 @@ await check('Research mix: back to auto', 'JSON.stringify(s.player.researchManua
   await page.click('#ctl-split-experiments .seg-btn:has-text("Auto")');
   await page.click('[data-act=setSplit]');
 });
+// R3 People: teams by role, keep-hiring targets, offers, filling queue, move and let go.
+await nav('company');
 await tabTo('people');
-await check('Hiring slider + Set', 's.player.hiring.target.saf', async () => {
-  await setSlider(page.locator('[data-dept=saf] input[type=range]'), 120);
-  await page.click('[data-dept=saf] [data-act=hireTarget]');
+ok('Teams card: one science card per science team', JSON.parse(await get(`document.querySelectorAll('[data-panel=company] .sci-card').length === s.player.teams.filter((t) => t.role === 'sci').length`)));
+ok('Teams card: piles for engineers and both research-engineering departments', JSON.parse(await get(`['eng', 're.cap', 're.saf'].every((k) => !!document.querySelector('[data-panel=company] [data-pile="' + k + '"]'))`)));
+await check('Keep hiring: + raises the research-engineering target', 's.player.hiring.targets["re.cap"]', () => page.click('[data-act="teams.target.up.re.cap"]'));
+await check('Offer: Hire queues the team', 'JSON.stringify([s.player.hiring.candidates.length, s.player.hiring.filling.length])', () => page.click('[data-panel=company] .offer [data-act="teams.hire"]'));
+await check('Filling: cancel removes a queued team', 's.player.hiring.filling.length', () => page.click('[data-panel=company] [data-act="teams.cancel"]'));
+await check('Move: safety research-engineering team to capabilities', 'JSON.stringify([s.player.teams.filter((t) => t.role === "re" && t.dept === "saf").length, Math.round(s.player.morale.safety)])', () => page.click('[data-pile="re.saf"] [data-act="teams.move"]'));
+ok('Move: safety morale paid', JSON.parse(await get('s.causes.byKey["morale.safety"] ? s.causes.byKey["morale.safety"].some((c) => /moved/.test(c.source)) : false')));
+await check('Let go: a science team', 's.player.teams.length', () => page.click('[data-panel=company] .sci-card [data-act="teams.release"]'));
+await shot('20-company-people');
+// R7 Agents at work: four lanes (home of the internal packages), model/monitor chips with a before → after preview,
+// compute steppers, AI share per role, risk badges; Trusted to AI (B3 gate); the same chips on Products; Safety links.
+ok('Agents at work: four lanes with model and monitor chips', JSON.parse(await get(`['eng', 'capRoutine', 'capFrontier', 'safety'].every((u) => !!document.querySelector('[data-home=agents] [data-lane=' + u + '] [data-chip=model]') && !!document.querySelector('[data-home=agents] [data-lane=' + u + '] [data-chip=monitor]'))`)));
+ok('Agents at work: AI share of each capabilities role and four risk badges per lane', JSON.parse(await get(`['eng', 'capRoutine', 'capFrontier'].every((u) => !!document.querySelector('[data-test="ai-share.' + u + '"]')) && document.querySelectorAll('[data-home=agents] [data-risk]').length === 16`)));
+await page.selectOption('[data-test="agent-monitor.eng"]', 'same');
+await wait(80);
+ok('Agents: a monitor pick opens the before → after preview', !!(await page.$('[data-test="agent-edit.eng"] .pv')));
+await page.click('[data-test="agent-cancel.eng"]');
+await wait(60);
+ok('Agents: Cancel closes the preview and keeps the package', JSON.parse(await get('s.player.agents.eng.monitorId === undefined && !document.querySelector(\'[data-test="agent-edit.eng"]\')')));
+await page.selectOption('[data-test="agent-monitor.capFrontier"]', '');
+await wait(80);
+await check('Agents: Apply removes the frontier monitor', 'JSON.stringify(s.player.agents.capFrontier.monitorId || null)', () => page.click('[data-act="agents.set.capFrontier"]'));
+await check('Agents: compute + moves agent pool to engineering', 'JSON.stringify(s.player.agents.eng.compute)', () => page.click('[data-act="agents.compute.up.eng"]'));
+ok('Agents: capabilities shares still sum to 1', JSON.parse(await get('Math.abs(s.player.agents.eng.compute + s.player.agents.capRoutine.compute + s.player.agents.capFrontier.compute - 1) < 1e-9')));
+{
+  const gate = JSON.parse(await get('!!document.querySelector("[data-test=trusted-gate]")'));
+  ok('Trusted to AI: home on the safety lane; locked below the AI-labour gate', !!(await page.$('[data-home=trustedToAI]')) && (!gate || !!(await page.$('[data-act="agents.trusted.up"][disabled]'))), gate ? 'locked' : 'open');
+}
+await shot('21-company-agents');
+// B4: one WSL target range for the slider and the engine.
+await tabTo('security');
+ok('Security target slider range matches the engine (2–5)', JSON.parse(await get(`(() => { const r = document.querySelector('[data-panel=company] [data-home=wsl] input[type=range]'); return !!r && r.min === '2' && r.max === '5'; })()`)));
+await check('Security target: slider at the floor + Set', 's.player.security.target', async () => {
+  await setSlider(page.locator('[data-panel=company] [data-home=wsl] input[type=range]'), 2);
+  await page.click('[data-panel=company] [data-act=SEC_TARGET]');
 });
+ok('Security target set to the slider value', JSON.parse(await get('s.player.security.target === 2')));
 await tabTo('flow');
 ok('Company flow renders', !!(await page.$('[data-home=computeFlow]')) && !!(await page.$('[data-home=M]')));
-await check('Flow pool click goes to the split', 'store.tab.company', () => page.click('[data-pool=experiments]'));
+await check('Flow pool click goes to the split (Compute)', 'JSON.stringify([store.panel, store.tab.compute])', () => page.click('[data-pool=experiments]'));
 await nav('finance');
 await check('Raise ask slider', `document.querySelector('[data-act="fin.raise"]').innerText`, () => setSlider(page.locator('[data-panel=finance] input[type=range]').first(), 3.3));
 await check('Debt kind', `document.querySelector('[data-panel=finance]').innerHTML`, () => page.click('[data-panel=finance] [data-debt-kind=gpuTerm]'));
-await nav('rundesigner');
-await check('Run designer: kind base', `document.querySelector('[data-panel=rundesigner]').innerText`, () => page.click('[data-panel=rundesigner] [data-rd-kind=base]'));
-ok("Run designer: locked option shows its reason", await page.$eval(`[data-panel=rundesigner] [data-opt="shape:latent"]`, (b) => b.disabled && b.innerText.length > 8));
-await check("Run designer: shape overtrained", `document.querySelector("[data-panel=rundesigner]").innerHTML`, () => page.click(`[data-panel=rundesigner] [data-opt="shape:overtrained"]`));
-await page.click('[data-panel=rundesigner] [data-opt="shape:dense"]');
-await check('Run designer: save template', 'localStorage.getItem("ai27.v2.runTemplates")', () => page.click('[data-test=rd-save]'));
+// R5 blueprint: size card with its limit tiles (before → after on a size change), slot table by layer with locked
+// cards linking to Research, predicted and plan cards; run queue with actual share and ETA; spare-training policy.
+await nav('blueprint');
+await page.click('[data-panel=blueprint] [data-bp-kind=base]').catch(() => {});
+await wait(80);
+ok('Blueprint: size card with 7 limit tiles', (await page.$$('[data-panel=blueprint] [data-tile]')).length === 7);
+ok('Blueprint: slot table by layer (Backbone, Training, Scaffold)', JSON.parse(await get(`(() => { const t = document.querySelector('[data-home=blueprintSlots]')?.innerText ?? ''; return /BACKBONE/.test(t) && /TRAINING/.test(t) && /SCAFFOLD/.test(t); })()`)));
+await check('Blueprint: size ×4 changes the wall time', `document.querySelector('[data-panel=blueprint] [data-tile=wall]').innerText`, () => page.click('[data-panel=blueprint] [data-size="4"]'));
+ok('Blueprint: tiles show before → after on a size change', (await page.$$('[data-panel=blueprint] .bp-lim.chg .was')).length >= 4);
+ok('Blueprint: ×4 serves at 2× the ×1 cost (√size)', JSON.parse(await get(`(() => { const t = document.querySelector('[data-panel=blueprint] [data-tile=serve]').innerText; const m = t.match(/([0-9.]+)\\s*→\\s*([0-9.]+)/); return !!m && Math.abs(Number(m[2]) / Number(m[1]) - 2) < 0.03; })()`)));
+await clearTips();
+await shot('43-blueprint-x4');
+await page.hover('[data-panel=blueprint] [data-tile=behind] .lv');
+await wait(500);
+ok('Blueprint: limit tile tooltip states its rule', JSON.parse(await get(`/judgement/.test(document.querySelector('.tip')?.innerText ?? '')`)));
+await clearTips();
+await page.click('[data-panel=blueprint] [data-size="1"]');
+ok("Blueprint: locked card names its idea", await page.$eval(`[data-panel=blueprint] [data-opt="shape:latent"]`, (b) => b.classList.contains('locked') && !!b.dataset.node && b.innerText.length > 12));
+await check("Blueprint: architecture dense", `document.querySelector("[data-panel=blueprint]").innerHTML`, () => page.click(`[data-panel=blueprint] [data-opt="shape:dense"]`));
+ok("Blueprint: overtrained is locked behind its tree node", JSON.parse(await get(`(() => { const b = document.querySelector('[data-panel=blueprint] [data-opt="shape:overtrained"]'); return !!b && b.outerHTML.includes("Overtrained compact"); })()`)));
+await check('Blueprint: locked card opens Research on its idea', `store.panel + ':' + (store.tab['research.sel'] || '')`, () => page.click('[data-panel=blueprint] [data-opt="shape:overtrained"]'));
+ok('Blueprint: Research shows the idea card', !!(await page.$('[data-test=node-card][data-card=overtrained]')));
+await page.click('[data-test=node-close]').catch(() => {});
+await nav('blueprint');
+await page.click('[data-panel=blueprint] [data-bp-kind=base]').catch(() => {});
+await page.click('[data-panel=blueprint] [data-opt="shape:dense"]');
+await check('Blueprint: pool share pill', `document.querySelector('[data-panel=blueprint] [data-home=runPlan]').innerText`, () => page.click('[data-panel=blueprint] [data-pool="0.8"]'));
+await check('Blueprint: save', 'localStorage.getItem("ai27.v2.runTemplates")', () => page.click('[data-test=bp-save]'));
 await check('Launch base run', `s.player.models.runs.filter(r => r.kind === 'base').length`, () => page.click('[data-act=launchBase]'));
+await nav('models');
+{
+  const rq = JSON.parse(await get(`(() => { const q = document.querySelector('[data-home=runQueue]'); return [!!q && q.querySelectorAll('[data-test=run-share]').length >= 1 && q.innerText.includes(' · '), (q?.innerText ?? store.panel).slice(0, 160), s.player.policies.spareTraining]; })()`));
+  ok('Run queue: actual share and ETA per run', rq[0], rq[1] + ' | spare ' + rq[2]);
+}
+await check('Run queue: − lowers a pool share', 'JSON.stringify(s.player.models.runs.map((r) => r.poolShare))', () => page.locator('[data-act^="run-share-dn."]:not([disabled])').first().click());
+ok('Run queue: spare row links to the policy on the split', !!(await page.$('[data-home=runQueue] [data-run=spare] [data-ref=spareTraining]')));
+await nav('compute');
+await tabTo('split');
+{
+  const use = JSON.parse(await get('s.player.policies.spareTraining'));
+  ok('Split: spare training shows the policy in use', !!(await page.$(`[data-home=spareTraining] [data-test="spare-on.${use}"]`)), use);
+  await check('Split: spare training switches use (effect on the button)', 's.player.policies.spareTraining', () => page.click('[data-home=spareTraining] [data-act^="spare."]'));
+  await check('Split: spare training switches back', 's.player.policies.spareTraining', () => page.click('[data-home=spareTraining] [data-act^="spare."]'));
+}
+await nav('company');
+await tabTo('people');
+ok('Company: engineers show the build queue', !!(await page.$('[data-panel=company] [data-test=build-queue]')));
+// R3 keep-hiring policy (needs a week; run after the run-designer checks so the time step does not change them).
+await page.evaluate(() => window.ai27v2.step(7));
+await closeModals();
+await pause();
+ok('Keep hiring: after a week the policy has the target covered (teams + queued)', JSON.parse(await get(`(() => { const k = (t) => t.role === 'eng' ? 'eng' : t.role + '.' + t.dept; const n = [...s.player.teams, ...s.player.hiring.filling].filter((t) => k(t) === 're.cap').length; return n >= s.player.hiring.targets['re.cap']; })()`)));
+await nav('company');
+await tabTo('people');
+await check('Keep hiring: − lowers the target', 's.player.hiring.targets["re.cap"]', () => page.click('[data-act="teams.target.down.re.cap"]'));
+await closeModals();
+// Split floors are gone: a zero training share applies (with a warning first) and running runs show as paused.
+await nav('compute');
+await tabTo('split');
+await setSlider(page.locator('#ctl-split-training input[type=range]').first(), 0);
+await wait(60);
+ok('Split: zero training warns before apply', !!(await page.$('[data-test=split-warn]')));
+await check('Split: zero training share applies (no rejection)', 'JSON.stringify(s.player.split.training < 1e-6)', () => page.click('[data-act=setSplit]'));
+await nav('models');
+ok('Run queue: paused, no training compute', ((await page.$eval('[data-test=run-stall]', (e) => e.textContent).catch(() => '')) ?? '').includes('no training compute'));
+await nav('compute');
+await tabTo('split');
+await page.click('[data-act="splitPreset.reference"]');
 await closeModals();
 await nav('models');
 const vids = JSON.parse(await get('s.player.models.versions.map(v => v.id)'));
 if (vids.length > 1) await check('Select version in lineage', 'store.sel.versionId', () => page.click(`[data-version="${vids[0]}"]`));
-await nav('deployments');
-await check('Deploy channel', `document.querySelector('[data-panel=deployments]').innerHTML`, () => page.click('[data-panel=deployments] [data-channel-opt=enterprise]'));
-const dep = JSON.parse(await get(`(s.player.deployments.find(d => d.status === 'live' && d.channel !== 'internal' && d.channel !== 'open') || {}).id || ''`));
-if (dep) {
-  await check('setServing: per-deployment share', `s.player.deployments.find(d => d.id === "${dep}").servingShare`, async () => {
-    await setSlider(page.locator(`[data-deployment="${dep}"] input[type=range]`), 0.35);
-    await page.click(`[data-act="setServing.${dep}"]`);
+// ── Products (R6): cards, live edit with before → after preview, features, settings, Auto serving, Agents gate. ──
+await nav('products');
+ok('Products: one card per live product', (await page.$$('[data-panel=products] [data-product]')).length >= 3);
+// B5 / R6: deep think is a locked option with its reason until its idea and feature exist.
+if (!JSON.parse(await get(`s.player.features.includes('deepThink')`))) {
+  ok('Products: deep think locked with its reason', await page.$eval('[data-panel=products] [data-test^=prod-effort] [data-opt=deep]', (b) => b.disabled && (b.getAttribute('data-locked') ?? '').length > 5).catch(() => false));
+}
+const apiId = JSON.parse(await get(`(s.player.deployments.find(d => d.channel === 'api' && d.status === 'live') || {}).id || ''`));
+if (apiId) {
+  const card = `[data-panel=products] [data-product="${apiId}"]`;
+  await page.selectOption(`${card} select[data-test^=prod-monitor]`, { index: 1 });
+  await page.click(`${card} [data-test^=prod-price] [data-opt=premium]`);
+  await wait(120);
+  const pop = JSON.parse(await get(`(() => { const p = document.querySelector('[data-test="prod-edit.${apiId}"]'); return p ? p.innerText : ''; })()`));
+  ok('Products: an edit opens the before → after preview (stays live, effective date)', /stays live/.test(pop) && /→/.test(pop) && /from /.test(pop), pop.replace(/\n/g, ' ').slice(0, 120));
+  await check('Products: Apply updates the live product (monitor + premium)', `(() => { const d = s.player.deployments.find(x => x.id === "${apiId}"); return [d.monitorId, d.price, d.status, d.startDay]; })()`, () => page.click(`[data-act="product.update.${apiId}"]`));
+  ok('Products: the product stayed live with its start day', JSON.parse(await get(`(() => { const d = s.player.deployments.find(x => x.id === "${apiId}"); return d.status === 'live' && d.price === 'premium' && !!d.monitorId; })()`)));
+  ok('Products: the card shows the monitor catch rate', !!(await page.$(`${card} [data-test="prod-catch.${apiId}"]`)));
+  await page.click(`${card} [data-test^=prod-price] [data-opt=standard]`);
+  await wait(80);
+  await check('Products: Cancel drops a draft edit', `!!document.querySelector('[data-test="prod-edit.${apiId}"]')`, () => page.click(`[data-test="prod-cancel.${apiId}"]`));
+}
+const buildBtn = await page.$('[data-panel=products] [data-act^="feature.build."]:not([disabled])');
+if (buildBtn) await check('Products: Build a feature (engineers\' queue)', `s.player.build.queue.filter(i => i.kind === 'feature').length`, () => buildBtn.click());
+ok('Products: locked features name their idea', !!(await page.$('[data-panel=products] .ft.locked[data-node]')));
+ok('Products: the same package chips as Agents at work (model + monitor)', !!(await page.$('[data-panel=products] [data-product] [data-chip=model]')) && !!(await page.$('[data-panel=products] [data-product] [data-chip=monitor]')));
+ok('Products: serving split bar by product', (await page.$$('[data-panel=products] [data-test=serving-bar] [data-serve]')).length >= 3);
+await check('Products: Override turns Auto serving off', 's.player.policies.servingAuto', () => page.click('[data-act="products.policy.servingAuto"]'));
+const prodA = JSON.parse(await get(`(s.player.deployments.find(d => d.status === 'live' && d.channel !== 'internal' && d.channel !== 'open') || {}).id || ''`));
+if (prodA && await page.$('[data-test=serving-manual]')) {
+  await check('Products: hand-set serving share', `s.player.deployments.find(d => d.id === "${prodA}").servingShare`, async () => {
+    await setSlider(page.locator(`[data-test=serving-manual] input[type=range]`).first(), 0.35);
+    await page.click(`[data-act="product.serving.${prodA}"]`);
   });
 }
+await check('Products: Auto serving back on', 's.player.policies.servingAuto', () => page.click('[data-act="products.policy.servingAuto"]'));
+await check('Products: upgrade-to-newest policy', 's.player.policies.upgradeToNewest', () => page.click('[data-act="products.policy.upgradeToNewest"]'));
+await page.click('[data-act="products.policy.upgradeToNewest"]');
+if (await page.$('[data-test=agents-gate]')) ok('Products: Agents card shows its time-horizon gate', /h/.test(await page.$eval('[data-test=agents-gate]', (e) => e.textContent ?? '')));
+{
+  const ent = JSON.parse(await get(`(s.player.deployments.find(d => d.channel === 'enterprise' && d.status === 'live') || {}).id || ''`));
+  if (ent) await check('Products: Retire withdraws a product', `s.player.deployments.find(d => d.id === "${ent}").status`, () => page.click(`[data-act="product.retire.${ent}"]`));
+}
+// R8 Safety: overview (verdict, race chart, four risk families, policies), research lines, investigations.
 await nav('safety');
-await tabTo('agendas');
-ok('Safety department load renders', !!(await page.$('[data-home=safetyLoad] [data-test=load-staff]')) && !!(await page.$('[data-home=safetyLoad] [data-test=load-compute]')));
-if (await page.$('[data-home=safetyAgents] [data-act="safety.agents"]:not([disabled])')) {
-  await check('Safety agents: share + apply', 'JSON.stringify(s.player.safety.agentShare)', async () => {
-    await setSlider(page.locator('[data-home=safetyAgents] input[type=range]').first(), 0.3);
-    await page.click('[data-act="safety.agents"]');
-  });
+await tabTo('overview');
+ok('Safety overview: verdict, race chart, 4 risk families, policies', !!(await page.$('[data-home=safetyVerdict]')) && !!(await page.$('[data-test=race-chart]')) && (await page.$$('[data-home=riskFamilies] [data-family]')).length === 4 && !!(await page.$('[data-home=safetyPolicy]')));
+ok('Safety: Trusted to AI and monitors link to Company (D4)', !!(await page.$('[data-home=safetyPolicy] [data-ref=trustedToAI]')) && !!(await page.$('[data-home=safetyPolicy] [data-ref=agentMonitor]')));
+await check('Safety: evaluate-before-release toggle', 's.player.safety.evalGate', () => page.click('[data-act="safety.evalGate.toggle"]'));
+await page.click('[data-act="safety.evalGate.toggle"]');
+await page.hover('[data-test=u-point]');
+await wait(250);
+ok('Safety: U tooltip shows tools validated to and per-family levels', JSON.parse(await get(`/validated to/i.test(document.body.innerText) && /Deception seen to/.test(document.body.innerText)`)));
+await clearTips();
+await tabTo('lines');
+ok('Research lines: staffed lines with health and teams', (await page.$$('[data-home=researchLines] [data-line]')).length >= 2 && !!(await page.$('[data-home=researchLines] [data-line] [data-team]')) && /Promising|Mixed|Struggling/.test(await page.$eval('[data-home=researchLines]', (e) => e.textContent ?? '')));
+ok('Research lines: tool upkeep card (research engineers)', !!(await page.$('[data-home=toolUpkeep] [data-test=re-bar]')));
+{
+  const tid = JSON.parse(await get('(s.player.teams.find((t) => t.role === "sci" && t.dept === "saf" && t.projectId) || {}).id || ""'));
+  const line = JSON.parse(await get(`(() => { const t = s.player.teams.find((x) => x.id === "${tid}"); const r = document.querySelector('[data-line] [data-team="${tid}"]'); return r ? r.closest('[data-line]').getAttribute('data-line') : ''; })()`));
+  if (tid && line) {
+    await page.evaluate((id) => { window.ai27v2.state.player.research.autoAssign = false; window.ai27v2.act('research.unassign', { team: id }); }, tid);
+    await wait(80);
+    if (!(await page.$(`[data-test="line-add.${line}"]`))) await page.click('[data-test=lines-all]');
+    await wait(60);
+    await page.click(`[data-test="line-add.${line}"]`);
+    await check('Research lines: + team assigns an idle safety team to the line', `(s.player.teams.find((t) => t.id === "${tid}") || {}).projectId || ""`, () => page.click(`[data-act="line-assign.${tid}"]`));
+    await page.evaluate(() => { window.ai27v2.state.player.research.autoAssign = true; });
+  }
 }
+await check('Research lines: show all / staffed only', 'document.querySelectorAll("[data-home=researchLines] [data-line]").length', () => page.click('[data-test=lines-all]'));
+await check('Research lines: tools list opens', 'document.querySelectorAll("[data-technique]").length', () => page.click('[data-test=tools-open]'));
+await tabTo('cases');
+await check('Investigations: open a case with 20 engineers', 'JSON.stringify(s.player.safety.investigations.filter((i) => !i.outcome).map((i) => i.fte))', async () => { await page.selectOption('[data-test=inv-trait]', 'SUCC'); await page.selectOption('[data-test=inv-fte]', '20'); await page.click('[data-panel=safety] [data-home=investigations] [data-act="safety.investigate"]'); });
+ok('Investigations: case card shows the 5–40 staffing and the 120-day close', JSON.parse(await get(`(() => { const c = document.querySelector('[data-case]'); return !!c && /5–40/.test(c.textContent) && /120 d max/.test(c.textContent); })()`)));
 for (const t of await tabsOf()) await check(`Safety tab ${t}`, 'store.tab.safety || ""', () => tabTo(t), 30).catch(() => {});
 await tabTo('graph');
-ok('Trait graph is the first tab', !!(await page.$('[data-test=traitgraph]')));
+ok('Trait graph tab renders the graph', !!(await page.$('[data-test=traitgraph]')));
+await tabTo('overview');
 await nav('codex');
 await check('Codex category', `document.querySelector('.codex-entry').innerText`, () => page.click('[data-codex-cat="Traits"]'));
 await check('Codex search', `document.querySelector('.codex-list').innerText`, () => page.fill('[data-test=codex-search]', 'scheming'));
 await nav('risk');
 await tabTo('flows');
 await check('Flows node opens panel', 'store.panel', () => page.click('[data-node=player]'));
+
+// R4 Research: know-how bar, lane tree, node card, start / queue / drop, team picker, auto-assign, queue order, filters.
+await nav('research');
+await wait(80);
+{
+  const kh = !!(await page.$('[data-test=knowhow]'));
+  const nn = (await page.$$('[data-panel=research] .rs-node')).length;
+  ok('Research: know-how bar and tree render', kh && nn >= 10, `knowhow ${kh}, nodes ${nn}`);
+}
+await check('Research: click an idea opens its node card', 'store.tab["research.sel"] || ""', () => page.click('[data-panel=research] .rs-node[data-node=P05]'));
+ok('Research: node card shows odds and effort', JSON.parse(await get(`(() => { const c = document.querySelector('[data-test=node-card]'); return !!c && /Odds/i.test(c.innerText) && /team-months/.test(c.innerText); })()`)));
+await check('Research: Start now queues the project at the top', 'JSON.stringify(s.player.research.queue)', () => page.click('[data-act="research.start.P05"]'));
+await page.evaluate(() => window.ai27v2.step(1));
+await wait(60);
+ok('Research: auto-assign puts idle teams on it', JSON.parse(await get('s.player.teams.some((t) => t.projectId === "P05")')) && !!(await page.$('[data-project=P05]')));
+await check('Research: Queue a second idea from its card', 'JSON.stringify(s.player.research.queue)', async () => { await page.click('[data-panel=research] .rs-node[data-node=quantization]'); await page.click('[data-act="research.queue.quantization"]'); });
+await page.click('[data-test=node-close]').catch(() => {});
+await check('Research: team picker assigns a team', 'JSON.stringify(s.player.teams.map((t) => t.projectId || ""))', async () => { await page.click('[data-panel=research] .rs-node[data-node=quantization]'); await page.click('[data-test=assign-open]'); await page.locator('[data-test=team-picker] [data-act^="research.assign."]:not([disabled])').first().click(); });
+await page.click('[data-test=picker-close]').catch(() => {});
+await check('Research: auto-assign toggle', 's.player.research.autoAssign', () => page.click('[data-test=auto-assign]'));
+await check('Research: auto-assign back on', 's.player.research.autoAssign', () => page.click('[data-test=auto-assign]'));
+{
+  const q = JSON.parse(await get('s.player.research.queue'));
+  const last = q[q.length - 1];
+  if (q.length > 1 && (await page.$(`[data-test="queue-up.${last}"]:not([disabled])`))) await check('Research: queue reorder', 'JSON.stringify(s.player.research.queue)', () => page.click(`[data-test="queue-up.${last}"]`));
+}
+await check('Research: Safety filter hides capability lanes', 'document.querySelectorAll("[data-panel=research] .rs-lane-l").length', () => page.click('[data-test=tree-filter] [data-opt=saf]'));
+await page.click('[data-test=tree-filter] [data-opt=all]');
+await check('Research: minimap toggles the whole tree', 'store.tab["research.view"] || ""', () => page.click('[data-test=minimap]'));
+await shot('40-research-all');
+await page.click('[data-test=minimap]');
+await page.click('[data-panel=research] .rs-node[data-node=P17]').catch(() => {});
+await wait(60);
+await shot('41-research-node');
+await page.click('[data-test=node-close]').catch(() => {});
+await page.click('[data-test="add-team.P05"]').catch(() => {});
+await wait(60);
+await shot('42-research-picker');
+await page.click('[data-test=picker-close]').catch(() => {});
+if (await page.$('[data-test^="queue-drop."]')) await check('Research: Drop from the queue', 'JSON.stringify(s.player.research.queue)', () => page.locator('[data-test^="queue-drop."]').first().click());
+ok('Research: no paradigm section left in Models', await (async () => { await nav('models'); return !(await page.$('[data-paradigm]')); })());
 
 // Overview (L1) and bottom bar
 await nav('overview');
@@ -341,7 +548,7 @@ await nav('overview');
 const go = await page.$('[data-test=watch] [data-go]');
 if (go) await check('Watch Go jumps to the control', 'store.panel', () => go.click());
 ok('Headline renders', !!(await page.$('[data-test=ticker]')));
-await check('Race meter click opens Safety graph', 'store.panel + store.tab.safety', () => page.click('[data-test=race]'));
+await check('Race meter click opens Safety overview', 'store.panel + store.tab.safety', () => page.click('[data-test=race]'));
 
 // ───────────────────────── Game C: day-400 fixture, screenshots of every panel ─────────────────────────
 const fx = readFileSync(path.resolve('scripts/v2/fixtures/day400.json'), 'utf8');
@@ -381,6 +588,19 @@ await page.hover('[data-test=cash]');
 await wait(500);
 await shot('33-day900-hover-cash');
 await clearTips();
+// R7: the model picker's before → after preview on a lane (frontier research on an older model: taste and speed fall).
+await nav('company');
+await tabTo('people');
+{
+  const old = JSON.parse(await get(`(s.player.models.versions.find((v) => v.variant === 'full' && v.status !== 'retired' && v.id !== s.player.agents.capRoutine.versionId) || {}).id || ''`));
+  if (old) {
+    await page.selectOption('[data-test="agent-model.capFrontier"]', old);
+    await wait(150);
+    ok('Agents: an older frontier model previews lower research speed', JSON.parse(await get(`(() => { const t = document.querySelector('[data-test="agent-edit.capFrontier"]')?.innerText ?? ''; return /Research speed/.test(t) && /▼/.test(t); })()`)));
+    await shot('34-day900-agents-preview');
+    await page.click('[data-test="agent-cancel.capFrontier"]');
+  }
+}
 const multi = [...homesByScreen.entries()].filter(([, v]) => v.size > 1);
 for (const [h, v] of multi) iaIssues.push(`${h} has homes on several screens: ${[...v].join(', ')}`);
 ok('IA: one home per datum, terms resolve, no raw floats', iaIssues.length === 0, iaIssues.slice(0, 8).join(' | '));
@@ -397,6 +617,130 @@ await pause();
 await closeModals();
 ok('Alerts/decisions shown in queue', (await page.$$('.queue-row .alert-chip2, .queue-row .dec-chip2')).length > 0);
 await shot('31-day400-running');
+await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
+
+// ───────────────────────── R2: the simulated leader lab (setup.leaderLab) ─────────────────────────
+await closeModals();
+await page.evaluate(() => { const st = window.ai27v2; st.start({ ...st.draftSetup, tutorial: false, seed: 4243, companyName: 'OpenBrain', leaderLab: true }); });
+await wait(150);
+await page.evaluate(() => window.ai27v2.step(30));
+await closeModals();
+await nav('overview');
+ok('Leader lab: Overview race lane', !!(await page.$('[data-home=leadTrack] [data-lane="rL"]')));
+await shot('50-leader-overview');
+await nav('relations');
+ok('Leader lab: Relations lists it', (await page.locator('[data-panel=relations]').innerText()).includes('Polaris AI'));
+await shot('51-leader-relations');
+await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
+
+// ───────────────────────── R9: start types (big-tech Finance variant; spinout and challenger fixtures) ─────────────────────────
+const ia9 = iaIssues.length;
+await closeModals();
+await page.evaluate(() => { const st = window.ai27v2; st.start({ ...st.draftSetup, tutorial: false, seed: 4244, companyName: 'OpenBrain', start: 'bigtech', leaderLab: true, governance: 'parent' }); });
+await wait(150);
+await page.evaluate(() => window.ai27v2.step(5));
+await closeModals();
+ok('Big tech: a division with the leader lab', (await get('s.setup.start')) === '"bigtech"' && (await get('s.player.board.preset')) === '"parent"' && (await get('s.rivals.some((r) => r.core.id === "rL")')) === 'true');
+await nav('finance');
+ok('Big tech Finance: parent budget schedule, no raise card or ownership', !!(await page.$('[data-home=parentBudget] [data-q]')) && !(await page.$('#ctl-raise-card')) && !(await page.$('[data-home=ownership]')));
+ok('Big tech Finance: equity unavailable with its reason', (await page.locator('[data-test=division-reason]').innerText().catch(() => '')).includes('no outside equity'));
+await iaScan('finance:bigtech');
+await shot('60-bigtech-finance');
+for (const start of ['spinout', 'challenger']) {
+  const fxs = readFileSync(`scripts/v2/fixtures/start-${start}-day400.json`, 'utf8');
+  await page.evaluate((j) => window.ai27v2.importJson(j), fxs);
+  await page.evaluate(() => { window.ai27v2.state.setup.tutorial = false; window.ai27v2.notify(); });
+  await closeModals();
+  ok(`${start} fixture loads (day 400)`, (await get('s.setup.start')) === `"${start}"` && (await get('s.time.day')) === '400');
+  for (const id of ['overview', 'company', 'models', 'products', 'finance']) {
+    await nav(id);
+    await iaScan(`${id}:${start}`);
+  }
+  await shot(`61-${start}-day400`);
+}
+ok('R9 IA: start screens keep one home per datum, terms resolve, no raw floats', iaIssues.length === ia9, iaIssues.slice(ia9, ia9 + 6).join(' | '));
+
+// ───────────────────────── R10: limits registry (data-limit), top strip revenue, Overview core loop, codex ─────────────────────────
+// Every limit of src/data/v2/limits.ts must show (data-limit) on its home screen, or in the codex's Limits category when
+// its home is the codex. Conditional limits get the state that makes them bind (pause, a public timer, a case).
+const LIMIT_DEFS = [...readFileSync('src/data/v2/limits.ts', 'utf8').matchAll(/\{ id: '([^']+)', title: [^\n]*?home: \{ panel: '(\w+)'(?:, tab: '(\w+)')? \}/g)].map((m) => ({ id: m[1], panel: m[2], tab: m[3] }));
+const limitSeen = new Set();
+const collectLimits = async () => { for (const id of await page.$$eval('[data-limit]', (els) => els.map((e) => e.getAttribute('data-limit')))) limitSeen.add(id); };
+const hoverCollect = async (sel) => { const el = await page.$(sel); if (!el) return; await el.hover(); await wait(450); await collectLimits(); await clearTips(); };
+ok('Limits registry parsed', LIMIT_DEFS.length >= 20, `${LIMIT_DEFS.length} limits`);
+// the challenger fixture (leader lab on) is loaded: knowledge diffusion shows on research speed
+await nav('company');
+await tabTo('flow');
+await collectLimits();
+ok('R10 challenger: research speed shows knowledge diffusion', limitSeen.has('speed.diffusion'));
+await shot('70-challenger-speed-limits');
+await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
+await page.evaluate(() => {
+  const st = window.ai27v2;
+  const s = st.state;
+  s.setup.tutorial = false;
+  s.flags.paused = true;
+  const inc = s.player.safety.incidents.find((i) => i.status === 'open');
+  if (inc) { inc.exposure = 'customer'; inc.publicTimerDays = 9; }
+  st.notify();
+});
+await closeModals();
+await page.evaluate(() => window.ai27v2.act('safety.investigate', { trait: 'SUCC', fte: 20 }));
+for (const l of LIMIT_DEFS.filter((x) => x.panel !== 'codex')) {
+  if (limitSeen.has(l.id)) continue;
+  await nav(l.panel);
+  if (l.tab) await tabTo(l.tab);
+  if (l.panel === 'research') {
+    const ids = await page.$$eval('[data-panel=research] .rs-node:not(.st-known):not(.st-soon)', (els) => els.map((e) => e.getAttribute('data-node')));
+    for (const id of ids.slice(0, 12)) {
+      await page.click(`[data-panel=research] .rs-node[data-node="${id}"]`).catch(() => {});
+      await wait(60);
+      if (await page.$('[data-limit="tree.retry"]')) break;
+    }
+  }
+  await wait(80);
+  await collectLimits();
+  if (l.panel === 'products') { await hoverCollect('[data-panel=products] .pc-cost'); await hoverCollect('[data-panel=products] [data-test^="prod-bind."]'); }
+}
+await nav('company');
+await tabTo('flow');
+await shot('71-day900-speed-limits');
+await nav('codex');
+await page.click('[data-codex-cat="Limits"]');
+await wait(80);
+const codexLimits = await page.$$eval('[data-codex^="lim:"]', (els) => els.map((e) => e.getAttribute('data-codex').slice(4)));
+for (const l of LIMIT_DEFS.filter((x) => x.panel === 'codex')) if (codexLimits.includes(l.id)) limitSeen.add(l.id);
+const missingLimits = LIMIT_DEFS.filter((l) => !limitSeen.has(l.id)).map((l) => `${l.id} (${l.panel}${l.tab ? '.' + l.tab : ''})`);
+ok(`R10 limits: every registry limit is shown where it binds (${LIMIT_DEFS.length})`, missingLimits.length === 0, missingLimits.join(', '));
+ok('R10 codex: every limit listed under Limits', codexLimits.length === LIMIT_DEFS.length, `${codexLimits.length} of ${LIMIT_DEFS.length}`);
+const unknownLimits = [...limitSeen].filter((id) => !LIMIT_DEFS.some((l) => l.id === id));
+ok('R10 limits: every data-limit is in the registry', unknownLimits.length === 0, unknownLimits.join(', '));
+await page.evaluate(() => { window.ai27v2.state.flags.paused = false; window.ai27v2.notify(); });
+// Codex opens on the structure diagram; the simulated-world note is there.
+await page.click('[data-codex-cat="Structure"]');
+await wait(80);
+ok('R10 codex: core-loop structure diagram', !!(await page.$('.codex-entry [data-test=coreloop-static] [data-loop=teams]')));
+await check('R10 codex: simulated-from-outside note', `document.querySelector('.codex-entry').innerText`, () => page.click('[data-codex="s:outside"]'));
+ok('R10 codex: rivals are simplified', (await page.locator('.codex-entry').innerText()).includes('simulated from the outside'));
+await shot('72-codex-structure');
+// Top strip: revenue only, users in its tooltip; U with "validated to" in the race tooltip.
+ok('R10 top strip: revenue chip is the revenue home', !!(await page.$('.topstrip2 [data-test=revenue] [data-home=revenueRun]')) && !(await page.$('main.center [data-home=revenueRun]')));
+await page.hover('[data-test=revenue]');
+await wait(450);
+ok('R10 top strip: revenue tooltip lists products and weekly users', /weekly users/i.test(await page.evaluate(() => document.body.innerText)));
+await shot('73-hover-revenue');
+await clearTips();
+await page.hover('[data-test=race]');
+await wait(450);
+ok('R10 top strip: race tooltip shows tools validated to', !!(await page.$('[data-test=validated-to]')));
+await clearTips();
+// Overview: the core loop, a verdict per system, nodes link to their homes.
+await nav('overview');
+ok('R10 Overview: core loop with nine systems', (await page.$$('[data-test=coreloop] [data-loop]')).length === 9);
+await check('R10 Overview: a loop node opens its home', 'store.panel', () => page.click('[data-test=coreloop] [data-loop=research]'));
+await nav('overview');
+await iaScan('overview:r10');
+await shot('74-overview-loop');
 await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
 
 // ───────────────────────── end screen ─────────────────────────

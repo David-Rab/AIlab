@@ -1,0 +1,205 @@
+// Products as packages (STRUCTURE §4.4, §4.9; BUILD-PLAN R6). Owner: WS1.
+//
+// A product is a Deployment of kind 'product': a model (optionally a mini serving its free tier), an optional monitor
+// model, a price tier, safeguards, KYC, effort and features. This module holds the package effects every engine
+// reader uses (the product's effective domain levels, consumer appeal, serving multiplier, sector bonus, incident-
+// hazard multipliers, monitor overhead and catch rate), the Agents time-horizon gate, and the product policies
+// (upgrade to newest, auto-evaluate). Revenue and the Auto serving split live in worldfx/revenue.ts.
+//
+// Neutrality: a product with no mini, no monitor and no features (every product at the frontier-leader start, and
+// RefBot's) gives exactly the pre-R6 terms: productDomains returns the version's own domain record.
+import { AG05_GAP } from '../../../data/v2/agendas';
+import {
+  AGENT_TASK_HOURS, AUTO_EVAL_DAYS, FEATURE_BY_ID, FREE_TIER_SHARE, MONITOR_CATCH_BASE, MONITOR_OVERHEAD, PRICE_TIERS,
+  type FeatureDef, type FeatureId,
+} from '../../../data/v2/features';
+import { mAtLevel } from '../safety/common';
+import { containment } from '../safety/techniques';
+import type { Deployment, DomainId, GameStateV2, ModelVersion, SectorId, SystemCtx, TraitId } from '../types';
+import { runEvalSuite } from './benchmarks';
+import { measuredLOf, versionById } from './labs';
+import { nodeKnown } from './tree';
+import { agentVersion } from '../departments/agents';
+import { AGENT_USES } from '../../../data/v2/agents';
+
+const DOMAINS: DomainId[] = ['CODE', 'RSCH', 'REASON', 'AGENCY', 'SOCIAL', 'MEDIA', 'CYBER', 'BIO', 'PHYS'];
+
+/** Products customers buy (external, paid). */
+export const isProduct = (d: Deployment) => d.channel !== 'internal' && d.channel !== 'open';
+export const kindOfChannel = (c: Deployment['channel']): Deployment['kind'] => (c === 'internal' ? 'internal' : c === 'open' ? 'open' : 'product');
+
+/** Features switched on for a product that the lab has built. */
+export function activeFeatures(s: GameStateV2, d: Deployment): FeatureDef[] {
+  if (!d.features.length) return [];
+  const out: FeatureDef[] = [];
+  for (const id of d.features) {
+    const f = FEATURE_BY_ID[id as FeatureId];
+    if (f && s.player.features.includes(id) && f.products.includes(d.channel)) out.push(f);
+  }
+  return out;
+}
+
+/** Share of the product's usage served by its mini free tier (0 without one). */
+export function freeTierShare(s: GameStateV2, d: Deployment): number {
+  if (!d.miniVersionId || !versionById(s, d.miniVersionId)) return 0;
+  return FREE_TIER_SHARE[d.channel] ?? 0;
+}
+
+/**
+ * Effective domain levels of a product: its model's, blended with the free-tier mini by usage, plus feature offsets.
+ * Returns the model's own record when nothing changes it (neutral at the reference configuration).
+ */
+export function productDomains(s: GameStateV2, d: Deployment, v: ModelVersion | undefined = versionById(s, d.versionId)): Record<DomainId, number> | undefined {
+  if (!v) return undefined;
+  const f = freeTierShare(s, d);
+  const feats = activeFeatures(s, d);
+  if (f <= 0 && !feats.some((x) => x.domains)) return v.domains;
+  const mini = f > 0 ? versionById(s, d.miniVersionId) : undefined;
+  const out = {} as Record<DomainId, number>;
+  for (const k of DOMAINS) out[k] = mini ? (1 - f) * v.domains[k] + f * mini.domains[k] : v.domains[k];
+  for (const x of feats) if (x.domains) for (const [k, dv] of Object.entries(x.domains) as [DomainId, number][]) out[k] += dv;
+  return out;
+}
+
+/** Consumer appeal multiplier from features (×1 with none). */
+export function productAppeal(s: GameStateV2, d: Deployment): number {
+  let a = 1;
+  for (const f of activeFeatures(s, d)) if (f.appeal) a *= f.appeal;
+  return a;
+}
+
+/** Serving-need multiplier from features (more tokens per task). */
+export function productServeMult(s: GameStateV2, d: Deployment): number {
+  let m = 1;
+  for (const f of activeFeatures(s, d)) if (f.serve) m *= f.serve;
+  return m;
+}
+
+/** Sectors where a feature gives the sector-product bonus (Coding agent: Software & IT). */
+export function productBonusSectors(s: GameStateV2, d: Deployment): SectorId[] {
+  const out: SectorId[] = [];
+  for (const f of activeFeatures(s, d)) if (f.sectors) out.push(...f.sectors);
+  return out;
+}
+
+/** Incident-hazard multiplier of a trait on a product from its features. */
+export function productHazardMult(s: GameStateV2, d: Deployment, trait: TraitId): number {
+  let m = 1;
+  for (const f of activeFeatures(s, d)) m *= f.hazard?.[trait] ?? 1;
+  return m;
+}
+
+// ───────────────────────────── monitors (D7) ─────────────────────────────
+
+/** Serving overhead of the product's monitor, as a share of its serving need (D7: 0.25 × serve ratio). */
+export function monitorOverhead(s: GameStateV2, d: Deployment): number {
+  if (!d.monitorId) return 0;
+  const mon = versionById(s, d.monitorId);
+  const v = versionById(s, d.versionId);
+  if (!mon || !v) return 0;
+  return (MONITOR_OVERHEAD * mon.serveCost) / Math.max(1e-6, v.serveCost);
+}
+
+export interface CatchRate {
+  rate: number;
+  /** Oversight gap in factors of 4 of research-speed multiplier M (AG05 rule). */
+  gap: number;
+  /** Before control tools. */
+  base: number;
+  /** AI-control containment strength added (AG07 tools, believed). */
+  control: number;
+}
+
+/**
+ * Catch rate of a monitor watching a model: MONITOR_CATCH_BASE × 0.52^gap (AG05 oversight gap, gap = log4 of the M
+ * ratio at the measured levels), then the AG07 containment tools halve what slips through at full strength. Uses
+ * measured levels and believed tool strength: what the player sees is what the engine rolls.
+ */
+export function catchRate(s: GameStateV2, watched: ModelVersion | undefined, monitor: ModelVersion | undefined): CatchRate {
+  if (!watched || !monitor) return { rate: 0, gap: 0, base: 0, control: 0 };
+  const w = s.hidden.timeline;
+  const Mw = mAtLevel(w, measuredLOf(s, watched).L);
+  const Mm = mAtLevel(w, measuredLOf(s, monitor).L);
+  const gap = Math.max(0, Math.log(Math.max(1, Mw) / Math.max(1, Mm)) / Math.log(4));
+  const base = MONITOR_CATCH_BASE * Math.pow(AG05_GAP.base, gap);
+  const control = containment(s, Mw, true, true);
+  return { rate: Math.min(0.99, 1 - (1 - base) * (1 - 0.5 * control)), gap, base, control };
+}
+
+export const productCatch = (s: GameStateV2, d: Deployment) => (d.monitorId ? catchRate(s, versionById(s, d.versionId), versionById(s, d.monitorId)).rate : 0);
+
+// ───────────────────────────── gates ─────────────────────────────
+
+/** Measured 50% time horizon of a version in hours (undefined before its eval suite). */
+export function measuredHorizonH(v: ModelVersion | undefined): number | undefined {
+  const x = v?.evals.bench.horizon?.score;
+  return x === undefined ? undefined : x / 60;
+}
+
+/** Agents product: the model's measured time horizon must cover the tasks it sells (AGENT_TASK_HOURS). */
+export function agentsGate(v: ModelVersion | undefined): true | string {
+  const h = measuredHorizonH(v);
+  if (h === undefined) return 'Agents needs a measured time horizon (run the eval suite)';
+  if (h < AGENT_TASK_HOURS) return `Agents needs a time horizon of ${AGENT_TASK_HOURS} h (measured ${h.toFixed(1)} h)`;
+  return true;
+}
+
+/** Why a feature cannot be built, or undefined. */
+export function featureBuildBlock(s: GameStateV2, id: string): string | undefined {
+  const f = FEATURE_BY_ID[id as FeatureId];
+  if (!f) return 'Unknown feature';
+  if (s.player.features.includes(id)) return `${f.name} is built`;
+  if (s.player.build.queue.some((it) => it.kind === 'feature' && it.ref === id)) return `${f.name} is being built`;
+  if (!nodeKnown(s, f.node)) return `Needs the idea ${f.node} (Research)`;
+  if (f.cash > s.player.finance.cash) return 'Not enough cash';
+  return undefined;
+}
+
+/** Why a feature cannot be switched on for a product, or undefined. */
+export function featureToggleBlock(s: GameStateV2, d: Deployment, id: string): string | undefined {
+  const f = FEATURE_BY_ID[id as FeatureId];
+  if (!f) return 'Unknown feature';
+  if (!f.products.includes(d.channel)) return `${f.name} is not offered on this product`;
+  if (!s.player.features.includes(id)) return `${f.name} is not built yet`;
+  return undefined;
+}
+
+export const priceIndexOf = (tier: Deployment['price']) => PRICE_TIERS[tier] ?? 1;
+
+// ───────────────────────────── policies ─────────────────────────────
+
+const usable = (v: ModelVersion) => v.status === 'ready' || v.status === 'deployed';
+
+/** Auto-evaluate (policy, R6; replaces the 30-day eval expiry that blocked launches): every AUTO_EVAL_DAYS re-run the
+ *  eval suite on the internal model and on any model updated in place (the continual-learning stream), so measured
+ *  levels and trait estimates stay current. Called by the runs system. */
+export function autoEvaluate(s: GameStateV2, ctx: SystemCtx) {
+  if (!s.player.policies.autoEvaluate) return;
+  const m = s.player.models;
+  const ids = new Set<string>();
+  // R7: every internal use's model (one id when they all run the routine model, as before).
+  for (const u of AGENT_USES) {
+    const v = agentVersion(s, u);
+    if (v) ids.add(v.id);
+  }
+  if (m.stream) ids.add(m.stream.versionId);
+  for (const id of ids) {
+    const v = versionById(s, id);
+    if (!v || v.status === 'evaluating' || v.status === 'retired' || v.status === 'rolledBack') continue;
+    if (ctx.day - (v.evals.suiteDay ?? -1e9) >= AUTO_EVAL_DAYS) runEvalSuite(s, ctx, v.id);
+  }
+}
+
+/** Newest usable version of the same variant that measures better than the product's model (the upgrade policy). */
+export function newestCleared(s: GameStateV2, d: Deployment, gate: (v: ModelVersion) => true | string): ModelVersion | undefined {
+  const cur = versionById(s, d.versionId);
+  if (!cur) return undefined;
+  const curL = cur.evals.measuredL ?? 0;
+  let best: ModelVersion | undefined;
+  for (const v of s.player.models.versions) {
+    if (v.id === cur.id || v.variant !== cur.variant || !usable(v) || (v.evals.measuredL ?? 0) <= curL) continue;
+    if (best && v.day <= best.day) continue;
+    if (gate(v) === true) best = v;
+  }
+  return best;
+}

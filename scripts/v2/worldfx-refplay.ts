@@ -46,7 +46,7 @@ export function refPlayProbe(s0: GameStateV2, opts: RefPlayOpts = {}): EngineSys
   const rivalRev0 = new Map(s0.rivals.map((r) => [r.core.id, r.finance.revenueRun]));
   const cnRev0 = s0.china.lab.finance.revenueRun;
   return {
-    id: 'probe-refplay', owner: 'WS5', cadence: 'daily', order: 25,
+    id: 'probe-refplay', owner: 'WS5', cadence: 'daily', order: 25, system: 'core',
     run(s) {
       const w = s.hidden.timeline;
       const yr = decimalYear(s);

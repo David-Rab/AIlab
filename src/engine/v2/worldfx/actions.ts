@@ -4,9 +4,10 @@ import { SECTOR_BY_ID, SECTOR_IDS } from '../../../data/v2/sectors';
 import { TECH_BY_ID, WORLD_TECHS } from '../../../data/v2/techs';
 import type { ActionDef, CostLine, Deployment, GameStateV2, SectorId, SystemCtx } from '../types';
 import { paidDeployments, worldMix } from './mix';
-import { capacityOf, moonshotH100e, revenueReadout } from './revenue';
+import { moonshotH100e, revenueReadout } from './revenue';
 import { mSci, lSci, scienceRate, techBlocker } from './techtree';
 import { internalVersion } from '../models/labs';
+import { nodeKnown } from '../models/tree';
 import { bookCash } from '../finance/ledger';
 
 /** Sector product: certification time, cash and product-team time [D] (research/16 §1A.3 "costs months and money"). */
@@ -48,11 +49,12 @@ function productGain(s: GameStateV2, sector: SectorId): number {
 }
 
 const sectorProduct: ActionDef = {
-  id: 'wfx.sectorProduct',
+  id: 'wfx.sectorProduct', verb: 'launch', system: 'products',
   sphere: 'world',
   owner: 'WS5',
   title: 'Sector product',
   available(s) {
+    if (!nodeKnown(s, 'sectorPacks')) return 'Needs the idea Sector packs (Research)';
     if (!productHost(s)) return 'Needs a live enterprise, API or agents deployment';
     if (!defaultSector(s)) return 'Every sector already has a product';
     return true;
@@ -82,7 +84,7 @@ const sectorProduct: ActionDef = {
  *  Retrain, cap +0.5; research/07 JobAnxiety relief). The single implementation of the fund: WS4 events call
  *  `setTransitionFund`; WS3's payroll system charges it monthly through the finance ledger. */
 const transitionFund: ActionDef = {
-  id: 'wfx.transitionFund',
+  id: 'wfx.transitionFund', verb: 'deal', system: 'world',
   sphere: 'world',
   owner: 'WS5',
   title: 'Transition fund',
@@ -154,7 +156,7 @@ function defaultTech(s: GameStateV2): string | undefined {
 /** Science moonshot: assign a share of compute to one world technology (research/16 §3.1). Taken from the serving
  *  pool first, so it is a revenue sink; benefits and approval on discovery; dual-use exposure for risk techs. */
 const moonshot: ActionDef = {
-  id: 'wfx.moonshot',
+  id: 'wfx.moonshot', verb: 'deal', system: 'world',
   sphere: 'world',
   owner: 'WS5',
   title: 'Moonshot',
@@ -170,16 +172,9 @@ const moonshot: ActionDef = {
     const dShare = share - cur;
     // Revenue at stake: the serving capacity removed (or returned), valued at the average capacity rate.
     const rd = revenueReadout(s);
-    const deps = paidDeployments(s);
-    const scale = deps.reduce((a, d) => a + d.servingShare, 0);
-    let capRate = 0;
     let h = 0;
-    for (const d of deps) {
-      const c = capacityOf(s, d, scale > 1 ? 1 / scale : 1);
-      capRate += c.capacity;
-      h += c.h;
-    }
-    const perH = h > 0 ? capRate / h : 0;
+    for (const x of rd.deps) h += x.servingH100e;
+    const perH = h > 0 ? rd.capacity / h : 0;
     const dH = s.player.computeOnline * dShare;
     const util = rd.capacity > 0 ? Math.min(1, rd.total / rd.capacity) : 0;
     const revLoss = Math.round(dH * perH * Math.max(0.3, util) * 100) / 100;

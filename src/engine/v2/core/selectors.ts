@@ -14,26 +14,40 @@ import type { DecisionSnapshot, GameStateV2, HiddenWorld, SignalId, TraitId } fr
 
 export { production, productionWhatIf, nextModelGate, researchMixCurve, responseCurves, RESPONSE_SCALES } from '../production/readout';
 export type { MixCurve, NextModelGate, ResponseCurves } from '../production/readout';
-export { specOf, topOf, TOP_KEYS } from '../departments/split';
+export { MANUAL_MIX_RANGE, specOf, topOf, TOP_KEYS } from '../departments/split';
 export type { SplitSpec, TopKey, TopSplit } from '../departments/split';
 // WS1 model / department selectors and helpers for the UI (visible data only).
-export { planRun, predictRun } from '../models/runs';
+export { idleTrainingShare, knowHowMonths, planRun, poolAllocation, predictRun, POOL_SHARE_RANGE, runEtaDays, runStall, serveTechMult, shareIfLaunched, streamShare, trainingFlopPerDay } from '../models/runs';
+export type { BaseLimits } from '../models/runs';
+export { buildBacklogTW, buildEtas, buildPerDay, runSetupTW, runWaiting } from '../departments/build';
+export { SIZE_RANGE, SIZE_SNAPS, STREAM_POOL_SHARE, sizeMinDays } from '../../../data/v2/runDesign';
 export type { LaunchRunParams, RunPlan } from '../models/runs';
-export { paradigmGate, PARADIGM_BY_ID } from '../models/paradigms';
+export { PARADIGM_BY_ID } from '../models/paradigms';
+export { assignBlock, effortOf, idleTeams, knowHow, isProject, missingNeeds, nextLineProject, nodeDept, nodeKnown, nodeOdds, nodeStatus, optionLocked, payoffOf, projectCapacity, projectEta, projectRate, projectReady, projectTeams, researchSpeed, teamCapacity, teamsOn, treeCounts } from '../models/tree';
+export type { NodeStatus } from '../models/tree';
 export { benchName, benchGen, evalDaysFor } from '../models/benchmarks';
-export { deployGate, liveDeployments, CHANNEL_VARIANTS, distillationAccess } from '../models/deployments';
+export { deployGate, effortLock, liveDeployments, CHANNEL_VARIANTS, distillationAccess } from '../models/deployments';
 export { bestMeasuredL, internalVersion, labPools, measuredLOf, versionById } from '../models/labs';
 export { MILESTONE_NAMES } from '../models/capability';
 export { presetSplit, shareRefAt, SPLIT_KEYS, SPLIT_PRESETS } from '../departments/split';
-export { weeklyHireCap, payrollPerYear, inPipeline } from '../departments/staffing';
-export { baseFromParams, postFromParams, payrollAtTarget } from '../models/actions';
+export { teamGain } from '../departments/teamActions';
+export { aiShareByRole, BUILD_AI_CAP, buildCapacity, fillWeeks, laneWeights, fullTeamPayroll, keyOf, payrollOf, playerH, queuedOfKey, teamLabel, teamPayroll, teamsOfKey, weeklyHireCap } from '../departments/teams';
+export { baseFromParams, postFromParams } from '../models/actions';
 export { understanding } from '../safety/understanding';
 export { leadDays, riskSources } from '../actors/intel';
 export { raiseCeiling } from '../finance/equity';
 // WS2 safety-panel selectors (beliefs, posteriors, incidents as the player sees them). `safetyTruth` is END SCREEN ONLY.
-export { agendaRows, beliefView, findingRows, incidentRows, safetyTruth, safetyUtilisation, safetyView, techniqueRows, traitGraph, uModeCards } from '../safety/view';
-export type { AgendaRow, FindingRow, SafetyUtilisation, TechniqueRow } from '../safety/view';
-export { safetyAgentVersion, safetyFleet } from '../safety/agents';
+export { beliefView, findingRows, incidentRows, lineBadges, lineRows, riskFamilies, safetyTruth, safetyUtilisation, safetyView, techniqueRows, traitGraph, uModeCards, upkeepView } from '../safety/view';
+export type { FindingRow, LineRow, SafetyUtilisation, TechniqueRow } from '../safety/view';
+export { lineMult, lineRate, lineResultsPerYear, posteriorBand, promisingIdle, safetyRe } from '../safety/agendas';
+export { familySeenTo } from '../safety/understanding';
+export { INV_FTE, INV_MAX_DAYS } from '../safety/investigations';
+export { aiLabourGate, safetyAgentVersion, safetyFleet, trustedShare } from '../safety/agents';
+// R7 internal agent packages (Company › Agents at work).
+export { agentVersion, monitorBudget, monitoredUses, monitorVersion, riskBadges, trustedMax, usesOf } from '../departments/agents';
+export type { RiskBadge } from '../departments/agents';
+export { agentChangeBlock, agentsView, previewAgentChange, previewTrusted, withAgentChange } from '../departments/agentActions';
+export type { AgentChange, AgentLane, AgentPreview, AgentsView } from '../departments/agentActions';
 // WS5 world readouts (observables only).
 export { automationShare, dowYtd, firmAdoption, remoteWorkAutomation, unemploymentChange12m, youthExposedEmployment } from '../worldfx/readouts';
 export { causeStrip } from './causes';
@@ -123,3 +137,12 @@ export function runTraitPressure(s: GameStateV2, p: LaunchRunParams): Partial<Re
   for (const t of Object.keys(next) as TraitId[]) out[t] = next[t].est - (prior[t]?.est ?? 0);
   return out;
 }
+export { WSL_TARGET_RANGE } from '../security/security';
+
+// R6 products: readouts, live-edit previews and package helpers (visible data: measured levels, revenue).
+export { productReadouts, previewDeployments } from '../worldfx/productView';
+export type { ProductRead, EditPreview } from '../worldfx/productView';
+export { editBlock, editedProduct, previewEdit } from '../models/productOps';
+export type { ProductChanges } from '../models/productOps';
+export { activeFeatures, agentsGate, catchRate, featureBuildBlock, featureToggleBlock, freeTierShare, isProduct, measuredHorizonH, monitorOverhead } from '../models/products';
+export { servingPool } from '../worldfx/revenue';

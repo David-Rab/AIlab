@@ -1,22 +1,34 @@
 // Safe-only bot (§7.4). Owner: WS4 (harness); balance owned by all workstreams.
-// 20% safety compute and 25% of staff, all agendas Serious (five Major), faithful CoT, heavy safety training and
+// 20% safety compute and 25% of staff, a science team on every research line (the five major lines doubled; R8), answers
+// red flags on its internal model with patches and targeted training (R9), faithful
+// CoT, heavy safety training and
 // inoculation, eval gate fullPlusExternal, pauses on every red flag, honours every commitment, publishes everything,
 // no strategic deals or debt, declines defense work, releases only after external review.
-import type { BotPolicy } from '../types';
-import { AGENDA_IDS } from '../../../data/v2/agendas';
+import { internalVersion } from '../models/labs';
+import type { BotPolicy, TraitId } from '../types';
 import { financeAutopilot, financeDecide, type AutopilotOpts } from '../finance/plan';
 import { runwayOf } from '../finance/runway';
-import { every, pickByTags, tryAct } from './common';
-import { REF_PARADIGMS, refPlay, type RefPlayOpts } from './ref';
+import { every, pickByTags, sizedTarget, staffLines, tryAct, type LinePlan } from './common';
+import { REF_TREE, SAFE_TREE_EXTRA, refPlay, type RefPlayOpts } from './ref';
 
-const MAJOR = ['AG01', 'AG02', 'AG03', 'AG07', 'AG08'];
+/** R8: every line gets a team, the five major lines first (the safe recipe's: training-signal design, evals, applied
+ *  interp, control, CoT monitorability) and then a second team each (23 teams; pre-R8: all agendas Serious, five Major).
+ *  Hiring fills them over the first years. */
+export const SAFE_LINES: LinePlan[] = [
+  ...(['AG18', 'AG08', 'AG02', 'AG07', 'AG09'] as const).map((ag) => ({ ag, teams: 1 })),
+  ...(['AG15', 'AG03', 'AG01', 'AG16', 'AG06', 'AG05', 'AG14', 'AG13', 'AG11', 'AG10', 'AG04', 'AG12', 'AG17'] as const).map((ag) => ({ ag, teams: 1 })),
+  ...(['AG18', 'AG08', 'AG02', 'AG07', 'AG09'] as const).map((ag) => ({ ag, teams: 2 })),
+];
+export const SAFE_SCI_TEAMS = 23;
+const SAFE_RED_FLAGS: TraitId[] = ['SCHEME', 'AF', 'SAND', 'POWER', 'SUCC', 'COLLUDE', 'TGAME', 'CONCEAL', 'EA', 'RH'];
+const SAFE_FLAG_EST = 0.2;
 /** Model cadence: WS1's reference play with safe designs (no latent reasoning; faithful CoT once P23 exists). */
 const SAFE_PLAY: RefPlayOpts = {
   safetyShare: () => 0.2,
   safStaffShare: 0.25,
   base: { safetyPretrain: true, hazard: true },
   post: () => ({ pref: 'constitution', rlIntensity: 'heavyHardened', cot: 'faithful', safety: 'heavy', inoculation: true }),
-  paradigms: () => [...REF_PARADIGMS.filter((p) => p !== 'P17'), 'P23'],
+  tree: () => [...REF_TREE.filter((g) => g.id !== 'P17'), ...SAFE_TREE_EXTRA],
 };
 
 /** Reference compute with no strategic deal and no debt (§7.4); SPV sites, leases and neocloud capacity are allowed
@@ -28,15 +40,22 @@ export const safeBot: BotPolicy = {
   id: 'safe',
   act(s, api) {
     if (s.time.day === 0) tryAct(s, api, 'safety.evalGate', { level: 'fullPlusExternal' });
-    // All agendas Serious (five Major); re-applied twice a year as the safety staff grows.
-    if (every(s, 182)) for (const a of AGENDA_IDS) tryAct(s, api, 'safety.fund', { agenda: a, level: MAJOR.includes(a) ? 'major' : 'serious' });
-    refPlay(s, api, SAFE_PLAY);
-    // Releases wait for external review (fullPlusExternal), which lands 2–8 weeks after a version is ready: keep the
-    // newest mini's own eval suite fresh so it can launch the day the report arrives.
-    if (every(s, 10, 5)) {
-      const mini = [...s.player.models.versions].reverse().find((v) => v.variant === 'mini' && v.status === 'ready');
-      if (mini && s.time.day - (mini.evals.suiteDay ?? -1e9) >= 24) tryAct(s, api, 'runEvals', { versionId: mini.id });
+    if (s.time.day === 0) tryAct(s, api, 'teams.target', { key: 'sci.saf', n: sizedTarget(s, SAFE_SCI_TEAMS) });
+    staffLines(s, api, SAFE_LINES);
+    // R9 fix: answer red flags on the internal model as the mixed bot does (patch the signal, targeted training; never
+    // retrain against the detector), at any belief above 0.2.
+    if (every(s, 30, 11)) {
+      const iv = internalVersion(s);
+      if (iv) for (const t of SAFE_RED_FLAGS) {
+        const b = iv.beliefs[t];
+        if (!b || b.est <= SAFE_FLAG_EST || b.clarity <= 0.3) continue;
+        tryAct(s, api, 'safety.respond', { kind: 'patchSignal', versionId: iv.id, trait: t });
+        tryAct(s, api, 'safety.respond', { kind: 'targetedTraining', versionId: iv.id, trait: t });
+      }
     }
+    refPlay(s, api, SAFE_PLAY);
+    // Releases wait for external review (fullPlusExternal), which lands 2–8 weeks after a version is ready; since R6
+    // eval suites do not expire, so the mini launches the day the report arrives (no 24-day re-evals).
     financeAutopilot(s, SAFE_AUTOPILOT);
     if (every(s, 15)) {
       for (const id of ['A1', 'A2', 'A6', 'B5', 'F3', 'C1', 'C3', 'E1', 'E2']) tryAct(s, api, id, {});

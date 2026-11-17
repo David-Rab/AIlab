@@ -272,7 +272,7 @@ function updateRegion(s: GameStateV2, ctx: SystemCtx, r: RegionId, mix: WorldMix
 
 /** worldDaily (110, daily): sector Bass diffusion, jobs, control penetration, tech progress, robots, headlines. */
 export const worldDailySystem: EngineSystem = {
-  id: 'worldDaily', owner: 'WS5', cadence: 'daily', order: 110,
+  id: 'worldDaily', owner: 'WS5', cadence: 'daily', order: 110, system: 'world',
   run(s, ctx) {
     const W = s.world;
     const fx = W.fx;

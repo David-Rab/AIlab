@@ -11,7 +11,7 @@
 // WS1 M1 additions (additive; optional fields unless noted, so no SCHEMA_REV bump):
 //  - ModelVersion.build (VersionBuild) and ModelVersion.appeal; BaseModel.startDay/dp/off/serve/monitorability/
 //    signals/parentBaseId; TrainingRun.holdUntil/paAtStart/signals; ModelsState.stream.paTrack;
-//    ParadigmState.retryDay/attempts/priorMult; RivalLab.managed.
+//    RivalLab.managed.
 //  - ProductionReadout gains required `whatIf` and `sdAI` (only WS1 constructs readouts).
 //  - Coordinates: a model's v1-equivalent progress is q = pm + calShift (§3.1.5); V0 starts at pm = p0 − calShift.
 // M2 integration (SCHEMA_REV 2, migration 1 → 2 in core/save.ts):
@@ -39,7 +39,8 @@ export type WorldPresetId = 'sampled' | 'ai2027' | 'authors2026' | 'fast' | 'slo
 export type AlignDiffId = 'sampled' | 'easy' | 'medium' | 'hard';
 export type EconPresetId = 'normal' | 'ai2027' | 'gate';
 export type StorytellerId = 'rising' | 'measured' | 'chaotic';
-export type GovernancePresetId = 'legacyNonprofit' | 'nonprofitPBC' | 'pbcTrust' | 'founder';
+/** Board presets; 'parent' = a big-tech parent company (start type 'bigtech', R9). */
+export type GovernancePresetId = 'legacyNonprofit' | 'nonprofitPBC' | 'pbcTrust' | 'founder' | 'parent';
 
 /** Capability domains (§3.3.1). Union of research/12 (model card) and research/16 (sector) domains. */
 export type DomainId = 'CODE' | 'RSCH' | 'REASON' | 'AGENCY' | 'SOCIAL' | 'MEDIA' | 'CYBER' | 'BIO' | 'PHYS';
@@ -93,7 +94,7 @@ export type CounterpartyId =
 
 export type StreamId =
   | 'world' | 'prod' | 'runs' | 'safety' | 'incidents' | 'security' | 'market' | 'finance'
-  | 'actors' | 'rivals' | 'china' | 'worldfx' | 'events' | 'endings';
+  | 'actors' | 'rivals' | 'china' | 'worldfx' | 'events' | 'endings' | 'company';
 
 export type WorkstreamId = 'WS1' | 'WS2' | 'WS3' | 'WS4' | 'WS5' | 'WS6' | 'WS7';
 
@@ -150,7 +151,14 @@ export interface SetupV2 {
   tutorial: boolean;
   seed: number;
   companyName: string;
+  /** Start type (STRUCTURE §4.8, BUILD-PLAN R9; data/v2/starts.ts). */
+  start: StartType;
+  /** Add the simulated AI-2027 leader lab to the world (BUILD-PLAN R2, D1): on for every start but the leader's. */
+  leaderLab: boolean;
 }
+
+/** The four starts (BUILD-PLAN R9): a spinout, a challenger, a big-tech lab, or the frontier leader. */
+export type StartType = 'spinout' | 'challenger' | 'bigtech' | 'leader';
 
 export interface TimeState {
   day: Day;
@@ -252,6 +260,8 @@ export interface LabCore {
   /** Cached production readout from the last daily tick (not authoritative; recomputable). */
   prodCache?: ProductionReadout;
   milestoneDays: Partial<Record<MilestoneIdx, Day>>; // first crossings only (v1 bug #3 fix)
+  /** Leader lab only (BUILD-PLAN R2): extra release lag (progress years) added to simpleLag (LEADER_CAL at newGame). */
+  lagCal?: number;
 }
 
 export type MilestoneIdx = 0 | 1 | 2 | 3 | 4 | 5 | 6;
@@ -260,8 +270,6 @@ export interface ModelsState {
   bases: BaseModel[];
   versions: ModelVersion[];
   runs: TrainingRun[];
-  /** Version powering internal research agents (p_dep for the production function). */
-  internalAgent?: string;
   /** Continual-learning stream (P08) if active: the version id being updated in place. */
   stream?: { versionId: string; startedDay: Day; lastAuditDay: Day; /** pa seen by the stream (7-day lag) */ paTrack?: number };
   nextName: number; // naming counter
@@ -340,7 +348,8 @@ export interface VersionBuild {
   signals: Partial<Record<SignalId, number>>;
 }
 
-export type Variant = 'full' | 'mini' | 'gov' | 'trusted' | 'internal' | 'open';
+/** 'imported' (D6, spinout start): an open-weight model brought in from outside; post-trainable, internal use only. */
+export type Variant = 'full' | 'mini' | 'gov' | 'trusted' | 'internal' | 'open' | 'imported';
 
 export type TraitVector = Record<TraitId, number>; // 0..1 propensity strength
 
@@ -375,6 +384,10 @@ export interface TrainingRun {
   restarts: number; // loss-spike restarts (stretch/MoE risk)
   /** Loss spike: no FLOP accrues until this day (§3.3.1 restarts). */
   holdUntil?: Day;
+  /** Build item that sets the run up (R5): no FLOP accrues until the engineers finish it ("waiting for engineers"). */
+  setupId?: string;
+  /** Day the setup finished and training began (R5). */
+  readyDay?: Day;
   /** Lab know-how pa at launch (base runs freeze it; §3.1.3). */
   paAtStart?: number;
   /** Trait-pressure signals S1–S8 of this run's design (for WS2 applyRunToTraits). */
@@ -382,7 +395,8 @@ export interface TrainingRun {
 }
 
 export interface BaseDesign {
-  scale: 'compact' | 'frontier' | 'stretch' | 'continue';
+  /** FLOP as a multiple of today's frontier base run F(t) (R5: a free decision; reference 1). */
+  size: number;
   shape: 'dense' | 'overtrained' | 'moe' | 'latent';
   data: 'balanced' | 'codeMath' | 'science' | 'synthetic' | 'multimodal';
   curation: { quality: boolean; hazard: boolean; safetyPretrain: boolean };
@@ -417,16 +431,35 @@ export interface RunPrediction {
 
 export type Channel = 'consumer' | 'api' | 'agents' | 'enterprise' | 'gov' | 'trusted' | 'internal' | 'open';
 
+/** What a deployment is (R6): a product customers buy, the internal research fleet, or an open-weights release. */
+export type DeploymentKind = 'product' | 'internal' | 'open';
+/** Product price tier (R6): budget / standard / premium → priceIndex (data/v2/features.ts PRICE_TIERS). */
+export type PriceTier = 'budget' | 'standard' | 'premium';
+
+/** A deployment. External ones are products (STRUCTURE §4.4): a package of model (+ optional mini free tier) and an
+ *  optional monitor, a price tier, safeguards, KYC, effort and features, all editable while live (R4, R6). */
 export interface Deployment {
   id: string;
+  kind: DeploymentKind;
   versionId: string;
+  /** Mini serving the product's free tier (Chat, API): FREE_TIER_SHARE of its usage (R6). */
+  miniVersionId?: string;
+  /** Monitor model watching this product's outputs (R6, D7): catches incidents before customers see them, at a
+   *  serving overhead. */
+  monitorId?: string;
   channel: Channel;
   startDay: Day;
   /** Day the current version went into this deployment (M4: a swap keeps startDay; set by swapDeployment). */
   versionSince?: Day;
-  priceIndex: number; // 1 = market reference price; player sets 0.5..2
+  /** Price tier (R6); priceIndex is kept equal to its index. */
+  price: PriceTier;
+  priceIndex: number; // 1 = market reference price (derived from the tier)
   effort: 'low' | 'max' | 'deep'; // §3.3.2 effort setting (deep needs P05)
-  servingShare: number; // share of the serving pool reserved (internal uses the agents pool)
+  /** Share of the serving pool: set by hand when the Auto serving policy is off; with Auto on it is written daily
+   *  from the split (what this product actually gets). Internal uses the agents pool. */
+  servingShare: number;
+  /** Features switched on for this product (built lab-wide first, R6). */
+  features: string[];
   safeguards: 'minimal' | 'standard' | 'classifiers' | 'hardened';
   controlLayer: boolean; // AG07 protocols active (usefulness tax)
   sectorFocus: SectorId[]; // sector products (+0.5 L in that sector, certification)
@@ -436,20 +469,48 @@ export interface Deployment {
   // derived each day
   revenueRate?: Money; // $B/yr
   demandBound?: 'capacity' | 'demand' | 'price' | 'quality';
+  /** Serving H100e it needs (incl. monitor), gets, and what Auto cut (R6; derived each day). */
+  needH100e?: number;
+  servedH100e?: number;
+  cutH100e?: number;
+  /** Revenue run-rate at each 30-day mark, last 12 (product card chart). */
+  hist?: number[];
 }
 
 // ───────────────────────────── Paradigms (§3.3.5) ─────────────────────────────
 
+/** Mirror of the paradigm's tree node (R4): readers check `status === 'adopted'`. The tree (PlayerLab.tree) holds the
+ *  project state. */
 export interface ParadigmState {
-  status: 'locked' | 'available' | 'researching' | 'succeeded' | 'failed' | 'adopted';
+  status: 'available' | 'researching' | 'failed' | 'adopted';
   progress: number; // 0..1
-  fte: number;
-  expShare: number; // share of experiment pool
   revealedDay?: Day;
-  /** Failed projects can be retried after this day with prior × priorMult (§3.3.3). */
-  retryDay?: Day;
+}
+
+// ───────────────────────────── Tech tree (TECH-TREE.md, BUILD-PLAN R4) ─────────────────────────────
+
+export interface TreeNodeState {
+  /** researching: an attempt has started (progress kept while paused); known: works; failed: the last attempt failed. */
+  status: 'researching' | 'known' | 'failed';
+  progress: number; // 0..1 of the current attempt
+  /** Day it became known or failed. */
+  day?: Day;
+  /** Attempts started (1 = first; paradigm nodes use the hidden draw on the first). */
   attempts?: number;
+  /** Odds multiplier for the next attempt (halved per failure). */
   priorMult?: number;
+  /** A failed idea can be retried from this day. */
+  retryDay?: Day;
+  /** Research-line projects (R8): team-months spent on the current attempt (counted as lost if it dead-ends). */
+  tm?: number;
+}
+
+export interface ResearchState {
+  /** Projects in priority order (node ids). Teams work on the ones that are ready; the rest wait. */
+  queue: string[];
+  /** Policy: idle science teams join the highest-priority ready project of their department in their specialty; a
+   *  safety team whose project resolves keeps working its research line (R8). */
+  autoAssign: boolean;
 }
 
 // ───────────────────────────── Production readout (§3.2.5) ─────────────────────────────
@@ -464,7 +525,8 @@ export interface ProductionReadout {
   ceilings: { humans: number; agents: number; exp: number };
   binding: 'experiments' | 'humans' | 'agents' | 'taste' | 'data';
   label: 'compute-bound' | 'labor-bound' | 'human-bound' | 'taste-bound';
-  labor: { A: number; aiFTE: number; copies: number; speed: number; wH: number };
+  /** aEng (R7, player): AI share of engineers' work from the engineering agents (A_eng of their model × coverage). */
+  labor: { A: number; aiFTE: number; copies: number; speed: number; wH: number; aEng?: number };
   ratios: { h: number; k: number; c: number; d: number };
   Ddata: number;
   /** What-ifs: M multiplier from 2× humans, 2×/0.1× agents, 2×/0.5× experiment compute (research/13 §1.6). */
@@ -484,24 +546,19 @@ export interface SafetyDept {
   discoveredUModes: UModeId[]; // known to the player (cards visible)
   /** Pre-deployment eval gate level: what runs before any external deployment. */
   evalGate: 'none' | 'basic' | 'full' | 'fullPlusExternal';
-  monitoringShare: number; // share of safety compute on runtime monitoring
-  /** Share of safety compute running safety agents (AI labour for automated agendas and investigations). */
-  agentShare?: number;
-  /** Version running the safety agents; absent = the capabilities internal agent. */
-  agentVersion?: string;
   monitorabilityCommitment: boolean; // F31 / faithful-CoT pledge
   edgeGrades: Record<string, 'A' | 'B' | 'C' | 'D'>; // player-visible grade, can be raised by AG08 (§3.5.4)
   edgeRevealed: Record<string, boolean>; // true weight revealed for this world
 }
 
+/** A research line (R8): its projects are tree nodes worked by safety science teams; staffing lives on the teams. */
 export interface AgendaState {
-  fte: number;
-  computeShare: number; // of the safety pool
-  aiLabour: number; // 0..1 share of work done by internal AI (AG17 dynamics)
-  hazardAcc: number; // accumulates λ; a finding fires when ≥ next threshold
+  computeShare: number; // of the safety pool (requested in proportion to the line's team capacity)
   posterior: { a: number; b: number }; // visible Beta posterior on efficacy (shown as a band)
+  /** idle: no team on the line; active: teams on it; deadEnd: posterior mean < 0.25 (projects run at half speed). */
   status: 'idle' | 'active' | 'deadEnd';
-  refresh?: { techniqueId: TechniqueId; progress: number }; // re-validation project
+  /** Team-months spent on attempts that ended in a dead end. */
+  deadEndTM: number;
 }
 
 export interface TechniqueState {
@@ -511,7 +568,7 @@ export interface TechniqueState {
   unlocked: boolean;
   active: boolean; // part of the deployed safety stack
   s0: number; // base strength
-  mHalf: number; // multiplier at which strength halves (doubles on refresh, ↓ on NEG)
+  mHalf: number; // multiplier at which strength halves (raised by tool upkeep, ↓ on NEG)
   k: number;
   goodhart: number; // G
   trainedAgainst: number; // 0..1 cumulative
@@ -529,6 +586,8 @@ export interface FindingRecord {
   day: Day;
   published: boolean;
   revealedFalseDay?: Day;
+  /** The project whose result it was (R8). */
+  nodeId?: string;
 }
 
 export interface Investigation {
@@ -537,7 +596,6 @@ export interface Investigation {
   fte: number;
   computeShare: number;
   tools: TechniqueId[];
-  aiLabour: number;
   startDay: Day;
   clarity: number; // accumulated 0..1
   outcome?: 'confirmed' | 'benign' | 'inconclusive' | 'falseAlarm' | 'discovery';
@@ -587,10 +645,105 @@ export interface PlayerLab extends LabCore {
   orders: ChipOrder[];
   cloud: CloudContract[];
   safety: SafetyDept;
-  hiring: { target: StaffByRole; pipeline: { day: Day; role: keyof StaffByRole; n: number }[] };
+  /** Teams by role (STRUCTURE §4.1, R3). `staff.cap/saf` are derived from their heads; for the player `tasteHire`
+   *  (τ_h) is derived from science-team quality and stars. */
+  teams: Team[];
+  /** Star hires (named people): +0.05 τ_h each. */
+  stars: number;
+  hiring: TeamHiring;
+  /** Tech-tree node state (BUILD-PLAN R4): only nodes with a state are stored (known at start, started, failed);
+   *  locked/open/queued/active are derived (models/tree.ts nodeStatus). */
+  tree: Record<string, TreeNodeState>;
+  /** Research projects: priority queue of node ids (active projects included) and the auto-assign policy. */
+  research: ResearchState;
+  /** Engineers' build queue (BUILD-PLAN R5): run setups now; product features, eval harnesses and safeguards from R6. */
+  build: BuildState;
+  /** Product features built lab-wide (R6; ids of data/v2/features.ts). Switched on per product (Deployment.features). */
+  features: string[];
   morale: { overall: number; safety: number }; // 0..100
   dataAssets: { licensedTokensT: number; unlicensedTokensT: number; syntheticTokensT: number; litigationRisk: number };
   policies: PlayerPolicies;
+  /** Internal agent packages (STRUCTURE §4.9, R7): model + optional monitor + compute per internal use. */
+  agents: Record<AgentUse, AgentPackage>;
+}
+
+/** Internal uses of the lab's own models (R7): engineering, capabilities routine and frontier research, safety. */
+export type AgentUse = 'eng' | 'capRoutine' | 'capFrontier' | 'safety';
+/** One internal use: the model (absent = the routine-research model; routine research always names one), the monitor
+ *  (absent = none; 'same' = a copy of the watched model) and compute: for engineering and capabilities research a share
+ *  of the capabilities agent pool (the three sum to 1); for safety a share of the safety pool. */
+export interface AgentPackage {
+  versionId?: string;
+  monitorId?: string;
+  compute: number;
+}
+
+// ───────────────────────────── Build queue (STRUCTURE §4.1, R5) ─────────────────────────────
+
+export type BuildKind = 'runSetup' | 'feature' | 'harness' | 'safeguard';
+/** One item on the engineers' build queue. Work is in team-weeks (one Strong engineering team of 150 for a week). */
+export interface BuildItem {
+  id: string;
+  kind: BuildKind;
+  /** What it builds: the run id for a run setup. */
+  ref: string;
+  needTW: number;
+  doneTW: number;
+  /** Lower = worked first (the queue is kept sorted by it). */
+  priority: number;
+  /** Day it was queued. */
+  day: Day;
+}
+export interface BuildState {
+  queue: BuildItem[];
+  nextId: number;
+}
+
+// ───────────────────────────── Teams (STRUCTURE §4.1, R3) ─────────────────────────────
+
+export type TeamRole = 'eng' | 're' | 'sci';
+export type TeamDept = 'cap' | 'saf';
+export type TeamQuality = 'solid' | 'strong' | 'elite';
+/** The six tree columns: a science team's specialty (R4 projects). */
+export type Column = 'pretraining' | 'posttraining' | 'systems' | 'alignment' | 'interp' | 'evals';
+/** Hiring-target keys: engineers (one shared pool, paid from the capabilities budget) and research engineers and
+ *  scientists per department. */
+export type TeamKey = 'eng' | 're.cap' | 're.saf' | 'sci.cap' | 'sci.saf';
+
+export interface Team {
+  id: string;
+  role: TeamRole;
+  dept: TeamDept;
+  /** Fixed size per role (150 / 100 / 40). */
+  size: number;
+  /** People on the team now (attrition lowers it, hiring refills it; fractional is fine). */
+  heads: number;
+  quality: TeamQuality;
+  specialty?: Column;
+  name?: string;
+  /** R4: the tree project a science team works on. */
+  projectId?: string;
+}
+
+/** A team on the candidate list (drawn weekly from the 'company' stream). */
+export interface TeamCandidate {
+  id: string;
+  role: TeamRole;
+  dept: TeamDept;
+  quality: TeamQuality;
+  specialty?: Column;
+  /** Day it leaves the list. */
+  until: Day;
+}
+
+export interface TeamHiring {
+  /** "Keep hiring to N teams" per key (a policy: it hires, it never lays off). */
+  targets: Record<TeamKey, number>;
+  candidates: TeamCandidate[];
+  /** Teams being filled, in order; one hiring lane per department. A team arrives when its heads reach its size. */
+  filling: Team[];
+  /** Counter for team and candidate ids. */
+  nextId: number;
 }
 
 export interface PlayerPolicies {
@@ -600,6 +753,18 @@ export interface PlayerPolicies {
   shareWithAllies: boolean;
   transitionFund: Money; // $B/yr
   communityBenefits: boolean;
+  /** Where training compute that no run uses goes (R5): data generation (default since R6) or research experiments. */
+  spareTraining: 'research' | 'data';
+  /** Auto serving (R6): serve the products earning most per H100e first; the cut is recorded. Off = shares by hand. */
+  servingAuto: boolean;
+  /** Move products to the newest cleared model of the same kind when it measures better (R6). */
+  upgradeToNewest: boolean;
+  /** Re-run the eval suite every 30 days on the internal model and models updated in place (R6, replaces the 30-day
+   *  eval expiry that blocked launches). */
+  autoEvaluate: boolean;
+  /** Trusted to AI (R7): share of safety research and investigation work done by the safety agents (one policy; it
+   *  replaces per-agenda automation). Works only above the AI-labour gate (B3). */
+  trustedToAI: number;
 }
 
 // ───────────────────────────── Finance (§3.7) ─────────────────────────────
@@ -788,6 +953,19 @@ export interface PendingRound {
   ipo: boolean;
 }
 
+/** A round investors repriced below the last valuation at close: the player accepts the down round or pulls it
+ *  (LIMITS: the CEO used to pull it silently). Pulled at `deadline` if the player does nothing. */
+export interface RepricedRound {
+  day: Day;
+  deadline: Day;
+  ask: Money;
+  /** Pre-money investors now offer, and the last round's post-money it falls below. */
+  pre: Money;
+  lastPost: Money;
+  anchor?: string;
+  ipo: boolean;
+}
+
 /** End-of-quarter compute snapshot (H100e) for the Compute chart's past quarters. */
 export interface ComputeSnap { q: number; racks: H100e; cloud: H100e; running: H100e; installing: H100e; idle: H100e }
 
@@ -795,6 +973,7 @@ export interface FinanceWS3 {
   /** Last 8 end-of-quarter compute snapshots (computeHistQ). Missing on saves made before it. */
   computeHist?: ComputeSnap[];
   pendingRound?: PendingRound;
+  repricedRound?: RepricedRound;
   offers: DealOffer[];
   /** Delivered chips not yet installed: in transit (this quarter) and ready (installable), plus their book value. */
   inventory: { transit: H100e; ready: H100e; book: Money };
@@ -1205,11 +1384,19 @@ export interface SystemCtx {
 }
 
 /** One engine system. The loop runs systems in ascending `order` within each cadence (§2.2). */
+/** The game systems of STRUCTURE §4 that every engine system and player action belongs to (R3; R10 lints it). */
+export type StructureSystem = 'people' | 'research' | 'models' | 'products' | 'safety' | 'compute' | 'finance' | 'relations' | 'world' | 'core';
+/** The one verb set of STRUCTURE R2: hire · research · design & train · launch / update · set a policy · make a deal ·
+ *  respond (R10 lints that every action has one). */
+export type ActionVerb = 'hire' | 'research' | 'train' | 'launch' | 'policy' | 'deal' | 'respond';
+
 export interface EngineSystem {
   id: string;
   owner: WorkstreamId;
   cadence: Cadence;
   order: number;
+  /** Structure system this belongs to (STRUCTURE §4; scripts/v2/lint-structure.ts). */
+  system: StructureSystem;
   run(s: GameStateV2, ctx: SystemCtx): void;
 }
 
@@ -1233,6 +1420,9 @@ export interface ActionDef<P = Record<string, number | string | boolean>> {
   apply(s: GameStateV2, ctx: SystemCtx, p: P): void | string;
   /** Board approval vector (speed, fin, safety, mission) if this is a major decision (§3.7.5). */
   boardVector?: [number, number, number, number];
+  /** Structure verb (STRUCTURE R2) and system (§4); required (scripts/v2/lint-structure.ts). */
+  verb: ActionVerb;
+  system: StructureSystem;
 }
 
 export interface ChoiceV2 {

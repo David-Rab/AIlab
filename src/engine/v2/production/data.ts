@@ -6,19 +6,12 @@
 import { SYN_QUALITY, SYN_YIELD_T_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { decimalYear } from '../core/time';
 import { frontierFlop } from './knots';
+import { idleTrainingShare } from '../models/runs';
 import type { GameStateV2 } from '../types';
 
 /** Tokens required for a base of `flop` FLOP: N_req(C) = 20·sqrt(C/120) (research/13 §1.7). Overtrained ×5. */
 export function tokensRequired(flop: number, overtrained = false): number {
   return 20 * Math.sqrt(flop / 120) * (overtrained ? 5 : 1);
-}
-
-/** d^0.15 with a floor (d = 0 would stop research outright; floor 0.02 → ×0.56) [D]. */
-export const dFactor = (d: number) => Math.pow(Math.max(0.02, d), 0.15);
-
-/** Ddata = min(1, S_eff / N_req)^0.3 · d^0.15 (§3.2.2). */
-export function dataFactor(sEff: number, nReq: number, d: number): number {
-  return Math.pow(Math.min(1, sEff / Math.max(1, nReq)), 0.3) * dFactor(d);
 }
 
 /** Data-wall penalty on a base (§3.3.2): −0.25·ln(N_req/S_eff), capped at −0.5. */
@@ -41,8 +34,10 @@ export function dataStockRatio(s: GameStateV2, yr = decimalYear(s)): number {
   return Math.min(1, effectiveStock(s) / tokensRequired(frontierFlop(s.hidden.timeline, yr)));
 }
 
-/** Daily synthetic-token accrual from the synthetic pool (player). */
+/** Daily synthetic-token accrual from the synthetic pool (player), plus the spare training compute when the
+ *  spare-training policy sends it to data generation (R5). */
 export function syntheticAccrual(s: GameStateV2) {
-  const cSyn = s.player.computeOnline * s.player.split.synthetic;
+  const spare = s.player.policies.spareTraining === 'data' ? idleTrainingShare(s) * s.player.split.training : 0;
+  const cSyn = s.player.computeOnline * (s.player.split.synthetic + spare);
   s.player.dataAssets.syntheticTokensT += SYN_YIELD_T_PER_H100E_DAY * cSyn;
 }

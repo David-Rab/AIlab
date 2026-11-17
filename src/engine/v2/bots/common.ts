@@ -4,7 +4,10 @@
 // as other workstreams add actions and events. All bots share WS1's reference model cadence (`refPlay`) and WS3's
 // finance autopilot with their own options.
 import { ACTION_BY_ID, EVENT_BY_ID } from '../core/registry';
-import type { EngineApi, GameStateV2, PendingDecision } from '../types';
+import type { AgendaId, EngineApi, GameStateV2, PendingDecision, Team } from '../types';
+import { AGENDA_BY_ID } from '../../../data/v2/agendas';
+import { PROJECT_BY_ID, isLineNode, lineNodeId } from '../../../data/v2/tree';
+import { nextLineProject, nodeKnown, projectReady } from '../models/tree';
 
 type Params = Record<string, number | string | boolean>;
 
@@ -23,11 +26,10 @@ export function tryAct(s: GameStateV2, api: EngineApi, id: string, params: Param
 /** Intent → registered action ids in other spheres (first registered one is used). Model cadence, compute and money
  *  are shared policies instead: WS1's `refPlay` (bots/ref.ts) and WS3's `financeAutopilot` (finance/plan.ts). */
 export const BOT_INTENTS: Record<string, string[]> = {
-  fundAgenda: ['safety.fund'], // params { agenda, level: off | seed | serious | major }
   evalGate: ['safety.evalGate'], // params { level: none | basic | full | fullPlusExternal }
   raise: ['fin.raise'],
   split: ['setSplit'], // params: ComputeSplit keys (must sum to 1)
-  release: ['deploy'], // params { versionId, channel }
+  release: ['product.launch'], // params { versionId, channel }
 };
 
 export function intent(s: GameStateV2, api: EngineApi, name: keyof typeof BOT_INTENTS, params: Params = {}): boolean {
@@ -55,3 +57,60 @@ export function byLabel(d: PendingDecision, label: string, fallback = 0): number
 
 /** Run an action at most every `every` days (uses the action's own cooldown/once rules too). */
 export const every = (s: GameStateV2, n: number, offset = 0) => (s.time.day + offset) % n === 0;
+
+/** A bot's safety research plan (R8): research lines in priority order, the teams each should have, and optionally the
+ *  ideas it wants from the line in order (then the line's follow-up; default: the tree's next open idea). */
+export interface LinePlan { ag: AgendaId; teams: number; ideas?: string[] }
+
+/** The ideas bots want first from a line, in order (then the tree's next open idea): the ones their recipes use. */
+export const BOT_IDEAS: Partial<Record<AgendaId, string[]>> = {
+  AG18: ['T-INOC', 'T-CONFESS', 'T-ANTISCHEME'], AG15: ['T-FILTER', 'safetyPretrain', 'T-UNDO'], AG02: ['T-DECEPT', 'T-NLA'],
+  AG08: ['T-HONEY', 'T-AUDIT'], AG07: ['T-RESAMPLE', 'T-CEVAL', 'T-LOCK'],
+};
+
+/** The project a line's teams should be on under a plan. */
+function wantedProject(s: GameStateV2, l: LinePlan): string | undefined {
+  const idea = (l.ideas ?? BOT_IDEAS[l.ag])?.find((id) => !nodeKnown(s, id) && projectReady(s, id) === true);
+  if (idea) return idea;
+  if (l.ideas) {
+    const f = lineNodeId(l.ag);
+    return projectReady(s, f) === true ? f : undefined;
+  }
+  return nextLineProject(s, l.ag);
+}
+
+const lineOf = (t: Team) => {
+  const n = t.projectId ? PROJECT_BY_ID[t.projectId] : undefined;
+  return n && isLineNode(n) ? n.agenda : undefined;
+};
+
+/** Staff research lines by a plan with the bot's safety science teams (through research.assign): each line in order gets
+ *  up to its team count, from idle teams first (its column's specialty preferred), then from teams on lines outside the
+ *  plan; teams on a planned line move to the project the plan wants. */
+export function staffLines(s: GameStateV2, api: EngineApi, plan: LinePlan[]) {
+  const sci = s.player.teams.filter((t) => t.role === 'sci' && t.dept === 'saf');
+  const planned = new Set(plan.map((l) => l.ag));
+  for (const l of plan) {
+    const want = wantedProject(s, l);
+    if (!want) continue;
+    const on = sci.filter((t) => lineOf(t) === l.ag);
+    for (const t of on) if (t.projectId !== want) tryAct(s, api, 'research.assign', { team: t.id, id: want });
+    let need = l.teams - on.length;
+    while (need > 0) {
+      const col = AGENDA_BY_ID[l.ag].column;
+      const free = sci.filter((t) => !t.projectId || !lineOf(t) || !planned.has(lineOf(t) as AgendaId));
+      const t = free.find((x) => !x.projectId && x.specialty === col) ?? free.find((x) => !x.projectId) ?? free.find((x) => x.specialty === col) ?? free[0];
+      if (!t || !tryAct(s, api, 'research.assign', { team: t.id, id: want })) break;
+      need--;
+    }
+  }
+}
+
+/** Leader-start capabilities staff (data/v2/teams.ts START_TEAMS classic: 4·150 + 11·100 + 8·40). */
+const LEADER_CAP_STAFF = 2020;
+/** A bot's safety-team target sized to the company (R9): a follower start smaller than the leader's scales its plan by
+ *  its capabilities staff (at least one team); the leader start (and a larger big-tech division) keep it. */
+export function sizedTarget(s: GameStateV2, n: number): number {
+  if ((s.setup.start ?? 'leader') === 'leader') return n;
+  return Math.max(1, Math.round(n * Math.min(1, s.player.staff.cap / LEADER_CAP_STAFF)));
+}

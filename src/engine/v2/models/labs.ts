@@ -9,6 +9,8 @@ import type { ComputeSplit, GameStateV2, LabCore, LabId, ModelVersion, RivalLab 
 
 export const PLAYER_ID: LabId = 'player';
 export const CHINA_ID: LabId = 'china';
+/** Fixed id of the simulated AI 2027 leader lab (setup.leaderLab, BUILD-PLAN R2), appended after the sampled rivals. */
+export const LEADER_ID: LabId = 'rL';
 
 export type AnyLabCore = Omit<LabCore, 'deployments' | 'models' | 'paradigms'>;
 
@@ -55,9 +57,9 @@ export function labPools(s: GameStateV2, id: LabId): ComputeSplit {
 
 const LIVE = (v: ModelVersion) => v.status !== 'retired';
 
-/** The player's internal-agent version (drives p_dep). */
+/** The player's routine-research agent model (R7 `agents.capRoutine`, formerly the internal agent; drives p_dep). */
 export function internalVersion(s: GameStateV2): ModelVersion | undefined {
-  const id = s.player.models.internalAgent;
+  const id = s.player.agents?.capRoutine.versionId;
   return s.player.models.versions.find((v) => v.id === id);
 }
 

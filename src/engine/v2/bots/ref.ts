@@ -3,34 +3,80 @@
 //
 // Reference cadence (§7.1): compute tracks refTotal (WS3's finance autopilot buys it; the T1 calibration stubs it),
 // split = shareRef(t), cap hiring tracks H_ref, a 1F base every 9 months, a post-train every 6 weeks (≤ 2 in flight),
-// continual learning once P08 works, P05/P07/P08/P13/P17/P19 researched and adopted (never P23), latent bases after
-// P17, a distilled mini every ~6 months (sooner on a new base or a 0.7-level gap) deployed to consumer/api while the
-// frontier stays internal, serving re-split by demand weekly, eval refresh every 30 days.
+// continual learning once P08 works, P05/P07/P08/P13/P17/P19 researched on the tree (REF_TREE; never P23), latent bases after
+// P17, a distilled mini every ~6 months (sooner on a new base or once the public release trails the internal model by
+// 0.7 levels) put on Chat/API while the frontier stays internal. R6: serving is the Auto policy (no weekly re-split),
+// model swaps are live product updates, and the auto-evaluate policy refreshes the internal model's evals.
 //
 // `refPlay(s, api, opts)` is the model/department half of that policy, parameterised so the other bots (race, safe,
 // mixed, capex2x) reuse the cadence with their own design choices; with default options it is exactly RefBot's.
 // `refBot` = refPlay + WS3's reference finance autopilot (REF_AUTOPILOT).
-import { REFERENCE_BASE } from '../../../data/v2/runDesign';
+import { REFERENCE_BASE, STREAM_POOL_SHARE } from '../../../data/v2/runDesign';
+import { baseFromParams } from '../models/actions';
+import { POOL_SHARE_RANGE, planRun, trainingFlopPerDay } from '../models/runs';
 import { EVENT_BY_ID } from '../core/registry';
 import { decimalYear } from '../core/time';
 import { shareRefAt, TOP_KEYS, topOf, withFixed } from '../departments/split';
 import { financeAutopilot, financeDecide, REF_AUTOPILOT } from '../finance/plan';
+import { runwayOf } from '../finance/runway';
 import { hRef } from '../production/knots';
-import type { BotPolicy, ComputeSplit, EngineApi, GameStateV2, ModelVersion, PendingDecision } from '../types';
+import { REF_ROLE_SHARE, SAF_ROLE_SHARE, TEAM_SIZE } from '../../../data/v2/teams';
+import type { BotPolicy, ComputeSplit, EngineApi, GameStateV2, ModelVersion, PendingDecision, TeamKey, TrainingRun } from '../types';
+import { bestMeasuredL } from '../models/labs';
+import { measuredDomain } from '../models/paradigms';
+import { missingNeeds, nodeKnown, optionLocked } from '../models/tree';
+import { sizedTarget, staffLines, type LinePlan } from './common';
 
 type Params = Record<string, number | string | boolean>;
 
-/** Paradigms RefBot researches and adopts (§3.3.3 "RefBot paradigm policy"). */
-export const REF_PARADIGMS = ['P05', 'P07', 'P08', 'P13', 'P17', 'P19'];
+/** A tree project a bot queues once `when` holds (and its prerequisites are known). */
+export interface TreeGoal { id: string; when?: (s: GameStateV2) => boolean }
+const L = (s: GameStateV2) => bestMeasuredL(s);
+/** RefBot's research (§3.3.3 "RefBot paradigm policy", R4): the engine has no capability gates, so the bot keeps the
+ *  old pacing by starting each project when the old gate would have opened (tier 2: measured L ≥ 6.5, tier 3: 8.5;
+ *  P08 L ≥ 7; P13 RSCH ≥ 8.5; P17 L ≥ 9.5). RL focus: ML research is P13's prerequisite on the tree. */
+export const REF_TREE: TreeGoal[] = [
+  { id: 'P07' },
+  { id: 'P05' },
+  { id: 'P08', when: (s) => L(s) >= 7 },
+  { id: 'rl.mlResearch', when: (s) => L(s) >= 6.5 },
+  { id: 'P13', when: (s) => L(s) >= 6.5 && measuredDomain(s, 'RSCH') >= 8.5 },
+  { id: 'P17', when: (s) => L(s) >= 9.5 },
+  { id: 'P19', when: (s) => L(s) >= 8.5 },
+];
+/** The safe bot's extra research: faithful-CoT architecture, paced like its old gate (tier 3, an AG09 technique). */
+export const SAFE_TREE_EXTRA: TreeGoal[] = [
+  { id: 'P23', when: (s) => L(s) >= 8.5 && s.player.safety.findings.some((f) => f.agenda === 'AG09' && f.type === 'TECH') },
+];
 const BASE_EVERY = 270;
+/** Follower starts (R9): extra base sizes between ×1 and ×0.1, a longer allowed base run, and hiring only while runway
+ *  is at least this many quarters. */
+const FOLLOWER_SIZES = [0.7, 0.5, 0.35, 0.25];
+const FOLLOWER_MAX_BASE_DAYS = 200;
+const FOLLOWER_GROW_Q = 6;
+/** RefBot's limit on a base run's wall time at its requested share (the engine's pre-R5 BASE_MAX_DAYS, now a bot
+ *  policy: the engine shows staleness instead of capping). */
+const BOT_MAX_BASE_DAYS = 150;
 const POST_EVERY = 42;
 const MINI_EVERY = 182;
 /** …or sooner (≥ 45 d apart) once the internal model measures this many levels above what the products serve. */
 const MINI_GAP_L = 0.7;
-const EVAL_EVERY = 30;
 const PRODUCT_CHANNELS: string[] = ['consumer', 'api', 'enterprise'];
-/** Passive/RefBot safety programme (§7.4): ~3% safety compute (shareRef), AG02, AG07, AG08 and AG18 at Seed. */
-const REF_AGENDAS = ['AG02', 'AG07', 'AG08', 'AG18'];
+/** The public release (where the minis go). Staleness is measured against it, not against Enterprise: Enterprise can
+ *  sit on the continual-learning stream (updated in place), which hid how far the public release trailed (R6 fix). */
+const PUBLIC_CHANNELS: string[] = ['consumer', 'api'];
+/** Passive/RefBot safety programme (§7.4): ~3% safety compute (shareRef) and, since R8, one safety science team on each
+ *  of AG18, AG02, AG08 and AG07 (≈ the pre-R8 Seed funding of those four: data/v2/agendas.ts SERIOUS_CAP). It starts
+ *  with two teams and hires two more. Each line works the ideas RefBot uses in the pre-R8 catalog order (training-signal
+ *  design: honesty, then anti-scheming; applied interp: deception probe, verbalizer; evals: honeypots, auditing agents;
+ *  control: resampling, control evals, comms lockdown), then the line's follow-up. */
+export const REF_LINES: LinePlan[] = [
+  { ag: 'AG18', teams: 1, ideas: ['T-CONFESS', 'T-ANTISCHEME'] },
+  { ag: 'AG02', teams: 1, ideas: ['T-DECEPT', 'T-NLA'] },
+  { ag: 'AG08', teams: 1, ideas: ['T-HONEY', 'T-AUDIT'] },
+  { ag: 'AG07', teams: 1, ideas: ['T-RESAMPLE', 'T-CEVAL', 'T-LOCK'] },
+];
+const REF_SAFETY_SCI_TEAMS = 4;
 
 /** Options of the reference play (all optional; {} = RefBot). */
 export interface RefPlayOpts {
@@ -38,19 +84,32 @@ export interface RefPlayOpts {
   safetyShare?: (s: GameStateV2) => number | undefined;
   /** Target share of staff in safety (hiring), e.g. 0.25 for the safe bot. */
   safStaffShare?: number;
-  /** Extra launchBase params (scale, data, quality, hazard, safetyPretrain, licensedShare). */
+  /** Extra launchBase params (size, data, quality, hazard, safetyPretrain, licensedShare). */
   base?: Params;
   /** launchPost params (pref, rlFocus, rlIntensity, cot, safety, inoculation). cot 'faithful' falls back to 'visible'
    *  until P23 is adopted; a latent base always forces latent CoT. */
   post?: (s: GameStateV2) => Params;
-  /** Paradigms researched and adopted (default REF_PARADIGMS); a function lets a bot decide over time. */
-  paradigms?: (s: GameStateV2) => string[];
+  /** Tree projects (default REF_TREE); a function lets a bot decide over time. */
+  tree?: (s: GameStateV2) => TreeGoal[];
   /** Release policy: 'mini' (distilled minis to consumer/api; frontier internal) or 'frontier' (newest full version
    *  to consumer/api). */
   release?: 'mini' | 'frontier';
+  /** Spare-training policy (R5). Default 'data': the AI 2027 reference lab's research compute is fixed by its
+   *  compute-usage table (shareRef), so the training compute RefBot's run cadence leaves unused generates data
+   *  instead of raising experiments (data never binds on the reference path, so this is neutral). */
+  spareTraining?: 'research' | 'data';
 }
 
 const flag = (s: GameStateV2, k: string, d = -1e9) => Number(s.flags[`ref:${k}`] ?? d);
+/** Design options a bot asks for that the tree has not unlocked yet fall back to off (R8: safety ideas such as
+ *  inoculation, hazard filtering and safety pretraining are research projects now). */
+function known(s: GameStateV2, p: Params): Params {
+  const out = { ...p };
+  if (out.inoculation === true && optionLocked(s, 'inoculation', true)) out.inoculation = false;
+  if (out.hazard === true && optionLocked(s, 'curation', 'hazard')) out.hazard = false;
+  if (out.safetyPretrain === true && optionLocked(s, 'curation', 'safetyPretrain')) out.safetyPretrain = false;
+  return out;
+}
 const setFlag = (s: GameStateV2, k: string, v: number) => {
   s.flags[`ref:${k}`] = v;
 };
@@ -77,6 +136,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   const p = s.player;
   if (p.status !== 'active') return;
   const day = s.time.day;
+  const follower = (s.setup.start ?? 'leader') !== 'leader';
   const yr = decimalYear(s);
   const m = p.models;
 
@@ -88,35 +148,65 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
     const want = topOf(ref);
     const diff = TOP_KEYS.some((k) => Math.abs(want[k] - now[k]) > 1e-3) || Math.abs(ref.synthetic - p.split.synthetic) > 1e-3;
     if (diff) tryAct(s, api, 'setSplit', { ...ref });
-    const target = Math.round(hRef(yr + 0.12));
-    if (target > p.hiring.target.cap) tryAct(s, api, 'hireTarget', { role: 'cap', target });
+    // Whole teams in the reference split (D2): round(share · H_ref(t + 6 wk) / size) per role.
+    const H = hRef(yr + 0.12);
+    const teamsWanted: [TeamKey, number][] = (['eng', 're', 'sci'] as const).map((r) => [r === 'eng' ? 'eng' : `${r}.cap`, Math.round((REF_ROLE_SHARE[r] * H) / TEAM_SIZE[r])]);
     if (o.safStaffShare !== undefined) {
-      const saf = Math.round((o.safStaffShare / (1 - o.safStaffShare)) * Math.max(target, p.staff.cap));
-      if (saf > p.hiring.target.saf) tryAct(s, api, 'hireTarget', { role: 'saf', target: saf });
+      const saf = (o.safStaffShare / (1 - o.safStaffShare)) * Math.max(H, p.staff.cap);
+      teamsWanted.push(['re.saf', Math.round((SAF_ROLE_SHARE.re * saf) / TEAM_SIZE.re)], ['sci.saf', Math.round((SAF_ROLE_SHARE.sci * saf) / TEAM_SIZE.sci)]);
+    }
+    // Follower starts (R9) grow toward the reference roster one team per role a month, and only while the money lasts
+    // (queued teams count in payroll at once); the leader start is unchanged.
+    if (!follower) {
+      for (const [key, n] of teamsWanted) if (n > (p.hiring.targets[key] ?? 0)) tryAct(s, api, 'teams.target', { key, n });
+    } else if (runwayOf(s).q >= FOLLOWER_GROW_Q) {
+      for (const [key, n] of teamsWanted) {
+        const cur = p.hiring.targets[key] ?? 0;
+        if (n > cur) tryAct(s, api, 'teams.target', { key, n: cur + 1 });
+      }
     }
   }
 
-  // Paradigms: fund open reference projects; adopt successes; retry failures when allowed.
-  const paradigms = o.paradigms?.(s) ?? REF_PARADIGMS;
-  for (const id of paradigms) {
-    const st = p.paradigms[id];
-    if (!st) continue;
-    if (st.status === 'succeeded') tryAct(s, api, 'adoptParadigm', { id });
-    else if (st.status === 'available' || (st.status === 'failed' && (st.retryDay ?? 0) <= day)) tryAct(s, api, 'fundParadigm', { id, fte: 30, expShare: 0.02 });
-  }
+  const spare = o.spareTraining ?? 'data';
+  if (p.policies.spareTraining !== spare) tryAct(s, api, 'runs.spareTraining', { use: spare });
 
-  // Base runs: a frontier base every 9 months; once neuralese (P17) is adopted the next base is latent and starts
-  // at once (AI 2027's Agent-3 is a neuralese model at SC).
+  // Research: queue each goal once its start condition holds and its prerequisites are known (a failed idea again
+  // from its retry date); idle science teams join by the auto-assign policy.
+  const goals = o.tree?.(s) ?? REF_TREE;
+  const queue = p.research.queue;
+  for (const g of goals) {
+    if (queue.includes(g.id) || nodeKnown(s, g.id) || missingNeeds(s, g.id).length) continue;
+    const st = p.tree[g.id];
+    if (st?.status === 'failed' && (st.retryDay ?? 0) > day) continue;
+    if (g.when && !g.when(s)) continue;
+    tryAct(s, api, 'research.queue', { id: g.id });
+  }
+  if (!p.research.autoAssign) tryAct(s, api, 'research.autoAssign', { on: true });
+
+  // Base runs: a size-1 (frontier) base every 9 months; once neuralese (P17) is adopted the next base is latent and
+  // starts at once (AI 2027's Agent-3 is a neuralese model at SC).
   const baseRunning = m.runs.some((r) => r.kind === 'base' && r.status === 'running');
   const lastBase = flag(s, 'lastBase', m.bases[m.bases.length - 1]?.startDay ?? -120);
-  const latent = p.paradigms.P17?.status === 'adopted' && paradigms.includes('P17');
+  const latent = p.paradigms.P17?.status === 'adopted' && goals.some((g) => g.id === 'P17');
   const latentDue = latent && !m.bases.some((b) => b.design.shape === 'latent') && !m.runs.some((r) => r.status === 'running' && r.base?.shape === 'latent');
   if ((!baseRunning && day - lastBase >= BASE_EVERY) || latentDue) {
-    // A lab whose training pool cannot deliver its base scale in time (BASE_MAX_DAYS) gives it most of the pool, then
-    // steps down a scale (stretch → frontier → compact), rather than never training a new base (M4).
-    const bp = { ...(o.base ?? {}), shape: latent ? 'latent' : REFERENCE_BASE.shape };
-    const scales = [...new Set([String(o.base?.scale ?? REFERENCE_BASE.scale), 'frontier', 'compact'])];
-    if (scales.some((scale) => tryAct(s, api, 'launchBase', { ...bp, scale, poolShare: 0.6 }) || tryAct(s, api, 'launchBase', { ...bp, scale, poolShare: 0.95 }))) setFlag(s, 'lastBase', day);
+    // The bot's own staleness rule (the engine has no cap since R5): a base must train within BOT_MAX_BASE_DAYS at its
+    // requested share. A lab whose pool cannot deliver its size in time gives it most of the pool, then steps down a
+    // size (×3 → ×1 → ×0.1), rather than never training a new base (M4).
+    const bp = { ...known(s, o.base ?? {}), shape: latent ? 'latent' : REFERENCE_BASE.shape };
+    // A follower start (R9) has a fraction of the reference compute: it steps down through intermediate sizes (and
+    // accepts a longer run) rather than dropping straight to ×0.1, as smaller labs train smaller frontier bases.
+    const sizes = [...new Set([Number(o.base?.size ?? REFERENCE_BASE.size), 1, ...(follower ? FOLLOWER_SIZES : []), 0.1])];
+    const maxDays = follower ? FOLLOWER_MAX_BASE_DAYS : BOT_MAX_BASE_DAYS;
+    const launch = (size: number, poolShare: number) => {
+      const plan = planRun(s, { kind: 'base', base: baseFromParams({ ...bp, size }), poolShare });
+      if (plan.flopNeeded / Math.max(1, trainingFlopPerDay(s) * poolShare) > maxDays) return false;
+      if (!tryAct(s, api, 'launchBase', { ...bp, size, poolShare })) return false;
+      setFlag(s, 'baseShare', poolShare);
+      return true;
+    };
+    // Followers keep 40% of the pool for post-training (their pool is small; a 0.95 base starves every other run).
+    if (sizes.some((size) => launch(size, 0.6) || (!follower && launch(size, 0.95)))) setFlag(s, 'lastBase', day);
   }
 
   // Post-training every 6 weeks on the newest base (≤ 2 in flight). Skipped once the stream is running on the
@@ -125,10 +215,10 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   const postsRunning = m.runs.filter((r) => r.kind === 'post' && r.status === 'running').length;
   const streamOnNewest = m.stream && m.versions.find((v) => v.id === m.stream?.versionId)?.baseId === newestBase?.id;
   const hasVersionOnNewest = m.versions.some((v) => v.baseId === newestBase?.id && v.variant === 'full');
-  if (newestBase && postsRunning < 2 && day - flag(s, 'lastPost') >= POST_EVERY && (!streamOnNewest || !hasVersionOnNewest)) {
+  if (newestBase && postsRunning < (follower ? 1 : 2) && day - flag(s, 'lastPost') >= POST_EVERY && (!streamOnNewest || !hasVersionOnNewest)) {
     const pending = m.runs.some((r) => r.kind === 'post' && r.status === 'running' && r.baseId === newestBase.id);
     if (!(streamOnNewest && pending)) {
-      const design = o.post?.(s) ?? {};
+      const design = known(s, o.post?.(s) ?? {});
       let cot = String(design.cot ?? 'visible');
       if (cot === 'faithful' && p.paradigms.P23?.status !== 'adopted') cot = 'visible';
       if (newestBase.design.shape === 'latent') cot = 'latent';
@@ -137,7 +227,9 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
     }
   }
 
-  // Internal agents: the newest full version. With continual learning (P08) the stream runs on it and moves to the
+  // Internal agents: the newest full version on routine research; engineering, frontier and safety research follow it
+  // (default packages: monitors 'same' on routine and frontier research), so the reference lab uses its newest model
+  // everywhere with a standard monitor (R7, calibration neutral). With continual learning (P08) the stream runs on it and moves to the
   // first version on each newer base (carrying its know-how); other versions on the stream's base are ignored.
   const nv = newestFull(s);
   const sv = m.stream ? m.versions.find((v) => v.id === m.stream?.versionId) : undefined;
@@ -145,12 +237,14 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   if (p.paradigms.P08?.status === 'adopted' && nv) {
     if (!sv || baseIdx(nv) > baseIdx(sv)) tryAct(s, api, 'startStream', { versionId: nv.id });
     const cur = m.stream?.versionId;
-    if (cur && m.internalAgent !== cur) tryAct(s, api, 'setInternalAgent', { versionId: cur });
-  } else if (nv && m.internalAgent !== nv.id) tryAct(s, api, 'setInternalAgent', { versionId: nv.id });
+    if (cur && p.agents.capRoutine.versionId !== cur) tryAct(s, api, 'agents.set', { use: 'capRoutine', versionId: cur });
+  } else if (nv && p.agents.capRoutine.versionId !== nv.id) tryAct(s, api, 'agents.set', { use: 'capRoutine', versionId: nv.id });
 
-  // Evals: refresh the internal version's suite every 30 days (streams go stale).
-  const iv = m.versions.find((v) => v.id === m.internalAgent);
-  if (iv && iv.status !== 'evaluating' && day - (iv.evals.suiteDay ?? -1e9) >= EVAL_EVERY) tryAct(s, api, 'runEvals', { versionId: iv.id });
+  // Evals: the auto-evaluate policy refreshes the internal version's suite every 30 days (streams go stale); R6
+  // replaced the bot's own 30-day runEvals. Serving: the Auto policy.
+  const iv = m.versions.find((v) => v.id === p.agents.capRoutine.versionId);
+  if (!p.policies.autoEvaluate) tryAct(s, api, 'products.policy', { autoEvaluate: true });
+  if (!p.policies.servingAuto) tryAct(s, api, 'products.policy', { servingAuto: true });
 
   // A distilled mini about every 6 months, deployed to consumer and API (frontier stays internal), or the newest
   // full version for bots that release their frontier.
@@ -159,7 +253,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   // public for 15 months.
   const newGen = !!iv && baseIdx(iv) > flag(s, 'miniBase', 0);
   let servedL = 0;
-  for (const d of p.deployments) if (d.status === 'live' && PRODUCT_CHANNELS.includes(d.channel)) servedL = Math.max(servedL, m.versions.find((v) => v.id === d.versionId)?.evals.measuredL ?? 0);
+  for (const d of p.deployments) if (d.status === 'live' && PUBLIC_CHANNELS.includes(d.channel)) servedL = Math.max(servedL, m.versions.find((v) => v.id === d.versionId)?.evals.measuredL ?? 0);
   const stale = !!iv && (iv.evals.measuredL ?? 0) - servedL >= MINI_GAP_L && day - flag(s, 'lastMini', 0) >= 45;
   if (iv && (newGen || stale || day - flag(s, 'lastMini', 0) >= MINI_EVERY) && !m.runs.some((r) => r.kind === 'distill' && r.status === 'running')) {
     if (tryAct(s, api, 'launchDistill', { teacherVersionId: iv.id })) {
@@ -181,12 +275,17 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
     for (const d of p.deployments) {
       if (!PRODUCT_CHANNELS.includes(d.channel) || d.status !== 'live') continue;
       const want = d.channel === 'enterprise' ? (o.release === 'frontier' && pub.variant === 'full' ? pub : ent ?? pub) : pub;
-      if (want && want.id !== d.versionId && (want.evals.measuredL ?? 0) > mL(d.versionId)) tryAct(s, api, 'swapDeployment', { deploymentId: d.id, versionId: want.id });
+      if (want && want.id !== d.versionId && (want.evals.measuredL ?? 0) > mL(d.versionId)) tryAct(s, api, 'product.update', { id: d.id, versionId: want.id });
     }
   }
 
-  // Product management: re-split the serving pool by demand every week (capacity-bound channels get more).
-  if (day % 7 === 3) tryAct(s, api, 'setServing', {});
+  // A follower start without a product (the spinout) launches Chat, API and Enterprise once it has a model it may
+  // sell (an imported model must be post-trained first, D6); the updates above then keep them current.
+  if (follower && day % 30 === 0) {
+    for (const ch of PRODUCT_CHANNELS) if (!p.deployments.some((d) => d.channel === ch && d.status !== 'withdrawn')) tryAct(s, api, 'product.launch', { channel: ch });
+  }
+
+  syncPoolShares(s, api);
 
   // Housekeeping: retire superseded versions (keep the newest 4 full + anything in use).
   if (day % 30 === 15) {
@@ -194,6 +293,45 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
     for (const v of full.slice(4)) tryAct(s, api, 'retireVersion', { versionId: v.id });
     const minis = m.versions.filter((v) => v.status !== 'retired' && v.variant === 'mini').sort((a, b) => b.day - a.day);
     for (const v of minis.slice(2)) tryAct(s, api, 'retireVersion', { versionId: v.id });
+  }
+}
+
+/** Pool share each kind of run asks for (RefBot's launch shares; the base share is the one it launched with). */
+const askShare = (s: GameStateV2, r: TrainingRun) =>
+  r.kind === 'base' ? flag(s, 'baseShare', 0.6) : r.kind === 'post' ? (r.name.startsWith('IDA') ? 0.3 : 0.5) : r.kind === 'distill' ? 0.1 : 0.3;
+
+/** R5 made the pool allocation proportional. RefBot keeps the pre-R5 priority (base and continue runs keep their
+ *  share; the other runs share what is left) by setting every run's pool share to what that rule gives it, so its
+ *  effective shares and run lengths stay the reference ones. Runs still waiting for their setup count as training
+ *  (they start within the day). Shares below the engine minimum are raised to it and the other non-base runs make
+ *  room. Acts only when a share changes (a run starts, ends or restarts). */
+function syncPoolShares(s: GameStateV2, api: EngineApi) {
+  const m = s.player.models;
+  const day = s.time.day;
+  const runs = m.runs.filter((r) => r.status === 'running' && !(r.holdUntil !== undefined && r.holdUntil > day));
+  if (!runs.length) return;
+  const avail = 1 - (m.stream ? STREAM_POOL_SHARE : 0);
+  const pre = runs.filter((r) => r.kind === 'base' || r.kind === 'continue');
+  const rest = runs.filter((r) => r.kind !== 'base' && r.kind !== 'continue');
+  const sumPre = pre.reduce((a, r) => a + askShare(s, r), 0);
+  const kPre = sumPre > avail ? avail / sumPre : 1;
+  const left = Math.max(0, avail - sumPre * kPre);
+  const sumRest = rest.reduce((a, r) => a + askShare(s, r), 0);
+  const kRest = sumRest > left ? left / sumRest : 1;
+  const want = new Map<string, number>();
+  for (const r of pre) want.set(r.id, Math.max(POOL_SHARE_RANGE[0], askShare(s, r) * kPre));
+  // Engine minimum: raise small shares and scale the other rest runs into what remains.
+  const lo = rest.filter((r) => askShare(s, r) * kRest < POOL_SHARE_RANGE[0]);
+  const hi = rest.filter((r) => askShare(s, r) * kRest >= POOL_SHARE_RANGE[0]);
+  const hiSum = hi.reduce((a, r) => a + askShare(s, r) * kRest, 0);
+  const room = Math.max(0, left - lo.length * POOL_SHARE_RANGE[0]);
+  const kHi = hiSum > room ? room / hiSum : 1;
+  for (const r of lo) want.set(r.id, POOL_SHARE_RANGE[0]);
+  for (const r of hi) want.set(r.id, Math.max(POOL_SHARE_RANGE[0], askShare(s, r) * kRest * kHi));
+
+  for (const r of runs) {
+    const w = want.get(r.id) ?? r.poolShare;
+    if (Math.abs(w - r.poolShare) > 1e-6) tryAct(s, api, 'runs.setShare', { runId: r.id, share: w });
   }
 }
 
@@ -219,7 +357,8 @@ export function refDecide(s: GameStateV2, d: PendingDecision): number {
 export const refBot: BotPolicy = {
   id: 'ref',
   act(s, api) {
-    if (s.time.day === 0) for (const a of REF_AGENDAS) tryAct(s, api, 'safety.fund', { agenda: a, level: 'seed' });
+    if (s.time.day === 0) tryAct(s, api, 'teams.target', { key: 'sci.saf', n: sizedTarget(s, REF_SAFETY_SCI_TEAMS) });
+    staffLines(s, api, REF_LINES);
     refPlay(s, api);
     financeAutopilot(s, REF_AUTOPILOT);
   },

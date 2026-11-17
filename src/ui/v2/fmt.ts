@@ -58,6 +58,12 @@ export const quarters = (q: number) => (q >= 99 ? '∞' : `${q.toFixed(q < 10 ? 
 export const runway = (q: number, cap = 8) => (q >= cap ? `${cap}q+` : quarters(q));
 /** Multipliers: 1.37×, 12.4×, 140×. */
 export const mult = (m: number) => `${m >= 100 ? m.toFixed(0) : m >= 10 ? m.toFixed(1) : m.toFixed(2)}×`;
+/** Base-run size as a multiple of the frontier run: ×¼, ×½, ×1, ×1.5, ×2 … */
+export const size = (x: number) => {
+  if (Math.abs(x - 0.25) < 1e-3) return '×¼';
+  if (Math.abs(x - 0.5) < 1e-3) return '×½';
+  return `×${x >= 10 ? x.toFixed(0) : x >= 1 ? +x.toFixed(1) : +x.toFixed(2)}`;
+};
 /** Megawatts / gigawatts. */
 export const power = (mw: number) => (Math.abs(mw) >= 1000 ? `${(mw / 1000).toFixed(1)} GW` : `${Math.round(mw)} MW`);
 /** 0..100 index. */

@@ -7,15 +7,17 @@
 import { EDGES } from '../../../data/v2/edges';
 import { TRAIT_BY_ID, TRAIT_IDS, TRAIT_ORDER, TRAIT_START } from '../../../data/v2/traits';
 import { UMODES } from '../../../data/v2/umodes';
+import { sizeS5 } from '../../../data/v2/runDesign';
 import { bestPlayerVersion, CHINA_ID, PLAYER_ID } from '../models/labs';
 import type {
   BaseDesign, BaseModel, EngineSystem, GameStateV2, ModelVersion, PostDesign, RivalLab, RLFamily, RngLike, SafetyPosture, SignalId,
   SimpleModel, SystemCtx, ToolFamily, TrainingRun, TraitBelief, TraitId, TraitVector, UModeId,
 } from '../types';
 import { adopted, clamp01, copyRec, flagNum, levelOf, SC_LEVEL, setFlag, tierOfLevel, trueEfficacy, versionById } from './common';
-import { fundingMult } from './agendas';
+import { lineMultCapped, lineStaffed } from './agendas';
 import { SD_MAX, eaCoef, eaSuppression, stackDetectionMap, takesEaPenalty } from './detection';
 import { techniqueRole } from './techniques';
+import { routineMonitor } from '../departments/agents';
 import { crystalMult, crystalThreshold, drawLineageUModesV2, uModeAmp, uModeEdgeMult, uModeRemovalMult } from './umodes';
 
 const SPECULATIVE = new Set(UMODES.filter((u) => u.kind === 'speculative').map((u) => u.id));
@@ -46,10 +48,10 @@ export function deploymentS8(s: GameStateV2): number {
   return s8;
 }
 
-/** Base-run signals: S5 = 0.2 + 0.1·capIndex (± scale, − AI-discourse curation), S6 from data. */
+/** Base-run signals: S5 = 0.2 + 0.1·capIndex (± size, − AI-discourse curation), S6 from data. */
 export function baseSignals(design: BaseDesign, tier: number): Signals {
   const sg = zeroSignals();
-  sg.S5 = Math.max(0, 0.2 + 0.1 * tier + (design.scale === 'compact' ? -0.1 : design.scale === 'stretch' ? 0.2 : 0) - (design.curation.safetyPretrain ? 0.15 : 0));
+  sg.S5 = Math.max(0, 0.2 + 0.1 * tier + sizeS5(design.size) - (design.curation.safetyPretrain ? 0.15 : 0));
   sg.S6 = 0.1 + (design.data === 'synthetic' ? 0.3 : 0);
   return sg;
 }
@@ -263,12 +265,12 @@ function techActive(s: GameStateV2, id: string) {
   const t = tech(s, id);
   return !!t && t.active;
 }
-/** A technique is in a run when the run lists it, or (M4) when it is an unlocked FIX technique whose agenda is
+/** A technique is in a run when the run lists it, or (M4) when it is an unlocked FIX technique whose research line is
  *  staffed: a lab's alignment-training methods are part of every post-training run it does [D]. */
 function inRun(s: GameStateV2, post: PostDesign | undefined, id: string) {
   const t = post ? tech(s, id) : undefined;
   if (!post || !t) return false;
-  return post.techniques.includes(id) || (techniqueRole(t) === 'fix' && (s.player.safety.agendas[t.agenda]?.fte ?? 0) > 0);
+  return post.techniques.includes(id) || (techniqueRole(t) === 'fix' && lineStaffed(s, t.agenda));
 }
 
 /** Edge moderators the player controls (§3.5.4 table "Moderators"). Lineage patches come from flags. */
@@ -300,7 +302,7 @@ export function playerMods(s: GameStateV2, post: PostDesign | undefined, lineage
   }
   if (post?.rlFocus === 'broad') mul('E09', 0.7);
   if (techActive(s, 'T-HONEY')) mul('E10', 0.7);
-  if (dept.agendas.AG07.fte > 0 && techActive(s, 'T-TMON') && dept.monitoringShare >= 0.1) mul('E14', 0.5);
+  if (lineStaffed(s, 'AG07') && techActive(s, 'T-TMON') && routineMonitor(s) >= 0.5) mul('E14', 0.5); // R7: monitors at ≥ half today's default strength
   if (dept.monitorabilityCommitment || s.flags['ws2.monitorabilityTax']) mul('E15', 0.5);
   if (inRun(s, post, 'T-CONFESS') || post?.safety === 'heavy') mul('E17', 0.6);
   if (techActive(s, 'T-NOISE')) mul('E18', 0.6);
@@ -309,7 +311,7 @@ export function playerMods(s: GameStateV2, post: PostDesign | undefined, lineage
     mul('E28', 0.1);
   }
   if (techActive(s, 'T-LOCK')) mul('E21', 0.5);
-  if (dept.agendas.AG07.fte > 0 && techActive(s, 'T-TMON')) mul('E22', 0.5);
+  if (lineStaffed(s, 'AG07') && techActive(s, 'T-TMON')) mul('E22', 0.5);
   // Signal patches: this lineage's (older saves) and the lab-wide ones (M4: a patched environment, grader or reward
   // model is reused by every later run, so the fix outlives the lineage).
   const prefix = `ws2.patch.${lineage}.`;
@@ -342,16 +344,15 @@ export function understandingGapGrowth(s: GameStateV2): number {
 /**
  * Alignment training that generalises (M4, §3.5.4) [D]: training on the lab's spec and character data heals value
  * traits whether or not the stack can see them — the R14 λ4 "benign generalization" bet, carried by AG18
- * training-signal design. Removal fraction per post-run = HEAL_K · e_AG18(true) · √(AG18 funding, ≤ 2.5) ·
+ * training-signal design. Removal fraction per post-run = HEAL_K · e_AG18(true) · √(AG18 line multiplier, ≤ 2.5) ·
  * preference factor · safety-training factor. Zero for a lab that does not staff AG18.
  */
 export const HEAL_K = 0.35;
 const HEAL_PREF: Record<PostDesign['pref'], number> = { minimal: 0.5, engagement: 0.3, constitution: 1, persuasion: 0.2 };
 const HEAL_SAFETY: Record<PostDesign['safety'], number> = { minimal: 0.2, standard: 1, heavy: 1.6 };
 export function healRate(s: GameStateV2, post: PostDesign): number {
-  const st = s.player.safety.agendas.AG18;
-  if (!st || st.fte <= 0) return 0;
-  return HEAL_K * trueEfficacy(s, 'AG18') * Math.sqrt(Math.min(2.5, fundingMult('AG18', st))) * HEAL_PREF[post.pref] * HEAL_SAFETY[post.safety];
+  if (!lineStaffed(s, 'AG18')) return 0;
+  return HEAL_K * trueEfficacy(s, 'AG18') * Math.sqrt(lineMultCapped(s, 'AG18')) * HEAL_PREF[post.pref] * HEAL_SAFETY[post.safety];
 }
 
 /** Engine environment for one of the player's runs (true weights, true difficulty, U-mode effects). */
@@ -461,7 +462,7 @@ function findBase(s: GameStateV2, id: string | undefined): BaseModel | undefined
 export const INHERIT_K = 0.4;
 const NOT_INHERITED: TraitId[] = ['SA', 'EA', 'OBF'];
 function inheritFromFleet(s: GameStateV2, x0: TraitVector): TraitVector {
-  const agent = versionById(s, s.player.models.internalAgent);
+  const agent = versionById(s, s.player.agents.capRoutine.versionId);
   const M = s.player.prodCache?.M ?? 1;
   const k = INHERIT_K * Math.max(0, 1 - 1 / Math.max(1, M));
   if (!agent || k <= 0) return x0;
@@ -670,7 +671,7 @@ const MASK_DECAY_DAILY = Math.pow(0.98, 12 / 365); // 2 %/month
 
 /** traitsDaily (75, daily): deployment signal S8, continual-learning drift, memory drift, mask decay. */
 export const traitsDailySystem: EngineSystem = {
-  id: 'traitsDaily', owner: 'WS2', cadence: 'daily', order: 75,
+  id: 'traitsDaily', owner: 'WS2', cadence: 'daily', order: 75, system: 'safety',
   run(s) {
     setFlag(s, 'S8', Math.round(deploymentS8(s) * 1000) / 1000);
     const stream = s.player.models.stream;
@@ -678,7 +679,7 @@ export const traitsDailySystem: EngineSystem = {
     if (sv && sv.status !== 'retired') applyStreamDay(s, sv);
     // Persistent memory on the internal fleet: goals propagate through notes (E22) even without weight updates [D].
     if (memoryOn(s)) {
-      const iv = versionById(s, s.player.models.internalAgent);
+      const iv = versionById(s, s.player.agents.capRoutine.versionId);
       if (iv && iv !== sv) {
         const w = s.hidden.edgeWeights.E22 ?? 0.3;
         const mod = playerMods(s, iv.design, 'L-memory').E22 ?? 1;

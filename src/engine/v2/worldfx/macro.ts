@@ -189,7 +189,7 @@ export function runMacro(s: GameStateV2, ctx: SystemCtx): void {
 
 /** macro (310, monthly). */
 export const macroSystem: EngineSystem = {
-  id: 'macro', owner: 'WS5', cadence: 'monthly', order: 310,
+  id: 'macro', owner: 'WS5', cadence: 'monthly', order: 310, system: 'world',
   run(s, ctx) {
     runMacro(s, ctx);
   },

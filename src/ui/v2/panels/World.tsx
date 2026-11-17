@@ -8,7 +8,7 @@ import {
   remoteWorkAutomation, techBlocker, unemploymentChange12m, youthExposedEmployment,
 } from '../../../engine/v2';
 import type { DomainId, GameStateV2 } from '../../../engine/v2';
-import { ActBtn, fmtB, fmtNum, Gate, Meter, pct, Row, Section, Slider, Spark, Term, Tip, TipCard, Why } from '../ui';
+import { ActBtn, Limit, fmtB, fmtNum, Gate, Meter, pct, Row, Section, Slider, Spark, Term, Tip, TipCard, Why } from '../ui';
 import { PanelHead } from '../kit';
 import { ICON } from '../icons';
 import { seq } from '../theme';
@@ -117,7 +117,7 @@ export function World({ s }: { s: GameStateV2 }) {
             );
           })}
         </div>
-        <Row label={<span><Term id="moonshot">Moonshot</Term> {tech || 'auto'} · {pct(share)} of compute</span>}><Slider value={share} min={0} max={0.3} step={0.01} onChange={setShare} /><ActBtn id="wfx.moonshot" params={{ ...(tech ? { tech } : {}), share }} /></Row>
+        <Row label={<span><Term id="moonshot">Moonshot</Term> {tech || 'auto'} · {pct(share)} of compute <Limit id="moonshot.serving" tone={share >= 0.3 ? 'warn' : 'quiet'}>from serving · max 30%</Limit></span>}><Slider value={share} min={0} max={0.3} step={0.01} onChange={setShare} /><ActBtn id="wfx.moonshot" params={{ ...(tech ? { tech } : {}), share }} /></Row>
       </Section>
     </div>
   );

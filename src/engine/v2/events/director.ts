@@ -72,7 +72,7 @@ export function crisisAllowed(s: GameStateV2, st: Storyteller, day: number): boo
 
 /** director (140, daily): Evaluate event triggers; queue decisions under storyteller limits; expire deadlines. */
 export const directorSystem: EngineSystem = {
-  id: 'director', owner: 'WS4', cadence: 'daily', order: 140,
+  id: 'director', owner: 'WS4', cadence: 'daily', order: 140, system: 'core',
   run(s, ctx) {
     const day = ctx.day;
     const w = ws4(s);

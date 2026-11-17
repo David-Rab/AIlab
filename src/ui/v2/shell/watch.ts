@@ -1,16 +1,20 @@
 // Watch rules (IA.md L1, PLAN U1.10): each rule reads visible selectors only and yields a cause chain
 // (root ▸ symptom), a consequence line and a Go target to the control that fixes it. UI-only; no engine state.
 import type { LucideIcon } from 'lucide-react';
-import { engine, idleChips, internalVersion, revenueReadout, safetyView } from '../../../engine/v2';
-import type { GameStateV2 } from '../../../engine/v2';
+import { engine, eventDef, idleChips, idleStocks, idleTeams, internalVersion, revenueReadout, safetyView } from '../../../engine/v2';
+import type { GameStateV2, IdleStockId } from '../../../engine/v2';
 import { CRITICAL_TRAITS } from '../../../data/v2/traits';
 import { ICON } from '../icons';
 import * as F from '../fmt';
 import type { GoTarget } from '../kit';
-import { runwayLive } from './TopStrip';
+import { runwayLive } from './selectors';
 
 export interface WatchLink { label: string; icon?: LucideIcon; kind: 'root' | 'bad'; detail?: string }
 export interface WatchItem { id: string; sphere: 'company' | 'models' | 'safety' | 'world'; sev: number; chain: WatchLink[]; why: string; go: GoTarget; goLabel: string }
+
+/** The alert of each idle stock (STRUCTURE R5; scripts/v2/idle.ts): a Watch item, or a nav badge where the stock
+ *  still has a partial use (science teams with no project add research taste but advance no idea: Research badge). */
+export const IDLE_ALERT: Record<IdleStockId, { watch?: string; badge?: string }> = { chips: { watch: 'idle', badge: 'compute' }, scienceTeams: { badge: 'research' }, serving: { watch: 'idleServing' } };
 
 export function watchItems(s: GameStateV2): WatchItem[] {
   const out: WatchItem[] = [];
@@ -25,14 +29,23 @@ export function watchItems(s: GameStateV2): WatchItem[] {
       why: 'chips you paid for earn nothing', go: { panel: 'compute', tab: 'overview' }, goLabel: 'Compute',
     });
   }
-  // 2. channels capped by serving capacity
+  // 1b. serving compute no product needs (R5). Science teams with no project show on the Research nav badge.
+  for (const st of idleStocks(s)) {
+    if (st.id === 'serving') out.push({
+      id: 'idleServing', sphere: 'company', sev: 1.5 + st.share,
+      chain: [{ label: 'demand below serving', icon: ICON.serving, kind: 'root', detail: `Products need ${F.pct(1 - st.share)} of the serving pool` }, { label: `${F.count(st.amount)} H100e spare`, icon: ICON.idle, kind: 'bad', detail: 'Serving compute no product needs sits idle' }],
+      why: 'move it to research on Compute › Split', go: { panel: 'compute', tab: 'split', anchor: 'split-serving' }, goLabel: 'Split',
+    });
+  }
+  // 2. products capped by serving capacity (R6: what the Auto split cuts, lowest $ per H100e first)
   const rd = revenueReadout(s);
   const capped = rd.deps.filter((d) => d.bound === 'capacity');
   if (capped.length) {
+    const cutH = rd.deps.reduce((a, d) => a + d.cutH100e, 0);
     out.push({
       id: 'capped', sphere: 'models', sev: 2 + Math.min(2, (rd.demand - rd.total) / Math.max(1, rd.total)),
-      chain: [{ label: 'serving share low', icon: ICON.serving, kind: 'root', detail: `Serving pool gets ${F.pct(p.split.serving)} of compute` }, { label: `${capped.length} channel${capped.length > 1 ? 's' : ''} capped`, icon: ICON.product, kind: 'bad', detail: `Demand ${F.money(rd.demand, { perYear: true })} vs capacity ${F.money(rd.capacity, { perYear: true })}` }],
-      why: 'demand you are not booking', go: { panel: 'company', tab: 'split', anchor: 'split-serving' }, goLabel: 'Split',
+      chain: [{ label: 'serving compute short', icon: ICON.serving, kind: 'root', detail: `Serving pool gets ${F.pct(p.split.serving)} of compute; ${p.policies.servingAuto ? 'Auto' : 'your shares'} cut ${F.count(cutH)} H100e` }, { label: `${capped.length} product${capped.length > 1 ? 's' : ''} capped`, icon: ICON.product, kind: 'bad', detail: `Demand ${F.money(rd.demand, { perYear: true })} vs capacity ${F.money(rd.capacity, { perYear: true })}` }],
+      why: 'demand you are not booking', go: { panel: 'compute', tab: 'split', anchor: 'split-serving' }, goLabel: 'Split',
     });
   }
   // 3. critical traits the stack can no longer read at L
@@ -43,11 +56,11 @@ export function watchItems(s: GameStateV2): WatchItem[] {
     const tool = sv.techniques.filter((t) => t.unlocked && t.active && t.role !== 'fix').sort((a, b) => b.decay - a.decay)[0];
     const root: WatchLink = tool && tool.decay > 0.3
       ? { label: `${tool.name} decayed`, icon: ICON.revalidate, kind: 'root', detail: `${F.pct(tool.decay)} of its strength lost as capability grew` }
-      : { label: 'no tool covers them', icon: ICON.safety, kind: 'root', detail: 'Fund a detection agenda' };
+      : { label: 'no tool covers them', icon: ICON.safety, kind: 'root', detail: 'Staff a detection research line' };
     out.push({
       id: 'unseen', sphere: 'safety', sev: 2 + unseen.length / 2,
       chain: [root, { label: `${unseen.length} trait${unseen.length > 1 ? 's' : ''} unseen`, icon: ICON.blind, kind: 'bad', detail: 'Detection below 50% at your level' }],
-      why: 'your tools no longer read them at this level', go: tool && tool.decay > 0.3 ? { panel: 'safety', tab: 'tools' } : { panel: 'safety', tab: 'agendas' }, goLabel: tool && tool.decay > 0.3 ? 'Tools' : 'Agendas',
+      why: 'your tools no longer read them at this level', go: { panel: 'safety', tab: 'lines' }, goLabel: tool && tool.decay > 0.3 ? 'Tool upkeep' : 'Research lines',
     });
   }
   // 4. runway state will change at the next board review
@@ -59,17 +72,8 @@ export function watchItems(s: GameStateV2): WatchItem[] {
       why: `the board reviews it on ${rl.review.toISOString().slice(0, 10)}`, go: { panel: 'finance', anchor: 'raise' }, goLabel: 'Finance',
     });
   }
-  // 5. a ready version whose eval suite is stale (blocks deployment behind the eval gate)
-  if (p.safety.evalGate !== 'none') {
-    const stale = p.models.versions.filter((v) => v.status === 'ready' && v.variant === 'full' && (v.evals.suiteDay === undefined || s.time.day - v.evals.suiteDay > 30));
-    if (stale.length) {
-      out.push({
-        id: 'stale', sphere: 'models', sev: 1.5,
-        chain: [{ label: 'evals older than 30 d', icon: ICON.finding, kind: 'root', detail: stale.map((v) => v.name).join(', ') }, { label: `${stale.length} version${stale.length > 1 ? 's' : ''} can't ship`, icon: ICON.product, kind: 'bad' }],
-        why: 'the eval gate blocks deployment', go: { panel: 'models' }, goLabel: 'Models',
-      });
-    }
-  }
+  // 5. (R6) eval suites no longer expire: the auto-evaluate policy keeps the internal model current, so the old
+  // "evals older than 30 d" alert is gone (rule R7, no chores).
   // 6. board
   const bc = p.board.confidence;
   if (bc < 40) {
@@ -97,4 +101,24 @@ export function watchItems(s: GameStateV2): WatchItem[] {
     });
   }
   return out.sort((a, b) => b.sev - a.sev);
+}
+
+// ───────── nav badges (moved from Nav.tsx so node scripts can read the alert channel) ─────────
+const EVENT_PANEL: Record<string, string> = { finance: 'finance', company: 'company', model: 'safety', incident: 'safety', research: 'safety', alert: 'risk', gov: 'relations', china: 'relations', rival: 'relations', public: 'relations', world: 'world', milestone: 'models', security: 'company' };
+
+/** Badge per nav id: number, '!' or undefined. */
+export function navBadges(s: GameStateV2): Record<string, { n: string; tone: 'warn' | 'info' | 'bad' }> {
+  const b: Record<string, { n: string; tone: 'warn' | 'info' | 'bad' }> = {};
+  const w = watchItems(s);
+  if (w.length) b.overview = { n: String(w.length), tone: w.some((x) => x.sev >= 3.5) ? 'bad' : 'warn' };
+  const dec: Record<string, number> = {};
+  for (const p of s.events.pending) { const id = EVENT_PANEL[eventDef(p.id)?.icon ?? ''] ?? 'overview'; dec[id] = (dec[id] ?? 0) + 1; }
+  for (const [id, n] of Object.entries(dec)) if (id !== 'overview') b[id] = { n: String(n), tone: 'warn' };
+  const fresh = s.player.safety.findings.filter((f) => s.time.day - f.day <= 30).length;
+  if (fresh && !b.safety) b.safety = { n: String(fresh), tone: 'info' };
+  const idleSci = idleTeams(s).length;
+  if (idleSci) b.research = { n: String(idleSci), tone: 'warn' };
+  if (w.some((x) => x.id === 'idle') && !b.compute) b.compute = { n: '!', tone: 'warn' };
+  if (w.some((x) => x.id === 'capped') && !b.products) b.products = { n: '!', tone: 'warn' };
+  return b;
 }
