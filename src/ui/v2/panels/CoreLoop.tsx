@@ -14,6 +14,8 @@ import * as F from '../fmt';
 import { ICON } from '../icons';
 import { C, runwayState, STATE_COLOR } from '../theme';
 import type { GoTarget } from '../kit';
+import { isDivision } from '../../../data/v2/starts';
+import { divisionBudget } from '../shell/selectors';
 
 type Tone = 'good' | 'watch' | 'bad' | 'neutral';
 const TONE: Record<Tone, string> = { good: C.good, watch: C.watch, bad: C.bad, neutral: C.text3 };
@@ -47,7 +49,11 @@ function readings(s: GameStateV2): Record<string, Reading> {
   const out: Record<string, Reading> = {};
   const rw = runwayOf(s);
   const st = runwayState(rw.q);
-  out.cash = { text: `runway ${st}`, tone: st === 'healthy' ? 'good' : st === 'tight' ? 'watch' : 'bad', tip: [{ label: <Term id="runway">Runway</Term>, value: <span style={{ color: STATE_COLOR[st] }}>{F.runway(rw.q, 12)}</span> }] };
+  if (isDivision(s)) {
+    // Jank F2: a division cannot go broke; its verdict is the budget, not the runway.
+    const b = divisionBudget(s);
+    out.cash = { text: b.over ? `over budget ${F.money(b.overQ)}/q` : 'within budget', tone: b.over ? 'watch' : 'good', tip: [{ label: <Term id="parentBudget">Parent budget</Term>, value: F.money(b.parentQ, { perQ: true }) }, { label: 'Spending', value: F.money(b.spendQ, { perQ: true }) }] };
+  } else out.cash = { text: `runway ${st}`, tone: st === 'healthy' ? 'good' : st === 'tight' ? 'watch' : 'bad', tip: [{ label: <Term id="runway">Runway</Term>, value: <span style={{ color: STATE_COLOR[st] }}>{F.runway(rw.q, 12)}</span> }] };
   out.financing = p.board.preset === 'parent' ? { text: 'parent budget', tone: 'neutral' } : { text: p.finance.ws3.pendingRound ? 'round pending' : 'raise · borrow', tone: 'neutral' };
   const teams = p.teams;
   const idle = idleTeams(s).length;

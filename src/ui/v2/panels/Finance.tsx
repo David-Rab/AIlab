@@ -4,12 +4,12 @@
 import { useState } from 'react';
 import {
   actionView, dateOf, dayOfQuarter, dealMenu, dealPreview, debtHeadroom, debtRatePct, fmtDate, fmtMonth, incidentBoardHit, interestPerYear, ledgerDue, liveLedger,
-  parentSchedule, parentYear, payrollOf, qOf, raiseCeiling, runwayOf, totalDebt, DIVISION_REASON,
+  parentSchedule, parentYear, payrollOf, qOf, raiseCeiling, runwayOf, totalDebt, DIVISION_REASON, RUNWAY_CAP,
 } from '../../../engine/v2';
 import { isDivision } from '../../../data/v2/starts';
 import type { BoardSeat, Debt, GameStateV2 } from '../../../engine/v2';
 import { ActBtn, Limit, CauseBars, Gate, Seg, Term, Tip, TipCard, Why } from '../ui';
-import { Card, CostPills, GoBtn, HBar, KV, PanelHead, Pill } from '../kit';
+import { Card, CostPills, GoBtn, HBar, KV, PanelHead, Pill, tabOf, Tabs } from '../kit';
 import * as F from '../fmt';
 import { ICON } from '../icons';
 import { C, SPHERE } from '../theme';
@@ -51,8 +51,13 @@ function Waterfall({ s }: { s: GameStateV2 }) {
   const orders = pl.orders.filter((o) => o.kind !== 'lta' && o.dueQ - q0 <= 4 && o.qty > o.delivered);
   const building = pl.sites.filter((x) => x.stage !== 'live' && x.stage !== 'blocked' && x.capex > x.capexPaid);
   const rev = -p.revenue;
+  // Jank F2: a division's inflow is the parent's budget (its revenue goes to the parent).
+  const division = isDivision(s);
+  const parentQ = Math.max(0, -p.funding);
   const steps = [
-    { id: 'revenue', label: 'Revenue', term: 'revenueRun', icon: ICON.revenue, v: rev, rows: [{ label: <Term id="revenueRun">Run-rate</Term>, value: F.money(pl.finance.revenueRun, { perYear: true }) }, { label: 'Per quarter', value: F.money(rev) }], body: 'Revenue from your deployments this quarter.' },
+    division
+      ? { id: 'parent', label: 'Parent budget', term: 'parentBudget', icon: ICON.revenue, v: parentQ, rows: [{ label: 'Per quarter (next 4 q, average)', value: F.money(parentQ) }, { label: <Term id="revenueRun">Revenue</Term>, value: `${F.money(pl.finance.revenueRun, { perYear: true })} to the parent` }], body: 'The parent pays your budget at each quarter start and covers any shortfall.' }
+      : { id: 'revenue', label: 'Revenue', term: 'revenueRun', icon: ICON.revenue, v: rev, rows: [{ label: <Term id="revenueRun">Run-rate</Term>, value: F.money(pl.finance.revenueRun, { perYear: true }) }, { label: 'Per quarter', value: F.money(rev) }], body: 'Revenue from your deployments this quarter.' },
     { id: 'operating', label: 'Payroll & ops', term: 'opex', icon: ICON.staff, v: -p.operating, body: 'Running costs that are not contracts.', rows: [
       { label: <Term id="payroll">Payroll</Term>, value: F.money(payQ) }, { label: 'Security spend', value: F.money(secQ) },
       ...(fundQ > 0 ? [{ label: <Term id="transitionFund">Transition fund</Term>, value: F.money(fundQ) }] : []), ...(intQ > 0 ? [{ label: 'Interest', value: F.money(intQ) }] : []),
@@ -62,7 +67,8 @@ function Waterfall({ s }: { s: GameStateV2 }) {
     { id: 'chips', label: 'Chips', term: 'capex', icon: ICON.compute, v: -p.chips, body: 'Chip-order balances paid on delivery, per quarter averaged over the next 4 quarters.', rows: orders.slice(0, 6).map((o) => ({ label: `${o.kind} · ${F.count(o.qty - o.delivered)} H100e`, value: `due ${o.dueQ - q0 <= 0 ? 'now' : `+${o.dueQ - q0}q`}` })) },
     { id: 'sites', label: 'Sites & power', term: 'site', icon: ICON.sites, v: -p.sites, body: 'Site capex on each site\'s build schedule, per quarter averaged over the next 4 quarters.', rows: building.slice(0, 6).map((x) => ({ label: `${x.name} · ${x.stage}`, value: `${F.money(x.capex - x.capexPaid)} left` })) },
   ];
-  const net = -rw.burnQ;
+  const net = division ? parentQ - rw.burnQ : -rw.burnQ;
+  const netLabel = division ? (net < 0 ? 'Over budget' : 'Within budget') : net < 0 ? 'Net burn' : 'Net inflow';
   const spend = steps.slice(1).reduce((a, x) => a - x.v, 0);
   const W = 760;
   const H = 270;
@@ -91,17 +97,17 @@ function Waterfall({ s }: { s: GameStateV2 }) {
               <rect x={X(i)} y={top} width={bw} height={h} rx={3} fill={i === 0 ? C.good : '#6b7c91'} />
               {i < bars.length && <line x1={X(i) + bw} x2={X(i + 1)} y1={Y(b.b)} y2={Y(b.b)} stroke={C.text3} strokeDasharray="2 3" />}
               <text x={X(i) + bw / 2} y={top - 6} textAnchor="middle" className={`wf2-val ${i === 0 ? "pos" : ""}`}>{Math.abs(b.v) < 0.005 ? "$0" : F.money(b.v, { signed: true })}</text>
-              {b.id === biggest.id && spend > 0 && -b.v > 0 && <text x={X(i) + bw / 2} y={top + h + 13} textAnchor="middle" className="wf2-note">{F.pct(-b.v / spend)} of spend</text>}
+              {b.id === biggest.id && spend > 0 && -b.v > 0 && <text x={X(i) + bw / 2} y={top + h + 13 > H - pb + 8 ? top - 20 : top + h + 13} textAnchor="middle" className="wf2-note">{F.pct(-b.v / spend)} of spend</text>}
               <text x={X(i) + bw / 2} y={H - pb + 22} textAnchor="middle" className="wf2-lbl">{b.label}</text>
             </g>
           </Tip>
         );
       })}
-      <Tip as="g" content={() => <TipCard title={<Term id="netBurn">{net < 0 ? 'Net burn' : 'Net inflow'}</Term>} value={F.money(net, { signed: true, perQ: true })} rows={[{ label: 'Revenue', value: F.money(rev) }, { label: 'Spending', value: F.money(-spend) }]}>Revenue minus every category of spending this quarter. Runway in the top strip divides your liquidity by this.</TipCard>}>
+      <Tip as="g" content={() => <TipCard title={<Term id={division ? 'parentBudget' : 'netBurn'}>{netLabel}</Term>} value={F.money(net, { signed: true, perQ: true })} rows={[{ label: division ? 'Parent budget' : 'Revenue', value: F.money(division ? parentQ : rev) }, { label: 'Spending', value: F.money(-spend) }]}>{division ? 'Budget minus every category of spending per quarter. The parent covers a shortfall: a division cannot go broke.' : 'Revenue minus every category of spending this quarter. Runway in the top strip divides your liquidity by this.'}</TipCard>}>
         <g className="wf2-bar" data-home="netBurn">
-          <rect x={X(5)} y={Math.min(Y(0), Y(net))} width={bw} height={Math.max(1.5, Math.abs(Y(net) - Y(0)))} rx={3} fill={net < 0 ? C.bad : C.good} />
-          <text x={X(5) + bw / 2} y={Math.min(Y(0), Y(net)) - 6} textAnchor="middle" className={`wf2-val ${net < 0 ? 'neg' : 'pos'}`}>{F.money(net, { signed: true })}</text>
-          <text x={X(5) + bw / 2} y={H - pb + 22} textAnchor="middle" className="wf2-lbl strong">{net < 0 ? 'Net burn' : 'Net inflow'}</text>
+          <rect x={X(5)} y={Math.min(Y(0), Y(net))} width={bw} height={Math.max(1.5, Math.abs(Y(net) - Y(0)))} rx={3} fill={net < 0 ? (division ? C.watch : C.bad) : C.good} />
+          <text x={X(5) + bw / 2} y={Math.min(Y(0), Y(net)) - 6} textAnchor="middle" className={`wf2-val ${net < 0 ? (division ? 'warn' : 'neg') : 'pos'}`}>{F.money(net, { signed: true })}</text>
+          <text x={X(5) + bw / 2} y={H - pb + 22} textAnchor="middle" className="wf2-lbl strong">{netLabel}</text>
         </g>
       </Tip>
     </svg>
@@ -121,7 +127,7 @@ function CashHistory({ s }: { s: GameStateV2 }) {
   if (n < 2) return <div className="dim small">Cash history starts after the first week.</div>;
   // Projection: the runway's quarter-by-quarter cash path (each payment in the quarter it falls due).
   const proj = rw.path.map((p) => [p.day, p.cash]);
-  const dry = rw.zeroDay;
+  const dry = isDivision(s) ? undefined : rw.zeroDay; // a division cannot run dry (the parent covers it)
   const pend = f.ws3.pendingRound;
   const nq = nextQDay(s);
   const pendPts: number[][] = [];
@@ -226,6 +232,24 @@ function RaiseCard({ s }: { s: GameStateV2 }) {
           <Pill kind={fail > 0.25 ? 'bad' : fail > 0 ? 'warn' : 'good'} title="Asking above the ceiling risks the round failing">close {F.pct(1 - fail)}</Pill>
         </span>
       </div>
+      {/* Jank F5: what the round does, before you click. */}
+      {(() => {
+        const rw = runwayOf(s);
+        const after = burn > 0 ? Math.min(RUNWAY_CAP, rw.q + ask / burn) : rw.q;
+        return (
+          <Tip content={() => <TipCard title="If the round closes" rows={[
+            { label: 'Cash', value: `${F.money(f.cash)} → ${F.money(f.cash + ask)}` },
+            { label: <Term id="runway">Runway</Term>, value: `${F.runway(rw.q, RUNWAY_CAP)} → ${F.runway(after, RUNWAY_CAP)}` },
+            { label: <Term id="dilution">Stake sold</Term>, value: `${stake.toFixed(1)}% of the company` },
+            { label: 'Closes', value: fmtDate(dateOf(s, nextQDay(s))) },
+          ]}>The money lands at the next quarter start; the odds of closing fall when you ask above the ceiling.</TipCard>}>
+            <div className="fin-ba small" data-test="raise-preview">
+              <span className="dim">cash</span> <span className="num">{F.money(f.cash)} → <b>{F.money(f.cash + ask)}</b></span>
+              <span className="dim">· runway</span> <span className="num">{F.runway(rw.q, RUNWAY_CAP)} → <b>{F.runway(after, RUNWAY_CAP)}</b></span>
+            </div>
+          </Tip>
+        );
+      })()}
       <div className="ask-slider">
         <input className="slider" type="range" min={0.1} max={askMax} step={0.1} value={ask} onChange={(e) => setAsk(Number(e.target.value))} data-test="raise-ask" />
         <i className="ask-ceil" style={{ left: `${(Math.min(askMax, ceil.max) / askMax) * 100}%` }} title="ceiling" />
@@ -369,7 +393,7 @@ function BoardCard({ s }: { s: GameStateV2 }) {
             <Tip key={i} content={() => <TipCard title={x.holder} value={meta.label} rows={x.stance.map((sv, j) => ({ label: STANCE[j], value: sv > 0 ? 'for' : sv < 0 ? 'against' : 'neutral', tone: sv > 0 ? 'pos' : sv < 0 ? 'neg' : 'neutral' }))} footer={x.weight > 1 ? `${x.weight} votes` : '1 vote'}>How this seat leans on decisions that push speed, money, safety or mission.</TipCard>}>
               <div className="seat" data-seat={i}>
                 <span className={`seat-av ${x.kind}`}><meta.icon size={16} />{x.weight > 1 && <i>×{x.weight}</i>}</span>
-                <span className="seat-name ellip">{x.holder}</span>
+                <span className="seat-name">{x.holder}</span>
                 <span className={`seat-st ${v > 0 ? 'tone-pos' : v < 0 ? 'tone-neg' : 'dim'}`}>{v === 0 ? 'neutral' : `${STANCE[k]} ${v > 0 ? '▲' : '▼'}`}</span>
               </div>
             </Tip>
@@ -383,10 +407,13 @@ function BoardCard({ s }: { s: GameStateV2 }) {
           {b.pendingApprovals.map((p) => <KV key={p.id} k={F.words(p.action)}>{F.pct(p.pApprove)} likely</KV>)}
         </div>
       )}
-      <div className="btn-row" style={{ marginTop: 8 }}>
-        <ActBtn id="fin.recap" label={<Term id="recap">Recapitalise</Term>} />
-        <ActBtn id="fin.refuseRecap" label="Refuse recap" />
-      </div>
+      {/* Jank F4: the recap question exists only for the capped-profit nonprofit, until it is decided. */}
+      {b.preset === 'legacyNonprofit' && s.player.finance.ws3?.recap.startDay === undefined && !s.player.finance.ws3?.recap.refused && (
+        <div className="btn-row" style={{ marginTop: 8 }}>
+          <ActBtn id="fin.recap" label={<Term id="recap">Recapitalise</Term>} />
+          <ActBtn id="fin.refuseRecap" label="Refuse recap" />
+        </div>
+      )}
     </Card>
   );
 }
@@ -525,10 +552,19 @@ export function Finance({ s }: { s: GameStateV2 }) {
   const f = s.player.finance;
   const dLeft = Math.max(0, nextQDay(s) - s.time.day);
   const division = isDivision(s);
+  // Jank F3: first glance = cash flow, cash history and the raise (or the parent budget); the rest on tabs.
+  const tab = tabOf('finance', 'cash');
   return (
     <div className="panel-v2 fin" data-panel="finance">
       <PanelHead icon={ICON.finance} title="Finance" sub={`per quarter unless marked · ${qLabel(s, qOf(s) + 1)} starts in ${dLeft} d`}
+        tabs={<Tabs panel="finance" def="cash" tabs={[
+          { id: 'cash', label: 'Cash', icon: ICON.cash },
+          { id: 'contracts', label: 'Contracts', icon: ICON.commitment },
+          { id: 'owners', label: division ? 'Board' : 'Board & owners', icon: ICON.board },
+          ...(division ? [] : [{ id: 'deals', label: 'Debt & deals', icon: ICON.debt }]),
+        ]} />}
         right={division ? undefined : <div className="btn-row"><GoBtn to={{ panel: 'finance', anchor: 'raise' }} label="Raise" testId="fin.go.raise" /><GoBtn to={{ panel: 'finance', anchor: 'partner' }} label="Seek partner" testId="fin.go.partner" /><GoBtn to={{ panel: 'finance', anchor: 'borrow' }} label="Borrow" testId="fin.go.borrow" /></div>} />
+      {tab === 'cash' && <>
       <div className="fin-top">
         <Card title={<Term id="netBurn">Cash flow this quarter</Term>} sub="$ per quarter · hover a bar for its lines"
           right={<span className="row-i small"><Why k="revenueRun" title="Revenue run-rate" value={F.money(f.revenueRun, { perYear: true })} fmt={(x) => F.money(x)} levers={<GoBtn to={{ panel: 'products' }} label="Products" />}><span className="dim"><Term id="revenueRun">revenue</Term>{division ? ' goes to the parent' : ''} · in the top strip</span></Why></span>}>
@@ -539,19 +575,22 @@ export function Finance({ s }: { s: GameStateV2 }) {
           <CashHistory s={s} />
         </Card>
       </div>
-      <div className="g3">
+      <div className="g2">
         {division ? <ParentBudget s={s} /> : <RaiseCard s={s} />}
-        <LockedIn s={s} />
-        <Card title="Why cash moved · 30 d" sub="every booked inflow and outflow" home="cashCauses">
+        <Card title="Why cash moved · 30 d" sub="every booked inflow and outflow, summed per source · ×N = days it moved" home="cashCauses">
           <CauseBars s={s} k="cash" fmt={(x) => F.money(x)} />
         </Card>
       </div>
-      <div className="g3">
-        <BoardCard s={s} />
-        {!division && <Ownership s={s} />}
-        {!division && <Markets s={s} />}
-      </div>
-      {!division && (
+      </>}
+      {tab === 'contracts' && <div className="g2"><LockedIn s={s} /></div>}
+      {tab === 'owners' && (
+        <div className="g3">
+          <BoardCard s={s} />
+          {!division && <Ownership s={s} />}
+          {!division && <Markets s={s} />}
+        </div>
+      )}
+      {tab === 'deals' && !division && (
         <div className="g2">
           <DebtCard s={s} />
           <Deals s={s} />

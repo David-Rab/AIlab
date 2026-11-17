@@ -179,13 +179,14 @@ export function Tip({
   };
   useEffect(() => clear, []);
 
-  if (!api) return <As className={className} style={style}>{children}</As>;
+  if (!api) return <As className={className} style={style} data-tip="">{children}</As>;
 
   return (
     <As
       ref={ref as never}
       className={className}
       style={style}
+      data-tip=""
       onMouseEnter={() => {
         clear();
         openTimer.current = window.setTimeout(() => {

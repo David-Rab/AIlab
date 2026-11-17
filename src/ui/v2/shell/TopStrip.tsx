@@ -12,7 +12,7 @@ import * as F from '../fmt';
 import { ICON, TRAIT_ICON } from '../icons';
 import { C, STATE_COLOR } from '../theme';
 import { SpeedControl } from './SpeedControl';
-import { catRisk, nearestRival, runwayLive } from './selectors';
+import { catRisk, divisionBudget, nearestRival, runwayLive } from './selectors';
 
 export { catRisk, nearestRival, runwayLive };
 
@@ -121,9 +121,39 @@ function RiskChip({ s }: { s: GameStateV2 }) {
 }
 
 const PART_WORD: Record<string, string> = { operating: 'Payroll & operations', commitments: 'Contracts (ledger)', chips: 'Chip balances', sites: 'Site capex', revenue: 'Revenue', funding: 'Equity tranches', debt: 'Debt repayment' };
+/** Big-tech division (jank F2): cash against the parent's budget; no runway, no distress (the parent covers you). */
+function DivisionCashChip({ s }: { s: GameStateV2 }) {
+  const f = s.player.finance;
+  const b = divisionBudget(s);
+  return (
+    <Tip as="div" className="ts-stat" content={() => (
+      <WhyCard
+        s={s} k="cash" title={<span><Term id="cash">Cash</Term> · <Term id="parentBudget">parent budget</Term></span>} value={F.money(f.cash)} fmt={(x) => F.money(x)}
+        rows={[
+          { label: <Term id="parentBudget">Parent budget</Term>, value: F.money(b.parentQ, { perQ: true }), tone: 'pos' },
+          { label: 'Spending (next 4 q, average)', value: F.money(-b.spendQ, { signed: true, perQ: true }), tone: 'neg' },
+          { label: b.over ? 'Over budget' : 'Within budget', value: F.money(Math.abs(b.overQ), { perQ: true }), tone: b.over ? 'neg' : 'pos' },
+        ]}
+        body="A division of the parent: it pays a budget every quarter and covers any shortfall (cash below zero is an advance against the next payment). A division cannot go broke; spending over budget only shows here."
+        levers={<GoBtn to={{ panel: 'finance', anchor: 'parent' }} label="Budget" testId="cash.parent" />}
+      />
+    )}>
+      <div className="ts-click" data-test="cash" onClick={() => store.setPanel('finance')}>
+        <span className="ts-ic"><ICON.cash size={14} /></span>
+        <div className="ts-col"><span className="ts-l">CASH · BUDGET</span><span className="ts-v num" data-home="cash">{F.money(f.cash)}</span></div>
+        <div className="ts-runway" data-home="runway" data-test="division-budget">
+          <span className="num" style={{ color: b.over ? C.watch : C.good }}>{b.over ? `over ${F.money(b.overQ)}/q` : 'within budget'}</span>
+          <span className="ts-sub">parent covers</span>
+        </div>
+      </div>
+    </Tip>
+  );
+}
+
 function CashChip({ s }: { s: GameStateV2 }) {
   const f = s.player.finance;
-  const { rw, live, official, review, flips } = runwayLive(s);
+  const { rw, live, official, review, flips, division } = runwayLive(s);
+  if (division) return <DivisionCashChip s={s} />;
   const col = STATE_COLOR[f.state === 'insolvent' ? 'insolvent' : live];
   return (
     <Tip as="div" className="ts-stat" content={() => (
@@ -161,16 +191,18 @@ function RevenueChip({ s }: { s: GameStateV2 }) {
   return (
     <Tip as="div" className="ts-stat" content={() => {
       const rd = productReadouts(s);
-      const rows = s.player.deployments.filter((d) => d.status === 'live' && rd.has(d.id)).map((d) => ({ d, r: rd.get(d.id)! })).sort((a, b) => (b.d.revenueRate ?? 0) - (a.d.revenueRate ?? 0));
+      const rows = s.player.deployments.filter((d) => d.status === 'live' && rd.has(d.id)).map((d) => ({ d, r: rd.get(d.id)! })).sort((a, b) => b.r.revenue - a.r.revenue);
+      const now = rows.reduce((a, x) => a + x.r.revenue, 0);
       return (
-        <TipCard title={<Term id="revenueRun">Revenue run-rate</Term>} value={F.money(f.revenueRun, { perYear: true })} rows={[
-          ...rows.map(({ d, r }) => ({ label: <span>{PRODUCT_DEFS[d.channel]?.name ?? d.channel} <span className="dim">· {F.count(r.customers)} {PRODUCT_DEFS[d.channel]?.customers ?? ''}</span></span>, value: F.money(d.revenueRate ?? 0, { perYear: true }) })),
-        ]} footer={big ? 'A division books revenue to its parent.' : undefined}>Annualised revenue of your live products (30-day average). Click for Products.</TipCard>
+        <TipCard title={<Term id="revenueRun">Revenue · 30-day average</Term>} value={F.money(f.revenueRun, { perYear: true })} rows={[
+          ...rows.map(({ d, r }) => ({ label: <span>{PRODUCT_DEFS[d.channel]?.name ?? d.channel} now <span className="dim">· {F.count(r.customers)} {PRODUCT_DEFS[d.channel]?.customers ?? ''}</span></span>, value: F.money(r.revenue, { perYear: true }) })),
+          { label: <b><Term id="revenueNow">All products, now</Term></b>, value: <b>{F.money(now, { perYear: true })}</b> },
+        ]} footer={big ? 'A division books revenue to its parent.' : 'The 30-day average is what the board and investors judge; it trails the figure now.'}>Annualised revenue of your live products, averaged over 30 days. Click for Products.</TipCard>
       );
     }}>
       <div className="ts-click" data-test="revenue" onClick={() => store.setPanel('products')}>
         <span className="ts-ic"><ICON.revenue size={14} /></span>
-        <div className="ts-col"><span className="ts-l">REVENUE</span><span className="ts-v num" data-home="revenueRun">{F.money(f.revenueRun)}<span className="ts-sub">/yr</span></span></div>
+        <div className="ts-col"><span className="ts-l">REVENUE · 30 D</span><span className="ts-v num" data-home="revenueRun">{F.money(f.revenueRun)}<span className="ts-sub">/yr</span></span></div>
         {hist.length > 2 && <Spark2 data={hist} w={44} h={18} color={C.good} />}
       </div>
     </Tip>

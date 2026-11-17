@@ -33,6 +33,8 @@ const SAFEGUARDS: Deployment['safeguards'][] = ['minimal', 'standard', 'classifi
 const SG_LABEL: Record<Deployment['safeguards'], string> = { minimal: 'Minimal', standard: 'Standard', classifiers: 'Classifiers', hardened: 'Hardened' };
 const TIER_LABEL: Record<PriceTier, string> = { budget: 'Budget', standard: 'Standard', premium: 'Premium' };
 const BOUND: Record<string, string> = { capacity: 'capacity-bound', quality: 'quality-bound', price: 'price-bound', demand: 'no demand' };
+/** What binds, in words (jank PR5: shown when no lever gains anything). */
+const BOUND_WHY: Record<string, string> = { capacity: 'serving compute is short', quality: 'rivals\' models win share', price: 'price limits demand', demand: 'no buyers in this segment yet' };
 /** Product hue: serving compute is a Products-sphere pool. */
 const PROD = '#b08e1a';
 const usable = (v: ModelVersion) => v.status === 'ready' || v.status === 'deployed';
@@ -128,7 +130,7 @@ function ProductCard({ s, d, r, draft, setDraft }: { s: GameStateV2; d: Deployme
   const monitors = s.player.models.versions.filter((x) => usable(x) && x.variant !== 'open');
   const hist = [...(d.hist ?? []), d.revenueRate ?? 0];
   const last = d.hist?.length ? d.hist[d.hist.length - 1] : undefined;
-  const trend = last && last > 0 ? (d.revenueRate ?? 0) / last - 1 : undefined;
+  const trend = last && last > 0 ? (r?.revenue ?? d.revenueRate ?? 0) / last - 1 : undefined;
   return (
     <section className={`pc ${editing ? 'editing' : ''}`} data-product={d.id} data-channel={d.channel}>
       <div className="pc-h">
@@ -162,11 +164,16 @@ function ProductCard({ s, d, r, draft, setDraft }: { s: GameStateV2; d: Deployme
       </Tip>
 
       {/* Revenue hero */}
+      <Tip as="div" content={() => <TipCard title={<Term id="revenueNow">Revenue now</Term>} value={F.money(r?.revenue ?? d.revenueRate ?? 0, { perYear: true })} rows={[
+        ...(r ? [{ label: 'Demand', value: F.money(r.demand, { perYear: true }) }, { label: <Term id="servingCut">Unserved</Term>, value: F.money(r.unserved, { perYear: true }), tone: (r.unserved > 0.005 ? 'neg' : 'neutral') as 'neg' | 'neutral' }] : []),
+        ...(last !== undefined ? [{ label: '30 days ago', value: F.money(last, { perYear: true }) }] : []),
+      ]} footer="The top strip shows all products as a 30-day average.">This product's revenue today, annualised.</TipCard>}>
       <div className="pc-rev">
-        <span className="v" data-home={`revenue.${d.id}`}>{F.money(d.revenueRate ?? 0)}</span><span className="u">/yr</span>
+        <span className="v" data-home={`revenue.${d.id}`}>{F.money(r?.revenue ?? d.revenueRate ?? 0)}</span><span className="u">/yr now</span>
         <span className="sp" />
         {trend !== undefined && <span className={`pc-tr ${trend >= 0 ? 'up' : 'dn'}`}>{trend >= 0 ? '▲' : '▼'} {F.pct(Math.abs(trend))} <span className="dim">30 d</span></span>}
       </div>
+      </Tip>
       {hist.length >= 3 && <Tip content={() => <TipCard title="Revenue, last months" rows={hist.map((x, i) => ({ label: i === hist.length - 1 ? 'now' : `${(hist.length - 1 - i) * 30} d ago`, value: F.money(x, { perYear: true }) }))} />}><span className="pc-spark"><Spark2 data={hist} w={230} h={30} color={PROD} /></span></Tip>}
 
       {r && def && def.arpu > 0 && (
@@ -240,13 +247,13 @@ function Share({ s, d, r }: { s: GameStateV2; d: Deployment; r: ProductRead }) {
 /** Binding cause and its best lever (a preview; click sets the draft or opens the control). */
 function Binding({ s, d, r, set }: { s: GameStateV2; d: Deployment; r: ProductRead; set: (c: ProductChanges) => void }) {
   const lever = useMemo((): { label: ReactNode; gain: number; act: () => void } | undefined => {
-    if (r.bound === 'capacity') return { label: <>+{F.h100e(r.cutH100e)} H100e serving</>, gain: r.unserved, act: () => store.goto('compute', { tab: 'split', anchor: 'split-serving' }) };
+    if (r.bound === 'capacity') return r.cutH100e >= 1 && r.unserved >= 0.005 ? { label: <>+{F.h100e(r.cutH100e)} H100e serving</>, gain: r.unserved, act: () => store.goto('compute', { tab: 'split', anchor: 'split-serving' }) } : undefined;
     if (r.bound === 'price') {
       const i = PRICE_TIER_IDS.indexOf(d.price);
       if (i <= 0) return undefined;
       const t = PRICE_TIER_IDS[i - 1];
       const pv = previewEdit(s, d, { price: t });
-      return { label: <>{TIER_LABEL[t]} tier</>, gain: pv.totalAfter - pv.totalBefore, act: () => set({ price: t }) };
+      return pv.totalAfter - pv.totalBefore >= 0.005 ? { label: <>{TIER_LABEL[t]} tier</>, gain: pv.totalAfter - pv.totalBefore, act: () => set({ price: t }) } : undefined;
     }
     if (r.bound === 'quality') {
       const cur = versionById(s, d.versionId);
@@ -254,7 +261,7 @@ function Binding({ s, d, r, set }: { s: GameStateV2; d: Deployment; r: ProductRe
         .sort((a, b) => mL(s, b) - mL(s, a))[0];
       if (!better) return undefined;
       const pv = previewEdit(s, d, { versionId: better.id });
-      return { label: <>{better.name}</>, gain: pv.totalAfter - pv.totalBefore, act: () => set({ versionId: better.id }) };
+      return pv.totalAfter - pv.totalBefore >= 0.005 ? { label: <>{better.name}</>, gain: pv.totalAfter - pv.totalBefore, act: () => set({ versionId: better.id }) } : undefined;
     }
     return undefined;
   }, [s, s.time.day, d, r.bound]);
@@ -269,7 +276,7 @@ function Binding({ s, d, r, set }: { s: GameStateV2; d: Deployment; r: ProductRe
     ]} footer={lever ? 'Click the lever to preview it.' : undefined} />}>
       <button className={`pc-bind ${r.bound}`} data-test={`prod-bind.${d.id}`} onClick={() => lever?.act()}>
         <span className="bt"><Term id={r.bound === 'capacity' ? 'capacityBound' : r.bound === 'quality' ? 'qualityBound' : r.bound === 'price' ? 'priceBound' : 'bindingCause'}>{BOUND[r.bound]}</Term></span>
-        {lever && <span className="lvr">→ {lever.label} <b className={lever.gain >= 0 ? '' : 'neg'}>{F.money(lever.gain, { signed: true, perYear: true })}</b></span>}
+        {lever ? <span className="lvr">→ {lever.label} <b>{F.money(lever.gain, { signed: true, perYear: true })}</b></span> : <span className="lvr dim">{BOUND_WHY[r.bound]}</span>}
       </button>
     </Tip>
   );
@@ -353,14 +360,15 @@ function EditPop({ s, d, c, close }: { s: GameStateV2; d: Deployment; c: Product
       <div className="pop-ch">{lines.map((l, i) => <div key={i}><span className="tag2">{l.k}</span> {l.from} → <b>{l.to}</b></div>)}</div>
       {block ? <div className="tone-neg small">{block}</div> : (
         <div className="pv">
+          <span className="k dim">per year</span><span />
           {row(def?.customers ?? 'Customers', b?.customers, a?.customers, (x) => F.count(x))}
-          {row('Revenue', b?.revenue, a?.revenue, (x) => F.money(x, { perYear: true }))}
-          {row('All products', pv?.totalBefore, pv?.totalAfter, (x) => F.money(x, { perYear: true }))}
+          {row(<Tip content={() => <TipCard title={<Term id="revenueNow">Revenue now</Term>}>This product's annualised revenue today, before and after the change. The top strip shows the 30-day average of all products.</TipCard>}><span>Revenue now</span></Tip>, b?.revenue, a?.revenue, (x) => F.money(x))}
+          {row('All products, now', pv?.totalBefore, pv?.totalAfter, (x) => F.money(x))}
           {row('Share', b?.share, a?.share, (x) => F.pct(x))}
           {(d.monitorId || n.monitorId) && row(<Term id="catchRate">Catch</Term>, catchB, catchA, (x) => F.pct(x))}
           {b && a && <><span className="k"><Term id="bindingCause">Binding</Term></span><span className="ba"><span className="o">{b.bound}</span>→<b>{a.bound}</b></span></>}
           {row(<Term id="servingShare">Serving need</Term>, b?.needH100e, a?.needH100e, (x) => `${F.h100e(x)}`, false)}
-          {row(<Term id="runCost">Run cost</Term>, b?.runCost, a?.runCost, (x) => F.money(x, { perYear: true }), false)}
+          {row(<Term id="runCost">Run cost</Term>, b?.runCost, a?.runCost, (x) => F.money(x), false)}
         </div>
       )}
       <div className="pop-f">
@@ -381,7 +389,9 @@ function LaunchCard({ s, live }: { s: GameStateV2; live: Deployment[] }) {
   if (!ch) return null;
   const vs = s.player.models.versions.filter((v) => usable(v) && CHANNEL_VARIANTS[ch].includes(v.variant)).sort((a, b) => mL(s, b) - mL(s, a));
   const v = vs[0];
-  const gate = v ? deployGate(s, v, ch) : `${PRODUCT_DEFS[ch]?.name} needs a ${CHANNEL_VARIANTS[ch].join('/')} model`;
+  const imported = s.player.models.versions.some((x) => x.variant === 'imported' && x.status !== 'retired');
+  // Jank PR7: say the fix, not just the rule.
+  const gate = v ? deployGate(s, v, ch) : `${PRODUCT_DEFS[ch]?.name} needs a ${CHANNEL_VARIANTS[ch].join(' or ')} model${imported ? ': post-train your imported model in Blueprint to sell it' : ': train one in Blueprint'}`;
   const Icon = P_ICON[ch] ?? ICON.product;
   const h = measuredHorizonH(v);
   return (
@@ -406,6 +416,7 @@ function LaunchCard({ s, live }: { s: GameStateV2; live: Deployment[] }) {
       )}
       <div className="sp-v" />
       <ActBtn id="product.launch" testId={`product.launch.${ch}`} params={{ channel: ch, ...(v ? { versionId: v.id } : {}) }} label={<>Launch {PRODUCT_DEFS[ch]?.name}</>} block={gate === true ? undefined : gate} reason />
+      {!v && <button className="btn btn-sm btn-ghost" data-go="blueprint" onClick={() => store.goto('blueprint')}>Blueprint ›</button>}
     </section>
   );
 }

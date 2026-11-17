@@ -70,3 +70,7 @@
 
 /* deals */
 .offer2 { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid var(--line-2); border-radius: 7px; background: var(--panel-2); margin-bottom: 8px; }
+.wf2-val.warn { fill: var(--watch); }
+/* J1: raise before → after (F5); seat names wrap (F4) */
+.fin-ba { display: flex; gap: 6px; align-items: baseline; margin: 2px 0 4px; }
+.seat-name { white-space: normal; text-align: center; line-height: 1.15; overflow-wrap: anywhere; }
