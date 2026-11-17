@@ -126,7 +126,7 @@ function Trusted({ s, v }: { s: GameStateV2; v: AgentsView }) {
     <div className="ag-trust" data-home="trustedToAI">
       <Tip content={tip}><span className="row-i"><Term id="trustedToAI">Trusted to AI</Term> <b className="num" data-test="trusted-share">{F.pct(t.policy)}</b>{t.gate !== true && <span className="tag2 warn" data-test="trusted-gate">locked</span>}</span></Tip>
       {/* Jank AG3: name what unlocks the gate where it binds. */}
-      {t.gate !== true && <span className="small dim" data-test="trusted-why">{t.gate}</span>}
+      {t.gate !== true && (() => { const m = /≥\s*([\d.]+)/.exec(String(t.gate)); return m ? <span className="small dim nowrap" data-test="trusted-why">needs L ≥ {m[1]}</span> : null; })()}
       <span className="stepper">
         <ActBtn id="agents.trusted" testId="agents.trusted.down" params={{ share: at(t.policy - 0.1) }} icon={ICON.minus} label="" block={t.policy <= 0 ? 'Already 0%' : undefined} />
         <ActBtn id="agents.trusted" testId="agents.trusted.up" params={{ share: at(t.policy + 0.1) }} icon={ICON.plus} label="" block={t.policy >= t.max - 1e-9 ? `Capped at ${F.pct(t.max)}` : t.gate !== true ? t.gate : undefined} />

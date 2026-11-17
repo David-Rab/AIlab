@@ -292,3 +292,71 @@ Scripts (throwaway, untracked): `scripts/v2/_audit_fx.ts`, `_audit_shots.mjs`, `
 **Design decisions for J2:**
 - **Engineers get real work:** build load that scales — run setup grows with model size; every product launch, feature, sector pack and product upkeep needs team-weeks; safety tooling in production needs crews — so too few engineers visibly slows shipping.
 - **Spare serving compute flows to research agents by default** (shown, like spare training compute goes to data), calibration-checked so the reference path stays neutral.
+
+---
+
+## J1 status (2026-11-17, branch `jank-audit`)
+
+Scope per the triage: Major groups B and C, and every Minor / Polish finding that is UI-only. Group A (P1, P2, R1, R2,
+M3, PR1, ST2, ST1) is J2 by decision and not listed again below.
+
+| Id | Status | What changed / why skipped |
+|---|---|---|
+| M1 | done | Engine: a version's measurement error is drawn once (first suite) and narrows as 1/√n; start models exact. No re-roll; an unchanged model moves only toward its truth. Model card / lineage show L ± band and suites run. |
+| M2 | done | U no longer follows measurement noise (M1). Weekly U drivers recorded (new model, tools, believed eval awareness, re-validation); shown in the race tooltip and the Overview chart hover. |
+| B1 | done | The layer note used a global `.rb` class (grid): renamed; one line again. |
+| B2 | done | Every card is its own line with Δ capability / time / cash / serving / four risk families vs the slot's reference card (toggles: on vs off), signed and coloured, each with a tooltip. |
+| B3 | done | Default size = ×1 if it finishes within 240 d, else the largest smaller snap that does; snaps over a year are red with their wall time; a lab with no feasible base opens on post-training. Gantt label no longer clipped. |
+| B4 | done | No e-notation on the surface: snaps show wall time, FLOP in tooltips; "0.4 team-wk". |
+| PR2 | done | One definition per place: top strip = 30-day average ("REVENUE · 30 D", tooltip lists each product now and the total now); product cards and edit previews = "now" (live readout, so day 0 no longer shows $0.0B). Glossary `revenueNow`. |
+| F1 | done | Engine: the `cash` cause ledger merges entries per day and source (cap 600): "Why cash moved · 30 d" covers 30 days (Revenue ×31). |
+| F2 | done | Division: parent budget is the inflow bar, net bar reads within / over budget, top strip shows "CASH · BUDGET … parent covers", no runway alarm in Watch, core loop or fast-forward stops, no "runway ends" note. |
+| C1 | done | Order / Build / Rent show labelled payment lines (now, on delivery, capex, per year × n) and cash, runway and chips-without-racks before → after (the action applied to a copy of the game). |
+| O1 | done | Rendered coverage 89.8% (day 400 + 900, every panel and tab; uitest asserts ≥ 85%); day-0 92%, challenger 91%, spinout 90%. lint-ux "Numbers have a tooltip": 288/320 number sites tipped, 32 allow-listed with reasons (lint-tips.ts). |
+| RL1 | done | Who matters now (lowest trust first, top 4, show all), zero-only columns hidden, plain-language government and China rows, blocs top 5, catalogue behind a group picker with "trust ▲ · credibility ▼" words. |
+| RL2 | done | Security actions only on Company › Security (Relations and Risk link there); Retire apart with a confirm. |
+| P3 | done | Offers: payroll, "fills in N wk", "offer ends in N d" with tooltips; "labour ×1.01 of the leader's"; science cards open a tooltip. |
+| P4 | skipped → J2 | Keep-hiring filling idle science targets is a policy change (engine). |
+| P5 | done | Team picker numbers teams within a specialty ("Pretraining team #3") and the quality dots have a tooltip. |
+| R3 | done | Layer as icon, effort as hourglass dots, both with tooltips; odds the only number. |
+| R4 | done | Names and "needs" clip with ellipsis inside the node (tooltip has the full list); short retry dates; the tree shows its horizontal scrollbar. |
+| R5 | done | Safety lines read "health", capability ideas "odds". |
+| M4 | done | "best" badge per variant in the lineage; agent package preview warns when the new model measures below the old. |
+| M5 | done | Runs named by target ("Atlas-2 · post-train", "Mini of Atlas-2.2", "New base · ×1"); a finished base with no version says "needs post-training". |
+| M6 | skipped → J2 | Start evals with a horizon / evaluate on launch changes engine state. |
+| M7 | done | Distill disabled on the imported model with the reason. |
+| PR3 | done | Model chip on its own line (full name and L); free tier below. |
+| PR4 | done | Edit preview fits the card (compact rows, scroll). |
+| PR5 | done | No zero or negative levers; the binding chip says what binds in words. |
+| PR6 | done | KYC only on products; Security links there. |
+| PR7 | done | Launch reason names the fix (post-train the import in Blueprint) with a Blueprint link. |
+| PR8 | done | Horizons past a work-year read "> 1 yr". |
+| AG1 | done (UI) | "same model" tag with the collusion explanation; lowering its catch rate is an engine change → J2. |
+| AG2 | done | "copies × speed" labelled and tipped, budget tag and lane order tipped, "$0" instead of "$0.0B". |
+| AG3 | done | "off" tag on a lane with no compute; the Trusted-to-AI lock names its gate ("needs L ≥ 8.5", full rule in the tooltip). |
+| S1 | done | Verdict counts unseen families ("Understanding ahead, but 2 of 4 risk families unseen", amber). |
+| S2 | done | Race tooltip explains "validated to" vs U; fully faded tools are one line, not "decayed 100%". |
+| S3 | done | "safety research engineers". |
+| S4 | done | Investigations and Incidents are one "Cases" tab. |
+| S5 | done | Signal nodes without S1–S8 codes; heatmap is colour with the number on hover (own level's column kept). |
+| C2 | done | "×1.35 a new buyer's" order weight, "Made in Taiwan 35% of leading chips"; the scarcest component reads "tightest" unless demand reaches supply. |
+| C3 | done | Milestones named: chart "… live ≈ Q4 29", Sites "power until Oct 2027 · live ≈ Q4 29". |
+| C4 | done | Orders, cloud and the chip market share one "Orders & market" tab; Sites keeps the timeline. |
+| F3 | done | Finance tabs: Cash (cash flow, history, raise, why cash moved) · Contracts · Board & owners · Debt & deals; links open the right tab. |
+| F4 | done | Board names wrap, "% of spend" no longer overlaps, recap buttons only for the capped-profit nonprofit. |
+| F5 | done | Raise shows cash and runway before → after (tooltip: stake sold, close date). |
+| W1 | done | "World technologies"; Moonshot shows its disabled reason. |
+| RK1 | done | Every risk figure opens drivers, band, why the source carries risk and its levers (lever magnitudes would need engine what-ifs). |
+| RK2 | done | "you +97d ahead" / "you 30d behind". |
+| O2 | done | The bottom chip opens one list: Watch (cause → fix, jump) first, then alerts, with a visible Clear. |
+| O3 | skipped → J2 | Balanced start states come from the PR1 / R1 policies (engine). |
+| O4 | done | Release labels thinned; day 0 shows the start point instead of an empty card. |
+| O5 | done | Developer references (V2-SPEC, STRUCTURE, TECH-TREE, design/…) dropped from player sources; design values read "design choice". |
+| O6 | done | Nav tooltips close on click and stay closed until the pointer leaves. |
+| E1 | done | Merger default: "another lab buys them instead and takes their staff". |
+| E2 | done | The "New decision" stop message clears when the decision is made. |
+| ST3 | done | Board card and Watch: next review date, confidence vs the 25 line, ouster odds when a vote is live. |
+| ST4 | done | Diffusion reads "know-how ×5.9 your own rate, from Polaris AI". |
+
+**Counts:** 11 Major done (M1, M2, B1, B2, B3, PR2, F1, F2, C1, O1, RL1); 41 of 44 Minor/Polish done (AG1 UI part),
+3 skipped to J2 (P4, M6, O3) plus the engine halves of AG1 and RK1.

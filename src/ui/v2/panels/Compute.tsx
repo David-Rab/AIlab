@@ -95,7 +95,10 @@ function Status({ s, fc }: { s: GameStateV2; fc: ForecastQ[] }) {
   } else t2 = { tone: 'ok', icon: ICON.check, l: 'Chips and racks matched', sub: <>Through {qLabel(s, last.q)}</> };
   // 3. vendor fill
   const fill = s.market.ws3.playerFill;
-  const t3 = { tone: fill >= 0.9 ? 'ok' : fill >= 0.7 ? 'warn' : 'bad', icon: ICON.supply, v: F.pct(fill), l: <Term id="vendorFill">vendor fill</Term>, sub: <><Term id={s.market.binding === 'hbm' ? 'hbm' : s.market.binding === 'wafer' ? 'wafer' : 'packaging'}>{COMP.find((c) => c.bind === s.market.binding)?.label ?? 'Packaging'}</Term>-bound</> };
+  // Jank C2: the scarcest component only "binds" when demand reaches supply.
+  const binds = s.market.demandQ >= 0.95 * s.market.supplyQ;
+  const comp = <Term id={s.market.binding === 'hbm' ? 'hbm' : s.market.binding === 'wafer' ? 'wafer' : 'packaging'}>{COMP.find((c) => c.bind === s.market.binding)?.label ?? 'Packaging'}</Term>;
+  const t3 = { tone: fill >= 0.9 ? 'ok' : fill >= 0.7 ? 'warn' : 'bad', icon: ICON.supply, v: F.pct(fill), l: <Term id="vendorFill">vendor fill</Term>, sub: binds ? <>{comp}-bound</> : <>supply above demand · tightest: {comp}</> };
   const tile = (t: typeof t1, home: string, tab: string) => (
     <button className={`cst ${t.tone}`} data-home={home} onClick={() => store.goto('compute', { tab })}>
       <span className="cst-ic"><t.icon size={19} /></span>
