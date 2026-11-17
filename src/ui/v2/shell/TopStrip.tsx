@@ -70,7 +70,7 @@ function RaceTip({ s }: { s: GameStateV2 }) {
       <div className="tip-sec"><div className="tip-cap">Levers</div><div className="btn-row wrap">
         <GoBtn to={{ panel: 'safety', tab: 'tools' }} label="Re-validate tools" testId="race.tools" />
         <GoBtn to={{ panel: 'safety', tab: 'agendas' }} label="Fund agendas" testId="race.agendas" />
-        <GoBtn to={{ panel: 'rundesigner' }} label="Safer recipe" testId="race.runs" />
+        <GoBtn to={{ panel: 'blueprint' }} label="Safer recipe" testId="race.runs" />
       </div></div>
     </TipCard>
   );

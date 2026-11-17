@@ -9,6 +9,7 @@
 //   T2  Copies × speed in Mar 2027 (ai2027 RefBot) ≈ 200k at ~30× (±30%).
 //   T3  China lead 150–200 d before any theft (default China lab, WS1 lab API).
 //   T4  Rival gaps at start 3–9 months.
+//   R5  RefBot's build queue never delays a run by more than 3 days (stub and integrated).
 import { readFileSync } from 'node:fs';
 import { CAL_SHIFT, GOLDEN_TOL, LEADER_CAL } from '../../src/data/v2/calibration';
 import { defaultSetupV2 } from '../../src/engine/v2/core/init';
@@ -32,11 +33,24 @@ type T1Preset = 'ai2027' | 'authors2026' | 'fast' | 'slow';
 const T1_PRESETS: T1Preset[] = ['ai2027', 'authors2026', 'fast', 'slow'];
 const yearOf = (d: number) => Math.round(decimalYearOf(START_DATE, d) * 1000) / 1000;
 
-function runT1(preset: WorldPresetId, cs: number, seed = SEED, stopAt: MilestoneIdx = 6, maxDays = 365 * 16): GameStateV2 {
+function runT1(preset: WorldPresetId, cs: number, seed = SEED, stopAt: MilestoneIdx = 6, maxDays = 365 * 16, observe?: (s: GameStateV2) => void): GameStateV2 {
   CAL_SHIFT[preset] = cs;
   const s = refGame(defaultSetupV2({ world: preset, alignment: 'medium', seed }));
-  return runRef(s, maxDays, (x) => x.player.milestoneDays[stopAt] !== undefined);
+  return runRef(s, maxDays, (x) => {
+    observe?.(x);
+    return x.player.milestoneDays[stopAt] !== undefined;
+  });
 }
+
+/** R5 build queue: the days each run waited for its setup beyond the first tick (pre-R5 runs trained from the first
+ *  tick after launch). Records the worst per run id into `worst`. */
+const buildDelays = (worst: Map<string, number>) => (s: GameStateV2) => {
+  for (const r of s.player.models.runs) {
+    if (r.setupId === undefined || r.startDay < 0) continue;
+    const wait = (r.readyDay ?? s.time.day) - r.startDay - 1;
+    worst.set(r.id, Math.max(worst.get(r.id) ?? 0, wait));
+  }
+};
 const lastIdx = (p: T1Preset): MilestoneIdx => (p === 'slow' ? 3 : 6);
 
 /** Worst |Δ| in years over SC … last milestone for a calShift. */
@@ -225,10 +239,15 @@ Object.assign(KNOWN, {
   'T1 slow A1': 'see T1 ai2027 A1', 'T1 slow A2': 'see T1 ai2027 A1',
 });
 const table: string[] = [];
+const delays: string[] = [];
 for (const preset of T1_PRESETS) {
   const cs = CAL_SHIFT[preset];
   const t0 = performance.now();
-  const s = runT1(preset, cs, SEED, lastIdx(preset));
+  const waits = new Map<string, number>();
+  const s = runT1(preset, cs, SEED, lastIdx(preset), 365 * 16, buildDelays(waits));
+  const worstWait = Math.max(0, ...waits.values());
+  delays.push(`${preset} ${worstWait} d over ${waits.size} runs`);
+  check(worstWait <= 3, `R5 build queue never delays a RefBot run > 3 d (${preset})`, `worst ${worstWait} d`);
   const g = golden.presets[preset].days;
   const row: string[] = [];
   NAMES.forEach((n, i) => {
@@ -246,6 +265,7 @@ for (const preset of T1_PRESETS) {
 }
 console.log('\nT1 RefBot milestone years (Δ vs golden, years):');
 for (const r of table) console.log('  ' + r);
+console.log(`  R5 build queue, worst wait for engineers: ${delays.join(', ')}`);
 
 // ---------- T1L: the leader lab (passive player) hits the golden days; SC and later bind, A1/A2 informational ----------
 {
@@ -283,6 +303,8 @@ if (!process.argv.includes('--no-integrated')) {
     const t0 = performance.now();
     const s = newGame(defaultSetupV2({ world: preset, alignment: 'medium', seed: SEED, tutorial: false }));
     const stop = lastIdx(preset);
+    const waits = new Map<string, number>();
+    const watch = buildDelays(waits);
     while (s.time.day < 365 * 16 && s.player.milestoneDays[stop] === undefined && s.player.status === 'active') {
       for (const p of [...s.events.pending]) {
         const c = refBot.decide(s, p);
@@ -290,7 +312,9 @@ if (!process.argv.includes('--no-integrated')) {
       }
       refBot.act(s, engine);
       tick(s, { skip: ['endings'] });
+      watch(s);
     }
+    check(Math.max(0, ...waits.values()) <= 3, `R5 build queue never delays a RefBot run > 3 d (integrated ${preset})`, `worst ${Math.max(0, ...waits.values())} d`);
     const g = golden.presets[preset].days;
     const row = NAMES.slice(1, stop + 1).map((n, j) => {
       const got = s.player.milestoneDays[(j + 1) as MilestoneIdx];

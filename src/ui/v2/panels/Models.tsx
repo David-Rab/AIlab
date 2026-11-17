@@ -2,7 +2,10 @@
 // benchmarks with saturation marks, horizon, serve cost, monitorability, trait beliefs, flags), run queue (paradigms moved to
 // Research in R4); set internal agent, evals, variants, distill, roll back, retire, streams.
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
-import { benchName, dateOf, fmtDate, internalVersion, measuredDomains, runBand, runStall, versionById } from '../../../engine/v2';
+import {
+  POOL_SHARE_RANGE, benchName, dateOf, fmtDate, idleTrainingShare, internalVersion, measuredDomains, poolAllocation, runBand, runEtaDays, runStall, streamShare,
+  versionById,
+} from '../../../engine/v2';
 import type { GameStateV2, ModelVersion } from '../../../engine/v2';
 import { store, useV2 } from '../store';
 import { ActBtn, Meter, Radar, Term, Tip, TipCard } from '../ui';
@@ -24,10 +27,10 @@ function Lineage({ s, sel }: { s: GameStateV2; sel?: string }) {
       {m.bases.map((b) => (
         <div key={b.id} className="lin-base">
           <Tip as="div" content={() => <TipCard title={b.name} rows={[
-            { label: 'Done', value: fmtDate(dateOf(s, b.day)) }, { label: 'Scale · shape', value: `${b.design.scale} · ${b.design.shape}` },
+            { label: 'Done', value: fmtDate(dateOf(s, b.day)) }, { label: <Term id="baseSize">Size</Term>, value: `${F.size(b.design.size)} · ${b.design.shape}` },
             { label: 'Data', value: b.design.data }, { label: <Term id="licensedShare">Licensed share</Term>, value: F.pct(b.design.licensedShare) }, { label: <Term id="flop">FLOP</Term>, value: b.flop.toExponential(1) },
           ]} />}>
-            <div className="lin-base-row"><b>{b.name}</b><span className="dim small">{b.design.scale} · {b.design.shape} · {b.design.data}</span></div>
+            <div className="lin-base-row"><b>{b.name}</b><span className="dim small">{F.size(b.design.size)} · {b.design.shape} · {b.design.data}</span></div>
           </Tip>
           {m.versions.filter((v) => v.baseId === b.id && !m.versions.some((p) => p.id === v.parentVersionId && p.baseId === b.id)).map((v) => (
             <VersionTree key={v.id} s={s} v={v} sel={sel} depth={1} />
@@ -131,26 +134,57 @@ export function ModelCard({ s, v }: { s: GameStateV2; v: ModelVersion }) {
   );
 }
 
+/** Run queue (home of each run's actual pool share and ETA, R5): the stream's share and where spare compute goes. */
 export function RunQueue({ s }: { s: GameStateV2 }) {
   const runs = s.player.models.runs.filter((r) => r.status === 'running' || r.status === 'paused').concat(s.player.models.runs.filter((r) => r.status === 'done' || r.status === 'failed' || r.status === 'cancelled').slice(-3));
+  const alloc = poolAllocation(s);
+  const stream = streamShare(s);
+  const spare = idleTrainingShare(s);
+  const spareUse = s.player.policies.spareTraining;
   return (
-    <Card title="Runs in progress" home="runQueue" right={<button className="btn btn-sm" data-nav-to="rundesigner" onClick={() => store.setPanel('rundesigner')}>Design a run</button>}>
+    <Card title="Runs in progress" home="runQueue" right={<button className="btn btn-sm" data-nav-to="blueprint" onClick={() => store.setPanel('blueprint')}>Blueprint ›</button>}>
       {runs.length === 0 && <div className="dim small">No runs</div>}
       {runs.map((r) => {
         const done = Math.min(1, r.flopDone / Math.max(1, r.flopNeeded));
         const band = runBand(r);
         const stall = runStall(s, r);
+        const live = r.status === 'running' || r.status === 'paused';
+        const got = alloc.get(r.id) ?? 0;
+        const eta = live ? runEtaDays(s, r, alloc) : 0;
+        const step = (d: number) => Math.round(Math.min(POOL_SHARE_RANGE[1], Math.max(POOL_SHARE_RANGE[0], r.poolShare + d)) * 100) / 100;
         return (
           <div className="run-row" key={r.id} data-run={r.id}>
             <span className="ellip"><b>{r.name}</b> <span className="dim small">{r.kind}</span></span>
-            <Meter value={done} max={1} width={90} color={r.status === 'running' ? 'var(--accent)' : 'var(--text-3)'} />
-            <span className="num small">{F.pct(done)}</span>
+            <Meter value={done} max={1} width={80} color={r.status === 'running' ? 'var(--accent)' : 'var(--text-3)'} />
             <span className="num small dim">L {F.level(band[0])}–{F.level(band[1])}</span>
-            <span className={`small ${stall ? 'tone-warn' : ''}`} data-test={stall ? 'run-stall' : undefined}>{stall ?? r.status}</span>
+            {live ? (
+              <Tip content={() => <TipCard title={<Term id="poolShare">Pool share</Term>} value={F.pct(got)} rows={[
+                { label: 'Asks', value: F.pct(r.poolShare) }, { label: 'Gets today', value: F.pct(got) },
+                { label: 'FLOP done', value: F.pct(done) }, { label: 'Minimum length', value: F.days(r.minDays) },
+              ]} footer={done >= 1 ? 'FLOP done: it only waits for its minimum length and takes no share.' : 'Runs that ask for more than the pool are scaled down together.'}>Share of the training pool this run gets.</TipCard>}>
+                <span className="num small run-share" data-test="run-share">{F.pct(got)}{got < r.poolShare - 1e-6 && done < 1 ? <span className="dim">/{F.pct(r.poolShare)}</span> : null}</span>
+              </Tip>
+            ) : <span />}
+            {live && r.status === 'running' ? (
+              <span className="run-step">
+                <ActBtn id="runs.setShare" params={{ runId: r.id, share: step(-0.1) }} label="−" testId={`run-share-dn.${r.id}`} block={r.poolShare <= POOL_SHARE_RANGE[0] + 1e-9 ? 'At the minimum share' : undefined} />
+                <ActBtn id="runs.setShare" params={{ runId: r.id, share: step(0.1) }} label="+" testId={`run-share-up.${r.id}`} block={r.poolShare >= POOL_SHARE_RANGE[1] - 1e-9 ? 'At the whole pool' : undefined} />
+              </span>
+            ) : <span />}
+            <span className={`small ${stall ? 'tone-warn' : ''}`} data-test={stall ? 'run-stall' : undefined}>{stall ?? r.status}{live && Number.isFinite(eta) ? <span className="dim"> · {fmtDate(dateOf(s, s.time.day + eta))}</span> : ''}</span>
             {r.status === 'running' && <ActBtn id="cancelRun" params={{ runId: r.id }} label="Cancel" inline={false} />}
           </div>
         );
       })}
+      {stream > 0 && <div className="run-row run-pool small" data-run="stream"><span className="ellip"><b><Term id="stream">Stream</Term></b> <span className="dim">continual learning</span></span><span /><span /><span className="num">{F.pct(stream)}</span><span /><span className="dim">fixed share</span><span /></div>}
+      <div className="run-row run-pool small" data-run="spare">
+        <span className="ellip"><b><Term id="spareTraining">Spare</Term></b></span><span /><span />
+        <span className="num" data-test="spare-share">{F.pct(spare)}</span>
+        <span className="run-spare">
+          <span className="dim">→ {spareUse === 'research' ? 'experiments' : 'data'}</span>
+          {(['research', 'data'] as const).filter((u) => u !== spareUse).map((u) => <ActBtn key={u} id="runs.spareTraining" params={{ use: u }} label={u === 'research' ? 'Use for experiments' : 'Use for data'} testId={`spare.${u}`} />)}
+        </span>
+      </div>
     </Card>
   );
 }

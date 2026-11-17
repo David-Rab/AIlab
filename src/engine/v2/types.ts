@@ -384,6 +384,10 @@ export interface TrainingRun {
   restarts: number; // loss-spike restarts (stretch/MoE risk)
   /** Loss spike: no FLOP accrues until this day (§3.3.1 restarts). */
   holdUntil?: Day;
+  /** Build item that sets the run up (R5): no FLOP accrues until the engineers finish it ("waiting for engineers"). */
+  setupId?: string;
+  /** Day the setup finished and training began (R5). */
+  readyDay?: Day;
   /** Lab know-how pa at launch (base runs freeze it; §3.1.3). */
   paAtStart?: number;
   /** Trait-pressure signals S1–S8 of this run's design (for WS2 applyRunToTraits). */
@@ -391,7 +395,8 @@ export interface TrainingRun {
 }
 
 export interface BaseDesign {
-  scale: 'compact' | 'frontier' | 'stretch' | 'continue';
+  /** FLOP as a multiple of today's frontier base run F(t) (R5: a free decision; reference 1). */
+  size: number;
   shape: 'dense' | 'overtrained' | 'moe' | 'latent';
   data: 'balanced' | 'codeMath' | 'science' | 'synthetic' | 'multimodal';
   curation: { quality: boolean; hazard: boolean; safetyPretrain: boolean };
@@ -626,9 +631,32 @@ export interface PlayerLab extends LabCore {
   tree: Record<string, TreeNodeState>;
   /** Research projects: priority queue of node ids (active projects included) and the auto-assign policy. */
   research: ResearchState;
+  /** Engineers' build queue (BUILD-PLAN R5): run setups now; product features, eval harnesses and safeguards from R6. */
+  build: BuildState;
   morale: { overall: number; safety: number }; // 0..100
   dataAssets: { licensedTokensT: number; unlicensedTokensT: number; syntheticTokensT: number; litigationRisk: number };
   policies: PlayerPolicies;
+}
+
+// ───────────────────────────── Build queue (STRUCTURE §4.1, R5) ─────────────────────────────
+
+export type BuildKind = 'runSetup' | 'feature' | 'harness' | 'safeguard';
+/** One item on the engineers' build queue. Work is in team-weeks (one Strong engineering team of 150 for a week). */
+export interface BuildItem {
+  id: string;
+  kind: BuildKind;
+  /** What it builds: the run id for a run setup. */
+  ref: string;
+  needTW: number;
+  doneTW: number;
+  /** Lower = worked first (the queue is kept sorted by it). */
+  priority: number;
+  /** Day it was queued. */
+  day: Day;
+}
+export interface BuildState {
+  queue: BuildItem[];
+  nextId: number;
 }
 
 // ───────────────────────────── Teams (STRUCTURE §4.1, R3) ─────────────────────────────
@@ -685,6 +713,8 @@ export interface PlayerPolicies {
   shareWithAllies: boolean;
   transitionFund: Money; // $B/yr
   communityBenefits: boolean;
+  /** Where training compute that no run uses goes (R5): research experiments (default) or data generation. */
+  spareTraining: 'research' | 'data';
 }
 
 // ───────────────────────────── Finance (§3.7) ─────────────────────────────

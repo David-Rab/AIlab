@@ -17,7 +17,7 @@ export const NAV: NavItem[] = [
   { id: 'compute', label: 'Compute', icon: ICON.computePanel, desc: 'Chip market, orders, sites and power.', group: 'COMPANY' },
   { id: 'research', label: 'Research', icon: ICON.research, desc: 'Know-how, the tech tree, research projects and the queue.', group: 'MODELS' },
   { id: 'models', label: 'Models', icon: ICON.models, desc: 'Lineage, model card and runs in progress.', group: 'MODELS' },
-  { id: 'rundesigner', label: 'Runs', icon: ICON.runs, desc: 'Design and launch training runs; see what a recipe pushes.', group: 'MODELS' },
+  { id: 'blueprint', label: 'Blueprint', icon: ICON.runs, desc: 'Design your next model and start its training run: size, slots, limits and plan.', group: 'MODELS' },
   { id: 'deployments', label: 'Deploy', icon: ICON.deploy, desc: 'Channels, pricing, serving capacity and demand.', group: 'MODELS' },
   { id: 'safety', label: 'Safety', icon: ICON.safety, desc: 'Trait graph, agendas, tools, incidents and findings.', group: 'SAFETY' },
   { id: 'risk', label: 'Risk', icon: ICON.risks, desc: 'Where catastrophe risk comes from, and the flows that feed it.', group: 'SAFETY' },

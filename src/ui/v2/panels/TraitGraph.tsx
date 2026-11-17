@@ -250,7 +250,7 @@ function EvidenceCard({ s, id, versionId, edges, det, pinned, onClose }: { s: Ga
       {!inc.length && <div className="dim small tip-sec">No known causes in the graph: it moves through training and the tools you use.</div>}
       <div className="tip-sec btn-row wrap">
         {versionId && <ActBtn id="safety.investigate" testId="safety.investigate.trait" params={{ versionId, trait: id, fte: 15 }} icon={ICON.investigate} label="Investigate · 15 staff" />}
-        {sigIn && <GoBtn to={{ panel: 'rundesigner' }} label={`Less ${SIGNAL_SHORT[sigIn].toLowerCase()}`} testId={`tg.recipe.${sigIn}`} />}
+        {sigIn && <GoBtn to={{ panel: 'blueprint' }} label={`Less ${SIGNAL_SHORT[sigIn].toLowerCase()}`} testId={`tg.recipe.${sigIn}`} />}
         {critical && det !== undefined && det < 0.5 && <GoBtn to={{ panel: 'safety', tab: 'tools' }} label="Re-validate tools" testId="tg.tools" />}
         <GoBtn to={{ panel: 'safety', tab: 'agendas' }} label="Fund agendas" testId="tg.agendas" />
       </div>

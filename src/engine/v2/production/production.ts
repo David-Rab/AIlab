@@ -21,6 +21,7 @@ import { shareRefAt } from '../departments/split';
 import { CHINA_ID, PLAYER_ID, internalVersion, labCore, otherLabs } from '../models/labs';
 import { deltaRsch } from '../models/capability';
 import { payoffOf } from '../models/tree';
+import { idleTrainingShare } from '../models/runs';
 import { asV1World } from '../world/calibration';
 import { poolsOf } from '../compute/power';
 import { rivalSpeedMult } from '../actors/rivals';
@@ -36,8 +37,9 @@ export interface LabInputs {
   yr: number;
   h: number; k: number; c: number; d: number;
   /** c and k this lab would have with all of its research compute (experiments + agents) on experiments / on agents;
-   *  C = that research compute (H100e), load = 0 (paradigm projects took experiment compute before R4), off = agents switched off. */
-  mixUnit: { c: number; k: number; C: number; load: number; off: boolean };
+   *  C = that research compute (H100e), load = 0 (paradigm projects took experiment compute before R4), off = agents switched off.
+   *  idle = training compute no run uses (H100e, player only, R5): it runs experiments on top of the mix (cIdle in c units). */
+  mixUnit: { c: number; k: number; C: number; load: number; off: boolean; idle?: number; cIdle?: number };
   /** min(1, S_eff / N_req(F(t))) — data-stock adequacy (§3.2.2). */
   stock: number;
   tasteHire: number;
@@ -243,14 +245,17 @@ export function labInputs(s: GameStateV2, lab: LabId, day = s.time.day): LabInpu
   const qDep = pDepOf(s, lab) + w.calShift;
   const rt = isPlayer ? referenceTech(core.scDay, day) : { k: 1, c: 1 };
   const k = (Cag * etaMod * (1 - controlTax)) / Math.max(1, ref * sh.agents * rt.k);
-  const c = (cMult * Cexp) / Math.max(1, ref * sh.experiments * rt.c);
+  // R5: training compute that no run (or stream) uses runs research experiments (nothing is wasted silently).
+  const idle = isPlayer && s.player.policies.spareTraining !== 'data' ? idleTrainingShare(s) * pools.training : 0;
+  const cIdle = (cMult * idle) / Math.max(1, ref * sh.experiments * rt.c);
+  const c = (cMult * Cexp) / Math.max(1, ref * sh.experiments * rt.c) + cIdle;
   const d = Csyn / Math.max(1, ref * sh.synthetic);
   const stock = isPlayer ? dataStockRatio(s, yr) : 1;
   const Cres = pools.experiments + pools.agents;
   const mixUnit = {
     c: (cMult * Cres) / Math.max(1, ref * sh.experiments * rt.c),
     k: agentsOff ? 0 : (Cres * etaMod * (1 - controlTax)) / Math.max(1, ref * sh.agents * rt.k),
-    C: Cres, load: 0, off: agentsOff,
+    C: Cres, load: 0, off: agentsOff, idle, cIdle,
   };
   // pauseMult 0.1 during a voluntary or committee pause of frontier experiments (§3.1.2; WS4 frontierPauseUntil).
   const pause = isPlayer && (s.flags.paused || ws4r(s).frontierPauseUntil > day) ? 0.1 : 1;
@@ -258,7 +263,7 @@ export function labInputs(s: GameStateV2, lab: LabId, day = s.time.day): LabInpu
   return {
     qDep, yr, h, k, c, d, mixUnit, stock,
     tasteHire: core.tasteHire, eff: effLab(s, lab), mods, rateMult: pause * treaty,
-    abs: { H, Cagents: Cag, Cexp, serveCost: serve, tcoPerYr: tcoPerH100eYear(s, yr), staffCostPerYr: 0.8e-3 },
+    abs: { H, Cagents: Cag, Cexp: Cexp + idle, serveCost: serve, tcoPerYr: tcoPerH100eYear(s, yr), staffCostPerYr: 0.8e-3 },
   };
 }
 
@@ -283,13 +288,13 @@ export function aiFtePerH100e(s: GameStateV2, v: Pick<ModelVersion, 'pm' | 'buil
 export function bestResearchMix(s: GameStateV2, inp: LabInputs): number {
   const Pp = s.hidden.timeline.prod;
   const kn = knotAt(Pp.knots, inp.qDep);
-  return bestMix(Pp, kn.A, kn.R, inp.h, inp.mixUnit.c, inp.mixUnit.k).f;
+  return bestMix(Pp, kn.A, kn.R, inp.h, inp.mixUnit.c, inp.mixUnit.k, inp.mixUnit.cIdle ?? 0).f;
 }
 
 /** Inputs with the research compute re-split at experiments share f (same total). */
 export function inputsAtMix(inp: LabInputs, f: number): LabInputs {
   const u = inp.mixUnit;
-  return { ...inp, c: f * u.c, k: (1 - f) * u.k, abs: { ...inp.abs, Cexp: f * u.C * (1 - u.load), Cagents: u.off ? 0 : (1 - f) * u.C } };
+  return { ...inp, c: f * u.c + (u.cIdle ?? 0), k: (1 - f) * u.k, abs: { ...inp.abs, Cexp: f * u.C * (1 - u.load) + (u.idle ?? 0), Cagents: u.off ? 0 : (1 - f) * u.C } };
 }
 
 /** Re-split a lab's research share between experiments and agents in the best way (auto mix; the player can switch

@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
-  MANUAL_MIX_RANGE, WSL_TARGET_RANGE, aiShareByRole, buildCapacity, engine, fillWeeks, fullTeamPayroll, idleChips, ownedOnline, payrollOf, poolsOf, queuedOfKey,
+  BUILD_AI_CAP, MANUAL_MIX_RANGE, WSL_TARGET_RANGE, aiShareByRole, buildBacklogTW, buildCapacity, buildEtas, engine, fillWeeks, fullTeamPayroll, idleChips, ownedOnline, payrollOf, poolsOf, queuedOfKey,
   rentedOnline, revenueReadout, specOf, SPLIT_KEYS, SPLIT_PRESETS, teamGain, teamPayroll, teamsOfKey, TOP_KEYS, weeklyHireCap,
 } from '../../../engine/v2';
 import { COLUMN_LABEL, MOVE_SAFETY_MORALE, QUALITY, TEAM_KEYS, TEAM_SIZE } from '../../../data/v2/teams';
@@ -228,7 +228,11 @@ function Teams({ s }: { s: GameStateV2 }) {
         <div className="teams-col">
           <RoleHead r="eng" right={<AiShare v={ai.eng} />} />
           <Pile k="eng" label="shared pool"
-            sub={<Tip content={() => <TipCard title={<Term id="buildCapacity">Build capacity</Term>} value={`${bc.capacity.toFixed(1)} team-wk/wk`} rows={[{ label: 'Human (teams × quality)', value: bc.human.toFixed(1) }, { label: 'AI share of engineers\' work', value: F.pct(bc.aEng) }]}>What engineers can build each week. The build queue arrives with blueprints.</TipCard>}><span><ICON.build size={12} /> <Term id="buildCapacity">build</Term> <b className="num">{bc.capacity.toFixed(1)}</b> team-wk/wk</span></Tip>}
+            sub={<Tip content={() => <TipCard title={<Term id="buildCapacity">Build capacity</Term>} value={`${bc.capacity.toFixed(1)} team-wk/wk`} rows={[
+              { label: 'Human (teams × quality)', value: bc.human.toFixed(1) }, { label: 'AI share of engineers\' work', value: F.pct(bc.aEng) },
+              { label: `AI speed-up (cap ×${BUILD_AI_CAP})`, value: F.mult(bc.capacity / Math.max(1e-9, bc.human)) },
+              ...s.player.build.queue.slice(0, 5).map((it) => ({ label: `${it.kind === 'runSetup' ? `Setup ${s.player.models.runs.find((r) => r.id === it.ref)?.name ?? it.ref}` : it.ref}`, value: `${(it.needTW - it.doneTW).toFixed(2)} t-wk · ${F.days(buildEtas(s).etas.get(it.id) ?? 0)}` })),
+            ]} footer="Capped: agents need human review and integration.">What engineers build each week, in queue order: run setups now (product features from the next release).</TipCard>}><span data-test="build-queue"><ICON.build size={12} /> <Term id="buildCapacity">build</Term> <b className="num">{bc.capacity.toFixed(1)}</b> team-wk/wk · <Term id="buildQueue">queue</Term> <b className="num">{s.player.build.queue.length ? `${buildBacklogTW(s).toFixed(1)} t-wk` : 'empty'}</b></span></Tip>}
             actions={releaseBtn(newest('eng'))} />
           <RoleHead r="re" right={<AiShare v={ai.re} />} />
           <Pile k="re.cap" label="Capabilities"

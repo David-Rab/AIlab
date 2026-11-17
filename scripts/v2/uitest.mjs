@@ -143,7 +143,7 @@ await wait(300);
 // Coach card → run designer
 await check('Coach card opens run designer', 'store.panel', () => page.click('[data-coach=firstRun]'));
 await page.click('[data-test=coach-skip]').catch(() => {});
-await check('Recommended post-train', 'document.querySelector("[data-panel=rundesigner]").innerText', () => page.click('[data-test=rd-recommended]'));
+await check('Blueprint: pick a training card (light effort)', 'document.querySelector("[data-panel=blueprint]").innerText', () => page.click('[data-panel=blueprint] [data-opt="rlIntensity:light"]'));
 await check('Launch post-train', `s.player.models.runs.filter(r => r.status === 'running').length`, () => page.click('[data-act=launchPost]'));
 
 // FF to run completion
@@ -228,7 +228,7 @@ ok('Tutorial off unlocks compute', !(await page.$eval('[data-nav=compute]', (b) 
 // Advance a little so deployments/finance have content.
 await page.evaluate(() => window.ai27v2.step(20));
 await closeModals();
-const PANELS = ['finance', 'overview', 'company', 'compute', 'research', 'models', 'rundesigner', 'deployments', 'safety', 'relations', 'world', 'risk', 'codex'];
+const PANELS = ['finance', 'overview', 'company', 'compute', 'research', 'models', 'blueprint', 'deployments', 'safety', 'relations', 'world', 'risk', 'codex'];
 for (const p of PANELS) await check(`Tab ${p}`, 'store.panel', () => nav(p), 60);
 
 // Click every enabled action button in every panel; skip the game-ending RETIRE (tested last).
@@ -307,14 +307,46 @@ await check('Flow pool click goes to the split', 'store.tab.company', () => page
 await nav('finance');
 await check('Raise ask slider', `document.querySelector('[data-act="fin.raise"]').innerText`, () => setSlider(page.locator('[data-panel=finance] input[type=range]').first(), 3.3));
 await check('Debt kind', `document.querySelector('[data-panel=finance]').innerHTML`, () => page.click('[data-panel=finance] [data-debt-kind=gpuTerm]'));
-await nav('rundesigner');
-await check('Run designer: kind base', `document.querySelector('[data-panel=rundesigner]').innerText`, () => page.click('[data-panel=rundesigner] [data-rd-kind=base]'));
-ok("Run designer: locked option shows its reason", await page.$eval(`[data-panel=rundesigner] [data-opt="shape:latent"]`, (b) => b.disabled && b.innerText.length > 8));
-await check("Run designer: shape dense", `document.querySelector("[data-panel=rundesigner]").innerHTML`, () => page.click(`[data-panel=rundesigner] [data-opt="shape:dense"]`));
-ok("Run designer: overtrained is locked behind its tree node", JSON.parse(await get(`(() => { const b = document.querySelector('[data-panel=rundesigner] [data-opt="shape:overtrained"]'); return !!b && b.outerHTML.includes("Overtrained compact"); })()`)));
-await page.click('[data-panel=rundesigner] [data-opt="shape:dense"]');
-await check('Run designer: save template', 'localStorage.getItem("ai27.v2.runTemplates")', () => page.click('[data-test=rd-save]'));
+// R5 blueprint: size card with its limit tiles (before → after on a size change), slot table by layer with locked
+// cards linking to Research, predicted and plan cards; run queue with actual share and ETA; spare-training policy.
+await nav('blueprint');
+await page.click('[data-panel=blueprint] [data-bp-kind=base]').catch(() => {});
+await wait(80);
+ok('Blueprint: size card with 7 limit tiles', (await page.$$('[data-panel=blueprint] [data-limit]')).length === 7);
+ok('Blueprint: slot table by layer (Backbone, Training, Scaffold)', JSON.parse(await get(`(() => { const t = document.querySelector('[data-home=blueprintSlots]')?.innerText ?? ''; return /BACKBONE/.test(t) && /TRAINING/.test(t) && /SCAFFOLD/.test(t); })()`)));
+await check('Blueprint: size ×4 changes the wall time', `document.querySelector('[data-panel=blueprint] [data-limit=wall]').innerText`, () => page.click('[data-panel=blueprint] [data-size="4"]'));
+ok('Blueprint: tiles show before → after on a size change', (await page.$$('[data-panel=blueprint] .bp-lim.chg .was')).length >= 4);
+ok('Blueprint: ×4 serves at 2× the ×1 cost (√size)', JSON.parse(await get(`(() => { const t = document.querySelector('[data-panel=blueprint] [data-limit=serve]').innerText; const m = t.match(/([0-9.]+)\\s*→\\s*([0-9.]+)/); return !!m && Math.abs(Number(m[2]) / Number(m[1]) - 2) < 0.03; })()`)));
+await clearTips();
+await shot('43-blueprint-x4');
+await page.hover('[data-panel=blueprint] [data-limit=behind] .lv');
+await wait(500);
+ok('Blueprint: limit tile tooltip states its rule', JSON.parse(await get(`/judgement/.test(document.querySelector('.tip')?.innerText ?? '')`)));
+await clearTips();
+await page.click('[data-panel=blueprint] [data-size="1"]');
+ok("Blueprint: locked card names its idea", await page.$eval(`[data-panel=blueprint] [data-opt="shape:latent"]`, (b) => b.classList.contains('locked') && !!b.dataset.node && b.innerText.length > 12));
+await check("Blueprint: architecture dense", `document.querySelector("[data-panel=blueprint]").innerHTML`, () => page.click(`[data-panel=blueprint] [data-opt="shape:dense"]`));
+ok("Blueprint: overtrained is locked behind its tree node", JSON.parse(await get(`(() => { const b = document.querySelector('[data-panel=blueprint] [data-opt="shape:overtrained"]'); return !!b && b.outerHTML.includes("Overtrained compact"); })()`)));
+await check('Blueprint: locked card opens Research on its idea', `store.panel + ':' + (store.tab['research.sel'] || '')`, () => page.click('[data-panel=blueprint] [data-opt="shape:overtrained"]'));
+ok('Blueprint: Research shows the idea card', !!(await page.$('[data-test=node-card][data-card=overtrained]')));
+await page.click('[data-test=node-close]').catch(() => {});
+await nav('blueprint');
+await page.click('[data-panel=blueprint] [data-bp-kind=base]').catch(() => {});
+await page.click('[data-panel=blueprint] [data-opt="shape:dense"]');
+await check('Blueprint: pool share pill', `document.querySelector('[data-panel=blueprint] [data-home=runPlan]').innerText`, () => page.click('[data-panel=blueprint] [data-pool="0.8"]'));
+await check('Blueprint: save', 'localStorage.getItem("ai27.v2.runTemplates")', () => page.click('[data-test=bp-save]'));
 await check('Launch base run', `s.player.models.runs.filter(r => r.kind === 'base').length`, () => page.click('[data-act=launchBase]'));
+await nav('models');
+{
+  const rq = JSON.parse(await get(`(() => { const q = document.querySelector('[data-home=runQueue]'); return [!!q && q.querySelectorAll('[data-test=run-share]').length >= 1 && q.innerText.includes(' · '), (q?.innerText ?? store.panel).slice(0, 160), s.player.policies.spareTraining]; })()`));
+  ok('Run queue: actual share and ETA per run', rq[0], rq[1] + ' | spare ' + rq[2]);
+}
+await check('Run queue: − lowers a pool share', 'JSON.stringify(s.player.models.runs.map((r) => r.poolShare))', () => page.locator('[data-act^="run-share-dn."]:not([disabled])').first().click());
+await check('Run queue: spare training compute switches use', 's.player.policies.spareTraining', () => page.click('[data-act^="spare."]'));
+await check('Run queue: spare training compute switches back', 's.player.policies.spareTraining', () => page.click('[data-act^="spare."]'));
+await nav('company');
+await tabTo('people');
+ok('Company: engineers show the build queue', !!(await page.$('[data-panel=company] [data-test=build-queue]')));
 // R3 keep-hiring policy (needs a week; run after the run-designer checks so the time step does not change them).
 await page.evaluate(() => window.ai27v2.step(7));
 await closeModals();

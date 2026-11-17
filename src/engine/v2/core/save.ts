@@ -6,7 +6,7 @@ import { hash32 } from './rng';
 import { initialResearch, initialTree } from '../models/tree';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
-export const SCHEMA_REV = 6;
+export const SCHEMA_REV = 7;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -84,6 +84,22 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
         p.paradigms[id] = { status: 'failed', progress: 0, revealedDay: day };
       } else p.paradigms[id] = { status: 'available', progress: 0 };
     }
+  },
+  /** 6 → 7 (restructure R5): a base's scale becomes its size (compact 0.1, frontier 1, stretch 3 × the frontier run);
+   *  the engineers' build queue starts empty, so runs already in flight are set up. */
+  6: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const p = s.player as PlayerLab;
+    const SIZE: Record<string, number> = { compact: 0.1, frontier: 1, stretch: 3, continue: 0.3 };
+    const fix = (d?: { scale?: string; size?: number }) => {
+      if (!d || d.size !== undefined) return;
+      d.size = SIZE[d.scale ?? 'frontier'] ?? 1;
+      delete d.scale;
+    };
+    for (const b of p.models.bases) fix(b.design as unknown as { scale?: string });
+    for (const r of p.models.runs) fix(r.base as unknown as { scale?: string } | undefined);
+    p.build ??= { queue: [], nextId: 1 };
+    p.policies.spareTraining ??= 'research';
   },
 };
 

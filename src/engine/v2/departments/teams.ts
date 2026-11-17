@@ -167,11 +167,12 @@ export function fillWeeks(s: GameStateV2, team: Pick<Team, 'role' | 'dept' | 'si
 
 /** Engineers' AI share A_eng = 1 − (1 − A)² on the coding automation A (STRUCTURE §4.1) [Design]. */
 export const aEngOf = (A: number) => 1 - (1 - Math.min(1, Math.max(0, A))) ** 2;
-/** Build-capacity cap on the AI speed-up (R5 binds it). */
+/** Build-capacity cap on the AI speed-up [D: agents need human review and integration; ×10 is AI 2027's "SC with
+ *  humans in the loop" order of magnitude]. Shown in the build-capacity tooltip. */
 export const BUILD_AI_CAP = 10;
 
-/** Build capacity (team-weeks per week): Σ engineer heads/150 × quality × 1/(1 − A_eng), capped. Readout only
- *  until R5's build queue. */
+/** Build capacity (team-weeks per week): Σ engineer heads/150 × quality × 1/(1 − A_eng), capped. Works the build
+ *  queue (departments/build.ts, R5). */
 export function buildCapacity(s: GameStateV2): { human: number; aEng: number; capacity: number } {
   let human = 0;
   for (const t of s.player.teams) if (t.role === 'eng') human += (t.heads / TEAM_SIZE.eng) * QUALITY[t.quality].out;

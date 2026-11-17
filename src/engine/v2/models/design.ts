@@ -1,7 +1,7 @@
 // Run design → offsets, signals, predictions (V2-SPEC §3.3.2; data in src/data/v2/runDesign.ts). Owner: WS1.
 import {
-  BASE_DATA, BASE_SCALE, BASE_SHAPE, CURATION, POST_COT, POST_INTENSITY, POST_PREF, POST_SAFETY, RL_FAMILIES, RL_FAMILY_IDS,
-  SIGNAL_IDS,
+  BASE_DATA, BASE_SHAPE, CURATION, POST_COT, POST_INTENSITY, POST_PREF, POST_SAFETY, RL_FAMILIES, RL_FAMILY_IDS,
+  SIGNAL_IDS, sizeRestart, sizeS5, sizeServe,
 } from '../../../data/v2/runDesign';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import type { BaseDesign, DomainId, PostDesign, RLFamily, SignalId } from '../types';
@@ -44,14 +44,15 @@ export const addSig = (a: Sig, b: Sig, k = 1): Sig => {
   return out;
 };
 
-/** Base-run effects (choices A–C and curation). Scale's Δp is the pc formula (§3.1.3), not counted here. */
+/** Base-run effects (size, choices A–C and curation). Size's Δp is the pc formula (§3.1.3), not counted here. Serve is
+ *  the shape's size-1 cost × √size (efficiency ideas apply to the versions, runs.ts serveTechMult). */
 export function baseEffect(b: BaseDesign): DesignEffect {
-  const sc = BASE_SCALE[b.scale];
   const sh = BASE_SHAPE[b.shape];
   const da = BASE_DATA[b.data];
   let dp = sh.dp + da.dp;
   let off: Off = { ...da.off };
-  let signals: Sig = addSig(addSig(sc.signals, sh.signals), da.signals);
+  const s5 = sizeS5(b.size);
+  let signals: Sig = addSig(addSig(s5 ? { S5: s5 } : {}, sh.signals), da.signals);
   if (!b.curation.quality) dp += CURATION.qualityOffDp;
   if (b.curation.hazard) {
     dp += CURATION.hazard.dp;
@@ -62,8 +63,8 @@ export function baseEffect(b: BaseDesign): DesignEffect {
     signals = addSig(signals, CURATION.safetyPretrain.signals);
   }
   return {
-    dp, domains: off, serve: sh.serve, monitorability: sh.monitorability ?? 1, signals, h80Mult: 1, misuseMult: 1, appeal: 1,
-    flags: b.data === 'science' ? { bioUplift: false } : {}, restart: Math.max(0, sc.restart + sh.restart),
+    dp, domains: off, serve: sh.serve * sizeServe(b.size), monitorability: sh.monitorability ?? 1, signals, h80Mult: 1, misuseMult: 1, appeal: 1,
+    flags: b.data === 'science' ? { bioUplift: false } : {}, restart: Math.max(0, sizeRestart(b.size) + sh.restart),
     flopMult: da.flopMult, cashMult: da.cashMult, noWall: da.noWall, extraDays: [0, 0], safetyFteWeeks: 0,
   };
 }

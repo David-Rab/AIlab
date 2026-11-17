@@ -22,7 +22,7 @@ function goals(s: GameStateV2): Goal[] {
   if (s.tutorial.act <= 1) {
     return [
       { id: 'race', text: <>Read the race: <Term id="L">capability</Term> vs <Term id="U">understanding</Term></>, done: seen(s, 'coach:race') || seen(s, 'coach:skip') },
-      { id: 'run', text: 'Launch a post-training run', done: postLaunched, go: { panel: 'rundesigner' }, goLabel: 'Runs' },
+      { id: 'run', text: 'Launch a post-training run', done: postLaunched, go: { panel: 'blueprint' }, goLabel: 'Blueprint' },
       { id: 'ff', text: <>Fast-forward to the result <span className="kbd">F</span></>, done: postDone },
       { id: 'finding', text: 'Decide on your first finding', done: s.decisions.some((d) => d.eventId === 'E01') },
       { id: 'runway', text: <>Check how long the money lasts (<Term id="runway">runway</Term>)</>, done: seen(s, 'panel:finance'), go: { panel: 'finance' }, goLabel: 'Finance' },
@@ -31,7 +31,7 @@ function goals(s: GameStateV2): Goal[] {
   }
   return [
     { id: 'chips', text: 'Order chips or start a site', done: p.orders.some((o) => o.qty > 0) || p.sites.length > 1, go: { panel: 'compute' }, goLabel: 'Compute' },
-    { id: 'base', text: <>Launch a <Term id="baseRun">base run</Term></>, done: p.models.runs.some((r) => r.kind === 'base' && r.startDay > 0), go: { panel: 'rundesigner' }, goLabel: 'Runs' },
+    { id: 'base', text: <>Launch a <Term id="baseRun">base run</Term></>, done: p.models.runs.some((r) => r.kind === 'base' && r.startDay > 0), go: { panel: 'blueprint' }, goLabel: 'Blueprint' },
     { id: 'agenda', text: <>Fund a safety <Term id="agenda">agenda</Term></>, done: Object.values(p.safety.agendas).some((a) => a.fte > 0), go: { panel: 'safety', tab: 'agendas' }, goLabel: 'Agendas' },
     { id: 'company', text: 'See where your compute goes', done: seen(s, 'panel:company'), go: { panel: 'company' }, goLabel: 'Company' },
     { id: 'commit', text: <>Make a public <Term id="commitment">commitment</Term></>, done: s.commitments.length > 0, go: { panel: 'relations' }, goLabel: 'Relations' },
@@ -67,7 +67,7 @@ export function Goals({ s }: { s: GameStateV2 }) {
 interface Step { id: string; act: number; target: string; title: string; body: ReactNode; when?: (s: GameStateV2) => boolean; action?: { label: string; go: GoTarget; test: string } }
 const STEPS: Step[] = [
   { id: 'race', act: 1, target: '[data-test=race]', title: 'Keep understanding ahead', body: <>Violet is how capable your best model is. Teal is the highest level your safety tools can still read. If violet passes teal, you are flying blind.</> },
-  { id: 'runs', act: 1, target: '[data-nav=rundesigner]', title: 'Train your first model', body: <>A starter recipe is ready. Every choice shows what it pushes, so try one change and watch the arrows.</>, when: (s) => !s.player.models.runs.some((r) => r.kind === 'post' && r.startDay >= 0), action: { label: 'Open Runs', go: { panel: 'rundesigner' }, test: 'firstRun' } },
+  { id: 'runs', act: 1, target: '[data-nav=blueprint]', title: 'Train your first model', body: <>A starter recipe is ready. Every choice shows what it pushes, so try one change and watch the arrows.</>, when: (s) => !s.player.models.runs.some((r) => r.kind === 'post' && r.startDay >= 0), action: { label: 'Open Blueprint', go: { panel: 'blueprint' }, test: 'firstRun' } },
   { id: 'why', act: 1, target: '[data-test=cash]', title: 'Hover for why, click to go', body: <>Hover any number to see what moved it. Click it to open the panel that changes it. Dotted words explain themselves.</> },
   { id: 'watch', act: 1, target: '#watch', title: 'Watch: what needs you', body: <>When something goes wrong, it shows up here as cause → fix, with a button to the control.</>, when: () => store.panel === 'overview' },
   { id: 'act2', act: 2, target: '[data-nav=compute]', title: 'Act 2: the frontier race', body: <>Chips, sites and base runs are open. Money starts to bind: watch the runway gauge.</> },

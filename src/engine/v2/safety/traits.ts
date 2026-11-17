@@ -7,6 +7,7 @@
 import { EDGES } from '../../../data/v2/edges';
 import { TRAIT_BY_ID, TRAIT_IDS, TRAIT_ORDER, TRAIT_START } from '../../../data/v2/traits';
 import { UMODES } from '../../../data/v2/umodes';
+import { sizeS5 } from '../../../data/v2/runDesign';
 import { bestPlayerVersion, CHINA_ID, PLAYER_ID } from '../models/labs';
 import type {
   BaseDesign, BaseModel, EngineSystem, GameStateV2, ModelVersion, PostDesign, RivalLab, RLFamily, RngLike, SafetyPosture, SignalId,
@@ -46,10 +47,10 @@ export function deploymentS8(s: GameStateV2): number {
   return s8;
 }
 
-/** Base-run signals: S5 = 0.2 + 0.1·capIndex (± scale, − AI-discourse curation), S6 from data. */
+/** Base-run signals: S5 = 0.2 + 0.1·capIndex (± size, − AI-discourse curation), S6 from data. */
 export function baseSignals(design: BaseDesign, tier: number): Signals {
   const sg = zeroSignals();
-  sg.S5 = Math.max(0, 0.2 + 0.1 * tier + (design.scale === 'compact' ? -0.1 : design.scale === 'stretch' ? 0.2 : 0) - (design.curation.safetyPretrain ? 0.15 : 0));
+  sg.S5 = Math.max(0, 0.2 + 0.1 * tier + sizeS5(design.size) - (design.curation.safetyPretrain ? 0.15 : 0));
   sg.S6 = 0.1 + (design.data === 'synthetic' ? 0.3 : 0);
   return sg;
 }

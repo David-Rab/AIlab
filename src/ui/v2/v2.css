@@ -160,7 +160,11 @@
 .radar-lbl { fill: var(--text-2); font-size: 9px; font-family: var(--mono); }
 .beliefs { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 14px; margin-top: 8px; }
 .belief-row { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
-.run-row { display: grid; grid-template-columns: 1fr 90px 40px 80px 70px auto; gap: 8px; align-items: center; padding: 3px 0; font-size: 12px; }
+.run-row { display: grid; grid-template-columns: minmax(0, 1fr) 80px 72px 54px 52px 170px 64px; gap: 8px; align-items: center; padding: 3px 0; font-size: 12px; }
+.run-row .run-step, .run-row .run-spare { display: inline-flex; gap: 2px; }
+.run-row .run-step .btn-sm { padding: 0 6px; min-width: 0; }
+.run-row.run-pool { border-top: 1px dashed var(--line); padding-top: 5px; }
+.run-row .run-spare { grid-column: span 3; align-items: center; gap: 8px; }
 .ptree { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .ptier { display: flex; flex-direction: column; gap: 4px; }
 .ptech { display: flex; align-items: center; gap: 6px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 5px; padding: 3px 6px; }

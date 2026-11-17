@@ -28,6 +28,7 @@ import { domainsOf, levelOf, playerStart, simpleStartPa, yearOfDay } from '../mo
 import { labCore } from '../models/labs';
 import { initialParadigms } from '../models/paradigms';
 import { initialResearch, initialTree } from '../models/tree';
+import { initialBuild } from '../departments/build';
 import { frontierFlop } from '../production/knots';
 import { computeProduction } from '../production/production';
 import { initialSafetyDept } from '../safety/agendas';
@@ -83,8 +84,10 @@ function startEvals(domains: Record<DomainId, number>, measuredL: number, day: n
   return { suiteDay: day, bench, safety: {}, measuredL };
 }
 
-/** A reference post-training run on B0 already in flight at the start (launched day −42, 0.5 of the training pool),
- *  so the next version lands about a month in, as under the reference 6-week cadence [D]. */
+/** A reference post-training run on B0 already in flight at the start (launched day −42), so the next version lands
+ *  about a month in, as under the reference 6-week cadence [D]. It asks for the whole training pool (R5: the start state
+ *  has no idle training compute, as the reference lab's; it finishes its FLOP within days and then only waits for its
+ *  minimum length, which takes no pool share). */
 function startRun(w: TimelineWorld, ps: ReturnType<typeof playerStart>, Lg: number, domains: Record<DomainId, number>): TrainingRun {
   const start = -42;
   const flopNeeded = 0.5 * frontierFlop(w, yearOfDay(start));
@@ -92,7 +95,7 @@ function startRun(w: TimelineWorld, ps: ReturnType<typeof playerStart>, Lg: numb
   const zero = { S1: 0, S2: 0, S3: 0, S4: 0, S5: 0, S6: 0, S7: 0, S8: 0 };
   return {
     id: 'R0', kind: 'post', name: 'post 0', startDay: start, flopNeeded, flopDone: Math.min(0.9 * flopNeeded, -start * perDay), minDays: 77,
-    poolShare: 0.5, cashCost: 0, baseId: 'B0', post: { ...REFERENCE_POST, techniques: [], trainAgainst: [] },
+    poolShare: 1, cashCost: 0, baseId: 'B0', post: { ...REFERENCE_POST, techniques: [], trainAgainst: [] },
     predicted: {
       Lg: [Lg, Lg + 0.5], domains: Object.fromEntries(Object.entries(domains).map(([d, v]) => [d, [v, v + 0.5]])) as Record<DomainId, [number, number]>,
       signals: zero, etaDays: 35, serveCost: 0.5, monitorability: 'high',
@@ -165,9 +168,10 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     hiring: roster.hiring,
     tree: initialTree(setup),
     research: initialResearch(),
+    build: initialBuild(),
     morale: { overall: 70, safety: 65 },
     dataAssets: { licensedTokensT: 30, unlicensedTokensT: 270, syntheticTokensT: 20, litigationRisk: (0.02 * 270) / 100 },
-    policies: { whistleblowerChannel: false, publishSafety: 'selective', govBriefing: 1, shareWithAllies: false, transitionFund: 0, communityBenefits: false },
+    policies: { whistleblowerChannel: false, publishSafety: 'selective', govBriefing: 1, shareWithAllies: false, transitionFund: 0, communityBenefits: false, spareTraining: 'research' },
   };
 }
 

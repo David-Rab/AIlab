@@ -8,6 +8,7 @@ import { applyBestMix } from '../production/production';
 import { STAR_HIRE } from '../../../data/v2/teams';
 import { hireStar } from '../departments/teams';
 import { TEAM_ACTIONS } from '../departments/teamActions';
+import { BUILD_ACTIONS } from '../departments/build';
 import type {
   ActionDef, BaseDesign, Channel, ComputeSplit, CostLine, GameStateV2, PostDesign, RLFamily,
 } from '../types';
@@ -16,7 +17,10 @@ import { deploy, makeVariant, retireVersion, setInternalAgent, setServing, swapD
 import { revenueReadout } from '../worldfx/revenue';
 import { bestMeasuredL, internalVersion, versionById } from './labs';
 import { TREE_ACTIONS } from './treeActions';
-import { launchRun, planRun, startStream, type LaunchRunParams } from './runs';
+import { POOL_SHARE_RANGE, idleTrainingShare, launchRun, planRun, startStream, type LaunchRunParams } from './runs';
+import { poolsOf } from '../compute/power';
+import { clamp } from '../../rng';
+import { sizeScrutiny } from '../../../data/v2/runDesign';
 import { bookCash } from '../finance/ledger';
 
 type Params = Record<string, number | string | boolean>;
@@ -35,7 +39,7 @@ const latestFull = (s: GameStateV2) => [...s.player.models.versions].reverse().f
 export function baseFromParams(p: Params): BaseDesign {
   const r = REFERENCE_BASE;
   return {
-    scale: str(p, 'scale', r.scale) as BaseDesign['scale'], shape: str(p, 'shape', r.shape) as BaseDesign['shape'],
+    size: num(p, 'size', r.size), shape: str(p, 'shape', r.shape) as BaseDesign['shape'],
     data: str(p, 'data', r.data) as BaseDesign['data'],
     curation: { quality: bool(p, 'quality', r.curation.quality), hazard: bool(p, 'hazard', r.curation.hazard), safetyPretrain: bool(p, 'safetyPretrain', r.curation.safetyPretrain) },
     licensedShare: num(p, 'licensedShare', r.licensedShare),
@@ -80,7 +84,8 @@ function runPreview(s: GameStateV2, lp: LaunchRunParams): Preview {
   const sig = plan.prediction.signals;
   const pressure = Object.values(sig).reduce((a, x) => a + x, 0);
   if (pressure > 0) exposure.push({ currency: 'alignment', amount: -pressure, lagDays: plan.etaDays, probability: 0.5 });
-  if (lp.base?.scale === 'stretch') exposure.push({ currency: 'scrutiny', amount: 5 });
+  const scrutiny = lp.base ? sizeScrutiny(lp.base.size) : 0;
+  if (scrutiny >= 0.5) exposure.push({ currency: 'scrutiny', amount: Math.round(scrutiny * 10) / 10 });
   return { costs, gains: [{ currency: 'progress', amount: Math.round(gainL * 100) / 100, lagDays: plan.etaDays }], exposure };
 }
 
@@ -113,6 +118,43 @@ const RUN_ACTIONS: ActionDef[] = [
       const v = versionById(s, str(p, 'versionId', latestFull(s)?.id ?? ''));
       const r = launchRun(s, ctx, { kind: 'post', ida: true, baseId: v?.baseId, teacherVersionId: v?.id, post: v?.design ?? REFERENCE_POST });
       if (typeof r === 'string') fail(r);
+    },
+  },
+  {
+    id: 'runs.setShare', sphere: 'models', owner: 'WS1', title: 'Pool share',
+    available: (s) => (s.player.models.runs.some((r) => r.status === 'running') ? true : 'No running runs'),
+    preview: (s, p) => {
+      const r = s.player.models.runs.find((x) => x.id === str(p, 'runId', '')) ?? s.player.models.runs.find((x) => x.status === 'running');
+      const share = clamp(num(p, 'share', r?.poolShare ?? 0.5), POOL_SHARE_RANGE[0], POOL_SHARE_RANGE[1]);
+      const d = share - (r?.poolShare ?? share);
+      const line = { currency: 'compute' as const, amount: Math.round(Math.abs(d) * 100) / 100, target: 'training pool share' };
+      // More share: the run finishes sooner, other runs (or idle research compute) get less; less share: the reverse.
+      return d >= 0
+        ? { costs: [line], gains: [{ currency: 'progress', amount: Math.round(d * 100) / 100, target: r?.name ?? 'run' }], exposure: [] }
+        : { costs: [{ currency: 'progress', amount: Math.round(d * 100) / 100, target: r?.name ?? 'run' }], gains: [line], exposure: [] };
+    },
+    apply: (s, _ctx, p) => {
+      const r = s.player.models.runs.find((x) => x.id === str(p, 'runId', '') && (x.status === 'running' || x.status === 'paused'));
+      if (!r) return fail('Unknown run');
+      r.poolShare = clamp(num(p, 'share', r.poolShare), POOL_SHARE_RANGE[0], POOL_SHARE_RANGE[1]);
+    },
+  },
+  {
+    id: 'runs.spareTraining', sphere: 'models', owner: 'WS1', title: 'Spare training compute',
+    available: () => true,
+    preview: (s, p) => {
+      const use = str(p, 'use', s.player.policies.spareTraining === 'data' ? 'research' : 'data');
+      const spare = Math.round(idleTrainingShare(s) * poolsOf(s).training);
+      const toData = { currency: 'compute' as const, amount: spare, target: 'data generation' };
+      const exp = s.player.prodCache?.elast.exp ?? 0.3;
+      const pool = poolsOf(s);
+      const research = { currency: 'progress' as const, amount: Math.round(exp * Math.log1p(spare / Math.max(1, pool.experiments)) * 1e4) / 1e4, target: 'research speed' };
+      return use === 'data' ? { costs: [research], gains: [toData], exposure: [] } : { costs: [toData], gains: [research], exposure: [] };
+    },
+    apply: (s, _ctx, p) => {
+      const use = str(p, 'use', '');
+      if (use !== 'research' && use !== 'data') return fail('Use research or data');
+      s.player.policies.spareTraining = use;
     },
   },
   {
@@ -320,6 +362,7 @@ export const DEPARTMENT_ACTIONS: ActionDef[] = [
     apply: (s, _ctx, p) => fail(applySplit(s, presetSplit(str(p, 'preset', 'reference') as SplitPreset, decimalYear(s), s.player.split), p)),
   },
   ...TEAM_ACTIONS,
+  ...BUILD_ACTIONS,
   {
     id: 'starHire', sphere: 'departments', owner: 'WS1', title: 'Star hire',
     available: (s) => (s.player.tasteHire >= STAR_HIRE.maxTaste ? 'Taste bench is full' : s.player.finance.cash < STAR_HIRE.cost ? 'Not enough cash' : true),

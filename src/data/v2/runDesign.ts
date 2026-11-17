@@ -4,7 +4,7 @@ import type { BaseDesign, DomainId, PostDesign, RLFamily, SignalId } from '../..
 
 /** The RefBot recipe: zero offsets by definition. */
 export const REFERENCE_BASE: BaseDesign = {
-  scale: 'frontier', shape: 'moe', data: 'balanced',
+  size: 1, shape: 'moe', data: 'balanced',
   curation: { quality: true, hazard: false, safetyPretrain: false }, licensedShare: 0.1,
 };
 
@@ -17,15 +17,30 @@ type Off = Partial<Record<DomainId, number>>;
 type Sig = Partial<Record<SignalId, number>>;
 
 // ── Run kinds (§3.3.1) ──
-/** FLOP as a multiple of F(t) and minimum wall time (days). */
-export const BASE_SCALE: Record<BaseDesign['scale'], { F: number; minDays: number; signals: Sig; restart: number }> = {
-  compact: { F: 0.1, minDays: 42, signals: { S5: -0.1 }, restart: 0 },
-  frontier: { F: 1, minDays: 90, signals: {}, restart: 0 },
-  stretch: { F: 3, minDays: 120, signals: { S5: 0.2 }, restart: 0.1 }, // AF emerges in the largest models [R12 A]
-  continue: { F: 0.3, minDays: 42, signals: {}, restart: 0 },
-};
-/** Max wall time of a base run: a scale is unavailable if the training pool cannot deliver it in time [R12]. */
-export const BASE_MAX_DAYS = 150;
+// Base size (R5, TECH-TREE §1.5): FLOP = size × F(t), any size. The functions below pass through the three old scales
+// (compact 0.1: 42 d, S5 −0.1; frontier 1: 90 d; stretch 3: 120 d, S5 +0.2, restart 0.1) and extend them log-linearly.
+/** Size range of a base run (× today's frontier run F(t)); the blueprint snaps to SIZE_SNAPS. */
+export const SIZE_RANGE: readonly [number, number] = [0.1, 8];
+export const SIZE_SNAPS = [0.25, 0.5, 1, 2, 4, 8] as const;
+/** Minimum wall time (days) of a base run of `size` (a bigger run needs longer however much compute it gets). */
+export function sizeMinDays(size: number): number {
+  return Math.round(90 * Math.pow(size, size < 1 ? Math.log(90 / 42) / Math.log(10) : Math.log(120 / 90) / Math.log(3)));
+}
+/** S5 (scale and AI-related data) added by size: alignment faking emerges in the largest models [R12 A]. */
+export function sizeS5(size: number): number {
+  return size < 1 ? 0.1 * Math.log10(size) : (0.2 * Math.log(size)) / Math.log(3);
+}
+/** Loss-spike (restart) risk added by size [D]; Fault-tolerant training halves the total. */
+export function sizeRestart(size: number): number {
+  return size <= 1 ? 0 : (0.1 * Math.log(size)) / Math.log(3);
+}
+/** Serving-cost factor of size: cost per token ∝ active parameters ∝ √FLOP at compute-optimal [D: Chinchilla]. */
+export const sizeServe = (size: number) => Math.sqrt(size);
+/** Public scrutiny of a run above the frontier (a ×3 run: +5, as the old stretch scale). */
+export const sizeScrutiny = (size: number) => (size > 1 ? (5 * Math.log(size)) / Math.log(3) : 0);
+/** Continue-pretraining run: FLOP as a multiple of F(t) and minimum wall time. */
+export const CONTINUE_F = 0.3;
+export const CONTINUE_MIN_DAYS = 42;
 export const POST_FLOP_F: Record<PostDesign['rlIntensity'], number> = { light: 0.05, heavyCheap: 0.5, heavyHardened: 0.5 };
 export const POST_DAYS: Record<PostDesign['rlIntensity'], [number, number]> = { light: [21, 28], heavyCheap: [56, 70], heavyHardened: [70, 84] };
 export const DISTILL_F = 0.02;
@@ -36,6 +51,7 @@ export const STREAM_POOL_SHARE = 0.15;
 export const STREAM_LAG_DAYS = 7;
 
 // ── Base choices A–C ──
+/** Base shapes. `serve` is the serving cost of a size-1 base (× √size, × efficiency ideas): MoE 0.5 is the reference. */
 export const BASE_SHAPE: Record<BaseDesign['shape'], { dp: number; serve: number; restart: number; signals: Sig; monitorability?: number }> = {
   dense: { dp: -0.24, serve: 1.0, restart: -0.1, signals: {} },
   overtrained: { dp: -0.36, serve: 0.3, restart: 0, signals: {} },

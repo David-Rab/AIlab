@@ -12,6 +12,7 @@ import { continualSystem, runsSystem } from '../models/runs';
 import { milestonesSystem } from '../models/capability';
 import { hiringSystem } from '../departments/teams';
 import { researchSystem } from '../models/tree';
+import { buildSystem } from '../departments/build';
 import { MODEL_ACTIONS } from '../models/actions';
 // WS2
 import { safetyResearchSystem } from '../safety/agendas';
@@ -54,6 +55,7 @@ export const SYSTEMS: readonly EngineSystem[] = [
   computeOnlineSystem, // 20 WS3 daily
   productionSystem, // 30 WS1 daily
   researchSystem, // 35 WS1 daily (R4 tree projects)
+  buildSystem, // 38 WS1 daily (R5 engineers' build queue)
   runsSystem, // 40 WS1 daily
   continualSystem, // 45 WS1+WS2 daily
   milestonesSystem, // 50 WS1 daily
@@ -96,14 +98,14 @@ const SYSTEM_TAG: Record<string, StructureSystem> = {
   clock: 'core', computeOnline: 'compute', production: 'research', runs: 'models', continual: 'models', milestones: 'models',
   revenue: 'products', safetyResearch: 'safety', traitsDaily: 'safety', incidents: 'safety', rivalsChina: 'relations',
   worldDaily: 'world', actorsDaily: 'relations', opex: 'finance', director: 'core', endings: 'core', record: 'core',
-  hiring: 'people', intel: 'relations', payroll: 'finance', macro: 'world', computeHistQ: 'compute', marketQ: 'compute',
+  hiring: 'people', build: 'people', intel: 'relations', payroll: 'finance', macro: 'world', computeHistQ: 'compute', marketQ: 'compute',
   sitesQ: 'compute', capitalQ: 'finance', boardQ: 'finance', geoQ: 'relations',
 };
 for (const s of SYSTEMS) if (!s.system && SYSTEM_TAG[s.id]) (s as EngineSystem).system = SYSTEM_TAG[s.id];
 
 const VERB_TAG: Record<string, [ActionVerb, StructureSystem]> = {
   launchBase: ['train', 'models'], launchPost: ['train', 'models'], launchDistill: ['train', 'models'], launchContinue: ['train', 'models'],
-  idaCycle: ['train', 'models'], cancelRun: ['train', 'models'], startStream: ['train', 'models'], stopStream: ['train', 'models'],
+  idaCycle: ['train', 'models'], cancelRun: ['train', 'models'], 'runs.setShare': ['train', 'models'], 'runs.spareTraining': ['policy', 'models'], 'build.first': ['policy', 'people'], startStream: ['train', 'models'], stopStream: ['train', 'models'],
   runEvals: ['policy', 'models'], retireVersion: ['launch', 'models'], makeVariant: ['launch', 'products'],
   deploy: ['launch', 'products'], swapDeployment: ['launch', 'products'], setServing: ['launch', 'products'], withdraw: ['launch', 'products'],
   setInternalAgent: ['policy', 'models'],

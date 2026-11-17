@@ -17,7 +17,10 @@ export type { MixCurve, NextModelGate, ResponseCurves } from '../production/read
 export { MANUAL_MIX_RANGE, specOf, topOf, TOP_KEYS } from '../departments/split';
 export type { SplitSpec, TopKey, TopSplit } from '../departments/split';
 // WS1 model / department selectors and helpers for the UI (visible data only).
-export { planRun, predictRun, POOL_SHARE_RANGE, runStall } from '../models/runs';
+export { idleTrainingShare, knowHowMonths, planRun, poolAllocation, predictRun, POOL_SHARE_RANGE, runEtaDays, runStall, serveTechMult, shareIfLaunched, streamShare, trainingFlopPerDay } from '../models/runs';
+export type { BaseLimits } from '../models/runs';
+export { buildBacklogTW, buildEtas, buildPerDay, runSetupTW, runWaiting } from '../departments/build';
+export { SIZE_RANGE, SIZE_SNAPS, STREAM_POOL_SHARE, sizeMinDays } from '../../../data/v2/runDesign';
 export type { LaunchRunParams, RunPlan } from '../models/runs';
 export { PARADIGM_BY_ID } from '../models/paradigms';
 export { assignBlock, effortOf, idleTeams, knowHow, isMirror, isProject, missingNeeds, nodeKnown, nodeOdds, nodeStatus, optionLocked, payoffOf, projectCapacity, projectEta, projectRate, projectReady, projectTeams, researchSpeed, teamCapacity, teamsOn, treeCounts } from '../models/tree';
@@ -28,7 +31,7 @@ export { bestMeasuredL, internalVersion, labPools, measuredLOf, versionById } fr
 export { MILESTONE_NAMES } from '../models/capability';
 export { presetSplit, shareRefAt, SPLIT_KEYS, SPLIT_PRESETS } from '../departments/split';
 export { teamGain } from '../departments/teamActions';
-export { aiShareByRole, buildCapacity, fillWeeks, laneWeights, fullTeamPayroll, keyOf, payrollOf, playerH, queuedOfKey, teamLabel, teamPayroll, teamsOfKey, weeklyHireCap } from '../departments/teams';
+export { aiShareByRole, BUILD_AI_CAP, buildCapacity, fillWeeks, laneWeights, fullTeamPayroll, keyOf, payrollOf, playerH, queuedOfKey, teamLabel, teamPayroll, teamsOfKey, weeklyHireCap } from '../departments/teams';
 export { baseFromParams, postFromParams } from '../models/actions';
 export { understanding } from '../safety/understanding';
 export { leadDays, riskSources } from '../actors/intel';

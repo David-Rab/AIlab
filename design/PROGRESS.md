@@ -23,7 +23,122 @@ Single source of truth for where the build stands. Update at every milestone or 
 | **R3 Restructure: teams and roles** | Done (2026-11-16): fixed-size teams in three roles, h from capabilities research engineers, τ_h from science quality + stars, keep-hiring policy, offers, Company › People teams + hiring cards, schemaRev 5; no CAL_SHIFT refit; all §7.4 bot criteria MET (40 seeds) | "R3: teams and roles, …" on `game-structure` |
 | **R2 Restructure: leader lab in the world** | Done (2026-11-16): simulated AI 2027 leader "Polaris AI" behind `setup.leaderLab` (default off), T1L passes with LEADER_CAL, `--fit-leader`; flag off identical (ref-trace, bots); no schemaRev change | "R2: leader lab …" on `game-structure` |
 | **R4 Restructure: tech tree and capability projects** | Done (2026-11-17): 93-node shared tree, science teams on projects (√ capacity, ×1.5 specialty, absolute M), per-world rolls and retries, design-option locks, auto-assign, Research panel, schemaRev 6; fitted efforts; CAL_SHIFT refit (authors2026, fast, slow) and LEADER_CAL refit; all §7.4 bot criteria MET (200 seeds); one new worldfx failure (GOV accept) documented | "R4: tech tree …" on `game-structure` |
-| **R5–R10 Tycoon restructure: build** | Next: R5 … R10 serially (BUILD-PLAN parallelism note); milestones logged below. `gs-leader-lab` held no work beyond R1 and was not merged | |
+| **R5 Restructure: build queue and blueprint** | Done (2026-11-17): free base size (×¼…×8; minDays, S5, restart, serve ∝ √size as functions of size; BASE_MAX_DAYS gone), staleness and data readouts, proportional pool allocation, spare training compute → experiments (policy; RefBot → data), engineers' build queue with run setups, Blueprint panel, run queue share/ETA, schemaRev 7; ref-trace identical to R4, no refit; all §7.4 bot criteria MET (40 seeds) | "R5: build queue …" on `game-structure` |
+| **R6–R10 Tycoon restructure: build** | Next: R6 … R10 serially (BUILD-PLAN parallelism note); milestones logged below. `gs-leader-lab` held no work beyond R1 and was not merged | |
+
+## R5 Build queue and blueprint (2026-11-17, branch `game-structure`, worktree ../AI27-structure)
+
+Per design/BUILD-PLAN.md §2 R5, TECH-TREE §1.4–1.5, STRUCTURE §4.1/§4.3 (rules R5, R11), mockups-v3/v3-blueprint*.
+
+**Size (data `runDesign.ts`, `design.ts`, `runs.ts`).** `BaseDesign.scale` → `size` (× F(t)). `BASE_SCALE` and
+`BASE_MAX_DAYS` are gone; functions of size pass through the old scales (compact 0.1 / frontier 1 / stretch 3) and extend
+log-linearly: `sizeMinDays` (42 / 90 / 120 d), `sizeS5` (−0.1 / 0 / +0.2; also in safety/traits baseSignals),
+`sizeRestart` (0 / 0 / 0.1, ×0.5 with Fault-tolerant training), `sizeScrutiny` (+5 at ×3). Serving cost of a base =
+shape's size-1 cost × √size (MoE ×1 = 0.5 exactly; dense 1.0, overtrained 0.3, latent 0.2); the efficiency ideas
+(`serveTechMult`: quantization, speculative decoding, AI kernels) and the CoT factor multiply it on new versions.
+`SIZE_RANGE` [0.1, 8], UI snap points ×¼…×8. `planRun` returns `limits` (wall time, `behindMonths` = know-how gained
+during the run at today's rate, tokens needed ∝ √FLOP vs usable stock and the data-wall Δp, restart risk, serve cost,
+compute-equivalent cost, scrutiny), `effShare` (the share the run would get today), `setupTW`/`setupDays`; ETAs
+include the wait for engineers and use the effective share.
+
+**Pools.** `poolAllocation` is proportional: runs that train get their pool share; if together they ask for more than
+the pool after the stream (15%), all scale by one factor. Runs waiting for setup, restarting after a loss spike, or
+with their FLOP done (only waiting for their minimum length) take no share. `idleTrainingShare` = what nothing uses.
+`runs.setShare` changes a running run's share (run queue −/+); `POOL_SHARE_RANGE` lowered 0.1 → 0.02 (RefBot's
+distills got 2–4% under the old priority rule). `runEtaDays` for the run queue.
+
+**Spare training compute (R5 rule "nothing wasted silently").** New policy `player.policies.spareTraining`:
+`'research'` (default: `labInputs` adds the idle training H100e to experiments, `c` and `abs.Cexp`; `bestMix` takes it as
+a fixed offset `c0` so the auto mix accounts for it; response curves keep it fixed) or `'data'` (synthetic-token
+accrual). Action `runs.spareTraining`; shown in the run queue. **RefBot uses `'data'`**: AI 2027's research compute is
+fixed by its usage table (shareRef) and data never binds on the reference path, so its cadence gaps must not raise
+experiments. Measured idle-to-research speed-up (RefBot stub with `spareTraining: 'research'`, seed 2027): SC −59 d
+(ai2027), −145 d (authors2026), −60 d (fast), −213 d (slow); ASI −62 / −211 / −68 d. RefBot leaves ~7–10% of its
+training pool idle (one post-train between launches; base runs while the stream runs, when it posts nothing). That is
+far beyond a ±0.03 CAL_SHIFT refit, hence the policy. The start run R0 now asks the whole pool (it finishes its FLOP
+within days and then frees it), so a new game has no idle compute at day 0 (T4 unchanged).
+
+**Build queue (`departments/build.ts`).** `player.build {queue: BuildItem[], nextId}`; `BuildItem {id, kind
+runSetup|feature|harness|safeguard, ref, needTW, doneTW, priority, day}`. `buildSystem` (daily, order 38): capacity =
+`buildCapacity` (Σ eng heads/150 × quality × min(10, 1/(1−A_eng))) / 7 team-weeks a day, worked in priority order;
+a finished setup sets `run.readyDay`. `launchRun` queues the setup (`runSetupTW`: base 0.4 × size^0.75, continue 0.25,
+post 0.1, distill/IDA 0.05); a run trains only after it ("waiting for engineers" in `runStall`). Sized so RefBot's
+setups finish within the day in every world (its 4 teams build 0.6 t-wk/day in the slow world, 3 in ai2027): a
+3 t-wk base (first try) delayed RefBot runs 1–5 days and the post cadence cascaded (finish days off by up to 3
+weeks). Action `build.first`. Setups of cancelled runs leave the queue. Loss-spike rolls start once a run trains.
+
+**Bots.** `launchBase(size)`: RefBot ×1, race ×3; the old 150-day cap is now the bot's own rule (`BOT_MAX_BASE_DAYS`,
+at the requested share), stepping ×3 → ×1 → ×0.1 as before. `syncPoolShares`: RefBot sets each running run's share to
+what the pre-R5 priority rule gave it (base/continue first, the rest share what is left; shares under the 0.02 floor
+raised and the others scaled), acting only when a share changes, so its effective shares equal R4's.
+
+**Save.** `SCHEMA_REV` 7; cheap migration 6 → 7 (scale → size, empty build queue, spareTraining 'research'), checked on
+the three rev-6 fixtures (load, 30 d RefBot, plain JSON). Fixtures regenerated.
+
+**UI.** `panels/Blueprint.tsx` + `blueprint.css` replace `RunDesigner.tsx`/`runs.css` (route `blueprint`, nav
+"Blueprint"; good-ui pass, screenshots checked): kind tabs; size card (home `runLimits`: ×N hero with FLOP, snap
+track with FLOP per point, latest-base tick, ghost of the previous size; seven limit tiles — wall time, behind at
+finish, data, cash, restart risk, serving cost, engineers — each with status border, bar, `old → new` after a size
+change and a tooltip with breakdown and source); slot table (home `blueprintSlots`) grouped Backbone / Training /
+Scaffold with "change = …" headers, the selected card, up to four alternatives (+N), locked cards naming their idea and
+its progress (click → Research with the idea open), and per-row contribution vs the reference card (capability with a
+domain tooltip, time, cash, serve ratio, four risk families with per-trait tooltips); predicted model card (ruler vs
+the internal model, top domain chips, risk-family pressure); plan card (pool-share pills, "gets X% now", ready date,
+Gantt with running runs as bars, setup wait, base → post → evals, know-how wedge, Start). The next-model gates bar and
+the S1–S8 / trait-push card are gone (demoted to tooltips, per the IA note). Run queue (Models): actual share (asks /
+gets), −/+ share, ETA date, stall reason, stream row, spare row with the policy switch. Company › People engineers:
+build queue backlog and items in the capacity tooltip. New glossary: baseSize, frontierRun, wallTime, behindAtFinish,
+dataTokens, restartRisk, faultTolerant, buildQueue, runSetup, teamWeek, poolShare, spareTraining, riskFamily,
+blueprint; `scale` removed; baseRun, trainingPool rewritten.
+
+**Gates.**
+- `npm run typecheck`, `tsc -p scripts/v2`: clean. identity and golden-timelines unchanged and passing.
+- **ref-trace vs the R4 reference** (recorded at 72e16c0 into a temp file): milestones and paradigm adoption days
+  identical in all five traces; base/post finish days within 1 d (worst: stub:fast base +1 d; one post launched on the
+  trace's last day is cut off); every other category within tolerance. `scripts/v2/golden/ref-trace.json` (R1) kept.
+- calib: T1, T2, T1L, T3, T4 pass with **no refit** (T1 SC Δ unchanged: ai2027 +0.003, authors2026 −0.044, fast −0.049,
+  slow −0.038 y). New check **"R5 build queue never delays a RefBot run > 3 d"**: worst wait 0 d in all four stub worlds
+  and all four integrated runs.
+- test:v2 scripts individually: golden-timelines, identity, calib, fixtures, lint-hidden, lint-ux, lint-tradeoffs,
+  safety, finance, ws4, money pass; hygiene passes except the known absolute performance budget (system table gains
+  `build`); worldfx: the two known failures only (HireRate_SOFT 2027-01-07, GOV T1 Accept 2028-03-31; unchanged).
+- Performance (`_perf.ts`, seed 9, 1,500 days, passive player; R4 worktree at 72e16c0 and R5 alternated 4 × 3 runs on
+  a loaded machine): daily 1,715 µs (R4) vs 1,766 µs (R5), +3%; worst quarter 7.4 vs 8.0 ms (+8%, noise-level). No
+  regression > 10%.
+- `npm run test:ui`: 153/153 (new Blueprint section: 7 limit tiles, layer groups, ×4 changes wall time with
+  before → after tiles, ×4 serves at 2× (√size), tile tooltip states its rule, locked card names its idea and opens it
+  in Research, architecture pick, pool-share pill, save; run queue actual share + ETA, − share, spare-training switch;
+  Company build queue). Screenshots 43 and day-400/900 blueprint checked.
+- **Bots, 40 seeds:** all six §7.4 criteria MET (safe win 5.0% sits exactly on the ≤ 5% cap).
+
+| bot | win | mixed | loss | med. day | top endings |
+|---|---|---|---|---|---|
+| race | 0.0% | 7.5% | 92.5% | 804 | asiTakeover 57.5%, ousted 17.5%, nationalized 10% |
+| safe | 5.0% | 0.0% | 95.0% | 1480 | overtaken 55%, ousted 37.5%, rivalAligned 5% |
+| mixed | 55.0% | 5.0% | 40.0% | 1065 | asiAligned 55%, ousted 15%, asiTakeover 10%, nationalized 10% |
+| capex2x | 2.5% | 0.0% | 97.5% | 304 | insolvent 95% |
+| ref | 22.5% | 0.0% | 77.5% | 972 | asiTakeover 37.5%, asiAligned 22.5%, ousted 17.5% |
+
+Choices vs world (final Mis): bot policy 70%, world 17%, rest 13%.
+
+**Deviations / deferred.**
+- Spare-training policy (not in the plan) with RefBot on 'data', instead of a CAL_SHIFT refit (see above). All bots use
+  refPlay's 'data'; the player default is 'research' — a strong lever worth a balance look (it is equivalent to moving
+  that compute into experiments with the split).
+- Setup costs are small ([D], sized to stay non-binding for RefBot); R6's features are the real build load.
+- The wall-time tile uses today's training pool, not the chip-delivery forecast (the IA note's resolved item); the
+  tooltip says so.
+- Blueprint's "planned package" line (R7) and Honesty/Anti-scheming alignment cards (R8 nodes) are not shown; the
+  Alignment row keeps today's options (standard / heavy / minimal safety training, inoculation).
+- Removing the scratch file `scripts/v2/_r5noidle.ts` was denied (gitignored, harmless). Scratch `scripts/v2/_r5*.ts` and
+  `scripts/v2/shots/_r5*.mjs` are gitignored. The temp baseline worktree `C:	mp4ase` now sits at 72e16c0
+  (detached, `node_modules` junction): remove the junction with `rmdir` first, then `git worktree prune`.
+
+**Notes for R6.** `queueBuild(s, kind, ref, needTW)` and `BuildItem.kind` 'feature' | 'harness' | 'safeguard' are ready
+for feature builds (Scaffold-layer nodes); `buildEtas` gives per-item ETAs and `build.first` reorders. The blueprint's
+Scaffold row links to Deploy (rename to Products). Serving cost now grows with √size: a ×3 race base serves at 0.87
+(internal agents' ηmod falls), which R6's Auto serving split should account for. The worldfx GOV T1 Accept failure is
+unchanged.
 
 ## R4 Tech tree and capability projects (2026-11-17, branch `game-structure`, worktree ../AI27-structure)
 
