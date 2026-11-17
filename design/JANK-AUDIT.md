@@ -275,3 +275,20 @@ idle chips 39, incident 5. Big tech (all bots): idleServing 319–341, board 225
 
 Scripts (throwaway, untracked): `scripts/v2/_audit_fx.ts`, `_audit_shots.mjs`, `_audit_play.mjs`,
 `_audit_play2.mjs`, `_audit_order.mjs`, `_audit_mech.ts`, `_audit_chk.ts`. Fixtures and logs in `C:\tmp\auditfx`.
+
+---
+
+## Triage (user, 2026-11-17)
+
+**Fix now (batch J1):**
+- Major group B — measurement noise: M1, M2.
+- Major group C — broken / misleading screens: B1, B2, B3, PR2, F1, F2, C1, O1, RL1 (Relations: hierarchy cleanup, not a redesign).
+- All Minor and Polish findings that are **UI-only** (no engine/mechanism change).
+
+**Deferred (batch J2, later):**
+- Major group A — idle resources and policies: P1, P2, R1, R2, M3, PR1, ST2 (and ST1 spinout presentation).
+- Minor/Polish findings that need engine changes.
+
+**Design decisions for J2:**
+- **Engineers get real work:** build load that scales — run setup grows with model size; every product launch, feature, sector pack and product upkeep needs team-weeks; safety tooling in production needs crews — so too few engineers visibly slows shipping.
+- **Spare serving compute flows to research agents by default** (shown, like spare training compute goes to data), calibration-checked so the reference path stays neutral.
