@@ -268,9 +268,10 @@ ok(`Action buttons: ${tally.changed} changed state`, tally.changed >= 40, `${tal
 for (const r of rejected) console.log(`     rejected ${r}`);
 
 // Controls that are not action buttons: segs, sliders, selects, toggles
-await nav('company');
+// R7: the compute split lives on Compute › Split (one home per control).
+await nav('compute');
 await tabTo('split');
-await check('Split slider moves draft', `document.querySelector('[data-panel=company]').innerText`, () => setSlider(page.locator('[data-panel=company] .split-row input[type=range]').first(), 0.6));
+await check('Split slider moves draft', `document.querySelector('[data-panel=compute]').innerText`, () => setSlider(page.locator('[data-panel=compute] .split-row input[type=range]').first(), 0.6));
 await check('Apply split', 'JSON.stringify(s.player.split)', () => page.click('[data-act=setSplit]'));
 ok('Research mix chart and response curves render', !!(await page.$('[data-test=mix-chart] path')) && (await page.$$('[data-test=response-charts] .rc-mult')).length === 4);
 await check('Research mix: manual + slider + apply', 'JSON.stringify([s.player.researchManual, s.player.split.experiments])', async () => {
@@ -283,6 +284,7 @@ await check('Research mix: back to auto', 'JSON.stringify(s.player.researchManua
   await page.click('[data-act=setSplit]');
 });
 // R3 People: teams by role, keep-hiring targets, offers, filling queue, move and let go.
+await nav('company');
 await tabTo('people');
 ok('Teams card: one science card per science team', JSON.parse(await get(`document.querySelectorAll('[data-panel=company] .sci-card').length === s.player.teams.filter((t) => t.role === 'sci').length`)));
 ok('Teams card: piles for engineers and both research-engineering departments', JSON.parse(await get(`['eng', 're.cap', 're.saf'].every((k) => !!document.querySelector('[data-panel=company] [data-pile="' + k + '"]'))`)));
@@ -293,6 +295,26 @@ await check('Move: safety research-engineering team to capabilities', 'JSON.stri
 ok('Move: safety morale paid', JSON.parse(await get('s.causes.byKey["morale.safety"] ? s.causes.byKey["morale.safety"].some((c) => /moved/.test(c.source)) : false')));
 await check('Let go: a science team', 's.player.teams.length', () => page.click('[data-panel=company] .sci-card [data-act="teams.release"]'));
 await shot('20-company-people');
+// R7 Agents at work: four lanes (home of the internal packages), model/monitor chips with a before → after preview,
+// compute steppers, AI share per role, risk badges; Trusted to AI (B3 gate); the same chips on Products; Safety links.
+ok('Agents at work: four lanes with model and monitor chips', JSON.parse(await get(`['eng', 'capRoutine', 'capFrontier', 'safety'].every((u) => !!document.querySelector('[data-home=agents] [data-lane=' + u + '] [data-chip=model]') && !!document.querySelector('[data-home=agents] [data-lane=' + u + '] [data-chip=monitor]'))`)));
+ok('Agents at work: AI share of each capabilities role and four risk badges per lane', JSON.parse(await get(`['eng', 'capRoutine', 'capFrontier'].every((u) => !!document.querySelector('[data-test="ai-share.' + u + '"]')) && document.querySelectorAll('[data-home=agents] [data-risk]').length === 16`)));
+await page.selectOption('[data-test="agent-monitor.eng"]', 'same');
+await wait(80);
+ok('Agents: a monitor pick opens the before → after preview', !!(await page.$('[data-test="agent-edit.eng"] .pv')));
+await page.click('[data-test="agent-cancel.eng"]');
+await wait(60);
+ok('Agents: Cancel closes the preview and keeps the package', JSON.parse(await get('s.player.agents.eng.monitorId === undefined && !document.querySelector(\'[data-test="agent-edit.eng"]\')')));
+await page.selectOption('[data-test="agent-monitor.capFrontier"]', '');
+await wait(80);
+await check('Agents: Apply removes the frontier monitor', 'JSON.stringify(s.player.agents.capFrontier.monitorId || null)', () => page.click('[data-act="agents.set.capFrontier"]'));
+await check('Agents: compute + moves agent pool to engineering', 'JSON.stringify(s.player.agents.eng.compute)', () => page.click('[data-act="agents.compute.up.eng"]'));
+ok('Agents: capabilities shares still sum to 1', JSON.parse(await get('Math.abs(s.player.agents.eng.compute + s.player.agents.capRoutine.compute + s.player.agents.capFrontier.compute - 1) < 1e-9')));
+{
+  const gate = JSON.parse(await get('!!document.querySelector("[data-test=trusted-gate]")'));
+  ok('Trusted to AI: home on the safety lane; locked below the AI-labour gate', !!(await page.$('[data-home=trustedToAI]')) && (!gate || !!(await page.$('[data-act="agents.trusted.up"][disabled]'))), gate ? 'locked' : 'open');
+}
+await shot('21-company-agents');
 // B4: one WSL target range for the slider and the engine.
 await tabTo('security');
 ok('Security target slider range matches the engine (2–5)', JSON.parse(await get(`(() => { const r = document.querySelector('[data-panel=company] [data-home=wsl] input[type=range]'); return !!r && r.min === '2' && r.max === '5'; })()`)));
@@ -303,7 +325,7 @@ await check('Security target: slider at the floor + Set', 's.player.security.tar
 ok('Security target set to the slider value', JSON.parse(await get('s.player.security.target === 2')));
 await tabTo('flow');
 ok('Company flow renders', !!(await page.$('[data-home=computeFlow]')) && !!(await page.$('[data-home=M]')));
-await check('Flow pool click goes to the split', 'store.tab.company', () => page.click('[data-pool=experiments]'));
+await check('Flow pool click goes to the split (Compute)', 'JSON.stringify([store.panel, store.tab.compute])', () => page.click('[data-pool=experiments]'));
 await nav('finance');
 await check('Raise ask slider', `document.querySelector('[data-act="fin.raise"]').innerText`, () => setSlider(page.locator('[data-panel=finance] input[type=range]').first(), 3.3));
 await check('Debt kind', `document.querySelector('[data-panel=finance]').innerHTML`, () => page.click('[data-panel=finance] [data-debt-kind=gpuTerm]'));
@@ -343,7 +365,7 @@ await nav('models');
 }
 await check('Run queue: − lowers a pool share', 'JSON.stringify(s.player.models.runs.map((r) => r.poolShare))', () => page.locator('[data-act^="run-share-dn."]:not([disabled])').first().click());
 ok('Run queue: spare row links to the policy on the split', !!(await page.$('[data-home=runQueue] [data-run=spare] [data-ref=spareTraining]')));
-await nav('company');
+await nav('compute');
 await tabTo('split');
 {
   const use = JSON.parse(await get('s.player.policies.spareTraining'));
@@ -364,7 +386,7 @@ await tabTo('people');
 await check('Keep hiring: − lowers the target', 's.player.hiring.targets["re.cap"]', () => page.click('[data-act="teams.target.down.re.cap"]'));
 await closeModals();
 // Split floors are gone: a zero training share applies (with a warning first) and running runs show as paused.
-await nav('company');
+await nav('compute');
 await tabTo('split');
 await setSlider(page.locator('#ctl-split-training input[type=range]').first(), 0);
 await wait(60);
@@ -372,7 +394,7 @@ ok('Split: zero training warns before apply', !!(await page.$('[data-test=split-
 await check('Split: zero training share applies (no rejection)', 'JSON.stringify(s.player.split.training < 1e-6)', () => page.click('[data-act=setSplit]'));
 await nav('models');
 ok('Run queue: paused, no training compute', ((await page.$eval('[data-test=run-stall]', (e) => e.textContent).catch(() => '')) ?? '').includes('no training compute'));
-await nav('company');
+await nav('compute');
 await tabTo('split');
 await page.click('[data-act="splitPreset.reference"]');
 await closeModals();
@@ -404,6 +426,7 @@ if (apiId) {
 const buildBtn = await page.$('[data-panel=products] [data-act^="feature.build."]:not([disabled])');
 if (buildBtn) await check('Products: Build a feature (engineers\' queue)', `s.player.build.queue.filter(i => i.kind === 'feature').length`, () => buildBtn.click());
 ok('Products: locked features name their idea', !!(await page.$('[data-panel=products] .ft.locked[data-node]')));
+ok('Products: the same package chips as Agents at work (model + monitor)', !!(await page.$('[data-panel=products] [data-product] [data-chip=model]')) && !!(await page.$('[data-panel=products] [data-product] [data-chip=monitor]')));
 ok('Products: serving split bar by product', (await page.$$('[data-panel=products] [data-test=serving-bar] [data-serve]')).length >= 3);
 await check('Products: Override turns Auto serving off', 's.player.policies.servingAuto', () => page.click('[data-act="products.policy.servingAuto"]'));
 const prodA = JSON.parse(await get(`(s.player.deployments.find(d => d.status === 'live' && d.channel !== 'internal' && d.channel !== 'open') || {}).id || ''`));
@@ -424,12 +447,8 @@ if (await page.$('[data-test=agents-gate]')) ok('Products: Agents card shows its
 await nav('safety');
 await tabTo('agendas');
 ok('Safety department load renders', !!(await page.$('[data-home=safetyLoad] [data-test=load-staff]')) && !!(await page.$('[data-home=safetyLoad] [data-test=load-compute]')));
-if (await page.$('[data-home=safetyAgents] [data-act="safety.agents"]:not([disabled])')) {
-  await check('Safety agents: share + apply', 'JSON.stringify(s.player.safety.agentShare)', async () => {
-    await setSlider(page.locator('[data-home=safetyAgents] input[type=range]').first(), 0.3);
-    await page.click('[data-act="safety.agents"]');
-  });
-}
+await tabTo('tools');
+ok('Safety: internal agents summary links to Company (D4)', !!(await page.$('[data-test=agents-summary] [data-ref=trustedToAI]')));
 for (const t of await tabsOf()) await check(`Safety tab ${t}`, 'store.tab.safety || ""', () => tabTo(t), 30).catch(() => {});
 await tabTo('graph');
 ok('Trait graph is the first tab', !!(await page.$('[data-test=traitgraph]')));
@@ -530,6 +549,19 @@ await page.hover('[data-test=cash]');
 await wait(500);
 await shot('33-day900-hover-cash');
 await clearTips();
+// R7: the model picker's before → after preview on a lane (frontier research on an older model: taste and speed fall).
+await nav('company');
+await tabTo('people');
+{
+  const old = JSON.parse(await get(`(s.player.models.versions.find((v) => v.variant === 'full' && v.status !== 'retired' && v.id !== s.player.agents.capRoutine.versionId) || {}).id || ''`));
+  if (old) {
+    await page.selectOption('[data-test="agent-model.capFrontier"]', old);
+    await wait(150);
+    ok('Agents: an older frontier model previews lower research speed', JSON.parse(await get(`(() => { const t = document.querySelector('[data-test="agent-edit.capFrontier"]')?.innerText ?? ''; return /Research speed/.test(t) && /▼/.test(t); })()`)));
+    await shot('34-day900-agents-preview');
+    await page.click('[data-test="agent-cancel.capFrontier"]');
+  }
+}
 const multi = [...homesByScreen.entries()].filter(([, v]) => v.size > 1);
 for (const [h, v] of multi) iaIssues.push(`${h} has homes on several screens: ${[...v].join(', ')}`);
 ok('IA: one home per datum, terms resolve, no raw floats', iaIssues.length === 0, iaIssues.slice(0, 8).join(' | '));

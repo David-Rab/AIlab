@@ -39,7 +39,7 @@ export const PARADIGMS: ParadigmDef[] = [
   { id: 'P24', name: 'AI-designed successor', prior: 0.6, effect: 'Next base +0.8 y; new lineage', safetyCost: 'techniques may not transfer' },
   { id: 'P25', name: 'Formal verification at scale', prior: 0.5, effect: 'Security +0.5; AG10 floor' },
   { id: 'P26', name: 'Superhuman persuasion', prior: 0.8, effect: 'Relation actions ×1.5', safetyCost: 'manipulation' },
-  { id: 'P27', name: 'Automated alignment research', prior: 0.7, effect: 'Agenda speed × (1 + 3·aiLabour)', safetyCost: 'FALSE findings ∝ hidden SAND' },
+  { id: 'P27', name: 'Automated alignment research', prior: 0.7, effect: 'Agenda speed × (1 + 3 × Trusted to AI); lifts its 50% cap', safetyCost: 'FALSE findings ∝ hidden SAND' },
 ];
 
 /** Domain offsets (L) granted to new versions once a paradigm is adopted (§3.3.3). */

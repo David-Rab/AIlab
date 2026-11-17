@@ -146,7 +146,10 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
       const parent = versionById(s, v.parentVersionId);
       if (!parent || parent.status === 'retired') return 'No checkpoint to roll back to';
       for (const d of s.player.deployments) if (d.versionId === v.id) d.versionId = parent.id;
-      if (s.player.models.internalAgent === v.id) s.player.models.internalAgent = parent.id;
+      for (const a of Object.values(s.player.agents)) {
+        if (a.versionId === v.id) a.versionId = parent.id;
+        if (a.monitorId === v.id) a.monitorId = parent.id;
+      }
       if (s.player.models.stream?.versionId === v.id) delete s.player.models.stream;
       v.status = 'rolledBack';
       break;

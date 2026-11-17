@@ -30,6 +30,7 @@ import { labCore } from '../models/labs';
 import { initialParadigms } from '../models/paradigms';
 import { initialResearch, initialTree } from '../models/tree';
 import { initialBuild } from '../departments/build';
+import { initialAgents } from '../departments/agents';
 import { frontierFlop } from '../production/knots';
 import { computeProduction } from '../production/production';
 import { initialSafetyDept } from '../safety/agendas';
@@ -151,7 +152,6 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
       }],
       versions: [V0],
       runs: [startRun(w, ps, Lg, domains)],
-      internalAgent: 'V0',
       nextName: 1,
     },
     deployments: [dep('D1', 'consumer', 0.45, 0), dep('D2', 'api', 0.35, 1), dep('D3', 'enterprise', 0.2, 0), dep('D4', 'internal', 0, 0)],
@@ -174,7 +174,8 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     features: [...LEADER_FEATURES],
     morale: { overall: 70, safety: 65 },
     dataAssets: { licensedTokensT: 30, unlicensedTokensT: 270, syntheticTokensT: 20, litigationRisk: (0.02 * 270) / 100 },
-    policies: { whistleblowerChannel: false, publishSafety: 'selective', govBriefing: 1, shareWithAllies: false, transitionFund: 0, communityBenefits: false, spareTraining: 'data', servingAuto: true, upgradeToNewest: false, autoEvaluate: true },
+    policies: { whistleblowerChannel: false, publishSafety: 'selective', govBriefing: 1, shareWithAllies: false, transitionFund: 0, communityBenefits: false, spareTraining: 'data', servingAuto: true, upgradeToNewest: false, autoEvaluate: true, trustedToAI: 0 },
+    agents: initialAgents('V0'),
   };
 }
 

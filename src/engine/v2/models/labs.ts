@@ -57,9 +57,9 @@ export function labPools(s: GameStateV2, id: LabId): ComputeSplit {
 
 const LIVE = (v: ModelVersion) => v.status !== 'retired';
 
-/** The player's internal-agent version (drives p_dep). */
+/** The player's routine-research agent model (R7 `agents.capRoutine`, formerly the internal agent; drives p_dep). */
 export function internalVersion(s: GameStateV2): ModelVersion | undefined {
-  const id = s.player.models.internalAgent;
+  const id = s.player.agents?.capRoutine.versionId;
   return s.player.models.versions.find((v) => v.id === id);
 }
 

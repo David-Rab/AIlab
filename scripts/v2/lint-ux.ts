@@ -25,7 +25,7 @@ for (const fx of ['day400.json', 'day900.json']) {
   const U0 = understanding(s).U;
   const child = { ...structuredClone(v), id: `${v.id}-uxtest`, name: `${v.name}-test`, parentVersionId: v.id, status: 'evaluating' as const, evals: { bench: {}, safety: {} } };
   s.player.models.versions.push(child);
-  s.player.models.internalAgent = child.id;
+  s.player.agents.capRoutine.versionId = child.id;
   const e = internalEval(s);
   const U1 = understanding(s).U;
   ok(`${fx}: L kept while evaluating`, Math.abs(e.L - L0) < 1e-9 && e.evaluating, `L ${L0} → ${e.L} (evaluating ${e.evaluating})`);

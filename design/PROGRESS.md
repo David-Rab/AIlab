@@ -25,7 +25,124 @@ Single source of truth for where the build stands. Update at every milestone or 
 | **R4 Restructure: tech tree and capability projects** | Done (2026-11-17): 93-node shared tree, science teams on projects (√ capacity, ×1.5 specialty, absolute M), per-world rolls and retries, design-option locks, auto-assign, Research panel, schemaRev 6; fitted efforts; CAL_SHIFT refit (authors2026, fast, slow) and LEADER_CAL refit; all §7.4 bot criteria MET (200 seeds); one new worldfx failure (GOV accept) documented | "R4: tech tree …" on `game-structure` |
 | **R5 Restructure: build queue and blueprint** | Done (2026-11-17): free base size (×¼…×8; minDays, S5, restart, serve ∝ √size as functions of size; BASE_MAX_DAYS gone), staleness and data readouts, proportional pool allocation, spare training compute → experiments (policy; RefBot → data), engineers' build queue with run setups, Blueprint panel, run queue share/ETA, schemaRev 7; ref-trace identical to R4, no refit; all §7.4 bot criteria MET (40 seeds) | "R5: build queue …" on `game-structure` |
 | **R6 Restructure: products and live edit** | Done (2026-11-17): deployments become products (kind, price tier, mini free tier, monitor, features), live product.update with before → after preview (next tick, D7), launch/retire, features built once by engineers and switched on per product, Auto serving split (most $ per H100e first, cut recorded and shown), monitors (catch rate, D7 overhead, incident hook), auto-evaluate replaces the 30-day eval expiry, Agents time-horizon gate, upgrade-to-newest policy, Products panel, schemaRev 8; RefBot staleness fix (worldfx GOV accept passes again); spare training default → data; one calibration line (serve-cost exponent 0.5 → 0.3); all §7.4 bot criteria MET (200 seeds; safe win 1.0%) | "R6: products …" on `game-structure` |
-| **R7–R10 Tycoon restructure: build** | Next: R7 … R10 serially (BUILD-PLAN parallelism note); milestones logged below. `gs-leader-lab` held no work beyond R1 and was not merged | |
+| **R7 Restructure: internal agent packages and monitors** | Done (2026-11-17): four internal uses (engineering, routine research, frontier research, safety research), each model + optional monitor + compute; internalAgent → routine research, safety agent model/share → the safety package, monitoringShare → per-use monitors (standard package = today's 20% of the safety pool), per-agenda/case AI labour → one Trusted-to-AI policy (B3 gate, 50% cap until P27); evalM optional qTaste (frontier model's taste), k nets the engineering share, engineering agents set A_eng; Company › Agents at work lanes with before → after preview, shared package chips on Products, compute split moved to Compute › Split, Safety links; schemaRev 9; ref-trace identical to R6, no refit; all §7.4 bot criteria MET (40 seeds) | "R7: internal agent packages …" on `game-structure` |
+| **R8–R10 Tycoon restructure: build** | Next: R8 … R10 serially (BUILD-PLAN parallelism note); milestones logged below. `gs-leader-lab` held no work beyond R1 and was not merged | |
+
+## R7 Internal agent packages and monitors (2026-11-17, branch `game-structure`, worktree ../AI27-structure)
+
+Per design/BUILD-PLAN.md §2 R7 (D4, D7), STRUCTURE §4.1, §4.9, §9, mockups-v3 v3-company / v3-safety-IA.
+
+**Types.** `player.agents: Record<'eng' | 'capRoutine' | 'capFrontier' | 'safety', { versionId?; monitorId?; compute }>`
+(`AgentPackage`). Routine research always names its model (the old `models.internalAgent`); the other uses follow it when
+`versionId` is absent. `monitorId`: absent = none, `'same'` = a copy of the watched model (follows swaps), or a version.
+`compute`: engineering / routine / frontier are shares of the capabilities agent pool (`split.agents`, sum 1; default
+0.20 / 0.65 / 0.15), safety a share of the safety pool (the old `agentShare`). `policies.trustedToAI` replaces
+`AgendaState.aiLabour` and `Investigation.aiLabour`. Removed: `models.internalAgent`, `safety.monitoringShare`,
+`safety.agentShare`, `safety.agentVersion`. `ProductionReadout.labor.aEng`.
+
+**Data `src/data/v2/agents.ts`.** Use definitions (name, work, role, budget, misuse, takeover order), `ENG_REF_SHARE` 0.2
+[D], default shares, `MONITOR_SAME`, `MONITOR_STD_POOL_SHARE` 0.2 (calibration), `TRUSTED_MAX` 0.5 / `TRUSTED_MAX_P27` 1,
+`SAFETY_AGENT_DEFAULT_SHARE` 0.2, `RISK_FAMILIES` with badge thresholds (watch: an estimate ≥ 0.3; unseen: mean
+clarity < 0.3).
+
+**Engine.**
+- `departments/agents.ts`: `agentVersion` / `monitorVersion` / `capShare` / `agentSplitShare`; `monitorBudget` (D7 need
+  0.25 × monitor serve ÷ watched serve × the use's compute, priced against the standard package: a copy of the watched
+  model on routine and frontier research at the reference split costs `MONITOR_STD_POOL_SHARE` of the safety pool;
+  coverage < 1 only if monitors would need more than the whole pool); `monitorStrength` = coverage × min(1, catch ÷ 85%)
+  (R6's `catchRate`: AG05 oversight gap + AG07 control tools; no gap = exactly 1); `internalFleets` (each distinct
+  model running internal uses, usage = its share of internal agent compute); `fleetMonitor`, `routineMonitor`,
+  `monitoredUses`, `usesOf`, `trustedMax`, `riskBadges`.
+- `production.ts`: `evalM` takes optional `qTaste`; Tref is read at q_taste via `tasteCurve(w, q)` only when it differs
+  from q_dep (identity/golden untouched). `agentPackageInputs`: k = Cag·ηmod·agentMult/(ref·sh.agents) with agentMult =
+  research share ÷ (1 − s_engRef) × the compute-weighted ηmod of routine + frontier models relative to routine's (exactly
+  1 at the reference split, frontier on routine's model); qTaste = the frontier model's q when it has its own model and
+  compute; aEng = (1 − (1 − A(q_eng))²) × min(1, eng share ÷ s_engRef × ηmod_eng ÷ ηmod_routine); copies keep all three
+  uses (T2). `buildCapacity` and `aiShareByRole` read `labor.aEng`.
+- Monitors generalised: runtime monitoring (weekly) observes each internal fleet at its monitor strength^0.3 and product
+  models at max(routine fleet's strength, their product monitor); internal incidents roll per fleet (usage = compute
+  share; one fleet at usage 1 by default) and are caught with detection × (½ + ½ × fleet monitor strength); E14 needs
+  the routine fleet's monitor ≥ 0.5; agendas get the safety pool after monitors, safety agents and investigations.
+- Trusted to AI: `trustedShare(s)` = min(policy, cap) when the safety model passes the B3 gate, else 0; it drives the
+  fleet weight, agenda AIx, `aar`/P27 multipliers, FALSE findings, investigation labour and corruption.
+- Actions: `agents.set {use, versionId?, monitorId?, compute?}` (the two other capabilities shares rescale; routine
+  research syncs the internal deployment; safety models need the B3 gate) and `agents.trusted {share}` (starts the safety
+  agents at 20% of the safety pool if none run). Removed: `setInternalAgent`, `safety.automate`, `safety.agents`,
+  `safety.monitoring`. `departments/agentActions.ts`: `agentsView` (per lane: model, L, monitor, catch, strength, gap,
+  compute, share, copies × speed, AI share of the role, cost, monitor cost, risk; M, build, sdAI, safety AI FTE, totals),
+  `previewAgentChange` / `previewTrusted` (shallow hypothetical state; what the next tick computes).
+- Auto-evaluate covers every internal use's model. Rollback moves packages and monitors to the parent. Retire refuses a
+  model that powers or monitors an internal use.
+- `SCHEMA_REV` 9; cheap migration 8 → 9 (routine = old internal agent, safety package from agentVersion/agentShare,
+  monitors 'same' on routine and frontier unless monitoringShare was ≤ 1%, Trusted to AI = the largest per-agenda/case
+  share), checked on the three rev-8 fixtures (load, 30 d RefBot, round trip). Fixtures regenerated.
+
+**Bots.** RefBot sets routine research to its newest model with `agents.set`; the other uses follow it and the default
+monitors are on (the reference lab uses its newest model everywhere with a standard monitor). No bot used safety AI
+labour before R7; none does now (the safe bot's optional older trusted safety model was not added).
+
+**Calibration.** None. The first version paid monitors their raw D7 cost from the safety pool (≈ 0.2 × agent compute,
+2–3× today's 20% reserve late in the game): agendas lost compute, stub:slow A1 moved −78 d and U drifted. Pricing
+monitors against the standard package (`MONITOR_STD_POOL_SHARE`, BUILD-PLAN §3 (2) "standard monitor = today's
+monitoring") made the default exactly today's.
+
+**Gates.**
+- `npm run typecheck`, `tsc -p scripts/v2`: clean. identity and golden-timelines unchanged and passing. calib: T1, T2
+  (177k copies, 30.9×, as R6), T1L pass; no CAL_SHIFT/LEADER_CAL refit; build queue worst wait 0 d.
+- **ref-trace vs R6** (recorded at a8141ac into a temp file): every category 0 deviation (milestones, adoption days, runs,
+  M, h, k, c, sdAI, pa, L, U, revenue, cash) on all five traces.
+- test:v2 scripts: golden-timelines, identity, calib, fixtures, lint-hidden, lint-ux, lint-tradeoffs (105 actions),
+  safety (S6 now on Trusted to AI; B3 on the policy), finance, ws4, **products (+ A1–A7 agent-package checks)**, money
+  pass; hygiene: only the known absolute performance budget; worldfx: only the known HireRate_SOFT.
+- Performance (`_perf.ts`, seed 9, 1,500 days, passive player; R6 worktree at a8141ac and R7 alternated 3 × 3 runs):
+  daily 1,722 µs (R6) vs 1,797 µs (R7), +4.4% (warm runs +5.9%); worst quarter median 5.7 vs 5.4 ms. No regression > 10%.
+- `npm run test:ui`: 177/177 (new: four lanes with model and monitor chips, AI share per capabilities role, 16 risk badges,
+  monitor pick → before → after preview → Cancel keeps / Apply changes, compute + keeps shares summing to 1, Trusted to
+  AI home and gate, same chips on Products, Safety summary links to Company, split tests on Compute › Split, flow pool
+  click → Compute, day-900 frontier-model preview shows research speed falling). Screenshots checked (day 400 / 900
+  lanes, preview popover, Safety tools summary, Compute › Split).
+- **Bots, 40 seeds**: all six §7.4 criteria MET.
+
+| bot | win | mixed | loss | med. day | top endings |
+|---|---|---|---|---|---|
+| race | 0.0% | 5.0% | 95.0% | 800 | asiTakeover 55%, ousted 17.5%, nationalized 15% |
+| safe | 2.5% | 2.5% | 95.0% | 1504 | overtaken 62.5%, ousted 32.5% |
+| mixed | 55.0% | 7.5% | 37.5% | 1069 | asiAligned 55%, ousted 12.5%, asiTakeover 10% |
+| capex2x | 2.5% | 0.0% | 97.5% | 304 | insolvent 95% |
+| ref | 25.0% | 0.0% | 75.0% | 970 | asiTakeover 35%, asiAligned 25%, nationalized 12.5% |
+
+  §7.4: race losses 66% takeover / 34% company-loss; safe losses 63% other-first; mixed +52.5 pp over both extremes;
+  passive takeover-type 50%. Choices vs world (final Mis): bot policy 68%, world 18%, rest 14%. E5 11/17.
+
+**UI.** `panels/Agents.tsx` + `agents.css`: Company › "Agents & teams" tab (id `people`) opens with Agents at work (home
+`agents`; Trusted to AI home `trustedToAI` on the safety lane): use with takeover order, model chip, monitor chip with
+catch (tooltip: gap, coverage, strength rule), compute bar + H100e + CAP/SAF tag + copies × speed + −/+ 5% steppers (their
+tooltips preview), AI share of the role's work (engineers / research engineers / scientists with AI taste SD; safety:
+Trusted to AI stepper), cost/yr (agents + monitor), four risk-family badges (low / watch / unseen) with a legend; header
+links to the research mix (Compute › Split) and research speed (Flow). A model or monitor pick opens the before → after
+popover (research speed, AI share, build capacity or AI taste, copies, catch, monitors' share of safety, cost; Apply /
+Cancel; "from <date>"). The Teams card lost its AI-share chips and the "AI labour" card (one home). `panels/chips.tsx`
+(`PkgChip`, `CatchX`, `modelOptions`) is used by Products and Company. `panels/Split.tsx` (moved from Company) is
+Compute › Split; every split link points there. Safety: the agents card and the monitoring slider are gone; the policy
+card shows "Trusted to AI x% · model" and "monitors on N of 4 uses", linking to Company. Models: "Make internal agent"
+became "used by …" + a link to Agents at work. Glossary: agentPackage, agentMonitor, trustedToAI, aiShareWork,
+agentBudget; internalAgent, safetyAgents, automateSafety, runtimeMonitoring rewritten; P27 effect text.
+
+**Deviations / deferred.**
+- Monitor cost is D7-relative, anchored to today's 20% safety reserve (above), not raw D7 H100e.
+- A monitored product model is observed at its own product monitor's strength too (new; neutral, no bot uses product
+  monitors).
+- Engineering coverage is relative to the reference split (share ÷ 0.2 × ηmod ratio), not per engineer.
+- Frontier compute only counts in k and gates qTaste (0 compute = routine model's taste); no separate "AI science
+  capacity on projects" yet.
+- The research-mix Auto switch stays on Compute › Split (its home); the agents header links to it.
+- Scratch scripts `scripts/v2/_r7*.ts` are gitignored. The R6 baseline worktree `C:\tmp\r4\base` is now detached at
+  a8141ac (`node_modules` junction: remove it with `rmdir` first, then `git worktree prune`).
+
+**Notes for R8.** Trusted to AI (`trustedShare`) and the safety package (`agents.safety`, `safetyFleet`) are the AI-labour
+inputs for safety projects; `fleetMonitor` / `routineMonitor` and `riskBadges` are ready for the four risk-family
+aggregates; `recomputeComputeShares(dept, split, safetyReserved(s))` is where agenda compute goes away. The safety lane
+on Company is the home of the safety model; Safety's policy card only links.
 
 ## R6 Products and live edit (2026-11-17, branch `game-structure`, worktree ../AI27-structure)
 

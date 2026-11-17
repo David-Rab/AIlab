@@ -7,8 +7,8 @@ import { TRAIT_IDS } from '../../../data/v2/traits';
 import { internalVersion } from '../models/labs';
 import type { ActionDef, AgendaId, CostLine, GameStateV2, ResponseKind, SafetyDept, TraitId } from '../types';
 import { clamp01, mAtLevel, versionById } from './common';
-import { findingHazard, fundingMult, posteriorBand, recomputeComputeShares, setAgendaFunding, staffFactor, startRefresh } from './agendas';
-import { aiLabourGate, safetyAgentVersion, safetyFleet } from './agents';
+import { findingHazard, fundingMult, posteriorBand, setAgendaFunding, staffFactor, startRefresh } from './agendas';
+import { safetyAgentVersion, trustedShare } from './agents';
 import { publishFinding } from './findings';
 import { closeInvestigation, investigationFte, openInvestigation } from './investigations';
 import { RESPONSE_INFO, applyResponse, responseTrait } from './responses';
@@ -35,17 +35,20 @@ function defaultAgenda(dept: SafetyDept): AgendaId {
   return pool.reduce((b, a) => (posteriorBand(dept.agendas[a.id]).mean > posteriorBand(dept.agendas[b.id]).mean ? a : b), pool[0]).id;
 }
 
-/** Findings/yr at a hypothetical FTE (visible inputs only). */
-function findingsPerYearAt(s: GameStateV2, ag: AgendaId, fte: number, aiLabour?: number): number {
+/** Findings/yr at a hypothetical FTE and Trusted-to-AI share (visible inputs only). */
+export function findingsPerYearAt(s: GameStateV2, ag: AgendaId, fte: number, trusted?: number): number {
   const st = s.player.safety.agendas[ag];
-  const saved = { fte: st.fte, aiLabour: st.aiLabour, computeShare: st.computeShare };
+  const saved = { fte: st.fte, computeShare: st.computeShare };
+  const pol = s.player.policies;
+  const savedT = pol.trustedToAI;
   const m0 = fundingMult(ag, st);
   st.fte = fte;
-  if (aiLabour !== undefined) st.aiLabour = aiLabour;
+  if (trusted !== undefined) pol.trustedToAI = trusted;
   if (m0 > 0) st.computeShare = (saved.computeShare * fundingMult(ag, st)) / m0;
   else st.computeShare = (fundingMult(ag, st) * AGENDA_BY_ID[ag].computeRef) / Math.max(0.005, s.player.split.safety);
   const y = findingHazard(s, ag, staffFactor(s)) * 365;
   Object.assign(st, saved);
+  pol.trustedToAI = savedT;
   return r2(y);
 }
 
@@ -115,36 +118,6 @@ function believedSab(s: GameStateV2): number {
   return (v.beliefs.SAND?.est ?? 0) + (v.beliefs.SCHEME?.est ?? 0);
 }
 
-const AUTOMATE: ActionDef = {
-  id: 'safety.automate', sphere: 'safety', owner: 'WS2', title: 'Automate',
-  available: (s) => aiLabourGate(s),
-  preview(s, p) {
-    const dept = s.player.safety;
-    const ag = isAgenda(str(p, 'agenda')) ? (str(p, 'agenda') as AgendaId) : (AGENDAS.find((a) => dept.agendas[a.id].fte > 0) ?? AGENDAS[0]).id;
-    const share = clamp01(num(p, 'share') ?? 0.5);
-    const st = dept.agendas[ag];
-    const dYield = r2(findingsPerYearAt(s, ag, st.fte, share) - findingsPerYearAt(s, ag, st.fte));
-    const sab = believedSab(s);
-    const fleet = safetyFleet(s);
-    return {
-      costs: [{ currency: 'compute', amount: fleet.compute > 0 ? 0 : r2(SAFETY_AGENT_DEFAULT_SHARE * 100), target: fleet.compute > 0 ? 'shares the safety agent fleet' : '% of safety pool to start safety agents' }],
-      gains: [{ currency: 'alignment', amount: dYield, target: 'findings / yr' }],
-      exposure: [{ currency: 'alignment', amount: -r2(share * sab), probability: r2(clamp01(share * sab)), target: 'false findings if the model sabotages (estimate)' }],
-    };
-  },
-  apply(s, ctx, p) {
-    const ag = str(p, 'agenda');
-    if (!isAgenda(ag) || s.player.safety.agendas[ag].fte <= 0) return void ctx.log('alert', 'Automate: pick a funded agenda.');
-    s.player.safety.agendas[ag].aiLabour = clamp01(num(p, 'share') ?? 0.5);
-    if (!(s.player.safety.agentShare ?? 0) && s.player.safety.agendas[ag].aiLabour > 0) {
-      s.player.safety.agentShare = SAFETY_AGENT_DEFAULT_SHARE;
-      recomputeComputeShares(s.player.safety, s.player.split.safety);
-      ctx.log('company', `Safety agents started on ${Math.round(SAFETY_AGENT_DEFAULT_SHARE * 100)}% of safety compute.`, 1);
-    }
-    ctx.log('company', `${AGENDA_BY_ID[ag].name}: AI labour share ${Math.round(s.player.safety.agendas[ag].aiLabour * 100)}%.`, 1, ag);
-  },
-};
-
 /** Default investigation target: the internal model's critical trait with the highest believed level. */
 function defaultTarget(s: GameStateV2): { versionId: string; trait: TraitId } | undefined {
   const v = internalVersion(s);
@@ -176,7 +149,7 @@ const INVESTIGATE: ActionDef = {
     const versionId = inc?.versionId ?? str(p, 'versionId') ?? t?.versionId ?? '';
     const trait = isTrait(str(p, 'trait')) ? (str(p, 'trait') as TraitId) : inc && inc.apparent !== 'unexplained' && inc.apparent !== 'misuse' ? inc.apparent : t?.trait ?? 'SCHEME';
     const sab = believedSab(s);
-    const ai = clamp01(num(p, 'aiLabour') ?? 0);
+    const ai = trustedShare(s);
     return {
       costs: [{ currency: 'staffTime', amount: fte, target: 'safety FTE for up to 120 d' }, { currency: 'compute', amount: r2(5 * (num(p, 'computeShare') ?? 0.05)), target: '% of safety pool' }],
       gains: [{ currency: 'alignment', amount: investigationGain(s, versionId, trait, fte), target: `clarity / month on ${trait}` }],
@@ -186,7 +159,7 @@ const INVESTIGATE: ActionDef = {
   apply(s, ctx, p) {
     const fte = Math.max(5, Math.min(40, num(p, 'fte') ?? 15));
     const tools = str(p, 'tools')?.split(',').filter(Boolean);
-    const opts = { tools, computeShare: num(p, 'computeShare'), aiLabour: num(p, 'aiLabour') };
+    const opts = { tools, computeShare: num(p, 'computeShare') };
     const incId = str(p, 'incidentId');
     let r;
     if (incId) r = openInvestigation(s, ctx, { kind: 'incident', incidentId: incId }, fte, opts);
@@ -284,7 +257,7 @@ const RESPOND: ActionDef = {
     const kind = str(p, 'kind') as ResponseKind;
     if (!RESPONSE_KINDS.includes(kind)) return void ctx.log('alert', 'Respond: pick a response.');
     const inc = str(p, 'incidentId') ? s.player.safety.incidents.find((i) => i.id === str(p, 'incidentId')) : undefined;
-    const versionId = str(p, 'versionId') ?? inc?.versionId ?? s.player.models.internalAgent ?? '';
+    const versionId = str(p, 'versionId') ?? inc?.versionId ?? s.player.agents.capRoutine.versionId ?? '';
     const err = applyResponse(s, ctx, kind, versionId, inc?.id, { trait: isTrait(str(p, 'trait')) ? (str(p, 'trait') as TraitId) : undefined, techniqueId: str(p, 'techniqueId') });
     if (err) ctx.log('alert', `${RESPONSE_INFO[kind].title}: ${err}.`, 1);
   },
@@ -371,65 +344,6 @@ const EVAL_GATE: ActionDef = {
   },
 };
 
-/** Share of the safety pool the Automate action gives the safety agents when none run yet [D]. */
-const SAFETY_AGENT_DEFAULT_SHARE = 0.2;
-
-const SAFETY_AGENTS: ActionDef = {
-  id: 'safety.agents', sphere: 'safety', owner: 'WS2', title: 'Safety agents',
-  available: (s) => (s.player.safety.agentShare ?? 0) > 0 || aiLabourGate(s),
-  preview(s, p) {
-    const dept = s.player.safety;
-    const cur = dept.agentShare ?? 0;
-    const to = Math.max(0, Math.min(0.6, num(p, 'share') ?? cur));
-    const d = to - cur;
-    const vId = str(p, 'versionId');
-    const v = vId ? versionById(s, vId) : safetyAgentVersion(s);
-    const sab = v ? (v.beliefs.SAND?.est ?? 0) + (v.beliefs.SCHEME?.est ?? 0) : 0;
-    const L = v?.evals.measuredL ?? 0;
-    const lines = { costs: [] as CostLine[], gains: [] as CostLine[], exposure: [] as CostLine[] };
-    if (d > 0) {
-      lines.costs.push({ currency: 'compute', amount: r2(d * 100), target: '% of safety pool taken from agendas' });
-      lines.gains.push({ currency: 'alignment', amount: r2(d), target: 'AI labour on automated work' });
-    } else if (d < 0) {
-      lines.costs.push({ currency: 'alignment', amount: r2(d), target: 'AI labour on automated work' });
-      lines.gains.push({ currency: 'compute', amount: r2(-d * 100), target: '% of safety pool to agendas' });
-    }
-    if (vId) lines.exposure.push({ currency: 'alignment', amount: -r2(sab), probability: r2(clamp01(sab)), target: `false findings if ${v?.name ?? 'it'} (level ${L.toFixed(1)}) sabotages (estimate)` });
-    if (!lines.costs.length) lines.costs.push({ currency: 'compute', amount: 0, target: 'no change' });
-    return lines;
-  },
-  apply(s, _ctx, p) {
-    const dept = s.player.safety;
-    const vId = str(p, 'versionId');
-    const v = vId ? versionById(s, vId) : undefined;
-    if (vId) {
-      if (!v || v.status === 'retired' || v.status === 'rolledBack') return 'Pick a live version';
-      const g = aiLabourGate(s, v);
-      if (g !== true) return `${v.name}: ${g}`;
-    }
-    const sh = num(p, 'share');
-    if (sh !== undefined) dept.agentShare = Math.max(0, Math.min(0.6, sh));
-    if (v) dept.agentVersion = v.id === s.player.models.internalAgent ? undefined : v.id;
-    recomputeComputeShares(dept, s.player.split.safety);
-  },
-};
-
-const MONITORING: ActionDef = {
-  id: 'safety.monitoring', sphere: 'safety', owner: 'WS2', title: 'Monitoring',
-  available: () => true,
-  preview(s, p) {
-    const to = clamp01(num(p, 'share') ?? Math.min(0.5, s.player.safety.monitoringShare + 0.1));
-    const d = to - s.player.safety.monitoringShare;
-    if (d >= 0) return { costs: [{ currency: 'compute', amount: r2(d * 100), target: '% of safety pool taken from agendas' }], gains: [{ currency: 'alignment', amount: r2(d), target: 'runtime catch rate' }], exposure: [] };
-    return { costs: [{ currency: 'alignment', amount: r2(d), target: 'runtime catch rate' }], gains: [{ currency: 'compute', amount: r2(-d * 100), target: '% of safety pool to agendas' }], exposure: [] };
-  },
-  apply(s, ctx, p) {
-    const sh = num(p, 'share');
-    if (sh === undefined) return void ctx.log('alert', 'Monitoring: give a share 0–0.6.');
-    s.player.safety.monitoringShare = Math.max(0, Math.min(0.6, sh));
-  },
-};
-
 const TECHNIQUE: ActionDef = {
   id: 'safety.technique', sphere: 'safety', owner: 'WS2', title: 'Safety stack',
   available: (s) => Object.values(s.player.safety.techniques).some((t) => t.unlocked && techniqueRole(t) !== 'fix') || 'No tools unlocked',
@@ -467,5 +381,5 @@ const REFRESH: ActionDef = {
   },
 };
 
-export const SAFETY_ACTIONS: ActionDef[] = [FUND, CUT, AUTOMATE, SAFETY_AGENTS, INVESTIGATE, CLOSE_CASE, RESPOND, PUBLISH, POLICY, PLEDGE, EVAL_GATE, MONITORING, TECHNIQUE, REFRESH];
+export const SAFETY_ACTIONS: ActionDef[] = [FUND, CUT, INVESTIGATE, CLOSE_CASE, RESPOND, PUBLISH, POLICY, PLEDGE, EVAL_GATE, TECHNIQUE, REFRESH];
 

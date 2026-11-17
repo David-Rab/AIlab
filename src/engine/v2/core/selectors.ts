@@ -39,7 +39,12 @@ export { raiseCeiling } from '../finance/equity';
 // WS2 safety-panel selectors (beliefs, posteriors, incidents as the player sees them). `safetyTruth` is END SCREEN ONLY.
 export { agendaRows, beliefView, findingRows, incidentRows, safetyTruth, safetyUtilisation, safetyView, techniqueRows, traitGraph, uModeCards } from '../safety/view';
 export type { AgendaRow, FindingRow, SafetyUtilisation, TechniqueRow } from '../safety/view';
-export { aiLabourGate, safetyAgentVersion, safetyFleet } from '../safety/agents';
+export { aiLabourGate, safetyAgentVersion, safetyFleet, trustedShare } from '../safety/agents';
+// R7 internal agent packages (Company › Agents at work).
+export { agentVersion, monitorBudget, monitoredUses, monitorVersion, riskBadges, trustedMax, usesOf } from '../departments/agents';
+export type { RiskBadge } from '../departments/agents';
+export { agentChangeBlock, agentsView, previewAgentChange, previewTrusted, withAgentChange } from '../departments/agentActions';
+export type { AgentChange, AgentLane, AgentPreview, AgentsView } from '../departments/agentActions';
 // WS5 world readouts (observables only).
 export { automationShare, dowYtd, firmAdoption, remoteWorkAutomation, unemploymentChange12m, youthExposedEmployment } from '../worldfx/readouts';
 export { causeStrip } from './causes';

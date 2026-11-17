@@ -8,10 +8,10 @@ import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { CRITICAL_TRAITS, TRAIT_BY_ID, TRAIT_IDS } from '../../../data/v2/traits';
-import { aiLabourGate, beliefView, dateOf, detectionGrid, fmtDate, internalVersion, safetyAgentVersion, safetyUtilisation, safetyView, techniqueCurve, versionById } from '../../../engine/v2';
+import { beliefView, dateOf, detectionGrid, fmtDate, internalVersion, monitoredUses, safetyAgentVersion, safetyUtilisation, safetyView, techniqueCurve, versionById } from '../../../engine/v2';
 import type { AgendaRow, GameStateV2, ResponseKind, SafetyUtilisation, TechniqueRow, TraitId } from '../../../engine/v2';
 import { store } from '../store';
-import { ActBtn, Gate, Slider, Term, Tip, TipCard, unlocked } from '../ui';
+import { ActBtn, Gate, Term, Tip, TipCard } from '../ui';
 import { Card, CauseChain, GoBtn, HBar, PanelHead, Pill, Ref, tabOf, Tabs } from '../kit';
 import * as F from '../fmt';
 import { ICON, TRAIT_ICON } from '../icons';
@@ -168,7 +168,6 @@ function AgendasTab({ s, rows }: { s: GameStateV2; rows: AgendaRow[] }) {
         {all && <><div className="tip-cap" style={{ marginTop: 10 }}>Unfunded · {rest.length}</div>{rest.map((a) => <AgendaLine key={a.id} a={a} max={max} />)}</>}
       </Card>
       <DeptLoad u={safetyUtilisation(s)} />
-      {unlocked(s, 'aiLabour') && <SafetyAgents s={s} funded={funded} />}
     </div>
   );
 }
@@ -213,46 +212,6 @@ function DeptLoad({ u }: { u: SafetyUtilisation }) {
   );
 }
 
-/** The safety agent fleet: which model, how much of the safety pool, and what it automates. */
-function SafetyAgents({ s, funded }: { s: GameStateV2; funded: AgendaRow[] }) {
-  const dept = s.player.safety;
-  const u = safetyUtilisation(s).fleet;
-  const sv = safetyAgentVersion(s);
-  const [share, setShare] = useState(dept.agentShare ?? 0);
-  const [vid, setVid] = useState(sv?.id ?? '');
-  const [ag, setAg] = useState<string>(funded[0]?.id ?? '');
-  const [auto, setAuto] = useState(0.5);
-  const vs = s.player.models.versions.filter((v) => v.status !== 'retired' && v.status !== 'rolledBack' && v.evals.measuredL !== undefined);
-  const agRow = funded.find((a) => a.id === ag) ?? funded[0];
-  const gate = aiLabourGate(s, sv);
-  return (
-    <Card title={<Term id="safetyAgents">Safety agents</Term>} sub="AI labour on safety work, from the safety pool" home="safetyAgents">
-      <div className="g2 sa-grid">
-        <div>
-          <div className="kv"><span className="kv-k">Model</span><span className="row-i">
-            <select className="text-input" style={{ minWidth: 220 }} data-test="sa-version" value={vid} onChange={(e) => setVid(e.target.value)}>{vs.map((v) => { const g = aiLabourGate(s, v); return <option key={v.id} value={v.id} disabled={g !== true} title={g === true ? undefined : g}>{v.name} · L{F.level(v.evals.measuredL ?? 0)}{v.id === s.player.models.internalAgent ? ' · in R&D use' : ''}{g === true ? '' : ' · locked: below the AI-labour level'}</option>; })}</select>
-          </span></div>
-          <div className="kv"><span className="kv-k">Share of safety compute</span><span className="row-i"><Slider value={share} min={0} max={0.6} step={0.05} onChange={setShare} width={120} /><span className="num">{F.pct(share)}</span></span></div>
-          <div className="btn-row"><ActBtn id="safety.agents" testId="safety.agents" params={{ share, ...(vid && vid !== sv?.id ? { versionId: vid } : {}) }} label="Apply" reason /></div>
-        </div>
-        <div data-test="sa-fleet">
-          <div className="kv"><span className="kv-k"><Term id="agentCopies">Copies</Term> · <Term id="aiFte">AI FTE</Term></span><span className="num">{F.count(u.copies)} · {F.count(u.aiFte)}</span></div>
-          <div className="kv"><span className="kv-k">Running</span><span>{u.versionName ?? '—'} <span className="dim">L{F.level(u.level)}</span>{gate !== true && <Tip content={() => <TipCard title="No AI labour" value="locked">{gate}</TipCard>}><span className="tone-warn small" data-test="sa-gate"> · below the AI-labour level</span></Tip>}</span></div>
-          <div className="kv"><span className="kv-k">Automated work</span><span>{u.automated ? <span className="num">{u.automated}</span> : <span className={u.idle ? 'tone-warn' : 'dim'}>{u.idle ? 'none · fleet idle' : 'none'}</span>}</span></div>
-          <div className="kv"><span className="kv-k"><Term id="aiFte">AI FTE</Term> per staffer</span><span className="num">{F.num(u.perFte, 1)}</span></div>
-        </div>
-      </div>
-      <div className="tip-cap" style={{ marginTop: 8 }}><Term id="automateSafety">Automate an agenda</Term></div>
-      {funded.length ? (
-        <div className="row-i">
-          <select className="text-input" data-test="sa-agenda" value={agRow?.id ?? ''} onChange={(e) => setAg(e.target.value)}>{funded.map((a) => <option key={a.id} value={a.id}>{a.name} · AI {F.pct(a.aiLabour)}</option>)}</select>
-          <Slider value={auto} min={0} max={1} step={0.05} onChange={setAuto} width={110} /><span className="num">{F.pct(auto)}</span>
-          <ActBtn id="safety.automate" params={{ agenda: agRow?.id ?? '', share: auto }} reason />
-        </div>
-      ) : <div className="small dim">Fund an agenda first.</div>}
-    </Card>
-  );
-}
 function AgendaLine({ a, max }: { a: AgendaRow; max: number }) {
   const cur = LEVELS.indexOf(a.level as (typeof LEVELS)[number]);
   const def = AGENDA_BY_ID[a.id];
@@ -261,7 +220,7 @@ function AgendaLine({ a, max }: { a: AgendaRow; max: number }) {
       <Tip content={() => (
         <TipCard title={a.name} value={F.words(a.status)} footer={`First finding ≈ ${def.T1} mo at serious funding`} rows={[
           { label: 'Posterior mean', value: F.num(a.band.mean, 2) }, { label: 'Band', value: `${F.num(a.band.lo, 2)}–${F.num(a.band.hi, 2)} (${a.band.label})` },
-          { label: <Term id="finding">Findings</Term>, value: a.findings }, { label: 'Compute share', value: F.pct(a.computeShare) }, { label: 'AI labour', value: F.pct(a.aiLabour) },
+          { label: <Term id="finding">Findings</Term>, value: a.findings }, { label: 'Compute share', value: F.pct(a.computeShare) }, { label: <Term id="trustedToAI">Trusted to AI</Term>, value: F.pct(a.aiLabour) },
           ...(a.refresh ? [{ label: <Term id="refresh">Re-validating</Term>, value: F.pct(a.refresh.progress) }] : []),
         ]} />
       )}><span className="ag-name ellip">{a.name}</span></Tip>
@@ -338,8 +297,22 @@ function TechCard({ s, t, refresh }: { s: GameStateV2; t: TechniqueRow; refresh?
     </div>
   );
 }
+/** Summary of the internal agent packages that matter to safety (D4: set on Company › Agents at work; this links there). */
+function AgentsSummary({ s }: { s: GameStateV2 }) {
+  const sv = safetyAgentVersion(s);
+  const mon = monitoredUses(s);
+  const to = { panel: 'company', tab: 'people', anchor: 'agents' };
+  return (
+    <div className="pol-sec" data-test="agents-summary">
+      <div className="pol-k"><Term id="agentPackage">Internal agents</Term> <span className="dim small">set on Company</span></div>
+      <div className="row-i">
+        <Ref id="trustedToAI" to={to}>Trusted to AI {F.pct(s.player.policies.trustedToAI)} · {sv?.name ?? '—'}</Ref>
+        <Ref id="agentMonitor" to={to}>monitors on {mon.length} of 4 uses</Ref>
+      </div>
+    </div>
+  );
+}
 function PolicyCard({ s, sv }: { s: GameStateV2; sv: SV }) {
-  const [mon, setMon] = useState(sv.monitoringShare);
   const pol = s.player.policies.publishSafety;
   return (
     <Card title="Safety policy" sub="gates and commitments" id="ctl-policy" home="safetyPolicy">
@@ -349,15 +322,7 @@ function PolicyCard({ s, sv }: { s: GameStateV2; sv: SV }) {
           {(['none', 'basic', 'full', 'fullPlusExternal'] as const).map((g) => <span key={g} className={sv.evalGate === g ? 'on' : ''}><ActBtn id="safety.evalGate" testId={`safety.evalGate.${g}`} params={{ level: g }} label={GATE_LABEL[g]} /></span>)}
         </div>
       </div>
-      <div className="pol-sec">
-        <div className="pol-k"><Term id="runtimeMonitoring">Runtime monitoring</Term> <span className="dim small">share of the safety pool</span></div>
-        <div className="row-i" id="ctl-monitoring">
-          <Slider value={mon} min={0} max={0.6} step={0.05} onChange={setMon} width={150} />
-          <span className="num">{F.pct(mon)}</span>
-          {Math.abs(mon - sv.monitoringShare) > 1e-6 && <span className="small dim">now {F.pct(sv.monitoringShare)}</span>}
-          <ActBtn id="safety.monitoring" params={{ share: mon }} label="Set" />
-        </div>
-      </div>
+      <AgentsSummary s={s} />
       <div className="pol-sec">
         <div className="pol-k"><Term id="publishPolicy">Publish policy</Term></div>
         <div className="seg-acts">

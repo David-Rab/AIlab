@@ -33,7 +33,7 @@ export function watchItems(s: GameStateV2): WatchItem[] {
     out.push({
       id: 'capped', sphere: 'models', sev: 2 + Math.min(2, (rd.demand - rd.total) / Math.max(1, rd.total)),
       chain: [{ label: 'serving compute short', icon: ICON.serving, kind: 'root', detail: `Serving pool gets ${F.pct(p.split.serving)} of compute; ${p.policies.servingAuto ? 'Auto' : 'your shares'} cut ${F.count(cutH)} H100e` }, { label: `${capped.length} product${capped.length > 1 ? 's' : ''} capped`, icon: ICON.product, kind: 'bad', detail: `Demand ${F.money(rd.demand, { perYear: true })} vs capacity ${F.money(rd.capacity, { perYear: true })}` }],
-      why: 'demand you are not booking', go: { panel: 'company', tab: 'split', anchor: 'split-serving' }, goLabel: 'Split',
+      why: 'demand you are not booking', go: { panel: 'compute', tab: 'split', anchor: 'split-serving' }, goLabel: 'Split',
     });
   }
   // 3. critical traits the stack can no longer read at L

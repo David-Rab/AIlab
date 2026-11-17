@@ -9,7 +9,7 @@
 // One home per datum: total revenue lives in the top strip; the serving budget on Company › Split.
 import { useMemo, useState, type ReactNode } from 'react';
 import {
-  Bot, Briefcase, Building2, Check, Eye, Hammer, Layers, Lock, MessageCircle, Pencil, Shield, ShieldCheck, SquareTerminal, Tag, Unlock, Users, X,
+  Bot, Briefcase, Building2, Check, Hammer, Layers, Lock, MessageCircle, Pencil, Shield, ShieldCheck, SquareTerminal, Tag, Unlock, Users, X,
   type LucideIcon,
 } from 'lucide-react';
 import { AGENT_TASK_HOURS, FEATURES, PRICE_TIER_IDS, PRICE_TIERS, PRODUCT_DEFS, PRODUCT_ORDER, type FeatureDef } from '../../../data/v2/features';
@@ -26,6 +26,7 @@ import * as F from '../fmt';
 import { ICON } from '../icons';
 import { C } from '../theme';
 import './products.css';
+import { CatchX, PkgChip } from './chips';
 
 const P_ICON: Partial<Record<Channel, LucideIcon>> = { consumer: MessageCircle, api: SquareTerminal, enterprise: Building2, agents: Bot, gov: Briefcase, trusted: ShieldCheck, open: Unlock };
 const SAFEGUARDS: Deployment['safeguards'][] = ['minimal', 'standard', 'classifiers', 'hardened'];
@@ -138,36 +139,19 @@ function ProductCard({ s, d, r, draft, setDraft }: { s: GameStateV2; d: Deployme
       </div>
 
       {/* Package: model (+ mini free tier), monitor, run cost */}
-      <div className={`mchip ${n.versionId !== d.versionId || n.miniVersionId !== d.miniVersionId ? 'chg' : ''}`}>
-        <ICON.models size={13} />
-        <select className="msel" data-test={`prod-model.${d.id}`} value={n.versionId} onChange={(e) => set({ versionId: e.target.value })}>
-          {models.map((x) => <option key={x.id} value={x.id}>{x.name} · L {F.level(mL(s, x))}</option>)}
-        </select>
-        {def && (d.channel === 'consumer' || d.channel === 'api') && (
+      <PkgChip kind="model" testId={`prod-model.${d.id}`} value={n.versionId} changed={n.versionId !== d.versionId || n.miniVersionId !== d.miniVersionId}
+        options={models.map((x) => ({ value: x.id, label: `${x.name} · L ${F.level(mL(s, x))}` }))} onPick={(x) => set({ versionId: x })}
+        sub={def && (d.channel === 'consumer' || d.channel === 'api') && (
           <Tip content={() => <TipCard title={<Term id="freeTier">Mini free tier</Term>}>{`A mini serves ${d.channel === 'consumer' ? '60%' : '30%'} of use (free and low-price users): far cheaper to serve, but the product's quality is the usage-weighted blend.`}</TipCard>}>
             <select className="msel sub" data-test={`prod-mini.${d.id}`} value={n.miniVersionId ?? ''} onChange={(e) => set({ miniVersionId: e.target.value || null })}>
               <option value="">no free tier</option>
               {minis.map((x) => <option key={x.id} value={x.id}>+ {x.name} free tier</option>)}
             </select>
           </Tip>
-        )}
-      </div>
-      <div className={`mchip ${n.monitorId !== d.monitorId ? 'chg' : ''}`}>
-        <Eye size={13} />
-        <select className="msel" data-test={`prod-monitor.${d.id}`} value={n.monitorId ?? ''} onChange={(e) => set({ monitorId: e.target.value || null })}>
-          <option value="">no monitor</option>
-          {monitors.map((x) => <option key={x.id} value={x.id}>monitor {x.name}</option>)}
-        </select>
-        {mon && <Tip content={() => {
-          const c = catchRate(s, v, mon);
-          return <TipCard title={<Term id="catchRate">Catch rate</Term>} value={F.pct(c.rate)} rows={[
-            { label: 'Monitor as capable as the model', value: '85%' },
-            { label: <Term id="gap">Oversight gap</Term>, value: `${c.gap.toFixed(2)} × 4 in M → ×${(0.52 ** c.gap).toFixed(2)}` },
-            { label: 'Before control tools', value: F.pct(c.base) },
-            { label: 'AI-control tools (AG07)', value: `+${F.pct(c.control * 0.5)} of the rest` },
-          ]}>Model-behaviour incidents it catches stay internal: customers never see them.</TipCard>;
-        }}><span className="mchip-x">catch <b data-test={`prod-catch.${d.id}`}>{F.pct(catchRate(s, v, mon).rate)}</b></span></Tip>}
-      </div>
+        )} />
+      <PkgChip kind="monitor" testId={`prod-monitor.${d.id}`} value={n.monitorId ?? ''} changed={n.monitorId !== d.monitorId}
+        options={[{ value: '', label: 'no monitor' }, ...monitors.map((x) => ({ value: x.id, label: `monitor ${x.name}` }))]} onPick={(x) => set({ monitorId: x || null })}
+        extra={mon && <CatchX {...catchRate(s, v, mon)} testId={`prod-catch.${d.id}`} note="Model-behaviour incidents it catches stay internal: customers never see them." />} />
       <Tip content={() => <TipCard title={<Term id="runCost">Run cost</Term>} value={r ? F.money(r.runCost, { perYear: true }) : '—'} rows={r ? [
         { label: 'Serving it uses', value: `${F.h100e(Math.min(r.servedH100e, r.needH100e))} H100e` },
         { label: <Term id="monitor">Monitor overhead</Term>, value: d.monitorId ? `+${F.pct(r.monitorOverhead, 1)} of serving` : 'no monitor' },
@@ -253,7 +237,7 @@ function Share({ d, r }: { d: Deployment; r: ProductRead }) {
 /** Binding cause and its best lever (a preview; click sets the draft or opens the control). */
 function Binding({ s, d, r, set }: { s: GameStateV2; d: Deployment; r: ProductRead; set: (c: ProductChanges) => void }) {
   const lever = useMemo((): { label: ReactNode; gain: number; act: () => void } | undefined => {
-    if (r.bound === 'capacity') return { label: <>+{F.h100e(r.cutH100e)} H100e serving</>, gain: r.unserved, act: () => store.goto('company', { tab: 'split', anchor: 'split-serving' }) };
+    if (r.bound === 'capacity') return { label: <>+{F.h100e(r.cutH100e)} H100e serving</>, gain: r.unserved, act: () => store.goto('compute', { tab: 'split', anchor: 'split-serving' }) };
     if (r.bound === 'price') {
       const i = PRICE_TIER_IDS.indexOf(d.price);
       if (i <= 0) return undefined;
@@ -435,7 +419,7 @@ function ServingCard({ s, live, reads }: { s: GameStateV2; live: Deployment[]; r
     <Card className="prod-serve" home="servingSplit" title={<Term id="poolServing">Serving compute</Term>} sub="H100e by product"
       right={<span className="row-i">
         <ActBtn id="products.policy" testId="products.policy.servingAuto" params={{ servingAuto: !auto }} label={<span className="psw"><span className={`sw ${auto ? 'on' : ''}`}><i /></span><Term id="autoServing">Auto</Term><span className="dim">most $ per H100e first</span></span>} />
-        <button className="btn btn-sm" data-go="company" onClick={() => store.goto('company', { tab: 'split', anchor: 'split-serving' })}>Budget ›</button>
+        <button className="btn btn-sm" data-go="compute" onClick={() => store.goto('compute', { tab: 'split', anchor: 'split-serving' })}>Budget ›</button>
       </span>}>
       <div className="sv-bar" data-test="serving-bar">
         {rows.map(({ d, r }) => (

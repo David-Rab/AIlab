@@ -22,7 +22,13 @@ import { agentsGate, catchRate, monitorOverhead, productDomains } from '../../sr
 import { incidentsSystem } from '../../src/engine/v2/safety/incidents';
 import type { Deployment, GameStateV2, ModelVersion } from '../../src/engine/v2/types';
 import { revenueReadout, servingPool } from '../../src/engine/v2/worldfx/revenue';
-import { check, finish } from './lib';
+import { FIXTURE_DIR, check, finish } from './lib';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { evalM, labInputs } from '../../src/engine/v2/production/production';
+import { fleetMonitor, internalFleets, monitorBudget } from '../../src/engine/v2/departments/agents';
+import { previewAgentChange } from '../../src/engine/v2/departments/agentActions';
+import { internalVersion } from '../../src/engine/v2/models/labs';
 
 const game = () => newGame(defaultSetupV2({ seed: 2027, world: 'ai2027', alignment: 'medium', baseline: 'classic', tutorial: false }));
 const run = (s: GameStateV2, n: number) => {
@@ -179,7 +185,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const hNow = (v0.evals.bench.horizon?.score ?? 0) / 60;
   check(hNow < AGENT_TASK_HOURS ? !!launch && /time horizon/.test(launch) : !launch, 'P8 launching Agents at the start follows the gate', `${hNow.toFixed(1)} h: ${launch ?? 'launched'}`);
   run(s, 45);
-  const iv = s.player.models.versions.find((v) => v.id === s.player.models.internalAgent)!;
+  const iv = s.player.models.versions.find((v) => v.id === s.player.agents.capRoutine.versionId)!;
   check(iv.evals.suiteDay !== undefined && s.time.day - iv.evals.suiteDay <= 30, 'P8 auto-evaluate keeps the internal model\'s suite ≤ 30 days old', `suite day ${iv.evals.suiteDay}, today ${s.time.day}`);
   // Upgrade policy.
   const api = prod(s, 'api');
@@ -211,6 +217,35 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   run(s, 20);
   run(s2, 20);
   check(stateHash(s) === stateHash(s2), 'P9 save round trip with an edited product stays deterministic');
+}
+
+// ───────── R7: internal agent packages (Company › Agents at work) ─────────
+{
+  const s = deserialize(readFileSync(join(FIXTURE_DIR, 'day900.json'), 'utf8'));
+  const inp = labInputs(s, 'player')!;
+  const w = s.hidden.timeline;
+  check(inp.qTaste === undefined && evalM(w, inp).M === evalM(w, { ...inp, qTaste: inp.qDep }).M, 'A1 default packages: no qTaste, and qTaste = qDep reproduces M exactly');
+  const b = monitorBudget(s);
+  check(b.rel === 1 && b.poolShare === 0.2 && b.coverage === 1, 'A1 the standard monitor package costs today\'s 20% of the safety pool', JSON.stringify(b));
+  const iv = internalVersion(s)!;
+  check(fleetMonitor(s, iv) === 1 && internalFleets(s).length === 1 && internalFleets(s)[0].usage === 1, 'A1 default: one internal fleet at usage 1, monitor strength 1 (today\'s monitoring)');
+  const old = s.player.models.versions.find((v) => v.variant === 'full' && v.status !== 'retired' && (v.evals.measuredL ?? 0) < (iv.evals.measuredL ?? 0) - 2);
+  if (old) {
+    const pf = previewAgentChange(s, 'capFrontier', { versionId: old.id });
+    check(pf.after.M < pf.before.M && pf.after.sdAI < pf.before.sdAI, 'A2 an older frontier-research model lowers AI taste and research speed', `${pf.before.M.toFixed(1)} → ${pf.after.M.toFixed(1)}`);
+    const pm = previewAgentChange(s, 'capRoutine', { monitorId: old.id });
+    check(pm.after.lanes.capRoutine.strength < 1 && pm.after.lanes.capRoutine.gap > 0, 'A3 an older monitor has an oversight gap and less than full strength', `gap ${pm.after.lanes.capRoutine.gap.toFixed(2)}`);
+    const e = act(s, 'agents.set', { use: 'eng', versionId: old.id });
+    check(!e && internalFleets(s).length === 2 && Math.abs(internalFleets(s).reduce((a, f) => a + f.usage, 0) - 1) < 1e-9, 'A4 an engineering model of its own is a second internal fleet (usages sum to 1)');
+  }
+  const pe = previewAgentChange(s, 'eng', { compute: 0.05 });
+  check(pe.after.build < pe.before.build && pe.after.M > pe.before.M, 'A5 less engineering compute: less build capacity, more research agents', `${pe.before.build.toFixed(1)} → ${pe.after.build.toFixed(1)}`);
+  act(s, 'agents.set', { use: 'capRoutine', monitorId: '' });
+  act(s, 'agents.set', { use: 'capFrontier', monitorId: '' });
+  check(monitorBudget(s).poolShare === 0 && fleetMonitor(s, iv) === 0, 'A6 no monitors: no safety compute reserved and no monitoring of the fleet');
+  const t0 = s.player.policies.trustedToAI;
+  const r = act(s, 'agents.trusted', { share: 0.9 });
+  check(!r && s.player.policies.trustedToAI <= 0.5 && s.player.policies.trustedToAI > t0 && s.player.agents.safety.compute > 0, 'A7 Trusted to AI: capped at 50% before P27; starts the safety agents', `${s.player.policies.trustedToAI} · ${s.player.agents.safety.compute}`);
 }
 
 finish('products');

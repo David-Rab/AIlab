@@ -3,7 +3,7 @@
 // Hidden → visible: agenda efficacy e is never shown; findings move a visible Beta posterior (Promising / Mixed /
 // Struggling). FALSE findings (F49) show as TECH until an AG02/AG08 NEG or an investigation with an independent tool
 // family exposes them ("we were wrong").
-import { safetyAgentVersion } from './agents';
+import { safetyAgentVersion, trustedShare } from './agents';
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { EDGES } from '../../../data/v2/edges';
 import { FINDINGS, FINDING_BY_ID, type FindingDef } from '../../../data/v2/findings';
@@ -213,7 +213,7 @@ export function fireFinding(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId): F
     { item: 'NEG', weight: (decayedTechnique(s, agenda, M) || candidates(s, agenda, ['NEG']).length ? 0.3 : 0) + (falseT ? 0.3 : 0) },
     { item: 'DISC', weight: 0.15 * uRev.present.length + 0.05 * uRev.absent.length + 0.1 * discRows.length },
     { item: 'SPILL', weight: WB_AGENDAS.includes(agenda) ? 0.1 : 0 },
-    { item: 'FALSE', weight: st.aiLabour * sabOf(safetyAgentVersion(s)) },
+    { item: 'FALSE', weight: trustedShare(s) * sabOf(safetyAgentVersion(s)) },
   ];
   const type = rng.weighted(weights.filter((w) => w.weight > 0));
 

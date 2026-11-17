@@ -13,6 +13,7 @@ import * as F from '../fmt';
 import { ICON } from '../icons';
 import { C } from '../theme';
 import './compute.css';
+import { Split } from './Split';
 
 const PATHS: { id: Site['path']; label: string; term: string; icon: typeof ICON.sites }[] = [
   { id: 'lease', label: 'Colo', term: 'colo', icon: ICON.pathLease }, { id: 'brownfield', label: 'Brownfield', term: 'brownfield', icon: ICON.pathBrownfield },
@@ -566,12 +567,13 @@ export function Compute({ s }: { s: GameStateV2 }) {
   return (
     <div className="panel-v2 cmp" data-panel="compute">
       <PanelHead icon={ICON.computePanel} title="Compute" sub="chips, sites and cloud"
-        tabs={<Tabs panel="compute" def="overview" tabs={[{ id: 'overview', label: 'Overview', icon: ICON.overview }, { id: 'sites', label: 'Sites', icon: ICON.sites, badge: sitesBadge }, { id: 'orders', label: 'Orders', icon: ICON.compute }, { id: 'market', label: 'Market', icon: ICON.supply }]} />}
-        right={<span className="row-i"><Ref id="computeOnline" to={{ panel: 'company', tab: 'flow' }}>Compute online</Ref><Ref id="split" to={{ panel: 'company', tab: 'split' }}>Compute split</Ref></span>} />
+        tabs={<Tabs panel="compute" def="overview" tabs={[{ id: 'overview', label: 'Overview', icon: ICON.overview }, { id: 'sites', label: 'Sites', icon: ICON.sites, badge: sitesBadge }, { id: 'split', label: 'Split', icon: ICON.split }, { id: 'orders', label: 'Orders', icon: ICON.compute }, { id: 'market', label: 'Market', icon: ICON.supply }]} />}
+        right={<span className="row-i"><Ref id="computeOnline" to={{ panel: 'company', tab: 'flow' }}>Compute online</Ref></span>} />
       {tab === 'overview' && <Overview s={s} />}
       {tab === 'sites' && <SitesTab s={s} />}
       {tab === 'orders' && <div className="g2"><Deliveries s={s} /><Cloud s={s} /></div>}
       {tab === 'market' && <Market s={s} />}
+      {tab === 'split' && <Split s={s} />}
     </div>
   );
 }

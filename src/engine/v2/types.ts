@@ -269,8 +269,6 @@ export interface ModelsState {
   bases: BaseModel[];
   versions: ModelVersion[];
   runs: TrainingRun[];
-  /** Version powering internal research agents (p_dep for the production function). */
-  internalAgent?: string;
   /** Continual-learning stream (P08) if active: the version id being updated in place. */
   stream?: { versionId: string; startedDay: Day; lastAuditDay: Day; /** pa seen by the stream (7-day lag) */ paTrack?: number };
   nextName: number; // naming counter
@@ -522,7 +520,8 @@ export interface ProductionReadout {
   ceilings: { humans: number; agents: number; exp: number };
   binding: 'experiments' | 'humans' | 'agents' | 'taste' | 'data';
   label: 'compute-bound' | 'labor-bound' | 'human-bound' | 'taste-bound';
-  labor: { A: number; aiFTE: number; copies: number; speed: number; wH: number };
+  /** aEng (R7, player): AI share of engineers' work from the engineering agents (A_eng of their model × coverage). */
+  labor: { A: number; aiFTE: number; copies: number; speed: number; wH: number; aEng?: number };
   ratios: { h: number; k: number; c: number; d: number };
   Ddata: number;
   /** What-ifs: M multiplier from 2× humans, 2×/0.1× agents, 2×/0.5× experiment compute (research/13 §1.6). */
@@ -542,11 +541,6 @@ export interface SafetyDept {
   discoveredUModes: UModeId[]; // known to the player (cards visible)
   /** Pre-deployment eval gate level: what runs before any external deployment. */
   evalGate: 'none' | 'basic' | 'full' | 'fullPlusExternal';
-  monitoringShare: number; // share of safety compute on runtime monitoring
-  /** Share of safety compute running safety agents (AI labour for automated agendas and investigations). */
-  agentShare?: number;
-  /** Version running the safety agents; absent = the capabilities internal agent. */
-  agentVersion?: string;
   monitorabilityCommitment: boolean; // F31 / faithful-CoT pledge
   edgeGrades: Record<string, 'A' | 'B' | 'C' | 'D'>; // player-visible grade, can be raised by AG08 (§3.5.4)
   edgeRevealed: Record<string, boolean>; // true weight revealed for this world
@@ -555,7 +549,6 @@ export interface SafetyDept {
 export interface AgendaState {
   fte: number;
   computeShare: number; // of the safety pool
-  aiLabour: number; // 0..1 share of work done by internal AI (AG17 dynamics)
   hazardAcc: number; // accumulates λ; a finding fires when ≥ next threshold
   posterior: { a: number; b: number }; // visible Beta posterior on efficacy (shown as a band)
   status: 'idle' | 'active' | 'deadEnd';
@@ -595,7 +588,6 @@ export interface Investigation {
   fte: number;
   computeShare: number;
   tools: TechniqueId[];
-  aiLabour: number;
   startDay: Day;
   clarity: number; // accumulated 0..1
   outcome?: 'confirmed' | 'benign' | 'inconclusive' | 'falseAlarm' | 'discovery';
@@ -663,6 +655,19 @@ export interface PlayerLab extends LabCore {
   morale: { overall: number; safety: number }; // 0..100
   dataAssets: { licensedTokensT: number; unlicensedTokensT: number; syntheticTokensT: number; litigationRisk: number };
   policies: PlayerPolicies;
+  /** Internal agent packages (STRUCTURE §4.9, R7): model + optional monitor + compute per internal use. */
+  agents: Record<AgentUse, AgentPackage>;
+}
+
+/** Internal uses of the lab's own models (R7): engineering, capabilities routine and frontier research, safety. */
+export type AgentUse = 'eng' | 'capRoutine' | 'capFrontier' | 'safety';
+/** One internal use: the model (absent = the routine-research model; routine research always names one), the monitor
+ *  (absent = none; 'same' = a copy of the watched model) and compute: for engineering and capabilities research a share
+ *  of the capabilities agent pool (the three sum to 1); for safety a share of the safety pool. */
+export interface AgentPackage {
+  versionId?: string;
+  monitorId?: string;
+  compute: number;
 }
 
 // ───────────────────────────── Build queue (STRUCTURE §4.1, R5) ─────────────────────────────
@@ -749,6 +754,9 @@ export interface PlayerPolicies {
   /** Re-run the eval suite every 30 days on the internal model and models updated in place (R6, replaces the 30-day
    *  eval expiry that blocked launches). */
   autoEvaluate: boolean;
+  /** Trusted to AI (R7): share of safety research and investigation work done by the safety agents (one policy; it
+   *  replaces per-agenda automation). Works only above the AI-labour gate (B3). */
+  trustedToAI: number;
 }
 
 // ───────────────────────────── Finance (§3.7) ─────────────────────────────

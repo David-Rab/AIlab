@@ -187,7 +187,9 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
     }
   }
 
-  // Internal agents: the newest full version. With continual learning (P08) the stream runs on it and moves to the
+  // Internal agents: the newest full version on routine research; engineering, frontier and safety research follow it
+  // (default packages: monitors 'same' on routine and frontier research), so the reference lab uses its newest model
+  // everywhere with a standard monitor (R7, calibration neutral). With continual learning (P08) the stream runs on it and moves to the
   // first version on each newer base (carrying its know-how); other versions on the stream's base are ignored.
   const nv = newestFull(s);
   const sv = m.stream ? m.versions.find((v) => v.id === m.stream?.versionId) : undefined;
@@ -195,12 +197,12 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   if (p.paradigms.P08?.status === 'adopted' && nv) {
     if (!sv || baseIdx(nv) > baseIdx(sv)) tryAct(s, api, 'startStream', { versionId: nv.id });
     const cur = m.stream?.versionId;
-    if (cur && m.internalAgent !== cur) tryAct(s, api, 'setInternalAgent', { versionId: cur });
-  } else if (nv && m.internalAgent !== nv.id) tryAct(s, api, 'setInternalAgent', { versionId: nv.id });
+    if (cur && p.agents.capRoutine.versionId !== cur) tryAct(s, api, 'agents.set', { use: 'capRoutine', versionId: cur });
+  } else if (nv && p.agents.capRoutine.versionId !== nv.id) tryAct(s, api, 'agents.set', { use: 'capRoutine', versionId: nv.id });
 
   // Evals: the auto-evaluate policy refreshes the internal version's suite every 30 days (streams go stale); R6
   // replaced the bot's own 30-day runEvals. Serving: the Auto policy.
-  const iv = m.versions.find((v) => v.id === m.internalAgent);
+  const iv = m.versions.find((v) => v.id === p.agents.capRoutine.versionId);
   if (!p.policies.autoEvaluate) tryAct(s, api, 'products.policy', { autoEvaluate: true });
   if (!p.policies.servingAuto) tryAct(s, api, 'products.policy', { servingAuto: true });
 

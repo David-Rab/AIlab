@@ -5,9 +5,11 @@ import type { GameStateV2, PlayerLab, StaffByRole, TeamHiring } from '../types';
 import { hash32 } from './rng';
 import { initialResearch, initialTree } from '../models/tree';
 import { LEADER_FEATURES, PRICE_TIERS, tierOfIndex } from '../../../data/v2/features';
+import { TRUSTED_MAX_P27 } from '../../../data/v2/agents';
+import { initialAgents } from '../departments/agents';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
-export const SCHEMA_REV = 8;
+export const SCHEMA_REV = 9;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -120,6 +122,38 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     p.policies.servingAuto ??= true;
     p.policies.upgradeToNewest ??= false;
     p.policies.autoEvaluate ??= true;
+  },
+  /** 8 → 9 (restructure R7): internal agent packages. The internal agent becomes routine research's model; the safety
+   *  agent model and share become the safety package; the monitoring share becomes monitors on routine and frontier
+   *  research (a copy of the watched model) when it was on; per-agenda and per-case AI labour become one Trusted-to-AI
+   *  share (the largest one in use). */
+  8: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const p = s.player as PlayerLab;
+    if (p.agents) return;
+    const m = p.models as unknown as { internalAgent?: string };
+    const sd = p.safety as unknown as { agentVersion?: string; agentShare?: number; monitoringShare?: number; agendas: Record<string, { aiLabour?: number }>; investigations: { aiLabour?: number }[] };
+    p.agents = initialAgents(m.internalAgent ?? p.models.versions[0]?.id ?? 'V0');
+    if (sd.agentVersion) p.agents.safety.versionId = sd.agentVersion;
+    p.agents.safety.compute = sd.agentShare ?? 0;
+    if ((sd.monitoringShare ?? 0.2) <= 0.01) {
+      delete p.agents.capRoutine.monitorId;
+      delete p.agents.capFrontier.monitorId;
+    }
+    let t = 0;
+    for (const a of Object.values(sd.agendas)) {
+      t = Math.max(t, a.aiLabour ?? 0);
+      delete a.aiLabour;
+    }
+    for (const i of sd.investigations) {
+      t = Math.max(t, i.aiLabour ?? 0);
+      delete i.aiLabour;
+    }
+    p.policies.trustedToAI = Math.min(TRUSTED_MAX_P27, t);
+    delete m.internalAgent;
+    delete sd.agentVersion;
+    delete sd.agentShare;
+    delete sd.monitoringShare;
   },
 };
 

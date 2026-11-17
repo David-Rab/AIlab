@@ -17,7 +17,8 @@ import { nearestDecay, understanding } from './understanding';
 import { exfiltrationHazard } from './incidents';
 import { investigationFte } from './investigations';
 import { patchFte } from './responses';
-import { safetyAgentVersion, safetyFleet } from './agents';
+import { safetyAgentVersion, safetyFleet, trustedShare } from './agents';
+import { monitorBudget } from '../departments/agents';
 
 export interface AgendaRow {
   id: AgendaId; name: string; level: string; fte: number; computeShare: number; aiLabour: number;
@@ -33,7 +34,7 @@ export function agendaRows(s: GameStateV2): AgendaRow[] {
   return AGENDAS.map((a) => {
     const st = dept.agendas[a.id];
     const row: AgendaRow = {
-      id: a.id, name: a.name, level: fundingLevel(a.id, st), fte: st.fte, computeShare: st.computeShare, aiLabour: st.aiLabour,
+      id: a.id, name: a.name, level: fundingLevel(a.id, st), fte: st.fte, computeShare: st.computeShare, aiLabour: st.fte > 0 ? trustedShare(s) : 0,
       band: posteriorBand(st), status: st.status, findings: dept.findings.filter((f) => f.agenda === a.id).length,
       findingsPerYear: Math.round(findingHazard(s, a.id, staff) * 365 * 100) / 100,
     };
@@ -108,9 +109,9 @@ export function safetyUtilisation(s: GameStateV2): SafetyUtilisation {
   const total = s.player.staff.saf;
   const online = s.player.computeOnline;
   const pool = online * s.player.split.safety;
-  const monitoring = pool * dept.monitoringShare;
+  const monitoring = pool * monitorBudget(s).poolShare;
   const invC = pool * dept.investigations.filter((i) => !i.outcome).reduce((a, i) => a + i.computeShare, 0);
-  const agents = pool * (dept.agentShare ?? 0);
+  const agents = pool * s.player.agents.safety.compute;
   let wanted = 0;
   let got = 0;
   for (const a of AGENDAS) {
@@ -120,7 +121,7 @@ export function safetyUtilisation(s: GameStateV2): SafetyUtilisation {
   }
   const fl = safetyFleet(s);
   const v = safetyAgentVersion(s);
-  const automated = Object.values(dept.agendas).filter((g) => g.aiLabour > 0 && g.fte > 0).length + dept.investigations.filter((i) => !i.outcome && i.aiLabour > 0).length;
+  const automated = trustedShare(s) > 0 ? Object.values(dept.agendas).filter((g) => g.fte > 0).length + dept.investigations.filter((i) => !i.outcome).length : 0;
   return {
     staff: { total, agendas: agendasFte, investigations: inv, patches, free: Math.max(0, total - assigned), short: Math.max(0, assigned - total) },
     compute: { pool, monitoring, investigations: invC, agents, agendasWanted: wanted, agendasGot: got, idle: Math.max(0, pool - monitoring - invC - agents - got) },
@@ -142,7 +143,6 @@ export function safetyView(s: GameStateV2) {
     uModes: uModeCards(s),
     beliefs: beliefView(s),
     evalGate: s.player.safety.evalGate,
-    monitoringShare: s.player.safety.monitoringShare,
     utilisation: safetyUtilisation(s),
     monitorabilityCommitment: s.player.safety.monitorabilityCommitment,
   };

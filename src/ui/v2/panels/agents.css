@@ -1,0 +1,29 @@
+/* Company › Agents at work (R7; mockups-v3 v3-company). */
+.agents-card { margin-bottom: 12px; }
+.ag-head, .ag-lane { display: grid; grid-template-columns: minmax(150px, 1.1fr) minmax(150px, 1fr) minmax(170px, 1.1fr) minmax(150px, 0.9fr) minmax(170px, 1.2fr) 64px 112px; gap: 12px; align-items: center; }
+.ag-head { text-transform: uppercase; letter-spacing: .04em; font-size: 10.5px; padding: 0 0 6px; border-bottom: 1px solid var(--line); }
+.ag-lane { position: relative; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.ag-lane.editing { background: rgba(233, 180, 76, .04); }
+.ag-use { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.ag-use b { color: #fff; font-size: 13px; }
+.ag-ord { width: 22px; height: 22px; flex: 0 0 22px; border-radius: 50%; display: grid; place-items: center; font: 600 11.5px var(--mono); border: 1px solid var(--line-2); color: var(--text-2); }
+.ag-ord.cap { border-color: rgba(155, 107, 224, .55); color: #c9b0f0; }
+.ag-ord.saf { border-color: rgba(34, 163, 148, .6); color: #6fd3c4; }
+.ag-cmp, .ag-ai { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ag-cmp b, .ag-ai b { color: #fff; }
+.ag-cost { color: var(--text); font-size: 12.5px; }
+.ag-risk { display: flex; gap: 4px; }
+.rb { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 5px; border: 1px solid var(--line-2); color: var(--text-3); }
+.rb-low { color: var(--text-3); }
+.rb-watch { color: var(--watch); border-color: rgba(233, 180, 76, .6); }
+.rb-unseen { color: var(--bad); border: 1px dashed rgba(239, 107, 107, .7); }
+.ag-legend { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+.ag-legend .rb { width: 16px; height: 16px; margin-right: 4px; }
+.ag-trust { display: flex; align-items: center; gap: 8px; }
+.ag-trust b { color: #fff; }
+.stepper.mini .btn { padding: 0 4px; min-height: 18px; }
+.ag-pop { position: absolute; left: 16%; top: 100%; z-index: 30; width: 440px; background: #121922; border: 1px solid var(--watch); border-radius: 8px; padding: 10px 11px; box-shadow: 0 10px 30px rgba(0,0,0,.55); display: flex; flex-direction: column; gap: 8px; }
+.ag-pop .pv { display: grid; grid-template-columns: 120px 1fr; gap: 3px 10px; align-items: center; font-size: 12px; }
+.ag-pop .pv .k { color: var(--text-2); }
+.ag-pop .pv .ba { font: 600 12px var(--mono); color: #fff; display: flex; align-items: center; gap: 6px; }
+.ag-pop .pv .ba .o { color: var(--text-3); font-weight: 500; }

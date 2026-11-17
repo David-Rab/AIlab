@@ -19,6 +19,8 @@ import type { Deployment, DomainId, GameStateV2, ModelVersion, SectorId, SystemC
 import { runEvalSuite } from './benchmarks';
 import { measuredLOf, versionById } from './labs';
 import { nodeKnown } from './tree';
+import { agentVersion } from '../departments/agents';
+import { AGENT_USES } from '../../../data/v2/agents';
 
 const DOMAINS: DomainId[] = ['CODE', 'RSCH', 'REASON', 'AGENCY', 'SOCIAL', 'MEDIA', 'CYBER', 'BIO', 'PHYS'];
 
@@ -175,7 +177,11 @@ export function autoEvaluate(s: GameStateV2, ctx: SystemCtx) {
   if (!s.player.policies.autoEvaluate) return;
   const m = s.player.models;
   const ids = new Set<string>();
-  if (m.internalAgent) ids.add(m.internalAgent);
+  // R7: every internal use's model (one id when they all run the routine model, as before).
+  for (const u of AGENT_USES) {
+    const v = agentVersion(s, u);
+    if (v) ids.add(v.id);
+  }
   if (m.stream) ids.add(m.stream.versionId);
   for (const id of ids) {
     const v = versionById(s, id);

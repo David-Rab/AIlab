@@ -93,3 +93,14 @@
 .offer-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .offer-main b { color: #fff; font-size: 12.5px; }
 .offer-main .row-i { flex-wrap: wrap; }
+
+/* Package chips (model / monitor), shared by Products and Company › Agents at work (R7, panels/chips.tsx) */
+.mchip { display: flex; align-items: center; gap: 6px; padding: 4px 7px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line-2); font-size: 12.5px; color: #fff; min-width: 0; }
+.mchip.chg { border-style: dashed; border-color: var(--watch); }
+.mchip-x { margin-left: auto; color: var(--text-3); font-size: 11.5px; white-space: nowrap; }
+.mchip-x b { color: #fff; font-family: var(--mono); }
+.msel { background: transparent; border: 0; color: #fff; font: inherit; min-width: 0; flex: 1 1 auto; cursor: pointer; }
+.msel option { background: var(--panel-2); color: var(--text); }
+.msel.sub { color: var(--text-3); flex: 0 1 40%; font-size: 11.5px; }
+.msel.small { flex: 0 0 auto; border: 1px solid var(--line-2); border-radius: 6px; padding: 2px 4px; font-size: 11.5px; background: var(--panel-2); }
+.msel.nm { font-size: 15px; font-weight: 650; flex: 0 1 auto; }

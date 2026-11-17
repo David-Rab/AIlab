@@ -2,9 +2,10 @@
 // benchmarks with saturation marks, horizon, serve cost, monitorability, trait beliefs, flags), run queue (paradigms moved to
 // Research in R4); set internal agent, evals, variants, distill, roll back, retire, streams.
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
+import { AGENT_USE_DEF } from '../../../data/v2/agents';
 import {
   POOL_SHARE_RANGE, benchName, dateOf, fmtDate, idleTrainingShare, internalVersion, measuredDomains, poolAllocation, runBand, runEtaDays, runStall, streamShare,
-  versionById,
+  usesOf, versionById,
 } from '../../../engine/v2';
 import type { GameStateV2, ModelVersion } from '../../../engine/v2';
 import { store, useV2 } from '../store';
@@ -50,7 +51,7 @@ function VersionTree({ s, v, sel, depth }: { s: GameStateV2; v: ModelVersion; se
   );
 }
 function VersionRow({ s, v, sel, depth }: { s: GameStateV2; v: ModelVersion; sel?: string; depth: number }) {
-  const internal = s.player.models.internalAgent === v.id;
+  const internal = usesOf(s, v.id).model.length > 0;
   return (
     <button className={`lin-ver ${sel === v.id ? 'active' : ''}`} style={{ paddingLeft: 8 + depth * 14 }} data-version={v.id} onClick={() => store.select({ versionId: v.id })}>
       <span>{v.name}</span>
@@ -70,7 +71,8 @@ export function ModelCard({ s, v }: { s: GameStateV2; v: ModelVersion }) {
   const benches = more ? all : all.slice(0, 5);
   const horizon = v.evals.bench.horizon;
   const flags = Object.entries(v.flags).filter(([, x]) => x).map(([k]) => k);
-  const internal = s.player.models.internalAgent === v.id;
+  const uses = usesOf(s, v.id);
+  const internal = uses.model.length > 0 || uses.monitor.length > 0;
   const hMin = horizon ? horizon.score : 0;
   return (
     <Card title={<span>{v.name} <span className="dim">· <Term id="variant">{v.variant}</Term> · {v.status}</span></span>} home="modelCard"
@@ -109,7 +111,8 @@ export function ModelCard({ s, v }: { s: GameStateV2; v: ModelVersion }) {
       </div>
       <div className="act-groups">
         <div className="act-group"><span className="tip-cap">Use</span>
-          <ActBtn id="setInternalAgent" params={{ versionId: v.id }} label="Make internal agent" icon={ICON.agents} block={internal ? 'Already the internal agent' : undefined} />
+          <span className="small" data-test="model-uses"><ICON.agents size={12} /> {internal ? [...uses.model.map((u) => AGENT_USE_DEF[u].name), ...uses.monitor.map((u) => `monitor on ${AGENT_USE_DEF[u].name.toLowerCase()}`)].join(' · ') : 'not used inside the company'}</span>
+          <Ref id="agentPackage" to={{ panel: 'company', tab: 'people', anchor: 'agents' }}>Agents at work</Ref>
           <ActBtn id="startStream" params={{ versionId: v.id }} label="Continual learning" />
           <ActBtn id="stopStream" label="Stop stream" />
           <ActBtn id="idaCycle" params={{ versionId: v.id }} label="Amplify (IDA)" />
@@ -127,7 +130,7 @@ export function ModelCard({ s, v }: { s: GameStateV2; v: ModelVersion }) {
         </div>
         <div className="act-group"><span className="tip-cap">Retire</span>
           <ActBtn id="safety.respond" testId="rollback" params={{ kind: 'rollback', versionId: v.id }} label="Roll back" />
-          <ActBtn id="retireVersion" params={{ versionId: v.id }} block={internal ? 'Powers the internal agents' : v.status === 'retired' ? 'Already retired' : undefined} />
+          <ActBtn id="retireVersion" params={{ versionId: v.id }} block={internal ? 'Powers or monitors internal agents' : v.status === 'retired' ? 'Already retired' : undefined} />
         </div>
       </div>
     </Card>
@@ -182,7 +185,7 @@ export function RunQueue({ s }: { s: GameStateV2 }) {
         <span className="num" data-test="spare-share">{F.pct(spare)}</span>
         <span className="run-spare">
           <span className="dim">→ {spareUse === 'research' ? 'experiments' : 'data generation'}</span>
-          <Ref id="spareTraining" to={{ panel: 'company', tab: 'split', anchor: 'split-spare' }}>Split</Ref>
+          <Ref id="spareTraining" to={{ panel: 'compute', tab: 'split', anchor: 'split-spare' }}>Split</Ref>
         </span>
       </div>
     </Card>

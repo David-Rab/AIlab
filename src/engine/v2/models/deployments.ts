@@ -107,7 +107,7 @@ export function swapDeployment(s: GameStateV2, depId: string, versionId: string)
   if (ok !== true) return ok;
   d.versionId = v.id;
   d.versionSince = s.time.day;
-  if (d.channel === 'internal') s.player.models.internalAgent = v.id;
+  if (d.channel === 'internal') s.player.agents.capRoutine.versionId = v.id;
   if (v.status !== 'deployed') v.status = 'deployed';
   return undefined;
 }
@@ -131,12 +131,13 @@ export function withdraw(s: GameStateV2, depId: string): string | undefined {
   return undefined;
 }
 
-/** Set the version powering internal research agents (p_dep). Internal use needs no external eval gate. */
+/** Set the routine-research agents' model (p_dep; the internal deployment follows it). Internal use needs no external
+ *  eval gate. R7: called by the `agents.set` action for routine research. */
 export function setInternalAgent(s: GameStateV2, versionId: string): string | undefined {
   const v = versionById(s, versionId);
   if (!v) return 'Unknown version';
   if (v.status === 'retired' || v.status === 'rolledBack') return 'Version is retired';
-  s.player.models.internalAgent = v.id;
+  s.player.agents.capRoutine.versionId = v.id;
   const d = s.player.deployments.find((x) => x.channel === 'internal' && x.status === 'live');
   if (d) d.versionId = v.id;
   else s.player.deployments.push({
@@ -168,7 +169,7 @@ export function makeVariant(s: GameStateV2, versionId: string, variant: Extract<
 export function retireVersion(s: GameStateV2, versionId: string): string | undefined {
   const v = versionById(s, versionId);
   if (!v) return 'Unknown version';
-  if (s.player.models.internalAgent === v.id) return 'Powers the internal agents';
+  if (Object.values(s.player.agents).some((a) => a.versionId === v.id || a.monitorId === v.id)) return 'Powers or monitors internal agents';
   if (s.player.models.stream?.versionId === v.id) return 'Is the continual-learning stream';
   if (s.player.deployments.some((d) => d.versionId === v.id && d.status !== 'withdrawn')) return 'Has live deployments';
   if (s.player.deployments.some((d) => d.status !== 'withdrawn' && (d.monitorId === v.id || d.miniVersionId === v.id))) return 'Monitors or serves a free tier on a live product';

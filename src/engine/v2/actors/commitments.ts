@@ -148,7 +148,7 @@ export const PREDICATES: Record<string, CommitmentPredicate> = {
   pauseIfRedline: (s, p) => {
     const trait = String(p.trait ?? 'SCHEME') as keyof ModelVersion['beliefs'];
     const thr = Number(p.belief ?? 0.3);
-    const v = s.player.models.versions.find((x) => x.id === s.player.models.internalAgent);
+    const v = s.player.models.versions.find((x) => x.id === s.player.agents.capRoutine.versionId);
     const b = v?.beliefs[trait];
     if (!b || b.est < thr) return false;
     const running = s.player.models.runs.some((r) => r.status === 'running' && (r.kind === 'base' || r.kind === 'post'));

@@ -17,6 +17,7 @@ import { adopted, clamp01, copyRec, flagNum, levelOf, SC_LEVEL, setFlag, tierOfL
 import { fundingMult } from './agendas';
 import { SD_MAX, eaCoef, eaSuppression, stackDetectionMap, takesEaPenalty } from './detection';
 import { techniqueRole } from './techniques';
+import { routineMonitor } from '../departments/agents';
 import { crystalMult, crystalThreshold, drawLineageUModesV2, uModeAmp, uModeEdgeMult, uModeRemovalMult } from './umodes';
 
 const SPECULATIVE = new Set(UMODES.filter((u) => u.kind === 'speculative').map((u) => u.id));
@@ -301,7 +302,7 @@ export function playerMods(s: GameStateV2, post: PostDesign | undefined, lineage
   }
   if (post?.rlFocus === 'broad') mul('E09', 0.7);
   if (techActive(s, 'T-HONEY')) mul('E10', 0.7);
-  if (dept.agendas.AG07.fte > 0 && techActive(s, 'T-TMON') && dept.monitoringShare >= 0.1) mul('E14', 0.5);
+  if (dept.agendas.AG07.fte > 0 && techActive(s, 'T-TMON') && routineMonitor(s) >= 0.5) mul('E14', 0.5); // R7: monitors at ≥ half today's default strength
   if (dept.monitorabilityCommitment || s.flags['ws2.monitorabilityTax']) mul('E15', 0.5);
   if (inRun(s, post, 'T-CONFESS') || post?.safety === 'heavy') mul('E17', 0.6);
   if (techActive(s, 'T-NOISE')) mul('E18', 0.6);
@@ -462,7 +463,7 @@ function findBase(s: GameStateV2, id: string | undefined): BaseModel | undefined
 export const INHERIT_K = 0.4;
 const NOT_INHERITED: TraitId[] = ['SA', 'EA', 'OBF'];
 function inheritFromFleet(s: GameStateV2, x0: TraitVector): TraitVector {
-  const agent = versionById(s, s.player.models.internalAgent);
+  const agent = versionById(s, s.player.agents.capRoutine.versionId);
   const M = s.player.prodCache?.M ?? 1;
   const k = INHERIT_K * Math.max(0, 1 - 1 / Math.max(1, M));
   if (!agent || k <= 0) return x0;
@@ -679,7 +680,7 @@ export const traitsDailySystem: EngineSystem = {
     if (sv && sv.status !== 'retired') applyStreamDay(s, sv);
     // Persistent memory on the internal fleet: goals propagate through notes (E22) even without weight updates [D].
     if (memoryOn(s)) {
-      const iv = versionById(s, s.player.models.internalAgent);
+      const iv = versionById(s, s.player.agents.capRoutine.versionId);
       if (iv && iv !== sv) {
         const w = s.hidden.edgeWeights.E22 ?? 0.3;
         const mod = playerMods(s, iv.design, 'L-memory').E22 ?? 1;

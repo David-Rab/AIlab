@@ -173,10 +173,11 @@ export const BUILD_AI_CAP = 10;
 
 /** Build capacity (team-weeks per week): Σ engineer heads/150 × quality × 1/(1 − A_eng), capped. Works the build
  *  queue (departments/build.ts, R5). */
-export function buildCapacity(s: GameStateV2): { human: number; aEng: number; capacity: number } {
+export function buildCapacity(s: GameStateV2, aEngAt?: number): { human: number; aEng: number; capacity: number } {
   let human = 0;
   for (const t of s.player.teams) if (t.role === 'eng') human += (t.heads / TEAM_SIZE.eng) * QUALITY[t.quality].out;
-  const aEng = aEngOf(s.player.prodCache?.labor.A ?? 0);
+  // R7: the engineering agents' package (their model's A and their compute coverage); pre-R7 caches: A of routine.
+  const aEng = aEngAt ?? s.player.prodCache?.labor.aEng ?? aEngOf(s.player.prodCache?.labor.A ?? 0);
   return { human, aEng, capacity: human * Math.min(BUILD_AI_CAP, 1 / Math.max(1e-9, 1 - aEng)) };
 }
 
@@ -402,5 +403,5 @@ export function hireStar(s: GameStateV2) {
 export function aiShareByRole(s: GameStateV2): Record<TeamRole, number> {
   const pr = s.player.prodCache;
   if (!pr) return { eng: 0, re: 0, sci: 0 };
-  return { eng: aEngOf(pr.labor.A), re: 1 - pr.labor.wH, sci: Phi(pr.sdAI) };
+  return { eng: pr.labor.aEng ?? aEngOf(pr.labor.A), re: 1 - pr.labor.wH, sci: Phi(pr.sdAI) };
 }

@@ -1,18 +1,19 @@
-// Company (IA.md L2): Flow · People · Split · Security. Flow is the HOME of compute online, idle chips, pools by use
-// and research speed; People of headcount, hiring, payroll, morale and AI labour; Split of the compute split % and the
-// research trade-off charts; Security of WSL, siloing and counter-intel. Money lives in Finance (referenced, never
+// Company (IA.md L2): Flow · Agents & teams · Security. Flow is the HOME of compute online, idle chips, pools by use
+// and research speed; Agents & teams of the internal agent packages (Agents at work, R7: model, monitor, compute, AI
+// share of each role's work, Trusted to AI), headcount, hiring, payroll and morale; Security of WSL, siloing and
+// counter-intel. The compute split moved to Compute › Split (R7). Money lives in Finance (referenced, never
 // repeated). Two departments have staff: capabilities and safety.
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
-  BUILD_AI_CAP, MANUAL_MIX_RANGE, WSL_TARGET_RANGE, actionView, aiShareByRole, idleTrainingShare, buildBacklogTW, buildCapacity, buildEtas, engine, fillWeeks, fullTeamPayroll, idleChips, ownedOnline, payrollOf, poolsOf, queuedOfKey,
-  rentedOnline, revenueReadout, specOf, SPLIT_KEYS, SPLIT_PRESETS, teamGain, teamPayroll, teamsOfKey, TOP_KEYS, weeklyHireCap,
+  BUILD_AI_CAP, WSL_TARGET_RANGE, buildBacklogTW, buildCapacity, buildEtas, engine, fillWeeks, fullTeamPayroll, idleChips, ownedOnline, payrollOf, poolsOf, queuedOfKey,
+  rentedOnline, revenueReadout, SPLIT_KEYS, teamGain, teamPayroll, teamsOfKey, weeklyHireCap,
 } from '../../../engine/v2';
 import { COLUMN_LABEL, MOVE_SAFETY_MORALE, QUALITY, TEAM_KEYS, TEAM_SIZE } from '../../../data/v2/teams';
-import type { Column, GameStateV2, SplitSpec, Team, TeamDept, TeamKey, TeamQuality, TeamRole, TopKey } from '../../../engine/v2';
-import { MixChart, ResponseCharts } from './ResearchCharts';
+import type { Column, GameStateV2, Team, TeamDept, TeamKey, TeamQuality, TeamRole } from '../../../engine/v2';
+import { AgentsAtWork } from './Agents';
 import { store } from '../store';
-import { ActBtn, pct as pct0, Seg, Slider, Term, Tip, TipCard, Why } from '../ui';
+import { ActBtn, Slider, Term, Tip, TipCard, Why } from '../ui';
 import { Card, GoBtn, HBar, KV, PanelHead, Ref, tabOf, Tabs } from '../kit';
 import * as F from '../fmt';
 import { ICON } from '../icons';
@@ -22,8 +23,6 @@ const POOL_TERM: Record<string, string> = { training: 'poolTraining', experiment
 type Dept = 'cap' | 'serve' | 'saf';
 const POOL_DEPT: Record<string, Dept> = { training: 'cap', experiments: 'cap', agents: 'cap', synthetic: 'cap', serving: 'serve', safety: 'saf' };
 const POOL_LABEL: Record<string, string> = { training: 'Training runs', experiments: 'Experiments', agents: 'Agents', synthetic: 'Data generation', serving: 'Serving', safety: 'Safety' };
-const TOP_TERM: Record<TopKey, string> = { training: 'poolTraining', research: 'poolResearch', serving: 'poolServing', safety: 'poolSafety' };
-const TOP_COLOR: Record<TopKey, string> = { training: POOL_COLOR.training, research: POOL_COLOR.experiments, serving: POOL_COLOR.serving, safety: POOL_COLOR.safety };
 
 // ───────── Flow: compute online → pools → departments → outputs ─────────
 function Flow({ s }: { s: GameStateV2 }) {
@@ -92,7 +91,7 @@ function Flow({ s }: { s: GameStateV2 }) {
         )}
         {keys.map((x) => (
           <Tip as="g" key={x} content={() => <TipCard title={<Term id={POOL_TERM[x]}>{POOL_LABEL[x]}</Term>} value={`${F.count(pools[x])} H100e`}>Set by your compute split. Click to change it.</TipCard>}>
-            <g onMouseEnter={() => setHover(x)} onClick={() => store.goto('company', { tab: 'split', anchor: `split-${x}` })} className="flow-click" data-pool={x}>
+            <g onMouseEnter={() => setHover(x)} onClick={() => store.goto('compute', { tab: 'split', anchor: `split-${x}` })} className="flow-click" data-pool={x}>
               <rect x={cx[1]} y={pos1[x].y} width={nodeW} height={pos1[x].h} rx={3} fill={POOL_COLOR[x]} />
               <text x={cx[1] + nodeW + 6} y={pos1[x].y + Math.min(pos1[x].h, 14) - 2 + 4} className="flow-lbl">{POOL_LABEL[x]} <tspan className="flow-sub">{F.count(pools[x])}</tspan></text>
             </g>
@@ -121,7 +120,7 @@ function Flow({ s }: { s: GameStateV2 }) {
 function ResearchSpeed({ s }: { s: GameStateV2 }) {
   const p = engine.production(s, 'player');
   const pools = poolsOf(s);
-  const lev = ([['exp', '+10% experiments', ICON.experiments, { panel: 'company', tab: 'split', anchor: 'split-experiments' }], ['agents', '+10% AI agents', ICON.agents, { panel: 'company', tab: 'split', anchor: 'split-agents' }], ['humans', '+10% staff', ICON.staff, { panel: 'company', tab: 'people' }]] as const)
+  const lev = ([['exp', '+10% experiments', ICON.experiments, { panel: 'compute', tab: 'split', anchor: 'split-experiments' }], ['agents', '+10% AI agents', ICON.agents, { panel: 'compute', tab: 'split', anchor: 'split-agents' }], ['humans', '+10% staff', ICON.staff, { panel: 'company', tab: 'people' }]] as const)
     .map(([id, label, icon, to]) => ({ id, label, icon, to, gain: Math.pow(1.1, p.elast[id]) - 1, perD: p.perDollar[id] }))
     .sort((a, b) => b.perD - a.perD);
   const maxG = Math.max(1e-6, ...lev.map((l) => l.gain));
@@ -154,12 +153,6 @@ const KEY_SHORT: Record<TeamKey, string> = { eng: 'Engineering', 're.cap': 'Rese
 const keyIcon = (k: TeamKey) => ROLE_ICON[k === 'eng' ? 'eng' : (k.split('.')[0] as TeamRole)];
 const teamIcon = (t: Pick<Team, 'role' | 'specialty'>) => (t.role === 'sci' && t.specialty ? COL_ICON[t.specialty] : ROLE_ICON[t.role]);
 const teamTitle = (t: Pick<Team, 'role' | 'dept' | 'specialty'>) => (t.role === 'sci' ? `Science · ${t.specialty ? COLUMN_LABEL[t.specialty] : ''}` : t.role === 'eng' ? 'Engineering' : `Research eng. · ${t.dept === 'saf' ? 'safety' : 'capabilities'}`);
-/** AI share of a role's work (home until R7's agent lanes). */
-const AiShare = ({ v }: { v: number }) => (
-  <Tip content={() => <TipCard title="AI share of the work" value={F.pct(v)}>Engineers: 1 − (1 − A)² on coding automation A. Research engineers: the AI part of research labour. Agents take engineers' work first.</TipCard>}>
-    <span className="small dim" data-test="ai-share"><ICON.agents size={12} /> AI <b className="num">{F.pct(v)}</b></span>
-  </Tip>
-);
 
 /** Quality as 1–3 filled dots (Solid / Strong / Elite). */
 function QDots({ q }: { q: TeamQuality }) {
@@ -181,7 +174,6 @@ function Teams({ s }: { s: GameStateV2 }) {
   const p = s.player;
   const people = p.teams.reduce((a, t) => a + t.heads, 0);
   const bc = buildCapacity(s);
-  const ai = aiShareByRole(s);
   const prod = engine.production(s, 'player');
   const pay = payrollOf(p);
   const byKey = (k: TeamKey) => teamsOfKey(p, k);
@@ -226,7 +218,7 @@ function Teams({ s }: { s: GameStateV2 }) {
       )}>
       <div className="teams-body">
         <div className="teams-col">
-          <RoleHead r="eng" right={<AiShare v={ai.eng} />} />
+          <RoleHead r="eng" />
           <Pile k="eng" label="shared pool"
             sub={<Tip content={() => <TipCard title={<Term id="buildCapacity">Build capacity</Term>} value={`${bc.capacity.toFixed(1)} team-wk/wk`} rows={[
               { label: 'Human (teams × quality)', value: bc.human.toFixed(1) }, { label: 'AI share of engineers\' work', value: F.pct(bc.aEng) },
@@ -234,7 +226,7 @@ function Teams({ s }: { s: GameStateV2 }) {
               ...s.player.build.queue.slice(0, 5).map((it) => ({ label: `${it.kind === 'runSetup' ? `Setup ${s.player.models.runs.find((r) => r.id === it.ref)?.name ?? it.ref}` : it.ref}`, value: `${(it.needTW - it.doneTW).toFixed(2)} t-wk · ${F.days(buildEtas(s).etas.get(it.id) ?? 0)}` })),
             ]} footer="Capped: agents need human review and integration.">What engineers build each week, in queue order: run setups now (product features from the next release).</TipCard>}><span data-test="build-queue"><ICON.build size={12} /> <Term id="buildCapacity">build</Term> <b className="num">{bc.capacity.toFixed(1)}</b> team-wk/wk · <Term id="buildQueue">queue</Term> <b className="num">{s.player.build.queue.length ? `${buildBacklogTW(s).toFixed(1)} t-wk` : 'empty'}</b></span></Tip>}
             actions={releaseBtn(newest('eng'))} />
-          <RoleHead r="re" right={<AiShare v={ai.re} />} />
+          <RoleHead r="re" />
           <Pile k="re.cap" label="Capabilities"
             sub={<Tip content={() => <TipCard title="Research labour h" value={prod.ratios.h.toFixed(2)}>Capabilities research engineers ÷ (0.55 × the reference lab's staff). ×1 = the AI 2027 leader.</TipCard>}><span>labour <b className="num">h {prod.ratios.h.toFixed(2)}</b></span></Tip>}
             actions={<>{moveBtn(newest('re.cap'))}{releaseBtn(newest('re.cap'))}</>} />
@@ -243,7 +235,7 @@ function Teams({ s }: { s: GameStateV2 }) {
         <div className="teams-col wide">
           <RoleHead r="sci" right={(
             <span className="row-i small">
-              <Tip content={() => <TipCard title={<Term id="researchTaste">Research taste</Term>} value={`×${p.tasteHire.toFixed(2)}`} rows={[{ label: 'Stars', value: String(p.stars) }, { label: 'AI share (taste)', value: F.pct(ai.sci) }]}>From capabilities science-team quality and stars.</TipCard>}>
+              <Tip content={() => <TipCard title={<Term id="researchTaste">Research taste</Term>} value={`×${p.tasteHire.toFixed(2)}`} rows={[{ label: 'Stars', value: String(p.stars) }]}>From capabilities science-team quality and stars. AI taste: Agents at work, frontier research.</TipCard>}>
                 <span><ICON.taste size={12} /> taste <b className="num">×{p.tasteHire.toFixed(2)}</b></span>
               </Tip>
               <ActBtn id="starHire" icon={ICON.hiring} label="Star" />
@@ -336,116 +328,16 @@ function Hiring({ s }: { s: GameStateV2 }) {
 }
 
 function People({ s }: { s: GameStateV2 }) {
-  const prod = engine.production(s, 'player');
   return (
-    <div className="people-grid">
-      <Teams s={s} />
-      <div className="col2">
-        <Hiring s={s} />
-        <Card title="AI labour" sub="your agents doing research" term="aiFte">
-          <div data-test="ai-labour">
-            <KV k="Agent copies × speed" term="agentCopies">{F.count(prod.labor.copies)} × {prod.labor.speed.toFixed(1)}</KV>
-            <KV k="AI FTE · research eng." term="aiFte">{F.count(prod.labor.aiFTE)} · {F.count(teamsOfKey(s.player, 're.cap').reduce((a, t) => a + t.heads, 0))}</KV>
-            <KV k="AI taste (SD over median)" term="researchTaste">{prod.sdAI.toFixed(2)}</KV>
-          </div>
-        </Card>
-      </div>
-    </div>
-  );
-}
-
-// ───────── Split ─────────
-const TOP_LABEL: Record<TopKey, string> = { training: 'Training', research: 'Research', serving: 'Serving', safety: 'Safety' };
-
-/** Spare training compute (R5 policy; R6 default data generation): where training compute no run uses goes, with what
- *  each choice gives today. Home of the policy; the run queue shows the spare share and links here. */
-function SpareRow({ s }: { s: GameStateV2 }) {
-  const use = s.player.policies.spareTraining;
-  const spareH = idleTrainingShare(s) * poolsOf(s).training;
-  const toResearch = actionView(s, 'runs.spareTraining', { use: 'research' });
-  const gain = [...toResearch.gains, ...toResearch.costs].find((c) => c.currency === 'progress')?.amount ?? 0;
-  return (
-    <div className="alloc-row split-row split-sub" id="ctl-split-spare" data-home="spareTraining">
-      <Tip content={() => <TipCard title={<Term id="spareTraining">Spare training compute</Term>} value={`${F.h100e(spareH)} H100e idle now`} rows={[
-        { label: 'Data generation', value: 'synthetic tokens for bigger bases (the reference lab)' },
-        { label: 'Research experiments', value: `research speed +${F.pct(gain, 1)} today` },
-      ]}>Training compute that no run uses between runs. Nothing is wasted: it goes to one of these.</TipCard>}>
-        <span className="alloc-label small"><Term id="spareTraining">Spare</Term> <span className="num dim">{spareH >= 1 ? `${F.h100e(spareH)} idle` : 'none idle now'}</span></span>
-      </Tip>
-      <span className="row-i">
-        {(['data', 'research'] as const).map((u) => u === use
-          ? <span key={u} className="tag2 good" data-test={`spare-on.${u}`}>{u === 'data' ? 'Data generation' : 'Research experiments'}</span>
-          : <ActBtn key={u} id="runs.spareTraining" params={{ use: u }} testId={`spare.${u}`} label={u === 'data' ? 'Use for data' : <>Use for experiments{gain > 5e-4 && <span className="tone-pos"> +{F.pct(gain, 1)} speed</span>}</>} />)}
-      </span>
-    </div>
-  );
-}
-
-function Split({ s }: { s: GameStateV2 }) {
-  const p = s.player;
-  const cur = specOf(p.split);
-  const [spec, setSpec] = useState<SplitSpec>(cur);
-  const [manual, setManual] = useState(!!p.researchManual);
-  const sum = TOP_KEYS.reduce((a, k) => a + spec.top[k], 0) || 1;
-  const norm = Object.fromEntries(TOP_KEYS.map((k) => [k, spec.top[k] / sum])) as Record<TopKey, number>;
-  const changed = TOP_KEYS.some((k) => Math.abs(norm[k] - cur.top[k]) > 1e-3) || Math.abs(spec.dataShare - cur.dataShare) > 1e-3 || manual !== !!p.researchManual || (manual && Math.abs(spec.expShare - cur.expShare) > 1e-3);
-  const params: Record<string, number> = { ...norm, dataShare: spec.dataShare, manual: manual ? 1 : 0, ...(manual ? { expShare: spec.expShare } : {}) };
-  const reset = () => { setSpec(specOf(s.player.split)); setManual(!!s.player.researchManual); };
-  // What a zero share does (no floors: the split always applies; these say what stops).
-  const warns: string[] = [];
-  if (norm.training * (1 - spec.dataShare) <= 1e-4 && p.models.runs.some((r) => r.status === 'running')) warns.push('Running training runs pause: no training compute');
-  if (norm.serving <= 1e-4 && p.deployments.some((d) => d.status === 'live' && d.channel !== 'internal' && d.channel !== 'open')) warns.push('Every product goes capacity-bound: no serving compute');
-  const row = (k: TopKey, sub?: ReactNode) => (
-    <div key={k} className="split-group" id={`ctl-split-${k}`}>
-      <div className="alloc-row split-row">
-        <span className="alloc-label"><span className="dot" style={{ background: TOP_COLOR[k] }} /><Term id={TOP_TERM[k]}>{TOP_LABEL[k]}</Term></span>
-        <Slider value={spec.top[k]} min={0} max={1} step={0.01} onChange={(v) => setSpec({ ...spec, top: { ...spec.top, [k]: v } })} width={260} />
-        <span className="alloc-val num">{pct0(norm[k])}</span>
-        <span className={`num small ${Math.abs(norm[k] - cur.top[k]) > 1e-3 ? 'tone-warn' : 'dim'}`}>{Math.abs(norm[k] - cur.top[k]) > 1e-3 ? `was ${pct0(cur.top[k])}` : ''}</span>
-      </div>
-      {sub}
-    </div>
-  );
-  return (
-    <div className="split-page">
-      <Card title={<Term id="split">Compute split</Term>} sub="drag, then apply" home="split" right={<div className="btn-row">{SPLIT_PRESETS.map((x) => <ActBtn key={x} id="splitPreset" testId={`splitPreset.${x}`} params={{ preset: x }} label={F.words(x)} onDone={reset} />)}</div>}>
-        <div className="split-bar">{TOP_KEYS.map((k) => <i key={k} style={{ flex: Math.max(0.0001, norm[k]), background: TOP_COLOR[k] }} title={TOP_LABEL[k]} />)}</div>
-        {row('training', (<>
-          <div className="alloc-row split-row split-sub" id="ctl-split-synthetic">
-            <span className="alloc-label small"><Term id="poolSynthetic">Data generation</Term></span>
-            <Slider value={spec.dataShare} min={0} max={1} step={0.01} onChange={(v) => setSpec({ ...spec, dataShare: v })} width={260} />
-            <span className="alloc-val num small">{pct0(spec.dataShare)}</span>
-            <span className="small dim">of training</span>
-          </div>
-          <SpareRow s={s} />
-        </>))}
-        {row('research', (
-          <div className="alloc-row split-row split-sub" id="ctl-split-experiments">
-            <span className="alloc-label small"><Term id="researchMix">Mix</Term> <Seg value={manual ? 'manual' : 'auto'} options={[{ v: 'auto', label: 'Auto', tip: 'Best mix, re-set every day' }, { v: 'manual', label: 'Manual', tip: 'Hold your own mix' }]} onChange={(v) => setManual(v === 'manual')} /></span>
-            {manual
-              ? <Slider value={spec.expShare} min={MANUAL_MIX_RANGE[0]} max={MANUAL_MIX_RANGE[1]} step={0.01} onChange={(v) => setSpec({ ...spec, expShare: v })} width={260} />
-              : <span className="small dim" style={{ width: 260 }}>follows the best mix</span>}
-            <span className="alloc-val num small">{pct0(manual ? spec.expShare : cur.expShare)}</span>
-            <span className="small dim">experiments · rest <Term id="poolAgents">agents</Term></span>
-          </div>
-        ))}
-        {row('serving')}
-        {row('safety')}
-        {warns.map((w) => <div key={w} className="small tone-warn" data-test="split-warn">{w}</div>)}
-        <div className="btn-row">
-          <ActBtn id="setSplit" params={params} label={changed ? 'Apply split' : 'Split (no change)'} primary={changed} onDone={reset} />
-          <button className="btn btn-sm" onClick={reset}>Reset</button>
+    <>
+      <AgentsAtWork s={s} />
+      <div className="people-grid">
+        <Teams s={s} />
+        <div className="col2">
+          <Hiring s={s} />
         </div>
-      </Card>
-      <div className="g2">
-        <Card title={<Term id="researchMix">Research mix</Term>} sub="R&D speed by experiments vs agents">
-          <MixChart s={s} preview={manual ? spec.expShare : undefined} />
-        </Card>
-        <Card title={<Term id="responseCurve">What more of each buys</Term>} sub="R&D speed at ×¼ … ×4 of one input">
-          <ResponseCharts s={s} />
-        </Card>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -476,7 +368,7 @@ export function Company({ s }: { s: GameStateV2 }) {
   const tab = tabOf('company', 'flow');
   return (
     <div className="panel-v2 company" data-panel="company">
-      <PanelHead icon={ICON.company} title="Company" sub="where compute goes and what it produces" tabs={<Tabs panel="company" def="flow" tabs={[{ id: 'flow', label: 'Flow', icon: ICON.company }, { id: 'people', label: 'People', icon: ICON.staff }, { id: 'split', label: 'Compute split', icon: ICON.split }, { id: 'security', label: 'Security', icon: ICON.security }]} />} />
+      <PanelHead icon={ICON.company} title="Company" sub="where compute goes and what it produces" tabs={<Tabs panel="company" def="flow" tabs={[{ id: 'flow', label: 'Flow', icon: ICON.company }, { id: 'people', label: 'Agents & teams', icon: ICON.staff }, { id: 'security', label: 'Security', icon: ICON.security }]} />} />
       {tab === 'flow' && (
         <div className="company-flow">
           <Card title="Where your compute goes" sub="widths are live · hover to trace · click a pool to change the split"><Flow s={s} /></Card>
@@ -484,7 +376,6 @@ export function Company({ s }: { s: GameStateV2 }) {
         </div>
       )}
       {tab === 'people' && <People s={s} />}
-      {tab === 'split' && <Split s={s} />}
       {tab === 'security' && <Security s={s} />}
     </div>
   );

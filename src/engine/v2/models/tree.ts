@@ -374,7 +374,7 @@ export const TREE_PARADIGMS = PARADIGMS.map((p) => p.id).filter((id) => TREE_BY_
  *  plus κ of what came after, or the stream's tracked know-how). The gap is the reason to train. Years of progress. */
 export function knowHow(s: GameStateV2): { pa: number; inModel: number; gap: number; versionName?: string } {
   const p = s.player;
-  const v = p.models.versions.find((x) => x.id === p.models.internalAgent);
+  const v = p.models.versions.find((x) => x.id === p.agents.capRoutine.versionId);
   const b = v?.build;
   let inModel = p.pa;
   if (b) inModel = p.models.stream?.versionId === v?.id && p.models.stream.paTrack !== undefined ? p.models.stream.paTrack : b.paBase + b.kappa * (b.paPost - b.paBase);

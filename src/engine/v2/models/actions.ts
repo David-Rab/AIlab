@@ -13,7 +13,8 @@ import type {
   ActionDef, BaseDesign, ComputeSplit, CostLine, GameStateV2, PostDesign, RLFamily,
 } from '../types';
 import { runEvalSuite } from './benchmarks';
-import { makeVariant, retireVersion, setInternalAgent } from './deployments';
+import { makeVariant, retireVersion } from './deployments';
+import { AGENT_ACTIONS } from '../departments/agentActions';
 import { PRODUCT_ACTIONS } from './productOps';
 import { bestMeasuredL, internalVersion, versionById } from './labs';
 import { TREE_ACTIONS } from './treeActions';
@@ -189,21 +190,6 @@ const RUN_ACTIONS: ActionDef[] = [
     },
   },
   {
-    id: 'setInternalAgent', sphere: 'models', owner: 'WS1', title: 'Internal agents',
-    available: () => true,
-    preview: (s, p) => {
-      const v = versionById(s, str(p, 'versionId', '')) ?? internalVersion(s);
-      const cur = internalVersion(s);
-      const dL = (v?.evals.measuredL ?? 0) - (cur?.evals.measuredL ?? 0);
-      return {
-        costs: [{ currency: 'security', amount: -0.05, target: 'exfiltration hazard' }],
-        gains: [{ currency: 'progress', amount: Math.round(dL * 100) / 100 }],
-        exposure: [{ currency: 'alignment', amount: -0.05, probability: 0.3 }],
-      };
-    },
-    apply: (s, _ctx, p) => fail(setInternalAgent(s, str(p, 'versionId', ''))),
-  },
-  {
     id: 'makeVariant', sphere: 'models', owner: 'WS1', title: 'Make variant',
     available: () => true,
     preview: (_s, p) => {
@@ -299,6 +285,7 @@ export const DEPARTMENT_ACTIONS: ActionDef[] = [
   },
   ...TEAM_ACTIONS,
   ...BUILD_ACTIONS,
+  ...AGENT_ACTIONS,
   {
     id: 'starHire', sphere: 'departments', owner: 'WS1', title: 'Star hire',
     available: (s) => (s.player.tasteHire >= STAR_HIRE.maxTaste ? 'Taste bench is full' : s.player.finance.cash < STAR_HIRE.cost ? 'Not enough cash' : true),

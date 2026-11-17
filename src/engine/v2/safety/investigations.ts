@@ -3,7 +3,7 @@
 // A case on (version, trait) or on an incident. Monthly clarity gain = combine_t(cov·strength·penalty)·(FTE/15)^0.5;
 // it feeds observations into beliefs and resolves at clarity ≥ 0.8, on close, or after 120 days. The outcome is drawn
 // from the truth (engine) but the player only sees the outcome label and a severity estimate.
-import { aiLabourGate, fleetMultiplier, safetyAgentVersion, safetyFleet } from './agents';
+import { fleetMultiplier, safetyAgentVersion, safetyFleet, trustedShare } from './agents';
 import { VERIFIABILITY } from '../../../data/v2/agendas';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { CRITICAL_TRAITS, TRAIT_IDS } from '../../../data/v2/traits';
@@ -21,7 +21,6 @@ export const INV_MAX_DAYS = 120;
 export interface OpenInvestigationOpts {
   tools?: string[];
   computeShare?: number;
-  aiLabour?: number;
 }
 
 /** FTE committed to open investigations. */
@@ -67,9 +66,6 @@ export function openInvestigation(s: GameStateV2, ctx: SystemCtx, target: Invest
   if (fte < INV_FTE[0] || fte > INV_FTE[1]) return `Assign ${INV_FTE[0]}–${INV_FTE[1]} FTE`;
   const committed = investigationFte(s) + Object.values(dept.agendas).reduce((a, g) => a + g.fte, 0);
   if (committed + fte > s.player.staff.saf + 1e-9) return 'Not enough safety staff';
-  // B3: the same AI-labour gate as automated agendas (it used to have none).
-  const gate = (opts.aiLabour ?? 0) > 0 ? aiLabourGate(s) : true;
-  if (gate !== true) return `AI labour: ${gate}`;
   if (target.kind === 'trait') {
     if (!versionById(s, target.versionId)) return 'Unknown model';
     if (!TRAIT_IDS.includes(target.trait)) return 'Unknown trait';
@@ -82,14 +78,14 @@ export function openInvestigation(s: GameStateV2, ctx: SystemCtx, target: Invest
   }
   const same = dept.investigations.find((i) => !i.outcome && JSON.stringify(i.target) === JSON.stringify(target));
   if (same) return 'A case is already open on this';
-  const tmp: Investigation = { id: '', target, fte, computeShare: 0, tools: [], aiLabour: 0, startDay: ctx.day, clarity: 0 };
+  const tmp: Investigation = { id: '', target, fte, computeShare: 0, tools: [], startDay: ctx.day, clarity: 0 };
   const traits = targetTraits(s, tmp);
   const tools = (opts.tools?.length ? opts.tools : defaultTools(s, traits)).filter((id) => s.player.safety.techniques[id]?.unlocked);
   if (!tools.length) return 'No unlocked tools cover this';
   let n = dept.investigations.length + 1;
   while (dept.investigations.some((i) => i.id === `INV${n}`)) n++;
   const inv: Investigation = {
-    id: `INV${n}`, target, fte, computeShare: clamp01(opts.computeShare ?? 0.05), tools, aiLabour: clamp01(opts.aiLabour ?? 0),
+    id: `INV${n}`, target, fte, computeShare: clamp01(opts.computeShare ?? 0.05), tools,
     startDay: ctx.day, clarity: 0,
   };
   dept.investigations.push(inv);
@@ -109,7 +105,9 @@ export function monthlyGain(s: GameStateV2, inv: Investigation): number {
     const items = tools.map((t) => ({ agenda: t.agenda, d: (t.coverage[k] ?? 0) * strengthTrue(s, t, M) * familyPenalty(s, v, k, t.family) }));
     g = Math.max(g, combineTools(items));
   }
-  const ai = fleetMultiplier(safetyFleet(s), inv.aiLabour, 1, 1 + inv.aiLabour * 1.5);
+  // Trusted to AI (R7): the policy share of the case's work goes to the safety agents (B3 gate inside trustedShare).
+  const tr = trustedShare(s);
+  const ai = fleetMultiplier(safetyFleet(s), tr, 1, 1 + tr * 1.5);
   return clamp01(g * Math.sqrt(inv.fte / 15) * Math.min(1.5, Math.pow(Math.max(0.01, inv.computeShare) / 0.05, 0.2)) * ai);
 }
 
@@ -170,11 +168,11 @@ export function resolveInvestigation(s: GameStateV2, ctx: SystemCtx, inv: Invest
   const k = traits.reduce((a, b) => (v.traitsTrue[b] > v.traitsTrue[a] ? b : a), traits[0]);
   const x = v.traitsTrue[k];
   const c = inv.clarity;
-  // Corruption by AI labour from a sabotaging model (E20): P = aiLabour · sab · (1 − verifiability). The model is the
-  // one running the safety agents.
+  // Corruption by AI labour from a sabotaging model (E20): P = Trusted to AI · sab · (1 − verifiability). The model is
+  // the one running the safety agents.
   const iv = safetyAgentVersion(s);
   const verif = tools.length ? tools.reduce((a, t) => a + VERIFIABILITY[t.family], 0) / tools.length : 0.5;
-  const corrupted = rng.chance(clamp01(inv.aiLabour * sabOf(iv) * (1 - verif)));
+  const corrupted = rng.chance(clamp01(trustedShare(s) * sabOf(iv) * (1 - verif)));
   let outcome: NonNullable<Investigation['outcome']>;
   let uMode: UModeId | undefined;
   if (corrupted) {

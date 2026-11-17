@@ -11,6 +11,9 @@ import { clamp, clamp01, lambda2Delta, sigmoid, versionById, versionM } from './
 import { cotAlive } from './latents';
 import { believedMask, strengthTrue, techniqueRole } from './techniques';
 import { hiddenUModes } from './umodes';
+import { fleetMonitor, internalFleets, routineMonitor } from '../departments/agents';
+import { productCatch } from '../models/products';
+import { MONITOR_CATCH_BASE } from '../../../data/v2/features';
 
 export const SD_MAX = 0.35;
 
@@ -202,18 +205,27 @@ export function observeExternal(s: GameStateV2, ctx: SystemCtx, versionId: strin
 }
 
 /**
- * Runtime monitoring (weekly, §3.5.6): COT and WB tools on deployed and internal versions, σ × 2, scaled by the
- * monitoring share of the safety pool.
+ * Runtime monitoring (weekly, §3.5.6): COT and WB tools on deployed and internal versions, σ × 2, scaled by monitor
+ * strength^0.3 (R7; strength 1 = the pre-R7 default of 20% of the safety pool): an internal fleet by its monitors
+ * (departments/agents.ts fleetMonitor), a product model by the routine-research fleet's monitor (the runtime stack also
+ * samples product traffic) or its own product monitor, whichever is stronger.
  */
 export function runtimeMonitoring(s: GameStateV2, ctx: SystemCtx): void {
-  const share = s.player.safety.monitoringShare;
-  if (share <= 0.01) return;
-  const ids = new Set<string>();
-  for (const d of s.player.deployments) if (d.status !== 'withdrawn') ids.add(d.versionId);
-  if (s.player.models.internalAgent) ids.add(s.player.models.internalAgent);
-  const scale = Math.pow(Math.min(2, share / 0.2), 0.3);
+  const lab = routineMonitor(s);
+  const q = new Map<string, number>();
+  const put = (id: string, x: number) => q.set(id, Math.max(q.get(id) ?? 0, x));
+  for (const d of s.player.deployments) {
+    if (d.status === 'withdrawn') continue;
+    if (d.channel === 'internal') {
+      const v = versionById(s, d.versionId);
+      put(d.versionId, v ? fleetMonitor(s, v) : 0);
+    } else put(d.versionId, d.monitorId ? Math.max(lab, Math.min(1, productCatch(s, d) / MONITOR_CATCH_BASE)) : lab);
+  }
+  for (const f of internalFleets(s)) put(f.v.id, fleetMonitor(s, f.v));
   const rng = ctx.rng('safety');
-  for (const id of ids) {
+  for (const [id, strength] of q) {
+    if (strength <= 0.05) continue;
+    const scale = Math.pow(strength, 0.3);
     const v = versionById(s, id);
     if (!v || v.status === 'retired') continue;
     const M = versionM(s, v);
@@ -270,8 +282,8 @@ export function monitoringCatch(s: GameStateV2, v: ModelVersion, trait: TraitId)
   const M = versionM(s, v);
   const cot = familyDetection(s, v, trait, 'COT', M) * familyPenalty(s, v, trait, 'COT');
   const wb = familyDetection(s, v, trait, 'WB', M) * familyPenalty(s, v, trait, 'WB');
-  const share = Math.min(1, s.player.safety.monitoringShare / 0.2);
-  return clamp01((1 - (1 - cot) * (1 - wb)) * (0.5 + 0.5 * share));
+  // R7: the monitor strength on the fleet running v (1 = the pre-R7 default monitoring share).
+  return clamp01((1 - (1 - cot) * (1 - wb)) * (0.5 + 0.5 * fleetMonitor(s, v)));
 }
 
 /** Beliefs drift (§3.5.6): sd + 0.01/week since the last observation; stream versions +0.05/day (stale evals). */
