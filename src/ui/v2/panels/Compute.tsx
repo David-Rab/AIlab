@@ -257,8 +257,8 @@ function ComputePreview({ s, id, params, arrives }: { s: GameStateV2; id: string
   return (
     <div className="cac-pv2" data-test={`preview.${id}`}>
       <div className="cac-lines">
-        {v.costs.filter((c) => c.amount !== 0).map((c, i) => <span key={`c${i}`} className="cac-line"><span className="dim">{lbl(c)}</span> <b className="num tone-neg">{F.money(c.amount, { signed: true })}</b></span>)}
-        {v.gains.filter((c) => c.amount !== 0 && c.currency === 'compute').map((c, i) => <span key={`g${i}`} className="cac-line"><span className="dim">{arrives}</span> <b className="num tone-pos">+{F.count(c.amount)} H100e</b></span>)}
+        {v.costs.filter((c) => c.amount !== 0).map((c, i) => <Tip key={`c${i}`} content={() => <TipCard title="Payment" value={F.money(c.amount, { signed: true })} rows={[{ label: 'When', value: c.lagDays ? `in ${F.days(c.lagDays)}` : 'now' }, ...(c.target ? [{ label: 'What', value: c.target }] : [])]}>Every payment of this commitment, in the quarter it falls due.</TipCard>}><span className="cac-line"><span className="dim">{lbl(c)}</span> <b className="num tone-neg">{F.money(c.amount, { signed: true })}</b></span></Tip>)}
+        {v.gains.filter((c) => c.amount !== 0 && c.currency === 'compute').map((c, i) => <Tip key={`g${i}`} content={() => <TipCard title="Capacity" value={`+${F.count(c.amount)} H100e`} rows={[{ label: 'Arrives', value: c.lagDays ? `in ${F.days(c.lagDays)}` : 'next quarter' }]}>{id === 'cmp.newSite' ? 'Racks for this many H100e when the site goes live.' : 'Chips (or rented capacity) this adds.'}</TipCard>}><span className="cac-line"><span className="dim">{arrives}</span> <b className="num tone-pos">+{F.count(c.amount)} H100e</b></span></Tip>)}
       </div>
       {m && w && (
         <Tip content={() => <TipCard title="Before → after" rows={[
@@ -335,7 +335,7 @@ function BuildCard({ s }: { s: GameStateV2 }) {
   };
   return (
     <Card title={<span className="row-i"><ICON.sites size={14} />Build data centre</span>} className="cac" id="ctl-sites"
-      right={<span className="dim small"><b className="num">{F.count(1e6 / kW)}</b> H100e per GW</span>}>
+      right={<Tip content={() => <TipCard title={<Term id="kwPerH100e">Power per chip</Term>} value={`${kW.toFixed(2)} kW per H100e`}>A gigawatt of racks holds this many H100e at today's chip efficiency.</TipCard>}><span className="dim small"><b className="num">{F.count(1e6 / kW)}</b> H100e per GW</span></Tip>}>
       <div className="cac-tiles c5">
         {SITE_TIERS.map((x, i) => (
           <OptionTile key={x.id} label={x.name} glyphs={<span>{F.power(x.mw)}</span>} active={t === i} locked={fits(i) ? undefined : F.power(x.mw)} onClick={() => setTier(i)} testId={`site-${x.id}`}
@@ -378,9 +378,9 @@ function CloudCard({ s }: { s: GameStateV2 }) {
   const params = { h100e, years, cancellable };
   return (
     <Card title={<span className="row-i"><ICON.cloud size={14} /><Term id="cloudContract">Rent cloud</Term></span>} className="cac" id="ctl-cloud"
-      right={<span className="dim small"><b className="num">${cloudPricePerYear(s).toFixed(1)}K</b> / H100e-yr</span>}>
+      right={<Tip content={() => <TipCard title={<Term id="cloudContract">Cloud price</Term>} value={`$${cloudPricePerYear(s).toFixed(1)}K per H100e-year`}>Firm contracts at this price; cancellable +15%.</TipCard>}><span className="dim small"><b className="num">${cloudPricePerYear(s).toFixed(1)}K</b> / H100e-yr</span></Tip>}>
       <div className="cac-tiles c5">
-        {CHIP_TIERS.map((h, i) => <OptionTile key={h} label={F.count(h)} active={tier === i} onClick={() => setTier(i)} testId={`cloud-${i}`} />)}
+        {CHIP_TIERS.map((h, i) => <OptionTile key={h} label={F.count(h)} active={tier === i} onClick={() => setTier(i)} testId={`cloud-${i}`} tip={() => <TipCard title={`${F.count(h)} H100e`} rows={[{ label: 'Per year', value: F.money((h * cloudPricePerYear(s)) / 1e6, { perYear: true }) }]} />} />)}
       </div>
       <div className="cmp-row"><span className="dim small">Term</span><Seg value={years} options={[1, 3, 5].map((v) => ({ v, label: `${v} yr` }))} onChange={setYears} /></div>
       <div className="cac-pv"><ComputePreview s={s} id="cmp.cloudContract" params={params} arrives={<>online {qLabel(s, qOf(s) + 1)}</>} />{(() => { const sp = spotRentalView(s, h100e); return <Limit id="rent.spotCap" tone={sp.get < h100e ? 'warn' : 'quiet'}>spot: you'd get {F.count(sp.get)} of {F.count(h100e)}</Limit>; })()}</div>
@@ -497,7 +497,7 @@ function SitesTab({ s }: { s: GameStateV2 }) {
   const pw = s.power.ws3;
   return (
     <Card title={<Term id="site">Sites & power</Term>} className="cmp-sites"
-      right={<span className="row-i small"><span className="dim">MW used / cap</span><HBar v={mwUsed} max={Math.max(1, mwCap)} w={110} h={8} color={full ? C.bad : mwUsed > mwCap * 0.95 ? C.watch : C.good} /><b className="num" data-home="mwUsed">{F.power(mwUsed)} / {F.power(mwCap)}</b></span>}>
+      right={<span className="row-i small"><span className="dim">MW used / cap</span><HBar v={mwUsed} max={Math.max(1, mwCap)} w={110} h={8} color={full ? C.bad : mwUsed > mwCap * 0.95 ? C.watch : C.good} /><Tip content={() => <TipCard title={<Term id="mw">Racks used</Term>} rows={[{ label: 'Used', value: F.power(mwUsed) }, { label: 'Live capacity', value: F.power(mwCap) }]}>Power of your live sites and how much installed chips draw.</TipCard>}><b className="num" data-home="mwUsed">{F.power(mwUsed)} / {F.power(mwCap)}</b></Tip></span>}>
       <SiteTimeline s={s} />
       <div className="cmp-power">
         <KV k="Grid pool left" term="gridPool">{F.power(pw.poolLeftGW * 1000)}</KV>
@@ -556,8 +556,7 @@ function Cloud({ s }: { s: GameStateV2 }) {
       {s.player.cloud.map((c) => (
         <div className="cl-row" key={c.id}>
           <ICON.cloud size={14} /><span className="ellip">{c.provider}</span>
-          <span className="num">{F.count(c.h100e)} H100e</span>
-          <span className="num">{F.money(c.costPerYear, { perYear: true })}</span>
+          <Tip content={() => <TipCard title={c.provider} rows={[{ label: 'Capacity', value: `${F.count(c.h100e)} H100e` }, { label: 'Cost', value: F.money(c.costPerYear, { perYear: true }) }, { label: 'Ends', value: fmtMonth(dateOf(s, c.endDay)) }]} />}><span className="row-i"><span className="num">{F.count(c.h100e)} H100e</span><span className="num">{F.money(c.costPerYear, { perYear: true })}</span></span></Tip>
           <span className="dim small">to {fmtMonth(dateOf(s, c.endDay))}{c.cancellableNoticeQ === null ? ' · firm' : ` · ${c.cancellableNoticeQ}q notice`}</span>
         </div>
       ))}
@@ -599,7 +598,7 @@ function Market({ s }: { s: GameStateV2 }) {
           <div className="cmp-bar" key={c.k}>
             <span><Term id={c.term}>{c.label}</Term>{lowest && <Tip content={() => <TipCard title={bind ? 'Binding' : 'Tightest, not binding'} rows={[{ label: 'Supply this quarter', value: `${F.count(m.supplyQ)} H100e` }, { label: 'Demand this quarter', value: `${F.count(m.demandQ)} H100e` }]}>{bind ? 'The scarcest component caps chip supply and demand meets that cap: orders are rationed by order weight.' : 'The scarcest component sets the supply cap, but demand is below it: orders fill.'}</TipCard>}><span className={`tag2 ${bind ? 'warn' : ''}`} style={{ marginLeft: 6 }}>{bind ? 'binding' : 'tightest'}</span></Tip>}</span>
             <HBar v={m[c.k]} max={kmax} w="100%" h={8} color={bind ? C.watch : '#6b7c91'} />
-            <span className={`num ${bind ? 'tone-warn' : ''}`}>{F.count(m[c.k])}</span>
+            <Tip content={() => <TipCard title={<Term id={c.term}>{c.label}</Term>} value={`${F.count(m[c.k])} H100e a quarter`}>Chips this component can supply worldwide.</TipCard>}><span className={`num ${bind ? 'tone-warn' : ''}`}>{F.count(m[c.k])}</span></Tip>
           </div>
         );
       })}

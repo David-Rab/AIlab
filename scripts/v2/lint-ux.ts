@@ -1,6 +1,7 @@
 // UX engine/content checks (M5 UX). Run: npx tsx scripts/v2/lint-ux.ts
 // 1. AUDIT #1 / PLAN B1 regression: switching the internal agent to an unevaluated child version must not drop the
 //    displayed L to 0 or move U by more than 1.5 levels.
+// 3. Every number in the UI source has a tooltip or an allow-listed reason (lint-tips.ts, jank O1).
 // 2. Glossary: every [[link]] in a glossary body, every <Term id="…"> and termId reference in src/ui/v2, and every
 //    REQUIRED term resolves to an entry (IA rule 4: every technical or business term has a tooltip).
 import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
@@ -9,6 +10,7 @@ import { deserialize } from '../../src/engine/v2/core/save';
 import { internalEval, internalVersion, measuredL, understanding } from '../../src/engine/v2/index';
 import { GLOSSARY_V2 } from '../../src/data/v2/glossary';
 import { FIXTURE_DIR } from './lib';
+import { tipSites } from './lint-tips';
 
 let fails = 0;
 const ok = (name: string, cond: boolean, detail = '') => {
@@ -74,6 +76,13 @@ const REQUIRED = [
 ];
 const req = REQUIRED.filter((id) => !GLOSSARY_V2[id]);
 ok(`Required terms present (${REQUIRED.length})`, req.length === 0, req.join(', '));
+
+// ── 3. every number has a tooltip (jank O1; scripts/v2/lint-tips.ts, allow-list with reasons there) ──
+{
+  const { sites, total } = tipSites();
+  const bad = sites.filter((x) => !x.allowed);
+  ok(`Numbers have a tooltip (${total - sites.length}/${total} sites tipped, ${sites.length - bad.length} allow-listed)`, bad.length === 0, bad.slice(0, 10).map((x) => `${x.file}:${x.line} ${x.text}`).join(' | '));
+}
 
 // `--doc`: regenerate design/ux/GLOSSARY.md, the coverage list (every term → its tooltip text).
 if (process.argv.includes('--doc')) {

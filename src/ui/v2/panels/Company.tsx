@@ -212,7 +212,9 @@ function Teams({ s }: { s: GameStateV2 }) {
     return (
       <div className="role-hd" data-role={r}>
         <Ic size={15} /><Term id={ROLE_TERM[r]}>{r === 'eng' ? 'Engineers' : r === 're' ? 'Research eng.' : 'Scientists'}</Term>
-        <b className="num">{role(r).length}</b><span className="dim num">· {F.count(heads(role(r)))}</span>
+        <Tip content={() => <TipCard title={<Term id={ROLE_TERM[r]}>{r === 'eng' ? 'Engineers' : r === 're' ? 'Research engineers' : 'Scientists'}</Term>} rows={[{ label: 'Teams', value: String(role(r).length) }, { label: 'People', value: F.count(heads(role(r))) }, { label: 'Seats open', value: F.count(vacant(role(r))) }, { label: <Term id="payroll">Payroll</Term>, value: F.money(role(r).reduce((a, t) => a + teamPayroll(t), 0), { perYear: true }) }]} />}>
+          <span className="row-i"><b className="num">{role(r).length}</b><span className="dim num">· {F.count(heads(role(r)))}</span></span>
+        </Tip>
         <span className="sp" />{right}
       </div>
     );
@@ -222,8 +224,8 @@ function Teams({ s }: { s: GameStateV2 }) {
     const v = vacant(ts);
     return (
       <div className={`team-pile ${ts.length > 1 ? 'stacked' : ''}`} data-pile={k}>
-        <div className="pile-top"><b className="num">×{ts.length}</b><span>{label}</span><span className="sp" />{ts.map((t) => <QDots key={t.id} q={t.quality} />).slice(0, 6)}</div>
-        <div className="pile-sub small">{sub}{v >= 1 && <span className="tone-warn"> · {F.count(v)} seats open</span>}<span className="sp" />{actions}</div>
+        <div className="pile-top"><Tip content={() => <TipCard title={label} rows={[{ label: 'Teams', value: String(ts.length) }, { label: 'People', value: F.count(heads(ts)) }, { label: 'Seats open', value: F.count(v) }]} />}><b className="num">×{ts.length}</b></Tip><span>{label}</span><span className="sp" />{ts.map((t) => <QDots key={t.id} q={t.quality} />).slice(0, 6)}</div>
+        <div className="pile-sub small">{sub}{v >= 1 && <Tip content={() => <TipCard title="Seats open" value={F.count(v)}>People still to hire into these teams; keep-hiring fills them at the weekly cap.</TipCard>}><span className="tone-warn"> · {F.count(v)} seats open</span></Tip>}<span className="sp" />{actions}</div>
       </div>
     );
   };
@@ -235,7 +237,7 @@ function Teams({ s }: { s: GameStateV2 }) {
     <TipCard title={<Term id="payroll">Payroll</Term>} value={F.money(pay, { perYear: true })} rows={(['eng', 're', 'sci'] as const).map((r) => ({ label: r === 'eng' ? 'Engineers' : r === 're' ? 'Research engineers' : 'Scientists', value: F.money(p.teams.filter((t) => t.role === r).reduce((a, t) => a + teamPayroll(t), 0), { perYear: true }) })).concat([{ label: 'Queued teams', value: F.money(p.hiring.filling.reduce((a, t) => a + teamPayroll(t), 0), { perYear: true }) }])}>Paid monthly from cash.</TipCard>
   );
   return (
-    <Card title={<span className="row-i"><ICON.staff size={15} /><Term id="team">Teams</Term></span>} sub={`${p.teams.length} teams · ${F.count(people)} people`} home="teams" className="teams-card"
+    <Card title={<span className="row-i"><ICON.staff size={15} /><Term id="team">Teams</Term></span>} sub={<Tip content={payTip}><span>{p.teams.length} teams · {F.count(people)} people</span></Tip>} home="teams" className="teams-card"
       right={(
         <span className="row-i chips">
           <Tip content={payTip}><span className="chip2" data-home="payroll"><Term id="payroll">Payroll</Term> <b className="num">{F.money(pay, { perYear: true })}</b></span></Tip>
@@ -270,7 +272,7 @@ function Teams({ s }: { s: GameStateV2 }) {
           )} />
           {(['cap', 'saf'] as const).map((d) => (
             <div key={d}>
-              <div className="sec-cap" style={{ color: d === 'cap' ? SPHERE.cap : SPHERE.saf }}>{d === 'cap' ? 'Capabilities' : 'Safety'} · {sci(d).length}</div>
+              <Tip as="div" content={() => <TipCard title={`${d === 'cap' ? 'Capabilities' : 'Safety'} scientists`} rows={[{ label: 'Teams', value: String(sci(d).length) }, { label: 'On a project', value: String(sci(d).filter((t) => t.projectId).length) }, { label: 'Idle', value: String(sci(d).filter((t) => !t.projectId).length) }]} />}><div className="sec-cap" style={{ color: d === 'cap' ? SPHERE.cap : SPHERE.saf }}>{d === 'cap' ? 'Capabilities' : 'Safety'} · {sci(d).length}</div></Tip>
               <div className="sci-grid">
                 {sci(d).map((t) => {
                   const Ic = teamIcon(t);
@@ -308,10 +310,10 @@ function Hiring({ s }: { s: GameStateV2 }) {
           <div key={k} className="hire-row" data-key={k}>
             <Ic size={13} /><span>{KEY_SHORT[k]}{k !== 'eng' && <span className={`dept-tag ${k.endsWith('saf') ? 'saf' : 'cap'}`}>{k.endsWith('saf') ? 'SAF' : 'CAP'}</span>}</span>
             <span className="sp" />
-            {(have + q !== n || q > 0) && <span className="small dim num">{have} now{q ? ` · ${q} filling` : ''}</span>}
+            {(have + q !== n || q > 0) && <Tip content={() => <TipCard title={KEY_SHORT[k]} rows={[{ label: 'Teams now', value: String(have) }, { label: 'Filling', value: String(q) }, { label: 'Target', value: String(n) }]}>Keep-hiring opens a team whenever you have fewer than the target.</TipCard>}><span className="small dim num">{have} now{q ? ` · ${q} filling` : ''}</span></Tip>}
             <span className="stepper">
               <ActBtn id="teams.target" testId={`teams.target.down.${k}`} params={{ key: k, n: Math.max(0, n - 1) }} icon={ICON.minus} label="" block={n <= 0 ? 'Already 0' : undefined} />
-              <b className="num" data-test={`target-${k}`}>{n}</b>
+              <Tip content={() => <TipCard title={<Term id="keepHiring">Target</Term>} value={`${n} teams`}>Teams of this kind keep-hiring keeps you at.</TipCard>}><b className="num" data-test={`target-${k}`}>{n}</b></Tip>
               <ActBtn id="teams.target" testId={`teams.target.up.${k}`} params={{ key: k, n: n + 1 }} icon={ICON.plus} label="" />
             </span>
           </div>
@@ -319,7 +321,7 @@ function Hiring({ s }: { s: GameStateV2 }) {
       })}
       {h.filling.length > 0 && (
         <>
-          <div className="sec-cap"><Term id="hiringQueue">Filling</Term> <span className="dim">· <Term id="weeklyHireCap">{F.count(weeklyHireCap(s, 'cap'))}/wk</Term> cap · {F.count(weeklyHireCap(s, 'saf'))}/wk safety</span></div>
+          <div className="sec-cap"><Term id="hiringQueue">Filling</Term> <Tip content={() => <TipCard title={<Term id="weeklyHireCap">Hiring per week</Term>} rows={[{ label: 'Capabilities', value: `${F.count(weeklyHireCap(s, 'cap'))} a week` }, { label: 'Safety', value: `${F.count(weeklyHireCap(s, 'saf'))} a week` }]} />}><span className="dim">· {F.count(weeklyHireCap(s, 'cap'))}/wk cap · {F.count(weeklyHireCap(s, 'saf'))}/wk safety</span></Tip></div>
           {h.filling.map((t) => {
             const Ic = teamIcon(t);
             const wk = fillWeeks(s, t);
@@ -327,14 +329,14 @@ function Hiring({ s }: { s: GameStateV2 }) {
               <div key={t.id} className="fill-row" data-filling={t.id}>
                 <Ic size={13} /><span className="ellip">{teamTitle(t)}</span><QDots q={t.quality} />
                 <HBar v={t.heads} max={t.size} color={t.dept === 'saf' ? SPHERE.saf : SPHERE.cap} w={70} />
-                <span className="small dim num">{Number.isFinite(wk) ? `${wk} wk` : 'stalled'}</span>
+                <Tip content={() => <TipCard title="Filling" rows={[{ label: 'People', value: `${F.count(t.heads)} of ${t.size}` }, { label: 'Full in', value: Number.isFinite(wk) ? `${wk} weeks` : 'stalled' }]}>At today's hiring pace.</TipCard>}><span className="small dim num">{Number.isFinite(wk) ? `${wk} wk` : 'stalled'}</span></Tip>
                 <ActBtn id="teams.release" testId="teams.cancel" params={{ team: t.id }} icon={ICON.release} label="" />
               </div>
             );
           })}
         </>
       )}
-      <div className="sec-cap row-i"><Term id="teamOffer">Offers</Term><span className="sp" /><span className="dim">next in {nextOffer} d</span></div>
+      <div className="sec-cap row-i"><Term id="teamOffer">Offers</Term><span className="sp" /><Tip content={() => <TipCard title="Next offers" value={`in ${nextOffer} d`}>New candidate teams arrive every week.</TipCard>}><span className="dim">next in {nextOffer} d</span></Tip></div>
       {h.candidates.length === 0 && <div className="small dim">No offers this week.</div>}
       {h.candidates.map((c) => {
         const Ic = teamIcon(c);
@@ -380,10 +382,10 @@ function Security({ s }: { s: GameStateV2 }) {
   const [wsl, setWsl] = useState(Math.max(wslLo, Math.min(wslHi, Math.round((p.security.target + 0.5) * 2) / 2)));
   return (
     <div className="g2">
-      <Card title={<Term id="wsl">Weight security</Term>} home="wsl" right={<span className="num big">{p.security.wsl.toFixed(1)}</span>}>
+      <Card title={<Term id="wsl">Weight security</Term>} home="wsl" right={<Tip content={() => <TipCard title={<Term id="wsl">Weight security level</Term>} value={p.security.wsl.toFixed(1)} rows={[{ label: 'Target', value: p.security.target.toFixed(1) }, { label: 'Spend', value: F.money(p.security.spendRate, { perYear: true }) }]}>RAND security levels 1–5: how hard your weights are to steal.</TipCard>}><span className="num big">{p.security.wsl.toFixed(1)}</span></Tip>}>
         <KV k="Level now → target" term="wslTarget"><HBar v={p.security.wsl} max={5} color={SPHERE.sec} w={140} mark={p.security.target} /> {p.security.wsl.toFixed(1)} → {p.security.target.toFixed(1)}</KV>
         {(() => { const fl = securityFloorView(s); return <KV k="Floor" term="wsl"><Limit id="security.floor" tone={fl.binding ? 'warn' : 'quiet'}>WSL {fl.now.toFixed(1)} now · {fl.max.toFixed(1)} from 2027</Limit></KV>; })()}
-        <div className="kv"><span className="kv-k">New target {wsl.toFixed(1)}</span><span className="row-i"><Slider value={wsl} min={wslLo} max={wslHi} step={0.5} onChange={setWsl} /><ActBtn id="SEC_TARGET" params={{ level: wsl }} label="Set" reason /></span></div>
+        <div className="kv"><Tip content={() => <TipCard title="New target" value={wsl.toFixed(1)} rows={[{ label: 'Range', value: `${wslLo}–${wslHi}` }]}>Drag, then Set: spend rises with the level.</TipCard>}><span className="kv-k">New target {wsl.toFixed(1)}</span></Tip><span className="row-i"><Slider value={wsl} min={wslLo} max={wslHi} step={0.5} onChange={setWsl} /><ActBtn id="SEC_TARGET" params={{ level: wsl }} label="Set" reason /></span></div>
         <KV k="Security spend" term="opex">{F.money(p.security.spendRate, { perYear: true })}</KV>
         <KV k="Privileged staff" term="privileged">{F.count(p.security.privileged)}</KV>
         <div className="small dim" style={{ marginTop: 6 }}>Theft risk: <Ref id="risk.theft" to={{ panel: 'risk' }}>Risk › theft</Ref></div>

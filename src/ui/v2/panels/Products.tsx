@@ -455,7 +455,7 @@ function ServingCard({ s, live, reads }: { s: GameStateV2; live: Deployment[]; r
         {cut > 0 && <span className="sv-l cut" style={{ width: `${(cut / total) * 100}%` }}>{auto ? 'cut by Auto' : 'unserved'}</span>}
       </div>
       <div className="sv-foot dim small">
-        <span>Pool {F.h100e(pool)} H100e ({F.pct(s.player.split.serving)} of compute)</span>
+        <Tip content={() => <TipCard title={<Term id="poolServing">Serving pool</Term>} value={`${F.h100e(pool)} H100e`} rows={[{ label: "Share of compute", value: F.pct(s.player.split.serving) }]}>Set on Compute › Split.</TipCard>}><span>Pool {F.h100e(pool)} H100e ({F.pct(s.player.split.serving)} of compute)</span></Tip>
         {auto && order.length > 1 && <span> · Auto order: {order.map((x) => `${PRODUCT_DEFS[x.d.channel]?.name} ${rate(x.r.rpH)}`).join(' › ')}</span>}
       </div>
       {!auto && (
@@ -466,7 +466,7 @@ function ServingCard({ s, live, reads }: { s: GameStateV2; live: Deployment[]; r
               <span key={d.id} className="sv-m">
                 <span>{PRODUCT_DEFS[d.channel]?.name}</span>
                 <input className="slider" type="range" min={0} max={1} step={0.01} value={sh} onChange={(e) => setShares({ ...shares, [d.id]: Number(e.target.value) })} />
-                <b className="num">{F.pct(sh)}</b>
+                <Tip content={() => <TipCard title="Serving share" value={F.pct(sh)}>Share of the serving pool for this product (manual split).</TipCard>}><b className="num">{F.pct(sh)}</b></Tip>
                 <ActBtn id="product.serving" testId={`product.serving.${d.id}`} params={{ id: d.id, share: sh }} label="Set" />
               </span>
             );

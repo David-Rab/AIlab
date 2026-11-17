@@ -401,7 +401,7 @@ function Projects({ s }: { s: GameStateV2 }) {
   const nSci = projectTeams(s).length;
   return (
     <Card className="rs-proj" home="projects" title={<span className="row-i"><ICON.experiments size={14} /> Active projects</span>}
-      sub={<span>{active.length} · {nSci} science teams{idle.length ? <Tip content={() => <TipCard title="Idle science teams" value={String(idle.length)}>{q.some((id) => projectReady(s, id) === true) ? 'Turn on auto-assign or assign them by hand.' : 'Nothing ready in the queue: click an idea in the tree and queue it.'}</TipCard>}><span className="tone-warn" data-test="idle-teams"> · {idle.length} idle</span></Tip> : null}</span>}
+      sub={<span><Tip content={() => <TipCard title="Active projects" rows={[{ label: 'Projects with a team', value: String(active.length) }, { label: 'Science teams', value: String(nSci) }, { label: 'Idle', value: String(idle.length) }]} />}><span>{active.length} · {nSci} science teams</span></Tip>{idle.length ? <Tip content={() => <TipCard title="Idle science teams" value={String(idle.length)}>{q.some((id) => projectReady(s, id) === true) ? 'Turn on auto-assign or assign them by hand.' : 'Nothing ready in the queue: click an idea in the tree and queue it.'}</TipCard>}><span className="tone-warn" data-test="idle-teams"> · {idle.length} idle</span></Tip> : null}</span>}
       right={(
         <Tip content={() => <TipCard title={<Term id="autoAssign">Auto-assign idle teams</Term>} value={auto ? 'on' : 'off'}>Idle science teams join the highest-priority ready project in their specialty, else the one with least capacity. A ready project with no team takes one from the largest project.</TipCard>}>
           <button className={`toggle ${auto ? 'on' : ''}`} data-test="auto-assign" onClick={() => store.act('research.autoAssign', { on: !auto })}><span className="toggle-knob" /><span className="toggle-label">Auto-assign idle teams</span></button>
@@ -426,10 +426,10 @@ function Projects({ s }: { s: GameStateV2 }) {
                   {match && <Term id="specialtyBonus"><span className="rs-mxb">×1.5</span></Term>}
                   <button className="rs-tch add" data-test={`add-team.${id}`} onClick={() => setUi('pick', id)}>+</button>
                 </div>
-                <div className="pr"><div className="rs-bar"><i style={{ width: `${p * 100}%` }} /></div><b className="num">{F.pct(p)}</b></div>
+                <div className="pr"><div className="rs-bar"><i style={{ width: `${p * 100}%` }} /></div><Tip content={() => <TipCard title="Progress" value={F.pct(p)}>Share of the project done.</TipCard>}><b className="num">{F.pct(p)}</b></Tip></div>
                 <div className="ft">ETA <span className="sp" /><Tip content={() => <TipCard title="ETA" value={eta(projectEta(s, id))} rows={ts.map((t) => ({ label: teamName(t), value: `×${(t.specialty === n.column ? 1.5 : 1).toFixed(1)}` }))}>At today's teams and research speed; extra teams add less each (diminishing returns).</TipCard>}><span className="num">{eta(projectEta(s, id))}</span></Tip></div>
                 {/* Jank R5: safety lines show their health, capability ideas their odds (two different readings, two labels). */}
-                <div className="ft">{isLineNode(n) ? <Term id="lineHealth">health</Term> : <Term id="odds">odds</Term>} <span className="sp" /><span className="num">{isLineNode(n) ? health(nodeOdds(s, id)) : F.pct(nodeOdds(s, id))}</span></div>
+                <div className="ft">{isLineNode(n) ? <Term id="lineHealth">health</Term> : <Term id="odds">odds</Term>} <span className="sp" /><Tip content={() => <TipCard title={isLineNode(n) ? <Term id="lineHealth">Line health</Term> : <Term id="odds">Odds</Term>} value={isLineNode(n) ? health(nodeOdds(s, id)) : F.pct(nodeOdds(s, id))}>{isLineNode(n) ? 'How likely a result here is a working tool, from the results so far.' : 'Chance the idea works when the project finishes.'}</TipCard>}><span className="num">{isLineNode(n) ? health(nodeOdds(s, id)) : F.pct(nodeOdds(s, id))}</span></Tip></div>
               </div>
             );
           })}
@@ -443,7 +443,7 @@ function Queue({ s }: { s: GameStateV2 }) {
   const q = s.player.research.queue;
   const waiting = q.filter((id) => teamsOn(s, id).length === 0);
   return (
-    <Card className="rs-queue" home="queue" title={<span className="row-i"><Term id="projectQueue">Queue</Term></span>} sub={waiting.length ? `${waiting.length} waiting` : undefined}>
+    <Card className="rs-queue" home="queue" title={<span className="row-i"><Term id="projectQueue">Queue</Term></span>} sub={waiting.length ? <Tip content={() => <TipCard title={<Term id="projectQueue">Queue</Term>} value={`${waiting.length} waiting`}>Ideas waiting for a free science team, in order.</TipCard>}><span>{waiting.length} waiting</span></Tip> : undefined}>
       {waiting.length === 0 ? <div className="dim small rs-empty">Empty. Queue ideas from the tree; idle teams take them in order.</div> : (
         <div className="rs-qlist">
           {waiting.map((id) => {

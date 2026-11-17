@@ -88,7 +88,7 @@ function RaceHistory({ s }: { s: GameStateV2 }) {
   if (n < 2) {
     const ev = internalEval(s);
     const u = engine.understanding(s);
-    return <div className="small rh-start" data-test="race-start"><span className="dim">Start:</span> <b style={{ color: C.cap }}>capability {F.level(ev.L)}</b> · <b style={{ color: C.und }}>understanding {F.level(u.U)}</b> <span className="dim">· the history fills in week by week</span></div>;
+    return <Tip as="div" content={() => <TipCard title="The race at the start" rows={[{ label: <Term id="L">Capability</Term>, value: F.level(ev.L) }, { label: <Term id="U">Understanding</Term>, value: F.level(u.U) }]}>The chart draws one point a week from here.</TipCard>}><div className="small rh-start" data-test="race-start"><span className="dim">Start:</span> <b style={{ color: C.cap }}>capability {F.level(ev.L)}</b> · <b style={{ color: C.und }}>understanding {F.level(u.U)}</b> <span className="dim">· the history fills in week by week</span></div></Tip>;
   }
   const L = S.Lmeasured.slice(0, n);
   const U = S.U.slice(0, n);

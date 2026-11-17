@@ -232,11 +232,16 @@ export function CauseBars({ s, k, fmt = (x) => x.toFixed(1), days: d = 30, inver
         const good = invert ? r.delta < 0 : r.delta > 0;
         const w = (Math.abs(r.delta) / max) * 50;
         return (
-          <div className="cbar" key={i}>
-            <span className="cbar-lbl ellip">{sourceWords(r.source)}{r.n > 1 ? <span className="dim"> ×{r.n}</span> : null}</span>
-            <span className="cbar-track"><i style={{ left: r.delta >= 0 ? '50%' : `${50 - w}%`, width: `${w}%`, background: good ? 'var(--good)' : 'var(--bad)' }} /></span>
-            <span className={`cbar-val num ${good ? 'tone-pos' : 'tone-neg'}`}>{r.delta >= 0 ? '+' : '−'}{fmt(Math.abs(r.delta))}</span>
-          </div>
+          <Tip as="div" key={i} content={() => <TipCard title={sourceWords(r.source)} value={`${r.delta >= 0 ? '+' : '−'}${fmt(Math.abs(r.delta))}`} rows={[
+            { label: r.n > 1 ? 'Postings (days it moved)' : 'Postings', value: String(r.n) },
+            ...r.details.map((d) => ({ label: 'e.g.', value: d })),
+          ]}>{`Sum over the last ${d} days.`}</TipCard>}>
+            <div className="cbar">
+              <span className="cbar-lbl ellip">{sourceWords(r.source)}{r.n > 1 ? <span className="dim"> ×{r.n}</span> : null}</span>
+              <span className="cbar-track"><i style={{ left: r.delta >= 0 ? '50%' : `${50 - w}%`, width: `${w}%`, background: good ? 'var(--good)' : 'var(--bad)' }} /></span>
+              <span className={`cbar-val num ${good ? 'tone-pos' : 'tone-neg'}`}>{r.delta >= 0 ? '+' : '−'}{fmt(Math.abs(r.delta))}</span>
+            </div>
+          </Tip>
         );
       })}
     </div>

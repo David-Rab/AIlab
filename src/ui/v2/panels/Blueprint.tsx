@@ -264,11 +264,11 @@ export function Blueprint({ s }: { s: GameStateV2 }) {
             {kind === 'base' ? (
               <>
                 <div className="sl"><Term id="baseSize">Size</Term></div>
-                <div className="sc"><span className="bp-opt on"><Check size={12} />{F.size(Number(p.size))}</span><span className="dim small">set above · effect vs ×1</span></div>
+                <div className="sc"><Tip content={() => <TipCard title={<Term id="baseSize">Size</Term>} value={F.size(Number(p.size))}>Set on the size card above; this row shows its effect against ×1.</TipCard>}><span className="bp-opt on"><Check size={12} />{F.size(Number(p.size))}</span></Tip><span className="dim small">set above · effect vs ×1</span></div>
                 {sizeEff && <Effects s={s} e={sizeEff} />}
                 {BACKBONE.map((sl) => <SlotRow key={sl.field} s={s} kind={kind} sl={sl} p={p} effs={opts[sl.field]} onPick={(np) => set(np)} />)}
                 <div className="sl"><Term id="licensedShare">Licensed data</Term></div>
-                <div className="sc bp-lic"><Slider value={Number(p.licensedShare)} min={0} max={1} step={0.05} onChange={(v) => set({ ...p, licensedShare: v })} width={200} /><span className="num small">{F.pct(Number(p.licensedShare))}</span></div>
+                <div className="sc bp-lic"><Slider value={Number(p.licensedShare)} min={0} max={1} step={0.05} onChange={(v) => set({ ...p, licensedShare: v })} width={200} /><Tip content={() => <TipCard title={<Term id="licensedShare">Licensed data</Term>} value={F.pct(Number(p.licensedShare))}>Share of the training data you pay to license. Below 30%: litigation risk; more costs cash at launch.</TipCard>}><span className="num small">{F.pct(Number(p.licensedShare))}</span></Tip></div>
                 <span className="bp-span" />
               </>
             ) : (
@@ -584,7 +584,7 @@ function Predicted({ s, card, err, cur }: { s: GameStateV2; card?: Card_; err?: 
           </svg>
           <div className="tip-cap"><Term id="domains">Domains</Term></div>
           <div className="bp-chips">
-            {dChips.map(([d, v]) => { const I = DOMAIN_ICON[d]; return <span key={d} className="dch"><I size={11} /><span className="k">{d}</span><b className={v >= 0 ? 'tone-pos' : 'tone-neg'}>{F.dLevel(v)}</b></span>; })}
+            {dChips.map(([d, v]) => { const I = DOMAIN_ICON[d]; return <Tip key={d} content={() => <TipCard title={<Term id="domains">{d}</Term>} value={`${F.dLevel(v)} L`} rows={[{ label: 'Predicted', value: F.level(mid(card.domains[d])) }, { label: iv?.name ?? 'Today', value: F.level(doms?.[d] ?? 0) }]}>This domain's predicted level vs your internal model.</TipCard>}><span className="dch"><I size={11} /><span className="k">{d}</span><b className={v >= 0 ? 'tone-pos' : 'tone-neg'}>{F.dLevel(v)}</b></span></Tip>; })}
           </div>
           <div className="tip-cap"><Term id="riskFamily">Risk pressure</Term> <span className="dim">vs {iv?.name ?? 'today'}</span></div>
           <div className="bp-chips">
@@ -628,12 +628,16 @@ function Plan({ s, kind, card, p, setShare, warn, children }: { s: GameStateV2; 
     }>
       {card && (
         <>
-          <div className="small dim bp-gets row-i">{card.effShare < card.poolShare - 1e-6 ? <span>gets <b className="tone-warn">{F.pct(card.effShare)}</b> now: running runs share the pool</span> : <span>gets {F.pct(card.effShare)} of the <Term id="trainingPool">training pool</Term></span>}<span className="sp" /><span>ready <b data-test="bp-ready">{fmtDate(dateOf(s, day + ready))}</b></span></div>
+          <div className="small dim bp-gets row-i">
+            <Tip content={() => <TipCard title={<Term id="poolShare">Pool share</Term>} rows={[{ label: 'Asks', value: F.pct(card.poolShare) }, { label: 'Gets now', value: F.pct(card.effShare) }]}>Runs that ask for more than the pool are scaled down together.</TipCard>}>{card.effShare < card.poolShare - 1e-6 ? <span>gets <b className="tone-warn">{F.pct(card.effShare)}</b> now: running runs share the pool</span> : <span>gets {F.pct(card.effShare)} of the <Term id="trainingPool">training pool</Term></span>}</Tip>
+            <span className="sp" />
+            <Tip content={() => <TipCard title="Ready" value={fmtDate(dateOf(s, day + ready))} rows={[{ label: 'Training', value: F.days(card.etaDays) }, ...(post ? [{ label: 'Reference post-train', value: F.days(post) }] : []), ...(evals ? [{ label: <Term id="evals">Evals</Term>, value: F.days(evals) }] : [])]}>When the model can be used.</TipCard>}><span>ready <b data-test="bp-ready">{fmtDate(dateOf(s, day + ready))}</b></span></Tip>
+          </div>
           <div className="bp-gantt">
             {running.slice(0, 3).map((r) => {
               const left = Math.max(0, r.flopNeeded - r.flopDone) / Math.max(1, r.flopNeeded);
               const stall = runStall(s, r);
-              return <div className="bp-lane" key={r.id}><span className="bp-ll small dim">{runTitle(s, r)}</span><span className="bp-track2"><span className="bp-bar run" style={{ width: f(Math.max(3, left * (r.minDays || 60))) }} />{stall && <span className="small tone-warn bp-bl">{stall}</span>}</span></div>;
+              return <div className="bp-lane" key={r.id}><Tip content={() => <TipCard title={runTitle(s, r)} rows={[{ label: 'FLOP left', value: F.pct(left) }]}>A run already training; it shares the pool with this one.</TipCard>}><span className="bp-ll small dim">{runTitle(s, r)}</span></Tip><span className="bp-track2"><span className="bp-bar run" style={{ width: f(Math.max(3, left * (r.minDays || 60))) }} />{stall && <span className="small tone-warn bp-bl">{stall}</span>}</span></div>;
             })}
             <div className="bp-lane me"><span className="bp-ll small"><b>{KIND_LABEL[kind]}</b></span>
               <span className="bp-track2">

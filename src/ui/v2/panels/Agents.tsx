@@ -157,7 +157,7 @@ function Lane({ s, v, use, draft, setDraft }: { s: GameStateV2; v: AgentsView; u
   return (
     <div className={`ag-lane ${draft ? 'editing' : ''}`} data-lane={use}>
       <div className="ag-use">
-        <span className={`ag-ord ${def.budget}`}>{use === 'safety' ? <Ic size={13} /> : def.order}</span>
+        <Tip content={() => <TipCard title={def.name}>{use === 'safety' ? 'Paid from the safety budget.' : `Use ${def.order} of 3 on the capabilities agent budget: ${def.work}`}</TipCard>}><span className={`ag-ord ${def.budget}`}>{use === 'safety' ? <Ic size={13} /> : def.order}</span></Tip>
         <div><b>{def.name}</b><div className="small dim">{def.work}</div></div>
       </div>
       <PkgChip kind="model" testId={`agent-model.${use}`} value={modelVal} options={models} changed={draft?.versionId !== undefined} onPick={(x) => setDraft({ ...(draft ?? {}), versionId: x || null })} />
@@ -205,7 +205,7 @@ export function AgentsAtWork({ s }: { s: GameStateV2 }) {
   return (
     <Card id="ctl-agents" home="agents" className="agents-card"
       title={<span className="row-i"><ICON.agents size={15} /><Term id="agentPackage">Agents at work</Term></span>}
-      sub={<>model + monitor + compute per use · <span className="num">{F.h100e(v.total)}</span> <Term id="h100e">H100e</Term> · <span className="num">{F.money(v.totalCost, { perYear: true })}</span></>}
+      sub={<>model + monitor + compute per use · <Tip content={() => <TipCard title="Agents at work" rows={[...AGENT_USES.map((u) => ({ label: AGENT_USE_DEF[u].name, value: `${F.h100e(v.lanes[u].compute)} H100e · ${F.money(v.lanes[u].cost + v.lanes[u].monitorCost, { perYear: true })}` }))]}>Compute and yearly cost of all internal agent packages.</TipCard>}><span><span className="num">{F.h100e(v.total)}</span> <Term id="h100e">H100e</Term> · <span className="num">{F.money(v.totalCost, { perYear: true })}</span></span></Tip></>}
       right={<span className="row-i small"><Ref id="researchMix" to={{ panel: 'compute', tab: 'split', anchor: 'split-experiments' }}>{s.player.researchManual ? 'Manual' : 'Auto'} split experiments ↔ agents</Ref><Ref id="rdmult" to={{ panel: 'company', tab: 'flow' }}>Research speed</Ref></span>}>
       <div className="ag-head small dim"><span>Use · automates</span><span>Model</span><span>Monitor · catch</span><span>Compute · budget</span><span>AI share of the work</span><span>Cost/yr</span><span><Term id="riskFamily">Risk</Term></span></div>
       {AGENT_USES.map((u) => <Lane key={u} s={s} v={v} use={u} draft={drafts[u]} setDraft={setDraft(u)} />)}

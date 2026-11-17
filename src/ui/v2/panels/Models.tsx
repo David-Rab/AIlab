@@ -136,7 +136,8 @@ export function ModelCard({ s, v }: { s: GameStateV2; v: ModelVersion }) {
                 return (
                   <tr key={b.id}>
                     <td><Tip content={() => <TipCard title={benchName(s, b)} value={b.family}>{`Domain ${Array.isArray(b.domain) ? b.domain.join('+') : b.domain}${b.dangerous ? ' · dangerous-capability' : ''}${sat ? ' · saturated' : ''} · measured by ${r.by}`}</TipCard>}>{benchName(s, b)}</Tip>{sat && <span className="chip-mini"><Term id="saturated">sat</Term></span>}{b.dangerous && <span className="tone-warn small"> ⚠</span>}</td>
-                    <td className="num">{F.bench(r.score, b.special)}</td><td className="num dim">{b.special ? "" : r.sd.toFixed(1)}</td>
+                    <td className="num"><Tip content={() => <TipCard title={benchName(s, b)} value={F.bench(r.score, b.special)} rows={[{ label: 'Measured', value: fmtDate(dateOf(s, r.day)) }, { label: 'By', value: r.by === 'self' ? 'your evals' : r.by === 'evalGov' ? 'government evaluators' : 'independent evaluators' }, ...(b.special ? [] : [{ label: 'Noise (±1 SD)', value: r.sd.toFixed(1) }])]} />}><span>{F.bench(r.score, b.special)}</span></Tip></td>
+                    <td className="num dim">{b.special ? "" : <Tip content={() => <TipCard title="Measurement noise" value={`± ${r.sd.toFixed(1)}`}>One standard deviation of this evaluator's score on this benchmark.</TipCard>}><span>{r.sd.toFixed(1)}</span></Tip>}</td>
                   </tr>
                 );
               })}
@@ -194,9 +195,9 @@ export function RunQueue({ s }: { s: GameStateV2 }) {
         const step = (d: number) => Math.round(Math.min(POOL_SHARE_RANGE[1], Math.max(POOL_SHARE_RANGE[0], r.poolShare + d)) * 100) / 100;
         return (
           <div className="run-row" key={r.id} data-run={r.id}>
-            <span className="ellip"><b>{runTitle(s, r)}</b></span>
+            <Tip content={() => <TipCard title={runTitle(s, r)} rows={[{ label: 'Kind', value: r.kind }, { label: 'Started', value: fmtDate(dateOf(s, r.startDay)) }, { label: 'FLOP done', value: F.pct(done) }]} />}><span className="ellip"><b>{runTitle(s, r)}</b></span></Tip>
             <Meter value={done} max={1} width={80} color={r.status === 'running' ? 'var(--accent)' : 'var(--text-3)'} />
-            <span className="num small dim">L {F.level(band[0])}–{F.level(band[1])}</span>
+            <Tip content={() => <TipCard title="Predicted level" value={`L ${F.level(band[0])}–${F.level(band[1])}`}>The run's predicted general level when it finishes (a band: the result is drawn at the end).</TipCard>}><span className="num small dim">L {F.level(band[0])}–{F.level(band[1])}</span></Tip>
             {live ? (
               <Tip content={() => <TipCard title={<Term id="poolShare">Pool share</Term>} value={F.pct(got)} rows={[
                 { label: 'Asks', value: F.pct(r.poolShare) }, { label: 'Gets today', value: F.pct(got) },
@@ -211,15 +212,15 @@ export function RunQueue({ s }: { s: GameStateV2 }) {
                 <ActBtn id="runs.setShare" params={{ runId: r.id, share: step(0.1) }} label="+" testId={`run-share-up.${r.id}`} block={r.poolShare >= POOL_SHARE_RANGE[1] - 1e-9 ? 'At the whole pool' : undefined} />
               </span>
             ) : <span />}
-            <span className={`small ${stall ? 'tone-warn' : ''}`} data-test={stall ? 'run-stall' : undefined}>{stall ?? r.status}{live && Number.isFinite(eta) ? <span className="dim"> · {fmtDate(dateOf(s, s.time.day + eta))}</span> : ''}</span>
+            <Tip content={() => <TipCard title={stall ?? r.status} value={live && Number.isFinite(eta) ? fmtDate(dateOf(s, s.time.day + eta)) : undefined}>{live ? 'Expected finish at today\'s pool share; evals follow.' : 'Finished runs stay here for a while.'}</TipCard>}><span className={`small ${stall ? 'tone-warn' : ''}`} data-test={stall ? 'run-stall' : undefined}>{stall ?? r.status}{live && Number.isFinite(eta) ? <span className="dim"> · {fmtDate(dateOf(s, s.time.day + eta))}</span> : ''}</span></Tip>
             {r.status === 'running' && <ActBtn id="cancelRun" params={{ runId: r.id }} label="Cancel" inline={false} />}
           </div>
         );
       })}
-      <div className="run-row run-pool small" data-run="stream"><span className="ellip"><b><Term id="stream">Stream</Term></b> <span className="dim">{stream > 0 ? 'continual learning' : 'off'}</span></span><span /><span /><span className="num">{F.pct(stream)}</span><span /><Limit id="run.stream" tone={stream > 0 ? 'warn' : 'quiet'}>{stream > 0 ? 'taken first' : 'takes 15% first when on'}</Limit><span /></div>
+      <div className="run-row run-pool small" data-run="stream"><span className="ellip"><b><Term id="stream">Stream</Term></b> <span className="dim">{stream > 0 ? 'continual learning' : 'off'}</span></span><span /><span /><Tip content={() => <TipCard title={<Term id="stream">Stream share</Term>} value={F.pct(stream)}>Share of the training pool the continual-learning stream takes before any run.</TipCard>}><span className="num">{F.pct(stream)}</span></Tip><span /><Limit id="run.stream" tone={stream > 0 ? 'warn' : 'quiet'}>{stream > 0 ? 'taken first' : 'takes 15% first when on'}</Limit><span /></div>
       <div className="run-row run-pool small" data-run="spare">
         <span className="ellip"><b><Term id="spareTraining">Spare</Term></b></span><span /><span />
-        <span className="num" data-test="spare-share">{F.pct(spare)}</span>
+        <Tip content={() => <TipCard title={<Term id="spareTraining">Spare training compute</Term>} value={F.pct(spare)}>Share of the training pool no run uses now; it goes to {spareUse === 'research' ? 'experiments' : 'data generation'}.</TipCard>}><span className="num" data-test="spare-share">{F.pct(spare)}</span></Tip>
         <span className="run-spare">
           <span className="dim">→ {spareUse === 'research' ? 'experiments' : 'data generation'}</span>
           <Ref id="spareTraining" to={{ panel: 'compute', tab: 'split', anchor: 'split-spare' }}>Split</Ref>

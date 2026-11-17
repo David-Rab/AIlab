@@ -7,7 +7,7 @@
 import { useState } from 'react';
 import { researchMixCurve, responseCurves } from '../../../engine/v2';
 import type { GameStateV2 } from '../../../engine/v2';
-import { Term } from '../ui';
+import { Term, Tip, TipCard } from '../ui';
 import * as F from '../fmt';
 import { C } from '../theme';
 
@@ -90,11 +90,13 @@ export function ResponseCharts({ s }: { s: GameStateV2 }) {
               <text x={W - m.r} y={H - 3} textAnchor="end" style={AX}>×4</text>
               {h !== undefined && <g pointerEvents="none"><line x1={lx(rc.scales[h])} x2={lx(rc.scales[h])} y1={m.t} y2={H - m.b} stroke={C.line2} /><circle cx={lx(rc.scales[h])} cy={ly(v[h])} r={4} fill={C.cap} stroke={C.panel} strokeWidth={2} /></g>}
             </svg>
-            <div className="rc-mult-f small">
-              {h !== undefined
-                ? <span className="num">×{rc.scales[h]} → {F.pct(v[h] - 1, 0, true)}</span>
-                : <span className={sat ? 'dim' : 'num'}>{sat ? 'saturated' : `×4 → ${F.pct(top - 1, 0, true)}`}</span>}
-            </div>
+            <Tip as="div" content={() => <TipCard title={<Term id={ser.term}>{ser.label}</Term>} rows={rc.scales.map((sc, i) => ({ label: `×${sc}`, value: F.pct(v[i] - 1, 0, true) }))}>Research speed if only this input were scaled, the rest held at today's level.</TipCard>}>
+              <div className="rc-mult-f small">
+                {h !== undefined
+                  ? <span className="num">×{rc.scales[h]} → {F.pct(v[h] - 1, 0, true)}</span>
+                  : <span className={sat ? 'dim' : 'num'}>{sat ? 'saturated' : `×4 → ${F.pct(top - 1, 0, true)}`}</span>}
+              </div>
+            </Tip>
           </div>
         );
       })}
