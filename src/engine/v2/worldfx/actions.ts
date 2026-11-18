@@ -7,7 +7,6 @@ import { paidDeployments, worldMix } from './mix';
 import { moonshotH100e, revenueReadout } from './revenue';
 import { mSci, lSci, scienceRate, techBlocker } from './techtree';
 import { internalVersion } from '../models/labs';
-import { nodeKnown } from '../models/tree';
 import { bookCash } from '../finance/ledger';
 import { buildWaitNew, pendingPack, queueBuild, SECTOR_PACK_TW } from '../departments/build';
 
@@ -61,7 +60,7 @@ const sectorProduct: ActionDef = {
   owner: 'WS5',
   title: 'Sector product',
   available(s) {
-    if (!nodeKnown(s, 'sectorPacks')) return 'Needs the idea Sector packs (Research)';
+    if (!s.player.features.includes('sectorPacks')) return 'Needs the Sector packs feature (build it on Products)';
     if (!productHost(s)) return 'Needs a live enterprise, API or agents deployment';
     if (!defaultSector(s)) return 'Every sector already has a product';
     return true;

@@ -14,7 +14,9 @@
 // mixed, capex2x) reuse the cadence with their own design choices; with default options it is exactly RefBot's.
 // `refBot` = refPlay + WS3's reference finance autopilot (REF_AUTOPILOT).
 import { REFERENCE_BASE, REF_TPP, STREAM_POOL_SHARE } from '../../../data/v2/runDesign';
-import { paramsForFlop } from '../models/effective';
+import { paramsForFlop, rlCeiling } from '../models/effective';
+import { latestBaseFlop, refRlGain, rlCeilNow, rlMidNow } from '../models/stacks';
+import { takesTeams } from '../models/research';
 import { POOL_SHARE_RANGE, paramsOfVersion, runFlopPerShareDay } from '../models/runs';
 import { EVENT_BY_ID } from '../core/registry';
 import { decimalYear } from '../core/time';
@@ -27,6 +29,8 @@ import type { BotPolicy, ComputeSplit, EngineApi, GameStateV2, ModelVersion, Pen
 import { bestMeasuredL } from '../models/labs';
 import { measuredDomain } from '../models/paradigms';
 import { missingNeeds, nodeKnown, optionLocked } from '../models/tree';
+import { TREE_BY_ID, TREE_RETRY_DAYS } from '../../../data/v2/tree';
+import { COLUMN_DEPT } from '../../../data/v2/teams';
 import { sizedTarget, staffLines, type LinePlan } from './common';
 
 type Params = Record<string, number | string | boolean>;
@@ -46,6 +50,17 @@ export const REF_TREE: TreeGoal[] = [
   { id: 'P17', when: (s) => L(s) >= 9.5 },
   { id: 'P19', when: (s) => L(s) >= 8.5 },
 ];
+/** RefBot's research lines (model v3 V2) and their share of the science teams the ideas leave free [D]: the
+ *  pretraining lines carry the pretraining stack (Ho et al. ≈ 3×/yr before SC), the RL lines the RL stack. Recurrent
+ *  architectures opens with neuralese recurrence (P17). Inference efficiency is not ranked: the reference lab's serving
+ *  cost is the V1 calibration (V4 rebuilds serving). */
+export const REF_RESEARCH_LINES: { id: string; w: number }[] = [
+  { id: 'L.scale', w: 0.25 }, { id: 'L.env', w: 0.3 }, { id: 'L.data', w: 0.15 }, { id: 'L.opt', w: 0.1 }, { id: 'L.rlalg', w: 0.2 },
+];
+/** Share of RefBot's capabilities science teams on its research lines [D]; the rest (at least one team each) staff its
+ *  paradigm projects. A fixed share keeps the lines' capacity, relative to the reference headcount, the same in every
+ *  world and year, so the stacks track the v2 know-how path wherever the paradigm projects stand. */
+const REF_LINE_SHARE = 0.7;
 /** The safe bot's extra research: faithful-CoT architecture, paced like its old gate (tier 3, an AG09 technique). */
 export const SAFE_TREE_EXTRA: TreeGoal[] = [
   { id: 'P23', when: (s) => L(s) >= 8.5 && s.player.safety.findings.some((f) => f.agenda === 'AG09' && f.type === 'TECH') },
@@ -182,16 +197,38 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   const spareServe = o.spareServing ?? 'headroom';
   if (p.policies.spareServing !== spareServe) tryAct(s, api, 'serving.spare', { use: spareServe });
 
-  // Research: queue each goal once its start condition holds and its prerequisites are known (a failed idea again
-  // from its retry date); idle science teams join by the auto-assign policy.
+  // Research (model v3 V2): each goal goes to the top of the priority list once its start condition holds and its
+  // prerequisites are known (a failed idea is reopened as speculative after TREE_RETRY_DAYS, v2's retry pacing); the
+  // research lines follow, with teams wanted in proportion to REF_RESEARCH_LINES. The assignment places the teams.
   const goals = o.tree?.(s) ?? REF_TREE;
   const queue = p.research.queue;
   for (const g of goals) {
     if (queue.includes(g.id) || nodeKnown(s, g.id) || missingNeeds(s, g.id).length) continue;
     const st = p.tree[g.id];
-    if (st?.status === 'failed' && (st.retryDay ?? 0) > day) continue;
+    if (st?.status === 'failed') {
+      if (day - (st.day ?? day) >= TREE_RETRY_DAYS && (!g.when || g.when(s))) tryAct(s, api, 'research.reopen', { id: g.id });
+      continue;
+    }
+    if (st?.cap && st.cap.stage !== 'ideation' && st.cap.stage !== 'small' && st.cap.stage !== 'scale') continue;
     if (g.when && !g.when(s)) continue;
-    tryAct(s, api, 'research.queue', { id: g.id });
+    tryAct(s, api, 'research.start', { id: g.id });
+  }
+  const lines = REF_RESEARCH_LINES.filter((l) => !missingNeeds(s, l.id).length);
+  for (const l of lines) if (!queue.includes(l.id)) tryAct(s, api, 'research.queue', { id: l.id });
+  const sci = p.teams.filter((x) => x.role === 'sci' && x.dept === 'cap').length;
+  const ideas = queue.filter((id) => !lines.some((l) => l.id === id) && TREE_BY_ID[id] && COLUMN_DEPT[TREE_BY_ID[id].column] === 'cap' && !nodeKnown(s, id) && takesTeams(p.tree[id]?.cap));
+  const free = Math.max(lines.length, Math.round(REF_LINE_SHARE * sci));
+  const perIdea = ideas.length ? Math.max(1, Math.floor((sci - free) / ideas.length)) : 0;
+  for (const id of ideas) if ((p.research.want[id] ?? 1) !== perIdea) tryAct(s, api, 'research.want', { id, n: perIdea });
+  // A saturated direction is dropped to a minimum: once the reference RL run reaches 95% of its ceiling, more RL
+  // compute efficiency buys almost nothing, so the RL-algorithm teams move to the other lines [D].
+  const F = latestBaseFlop(s);
+  const satRL = refRlGain(F, rlMidNow(s), rlCeilNow(s)) >= 0.95 * (rlCeiling(F) + rlCeilNow(s));
+  const wOf = (l: { id: string; w: number }) => (l.id === 'L.rlalg' && satRL ? 0 : l.w);
+  const wSum = lines.reduce((a, l) => a + wOf(l), 0);
+  for (const l of lines) {
+    const n = wOf(l) > 0 ? Math.max(1, Math.round((wOf(l) / wSum) * free)) : 0;
+    if ((p.research.want[l.id] ?? 1) !== n) tryAct(s, api, 'research.want', { id: l.id, n });
   }
   if (!p.research.autoAssign) tryAct(s, api, 'research.autoAssign', { on: true });
 

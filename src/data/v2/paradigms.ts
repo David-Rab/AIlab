@@ -37,17 +37,18 @@ export const PARADIGMS: ParadigmDef[] = [
   { id: 'P22', name: 'Robotics foundation models', prior: 0.6, effect: 'PHYS +2; robotics tech progress', safetyCost: 'physical reach' },
   { id: 'P23', name: 'Faithful-CoT architecture', prior: 0.75, effect: 'Faithful CoT option', safetyCost: '−0.24 y tax' },
   { id: 'P24', name: 'AI-designed successor', prior: 0.6, effect: 'Next base +0.8 y; new lineage', safetyCost: 'techniques may not transfer' },
-  { id: 'P25', name: 'Formal verification at scale', prior: 0.5, effect: 'Security +0.5; AG10 floor' },
-  { id: 'P26', name: 'Superhuman persuasion', prior: 0.8, effect: 'Relation actions ×1.5', safetyCost: 'manipulation' },
+  { id: 'P25', name: 'Formal verification at scale', prior: 0.5, effect: 'Weight-security defence +0.5 level (model v3 V2)' },
+  // Cut from the tree in model v3 V2 (no engine effect; superpersuasion is the SOCIAL level). Kept here so the hidden
+  // draws of the paradigms after it keep their values.
+  { id: 'P26', name: 'Superhuman persuasion', prior: 0.8, effect: 'cut (model v3 V2)' },
   { id: 'P27', name: 'Automated alignment research', prior: 0.7, effect: 'Agenda speed × (1 + 3 × Trusted to AI); lifts its 50% cap', safetyCost: 'FALSE findings ∝ hidden SAND' },
 ];
 
 /** Domain offsets (L) granted to new versions once a paradigm is adopted (§3.3.3). */
+// Model v3 V2: P09, P11 and P22 are typed domain effects in OOM (data/v2/tree.ts, research adoption); P12 and P21 keep
+// their level offsets until V5 (data). LATER(V5).
 export const PARADIGM_DOMAIN_OFF: Record<string, Partial<Record<DomainId, number>>> = {
-  P09: { REASON: 0.6 },
-  P11: { REASON: 0.8, CODE: 0.4 },
   P12: { RSCH: 0.4 },
   P21: { PHYS: 1 },
-  P22: { PHYS: 2 },
 };
 

@@ -4,7 +4,7 @@
 import { LEADER_FEATURES } from '../../../data/v2/features';
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
 import { PLAYER_MODEL_FAMILY } from '../../../data/v2/names';
-import { REFERENCE_BASE, REFERENCE_POST, RL_BUDGET } from '../../../data/v2/runDesign';
+import { B_G_PER_Y, E_START, REFERENCE_BASE, REFERENCE_POST, RL_BUDGET } from '../../../data/v2/runDesign';
 import { B0_DAY, B0_START_DAY } from '../../../data/v2/calibration';
 import { START_BY_ID } from '../../../data/v2/starts';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
@@ -27,7 +27,8 @@ import { initialBoard } from '../finance/board';
 import { initialCapital } from '../finance/investors';
 import { initialFinance } from '../finance/ledger';
 import { benchScore } from '../models/benchmarks';
-import { domainsOf, eStack, finishBuild, levelOf, playerStart, recipeAt, simpleStartPa } from '../models/capability';
+import { domainsOf, finishBuild, levelOf, playerStart, simpleStartPa, startVintage } from '../models/capability';
+import { initialStacks, syncPa } from '../models/stacks';
 import { flopOfDesign, gPreOf, rlFamiliesAvailable, rlGains, rlWeights, serveOfBase } from '../models/effective';
 import { labCore } from '../models/labs';
 import { initialParadigms } from '../models/paradigms';
@@ -93,7 +94,7 @@ function startEvals(domains: Record<DomainId, number>, measuredL: number, day: n
 
 /** A reference post-training run on B0 already in flight at the start (launched three days ago, 30% of its RL FLOP
  *  done), so the next version lands within days, as under the reference cadence [D]. */
-function startRun(ps: ReturnType<typeof playerStart>, b0Flop: number, Lg: number, domains: Record<DomainId, number>): TrainingRun {
+function startRun(w: TimelineWorld, ps: ReturnType<typeof playerStart>, b0Flop: number, Lg: number, domains: Record<DomainId, number>): TrainingRun {
   const start = -3;
   const flopNeeded = RL_BUDGET.standard * b0Flop;
   const zero = { S1: 0, S2: 0, S3: 0, S4: 0, S5: 0, S6: 0, S7: 0, S8: 0 };
@@ -105,6 +106,8 @@ function startRun(ps: ReturnType<typeof playerStart>, b0Flop: number, Lg: number
       signals: zero, etaDays: 7, serveCost: 0.5, monitorability: 'high',
     },
     status: 'running', paAtStart: ps.pa0 + (ps.r0 * start) / 365, signals: {},
+    // Its RL recipe is the start lab's on its launch day (model v3 V2: frozen at launch).
+    recipe: { rlMid: startVintage(w, ps.pa0 + (ps.r0 * start) / 365), rlCeil: 0 },
   };
 }
 
@@ -116,14 +119,14 @@ function startModels(w: TimelineWorld, ps: ReturnType<typeof playerStart>, uniqu
   const d = REFERENCE_BASE;
   const flop = flopOfDesign(d);
   const tokens = d.params * d.tpp;
-  const recipe = recipeAt(w, ps.paBase);
+  const recipe = E_START + startVintage(w, ps.paBase);
   const gPre = gPreOf({ flop, tpp: d.tpp, recipe, shape: d.shape, fData: 1, designDg: 0 }).total;
   const rlW = rlWeights('broad', rlFamiliesAvailable(() => false));
-  const eRL = eStack(w, ps.paPost);
+  const eRL = startVintage(w, ps.paPost);
   const rlFlop = RL_BUDGET.standard * flop;
   const rl = rlGains(flop, rlFlop, rlW, eRL);
   const build: VersionBuild = {
-    gPre, flopPre: flop, rlFlop, rlW, eRL, dgRL: rl.general, dgRLd: rl.perDomain, dg: 0, sD: {}, offL: {}, off: {}, paIn: ps.paBase,
+    gPre, flopPre: flop, rlFlop, rlW, eRL, aRL: 0, dgRL: rl.general, dgRLd: rl.perDomain, dg: 0, sD: {}, offL: {}, off: {}, paIn: ps.paBase,
     h80Mult: 1, misuseMult: 1, signals: {},
   };
   const pm = finishBuild(w, build);
@@ -217,7 +220,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
       }],
       versions: [V0],
       // A post-training run in flight on B0 (the spinout starts with none: its base is a download).
-      runs: def.imported ? [] : [startRun(ps, sm.flop, Lg, domains)],
+      runs: def.imported ? [] : [startRun(w, ps, sm.flop, Lg, domains)],
       nextName: 1,
     },
     deployments,
@@ -234,7 +237,8 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     stars: 0,
     hiring: roster.hiring,
     tree: initialTree(setup),
-    research: initialResearch(roster.teams),
+    // Model v3 V2: the recipe stacks start at the leader's day-0 recipe, a follower k progress-years of know-how lower.
+    research: { ...initialResearch(roster.teams), stacks: initialStacks(B_G_PER_Y * k) },
     build: initialBuild(),
     // D5: the leader start's features (sector packs) are the ×1 baseline; other starts build their own set.
     features: leader ? [...LEADER_FEATURES] : [...def.features],
@@ -315,6 +319,7 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
   }
   for (const r of [...rivals, china.lab]) r.core.pa = simpleStartPa(s, r.core.id, r.internal.pm);
   seedCandidates(s.player.hiring, new StreamRng(s, 'company'));
+  syncPa(s); // BRIDGE(V3): the know-how readout from the start stacks (the leader's is pa₀ exactly)
   sampleSeries(s);
   return s;
 }

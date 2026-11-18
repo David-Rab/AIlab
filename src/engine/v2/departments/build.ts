@@ -1,12 +1,15 @@
 // Engineers' build queue (STRUCTURE §4.1, BUILD-PLAN R5; jank J2 P1). Owner: WS1.
 //
 // Engineering teams share one build capacity (team-weeks per week = Σ engineer heads/150 × quality × 1/(1 − A_eng),
-// capped; departments/teams.ts buildCapacity) and spend it in this order each day:
-//   1 runs      operations of every training run while it trains and of the continual-learning stream, then the run
-//               setups on the queue (a run trains only once its setup is built)
-//   2 upkeep    every live product (reliability, on-call, integrations; grows with revenue) and every monitor in
-//               production (a product's or an internal use's: serving harness, alert triage)
-//   3 builds    the rest of the queue in priority order: product launches, product features, sector packs
+// capped; departments/teams.ts buildCapacity) and spend it on three needs, in the player's order (model v3 V2: "needs +
+// priority + overflow"; default below), each up to its optional cap (team-weeks per week or a share of capacity);
+// unused capacity flows down the order:
+//   runs      operations of every training run while it trains and of the continual-learning stream, then the run
+//             setups on the queue (a run trains only once its setup is built), then adoptions of research results into
+//             the recipe stacks (model v3 V2, models/research.ts: the training code the next runs use)
+//   upkeep    every live product (reliability, on-call, integrations; grows with revenue) and every monitor in
+//             production (a product's or an internal use's: serving harness, alert triage)
+//   builds    the rest of the queue in priority order: product launches, product features, sector packs
 // Too few engineers: upkeep falls behind (shown) and nothing new ships (launches, features and packs wait; the wait
 // shows on Products and Company). Runs come first so the run cadence holds (the reference lab's runs never wait on
 // upkeep). Engineering agents raise capacity through A_eng (their model and compute; R7, J2), so the work an engineer
@@ -19,9 +22,18 @@ import type { ActionDef, BuildItem, BuildKind, Deployment, EngineSystem, GameSta
 import { agentSplitShare, monitorVersion } from './agents';
 import { deploy } from '../models/deployments';
 import { buildCapacity } from './teams';
+import { DEFAULT_ENG_ALLOC } from '../../../data/v2/research';
+import { allocate, completeAdoption } from '../models/research';
+import { syncParadigm } from '../models/tree';
+import type { EngNeed } from '../types';
 
 type Params = Record<string, number | string | boolean>;
 const str = (p: Params, k: string, d: string) => (typeof p[k] === 'string' ? (p[k] as string) : d);
+
+/** Work of the 'runs' need besides run operations: run setups and (model v3 V2) adoptions of research results into the
+ *  recipe stacks, the training code the next runs use (MODEL-V3 §3.3: new ideas are novel run code). Worked before
+ *  product upkeep by default, so the reference lab's adoptions never wait on its products. */
+export const isStackWork = (it: Pick<BuildItem, 'kind'>) => it.kind === 'runSetup' || it.kind === 'adopt';
 
 /** Team-weeks to set up a run [D]: the incremental engineering for a new run on existing infrastructure (data
  *  pipelines, checkpointing, cluster bring-up). A base at the frontier scale 0.4, scaling with scale^0.75 (×8: 1.9;
@@ -88,7 +100,7 @@ export function upkeepSplit(s: GameStateV2): { runs: number; products: number; t
 export const upkeepTW = (s: GameStateV2) => upkeepSplit(s).total;
 
 export function initialBuild(): GameStateV2['player']['build'] {
-  return { queue: [], nextId: 1 };
+  return { queue: [], nextId: 1, alloc: { order: [...DEFAULT_ENG_ALLOC.order], max: {}, share: {} } };
 }
 
 /** Queue an item; returns its id. Run setups go ahead of every other kind (they are worked before product upkeep);
@@ -97,18 +109,35 @@ export function queueBuild(s: GameStateV2, kind: BuildKind, ref: string, needTW:
   const b = s.player.build;
   const id = `B${b.nextId++}`;
   const it: BuildItem = { id, kind, ref, needTW, doneTW: 0, priority: 0, day: s.time.day, ...extra };
-  const at = kind === 'runSetup' ? b.queue.findIndex((x) => x.kind !== 'runSetup') : -1;
+  // Run setups go first; adoptions of research results next (the training stack, model v3 V2); everything else after.
+  const at = kind === 'runSetup' ? b.queue.findIndex((x) => x.kind !== 'runSetup') : kind === 'adopt' ? b.queue.findIndex((x) => !isStackWork(x)) : -1;
   if (at < 0) b.queue.push(it);
   else b.queue.splice(at, 0, it);
   b.queue.forEach((x, i) => (x.priority = i + 1));
   return id;
 }
 
-/** Free capacity per day for run setups (after run operations) and for other builds (after all upkeep), team-weeks. */
+/** Weekly demand of each engineer need today (team-weeks per week): run operations + the setups still to build (as if
+ *  built this week), product upkeep, the other builds still to do. */
+export function engDemand(s: GameStateV2, u = upkeepSplit(s)): Record<EngNeed, number> {
+  let setups = 0;
+  let other = 0;
+  for (const it of s.player.build.queue) if (isStackWork(it)) setups += remaining(it); else other += remaining(it);
+  return { runs: u.runs + 7 * setups, upkeep: u.products, builds: 7 * other };
+}
+/** The engineers' allocation (order and caps; old saves without one get the default). */
+export const engAlloc = (s: GameStateV2) => s.player.build.alloc ?? DEFAULT_ENG_ALLOC;
+
+/** Free capacity per day for run setups (after run operations) and for other builds (after upkeep), team-weeks, under
+ *  the engineers' allocation (each need's share estimated with the others at today's demand). */
 export function buildRates(s: GameStateV2): { setups: number; builds: number } {
   const cap = buildCapacity(s).capacity;
   const u = upkeepSplit(s);
-  return { setups: Math.max(0, cap - u.runs) / 7, builds: Math.max(0, cap - u.total) / 7 };
+  const d = engDemand(s, u);
+  const a = engAlloc(s);
+  const runs = allocate(cap, a, { ...d, runs: Infinity }).runs;
+  const builds = allocate(cap, a, { ...d, builds: Infinity }).builds;
+  return { setups: Math.max(0, runs - u.runs) / 7, builds: Math.max(0, builds) / 7 };
 }
 /** Team-weeks per day the engineers have for builds other than run setups (after upkeep). */
 export const buildPerDay = (s: GameStateV2) => buildRates(s).builds;
@@ -124,10 +153,10 @@ export function buildEtas(s: GameStateV2, extraTW = 0): { etas: Map<string, numb
   const q = s.player.build.queue;
   const etas = new Map<string, number>();
   let cumSetup = 0;
-  for (const it of q) if (it.kind === 'runSetup') etas.set(it.id, daysAt((cumSetup += remaining(it)), r.setups));
+  for (const it of q) if (isStackWork(it)) etas.set(it.id, daysAt((cumSetup += remaining(it)), r.setups));
   const setupDays = cumSetup > 0 ? daysAt(cumSetup, r.setups) : 0;
   let cum = 0;
-  for (const it of q) if (it.kind !== 'runSetup') etas.set(it.id, setupDays + daysAt((cum += remaining(it)), r.builds));
+  for (const it of q) if (!isStackWork(it)) etas.set(it.id, setupDays + daysAt((cum += remaining(it)), r.builds));
   return { etas, next: extraTW > 0 ? setupDays + daysAt(cum + extraTW, r.builds) : 0 };
 }
 
@@ -137,7 +166,7 @@ export function buildWaitNew(s: GameStateV2, tw: number, kind: BuildKind = 'feat
   if (kind !== 'runSetup') return buildEtas(s, tw).next;
   const r = buildRates(s);
   let cum = tw;
-  for (const it of s.player.build.queue) if (it.kind === 'runSetup') cum += remaining(it);
+  for (const it of s.player.build.queue) if (isStackWork(it)) cum += remaining(it);
   return daysAt(cum, r.setups);
 }
 
@@ -160,6 +189,10 @@ export const buildUsedToday = (s: GameStateV2) => ((s.player.build.last?.served 
 
 /** A finished item takes effect. */
 function complete(s: GameStateV2, ctx: SystemCtx, it: BuildItem) {
+  if (it.kind === 'adopt') {
+    completeAdoption(s, ctx, it.ref, it.id, (id) => syncParadigm(s, id));
+    return;
+  }
   const r = runOf(s, it);
   if (r) {
     r.readyDay = ctx.day;
@@ -194,7 +227,7 @@ function workQueue(s: GameStateV2, ctx: SystemCtx, left: number, setups: boolean
   let work = 0;
   for (let i = 0; i < b.queue.length && left > 1e-12;) {
     const it = b.queue[i];
-    if ((it.kind === 'runSetup') !== setups) { i++; continue; }
+    if (isStackWork(it) !== setups) { i++; continue; }
     const take = Math.min(left, it.needTW - it.doneTW);
     it.doneTW += take;
     left -= take;
@@ -223,12 +256,11 @@ export const buildSystem: EngineSystem = {
     if (s.player.status !== 'active') return;
     const cap = buildCapacity(s).capacity;
     const u = upkeepSplit(s);
-    let left = cap / 7;
-    const ops = Math.min(left, u.runs / 7);
-    left -= ops;
-    const a = workQueue(s, ctx, left, true);
-    const prod = Math.min(a.left, u.products / 7);
-    const c = workQueue(s, ctx, a.left - prod, false);
+    const al = allocate(cap, engAlloc(s), engDemand(s, u));
+    const ops = Math.min(al.runs, u.runs) / 7;
+    const a = workQueue(s, ctx, Math.max(0, al.runs / 7 - ops), true);
+    const prod = Math.min(al.upkeep, u.products) / 7;
+    const c = workQueue(s, ctx, al.builds / 7, false);
     const r3 = (x: number) => Math.round(x * 1000) / 1000;
     const served = (ops + prod) * 7;
     const work = (a.work + c.work) * 7;
@@ -254,6 +286,7 @@ export function cancelBuild(s: GameStateV2, id: string): string | undefined {
   const i = b.queue.findIndex((x) => x.id === id);
   if (i < 0) return 'Unknown build item';
   if (b.queue[i].kind === 'runSetup') return 'Cancel the run instead';
+  if (b.queue[i].kind === 'adopt') return 'A research result waits to be built in: drop the project instead';
   b.queue.splice(i, 1);
   return undefined;
 }

@@ -16,6 +16,7 @@ import { govPresetOf } from './gov';
 import { addPosture, archetypeOf, openWeightsReleased, paceOf } from './rivals';
 import { ws4, ws4r } from './state';
 import { changeHeads } from '../departments/teams';
+import { addKnowledge } from '../models/stacks';
 
 type P = Record<string, number | string | boolean>;
 
@@ -326,7 +327,8 @@ export const RELATION_ACTIONS: ActionDef[] = [
       const n = Math.max(5, Math.round(r.core.staff.cap * 0.03));
       r.core.staff.cap = Math.max(0, r.core.staff.cap - n);
       changeHeads(s, 'cap', n);
-      ctx.bump('player.pa', (5 / 365) * paceOf(s), 'C4 tacit knowledge', r.core.name);
+      // Model v3 V2: tacit knowledge enters the pretraining stack as public ideas (B OOM per progress-year).
+      addKnowledge(s, ctx, (5 / 365) * paceOf(s), 'C4 tacit knowledge', r.core.name);
       rivalMeter(s, ctx, r.core.id, 'cooperation', -20, 'C4 poaching');
       rivalMeter(s, ctx, r.core.id, 'poachAggression', 20, 'C4 poaching');
       trust(s, ctx, `rival:${r.core.id}`, -10, 'C4 poaching');

@@ -299,7 +299,7 @@ function FeatureRow({ s, d, f, eta }: { s: GameStateV2; d: Deployment; f: Featur
     { label: 'Effect', value: f.effect },
     ...(f.risk ? [{ label: 'Cost / risk', value: f.risk }] : []),
     ...(f.buildTW ? [{ label: 'Build', value: `${f.buildTW} team-weeks · ${F.money(f.cash)}` }] : []),
-    { label: 'Idea', value: TREE_BY_ID[f.node]?.name ?? f.node },
+    { label: 'Idea', value: f.node ? TREE_BY_ID[f.node]?.name ?? f.node : 'none needed' },
   ]} />;
   if (f.id === 'sectorPacks') {
     const secs = d.sectorFocus;
@@ -317,7 +317,7 @@ function FeatureRow({ s, d, f, eta }: { s: GameStateV2; d: Deployment; f: Featur
   const built = s.player.features.includes(f.id);
   const on = d.features.includes(f.id);
   const building = eta !== undefined;
-  const known = nodeKnown(s, f.node);
+  const known = !f.node || nodeKnown(s, f.node);
   if (built) return (
     <Tip content={tip}>
       <div className="ft"><Check size={12} className="ok" /><span className="ft-n">{f.name}</span><span className="sp" />
@@ -334,8 +334,8 @@ function FeatureRow({ s, d, f, eta }: { s: GameStateV2; d: Deployment; f: Featur
   );
   return (
     <Tip content={tip}>
-      <button className="ft locked" data-node={f.node} onClick={() => { store.setTab('research.sel', f.node); store.goto('research'); }}>
-        <Lock size={11} /><span className="ft-n">{f.name}</span><span className="sp" /><span className="ft-s"><ICON.research size={10} /> {TREE_BY_ID[f.node]?.name ?? f.node}</span>
+      <button className="ft locked" data-node={f.node} onClick={() => { store.setTab('research.sel', f.node ?? ''); store.goto('research'); }}>
+        <Lock size={11} /><span className="ft-n">{f.name}</span><span className="sp" /><span className="ft-s"><ICON.research size={10} /> {f.node ? TREE_BY_ID[f.node]?.name ?? f.node : ''}</span>
       </button>
     </Tip>
   );

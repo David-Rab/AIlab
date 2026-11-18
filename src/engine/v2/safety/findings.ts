@@ -14,6 +14,7 @@ import { CHINA_ID, internalVersion } from '../models/labs';
 import type { AgendaId, FindingRecord, FindingType, GameStateV2, SystemCtx, TechniqueState, ToolFamily, TraitId, UModeId } from '../types';
 import { clamp01, setFlag, trueEfficacy, versionM } from './common';
 import { observeVersion } from './detection';
+import { addKnowledge } from '../models/stacks';
 import { decayAt, unlockTechnique } from './techniques';
 import { discoverUMode, isDiscovered, revealToWorld, sabOf } from './umodes';
 
@@ -317,7 +318,8 @@ export function fireFinding(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId, no
       const row = candidates(s, agenda, ['SPILL'])[0];
       id = row?.id ?? nextId(s, 'SPILL');
       title = row?.title ?? 'Interpretability insight speeds up training';
-      ctx.bump('player.pa', 0.02, 'safety spillover', id);
+      // Model v3 V2: the insight enters the pretraining stack as a public idea (0.02 progress-years × B OOM).
+      addKnowledge(s, ctx, 0.02, 'safety spillover', id);
       break;
     }
     case 'FALSE': {

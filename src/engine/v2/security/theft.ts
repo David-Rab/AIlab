@@ -35,7 +35,8 @@ export function effectiveDefence(sec: SecurityState, gulf = 0): number {
 /** Daily theft hazard on a target with security `sec` holding a model `leadDays` ahead of China (§3.6). */
 export function theftHazardOn(s: GameStateV2, sec: SecurityState, leadDays: number, gulf = 0): number {
   if (leadDays <= 90 || s.china.lab.core.status !== 'active' || s.china.rung < WS4_TUNING.theftMinRung) return 0; // China holds nothing worth stealing
-  const p = theftP2mo(effectiveDefence(sec, gulf), attackerLevel(s));
+  // P25 Formal verification at scale (model v3 V2): verified infrastructure, +0.5 defence level for the player.
+  const p = theftP2mo(effectiveDefence(sec, gulf) + (sec === s.player.security && s.player.paradigms.P25?.status === 'adopted' ? 0.5 : 0), attackerLevel(s));
   return (-Math.log(1 - Math.min(0.999, p)) / 61) * (s.china.meters.theftIntent / 100);
 }
 

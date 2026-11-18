@@ -79,8 +79,8 @@ export type FeatureId = 'memory' | 'deepThink' | 'computerUse' | 'voiceVision' |
 export interface FeatureDef {
   id: FeatureId;
   name: string;
-  /** Tree node that unlocks it. */
-  node: string;
+  /** Tree node that unlocks it (model v3 V2: the axis that makes it possible; absent = buildable from the start). */
+  node?: string;
   /** Products it can be switched on for. */
   products: Channel[];
   /** Build: team-weeks of engineering and cash ($B). */
@@ -115,18 +115,18 @@ export const FEATURES: FeatureDef[] = [
   { id: 'computerUse', name: 'Computer use', node: 'P06', products: ['agents', 'api'], buildTW: 16, cash: 0.15,
     effect: 'Operates desktops and browsers: AGENCY +0.4', domains: { AGENCY: 0.4 },
     risk: 'Overreach incidents (power seeking) ×1.3', hazard: { POWER: 1.3 } },
-  { id: 'voiceVision', name: 'Voice & vision', node: 'voiceVision', products: ['consumer'], buildTW: 12, cash: 0.1,
+  { id: 'voiceVision', name: 'Voice & vision', node: 'multimodal', products: ['consumer'], buildTW: 12, cash: 0.1,
     effect: 'Talks and sees: Chat appeal ×1.1, MEDIA +0.3', appeal: 1.1, domains: { MEDIA: 0.3 } },
-  { id: 'deepResearch', name: 'Deep research', node: 'deepResearch', products: ['consumer', 'enterprise'], buildTW: 8, cash: 0.05,
+  { id: 'deepResearch', name: 'Deep research', node: 'P05', products: ['consumer', 'enterprise'], buildTW: 8, cash: 0.05,
     effect: 'Long research reports: REASON +0.3, RSCH +0.3', domains: { REASON: 0.3, RSCH: 0.3 },
     risk: 'Serving need ×1.1 (long agent runs)', serve: 1.1 },
-  { id: 'codingAgent', name: 'Coding agent', node: 'codingAgent', products: ['agents', 'api'], buildTW: 12, cash: 0.1,
+  { id: 'codingAgent', name: 'Coding agent', products: ['agents', 'api'], buildTW: 12, cash: 0.1,
     effect: 'Agents in Software & IT: +0.5 L in that sector', sectors: ['SOFT'],
     risk: 'Reward-hacking incidents ×1.2 (agents gaming tests)', hazard: { RH: 1.2 } },
   { id: 'companion', name: 'Companion mode', node: 'engagement', products: ['consumer'], buildTW: 4, cash: 0.05,
     effect: 'A persistent persona: Chat appeal ×1.2', appeal: 1.2,
     risk: 'Sycophancy incidents ×1.5', hazard: { SYC: 1.5 } },
-  { id: 'sectorPacks', name: 'Sector packs', node: 'sectorPacks', products: ['enterprise', 'api', 'agents'], buildTW: 0, cash: 0, leader: true,
+  { id: 'sectorPacks', name: 'Sector packs', products: ['enterprise', 'api', 'agents'], buildTW: 0, cash: 0, leader: true,
     effect: 'Sector products: +0.5 L in a sector once certified (each pack: $0.4B, 120 days)' },
 ];
 export const FEATURE_BY_ID = Object.fromEntries(FEATURES.map((f) => [f.id, f])) as Record<FeatureId, FeatureDef>;

@@ -248,7 +248,7 @@ try {
 check(threw, 'save: v1 save is rejected (no migration)');
 // Model v3 V1 (schemaRev 12): saves from before the v3 model rebuild do not carry over (MODEL-V3 §16). A schemaRev-11
 // save and an older one (rev 1, which migrated up to 11 before) are rejected with the existing message.
-for (const rev of [1, 11]) {
+for (const rev of [1, 11, 12]) {
   const old = JSON.parse(serialize(run(detSetup, 30))) as GameStateV2 & Record<string, unknown>;
   old.schemaRev = rev;
   let msg = '';
@@ -257,7 +257,8 @@ for (const rev of [1, 11]) {
   } catch (e) {
     msg = (e as Error).message;
   }
-  check(SCHEMA_REV === 12 && msg === 'no migration from schemaRev 11', `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
+  // Model v3 V2 (schemaRev 13): V1 saves (12) are rejected too.
+  check(SCHEMA_REV === 13 && msg === `no migration from schemaRev ${rev === 12 ? 12 : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
 }
 
 // ---------- 6. Cadences ----------

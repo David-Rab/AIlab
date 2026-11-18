@@ -1,4 +1,4 @@
-// Capability: the G → pm bridge, know-how → recipe bridge, levels, domains, horizons, milestones, true lead
+// Capability: the G → pm bridge, the know-how readout zero, levels, domains, horizons, milestones, true lead
 // (V2-SPEC §3.1.3–3.1.6; model v3 V1: design/MODEL-V3.md §2, design/V3-BUILD.md "Bridges"). Owner: WS1.
 import { B0_START_DAY, LEVEL_KNOTS, REF_OFF, RSCH_TASTE_PENALTY, DOMAIN_IDS, V0_DAY } from '../../../data/v2/calibration';
 import { B_G_PER_Y, E_START, RL_BUDGET, REFERENCE_BASE } from '../../../data/v2/runDesign';
@@ -35,13 +35,13 @@ export function pcRefLab(w: TimelineWorld, day: Day, scDay?: Day): number {
 
 // ───────────────────────────── bridges (design/V3-BUILD.md) ─────────────────────────────
 
-/** BRIDGE(V2): zero of the know-how → recipe bridge: the leader start's know-how on day 0 in world w. */
+/** BRIDGE(V3): zero of the know-how readout: the leader start's know-how on day 0 in world w (models/stacks.ts syncPa:
+ *  pa = paRef + G-equivalent of the stacks ÷ B). */
 export const paRef = (w: TimelineWorld) => playerStart(w).pa0;
-/** BRIDGE(V2): stack efficiency from know-how, e = B × (pa − pa₀) OOM: one progress-year of know-how = B OOMs, until
- *  V2 builds stacks from adopted ideas. Used for both the pretraining and the RL stack. */
-export const eStack = (w: TimelineWorld, pa: number) => B_G_PER_Y * (pa - paRef(w));
-/** Pretraining recipe efficiency at know-how pa: E_START + e_stack (OOM). */
-export const recipeAt = (w: TimelineWorld, pa: number) => E_START + eStack(w, pa);
+/** Start state only (model v3 V2): the recipe vintage of a start-state know-how value of the closed-form start solution
+ *  (playerStart: B0's start day, V0's post-training day), OOM over the leader's day-0 recipe. The engine's recipe comes
+ *  from the stacks (models/stacks.ts); nothing reads it from the know-how readout. */
+export const startVintage = (w: TimelineWorld, paStart: number) => B_G_PER_Y * (paStart - paRef(w));
 
 const gV0Cache = new WeakMap<TimelineWorld, number>();
 /** G of the reference start version V0 in world w: the reference base B0 (1T active × 50 tokens per parameter, the
@@ -51,8 +51,8 @@ export function gV0(w: TimelineWorld): number {
   if (hit !== undefined) return hit;
   const ps = playerStart(w);
   const flop = flopOfDesign(REFERENCE_BASE);
-  const g = gPreOf({ flop, tpp: REFERENCE_BASE.tpp, recipe: recipeAt(w, ps.paBase), shape: REFERENCE_BASE.shape, fData: 1, designDg: 0 }).total;
-  const rl = rlGains(flop, RL_BUDGET.standard * flop, rlWeights('broad', rlFamiliesAvailable(() => false)), eStack(w, ps.paPost));
+  const g = gPreOf({ flop, tpp: REFERENCE_BASE.tpp, recipe: E_START + startVintage(w, ps.paBase), shape: REFERENCE_BASE.shape, fData: 1, designDg: 0 }).total;
+  const rl = rlGains(flop, RL_BUDGET.standard * flop, rlWeights('broad', rlFamiliesAvailable(() => false)), startVintage(w, ps.paPost));
   const out = g + rl.general;
   gV0Cache.set(w, out);
   return out;

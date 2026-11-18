@@ -156,11 +156,12 @@ export const RL_C0 = (() => {
 
 export interface RlGains { perDomain: Record<DomainId, number>; general: number; perFamily: FamilyMap; ceiling: number }
 /** RL gains of `rlFlop` RL FLOP split by `w` on a base of physical FLOP `flopPre`, with RL recipe
- *  efficiency `eRL` (OOM): per domain, the transfer-weighted RL compute reaching it on the family curve; general = the
- *  mean over the cognitive domains; per family, the in-family gain (its own compute only). Bounded by the ceiling A
- *  and monotone in every input. */
-export function rlGains(flopPre: number, rlFlop: number, w: FamilyMap, eRL: number): RlGains {
-  const A = rlCeiling(flopPre);
+ *  efficiency `eRL` (OOM, the RL stack's efficiency: moves the midpoint) and ceiling raise `aRL` (OOM added to A: the RL
+ *  stack's environments and rewards, model v3 V2): per domain, the transfer-weighted RL compute reaching it on the family
+ *  curve; general = the mean over the cognitive domains; per family, the in-family gain (its own compute only). Bounded
+ *  by the ceiling A + aRL and monotone in every input. */
+export function rlGains(flopPre: number, rlFlop: number, w: FamilyMap, eRL: number, aRL = 0): RlGains {
+  const A = Math.max(0, rlCeiling(flopPre) + aRL);
   const cMid = (RL_C0 * Math.max(1, flopPre)) / Math.pow(10, eRL);
   const perDomain = {} as Record<DomainId, number>;
   for (const d of DOMAIN_IDS) perDomain[d] = sig(A, cMid, rlFlop * reach(w, d));

@@ -12,7 +12,10 @@
 // with reference resources and the best research mix has M = multiplierAt(w, q) exactly (acceptance test P1): the
 // reference lab optimises its mix, the AI 2027 usage table fixes only how much compute goes to research in total.
 // Synthetic data is a training input (data stock and the data wall on bases, data.ts), not a research input.
-import { aEngOf, playerH } from '../departments/teams';
+import { aEngOf } from '../departments/teams';
+import { REF_ROLE_SHARE } from '../../../data/v2/teams';
+import { researchHeads } from '../models/research';
+import { addKnowledge } from '../models/stacks';
 import { agentVersion, capShare } from '../departments/agents';
 import { ENG_REF_SHARE } from '../../../data/v2/agents';
 import { laborSlowdown, multiplierAt, stage1 } from '../../../data/world';
@@ -241,7 +244,8 @@ export function labInputs(s: GameStateV2, lab: LabId, day = s.time.day): LabInpu
   let cMult = 1;
   let mods = 1;
   // Player: capabilities research engineers carry h (R3: h = RE_cap / (0.55·H_ref)); other labs: their capabilities staff.
-  let H = isPlayer ? playerH(s.player) : core.staff.cap;
+  // Model v3 V2 (BRIDGE(V3)): research engineers on experiments and tuning, normalised by their reference share.
+  let H = isPlayer ? researchHeads(s, REF_ROLE_SHARE.re) : core.staff.cap;
   if (isPlayer) {
     const par = s.player.paradigms;
     if (par.P05?.status === 'adopted') etaMod *= 1.3;
@@ -394,7 +398,9 @@ export function advanceLab(s: GameStateV2, lab: LabId): ProductionReadout | unde
   if (!inp) return undefined;
   const r = evalProduction(s.hidden.timeline, inp, lab === PLAYER_ID);
   core.prodCache = r;
-  core.pa += r.rate / 365;
+  // Model v3 V2: the player's know-how is a readout of the recipe stacks (models/stacks.ts syncPa); only simple labs
+  // (rivals, China, the leader lab) still grow know-how at the rate (BRIDGE(V7)).
+  if (lab !== PLAYER_ID) core.pa += r.rate / 365;
   return r;
 }
 
@@ -417,12 +423,9 @@ export const productionSystem: EngineSystem = {
   run(s, ctx) {
     const r = advanceLab(s, PLAYER_ID);
     if (r) {
-      ctx.cause('player.pa', r.rate / 365, 'production', `M ${r.M.toFixed(2)}×, ${r.label}`);
+      // Model v3 V2: knowledge diffusion arrives as public ideas in the pretraining stack (B OOM per progress-year).
       const dif = diffusionPerDay(s);
-      if (dif.dpa > 0) {
-        s.player.pa += dif.dpa;
-        ctx.cause('player.pa', dif.dpa, 'knowledge diffusion', dif.from);
-      }
+      if (dif.dpa > 0) addKnowledge(s, ctx, dif.dpa, 'knowledge diffusion', dif.from);
       ctx.memo.set('WS1:production:player', r);
       syntheticAccrual(s);
     }

@@ -274,7 +274,13 @@ export interface ModelsState {
   versions: ModelVersion[];
   runs: TrainingRun[];
   /** Continual-learning stream (P08) if active: the version id being updated in place. */
-  stream?: { versionId: string; startedDay: Day; lastAuditDay: Day; /** pa seen by the stream (7-day lag) */ paTrack?: number };
+  stream?: {
+    versionId: string; startedDay: Day; lastAuditDay: Day;
+    /** BRIDGE(V3) readout: pa-equivalent of the recipe the stream has absorbed. */
+    paTrack?: number;
+    /** Model v3 V2: the recipe the stream has absorbed (7-day lag): e_pre at its base's FLOP, RL efficiency, RL ceiling. */
+    track?: { pre: number; rlMid: number; rlCeil: number };
+  };
   nextName: number; // naming counter
 }
 
@@ -359,6 +365,8 @@ export interface VersionBuild {
   rlFlop: number;
   rlW: Partial<Record<RLFamily, number>>;
   eRL: number;
+  /** RL ceiling raise from the RL stack frozen at launch (OOM added to the curve's asymptote; model v3 V2). */
+  aRL?: number;
   /** RL gain: general (mean over the cognitive domains) and per domain (OOM). */
   dgRL: number;
   dgRLd: Partial<Record<DomainId, number>>;
@@ -420,8 +428,10 @@ export interface TrainingRun {
   setupId?: string;
   /** Day the setup finished and training began (R5). */
   readyDay?: Day;
-  /** Lab know-how pa at launch (base runs freeze their recipe here, post runs their RL recipe). */
+  /** BRIDGE(V3) readout: the lab's pa-equivalent know-how at launch. */
   paAtStart?: number;
+  /** Model v3 V2: the recipe frozen at launch: e_pre at the run's FLOP (base, continue), RL efficiency and ceiling (post, IDA). */
+  recipe?: { pre?: number; rlMid?: number; rlCeil?: number };
   /** BRIDGE(V3,V6,V7): base/continue run scale vs the frontier run F(t) at launch (engineering load, S5, scrutiny). */
   scale?: number;
   /** Distillation: student active parameters; distillation and continued-pretraining runs: tokens. */
@@ -545,14 +555,137 @@ export interface TreeNodeState {
   retryDay?: Day;
   /** Research-line projects (R8): team-months spent on the current attempt (counted as lost if it dead-ends). */
   tm?: number;
+  /** Capability projects (model v3 V2): the lifecycle state (models/research.ts). */
+  cap?: CapProjectState;
 }
+
+// ───────────────────────────── Research projects (model v3 V2: MODEL-V3 §5) ─────────────────────────────
+
+/** Lifecycle stage of a capability project (MODEL-V3 §5.3). `ideation` also covers waiting for enough candidates. */
+export type CapStage = 'ideation' | 'small' | 'scale' | 'result' | 'adopting' | 'failed';
+/** A candidate idea found by ideation. Its true effect is never stored: it is recomputed from the world seed, the
+ *  project, the generation and the candidate number (models/research.ts candidateTruth), so nothing hidden is saved. */
+export interface Candidate {
+  /** Candidate number within the project (the hash key of its hidden draw). */
+  k: number;
+  /** Generation it belongs to (lines; 1 for ideas). */
+  gen: number;
+  /** Novelty 0..1 (visible): novel candidates are bigger if they work and less certain. */
+  nov: number;
+  /** Ideas batched into this candidate (lines at high research pace: the work, FLOP and effect scale with it). */
+  b: number;
+  /** Taste of the scientists who found it (capacity-weighted team quality, Strong = 1). */
+  q: number;
+  /** Belief about its small-scale effect (project unit; OOM for stack effects): mean and sd. */
+  mu: number;
+  sd: number;
+  /** Belief about its scale exponent s (mean, sd). */
+  muS: number;
+  sdS: number;
+}
+/** The candidate in test (small experiments, then the scale test). Work in research-engineer team-months at pace 1. */
+export interface CapTest {
+  c: Candidate;
+  /** Work done / needed in the current stage; FLOP done / needed. */
+  work: number;
+  workNeed: number;
+  flop: number;
+  flopNeed: number;
+  /** FLOP of the scale test (the reference point of the scale exponent). */
+  fTest: number;
+}
+/** A finished project's final estimate (MODEL-V3 §5.3 step 4): the effect at the lab's latest base FLOP (band). */
+export interface CapResult {
+  c: Candidate;
+  /** Measured effect at the scale test and measured scale exponent (beliefs; the truth enters the stack on adoption). */
+  xTest: number;
+  sHat: number;
+  fTest: number;
+  /** Estimated effect at the lab's latest base when the result came in (mean, sd; project unit). */
+  est: number;
+  estSd: number;
+  /** Build item adopting it (engineers). */
+  buildId?: string;
+  day: Day;
+}
+export interface CapProjectState {
+  stage: CapStage;
+  /** Generation (lines: 1, 2, …; ideas 1). */
+  gen: number;
+  /** Ideation progress toward the next candidate (0..1). */
+  idea: number;
+  cands: Candidate[];
+  test?: CapTest;
+  result?: CapResult;
+  /** Candidates dropped in this generation / attempt. */
+  drops: number;
+  /** Next candidate number. */
+  next: number;
+  /** Times reopened as speculative (each halves the odds and widens the prior). */
+  spec?: number;
+  /** Lines: results waiting for the engineers to build them in (the line moves on to its next generation). */
+  pending?: CapResult[];
+}
+/** One adopted idea (the last few are kept for the readout). */
+export interface AdoptedIdea {
+  id: string;
+  name: string;
+  stack: StackKey;
+  /** Effect at the lab's latest base when adopted (OOM; the realised value, shown once a model trains with it). */
+  eff: number;
+  /** The believed band when the result came in. */
+  est: number;
+  estSd: number;
+  s: number;
+  day: Day;
+}
+/** The recipe stacks (MODEL-V3 §5.5, V3-BUILD V2.1): pre = pretraining efficiency (OOM of effective compute, may scale
+ *  with run FLOP); rlMid = RL compute efficiency (OOM, moves the RL midpoint); rlCeil = OOM added to the RL ceiling;
+ *  train = training throughput (OOM of model FLOP per chip-day); serve = OOM less serving FLOP per token. */
+export type StackKey = 'pre' | 'rlMid' | 'rlCeil' | 'train' | 'serve';
+/** Scale bucket: Σ effect_i · 10^(−s·log₁₀ F_test,i) of the adopted ideas with scale exponent s (rounded), and the part
+ *  still in headroom (same units). Effect at run FLOP F = (a − h) · 10^(s·log₁₀ F). */
+export interface StackBucket { s: number; a: number; h: number }
+export interface StackState {
+  /** Start recipe and public knowledge (OOM, scale-invariant, no headroom). */
+  base: number;
+  buckets: StackBucket[];
+  /** Ideas adopted. */
+  n: number;
+}
+export type RiskPolicy = 'safe' | 'balanced' | 'speculative';
+/** Research-engineer needs (V3-BUILD V2.5): run operations, project experiments, routine tuning. */
+export type ReNeed = 'ops' | 'exp' | 'tune';
+/** Engineer needs: run operations and setups, product upkeep, builds (features, adoptions, launches, packs). */
+export type EngNeed = 'runs' | 'upkeep' | 'builds';
+/** A broad allocation: needs in priority order and optional caps per need: a team count (`max`, team-equivalents) and a
+ *  share of the capacity (`share`, 0..1); absent = no cap. Unused capacity flows down the order. */
+export interface Allocation<K extends string> { order: K[]; max: Partial<Record<K, number>>; share: Partial<Record<K, number>> }
 
 export interface ResearchState {
   /** Projects in priority order (node ids). Teams work on the ones that are ready; the rest wait. */
   queue: string[];
   /** Policy: idle science teams join the highest-priority ready project of their department in their specialty; a
-   *  safety team whose project resolves keeps working its research line (R8). */
+   *  safety team whose project resolves keeps working its research line (R8). Capability science teams are always
+   *  placed by the assignment (V3-BUILD V2.5); the flag only affects safety teams. */
   autoAssign: boolean;
+  /** Teams wanted per capability project (default 1; PROJECT_MAX_TEAMS = "max"). */
+  want: Record<string, number>;
+  /** Lab-wide research risk policy (MODEL-V3 §5.3): the candidate a team pursues maximises μ + κσ of its belief. */
+  risk: RiskPolicy;
+  /** Research engineers (capabilities) by need. */
+  re: Allocation<ReNeed>;
+  /** Recipe stacks. */
+  stacks: Record<StackKey, StackState>;
+  /** Adopted domain effects for versions trained after them (OOM per domain: test-time training, self-play, robotics). */
+  domainG: Partial<Record<DomainId, number>>;
+  /** Last adopted ideas (newest last, ≤ 30) for the readout. */
+  adopted: AdoptedIdea[];
+  /** Weekly samples of the stacks' G-equivalent total (OOM over the start) and ideas adopted (the recent rate). */
+  hist: { day: Day; g: number; n: number }[];
+  /** Readout of the last day: research engineers per need and per project (team-equivalents), project FLOP used and
+   *  available (FLOP/day). */
+  last?: { re: Record<ReNeed, number>; reProj: Record<string, number>; flopUsed: number; flopAvail: number };
 }
 
 // ───────────────────────────── Production readout (§3.2.5) ─────────────────────────────
@@ -722,7 +855,7 @@ export interface AgentPackage {
 
 // ───────────────────────────── Build queue (STRUCTURE §4.1, R5) ─────────────────────────────
 
-export type BuildKind = 'runSetup' | 'feature' | 'harness' | 'safeguard' | 'launch' | 'sectorPack';
+export type BuildKind = 'runSetup' | 'feature' | 'harness' | 'safeguard' | 'launch' | 'sectorPack' | 'adopt';
 /** A product launch waiting for its build (J2 P1): the product goes live with these settings once built. */
 export interface PendingLaunch {
   channel: Channel;
@@ -744,7 +877,8 @@ export interface BuildItem {
   priority: number;
   /** Day it was queued. */
   day: Day;
-  /** kind 'launch': the product settings; kind 'sectorPack': the host product id (ref = the sector). */
+  /** kind 'launch': the product settings; kind 'sectorPack': the host product id (ref = the sector); kind 'adopt': ref = the
+   *  project (tree node) whose result is built into the stack (model v3 V2). */
   launch?: PendingLaunch;
   host?: string;
 }
@@ -755,6 +889,8 @@ export interface BuildState {
   last?: { cap: number; upkeep: number; served: number; queue: number };
   /** Average (≈ 30 d) share of build capacity in use (upkeep served + queue work). */
   util?: number;
+  /** Model v3 V2: engineers by need (priority order, optional caps in team-weeks per week; overflow flows down). */
+  alloc: Allocation<EngNeed>;
 }
 
 // ───────────────────────────── Teams (STRUCTURE §4.1, R3) ─────────────────────────────
@@ -783,6 +919,8 @@ export interface Team {
   projectId?: string;
   /** J2 R2: placed by the player or a bot (auto-assign does not move it while its project runs). */
   manual?: boolean;
+  /** Model v3 V2: why the assignment put a capability science team where it is (readout). */
+  why?: string;
 }
 
 /** A team on the candidate list (drawn weekly from the 'company' stream). */

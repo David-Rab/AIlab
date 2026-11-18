@@ -2,7 +2,9 @@
 // science team, and the auto-assign policy. Owner: WS1. Previews work with empty params (defaults: the first open idea,
 // the first capabilities science team) and show ≥ 1 cost in a currency not among the gains (lint-tradeoffs).
 import { PROJECT_BY_ID, TREE } from '../../../data/v2/tree';
-import type { ActionDef, CostLine, GameStateV2 } from '../types';
+import type { ActionDef, CostLine, EngNeed, GameStateV2, ReNeed, RiskPolicy } from '../types';
+import { PROJECT_MAX_TEAMS, RISK_KAPPA } from '../../../data/v2/research';
+import { reopenProject, teamsWanted } from './research';
 import {
   assignTeam, dequeueNode, effortOf, idleTeams, moveInQueue, nodeOdds, nodeStatus, projectCapacity, projectEta, projectTeams,
   queueNode, unassignTeam,
@@ -36,6 +38,22 @@ export function nodePreview(s: GameStateV2, id: string): Preview {
   if ((n.fx.saf ?? 0) > 0) gains.push({ currency: 'alignment', amount: 0.05 * (n.fx.saf ?? 0), probability: odds, target: n.name });
   if ((n.fx.saf ?? 0) < 0) exposure.push({ currency: 'alignment', amount: 0.05 * (n.fx.saf ?? 0), probability: odds });
   return { costs, gains, exposure };
+}
+
+const NEEDS_RE: ReNeed[] = ['ops', 'exp', 'tune'];
+const NEEDS_ENG: EngNeed[] = ['runs', 'upkeep', 'builds'];
+/** Parse an order param ('exp,ops,tune'): a permutation of the needs, or undefined. */
+function orderParam<K extends string>(p: Params, all: K[]): K[] | undefined {
+  if (typeof p.order !== 'string') return undefined;
+  const xs = p.order.split(',').map((x) => x.trim()) as K[];
+  return xs.length === all.length && all.every((k) => xs.includes(k)) ? xs : undefined;
+}
+/** Apply cap params to an allocation: `need` + `max` (team-equivalents) or `share` (0..1); a negative value clears. */
+function capParams<K extends string>(a: { max: Partial<Record<K, number>>; share: Partial<Record<K, number>> }, p: Params, all: K[]) {
+  const k = typeof p.need === 'string' && (all as string[]).includes(p.need) ? (p.need as K) : undefined;
+  if (!k) return;
+  if (typeof p.max === 'number') { if (p.max < 0) delete a.max[k]; else a.max[k] = p.max; }
+  if (typeof p.share === 'number') { if (p.share < 0) delete a.share[k]; else a.share[k] = Math.min(1, p.share); }
 }
 
 export const TREE_ACTIONS: ActionDef[] = [
@@ -111,6 +129,76 @@ export const TREE_ACTIONS: ActionDef[] = [
     },
     apply: (s, _ctx, p) => {
       s.player.research.autoAssign = p.on === undefined ? !s.player.research.autoAssign : p.on === true;
+    },
+  },
+  {
+    id: 'research.want', verb: 'research', system: 'research', sphere: 'models', owner: 'WS1', title: 'Teams wanted',
+    available: (s) => (s.player.research.queue.length ? true : 'No projects'),
+    preview: (s, p) => {
+      const id = str(p, 'id', s.player.research.queue[0] ?? '');
+      const n = Math.max(0, Math.min(PROJECT_MAX_TEAMS, Math.round(num(p, 'n', teamsWanted(s, id) + 1))));
+      return { costs: [{ currency: 'staffTime', amount: n - teamsWanted(s, id), target: 'science teams from lower-priority projects' }], gains: [{ currency: 'progress', amount: 0, target: (PROJECT_BY_ID[id]?.name ?? 'project') + ' faster (square-root returns per team)' }], exposure: [] };
+    },
+    apply: (s, _ctx, p) => {
+      const id = str(p, 'id', '');
+      if (!PROJECT_BY_ID[id]) throw new Error('Unknown idea');
+      s.player.research.want[id] = Math.max(0, Math.min(PROJECT_MAX_TEAMS, Math.round(num(p, 'n', 1))));
+    },
+  },
+  {
+    id: 'research.risk', verb: 'policy', system: 'research', sphere: 'models', owner: 'WS1', title: 'Research risk policy',
+    available: () => true,
+    preview: (_s, p) => {
+      const r = (str(p, 'risk', 'balanced') as RiskPolicy);
+      const k = RISK_KAPPA[r] ?? 0;
+      return k >= 0
+        ? { costs: [{ currency: 'progress', amount: -k, target: 'more candidates dropped' }], gains: [{ currency: 'staffTime', amount: 0, target: 'teams pursue bigger, less certain ideas' }], exposure: [] }
+        : { costs: [{ currency: 'progress', amount: k, target: 'smaller ideas' }], gains: [{ currency: 'staffTime', amount: 0, target: 'teams pursue surer ideas: fewer dead ends' }], exposure: [] };
+    },
+    apply: (s, _ctx, p) => {
+      const r = str(p, 'risk', 'balanced') as RiskPolicy;
+      if (!(r in RISK_KAPPA)) throw new Error('Unknown risk policy');
+      s.player.research.risk = r;
+    },
+  },
+  {
+    id: 'research.reopen', verb: 'research', system: 'research', sphere: 'models', owner: 'WS1', title: 'Reopen as speculative',
+    available: (s) => (TREE.some((n) => s.player.tree[n.id]?.status === 'failed' && n.kind && n.kind !== 'line') ? true : 'No failed project'),
+    preview: (s, p) => {
+      const id = str(p, 'id', TREE.find((n) => s.player.tree[n.id]?.status === 'failed')?.id ?? '');
+      return { costs: [{ currency: 'staffTime', amount: Math.round(effortOf(PROJECT_BY_ID[id] ?? TREE[0]) * 10) / 10, target: 'science team-months again' }], gains: [{ currency: 'progress', amount: 0.05, probability: nodeOdds(s, id), target: PROJECT_BY_ID[id]?.name ?? 'project' }], exposure: [] };
+    },
+    apply: (s, _ctx, p) => {
+      const id = str(p, 'id', '');
+      fail(reopenProject(s, id) ?? queueNode(s, id));
+    },
+  },
+  {
+    id: 'research.reAlloc', verb: 'policy', system: 'research', sphere: 'departments', owner: 'WS1', title: 'Research engineers by need',
+    available: () => true,
+    preview: (_s, p) => {
+      const need = str(p, 'need', 'exp');
+      return { costs: [{ currency: 'staffTime', amount: 0, target: 'research engineers move from the needs below it' }], gains: [{ currency: 'progress', amount: 0, target: need + ' gets them first' }], exposure: [] };
+    },
+    apply: (s, _ctx, p) => {
+      const a = s.player.research.re;
+      const o = orderParam(p, NEEDS_RE);
+      if (o) a.order = o;
+      capParams(a, p, NEEDS_RE);
+    },
+  },
+  {
+    id: 'build.engAlloc', verb: 'policy', system: 'people', sphere: 'departments', owner: 'WS1', title: 'Engineers by need',
+    available: () => true,
+    preview: (_s, p) => {
+      const need = str(p, 'need', 'builds');
+      return { costs: [{ currency: 'staffTime', amount: 0, target: 'engineers move from the needs below it' }], gains: [{ currency: 'progress', amount: 0, target: need + ' gets them first' }], exposure: [] };
+    },
+    apply: (s, _ctx, p) => {
+      const a = s.player.build.alloc;
+      const o = orderParam(p, NEEDS_ENG);
+      if (o) a.order = o;
+      capParams(a, p, NEEDS_ENG);
     },
   },
 ];

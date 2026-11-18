@@ -1,4 +1,7 @@
 // The tech tree and its research projects (TECH-TREE.md, STRUCTURE §4.2, §4.5, BUILD-PLAN R4, R8). Owner: WS1.
+// Model v3 V2: capability projects run the research lifecycle of models/research.ts (ideation → small experiments →
+// scale test → result → adoption into the recipe stacks; scientists assigned by priority and teams wanted; research
+// engineers by need). The text below the first paragraph describes the safety path, which is unchanged until V6.
 //
 // A node opens when its prerequisites are known (no capability gates). The player queues projects (priority order) and
 // assigns science teams of the node's department (capability columns: capabilities scientists; alignment,
@@ -35,8 +38,16 @@ import { DEFAULT_CAP_SHARES } from '../../../data/v2/agents';
 import { Phi } from '../production/knots';
 import { capShare } from '../departments/agents';
 import { lineCapacity, lineRate, posteriorBand } from '../safety/agendas';
+import { queueBuild } from '../departments/build';
+import { addKnowledge, gEquivOf, paOfGEquiv } from './stacks';
+import { B_G_PER_Y, E_START } from '../../../data/v2/runDesign';
+import {
+  attemptOdds, capProgress, capResearchDay, isCapProject, researchPace, stagesOf, takesTeams,
+} from './research';
 import { safetyAgentL } from '../safety/agents';
 import { fireFinding } from '../safety/findings';
+import { DEFAULT_RE_ALLOC } from '../../../data/v2/research';
+import { initialStacks } from './stacks';
 
 export type NodeStatus = 'known' | 'active' | 'queued' | 'open' | 'locked' | 'failed' | 'soon';
 
@@ -66,7 +77,15 @@ export function initialResearch(teams: Team[] = []): ResearchState {
     t.projectId = id;
     if (!queue.includes(id)) queue.push(id);
   }
-  return { queue, autoAssign: true };
+  return { queue, autoAssign: true, ...initialCapResearch() };
+}
+
+/** Model v3 V2 research fields (stacks from initialStacks; the start lag is applied by core/init). */
+export function initialCapResearch(): Pick<ResearchState, 'want' | 'risk' | 're' | 'stacks' | 'adopted' | 'hist' | 'domainG'> {
+  return {
+    want: {}, risk: 'balanced', re: { order: [...DEFAULT_RE_ALLOC.order], max: { ...DEFAULT_RE_ALLOC.max }, share: { ...DEFAULT_RE_ALLOC.share } },
+    stacks: initialStacks(0), adopted: [], hist: [], domainG: {},
+  };
 }
 
 /** Whether the player can run a project on this node now (kind of node, not its prerequisites). */
@@ -95,9 +114,11 @@ export function nodeStatus(s: GameStateV2, id: string): NodeStatus {
   if (!n) return 'locked';
   if (nodeKnown(s, id)) return 'known';
   if (n.soon) return 'soon';
+  const st = s.player.tree[id];
+  if (st?.cap?.stage === 'adopting' || st?.cap?.stage === 'result') return 'active';
+  if (st?.status === 'failed') return 'failed';
   const queued = s.player.research.queue.includes(id);
   if (queued) return teamsOn(s, id).length > 0 ? 'active' : 'queued';
-  if (s.player.tree[id]?.status === 'failed') return 'failed';
   return missingNeeds(s, id).length ? 'locked' : 'open';
 }
 
@@ -110,6 +131,12 @@ export function nodeOdds(s: GameStateV2, id: string): number {
   const n = node(id);
   if (!n) return 0;
   if (isLineNode(n)) return posteriorBand(s.player.safety.agendas[n.agenda as AgendaId]).mean;
+  if (isCapProject(n)) {
+    const st = s.player.tree[id];
+    // A failed project's odds are those of a speculative reopening.
+    const spec = (st?.cap?.spec ?? 0) + (st?.status === 'failed' ? 1 : 0);
+    return attemptOdds(n, spec);
+  }
   const base = n.paradigm ? (PARADIGM_BY_ID[id]?.prior ?? 1) : (n.odds ?? 1);
   return base * (s.player.tree[id]?.priorMult ?? 1);
 }
@@ -142,6 +169,15 @@ export function projectRate(s: GameStateV2, id: string, cap?: number): number {
   if (isLineNode(n)) {
     const ag = n.agenda as AgendaId;
     return lineRate(s, ag, c, cap === undefined || Math.abs(c - now) < 1e-9 ? undefined : lineCapacity(s, ag) - now + c);
+  }
+  if (isCapProject(n)) {
+    // Model v3 V2: a rough share of the lifecycle per day (ideation of two candidates plus the two test stages with two
+    // research-engineer teams), for the ETA readout; the engine runs the stages (models/research.ts).
+    const sg = stagesOf(n);
+    const pace = researchPace(s);
+    const ideaDays = (2 * sg.idea * 30) / Math.max(1e-9, pace * Math.sqrt(c * sciAiMult(s)));
+    const testDays = ((sg.small + sg.scale) * 30) / Math.max(1e-9, pace * Math.SQRT2);
+    return 1 / Math.max(1e-9, ideaDays + testDays);
   }
   return (researchSpeed(s) * Math.sqrt(c * (nodeDept(n) === 'cap' ? sciAiMult(s) : 1))) / (effortOf(n) * 30);
 }
@@ -193,6 +229,8 @@ export function projectReady(s: GameStateV2, id: string): true | string {
   if (miss.length) return `Needs ${miss.map((m) => node(m)?.name ?? m).join(', ')}`;
   if (n.agenda === 'AG17' && isLineNode(n) && safetyAgentL(s) < AG17_MIN_L) return `Needs a safety-research model at measured level ≥ ${AG17_MIN_L}`;
   const st = s.player.tree[id];
+  if (isCapProject(n) && st?.status === 'failed') return 'Failed: reopen it as a speculative project';
+  if (isCapProject(n) && !takesTeams(st?.cap)) return 'Finished: the engineers are building it in';
   if (st?.status === 'failed' && (st.retryDay ?? 0) > s.time.day) return `Retry from ${fmtDate(dateOf(s, st.retryDay ?? 0))}`;
   if (n.cashCost && st?.status !== 'researching' && s.player.finance.cash < n.cashCost) return `Needs $${n.cashCost}B cash`;
   return true;
@@ -379,7 +417,6 @@ function autoAssignDept(s: GameStateV2, dept: TeamDept, respread: boolean) {
 
 /** Auto-assign policy (both departments); `respread` re-places every team the policy placed (a project finished). */
 export function autoAssign(s: GameStateV2, respread = false) {
-  autoAssignDept(s, 'cap', respread);
   autoAssignDept(s, 'saf', respread);
 }
 
@@ -394,12 +431,12 @@ function roll(s: GameStateV2, n: TreeNodeDef, st: TreeNodeState): boolean {
 }
 
 /** Mirror a paradigm node's state for `adopted()` readers. */
-function syncParadigm(s: GameStateV2, id: string) {
+export function syncParadigm(s: GameStateV2, id: string) {
   const ps = s.player.paradigms[id];
   const st = s.player.tree[id];
   if (!ps || !st) return;
   ps.status = st.status === 'known' ? 'adopted' : st.status === 'failed' ? 'failed' : 'researching';
-  ps.progress = st.status === 'known' ? 1 : st.progress;
+  ps.progress = st.status === 'known' ? 1 : st.cap ? capProgress(st.cap) : st.progress;
   if (st.day !== undefined && st.status !== 'researching') ps.revealedDay = st.day;
 }
 
@@ -443,11 +480,16 @@ export function researchDay(s: GameStateV2, ctx: SystemCtx) {
       delete t.manual;
     }
   }
+  // Model v3 V2: capability projects. Failed ones leave the queue; the rest run the lifecycle.
+  for (let i = q.length - 1; i >= 0; i--) if (isCapProject(node(q[i])) && p.tree[q[i]]?.status === 'failed') q.splice(i, 1);
+  const capReady = q.filter((id) => isCapProject(node(id)) && projectReady(s, id) === true);
+  capResearchDay(s, ctx, capReady, sciAiMult(s), (id, tw) => queueBuild(s, 'adopt', id, tw));
+  for (const id of capReady) if (p.tree[id]?.cap && node(id)?.paradigm) syncParadigm(s, id);
   if (p.research.autoAssign) autoAssign(s);
   let freed = false;
   for (const id of [...q]) {
     const n = node(id);
-    if (!n) continue;
+    if (!n || isCapProject(n)) continue;
     const cap = projectCapacity(s, id);
     if (cap <= 0) continue;
     let st = p.tree[id];
@@ -545,3 +587,14 @@ export function knowHow(s: GameStateV2): { pa: number; inModel: number; gap: num
   if (b) inModel = p.models.stream?.versionId === v?.id && p.models.stream.paTrack !== undefined ? p.models.stream.paTrack : b.paIn;
   return { pa: p.pa, inModel, gap: Math.max(0, p.pa - inModel), ...(v ? { versionName: v.name } : {}) };
 }
+
+/** BRIDGE(V3) readout: the pa-equivalent of a recipe (pretraining recipe incl. E_START, RL efficiency and ceiling) on a
+ *  base of `flop` FLOP. */
+export const paOfRecipe = (s: GameStateV2, flop: number, ePre: number, rlMid: number, rlCeil: number) =>
+  paOfGEquiv(s.hidden.timeline, gEquivOf(flop, ePre - E_START, rlMid, rlCeil));
+
+/** Knowledge from outside the lab (diffusion, tacit knowledge, safety spillover) in v2 know-how years: added to the
+ *  pretraining stack as public ideas (models/stacks.ts addKnowledge). */
+export const gainKnowledge = (s: GameStateV2, ctx: Pick<SystemCtx, 'cause'> | undefined, years: number, source: string, detail?: string) =>
+  addKnowledge(s, ctx, years, source, detail);
+export { B_G_PER_Y };

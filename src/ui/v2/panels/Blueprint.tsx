@@ -436,7 +436,7 @@ function Limits({ s, card, prev }: { s: GameStateV2; card?: Card_; prev?: Card_ 
       { label: <Term id="flop">FLOP</Term>, value: sci(card.flop) },
       { label: <><Term id="poolShare">Pool share</Term> asked → gets</>, value: `${F.pct(card.poolShare)} → ${F.pct(card.effShare)}` },
       { label: <Term id="runSetup">Wait for engineers</Term>, value: F.days(card.setupDays) },
-      ...(L ? [{ label: <Term id="behindAtFinish">Behind at finish</Term>, value: `${L.behindMonths.toFixed(1)} mo of know-how` }] : []),
+      ...(L ? [{ label: <Term id="behindAtFinish">Behind at finish</Term>, value: `${L.behind.ideas} ideas · ${L.behind.oom.toFixed(2)} OOM` }] : []),
     ]} footer="At today's training pool; chips on order shorten it. No minimum length.">FLOP ÷ (training pool × share × <Term id="goodput">goodput</Term>), plus the setup.</TipCard>,
   });
   if (L) {

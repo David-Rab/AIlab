@@ -19,6 +19,7 @@ import type { Deployment, DomainId, GameStateV2, ModelVersion, SectorId, SystemC
 import { runEvalSuite } from './benchmarks';
 import { measuredLOf, versionById } from './labs';
 import { nodeKnown } from './tree';
+import { PROJECT_BY_ID } from '../../../data/v2/tree';
 import { agentVersion } from '../departments/agents';
 import { AGENT_USES } from '../../../data/v2/agents';
 
@@ -169,7 +170,7 @@ export function featureBuildBlock(s: GameStateV2, id: string): string | undefine
   if (!f) return 'Unknown feature';
   if (s.player.features.includes(id)) return `${f.name} is built`;
   if (s.player.build.queue.some((it) => it.kind === 'feature' && it.ref === id)) return `${f.name} is being built`;
-  if (!nodeKnown(s, f.node)) return `Needs the idea ${f.node} (Research)`;
+  if (f.node && !nodeKnown(s, f.node)) return `Needs the idea ${PROJECT_BY_ID[f.node]?.name ?? f.node} (Research)`;
   if (f.cash > s.player.finance.cash) return 'Not enough cash';
   return undefined;
 }

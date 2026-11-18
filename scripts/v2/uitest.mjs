@@ -365,9 +365,10 @@ await check('Blueprint: tokens per parameter snap', `document.querySelector('[da
 await page.evaluate(paramSnap(-2));
 ok("Blueprint: locked card names its idea", await page.$eval(`[data-panel=blueprint] [data-opt="shape:latent"]`, (b) => b.classList.contains('locked') && !!b.dataset.node && b.innerText.length > 12));
 await check("Blueprint: architecture dense", `document.querySelector("[data-panel=blueprint]").innerHTML`, () => page.click(`[data-panel=blueprint] [data-opt="shape:dense"]`));
-ok("Blueprint: overtraining above 50 tokens per parameter is locked behind its tree node", JSON.parse(await get(`(() => { const b = document.querySelector('[data-panel=blueprint] [data-test=bp-tpp][data-size="200"]'); return !!b && b.classList.contains('locked') && b.dataset.node === 'overtrained'; })()`)));
-await check('Blueprint: locked card opens Research on its idea', `store.panel + ':' + (store.tab['research.sel'] || '')`, () => page.click('[data-panel=blueprint] [data-test=bp-tpp][data-size="200"]'));
-ok('Blueprint: Research shows the idea card', !!(await page.$('[data-test=node-card][data-card=overtrained]')));
+// Model v3 V2: overtraining is 2025 public knowledge (★): no snap is locked; the latent shape stays behind its idea (P17).
+ok("Blueprint: overtraining is known at the start (200 tokens per parameter not locked)", JSON.parse(await get(`(() => { const b = document.querySelector('[data-panel=blueprint] [data-test=bp-tpp][data-size="200"]'); return !!b && !b.classList.contains('locked'); })()`)));
+await check('Blueprint: locked card opens Research on its idea', `store.panel + ':' + (store.tab['research.sel'] || '')`, () => page.click('[data-panel=blueprint] [data-opt="shape:latent"]'));
+ok('Blueprint: Research shows the idea card', !!(await page.$('[data-test=node-card][data-card=P17]')));
 await page.click('[data-test=node-close]').catch(() => {});
 await nav('blueprint');
 await page.click('[data-panel=blueprint] [data-bp-kind=base]').catch(() => {});
@@ -518,9 +519,9 @@ await check('Research: Start now queues the project at the top', 'JSON.stringify
 await page.evaluate(() => window.ai27v2.step(1));
 await wait(60);
 ok('Research: auto-assign puts idle teams on it', JSON.parse(await get('s.player.teams.some((t) => t.projectId === "P05")')) && !!(await page.$('[data-project=P05]')));
-await check('Research: Queue a second idea from its card', 'JSON.stringify(s.player.research.queue)', async () => { await page.click('[data-panel=research] .rs-node[data-node=quantization]'); await page.click('[data-act="research.queue.quantization"]'); });
+await check('Research: Queue a second idea from its card', 'JSON.stringify(s.player.research.queue)', async () => { await page.click('[data-panel=research] .rs-node[data-node=elastic]'); await page.click('[data-act="research.queue.elastic"]'); });
 await page.click('[data-test=node-close]').catch(() => {});
-await check('Research: team picker assigns a team', 'JSON.stringify(s.player.teams.map((t) => t.projectId || ""))', async () => { await page.click('[data-panel=research] .rs-node[data-node=quantization]'); await page.click('[data-test=assign-open]'); await page.locator('[data-test=team-picker] [data-act^="research.assign."]:not([disabled])').first().click(); });
+await check('Research: team picker assigns a team', 'JSON.stringify(s.player.teams.map((t) => t.projectId || ""))', async () => { await page.click('[data-panel=research] .rs-node[data-node=elastic]'); await page.click('[data-test=assign-open]'); await page.locator('[data-test=team-picker] [data-act^="research.assign."]:not([disabled])').first().click(); });
 await page.click('[data-test=picker-close]').catch(() => {});
 await check('Research: auto-assign toggle', 's.player.research.autoAssign', () => page.click('[data-test=auto-assign]'));
 await check('Research: auto-assign back on', 's.player.research.autoAssign', () => page.click('[data-test=auto-assign]'));

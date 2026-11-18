@@ -11,8 +11,10 @@ import { initialAgents } from '../departments/agents';
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
 /** 12 (model v3 V1): models are built from physical quantities (BaseModel, VersionBuild, BaseDesign, PostDesign changed).
  *  No migration from 11: v2 saves do not carry over (MODEL-V3 §16), deserialize rejects them ("no migration from
- *  schemaRev 11"). */
-export const SCHEMA_REV = 12;
+ *  schemaRev 11").
+ *  13 (model v3 V2): research as ideas (ResearchState stacks, allocations, capability project states; BuildState.alloc;
+ *  TrainingRun.recipe). No migration from 12 either ("no migration from schemaRev 12"). */
+export const SCHEMA_REV = 13;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -104,7 +106,7 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     };
     for (const b of p.models.bases) fix(b.design as unknown as { scale?: string });
     for (const r of p.models.runs) fix(r.base as unknown as { scale?: string } | undefined);
-    p.build ??= { queue: [], nextId: 1 };
+    p.build ??= { queue: [], nextId: 1 } as unknown as PlayerLab['build'];
     p.policies.spareTraining ??= 'research';
   },
   /** 7 → 8 (restructure R6): deployments become products (kind, price tier from the nearest price index, no features,
