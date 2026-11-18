@@ -57,7 +57,7 @@ ok(`UI terms resolve (${used.size} used)`, missing.length === 0, missing.join(',
 
 /** IA.md rule 4: the terms the user named, plus the core vocabulary of every panel. */
 const REQUIRED = [
-  'h100e', 'runway', 'covenant', 'dilution', 'evalaware', 'monitorability', 'rlIntensity', 'distill', 'spv', 'lta', 'wsl', 'U', 'L', 'gap',
+  'h100e', 'runway', 'covenant', 'dilution', 'evalaware', 'monitorability', 'rlBudget', 'distill', 'spv', 'lta', 'wsl', 'U', 'L', 'gap',
   'bottleneck', 'computeBound', 'catRisk', 'lead', 'idleChips', 'computeOnline', 'pool', 'split', 'burn', 'netBurn', 'liquidity', 'ledger',
   'raiseCeiling', 'valuation', 'boardConf', 'rdmult', 'misalign', 'agenda', 'technique', 'finding', 'traitGraph', 'evidenceGrade', 'evalGate',
   'channel', 'servingShare', 'capacityBound', 'kyc', 'leverage', 'sector', 'trust', 'credibility', 'scrutiny', 'access', 'commitment', 'watch',
@@ -66,7 +66,7 @@ const REQUIRED = [
   'team', 'roleEng', 'roleRE', 'roleSci', 'teamQuality', 'specialty', 'specialtyBonus', 'keepHiring', 'talentPull', 'payroll', 'morale', 'buildCapacity',
   'techTree', 'knowHow', 'trainedIn', 'depth', 'layer', 'layerBackbone', 'layerTraining', 'layerScaffold', 'layerLab', 'effortClass', 'teamMonth', 'odds',
   'researchLine', 'lineHealth', 'diminishingReturns', 'projectQueue', 'autoAssign', 'retryRule', 'diffusion', 'frontierMethods',
-  'blueprint', 'frontierRun', 'baseRun', 'postTrain', 'distillRun', 'continueRun', 'flop', 'wallTime', 'behindAtFinish', 'staleness', 'dataWall', 'restartRisk',
+  'blueprint', 'effCompute', 'baseRun', 'postTrain', 'distillRun', 'continueRun', 'flop', 'wallTime', 'behindAtFinish', 'staleness', 'dataWall', 'goodput', 'activeParams', 'tokensPerParam', 'servingFlop', 'gGain', 'distillGap', 'graders',
   'faultTolerant', 'serveCost', 'buildQueue', 'teamWeek', 'poolShare', 'spareTraining', 'moe', 'neuralese', 'nativeMultimodal', 'hazardFilter', 'safetyPretrain',
   'rlFocus', 'hardenedGraders', 'cot', 'constitution', 'inoculation', 'honestyTraining', 'antiScheming', 'riskFamily', 'designOffset', 'evals', 'autoEvaluate',
   'product', 'segmentShare', 'bestRivalProduct', 'bindingCause', 'qualityBound', 'priceBound', 'priceTier', 'safeguards', 'sectorPack',

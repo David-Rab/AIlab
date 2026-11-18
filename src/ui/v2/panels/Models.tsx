@@ -18,10 +18,13 @@ import { ICON } from '../icons';
 const STATUS_TONE: Record<string, string> = { evaluating: 'tone-warn', ready: 'tone-pos', deployed: 'tone-pos', retired: 'dim', rolledBack: 'tone-neg' };
 const RUN_KIND: Record<string, string> = { base: 'base run', post: 'post-train', distill: 'distill', continue: 'continue' };
 /** Jank M5: a run named by its target ("Atlas-3 base · post-train"), not its internal id ("post 21 post"). */
+/** Active parameters: 400B, 1.6T. */
+export const fmtParams = (n: number) => (n >= 1e12 ? `${+(n / 1e12).toFixed(n >= 1e13 ? 0 : 1)}T` : `${Math.round(n / 1e9)}B`);
+
 export function runTitle(s: GameStateV2, r: GameStateV2['player']['models']['runs'][number]): string {
   const base = s.player.models.bases.find((b) => b.id === r.baseId);
   const teacher = r.teacherVersionId ? versionById(s, r.teacherVersionId) : undefined;
-  if (r.kind === 'base') return `New base${r.base ? ` · ${F.size(r.base.size)}` : ''}`;
+  if (r.kind === 'base') return `New base${r.base ? ` · ${fmtParams(r.base.params)}` : ''}`;
   if (r.kind === 'distill') return `Mini of ${teacher?.name ?? base?.name ?? 'a teacher'}`;
   return `${base?.name ?? 'Base'} · ${RUN_KIND[r.kind] ?? r.kind}`;
 }
@@ -37,10 +40,10 @@ function Lineage({ s, sel }: { s: GameStateV2; sel?: string }) {
       {m.bases.map((b) => (
         <div key={b.id} className="lin-base" data-base={b.id}>
           <Tip as="div" content={() => <TipCard title={b.name} rows={[
-            { label: 'Done', value: fmtDate(dateOf(s, b.day)) }, { label: <Term id="baseSize">Size</Term>, value: `${F.size(b.design.size)} · ${b.design.shape}` },
+            { label: 'Done', value: fmtDate(dateOf(s, b.day)) }, { label: <Term id="baseSize">Size</Term>, value: `${fmtParams(b.params)} active × ${b.design.tpp} tokens · ${b.design.shape}` },
             { label: 'Data', value: b.design.data }, { label: <Term id="licensedShare">Licensed share</Term>, value: F.pct(b.design.licensedShare) }, { label: <Term id="flop">FLOP</Term>, value: b.flop.toExponential(1) },
           ]} />}>
-            <div className="lin-base-row"><b>{b.name}</b><span className="dim small">{F.size(b.design.size)} · {b.design.shape} · {b.design.data}</span></div>
+            <div className="lin-base-row"><b>{b.name}</b><span className="dim small">{fmtParams(b.params)} · {b.design.shape} · {b.design.data}</span></div>
           </Tip>
           {m.versions.filter((v) => v.baseId === b.id && !m.versions.some((p) => p.id === v.parentVersionId && p.baseId === b.id)).map((v) => (
             <VersionTree key={v.id} s={s} v={v} sel={sel} depth={1} />
@@ -201,8 +204,8 @@ export function RunQueue({ s }: { s: GameStateV2 }) {
             {live ? (
               <Tip content={() => <TipCard title={<Term id="poolShare">Pool share</Term>} value={F.pct(got)} rows={[
                 { label: 'Asks', value: F.pct(r.poolShare) }, { label: 'Gets today', value: F.pct(got) },
-                { label: 'FLOP done', value: F.pct(done) }, { label: 'Minimum length', value: F.days(r.minDays) },
-              ]} footer={done >= 1 ? 'FLOP done: it only waits for its minimum length and takes no share.' : 'Runs that ask for more than the pool are scaled down together.'}>Share of the training pool this run gets.</TipCard>}>
+                { label: 'FLOP done', value: F.pct(done) }, { label: <Term id="flop">FLOP</Term>, value: r.flopNeeded.toExponential(1) },
+              ]} footer="Runs that ask for more than the pool are scaled down together.">Share of the training pool this run gets.</TipCard>}>
                 <span className="num small run-share" data-test="run-share">{F.pct(got)}{got < r.poolShare - 1e-6 && done < 1 ? <span className="dim">/{F.pct(r.poolShare)}</span> : null}</span>
               </Tip>
             ) : <span />}

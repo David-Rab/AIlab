@@ -154,7 +154,7 @@ await wait(300);
 // Coach card → run designer
 await check('Coach card opens run designer', 'store.panel', () => page.click('[data-coach=firstRun]'));
 await page.click('[data-test=coach-skip]').catch(() => {});
-await check('Blueprint: pick a training card (light effort)', 'document.querySelector("[data-panel=blueprint]").innerText', () => page.click('[data-panel=blueprint] [data-opt="rlIntensity:light"]'));
+await check('Blueprint: pick a training card (light RL budget)', 'document.querySelector("[data-panel=blueprint]").innerText', () => page.click('[data-panel=blueprint] [data-opt="rlBudget:light"]'));
 await check('Launch post-train', `s.player.models.runs.filter(r => r.status === 'running').length`, () => page.click('[data-act=launchPost]'));
 
 // FF to run completion
@@ -349,20 +349,24 @@ await page.click('[data-panel=blueprint] [data-bp-kind=base]').catch(() => {});
 await wait(80);
 ok('Blueprint: size card with 7 limit tiles', (await page.$$('[data-panel=blueprint] [data-tile]')).length === 7);
 ok('Blueprint: slot table by layer (Backbone, Training, Scaffold)', JSON.parse(await get(`(() => { const t = document.querySelector('[data-home=blueprintSlots]')?.innerText ?? ''; return /BACKBONE/.test(t) && /TRAINING/.test(t) && /SCAFFOLD/.test(t); })()`)));
-await check('Blueprint: size ×4 changes the wall time', `document.querySelector('[data-panel=blueprint] [data-tile=wall]').innerText`, () => page.click('[data-panel=blueprint] [data-size="4"]'));
-ok('Blueprint: tiles show before → after on a size change', (await page.$$('[data-panel=blueprint] .bp-lim.chg .was')).length >= 4);
-ok('Blueprint: ×4 serves at 2× the ×1 cost (√size)', JSON.parse(await get(`(() => { const t = document.querySelector('[data-panel=blueprint] [data-tile=serve]').innerText; const m = t.match(/([0-9.]+)\\s*→\\s*([0-9.]+)/); return !!m && Math.abs(Number(m[2]) / Number(m[1]) - 2) < 0.03; })()`)));
+// Model v3 V1: size = active parameters (√2 snaps) × tokens per parameter. Two snaps up = 2× parameters = 4× FLOP.
+const paramSnap = (k) => `(() => { const b = [...document.querySelectorAll('[data-panel=blueprint] [data-test=bp-params]')]; const i = b.findIndex((x) => x.classList.contains('on')); b[Math.max(0, Math.min(b.length - 1, i + ${k}))].click(); return true; })()`;
+await check('Blueprint: 2× active parameters changes the wall time', `document.querySelector('[data-panel=blueprint] [data-tile=wall]').innerText`, () => page.evaluate(paramSnap(2)));
+ok('Blueprint: tiles show before → after on a size change', (await page.$$('[data-panel=blueprint] .bp-lim.chg .was')).length >= 4, `${(await page.$$('[data-panel=blueprint] .bp-lim.chg .was')).length} tiles`);
+ok('Blueprint: 2× active parameters = 2× serving FLOP per token', JSON.parse(await get(`(() => { const t = document.querySelector('[data-panel=blueprint] [data-tile=serve] .lv').innerText; const m = t.match(/([0-9.]+)e(\\d+)\\s*→\\s*([0-9.]+)e(\\d+)/); return !!m && Math.abs((Number(m[3]) * 10 ** Number(m[4])) / (Number(m[1]) * 10 ** Number(m[2])) - 2) < 0.1; })()`)));
+ok('Blueprint: 2× active parameters = 4× FLOP', JSON.parse(await get(`(() => { const t = document.querySelector('[data-panel=blueprint] [data-tile=flop] .lv').innerText; const m = t.match(/([0-9.]+)e(\\d+)\\s*→\\s*([0-9.]+)e(\\d+)/); return !!m && Math.abs((Number(m[3]) * 10 ** Number(m[4])) / (Number(m[1]) * 10 ** Number(m[2])) - 4) < 0.4; })()`)));
 await clearTips();
 await shot('43-blueprint-x4');
-await page.hover('[data-panel=blueprint] [data-tile=behind] .lv');
+await page.hover('[data-panel=blueprint] [data-tile=data] .lv');
 await wait(500);
-ok('Blueprint: limit tile tooltip states its rule', JSON.parse(await get(`/judgement/.test(document.querySelector('.tip')?.innerText ?? '')`)));
+ok('Blueprint: limit tile tooltip states its rule', JSON.parse(await get(`/epochs|Muennighoff/.test(document.querySelector('.tip')?.innerText ?? '')`)));
 await clearTips();
-await page.click('[data-panel=blueprint] [data-size="1"]');
+await check('Blueprint: tokens per parameter snap', `document.querySelector('[data-panel=blueprint] [data-tile=serve]').innerText`, () => page.click('[data-panel=blueprint] [data-test=bp-tpp][data-size="20"]'));
+await page.evaluate(paramSnap(-2));
 ok("Blueprint: locked card names its idea", await page.$eval(`[data-panel=blueprint] [data-opt="shape:latent"]`, (b) => b.classList.contains('locked') && !!b.dataset.node && b.innerText.length > 12));
 await check("Blueprint: architecture dense", `document.querySelector("[data-panel=blueprint]").innerHTML`, () => page.click(`[data-panel=blueprint] [data-opt="shape:dense"]`));
-ok("Blueprint: overtrained is locked behind its tree node", JSON.parse(await get(`(() => { const b = document.querySelector('[data-panel=blueprint] [data-opt="shape:overtrained"]'); return !!b && b.outerHTML.includes("Overtrained compact"); })()`)));
-await check('Blueprint: locked card opens Research on its idea', `store.panel + ':' + (store.tab['research.sel'] || '')`, () => page.click('[data-panel=blueprint] [data-opt="shape:overtrained"]'));
+ok("Blueprint: overtraining above 50 tokens per parameter is locked behind its tree node", JSON.parse(await get(`(() => { const b = document.querySelector('[data-panel=blueprint] [data-test=bp-tpp][data-size="200"]'); return !!b && b.classList.contains('locked') && b.dataset.node === 'overtrained'; })()`)));
+await check('Blueprint: locked card opens Research on its idea', `store.panel + ':' + (store.tab['research.sel'] || '')`, () => page.click('[data-panel=blueprint] [data-test=bp-tpp][data-size="200"]'));
 ok('Blueprint: Research shows the idea card', !!(await page.$('[data-test=node-card][data-card=overtrained]')));
 await page.click('[data-test=node-close]').catch(() => {});
 await nav('blueprint');

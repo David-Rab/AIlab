@@ -28,7 +28,7 @@ const LAYER_NAME: Record<Layer, string> = { backbone: 'Backbone', training: 'Tra
 const LAYER_ICON: Record<Layer, typeof Layers> = { backbone: Layers, training: WandSparkles, scaffold: Wrench, lab: Building2 };
 const EFFORT_WORD: Record<string, string> = { S: 'small', M: 'medium', L: 'large', XL: 'very large' };
 const EFFORT_DOTS: Record<string, string> = { S: '·', M: '··', L: '···', XL: '····' };
-const SLOT_LABEL: Record<string, string> = { shape: 'Architecture', data: 'Data', curation: 'Data filter', pref: 'Preference', rlFocus: 'RL focus', rlIntensity: 'Training effort', cot: 'Reasoning', inoculation: 'Alignment', effort: 'Inference effort' };
+const SLOT_LABEL: Record<string, string> = { shape: 'Architecture', data: 'Data', curation: 'Data filter', pref: 'Preference', rlFocus: 'RL focus', graders: 'Graders', tpp: 'Tokens per parameter', cot: 'Reasoning', inoculation: 'Alignment', effort: 'Inference effort' };
 const Q_N: Record<TeamQuality, number> = { solid: 1, strong: 2, elite: 3 };
 const capCol = (c: Column) => !SAFETY_COLUMNS.includes(c);
 const laneColor = (c: Column) => (capCol(c) ? C.cap : C.und);
