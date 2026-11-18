@@ -182,6 +182,9 @@ export interface TimelineWorld {
   // v2 additions
   /** Milestone threshold shift (years) fitted so RefBot's best internal model hits research/11 dates (§7.1). */
   calShift: number;
+  /** BRIDGE(V7): the v3 level offset simple labs (rivals, China, the leader lab) are credited, CAL_SHIFT_V2 − CAL_SHIFT
+   *  (models/capability.ts simpleLag). */
+  simpleCredit?: number;
   /** Production-function parameters (research/13 §1.4). */
   prod: ProdParams;
 }
@@ -279,17 +282,30 @@ export interface BaseModel {
   id: string;
   name: string; // e.g. "Atlas-3"
   day: Day; // completion
+  /** Physical pretraining FLOP (6·N_active·tokens; a continued base adds its FLOP). */
   flop: number;
+  /** Active parameters and training tokens (MODEL-V3 §3.2). */
+  params: number;
+  tokens: number;
+  /** Lab know-how pa at launch (progress-years; the recipe vintage readout, BRIDGE(V2)). */
   paAtStart: number;
-  pc: number; // compute component (years) frozen at base start (§3.1.3)
+  /** Pretraining effective compute G_pre (OOM, frozen at launch: MODEL-V3 §3.2). */
+  gPre: number;
+  /** Pretraining recipe efficiency frozen at launch (OOM; E_START + e_stack(pa)). gPre − ePre is the physical part, so
+   *  a continual-learning stream can re-apply today's recipe. */
+  ePre: number;
   design: BaseDesign;
-  /** Day the run started (pc and paAtStart are frozen here, §3.1.3). Absent = `day`. */
+  /** Day the run started (the recipe is frozen here). Absent = `day`. */
   startDay?: Day;
-  /** Design Δp of the base (shape, data, curation, data wall, paradigms), years. */
-  dp?: number;
-  /** Design domain offsets of the base (L units). */
+  /** Data-mix specialisation per domain (OOM, MODEL-V3 §2.3 s_d,data). */
+  sD?: Partial<Record<DomainId, number>>;
+  /** Design domain offsets of the base kept in levels (none today; paradigm offsets are added per version). */
   off?: Partial<Record<DomainId, number>>;
-  /** Serve cost of models on this base (shape). */
+  /** Data repetition at training: epochs over the unique tokens. */
+  epochs?: number;
+  /** BRIDGE(V3,V6,V7): scale vs the frontier run F(t) at launch (engineering load, S5, scrutiny). */
+  scale?: number;
+  /** Serve cost of models on this base (BRIDGE(V4), 0.5 = reference). */
   serve?: number;
   /** Monitorability cap from the base shape (latent = 0.05). */
   monitorability?: number;
@@ -319,7 +335,9 @@ export interface ModelVersion {
   masks: Record<TraitId, Partial<Record<ToolFamily, number>>>; // hidden: how much each family is fooled
   uModes: UModeId[]; // hidden
   monitorability: number; // 0..1, visible (from design + measured controllability)
-  serveCost: number; // relative cost per work-hour, visible
+  serveCost: number; // relative cost per work-hour, visible (BRIDGE(V4): 0.5 = reference)
+  /** Active parameters when they differ from the base's (a distilled student). */
+  params?: number;
   evals: EvalRecord; // what the player has measured
   beliefs: Record<TraitId, TraitBelief>; // player's posterior per trait
   status: 'evaluating' | 'ready' | 'deployed' | 'retired' | 'rolledBack';
@@ -331,15 +349,29 @@ export interface ModelVersion {
   appeal?: number;
 }
 
-/** Capability build of a version (§3.1.4): pm = paBase + kappa·(paPost − paBase) + pc + dp. Hidden. */
+/** Capability build of a version (MODEL-V3 §2, §4): G = gPre + dgRL + dg; pm = Φ(G) (BRIDGE(V3)). Hidden. */
 export interface VersionBuild {
-  paBase: number;
-  paPost: number;
-  kappa: number;
-  pc: number;
-  dp: number;
-  /** Design + paradigm domain offsets (L). */
+  /** Pretraining effective compute of its base (OOM; a stream re-applies today's recipe). */
+  gPre: number;
+  /** Physical pretraining FLOP of the base (the RL curve's midpoint scales with it). */
+  flopPre: number;
+  /** RL FLOP of the version (all families), its family weights and the RL recipe e_RL frozen at launch (OOM). */
+  rlFlop: number;
+  rlW: Partial<Record<RLFamily, number>>;
+  eRL: number;
+  /** RL gain: general (mean over the cognitive domains) and per domain (OOM). */
+  dgRL: number;
+  dgRLd: Partial<Record<DomainId, number>>;
+  /** Other design effects (preference, reasoning, alignment, run penalties, distillation gap, P24), OOM. */
+  dg: number;
+  /** Data-mix specialisation per domain (OOM, from the base). */
+  sD: Partial<Record<DomainId, number>>;
+  /** Design + paradigm domain offsets kept in levels (preference, paradigms). */
+  offL: Partial<Record<DomainId, number>>;
+  /** Derived: domain level − general level − the 2025 profile (L). deltaRsch, h80 and benchmarks read it. */
   off: Partial<Record<DomainId, number>>;
+  /** Know-how the version embodies (progress-years; readout, BRIDGE(V2)). */
+  paIn: number;
   /** Horizon multiplier (long-horizon RL, P07, P12). */
   h80Mult: number;
   /** Misuse-incident hazard multiplier (minimal safety training ×2), for WS2. */
@@ -373,10 +405,9 @@ export interface TrainingRun {
   kind: RunKind;
   name: string;
   startDay: Day;
-  /** FLOP required and done; duration emerges from the training pool share (§3.3.3). */
+  /** FLOP required and done; duration = FLOP ÷ rate, no minimum length (MODEL-V3 §3.3). */
   flopNeeded: number;
   flopDone: number;
-  minDays: number;
   poolShare: number; // share of the training pool this run takes (player sets priority)
   cashCost: Money; // environment/data budget committed at launch (compute is the pool)
   baseId?: string; // for post/continue/distill
@@ -385,23 +416,27 @@ export interface TrainingRun {
   post?: PostDesign;
   predicted: RunPrediction; // shown on the run card, with noise band
   status: 'running' | 'paused' | 'done' | 'failed' | 'cancelled';
-  restarts: number; // loss-spike restarts (stretch/MoE risk)
-  /** Loss spike: no FLOP accrues until this day (§3.3.1 restarts). */
-  holdUntil?: Day;
   /** Build item that sets the run up (R5): no FLOP accrues until the engineers finish it ("waiting for engineers"). */
   setupId?: string;
   /** Day the setup finished and training began (R5). */
   readyDay?: Day;
-  /** Lab know-how pa at launch (base runs freeze it; §3.1.3). */
+  /** Lab know-how pa at launch (base runs freeze their recipe here, post runs their RL recipe). */
   paAtStart?: number;
+  /** BRIDGE(V3,V6,V7): base/continue run scale vs the frontier run F(t) at launch (engineering load, S5, scrutiny). */
+  scale?: number;
+  /** Distillation: student active parameters; distillation and continued-pretraining runs: tokens. */
+  studentParams?: number;
+  tokens?: number;
   /** Trait-pressure signals S1–S8 of this run's design (for WS2 applyRunToTraits). */
   signals?: Partial<Record<SignalId, number>>;
 }
 
 export interface BaseDesign {
-  /** FLOP as a multiple of today's frontier base run F(t) (R5: a free decision; reference 1). */
-  size: number;
-  shape: 'dense' | 'overtrained' | 'moe' | 'latent';
+  /** Active parameters (MoE: total = 8 × active). */
+  params: number;
+  /** Training tokens per active parameter (20 = compute-optimal; more = overtrained: cheaper to serve, weaker per FLOP). */
+  tpp: number;
+  shape: 'dense' | 'moe' | 'latent';
   data: 'balanced' | 'codeMath' | 'science' | 'synthetic' | 'multimodal';
   curation: { quality: boolean; hazard: boolean; safetyPretrain: boolean };
   licensedShare: number; // 0..1 of corpus licensed (litigation bomb on the rest)
@@ -410,7 +445,10 @@ export interface BaseDesign {
 export interface PostDesign {
   pref: 'minimal' | 'engagement' | 'constitution' | 'persuasion';
   rlFocus: RLFamily[] | 'broad'; // pick 2 or broad
-  rlIntensity: 'light' | 'heavyCheap' | 'heavyHardened';
+  /** RL budget: RL FLOP as a share of the base's pretraining FLOP (light 0.03, standard 0.15, heavy 0.4). */
+  rlBudget: 'light' | 'standard' | 'heavy';
+  /** Graders: hardened (RL-environment cash, less reward hacking) or cheap. No capability effect. */
+  graders: 'cheap' | 'hardened';
   inoculation: boolean;
   cot: 'visible' | 'pressured' | 'faithful' | 'latent';
   safety: 'minimal' | 'standard' | 'heavy';

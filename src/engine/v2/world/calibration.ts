@@ -1,6 +1,6 @@
 // Timeline calibration helpers wrapping src/data/world.ts (unchanged, audited). Owner: WS1.
 // v2 code must use these wrappers (they apply calShift) rather than calling world.ts threshold functions directly.
-import { capIndex, milestoneThresholds, multiplierAt, laborSlowdown, computePace, stage1 } from '../../../data/world';
+import { milestoneThresholds, multiplierAt, laborSlowdown, computePace, stage1 } from '../../../data/world';
 import type { World } from '../../types';
 import type { TimelineWorld } from '../types';
 import { LEVEL_KNOTS } from '../../../data/v2/calibration';
@@ -14,9 +14,13 @@ export function thresholds(w: TimelineWorld): number[] {
   return th.map((t, i) => (i === 0 ? t : t - w.calShift));
 }
 
-/** Fractional capability index 0..6 on the shifted thresholds. */
+/** Fractional capability index 0..6 on the shifted thresholds (thresholds(w): A0 unshifted, A1… shifted by calShift).
+ *  Model v3 V1: interpolates on that array directly. capIndex(p + calShift) on the unshifted ones jumped at A0 for
+ *  calShift > 0 and stayed flat on [A0, A0 − calShift] for calShift < 0; above A1 the two are identical. */
 export function capIndexV2(w: TimelineWorld, p: number): number {
-  return capIndex(asV1World(w), p + w.calShift);
+  const th = thresholds(w);
+  for (let i = 0; i < th.length - 1; i++) if (p < th[i + 1]) return i + Math.max(0, (p - th[i]) / Math.max(1e-9, th[i + 1] - th[i]));
+  return 6;
 }
 
 /** General level Lg 0..15 from progress (§3.1.5). Below Agent-0 extrapolates down at the first knot slope. */

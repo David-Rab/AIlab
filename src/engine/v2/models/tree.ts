@@ -535,13 +535,13 @@ export function treeCounts(s: GameStateV2): { known: number; total: number } {
   return { known, total: TREE.length };
 }
 
-/** Know-how (STRUCTURE §4.2): the lab's know-how and how much of it the internal model embodies (its base's know-how
- *  plus κ of what came after, or the stream's tracked know-how). The gap is the reason to train. Years of progress. */
+/** Know-how (STRUCTURE §4.2): the lab's know-how and how much of it the internal model embodies (its base's recipe
+ *  vintage, or the stream's tracked know-how; BRIDGE(V2)). The gap is the reason to train. Years of progress. */
 export function knowHow(s: GameStateV2): { pa: number; inModel: number; gap: number; versionName?: string } {
   const p = s.player;
   const v = p.models.versions.find((x) => x.id === p.agents.capRoutine.versionId);
   const b = v?.build;
   let inModel = p.pa;
-  if (b) inModel = p.models.stream?.versionId === v?.id && p.models.stream.paTrack !== undefined ? p.models.stream.paTrack : b.paBase + b.kappa * (b.paPost - b.paBase);
+  if (b) inModel = p.models.stream?.versionId === v?.id && p.models.stream.paTrack !== undefined ? p.models.stream.paTrack : b.paIn;
   return { pa: p.pa, inModel, gap: Math.max(0, p.pa - inModel), ...(v ? { versionName: v.name } : {}) };
 }

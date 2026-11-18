@@ -47,7 +47,7 @@ const hasConfirmed = (s: GameStateV2) =>
 /** Where each learned trait mostly comes from in a run recipe (trait-graph first-order edges), for E01's text. */
 const RECIPE_CAUSE: Partial<Record<TraitId, (d: ModelVersion['design']) => string>> = {
   SYC: (d) => `rater approval in its ${d.pref} preference data`,
-  RH: (d) => (d.rlIntensity === 'heavyCheap' ? 'cheap, hackable graders in its heavy RL' : 'gameable graders in its RL'),
+  RH: (d) => (d.graders === 'cheap' ? 'cheap, hackable graders in its RL' : 'gameable graders in its RL'),
   PROXY: () => 'reward proxies in its RL environments',
   PERSONA: () => 'narrow fine-tuning and reward hacking',
   OBF: (d) => (d.cot === 'pressured' ? 'pressure on its chain of thought' : 'its chain-of-thought training'),

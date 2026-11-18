@@ -22,7 +22,7 @@ import { AGENDAS, AGENDA_BY_ID, SERIOUS_CAP } from './agendas';
 export type Layer = 'backbone' | 'training' | 'scaffold' | 'lab';
 export type EffortClass = 'S' | 'M' | 'L' | 'XL';
 /** Design-option slots a node can unlock (run designer, deployments). */
-export type OptionSlot = 'shape' | 'data' | 'curation' | 'pref' | 'rlFocus' | 'rlIntensity' | 'cot' | 'inoculation' | 'effort';
+export type OptionSlot = 'shape' | 'tpp' | 'data' | 'curation' | 'pref' | 'rlFocus' | 'graders' | 'cot' | 'inoculation' | 'effort';
 
 export interface TreeNodeDef {
   id: string;
@@ -97,24 +97,24 @@ const S = (id: string, name: string, column: Column, layer: Layer, needs: string
 
 export const TREE: TreeNodeDef[] = [
   // ── Pretraining (Backbone unless noted) ──
-  STAR('moe', 'MoE', 'pretraining', 'backbone', {}, { options: [['shape', 'moe']], cap: 'Reference architecture', cost: 'Serve ×0.5 vs dense' }),
-  STAR('dense', 'Dense', 'pretraining', 'backbone', { cap: -1 }, { options: [['shape', 'dense']], cap: 'Δ −0.24 y vs MoE', saf: 'Restart risk −10%', cost: 'Serve 1.0' }),
+  STAR('moe', 'MoE', 'pretraining', 'backbone', {}, { options: [['shape', 'moe']], cap: 'Reference architecture: 8× total parameters per active one', cost: 'Memory for 8× the active parameters' }),
+  STAR('dense', 'Dense', 'pretraining', 'backbone', { cap: -1 }, { options: [['shape', 'dense']], cap: '−0.3 OOM effective compute vs MoE', cost: 'Same serving FLOP per active parameter' }),
   STAR('qualityFilter', 'Quality filter', 'pretraining', 'backbone', {}, { options: [['data', 'balanced']], cap: 'Reference data' }),
   STAR('codeMath', 'Code & math data', 'pretraining', 'backbone', { cap: 1 }, { options: [['data', 'codeMath']], cap: 'CODE +0.6, RSCH +0.4, CYBER +0.4, SOCIAL −0.4' }),
   N('scienceData', 'Science data', 'pretraining', 'backbone', [], 'S', 0.95, { cap: 1, saf: -1 }, { options: [['data', 'science']], cap: 'BIO +0.8, REASON +0.4', saf: 'Bio-uplift flag risk', cost: '+5% run cash' }),
   N('multimodal', 'Native multimodal', 'pretraining', 'backbone', [], 'M', 0.9, { cap: 1 }, { options: [['data', 'multimodal']], cap: 'AGENCY, MEDIA +0.6, PHYS +0.5; no data wall', cost: '+20% FLOP' }),
-  N('overtrained', 'Overtrained compact', 'pretraining', 'backbone', [], 'S', 0.95, { cap: -1 }, { options: [['shape', 'overtrained']], cap: 'Δ −0.36 y', cost: 'Serve 0.3; tokens ×5' }),
-  N('faultTolerant', 'Fault-tolerant training', 'pretraining', 'backbone', [], 'M', 0.9, {}, { cap: 'Loss-spike restart risk ×0.5' }),
-  P('P10', 'Synthetic data flywheel', 'pretraining', 'backbone', ['codeMath'], 'L', { cap: 1, saf: -1 }, { options: [['data', 'synthetic']], cap: 'Synthetic data ×3; no data wall; synthetic data mix +0.15 y', saf: 'Reward-model exploitation ×1.5; inherits teacher traits', payoff: 'Pays off with a teacher model' }),
+  N('overtrained', 'Overtrained compact', 'pretraining', 'backbone', [], 'S', 0.95, { cap: -1 }, { options: [['tpp', 'over']], cap: 'More than 50 tokens per parameter: overtraining costs effective compute (100 → ×0.8, 200 → ×0.63)', cost: 'Serves cheaper: fewer active parameters for the same FLOP' }),
+  N('faultTolerant', 'Fault-tolerant training', 'pretraining', 'backbone', [], 'M', 0.9, {}, { cap: 'Goodput 0.90 → 0.95 (faster runs)' }),
+  P('P10', 'Synthetic data flywheel', 'pretraining', 'backbone', ['codeMath'], 'L', { cap: 1, saf: -1 }, { options: [['data', 'synthetic']], cap: 'Synthetic data ×3; no repetition penalty; synthetic data mix +0.18 OOM', saf: 'Reward-model exploitation ×1.5; inherits teacher traits', payoff: 'Pays off with a teacher model' }),
   P('P12', 'Long-horizon human demos', 'pretraining', 'backbone', [], 'L', { cap: 1 }, { cashCost: 1, cap: 'Time horizon ×2; RSCH +0.4', cost: '$1B data cost when the project starts' }),
   P('P23', 'Faithful-CoT architecture', 'pretraining', 'backbone', ['T-COTMON'], 'L', { cap: -1, saf: 2 }, { options: [['cot', 'faithful']], cap: 'Δ −0.24 y', saf: 'Monitorability 0.98', cost: 'Serve ×1.2' }),
-  P('P17', 'Neuralese recurrence', 'pretraining', 'backbone', ['P01', 'P07'], 'XL', { cap: 2, saf: -2 }, { options: [['shape', 'latent']], cap: '+0.40 y on a latent base', saf: 'CoT monitoring dies (monitorability 0.05)', cost: 'Serve 0.2' }),
-  P('P24', 'AI-designed successor', 'pretraining', 'backbone', ['P13', 'P19'], 'XL', { cap: 2, saf: -1 }, { cap: 'Next base +0.8 y', saf: 'New lineage: traits redrawn, tools may not transfer', payoff: 'Pays off with research done mostly by AI (AI share of research labour 50% → 90%)' }),
+  P('P17', 'Neuralese recurrence', 'pretraining', 'backbone', ['P01', 'P07'], 'XL', { cap: 2, saf: -2 }, { options: [['shape', 'latent']], cap: '+0.5 OOM effective compute on a latent base', saf: 'CoT monitoring dies (monitorability 0.05)', cost: 'Serve ×0.4 (no verbal reasoning tokens)' }),
+  P('P24', 'AI-designed successor', 'pretraining', 'backbone', ['P13', 'P19'], 'XL', { cap: 2, saf: -1 }, { cap: 'Next base +1 OOM recipe', saf: 'New lineage: traits redrawn, tools may not transfer', payoff: 'Pays off with research done mostly by AI (AI share of research labour 50% → 90%)' }),
 
   // ── Post-training (Training unless noted) ──
   STAR('P01', 'Visible reasoning', 'posttraining', 'training', { saf: 1 }, { paradigm: true, options: [['cot', 'visible']], cap: 'Baseline reasoning (reasoning RL)', saf: 'Monitorable chain of thought' }),
   STAR('P02', 'Agentic environments', 'posttraining', 'training', {}, { paradigm: true, cap: 'Baseline agents' }),
-  STAR('hardenedGraders', 'Hardened graders', 'posttraining', 'training', { saf: 1 }, { options: [['rlIntensity', 'heavyHardened']], cap: 'Reference RL', saf: 'Reward hacking ×0.4 vs cheap graders', cost: 'RL environment budget' }),
+  STAR('hardenedGraders', 'Hardened graders', 'posttraining', 'training', { saf: 1 }, { options: [['graders', 'hardened']], cap: 'Reference graders (no capability effect)', saf: 'Reward hacking ×0.4 vs cheap graders', cost: 'RL environment budget' }),
   STAR('engagement', 'Engagement tuning', 'posttraining', 'training', { cap: 1, saf: -1 }, { options: [['pref', 'engagement']], cap: 'Appeal 1.2', saf: 'Sycophancy pressure high' }),
   STAR('persuasion', 'Persuasion tuning', 'posttraining', 'training', { cap: 1, saf: -1 }, { options: [['pref', 'persuasion']], cap: 'SOCIAL +0.8', saf: 'Persuasion flag; honesty −' }),
   N('rl.math', 'RL focus: math', 'posttraining', 'training', ['P02'], 'S', 0.95, { cap: 1 }, { options: [['rlFocus', 'math']], cap: 'REASON +1.2 per focus', saf: 'Verifier-hacking pressure (low)' }),
@@ -127,13 +127,13 @@ export const TREE: TreeNodeDef[] = [
   P('P08', 'Continual learning', 'posttraining', 'training', ['P07'], 'L', { cap: 2, saf: -1 }, { cap: 'A stream run keeps the internal model current (κ = 1)', saf: 'Evals go stale; drift', cost: '15% of the training pool while the stream runs' }),
   P('P09', 'Test-time training', 'posttraining', 'training', [], 'M', { cap: 1, saf: -1 }, { cap: 'REASON +0.6', saf: 'Audit coverage −10%' }),
   P('P11', 'Self-play curricula', 'posttraining', 'training', ['rl.math'], 'L', { cap: 2, saf: -1 }, { cap: 'REASON +0.8, CODE +0.4', saf: 'Verifier-hacking pressure' }),
-  P('P18', 'Iterated distillation & amplification', 'posttraining', 'training', ['P05'], 'L', { cap: 2, saf: -1 }, { cap: '+0.25 y per 21-day cycle', saf: 'Traits ×1.1 per cycle', cost: '30% of the training pool per cycle' }),
+  P('P18', 'Iterated distillation & amplification', 'posttraining', 'training', ['P05'], 'L', { cap: 2, saf: -1 }, { cap: 'One more RL budget (0.15 × the base FLOP) on the RL curve per cycle', saf: 'Traits ×1.1 per cycle', cost: 'RL compute (30% of the training pool while it runs)' }),
   P('P14', 'Interp-guided training', 'posttraining', 'training', ['T-PROBE'], 'M', { saf: 1 }, { saf: 'In-run trait growth ×0.6', cost: 'Goodhart on the probe' }),
   P('P21', 'Brain-like sample efficiency', 'posttraining', 'training', ['P08', 'P19'], 'XL', { cap: 2, saf: -1 }, { cap: 'PHYS +1; fast domain gains', saf: 'Evals lag' }),
 
   // ── Systems (Scaffold unless noted) ──
   STAR('P03', 'Test-time compute', 'systems', 'scaffold', {}, { paradigm: true, options: [['effort', 'low'], ['effort', 'max']], cap: 'Effort low / max', cost: 'Tokens' }),
-  STAR('P04', 'Distillation', 'systems', 'scaffold', {}, { paradigm: true, cap: 'Mini variants (−0.30 y, serve ×0.25)', saf: 'Minis inherit traits' }),
+  STAR('P04', 'Distillation', 'systems', 'scaffold', {}, { paradigm: true, cap: 'Mini variants: a smaller student below its teacher (the distillation gap), serving ∝ its parameters', saf: 'Minis inherit traits' }),
   STAR('chat', 'Chat', 'systems', 'scaffold', {}, { cap: 'Consumer product' }),
   STAR('api', 'API', 'systems', 'scaffold', {}, { cap: 'API product' }),
   STAR('enterprise', 'Enterprise', 'systems', 'scaffold', {}, { cap: 'Enterprise product' }),

@@ -2,7 +2,7 @@
 // Wraps src/data/world.ts makeWorld UNCHANGED (audited R11 presets) and adds the v2 latents and presets.
 import { CHINA_PRESETS, GOV_PRESETS, LAB_ARCHETYPES, PUBLIC_PRESETS } from '../../../data/actors';
 import { AGENDAS } from '../../../data/v2/agendas';
-import { CAL_SHIFT, PROD_DEFAULT, PROD_PRESETS } from '../../../data/v2/calibration';
+import { CAL_SHIFT, CAL_SHIFT_V2, PROD_DEFAULT, PROD_PRESETS } from '../../../data/v2/calibration';
 import { EDGE_FACTOR_RANGE, EDGE_SIGMA_SCALE, EDGES, GRADE_SIGMA, type EdgeDef } from '../../../data/v2/edges';
 import { PARADIGMS } from '../../../data/v2/paradigms';
 import { ARCHETYPE_POSTURES, CHINA_POSTURE_BASE } from '../../../data/v2/postures';
@@ -60,7 +60,7 @@ export function noisyPosture(rng: Rng, p: SafetyPosture, noise: number): SafetyP
 export function sampleHidden(rng: Rng, setup: SetupV2): HiddenWorld {
   // 1. Timeline world (unchanged audited presets; also draws v1 alignDifficulty and doomThreshold — step 10).
   const w1 = makeWorld(rng, setup.world, setup.alignment, setup.baseline);
-  const tl0 = { ...w1, calShift: CAL_SHIFT[setup.world] };
+  const tl0 = { ...w1, calShift: CAL_SHIFT[setup.world], simpleCredit: CAL_SHIFT_V2[setup.world] - CAL_SHIFT[setup.world] };
   // 2. Production parameters.
   const timeline: TimelineWorld = { ...tl0, prod: prodParamsFor(rng, setup, tl0) };
 

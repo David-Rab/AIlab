@@ -246,26 +246,18 @@ try {
   threw = true;
 }
 check(threw, 'save: v1 save is rejected (no migration)');
-// Migration 1 → 2: a schemaRev-1 save (before the WS3 blocks were folded into types.ts) loads and plays on.
-{
-  const old = JSON.parse(serialize(run(detSetup, 200))) as GameStateV2 & Record<string, unknown>;
-  old.schemaRev = 1;
-  const strip = (o: { ws3?: unknown }) => void delete o.ws3;
-  strip(old.player.finance);
-  strip(old.market);
-  strip(old.power);
-  strip(old.capital);
-  old.player.sites.forEach(strip);
-  delete old.ws4;
-  const mig = deserialize(JSON.stringify(old));
-  let ok = mig.schemaRev === SCHEMA_REV && !!mig.player.finance.ws3 && !!mig.market.ws3 && !!mig.power.ws3 && !!mig.capital.ws3;
+// Model v3 V1 (schemaRev 12): saves from before the v3 model rebuild do not carry over (MODEL-V3 §16). A schemaRev-11
+// save and an older one (rev 1, which migrated up to 11 before) are rejected with the existing message.
+for (const rev of [1, 11]) {
+  const old = JSON.parse(serialize(run(detSetup, 30))) as GameStateV2 & Record<string, unknown>;
+  old.schemaRev = rev;
+  let msg = '';
   try {
-    runTo(mig, 260);
+    deserialize(JSON.stringify(old));
   } catch (e) {
-    ok = false;
-    console.log(`      migration run threw: ${(e as Error).message}`);
+    msg = (e as Error).message;
   }
-  check(ok && validateJson(mig).length === 0, 'save: schemaRev 1 save migrates (ws3 blocks filled) and plays 60 more days');
+  check(SCHEMA_REV === 12 && msg === 'no migration from schemaRev 11', `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
 }
 
 // ---------- 6. Cadences ----------

@@ -9,8 +9,8 @@ import { REF_TREE, refPlay, type RefPlayOpts } from './ref';
 
 const RACE_PLAY: RefPlayOpts = {
   safetyShare: () => 0.01,
-  base: { size: 3 },
-  post: () => ({ pref: 'engagement', rlIntensity: 'heavyCheap', cot: 'pressured', safety: 'minimal', inoculation: false }),
+  base: { days: 150 },
+  post: () => ({ pref: 'engagement', rlBudget: 'standard', graders: 'cheap', cot: 'pressured', safety: 'minimal', inoculation: false }),
   tree: () => REF_TREE,
   release: 'frontier',
 };

@@ -129,7 +129,7 @@ export function siteSizeView(s: GameStateV2, path: keyof typeof SITE_PATHS): { m
 
 /** Revenue-per-chip research-speed cap on a product's model (LIMITS revenue.speedCap). */
 export function revenueSpeedCap(s: GameStateV2, v: ModelVersion | undefined): { M: number; capped: boolean; cap: number } {
-  const M = v ? multiplierRef(s.hidden.timeline, v.pm) : 0;
+  const M = v ? multiplierRef(s.hidden.timeline, v.pm + s.hidden.timeline.calShift) : 0;
   return { M, capped: M > RPH_MCAP, cap: RPH_MCAP };
 }
 

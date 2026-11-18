@@ -84,7 +84,7 @@ export function runCard(s: GameStateV2, p: LaunchRunParamsUI) {
   const pr = plan.prediction;
   return {
     band: pr.Lg, domains: pr.domains, signals: pr.signals, etaDays: plan.etaDays, serveCost: pr.serveCost, monitorability: pr.monitorability,
-    flop: plan.flopNeeded, cash: plan.cashCost, poolShare: plan.poolShare, minDays: plan.minDays, reason: plan.reason,
+    flop: plan.flopNeeded, cash: plan.cashCost, poolShare: plan.poolShare, reason: plan.reason, g: plan.g,
     effShare: plan.effShare, setupTW: plan.setupTW, setupDays: plan.setupDays, limits: plan.limits,
   };
 }

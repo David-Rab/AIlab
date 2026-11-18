@@ -24,19 +24,20 @@ type Params = Record<string, number | string | boolean>;
 const str = (p: Params, k: string, d: string) => (typeof p[k] === 'string' ? (p[k] as string) : d);
 
 /** Team-weeks to set up a run [D]: the incremental engineering for a new run on existing infrastructure (data
- *  pipelines, checkpointing, cluster bring-up). A size-1 base 0.4, scaling with size^0.75 (×8: 1.9); continue 0.25;
- *  post-train 0.1; distill and amplify 0.05. Operating a run while it trains is upkeep (runOpsTW, also ∝ size^0.75).
+ *  pipelines, checkpointing, cluster bring-up). A base at the frontier scale 0.4, scaling with scale^0.75 (×8: 1.9;
+ *  scale = FLOP ÷ F(t), BRIDGE(V3) until engineering becomes a work type); continue 0.25;
+ *  post-train 0.1; distill and amplify 0.05. Operating a run while it trains is upkeep (runOpsTW, also ∝ scale^0.75).
  *  Calibration (R5, kept in J2): RefBot's setups finish within a day or two in every world — the stub traces are
  *  sensitive to the run cadence (a ×4 setup moved P08 by 100 days on the fast preset). */
-export function runSetupTW(kind: RunKind, size = 1, ida = false): number {
-  if (kind === 'base') return 0.4 * Math.pow(Math.max(0.01, size), 0.75);
+export function runSetupTW(kind: RunKind, scale = 1, ida = false): number {
+  if (kind === 'base') return 0.4 * Math.pow(Math.max(0.01, scale), 0.75);
   if (kind === 'continue') return 0.25;
   if (kind === 'post' && !ida) return 0.1;
   return 0.05;
 }
 
 /** Standing engineering load, team-weeks per week [D] (J2 P1). Product: 0.5 + 4 × √(revenue ÷ $10B/yr), so a $10B/yr
- *  product keeps 4.5 team-weeks a week busy; runs while they train: a base 1 × size^0.75, continue and post-train 0.5,
+ *  product keeps 4.5 team-weeks a week busy; runs while they train: a base 1 × scale^0.75, continue and post-train 0.5,
  *  distill and amplify 0.2; the continual-learning stream 0.5; each monitor in production 1. */
 export const UPKEEP = { product: 0.5, productRev: 4, revUnit: 10, runBase: 1, runMid: 0.5, runSmall: 0.2, stream: 0.5, monitor: 1 } as const;
 /** One-off builds [D]: launching a product 4 team-weeks; a sector pack 4 (then 120 days of certification). */
@@ -53,8 +54,8 @@ export const isRunLine = (l: Pick<UpkeepLine, 'kind'>) => l.kind === 'run' || l.
 const isLiveProduct = (d: Deployment) => d.kind === 'product' && d.status !== 'withdrawn';
 
 /** Engineering a training run needs each week while it trains. */
-export function runOpsTW(r: Pick<TrainingRun, 'kind' | 'base' | 'name'>): number {
-  if (r.kind === 'base') return UPKEEP.runBase * Math.pow(Math.max(0.01, r.base?.size ?? 1), 0.75);
+export function runOpsTW(r: Pick<TrainingRun, 'kind' | 'scale' | 'name'>): number {
+  if (r.kind === 'base') return UPKEEP.runBase * Math.pow(Math.max(0.01, r.scale ?? 1), 0.75);
   if (r.kind === 'continue' || (r.kind === 'post' && !r.name.startsWith('IDA'))) return UPKEEP.runMid;
   return UPKEEP.runSmall;
 }

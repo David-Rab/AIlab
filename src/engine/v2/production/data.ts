@@ -14,15 +14,18 @@ export function tokensRequired(flop: number, overtrained = false): number {
   return 20 * Math.sqrt(flop / 120) * (overtrained ? 5 : 1);
 }
 
-/** Data-wall penalty on a base (§3.3.2): −0.25·ln(N_req/S_eff), capped at −0.5. */
-export function dataWallPenalty(sEff: number, nReq: number): number {
-  return nReq > sEff ? Math.max(-0.5, -0.25 * Math.log(nReq / sEff)) : 0;
-}
-
 /** Synthetic-stock multiplier: ×3 once the P10 synthetic-data flywheel is adopted (§3.3.3). */
 const synMult = (s: GameStateV2) => (s.player.paradigms.P10?.status === 'adopted' ? 3 : 1);
 
-/** Effective data stock of the player in tokens (§3.2.2). */
+/** Unique training tokens the player owns (model v3 V1): licensed + unlicensed text (× licence deals) + the
+ *  quality-weighted synthetic stock. A base run repeats them when its tokens exceed this (models/effective.ts fData). */
+export function uniqueTokens(s: GameStateV2): number {
+  const a = s.player.dataAssets;
+  const human = (a.licensedTokensT + a.unlicensedTokensT) * (1 + 0.5 * s.relations.dataLicences.length);
+  return (human + SYN_QUALITY * a.syntheticTokensT * synMult(s)) * 1e12;
+}
+
+/** Effective data stock of the player in tokens (§3.2.2; the production function's data term, 3 epochs). */
 export function effectiveStock(s: GameStateV2): number {
   const a = s.player.dataAssets;
   const human = 3 * (a.licensedTokensT + a.unlicensedTokensT) * (1 + 0.5 * s.relations.dataLicences.length);

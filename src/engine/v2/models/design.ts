@@ -1,37 +1,15 @@
-// Run design → offsets, signals, predictions (V2-SPEC §3.3.2; data in src/data/v2/runDesign.ts). Owner: WS1.
+// Run design → design effects, signals, predictions (V2-SPEC §3.3.2; model v3 V1; data in src/data/v2/runDesign.ts).
+// Owner: WS1. Capability effects are in effective-compute OOMs (ΔG); size, tokens and RL compute are physical and
+// enter through models/effective.ts.
 import {
-  BASE_DATA, BASE_SHAPE, CURATION, POST_COT, POST_INTENSITY, POST_PREF, POST_SAFETY, RL_FAMILIES, RL_FAMILY_IDS,
-  SIGNAL_IDS, sizeRestart, sizeS5, sizeServe,
+  BASE_DATA, CURATION, GRADERS, POST_COT, POST_PREF, POST_SAFETY, RL_BUDGET_SIG, RL_FAMILIES, RL_FAMILY_IDS, SHAPE,
+  SIGNAL_IDS, sizeS5,
 } from '../../../data/v2/runDesign';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import type { BaseDesign, DomainId, PostDesign, RLFamily, SignalId } from '../types';
 
 export type Off = Partial<Record<DomainId, number>>;
 export type Sig = Partial<Record<SignalId, number>>;
-
-export interface DesignEffect {
-  dp: number;
-  domains: Off;
-  serve: number;
-  monitorability: number;
-  signals: Sig;
-  h80Mult: number;
-  misuseMult: number;
-  appeal: number;
-  flags: { bioUplift?: boolean; cyberOffense?: boolean; persuasion?: boolean };
-  /** Loss-spike probability for base runs. */
-  restart: number;
-  /** FLOP multiplier (multimodal +20%). */
-  flopMult: number;
-  /** Extra cash as a share of the run's compute-equivalent cost (science journals). */
-  cashMult: number;
-  /** Data mix removes the data-wall penalty. */
-  noWall: boolean;
-  /** Extra wall days from safety training (low, high). */
-  extraDays: [number, number];
-  /** Safety FTE-weeks needed (constitution). */
-  safetyFteWeeks: number;
-}
 
 export const addOff = (a: Off, b: Off, k = 1): Off => {
   const out: Off = { ...a };
@@ -44,67 +22,68 @@ export const addSig = (a: Sig, b: Sig, k = 1): Sig => {
   return out;
 };
 
-/** Base-run effects (size, choices A–C and curation). Size's Δp is the pc formula (§3.1.3), not counted here. Serve is
- *  the shape's size-1 cost × √size (efficiency ideas apply to the versions, runs.ts serveTechMult). */
-export function baseEffect(b: BaseDesign): DesignEffect {
-  const sh = BASE_SHAPE[b.shape];
+/** Base-run design effects: data mix and curation as OOM (general ΔG and per-domain specialisation s_d,data =
+ *  the v2 level offsets ÷ 2, research/12 ΔL = 2·ΔG), signals (S5 from the run's scale vs F(t), BRIDGE(V6)). */
+export interface BaseEffect { dg: number; sD: Off; signals: Sig; monitorability: number; flopMult: number; cashMult: number; noWall: boolean; flags: { bioUplift?: boolean } }
+export function baseEffect(b: BaseDesign, scale = 1): BaseEffect {
+  const sh = SHAPE[b.shape];
   const da = BASE_DATA[b.data];
-  let dp = sh.dp + da.dp;
-  let off: Off = { ...da.off };
-  const s5 = sizeS5(b.size);
+  let dg = da.dg;
+  let offL: Off = { ...da.off };
+  const s5 = sizeS5(scale);
   let signals: Sig = addSig(addSig(s5 ? { S5: s5 } : {}, sh.signals), da.signals);
-  if (!b.curation.quality) dp += CURATION.qualityOffDp;
+  if (!b.curation.quality) dg += CURATION.qualityOffDg;
   if (b.curation.hazard) {
-    dp += CURATION.hazard.dp;
-    off = addOff(off, CURATION.hazard.off);
+    dg += CURATION.hazard.dg;
+    offL = addOff(offL, CURATION.hazard.off);
   }
   if (b.curation.safetyPretrain) {
-    dp += CURATION.safetyPretrain.dp;
+    dg += CURATION.safetyPretrain.dg;
     signals = addSig(signals, CURATION.safetyPretrain.signals);
   }
+  const sD: Off = {};
+  for (const d of DOMAIN_IDS) if (offL[d]) sD[d] = (offL[d] ?? 0) / 2;
   return {
-    dp, domains: off, serve: sh.serve * sizeServe(b.size), monitorability: sh.monitorability ?? 1, signals, h80Mult: 1, misuseMult: 1, appeal: 1,
-    flags: b.data === 'science' ? { bioUplift: false } : {}, restart: Math.max(0, sizeRestart(b.size) + sh.restart),
-    flopMult: da.flopMult, cashMult: da.cashMult, noWall: da.noWall, extraDays: [0, 0], safetyFteWeeks: 0,
+    dg, sD, signals, monitorability: sh.monitorability ?? 1, flopMult: da.flopMult, cashMult: da.cashMult, noWall: da.noWall,
+    flags: b.data === 'science' ? { bioUplift: false } : {},
   };
 }
 
-/** RL focus offsets: off_d = Σ_f (w_f − 0.5)·v_f,d with w_f = 1 if focused else 0; broad = 0 (§3.3.2 E).
- *  Signals: every family contributes at weight w (broad = 0.5 each). */
-export function rlFocusEffect(focus: RLFamily[] | 'broad'): { off: Off; signals: Sig; h80Mult: number; flags: DesignEffect['flags'] } {
-  let off: Off = {};
+/** RL focus: signals (every family at weight w: broad = 0.5 each), the horizon multiplier and danger flags of the focus
+ *  families (§3.3.2 E). Domain gains come from the RL curve (models/effective.ts rlGains), not from fixed offsets. */
+export function rlFocusEffect(focus: RLFamily[] | 'broad'): { signals: Sig; h80Mult: number; flags: { bioUplift?: boolean; cyberOffense?: boolean } } {
   let signals: Sig = {};
   let h80Mult = 1;
-  const flags: DesignEffect['flags'] = {};
+  const flags: { bioUplift?: boolean; cyberOffense?: boolean } = {};
   for (const f of RL_FAMILY_IDS) {
     const wgt = focus === 'broad' ? 0.5 : focus.includes(f) ? 1 : 0;
     const fam = RL_FAMILIES[f];
-    if (focus !== 'broad') off = addOff(off, fam.v, wgt - 0.5);
     signals = addSig(signals, fam.signals, wgt);
     if (wgt === 1 && fam.h80Mult) h80Mult *= fam.h80Mult;
     if (wgt === 1 && fam.flag) flags[fam.flag] = true;
   }
-  return { off, signals, h80Mult, flags };
+  return { signals, h80Mult, flags };
 }
 
-/** Post-training effects (choices D–H). */
-export function postEffect(p: PostDesign): DesignEffect {
+/** Post-training design effects (choices D–H): ΔG (OOM), level offsets (preference), serving and monitorability of the
+ *  reasoning mode, signals. The RL budget's capability effect is the RL curve (runs.ts); graders only move signals and
+ *  cash. */
+export interface PostEffect {
+  dg: number; offL: Off; serve: number; monitorability: number; signals: Sig; h80Mult: number; misuseMult: number; appeal: number;
+  flags: { bioUplift?: boolean; cyberOffense?: boolean; persuasion?: boolean }; safetyFteWeeks: number;
+}
+export function postEffect(p: PostDesign): PostEffect {
   const pr = POST_PREF[p.pref];
-  const it = POST_INTENSITY[p.rlIntensity];
   const cot = POST_COT[p.cot];
   const sf = POST_SAFETY[p.safety];
   const rl = rlFocusEffect(p.rlFocus);
   let signals = addSig(pr.signals, rl.signals);
-  signals.S2 = (signals.S2 ?? 0) * it.s2Mult;
-  signals = addSig(signals, { S7: it.s7, S4: cot.s4 });
+  signals.S2 = (signals.S2 ?? 0) * RL_BUDGET_SIG[p.rlBudget].s2Mult * GRADERS[p.graders].s2Mult;
+  signals = addSig(signals, { S7: RL_BUDGET_SIG[p.rlBudget].s7, S4: cot.s4 });
   const flags = { ...rl.flags, ...(p.pref === 'persuasion' ? { persuasion: true } : {}) };
   return {
-    dp: pr.dp + it.dp + cot.dp + sf.dp,
-    domains: addOff(pr.off, rl.off),
-    serve: cot.serveMult, // multiplier on the base serve cost
-    monitorability: cot.monitorability,
-    signals, h80Mult: rl.h80Mult, misuseMult: sf.misuseMult, appeal: pr.appeal, flags, restart: 0, flopMult: 1, cashMult: 0,
-    noWall: false, extraDays: sf.days, safetyFteWeeks: pr.safetyFteWeeks,
+    dg: pr.dg + cot.dg + sf.dg, offL: { ...pr.off }, serve: cot.serveMult, monitorability: cot.monitorability,
+    signals, h80Mult: rl.h80Mult, misuseMult: sf.misuseMult, appeal: pr.appeal, flags, safetyFteWeeks: pr.safetyFteWeeks,
   };
 }
 

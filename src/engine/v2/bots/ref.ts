@@ -2,7 +2,9 @@
 // below is provided by WS1 for calibration (T1) and only uses EngineApi actions.
 //
 // Reference cadence (§7.1): compute tracks refTotal (WS3's finance autopilot buys it; the T1 calibration stubs it),
-// split = shareRef(t), cap hiring tracks H_ref, a 1F base every 9 months, a post-train every 6 weeks (≤ 2 in flight),
+// split = shareRef(t), cap hiring tracks H_ref, a base every 9 months sized to train in ~4 months on 60% of its pool
+// (v3 V1: active parameters at 50 tokens per parameter; v2 trained 1 × the frontier run F(t), which took the same
+// time on the reference pool), a post-train every 6 weeks (≤ 2 in flight),
 // continual learning once P08 works, P05/P07/P08/P13/P17/P19 researched on the tree (REF_TREE; never P23), latent bases after
 // P17, a distilled mini every ~6 months (sooner on a new base or once the public release trails the internal model by
 // 0.7 levels) put on Chat/API while the frontier stays internal. R6: serving is the Auto policy (no weekly re-split),
@@ -11,9 +13,9 @@
 // `refPlay(s, api, opts)` is the model/department half of that policy, parameterised so the other bots (race, safe,
 // mixed, capex2x) reuse the cadence with their own design choices; with default options it is exactly RefBot's.
 // `refBot` = refPlay + WS3's reference finance autopilot (REF_AUTOPILOT).
-import { REFERENCE_BASE, STREAM_POOL_SHARE } from '../../../data/v2/runDesign';
-import { baseFromParams } from '../models/actions';
-import { POOL_SHARE_RANGE, planRun, trainingFlopPerDay } from '../models/runs';
+import { REFERENCE_BASE, REF_TPP, STREAM_POOL_SHARE } from '../../../data/v2/runDesign';
+import { paramsForFlop } from '../models/effective';
+import { POOL_SHARE_RANGE, paramsOfVersion, runFlopPerShareDay } from '../models/runs';
 import { EVENT_BY_ID } from '../core/registry';
 import { decimalYear } from '../core/time';
 import { shareRefAt, TOP_KEYS, topOf, withFixed } from '../departments/split';
@@ -49,14 +51,16 @@ export const SAFE_TREE_EXTRA: TreeGoal[] = [
   { id: 'P23', when: (s) => L(s) >= 8.5 && s.player.safety.findings.some((f) => f.agenda === 'AG09' && f.type === 'TECH') },
 ];
 const BASE_EVERY = 270;
-/** Follower starts (R9): extra base sizes between ×1 and ×0.1, a longer allowed base run, and hiring only while runway
- *  is at least this many quarters. */
-const FOLLOWER_SIZES = [0.7, 0.5, 0.35, 0.25];
+/** RefBot's base run length at its requested share (60% of the pool): v2's reference run (1 × F(t) = 91 days of 80% of
+ *  the reference training pool) took 121 days at that share. The bot sizes its base (active parameters at REF_TPP) to
+ *  this; the engine has no cap (R5: staleness is shown instead). Follower starts (R9) accept a longer run (their pools
+ *  are small) and hire only while runway is at least FOLLOWER_GROW_Q quarters. */
+const REF_BASE_DAYS = 121;
 const FOLLOWER_MAX_BASE_DAYS = 200;
 const FOLLOWER_GROW_Q = 6;
-/** RefBot's limit on a base run's wall time at its requested share (the engine's pre-R5 BASE_MAX_DAYS, now a bot
- *  policy: the engine shows staleness instead of capping). */
-const BOT_MAX_BASE_DAYS = 150;
+/** RefBot's distilled minis: half the teacher's active parameters [D]: the distillation gap is then 0.47 OOM (≈ v2's
+ *  −0.30 y mini; a quarter-size student trails by 0.62 y and misses the 2026 hype, valuation and distress targets). */
+const REF_STUDENT = 0.5;
 const POST_EVERY = 42;
 const MINI_EVERY = 182;
 /** …or sooner (≥ 45 d apart) once the internal model measures this many levels above what the products serve. */
@@ -84,9 +88,10 @@ export interface RefPlayOpts {
   safetyShare?: (s: GameStateV2) => number | undefined;
   /** Target share of staff in safety (hiring), e.g. 0.25 for the safe bot. */
   safStaffShare?: number;
-  /** Extra launchBase params (size, data, quality, hazard, safetyPretrain, licensedShare). */
+  /** Extra launchBase params (data, quality, hazard, safetyPretrain, licensedShare) and `days`: the base run's target
+   *  length at 60% of the pool (default REF_BASE_DAYS; followers FOLLOWER_MAX_BASE_DAYS). */
   base?: Params;
-  /** launchPost params (pref, rlFocus, rlIntensity, cot, safety, inoculation). cot 'faithful' falls back to 'visible'
+  /** launchPost params (pref, rlFocus, rlBudget, graders, cot, safety, inoculation). cot 'faithful' falls back to 'visible'
    *  until P23 is adopted; a latent base always forces latent CoT. */
   post?: (s: GameStateV2) => Params;
   /** Tree projects (default REF_TREE); a function lets a bot decide over time. */
@@ -190,30 +195,25 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   }
   if (!p.research.autoAssign) tryAct(s, api, 'research.autoAssign', { on: true });
 
-  // Base runs: a size-1 (frontier) base every 9 months; once neuralese (P17) is adopted the next base is latent and
-  // starts at once (AI 2027's Agent-3 is a neuralese model at SC).
+  // Base runs: a base every 9 months; once neuralese (P17) is adopted the next base is latent and starts at once
+  // (AI 2027's Agent-3 is a neuralese model at SC).
   const baseRunning = m.runs.some((r) => r.kind === 'base' && r.status === 'running');
   const lastBase = flag(s, 'lastBase', m.bases[m.bases.length - 1]?.startDay ?? -120);
   const latent = p.paradigms.P17?.status === 'adopted' && goals.some((g) => g.id === 'P17');
   const latentDue = latent && !m.bases.some((b) => b.design.shape === 'latent') && !m.runs.some((r) => r.status === 'running' && r.base?.shape === 'latent');
   if ((!baseRunning && day - lastBase >= BASE_EVERY) || latentDue) {
-    // The bot's own staleness rule (the engine has no cap since R5): a base must train within BOT_MAX_BASE_DAYS at its
-    // requested share. A lab whose pool cannot deliver its size in time gives it most of the pool, then steps down a
-    // size (×3 → ×1 → ×0.1), rather than never training a new base (M4).
-    const bp = { ...known(s, o.base ?? {}), shape: latent ? 'latent' : REFERENCE_BASE.shape };
-    // A follower start (R9) has a fraction of the reference compute: it steps down through intermediate sizes (and
-    // accepts a longer run) rather than dropping straight to ×0.1, as smaller labs train smaller frontier bases.
-    const sizes = [...new Set([Number(o.base?.size ?? REFERENCE_BASE.size), 1, ...(follower ? FOLLOWER_SIZES : []), 0.1])];
-    const maxDays = follower ? FOLLOWER_MAX_BASE_DAYS : BOT_MAX_BASE_DAYS;
-    const launch = (size: number, poolShare: number) => {
-      const plan = planRun(s, { kind: 'base', base: baseFromParams({ ...bp, size }), poolShare });
-      if (plan.flopNeeded / Math.max(1, trainingFlopPerDay(s) * poolShare) > maxDays) return false;
-      if (!tryAct(s, api, 'launchBase', { ...bp, size, poolShare })) return false;
+    // The bot's own staleness rule (the engine has no cap since R5): the base is sized so it trains in the target length
+    // on 60% of today's pool: FLOP = 0.6 × the pool's run rate × days, active parameters at REF_TPP tokens each.
+    const { days: _days, ...rest } = known(s, o.base ?? {});
+    const bp = { ...rest, shape: latent ? 'latent' : REFERENCE_BASE.shape };
+    const days = Number(o.base?.days ?? (follower ? FOLLOWER_MAX_BASE_DAYS : REF_BASE_DAYS));
+    const poolShare = 0.6;
+    const flop = poolShare * runFlopPerShareDay(s, { kind: 'base' }) * days;
+    const params = paramsForFlop(flop, REF_TPP);
+    if (flop > 0 && tryAct(s, api, 'launchBase', { ...bp, params, tpp: REF_TPP, poolShare })) {
       setFlag(s, 'baseShare', poolShare);
-      return true;
-    };
-    // Followers keep 40% of the pool for post-training (their pool is small; a 0.95 base starves every other run).
-    if (sizes.some((size) => launch(size, 0.6) || (!follower && launch(size, 0.95)))) setFlag(s, 'lastBase', day);
+      setFlag(s, 'lastBase', day);
+    }
   }
 
   // Post-training every 6 weeks on the newest base (≤ 2 in flight). Skipped once the stream is running on the
@@ -256,14 +256,14 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   // A distilled mini about every 6 months, deployed to consumer and API (frontier stays internal), or the newest
   // full version for bots that release their frontier.
   // Also a mini from the first version on each new base (AI 2027's Agent-1-mini): a mini of an old-generation teacher
-  // (−0.3 pm) does not beat the model already on sale, so a fixed 6-month clock alone could leave the launch model
+  // (the distillation gap below it) does not beat the model already on sale, so a fixed 6-month clock alone could leave the launch model
   // public for 15 months.
   const newGen = !!iv && baseIdx(iv) > flag(s, 'miniBase', 0);
   let servedL = 0;
   for (const d of p.deployments) if (d.status === 'live' && PUBLIC_CHANNELS.includes(d.channel)) servedL = Math.max(servedL, m.versions.find((v) => v.id === d.versionId)?.evals.measuredL ?? 0);
   const stale = !!iv && (iv.evals.measuredL ?? 0) - servedL >= MINI_GAP_L && day - flag(s, 'lastMini', 0) >= 45;
   if (iv && (newGen || stale || day - flag(s, 'lastMini', 0) >= MINI_EVERY) && !m.runs.some((r) => r.kind === 'distill' && r.status === 'running')) {
-    if (tryAct(s, api, 'launchDistill', { teacherVersionId: iv.id })) {
+    if (tryAct(s, api, 'launchDistill', { teacherVersionId: iv.id, studentParams: REF_STUDENT * paramsOfVersion(s, iv) })) {
       setFlag(s, 'lastMini', day);
       setFlag(s, 'miniBase', Math.max(flag(s, 'miniBase', 0), baseIdx(iv)));
     }
@@ -311,11 +311,10 @@ const askShare = (s: GameStateV2, r: TrainingRun) =>
  *  share; the other runs share what is left) by setting every run's pool share to what that rule gives it, so its
  *  effective shares and run lengths stay the reference ones. Runs still waiting for their setup count as training
  *  (they start within the day). Shares below the engine minimum are raised to it and the other non-base runs make
- *  room. Acts only when a share changes (a run starts, ends or restarts). */
+ *  room. Acts only when a share changes (a run starts or ends). */
 function syncPoolShares(s: GameStateV2, api: EngineApi) {
   const m = s.player.models;
-  const day = s.time.day;
-  const runs = m.runs.filter((r) => r.status === 'running' && !(r.holdUntil !== undefined && r.holdUntil > day));
+  const runs = m.runs.filter((r) => r.status === 'running');
   if (!runs.length) return;
   const avail = 1 - (m.stream ? STREAM_POOL_SHARE : 0);
   const pre = runs.filter((r) => r.kind === 'base' || r.kind === 'continue');

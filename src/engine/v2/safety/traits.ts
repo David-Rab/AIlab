@@ -7,7 +7,7 @@
 import { EDGES } from '../../../data/v2/edges';
 import { TRAIT_BY_ID, TRAIT_IDS, TRAIT_ORDER, TRAIT_START } from '../../../data/v2/traits';
 import { UMODES } from '../../../data/v2/umodes';
-import { sizeS5 } from '../../../data/v2/runDesign';
+import { GRADERS, RL_BUDGET_SIG, sizeS5 } from '../../../data/v2/runDesign';
 import { bestPlayerVersion, CHINA_ID, PLAYER_ID } from '../models/labs';
 import type {
   BaseDesign, BaseModel, EngineSystem, GameStateV2, ModelVersion, PostDesign, RivalLab, RLFamily, RngLike, SafetyPosture, SignalId,
@@ -28,7 +28,9 @@ export const zeroSignals = (): Signals => ({ S1: 0, S2: 0, S3: 0, S4: 0, S5: 0, 
 // ───────────────────────────── Signals (§3.3.2) ─────────────────────────────
 
 export const PREF_S1: Record<PostDesign['pref'], number> = { minimal: 0.1, engagement: 0.9, constitution: 0.4, persuasion: 0.6 };
-export const INTENSITY_S2: Record<PostDesign['rlIntensity'], number> = { light: 0.3, heavyCheap: 1.5, heavyHardened: 0.6 };
+/** S2 multiplier of the RL budget × graders (model v3 V1 split of v2's intensity: light ×0.5, heavy ×1.3; cheap
+ *  graders ×1.5, hardened ×0.6, so v2's light-hardened 0.3, heavy-cheap 1.5 and heavy-hardened 0.6 are unchanged). */
+export const intensityS2 = (post: Pick<PostDesign, 'rlBudget' | 'graders'>) => RL_BUDGET_SIG[post.rlBudget].s2Mult * GRADERS[post.graders].s2Mult;
 export const COT_S4: Record<PostDesign['cot'], number> = { visible: 0, pressured: 0.8, faithful: 0, latent: 1.0 };
 /** Per-family signal contributions per unit focus weight (§3.3.2 RL family table). */
 export const FAMILY_SIGNALS: Record<RLFamily, Partial<Signals>> = {
@@ -48,10 +50,11 @@ export function deploymentS8(s: GameStateV2): number {
   return s8;
 }
 
-/** Base-run signals: S5 = 0.2 + 0.1·capIndex (± size, − AI-discourse curation), S6 from data. */
-export function baseSignals(design: BaseDesign, tier: number): Signals {
+/** Base-run signals: S5 = 0.2 + 0.1·capIndex (± the run's scale vs F(t), BRIDGE(V6); − AI-discourse curation), S6
+ *  from data. */
+export function baseSignals(design: BaseDesign, tier: number, scale = 1): Signals {
   const sg = zeroSignals();
-  sg.S5 = Math.max(0, 0.2 + 0.1 * tier + sizeS5(design.size) - (design.curation.safetyPretrain ? 0.15 : 0));
+  sg.S5 = Math.max(0, 0.2 + 0.1 * tier + sizeS5(scale) - (design.curation.safetyPretrain ? 0.15 : 0));
   sg.S6 = 0.1 + (design.data === 'synthetic' ? 0.3 : 0);
   return sg;
 }
@@ -64,10 +67,10 @@ export function postSignals(s: GameStateV2, post: PostDesign): Signals {
     const wf = post.rlFocus === 'broad' ? 0.5 : post.rlFocus.includes(f) ? 1 : 0;
     for (const [k, v] of Object.entries(FAMILY_SIGNALS[f]) as [SignalId, number][]) sg[k] += wf * v;
   }
-  sg.S2 = sg.S2 * INTENSITY_S2[post.rlIntensity] + (adopted(s, 'P11') ? 0.2 : 0);
+  sg.S2 = sg.S2 * intensityS2(post) + (adopted(s, 'P11') ? 0.2 : 0);
   sg.S4 = COT_S4[post.cot];
   sg.S6 += S6_POST;
-  sg.S7 += S7_BASE + (post.rlIntensity === 'light' ? 0 : 0.2);
+  sg.S7 += S7_BASE + RL_BUDGET_SIG[post.rlBudget].s7;
   // Training against behavioural detectors puts eval-like data into training (E11 "keep evals out of training").
   for (const id of post.trainAgainst) if (s.player.safety.techniques[id]?.family === 'BB') sg.S7 += 0.3;
   sg.S8 = deploymentS8(s);
@@ -77,7 +80,7 @@ export function postSignals(s: GameStateV2, post: PostDesign): Signals {
 /** Signals a run applies (for WS1's RunPrediction.signals ▲ arrows and for applyRunToTraits). */
 export function runSignals(s: GameStateV2, run: TrainingRun): Signals {
   const tier = tierOfLevel(levelOf(s.hidden.timeline, s.player.pa));
-  if ((run.kind === 'base' || run.kind === 'continue') && run.base) return baseSignals(run.base, tier);
+  if ((run.kind === 'base' || run.kind === 'continue') && run.base) return baseSignals(run.base, tier, run.scale ?? 1);
   if (run.kind === 'distill') {
     const sg = zeroSignals();
     sg.S6 = 0.3;

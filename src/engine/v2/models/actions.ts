@@ -22,7 +22,6 @@ import { TREE_ACTIONS } from './treeActions';
 import { POOL_SHARE_RANGE, idleTrainingShare, launchRun, planRun, startStream, type LaunchRunParams } from './runs';
 import { poolsOf } from '../compute/power';
 import { clamp } from '../../rng';
-import { sizeScrutiny } from '../../../data/v2/runDesign';
 import { bookCash } from '../finance/ledger';
 
 /** Star hire cost: × the start type's modifier (spinout ×0.7 founder brand, big tech ×1.5; research/18 §6, R9). */
@@ -44,7 +43,7 @@ const latestFull = (s: GameStateV2) => [...s.player.models.versions].reverse().f
 export function baseFromParams(p: Params): BaseDesign {
   const r = REFERENCE_BASE;
   return {
-    size: num(p, 'size', r.size), shape: str(p, 'shape', r.shape) as BaseDesign['shape'],
+    params: num(p, 'params', r.params), tpp: num(p, 'tpp', r.tpp), shape: str(p, 'shape', r.shape) as BaseDesign['shape'],
     data: str(p, 'data', r.data) as BaseDesign['data'],
     curation: { quality: bool(p, 'quality', r.curation.quality), hazard: bool(p, 'hazard', r.curation.hazard), safetyPretrain: bool(p, 'safetyPretrain', r.curation.safetyPretrain) },
     licensedShare: num(p, 'licensedShare', r.licensedShare),
@@ -57,7 +56,7 @@ export function postFromParams(p: Params): PostDesign {
   const f = str(p, 'rlFocus', 'broad');
   return {
     pref: str(p, 'pref', r.pref) as PostDesign['pref'], rlFocus: f === 'broad' ? 'broad' : (f.split(',').filter(Boolean) as RLFamily[]),
-    rlIntensity: str(p, 'rlIntensity', r.rlIntensity) as PostDesign['rlIntensity'], inoculation: bool(p, 'inoculation', r.inoculation),
+    rlBudget: str(p, 'rlBudget', r.rlBudget) as PostDesign['rlBudget'], graders: str(p, 'graders', r.graders) as PostDesign['graders'], inoculation: bool(p, 'inoculation', r.inoculation),
     cot: str(p, 'cot', r.cot) as PostDesign['cot'], safety: str(p, 'safety', r.safety) as PostDesign['safety'], techniques: [], trainAgainst: [],
   };
 }
@@ -73,7 +72,10 @@ function runParams(s: GameStateV2, kind: LaunchRunParams['kind'], p: Params): La
     const b = str(p, 'baseId', latestBase(s)?.id ?? '');
     lp.baseId = b;
     if (latestBase(s)?.design.shape === 'latent' && p.cot === undefined && b === latestBase(s)?.id) lp.post.cot = 'latent';
-  } else if (kind === 'distill') lp.teacherVersionId = str(p, 'teacherVersionId', latestFull(s)?.id ?? '');
+  } else if (kind === 'distill') {
+    lp.teacherVersionId = str(p, 'teacherVersionId', latestFull(s)?.id ?? '');
+    if (typeof p.studentParams === 'number') lp.studentParams = num(p, 'studentParams', 0);
+  }
   else lp.baseId = str(p, 'baseId', latestBase(s)?.id ?? '');
   return lp;
 }
@@ -89,7 +91,7 @@ function runPreview(s: GameStateV2, lp: LaunchRunParams): Preview {
   const sig = plan.prediction.signals;
   const pressure = Object.values(sig).reduce((a, x) => a + x, 0);
   if (pressure > 0) exposure.push({ currency: 'alignment', amount: -pressure, lagDays: plan.etaDays, probability: 0.5 });
-  const scrutiny = lp.base ? sizeScrutiny(lp.base.size) : 0;
+  const scrutiny = lp.base ? (plan.limits?.scrutiny ?? 0) : 0;
   if (scrutiny >= 0.5) exposure.push({ currency: 'scrutiny', amount: Math.round(scrutiny * 10) / 10 });
   return { costs, gains: [{ currency: 'progress', amount: Math.round(gainL * 100) / 100, lagDays: plan.etaDays }], exposure };
 }
@@ -114,11 +116,16 @@ const RUN_ACTIONS: ActionDef[] = [
   {
     id: 'idaCycle', verb: 'train', system: 'models', sphere: 'models', owner: 'WS1', title: 'Amplify',
     available: p18,
-    preview: (s) => ({
-      costs: [{ currency: 'compute', amount: 0.3, target: 'training pool share' }],
-      gains: [{ currency: 'progress', amount: 0.25, lagDays: 21 }],
-      exposure: [{ currency: 'alignment', amount: -0.1, lagDays: 21, probability: s.player.paradigms.P18?.status === 'adopted' ? 1 : 0 }],
-    }),
+    preview: (s, p) => {
+      const v = versionById(s, str(p, 'versionId', latestFull(s)?.id ?? ''));
+      const plan = v ? planRun(s, { kind: 'post', ida: true, baseId: v.baseId, teacherVersionId: v.id, post: v.design }) : undefined;
+      const gainL = plan && v ? (plan.prediction.Lg[0] + plan.prediction.Lg[1]) / 2 - (v.evals.measuredL ?? plan.prediction.Lg[0]) : 0;
+      return {
+        costs: [{ currency: 'compute', amount: 0.3, target: 'training pool share' }],
+        gains: [{ currency: 'progress', amount: Math.round(gainL * 100) / 100, lagDays: plan?.etaDays ?? 0 }],
+        exposure: [{ currency: 'alignment', amount: -0.1, lagDays: plan?.etaDays ?? 0, probability: s.player.paradigms.P18?.status === 'adopted' ? 1 : 0 }],
+      };
+    },
     apply: (s, ctx, p) => {
       const v = versionById(s, str(p, 'versionId', latestFull(s)?.id ?? ''));
       const r = launchRun(s, ctx, { kind: 'post', ida: true, baseId: v?.baseId, teacherVersionId: v?.id, post: v?.design ?? REFERENCE_POST });
