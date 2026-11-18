@@ -163,9 +163,9 @@ function Lane({ s, v, use, draft, setDraft }: { s: GameStateV2; v: AgentsView; u
       <PkgChip kind="model" testId={`agent-model.${use}`} value={modelVal} options={models} changed={draft?.versionId !== undefined} onPick={(x) => setDraft({ ...(draft ?? {}), versionId: x || null })} />
       <PkgChip kind="monitor" testId={`agent-monitor.${use}`} value={monVal} options={monitors} changed={draft?.monitorId !== undefined} onPick={(x) => setDraft({ ...(draft ?? {}), monitorId: x || null })}
         extra={l.monitor && <>
-          <CatchX rate={l.catch} gap={l.gap} coverage={v.monitors.coverage} testId={`agent-catch.${use}`} note={<>Internal incidents on this fleet are caught with your detection tools × (½ + ½ × monitor strength {F.pct(l.strength)}). Paid from the safety budget.</>} />
+          <CatchX rate={l.catch} gap={l.gap} coverage={v.monitors.coverage} copy={l.copy} collusion={l.catchColl} testId={`agent-catch.${use}`} note={<>Internal incidents on this fleet are caught with your detection tools × (½ + ½ × monitor strength {F.pct(l.strength)}). Paid from the safety budget.</>} />
           {/* Jank AG1: a model watching a copy of itself can collude; say so where the monitor is chosen. */}
-          {(pkg.monitorId === MONITOR_SAME || (pkg.monitorId && pkg.monitorId === (pkg.versionId ?? routine?.id))) && <Tip content={() => <TipCard title="Same model watching itself">A copy of the model it monitors shares its goals and blind spots: if the model schemes, the monitor may cover for it. A different model (ideally weaker but trusted) is the standard control setup.</TipCard>}><span className="tag2 warn" data-test={`same-monitor.${use}`}>same model</span></Tip>}
+          {l.copy && <Tip content={() => <TipCard title={<Term id="collusion">Same lineage watching itself</Term>}>A copy of the model it monitors shares its goals and blind spots: if the model schemes, the monitor may cover for it. On scheming-type incidents its catch rate is ×0.6 (×0.8 with comms lockdown). A model from another base (ideally weaker but trusted) avoids it.</TipCard>}><span className="tag2 warn" data-test={`same-monitor.${use}`}>same model</span></Tip>}
         </>} />
       <div className="ag-cmp">
         <Tip content={() => <TipCard title={<Term id="agentBudget">Compute</Term>} value={`${F.h100e(l.compute)} H100e`} rows={[

@@ -9,6 +9,7 @@ import { mSci, lSci, scienceRate, techBlocker } from './techtree';
 import { internalVersion } from '../models/labs';
 import { nodeKnown } from '../models/tree';
 import { bookCash } from '../finance/ledger';
+import { buildWaitNew, pendingPack, queueBuild, SECTOR_PACK_TW } from '../departments/build';
 
 /** Sector product: certification time, cash and product-team time [D] (research/16 §1A.3 "costs months and money"). */
 export const PRODUCT = { days: 120, cash: 0.4, prodFTE: 15 };
@@ -28,7 +29,7 @@ function defaultSector(s: GameStateV2): SectorId | undefined {
   let best: SectorId | undefined;
   let bx = -1;
   for (const id of SECTOR_IDS) {
-    if (fx.certDay[id] !== undefined) continue;
+    if (fx.certDay[id] !== undefined || pendingPack(s, id)) continue;
     const st = s.world.sectors.US[id];
     const x = st.A * st.E0 * SECTOR_BY_ID[id].wage;
     if (x > bx) {
@@ -48,6 +49,12 @@ function productGain(s: GameStateV2, sector: SectorId): number {
   return Math.max(0, (newShare - share) * spend * 2.8); // US + ROW
 }
 
+/** Days until a sector pack queued now is built. */
+function packWait(s: GameStateV2): string {
+  const d = buildWaitNew(s, SECTOR_PACK_TW, 'sectorPack');
+  return Number.isFinite(d) ? `${d} d` : "never at today's engineering";
+}
+
 const sectorProduct: ActionDef = {
   id: 'wfx.sectorProduct', verb: 'launch', system: 'products',
   sphere: 'world',
@@ -64,6 +71,8 @@ const sectorProduct: ActionDef = {
     const costs: CostLine[] = [
       { currency: 'cash', amount: -PRODUCT.cash },
       { currency: 'staffTime', amount: -PRODUCT.prodFTE, lagDays: PRODUCT.days },
+      // J2 P1: engineers build the pack first, then certification starts.
+      { currency: 'staffTime', amount: -SECTOR_PACK_TW, target: `engineer team-weeks · built in ${packWait(s)}` },
     ];
     const gains: CostLine[] = sector ? [{ currency: 'revenue', amount: Math.round(productGain(s, sector) * 100) / 100, target: sector, lagDays: PRODUCT.days }] : [];
     const exposure: CostLine[] = sector ? [{ currency: 'approval', amount: -1, target: `bloc:labor`, lagDays: PRODUCT.days, probability: 0.5 }] : [];
@@ -73,10 +82,12 @@ const sectorProduct: ActionDef = {
     const sector = (typeof p.sector === 'string' && (SECTOR_IDS as string[]).includes(p.sector) ? p.sector : defaultSector(s)) as SectorId | undefined;
     const host = productHost(s, typeof p.deploymentId === 'string' ? p.deploymentId : undefined);
     if (!sector || !host) return;
-    if (!host.sectorFocus.includes(sector)) host.sectorFocus.push(sector);
-    if (s.world.fx.certDay[sector] === undefined) s.world.fx.certDay[sector] = ctx.day + PRODUCT.days;
+    if (s.world.fx.certDay[sector] !== undefined || pendingPack(s, sector)) throw new Error('That sector already has a product');
+    // J2 P1: the engineers build the pack (build queue); certification (PRODUCT.days) starts when it is built.
+    const wait = packWait(s);
+    queueBuild(s, 'sectorPack', sector, SECTOR_PACK_TW, { host: host.id });
     bookCash(s, ctx, -PRODUCT.cash, 'world', 'sector product', SECTOR_BY_ID[sector].name);
-    ctx.log('company', `${SECTOR_BY_ID[sector].name} product in certification (${PRODUCT.days} days).`);
+    ctx.log('company', `Engineers start building the ${SECTOR_BY_ID[sector].name} pack (${wait}, then ${PRODUCT.days} days of certification).`);
   },
 };
 

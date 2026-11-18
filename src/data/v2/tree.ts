@@ -76,7 +76,7 @@ const OLD_EFFORT_DAYS: Record<string, number> = {
 const TM_PER_OLD_DAY = 0.2;
 /** RefBot's projects, fitted so each attempt lasts its pre-R4 duration (`npx tsx scripts/v2/calib.ts --fit-tree`). Late
  *  projects (P13 at RSCH 8.5, P17 at L 9.5) start when research speed M is already 3–8×, so their effort is large. */
-export const FITTED_EFFORT_TM: Record<string, number> = { P05: 7.43, P07: 5.63, P08: 30.14, P13: 81.34, P17: 40.5 };
+export const FITTED_EFFORT_TM: Record<string, number> = { P05: 7.72, P07: 5.4, P08: 33.62, P13: 97.61, P17: 91.11, P19: 48.16, 'rl.mlResearch': 3.39 };
 
 /** A failed idea can be retried after this many days at half the previous odds (TECH-TREE §5 T1). */
 export const TREE_RETRY_DAYS = 180;
@@ -202,7 +202,11 @@ export const TREE: TreeNodeDef[] = [
   P('P27', 'Automated alignment research at scale', 'evals', 'lab', ['aar'], 'XL', { saf: 2 }, { agenda: 'AG17', saf: 'Safety research speed × (1 + 3·AI labour)', cost: 'False-result risk grows with hidden sandbagging' }),
 ];
 
-for (const n of TREE) if (n.paradigm && !n.star) n.effortTM = FITTED_EFFORT_TM[n.id] ?? Math.round(OLD_EFFORT_DAYS[n.id] * TM_PER_OLD_DAY * 10) / 10;
+for (const n of TREE) {
+  if (n.star) continue;
+  if (n.paradigm) n.effortTM = FITTED_EFFORT_TM[n.id] ?? Math.round(OLD_EFFORT_DAYS[n.id] * TM_PER_OLD_DAY * 10) / 10;
+  else if (FITTED_EFFORT_TM[n.id] !== undefined) n.effortTM = FITTED_EFFORT_TM[n.id];
+}
 
 /** Effort of a research-line project: T₁ at serious staffing, in standard-team-months (progress/day = √capacity ÷
  *  (effort · 30) = √(capacity ÷ SERIOUS_CAP) ÷ (30·T₁)). The class shown follows it. */

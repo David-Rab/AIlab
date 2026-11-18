@@ -98,6 +98,11 @@ export interface RefPlayOpts {
    *  compute-usage table (shareRef), so the training compute RefBot's run cadence leaves unused generates data
    *  instead of raising experiments (data never binds on the reference path, so this is neutral). */
   spareTraining?: 'research' | 'data';
+  /** Spare-serving policy (J2 PR1). Default 'headroom': as with spare training, the reference lab's research compute is
+   *  its compute-usage table (shareRef), so the serving compute its products do not need stays on them as headroom
+   *  (today's behaviour exactly) instead of running research agents. Measured: with 'research' RefBot's spare serving
+   *  (up to 4× its agent pool in late 2025) would add an unearned speed-up (design/PROGRESS.md J2). */
+  spareServing?: 'research' | 'headroom';
 }
 
 const flag = (s: GameStateV2, k: string, d = -1e9) => Number(s.flags[`ref:${k}`] ?? d);
@@ -169,6 +174,8 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
 
   const spare = o.spareTraining ?? 'data';
   if (p.policies.spareTraining !== spare) tryAct(s, api, 'runs.spareTraining', { use: spare });
+  const spareServe = o.spareServing ?? 'headroom';
+  if (p.policies.spareServing !== spareServe) tryAct(s, api, 'serving.spare', { use: spareServe });
 
   // Research: queue each goal once its start condition holds and its prerequisites are known (a failed idea again
   // from its retry date); idle science teams join by the auto-assign policy.

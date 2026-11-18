@@ -17,6 +17,7 @@ import { TREE_BY_ID } from '../../../data/v2/tree';
 import {
   CHANNEL_VARIANTS, agentsGate, buildEtas, catchRate, dateOf, deployGate, editBlock, editedProduct, effortLock, fmtDate, isProduct, measuredHorizonH,
   demandModifiers, measuredLOf, nodeKnown, PENALTY_MAX, previewEdit, productReadouts, revenueSpeedCap, servingPool, versionById,
+  LAUNCH_TW, LENT_RECOVERY, pendingLaunch, spareServing, spareServingToResearch,
 } from '../../../engine/v2';
 import type { Channel, Deployment, GameStateV2, ModelVersion, PriceTier, ProductChanges, ProductRead } from '../../../engine/v2';
 import { store } from '../store';
@@ -302,9 +303,12 @@ function FeatureRow({ s, d, f, eta }: { s: GameStateV2; d: Deployment; f: Featur
   ]} />;
   if (f.id === 'sectorPacks') {
     const secs = d.sectorFocus;
+    // J2 P1: packs being built (build queue) before their certification starts.
+    const building = s.player.build.queue.filter((it) => it.kind === 'sectorPack' && (it.host ?? d.id) === d.id);
+    const etas = buildEtas(s).etas;
     return (
-      <Tip content={() => <TipCard title={<Term id="sectorPack">Sector packs</Term>} rows={secs.map((x) => ({ label: x, value: s.world.fx.certDay[x] !== undefined && s.world.fx.certDay[x]! <= s.time.day ? 'certified' : `certified ${fmtDate(dateOf(s, s.world.fx.certDay[x] ?? s.time.day))}` }))}>{f.effect}</TipCard>}>
-        <div className="ft"><Layers size={12} /><span className="ft-n">{secs.length ? secs.join(' · ') : 'Sector packs'}</span><span className="sp" />
+      <Tip content={() => <TipCard title={<Term id="sectorPack">Sector packs</Term>} rows={[...secs.map((x) => ({ label: x, value: s.world.fx.certDay[x] !== undefined && s.world.fx.certDay[x]! <= s.time.day ? 'certified' : `certified ${fmtDate(dateOf(s, s.world.fx.certDay[x] ?? s.time.day))}` })), ...building.map((it) => ({ label: it.ref, value: `engineers build it · ${Number.isFinite(etas.get(it.id) ?? Infinity) ? F.days(etas.get(it.id) ?? 0) : 'waits'}, then 120 d certification` }))]}>{f.effect} Each pack: 4 engineer team-weeks, then certification.</TipCard>}>
+        <div className="ft"><Layers size={12} /><span className="ft-n">{secs.length ? secs.join(' · ') : 'Sector packs'}{building.length > 0 && <span className="dim" data-test={`prod-pack-building.${d.id}`}> · {building.length} building</span>}</span><span className="sp" />
           <ActBtn id="wfx.sectorProduct" testId={`prod-pack.${d.id}`} params={{ deploymentId: d.id }} label="+ pack" />
         </div>
       </Tip>
@@ -384,7 +388,7 @@ function EditPop({ s, d, c, close }: { s: GameStateV2; d: Deployment; c: Product
 // ───────── launch card ─────────
 function LaunchCard({ s, live }: { s: GameStateV2; live: Deployment[] }) {
   const missing = PRODUCT_ORDER.filter((c) => !live.some((d) => d.channel === c));
-  const [pick, setPick] = useState<Channel>(missing[0] ?? 'agents');
+  const [pick, setPick] = useState<Channel>(missing.find((c) => pendingLaunch(s, c)) ?? missing[0] ?? 'agents');
   const ch = missing.includes(pick) ? pick : missing[0];
   if (!ch) return null;
   const vs = s.player.models.versions.filter((v) => usable(v) && CHANNEL_VARIANTS[ch].includes(v.variant)).sort((a, b) => mL(s, b) - mL(s, a));
@@ -394,14 +398,19 @@ function LaunchCard({ s, live }: { s: GameStateV2; live: Deployment[] }) {
   const gate = v ? deployGate(s, v, ch) : `${PRODUCT_DEFS[ch]?.name} needs a ${CHANNEL_VARIANTS[ch].join(' or ')} model${imported ? ': post-train your imported model in Blueprint to sell it' : ': train one in Blueprint'}`;
   const Icon = P_ICON[ch] ?? ICON.product;
   const h = measuredHorizonH(v);
+  // J2 P1: a launch is built by the engineers first (build queue).
+  const pend = pendingLaunch(s, ch);
+  const eta = pend ? buildEtas(s).etas.get(pend.id) : undefined;
   return (
     <section className="pc off" data-test="prod-launch">
       <div className="pc-h">
         <span className="pc-ic"><Icon size={16} /></span>
         <select className="msel nm" data-test="prod-launch-pick" value={ch} onChange={(e) => setPick(e.target.value as Channel)}>
-          {missing.map((c) => <option key={c} value={c}>{PRODUCT_DEFS[c]?.name ?? c}</option>)}
+          {missing.map((c) => <option key={c} value={c}>{PRODUCT_DEFS[c]?.name ?? c}{pendingLaunch(s, c) ? ' · building' : ''}</option>)}
         </select>
-        <span className="sp" /><span className="pc-st off">Not launched</span>
+        <span className="sp" />{pend
+          ? <Tip content={() => <TipCard title="Being built" value={eta !== undefined && Number.isFinite(eta) ? `live in ${F.days(eta)}` : 'waits for engineers'} rows={[{ label: 'Work left', value: `${(pend.needTW - pend.doneTW).toFixed(1)} of ${pend.needTW.toFixed(0)} team-weeks` }]}>Engineers build the launch on the <Term id="buildQueue">build queue</Term>; it goes live when built. Build capacity: Company › Agents &amp; teams.</TipCard>}><span className="pc-st" data-test="prod-launch-building"><Hammer size={11} /> {eta !== undefined && Number.isFinite(eta) ? `live in ${F.days(eta)}` : 'waits for engineers'}</span></Tip>
+          : <span className="pc-st off">Not launched</span>}
       </div>
       <div className="dim small">{PRODUCT_DEFS[ch]?.blurb}</div>
       {ch === 'agents' && (
@@ -415,7 +424,9 @@ function LaunchCard({ s, live }: { s: GameStateV2; live: Deployment[] }) {
         </Tip>
       )}
       <div className="sp-v" />
-      <ActBtn id="product.launch" testId={`product.launch.${ch}`} params={{ channel: ch, ...(v ? { versionId: v.id } : {}) }} label={<>Launch {PRODUCT_DEFS[ch]?.name}</>} block={gate === true ? undefined : gate} reason />
+      {pend
+        ? <ActBtn id="build.cancel" testId={`product.launch.cancel.${ch}`} params={{ id: pend.id }} label="Cancel launch" />
+        : <ActBtn id="product.launch" testId={`product.launch.${ch}`} params={{ channel: ch, ...(v ? { versionId: v.id } : {}) }} label={<>Launch {PRODUCT_DEFS[ch]?.name} <span className="dim">· {LAUNCH_TW} t-wk</span></>} block={gate === true ? undefined : gate} reason />}
       {!v && <button className="btn btn-sm btn-ghost" data-go="blueprint" onClick={() => store.goto('blueprint')}>Blueprint ›</button>}
     </section>
   );
@@ -426,7 +437,12 @@ function ServingCard({ s, live, reads }: { s: GameStateV2; live: Deployment[]; r
   const pool = servingPool(s);
   const rows = live.map((d) => ({ d, r: reads.get(d.id) })).filter((x) => x.r) as { d: Deployment; r: ProductRead }[];
   const cut = rows.reduce((a, x) => a + x.r.cutH100e, 0);
-  const total = Math.max(pool, rows.reduce((a, x) => a + x.r.servedH100e, 0)) + cut;
+  // J2 PR1: each product uses up to its need; the rest of the pool is spare (research agents by default).
+  const used = (r: ProductRead) => Math.min(r.servedH100e, r.needH100e);
+  const spare = spareServing(s);
+  const lent = spareServingToResearch(s) > 0 || s.player.policies.spareServing !== 'headroom';
+  const total = Math.max(1, rows.reduce((a, x) => a + used(x.r), 0) + spare + cut);
+  const agentPool = s.player.computeOnline * s.player.split.agents;
   const auto = s.player.policies.servingAuto;
   const order = [...rows].sort((a, b) => b.r.rpH - a.r.rpH);
   const [shares, setShares] = useState<Record<string, number>>({});
@@ -438,20 +454,27 @@ function ServingCard({ s, live, reads }: { s: GameStateV2; live: Deployment[]; r
       </span>}>
       <div className="sv-bar" data-test="serving-bar">
         {rows.map(({ d, r }) => (
-          <Tip key={d.id} className="sv-w" style={{ width: `${(r.servedH100e / total) * 100}%` }} content={() => <TipCard title={PRODUCT_DEFS[d.channel]?.name ?? d.channel} rows={[
-            { label: 'Needs', value: `${F.h100e(r.needH100e)} H100e` }, { label: 'Gets', value: `${F.h100e(r.servedH100e)} H100e` },
+          <Tip key={d.id} className="sv-w" style={{ width: `${(used(r) / total) * 100}%` }} content={() => <TipCard title={PRODUCT_DEFS[d.channel]?.name ?? d.channel} rows={[
+            { label: 'Needs', value: `${F.h100e(r.needH100e)} H100e` }, { label: 'Uses', value: `${F.h100e(used(r))} H100e` },
             { label: <Term id="revPerH100e">Revenue per H100e</Term>, value: rate(r.rpH) },
             { label: <Term id="servingCut">Cut</Term>, value: r.cutH100e > 0 ? `${F.h100e(r.cutH100e)} H100e` : 'none', tone: r.cutH100e > 0 ? 'neg' : 'neutral' },
           ]} />}>
-            <span className={`sv-seg ${r.bound === 'capacity' ? 'cap' : ''}`} data-serve={d.id}><b>{F.h100e(r.servedH100e)}</b></span>
+            <span className={`sv-seg ${r.bound === 'capacity' ? 'cap' : ''}`} data-serve={d.id}><b>{F.h100e(used(r))}</b></span>
           </Tip>
         ))}
+        {spare > 0.5 && <Tip className="sv-w" style={{ width: `${(spare / total) * 100}%` }} content={() => <TipCard title={<Term id="spareServing">Spare serving</Term>} value={`${F.h100e(spare)} H100e`} rows={[
+          { label: lent ? 'Runs research agents' : 'Kept as headroom', value: lent ? `+${F.pct(spare / Math.max(1, agentPool))} on the agent pool` : 'on the products' },
+          { label: 'Eroded share wins back', value: lent ? `${F.pct(LENT_RECOVERY)} speed (products take it back first)` : 'full speed' },
+        ]}>Serving compute no product needs today. Policy: Compute › Split; research-speed effect: Company › Flow.</TipCard>}>
+          <span className="sv-seg spare" data-test="serving-spare" style={{ background: lent ? '#b28cf0' : undefined, color: lent ? '#1b2430' : undefined }}><b>{F.h100e(spare)}</b></span>
+        </Tip>}
         {cut > 0 && <Tip className="sv-w" style={{ width: `${(cut / total) * 100}%` }} content={() => <TipCard title={<Term id="servingCut">Cut by Auto</Term>} value={`${F.h100e(cut)} H100e`} rows={rows.filter((x) => x.r.cutH100e > 0).map((x) => ({ label: PRODUCT_DEFS[x.d.channel]?.name ?? x.d.channel, value: `${F.h100e(x.r.cutH100e)} H100e · ${F.money(x.r.unserved, { perYear: true })}`, tone: 'neg' as const }))}>Demand the serving pool cannot meet. {auto ? 'Auto cut the products earning least per H100e.' : 'Your shares leave it unserved.'}</TipCard>}>
           <span className="sv-cut" data-test="serving-cut">+{F.h100e(cut)}</span>
         </Tip>}
       </div>
       <div className="sv-leg">
-        {rows.map(({ d, r }) => <span key={d.id} className="sv-l" style={{ width: `${(r.servedH100e / total) * 100}%` }}>{PRODUCT_DEFS[d.channel]?.name}{r.bound === 'capacity' && <span className="tone-neg"> · capacity-bound</span>}</span>)}
+        {rows.map(({ d, r }) => <span key={d.id} className="sv-l" style={{ width: `${(used(r) / total) * 100}%` }}>{PRODUCT_DEFS[d.channel]?.name}{r.bound === 'capacity' && <span className="tone-neg"> · capacity-bound</span>}</span>)}
+        {spare > 0.5 && <span className="sv-l" style={{ width: `${(spare / total) * 100}%` }}>{lent ? 'spare → research' : 'headroom'}</span>}
         {cut > 0 && <span className="sv-l cut" style={{ width: `${(cut / total) * 100}%` }}>{auto ? 'cut by Auto' : 'unserved'}</span>}
       </div>
       <div className="sv-foot dim small">

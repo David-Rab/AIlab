@@ -20,6 +20,7 @@ Single source of truth for where the build stands. Update at every milestone or 
 | M5 polish, tutorial, codex, v1 removal | Onboarding and codex exist; v1 removed (2026-11-15), `npm run build` builds the current game | |
 | **Tycoon restructure merged to master** | Done (2026-11-17): R1–R10 merged; typecheck and `npm run build` clean. Next: full jank audit | a82b5e8 |
 | **J1 jank batch 1** | Done (2026-11-17, branch `jank-audit`, not merged): M1/M2 measured level and U, F1 cash causes, B1–B4, PR2–PR8, F2–F5, C1–C4, O1 (89.8% rendered tooltip coverage, lint), RL1/RL2 and the UI-only Minor/Polish list; slow calibration refit; all §7.4 criteria MET (40 seeds). J2 next: group A + engine Minor/Polish | jank-audit |
+| **J2 jank batch 2** | Done (2026-11-18, branch `j2`, not merged): R2 spread auto-assign, P1 engineering load (runs → upkeep → builds; launches and sector packs on the queue), PR1 spare serving → research agents (RefBot headroom), AG1 same-lineage monitor collusion, RK1 risk lever what-ifs, R7 AI science on projects; tree efforts refit to master durations; schemaRev 11; all §7.4 criteria MET (200 seeds); open: safety S5 −0.95 and finance F2 44.9M | j2 |
 | **R0 Tycoon restructure: design** | Done (2026-11-16): STRUCTURE.md, TECH-TREE.md, LIMITS.md, research/18–19, mockups-v3. Approved by the user | 168ef39 (branch `game-structure`, worktree `../AI27-structure`) |
 | **R1 Restructure: baseline, bugs, scaffolding** | Done (2026-11-16): B1–B5, LIMITS removals, setup/meta fields, ref-trace tool, schemaRev 4; all §7.4 bot criteria MET (200 seeds) | "R1: commitment scope, …" on `game-structure` |
 | **R3 Restructure: teams and roles** | Done (2026-11-16): fixed-size teams in three roles, h from capabilities research engineers, τ_h from science quality + stars, keep-hiring policy, offers, Company › People teams + hiring cards, schemaRev 5; no CAL_SHIFT refit; all §7.4 bot criteria MET (40 seeds) | "R3: teams and roles, …" on `game-structure` |
@@ -31,6 +32,97 @@ Single source of truth for where the build stands. Update at every milestone or 
 | **R8 Restructure: safety on the tree** | Done (2026-11-17): safety nodes are projects for safety science teams (completion = one result from `fireFinding`, efficacy-driven type draw unchanged; a working result unlocks the node, other results restart it; follow-up project per line), funding levels / hazard / refresh projects removed, effort = T₁ at serious staffing (SERIOUS_CAP 4 team-capacity), line health from the Beta posterior, dead-end team-months and "promising lines idle", tool upkeep and validation lead from safety research engineers (no ×8 ceiling), investigations staffed by safety RE (5–40, 120 d shown), option locks from safety ideas, four risk-family aggregates, Safety panel (Overview / Research lines / Investigations / Trait graph / Incidents) replaces Safety lab, schemaRev 10 with migration; safety hiring lane 3 → 8/wk; all §7.4 bot criteria MET (200 seeds); bot-policy variance share 63% (below M4's 66%) | "R8: safety on the tree …" on `game-structure` |
 | **R9 Restructure: start types** | Done (2026-11-17): data/v2/starts.ts (four starts: teams, known nodes, products, features, cash, compute, board, lag, modifiers, labels), buildPlayer(start) with model lag, spinout imported V0 (D6), big-tech parent budget (finance/parent.ts) with equity/deals/debt unavailable and no insolvency, `parent` board, leader lab per start (D1), knowledge diffusion from the leader lab (K 2.0, follower starts only), Setup start picker, big-tech Finance variant, bots --start with a follower plan, safe bot answers red flags; all §7.4 criteria MET (200 seeds), bot-policy variance share 73%; catch-up targets not met; labels lowered to the data (challenger Hard, big tech and spinout Impossible) | "R9: start types …" on `game-structure` |
 | **R10 Restructure: UI completion and structure tests** | Done (2026-11-17): top strip revenue chip (users in its tooltip; Finance links to it) and "tools validated to" in the race tooltip; Overview "Your company" core-loop diagram (a verdict per system, links to homes); codex Structure (core loop, simulated-from-outside note, verb set) and Limits categories; 24-limit registry `data/v2/limits.ts` shown where each binds (`Limit`, `data-limit`, checked by uitest); research-speed limit lines (frontier methods you lack, serial cap, serve-cost clamp, pause, knowledge diffusion); `system` / `verb` tags required on every engine system and action (lint-structure); idle test (idle.ts) with idle serving compute in Watch; 23 new glossary terms; dead code removed; no engine behaviour change (ref-trace 0 deviation vs R9); all §7.4 criteria MET (200 seeds). Follower starts accepted as is (user decision 2026-11-17: measured labels kept, catch-up deferred) | "R10: UI completion …" on `game-structure` |
+
+## J2 Jank batch 2 (2026-11-18, branch `j2`, worktree ../AI27-structure)
+
+Per design/JANK-AUDIT.md "J2 scope" (user decision): R2, P1, PR1 (spare serving only), the engine halves of AG1 and
+RK1, and the R7 deferral. Nothing from the "Not now" list. Per-item status: JANK-AUDIT.md "J2 status". schemaRev 11.
+
+**User decisions at review (2026-11-18):**
+- **Spare serving → research stays the player default**, although RefBot keeps its spare serving as headroom (its spare
+  reaches 3–4× its agent pool in late 2025), so a player on the default researches faster than the reference world.
+  Accepted as a real advantage for using spare compute.
+- **Known failures accepted:** finance F2 (global chip production 2027 44.9M vs the 45M floor; master 46.7M) and safety
+  S5 (median −0.95 vs −0.5; noisy — master also fails it on another 30 seeds). Together with the older hygiene absolute
+  perf budget and worldfx HireRate_SOFT, these four are the known failures.
+
+**Engine.**
+- R2 `models/tree.ts autoAssignDept`: greedy over (team, ready queued project): an unstaffed project first (queue order,
+  specialty first), else most ETA days cut × PRIORITY_W^rank (0.5). Respread of the policy's own teams when a project
+  finishes or a ready project has no team while another has ≥ 2 policy teams. `Team.manual` (research.assign) and
+  research-line teams are never moved (a first version that re-placed line teams scattered the mixed bot's lines;
+  fixed). `teamGain` (days cut) for the picker.
+- R7 deferral `sciAiMult`: capability-project capacity × 1/(1 − Φ(sdAI) × min(1, frontier share ÷ 15%)), max ×2 (×4
+  was tried: same S5 result, larger refit). Applies in `projectRate` for capability nodes only.
+- P1 `departments/build.ts`: daily order runs (ops + setups) → product upkeep (products + monitors) → builds; rates and a
+  30-day utilisation in `build.last` / `build.util`. Run setups keep R5's sizes: ×4 setups (1.5 t-wk per size-1 base)
+  moved stub:fast P08 by +100 d (the stub traces are sensitive to the run cadence), so the load comes from operations
+  and upkeep. `product.launch` and `wfx.sectorProduct` queue build items (`PendingLaunch`, certification after the
+  build); `build.cancel`. Features ×2 team-weeks. `agentPackageInputs`: engineering cover > 1 → A_eng = 1 − (1 − a)^cover
+  (RefBot cover = 1 exactly: unchanged).
+- PR1 `worldfx/revenue.ts spareServing` (pool − Σ min(served, need), 0 until every product was served once), policy
+  `spareServing` research | headroom (`serving.spare`), `labInputs` adds it to agents outside the mix (`kSpare`,
+  `bestMix` k0); share recovery × 0.5 when lent. `spareServingEffect` for the breakdown. idleStocks lists serving only
+  under headroom.
+- AG1 `models/products.ts catchRate`: `copy` (same base) and `collusion` (rate × (1 − 0.4), × (1 − 0.2) with T-LOCK active)
+  for COLLUSION_TRAITS; used by product incident catches (`productCatch(s, d, trait)`) and internal ones
+  (`monitorStrength.strengthColl`, `fleetMonitor(s, v, trait)`). Runtime-monitoring observations unchanged.
+- RK1 `actors/intel.ts riskSources(s, mods)` + `RISK_LEVERS` + `riskLevers(s)` (one step per lever, pp change).
+
+**Calibration.**
+- PR1 measured on the reference path (ai2027, 6 seeds): RefBot's mean spare serving = 15% of its agent pool, up to 3–4×
+  the pool in late 2025 (day 300–420). Lending it would be an unearned speed-up, so `refPlay` sets `headroom` for every
+  scripted bot (as R5's spare training → data); the passive player gets the default (research).
+- Tree efforts refit to **master's** attempt durations (scratch `_j2fit.ts`: all four stub traces + integrated ai2027,
+  geometric mean, damped), not to calib `--fit-tree`'s pre-R4 targets (J1 already moved those: master's stub P08 lasts
+  124 d, not 150). FITTED_EFFORT_TM: P05 7.43 → 7.72, P07 5.63 → 5.4, P08 30.14 → 33.62, P13 81.34 → 97.61, P17 40.5 →
+  91.11, P19 (class 30) → 48.16, rl.mlResearch (3) → 3.39. P17's large step: under the spread it shares teams with P19
+  and gets AI science at Φ ≈ 1.
+- No CAL_SHIFT / LEADER_CAL refit needed: calib T1, T2, T1L pass; T1 SC Δ ai2027 +0.008, authors2026 −0.016, fast
+  −0.044, slow +0.008 y. "Build queue never delays a RefBot run": worst wait 0 d in all four worlds.
+- ref-trace vs master (0e547a7, C:/tmp/j2/ref-base.json): **milestones and paradigm adoption days within tolerance in
+  all five traces.** Remaining excesses are downstream: monthly M/pa/sdAI at the end of the stub ai2027 trace (day 930,
+  M +9.5%) and authors2026 (day 1770, k after a post-train finishing at a different day), quarterly U at day 914 in stub
+  and integrated ai2027 (late tool set timing), enterprise revenue +15% in one quarter (day 549, which version it
+  serves), stub:fast pa −0.23 at day 930.
+
+**UI.** Company › Agents & teams: engineering pool load bar (runs / upkeep / builds / idle), "% busy", "upkeep behind",
+tooltip with every upkeep line and queue item and its ETA (`BuildLoad.tsx`). Products: launch card "live in N d" +
+cancel, launch button shows 4 t-wk, sector packs "N building", serving bar uses min(served, need) plus a spare segment.
+Compute › Split: spare-serving row (policy home). Company › Flow: research-speed card shows spare serving's effect.
+Research: picker "(−N d)", ETA tooltip AI science ×, auto-assign tooltip/label "Auto-spread teams". Agents: chips "catch
+85% · 51% scheming", same-lineage tag. Risk › Sources: both tooltips list "What one step moves" with pp per lever.
+Glossary: engAgents, runOps, productUpkeep, collusion, spareServing, aiScience, marginalGain, riskLever (+ rewrites).
+STRUCTURE §4.1 and TECH-TREE §1.2 policy text updated.
+
+**Gates.**
+- typecheck and scripts tsc clean; identity, golden-timelines pass, golden unchanged; calib all pass (above).
+- test:v2 individually: fixtures (regenerated, schemaRev 11), lint-hidden, lint-ux, lint-tradeoffs, lint-structure, ws4,
+  products, money, idle pass; worldfx only the known HireRate_SOFT (sector-product check updated for the build queue);
+  hygiene only the known absolute budget (leader lab daily 1,626 µs on an idle machine).
+  **New failures: safety S5** (mixed bot median min U − L to SAR −0.95, threshold −0.5; master 0.09 on the same seeds)
+  and **finance F2** (2027 chip production 44.9M vs ≥ 45M; master 46.7M).
+  - S5: bisect on 20 seeds (scratch `_j2s5*.ts`): AG1, P1 and PR1 have no effect; without the spread −0.08, without AI
+    science −0.25, both −0.68. Per seed the mixed bot adopts P13 15–30 d earlier than on master (it runs P13 alone,
+    while the refit is on RefBot, whose P13 shares teams with P17), so L outruns U near P13. ×4 → ×2 cap and priority
+    weight 0.8 → 0.5 did not move it. The S5 statistic is noisy (master on seeds 920–949: −0.57, fails too). Open.
+  - F2: RefBot seed 1's cash in Q4 2026 is ~$5B lower (model-path knock-on), so it orders fewer chips; 2028 identical.
+- Performance (`_perf.ts`, base worktree at 0e547a7 and j2 alternated, 12 runs each, idle machine): daily 1,792 µs (master)
+  vs 1,886 µs (j2), +5%; worst quarter median ≈ 6.5 vs 7.0 ms (+8%, noisy). No regression > 10%.
+- `npm run test:ui`: 232/232 (new J2 checks: build load bar and tooltip split, same-lineage catch chip, spare-serving policy home and switch, serving spare segment, launch on the build queue with its wait and cancel, risk lever what-ifs, team-picker days cut). Screenshots looked at: Company build load tooltip (day 900: 7 teams, 70 t-wk/wk, 48%
+  busy; API upkeep 22 t-wk/wk), agent lanes (same-lineage tag, "51% scheming"), Compute › Split spare row, Products,
+  Risk › Sources lever tooltip.
+- **Bots, 200 seeds, leader start** (4 × 50 merged with `--load`): all six §7.4 criteria MET — race 1.5% win, 67%
+  takeover / 32% company-loss; safe 2.0% win, 54% overtaken/other-first; mixed 48.5%, +46.5 pp; passive takeover-type
+  70%; ref 19.5% win; capex2x 1.0%. Choices vs world: bot policy 76%, world 13%.
+- Scripted bots, engineer utilisation / idle-science weeks (ai2027 medium, 6 seeds to day 1,100, `_j2m.ts`; before →
+  after): ref 0% → 76% / 58% → 57%; race 0% → 76% / 55% → 55%; safe 0% → 41% / 70% → 68%; mixed 0% → 70% / 60% → 60%;
+  capex2x 0% → 84% / 68% → 68%; passive 0% → 86% (99% in year 1: upkeep behind) / 100% → 100%. Run-setup waits p90 1 d
+  everywhere. Idle science teams stay idle because nothing is queued (R1, not in scope).
+
+**Notes / open.** S5 and F2 above. A permission check denied listing node processes with their command lines (used to
+check for stray processes); not worked around. Scratch scripts `scripts/v2/_j2*.ts` untracked. Baseline worktree
+C:\tmp\r4\base is now detached at 0e547a7.
 
 ## J1 Jank batch 1 (2026-11-17, branch `jank-audit`, worktree ../AI27-structure)
 

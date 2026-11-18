@@ -91,6 +91,27 @@ export function servingPool(s: GameStateV2): number {
   return Math.max(0, s.player.computeOnline * s.player.split.serving - moonshotH100e(s));
 }
 
+/** Serving compute no product needs (H100e; J2 PR1): the pool minus what each product uses (its serving up to its
+ *  need, as the revenue system last computed it). 0 until every product has been served once. */
+export function spareServing(s: GameStateV2): number {
+  const pool = servingPool(s);
+  if (pool <= 0) return 0;
+  let used = 0;
+  for (const d of paidDeployments(s)) {
+    if (d.needH100e === undefined) return 0;
+    used += Math.min(d.servedH100e ?? 0, d.needH100e);
+  }
+  return Math.max(0, pool - used);
+}
+
+/** Spare serving compute that runs research agents under the default policy (J2 PR1; 'headroom' keeps it on the
+ *  products). Products take it back first when their demand rises (tomorrow's split). */
+export const spareServingToResearch = (s: GameStateV2) => (s.player.policies.spareServing === 'headroom' ? 0 : spareServing(s));
+
+/** Share-recovery speed with spare serving lent to research [D]: products get it back only when demand rises, so
+ *  capacity slack wins back eroded share at half speed ('headroom' keeps full speed). */
+export const LENT_RECOVERY = 0.5;
+
 /** Revenue per serving H100e-year of one model on a deployment ($), before any monitor overhead. */
 function rphModel(s: GameStateV2, d: Deployment, versionId: string | undefined): number {
   const v = versionId ? versionOf(s, versionId) : undefined;
@@ -316,8 +337,10 @@ export function applyRevenue(s: GameStateV2, ctx: SystemCtx): RevenueReadout {
   if (rd.total > 0) bookCash(s, ctx, rd.total / 365, 'revenue', 'revenue', top ? `${top.channel} ${top.bound}-bound` : undefined);
   revenueToParent(s, ctx, rd.total / 365); // a division's revenue goes to the parent (R9)
 
-  // Share erosion when capacity-bound (0.5%/day of the excess), slow recovery when there is slack.
+  // Share erosion when capacity-bound (0.5%/day of the excess), slow recovery when there is slack (half speed when the
+  // spare serving runs research agents, J2 PR1).
   const pen = s.world.fx.capPenalty;
+  const rec = s.player.policies.spareServing === 'headroom' ? 1 : LENT_RECOVERY;
   const upd = (key: 'consumer' | 'sector', sel: (x: DeploymentRevenue) => boolean) => {
     let dem = 0;
     let cap = 0;
@@ -330,7 +353,7 @@ export function applyRevenue(s: GameStateV2, ctx: SystemCtx): RevenueReadout {
       return;
     }
     if (dem > cap) pen[key] = Math.min(PENALTY_MAX, pen[key] + 0.005 * ((dem - cap) / dem));
-    else pen[key] = Math.max(0, pen[key] - 0.03 * ((cap - dem) / Math.max(cap, 1e-9)));
+    else pen[key] = Math.max(0, pen[key] - 0.03 * rec * ((cap - dem) / Math.max(cap, 1e-9)));
   };
   upd('consumer', (x) => x.channel === 'consumer');
   upd('sector', (x) => x.channel !== 'consumer');

@@ -537,6 +537,7 @@ await page.click('[data-test=node-close]').catch(() => {});
 await page.click('[data-test="add-team.P05"]').catch(() => {});
 await wait(60);
 await shot('42-research-picker');
+ok('J2 R2: the team picker shows the days each team would cut', !!(await page.$('[data-test=team-picker] [data-test^="gain."]')));
 await page.click('[data-test=picker-close]').catch(() => {});
 if (await page.$('[data-test^="queue-drop."]')) await check('Research: Drop from the queue', 'JSON.stringify(s.player.research.queue)', () => page.locator('[data-test^="queue-drop."]').first().click());
 ok('Research: no paradigm section left in Models', await (async () => { await nav('models'); return !(await page.$('[data-paradigm]')); })());
@@ -627,6 +628,43 @@ await nav('compute');
 await tabTo('overview');
 await wait(200);
 ok('J1 C1: order, build and rent show before → after (cash, runway)', await page.evaluate(() => ['cmp.orderStandard', 'cmp.newSite', 'cmp.cloudContract'].every((id) => /cash.*→.*runway.*→/s.test(document.querySelector(`[data-test="preview.${id}"]`)?.textContent ?? ''))));
+// J2: engineers' load, spare serving, days cut, same-lineage monitors, risk lever what-ifs, launches on the build queue.
+await nav('company');
+await tabTo('people');
+ok('J2 P1: engineering pool shows build capacity and how busy it is', /busy/.test(await page.locator('[data-test=build-queue]').innerText()));
+await page.hover('[data-test=build-queue]');
+await wait(300);
+ok('J2 P1: the build tooltip splits runs, product upkeep and builds', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /Runs/.test(t) && /Product upkeep/.test(t) && /Builds/.test(t); })()`)));
+await shot('50-j2-build-load');
+await clearTips();
+ok('J2 AG1: a same-lineage monitor shows its lower catch on scheming-type incidents', !!(await page.$('[data-test="agent-catch.capRoutine.coll"]')) && !!(await page.$('[data-test="same-monitor.capRoutine"]')));
+await nav('compute');
+await tabTo('split');
+ok('J2 PR1: Compute › Split is the home of the spare-serving policy', !!(await page.$('[data-home=spareServing]')));
+await check('J2 PR1: spare serving policy switches', 's.player.policies.spareServing', () => page.click('[data-home=spareServing] [data-act^="spare-serving."]'), 200);
+await shot('51-j2-split-spare');
+await nav('products');
+{
+  const spare = JSON.parse(await get(`(() => { const p = s.player; let used = 0; for (const d of p.deployments) if (d.kind === 'product' && d.status !== 'withdrawn' && d.needH100e !== undefined) used += Math.min(d.servedH100e ?? 0, d.needH100e); return p.computeOnline * p.split.serving - used; })()`));
+  ok('J2 PR1: Products › Serving shows spare serving as its own segment', spare < 1000 || !!(await page.$('[data-test=serving-spare]')), `spare ${Math.round(spare)}`);
+  const launch = await page.$('[data-act^="product.launch."]:not([disabled]):not([data-act*=cancel])');
+  if (launch) {
+    await launch.click();
+    await wait(200);
+    ok('J2 P1: a launch goes on the build queue and shows its wait', JSON.parse(await get(`s.player.build.queue.some((it) => it.kind === 'launch')`)) && !!(await page.$('[data-test=prod-launch-building]')));
+    await shot('52-j2-launch-building');
+    const cancel = await page.$('[data-act^="product.launch.cancel."]');
+    if (cancel) await check('J2 P1: a queued launch can be cancelled', `s.player.build.queue.length`, () => cancel.click());
+  } else ok('J2 P1: a launch goes on the build queue (no launchable product on this fixture)', true);
+}
+await shot('53-j2-products');
+await nav('risk');
+await tabTo('sources');
+await page.hover('[data-test="risk-v.own"]').catch(() => {});
+await wait(300);
+ok('J2 RK1: a risk figure lists how far one step of each lever moves it', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /What one step moves/.test(t) && /pts/.test(t); })()`)));
+await shot('54-j2-risk-levers');
+await clearTips();
 // Hover states for the record
 await nav('overview');
 await page.hover('[data-test=race]');

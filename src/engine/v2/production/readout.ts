@@ -60,9 +60,9 @@ export function responseCurves(s: GameStateV2): ResponseCurves | undefined {
     scales: RESPONSE_SCALES,
     humans: RESPONSE_SCALES.map((x) => rel({ h: inp.h * x })),
     research: RESPONSE_SCALES.map((x) => {
-      const cIdle = inp.mixUnit.cIdle ?? 0; // idle training compute is not research compute: it stays as it is
+      const cIdle = inp.mixUnit.cIdle ?? 0; // idle training compute (and spare serving, kSpare) is not research compute: it stays as it is
       const f = s.player.researchManual ? ((inp.c - cIdle) / Math.max(1e-12, inp.mixUnit.c)) : fBest(x);
-      return rel({ c: f * inp.mixUnit.c * x + cIdle, k: (1 - f) * inp.mixUnit.k * x });
+      return rel({ c: f * inp.mixUnit.c * x + cIdle, k: (1 - f) * inp.mixUnit.k * x + (inp.mixUnit.kSpare ?? 0) });
     }),
     experiments: RESPONSE_SCALES.map((x) => rel({ c: inp.c * x })),
     agents: RESPONSE_SCALES.map((x) => rel({ k: inp.k * x })),

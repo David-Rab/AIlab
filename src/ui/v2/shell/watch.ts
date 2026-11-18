@@ -33,8 +33,8 @@ export function watchItems(s: GameStateV2): WatchItem[] {
   for (const st of idleStocks(s)) {
     if (st.id === 'serving') out.push({
       id: 'idleServing', sphere: 'company', sev: 1.5 + st.share,
-      chain: [{ label: 'demand below serving', icon: ICON.serving, kind: 'root', detail: `Products need ${F.pct(1 - st.share)} of the serving pool` }, { label: `${F.count(st.amount)} H100e spare`, icon: ICON.idle, kind: 'bad', detail: 'Serving compute no product needs sits idle' }],
-      why: 'move it to research on Compute › Split', go: { panel: 'compute', tab: 'split', anchor: 'split-serving' }, goLabel: 'Split',
+      chain: [{ label: 'demand below serving', icon: ICON.serving, kind: 'root', detail: `Products need ${F.pct(1 - st.share)} of the serving pool` }, { label: `${F.count(st.amount)} H100e spare`, icon: ICON.idle, kind: 'bad', detail: 'Kept on the products as headroom' }],
+      why: 'lend it to research agents on Compute › Split', go: { panel: 'compute', tab: 'split', anchor: 'split-spare-serving' }, goLabel: 'Split',
     });
   }
   // 2. products capped by serving capacity (R6: what the Auto split cuts, lowest $ per H100e first)

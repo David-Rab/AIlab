@@ -149,7 +149,7 @@ export { bestPlayerVersion } from '../models/labs';
 
 // ───────── Idle stocks (STRUCTURE R5 and §8 idle test) ─────────
 /** Resource stocks the player owns that can sit unused with no default use. Training compute (spare → experiments or
- *  data), agent compute (all research agents), safety research engineers (spare → tool upkeep and validation lead) and
+ *  data), spare serving compute under the default policy (research agents), agent compute (all research agents), safety research engineers (spare → tool upkeep and validation lead) and
  *  cash have default uses and are not listed. Each idle stock has an alert in the Watch list (ui/v2/shell/watch.ts,
  *  ids below); scripts/v2/idle.ts checks that none stays idle 30 days without one. */
 export type IdleStockId = 'chips' | 'scienceTeams' | 'serving';
@@ -164,8 +164,9 @@ export function idleStocks(s: GameStateV2): IdleStock[] {
   const sci = p.teams.filter((t) => t.role === 'sci');
   const idle = idleTeams(s);
   if (idle.length) out.push({ id: 'scienceTeams', amount: idle.length, unit: 'teams', share: idle.length / Math.max(1, sci.length) });
+  // J2 PR1: spare serving runs research agents by default; it is idle only when kept as headroom.
   const pool = servingPool(s);
-  if (pool > 0) {
+  if (pool > 0 && p.policies.spareServing === 'headroom') {
     const need = revenueReadout(s).deps.reduce((a, d) => a + d.needH100e, 0);
     const spare = pool - need;
     if (spare > 0.25 * pool && spare > 5000) out.push({ id: 'serving', amount: spare, unit: 'H100e', share: spare / pool });

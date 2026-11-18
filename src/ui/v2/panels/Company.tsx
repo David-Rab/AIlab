@@ -6,13 +6,14 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
-  BUILD_AI_CAP, WSL_TARGET_RANGE, buildBacklogTW, buildCapacity, buildEtas, engine, fillWeeks, fullTeamPayroll, idleChips, ownedOnline, payrollOf, poolsOf, queuedOfKey,
-  rentedOnline, researchSpeedLimits, revenueReadout, securityFloorView, SPLIT_KEYS, teamGain, teamPayroll, teamsOfKey, weeklyHireCap,
+  WSL_TARGET_RANGE, engine, fillWeeks, fullTeamPayroll, idleChips, ownedOnline, payrollOf, poolsOf, queuedOfKey,
+  rentedOnline, researchSpeedLimits, revenueReadout, securityFloorView, spareServingEffect, SPLIT_KEYS, teamGain, teamPayroll, teamsOfKey, weeklyHireCap,
 } from '../../../engine/v2';
 import { PROJECT_BY_ID } from '../../../data/v2/tree';
 import { COLUMN_LABEL, MOVE_SAFETY_MORALE, QUALITY, TEAM_KEYS, TEAM_SIZE } from '../../../data/v2/teams';
 import type { Column, GameStateV2, SpeedLimitLine, Team, TeamDept, TeamKey, TeamQuality, TeamRole } from '../../../engine/v2';
 import { AgentsAtWork } from './Agents';
+import { BuildLoad } from './BuildLoad';
 import { store } from '../store';
 import { ActBtn, Limit, Slider, Term, Tip, TipCard, Why } from '../ui';
 import { Card, GoBtn, HBar, KV, PanelHead, Ref, tabOf, Tabs } from '../kit';
@@ -146,6 +147,7 @@ function SpeedLimits({ s }: { s: GameStateV2 }) {
 function ResearchSpeed({ s }: { s: GameStateV2 }) {
   const p = engine.production(s, 'player');
   const pools = poolsOf(s);
+  const spareFx = spareServingEffect(s);
   const lev = ([['exp', '+10% experiments', ICON.experiments, { panel: 'compute', tab: 'split', anchor: 'split-experiments' }], ['agents', '+10% AI agents', ICON.agents, { panel: 'compute', tab: 'split', anchor: 'split-agents' }], ['humans', '+10% staff', ICON.staff, { panel: 'company', tab: 'people' }]] as const)
     .map(([id, label, icon, to]) => ({ id, label, icon, to, gain: Math.pow(1.1, p.elast[id]) - 1, perD: p.perDollar[id] }))
     .sort((a, b) => b.perD - a.perD);
@@ -154,9 +156,14 @@ function ResearchSpeed({ s }: { s: GameStateV2 }) {
     <Card title={<Term id="rdmult">Research speed</Term>} right={<span className="tag2 warn"><Term id={p.label === 'compute-bound' ? 'computeBound' : p.label === 'labor-bound' ? 'laborBound' : p.label === 'human-bound' ? 'humanBound' : 'tasteBound'}>{p.label}</Term></span>} home="M">
       <div className="rs-chain">
         <Tip content={() => <TipCard title={<Term id="experiments">Experiments</Term>} value={`${F.count(pools.experiments)} H100e`} rows={[{ label: 'More experiments', value: `+10% → ${F.pct(Math.pow(1.1, p.elast.exp) - 1, 1, true)} speed` }]}>Compute running research experiments (Compute › Split).</TipCard>}><span className="rs-node"><b className="num">{F.count(pools.experiments)}</b><span><Term id="experiments">experiments</Term></span></span></Tip><span className="ar">›</span>
-        <Tip content={() => <TipCard title={<Term id="aiFte">AI FTE</Term>} value={F.count(p.labor.aiFTE)} rows={[{ label: 'More AI agents', value: `+10% → ${F.pct(Math.pow(1.1, p.elast.agents) - 1, 1, true)} speed` }]}>AI research agents counted in full-time researchers.</TipCard>}><span className="rs-node"><b className="num">{F.count(p.labor.aiFTE)}</b><span><Term id="aiFte">AI FTE</Term></span></span></Tip><span className="ar">›</span>
+        <Tip content={() => <TipCard title={<Term id="aiFte">AI FTE</Term>} value={F.count(p.labor.aiFTE)} rows={[
+          { label: <Term id="poolAgents">Agent pool</Term>, value: `${F.count(pools.agents)} H100e` },
+          ...(spareFx.h100e > 0 ? [{ label: <Term id="spareServing">Spare serving lent</Term>, value: `${F.count(spareFx.h100e)} H100e · ${F.pct(spareFx.dM, 1, true)} speed`, tone: 'pos' as const }] : []),
+          { label: 'More AI agents', value: `+10% → ${F.pct(Math.pow(1.1, p.elast.agents) - 1, 1, true)} speed` },
+        ]}>AI research agents counted in full-time researchers.</TipCard>}><span className="rs-node"><b className="num">{F.count(p.labor.aiFTE)}</b><span><Term id="aiFte">AI FTE</Term></span></span></Tip><span className="ar">›</span>
         <Tip content={() => <TipCard title={<Term id="rdmult">Research speed</Term>} value={F.mult(p.M)} rows={[{ label: 'Binding', value: p.label }]}>How fast your lab gains know-how, as a multiple of a 2025 lab with no AI help.</TipCard>}><span className="rs-node hero"><b className="num">{F.mult(p.M)}</b><span><Term id="rdmult">R&D speed</Term></span></span></Tip>
       </div>
+      {spareFx.h100e > 0 && <div className="small dim" data-test="rs-spare-serving"><Term id="spareServing">spare serving</Term> → agents <Tip content={() => <TipCard title={<Term id="spareServing">Spare serving lent</Term>} value={`${F.count(spareFx.h100e)} H100e`} rows={[{ label: 'Research speed', value: F.pct(spareFx.dM, 1, true) }]}>Serving compute no product needs runs research agents (products take it back first).</TipCard>}><b className="num tone-pos">{F.pct(spareFx.dM, 1, true)}</b></Tip> <Ref id="spareServing" to={{ panel: 'compute', tab: 'split', anchor: 'split-spare-serving' }}>policy</Ref></div>}
       <div className="tip-cap" style={{ marginTop: 10 }}>Best lever per dollar</div>
       {lev.map((l) => (
         <div className="rs-lev" key={l.id}>
@@ -200,7 +207,6 @@ function GainChip({ s, t }: { s: GameStateV2; t: Pick<Team, 'role' | 'dept' | 'q
 function Teams({ s }: { s: GameStateV2 }) {
   const p = s.player;
   const people = p.teams.reduce((a, t) => a + t.heads, 0);
-  const bc = buildCapacity(s);
   const prod = engine.production(s, 'player');
   const pay = payrollOf(p);
   const byKey = (k: TeamKey) => teamsOfKey(p, k);
@@ -249,11 +255,7 @@ function Teams({ s }: { s: GameStateV2 }) {
         <div className="teams-col">
           <RoleHead r="eng" />
           <Pile k="eng" label="shared pool"
-            sub={<Tip content={() => <TipCard title={<Term id="buildCapacity">Build capacity</Term>} value={`${bc.capacity.toFixed(1)} team-wk/wk`} rows={[
-              { label: 'Human (teams × quality)', value: bc.human.toFixed(1) }, { label: 'AI share of engineers\' work', value: F.pct(bc.aEng) },
-              { label: `AI speed-up (cap ×${BUILD_AI_CAP})`, value: F.mult(bc.capacity / Math.max(1e-9, bc.human)) },
-              ...s.player.build.queue.slice(0, 5).map((it) => ({ label: `${it.kind === 'runSetup' ? `Setup ${s.player.models.runs.find((r) => r.id === it.ref)?.name ?? it.ref}` : it.ref}`, value: `${(it.needTW - it.doneTW).toFixed(2)} t-wk · ${F.days(buildEtas(s).etas.get(it.id) ?? 0)}` })),
-            ]} footer="Capped: agents need human review and integration.">What engineers build each week, in queue order: run setups now (product features from the next release).</TipCard>}><span data-test="build-queue"><ICON.build size={12} /> <Term id="buildCapacity">build</Term> <b className="num">{bc.capacity.toFixed(1)}</b> team-wk/wk · <Term id="buildQueue">queue</Term> <b className="num">{s.player.build.queue.length ? `${buildBacklogTW(s).toFixed(1)} t-wk` : 'empty'}</b></span></Tip>}
+            sub={<BuildLoad s={s} />}
             actions={releaseBtn(newest('eng'))} />
           <RoleHead r="re" />
           <Pile k="re.cap" label="Capabilities"

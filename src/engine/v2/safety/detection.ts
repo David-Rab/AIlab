@@ -282,8 +282,9 @@ export function monitoringCatch(s: GameStateV2, v: ModelVersion, trait: TraitId)
   const M = versionM(s, v);
   const cot = familyDetection(s, v, trait, 'COT', M) * familyPenalty(s, v, trait, 'COT');
   const wb = familyDetection(s, v, trait, 'WB', M) * familyPenalty(s, v, trait, 'WB');
-  // R7: the monitor strength on the fleet running v (1 = the pre-R7 default monitoring share).
-  return clamp01((1 - (1 - cot) * (1 - wb)) * (0.5 + 0.5 * fleetMonitor(s, v)));
+  // R7: the monitor strength on the fleet running v (1 = the pre-R7 default monitoring share); J2 AG1: a same-lineage
+  // monitor is weaker on collusion-relevant traits.
+  return clamp01((1 - (1 - cot) * (1 - wb)) * (0.5 + 0.5 * fleetMonitor(s, v, trait)));
 }
 
 /** Beliefs drift (§3.5.6): sd + 0.01/week since the last observation; stream versions +0.05/day (stale evals). */

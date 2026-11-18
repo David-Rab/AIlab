@@ -59,6 +59,13 @@ export const MONITOR_OVERHEAD = 0.25;
 /** Catch rate of a monitor as capable as the model it watches [D]; it falls by the AG05 oversight-gap rule
  *  (×0.52 per 4× gap in research-speed multiplier M) and rises with AI-control containment tools (AG07). */
 export const MONITOR_CATCH_BASE = 0.85;
+/** J2 AG1: a monitor from the watched model's own lineage (the same base: the model itself, a post-train or the
+ *  continual-learning stream on that base, or a mini distilled from it) shares its blind spots and may collude with it.
+ *  On incidents from the collusion-relevant traits (behaviour when unobserved) its catch rate × (1 − COPY_COLLUSION);
+ *  an active comms lockdown (T-LOCK, AI control) halves the penalty [D: Greenblatt et al. 2023 "AI Control" — untrusted
+ *  monitoring needs collusion-busting measures; E21 peer-preservation 38% vs 8% (research/14), comms lockdown −50%]. */
+export const COPY_COLLUSION = 0.4;
+export const COLLUSION_TRAITS: readonly TraitId[] = ['CONCEAL', 'POWER', 'AF', 'SAND', 'SCHEME', 'COLLUDE', 'SUCC'];
 
 /** The Agents product needs a measured 50% time horizon at least this long: the tasks it sells are half-day work
  *  units (METR time horizons; AI 2027's 2026 agents) [D]. */
@@ -99,24 +106,24 @@ export interface FeatureDef {
 }
 
 export const FEATURES: FeatureDef[] = [
-  { id: 'memory', name: 'Memory', node: 'P07', products: ['consumer', 'agents', 'enterprise'], buildTW: 6, cash: 0.1,
+  { id: 'memory', name: 'Memory', node: 'P07', products: ['consumer', 'agents', 'enterprise'], buildTW: 12, cash: 0.1,
     effect: 'Chat appeal ×1.1; agent and enterprise work AGENCY +0.3 (remembers context across sessions)', appeal: 1.1, domains: { AGENCY: 0.3 },
     risk: 'Successor-alignment incidents ×1.2 (memory carries goals forward)', hazard: { SUCC: 1.2 } },
-  { id: 'deepThink', name: 'Deep think', node: 'P05', products: ['consumer', 'api', 'agents', 'enterprise'], buildTW: 4, cash: 0.05,
+  { id: 'deepThink', name: 'Deep think', node: 'P05', products: ['consumer', 'api', 'agents', 'enterprise'], buildTW: 8, cash: 0.05,
     effect: 'Deep-think effort on this product: +0.3 L on every task', effortDeep: true,
     risk: 'Serving: half the revenue per H100e (many more tokens per answer)' },
-  { id: 'computerUse', name: 'Computer use', node: 'P06', products: ['agents', 'api'], buildTW: 8, cash: 0.15,
+  { id: 'computerUse', name: 'Computer use', node: 'P06', products: ['agents', 'api'], buildTW: 16, cash: 0.15,
     effect: 'Operates desktops and browsers: AGENCY +0.4', domains: { AGENCY: 0.4 },
     risk: 'Overreach incidents (power seeking) ×1.3', hazard: { POWER: 1.3 } },
-  { id: 'voiceVision', name: 'Voice & vision', node: 'voiceVision', products: ['consumer'], buildTW: 6, cash: 0.1,
+  { id: 'voiceVision', name: 'Voice & vision', node: 'voiceVision', products: ['consumer'], buildTW: 12, cash: 0.1,
     effect: 'Talks and sees: Chat appeal ×1.1, MEDIA +0.3', appeal: 1.1, domains: { MEDIA: 0.3 } },
-  { id: 'deepResearch', name: 'Deep research', node: 'deepResearch', products: ['consumer', 'enterprise'], buildTW: 4, cash: 0.05,
+  { id: 'deepResearch', name: 'Deep research', node: 'deepResearch', products: ['consumer', 'enterprise'], buildTW: 8, cash: 0.05,
     effect: 'Long research reports: REASON +0.3, RSCH +0.3', domains: { REASON: 0.3, RSCH: 0.3 },
     risk: 'Serving need ×1.1 (long agent runs)', serve: 1.1 },
-  { id: 'codingAgent', name: 'Coding agent', node: 'codingAgent', products: ['agents', 'api'], buildTW: 6, cash: 0.1,
+  { id: 'codingAgent', name: 'Coding agent', node: 'codingAgent', products: ['agents', 'api'], buildTW: 12, cash: 0.1,
     effect: 'Agents in Software & IT: +0.5 L in that sector', sectors: ['SOFT'],
     risk: 'Reward-hacking incidents ×1.2 (agents gaming tests)', hazard: { RH: 1.2 } },
-  { id: 'companion', name: 'Companion mode', node: 'engagement', products: ['consumer'], buildTW: 2, cash: 0.05,
+  { id: 'companion', name: 'Companion mode', node: 'engagement', products: ['consumer'], buildTW: 4, cash: 0.05,
     effect: 'A persistent persona: Chat appeal ×1.2', appeal: 1.2,
     risk: 'Sycophancy incidents ×1.5', hazard: { SYC: 1.5 } },
   { id: 'sectorPacks', name: 'Sector packs', node: 'sectorPacks', products: ['enterprise', 'api', 'agents'], buildTW: 0, cash: 0, leader: true,
