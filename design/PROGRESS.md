@@ -38,6 +38,14 @@ Single source of truth for where the build stands. Update at every milestone or 
 Per design/JANK-AUDIT.md "J2 scope" (user decision): R2, P1, PR1 (spare serving only), the engine halves of AG1 and
 RK1, and the R7 deferral. Nothing from the "Not now" list. Per-item status: JANK-AUDIT.md "J2 status". schemaRev 11.
 
+**User decisions at review (2026-11-18):**
+- **Spare serving → research stays the player default**, although RefBot keeps its spare serving as headroom (its spare
+  reaches 3–4× its agent pool in late 2025), so a player on the default researches faster than the reference world.
+  Accepted as a real advantage for using spare compute.
+- **Known failures accepted:** finance F2 (global chip production 2027 44.9M vs the 45M floor; master 46.7M) and safety
+  S5 (median −0.95 vs −0.5; noisy — master also fails it on another 30 seeds). Together with the older hygiene absolute
+  perf budget and worldfx HireRate_SOFT, these four are the known failures.
+
 **Engine.**
 - R2 `models/tree.ts autoAssignDept`: greedy over (team, ready queued project): an unstaffed project first (queue order,
   specialty first), else most ETA days cut × PRIORITY_W^rank (0.5). Respread of the policy's own teams when a project
