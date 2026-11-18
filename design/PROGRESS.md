@@ -33,6 +33,55 @@ Single source of truth for where the build stands. Update at every milestone or 
 | **R9 Restructure: start types** | Done (2026-11-17): data/v2/starts.ts (four starts: teams, known nodes, products, features, cash, compute, board, lag, modifiers, labels), buildPlayer(start) with model lag, spinout imported V0 (D6), big-tech parent budget (finance/parent.ts) with equity/deals/debt unavailable and no insolvency, `parent` board, leader lab per start (D1), knowledge diffusion from the leader lab (K 2.0, follower starts only), Setup start picker, big-tech Finance variant, bots --start with a follower plan, safe bot answers red flags; all §7.4 criteria MET (200 seeds), bot-policy variance share 73%; catch-up targets not met; labels lowered to the data (challenger Hard, big tech and spinout Impossible) | "R9: start types …" on `game-structure` |
 | **R10 Restructure: UI completion and structure tests** | Done (2026-11-17): top strip revenue chip (users in its tooltip; Finance links to it) and "tools validated to" in the race tooltip; Overview "Your company" core-loop diagram (a verdict per system, links to homes); codex Structure (core loop, simulated-from-outside note, verb set) and Limits categories; 24-limit registry `data/v2/limits.ts` shown where each binds (`Limit`, `data-limit`, checked by uitest); research-speed limit lines (frontier methods you lack, serial cap, serve-cost clamp, pause, knowledge diffusion); `system` / `verb` tags required on every engine system and action (lint-structure); idle test (idle.ts) with idle serving compute in Watch; 23 new glossary terms; dead code removed; no engine behaviour change (ref-trace 0 deviation vs R9); all §7.4 criteria MET (200 seeds). Follower starts accepted as is (user decision 2026-11-17: measured labels kept, catch-up deferred) | "R10: UI completion …" on `game-structure` |
 | **V0 Model v3: spec and calibration research** | Done (2026-11-18): design/MODEL-V3.md (physical-quantity rebuild of models, research, products, safety; AI 2027 as calibration only), research/20 (primary-source numbers). Approved by the user; build V1–V7 next, serial, branch `model-v3`, worktree ../AI27-model3 | (this commit) |
+| **V1 Model v3: capability core** | Done (2026-11-18, branch `model-v3`, not merged): models from physical quantities (G = log₁₀ FLOP + recipe + shape + overtraining + repetition; RL curve; distillation and continue laws), no minimum lengths or restart roll, no F(t) sizes, no κ, no era table; bridges pm = Φ(G), e_stack from pa, serveCost, run scale, simple-lab credit; Blueprint in parameters × tokens; schemaRev 12. CAL_SHIFT and LEADER_CAL refit (all presets within ±0.06 y of golden over SC…last). Open: 4 new test failures (worldfx GOV T1 accept −6 d outside its window, W2 TFP 1.4%; ws4 T3 band 70–289 d, T3 post-theft lag); see "V1 Capability core" below | e4f10c3, 8763e8e, 9f871ae, (docs) |
+
+## V1 Capability core (2026-11-18, branch `model-v3`, worktree ../AI27-model3)
+
+Brief: design/V3-BUILD.md "V1" (choices and deviations in its "V1 notes"). Code: models/effective.ts (pure
+arithmetic, tested by scripts/v2/effective.ts, now in `test:v2`), bridges in models/capability.ts, data in
+data/v2/runDesign.ts.
+
+**Calibration (T1, RefBot on the stub, seed 2027; Δ vs golden in years, SC … last).** "Before refit" is the v3 engine at
+the v2 CAL_SHIFT (measured during the build; fast and slow not measured at their old values).
+
+| Preset | v2 baseline (CAL_SHIFT) | v3 at v2 CAL_SHIFT | v3 after refit (CAL_SHIFT) |
+|---|---|---|---|
+| ai2027 | 0.080: SC +0.008, SAR −0.011, SIAR +0.016, ASI +0.049 | SC ≈ −0.61 (2026.63) | −0.36: SC −0.027, SAR −0.022, SIAR +0.003, ASI +0.025 |
+| authors2026 | 0.030: SC −0.016, SAR −0.003, SIAR −0.025, ASI +0.011 | SC −1.09, ASI −1.40 (before the RL-ceiling fix) | −0.633: SC +0.030, SAR +0.033, SIAR −0.011, ASI +0.025 |
+| fast | 0.075: SC −0.044, SAR −0.044, SIAR −0.019, ASI −0.011 | — | −0.557: SC −0.016, SAR −0.016, SIAR +0.049, ASI +0.058 |
+| slow | −0.127: SC +0.008 | — | 0.291: SC +0.052 |
+
+T1L leader lab (LEADER_CAL v2 → v3): ai2027 0.083 → 0.057, authors2026 0.068 → 0.052, fast 0.053 → −0.036, slow
+0.041 → 0.043; all SC…last within tolerance. T2 copies Mar 2027 178k (±30% of 200k), speed 31×. T4 rival gaps at start
+unchanged (3.3, 4.6, 4.2, 5.0 months). T3 China mean lead 170 d (ws4, 150–200 d).
+
+Why CAL_SHIFT moved: V0 is pinned (pm(V0) = the reference start), but under v3 rules it sits below the reference lab's
+later steady state (its RL is at 0.67 of a ≈ 1.0 OOM ceiling that later runs reach; v2 credited it with 0.28 y of
+post-training retention), so RefBot runs 0.4–0.85 progress-years above v2's pm path once it trains its first base. The
+refit absorbs that as a level offset (q = pm + calShift, so M is unchanged). Slow moves the other way: its compute grows
+1.6×/yr after 2028, which v2's calendar compute term (0.5 then 0.25 y/y for a 1F run whatever its FLOP) over-credited.
+Simple labs (rivals, China, leader) get the same offset (CAL_SHIFT_V2 − CAL_SHIFT, BRIDGE(V7)), which brings LEADER_CAL
+back to within 0.06 of v2. Two mechanisms were found and fixed on the way: the RL ceiling keyed on G_pre ran away in
+takeoffs (authors2026 ASI −0.38 y after refit; now keyed on the base's FLOP), and capIndexV2 was flat on [A0, A0 −
+calShift] for negative calShift (now interpolates on thresholds(w)).
+
+**Tests (`npm run test:v2` steps, final run).** Pass: golden-timelines, identity, effective (new), calib, fixtures,
+hygiene (incl. the perf budget), lint-hidden, lint-ux, lint-tradeoffs, lint-structure, finance (all, incl. F2, which
+failed on master), products, money, idle; `npm run build` clean; `npm run test:ui` 234/234. Fail:
+- safety S5 (known; median min margin −0.68, baseline −0.95);
+- worldfx "Dec 2027 (±3 mo): GOV T1 Accept ≥ 0.85" at 2027-09-04 (window opens 2027-09-10; baseline 2027-11-10);
+- worldfx W2 "Normal Technology, Agent-1-level models: TFP +0.5–1%/decade" 1.4% (baseline 0.9%): direct effect of V1.3
+  — at the frozen A1 level the era table had SOCIAL/MEDIA −1 L, REASON/BIO −0.5; the constant 2025 profile has them at 0,
+  so more sector work automates. V4 (sectors fed by work types) owns it;
+- ws4 T3 "lead stays within 75–275 d" 70–289 and "after a theft China is ≈ 60 d behind" (23–60 d): without post-training
+  retrofit the player's level line is flat between bases and steps up by ≈ 1.5 L when a base lands (e.g. 6.81 → 8.26 on
+  day 462), so "the player's level 60 days ago" is often today's level. V7 (rivals in G) owns it.
+- worldfx HireRate_SOFT, finance F2 and the hygiene perf budget (known failures on master) pass now.
+
+**Bots (`bots.ts --seeds 40`, reported, not required in V1; V3 rebalances).** Win / mixed / loss: race 0 / 2.5 / 97.5%,
+safe 7.5 / 5 / 87.5%, mixed 32.5 / 10 / 57.5%, capex2x 0 / 0 / 100%, ref 20 / 2.5 / 77.5%. §7.4: race win ≤ 5% MET, race
+losses MET, **safe win ≤ 5% MISS (7.5%, 3 of 40 seeds)**, safe losses MET, mixed ≥ 30% and ≥ 25 pp above both extremes MET
+(32.5%, 25.0 pp), passive takeover-type ≥ 50% MET (70%).
 
 ## J2 Jank batch 2 (2026-11-18, branch `j2`, worktree ../AI27-structure)
 
