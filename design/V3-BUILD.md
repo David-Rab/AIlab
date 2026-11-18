@@ -203,8 +203,144 @@ Design values ([D]) and deviations from the brief, each with its reason. Code: `
 
 ---
 
-## V2–V7
+## V2 Research: knowledge as ideas
 
-Detailed when each starts (spec §16). V2 research (removes BRIDGE(V2)), V3 work types and AI labour (removes the pm
-bridge from production and milestones), V4 serving and products, V5 data assets, suites and evals, V6 safety, V7
-rivals and China, bots, UI pass, jank audit.
+Goal: the lab's recipe efficiency comes from **ideas found by research projects**, not from the know-how number;
+projects run themselves through a lifecycle; the player only ranks projects, says how many teams each gets and sets a
+risk policy; research engineers and engineers are allocated in broad strokes. Spec §5, §8; research/20 §B. Removes
+BRIDGE(V2). Safety research lines (the agenda nodes) are **not** changed in V2 (V6 moves them onto this mechanism);
+they keep their current project code path.
+
+Split into two serial runs: **V2a** engine, content, calibration, tests; **V2b** UI.
+
+### V2.1 Stacks
+
+Three capability stacks: **pretraining**, **RL**, **serving & systems**. Each has an efficiency e_stack (OOMs) =
+Σ realised effects of adopted ideas − remaining headroom, plus a start value (the leader's day-0 recipe; follower
+starts lower by their start lag, as V1 solved it). They replace the bridge e = B·(pa − pa₀):
+- e_pre (pretraining stack) feeds G_pre of new bases (V1); e_RL feeds C_mid of new post runs (V1);
+- serving & systems feeds serving FLOP per token, MFU and goodput (V1 constants become stack values).
+
+### V2.2 Projects (data: rewrite `src/data/v2/tree.ts` capability part; safety nodes untouched)
+
+Each capability project has:
+- **kind**: `line` (repeatable research direction; generation n = 1, 2, …), `idea` (one-off), or `axis` (unlocks a
+  new lever: an RL family, a data kind, an architecture, a feature, a deployment option; may also carry an effect);
+- **area** (pretraining / post-training / systems: the science specialty), **needs** (knowledge only);
+- **effect**: type (spec §5.2 table), target stack, prior on the effect in OOMs (mean, sd; drawn hidden per world per
+  generation), chance the direction works at all in this world (hidden draw as today's paradigm priors), **scale
+  behaviour** prior (holds / grows / fades with run FLOP: the effect is multiplied by
+  (FLOP_run ÷ FLOP_test)^s with s drawn per idea: s > 0 grows, s < 0 fades; research/20 B2: ≈90% of measured
+  progress is scale-dependent, so most big pretraining ideas have s > 0);
+- **stages**: ideation (scientist work), small experiments (research-engineer work + experiment FLOP), scale test
+  (research-engineer work + a FLOP chunk relative to the lab's latest base, e.g. 1% [D]), adoption (engineers'
+  team-weeks into the stack).
+Lines carry most of the continuous progress (e.g. *Optimizer & architecture tweaks*, *Data filtering & mixing*,
+*RL algorithms*, *Inference efficiency*); ideas and axes carry the structure (*Native multimodal*, *Long context*,
+*Neuralese recurrence*, *Computer use*, *Continual learning*, RL-family focus unlocks, …).
+
+**Diminishing returns (lines):** generation n's prior mean μ_n = μ₁·(1 + (n−1)/n₀)^(−β) with β < 1 so the sum
+diverges (progress never stops, it gets harder): the AI Futures returns parameter r (research/13 §2.2, r ≈ 1.2) and
+research/20 B4 set β and n₀ [fit]. Scale-invariant tweaks within an area combine sub-multiplicatively (research/20 B2:
+log effects add with exponent ≈ 0.67) — apply this to the `idea` kind in the same area, not to lines.
+
+### V2.3 Content pass (judgement; write the table into design/TECH-TREE.md as a new "v3 projects" section)
+
+Map every existing capability tree node to a project kind/effect or cut it, with a one-line reason and source:
+- **Not research** (remove from the tree; always available or built by engineers as product features): Chat, API,
+  Enterprise, Agents product, Coding agent, Voice & vision, Deep research, Sector packs. Features stay buildable, gated
+  on the axis idea that makes them possible (computer use, long context + memory, multimodal, orchestration) or on
+  nothing.
+- **2025 public knowledge → known at start (★)**: quantization, speculative decoding, fault-tolerant training, MoE,
+  dense, reasoning RL, agentic environments, test-time compute, distillation (check research/12 §0.7 for what was
+  public by Jul 2025).
+- **Paradigms (P05–P27)**: each becomes a typed effect with a sourced magnitude (research/20 B2/B3, research/12) or is
+  marked as wired in a later phase (keep its current engine effect and note `LATER(Vn)`): P13, P19, P20, P24 → V3
+  (AI labour, taste); P05, P07 features → V4; P10, P12, P21 data → V5; P14, P15, P23, P27 → V6; P26, P25 have no
+  engine effect today — cut them or give them a real one (state which).
+- Every effect in the game must have a unit and a source or a [D] tag; no "+0.8 y".
+- Starts (data/v2/starts.ts `known`) keep their meaning.
+
+### V2.4 Lifecycle (engine: `src/engine/v2/models/tree.ts` capability path, or a new `research.ts`)
+
+1. **Ideation**: scientist work on the project produces candidates; each candidate has a hidden true effect (the
+   project's draw × a candidate factor) and a **belief** = truth + noise, noise sd falling with the assigned
+   scientists' quality (taste) [D, R20 B5]. The team pursues the best candidate by **score = μ + κ·σ** of its belief,
+   κ = −0.5 / 0 / +0.5 for the lab-wide **risk policy** safe / balanced / speculative [D]. More ideation work = more
+   candidates to pick from.
+2. **Small experiments**: work + FLOP; the belief narrows (Bayesian update with experiment noise). If the posterior
+   mean drops below a threshold, the candidate is dropped and ideation resumes (the project prior updates) [D].
+3. **Scale test**: work + a FLOP chunk; reveals the scale exponent s (narrows its belief); ≈ a quarter of small-scale
+   wins survive at scale (research/20 B5) — calibrate the scale prior to that.
+4. **Result**: a final estimate band. Effect ≤ ~0 ⇒ **failed**; a failed project can be **reopened as speculative**
+   (wider prior, lower mean). Only finished projects can be adopted.
+5. **Adoption**: engineers' build (team-weeks ∝ effect size) [D]; then the **true** effect (at the run's FLOP for
+   scale-dependent ideas) enters the stack for new runs, part at once and the rest as **headroom** (V2.6). The UI shows
+   the believed band before and the realised value once a model trained with it is evaluated.
+
+**Speed (bridge until V3):** labour work progresses at research speed M (the production function, as today) ×
+√(capacity of the assigned teams) per stage, as the v2 tree does; FLOP needs are drawn from the research
+(experiments) pool by project priority. A stage completes when both its work and its FLOP are done. Note for V3: M's
+experiment-compute input then double-counts project FLOP; V3 replaces M with project-level CES on explicit compute and
+labour.
+
+### V2.5 Allocation without micromanagement (replaces J2 R2 auto-assign)
+
+- **Scientists**: the player keeps a priority-ranked project list and sets **teams wanted** per project (default 1;
+  "max" allowed). Deterministic assignment: go down the list, give each project up to its teams wanted, best specialty
+  match first; then one improvement pass of pairwise swaps that raise total specialty fit; leftovers to the
+  highest-priority project still under its max. Each team card says why it is where it is. Must be within 5% of the
+  brute-force optimum of total progress on small cases (test it: ≤ 5 teams, ≤ 4 projects).
+- **Research engineers** (capabilities): needs in priority order: run operations → project experiments (by project
+  priority) → routine tuning → (evals in V5). The player sets a share or team count per need and the order; spare
+  capacity flows down the list (R5). The production function's h counts research engineers on experiments + tuning
+  (keep the reference allocation so h is unchanged at reference) `// BRIDGE(V3)`.
+- **Engineers**: extend the existing build queue/upkeep (J2 P1) with the same "needs + priority + overflow" control:
+  run setups, product upkeep, builds (features, adoptions), internal tools.
+- Research compute: one experiments pool; stages take FLOP by project priority; leftover → routine tuning → synthetic
+  data (R5).
+
+### V2.6 Routine tuning (headroom)
+
+An adopted idea delivers (1 − h) of its effect at once; h [D ≈ 0.3] is headroom that research engineers on tuning
+close at a rate ∝ their capacity × M × remaining headroom [D]. Headroom refills only by adopting ideas.
+
+### V2.7 Remove the know-how bridge
+
+- e_stack replaces B·(pa − pa₀) everywhere (runs, continual stream, Blueprint).
+- `player.pa` stays only as a read-only readout `// BRIDGE(V3)` = (sum of stack efficiencies over the start) ÷ B, so
+  remaining readers (safety tiers, theft and leak amounts, rivals' diffusion, limits view) keep working; writers become
+  stack changes: knowledge diffusion from a leader adds to the stacks (public ideas, no headroom); "tacit knowledge" and
+  "safety spillover" bumps add small stack amounts; theft of know-how gives rivals pa from the player's stack lead ÷ B.
+- The Blueprint's "behind at finish" becomes: ideas adopted while the run trains (count and OOM).
+
+### V2.8 Calibration
+
+- Golden dates within the existing tolerances on all presets (refit CAL_SHIFT/LEADER_CAL allowed; report before →
+  after). Fit μ₁, β, n₀ and stage efforts so the reference bot's total stack growth tracks V1's bridge path (B·pa).
+- Check: before SC, the reference lab's pretraining stack grows ≈ 0.48 OOM/yr (Ho et al. ~3×/yr, ±30%)
+  [R20 B1]; total stacks ≈ the all-in rate.
+- Report the bot table (40 seeds); not required to pass in V2.
+
+### V2.9 Tests (`scripts/v2/research.ts`, add to `test:v2`)
+
+Lifecycle order; only finished projects adoptable; risk policy changes the pursued candidate; better taste lowers
+belief error; failed → reopen as speculative; line priors decline but their sum diverges; assignment determinism,
+specialty optimality within 5% of brute force; overflow of research engineers and engineers; a stage without FLOP
+waits; headroom closes with tuning and refills on adoption; e_stack never read from pa (lint).
+
+### V2b UI (second run)
+
+Research panel: project cards with stage track (ideation → small → scale → result), belief band, odds, FLOP and work
+per stage, teams; priority list (drag) and teams wanted; risk-policy toggle; per-stack recipe readout (adopted ideas,
+realised vs believed, headroom); research-engineer and engineer allocation panel with priority order and overflow;
+Blueprint/run cards read the stacks. good-ui skill; glossary and tooltips for every new term; `npm run test:ui`.
+
+---
+
+## V3–V7
+
+Detailed when each starts (spec §16): V3 work types and AI labour (removes the pm bridge from production and
+milestones; project-level CES replaces M), V4 serving and products (owns worldfx GOV T1 and W2 from V1), V5 data
+assets, environment suites and evals, V6 safety, V7 rivals and China (owns ws4 T3 lead band and theft lag from V1),
+bots, UI pass, jank audit.
