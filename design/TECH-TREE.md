@@ -253,3 +253,123 @@ Gates before merge: identity test, golden timelines, all bot criteria at 200 see
 | T1 | Retry after a failed capability idea | Today's rule: retry after 180 days, at half the previous odds each time. The card shows the retry date and the new odds |
 | T2 | Specialty bonus | ×1.5 in its column, ×1 elsewhere |
 | T3 | Known nodes at the start | Each start type begins with the nodes its real analogues had (e.g. a frontier leader knows more of the tree than a spinout); set with the start values (STRUCTURE §4.8) |
+
+---
+
+## 6. v3 projects (model v3 V2a content pass, 2026-11-18)
+
+Spec: design/MODEL-V3.md §5, design/V3-BUILD.md "V2" (choices in its "V2 notes"). The capability part of the tree
+becomes **projects** with a lifecycle (ideation → small experiments → scale test → result → adoption by engineers) and
+**typed effects** with a unit. Safety nodes (alignment, interpretability, evals & control) keep their v2 code path
+until V6. Kinds: **line** (repeatable research direction, generation n = 1, 2, …), **idea** (one-off, typed effect),
+**axis** (unlocks a lever; may carry an effect). Stacks (src/engine/v2/models/stacks.ts):
+
+| Stack | Part | Unit | Enters |
+|---|---|---|---|
+| Pretraining | e_pre | OOM of effective pretraining compute | G_pre of new bases, continued pretraining, the stream |
+| RL | efficiency | OOM of RL compute (moves the RL curve's midpoint C_mid) | new post-training runs, IDA, the stream |
+| RL | ceiling | OOM added to the RL curve's asymptote A | new post-training runs, IDA, the stream |
+| Serving & systems | training throughput | OOM of model FLOP per chip-day (MFU × goodput); capped at MFU 0.75 × goodput 0.97 | every run's FLOP per day |
+| Serving & systems | serving | OOM less serving FLOP per token | versions trained after it |
+
+1 level ≈ 0.83 OOM at the 2026 slope; used only where a v2 level offset is converted (tagged [conv]).
+
+### 6.1 Cut from the tree (not research)
+
+| Node | Why | Now |
+|---|---|---|
+| Chat ★, API ★, Enterprise ★ | Products, not knowledge | Always available (Products) |
+| Agents product | A product channel | Always available (it pays off with the time horizon, as before) |
+| Coding agent, Deep research, Voice & vision, Sector packs | Product features: engineers build them | Still buildable, gated on the axis that makes them possible: Voice & vision on *Native multimodal*, Deep research on *Multi-agent orchestration*; Coding agent and Sector packs on nothing (2025 practice) |
+| Superhuman persuasion (P26) | No engine effect; superpersuasion is a capability (the SOCIAL level), not an idea | Cut (its hidden draw stays in the paradigm list so the other draws keep their values) |
+
+Starts: `known` entries naming cut nodes are dropped; their built features stay (the start's `features`).
+*Auditing agents* (a safety node) needed *Agents product*; it now needs *Agentic environments* ★.
+
+### 6.2 Known at the start by every lab (★; public by Jul 2025: research/12 §0.7 tier 1, research/20)
+
+No effect beyond the reference recipe: they are part of the start recipe (E_START, MFU 0.40, goodput 0.90, serving
+cost 0.5 = reference).
+
+| Node | Source | Change from v2 |
+|---|---|---|
+| MoE ★ (reference shape), Dense ★ (−0.3 OOM) | R20 B2 (MoE ≈ 2× vs dense) | — |
+| Quality filter ★, Code & math data ★ | research/12 §0.3 C | — |
+| Visible reasoning (reasoning RL, P01) ★, Agentic environments (P02) ★, Test-time compute (P03) ★, Distillation (P04) ★ | research/12 §0.7 #1–#4 | — |
+| Hardened graders ★, Engagement tuning ★, Persuasion tuning ★ | research/12 §0.3 D, F | — |
+| Quantization ★ | INT8/FP8 serving was standard in 2025 | Was a project (serve ×0.8): now part of the reference |
+| Speculative decoding ★ | Leviathan et al. 2023; standard in 2025 serving | Was a project (serve ×0.85): now part of the reference |
+| Fault-tolerant training ★ | Llama 3 (2024) checkpointing and restarts | Was a project (goodput 0.95): R20 A4's 0.90 already includes it |
+| Overtrained compact ★ | Llama 3 8B trained at ≈ 1,900 tokens per parameter (2024); R20 A1 law | Was a project gating > 50 tokens per parameter: overtraining is a design choice whose cost is the A1 law |
+
+### 6.3 Lines (most of the continuous progress)
+
+Generation n's prior mean μ_n = μ₁ · (1 + (n − 1)/n₀)^(−β), β < 1 so Σ μ_n diverges (§6.6); n counts ideas (a batch of
+b ideas at a high research pace advances n by b). Every s is clamped to [−0.6, +0.25]. Scale exponent s: the
+effect at run FLOP F = (effect at the scale test) × (F ÷ F_test)^s; small experiments run at F_test/1000, so a
+candidate's small-scale effect x becomes x·1000^s at test scale. μ₁ [fit] (V2.8); relative sizes [D].
+
+| Line | Area | Stack | Scale prior s | Source |
+|---|---|---|---|---|
+| Scaling recipes (architecture and compute rebalancing at scale) | Pretraining | pre | N(+0.05, 0.04): grows with scale | R20 B2: ≈ 90% of measured progress is scale-dependent (Transformer, Chinchilla rebalancing; Gundlach) |
+| Data filtering & mixing | Pretraining | pre | N(0, 0.05): holds | R20 B2: data selection ≤ 3× (uncertain) |
+| Optimizer & architecture tweaks | Pretraining | pre | N(−0.25, 0.20): a quarter of small-scale wins survive (s ≥ −0.1 over 1000×) | R20 B2 (scale-invariant tweaks ×1.05–×2, 7.9× together), B5 (Narang, Kaddour) |
+| RL algorithms | Post-training | RL efficiency | s = 0 | R20 C1 (Khatri: the recipe moves C_mid) |
+| Environments & rewards | Post-training | RL ceiling | s = 0 | MODEL-V3 §4.3 (suite fidelity scales A_f); research/12 §0.2 (the 2024–26 RL jump) |
+| Inference efficiency | Systems | serving | s = 0 | R20 D3 (price of fixed capability falls ≈ ×10/yr, part of it algorithmic) |
+| Recurrent architectures (needs Neuralese recurrence) | Pretraining | pre | N(+0.05, 0.04) | MODEL-V3 §5.4: a new axis opens a fresh pool; research/12 #17 |
+
+Check (V2.8): before SC the reference lab's pretraining stack grows ≈ 0.48 OOM/yr (Ho et al. 3×/yr, ±30%), and all
+stacks together (G-equivalent) track the v2 know-how path.
+
+### 6.4 Ideas and axes (typed)
+
+| Node | Kind | Effect (unit) | Prior | Source | Phase |
+|---|---|---|---|---|---|
+| Science data | axis | Data mix *science* (domain offsets of the data-mix table) | odds 0.95 | research/12 §0.3 C | LATER(V5) data assets |
+| Native multimodal | axis | Data mix *multimodal* (no data wall); gates Voice & vision, Computer use, Robotics | 0.90 | research/12 §0.7 #6 | LATER(V5) |
+| Elastic training (**new**) | idea | Training throughput +0.023 OOM (goodput 0.90 → 0.95) | mean 0.023, sd 30% | R20 A4 (goodput 0.80–0.95) | now |
+| Synthetic data flywheel (P10) | axis | Synthetic data ×3, no repetition penalty, mix +0.18 OOM (unchanged) | paradigm prior | research/12 #10 | LATER(V5) |
+| Long-horizon human demos (P12) | axis | Horizon ×2; RSCH +0.4 L (unchanged) | prior | research/12 #12 | LATER(V5) |
+| Faithful-CoT architecture (P23) | axis | Faithful CoT option (unchanged) | prior | research/12 #23 | LATER(V6) |
+| Neuralese recurrence (P17) | axis | Latent shape: +0.5 OOM, serving tokens ×0.4 (unchanged; already OOM); opens *Recurrent architectures* | prior | research/12 #17 (+0.4–0.6 G) | now |
+| AI-designed successor (P24) | axis | Next base +0.96 OOM × AI share of research labour (unchanged) | prior | research/12 #24 (+1 G) | LATER(V3) AI labour |
+| RL focus: math · SWE · ML research · long tasks · cyber · bio | axis | Focus the RL budget on that family (unchanged) | 0.95 | research/12 §0.3 E | now |
+| Computer use (P06) | axis | Computer-use RL family and feature (unchanged) | prior | research/12 #6 | now |
+| Continual learning (P08) | axis | Stream: the deployed version keeps applying today's stacks (7-day lag) | prior | research/12 #8 | now |
+| Test-time training (P09) | idea | REASON +0.3 OOM for new versions (was +0.6 L) | mean 0.3, sd 40% | research/12 #9 (+0.3 G on novel tasks) | now |
+| Self-play curricula (P11) | idea | REASON +0.66, CODE +0.33 OOM for new versions (was +0.8 / +0.4 L) | sd 40% | research/12 #11; v2 values [conv] | now |
+| Iterated distillation & amplification (P18) | axis | One more RL budget per cycle on the RL curve (V1, unchanged) | prior | research/12 #18 | now |
+| Interp-guided training (P14) | axis | In-run trait growth ×0.6 (unchanged) | prior | research/12 #14 | LATER(V6) |
+| Brain-like sample efficiency (P21) | axis | PHYS +1 L (unchanged) | prior | research/12 #21 | LATER(V5) |
+| Multi-agent orchestration (P05) | axis | Deep-think effort; agent throughput ×1.3 (unchanged) | prior | research/12 #5 | LATER(V4) features |
+| Long context + memory (P07) | axis | Horizon ×1.5; memory feature (unchanged) | prior | research/12 #7 | LATER(V4) |
+| Automated AI research agents (P13) | axis | Experiment throughput up to ×1.5 with RSCH (unchanged) | prior | research/12 #13 | LATER(V3) |
+| AI kernels / HW co-design (P16) | idea | Training throughput +0.06 OOM (×1.15), serving −0.125 OOM (×0.75) | sd 30% | research/12 #16 (AlphaEvolve 23% kernel speed-up; serving −20–30%) | now |
+| Learned research taste (P19) | axis | Removes the RSCH −0.5 L penalty (unchanged) | prior | research/12 #19 | LATER(V3) |
+| AI-assisted oversight (P15) | axis | Hardened graders at the cheap price (unchanged) | prior | research/12 #15 | LATER(V6) |
+| Massive agent societies (P20) | axis | Agent throughput up to ×1.1 (unchanged) | prior | research/12 #20 | LATER(V3) |
+| Robotics foundation (P22) | idea | PHYS +1.65 OOM for new versions (was +2 L); robotics world tech (unchanged) | sd 40% | research/12 #22; v2 value [conv] | now |
+| Formal verification at scale (P25) | axis | **Real effect now** (it had none): weight-security defence +0.5 level against theft | prior | research/12 #25 ("weight-security boost") [D magnitude] | now |
+
+Paradigm projects keep their hidden per-world success draw (the paradigm prior). A direction that does not work in this
+world yields candidates whose experiments show nothing; the project fails after three dropped candidates and can be
+**reopened as speculative** (half the odds, a wider prior).
+
+### 6.5 Stage costs
+
+| Stage | Work | Compute | Ends when |
+|---|---|---|---|
+| Ideation | scientist team-months per candidate (lines 0.8; ideas a quarter of the v2 effort) at research pace × √capacity | — | ≥ 2 candidates; scientists keep ideating while experiments run (up to 4, then they replace the weakest) |
+| Small experiments | research-engineer team-months (lines 0.8) | 10% of the scale test's FLOP (many runs at 1/1000 of it) | work and FLOP done |
+| Scale test | research-engineer team-months (lines 1.0) | lines 0.2%, ideas 1% of the lab's latest base FLOP | work and FLOP done |
+| Adoption | engineers (the *runs* need, after run setups: it is training code): 0.5 team-weeks + 2 per OOM of effect (unlocks 1), at most 8 | — | built |
+
+### 6.6 Diminishing returns
+
+Per line, μ_n = μ₁ · (1 + (n − 1)/n₀)^(−β) with β = 0.03, n₀ = 1,000 ideas [fit] (research/13 §2.2 r; research/20 B4).
+The research pace (the production function's software rate) already encodes "ideas get harder" along the reference path
+(research/13 §2.5: adding a research stock double-counts it), so the fit drives β toward 0: any β that matters over
+10⁴–10⁵ ideas slows the long takeoffs (authors2026) beyond tolerance. Spreading teams over lines is rewarded mainly by
+the √capacity returns per project. New axes open fresh pools (*Recurrent architectures* after *Neuralese recurrence*;
+the reference lab does not rank it, since the v2 path carried only P17's +0.5 OOM).
