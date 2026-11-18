@@ -11,15 +11,23 @@ import type { ComputeSplit, DomainId, WorldPresetId } from '../../engine/v2/type
  *  R4 refit (tree projects replace paradigm FTE; RefBot loses P05 on seed 2027 to the per-world retry draw): each preset
  *  moved within ±0.03 to the offset closest to the R1 ref-trace milestone days (ai2027 unchanged: +0.01 fits the stub
  *  trace better but moves the integrated trace 14 d; authors2026 +0.005 (+0.015 fits the trace better but leaves T1 SC
- *  at −0.079 y), fast −0.03, slow +0.025; a scan of SC…last against scripts/v2/golden/ref-trace.json). */
-export const CAL_SHIFT: Record<WorldPresetId, number> = { ai2027: 0.08, authors2026: 0.03, fast: 0.075, slow: -0.127, sampled: 0.08 };
+ *  at −0.079 y), fast −0.03, slow +0.025; a scan of SC…last against scripts/v2/golden/ref-trace.json).
+ *  Model v3 V1 refit (`--fit`; models built from physical quantities, pm = Φ(G)): ai2027 0.08 → −0.36, authors2026 0.03 →
+ *  −0.633, fast 0.075 → −0.557, slow −0.127 → 0.291 (worst |Δ| over SC…last 0.036 / 0.044 / 0.058 / 0.016 y). The v3
+ *  reference lab runs above v2's pm path once it trains its first base (design/V3-BUILD.md V1 notes); slow's compute grows
+ *  1.6×/yr after 2028, which v2's calendar compute term over-credited. */
+/** BRIDGE(V7): v2's CAL_SHIFT (J1/R4 values). Simple labs, still on v2's lag model, are credited the difference so their
+ *  q = pm + calShift path stays v2's (TimelineWorld.simpleCredit). */
+export const CAL_SHIFT_V2: Record<WorldPresetId, number> = { ai2027: 0.08, authors2026: 0.03, fast: 0.075, slow: -0.127, sampled: 0.08 };
+export const CAL_SHIFT: Record<WorldPresetId, number> = { ai2027: -0.36, authors2026: -0.633, fast: -0.557, slow: 0.291, sampled: -0.36 };
 
 /** Extra release lag (progress years, added to simpleLag) of the simulated leader lab
  *  (setup.leaderLab, BUILD-PLAN R2) so its milestones hit the golden days (T1L). [fit] by
  *  `npx tsx scripts/v2/calib.ts --fit-leader`; 0 = the reference simpleLag. `sampled` uses the ai2027 value. R4: refit for the presets
  *  whose CAL_SHIFT moved (authors2026 0.063 → 0.068, fast 0.085 → 0.053, slow −0.029 → −0.004). J1: slow −0.004 → 0.041 with the
- *  slow CAL_SHIFT refit (`--fit-leader slow`). */
-export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: 0.083, authors2026: 0.068, fast: 0.053, slow: 0.041, sampled: 0.083 };
+ *  slow CAL_SHIFT refit (`--fit-leader slow`). Model v3 V1 (with the CAL_SHIFT refit and the simple-lab credit,
+ *  TimelineWorld.simpleCredit): ai2027 0.083 → 0.057, authors2026 0.068 → 0.052, fast 0.053 → −0.036, slow 0.041 → 0.043. */
+export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: 0.057, authors2026: 0.052, fast: -0.036, slow: 0.043, sampled: 0.057 };
 
 /** Knowledge diffusion to a follower (BUILD-PLAN R9, research/18 §0.2) [D, fit]: while the frontier leader lab's PUBLIC
  *  model is ahead of the player's best model, the player's know-how gains K_DIFFUSION × the gap per year (papers, staff
@@ -29,9 +37,6 @@ export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: 0.083, author
  *  challenger 1.5–3, before takeoff pulls the leader away. Zero in the leader start (no leader lab: its calibration path
  *  is untouched). Rivals' symmetric term is WS1's distillation leak. */
 export const K_DIFFUSION = 2.0;
-
-/** Post-training capability retention κ (§3.1.4). Adjust only globally (0.6–0.8), never per preset. */
-export const KAPPA = { post: 0.7, continue: 0.85, stream: 1.0 };
 
 /** Synthetic data: tokens (T) per H100e-day of the synthetic pool [D: ≈47 tok/s per H100 after filtering], quality
  *  discount q_syn (research/13 §1.7). Data never binds on the reference path through 2029 (F(2030) ≈ 300T ≪ 900T). */
@@ -46,9 +51,6 @@ export const CHINA_CAL = { effScale: 2.4 };
 export const H100E_PER_COPY_SC = 2.4;
 /** Agent serial speed cap (R11 #23: min(8 + 10.8·log2 M, 50)). */
 export const PROD_SPEED_CAP = 50;
-/** Which know-how a post-training run embodies: pa at completion (RL keeps absorbing algorithmic gains during the
- *  run) [D]. 'start' would freeze it at launch like a base. */
-export const POST_PA_AT: 'start' | 'end' = 'end';
 /** Start-state timing (§3.1.4): B0 started day −120, V0 finished day −20. */
 export const B0_DAY = -120;
 /** B0 run start: completed day −120 after a reference-length run, so its age equals the average base age under the
@@ -96,7 +98,9 @@ export const SHARE_REF: { year: number; share: ComputeSplit }[] = [
 export const LEVEL_KNOTS = [5, 6.5, 8.5, 10, 12, 13.5, 15];
 
 export const DOMAIN_IDS: DomainId[] = ['CODE', 'RSCH', 'REASON', 'AGENCY', 'SOCIAL', 'MEDIA', 'CYBER', 'BIO', 'PHYS'];
-/** Domain offsets relative to CODE by era (capIndex 0..6), §3.1.5. */
+/** Domain offsets relative to CODE (§3.1.5). Model v3 V1: only column 0 (the 2025 profile) is read: it is each domain's
+ *  constant difficulty offset o_d (models/capability.ts domainsOf). The later columns are v2's scripted era table, kept
+ *  for reference; no mechanism interpolates them. */
 export const REF_OFF: Record<DomainId, number[]> = {
   CODE: [0, 0, 0, 0, 0, 0, 0],
   RSCH: [0, 0, 0, 0, 0, 0, 0],
