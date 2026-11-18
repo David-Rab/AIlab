@@ -96,6 +96,9 @@ export interface AgentLane {
   monitorSame: boolean;
   /** Catch rate (× coverage), monitor strength (1 = standard), oversight gap (×4 in M). */
   catch: number;
+  /** J2 AG1: the monitor is of the watched model's lineage; its catch on collusion-relevant incidents. */
+  copy: boolean;
+  catchColl: number;
   strength: number;
   gap: number;
   /** H100e on this use and its share of its budget (capabilities agent pool / safety pool). */
@@ -168,7 +171,7 @@ function computeAgentsView(s: GameStateV2): AgentsView {
     lanes[u] = {
       use: u, version: v, L: measuredLOf(s, v).L, follows: u !== 'capRoutine' && !s.player.agents[u].versionId,
       monitor: mon, monitorSame: s.player.agents[u].monitorId === MONITOR_SAME,
-      catch: ms.catch, strength: ms.strength, gap: ms.gap,
+      catch: ms.catch, strength: ms.strength, gap: ms.gap, copy: ms.copy, catchColl: ms.catchColl,
       compute, share: u === 'safety' ? s.player.agents.safety.compute : capShare(s, u as CapUse),
       copies: v ? compute / (H100E_PER_COPY_SC * (v.serveCost / 0.5)) : 0, speed,
       aiShare, cost: compute * tco, monitorCost: monH * tco, monitorH100e: monH, risk: riskBadges(v),

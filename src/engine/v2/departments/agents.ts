@@ -18,8 +18,8 @@ import {
 } from '../../../data/v2/agents';
 import { MONITOR_CATCH_BASE, MONITOR_OVERHEAD } from '../../../data/v2/features';
 import { versionById } from '../models/labs';
-import { catchRate } from '../models/products';
-import type { AgentPackage, AgentUse, GameStateV2, ModelVersion } from '../types';
+import { catchRate, collusionTrait } from '../models/products';
+import type { AgentPackage, AgentUse, GameStateV2, ModelVersion, TraitId } from '../types';
 
 export function initialAgents(versionId = 'V0'): Record<AgentUse, AgentPackage> {
   return {
@@ -121,14 +121,16 @@ export function monitorH100e(s: GameStateV2, use: AgentUse, b = monitorBudget(s)
 
 /** Catch rate of a use's monitor (products' rule: 85% × 0.52^gap, AG07 control tools) and its strength: coverage ×
  *  min(1, catch ÷ 85%). Strength 1 = today's runtime monitoring; 0 = no monitor. */
-export function monitorStrength(s: GameStateV2, use: AgentUse, budget = monitorBudget(s)): { catch: number; strength: number; gap: number } {
+export function monitorStrength(s: GameStateV2, use: AgentUse, budget = monitorBudget(s)): { catch: number; strength: number; gap: number; copy: boolean; catchColl: number; strengthColl: number } {
   const mon = monitorVersion(s, use);
   const v = agentVersion(s, use);
-  if (!mon || !v) return { catch: 0, strength: 0, gap: 0 };
+  if (!mon || !v) return { catch: 0, strength: 0, gap: 0, copy: false, catchColl: 0, strengthColl: 0 };
   const c = catchRate(s, v, mon);
   // No oversight gap (a copy of the watched model, or one as capable) = full strength exactly.
   const q = c.gap <= 0 ? 1 : Math.min(1, c.rate / MONITOR_CATCH_BASE);
-  return { catch: c.rate * budget.coverage, strength: budget.coverage * q, gap: c.gap };
+  // J2 AG1: on collusion-relevant incidents a same-lineage monitor's strength falls with its catch rate.
+  const qc = q * (c.rate > 0 ? c.collusion / c.rate : 1);
+  return { catch: c.rate * budget.coverage, strength: budget.coverage * q, gap: c.gap, copy: c.copy, catchColl: c.collusion * budget.coverage, strengthColl: budget.coverage * qc };
 }
 
 /** Uses in fleet order (routine research first: the old internal agent's fleet). */
@@ -153,13 +155,16 @@ export function internalFleets(s: GameStateV2): { v: ModelVersion; usage: number
   return out.map((f) => ({ v: f.v, usage: total > 0 ? f.w / total : 0 }));
 }
 
-/** Monitor strength on the fleet running version `v`: the strongest monitor on an internal use running it (0 when none). */
-export function fleetMonitor(s: GameStateV2, v: ModelVersion): number {
+/** Monitor strength on the fleet running version `v`: the strongest monitor on an internal use running it (0 when none).
+ *  With `trait` (an incident's source): a same-lineage monitor's lower strength on collusion-relevant traits (J2 AG1). */
+export function fleetMonitor(s: GameStateV2, v: ModelVersion, trait?: TraitId): number {
   let best = 0;
   let budget: MonitorBudget | undefined;
+  const coll = collusionTrait(trait);
   for (const u of AGENT_USES) {
     if (!s.player.agents[u].monitorId || agentSplitShare(s, u) <= 0 || agentVersion(s, u)?.id !== v.id) continue;
-    best = Math.max(best, monitorStrength(s, u, (budget ??= monitorBudget(s))).strength);
+    const m = monitorStrength(s, u, (budget ??= monitorBudget(s)));
+    best = Math.max(best, coll ? m.strengthColl : m.strength);
   }
   return best;
 }

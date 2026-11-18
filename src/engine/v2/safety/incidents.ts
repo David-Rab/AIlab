@@ -127,7 +127,9 @@ function fireIncident(s: GameStateV2, ctx: SystemCtx, rng: RngLike, v: ModelVers
   }
   // R6: a product's monitor catches model-behaviour incidents before customers see them (catch rate, D7); caught ones
   // stay internal. No monitor → no roll (the pre-R6 behaviour).
-  const caught = !internal && row.source !== 'misuse' && !!d.monitorId && d.channel !== 'open' && rng.chance(productCatch(s, d));
+  // J2 AG1: a same-lineage monitor catches collusion-relevant incidents less often.
+  const src = typeof row.source === 'string' && row.source.startsWith('U') ? UMODE_BY_ID[row.source as UModeId].mapsTo : row.source === 'misuse' ? undefined : (row.source as TraitId);
+  const caught = !internal && row.source !== 'misuse' && !!d.monitorId && d.channel !== 'open' && rng.chance(productCatch(s, d, src));
   const exposure: Incident['exposure'] = internal || caught ? 'internal' : d.channel === 'consumer' || d.channel === 'open' ? 'public' : 'customer';
   const inc: Incident = {
     id: newIncidentId(s), day: ctx.day, labId: 'player', versionId: v.id, deploymentId: d.id,

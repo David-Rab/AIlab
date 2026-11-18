@@ -5,10 +5,11 @@
 // product.serving (a hand-set share: turns the Auto serving policy off), feature.build (engineers' build queue + cash),
 // feature.toggle, and the product policies (Auto serving, upgrade to newest, auto-evaluate).
 import { FEATURE_BY_ID, FREE_TIER_SHARE, PRICE_TIERS, PRICE_TIER_IDS, PRODUCT_DEFS, type FeatureId } from '../../../data/v2/features';
-import { queueBuild } from '../departments/build';
+import { buildWaitNew, LAUNCH_TW, pendingLaunch, queueBuild } from '../departments/build';
 import { bookCash } from '../finance/ledger';
 import type { ActionDef, Channel, CostLine, Deployment, EngineSystem, GameStateV2, ModelVersion, PriceTier, SystemCtx } from '../types';
 import { previewDeployments, type EditPreview } from '../worldfx/productView';
+import { spareServing } from '../worldfx/revenue';
 import { CHANNEL_VARIANTS, deploy, deployGate, effortLock, setServing, withdraw } from './deployments';
 import { versionById } from './labs';
 import { autoEvaluate, featureBuildBlock, featureToggleBlock, isProduct, newestCleared, priceIndexOf } from './products';
@@ -181,6 +182,12 @@ function deltaLines(pv: EditPreview): { costs: CostLine[]; gains: CostLine[] } {
   return { costs, gains };
 }
 
+/** When a launch queued now would go live (the build queue wait). */
+function launchWaitText(s: GameStateV2): string {
+  const d = buildWaitNew(s, LAUNCH_TW, 'launch');
+  return Number.isFinite(d) ? `${d} d` : 'never at today\'s engineering (upkeep takes it all)';
+}
+
 /** Default model for a launch on a channel: the newest usable version of an accepted variant. */
 function launchVersion(s: GameStateV2, ch: Channel): ModelVersion | undefined {
   return [...s.player.models.versions].reverse().find((v) => usable(v) && CHANNEL_VARIANTS[ch].includes(v.variant));
@@ -208,6 +215,8 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
         costs.push(...dl.costs);
         gains.push(...dl.gains);
       }
+      // J2 P1: engineers build the launch first (team-weeks on the build queue); the product goes live when it is built.
+      if (ch !== 'open' && ch !== 'internal') costs.push({ currency: 'staffTime', amount: -LAUNCH_TW, target: `engineer team-weeks · live in ${launchWaitText(s)}` });
       if (ch === 'api' || ch === 'agents' || ch === 'consumer') exposure.push({ currency: 'leadDays', amount: -10, lagDays: 30, probability: 0.6 });
       exposure.push({ currency: 'approval', amount: -2, probability: 0.2, lagDays: 60 });
       if (!costs.length) costs.push({ currency: 'compute', amount: 0, target: 'serving pool' });
@@ -219,7 +228,27 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
       const v = versionById(s, str(p, 'versionId', '')) ?? launchVersion(s, ch);
       if (!v) return fail('No version for this product');
       if (s.player.deployments.some((d) => d.channel === ch && d.status !== 'withdrawn' && ch !== 'open')) return fail(`${PRODUCT_DEFS[ch]?.name ?? ch} is already live: update it instead`);
+      if (pendingLaunch(s, ch)) return fail(`${PRODUCT_DEFS[ch]?.name ?? ch} is already being built`);
       const price = (PRICE_TIER_IDS as string[]).includes(str(p, 'price', '')) ? (str(p, 'price', 'standard') as PriceTier) : 'standard';
+      if (ch !== 'open') {
+        // J2 P1: the engineers build a product launch first (gates checked now and again at release).
+        const gate = deployGate(s, v, ch, { safeguards: 'classifiers', usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: ch === 'consumer' } });
+        if (gate !== true) return fail(gate);
+        const effort = typeof p.effort === 'string' ? (p.effort as Deployment['effort']) : undefined;
+        const lock = effortLock(s, effort ?? 'max');
+        if (lock) return fail(lock);
+        const wait = launchWaitText(s);
+        queueBuild(s, 'launch', ch, LAUNCH_TW, {
+          launch: {
+            channel: ch, versionId: v.id, price,
+            ...(typeof p.kyc === 'number' ? { kyc: Math.max(0, Math.min(3, Math.round(p.kyc))) as Deployment['kyc'] } : {}),
+            ...(effort ? { effort } : {}),
+            ...(typeof p.monitorId === 'string' && p.monitorId ? { monitorId: p.monitorId } : {}),
+          },
+        });
+        ctx.log('company', `Engineers start building the ${PRODUCT_DEFS[ch]?.name ?? ch} launch (live in ${wait}).`, 1);
+        return;
+      }
       const r = deploy(s, ctx, {
         versionId: v.id, channel: ch, price, priceIndex: PRICE_TIERS[price],
         ...(typeof p.kyc === 'number' ? { kyc: Math.max(0, Math.min(3, Math.round(p.kyc))) as Deployment['kyc'] } : {}),
@@ -347,6 +376,25 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
       const on = p.on !== false;
       const feats = on ? [...new Set([...d.features, id])] : d.features.filter((x) => x !== id);
       fail(applyEdit(s, ctx, d, { features: feats }));
+    },
+  },
+  {
+    // J2 PR1: where serving compute no product needs goes (research agents by default; or headroom on the products).
+    id: 'serving.spare', verb: 'policy', system: 'products', sphere: 'models', owner: 'WS1', title: 'Spare serving compute',
+    available: () => true,
+    preview: (s, p) => {
+      const use = str(p, 'use', s.player.policies.spareServing === 'headroom' ? 'research' : 'headroom');
+      const spare = Math.round(spareServing(s));
+      const agents = Math.max(1, s.player.computeOnline * s.player.split.agents);
+      const el = s.player.prodCache?.elast.agents ?? 0.3;
+      const research = { currency: 'progress' as const, amount: Math.round(el * Math.log1p(spare / agents) * 1e4) / 1e4, target: 'research speed' };
+      const headroom = { currency: 'compute' as const, amount: spare, target: 'serving headroom (eroded share recovers 2× faster)' };
+      return use === 'headroom' ? { costs: [research], gains: [headroom], exposure: [] } : { costs: [headroom], gains: [research], exposure: [] };
+    },
+    apply: (s, _ctx, p) => {
+      const use = str(p, 'use', '');
+      if (use !== 'research' && use !== 'headroom') return fail('Use research or headroom');
+      s.player.policies.spareServing = use;
     },
   },
   {

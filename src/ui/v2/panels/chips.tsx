@@ -39,7 +39,8 @@ export function PkgChip({ kind, value, options, onPick, changed, extra, testId, 
 }
 
 /** Catch-rate readout for a monitor chip with its breakdown (products' rule: 85% × 0.52^gap, AG07 control tools). */
-export function CatchX({ rate, gap, base, control, coverage, testId, note }: { rate: number; gap: number; base?: number; control?: number; coverage?: number; testId?: string; note?: ReactNode }) {
+export function CatchX({ rate, gap, base, control, coverage, testId, note, copy, collusion }: { rate: number; gap: number; base?: number; control?: number; coverage?: number; testId?: string; note?: ReactNode; copy?: boolean; collusion?: number }) {
+  const coll = copy && collusion !== undefined && collusion < rate - 1e-6;
   return (
     <Tip content={() => <TipCard title={<Term id="catchRate">Catch rate</Term>} value={F.pct(rate)} rows={[
       { label: 'Monitor as capable as the model', value: '85%' },
@@ -47,8 +48,9 @@ export function CatchX({ rate, gap, base, control, coverage, testId, note }: { r
       ...(base !== undefined ? [{ label: 'Before control tools', value: F.pct(base) }] : []),
       ...(control !== undefined ? [{ label: 'AI-control tools (AG07)', value: `+${F.pct(control * 0.5)} of the rest` }] : []),
       ...(coverage !== undefined && coverage < 1 ? [{ label: 'Funded (safety pool)', value: F.pct(coverage) }] : []),
+      ...(coll ? [{ label: <Term id="collusion">Same lineage: scheming-type incidents</Term>, value: F.pct(collusion ?? 0), tone: 'neg' as const }] : []),
     ]}>{note ?? 'Model-behaviour incidents it catches stay internal.'}</TipCard>}>
-      <span className="mchip-x">catch <b data-test={testId}>{F.pct(rate)}</b></span>
+      <span className="mchip-x">catch <b data-test={testId}>{F.pct(rate)}</b>{coll && <span className="tone-neg" data-test={testId ? `${testId}.coll` : undefined}> · {F.pct(collusion ?? 0)} scheming</span>}</span>
     </Tip>
   );
 }

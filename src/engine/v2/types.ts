@@ -684,7 +684,16 @@ export interface AgentPackage {
 
 // ───────────────────────────── Build queue (STRUCTURE §4.1, R5) ─────────────────────────────
 
-export type BuildKind = 'runSetup' | 'feature' | 'harness' | 'safeguard';
+export type BuildKind = 'runSetup' | 'feature' | 'harness' | 'safeguard' | 'launch' | 'sectorPack';
+/** A product launch waiting for its build (J2 P1): the product goes live with these settings once built. */
+export interface PendingLaunch {
+  channel: Channel;
+  versionId: string;
+  price: PriceTier;
+  kyc?: 0 | 1 | 2 | 3;
+  effort?: Deployment['effort'];
+  monitorId?: string;
+}
 /** One item on the engineers' build queue. Work is in team-weeks (one Strong engineering team of 150 for a week). */
 export interface BuildItem {
   id: string;
@@ -697,10 +706,17 @@ export interface BuildItem {
   priority: number;
   /** Day it was queued. */
   day: Day;
+  /** kind 'launch': the product settings; kind 'sectorPack': the host product id (ref = the sector). */
+  launch?: PendingLaunch;
+  host?: string;
 }
 export interface BuildState {
   queue: BuildItem[];
   nextId: number;
+  /** J2 P1: the last day's engineering rates (team-weeks per week): capacity, standing upkeep needed and served, queue work. */
+  last?: { cap: number; upkeep: number; served: number; queue: number };
+  /** Average (≈ 30 d) share of build capacity in use (upkeep served + queue work). */
+  util?: number;
 }
 
 // ───────────────────────────── Teams (STRUCTURE §4.1, R3) ─────────────────────────────
@@ -727,6 +743,8 @@ export interface Team {
   name?: string;
   /** R4: the tree project a science team works on. */
   projectId?: string;
+  /** J2 R2: placed by the player or a bot (auto-assign does not move it while its project runs). */
+  manual?: boolean;
 }
 
 /** A team on the candidate list (drawn weekly from the 'company' stream). */
@@ -759,6 +777,9 @@ export interface PlayerPolicies {
   communityBenefits: boolean;
   /** Where training compute that no run uses goes (R5): data generation (default since R6) or research experiments. */
   spareTraining: 'research' | 'data';
+  /** Where serving compute no product needs goes (J2 PR1): research agents (default; products take it back first when
+   *  demand rises, so eroded market share recovers at half speed) or kept on the products as headroom. */
+  spareServing: 'research' | 'headroom';
   /** Auto serving (R6): serve the products earning most per H100e first; the cut is recorded. Off = shares by hand. */
   servingAuto: boolean;
   /** Move products to the newest cleared model of the same kind when it measures better (R6). */

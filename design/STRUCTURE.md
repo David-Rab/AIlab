@@ -114,8 +114,9 @@ engineering (superhuman AI researcher), research taste last (superintelligent AI
 - A card shows role, size, quality (Solid / Strong / Elite: output and cost), and for science teams the specialty.
 - Moving a research-engineering team between Capabilities and Safety is one click; moving safety staff onto
   capabilities costs morale (a real, visible rule).
-- **Policies (zero clicks by default):** "keep hiring to N teams" per role; idle science teams join the top queued
-  project in their specialty; the engineering pool works the build queue by priority.
+- **Policies (zero clicks by default):** "keep hiring to N teams" per role; science teams spread over the ready queued
+  projects where they cut the most days (J2); the engineering pool serves runs first, then product upkeep (live products
+  and monitors in production), then the build queue by priority (launches, features, sector packs; J2).
 - Stars: named people. A star scientist raises a science team's quality and the lab's research taste.
 - Specialties exist only where they change something (science teams on tree columns). Engineers and research
   engineers are generic, to keep the roster manageable.

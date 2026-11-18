@@ -50,7 +50,14 @@ columns of expertise are drawn as horizontal lanes.
   so spreading teams over several projects is often better than piling on one.
 - Research speed is the lab's research multiplier: experiment compute, AI agents and the takeoff loop speed up
   frontier research as they speed up everything else.
-- **Policy:** idle science teams join the highest-priority queued project in their specialty. Zero clicks by default.
+- **AI science (J2):** frontier-research agents add capacity on capability projects: × 1/(1 − Φ(sdAI) × coverage), up to
+  ×2, where Φ(sdAI) is the share of human scientists the frontier model's taste beats and coverage its compute share ÷ the
+  reference 15%. Fitted efforts include it, so the reference lab's project dates hold.
+- **Policy (J2):** auto-assign spreads science teams over the ready projects *in the queue* (it never picks unqueued
+  ones): a project with no team gets one first (queue order, specialty first), every other team goes where it cuts the
+  most days off a project's ETA × 0.5^(queue rank). The policy's teams re-spread when a project finishes or a ready
+  project has no team; teams placed by hand and teams on research lines stay. The team picker shows the days each team
+  would cut. Zero clicks by default.
 - There is no point balance. Progress lives on the project.
 
 ### 1.3 Odds and results

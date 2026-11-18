@@ -375,3 +375,22 @@ In:
    reference path holds).
 
 Not now: R1 auto-pick from open projects, P2, P4, M3 best-model policy, M6, the PR1 shortfall policy, O3, ST1, ST2.
+
+## J2 status (2026-11-18, branch `j2`)
+
+Scope: exactly the five J2 items above. Per-item details, gates and calibration notes: design/PROGRESS.md "J2".
+
+| Id | Status | What changed |
+|---|---|---|
+| R2 | done | Auto-assign stays queue-only and spreads science teams over the ready queued projects: a project with no team first (queue order, specialty first), then each team where it cuts the most ETA days × 0.5^(queue rank) (√ capacity, so returns fall per team). The policy's teams re-spread when a project finishes or a ready project has no team; hand placements (`Team.manual`) and research-line teams stay. Team picker shows "→ 45 d (−12 d)". Idle-science weeks barely move (RefBot 58% → 57%): the idle teams have nothing queued, which is R1 (not now). |
+| P1 | done | Build capacity is spent in order: runs (operations 1 × size^0.75 t-wk/wk per base, 0.5 post/continue, 0.2 distill, 0.5 stream; run setups first), product upkeep (0.5 + 4·√(revenue ÷ $10B/yr) per live product, 1 per monitor in production), then builds (launches 4 t-wk, features ×2 to 4–16, sector packs 4 then certification). Launches and packs now go through the queue (cancel action). More engineering-agent compute than the reference share raises A_eng. Company › Agents & teams: one load bar (runs / upkeep / builds / idle), "N% busy", "upkeep behind"; Products show "live in N d". RefBot ≈ 76% busy, run setups ≤ 1 d (unchanged). |
+| PR1 (part) | done | Spare serving compute (pool − Σ min(served, need)) runs research agents by default (outside the research mix, `kSpare`); products take it back first, so eroded share wins back at half speed. Policy home Compute › Split (research / headroom); Products › Serving shows a spare segment; Company › Flow research-speed card shows its effect. RefBot keeps "headroom" (neutral, as R5's spare training → data): with "research" its spare serving would reach 3–4× its agent pool in late 2025. Watch "idle serving" only under headroom. |
+| AG1 | done (engine) | A monitor of the watched model's lineage (same base: itself, its post-trains or stream, its mini) catches collusion-relevant incidents (CONCEAL, POWER, AF, SAND, SCHEME, COLLUDE, SUCC) at ×0.6, ×0.8 with comms lockdown active; product and internal incident catches use it (runtime-monitoring observations unchanged). Chips show "catch 85% · 51% scheming"; the "same model" tag follows lineage. |
+| RK1 | done (engine) | `riskSources(s, mods)` takes what-if inputs; `riskLevers(s)` gives each source's levers and how far one step moves it (pp). Shown in both Risk › Sources tooltips. |
+| R7 deferral | done | Frontier-research agents add AI science capacity on capability projects: × 1/(1 − Φ(sdAI) × coverage), max ×2. RefBot efforts refit to master's attempt durations (all five traces). |
+
+Gates: ref-trace milestones and adoption days within tolerance on all five traces; calib T1/T2/T1L pass without a
+CAL_SHIFT refit; bots 200 seeds all six §7.4 criteria MET; `npm run test:ui` 232/232. **Open (new failures):** safety S5
+(mixed bot median min U − L −0.95 vs −0.5; P13 15–30 d earlier for the mixed bot) and finance F2 (2027 production 44.9M
+vs ≥ 45M, master 46.7M). Engineer utilisation, scripted bots before → after: ref 0 → 76%, race 0 → 76%, safe 0 → 41%,
+mixed 0 → 70%, capex2x 0 → 84%; idle-science weeks unchanged (55–68%: nothing queued, R1 not in scope).

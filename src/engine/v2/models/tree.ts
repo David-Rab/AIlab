@@ -2,13 +2,17 @@
 //
 // A node opens when its prerequisites are known (no capability gates). The player queues projects (priority order) and
 // assigns science teams of the node's department (capability columns: capabilities scientists; alignment,
-// interpretability and evals & control: safety scientists). With the auto-assign policy idle teams join the
-// highest-priority ready project of their department in their specialty, else the ready one with the least capacity.
+// interpretability and evals & control: safety scientists). With the auto-assign policy (J2 R2) idle teams spread over
+// the ready queued projects of their department: each goes where it cuts the most days off a project's ETA, weighted by
+// queue priority (√ capacity: every extra team on one project gains less), and the policy's teams re-spread when a
+// project finishes or a ready project has no team. Teams placed by hand stay put. It never picks unqueued projects.
 // Capacity = Σ heads/40 × quality × 1.5 in the team's specialty column.
-//  - Capability and other rolled nodes: progress/day = M · √capacity / (effort · 30), M = research speed (D3: absolute,
-//    so takeoff speeds the tree up). At progress 1 the attempt resolves: paradigm nodes use the hidden paradigm draw on
-//    the first attempt; every other attempt uses hash32(seed, 'node:'+id[+':'+attempt]). Success makes the node known (a
-//    paradigm is adopted at once); failure allows a retry after 180 days at half odds.
+//  - Capability and other rolled nodes: progress/day = M · √(capacity · AI) / (effort · 30), M = research speed (D3:
+//    absolute, so takeoff speeds the tree up), AI = the frontier-research agents' science multiplier on capability
+//    projects (J2, R7 deferral: 1/(1 − Φ(sdAI) · coverage), max ×2; sciAiMult). At progress 1 the attempt resolves:
+//    paradigm nodes use the hidden paradigm draw on the first attempt; every other attempt uses hash32(seed,
+//    'node:'+id[+':'+attempt]). Success makes the node known (a paradigm is adopted at once); failure allows a retry
+//    after 180 days at half odds.
 //  - Research-line nodes (R8; a safety node with an agenda): progress/day = safety/agendas.ts lineRate (√(capacity ÷
 //    SERIOUS_CAP)/(30·T₁) × compute × AI labour; no research speed, as the pre-R8 hazard). At progress 1 the line
 //    produces one result (findings.ts fireFinding, typed by the line's hidden efficacy). A working result of this node
@@ -27,6 +31,9 @@ import { hash32 } from '../core/rng';
 import { bookCash } from '../finance/ledger';
 import type { AgendaId, Column, EngineSystem, GameStateV2, ResearchState, SetupV2, SystemCtx, Team, TeamDept, TreeNodeState } from '../types';
 import { measuredDomain, PARADIGM_BY_ID } from './paradigms';
+import { DEFAULT_CAP_SHARES } from '../../../data/v2/agents';
+import { Phi } from '../production/knots';
+import { capShare } from '../departments/agents';
 import { lineCapacity, lineRate, posteriorBand } from '../safety/agendas';
 import { safetyAgentL } from '../safety/agents';
 import { fireFinding } from '../safety/findings';
@@ -136,7 +143,36 @@ export function projectRate(s: GameStateV2, id: string, cap?: number): number {
     const ag = n.agenda as AgendaId;
     return lineRate(s, ag, c, cap === undefined || Math.abs(c - now) < 1e-9 ? undefined : lineCapacity(s, ag) - now + c);
   }
-  return (researchSpeed(s) * Math.sqrt(c)) / (effortOf(n) * 30);
+  return (researchSpeed(s) * Math.sqrt(c * (nodeDept(n) === 'cap' ? sciAiMult(s) : 1))) / (effortOf(n) * 30);
+}
+
+/** Cap on the AI science multiplier [D]: AI taste above every human scientist still needs human direction and review on
+ *  a project (AI 2027: superhuman AI researchers are managed by the remaining human researchers), and tree projects
+ *  already speed up with research speed M, which counts these agents through k and taste; ×2 capacity = ×1.41 speed. */
+export const SCI_AI_CAP = 2;
+
+/** Frontier-research agents' science capacity on capability projects (J2, the R7 deferral): A_sci = Φ(sdAI) of the
+ *  frontier model's taste × coverage (frontier share of the agent pool ÷ the reference 15%, max 1; 0 with agents switched
+ *  off); capacity × 1/(1 − A_sci), max SCI_AI_CAP. Efforts are fitted with it (calib --fit-tree), so the reference lab's
+ *  project dates hold. */
+export function sciAiMult(s: GameStateV2): number {
+  const pr = s.player.prodCache;
+  if (!pr || s.player.split.agents <= 0 || Number(s.flags['ws4:agentsOffUntil'] ?? -1) > s.time.day) return 1;
+  const cover = Math.min(1, capShare(s, 'capFrontier') / DEFAULT_CAP_SHARES.capFrontier);
+  const a = Phi(pr.sdAI) * cover;
+  return Math.min(SCI_AI_CAP, 1 / Math.max(1e-9, 1 - a));
+}
+
+/** Days a team would cut from a project's ETA by joining it (Infinity for a project no other team works on; 0 if it
+ *  cannot help). The team picker shows it (R2). */
+export function teamGain(s: GameStateV2, teamId: string, id: string): { etaNow: number; etaWith: number; gain: number } {
+  const t = s.player.teams.find((x) => x.id === teamId);
+  const n = node(id);
+  if (!t || !n) return { etaNow: Infinity, etaWith: Infinity, gain: 0 };
+  const c0 = projectCapacity(s, id, undefined, t.id);
+  const etaNow = c0 > 0 ? projectEta(s, id, c0) : Infinity;
+  const etaWith = projectEta(s, id, c0 + teamCapacity(t, n));
+  return { etaNow, etaWith, gain: etaNow === Infinity ? (etaWith < Infinity ? Infinity : 0) : Math.max(0, etaNow - etaWith) };
 }
 
 /** Days to finish (research-line projects: to the next result) at today's speed (Infinity with no teams). */
@@ -198,7 +234,11 @@ export function dequeueNode(s: GameStateV2, id: string): string | undefined {
   const i = q.indexOf(id);
   if (i < 0) return 'Not queued';
   q.splice(i, 1);
-  for (const t of s.player.teams) if (t.projectId === id) delete t.projectId;
+  for (const t of s.player.teams) {
+    if (t.projectId !== id) continue;
+    delete t.projectId;
+    delete t.manual;
+  }
   return undefined;
 }
 
@@ -236,6 +276,7 @@ export function assignTeam(s: GameStateV2, teamId: string, id: string): string |
   }
   const t = s.player.teams.find((x) => x.id === teamId) as Team;
   t.projectId = id;
+  t.manual = true;
   return undefined;
 }
 
@@ -244,6 +285,7 @@ export function unassignTeam(s: GameStateV2, teamId: string): string | undefined
   const t = s.player.teams.find((x) => x.id === teamId);
   if (!t) return 'No such team';
   delete t.projectId;
+  delete t.manual;
   return undefined;
 }
 
@@ -278,61 +320,67 @@ function lineForTeam(s: GameStateV2, t: Team): string | undefined {
   return best?.id;
 }
 
-/** Auto-assign policy for one department: each idle team joins the highest-priority ready project in its specialty,
- *  else the ready project with the least capacity. Then every ready project left with no team takes one from the
- *  project with the most teams (if it has two or more). Safety teams with nothing queued join a research line
- *  (lineForTeam). Projects run side by side (√ capacity rewards spreading). */
-function autoAssignDept(s: GameStateV2, dept: TeamDept) {
+/** Weight of a project by its place among the ready projects (queue priority) [D]: the second counts half the first. */
+export const PRIORITY_W = 0.5;
+
+/** Auto-assign policy for one department (J2 R2): spread teams over the ready queued projects. Each team in turn goes
+ *  where it gains most: a project with no team first (in queue order, a team of its specialty first), otherwise the
+ *  most ETA days cut × PRIORITY_W^rank (√ capacity, so returns fall per extra team). Idle teams are placed every day;
+ *  with `respread` every team the policy placed is re-placed (a project finished, or a ready project has no team while
+ *  another has two or more). Teams placed by hand stay. Safety teams with nothing queued join a research line. */
+function autoAssignDept(s: GameStateV2, dept: TeamDept, respread: boolean) {
   const q = s.player.research.queue;
   const ready = q.filter((id) => {
     const n = node(id);
     return !!n && nodeDept(n) === dept && projectReady(s, id) === true;
   });
-  const idle = idleTeams(s, dept);
   const pool = projectTeams(s, dept);
-  const cap = new Map(ready.map((id) => [id, projectCapacity(s, id)]));
-  for (const id of ready) {
-    if (idle.length || pool.some((t) => t.projectId === id)) continue;
-    // Donor: the project with the most teams (≥ 2).
-    const counts = new Map<string, Team[]>();
-    for (const t of pool) if (t.projectId) (counts.get(t.projectId) ?? counts.set(t.projectId, []).get(t.projectId) as Team[]).push(t);
-    let donor: Team[] | undefined;
-    for (const ts of counts.values()) if (ts.length >= 2 && (!donor || ts.length > donor.length)) donor = ts;
-    if (!donor) break;
-    const target = node(id) as TreeNodeDef;
-    const from = node(donor[0].projectId as string) as TreeNodeDef;
-    const t = donor.find((x) => x.specialty === target.column) ?? donor.reduce((a, x) => (teamCapacity(x, from) < teamCapacity(a, from) ? x : a));
-    const fromId = t.projectId as string;
-    cap.set(fromId, (cap.get(fromId) ?? 0) - teamCapacity(t, from));
-    t.projectId = id;
-    cap.set(id, teamCapacity(t, target));
+  // Teams on a research line stay with the line (its results build on each other); the policy's other teams move.
+  const lineTeam = (t: Team) => {
+    const n = t.projectId ? node(t.projectId) : undefined;
+    return !!n && isLineNode(n);
+  };
+  if (!respread && ready.some((id) => !pool.some((t) => t.projectId === id))) {
+    const counts = new Map<string, number>();
+    for (const t of pool) if (t.projectId && !t.manual && !lineTeam(t)) counts.set(t.projectId, (counts.get(t.projectId) ?? 0) + 1);
+    respread = [...counts.values()].some((c) => c >= 2);
   }
-  for (const t of idle) {
-    let pick = ready.find((id) => node(id)?.column === t.specialty);
-    if (!pick) {
-      let best = Infinity;
-      for (const id of ready) {
+  const free = pool.filter((t) => !t.projectId || (respread && !t.manual && !lineTeam(t) && ready.includes(t.projectId)));
+  if (!free.length) return;
+  for (const t of free) delete t.projectId;
+  const cap = new Map(ready.map((id) => [id, projectCapacity(s, id)]));
+  const eta = (id: string, c: number) => (c > 0 ? projectEta(s, id, c) : Infinity);
+  const left = [...free];
+  while (left.length && ready.length) {
+    let best: { t: Team; id: string; score: number } | undefined;
+    for (const t of left) {
+      for (let r = 0; r < ready.length; r++) {
+        const id = ready[r];
+        const n = node(id) as TreeNodeDef;
         const c = cap.get(id) ?? 0;
-        if (c < best - 1e-9) {
-          best = c;
-          pick = id;
-        }
+        // An unstaffed project outranks any gain (queue order, then specialty); else days cut × priority weight.
+        const score = c <= 0 ? 1e12 * (ready.length - r) + (t.specialty === n.column ? 1e11 : 0) : (eta(id, c) - eta(id, c + teamCapacity(t, n))) * Math.pow(PRIORITY_W, r);
+        if (!best || score > best.score + 1e-9) best = { t, id, score };
       }
     }
-    if (!pick && dept === 'saf') {
-      pick = lineForTeam(s, t);
-      if (pick && !q.includes(pick)) q.push(pick);
-    }
+    if (!best) break;
+    best.t.projectId = best.id;
+    cap.set(best.id, (cap.get(best.id) ?? 0) + teamCapacity(best.t, node(best.id) as TreeNodeDef));
+    left.splice(left.indexOf(best.t), 1);
+  }
+  if (dept !== 'saf') return;
+  for (const t of left) {
+    const pick = lineForTeam(s, t);
     if (!pick) continue;
+    if (!q.includes(pick)) q.push(pick);
     t.projectId = pick;
-    cap.set(pick, (cap.get(pick) ?? 0) + teamCapacity(t, node(pick) as TreeNodeDef));
   }
 }
 
-/** Auto-assign policy (both departments). */
-export function autoAssign(s: GameStateV2) {
-  autoAssignDept(s, 'cap');
-  autoAssignDept(s, 'saf');
+/** Auto-assign policy (both departments); `respread` re-places every team the policy placed (a project finished). */
+export function autoAssign(s: GameStateV2, respread = false) {
+  autoAssignDept(s, 'cap', respread);
+  autoAssignDept(s, 'saf', respread);
 }
 
 /** Roll an attempt's result. Outcomes are drawn per world (TECH-TREE §1.3): a paradigm's first attempt is the hidden
@@ -390,7 +438,10 @@ export function researchDay(s: GameStateV2, ctx: SystemCtx) {
   for (const t of p.teams) {
     if (!t.projectId) continue;
     const n = node(t.projectId);
-    if (t.role !== 'sci' || !n || t.dept !== nodeDept(n) || !q.includes(t.projectId) || projectReady(s, t.projectId) !== true) delete t.projectId;
+    if (t.role !== 'sci' || !n || t.dept !== nodeDept(n) || !q.includes(t.projectId) || projectReady(s, t.projectId) !== true) {
+      delete t.projectId;
+      delete t.manual;
+    }
   }
   if (p.research.autoAssign) autoAssign(s);
   let freed = false;
@@ -418,8 +469,10 @@ export function researchDay(s: GameStateV2, ctx: SystemCtx) {
       if (!resolveLine(s, ctx, n, st)) continue;
       const at = q.indexOf(id);
       q.splice(at, 1);
+      // The line's teams stay on the line (its next project; a hand placement stays a hand placement).
       for (const t of teams) delete t.projectId;
       if (p.research.autoAssign) continueLine(s, n.agenda as AgendaId, at, teams);
+      for (const t of teams) if (!t.projectId) delete t.manual;
       freed = true;
       continue;
     }
@@ -438,10 +491,14 @@ export function researchDay(s: GameStateV2, ctx: SystemCtx) {
     }
     if (n.paradigm) syncParadigm(s, id);
     q.splice(q.indexOf(id), 1);
-    for (const t of p.teams) if (t.projectId === id) delete t.projectId;
+    for (const t of p.teams) {
+      if (t.projectId !== id) continue;
+      delete t.projectId;
+      delete t.manual;
+    }
     freed = true;
   }
-  if (freed && p.research.autoAssign) autoAssign(s);
+  if (freed && p.research.autoAssign) autoAssign(s, true);
 }
 
 /** research (35, daily): tree projects (capability and safety). */

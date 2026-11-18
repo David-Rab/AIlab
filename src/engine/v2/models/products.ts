@@ -10,7 +10,7 @@
 // RefBot's) gives exactly the pre-R6 terms: productDomains returns the version's own domain record.
 import { AG05_GAP } from '../../../data/v2/agendas';
 import {
-  AGENT_TASK_HOURS, AUTO_EVAL_DAYS, FEATURE_BY_ID, FREE_TIER_SHARE, MONITOR_CATCH_BASE, MONITOR_OVERHEAD, PRICE_TIERS,
+  AGENT_TASK_HOURS, AUTO_EVAL_DAYS, COLLUSION_TRAITS, COPY_COLLUSION, FEATURE_BY_ID, FREE_TIER_SHARE, MONITOR_CATCH_BASE, MONITOR_OVERHEAD, PRICE_TIERS,
   type FeatureDef, type FeatureId,
 } from '../../../data/v2/features';
 import { mAtLevel } from '../safety/common';
@@ -108,6 +108,10 @@ export interface CatchRate {
   base: number;
   /** AI-control containment strength added (AG07 tools, believed). */
   control: number;
+  /** J2 AG1: the monitor is from the watched model's lineage (same base), and its catch rate on collusion-relevant
+   *  incidents (COLLUSION_TRAITS); equal to `rate` for any other monitor. */
+  copy: boolean;
+  collusion: number;
 }
 
 /**
@@ -116,17 +120,32 @@ export interface CatchRate {
  * measured levels and believed tool strength: what the player sees is what the engine rolls.
  */
 export function catchRate(s: GameStateV2, watched: ModelVersion | undefined, monitor: ModelVersion | undefined): CatchRate {
-  if (!watched || !monitor) return { rate: 0, gap: 0, base: 0, control: 0 };
+  if (!watched || !monitor) return { rate: 0, gap: 0, base: 0, control: 0, copy: false, collusion: 0 };
   const w = s.hidden.timeline;
   const Mw = mAtLevel(w, measuredLOf(s, watched).L);
   const Mm = mAtLevel(w, measuredLOf(s, monitor).L);
   const gap = Math.max(0, Math.log(Math.max(1, Mw) / Math.max(1, Mm)) / Math.log(4));
   const base = MONITOR_CATCH_BASE * Math.pow(AG05_GAP.base, gap);
   const control = containment(s, Mw, true, true);
-  return { rate: Math.min(0.99, 1 - (1 - base) * (1 - 0.5 * control)), gap, base, control };
+  const rate = Math.min(0.99, 1 - (1 - base) * (1 - 0.5 * control));
+  const copy = sameLineage(watched, monitor);
+  const lock = s.player.safety.techniques['T-LOCK'];
+  const pen = copy ? COPY_COLLUSION * (lock?.unlocked && lock.active ? 0.5 : 1) : 0;
+  return { rate, gap, base, control, copy, collusion: rate * (1 - pen) };
 }
 
-export const productCatch = (s: GameStateV2, d: Deployment) => (d.monitorId ? catchRate(s, versionById(s, d.versionId), versionById(s, d.monitorId)).rate : 0);
+/** Same lineage (J2 AG1): the monitor shares the watched model's base (itself, a post-train or stream on it, or a mini
+ *  distilled from it). */
+export const sameLineage = (a: Pick<ModelVersion, 'baseId'>, b: Pick<ModelVersion, 'baseId'>) => a.baseId === b.baseId;
+/** Whether incidents from a trait are collusion-relevant (a same-lineage monitor catches them less often). */
+export const collusionTrait = (t: TraitId | undefined) => !!t && COLLUSION_TRAITS.includes(t);
+
+/** A product monitor's catch rate (for incidents from `trait`: the collusion rate when it is collusion-relevant). */
+export function productCatch(s: GameStateV2, d: Deployment, trait?: TraitId): number {
+  if (!d.monitorId) return 0;
+  const c = catchRate(s, versionById(s, d.versionId), versionById(s, d.monitorId));
+  return collusionTrait(trait) ? c.collusion : c.rate;
+}
 
 // ───────────────────────────── gates ─────────────────────────────
 

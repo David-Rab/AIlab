@@ -29,6 +29,7 @@ import { poolsOf } from '../compute/power';
 import { rivalSpeedMult } from '../actors/rivals';
 import { ws4r } from '../actors/state';
 import { syntheticAccrual, dataStockRatio } from './data';
+import { spareServingToResearch } from '../worldfx/revenue';
 import { Lrel, Phi, Xces, bestMix, hRef, knotAt, refTotal, tasteSD } from './knots';
 import type { EngineSystem, GameStateV2, LabId, ModelVersion, ProdParams, ProductionReadout, TimelineWorld } from '../types';
 
@@ -45,8 +46,10 @@ export interface LabInputs {
   h: number; k: number; c: number; d: number;
   /** c and k this lab would have with all of its research compute (experiments + agents) on experiments / on agents;
    *  C = that research compute (H100e), load = 0 (paradigm projects took experiment compute before R4), off = agents switched off.
-   *  idle = training compute no run uses (H100e, player only, R5): it runs experiments on top of the mix (cIdle in c units). */
-  mixUnit: { c: number; k: number; C: number; load: number; off: boolean; idle?: number; cIdle?: number };
+   *  idle = training compute no run uses (H100e, player only, R5): it runs experiments on top of the mix (cIdle in c units).
+   *  spare = serving compute no product needs (H100e, player only, J2 PR1): it runs research agents on top of the mix
+   *  (kSpare in k units). */
+  mixUnit: { c: number; k: number; C: number; load: number; off: boolean; idle?: number; cIdle?: number; spare?: number; kSpare?: number };
   /** min(1, S_eff / N_req(F(t))) — data-stock adequacy (§3.2.2). */
   stock: number;
   tasteHire: number;
@@ -265,7 +268,11 @@ export function labInputs(s: GameStateV2, lab: LabId, day = s.time.day): LabInpu
   // set the AI share of engineers' work. Exactly today's inputs at the default packages.
   const pk = isPlayer ? agentPackageInputs(s, qDep, serve) : undefined;
   const agentMult = pk?.agentMult ?? 1;
-  const k = (Cag * etaMod * agentMult * (1 - controlTax)) / Math.max(1, ref * sh.agents * rt.k);
+  // J2 PR1: serving compute no product needs runs research agents (policy; products take it back first).
+  const spare = isPlayer && !agentsOff ? spareServingToResearch(s) : 0;
+  const kUnit = (etaMod * agentMult * (1 - controlTax)) / Math.max(1, ref * sh.agents * rt.k);
+  const kSpare = spare * kUnit;
+  const k = Cag * kUnit + kSpare;
   // R5: training compute that no run (or stream) uses runs research experiments (nothing is wasted silently).
   const idle = isPlayer && s.player.policies.spareTraining !== 'data' ? idleTrainingShare(s) * pools.training : 0;
   const cIdle = (cMult * idle) / Math.max(1, ref * sh.experiments * rt.c);
@@ -276,7 +283,7 @@ export function labInputs(s: GameStateV2, lab: LabId, day = s.time.day): LabInpu
   const mixUnit = {
     c: (cMult * Cres) / Math.max(1, ref * sh.experiments * rt.c),
     k: agentsOff ? 0 : (Cres * etaMod * agentMult * (1 - controlTax)) / Math.max(1, ref * sh.agents * rt.k),
-    C: Cres, load: 0, off: agentsOff, idle, cIdle,
+    C: Cres, load: 0, off: agentsOff, idle, cIdle, ...(spare > 0 ? { spare, kSpare } : {}),
   };
   // pauseMult 0.1 during a voluntary or committee pause of frontier experiments (§3.1.2; WS4 frontierPauseUntil).
   const pause = isPlayer && (s.flags.paused || ws4r(s).frontierPauseUntil > day) ? 0.1 : 1;
@@ -284,7 +291,7 @@ export function labInputs(s: GameStateV2, lab: LabId, day = s.time.day): LabInpu
   return {
     qDep, ...(pk?.qTaste !== undefined ? { qTaste: pk.qTaste } : {}), ...(pk ? { aEng: pk.aEng } : {}), yr, h, k, c, d, mixUnit, stock,
     tasteHire: core.tasteHire, eff: effLab(s, lab), mods, rateMult: pause * treaty,
-    abs: { H, Cagents: Cag, Cexp: Cexp + idle, serveCost: pk?.serveCopies ?? serve, tcoPerYr: tcoPerH100eYear(s, yr), staffCostPerYr: 0.8e-3 },
+    abs: { H, Cagents: Cag + spare, Cexp: Cexp + idle, serveCost: pk?.serveCopies ?? serve, tcoPerYr: tcoPerH100eYear(s, yr), staffCostPerYr: 0.8e-3 },
   };
 }
 
@@ -297,7 +304,8 @@ export const qOfVersion = (w: TimelineWorld, v: ModelVersion) => v.pm + deltaRsc
  *   agentMult  research agents' share of the agent pool ÷ (1 − s_engRef), × their compute-weighted ηmod relative to the
  *              routine model's (1 when frontier runs the routine model): k = Cag·ηmod·agentMult / (ref·sh.agents)
  *   qTaste     the frontier model's q when it differs from routine's and has compute
- *   aEng       A_eng = 1 − (1 − A(q_eng))² × coverage, coverage = min(1, eng share ÷ s_engRef × ηmod_eng ÷ ηmod_routine)
+ *   aEng       A_eng = 1 − (1 − A(q_eng))², × cover below the reference (cover = eng share ÷ s_engRef × ηmod_eng ÷
+ *              ηmod_routine), 1 − (1 − A_eng)^cover above it (J2: more engineering-agent compute, more build capacity)
  *   serveCopies serve cost for the copies readout (harmonic, compute-weighted over the three models)
  */
 export function agentPackageInputs(s: GameStateV2, qDep: number, serveR: number): { agentMult: number; qTaste?: number; aEng: number; serveCopies: number } {
@@ -317,9 +325,22 @@ export function agentPackageInputs(s: GameStateV2, qDep: number, serveR: number)
   if (frontierOwn && sf > 0) qTaste = qOfVersion(w, vf);
   if (frontierOwn || engOwn) serveCopies = 1 / (sr / serveR + sf / (vf?.serveCost ?? serveR) + se / (ve?.serveCost ?? serveR));
   const qE = engOwn ? qOfVersion(w, ve) : qDep;
-  const cover = Math.min(1, (se / ENG_REF_SHARE) * (engOwn ? etaOf(ve.serveCost) / etaOf(serveR) : 1));
-  const aEng = aEngOf(knotAt(w.prod.knots, qE).A) * cover;
+  // J2 P1: engineering agents add build capacity with their compute: below the reference share A_eng scales down
+  // linearly (as R7); above it the human share of the work shrinks geometrically, (1 − A_eng)^cover [D].
+  const cover = (se / ENG_REF_SHARE) * (engOwn ? etaOf(ve.serveCost) / etaOf(serveR) : 1);
+  const a0 = aEngOf(knotAt(w.prod.knots, qE).A);
+  const aEng = cover <= 1 ? a0 * cover : 1 - Math.pow(1 - a0, cover);
   return { agentMult, ...(qTaste !== undefined ? { qTaste } : {}), aEng, serveCopies };
+}
+
+/** Spare serving compute lent to research agents (J2 PR1) and what it adds to research speed today (M with it ÷ M
+ *  without − 1; the research-speed breakdown). */
+export function spareServingEffect(s: GameStateV2): { h100e: number; dM: number } {
+  const inp = labInputs(s, PLAYER_ID);
+  const ks = inp?.mixUnit.kSpare ?? 0;
+  if (!inp || ks <= 0) return { h100e: 0, dM: 0 };
+  const w = s.hidden.timeline;
+  return { h100e: inp.mixUnit.spare ?? 0, dM: evalM(w, inp).M / Math.max(1e-12, evalM(w, { ...inp, k: Math.max(1e-12, inp.k - ks) }).M) - 1 };
 }
 
 /** Production readout for a lab, computed from current state (§3.2.2/§3.2.5). */
@@ -343,13 +364,13 @@ export function aiFtePerH100e(s: GameStateV2, v: Pick<ModelVersion, 'pm' | 'buil
 export function bestResearchMix(s: GameStateV2, inp: LabInputs): number {
   const Pp = s.hidden.timeline.prod;
   const kn = knotAt(Pp.knots, inp.qDep);
-  return bestMix(Pp, kn.A, kn.R, inp.h, inp.mixUnit.c, inp.mixUnit.k, inp.mixUnit.cIdle ?? 0).f;
+  return bestMix(Pp, kn.A, kn.R, inp.h, inp.mixUnit.c, inp.mixUnit.k, inp.mixUnit.cIdle ?? 0, inp.mixUnit.kSpare ?? 0).f;
 }
 
 /** Inputs with the research compute re-split at experiments share f (same total). */
 export function inputsAtMix(inp: LabInputs, f: number): LabInputs {
   const u = inp.mixUnit;
-  return { ...inp, c: f * u.c + (u.cIdle ?? 0), k: (1 - f) * u.k, abs: { ...inp.abs, Cexp: f * u.C * (1 - u.load) + (u.idle ?? 0), Cagents: u.off ? 0 : (1 - f) * u.C } };
+  return { ...inp, c: f * u.c + (u.cIdle ?? 0), k: (1 - f) * u.k + (u.kSpare ?? 0), abs: { ...inp.abs, Cexp: f * u.C * (1 - u.load) + (u.idle ?? 0), Cagents: u.off ? 0 : (1 - f) * u.C + (u.spare ?? 0) } };
 }
 
 /** Re-split a lab's research share between experiments and agents in the best way (auto mix; the player can switch

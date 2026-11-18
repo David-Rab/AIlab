@@ -1,21 +1,33 @@
-// Engineers' build queue (STRUCTURE §4.1, BUILD-PLAN R5). Owner: WS1.
+// Engineers' build queue (STRUCTURE §4.1, BUILD-PLAN R5; jank J2 P1). Owner: WS1.
 //
-// Engineering teams work one shared queue in priority order. Capacity (team-weeks per week) = Σ engineer heads/150 ×
-// quality × 1/(1 − A_eng), capped (departments/teams.ts buildCapacity). In R5 the queue holds run setups: a run is
-// launched at once but trains only when its setup is built ("waiting for engineers"); bigger base runs need more.
-// R6: product features (built once lab-wide, then switched on per product).
-import { FEATURE_BY_ID, type FeatureId } from '../../../data/v2/features';
-import type { ActionDef, BuildItem, BuildKind, EngineSystem, GameStateV2, RunKind, TrainingRun } from '../types';
+// Engineering teams share one build capacity (team-weeks per week = Σ engineer heads/150 × quality × 1/(1 − A_eng),
+// capped; departments/teams.ts buildCapacity) and spend it in this order each day:
+//   1 runs      operations of every training run while it trains and of the continual-learning stream, then the run
+//               setups on the queue (a run trains only once its setup is built)
+//   2 upkeep    every live product (reliability, on-call, integrations; grows with revenue) and every monitor in
+//               production (a product's or an internal use's: serving harness, alert triage)
+//   3 builds    the rest of the queue in priority order: product launches, product features, sector packs
+// Too few engineers: upkeep falls behind (shown) and nothing new ships (launches, features and packs wait; the wait
+// shows on Products and Company). Runs come first so the run cadence holds (the reference lab's runs never wait on
+// upkeep). Engineering agents raise capacity through A_eng (their model and compute; R7, J2), so the work an engineer
+// carries grows as AI takes over engineering. Calibration: the reference lab (RefBot) on the ai2027 path uses about
+// three quarters of its capacity; its run setups finish within a few days in every world (calib.ts).
+import { FEATURE_BY_ID, PRICE_TIERS, type FeatureId } from '../../../data/v2/features';
+import { SECTOR_BY_ID } from '../../../data/v2/sectors';
+import { AGENT_USES } from '../../../data/v2/agents';
+import type { ActionDef, BuildItem, BuildKind, Deployment, EngineSystem, GameStateV2, RunKind, SectorId, SystemCtx, TrainingRun } from '../types';
+import { agentSplitShare, monitorVersion } from './agents';
+import { deploy } from '../models/deployments';
 import { buildCapacity } from './teams';
 
 type Params = Record<string, number | string | boolean>;
 const str = (p: Params, k: string, d: string) => (typeof p[k] === 'string' ? (p[k] as string) : d);
 
 /** Team-weeks to set up a run [D]: the incremental engineering for a new run on existing infrastructure (data
- *  pipelines, checkpointing, cluster operations). A size-1 base 0.4, scaling with size^0.75 (×8: 1.9); continue 0.25;
- *  post-train 0.1; distill and amplify 0.05. Calibration: non-binding at the reference load, i.e. RefBot's setups
- *  finish within the day in every world (its 4 engineering teams build 0.6 team-weeks a day in the slow world, where
- *  coding automation is lowest; 3 in ai2027). A one-team lab waits 2–3 days for a size-1 base, a week for ×4. */
+ *  pipelines, checkpointing, cluster bring-up). A size-1 base 0.4, scaling with size^0.75 (×8: 1.9); continue 0.25;
+ *  post-train 0.1; distill and amplify 0.05. Operating a run while it trains is upkeep (runOpsTW, also ∝ size^0.75).
+ *  Calibration (R5, kept in J2): RefBot's setups finish within a day or two in every world — the stub traces are
+ *  sensitive to the run cadence (a ×4 setup moved P08 by 100 days on the fast preset). */
 export function runSetupTW(kind: RunKind, size = 1, ida = false): number {
   if (kind === 'base') return 0.4 * Math.pow(Math.max(0.01, size), 0.75);
   if (kind === 'continue') return 0.25;
@@ -23,37 +35,113 @@ export function runSetupTW(kind: RunKind, size = 1, ida = false): number {
   return 0.05;
 }
 
+/** Standing engineering load, team-weeks per week [D] (J2 P1). Product: 0.5 + 4 × √(revenue ÷ $10B/yr), so a $10B/yr
+ *  product keeps 4.5 team-weeks a week busy; runs while they train: a base 1 × size^0.75, continue and post-train 0.5,
+ *  distill and amplify 0.2; the continual-learning stream 0.5; each monitor in production 1. */
+export const UPKEEP = { product: 0.5, productRev: 4, revUnit: 10, runBase: 1, runMid: 0.5, runSmall: 0.2, stream: 0.5, monitor: 1 } as const;
+/** One-off builds [D]: launching a product 4 team-weeks; a sector pack 4 (then 120 days of certification). */
+export const LAUNCH_TW = 4;
+export const SECTOR_PACK_TW = 4;
+/** Certification after a sector pack is built (research/16 §1A.3: "costs months and money"). */
+export const SECTOR_CERT_DAYS = 120;
+
+export type UpkeepKind = 'product' | 'run' | 'stream' | 'monitor';
+export interface UpkeepLine { kind: UpkeepKind; ref: string; tw: number }
+/** Runs (operations) come before product upkeep. */
+export const isRunLine = (l: Pick<UpkeepLine, 'kind'>) => l.kind === 'run' || l.kind === 'stream';
+
+const isLiveProduct = (d: Deployment) => d.kind === 'product' && d.status !== 'withdrawn';
+
+/** Engineering a training run needs each week while it trains. */
+export function runOpsTW(r: Pick<TrainingRun, 'kind' | 'base' | 'name'>): number {
+  if (r.kind === 'base') return UPKEEP.runBase * Math.pow(Math.max(0.01, r.base?.size ?? 1), 0.75);
+  if (r.kind === 'continue' || (r.kind === 'post' && !r.name.startsWith('IDA'))) return UPKEEP.runMid;
+  return UPKEEP.runSmall;
+}
+
+/** Upkeep of one live product per week (revenue in $B/yr). */
+export const productUpkeepTW = (revenue: number) => UPKEEP.product + UPKEEP.productRev * Math.sqrt(Math.max(0, revenue) / UPKEEP.revUnit);
+
+/** Standing load lines (team-weeks per week): training runs and the stream, products, monitors in production. */
+export function upkeepLines(s: GameStateV2): UpkeepLine[] {
+  const p = s.player;
+  const out: UpkeepLine[] = [];
+  for (const r of p.models.runs) if (r.status === 'running' && !runWaiting(r)) out.push({ kind: 'run', ref: r.id, tw: runOpsTW(r) });
+  if (p.models.stream) out.push({ kind: 'stream', ref: p.models.stream.versionId, tw: UPKEEP.stream });
+  for (const d of p.deployments) {
+    if (!isLiveProduct(d)) continue;
+    out.push({ kind: 'product', ref: d.id, tw: productUpkeepTW(d.revenueRate ?? 0) });
+    if (d.monitorId) out.push({ kind: 'monitor', ref: d.id, tw: UPKEEP.monitor });
+  }
+  for (const u of AGENT_USES) if (monitorVersion(s, u) && agentSplitShare(s, u) > 0) out.push({ kind: 'monitor', ref: u, tw: UPKEEP.monitor });
+  return out;
+}
+
+/** Standing load, team-weeks per week: runs (operations) and products (upkeep incl. monitors). */
+export function upkeepSplit(s: GameStateV2): { runs: number; products: number; total: number } {
+  let runs = 0;
+  let products = 0;
+  for (const l of upkeepLines(s)) if (isRunLine(l)) runs += l.tw; else products += l.tw;
+  return { runs, products, total: runs + products };
+}
+export const upkeepTW = (s: GameStateV2) => upkeepSplit(s).total;
+
 export function initialBuild(): GameStateV2['player']['build'] {
   return { queue: [], nextId: 1 };
 }
 
-/** Queue an item at the back of the queue; returns its id. */
-export function queueBuild(s: GameStateV2, kind: BuildKind, ref: string, needTW: number): string {
+/** Queue an item; returns its id. Run setups go ahead of every other kind (they are worked before product upkeep);
+ *  other items go to the back. Priorities are renumbered 1…n in queue order. */
+export function queueBuild(s: GameStateV2, kind: BuildKind, ref: string, needTW: number, extra: Pick<BuildItem, 'launch' | 'host'> = {}): string {
   const b = s.player.build;
   const id = `B${b.nextId++}`;
-  const priority = b.queue.reduce((m, x) => Math.max(m, x.priority), 0) + 1;
-  b.queue.push({ id, kind, ref, needTW, doneTW: 0, priority, day: s.time.day });
+  const it: BuildItem = { id, kind, ref, needTW, doneTW: 0, priority: 0, day: s.time.day, ...extra };
+  const at = kind === 'runSetup' ? b.queue.findIndex((x) => x.kind !== 'runSetup') : -1;
+  if (at < 0) b.queue.push(it);
+  else b.queue.splice(at, 0, it);
+  b.queue.forEach((x, i) => (x.priority = i + 1));
   return id;
 }
 
-/** Team-weeks of work per day the engineers deliver today. */
-export const buildPerDay = (s: GameStateV2) => buildCapacity(s).capacity / 7;
+/** Free capacity per day for run setups (after run operations) and for other builds (after all upkeep), team-weeks. */
+export function buildRates(s: GameStateV2): { setups: number; builds: number } {
+  const cap = buildCapacity(s).capacity;
+  const u = upkeepSplit(s);
+  return { setups: Math.max(0, cap - u.runs) / 7, builds: Math.max(0, cap - u.total) / 7 };
+}
+/** Team-weeks per day the engineers have for builds other than run setups (after upkeep). */
+export const buildPerDay = (s: GameStateV2) => buildRates(s).builds;
 
-/** Days until each queued item is built at today's capacity (queue order; Infinity with no capacity). */
+const remaining = (it: BuildItem) => Math.max(0, it.needTW - it.doneTW);
+const daysAt = (tw: number, perDay: number) => (tw <= 0 ? 0 : perDay > 0 ? Math.max(1, Math.ceil(tw / perDay - 1e-9)) : Infinity);
+
+/** Days until each queued item is built at today's rates: run setups in queue order on the capacity left after run
+ *  operations; other items after the setups, in queue order, on the capacity left after all upkeep. `next` = a new
+ *  item of `extraTW` (not a run setup) at the back. */
 export function buildEtas(s: GameStateV2, extraTW = 0): { etas: Map<string, number>; next: number } {
-  const perDay = buildPerDay(s);
+  const r = buildRates(s);
+  const q = s.player.build.queue;
   const etas = new Map<string, number>();
+  let cumSetup = 0;
+  for (const it of q) if (it.kind === 'runSetup') etas.set(it.id, daysAt((cumSetup += remaining(it)), r.setups));
+  const setupDays = cumSetup > 0 ? daysAt(cumSetup, r.setups) : 0;
   let cum = 0;
-  for (const it of s.player.build.queue) {
-    cum += Math.max(0, it.needTW - it.doneTW);
-    etas.set(it.id, perDay > 0 ? Math.max(1, Math.ceil(cum / perDay - 1e-9)) : Infinity);
-  }
-  const next = perDay > 0 ? Math.max(extraTW > 0 ? 1 : 0, Math.ceil((cum + extraTW) / perDay - 1e-9)) : extraTW > 0 ? Infinity : 0;
-  return { etas, next };
+  for (const it of q) if (it.kind !== 'runSetup') etas.set(it.id, setupDays + daysAt((cum += remaining(it)), r.builds));
+  return { etas, next: extraTW > 0 ? setupDays + daysAt(cum + extraTW, r.builds) : 0 };
+}
+
+/** Days a new item of `tw` team-weeks would take if queued now (a run setup waits only behind other run setups). */
+export function buildWaitNew(s: GameStateV2, tw: number, kind: BuildKind = 'feature'): number {
+  if (tw <= 0) return 0;
+  if (kind !== 'runSetup') return buildEtas(s, tw).next;
+  const r = buildRates(s);
+  let cum = tw;
+  for (const it of s.player.build.queue) if (it.kind === 'runSetup') cum += remaining(it);
+  return daysAt(cum, r.setups);
 }
 
 /** Team-weeks still to build on the queue. */
-export const buildBacklogTW = (s: GameStateV2) => s.player.build.queue.reduce((a, it) => a + Math.max(0, it.needTW - it.doneTW), 0);
+export const buildBacklogTW = (s: GameStateV2) => s.player.build.queue.reduce((a, it) => a + remaining(it), 0);
 
 /** The run a setup item belongs to. */
 const runOf = (s: GameStateV2, it: BuildItem): TrainingRun | undefined => (it.kind === 'runSetup' ? s.player.models.runs.find((r) => r.id === it.ref) : undefined);
@@ -61,37 +149,91 @@ const runOf = (s: GameStateV2, it: BuildItem): TrainingRun | undefined => (it.ki
 /** A run that has not finished its setup ("waiting for engineers"). */
 export const runWaiting = (r: TrainingRun) => r.setupId !== undefined && r.readyDay === undefined;
 
-/** build (38, daily): the engineers work the queue by priority; a finished run setup lets its run train. */
+/** A product launch waiting on the queue for a channel. */
+export const pendingLaunch = (s: GameStateV2, channel: string): BuildItem | undefined => s.player.build.queue.find((it) => it.kind === 'launch' && it.launch?.channel === channel);
+/** A sector pack waiting on the queue for a sector. */
+export const pendingPack = (s: GameStateV2, sector: string): BuildItem | undefined => s.player.build.queue.find((it) => it.kind === 'sectorPack' && it.ref === sector);
+
+/** Engineering in use on the last day (team-weeks per day): upkeep served + queue work (scripts and readouts). */
+export const buildUsedToday = (s: GameStateV2) => ((s.player.build.last?.served ?? 0) + (s.player.build.last?.queue ?? 0)) / 7;
+
+/** A finished item takes effect. */
+function complete(s: GameStateV2, ctx: SystemCtx, it: BuildItem) {
+  const r = runOf(s, it);
+  if (r) {
+    r.readyDay = ctx.day;
+    if (ctx.day - r.startDay > 1) ctx.log('research', `Engineers finished setting up ${r.name}: training started.`, 1, r.id);
+  }
+  if (it.kind === 'feature' && !s.player.features.includes(it.ref)) {
+    s.player.features.push(it.ref);
+    ctx.log('company', `Engineers finished building ${FEATURE_BY_ID[it.ref as FeatureId]?.name ?? it.ref}: switch it on for your products.`, 1, it.ref);
+  }
+  if (it.kind === 'launch' && it.launch) {
+    const l = it.launch;
+    const d = deploy(s, ctx, {
+      versionId: l.versionId, channel: l.channel, price: l.price, priceIndex: PRICE_TIERS[l.price],
+      ...(l.kyc !== undefined ? { kyc: l.kyc } : {}), ...(l.effort ? { effort: l.effort } : {}), ...(l.monitorId ? { monitorId: l.monitorId } : {}),
+    });
+    if (typeof d === 'string') ctx.log('company', `The ${l.channel} launch is built but cannot go live: ${d}.`, 2);
+  }
+  if (it.kind === 'sectorPack') {
+    const sector = it.ref as SectorId;
+    const host = s.player.deployments.find((d) => d.id === it.host && d.status !== 'withdrawn')
+      ?? s.player.deployments.find((d) => d.status !== 'withdrawn' && (d.channel === 'enterprise' || d.channel === 'api' || d.channel === 'agents'));
+    if (!host) return;
+    if (!host.sectorFocus.includes(sector)) host.sectorFocus.push(sector);
+    if (s.world.fx.certDay[sector] === undefined) s.world.fx.certDay[sector] = ctx.day + SECTOR_CERT_DAYS;
+    ctx.log('company', `${SECTOR_BY_ID[sector]?.name ?? sector} pack built: in certification (${SECTOR_CERT_DAYS} days).`, 1);
+  }
+}
+
+/** Work queue items of one class in queue order with `left` team-weeks; returns what is left and the work done. */
+function workQueue(s: GameStateV2, ctx: SystemCtx, left: number, setups: boolean): { left: number; work: number } {
+  const b = s.player.build;
+  let work = 0;
+  for (let i = 0; i < b.queue.length && left > 1e-12;) {
+    const it = b.queue[i];
+    if ((it.kind === 'runSetup') !== setups) { i++; continue; }
+    const take = Math.min(left, it.needTW - it.doneTW);
+    it.doneTW += take;
+    left -= take;
+    work += take;
+    if (it.doneTW < it.needTW - 1e-9) break;
+    b.queue.splice(i, 1);
+    complete(s, ctx, it);
+  }
+  return { left, work };
+}
+
+/** build (38, daily): run operations and setups, then product upkeep, then the other builds; records the day's rates
+ *  (team-weeks per week) and the utilisation (≈ 30-day average). */
 export const buildSystem: EngineSystem = {
   id: 'build', owner: 'WS1', cadence: 'daily', order: 38, system: 'people',
   run(s, ctx) {
     const b = s.player.build;
-    if (!b.queue.length) return;
     // Setups of cancelled or finished runs leave the queue.
-    b.queue = b.queue.filter((it) => {
-      if (it.kind !== 'runSetup') return true;
-      const r = runOf(s, it);
-      return !!r && (r.status === 'running' || r.status === 'paused') && r.readyDay === undefined;
-    });
-    if (s.player.status !== 'active') return;
-    let left = buildPerDay(s);
-    while (left > 1e-12 && b.queue.length) {
-      const it = b.queue[0];
-      const take = Math.min(left, it.needTW - it.doneTW);
-      it.doneTW += take;
-      left -= take;
-      if (it.doneTW < it.needTW - 1e-9) break;
-      b.queue.shift();
-      const r = runOf(s, it);
-      if (r) {
-        r.readyDay = ctx.day;
-        if (ctx.day - r.startDay > 1) ctx.log('research', `Engineers finished setting up ${r.name}: training started.`, 1, r.id);
-      }
-      if (it.kind === 'feature' && !s.player.features.includes(it.ref)) {
-        s.player.features.push(it.ref);
-        ctx.log('company', `Engineers finished building ${FEATURE_BY_ID[it.ref as FeatureId]?.name ?? it.ref}: switch it on for your products.`, 1, it.ref);
-      }
+    if (b.queue.length) {
+      b.queue = b.queue.filter((it) => {
+        if (it.kind !== 'runSetup') return true;
+        const r = runOf(s, it);
+        return !!r && (r.status === 'running' || r.status === 'paused') && r.readyDay === undefined;
+      });
     }
+    if (s.player.status !== 'active') return;
+    const cap = buildCapacity(s).capacity;
+    const u = upkeepSplit(s);
+    let left = cap / 7;
+    const ops = Math.min(left, u.runs / 7);
+    left -= ops;
+    const a = workQueue(s, ctx, left, true);
+    const prod = Math.min(a.left, u.products / 7);
+    const c = workQueue(s, ctx, a.left - prod, false);
+    const r3 = (x: number) => Math.round(x * 1000) / 1000;
+    const served = (ops + prod) * 7;
+    const work = (a.work + c.work) * 7;
+    b.last = { cap: r3(cap), upkeep: r3(u.total), served: r3(served), queue: r3(work) };
+    const x = cap > 0 ? Math.min(1, (served + work) / cap) : 0;
+    b.util = r3(b.util === undefined ? x : b.util + (x - b.util) / 30);
   },
 };
 
@@ -102,6 +244,16 @@ export function prioritizeBuild(s: GameStateV2, id: string): string | undefined 
   if (!it) return 'Unknown build item';
   it.priority = b.queue.reduce((m, x) => Math.min(m, x.priority), it.priority) - 1;
   b.queue.sort((x, y) => x.priority - y.priority);
+  return undefined;
+}
+
+/** Cancel a queued product launch or sector pack (work done is lost). */
+export function cancelBuild(s: GameStateV2, id: string): string | undefined {
+  const b = s.player.build;
+  const i = b.queue.findIndex((x) => x.id === id);
+  if (i < 0) return 'Unknown build item';
+  if (b.queue[i].kind === 'runSetup') return 'Cancel the run instead';
+  b.queue.splice(i, 1);
   return undefined;
 }
 
@@ -121,6 +273,19 @@ export const BUILD_ACTIONS: ActionDef[] = [
     },
     apply: (s, _ctx, p) => {
       const why = prioritizeBuild(s, str(p, 'id', ''));
+      if (why) throw new Error(why);
+    },
+  },
+  {
+    id: 'build.cancel', verb: 'policy', system: 'people', sphere: 'departments', owner: 'WS1', title: 'Cancel build',
+    available: (s) => (s.player.build.queue.some((x) => x.kind !== 'runSetup') ? true : 'Nothing to cancel'),
+    preview: (s, p) => {
+      const it = s.player.build.queue.find((x) => x.id === str(p, 'id', ''));
+      const left = Math.max(0, (it?.needTW ?? 0) - (it?.doneTW ?? 0));
+      return { costs: [{ currency: 'staffTime', amount: -Math.round((it?.doneTW ?? 0) * 10) / 10, target: 'work done is lost' }], gains: [{ currency: 'leadDays', amount: Math.round((left / Math.max(1e-9, buildPerDay(s))) * 10) / 10, target: 'later builds ready sooner' }], exposure: [] };
+    },
+    apply: (s, _ctx, p) => {
+      const why = cancelBuild(s, str(p, 'id', ''));
       if (why) throw new Error(why);
     },
   },

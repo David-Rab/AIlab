@@ -3,7 +3,7 @@
 // The split between engineering, routine and frontier research agents lives on Company › Agents at work.
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { MANUAL_MIX_RANGE, actionView, idleTrainingShare, poolsOf, specOf, SPLIT_PRESETS, TOP_KEYS } from '../../../engine/v2';
+import { LENT_RECOVERY, MANUAL_MIX_RANGE, actionView, idleTrainingShare, poolsOf, spareServing, specOf, SPLIT_PRESETS, TOP_KEYS } from '../../../engine/v2';
 import type { GameStateV2, SplitSpec, TopKey } from '../../../engine/v2';
 import { MixChart, ResponseCharts } from './ResearchCharts';
 import { ActBtn, pct as pct0, Seg, Slider, Term, Tip, TipCard } from '../ui';
@@ -36,6 +36,31 @@ function SpareRow({ s }: { s: GameStateV2 }) {
         {(['data', 'research'] as const).map((u) => u === use
           ? <span key={u} className="tag2 good" data-test={`spare-on.${u}`}>{u === 'data' ? 'Data generation' : 'Research experiments'}</span>
           : <ActBtn key={u} id="runs.spareTraining" params={{ use: u }} testId={`spare.${u}`} label={u === 'data' ? 'Use for data' : <>Use for experiments{gain > 5e-4 && <span className="tone-pos"> +{F.pct(gain, 1)} speed</span>}</>} />)}
+      </span>
+    </div>
+  );
+}
+
+/** Spare serving compute (J2 PR1): serving compute no product needs runs research agents by default, or stays on the
+ *  products as headroom. Home of the policy; Products › Serving shows the spare segment, Company › Flow its effect. */
+function SpareServingRow({ s }: { s: GameStateV2 }) {
+  const use = s.player.policies.spareServing;
+  const spare = spareServing(s);
+  const agents = s.player.computeOnline * s.player.split.agents;
+  const toResearch = actionView(s, 'serving.spare', { use: 'research' });
+  const gain = [...toResearch.gains, ...toResearch.costs].find((c) => c.currency === 'progress')?.amount ?? 0;
+  return (
+    <div className="alloc-row split-row split-sub" id="ctl-split-spare-serving" data-home="spareServing">
+      <Tip content={() => <TipCard title={<Term id="spareServing">Spare serving compute</Term>} value={`${F.h100e(spare)} H100e no product needs`} rows={[
+        { label: 'Research agents', value: `+${F.pct(spare / Math.max(1, agents))} agent compute · research speed +${F.pct(gain, 1)}` },
+        { label: 'Headroom', value: `eroded share wins back at full speed (${F.pct(LENT_RECOVERY)} when lent)` },
+      ]}>Products take lent compute back first when their demand rises.</TipCard>}>
+        <span className="alloc-label small"><Term id="spareServing">Spare</Term> <span className="num dim">{spare >= 1 ? `${F.h100e(spare)} unused` : 'none unused now'}</span></span>
+      </Tip>
+      <span className="row-i">
+        {(['research', 'headroom'] as const).map((u) => u === use
+          ? <span key={u} className="tag2 good" data-test={`spare-serving-on.${u}`}>{u === 'research' ? 'Research agents' : 'Headroom'}</span>
+          : <ActBtn key={u} id="serving.spare" params={{ use: u }} testId={`spare-serving.${u}`} label={u === 'headroom' ? 'Keep as headroom' : <>Lend to research{gain > 5e-4 && <span className="tone-pos"> +{F.pct(gain, 1)} speed</span>}</>} />)}
       </span>
     </div>
   );
@@ -91,6 +116,7 @@ export function Split({ s }: { s: GameStateV2 }) {
           </div>
         ))}
         {row('serving')}
+        <SpareServingRow s={s} />
         {row('safety')}
         {warns.map((w) => <div key={w} className="small tone-warn" data-test="split-warn">{w}</div>)}
         <div className="btn-row">

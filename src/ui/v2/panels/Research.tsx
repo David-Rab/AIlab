@@ -6,7 +6,7 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Building2, CircleCheck, CircleDashed, CircleX, Hourglass, Layers, LoaderCircle, WandSparkles, Wrench, X, ChevronUp, ChevronDown } from 'lucide-react';
 import {
-  dateOf, effortOf, fmtDate, idleTeams, knowHow, nodeDept, missingNeeds, nodeOdds, nodeStatus, payoffOf, projectCapacity, projectEta,
+  dateOf, effortOf, fmtDate, idleTeams, knowHow, nodeDept, missingNeeds, nodeOdds, nodeStatus, payoffOf, projectCapacity, projectEta, SCI_AI_CAP, sciAiMult,
   projectReady, projectTeams, researchSpeed, teamCapacity, teamsOn, treeCounts,
 } from '../../../engine/v2';
 import type { Column, GameStateV2, NodeStatus, Team, TeamQuality } from '../../../engine/v2';
@@ -378,7 +378,7 @@ function TeamPicker({ s, id }: { s: GameStateV2; id: string }) {
             <Tip content={() => <TipCard title={<Term id="specialtyBonus">Specialty bonus</Term>} value={`×${mult.toFixed(1)}`} rows={[{ label: 'Quality', value: `×${QUALITY[t.quality].out}` }, { label: 'People', value: String(Math.round(t.heads)) }, { label: 'Capacity here', value: teamCapacity(t, n).toFixed(2) }]}>×1.5 in the team's own column, ×1.0 elsewhere.</TipCard>}>
               <span className={`rs-mult ${mult > 1 ? 'm' : 'n'}`}>×{mult.toFixed(1)}</span>
             </Tip>
-            <span className="num small">{on ? eta(before) : <>{eta(before)} → <b className="tone-pos">{eta(after)}</b></>}</span>
+            <span className="num small">{on ? eta(before) : <>{eta(before)} → <b className="tone-pos">{eta(after)}</b>{Number.isFinite(before) && Number.isFinite(after) && before - after >= 0.5 && <Tip content={() => <TipCard title={<Term id="marginalGain">Days cut</Term>} value={`${Math.round(before - after)} d`} rows={[{ label: 'Without this team', value: eta(before) }, { label: 'With it', value: eta(after) }]}>Each extra team cuts fewer days (progress ∝ √ capacity). Auto puts idle teams where they cut the most, weighted by queue order.</TipCard>}><span className="tone-pos" data-test={`gain.${t.id}`}> (−{Math.round(before - after)} d)</span></Tip>}</>}</span>
             <span className="num small">{from ? <span className="tone-neg">{PROJECT_BY_ID[from]?.name.split(' ')[0]} {eta(projectEta(s, from))} → {eta(projectEta(s, from, projectCapacity(s, from, undefined, t.id)))}</span> : <span className="dim">—</span>}</span>
             {on ? <ActBtn id="research.unassign" params={{ team: t.id }} label="Take off" testId={`research.unassign.${t.id}`} /> : <ActBtn id="research.assign" params={{ team: t.id, id }} label="Assign" testId={`research.assign.${t.id}`} />}
           </div>
@@ -403,8 +403,8 @@ function Projects({ s }: { s: GameStateV2 }) {
     <Card className="rs-proj" home="projects" title={<span className="row-i"><ICON.experiments size={14} /> Active projects</span>}
       sub={<span><Tip content={() => <TipCard title="Active projects" rows={[{ label: 'Projects with a team', value: String(active.length) }, { label: 'Science teams', value: String(nSci) }, { label: 'Idle', value: String(idle.length) }]} />}><span>{active.length} · {nSci} science teams</span></Tip>{idle.length ? <Tip content={() => <TipCard title="Idle science teams" value={String(idle.length)}>{q.some((id) => projectReady(s, id) === true) ? 'Turn on auto-assign or assign them by hand.' : 'Nothing ready in the queue: click an idea in the tree and queue it.'}</TipCard>}><span className="tone-warn" data-test="idle-teams"> · {idle.length} idle</span></Tip> : null}</span>}
       right={(
-        <Tip content={() => <TipCard title={<Term id="autoAssign">Auto-assign idle teams</Term>} value={auto ? 'on' : 'off'}>Idle science teams join the highest-priority ready project in their specialty, else the one with least capacity. A ready project with no team takes one from the largest project.</TipCard>}>
-          <button className={`toggle ${auto ? 'on' : ''}`} data-test="auto-assign" onClick={() => store.act('research.autoAssign', { on: !auto })}><span className="toggle-knob" /><span className="toggle-label">Auto-assign idle teams</span></button>
+        <Tip content={() => <TipCard title={<Term id="autoAssign">Auto-assign idle teams</Term>} value={auto ? 'on' : 'off'}>Spreads science teams over the ready projects in your queue: a project with no team first, then each team where it cuts the most days (queue order counts). Teams re-spread when a project finishes. Teams you place by hand stay. It never starts projects you have not queued.</TipCard>}>
+          <button className={`toggle ${auto ? 'on' : ''}`} data-test="auto-assign" onClick={() => store.act('research.autoAssign', { on: !auto })}><span className="toggle-knob" /><span className="toggle-label">Auto-spread teams</span></button>
         </Tip>
       )}>
       {active.length === 0 ? <div className="dim small rs-empty">No active projects. Click an idea in the tree, then Start now.</div> : (
@@ -427,7 +427,7 @@ function Projects({ s }: { s: GameStateV2 }) {
                   <button className="rs-tch add" data-test={`add-team.${id}`} onClick={() => setUi('pick', id)}>+</button>
                 </div>
                 <div className="pr"><div className="rs-bar"><i style={{ width: `${p * 100}%` }} /></div><Tip content={() => <TipCard title="Progress" value={F.pct(p)}>Share of the project done.</TipCard>}><b className="num">{F.pct(p)}</b></Tip></div>
-                <div className="ft">ETA <span className="sp" /><Tip content={() => <TipCard title="ETA" value={eta(projectEta(s, id))} rows={ts.map((t) => ({ label: teamName(t), value: `×${(t.specialty === n.column ? 1.5 : 1).toFixed(1)}` }))}>At today's teams and research speed; extra teams add less each (diminishing returns).</TipCard>}><span className="num">{eta(projectEta(s, id))}</span></Tip></div>
+                <div className="ft">ETA <span className="sp" /><Tip content={() => <TipCard title="ETA" value={eta(projectEta(s, id))} rows={[...ts.map((t) => ({ label: teamName(t), value: `×${(t.specialty === n.column ? 1.5 : 1).toFixed(1)}` })), ...(nodeDept(n) === 'cap' && !isLineNode(n) ? [{ label: <Term id="aiScience">AI science</Term>, value: `capacity ${F.mult(sciAiMult(s))} (max ×${SCI_AI_CAP})` }] : [])]}>At today's teams and research speed; extra teams add less each (diminishing returns).</TipCard>}><span className="num">{eta(projectEta(s, id))}</span></Tip></div>
                 {/* Jank R5: safety lines show their health, capability ideas their odds (two different readings, two labels). */}
                 <div className="ft">{isLineNode(n) ? <Term id="lineHealth">health</Term> : <Term id="odds">odds</Term>} <span className="sp" /><Tip content={() => <TipCard title={isLineNode(n) ? <Term id="lineHealth">Line health</Term> : <Term id="odds">Odds</Term>} value={isLineNode(n) ? health(nodeOdds(s, id)) : F.pct(nodeOdds(s, id))}>{isLineNode(n) ? 'How likely a result here is a working tool, from the results so far.' : 'Chance the idea works when the project finishes.'}</TipCard>}><span className="num">{isLineNode(n) ? health(nodeOdds(s, id)) : F.pct(nodeOdds(s, id))}</span></Tip></div>
               </div>

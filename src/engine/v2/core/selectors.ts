@@ -19,11 +19,12 @@ export type { SplitSpec, TopKey, TopSplit } from '../departments/split';
 // WS1 model / department selectors and helpers for the UI (visible data only).
 export { idleTrainingShare, knowHowMonths, planRun, poolAllocation, predictRun, POOL_SHARE_RANGE, runEtaDays, runStall, serveTechMult, shareIfLaunched, streamShare, trainingFlopPerDay } from '../models/runs';
 export type { BaseLimits } from '../models/runs';
-export { buildBacklogTW, buildEtas, buildPerDay, runSetupTW, runWaiting } from '../departments/build';
+export { buildBacklogTW, buildEtas, buildPerDay, buildRates, buildWaitNew, isRunLine, LAUNCH_TW, pendingLaunch, pendingPack, productUpkeepTW, runOpsTW, runSetupTW, runWaiting, SECTOR_PACK_TW, upkeepLines, upkeepSplit, UPKEEP } from '../departments/build';
+export type { UpkeepLine } from '../departments/build';
 export { SIZE_RANGE, SIZE_SNAPS, STREAM_POOL_SHARE, sizeMinDays } from '../../../data/v2/runDesign';
 export type { LaunchRunParams, RunPlan } from '../models/runs';
 export { PARADIGM_BY_ID } from '../models/paradigms';
-export { assignBlock, effortOf, idleTeams, knowHow, isProject, missingNeeds, nextLineProject, nodeDept, nodeKnown, nodeOdds, nodeStatus, optionLocked, payoffOf, projectCapacity, projectEta, projectRate, projectReady, projectTeams, researchSpeed, teamCapacity, teamsOn, treeCounts } from '../models/tree';
+export { assignBlock, effortOf, idleTeams, knowHow, isProject, missingNeeds, nextLineProject, nodeDept, nodeKnown, nodeOdds, nodeStatus, optionLocked, payoffOf, projectCapacity, projectEta, projectRate, projectReady, projectTeams, PRIORITY_W, researchSpeed, SCI_AI_CAP, sciAiMult, teamCapacity, teamGain as projectTeamGain, teamsOn, treeCounts } from '../models/tree';
 export type { NodeStatus } from '../models/tree';
 export { benchName, benchGen, evalDaysFor, measuredSd } from '../models/benchmarks';
 export { deployGate, effortLock, liveDeployments, CHANNEL_VARIANTS, distillationAccess } from '../models/deployments';
@@ -34,7 +35,7 @@ export { teamGain } from '../departments/teamActions';
 export { aiShareByRole, BUILD_AI_CAP, buildCapacity, fillWeeks, laneWeights, fullTeamPayroll, keyOf, payrollOf, playerH, queuedOfKey, teamLabel, teamPayroll, teamsOfKey, weeklyHireCap } from '../departments/teams';
 export { baseFromParams, postFromParams } from '../models/actions';
 export { understanding } from '../safety/understanding';
-export { leadDays, riskSources } from '../actors/intel';
+export { leadDays, riskLevers, riskSources, RISK_LEVERS } from '../actors/intel';
 export { raiseCeiling } from '../finance/equity';
 // WS2 safety-panel selectors (beliefs, posteriors, incidents as the player sees them). `safetyTruth` is END SCREEN ONLY.
 export { beliefView, findingRows, incidentRows, lineBadges, lineRows, riskFamilies, safetyTruth, safetyUtilisation, safetyView, techniqueRows, traitGraph, uModeCards, upkeepView } from '../safety/view';
@@ -144,6 +145,7 @@ export { productReadouts, previewDeployments } from '../worldfx/productView';
 export type { ProductRead, EditPreview } from '../worldfx/productView';
 export { editBlock, editedProduct, previewEdit } from '../models/productOps';
 export type { ProductChanges } from '../models/productOps';
-export { activeFeatures, agentsGate, catchRate, featureBuildBlock, featureToggleBlock, freeTierShare, isProduct, measuredHorizonH, monitorOverhead } from '../models/products';
-export { servingPool } from '../worldfx/revenue';
+export { activeFeatures, agentsGate, catchRate, collusionTrait, sameLineage, featureBuildBlock, featureToggleBlock, freeTierShare, isProduct, measuredHorizonH, monitorOverhead } from '../models/products';
+export { LENT_RECOVERY, servingPool, spareServing, spareServingToResearch } from '../worldfx/revenue';
+export { spareServingEffect } from '../production/production';
 export { ousterRiskQ, OUSTER_BC, OUSTER_NOTICE_D } from '../finance/board'; // jank ST3: board review readout

@@ -9,7 +9,7 @@ import { TRUSTED_MAX_P27 } from '../../../data/v2/agents';
 import { initialAgents } from '../departments/agents';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
-export const SCHEMA_REV = 10;
+export const SCHEMA_REV = 11;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -177,6 +177,12 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       t.projectId = id;
       if (!p.research.queue.includes(id)) p.research.queue.push(id);
     }
+  },
+  /** 10 → 11 (jank J2): spare serving compute policy (research agents by default; PR1). Build-queue rates, the
+   *  utilisation average and the team `manual` flag are optional and start empty. */
+  10: (raw) => {
+    const p = (raw as unknown as GameStateV2).player;
+    p.policies.spareServing ??= 'research';
   },
 };
 

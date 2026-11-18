@@ -180,8 +180,15 @@ for (const econ of ['ai2027', 'gate'] as const) {
   const sp = wa.find((a) => a.id === 'wfx.sectorProduct')!;
   const ok = sp.available(s2);
   sp.apply(s2, makeCtx(s2), { sector: 'LEGAL' });
+  // J2 P1: engineers build the pack first (build queue); certification starts when it is built.
+  const queued = s2.player.build.queue.some((it) => it.kind === 'sectorPack' && it.ref === 'LEGAL');
+  let built = -1;
+  for (let i = 0; i < 120 && built < 0; i++) {
+    tick(s2, { skip: ['endings'] });
+    if (s2.world.fx.certDay.LEGAL !== undefined) built = s2.time.day;
+  }
   const host = s2.player.deployments.find((d) => d.sectorFocus.includes('LEGAL'));
-  check(ok === true && !!host && s2.world.fx.certDay.LEGAL === s2.time.day + 120, 'sector product: focus added, certification in 120 days');
+  check(ok === true && queued && !!host && built >= 0 && Math.abs((s2.world.fx.certDay.LEGAL ?? 0) - (built + 120)) <= 1, 'sector product: pack built by engineers, then focus added and certification in 120 days', `built day ${built}`);
   const ms = wa.find((a) => a.id === 'wfx.moonshot')!;
   // [M2 test fix] At day 30 the start model researches nothing (every tech is gated: W03 needs REASON 7), so the
   // action is unavailable there; use the day-900 fixture, where a beneficial non-risk tech is researchable.

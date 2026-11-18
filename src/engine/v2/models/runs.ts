@@ -11,7 +11,7 @@ import {
   CONTINUE_F, CONTINUE_KAPPA, CONTINUE_MIN_DAYS, DISTILL_DAYS, DISTILL_F, ENV_BUDGET_FRAC, POST_DAYS,
   POST_FLOP_F, SIZE_RANGE, STREAM_LAG_DAYS, STREAM_POOL_SHARE, sizeMinDays, sizeScrutiny,
 } from '../../../data/v2/runDesign';
-import { buildEtas, queueBuild, runSetupTW, runWaiting } from '../departments/build';
+import { buildEtas, buildWaitNew, queueBuild, runSetupTW, runWaiting } from '../departments/build';
 import { TRAIT_IDS } from '../../../data/v2/traits';
 import { clamp } from '../../rng';
 import { decimalYear } from '../core/time';
@@ -179,7 +179,7 @@ export function planRun(s: GameStateV2, p: LaunchRunParams, rollDays = (lo: numb
   const effShare = shareIfLaunched(s, poolShare);
   const flopDay = Math.max(1, trainingFlopPerDay(s) * effShare);
   const setupTW = runSetupTW(p.kind, p.base?.size ?? 1, p.ida);
-  const setupDays = buildEtas(s, setupTW).next;
+  const setupDays = buildWaitNew(s, setupTW, 'runSetup');
   let limits: BaseLimits | undefined;
   let flopNeeded = 0;
   let minDays = 0;

@@ -66,9 +66,30 @@ export const intelSystem: EngineSystem = {
   },
 };
 
+/** What-if changes to the inputs of the risk-source estimates (J2 RK1): each is an engine lever's effect on what the
+ *  player believes (never truth). */
+export interface RiskMods {
+  /** Days added to your estimated lead over every lab. */
+  leadDays?: number;
+  /** Levels added to the understanding margin (U − the internal model's level). */
+  margin?: number;
+  /** Added to the internal model's believed misalignment estimate. */
+  mis?: number;
+  /** Weight-security levels added. */
+  wsl?: number;
+  /** Added to China's theft intent (0–100). */
+  theftIntent?: number;
+  /** Rungs added to China's escalation ladder. */
+  rung?: number;
+  /** Added to the world defence index (0–1). */
+  defence?: number;
+  /** Dangerous-capability flags (bio, cyber) of the internal model treated as cleared. */
+  noFlags?: boolean;
+}
+
 /** EngineApi.riskSources: rows from BELIEFS and intel only (§6.6). Estimates are P(catastrophic outcome via this
- *  source) on a 0..1 scale; bands from intel/belief sd. Inactive labs are never listed. */
-export function riskSources(s: GameStateV2): RiskSource[] {
+ *  source) on a 0..1 scale; bands from intel/belief sd. Inactive labs are never listed. `m`: what-if inputs (RK1). */
+export function riskSources(s: GameStateV2, m: RiskMods = {}): RiskSource[] {
   const out: RiskSource[] = [];
   const v = internalVersion(s);
   const doom = 0.4; // the player does not know the world's threshold; uses the published-default 0.40
@@ -77,19 +98,19 @@ export function riskSources(s: GameStateV2): RiskSource[] {
   // Who reaches ASI first (M4): one distribution over the player and every active lab, w ∝ exp(−days behind the
   // estimated leader / 180) (the scoring epilogue's weights), so the lab rows no longer add up to more than 100%.
   const labs: RivalLab[] = [...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])];
-  const behind = labs.map((r) => r.intel.leadDaysEst); // > 0: the player leads that lab
+  const behind = labs.map((r) => r.intel.leadDaysEst + (m.leadDays ?? 0)); // > 0: the player leads that lab
   const lead = Math.max(0, ...behind.map((b) => -b)); // days the best lab is ahead of the player
   const wPlayer = Math.exp(-lead / 180);
   const wLab = behind.map((b) => Math.exp(-(lead + b) / 180));
   const wSum = wPlayer + wLab.reduce((a, x) => a + x, 0);
   const firstShare = (i: number) => wLab[i] / wSum;
   if (v) {
-    const m = misalignmentEstimate(v);
+    const mis = clamp(misalignmentEstimate(v) + (m.mis ?? 0), 0, 1);
     const sdAvg = Object.values(v.beliefs).reduce((a, b) => a + b.sd, 0) / Math.max(1, Object.keys(v.beliefs).length);
-    const marginRisk = clamp(-u.margin / 3, 0, 1);
+    const marginRisk = clamp(-(u.margin + (m.margin ?? 0)) / 3, 0, 1);
     const pFirst = wPlayer / wSum;
-    const est = clamp(pFirst * (curve(m) * 0.7 + 0.3 * marginRisk), 0, 1);
-    out.push({ id: 'own', label: s.player.name, kind: 'ownModel', estimate: est, band: [clamp(pFirst * curve(m - sdAvg) * 0.7, 0, 1), clamp(pFirst * (curve(m + sdAvg) * 0.7 + 0.3 * marginRisk), 0, 1)], drivers: [{ label: 'Belief misalignment', share: 0.7 }, { label: 'Understanding gap', share: 0.3 }] });
+    const est = clamp(pFirst * (curve(mis) * 0.7 + 0.3 * marginRisk), 0, 1);
+    out.push({ id: 'own', label: s.player.name, kind: 'ownModel', estimate: est, band: [clamp(pFirst * curve(mis - sdAvg) * 0.7, 0, 1), clamp(pFirst * (curve(mis + sdAvg) * 0.7 + 0.3 * marginRisk), 0, 1)], drivers: [{ label: 'Belief misalignment', share: 0.7 }, { label: 'Understanding gap', share: 0.3 }] });
   }
   const labRow = (r: RivalLab, kind: 'rival' | 'china'): RiskSource => {
     const [lo, hi] = r.intel.misalignBand;
@@ -104,22 +125,64 @@ export function riskSources(s: GameStateV2): RiskSource[] {
   for (const r of activeRivals(s)) out.push(labRow(r, 'rival'));
   if (s.china.lab.core.status === 'active') out.push(labRow(s.china.lab, 'china'));
   const w = ws4r(s);
-  const misuseLevel = Math.max(0, ...(v ? [v.flags.bioUplift ? 0.3 : 0, v.flags.cyberOffense ? 0.25 : 0] : [0]));
+  const misuseLevel = m.noFlags ? 0 : Math.max(0, ...(v ? [v.flags.bioUplift ? 0.3 : 0, v.flags.cyberOffense ? 0.25 : 0] : [0]));
   // M4 recalibration: the flags give the chance of a severity-5 misuse incident; it turns civilisation-scale only
   // through the §5.1 #4 chain (world tech exposure > 0.6, then P = 0.15·exposure·(1 − defence)). The old row read the
   // flag level itself as P(catastrophe) (32% on the day-900 fixture).
   const exposure = Math.max(0, ...Object.values(s.world.techs).map((t) => t.exposure));
-  const chain = exposure > 0.6 ? 0.15 * exposure * (1 - defenceIndex(s)) : 0.15 * exposure * 0.5 * (1 - defenceIndex(s));
+  const defence = clamp(defenceIndex(s) + (m.defence ?? 0), 0, 1);
+  const chain = exposure > 0.6 ? 0.15 * exposure * (1 - defence) : 0.15 * exposure * 0.5 * (1 - defence);
   const misuseEst = clamp(0.005 + misuseLevel * chain, 0, 1);
   out.push({ id: 'misuse', label: 'Misuse', kind: 'misuse', estimate: misuseEst, band: [clamp(misuseEst / 2, 0, 1), clamp(0.01 + 2 * misuseLevel * Math.max(chain, 0.05), 0, 1)], drivers: [{ label: 'Dangerous capability flags', share: 0.6 }, { label: 'World tech exposure and defences', share: 0.4 }] });
   // Theft: P(a weight theft) times what it adds to China's row (a stolen frontier puts DeepCent in the race) [D, M4];
   // the row used to show the theft probability itself as a catastrophe probability.
-  const pTheft = clamp(0.05 + (3.5 - s.player.security.wsl) * 0.15 + s.china.meters.theftIntent / 300, 0, 1);
+  const pTheft = clamp(0.05 + (3.5 - (s.player.security.wsl + (m.wsl ?? 0))) * 0.15 + clamp(s.china.meters.theftIntent + (m.theftIntent ?? 0), 0, 100) / 300, 0, 1);
   const cnMid = s.china.lab.core.status === 'active' ? (s.china.lab.intel.misalignBand[0] + s.china.lab.intel.misalignBand[1]) / 2 : 0;
   const theftEst = clamp(pTheft * 0.3 * curve(cnMid), 0, 1);
   out.push({ id: 'theft', label: 'Theft', kind: 'theft', estimate: theftEst, band: [clamp(theftEst / 2, 0, 1), clamp(Math.min(1, pTheft + 0.1) * 0.3 * curve(cnMid) + 0.01, 0, 1)], drivers: [{ label: 'Weight security', share: 0.6 }, { label: 'China intent', share: 0.4 }] });
   out.push({ id: 'rogue', label: 'Rogue copies', kind: 'rogue', estimate: w.loose ? 0.5 : 0.01, band: w.loose ? [0.2, 0.8] : [0, 0.05], drivers: [{ label: w.loose ? 'A copy is loose' : 'No known escape', share: 1 }] });
-  const war = clamp(0.005 + 0.04 * s.china.rung, 0, 1);
+  const war = clamp(0.005 + 0.04 * Math.max(0, s.china.rung + (m.rung ?? 0)), 0, 1);
   out.push({ id: 'war', label: 'War', kind: 'war', estimate: war, band: [war / 2, Math.min(1, war * 2)], drivers: [{ label: 'China posture ladder', share: 0.7 }, { label: 'Taiwan tension', share: 0.3 }] });
+  return out;
+}
+
+/** One lever's what-if on the risk sources (J2 RK1): the change it models and how much it moves each source it
+ *  touches (percentage points of P(catastrophe via that source), negative = safer). */
+export interface RiskLever { id: string; label: string; how: string; mod: RiskMods }
+/** Levers by source kind [D: one plausible step each, so the size of each lever reads on one scale]. */
+export const RISK_LEVERS: Record<RiskSource['kind'], RiskLever[]> = {
+  ownModel: [
+    { id: 'margin', label: 'Understanding +1 level', how: 'safety research lines, validated tools, investigations', mod: { margin: 1 } },
+    { id: 'mis', label: 'Believed misalignment −0.05', how: 'alignment training, fixes from findings', mod: { mis: -0.05 } },
+    { id: 'slow', label: 'Lead −60 days', how: 'a slower release cadence: others are likelier to get there first', mod: { leadDays: -60 } },
+  ],
+  rival: [{ id: 'lead', label: 'Your lead +60 days', how: 'research speed, compute, a new base sooner', mod: { leadDays: 60 } }],
+  china: [{ id: 'lead', label: 'Your lead +60 days', how: 'research speed, compute, export controls', mod: { leadDays: 60 } }],
+  misuse: [
+    { id: 'defence', label: 'World defences +10 pts', how: 'transition fund, defensive deals, world technologies', mod: { defence: 0.1 } },
+    { id: 'flags', label: 'Bio and cyber flags cleared', how: 'a model without the dangerous capabilities, or classifier safeguards that hold', mod: { noFlags: true } },
+  ],
+  theft: [
+    { id: 'wsl', label: 'Weight security +1 level', how: 'security target, siloing, counter-intelligence', mod: { wsl: 1 } },
+    { id: 'intent', label: 'China theft intent −20', how: 'de-escalation, agreements', mod: { theftIntent: -20 } },
+  ],
+  rogue: [],
+  war: [{ id: 'rung', label: 'One rung down the ladder', how: 'track-2 dialogue, loosened export controls', mod: { rung: -1 } }],
+};
+
+/** Engine what-ifs per risk source (J2 RK1): for each lever of the source's kind, the change in its estimate. */
+export function riskLevers(s: GameStateV2): Record<string, { id: string; label: string; how: string; delta: number }[]> {
+  const base = riskSources(s);
+  const byId = new Map(base.map((r) => [r.id, r]));
+  const out: Record<string, { id: string; label: string; how: string; delta: number }[]> = {};
+  const cache = new Map<string, Map<string, number>>();
+  for (const r of base) {
+    out[r.id] = RISK_LEVERS[r.kind].map((l) => {
+      const key = JSON.stringify(l.mod);
+      let alt = cache.get(key);
+      if (!alt) cache.set(key, (alt = new Map(riskSources(s, l.mod).map((x) => [x.id, x.estimate]))));
+      return { id: l.id, label: l.label, how: l.how, delta: (alt.get(r.id) ?? byId.get(r.id)!.estimate) - r.estimate };
+    });
+  }
   return out;
 }

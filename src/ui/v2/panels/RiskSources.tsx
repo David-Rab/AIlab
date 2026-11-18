@@ -1,7 +1,7 @@
 // Risk (IA.md L2): Sources · Flows. Sources is the HOME of risk per source, its band, drivers and levers (estimates
 // from beliefs, intel and exposure; never truth). The combined catastrophe-risk headline lives in the top strip and is
 // not repeated here. Flows is the node map of theft, distillation, talent, chips and open weights.
-import { engine } from '../../../engine/v2';
+import { engine, riskLevers } from '../../../engine/v2';
 import type { GameStateV2, RiskSource } from '../../../engine/v2';
 import { ActBtn, Term, Tip, TipCard } from '../ui';
 import { Card, GoBtn, PanelHead, Ref, tabOf, Tabs, type GoTarget } from '../kit';
@@ -46,6 +46,10 @@ const sevColor = (x: number) => (x > 0.2 ? C.bad : x > 0.05 ? C.watch : C.good);
 
 function Sources({ s }: { s: GameStateV2 }) {
   const rows = [...engine.riskSources(s)].sort((a, b) => b.estimate - a.estimate);
+  // J2 RK1: engine what-ifs, how far one step of each lever moves each source.
+  const levers = riskLevers(s);
+  const pts = (d: number) => `${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(d * 100).toFixed(Math.abs(d) < 0.001 ? 2 : 1)} pts`;
+  const leverRows = (id: string) => (levers[id] ?? []).map((l) => ({ label: <Tip content={() => <TipCard title={l.label}>{`How: ${l.how}.`}</TipCard>}><span>{l.label}</span></Tip>, value: pts(l.delta), tone: (l.delta < -1e-5 ? 'pos' : l.delta > 1e-5 ? 'neg' : 'neutral') as 'pos' | 'neg' | 'neutral' }));
   const max = Math.max(0.05, ...rows.map((r) => r.band[1])) * 1.05;
   const X = (x: number) => `${(Math.max(0, Math.min(max, x)) / max) * 100}%`;
   const ticks = [0, 0.05, 0.1, 0.2, 0.3, 0.5, 0.75, 1].filter((t) => t <= max);
@@ -65,6 +69,8 @@ function Sources({ s }: { s: GameStateV2 }) {
                 <div className="tip-cap">Drivers</div>
                 <div className="stack2">{r.drivers.map((d, i) => <i key={d.label} style={{ flex: Math.max(0.001, d.share), background: DRV_COLORS[i % 4] }} />)}</div>
                 {r.drivers.map((d, i) => <div className="tipcard-row" key={d.label}><span><i className="drv-sw" style={{ background: DRV_COLORS[i % 4] }} />{d.label}</span><span className="num">{F.pct(d.share)}</span></div>)}
+                {(levers[r.id] ?? []).length > 0 && <div className="tip-cap"><Term id="riskLever">What one step moves</Term></div>}
+                {(levers[r.id] ?? []).map((l) => <div className="tipcard-row" key={l.id} data-lever={`${r.id}.${l.id}`}><span>{l.label}</span><span className={`num ${l.delta < -1e-5 ? 'tone-pos' : l.delta > 1e-5 ? 'tone-neg' : ''}`}>{pts(l.delta)}</span></div>)}
               </TipCard>
             )}>
               <span className="rs2-lbl"><Icon size={15} /><span className="ellip"><b>{r.label}</b><span className="dim small"> · {KIND_LABEL[r.kind]}</span></span></span>
@@ -77,8 +83,8 @@ function Sources({ s }: { s: GameStateV2 }) {
               </span>
             </Tip>
             {/* Jank RK1: every risk figure opens its breakdown (drivers, band, what moves it). */}
-            <Tip content={() => <TipCard title={r.label} value={`${F.pct(r.estimate, 1)} (${F.pct(r.band[0], 1)}–${F.pct(r.band[1], 1)})`} rows={r.drivers.map((d) => ({ label: d.label, value: F.pct(d.share) }))} footer={`Levers: ${LEVERS[r.kind].map((l) => l.label).join(' · ')}`}>{KIND_WHY[r.kind]}</TipCard>}>
-              <span className="num rs2-v" style={{ color: sevColor(r.estimate) }}>{F.pct(r.estimate, 1)}</span>
+            <Tip content={() => <TipCard title={r.label} value={`${F.pct(r.estimate, 1)} (${F.pct(r.band[0], 1)}–${F.pct(r.band[1], 1)})`} rows={[...r.drivers.map((d) => ({ label: d.label, value: F.pct(d.share) })), ...(leverRows(r.id).length ? [{ label: <b><Term id="riskLever">What one step moves</Term></b>, value: '' }, ...leverRows(r.id)] : [])]} footer={`Levers: ${LEVERS[r.kind].map((l) => l.label).join(' · ')}`}>{KIND_WHY[r.kind]}</TipCard>}>
+              <span className="num rs2-v" style={{ color: sevColor(r.estimate) }} data-test={`risk-v.${r.id}`}>{F.pct(r.estimate, 1)}</span>
             </Tip>
             <span className="rs2-lev">
               {ref && <Ref id={ref.id} to={ref.to}>{ref.label}</Ref>}
