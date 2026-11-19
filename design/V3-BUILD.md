@@ -992,3 +992,161 @@ P05 and P07 (LATER(V4)) become typed features here.
 Record "V4 notes" and a PROGRESS row; schemaRev bump. **V4b UI**: product cards show cost and price per work-hour,
 margin, capacity, customers stock and its target, features with typed effects; World panel sectors show the work-type
 coverage and cost gate. good-ui skill.
+
+### V4 notes (V4a: engine, calibration, tests; 2026-11-19)
+
+Code: `src/data/v2/serving.ts` (tokens, sector work types, chat, sector reference, markups, elasticity, customer speeds,
+consumer market), `src/engine/v2/worldfx/serving.ts` (cost chain, offers, coverage of sector work, rivals' FLOP per
+token, typed feature effects, subscription price), rewritten `worldfx/mix.ts` (offers, logit target, customer stocks, F
+and K on the mix) and `worldfx/revenue.ts` (hours of use and subscribers × price vs capacity, segmented Auto split);
+`worldfx/sectors.ts` reads F, K and the buyer's cost from the mix; typed `data/v2/features.ts`; `ModelVersion.fpt`;
+schemaRev 16 (migration 15 → 16). Test `scripts/v2/serving.ts` (in `test:v2`).
+
+**V4.0.** Every start queues the five research lines (`data/v2/research.ts DEFAULT_LINES`, RefBot's lines and shares;
+teams wanted ≈ share × capability science teams, ≥ 1) after its safety projects [D]; the starts have no idea in flight on
+day 0 (their earlier work is their known nodes), so "the start's in-progress ideas" is empty. The uitest observation
+(priority-2 line with 0 teams, priority 1 with 6) was the state before the next tick: the assignment ran only in the daily
+tick. The priority-list actions (queue, start, drop, reorder, teams wanted, reopen) now re-run the deterministic
+assignment at once (`tree.ts assignCapNow`). RefBot's queue order and wants are unchanged, so calibration is unchanged
+(T1 identical). Passive games now research (the hygiene/perf and bot baselines move with it).
+
+**The cost chain (V4.2) [R20 D1–D3].** H100e-hours per hour of AI use = FLOP per token (2·N_active × the shape's token
+multiplier × the serving stack at creation, stored as `fpt`) × (uncached input ÷ U_prefill 0.35 + output ÷ U_decode 0.07)
+÷ 1e15 ÷ 3600 (V3's constants); × $ per H100e-hour. Choices:
+- Cost basis = the market rental (owned TCO × 1.6 × (D/S)^0.8), not owned TCO [D]: the opportunity cost of a chip and
+  what most serving pays (cloud); V3's AI cost per work-hour already used it. Owned TCO would put every price ×1/1.6.
+- Demand is in hours of AI use: every adopted task-hour runs the AI (A·E0·2000); it saves α + (1 − α)·g_aug hours
+  (substituted vs augmented, research/16 step 6), so the value of an hour of use = wage × that. Tokens per hour of use =
+  α·autonomous (375k uncached / 62k output per work-hour: a day-long agent task, R20 D2) + (1 − α)·assisted (agentic coding
+  200k/40k for Software and Science, knowledge work 100k/15k elsewhere) [D]: token use per hour rises as agents take
+  whole tasks — the physical capability → revenue link that replaces M^0.3.
+- Price = max(cost, min(markup × cost, value)) [D]: never below cost; above value only when serving costs more than the
+  work is worth (then the cost gate shuts the sale). Tiers: budget margin 0.4 (×1.67), standard 0.6 (×2.5, R20 D3 API
+  gross margin), premium 0.75 (×4). `PRICE_TIERS` is now the markup relative to standard (0.67 / 1 / 1.6). Rivals price at
+  ×2.5, DeepCent ×1.67 (DeepSeek-style), open weights ×1.2 (hosts near cost) [D].
+- Rivals and China have no N_active: N = 1T × 10^((G − G_V0 − 0.55·years since V0)/2) (the reference design scaled by
+  training FLOP; 0.55 OOM/yr = research/12's non-compute G growth), `// BRIDGE(V7)` [D].
+  Their G (read through pm) is capped at the display scale's top (λ 15, the reference ASI point): the simple labs' v2
+  progress runs to hundreds of OOM in a takeoff (China read G 2,301 in the day-900 fixture and took 99% of every market
+  before the cap), which v2 hid behind the capped display level. In a takeoff their N is then oversized (fixed 0.55 OOM/yr
+  of algorithmic progress), so their prices are high: a bridge until V7.
+- Capacity = serving H100e × 8766 ÷ H100e-hours per hour (work-hours a year); revenue = demand $ × min(1, served ÷ need).
+  With cost-plus prices every paid product earns the same per H100e (markup × rental), so the Auto split serves paid work
+  pro rata (segments within 1% tie) and Chat's free users last (they earn nothing) [D].
+- Consumer [D]: weekly users = online adults (US 260M, ROW 2.5B, CN served at home) × reach × customer share; 5% pay a
+  subscription = markup × a paying user's serving cost (30k/8k tokens a day on the product's model), capped at $200/month;
+  free users (1.3k/0.3k a day) run on the product's mini, else its model. Reach* = 0.35 + 0.55 × the best model's
+  coverage of consumer chat.
+- Effort [R20 C3]: reasoning tokens ×0.3 / ×1 / ×4 (low / max / deep), +0.4 OOM of fit per ×10, capped ±1.5. Safeguards
+  and the control layer cost fit at v2's level offsets ÷ 1.2 L per OOM.
+
+**Market and customers (V4.2).** Per segment the logit target ∝ exp(4·(fit − best fit)) × price^−1 × access × brand
+(brand × (1 − capacity erosion) as before). Slope 4 per OOM = v2's 2.1 per level at ≈ 2 levels per OOM [D]. **Price
+elasticity 1.5 → 1 [D, deviation]:** v2's 1.5 acted on a price index of ×0.7–1.4; physical prices span ×2–5 between a
+frontier model and a small one, and frontier models hold large shares at 5–15× the price of small ones (R20 D3 list
+prices); with 1.5 cheaper rivals took the market from a frontier lab whose model was 0.5 OOM better. Customers are a stock
+per (region, segment) moving toward the target with τ = 3 weeks (consumers), 0.25 y (sector work: API months, enterprise
+contracts quarters), 0.75 y (GOV, MIL) [D]; a new provider starts at 0. The player is one provider; its sector demand is
+split over its products by v2's channel weights.
+
+**Sectors on work types (V4.1).** A sector's cognitive work is a work type: research/16's task weights without PHYS
+(renormalised), task length H and verifiability v per sector (R20 E3 classes) [D, `SECTOR_WORK`], horizon on AGENCY
+(CODE for Software). Coverage uses V3's function σ((fit − θ)/0.8) × p(H | h50); the reference is the sector's median
+professional, θ_s = G_V0 + (0.47 + 0.2·θ_R16)·(G_SC − G_V0) + 0.5·(0.9 − v) — 0.47 of the V0 → superhuman-coder span is
+where v2 put the same point (level 7.35 + θ, fitted to research/16's F_SOFT anchors), kept: with it W2, W4 and the
+automation dates land in their bands (below) [fit, unchanged]. F = (1 − w_PHYS)·Σ share·a + w_PHYS·(v2's robot-bound PHYS
+term). Cost gate per provider K = σ(ln(wage ÷ (price per AI work-hour + 0.27·wage·(1 − a)))/0.7) (GDPval review on the
+work the AI cannot do alone), share-weighted; the buyer's cost per AI work-hour feeds employment's CR. The hiring
+baseline ΔF is a pre-LLM model's coverage (0.4 of the span under V0). Consumer chat is a work type (SOCIAL 0.4, REASON
+0.4, MEDIA 0.2; 3 minutes; v 0.5). α, the integration boost, control, techs and the AI-friend share still read the
+share-weighted display levels (as briefed: "stay as they are").
+
+**Typed features (V4.3, MODEL-V3 §7.2).** Memory (P07): horizon ×1.3 on all work + 10% more Chat users; Deep think (P05):
+effort deep; Computer use (P06): enabler, +15% reachable work in Admin, Finance, Legal, Government; Voice & vision:
+enabler, +15% Chat users and Media work; Deep research (P05): scaffold +0.3 OOM on Science, Finance, Legal and internal
+research ideas, ×3 tokens; Coding agent: scaffold +0.3 OOM on Software & IT and internal engineering, ×2 tokens; Companion
+mode: enabler, +20% Chat users; Sector packs: enabler of sector products (a certified pack +0.42 OOM in its sector, v2's
++0.5 L) [D; scaffold sizes below Davidson et al.'s ×5–×30 CEG because 2025 models are already agent-trained]. Enablers
+open a segment only products with them reach (rivals: none, BRIDGE(V7)); scaffolds and horizon extenders apply to the
+internal agents' work types once built (`serving.ts internalFx`: fit for labour and AI taste, × tokens ÷ AI FTE);
+milestones read the model alone. Feature domain-level offsets, appeal and serve multipliers are gone; hazards stay.
+P05's ×1.3 agent throughput and P07's ×1.2 version horizon stay as paradigm effects (TECH-TREE rows updated).
+
+**Removed.** Revenue per H100e = $40K × M^0.3 × (0.5/serveCost)^0.3, the M bridge in revenue and the limits view
+(`revenue.speedCap` → `price.valueCap`), price capture 26% of the wage, the abstract cost curve (60% of W0 at L 5,
+halving per 1.5 levels), consumer spend 6·(L/5)², feature domain offsets. serveCost stays a design readout (relative to
+the reference design at the same FLOP); the monitor overheads read FLOP per token; only the safety fleet's copies still
+read serveCost (BRIDGE(V6)). Lint (serving.ts S7): revenue, mix, serving, sectors, product view and limits view read no
+serveCost, multiplierRef / bridgeQ or v2 price stand-ins; the worktypes lint now allows BRIDGE(V6|V7) only.
+
+**Calibration (RefBot, seed 2027 unless noted; before = V3b).**
+
+| Target | Before | V4a | Band |
+|---|---|---|---|
+| Golden T1 (stub), all presets | in tolerance | in tolerance (ai2027 0.000/+0.022/−0.041/−0.030; authors2026 −0.005/+0.016/+0.044/+0.085; fast −0.003/+0.096/−0.019/−0.096; slow −0.079) | ±0.08 / ±0.12 |
+| T1L leader lab | in tolerance | unchanged | |
+| F11 Jul 2025 run-rate | $14.3B | $14.2B | $12B ± 35% |
+| F7 2026 revenue (finance, 12 seeds) | $27.5B | **$22.4B** | $36–54B |
+| F7/F11 2026 revenue (worldfx, seed 2027) | $42.3B | **$22.8B** | $36–54B |
+| F11 2027 revenue (finance / worldfx) | $102 / $133B | **$18.2 / $19.1B** | $98–182B |
+| F7 valuation end-2026 | $0.35T | **$0.19T** | $1–3T |
+| F7 capex 2026 | $152B | **$138B** | $150–250B |
+| F8 out of distress through 2026 | 58% | **50%** | ≥ 75% |
+| F2 global production 2027 | 45.0M | 46.8M | 45–60M |
+| W2 TFP decade (Agent-1 models, normal) | 0.2% | **0.56%** | 0.5–1% |
+| W4 Nov 2026 (reality): U, youth, firms | pass | +0.00 pp, −16.3%, 20.5% | ≈0, −19 ± 5, 17–20 ± 2 |
+| Hiring SOFT ≤ 10% | pass | 2027.53 | 2027.50 ± 0.25 |
+| AI friend Jul 2027 | pass | 9.7% | 10 ± 3 |
+| Remote work 25% | pass | 2027.95 | 2027.75 ± 0.25 |
+| U +1 pp in 12 months | pass | **2028.01** | 2027.75 ± 0.25 |
+| GOV T1 Accept ≥ 0.85 | 2027-09-08 | 2027-09-09 | Dec 2027 ± 3 mo |
+| Equity 2026 | pass | **−18%** | +30 ± 10% |
+| SEZ + W17 explosive growth | pass | pass (failed at 21% before the simple-lab G cap below) | > 30% |
+
+**Why the finance targets are not met (stop condition, reported, not forced).** With prices at markup × the physical
+cost, a product earns markup × rental × 8766 per serving H100e-year when capacity-bound: $44K at the start's $2.02/h
+rental (v2's $40K RPH_BASE × 1.1: the start is unchanged), $26K at mid-2026's $1.2–1.3 and $13–15K in 2027's glut
+($0.6–0.8). v2's M^0.3 path rose to $55–90K by 2027 (an implied margin of 0.85–0.92). And RefBot is not capacity-bound
+in 2026: demand is. The world's AI spend is hours of use × price; hours of use are pinned by the adoption the sector
+targets need (A ≈ 2% of work-hours, BTOS firm adoption 17–20%, W4 passes), and the price per hour of use is realistic
+($1.7–3.2 at the start vs Claude Code's ≈ $1.6 per developer-hour at list prices), so the 2026 world market is ≈ $50B
+(sector) + $10B (consumer) and the leader's share ≈ 40% → ≈ $20B. AI 2027's $45B (2026) and $140B (2027) need ≈ 2.5× the
+price per hour of use (value pricing at ≈ 10–15% of the wage; v2 used 26%) or ≈ 2.5× the use per adopted task-hour, and
+for 2027 a margin ≈ 0.85 on RefBot's AI 2027 serving share (14–19% of compute). Premium pricing for RefBot was tried
+(scratch): 2026 $18.5B (worse: demand-bound, the share falls with price). The in-spec levers (markups within R20 D3,
+tokens within R20 D2, elasticity) move revenue by tens of percent, not ×2–7; meeting F7/F11 needs either a value-based
+price (contradicts "markup over cost") or a usage multiplier fitted to revenue (the hidden-tuning pattern V4 removes).
+The shortfall cascades: distress (F8), capex, valuation, equity hype and the integrated RefBot (calib, informational:
+authors2026 insolvent before its SC, fast SC +0.57 y; V3b: +0.42 and −0.03). **Decision needed (lead):**
+(a) retarget F7/F11 to the physical economy (≈ real 2025–26 lab revenue: leader ≈ $13B 2025, $20–30B 2026), with WS3's
+capex, valuation and distress targets following; (b) add a value-based price policy (a share of the work's value,
+bounded below by cost) as a player and reference option; or (c) a usage term (hours of use beyond adopted tasks; worker
+surveys put AI use at ≈ 2.5× A's hours) with its own source.
+
+**Price sanity (INFO in serving.ts, not fitted).** API price per million FLOP-bearing tokens (agentic mix, standard):
+$13.3 (Atlas-1.0, mid-2025) → $17.1 (early 2026, rental up) → $8.0 (Atlas-2.3-mini, mid-2026) → $4.8 (early 2027). A fixed
+capability (V0's G) gets ×3.6 a year cheaper (algorithmic progress shrinks the model needed, ×1.9/yr, and the rental
+falls); R20 D3: ≈ ×10/yr (×9–×900), so the decline is at the slow end — rivals' algorithmic progress is the bridge's fixed
+0.55 OOM/yr (V7 gives rivals real designs).
+
+**Performance.** Same state, same days (the V3b day-400 fixture migrated, 200 days): +15% per tick (mix ≈ 0.7 ms,
+revenue ≈ 0.2 ms). The passive seed-9 game is +20–30% (V4.0 research, distress path). hygiene's perf checks fail on this
+machine today (daily 4.0 ms vs 1.5; the V3b baseline run had 0.89 ms on the same check), but the V3b code itself
+measured 2.3–2.4 ms/day on the passive game today against 1.16 earlier: machine load dominates the absolute numbers.
+
+**Readouts for V4b (engine values exist: `revenueReadout` deps, `productReadouts`, `worldMix`, `priceView`).**
+- Product card: cost and price per hour of use (Chat: per subscriber-month) and margin; share sold at the value cap;
+  hours asked vs servable (capacity in work-hours); H100e need / served / cut, paid vs free users; customers (Chat users
+  and subscribers from the stock; sector products the player's stock share per sector) and the logit target they move
+  toward, with τ; features with their typed effects (ΔG, × h50, × tokens, segment share); effort's ΔG and token
+  multiplier; the price tier as a markup (margin %).
+- Per sector (World panel): the work type (weights, H, v), each provider's coverage and the share-weighted F, θ (median
+  professional) vs the best offer's fit, the cost gate K (price per AI work-hour + review vs wage), prices by provider,
+  the customer stock vs target, tokens per hour of use (α mix).
+- Market: providers' fit, coverage, price and FLOP per token (rivals' is a bridge: say so).
+- Retire: revenue per H100e "× M^0.3" and the research-speed cap row; "price ×1.4" tier text (done minimally in V4a).
+
+**Open issues.** The finance targets (above). U +1 pp lands 2028.01 (band ends 2028.0) and GOV T1 Accept 2027-09-09
+(band opens 2027-09-15; failing before V4 too). Hygiene perf on today's machine. The rival FLOP-per-token bridge (V7).
+Consumer reach and the AI-friend share are US numbers applied to ROW. α and the integration boost still read display
+levels.

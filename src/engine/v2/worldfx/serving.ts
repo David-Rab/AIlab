@@ -24,7 +24,8 @@ import { REFERENCE_BASE, PARAM_RANGE, SHAPE } from '../../../data/v2/runDesign';
 import { V0_DAY } from '../../../data/v2/calibration';
 import { ASSIST, COVER, PEAK_FLOPS, U_DECODE, U_PREFILL, type WorkTypeId } from '../../../data/v2/workTypes';
 import { dollarsPerH100eHour, domainG, flopPerToken, pSuccess } from '../departments/workfit';
-import { gV0, h50Of } from '../models/capability';
+import { gV0, h50Of, levelKnotsG, playerStart } from '../models/capability';
+import { B_G_PER_Y } from '../../../data/v2/runDesign';
 import { versionById } from '../models/labs';
 import { activeFeatures } from '../models/products';
 import type { Deployment, DomainId, GameStateV2, ModelVersion, RegionId, SectorId, SimpleModel, TimelineWorld } from '../types';
@@ -108,6 +109,15 @@ export function fptOfG(s: GameStateV2, G: number, day: number): number {
   const dAlgo = RIVAL_ALGO_OOM_PER_YEAR * Math.max(0, (day - V0_DAY) / 365);
   const N = Math.min(PARAM_RANGE[1], Math.max(PARAM_RANGE[0], REFERENCE_BASE.params * Math.pow(10, (G - gV0(s.hidden.timeline) - dAlgo) / 2)));
   return 2 * N * SHAPE[REFERENCE_BASE.shape].tokenMult;
+}
+/** A rival's or China's model as the market sees it (BRIDGE(V7)): its G read through pm (gOfPm), capped at the display
+ *  scale's top (λ = 15, the reference superintelligence point) — the simple labs' v2 progress runs to hundreds of OOM in
+ *  a takeoff, which the capped display level hid. */
+export function marketModel(s: GameStateV2, m: SimpleModel): SimpleModel {
+  const w = s.hidden.timeline;
+  const k = levelKnotsG(w);
+  const pmCap = playerStart(w).target + (k[k.length - 1] - gV0(w)) / B_G_PER_Y;
+  return m.pm > pmCap ? { ...m, pm: pmCap } : m;
 }
 /** FLOP per token of a rival's or China's public model (BRIDGE(V7)). */
 export const fptOfSimple = (s: GameStateV2, m: SimpleModel) => fptOfG(s, domainG(s, m, 'CODE'), m.day);

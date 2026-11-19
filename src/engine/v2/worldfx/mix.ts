@@ -23,7 +23,7 @@ import { sigmoid, techRamp } from './policy';
 import { productDomains } from '../models/products';
 import { flopPerToken } from '../departments/workfit';
 import {
-  CHINA_MARKUP, RIVAL_MARKUP, effortTokens, enablerShare, fptOfSimple, fxOn, markupOf, offerOf,
+  CHINA_MARKUP, RIVAL_MARKUP, effortTokens, marketModel, enablerShare, fptOfSimple, fxOn, markupOf, offerOf,
   productFx, productOffer, productUses, savedPerUseHour, serveDollarsPerHour, settingsDG, subPrice, valuePerHour, wagePerHour, type Offer,
 } from './serving';
 
@@ -236,10 +236,10 @@ function computeMix(s: GameStateV2): WorldMix {
   for (const r of s.rivals) {
     const m = r.publicModel;
     if (!m || (r.core.status !== 'active' && !m.openWeights)) continue;
-    providers.push({ key: r.core.id, lab: r.core.id, paid: false, open: m.openWeights, dom: m.domains, model: m, brand: r.core.status === 'active' ? 1 : 0.5, appeal: 1, markup: m.openWeights ? OPEN_MARKUP : RIVAL_MARKUP });
+    providers.push({ key: r.core.id, lab: r.core.id, paid: false, open: m.openWeights, dom: m.domains, model: marketModel(s, m), brand: r.core.status === 'active' ? 1 : 0.5, appeal: 1, markup: m.openWeights ? OPEN_MARKUP : RIVAL_MARKUP });
   }
   const cn = s.china.lab.publicModel;
-  if (cn && (s.china.lab.core.status === 'active' || cn.openWeights)) providers.push({ key: CHINA_ID, lab: CHINA_ID, paid: false, open: cn.openWeights, dom: cn.domains, model: cn, brand: 1, appeal: 1, markup: cn.openWeights ? OPEN_MARKUP : CHINA_MARKUP });
+  if (cn && (s.china.lab.core.status === 'active' || cn.openWeights)) providers.push({ key: CHINA_ID, lab: CHINA_ID, paid: false, open: cn.openWeights, dom: cn.domains, model: marketModel(s, cn), brand: 1, appeal: 1, markup: cn.openWeights ? OPEN_MARKUP : CHINA_MARKUP });
   for (const p of providers) if (p.model && !p.fpt) p.fpt = 'baseId' in p.model ? flopPerToken(s, p.model) : fptOfSimple(s, p.model);
 
   const pfFloor = 10 * techRamp(s, 'W16');
