@@ -778,6 +778,8 @@ await page.evaluate(() => {
   s.flags.paused = true;
   const inc = s.player.safety.incidents.find((i) => i.status === 'open');
   if (inc) { inc.exposure = 'customer'; inc.publicTimerDays = 9; }
+  // A capacity-bound product (model v3 V3: the day-900 fixture's serving is no longer short).
+  for (const k of ['consumer', 'sector']) if (s.world.fx.capPenalty[k] < 0.01) s.world.fx.capPenalty[k] = 0.2;
   st.notify();
 });
 await closeModals();

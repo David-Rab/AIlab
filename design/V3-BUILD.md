@@ -13,7 +13,7 @@ can find every use.
 
 | Bridge | Defined in | Meaning | Removed in |
 |---|---|---|---|
-| `pm` of a version / base | V1 | Φ(G): the old progress coordinate computed from effective compute, so the production function, milestone thresholds, M-based readouts, rivals and safety keep working | V3 (work types, milestones), V6 (safety M), V7 (rivals) |
+| `pm` of a version / base | V1 | Φ(G): the old progress coordinate computed from effective compute, so the production function, milestone thresholds, M-based readouts, rivals and safety keep working | V3 for the player's research and milestones (done: departments/workfit.ts); still the display level λ(G) = levelOf(Φ(G)), V6 (safety M), V7 (rivals) |
 | `e_stack` from know-how `pa` | V1 | stack efficiency (OOMs) = E_PER_PA × (pa − pa₀) until ideas exist | V2 |
 | `serveCost` (0.5 = reference) | V1 | relative serving cost from FLOP per token, so revenue and agents keep working | V4 |
 | fixed eval days | — | evals stay as today | V5 |
@@ -547,6 +547,188 @@ or a new lint): no player mechanism reads `frontierFlop`, `hRef`, `refTotal`, `s
   conflicts with the calibration.
 
 Record choices in "V3 notes", add a V3 row to PROGRESS.md with the calibration table; schemaRev bump.
+
+### V3 notes (2026-11-19)
+
+Code: `src/data/v2/workTypes.ts` (work types, AI-labour constants, per-preset calibration), `src/engine/v2/departments/
+workfit.ts` (fit, horizon, coverage, assist, copies, effective labour, taste, milestones, the research-speed readout),
+`models/research.ts` (project CES, pools), `models/stacks.ts` (tuning). Tests `scripts/v2/worktypes.ts`.
+
+**Derivation 1: diminishing returns from r (V3.4), written before coding.**
+AI Futures (research/13 §2.1, §2.5): software efficiency SE = r·log₁₀(RS/RS₀) with dRS/dt = RE (research effort). In the
+game each line l is a pool. Its state is R_l = n₀,l + (research input of the results it has produced so far), in units of
+one reference idea (one idea found by a reference-taste team; an idea's input is q = its team's taste T, and a batch of
+b ideas has input b·q). Give the result that brings input q to a pool at state R the prior mean
+
+  μ(R, q) = r_l · log₁₀((R + q) / R)      (OOM of the line's stack).
+
+The sum over successive results telescopes exactly: Σ μ = r_l·log₁₀(R_end / n₀,l), so the line's stack is r_l·log₁₀ of its
+cumulative research input, and doubling that input adds r_l·log₁₀2 OOM whatever the history (the constant-input check). For
+q ≪ R, μ ≈ r_l·q / (R·ln 10): the brief's harmonic r/((n₀ + n)·ln 10) with n counted in reference ideas, so the sum
+diverges as log n (progress never stops, it gets harder) and taste enters as more research input per idea (AIFM: RE =
+taste × experiment capacity accumulates into RS). Lab level: r_l = w_l·r with Σ w_l = 1 over the lines that carry G (the
+line's share of the lab's start software progress), so a lab that grows every line's input together has SE_total =
+r·log₁₀(RS/RS₀), AIFM's law. n₀ comes from the start rate: the first idea's mean μ₁,l (the start effect per idea, fitted to
+Ho et al.'s ≈ 0.48 OOM/yr pretraining rate at the leader's day-0 inputs) gives n₀,l = 1/(10^(μ₁,l/r_l) − 1) ≈ r_l/(μ₁,l·ln 10).
+Check: the pool age n₀/I_l (I_l = the line's start ideas per year) = w_l·r/(rate_l·ln 10) ≈ r/(S₀·ln 10) when w_l is the
+line's start share of the software rate S₀; at r 3.2 and S₀ ≈ 1 OOM/yr that is 1.4 years of start effort, AIFM's
+RS/RE ≈ 1/0.72 yr (research/13 §2.5). Ideas and axes (one-off projects) keep their own priors (no pool). r per preset is the
+preset's AI Futures value (below), not fitted.
+*Correction found while building (the first takeoff probe):* advancing the pool by the research input q telescopes the
+PRIOR, but the lab pursues the best of its candidates and keeps only those that survive the scale test, so realised effects
+ran 2.2× the prior before SC and 3.3× in the takeoff. That multiplied the effective r and turned authors2026's taste-only
+phase (r·log₁₀ m2b/Δ_bm < 1) into an accelerating one. The pool's state therefore follows what the line delivers: a result
+with true effect x (OOM at its test scale) moves R ← R·10^(x/r_l). The realised stack is then exactly r_l·log₁₀(R/n₀); the
+expected step is R → R + f·q (f the selection factor), so against cumulative research input Q the stack is
+r_l·log₁₀(1 + f·Q/n₀) and each doubling of Q adds r_l·log₁₀2 once f·Q ≫ n₀ (the constant-input check, now on the realised
+stack). Selection only changes how fast a pool ages (the effective n₀ is n₀/f), not the returns; the prior a candidate
+shows stays r_l·log₁₀((R + q)/R).
+
+**Derivation 2: milestones from work types (V3.5), written before coding.**
+Fit F_w of a version in work type w is measured in effective compute (OOM): F_w = Σ_d ω_w,d · G_d + offsets, G_d the
+version's domain effective compute (MODEL-V3 §2.3; = G for the reference recipe, so only training choices specialise) plus
+its level offsets converted at LEVEL_PER_OOM (1.2 L per OOM, V2's conversion) and, with Learned research taste (P19),
++0.42 OOM on RSCH (the size of v2's RSCH −0.5 L penalty; the reference points are set for a lab without P19).
+Deviation from "fit level L_w = Σ ω L_d": L_d = λ(G_d) reads the display bridge levelOf(Φ(G)), whose thresholds move with
+CAL_SHIFT; measuring fit in G keeps the player's milestones off the bridge (they never read pm). The UI can show λ(F_w).
+Human reference points are per domain, on the same axis: the best human in the world at G*_d = G_SC + δ_d and the median
+expert at G*_d − Δ_bm, so a work type's reference points are F*_w = Σ ω·G*_d and F*_w − Δ_bm. AI research taste in human
+SDs is sd_AI = 3.09·(F_IDEAS − F^med_IDEAS)/Δ_bm (median 0 SD, best in the world 3.09 SD = AIFM's top researcher). Then, as
+AI 2027 and AIFM define them (research/13 §2.4, §2.8):
+- Superhuman coder (SC): SWE fit ≥ F*_SWE, SWE coverage ≥ 0.9, AI cost per work-hour below the lab's best engineers'.
+  δ_CODE = δ_AGENCY = 0, so F*_SWE = G_SC: G_SC is the effective compute a superhuman coder needs (the timelines model's
+  own parameter).
+- Superhuman AI researcher (SAR): the same for EXP and IDEAS. δ_RSCH = δ_REASON = (1 − sd_SC/3.09)·Δ_bm with sd_SC = 0.5 SD,
+  AIFM's AI taste at the automated coder (research/13 §2.2), so the reference model's taste at SC is 0.5 SD and SAR is
+  IDEAS at 3.09 SD. EXP (CODE, RSCH, AGENCY) reaches its best human in between.
+- Superintelligent AI researcher (SIAR): IDEAS fit ≥ F*_IDEAS + 2Δ_bm, i.e. 3 × 3.09 = 9.27 SD, AIFM's SIAR exactly.
+- Superintelligence (ASI): every cognitive work type ≥ its best human + 2Δ_bm. The five internal work types share the
+  research domains, so ASI needs the work AI is worst at: an "other expert work" type (SOCIAL, MEDIA, BIO,
+  CYBER; defined now as the V4 sector placeholder) whose domains' best humans sit δ_O above the research domains. δ_O =
+  1.7·Δ_bm from AI 2027's own taste at ASI (14.5 SD vs SIAR's 9.6 SD, research/13 §1.5; AIFM ASI 12–15 SD).
+Milestones fire in order (a later one is recorded no earlier than the one before). Agent / Reliable agent / Research agent
+(informational) are SWE coverage 0.1, SWE coverage 0.5, EXP coverage 0.5 [D].
+Per preset: G_SC and Δ_bm (AIFM's "AI research taste slope": 3.09/Δ_bm SD per OOM; range 0.8–6.6 SD per progress-year)
+are fitted; r, La, ρc, λ, m2b come from the preset's sources. Δ_bm also sets the takeoff's shape: with taste ∝
+m2b^(sd/3.09) and SE = r·log₁₀ RS, the AIFM condition for an accelerating takeoff is r·log₁₀(m2b)/Δ_bm > 1.
+
+**Choices and deviations (V3.1–V3.6)**
+- Work types (`data/v2/workTypes.ts`) [D]: SWE (CODE 0.7, AGENCY 0.3; 2 h; v 0.9), EXP (CODE 0.4, RSCH 0.4, AGENCY 0.2;
+  8 h; v 0.7), IDEAS (RSCH 0.7, REASON 0.3; 40 h; v 0.3), SAF_EXP (CODE, RSCH; 8 h; v 0.5), SAF_IDEAS (as IDEAS; 80 h;
+  v 0.2) and OTHER ("other expert work": SOCIAL, BIO, CYBER, MEDIA; 8 h; v 0.4) as the V4 sector placeholder ASI needs.
+- Horizon: h50 = 203 min (METR TH1.1, GPT-5, Aug 2025 = V0) × 4.2^(G_d − G_V0) on CODE (software) or AGENCY, × the
+  version's horizon multiplier (P07, P12, long-horizon RL focus, kept). R20 E3's 10^(−2(0.9 − v)) domain factor is not
+  used: the brief puts computer-use's shorter horizons in the domain weights, and verifiability in θ_w.
+- Coverage a_w = σ((F − θ)/0.8) × p(H_w), θ_w = F*_w − 0.8·ln 19 + 0.5·(0.9 − v_w) [D]: 0.95 of the logistic at the best
+  human's fit for verifiable work; the 2025 frontier's SWE coverage ≈ 0.15–0.2 (Anthropic "fully delegable 0–20%", AIFM
+  2025.0 A = 0.10).
+- Win rate w = Φ((F − F^med)/3 OOM) (GDPval Aug 2025 ≈ 0.35) and assist 1/(1/90 + 0.27 + 1 − w) ≥ 1 on the human share.
+- AI labour (physical): FLOP per token = 2·N_active × shape token multiplier × serving efficiency vs its base; per human
+  work-hour of agentic work 200k uncached input tokens at prefill utilisation 0.35 and 40k output at decode 0.07 (R20 D1,
+  D2: cache reads are bandwidth, not FLOP) → ≈ 0.63 H100e-hours per work-hour for a 1T-active model; FTE on a 2,000-hour
+  year; copies = work-hours per hour ÷ serial speed (60 tokens/s per copy ⇒ 5.4×, cap 50). P05 ×1.3, P20 ×(1 + 0.1·payoff)
+  and the AG07 control tax ×0.95 multiply AI FTE. Sanity check vs AI 2027 at SC in T2 (informational).
+- Effective labour: AI Futures coding CES (ρc, λ from the preset) of human team-equivalents × assist and AI team-
+  equivalents at coverage a_w; its ratio to the humans, m_w, multiplies every allocation of that role (agents add capacity
+  to the same allocations, MODEL-V3 §5.6). Research engineers' run operations need ÷ m_EXP. RE_PER_PROJECT stays 2 human
+  team-equivalents.
+- Research in fixed physical units: a unit project = RE_UNIT (2) research-engineer team-equivalents and C_UNIT
+  = 3.6e23 FLOP/day (the leader's day-0 experiment FLOP per 2 of its research teams); X(c, ℓ) of the preset's CES, rate
+  √2/30 team-months a day at X = 1 (V2a's pace-1 rate, so stage efforts keep their V2a values). Experiment FLOP (pool +
+  idle training, × training-throughput stack × P13) is shared by the projects in experiments and tuning in proportion to
+  their research engineers and consumed while they run: no FLOP need per stage, no ÷ pace. Without FLOP, X = 0 (ρ < 0).
+  Tuning closes headroom at TUNE_K × its team-equivalents × X. Lines batch b = ⌊X/30⌋ ideas.
+- Ideation: (m_IDEAS × capacity)^λ × taste ÷ effort (as briefed). Taste: each team's E[max(T_team, F_AI)] on the AIFM
+  lognormal (m2b of the preset), team quality at −0.5 / 0 / +1 SD (Solid / Strong / Elite) [D], stars ×1.05 each, AI
+  taste from the frontier-research model's IDEAS fit, weighted by its cover (frontier share ÷ the 15% default, max 1). For
+  lines taste is research input per idea (it raises the prior through the pool); for one-off ideas a lift
+  1 + 0.5·(1 − 1/T) (×1.5 at most); belief noise ÷ T (V2a ÷ q²; AI taste reaches 30–200).
+- Returns: lines are pools (derivation 1, with the realised-effect correction); r_l = rShare × r with rShare [D] L.scale
+  0.22, L.data 0.13, L.opt 0.13, L.env 0.35, L.rlalg 0.17 (sum 1, the G-carrying lines' start shares), L.latent 0.22 (a
+  fresh pool), L.infer 0.15 (serving). LINE_FIT.mu 0.58 → 0.69 (`--fit-lines`: the pretraining stack 0.48 OOM in the first
+  year, Ho et al.; the V1-bridge target and V2a's β fit are gone). r per preset from sources: ai2027 4 and fast 4 (AI 2027
+  takeoff median), authors2026 3.19 (AIFM golden), slow 1.2 (Forethought central).
+- Readout M = research speed ÷ the same lab with humans only (X(c̄, m_EXP^λ)/X(c̄, 1) × taste with AI ÷ without ×
+  siloing/migration), AIFM's AI R&D multiplier; `rate` (BRIDGE(V7), the lead readers) = the stacks' G-equivalent growth
+  (14-day average) ÷ B; stage 2 after the player's SC; what-ifs, ceilings and elasticities from the same function. Inputs h,
+  k, c are in leader-day-0 units (not a reference path); the UI keeps its shapes.
+- The auto research mix maximises a unit project's X: before SC the AI multiplier saturates on very little agent compute
+  (the human share binds), so the reference lab puts ≈ 99% of its research compute on experiments (agents ≈ 0.1% of
+  compute in 2025–26, up to ≈ 12% after SAR).
+- Milestones: any live version meeting the work-type statement counts; recorded in order. Cost criterion: AI $/work-hour
+  (H100e-hours per work-hour × the market rental) < Elite engineers' pay ÷ 2,000 h (never binding in the presets).
+- P19 (LATER(V3) → wired): +0.42 OOM RSCH for work fit (the old −0.5 L penalty's size); the reference points are for a
+  lab without it, and the display level keeps v2's penalty until P19. In seed 2027 P19 fails in every preset, so the
+  calibration is at the no-P19 profile. P13 multiplies experiment FLOP, P20 and P05 AI FTE, P24 still reads wH.
+- Build capacity = max(human team-equivalents, effective SWE labour), no cap; product and monitor upkeep × 0.4 [D] (J2
+  tuned them to v2's ×4.7 AI speed-up from AI 2027's automation knots; at physical 2025 coverage the start lab's upkeep
+  alone was twice its capacity). Run setup and operations engineering scale with √(FLOP ÷ 1e27) (physical; v2: FLOP ÷
+  F(t)); licensed-data cash ∝ √(FLOP ÷ 1e27). TrainingRun.scale stays only for S5 and scrutiny (BRIDGE(V6,V7)).
+- Readouts that read F(t) now read the lab's own next base (3 × the latest base): next-model gate, data adequacy.
+- Safety agent fleet: AI FTE per H100e × SAF_EXP coverage (BRIDGE(V6)). Safety's M (versionM), revenue's M^0.3 and the
+  limits view's revenue cap keep the pm bridge (BRIDGE(V4/V6)); rivals, China and the leader lab keep knots, CAL_SHIFT,
+  simpleCredit and LEADER_CAL unchanged (BRIDGE(V7)), so T1L, T3 and T4 are as in V2a.
+- Removed for the player: knotAt / A(q) / R(q) / Tref, multiplierAt and laborSlowdown in production, referenceTech and
+  REF_TECH, the h/hRef/refTotal/shareRefAt normalisations, researchPace, headcountNorm, researchHeads,
+  REF_RE_RESEARCH_SHARE, project FLOP ÷ pace, LINE_DECAY, aEngOf, BUILD_AI_CAP, SCI_AI_CAP, the reference-headcount term
+  of τ_h, CAL_SHIFT-based milestones. Lint: scripts/v2/worktypes.ts (forbidden identifiers outside the harness, rivals,
+  split presets and BRIDGE(V4|V6|V7) lines; the work-type layer never reads pm or the level bridge).
+
+**Calibration (V3.7; table in PROGRESS.md V3)**
+- Fit order: LINE_FIT.mu to Ho et al. (`--fit-lines`), then per preset `--fit-v3`: for each Δ_bm on a grid and a
+  golden-section refinement, G_SC by bisection on the golden SC day; the pair with the smallest worst |Δ|/tolerance over
+  SC … ASI. slow fits G_SC only (its golden has SC alone; Δ_bm kept at 1.6).
+- Results (RefBot, stub, seed 2027, Δ in years): ai2027 G_SC 31.394, Δ_bm 1.933: SC 0.000, SAR −0.052, SIAR −0.041,
+  ASI +0.016. fast 32.663 / 0.347: −0.003, +0.096, +0.008, −0.066. slow 35.505: SC −0.074. authors2026 33.5 / 3.142:
+  SC 0.000, SAR +0.551, SIAR +0.005, ASI −0.378 (**out of tolerance, stop condition**). T1L unchanged (rivals still on
+  pm). The fitted Δ_bm correspond to AIFM taste slopes of 1.6 (ai2027), 8.9 (fast), 1.0 (authors2026) SD per OOM.
+- Checks: pretraining stack 0.47 OOM/yr in the first year (ai2027; authors2026 0.41, fast 0.41, slow 0.32; Ho 0.48 ±
+  30%); research speed at start M 1.01 (×1.23 the leader's day-0 research speed once the auto mix moves compute to
+  experiments); METR h50 doubling 3.0 months 2025.5–2027.0 (**miss**, 4.2 ± 1): RefBot's G grows ≈ 1.7 OOM/yr in that
+  window (V0's RL sits short of its ceiling, the first base catches up; the 2026 AI speed-up) and Long context + memory
+  (P07, adopted on day 66) multiplies the horizon ×1.5; without P07 it is 3.4 months. The frontier G path stays on
+  research/12's anchors (29.1 at 2026.0).
+- **Why authors2026 does not fit with two parameters.** Its golden dates come from AI 2027's takeoff integrator on the
+  AIFM gaps: 1.5 human-years SC → SAR, then 101 and 1,340 (ai2027: 4.2, 16, 49.5). In the work-type model the three gaps
+  are fixed fractions of Δ_bm (SAR 0.84·Δ_bm above SC, SIAR 2·Δ_bm more, ASI 1.7·Δ_bm more), so one Δ_bm cannot give a
+  short first gap and long later ones: a Δ_bm long enough for SAR → SIAR → ASI (≈ 3.1) puts SAR 0.55 y late; one short
+  enough for SAR (≈ 1.8) runs SIAR and ASI 1.2–3.3 y early. The AIFM's own uncertain "AI taste at the automated coder"
+  (sd_SC, 0.5 SD here from its median) is the parameter that sets the first gap independently: probes with it per preset
+  (scratch, not shipped) give authors2026 SC 0.00 / SAR +0.09 / SIAR −0.32 / ASI −0.05 at (Δ_bm 3.5, sd_SC 1.5) and
+  0.00 / −0.06 / +0.29 / +1.53 at (4.0, 2.0), so a third per-preset value around (3.7, 1.7) should bring all four inside.
+  That exceeds the brief's "G_SC and at most one more", so it is reported, not done. (V2a's authors2026 miss was the
+  same shape, SAR/SIAR early and ASI late through the M bridge; with the realised pools the remaining miss is the
+  milestone spacing, not the research mechanics.)
+- slow's V2a problem (CAL_SHIFT −1.5) is gone: its G_SC is one number on the same axis (35.5 vs ai2027's 31.4) and its
+  research slows physically (r 1.2, compute 1.6×/yr after 2028).
+
+**Readouts for the UI phase (V2b; engine functions exist, the panels do not show them yet)**
+- Per work type (workfit.ts `workFit`, `refPoints`): the model's fit (OOM; λ(F) as a level), the best human's and the
+  median expert's points, coverage a_w, h50 / h80 and p(H_w), win rate, assist ×; the distance to each milestone criterion
+  (fit − best, coverage vs 0.9, AI vs best-engineer cost per work-hour), per live version (`versionMilestones`).
+- Per internal use (`workContext().slots`): H100e, FLOP per token, H100e-hours per work-hour, copies and serial speed, AI
+  FTE and team-equivalents, effective labour L and its multiplier m on the role's teams, the humans' share wH.
+- Taste: AI research taste sd_AI and cover φ; each team's taste and each project's (`sciOn`).
+- Per project (`research.last.x`, `reProj`, the project state): experiment compute c and labour ℓ (leader day 0 = 1), X
+  and whether compute- or labour-bound, FLOP per day used, research engineers, stage work and rate (ETA), batch b; for
+  lines the pool (R/n₀, the line's realised OOM r_l·log₁₀(R/n₀), the next idea's prior) and the research input Q.
+- Lab: research speed vs the leader's day 0 (`researchSpeedRel`), the AI multiplier M and its parts, the software rate
+  (`research.gRate`), the auto research mix (experiments vs agents; before SC it puts ≈ all research compute on
+  experiments: say why), build capacity split into humans and AI.
+- Removed readouts to retire in the UI: "×N the reference lab" ratios (now leader-day-0 units), the ηmod clamp line, the
+  frontier-methods ratio, the ×10 build cap.
+
+**Open issues**
+- authors2026 SAR and ASI (above); METR doubling 3.0 months (above).
+- The display level λ(G) = levelOf(Φ(G)) still spaces levels by v2's human-year gaps: at the player's work-type SC the
+  displayed level of the reference recipe is 9.3 (ai2027), 7.9 (authors2026), 9.9 (fast) and at SAR 10.5 / 11.5 / 12.0
+  (v2: 10 and 12; SIAR ≈ 12.0–12.2, ASI ≈ 12.3 instead of 13.5 and 15), which shifts every level-gated rule (safety S5, U vs L,
+  the safe bot's win rate 42.5%, tutorial acts, measured-level milestone notices). Rebuilding λ on the work-type reference
+  points (V5 evals or V6 safety) is the fix; CAL_SHIFT cannot do it alone (one shift, three gaps).
+- The passive player is no longer ousted early in seed 9 (hygiene average); not investigated beyond the per-day cost.
+- Engineering at the start is tight (capacity 5.4 vs load 4.6 team-weeks/week for the leader start) after the upkeep
+  retune; follower starts not rechecked.
+- SAF_EXP / SAF_IDEAS are defined but consumed only through the safety fleet's FTE (V6).
 
 ---
 
