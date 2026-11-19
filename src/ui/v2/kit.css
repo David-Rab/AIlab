@@ -94,6 +94,13 @@ body.v2 .term { color: #bcd8ff; border-bottom: 1px dotted #5aa9ff; cursor: help;
 .act-col { display: inline-flex; flex-direction: column; gap: 2px; }
 .act-btn.is-off { border-style: dashed; color: var(--text-3); background: transparent; }
 .act-reason { font-size: 11px; color: var(--text-3); max-width: 260px; white-space: normal; }
+/* FIN3a: the board's vote on a major decision, seat by seat */
+.vote-strip { display: inline-flex; align-items: center; gap: 3px; font: 11px var(--mono); white-space: nowrap; }
+.vote-seat { position: relative; display: inline-grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; border: 1.5px solid var(--line-2); }
+.vote-seat.yes { border-color: var(--good); color: var(--good); background: rgba(80,200,140,.12); }
+.vote-seat.no { border-color: var(--bad); border-style: dashed; color: var(--bad); }
+.vote-seat i { position: absolute; right: -6px; bottom: -5px; font: 700 8.5px var(--mono); font-style: normal; color: var(--text-2); }
+.vote-strip b { margin-left: 3px; font-weight: 600; }
 
 /* option tiles */
 .otile { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; text-align: left; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 7px; padding: 6px 9px; color: var(--text); cursor: pointer; min-width: 0; font: 12.5px var(--sans); }

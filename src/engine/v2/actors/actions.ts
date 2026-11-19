@@ -31,7 +31,6 @@ interface Spec {
   available?(s: GameStateV2): boolean | string;
   preview(s: GameStateV2, p: P): Preview;
   apply(s: GameStateV2, ctx: SystemCtx, p: P): void;
-  boardVector?: [number, number, number, number];
 }
 
 function def(x: Spec): ActionDef {
@@ -49,7 +48,6 @@ function def(x: Spec): ActionDef {
       x.apply(s, ctx, p);
       ws4(s).actionDay[x.id] = s.time.day;
     },
-    ...(x.boardVector ? { boardVector: x.boardVector } : {}),
   };
 }
 

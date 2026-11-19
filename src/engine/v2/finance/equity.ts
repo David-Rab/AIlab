@@ -5,6 +5,7 @@ import type { GameStateV2, Money, Ownership, RepricedRound, SystemCtx, Thesis } 
 import { ensureWs3, yearStats, type PendingRound } from './ext';
 import { bookCash } from './ledger';
 import { resizeCreditLine } from './debt';
+import { boardMood, MOOD_BASE } from './mood';
 import { addPromise, credMult } from './promises';
 
 /** V = 22·(g/5)^0.4·(R/$20B)^−0.15·H·N·M·R (R15 §1.5). */
@@ -157,7 +158,7 @@ export function bookRound(s: GameStateV2, ctx: SystemCtx, amount: Money, pre: Mo
   yearStats(s).equity += now;
   if (down) {
     // FIN2 (spec §0.3, §2.5): no staff attrition; the board and prior holders carry the down round.
-    ctx.bump('board.confidence', -15, 'down round');
+    boardMood(s, ctx, 'setbacks', MOOD_BASE.downRound, 'down round');
     // Anti-dilution: prior investors receive shares worth 20% of the value gap [R15 Design].
     const gap = (lastPostMoney(s) - pre) / Math.max(1, lastPostMoney(s));
     issue(f.ownership, Math.min(0.1, 0.2 * gap * outsideShare(f.ownership)), { kind: 'fin' });
@@ -185,7 +186,7 @@ export function closePendingRound(s: GameStateV2, ctx: SystemCtx): void {
   const over = Math.max(0, r.ask / Math.max(0.01, r.max) - 1);
   if (over > 0 && !ctx.rng('finance').chance(Math.exp(-over))) {
     ctx.log('finance', `The $${r.ask.toFixed(0)}B round failed to close: the ask was ${(over * 100).toFixed(0)}% above what investors would take.`, 2);
-    ctx.bump('board.confidence', -5, 'failed raise');
+    boardMood(s, ctx, 'setbacks', MOOD_BASE.failedRaise, 'failed raise');
     return;
   }
   // The term sheet (pre-money when the round opened) protects the price if the quarterly mark dips (M4), unless it

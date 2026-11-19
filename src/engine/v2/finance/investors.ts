@@ -11,6 +11,7 @@ import { closePendingRound, valuationNow } from './equity';
 import { defaultCapitalWS3, ensureWs3, yearStats } from './ext';
 import { commitmentsPerYear, bookCash } from './ledger';
 import { judgePromises, recordThesisHist } from './promises';
+import { boardMood, MOOD_BASE } from './mood';
 
 /** Capital markets at Jul 2025. A_t = 4.0·R_sector·H·M(y10)·W with R_sector = private frontier-lab run-rates. */
 export function initialCapital(rSector: number): CapitalMarkets {
@@ -243,7 +244,7 @@ export const capitalQSystem: EngineSystem = {
     const breach = rollMaturities(s, ctx) || covenantsBreached(s, ctx);
     if (breach && f.covenantBreachDay === undefined) {
       f.covenantBreachDay = s.time.day;
-      ctx.bump('board.confidence', -20, 'covenant breach');
+      boardMood(s, ctx, 'setbacks', MOOD_BASE.covenantBreach, 'covenant breach');
       ctx.log('alert', 'Covenant breach: lenders can call the debt.', 4);
     } else if (!breach && f.covenantBreachDay !== undefined) delete f.covenantBreachDay;
     f.rating = ratingOf(ratingScore(s));

@@ -10,7 +10,7 @@ import { TRUSTED_MAX_P27 } from '../../../data/v2/agents';
 import { initialAgents } from '../departments/agents';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
-export const SCHEMA_REV = 13;
+export const SCHEMA_REV = 14;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -226,6 +226,15 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     f.promises ??= [];
     delete f.raisedLast4q;
     delete (f.ws3 as unknown as Record<string, unknown>).revenuePlan;
+  },
+  /** 13 → 14 (finance v3 FIN3a): board votes are deterministic and never block, so the never-filled pending-approvals
+   *  list goes and the 90-day blocks old rejections left on raises, deals, borrowing and cloud contracts are lifted
+   *  (E37's capex freeze on sites and chips stays). */
+  13: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    delete (s.player.board as unknown as Record<string, unknown>).pendingApprovals;
+    const bu = s.player.finance.ws3?.blockedUntil;
+    if (bu) for (const k of Object.keys(bu)) if (['fin.raise', 'fin.acceptDeal', 'fin.drawDebt', 'cmp.rentCompute'].includes(k) || k.startsWith('deal:')) delete bu[k];
   },
 };
 

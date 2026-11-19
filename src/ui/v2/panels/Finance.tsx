@@ -1,19 +1,20 @@
 // Finance (IA.md L2; PROPOSALS §5): HOME of burn by category and net burn (waterfall), revenue run-rate, cash history,
 // raise ceiling and ask, the commitment ledger, board, ownership, valuation, markets, debt and deals. Cash and runway
 // live in the top strip (L0) and are never repeated here.
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   actionView, dateOf, dayOfQuarter, dealMenu, dealPreview, debtHeadroom, debtRatePct, fmtDate, fmtMonth, incidentBoardHit, interestPerYear, ledgerDue, leaseRate, liveLedger, newDebtRatePct, ratingTerms,
   parentSchedule, parentYear, payrollOf, qOf, runwayOf, totalDebt, DIVISION_REASON, RUNWAY_CAP,
   describeTarget, fmtMetric, whatWeOwe, isListed, makeThesis, MILESTONES, PITCH, PITCHES, pitchAvailable, PROMISE_RESULT, promiseDeadline, raiseQuote, raiseTerms, trendOf,
+  BC_ANCHOR, BC_REVERT_Q, canonicalKey, INCIDENT_BC, INCIDENT_BC_CAP_Q, MOOD_BASE, MOOD_LABEL, MOOD_SOURCE_OF, MOOD_SOURCES, MOOD_WEIGHTS, moodWeight,
 } from '../../../engine/v2';
 import { isDivision } from '../../../data/v2/starts';
 import { boardReview } from '../shell/selectors';
 import { OUSTER_NOTICE_D } from '../../../engine/v2';
-import type { BoardSeat, Commitment$, Debt, GameStateV2, MilestoneType, Pitch } from '../../../engine/v2';
+import type { BoardSeat, Commitment$, Debt, GameStateV2, MilestoneType, MoodSource, Pitch } from '../../../engine/v2';
 import { ActBtn, Limit, CauseBars, Gate, Seg, Term, Tip, TipCard, Toggle, Why } from '../ui';
 import { MILESTONE_UI, OweCard, OweLink } from './FinanceOwe';
-import { Card, CostPills, GoBtn, HBar, KV, PanelHead, Pill, tabOf, Tabs } from '../kit';
+import { Card, CostPills, GoBtn, HBar, PanelHead, Pill, tabOf, Tabs } from '../kit';
 import * as F from '../fmt';
 import { ICON } from '../icons';
 import { C, SPHERE } from '../theme';
@@ -262,8 +263,8 @@ function RaiseCard({ s }: { s: GameStateV2 }) {
           { label: 'Your trend, 12 months', value: `+${fmtMetric(type, tr.gain).replace(/^level /, '')} (${tr.basis})` },
           { label: `${pitch[0].toUpperCase()}${pitch.slice(1)} pitch`, value: `× ${PITCH[pitch].gain} of that gain · price × ${PITCH[pitch].price}` },
           { label: 'Judged on', value: fmtDate(dateOf(s, due)) },
-          { label: 'Met', value: `credibility +${PROMISE_RESULT.metCred} · board +${PROMISE_RESULT.metBoard} (× weight)`, tone: 'pos' },
-          { label: 'Missed by > 20%', value: `credibility ${PROMISE_RESULT.missCred} · board ${PROMISE_RESULT.missBoard} (× weight)`, tone: 'neg' },
+          { label: 'Met', value: `credibility +${PROMISE_RESULT.metCred} · board +${(PROMISE_RESULT.metBoard * moodWeight(s, 'results')).toFixed(1)} (× weight)`, tone: 'pos' },
+          { label: 'Missed by > 20%', value: `credibility ${PROMISE_RESULT.missCred} · board −${Math.abs(PROMISE_RESULT.missBoard * moodWeight(s, 'results')).toFixed(1)} (× weight)`, tone: 'neg' },
         ]}>An expectation, not a contract: no cash moves. Weight = this round's share of what you raise in the year to the deadline.</TipCard>}>
           <div className="fin-row small" data-test="raise-promise"><MI size={13} /><span>Promise: <b>{describeTarget(th)}</b> by {fmtDate(dateOf(s, due))}</span><span className="dim">now {fmtMetric(type, th.start)}</span></div>
         </Tip>
@@ -279,7 +280,7 @@ function RaiseCard({ s }: { s: GameStateV2 }) {
           <Pill kind="neu" title={`Pre-money: the mark × the ${pitch} pitch's price (×${PITCH[pitch].price})`}>pre {F.money(q.pre)}</Pill>
           <Pill kind="gain" title="Quarters of spending this round covers at today's net burn">{burn > 0 ? `+${F.quarters(ask / burn)} runway` : 'no burn'}</Pill>
           <Pill kind={fail > 0.25 ? 'bad' : fail > 0 ? 'warn' : 'good'} title="Asking above the ceiling risks the round failing">close {F.pct(1 - fail)}</Pill>
-          {q.down && <Pill kind="bad" title={`Priced below the last round's ${F.money(q.lastPost)} post-money: board confidence −15 and anti-dilution shares`}><Term id="downRound">down round</Term></Pill>}
+          {q.down && <Pill kind="bad" title={`Priced below the last round's ${F.money(q.lastPost)} post-money: the board votes on it (below the button), board confidence −${Math.abs(MOOD_BASE.downRound * moodWeight(s, 'setbacks')).toFixed(1)} and anti-dilution shares`}><Term id="downRound">down round</Term></Pill>}
         </span>
       </div>
       {/* Jank F5: what the round does, before you click. */}
@@ -446,19 +447,75 @@ function LockedIn({ s }: { s: GameStateV2 }) {
   );
 }
 
-// ───────── board ─────────
+// ───────── board: seats and stances, what moves its mood, the next review (FIN3a, spec §7.3–§7.4) ─────────
+const MOOD_ICON: Record<MoodSource, typeof ICON.board> = { results: ICON.milestone, setbacks: ICON.debt, behind: ICON.rival, incidents: ICON.incident };
+const MOOD_TERM: Record<MoodSource, string> = { results: 'promise', setbacks: 'distress', behind: 'lead', incidents: 'incident' };
+/** What each source is made of, for its tooltip (pre-multiplier sizes). */
+function moodParts(s: GameStateV2, src: MoodSource): { label: string; value: string }[] {
+  const k = moodWeight(s, src);
+  const x = (base: number, per = '') => `${base > 0 ? '+' : '−'}${Math.abs(base)}${per} × ${k.toFixed(2)} = ${base * k > 0 ? '+' : '−'}${Math.abs(base * k).toFixed(1)}${per}`;
+  if (src === 'results') return [{ label: 'Promise met', value: `${x(PROMISE_RESULT.metBoard)} × weight` }, { label: 'Missed by over 20%', value: `${x(PROMISE_RESULT.missBoard)} × weight` }];
+  if (src === 'setbacks') return [{ label: 'Down round', value: x(MOOD_BASE.downRound) }, { label: 'Covenant breach', value: x(MOOD_BASE.covenantBreach) }, { label: 'Each review in distress', value: x(MOOD_BASE.distressQ) }, { label: 'Failed raise', value: x(MOOD_BASE.failedRaise) }, { label: 'Out of distress', value: x(MOOD_BASE.distressEnded) }];
+  if (src === 'behind') return [{ label: 'Behind the best rival, each review', value: x(MOOD_BASE.behindQ) }, { label: 'Pausing frontier runs', value: x(MOOD_BASE.pause) }];
+  return [{ label: 'Each public incident', value: `−${INCIDENT_BC.base} to −${INCIDENT_BC.max} by severity × ${k.toFixed(2)}` }, { label: 'At most a quarter', value: `−${INCIDENT_BC_CAP_Q} × ${k.toFixed(2)} = −${(INCIDENT_BC_CAP_Q * k).toFixed(1)}` }];
+}
+
+/** The four named sources (spec §7.4) with this board's multiplier and their sum over the last year; then the drift
+ *  back to 60. */
+function MoodSources({ s }: { s: GameStateV2 }) {
+  const day = s.time.day;
+  const sums: Record<MoodSource | 'fade' | 'other', number> = { results: 0, setbacks: 0, behind: 0, incidents: 0, fade: 0, other: 0 };
+  for (const e of s.causes.byKey[canonicalKey('board.confidence')] ?? []) {
+    if (e.day < day - 365) continue;
+    const k = MOOD_SOURCE_OF[e.source] ?? (e.source === 'board memory fades' ? 'fade' : 'other');
+    sums[k] += e.delta;
+  }
+  const max = Math.max(5, ...Object.values(sums).map(Math.abs));
+  const seats = s.player.board.seats.filter((x) => x.weight > 0 && x.kind !== 'founder');
+  const row = (key: string, icon: typeof ICON.board, label: ReactNode, mult: ReactNode, v: number, tip: () => ReactNode) => {
+    const w = (Math.abs(v) / max) * 50;
+    return (
+      <Tip as="div" key={key} content={tip}>
+        <div className="mood-row" data-mood={key}>
+          <span className="row-i small"><IconOf I={icon} />{label}</span>
+          <span className="mood-mult num">{mult}</span>
+          <span className="cbar-track"><i style={{ left: v >= 0 ? '50%' : `${50 - w}%`, width: `${w}%`, background: v >= 0 ? 'var(--good)' : 'var(--bad)' }} /></span>
+          <span className={`num small ${Math.round(v) > 0 ? 'tone-pos' : Math.round(v) < 0 ? 'tone-neg' : 'dim'}`}>{Math.round(v) === 0 ? '0' : `${v > 0 ? '+' : '−'}${Math.abs(Math.round(v))}`}</span>
+        </div>
+      </Tip>
+    );
+  };
+  return (
+    <div className="mood" data-test="mood-sources">
+      <div className="tip-cap">What moves this board · last 12 months</div>
+      {MOOD_SOURCES.map((src) => row(src, MOOD_ICON[src], <Term id={MOOD_TERM[src]}>{MOOD_LABEL[src]}</Term>, `×${moodWeight(s, src).toFixed(2)}`, sums[src], () => (
+        <TipCard title={MOOD_LABEL[src]} value={`×${moodWeight(s, src).toFixed(2)} on this board`} rows={[
+          ...moodParts(s, src),
+          ...seats.map((x) => ({ label: `${x.holder} · ${SEAT[x.kind].label}`, value: `×${MOOD_WEIGHTS[src][x.kind]}${x.weight > 1 ? ` (${x.weight} votes)` : ''}` })),
+          { label: 'Last 12 months', value: `${sums[src] >= 0 ? '+' : '−'}${Math.abs(sums[src]).toFixed(1)}`, tone: sums[src] < 0 ? 'neg' as const : 'pos' as const },
+        ]}>{"This board's multiplier is the vote-weighted mean of its seats' weights for this kind of news (the CEO's seat does not count). See [[boardConf]]."}</TipCard>
+      )))}
+      {row('fade', ICON.board, 'Memory fades', `→ ${BC_ANCHOR}`, sums.fade + sums.other, () => (
+        <TipCard title="Memory fades" value={`${Math.round(BC_REVERT_Q * 100)}% of the gap a quarter`} rows={[{ label: 'Drift back toward 60, 12 months', value: `${sums.fade >= 0 ? '+' : '−'}${Math.abs(sums.fade).toFixed(1)}` }, ...(Math.abs(sums.other) > 0.05 ? [{ label: 'Other (forced decisions, board events)', value: `${sums.other >= 0 ? '+' : '−'}${Math.abs(sums.other).toFixed(1)}` }] : [])]}>With no news the board drifts back toward 60, a tenth of the gap each quarter. Nothing else moves it.</TipCard>
+      ))}
+    </div>
+  );
+}
+const IconOf = ({ I }: { I: typeof ICON.board }) => <I size={13} />;
+
 function BoardCard({ s }: { s: GameStateV2 }) {
   const b = s.player.board;
   return (
     <Card title={<Term id="boardSeat">Board</Term>} id="ctl-board" home="board"
-      right={<span className="row-i"><span className="dim small"><Term id="boardConf">confidence</Term></span><Why k="board.confidence" title="Board confidence" value={F.idx(b.confidence)} body="See [[boardConf]]. Below 30 the board may revolt."><b className="num big" data-home="boardConf">{F.idx(b.confidence)}</b></Why></span>}>
+      right={<span className="row-i"><span className="dim small"><Term id="boardConf">confidence</Term></span><Why k="board.confidence" title="Board confidence" value={F.idx(b.confidence)} body={`See [[boardConf]]. Drifts toward ${BC_ANCHOR}; below 35 the board warns you, below 25 it can vote you out.`}><b className="num big" data-home="boardConf">{F.idx(b.confidence)}</b></Why></span>}>
       <div className="seats">
         {b.seats.map((x, i) => {
           const k = x.stance.reduce((m, v, j) => (Math.abs(v) > Math.abs(x.stance[m]) ? j : m), 0);
           const v = x.stance[k];
           const meta = SEAT[x.kind];
+          const minds = x.kind === 'founder' ? 'your seat: votes yes, moves no mood' : MOOD_SOURCES.map((m) => `${MOOD_LABEL[m].split(' ').pop()} ×${MOOD_WEIGHTS[m][x.kind]}`).join(' · ');
           return (
-            <Tip key={i} content={() => <TipCard title={x.holder} value={meta.label} rows={x.stance.map((sv, j) => ({ label: STANCE[j], value: sv > 0 ? 'for' : sv < 0 ? 'against' : 'neutral', tone: sv > 0 ? 'pos' : sv < 0 ? 'neg' : 'neutral' }))} footer={x.weight > 1 ? `${x.weight} votes` : '1 vote'}>How this seat leans on decisions that push speed, money, safety or mission.</TipCard>}>
+            <Tip key={i} content={() => <TipCard title={x.holder} value={meta.label} rows={[...x.stance.map((sv, j) => ({ label: STANCE[j], value: sv > 0 ? 'for' : sv < 0 ? 'against' : 'neutral', tone: sv > 0 ? 'pos' as const : sv < 0 ? 'neg' as const : 'neutral' as const })), { label: 'Minds', value: minds }]} footer={x.weight > 1 ? `${x.weight} votes` : x.weight > 0 ? '1 vote' : 'observer: no vote'}>{"How this seat votes on major decisions ([[boardVote]]) and how much each kind of news moves it."}</TipCard>}>
               <div className="seat" data-seat={i}>
                 <span className={`seat-av ${x.kind}`}><meta.icon size={16} />{x.weight > 1 && <i>×{x.weight}</i>}</span>
                 <span className="seat-name">{x.holder}</span>
@@ -468,6 +525,7 @@ function BoardCard({ s }: { s: GameStateV2 }) {
           );
         })}
       </div>
+      {!isDivision(s) && <MoodSources s={s} />}
       {(() => {
         // Jank ST3: when the board next decides and what it needs.
         const br = boardReview(s);
@@ -478,18 +536,12 @@ function BoardCard({ s }: { s: GameStateV2 }) {
             { label: 'Ouster vote possible below', value: String(br.line) },
             { label: 'Notice before a vote', value: `${OUSTER_NOTICE_D} d after the warning` },
             { label: 'Ouster odds at this review', value: br.live ? F.pct(br.p) : 'none' },
-          ]}>The board meets every quarter. Investor promises met and a calm safety record raise confidence; misses, incidents and falling behind lower it.</TipCard>}>
+          ]}>The board meets every quarter: promise results, setbacks, falling behind and public incidents move it, each weighted by the seats on this board.</TipCard>}>
             <div className="limit-row" data-test="board-review"><span className="dim small">Next review {fmtDate(br.date)} (in {br.inDays} d)</span><span className={`small ${br.live ? 'tone-neg' : br.bc < 35 ? 'tone-warn' : 'dim'}`}>confidence {F.idx(br.bc)} · needs {br.line}+{br.live ? ` · ouster odds ${F.pct(br.p)}` : ''}</span></div>
           </Tip>
         );
       })()}
-      {(() => { const h = incidentBoardHit(s); return <div className="limit-row"><span className="dim small">Public incidents at the next review</span><Limit id="board.incidentCap" tone={h.raw > h.cap ? 'warn' : h.capped > 0 ? 'bind' : 'quiet'}>{h.capped > 0 ? `−${h.capped}` : 'none'}{h.raw > h.cap ? ` (${h.raw} capped)` : ''} · max −{h.cap}/q</Limit></div>; })()}
-      {b.pendingApprovals.length > 0 && (
-        <div className="tip-sec">
-          <div className="tip-cap">Waiting for the board</div>
-          {b.pendingApprovals.map((p) => <KV key={p.id} k={F.words(p.action)}>{F.pct(p.pApprove)} likely</KV>)}
-        </div>
-      )}
+      {(() => { const h = incidentBoardHit(s); return <div className="limit-row"><span className="dim small">Public incidents at the next review</span><Limit id="board.incidentCap" tone={h.raw > h.cap ? 'warn' : h.capped > 0 ? 'bind' : 'quiet'}>{h.capped > 0 ? `−${h.hit.toFixed(1)}` : 'none'}{h.raw > h.cap ? ` (${h.raw} capped at ${h.cap})` : ''} · max −{(h.cap * h.mult).toFixed(1)}/q</Limit></div>; })()}
       {/* Jank F4: the recap question exists only for the capped-profit nonprofit, until it is decided. */}
       {b.preset === 'legacyNonprofit' && s.player.finance.ws3?.recap.startDay === undefined && !s.player.finance.ws3?.recap.refused && (
         <div className="btn-row" style={{ marginTop: 8 }}>

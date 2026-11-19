@@ -5,11 +5,11 @@ import type { GameStateV2, Money, StrategicDeal, SystemCtx } from '../types';
 import { addCloud } from '../compute/orders';
 import { cloudPricePerYear } from '../compute/market';
 import { newSite } from '../compute/sites';
-import { addSeat, boardApproval, BOARD_VECTORS } from './board';
+import { addSeat, commitmentsVote, voteGate } from './board';
 import { DEBT_TERMS } from '../../../data/v2/deals';
 import { issue } from './equity';
 import { ensureWs3, yearStats, type DealOffer } from './ext';
-import { addLedger, commitmentsPerYear, qOf, bookCash } from './ledger';
+import { addLedger, qOf, bookCash } from './ledger';
 import { runwayOf } from './runway';
 
 type Template = StrategicDeal['template'];
@@ -119,12 +119,9 @@ export function acceptDeal(s: GameStateV2, ctx: SystemCtx, template: Template, p
     if (why) return why;
   }
   const t: Omit<DealOffer, 'id' | 'day' | 'expiresDay'> = offer ?? dealTerms(s, template, partner);
-  // Major decision: commitments above 3× revenue need the board (§3.7.5).
-  const addPerYear = t.commitPerQ * 4;
-  if (addPerYear > 0 && (commitmentsPerYear(s) + addPerYear) > 3 * Math.max(1, f.revenueRun)) {
-    const ok = boardApproval(s, ctx, BOARD_VECTORS.commitments, `deal:${template}`, opts.force);
-    if (!ok.approved) return 'The board rejected the commitment';
-  }
+  // Major decision (spec §7.3): firm commitments above 3× revenue need the board's vote (FIN3a: no dice).
+  const no = voteGate(ctx, commitmentsVote(s, t.commitPerQ * 4), !!opts.force);
+  if (no) return no;
   if (offer) fx.offers = fx.offers.filter((o) => o !== offer);
   const tpl = DEAL_TEMPLATES.find((x) => x.id === template)!;
   const q = qOf(s);
@@ -142,7 +139,6 @@ export function acceptDeal(s: GameStateV2, ctx: SystemCtx, template: Template, p
     const stake = DEAL_TERMS.rescue.stake;
     issue(f.ownership, Math.max(0, stake - (f.ownership.strat[partner] ?? 0)), { kind: 'strat', name: partner });
     addSeat(s, 'strategic', partner, 2);
-    ctx.bump('board.confidence', 10, 'strategic rescue');
     fx.lastRescueDay = s.time.day;
     ctx.log('alert', `${partner} rescues the company: $${t.equityNow.toFixed(0)}B for ${Math.round(stake * 100)}%, two board seats, exclusivity and IP rights.`, 4);
   } else {

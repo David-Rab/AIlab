@@ -8,14 +8,15 @@ import { addCommunityPackage, newSite, oppositionOdds, siteCapex, siteEtaQ, type
 import { bloc } from '../actors/fx';
 import { signCommitment } from '../actors/commitments';
 import type { ActionDef, ChipOrder, CostLine, Debt, GameStateV2, MilestoneType, Pitch, Site, StrategicDeal, SystemCtx } from '../types';
-import { boardApproval, boardBlocked, boardSupport, BOARD_VECTORS, founderControl } from './board';
+import { boardBlocked, boardVote, commitmentsVote, debtVote, founderControl, voteCost, voteGate } from './board';
+import { MOOD_BASE, moodWeight } from './mood';
 import { leaseAvailable, leaseRate, payOptions } from './capex';
 import { debtHeadroom, drawDebt, newDebtRatePct, repayDebt } from './debt';
 import { acceptDeal, dealBlocker, dealTerms, declineDeal, partnerFor, rescueOffer, seekPartner } from './deals';
 import { acceptRepriced, bookRound, canIpo, canRaise, DUAL_CLASS_GOV, lastPostMoney, pullRepriced, raiseCeiling, startRaise } from './equity';
 import { describeTarget, makeThesis, MILESTONES, PITCH, PITCHES, PROMISE_RESULT, promiseDeadline } from './promises';
 import { ensureWs3, yearStats, type DealOffer } from './ext';
-import { commitmentsPerYear, qOf, bookCash } from './ledger';
+import { qOf, bookCash } from './ledger';
 import { divisionBlock } from './parent';
 import { runwayOf } from './runway';
 
@@ -32,20 +33,10 @@ const blocked = (s: GameStateV2, id: string): true | string => {
 };
 const notInsolvent = (s: GameStateV2): true | string => (s.player.finance.state === 'insolvent' ? 'Insolvent' : true);
 
-/** Board-approval exposure line for a would-be major decision. */
-function boardExposure(s: GameStateV2, v: readonly number[]): CostLine {
-  return { currency: 'boardConf', amount: -5, probability: Math.round((1 - boardSupport(s, v).p) * 100) / 100, target: 'board vote: a veto cancels it and blocks it for 90 days' };
-}
-
-/** Commitments check: the board votes when annual commitments would exceed 3× revenue (§3.7.5). */
-function needsCommitVote(s: GameStateV2, addPerYear: number) {
-  return addPerYear > 0 && commitmentsPerYear(s) + addPerYear > 3 * Math.max(1, s.player.finance.revenueRun);
-}
-/** Undefined when the commitment may go ahead; otherwise why the board stopped it. */
-function commitGate(s: GameStateV2, ctx: SystemCtx, addPerYear: number, id: string, force: boolean): string | undefined {
-  if (!needsCommitVote(s, addPerYear)) return undefined;
-  return boardApproval(s, ctx, BOARD_VECTORS.commitments, id, force).why;
-}
+/** Board confidence a down round costs on this board (spec §2.5 −15 × the board's multiplier for setbacks). */
+const downRoundHit = (s: GameStateV2) => Math.round(MOOD_BASE.downRound * moodWeight(s, 'setbacks') * 10) / 10;
+/** The down-round vote (spec §7.3), with its trigger in words. */
+const downRoundVote = (s: GameStateV2, why: string) => boardVote(s, 'downRound', why);
 
 // ───────────────────────────── Equity ─────────────────────────────
 
@@ -70,30 +61,37 @@ export function raiseQuote(s: GameStateV2, ask: number, opts: { anchor?: boolean
   return { ceiling: c, priceMult: k, pre, dilution: a / (pre + a), pClose: Math.exp(-over), down: last > 0 && pre < last, lastPost: last };
 }
 
+/** The raise a set of params describes: ask (default the ceiling), anchor, pitch and the quote at that ask. */
+function raiseOf(s: GameStateV2, p: P) {
+  const anchor = str(p, 'anchor', '');
+  const { type, pitch } = raiseTerms(s, p);
+  const q = raiseQuote(s, Number.POSITIVE_INFINITY, { anchor: !!anchor, pitch });
+  const ask = num(p, 'ask', q.ceiling.max);
+  return { anchor, type, pitch, ask, r: raiseQuote(s, ask, { anchor: !!anchor, pitch }) };
+}
+
+/** FIN3a (spec §7.3): no dilution vote; a round priced below the last post-money is a down round and needs the board. */
+function raiseVote(s: GameStateV2, p: P) {
+  const { r } = raiseOf(s, p);
+  return r.down ? downRoundVote(s, `priced at $${r.pre.toFixed(0)}B pre-money, below the last round's $${r.lastPost.toFixed(0)}B post`) : undefined;
+}
+
 const raise: ActionDef = {
   id: 'fin.raise', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Raise',
-  boardVector: BOARD_VECTORS.dilution,
-  available: (s) => {
-    const b = divisionBlock(s) ?? blocked(s, 'fin.raise');
-    return b !== true ? b : canRaise(s);
-  },
+  available: (s) => divisionBlock(s) ?? canRaise(s),
+  vote: raiseVote,
   preview(s, p) {
-    const anchor = str(p, 'anchor', '');
-    const { type, pitch } = raiseTerms(s, p);
-    const q = raiseQuote(s, Number.POSITIVE_INFINITY, { anchor: !!anchor, pitch });
-    const ask = num(p, 'ask', q.ceiling.max);
-    const r = raiseQuote(s, ask, { anchor: !!anchor, pitch });
+    const { type, pitch, ask, r } = raiseOf(s, p);
     const th = makeThesis(s, type, pitch);
     const exposure: CostLine[] = [];
     const costs: CostLine[] = [{ currency: 'dilution', amount: Math.round(r.dilution * 1000) / 10 }];
-    if (r.down) costs.push({ currency: 'boardConf', amount: -15, target: 'down round: priced below the last round' });
+    if (r.down) costs.push({ currency: 'boardConf', amount: downRoundHit(s), target: 'down round: priced below the last round' }, ...voteCost(raiseVote(s, p), bool(p, 'force')));
     if (r.pClose < 1) exposure.push({ currency: 'cash', amount: -ask, probability: Math.round((1 - r.pClose) * 100) / 100, lagDays: nextQDays(s) });
-    if (r.dilution > 0.1) exposure.push(boardExposure(s, BOARD_VECTORS.dilution));
     if (typeof th !== 'string') {
       // The promise: judged 12 months after the close; at most full weight (it falls if you raise again before then).
       const lag = Math.max(1, promiseDeadline(s, s.time.day + nextQDays(s)) - s.time.day);
       exposure.push({ currency: 'credibility', amount: PROMISE_RESULT.missCred, lagDays: lag, target: `promise of ${describeTarget(th)} missed by over 20% (× weight)` });
-      exposure.push({ currency: 'boardConf', amount: PROMISE_RESULT.missBoard, lagDays: lag, target: 'if the promise is missed (× weight)' });
+      exposure.push({ currency: 'boardConf', amount: Math.round(PROMISE_RESULT.missBoard * moodWeight(s, 'results') * 10) / 10, lagDays: lag, target: 'if the promise is missed (× weight)' });
       exposure.push({ currency: 'credibility', amount: PROMISE_RESULT.metCred, lagDays: lag, target: 'if the promise is met (× weight)' });
     }
     return { costs, gains: [{ currency: 'cash', amount: ask, lagDays: nextQDays(s) }], exposure };
@@ -106,10 +104,8 @@ const raise: ActionDef = {
     const k = PITCH[pitch].price;
     const c = raiseCeiling(s, Number.POSITIVE_INFINITY, { anchor: !!anchor, priceMult: k });
     const ask = Math.max(0.1, num(p, 'ask', c.max));
-    if (ask / (s.player.finance.valuation * k + ask) > 0.1) {
-      const vote = boardApproval(s, ctx, BOARD_VECTORS.dilution, 'fin.raise', bool(p, 'force'));
-      if (!vote.approved) return vote.why;
-    }
+    const no = voteGate(ctx, raiseVote(s, { ...p, ask }), bool(p, 'force'));
+    if (no) return no;
     startRaise(s, ctx, ask, { ...(anchor ? { anchor } : {}), thesis: th, priceMult: k });
   },
 };
@@ -146,21 +142,33 @@ const ipo: ActionDef = {
 
 const repricedAvail = (s: GameStateV2) => (s.player.finance.ws3?.repricedRound ? true : 'No repriced round to decide on');
 
+/** A repriced round below the last post-money is a down round: it needs the board (spec §7.3). */
+function repricedVote(s: GameStateV2) {
+  const r = s.player.finance.ws3?.repricedRound;
+  if (!r || r.pre >= (r.lastPost || lastPostMoney(s))) return undefined;
+  return downRoundVote(s, `repriced to ${r.pre.toFixed(0)}B pre-money, below the last round's ${(r.lastPost || lastPostMoney(s)).toFixed(0)}B post`);
+}
+
 const acceptRound: ActionDef = {
   id: 'fin.acceptRepriced', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Accept round',
   available: repricedAvail,
-  preview(s) {
+  vote: repricedVote,
+  preview(s, p) {
     const r = s.player.finance.ws3?.repricedRound;
     const ask = r?.ask ?? 0;
     const pre = r?.pre ?? Math.max(1, s.player.finance.valuation);
     const down = !r || pre < (r.lastPost || lastPostMoney(s));
     return {
-      costs: [{ currency: 'dilution', amount: Math.round((ask / (pre + ask || 1)) * 1000) / 10 }, ...(down ? [{ currency: 'boardConf' as const, amount: -15, target: 'down round' }] : [])],
+      costs: [{ currency: 'dilution', amount: Math.round((ask / (pre + ask || 1)) * 1000) / 10 }, ...(down ? [{ currency: 'boardConf' as const, amount: downRoundHit(s), target: 'down round' }] : []), ...voteCost(repricedVote(s), bool(p, 'force'))],
       gains: [{ currency: 'cash', amount: ask >= 20 ? ask * 0.5 : ask, target: ask >= 20 ? 'now; the rest as a tranche' : 'now' }],
       exposure: [],
     };
   },
-  apply: (s, ctx) => acceptRepriced(s, ctx),
+  apply(s, ctx, p) {
+    const no = voteGate(ctx, repricedVote(s), bool(p, 'force'));
+    if (no) return no;
+    return acceptRepriced(s, ctx);
+  },
 };
 
 const pullRound: ActionDef = {
@@ -168,7 +176,7 @@ const pullRound: ActionDef = {
   available: repricedAvail,
   preview(s) {
     const r = s.player.finance.ws3?.repricedRound;
-    return { costs: [{ currency: 'cash', amount: -(r?.ask ?? 0), target: 'money you do not raise' }], gains: [{ currency: 'dilution', amount: 0, target: 'no dilution' }, { currency: 'boardConf', amount: 0, target: 'no down-round hit' }], exposure: [] };
+    return { costs: [{ currency: 'cash', amount: -(r?.ask ?? 0), target: 'money you do not raise' }], gains: [{ currency: 'dilution', amount: 0, target: 'no dilution' }, { currency: 'boardConf', amount: 0, target: 'no down-round hit, no vote' }], exposure: [] };
   },
   apply: (s, ctx) => pullRepriced(s, ctx),
 };
@@ -176,12 +184,15 @@ const pullRound: ActionDef = {
 const downRound: ActionDef = {
   id: 'fin.downRound', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Down round',
   available: (s) => divisionBlock(s) ?? (s.player.finance.state === 'distress' || s.player.finance.state === 'tight' ? true : 'Only when runway is tight or in distress'),
-  preview(s) {
+  vote: (s) => downRoundVote(s, 'a rescue round at 50–70% of the valuation'),
+  preview(s, p) {
     const V = s.player.finance.valuation * 0.6;
     const amt = downRoundSize(s);
-    return { costs: [{ currency: 'dilution', amount: Math.round((amt / (V + amt)) * 1000) / 10 }, { currency: 'boardConf', amount: -15, target: 'down round' }], gains: [{ currency: 'cash', amount: amt }], exposure: [] };
+    return { costs: [{ currency: 'dilution', amount: Math.round((amt / (V + amt)) * 1000) / 10 }, { currency: 'boardConf', amount: downRoundHit(s), target: 'down round' }, ...voteCost(downRoundVote(s, ''), bool(p, 'force'))], gains: [{ currency: 'cash', amount: amt }], exposure: [] };
   },
-  apply(s, ctx) {
+  apply(s, ctx, p) {
+    const no = voteGate(ctx, downRoundVote(s, 'a rescue round'), bool(p, 'force'));
+    if (no) return no;
     const amt = downRoundSize(s);
     const pre = s.player.finance.valuation * ctx.rng('finance').range(0.5, 0.7); // R15: down round at V × 0.5–0.7
     bookRound(s, ctx, amt, pre, { source: 'Rescue round' });
@@ -212,7 +223,6 @@ export function dealPreview(s: GameStateV2, t: Omit<DealOffer, 'id' | 'day' | 'e
   if (t.strings.exclusivity) exposure.push({ currency: 'freedom', amount: -1, target: 'vetoes deals with competitors' });
   if (t.strings.revenueShare) costs.push({ currency: 'revenue', amount: -t.strings.revenueShare * s.player.finance.revenueRun, target: 'revenue share per year' });
   if (t.rescue) costs.push({ currency: 'freedom', amount: -2, target: 'control: 2 seats, exclusivity, IP rights' });
-  if (needsCommitVote(s, t.commitPerQ * 4)) exposure.push(boardExposure(s, BOARD_VECTORS.commitments));
   if (!costs.length) costs.push({ currency: 'staffTime', amount: 1 });
   return { costs, gains, exposure };
 }
@@ -246,17 +256,24 @@ function offerFor(s: GameStateV2, p: P): Omit<DealOffer, 'id' | 'day' | 'expires
   return partner ? dealTerms(s, tpl, partner) : undefined;
 }
 
+/** A partner's take-or-pay above 3× revenue needs the board (spec §7.3). */
+const dealVote = (s: GameStateV2, p: P) => {
+  const t = offerFor(s, p);
+  return t ? commitmentsVote(s, t.commitPerQ * 4) : undefined;
+};
+
 const accept: ActionDef = {
   id: 'fin.acceptDeal', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Accept deal',
-  boardVector: BOARD_VECTORS.commitments,
   available: (s) => {
-    const b = divisionBlock(s) ?? blocked(s, 'fin.acceptDeal');
-    if (b !== true) return b;
+    const b = divisionBlock(s);
+    if (b) return b;
     return s.player.finance.ws3?.offers.length ? true : 'No open offer (seek a partner first)';
   },
+  vote: dealVote,
   preview(s, p) {
     const t = offerFor(s, p);
-    return t ? dealPreview(s, t) : { costs: [{ currency: 'staffTime', amount: 1 }], gains: [], exposure: [] };
+    const v = t ? dealPreview(s, t) : { costs: [{ currency: 'staffTime' as const, amount: 1 }], gains: [], exposure: [] };
+    return { ...v, costs: [...v.costs, ...voteCost(dealVote(s, p), bool(p, 'force'))] };
   },
   apply(s, ctx, p) {
     const offers = s.player.finance.ws3.offers;
@@ -299,13 +316,17 @@ const rescue: ActionDef = {
     if (f.ws3?.lastRescueDay !== undefined && s.time.day - f.ws3.lastRescueDay < RESCUE_COOLDOWN_D) return 'Partners will not rescue you twice in a year';
     return rescueOffer(s) ? true : 'No partner will rescue you';
   },
-  preview(s) {
+  vote: (s) => boardVote(s, 'rescue', 'a partner takes a large stake, two board seats, exclusivity and IP rights'),
+  preview(s, p) {
     const o = rescueOffer(s);
-    return o ? dealPreview(s, o) : { costs: [{ currency: 'freedom', amount: -2 }], gains: [], exposure: [] };
+    const v = o ? dealPreview(s, o) : { costs: [{ currency: 'freedom' as const, amount: -2 }], gains: [], exposure: [] };
+    return { ...v, costs: [...v.costs, ...voteCost(boardVote(s, 'rescue', ''), bool(p, 'force'))] };
   },
-  apply(s, ctx) {
+  apply(s, ctx, p) {
     const o = rescueOffer(s);
     if (!o) return;
+    const no = voteGate(ctx, boardVote(s, 'rescue', 'a strategic rescue'), bool(p, 'force'));
+    if (no) return no;
     s.player.finance.ws3.offers.push(o);
     acceptDeal(s, ctx, o.template, o.partner, { offerId: o.id });
   },
@@ -313,35 +334,38 @@ const rescue: ActionDef = {
 
 // ───────────────────────────── Debt ─────────────────────────────
 
+/** The draw a set of params describes (kind, amount within the headroom). */
+function drawOf(s: GameStateV2, p: P) {
+  const kind = str(p, 'kind', 'revolver') as Debt['kind'];
+  const h = debtHeadroom(s, kind);
+  return { kind, amt: Math.min(num(p, 'amount', h.max), h.max) };
+}
+/** FIN3a (spec §7.3): debt above 3× revenue needs the board (the 20%-of-revenue vote is gone). */
+const drawVote = (s: GameStateV2, p: P) => debtVote(s, drawOf(s, p).amt);
+const COVENANT_OF: Partial<Record<Debt['kind'], string>> = { revolver: 'covenant: keep ⅓ of the line in cash at quarter ends', gpuTerm: 'covenant: chips ≥ 1.2× the loan or a cash sweep', bond: 'incurrence covenant on new debt' };
+
 const draw: ActionDef = {
   id: 'fin.drawDebt', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Borrow',
-  boardVector: BOARD_VECTORS.newDebt,
+  vote: drawVote,
   available: (s) => {
-    const b = divisionBlock(s) ?? blocked(s, 'fin.drawDebt');
-    if (b !== true) return b;
+    const b = divisionBlock(s);
+    if (b) return b;
     const h = (['revolver', 'gpuTerm', 'bond'] as const).map((k) => debtHeadroom(s, k));
     return h.some((x) => x.max > 0) ? true : h[0].why ?? 'No debt capacity';
   },
   preview(s, p) {
-    const kind = str(p, 'kind', 'revolver') as Debt['kind'];
-    const h = debtHeadroom(s, kind);
-    const amt = Math.min(num(p, 'amount', h.max), h.max);
+    const { kind, amt } = drawOf(s, p);
     const rate = newDebtRatePct(s, kind);
     const exposure: CostLine[] = [{ currency: 'cash', amount: -amt, target: 'covenant: called if breached', probability: 0.05 }];
-    if (kind !== 'revolver' && amt > 0.2 * s.player.finance.revenueRun) exposure.push(boardExposure(s, BOARD_VECTORS.newDebt));
-    return { costs: [{ currency: 'boardConf', amount: -1 }, { currency: 'cash', amount: -(amt * rate) / 100, target: 'interest per year' }], gains: [{ currency: 'cash', amount: amt }], exposure };
+    // FIN3a: borrowing no longer moves board confidence (not a named source, spec §7.4); the covenant is the cost.
+    return { costs: [{ currency: 'freedom', amount: -1, target: COVENANT_OF[kind] ?? 'covenants' }, { currency: 'cash', amount: -(amt * rate) / 100, target: 'interest per year' }, ...voteCost(drawVote(s, p), bool(p, 'force'))], gains: [{ currency: 'cash', amount: amt }], exposure };
   },
   apply(s, ctx, p) {
-    const kind = str(p, 'kind', 'revolver') as Debt['kind'];
-    const h = debtHeadroom(s, kind);
-    const amt = Math.min(num(p, 'amount', h.max), h.max);
+    const { kind, amt } = drawOf(s, p);
     if (amt <= 0) return;
-    if (kind !== 'revolver' && amt > 0.2 * s.player.finance.revenueRun) {
-      const vote = boardApproval(s, ctx, BOARD_VECTORS.newDebt, 'fin.drawDebt', bool(p, 'force'));
-      if (!vote.approved) return vote.why;
-    }
+    const no = voteGate(ctx, drawVote(s, p), bool(p, 'force'));
+    if (no) return no;
     drawDebt(s, ctx, kind, amt);
-    ctx.bump('board.confidence', -1, 'new borrowing');
   },
 };
 
@@ -351,12 +375,11 @@ const repay: ActionDef = {
   preview(s, p) {
     const drawn = s.player.finance.debts.reduce((a, d) => a + d.drawn, 0);
     const amt = Math.min(num(p, 'amount', drawn), drawn, Math.max(0, s.player.finance.cash));
-    return { costs: [{ currency: 'cash', amount: -amt }], gains: [{ currency: 'boardConf', amount: 1 }], exposure: [] };
+    return { costs: [{ currency: 'cash', amount: -amt }], gains: [{ currency: 'freedom', amount: 1, target: 'less interest, more covenant headroom' }], exposure: [] };
   },
   apply(s, ctx, p) {
     const drawn = s.player.finance.debts.reduce((a, d) => a + d.drawn, 0);
-    const paid = repayDebt(s, ctx, num(p, 'amount', drawn), str(p, 'id', '') || undefined);
-    if (paid > 0) ctx.bump('board.confidence', 1, 'debt repaid');
+    repayDebt(s, ctx, num(p, 'amount', drawn), str(p, 'id', '') || undefined);
   },
 };
 
@@ -422,9 +445,17 @@ function chipParams(p: P) {
 }
 const lagTo = (s: GameStateV2, q: number) => Math.max(0, dayOfQuarter(s.time.startDate, q) - s.time.day);
 
+/** Quarterly chip tranches are firm commitments: above 3× revenue they need the board (spec §7.3). Spot and single
+ *  batches are compute orders, never voted on. */
+function chipsVote(s: GameStateV2, p: P) {
+  const c = chipParams(p);
+  if (c.term < 2) return undefined;
+  return commitmentsVote(s, chipQuote(s, c.term, c.qty, c).later * 4);
+}
+
 const buyChips: ActionDef = {
   id: 'cmp.buyChips', verb: 'deal', system: 'compute', sphere: 'finance', owner: 'WS3', title: 'Buy chips',
-  boardVector: BOARD_VECTORS.commitments,
+  vote: chipsVote,
   available: (s) => {
     const b = blocked(s, 'cmp.buyChips');
     return b !== true ? b : notInsolvent(s);
@@ -448,18 +479,15 @@ const buyChips: ActionDef = {
     const exposure: CostLine[] = [];
     if (fill < 0.99) exposure.push({ currency: 'compute', amount: -c.qty * (1 - fill), probability: 0.5, target: c.firm ? 'rationed (firm: priority weight +0.5)' : 'rationed: delivery rolls forward' });
     exposure.push({ currency: 'compute', amount: 0, target: 'needs free MW to go online' });
-    if (qt.kind === 'lta' && needsCommitVote(s, qt.later * 4)) exposure.push(boardExposure(s, BOARD_VECTORS.commitments));
+    costs.push(...voteCost(chipsVote(s, p), bool(p, 'force')));
     return { costs, gains: [{ currency: 'compute', amount: qt.kind === 'lta' ? c.qty * qt.quarters : c.qty, lagDays: lagTo(s, qt.dueQ + 1) }], exposure };
   },
   apply(s, ctx, p) {
     const c = chipParams(p);
     const rate = c.pay === 'lease' ? leaseRate(s) : undefined;
     if (c.pay === 'lease' && rate === undefined) return leaseAvailable(s) as string;
-    if (c.term >= 2) {
-      const qt = chipQuote(s, c.term, c.qty, c);
-      const no = commitGate(s, ctx, qt.later * 4, 'cmp.buyChips', bool(p, 'force'));
-      if (no) return no;
-    }
+    const no = voteGate(ctx, chipsVote(s, p), bool(p, 'force'));
+    if (no) return no;
     placeOrder(s, ctx, c.term, c.qty, { ...c, ...(rate !== undefined ? { leaseRate: rate } : {}) });
   },
 };
@@ -472,13 +500,18 @@ function rentParams(p: P) {
   return { h100e: Math.max(1e4, num(p, 'h100e', 0.5e6)), term: Math.max(1, Math.min(RENT_Q_MAX, Math.round(num(p, 'term', 4)))), firm: bool(p, 'firm', true), provider: str(p, 'provider', NEOCLOUD) };
 }
 
+/** A firm cloud contract is a firm commitment: above 3× revenue it needs the board (spec §7.3). Spot rentals and
+ *  cancellable contracts are never voted on. */
+function rentVote(s: GameStateV2, p: P) {
+  const r = rentParams(p);
+  if (r.term <= 1 || !r.firm) return undefined;
+  return commitmentsVote(s, rentQuote(s, r.h100e, r.term, r.firm).perQ.slice(0, 4).reduce((a, b) => a + b, 0));
+}
+
 const rentCompute: ActionDef = {
   id: 'cmp.rentCompute', verb: 'deal', system: 'compute', sphere: 'finance', owner: 'WS3', title: 'Rent compute',
-  boardVector: BOARD_VECTORS.commitments,
-  available: (s) => {
-    const b = blocked(s, 'cmp.rentCompute');
-    return b !== true ? b : notInsolvent(s);
-  },
+  vote: rentVote,
+  available: notInsolvent,
   preview(s, p) {
     const r = rentParams(p);
     if (r.term <= 1) {
@@ -491,7 +524,7 @@ const rentCompute: ActionDef = {
       ? [{ currency: 'cash', amount: -qt.perQ[0], lagDays: lag, target: `first of ${qt.quarters} quarterly payments (take-or-pay)` }, { currency: 'cash', amount: -qt.perQ[qt.quarters - 1], lagDays: lag + (qt.quarters - 1) * 91, target: 'last payment (expected path)' }]
       : [{ currency: 'cash', amount: -qt.perQ[0], lagDays: lag, target: 'per quarter at today\'s spot × 1.15, re-priced quarterly (1 q notice)' }];
     const exposure: CostLine[] = r.firm ? [] : [{ currency: 'compute', amount: -r.h100e, probability: 0.5, target: 'cancellable capacity is rationed in a chip shortage' }];
-    if (needsCommitVote(s, qt.perQ.slice(0, 4).reduce((a, b) => a + b, 0))) exposure.push(boardExposure(s, BOARD_VECTORS.commitments));
+    costs.push(...voteCost(rentVote(s, p), bool(p, 'force')));
     return { costs, gains: [{ currency: 'compute', amount: r.h100e, lagDays: lag }], exposure };
   },
   apply(s, ctx, p) {
@@ -501,8 +534,7 @@ const rentCompute: ActionDef = {
       ctx.log('finance', `Spot rental: ${(got / 1e3).toFixed(0)}k H100e for a quarter at $${s.market.rental.toFixed(2)}/h.`);
       return got > 0 ? undefined : 'No spot capacity left';
     }
-    const qt = rentQuote(s, r.h100e, r.term, r.firm);
-    const no = commitGate(s, ctx, qt.perQ.slice(0, 4).reduce((a, b) => a + b, 0), 'cmp.rentCompute', bool(p, 'force'));
+    const no = voteGate(ctx, rentVote(s, p), bool(p, 'force'));
     if (no) return no;
     addCloud(s, ctx, r.h100e, r.term, r.provider, { firm: r.firm });
   },

@@ -9,7 +9,7 @@ import { internalVersion, PLAYER_ID, LEADER_ID } from '../models/labs';
 import { deltaRsch, slopeL } from '../models/capability';
 import { ws4r } from '../actors/state';
 import { wslFloor } from '../security/security';
-import { INCIDENT_BC_CAP_Q } from '../finance/board';
+import { incidentHit, INCIDENT_BC_CAP_Q, moodWeight } from '../finance/mood';
 import { spotRentalCap } from '../compute/orders';
 import { leaseAvailableGW } from '../compute/sites';
 import { RPH_MCAP, TRUSTED_PREMIUM, revenueReadout, servingPool } from '../worldfx/revenue';
@@ -96,15 +96,18 @@ export function securityFloorView(s: GameStateV2): { now: number; max: number; b
   return { now, max: wslFloor(2), binding: s.player.security.wsl <= now + 1e-6 };
 }
 
-/** Board-confidence hit from public incidents at the next quarterly review, raw and capped (LIMITS board.incidentCap). */
-export function incidentBoardHit(s: GameStateV2): { raw: number; capped: number; cap: number } {
+/** Board-confidence hit from public incidents at the next quarterly review (LIMITS board.incidentCap): raw and capped
+ *  before the board's incident multiplier (FIN3a, by seat kind), and the hit after it. */
+export function incidentBoardHit(s: GameStateV2): { raw: number; capped: number; cap: number; mult: number; hit: number } {
   let raw = 0;
   for (const inc of s.player.safety.incidents) {
     if (inc.day < s.time.day - 91 || inc.labId !== 'player') continue;
     if (inc.exposure !== 'public' && inc.status !== 'leaked') continue;
-    raw += Math.min(30, 10 + 5 * (inc.severity - 1));
+    raw += incidentHit(inc.severity);
   }
-  return { raw, capped: Math.min(raw, INCIDENT_BC_CAP_Q), cap: INCIDENT_BC_CAP_Q };
+  const capped = Math.min(raw, INCIDENT_BC_CAP_Q);
+  const mult = moodWeight(s, 'incidents');
+  return { raw, capped, cap: INCIDENT_BC_CAP_Q, mult, hit: capped * mult };
 }
 
 /** Why an incident's public timer is what it is (LIMITS incident.publicTimer). */

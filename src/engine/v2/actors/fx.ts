@@ -60,7 +60,6 @@ export const concern = (ctx: SystemCtx, d: number, src: string, detail?: string)
 export const cash = (s: GameStateV2, ctx: SystemCtx, d: number, src: string, detail?: string) => bookCash(s, ctx, d, 'relations', src, detail);
 export const morale = (ctx: SystemCtx, d: number, src: string, detail?: string) => ctx.bump('morale', d, src, detail);
 export const moraleSafety = (ctx: SystemCtx, d: number, src: string, detail?: string) => ctx.bump('morale.safety', d, src, detail);
-export const boardConf = (ctx: SystemCtx, d: number, src: string, detail?: string) => ctx.bump('board.confidence', d, src, detail);
 export const secDemand = (ctx: SystemCtx, d: number, src: string, detail?: string) => ctx.bump('gov.securityDemand', d, src, detail);
 export const natPressure = (ctx: SystemCtx, d: number, src: string, detail?: string) => ctx.bump('gov.nationalization', d, src, detail);
 export const theftIntent = (ctx: SystemCtx, d: number, src: string, detail?: string) => ctx.bump('china.theftIntent', d, src, detail);

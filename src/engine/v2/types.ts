@@ -876,8 +876,38 @@ export interface Board {
   preset: GovernancePresetId;
   seats: BoardSeat[];
   confidence: number; // BC 0..100
-  pendingApprovals: { id: string; action: string; vector: [number, number, number, number]; pApprove: number }[];
   safetyCommitteeVeto: boolean;
+}
+
+/** Major decisions the board votes on (FINANCE-V3 §7.3). Operating decisions (compute, releases, research, pricing)
+ *  are never voted on. */
+export type MajorDecision = 'saleOfControl' | 'merger' | 'downRound' | 'rescue' | 'commitments' | 'debt';
+
+/** One voting seat's vote on a major decision (FIN3a): deterministic, shown before you ask. lean = stance · decision
+ *  + outside-ownership drift + board mood + the situation; yes when lean > 0 (the CEO's seat always votes yes). */
+export interface SeatVote {
+  holder: string;
+  kind: BoardSeat['kind'];
+  weight: number;
+  yes: boolean;
+  lean: number;
+  parts: { stance: number; drift: number; mood: number; need: number };
+}
+
+/** A board vote (FIN3a, spec §7.3): passes when the weighted yes is more than half of the voting weight. */
+export interface BoardVote {
+  decision: MajorDecision;
+  label: string;
+  /** Why this needs the board (the trigger, e.g. "firm payments $140B a year above 3× revenue"). */
+  trigger: string;
+  /** The situation term every seat shares, in words (e.g. "runway 2.1 q: the alternative is running out of cash"). */
+  needLabel: string;
+  seats: SeatVote[];
+  yes: number;
+  total: number;
+  passes: boolean;
+  /** Founder control (founder preset before listing, or dual-class): a failed vote can be forced at a confidence cost. */
+  canForce: boolean;
 }
 
 export interface BoardSeat { kind: 'founder' | 'mission' | 'financial' | 'strategic' | 'independent' | 'gov'; holder: string; stance: [number, number, number, number]; weight: number; }
@@ -1493,8 +1523,9 @@ export interface ActionDef<P = Record<string, number | string | boolean>> {
   preview(s: GameStateV2, p: P): { costs: CostLine[]; gains: CostLine[]; exposure: CostLine[] };
   /** Returns a string when the action did not go through (e.g. the board voted it down); its side effects stand. */
   apply(s: GameStateV2, ctx: SystemCtx, p: P): void | string;
-  /** Board approval vector (speed, fin, safety, mission) if this is a major decision (§3.7.5). */
-  boardVector?: [number, number, number, number];
+  /** The board vote this action needs with these params (FIN3a: major decisions only, spec §7.3), or undefined when
+   *  it needs none. Deterministic: the UI shows it before you ask, apply() reads the same vote. */
+  vote?(s: GameStateV2, p: P): BoardVote | undefined;
   /** Structure verb (STRUCTURE R2) and system (§4); required (scripts/v2/lint-structure.ts). */
   verb: ActionVerb;
   system: StructureSystem;

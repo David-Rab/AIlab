@@ -705,6 +705,50 @@ ok('J1 C1: buy, build and rent show before → after (cash, runway)', await page
   await page.click('[data-tabs=finance] [data-tab=deals]'); await wait(80);
   ok('FIN2: the debt card links lease guarantees to What we owe (one home)', !!(await page.$('[data-test=lease-terms] [data-go="fin.go.guarantees"]')) && !/guarantees \$/.test(await page.evaluate(() => document.querySelector('[data-test=lease-terms]')?.textContent ?? '')));
 }
+// FIN3a (finance v3 §7.3–§7.4): the Board card shows seats, what moves this board (four named sources × its
+// multipliers, then the drift to 60) and the next review; every major decision shows the seat-by-seat vote before you
+// ask; a failed vote disables the button; founder control offers to force it.
+{
+  await nav('finance');
+  await page.click('[data-tabs=finance] [data-tab=owners]'); await wait(120);
+  const nMood = await page.evaluate(() => document.querySelectorAll('[data-home=board] [data-test=mood-sources] [data-mood]').length);
+  ok('FIN3a: the Board card lists the four mood sources and the drift to 60', nMood === 5, String(nMood));
+  await page.hover('[data-home=board] [data-mood=incidents]');
+  await wait(300);
+  ok('FIN3a: a mood source explains this board\'s multiplier seat by seat', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /on this board/.test(t) && /×2/.test(t); })()`)));
+  await clearTips();
+  await page.hover('[data-home=board] [data-seat="1"]');
+  await wait(300);
+  ok('FIN3a: a seat tooltip shows how much each kind of news moves it', JSON.parse(await get(`(() => /Minds/.test(document.querySelector('.tip')?.innerText ?? ''))()`)));
+  await clearTips();
+  await shot('58-fin3a-board');
+  // A down round is a major decision: tight runway makes it available; the vote shows under the button, seat by seat.
+  const saved = await get('({ state: s.player.finance.state, bc: s.player.board.confidence, preset: s.player.board.preset })');
+  await page.evaluate(() => { const s = window.ai27v2.state; s.player.finance.state = 'tight'; s.player.board.confidence = 60; window.ai27v2.notify(); });
+  await page.click('[data-tabs=finance] [data-tab=cash]'); await wait(150);
+  const nVoters = JSON.parse(await get('s.player.board.seats.filter((x) => x.weight > 0).length'));
+  const chips = await page.evaluate(() => document.querySelectorAll('.act-col:has([data-act="fin.downRound"]) [data-test=vote] [data-vote]').length);
+  ok('FIN3a: the down-round button shows each seat\'s vote before you ask', chips === nVoters && chips > 0, `${chips} chips, ${nVoters} voting seats`);
+  await page.hover('.act-col:has([data-act="fin.downRound"]) [data-test=vote]');
+  await wait(300);
+  ok('FIN3a: the vote tooltip shows each seat\'s lean and the shared terms', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /Board mood/.test(t) && /Situation/.test(t) && /stance/.test(t); })()`)));
+  await shot('59-fin3a-vote');
+  await clearTips();
+  // A board with no confidence votes it down: the button is disabled with the vote as its reason.
+  await page.evaluate(() => { const s = window.ai27v2.state; s.player.board.confidence = 0; s.player.finance.cash = Math.max(s.player.finance.cash, 1e4); window.ai27v2.notify(); });
+  await wait(150);
+  ok('FIN3a: a failed vote disables the decision', !!(await page.$('.act-col:has([data-act="fin.downRound"]) [data-test=vote][data-pass="0"]')) && !!(await page.$('[data-act="fin.downRound"][disabled]')));
+  ok('FIN3a: without founder control there is no force button', !(await page.$('[data-act="fin.downRound:force"]')));
+  // Founder control: the same failed vote can be forced at board confidence −20.
+  await page.evaluate(() => { const s = window.ai27v2.state; s.player.board.preset = 'founder'; s.player.board.confidence = 30; window.ai27v2.notify(); });
+  await wait(150);
+  const forceBtn = await page.$('[data-act="fin.downRound:force"]');
+  if (forceBtn) {
+    await check('FIN3a: founder control forces a failed vote (confidence −20, the round books)', 's.player.finance.rounds.length + ":" + Math.round(s.player.board.confidence)', () => forceBtn.click(), 200);
+  } else ok('FIN3a: founder control forces a failed vote (confidence −20, the round books)', false, 'no force button (the vote passed?)');
+  await page.evaluate((v) => { const s = window.ai27v2.state; const o = JSON.parse(v); s.player.finance.state = o.state; s.player.board.confidence = o.bc; s.player.board.preset = o.preset; window.ai27v2.notify(); }, saved);
+  await wait(100);
+}
 // J2: engineers' load, spare serving, days cut, same-lineage monitors, risk lever what-ifs, launches on the build queue.
 await nav('company');
 await tabTo('people');

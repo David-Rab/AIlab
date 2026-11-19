@@ -16,10 +16,11 @@ import { newSite, oppositionOdds, reactiveUnblockOdds } from '../../src/engine/v
 import { contingentLiabilities, crf, siteLeaseId, siteRVG } from '../../src/engine/v2/finance/capex';
 import { creditLineCapacity, debtHeadroom, drawDebt, ratingOf, ratingTerms } from '../../src/engine/v2/finance/debt';
 import { FINANCE_ACTIONS, raiseQuote } from '../../src/engine/v2/finance/actions';
-import { founderControl } from '../../src/engine/v2/finance/board';
+import { boardVote, debtVote, founderControl, VOTE } from '../../src/engine/v2/finance/board';
+import { MOOD_SOURCE_OF, MOOD_WEIGHTS, moodWeight } from '../../src/engine/v2/finance/mood';
 import { acceptRepriced, bookRound, closePendingRound, dMax, raiseCeiling, REPRICED_DECIDE_DAYS, valuationMark, valuationNow } from '../../src/engine/v2/finance/equity';
 import { whatWeOwe } from '../../src/engine/v2/finance/owe';
-import { credRung, judgePromises, livePromises, makeThesis, promiseDeadline, promiseWeight, trendOf } from '../../src/engine/v2/finance/promises';
+import { credRung, judgePromises, livePromises, makeThesis, PROMISE_RESULT, promiseDeadline, promiseWeight, trendOf } from '../../src/engine/v2/finance/promises';
 import { FINANCE_EVENTS } from '../../src/engine/v2/finance/events';
 import { applyShock } from '../../src/engine/v2/finance/investors';
 import { CAPEX2X_AUTOPILOT, financeAutopilot, REF_AUTOPILOT, type AutopilotOpts } from '../../src/engine/v2/finance/plan';
@@ -383,7 +384,9 @@ for (const a of FINANCE_ACTIONS) {
     const w1 = promiseWeight(s, p1);
     const w2 = promiseWeight(s, p2);
     check(Math.abs(w1 - 1 / 51) < 1e-6 && w2 === 1, 'FIN2 weight = the round ÷ everything raised in the year to its deadline ($1B then $50B: 2% and 100%)', `${F1pct(w1)} / ${F1pct(w2)}`);
-    // Judged at the deadline: met +30 / +10 × weight, missed −30 / −15 × weight, within 20% nothing; never cash.
+    // Judged at the deadline: met +30 credibility / +30 board, missed −30 / −30, × weight, within 20% nothing; never
+    // cash. FIN3a: the board part is × the board's multiplier for promise results (the day-400 fixture's leader board,
+    // two mission and two independent seats: ×0.75); sizes rebalanced from +10 / −15 (FIN3a notes).
     const judge = (progress: number) => {
       const x = fx();
       const c2 = makeCtx(x);
@@ -401,7 +404,8 @@ for (const a of FINANCE_ACTIONS) {
     const met = judge(1.05);
     const near = judge(0.9);
     const miss = judge(0.5);
-    check(met.o === 'met' && Math.abs(met.dc - 30) < 1e-9 && Math.abs(met.db - 10) < 1e-9 && near.o === 'near' && near.dc === 0 && near.db === 0 && miss.o === 'missed' && Math.abs(miss.dc + 30) < 1e-9 && Math.abs(miss.db + 15) < 1e-9 && met.cash === 0 && miss.cash === 0, 'FIN2 at its deadline a promise met moves credibility +30 / board +10, missed by > 20% −30 / −15, within 20% nothing (× weight); never cash', `met ${met.dc}/${met.db} · near ${near.dc}/${near.db} · missed ${miss.dc}/${miss.db}`);
+    const k = moodWeight(fx(), 'results');
+    check(met.o === 'met' && Math.abs(met.dc - 30) < 1e-9 && Math.abs(met.db - PROMISE_RESULT.metBoard * k) < 1e-9 && near.o === 'near' && near.dc === 0 && near.db === 0 && miss.o === 'missed' && Math.abs(miss.dc + 30) < 1e-9 && Math.abs(miss.db - PROMISE_RESULT.missBoard * k) < 1e-9 && met.cash === 0 && miss.cash === 0, `FIN2/FIN3a at its deadline a promise met moves credibility +30 / board +${PROMISE_RESULT.metBoard} × the board's weight, missed by > 20% −30 / −${Math.abs(PROMISE_RESULT.missBoard)} ×, within 20% nothing (× weight); never cash`, `board weight ×${k} · met ${met.dc}/${f1(met.db)} · near ${near.dc}/${near.db} · missed ${miss.dc}/${f1(miss.db)}`);
   }
   {
     // Credibility multiplies the valuation mark (interim): Doubted ×0.7 … Proven ×1.15; start values by start type.
@@ -497,6 +501,115 @@ for (const a of FINANCE_ACTIONS) {
     const met = judged.filter((p) => p.result!.outcome === 'met').length;
     const cred = median(ref.map((r) => r.s.player.finance.credibility));
     check(per(2026) >= 1 && per(2026) <= 4 && per(2027) >= 1 && per(2027) <= 4, 'FIN2 RefBot raises 1–4 rounds a year (median; it raised at the ceiling every quarter before FIN2)', `2026 ${per(2026)} · 2027 ${per(2027)} · promises judged ${judged.length} (met ${F1pct(met / Math.max(1, judged.length))}; scale ${byType('scale')}, adoption ${byType('adoption')}, capability ${byType('capability')}) · end-2027 credibility median ${f1(cred)}`);
+  }
+}
+
+// ───────────────────────────── FIN3a: board votes and mood (FINANCE-V3 §7.3–§7.4) ─────────────────────────────
+{
+  const fx = () => deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
+  {
+    // Votes are deterministic and shown before you ask: the same state gives the same vote, and the vote never draws
+    // from the finance stream (no dice).
+    const s = fx();
+    const v1 = boardVote(s, 'commitments', 'test');
+    const rng0 = JSON.stringify(s.rng);
+    const v2 = boardVote(s, 'commitments', 'test');
+    const voters = s.player.board.seats.filter((x) => x.weight > 0);
+    check(JSON.stringify(v1) === JSON.stringify(v2) && JSON.stringify(s.rng) === rng0 && v1.seats.length === voters.length && v1.total === voters.reduce((a, x) => a + x.weight, 0) && v1.passes === v1.yes > v1.total / 2, 'FIN3a a board vote is deterministic, seat by seat; passes when the weighted yes is more than half', `${v1.label}: ${v1.seats.map((x) => `${x.kind} ${x.yes ? 'yes' : 'no'} ${f1(x.lean)}`).join(', ')} → ${v1.yes}/${v1.total}`);
+  }
+  {
+    // The situation moves every seat: a short runway makes the board want money (down round) and fear obligations.
+    const s = fx();
+    s.player.board.confidence = 50;
+    s.player.finance.cash = 1e4;
+    const rich = { dr: boardVote(s, 'downRound', ''), cm: boardVote(s, 'commitments', '') };
+    s.player.finance.cash = 1;
+    s.player.finance.ledger.push({ id: 'L-burn-test', payee: 'Test', kind: 'cloud', perQuarter: 500, endDay: s.time.day + 3650, cancellableNoticeQ: null, penalty: 0 });
+    const poor = { dr: boardVote(s, 'downRound', ''), cm: boardVote(s, 'commitments', '') };
+    const lean = (v: ReturnType<typeof boardVote>) => v.seats.find((x) => x.kind !== 'founder')!.parts.need;
+    check(lean(poor.dr) > lean(rich.dr) && lean(poor.cm) < lean(rich.cm) && poor.dr.passes && !rich.dr.passes, 'FIN3a a short runway carries a down round and weighs against new obligations (no cash: the down round passes; flush with cash: refused)', `down round: rich ${rich.dr.yes}/${rich.dr.total}, poor ${poor.dr.yes}/${poor.dr.total} · commitments need ${f1(lean(rich.cm))} → ${f1(lean(poor.cm))}`);
+    // Board mood sways every seat.
+    s.player.finance.cash = 30;
+    s.player.board.confidence = 90;
+    const hi = boardVote(s, 'commitments', '');
+    s.player.board.confidence = 10;
+    const lo = boardVote(s, 'commitments', '');
+    check(hi.seats.every((x, i) => x.lean > lo.seats[i].lean) && hi.yes >= lo.yes, 'FIN3a board confidence sways every seat in a vote', `commitments at confidence 90: ${hi.yes}/${hi.total}, at 10: ${lo.yes}/${lo.total}`);
+  }
+  {
+    // The dilution vote and the 20%-of-revenue debt vote are gone; debt above 3× revenue and firm commitments above 3×
+    // revenue are voted; operating decisions (spot chips, single batches, spot rentals, sites) never are.
+    const s = fx();
+    const R = s.player.finance.revenueRun;
+    const vote = (id: string, p: Record<string, number | string | boolean>) => FINANCE_ACTIONS.find((a) => a.id === id)!.vote?.(s, p);
+    const bigRaise = vote('fin.raise', { ask: 0.5 * s.player.finance.valuation });
+    const smallDebt = vote('fin.drawDebt', { kind: 'gpuTerm', amount: 0.5 * R });
+    const bigDebt = debtVote(s, 4 * R);
+    const ops = ['cmp.newSite', 'cmp.community', 'cmp.preorderTransformers', 'fin.sellChips'].every((id) => !FINANCE_ACTIONS.find((a) => a.id === id)!.vote) && !vote('cmp.buyChips', { term: 1, qty: 5e6 }) && !vote('cmp.buyChips', { term: 0, qty: 5e6 }) && !vote('cmp.rentCompute', { term: 1, h100e: 5e6 }) && !vote('cmp.rentCompute', { term: 8, h100e: 50e6, firm: false });
+    const firm = vote('cmp.rentCompute', { term: 8, h100e: 50e6, firm: true });
+    check(!bigRaise && !smallDebt && bigDebt?.decision === 'debt' && ops && firm?.decision === 'commitments', 'FIN3a votes: no dilution vote, no 20%-of-revenue debt vote; debt or firm commitments above 3× revenue are voted; compute orders, sites and spot rentals never', `raise of half the valuation: ${bigRaise ? 'voted' : 'no vote'} · debt 0.5× revenue: ${smallDebt ? 'voted' : 'no vote'} · ${bigDebt?.trigger} · ${firm?.trigger}`);
+    // A failed vote stops the action with the vote's reason and no side effects (no confidence hit, no block).
+    const t = fx();
+    t.player.board.confidence = 5;
+    t.player.finance.cash = 2;
+    const bc0 = t.player.board.confidence;
+    const rv = FINANCE_ACTIONS.find((a) => a.id === 'cmp.rentCompute')!.vote!(t, { term: 8, h100e: 50e6, firm: true })!;
+    const err = act(t, 'cmp.rentCompute', { term: 8, h100e: 50e6, firm: true });
+    check(!rv.passes && typeof err === 'string' && /board votes no/.test(err) && t.player.board.confidence === bc0 && Object.keys(t.player.finance.ws3.blockedUntil).every((k) => k !== 'cmp.rentCompute'), 'FIN3a a failed vote stops the action with its reason; no confidence hit, no 90-day block', String(err));
+  }
+  {
+    // Founder control forces a failed vote at −20 confidence; without it, force does nothing.
+    const s = fx();
+    s.player.board = { ...s.player.board, preset: 'founder', seats: [{ kind: 'founder', holder: 'CEO', stance: [1, 0.3, 0.2, 0.3], weight: 2 }, { kind: 'financial', holder: 'Lead investor', stance: [1, 0.6, -0.2, 0], weight: 1 }, { kind: 'independent', holder: 'Independent', stance: [0, 0.5, 0.3, 0.3], weight: 1 }] };
+    s.player.finance.ownership.public = 0;
+    s.player.board.confidence = 25;
+    s.player.finance.cash = 2;
+    const p = { term: 8, h100e: 50e6, firm: true };
+    const v = FINANCE_ACTIONS.find((a) => a.id === 'cmp.rentCompute')!.vote!(s, p)!;
+    const n0 = s.player.cloud.length;
+    const err = act(s, 'cmp.rentCompute', { ...p, force: true });
+    const forced = s.player.board.confidence;
+    const t = fx();
+    t.player.board.confidence = 25;
+    t.player.finance.cash = 2;
+    const err2 = act(t, 'cmp.rentCompute', { ...p, force: true });
+    check(!v.passes && v.canForce && !err && s.player.cloud.length > n0 && Math.abs(forced - (25 - VOTE.forceCost)) < 1e-9 && typeof err2 === 'string', 'FIN3a founder control forces a failed vote at board confidence −20; a board without it cannot be forced', `founder: ${v.yes}/${v.total} forced, confidence 25 → ${forced} · legacy board: ${err2}`);
+  }
+  {
+    // Mood by seat kind (spec §7.4 table): a mission board minds incidents more and falling behind not at all; a
+    // financial board the opposite. No safety-grade bonus, no tight-runway hit, no plan.
+    const s = fx();
+    const kinds = (k: 'mission' | 'financial') => { s.player.board.seats = [{ kind: 'founder', holder: 'CEO', stance: [1, 0.3, 0.2, 0.3], weight: 1 }, { kind: k, holder: k, stance: [0, 0, 0, 0], weight: 2 }]; return { inc: moodWeight(s, 'incidents'), behind: moodWeight(s, 'behind'), res: moodWeight(s, 'results'), set: moodWeight(s, 'setbacks') }; };
+    const m = kinds('mission');
+    const fi = kinds('financial');
+    check(m.inc === 2 && m.behind === 0 && m.res === 0.5 && m.set === 1 && fi.inc === 0.5 && fi.behind === 1.5 && fi.res === 1.5 && fi.set === 1 && MOOD_WEIGHTS.setbacks.independent === 1.5, 'FIN3a mood weights by seat kind (financial / mission / independent: promises 1.5/0.5/1, setbacks 1/1/1.5, behind 1.5/0/0.5, incidents 0.5/2/1)');
+    const g = newGame(defaultSetupV2({ seed: 3 }));
+    while (g.time.day < 400) {
+      const gr = g.researchBodies.index.grades;
+      if (gr.player) gr.player.letter = 'A';
+      tick(g, { skip: ['endings'] });
+    }
+    const srcs = new Set((g.causes.byKey['board.confidence'] ?? []).map((e) => e.source));
+    check(![...srcs].some((x) => /Safety Index|tight runway|plan|new borrowing|debt repaid|board rejected|strategic rescue/.test(x)), 'FIN3a no safety-grade bonus, tight-runway, borrowing, plan or rejection sources', [...srcs].join(', ') || 'only reversion');
+    // Every board-confidence source the engine posts is named (one of the four, the drift, or a decision/event cost).
+    const named = [...srcs].every((x) => MOOD_SOURCE_OF[x] || ['board memory fades', 'forced past the board', 'CEO reinstated'].includes(x) || x.startsWith('E37'));
+    check(named, 'FIN3a board confidence moves only on named sources', [...srcs].join(', '));
+  }
+  {
+    // Rebalance (FIN3a notes): the reference bot's board at the end of 2027 sits near 60 (FIN2 48 without the plan; 67
+    // with it).
+    const bc = median(ref.map((r) => r.s.player.board.confidence));
+    check(bc >= 55, 'FIN3a RefBot end-2027 board confidence median ≥ 55 (FIN2: 48)', `median ${f1(bc)} (${ref.map((r) => r.s.player.board.confidence.toFixed(0)).join(' ')})`);
+  }
+  {
+    // Save migration 13 → 14: the pending-approvals list and old vote blocks go; E37's capex freeze stays.
+    const s = fx();
+    const raw = JSON.parse(serialize(s));
+    raw.schemaRev = 13;
+    raw.player.board.pendingApprovals = [];
+    raw.player.finance.ws3.blockedUntil = { 'fin.raise': 9999, 'deal:sovereign': 9999, 'cmp.newSite': 9999 };
+    const m = deserialize(JSON.stringify(raw));
+    check(!('pendingApprovals' in m.player.board) && Object.keys(m.player.finance.ws3.blockedUntil).join(',') === 'cmp.newSite', 'FIN3a save migration 13 → 14');
   }
 }
 

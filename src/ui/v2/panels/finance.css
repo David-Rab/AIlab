@@ -86,3 +86,7 @@
 .owe-num { text-align: right; white-space: nowrap; font-family: var(--mono); }
 .owe-meta { display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
 .owe-judged { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+/* FIN3a: what moves the board (four named sources × this board's multiplier, last 12 months) */
+.mood { margin: 10px 0 4px; display: flex; flex-direction: column; gap: 4px; }
+.mood-row { display: grid; grid-template-columns: 150px 44px 1fr 34px; align-items: center; gap: 8px; }
+.mood-mult { font-size: 11px; color: var(--text-3); text-align: right; }

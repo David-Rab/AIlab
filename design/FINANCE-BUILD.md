@@ -389,3 +389,92 @@ Numbers, before (FIN1 d3599c7) → after (FIN2):
   FIN5 moves credibility and the dual-class factor into the valuation share and replaces the quarterly pool (the bot
   still raises at the pool-bound ceiling, so rounds stay pool-sized: about $10–330B in 2027); the "supplier terms follow
   equity access" item from FIN1 still waits on share_i.
+
+### FIN3a notes (2026-11-19)
+
+Built: deterministic board votes on the major decisions (`boardVote`, `commitmentsVote`, `debtVote`, `voteGate`,
+`voteCost` in `finance/board.ts`; `ActionDef.vote(s, p)` replaces `boardVector`; `actionVote` for the UI), board mood
+by seat kind in a new `finance/mood.ts` (`MOOD_WEIGHTS`, `moodWeight`, `boardMood`, `MOOD_BASE`, `MOOD_SOURCE_OF`), the
+Board card ("What moves this board": the four sources with this board's multiplier and their 12-month sums, then the
+drift to 60; seat tooltips with what each seat minds) and a vote strip under every major decision's button (one chip
+per voting seat, yes/no, the total; tooltip with each seat's lean and the shared terms; a Force button under founder
+control). schemaRev 13 → 14 (pending-approvals list dropped; 90-day vote blocks on raises, deals, borrowing and cloud
+contracts lifted; E37's capex freeze kept).
+
+Removed (no aliases): `boardSupport`, `boardApproval` and its dice roll, the −5 "board rejected" hit and the 90-day
+block after a rejection, `BOARD_VECTORS` (dilution, pauseTraining, declineTopDeployment, releaseFlagged were never or no
+longer voted; FIN3b adds the charter's release block as a hard right, not a vote), `boardSpeedAppetite`,
+`Board.pendingApprovals` (never filled), `ActionDef.boardVector` (incl. the unused one on `safety.pledge`), the dilution
+vote on `fin.raise` (> 10%), the 20%-of-revenue vote on `fin.drawDebt`, the mood sources "Safety Index grade" (+3/q),
+"tight runway" (−5/q), "new borrowing" (−1), "debt repaid" (+1), "strategic rescue" (+10), and `actors/fx.boardConf`
+(an unnamed back door to the meter).
+
+Choices and readings of the spec:
+- **Vote.** Each voting seat's lean = stance · decision vector + outside-ownership drift (R15, as before: outside share
+  × (v_speed + v_fin)) + mood (BC − 50)/50 + a situation term; yes above 0; the CEO's seat always yes; observers do not
+  vote; passes when the yes weight > half. Situation [D]: funding decisions (down round, rescue) +(6 − runway q)/4,
+  0…1.2 ("the alternative is running out of cash"); obligations (commitments, debt) (runway q − 4)/8, ±0.5 ("can the
+  company carry it"); control decisions none. Vectors: sale of control [0,0,0,−1], commitments [0.5,−1,0,0] and debt
+  [0.3,−1,0,0] kept from R15; down round [0,−0.3,0,0], rescue [0,0.3,0,−0.6], merger [0.5,−0.5,0,−0.2] [D]. A failed vote
+  just stops the action with the vote as its reason (no side effects: nothing to re-roll). Founder control (founder
+  preset before listing, or dual-class) forces a failed vote at −20 (kept).
+- **Which decisions.** Down round = `fin.downRound`, `fin.acceptRepriced` when below the last post, and `fin.raise` when
+  its pitch prices below the last post-money; rescue = `fin.rescue`; firm commitments = partner deals
+  (`fin.acceptDeal`), quarterly chip tranches (`cmp.buyChips` term ≥ 2) and firm cloud contracts (`cmp.rentCompute`)
+  when firm payments due in the next four quarters (`commitmentsPerYear(s, true)`; cancellable ones no longer count)
+  would exceed 3× revenue; debt = any `fin.drawDebt` that takes drawn debt above 3× revenue. Spot chips, single batches,
+  spot rentals, cancellable contracts, sites (their lease payments start at go-live, outside the four-quarter window)
+  and every other operating decision are never voted. Sale of control and merger exist as decisions with vectors but
+  nothing calls them yet (FIN3c wires E32; the endings' sale-of-control check is unchanged).
+- **Mood weights** are the spec table; strategic seats [D] like a financial holder that minds promises less
+  (1/1/1/0.5), government seats [D] like a mission seat (0.5/1/0.5/1.5). A board's multiplier for a source is the
+  vote-weighted mean over its voting seats other than the CEO's (1 if none). Leader start (2 mission + 2 independent):
+  promises ×0.75, setbacks ×1.25, behind ×0.25, incidents ×1.5; founder preset (financial + independent): ×1.25 / ×1.25 /
+  ×1 / ×0.75, shifting as financial seats join.
+- **Sources (named only)**: promise results (§2.4 × weight × the multiplier), setbacks (down round −15, covenant breach
+  −15, each quarterly review in distress −4, failed raise −5; out of distress +10, the spec's "results restore it"),
+  behind (behind the best rival −5/q; E17 pause −5, renamed "frontier pause"), incidents. Plus the drift to 60 (10% of
+  the gap a quarter), the −20 force cost, and E37 / CEO reinstated until FIN3b removes them. The ouster grievance reads
+  the categories (incidents = reckless, setbacks = burning the company, the rest = slow). The distress morale hit stays
+  (FIN3b removes it).
+- **Rebalance [D].** Promise results ±30 × weight on the board (was +10 / −15; the credibility sizes, so a promise is
+  the board's main good news now the plan is gone); public incidents −(4 + 3 × (sev − 1)) ≤ 13 each, ≤ 8 a quarter (was
+  10 + 5 × … ≤ 30, ≤ 20) before the multiplier, so a mission-heavy board takes ≤ 12/q; covenant breach −20 → −15 (a
+  breach is also distress, now counted every quarter). Tight runway is no longer a source (spec: distress).
+- **UI.** The vote strip sits under the action button with its own tooltip (outside the button's preview tooltip) on
+  every card that shows a major decision (raise / down round / rescue / repriced round, Borrow, partner offers, Buy
+  chips, Rent compute); yes chips are filled and no chips dashed (not colour alone). Previews show the down-round hit,
+  the promise's board effect and the incident cap at this board's multiplier. Glossary: new `boardVote`; `boardConf`,
+  `boardSeat`, `promise`, `downRound`, `rescue` updated; LIMITS board.incidentCap updated.
+
+Numbers, before (FIN2) → after (FIN3a):
+- Board confidence, scratch diagnostic (24 seeds per bot, leader start, bots.ts setup with endings, through 2027;
+  medians of games still running): end-2027 ref 46 → 59, mixed 44 → 62, safe 51 → 60, race 30 → 38, capex2x 18 → 1;
+  end-2026 ref 53 → 68, mixed 50 → 67, race 47 → 49, capex2x 18 → 1; yearly minimum ref 40 → 53, mixed 33 → 57, race
+  28 → 32, capex2x 26 → 11. `scripts/v2/finance.ts` RefBot (12 seeds, no endings) end-2027 median 48 → 61.6 (FIN1 with
+  the plan: 67). Before FIN3a only capex2x's firm bridge rentals ever triggered a vote in that diagnostic (5 in 24
+  games); the bots barely meet votes.
+- `scripts/v2/bots.ts` (200 seeds, leader start): all §7.4 criteria MET. Wins race 1.5 → 1.5%, safe 1.0 → 1.0%, mixed
+  51.0 → 52.0%, ref 22.5 → 22.0%, capex2x 6.0 → 3.0%. Ousted: ref 12.5 → 10.5%, mixed 11.0 → 11.5%, race 19.0 → 14.5%,
+  safe 25.0 → 16.5%, capex2x 19.0 → 34.5% (insolvent 49.5 → 48.0%). The competent bots sit at FIN1/FIN2 ouster levels
+  (FIN1: ref 13, mixed 8); race stays at real risk (as FIN1, 14.5%); capex2x is ousted more because setbacks weigh ×1.25
+  on the leader board and distress now costs every quarter: its board crashes in its first year (covenant breach, down
+  rounds, distress) and the ouster usually comes before the insolvency it was heading for (company loss 68.5 → 82.5%).
+  FIN6a may soften this alongside the FC7 work.
+- `scripts/v2/finance.ts` F7/F8/F9 unchanged within noise (2026 capex $155.7B → $156.2B: the finance stream no longer
+  feeds approval dice; financing $64.6B, distress-free 83.3%, capex2x distress 100%, dilution max 5.3%); RefBot rounds
+  2026 4 / 2027 2, promises met 81%.
+- Tests: `npm run typecheck` clean. test:v2 chain: golden-timelines, identity, calib, fixtures, hygiene (quiet machine:
+  perf checks passed), lint-hidden, lint-ux, lint-tradeoffs, lint-structure green; safety S5 −1.01 (known, as FIN1/2);
+  then one by one: finance only F2 44.4M (known); worldfx HireRate_SOFT 2027-03-11 (known); ws4, products, money, idle
+  green. `npm run test:ui` all passed. Test changes: finance.ts FIN2 promise-judging check now expects the board part
+  × the board's multiplier at ±30 (was +10 / −15: the FIN3a rebalance); 11 new FIN3a checks (deterministic vote, the
+  situation and mood terms, which decisions are voted, a failed vote has no side effects, founder force, mood weights by
+  seat kind, no removed sources, only named sources, RefBot end-2027 confidence ≥ 55, migration 13 → 14). uitest: 8 new
+  FIN3a checks (mood sources, multiplier and seat tooltips, the down-round vote seat by seat with its tooltip, a failed
+  vote disables the button, no force without founder control, founder force books the round at −20). Fixtures
+  regenerated (schemaRev 14).
+- Left for later: FIN3b (charter rights incl. the safety committee's release block, the critics' seat, the visible and
+  deterministic ouster vote, E37 and the staff-revolt reinstatement, the distress morale hit, the IPO repricing fix);
+  FIN3c wires the sale-of-control and merger votes into the rebuilt E32. `design/v2-interfaces.ts` still shows the old
+  `pendingApprovals` / `boardVector` (design file, FIN6c docs pass).

@@ -8,6 +8,7 @@
 // (interim until FIN5 moves it into the valuation share).
 import { dayOfQuarter, quarterIndex } from '../core/time';
 import type { Day, FinancePromise, GameStateV2, MilestoneType, Pitch, StartType, SystemCtx, Thesis } from '../types';
+import { moodWeight } from './mood';
 import { computeOnline, computeSecured, publicLevel, revenueRun } from './observe';
 
 export const MILESTONES: MilestoneType[] = ['capability', 'scale', 'adoption'];
@@ -30,8 +31,9 @@ export const CRED_RUNGS = [
 export type CredRung = (typeof CRED_RUNGS)[number]['id'];
 
 /** Results at the deadline [D, spec §2.4]: met +30 × weight credibility, +10 × weight board; missed by more than 20% of
- *  the promised gain −30 / −15 × weight; within 20% nothing. */
-export const PROMISE_RESULT = { metCred: 30, missCred: -30, metBoard: 10, missBoard: -15, band: 0.2 } as const;
+ *  the promised gain −30 / −15 × weight; within 20% nothing. The board's part is then × the board's multiplier for
+ *  promise results (FIN3a, by seat kind: financial ×1.5, independent ×1, mission ×0.5). */
+export const PROMISE_RESULT = { metCred: 30, missCred: -30, metBoard: 30, missBoard: -30, band: 0.2 } as const;
 
 /** Start credibility by start type [D, spec §2.4]: leader Credible 60, challenger Credible 50, spinout Unproven 40. A
  *  division raises no equity (50, never read). */
@@ -187,8 +189,11 @@ export interface PromiseStatus {
 export function outcomeOf(progress: number): 'met' | 'near' | 'missed' {
   return progress >= 1 ? 'met' : progress >= 1 - PROMISE_RESULT.band ? 'near' : 'missed';
 }
-const effects = (o: 'met' | 'near' | 'missed', w: number) =>
-  o === 'met' ? { cred: PROMISE_RESULT.metCred * w, board: PROMISE_RESULT.metBoard * w } : o === 'missed' ? { cred: PROMISE_RESULT.missCred * w, board: PROMISE_RESULT.missBoard * w } : { cred: 0, board: 0 };
+/** Credibility and board effects of an outcome at weight w; the board part includes this board's multiplier. */
+const effects = (s: GameStateV2, o: 'met' | 'near' | 'missed', w: number) => {
+  const k = moodWeight(s, 'results');
+  return o === 'met' ? { cred: PROMISE_RESULT.metCred * w, board: PROMISE_RESULT.metBoard * w * k } : o === 'missed' ? { cred: PROMISE_RESULT.missCred * w, board: PROMISE_RESULT.missBoard * w * k } : { cred: 0, board: 0 };
+};
 
 /** Live state of a promise (What we owe, Watch). */
 export function promiseStatus(s: GameStateV2, p: FinancePromise): PromiseStatus {
@@ -200,7 +205,7 @@ export function promiseStatus(s: GameStateV2, p: FinancePromise): PromiseStatus 
   const state = progress >= 1 ? 'ahead' : tau >= 0.25 && progress < neededProgress - BEHIND_GAP ? 'behind' : 'on track';
   const weight = promiseWeight(s, p);
   const o = outcomeOf(progress);
-  return { p, value, progress, needed, neededProgress, daysLeft: Math.max(0, p.deadline - s.time.day), weight, state, ifJudgedNow: { outcome: o, ...effects(o, weight) } };
+  return { p, value, progress, needed, neededProgress, daysLeft: Math.max(0, p.deadline - s.time.day), weight, state, ifJudgedNow: { outcome: o, ...effects(s, o, weight) } };
 }
 
 export const livePromises = (s: GameStateV2) => (s.player.finance.promises ?? []).filter((p) => !p.result);
@@ -223,10 +228,11 @@ export function judgePromises(s: GameStateV2, ctx: SystemCtx): void {
     const progress = progressOf(p, value);
     const weight = promiseWeight(s, p);
     const outcome = outcomeOf(progress);
-    const fx = effects(outcome, weight);
+    const fx = effects(s, outcome, weight);
     p.result = { day: s.time.day, value, progress, outcome, weight, ...fx };
     const what = `${describeTarget(p)} (${Math.round(progress * 100)}% of the promised gain, weight ${Math.round(weight * 100)}%)`;
     if (fx.cred) ctx.bump('finance.credibility', fx.cred, outcome === 'met' ? 'promise met' : 'promise missed', what);
+    // The board part already carries this board's multiplier for promise results (effects).
     if (fx.board) ctx.bump('board.confidence', fx.board, outcome === 'met' ? 'promise met' : 'promise missed', what);
     ctx.log('finance', `Investor promise ${outcome === 'met' ? 'met' : outcome === 'missed' ? 'missed' : 'nearly met (no effect)'}: ${what}.`, outcome === 'missed' ? 2 : 1);
   }

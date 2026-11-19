@@ -30,7 +30,7 @@ export type * from './types';
 
 // ───────────── M3 UI selectors (WS6/WS7; read-only, additive) ─────────────
 // The UI may only read the visible world. These wrap engine modules so src/ui/v2 never imports internals.
-import type { ActionDef, CostLine, EventDefV2, GameStateV2, ModelVersion, DomainId } from './types';
+import type { ActionDef, BoardVote, CostLine, EventDefV2, GameStateV2, ModelVersion, DomainId } from './types';
 import { ACTIONS as REG_ACTIONS, ACTION_BY_ID as REG_ACTION_BY_ID, EVENTS as REG_EVENTS, EVENT_BY_ID as REG_EVENT_BY_ID } from './core/registry';
 import { planRun as planRunUI, type LaunchRunParams as LaunchRunParamsUI } from './models/runs';
 import { measuredDomain } from './actors/commitments';
@@ -127,4 +127,17 @@ export { promiseStatus, trendOf, makeThesis, pitchAvailable, credRung, CRED_RUNG
 export type { PromiseStatus, Trend } from './finance/promises';
 export { raiseQuote, raiseTerms } from './finance/actions';
 export { canIpo, isListed, valuationNow, DUAL_CLASS_GOV } from './finance/equity';
-export { founderControl } from './finance/board';
+// FIN3a: board votes on major decisions (seat by seat, no dice) and the board's mood sources.
+export { boardVote, founderControl, MAJOR_DECISIONS, OBLIGATION_X_REVENUE, VOTE, BC_ANCHOR, BC_REVERT_Q } from './finance/board';
+export { MOOD_SOURCES, MOOD_LABEL, MOOD_WEIGHTS, MOOD_BASE, MOOD_SOURCE_OF, moodWeight, INCIDENT_BC, INCIDENT_BC_CAP_Q } from './finance/mood';
+export type { MoodSource } from './finance/mood';
+/** The board vote an action needs with these params (FIN3a), or undefined (never throws). */
+export function actionVote(s: GameStateV2, id: string, params: Record<string, number | string | boolean> = {}): BoardVote | undefined {
+  const a = REG_ACTION_BY_ID.get(id);
+  if (!a?.vote) return undefined;
+  try {
+    return a.vote(s, params);
+  } catch {
+    return undefined;
+  }
+}
