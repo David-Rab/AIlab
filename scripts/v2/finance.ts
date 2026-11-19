@@ -8,15 +8,18 @@ import { BASELINES, globalCompute } from '../../src/data/world';
 import { CAPEX_LEASE, DEAL_TEMPLATES } from '../../src/data/v2/deals';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx, resolve, tick } from '../../src/engine/v2/core/loop';
-import { deserialize } from '../../src/engine/v2/core/save';
-import { cadencesDue, dayOfDate, decimalYear } from '../../src/engine/v2/core/time';
+import { deserialize, serialize } from '../../src/engine/v2/core/save';
+import { cadencesDue, dayOfDate, decimalYear, quarterIndex } from '../../src/engine/v2/core/time';
 import { cloudPricePerYear, demandShock, impliedMargin, orderWeight, rentalBase, repriceCancellableCloud, spotRental } from '../../src/engine/v2/compute/market';
 import { chipQuote, rentQuote } from '../../src/engine/v2/compute/orders';
 import { newSite, oppositionOdds, reactiveUnblockOdds } from '../../src/engine/v2/compute/sites';
-import { crf, siteLeaseId, siteRVG } from '../../src/engine/v2/finance/capex';
+import { contingentLiabilities, crf, siteLeaseId, siteRVG } from '../../src/engine/v2/finance/capex';
 import { creditLineCapacity, debtHeadroom, drawDebt, ratingOf, ratingTerms } from '../../src/engine/v2/finance/debt';
-import { FINANCE_ACTIONS } from '../../src/engine/v2/finance/actions';
-import { acceptRepriced, closePendingRound, dMax, raiseCeiling, REPRICED_DECIDE_DAYS, valuationMark } from '../../src/engine/v2/finance/equity';
+import { FINANCE_ACTIONS, raiseQuote } from '../../src/engine/v2/finance/actions';
+import { founderControl } from '../../src/engine/v2/finance/board';
+import { acceptRepriced, bookRound, closePendingRound, dMax, raiseCeiling, REPRICED_DECIDE_DAYS, valuationMark, valuationNow } from '../../src/engine/v2/finance/equity';
+import { whatWeOwe } from '../../src/engine/v2/finance/owe';
+import { credRung, judgePromises, livePromises, makeThesis, promiseDeadline, promiseWeight, trendOf } from '../../src/engine/v2/finance/promises';
 import { FINANCE_EVENTS } from '../../src/engine/v2/finance/events';
 import { applyShock } from '../../src/engine/v2/finance/investors';
 import { CAPEX2X_AUTOPILOT, financeAutopilot, REF_AUTOPILOT, type AutopilotOpts } from '../../src/engine/v2/finance/plan';
@@ -340,6 +343,160 @@ for (const a of FINANCE_ACTIONS) {
     check(s.player.policies.communityBenefits && !!s.player.sites[n]?.communityPackage, 'FIN1 community package as the company default: new sites carry it');
     const p = reactiveUnblockOdds(s);
     check(p >= 0.3 && p <= 0.85 && oppositionOdds(s, { path: 'gas', crash: false, communityPackage: true, ws3: { reactive: true } }).block === 1 - p, 'FIN1 E27 reactive package: re-permit with unblock odds 0.85 − 0.5 × opposition', `odds ${F1pct(p)} at dcNimby ${f1(s.pub.dcNimby)}`);
+  }
+}
+
+// ───────────────────────────── FIN2: raises with a thesis, stacking promises, credibility, IPO, What we owe (FINANCE-V3 §2, §11) ─────────────────────────────
+{
+  const fx = () => deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
+  {
+    // No revenue-based annual cap: the pool and the dilution cap bound a round.
+    const s = fx();
+    const c = raiseCeiling(s);
+    check(Object.keys(c.parts).sort().join(',') === 'ask,dilution,pool' && (c.bound === 'pool' || c.bound === 'dilution'), 'FIN2 the raise ceiling is the pool and the dilution cap only (no annual cap)', `bound ${c.bound} · $${f1(c.max)}B`);
+    // Pitches: price × 0.85 / 1 / 1.2 on the mark; targets × 0.8 / 1 / 1.3 of the trend's gain; aggressive needs Credible+.
+    const V = s.player.finance.valuation;
+    const pre = (['conservative', 'base', 'aggressive'] as const).map((p) => raiseQuote(s, 1, { pitch: p }).pre / V);
+    const tr = trendOf(s, 'scale');
+    const tg = (['conservative', 'base', 'aggressive'] as const).map((p) => { const t = makeThesis(s, 'scale', p); return typeof t === 'string' ? NaN : (t.target - t.start) / tr.gain; });
+    check(pre.every((x, i) => Math.abs(x - [0.85, 1, 1.2][i]) < 0.01) && tg.every((x, i) => Math.abs(x - [0.8, 1, 1.3][i]) < 1e-9), 'FIN2 pitches: price ×0.85 / ×1 / ×1.2 and target ×0.8 / ×1 / ×1.3 of the trend gain', `pre ${pre.map((x) => x.toFixed(2)).join('/')} · gain ${tg.map((x) => x.toFixed(2)).join('/')} (${tr.basis})`);
+    s.player.finance.credibility = 40;
+    check(typeof makeThesis(s, 'scale', 'aggressive') === 'string' && act(s, 'fin.raise', { type: 'scale', pitch: 'aggressive' }) !== undefined, 'FIN2 aggressive pitches need Credible or Proven credibility');
+  }
+  {
+    // A raise carries its thesis; the round's close makes it a promise due four quarter starts later; promises stack.
+    const s = fx();
+    s.player.finance.state = 'healthy';
+    const n0 = s.player.finance.promises.length;
+    const err = act(s, 'fin.raise', { ask: 1, type: 'scale', pitch: 'base' });
+    const th = s.player.finance.ws3.pendingRound?.thesis;
+    while (s.player.finance.ws3.pendingRound) tick(s, { skip: ['endings'] });
+    const p1 = s.player.finance.promises[s.player.finance.promises.length - 1];
+    s.player.finance.state = 'healthy';
+    act(s, 'fin.raise', { ask: 50, type: 'adoption', pitch: 'conservative' });
+    s.player.finance.ws3.pendingRound!.max = 1e6; // isolate the stacking from the closing odds
+    while (s.player.finance.ws3.pendingRound) tick(s, { skip: ['endings'] });
+    const live = livePromises(s);
+    const p2 = live[live.length - 1];
+    check(!err && !!th && th.type === 'scale' && live.length === n0 + 2 && p1.deadline === promiseDeadline(s, p1.closeDay) && quarterIndex(s.time.startDate, p1.deadline) - quarterIndex(s.time.startDate, p1.closeDay) === 4, 'FIN2 each round leaves a promise due four quarter starts after its close; promises stack', `${live.length - n0} live: ${live.slice(-2).map((p) => `${p.type}/${p.pitch} due day ${p.deadline}`).join(', ')}`);
+    // Weight = amount ÷ raised in the year to its deadline: the $1B promise barely counts next to the $50B one.
+    const w1 = promiseWeight(s, p1);
+    const w2 = promiseWeight(s, p2);
+    check(Math.abs(w1 - 1 / 51) < 1e-6 && w2 === 1, 'FIN2 weight = the round ÷ everything raised in the year to its deadline ($1B then $50B: 2% and 100%)', `${F1pct(w1)} / ${F1pct(w2)}`);
+    // Judged at the deadline: met +30 / +10 × weight, missed −30 / −15 × weight, within 20% nothing; never cash.
+    const judge = (progress: number) => {
+      const x = fx();
+      const c2 = makeCtx(x);
+      const f = x.player.finance;
+      f.rounds.push({ day: x.time.day - 400, amount: 10, postMoney: 100, dilution: 0.1, down: false });
+      const start = x.player.finance.revenueRun / (1 + progress);
+      f.promises.push({ id: 'PRt', type: 'adoption', pitch: 'base', start, target: start * 2, amount: 10, closeDay: x.time.day - 400, deadline: x.time.day });
+      const cred0 = f.credibility;
+      const bc0 = x.player.board.confidence;
+      const cash0 = f.cash;
+      judgePromises(x, c2);
+      const r = f.promises.find((p) => p.id === 'PRt')!.result!;
+      return { o: r.outcome, dc: f.credibility - cred0, db: x.player.board.confidence - bc0, cash: f.cash - cash0 };
+    };
+    const met = judge(1.05);
+    const near = judge(0.9);
+    const miss = judge(0.5);
+    check(met.o === 'met' && Math.abs(met.dc - 30) < 1e-9 && Math.abs(met.db - 10) < 1e-9 && near.o === 'near' && near.dc === 0 && near.db === 0 && miss.o === 'missed' && Math.abs(miss.dc + 30) < 1e-9 && Math.abs(miss.db + 15) < 1e-9 && met.cash === 0 && miss.cash === 0, 'FIN2 at its deadline a promise met moves credibility +30 / board +10, missed by > 20% −30 / −15, within 20% nothing (× weight); never cash', `met ${met.dc}/${met.db} · near ${near.dc}/${near.db} · missed ${miss.dc}/${miss.db}`);
+  }
+  {
+    // Credibility multiplies the valuation mark (interim): Doubted ×0.7 … Proven ×1.15; start values by start type.
+    const s = fx();
+    s.player.finance.credibility = 60;
+    const v1 = valuationNow(s).V;
+    s.player.finance.credibility = 10;
+    const v0 = valuationNow(s).V;
+    s.player.finance.credibility = 90;
+    const v2 = valuationNow(s).V;
+    const starts = (['leader', 'challenger', 'spinout'] as const).map((st) => newGame(defaultSetupV2({ seed: 1, start: st })).player.finance.credibility);
+    check(Math.abs(v0 / v1 - 0.7) < 1e-9 && Math.abs(v2 / v1 - 1.15) < 1e-9 && starts.join(',') === '60,50,40' && credRung(60).id === 'Credible' && credRung(40).id === 'Unproven', 'FIN2 credibility multiplies the mark (Doubted ×0.7, Proven ×1.15); start: leader 60, challenger 50, spinout 40', `starts ${starts.join('/')}`);
+  }
+  {
+    // Down rounds cost the board and prior holders, never staff (spec §0.3).
+    const s = fx();
+    const ctx = makeCtx(s);
+    const f = s.player.finance;
+    f.rounds.push({ day: s.time.day - 100, amount: 10, postMoney: f.valuation * 2, dilution: 0.05, down: false });
+    const heads = JSON.stringify(s.player.teams.map((t) => t.heads));
+    const staff = JSON.stringify(s.player.staff);
+    const bc0 = s.player.board.confidence;
+    bookRound(s, ctx, 5, f.valuation);
+    check(f.rounds[f.rounds.length - 1].down && s.player.board.confidence < bc0 && JSON.stringify(s.player.teams.map((t) => t.heads)) === heads && JSON.stringify(s.player.staff) === staff, 'FIN2 a down round costs board confidence, never staff', `board ${bc0.toFixed(0)} → ${s.player.board.confidence.toFixed(0)}`);
+  }
+  {
+    // The IPO: its own one-time action; dual-class keeps founder control at valuation ×0.95; a listing independent.
+    const s = fx();
+    s.capital.ipoWindow = true;
+    s.player.finance.state = 'healthy';
+    s.player.board.preset = 'founder';
+    const avail = FINANCE_ACTIONS.find((a) => a.id === 'fin.ipo')!.available(s);
+    const V0 = s.player.finance.valuation;
+    const err = act(s, 'fin.ipo', { dualClass: true });
+    const ask = s.player.finance.ws3.pendingRound!.ask;
+    s.player.finance.ws3.pendingRound!.max = 1e6;
+    while (s.player.finance.ws3.pendingRound) tick(s, { skip: ['endings'] });
+    s.player.finance.state = 'healthy';
+    const again = FINANCE_ACTIONS.find((a) => a.id === 'fin.ipo')!.available(s);
+    const v = valuationNow(s);
+    const r = s.player.finance.rounds[s.player.finance.rounds.length - 1];
+    check(avail === true && !err && r.ipo === true && ask / (V0 + ask) <= 0.05 + 1e-9 && s.player.finance.ownership.public > 0 && s.player.finance.dualClass === true && v.gov === 0.95 && founderControl(s) && typeof again === 'string' && s.player.board.seats.some((x) => x.holder === 'Listing independent') && livePromises(s).every((p) => p.closeDay !== r.day), 'FIN2 the IPO is a one-time action (≤ 5%, no promise); dual-class keeps founder control at valuation ×0.95', `ask $${f1(ask)}B = ${F1pct(ask / (V0 + ask))} at signing · public ${F1pct(s.player.finance.ownership.public)} at close · again: ${again}`);
+    const t = fx();
+    t.player.board.preset = 'founder';
+    t.player.finance.ownership.public = 0.05;
+    check(!founderControl(t), 'FIN2 a founder listing without dual-class shares loses founder control');
+  }
+  {
+    // No revenue plan: the board's quarterly review posts no plan causes.
+    const s = newGame(defaultSetupV2({ seed: 6 }));
+    while (s.time.day < 300) tick(s, { skip: ['endings'] });
+    const srcs = new Set((s.causes.byKey['board.confidence'] ?? []).map((e) => e.source));
+    check(![...srcs].some((x) => /plan/.test(x)), 'FIN2 the board has no revenue plan', [...srcs].join(', '));
+  }
+  {
+    // What we owe: promises with progress, tranche conditions, covenants with headroom, contingent liabilities
+    // (residual-value guarantees from leases, copyright litigation from unlicensed data).
+    const s = newGame(defaultSetupV2({ seed: 2 }));
+    const o = whatWeOwe(s);
+    const lit = o.contingent.find((c) => c.kind === 'litigation');
+    check(o.tranches.some((t) => t.condition === 'recapitalisation') && o.covenants.some((c) => c.id === 'creditLine' && c.state === 'idle') && !!lit && lit.amount > 0 && (lit.pQ ?? 0) > 0 && o.promises.length === 0, 'FIN2 What we owe at the leader start: the recap tranche, the idle credit-line covenant, copyright litigation exposure, no promises', `litigation $${f1(lit?.amount ?? 0)}B at ${F1pct(lit?.pQ ?? 0)}/q`);
+    const x = fx();
+    x.player.finance.ledger.push({ id: 'L-fin-test', payee: 'Keystone Capital', kind: 'finLease', perQuarter: 1, startDay: x.time.day, endDay: x.time.day + 15 * 365, cancellableNoticeQ: null, penalty: 0, rate: 0.09 });
+    const rvg = whatWeOwe(x).contingent.filter((c) => c.kind === 'rvg').reduce((a, c) => a + c.amount, 0);
+    check(rvg > 0 && Math.abs(rvg - contingentLiabilities(x).total) < 1e-9, 'FIN2 residual-value guarantees are listed in What we owe', `$${f1(rvg)}B on a $4B/yr 15-year lease`);
+    // A promise behind its needed-by-now path, and a drawn credit line near its covenant, feed the one Watch alert.
+    const f = x.player.finance;
+    f.promises.push({ id: 'PRb', type: 'adoption', pitch: 'base', start: f.revenueRun, target: f.revenueRun * 3, amount: 5, closeDay: x.time.day - 200, deadline: x.time.day + 165 });
+    const rv = f.debts.find((d) => d.kind === 'revolver')!;
+    rv.drawn = rv.principal;
+    f.cash = rv.principal * 0.4;
+    const o2 = whatWeOwe(x);
+    check(o2.behind.some((p) => p.p.id === 'PRb') && o2.near.some((c) => c.id === 'creditLine'), 'FIN2 a promise behind its needed-by-now path and a covenant near its limit are flagged', `behind ${o2.behind.length}, near ${o2.near.map((c) => `${c.id} ${c.state}`).join(', ')}`);
+  }
+  {
+    // Save migration 12 → 13: credibility by start type, an empty promise list, the revenue plan gone.
+    const s = fx();
+    const raw = JSON.parse(serialize(s));
+    raw.schemaRev = 12;
+    delete raw.player.finance.credibility;
+    delete raw.player.finance.promises;
+    raw.player.finance.raisedLast4q = 12;
+    raw.player.finance.ws3.revenuePlan = 40;
+    const m = deserialize(JSON.stringify(raw));
+    check(m.player.finance.credibility === 60 && Array.isArray(m.player.finance.promises) && !('revenuePlan' in m.player.finance.ws3) && !('raisedLast4q' in m.player.finance), 'FIN2 save migration 12 → 13');
+  }
+  {
+    // The reference bot (FIN2 autopilot): raises when its cash projection runs short, at the ceiling, on the milestone it
+    // is surest of. Rounds per year and promise results across the 12 RefBot seeds.
+    const per = (y: number) => median(ref.map((r) => r.s.player.finance.rounds.filter((x) => Math.floor(decimalYear(r.s, x.day) + 1e-9) === y).length));
+    const judged = ref.flatMap((r) => r.s.player.finance.promises.filter((p) => p.result));
+    const byType = (t: string) => judged.filter((p) => p.type === t).length;
+    const met = judged.filter((p) => p.result!.outcome === 'met').length;
+    const cred = median(ref.map((r) => r.s.player.finance.credibility));
+    check(per(2026) >= 1 && per(2026) <= 4 && per(2027) >= 1 && per(2027) <= 4, 'FIN2 RefBot raises 1–4 rounds a year (median; it raised at the ceiling every quarter before FIN2)', `2026 ${per(2026)} · 2027 ${per(2027)} · promises judged ${judged.length} (met ${F1pct(met / Math.max(1, judged.length))}; scale ${byType('scale')}, adoption ${byType('adoption')}, capability ${byType('capability')}) · end-2027 credibility median ${f1(cred)}`);
   }
 }
 

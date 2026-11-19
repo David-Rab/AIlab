@@ -56,8 +56,8 @@ export interface StartDef {
   /** D6: the start model is an imported open-weight model (post-trainable, not sellable as is). */
   imported?: boolean;
   /** Modifiers (research/18 §6). talentPull: the anchor talent pull drifts to (leader 10). starCost: × star hire cost.
-   *  patientQ: quarters without a revenue plan (patient investors). */
-  mods: { talentPull: number; starCost: number; patientQ: number };
+   *  (FIN2 removed patientQ with the board's revenue plan.) */
+  mods: { talentPull: number; starCost: number };
 }
 
 export const STARTS: StartDef[] = [
@@ -77,7 +77,7 @@ export const STARTS: StartDef[] = [
     ownership: { founder: 0.75, fin: 0.25 },
     owned: 0, rented: 25e3,
     board: 'founder', lagMonths: 6.5, imported: true,
-    mods: { talentPull: 30, starCost: 0.7, patientQ: 4 },
+    mods: { talentPull: 30, starCost: 0.7 },
   },
   {
     id: 'challenger', name: 'Challenger lab', difficulty: 'Hard', analogues: 'Anthropic, xAI (mid-2025)',
@@ -96,7 +96,7 @@ export const STARTS: StartDef[] = [
     ownership: { founder: 0.4, fin: 0.45, strat: { Azimuth: 0.15 } },
     owned: 100e3, rented: 300e3,
     board: 'founder', lagMonths: 3,
-    mods: { talentPull: 20, starCost: 1, patientQ: 0 },
+    mods: { talentPull: 20, starCost: 1 },
   },
   {
     id: 'bigtech', name: 'Big-tech AI division', difficulty: 'Impossible', analogues: 'Google DeepMind, Meta, Microsoft AI',
@@ -116,7 +116,7 @@ export const STARTS: StartDef[] = [
     ownership: { founder: 0, fin: 0 },
     owned: 800e3, rented: 0,
     board: 'parent', lagMonths: 6,
-    mods: { talentPull: 0, starCost: 1.5, patientQ: 0 },
+    mods: { talentPull: 0, starCost: 1.5 },
   },
   {
     id: 'leader', name: 'Frontier leader', difficulty: 'Easy', analogues: 'OpenAI (mid-2025)',
@@ -132,7 +132,7 @@ export const STARTS: StartDef[] = [
     ownership: { founder: 0.3, fin: 0.17 },
     owned: 500e3, rented: 700e3,
     board: 'legacyNonprofit', lagMonths: 0,
-    mods: { talentPull: 10, starCost: 1, patientQ: 0 },
+    mods: { talentPull: 10, starCost: 1 },
   },
 ];
 

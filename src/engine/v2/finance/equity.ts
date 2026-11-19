@@ -1,18 +1,16 @@
-// Valuation, raises, dilution and the raise ceiling (V2-SPEC §3.7.3; research/15 §1.5). Owner: WS3.
+// Valuation, raises, dilution, the raise ceiling and the IPO (V2-SPEC §3.7.3; research/15 §1.5; FINANCE-V3 §2). Owner:
+// WS3.
 import { dayOfQuarter, quarterIndex } from '../core/time';
-import type { GameStateV2, Money, Ownership, RepricedRound, SystemCtx } from '../types';
+import type { GameStateV2, Money, Ownership, RepricedRound, SystemCtx, Thesis } from '../types';
 import { ensureWs3, yearStats, type PendingRound } from './ext';
 import { bookCash } from './ledger';
 import { resizeCreditLine } from './debt';
-import { changeHeads } from '../departments/teams';
+import { addPromise, credMult } from './promises';
 
 /** V = 22·(g/5)^0.4·(R/$20B)^−0.15·H·N·M·R (R15 §1.5). */
 export function valuationMark(g: number, R: number, H: number, N: number, M: number): number {
   return 22 * Math.pow(Math.max(0.5, Math.min(8, g)) / 5, 0.4) * Math.pow(Math.max(0.1, R) / 20, -0.15) * H * N * M * Math.max(0.1, R);
 }
-
-/** k_Y(R) = 5·(R/$10B)^−0.4 (annual equity cap as a revenue multiple). */
-export const kY = (R: number) => 5 * Math.pow(Math.max(0.1, R) / 10, -0.4);
 
 /** Rate factor M = exp(−0.12·(y10 − 4.5)) [R15]. */
 export const rateFactor = (y10: number) => Math.exp(-0.12 * (y10 - 4.5));
@@ -25,27 +23,36 @@ export function revenueGrowth(s: GameStateV2): number {
   return Math.max(0.5, Math.min(8, f.revenueRun / Math.max(0.1, back)));
 }
 
-/** Formula mark of the player's valuation now, with its terms (finance panel "why", §2.6). */
-export function valuationNow(s: GameStateV2): { V: Money; g: number; R: Money; H: number; N: number; M: number } {
+/** Dual-class shares after an IPO keep founder control at a governance discount (spec §1 gov ×0.95) [D]. */
+export const DUAL_CLASS_GOV = 0.95;
+
+/** Formula mark of the player's valuation now, with its terms (finance panel "why", §2.6). FIN2 interim: the investor
+ *  credibility rung multiplies it (Doubted ×0.7 … Proven ×1.15), and dual-class shares ×0.95; FIN5 moves both into the
+ *  valuation share. */
+export function valuationNow(s: GameStateV2): { V: Money; g: number; R: Money; H: number; N: number; M: number; cred: number; gov: number } {
   const f = s.player.finance;
   const g = revenueGrowth(s);
   const M = rateFactor(s.capital.y10);
-  return { V: valuationMark(g, f.revenueRun, s.capital.hype, f.narrative, M), g, R: f.revenueRun, H: s.capital.hype, N: f.narrative, M };
+  const cred = credMult(s);
+  const gov = f.dualClass ? DUAL_CLASS_GOV : 1;
+  return { V: valuationMark(g, f.revenueRun, s.capital.hype, f.narrative, M) * cred * gov, g, R: f.revenueRun, H: s.capital.hype, N: f.narrative, M, cred, gov };
 }
 
-export interface RaiseCeiling { max: Money; bound: 'pool' | 'dilution' | 'annualCap' | 'ask'; parts: Record<string, Money> }
+/** FIN2 removed the revenue-based annual cap (k_Y): a round is bounded by the investor pool and the dilution cap. */
+export interface RaiseCeiling { max: Money; bound: 'pool' | 'dilution' | 'ask'; parts: Record<string, Money> }
 
 /** Maximum dilution per round: 0.08 financial; 0.14 with a strategic anchor taking ≥ 40%; 0.05 IPO (R15 §1.5). */
 export const dMax = (anchor: boolean, ipo: boolean) => (ipo ? 0.05 : anchor ? 0.14 : 0.08);
 
 /**
- * EngineApi.raiseCeiling: min(pool share, d_max·V_post, k_Y(R)·R − raised_4q, ask) (§3.7.3). The UI shows `bound`.
- * Tight runway cuts the pool share ×0.8; distress or a closed market leaves only rescue capital (max 0).
+ * EngineApi.raiseCeiling: min(pool share, d_max·V_pre/(1 − d_max), ask) (spec §2.1; FIN2 removed the k_Y annual cap).
+ * V_pre = the mark × the pitch's price (`priceMult`). The UI shows `bound`. Tight runway cuts the pool share ×0.8;
+ * distress or a closed market leaves only rescue capital (max 0).
  */
-export function raiseCeiling(s: GameStateV2, ask = Number.POSITIVE_INFINITY, opts: { anchor?: boolean; ipo?: boolean } = {}): RaiseCeiling {
+export function raiseCeiling(s: GameStateV2, ask = Number.POSITIVE_INFINITY, opts: { anchor?: boolean; ipo?: boolean; priceMult?: number } = {}): RaiseCeiling {
   const f = s.player.finance;
   const cw = s.capital.ws3;
-  const V = Math.max(1, f.valuation);
+  const V = Math.max(1, f.valuation * (opts.priceMult ?? 1));
   const d = dMax(!!opts.anchor, !!opts.ipo);
   const tight = f.state === 'tight' ? 0.8 : 1;
   const closed = f.state === 'distress' || f.state === 'insolvent';
@@ -54,11 +61,10 @@ export function raiseCeiling(s: GameStateV2, ask = Number.POSITIVE_INFINITY, opt
   const parts: Record<string, Money> = {
     pool: closed ? 0 : Math.max(0, poolQ * tight + ipoBonus),
     dilution: (d * V) / (1 - d),
-    annualCap: Math.max(0, kY(f.revenueRun) * f.revenueRun - f.raisedLast4q),
     ask: Math.max(0, ask),
   };
   let bound: RaiseCeiling['bound'] = 'pool';
-  for (const k of ['dilution', 'annualCap', 'ask'] as const) if (parts[k] < parts[bound]) bound = k;
+  for (const k of ['dilution', 'ask'] as const) if (parts[k] < parts[bound]) bound = k;
   return { max: parts[bound], bound, parts };
 }
 
@@ -93,14 +99,32 @@ export function canRaise(s: GameStateV2): true | string {
   return true;
 }
 
-/** Start a raise; it closes at the next quarter (capitalQ). */
-export function startRaise(s: GameStateV2, ctx: SystemCtx, ask: Money, opts: { anchor?: string; ipo?: boolean } = {}): PendingRound {
-  const c = raiseCeiling(s, Number.POSITIVE_INFINITY, { anchor: !!opts.anchor, ipo: !!opts.ipo });
-  const r: PendingRound = { day: s.time.day, ask, max: c.max, preMoney: s.player.finance.valuation, ipo: !!opts.ipo };
+/** Is the company listed (any public float)? */
+export const isListed = (s: GameStateV2) => s.player.finance.ownership.public > 0;
+
+/** The IPO (spec §2.6): one time, only while the IPO window is open and the company is healthy. */
+export function canIpo(s: GameStateV2): true | string {
+  const f = s.player.finance;
+  if (isListed(s)) return 'Already listed';
+  if (f.ws3?.pendingRound?.ipo) return 'The IPO is in progress';
+  if (!s.capital.ipoWindow) return 'The IPO window is closed (it opens in 2026 while investor hype holds)';
+  if (f.state !== 'healthy') return `Only a healthy company can list (runway is ${f.state})`;
+  return canRaise(s);
+}
+
+/** Start a raise; it closes at the next quarter (capitalQ). Priced rounds carry a thesis and the pitch's price
+ *  multiplier (FIN2); the IPO carries neither and may be dual-class. */
+export function startRaise(s: GameStateV2, ctx: SystemCtx, ask: Money, opts: { anchor?: string; ipo?: boolean; thesis?: Thesis; priceMult?: number; dualClass?: boolean } = {}): PendingRound {
+  const k = opts.priceMult ?? 1;
+  const c = raiseCeiling(s, Number.POSITIVE_INFINITY, { anchor: !!opts.anchor, ipo: !!opts.ipo, priceMult: k });
+  const r: PendingRound = { day: s.time.day, ask, max: c.max, preMoney: s.player.finance.valuation * k, ipo: !!opts.ipo };
   if (opts.anchor) r.anchor = opts.anchor;
+  if (opts.thesis) r.thesis = opts.thesis;
+  if (k !== 1) r.priceMult = k;
+  if (opts.dualClass) r.dualClass = true;
   s.player.finance.ws3.pendingRound = r;
   s.capital.ws3.playerTakenQ += Math.min(ask, c.max);
-  ctx.log('finance', `Raising $${ask.toFixed(1)}B${opts.ipo ? ' (IPO)' : ''}${opts.anchor ? ` anchored by ${opts.anchor}` : ''}; closes next quarter.`);
+  ctx.log('finance', `Raising $${ask.toFixed(1)}B${opts.ipo ? ` (IPO${opts.dualClass ? ', dual-class' : ''})` : ''}${opts.anchor ? ` anchored by ${opts.anchor}` : ''}; closes next quarter.`);
   return r;
 }
 
@@ -124,19 +148,16 @@ export function bookRound(s: GameStateV2, ctx: SystemCtx, amount: Money, pre: Mo
     const cond = s.player.board.preset === 'legacyNonprofit' && !f.ws3.recap.doneDay ? 'recapitalisation' : `revenue:${(f.revenueRun * 1.2).toFixed(1)}`;
     f.tranches.push({ amount: amount - now, dueDay: dayOfQuarter(s.time.startDate, q + 2), condition: cond, deadline: dayOfQuarter(s.time.startDate, q + 4), source: opts.source ?? 'Equity round tranche 2' });
   }
-  f.rounds.push({ day: s.time.day, amount, postMoney: post, dilution: dil, down, ...(opts.anchor ? { anchor: opts.anchor } : {}) });
+  f.rounds.push({ day: s.time.day, amount, postMoney: post, dilution: dil, down, ...(opts.anchor ? { anchor: opts.anchor } : {}), ...(opts.ipo ? { ipo: true } : {}) });
   const dv = post - f.valuation;
   f.valuation = post;
   resizeCreditLine(s, ctx, opts.ipo ? 'IPO' : 'equity round'); // FIN1: banks re-size the line around a raise
   ctx.cause('player.finance.valuation', dv, opts.ipo ? 'IPO' : 'equity round', `$${amount.toFixed(1)}B at $${pre.toFixed(0)}B pre`);
   bookCash(s, ctx, now, 'financing', opts.ipo ? 'IPO' : 'equity round', `${(dil * 100).toFixed(1)}% dilution`);
-  f.raisedLast4q += amount;
   yearStats(s).equity += now;
   if (down) {
+    // FIN2 (spec §0.3, §2.5): no staff attrition; the board and prior holders carry the down round.
     ctx.bump('board.confidence', -15, 'down round');
-    const lost = 0.05 * s.player.staff.cap;
-    changeHeads(s, 'cap', -lost);
-    ctx.cause('player.staff.cap', -lost, 'down round', 'senior attrition');
     // Anti-dilution: prior investors receive shares worth 20% of the value gap [R15 Design].
     const gap = (lastPostMoney(s) - pre) / Math.max(1, lastPostMoney(s));
     issue(f.ownership, Math.min(0.1, 0.2 * gap * outsideShare(f.ownership)), { kind: 'fin' });
@@ -168,8 +189,9 @@ export function closePendingRound(s: GameStateV2, ctx: SystemCtx): void {
     return;
   }
   // The term sheet (pre-money when the round opened) protects the price if the quarterly mark dips (M4), unless it
-  // fell by more than REPRICE_DROP, when investors reprice to today's mark; a higher mark prices the round [D].
-  const mark = f.valuation;
+  // fell by more than REPRICE_DROP, when investors reprice to today's mark; a higher mark prices the round [D]. The
+  // pitch's price multiplier applies to the mark (FIN2).
+  const mark = f.valuation * (r.priceMult ?? 1);
   const base = mark < r.preMoney * (1 - REPRICE_DROP) ? mark : Math.max(mark, r.preMoney);
   const pre = base * (1 - Math.min(0.6, 0.5 * over));
   // A repriced round that would now be a down round waits for the player: accept the down round or pull it
@@ -177,23 +199,27 @@ export function closePendingRound(s: GameStateV2, ctx: SystemCtx): void {
   if (base === mark && pre < lastPostMoney(s)) {
     const rr: RepricedRound = { day: s.time.day, deadline: s.time.day + REPRICED_DECIDE_DAYS, ask: r.ask, pre, lastPost: lastPostMoney(s), ipo: r.ipo };
     if (r.anchor) rr.anchor = r.anchor;
+    if (r.thesis) rr.thesis = r.thesis;
+    if (r.dualClass) rr.dualClass = true;
     f.ws3.repricedRound = rr;
     ctx.log('alert', `Investors repriced the $${r.ask.toFixed(0)}B round to $${pre.toFixed(0)}B pre-money, below the last round's $${rr.lastPost.toFixed(0)}B. Accept the down round or pull it in Finance within ${REPRICED_DECIDE_DAYS} days.`, 3);
     return;
   }
-  closeRound(s, ctx, r.ask, pre, r.anchor, r.ipo);
+  closeRound(s, ctx, { ...r, pre });
 }
 
-/** Book a priced round and its IPO side effects (closePendingRound, acceptRepriced). */
-function closeRound(s: GameStateV2, ctx: SystemCtx, ask: Money, pre: Money, anchor: string | undefined, ipo: boolean): void {
-  const now = bookRound(s, ctx, ask, pre, { ...(anchor ? { anchor } : {}), ipo });
-  if (ipo) {
+/** Book a priced round, its promise (FIN2) and the IPO's side effects (closePendingRound, acceptRepriced). */
+function closeRound(s: GameStateV2, ctx: SystemCtx, r: { ask: Money; pre: Money; anchor?: string; ipo: boolean; thesis?: Thesis; dualClass?: boolean }): void {
+  const now = bookRound(s, ctx, r.ask, r.pre, { ...(r.anchor ? { anchor: r.anchor } : {}), ipo: r.ipo });
+  if (r.thesis) addPromise(s, ctx, r.thesis, r.ask);
+  if (r.ipo) {
     s.capital.ipoWindow = true;
+    if (r.dualClass) s.player.finance.dualClass = true;
     if (!s.player.board.seats.some((x) => x.kind === 'independent' && x.holder === 'Listing independent')) {
       s.player.board.seats.push({ kind: 'independent', holder: 'Listing independent', stance: [0, 0.5, 0.3, 0.3], weight: 1 });
     }
   }
-  ctx.log('finance', `Round closed: $${ask.toFixed(1)}B ($${now.toFixed(1)}B now) at $${pre.toFixed(0)}B pre-money.`);
+  ctx.log('finance', `${r.ipo ? 'IPO' : 'Round'} closed: $${r.ask.toFixed(1)}B ($${now.toFixed(1)}B now) at $${r.pre.toFixed(0)}B pre-money${r.ipo && r.dualClass ? ', dual-class shares' : ''}.`);
 }
 
 /** Accept a repriced round as a down round (cash now, dilution, down-round penalties). */
@@ -202,7 +228,7 @@ export function acceptRepriced(s: GameStateV2, ctx: SystemCtx): string | undefin
   const r = f.ws3.repricedRound;
   if (!r) return 'No repriced round';
   delete f.ws3.repricedRound;
-  closeRound(s, ctx, r.ask, r.pre, r.anchor, r.ipo);
+  closeRound(s, ctx, r);
   return undefined;
 }
 

@@ -800,7 +800,13 @@ export interface FinanceState {
   revenueHistory: Money[]; // quarterly, for g and momentum
   valuation: Money; // last mark (post-money of last round, or formula mark)
   ownership: Ownership;
-  raisedLast4q: Money;
+  /** Investor credibility 0–100 (FINANCE-V3 §2.4): Doubted < 25 ≤ Unproven < 50 ≤ Credible < 75 ≤ Proven. Moved only by
+   *  promises judged at their deadlines; multiplies the valuation mark (FIN2 interim). Not relations credibility. */
+  credibility: number;
+  /** Round promises (FINANCE-V3 §2.3): one per priced round, judged at its own deadline; judged ones are kept (last 8). */
+  promises: FinancePromise[];
+  /** Listed with dual-class shares (§2.6): founder votes keep control after the IPO; governance factor ×0.95. */
+  dualClass?: boolean;
   rounds: EquityRound[];
   tranches: Tranche[];
   debts: Debt[];
@@ -817,7 +823,24 @@ export interface FinanceState {
 
 export interface Ownership { founder: number; mission: number; fin: number; strat: Record<string, number>; public: number; }
 
-export interface EquityRound { day: Day; amount: Money; postMoney: Money; dilution: number; anchor?: string; down: boolean; }
+export interface EquityRound { day: Day; amount: Money; postMoney: Money; dilution: number; anchor?: string; down: boolean; ipo?: boolean; }
+
+/** The milestone a round is raised on (FINANCE-V3 §2.2): a public model level, compute online (H100e) or a revenue
+ *  run-rate ($B/yr) by the deadline. */
+export type MilestoneType = 'capability' | 'scale' | 'adoption';
+export type Pitch = 'conservative' | 'base' | 'aggressive';
+/** A round's thesis as signed: the milestone, its start value and target (pitch applied). */
+export interface Thesis { type: MilestoneType; pitch: Pitch; start: number; target: number }
+/** A promise to the round's investors: an expectation, not a contract (it moves credibility and board confidence,
+ *  never cash). Judged at `deadline` (four quarter starts after the close). */
+export interface FinancePromise extends Thesis {
+  id: string;
+  amount: Money;
+  closeDay: Day;
+  deadline: Day;
+  /** Set when judged: the metric then, progress (start → target = 0 → 1), the outcome and what it moved. */
+  result?: { day: Day; value: number; progress: number; outcome: 'met' | 'near' | 'missed'; weight: number; cred: number; board: number };
+}
 export interface Tranche { amount: Money; dueDay: Day; condition?: string; deadline?: Day; source: string; }
 export interface Debt { id: string; kind: 'revolver' | 'gpuTerm' | 'bond' | 'vendorNote'; principal: Money; drawn: Money; spreadBp: number; maturityDay: Day; covenant?: string; collateralH100e?: H100e; }
 
@@ -993,6 +1016,11 @@ export interface PendingRound {
   preMoney: Money;
   anchor?: string;
   ipo: boolean;
+  /** The round's milestone (priced rounds; none for the IPO) and the pitch's price multiplier on the mark (FIN2). */
+  thesis?: Thesis;
+  priceMult?: number;
+  /** IPO with dual-class shares (§2.6). */
+  dualClass?: boolean;
 }
 
 /** A round investors repriced below the last valuation at close: the player accepts the down round or pulls it
@@ -1006,6 +1034,8 @@ export interface RepricedRound {
   lastPost: Money;
   anchor?: string;
   ipo: boolean;
+  thesis?: Thesis;
+  dualClass?: boolean;
 }
 
 /** End-of-quarter compute snapshot (H100e) for the Compute chart's past quarters. */
@@ -1027,8 +1057,9 @@ export interface FinanceWS3 {
   reserved: { perQ: H100e; fromQ: number; toQ: number }[];
   /** Action id → day until which the board has blocked it (§3.7.5: rejection blocks for 90 days). */
   blockedUntil: Record<string, Day>;
-  /** Revenue plan for the quarter (board confidence +5 met / −10 missed). */
-  revenuePlan: Money;
+  /** Quarter-start history (oldest first, last 5) of the milestone metrics the raise card extrapolates (FIN2): public
+   *  level and compute online, H100e (revenue uses `revenueHistory`). Missing on saves made before it. */
+  thesisHist?: { L: number[]; H: H100e[] };
   /** Legacy-nonprofit recapitalisation (E02): start / completion days, or refused. */
   recap: { startDay?: Day; doneDay?: Day; refused?: boolean };
   /** Day cash first went negative after all options (insolvency grace). */
@@ -1512,7 +1543,7 @@ export interface EngineApi {
   understanding(s: GameStateV2): { U: number; margin: number; perTrait: Partial<Record<TraitId, number>> };
   riskSources(s: GameStateV2): RiskSource[];
   leadDays(s: GameStateV2, other: LabId): { est: number; sd: number };
-  raiseCeiling(s: GameStateV2): { max: Money; bound: 'pool' | 'dilution' | 'annualCap' | 'ask'; parts: Record<string, Money> };
+  raiseCeiling(s: GameStateV2): { max: Money; bound: 'pool' | 'dilution' | 'ask'; parts: Record<string, Money> };
 }
 
 /** Test/bot hooks for one tick. Never used by the UI. */

@@ -26,6 +26,7 @@ import { seedCandidates, staffOf, startTeams } from '../departments/teams';
 import { initialBoard } from '../finance/board';
 import { initialCapital } from '../finance/investors';
 import { initialFinance } from '../finance/ledger';
+import { recordThesisHist } from '../finance/promises';
 import { benchScore } from '../models/benchmarks';
 import { domainsOf, levelOf, playerStart, simpleStartPa, yearOfDay } from '../models/capability';
 import { labCore } from '../models/labs';
@@ -278,6 +279,7 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
   }
   for (const r of [...rivals, china.lab]) r.core.pa = simpleStartPa(s, r.core.id, r.internal.pm);
   seedCandidates(s.player.hiring, new StreamRng(s, 'company'));
+  recordThesisHist(s); // FIN2: day-0 milestone metrics (the raise card's trends)
   sampleSeries(s);
   return s;
 }

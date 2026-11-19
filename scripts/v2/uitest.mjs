@@ -651,10 +651,59 @@ ok('J1 C1: buy, build and rent show before → after (cash, runway)', await page
   await page.click('[data-tabs=finance] [data-tab=deals]'); await wait(80);
   ok('FIN1: the debt card shows the rating score by term', /score .*cash flow.*liquidity.*leverage/.test(await page.evaluate(() => document.querySelector('[data-test=rating-terms]')?.textContent ?? '')));
   ok('FIN1: every debt instrument shows its limit and rule', (await page.$$('[data-panel=finance] [data-debt-kind]')).length === 3 && !!(await page.$('[data-panel=finance] [data-limit^="debt."]')));
-  ok('FIN1: leases and residual-value guarantees show on the debt card', /guarantees/.test(await page.evaluate(() => document.querySelector('[data-test=lease-terms]')?.textContent ?? '')));
+  // FIN2: the guarantees moved to What we owe (one home); the debt card keeps the lessor's rate and links there.
+  ok('FIN1: leases show on the debt card (guarantees in What we owe since FIN2)', /Leases/.test(await page.evaluate(() => document.querySelector('[data-test=lease-terms]')?.textContent ?? '')));
   await shot('53-fin1-debt');
   await nav('compute');
   await tabTo('overview');
+}
+// FIN2 (finance v3 §2, §11): the raise thesis (milestone × pitch) and its promise before you sign, What we owe (promises
+// with progress and needed-by-now, tranche conditions, covenants, contingent liabilities), the IPO as its own action,
+// and the one Watch alert when a promise is behind.
+{
+  await nav('finance');
+  await page.click('[data-tabs=finance] [data-tab=cash]'); await wait(80);
+  const nOpt = await page.evaluate(() => [document.querySelectorAll('[data-test=raise-type] [data-opt]').length, document.querySelectorAll('[data-test=raise-pitch] [data-opt]').length, document.querySelectorAll('#ctl-raise-card [data-cap]').length]);
+  ok('FIN2: the raise card offers three milestones and three pitches', nOpt[0] === 3 && nOpt[1] === 3, nOpt.join('/'));
+  ok('FIN2: no annual cap on the raise card (pool and dilution only)', !(await page.$('[data-cap=annualCap]')) && nOpt[2] === 2, nOpt.join('/'));
+  ok('FIN2: the promise and its deadline show before you sign', /Promise: .+ by /.test(await page.evaluate(() => document.querySelector('[data-test=raise-promise]')?.textContent ?? '')));
+  const alt = await page.$('[data-test=raise-type] [data-opt]:not(.active):not([disabled])');
+  if (alt) await check('FIN2: another milestone changes the promise', `document.querySelector('[data-test=raise-promise]')?.textContent ?? ''`, () => alt.click());
+  else ok('FIN2: another milestone changes the promise', false, 'no other milestone open');
+  await check('FIN2: the pitch changes the price', `document.querySelector('#ctl-raise-card .ask-head')?.textContent ?? ''`, () => page.click('[data-test=raise-pitch] [data-opt=conservative]'));
+  ok('FIN2: the IPO is its own action with the dual-class choice', !!(await page.$('[data-test=ipo-row] [data-act="fin.ipo"]')) || /listed/.test(await page.evaluate(() => document.querySelector('[data-test=ipo-row]')?.textContent ?? '')));
+  const canRaise = await page.$('[data-act="fin.raise"]:not([disabled])');
+  if (canRaise) {
+    await canRaise.click();
+    await wait(150);
+    ok('FIN2: a raise carries its thesis', JSON.parse(await get('!!(s.player.finance.ws3.pendingRound && s.player.finance.ws3.pendingRound.thesis)')));
+  } else ok('FIN2: a raise carries its thesis', true, 'raise unavailable on this fixture');
+  await shot('55-fin2-raise');
+  // A promise behind its path (injected) shows in What we owe and raises the one Watch alert.
+  await page.evaluate(() => {
+    const s = window.ai27v2.state;
+    const f = s.player.finance;
+    f.promises.push({ id: 'PR-ui', type: 'adoption', pitch: 'base', start: f.revenueRun, target: f.revenueRun * 3, amount: 10, closeDay: s.time.day - 200, deadline: s.time.day + 165 });
+    window.ai27v2.notify();
+  });
+  await wait(100);
+  await page.click('[data-tabs=finance] [data-tab=owe]'); await wait(120);
+  ok('FIN2: What we owe lists the promise with progress, needed-by-now and its state', !!(await page.$('[data-home=whatWeOwe] [data-promise="PR-ui"][data-state=behind] .hbar b')));
+  ok('FIN2: investor credibility has its home on What we owe', !!(await page.$('[data-home=whatWeOwe] [data-home=investorCred]')));
+  const nSec = await page.evaluate(() => document.querySelectorAll('[data-home=whatWeOwe] .owe-sec').length);
+  ok('FIN2: What we owe has promises, tranche conditions, covenants and contingent liabilities', nSec === 4, String(nSec));
+  ok('FIN2: copyright litigation exposure is listed as contingent', !!(await page.$('[data-home=whatWeOwe] [data-contingent="litigation"]')) || JSON.parse(await get('s.player.dataAssets.unlicensedTokensT <= 0')));
+  await shot('56-fin2-owe');
+  await clearTips();
+  await page.click('[data-test=alert-chip]').catch(() => {});
+  await wait(200);
+  ok('FIN2: one Watch alert for the promise behind, linking to What we owe', !!(await page.$('[data-watch-row="owe"]')));
+  await shot('57-fin2-watch');
+  await page.keyboard.press('Escape');
+  await page.click('[data-test=alert-chip]').catch(() => {});
+  await page.evaluate(() => { const f = window.ai27v2.state.player.finance; f.promises = f.promises.filter((p) => p.id !== 'PR-ui'); window.ai27v2.notify(); });
+  await page.click('[data-tabs=finance] [data-tab=deals]'); await wait(80);
+  ok('FIN2: the debt card links lease guarantees to What we owe (one home)', !!(await page.$('[data-test=lease-terms] [data-go="fin.go.guarantees"]')) && !/guarantees \$/.test(await page.evaluate(() => document.querySelector('[data-test=lease-terms]')?.textContent ?? '')));
 }
 // J2: engineers' load, spare serving, days cut, same-lineage monitors, risk lever what-ifs, launches on the build queue.
 await nav('company');

@@ -87,3 +87,16 @@ export function computeSecured(s: GameStateV2, lab: LabId = PLAYER_ID): H100e {
   if (!r) return 0;
   return r.core.computeOnline + (s.market.ws3?.labOrders ?? []).filter((o) => o.lab === lab).reduce((a, o) => a + Math.max(0, o.qty - o.delivered), 0);
 }
+
+/** Compute online (H100e: owned racks running plus rented capacity) — the Scale milestone (FINANCE-V3 §2.2). */
+export function computeOnline(s: GameStateV2, lab: LabId = PLAYER_ID): H100e {
+  return lab === PLAYER_ID ? s.player.computeOnline : rival(s, lab)?.core.computeOnline ?? 0;
+}
+
+/** Copyright litigation exposure from unlicensed training data (§3.9.1; R17 D3): a suit settles automatically at $1.5B
+ *  per 270T unlicensed tokens (Bartz v. Anthropic scale, ×0.2–3), odds 0.02 × T/100 a quarter (≤ 50%), at most once a
+ *  year. Licensing the data (D3) clears it. The actors' quarterly system rolls it; "What we owe" shows it (FIN2). */
+export function copyrightExposure(s: GameStateV2): { tokensT: number; settlement: Money; pQ: number } {
+  const T = s.player.dataAssets.unlicensedTokensT;
+  return { tokensT: T, settlement: T > 0 ? 1.5 * Math.max(0.2, Math.min(3, T / 270)) : 0, pQ: Math.min(0.5, (0.02 * T) / 100) };
+}

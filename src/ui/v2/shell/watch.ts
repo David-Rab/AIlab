@@ -1,7 +1,7 @@
 // Watch rules (IA.md L1, PLAN U1.10): each rule reads visible selectors only and yields a cause chain
 // (root ▸ symptom), a consequence line and a Go target to the control that fixes it. UI-only; no engine state.
 import type { LucideIcon } from 'lucide-react';
-import { engine, eventDef, idleChips, idleStocks, idleTeams, internalVersion, revenueReadout, safetyView } from '../../../engine/v2';
+import { describeTarget, engine, eventDef, idleChips, idleStocks, idleTeams, internalVersion, revenueReadout, safetyView, whatWeOwe } from '../../../engine/v2';
 import type { GameStateV2, IdleStockId } from '../../../engine/v2';
 import { CRITICAL_TRAITS } from '../../../data/v2/traits';
 import { ICON } from '../icons';
@@ -70,6 +70,23 @@ export function watchItems(s: GameStateV2): WatchItem[] {
       id: 'runway', sphere: 'company', sev: rl.live === 'distress' ? 4 : 2.5,
       chain: [{ label: 'burn exceeds income', icon: ICON.cash, kind: 'root', detail: `Net burn ${F.money(rl.rw.burnQ, { perQ: true })}` }, { label: `runway ${rl.live}`, icon: ICON.runway, kind: 'bad', detail: `${F.runway(rl.rw.q)} left` }],
       why: `the board reviews it on ${rl.review.toISOString().slice(0, 10)}`, go: { panel: 'finance', anchor: 'raise' }, goLabel: 'Finance',
+    });
+  }
+  // 4b. (FIN2) one alert when an investor promise turns behind or a covenant nears (What we owe; no events, nothing to
+  // click): the cause is the promise or covenant, the consequence what it would move if judged or tested today.
+  const owe = whatWeOwe(s);
+  if (owe.behind.length || owe.near.length) {
+    const cov = owe.near[0];
+    const pr = owe.behind[0];
+    const root: WatchLink = cov
+      ? { label: `${cov.label} ${cov.state === 'breach' ? 'failing' : 'near'}`, icon: ICON.debt, kind: 'root', detail: cov.rule }
+      : { label: `promise behind${owe.behind.length > 1 ? ` (${owe.behind.length})` : ''}`, icon: ICON.commitment, kind: 'root', detail: `${describeTarget(pr.p)}: ${F.pct(Math.max(0, pr.progress))} of the gain, ${F.pct(pr.neededProgress)} needed by now` };
+    const sym: WatchLink = cov
+      ? { label: cov.state === 'breach' ? 'breach at quarter end' : 'covenant at risk', icon: ICON.alert, kind: 'bad', detail: 'A breach at the quarter-end test means distress' }
+      : { label: pr.ifJudgedNow.cred < 0 ? `credibility ${Math.round(pr.ifJudgedNow.cred)} if judged now` : 'promise at risk', icon: ICON.credibility, kind: 'bad', detail: `board ${Math.round(pr.ifJudgedNow.board)}; due in ${pr.daysLeft} d` };
+    out.push({
+      id: 'owe', sphere: 'company', sev: cov ? (cov.state === 'breach' ? 4 : 3) : 2.5, chain: [root, sym],
+      why: cov ? 'tested at the next quarter end' : 'investors judge it at its deadline', go: { panel: 'finance', tab: 'owe' }, goLabel: 'What we owe',
     });
   }
   // 5. (R6) eval suites no longer expire: the auto-evaluate policy keeps the internal model current, so the old

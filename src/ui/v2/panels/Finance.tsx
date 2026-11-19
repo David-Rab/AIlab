@@ -3,14 +3,16 @@
 // live in the top strip (L0) and are never repeated here.
 import { useState } from 'react';
 import {
-  actionView, contingentLiabilities, dateOf, dayOfQuarter, dealMenu, dealPreview, debtHeadroom, debtRatePct, fmtDate, fmtMonth, incidentBoardHit, interestPerYear, ledgerDue, leaseRate, liveLedger, newDebtRatePct, ratingTerms,
-  parentSchedule, parentYear, payrollOf, qOf, raiseCeiling, runwayOf, totalDebt, DIVISION_REASON, RUNWAY_CAP,
+  actionView, dateOf, dayOfQuarter, dealMenu, dealPreview, debtHeadroom, debtRatePct, fmtDate, fmtMonth, incidentBoardHit, interestPerYear, ledgerDue, leaseRate, liveLedger, newDebtRatePct, ratingTerms,
+  parentSchedule, parentYear, payrollOf, qOf, runwayOf, totalDebt, DIVISION_REASON, RUNWAY_CAP,
+  describeTarget, fmtMetric, whatWeOwe, isListed, makeThesis, MILESTONES, PITCH, PITCHES, pitchAvailable, PROMISE_RESULT, promiseDeadline, raiseQuote, raiseTerms, trendOf,
 } from '../../../engine/v2';
 import { isDivision } from '../../../data/v2/starts';
 import { boardReview } from '../shell/selectors';
 import { OUSTER_NOTICE_D } from '../../../engine/v2';
-import type { BoardSeat, Commitment$, Debt, GameStateV2 } from '../../../engine/v2';
-import { ActBtn, Limit, CauseBars, Gate, Seg, Term, Tip, TipCard, Why } from '../ui';
+import type { BoardSeat, Commitment$, Debt, GameStateV2, MilestoneType, Pitch } from '../../../engine/v2';
+import { ActBtn, Limit, CauseBars, Gate, Seg, Term, Tip, TipCard, Toggle, Why } from '../ui';
+import { MILESTONE_UI, OweCard, OweLink } from './FinanceOwe';
 import { Card, CostPills, GoBtn, HBar, KV, PanelHead, Pill, tabOf, Tabs } from '../kit';
 import * as F from '../fmt';
 import { ICON } from '../icons';
@@ -208,33 +210,64 @@ function CashHistory({ s }: { s: GameStateV2 }) {
 function RaiseCard({ s }: { s: GameStateV2 }) {
   const f = s.player.finance;
   const [anchor, setAnchor] = useState('');
-  const ceil = raiseCeiling(s, Number.POSITIVE_INFINITY, { anchor: !!anchor });
+  const [type, setType] = useState<MilestoneType>(() => raiseTerms(s, {}).type);
+  const [pitch, setPitch] = useState<Pitch>('base');
+  const [dual, setDual] = useState(false);
+  const q0 = raiseQuote(s, Number.POSITIVE_INFINITY, { anchor: !!anchor, pitch });
+  const ceil = q0.ceiling;
   const askMax = Math.max(5, Math.ceil(ceil.max * 2));
   const [askIn, setAsk] = useState<number | undefined>(undefined);
   const ask = Math.max(0.1, Math.round(Math.min(askMax, askIn ?? Math.max(0.1, ceil.max)) * 10) / 10);
-  const params = { ask, ...(anchor ? { anchor } : {}) };
-  const v = actionView(s, 'fin.raise', params);
-  const stake = v.costs.find((c) => c.currency === 'dilution')?.amount ?? 0;
-  const fail = v.exposure.find((c) => c.currency === 'cash')?.probability ?? 0;
+  const params = { ask, type, pitch, ...(anchor ? { anchor } : {}) };
+  const q = raiseQuote(s, ask, { anchor: !!anchor, pitch });
+  const stake = q.dilution * 100;
+  const fail = 1 - q.pClose;
   const burn = runwayOf(s).burnQ;
-  const limits = ([['pool', 'Investor pool', 'investorPool', ICON.staff], ['dilution', 'Dilution limit', 'dilutionCap', ICON.valuation], ['annualCap', 'Annual cap', 'annualCap', ICON.raise]] as const)
+  const limits = ([['pool', 'Investor pool', 'investorPool', ICON.staff], ['dilution', 'Dilution limit', 'dilutionCap', ICON.valuation]] as const)
     .map(([k, label, term, icon]) => ({ k, label, term, icon, v: ceil.parts[k] ?? 0 }));
   const lmax = Math.max(1e-6, ...limits.map((l) => l.v));
   const boundLabel = limits.find((l) => l.k === ceil.bound)?.label.toLowerCase() ?? ceil.bound;
   const partners = dealMenu(s).filter((d) => d.partner).slice(0, 3);
   const pend = f.ws3.pendingRound;
+  const th = makeThesis(s, type, pitch);
+  const tr = trendOf(s, type);
+  const close = nextQDay(s);
+  const due = promiseDeadline(s, close);
+  const typeOpts = MILESTONES.map((m) => { const t = trendOf(s, m); return { v: m, label: MILESTONE_UI[m].label, ...(t.blocked ? { locked: t.blocked } : {}) }; });
+  const pitchOpts = PITCHES.map((p) => { const ok = pitchAvailable(s, p); return { v: p, label: `${p[0].toUpperCase()}${p.slice(1)} ×${PITCH[p].price}`, ...(ok !== true ? { locked: ok } : {}) }; });
+  const ipoView = actionView(s, 'fin.ipo', { dualClass: dual });
+  const MI = MILESTONE_UI[type].icon;
   return (
-    <Card title={<Term id="raiseCeiling">How much can you raise?</Term>} home="raiseCeiling" id="ctl-raise-card"
+    <Card title={<Term id="raiseCeiling">Raise</Term>} home="raiseCeiling" id="ctl-raise-card"
       right={<span className="tag2 warn">bound by {boundLabel}</span>}>
       <div className="lim-rows">
         {limits.map((l) => (
           <div className="lim-row" key={l.k} data-cap={l.k}>
             <span className="row-i"><l.icon size={13} /><Term id={l.term}>{l.label}</Term></span>
             <HBar v={l.v} max={lmax} w="100%" h={8} color={l.k === ceil.bound ? C.watch : '#6b7c91'} />
-            <Tip content={() => <TipCard title={<Term id={l.term}>{l.label}</Term>} value={F.money(l.v)} rows={limits.map((x) => ({ label: x.label, value: F.money(x.v), tone: x.k === ceil.bound ? 'neg' as const : 'neutral' as const }))}>The smallest of the three caps is how much you can raise now.</TipCard>}><span className={`num ${l.k === ceil.bound ? 'tone-warn' : ''}`}>{F.money(l.v)}</span></Tip>
+            <Tip content={() => <TipCard title={<Term id={l.term}>{l.label}</Term>} value={F.money(l.v)} rows={limits.map((x) => ({ label: x.label, value: F.money(x.v), tone: x.k === ceil.bound ? 'neg' as const : 'neutral' as const }))}>{`The smaller of the two is how much you can raise now. The dilution limit is at the ${pitch} pitch's price.`}</TipCard>}><span className={`num ${l.k === ceil.bound ? 'tone-warn' : ''}`}>{F.money(l.v)}</span></Tip>
           </div>
         ))}
       </div>
+      {/* FIN2: the thesis, one milestone per round and a pitch; the promise it leaves is shown before you sign. */}
+      <div className="fin-row thesis-row">
+        <span className="dim small"><Term id="roundMilestone">Milestone</Term></span>
+        <Seg value={type} options={typeOpts} onChange={setType} testId="raise-type" />
+        <span className="dim small"><Term id="pitch">Pitch</Term></span>
+        <Seg value={pitch} options={pitchOpts} onChange={setPitch} testId="raise-pitch" />
+      </div>
+      {typeof th === 'string' ? <div className="tone-neg small">{th}</div> : (
+        <Tip as="div" content={() => <TipCard title={<Term id="promise">Promise</Term>} value={describeTarget(th)} rows={[
+          { label: 'Now', value: fmtMetric(type, th.start) },
+          { label: 'Your trend, 12 months', value: `+${fmtMetric(type, tr.gain).replace(/^level /, '')} (${tr.basis})` },
+          { label: `${pitch[0].toUpperCase()}${pitch.slice(1)} pitch`, value: `× ${PITCH[pitch].gain} of that gain · price × ${PITCH[pitch].price}` },
+          { label: 'Judged on', value: fmtDate(dateOf(s, due)) },
+          { label: 'Met', value: `credibility +${PROMISE_RESULT.metCred} · board +${PROMISE_RESULT.metBoard} (× weight)`, tone: 'pos' },
+          { label: 'Missed by > 20%', value: `credibility ${PROMISE_RESULT.missCred} · board ${PROMISE_RESULT.missBoard} (× weight)`, tone: 'neg' },
+        ]}>An expectation, not a contract: no cash moves. Weight = this round's share of what you raise in the year to the deadline.</TipCard>}>
+          <div className="fin-row small" data-test="raise-promise"><MI size={13} /><span>Promise: <b>{describeTarget(th)}</b> by {fmtDate(dateOf(s, due))}</span><span className="dim">now {fmtMetric(type, th.start)}</span></div>
+        </Tip>
+      )}
       {partners.length > 0 && (
         <div className="fin-row"><span className="dim small"><Term id="anchorPartner">Anchor partner</Term></span><Seg value={anchor} options={[{ v: '', label: 'None' }, ...partners.map((d) => ({ v: d.partner as string, label: d.partner as string }))]} onChange={setAnchor} /></div>
       )}
@@ -243,8 +276,10 @@ function RaiseCard({ s }: { s: GameStateV2 }) {
         <span className="sp" />
         <span className="pills">
           <Pill kind="cost" title="Share of the company you sell"><Term id="dilution">stake</Term> −{stake.toFixed(1)}%</Pill>
+          <Pill kind="neu" title={`Pre-money: the mark × the ${pitch} pitch's price (×${PITCH[pitch].price})`}>pre {F.money(q.pre)}</Pill>
           <Pill kind="gain" title="Quarters of spending this round covers at today's net burn">{burn > 0 ? `+${F.quarters(ask / burn)} runway` : 'no burn'}</Pill>
           <Pill kind={fail > 0.25 ? 'bad' : fail > 0 ? 'warn' : 'good'} title="Asking above the ceiling risks the round failing">close {F.pct(1 - fail)}</Pill>
+          {q.down && <Pill kind="bad" title={`Priced below the last round's ${F.money(q.lastPost)} post-money: board confidence −15 and anti-dilution shares`}><Term id="downRound">down round</Term></Pill>}
         </span>
       </div>
       {/* Jank F5: what the round does, before you click. */}
@@ -256,7 +291,8 @@ function RaiseCard({ s }: { s: GameStateV2 }) {
             { label: 'Cash', value: `${F.money(f.cash)} → ${F.money(f.cash + ask)}` },
             { label: <Term id="runway">Runway</Term>, value: `${F.runway(rw.q, RUNWAY_CAP)} → ${F.runway(after, RUNWAY_CAP)}` },
             { label: <Term id="dilution">Stake sold</Term>, value: `${stake.toFixed(1)}% of the company` },
-            { label: 'Closes', value: fmtDate(dateOf(s, nextQDay(s))) },
+            { label: 'Price (pre-money)', value: F.money(q.pre) },
+            { label: 'Closes', value: fmtDate(dateOf(s, close)) },
           ]}>The money lands at the next quarter start; the odds of closing fall when you ask above the ceiling.</TipCard>}>
             <div className="fin-ba small" data-test="raise-preview">
               <span className="dim">cash</span> <span className="num">{F.money(f.cash)} → <b>{F.money(f.cash + ask)}</b></span>
@@ -288,10 +324,27 @@ function RaiseCard({ s }: { s: GameStateV2 }) {
           </div>
         );
       })()}
+      {/* FIN2 (spec §2.6): the IPO is its own one-time action, with the dual-class choice. */}
+      <div className="fin-row" data-test="ipo-row">
+        <span className="row-i small"><ICON.milestone size={13} /><Term id="ipo">IPO</Term></span>
+        {isListed(s) ? (
+          <Tip content={() => <TipCard title={<Term id="ipo">Listed</Term>} value={F.pct(f.ownership.public)} rows={[{ label: <Term id="dualClass">Dual-class</Term>, value: f.dualClass ? 'yes' : 'no' }]}>Public holders own this share of the company.</TipCard>}>
+            <span className="small">listed · public {F.pct(f.ownership.public)}{f.dualClass ? ' · dual-class' : ''}</span>
+          </Tip>
+        ) : (
+          <>
+            <Tip content={() => <TipCard title={<Term id="ipo">IPO</Term>} value={ipoView.ok === true ? 'available' : 'not now'} rows={[{ label: 'Window', value: s.capital.ipoWindow ? 'open' : 'closed' }, { label: 'Sells at most', value: '5% of the company' }]}>{ipoView.ok === true ? 'One time: public holders and a listing independent join; no promise to judge.' : ipoView.ok}</TipCard>}><span className="small dim">{ipoView.ok === true ? 'window open' : ipoView.ok}</span></Tip>
+            <span className="sp" />
+            <Toggle on={dual} onChange={setDual} label={<Term id="dualClass">Dual-class</Term>} />
+            <ActBtn id="fin.ipo" params={{ dualClass: dual }} label="List" />
+          </>
+        )}
+      </div>
       <div className="fin-foot">
-        {pend ? <Tip content={() => <TipCard title="Pending round" value={F.money(pend.ask)} rows={[{ label: 'Closes', value: fmtDate(dateOf(s, nextQDay(s))) }]}>The money lands when the round closes.</TipCard>}><span><span className="dim">Pending</span> <b className="num">{F.money(pend.ask)}</b> <span className="dim">closes {fmtDate(dateOf(s, nextQDay(s)))}</span></span></Tip> : <span className="dim">No round in progress</span>}
+        {pend ? <Tip content={() => <TipCard title="Pending round" value={F.money(pend.ask)} rows={[{ label: 'Closes', value: fmtDate(dateOf(s, close)) }]}>The money lands when the round closes.</TipCard>}><span><span className="dim">Pending</span> <b className="num">{F.money(pend.ask)}</b> <span className="dim">closes {fmtDate(dateOf(s, close))}</span></span></Tip> : <span className="dim">No round in progress</span>}
         <span className="sp" />
-        <span className="dim">room left</span> <Tip content={() => <TipCard title={<Term id="raiseCeiling">Raise ceiling</Term>} value={F.money(ceil.max)}>The most you can raise this year without risking a failed round.</TipCard>}><b className="num tone-pos">{F.money(ceil.max)}</b></Tip>
+        <OweLink s={s} />
+        <GoBtn to={{ panel: 'finance', tab: 'owe' }} label="What we owe" testId="fin.go.owe" />
       </div>
     </Card>
   );
@@ -425,7 +478,7 @@ function BoardCard({ s }: { s: GameStateV2 }) {
             { label: 'Ouster vote possible below', value: String(br.line) },
             { label: 'Notice before a vote', value: `${OUSTER_NOTICE_D} d after the warning` },
             { label: 'Ouster odds at this review', value: br.live ? F.pct(br.p) : 'none' },
-          ]}>The board meets every quarter. Plans met, revenue and a calm safety record raise confidence.</TipCard>}>
+          ]}>The board meets every quarter. Investor promises met and a calm safety record raise confidence; misses, incidents and falling behind lower it.</TipCard>}>
             <div className="limit-row" data-test="board-review"><span className="dim small">Next review {fmtDate(br.date)} (in {br.inDays} d)</span><span className={`small ${br.live ? 'tone-neg' : br.bc < 35 ? 'tone-warn' : 'dim'}`}>confidence {F.idx(br.bc)} · needs {br.line}+{br.live ? ` · ouster odds ${F.pct(br.p)}` : ''}</span></div>
           </Tip>
         );
@@ -526,7 +579,6 @@ function DebtCard({ s }: { s: GameStateV2 }) {
   const head = debtHeadroom(s, dk);
   const [amtF, setAmtF] = useState(0.5);
   const drawAmt = Math.max(0.1, Math.round(head.max * amtF * 10) / 10);
-  const rvg = contingentLiabilities(s);
   const lr = leaseRate(s);
   return (
     <Card title={<Term id="rating">Debt</Term>} home="debt"
@@ -578,10 +630,8 @@ function DebtCard({ s }: { s: GameStateV2 }) {
       </div>
       <Tip content={() => <TipCard title={<Term id="spv">Leases</Term>} rows={[
         { label: 'Lessor return now', value: lr !== undefined ? `${F.pct(lr)} at ${f.rating}` : `none at ${f.rating}` },
-        { label: <Term id="rvg">Residual-value guarantees</Term>, value: F.money(rvg.total) },
-        ...rvg.items.slice(0, 5).map((i) => ({ label: <span className="dim">· {i.name}</span>, value: F.money(i.amount) })),
-      ]}>Payment options for sites and chips are on the Compute build and buy cards. A guarantee is owed only if you walk away from a leased asset.</TipCard>}>
-        <div className="limit-row" data-test="lease-terms"><span className="dim small"><Term id="spv">Leases</Term> {lr !== undefined ? `at ${F.pct(lr)}` : 'closed'}</span><span className="small">guarantees {F.money(rvg.total)} <span className="dim">contingent</span></span></div>
+      ]}>Payment options for sites and chips are on the Compute build and buy cards. Their residual-value guarantees are in What we owe.</TipCard>}>
+        <div className="limit-row" data-test="lease-terms"><span className="dim small"><Term id="spv">Leases</Term> {lr !== undefined ? `at ${F.pct(lr)}` : 'closed'}</span><GoBtn to={{ panel: 'finance', tab: 'owe' }} label="Guarantees" testId="fin.go.guarantees" /></div>
       </Tip>
       {f.covenantBreachDay !== undefined && <div className="tone-neg small"><Term id="covenant">Covenant</Term> breached since {fmtDate(dateOf(s, f.covenantBreachDay))}</div>}
     </Card>
@@ -613,17 +663,25 @@ function Deals({ s }: { s: GameStateV2 }) {
   );
 }
 
+/** What we owe tab badge: promises behind plus covenants near or breached (the Watch alert's count). */
+function oweBadge(s: GameStateV2): number {
+  const o = whatWeOwe(s);
+  return o.behind.length + o.near.length;
+}
+
 export function Finance({ s }: { s: GameStateV2 }) {
   const f = s.player.finance;
   const dLeft = Math.max(0, nextQDay(s) - s.time.day);
   const division = isDivision(s);
   // Jank F3: first glance = cash flow, cash history and the raise (or the parent budget); the rest on tabs.
-  const tab = tabOf('finance', 'cash');
+  const tab0 = tabOf('finance', 'cash');
+  const tab = division && (tab0 === 'owe' || tab0 === 'deals') ? 'cash' : tab0; // a division has neither tab
   return (
     <div className="panel-v2 fin" data-panel="finance">
       <PanelHead icon={ICON.finance} title="Finance" sub={`per quarter unless marked · ${qLabel(s, qOf(s) + 1)} starts in ${dLeft} d`}
         tabs={<Tabs panel="finance" def="cash" tabs={[
           { id: 'cash', label: 'Cash', icon: ICON.cash },
+          ...(division ? [] : [{ id: 'owe', label: 'What we owe', icon: ICON.commitment, badge: oweBadge(s) }]),
           { id: 'contracts', label: 'Contracts', icon: ICON.commitment },
           { id: 'owners', label: division ? 'Board' : 'Board & owners', icon: ICON.board },
           ...(division ? [] : [{ id: 'deals', label: 'Debt & deals', icon: ICON.debt }]),
@@ -647,6 +705,7 @@ export function Finance({ s }: { s: GameStateV2 }) {
         </Card>
       </div>
       </>}
+      {tab === 'owe' && !division && <div className="g2"><OweCard s={s} /></div>}
       {tab === 'contracts' && <div className="g2"><LockedIn s={s} /></div>}
       {tab === 'owners' && (
         <div className="g3">

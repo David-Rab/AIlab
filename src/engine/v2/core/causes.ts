@@ -16,6 +16,7 @@ export const CAUSE_KEYS: Record<string, string> = {
   'pub.approval': 'pub.approval',
   'pub.concern': 'pub.concern',
   'player.finance.valuation': 'player.finance.valuation',
+  'finance.credibility': 'player.finance.credibility',
   cash: 'player.finance.cash',
   revenueRun: 'player.finance.revenueRun',
   'board.confidence': 'player.board.confidence',
@@ -43,6 +44,7 @@ const RANGES: [prefix: string, lo: number, hi: number][] = [
   ['china.meters.', 0, 100],
   ['world.unemployment.', 0, 100],
   ['player.finance.valuation', 0, Number.MAX_VALUE],
+  ['finance.credibility', 0, 100],
   ['revenueRun', 0, Number.MAX_VALUE],
 ];
 

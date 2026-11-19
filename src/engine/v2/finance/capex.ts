@@ -31,7 +31,11 @@ export function leaseBalance(c: Commitment$, day: Day): Money {
  *  leased sites still being built. Contingent: owed only if you walk away. */
 export function contingentLiabilities(s: GameStateV2): { total: Money; items: { name: string; amount: Money }[] } {
   const items: { name: string; amount: Money }[] = [];
-  for (const c of s.player.finance.ledger) if (c.kind === 'finLease' && c.endDay > s.time.day) items.push({ name: c.id, amount: CAPEX_LEASE.rvgShare * leaseBalance(c, s.time.day) });
+  for (const c of s.player.finance.ledger) {
+    if (c.kind !== 'finLease' || c.endDay <= s.time.day) continue;
+    const site = s.player.sites.find((x) => siteLeaseId(x.id) === c.id);
+    items.push({ name: site ? site.name : `Chip lease ${c.id.replace(/^L-fin-/, '').replace(/-\d+$/, '')}`, amount: CAPEX_LEASE.rvgShare * leaseBalance(c, s.time.day) });
+  }
   for (const x of s.player.sites) if (x.stage !== 'live' && x.stage !== 'blocked' && x.ws3.lease) items.push({ name: x.name, amount: CAPEX_LEASE.rvgShare * x.ws3.lease.funded });
   return { total: items.reduce((a, i) => a + i.amount, 0), items };
 }

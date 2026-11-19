@@ -5,6 +5,7 @@ import { parentBudgetYear, type StartDef } from '../../../data/v2/starts';
 import { initialBoard, SEAT_STANCE } from '../finance/board';
 import { valuationMark } from '../finance/equity';
 import { defaultFinanceWS3 } from '../finance/ext';
+import { START_CREDIBILITY } from '../finance/promises';
 import { DEBT_SIZING } from '../../../data/v2/deals';
 import type { Board, CloudContract, Commitment$, FinanceState, Site } from '../types';
 import { dayOfDate } from './time';
@@ -72,7 +73,8 @@ export function startFinance(def: StartDef, c: StartCompute): FinanceState {
     revenueHistory: [...def.revenueHistory],
     valuation,
     ownership: { founder: def.ownership.founder, mission: 0, fin: def.ownership.fin, strat: { ...(def.ownership.strat ?? {}) }, public: 0 },
-    raisedLast4q: 0,
+    credibility: START_CREDIBILITY[def.id],
+    promises: [],
     rounds: [],
     tranches: [],
     debts: division || rv <= 0 ? [] : [{ id: 'D-revolver', kind: 'revolver', principal: rv, drawn: 0, spreadBp: 250, maturityDay: 365 * 5, covenant: 'liquidity' }],
@@ -85,7 +87,6 @@ export function startFinance(def: StartDef, c: StartCompute): FinanceState {
     deals: Object.keys(def.ownership.strat ?? {}).map((partner, i) => ({ id: `DL-start${i}`, template: 'hyperscalerEquity' as const, partner, day: -400, strings: { observer: true } })),
     ws3: defaultFinanceWS3(cash),
   };
-  f.ws3.revenuePlan = def.revenueRun;
   f.ws3.chipBook = (def.owned * CHIP_BOOK_PER_H) / 1e9;
   return f;
 }

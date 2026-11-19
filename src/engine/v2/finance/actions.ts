@@ -7,12 +7,13 @@ import { addCloud, addSpotRental, chipQuote, placeOrder, rentQuote, RENT_Q_MAX, 
 import { addCommunityPackage, newSite, oppositionOdds, siteCapex, siteEtaQ, type SiteOpts } from '../compute/sites';
 import { bloc } from '../actors/fx';
 import { signCommitment } from '../actors/commitments';
-import type { ActionDef, ChipOrder, CostLine, Debt, GameStateV2, Site, StrategicDeal, SystemCtx } from '../types';
-import { boardApproval, boardBlocked, boardSupport, BOARD_VECTORS } from './board';
+import type { ActionDef, ChipOrder, CostLine, Debt, GameStateV2, MilestoneType, Pitch, Site, StrategicDeal, SystemCtx } from '../types';
+import { boardApproval, boardBlocked, boardSupport, BOARD_VECTORS, founderControl } from './board';
 import { leaseAvailable, leaseRate, payOptions } from './capex';
 import { debtHeadroom, drawDebt, newDebtRatePct, repayDebt } from './debt';
 import { acceptDeal, dealBlocker, dealTerms, declineDeal, partnerFor, rescueOffer, seekPartner } from './deals';
-import { acceptRepriced, bookRound, canRaise, lastPostMoney, pullRepriced, raiseCeiling, startRaise } from './equity';
+import { acceptRepriced, bookRound, canIpo, canRaise, DUAL_CLASS_GOV, lastPostMoney, pullRepriced, raiseCeiling, startRaise } from './equity';
+import { describeTarget, makeThesis, MILESTONES, PITCH, PITCHES, PROMISE_RESULT, promiseDeadline } from './promises';
 import { ensureWs3, yearStats, type DealOffer } from './ext';
 import { commitmentsPerYear, qOf, bookCash } from './ledger';
 import { divisionBlock } from './parent';
@@ -48,6 +49,27 @@ function commitGate(s: GameStateV2, ctx: SystemCtx, addPerYear: number, id: stri
 
 // ───────────────────────────── Equity ─────────────────────────────
 
+/** Milestone and pitch of a raise from its params (FIN2): `type` capability | scale | adoption (default: the first of
+ *  scale, adoption, capability that can be pitched), `pitch` conservative | base | aggressive (default base). */
+export function raiseTerms(s: GameStateV2, p: P): { type: MilestoneType; pitch: Pitch } {
+  const want = str(p, 'type', '') as MilestoneType;
+  const type = MILESTONES.includes(want) ? want : (['scale', 'adoption', 'capability'] as const).find((m) => typeof makeThesis(s, m, 'base') !== 'string') ?? 'capability';
+  const pw = str(p, 'pitch', 'base') as Pitch;
+  return { type, pitch: PITCHES.includes(pw) ? pw : 'base' };
+}
+
+/** What a raise of `ask` at a pitch would look like (Raise card, previews): ceiling, pre-money, dilution, closing odds,
+ *  down round. */
+export function raiseQuote(s: GameStateV2, ask: number, opts: { anchor?: boolean; pitch?: Pitch; ipo?: boolean } = {}) {
+  const k = opts.ipo ? 1 : PITCH[opts.pitch ?? 'base'].price;
+  const c = raiseCeiling(s, Number.POSITIVE_INFINITY, { anchor: !!opts.anchor, ipo: !!opts.ipo, priceMult: k });
+  const over = Number.isFinite(ask) ? Math.max(0, ask / Math.max(0.01, c.max) - 1) : 0;
+  const pre = Math.max(1, s.player.finance.valuation) * k * (1 - Math.min(0.6, 0.5 * over));
+  const a = Number.isFinite(ask) ? ask : c.max;
+  const last = lastPostMoney(s);
+  return { ceiling: c, priceMult: k, pre, dilution: a / (pre + a), pClose: Math.exp(-over), down: last > 0 && pre < last, lastPost: last };
+}
+
 const raise: ActionDef = {
   id: 'fin.raise', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Raise',
   boardVector: BOARD_VECTORS.dilution,
@@ -57,28 +79,66 @@ const raise: ActionDef = {
   },
   preview(s, p) {
     const anchor = str(p, 'anchor', '');
-    const ipo = bool(p, 'ipo');
-    const c = raiseCeiling(s, Number.POSITIVE_INFINITY, { anchor: !!anchor, ipo });
-    const ask = num(p, 'ask', c.max);
-    const V = Math.max(1, s.player.finance.valuation);
-    const over = Math.max(0, ask / Math.max(0.01, c.max) - 1);
-    const pre = V * (1 - Math.min(0.6, 0.5 * over));
-    const dil = ask / (pre + ask);
+    const { type, pitch } = raiseTerms(s, p);
+    const q = raiseQuote(s, Number.POSITIVE_INFINITY, { anchor: !!anchor, pitch });
+    const ask = num(p, 'ask', q.ceiling.max);
+    const r = raiseQuote(s, ask, { anchor: !!anchor, pitch });
+    const th = makeThesis(s, type, pitch);
     const exposure: CostLine[] = [];
-    if (over > 0) exposure.push({ currency: 'cash', amount: -ask, probability: Math.round((1 - Math.exp(-over)) * 100) / 100, lagDays: nextQDays(s) });
-    if (dil > 0.1) exposure.push(boardExposure(s, BOARD_VECTORS.dilution));
-    return { costs: [{ currency: 'dilution', amount: Math.round(dil * 1000) / 10 }], gains: [{ currency: 'cash', amount: ask, lagDays: nextQDays(s) }], exposure };
+    const costs: CostLine[] = [{ currency: 'dilution', amount: Math.round(r.dilution * 1000) / 10 }];
+    if (r.down) costs.push({ currency: 'boardConf', amount: -15, target: 'down round: priced below the last round' });
+    if (r.pClose < 1) exposure.push({ currency: 'cash', amount: -ask, probability: Math.round((1 - r.pClose) * 100) / 100, lagDays: nextQDays(s) });
+    if (r.dilution > 0.1) exposure.push(boardExposure(s, BOARD_VECTORS.dilution));
+    if (typeof th !== 'string') {
+      // The promise: judged 12 months after the close; at most full weight (it falls if you raise again before then).
+      const lag = Math.max(1, promiseDeadline(s, s.time.day + nextQDays(s)) - s.time.day);
+      exposure.push({ currency: 'credibility', amount: PROMISE_RESULT.missCred, lagDays: lag, target: `promise of ${describeTarget(th)} missed by over 20% (× weight)` });
+      exposure.push({ currency: 'boardConf', amount: PROMISE_RESULT.missBoard, lagDays: lag, target: 'if the promise is missed (× weight)' });
+      exposure.push({ currency: 'credibility', amount: PROMISE_RESULT.metCred, lagDays: lag, target: 'if the promise is met (× weight)' });
+    }
+    return { costs, gains: [{ currency: 'cash', amount: ask, lagDays: nextQDays(s) }], exposure };
   },
   apply(s, ctx, p) {
     const anchor = str(p, 'anchor', '');
-    const ipo = bool(p, 'ipo');
-    const c = raiseCeiling(s, Number.POSITIVE_INFINITY, { anchor: !!anchor, ipo });
+    const { type, pitch } = raiseTerms(s, p);
+    const th = makeThesis(s, type, pitch);
+    if (typeof th === 'string') return th;
+    const k = PITCH[pitch].price;
+    const c = raiseCeiling(s, Number.POSITIVE_INFINITY, { anchor: !!anchor, priceMult: k });
     const ask = Math.max(0.1, num(p, 'ask', c.max));
-    if (ask / (s.player.finance.valuation + ask) > 0.1) {
+    if (ask / (s.player.finance.valuation * k + ask) > 0.1) {
       const vote = boardApproval(s, ctx, BOARD_VECTORS.dilution, 'fin.raise', bool(p, 'force'));
       if (!vote.approved) return vote.why;
     }
-    startRaise(s, ctx, ask, { ...(anchor ? { anchor } : {}), ipo });
+    startRaise(s, ctx, ask, { ...(anchor ? { anchor } : {}), thesis: th, priceMult: k });
+  },
+};
+
+// ───────────────────────────── IPO (FINANCE-V3 §2.6): one time, its own action ─────────────────────────────
+
+const ipo: ActionDef = {
+  id: 'fin.ipo', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'IPO',
+  available: (s) => divisionBlock(s) ?? canIpo(s),
+  preview(s, p) {
+    const q = raiseQuote(s, Number.POSITIVE_INFINITY, { ipo: true });
+    const ask = num(p, 'ask', q.ceiling.max);
+    const r = raiseQuote(s, ask, { ipo: true });
+    const dual = bool(p, 'dualClass');
+    const costs: CostLine[] = [{ currency: 'dilution', amount: Math.round(r.dilution * 1000) / 10, target: 'sold to public holders' }];
+    const gains: CostLine[] = [{ currency: 'cash', amount: ask, lagDays: nextQDays(s) }];
+    const exposure: CostLine[] = [];
+    if (dual) {
+      gains.push({ currency: 'freedom', amount: 1, target: 'dual-class: founder votes keep control (you can force board decisions)' });
+      exposure.push({ currency: 'cash', amount: -Math.round((1 - DUAL_CLASS_GOV) * s.player.finance.valuation), target: `valuation −${Math.round((1 - DUAL_CLASS_GOV) * 100)}% at every mark (dual-class governance discount)` });
+    } else if (founderControl(s)) costs.push({ currency: 'freedom', amount: -1, target: 'founder control ends: no more forcing board decisions' });
+    costs.push({ currency: 'freedom', amount: -1, target: 'a listing independent joins the board' });
+    if (r.pClose < 1) exposure.push({ currency: 'cash', amount: -ask, probability: Math.round((1 - r.pClose) * 100) / 100, lagDays: nextQDays(s) });
+    return { costs, gains, exposure };
+  },
+  apply(s, ctx, p) {
+    const c = raiseCeiling(s, Number.POSITIVE_INFINITY, { ipo: true });
+    const ask = Math.max(0.1, num(p, 'ask', c.max));
+    startRaise(s, ctx, ask, { ipo: true, dualClass: bool(p, 'dualClass') });
   },
 };
 
@@ -95,7 +155,7 @@ const acceptRound: ActionDef = {
     const pre = r?.pre ?? Math.max(1, s.player.finance.valuation);
     const down = !r || pre < (r.lastPost || lastPostMoney(s));
     return {
-      costs: [{ currency: 'dilution', amount: Math.round((ask / (pre + ask || 1)) * 1000) / 10 }, ...(down ? [{ currency: 'boardConf' as const, amount: -15, target: 'down round' }, { currency: 'talent' as const, amount: -5, target: 'senior attrition' }] : [])],
+      costs: [{ currency: 'dilution', amount: Math.round((ask / (pre + ask || 1)) * 1000) / 10 }, ...(down ? [{ currency: 'boardConf' as const, amount: -15, target: 'down round' }] : [])],
       gains: [{ currency: 'cash', amount: ask >= 20 ? ask * 0.5 : ask, target: ask >= 20 ? 'now; the rest as a tranche' : 'now' }],
       exposure: [],
     };
@@ -119,7 +179,7 @@ const downRound: ActionDef = {
   preview(s) {
     const V = s.player.finance.valuation * 0.6;
     const amt = downRoundSize(s);
-    return { costs: [{ currency: 'dilution', amount: Math.round((amt / (V + amt)) * 1000) / 10 }, { currency: 'boardConf', amount: -15 }], gains: [{ currency: 'cash', amount: amt }], exposure: [{ currency: 'talent', amount: -5 }] };
+    return { costs: [{ currency: 'dilution', amount: Math.round((amt / (V + amt)) * 1000) / 10 }, { currency: 'boardConf', amount: -15, target: 'down round' }], gains: [{ currency: 'cash', amount: amt }], exposure: [] };
   },
   apply(s, ctx) {
     const amt = downRoundSize(s);
@@ -691,7 +751,7 @@ export function dealMenu(s: GameStateV2): { template: StrategicDeal['template'];
 }
 
 export const FINANCE_ACTIONS: ActionDef[] = [
-  raise, seek, accept, decline, draw, repay, recap, refuseRecap,
+  raise, ipo, seek, accept, decline, draw, repay, recap, refuseRecap,
   buyChips, rentCompute, site, community, transformers,
   downRound, rescue, renegotiate, sell, cancel, acceptRound, pullRound,
 ];

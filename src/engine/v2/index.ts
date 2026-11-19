@@ -120,3 +120,11 @@ export { quarterIndex, dayOfQuarter, dayOfDate } from './core/time';
 // End screen only (truth): the causal replay.
 export { topDecisions } from './endings/replay';
 export * from './core/limitsView';
+// FIN2: raises with a thesis, promises, credibility, the IPO, "What we owe".
+export { whatWeOwe, COVENANT_NEAR } from './finance/owe';
+export type { Owe, OweCovenant, OweContingent, OweTranche } from './finance/owe';
+export { promiseStatus, trendOf, makeThesis, pitchAvailable, credRung, CRED_RUNGS, PITCH, PITCHES, MILESTONES, PROMISE_RESULT, fmtMetric, describeTarget, promiseDeadline, neededBy } from './finance/promises';
+export type { PromiseStatus, Trend } from './finance/promises';
+export { raiseQuote, raiseTerms } from './finance/actions';
+export { canIpo, isListed, valuationNow, DUAL_CLASS_GOV } from './finance/equity';
+export { founderControl } from './finance/board';

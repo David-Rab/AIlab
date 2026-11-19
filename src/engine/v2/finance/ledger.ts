@@ -3,6 +3,7 @@ import { dayOfDate, quarterIndex } from '../core/time';
 import type { BaselineId, CashFlowKind, Commitment$, Day, FinanceState, GameStateV2, GovernancePresetId, Money, SystemCtx } from '../types';
 import { valuationMark } from './equity';
 import { defaultFinanceWS3, yearStats } from './ext';
+import { START_CREDIBILITY } from './promises';
 
 /** Player finance at Jul 2025 (§3.7.2). Reality scales commitments by 0.85. */
 export function initialFinance(baseline: BaselineId, governance: GovernancePresetId, startDate: string): FinanceState {
@@ -26,7 +27,8 @@ export function initialFinance(baseline: BaselineId, governance: GovernancePrese
     revenueHistory,
     valuation: valuationMark(Math.max(g, 2.7), revenueRun, 1, narrative, 1),
     ownership: { founder: 0.3, mission: 0.26, fin: 0.17, strat: { 'Northwind Cloud': 0.27 }, public: 0 },
-    raisedLast4q: 0,
+    credibility: START_CREDIBILITY.leader,
+    promises: [],
     rounds: [],
     // Legacy preset: SoftBank-style $30B growth tranche conditional on the recapitalisation (cut to $10B if refused) [R15 §1.6].
     tranches: governance === 'legacyNonprofit'
@@ -42,7 +44,6 @@ export function initialFinance(baseline: BaselineId, governance: GovernancePrese
     deals: [{ id: 'DL-northwind0', template: 'hyperscalerEquity', partner: 'Northwind Cloud', day: -2000, strings: { observer: true, ipRights: true } }],
     ws3: defaultFinanceWS3(cash),
   };
-  f.ws3.revenuePlan = revenueRun;
   f.ws3.chipBook = 0.5e6 * k * 25e-6; // 0.5M owned H100e at ~$25K (Epoch 2025 price) [R15 §2.1]
   return f;
 }

@@ -224,3 +224,113 @@ Numbers, before (2ef72a9 + plan) → after (FIN1):
   Test changes: finance.ts F7 capex adds lessor-paid chip capex; F8 label "SPV/lease/neocloud" → "lease/colocation/
   cloud"; 13 new FIN1 checks. uitest: J1 C1 uses the new ids; 9 new FIN1 checks (payment tiles, lease preview, price
   path, chip payment options, rating terms, debt limits, guarantees); 241/241.
+
+### FIN2 notes (2026-11-19)
+
+Built: `finance/promises.ts` (milestone trends, theses, promises, weights, judging, the credibility ladder),
+`finance/owe.ts` (`whatWeOwe`: promises with progress / needed-by-now / days left, tranche conditions, covenants with
+headroom, contingent liabilities), `fin.raise` with `type` (capability | scale | adoption) and `pitch` (conservative |
+base | aggressive), a new one-time `fin.ipo` action with the dual-class option, investor credibility
+(`finance.credibility`, its own cause key; start 60 leader / 50 challenger / 40 spinout) multiplying the valuation mark,
+the Raise card (milestone × pitch, the promise and its deadline before you sign, price, down-round flag, IPO row), a
+"What we owe" tab (home of investor credibility; residual-value guarantees moved there from the debt card, plus D3's
+copyright-litigation exposure via `observe.copyrightExposure`, which the actors' quarterly roll now also uses), one
+Watch alert ("owe") when a promise is behind or a covenant is near or failing, and a tab badge with the same count.
+schemaRev 12 → 13 with a migration (credibility by start type, empty promises, revenue plan and raised tally dropped).
+
+Removed (no aliases): the k_Y annual cap (`kY`, `parts.annualCap`, the "Annual cap" glossary term and raise-card row),
+`raisedLast4q`, the board's revenue plan (`revenuePlan`, `PLAN_GROWTH_Q`, `PLAN_MISS`, the "revenue plan met/missed"
+confidence sources) and the spinout's `patientQ` mod that only delayed it, the down round's 5% senior attrition (engine
+and the two previews), and `fin.raise`'s `ipo` param (the IPO is `fin.ipo`).
+
+Choices and readings of the spec:
+- **Weight.** "Amount ÷ amount raised in the trailing year" is read at the deadline: the round's amount ÷ everything
+  closed from its close up to its deadline (this round and the later ones). So stacking is weight-neutral: four equal
+  quarterly rounds weigh 25% each, one annual round 100%; a $1B round followed by $50B weighs 2%. Before the deadline
+  the card shows the weight so far (it can only fall).
+- **"Missed by more than 20%"** is a shortfall of more than 20% of the promised *gain* (start → target), not of the
+  target value (20% of a revenue target would forgive a shrinking lab). Progress 0 = start, 1 = target; met ≥ 1, near
+  0.8–1 (no effect), missed < 0.8. Judged in capitalQ at the deadline's quarter start, before the mark and before new
+  rounds close (a round closing on the deadline day does not dilute that promise).
+- **Deadline** = the fourth quarter start after the close (rounds close at quarter starts, so exactly 12 months).
+- **Trend** ("your current trend extrapolated 12 months"): quarter-start history (public level and compute online in a
+  new `ws3.thesisHist`, seeded at day 0; revenue in `revenueHistory`). With ≥ 0.9 years of history: compound growth
+  (levels: linear). 0.45–0.9 years: linear annualisation (compounding a short span turned one site going live into a
+  ×8 trend). Less: the market's expected frontier pace (4 × `expectedDL`) for capability, half of the compute contracted
+  for the next 8 quarters for scale. Scale never pitches below the contracted pipeline. Floors +0.2 levels / +10% a year,
+  caps +4 levels / ×8 [D]. Adoption is locked while revenue is under $0.1B.
+- **Needed by now**: geometric path for scale and adoption, linear for levels. "Behind" = more than 20 points of the
+  promised gain short of that path once a quarter of the year has passed [D].
+- **Which rounds promise.** Only `fin.raise` (a priced round with a pitch). The distress down round (priced on the
+  downside, no pitch) and the IPO (public holders, no thesis in §2.6) leave none.
+- **Pitch price.** The multiplier applies to the round's pre-money (term sheet = mark × price), and the dilution cap is
+  computed at that price. The down-round test reads the priced pre-money, so a conservative pitch under the last
+  post-money *is* a down round (flagged on the card before you sign), and an aggressive round's post-money is the bar the
+  next round must clear. The quarterly mark is not pitched (an aggressive round's inflated post-money lasts until the
+  next mark).
+- **Credibility** multiplies the formula mark from the first quarterly mark; start valuations (the last round as given)
+  are not re-scaled. Dual-class ×0.95 likewise.
+- **Founder control** = the founder preset before listing, or any company listed dual-class. It feeds the only force
+  mechanic that exists (`boardApproval(..., force)`, −20 confidence); FIN3 rebuilds the charter rights around it. A
+  founder lab that lists without dual-class shares loses it.
+- **IPO** keeps the round path: it closes at the next quarter start and can be repriced like any round (a >25% drop in
+  the mark reprices it, so the 5% cap holds at signing, not necessarily at close). Public pool bonus, listing
+  independent and the IPO window are unchanged; bonds never had an IPO gate (§3 rules already apply after listing).
+- **Board** (FIN3 territory left alone): with the revenue plan gone, the board's mood sources are reversion to 60,
+  promise results (+10 / −15 × weight), behind a rival, incidents, tight runway, down rounds, covenants. No other mood
+  rule was added; FIN3 rebuilds mood by seat kind.
+- **Covenant warning** [D]: a drawn credit line is "near" under 1.5 × its ⅓-of-line cash minimum; a chip loan under
+  1.4 × collateral cover (sweep at 1.2 ×). An undrawn line shows "not drawn".
+- **Bot (rule 12).** `plan.ts` raises only when the cash projection shows under 7 quarters (`RAISE_BELOW_Q`, a quarter
+  before the board's "tight" review), at the ceiling, on `pickThesis`: its own forecast at the deadline (scale from its
+  compute plan × 0.95, adoption from the reference revenue path's growth × 0.9, capability at half the trend) must clear
+  the pitch's target by 10%; base if sure, else conservative unless that prices a down round; never aggressive (the
+  price becomes the next round's bar). Sizing rounds to the projected hole instead of the ceiling left it short when it
+  committed the next site (4/6 seeds in distress vs 2/6 baseline in a 6-seed run), so it takes what is offered when it
+  does raise. In 12 seeds through 2027 it pitched scale/base 62 times and adoption/base 22 times.
+- **UI.** Raise card: investor pool and dilution limit only, milestone and pitch segments (locked options say why), the
+  promise line with its deadline and a tooltip (trend basis, pitch effect, met/missed effects), pre-money and a
+  down-round pill, the IPO row (dual-class toggle; reason when closed), a link to What we owe. What we owe tab (between
+  Cash and Contracts; badge = promises behind + covenants near): investor credibility (Why with the ladder), each live
+  promise (progress bar with the needed-by-now mark, now / needed, days left, state; tooltip with start → target,
+  weight, "if judged today"), the round in progress, the last four judged, tranche conditions with progress and days
+  left, covenants with headroom bars, contingent liabilities (copyright litigation with odds a quarter, lease
+  guarantees). The debt card keeps the lessor's rate and links to the guarantees (one home).
+
+Numbers, before (FIN1 d3599c7) → after (FIN2):
+- RefBot, 12 seeds to end-2027 (scratch diagnostic, not committed): rounds per year (median) 2026 4 → 4, 2027 4 → 2;
+  rounds in total 106 → 82; equity cash in 2026 $99.5B → $99.5B, 2027 $176B → $167B; end-2027 valuation $7.03T →
+  $7.38T (credibility mostly Proven by then, ×1.15); end-2027 board confidence (median) 67 → 48 (the revenue plan's
+  +5 a quarter is gone; incidents now dominate); distress 2/12 → 2/12 (same seeds, both in 2025–26).
+- `scripts/v2/finance.ts`: F7 and F8 unchanged (2026 capex $155.7B, compute $28.3B, 6.7 GW, valuation $1.47T,
+  financing $64.6B, distress-free 83.3%, no-deal path and capex2x distress 100%); F9 unanchored dilution max 5.3% over
+  81 rounds; F2 44.6M → 44.4M (known failure, one long seed). New FIN2 line: RefBot 4 rounds in 2026, 2 in 2027
+  (median), 68 promises judged through 2027, 81% met (scale 47, adoption 21, capability 0), end-2027 credibility median
+  82 (Proven).
+- Spinout under the RefBot autopilot (6 seeds to mid-2027): distress 6/6 before and after (an "Impossible" start).
+  `scripts/v2/starts.ts` (not in the test chain) fails the same 6 checks before and after (spinout overtaken 6 → 10 of
+  20, challenger 7 → 6, big tech 19 → 19).
+- `scripts/v2/bots.ts` (200 seeds, leader start; FIN1 baseline re-run on the same machine): all §7.4 criteria MET
+  before and after. Wins race 1.0 → 1.5%, safe 1.0 → 1.0%, mixed 49.5 → 51.0%, ref 22.5 → 22.5%, capex2x 10.0 → 6.0%.
+  Ousted: race 14.5 → 19.0%, safe 40.5 → 25.0%, mixed 8.0 → 11.0%, ref 13.0 → 12.5%, capex2x 4.5 → 19.0% (no revenue
+  plan propping the board up; the safe bot, which missed the plan, is ousted less). capex2x insolvent 40.0 → 49.5%
+  (median ending day 810 → 458: it no longer banks a round every quarter). FIN3's mood rebuild should look at the
+  board-confidence level (RefBot end-2027 median 48) and the capex2x ouster share.
+- Tests: `npm run typecheck` clean. test:v2 chain: golden-timelines, identity, calib, fixtures green; hygiene's perf
+  checks fail under load in the chain run (4740 µs with a 200-seed harness running alongside) and pass on a quiet
+  machine in two paired runs (FIN2 1486 / 1158 µs daily average vs FIN1 849 / 1492 µs; noise dominates). Then one by
+  one: lint-hidden, lint-ux, lint-tradeoffs, lint-structure, ws4, products, money, idle green; safety S5 −1.01 (known,
+  as FIN1); finance only F2 44.4M (known); worldfx HireRate_SOFT 2027-03-11 (known, as FIN1). `npm run test:ui`
+  254/254.
+- Test changes: finance.ts adds 17 FIN2 checks (ceiling without the annual cap, pitch prices and targets, aggressive
+  needs Credible, promises stack with 12-month deadlines, weight, judging effects and no cash, credibility × mark and
+  start values, down round without staff loss, IPO one-time + dual-class, founder control lost without dual-class, no
+  revenue plan, What we owe contents, guarantees listed, behind / near flags, migration 12 → 13, RefBot rounds a year).
+  uitest: the FIN1 "guarantees on the debt card" check now checks the lease row (guarantees moved to What we owe, one
+  home); 15 new FIN2 checks (milestones and pitches, no annual cap, promise before signing, milestone and pitch change
+  the preview, IPO row, a raise carries its thesis, What we owe rows with needed-by-now, credibility home, four
+  sections, litigation, the Watch alert, the debt card's link). Fixtures regenerated (schemaRev 13).
+- Left for later: FIN3 board mood by seat kind and the critics' seat (board confidence runs lower without the plan);
+  FIN5 moves credibility and the dual-class factor into the valuation share and replaces the quarterly pool (the bot
+  still raises at the pool-bound ceiling, so rounds stay pool-sized: about $10–330B in 2027); the "supplier terms follow
+  equity access" item from FIN1 still waits on share_i.

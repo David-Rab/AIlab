@@ -10,6 +10,7 @@ import { publicFrontier } from './observe';
 import { closePendingRound, valuationNow } from './equity';
 import { defaultCapitalWS3, ensureWs3, yearStats } from './ext';
 import { commitmentsPerYear, bookCash } from './ledger';
+import { judgePromises, recordThesisHist } from './promises';
 
 /** Capital markets at Jul 2025. A_t = 4.0·R_sector·H·M(y10)·W with R_sector = private frontier-lab run-rates. */
 export function initialCapital(rSector: number): CapitalMarkets {
@@ -221,20 +222,22 @@ export const capitalQSystem: EngineSystem = {
       ctx.log('finance', 'Recapitalisation complete: the company is now a nonprofit-controlled PBC. Conditional tranches are freed.');
     }
 
-    // Valuation mark (formula), then raises close at it, tranches land; revenue history rolls. A division (R9) has no
-    // valuation; the parent's quarterly budget lands instead.
+    // Promises due this quarter are judged first (FIN2: they move credibility, which the mark reads). Then the
+    // valuation mark (formula × credibility × governance), raises close at it, tranches land; the milestone histories
+    // roll. A division (R9) has no valuation and raises nothing; the parent's quarterly budget lands instead.
+    judgePromises(s, ctx);
     if (!isDivision(s)) {
       const v = valuationNow(s);
       const dv = v.V - f.valuation;
       f.valuation = v.V;
-      ctx.cause('player.finance.valuation', dv, 'quarterly mark', `g ${v.g.toFixed(1)} · H ${v.H.toFixed(2)} · N ${v.N.toFixed(1)} · M ${v.M.toFixed(2)}`);
+      ctx.cause('player.finance.valuation', dv, 'quarterly mark', `g ${v.g.toFixed(1)} · H ${v.H.toFixed(2)} · N ${v.N.toFixed(1)} · M ${v.M.toFixed(2)} · credibility ×${v.cred.toFixed(2)}${v.gov !== 1 ? ` · dual-class ×${v.gov.toFixed(2)}` : ''}`);
     }
     payParent(s, ctx);
     closePendingRound(s, ctx);
     settleTranches(s, ctx);
     f.revenueHistory.push(f.revenueRun);
     if (f.revenueHistory.length > 8) f.revenueHistory.shift();
-    f.raisedLast4q = f.rounds.filter((r) => r.day > s.time.day - 365).reduce((a, r) => a + r.amount, 0);
+    recordThesisHist(s);
 
     // Debt: maturities, covenants, rating (spec §3). The credit line is re-sized only when you borrow (debt.ts).
     const breach = rollMaturities(s, ctx) || covenantsBreached(s, ctx);

@@ -1,5 +1,6 @@
 // Save format, migrations, state hash (V2-SPEC §2.5). Owner: WS1.
 import { ensureWs3 } from '../finance/ext';
+import { START_CREDIBILITY } from '../finance/promises';
 import { keyOf, staffOf, teamsFromStaff } from '../departments/teams';
 import type { AgendaId, GameStateV2, PlayerLab, StaffByRole, TeamHiring } from '../types';
 import { hash32 } from './rng';
@@ -9,7 +10,7 @@ import { TRUSTED_MAX_P27 } from '../../../data/v2/agents';
 import { initialAgents } from '../departments/agents';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
-export const SCHEMA_REV = 12;
+export const SCHEMA_REV = 13;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -212,6 +213,19 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     const bu = fx.blockedUntil ?? {};
     const move: Record<string, string> = { 'cmp.orderStandard': 'cmp.buyChips', 'cmp.orderLTA': 'cmp.buyChips', 'cmp.orderSpot': 'cmp.buyChips', 'cmp.cloudContract': 'cmp.rentCompute' };
     for (const [from, to] of Object.entries(move)) if (bu[from] !== undefined) { bu[to] = Math.max(bu[to] ?? 0, bu[from]); delete bu[from]; }
+  },
+  /** 12 → 13 (finance v3 FIN2): investor credibility (start value by start type) and an empty promise list (rounds
+   *  raised before FIN2 promised nothing); the revenue plan, the trailing raised tally and the patientQ start mod are
+   *  gone; the milestone histories start empty (the raise card falls back to the pipeline and market pace). A pending
+   *  or repriced round from before FIN2 closes without a thesis. */
+  12: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const f = s.player.finance as GameStateV2['player']['finance'] & { raisedLast4q?: number };
+    const start = s.setup.start ?? 'leader';
+    f.credibility ??= START_CREDIBILITY[start];
+    f.promises ??= [];
+    delete f.raisedLast4q;
+    delete (f.ws3 as unknown as Record<string, unknown>).revenuePlan;
   },
 };
 

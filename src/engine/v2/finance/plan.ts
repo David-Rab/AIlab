@@ -3,8 +3,8 @@
 //
 // The autopilot only uses the public action catalog (engine `act`), like a player would. It tracks
 // `mult × refTotal(t)` online compute: chips 2–3 quarters ahead, sites ~6 quarters ahead (leased while a lessor will
-// fund them, FIN1), colocation and one-year neocloud capacity for near-term gaps; it raises equity every quarter at
-// the ceiling and borrows on the credit line when short.
+// fund them, FIN1), colocation and one-year neocloud capacity for near-term gaps; it raises equity when its cash
+// projection runs short, on the milestone it is surest to hit (FIN2), and borrows on the credit line when short.
 import { SITE_PATHS } from '../../../data/v2/deals';
 import { isDivision } from '../../../data/v2/starts';
 import { act } from '../core/loop';
@@ -15,9 +15,11 @@ import { EVENT_BY_ID } from '../core/registry';
 import type { GameStateV2, PendingDecision } from '../types';
 import { leaseRate } from './capex';
 import { debtHeadroom } from './debt';
-import { canRaise, DOWN_ROUND_RUNWAY_Q, lastPostMoney } from './equity';
+import { canRaise, DOWN_ROUND_RUNWAY_Q, lastPostMoney, raiseCeiling } from './equity';
 import { qOf } from './ledger';
+import { MILESTONES, PITCH, promiseDeadline, trendOf } from './promises';
 import { runwayOf } from './runway';
+import type { MilestoneType, Pitch } from '../types';
 
 export interface AutopilotOpts {
   /** Multiple of the reference compute path to track (1 = RefBot, 2 = capex2x). */
@@ -35,7 +37,7 @@ export interface AutopilotOpts {
   recap: boolean;
   /** Runway guard (quarters) for new sites when `guard` is on (default GUARD_Q); chips use guardQ − 1 (FIN1). */
   guardQ?: number;
-  /** Raise equity only while runway is below this many quarters (undefined = every quarter at the ceiling). */
+  /** Raise equity only while runway is below this many quarters (default RAISE_BELOW_Q). */
   raiseBelowQ?: number;
   /** Runway floor (quarters) the one-year bridge rental may not push below (default BRIDGE_FLOOR_Q). */
   bridgeFloorQ?: number;
@@ -72,6 +74,13 @@ export const BRIDGE_FLOOR_Q = 1.5;
 export const DEAL_GUARD_Q = 2.0;
 /** Chip orders (short-lived, resellable) use a looser guard [D]. */
 export const GUARD_CHIPS_Q = 3.5;
+/** FIN2 raise policy [D]: raise only when the cash projection shows less than RAISE_BELOW_Q quarters (a quarter before
+ *  the board's "tight" line at 6), then at the ceiling (sizing rounds to the projected hole left the bot short when it
+ *  committed the next site: the projection holds revenue flat and knows no future capex). Before FIN2 the bot raised
+ *  every quarter at the ceiling. */
+export const RAISE_BELOW_Q = 7;
+/** The bot pitches a milestone only if its own forecast clears the pitch's target by this margin [D]. */
+export const PITCH_SAFETY = 1.1;
 const years = (_s: GameStateV2, day: number) => day / 365;
 /** Compute target (H100e) at `dayAhead` days from now. */
 const target = (s: GameStateV2, o: AutopilotOpts, dayAhead: number) => {
@@ -150,10 +159,15 @@ export function financeAutopilot(s: GameStateV2, o0: AutopilotOpts = REF_AUTOPIL
     if (perH > 0 && need > 0) tryAct('fin.sellChips', { qty: Math.max(1e4, need / perH) });
   }
 
-  // Equity every quarter at the ceiling, unless the mark is below the last round's post-money (a down round) and
-  // runway does not force it.
+  // Equity when the cash projection runs short (FIN2), unless the mark is below the last round's post-money (a down
+  // round) and runway does not force it; at the ceiling, on the milestone the CEO is surest to hit.
   const downMark = f.valuation < lastPostMoney(s);
-  if (canRaise(s) === true && s.capital.ws3.playerPoolQ - s.capital.ws3.playerTakenQ > 1 && (!downMark || runwayOf(s).q < 4) && (o.raiseBelowQ === undefined || runwayOf(s).q < o.raiseBelowQ)) tryAct('fin.raise');
+  const rw0 = runwayOf(s);
+  if (canRaise(s) === true && s.capital.ws3.playerPoolQ - s.capital.ws3.playerTakenQ > 1 && (!downMark || rw0.q < 4) && rw0.q < (o.raiseBelowQ ?? RAISE_BELOW_Q)) {
+    const th = pickThesis(s, o);
+    const ask = Math.floor(raiseCeiling(s, Number.POSITIVE_INFINITY, { priceMult: PITCH[th.pitch].price }).max * 10) / 10;
+    if (ask >= 1) tryAct('fin.raise', { ask, type: th.type, pitch: th.pitch });
+  }
 
   // One strategic hyperscaler deal (from Q4 2025, when the first offers arrive).
   if (o.strategic && s.time.day >= 92 && !f.deals.some((d) => d.template === 'hyperscalerEquity' && d.day >= 0)) {
@@ -232,6 +246,39 @@ export function financeAutopilot(s: GameStateV2, o0: AutopilotOpts = REF_AUTOPIL
   // Liquidity: draw the revolver when cash is under one quarter of burn.
   const r = runwayOf(s);
   if (f.cash < Math.max(2, r.burnQ) && debtHeadroom(s, 'revolver').max > 0.5) tryAct('fin.drawDebt', { kind: 'revolver', amount: Math.max(2, r.burnQ) - f.cash });
+}
+
+/**
+ * The milestone and pitch a sensible CEO raises on (FIN2): its own forecast at the deadline against each pitch's target
+ * — scale from its compute plan (what it is building toward), adoption from the reference revenue path's growth
+ * (consensus), capability at half its trend (releases are lumpy and unknowable). It never pitches aggressive: a round
+ * priced 20% over the mark sets a bar the next round must clear or be a down round. A conservative pitch that would
+ * price a down round is skipped. Base wins if it is sure of it, else conservative; if neither clears, base on its best
+ * margin.
+ */
+export function pickThesis(s: GameStateV2, o: AutopilotOpts): { type: MilestoneType; pitch: Pitch } {
+  const close = dayOfQuarter(s.time.startDate, qOf(s) + 1);
+  const ahead = promiseDeadline(s, close) - s.time.day;
+  const last = lastPostMoney(s);
+  let best: { type: MilestoneType; pitch: Pitch; price: number; margin: number } | undefined;
+  let fallback: { type: MilestoneType; margin: number } | undefined;
+  for (const type of MILESTONES) {
+    const tr = trendOf(s, type);
+    if (tr.blocked || tr.gain <= 0) continue;
+    const fc = type === 'scale' ? 0.95 * target(s, o, ahead)
+      : type === 'adoption' ? tr.now * (0.9 * refRevenueRun(s, s.time.day + ahead)) / Math.max(0.1, refRevenueRun(s))
+      : tr.now + 0.5 * tr.gain;
+    const margin = (fc - tr.now) / tr.gain;
+    if (!fallback || margin > fallback.margin) fallback = { type, margin };
+    for (const pitch of ['base', 'conservative'] as const) {
+      if (pitch === 'conservative' && last > 0 && s.player.finance.valuation * PITCH.conservative.price < last) continue;
+      if (margin < PITCH[pitch].gain * PITCH_SAFETY) continue;
+      const price = PITCH[pitch].price;
+      if (!best || price > best.price || (price === best.price && margin > best.margin)) best = { type, pitch, price, margin };
+      break;
+    }
+  }
+  return best ? { type: best.type, pitch: best.pitch } : { type: fallback?.type ?? 'scale', pitch: 'base' };
 }
 
 /** A down round in the last 180 days (one per distress spell). */

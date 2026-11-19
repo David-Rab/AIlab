@@ -81,7 +81,7 @@ export function boardApproval(s: GameStateV2, ctx: SystemCtx, v: readonly number
   ensureWs3(s);
   const { p } = boardSupport(s, v);
   if (ctx.rng('finance').chance(p)) return { approved: true, p };
-  if (force && s.player.board.preset === 'founder') {
+  if (force && founderControl(s)) {
     ctx.bump('board.confidence', -20, 'forced past the board', actionId);
     return { approved: true, p };
   }
@@ -91,6 +91,14 @@ export function boardApproval(s: GameStateV2, ctx: SystemCtx, v: readonly number
   const why = `The board voted it down (${pct}% support): board confidence −5, blocked for 90 days.`;
   ctx.log('finance', `The board voted down "${actionId}" (${pct}% support). Blocked for 90 days.`, 2);
   return { approved: false, p, why };
+}
+
+/** Founder control (spec §7.2 founder super-voting, §2.6 dual-class): the founder preset before listing, or any
+ *  company listed with dual-class shares. It lets the CEO force a major decision past the board at a confidence cost. */
+export function founderControl(s: GameStateV2): boolean {
+  const f = s.player.finance;
+  if (f.dualClass) return true;
+  return s.player.board.preset === 'founder' && f.ownership.public <= 0;
 }
 
 /** Add (or upgrade) a partner's seat. */
@@ -157,10 +165,6 @@ export function boardSpeedAppetite(s: GameStateV2): number {
  *  10% of the gap each quarter (boards forgive slowly; a bad year still sticks). */
 export const BC_ANCHOR = 60;
 export const BC_REVERT_Q = 0.1;
-/** Revenue plan [D, M4]: the next plan asks +15% per quarter (≈ 1.75×/yr); ≥ 97% of plan is met (+5), < 85% (≈ flat revenue) is
- *  missed (−10), in between the board shrugs (revenue arrives in launch-sized steps). */
-export const PLAN_GROWTH_Q = 1.15;
-export const PLAN_MISS = 0.85;
 /** Public incidents cost −10 to −30 each; the quarterly total is capped at −20 (one bad incident, not a pile-up) [D, M4]. */
 export const INCIDENT_BC_CAP_Q = 20;
 /** Ouster telegraph [D, M4]: below BC_WARN the board warns the CEO (alert + E37 "Board revolt" with counterplay); the
@@ -245,13 +249,8 @@ export const boardQSystem: EngineSystem = {
     // Reversion toward the anchor (applied first: this quarter's news lands on top).
     const rev = BC_REVERT_Q * (BC_ANCHOR - b.confidence);
     if (Math.abs(rev) >= 0.5) ctx.bump('board.confidence', rev, 'board memory fades');
-    // Revenue plan (+5 met / −10 missed); the next plan asks PLAN_GROWTH_Q more.
-    // Patient investors (spinout start, R9): no revenue plan for the first quarters.
-    if (fx.revenuePlan > 0 && s.time.day >= startOf(s).mods.patientQ * 91) {
-      if (f.revenueRun >= fx.revenuePlan * 0.97) ctx.bump('board.confidence', 5, 'revenue plan met');
-      else if (f.revenueRun < fx.revenuePlan * PLAN_MISS) ctx.bump('board.confidence', -10, 'revenue plan missed');
-    }
-    fx.revenuePlan = f.revenueRun * PLAN_GROWTH_Q;
+    // FIN2 (spec §7.4): no revenue plan. The board judges the milestones the company promised its investors when it
+    // raised (finance/promises.ts, judged in capitalQ); if you never raise, you owe nobody a milestone.
     // Lead over the best rival < 0 for a quarter: −5 (uses the intel estimate, never truth). A board that backed a
     // follower (R9 start types) expects its start lag; it minds only falling further behind than that.
     const rivals = activeRivals(s);
