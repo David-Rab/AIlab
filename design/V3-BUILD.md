@@ -1352,3 +1352,146 @@ term in work hours. Both new quantities are stocks:
 - RefBot sets no free-tier mini (F5).
 - Rivals' cost-plus consumer prices sit on BRIDGE(V7).
 - Reach and the AI-friend share use the US number for ROW scaled by 0.85; there are no primary ROW reach data.
+
+### A2c notes (who pays for work use, and agent work; 2026-11-20)
+
+Code: `data/v2/serving.ts` (`TOKENS.assisted`, `SEATS`, `AGENT_WORK`; every sector's assisted profile), `worldfx/use.ts`
+(`workHoursOf`: adopted / seated / unseated / supervising hours and seats; `seatHoursPerMonth`), `worldfx/serving.ts`
+(`Offer` gains k, λ, agent-hour cost and price, seated-hour H100e-hours, seat price; `agentLeverage`, `agentDemandOf`,
+`seatTarget`; `adoptedTokens` and `savedPerAdoptedHour` replace `useTokens` and `savedPerUseHour`), `worldfx/mix.ts`
+(per provider `agentK`, `agentPrices`, `seatPrices`, going `seatPrice`), `worldfx/sectors.ts` (seat stock),
+`worldfx/revenue.ts` (three billed streams, need segments in serving order, `sectorSpendParts`,
+`providerSectorRevenue`, `labMarketRevenue` with seats and agents), `worldfx/readouts.ts workBilling`. State:
+`SectorState.seat`; schemaRev 19, migration 18 → 19 (σ at the region's start share). Tests: serving B1–B7, worldfx A2c
+checks and INFO, hygiene 18 → 19 migration; serving S2 and products P6 updated to the new rule (below).
+
+**Mechanism.** Hours of use U·E0·2000 (A2a, unchanged) are split by who pays:
+- **Adopted A-hours** (A, tasks firms handed to AI): billed per hour at the provider's cost-plus price, as V4a. Tokens
+  per A-hour = α·autonomous + (1 − α)·assisted with the substitution share α (was α_use over all hours of use); value
+  per A-hour = wage × (α + (1 − α)·g_aug). The cost gate K and the logit read this price.
+- **Seated hours**: the assisted hours h·(W − A) of the share σ of AI-using workers with a paid seat. σ is a stock per
+  sector and region, dσ/dt = q·σ·(σ* − σ)/σ* × DiffMult, σ* = K_seat·(1 − R), K_seat = σ(ln(value ÷ seat price)/0.7)
+  with value = a seat-holder's assisted hours a month × wage × g_aug. Seats = σ·W·E; revenue seats × price × 12. Seats
+  are sold by Enterprise (Gov in GOV/MIL); open weights sell none (in-house).
+- **Unseated hours** (1 − σ of the assisted hours): free tiers, bundled assistants, in-house models. Billed by no one in
+  the sector market and no sector serving need: they run on the users' consumer apps, whose tokens A2b already counts
+  (the work share 0.3 of consumer chat). Cross-check: consumer tokens × 0.3 ÷ unseated hours ≈ 15k tokens per unseated
+  hour, a light chat profile.
+- **Agent-hours**: k agent work-hours per supervising hour ((1 − α)·A-hours + seated hours), on the autonomous profile,
+  billed per hour at cost-plus and capped at the wage. k = a·λ·gate per provider: a its coverage of the sector's work
+  (V3's work-type function), λ = 1/(c/h80 + ρ·(1 − a) + m) agent-hours one supervising hour sustains (check-in c per
+  autonomous stretch h80 = h50/5, GDPval review ρ = 0.27 on the work it cannot do alone, floor m), gate =
+  σ(ln(wage ÷ (price + wage/λ))/0.7). Agent-hours go to API (1), Agents (1.5 × p(AGENT_TASK_HOURS | h50): the Agents
+  horizon gate's task length on the METR curve) and Enterprise usage beyond the seat (0.5). They add spend, tokens and
+  serving need, never human hours, displacement or TFP.
+- Serving: a sector product's seated hours are a need segment served before its per-hour work (seat revenue earns more
+  per H100e); revenue fills the served H100e in segment order; capacity = what the served H100e earn in that order.
+
+**Choices [D].**
+- Assisted hour 30k/8k tokens: 10 reasoning turns of R20 D2's 3k/0.8k, the paying consumer's daily budget in one hour of
+  work. It replaces 100k/15k (knowledge) and 200k/40k (agentic, Software and Science), 3–7× research/22's chat use. The
+  heavy users are the agent term.
+- Seats: list $25 per seat-month (R22: Claude Enterprise $20 plus usage, Team $25, ChatGPT Business $25–30, M365 Copilot
+  $30) × the markup relative to standard (budget 0.67, premium 1.6; DeepCent 0.67), never below the seat's serving cost
+  ($4.4 a seat-month at the start). q = 1.5/yr from M365 Copilot's ×2 per half-year (15M → 30M, Jan → Jul 2026). The
+  sectors' own Bass q gave ×1.3 per half-year. Start σ0 US 0.12, ROW 0.045, CN 0.02: ≈ 30M paid seats outside China in
+  Jan–Feb 2026 (M365 15M, ChatGPT > 7M, Gemini > 8M), back-cast at the simulated growth to ≈ 18M in Jul 2025. Decline
+  0.5/yr above σ*.
+- Agent work: c = 15 min (write and hand off a task; no primary source), m = 0.02 h (λ ≤ 50). The channel weights are
+  [D]. Constants were not tuned to revenue.
+
+**Deviations.**
+- (1) Seat growth uses its own q (above), not the sector Bass q that A and W use. The sector Bass q could not reach the
+  measured doubling.
+- (2) The agent-term growth comes from horizon and coverage, with no separate "intensity" constant. The reasoning-token
+  growth (OpenAI ×320 per organisation) is not modelled beyond the product effort setting.
+- (3) Serving test S2 now asserts $ per H100e fixed only for products without seats. Product test P6 now asserts "seats
+  first, then per-hour work pro rata". Both old assertions described the one-segment rule this task replaces.
+
+**Readouts (RefBot, classic, ai2027, seed 2027; before = A2b; reported, not fitted).**
+
+| Quantity | Before | A2c | Anchor (research/22) |
+|---|---|---|---|
+| CY2026 non-China frontier-lab revenue (player actual + closed rivals' demand-side) | $100.9B (30.3 + 70.6) | **$72.3B** (34.2 + 38.1) | $100–130B |
+| Leader (player) CY2026 revenue and share of that | $30.3B, 30% | $34.2B, 47% | ≈ $55B, second lab ≈ 0.7× |
+| Paid seats ex-CN, Jul 2025 / Jan 2026 / Jul 2026 / end 2026 (player, world) | — | 17 / 28 / 44 / 57M (player 11 / 12 / 22 / 27M) | ≈ 30M Jan–Feb 2026, ≥ 50M mid-2026 |
+| Hours of use, Jan 2026: billed per hour / seat / unbilled | 145B / 0 / 0 | 35B / 9B / 101B | most work use unpaid |
+| Same, Jul 2026 | 166B / 0 / 0 | 56B / 17B / 95B | |
+| Agent-hours a year (per supervising hour), Jan / Jul / Dec 2026 | — | 1.9B (0.06) / 15.9B (0.29) / 68.5B (0.75) | |
+| World spend mid-2026: per-hour adopted / agents / seats / consumer | $155B (all hours) + $9.7B | $48B / $37B / $13.5B / ≈ $10B | US enterprise genAI $37B (2025) |
+| FLOP-bearing tokens a day, start / Jan 2026 / mid-2026 / end 2026 | 70 / 77 / 91 / 122T | 26 / 34 / 63 / 152T (×4.5 over 2026) | Google API 10 → 46T/day processed (×4.6/yr) |
+| Player serving need vs pool, start | 3.35M vs 348k | 1.44M vs 348k (Chat free users 741k) | |
+| Same, mid-2026 / end 2026 | 0.97M vs 0.97M (share already eroded) | 1.55M vs 1.04M / 2.7M vs 0.97M | |
+
+- **Band missed (reported, not forced).** CY2026 lands at $72B, not $100–130B. The mechanism's dynamics match
+  research/22 §7: tokens ×4.5 over 2026 (Google API ×4.6/yr), seats ×2 per half-year early on, agent-hours ×35 in 2026
+  against human hours ×1.15. The level is low by ≈ 1.5×, for four reasons:
+  - H1 2026 is flat ($63B → $68B demand-side) because RefBot keeps Atlas-1.0 on its products until Apr 2026. The exit
+    run-rate is ≈ $213B demand-side (player $145B demand, capacity-bound at $34B).
+  - The US is small next to ROW: mid-2026 US spend $16B/yr vs ROW $55B (A2a's regional scale, [D]).
+  - DeepCent's open weights reach ≈ 30% of US and ROW sector shares by end 2026. That use is in-house and unbilled.
+  - Agent leverage in Software (k ≈ 0.5–1.2) is ≈ 2× below Claude Code's ≈ $3–6 per developer-hour.
+  Lowering c or raising the channel weights would reach the band, but that would be fitting to revenue.
+- **Start fleet.** A 348k-H100e serving pool (1.2M online) for the leader in mid-2025 is realistic: Anthropic's FY2025
+  compute and infrastructure cost $7.3B, ≈ 0.4M H100e-years at $2/h incl. training (R22 §4), and OpenAI is ≈ 2×. The
+  demand units were the problem. FLOP-bearing tokens fell from 70T to 26T a day, in line with the disclosed volumes
+  (≈ 60T/day processed in late 2025 incl. cache reads: Google all surfaces 43T, OpenAI API 8.6T, ChatGPT ≈ 6T).
+  - The remaining start gap (need 4× the pool) is FLOP per token: every product serves the 1T-active start model.
+    RefBot sets no free-tier mini, so Chat's free users alone need 741k H100e.
+  - Real traffic runs mostly on far smaller models. That is model design and the RefBot mini choice (F5), not demand.
+    Compute is unchanged.
+
+**Brief item 4 (re-checked, bands not refitted).**
+- W2 TFP 0.6%: pass.
+- U +1 pp in 12 months: 2028-01-22 → 2028-01-02. Still a fail, 2 days past the band's end of 2027-12-31.
+- GOV T1 Accept ≥ 0.85: 2027-09-04 → 2027-08-31. Known fail; the band opens 2027-09-15.
+
+**Gate (vs today's A2b baseline).**
+- tsc main + scripts clean.
+- These suites pass: serving (S1–S7, C1–C6, B1–B7), products, golden-timelines (identical), identity, effective,
+  research, worktypes, fixtures, lint-*, money, idle.
+- calib passes:
+  - Stub T1: ai2027, fast and slow identical; authors2026 ASI 2033.600 → 2033.608.
+  - T1L: identical.
+  - Integrated RefBot (informational): ai2027 SC −0.115 → −0.123.
+- hygiene: only perf fails (2 vs 3 in the baseline); the 18 → 19 migration passes.
+- safety: S5 known. ws4: T3 known.
+- finance (12 seeds):
+  - F7 2026 revenue median $30.7B → $32.3B; valuation $0.48T → $0.46T.
+  - F11 2027 $27.1B → $41.4B (still fails).
+  - F2 40.1M → 46.9M: **now passes**.
+  - F8 out of distress 8.3% → 91.7%: **now passes**.
+- worldfx:
+  - Known fails: F7/F11 ($34.2B / $40.7B), GOV T1, U +1 pp (above).
+  - **Equity 2026 +20.3% → −0.4% now fails.** It is on the known list as finance-owned. Cause: a stochastic
+    capital-market bust on day 457. The bust probability rises with bubbleX = commitments ÷ the labs' run-rate, and the
+    rivals' run-rates (labMarketRevenue) are lower now that unseated hours are unbilled. Fear +0.4 then cuts the P/E.
+  - New A2c checks pass: seats ≈ 30M / ≈ 50M; tokens ×3–8 over 2026 with k rising.
+
+**Readouts for B1–B3 (UI).**
+- Product card (sector products), from `DeploymentRevenue`:
+  - adoptedHours and agentHours, i.e. `hours` billed per hour, with cost and price per billed hour;
+  - seats, seatPrice, seatCost per seat-month, seatDemand ($B/yr);
+  - needSeat, the seated hours' serving need, served first.
+  - Tooltip: seats are served before per-hour work; agent-hours never add human hours.
+- Per sector (B3), from `mix.sec[r][s]` and `workHoursOf`:
+  - `agentK` (agent-hours per supervising hour after the buyer's gate), `agentPrices`, `seatPrices`, the going
+    `seatPrice`;
+  - the seat stock σ (`SectorState.seat`) and its target `seatTarget(...)`;
+  - adopted / seated / unseated / supervising hours and seats.
+- World: `workBilling(s)` per region and world gives:
+  - hours by who pays and agent-hours;
+  - seats sold and the workers using AI;
+  - spend by stream;
+  - tokens a day by stream plus consumer tokens;
+  - the player's seats.
+- Glossary: paid seat, unseated (free / bundled / in-house) use, supervising hour, agent-hour, agent leverage λ.
+
+**Open.**
+- The non-China revenue band (above). The pieces are regional scale (A2a), DeepCent open-weights share (BRIDGE(V7),
+  F2), RefBot's late product upgrade (F5) and the agent constant c (no source).
+- Takeoff: at day 900, k ≈ 12 and agent-hours are 695B/yr at wage-capped prices. Rivals' oversized FLOP per token
+  (BRIDGE(V7)) makes demand-side agent spend ≈ $31T/yr, and `labMarketRevenue` feeds that into rival finance. A
+  demand ceiling on agent output (Jevons, η) may be needed once rivals have real designs.
+- Fixture day 900 shows 3M seats sold: migrated from schemaRev 16 at σ0, with most of its share on open weights.
+- U +1 pp, GOV T1, and equity 2026 (the bust roll).
