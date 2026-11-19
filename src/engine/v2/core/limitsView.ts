@@ -2,11 +2,10 @@
 // floor or gate where the UI shows it. Pure selectors; nothing here changes state or reads hidden truth.
 import { PROD_SPEED_CAP } from '../../../data/v2/calibration';
 import { SITE_PATHS } from '../../../data/v2/deals';
-import { TREE_BY_ID } from '../../../data/v2/tree';
 import { decimalYear } from './time';
 import { diffusionPerDay } from '../production/production';
-import { flopPerToken, h100eHoursPerWorkHour, speedOfCopy } from '../departments/workfit';
-import { internalVersion, LEADER_ID } from '../models/labs';
+import { speedOfCopy } from '../departments/workfit';
+import { LEADER_ID } from '../models/labs';
 import { deltaRsch, slopeL } from '../models/capability';
 import { ws4r } from '../actors/state';
 import { wslFloor } from '../security/security';
@@ -21,7 +20,7 @@ import { outsidersWithAccess } from '../safety/incidents';
 import type { Deployment, GameStateV2, ModelVersion } from '../types';
 
 export interface SpeedLimitLine {
-  id: 'speed.frontierMethods' | 'speed.serialCap' | 'speed.etaMod' | 'speed.pause' | 'speed.diffusion';
+  id: 'speed.serialCap' | 'speed.pause' | 'speed.diffusion';
   /** Multiplier on research speed (or know-how rate) it applies today; 1 = not binding. */
   mult: number;
   /** Short reading for the line. */
@@ -31,26 +30,18 @@ export interface SpeedLimitLine {
   fix?: string[];
 }
 
-/** Research-speed limit lines (LIMITS "Research speed"): frontier methods, serial speed cap, ηmod clamp, pause,
- *  knowledge diffusion. Lines that cannot apply in this game (no leader lab to learn from, no pause) are omitted. */
+/** Research-speed limit lines (LIMITS "Research speed"): the agents' serial speed cap, a pause, knowledge diffusion. Lines that
+ *  cannot apply in this game (no leader lab to learn from, no pause) are omitted. Model v3 V2b: the v2 "frontier methods"
+ *  ratio and the serving-cost clamp are gone (research runs on explicit compute and labour; copies follow FLOP per token). */
 export function researchSpeedLimits(s: GameStateV2): SpeedLimitLine[] {
   const out: SpeedLimitLine[] = [];
   const p = s.player;
   const r = p.prodCache;
-  // Model v3 V3: research runs on explicit compute and labour, so the reference lab's "frontier methods" are no longer a
-  // ratio. The line shows what P13 (automated research agents: experiment throughput up to ×1.5) adds if you lack it.
-  const lacks: string[] = [];
-  if (p.paradigms.P13?.status !== 'adopted') lacks.push(TREE_BY_ID.P13?.name ?? 'P13');
-  out.push({ id: 'speed.frontierMethods', mult: 1, binding: false, text: lacks.length ? 'experiments ×1.5 available' : 'adopted', fix: lacks });
   // Serial speed of research agents (R11 #23 cap).
-  const v = internalVersion(s);
   if (r) {
     const raw = speedOfCopy();
     out.push({ id: 'speed.serialCap', mult: 1, binding: raw >= PROD_SPEED_CAP, text: raw >= PROD_SPEED_CAP ? `capped at ${PROD_SPEED_CAP}×` : `${Math.round(raw)}× of ${PROD_SPEED_CAP}×` });
   }
-  // Agent copies per H100e follow the research model's FLOP per token (physical; no clamp since model v3 V3).
-  const fpt = v ? flopPerToken(s, v) : 0;
-  out.push({ id: 'speed.etaMod', mult: 1, binding: false, text: v ? `${(1 / Math.max(1e-9, h100eHoursPerWorkHour(fpt))).toFixed(2)} work-hours per H100e-hour` : 'no research model' });
   // Pause of frontier experiments.
   const until = ws4r(s).frontierPauseUntil;
   if (s.flags.paused || until > s.time.day) out.push({ id: 'speed.pause', mult: 0.1, binding: true, text: until > s.time.day ? `×0.1 for ${until - s.time.day} d` : '×0.1 while paused' });
@@ -60,7 +51,7 @@ export function researchSpeedLimits(s: GameStateV2): SpeedLimitLine[] {
     const dif = diffusionPerDay(s);
     const rate = r?.rate ?? 0;
     const add = rate > 0 ? (dif.dpa * 365) / rate : 0;
-    out.push({ id: 'speed.diffusion', mult: 1 + add, binding: dif.dpa > 0, text: dif.dpa > 0 ? `+${Math.round(add * 100)}% know-how from ${L.core.name}` : `none (${L.core.name} not ahead)` });
+    out.push({ id: 'speed.diffusion', mult: 1 + add, binding: dif.dpa > 0, text: dif.dpa > 0 ? `recipe ×${(1 + add).toFixed(1)} your own rate, from ${L.core.name}` : `none (${L.core.name} not ahead)` });
   }
   return out;
 }

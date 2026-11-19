@@ -19,7 +19,7 @@ import {
   trustedMax, type RiskBadge,
 } from './agents';
 import { buildCapacity } from './teams';
-import { copiesOf, flopPerToken } from './workfit';
+import { copiesOf, flopPerToken, workContext } from './workfit';
 
 type Params = Record<string, number | string | boolean>;
 const str = (p: Params, k: string): string | undefined => (typeof p[k] === 'string' ? (p[k] as string) : undefined);
@@ -156,7 +156,6 @@ function computeAgentsView(s: GameStateV2): AgentsView {
   const tco = tcoPerH100eYear(s, yr);
   const budget = monitorBudget(s);
   const speed = pr?.labor.speed ?? 0;
-  const aEng = pr?.labor.aEng ?? 0;
   const tr = trustedShare(s);
   const lanes = {} as Record<AgentUse, AgentLane>;
   let total = 0;
@@ -167,7 +166,9 @@ function computeAgentsView(s: GameStateV2): AgentsView {
     const ms = monitorStrength(s, u, budget);
     const compute = s.player.computeOnline * agentSplitShare(s, u);
     const monH = monitorH100e(s, u, budget);
-    const aiShare = u === 'eng' ? aEng : u === 'capRoutine' ? 1 - (pr?.labor.wH ?? 1) : u === 'capFrontier' ? Phi(pr?.sdAI ?? -3) : tr;
+    // Model v3 V2b: engineers' AI share is the AI part of the labour margin (1 − humans' share), as for research engineers;
+    // coverage has its home on Company › Work.
+    const aiShare = u === 'eng' ? 1 - workContext(s).slots.SWE.wH : u === 'capRoutine' ? 1 - (pr?.labor.wH ?? 1) : u === 'capFrontier' ? Phi(pr?.sdAI ?? -3) : tr;
     lanes[u] = {
       use: u, version: v, L: measuredLOf(s, v).L, follows: u !== 'capRoutine' && !s.player.agents[u].versionId,
       monitor: mon, monitorSame: s.player.agents[u].monitorId === MONITOR_SAME,

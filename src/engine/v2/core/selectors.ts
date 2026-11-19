@@ -26,6 +26,7 @@ export { fOver, flopOfDesign, paramsForFlop, servingFlop, tppLabel } from '../mo
 export { goodputOf, paramsOfVersion, playerUniqueTokens, runFlopPerShareDay } from '../models/runs';
 export type { LaunchRunParams, RunPlan } from '../models/runs';
 export { PARADIGM_BY_ID } from '../models/paradigms';
+export { isCapProject, stagesOf } from '../models/research';
 export { assignBlock, effortOf, idleTeams, knowHow, isProject, missingNeeds, nextLineProject, nodeDept, nodeKnown, nodeOdds, nodeStatus, optionLocked, payoffOf, projectCapacity, projectEta, projectRate, projectReady, projectTeams, PRIORITY_W, researchSpeed, sciAiMult, teamCapacity, teamGain as projectTeamGain, teamsOn, treeCounts } from '../models/tree';
 export type { NodeStatus } from '../models/tree';
 export { benchName, benchGen, evalDaysFor, measuredSd } from '../models/benchmarks';
@@ -151,3 +152,9 @@ export { activeFeatures, agentsGate, catchRate, collusionTrait, sameLineage, fea
 export { LENT_RECOVERY, servingPool, spareServing, spareServingToResearch } from '../worldfx/revenue';
 export { spareServingEffect } from '../production/production';
 export { ousterRiskQ, OUSTER_BC, OUSTER_NOTICE_D } from '../finance/board'; // jank ST3: board review readout
+// Model v3 V2b research UI: projects, recipe stacks, allocations, AI labour per work type, milestones, research speed.
+export {
+  STAGES, PROJECT_MAX_TEAMS, addableProjects, adoptCostTW, buildSplit, capPriorityList, capProjectView, engAllocView, milestoneViews,
+  reAllocView, researchSpeedView, softwareRate, stackViews, workTypeViews,
+} from '../models/researchView';
+export type { AllocView, CapProjectView, MilestoneView, NeedView, ResearchSpeedView, StackGroupView, StageId, WorkTypeView } from '../models/researchView';
