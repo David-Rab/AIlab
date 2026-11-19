@@ -9,11 +9,11 @@ import { PRODUCT_DEFS } from '../../../data/v2/features';
 import { REGIONS, SECTORS } from '../../../data/v2/sectors';
 import { catchRate, monitorOverhead } from '../models/products';
 import { versionById } from '../models/labs';
-import { serveDollarsPerHour } from './serving';
-import { SERVE_HOURS_PER_YEAR } from '../../../data/v2/serving';
+import { markupOf, serveDollarsPerHour } from './serving';
+import { CONSUMER_MKT, SERVE_HOURS_PER_YEAR } from '../../../data/v2/serving';
 import type { Deployment, GameStateV2, Money } from '../types';
 import { paidDeployments, worldMix, type WorldMix } from './mix';
-import { consumerSpend, revenueReadout, sectorSpend, type RevenueReadout } from './revenue';
+import { consumerSpend, consumerUsers, revenueReadout, sectorSpend, type DeploymentRevenue, type RevenueReadout } from './revenue';
 
 export interface ProductRead {
   id: string;
@@ -46,6 +46,79 @@ export interface ProductRead {
   subs?: number;
   monitorOverhead: number;
   catchRate: number;
+  /** B1: the price tier as a markup over cost, and the product's serving economics by source (DeploymentRevenue). */
+  markup: number;
+  econ: ProductEcon;
+}
+
+/** B1 (product card): revenue by source and capacity of one product. Sector products: adopted task-hours and agent-hours
+ *  billed per hour, paid seats; Chat: weekly users, subscribers, paid share and its target, the going price and the
+ *  willingness to pay; serving need split into seats / per-hour work or paying / free users. */
+export interface ProductEcon {
+  kind: 'sector' | 'chat';
+  /** Demand by source ($B/yr; before the serving cut). */
+  adoptedDemand: Money;
+  agentDemand: Money;
+  seatDemand: Money;
+  adoptedHours: number;
+  agentHours: number;
+  /** Price per adopted task-hour and per agent-hour ($; demand-weighted). */
+  adoptedPrice: number;
+  agentPrice: number;
+  seats: number;
+  seatHours: number;
+  seatPrice: number;
+  seatCost: number;
+  /** Hours asked (adopted + agent + seated) and servable on the served H100e (sector products). */
+  askedHours: number;
+  /** Serving need (H100e incl. monitor) of seats and of per-hour work; Chat: of paying and free users and the free cut. */
+  needSeat: number;
+  needWork: number;
+  needPaid: number;
+  needFree: number;
+  cutFree: number;
+  cutPaid: number;
+  /** Chat: paid share (subscribers ÷ users), its target, the going price and the willingness to pay ($/month). */
+  paidShare: number;
+  paidTarget: number;
+  going: number;
+  wtp: number;
+}
+
+/** Going subscription price ($/month): the regions' going prices weighted by their weekly users (B1 readout). */
+export function goingPrice(s: GameStateV2, mix: WorldMix = worldMix(s)): number {
+  let w = 0;
+  let p = 0;
+  for (const r of REGIONS) {
+    const u = consumerUsers(s, r);
+    if (!(u > 0)) continue;
+    w += u;
+    p += u * mix.consumer[r].going;
+  }
+  return w > 0 ? p / w : CONSUMER_MKT.wtpMonth;
+}
+
+function econOf(x: DeploymentRevenue, going: number): ProductEcon {
+  const chat = x.channel === 'consumer';
+  const adoptedH = x.adoptedHours ?? 0;
+  const agentH = x.agentHours ?? 0;
+  const needPaid = x.needPaid ?? 0;
+  const needFree = x.needFree ?? 0;
+  const cutFree = x.cutFree ?? 0;
+  const needSeat = x.needSeat ?? 0;
+  return {
+    kind: chat ? 'chat' : 'sector',
+    adoptedDemand: x.adoptedDemand ?? 0, agentDemand: x.agentDemand ?? 0, seatDemand: x.seatDemand ?? 0,
+    adoptedHours: adoptedH, agentHours: agentH,
+    adoptedPrice: adoptedH > 0 ? ((x.adoptedDemand ?? 0) * 1e9) / adoptedH : 0,
+    agentPrice: agentH > 0 ? ((x.agentDemand ?? 0) * 1e9) / agentH : 0,
+    seats: x.seats ?? 0, seatHours: x.seatHours ?? 0, seatPrice: x.seatPrice ?? 0, seatCost: x.seatCost ?? 0,
+    askedHours: adoptedH + agentH + (x.seatHours ?? 0),
+    needSeat, needWork: chat ? 0 : Math.max(0, x.needH100e - needSeat),
+    needPaid, needFree, cutFree, cutPaid: chat ? Math.max(0, x.cutH100e - cutFree) : 0,
+    paidShare: chat && (x.users ?? 0) > 0 ? (x.subs ?? 0) / (x.users ?? 1) : 0,
+    paidTarget: x.paidTarget ?? 0, going, wtp: CONSUMER_MKT.wtpMonth,
+  };
 }
 
 const GOV_SECTORS = new Set(['GOV', 'MIL']);
@@ -85,6 +158,7 @@ export function productReadouts(s: GameStateV2, mix: WorldMix = worldMix(s), rd:
   const tco = (serveDollarsPerHour(s) * SERVE_HOURS_PER_YEAR) / 1e9;
   const shareCache = new Map<string, number[]>();
   const pi = mix.providers.findIndex((p) => p.key === 'player');
+  const going = goingPrice(s, mix);
   for (const d of paidDeployments(s)) {
     const x = rd.deps.find((r) => r.id === d.id);
     if (!x) continue;
@@ -111,6 +185,7 @@ export function productReadouts(s: GameStateV2, mix: WorldMix = worldMix(s), rd:
       valueCapped: x.valueCapped, hours: x.hours, capHours: x.capHours, ...(x.users !== undefined ? { users: x.users, subs: x.subs } : {}),
       monitorOverhead: monitorOverhead(s, d),
       catchRate: d.monitorId ? catchRate(s, versionById(s, d.versionId), versionById(s, d.monitorId)).rate : 0,
+      markup: markupOf(d), econ: econOf(x, going),
     });
   }
   return out;

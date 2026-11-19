@@ -78,6 +78,8 @@ const REQUIRED = [
   'softwareRate', 'expCompute', 'expLabour', 'researchSpeed', 'workType', 'fit', 'medianExpert', 'bestHuman', 'coverage', 'pAtLength', 'winRate', 'assist',
   'effectiveLabour', 'humanShare', 'reNeeds', 'engNeeds', 'allocCap', 'overflow', 'laborBound', 'humanBound', 'tasteBound', 'aiFte',
   'validatedTo', 'blind', 'detector', 'estimateBand', 'toolUpkeep', 'deadEnd', 'seriousStaffing', 'followUp', 'investigation', 'caseStaffing', 'clarity',
+  // model v3 B1: serving economics on the product card.
+  'paidSeat', 'unseatedUse', 'supervisingHour', 'agentHour', 'agentLeverage', 'weeklyReach', 'paidShare', 'goingPrice', 'wtp', 'valueCap', 'markup', 'serveOrder', 'adoptedHour',
 ];
 const req = REQUIRED.filter((id) => !GLOSSARY_V2[id]);
 ok(`Required terms present (${REQUIRED.length})`, req.length === 0, req.join(', '));

@@ -75,6 +75,9 @@ export interface DeploymentRevenue {
    *  seated hours' serving need (H100e incl. monitor; served before the per-hour work). */
   adoptedHours?: number;
   agentHours?: number;
+  /** B1 readout: demand ($B/yr) of the adopted task-hours and of the agent-hours (they add up to demand − seatDemand). */
+  adoptedDemand?: Money;
+  agentDemand?: Money;
   seats?: number;
   seatHours?: number;
   seatDemand?: Money;
@@ -246,11 +249,11 @@ export function servingSplit(s: GameStateV2, deps: Deployment[], segs: (d: Deplo
 
 interface Acc {
   dem: number; hours: number; need: number; cost: number; capped: number; users: number; subs: number; needPaid: number; subCost: number; subPrice: number; paidTarget: number;
-  adopted: number; agent: number; seats: number; seatHours: number; seatDem: number; seatNeed: number; seatCost: number; seatPrice: number;
+  adopted: number; agent: number; adoptedDem: number; agentDem: number; seats: number; seatHours: number; seatDem: number; seatNeed: number; seatCost: number; seatPrice: number;
 }
 const acc0 = (): Acc => ({
   dem: 0, hours: 0, need: 0, cost: 0, capped: 0, users: 0, subs: 0, needPaid: 0, subCost: 0, subPrice: 0, paidTarget: 0,
-  adopted: 0, agent: 0, seats: 0, seatHours: 0, seatDem: 0, seatNeed: 0, seatCost: 0, seatPrice: 0,
+  adopted: 0, agent: 0, adoptedDem: 0, agentDem: 0, seats: 0, seatHours: 0, seatDem: 0, seatNeed: 0, seatCost: 0, seatPrice: 0,
 });
 /** Seat channel weights (A2c): seats are sold by Enterprise, and by Gov in GOV/MIL [D]. */
 const SEAT_WEIGHT: Partial<Record<Channel, number>> = { enterprise: 1, gov: 1 };
@@ -339,6 +342,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s)): Rev
           a.dem += (x * price) / 1e9;
           a.hours += x;
           a.adopted += x;
+          a.adoptedDem += (x * price) / 1e9;
           a.need += (x * o.hph) / SERVE_HOURS_PER_YEAR;
           a.cost += (x * o.cost) / 1e9;
           if (want > value) a.capped += (x * price) / 1e9;
@@ -350,6 +354,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s)): Rev
           a.dem += (x * ag.price) / 1e9;
           a.hours += x;
           a.agent += x;
+          a.agentDem += (x * ag.price) / 1e9;
           a.need += (x * o.hphAg) / SERVE_HOURS_PER_YEAR;
           a.cost += (x * o.costAg) / 1e9;
           if (o.priceAg > ag.price) a.capped += (x * ag.price) / 1e9;
@@ -466,7 +471,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s)): Rev
         users: a.users, subs: a.subs, subCost: a.subCost, subPrice: a.subPrice, paidTarget: a.paidTarget,
         needPaid: a.needPaid * mon, needFree: (a.need - a.needPaid) * mon, cutFree: Math.max(0, Math.min((a.need - a.needPaid) * mon, sp.cut)),
       } : {
-        adoptedHours: a.adopted, agentHours: a.agent, seats: a.seats, seatHours: a.seatHours, seatDemand: a.seatDem,
+        adoptedHours: a.adopted, agentHours: a.agent, adoptedDemand: a.adoptedDem, agentDemand: a.agentDem, seats: a.seats, seatHours: a.seatHours, seatDemand: a.seatDem,
         seatPrice: a.seatPrice, seatCost: a.seats > 0 ? (a.seatCost * 1e9) / (a.seats * 12) : 0, needSeat: a.seatNeed * mon,
       }),
     });

@@ -592,6 +592,60 @@ if (go) await check('Watch Go jumps to the control', 'store.panel', () => go.cli
 ok('Headline renders', !!(await page.$('[data-test=ticker]')));
 await check('Race meter click opens Safety overview', 'store.panel + store.tab.safety', () => page.click('[data-test=race]'));
 
+// ───────────────────────── B1: product card serving economics (day 1 here; day 400 and day 900 below) ─────────────────────────
+// Every live product card shows price vs cost and margin, its revenue sources (Chat: paid share → target) and what its
+// serving covers; every new term has a glossary tooltip, on the card or nested in the rows' tooltips.
+const B1_TERMS = ['paidSeat', 'unseatedUse', 'supervisingHour', 'agentHour', 'agentLeverage', 'weeklyReach', 'paidShare', 'goingPrice', 'wtp', 'freeTier', 'valueCap', 'markup', 'serveOrder', 'adoptedHour'];
+const b1Seen = new Set();
+async function b1Check(where) {
+  await nav('products');
+  const cards = await page.$$eval('[data-panel=products] [data-product]', (els) => els.map((e) => ({
+    id: e.getAttribute('data-product'), ch: e.getAttribute('data-channel'),
+    econ: !!e.querySelector('[data-test^="prod-econ."]'),
+    price: e.querySelector('[data-test^="prod-price-row."]')?.textContent ?? '',
+    paid: e.querySelector('[data-test^="prod-paid."]')?.textContent ?? '',
+    src: !!e.querySelector('[data-test^="prod-sources."]'),
+    cap: !!e.querySelector('[data-test^="prod-capacity."]'),
+    users: e.querySelector('[data-test^="prod-users."]')?.textContent ?? '',
+  })));
+  const bad = cards.filter((c) => !c.econ || !/\$\d/.test(c.price) || !/\d%/.test(c.price) || !c.cap
+    || (c.ch === 'consumer' ? !/→\s*\d/.test(c.paid) || !/weekly users/.test(c.users) || !/paying/.test(c.users) || !/\/mo/.test(c.price) : !c.src || !/\/h/.test(c.price)));
+  ok(`B1 ${where}: every product card shows price, margin, sources and capacity`, cards.length >= 3 && bad.length === 0, bad.map((c) => `${c.ch}: ${c.price} | ${c.paid}`).join(' ; '));
+  for (const t of await page.$$eval('[data-panel=products] [data-test^="prod-econ."] [data-term], [data-panel=products] [data-test^="prod-users."] [data-term]', (els) => els.map((e) => e.getAttribute('data-term')))) b1Seen.add(t);
+  const rows = await page.$$eval('[data-panel=products] [data-test^="prod-econ."] [data-test], [data-panel=products] [data-test^="prod-users."]', (els) => els.map((e) => e.getAttribute('data-test')).filter((x) => /^prod-(price-row|paid|sources|capacity|users)\./.test(x)));
+  let tipped = 0;
+  for (const r of rows) {
+    await clearTips();
+    await page.hover(`[data-test="${r}"]`);
+    await wait(380);
+    const t = await page.evaluate(() => ({ text: document.querySelector('.tip')?.innerText ?? '', terms: [...document.querySelectorAll('.tip [data-term]')].map((e) => e.getAttribute('data-term')) }));
+    if (t.text.length > 20) tipped++;
+    for (const x of t.terms) b1Seen.add(x);
+  }
+  await clearTips();
+  ok(`B1 ${where}: every economics row opens a tooltip (${rows.length})`, rows.length >= 3 * cards.length && tipped === rows.length, `${tipped}/${rows.length}`);
+}
+await page.evaluate(() => { const st = window.ai27v2; st.start({ ...st.draftSetup, tutorial: false, seed: 2027, companyName: 'OpenBrain' }); });
+await wait(150);
+await page.evaluate(() => window.ai27v2.step(1));
+await closeModals();
+await pause();
+await b1Check('day 1');
+await shot('25-day1-products');
+{
+  // A Premium Chat plan asks more than consumers pay: the price stops at the willingness to pay and the card flags it.
+  const chat = JSON.parse(await get(`(s.player.deployments.find((d) => d.channel === 'consumer' && d.status === 'live') || {}).id || ''`));
+  if (chat) {
+    await page.evaluate((id) => window.ai27v2.act('product.update', { id, price: 'premium' }), chat);
+    await page.evaluate(() => window.ai27v2.step(1));
+    await closeModals();
+    await nav('products');
+    const row = await page.evaluate((id) => document.querySelector(`[data-test="prod-econ.${id}"]`)?.innerText ?? '', chat);
+    ok('B1: a Premium Chat plan is capped at the $22 willingness to pay and flagged', /\$22\/mo/.test(row) && !!(await page.$(`[data-test="prod-econ.${chat}"] [data-limit="price.valueCap"]`)), row.replace(/\n/g, ' ').slice(0, 90));
+    await shot('26-day1-chat-capped');
+  }
+}
+
 // ───────────────────────── Game C: day-400 fixture, screenshots of every panel ─────────────────────────
 const fx = readFileSync(path.resolve('scripts/v2/fixtures/day400.json'), 'utf8');
 const err = await page.evaluate((j) => window.ai27v2.importJson(j) ?? '', fx);
@@ -628,9 +682,15 @@ for (const p of PANELS) {
     await shot(`20-day400-${p}${t ? '-' + t : ''}`);
   }
 }
+await b1Check('day 400');
 const fx9 = readFileSync(path.resolve('scripts/v2/fixtures/day900.json'), 'utf8');
 await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
 await page.evaluate(() => { window.ai27v2.state.setup.tutorial = false; window.ai27v2.notify(); });
+await b1Check('day 900');
+{
+  const miss = B1_TERMS.filter((t) => !b1Seen.has(t));
+  ok(`B1: every new term has a tooltip on the product cards (${B1_TERMS.length})`, miss.length === 0, miss.join(', '));
+}
 for (const p of PANELS) {
   await nav(p);
   const tabs = await tabsOf();
@@ -833,7 +893,7 @@ for (const l of LIMIT_DEFS.filter((x) => x.panel !== 'codex')) {
   }
   await wait(80);
   await collectLimits();
-  if (l.panel === 'products') { await hoverCollect('[data-panel=products] .pc-cost'); await hoverCollect('[data-panel=products] [data-test^="prod-bind."]'); }
+  if (l.panel === 'products') { await hoverCollect('[data-panel=products] [data-test^="prod-price-row."]'); await hoverCollect('[data-panel=products] [data-test^="prod-bind."]'); }
 }
 await nav('company');
 await tabTo('flow');

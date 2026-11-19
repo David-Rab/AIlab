@@ -13,11 +13,11 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { AGENT_TASK_HOURS, FEATURES, PRICE_TIER_IDS, PRICE_TIERS, PRODUCT_DEFS, PRODUCT_ORDER, type FeatureDef } from '../../../data/v2/features';
-import { MARKUP, PRICE_ELASTICITY } from '../../../data/v2/serving';
+import { EFFORT_OOM_PER_10X, EFFORT_TOKENS, MARKUP, PRICE_ELASTICITY } from '../../../data/v2/serving';
 import { TREE_BY_ID } from '../../../data/v2/tree';
 import {
   CHANNEL_VARIANTS, agentsGate, buildEtas, catchRate, dateOf, deployGate, editBlock, editedProduct, effortLock, fmtDate, isProduct, measuredHorizonH,
-  demandModifiers, measuredLOf, nodeKnown, PENALTY_MAX, previewEdit, priceView, productReadouts, servingPool, versionById,
+  demandModifiers, measuredLOf, nodeKnown, PENALTY_MAX, previewEdit, productReadouts, servingPool, versionById,
   LAUNCH_TW, LENT_RECOVERY, pendingLaunch, spareServing, spareServingToResearch,
 } from '../../../engine/v2';
 import type { Channel, Deployment, GameStateV2, ModelVersion, PriceTier, ProductChanges, ProductRead } from '../../../engine/v2';
@@ -146,7 +146,7 @@ function ProductCard({ s, d, r, draft, setDraft }: { s: GameStateV2; d: Deployme
       <PkgChip kind="model" testId={`prod-model.${d.id}`} value={n.versionId} changed={n.versionId !== d.versionId || n.miniVersionId !== d.miniVersionId}
         options={models.map((x) => ({ value: x.id, label: `${x.name} · L ${F.level(mL(s, x))}` }))} onPick={(x) => set({ versionId: x })}
         sub={def && (d.channel === 'consumer' || d.channel === 'api') && (
-          <Tip content={() => <TipCard title={<Term id="freeTier">Mini free tier</Term>}>{`A mini serves ${d.channel === 'consumer' ? '60%' : '30%'} of use (free and low-price users): far cheaper to serve, but the product's quality is the usage-weighted blend.`}</TipCard>}>
+          <Tip content={() => <TipCard title={<Term id="freeTier">Mini free tier</Term>}>{d.channel === 'consumer' ? 'The mini serves every user without a subscription: far cheaper to serve. It weighs 60% in Chat\'s quality. Without one, free users run on the main model.' : 'The mini serves 30% of use: far cheaper to serve, but the product\'s quality is the usage-weighted blend.'}</TipCard>}>
             <select className="msel sub" data-test={`prod-mini.${d.id}`} value={n.miniVersionId ?? ''} onChange={(e) => set({ miniVersionId: e.target.value || null })}>
               <option value="">no free tier</option>
               {minis.map((x) => <option key={x.id} value={x.id}>+ {x.name} free tier</option>)}
@@ -160,8 +160,7 @@ function ProductCard({ s, d, r, draft, setDraft }: { s: GameStateV2; d: Deployme
         { label: 'Serving it uses', value: `${F.h100e(Math.min(r.servedH100e, r.needH100e))} H100e` },
         { label: <Term id="monitor">Monitor overhead</Term>, value: d.monitorId ? `+${F.pct(r.monitorOverhead, 1)} of serving` : 'no monitor' },
         { label: <Term id="revPerH100e">Revenue per H100e</Term>, value: rate(r.rpH) },
-        { label: d.channel === 'consumer' ? 'Cost → price per subscriber-month' : 'Cost → price per work-hour', value: (() => { const c = priceView(s, d); return <Limit id="price.valueCap" tone={c.capped > 0.05 ? 'warn' : 'quiet'}>{`$${c.cost.toFixed(2)} → $${c.price.toFixed(2)} · margin ${F.pct(c.margin)}${c.capped > 0.05 ? ` · ${F.pct(c.capped)} at the value cap` : ''}`}</Limit>; })() },
-      ] : []}>Serving compute at the rental-equivalent price of an H100e.</TipCard>}>
+      ] : []} footer="Price, cost and margin per unit: the Price row below.">Serving compute at the rental-equivalent price of an H100e.</TipCard>}>
         <div className="pc-cost"><ICON.cash size={12} /><b>{r ? F.money(r.runCost, { perYear: true }) : '—'}</b><span className="dim">to run</span><span className="sp" />{d.monitorId && r && <span className="dim">monitor +{F.pct(r.monitorOverhead)}</span>}</div>
       </Tip>
 
@@ -178,12 +177,21 @@ function ProductCard({ s, d, r, draft, setDraft }: { s: GameStateV2; d: Deployme
       </Tip>
       {hist.length >= 3 && <Tip content={() => <TipCard title="Revenue, last months" rows={hist.map((x, i) => ({ label: i === hist.length - 1 ? 'now' : `${(hist.length - 1 - i) * 30} d ago`, value: F.money(x, { perYear: true }) }))} />}><span className="pc-spark"><Spark2 data={hist} w={230} h={30} color={PROD} /></span></Tip>}
 
-      {r && def && def.arpu > 0 && (
+      {r && def && d.channel === 'consumer' && (
+        <Tip content={() => <TipCard title="Weekly users" value={F.count(r.users ?? 0)} rows={[
+          { label: 'Paying subscribers', value: F.count(r.subs ?? 0) },
+          { label: <Term id="freeTier">Free users</Term>, value: F.count(Math.max(0, (r.users ?? 0) - (r.subs ?? 0))) },
+        ]}>{'Users = online adults × [[weeklyReach|weekly reach]] × your share of chat users (a stock that moves in weeks). Subscribers = users × your [[paidShare|paid share]].'}</TipCard>}>
+          <div className="pc-cust" data-test={`prod-users.${d.id}`}><Users size={12} /><b>{F.count(r.users ?? 0)}</b> weekly users<span className="dim">·</span><b>{F.count(r.subs ?? 0)}</b> paying</div>
+        </Tip>
+      )}
+      {r && def && d.channel !== 'consumer' && def.arpu > 0 && (
         <Tip content={() => <TipCard title={def.customers} value={F.count(r.customers)}>{`Revenue ÷ about $${F.count(def.arpu)} a year per customer.`}</TipCard>}>
           <div className="pc-cust"><Users size={12} /><b>{F.count(r.customers)}</b> {def.customers}</div>
         </Tip>
       )}
 
+      {r && <Econ d={d} r={r} />}
       {r && <Share s={s} d={d} r={r} />}
       {r && <Binding s={s} d={d} r={r} set={set} />}
 
@@ -191,9 +199,9 @@ function ProductCard({ s, d, r, draft, setDraft }: { s: GameStateV2; d: Deployme
 
       {/* Settings: live */}
       <div className="pc-set">
-        <div className="pc-cap"><span>Settings</span><span className="sp" /><span className="dim"><Pencil size={10} /> live</span></div>
+        <div className="pc-cap"><span>Settings</span><span className="dim"><Pencil size={10} /> live</span><span className="sp" /><ActBtn id="product.retire" testId={`product.retire.${d.id}`} params={{ id: d.id }} label="Retire" /></div>
         <div className="pc-row">
-          <Tip content={() => <TipCard title={<Term id="priceTier">Price tier</Term>} rows={PRICE_TIER_IDS.map((t) => ({ label: TIER_LABEL[t], value: `price = cost ×${MARKUP[t].toFixed(2)} (margin ${F.pct(1 - 1 / MARKUP[t])}) · share ×${(PRICE_TIERS[t] ** -PRICE_ELASTICITY).toFixed(2)}` }))}>Price is a markup over this product's own cost per work-hour, never above the work's value; customers' share falls with price^−{PRICE_ELASTICITY}.</TipCard>}><span className="pc-k"><Tag size={11} />Price</span></Tip>
+          <Tip content={() => <TipCard title={<Term id="priceTier">Price tier</Term>} rows={PRICE_TIER_IDS.map((t) => ({ label: TIER_LABEL[t], value: `price = cost ×${MARKUP[t].toFixed(2)} (margin ${F.pct(1 - 1 / MARKUP[t])}) · share ×${(PRICE_TIERS[t] ** -PRICE_ELASTICITY).toFixed(2)}` }))}>Price is a markup over this product's own serving cost, never above the value cap; customers' share falls with price^−{PRICE_ELASTICITY}.</TipCard>}><span className="pc-k"><Tag size={11} />Price</span></Tip>
           <Seg testId={`prod-price.${d.id}`} value={n.price} options={PRICE_TIER_IDS.map((t) => ({ v: t, label: TIER_LABEL[t] }))} onChange={(t) => set({ price: t })} />
         </div>
         <div className="pc-row">
@@ -205,24 +213,173 @@ function ProductCard({ s, d, r, draft, setDraft }: { s: GameStateV2; d: Deployme
           <select className="msel small" data-test={`prod-sg.${d.id}`} value={n.safeguards} onChange={(e) => set({ safeguards: e.target.value as Deployment['safeguards'] })}>
             {SAFEGUARDS.map((g) => <option key={g} value={g}>{SG_LABEL[g]}</option>)}
           </select>
-          {(d.channel === 'api' || d.channel === 'agents') && <>
+        </div>
+        {(d.channel === 'api' || d.channel === 'agents') && <div className="pc-row">
             <Tip content={() => <TipCard title={<Term id="kyc">KYC</Term>}>Each level cuts distillation access by a quarter and this product's demand by 2%.</TipCard>}><span className="pc-k">KYC</span></Tip>
             <Seg testId={`prod-kyc.${d.id}`} value={n.kyc} options={[0, 1, 2, 3].map((k) => ({ v: k as Deployment['kyc'], label: String(k) }))} onChange={(k) => set({ kyc: k })} />
-          </>}
-        </div>
+        </div>}
         <div className="pc-row">
-          <Tip content={() => <TipCard title={<Term id="effort">Effort</Term>}>Low: −0.4 L, 1.6× revenue per H100e. Max: the reference. Deep think is a feature.</TipCard>}><span className="pc-k">Effort</span></Tip>
+          <Tip content={() => <TipCard title={<Term id="effort">Effort</Term>} rows={(['low', 'max', 'deep'] as const).map((e) => ({ label: e === 'deep' ? 'deep think' : e, value: `tokens ×${EFFORT_TOKENS[e]} · fit ${F.num(EFFORT_OOM_PER_10X * Math.log10(EFFORT_TOKENS[e]), 2, true)} OOM` }))}>Reasoning tokens per answer. Price follows cost, so the margin stays; the hours an H100e serves change. Deep think is a feature.</TipCard>}><span className="pc-k">Effort</span></Tip>
           <Seg testId={`prod-effort.${d.id}`} value={n.effort} options={(['low', 'max', 'deep'] as const).map((e) => ({
             v: e, label: e === 'deep' ? 'deep think' : e,
             locked: e === 'deep' ? (effortLock(s, 'deep') ?? (!s.player.features.includes('deepThink') ? 'Build the Deep think feature first' : !FEATURES.find((f) => f.id === 'deepThink')!.products.includes(d.channel) ? 'Not offered on this product' : undefined)) : undefined,
           }))} onChange={(e) => set({ effort: e })} />
-          <span className="sp" />
-          <ActBtn id="product.retire" testId={`product.retire.${d.id}`} params={{ id: d.id }} label="Retire" />
         </div>
       </div>
 
       {editing && draft && <EditPop s={s} d={d} c={draft} close={() => setDraft(null)} />}
     </section>
+  );
+}
+
+// ───────── serving economics (B1): price vs cost, revenue by source, capacity ─────────
+/** Dollars per unit: $0.42, $2.65, $22. */
+const usd = (x: number) => `$${x >= 10 ? x.toFixed(0) : x.toFixed(2)}`;
+/** Revenue sources of a sector product (fixed colours, colour-blind safe: gold / teal / grey). */
+const SRC_COL = { work: '#c9a227', agent: '#3bb3a0', seat: '#8d99a6' } as const;
+
+function Econ({ d, r }: { d: Deployment; r: ProductRead }) {
+  return (
+    <div className="pc-econ" data-test={`prod-econ.${d.id}`}>
+      <PriceRow d={d} r={r} />
+      {r.econ.kind === 'chat' ? <PaidRow d={d} r={r} /> : <SourcesRow d={d} r={r} />}
+      <CapacityRow d={d} r={r} />
+    </div>
+  );
+}
+
+function PriceRow({ d, r }: { d: Deployment; r: ProductRead }) {
+  const e = r.econ;
+  const chat = e.kind === 'chat';
+  const unit = chat ? '/mo' : '/h';
+  const capped = chat ? r.price > 0 && r.price >= e.wtp - 1e-6 : r.valueCapped > 0.05;
+  const max = Math.max(1e-9, chat ? Math.max(r.price, e.wtp) : r.price);
+  const asked = r.cost * r.markup;
+  const none = !(r.price > 0);
+  return (
+    <Tip as="div" content={() => <TipCard title={<Term id="markup">{chat ? 'Price per subscriber-month' : 'Price per hour of use'}</Term>} value={none ? 'no sales' : `${usd(r.price)}${unit}`} rows={[
+      { label: chat ? 'Serving cost of a subscriber-month' : 'Serving cost per hour', value: `${usd(r.cost)}${unit}` },
+      { label: <><Term id="priceTier">{TIER_LABEL[d.price]}</Term> <Term id="markup">markup</Term></>, value: `×${r.markup.toFixed(2)} → asks ${usd(asked)}${unit}` },
+      { label: 'Margin', value: F.pct(r.margin), tone: r.margin > 0 ? 'pos' : 'neutral' },
+      ...(chat ? [
+        { label: <Term id="wtp">Willingness to pay</Term>, value: `${usd(e.wtp)}/mo${capped ? ' · binds' : ''}`, tone: (capped ? 'neg' : 'neutral') as 'neg' | 'neutral' },
+        { label: <Term id="goingPrice">Going price</Term>, value: `${usd(e.going)}/mo` },
+      ] : [
+        ...(e.adoptedHours > 0 ? [{ label: <Term id="adoptedHour">Adopted task-hour</Term>, value: `${usd(e.adoptedPrice)}/h` }] : []),
+        ...(e.agentHours > 0 ? [{ label: <Term id="agentHour">Agent-hour</Term>, value: `${usd(e.agentPrice)}/h` }] : []),
+        { label: <Term id="valueCap">Sold at the value cap</Term>, value: F.pct(r.valueCapped), tone: (capped ? 'neg' : 'neutral') as 'neg' | 'neutral' },
+      ]),
+      { label: 'Rule', value: <Limit id="price.valueCap" tone={capped ? 'warn' : 'quiet'}>price ≤ value</Limit> },
+    ]} footer={chat ? 'Per-seat and per-hour pricing: API, Agents, Enterprise.' : 'Blended over adopted task-hours and agent-hours; seats are priced per seat-month (Sources).'}>
+      {chat ? 'A paying user\'s serving cost × the tier\'s markup, never above the willingness to pay.' : 'The tokens an hour of use takes × their serving cost × the tier\'s markup, never above the value of the hour.'}
+    </TipCard>}>
+      <div className="ec-row" data-test={`prod-price-row.${d.id}`}>
+        <span className="ec-k">Price</span>
+        <b className="ec-v">{none ? '—' : `${usd(r.price)}${unit}`}</b>
+        <span className="ec-bar">
+          <i style={{ width: `${(Math.min(r.cost, r.price) / max) * 100}%`, background: 'var(--line-2)' }} />
+          <i style={{ width: `${(Math.max(0, r.price - r.cost) / max) * 100}%`, background: capped ? C.watch : C.good }} />
+          {chat && <em style={{ left: `${(e.wtp / max) * 100}%` }} />}
+        </span>
+        <span className="ec-n">{none ? '' : F.pct(r.margin)}</span>
+      </div>
+      {capped && <Limit id="price.valueCap" tone="warn">{chat ? `at the ${usd(e.wtp)} cap` : `${F.pct(r.valueCapped)} sold at the value cap`}</Limit>}
+    </Tip>
+  );
+}
+
+function SourcesRow({ d, r }: { d: Deployment; r: ProductRead }) {
+  const e = r.econ;
+  const parts = [
+    { k: 'work' as const, v: e.adoptedDemand, term: 'adoptedHour', label: 'work' },
+    { k: 'agent' as const, v: e.agentDemand, term: 'agentHour', label: 'agents' },
+    { k: 'seat' as const, v: e.seatDemand, term: 'paidSeat', label: 'seats' },
+  ].filter((x) => x.v > 1e-6);
+  const tot = parts.reduce((a, x) => a + x.v, 0);
+  return (
+    <Tip as="div" content={() => <TipCard title="Revenue by source" value={F.money(tot, { perYear: true })} rows={[
+      { label: <Term id="adoptedHour">Adopted task-hours</Term>, value: e.adoptedHours > 0 ? `${F.count(e.adoptedHours)} h × ${usd(e.adoptedPrice)} = ${F.money(e.adoptedDemand)}` : 'none' },
+      { label: <Term id="agentHour">Agent-hours</Term>, value: e.agentHours > 0 ? `${F.count(e.agentHours)} h × ${usd(e.agentPrice)} = ${F.money(e.agentDemand)}` : 'none' },
+      { label: <Term id="paidSeat">Paid seats</Term>, value: e.seats >= 1 ? `${F.count(e.seats)} × ${usd(e.seatPrice)}/mo = ${F.money(e.seatDemand)}` : 'none' },
+      ...(e.seats >= 1 ? [{ label: 'Serving cost per seat-month', value: usd(e.seatCost) }] : []),
+    ]} footer="Demand a year, before the serving cut.">
+      {d.channel === 'enterprise' || d.channel === 'gov'
+        ? 'Seats: workers on a paid plan, a flat price per month. [[unseatedUse|Unseated use]] pays nothing. Agent-hours: [[supervisingHour|supervising hours]] × coverage × [[agentLeverage|agent leverage]].'
+        : 'Work billed per hour. Agent-hours: [[supervisingHour|supervising hours]] × coverage × [[agentLeverage|agent leverage]]; they add spend and serving need, never human hours. Seats are sold by Enterprise and Gov.'}
+    </TipCard>}>
+      <div className="ec-row" data-test={`prod-sources.${d.id}`}>
+        <span className="ec-k">Sources</span>
+        <span className="ec-bar wide">
+          {parts.map((x) => <i key={x.k} data-src={x.k} style={{ width: `${(x.v / Math.max(1e-9, tot)) * 100}%`, background: SRC_COL[x.k] }} />)}
+        </span>
+      </div>
+      <div className="ec-leg">
+        {parts.length ? parts.map((x) => <span key={x.k}><i style={{ background: SRC_COL[x.k] }} /><Term id={x.term}>{x.label}</Term> {F.pct(x.v / tot)}</span>) : <span className="dim">no sales yet</span>}
+      </div>
+    </Tip>
+  );
+}
+
+function PaidRow({ d, r }: { d: Deployment; r: ProductRead }) {
+  const e = r.econ;
+  const max = Math.max(0.08, e.paidShare, e.paidTarget) * 1.15;
+  const up = e.paidTarget > e.paidShare + 0.0005;
+  const dn = e.paidTarget < e.paidShare - 0.0005;
+  return (
+    <Tip as="div" content={() => <TipCard title={<Term id="paidShare">Paid share</Term>} value={F.pct(e.paidShare, 1)} rows={[
+      { label: 'Target (≈ 8 weeks)', value: F.pct(e.paidTarget, 1), tone: up ? 'pos' : dn ? 'neg' : 'neutral' },
+      { label: 'Subscribers', value: F.count(r.subs ?? 0) },
+      { label: 'Your price vs the going price', value: `${usd(r.price)} vs ${usd(e.going)}/mo` },
+      { label: 'Subscriptions', value: F.money(r.demand, { perYear: true }) },
+    ]}>{'Subscribers × price × 12 is Chat\'s only revenue. The target rises with your model\'s coverage of chat and with a price below the [[goingPrice|going price]]; above the [[wtp|willingness to pay]] nobody subscribes.'}</TipCard>}>
+      <div className="ec-row" data-test={`prod-paid.${d.id}`}>
+        <span className="ec-k">Paid</span>
+        <b className="ec-v">{F.pct(e.paidShare, 1)}</b>
+        <span className="ec-bar">
+          <i style={{ width: `${(e.paidShare / max) * 100}%`, background: SRC_COL.work }} />
+          <em style={{ left: `${(e.paidTarget / max) * 100}%` }} />
+        </span>
+        <span className={`ec-n ${up ? 'tone-pos' : dn ? 'tone-neg' : ''}`}>→ {F.pct(e.paidTarget, 1)}</span>
+      </div>
+    </Tip>
+  );
+}
+
+function CapacityRow({ d, r }: { d: Deployment; r: ProductRead }) {
+  const e = r.econ;
+  const chat = e.kind === 'chat';
+  const need = r.needH100e;
+  if (!(need > 0)) return null;
+  const cut = Math.min(need, r.cutH100e);
+  const served = need - cut;
+  // Segments in serve order: seats then per-hour work (sector), paying then free users (Chat); the cut comes off the end.
+  const segs = chat
+    ? [{ k: 'paid', v: e.needPaid - e.cutPaid, col: SRC_COL.work }, { k: 'free', v: e.needFree - e.cutFree, col: '#6b7785' }]
+    : [{ k: 'seat', v: Math.min(e.needSeat, served), col: SRC_COL.seat }, { k: 'work', v: Math.max(0, served - e.needSeat), col: SRC_COL.work }];
+  const fullyServed = cut < need * 0.005;
+  return (
+    <Tip as="div" content={() => <TipCard title={<Term id="serveOrder">Capacity</Term>} value={fullyServed ? 'all served' : `${F.pct(served / need)} served`} rows={chat ? [
+      { label: 'Paying users need', value: `${F.h100e(e.needPaid)} H100e` },
+      { label: <Term id="freeTier">Free users need</Term>, value: `${F.h100e(e.needFree)} H100e` },
+      { label: <Term id="servingCut">Cut</Term>, value: cut > 0 ? `${F.h100e(e.cutFree)} free · ${F.h100e(e.cutPaid)} paying` : 'none', tone: cut > 0 ? 'neg' : 'neutral' },
+    ] : [
+      { label: 'Hours asked a year', value: `${F.count(e.askedHours)} h` },
+      { label: 'Servable on its serving', value: `${F.count(r.capHours)} h`, tone: r.capHours < e.askedHours * 0.995 ? 'neg' : 'neutral' },
+      ...(e.needSeat > 0 ? [{ label: <Term id="paidSeat">Seats need (first)</Term>, value: `${F.h100e(e.needSeat)} H100e` }] : []),
+      { label: 'Per-hour work needs', value: `${F.h100e(e.needWork)} H100e` },
+      { label: <Term id="servingCut">Cut</Term>, value: cut > 0 ? `${F.h100e(cut)} H100e` : 'none', tone: cut > 0 ? 'neg' : 'neutral' },
+    ]} footer="Serving budget: Compute › Split.">
+      {chat ? 'Paying users are served first. [[freeTier|Free users]] are served last; unserved users leave for rivals, which costs subscribers.' : 'Seats are served before per-hour work (a seat earns more per H100e). Unserved buyers drift to rivals.'}
+    </TipCard>}>
+      <div className="ec-row" data-test={`prod-capacity.${d.id}`}>
+        <span className="ec-k">Served</span>
+        <span className="ec-bar wide">
+          {segs.map((x) => x.v > 0 && <i key={x.k} data-seg={x.k} style={{ width: `${(x.v / need) * 100}%`, background: x.col }} />)}
+          {cut > 0 && <i className="cut" data-seg="cut" style={{ width: `${(cut / need) * 100}%` }} />}
+        </span>
+        <span className={`ec-n ${fullyServed ? '' : 'tone-neg'}`}>{fullyServed ? 'all' : F.pct(served / need)}</span>
+      </div>
+    </Tip>
   );
 }
 

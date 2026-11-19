@@ -145,7 +145,7 @@ export { WSL_TARGET_RANGE } from '../security/security';
 
 // R6 products: readouts, live-edit previews and package helpers (visible data: measured levels, revenue).
 export { productReadouts, previewDeployments } from '../worldfx/productView';
-export type { ProductRead, EditPreview } from '../worldfx/productView';
+export type { ProductRead, ProductEcon, EditPreview } from '../worldfx/productView';
 export { editBlock, editedProduct, previewEdit } from '../models/productOps';
 export type { ProductChanges } from '../models/productOps';
 export { activeFeatures, agentsGate, catchRate, collusionTrait, sameLineage, featureBuildBlock, featureToggleBlock, freeTierShare, isProduct, measuredHorizonH, monitorOverhead } from '../models/products';

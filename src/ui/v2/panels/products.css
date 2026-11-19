@@ -88,3 +88,26 @@
 .pc .pv { grid-template-columns: auto minmax(0, 1fr); }
 .pc .pv .ba { flex-wrap: wrap; font-size: 11.5px; gap: 4px; }
 .pc-pop { max-height: calc(100% - 120px); overflow: auto; }
+/* B1: serving economics on the product card (price vs cost, revenue by source, capacity) */
+.pc-econ { display: flex; flex-direction: column; gap: 3px; }
+.ec-row { display: grid; grid-template-columns: 50px auto minmax(0, 1fr) auto; gap: 6px; align-items: center; font-size: 11.5px; color: var(--text-2); height: 19px; }
+.ec-row:has(> .ec-bar.wide) { grid-template-columns: 50px minmax(0, 1fr) auto; }
+.ec-k { text-decoration: underline dotted var(--line-2); white-space: nowrap; }
+.ec-v { font: 600 12px var(--mono); color: #fff; white-space: nowrap; }
+.ec-n { font: 600 11.5px var(--mono); color: var(--text); text-align: right; white-space: nowrap; }
+.ec-bar { height: 8px; border-radius: 4px; background: var(--line); position: relative; display: flex; overflow: visible; min-width: 30px; }
+.ec-bar i { display: block; height: 100%; flex-shrink: 0; }
+.ec-bar i:first-child { border-radius: 4px 0 0 4px; }
+.ec-bar i:last-of-type { border-radius: 0 4px 4px 0; }
+.ec-bar i:only-of-type { border-radius: 4px; }
+.ec-bar i.cut { background: repeating-linear-gradient(135deg, rgba(240,96,96,.75) 0 3px, transparent 3px 6px); box-shadow: inset 0 0 0 1px rgba(240,96,96,.6); }
+.ec-bar em { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: #fff; border-radius: 1px; }
+.ec-leg { display: flex; gap: 8px; justify-content: flex-end; font-size: 11px; color: var(--text-2); white-space: nowrap; overflow: hidden; }
+.ec-leg > span { display: inline-flex; align-items: center; gap: 4px; }
+.ec-leg i { width: 7px; height: 7px; border-radius: 2px; display: inline-block; }
+.pc-econ .limit { margin-left: 56px; }
+/* B1: settings fit the card width (no label-only lines); Retire sits on the caption line */
+.pc-set .pc-k { min-width: 0; }
+.pc-set .seg-btn { padding: 3px 6px; }
+.pc-set .pc-cap { margin-bottom: 0; }
+.pc-set .pc-cap .act-btn { text-transform: none; letter-spacing: 0; padding: 1px 7px; }
