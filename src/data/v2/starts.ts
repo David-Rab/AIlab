@@ -83,7 +83,9 @@ export const STARTS: StartDef[] = [
     id: 'challenger', name: 'Challenger lab', difficulty: 'Hard', analogues: 'Anthropic, xAI (mid-2025)',
     character: 'Near the frontier with real revenue; you must raise about once a year to keep up.',
     leaderLab: true,
-    teams: { eng: 3, 're.cap': 7, 'sci.cap': 4, 're.saf': 1, 'sci.saf': 1 },
+    // Model v3 V3b: 4 engineering teams (was 3) [D]: at 2025 AI coverage (build capacity ≈ ×1.1 the engineers) three
+    // teams could not carry the start products' upkeep plus a base run setup in the first quarter.
+    teams: { eng: 4, 're.cap': 7, 'sci.cap': 4, 're.saf': 1, 'sci.saf': 1 },
     specialties: { cap: ['posttraining', 'pretraining', 'systems', 'posttraining'], saf: ['interp', 'alignment', 'evals'] },
     known: ['kyc', 'rl.swe', 'multimodal', 'T-PROBE', 'T-SAE'],
     products: [

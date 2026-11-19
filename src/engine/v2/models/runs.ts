@@ -154,6 +154,12 @@ function flopCost(s: GameStateV2, flop: number): number {
   return (flop / PHI_FLOP_PER_H100E_DAY / 365) * tcoPerH100eYear(s, decimalYear(s));
 }
 
+/** Horizon extenders (MODEL-V3 §7.2, typed: × h50 of versions trained after adoption). Long context + memory (P07) ×1.2
+ *  [D]: research/12 #7 proposed ×1.5 [G, no primary source]; CL-Bench 2026 finds dedicated memory systems not yet beating
+ *  in-context learning [P, research/12 §2], so a smaller multi-day-continuity effect. Long-horizon human demonstration
+ *  data (P12) ×2 [G, research/12 #12; unchanged]. */
+export const P07_HORIZON = 1.2;
+export const P12_HORIZON = 2;
 /** BRIDGE(V6,V7): a run's scale vs the frontier run F(t) (S5 and public scrutiny only; engineering uses the physical
  *  FLOP since model v3 V3, departments/build.ts engScale). */
 export const scaleOf = (s: GameStateV2, flop: number) => flop / frontierFlop(s.hidden.timeline, decimalYear(s)); // BRIDGE(V6,V7)
@@ -236,7 +242,7 @@ function postBuild(s: GameStateV2, base: BaseModel, d: PostDesign, rec: { rlMid:
   const pe = postEffect(d);
   const rlW = playerRlWeights(s, d.rlFocus);
   const rl = rlGains(base.flop, rlFlop, rlW, rec.rlMid, rec.rlCeil);
-  const h80Mult = pe.h80Mult * (adopted(s, 'P07') ? 1.5 : 1) * (adopted(s, 'P12') ? 2 : 1);
+  const h80Mult = pe.h80Mult * (adopted(s, 'P07') ? P07_HORIZON : 1) * (adopted(s, 'P12') ? P12_HORIZON : 1);
   return {
     gPre: base.gPre, flopPre: base.flop, rlFlop, rlW, eRL: rec.rlMid, aRL: rec.rlCeil, dgRL: rl.general, dgRLd: rl.perDomain, dg: pe.dg, sD: withDomainG(s, base.sD ?? {}),
     offL: addOff(addOff(base.off ?? {}, pe.offL), paradigmOff(s)), off: {}, paIn: paOfRecipe(s, base.flop, base.ePre, rec.rlMid, rec.rlCeil), h80Mult, misuseMult: pe.misuseMult,

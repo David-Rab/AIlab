@@ -4,7 +4,7 @@
 import { LEADER_FEATURES } from '../../../data/v2/features';
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
 import { PLAYER_MODEL_FAMILY } from '../../../data/v2/names';
-import { B_G_PER_Y, E_START, REFERENCE_BASE, REFERENCE_POST, RL_BUDGET } from '../../../data/v2/runDesign';
+import { B_G_PER_Y, E_B0, REFERENCE_BASE, REFERENCE_POST, RL_BUDGET } from '../../../data/v2/runDesign';
 import { B0_DAY, B0_START_DAY, SHARE_REF } from '../../../data/v2/calibration';
 import { START_BY_ID } from '../../../data/v2/starts';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
@@ -118,7 +118,7 @@ function startModels(w: TimelineWorld, ps: ReturnType<typeof playerStart>, uniqu
   const d = REFERENCE_BASE;
   const flop = flopOfDesign(d);
   const tokens = d.params * d.tpp;
-  const recipe = E_START + startVintage(w, ps.paBase);
+  const recipe = E_B0 + startVintage(w, ps.paBase);
   const gPre = gPreOf({ flop, tpp: d.tpp, recipe, shape: d.shape, fData: 1, designDg: 0 }).total;
   const rlW = rlWeights('broad', rlFamiliesAvailable(() => false));
   const eRL = startVintage(w, ps.paPost);

@@ -3,7 +3,7 @@
 // notes"). Owner: WS1. Data: src/data/v2/workTypes.ts.
 //
 //   fit        F_w = Σ_d ω_w,d · G_d (OOM; G_d the version's domain effective compute + level offsets ÷ LEVEL_PER_OOM)
-//   reference  best human F*_w = G_SC + Δ_bm·Σ ω·REF_DELTA[d]; median expert F*_w − Δ_bm (per preset: TimelineWorld.v3)
+//   reference  best human F*_w = G_SC + Δ_bm·Σ ω·δ_d(sd_SC); median expert F*_w − Δ_bm (per preset: TimelineWorld.v3)
 //   horizon    h50 = 203 min × 4.2^(G_h − G_V0) × h80Mult (G_h: CODE for software, AGENCY otherwise); p(H) = 1/(1 + (H/h50)^β)
 //   coverage   a_w = σ((F_w − θ_w)/s) × p(H_w), θ_w = F*_w − s·ln 19 + κ_v·(0.9 − v_w)
 //   assist     win rate w = Φ((F_w − F^med)/S_WIN); human speed-up 1/(M + R + (1 − w)) when > 1 (GDPval)
@@ -15,7 +15,7 @@
 // Nothing here reads pm, the level bridge, the knot tables or a reference path.
 import {
   ASSIST, COGNITIVE_WORK, COPY_TOKENS_PER_S, COVER, FTE_HOURS_PER_YEAR, H80_OVER_H50, HORIZON_BETA,
-  LEVEL_PER_OOM, MILESTONE_COVER, PEAK_FLOPS, QUALITY_TASTE_SD, REF_DELTA, SPEED_CAP, STAR_TASTE, S_WIN, TOKENS_PER_WORK_HOUR, TOP_SD,
+  LEVEL_PER_OOM, MILESTONE_COVER, PEAK_FLOPS, QUALITY_TASTE_SD, refDelta, SPEED_CAP, STAR_TASTE, S_WIN, TOKENS_PER_WORK_HOUR, TOP_SD,
   U_DECODE, U_PREFILL, WORK_TYPES, type WorkTypeDef, type WorkTypeId,
 } from '../../../data/v2/workTypes';
 import { RSCH_TASTE_PENALTY } from '../../../data/v2/calibration';
@@ -57,9 +57,12 @@ export function fitOf(s: GameStateV2, v: Pick<ModelVersion, 'pm' | 'build'>, wt:
 }
 
 /** Human reference points of a work type in world w: the best human in the world and the median expert (OOM). */
+const deltaMemo = new WeakMap<TimelineWorld['v3'], Record<DomainId, number>>();
 export function refPoints(w: TimelineWorld, wt: WorkTypeId): { best: number; med: number } {
+  let rd = deltaMemo.get(w.v3);
+  if (!rd) deltaMemo.set(w.v3, (rd = refDelta(w.v3.sdSC)));
   let delta = 0;
-  for (const [d, x] of Object.entries(WORK_TYPES[wt].w) as [DomainId, number][]) delta += x * REF_DELTA[d];
+  for (const [d, x] of Object.entries(WORK_TYPES[wt].w) as [DomainId, number][]) delta += x * rd[d];
   const best = w.v3.gSC + w.v3.dBM * delta;
   return { best, med: best - w.v3.dBM };
 }

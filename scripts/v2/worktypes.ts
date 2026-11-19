@@ -10,7 +10,7 @@ import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { tick } from '../../src/engine/v2/core/loop';
 import { engine } from '../../src/engine/v2/index';
 import { TREE_BY_ID } from '../../src/data/v2/tree';
-import { WORK_TYPES, REF_DELTA, TOP_SD, SD_AT_SC } from '../../src/data/v2/workTypes';
+import { WORK_TYPES, REF_DELTA, TOP_SD } from '../../src/data/v2/workTypes';
 import {
   copiesOf, coverage, effLabour, fitOf, flopPerToken, fteOfFpt, refPoints, sdAIOf, teamTaste, versionMilestones, workContext,
 } from '../../src/engine/v2/departments/workfit';
@@ -19,6 +19,8 @@ import { Xces } from '../../src/engine/v2/production/knots';
 import { computeProduction } from '../../src/engine/v2/production/production';
 import { bestPlayerVersion } from '../../src/engine/v2/models/labs';
 import type { GameStateV2, ModelVersion } from '../../src/engine/v2/types';
+import { buildCapacity } from '../../src/engine/v2/departments/teams';
+import { engScale, runSetupTW, upkeepSplit } from '../../src/engine/v2/departments/build';
 import { HERE, check, finish, refGame, runRef } from './lib';
 
 const mk = (seed = 21, world: 'ai2027' | 'authors2026' = 'ai2027'): GameStateV2 => newGame(defaultSetupV2({ world, alignment: 'medium', seed, tutorial: false }));
@@ -117,8 +119,8 @@ const mk = (seed = 21, world: 'ai2027' | 'authors2026' = 'ai2027'): GameStateV2 
   const fs3 = ok ? [fOf(a1!), fOf(a2!), fOf(a3!)] : [];
   const slope = ok ? (a3!.e - a2!.e) / Math.log10(a3!.Q / a2!.Q) : NaN;
   // f drifts up slowly (the candidate pool fills, so the picked candidates get better), so the check is the r law itself:
-  // the last doubling of Q adds r_l·log₁₀2 within 15%.
-  check(ok && slope > 0.85 * pool.r && slope < 1.02 * pool.r,
+  // the last doubling of Q adds at least 70% of r_l·log₁₀2 and more than the doubling before (it tends to r_l).
+  check(ok && slope > 0.7 * pool.r && slope < 1.02 * pool.r && slope > (a2!.e - a1!.e) / Math.log10(a2!.Q / a1!.Q),
     'returns: in the engine a line at fixed inputs reproduces r (its last doubling of research input adds r_l·log₁₀2)',
     ok ? `selection factor f ${fs3.map((x) => x.toFixed(2)).join(' / ')} at Q/4, Q/2, Q; last doubling ${slope.toFixed(3)} OOM per decade (r_l ${pool.r.toFixed(3)}); input ${Qend.toFixed(0)}, n₀ ${pool.n0.toFixed(0)}` : 'no results');
 }
@@ -156,7 +158,7 @@ const mk = (seed = 21, world: 'ai2027' | 'authors2026' = 'ai2027'): GameStateV2 
   // Definitions: SC at the best human's SWE fit (G_SC), taste 0.5 SD there, SIAR at 3 × 3.09 SD.
   const vSC = at(sc);
   const sdSC = sdAIOf(w, fitOf(s, vSC, 'IDEAS'));
-  check(Math.abs(fitOf(s, vSC, 'SWE') - w.v3.gSC) < 0.3 && Math.abs(sdSC - SD_AT_SC) < 1.2 && Math.abs(sdAIOf(w, wantSIAR) - 3 * TOP_SD) < 1e-9 && REF_DELTA.CODE === 0,
+  check(Math.abs(fitOf(s, vSC, 'SWE') - w.v3.gSC) < 0.3 && Math.abs(sdSC - w.v3.sdSC) < 1.2 && Math.abs(sdAIOf(w, wantSIAR) - 3 * TOP_SD) < 1e-9 && REF_DELTA.CODE === 0,
     'milestones: the superhuman coder sits at G_SC with AI taste ≈ 0.5 SD; the superintelligent researcher at 9.27 SD', `SWE fit at SC − G_SC ${(fitOf(s, vSC, 'SWE') - w.v3.gSC).toFixed(2)} OOM, taste at SC ${sdSC.toFixed(2)} SD, SIAR ${sdAIOf(w, wantSIAR).toFixed(2)} SD`);
   // In a game: the reference bot records them in order.
   const g = refGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027 }));
@@ -179,6 +181,25 @@ const mk = (seed = 21, world: 'ai2027' | 'authors2026' = 'ai2027'): GameStateV2 
   const v = bestPlayerVersion(s) as ModelVersion;
   const t1 = teamTaste(0, sdAIOf(s.hidden.timeline, fitOf(s, v, 'IDEAS')), 1, s.hidden.timeline.prod.m2b);
   check(Math.abs(t1 - 1) < 0.01 && teamTaste(1, -6, 0, 3.25) > 1.4 && teamTaste(0, 9.27, 1, 3.25) > 25, 'taste: a Strong team without AI = 1; Elite ≈ ×1.46; AI at SIAR (9.27 SD) lifts a team to ≈ ×30', `start ${t1.toFixed(3)}, Elite ${teamTaste(1, -6, 0, 3.25).toFixed(2)}, SIAR ${teamTaste(0, 9.27, 1, 3.25).toFixed(1)}`);
+}
+
+// ---------- engineering at the start (V3b): every start type carries its upkeep and a base run setup in its first quarter ----------
+{
+  const rows: string[] = [];
+  let ok = true;
+  for (const start of ['leader', 'challenger', 'bigtech', 'spinout'] as const) {
+    const s = newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 3, tutorial: false, start }));
+    for (let d = 0; d < 7; d++) tick(s, { skip: ['endings'] });
+    const cap = buildCapacity(s).capacity;
+    const up = upkeepSplit(s).total;
+    // A base sized to train in about six months on the start's training pool.
+    const flop = s.player.computeOnline * s.player.split.training * 3.46e19 * 182 * 0.9;
+    const setup = runSetupTW('base', engScale(flop));
+    const spare = (cap - up) * 13;
+    if (spare < setup) ok = false;
+    rows.push(`${start} ${cap.toFixed(1)} − ${up.toFixed(1)} tw/wk → ${spare.toFixed(1)} vs setup ${setup.toFixed(2)}`);
+  }
+  check(ok, 'engineering: every start type carries its upkeep plus a base run setup in its first quarter', rows.join('; '));
 }
 
 // ---------- lint: no player mechanism reads the reference path, the knot tables or CAL_SHIFT ----------

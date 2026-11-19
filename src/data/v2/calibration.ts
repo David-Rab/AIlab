@@ -34,8 +34,10 @@ export const CAL_SHIFT: Record<WorldPresetId, number> = { ai2027: -0.463, author
  *  whose CAL_SHIFT moved (authors2026 0.063 → 0.068, fast 0.085 → 0.053, slow −0.029 → −0.004). J1: slow −0.004 → 0.041 with the
  *  slow CAL_SHIFT refit (`--fit-leader slow`). Model v3 V1 (with the CAL_SHIFT refit and the simple-lab credit,
  *  TimelineWorld.simpleCredit): ai2027 0.083 → 0.057, authors2026 0.068 → 0.052, fast 0.053 → −0.036, slow 0.041 → 0.043.
- *  Model v3 V2a (with the V2a CAL_SHIFT refit): ai2027 0.021, authors2026 0.046, fast −0.001, slow 0.039. */
-export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: 0.021, authors2026: 0.046, fast: -0.001, slow: 0.039, sampled: 0.021 };
+ *  Model v3 V2a (with the V2a CAL_SHIFT refit): ai2027 0.021, authors2026 0.046, fast −0.001, slow 0.039.
+ *  Model v3 V3b (calShift derived per world, models/capability.ts alignedCalShift; `--fit-leader`): ai2027 0.256,
+ *  authors2026 0.096, fast 0.134, slow 0.314. */
+export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: 0.256, authors2026: 0.096, fast: 0.134, slow: 0.314, sampled: 0.256 };
 
 /** Knowledge diffusion to a follower (BUILD-PLAN R9, research/18 §0.2) [D, fit]: while the frontier leader lab's PUBLIC
  *  model is ahead of the player's best model, the player's know-how gains K_DIFFUSION × the gap per year (papers, staff
@@ -54,7 +56,9 @@ export const SYN_QUALITY = 0.5;
  *  Mutable so the T3 fit can sweep it; game code only reads it. M2: refit on integrated RefBot play (real compute and
  *  finance, WS4's China compute path, WS1 distillation leak applied) — see scripts/v2/ws4.ts T3. */
 // M2 step 5: refit with leakK 3e-4 (see WS4_TUNING) and the corner-line lead metric: mean 172 d, band 88–263 d.
-export const CHINA_CAL = { effScale: 2.4 };
+// Model v3 V3b: 2.4 → 3.2 after the rival alignment (calShift derived per world): China's mean lead over days 30–540 was
+// 223 d at 2.4, 199 at 2.9, 174 at 3.4 (scripts/v2/ws4.ts T3, 8 seeds).
+export const CHINA_CAL = { effScale: 3.2 };
 /** H100e per agent copy at SC (473k H100e / 200k copies, research/13 §1.9), scaled by serveCost/0.5. */
 export const H100E_PER_COPY_SC = 2.4;
 /** Agent serial speed cap (R11 #23: min(8 + 10.8·log2 M, 50)). */

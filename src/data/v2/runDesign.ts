@@ -17,9 +17,15 @@ export const B_G_PER_Y = 1.2;
 
 // ───────────────────────────── pretraining (MODEL-V3 §3; R20 A1–A4) ─────────────────────────────
 
-/** Recipe level of the leader's know-how at game start, OOMs over the reference recipe (research/12 §0.2 convention:
- *  GPT-4 2023 = log₁₀ FLOP) [fit: the start version V0 lands at G ≈ 28.0, research/12's Aug-2025 frontier anchor]. */
-export const E_START = 1.38;
+/** Recipe level behind the start base B0, OOMs over the reference recipe (research/12 §0.2 convention: GPT-4 2023 =
+ *  log₁₀ FLOP): B0's recipe = E_B0 + its start-day vintage (models/capability.ts startVintage) [fit: the start version V0
+ *  lands at G ≈ 28.0, research/12's Aug-2025 frontier anchor]. */
+export const E_B0 = 1.38;
+/** The leader's day-0 pretraining recipe for new runs (OOM, same convention): B0's recipe (0.85 on ai2027) + Ho et al.'s
+ *  0.48 OOM/yr over B0's age at the start (256 days) = 1.19. Model v3 V3b: v2's start solution put the leader 0.53 OOM
+ *  ahead of B0 (its know-how rate × 256 days), so the first new base jumped +0.53 OOM of recipe at once and the frontier
+ *  ran ≈ 0.5 G above research/12's Feb-2026 anchor. Stacks are added on top (models/stacks.ts). */
+export const E_START = 1.19;
 /** Besiroglu et al. 2024 refit of Chinchilla [R20 A1]: L = E + A/N^α + B/D^β. */
 export const LOSS_LAW = { E: 1.8172, A: 482.01, B: 2085.43, alpha: 0.3478, beta: 0.3658 };
 /** Compute-optimal tokens per parameter [R20 A1]. */

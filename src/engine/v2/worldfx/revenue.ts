@@ -13,7 +13,7 @@
 // Capacity-bound deployments lose share (0.5%/day of the excess); demand-bound ones report quality or price.
 // Gov and trusted contract lump sums arrive through events/actions (WS4), not here.
 import { CONSUMER, ECON, REGIONS, REGION_SCALE, SECTORS } from '../../../data/v2/sectors';
-import { multiplierRef } from '../world/calibration';
+import { bridgeQ, multiplierRef } from '../world/calibration';
 import type { Channel, Deployment, EngineSystem, GameStateV2, LabId, Money, RegionId, SystemCtx } from '../types';
 import { SECTOR_CHANNELS, paidDeployments, versionOf, worldMix, type WorldMix } from './mix';
 import { freeTierShare, monitorOverhead, productDomains, productServeMult } from '../models/products';
@@ -116,7 +116,7 @@ export const LENT_RECOVERY = 0.5;
 function rphModel(s: GameStateV2, d: Deployment, versionId: string | undefined): number {
   const v = versionId ? versionOf(s, versionId) : undefined;
   if (!v) return 0;
-  const M = multiplierRef(s.hidden.timeline, v.pm + s.hidden.timeline.calShift); // at q = pm + calShift (v1-equivalent progress) // BRIDGE(V4)
+  const M = multiplierRef(s.hidden.timeline, bridgeQ(s.hidden.timeline, v.pm)); // at the v2 progress of the same display level // BRIDGE(V4)
   const effort = d.effort === 'low' ? 1.6 : d.effort === 'deep' ? 0.5 : 1;
   const serve = Math.min(3, Math.max(0.5, Math.pow(0.5 / Math.max(0.05, v.serveCost), RPH_SERVE_EXP)));
   return RPH_BASE * Math.pow(Math.min(Math.max(M, 1), RPH_MCAP), 0.3) * d.priceIndex * effort * serve;

@@ -189,8 +189,9 @@ export interface TimelineWorld {
    *  ρ, ζ, m2b); the knots are the rivals' (BRIDGE(V7)). */
   prod: ProdParams;
   /** Model v3 V3: per-preset work-type calibration (data/v2/workTypes.ts V3_CAL): G_SC (OOM of effective compute a
-   *  superhuman coder needs), Δ_bm (best-to-median human gap, OOM), r (returns to research). */
-  v3: { gSC: number; dBM: number; r: number };
+   *  superhuman coder needs), Δ_bm (best-to-median human gap, OOM), r (returns to research), sd_SC (AI research taste at
+   *  the superhuman coder, SD; AIFM's "AI taste at AC"). */
+  v3: { gSC: number; dBM: number; r: number; sdSC: number };
 }
 
 export interface ProdParams {

@@ -43,19 +43,25 @@ export const COGNITIVE_WORK: WorkTypeId[] = ['SWE', 'EXP', 'IDEAS', 'SAF_EXP', '
 
 /** Human taste at the 99.9th percentile in SDs (AIFM TOP_RESEARCHER_SD, research/13 §1.4). */
 export const TOP_SD = 3.090232306167813;
-/** AI research taste at the superhuman coder (AIFM median "AI taste at AC" 0.5 SD, research/13 §2.2). */
+/** AI research taste at the superhuman coder: AIFM's "AI taste at AC" (median 0.5 SD, 80% CI −2.5…3.5; Daniel 0;
+ *  research/13 §2.2). The default of every preset's V3_CAL.sdSC. */
 export const SD_AT_SC = 0.5;
-/** Superintelligence's extra gap for the work AI is worst at, in best-to-median gaps: AI 2027's taste at ASI (14.5 SD)
- *  over SIAR's (9.6 SD), research/13 §1.5 (AIFM ASI 12–15 SD). */
-export const ASI_EXTRA_GAPS = 1.7;
-/** Best human in the world per domain: G_SC + REF_DELTA[d]·Δ_bm. Coding and agency define the superhuman coder (0); the
- *  research domains sit (1 − SD_AT_SC/TOP_SD) gaps further (so taste at SC is 0.5 SD); the rest of expert work
- *  ASI_EXTRA_GAPS more. */
-export const REF_DELTA: Record<DomainId, number> = (() => {
-  const r = 1 - SD_AT_SC / TOP_SD;
-  const o = r + ASI_EXTRA_GAPS;
+/** Superintelligence's extra gap for the work AI is worst at, in best-to-median gaps beyond SIAR [fit, global]: AIFM's ASI
+ *  at 12–15 SD is 0.9–1.85 gaps beyond SIAR's 9.27 SD (AI 2027's knots 14.5 vs 9.6 SD: 1.6; research/13 §1.5, §2.4).
+ *  Model v3 V3b: 1.7 → 1.3 (ASI ≈ 13.3 SD): with 1.7 authors2026's SIAR → ASI gap stayed too long relative to SAR → SIAR
+ *  at every (Δ_bm, sd_SC); ai2027 and fast refit with it. */
+export const ASI_EXTRA_GAPS = 1.3;
+/** Mutable copy the calibration harness may set (calib.ts V3_ASI); the engine reads this. */
+export const ASI_EXTRA = { gaps: ASI_EXTRA_GAPS };
+/** Best human in the world per domain: G_SC + refDelta(sdSC)[d]·Δ_bm. Coding and agency define the superhuman coder (0);
+ *  the research domains sit (1 − sd_SC/TOP_SD) gaps further (so the reference model's taste at SC is sd_SC); the rest of
+ *  expert work ASI_EXTRA_GAPS more. */
+export function refDelta(sdSC = SD_AT_SC): Record<DomainId, number> {
+  const r = 1 - sdSC / TOP_SD;
+  const o = r + ASI_EXTRA.gaps;
   return { CODE: 0, AGENCY: 0, RSCH: r, REASON: r, SOCIAL: o, MEDIA: o, CYBER: o, BIO: o, PHYS: o };
-})();
+}
+export const REF_DELTA: Record<DomainId, number> = refDelta();
 /** Level offsets (preference, paradigms, the RSCH taste penalty) convert to OOM at this rate (V2's conversion). */
 export const LEVEL_PER_OOM = 1.2;
 
@@ -119,16 +125,18 @@ export const DAY0_REF = { re: 11 * 0.88, agents: 3e4, flop: 1e6 * 0.05 * 3.46e19
 
 // ───────────────────────────── per-preset calibration (V3.5, V3.7) ─────────────────────────────
 
-/** Per-preset AI Futures parameters and the two fitted values (V3 notes): G_SC, the effective compute a superhuman coder
+/** Per-preset AI Futures parameters and the fitted values (V3 notes): G_SC, the effective compute a superhuman coder
  *  needs (OOM; the timelines model's own parameter) [fit], Δ_bm, the best-to-median human gap in OOM (AIFM's AI taste
  *  slope = 3.09/Δ_bm SD per OOM) [fit], and r, the returns to research (doublings of software efficiency per doubling of
  *  cumulative research input): AIFM golden 3.19 (authors2026), AI 2027 takeoff median ≈ 4 (ai2027, fast: its p10
- *  takeoff), Forethought 1.2 (slow) [research/13 §2.2]. `sampled` uses ai2027's. Mutable so the harness can fit them. */
-export interface V3Cal { gSC: number; dBM: number; r: number }
+ *  takeoff), Forethought 1.2 (slow) [research/13 §2.2]; and sd_SC, AIFM's AI research taste at the automated coder (median 0.5 SD,
+ *  kept where (G_SC, Δ_bm) fit; fitted for authors2026, 1.8 SD, inside AIFM's 80% CI −2.5…3.5) [fit, V3b]. `sampled` uses
+ *  ai2027's. Mutable so the harness can fit them. */
+export interface V3Cal { gSC: number; dBM: number; r: number; sdSC: number }
 export const V3_CAL: Record<WorldPresetId, V3Cal> = {
-  ai2027: { gSC: 31.394, dBM: 1.933, r: 4 },
-  authors2026: { gSC: 33.5, dBM: 3.142, r: 3.19 },
-  fast: { gSC: 32.663, dBM: 0.347, r: 4 },
-  slow: { gSC: 35.505, dBM: 1.6, r: 1.2 },
-  sampled: { gSC: 31.394, dBM: 1.933, r: 4 },
+  ai2027: { gSC: 30.497, dBM: 2.2, r: 4, sdSC: SD_AT_SC },
+  authors2026: { gSC: 33.62, dBM: 4.606, r: 3.19, sdSC: 1.8 },
+  fast: { gSC: 31.593, dBM: 0.17, r: 4, sdSC: SD_AT_SC },
+  slow: { gSC: 35.447, dBM: 1.6, r: 1.2, sdSC: SD_AT_SC },
+  sampled: { gSC: 30.497, dBM: 2.2, r: 4, sdSC: SD_AT_SC },
 };

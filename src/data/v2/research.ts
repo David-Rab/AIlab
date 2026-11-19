@@ -55,7 +55,7 @@ export const PACE_BATCH = 30;
  *  preset's r, the pool's start state n₀ from the first idea's mean μ₁ = effect.mean × LINE_FIT.mu. LINE_FIT.mu scales every
  *  line's start effect [fit: the reference lab's pretraining stack ≈ 0.48 OOM/yr in its first year, Ho et al., R20 B1;
  *  calib.ts --fit-lines] (an object so the calibration harness can set it). */
-export const LINE_FIT = { mu: 0.69 };
+export const LINE_FIT = { mu: 0.645 };
 
 // ───────────────────────────── stage costs ─────────────────────────────
 

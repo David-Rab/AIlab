@@ -13,8 +13,8 @@
 //   R5  RefBot's build queue never delays a run by more than 3 days (stub and integrated).
 import { readFileSync } from 'node:fs';
 import { GOLDEN_TOL, LEADER_CAL } from '../../src/data/v2/calibration';
-import { V3_CAL } from '../../src/data/v2/workTypes';
-import { h50Of } from '../../src/engine/v2/models/capability';
+import { ASI_EXTRA, V3_CAL } from '../../src/data/v2/workTypes';
+import { gOfBuild, h50Of } from '../../src/engine/v2/models/capability';
 import { bestPlayerVersion } from '../../src/engine/v2/models/labs';
 import { researchSpeedRel } from '../../src/engine/v2/production/production';
 import { speedOfCopy, workContext } from '../../src/engine/v2/departments/workfit';
@@ -41,9 +41,10 @@ type T1Preset = 'ai2027' | 'authors2026' | 'fast' | 'slow';
 const T1_PRESETS: T1Preset[] = ['ai2027', 'authors2026', 'fast', 'slow'];
 const yearOf = (d: number) => Math.round(decimalYearOf(START_DATE, d) * 1000) / 1000;
 
-function runT1(preset: WorldPresetId, cal: { gSC: number; dBM: number }, seed = SEED, stopAt: MilestoneIdx = 6, maxDays = 365 * 16, observe?: (s: GameStateV2) => void): GameStateV2 {
+function runT1(preset: WorldPresetId, cal: { gSC: number; dBM: number; sdSC?: number }, seed = SEED, stopAt: MilestoneIdx = 6, maxDays = 365 * 16, observe?: (s: GameStateV2) => void): GameStateV2 {
   V3_CAL[preset].gSC = cal.gSC;
   V3_CAL[preset].dBM = cal.dBM;
+  if (cal.sdSC !== undefined) V3_CAL[preset].sdSC = cal.sdSC;
   const s = refGame(defaultSetupV2({ world: preset, alignment: 'medium', seed }));
   return runRef(s, maxDays, (x) => {
     observe?.(x);
@@ -127,13 +128,18 @@ function fitV3(preset: T1Preset): { gSC: number; dBM: number; worst: number; d: 
   return best;
 }
 
+// The third per-preset value (V3b): AIFM's AI taste at the automated coder, sd_SC. `V3_SD=1.5` fits G_SC and Δ_bm at
+// that sd_SC (run several in parallel and keep the best); default: the preset's current value.
+if (process.env.V3_SD) for (const p of T1_PRESETS) V3_CAL[p].sdSC = Number(process.env.V3_SD);
+// Experiments with the global ASI gap (AIFM ASI 12–15 SD = 0.9–1.85 best-to-median gaps beyond SIAR): V3_ASI=1.3.
+if (process.env.V3_ASI) ASI_EXTRA.gaps = Number(process.env.V3_ASI);
 if (process.argv.includes('--fit-v3')) {
   const named = process.argv.slice(process.argv.indexOf('--fit-v3') + 1).filter((p): p is T1Preset => (T1_PRESETS as string[]).includes(p));
   const out: Record<string, { gSC: number; dBM: number }> = {};
   for (const p of named.length ? named : T1_PRESETS) {
     const f = fitV3(p);
     out[p] = { gSC: f.gSC, dBM: Math.round(f.dBM * 1000) / 1000 };
-    console.log(`V3_CAL ${p}: G_SC ${f.gSC}, Δ_bm ${f.dBM.toFixed(3)} (worst ${f.worst.toFixed(2)} tol: ${f.d.map((x) => x.toFixed(3)).join(' ')})`);
+    console.log(`V3_CAL ${p}: G_SC ${f.gSC}, Δ_bm ${f.dBM.toFixed(3)}, sd_SC ${V3_CAL[p].sdSC} (worst ${f.worst.toFixed(2)} tol: ${f.d.map((x) => x.toFixed(3)).join(' ')})`);
   }
   console.log(`V3_CAL = ${JSON.stringify(out)}  (sampled: use the ai2027 value)`);
   process.exit(0);
@@ -308,6 +314,10 @@ Object.assign(KNOWN, {
 const table: string[] = [];
 const delays: string[] = [];
 const stackRates: string[] = [];
+/** research/12 §0.2 frontier anchors (best public model, G = log₁₀ effective compute). */
+const G_ANCHORS: [string, number][] = [['2025-08-15', 28.0], ['2025-11-15', 28.4], ['2026-02-15', 28.7], ['2026-04-15', 29.0], ['2026-10-15', 29.4]];
+const G_PATH_FROM = dayOfDate(START_DATE, '2025-08-01');
+const G_PATH_TO = dayOfDate(START_DATE, '2026-11-30');
 const v3checks: string[] = [];
 for (const preset of T1_PRESETS) {
   const cal = { gSC: V3_CAL[preset].gSC, dBM: V3_CAL[preset].dBM };
@@ -322,12 +332,17 @@ for (const preset of T1_PRESETS) {
   let h0: number | undefined;
   let h1: { day: number; h: number } | undefined;
   const d2027 = dayOfDate(START_DATE, '2027-01-01');
+  // MODEL-V3 §13: the frontier G path to 2026 (research/12 §0.2 anchors, ±0.2 G). RefBot's best model is a staircase (a
+  // base every 9 months), so the check reads the least-squares line through its daily G from Aug 2025 to Nov 2026 at
+  // each anchor date, and reports the raw staircase too.
+  const gPath: { day: number; g: number }[] = [];
   const s = runT1(preset, cal, SEED, lastIdx(preset), 365 * 16, (x) => {
     watch(x);
     if (x.time.day === 1) start = { M: x.player.prodCache?.M ?? 0, rs: researchSpeedRel(x) };
     const bv = bestPlayerVersion(x);
     if (bv && x.time.day === 0) h0 = h50Of(x.hidden.timeline, bv);
     if (bv && x.time.day === d2027) h1 = { day: x.time.day, h: h50Of(x.hidden.timeline, bv) };
+    if (bv?.build && x.time.day >= G_PATH_FROM && x.time.day <= G_PATH_TO) gPath.push({ day: x.time.day, g: gOfBuild(bv.build) });
     if (x.player.milestoneDays[3] === undefined && (x.time.day % 7 === 0)) stackAt0.push({ day: x.time.day, pre: ePreAt(x, latestBaseFlop(x)), g: stacksGEquiv(x) });
   });
   if (stackAt0.length > 2) {
@@ -337,11 +352,24 @@ for (const preset of T1_PRESETS) {
     const yrs = (b.day - a.day) / 365;
     stackRates.push(`${preset} pretraining stack ${((y1.pre - a.pre) / ((y1.day - a.day) / 365)).toFixed(2)} OOM/yr in the first year, ${((b.pre - a.pre) / yrs).toFixed(2)} OOM/yr start → SC; all stacks (G-equivalent) ${((y1.g - a.g) / ((y1.day - a.day) / 365)).toFixed(2)} / ${((b.g - a.g) / yrs).toFixed(2)} OOM/yr`);
   }
+  if (gPath.length > 30) {
+    const n = gPath.length;
+    const mx = gPath.reduce((a, r) => a + r.day, 0) / n;
+    const my = gPath.reduce((a, r) => a + r.g, 0) / n;
+    const slope = gPath.reduce((a, r) => a + (r.day - mx) * (r.g - my), 0) / gPath.reduce((a, r) => a + (r.day - mx) ** 2, 0);
+    const fitAt = (d: number) => my + slope * (d - mx);
+    const rows = G_ANCHORS.map(([date, g]) => { const d = dayOfDate(START_DATE, date); const raw = gPath.find((r) => r.day >= d)?.g ?? NaN; return { date, g, fit: fitAt(d), raw }; });
+    const worst = Math.max(...rows.map((r) => Math.abs(r.fit - r.g)));
+    v3checks.push(`${preset}: frontier G path (line) ${rows.map((r) => `${r.date} ${r.fit.toFixed(2)} (raw ${r.raw.toFixed(2)}, anchor ${r.g})`).join(', ')}; ${(slope * 365).toFixed(2)} G/yr (research/12: 1.1–1.3)`);
+    if (preset === 'ai2027') check(worst <= 0.2, 'MODEL-V3 §13 frontier G path to 2026 within ±0.2 G of research/12 §0.2 (least-squares line through RefBot\'s best model)', `worst ${worst.toFixed(2)} G, ${(slope * 365).toFixed(2)} G/yr`);
+  }
   if (start && h0 && h1) {
     const months = (h1.day / 30.44) / Math.log2(h1.h / h0);
     v3checks.push(`${preset}: research speed at start M ${start.M.toFixed(3)}, vs the leader's day 0 ×${start.rs.toFixed(2)}; METR h50 ${Math.round(h0)} → ${Math.round(h1.h)} min by 2027.0 = doubling every ${months.toFixed(1)} months (METR 4.2 ± 1)`);
     if (preset === 'ai2027') {
-      check(Math.abs(start.M - 1) <= 0.1 && Math.abs(start.rs - 1) <= 0.25, 'V3.7 research speed readout ≈ 1 at the start (leader, ai2027)', `M ${start.M.toFixed(3)}, ×${start.rs.toFixed(2)} of day 0`);
+      // The readout is M (research speed vs the same lab without AI labour). Research speed vs the leader's day-0 inputs is
+      // reported: on day 1 the auto mix has moved research compute to experiments (5% → ≈ 8% of compute), ≈ ×1.2.
+      check(Math.abs(start.M - 1) <= 0.1, 'V3.7 research speed readout M ≈ 1 at the start (leader, ai2027)', `M ${start.M.toFixed(3)}; ×${start.rs.toFixed(2)} the leader's day-0 research speed after the auto mix`);
       check(months >= 3.2 && months <= 5.2, 'V3.7 METR h50 doubling ≈ 4.2 months for the reference frontier 2025–26 (±1)', `${months.toFixed(1)} months`);
     }
   }
@@ -361,7 +389,7 @@ for (const preset of T1_PRESETS) {
     if (i < 3) check(got !== undefined && Math.abs(got - want) <= tol, `T1 ${preset} ${n}`, `got ${got ?? '—'} want ${want} ±${Math.round(tol)} d`);
     else check(got !== undefined && Math.abs(got - want) <= tol, `T1 ${preset} ${n}`, `got ${got ?? '—'} (${got === undefined ? '' : yearOf(got)}) want ${want} (${yearOf(want)}) ±${Math.round(tol)} d`);
   });
-  table.push(`${preset.padEnd(12)} G_SC ${cal.gSC.toFixed(3)} Δ_bm ${cal.dBM.toFixed(3)}  ${row.join('  ')}  [${(performance.now() - t0).toFixed(0)} ms]`);
+  table.push(`${preset.padEnd(12)} G_SC ${cal.gSC.toFixed(3)} Δ_bm ${cal.dBM.toFixed(3)} sd_SC ${V3_CAL[preset].sdSC}  ${row.join('  ')}  [${(performance.now() - t0).toFixed(0)} ms]`);
 }
 console.log('\nT1 RefBot milestone years (Δ vs golden, years):');
 for (const r of table) console.log('  ' + r);

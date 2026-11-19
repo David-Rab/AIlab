@@ -16,7 +16,7 @@ import { leaseAvailableGW } from '../compute/sites';
 import { RPH_MCAP, TRUSTED_PREMIUM, revenueReadout, servingPool } from '../worldfx/revenue';
 import { idleChips } from '../compute/forecast';
 import { idleTeams } from '../models/tree';
-import { multiplierRef } from '../world/calibration';
+import { bridgeQ, multiplierRef } from '../world/calibration';
 import { outsidersWithAccess } from '../safety/incidents';
 import type { Deployment, GameStateV2, ModelVersion } from '../types';
 
@@ -114,7 +114,7 @@ export function siteSizeView(s: GameStateV2, path: keyof typeof SITE_PATHS): { m
 
 /** Revenue-per-chip research-speed cap on a product's model (LIMITS revenue.speedCap). */
 export function revenueSpeedCap(s: GameStateV2, v: ModelVersion | undefined): { M: number; capped: boolean; cap: number } {
-  const M = v ? multiplierRef(s.hidden.timeline, v.pm + s.hidden.timeline.calShift) : 0; // BRIDGE(V4): revenue per chip still reads M
+  const M = v ? multiplierRef(s.hidden.timeline, bridgeQ(s.hidden.timeline, v.pm)) : 0; // BRIDGE(V4): revenue per chip still reads M
   return { M, capped: M > RPH_MCAP, cap: RPH_MCAP };
 }
 

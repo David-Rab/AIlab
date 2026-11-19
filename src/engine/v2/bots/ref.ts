@@ -28,6 +28,8 @@ import { REF_ROLE_SHARE, SAF_ROLE_SHARE, TEAM_SIZE } from '../../../data/v2/team
 import type { BotPolicy, ComputeSplit, EngineApi, GameStateV2, ModelVersion, PendingDecision, TeamKey, TrainingRun } from '../types';
 import { bestMeasuredL } from '../models/labs';
 import { measuredDomain } from '../models/paradigms';
+import { levelOfPmV2, pmOfLevel } from '../world/calibration';
+import { CAL_SHIFT } from '../../../data/v2/calibration';
 import { missingNeeds, nodeKnown, optionLocked } from '../models/tree';
 import { TREE_BY_ID, TREE_RETRY_DAYS } from '../../../data/v2/tree';
 import { COLUMN_DEPT } from '../../../data/v2/teams';
@@ -37,7 +39,15 @@ type Params = Record<string, number | string | boolean>;
 
 /** A tree project a bot queues once `when` holds (and its prerequisites are known). */
 export interface TreeGoal { id: string; when?: (s: GameStateV2) => boolean }
-const L = (s: GameStateV2) => bestMeasuredL(s);
+/** A measured level on the display scale read on v2's level scale (model v3 V3b): the display level λ(G) moved onto the
+ *  work-type reference points, but RefBot's research pacing gates were set on v2's levels ("when the old gate would have
+ *  opened"), so the reference policy reads them there and starts each project at the same capability as before. */
+export function v2Level(s: GameStateV2, L: number): number {
+  const w = s.hidden.timeline;
+  return levelOfPmV2(w, pmOfLevel(w, L, w.p0 - 10, w.p0 + 80), CAL_SHIFT[s.setup.world]);
+}
+const L = (s: GameStateV2) => v2Level(s, bestMeasuredL(s));
+const RSCH = (s: GameStateV2) => v2Level(s, measuredDomain(s, 'RSCH'));
 /** RefBot's research (§3.3.3 "RefBot paradigm policy", R4): the engine has no capability gates, so the bot keeps the
  *  old pacing by starting each project when the old gate would have opened (tier 2: measured L ≥ 6.5, tier 3: 8.5;
  *  P08 L ≥ 7; P13 RSCH ≥ 8.5; P17 L ≥ 9.5). RL focus: ML research is P13's prerequisite on the tree. */
@@ -46,7 +56,7 @@ export const REF_TREE: TreeGoal[] = [
   { id: 'P05' },
   { id: 'P08', when: (s) => L(s) >= 7 },
   { id: 'rl.mlResearch', when: (s) => L(s) >= 6.5 },
-  { id: 'P13', when: (s) => L(s) >= 6.5 && measuredDomain(s, 'RSCH') >= 8.5 },
+  { id: 'P13', when: (s) => L(s) >= 6.5 && RSCH(s) >= 8.5 },
   { id: 'P17', when: (s) => L(s) >= 9.5 },
   { id: 'P19', when: (s) => L(s) >= 8.5 },
 ];

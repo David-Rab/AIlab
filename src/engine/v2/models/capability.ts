@@ -1,9 +1,9 @@
 // Capability: the G → pm bridge, the know-how readout zero, levels, domains, horizons, milestones, true lead
 // (V2-SPEC §3.1.3–3.1.6; model v3 V1: design/MODEL-V3.md §2, design/V3-BUILD.md "Bridges"). Owner: WS1.
 import { B0_START_DAY, LEVEL_KNOTS, REF_OFF, RSCH_TASTE_PENALTY, DOMAIN_IDS, V0_DAY } from '../../../data/v2/calibration';
-import { B_G_PER_Y, E_START, RL_BUDGET, REFERENCE_BASE } from '../../../data/v2/runDesign';
+import { B_G_PER_Y, E_B0, RL_BUDGET, REFERENCE_BASE } from '../../../data/v2/runDesign';
 import { milestoneThresholds, multiplierAt, stage1 } from '../../../data/world';
-import { H50_PER_OOM, H50_V0_MIN, H80_OVER_H50, LEVEL_PER_OOM } from '../../../data/v2/workTypes';
+import { COGNITIVE_WORK, H50_PER_OOM, H50_V0_MIN, H80_OVER_H50, LEVEL_PER_OOM, WORK_TYPES, refDelta } from '../../../data/v2/workTypes';
 import { labMilestones } from '../departments/workfit';
 import { clamp } from '../../rng';
 import { START_DATE, dayOfDate, decimalYearOf } from '../core/time';
@@ -18,6 +18,45 @@ import { REF_RL_PROFILE, flopOfDesign, gPreOf, rlFamiliesAvailable, rlGains, rlW
 export const MILESTONE_NAMES = ['Agent', 'Reliable agent', 'Research agent', 'Superhuman coder', 'Superhuman AI researcher', 'Superintelligent AI researcher', 'Superintelligence'];
 
 export { levelOf };
+
+// ───────────────────────────── display level λ(G) (model v3 V3b) ─────────────────────────────
+
+/** Reference-recipe effective compute of the level knots (OOM): V0 (the 2025 start, L 5) and the points where a model
+ *  with the reference recipe meets the work-type milestones: SC (SWE at the best human), SAR (IDEAS at the best human;
+ *  EXP is below it), SIAR (IDEAS 2·Δ_bm beyond), ASI (every cognitive work type 2·Δ_bm beyond: OTHER binds). */
+const knotMemo = new WeakMap<TimelineWorld, number[]>();
+export function levelKnotsG(w: TimelineWorld): number[] {
+  const hit = knotMemo.get(w);
+  if (hit) return hit;
+  const rd = refDelta(w.v3.sdSC);
+  const best = (wt: keyof typeof WORK_TYPES) => {
+    let d = 0;
+    for (const [dom, x] of Object.entries(WORK_TYPES[wt].w) as [DomainId, number][]) d += x * rd[dom];
+    return w.v3.gSC + w.v3.dBM * d;
+  };
+  const ideas = Math.max(best('IDEAS'), best('EXP'));
+  const asi = Math.max(...COGNITIVE_WORK.map((wt) => best(wt))) + 2 * w.v3.dBM;
+  const g = [gV0(w), w.v3.gSC, ideas, best('IDEAS') + 2 * w.v3.dBM, Math.max(asi, best('IDEAS') + 2 * w.v3.dBM + 1e-3)];
+  knotMemo.set(w, g);
+  return g;
+}
+/** BRIDGE(V7): the display bridge's shift that lines the rivals' pm thresholds up with the player's work-type levels: the
+ *  SC threshold (milestoneThresholds[3] − calShift) at Φ(G_SC), so a rival reaching its SC on pm reads L 10 on λ(G) as the
+ *  player's superhuman coder does. Derived per world (model v3 V3b), not fitted; the rivals' q = pm + calShift path keeps
+ *  v2's through the simple-lab credit (CAL_SHIFT_V2 − calShift). */
+export function alignedCalShift(w: TimelineWorld): number {
+  return milestoneThresholds(asV1World(w))[3] - playerStart(w).target - (w.v3.gSC - gV0(w)) / B_G_PER_Y;
+}
+/** Level knots (V0 L 5; SC 10, SAR 12, SIAR 13.5, ASI 15 = v2's LEVEL_KNOTS at those milestones). */
+const LEVEL_AT = [LEVEL_KNOTS[0], LEVEL_KNOTS[3], LEVEL_KNOTS[4], LEVEL_KNOTS[5], LEVEL_KNOTS[6]];
+/** Display level λ(G): piecewise linear in effective compute through the knots (Epoch's capability index is close to
+ *  linear in log compute between them), below V0 at the first slope (≥ 0), capped at 15. */
+export function levelOfG(w: TimelineWorld, G: number): number {
+  const g = levelKnotsG(w);
+  if (G <= g[0]) return Math.max(0, LEVEL_AT[0] + ((LEVEL_AT[1] - LEVEL_AT[0]) / Math.max(1e-9, g[1] - g[0])) * (G - g[0]));
+  for (let i = 0; i < g.length - 1; i++) if (G < g[i + 1]) return LEVEL_AT[i] + ((LEVEL_AT[i + 1] - LEVEL_AT[i]) * (G - g[i])) / Math.max(1e-9, g[i + 1] - g[i]);
+  return LEVEL_AT[LEVEL_AT.length - 1];
+}
 
 const DAY_2029 = dayOfDate(START_DATE, '2029-01-01');
 
@@ -53,7 +92,7 @@ export function gV0(w: TimelineWorld): number {
   if (hit !== undefined) return hit;
   const ps = playerStart(w);
   const flop = flopOfDesign(REFERENCE_BASE);
-  const g = gPreOf({ flop, tpp: REFERENCE_BASE.tpp, recipe: E_START + startVintage(w, ps.paBase), shape: REFERENCE_BASE.shape, fData: 1, designDg: 0 }).total;
+  const g = gPreOf({ flop, tpp: REFERENCE_BASE.tpp, recipe: E_B0 + startVintage(w, ps.paBase), shape: REFERENCE_BASE.shape, fData: 1, designDg: 0 }).total;
   const rl = rlGains(flop, RL_BUDGET.standard * flop, rlWeights('broad', rlFamiliesAvailable(() => false)), startVintage(w, ps.paPost));
   const out = g + rl.general;
   gV0Cache.set(w, out);
