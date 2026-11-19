@@ -1,8 +1,9 @@
 // Revenue per product: demand in AI work-hours (sectors) and subscribers (consumer) × the product's price, against its
 // serving capacity (V2-SPEC §3.11.3; model v3 V4.2: design/MODEL-V3.md §7.3, design/V3-BUILD.md "V4 notes"). Owner: WS5.
 //
-//   use_s,r     = A_s·E0_s·2000   hours of AI use: every adopted task-hour runs the AI (research/16); it saves
-//                 (α + (1 − α)·g_aug) hours of the work (substituted vs augmented)
+//   use_s,r     = U_s·E0_s·2000   hours of AI use (A2a, worldfx/use.ts): U = A + h_s·(W − A), every task-hour firms
+//                 handed to AI (A, research/16) plus workers' assisted use (W workers, h_s of their other hours); it saves
+//                 (α_use + (1 − α_use)·g_aug) hours of the work, α_use = α·A/U (research/22 §1: ≈0.35)
 //   player      = customer-stock share × use hours × channel split × (1 + the product's enabler segments)
 //   price       = min(markup × the product's cost per hour of use, value = wage × hours saved) (worldfx/serving.ts)
 //   demand $    = Σ hours × price;  need H100e = Σ hours × H100e-hours per work-hour ÷ 8766, + the monitor's overhead
@@ -21,6 +22,7 @@ import { SECTOR_CHANNELS, advanceCustomers, paidDeployments, worldMix, type Worl
 import { monitorOverhead, productDomains } from '../models/products';
 import { versionById } from '../models/labs';
 import { sigmoid } from './policy';
+import { alphaUseOf, savedAt, useShareOf } from './use';
 import { bookCash } from '../finance/ledger';
 import { revenueToParent } from '../finance/parent';
 import { flopPerToken } from '../departments/workfit';
@@ -74,10 +76,10 @@ export interface RevenueReadout {
   consumerSpend: Record<RegionId, Money>;
 }
 
-/** Hours of AI use a year in one sector and region: every adopted task-hour (A·E0·2000). */
+/** Hours of AI use a year in one sector and region: U·E0·2000 (adopted task-hours plus workers' assisted use, A2a). */
 export function sectorHours(s: GameStateV2, r: RegionId, sid: SectorId): number {
   const st = s.world.sectors[r][sid];
-  return st.A * st.E0 * ECON.hours;
+  return useShareOf(st, sid) * st.E0 * ECON.hours;
 }
 /** AI spend of one sector in one region ($B/yr): its AI work-hours × the share-weighted price per work-hour. */
 export function sectorSpend(s: GameStateV2, r: RegionId, sid: SectorId, mix: WorldMix): Money {
@@ -223,7 +225,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s)): Rev
       marketSpend[r] += (hours * m.price) / 1e9;
       if (playerIdx < 0 || !m.share[playerIdx]) return;
       const st = s.world.sectors[r][def.id];
-      const hf = st.alpha + (1 - st.alpha) * ECON.gAug;
+      const hf = savedAt(alphaUseOf(st, def.id));
       const ph = m.share[playerIdx] * hours;
       const { ws, wsum } = secW[si];
       if (!wsum) return;
@@ -231,10 +233,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s)): Rev
       for (const [d, w, o, en] of ws) {
         let x = ((ph * w) / wsum) * en;
         // usage policy "no drop-in replacement" caps the player's α at 0.5 (fewer hours per adopted task)
-        if (d.usagePolicy.noDropInReplacement) {
-          const a2 = Math.min(st.alpha, 0.5);
-          x *= (a2 + (1 - a2) * ECON.gAug) / hf;
-        }
+        if (d.usagePolicy.noDropInReplacement) x *= savedAt(alphaUseOf(st, def.id, Math.min(st.alpha, 0.5))) / hf;
         if (d.channel === 'api' || d.channel === 'agents') x *= 1 - 0.02 * d.kyc;
         if (d.status === 'restricted') x *= 0.3;
         const want = o.price * (d.channel === 'trusted' ? TRUSTED_PREMIUM : 1);

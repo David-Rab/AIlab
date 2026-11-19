@@ -11,7 +11,7 @@ import { LEVERAGE_THRESHOLDS, leverage, leverageTier } from '../../src/engine/v2
 import { HEADLINES } from '../../src/engine/v2/worldfx/headlines';
 import { automationTfp } from '../../src/engine/v2/worldfx/macro';
 import { POLICY_FLAGS } from '../../src/engine/v2/worldfx/policy';
-import { firmAdoption, remoteWorkAutomation, youthExposedEmployment } from '../../src/engine/v2/worldfx/readouts';
+import { firmAdoption, remoteWorkAutomation, workUse, youthExposedEmployment } from '../../src/engine/v2/worldfx/readouts';
 import { revenueOf } from '../../src/engine/v2/worldfx/revenue';
 import type { GameStateV2, SetupV2, TickOptions } from '../../src/engine/v2/types';
 import { refBot } from '../../src/engine/v2/bots/ref';
@@ -42,10 +42,10 @@ interface Trace {
   firstRemote25?: number;
   firstU12?: number;
   firstAccept85?: number;
-  at: Record<string, { dow: number; U: number; youthSoft: number; youthU: number; friend: number; hireSoft: number; youthX: number; firm: number; rev: number }>;
+  at: Record<string, { dow: number; U: number; youthSoft: number; youthU: number; friend: number; hireSoft: number; youthX: number; firm: number; rev: number; use: ReturnType<typeof workUse> }>;
 }
 
-const MARKS = ['2025-07-31', '2026-01-01', '2026-11-01', '2026-12-31', '2027-07-01', '2027-10-01', '2027-12-31'];
+const MARKS = ['2025-07-02', '2025-07-31', '2026-01-01', '2026-07-01', '2026-11-01', '2026-12-31', '2027-07-01', '2027-10-01', '2027-12-31'];
 
 /** One day of real reference play: RefBot decides pending events, acts, then the engine ticks (endings skipped). */
 function refDay(s: GameStateV2, opts: { noSez?: boolean } = {}) {
@@ -80,6 +80,7 @@ function run(over: Partial<SetupV2>, days: number, opts: { noSez?: boolean } = {
       tr.at[m] = {
         dow: W.dow, U: W.unemployment.US, youthSoft: W.fx.youthRel.SOFT, youthU: W.youthUnemployment, friend: W.friendShare,
         hireSoft: W.sectors.US.SOFT.hireRate, youthX: youthExposedEmployment(s), firm: firmAdoption(s), rev: s.player.finance.revenueRun,
+        use: workUse(s, 'US'),
       };
     }
   }
@@ -106,6 +107,22 @@ check(at['2027-07-01'].friend >= 0.07 && at['2027-07-01'].friend <= 0.13, 'Jul 2
 check(within(c.firstRemote25, '2027-10-01'), 'Oct 2027 (±3 mo): 25% of remote-work jobs done by AI', fmt(c.firstRemote25));
 check(within(c.firstU12, '2027-10-01'), 'Oct 2027 (±3 mo): U +1 pp over 12 months', fmt(c.firstU12));
 check(within(c.firstAccept85, '2027-12-15'), 'Dec 2027 (±3 mo): GOV T1 Accept ≥ 0.85', fmt(c.firstAccept85));
+// A2a: hours of AI use and hours saved per hour of use from the worker surveys (research/22 §1; Bick, Blandin & Deming
+// RPS on FRED): 4.1% of US work-hours assisted (Q3 2024) → 5.7% (Q3 2025) → 6.3% (Q2 2026); 39–41% of workers; 2.2% of
+// hours saved, 0.35 per hour of use.
+{
+  const u0 = at['2025-07-02'].use;
+  const u26 = at['2026-07-01'].use;
+  const uEnd = at['2027-12-31'].use;
+  check(u26.hours >= 0.05 && u26.hours <= 0.065, 'A2a mid-2026: US hours of AI use ≈ 6% of work-hours (RPS 6.3% Q2 2026; 5–6.5%)', pct(u26.hours));
+  check(u0.savedPerHour >= 0.3 && u0.savedPerHour <= 0.4, 'A2a start: an hour of AI use saves ≈ 0.35 hours of work (RPS 2.2 / 6.3; 0.3–0.4)', u0.savedPerHour.toFixed(3));
+  check(u26.workers >= 0.35 && u26.workers <= 0.45, 'A2a 2026: ≈ 40% of US workers use AI at work (RPS 39–41%; 35–45%)', pct(u26.workers));
+  check(u26.saved >= 0.017 && u26.saved <= 0.027, 'A2a mid-2026: hours saved ≈ 2.2% of US work-hours (RPS)', pct(u26.saved));
+  check(uEnd.savedPerHour > u26.savedPerHour + 0.05 && u26.savedPerHour > u0.savedPerHour, 'A2a: hours saved per hour of use rise with agency (substituted share α·A/U grows)',
+    `${u0.savedPerHour.toFixed(3)} → ${u26.savedPerHour.toFixed(3)} → ${uEnd.savedPerHour.toFixed(3)}`);
+  check(at['2026-11-01'].firm < u26.workers - 0.1, 'A2a: firm adoption (BTOS analogue, firm-weighted) stays a separate, lower quantity than worker use', `firms ${pct(at['2026-11-01'].firm)} vs workers ${pct(u26.workers)}`);
+  console.log(`INFO  A2a US hours of use (share of work-hours; RPS 4.1% Q3 2024, 5.7% Q3 2025, 6.3% Q2 2026, 5.3% Q3 2026): ${MARKS.map((m) => `${m} ${pct(at[m].use.hours)} (workers ${pct(at[m].use.workers)}, saved/h ${at[m].use.savedPerHour.toFixed(2)})`).join('; ')}`);
+}
 check(validateJson(c.s).length === 0, 'world state stays plain JSON (classic run)', validateJson(c.s).slice(0, 3).join('; '));
 const fired = new Set(c.s.headlines.map((h) => h.id.split(':')[0]));
 const once = HEADLINES.filter((h) => h.cooldownDays === undefined).every((h) => c.s.headlines.filter((x) => x.id === h.id).length <= 1);
@@ -121,6 +138,7 @@ check(c.s.player.deployments.filter((d) => d.channel !== 'internal').every((d) =
   check(Math.abs(a.U - U0) <= 0.15, 'W4: aggregate unemployment effect ≈ 0 at Nov 2026', `${(a.U - U0).toFixed(2)} pp`);
   check(a.youthX >= 0.76 && a.youthX <= 0.86, 'W4: exposed 22–25-year-olds −19% vs counterfactual (±5 pp)', `${((a.youthX - 1) * 100).toFixed(1)}%`);
   check(a.firm >= 0.15 && a.firm <= 0.22, 'W4: firm adoption 17–20% (±2 pp)', pct(a.firm));
+  console.log(`INFO  W4 reality Nov 2026: US hours of use ${pct(a.use.hours)} (RPS 5.3% Q3 2026), workers using AI ${pct(a.use.workers)}, saved per hour of use ${a.use.savedPerHour.toFixed(3)}`);
   // Informational: the slower authors2026 timeline (SC 2029.7) gives weaker 2026 effects.
   const b = run({ baseline: 'reality', econ: 'ai2027', world: 'authors2026' }, D('2026-11-02')).at['2026-11-01'];
   console.log(`INFO  W4 on authors2026 world: U ${(b.U - U0).toFixed(2)} pp, exposed 22–25 ${((b.youthX - 1) * 100).toFixed(1)}%, firm adoption ${pct(b.firm)}`);

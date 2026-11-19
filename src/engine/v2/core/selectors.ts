@@ -53,7 +53,7 @@ export type { RiskBadge } from '../departments/agents';
 export { agentChangeBlock, agentsView, previewAgentChange, previewTrusted, withAgentChange } from '../departments/agentActions';
 export type { AgentChange, AgentLane, AgentPreview, AgentsView } from '../departments/agentActions';
 // WS5 world readouts (observables only).
-export { automationShare, dowYtd, firmAdoption, remoteWorkAutomation, unemploymentChange12m, youthExposedEmployment } from '../worldfx/readouts';
+export { automationShare, dowYtd, firmAdoption, remoteWorkAutomation, unemploymentChange12m, workUse, youthExposedEmployment } from '../worldfx/readouts';
 export { causeStrip } from './causes';
 export { activeRivals } from '../models/labs';
 export { dateOf, decimalYear, fmtDate, fmtMonth } from './time';

@@ -258,7 +258,7 @@ for (const rev of [1, 11, 12, 13, 14]) {
     msg = (e as Error).message;
   }
   // Model v3 V2 (schemaRev 13): V1 saves (12) are rejected too; model v3 V3 (schemaRev 14): V2 saves (13) too.
-  check(SCHEMA_REV === 16 && msg === `no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
+  check(SCHEMA_REV === 17 && msg === `no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
 }
 // Model v3 V4a (schemaRev 16): a V3b save (15) migrates (customer stocks start empty, versions get their FLOP per token).
 {
@@ -274,6 +274,21 @@ for (const rev of [1, 11, 12, 13, 14]) {
     msg = (e as Error).message;
   }
   check(!!g && !!g.world.fx.cust && g.player.models.versions.every((v) => (v.fpt ?? 0) > 0), 'save: a schemaRev-15 save migrates to 16 (customer stocks, FLOP per token)', msg);
+}
+// Model v3 A2a (schemaRev 17): a V4a save (16) migrates (the workers' AI use stock W starts at its ceiling).
+{
+  const old = JSON.parse(serialize(run(detSetup, 30))) as GameStateV2 & Record<string, unknown>;
+  old.schemaRev = 16;
+  for (const row of Object.values(old.world.sectors)) for (const st of Object.values(row)) delete (st as Partial<typeof st>).W;
+  let msg = '';
+  let g: GameStateV2 | undefined;
+  try {
+    g = deserialize(JSON.stringify(old));
+  } catch (e) {
+    msg = (e as Error).message;
+  }
+  const ok = !!g && Object.values(g.world.sectors).every((row) => Object.values(row).every((st) => st.W >= st.A && st.W > 0 && st.W <= 1));
+  check(ok, "save: a schemaRev-16 save migrates to 17 (workers' AI use W per sector, A ≤ W ≤ 1)", msg);
 }
 
 // ---------- 6. Cadences ----------

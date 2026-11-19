@@ -2,6 +2,7 @@
 // Pure functions of world state; no truth fields (safe for the UI).
 import { ECON, SECTORS } from '../../../data/v2/sectors';
 import type { GameStateV2, RegionId } from '../types';
+import { alphaUseOf, savedAt, useShareOf } from './use';
 
 /** Share of US remote-work (pure cognitive) tasks done by AI (AI 2027 Oct 2027: 25% of remote-work jobs). */
 export function remoteWorkAutomation(s: GameStateV2): number {
@@ -16,7 +17,8 @@ export function remoteWorkAutomation(s: GameStateV2): number {
   return e ? a / e : 0;
 }
 
-/** US firm AI adoption (Census BTOS analogue): employment-weighted 1 − exp(−k·A). */
+/** US firm AI adoption (Census BTOS analogue): employment-weighted 1 − exp(−k·A), A the firm-side task adoption (not
+ *  the workers' use W: BTOS counts firms, ≈18–20% in 2026, vs ≈40% of workers, research/22 §1). */
 export function firmAdoption(s: GameStateV2): number {
   let a = 0;
   let e = 0;
@@ -26,6 +28,25 @@ export function firmAdoption(s: GameStateV2): number {
     e += st.E0;
   }
   return a / e;
+}
+
+/** A2a: hours of AI use as a share of all work-hours in a region (US: the RPS "hours assisted", research/22 §1:
+ *  4.1% Q3 2024, 6.3% Q2 2026), the share of workers who use AI at work (RPS 39–41% in 2026), and the hours of work an
+ *  hour of use saves (0.35), all employment-weighted. Firm adoption above stays a separate (firm-weighted) quantity. */
+export function workUse(s: GameStateV2, r: RegionId = 'US'): { hours: number; workers: number; savedPerHour: number; saved: number } {
+  let u = 0;
+  let w = 0;
+  let sv = 0;
+  let e = 0;
+  for (const def of SECTORS) {
+    const st = s.world.sectors[r][def.id];
+    const U = useShareOf(st, def.id);
+    u += U * st.E0;
+    w += (st.W ?? st.A) * st.E0;
+    sv += U * savedAt(alphaUseOf(st, def.id)) * st.E0;
+    e += st.E0;
+  }
+  return { hours: u / e, workers: w / e, savedPerHour: u > 0 ? sv / u : 0, saved: sv / e };
 }
 
 /** Employment of 22–25-year-olds in the most exposed jobs vs counterfactual (Canaries; 1 = no effect). */

@@ -8,6 +8,8 @@ import { LEADER_FEATURES, PRICE_TIERS, tierOfIndex } from '../../../data/v2/feat
 import { TRUSTED_MAX_P27 } from '../../../data/v2/agents';
 import { initialAgents } from '../departments/agents';
 import { fptOfBuild } from '../departments/workfit';
+import { REGIONS, SECTORS } from '../../../data/v2/sectors';
+import { workerTarget } from '../worldfx/use';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
 /** 12 (model v3 V1): models are built from physical quantities (BaseModel, VersionBuild, BaseDesign, PostDesign changed).
@@ -21,8 +23,10 @@ import { fptOfBuild } from '../departments/workfit';
  *  from 14 ("no migration from schemaRev 14").
  *  16 (model v3 V4a): serving, products and sectors on work types — WorldFxState.cust (customer stocks), ModelVersion.fpt
  *  (serving FLOP per token), typed features, price tiers as markups over cost. Migration 15 → 16 adds empty customer
- *  stocks (they start at the market's logit shares on the next tick) and fills fpt from each version's base. */
-export const SCHEMA_REV = 16;
+ *  stocks (they start at the market's logit shares on the next tick) and fills fpt from each version's base.
+ *  17 (model v3 A2a): SectorState.W, the share of a sector's workers who use AI at work (hours of use = A + h·(W − A)).
+ *  Migration 16 → 17 starts it at its ceiling W* from the saved sector state. */
+export const SCHEMA_REV = 17;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -202,6 +206,14 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     const s = raw as unknown as GameStateV2;
     s.world.fx.cust ??= { US: {}, CN: {}, ROW: {} };
     for (const v of s.player.models.versions) v.fpt ??= fptOfBuild(s, v);
+  },
+  /** 16 → 17 (model v3 A2a): the workers' AI use stock W per sector, at its ceiling W* = max(A, W_b + (1 − W_b)·F). */
+  16: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    for (const r of REGIONS) for (const def of SECTORS) {
+      const st = s.world.sectors[r]?.[def.id];
+      if (st && st.W === undefined) st.W = workerTarget(def, r, st.F, st.A);
+    }
   },
 };
 

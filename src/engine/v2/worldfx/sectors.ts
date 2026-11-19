@@ -7,6 +7,8 @@
 //   3 K      = Σ share·σ(ln(Wage·W0 / (price + review))/0.7)   price per work-hour from each provider's physical cost
 //   4 A*     = F·K·(1 − R)                   R = R0·frictionScale + policy + incidents − certification
 //   5 A     += (p + q'·A/A*)(A* − A)/365·DiffMult;  A* < A → decays at 0.5/yr
+//     W     += (p + q'·W/W*)(W* − W)/365·DiffMult   workers using AI at work, W* = max(A, W_b + (1 − W_b)·F) (A2a,
+//              worldfx/use.ts); hours of use U = A + h_s·(W − A)
 //   6 α      = 0.25 + (α_max − 0.25)·σ((L_AGENCY − 8)/1.5);  D = α·A
 //   7 E      = E0·(1 − D)(1 + η·CR) ≥ floor;   CR = A·(1 − P_cost/(Wage·W0)), P_cost the buyer's cost per AI work-hour
 //   8 Hire   = 1 − 1.5·ΔF (ΔF vs a pre-LLM model's coverage) → youth (22–25) employment, youth unemployment
@@ -24,6 +26,7 @@ import { initialControl, updateControl } from './control';
 import { fireHeadlines } from './headlines';
 import { paidDeployments, worldMix, type WorldMix } from './mix';
 import { preLlmCover } from './serving';
+import { workerTarget } from './use';
 import { econOf, policyState, sigmoid, clamp01, clampR, type PolicyState } from './policy';
 import { ROBOT, advanceRobots } from './robots';
 import { advanceTechs, worldTechEffects } from './techtree';
@@ -97,7 +100,9 @@ function sectorState(def: SectorDef, r: RegionId, le: Record<DomainId, number>, 
   const E0 = E0of(def, r);
   const E = employmentTarget(def, r, E0, alpha * A, A, PCOST_START * wageOf(def, r));
   const hireRate = clamp01(1 - ECON.hireSlope * Math.max(0, F - F_PRE_START[def.id]));
-  return { F, K, R, Astar, A, alpha, E, E0, hireRate, binding: bindingOf(F, K, R, A, Astar) };
+  // A2a: the workers' use stock starts at its ceiling (the measured share of workers using AI at work).
+  const W = workerTarget(def, r, F, A);
+  return { F, K, R, Astar, A, alpha, W, E, E0, hireRate, binding: bindingOf(F, K, R, A, Astar) };
 }
 
 /** E = E0·(1 − D)(1 + η·CR), floored (R16 §1A.2 step 7); CR = A·(1 − P_cost/wage), P_cost the buyer's cost per AI
@@ -220,6 +225,11 @@ function updateRegion(s: GameStateV2, ctx: SystemCtx, r: RegionId, mix: WorldMix
     if (st.A < st.Astar) st.A += (def.p + (q * st.A) / Math.max(1e-6, st.Astar)) * (st.Astar - st.A) * dt * econ.diffMult;
     else st.A -= 0.5 * (st.A - st.Astar) * dt;
     st.A = clamp01(st.A);
+    // A2a: workers who use AI at work (Bass at the sector's p and q toward W*; slow disadoption as for A).
+    const Wstar = workerTarget(def, r, st.F, st.A);
+    if (st.W < Wstar) st.W += (def.p + (q * st.W) / Math.max(1e-6, Wstar)) * (Wstar - st.W) * dt * econ.diffMult;
+    else st.W -= 0.5 * (st.W - Wstar) * dt;
+    st.W = clamp01(Math.max(st.W, st.A));
     const a = alphaOf(def, le.AGENCY);
     const ps = playerIdx >= 0 ? m.share[playerIdx] : 0;
     st.alpha = noDropIn ? ps * Math.min(a, 0.5) + (1 - ps) * a : a;

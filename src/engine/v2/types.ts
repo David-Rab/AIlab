@@ -1511,6 +1511,8 @@ export interface WorldFxState {
 
 export interface SectorState {
   F: number; K: number; R: number; Astar: number; A: number; alpha: number;
+  /** Share of the sector's workers who use AI at work (weekly; a Bass stock, A2a). Hours of use = A + useH·(W − A). */
+  W: number;
   E: number; E0: number; hireRate: number; binding: 'capability' | 'cost' | 'friction' | 'diffusion';
 }
 

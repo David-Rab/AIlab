@@ -5,7 +5,7 @@
 //   H100e-h per w-hour  = FLOP per token (2·N_active of the served version) × (input ÷ U_prefill + output ÷ U_decode)
 //                         ÷ peak FLOP/s ÷ 3600, tokens per work-hour by work type × effort × scaffolds
 //   capacity            = serving H100e × 8766 h ÷ (H100e-hours per work-hour)   (work-hours per year)
-//   price               = min(markup × c, value) per hour of AI use (never below c); an hour of use saves (α + (1 − α)·g_aug) hours of
+//   price               = min(markup × c, value) per hour of AI use (never below c); an hour of use saves (α_use + (1 − α_use)·g_aug) hours of
 //                         the sector's work (substituted vs augmented), so value = wage × that; rivals price at their own
 //                         cost × RIVAL_MARKUP, China × CHINA_MARKUP
 //   sector coverage     a = σ((fit − θ_s)/s) × p(H_s | h50): the work-type function of V3 (departments/workfit.ts) with
@@ -28,6 +28,7 @@ import { gV0, h50Of, levelKnotsG, playerStart } from '../models/capability';
 import { B_G_PER_Y } from '../../../data/v2/runDesign';
 import { versionById } from '../models/labs';
 import { activeFeatures } from '../models/products';
+import { alphaUseOf, savedAt } from './use';
 import type { Deployment, DomainId, GameStateV2, ModelVersion, RegionId, SectorId, SimpleModel, TimelineWorld } from '../types';
 
 const sig = (x: number) => 1 / (1 + Math.exp(-x));
@@ -196,14 +197,15 @@ export function offerOf(s: GameStateV2, uses: ModelUse[], sid: SectorId | 'CHAT'
 /** Human wage per hour of a sector's work in a region ($). */
 export const wagePerHour = (sid: SectorId, r: RegionId) => SECTOR_DEF[sid].wage * REGION_SCALE[r].wage * ECON.W0;
 /** Hours of the sector's work an hour of AI use saves: substituted tasks a whole hour, augmented ones g_aug (research/16
- *  step 6). Tokens are spent over every hour of use (an assistant runs the whole time the human works). */
-export const savedPerUseHour = (s: GameStateV2, r: RegionId, sid: SectorId) => {
-  const st = s.world.sectors[r][sid];
-  return st.alpha + (1 - st.alpha) * ECON.gAug;
-};
-/** FLOP-bearing tokens per hour of AI use in a sector: α·autonomous + (1 − α)·assisted (α the US substitution share). */
+ *  step 6), at the substituted share of an hour of use α_use = α·A/U (A2a: workers' assisted hours substitute nothing;
+ *  ≈0.34 at the start, measured 0.35, research/22 §1e; rises with agency as α and A/U grow). Tokens are spent over every
+ *  hour of use (an assistant runs the whole time the human works). */
+export const savedPerUseHour = (s: GameStateV2, r: RegionId, sid: SectorId) => savedAt(alphaUseOf(s.world.sectors[r][sid], sid));
+/** FLOP-bearing tokens per hour of AI use in a sector: α_use·autonomous + (1 − α_use)·assisted (α_use the US substituted
+ *  share of an hour of use). */
 export function useTokens(s: GameStateV2, sid: SectorId): TokenProfile {
-  const a = s.world.sectors.US[sid]?.alpha ?? 0.25;
+  const st = s.world.sectors.US[sid];
+  const a = st ? alphaUseOf(st, sid) : 0.25;
   const x = SECTOR_WORK[sid].tokens;
   const y = TOKENS.autonomous;
   return { input: a * y.input + (1 - a) * x.input, output: a * y.output + (1 - a) * x.output };

@@ -7,6 +7,7 @@ import { paidDeployments, worldMix } from './mix';
 import { moonshotH100e, revenueReadout } from './revenue';
 import { mSci, lSci, scienceRate, techBlocker } from './techtree';
 import { internalVersion } from '../models/labs';
+import { alphaUseOf, savedAt, useShareOf } from './use';
 import { bookCash } from '../finance/ledger';
 import { buildWaitNew, pendingPack, queueBuild, SECTOR_PACK_TW } from '../departments/build';
 
@@ -30,7 +31,7 @@ function defaultSector(s: GameStateV2): SectorId | undefined {
   for (const id of SECTOR_IDS) {
     if (fx.certDay[id] !== undefined || pendingPack(s, id)) continue;
     const st = s.world.sectors.US[id];
-    const x = st.A * st.E0 * SECTOR_BY_ID[id].wage;
+    const x = useShareOf(st, id) * st.E0 * SECTOR_BY_ID[id].wage; // hours of AI use × wage (A2a)
     if (x > bx) {
       bx = x;
       best = id;
@@ -43,7 +44,7 @@ function defaultSector(s: GameStateV2): SectorId | undefined {
 function productGain(s: GameStateV2, sector: SectorId): number {
   const share = s.world.shares[sector]?.player ?? 0;
   const st = s.world.sectors.US[sector];
-  const spend = (st.A * st.E0 * 2000 * (st.alpha + (1 - st.alpha) * 0.3) * 0.06 * SECTOR_BY_ID[sector].wage * 35) / 1e9;
+  const spend = (useShareOf(st, sector) * st.E0 * 2000 * savedAt(alphaUseOf(st, sector)) * 0.06 * SECTOR_BY_ID[sector].wage * 35) / 1e9;
   const newShare = (share * Math.exp(1.05)) / (share * Math.exp(1.05) + (1 - share));
   return Math.max(0, (newShare - share) * spend * 2.8); // US + ROW
 }
