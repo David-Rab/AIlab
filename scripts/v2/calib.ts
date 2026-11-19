@@ -22,7 +22,10 @@ import { newGame } from '../../src/engine/v2/core/init';
 import { resolve, tick } from '../../src/engine/v2/core/loop';
 import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
 import { engine } from '../../src/engine/v2/index';
-import { GOLDEN_PATH, KNOWN, check, finish, refGame, runRef } from './lib';
+import { GOLDEN_PATH, HERE, KNOWN, check, finish, refGame, runRef } from './lib';
+import { join } from 'node:path';
+import { LINE_FIT } from '../../src/data/v2/research';
+import { ePreAt, latestBaseFlop, stacksGEquiv } from '../../src/engine/v2/models/stacks';
 import { TREE_BY_ID } from '../../src/data/v2/tree';
 import { effortOf } from '../../src/engine/v2/models/tree';
 
@@ -72,7 +75,7 @@ function worstErr(preset: T1Preset, cs: number): number {
  *  SC … ASI. */
 function fit(preset: T1Preset): number {
   const want = golden.presets[preset].days.SC;
-  let lo = -1;
+  let lo = -2.5; // model v3 V2: slow needs less than −1
   let hi = 3;
   for (let i = 0; i < 16; i++) {
     const mid = (lo + hi) / 2;
@@ -174,28 +177,34 @@ if (process.argv.includes('--fit-leader')) {
   process.exit(0);
 }
 
-// ---------- --fit-tree (R4): reference efforts of RefBot's tree projects ----------
-// RefBot starts each project when the old gate would have opened (bots/ref.ts REF_TREE). Before R4 a project took a
-// fixed number of days at RefBot's staffing (30 FTE + 2% of the experiment pool); now it takes effort / (M · √capacity).
-// The fit scales each node's effort (standard-team-months at M = 1) until every RefBot attempt (first and retries)
-// lasts its old duration, so adoption days stay where they were (D3: absolute M, fitted on RefBot). Presets: the named
-// ones (default ai2027); several presets combine by the geometric mean of their ratios. Prints `effortTM` values to
-// paste into src/data/v2/tree.ts.
-/** Pre-R4 effortDays of RefBot's paradigm projects (data/v2/paradigms.ts before R4). */
-const OLD_EFFORT_DAYS: Record<string, number> = { P05: 60, P07: 60, P08: 150, P13: 150, P17: 120 };
+// ---------- --fit-tree (R4; model v3 V2): reference efforts of RefBot's paradigm projects ----------
+// RefBot starts each paradigm project when the old gate would have opened (bots/ref.ts REF_TREE). Model v3 V2 runs them
+// through the research lifecycle (models/research.ts: ideation by science teams, experiments by research engineers),
+// so their efforts (standard-team-months at pace 1, split over the stages) are refitted until every successful RefBot
+// attempt lasts as long as it did under V1 (V1_DAYS, measured on V1's RefBot, seed 2027), so adoption days stay where
+// they were. Failed attempts are not fitted (a dud direction now fails after three dropped candidates). Presets: the
+// named ones (default ai2027); several presets combine by the geometric mean of their ratios. Prints `effortTM` values
+// for FITTED_EFFORT_TM in src/data/v2/tree.ts.
+/** V1 RefBot attempt durations (days, start to known), seed 2027. */
+const V1_DAYS: Record<T1Preset, Record<string, number>> = {
+  ai2027: { P07: 61, 'rl.mlResearch': 22, P08: 116, P13: 127, P17: 115 },
+  authors2026: { P07: 69, 'rl.mlResearch': 23, P08: 154, P13: 109, P17: 86 },
+  fast: { P07: 67, 'rl.mlResearch': 19, P08: 111, P13: 43, P17: 44 },
+  slow: { P07: 76, 'rl.mlResearch': 30, P08: 179 },
+};
+const FIT_IDS = ['P07', 'rl.mlResearch', 'P08', 'P13', 'P17'];
 function attemptDurations(preset: T1Preset): Record<string, number[]> {
   const s = refGame(defaultSetupV2({ world: preset, alignment: 'medium', seed: SEED }));
   const start: Record<string, number> = {};
   const out: Record<string, number[]> = {};
   const stop = lastIdx(preset);
   runRef(s, 365 * 16, (x) => {
-    for (const id of Object.keys(OLD_EFFORT_DAYS)) {
+    for (const id of FIT_IDS) {
       const st = x.player.tree[id];
       if (!st) continue;
       const k = `${id}@${st.attempts ?? 1}`;
       if (st.status === 'researching' && start[k] === undefined) start[k] = x.time.day;
-      // First two attempts only: later retries depend on the 'runs' stream draw and would make the fit chase noise.
-      if (st.status !== 'researching' && start[k] !== undefined && st.day === x.time.day && (st.attempts ?? 1) <= 2) (out[id] ??= []).push(x.time.day - start[k] + 1);
+      if (st.status === 'known' && start[k] !== undefined && st.day === x.time.day) (out[id] ??= []).push(x.time.day - start[k] + 1);
     }
     return x.player.milestoneDays[stop] !== undefined;
   });
@@ -210,9 +219,11 @@ if (process.argv.includes('--fit-tree')) {
     for (const p of presets) {
       const d = attemptDurations(p);
       for (const [id, ds] of Object.entries(d)) {
+        const want = V1_DAYS[p][id];
+        if (want === undefined) continue;
         const mean = ds.reduce((a, x) => a + x, 0) / ds.length;
-        (logR[id] ??= []).push(Math.log(OLD_EFFORT_DAYS[id] / Math.max(1, mean)));
-        rows.push(`${p}:${id} ${ds.join('/')} d`);
+        (logR[id] ??= []).push(Math.log(want / Math.max(1, mean)));
+        rows.push(`${p}:${id} ${ds.join('/')} d (V1 ${want})`);
       }
     }
     console.log(`  iter ${iter}: ${rows.join('  ')}`);
@@ -221,12 +232,53 @@ if (process.argv.includes('--fit-tree')) {
       const ratio = Math.exp(lr.reduce((a, x) => a + x, 0) / lr.length);
       worst = Math.max(worst, Math.abs(Math.log(ratio)));
       const n = TREE_BY_ID[id];
-      // Damped (the projects share teams, so a full step makes P08 and P13 alternate).
-      n.effortTM = Math.round(effortOf(n) * Math.pow(ratio, 0.6) * 100) / 100;
+      // Damped (the projects share teams and research engineers, so a full step makes them alternate).
+      n.effortTM = Math.round(effortOf(n) * Math.pow(ratio, 0.7) * 100) / 100;
     }
-    if (worst < 0.02) break;
+    if (worst < 0.04) break;
   }
-  console.log(`effortTM = ${JSON.stringify(Object.fromEntries(Object.keys(OLD_EFFORT_DAYS).map((id) => [id, TREE_BY_ID[id].effortTM])))}`);
+  console.log(`effortTM = ${JSON.stringify(Object.fromEntries(FIT_IDS.map((id) => [id, TREE_BY_ID[id].effortTM])))}`);
+  process.exit(0);
+}
+
+// ---------- --fit-lines (model v3 V2, V3-BUILD V2.8): the line prior scale LINE_FIT.mu ----------
+// The reference lab's stacks should track V1's know-how bridge B·(pa − pa₀) (V1_BRIDGE: weekly samples of V1's RefBot,
+// seed 2027, scripts/v2/golden/v1-bridge.json). The fit bisects LINE_FIT.mu on the log-ratio of the G-equivalent
+// stack total to the bridge, averaged over the samples from the first base to SC (the pre-automation era the
+// milestone dates hang on; the takeoff follows through the production function).
+if (process.argv.includes('--fit-lines')) {
+  const named = process.argv.slice(process.argv.indexOf('--fit-lines') + 1).filter((p): p is T1Preset => (T1_PRESETS as string[]).includes(p));
+  const presets = named.length ? named : (['ai2027'] as T1Preset[]);
+  const bridge = JSON.parse(readFileSync(join(HERE, 'golden', 'v1-bridge.json'), 'utf8')) as Record<string, { day: number; e: number }[]>;
+  const err = (p: T1Preset, mu: number) => {
+    LINE_FIT.mu = mu;
+    const s = refGame(defaultSetupV2({ world: p, alignment: 'medium', seed: SEED }));
+    const ref = bridge[p];
+    const sc = golden.presets[p].days.SC;
+    let sum = 0;
+    let n = 0;
+    runRef(s, sc, (x) => {
+      if (x.time.day % 7 === 0 && x.time.day >= 182) {
+        const b = ref.find((r) => r.day === x.time.day);
+        if (b && b.e > 0.05) {
+          sum += Math.log(Math.max(1e-3, stacksGEquiv(x)) / b.e);
+          n++;
+        }
+      }
+      return false;
+    });
+    return n ? sum / n : 0;
+  };
+  for (const p of presets) {
+    let lo = 0.05;
+    let hi = 2;
+    for (let i = 0; i < 12; i++) {
+      const mid = Math.sqrt(lo * hi);
+      if (err(p, mid) > 0) hi = mid;
+      else lo = mid;
+    }
+    console.log(`LINE_FIT.mu ${p} = ${Math.sqrt(lo * hi).toFixed(4)}`);
+  }
   process.exit(0);
 }
 
@@ -240,11 +292,25 @@ Object.assign(KNOWN, {
 });
 const table: string[] = [];
 const delays: string[] = [];
+const stackRates: string[] = [];
 for (const preset of T1_PRESETS) {
   const cs = CAL_SHIFT[preset];
   const t0 = performance.now();
   const waits = new Map<string, number>();
-  const s = runT1(preset, cs, SEED, lastIdx(preset), 365 * 16, buildDelays(waits));
+  // V3-BUILD V2.8: the reference lab's pretraining stack and all stacks (G-equivalent) before SC.
+  const stackAt0: { day: number; pre: number; g: number }[] = [];
+  const watch = buildDelays(waits);
+  const s = runT1(preset, cs, SEED, lastIdx(preset), 365 * 16, (x) => {
+    watch(x);
+    if (x.player.milestoneDays[3] === undefined && (x.time.day % 7 === 0)) stackAt0.push({ day: x.time.day, pre: ePreAt(x, latestBaseFlop(x)), g: stacksGEquiv(x) });
+  });
+  if (stackAt0.length > 2) {
+    const a = stackAt0[0];
+    const y1 = stackAt0.find((r) => r.day >= 365) ?? stackAt0[stackAt0.length - 1];
+    const b = stackAt0[stackAt0.length - 1];
+    const yrs = (b.day - a.day) / 365;
+    stackRates.push(`${preset} pretraining stack ${((y1.pre - a.pre) / ((y1.day - a.day) / 365)).toFixed(2)} OOM/yr in the first year, ${((b.pre - a.pre) / yrs).toFixed(2)} OOM/yr start → SC; all stacks (G-equivalent) ${((y1.g - a.g) / ((y1.day - a.day) / 365)).toFixed(2)} / ${((b.g - a.g) / yrs).toFixed(2)} OOM/yr`);
+  }
   const worstWait = Math.max(0, ...waits.values());
   delays.push(`${preset} ${worstWait} d over ${waits.size} runs`);
   check(worstWait <= 3, `R5 build queue never delays a RefBot run > 3 d (${preset})`, `worst ${worstWait} d`);
@@ -266,6 +332,8 @@ for (const preset of T1_PRESETS) {
 console.log('\nT1 RefBot milestone years (Δ vs golden, years):');
 for (const r of table) console.log('  ' + r);
 console.log(`  R5 build queue, worst wait for engineers: ${delays.join(', ')}`);
+console.log('\nV2.8 stacks before SC (Ho et al. ≈ 0.48 OOM/yr pretraining before automation, ±30%):');
+for (const r of stackRates) console.log('  ' + r);
 
 // ---------- T1L: the leader lab (passive player) hits the golden days; SC and later bind, A1/A2 informational ----------
 {

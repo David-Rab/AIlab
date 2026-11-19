@@ -704,7 +704,9 @@ await page.evaluate((j) => window.ai27v2.importJson(j), fx);
 await page.evaluate(() => { window.ai27v2.state.setup.tutorial = false; window.ai27v2.notify(); });
 await closeModals();
 await page.click('[data-speed="4"]');
-await wait(2000);
+// Model v3 V2a: the day-400 fixture has no run in flight, so the first alert can take longer than 2 s; run until one
+// shows (at most 10 s).
+for (let i = 0; i < 20 && !(await page.$$('.queue-row .alert-chip2, .queue-row .dec-chip2')).length; i++) await wait(500);
 await pause();
 await closeModals();
 ok('Alerts/decisions shown in queue', (await page.$$('.queue-row .alert-chip2, .queue-row .dec-chip2')).length > 0);

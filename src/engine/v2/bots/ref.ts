@@ -57,10 +57,11 @@ export const REF_TREE: TreeGoal[] = [
 export const REF_RESEARCH_LINES: { id: string; w: number }[] = [
   { id: 'L.scale', w: 0.25 }, { id: 'L.env', w: 0.3 }, { id: 'L.data', w: 0.15 }, { id: 'L.opt', w: 0.1 }, { id: 'L.rlalg', w: 0.2 },
 ];
-/** Share of RefBot's capabilities science teams on its research lines [D]; the rest (at least one team each) staff its
- *  paradigm projects. A fixed share keeps the lines' capacity, relative to the reference headcount, the same in every
- *  world and year, so the stacks track the v2 know-how path wherever the paradigm projects stand. */
-const REF_LINE_SHARE = 0.7;
+/** Teams wanted on each of RefBot's paradigm projects [D]: v2's auto-assign put most of its science teams on its one or
+ *  two queued paradigms; the v3 reference lab also runs its lines, so it staffs each paradigm bet with three teams and
+ *  gives the lines the rest. (A fixed 70% line share was tried: it fitted the lines more evenly across worlds but moved
+ *  the ai2027 takeoff out of tolerance; design/V3-BUILD.md V2 notes.) */
+const REF_IDEA_TEAMS = 3;
 /** The safe bot's extra research: faithful-CoT architecture, paced like its old gate (tier 3, an AG09 technique). */
 export const SAFE_TREE_EXTRA: TreeGoal[] = [
   { id: 'P23', when: (s) => L(s) >= 8.5 && s.player.safety.findings.some((f) => f.agenda === 'AG09' && f.type === 'TECH') },
@@ -217,9 +218,8 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   for (const l of lines) if (!queue.includes(l.id)) tryAct(s, api, 'research.queue', { id: l.id });
   const sci = p.teams.filter((x) => x.role === 'sci' && x.dept === 'cap').length;
   const ideas = queue.filter((id) => !lines.some((l) => l.id === id) && TREE_BY_ID[id] && COLUMN_DEPT[TREE_BY_ID[id].column] === 'cap' && !nodeKnown(s, id) && takesTeams(p.tree[id]?.cap));
-  const free = Math.max(lines.length, Math.round(REF_LINE_SHARE * sci));
-  const perIdea = ideas.length ? Math.max(1, Math.floor((sci - free) / ideas.length)) : 0;
-  for (const id of ideas) if ((p.research.want[id] ?? 1) !== perIdea) tryAct(s, api, 'research.want', { id, n: perIdea });
+  for (const id of ideas) if ((p.research.want[id] ?? 1) !== REF_IDEA_TEAMS) tryAct(s, api, 'research.want', { id, n: REF_IDEA_TEAMS });
+  const free = Math.max(lines.length, sci - REF_IDEA_TEAMS * ideas.length);
   // A saturated direction is dropped to a minimum: once the reference RL run reaches 95% of its ceiling, more RL
   // compute efficiency buys almost nothing, so the RL-algorithm teams move to the other lines [D].
   const F = latestBaseFlop(s);

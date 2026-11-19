@@ -101,8 +101,8 @@ const OLD_EFFORT_DAYS: Record<string, number> = {
 const TM_PER_OLD_DAY = 0.2;
 /** RefBot's projects, fitted (model v3 V2) so each successful attempt through the research lifecycle lasts as long as
  *  under V1 (`npx tsx scripts/v2/calib.ts --fit-tree`); P05 and P19 (they fail in the fit world) take the fitted ones'
- *  mean ratio (×0.55). Late projects (P13 at RSCH 8.5, P17 at L 9.5) start when research pace is already 3–8×. */
-export const FITTED_EFFORT_TM: Record<string, number> = { P05: 4.2, P07: 2.76, P08: 9.66, P13: 57.59, P17: 80.13, P19: 26, 'rl.mlResearch': 1.24 };
+ *  mean ratio (×0.6). Late projects (P13 at RSCH 8.5, P17 at L 9.5) start when research pace is already 3–8×. */
+export const FITTED_EFFORT_TM: Record<string, number> = { P05: 4.6, P07: 3.34, P08: 12.32, P13: 79.62, P17: 65.97, P19: 29, 'rl.mlResearch': 1.36 };
 
 /** A failed idea can be retried after this many days at half the previous odds (TECH-TREE §5 T1). */
 export const TREE_RETRY_DAYS = 180;

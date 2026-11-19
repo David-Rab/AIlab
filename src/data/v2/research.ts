@@ -58,7 +58,7 @@ export const PACE_BATCH = 30;
 export const LINE_DECAY = { n0: 1000, beta: 0.03 };
 /** Scale on every line's μ₁ [fit: the reference lab's stacks track the v2 know-how path, V2.8] (an object so the
  *  calibration harness can set it). */
-export const LINE_FIT = { mu: 0.6 };
+export const LINE_FIT = { mu: 0.58 };
 
 // ───────────────────────────── stage costs ─────────────────────────────
 

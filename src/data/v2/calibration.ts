@@ -15,19 +15,23 @@ import type { ComputeSplit, DomainId, WorldPresetId } from '../../engine/v2/type
  *  Model v3 V1 refit (`--fit`; models built from physical quantities, pm = Φ(G)): ai2027 0.08 → −0.36, authors2026 0.03 →
  *  −0.633, fast 0.075 → −0.557, slow −0.127 → 0.291 (worst |Δ| over SC…last 0.036 / 0.044 / 0.058 / 0.016 y). The v3
  *  reference lab runs above v2's pm path once it trains its first base (design/V3-BUILD.md V1 notes); slow's compute grows
- *  1.6×/yr after 2028, which v2's calendar compute term over-credited. */
+ *  1.6×/yr after 2028, which v2's calendar compute term over-credited.
+ *  Model v3 V2a refit (recipe from research stacks; LINE_FIT.mu 0.58 fitted to the v2 know-how path on ai2027):
+ *  ai2027 −0.36 → −0.463, authors2026 −0.633 → −0.618, fast −0.557 → −0.473, slow 0.291 → −1.5 (slow's stacks outgrow the v2
+ *  path by ~25% over its 13 pre-SC years; design/V3-BUILD.md V2 notes, PROGRESS.md V2a). */
 /** BRIDGE(V7): v2's CAL_SHIFT (J1/R4 values). Simple labs, still on v2's lag model, are credited the difference so their
  *  q = pm + calShift path stays v2's (TimelineWorld.simpleCredit). */
 export const CAL_SHIFT_V2: Record<WorldPresetId, number> = { ai2027: 0.08, authors2026: 0.03, fast: 0.075, slow: -0.127, sampled: 0.08 };
-export const CAL_SHIFT: Record<WorldPresetId, number> = { ai2027: -0.36, authors2026: -0.633, fast: -0.557, slow: 0.291, sampled: -0.36 };
+export const CAL_SHIFT: Record<WorldPresetId, number> = { ai2027: -0.463, authors2026: -0.618, fast: -0.473, slow: -1.5, sampled: -0.463 };
 
 /** Extra release lag (progress years, added to simpleLag) of the simulated leader lab
  *  (setup.leaderLab, BUILD-PLAN R2) so its milestones hit the golden days (T1L). [fit] by
  *  `npx tsx scripts/v2/calib.ts --fit-leader`; 0 = the reference simpleLag. `sampled` uses the ai2027 value. R4: refit for the presets
  *  whose CAL_SHIFT moved (authors2026 0.063 → 0.068, fast 0.085 → 0.053, slow −0.029 → −0.004). J1: slow −0.004 → 0.041 with the
  *  slow CAL_SHIFT refit (`--fit-leader slow`). Model v3 V1 (with the CAL_SHIFT refit and the simple-lab credit,
- *  TimelineWorld.simpleCredit): ai2027 0.083 → 0.057, authors2026 0.068 → 0.052, fast 0.053 → −0.036, slow 0.041 → 0.043. */
-export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: 0.057, authors2026: 0.052, fast: -0.036, slow: 0.043, sampled: 0.057 };
+ *  TimelineWorld.simpleCredit): ai2027 0.083 → 0.057, authors2026 0.068 → 0.052, fast 0.053 → −0.036, slow 0.041 → 0.043.
+ *  Model v3 V2a (with the V2a CAL_SHIFT refit): ai2027 0.021, authors2026 0.046, fast −0.001, slow 0.039. */
+export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: 0.021, authors2026: 0.046, fast: -0.001, slow: 0.039, sampled: 0.021 };
 
 /** Knowledge diffusion to a follower (BUILD-PLAN R9, research/18 §0.2) [D, fit]: while the frontier leader lab's PUBLIC
  *  model is ahead of the player's best model, the player's know-how gains K_DIFFUSION × the gap per year (papers, staff
