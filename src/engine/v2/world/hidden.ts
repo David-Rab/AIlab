@@ -3,6 +3,7 @@
 import { CHINA_PRESETS, GOV_PRESETS, LAB_ARCHETYPES, PUBLIC_PRESETS } from '../../../data/actors';
 import { AGENDAS } from '../../../data/v2/agendas';
 import { CAL_SHIFT, CAL_SHIFT_V2, PROD_DEFAULT, PROD_PRESETS } from '../../../data/v2/calibration';
+import { V3_CAL } from '../../../data/v2/workTypes';
 import { EDGE_FACTOR_RANGE, EDGE_SIGMA_SCALE, EDGES, GRADE_SIGMA, type EdgeDef } from '../../../data/v2/edges';
 import { PARADIGMS } from '../../../data/v2/paradigms';
 import { ARCHETYPE_POSTURES, CHINA_POSTURE_BASE } from '../../../data/v2/postures';
@@ -34,7 +35,7 @@ export function pickWeighted<T extends { id: string; weight: number }>(rng: Rng,
 }
 
 /** Production parameters for the world (§2.3 step 2). */
-export function prodParamsFor(rng: Rng, setup: SetupV2, w: Omit<TimelineWorld, 'prod'>): ProdParams {
+export function prodParamsFor(rng: Rng, setup: SetupV2, w: Omit<TimelineWorld, 'prod' | 'v3'>): ProdParams {
   const base = { ...PROD_DEFAULT, ...(PROD_PRESETS[setup.world] ?? {}) };
   if (setup.world === 'sampled') base.La = 1 + rng.lognormal80(1, 200);
   const ces = cesFromAsymptotes(base.La, base.Ca, base.slow10);
@@ -62,7 +63,8 @@ export function sampleHidden(rng: Rng, setup: SetupV2): HiddenWorld {
   const w1 = makeWorld(rng, setup.world, setup.alignment, setup.baseline);
   const tl0 = { ...w1, calShift: CAL_SHIFT[setup.world], simpleCredit: CAL_SHIFT_V2[setup.world] - CAL_SHIFT[setup.world] };
   // 2. Production parameters.
-  const timeline: TimelineWorld = { ...tl0, prod: prodParamsFor(rng, setup, tl0) };
+  // Model v3 V3: the per-preset work-type calibration (G_SC, Δ_bm, r); no draw.
+  const timeline: TimelineWorld = { ...tl0, prod: prodParamsFor(rng, setup, tl0), v3: { ...V3_CAL[setup.world] } };
 
   // 3. Safety latents λ1–λ6 ~ N(0,1), shifted by the alignment preset.
   const latents = {} as SafetyLatents;

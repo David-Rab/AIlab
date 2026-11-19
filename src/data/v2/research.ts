@@ -14,8 +14,6 @@ export const POOL_MAX = 4;
  *  target"; small-scale ablations at ≤ 1e19-ish FLOP, Gundlach]. A candidate's small-scale effect x is x·1000^s at test
  *  scale, so a quarter of small-scale wins survive when s ~ N(−0.3, 0.3) (s ≥ −0.1) [R20 B5]. */
 export const SMALL_TO_TEST = 1000;
-/** Small experiments' total FLOP as a share of the scale test's (many runs at 1/1000 of it) [D]. */
-export const SMALL_FLOP_SHARE = 0.1;
 /** At the scale test a candidate survives if its effect at test scale is at least this share of its small-scale
  *  estimate (R20 B5 "survives at scale") [D]. */
 export const SURVIVE_FRAC = 0.5;
@@ -28,14 +26,14 @@ export const MAX_DROPS = 3;
 export const EXP_NOISE = 0.25;
 export const TEST_READ_SD = 0.05;
 export const S_READ_SD = 0.03;
-/** Ideation belief noise: sd = BELIEF_NOISE × prior mean × √batch × (0.5 + novelty) / taste² [D, R20 B5: "taste narrows
- *  the noise"; MODEL-V3 §8: taste enters twice]. */
+/** Ideation belief noise: sd = BELIEF_NOISE × prior mean × √batch × (0.5 + novelty) / taste [D, R20 B5: "taste narrows
+ *  the noise"; MODEL-V3 §8: taste enters twice; V3: ÷ taste, not taste², because AI taste reaches 30–200]. */
 export const BELIEF_NOISE = 0.5;
-/** Candidate truth around the project's hidden mean T: mean × (CAND.mean0 + CAND.meanNov·novelty) × taste factor, sd ×
+/** Candidate truth around the project's hidden mean T (taste is in the prior: research input for lines, a lift for ideas): mean × (CAND.mean0 + CAND.meanNov·novelty), sd ×
  *  (CAND.sd0 + CAND.sdNov·novelty): novel candidates are bigger on average and much less certain [D]. */
 export const CAND = { mean0: 0.75, meanNov: 0.5, sd0: 0.15, sdNov: 0.6 };
-/** Taste raises the candidate mean: × (1 + TASTE_MEAN·(q − 1)), q = capacity-weighted team quality (Strong 1, Elite
- *  1.25, Solid 0.8) [D, MODEL-V3 §8]. */
+/** Taste raises a one-off idea's mean: × (1 + TASTE_MEAN·(1 − 1/T)), T = the team's taste (Strong without AI 1; ×0.9 Solid,
+ *  ×1.16 Elite, at most ×1.5) [D, MODEL-V3 §8]. Lines take taste as research input in their pool instead (V3 notes). */
 export const TASTE_MEAN = 0.5;
 /** A direction that does not work in this world: candidates are noise around 0 with this sd × the prior mean [D]. */
 export const DUD_SD = 0.1;
@@ -45,28 +43,26 @@ export const PROJECT_SD = 0.25;
 export const RISK_KAPPA: Record<RiskPolicy, number> = { safe: -0.5, balanced: 0, speculative: 0.5 };
 /** Reopening a failed project as speculative: odds × 0.5, prior mean × 0.7, candidate spread × 1.5 per reopen [D]. */
 export const SPECULATIVE = { odds: 0.5, mean: 0.7, spread: 1.5 };
-/** Lines batch ideas once the research pace exceeds this: a candidate then carries b = ⌊pace / PACE_BATCH⌋ ideas (its
- *  work, FLOP and effect × b), so a takeoff does not need thousands of daily events [D: performance; the expected OOM per
+/** Lines batch ideas once the lab's experiment throughput X (unit project = 1) exceeds this: a candidate then carries
+ *  b = ⌊X / PACE_BATCH⌋ ideas (its work, research input and effect × b), so a takeoff does not need thousands of daily events [D: performance; the expected OOM per
  *  day is unchanged]. A batch counts as one generation. */
 export const PACE_BATCH = 30;
 
 // ───────────────────────────── diminishing returns (lines) ─────────────────────────────
 
-/** Line generation n's prior mean μ_n = μ₁·(1 + (n − 1)/n₀)^(−β), β < 1 so the sum diverges (progress never stops, it
- *  gets harder) [fit: research/13 §2.2 r; research/20 B4]. The research pace already carries AI 2027's "ideas get
- *  harder" along the reference path (research/13 §2.5), so β fits small (design/V3-BUILD.md V2 notes). */
-export const LINE_DECAY = { n0: 1000, beta: 0.03 };
-/** Scale on every line's μ₁ [fit: the reference lab's stacks track the v2 know-how path, V2.8] (an object so the
- *  calibration harness can set it). */
-export const LINE_FIT = { mu: 0.58 };
+/** Lines are pools with returns r (design/V3-BUILD.md V3 notes, derivation 1; models/research.ts linePool): a result
+ *  bringing research input q to a pool at state R has prior mean r_l·log₁₀((R + q)/R), r_l = the line's rShare × the
+ *  preset's r, the pool's start state n₀ from the first idea's mean μ₁ = effect.mean × LINE_FIT.mu. LINE_FIT.mu scales every
+ *  line's start effect [fit: the reference lab's pretraining stack ≈ 0.48 OOM/yr in its first year, Ho et al., R20 B1;
+ *  calib.ts --fit-lines] (an object so the calibration harness can set it). */
+export const LINE_FIT = { mu: 0.69 };
 
 // ───────────────────────────── stage costs ─────────────────────────────
 
-/** Stage work at research pace 1 (team-months of one standard team) and scale-test FLOP (share of the lab's latest base
- *  at pace 1) for lines [D, fit with LINE_MU_SCALE]. BRIDGE(V3): every stage's FLOP is divided by the research pace. The
- *  pace (the production function's software rate) already counts experiment compute through its CES, and in a takeoff
- *  AI taste, not more experiments, carries it (AI 2027); FLOP per idea at a fixed share would bind the reference lab's
- *  takeoff a second time. V3 replaces the pace with project-level CES on explicit compute and labour. */
+/** Stage work at unit inputs (team-months of one standard team; a project's experiment CES X(c, ℓ) = 1 at the leader's
+ *  day-0 inputs per project) and the scale test's scale (share of the lab's latest base the effect is measured at) for
+ *  lines [D]. Experiment FLOP is consumed at the project's share of the pool while it experiments (V3.4: no FLOP need
+ *  per stage, no ÷ pace). */
 export const LINE_STAGES = { idea: 0.8, small: 0.8, scale: 1.0, testFrac: 0.002 };
 /** Ideas and axes: stage work from the v2 effort E (team-months): ideation E/4 per candidate, small experiments 0.28E,
  *  scale test 0.42E (with two research-engineer teams ≈ E in all, as the v2 project) and a scale test at 1% of the
@@ -77,8 +73,9 @@ export const IDEA_STAGES = { idea: 0.25, small: 0.28, scale: 0.42, testFrac: 0.0
 
 /** Share of an adopted idea's effect left as headroom for routine tuning (MODEL-V3 §5.5) [D]. */
 export const HEADROOM = 0.3;
-/** Routine tuning closes headroom at TUNE_K × research pace × research-engineer team-equivalents on tuning, per day, on
- *  what remains [D: ≈ 3 months with 3 teams at pace 1]. */
+/** Routine tuning closes headroom at TUNE_K × research-engineer team-equivalents on tuning × their experiment
+ *  throughput X (the projects' CES on the tuning allocation; 1 at the leader's day-0 inputs), per day, on what remains
+ *  [D: ≈ 3 months with 3 teams at unit inputs]. */
 export const TUNE_K = 1 / 270;
 /** Scale-exponent grid of the stack buckets (adopted ideas with s within half a step share a bucket) [D]. */
 export const S_STEP = 0.02;
@@ -110,9 +107,6 @@ export const RE_PER_PROJECT = 2;
 /** Research engineers that keep runs going (team-equivalents per running run) [D: mirrors the engineers' run upkeep;
  *  MODEL-V3 §3.3 "operations"]. */
 export const RE_OPS = { base: 1, mid: 0.5, small: 0.2, stream: 0.5 };
-/** BRIDGE(V3): share of capabilities research engineers on experiments + tuning in the reference allocation; h counts
- *  those, normalised by it, so h is unchanged at reference [fit: RefBot's average]. */
-export const REF_RE_RESEARCH_SHARE = 0.88;
 /** Default allocations: research engineers keep runs going first, then project experiments (at most 75% of them, so
  *  routine tuning always has some), then tuning; engineers as before J2 (runs, upkeep, builds) [D]. */
 export const DEFAULT_RE_ALLOC: Allocation<ReNeed> = { order: ['ops', 'exp', 'tune'], max: {}, share: { exp: 0.75 } };

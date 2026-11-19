@@ -2,8 +2,7 @@
 // `production(s, lab)` = the bottleneck bar: decomposition (parts multiply to M), elasticities, per-$ values,
 // ceilings, what-ifs, label/binding, labour (copies × speed), ratios vs the reference path.
 import { decimalYear } from '../core/time';
-import { dataStockRatio, effectiveStock, tokensRequired } from './data';
-import { frontierFlop } from './knots';
+import { dataStockRatio, effectiveStock, nextBaseFlop, tokensRequired } from './data';
 import { bestResearchMix, computeProduction, evalM, evalProduction, inputsAtMix, labInputs, tcoPerH100eYear, type LabInputs } from './production';
 import { trainingFlopPerDay } from '../models/runs';
 import type { GameStateV2, LabId, ProductionReadout } from '../types';
@@ -73,9 +72,8 @@ export function responseCurves(s: GameStateV2): ResponseCurves | undefined {
 export interface NextModelGate { trainingDays: number; dataRatio: number; mwFree: number; cashShare: number; binding: 'training' | 'data' | 'power' | 'cash' }
 
 export function nextModelGate(s: GameStateV2): NextModelGate {
-  const w = s.hidden.timeline;
   const yr = decimalYear(s);
-  const F = frontierFlop(w, yr);
+  const F = nextBaseFlop(s);
   const trainingDays = F / Math.max(1, trainingFlopPerDay(s));
   const dataRatio = effectiveStock(s) / tokensRequired(F);
   let mwFree = 0;
@@ -83,7 +81,7 @@ export function nextModelGate(s: GameStateV2): NextModelGate {
   const runCash = 0.5 * (F / 3.46e19 / 365) * tcoPerH100eYear(s, yr); // env budget of a reference post on it [D]
   const cashShare = runCash / Math.max(0.01, s.player.finance.cash);
   let binding: NextModelGate['binding'] = 'training';
-  if (dataStockRatio(s, yr) < 1) binding = 'data';
+  if (dataStockRatio(s) < 1) binding = 'data';
   else if (cashShare > 0.5) binding = 'cash';
   else if (mwFree <= 0 && trainingDays > 120) binding = 'power';
   return { trainingDays, dataRatio, mwFree, cashShare, binding };

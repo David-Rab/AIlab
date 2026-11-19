@@ -16,7 +16,7 @@ const asV1 = (w: TimelineWorld) => w as unknown as World;
 /** AI R&D multiplier at true progress pm (reference curve at q = pm + calShift, the v1-equivalent progress; §3.5.6
  *  "M of the overseen version"). Engine only. */
 export function mAtPm(w: TimelineWorld, pm: number): number {
-  return Math.max(1, multiplierAt(asV1(w), pm + w.calShift));
+  return Math.max(1, multiplierAt(asV1(w), pm + w.calShift)); // BRIDGE(V6)
 }
 
 /** Overseen version's M (hidden pm). Engine only. */

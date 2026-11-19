@@ -185,8 +185,12 @@ export interface TimelineWorld {
   /** BRIDGE(V7): the v3 level offset simple labs (rivals, China, the leader lab) are credited, CAL_SHIFT_V2 − CAL_SHIFT
    *  (models/capability.ts simpleLag). */
   simpleCredit?: number;
-  /** Production-function parameters (research/13 §1.4). */
+  /** Production-function parameters (research/13 §1.4). For the player only the CES parameters are read (ρc, λ, u, v,
+   *  ρ, ζ, m2b); the knots are the rivals' (BRIDGE(V7)). */
   prod: ProdParams;
+  /** Model v3 V3: per-preset work-type calibration (data/v2/workTypes.ts V3_CAL): G_SC (OOM of effective compute a
+   *  superhuman coder needs), Δ_bm (best-to-median human gap, OOM), r (returns to research). */
+  v3: { gSC: number; dBM: number; r: number };
 }
 
 export interface ProdParams {
@@ -276,7 +280,7 @@ export interface ModelsState {
   /** Continual-learning stream (P08) if active: the version id being updated in place. */
   stream?: {
     versionId: string; startedDay: Day; lastAuditDay: Day;
-    /** BRIDGE(V3) readout: pa-equivalent of the recipe the stream has absorbed. */
+    /** BRIDGE(V6,V7) readout: pa-equivalent of the recipe the stream has absorbed. */
     paTrack?: number;
     /** Model v3 V2: the recipe the stream has absorbed (7-day lag): e_pre at its base's FLOP, RL efficiency, RL ceiling. */
     track?: { pre: number; rlMid: number; rlCeil: number };
@@ -309,7 +313,7 @@ export interface BaseModel {
   off?: Partial<Record<DomainId, number>>;
   /** Data repetition at training: epochs over the unique tokens. */
   epochs?: number;
-  /** BRIDGE(V3,V6,V7): scale vs the frontier run F(t) at launch (engineering load, S5, scrutiny). */
+  /** BRIDGE(V6,V7): scale vs the frontier run F(t) at launch (S5, scrutiny). */
   scale?: number;
   /** Serve cost of models on this base (BRIDGE(V4), 0.5 = reference). */
   serve?: number;
@@ -355,7 +359,7 @@ export interface ModelVersion {
   appeal?: number;
 }
 
-/** Capability build of a version (MODEL-V3 §2, §4): G = gPre + dgRL + dg; pm = Φ(G) (BRIDGE(V3)). Hidden. */
+/** Capability build of a version (MODEL-V3 §2, §4): G = gPre + dgRL + dg; pm = Φ(G) (BRIDGE(V6,V7)). Hidden. */
 export interface VersionBuild {
   /** Pretraining effective compute of its base (OOM; a stream re-applies today's recipe). */
   gPre: number;
@@ -428,11 +432,11 @@ export interface TrainingRun {
   setupId?: string;
   /** Day the setup finished and training began (R5). */
   readyDay?: Day;
-  /** BRIDGE(V3) readout: the lab's pa-equivalent know-how at launch. */
+  /** BRIDGE(V6,V7) readout: the lab's pa-equivalent know-how at launch. */
   paAtStart?: number;
   /** Model v3 V2: the recipe frozen at launch: e_pre at the run's FLOP (base, continue), RL efficiency and ceiling (post, IDA). */
   recipe?: { pre?: number; rlMid?: number; rlCeil?: number };
-  /** BRIDGE(V3,V6,V7): base/continue run scale vs the frontier run F(t) at launch (engineering load, S5, scrutiny). */
+  /** BRIDGE(V6,V7): base/continue run scale vs the frontier run F(t) at launch (S5, scrutiny; engineering reads FLOP). */
   scale?: number;
   /** Distillation: student active parameters; distillation and continued-pretraining runs: tokens. */
   studentParams?: number;
@@ -574,7 +578,8 @@ export interface Candidate {
   nov: number;
   /** Ideas batched into this candidate (lines at high research pace: the work, FLOP and effect scale with it). */
   b: number;
-  /** Taste of the scientists who found it (capacity-weighted team quality, Strong = 1). */
+  /** Taste of the scientists who found it (model v3 V3: the team's E[max(human, AI)] taste, a Strong team without AI = 1);
+   *  for lines its research input per idea. */
   q: number;
   /** Belief about its small-scale effect (project unit; OOM for stack effects): mean and sd. */
   mu: number;
@@ -582,6 +587,8 @@ export interface Candidate {
   /** Belief about its scale exponent s (mean, sd). */
   muS: number;
   sdS: number;
+  /** Lines (model v3 V3): the line's pool state (research input since the start, reference ideas) its prior is read at. */
+  at?: number;
 }
 /** The candidate in test (small experiments, then the scale test). Work in research-engineer team-months at pace 1. */
 export interface CapTest {
@@ -625,6 +632,11 @@ export interface CapProjectState {
   spec?: number;
   /** Lines: results waiting for the engineers to build them in (the line moves on to its next generation). */
   pending?: CapResult[];
+  /** Lines (model v3 V3): the pool's state above n₀ (reference ideas): R = n₀ + pool, advanced by each result's true effect
+   *  (R ← R·10^(x/r_l)), so the line's realised stack is r_l·log₁₀(R/n₀). */
+  pool?: number;
+  /** Lines: research input of the results so far (Σ batch × taste, reference ideas; readout). */
+  input?: number;
 }
 /** One adopted idea (the last few are kept for the readout). */
 export interface AdoptedIdea {
@@ -683,9 +695,18 @@ export interface ResearchState {
   adopted: AdoptedIdea[];
   /** Weekly samples of the stacks' G-equivalent total (OOM over the start) and ideas adopted (the recent rate). */
   hist: { day: Day; g: number; n: number }[];
+  /** Model v3 V3: yesterday's G-equivalent of the stacks and its daily growth (OOM/day, 14-day average): the research
+   *  readout's software rate. */
+  gLast?: number;
+  gRate?: number;
   /** Readout of the last day: research engineers per need and per project (team-equivalents), project FLOP used and
    *  available (FLOP/day). */
-  last?: { re: Record<ReNeed, number>; reProj: Record<string, number>; flopUsed: number; flopAvail: number };
+  last?: {
+    re: Record<ReNeed, number>; reProj: Record<string, number>; flopUsed: number; flopAvail: number;
+    /** Model v3 V3: a unit project's experiment compute c and labour ℓ (leader day 0 = 1), its CES throughput X (× the
+     *  speed modifiers) and the AI labour multipliers in experiments and ideas. */
+    x?: { c: number; l: number; X: number; mExp: number; mIdeas: number };
+  };
 }
 
 // ───────────────────────────── Production readout (§3.2.5) ─────────────────────────────

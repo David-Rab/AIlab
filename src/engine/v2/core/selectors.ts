@@ -26,7 +26,7 @@ export { fOver, flopOfDesign, paramsForFlop, servingFlop, tppLabel } from '../mo
 export { goodputOf, paramsOfVersion, playerUniqueTokens, runFlopPerShareDay } from '../models/runs';
 export type { LaunchRunParams, RunPlan } from '../models/runs';
 export { PARADIGM_BY_ID } from '../models/paradigms';
-export { assignBlock, effortOf, idleTeams, knowHow, isProject, missingNeeds, nextLineProject, nodeDept, nodeKnown, nodeOdds, nodeStatus, optionLocked, payoffOf, projectCapacity, projectEta, projectRate, projectReady, projectTeams, PRIORITY_W, researchSpeed, SCI_AI_CAP, sciAiMult, teamCapacity, teamGain as projectTeamGain, teamsOn, treeCounts } from '../models/tree';
+export { assignBlock, effortOf, idleTeams, knowHow, isProject, missingNeeds, nextLineProject, nodeDept, nodeKnown, nodeOdds, nodeStatus, optionLocked, payoffOf, projectCapacity, projectEta, projectRate, projectReady, projectTeams, PRIORITY_W, researchSpeed, sciAiMult, teamCapacity, teamGain as projectTeamGain, teamsOn, treeCounts } from '../models/tree';
 export type { NodeStatus } from '../models/tree';
 export { benchName, benchGen, evalDaysFor, measuredSd } from '../models/benchmarks';
 export { deployGate, effortLock, liveDeployments, CHANNEL_VARIANTS, distillationAccess } from '../models/deployments';
@@ -34,7 +34,7 @@ export { bestMeasuredL, internalVersion, labPools, measuredLOf, versionById } fr
 export { MILESTONE_NAMES } from '../models/capability';
 export { presetSplit, shareRefAt, SPLIT_KEYS, SPLIT_PRESETS } from '../departments/split';
 export { teamGain } from '../departments/teamActions';
-export { aiShareByRole, BUILD_AI_CAP, buildCapacity, fillWeeks, laneWeights, fullTeamPayroll, keyOf, payrollOf, playerH, queuedOfKey, teamLabel, teamPayroll, teamsOfKey, weeklyHireCap } from '../departments/teams';
+export { aiShareByRole, buildCapacity, fillWeeks, laneWeights, fullTeamPayroll, keyOf, payrollOf, playerH, queuedOfKey, teamLabel, teamPayroll, teamsOfKey, weeklyHireCap } from '../departments/teams';
 export { baseFromParams, postFromParams } from '../models/actions';
 export { understanding } from '../safety/understanding';
 export { leadDays, riskLevers, riskSources, RISK_LEVERS } from '../actors/intel';

@@ -2,7 +2,11 @@
 // [fit] values are fitted by WS1 acceptance tests (scripts/v2/calib.ts, M1) and hard-coded here.
 import type { ComputeSplit, DomainId, WorldPresetId } from '../../engine/v2/types';
 
-/** Per-preset milestone threshold shift (years) fitted so RefBot's best internal model hits the golden dates (§7.1).
+/** BRIDGE(V7): per-preset milestone threshold shift (years). Model v3 V3: the player's milestones are work-type statements
+ *  (departments/workfit.ts; per-preset G_SC and Δ_bm in data/v2/workTypes.ts V3_CAL) and do not read it; it stays the
+ *  level-display bridge λ(G) = levelOf(Φ(G)) and the rivals' / China's / the leader lab's pm thresholds and simple-lab
+ *  credit, kept at its V2a values so their calibration (T1L, T3, T4) is unchanged until V7.
+ *  History: fitted so RefBot's best internal model hit the golden dates (§7.1).
  *  [fit] by `npx tsx scripts/v2/calib.ts --fit` (bisection on SC, refined on a ±0.03 grid by the worst |Δ| over
  *  SC…ASI because SC(calShift) is step-like). `sampled` uses the ai2027 value. Never tune for balance (§7.4).
  *  J1 refit (jank M1: a version's measured level no longer re-rolls every 30 days, so RefBot's measured-level gates
@@ -148,7 +152,3 @@ export const GOLDEN_EXPECTED: Record<Exclude<WorldPresetId, 'sampled'>, GoldenEx
 export const GOLDEN_SAMPLED = { p10: 2026.05, p50: 2028.37, p90: 2044, p50Tol: 0.3, seeds: 500 };
 /** Tolerances (years): ±0.08 for SC, ±0.12 after (§7.1). */
 export const GOLDEN_TOL = { SC: 0.08, after: 0.12 };
-
-/** Stage-2 reference technology (see production.ts referenceTech): automated research agents (P13 experiment
- *  throughput ×1.5) and latent reasoning (ηmod 0.5/0.2 = 2.5) are part of the AI 2027 reference path after SC. */
-export const REF_TECH = { c: 1.5, k: 2.5, from: 100, to: 280 };

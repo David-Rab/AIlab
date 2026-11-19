@@ -116,7 +116,7 @@ export const LENT_RECOVERY = 0.5;
 function rphModel(s: GameStateV2, d: Deployment, versionId: string | undefined): number {
   const v = versionId ? versionOf(s, versionId) : undefined;
   if (!v) return 0;
-  const M = multiplierRef(s.hidden.timeline, v.pm + s.hidden.timeline.calShift); // at q = pm + calShift (v1-equivalent progress)
+  const M = multiplierRef(s.hidden.timeline, v.pm + s.hidden.timeline.calShift); // at q = pm + calShift (v1-equivalent progress) // BRIDGE(V4)
   const effort = d.effort === 'low' ? 1.6 : d.effort === 'deep' ? 0.5 : 1;
   const serve = Math.min(3, Math.max(0.5, Math.pow(0.5 / Math.max(0.05, v.serveCost), RPH_SERVE_EXP)));
   return RPH_BASE * Math.pow(Math.min(Math.max(M, 1), RPH_MCAP), 0.3) * d.priceIndex * effort * serve;

@@ -2,7 +2,9 @@
 // (V2-SPEC §3.1.3–3.1.6; model v3 V1: design/MODEL-V3.md §2, design/V3-BUILD.md "Bridges"). Owner: WS1.
 import { B0_START_DAY, LEVEL_KNOTS, REF_OFF, RSCH_TASTE_PENALTY, DOMAIN_IDS, V0_DAY } from '../../../data/v2/calibration';
 import { B_G_PER_Y, E_START, RL_BUDGET, REFERENCE_BASE } from '../../../data/v2/runDesign';
-import { horizonAt, milestoneThresholds, multiplierAt, stage1 } from '../../../data/world';
+import { milestoneThresholds, multiplierAt, stage1 } from '../../../data/world';
+import { H50_PER_OOM, H50_V0_MIN, H80_OVER_H50, LEVEL_PER_OOM } from '../../../data/v2/workTypes';
+import { labMilestones } from '../departments/workfit';
 import { clamp } from '../../rng';
 import { START_DATE, dayOfDate, decimalYearOf } from '../core/time';
 import { shareRefAt } from '../departments/split';
@@ -35,7 +37,7 @@ export function pcRefLab(w: TimelineWorld, day: Day, scDay?: Day): number {
 
 // ───────────────────────────── bridges (design/V3-BUILD.md) ─────────────────────────────
 
-/** BRIDGE(V3): zero of the know-how readout: the leader start's know-how on day 0 in world w (models/stacks.ts syncPa:
+/** BRIDGE(V6,V7): zero of the know-how readout: the leader start's know-how on day 0 in world w (models/stacks.ts syncPa:
  *  pa = paRef + G-equivalent of the stacks ÷ B). */
 export const paRef = (w: TimelineWorld) => playerStart(w).pa0;
 /** Start state only (model v3 V2): the recipe vintage of a start-state know-how value of the closed-form start solution
@@ -57,8 +59,9 @@ export function gV0(w: TimelineWorld): number {
   gV0Cache.set(w, out);
   return out;
 }
-/** BRIDGE(V3): the old progress coordinate from effective compute, pm = pm(V0) + (G − G(V0))/B, so the production
- *  function, milestone thresholds, M-based readouts, rivals and safety keep working until they are rebuilt on G. */
+/** BRIDGE(V6,V7): the old progress coordinate from effective compute, pm = pm(V0) + (G − G(V0))/B, for the display level
+ *  λ(G) = levelOf(Φ(G)), the rivals (still on pm until V7) and the safety and revenue readers (V4, V6). The player's
+ *  research and milestones do not read it since model v3 V3 (departments/workfit.ts). */
 export const pmOfG = (w: TimelineWorld, G: number) => playerStart(w).target + (G - gV0(w)) / B_G_PER_Y;
 /** Inverse of pmOfG. */
 export const gOfPm = (w: TimelineWorld, pm: number) => gV0(w) + (pm - playerStart(w).target) * B_G_PER_Y;
@@ -73,7 +76,7 @@ export function gOfDomain(b: VersionBuild, d: DomainId): number {
   const rl = b.dgRLd[d] !== undefined ? (b.dgRLd[d] ?? 0) - REF_RL_PROFILE[d] : b.dgRL;
   return b.gPre + (b.sD[d] ?? 0) + rl + b.dg;
 }
-/** Version pm (BRIDGE(V3)) of a build. */
+/** Version pm (BRIDGE(V6,V7)) of a build. */
 export const pmOfBuild = (w: TimelineWorld, b: VersionBuild) => pmOfG(w, gOfBuild(b));
 /** Set build.off (domain level − general level − the 2025 profile, L) from the build's domain G and its level offsets;
  *  returns pm. L_d = levelOf(Φ(G_d)) − o_d + design offsets (MODEL-V3 §2.3), o_d = −REF_OFF[d][0] (+ RSCH taste). */
@@ -122,13 +125,17 @@ export function refreshLevels(w: TimelineWorld, v: ModelVersion, hasP19: boolean
   v.domains = domainsOf(w, v.pm, v.build?.off ?? {}, hasP19);
 }
 
-/** 80% time horizon in minutes: horizonAt(w, pm + calShift)·2^(designOff_AGENCY/0.8)·h80Mult (§3.1.5). */
-export function h80Of(w: TimelineWorld, v: Pick<ModelVersion, 'pm' | 'build'>): number {
-  const ag = v.build?.off.AGENCY ?? 0;
-  return horizonAt(asV1World(w), v.pm + w.calShift) * Math.pow(2, ag / 0.8) * (v.build?.h80Mult ?? 1);
-}
-/** h50 = 6·h80 (R12 §0.5, METR). */
-export const h50Of = (w: TimelineWorld, v: Pick<ModelVersion, 'pm' | 'build'>) => 6 * h80Of(w, v);
+/** A version's effective compute in a horizon domain (OOM): its domain G plus its level offsets at LEVEL_PER_OOM; a
+ *  version without a build (an imported open model) through the display bridge's inverse (BRIDGE(V7)). */
+export const horizonG = (w: TimelineWorld, v: Pick<ModelVersion, 'pm' | 'build'>, d: DomainId = 'AGENCY') =>
+  v.build ? gOfDomain(v.build, d) + (v.build.offL[d] ?? 0) / LEVEL_PER_OOM : gOfPm(w, v.pm);
+/** 50% time horizon in minutes (model v3 V3.2): METR TH1.1's 203 min for the Aug-2025 frontier (V0) × 4.2 per OOM of the
+ *  version's AGENCY effective compute over V0's (CODE for software work, departments/workfit.ts), × its horizon
+ *  multiplier (long-horizon RL, P07, P12). Replaces the v1 horizon curve on pm. */
+export const h50Of = (w: TimelineWorld, v: Pick<ModelVersion, 'pm' | 'build'>, d: DomainId = 'AGENCY') =>
+  H50_V0_MIN * Math.pow(H50_PER_OOM, horizonG(w, v, d) - gV0(w)) * (v.build?.h80Mult ?? 1);
+/** 80% time horizon = h50 / 5 (METR TH1.1). */
+export const h80Of = (w: TimelineWorld, v: Pick<ModelVersion, 'pm' | 'build'>, d: DomainId = 'AGENCY') => h50Of(w, v, d) * H80_OVER_H50;
 
 // ───────────────────────────── start state (§3.1.4 "Initial state") ─────────────────────────────
 
@@ -145,7 +152,7 @@ export function playerStart(w: TimelineWorld): ReturnType<typeof playerStartOf> 
 }
 function playerStartOf(w: TimelineWorld) {
   const target = w.p0;
-  const Mref = multiplierAt(asV1World(w), w.p0);
+  const Mref = multiplierAt(asV1World(w), w.p0); // BRIDGE(V7): start-state solution (pa zero, simple-lab lags)
   const r0 = w.p0 < stage1(asV1World(w)) ? w.share * Mref : Mref; // years per year
   const pcB0 = pcRefLab(w, B0_START_DAY);
   const dPost = V0_DAY;
@@ -199,7 +206,7 @@ export function simpleLag(w: TimelineWorld, q: number, rate: number, extra = 0):
 const V3_CREDIT_RAMP = 1.0;
 
 /** Software rate of a lab at reference inputs at q (for the start state). */
-const refSoftwareRate = (w: TimelineWorld, q: number) => (q < stage1(asV1World(w)) ? w.share * multiplierAt(asV1World(w), q) : multiplierAt(asV1World(w), q));
+const refSoftwareRate = (w: TimelineWorld, q: number) => (q < stage1(asV1World(w)) ? w.share * multiplierAt(asV1World(w), q) : multiplierAt(asV1World(w), q)); // BRIDGE(V7)
 
 /** Default frontier of a SimpleModel lab (rivals/China while not WS4-managed): pa + pcRef_lab(t) + its training
  *  scale term − the reference release lag (simpleLag), so a lab at reference inputs moves like RefBot. */
@@ -250,7 +257,7 @@ export function trainScaleTerm(s: GameStateV2, lab: LabId, day = s.time.day): nu
   if (!core) return 0;
   const w = s.hidden.timeline;
   const yr = yearOfDay(day);
-  const ratio = (core.computeOnline * core.split.training) / Math.max(1, refTotal(w, yr) * shareRefAt(yr).training);
+  const ratio = (core.computeOnline * core.split.training) / Math.max(1, refTotal(w, yr) * shareRefAt(yr).training); // BRIDGE(V7)
   return ((1 - w.share) * Math.log(clamp(ratio, 0.02, 50))) / Math.log(gF(w, yr));
 }
 
@@ -326,26 +333,37 @@ export function trueLeadDays(s: GameStateV2, other: LabId): number {
 
 // ───────────────────────────── milestones (§3.1.6) ─────────────────────────────
 
-/** milestones (50, daily): first-crossing record per lab (fixes v1 bug #3), SC day, act transitions. */
+/** milestones (50, daily): first-crossing record per lab (fixes v1 bug #3), SC day, act transitions. The player's are
+ *  work-type milestones (model v3 V3.5, departments/workfit.ts: superhuman coder = SWE fit ≥ the best human with coverage
+ *  ≥ 0.9 and a lower cost per work-hour, …), recorded in order; rivals, China and the leader lab keep the pm thresholds
+ *  (BRIDGE(V7)). */
 export const milestonesSystem: EngineSystem = {
   id: 'milestones', owner: 'WS1', cadence: 'daily', order: 50, system: 'models',
   run(s, ctx) {
     const w = s.hidden.timeline;
     const thr = thresholds(w);
-    const check = (id: LabId) => {
-      const core = labCore(s, id);
-      if (!core || core.status !== 'active') return;
-      const pm = bestPm(s, id);
-      for (let i = 0; i < thr.length; i++) {
+    const record = (core: NonNullable<ReturnType<typeof labCore>>, met: (i: number) => boolean) => {
+      for (let i = 0; i < 7; i++) {
         const idx = i as MilestoneIdx;
-        if (pm >= thr[i] && core.milestoneDays[idx] === undefined) {
-          core.milestoneDays[idx] = ctx.day;
-          if (idx === 3 && core.scDay === undefined) core.scDay = ctx.day;
-        }
+        if (core.milestoneDays[idx] !== undefined) continue;
+        // In order: a later milestone is recorded no earlier than the one before (SC → SAR → SIAR → ASI).
+        if (i > 3 && core.milestoneDays[(i - 1) as MilestoneIdx] === undefined) break;
+        if (!met(i)) { if (i >= 3) break; continue; }
+        core.milestoneDays[idx] = ctx.day;
+        if (idx === 3 && core.scDay === undefined) core.scDay = ctx.day;
       }
     };
-    check(PLAYER_ID);
-    for (const r of otherLabs(s)) check(r.core.id); // China's lab core id is CHINA_ID
+    const pl = labCore(s, PLAYER_ID);
+    if (pl && pl.status === 'active' && pl.milestoneDays[6] === undefined) {
+      const m = labMilestones(s);
+      record(pl, (i) => m[i]);
+    }
+    for (const r of otherLabs(s)) {
+      const core = labCore(s, r.core.id); // China's lab core id is CHINA_ID
+      if (!core || core.status !== 'active') continue;
+      const pm = bestPm(s, r.core.id);
+      record(core, (i) => pm >= thr[i]);
+    }
 
     // The player is told when the MEASURED level crosses a milestone level (§3.1.6).
     const L = Math.max(internalVersion(s)?.evals.measuredL ?? 0, ...s.player.models.versions.filter((v) => v.status !== 'retired').map((v) => v.evals.measuredL ?? 0));

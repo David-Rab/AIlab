@@ -6,7 +6,6 @@
 import {
   AGENT_USES, AGENT_USE_DEF, CAP_USES, MONITOR_SAME, SAFETY_AGENT_DEFAULT_SHARE, SAFETY_AGENT_MAX_SHARE, type CapUse,
 } from '../../../data/v2/agents';
-import { H100E_PER_COPY_SC } from '../../../data/v2/calibration';
 import { decimalYear } from '../core/time';
 import { measuredLOf, versionById } from '../models/labs';
 import { setInternalAgent } from '../models/deployments';
@@ -20,6 +19,7 @@ import {
   trustedMax, type RiskBadge,
 } from './agents';
 import { buildCapacity } from './teams';
+import { copiesOf, flopPerToken } from './workfit';
 
 type Params = Record<string, number | string | boolean>;
 const str = (p: Params, k: string): string | undefined => (typeof p[k] === 'string' ? (p[k] as string) : undefined);
@@ -173,14 +173,14 @@ function computeAgentsView(s: GameStateV2): AgentsView {
       monitor: mon, monitorSame: s.player.agents[u].monitorId === MONITOR_SAME,
       catch: ms.catch, strength: ms.strength, gap: ms.gap, copy: ms.copy, catchColl: ms.catchColl,
       compute, share: u === 'safety' ? s.player.agents.safety.compute : capShare(s, u as CapUse),
-      copies: v ? compute / (H100E_PER_COPY_SC * (v.serveCost / 0.5)) : 0, speed,
+      copies: v ? copiesOf(compute, flopPerToken(s, v)) : 0, speed,
       aiShare, cost: compute * tco, monitorCost: monH * tco, monitorH100e: monH, risk: riskBadges(v),
     };
     total += compute + monH;
     totalCost += (compute + monH) * tco;
   }
   return {
-    lanes, M: pr?.M ?? 1, build: buildCapacity(s, aEng).capacity, sdAI: pr?.sdAI ?? 0, safetyAiFte: safetyFleet(s).aiFte, total, totalCost,
+    lanes, M: pr?.M ?? 1, build: buildCapacity(s).capacity, sdAI: pr?.sdAI ?? 0, safetyAiFte: safetyFleet(s).aiFte, total, totalCost,
     monitors: budget,
     trusted: { policy: s.player.policies.trustedToAI, effective: tr, max: trustedMax(s), gate: aiLabourGate(s) },
   };

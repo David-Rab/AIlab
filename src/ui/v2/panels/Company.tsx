@@ -259,7 +259,7 @@ function Teams({ s }: { s: GameStateV2 }) {
             actions={releaseBtn(newest('eng'))} />
           <RoleHead r="re" />
           <Pile k="re.cap" label="Capabilities"
-            sub={<Tip content={() => <TipCard title="Research labour" value={`×${prod.ratios.h.toFixed(2)} the reference lab`}>Capabilities research engineers ÷ (0.55 × the reference lab's staff). ×1 = the AI 2027 leader.</TipCard>}><span>labour <b className="num">×{prod.ratios.h.toFixed(2)}</b> <span className="dim">of the leader's</span></span></Tip>}
+            sub={<Tip content={() => <TipCard title="Research labour" value={`×${prod.ratios.h.toFixed(2)} the 2025 leader`}>Capabilities research engineers on experiments and tuning ÷ the leader lab's on day 0 (a fixed unit, not a reference path).</TipCard>}><span>labour <b className="num">×{prod.ratios.h.toFixed(2)}</b> <span className="dim">of the leader's</span></span></Tip>}
             actions={<>{moveBtn(newest('re.cap'))}{releaseBtn(newest('re.cap'))}</>} />
           <Pile k="re.saf" label="Safety" sub={<span>tools · investigations</span>} actions={<>{moveBtn(newest('re.saf'))}{releaseBtn(newest('re.saf'))}</>} />
         </div>

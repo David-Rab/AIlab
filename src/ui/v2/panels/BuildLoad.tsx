@@ -2,7 +2,7 @@
 // builds and idle; the numbers and every line live in its tooltip. Home of build capacity and utilisation (Company ›
 // Agents & teams, engineering pool). Products and Models show only their own waits (links here).
 import type { GameStateV2 } from '../../../engine/v2';
-import { BUILD_AI_CAP, buildCapacity, buildEtas, buildRates, isRunLine, upkeepLines, upkeepSplit } from '../../../engine/v2';
+import { buildCapacity, buildEtas, buildRates, isRunLine, upkeepLines, upkeepSplit } from '../../../engine/v2';
 import { FEATURE_BY_ID, PRODUCT_DEFS, type FeatureId } from '../../../data/v2/features';
 import { SECTOR_BY_ID } from '../../../data/v2/sectors';
 import { AGENT_USE_DEF } from '../../../data/v2/agents';
@@ -50,7 +50,7 @@ export function BuildLoad({ s }: { s: GameStateV2 }) {
   const tip = () => (
     <TipCard title={<Term id="buildCapacity">Build capacity</Term>} value={`${bc.capacity.toFixed(1)} team-wk/wk`} rows={[
       { label: 'Human (teams × quality)', value: bc.human.toFixed(1) },
-      { label: <><Term id="engAgents">AI speed-up</Term> (cap ×{BUILD_AI_CAP})</>, value: `${F.mult(bc.capacity / Math.max(1e-9, bc.human))} · AI ${F.pct(bc.aEng)} of the work` },
+      { label: <><Term id="engAgents">AI speed-up</Term></>, value: `${F.mult(bc.capacity / Math.max(1e-9, bc.human))} · AI ${F.pct(bc.aEng)} of the work` },
       { label: <span className="row-i"><i className="drv-sw" style={{ background: SEG.runs }} /><Term id="runOps">Runs</Term></span>, value: `${u.runs.toFixed(1)} t-wk/wk` },
       ...lines.filter(isRunLine).map((l) => ({ label: <span className="dim">· {upkeepLabel(s, l)}</span>, value: l.tw.toFixed(1) })),
       { label: <span className="row-i"><i className="drv-sw" style={{ background: SEG.products }} /><Term id="productUpkeep">Product upkeep</Term></span>, value: `${u.products.toFixed(1)} t-wk/wk`, ...(short > 0 ? { tone: 'neg' as const } : {}) },

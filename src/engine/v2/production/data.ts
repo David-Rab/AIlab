@@ -2,10 +2,9 @@
 //   N_req(C) = 20·sqrt(C/120) tokens (Chinchilla 20 tok/param, C = 6ND)
 //   S_human = 3 epochs × (licensed + unlicensed tokens) × (1 + 0.5·licence deals)    (Epoch: 300T, ≤ 4 epochs)
 //   S_syn  += y0 · C_syn per day;   S_eff = S_human + q_syn·S_syn (q_syn 0.5)
-//   Ddata  = min(1, S_eff/N_req(F(t)))^0.3 · d^0.15
+//   readout: min(1, S_eff/N_req(next base)) (model v3 V3: the next base is the lab's latest × 3, not F(t))
 import { SYN_QUALITY, SYN_YIELD_T_PER_H100E_DAY } from '../../../data/v2/calibration';
-import { decimalYear } from '../core/time';
-import { frontierFlop } from './knots';
+import { latestBaseFlop } from '../models/stacks';
 import { idleTrainingShare } from '../models/runs';
 import type { GameStateV2 } from '../types';
 
@@ -32,9 +31,12 @@ export function effectiveStock(s: GameStateV2): number {
   return (human + SYN_QUALITY * a.syntheticTokensT * synMult(s)) * 1e12;
 }
 
-/** min(1, S_eff / N_req(F(t))): adequacy of the player's data for a reference-size frontier base. */
-export function dataStockRatio(s: GameStateV2, yr = decimalYear(s)): number {
-  return Math.min(1, effectiveStock(s) / tokensRequired(frontierFlop(s.hidden.timeline, yr)));
+/** The lab's next frontier base for the readouts (model v3 V3: physical, not the calendar's F(t)): its latest base × 3,
+ *  one generation of compute growth [D]. */
+export const nextBaseFlop = (s: GameStateV2) => 3 * latestBaseFlop(s);
+/** min(1, S_eff / N_req(next base)): adequacy of the player's data for its next frontier base (readout). */
+export function dataStockRatio(s: GameStateV2): number {
+  return Math.min(1, effectiveStock(s) / tokensRequired(nextBaseFlop(s)));
 }
 
 /** Daily synthetic-token accrual from the synthetic pool (player), plus the spare training compute when the

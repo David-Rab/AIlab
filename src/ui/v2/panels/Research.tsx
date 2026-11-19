@@ -6,7 +6,7 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Building2, CircleCheck, CircleDashed, CircleX, Hourglass, Layers, LoaderCircle, WandSparkles, Wrench, X, ChevronUp, ChevronDown } from 'lucide-react';
 import {
-  dateOf, effortOf, fmtDate, idleTeams, knowHow, nodeDept, missingNeeds, nodeOdds, nodeStatus, payoffOf, projectCapacity, projectEta, SCI_AI_CAP, sciAiMult,
+  dateOf, effortOf, fmtDate, idleTeams, knowHow, nodeDept, missingNeeds, nodeOdds, nodeStatus, payoffOf, projectCapacity, projectEta, sciAiMult,
   projectReady, projectTeams, researchSpeed, teamCapacity, teamsOn, treeCounts,
 } from '../../../engine/v2';
 import type { Column, GameStateV2, NodeStatus, Team, TeamQuality } from '../../../engine/v2';
@@ -427,7 +427,7 @@ function Projects({ s }: { s: GameStateV2 }) {
                   <button className="rs-tch add" data-test={`add-team.${id}`} onClick={() => setUi('pick', id)}>+</button>
                 </div>
                 <div className="pr"><div className="rs-bar"><i style={{ width: `${p * 100}%` }} /></div><Tip content={() => <TipCard title="Progress" value={F.pct(p)}>Share of the project done.</TipCard>}><b className="num">{F.pct(p)}</b></Tip></div>
-                <div className="ft">ETA <span className="sp" /><Tip content={() => <TipCard title="ETA" value={eta(projectEta(s, id))} rows={[...ts.map((t) => ({ label: teamName(t), value: `×${(t.specialty === n.column ? 1.5 : 1).toFixed(1)}` })), ...(nodeDept(n) === 'cap' && !isLineNode(n) ? [{ label: <Term id="aiScience">AI science</Term>, value: `capacity ${F.mult(sciAiMult(s))} (max ×${SCI_AI_CAP})` }] : [])]}>At today's teams and research speed; extra teams add less each (diminishing returns).</TipCard>}><span className="num">{eta(projectEta(s, id))}</span></Tip></div>
+                <div className="ft">ETA <span className="sp" /><Tip content={() => <TipCard title="ETA" value={eta(projectEta(s, id))} rows={[...ts.map((t) => ({ label: teamName(t), value: `×${(t.specialty === n.column ? 1.5 : 1).toFixed(1)}` })), ...(nodeDept(n) === 'cap' && !isLineNode(n) ? [{ label: <Term id="aiScience">AI science</Term>, value: `capacity ${F.mult(sciAiMult(s))}` }] : [])]}>At today's teams and research speed; extra teams add less each (diminishing returns).</TipCard>}><span className="num">{eta(projectEta(s, id))}</span></Tip></div>
                 {/* Jank R5: safety lines show their health, capability ideas their odds (two different readings, two labels). */}
                 <div className="ft">{isLineNode(n) ? <Term id="lineHealth">health</Term> : <Term id="odds">odds</Term>} <span className="sp" /><Tip content={() => <TipCard title={isLineNode(n) ? <Term id="lineHealth">Line health</Term> : <Term id="odds">Odds</Term>} value={isLineNode(n) ? health(nodeOdds(s, id)) : F.pct(nodeOdds(s, id))}>{isLineNode(n) ? 'How likely a result here is a working tool, from the results so far.' : 'Chance the idea works when the project finishes.'}</TipCard>}><span className="num">{isLineNode(n) ? health(nodeOdds(s, id)) : F.pct(nodeOdds(s, id))}</span></Tip></div>
               </div>

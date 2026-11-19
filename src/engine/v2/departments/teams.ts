@@ -17,7 +17,8 @@ import {
 } from '../../../data/v2/teams';
 import { START_BY_ID } from '../../../data/v2/starts';
 import { decimalYear } from '../core/time';
-import { hRef, Phi } from '../production/knots';
+import { Phi } from '../production/knots';
+import { workContext } from './workfit';
 import type {
   BaselineId, Column, EngineSystem, GameStateV2, PlayerLab, RngLike, StaffByRole, StartType, SystemCtx, Team, TeamCandidate, TeamDept,
   TeamHiring, TeamKey, TeamQuality, TeamRole,
@@ -100,13 +101,11 @@ export function playerH(p: Pick<PlayerLab, 'teams'>): number {
   return re / REF_ROLE_SHARE.re;
 }
 
-/** τ_h = 1 + Σ_i n_i (q_i − q_ref) / Sci_ref + 0.05 · stars over capabilities science teams (research/19 §1.3);
- *  exactly 1 for Strong teams and no stars. Clamped to [0.5, 1.5]. */
-export function tauH(p: Pick<PlayerLab, 'teams' | 'stars'>, yr: number): number {
-  let d = 0;
-  for (const t of p.teams) if (t.role === 'sci' && t.dept === 'cap') d += t.heads * (QUALITY[t.quality].out - 1);
-  const tau = 1 + d / (REF_ROLE_SHARE.sci * hRef(yr)) + STAR_HIRE.dTaste * (p.stars ?? 0);
-  return Math.min(STAR_HIRE.maxTaste, Math.max(0.5, tau));
+/** Star-hire taste bench τ_h = 1 + 0.05 · stars (capped at 1.5). Model v3 V3: team quality enters each team's taste on
+ *  the AIFM distribution directly (departments/workfit.ts teamTaste), no longer through a lab-level τ normalised by the
+ *  reference headcount; stars lift every capabilities team's human taste by this factor. */
+export function tauH(p: Pick<PlayerLab, 'teams' | 'stars'>, _yr?: number): number {
+  return Math.min(STAR_HIRE.maxTaste, 1 + STAR_HIRE.dTaste * (p.stars ?? 0));
 }
 
 /** Payroll $B/yr of a team (heads × role cost × quality cost). */
@@ -171,20 +170,16 @@ export function fillWeeks(s: GameStateV2, team: Pick<Team, 'role' | 'dept' | 'si
   return Math.max(1, Math.ceil(need / spare - 1e-9));
 }
 
-/** Engineers' AI share A_eng = 1 − (1 − A)² on the coding automation A (STRUCTURE §4.1) [Design]. */
-export const aEngOf = (A: number) => 1 - (1 - Math.min(1, Math.max(0, A))) ** 2;
-/** Build-capacity cap on the AI speed-up [D: agents need human review and integration; ×10 is AI 2027's "SC with
- *  humans in the loop" order of magnitude]. Shown in the build-capacity tooltip. */
-export const BUILD_AI_CAP = 10;
-
-/** Build capacity (team-weeks per week): Σ engineer heads/150 × quality × 1/(1 − A_eng), capped. Works the build
- *  queue (departments/build.ts, R5). */
-export function buildCapacity(s: GameStateV2, aEngAt?: number): { human: number; aEng: number; capacity: number } {
+/** Build capacity (team-weeks per week) = effective software-engineering labour (model v3 V3.3): the engineers' team-
+ *  equivalents (heads/150 × quality) and the engineering agents' AI labour in the coding CES at the agents' SWE coverage,
+ *  with the assist speed-up on the human share (departments/workfit.ts). No cap: the coding CES's human bottleneck on
+ *  the uncovered work, (1 − a)^((1−ρc)/ρc), is the limit (×1.4 at 2025's coverage, ×32 at 0.9). Works the build queue
+ *  (departments/build.ts, R5). */
+export function buildCapacity(s: GameStateV2): { human: number; aEng: number; capacity: number } {
   let human = 0;
   for (const t of s.player.teams) if (t.role === 'eng') human += (t.heads / TEAM_SIZE.eng) * QUALITY[t.quality].out;
-  // R7: the engineering agents' package (their model's A and their compute coverage); pre-R7 caches: A of routine.
-  const aEng = aEngAt ?? s.player.prodCache?.labor.aEng ?? aEngOf(s.player.prodCache?.labor.A ?? 0);
-  return { human, aEng, capacity: human * Math.min(BUILD_AI_CAP, 1 / Math.max(1e-9, 1 - aEng)) };
+  const swe = workContext(s).slots.SWE;
+  return { human, aEng: swe.fit.a, capacity: human > 0 ? Math.max(human, swe.L) : 0 };
 }
 
 // ───────── Candidates ─────────
@@ -404,10 +399,10 @@ export function hireStar(s: GameStateV2) {
   syncTeams(s);
 }
 
-/** AI share of each role's work (STRUCTURE §4.1): engineers A_eng; research engineers 1 − wH (the AI part of coding
+/** AI share of each role's work (STRUCTURE §4.1): engineers their SWE coverage (model v3 V3); research engineers 1 − wH (the AI part of coding
  *  labour); scientists Φ(sdAI), the share of human scientists AI taste exceeds. */
 export function aiShareByRole(s: GameStateV2): Record<TeamRole, number> {
   const pr = s.player.prodCache;
   if (!pr) return { eng: 0, re: 0, sci: 0 };
-  return { eng: pr.labor.aEng ?? aEngOf(pr.labor.A), re: 1 - pr.labor.wH, sci: Phi(pr.sdAI) };
+  return { eng: pr.labor.aEng ?? 0, re: 1 - pr.labor.wH, sci: Phi(pr.sdAI) };
 }

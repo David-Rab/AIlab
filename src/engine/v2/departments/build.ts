@@ -35,23 +35,30 @@ const str = (p: Params, k: string, d: string) => (typeof p[k] === 'string' ? (p[
  *  product upkeep by default, so the reference lab's adoptions never wait on its products. */
 export const isStackWork = (it: Pick<BuildItem, 'kind'>) => it.kind === 'runSetup' || it.kind === 'adopt';
 
+/** Physical size of a run for engineering (model v3 V3): its FLOP over 1e27, the leader lab's frontier base in mid-2025
+ *  (a fixed physical unit, not the calendar's frontier) [D]. */
+export const engScale = (flop: number) => Math.max(0, flop) / ENG_FLOP_REF;
+export const ENG_FLOP_REF = 1e27;
 /** Team-weeks to set up a run [D]: the incremental engineering for a new run on existing infrastructure (data
- *  pipelines, checkpointing, cluster bring-up). A base at the frontier scale 0.4, scaling with scale^0.75 (×8: 1.9;
- *  scale = FLOP ÷ F(t), BRIDGE(V3) until engineering becomes a work type); continue 0.25;
- *  post-train 0.1; distill and amplify 0.05. Operating a run while it trains is upkeep (runOpsTW, also ∝ scale^0.75).
+ *  pipelines, checkpointing, cluster bring-up). A base of 1e27 FLOP 0.4, scaling with √(FLOP ÷ 1e27) (cluster size and
+ *  failure handling grow with the run's compute; model v3 V3 made it physical: v2 scaled with FLOP ÷ F(t)); continue
+ *  0.25; post-train 0.1; distill and amplify 0.05. Operating a run while it trains is upkeep (runOpsTW, also ∝ √).
  *  Calibration (R5, kept in J2): RefBot's setups finish within a day or two in every world — the stub traces are
  *  sensitive to the run cadence (a ×4 setup moved P08 by 100 days on the fast preset). */
 export function runSetupTW(kind: RunKind, scale = 1, ida = false): number {
-  if (kind === 'base') return 0.4 * Math.pow(Math.max(0.01, scale), 0.75);
+  if (kind === 'base') return 0.4 * Math.sqrt(Math.max(0.01, scale));
   if (kind === 'continue') return 0.25;
   if (kind === 'post' && !ida) return 0.1;
   return 0.05;
 }
 
-/** Standing engineering load, team-weeks per week [D] (J2 P1). Product: 0.5 + 4 × √(revenue ÷ $10B/yr), so a $10B/yr
- *  product keeps 4.5 team-weeks a week busy; runs while they train: a base 1 × scale^0.75, continue and post-train 0.5,
- *  distill and amplify 0.2; the continual-learning stream 0.5; each monitor in production 1. */
-export const UPKEEP = { product: 0.5, productRev: 4, revUnit: 10, runBase: 1, runMid: 0.5, runSmall: 0.2, stream: 0.5, monitor: 1 } as const;
+/** Standing engineering load, team-weeks per week [D] (J2 P1). Product: 0.2 + 1.6 × √(revenue ÷ $10B/yr), so a $10B/yr
+ *  product keeps 1.8 team-weeks a week busy; runs while they train: a base 1 × √(FLOP ÷ 1e27), continue and post-train
+ *  0.5, distill and amplify 0.2; the continual-learning stream 0.5; each monitor in production 0.4. Model v3 V3: product
+ *  and monitor upkeep × 0.4 (were 0.5 + 4√… and 1): J2 tuned it to v2's build capacity, whose AI speed-up came from AI 2027's automation
+ *  knots (×4.7 at the start); the physical SWE coverage of a 2025 model (≈ 0.2) gives ×1.35, and at the old upkeep the
+ *  start lab's products alone needed twice its capacity. */
+export const UPKEEP = { product: 0.2, productRev: 1.6, revUnit: 10, runBase: 1, runMid: 0.5, runSmall: 0.2, stream: 0.5, monitor: 0.4 } as const;
 /** One-off builds [D]: launching a product 4 team-weeks; a sector pack 4 (then 120 days of certification). */
 export const LAUNCH_TW = 4;
 export const SECTOR_PACK_TW = 4;
@@ -66,8 +73,8 @@ export const isRunLine = (l: Pick<UpkeepLine, 'kind'>) => l.kind === 'run' || l.
 const isLiveProduct = (d: Deployment) => d.kind === 'product' && d.status !== 'withdrawn';
 
 /** Engineering a training run needs each week while it trains. */
-export function runOpsTW(r: Pick<TrainingRun, 'kind' | 'scale' | 'name'>): number {
-  if (r.kind === 'base') return UPKEEP.runBase * Math.pow(Math.max(0.01, r.scale ?? 1), 0.75);
+export function runOpsTW(r: Pick<TrainingRun, 'kind' | 'flopNeeded' | 'name'>): number {
+  if (r.kind === 'base') return UPKEEP.runBase * Math.sqrt(Math.max(0.01, engScale(r.flopNeeded)));
   if (r.kind === 'continue' || (r.kind === 'post' && !r.name.startsWith('IDA'))) return UPKEEP.runMid;
   return UPKEEP.runSmall;
 }

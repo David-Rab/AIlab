@@ -1,35 +1,40 @@
-// Capability research projects (model v3 V2: design/MODEL-V3.md §5, §8; design/V3-BUILD.md V2.2–V2.6; content
+// Capability research projects (model v3 V2/V3: design/MODEL-V3.md §5, §6, §8; design/V3-BUILD.md V2.2–V2.6, V3.4; content
 // design/TECH-TREE.md §6). Owner: WS1. Safety research lines keep their v2 path (models/tree.ts) until V6.
 //
 // A project's life runs by itself (MODEL-V3 §5.3):
-//   1 ideation      the project's science teams find candidates at pace × √(capacity × AI science) per team-month of
-//                   ideation work. Each candidate has a hidden true small-scale effect x (the project's per-world draw ×
-//                   a candidate factor; taste raises the factor) and a belief = x + noise (taste lowers the noise). Once
-//                   PICK_AT candidates exist the team tests the one with the best score μ + κσ (κ from the lab's risk
-//                   policy); scientists keep ideating meanwhile (pool ≤ POOL_MAX, then a better find replaces the weakest).
-//   2 small         research-engineer work + experiment FLOP; a noisy reading narrows the belief (precision-weighted).
+//   1 ideation      the project's science teams find candidates at (m_IDEAS × capacity)^λ × taste per team-month of
+//                   ideation work (m_IDEAS: AI labour in research ideas, departments/workfit.ts). Each candidate has a
+//                   hidden true small-scale effect x (the project's per-world draw × a candidate factor) and a belief =
+//                   x + noise (taste lowers the noise). Once PICK_AT candidates exist the team tests the one with the best
+//                   score μ + κσ (κ from the lab's risk policy); scientists keep ideating meanwhile (pool ≤ POOL_MAX, then a
+//                   better find replaces the weakest).
+//   2 small         experiment work at the AI Futures experiment CES X(c, ℓ) of the project's own experiment FLOP per day
+//                   (c) and research-engineer labour (ℓ = (m_EXP × team-equivalents)^λ), both in fixed physical units (the
+//                   leader lab's day-0 inputs per project = 1; data/v2/workTypes.ts). A noisy reading narrows the belief.
 //                   Posterior below DROP_FRAC × the prior mean: the candidate is dropped, the team picks another.
-//   3 scale test    research-engineer work + a FLOP chunk (a share of the lab's latest base). It reads the effect at test
-//                   scale (x·1000^s) and the scale exponent s. Below SURVIVE_FRAC of the small-scale estimate: dropped.
+//   3 scale test    the same CES; it reads the effect at test scale (x·1000^s) and the scale exponent s. Below
+//                   SURVIVE_FRAC of the small-scale estimate: dropped.
 //   4 result        the final estimate band at the lab's latest base. Ideas and axes fail after MAX_DROPS dropped
 //                   candidates (the direction does not work in this world) and can be reopened as speculative.
 //   5 adoption      the engineers build it in (team-weeks ∝ effect); then the TRUE effect enters its stack (models/
 //                   stacks.ts; HEADROOM of it waits for routine tuning), an axis's lever unlocks, a domain effect applies.
-// Lines repeat: a result queues its adoption and the line moves to generation n + 1 with prior μ_n (LINE_DECAY).
-// Speed (BRIDGE(V3)): work progresses at the research pace = the production function's software rate ÷ the world's
-// software share (= M before SC, as the v2 tree; M ÷ share after it, so the stacks track the v2 know-how path that grew
-// at that rate). FLOP comes from the experiments pool by project priority; a stage ends when work and FLOP are done.
+// Lines repeat. Each line is a pool with returns r (V3 notes, derivation 1): the result that brings research input q (its
+// team's taste × the ideas it batches) to a pool at state R has prior mean r_l·log₁₀((R + q)/R), so the line's stack is
+// r_l·log₁₀ of its cumulative research input (AI Futures' SE = r·log₁₀ RS).
+// Experiment FLOP is real: the experiments pool (plus idle training compute, R5) is shared by the projects in experiments
+// and routine tuning in proportion to their research engineers, and consumed while they run.
 //
 // Allocation without micromanagement (V2.5): capability science teams go down the priority list (teams wanted per
 // project, best specialty first), then one pass of pairwise swaps that raise total progress, then leftovers to the
 // highest-priority project under PROJECT_MAX_TEAMS. Research engineers serve needs in the player's order (run
 // operations → project experiments by priority → routine tuning), with optional caps; overflow flows down.
 import {
-  BELIEF_NOISE, CAND, DROP_FRAC, DUD_SD, EXP_NOISE, HEADROOM, IDEA_STAGES, LINE_DECAY, LINE_FIT, LINE_STAGES, MAX_DROPS, PACE_BATCH,
-  PICK_AT, POOL_MAX, PROJECT_MAX_TEAMS, PROJECT_SD, REF_RE_RESEARCH_SHARE, RE_OPS, RE_PER_PROJECT, RISK_KAPPA, SMALL_FLOP_SHARE, SMALL_TO_TEST,
-  SPECULATIVE, SURVIVE_FRAC, S_READ_SD, TASTE_MEAN, TEST_READ_SD, ADOPT_TW,
+  BELIEF_NOISE, CAND, DROP_FRAC, DUD_SD, EXP_NOISE, HEADROOM, IDEA_STAGES, LINE_FIT, LINE_STAGES, MAX_DROPS, PACE_BATCH,
+  PICK_AT, POOL_MAX, PROJECT_MAX_TEAMS, PROJECT_SD, RE_OPS, RE_PER_PROJECT, RISK_KAPPA, SMALL_TO_TEST,
+  SPECULATIVE, SURVIVE_FRAC, S_READ_SD, TASTE_MEAN, TEST_READ_SD, ADOPT_TW, TUNE_K,
 } from '../../../data/v2/research';
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
+import { C_UNIT_FLOP_PER_DAY, RE_UNIT } from '../../../data/v2/workTypes';
 import { PARADIGMS } from '../../../data/v2/paradigms';
 import { CAPACITY_UNIT, PROJECT_BY_ID, SPECIALTY_BONUS, TREE, type TreeNodeDef } from '../../../data/v2/tree';
 import { COLUMN_DEPT, QUALITY, TEAM_SIZE } from '../../../data/v2/teams';
@@ -38,8 +43,10 @@ import type {
   Allocation, CapProjectState, CapResult, Candidate, GameStateV2, ReNeed, StackKey, SystemCtx, Team,
 } from '../types';
 import { poolsOf } from '../compute/power';
-import { hRef, Phi } from '../production/knots';
-import { decimalYear } from '../core/time';
+import { Phi, Xces } from '../production/knots';
+import { qualityZ, researchMods, starTaste, teamTaste, workContext } from '../departments/workfit';
+import { adopted } from './paradigms';
+import { idleTrainingShare } from './runs';
 import { addIdea, latestBaseFlop, STACK_KEYS, syncPa, trainNow, tuneDay, stacksGEquiv } from './stacks';
 
 const node = (id: string): TreeNodeDef | undefined => PROJECT_BY_ID[id];
@@ -60,21 +67,32 @@ function Z(s: GameStateV2, key: string): number {
 
 // ───────────────────────────── project parameters ─────────────────────────────
 
-/** Stage work (team-months at pace 1) and the scale test's FLOP share of the latest base. */
+/** Stage work (team-months at unit inputs) and the scale test's FLOP share of the latest base (the scale the effect is
+ *  measured at). */
 export function stagesOf(n: TreeNodeDef): { idea: number; small: number; scale: number; testFrac: number } {
   if (n.kind === 'line') return LINE_STAGES;
   const E = n.effortTM ?? 8;
   return { idea: IDEA_STAGES.idea * E, small: IDEA_STAGES.small * E, scale: IDEA_STAGES.scale * E, testFrac: IDEA_STAGES.testFrac };
 }
 
-/** Line decay: μ_n = μ₁ · (1 + (n − 1)/n₀)^(−β) (V3-BUILD V2.2). */
-export const lineDecay = (gen: number) => Math.pow(1 + (Math.max(1, gen) - 1) / LINE_DECAY.n0, -LINE_DECAY.beta);
+/** A line's pool in this world (V3 notes, derivation 1): returns r_l = rShare × the preset's r, and the research input
+ *  before the start n₀ from the start effect per idea μ₁ = r_l·log₁₀(1 + 1/n₀). */
+export function linePool(s: Pick<GameStateV2, 'hidden'>, n: TreeNodeDef): { r: number; n0: number } {
+  const r = Math.max(1e-6, (n.effect?.rShare ?? 0.1) * s.hidden.timeline.v3.r);
+  const mu1 = Math.max(1e-9, (n.effect?.mean ?? 0) * LINE_FIT.mu);
+  return { r, n0: 1 / (Math.pow(10, mu1 / r) - 1) };
+}
+/** Per-idea prior mean of a batch of b ideas of taste q at pool state R (research input since the start). */
+export const poolMean = (pool: { r: number; n0: number }, R: number, q: number, b: number) =>
+  (pool.r * Math.log10((pool.n0 + R + b * q) / (pool.n0 + R))) / Math.max(1, b);
+/** Taste's lift on a one-off idea's mean: 1 + TASTE_MEAN·(1 − 1/T), ×0.9 for Solid teams, ×1.5 at most [D]. */
+export const ideaTaste = (q: number) => 1 + TASTE_MEAN * (1 - 1 / Math.max(0.2, q));
 
-/** Public prior mean of a candidate's small-scale effect in generation `gen` (project unit, per idea; no batch). */
-export function priorMean(n: TreeNodeDef, gen: number, spec = 0): number {
-  const m = n.effect?.mean ?? 1;
-  const line = n.kind === 'line' ? LINE_FIT.mu * lineDecay(gen) : 1;
-  return m * line * Math.pow(SPECULATIVE.mean, spec);
+/** Public prior mean of a candidate's small-scale effect per idea (project unit): lines read their pool at the candidate's
+ *  position (default: the line's pool now) with its taste and batch; ideas and axes their prior × taste's lift. */
+export function priorMean(s: GameStateV2, n: TreeNodeDef, c: Partial<Pick<Candidate, 'at' | 'q' | 'b'>> = {}, spec = 0): number {
+  if (n.kind === 'line') return poolMean(linePool(s, n), c.at ?? s.player.tree[n.id]?.cap?.pool ?? 0, c.q ?? 1, c.b ?? 1);
+  return (n.effect?.mean ?? 1) * Math.pow(SPECULATIVE.mean, spec) * ideaTaste(c.q ?? 1);
 }
 
 /** Base odds that the direction works in a world (paradigm prior or node odds; lines always). */
@@ -92,12 +110,6 @@ function works(s: GameStateV2, n: TreeNodeDef, spec: number): boolean {
   return u < attemptOdds(n, spec);
 }
 
-/** Hidden: the project's true mean in generation `gen` (prior × a per-world lognormal draw). */
-function trueMean(s: GameStateV2, n: TreeNodeDef, gen: number, spec: number): number {
-  const sd = n.effect?.sd ?? PROJECT_SD;
-  return priorMean(n, gen, spec) * Math.exp(sd * Z(s, `T:${n.id}:${spec}:${gen}`) - (sd * sd) / 2);
-}
-
 /** Range of a candidate's scale exponent [D]. */
 export const S_RANGE: readonly [number, number] = [-0.6, 0.25];
 /** Scale exponent below which a small-scale win does not survive the scale test (its effect at test scale falls
@@ -105,8 +117,8 @@ export const S_RANGE: readonly [number, number] = [-0.6, 0.25];
 const S_SURVIVE = Math.log10(SURVIVE_FRAC) / Math.log10(SMALL_TO_TEST);
 
 /** Hidden: a candidate's true effect at the scale test and its scale exponent. One idea: x·1000^s. A batch of b ideas
- *  (lines at high pace) keeps its survivors: the expected survivor-weighted factor E[1000^s; s ≥ s*] of the line's
- *  scale prior and the survivors' mean exponent (the central limit of b independent ideas). */
+ *  (lines at high research speed) keeps its survivors: the expected survivor-weighted factor E[1000^s; s ≥ s*] of the
+ *  line's scale prior and the survivors' mean exponent (the central limit of b independent ideas). */
 export function atTest(n: TreeNodeDef, c: Pick<Candidate, 'b'>, truth: { x: number; s: number }): { xTest: number; s: number; batch: boolean } {
   const [mu, sd] = n.effect?.s ?? [0, 0];
   if (c.b <= 1 || sd <= 0) return { xTest: truth.x * Math.pow(SMALL_TO_TEST, truth.s), s: truth.s, batch: false };
@@ -119,7 +131,7 @@ export function atTest(n: TreeNodeDef, c: Pick<Candidate, 'b'>, truth: { x: numb
 }
 
 /** Hidden truth of a candidate: small-scale effect x (project unit, the whole batch) and scale exponent s. Recomputed from
- *  the seed, never stored (engine only). */
+ *  the seed, never stored (engine only). The per-world draw of the project's mean is keyed by generation. */
 export function candidateTruth(s: GameStateV2, n: TreeNodeDef, st: CapProjectState, c: Candidate): { x: number; s: number } {
   const spec = st.spec ?? 0;
   const key = `${n.id}:${spec}:${c.k}`;
@@ -128,34 +140,19 @@ export function candidateTruth(s: GameStateV2, n: TreeNodeDef, st: CapProjectSta
   // Clamped [D]: no idea grows faster than ×1.8 per OOM of run compute (the Transformer's ≈ 0.23, Gundlach) or fades
   // faster than ×0.25 per OOM.
   const sx = Math.max(S_RANGE[0], Math.min(S_RANGE[1], sm + ssd * Z(s, `cs:${key}`)));
-  const pub = priorMean(n, c.gen, spec);
+  const pub = priorMean(s, n, c, spec);
   if (!works(s, n, spec)) return { x: Math.sqrt(c.b) * pub * DUD_SD * z, s: sx };
-  const T = trueMean(s, n, c.gen, spec);
+  const sd = n.effect?.sd ?? PROJECT_SD;
+  const T = pub * Math.exp(sd * Z(s, `T:${n.id}:${spec}:${c.gen}`) - (sd * sd) / 2);
   const spread = Math.pow(SPECULATIVE.spread, spec);
-  const taste = 1 + TASTE_MEAN * (c.q - 1);
-  const x = c.b * T * (CAND.mean0 + CAND.meanNov * c.nov) * taste + Math.sqrt(c.b) * T * (CAND.sd0 + CAND.sdNov * c.nov) * spread * z;
+  const x = c.b * T * (CAND.mean0 + CAND.meanNov * c.nov) + Math.sqrt(c.b) * T * (CAND.sd0 + CAND.sdNov * c.nov) * spread * z;
   return { x, s: sx };
 }
 
-// ───────────────────────────── pace and capacities ─────────────────────────────
+// ───────────────────────────── capacities and taste ─────────────────────────────
 
-/** Research pace (BRIDGE(V3)): the production function's software rate ÷ the world's software share: M before SC (the
- *  v2 tree's speed), M ÷ share after it. Pauses and treaties slow it with the rate. */
-export function researchPace(s: GameStateV2): number {
-  const pr = s.player.prodCache;
-  if (!pr) return 1;
-  return Math.max(0, pr.rate) / Math.max(1e-9, s.hidden.timeline.share);
-}
-
-/** BRIDGE(V3): project capacities count relative to the reference headcount path (H_ref at the start ÷ H_ref today), as
- *  the production function's h does: the pace already carries the lab's labour relative to the reference, so a
- *  reference lab that hires along H_ref keeps a constant project speed at a given pace (the v2 know-how rate did not
- *  grow with headcount; without this the stacks of the long presets ran years ahead). V3 replaces both with project-
- *  level CES on explicit labour. */
-export const headcountNorm = (s: GameStateV2) => hRef(2025.5) / hRef(decimalYear(s));
-
-/** Ideas a line candidate batches at today's pace (1 below PACE_BATCH). */
-export const batchAt = (pace: number) => Math.max(1, Math.floor(pace / PACE_BATCH));
+/** Ideas a line candidate batches at today's experiment throughput X (1 below PACE_BATCH) [D: performance]. */
+export const batchOf = (X: number) => Math.max(1, Math.floor(X / PACE_BATCH));
 
 /** One science team's capacity on a project: heads/40 × quality × 1.5 in its specialty. */
 export const sciCapacity = (t: Pick<Team, 'heads' | 'quality' | 'specialty'>, n: Pick<TreeNodeDef, 'column'>) =>
@@ -168,17 +165,22 @@ export const capSciTeams = (s: GameStateV2) => s.player.teams.filter((t) => t.ro
 /** Capabilities research engineers, team-equivalents. */
 export const capReCapacity = (s: GameStateV2) => s.player.teams.reduce((a, t) => a + (t.role === 're' && t.dept === 'cap' ? reCapacity(t) : 0), 0);
 
-/** Capacity and taste (capacity-weighted quality) of the science teams on a project. */
+/** Capacity and taste of the science teams on a project. Taste (MODEL-V3 §8, V3.4) is each team's E[max(human, AI)] on
+ *  the AIFM taste distribution (quality sets the team's place in it, the frontier-research model's AI taste lifts it),
+ *  capacity-weighted; 1 = a Strong team without AI. */
 export function sciOn(s: GameStateV2, id: string, teams = s.player.teams): { cap: number; q: number } {
   const n = node(id);
   if (!n) return { cap: 0, q: 1 };
+  const wc = workContext(s);
+  const m2b = s.hidden.timeline.prod.m2b;
+  const star = starTaste(s);
   let cap = 0;
   let qw = 0;
   for (const t of teams) {
     if (t.projectId !== id || t.role !== 'sci') continue;
     const c = sciCapacity(t, n);
     cap += c;
-    qw += c * QUALITY[t.quality].out;
+    qw += c * teamTaste(qualityZ(t.quality), wc.sdAI, wc.phi, m2b, star);
   }
   return { cap, q: cap > 0 ? qw / cap : 1 };
 }
@@ -205,7 +207,7 @@ export const takesTeams = (st: CapProjectState | undefined) => !st || st.stage =
 /** Teams wanted for a project (default 1). */
 export const teamsWanted = (s: GameStateV2, id: string) => Math.max(0, Math.min(PROJECT_MAX_TEAMS, Math.round(s.player.research.want[id] ?? 1)));
 
-/** Progress value of an assignment: Σ over projects of √capacity ÷ ideation effort (candidates per day at pace 1). */
+/** Progress value of an assignment: Σ over projects of √capacity ÷ ideation effort (candidates per day at unit inputs). */
 export function assignmentValue(projects: string[], teams: { t: Team; p: string | undefined }[]): number {
   let v = 0;
   for (const id of projects) {
@@ -289,7 +291,7 @@ export function assignCapTeams(s: GameStateV2, ready: string[]) {
 
 // ───────────────────────────── allocation: research engineers (V2.5) ─────────────────────────────
 
-/** Research engineers that keep the running runs and the stream going today (team-equivalents). */
+/** Research engineers that keep the running runs and the stream going today (team-equivalents of effective labour). */
 export function reOpsNeed(s: GameStateV2): number {
   let need = 0;
   for (const r of s.player.models.runs) {
@@ -320,31 +322,48 @@ const experimenting = (s: GameStateV2, q: string[]) => q.filter((id) => {
   return !!st && !!st.test;
 });
 
-/** Research engineers by need and per project (team-equivalents) for today. */
+/** Research engineers by need and per project (human team-equivalents) for today. AI labour in experiments (m_EXP)
+ *  carries part of the run operations, so their human need is the effective need ÷ m_EXP. */
 export function reAllocation(s: GameStateV2): { re: Record<ReNeed, number>; perProject: Map<string, number>; total: number } {
   const total = capReCapacity(s);
   const exp = experimenting(s, s.player.research.queue);
-  // BRIDGE(V3): needs scale with the reference headcount path (headcountNorm), so a reference lab's shares hold.
-  const k = 1 / headcountNorm(s);
-  const re = allocate(total, s.player.research.re, { ops: reOpsNeed(s) * k, exp: exp.length * RE_PER_PROJECT * k, tune: Infinity });
+  const m = Math.max(1, workContext(s).slots.EXP.m);
+  const re = allocate(total, s.player.research.re, { ops: reOpsNeed(s) / m, exp: exp.length * RE_PER_PROJECT, tune: Infinity });
   const perProject = new Map<string, number>();
   let left = re.exp;
   for (const id of exp) {
-    const x = Math.min(RE_PER_PROJECT * k, left);
+    const x = Math.min(RE_PER_PROJECT, left);
     perProject.set(id, x);
     left -= x;
   }
   return { re, perProject, total };
 }
 
-/** BRIDGE(V3): the production function's h counts capabilities research engineers on experiments and tuning,
- *  normalised by the reference share of them (REF_RE_RESEARCH_SHARE), so h is unchanged at the reference allocation.
- *  Returns the effective headcount H (heads × quality ÷ 0.55, as teams.ts playerH). */
-export function researchHeads(s: GameStateV2, roleShare: number): number {
-  const a = s.player.research.last?.re;
-  const total = capReCapacity(s);
-  const frac = a && total > 0 ? Math.min(1, (a.exp + a.tune) / total / REF_RE_RESEARCH_SHARE) : 1;
-  return (total * TEAM_SIZE.re * frac) / roleShare;
+// ───────────────────────────── research inputs in physical units (V3.4) ─────────────────────────────
+
+/** Experiment FLOP the lab's research can use per day: the experiments pool (and idle training compute unless the
+ *  policy sends it to data, R5) at today's training throughput, × P13's experiment efficiency. */
+export function projectFlopPerDay(s: GameStateV2): number {
+  const pools = poolsOf(s);
+  const idle = s.player.policies.spareTraining !== 'data' ? idleTrainingShare(s) * pools.training : 0;
+  return (pools.experiments + idle) * PHI_FLOP_PER_H100E_DAY * Math.pow(10, trainNow(s));
+}
+/** P13 (automated AI research agents): experiment throughput up to ×1.5 with the internal model's RSCH. */
+const p13Mult = (s: GameStateV2, payoff: number) => (adopted(s, 'P13') ? 1 + 0.5 * payoff : 1);
+
+/** The lab's research inputs today: labour multipliers (AI in experiments and in ideas), the speed modifiers (pauses,
+ *  treaty, siloing, migrations), the experiment FLOP per unit of research engineers and the X of a unit project. */
+export interface ResearchInputs { mExp: number; mIdeas: number; speed: number; flopDay: number; reRes: number; c: number; l: number; X: number }
+export function researchInputs(s: GameStateV2, reRes: number, flopDay = projectFlopPerDay(s), p13 = 1): ResearchInputs {
+  const wc = workContext(s);
+  const P = s.hidden.timeline.prod;
+  const mExp = wc.slots.EXP.m;
+  const mIdeas = wc.slots.IDEAS.m;
+  const speed = researchMods(s).speed;
+  const units = Math.max(1e-9, reRes / RE_UNIT);
+  const c = (flopDay * p13) / units / C_UNIT_FLOP_PER_DAY;
+  const l = Math.pow(Math.max(1e-12, mExp), P.lam);
+  return { mExp, mIdeas, speed, flopDay, reRes, c, l, X: reRes > 0 ? Xces(P, Math.max(1e-12, c), l) * speed : 0 };
 }
 
 // ───────────────────────────── candidates and beliefs ─────────────────────────────
@@ -353,18 +372,32 @@ const RISK = (s: GameStateV2) => RISK_KAPPA[s.player.research.risk ?? 'balanced'
 /** The score a team pursues: μ + κσ of its belief. */
 export const candidateScore = (c: Pick<Candidate, 'mu' | 'sd'>, kappa: number) => c.mu + kappa * c.sd;
 
-/** A new candidate from ideation (belief = truth + noise; taste lowers the noise and raises the truth). */
+/** A new candidate from ideation (belief = truth + noise; taste lowers the noise). Lines read their pool now. */
 export function newCandidate(s: GameStateV2, n: TreeNodeDef, st: CapProjectState, q: number, b: number): Candidate {
   const spec = st.spec ?? 0;
   const k = st.next++;
   const nov = U(s, `nov:${n.id}:${spec}:${k}`);
-  const c: Candidate = { k, gen: st.gen, nov, b, q, mu: 0, sd: 1, muS: n.effect?.s?.[0] ?? 0, sdS: n.effect?.s?.[1] ?? 0 };
+  const c: Candidate = { k, gen: st.gen, nov, b, q, mu: 0, sd: 1, muS: n.effect?.s?.[0] ?? 0, sdS: n.effect?.s?.[1] ?? 0, ...(n.kind === 'line' ? { at: st.pool ?? 0 } : {}) };
   const truth = candidateTruth(s, n, st, c);
-  const pub = priorMean(n, st.gen, spec);
-  const sd = (Math.sqrt(b) * pub * BELIEF_NOISE * (0.5 + nov) * Math.pow(SPECULATIVE.spread, spec)) / (q * q);
+  const pub = priorMean(s, n, c, spec);
+  // Taste narrows the belief noise ÷ T [D; V2a: ÷ quality², but AI taste reaches T ≈ 30–200].
+  const sd = (Math.sqrt(b) * pub * BELIEF_NOISE * (0.5 + nov) * Math.pow(SPECULATIVE.spread, spec)) / Math.max(0.2, q);
   c.mu = truth.x + sd * Z(s, `cb:${n.id}:${spec}:${k}`);
   c.sd = sd;
   return c;
+}
+
+/** A line candidate picked for testing reads its pool at today's state (results since it was found made ideas harder);
+ *  its belief scales with the prior. */
+function repool(s: GameStateV2, n: TreeNodeDef, st: CapProjectState, c: Candidate) {
+  if (n.kind !== 'line') return;
+  const now = st.pool ?? 0;
+  if ((c.at ?? 0) === now) return;
+  const before = priorMean(s, n, c, st.spec ?? 0);
+  c.at = now;
+  const ratio = priorMean(s, n, c, st.spec ?? 0) / Math.max(1e-30, before);
+  c.mu *= ratio;
+  c.sd *= ratio;
 }
 
 /** Add a candidate to the pool: below POOL_MAX it joins; else it replaces the weakest by score if it scores higher. */
@@ -385,17 +418,14 @@ export function pickCandidate(cands: Candidate[], kappa: number): number {
   return best;
 }
 
-/** Small experiments' and the scale test's work and FLOP for a candidate (the FLOP is ÷ pace: BRIDGE(V3)). */
-function startTest(s: GameStateV2, n: TreeNodeDef, c: Candidate, pace: number): CapProjectState['test'] {
+/** Small experiments' work for a candidate (FLOP is consumed at the project's share of the pool while it runs). */
+function startTest(s: GameStateV2, n: TreeNodeDef, c: Candidate): CapProjectState['test'] {
   const sg = stagesOf(n);
   const fTest = sg.testFrac * latestBaseFlop(s);
-  return { c, work: 0, workNeed: sg.small * c.b, flop: 0, flopNeed: (SMALL_FLOP_SHARE * fTest * c.b) / Math.max(1, pace), fTest };
+  return { c, work: 0, workNeed: sg.small * c.b, flop: 0, flopNeed: 0, fTest };
 }
 
 // ───────────────────────────── one day ─────────────────────────────
-
-/** Experiment FLOP the projects can draw today (FLOP/day): the experiments pool at today's throughput. */
-export const projectFlopPerDay = (s: GameStateV2) => poolsOf(s).experiments * PHI_FLOP_PER_H100E_DAY * Math.pow(10, trainNow(s));
 
 /** Drop the candidate in test; ideas fail after MAX_DROPS. Returns true if the project failed. */
 function dropTest(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: CapProjectState, why: string): boolean {
@@ -477,18 +507,19 @@ export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, bui
   syncPa(s);
 }
 
-/** One day of one project's lifecycle. `reCap` = research-engineer team-equivalents on it today; `flopLeft` = experiment
- *  FLOP still available today (returns what it used). */
-function stepProject(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, pace: number, norm: number, aiSci: number, reCap: number, flopLeft: number, queueBuild: (tw: number) => string): number {
+/** One day of one project's lifecycle. `reCap` = research-engineer team-equivalents on it today (human); `flopDay` = its
+ *  share of the experiment FLOP per day (consumed while it experiments; returns what it used). */
+function stepProject(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, inp: ResearchInputs, p13: number, reCap: number, flopDay: number, queueBuild: (tw: number) => string): number {
   const st = capState(s, n.id);
   if (st.stage === 'failed' || st.stage === 'result' || st.stage === 'adopting') return 0;
+  const P = s.hidden.timeline.prod;
   const kappa = RISK(s);
   const sg = stagesOf(n);
-  // 1 Ideation (continuous while science teams are on it).
+  // 1 Ideation (continuous while science teams are on it): (m_IDEAS × capacity)^λ × taste.
   const sci = sciOn(s, n.id);
   if (sci.cap > 0) {
-    const b = n.kind === 'line' ? batchAt(pace) : 1;
-    st.idea += (pace * Math.sqrt(sci.cap * aiSci * norm)) / (sg.idea * b * 30);
+    const b = n.kind === 'line' ? batchOf(inp.X) : 1;
+    st.idea += (Math.pow(inp.mIdeas * sci.cap, P.lam) * sci.q * inp.speed) / (sg.idea * b * 30);
     let guard = 0;
     while (st.idea >= 1 && guard++ < 8) {
       st.idea -= 1;
@@ -496,16 +527,19 @@ function stepProject(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, pace: numbe
     }
     st.idea = Math.min(st.idea, 1);
   }
-  // 2–3 Experiments: research-engineer work and FLOP. Work left over when a stage ends carries into the next one the
-  // same day (at a high pace several stages fit in a day).
-  const rate = reCap > 0 ? (pace * Math.sqrt(reCap * norm)) / 30 : 0;
+  // 2–3 Experiments: the experiment CES of the project's FLOP and research-engineer labour (team-months per day at unit
+  // inputs: √RE_UNIT / 30, as one pair of teams). Work left over when a stage ends carries into the next one the same day.
+  const c = (flopDay * p13) / C_UNIT_FLOP_PER_DAY;
+  const l = Math.pow(Math.max(1e-12, inp.mExp * reCap / RE_UNIT), P.lam);
+  const rate = reCap > 0 && flopDay > 0 ? (Xces(P, c, l) * inp.speed * Math.sqrt(RE_UNIT)) / 30 : 0;
   let time = 1;
   let used = 0;
   for (let guard = 0; guard < 6 && time > 1e-9; guard++) {
     if (!st.test && st.cands.length >= PICK_AT) {
       const i = pickCandidate(st.cands, kappa);
-      const c = st.cands.splice(i, 1)[0];
-      st.test = startTest(s, n, c, pace);
+      const cand = st.cands.splice(i, 1)[0];
+      repool(s, n, st, cand);
+      st.test = startTest(s, n, cand);
       st.stage = 'small';
     }
     const t = st.test;
@@ -513,35 +547,33 @@ function stepProject(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, pace: numbe
       st.stage = 'ideation';
       break;
     }
+    if (rate <= 0) break;
+    t.flopNeed = t.flop + (Math.max(0, t.workNeed - t.work) / rate) * flopDay; // expected FLOP of the stage (readout)
     const need = Math.max(0, t.workNeed - t.work);
-    const dt = need <= 1e-12 ? 0 : rate > 0 ? need / rate : Infinity;
-    if (dt > time) {
-      t.work += rate * time;
-      time = 0;
-    } else {
-      t.work = t.workNeed;
-      time -= dt;
-    }
-    const f = Math.max(0, Math.min(flopLeft - used, t.flopNeed - t.flop));
-    t.flop += f;
-    used += f;
-    if (t.work < t.workNeed - 1e-12 || t.flop < t.flopNeed * (1 - 1e-12)) break;
-    if (!resolveStage(s, ctx, n, st, t, pace, queueBuild)) break;
+    const dt = need <= 1e-12 ? 0 : need / rate;
+    const step = Math.min(time, dt);
+    t.work = dt > time ? t.work + rate * time : t.workNeed;
+    t.flop += flopDay * step;
+    used += flopDay * step;
+    time -= step;
+    if (t.work < t.workNeed - 1e-12) break;
+    if (!resolveStage(s, ctx, n, st, t, queueBuild)) break;
   }
   return used;
 }
 
-/** A test stage's work and FLOP are done: read the result and move on. Returns true if the project can keep testing
- *  today (a line, or a dropped candidate of a project still running). */
-function resolveStage(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: CapProjectState, t: NonNullable<CapProjectState['test']>, pace: number, queueBuild: (tw: number) => string): boolean {
+/** A test stage's work is done: read the result and move on. Returns true if the project can keep testing today (a line,
+ *  or a dropped candidate of a project still running). */
+function resolveStage(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: CapProjectState, t: NonNullable<CapProjectState['test']>, queueBuild: (tw: number) => string): boolean {
   const spec = st.spec ?? 0;
   const sg = stagesOf(n);
   const c = t.c;
-  const pub = priorMean(n, c.gen, spec) * c.b;
+  const per = priorMean(s, n, c, spec);
+  const pub = per * c.b;
   const truth = candidateTruth(s, n, st, c);
   if (st.stage === 'small') {
     // Small experiments: a reading of x narrows the belief.
-    const se = Math.sqrt(c.b) * priorMean(n, c.gen, spec) * EXP_NOISE;
+    const se = Math.sqrt(c.b) * per * EXP_NOISE;
     const y = truth.x + se * Z(s, `ce:${n.id}:${spec}:${c.k}`);
     const w1 = 1 / (c.sd * c.sd);
     const w2 = 1 / (se * se);
@@ -549,7 +581,7 @@ function resolveStage(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: CapPro
     c.sd = Math.sqrt(1 / (w1 + w2));
     if (c.mu < DROP_FRAC * pub) return !dropTest(s, ctx, n, st, 'small experiments showed too little');
     st.stage = 'scale';
-    st.test = { c, work: 0, workNeed: sg.scale * c.b, flop: 0, flopNeed: (t.fTest * c.b) / Math.max(1, pace), fTest: t.fTest };
+    st.test = { c, work: 0, workNeed: sg.scale * c.b, flop: 0, flopNeed: 0, fTest: t.fTest };
     return true;
   }
   // Scale test: reads the effect at test scale and the scale exponent.
@@ -572,6 +604,13 @@ function resolveStage(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: CapPro
     (st.pending ??= []).push(result);
     adoptProject(s, n.id, queueBuild);
     st.gen += c.b;
+    // The line's pool advances by what the result delivers (V3 notes, derivation 1): R ← R·10^(x/r_l) with x its true
+    // effect at test scale, so the line's realised stack is exactly r_l·log₁₀(R/n₀) however good the picked candidates
+    // are (selection and scale survival only change how fast the pool ages, not the returns). The research input it took
+    // is kept for the readout.
+    const pl = linePool(s, n);
+    st.pool = (pl.n0 + (st.pool ?? 0)) * Math.pow(10, Math.max(0, at.xTest) / pl.r) - pl.n0;
+    st.input = (st.input ?? 0) + c.b * c.q;
     st.drops = 0;
     st.stage = 'ideation';
     return true;
@@ -594,38 +633,54 @@ export function capProgress(st: CapProjectState | undefined): number {
   const t = st.test;
   const frac = (x: number, y: number) => (y > 0 ? Math.min(1, x / y) : 1);
   if (!t) return (0.33 * Math.min(PICK_AT, st.cands.length + st.idea)) / PICK_AT;
-  const tp = Math.min(frac(t.work, t.workNeed), frac(t.flop, t.flopNeed));
+  const tp = frac(t.work, t.workNeed);
   return st.stage === 'small' ? 0.33 + 0.33 * tp : 0.66 + 0.34 * tp;
 }
 
 /** One day of capability research: assignment, research engineers, every ready project's lifecycle, routine tuning,
  *  the readouts. `ready` = capability projects in priority order that can take teams today. */
-export function capResearchDay(s: GameStateV2, ctx: SystemCtx, ready: string[], aiSci: number, queueBuild: (id: string, tw: number) => string) {
+export function capResearchDay(s: GameStateV2, ctx: SystemCtx, ready: string[], queueBuild: (id: string, tw: number) => string, p13Payoff = 0) {
   const p = s.player;
   assignCapTeams(s, ready);
-  const pace = researchPace(s);
-  const norm = headcountNorm(s);
   const alloc = reAllocation(s);
   const avail = projectFlopPerDay(s);
-  let flopLeft = avail;
+  const reRes = alloc.re.exp + alloc.re.tune;
+  const p13 = p13Mult(s, p13Payoff);
+  const inp = researchInputs(s, reRes, avail, p13);
+  // Experiment FLOP follows the research engineers: each project in experiments and routine tuning get the pool in
+  // proportion to their team-equivalents.
+  const flopPerRe = reRes > 0 ? avail / reRes : 0;
+  let used = 0;
   for (const id of ready) {
     const n = node(id) as TreeNodeDef;
-    // A test that starts today gets research engineers from tomorrow's allocation.
-    const used = stepProject(s, ctx, n, pace, norm, aiSci, alloc.perProject.get(id) ?? 0, flopLeft, (tw) => queueBuild(id, tw));
-    flopLeft -= used;
+    // A test that starts today gets research engineers (and FLOP) from tomorrow's allocation.
+    const re = alloc.perProject.get(id) ?? 0;
+    used += stepProject(s, ctx, n, inp, p13, re, re * flopPerRe, (tw) => queueBuild(id, tw));
     const ts = p.tree[id];
     if (ts?.cap) ts.progress = capProgress(ts.cap);
   }
-  tuneDay(s, alloc.re.tune * norm, pace);
+  // Routine tuning: the same CES on the tuning allocation (V3.4); headroom closes at TUNE_K × its experiment throughput.
+  const tune = alloc.re.tune;
+  if (tune > 0) {
+    const Pp = s.hidden.timeline.prod;
+    const Xt = Xces(Pp, Math.max(1e-12, (flopPerRe * RE_UNIT * p13) / C_UNIT_FLOP_PER_DAY), inp.l) * inp.speed;
+    tuneDay(s, TUNE_K * tune * Xt);
+    used += tune * flopPerRe;
+  }
   syncPa(s);
+  // Software progress readout (OOM/day of the stacks' G-equivalent, a 14-day average): the readout's `rate` (BRIDGE(V7)).
+  const g = stacksGEquiv(s);
+  if (p.research.gLast !== undefined) p.research.gRate = (p.research.gRate ?? 0) + (Math.max(0, g - p.research.gLast) - (p.research.gRate ?? 0)) / 14;
+  p.research.gLast = g;
   p.research.last = {
     re: { ops: r3(alloc.re.ops), exp: r3(alloc.re.exp), tune: r3(alloc.re.tune) },
     reProj: Object.fromEntries([...alloc.perProject.entries()].map(([k, v]) => [k, r3(v)])),
-    flopUsed: avail - flopLeft, flopAvail: avail,
+    flopUsed: used, flopAvail: avail,
+    x: { c: r3(inp.c), l: r3(inp.l), X: r3(inp.X), mExp: r3(inp.mExp), mIdeas: r3(inp.mIdeas) },
   };
   if (ctx.day % 7 === 0) {
     const h = p.research.hist;
-    h.push({ day: ctx.day, g: Math.round(stacksGEquiv(s) * 1e4) / 1e4, n: STACK_KEYS.reduce((a, k) => a + p.research.stacks[k].n, 0) });
+    h.push({ day: ctx.day, g: Math.round(g * 1e4) / 1e4, n: STACK_KEYS.reduce((a, k) => a + p.research.stacks[k].n, 0) });
     if (h.length > 14) h.splice(0, h.length - 14);
   }
 }

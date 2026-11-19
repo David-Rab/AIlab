@@ -2,8 +2,8 @@
 // Owner: WS1. Every preview shows ≥ 1 cost in a currency not among its gains (lint-tradeoffs) and works with empty
 // params (defaults: a standard capabilities research-engineering team, the newest team).
 import { COLUMN_LABEL, MOVE_SAFETY_MORALE, QUALITY, REF_ROLE_SHARE, TEAM_KEYS, TEAM_SIZE } from '../../../data/v2/teams';
-import { decimalYear } from '../core/time';
-import { hRef } from '../production/knots';
+import { tasteSigma } from '../production/knots';
+import { qualityZ } from './workfit';
 import type { ActionDef, Column, CostLine, GameStateV2, Team, TeamDept, TeamKey, TeamQuality, TeamRole } from '../types';
 import {
   deptOfKey, fillWeeks, fullTeamPayroll, hireTeam, moveTeam, playerH, queuedOfKey, releaseTeam, roleOfKey, setTeamTarget,
@@ -30,7 +30,10 @@ export function teamGain(s: GameStateV2, t: { role: TeamRole; dept: TeamDept; qu
     const re = Math.max(1, playerH(s.player) * REF_ROLE_SHARE.re);
     return { currency: 'progress', amount: Math.round((Math.pow(1 + (heads * q) / re, el?.humans ?? 0.2) - 1) * 1e4) / 1e4, target: 'research speed' };
   }
-  const dTau = (heads * (q - 1)) / (REF_ROLE_SHARE.sci * hRef(decimalYear(s)));
+  // Model v3 V3: the team's human taste on the AIFM distribution vs a Strong team, as a share of the lab's science heads.
+  let sciHeads = heads;
+  for (const x of s.player.teams) if (x.role === 'sci' && x.dept === 'cap') sciHeads += x.heads;
+  const dTau = (heads * (Math.exp(tasteSigma(s.hidden.timeline.prod.m2b) * qualityZ(t.quality)) - 1)) / sciHeads;
   return { currency: 'progress', amount: Math.round((el?.taste ?? 0.5) * dTau * 1e4) / 1e4, target: t.specialty ? `${COLUMN_LABEL[t.specialty]} research` : 'research taste' };
 }
 

@@ -1,11 +1,12 @@
 // Read-only views of the limits the player can hit (STRUCTURE R11, data/v2/limits.ts): the live reading of each cap,
 // floor or gate where the UI shows it. Pure selectors; nothing here changes state or reads hidden truth.
-import { PROD_SPEED_CAP, REF_TECH } from '../../../data/v2/calibration';
+import { PROD_SPEED_CAP } from '../../../data/v2/calibration';
 import { SITE_PATHS } from '../../../data/v2/deals';
 import { TREE_BY_ID } from '../../../data/v2/tree';
 import { decimalYear } from './time';
-import { labInputs, evalM, referenceTech, diffusionPerDay } from '../production/production';
-import { internalVersion, PLAYER_ID, LEADER_ID } from '../models/labs';
+import { diffusionPerDay } from '../production/production';
+import { flopPerToken, h100eHoursPerWorkHour, speedOfCopy } from '../departments/workfit';
+import { internalVersion, LEADER_ID } from '../models/labs';
 import { deltaRsch, slopeL } from '../models/capability';
 import { ws4r } from '../actors/state';
 import { wslFloor } from '../security/security';
@@ -35,37 +36,21 @@ export interface SpeedLimitLine {
 export function researchSpeedLimits(s: GameStateV2): SpeedLimitLine[] {
   const out: SpeedLimitLine[] = [];
   const p = s.player;
-  const w = s.hidden.timeline;
-  const inp = labInputs(s, PLAYER_ID);
   const r = p.prodCache;
-  // Frontier methods: after SC the reference lab is assumed to run automated research and latent reasoning.
-  const rt = referenceTech(p.scDay, s.time.day);
-  // The factor counts only the methods you lack: without P13 the experiment ratio is short by rt.c; without a latent
-  // (Neuralese) base the agent ratio by rt.k. What you have offsets its part (P13's ×1.5, the latent base's ηmod).
+  // Model v3 V3: research runs on explicit compute and labour, so the reference lab's "frontier methods" are no longer a
+  // ratio. The line shows what P13 (automated research agents: experiment throughput up to ×1.5) adds if you lack it.
   const lacks: string[] = [];
-  const lackC = p.paradigms.P13?.status !== 'adopted';
-  if (lackC) lacks.push(TREE_BY_ID.P13?.name ?? 'P13');
+  if (p.paradigms.P13?.status !== 'adopted') lacks.push(TREE_BY_ID.P13?.name ?? 'P13');
+  out.push({ id: 'speed.frontierMethods', mult: 1, binding: false, text: lacks.length ? 'experiments ×1.5 available' : 'adopted', fix: lacks });
+  // Serial speed of research agents (R11 #23 cap).
   const v = internalVersion(s);
-  const base = v ? p.models.bases.find((b) => b.id === v.baseId) : undefined;
-  const lackK = base?.design.shape !== 'latent';
-  if (lackK) lacks.push(TREE_BY_ID.P17?.name ?? 'P17');
-  if (p.scDay === undefined) {
-    out.push({ id: 'speed.frontierMethods', mult: 1, binding: false, text: `from ${REF_TECH.from} d after SC`, fix: lacks });
-  } else {
-    let m = 1;
-    if (inp && lacks.length && (rt.k > 1 || rt.c > 1)) m = evalM(w, inp).M / Math.max(1e-9, evalM(w, { ...inp, k: inp.k * (lackK ? rt.k : 1), c: inp.c * (lackC ? rt.c : 1) }).M);
-    out.push({ id: 'speed.frontierMethods', mult: m, binding: m < 0.995, text: !lacks.length ? 'matched' : m < 0.995 ? `×${m.toFixed(2)}` : 'not yet binding', fix: lacks });
-  }
-  // Serial speed of research agents (R11 #23).
   if (r) {
-    const raw = 8 + 10.8 * Math.log2(Math.max(1, r.M));
+    const raw = speedOfCopy();
     out.push({ id: 'speed.serialCap', mult: 1, binding: raw >= PROD_SPEED_CAP, text: raw >= PROD_SPEED_CAP ? `capped at ${PROD_SPEED_CAP}×` : `${Math.round(raw)}× of ${PROD_SPEED_CAP}×` });
   }
-  // ηmod clamp 0.5–2.5 on the research model's serve cost.
-  const serve = v?.serveCost ?? 0.5;
-  const eta = 0.5 / serve;
-  const etaC = Math.min(2.5, Math.max(0.5, eta));
-  out.push({ id: 'speed.etaMod', mult: etaC, binding: eta > 2.5 || eta < 0.5, text: `copies ×${etaC.toFixed(2)}${eta > 2.5 ? ' (max)' : eta < 0.5 ? ' (min)' : ''}` });
+  // Agent copies per H100e follow the research model's FLOP per token (physical; no clamp since model v3 V3).
+  const fpt = v ? flopPerToken(s, v) : 0;
+  out.push({ id: 'speed.etaMod', mult: 1, binding: false, text: v ? `${(1 / Math.max(1e-9, h100eHoursPerWorkHour(fpt))).toFixed(2)} work-hours per H100e-hour` : 'no research model' });
   // Pause of frontier experiments.
   const until = ws4r(s).frontierPauseUntil;
   if (s.flags.paused || until > s.time.day) out.push({ id: 'speed.pause', mult: 0.1, binding: true, text: until > s.time.day ? `×0.1 for ${until - s.time.day} d` : '×0.1 while paused' });
@@ -129,7 +114,7 @@ export function siteSizeView(s: GameStateV2, path: keyof typeof SITE_PATHS): { m
 
 /** Revenue-per-chip research-speed cap on a product's model (LIMITS revenue.speedCap). */
 export function revenueSpeedCap(s: GameStateV2, v: ModelVersion | undefined): { M: number; capped: boolean; cap: number } {
-  const M = v ? multiplierRef(s.hidden.timeline, v.pm + s.hidden.timeline.calShift) : 0;
+  const M = v ? multiplierRef(s.hidden.timeline, v.pm + s.hidden.timeline.calShift) : 0; // BRIDGE(V4): revenue per chip still reads M
   return { M, capped: M > RPH_MCAP, cap: RPH_MCAP };
 }
 

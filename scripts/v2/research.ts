@@ -1,20 +1,20 @@
 // Model v3 V2a research tests (design/V3-BUILD.md V2.9; MODEL-V3 §5, §8). Owner: WS1.
 //   Lifecycle order (ideation → small experiments → scale test → result → adoption → known); only finished projects
 //   can be adopted; the risk policy changes the pursued candidate; better taste lowers belief error; a failed project
-//   reopens as speculative; line priors decline but their sum diverges; the assignment is deterministic and within 5% of
-//   the brute-force optimum on small cases; research engineers and engineers overflow down their needs; a stage
-//   without FLOP waits; headroom closes with tuning and refills on adoption; a quarter of small-scale wins of the
+//   reopens as speculative; line priors decline but their sum diverges (model v3 V3: the pool form from r); the assignment
+//   is deterministic and within 5% of the brute-force optimum on small cases; research engineers and engineers overflow
+//   down their needs; a stage without experiment FLOP waits (V3: the experiment CES is 0 without compute); headroom closes with tuning and refills on adoption; a quarter of small-scale wins of the
 //   tweaks line survive at scale; the recipe never reads the know-how readout (lint).
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { tick } from '../../src/engine/v2/core/loop';
 import { engine } from '../../src/engine/v2/index';
-import { HEADROOM, LINE_DECAY, MAX_DROPS, PICK_AT, RISK_KAPPA, SMALL_TO_TEST, SURVIVE_FRAC } from '../../src/data/v2/research';
+import { HEADROOM, MAX_DROPS, PICK_AT, RISK_KAPPA, SMALL_TO_TEST, SURVIVE_FRAC } from '../../src/data/v2/research';
 import { TREE_BY_ID } from '../../src/data/v2/tree';
 import {
-  adoptProject, allocate, assignmentValue, attemptOdds, candidateTruth, capSciTeams, freshCap, lineDecay, newCandidate, pickCandidate,
-  planAssignment, priorMean, reAllocation, reopenProject,
+  adoptProject, allocate, assignmentValue, attemptOdds, candidateTruth, capSciTeams, freshCap, linePool, newCandidate, pickCandidate,
+  planAssignment, poolMean, priorMean, reAllocation, reopenProject,
 } from '../../src/engine/v2/models/research';
 import { addIdea, headroomAt, initialStacks, stackAt, tuneDay } from '../../src/engine/v2/models/stacks';
 import { buildRates } from '../../src/engine/v2/departments/build';
@@ -94,9 +94,11 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
     }
     return e / 400;
   };
-  const elite = err(1.25);
-  const solid = err(0.8);
-  check(elite < 0.7 * solid, 'taste: Elite scientists\' beliefs are closer to the truth than Solid ones\'', `mean |belief − truth| elite ${(elite / priorMean(n, 1)).toFixed(3)}, solid ${(solid / priorMean(n, 1)).toFixed(3)} × prior`);
+  // Model v3 V3: taste is the team's place on the AIFM taste distribution (Elite +1 SD ≈ ×1.46, Solid −0.5 SD ≈ ×0.83 at
+  // m2b 3.25). It is also research input in the line's pool, so the error is compared relative to each candidate's prior.
+  const elite = err(1.46) / priorMean(s, n, { q: 1.46 });
+  const solid = err(0.83) / priorMean(s, n, { q: 0.83 });
+  check(elite < 0.7 * solid, 'taste: Elite scientists\' beliefs are closer to the truth than Solid ones\'', `mean |belief − truth| elite ${elite.toFixed(3)}, solid ${solid.toFixed(3)} × prior`);
 }
 
 // ---------- failure and speculative reopening ----------
@@ -115,19 +117,21 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
   act(s, 'research.reopen', { id: 'P05' });
   const st2 = s.player.tree.P05;
   check(st2?.status === 'researching' && st2.cap?.spec === 1 && s.player.research.queue.includes('P05') && Math.abs(attemptOdds(TREE_BY_ID.P05, 1) - odds0 / 2) < 1e-12,
-    'reopen: a failed project restarts as speculative (half the odds, lower and wider prior)', `spec ${st2?.cap?.spec}, odds ${odds0} → ${attemptOdds(TREE_BY_ID.P05, 1)}, prior ×${(priorMean(TREE_BY_ID.P05, 1, 1) / priorMean(TREE_BY_ID.P05, 1, 0)).toFixed(2)}`);
+    'reopen: a failed project restarts as speculative (half the odds, lower and wider prior)', `spec ${st2?.cap?.spec}, odds ${odds0} → ${attemptOdds(TREE_BY_ID.P05, 1)}, prior ×${(priorMean(s, TREE_BY_ID.P05, {}, 1) / priorMean(s, TREE_BY_ID.P05, {}, 0)).toFixed(2)}`);
 }
 
-// ---------- diminishing returns per line ----------
+// ---------- diminishing returns per line (model v3 V3: a pool with returns r) ----------
 {
+  const s = mk(4);
+  const pool = linePool(s, TREE_BY_ID['L.scale']);
   let mono = true;
-  for (let g = 1; g < 2000; g++) if (lineDecay(g + 1) > lineDecay(g)) mono = false;
-  const S = (N: number) => { let x = 0; for (let g = 1; g <= N; g++) x += lineDecay(g); return x; };
+  for (let n = 0; n < 2000; n++) if (poolMean(pool, n + 1, 1, 1) > poolMean(pool, n, 1, 1)) mono = false;
+  const S = (N: number) => { let x = 0; for (let n = 0; n < N; n++) x += poolMean(pool, n, 1, 1); return x; };
   const s1 = S(1e4);
   const s2 = S(1e5);
-  // A divergent series: the partial sum keeps growing like N^(1 − β) (×10^(1−β) per decade).
-  check(mono && LINE_DECAY.beta < 1 && s2 / s1 > 0.9 * Math.pow(10, 1 - LINE_DECAY.beta), 'lines: generation priors decline but their sum diverges (β < 1)',
-    `μ_100/μ_1 ${lineDecay(100).toFixed(3)}, Σ to 1e4 ${s1.toFixed(0)}, to 1e5 ${s2.toFixed(0)} (×${(s2 / s1).toFixed(2)})`);
+  // A divergent series: the partial sum grows as r·log₁₀(N): each decade of ideas adds ≈ r_l OOM (×10 of research input).
+  check(mono && s2 - s1 > 0.9 * pool.r && s2 - s1 < 1.01 * pool.r, 'lines: priors decline but their sum diverges (the pool adds r_l OOM per ×10 of research input)',
+    `μ_100/μ_1 ${(poolMean(pool, 100, 1, 1) / poolMean(pool, 0, 1, 1)).toFixed(3)}, Σ to 1e4 ${s1.toFixed(3)}, to 1e5 ${s2.toFixed(3)} OOM (r_l ${pool.r.toFixed(3)}, n₀ ${pool.n0.toFixed(0)})`);
 }
 
 // ---------- assignment ----------
@@ -213,14 +217,19 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
   act(s, 'research.want', { id: 'L.scale', n: 3 });
   let tested = false;
   for (let d = 0; d < 120 && !tested; d++) { tick(s, { skip: ['endings'] }); tested = !!s.player.tree['L.scale']?.cap?.test; }
-  // Its FLOP need is set far above what the experiments pool can give in the window (the work still progresses).
+  // Model v3 V3: experiments run at the CES X(c, ℓ) of the project's FLOP and labour; with no experiment compute X = 0
+  // (ρ < 0), so the stage waits however many research engineers it has.
   const t0 = s.player.tree['L.scale']?.cap?.test;
-  if (t0) t0.flopNeed = 1e40;
+  const w0 = t0?.work ?? 0;
   const stage0 = s.player.tree['L.scale']?.cap?.stage;
+  s.player.researchManual = true;
+  s.player.split.agents += s.player.split.experiments;
+  s.player.split.experiments = 0;
+  s.player.policies.spareTraining = 'data';
   for (let d = 0; d < 200; d++) tick(s, { skip: ['endings'] });
   const t1 = s.player.tree['L.scale']?.cap?.test;
-  check(tested && !!t1 && t1.c.k === t0?.c.k && s.player.tree['L.scale']?.cap?.stage === stage0 && t1.work >= t1.workNeed - 1e-9 && t1.flop < t1.flopNeed,
-    'a stage whose work is done waits for its experiment FLOP', `${stage0}: work ${t1?.work.toFixed(2)}/${t1?.workNeed.toFixed(2)}, FLOP ${t1?.flop.toExponential(1)}/${t1?.flopNeed.toExponential(1)}`);
+  check(tested && !!t1 && t1.c.k === t0?.c.k && s.player.tree['L.scale']?.cap?.stage === stage0 && t1.work <= w0 + 1e-9,
+    'a stage without experiment FLOP waits', `${stage0}: work ${w0.toFixed(2)} → ${t1?.work.toFixed(2)} of ${t1?.workNeed.toFixed(2)}`);
 }
 
 // ---------- headroom ----------
@@ -230,9 +239,9 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
   const h0 = headroomAt(st);
   const s = mk(7);
   s.player.research.stacks.pre = st;
-  tuneDay(s, 3, 1);
+  tuneDay(s, 3 / 270);
   const h1 = headroomAt(st);
-  for (let d = 0; d < 200; d++) tuneDay(s, 3, 1);
+  for (let d = 0; d < 200; d++) tuneDay(s, 3 / 270);
   const h2 = headroomAt(st);
   addIdea(st, 0.1, 0, 1e24);
   const h3 = headroomAt(st);
@@ -254,7 +263,7 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
   for (let k = 1; k <= 2000; k++) {
     const c: Candidate = { k, gen: 1, nov: 0.5, b: 1, q: 1, mu: 0, sd: 1, muS: 0, sdS: 0 };
     const t = candidateTruth(s, n, st, c);
-    if (t.x <= 0.3 * priorMean(n, 1)) continue;
+    if (t.x <= 0.3 * priorMean(s, n, c)) continue;
     wins++;
     if (t.x * Math.pow(SMALL_TO_TEST, t.s) >= SURVIVE_FRAC * t.x) survive++;
   }

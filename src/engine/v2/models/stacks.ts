@@ -8,13 +8,14 @@
 //   train   training throughput (OOM of model FLOP per chip-day: MFU × goodput), capped (TRAIN_CAP)
 //   serve   serving efficiency (OOM less serving FLOP per token)
 // e_stack = base (the start recipe and public knowledge) + Σ adopted effects − remaining headroom. An adopted idea adds
-// its true effect; HEADROOM of it waits for routine tuning, which closes it at TUNE_K × pace × tuning capacity per day.
+// its true effect; HEADROOM of it waits for routine tuning, which closes it at TUNE_K × tuning capacity × its experiment
+// throughput per day (models/research.ts).
 // Ideas are kept in scale buckets (s on a S_STEP grid), so the state stays small however many ideas a takeoff adopts.
 //
-// BRIDGE(V3): `player.pa` is a read-only readout, pa = pa₀ + (G-equivalent of the stacks) / B, for the readers that
+// BRIDGE(V6,V7): `player.pa` is a read-only readout, pa = pa₀ + (G-equivalent of the stacks) / B, for the readers that
 // still compare know-how (rivals' diffusion and theft, safety tiers, the limits view). Nothing reads the stacks from pa.
 import { B_G_PER_Y, FLOP_RL_REF, RL_BUDGET } from '../../../data/v2/runDesign';
-import { HEADROOM, S_STEP, TRAIN_CAP, TUNE_K } from '../../../data/v2/research';
+import { HEADROOM, S_STEP, TRAIN_CAP } from '../../../data/v2/research';
 import type { GameStateV2, StackKey, StackState, SystemCtx, TimelineWorld } from '../types';
 import { paRef } from './capability';
 import { rlFamiliesAvailable, rlGains, rlWeights } from './effective';
@@ -85,13 +86,14 @@ export function addPublic(st: StackState, oom: number) {
   st.base += oom;
 }
 
-/** One day of routine tuning: every stack's headroom shrinks by the factor exp(−TUNE_K · pace · capacity). */
-export function tuneDay(s: GameStateV2, capacity: number, pace: number) {
-  const f = Math.exp(-TUNE_K * Math.max(0, pace) * Math.max(0, capacity));
+/** One day of routine tuning: every stack's headroom shrinks by the factor exp(−k), k = TUNE_K × research-engineer
+ *  team-equivalents on tuning × their experiment throughput (models/research.ts capResearchDay). */
+export function tuneDay(s: GameStateV2, k: number) {
+  const f = Math.exp(-Math.max(0, k));
   for (const k of STACK_KEYS) for (const b of stacksOf(s)[k].buckets) b.h *= f;
 }
 
-// ───────────────────────────── G-equivalent and the pa readout (BRIDGE(V3)) ─────────────────────────────
+// ───────────────────────────── G-equivalent and the pa readout (BRIDGE(V6,V7)) ─────────────────────────────
 
 const REF_W_CACHE: { w?: ReturnType<typeof rlWeights> } = {};
 const refW = () => (REF_W_CACHE.w ??= rlWeights('broad', rlFamiliesAvailable(() => false)));
@@ -116,15 +118,15 @@ export function stacksGEquiv(s: GameStateV2): number {
   return gEquivOf(F, ePreAt(s, F), rlMidNow(s), rlCeilNow(s), trainNow(s));
 }
 
-/** BRIDGE(V3): pa-equivalent of a G-equivalent recipe in world w. */
+/** BRIDGE(V6,V7): pa-equivalent of a G-equivalent recipe in world w. */
 export const paOfGEquiv = (w: TimelineWorld, g: number) => paRef(w) + g / B_G_PER_Y;
 
-/** BRIDGE(V3): refresh the read-only know-how readout `player.pa` from the stacks. */
+/** BRIDGE(V6,V7): refresh the read-only know-how readout `player.pa` from the stacks. */
 export function syncPa(s: GameStateV2) {
   s.player.pa = paOfGEquiv(s.hidden.timeline, stacksGEquiv(s));
 }
 
-/** Knowledge that arrives from outside (BRIDGE(V3) units: progress-years of v2 know-how): added to the pretraining
+/** Knowledge that arrives from outside (BRIDGE(V6,V7) units: progress-years of v2 know-how): added to the pretraining
  *  stack as public ideas (B OOM per year, no headroom), the readout synced and the cause recorded. */
 export function addKnowledge(s: GameStateV2, ctx: Pick<SystemCtx, 'cause'> | undefined, years: number, source: string, detail?: string) {
   if (!Number.isFinite(years) || years === 0) return;

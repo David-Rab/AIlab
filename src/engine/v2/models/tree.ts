@@ -10,9 +10,8 @@
 // queue priority (√ capacity: every extra team on one project gains less), and the policy's teams re-spread when a
 // project finishes or a ready project has no team. Teams placed by hand stay put. It never picks unqueued projects.
 // Capacity = Σ heads/40 × quality × 1.5 in the team's specialty column.
-//  - Capability and other rolled nodes: progress/day = M · √(capacity · AI) / (effort · 30), M = research speed (D3:
-//    absolute, so takeoff speeds the tree up), AI = the frontier-research agents' science multiplier on capability
-//    projects (J2, R7 deferral: 1/(1 − Φ(sdAI) · coverage), max ×2; sciAiMult). At progress 1 the attempt resolves:
+//  - Rolled (safety) nodes: progress/day = M · √capacity / (effort · 30), M = the research-speed readout (BRIDGE(V6):
+//    safety research moves onto the project mechanism in V6). At progress 1 the attempt resolves:
 //    paradigm nodes use the hidden paradigm draw on the first attempt; every other attempt uses hash32(seed,
 //    'node:'+id[+':'+attempt]). Success makes the node known (a paradigm is adopted at once); failure allows a retry
 //    after 180 days at half odds.
@@ -34,16 +33,14 @@ import { hash32 } from '../core/rng';
 import { bookCash } from '../finance/ledger';
 import type { AgendaId, Column, EngineSystem, GameStateV2, ResearchState, SetupV2, SystemCtx, Team, TeamDept, TreeNodeState } from '../types';
 import { measuredDomain, PARADIGM_BY_ID } from './paradigms';
-import { DEFAULT_CAP_SHARES } from '../../../data/v2/agents';
-import { Phi } from '../production/knots';
-import { capShare } from '../departments/agents';
 import { lineCapacity, lineRate, posteriorBand } from '../safety/agendas';
 import { queueBuild } from '../departments/build';
 import { addKnowledge, gEquivOf, paOfGEquiv } from './stacks';
 import { B_G_PER_Y, E_START } from '../../../data/v2/runDesign';
 import {
-  attemptOdds, capProgress, capResearchDay, isCapProject, researchPace, stagesOf, takesTeams,
+  attemptOdds, capProgress, capResearchDay, isCapProject, stagesOf, takesTeams,
 } from './research';
+import { RE_UNIT } from '../../../data/v2/workTypes';
 import { safetyAgentL } from '../safety/agents';
 import { fireFinding } from '../safety/findings';
 import { DEFAULT_RE_ALLOC } from '../../../data/v2/research';
@@ -156,7 +153,7 @@ export function projectCapacity(s: GameStateV2, id: string, add?: Team, remove?:
   return c;
 }
 
-/** Research speed used by capability projects (the production readout's M; D3). */
+/** Research speed of the rolled (safety) nodes: the research-speed readout M (BRIDGE(V6)). */
 export const researchSpeed = (s: GameStateV2) => s.player.prodCache?.M ?? 1;
 
 /** Progress per day of a project at a capacity (default: its teams). */
@@ -171,33 +168,22 @@ export function projectRate(s: GameStateV2, id: string, cap?: number): number {
     return lineRate(s, ag, c, cap === undefined || Math.abs(c - now) < 1e-9 ? undefined : lineCapacity(s, ag) - now + c);
   }
   if (isCapProject(n)) {
-    // Model v3 V2: a rough share of the lifecycle per day (ideation of two candidates plus the two test stages with two
-    // research-engineer teams), for the ETA readout; the engine runs the stages (models/research.ts).
+    // Model v3 V3: a rough share of the lifecycle per day for the ETA readout (ideation of two candidates at (m_IDEAS ×
+    // capacity)^λ, plus the two test stages at yesterday's unit-project experiment throughput X); the engine runs the
+    // stages (models/research.ts).
     const sg = stagesOf(n);
-    const pace = researchPace(s);
-    const ideaDays = (2 * sg.idea * 30) / Math.max(1e-9, pace * Math.sqrt(c * sciAiMult(s)));
-    const testDays = ((sg.small + sg.scale) * 30) / Math.max(1e-9, pace * Math.SQRT2);
+    const x = s.player.research.last?.x;
+    const lam = s.hidden.timeline.prod.lam;
+    const ideaDays = (2 * sg.idea * 30) / Math.max(1e-9, Math.pow(c * sciAiMult(s), lam));
+    const testDays = ((sg.small + sg.scale) * 30) / Math.max(1e-9, (x?.X ?? 1) * Math.sqrt(RE_UNIT));
     return 1 / Math.max(1e-9, ideaDays + testDays);
   }
-  return (researchSpeed(s) * Math.sqrt(c * (nodeDept(n) === 'cap' ? sciAiMult(s) : 1))) / (effortOf(n) * 30);
+  return (researchSpeed(s) * Math.sqrt(c)) / (effortOf(n) * 30);
 }
 
-/** Cap on the AI science multiplier [D]: AI taste above every human scientist still needs human direction and review on
- *  a project (AI 2027: superhuman AI researchers are managed by the remaining human researchers), and tree projects
- *  already speed up with research speed M, which counts these agents through k and taste; ×2 capacity = ×1.41 speed. */
-export const SCI_AI_CAP = 2;
-
-/** Frontier-research agents' science capacity on capability projects (J2, the R7 deferral): A_sci = Φ(sdAI) of the
- *  frontier model's taste × coverage (frontier share of the agent pool ÷ the reference 15%, max 1; 0 with agents switched
- *  off); capacity × 1/(1 − A_sci), max SCI_AI_CAP. Efforts are fitted with it (calib --fit-tree), so the reference lab's
- *  project dates hold. */
-export function sciAiMult(s: GameStateV2): number {
-  const pr = s.player.prodCache;
-  if (!pr || s.player.split.agents <= 0 || Number(s.flags['ws4:agentsOffUntil'] ?? -1) > s.time.day) return 1;
-  const cover = Math.min(1, capShare(s, 'capFrontier') / DEFAULT_CAP_SHARES.capFrontier);
-  const a = Phi(pr.sdAI) * cover;
-  return Math.min(SCI_AI_CAP, 1 / Math.max(1e-9, 1 - a));
-}
+/** AI labour's multiplier on scientists' capacity (m_IDEAS of the work-type layer, departments/workfit.ts; yesterday's
+ *  research readout): AI in research ideas adds capacity to every science team's allocation. */
+export const sciAiMult = (s: GameStateV2) => Math.max(1, s.player.research.last?.x?.mIdeas ?? 1);
 
 /** Days a team would cut from a project's ETA by joining it (Infinity for a project no other team works on; 0 if it
  *  cannot help). The team picker shows it (R2). */
@@ -483,7 +469,7 @@ export function researchDay(s: GameStateV2, ctx: SystemCtx) {
   // Model v3 V2: capability projects. Failed ones leave the queue; the rest run the lifecycle.
   for (let i = q.length - 1; i >= 0; i--) if (isCapProject(node(q[i])) && p.tree[q[i]]?.status === 'failed') q.splice(i, 1);
   const capReady = q.filter((id) => isCapProject(node(id)) && projectReady(s, id) === true);
-  capResearchDay(s, ctx, capReady, sciAiMult(s), (id, tw) => queueBuild(s, 'adopt', id, tw));
+  capResearchDay(s, ctx, capReady, (id, tw) => queueBuild(s, 'adopt', id, tw), payoffOf(s, 'P13'));
   for (const id of capReady) if (p.tree[id]?.cap && node(id)?.paradigm) syncParadigm(s, id);
   if (p.research.autoAssign) autoAssign(s);
   let freed = false;
@@ -588,7 +574,7 @@ export function knowHow(s: GameStateV2): { pa: number; inModel: number; gap: num
   return { pa: p.pa, inModel, gap: Math.max(0, p.pa - inModel), ...(v ? { versionName: v.name } : {}) };
 }
 
-/** BRIDGE(V3) readout: the pa-equivalent of a recipe (pretraining recipe incl. E_START, RL efficiency and ceiling) on a
+/** BRIDGE(V6,V7) readout: the pa-equivalent of a recipe (pretraining recipe incl. E_START, RL efficiency and ceiling) on a
  *  base of `flop` FLOP. */
 export const paOfRecipe = (s: GameStateV2, flop: number, ePre: number, rlMid: number, rlCeil: number) =>
   paOfGEquiv(s.hidden.timeline, gEquivOf(flop, ePre - E_START, rlMid, rlCeil));

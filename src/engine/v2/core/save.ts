@@ -13,8 +13,10 @@ import { initialAgents } from '../departments/agents';
  *  No migration from 11: v2 saves do not carry over (MODEL-V3 §16), deserialize rejects them ("no migration from
  *  schemaRev 11").
  *  13 (model v3 V2): research as ideas (ResearchState stacks, allocations, capability project states; BuildState.alloc;
- *  TrainingRun.recipe). No migration from 12 either ("no migration from schemaRev 12"). */
-export const SCHEMA_REV = 13;
+ *  TrainingRun.recipe). No migration from 12 either ("no migration from schemaRev 12").
+ *  14 (model v3 V3): work types and project-level research (TimelineWorld.v3, line pools, candidate pool positions,
+ *  research.gRate; the milestone definitions changed). No migration from 13 ("no migration from schemaRev 13"). */
+export const SCHEMA_REV = 14;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */

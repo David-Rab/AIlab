@@ -14,7 +14,7 @@ import {
   B_G_PER_Y, CONTINUE_SHARE, DISTILL_TPP, E_START, ENV_BUDGET_FRAC, GOODPUT, IDA_RL_SHARE, MFU_RL_FACTOR, PARAM_RANGE, RL_BUDGET,
   STREAM_LAG_DAYS, STREAM_POOL_SHARE, STUDENT_DEFAULT, TPP_FREE_MAX, TPP_RANGE, sizeScrutiny,
 } from '../../../data/v2/runDesign';
-import { buildEtas, buildWaitNew, queueBuild, runSetupTW, runWaiting } from '../departments/build';
+import { buildEtas, buildWaitNew, engScale, queueBuild, runSetupTW, runWaiting } from '../departments/build';
 import { TRAIT_IDS } from '../../../data/v2/traits';
 import { clamp } from '../../rng';
 import { decimalYear } from '../core/time';
@@ -154,8 +154,9 @@ function flopCost(s: GameStateV2, flop: number): number {
   return (flop / PHI_FLOP_PER_H100E_DAY / 365) * tcoPerH100eYear(s, decimalYear(s));
 }
 
-/** BRIDGE(V3,V6,V7): a run's scale vs the frontier run F(t) (engineering load, S5, scrutiny only). */
-export const scaleOf = (s: GameStateV2, flop: number) => flop / frontierFlop(s.hidden.timeline, decimalYear(s));
+/** BRIDGE(V6,V7): a run's scale vs the frontier run F(t) (S5 and public scrutiny only; engineering uses the physical
+ *  FLOP since model v3 V3, departments/build.ts engScale). */
+export const scaleOf = (s: GameStateV2, flop: number) => flop / frontierFlop(s.hidden.timeline, decimalYear(s)); // BRIDGE(V6,V7)
 
 /** Unique tokens the player can train on: licensed + unlicensed (× licence deals) + quality-weighted synthetic. */
 export const playerUniqueTokens = (s: GameStateV2) => uniqueTokens(s);
@@ -295,12 +296,12 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
     const be = baseEffect(d, scaleOf(s, bg.flop));
     flopNeeded = bg.flop * be.flopMult;
     scale = scaleOf(s, flopNeeded);
-    cash = flopCost(s, flopNeeded) * be.cashMult + d.licensedShare * 1.0 * Math.sqrt(scale); // licensed data [D]
+    cash = flopCost(s, flopNeeded) * be.cashMult + d.licensedShare * 1.0 * Math.sqrt(engScale(flopNeeded)); // licensed data ∝ tokens ∝ √FLOP [D]
     build = referencePostOn(s, bg.parts.total, bg.flop, be.sD, bg.parts.recipe);
     signals = be.signals;
     serve = serveOfBase(d.params, bg.flop, d.shape) * serveTechMult(s);
     mon = be.monitorability;
-    const setupDays = buildWaitNew(s, runSetupTW('base', scale), 'runSetup');
+    const setupDays = buildWaitNew(s, runSetupTW('base', engScale(flopNeeded)), 'runSetup');
     const wallDays = setupDays + Math.ceil(daysFor(flopNeeded, rate));
     const best = Math.max(-Infinity, ...m.bases.map((b) => b.gPre));
     limits = {
@@ -353,7 +354,7 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
     serve = base.serve ?? 0.5;
     mon = base.monitorability ?? 1;
   }
-  const setupTW = runSetupTW(p.kind, scale, p.ida);
+  const setupTW = runSetupTW(p.kind, engScale(flopNeeded), p.ida);
   const setupDays = buildWaitNew(s, setupTW, 'runSetup');
   const etaDays = limits ? limits.wallDays : setupDays + Math.ceil(daysFor(flopNeeded, rate));
   if (cash > s.player.finance.cash) reason ??= 'Not enough cash';
@@ -616,7 +617,7 @@ export const runsSystem: EngineSystem = {
 /** Reference split for a non-player lab: the shares track shareRef(t), keeping the lab's own safety share (WS4 sets
  *  it from posture). The research mix is re-split to the best one by the production system. */
 export function labReferenceSplit(s: GameStateV2, r: RivalLab): void {
-  const ref = shareRefAt(decimalYear(s));
+  const ref = shareRefAt(decimalYear(s)); // BRIDGE(V7): rival lab API
   const keep = r.core.split.safety;
   const rest = 1 - ref.safety;
   const sp = { ...ref, safety: r.core.split.safety };
@@ -627,7 +628,7 @@ export function labReferenceSplit(s: GameStateV2, r: RivalLab): void {
 /** Capabilities staff of a non-player lab grow with the reference headcount path (keeps h constant). */
 export function growLabStaff(s: GameStateV2, r: RivalLab): void {
   const yr = decimalYear(s);
-  r.core.staff.cap *= hRef(yr) / hRef(yr - 1 / 365);
+  r.core.staff.cap *= hRef(yr) / hRef(yr - 1 / 365); // BRIDGE(V7): rival lab API
 }
 
 /** The internal model of a non-player lab tracks its simple frontier (pa + scale term − reference release lag,

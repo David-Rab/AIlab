@@ -9,7 +9,7 @@ type Sig = Partial<Record<SignalId, number>>;
 
 // ───────────────────────────── bridges (design/V3-BUILD.md) ─────────────────────────────
 
-/** BRIDGE(V3): effective-compute OOMs per progress-year, pm = pm(V0) + (G − G(V0))/B (research/12 §0.2: frontier G
+/** BRIDGE(V6,V7): effective-compute OOMs per progress-year, pm = pm(V0) + (G − G(V0))/B (research/12 §0.2: frontier G
  *  +1.1–1.3 a year). Also the know-how bridge's slope (e = B × (pa − pa₀), BRIDGE(V2)). 1.2 sits between the compute
  *  term the v2 engine gave a frontier run (1 OOM = (1 − share)·ln 10/ln 3.4 progress-years: 0.94 for share 0.5, 0.72 for
  *  0.6), so the reference cadence lands near the old pm path on every preset. */
@@ -124,9 +124,9 @@ export const REFERENCE_POST: PostDesign = {
 };
 
 // ── Base choices ──
-/** BRIDGE(V3,V6,V7): a run's scale relative to F(t) (TrainingRun.scale), for the quantities later phases rebuild:
- *  S5 (scale and AI data; V6), public scrutiny of a run above the frontier (V7), engineering setup and operations
- *  (V3 work types). Same functions as v2's size. */
+/** BRIDGE(V6,V7): a run's scale relative to F(t) (TrainingRun.scale), for the quantities later phases rebuild:
+ *  S5 (scale and AI data; V6), public scrutiny of a run above the frontier (V7). Engineering setup and operations read
+ *  the physical FLOP since model v3 V3 (departments/build.ts engScale). Same functions as v2's size. */
 export function sizeS5(scale: number): number {
   return scale < 1 ? 0.1 * Math.log10(Math.max(1e-3, scale)) : (0.2 * Math.log(scale)) / Math.log(3);
 }

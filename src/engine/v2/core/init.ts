@@ -5,7 +5,7 @@ import { LEADER_FEATURES } from '../../../data/v2/features';
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
 import { PLAYER_MODEL_FAMILY } from '../../../data/v2/names';
 import { B_G_PER_Y, E_START, REFERENCE_BASE, REFERENCE_POST, RL_BUDGET } from '../../../data/v2/runDesign';
-import { B0_DAY, B0_START_DAY } from '../../../data/v2/calibration';
+import { B0_DAY, B0_START_DAY, SHARE_REF } from '../../../data/v2/calibration';
 import { START_BY_ID } from '../../../data/v2/starts';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { TRAIT_IDS, TRAIT_START } from '../../../data/v2/traits';
@@ -21,7 +21,6 @@ import { initialMarket } from '../compute/market';
 import { initialCloud, initialOrders } from '../compute/orders';
 import { initialPower } from '../compute/power';
 import { initialSites } from '../compute/sites';
-import { shareRefAt } from '../departments/split';
 import { seedCandidates, staffOf, startTeams } from '../departments/teams';
 import { initialBoard } from '../finance/board';
 import { initialCapital } from '../finance/investors';
@@ -208,7 +207,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     id: 'player', name: setup.companyName, kind: 'player', status: 'active',
     pa: ps.pa0,
     computeOnline: leader ? (setup.baseline === 'reality' ? 1.0e6 : 1.2e6) : def.owned + def.rented,
-    split: shareRefAt(2025.5),
+    split: { ...SHARE_REF[0].share }, // the start split: AI 2027's compute-usage table at the start (data)
     staff,
     tasteHire: 1,
     models: {
@@ -319,7 +318,7 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
   }
   for (const r of [...rivals, china.lab]) r.core.pa = simpleStartPa(s, r.core.id, r.internal.pm);
   seedCandidates(s.player.hiring, new StreamRng(s, 'company'));
-  syncPa(s); // BRIDGE(V3): the know-how readout from the start stacks (the leader's is pa₀ exactly)
+  syncPa(s); // BRIDGE(V6,V7): the know-how readout from the start stacks (the leader's is pa₀ exactly)
   sampleSeries(s);
   return s;
 }

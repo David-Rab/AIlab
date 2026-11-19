@@ -1,8 +1,9 @@
 // Calibration acceptance tests T1–T4 (V2-SPEC §7.1). Owner: WS1.
-//   T1  RefBot (stub finance: infinite cash; compute tracks refTotal) — its best internal version hits the golden
-//       milestone days (scripts/v2/golden/timelines.json) within ±0.08 y (SC) and ±0.12 y after. calShift is the
-//       single per-preset knob: `npx tsx scripts/v2/calib.ts --fit` bisects it on SC and prints the values to
-//       hard-code in src/data/v2/calibration.ts (CAL_SHIFT).
+//   T1  RefBot (stub finance: infinite cash; compute tracks refTotal) — its work-type milestones (model v3 V3.5) hit the
+//       golden milestone days (scripts/v2/golden/timelines.json) within ±0.08 y (SC) and ±0.12 y after. The per-preset
+//       knobs are G_SC (effective compute a superhuman coder needs) and Δ_bm (best-to-median human gap):
+//       `npx tsx scripts/v2/calib.ts --fit-v3 [preset …]` bisects G_SC on SC for each Δ_bm and searches Δ_bm on the
+//       worst later milestone; it prints the values to hard-code in src/data/v2/workTypes.ts (V3_CAL).
 //   T1L Leader lab (setup.leaderLab, BUILD-PLAN R2) with a passive player: the simulated leader's milestone days hit
 //       the same golden days and tolerances. LEADER_CAL (an extra release lag, years) is its per-preset knob:
 //       `npx tsx scripts/v2/calib.ts --fit-leader [preset …]` bisects it on SC (src/data/v2/calibration.ts).
@@ -11,7 +12,12 @@
 //   T4  Rival gaps at start 3–9 months.
 //   R5  RefBot's build queue never delays a run by more than 3 days (stub and integrated).
 import { readFileSync } from 'node:fs';
-import { CAL_SHIFT, GOLDEN_TOL, LEADER_CAL } from '../../src/data/v2/calibration';
+import { GOLDEN_TOL, LEADER_CAL } from '../../src/data/v2/calibration';
+import { V3_CAL } from '../../src/data/v2/workTypes';
+import { h50Of } from '../../src/engine/v2/models/capability';
+import { bestPlayerVersion } from '../../src/engine/v2/models/labs';
+import { researchSpeedRel } from '../../src/engine/v2/production/production';
+import { speedOfCopy, workContext } from '../../src/engine/v2/departments/workfit';
 import { defaultSetupV2 } from '../../src/engine/v2/core/init';
 import { START_DATE, dayOfDate, decimalYearOf } from '../../src/engine/v2/core/time';
 import { trueLeadDays } from '../../src/engine/v2/models/capability';
@@ -22,8 +28,7 @@ import { newGame } from '../../src/engine/v2/core/init';
 import { resolve, tick } from '../../src/engine/v2/core/loop';
 import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
 import { engine } from '../../src/engine/v2/index';
-import { GOLDEN_PATH, HERE, KNOWN, check, finish, refGame, runRef } from './lib';
-import { join } from 'node:path';
+import { GOLDEN_PATH, KNOWN, check, finish, refGame, runRef } from './lib';
 import { LINE_FIT } from '../../src/data/v2/research';
 import { ePreAt, latestBaseFlop, stacksGEquiv } from '../../src/engine/v2/models/stacks';
 import { TREE_BY_ID } from '../../src/data/v2/tree';
@@ -36,8 +41,9 @@ type T1Preset = 'ai2027' | 'authors2026' | 'fast' | 'slow';
 const T1_PRESETS: T1Preset[] = ['ai2027', 'authors2026', 'fast', 'slow'];
 const yearOf = (d: number) => Math.round(decimalYearOf(START_DATE, d) * 1000) / 1000;
 
-function runT1(preset: WorldPresetId, cs: number, seed = SEED, stopAt: MilestoneIdx = 6, maxDays = 365 * 16, observe?: (s: GameStateV2) => void): GameStateV2 {
-  CAL_SHIFT[preset] = cs;
+function runT1(preset: WorldPresetId, cal: { gSC: number; dBM: number }, seed = SEED, stopAt: MilestoneIdx = 6, maxDays = 365 * 16, observe?: (s: GameStateV2) => void): GameStateV2 {
+  V3_CAL[preset].gSC = cal.gSC;
+  V3_CAL[preset].dBM = cal.dBM;
   const s = refGame(defaultSetupV2({ world: preset, alignment: 'medium', seed }));
   return runRef(s, maxDays, (x) => {
     observe?.(x);
@@ -56,57 +62,80 @@ const buildDelays = (worst: Map<string, number>) => (s: GameStateV2) => {
 };
 const lastIdx = (p: T1Preset): MilestoneIdx => (p === 'slow' ? 3 : 6);
 
-/** Worst |Δ| in years over SC … last milestone for a calShift. */
-function worstErr(preset: T1Preset, cs: number): number {
-  const s = runT1(preset, cs, SEED, lastIdx(preset));
+/** Worst |Δ| over SC … last milestone in units of its tolerance (≤ 1 passes T1), and the signed Δ (years) per milestone. */
+function errV3(preset: T1Preset, cal: { gSC: number; dBM: number }): { worst: number; d: number[] } {
+  const s = runT1(preset, cal, SEED, lastIdx(preset));
   const g = golden.presets[preset].days;
   let worst = 0;
+  const d: number[] = [];
   for (let i = 3; i <= lastIdx(preset); i++) {
     const want = g[NAMES[i]];
     if (want === undefined) continue;
     const got = s.player.milestoneDays[i as MilestoneIdx];
-    worst = Math.max(worst, got === undefined ? 99 : Math.abs(got - want) / 365);
+    const tol = i === 3 ? GOLDEN_TOL.SC : GOLDEN_TOL.after;
+    const dy = got === undefined ? 99 : (got - want) / 365;
+    d.push(dy);
+    worst = Math.max(worst, Math.abs(dy) / tol);
   }
-  return worst;
+  return { worst, d };
 }
 
-/** Bisect calShift so RefBot's SC day equals the golden SC day (SC day decreases with calShift). SC(calShift) is a
- *  step function (discrete runs), so the bisection lands on a step; refine on a ±0.03 grid by the worst |Δ| over
- *  SC … ASI. */
-function fit(preset: T1Preset): number {
+/** G_SC so RefBot's SC day equals the golden SC day at a given Δ_bm (SC day rises with G_SC; bisection, 0.002 OOM). */
+function fitGSC(preset: T1Preset, dBM: number, lo = 29, hi = 45): number {
   const want = golden.presets[preset].days.SC;
-  let lo = -2.5; // model v3 V2: slow needs less than −1
-  let hi = 3;
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < 14; i++) {
     const mid = (lo + hi) / 2;
-    const sc = runT1(preset, mid, SEED, 3).player.milestoneDays[3] ?? 1e9;
-    if (sc > want) lo = mid;
+    const sc = runT1(preset, { gSC: mid, dBM }, SEED, 3).player.milestoneDays[3] ?? 1e9;
+    if (sc < want) lo = mid;
     else hi = mid;
   }
-  const c0 = Math.round(((lo + hi) / 2) * 1000) / 1000;
-  let best = c0;
-  let bestErr = worstErr(preset, c0);
-  for (let d = -0.03; d <= 0.0301; d += 0.01) {
-    const c = Math.round((c0 + d) * 1000) / 1000;
-    const e = worstErr(preset, c);
-    if (e < bestErr - 1e-6) {
-      best = c;
-      bestErr = e;
-    }
+  return Math.round(((lo + hi) / 2) * 1000) / 1000;
+}
+
+/** Fit (G_SC, Δ_bm): for each Δ_bm on a coarse grid then a golden-section refinement, G_SC by bisection on SC; the
+ *  pair with the smallest worst |Δ|/tolerance over SC … last. slow (SC only) fits G_SC at its Δ_bm. */
+function fitV3(preset: T1Preset): { gSC: number; dBM: number; worst: number; d: number[] } {
+  const evalAt = (dBM: number) => {
+    const gSC = fitGSC(preset, dBM);
+    const e = errV3(preset, { gSC, dBM });
+    console.log(`    ${preset} Δ_bm ${dBM.toFixed(3)} → G_SC ${gSC.toFixed(3)}: worst ${e.worst.toFixed(2)} tol (${e.d.map((x) => (x >= 0 ? '+' : '') + x.toFixed(3)).join(' ')})`);
+    return { gSC, dBM, ...e };
+  };
+  if (preset === 'slow') return evalAt(V3_CAL.slow.dBM);
+  const grid = (process.env.V3_GRID ?? '0.8,1.2,1.6,2.0,2.5,3.0').split(',').map(Number);
+  let best = evalAt(grid[0]);
+  const all = [best];
+  for (const x of grid.slice(1)) {
+    const e = evalAt(x);
+    all.push(e);
+    if (e.worst < best.worst) best = e;
   }
-  console.log(`  ${preset}: bisection ${c0}, refined ${best} (worst |Δ| ${bestErr.toFixed(3)} y)`);
+  // Golden-section refinement around the best grid point.
+  const i = grid.indexOf(best.dBM);
+  let lo = grid[Math.max(0, i - 1)];
+  let hi = grid[Math.min(grid.length - 1, i + 1)];
+  const gr = (Math.sqrt(5) - 1) / 2;
+  let x1 = hi - gr * (hi - lo);
+  let x2 = lo + gr * (hi - lo);
+  let f1 = evalAt(x1);
+  let f2 = evalAt(x2);
+  for (let k = 0; k < Number(process.env.V3_ITERS ?? 5); k++) {
+    if (f1.worst < f2.worst) { hi = x2; x2 = x1; f2 = f1; x1 = hi - gr * (hi - lo); f1 = evalAt(x1); }
+    else { lo = x1; x1 = x2; f1 = f2; x2 = lo + gr * (hi - lo); f2 = evalAt(x2); }
+  }
+  for (const e of [f1, f2]) if (e.worst < best.worst) best = e;
   return best;
 }
 
-if (process.argv.includes('--fit')) {
-  const out: Record<string, number> = {};
-  // `--fit [preset …]`: all T1 presets, or only the ones named after --fit.
-  const named = process.argv.slice(process.argv.indexOf('--fit') + 1).filter((p): p is T1Preset => (T1_PRESETS as string[]).includes(p));
+if (process.argv.includes('--fit-v3')) {
+  const named = process.argv.slice(process.argv.indexOf('--fit-v3') + 1).filter((p): p is T1Preset => (T1_PRESETS as string[]).includes(p));
+  const out: Record<string, { gSC: number; dBM: number }> = {};
   for (const p of named.length ? named : T1_PRESETS) {
-    out[p] = fit(p);
-    console.log(`calShift ${p} = ${out[p]}`);
+    const f = fitV3(p);
+    out[p] = { gSC: f.gSC, dBM: Math.round(f.dBM * 1000) / 1000 };
+    console.log(`V3_CAL ${p}: G_SC ${f.gSC}, Δ_bm ${f.dBM.toFixed(3)} (worst ${f.worst.toFixed(2)} tol: ${f.d.map((x) => x.toFixed(3)).join(' ')})`);
   }
-  console.log(`CAL_SHIFT = ${JSON.stringify(out)}  (sampled: use the ai2027 value)`);
+  console.log(`V3_CAL = ${JSON.stringify(out)}  (sampled: use the ai2027 value)`);
   process.exit(0);
 }
 
@@ -241,43 +270,29 @@ if (process.argv.includes('--fit-tree')) {
   process.exit(0);
 }
 
-// ---------- --fit-lines (model v3 V2, V3-BUILD V2.8): the line prior scale LINE_FIT.mu ----------
-// The reference lab's stacks should track V1's know-how bridge B·(pa − pa₀) (V1_BRIDGE: weekly samples of V1's RefBot,
-// seed 2027, scripts/v2/golden/v1-bridge.json). The fit bisects LINE_FIT.mu on the log-ratio of the G-equivalent
-// stack total to the bridge, averaged over the samples from the first base to SC (the pre-automation era the
-// milestone dates hang on; the takeoff follows through the production function).
+// ---------- --fit-lines (model v3 V3, V3 notes derivation 1): the lines' start effect LINE_FIT.mu ----------
+// The pools' start state n₀ comes from the start effect per idea μ₁ = effect.mean × LINE_FIT.mu ("set from the start
+// rate"). The fit bisects LINE_FIT.mu so the reference lab's pretraining stack grows HO_RATE OOM/yr over its first year
+// (Ho et al. 2024, ≈ 3×/yr before automation, research/20 B1), measured at its latest base.
+const HO_RATE = 0.48;
 if (process.argv.includes('--fit-lines')) {
   const named = process.argv.slice(process.argv.indexOf('--fit-lines') + 1).filter((p): p is T1Preset => (T1_PRESETS as string[]).includes(p));
   const presets = named.length ? named : (['ai2027'] as T1Preset[]);
-  const bridge = JSON.parse(readFileSync(join(HERE, 'golden', 'v1-bridge.json'), 'utf8')) as Record<string, { day: number; e: number }[]>;
-  const err = (p: T1Preset, mu: number) => {
+  const rate = (p: T1Preset, mu: number) => {
     LINE_FIT.mu = mu;
     const s = refGame(defaultSetupV2({ world: p, alignment: 'medium', seed: SEED }));
-    const ref = bridge[p];
-    const sc = golden.presets[p].days.SC;
-    let sum = 0;
-    let n = 0;
-    runRef(s, sc, (x) => {
-      if (x.time.day % 7 === 0 && x.time.day >= 182) {
-        const b = ref.find((r) => r.day === x.time.day);
-        if (b && b.e > 0.05) {
-          sum += Math.log(Math.max(1e-3, stacksGEquiv(x)) / b.e);
-          n++;
-        }
-      }
-      return false;
-    });
-    return n ? sum / n : 0;
+    runRef(s, 365);
+    return ePreAt(s, latestBaseFlop(s));
   };
   for (const p of presets) {
-    let lo = 0.05;
-    let hi = 2;
+    let lo = 0.1;
+    let hi = 3;
     for (let i = 0; i < 12; i++) {
       const mid = Math.sqrt(lo * hi);
-      if (err(p, mid) > 0) hi = mid;
+      if (rate(p, mid) > HO_RATE) hi = mid;
       else lo = mid;
     }
-    console.log(`LINE_FIT.mu ${p} = ${Math.sqrt(lo * hi).toFixed(4)}`);
+    console.log(`LINE_FIT.mu ${p} = ${Math.sqrt(lo * hi).toFixed(4)} (pretraining stack ${HO_RATE} OOM in the first year)`);
   }
   process.exit(0);
 }
@@ -293,15 +308,26 @@ Object.assign(KNOWN, {
 const table: string[] = [];
 const delays: string[] = [];
 const stackRates: string[] = [];
+const v3checks: string[] = [];
 for (const preset of T1_PRESETS) {
-  const cs = CAL_SHIFT[preset];
+  const cal = { gSC: V3_CAL[preset].gSC, dBM: V3_CAL[preset].dBM };
   const t0 = performance.now();
   const waits = new Map<string, number>();
   // V3-BUILD V2.8: the reference lab's pretraining stack and all stacks (G-equivalent) before SC.
   const stackAt0: { day: number; pre: number; g: number }[] = [];
   const watch = buildDelays(waits);
-  const s = runT1(preset, cs, SEED, lastIdx(preset), 365 * 16, (x) => {
+  // V3.7 checks: research speed at the start (the M readout and research speed vs the leader's day 0) and the METR h50
+  // doubling time of the best model from the start to 2027.0 (2025–26).
+  let start: { M: number; rs: number } | undefined;
+  let h0: number | undefined;
+  let h1: { day: number; h: number } | undefined;
+  const d2027 = dayOfDate(START_DATE, '2027-01-01');
+  const s = runT1(preset, cal, SEED, lastIdx(preset), 365 * 16, (x) => {
     watch(x);
+    if (x.time.day === 1) start = { M: x.player.prodCache?.M ?? 0, rs: researchSpeedRel(x) };
+    const bv = bestPlayerVersion(x);
+    if (bv && x.time.day === 0) h0 = h50Of(x.hidden.timeline, bv);
+    if (bv && x.time.day === d2027) h1 = { day: x.time.day, h: h50Of(x.hidden.timeline, bv) };
     if (x.player.milestoneDays[3] === undefined && (x.time.day % 7 === 0)) stackAt0.push({ day: x.time.day, pre: ePreAt(x, latestBaseFlop(x)), g: stacksGEquiv(x) });
   });
   if (stackAt0.length > 2) {
@@ -310,6 +336,14 @@ for (const preset of T1_PRESETS) {
     const b = stackAt0[stackAt0.length - 1];
     const yrs = (b.day - a.day) / 365;
     stackRates.push(`${preset} pretraining stack ${((y1.pre - a.pre) / ((y1.day - a.day) / 365)).toFixed(2)} OOM/yr in the first year, ${((b.pre - a.pre) / yrs).toFixed(2)} OOM/yr start → SC; all stacks (G-equivalent) ${((y1.g - a.g) / ((y1.day - a.day) / 365)).toFixed(2)} / ${((b.g - a.g) / yrs).toFixed(2)} OOM/yr`);
+  }
+  if (start && h0 && h1) {
+    const months = (h1.day / 30.44) / Math.log2(h1.h / h0);
+    v3checks.push(`${preset}: research speed at start M ${start.M.toFixed(3)}, vs the leader's day 0 ×${start.rs.toFixed(2)}; METR h50 ${Math.round(h0)} → ${Math.round(h1.h)} min by 2027.0 = doubling every ${months.toFixed(1)} months (METR 4.2 ± 1)`);
+    if (preset === 'ai2027') {
+      check(Math.abs(start.M - 1) <= 0.1 && Math.abs(start.rs - 1) <= 0.25, 'V3.7 research speed readout ≈ 1 at the start (leader, ai2027)', `M ${start.M.toFixed(3)}, ×${start.rs.toFixed(2)} of day 0`);
+      check(months >= 3.2 && months <= 5.2, 'V3.7 METR h50 doubling ≈ 4.2 months for the reference frontier 2025–26 (±1)', `${months.toFixed(1)} months`);
+    }
   }
   const worstWait = Math.max(0, ...waits.values());
   delays.push(`${preset} ${worstWait} d over ${waits.size} runs`);
@@ -327,13 +361,15 @@ for (const preset of T1_PRESETS) {
     if (i < 3) check(got !== undefined && Math.abs(got - want) <= tol, `T1 ${preset} ${n}`, `got ${got ?? '—'} want ${want} ±${Math.round(tol)} d`);
     else check(got !== undefined && Math.abs(got - want) <= tol, `T1 ${preset} ${n}`, `got ${got ?? '—'} (${got === undefined ? '' : yearOf(got)}) want ${want} (${yearOf(want)}) ±${Math.round(tol)} d`);
   });
-  table.push(`${preset.padEnd(12)} calShift ${cs.toFixed(3)}  ${row.join('  ')}  [${(performance.now() - t0).toFixed(0)} ms]`);
+  table.push(`${preset.padEnd(12)} G_SC ${cal.gSC.toFixed(3)} Δ_bm ${cal.dBM.toFixed(3)}  ${row.join('  ')}  [${(performance.now() - t0).toFixed(0)} ms]`);
 }
 console.log('\nT1 RefBot milestone years (Δ vs golden, years):');
 for (const r of table) console.log('  ' + r);
 console.log(`  R5 build queue, worst wait for engineers: ${delays.join(', ')}`);
 console.log('\nV2.8 stacks before SC (Ho et al. ≈ 0.48 OOM/yr pretraining before automation, ±30%):');
 for (const r of stackRates) console.log('  ' + r);
+console.log('V3.7 checks:');
+for (const r of v3checks) console.log('  ' + r);
 
 // ---------- T1L: the leader lab (passive player) hits the golden days; SC and later bind, A1/A2 informational ----------
 {
@@ -395,14 +431,18 @@ if (!process.argv.includes('--no-integrated')) {
   }
 }
 
-// ---------- T2: copies × speed in Mar 2027 ----------
+// ---------- T2: AI labour at the superhuman coder (model v3 V3: a sanity check against AI 2027, not a fit target) ----------
+// AI 2027 (research/13 §1.9): ≈ 200k Agent-3 copies at ≈ 30× ("50,000 copies of the best human coder sped up by 30×",
+// ≈ 1.5M best-coder FTE, ≈ 5M median-FTE) on ≈ 0.5M H100e. Model v3 counts copies physically (FLOP per token, utilisation,
+// tokens per work-hour; departments/workfit.ts), so the check is an order of magnitude on the AI FTE in research.
 {
-  CAL_SHIFT.ai2027 = CAL_SHIFT.ai2027; // hard-coded value
   const s = refGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: SEED }));
-  runRef(s, dayOfDate(START_DATE, '2027-03-15'));
-  const lab = s.player.prodCache!.labor;
-  check(lab.copies >= 140e3 && lab.copies <= 260e3, 'T2 copies Mar 2027 ≈ 200k (±30%)', `${Math.round(lab.copies / 1000)}k`);
-  check(lab.speed >= 21 && lab.speed <= 39, 'T2 speed Mar 2027 ≈ 30× (±30%)', `${lab.speed.toFixed(1)}×`);
+  runRef(s, 365 * 4, (x) => x.player.milestoneDays[3] !== undefined);
+  const wc = workContext(s);
+  const fte = wc.slots.EXP.aiFte + wc.slots.IDEAS.aiFte;
+  const copies = wc.slots.EXP.copies + wc.slots.IDEAS.copies;
+  console.log(`INFO  T2 at SC (day ${s.time.day}): research agents ${Math.round(copies / 1000)}k copies at ${speedOfCopy().toFixed(1)}× on ${Math.round((wc.slots.EXP.h100e + wc.slots.IDEAS.h100e) / 1000)}k H100e = ${(fte / 1e6).toFixed(2)}M FTE (AI 2027: 200k copies at 30×, ≈ 5M median-FTE on ≈ 0.5M H100e)`);
+  check(fte >= 5e5 / 10 && fte <= 5e6 * 10, 'T2 AI labour at SC within an order of magnitude of AI 2027 (sanity check)', `${(fte / 1e6).toFixed(2)}M FTE`);
 }
 
 // ---------- T3 / T4 (default rival/China labs, no theft) ----------
