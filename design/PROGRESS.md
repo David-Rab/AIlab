@@ -35,7 +35,7 @@ Single source of truth for where the build stands. Update at every milestone or 
 | **V0 Model v3: spec and calibration research** | Done (2026-11-18): design/MODEL-V3.md (physical-quantity rebuild of models, research, products, safety; AI 2027 as calibration only), research/20 (primary-source numbers). Approved by the user; build V1–V7 next, serial, branch `model-v3`, worktree ../AI27-model3 | (this commit) |
 | **V1 Model v3: capability core** | Done (2026-11-18, branch `model-v3`, not merged): models from physical quantities (G = log₁₀ FLOP + recipe + shape + overtraining + repetition; RL curve; distillation and continue laws), no minimum lengths or restart roll, no F(t) sizes, no κ, no era table; bridges pm = Φ(G), e_stack from pa, serveCost, run scale, simple-lab credit; Blueprint in parameters × tokens; schemaRev 12. CAL_SHIFT and LEADER_CAL refit (all presets within ±0.06 y of golden over SC…last). Open: 4 new test failures (worldfx GOV T1 accept −6 d outside its window, W2 TFP 1.4%; ws4 T3 band 70–289 d, T3 post-theft lag); see "V1 Capability core" below | e4f10c3, 8763e8e, 9f871ae, (docs) |
 | **V2a Model v3: research as ideas (engine)** | Done with open calibration failures (2026-11-19, branch `model-v3`, not merged): capability projects (lines, ideas, axes) with a lifecycle (ideation → small experiments → scale test → result → engineers' adoption), hidden per-world candidate truths, beliefs, taste, risk policy; recipe stacks (pretraining, RL efficiency + ceiling, training throughput, serving) with scale buckets and headroom replace the know-how bridge; pa is a readout; scientists by priority + teams wanted + swap pass; research engineers and engineers by needs with caps and overflow; content pass in TECH-TREE §6; schemaRev 13. **Stop condition hit (not forced):** authors2026 SAR −0.13 / SIAR −0.12 / ASI +0.38 y after refit; slow fits only with CAL_SHIFT 0.291 → −1.5. See "V2a Research as ideas" below | 34ad054, 881f64c, 6121e94, (docs) |
-| **V3 Model v3: work types, AI labour, research speed, milestones** | Done with an open calibration failure (2026-11-19, branch `model-v3`, not merged): work types (SWE, EXP, IDEAS, SAF_EXP, SAF_IDEAS, OTHER) with fit in effective compute, METR horizon on G, coverage, GDPval assist; physical AI labour (FLOP per token, utilisation, tokens per work-hour) in the AI Futures coding CES; research per project at the experiment CES of real FLOP and labour in fixed physical units; lines as pools with returns r; team taste on the AIFM distribution; work-type milestones with per-preset G_SC and Δ_bm (CAL_SHIFT only for rivals and the display level); build capacity = effective SWE labour; M a readout; lint; schemaRev 14. **Stop condition hit (not forced):** authors2026 SAR +0.55 y, ASI −0.38 y after fitting G_SC and Δ_bm (a third per-preset value, AIFM's AI taste at AC, would fit; see "V3" below) | 1d365d6, b7e2591, (docs) |
+| **V3 Model v3: work types, AI labour, research speed, milestones** | Done (2026-11-19, branch `model-v3`, not merged; V3b follow-up the same day): work types with fit in effective compute, METR horizon on G, coverage, GDPval assist; physical AI labour in the AI Futures coding CES; research per project at the experiment CES of real FLOP and labour; lines as pools with returns r; team taste on the AIFM distribution; work-type milestones with per-preset G_SC, Δ_bm and (V3b) AIFM's AI taste at AC; display level λ(G) rebuilt on the work-type reference points for every lab (rivals aligned through a derived calShift); frontier G path on research/12's anchors (1.31 G/yr); build capacity = effective SWE labour; M a readout; lint; schemaRev 15 (V3b). **All four presets within the golden tolerances; T1L within tolerance after a LEADER_CAL refit.** Open: finance F7/F8 revenue (V4), see "V3" below | 1d365d6, b7e2591, 9840361, (V3b) |
 
 ## V3 Work types, AI labour, research speed, milestones (2026-11-19, branch `model-v3`, worktree ../AI27-model3)
 
@@ -90,6 +90,48 @@ uitest sets one for the share-erosion limit, as it does for the other conditiona
 17.5%, capex2x 0 / 0 / 100% (insolvent), ref 22.5 / 35 / 42.5%. §7.4: race win ≤ 5% MET; race losses MISS (82% takeover,
 8% company loss); **safe win ≤ 5% MISS (42.5%)**; safe losses MISS (43%); mixed ≥ 30% and ≥ 25 pp MET (75%, 32.5 pp);
 passive takeover-type MISS (40%). Safety outcomes moved with the same level shift as S5.
+
+### V3b follow-up (2026-11-19, lead-session decisions; design/V3-BUILD.md "V3b")
+
+Changes: AIFM's AI taste at AC (sd_SC) as the third per-preset value (fitted 1.8 SD for authors2026, 0.5 elsewhere) and
+the global ASI gap 1.7 → 1.3 best-to-median gaps (AIFM ASI 12–15 SD); λ(G) piecewise linear through V0 (L 5) and the
+reference recipe's SC / SAR / SIAR / ASI (L 10 / 12 / 13.5 / 15), every lab's level = λ(Φ⁻¹(pm)), calShift derived per
+world so rivals' SC threshold sits at Φ(G_SC) (credit keeps their q path); M readers through the display level
+(bridgeQ); frontier G: new runs start from E_START 1.19 (B0 + Ho's rate × its age; v2's start solution had put the leader
+0.53 OOM ahead of B0), RL line effects ÷ 3–7 (L.env 0.006, L.rlalg 0.015) and rShare pretraining 0.8 / RL 0.2,
+LINE_FIT.mu 0.645, P07 a typed horizon extender ×1.2 [D] (was an unsourced ×1.5); RefBot's pacing gates read v2's level
+scale; challenger start 4 engineering teams (was 3) [D]; LEADER_CAL and CHINA_CAL refit.
+
+**Calibration (T1, RefBot on the stub, seed 2027; Δ in years: SC, SAR, SIAR, ASI).**
+
+| Preset | V3 (G_SC, Δ_bm) | V3b (G_SC, Δ_bm, sd_SC) | Within tolerance |
+|---|---|---|---|
+| ai2027 | 31.394, 1.933: 0.000, −0.052, −0.041, +0.016 | 30.497, 2.2, 0.5: 0.000, +0.022, −0.041, −0.030 | yes |
+| authors2026 | 33.5, 3.142: 0.000, **+0.551**, +0.005, **−0.378** | 33.62, 4.606, 1.8: −0.008, +0.016, −0.041, −0.030 | yes (fragile: ±0.005 OOM in G_SC moves SIAR/ASI by up to 0.4 y) |
+| fast | 32.663, 0.347: −0.003, +0.096, +0.008, −0.066 | 31.593, 0.17, 0.5: −0.003, +0.096, −0.019, −0.096 | yes |
+| slow | 35.505: SC −0.074 | 35.447: SC −0.079 | yes |
+
+T1L (LEADER_CAL 0.256 / 0.096 / 0.134 / 0.314): all SC … ASI within tolerance (worst ai2027 ASI +0.066). T4 rival gaps at
+start 3.1–4.7 months (40 seeds 96% in 3–9). Checks: frontier G path 1.31 G/yr, worst anchor 0.14 G (pass; new check);
+METR doubling 4.4 months (pass; V3 3.0); pretraining stack 0.49 OOM/yr; M at start 1.04 (pass); T2 0.12M AI FTE at SC.
+Integrated RefBot: ai2027 SC −0.118 … ASI −0.052; authors2026 SC +0.42 … ASI +0.40.
+
+**Tests (final run).** Pass: calib (all), tsc, golden-timelines, identity, effective, research, worktypes (with the start
+engineering check), fixtures, lints, products, money, idle; `npm run build`; `npm run test:ui` 234/234. Fail:
+- finance F7 2026 revenue $27.5B vs $45B ± 20%, valuation $0.35T vs $1–3T, F8 58% out of distress vs ≥ 75% (new: the
+  frontier now grows at research/12's rate and the revenue model, BRIDGE(V4), was tuned to the faster path; V4); F2
+  45.0M (known);
+- safety S5 mixed −1.25 (known; V2a −1.23); S5 "without refresh" now passes (−1.51);
+- worldfx GOV T1 Accept 2027-09-08 (known from V1/V2a), W2 TFP 0.2% (now below the 0.5–1% band; V4);
+- ws4 T3 band 26–371 d (known, V7), T3 after a theft 28–53 d vs ≈ 60 (as in V1);
+- hygiene "performance: daily tick average" 1.86–2.27 ms and "(leader lab)" 1.96–2.64 ms vs 1.5 over two runs (machine
+  load varies; one run also had the leader-lab worst quarter tick 9.0 ms vs 8); V2a 1.07 / 2.30. At equal days with
+  endings skipped V3b costs 1,047 µs/day vs V2a's 1,026; V2a's passive seed-9 game ended (ousted) on day 731.
+
+**Bots (40 seeds).** Win / mixed / loss: race 0 / 2.5 / 97.5%, safe 10 / 5 / 85%, mixed 40 / 7.5 / 52.5%, capex2x 0 / 0
+/ 100%, ref 5 / 17.5 / 77.5%. §7.4: race win MET, race losses MET (54% takeover, 26% company loss), **safe win ≤ 5% MISS
+(10%; V3 42.5%, V2a 7.5%)**, safe losses ≥ 50% overtaken MISS (35%; ousted 55%), mixed MET (40%, 30 pp), passive
+takeover-type MET (60%).
 
 ## V2a Research as ideas (2026-11-19, branch `model-v3`, worktree ../AI27-model3)
 

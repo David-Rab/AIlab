@@ -718,17 +718,115 @@ m2b^(sd/3.09) and SE = r·log₁₀ RS, the AIFM condition for an accelerating t
 - Removed readouts to retire in the UI: "×N the reference lab" ratios (now leader-day-0 units), the ηmod clamp line, the
   frontier-methods ratio, the ×10 build cap.
 
-**Open issues**
-- authors2026 SAR and ASI (above); METR doubling 3.0 months (above).
+**Open issues (V3; see V3b below for what was resolved)**
+- authors2026 SAR and ASI (above; resolved in V3b); METR doubling 3.0 months (above; resolved in V3b).
 - The display level λ(G) = levelOf(Φ(G)) still spaces levels by v2's human-year gaps: at the player's work-type SC the
   displayed level of the reference recipe is 9.3 (ai2027), 7.9 (authors2026), 9.9 (fast) and at SAR 10.5 / 11.5 / 12.0
   (v2: 10 and 12; SIAR ≈ 12.0–12.2, ASI ≈ 12.3 instead of 13.5 and 15), which shifts every level-gated rule (safety S5, U vs L,
   the safe bot's win rate 42.5%, tutorial acts, measured-level milestone notices). Rebuilding λ on the work-type reference
-  points (V5 evals or V6 safety) is the fix; CAL_SHIFT cannot do it alone (one shift, three gaps).
+  points (V5 evals or V6 safety) is the fix; CAL_SHIFT cannot do it alone (one shift, three gaps). (Done in V3b.)
 - The passive player is no longer ousted early in seed 9 (hygiene average); not investigated beyond the per-day cost.
 - Engineering at the start is tight (capacity 5.4 vs load 4.6 team-weeks/week for the leader start) after the upkeep
-  retune; follower starts not rechecked.
+  retune; follower starts not rechecked. (Checked in V3b; the challenger fixed.)
 - SAF_EXP / SAF_IDEAS are defined but consumed only through the safety fleet's FTE (V6).
+
+### V3b (2026-11-19, lead-session follow-up)
+
+**1. Third per-preset value: AIFM's AI taste at the automated coder (sd_SC), and the global ASI gap.** V3_CAL now carries (G_SC, Δ_bm, r, sd_SC).
+The research domains' best humans sit (1 − sd_SC/3.09)·Δ_bm above G_SC, so sd_SC sets the SC → SAR gap independently
+of Δ_bm. Start value 0.5 SD (AIFM median; 80% CI −2.5 to 3.5, Daniel 0; research/13 §2.2); kept at 0.5 where two
+values fit, fitted where they do not (authors2026). `calib.ts --fit-v3` with `V3_SD=<sd>` fits G_SC and Δ_bm at a given
+sd_SC; several sd_SC run in parallel and the best is kept. With the ASI gap at 1.7 gaps no (Δ_bm, sd_SC) fitted authors2026: SIAR came
+0.2–0.3 y early wherever ASI was on time (its SIAR → ASI took too long against SAR → SIAR). The global ASI gap is now 1.3
+best-to-median gaps beyond SIAR (ASI ≈ 13.3 SD; AIFM puts ASI at 12–15 SD = 0.9–1.85 gaps, AI 2027's knots 1.6) [fit,
+global], and ai2027 and fast were refitted with it. authors2026 fits at sd_SC 1.8 (inside AIFM's 80% CI). Caveat: its
+fit is steep in Δ_bm (Δ_bm 4.46 or 4.55 instead of 4.50 moves SIAR/ASI by 0.15–0.5 y): the takeoff sits near the
+boundary between accelerating and decelerating taste growth (r·log₁₀ m2b/Δ_bm ≈ 0.4 at the fit, with compute growth on top).
+
+**2. Display level λ(G) on the work-type reference points.** `models/capability.ts levelOfG`: piecewise linear in G
+through V0 (L 5) and the reference recipe's SC, SAR, SIAR and ASI points (L 10, 12, 13.5, 15: v2's LEVEL_KNOTS at those
+milestones), below V0 at the first slope, capped at 15. `levelOf(w, pm)` (every lab: the player's versions, rivals,
+China, the leader lab) is now λ(Φ⁻¹(pm)), so all levels and the level-history lead comparisons share one scale; the
+rivals' dynamics and milestones stay on pm (BRIDGE(V7)). v2's threshold map survives only as `levelOfPmV2` (unread).
+Pre-SC the slope is 5 L over G_SC − G_V0 (≈ 1.5 L per OOM on ai2027; Epoch's ECI is close to linear in log compute).
+
+**3. Frontier G growth.** RefBot's best model grew ≈ 1.7–2.1 G/yr in 2025–26 against research/12's +1.1–1.3 (28.0 Aug
+2025 … 29.4 autumn 2026). Decomposition of Aug 2025 → Oct 2026 (+2.45 G): compute +0.89 (≈ 0.76 OOM/yr, as research/12's
+≈ 0.7), pretraining recipe +0.89, RL +0.67, P07's ×1.5 on the horizon on top.
+- The recipe term had a one-off +0.53: v2's start solution put the leader's day-0 recipe 0.53 OOM ahead of B0's (v2's
+  know-how rate × B0's 256 days), so the first new base jumped. Now E_B0 = 1.38 keeps B0 and V0 where they were (V0 G
+  27.97) and new runs start from E_START = 1.19 = B0's recipe + Ho et al.'s 0.48 OOM/yr × 0.70 yr.
+- The RL term grew ≈ 0.5 OOM/yr through the RL-ceiling line (Environments & rewards adds to the RL asymptote one for one)
+  and RL algorithms: research/12 counts post-training gains as the 2024–25 one-off reasoning jump (already in V0), not a
+  continuing 0.5 OOM/yr. Line start effects: L.env 0.04 → 0.006, L.rlalg 0.08 → 0.015 (the RL stacks now add ≈ 0.1
+  OOM/yr of G before SC); rShare (the lines' start shares of
+  software progress) rebalanced to pretraining 0.8 (L.scale 0.36, L.data 0.22, L.opt 0.22), RL 0.2 (L.env 0.12, L.rlalg
+  0.08); L.latent 0.22, L.infer 0.15 unchanged. LINE_FIT.mu 0.69 → 0.645 (--fit-lines, the pretraining stack 0.48 OOM
+  in the first year again after the rShare change).
+- P07 (Long context + memory) was an unsourced ×1.5 on h80 (research/12 #7 [G]); now a typed horizon extender ×1.2 [D]
+  (CL-Bench 2026: memory systems do not yet beat in-context learning [P]). P12's ×2 stays [G].
+- Not the cause: V0's RL sits at 0.70 of ≈ 1.0 ceiling, but later runs reach only ≈ 0.75–0.80 at the reference budget
+  once the RL lines are small; the first base's FLOP (≈ 1e27, 3× B0) is compute growth since B0.
+- New check (calib T1, ai2027): the least-squares line through RefBot's daily best-model G, Aug 2025 – Nov 2026, within
+  ±0.2 G of each anchor; the METR h50 doubling check stays (horizon slope unchanged, 4.2× per OOM).
+
+**4. Engineering at the start.** worktypes.ts checks every start type: capacity − upkeep over its first quarter ≥ a base
+run setup (a base sized to train six months on its pool). The challenger was short (3.37 vs 3.49 team-weeks/week of
+upkeep); it now starts with 4 engineering teams (was 3) [D, data/v2/starts.ts]. Leader, big tech and spinout pass.
+
+**5. AI FTE at SC vs AI 2027 (physical assumptions behind the ×28).**
+  The reference lab at its SC (ai2027, stub, day 637): routine-research model on a 2.8T-active MoE base (2.3e27 FLOP) →
+  5.6e12 FLOP per token; 240k FLOP-bearing tokens per human work-hour (200k uncached input at prefill utilisation 0.35,
+  40k output at decode 0.07; R20 D1, D2) → 1.77 H100e-hours per work-hour; serial speed 60 tokens/s per copy = 5.4× a
+  human; the auto research mix puts 0.8% of 8.5M H100e on agents (43k on experiments, 10k on ideas, 13k on engineering) →
+  107k + 25k + 33k AI FTE, 5.6k research copies. AI 2027's 200k copies at 30× on ≈ 0.5M H100e (≈ 5M median-FTE) differ in
+  (a) agent compute (≈ 6% of compute vs 0.8% here: before SC our labour multiplier saturates on little compute, so the
+  mix prefers experiments), (b) FLOP per work-hour (AI 2027 counts thinking speed, ≈ 30 tokens/s of human-equivalent
+  thought; we charge the tokens an agentic coding hour actually processes), (c) serial speed (30× vs 5.4×). The player
+  sees (a) in the research mix and (b), (c) in the copies readout.
+
+**Hypothesis test: does the misaligned display level drive S5 and the safe bot?** After the λ rebuild the internal model
+at SAR reads true L 12.0 and measured L 11.6–11.7 in the S5 worlds (V3 before λ: ≈ 9.3–10). S5 "without refresh" median
+U − L at SAR +0.72 → +0.55 (V2a −0.91); S5 mixed margin −1.62 → −1.03 (V2a −1.23); U at SAR (RefBot) 10.78 (V2a 9.81).
+So the level explained part of it; the rest is that U itself is higher at SAR: in the integrated S5 games SAR comes 170–
+260 days after SC (golden 153; e.g. seeds 200–205: SC 454–722, SAR 622–902), so safety research has more time per
+capability step, and in half the worlds tools are validated past L. Bots: see the calibration block.
+
+**RefBot's pacing gates.** RefBot starts its paradigm projects when the measured level passes v2's old gates (P08 at
+L 7, P13 at RSCH 8.5, P17 at 9.5, P19 at 8.5). After the λ rebuild the same level is reached at lower G on ai2027
+(5 levels over G_SC − G_V0 ≈ 2.7 OOM instead of v2's spacing), so continual learning (P08) started on day 354 instead of
+≈ 600 and the 2026 frontier ran at 1.8 G/yr. The reference policy now reads its gates on v2's scale (`bots/ref.ts
+v2Level`: the display level → pm → v2's level), so it starts each project at the same capability as before; the other
+bots and the player read the display scale.
+
+**Rivals on the same level scale.** With λ on the work-type points, Φ⁻¹ of the rivals' pm did not line up with the
+player: a rival reaching its SC on the CAL_SHIFT thresholds read L ≈ 11.4 on λ (its pm at SC is 1.3 OOM above the player's
+G_SC once converted). CAL_SHIFT is now derived per world, `alignedCalShift` = the SC threshold at Φ(G_SC) (ai2027 0.59,
+was the fitted −0.463), and the simple-lab credit CAL_SHIFT_V2 − calShift keeps the rivals' q path (their milestone dates,
+T1L, T3) v2's; the credit phases in over one progress-year from the start, so the start gaps (T4) are unchanged. The
+CAL_SHIFT table keeps V2a's values only for RefBot's pacing gates.
+**The M bridge.** Revenue per chip, the limits view and safety's M of the overseen model read AI 2027's M(q) through
+`bridgeQ` (the v2 coordinate at the model's display level) instead of pm + calShift, so a model at its SC reads M ≈ 5
+whatever path its pm took (BRIDGE(V4,V6)).
+
+**V3b calibration (T1, RefBot on the stub, seed 2027; Δ in years: SC, SAR, SIAR, ASI).** ai2027 G_SC 30.497, Δ_bm 2.2,
+sd_SC 0.5: 0.000, +0.022, −0.041, −0.030. authors2026 33.62, 4.606, 1.8: −0.008, +0.016, −0.041, −0.025. fast 31.593,
+0.17, 0.5: −0.003, +0.096, −0.019, −0.096. slow 35.447 (Δ_bm 1.6, sd_SC 0.5): SC −0.079. All within tolerance. Checks
+(ai2027): frontier G path 1.31 G/yr, worst anchor 0.14 G (pass; authors2026 1.29, fast 1.32, slow 1.14 G/yr, all ≤ 0.15
+G); METR doubling 4.4 months (authors2026 4.5, fast 4.4, slow 5.0); pretraining stack 0.49 OOM/yr in the first year; M at
+the start 1.04. **Fragility:** authors2026's SIAR and ASI move by up to +0.25 / +0.38 y for G_SC changes of ±0.005 OOM
+(33.62: −0.04 / −0.03; 33.626: +0.25 / +0.38; 33.6255: +0.18 / +0.33): its four-year takeoff accumulates discrete events
+(base completions, adoption order, batching) near the accelerating/decelerating boundary, so its calibration is a point
+fit on seed 2027, not a robust one. The others move by days.
+Simple labs after the alignment: LEADER_CAL refit (`--fit-leader`): ai2027 0.021 → 0.256, authors2026 0.046 → 0.096, fast
+−0.001 → 0.134, slow 0.039 → 0.314; CHINA_CAL.effScale 2.4 → 3.2 (China's mean lead 223 d at 2.4, 174 d at 3.4).
+
+**What it did not fix: revenue (BRIDGE(V4)).** With the frontier on research/12's path (1.3 G/yr instead of 1.7) the
+integrated RefBot's 2026 revenue is $29B (F7 target $45B ± 20%), its 2027 revenue $78B (F11: $140B ± 30%), valuation
+$0.5T and 67% of seeds out of distress (F8 ≥ 75%). Its products serve distilled minis and held-back full versions that
+sit ≈ 1 display level under its frontier and, by late 2026, under the rivals' frontier, and the sector demand model reads
+those levels. The revenue model (revenue per chip from AI 2027's M, logit shares on levels) was tuned to the faster v2
+path; V4 rebuilds it on tokens, cost and work-type coverage, so it is left for V4 rather than retuned here.
 
 ---
 
