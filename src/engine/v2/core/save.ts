@@ -10,6 +10,7 @@ import { initialAgents } from '../departments/agents';
 import { fptOfBuild } from '../departments/workfit';
 import { REGIONS, SECTORS } from '../../../data/v2/sectors';
 import { workerTarget } from '../worldfx/use';
+import { CONSUMER_MKT } from '../../../data/v2/serving';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
 /** 12 (model v3 V1): models are built from physical quantities (BaseModel, VersionBuild, BaseDesign, PostDesign changed).
@@ -25,8 +26,10 @@ import { workerTarget } from '../worldfx/use';
  *  (serving FLOP per token), typed features, price tiers as markups over cost. Migration 15 → 16 adds empty customer
  *  stocks (they start at the market's logit shares on the next tick) and fills fpt from each version's base.
  *  17 (model v3 A2a): SectorState.W, the share of a sector's workers who use AI at work (hours of use = A + h·(W − A)).
- *  Migration 16 → 17 starts it at its ceiling W* from the saved sector state. */
-export const SCHEMA_REV = 17;
+ *  Migration 16 → 17 starts it at its ceiling W* from the saved sector state.
+ *  18 (model v3 A2b): consumer demand from measured anchors — WorldFxState.reach (weekly reach per region, replaces
+ *  consumerReach) and WorldFxState.paid (paid-share stocks per region and provider). Migration 17 → 18. */
+export const SCHEMA_REV = 18;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -214,6 +217,18 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       const st = s.world.sectors[r]?.[def.id];
       if (st && st.W === undefined) st.W = workerTarget(def, r, st.F, st.A);
     }
+  },
+  /** 17 → 18 (model v3 A2b): weekly reach per region (the old single US-based reach, rescaled from its 0.40 start to the
+   *  new 0.46; ROW × 0.85) and paid-share stocks (empty: they start at their targets on the next tick). */
+  17: (raw) => {
+    const fx = (raw as unknown as GameStateV2).world.fx as GameStateV2['world']['fx'] & { consumerReach?: number };
+    if (!fx.reach) {
+      const R = CONSUMER_MKT.reach;
+      const us = Math.min(R.max, (fx.consumerReach ?? 0.4) * (R.startUS / 0.4));
+      fx.reach = { US: us, CN: us * R.row, ROW: us * R.row };
+    }
+    fx.paid ??= { US: {}, CN: {}, ROW: {} };
+    delete fx.consumerReach;
   },
 };
 

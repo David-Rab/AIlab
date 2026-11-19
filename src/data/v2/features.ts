@@ -30,8 +30,9 @@ export function tierOfIndex(x: number): PriceTier {
 }
 
 /** Products by engine channel: display name, what a customer is and the annual revenue per customer used for the
- *  customer readout (revenue ÷ ARPU) [D: consumer ≈ $20 per weekly user per year (ChatGPT: ~800M weekly users, OpenAI
- *  DevDay Oct 2025, on low-teens $B consumer revenue); API ≈ $1.3K per active developer; Enterprise ≈ $75K per
+ *  customer readout (revenue ÷ ARPU) [D: consumer ≈ $20 per weekly user per year (unused: Chat's customers are its
+ *  weekly users from the stock, A2b; ChatGPT: ~800M weekly users, OpenAI DevDay Oct 2025, on low-teens $B consumer
+ *  revenue); API ≈ $1.3K per active developer; Enterprise ≈ $75K per
  *  organisation; Agents ≈ $1.1K per seat; government ≈ $50M per contract]. */
 export interface ProductDef {
   channel: Channel;

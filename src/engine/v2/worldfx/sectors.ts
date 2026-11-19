@@ -25,7 +25,8 @@ import type {
 import { initialControl, updateControl } from './control';
 import { fireHeadlines } from './headlines';
 import { paidDeployments, worldMix, type WorldMix } from './mix';
-import { preLlmCover } from './serving';
+import { preLlmCover, reachTarget } from './serving';
+import { CONSUMER_MKT } from '../../../data/v2/serving';
 import { workerTarget } from './use';
 import { econOf, policyState, sigmoid, clamp01, clampR, type PolicyState } from './policy';
 import { ROBOT, advanceRobots } from './robots';
@@ -152,7 +153,10 @@ export function initialWorld(labIds: LabId[]): WorldEconomy {
     incidentR[d.id] = 0;
   }
   const fx: WorldFxState = {
-    consumerReach: 0.4, // ≈39–40% of US adults use generative AI (Bick, Blandin, Deming) [V]
+    // A2b: weekly AI chat reach by region (research/22 §2: ≈46% of US adults in Jul 2025; ROW × 0.85), paid shares empty
+    // (they start at their targets on the first revenue tick).
+    reach: { US: CONSUMER_MKT.reach.startUS, CN: CONSUMER_MKT.reach.startUS * CONSUMER_MKT.reach.row, ROW: CONSUMER_MKT.reach.startUS * CONSUMER_MKT.reach.row },
+    paid: { US: {}, CN: {}, ROW: {} },
     capPenalty: { consumer: 0, sector: 0 },
     youthRel,
     incidentR,
@@ -326,11 +330,16 @@ export const worldDailySystem: EngineSystem = {
     W.infoShare = info;
 
     // Consumer reach and AI-friend share (research/16 §2.1).
-    // V4.1: consumer chat is a work type; reach follows the best accessible model's coverage of it.
-    const reachStar = 0.35 + 0.55 * cons.bestCover;
-    if (fx.consumerReach < reachStar) fx.consumerReach += (1 + 2 * fx.consumerReach) * (reachStar - fx.consumerReach) * dt;
-    else fx.consumerReach -= 0.2 * (fx.consumerReach - reachStar) * dt;
-    const friendStar = 0.03 + 0.18 * sigmoid((cons.social - FRIEND_SOCIAL_MID) / 1) * fx.consumerReach * (pol.companionBan ? 0.4 : 1);
+    // A2b: weekly reach per region, a Bass stock toward the target set by the best accessible model's coverage of
+    // consumer chat (serving.ts reachTarget).
+    const RC = CONSUMER_MKT.reach;
+    for (const r of REGIONS) {
+      const R = fx.reach[r];
+      const star = reachTarget(r, mix.consumer[r].bestCover);
+      if (R < star) fx.reach[r] = R + (RC.p + RC.q * R) * (star - R) * dt;
+      else fx.reach[r] = R - RC.down * (R - star) * dt;
+    }
+    const friendStar = 0.03 + 0.18 * sigmoid((cons.social - FRIEND_SOCIAL_MID) / 1) * fx.reach.US * (pol.companionBan ? 0.4 : 1);
     W.friendShare += (friendStar - W.friendShare) * 3 * dt;
 
     // The player transition fund is charged only by WS3's payroll system (finance ledger); its effects on workers

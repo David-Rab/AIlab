@@ -7,8 +7,10 @@
 //   player      = customer-stock share × use hours × channel split × (1 + the product's enabler segments)
 //   price       = min(markup × the product's cost per hour of use, value = wage × hours saved) (worldfx/serving.ts)
 //   demand $    = Σ hours × price;  need H100e = Σ hours × H100e-hours per work-hour ÷ 8766, + the monitor's overhead
-//   consumer    = users (online adults × reach × share) → paying subscribers × price per month × 12; free users run on
-//                 the product's mini (else its model) and pay nothing; need from usage per user-day
+//   consumer    = users (online adults × reach R_r × user share, both stocks) × paid share P (a stock, A2b) = subscribers;
+//                 revenue line = subscribers × price per month × 12 (price ≤ the willingness to pay), independent of work
+//                 hours; free users (users − subscribers) run on the product's mini (else its model), pay nothing and are
+//                 served last; need from usage per user-day (paid 30k/8k, free 7.5k/1.5k tokens)
 //   revenue     = demand $ × min(1, served ÷ need)   (consumer: paying users are served first)
 // Serving split (R6): with the Auto policy (default) each product needs its H100e; the pool serves the products earning
 // most per H100e first and records what it cuts; spare pool is spread over the products in proportion to need. With Auto
@@ -59,11 +61,17 @@ export interface DeploymentRevenue {
   costPerHour: number;
   pricePerHour: number;
   valueCapped: number;
-  /** Consumer: weekly users and paying subscribers it serves (its customer stock), cost and price per subscriber-month. */
+  /** Consumer: weekly users and paying subscribers it serves (its customer stock × the paid-share stock), cost and price
+   *  per subscriber-month; the paid share's target (A2b); serving need (H100e, incl. monitor) of paying and free users,
+   *  and how much of the free users' need the split cut (free users are served last). */
   users?: number;
   subs?: number;
   subCost?: number;
   subPrice?: number;
+  paidTarget?: number;
+  needPaid?: number;
+  needFree?: number;
+  cutFree?: number;
 }
 
 export interface RevenueReadout {
@@ -85,14 +93,23 @@ export function sectorHours(s: GameStateV2, r: RegionId, sid: SectorId): number 
 export function sectorSpend(s: GameStateV2, r: RegionId, sid: SectorId, mix: WorldMix): Money {
   return (sectorHours(s, r, sid) * mix.sec[r][sid].price) / 1e9;
 }
-/** Consumer users of a region (weekly: online adults × reach). */
-export const consumerUsers = (s: GameStateV2, r: RegionId) => CONSUMER_MKT.adults[r] * s.world.fx.consumerReach;
-/** Consumer spend by region ($B/yr): paying subscribers × each provider's price per month × 12. */
+/** Consumer users of a region (weekly: online adults × reach, A2b: the reach stock of that region). */
+export const consumerUsers = (s: GameStateV2, r: RegionId) => CONSUMER_MKT.adults[r] * (s.world.fx.reach?.[r] ?? 0);
+/** Consumer subscribers of a region, all providers: users × each provider's user share × its paid share. */
+export function regionSubscribers(s: GameStateV2, mix: WorldMix, r: RegionId): number {
+  const cm = mix.consumer[r];
+  let p = 0;
+  for (let i = 0; i < cm.share.length; i++) p += cm.share[i] * cm.paid[i];
+  return consumerUsers(s, r) * p;
+}
+/** Consumer subscribers in the world (all providers, US and ROW; CN is served at home). */
+export const worldSubscribers = (s: GameStateV2, mix: WorldMix = worldMix(s)) => REGIONS.reduce((a, r) => a + regionSubscribers(s, mix, r), 0);
+/** Consumer spend by region ($B/yr): subscribers × each provider's price per month × 12. */
 export function consumerSpend(s: GameStateV2, mix: WorldMix, r: RegionId): Money {
   const cm = mix.consumer[r];
   let p = 0;
-  for (let i = 0; i < cm.share.length; i++) p += cm.share[i] * cm.prices[i];
-  return (consumerUsers(s, r) * CONSUMER_MKT.payShare * p * 12) / 1e9;
+  for (let i = 0; i < cm.share.length; i++) p += cm.share[i] * cm.paid[i] * cm.prices[i];
+  return (consumerUsers(s, r) * p * 12) / 1e9;
 }
 
 /** Serving H100e of the moonshot projects (taken out of the serving pool first). */
@@ -181,8 +198,8 @@ export function servingSplit(s: GameStateV2, deps: Deployment[], segs: (d: Deplo
   return out;
 }
 
-interface Acc { dem: number; hours: number; need: number; cost: number; capped: number; users: number; subs: number; needPaid: number; subCost: number; subPrice: number }
-const acc0 = (): Acc => ({ dem: 0, hours: 0, need: 0, cost: 0, capped: 0, users: 0, subs: 0, needPaid: 0, subCost: 0, subPrice: 0 });
+interface Acc { dem: number; hours: number; need: number; cost: number; capped: number; users: number; subs: number; needPaid: number; subCost: number; subPrice: number; paidTarget: number }
+const acc0 = (): Acc => ({ dem: 0, hours: 0, need: 0, cost: 0, capped: 0, users: 0, subs: 0, needPaid: 0, subCost: 0, subPrice: 0, paidTarget: 0 });
 
 /** Full revenue computation (pure; the system applies it). */
 export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s)): RevenueReadout {
@@ -269,22 +286,25 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s)): Rev
       const ws = offs.map((x) => Math.exp(SHARE_SLOPE_G * (x.o.fit - best)) * Math.pow(Math.max(1e-9, x.sp.price), -PRICE_ELASTICITY));
       const wsum = ws.reduce((a, b) => a + b, 0) || 1;
       const users = cm.share[playerIdx] * consumerUsers(s, r);
+      // A2b: the player's paid share (stock) applies to each of its chat products; subscribers × price × 12 is the line.
+      const P = cm.paid[playerIdx];
       offs.forEach((x, i) => {
         let u = ((users * ws[i]) / wsum) * x.en;
         if (x.d.status === 'restricted') u *= 0.3;
-        const subs = u * CONSUMER_MKT.payShare;
+        const subs = u * P;
         const a = acc.get(x.d.id)!;
         a.users += u;
         a.subs += subs;
         a.dem += (subs * x.sp.price * 12) / 1e9;
         a.cost += (subs * x.sp.cost * 12) / 1e9;
-        if (x.sp.price >= CONSUMER_MKT.valueCapMonth - 1e-9) a.capped += (subs * x.sp.price * 12) / 1e9;
+        if (x.sp.price >= CONSUMER_MKT.wtpMonth - 1e-9) a.capped += (subs * x.sp.price * 12) / 1e9;
         const paid = (subs * chatHoursPerDay(x.fMain, CONSUMER_MKT.perDay.paid, x.e)) / 24;
         const free = ((u - subs) * chatHoursPerDay(x.fFree, CONSUMER_MKT.perDay.free)) / 24;
         a.needPaid += paid;
         a.need += paid + free;
         a.subCost = x.sp.cost;
         a.subPrice = x.sp.price;
+        a.paidTarget = cm.paidTarget[playerIdx];
       });
     }
   }
@@ -322,7 +342,10 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s)): Rev
       hours: a.hours, capHours: a.hours > 0 && need > 0 ? (a.hours * h) / need : 0,
       costPerHour: a.hours > 0 ? (a.cost * 1e9) / a.hours : 0, pricePerHour: a.hours > 0 ? (a.dem * 1e9) / a.hours : 0,
       valueCapped: a.dem > 0 ? a.capped / a.dem : 0,
-      ...(d.channel === 'consumer' ? { users: a.users, subs: a.subs, subCost: a.subCost, subPrice: a.subPrice } : {}),
+      ...(d.channel === 'consumer' ? {
+        users: a.users, subs: a.subs, subCost: a.subCost, subPrice: a.subPrice, paidTarget: a.paidTarget,
+        needPaid: a.needPaid * mon, needFree: (a.need - a.needPaid) * mon, cutFree: Math.max(0, Math.min((a.need - a.needPaid) * mon, sp.cut)),
+      } : {}),
     });
     total += revenue;
     D += a.dem;
@@ -349,7 +372,7 @@ export function labMarketRevenue(s: GameStateV2, lab: LabId): Money {
       if (m.share[i]) x += (m.share[i] * sectorHours(s, r, def.id) * m.prices[i]) / 1e9;
     }
     const cm = mix.consumer[r];
-    x += (cm.share[i] * consumerUsers(s, r) * CONSUMER_MKT.payShare * cm.prices[i] * 12) / 1e9;
+    x += (cm.share[i] * consumerUsers(s, r) * cm.paid[i] * cm.prices[i] * 12) / 1e9;
   }
   return x;
 }

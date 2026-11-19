@@ -11,7 +11,7 @@ import { LEVERAGE_THRESHOLDS, leverage, leverageTier } from '../../src/engine/v2
 import { HEADLINES } from '../../src/engine/v2/worldfx/headlines';
 import { automationTfp } from '../../src/engine/v2/worldfx/macro';
 import { POLICY_FLAGS } from '../../src/engine/v2/worldfx/policy';
-import { firmAdoption, remoteWorkAutomation, workUse, youthExposedEmployment } from '../../src/engine/v2/worldfx/readouts';
+import { consumerUse, firmAdoption, remoteWorkAutomation, workUse, youthExposedEmployment } from '../../src/engine/v2/worldfx/readouts';
 import { revenueOf } from '../../src/engine/v2/worldfx/revenue';
 import type { GameStateV2, SetupV2, TickOptions } from '../../src/engine/v2/types';
 import { refBot } from '../../src/engine/v2/bots/ref';
@@ -42,7 +42,7 @@ interface Trace {
   firstRemote25?: number;
   firstU12?: number;
   firstAccept85?: number;
-  at: Record<string, { dow: number; U: number; youthSoft: number; youthU: number; friend: number; hireSoft: number; youthX: number; firm: number; rev: number; use: ReturnType<typeof workUse> }>;
+  at: Record<string, { dow: number; U: number; youthSoft: number; youthU: number; friend: number; hireSoft: number; youthX: number; firm: number; rev: number; use: ReturnType<typeof workUse>; cons: ReturnType<typeof consumerUse> }>;
 }
 
 const MARKS = ['2025-07-02', '2025-07-31', '2026-01-01', '2026-07-01', '2026-11-01', '2026-12-31', '2027-07-01', '2027-10-01', '2027-12-31'];
@@ -80,7 +80,7 @@ function run(over: Partial<SetupV2>, days: number, opts: { noSez?: boolean } = {
       tr.at[m] = {
         dow: W.dow, U: W.unemployment.US, youthSoft: W.fx.youthRel.SOFT, youthU: W.youthUnemployment, friend: W.friendShare,
         hireSoft: W.sectors.US.SOFT.hireRate, youthX: youthExposedEmployment(s), firm: firmAdoption(s), rev: s.player.finance.revenueRun,
-        use: workUse(s, 'US'),
+        use: workUse(s, 'US'), cons: consumerUse(s),
       };
     }
   }
@@ -122,6 +122,17 @@ check(within(c.firstAccept85, '2027-12-15'), 'Dec 2027 (±3 mo): GOV T1 Accept �
     `${u0.savedPerHour.toFixed(3)} → ${u26.savedPerHour.toFixed(3)} → ${uEnd.savedPerHour.toFixed(3)}`);
   check(at['2026-11-01'].firm < u26.workers - 0.1, 'A2a: firm adoption (BTOS analogue, firm-weighted) stays a separate, lower quantity than worker use', `firms ${pct(at['2026-11-01'].firm)} vs workers ${pct(u26.workers)}`);
   console.log(`INFO  A2a US hours of use (share of work-hours; RPS 4.1% Q3 2024, 5.7% Q3 2025, 6.3% Q2 2026, 5.3% Q3 2026): ${MARKS.map((m) => `${m} ${pct(at[m].use.hours)} (workers ${pct(at[m].use.workers)}, saved/h ${at[m].use.savedPerHour.toFixed(2)})`).join('; ')}`);
+}
+// A2b: consumer chat from measured anchors (research/22 §2): weekly reach (US ≈ 50% of adults use genAI outside work,
+// Nov 2025), the market's paid share (5–6%), subscribers × price as its own revenue line. Reported, not fitted.
+{
+  const c0 = at['2025-07-02'].cons;
+  const c26 = at['2026-07-01'].cons;
+  check(c26.regions.US.reach >= 0.45 && c26.regions.US.reach <= 0.65 && c26.regions.ROW.reach < c26.regions.US.reach,
+    'A2b 2026: US weekly AI chat reach ≈ 50–60% of adults (RPS ≈ 50% non-work use Nov 2025), ROW below the US', `US ${pct(c26.regions.US.reach)}, ROW ${pct(c26.regions.ROW.reach)}`);
+  const ps = (x: typeof c0) => x.subs / Math.max(1, x.users);
+  check(ps(c0) >= 0.04 && ps(c0) <= 0.09 && ps(c26) >= 0.04 && ps(c26) <= 0.09, 'A2b: the market\'s paid share stays near the measured 5–6% (4–9%) through 2026', `${pct(ps(c0))} → ${pct(ps(c26))}`);
+  console.log(`INFO  A2b consumer (all providers, US + ROW): ${MARKS.map((m) => `${m} users ${(at[m].cons.users / 1e6).toFixed(0)}M, subs ${(at[m].cons.subs / 1e6).toFixed(0)}M (${pct(ps(at[m].cons))}), spend $${at[m].cons.spend.toFixed(1)}B, player users ${((at[m].cons.regions.US.playerUsers + at[m].cons.regions.ROW.playerUsers) / 1e6).toFixed(0)}M`).join('; ')}`);
 }
 check(validateJson(c.s).length === 0, 'world state stays plain JSON (classic run)', validateJson(c.s).slice(0, 3).join('; '));
 const fired = new Set(c.s.headlines.map((h) => h.id.split(':')[0]));

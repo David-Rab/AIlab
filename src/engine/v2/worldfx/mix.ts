@@ -8,12 +8,13 @@
 //   share_X   = the segment's customer stock, moving toward target_X at the segment's speed (CUSTOMER_TAU)
 //   F         = (1 − w_PHYS)·Σ share·a + w_PHYS·σ((Le_PHYS − fMid − θ)/fSpread)    (PHYS stays robot-bound)
 //   K         = Σ share·σ(ln(wage ÷ (price + review))/0.7)                           (the physical cost gate)
-// The consumer market is the same on the consumer-chat work type, priced per subscriber-month.
+// The consumer market is the same on the consumer-chat work type, priced per subscriber-month; each provider's paid share
+// of its users is a second stock (A2b, CONSUMER_MKT.paid).
 // Display levels (the share-weighted domain vector `dom`, Le_d = min(L_d, L_AGENCY + 2)) still feed substitution α, the
 // integration boost, control and the tech tree, as in v2.
 import { SECTORS, REGIONS, ECON } from '../../../data/v2/sectors';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
-import { CUSTOMER_TAU, PRICE_ELASTICITY, SHARE_SLOPE_G } from '../../../data/v2/serving';
+import { CONSUMER_MKT, CUSTOMER_TAU, PRICE_ELASTICITY, SHARE_SLOPE_G } from '../../../data/v2/serving';
 import { ASSIST } from '../../../data/v2/workTypes';
 import { memo } from '../core/memo';
 import { CHINA_ID } from '../models/labs';
@@ -24,7 +25,7 @@ import { productDomains } from '../models/products';
 import { flopPerToken } from '../departments/workfit';
 import {
   CHINA_MARKUP, RIVAL_MARKUP, effortTokens, marketModel, enablerShare, fptOfSimple, fxOn, markupOf, offerOf,
-  productFx, productOffer, productUses, savedPerUseHour, serveDollarsPerHour, settingsDG, subPrice, valuePerHour, wagePerHour, type Offer,
+  paidShareTarget, productFx, productOffer, productUses, savedPerUseHour, serveDollarsPerHour, settingsDG, subPrice, valuePerHour, wagePerHour, type Offer,
 } from './serving';
 
 export { PRICE_ELASTICITY };
@@ -100,6 +101,10 @@ export interface ConsumerMix {
   fit: number[]; cover: number[]; prices: number[];
   /** Coverage of consumer chat by the best accessible model. */
   bestCover: number;
+  /** A2b: per provider, the paid share of its weekly users (stock) and the target it moves toward. */
+  paid: number[]; paidTarget: number[];
+  /** The going subscription price ($/month): users' share-weighted price among plans at or below the willingness to pay. */
+  going: number;
   playerDep?: string; playerPrice: number; priceFactor: number;
 }
 
@@ -464,8 +469,21 @@ function computeMix(s: GameStateV2): WorldMix {
       px += share[i] * cPrice[i];
     }
     const pp = playerIdx >= 0 ? cPrice[playerIdx] : 0;
+    // A2b: paid share per provider — a stock (fx.paid) toward (p0 + p1·coverage)·(going price ÷ price)^ε, the going
+    // price the users' share-weighted subscription price among plans at or below the willingness to pay; absent = its
+    // target.
+    let gw = 0;
+    let gp = 0;
+    for (let i = 0; i < n; i++) if (share[i] > 0 && cPrice[i] > 0 && cPrice[i] <= CONSUMER_MKT.wtpMonth * (1 + 1e-9)) {
+      gw += share[i];
+      gp += share[i] * cPrice[i];
+    }
+    const going = gw > 0 ? gp / gw : CONSUMER_MKT.wtpMonth;
+    const paidTarget = cCover.map((a, i) => (cFit[i] === -Infinity ? 0 : paidShareTarget(a, cPrice[i], going)));
+    const pst = s.world.fx.paid?.[r];
+    const paid = providers.map((p, i) => pst?.[p.key] ?? paidTarget[i]);
     consumer[r] = {
-      share, target, level: cLevel, socials: cSocial, best: best === -Infinity ? 0 : best, social: soc, fit: cFit, cover: cCover, prices: cPrice, bestCover,
+      share, target, level: cLevel, socials: cSocial, best: best === -Infinity ? 0 : best, social: soc, fit: cFit, cover: cCover, prices: cPrice, bestCover, paid, paidTarget, going,
       ...(cDep ? { playerDep: cDep } : {}), playerPrice: pp, priceFactor: pp > 0 && px > 0 ? Math.min(1, Math.pow(pp / px, -PRICE_ELASTICITY)) : 1,
     };
   });
@@ -493,9 +511,22 @@ export function advanceCustomers(s: GameStateV2, mix: WorldMix, dt = 1 / 365) {
     for (const key of Object.keys(out)) out[key] = Math.round((out[key] / (sum || 1)) * 1e6) / 1e6;
     row[seg] = out;
   };
+  // A2b: paid shares (not normalised: each provider's own share of its users who subscribe). A new provider starts at
+  // its target (its users arrive through the user-share stock).
+  fx.paid ??= { US: {}, CN: {}, ROW: {} };
+  const kPaid = Math.min(1, dt / CONSUMER_MKT.paid.tau);
   for (const r of REGIONS) {
     for (const t of SECTOR_TASKS) step(r, t.id, mix.sec[r][t.id].target, t.gov ? CUSTOMER_TAU.gov : CUSTOMER_TAU.sector);
     step(r, 'consumer', mix.consumer[r].target, CUSTOMER_TAU.consumer);
+    const cm = mix.consumer[r];
+    const old = fx.paid[r] ?? {};
+    const out: Record<string, number> = {};
+    mix.providers.forEach((p, i) => {
+      if (cm.fit[i] === -Infinity) return;
+      const x = old[p.key];
+      out[p.key] = Math.round((x === undefined ? cm.paidTarget[i] : x + (cm.paidTarget[i] - x) * kPaid) * 1e7) / 1e7;
+    });
+    fx.paid[r] = out;
   }
 }
 

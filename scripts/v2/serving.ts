@@ -10,6 +10,10 @@
 //       the physical price
 //   S6  features are typed (enabler / horizon / scaffold / effort) and apply to products and to internal agents
 //   S7  lint: no revenue, price, cost or sector reader uses serveCost, multiplierRef or the M bridge
+//   C1–C6 consumer demand (A2b, research/22 §2–3): reach and paid share are stocks moving toward their targets;
+//       subscribers × price × 12 is the consumer line, independent of work hours; free users' need uses ≈ 9k tokens a
+//       weekly-user-day and is cut first; a better model raises the paid share; no subscription above the willingness
+//       to pay
 //   INFO price sanity: price per million tokens, its decline for fixed capability (research/20 D3 ×10/yr), margins
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -27,8 +31,11 @@ import { versionById } from '../../src/engine/v2/models/labs';
 import { worldMix } from '../../src/engine/v2/worldfx/mix';
 import { revenueReadout, servingPool } from '../../src/engine/v2/worldfx/revenue';
 import {
-  effortDG, fptOfG, fxOn, h100eHoursPer, internalFx, offerOf, productOffer, sectorCover, sectorTheta, serveDollarsPerHour, valuePerHour,
+  effortDG, fptOfG, fxOn, h100eHoursPer, internalFx, offerOf, paidShareTarget, productOffer, reachTarget, sectorCover, sectorTheta, serveDollarsPerHour,
+  subPrice, valuePerHour,
 } from '../../src/engine/v2/worldfx/serving';
+import { consumerUse } from '../../src/engine/v2/worldfx/readouts';
+import { monitorOverhead } from '../../src/engine/v2/models/products';
 import type { Deployment, GameStateV2, ModelVersion, SectorId } from '../../src/engine/v2/types';
 import { FIXTURE_DIR, check, finish } from './lib';
 
@@ -103,8 +110,8 @@ for (const d of [400, 900]) {
   }
   check(n > 0 && bad === 0, `S3 day ${d}: every provider's price per hour of use is ≥ its cost and ≤ the work's value (unless serving costs more than the work is worth)`, `${n} offers, ${bad} outside`);
   const rd = revenueReadout(s, mix);
-  check(rd.deps.every((x) => x.channel === 'consumer' ? (x.subPrice ?? 0) >= (x.subCost ?? 0) - 1e-9 && (x.subPrice ?? 0) <= CONSUMER_MKT.valueCapMonth + 1e-9 : x.hours === 0 || x.pricePerHour >= x.costPerHour - 1e-9),
-    `S3 day ${d}: the player's products price at or above their cost (Chat at most the value cap)`, rd.deps.map((x) => `${x.channel} ${x.channel === 'consumer' ? `$${(x.subCost ?? 0).toFixed(1)}→$${(x.subPrice ?? 0).toFixed(1)}/mo` : `$${x.costPerHour.toFixed(2)}→$${x.pricePerHour.toFixed(2)}/h`}`).join(', '));
+  check(rd.deps.every((x) => x.channel === 'consumer' ? (x.subPrice ?? 0) >= (x.subCost ?? 0) - 1e-9 && (x.subPrice ?? 0) <= Math.max(CONSUMER_MKT.wtpMonth, x.subCost ?? 0) + 1e-9 : x.hours === 0 || x.pricePerHour >= x.costPerHour - 1e-9),
+    `S3 day ${d}: the player's products price at or above their cost (Chat at most the willingness to pay, $${CONSUMER_MKT.wtpMonth}/month)`, rd.deps.map((x) => `${x.channel} ${x.channel === 'consumer' ? `$${(x.subCost ?? 0).toFixed(1)}→$${(x.subPrice ?? 0).toFixed(1)}/mo` : `$${x.costPerHour.toFixed(2)}→$${x.pricePerHour.toFixed(2)}/h`}`).join(', '));
 }
 
 // ───────── S4 customers move gradually ─────────
@@ -173,6 +180,115 @@ for (const d of [400, 900]) {
   api.effort = 'deep';
   const d1 = productOffer(s, api, 'FIN');
   check(near(d1.fit - d0.fit, effortDG(4), 1e-9) && d1.cost > d0.cost, 'S6 effort deep: +0.24 OOM fit and more reasoning tokens per work-hour', `+${(d1.fit - d0.fit).toFixed(3)} OOM, cost ×${(d1.cost / d0.cost).toFixed(2)}`);
+}
+
+// ───────── C consumer demand from measured anchors (A2b; research/22 §2–3) ─────────
+{
+  // C1 reach is a stock that moves toward its target (the best model's consumer-chat coverage), in both directions.
+  const s = game();
+  run(s, 3);
+  const tUS = reachTarget('US', worldMix(s).consumer.US.bestCover);
+  s.world.fx.reach.US = 0.2;
+  run(s, 1);
+  const r1 = s.world.fx.reach.US;
+  run(s, 59);
+  const r60 = s.world.fx.reach.US;
+  const tUS60 = reachTarget('US', worldMix(s).consumer.US.bestCover);
+  check(r1 > 0.2 && r1 - 0.2 < 0.02 && r60 > r1 + 0.03 && r60 < tUS60, 'C1 reach below its target rises toward it over months, not at once',
+    `0.200 → day 1 ${r1.toFixed(3)} → day 60 ${r60.toFixed(3)} (target ${tUS.toFixed(3)} → ${tUS60.toFixed(3)})`);
+  s.world.fx.reach.US = 0.95;
+  run(s, 30);
+  check(s.world.fx.reach.US < 0.95 && s.world.fx.reach.US > 0.9, 'C1 reach above its target falls slowly', s.world.fx.reach.US.toFixed(3));
+  const g0 = game();
+  check(Math.abs(g0.world.fx.reach.US - CONSUMER_MKT.reach.startUS) < 1e-12 && Math.abs(g0.world.fx.reach.ROW - CONSUMER_MKT.reach.startUS * CONSUMER_MKT.reach.row) < 1e-12,
+    'C1 start reach: 46% of US adults weekly (RPS ≈ 50% non-work use in Nov 2025), ROW 0.85 × the US', `US ${g0.world.fx.reach.US}, ROW ${g0.world.fx.reach.ROW.toFixed(3)}`);
+}
+{
+  // C2 the paid share is a stock that moves toward its target; C5 a better consumer model raises the paid share.
+  const s = game();
+  run(s, 3);
+  const pi = worldMix(s).providers.findIndex((p) => p.key === 'player');
+  const tgt = worldMix(s).consumer.US.paidTarget[pi];
+  s.world.fx.paid.US.player = 0.01;
+  run(s, 1);
+  const p1 = s.world.fx.paid.US.player;
+  run(s, 59);
+  const p60 = s.world.fx.paid.US.player;
+  check(tgt > 0.03 && tgt < 0.12 && p1 > 0.01 && p1 - 0.01 < 0.05 * (tgt - 0.01) && p60 > 0.01 + 0.5 * (tgt - 0.01),
+    'C2 the paid share moves toward its target over weeks (τ ≈ 8 weeks), not at once', `0.010 → day 1 ${p1.toFixed(4)} → day 60 ${p60.toFixed(4)} (target ${tgt.toFixed(4)})`);
+  const chat = prod(s, 'consumer');
+  const v0 = versionById(s, chat.versionId)!;
+  const m0 = worldMix(s);
+  const a0 = m0.consumer.US.cover[pi];
+  const t0 = m0.consumer.US.paidTarget[pi];
+  // Same price (same FLOP per token), better model: higher coverage of consumer chat → higher paid-share target.
+  const better = cloneVersion(s, v0, 'VC', { build: { ...v0.build!, dg: (v0.build?.dg ?? 0) + 1 } });
+  chat.versionId = better.id;
+  const m1 = worldMix(s);
+  const sub0 = s.world.fx.paid.US.player;
+  run(s, 45);
+  check(m1.consumer.US.cover[pi] > a0 + 0.05 && m1.consumer.US.paidTarget[pi] > t0 * 1.05 && s.world.fx.paid.US.player > sub0,
+    'C5 a better consumer model (same price) raises the paid-share target, and the stock follows',
+    `coverage ${a0.toFixed(3)} → ${m1.consumer.US.cover[pi].toFixed(3)}, target ${t0.toFixed(4)} → ${m1.consumer.US.paidTarget[pi].toFixed(4)}, stock ${sub0.toFixed(4)} → ${s.world.fx.paid.US.player.toFixed(4)}`);
+  check(paidShareTarget(0.14, 22, 22) > 0.05 && paidShareTarget(0.14, 22, 22) < 0.06 && paidShareTarget(0.14, 11, 22) > paidShareTarget(0.14, 22, 22) && paidShareTarget(1, 22, 22) > paidShareTarget(0.14, 22, 22),
+    'C5 paid-share target: ≈5.5% for the start model at the going price (R22: 5–6%); a cheaper plan or a better model converts more',
+    `${(paidShareTarget(0.14, 22, 22) * 100).toFixed(2)}% (half price ${(paidShareTarget(0.14, 11, 22) * 100).toFixed(2)}%, full coverage ${(paidShareTarget(1, 22, 22) * 100).toFixed(2)}%)`);
+}
+{
+  // C3 subscribers × price × 12 is the consumer revenue line, independent of work hours.
+  const s = game();
+  run(s, 20);
+  const chat = prod(s, 'consumer');
+  const x0 = revenueReadout(s).deps.find((x) => x.id === chat.id)!;
+  const line = ((x0.subs ?? 0) * (x0.subPrice ?? 0) * 12) / 1e9;
+  for (const row of Object.values(s.world.sectors)) for (const st of Object.values(row)) {
+    st.A = 0;
+    st.W = 0;
+  }
+  const x1 = revenueReadout(s).deps.find((x) => x.id === chat.id)!;
+  const api1 = revenueReadout(s).deps.find((x) => x.channel === 'api')!;
+  check((x0.subs ?? 0) > 1e6 && near(x0.demand, line, 1e-9) && near(x1.demand, x0.demand, 1e-9) && api1.demand < 1e-9,
+    'C3 consumer demand = subscribers × price × 12, unchanged when no work-hours use AI (sector demand 0)',
+    `${((x0.subs ?? 0) / 1e6).toFixed(1)}M × $${(x0.subPrice ?? 0).toFixed(2)} × 12 = $${line.toFixed(2)}B; without work use $${x1.demand.toFixed(2)}B (API $${api1.demand.toFixed(2)}B)`);
+  check(x0.revenue <= x0.demand + 1e-9 && (x0.subs ?? 0) < (x0.users ?? 0) * CONSUMER_MKT.paid.max, 'C3 revenue ≤ the line; subscribers a paid share of the users');
+}
+{
+  // C4 the free users' serving need uses the measured budget (≈ 9k tokens per weekly-user-day), served last.
+  const fr = CONSUMER_MKT.perDay.free;
+  const s = game();
+  run(s, 3);
+  const chat = prod(s, 'consumer');
+  const x = revenueReadout(s).deps.find((z) => z.id === chat.id)!;
+  const v = versionById(s, chat.miniVersionId ?? chat.versionId)!;
+  const want = (((x.users ?? 0) - (x.subs ?? 0)) * h100eHoursPer(flopPerToken(s, v), fr)) / 24 * (1 + monitorOverhead(s, chat));
+  check(fr.input + fr.output >= 8e3 && fr.input + fr.output <= 1e4 && near(x.needFree ?? 0, want, 1e-6) && near((x.needPaid ?? 0) + (x.needFree ?? 0), x.needH100e, 1e-6),
+    'C4 free users need ≈ 9k tokens per weekly-user-day (3.75 messages; R22: 8–10k, was 1.6k) on the free tier model; paid + free = the product\'s need',
+    `${((x.users ?? 0) / 1e6).toFixed(0)}M users: free ${Math.round((x.needFree ?? 0) / 1e3)}k + paid ${Math.round((x.needPaid ?? 0) / 1e3)}k H100e; cut ${Math.round(x.cutH100e / 1e3)}k (free ${Math.round((x.cutFree ?? 0) / 1e3)}k)`);
+  check((x.cutFree ?? 0) <= (x.needFree ?? 0) + 1e-6 && (x.cutH100e <= (x.needFree ?? 0) + 1e-6 || near(x.cutFree ?? 0, x.needFree ?? 0, 1e-6)), 'C4 the split cuts free users before paying ones');
+}
+for (const d of [400, 900]) {
+  // C6 no provider's subscription is priced above the willingness to pay (unless serving a subscriber costs more).
+  const s = fixture(d);
+  const mix = worldMix(s);
+  let bad = 0;
+  let n = 0;
+  mix.providers.forEach((p, i) => {
+    if (!p.model) return;
+    const sp = subPrice(s, p.fpt ?? 2e12, p.markup);
+    n++;
+    if (mix.consumer.US.prices[i] > Math.max(CONSUMER_MKT.wtpMonth, sp.cost) + 1e-9 || mix.consumer.US.prices[i] < sp.cost - 1e-9) bad++;
+  });
+  const chat = s.player.deployments.find((x) => x.channel === 'consumer' && x.status !== 'withdrawn');
+  let prem = 'no Chat';
+  if (chat) {
+    chat.price = 'premium';
+    const x = revenueReadout(s).deps.find((z) => z.id === chat.id)!;
+    prem = `premium $${(x.subCost ?? 0).toFixed(2)} → $${(x.subPrice ?? 0).toFixed(2)}`;
+    if ((x.subPrice ?? 0) > Math.max(CONSUMER_MKT.wtpMonth, x.subCost ?? 0) + 1e-9) bad++;
+  }
+  check(n > 0 && bad === 0, `C6 day ${d}: consumer prices ≤ the willingness to pay ($${CONSUMER_MKT.wtpMonth}/month) and ≥ cost, rivals and the player's premium tier too`, `${n} providers; ${prem}`);
+  const cu = consumerUse(s, mix);
+  console.log(`INFO  C day ${d}: weekly users ${(cu.users / 1e6).toFixed(0)}M (reach US ${(cu.regions.US.reach * 100).toFixed(1)}%, ROW ${(cu.regions.ROW.reach * 100).toFixed(1)}%), subscribers ${(cu.subs / 1e6).toFixed(0)}M (${((cu.subs / Math.max(1, cu.users)) * 100).toFixed(1)}%), spend $${cu.spend.toFixed(1)}B/yr, going price US $${cu.regions.US.going.toFixed(1)}`);
 }
 
 // ───────── S7 lint ─────────

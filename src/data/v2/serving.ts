@@ -86,17 +86,50 @@ export const PRICE_ELASTICITY = 1;
  *  quarters), government and defence over contract cycles. */
 export const CUSTOMER_TAU = { consumer: 3 / 52, sector: 0.25, gov: 0.75 } as const;
 
-/** Consumer market (V4.2): weekly users = online adults × reach × share; paying subscribers PAY_SHARE of them pay a
- *  monthly price = markup × their usage's serving cost (bounded by the value cap); the free users are served by the
- *  product's mini (else its model) and pay nothing [D: ChatGPT ≈ 800M weekly users, ≈ 5% paying (OpenAI 2025); CN is
- *  served at home]. Usage per user-day from R20 D2 (chat turn 3k/0.8k, reasoning ×5 output): a paying user ≈ 10
- *  reasoning turns a day, a free weekly user ≈ one short turn every other day [D]. */
+/** Consumer market (A2b; research/22 §2–3 [R22]). Two stocks per region and one logit:
+ *    reach R_r      share of online adults who use an AI chat app weekly (any provider), a Bass stock toward
+ *                   R*_r = row_r · max · (base + (1 − base) · c), c the best accessible model's coverage of consumer chat
+ *    user share     each provider's share of those users (the V4a customer stock and logit, CUSTOMER_TAU.consumer)
+ *    paid share P   each provider's share of its users who subscribe, a stock toward
+ *                   P* = min(max, (p0 + p1 · a) · (p̄ ÷ price)^ε), a its model's coverage of consumer chat, p̄ the going
+ *                   price (users' share-weighted subscription price in the region)
+ *  subscribers = adults × R × user share × P; consumer revenue = subscribers × price × 12 (independent of work hours).
+ *  Price = markup × a paying user's serving cost per month, never below cost and never above the willingness to pay
+ *  (wtp): most consumer use is not work (non-work share 0.7), so its value is what people pay for it, not wage × hours
+ *  saved. Free users (users − subscribers) pay nothing, run on the product's mini (else its model) and are served last;
+ *  they are the pool subscribers convert from, so serving them is what buys subscribers (unserved need erodes the
+ *  user share through the capacity penalty). CN is served at home (no adults here). */
 export const CONSUMER_MKT = {
-  adults: { US: 2.6e8, CN: 0, ROW: 2.5e9 } as Record<RegionId, number>,
-  payShare: 0.05,
-  perDay: { paid: { input: 3e4, output: 8e3 }, free: { input: 1.3e3, output: 3e2 } },
-  /** Ceiling on a subscription ($ per month): what a heavy user's time saved is worth [D]. */
-  valueCapMonth: 200,
+  /** Online adults [D]: US ≈ 262M adults (UN WPP 2024); rest of world excl. China ≈ 4.5B adults × ≈ 0.72 online (ITU
+   *  2025: ≈ 74% of the world online, China and the US above it) ≈ 3.2B. Recalled, not fetched this session. */
+  adults: { US: 2.6e8, CN: 0, ROW: 3.2e9 } as Record<RegionId, number>,
+  /** Non-work share of consumer chat use [R22 2a–2b: ChatGPT 73% of messages (Jun 2025), Claude.ai 54%; range
+   *  0.55–0.75]: why the consumer price is capped by willingness to pay, not by the wage of the time saved. */
+  nonWorkShare: 0.7,
+  /** Reach. US start 0.46 [D from R22 §2: RPS non-work genAI use ≈ 50% of US adults in Nov 2025, +10.4 pp yoy, so ≈ 46%
+   *  in Jul 2025]. Target ceiling `max` 0.9 of online adults (an internet-like saturation) [D]; `base` 0.5 puts the
+   *  start model's target (consumer-chat coverage 0.14) at ≈ 0.51, the Nov 2025 level [D]. ROW at `row` × the US
+   *  [D: the leader's ≈ 900M weekly users in Feb 2026 (R22 2c, ≈ 15% of world adults) at a ≈ 0.55–0.6 share of distinct
+   *  users need ≈ 1.5–1.6B weekly users outside China, i.e. ROW reach ≈ 0.43 at a US 0.5]. Speed (p + q·R) per year
+   *  toward the target, p 1, q 2 (V4a's reach dynamics), and 0.2/yr down [D]. */
+  reach: { startUS: 0.46, max: 0.9, base: 0.5, row: 0.85, p: 1, q: 2, down: 0.2 },
+  /** Paid share. p0 + p1·a = 5.4% for the start's frontier model (coverage 0.14) at the going price [R22 2e: ChatGPT ≈
+   *  5.6% of weekly users pay (50M / 900M, Feb 2026); 5–6% while list plans stayed at $20], rising to 14% at full
+   *  coverage [D: more of what people want done is worth paying for]; capped at 0.5 [D]. Price relative to the going
+   *  price with elasticity ε = 1 [D]: a plan cheaper than the market's converts more of its users, a dearer one fewer;
+   *  relative, not absolute, because cost-plus prices fall with serving cost while the measured paid share held at 5–6%
+   *  with plans at $20 (an absolute response would let the market's falling costs alone multiply subscribers). The
+   *  stock moves toward its target with τ ≈ 8 weeks [D: monthly billing; conversion and churn over a couple of billing
+   *  cycles]. */
+  paid: { p0: 0.04, p1: 0.1, max: 0.5, elasticity: 1, tau: 8 / 52 },
+  /** Willingness to pay ($ per subscriber-month) [R22 §2 ARPU [X]: $8–20 plans plus a few $100–200 plans ≈ $20–25; mid
+   *  22]: the consumer price cap (budget / standard / premium stay markups over cost below it). */
+  wtpMonth: 22,
+  /** FLOP-bearing tokens per user-day [R20 D2, R22 §3]: a paying user ≈ 10 reasoning turns (30k uncached input, 8k
+   *  output); a free weekly user 3.75 messages a day [R22 2g: 2,627M messages ÷ 700M WAU] × ≈ 2k of prompt and context and
+   *  0.4k of answer ≈ 9k tokens (R22: ≈ 8–20k per WAU-day; was 1.6k). */
+  perDay: { paid: { input: 3e4, output: 8e3 }, free: { input: 7.5e3, output: 1.5e3 } },
+  messagesPerDay: 3.75,
 };
 
 /** Hours a served H100e runs per year (24/7). */

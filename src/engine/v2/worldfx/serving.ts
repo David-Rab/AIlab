@@ -250,8 +250,25 @@ export function productOffer(s: GameStateV2, d: Deployment, sid: SectorId, certi
 /** H100e-hours per user-day of consumer chat on a model (paying users' or free users' usage). */
 export const chatHoursPerDay = (fpt: number, tok: TokenProfile, effort = 1) => h100eHoursPer(fpt, { input: tok.input, output: tok.output * effort });
 /** Consumer subscription price per month ($): markup × a paying user's serving cost on the product's model (paid usage
- *  runs on the main model), never above the value cap. */
+ *  runs on the main model), never above the willingness to pay (A2b: CONSUMER_MKT.wtpMonth) unless serving alone costs
+ *  more, never below cost. */
 export function subPrice(s: GameStateV2, fpt: number, markup: number, effort = 1): { cost: number; price: number } {
   const cost = chatHoursPerDay(fpt, CONSUMER_MKT.perDay.paid, effort) * serveDollarsPerHour(s) * 30.4;
-  return { cost, price: Math.min(CONSUMER_MKT.valueCapMonth, markup * cost) };
+  return { cost, price: Math.max(cost, Math.min(CONSUMER_MKT.wtpMonth, markup * cost)) };
+}
+/** Target paid share of a provider's weekly users (A2b): (p0 + p1 · coverage of consumer chat) × (going price ÷ its
+ *  price)^ε, capped; the going price is the users' share-weighted subscription price in the region among plans sold at
+ *  or below the willingness to pay (default: the willingness to pay). A plan that must cost more than the willingness
+ *  to pay (serving a subscriber alone costs more) finds no subscribers — the consumer analogue of the sector cost gate. */
+export function paidShareTarget(cover: number, price: number, going: number = CONSUMER_MKT.wtpMonth): number {
+  const P = CONSUMER_MKT.paid;
+  if (!(price > 0) || price > CONSUMER_MKT.wtpMonth * (1 + 1e-9)) return 0;
+  const q = P.p0 + P.p1 * Math.max(0, Math.min(1, cover));
+  return Math.min(P.max, q * Math.pow((going > 0 ? going : price) / price, P.elasticity));
+}
+/** Target weekly reach of AI chat in a region (share of online adults, A2b) at the best accessible model's coverage of
+ *  consumer chat. */
+export function reachTarget(r: RegionId, bestCover: number): number {
+  const R = CONSUMER_MKT.reach;
+  return (r === 'US' ? 1 : R.row) * R.max * (R.base + (1 - R.base) * Math.max(0, Math.min(1, bestCover)));
 }

@@ -3,6 +3,10 @@
 import { ECON, SECTORS } from '../../../data/v2/sectors';
 import type { GameStateV2, RegionId } from '../types';
 import { alphaUseOf, savedAt, useShareOf } from './use';
+import { CONSUMER_MKT } from '../../../data/v2/serving';
+import { worldMix, type WorldMix } from './mix';
+import { consumerSpend, consumerUsers, regionSubscribers } from './revenue';
+import { reachTarget } from './serving';
 
 /** Share of US remote-work (pure cognitive) tasks done by AI (AI 2027 Oct 2027: 25% of remote-work jobs). */
 export function remoteWorkAutomation(s: GameStateV2): number {
@@ -47,6 +51,37 @@ export function workUse(s: GameStateV2, r: RegionId = 'US'): { hours: number; wo
     e += st.E0;
   }
   return { hours: u / e, workers: w / e, savedPerHour: u > 0 ? sv / u : 0, saved: sv / e };
+}
+
+export interface ConsumerRegionRead {
+  /** Weekly reach (share of online adults using an AI chat app) and the target it moves toward. */
+  reach: number; reachTarget: number;
+  /** Weekly users and subscribers, all providers; paid share = subscribers ÷ users; the going (users' share-weighted)
+   *  subscription price ($/month, plans at or below the willingness to pay) and consumer spend ($B/yr). */
+  users: number; subs: number; paidShare: number; going: number; spend: number;
+  /** The player's users (its customer stock), its paid share (stock) and that share's target; 0 without a Chat product. */
+  playerUsers: number; playerPaid: number; playerPaidTarget: number;
+}
+/** A2b: consumer chat by region (US and ROW; CN is served at home), and the world totals. Messages per day and their
+ *  non-work share are the measured averages (research/22 §2), not simulated. */
+export function consumerUse(s: GameStateV2, mix: WorldMix = worldMix(s)): { regions: Record<'US' | 'ROW', ConsumerRegionRead>; users: number; subs: number; spend: number; messagesPerDay: number; nonWorkShare: number } {
+  const pi = mix.providers.findIndex((p) => p.key === 'player');
+  const one = (r: 'US' | 'ROW'): ConsumerRegionRead => {
+    const cm = mix.consumer[r];
+    const users = consumerUsers(s, r);
+    const subs = regionSubscribers(s, mix, r);
+    return {
+      reach: s.world.fx.reach[r], reachTarget: reachTarget(r, cm.bestCover), users, subs, paidShare: users > 0 ? subs / users : 0, going: cm.going,
+      spend: consumerSpend(s, mix, r),
+      playerUsers: pi >= 0 ? users * cm.share[pi] : 0, playerPaid: pi >= 0 ? cm.paid[pi] : 0, playerPaidTarget: pi >= 0 ? cm.paidTarget[pi] : 0,
+    };
+  };
+  const regions = { US: one('US'), ROW: one('ROW') };
+  const users = regions.US.users + regions.ROW.users;
+  return {
+    regions, users, subs: regions.US.subs + regions.ROW.subs, spend: regions.US.spend + regions.ROW.spend,
+    messagesPerDay: users * CONSUMER_MKT.messagesPerDay, nonWorkShare: CONSUMER_MKT.nonWorkShare,
+  };
 }
 
 /** Employment of 22–25-year-olds in the most exposed jobs vs counterfactual (Canaries; 1 = no effect). */

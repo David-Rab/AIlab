@@ -1463,8 +1463,13 @@ export interface WorldEconomy {
 
 /** World-dynamics bookkeeping owned by WS5 (worldfx/*). Plain JSON; observables only (no truth). */
 export interface WorldFxState {
-  /** Share of adults using AI assistants (INFO channel reach, research/16 §2.1). 0..1 */
-  consumerReach: number;
+  /** Weekly reach of AI chat apps: share of online adults using one (any provider), by region (A2b; INFO channel
+   *  reach, research/16 §2.1, research/22 §2). A stock toward a target set by the best model's consumer-chat coverage.
+   *  0..1 */
+  reach: Record<RegionId, number>;
+  /** Paid share of each provider's weekly chat users (A2b): by region, provider key (as in `cust`) → share who
+   *  subscribe. A stock toward (p0 + p1·coverage)·(wtp ÷ price)^ε; empty entries start at their target. */
+  paid: Record<RegionId, Record<string, number>>;
   /** Share erosion from serving shortfall (V2-SPEC §3.11.3), by market. 0..0.9 */
   capPenalty: { consumer: number; sector: number };
   /** US employment of 22–25-year-olds vs counterfactual, by sector (Canaries, research/16 §1A.2 step 8). */
