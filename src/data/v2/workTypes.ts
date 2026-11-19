@@ -127,8 +127,8 @@ export const DAY0_REF = { re: 11 * 0.88, agents: 3e4, flop: 1e6 * 0.05 * 3.46e19
 export interface V3Cal { gSC: number; dBM: number; r: number }
 export const V3_CAL: Record<WorldPresetId, V3Cal> = {
   ai2027: { gSC: 31.394, dBM: 1.933, r: 4 },
-  authors2026: { gSC: 32.5, dBM: 1.6, r: 3.19 },
-  fast: { gSC: 31.4, dBM: 1.0, r: 4 },
-  slow: { gSC: 36.374, dBM: 1.6, r: 1.2 },
+  authors2026: { gSC: 33.5, dBM: 3.142, r: 3.19 },
+  fast: { gSC: 32.663, dBM: 0.347, r: 4 },
+  slow: { gSC: 35.505, dBM: 1.6, r: 1.2 },
   sampled: { gSC: 31.394, dBM: 1.933, r: 4 },
 };
