@@ -1,6 +1,7 @@
 // Data-centre sites: permitting → power → building → live; grid pool; installs (V2-SPEC §3.8; research/15 §1.3).
 // Owner: WS3.
-import { BUILD_Q, DEAL_TERMS, FACILITY_PER_GW, LEASE, SITE_PATHS } from '../../../data/v2/deals';
+import { BUILD_Q, CAPEX_LEASE, COMMUNITY, FACILITY_PER_GW, LEASE, LESSOR, SITE_PATHS } from '../../../data/v2/deals';
+import { crf, siteLeaseId } from '../finance/capex';
 import { dayOfDate, dayOfQuarter } from '../core/time';
 import type { BaselineId, EngineSystem, GameStateV2, Money, Site, SystemCtx } from '../types';
 import { defaultSiteWS3, ensureWs3 } from '../finance/ext';
@@ -28,23 +29,42 @@ function tri(u: number, lo: number, mode: number, hi: number): number {
   return u < f ? lo + Math.sqrt(u * (hi - lo) * (mode - lo)) : hi - Math.sqrt((1 - u) * (hi - lo) * (hi - mode));
 }
 
+/** Local opposition strength 0–1 (AntiAI = pub.dcNimby / 100). */
+export const localOpposition = (s: GameStateV2) => Math.max(0, Math.min(1, s.pub.dcNimby / 100));
+
+/** Odds that the large reactive package (E27) unblocks a blocked site: 0.85 − 0.5 × local opposition, ≥ 0.3 [D]. */
+export const reactiveUnblockOdds = (s: GameStateV2) => Math.max(COMMUNITY.unblockMin, COMMUNITY.unblockBase - COMMUNITY.unblockPerAnti * localOpposition(s));
+
 /** Opposition roll at the end of permitting (§3.8): p_block = 0.05 + 0.10·AntiAI + 0.05·gas + 0.05·crash, halved by a
- *  community package; p_delay = 0.20 + 0.20·AntiAI (1–3 quarters). AntiAI = pub.dcNimby / 100. */
-export function oppositionOdds(s: GameStateV2, site: Pick<Site, 'path' | 'crash' | 'communityPackage'>): { block: number; delay: number } {
-  const anti = Math.max(0, Math.min(1, s.pub.dcNimby / 100));
+ *  community package; p_delay = 0.20 + 0.20·AntiAI (1–3 quarters). A site re-permitting after the E27 reactive package
+ *  is blocked again with 1 − its unblock odds and not delayed. */
+export function oppositionOdds(s: GameStateV2, site: Pick<Site, 'path' | 'crash' | 'communityPackage'> & { ws3?: Pick<Site['ws3'], 'reactive'> }): { block: number; delay: number } {
+  const anti = localOpposition(s);
+  if (site.path === 'lease') return { block: 0, delay: 0 };
+  if (site.ws3?.reactive) return { block: 1 - reactiveUnblockOdds(s), delay: 0 };
   const gas = SITE_PATHS[site.path].gas ? 1 : 0;
   let block = 0.05 + 0.1 * anti + 0.05 * gas + 0.05 * (site.crash ? 1 : 0);
-  if (site.communityPackage) block *= 0.5;
-  if (site.path === 'lease') block = 0;
-  return { block, delay: site.path === 'lease' ? 0 : 0.2 + 0.2 * anti };
+  if (site.communityPackage) block *= COMMUNITY.blockMult;
+  return { block, delay: 0.2 + 0.2 * anti };
 }
 
-export interface SiteOpts { path: Site['path']; mw: number; crash?: boolean; community?: boolean; spv?: boolean; region?: Site['region']; name?: string }
+/** Site options of the build card. `pay`: cash, or a financing lease of 80% of capex (spec §4). `community` defaults
+ *  to the company policy (policies.communityBenefits). */
+export interface SiteOpts { path: Site['path']; mw: number; crash?: boolean; community?: boolean; pay?: 'cash' | 'lease'; leaseRate?: number; region?: Site['region']; name?: string }
 
 /** Capex ($B) of a new site: GW × path capex/GW × crash 1.35 × community 1.03 [R15]. Lease sites pay network only. */
 export function siteCapex(o: SiteOpts): Money {
   const p = SITE_PATHS[o.path];
-  return (o.mw / 1000) * p.capexPerGW * (o.crash ? BUILD_Q.crashCapexMult : 1) * (o.community ? BUILD_Q.communityCapexMult : 1);
+  return (o.mw / 1000) * p.capexPerGW * (o.crash ? BUILD_Q.crashCapexMult : 1) * (o.community && o.path !== 'lease' ? BUILD_Q.communityCapexMult : 1);
+}
+
+/** Add the upfront community package (≈ 3% of capex, block odds × 0.5) to a site not yet past its permitting roll.
+ *  Returns false if it cannot take one. */
+export function addCommunityPackage(site: Site): boolean {
+  if (site.communityPackage || site.ws3.rolled || site.stage !== 'permitting' || site.path === 'lease') return false;
+  site.communityPackage = true;
+  site.capex *= BUILD_Q.communityCapexMult;
+  return true;
 }
 
 /** Expected quarters until live (preview): permitting + power beyond overlap + building. */
@@ -60,24 +80,24 @@ export function siteEtaQ(s: GameStateV2, o: SiteOpts): number {
 /** Lease capacity available this quarter (GW). */
 export const leaseAvailableGW = (s: GameStateV2) => s.market.ws3.leasePoolGW;
 
-/** Start a new site. Pays 5% now (player share); leases add a ledger entry and draw from the lease pool. */
+/** Start a new site. Pays 5% now (your share); colocation adds a ledger entry and draws from the lease pool; a
+ *  financing lease (`pay: 'lease'`, not for colocation) has the lessor fund 80% of capex as it is spent. */
 export function newSite(s: GameStateV2, ctx: SystemCtx, o: SiteOpts): Site {
   ensureWs3(s);
   const p = SITE_PATHS[o.path];
   const mw = Math.max(50, Math.min(p.maxMW, o.mw));
   const opts = { ...o, mw };
-  const fx = s.player.finance.ws3;
-  const jv = fx.jv && fx.jv.untilDay > s.time.day ? fx.jv : undefined;
-  const spvFunded = o.spv && o.path !== 'lease' ? DEAL_TERMS.spv.share : jv && o.path !== 'lease' ? jv.share : 0;
+  const leased = o.pay === 'lease' && o.path !== 'lease' && o.leaseRate !== undefined;
+  const spvFunded = leased ? CAPEX_LEASE.siteShare : 0;
   const q = qOf(s);
   const id = `S${s.player.sites.length + 1}-${s.time.day}`;
   const site: Site = {
     id, name: o.name ?? `${o.path === 'lease' ? 'Colo' : 'Site'} ${s.player.sites.length + 1}`, region: o.region ?? 'US', path: o.path, mw,
     stage: o.path === 'lease' ? 'building' : 'permitting', stageEndDay: 0, crash: !!o.crash,
-    capex: siteCapex(opts), capexPaid: 0, installed: 0, communityPackage: !!o.community, spvFunded,
+    capex: siteCapex(opts), capexPaid: 0, installed: 0, communityPackage: !!o.community && o.path !== 'lease', spvFunded,
     ws3: { ...defaultSiteWS3({ stage: 'permitting' }), rolled: o.path === 'lease', startDay: s.time.day, buildQ: o.crash ? BUILD_Q.crash : BUILD_Q.normal },
   };
-  if (spvFunded > 0) site.ws3.financedBy = o.spv ? 'Keystone Capital' : jv?.partner;
+  if (leased) site.ws3.lease = { rate: o.leaseRate as number, funded: 0 };
   if (o.path === 'lease') {
     const u = ctx.rng('market').float();
     site.ws3.buildQ = Math.round(tri(u, BUILD_Q.leaseLo, 2, BUILD_Q.leaseHi));
@@ -95,11 +115,12 @@ export function newSite(s: GameStateV2, ctx: SystemCtx, o: SiteOpts): Site {
   }
   s.player.sites.push(site);
   payCapex(s, ctx, site, site.capex * 0.05);
-  ctx.log('company', `${site.name}: ${(mw / 1000).toFixed(1)} GW ${o.path}${o.crash ? ' crash build' : ''} started${spvFunded ? ` (${Math.round(spvFunded * 100)}% partner-funded)` : ''}.`);
+  ctx.log('company', `${site.name}: ${(mw / 1000).toFixed(1)} GW ${o.path}${o.crash ? ' crash build' : ''} started${leased ? ` (${Math.round(spvFunded * 100)}% funded by ${LESSOR} at ${((o.leaseRate as number) * 100).toFixed(0)}%)` : ''}.`);
   return site;
 }
 
-/** Pay `amount` of a site's capex: the partner share is funded by the SPV/JV (tallied as financing). */
+/** Pay `amount` of a site's capex: a leased site's lessor funds its share (tallied as financing; it accrues to the
+ *  amount the lease repays). */
 function payCapex(s: GameStateV2, ctx: SystemCtx, site: Site, amount: Money) {
   const amt = Math.min(amount, site.capex - site.capexPaid);
   if (amt <= 0) return;
@@ -109,7 +130,14 @@ function payCapex(s: GameStateV2, ctx: SystemCtx, site: Site, amount: Money) {
   ys.capexSites += own;
   ys.capexSitesFinanced += amt - own;
   ys.spvFinanced += amt - own;
+  if (site.ws3.lease) site.ws3.lease.funded += amt - own;
   if (own > 0) bookCash(s, ctx, -own, 'compute', 'site capex', site.name);
+}
+
+/** The financing lease a leased site starts paying at go-live: funded (with construction interest) × CRF(r, 15 y) a
+ *  year (spec §4). */
+export function siteLeasePerYear(site: Site, funded = site.ws3.lease?.funded ?? 0): Money {
+  return site.ws3.lease ? funded * crf(site.ws3.lease.rate, CAPEX_LEASE.years.site) : 0;
 }
 
 function enterBuilding(s: GameStateV2, ctx: SystemCtx, site: Site, q: number) {
@@ -136,11 +164,14 @@ function stepSite(s: GameStateV2, ctx: SystemCtx, site: Site, q: number) {
   const p = SITE_PATHS[site.path];
   const rng = ctx.rng('market');
   const due = site.stageEndDay <= s.time.day;
+  // Construction interest on the lessor's money is capitalised quarterly (it is repaid through the lease).
+  if (site.ws3.lease) site.ws3.lease.funded *= Math.pow(1 + site.ws3.lease.rate, 0.25);
   if (site.stage === 'permitting' && due) {
     if (!site.ws3.rolled) {
       site.ws3.rolled = true;
       const odds = oppositionOdds(s, site);
       const u = rng.float();
+      delete site.ws3.reactive;
       if (u < odds.block) {
         site.stage = 'blocked';
         ctx.log('alert', `${site.name} blocked by local opposition. ${(site.capexPaid).toFixed(1)}B spent is lost.`, 3);
@@ -189,10 +220,11 @@ function stepSite(s: GameStateV2, ctx: SystemCtx, site: Site, q: number) {
       site.stage = 'live';
       site.ws3.liveDay = s.time.day;
       ctx.log('company', `${site.name} is live: ${(site.mw / 1000).toFixed(1)} GW.`);
-      if (site.spvFunded > 0) {
-        const funded = site.capex * site.spvFunded;
-        const t = site.ws3.financedBy === 'Keystone Capital' ? DEAL_TERMS.spv : { leaseRate: DEAL_TERMS.megaJV.leaseRate, rvgShare: 0, years: 6 };
-        addLedger(s, { id: `L-spv-${site.id}`, payee: site.ws3.financedBy ?? 'SPV', kind: 'spvRVG', perQuarter: (funded * t.leaseRate) / 4, endDay: s.time.day + t.years * 365, cancellableNoticeQ: null, penalty: funded * t.rvgShare });
+      if (site.ws3.lease) {
+        const years = CAPEX_LEASE.years.site;
+        const perYear = siteLeasePerYear(site);
+        addLedger(s, { id: siteLeaseId(site.id), payee: LESSOR, kind: 'finLease', perQuarter: perYear / 4, startDay: s.time.day, endDay: s.time.day + years * 365, cancellableNoticeQ: null, penalty: 0, rate: site.ws3.lease.rate });
+        ctx.log('finance', `${site.name}: lease to ${LESSOR} starts, $${perYear.toFixed(2)}B a year for ${years} years (funded $${site.ws3.lease.funded.toFixed(1)}B at ${(site.ws3.lease.rate * 100).toFixed(0)}%).`);
       }
     } else payCapex(s, ctx, site, (site.capex - site.capexPaid) / (quartersLeft + 0));
   }

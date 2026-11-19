@@ -1,9 +1,10 @@
-// Finance & compute autopilot for bots (V2-SPEC §7.4 "reference compute and finance (one cloud partner, SPVs as
+// Finance & compute autopilot for bots (V2-SPEC §7.4 "reference compute and finance (one cloud partner, leases as
 // needed)"; §7.2 F7/F8). Owner: WS3. WS4's refBot / capex2xBot / mixedBot call `financeAutopilot` from `act()`.
 //
 // The autopilot only uses the public action catalog (engine `act`), like a player would. It tracks
-// `mult × refTotal(t)` online compute: chips 2–3 quarters ahead, sites ~6 quarters ahead (SPV-funded), leases and
-// neocloud capacity for near-term gaps; it raises equity every quarter at the ceiling and draws the revolver when short.
+// `mult × refTotal(t)` online compute: chips 2–3 quarters ahead, sites ~6 quarters ahead (leased while a lessor will
+// fund them, FIN1), colocation and one-year neocloud capacity for near-term gaps; it raises equity every quarter at
+// the ceiling and borrows on the credit line when short.
 import { SITE_PATHS } from '../../../data/v2/deals';
 import { isDivision } from '../../../data/v2/starts';
 import { act } from '../core/loop';
@@ -12,6 +13,7 @@ import { siteCapacityH } from '../compute/power';
 import { cloudPricePerYear, refTotalAt } from '../compute/market';
 import { EVENT_BY_ID } from '../core/registry';
 import type { GameStateV2, PendingDecision } from '../types';
+import { leaseRate } from './capex';
 import { debtHeadroom } from './debt';
 import { canRaise, DOWN_ROUND_RUNWAY_Q, lastPostMoney } from './equity';
 import { qOf } from './ledger';
@@ -22,7 +24,8 @@ export interface AutopilotOpts {
   mult: number;
   /** Take one strategic hyperscaler deal (Q1 2026). */
   strategic: boolean;
-  /** SPV-fund new sites; use neocloud / leases for near-term gaps. */
+  /** Lease new sites (financing lease, while the rating allows); use colocation and neocloud rentals for near-term
+   *  gaps. */
   offBalance: boolean;
   /** Stop new capex when runway < 4 quarters (prudent bots). */
   guard: boolean;
@@ -30,7 +33,7 @@ export interface AutopilotOpts {
   rescue: boolean;
   /** Start the recapitalisation (legacy preset) when E02 would fire (Q4 2025). */
   recap: boolean;
-  /** Runway guard (quarters) for new sites when `guard` is on (default GUARD_Q); chips use guardQ − 0.5. */
+  /** Runway guard (quarters) for new sites when `guard` is on (default GUARD_Q); chips use guardQ − 1 (FIN1). */
   guardQ?: number;
   /** Raise equity only while runway is below this many quarters (undefined = every quarter at the ceiling). */
   raiseBelowQ?: number;
@@ -60,8 +63,9 @@ export const RACE_AUTOPILOT: AutopilotOpts = { mult: 2, strategic: true, offBala
 
 /** Quarters ahead the autopilot plans site MW for [fit: F7 2026 capex]. */
 export const SITE_HORIZON_Q = 9;
-/** Prudent bots stop new capex below this runway (quarters) [D]. */
-export const GUARD_Q = 4.0;
+/** Prudent bots stop new sites below this runway (quarters) [D]; 4.0 → 4.5 in FIN1 (path-priced chips and cloud left
+ *  the reference bot at the 3-quarter distress edge). */
+export const GUARD_Q = 4.5;
 /** Guarded bots never let a one-year bridge rental take runway below this (quarters) [D, M4]. */
 export const BRIDGE_FLOOR_Q = 1.5;
 /** Prudent bots sign the strategic deal if runway after it stays above this (quarters) [D, M4]. */
@@ -181,7 +185,7 @@ export function financeAutopilot(s: GameStateV2, o0: AutopilotOpts = REF_AUTOPIL
       // Brownfield crash builds while pre-ordered transformers last, else on-site gas (Stargate pattern, R15 §1.3).
       const path = s.power.ws3.transformersGW >= Math.min(1, gap / 1000) ? 'brownfield' : 'gas';
       const mw = Math.min(SITE_PATHS[path].maxMW, Math.max(500, gap), path === 'brownfield' ? s.power.ws3.transformersGW * 1000 : Infinity);
-      if (!tryAct('cmp.newSite', { path, mw, crash: true, spv: o.offBalance, community: true })) break;
+      if (!tryAct('cmp.newSite', { path, mw, crash: true, pay: o.offBalance && leaseRate(s) !== undefined ? 'lease' : 'cash', community: true })) break;
       gap -= mw;
       if (o.guard && runwayOf(s).q < guardQ) break;
     }
@@ -207,7 +211,7 @@ export function financeAutopilot(s: GameStateV2, o0: AutopilotOpts = REF_AUTOPIL
       const r = runwayOf(s);
       gap = Math.min(gap, (Math.max(0, r.liquidity - guardChipsQ * Math.max(0, r.burnQ)) / (0.5 + 0.125 * guardChipsQ)) * 1e6 / s.market.listPrice);
     }
-    if (gap > 0.05e6) tryAct('cmp.orderStandard', { qty: gap, prepay: 0.5 });
+    if (gap > 0.05e6) tryAct('cmp.buyChips', { term: 1, qty: gap, prepay: 0.5 });
   }
 
   // Bridge: one-year cloud (or spot rental) for what owned chips and contracts will not cover next quarter.
@@ -221,8 +225,8 @@ export function financeAutopilot(s: GameStateV2, o0: AutopilotOpts = REF_AUTOPIL
     gap1 = Math.min(gap1, (perQ * 4 * 1e6) / Math.max(1, cloudPricePerYear(s)));
   }
   if (gap1 > 0.1e6 && (prudent || !o.guard)) {
-    if (o.offBalance) tryAct('cmp.cloudContract', { h100e: gap1, years: 1, provider: 'Vantage Neocloud' });
-    else tryAct('cmp.spotRental', { h100e: gap1 });
+    if (o.offBalance) tryAct('cmp.rentCompute', { h100e: gap1, term: 4, firm: true });
+    else tryAct('cmp.rentCompute', { h100e: gap1, term: 1 });
   }
 
   // Liquidity: draw the revolver when cash is under one quarter of burn.

@@ -825,8 +825,14 @@ export interface Debt { id: string; kind: 'revolver' | 'gpuTerm' | 'bond' | 'ven
 export interface Commitment$ {
   id: string;
   payee: string;
-  kind: 'cloud' | 'lta' | 'lease' | 'spvRVG' | 'vendor' | 'power';
+  /** 'lease' = colocation rent; 'finLease' = a financing lease of site or chip capex (FIN1, spec §4). */
+  kind: 'cloud' | 'lta' | 'lease' | 'finLease' | 'vendor' | 'power';
   perQuarter: Money;
+  /** Contract this entry belongs to: firm contracts priced on the expected market path pay one entry per quarter
+   *  (FIN1, spec §5), grouped by this id in the contracts table. */
+  contract?: string;
+  /** Financing leases: the lessor's annual return (rating-priced at signing), for the residual-value guarantee. */
+  rate?: number;
   /** First day payments fall due; absent = already paying. LTAs pay from the first tranche, cloud from the contract
    *  start, colocation leases from handover. */
   startDay?: Day;
@@ -837,7 +843,7 @@ export interface Commitment$ {
 
 export interface StrategicDeal {
   id: string;
-  template: 'hyperscalerEquity' | 'customASIC' | 'chipVendorEquity' | 'vendorFinance' | 'sovereign' | 'spv' | 'neocloud' | 'megaJV';
+  template: 'hyperscalerEquity' | 'customASIC' | 'chipVendorEquity' | 'vendorFinance' | 'sovereign';
   partner: string;
   day: Day;
   strings: { exclusivity?: boolean; boardSeat?: boolean; observer?: boolean; ipRights?: boolean; inCountrySite?: boolean; revenueShare?: number };
@@ -881,6 +887,16 @@ export interface ChipOrder {
   deposit: Money; dueQ: number; // quarter index of delivery
   ltaEndQ?: number; prepayFrac: number; nonTW: boolean;
   delivered: H100e;
+  /** A firm (take-or-pay) single batch: not cancellable, rationing priority. Tranche orders ('lta') are always firm. */
+  firm?: boolean;
+  /** Tranche orders: price per tranche ($K), on the expected market path at signing (FIN1, spec §5). */
+  prices?: number[];
+  /** Tranche orders: quarter index of the first tranche (prices[dueQ − ltaStartQ] is the tranche due). */
+  ltaStartQ?: number;
+  /** How the balance due on delivery is paid (spot and single batches; FIN1, spec §4): cash, a financing lease at
+   *  `leaseRate` (annual, locked at the order) or a chip-backed loan. */
+  pay?: 'cash' | 'lease' | 'loan';
+  leaseRate?: number;
 }
 
 export interface CloudContract { id: string; provider: string; h100e: H100e; costPerYear: Money; startDay: Day; endDay: Day; cancellableNoticeQ: number | null; }
@@ -895,7 +911,7 @@ export interface Site {
   capex: Money; capexPaid: Money;
   installed: H100e;
   communityPackage: boolean;
-  spvFunded: number; // share funded by SPV (residual value guarantee in ledger)
+  spvFunded: number; // share of capex funded by a lessor (lease / SPV, FIN1 spec §4); 0 = paid in cash
   /** WS3 site bookkeeping (opposition roll, build quarters, financing). */
   ws3: SiteWS3;
 }
@@ -930,7 +946,10 @@ export interface CapitalMarkets {
 export interface YearStats {
   revenue: Money; payroll: Money; otherOpex: Money; computeCosts: Money; interest: Money;
   capexChips: Money; capexSites: Money; capexSitesFinanced: Money; supplierFunding: Money;
+  /** spvFinanced: capex funded by lessors (site and chip financing leases, FIN1). */
   equity: Money; dealEquity: Money; debtDrawn: Money; spvFinanced: Money; cloudFinanced: Money; leaseFinanced: Money; vendorNotes: Money;
+  /** Chip capex a lessor paid at delivery (financing leases, FIN1); missing on older saves. */
+  capexChipsFinanced?: Money;
   minRunwayQ: number; distressDays: number;
   /** Cash booked through the finance ledger (`bookCash`, finance/ledger.ts) by flow kind, $B (signed). Every change to
    *  player cash goes through it, so Σ flows = Δcash (M2 money-flow audit, scripts/v2/money.ts). */
@@ -963,8 +982,6 @@ export interface DealOffer {
   h100e: H100e;
   /** Price paid per H100e ($K) for chip deals, or $K per H100e-year for cloud capacity. */
   unitPrice: number;
-  /** Share of new-site capex funded by the partner (SPV / mega-JV). */
-  siteShare: number;
   strings: StrategicDeal['strings'];
   rescue: boolean;
 }
@@ -1023,16 +1040,15 @@ export interface FinanceWS3 {
   boardWarnDay?: Day;
   /** Day the CEO was reinstated after an ouster vote (staff revolt, Nov 2023 precedent; once per game). */
   reinstatedDay?: Day;
-  /** Quarter index of the last board-confidence charge for SPV guarantees (one charge per quarter). */
-  spvBcQ?: number;
   /** Day of the last strategic rescue (one per year). */
   lastRescueDay?: Day;
-  /** Partner-funded share of capex for sites started before `untilDay` (mega-JV). */
-  jv?: { partner: string; share: number; untilDay: Day };
   /** Day until which a custom-ASIC migration slows research (WS1 reads this, §3.7.4 −15% research efficiency). */
   asicMigrationUntil?: Day;
   /** Last quarter's net operating cash flow (rating input) and the cash at its start. */
   opCashQ: Money;
+  /** Operating cash flow of the last four quarters (oldest first): the trailing year sizes bonds and is the rating's
+   *  cash-flow test (FIN1, spec §3). */
+  opCash4q: Money[];
   cashAtQStart: Money;
   /** Accumulators reset each quarter: revenue and operating costs ($B). */
   accQ: { revenue: Money; opCosts: Money };
@@ -1107,8 +1123,11 @@ export interface SiteWS3 {
   queuedDay?: Day;
   /** Planned building quarters (8 default, 4 crash; lease 1–3). */
   buildQ: number;
-  /** Partner funding this site (SPV / JV) and the residual-value-guarantee penalty. */
-  financedBy?: string;
+  /** Financing lease (FIN1, spec §4): the lessor's annual return, locked when the site was started, and the amount it
+   *  has funded so far with construction interest capitalised quarterly. Lease payments start at go-live. */
+  lease?: { rate: number; funded: Money };
+  /** E27 large reactive community package: the retried permitting roll uses its unblock odds (FIN1, spec §4). */
+  reactive?: boolean;
   startDay: Day;
   /** Day construction started and the day it went live (UI timeline, test F10). */
   buildStartDay?: Day;

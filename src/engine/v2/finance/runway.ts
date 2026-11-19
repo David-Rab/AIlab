@@ -13,7 +13,10 @@ import { payrollOf } from '../departments/teams';
 import { powerAndOMPerYear } from '../compute/power';
 import { dayOfQuarter } from '../core/time';
 import type { Day, FinanceState, GameStateV2, Money } from '../types';
-import { interestPerYear } from './debt';
+import { CAPEX_LEASE, DEBT_SIZING } from '../../../data/v2/deals';
+import { siteLeasePerYear } from '../compute/sites';
+import { crf } from './capex';
+import { interestPerYear, lineUndrawn } from './debt';
 import { ledgerPaying, qOf } from './ledger';
 import { parentPaymentQ } from './parent';
 import { isDivision } from '../../../data/v2/starts';
@@ -85,7 +88,12 @@ export function cashFlows(s: GameStateV2): Flow[] {
     if (o.kind === 'lta') continue; // LTAs pay through the ledger
     const left = Math.max(0, o.qty - o.delivered);
     const share = o.kind === 'spot' ? 1 : 1 - o.prepayFrac;
-    if (left > 1) out.push({ part: 'chips', amount: -(left * o.price * share) / 1e6, day: dayOfQuarter(start, Math.max(q0 + 1, o.dueQ)) });
+    if (left <= 1) continue;
+    const due = dayOfQuarter(start, Math.max(q0 + 1, o.dueQ));
+    const amount = (left * o.price * share) / 1e6;
+    // A financing lease pays the balance for you, then you pay its lease from delivery; a chip loan lends up to 42%.
+    if (o.pay === 'lease' && o.leaseRate !== undefined) out.push({ part: 'commitments', perDay: -(amount * crf(o.leaseRate, CAPEX_LEASE.years.chips)) / 365, from: due, to: due + CAPEX_LEASE.years.chips * 365 });
+    else out.push({ part: 'chips', amount: -amount * (o.pay === 'loan' ? 1 - DEBT_SIZING.chipLTV * DEBT_SIZING.chipHaircut : 1), day: due });
   }
   // Site capex: the quarterly site step pays (capex left) / (quarters left) while building, the rest at go-live.
   // A site still permitting or waiting on power is assumed to start building when that stage ends.
@@ -96,6 +104,8 @@ export function cashFlows(s: GameStateV2): Flow[] {
     if (left <= 1e-6 || own <= 0) continue;
     const buildFrom = x.stage === 'building' ? 0 : nextQ(Math.max(x.stageEndDay, day + 1));
     const end = x.stage === 'building' ? x.stageEndDay : dayOfQuarter(start, qOf(s, buildFrom) + (x.ws3?.buildQ ?? 8));
+    // A leased site starts paying its lease at go-live: on what the lessor has funded plus its share of the rest.
+    if (x.ws3?.lease) out.push({ part: 'commitments', perDay: -siteLeasePerYear(x, x.ws3.lease.funded + left * x.spvFunded) / 365, from: Math.max(day, end), to: far });
     for (let k = 1; k <= PROJECTION_Q + 1 && left > 1e-6; k++) {
       const D = dayOfQuarter(start, q0 + k);
       if (D < buildFrom) continue;
@@ -130,9 +140,8 @@ export function runwayOf(s: GameStateV2): Runway {
   const f = s.player.finance;
   const day = s.time.day;
   const q0 = qOf(s);
-  const rv = f.debts.find((d) => d.kind === 'revolver');
-  const frozen = f.state === 'distress' || f.state === 'insolvent'; // a committed facility survives a 'closed' rating
-  const undrawn = rv && !frozen ? Math.max(0, rv.principal - rv.drawn) : 0;
+  // The arranged credit line counts (a committed facility survives a 'closed' rating); frozen in distress.
+  const undrawn = lineUndrawn(s);
   const flows = cashFlows(s);
   // Minimum operating cash: one month of running costs (operations + contracts paying now). Runway counts to this
   // floor, not to $0, so a trough that grazes zero does not flip runway between "8q+" and a few quarters.

@@ -99,15 +99,18 @@ export function measuredDomains(v: ModelVersion): Record<DomainId, number> {
 
 export { runwayOf, RUNWAY_CAP } from './finance/runway';
 export { parentSchedule, parentYear, parentPaymentQ, DIVISION_REASON } from './finance/parent';
-export { debtHeadroom, totalDebt, interestPerYear, debtRatePct } from './finance/debt';
+export { debtHeadroom, totalDebt, interestPerYear, debtRatePct, newDebtRatePct, ratingTerms, creditLineCapacity, chipCollateral, trailingOpCash, lineUndrawn } from './finance/debt';
+export type { Headroom, RatingTerms } from './finance/debt';
+export { payOptions, leaseRate, leaseAvailable, contingentLiabilities, siteRVG, leaseBalance } from './finance/capex';
+export type { PayOption } from './finance/capex';
 export { dealMenu, dealPreview } from './finance/actions';
 export { liveLedger, commitmentsPerYear, ledgerDue, qOf } from './finance/ledger';
-export { orderQuote, spotRentalCap } from './compute/orders';
-export { oppositionOdds, siteCapex, siteEtaQ } from './compute/sites';
+export { chipQuote, rentQuote, spotRentalCap, CHIP_TERMS, RENT_TERMS } from './compute/orders';
+export { oppositionOdds, siteCapex, siteEtaQ, siteLeasePerYear, reactiveUnblockOdds } from './compute/sites';
 export { chipFit, computeForecast, computeHistory, idleChips, siteLiveQ } from './compute/forecast';
 export type { ChipFit, ForecastEvent, ForecastQ } from './compute/forecast';
 export { ownedOnline, rentedOnline, poolsOf } from './compute/power';
-export { spotPrice, cloudPricePerYear } from './compute/market';
+export { spotPrice, cloudPricePerYear, expectedListPrice, expectedCloudPrice, cancellablePricePerYear } from './compute/market';
 export { liveCommitments, keptShare } from './actors/commitments';
 export { leverageAll, leverageTier, playerLeverageByLineage, LEVERAGE_THRESHOLDS, CONTROL_DOMAINS } from './worldfx/control';
 export { revenueReadout } from './worldfx/revenue';

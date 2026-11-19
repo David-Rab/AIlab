@@ -7,6 +7,14 @@ import { bloc, cash, morale, rivalMeter, scrutiny, trust } from '../../actors/fx
 import { paceOf } from '../../actors/rivals';
 import { changeHeads } from '../../departments/teams';
 import { L, P, activeLab, ch, ev, labName } from '../kit';
+import { COMMUNITY } from '../../../../data/v2/deals';
+import { reactiveUnblockOdds } from '../../compute/sites';
+import type { GameStateV2, Site } from '../../types';
+
+/** E27 reactive package: ≈ 15% of the blocked site's capex [D] (at least $0.1B). */
+/** The blocked site E27 is about (the first one not yet decided). */
+const blockedSite = (s: GameStateV2) => s.player.sites.find((y) => y.stage === 'blocked' && !s.flags[`ws4:site:${y.id}`]);
+const reactivePackageCost = (x?: Site) => Math.max(0.1, COMMUNITY.reactive * (x?.capex ?? 0));
 
 export const COMPANY_EVENTS: EventDefV2[] = [
   ...FINANCE_EVENTS,
@@ -46,20 +54,29 @@ export const COMPANY_EVENTS: EventDefV2[] = [
   ev({
     id: 'E27', title: 'Site blocked', icon: 'company', crisis: false, cooldown: 60, deadlineDays: 30, defaultChoice: 0,
     when: (s) => {
-      const x = s.player.sites.find((y) => y.stage === 'blocked' && !s.flags[`ws4:site:${y.id}`]);
+      const x = blockedSite(s);
       return x ? { site: x.id } : false;
     },
     text: (s, d) => `Local opponents blocked your ${s.player.sites.find((x) => x.id === d.site)?.name ?? 'new'} data-centre site at the permitting stage.`,
     choices: [
-      ch('Community deal', ['spend', 'community'], P([L('cash', 0.5), L('leadDays', 182, '+2 quarters')], [L('approval', 6, 'bloc:ratepayers')]), (s, ctx, d) => {
+      // FIN1 (spec §4): the large reactive package, ≈ 15% of the site's capex and a 2-quarter permit delay; the site is
+      // re-permitted and unblocks with odds set by local opposition (compute/sites.ts reactiveUnblockOdds).
+      ch('Community deal', ['spend', 'community'], (s) => {
+        const x = blockedSite(s);
+        const p = reactiveUnblockOdds(s);
+        const H = x ? (x.mw * 1000) / s.power.kWPerH100e : 0;
+        return { costs: [L('cash', reactivePackageCost(x)), L('leadDays', COMMUNITY.reactiveDelayQ * 91, `+${COMMUNITY.reactiveDelayQ} quarters`)], gains: [L('compute', H, 'site unblocked', { probability: Math.round(p * 100) / 100 }), L('approval', 6, 'bloc:ratepayers')], exposure: [L('cash', reactivePackageCost(x), 'package lost if the town still says no', { probability: Math.round((1 - p) * 100) / 100 })] };
+      }, (s, ctx, d) => {
         const x = s.player.sites.find((y) => y.id === d.site);
         s.flags[`ws4:site:${d.site}`] = true;
-        cash(s, ctx, -0.5, 'E27 community package');
+        cash(s, ctx, -reactivePackageCost(x), 'E27 community package', x?.name);
         bloc(s, ctx, 'ratepayers', 6, 0, 'E27');
         if (x) {
           x.communityPackage = true;
           x.stage = 'permitting';
-          x.stageEndDay = ctx.day + 182;
+          x.stageEndDay = ctx.day + COMMUNITY.reactiveDelayQ * 91;
+          x.ws3.rolled = false;
+          x.ws3.reactive = true;
         }
       }),
       ch('Relocate', ['spend'], P([L('cash', 1), L('leadDays', 365, 'new site from scratch')], [L('approval', 2, 'bloc:ratepayers')]), (s, ctx, d) => {

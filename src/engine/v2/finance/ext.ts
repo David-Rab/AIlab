@@ -19,7 +19,7 @@ export function emptyYear(): YearStats {
 export function defaultFinanceWS3(cash: Money): FinanceWS3 {
   return {
     offers: [], inventory: { transit: 0, ready: 0, book: 0 }, chipBook: 0, rentals: [], reserved: [],
-    blockedUntil: {}, revenuePlan: 0, recap: {}, opCashQ: 0, cashAtQStart: cash, accQ: { revenue: 0, opCosts: 0 }, capexCumAtQ: 0, capex4q: [], years: {},
+    blockedUntil: {}, revenuePlan: 0, recap: {}, opCashQ: 0, opCash4q: [], cashAtQStart: cash, accQ: { revenue: 0, opCosts: 0 }, capexCumAtQ: 0, capex4q: [], years: {},
   };
 }
 

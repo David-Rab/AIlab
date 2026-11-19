@@ -56,28 +56,32 @@ export const ledgerPaying = (c: Commitment$, day: Day) => c.endDay > day && (c.s
 /** Quarter index (Q3 2025 = 0) of a day. */
 export const qOf = (s: GameStateV2, day: Day = s.time.day) => quarterIndex(s.time.startDate, day);
 
-/** Ledger payments falling due in quarter `quarter` (quarter index; Q3 2025 = 0). */
-export function ledgerDue(s: GameStateV2, quarter: number): Money {
+/** Ledger payments falling due in quarter `quarter` (quarter index; Q3 2025 = 0); non-cancellable only if `firmOnly`. */
+export function ledgerDue(s: GameStateV2, quarter: number, firmOnly = false): Money {
   const qNow = qOf(s);
   let sum = 0;
   for (const c of s.player.finance.ledger) {
-    if (c.endDay <= s.time.day) continue;
+    if (c.endDay <= s.time.day || (firmOnly && c.cancellableNoticeQ !== null)) continue;
     if (qOf(s, c.endDay - 1) >= quarter && quarter >= qNow && (c.startDay === undefined || qOf(s, c.startDay) <= quarter)) sum += c.perQuarter;
   }
   return sum;
 }
 
-/** Annualised committed payments (ledger, live entries) $B/yr. Non-cancellable only if `firmOnly`. */
+/** Committed payments falling due over the next four quarters (this one included), $B/yr. Non-cancellable only if
+ *  `firmOnly`. (Firm contracts priced on the expected path pay one ledger entry per quarter, so this sums the
+ *  schedule, not the entries.) */
 export function commitmentsPerYear(s: GameStateV2, firmOnly = false): Money {
+  const q0 = qOf(s);
   let sum = 0;
-  for (const c of s.player.finance.ledger) if (c.endDay > s.time.day && (!firmOnly || c.cancellableNoticeQ === null)) sum += c.perQuarter * 4;
+  for (let k = 0; k < 4; k++) sum += ledgerDue(s, q0 + k, firmOnly);
   return sum;
 }
 
-/** Remaining (undiscounted) ledger payments $B — "commitments" in the finance panel and the rating PV term. */
-export function commitmentsRemaining(s: GameStateV2): Money {
+/** Remaining (undiscounted) ledger payments $B — "commitments" in the finance panel and the rating PV term (firm only
+ *  if `firmOnly`). */
+export function commitmentsRemaining(s: GameStateV2, firmOnly = false): Money {
   let sum = 0;
-  for (const c of s.player.finance.ledger) if (c.endDay > s.time.day) sum += (c.perQuarter * (c.endDay - Math.max(s.time.day, c.startDay ?? -Infinity))) / 91.25;
+  for (const c of s.player.finance.ledger) if (c.endDay > s.time.day && (!firmOnly || c.cancellableNoticeQ === null)) sum += (c.perQuarter * Math.max(0, c.endDay - Math.max(s.time.day, c.startDay ?? -Infinity))) / 91.25;
   return sum;
 }
 
@@ -97,7 +101,7 @@ export function orderBalances(s: GameStateV2, quarters = 99): Money {
 
 /** Add a ledger entry (returns it). */
 export function addLedger(s: GameStateV2, e: Omit<Commitment$, 'id'> & { id?: string }): Commitment$ {
-  const c: Commitment$ = { id: e.id ?? `L${s.time.day}-${s.player.finance.ledger.length}`, payee: e.payee, kind: e.kind, perQuarter: e.perQuarter, ...(e.startDay !== undefined ? { startDay: e.startDay } : {}), endDay: e.endDay, cancellableNoticeQ: e.cancellableNoticeQ, penalty: e.penalty };
+  const c: Commitment$ = { id: e.id ?? `L${s.time.day}-${s.player.finance.ledger.length}`, payee: e.payee, kind: e.kind, perQuarter: e.perQuarter, ...(e.startDay !== undefined ? { startDay: e.startDay } : {}), endDay: e.endDay, cancellableNoticeQ: e.cancellableNoticeQ, penalty: e.penalty, ...(e.contract ? { contract: e.contract } : {}), ...(e.rate !== undefined ? { rate: e.rate } : {}) };
   s.player.finance.ledger.push(c);
   return c;
 }

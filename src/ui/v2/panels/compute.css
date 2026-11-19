@@ -109,3 +109,5 @@
 .cac-lines { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; }
 .cac-line b { font-weight: 650; }
 .cac-ba { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
+.cac-tiles.c2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.cac-tiles.c3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }

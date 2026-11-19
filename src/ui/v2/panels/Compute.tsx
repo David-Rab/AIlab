@@ -3,8 +3,8 @@
 // HOME of idle chips, empty racks, vendor fill, the forecast, sites & power, orders, cloud contracts and the chip
 // market. Compute online and the split live in Company and are only linked here.
 import { useEffect, useState, type ReactNode } from 'react';
-import { actionView, chipFit, cloudPricePerYear, computeForecast, computeHistory, dateOf, dayOfQuarter, fmtDate, fmtMonth, oppositionOdds, orderQuote, qOf, siteEtaQ, siteSizeView, spotPrice, spotRentalView } from '../../../engine/v2';
-import type { ChipOrder, ForecastEvent, ForecastQ, GameStateV2, Site } from '../../../engine/v2';
+import { actionView, cancellablePricePerYear, chipFit, chipQuote, cloudPricePerYear, computeForecast, computeHistory, dateOf, dayOfQuarter, fmtDate, fmtMonth, leaseRate, oppositionOdds, payOptions, qOf, rentQuote, siteCapex, siteEtaQ, siteLeasePerYear, siteRVG, siteSizeView, spotPrice, spotRentalView } from '../../../engine/v2';
+import type { ChipOrder, ForecastEvent, ForecastQ, GameStateV2, PayOption, Site } from '../../../engine/v2';
 import { CHIP_TIERS, SITE_PATHS, SITE_TIERS } from '../../../data/v2/deals';
 import { store } from '../store';
 import { act as engineAct, runwayOf } from '../../../engine/v2';
@@ -280,38 +280,86 @@ function ComputePreview({ s, id, params, arrives }: { s: GameStateV2; id: string
   );
 }
 
+/** FIN1 (spec §4): payment options compared on total cost over the asset's life. Locked options say why. */
+function PayTiles({ s, opts, value, onChange, testPrefix }: { s: GameStateV2; opts: PayOption[]; value: PayOption['id']; onChange: (v: PayOption['id']) => void; testPrefix: string }) {
+  const best = Math.min(...opts.filter((o) => !o.blocked).map((o) => o.total));
+  return (
+    <div className={`cac-tiles c${opts.length}`}>
+      {opts.map((o) => (
+        <OptionTile key={o.id} label={o.label} active={value === o.id} locked={o.blocked ? 'closed' : undefined} onClick={() => onChange(o.id)} testId={`${testPrefix}-${o.id}`}
+          glyphs={<span className={o.total <= best + 1e-6 ? 'tone-pos' : ''}>{F.money(o.total)} total</span>}
+          tip={() => <TipCard title={<Term id={o.id === 'loan' ? 'gpuTerm' : o.id === 'lease' ? 'spv' : 'payOption'}>{o.label}</Term>} value={o.blocked ? 'not available' : `${F.money(o.total)} over the asset life`} rows={[
+            { label: 'Cash up front', value: F.money(o.now) },
+            ...(o.perYear > 0 ? [{ label: o.id === 'loan' ? 'Interest per year' : 'Lease per year', value: `${F.money(o.perYear)} × ${o.years} y` }] : []),
+            ...(o.rate !== undefined ? [{ label: o.id === 'loan' ? 'Loan rate' : 'Lessor return', value: `${(o.rate * 100).toFixed(1)}% · rating ${s.player.finance.rating}` }] : []),
+          ]}>{o.blocked ?? o.note}</TipCard>} />
+      ))}
+    </div>
+  );
+}
+
+/** FIN1 (spec §5): the expected price path a firm contract pays, as a curve. */
+function PathCurve({ s, prices, unit, discount, firstQ }: { s: GameStateV2; prices: number[]; unit: string; discount: number; firstQ: number }) {
+  if (prices.length < 2) return null;
+  const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
+  return (
+    <Tip content={() => <TipCard title={<Term id="expectedPath">Expected path</Term>} value={`${unit}${prices[0].toFixed(1)}K → ${unit}${prices[prices.length - 1].toFixed(1)}K`} rows={[
+      { label: 'First quarter', value: `${qLabel(s, firstQ)} · $${prices[0].toFixed(1)}K` },
+      { label: 'Last quarter', value: `${qLabel(s, firstQ + prices.length - 1)} · $${prices[prices.length - 1].toFixed(1)}K` },
+      { label: 'Average', value: `$${avg.toFixed(1)}K` },
+      { label: <Term id="firmDiscount">Firm discount</Term>, value: discount > 0 ? `−${F.pct(discount)}` : 'none under 2 years' },
+    ]}>Payments follow the market forecast quarter by quarter. Prices that fall faster than this mean you overpay; in a shortage you are protected.</TipCard>}>
+      <span className="row-i small" data-test="price-path"><span className="dim">price path</span><Spark2 data={prices} w={90} h={18} color={C.you} /><span className="num dim">${prices[0].toFixed(1)}K → ${prices[prices.length - 1].toFixed(1)}K</span></span>
+    </Tip>
+  );
+}
+
+const CHIP_TERM_OPTS: { v: number; label: string; tip: string }[] = [
+  { v: 0, label: 'Spot', tip: 'next quarter at the spot price; no deposit; lowest priority' },
+  { v: 1, label: 'Batch', tip: 'one batch in 2 quarters at the expected list price; 30% deposit' },
+  { v: 4, label: '1 yr', tip: 'a tranche every quarter for 1 year, take-or-pay, priority' },
+  { v: 8, label: '2 yr', tip: 'tranches for 2 years, take-or-pay, priority, 5% off' },
+  { v: 16, label: '4 yr', tip: 'tranches for 4 years, take-or-pay, priority, 10% off' },
+];
+const termName = (t: number) => CHIP_TERM_OPTS.find((x) => x.v === t)?.label ?? `${t}q`;
+
 function OrderCard({ s }: { s: GameStateV2 }) {
   const [tier, setTier] = useState(2);
-  const [kind, setKind] = useState<ChipOrder['kind']>('standard');
-  const [years, setYears] = useState(2);
+  const [term, setTerm] = useState(1);
+  const [firm, setFirm] = useState(false);
+  const [pay, setPay] = useState<PayOption['id']>('cash');
   const [nonTW, setNonTW] = useState(false);
   const [open, setOpen] = useState(false);
   const qty = CHIP_TIERS[tier];
   const kW = s.power.kWPerH100e;
-  const id = kind === 'spot' ? 'cmp.orderSpot' : kind === 'lta' ? 'cmp.orderLTA' : 'cmp.orderStandard';
-  const params = { qty, nonTW, ...(kind === 'lta' ? { quarters: years * 4 } : {}) };
-  const qt = orderQuote(s, kind, qty, nonTW);
+  const tranches = term >= 4;
+  const qt = chipQuote(s, term, qty, { nonTW, firm });
+  const pays = payOptions(s, qt.later, 'chips', 0, qt.now);
+  const payNow = tranches || pays.find((o) => o.id === pay)?.blocked ? 'cash' : pay;
+  const params = { qty, term, nonTW, ...(term === 1 && firm ? { firm: true } : {}), ...(!tranches && payNow !== 'cash' ? { pay: payNow } : {}) };
   return (
-    <Card title={<span className="row-i"><ICON.compute size={14} />Order chips</span>} className="cac" id="ctl-orderChips"
-      right={<span className="dim small">{kind === 'lta' ? `per quarter × ${years * 4}q` : 'one batch'}</span>}>
+    <Card title={<span className="row-i"><ICON.compute size={14} />Buy chips</span>} className="cac" id="ctl-orderChips"
+      right={<span className="dim small">{tranches ? `per quarter × ${qt.quarters}q` : 'one batch'}</span>}>
       <div className="cac-tiles c5">
         {CHIP_TIERS.map((h, i) => (
           <OptionTile key={h} label={F.count(h)} glyphs={<span>{F.power((h * kW) / 1000)}</span>} active={tier === i} onClick={() => setTier(i)} testId={`chips-${i}`}
-            tip={() => <TipCard title={`${F.count(h)} H100e`} rows={[{ label: <Term id="mw">Racks needed</Term>, value: F.power((h * kW) / 1000) }, { label: 'Price each', value: `$${orderQuote(s, kind, h, nonTW).price.toFixed(1)}K` }]} />} />
+            tip={() => <TipCard title={`${F.count(h)} H100e`} rows={[{ label: <Term id="mw">Racks needed</Term>, value: F.power((h * kW) / 1000) }, { label: 'Price each', value: `$${chipQuote(s, term, h, { nonTW }).price.toFixed(1)}K` }]} />} />
         ))}
       </div>
-      <div className="cac-pv"><ComputePreview s={s} id={id} params={params} arrives={<>arrive {qLabel(s, qt.dueQ)}</>} /><Limit id="order.terms">{kind === 'lta' ? 'LTA 4–12 q' : kind === 'standard' ? 'deposit 30–100%' : 'no deposit'}</Limit></div>
+      <div className="cac-pv"><ComputePreview s={s} id="cmp.buyChips" params={params} arrives={<>arrive {qLabel(s, qt.dueQ)}</>} /><Limit id="order.terms">{tranches ? `${qt.quarters} tranches${qt.discount > 0 ? ` · −${F.pct(qt.discount)}` : ''}` : term === 1 ? 'deposit 30–100%' : 'no deposit'}</Limit></div>
       {open && (
         <div className="cac-opts">
-          <div className="cmp-row"><span className="dim small">Contract</span><Seg value={kind} options={[{ v: 'standard', label: 'Standard', tip: '30% deposit, 2 quarters' }, { v: 'spot', label: 'Spot', tip: 'next quarter, spot price, lowest priority' }, { v: 'lta', label: 'LTA', tip: 'every quarter at 95% of list, take-or-pay' }]} onChange={setKind} /></div>
-          {kind === 'lta' && <div className="cmp-row"><span className="dim small"><Term id="lta">LTA</Term> term</span><Seg value={years} options={[1, 2, 3].map((v) => ({ v, label: `${v} yr` }))} onChange={setYears} /></div>}
+          <div className="cmp-row"><span className="dim small"><Term id="lta">Term</Term></span><Seg value={term} options={CHIP_TERM_OPTS} onChange={setTerm} testId="chip-term" /></div>
+          {tranches && qt.prices && <PathCurve s={s} prices={qt.prices} unit="$" discount={qt.discount} firstQ={qt.dueQ} />}
+          {term === 1 && <Toggle on={firm} onChange={setFirm} label={<><Term id="firmCommit">Firm</Term> · take-or-pay, rationing priority</>} />}
+          {!tranches && <><div className="cac-lbl">Pay with</div><PayTiles s={s} opts={pays} value={payNow} onChange={setPay} testPrefix="chip-pay" /><Limit id="lease.rating">{leaseRate(s) !== undefined ? `lease ${F.pct(leaseRate(s) ?? 0)} at ${s.player.finance.rating}` : `no lease at ${s.player.finance.rating}`}</Limit></>}
           <div className="cmp-row"><Toggle on={nonTW} onChange={setNonTW} label={<><Term id="taiwanRisk">Non-Taiwan</Term> supply · +30%</>} /></div>
         </div>
       )}
       <div className="cac-foot">
-        <button className="cac-more" onClick={() => setOpen(!open)} data-test="opt-order"><ICON.go size={12} className={open ? 'rot' : ''} /><b>{kind === 'lta' ? 'LTA' : kind === 'spot' ? 'Spot' : 'Standard'}</b>{nonTW ? ' · non-Taiwan' : ' · any fab'}</button>
+        <button className="cac-more" onClick={() => setOpen(!open)} data-test="opt-order"><ICON.go size={12} className={open ? 'rot' : ''} /><b>{termName(term)}</b>{term === 1 && firm ? ' · firm' : ''}{!tranches && payNow !== 'cash' ? ` · ${payNow === 'lease' ? 'lease' : 'chip loan'}` : ''}{nonTW ? ' · non-Taiwan' : ' · any fab'}</button>
         <span className="sp" />
-        <Gate s={s} k="compute"><ActBtn id={id} params={params} primary label="Order" icon={ICON.compute} /></Gate>
+        <Gate s={s} k="compute"><ActBtn id="cmp.buyChips" params={params} primary label="Buy" icon={ICON.compute} /></Gate>
       </div>
     </Card>
   );
@@ -321,16 +369,20 @@ function BuildCard({ s }: { s: GameStateV2 }) {
   const [tier, setTier] = useState(2);
   const [path, setPath] = useState<Site['path']>('gas');
   const [crash, setCrash] = useState(false);
-  const [community, setCommunity] = useState(false);
-  const [spv, setSpv] = useState(false);
+  const [communityIn, setCommunity] = useState<boolean | undefined>(undefined);
+  const [pay, setPay] = useState<PayOption['id']>('cash');
   const [open, setOpen] = useState(false);
+  const community = communityIn ?? s.player.policies.communityBenefits;
   const max = SITE_PATHS[path].maxMW;
   const fits = (i: number) => SITE_TIERS[i].mw <= max;
   const t = fits(tier) ? tier : SITE_TIERS.reduce((a, x, i) => (x.mw <= max ? i : a), 0);
   const mw = SITE_TIERS[t].mw;
   const kW = s.power.kWPerH100e;
-  const params = { path, mw, crash, community, spv };
   const eta = siteEtaQ(s, { path, mw, crash });
+  const colo = path === 'lease';
+  const pays = payOptions(s, siteCapex({ path, mw, crash, community }), 'site', eta / 4);
+  const payNow = colo || pays.find((o) => o.id === pay)?.blocked ? 'cash' : pay;
+  const params = { path, mw, crash, community, pay: payNow };
   const liveQ = qOf(s) + eta;
   const pickPath = (p: Site['path']) => {
     setPath(p);
@@ -355,48 +407,59 @@ function BuildCard({ s }: { s: GameStateV2 }) {
           );
         })}
       </div>
-      <div className="cac-pv"><ComputePreview s={s} id="cmp.newSite" params={params} arrives={<>racks for, live ≈ {qLabel(s, liveQ)}</>} />{(() => { const z = siteSizeView(s, path); const short = z.leaseGW !== undefined && z.leaseGW * 1000 < mw; return <Limit id="site.mw" tone={short ? 'bind' : 'quiet'}>{F.power(z.min)}–{F.power(z.max)}{z.leaseGW !== undefined ? ` · lease pool ${F.power(z.leaseGW * 1000)}` : ''}</Limit>; })()}</div>
+      {!colo && <><div className="cac-lbl"><Term id="payOption">Pay with</Term></div><PayTiles s={s} opts={pays} value={payNow} onChange={setPay} testPrefix="site-pay" /></>}
+      <div className="cac-pv"><ComputePreview s={s} id="cmp.newSite" params={params} arrives={<>racks for, live ≈ {qLabel(s, liveQ)}</>} />{(() => { const z = siteSizeView(s, path); const short = z.leaseGW !== undefined && z.leaseGW * 1000 < mw; return <Limit id="site.mw" tone={short ? 'bind' : 'quiet'}>{F.power(z.min)}–{F.power(z.max)}{z.leaseGW !== undefined ? ` · lease pool ${F.power(z.leaseGW * 1000)}` : ''}</Limit>; })()}{!colo && <Limit id="lease.rating" tone={leaseRate(s) === undefined ? 'bind' : 'quiet'}>{leaseRate(s) !== undefined ? `lease ${F.pct(leaseRate(s) ?? 0)} at ${s.player.finance.rating}` : `no lease at ${s.player.finance.rating}`}</Limit>}</div>
       {open && (
         <div className="cac-opts">
           <Toggle on={crash} onChange={setCrash} label={<><Term id="crashBuild">Crash build</Term> · 4q, +35%</>} />
-          <Toggle on={community} onChange={setCommunity} label={<><Term id="communityPackage">Community deal</Term> · block risk ×0.5</>} />
-          <Toggle on={spv} onChange={setSpv} label={<><Term id="spv">SPV</Term> funds 80%</>} />
+          {!colo && <Toggle on={community} onChange={setCommunity} label={<><Term id="communityPackage">Community package</Term> · +3% capex, block risk ×0.5{s.player.policies.communityBenefits ? ' · company default' : ''}</>} />}
+          {!s.player.policies.communityBenefits && <span className="row-i small"><span className="dim">Company default</span><ActBtn id="cmp.community" label="Package every site" /></span>}
         </div>
       )}
       <div className="cac-foot">
-        <button className="cac-more" onClick={() => setOpen(!open)} data-test="opt-site"><ICON.go size={12} className={open ? 'rot' : ''} /><b>{crash ? 'Crash build' : 'Normal build'}</b>{community ? ' · community deal' : ''}{spv ? ' · SPV' : ''}</button>
+        <button className="cac-more" onClick={() => setOpen(!open)} data-test="opt-site"><ICON.go size={12} className={open ? 'rot' : ''} /><b>{crash ? 'Crash build' : 'Normal build'}</b>{community && !colo ? ' · community package' : ''}{payNow === 'lease' ? ' · lease' : ''}</button>
         <span className="sp" />
-        <Gate s={s} k="compute"><ActBtn id="cmp.newSite" testId={spv ? 'cmp.newSite.spv' : undefined} params={params} primary label="Build" icon={ICON.sites} /></Gate>
+        <Gate s={s} k="compute"><ActBtn id="cmp.newSite" testId={payNow === 'lease' ? 'cmp.newSite.lease' : undefined} params={params} primary label="Build" icon={ICON.sites} /></Gate>
       </div>
     </Card>
   );
 }
 
+const RENT_TERM_OPTS: { v: number; label: string; tip: string }[] = [
+  { v: 1, label: '1 q', tip: 'spot rental for one quarter at the rental rate, capped' },
+  { v: 4, label: '1 yr', tip: 'contract from next quarter' },
+  { v: 8, label: '2 yr', tip: 'firm: 5% off' },
+  { v: 16, label: '4 yr', tip: 'firm: 10% off' },
+];
+
 function CloudCard({ s }: { s: GameStateV2 }) {
   const [tier, setTier] = useState(1);
-  const [years, setYears] = useState(3);
-  const [cancellable, setCancellable] = useState(false);
+  const [term, setTerm] = useState(4);
+  const [firm, setFirm] = useState(true);
   const [open, setOpen] = useState(false);
   const h100e = CHIP_TIERS[tier];
-  const params = { h100e, years, cancellable };
+  const spot = term <= 1;
+  const params = { h100e, term, firm };
+  const qt = rentQuote(s, h100e, Math.max(4, term), firm);
+  const perH = spot ? (s.market.rental * 8760) / 1000 : qt.perH[0];
   return (
-    <Card title={<span className="row-i"><ICON.cloud size={14} /><Term id="cloudContract">Rent cloud</Term></span>} className="cac" id="ctl-cloud"
-      right={<Tip content={() => <TipCard title={<Term id="cloudContract">Cloud price</Term>} value={`$${cloudPricePerYear(s).toFixed(1)}K per H100e-year`}>Firm contracts at this price; cancellable +15%.</TipCard>}><span className="dim small"><b className="num">${cloudPricePerYear(s).toFixed(1)}K</b> / H100e-yr</span></Tip>}>
+    <Card title={<span className="row-i"><ICON.cloud size={14} /><Term id="cloudContract">Rent compute</Term></span>} className="cac" id="ctl-cloud"
+      right={<Tip content={() => <TipCard title={<Term id="cloudContract">Cloud price</Term>} value={`$${perH.toFixed(1)}K per H100e-year`} rows={[{ label: 'Market today', value: `$${cloudPricePerYear(s).toFixed(1)}K` }, { label: <Term id="cancellable">Cancellable</Term>, value: `$${cancellablePricePerYear(s).toFixed(1)}K, re-priced quarterly` }]}>{spot ? 'Spot rental at today\'s rental rate.' : firm ? 'First quarter of a firm contract on the expected path, less the firm discount.' : 'Spot-indexed × 1.15.'}</TipCard>}><span className="dim small"><b className="num">${perH.toFixed(1)}K</b> / H100e-yr</span></Tip>}>
       <div className="cac-tiles c5">
-        {CHIP_TIERS.map((h, i) => <OptionTile key={h} label={F.count(h)} active={tier === i} onClick={() => setTier(i)} testId={`cloud-${i}`} tip={() => <TipCard title={`${F.count(h)} H100e`} rows={[{ label: 'Per year', value: F.money((h * cloudPricePerYear(s)) / 1e6, { perYear: true }) }]} />} />)}
+        {CHIP_TIERS.map((h, i) => <OptionTile key={h} label={F.count(h)} active={tier === i} onClick={() => setTier(i)} testId={`cloud-${i}`} tip={() => <TipCard title={`${F.count(h)} H100e`} rows={[{ label: 'First year', value: F.money((h * perH) / 1e6, { perYear: true }) }]} />} />)}
       </div>
-      <div className="cmp-row"><span className="dim small">Term</span><Seg value={years} options={[1, 3, 5].map((v) => ({ v, label: `${v} yr` }))} onChange={setYears} /></div>
-      <div className="cac-pv"><ComputePreview s={s} id="cmp.cloudContract" params={params} arrives={<>online {qLabel(s, qOf(s) + 1)}</>} />{(() => { const sp = spotRentalView(s, h100e); return <Limit id="rent.spotCap" tone={sp.get < h100e ? 'warn' : 'quiet'}>spot: you'd get {F.count(sp.get)} of {F.count(h100e)}</Limit>; })()}</div>
-      {open && (
+      <div className="cmp-row"><span className="dim small">Term</span><Seg value={term} options={RENT_TERM_OPTS} onChange={setTerm} testId="rent-term" /></div>
+      <div className="cac-pv"><ComputePreview s={s} id="cmp.rentCompute" params={params} arrives={<>online {spot ? 'now' : qLabel(s, qOf(s) + 1)}</>} />{(() => { const sp = spotRentalView(s, h100e); return <Limit id="rent.spotCap" tone={spot && sp.get < h100e ? 'warn' : 'quiet'}>{spot ? <>spot: you'd get {F.count(sp.get)} of {F.count(h100e)}</> : <>spot cap {F.count(sp.cap)}</>}</Limit>; })()}</div>
+      {open && !spot && (
         <div className="cac-opts">
-          <Toggle on={cancellable} onChange={setCancellable} label={<>Cancellable · 1q notice, +15%</>} />
-          <span className="row-i small"><span className="dim"><Term id="rental">Spot rental</Term> · one quarter</span><ActBtn id="cmp.spotRental" params={{ h100e }} label={`Rent ${F.count(h100e)}`} /></span>
+          <Toggle on={firm} onChange={setFirm} label={<>{firm ? <><Term id="firmCommit">Firm</Term> · take-or-pay, priority, expected path</> : <><Term id="cancellable">Cancellable</Term> · spot × 1.15, 1q notice</>}</>} />
+          {firm && <PathCurve s={s} prices={rentQuote(s, h100e, term, true).perH} unit="$" discount={qt.discount} firstQ={qOf(s) + 1} />}
         </div>
       )}
       <div className="cac-foot">
-        <button className="cac-more" onClick={() => setOpen(!open)} data-test="opt-cloud"><ICON.go size={12} className={open ? 'rot' : ''} /><b>{cancellable ? 'Cancellable' : 'Firm'}</b>{cancellable ? ' · 1q notice' : ' · take-or-pay'}</button>
+        <button className="cac-more" onClick={() => setOpen(!open)} data-test="opt-cloud"><ICON.go size={12} className={open ? 'rot' : ''} /><b>{spot ? 'Spot rental' : firm ? 'Firm' : 'Cancellable'}</b>{spot ? ' · one quarter' : firm ? ' · take-or-pay' : ' · 1q notice'}</button>
         <span className="sp" />
-        <Gate s={s} k="compute"><ActBtn id="cmp.cloudContract" params={params} label="Sign" icon={ICON.cloud} /></Gate>
+        <Gate s={s} k="compute"><ActBtn id="cmp.rentCompute" params={params} label={spot ? 'Rent' : 'Sign'} icon={ICON.cloud} /></Gate>
       </div>
     </Card>
   );
@@ -454,7 +517,9 @@ function SiteTimeline({ s }: { s: GameStateV2 }) {
               { label: 'Stage ends', value: x.stage === 'live' ? '—' : fmtDate(dateOf(s, x.stageEndDay)) }, { label: 'Live ≈', value: x.stage === 'blocked' ? 'blocked' : fmtMonth(dateOf(s, live)) },
               { label: 'Block / delay risk', value: `${F.pct(odds.block)} / ${F.pct(odds.delay)}`, tone: odds.block > 0.1 ? 'neg' : 'neutral' },
               { label: <Term id="capex">Capex paid</Term>, value: `${F.money(x.capexPaid)} / ${F.money(x.capex)}` }, { label: 'Chips installed', value: `${F.count(x.installed)} H100e` },
-              { label: <Term id="communityPackage">Community deal</Term>, value: x.communityPackage ? 'yes' : 'no' }, { label: <Term id="crashBuild">Crash build</Term>, value: x.crash ? 'yes' : 'no' },
+              { label: <Term id="communityPackage">Community package</Term>, value: x.communityPackage ? 'yes' : 'no' }, { label: <Term id="crashBuild">Crash build</Term>, value: x.crash ? 'yes' : 'no' },
+              { label: <Term id="payOption">Paid with</Term>, value: x.ws3?.lease ? `lease ${F.pct(x.ws3.lease.rate)} · ${F.money(siteLeasePerYear(x, x.stage === 'live' ? x.ws3.lease.funded : x.ws3.lease.funded + (x.capex - x.capexPaid) * x.spvFunded), { perYear: true })} × 15 y` : 'cash' },
+              ...(x.ws3?.lease ? [{ label: <Term id="rvg">Residual-value guarantee</Term>, value: F.money(siteRVG(s, x.id)) }] : []),
             ]} />
           )}>
             <div className="stl-row" data-site={x.id}>
@@ -476,7 +541,7 @@ function SiteTimeline({ s }: { s: GameStateV2 }) {
               <span className="small stl-st">{x.stage === 'live' ? <span className="tone-pos">live</span> : x.stage === 'blocked' ? <span className="tone-neg">blocked</span> : <><Term id={STAGE_TERM[x.stage] ?? 'site'}>{STAGE_LABEL[x.stage]}</Term> <span className="dim">until {fmtMonth(dateOf(s, x.stageEndDay))} · live ≈ {qLabel(s, qOf(s, live))}</span></>}</span>
               <span className="stl-act">
                 {x.stage === 'permitting' && odds.block > 0.005 && <Pill kind={odds.block > 0.1 ? 'bad' : 'warn'} title="chance local opposition blocks the site">block {F.pct(odds.block)}</Pill>}
-                {x.stage === 'permitting' && !x.communityPackage && <ActBtn id="cmp.communityPackage" params={{ siteId: x.id }} label="Community deal" />}
+                {x.stage === 'permitting' && !x.communityPackage && !x.ws3?.rolled && x.path !== 'lease' && <ActBtn id="cmp.community" params={{ siteId: x.id }} label="Community package" />}
               </span>
             </div>
           </Tip>
@@ -609,7 +674,6 @@ function Market({ s }: { s: GameStateV2 }) {
       <KV k="Your order weight" term="allocation">×{m.ws3.playerWeight.toFixed(2)} a new buyer's</KV>
       <KV k="Export policy" term="exportPolicy">{F.words(m.exportPolicy)}</KV>
       <KV k="Made in Taiwan" term="taiwanRisk">{F.pct(m.geoTW)} of leading chips</KV>
-      <div className="btn-row" style={{ marginTop: 6 }}><Gate s={s} k="compute"><ActBtn id="cmp.fundSupplier" params={{ amount: 2 }} label="Fund a supplier ($2B)" icon={ICON.raise} /></Gate></div>
     </Card>
   );
 }

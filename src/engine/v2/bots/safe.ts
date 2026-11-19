@@ -60,7 +60,7 @@ export const safeBot: BotPolicy = {
     if (every(s, 15)) {
       for (const id of ['A1', 'A2', 'A6', 'B5', 'F3', 'C1', 'C3', 'E1', 'E2']) tryAct(s, api, id, {});
       // Paid relation actions (bounties, grants, data licences, community benefits, KYC) only with runway to spare.
-      if (runwayOf(s).q >= 5) for (const id of ['A5', 'D1', 'D2', 'D3', 'F1', 'C2']) tryAct(s, api, id, {});
+      if (runwayOf(s).q >= 5) for (const id of ['A5', 'D1', 'D2', 'D3', 'cmp.community', 'C2']) tryAct(s, api, id, {});
       tryAct(s, api, 'A3', { strong: true });
       tryAct(s, api, 'A4', {});
       tryAct(s, api, 'B4', { direction: 'regulate' });

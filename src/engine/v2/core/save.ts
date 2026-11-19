@@ -9,7 +9,7 @@ import { TRUSTED_MAX_P27 } from '../../../data/v2/agents';
 import { initialAgents } from '../departments/agents';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
-export const SCHEMA_REV = 11;
+export const SCHEMA_REV = 12;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -183,6 +183,35 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   10: (raw) => {
     const p = (raw as unknown as GameStateV2).player;
     p.policies.spareServing ??= 'research';
+  },
+  /** 11 → 12 (finance v3 FIN1): SPV leasebacks become financing leases (kind finLease; the old 12%/4-year entries keep
+   *  their payments); SPV- or JV-funded sites still being built get a lease at 9% (BB) on what was funded; the spv,
+   *  neocloud and mega-JV deal templates and the JV are removed; LTA orders are firm tranches; the trailing operating
+   *  cash flow starts from last quarter's; board blocks on removed action ids move to Buy chips / Rent compute. */
+  11: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const f = s.player.finance;
+    const fx = f.ws3 as unknown as Record<string, unknown> & GameStateV2['player']['finance']['ws3'];
+    for (const c of f.ledger as unknown as { kind: string; rate?: number }[]) if (c.kind === 'spvRVG') { c.kind = 'finLease'; c.rate = 0.12; }
+    for (const x of s.player.sites) {
+      const w = x.ws3 as unknown as Record<string, unknown> & typeof x.ws3;
+      if (x.spvFunded > 0 && x.stage !== 'live' && x.stage !== 'blocked') w.lease = { rate: 0.09, funded: x.capexPaid * x.spvFunded };
+      else if (x.stage !== 'live') x.spvFunded = 0;
+      delete w.financedBy;
+    }
+    const gone = new Set(['spv', 'neocloud', 'megaJV']);
+    f.deals = f.deals.filter((d) => !gone.has(d.template as string));
+    fx.offers = (fx.offers ?? []).filter((o) => !gone.has(o.template as string));
+    for (const o of fx.offers as unknown as Record<string, unknown>[]) delete o.siteShare;
+    delete fx.jv;
+    delete fx.spvBcQ;
+    fx.opCash4q ??= fx.opCashQ ? [fx.opCashQ] : [];
+    for (const o of s.player.orders) if (o.kind === 'lta') { o.ltaStartQ ??= o.dueQ; o.firm = true; }
+    const anchors = s.capital.ws3?.anchors as Record<string, string> | undefined;
+    if (anchors) for (const k of ['Keystone Capital', 'Meridian Group', 'Vantage Neocloud']) delete anchors[k];
+    const bu = fx.blockedUntil ?? {};
+    const move: Record<string, string> = { 'cmp.orderStandard': 'cmp.buyChips', 'cmp.orderLTA': 'cmp.buyChips', 'cmp.orderSpot': 'cmp.buyChips', 'cmp.cloudContract': 'cmp.rentCompute' };
+    for (const [from, to] of Object.entries(move)) if (bu[from] !== undefined) { bu[to] = Math.max(bu[to] ?? 0, bu[from]); delete bu[from]; }
   },
 };
 

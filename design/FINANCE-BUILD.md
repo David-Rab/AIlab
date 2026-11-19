@@ -32,6 +32,18 @@ Branch `finance-v3`, worktree `../AI27-finance3`, based on master 2ef72a9. Model
 12. Bots must keep working through every phase: update `finance/plan.ts` (finance autopilot) to the new actions so the
     reference bot still plays a sensible CEO.
 
+**Baseline on 2ef72a9 (2026-11-19), known failures before any finance change** — not regressions, but do not make
+them worse and say if a phase fixes one:
+- hygiene: `performance: daily tick average` 1786 µs and `(leader lab)` 1928 µs vs a 1.5 ms absolute budget (machine
+  load from the parallel model-v3 session; the relative leader-lab check passes).
+- safety: S5 mixed-bot U ≥ L − 0.5 (median −0.95), accepted as known in J2.
+- finance: F2 global production 2027 44.9M (target 45–60M), accepted as known in J2.
+- worldfx: Jul 2027 HireRate_SOFT ≤ 10% reached 2027-03-24.
+
+`npm run test:v2` is an `&&` chain and stops at hygiene because of the perf checks: run the scripts after hygiene one
+by one (`npx tsx scripts/v2/<name>.ts` for safety, finance, worldfx, ws4, products, money, idle) and compare with this
+list.
+
 ## FIN1 Debt, rating, capex payment, contracts, community packages (spec §3, §4, §5, §10 rows)
 
 - `finance/observe.ts` with the four selectors (bridges to today's engine; economics bridge = serving revenue vs
@@ -123,3 +135,92 @@ Branch `finance-v3`, worktree `../AI27-finance3`, based on master 2ef72a9. Model
 ## Phase notes
 
 (Each phase appends its notes here: choices made, deviations from the spec, numbers before → after, test changes.)
+
+### FIN1 notes (2026-11-19)
+
+Built: `finance/observe.ts` (publicLevel, servingEconomics, computeSecured, revenueRun + deploymentRevenue; investors'
+public frontier and cashflow's deployment revenue now read through it), `finance/capex.ts` (CRF, lease rate by rating,
+lease balance, residual-value guarantees, payment options), a rewritten `finance/debt.ts`, Buy chips / Rent compute
+(`cmp.buyChips`, `cmp.rentCompute`), lease payment on `cmp.newSite`, `cmp.community`, E27's reactive package. schemaRev
+11 → 12 with a migration (spvRVG → finLease, SPV/JV sites under construction get a 9% lease, removed templates and the
+JV dropped, LTAs firm, board blocks moved to the new ids).
+
+Removed (no aliases): `cmp.orderSpot`, `cmp.orderStandard`, `cmp.orderLTA`, `cmp.cloudContract`, `cmp.spotRental`,
+`cmp.fundSupplier`, `cmp.communityPackage`, relations action `F1`; deal templates `spv`, `neocloud`, `megaJV` and their
+partners (Keystone Capital stays as the lessor name, Vantage Neocloud as the default cloud provider); `fx.jv`,
+`fx.spvBcQ` (the −2 board charge for off-balance-sheet guarantees), the revolver's revenue rule and quarterly
+self-upsizing, the bond revenue rule, the rating's assumed backlog and its "tight" downgrade notch.
+
+Choices and readings of the spec:
+- **Credit line re-sizing.** "No self-upsizing" read as: the line is re-sized to 3% of valuation (cap $15B) only at a
+  finance decision, when you borrow on it or when an equity round closes (banks re-size around raises; OpenAI's $4B
+  line came with its Oct 2024 round). The automatic negative-cash cover draws only within the line as arranged. The
+  leader start keeps its historical $4B line; other starts get 3% of their start valuation. FIN5 replaces the
+  valuation it reads.
+- **Covenant** ⅓ of the line applies while the line is drawn (cash only, not undrawn line), as before.
+- **Rating.** Cash-flow test on the trailing four quarters of operating cash flow (`ws3.opCash4q`, annualised while
+  fewer have closed); liquidity = cash + undrawn arranged line; fixed obligations = firm ledger payments due this
+  quarter + a quarter's interest; PV(commitments) = 0.85 × remaining *firm* payments (cancellable ones excluded).
+  Financing-lease payments stay operating costs in the cash-flow test (as the SPV leasebacks were).
+- **Prices by rating** [D]: credit line SOFR + 150/200/250/350 bp (BBB/BB/B/closed, floats), chip loan SOFR +
+  400/475/550/550 (locked at draw), bonds unchanged. The chip loan is open at any rating (spec: the only debt open to a
+  loss-making lab); the credit line and bonds close with the rating.
+- **Leases.** Site lease funds 80% of capex (Hyperion 80/20) as it is spent; construction interest is capitalised
+  quarterly at the lease rate; payments funded × CRF(r, 15) start at go-live (one finLease ledger entry with its rate).
+  Chip lease: the lessor pays the delivery balance; funded × CRF(r, 5) from delivery. Rates BBB 7 / BB 9 / B 12%,
+  none below B (FIN4's partner guarantee is not built). RVG = 50% of the unamortised balance (PV of remaining payments
+  at the lease rate), shown on the site and the debt card; no walk-away mechanism exists to trigger it.
+- **Chip loan option** on the order card borrows 42% of the delivery balance (60% LTV × 70% collateral value of new
+  chips) within the chip-loan room; tranche contracts pay through the ledger in cash only.
+- **Expected path.** List price k quarters ahead = μ·c·0.92^k·(1 + π·0.75^k); cloud = 1.6 × TCO at that list price
+  and kW × 0.944^k. A single batch is priced at the expected list of its delivery quarter (it used to lock today's
+  list for chips delivered two quarters later); tranches and firm cloud pay one ledger entry per quarter on the path ×
+  (1 − 5% at ≥ 2 y, 10% at ≥ 4 y). `commitmentsPerYear` now sums the payments due in the next four quarters (it summed
+  live entries, which with per-quarter entries would count the whole schedule).
+- **Firmness.** Chip terms: spot / one batch (firm toggle: take-or-pay, not cancellable) / 1–4 yr tranches (always
+  firm). Rent terms: one-quarter spot rental / 1–5 yr contracts, firm (path-priced, served first as before) or
+  cancellable (spot rental × 1.15 × 8760, re-priced every quarter after the clearing, rationed at a new buyer's weight
+  when chips are short: a short fill shrinks the contract). Firm chip orders get the +0.5 rationing weight at once
+  (the old LTA weight needed 4 quarters of age).
+- **Partner deals keep their flat price** (hyperscaler cloud via `addCloud(... flatPerH)`, ASIC / vendor LTAs) until
+  FIN4 rebuilds them.
+- **Community.** One action `cmp.community`: with `siteId` the upfront package for a site still in permitting (+3%
+  capex, block odds × 0.5); without, the company default (`policies.communityBenefits`): every unrolled site gets it,
+  new sites default to it, and F1's pledge and relations effects are kept (commitment, ratepayers +10, dcNimby −10).
+  F1 used to charge 3% of *all* sites' capex in cash, live ones included; now only sites still able to use it.
+  E27 "Community deal": 15% of the blocked site's capex in cash, +2 quarters, the site re-permits with block odds
+  1 − (0.85 − 0.5 × dcNimby/100, ≥ 0.3) and no delay roll.
+- **Not built (spec §5):** "supplier terms follow your equity access: prepayment share = f(share_i, runway)" needs
+  share_i (FIN5); prepayment stays the player's 30–100% choice.
+- **Bot (rule 12).** `finance/plan.ts` uses the new ids: lease sites while a lessor will fund them (cash otherwise),
+  one-batch chip orders, 1-year firm neocloud bridges, quarter spot rentals for the no-off-balance variant. The site
+  guard GUARD_Q 4.0 → 4.5 quarters (chips stay at 3.5): cheaper path-priced chips and cloud let the old guard build
+  one more big site and run at the 3-quarter distress edge (F8 distress-free fell to 58%); 4.5 restores it.
+- **Runway** now projects a leased site's lease from its expected go-live and a leased/loan-paid chip delivery as its
+  lease or the unborrowed part (it ignored both before; the SPV leaseback appeared only at go-live).
+
+Numbers, before (2ef72a9 + plan) → after (FIN1):
+- `scripts/v2/finance.ts` (12 RefBot seeds): F7 2026 capex $167.2B → $155.7B (range 121–167; band 150–250, the lower
+  edge is close: chips now pay the expected price at delivery, ≈ 15% under today's list); compute costs $28.7B →
+  $28.3B; power 6.8 → 6.7 GW; valuation $1.46T → $1.47T; F8 lease/colocation/cloud financing $101B → $64B (the free
+  80% SPV used to fund every site; leases now stop when the rating is closed and bridges are cheaper); F8
+  distress-free through 2026 83.3% → 83.3% (58.3% before the bot's site guard moved to 4.5 q); capex2x distress by
+  2027 100% → 100%. F2 44.9M → 44.6M (known failure, one seed; it read 45.3–46.5M in intermediate runs). New FIN1
+  checks: site lease repays 165% / 186% / 220% of what it funded at BBB / BB / B (the SPV repaid 48%); a 4-year firm
+  cloud contract on day 400 pays $24.4B vs $43.5B at today's price × 16 (first quarter $2.37B → last $0.83B).
+- RefBot diagnostic (6 seeds, `tmp` script, not committed): end-2026 ratings BBB×5 + BB → BBB×5 + B; median cash
+  $36B → $46B; firm + cancellable commitments remaining $184B → $233B (leases now carry 15 years: lease entries $18B →
+  $76B on seed 1); runway 1.5 → 3.5 q; rounds 5 → 5; credit line $15B → $15B (re-sized at rounds instead of growing
+  with revenue). End-2027 commitments remaining $191B → $319B.
+- `scripts/v2/bots.ts` (200 seeds, leader start): all §7.4 criteria MET before and after. Wins race 1.5 → 1.0%, safe
+  2.0 → 1.0%, mixed 48.5 → 49.5%, ref 19.5 → 22.5%, **capex2x 1.0 → 10.0%**: capex2x insolvency 93.0% → 40.0% (median
+  ending day 304 → 810). Cheaper path-priced chips and cloud and 15-year leases let the 2× build-out survive more often;
+  it still reaches distress by 2027 in 100% of finance.ts seeds (FC7 holds on that test). FIN6 should look at FC7 with
+  partners and rescues in place.
+- Tests: hygiene perf checks fail on load as in the baseline (paired run on the same machine minutes apart: FIN1 2411 /
+  2680 µs vs baseline 2487 / 2712 µs daily average, so no regression; the leader-lab worst-quarter check flipped once
+  to 8.03 ms vs 8 in the chain run and passed in the paired run). safety S5 −0.95 → −1.01 (known); worldfx
+  HireRate_SOFT reached 2027-03-24 → 2027-03-11 (known; both outside the Apr–Oct window). Everything else green.
+  Test changes: finance.ts F7 capex adds lessor-paid chip capex; F8 label "SPV/lease/neocloud" → "lease/colocation/
+  cloud"; 13 new FIN1 checks. uitest: J1 C1 uses the new ids; 9 new FIN1 checks (payment tiles, lease preview, price
+  path, chip payment options, rating terms, debt limits, guarantees); 241/241.

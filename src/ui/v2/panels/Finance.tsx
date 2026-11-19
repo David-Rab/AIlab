@@ -3,13 +3,13 @@
 // live in the top strip (L0) and are never repeated here.
 import { useState } from 'react';
 import {
-  actionView, dateOf, dayOfQuarter, dealMenu, dealPreview, debtHeadroom, debtRatePct, fmtDate, fmtMonth, incidentBoardHit, interestPerYear, ledgerDue, liveLedger,
+  actionView, contingentLiabilities, dateOf, dayOfQuarter, dealMenu, dealPreview, debtHeadroom, debtRatePct, fmtDate, fmtMonth, incidentBoardHit, interestPerYear, ledgerDue, leaseRate, liveLedger, newDebtRatePct, ratingTerms,
   parentSchedule, parentYear, payrollOf, qOf, raiseCeiling, runwayOf, totalDebt, DIVISION_REASON, RUNWAY_CAP,
 } from '../../../engine/v2';
 import { isDivision } from '../../../data/v2/starts';
 import { boardReview } from '../shell/selectors';
 import { OUSTER_NOTICE_D } from '../../../engine/v2';
-import type { BoardSeat, Debt, GameStateV2 } from '../../../engine/v2';
+import type { BoardSeat, Commitment$, Debt, GameStateV2 } from '../../../engine/v2';
 import { ActBtn, Limit, CauseBars, Gate, Seg, Term, Tip, TipCard, Why } from '../ui';
 import { Card, CostPills, GoBtn, HBar, KV, PanelHead, Pill, tabOf, Tabs } from '../kit';
 import * as F from '../fmt';
@@ -19,16 +19,30 @@ import './finance.css';
 
 const STANCE = ['speed', 'money', 'safety', 'mission'] as const;
 const DEBT_KINDS: { id: Debt['kind']; label: string; blurb: string }[] = [
-  { id: 'revolver', label: 'Revolver', blurb: 'A credit line you draw and repay at will. Counts toward liquidity while undrawn; frozen in distress.' },
-  { id: 'gpuTerm', label: 'GPU term loan', blurb: 'A term loan secured on your chips. Size grows with the H100e you own.' },
-  { id: 'bond', label: 'Bond', blurb: 'Long-dated fixed debt sold to the market. Needs an investment-grade rating; carries covenants.' },
+  { id: 'revolver', label: 'Credit line', blurb: 'A bank line you draw and repay at will, sized at 3% of valuation (cap $15B) when you borrow. Counts toward liquidity while undrawn; frozen in distress.' },
+  { id: 'gpuTerm', label: 'Chip loan', blurb: 'A 4-year loan secured on your chips: up to 60% of their value. The only debt open to a loss-making lab.' },
+  { id: 'bond', label: 'Bond', blurb: 'Ten-year debt sold to the market: only with positive operating cash flow over the last year, up to 3× it.' },
   { id: 'vendorNote', label: 'Vendor note', blurb: 'Chip-vendor financing tied to orders. Easy to get, but it ties you to that vendor.' },
 ];
 const SEAT: Record<BoardSeat['kind'], { icon: typeof ICON.board; label: string }> = {
   founder: { icon: ICON.you, label: 'Founder' }, mission: { icon: ICON.exec, label: 'Mission' }, financial: { icon: ICON.cash, label: 'Financial' },
   strategic: { icon: ICON.relations, label: 'Strategic' }, independent: { icon: ICON.board, label: 'Independent' }, gov: { icon: ICON.congress, label: 'Government' },
 };
-const KIND_TERM: Record<string, string> = { cloud: 'cloudContract', lta: 'lta', lease: 'site', spvRVG: 'spv', vendor: 'vendorNote', power: 'mw' };
+const KIND_TERM: Record<string, string> = { cloud: 'cloudContract', lta: 'lta', lease: 'site', finLease: 'spv', vendor: 'vendorNote', power: 'mw' };
+const KIND_LABEL: Record<string, string> = { cloud: 'cloud', lta: 'chip supply', lease: 'colocation', finLease: 'lease', vendor: 'vendor note', power: 'power' };
+
+/** FIN1: firm contracts on the expected path pay one ledger entry per quarter; the contracts table shows one row per
+ *  contract (this quarter's payment, or its first if it has not started, and its end). */
+interface ContractRow { id: string; payee: string; kind: Commitment$['kind']; perQ: number; lastQ: number; startDay?: number; endDay: number; notice: number | null; entry: Commitment$ }
+function contractRows(s: GameStateV2): ContractRow[] {
+  const by = new Map<string, Commitment$[]>();
+  for (const c of liveLedger(s)) { const k = c.contract ?? c.id; by.set(k, [...(by.get(k) ?? []), c]); }
+  return [...by.entries()].map(([id, cs]) => {
+    const sorted = cs.slice().sort((x, y) => (x.startDay ?? -1e9) - (y.startDay ?? -1e9));
+    const now = sorted.find((c) => (c.startDay ?? -1e9) <= s.time.day) ?? sorted[0];
+    return { id, payee: now.payee, kind: now.kind, perQ: now.perQuarter, lastQ: sorted[sorted.length - 1].perQuarter, startDay: sorted[0].startDay, endDay: Math.max(...sorted.map((c) => c.endDay)), notice: now.cancellableNoticeQ, entry: now };
+  });
+}
 
 const qLabel = (s: GameStateV2, q: number) => {
   const d = dateOf(s, dayOfQuarter(s.time.startDate, q));
@@ -49,7 +63,6 @@ function Waterfall({ s }: { s: GameStateV2 }) {
   const intQ = interestPerYear(s) / 4;
   const otherQ = Math.max(0, p.operating - payQ - secQ - fundQ - intQ);
   const q0 = qOf(s);
-  const ledger = liveLedger(s);
   const orders = pl.orders.filter((o) => o.kind !== 'lta' && o.dueQ - q0 <= 4 && o.qty > o.delivered);
   const building = pl.sites.filter((x) => x.stage !== 'live' && x.stage !== 'blocked' && x.capex > x.capexPaid);
   const rev = -p.revenue;
@@ -65,7 +78,7 @@ function Waterfall({ s }: { s: GameStateV2 }) {
       ...(fundQ > 0 ? [{ label: <Term id="transitionFund">Transition fund</Term>, value: F.money(fundQ) }] : []), ...(intQ > 0 ? [{ label: 'Interest', value: F.money(intQ) }] : []),
       { label: 'Power, O&M, rentals, other', value: F.money(otherQ) },
     ] },
-    { id: 'commitments', label: 'Contracts', term: 'ledger', icon: ICON.commitment, v: -p.commitments, body: 'Payments on your commitment ledger (cloud, leases, LTAs).', rows: ledger.slice().sort((a, b) => b.perQuarter - a.perQuarter).slice(0, 6).map((c) => ({ label: `${c.payee} · ${c.kind}`, value: F.money(c.perQuarter) })) },
+    { id: 'commitments', label: 'Contracts', term: 'ledger', icon: ICON.commitment, v: -p.commitments, body: 'Payments on your commitment ledger (cloud, leases, LTAs).', rows: contractRows(s).filter((c) => (c.startDay ?? -1) <= s.time.day).sort((a, b) => b.perQ - a.perQ).slice(0, 6).map((c) => ({ label: `${c.payee} · ${KIND_LABEL[c.kind] ?? c.kind}`, value: F.money(c.perQ) })) },
     { id: 'chips', label: 'Chips', term: 'capex', icon: ICON.compute, v: -p.chips, body: 'Chip-order balances paid on delivery, per quarter averaged over the next 4 quarters.', rows: orders.slice(0, 6).map((o) => ({ label: `${o.kind} · ${F.count(o.qty - o.delivered)} H100e`, value: `due ${o.dueQ - q0 <= 0 ? 'now' : `+${o.dueQ - q0}q`}` })) },
     { id: 'sites', label: 'Sites & power', term: 'site', icon: ICON.sites, v: -p.sites, body: 'Site capex on each site\'s build schedule, per quarter averaged over the next 4 quarters.', rows: building.slice(0, 6).map((x) => ({ label: `${x.name} · ${x.stage}`, value: `${F.money(x.capex - x.capexPaid)} left` })) },
   ];
@@ -316,18 +329,18 @@ function ParentBudget({ s }: { s: GameStateV2 }) {
 function LockedIn({ s }: { s: GameStateV2 }) {
   const [show, setShow] = useState(false);
   const q0 = qOf(s);
-  const live = liveLedger(s);
   const due = Array.from({ length: 8 }, (_, i) => {
     const q = q0 + i;
     const tot = ledgerDue(s, q);
-    const firm = live.reduce((a, c) => a + (c.cancellableNoticeQ === null && qOf(s, c.endDay - 1) >= q ? c.perQuarter : 0), 0);
+    const firm = ledgerDue(s, q, true);
     return { q, tot, firm: Math.min(tot, firm), canc: Math.max(0, tot - firm) };
   });
   const revQ = s.player.finance.revenueRun / 4;
   const dmax = Math.max(1e-6, ...due.map((d) => d.tot));
   const revOff = revQ > dmax * 2.2; // revenue far above the ledger: pin its line to the top, labelled off scale
   const max = (revOff ? dmax : Math.max(dmax, revQ)) * 1.15;
-  const firmN = live.filter((c) => c.cancellableNoticeQ === null).length;
+  const rows = contractRows(s);
+  const firmN = rows.filter((c) => c.notice === null).length;
   const cover = due[0].tot > 0 ? revQ / due[0].tot : undefined;
   const W = 480;
   const H = 210;
@@ -339,7 +352,7 @@ function LockedIn({ s }: { s: GameStateV2 }) {
   return (
     <Card title={<Term id="ledger">Locked-in spending</Term>} home="ledger" id="ctl-ledger"
       right={<span className="legend2"><span><i style={{ background: '#6b7c91' }} /><Term id="firmCommit">firm</Term></span><span><i className="dash" /><Term id="cancellable">cancellable</Term></span><span><i style={{ background: C.good }} />revenue / q</span></span>}>
-      <Tip as="div" content={() => <TipCard title={<Term id="ledger">Contracts</Term>} rows={[{ label: 'Contracts', value: String(live.length) }, { label: 'Firm (take-or-pay)', value: String(firmN) }, ...(cover !== undefined ? [{ label: 'Revenue ÷ this quarter\'s payments', value: F.mult(cover) }] : [])]} />}><div className="dim small">{live.length} contracts · {firmN} firm{cover !== undefined ? ` · revenue covers this quarter ${F.mult(cover)}` : ''}</div></Tip>
+      <Tip as="div" content={() => <TipCard title={<Term id="ledger">Contracts</Term>} rows={[{ label: 'Contracts', value: String(rows.length) }, { label: 'Firm (take-or-pay)', value: String(firmN) }, ...(cover !== undefined ? [{ label: 'Revenue ÷ this quarter\'s payments', value: F.mult(cover) }] : [])]} />}><div className="dim small">{rows.length} contracts · {firmN} firm{cover !== undefined ? ` · revenue covers this quarter ${F.mult(cover)}` : ''}</div></Tip>
       <svg viewBox={`0 0 ${W} ${H}`} className="ledger2">
         <line x1={10} x2={W - 10} y1={revOff ? 16 : Y(revQ)} y2={revOff ? 16 : Y(revQ)} stroke={C.good} strokeDasharray="5 4" strokeWidth={1.4} />
         <text x={W - 10} y={(revOff ? 16 : Y(revQ)) - 5} textAnchor="end" className="ch-note good">revenue {F.money(revQ, { perQ: true })}{revOff ? ' · off scale ↑' : ''}</text>
@@ -367,10 +380,10 @@ function LockedIn({ s }: { s: GameStateV2 }) {
         <table className="tbl fin-tbl">
           <thead><tr><th>Payee</th><th>Kind</th><th className="r">Per q</th><th>Ends</th><th>Cancel</th></tr></thead>
           <tbody>
-            {live.map((c) => (
+            {rows.map((c) => (
               <tr key={c.id}>
-                <td className="ellip">{c.payee}</td><td><Term id={KIND_TERM[c.kind] ?? 'ledger'}>{F.words(c.kind)}</Term></td><td className="num r"><Tip content={() => <TipCard title={c.payee} value={F.money(c.perQuarter, { perQ: true })} rows={[{ label: 'Ends', value: fmtMonth(dateOf(s, c.endDay)) }]} />}><span>{F.money(c.perQuarter)}</span></Tip></td><td className="num">{fmtMonth(dateOf(s, c.endDay))}</td>
-                <td>{c.cancellableNoticeQ === null ? <span className="dim">firm</span> : <ActBtn id="fin.cancelContract" params={{ id: c.id }} label={`Cancel · ${c.cancellableNoticeQ}q notice`} />}</td>
+                <td className="ellip">{c.payee}</td><td><Term id={KIND_TERM[c.kind] ?? 'ledger'}>{KIND_LABEL[c.kind] ?? F.words(c.kind)}</Term></td><td className="num r"><Tip content={() => <TipCard title={c.payee} value={F.money(c.perQ, { perQ: true })} rows={[...(Math.abs(c.lastQ - c.perQ) > 0.005 ? [{ label: 'Last quarter', value: F.money(c.lastQ) }] : []), ...(c.startDay !== undefined && c.startDay > s.time.day ? [{ label: 'Starts', value: fmtMonth(dateOf(s, c.startDay)) }] : []), { label: 'Ends', value: fmtMonth(dateOf(s, c.endDay)) }]}>{Math.abs(c.lastQ - c.perQ) > 0.005 ? 'A firm contract on the expected path: each quarter pays that quarter\'s price.' : 'The same payment every quarter.'}</TipCard>}><span>{F.money(c.perQ)}{Math.abs(c.lastQ - c.perQ) > 0.005 ? ` → ${F.money(c.lastQ)}` : ''}</span></Tip></td><td className="num">{fmtMonth(dateOf(s, c.endDay))}</td>
+                <td>{c.notice === null ? <span className="dim">firm</span> : <ActBtn id="fin.cancelContract" params={{ id: c.entry.id }} label={`Cancel · ${c.notice}q notice`} />}</td>
               </tr>
             ))}
           </tbody>
@@ -492,16 +505,41 @@ function Markets({ s }: { s: GameStateV2 }) {
   );
 }
 
-// ───────── debt ─────────
+// ───────── debt: capacity of each instrument and the rule behind it; the rating with its terms (FIN1, spec §3) ─────────
+const LIMIT_OF: Partial<Record<Debt['kind'], string>> = { revolver: 'debt.creditLine', gpuTerm: 'debt.chipLoan', bond: 'debt.bond' };
+function RatingTip({ s }: { s: GameStateV2 }) {
+  const r = ratingTerms(s);
+  const f = s.player.finance;
+  return (
+    <TipCard title={<Term id="rating">Credit rating</Term>} value={`${f.rating} · score ${r.z.toFixed(2)}`} rows={[
+      { label: r.ocf !== undefined ? `Cash flow, last year ${F.money(r.ocf, { signed: true })}` : 'Cash flow (no quarter closed yet)', value: `+${r.cashFlow.toFixed(0)}`, tone: r.cashFlow > 0 ? 'pos' : 'neutral' },
+      { label: `Liquidity ${F.money(r.liquidity)} ÷ fixed ${F.money(r.fixedQ)}/q`, value: `+${r.cover.toFixed(2)}`, tone: 'pos' },
+      { label: `(Debt ${F.money(r.debt)} + 0.3 × commitments ${F.money(r.pvCommit)}) ÷ revenue`, value: `−${r.leverage.toFixed(2)}`, tone: r.leverage > 0.5 ? 'neg' : 'neutral' },
+      ...(r.distress ? [{ label: <Term id="distress">Distress</Term>, value: '−2', tone: 'neg' as const }] : []),
+    ]} footer="BBB ≥ 2 > BB ≥ 1 > B ≥ 0 > closed. Set at each quarter end.">Lenders and lessors price your cash flow, liquidity and leverage, never your valuation.</TipCard>
+  );
+}
+
 function DebtCard({ s }: { s: GameStateV2 }) {
   const f = s.player.finance;
   const [dk, setDk] = useState<Debt['kind']>('revolver');
   const head = debtHeadroom(s, dk);
   const [amtF, setAmtF] = useState(0.5);
   const drawAmt = Math.max(0.1, Math.round(head.max * amtF * 10) / 10);
+  const rvg = contingentLiabilities(s);
+  const lr = leaseRate(s);
   return (
     <Card title={<Term id="rating">Debt</Term>} home="debt"
-      right={<span className="row-i small"><span className="dim"><Term id="rating">rating</Term></span><b className={`num ${f.rating === 'closed' ? 'tone-neg' : ''}`}>{f.rating}</b><Tip content={() => <TipCard title="Debt" rows={[{ label: 'Drawn', value: F.money(totalDebt(f)) }, { label: 'Interest', value: F.money(interestPerYear(s), { perYear: true }) }]}>Interest is part of payroll & ops in the cash flow.</TipCard>}><span className="row-i"><span className="dim">· drawn</span><b className="num">{F.money(totalDebt(f))}</b><span className="dim">· interest</span><b className="num">{F.money(interestPerYear(s), { perYear: true })}</b></span></Tip></span>}>
+      right={<span className="row-i small"><span className="dim"><Term id="rating">rating</Term></span><Tip content={() => <RatingTip s={s} />}><b className={`num ${f.rating === 'closed' ? 'tone-neg' : ''}`} data-test="rating">{f.rating}</b></Tip><Tip content={() => <TipCard title="Debt" rows={[{ label: 'Drawn', value: F.money(totalDebt(f)) }, { label: 'Interest', value: F.money(interestPerYear(s), { perYear: true }) }]}>Interest is part of payroll & ops in the cash flow.</TipCard>}><span className="row-i"><span className="dim">· drawn</span><b className="num">{F.money(totalDebt(f))}</b><span className="dim">· interest</span><b className="num">{F.money(interestPerYear(s), { perYear: true })}</b></span></Tip></span>}>
+      {(() => {
+        const r = ratingTerms(s);
+        const parts = [{ k: 'cash flow', v: r.cashFlow }, { k: 'liquidity', v: r.cover }, { k: 'leverage', v: -r.leverage }, ...(r.distress ? [{ k: 'distress', v: -r.distress }] : [])];
+        return (
+          <Tip content={() => <RatingTip s={s} />}>
+            <div className="limit-row" data-test="rating-terms"><span className="dim small">score {r.z.toFixed(2)} =</span><span className="small">{parts.map((x) => `${x.v >= 0 ? '+' : '−'}${Math.abs(x.v).toFixed(1)} ${x.k}`).join(' ')}</span></div>
+          </Tip>
+        );
+      })()}
       {f.debts.length > 0 && (
         <table className="tbl fin-tbl">
           <thead><tr><th>Kind</th><th className="r">Drawn / limit</th><th className="r">Rate</th><th><Term id="covenant">Covenant</Term></th><th /></tr></thead>
@@ -509,8 +547,8 @@ function DebtCard({ s }: { s: GameStateV2 }) {
             {f.debts.map((d) => (
               <tr key={d.id}>
                 <td><Term id={d.kind}>{DEBT_KINDS.find((k) => k.id === d.kind)?.label ?? d.kind}</Term></td>
-                <td className="num r"><Tip content={() => <TipCard title="Drawn / limit" rows={[{ label: 'Drawn', value: F.money(d.drawn) }, { label: 'Limit', value: F.money(d.principal) }]} />}><span>{F.money(d.drawn)} / {F.money(d.principal)}</span></Tip></td>
-                <td className="num r"><Tip content={() => <TipCard title="Interest rate" value={`${debtRatePct(s, d).toFixed(1)}%`}>Per year on the drawn amount.</TipCard>}><span>{debtRatePct(s, d).toFixed(1)}%</span></Tip></td>
+                <td className="num r"><Tip content={() => <TipCard title="Drawn / limit" rows={[{ label: 'Drawn', value: F.money(d.drawn) }, { label: d.kind === 'revolver' ? 'Line as arranged' : 'Principal', value: F.money(d.principal) }]}>{d.kind === 'revolver' ? 'The line is re-sized to 3% of valuation (cap $15B) when you next borrow on it.' : 'Amount borrowed on this tranche.'}</TipCard>}><span>{F.money(d.drawn)} / {F.money(d.principal)}</span></Tip></td>
+                <td className="num r"><Tip content={() => <TipCard title="Interest rate" value={`${debtRatePct(s, d).toFixed(1)}%`}>{d.kind === 'revolver' ? 'Per year on the drawn amount; floats with your rating.' : 'Per year on the drawn amount; priced at your rating when drawn.'}</TipCard>}><span>{debtRatePct(s, d).toFixed(1)}%</span></Tip></td>
                 <td className="dim">{d.covenant ?? '—'}</td>
                 <td className="r">{d.drawn > 0 && <ActBtn id="fin.repayDebt" params={{ id: d.id, amount: d.drawn }} label="Repay" />}</td>
               </tr>
@@ -519,22 +557,32 @@ function DebtCard({ s }: { s: GameStateV2 }) {
         </table>
       )}
       <div className="dk-tiles">
-        {DEBT_KINDS.map((k) => (
-          <Tip key={k.id} content={() => <TipCard title={<Term id={k.id}>{k.label}</Term>} value={F.money(debtHeadroom(s, k.id).max)}>{k.blurb}</TipCard>}>
-            <button className={`otile ${dk === k.id ? 'on' : ''}`} data-debt-kind={k.id} onClick={() => setDk(k.id)}>
-              <span className="otile-top">{k.label}</span>
-              <span className="otile-gl">{F.money(debtHeadroom(s, k.id).max)} room</span>
-            </button>
-          </Tip>
-        ))}
+        {DEBT_KINDS.filter((k) => k.id !== 'vendorNote').map((k) => {
+          const h = debtHeadroom(s, k.id);
+          return (
+            <Tip key={k.id} content={() => <TipCard title={<Term id={k.id}>{k.label}</Term>} value={`${F.money(h.max)} room`} rows={[{ label: 'Limit', value: F.money(h.limit) }, { label: 'Rule', value: h.why }, { label: 'Rate now', value: `${newDebtRatePct(s, k.id).toFixed(1)}%` }]}>{k.blurb}</TipCard>}>
+              <button className={`otile ${dk === k.id ? 'on' : ''}`} data-debt-kind={k.id} onClick={() => setDk(k.id)}>
+                <span className="otile-top">{k.label}</span>
+                <span className="otile-gl"><Limit id={LIMIT_OF[k.id] ?? 'debt.creditLine'} tone={h.closed ? 'bind' : 'quiet'}>{F.money(h.max)} room</Limit></span>
+              </button>
+            </Tip>
+          );
+        })}
       </div>
       <div className="fin-row">
-        <span className="dim small">Headroom{head.why ? ` · ${head.why}` : ''}</span>
-        <HBar v={drawAmt} max={Math.max(1e-6, head.max)} w={140} h={8} color={C.you} />
-        <input className="slider" type="range" min={0.05} max={1} step={0.05} value={amtF} onChange={(e) => setAmtF(Number(e.target.value))} style={{ width: 120 }} />
+        <Tip content={() => <TipCard title={DEBT_KINDS.find((k) => k.id === dk)?.label} rows={[{ label: 'Limit', value: F.money(head.limit) }, { label: 'Room', value: F.money(head.max) }]}>{head.why}</TipCard>}><span className={`small ${head.closed ? 'tone-neg' : 'dim'}`}>{head.closed ? head.why : `${head.why}: ${F.money(head.limit)}`}</span></Tip>
+        <HBar v={drawAmt} max={Math.max(1e-6, head.max)} w={120} h={8} color={C.you} />
+        <input className="slider" type="range" min={0.05} max={1} step={0.05} value={amtF} onChange={(e) => setAmtF(Number(e.target.value))} style={{ width: 110 }} />
         <span className="sp" />
         <ActBtn id="fin.drawDebt" params={{ kind: dk, amount: drawAmt }} label={`Borrow ${F.money(drawAmt)}`} icon={ICON.debt} anchor="borrow" reason />
       </div>
+      <Tip content={() => <TipCard title={<Term id="spv">Leases</Term>} rows={[
+        { label: 'Lessor return now', value: lr !== undefined ? `${F.pct(lr)} at ${f.rating}` : `none at ${f.rating}` },
+        { label: <Term id="rvg">Residual-value guarantees</Term>, value: F.money(rvg.total) },
+        ...rvg.items.slice(0, 5).map((i) => ({ label: <span className="dim">· {i.name}</span>, value: F.money(i.amount) })),
+      ]}>Payment options for sites and chips are on the Compute build and buy cards. A guarantee is owed only if you walk away from a leased asset.</TipCard>}>
+        <div className="limit-row" data-test="lease-terms"><span className="dim small"><Term id="spv">Leases</Term> {lr !== undefined ? `at ${F.pct(lr)}` : 'closed'}</span><span className="small">guarantees {F.money(rvg.total)} <span className="dim">contingent</span></span></div>
+      </Tip>
       {f.covenantBreachDay !== undefined && <div className="tone-neg small"><Term id="covenant">Covenant</Term> breached since {fmtDate(dateOf(s, f.covenantBreachDay))}</div>}
     </Card>
   );

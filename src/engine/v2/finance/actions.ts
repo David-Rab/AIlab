@@ -1,14 +1,16 @@
 // Player actions in the Finance and Compute spheres (ActionDef catalog, V2-SPEC §3.7–3.8). Owner: WS3.
 // Every preview lists a cost in a currency that is not among its gains (§2.7). Units: cash $B, compute H100e,
 // dilution % points, boardConf points.
-import { DEAL_TEMPLATES, DEAL_TERMS, SITE_PATHS, TRANSFORMER } from '../../../data/v2/deals';
+import { CAPEX_LEASE, COMMUNITY, DEAL_TEMPLATES, NEOCLOUD, SITE_PATHS, TRANSFORMER } from '../../../data/v2/deals';
 import { dayOfQuarter } from '../core/time';
-import { fundSupplier, addCloud, addSpotRental, orderQuote, placeOrder, spotRentalCap } from '../compute/orders';
-import { cloudPricePerYear } from '../compute/market';
-import { newSite, oppositionOdds, siteCapex, siteEtaQ, type SiteOpts } from '../compute/sites';
-import type { ActionDef, CostLine, Debt, GameStateV2, Site, StrategicDeal, SystemCtx } from '../types';
+import { addCloud, addSpotRental, chipQuote, placeOrder, rentQuote, RENT_Q_MAX, spotRentalCap, TRANCHE_Q } from '../compute/orders';
+import { addCommunityPackage, newSite, oppositionOdds, siteCapex, siteEtaQ, type SiteOpts } from '../compute/sites';
+import { bloc } from '../actors/fx';
+import { signCommitment } from '../actors/commitments';
+import type { ActionDef, ChipOrder, CostLine, Debt, GameStateV2, Site, StrategicDeal, SystemCtx } from '../types';
 import { boardApproval, boardBlocked, boardSupport, BOARD_VECTORS } from './board';
-import { debtHeadroom, drawDebt, repayDebt } from './debt';
+import { leaseAvailable, leaseRate, payOptions } from './capex';
+import { debtHeadroom, drawDebt, newDebtRatePct, repayDebt } from './debt';
 import { acceptDeal, dealBlocker, dealTerms, declineDeal, partnerFor, rescueOffer, seekPartner } from './deals';
 import { acceptRepriced, bookRound, canRaise, lastPostMoney, pullRepriced, raiseCeiling, startRaise } from './equity';
 import { ensureWs3, yearStats, type DealOffer } from './ext';
@@ -146,15 +148,6 @@ export function dealPreview(s: GameStateV2, t: Omit<DealOffer, 'id' | 'day' | 'e
   if (t.commitPerQ > 0) costs.push({ currency: 'cash', amount: -t.commitPerQ * 4, target: `${t.partner} per year × ${(t.commitQ / 4).toFixed(0)} y` });
   if (t.template === 'customASIC') costs.push({ currency: 'progress', amount: -0.15, lagDays: 0, target: 'research −15% for ~2.5 quarters' });
   if (t.template === 'sovereign') costs.push({ currency: 'scrutiny', amount: 5 }, { currency: 'trust', amount: -5, target: 'congress' });
-  if (t.template === 'spv') {
-    gains.push({ currency: 'cash', amount: 0.8 * 10, target: 'per GW of site capex funded' });
-    costs.push({ currency: 'boardConf', amount: -2 }, { currency: 'cash', amount: -0.8 * 10 * DEAL_TERMS.spv.leaseRate, target: 'lease per GW-year' });
-    exposure.push({ currency: 'cash', amount: -0.8 * 10 * DEAL_TERMS.spv.rvgShare, target: 'residual value guarantee per GW if you walk away' });
-  }
-  if (t.template === 'megaJV') {
-    gains.push({ currency: 'cash', amount: 0.5 * 14, target: 'per GW of new sites for 2 years' });
-    costs.push({ currency: 'boardConf', amount: -3, target: 'partner board seat' });
-  }
   if (t.template === 'vendorFinance') costs.push({ currency: 'boardConf', amount: -1 }, { currency: 'cash', amount: -t.equityNow * 0.08, target: 'interest per year' });
   if (t.strings.exclusivity) exposure.push({ currency: 'freedom', amount: -1, target: 'vetoes deals with competitors' });
   if (t.strings.revenueShare) costs.push({ currency: 'revenue', amount: -t.strings.revenueShare * s.player.finance.revenueRun, target: 'revenue share per year' });
@@ -210,7 +203,7 @@ const accept: ActionDef = {
     const id = str(p, 'offerId', '');
     const o = id ? offers.find((x) => x.id === id) : offers[0];
     if (!o) return;
-    const err = acceptDeal(s, ctx, o.template, o.partner, { offerId: o.id, force: bool(p, 'force'), ...(str(p, 'siteId', '') ? { siteId: str(p, 'siteId', '') } : {}) });
+    const err = acceptDeal(s, ctx, o.template, o.partner, { offerId: o.id, force: bool(p, 'force') });
     if (err) {
       ctx.log('finance', err, 2);
       return err;
@@ -273,7 +266,7 @@ const draw: ActionDef = {
     const kind = str(p, 'kind', 'revolver') as Debt['kind'];
     const h = debtHeadroom(s, kind);
     const amt = Math.min(num(p, 'amount', h.max), h.max);
-    const rate = kind === 'bond' ? s.capital.y10 + 4.5 : s.capital.sofr + (kind === 'gpuTerm' ? 4.75 : 2);
+    const rate = newDebtRatePct(s, kind);
     const exposure: CostLine[] = [{ currency: 'cash', amount: -amt, target: 'covenant: called if breached', probability: 0.05 }];
     if (kind !== 'revolver' && amt > 0.2 * s.player.finance.revenueRun) exposure.push(boardExposure(s, BOARD_VECTORS.newDebt));
     return { costs: [{ currency: 'boardConf', amount: -1 }, { currency: 'cash', amount: -(amt * rate) / 100, target: 'interest per year' }], gains: [{ currency: 'cash', amount: amt }], exposure };
@@ -356,100 +349,116 @@ const refuseRecap: ActionDef = {
   },
 };
 
-// ───────────────────────────── Compute: chips ─────────────────────────────
+// ───────────────────────────── Compute: Buy chips (spec §5) ─────────────────────────────
 
-function orderAction(kind: 'spot' | 'standard' | 'lta', id: string, title: string): ActionDef {
-  return {
-    id, verb: 'deal', system: 'compute', sphere: 'finance', owner: 'WS3', title,
-    ...(kind === 'lta' ? { boardVector: BOARD_VECTORS.commitments } : {}),
-    available: (s) => {
-      const b = blocked(s, id);
-      return b !== true ? b : notInsolvent(s);
-    },
-    preview(s, p) {
-      const qty = Math.max(1e4, num(p, 'qty', 0.5e6));
-      const nonTW = bool(p, 'nonTW');
-      const qt = orderQuote(s, kind, qty, nonTW);
-      const quarters = Math.round(num(p, 'quarters', 8));
-      const costs: CostLine[] = kind === 'lta'
-        ? [{ currency: 'cash', amount: -qt.later, target: `per quarter × ${quarters} (take-or-pay)` }]
-        : [{ currency: 'cash', amount: -qt.now }, { currency: 'cash', amount: -qt.later, lagDays: (qt.dueQ - qOf(s)) * 91, target: 'on delivery' }];
-      const fill = s.market.ws3?.playerFill ?? 1;
-      const exposure: CostLine[] = [];
-      if (fill < 0.99) exposure.push({ currency: 'compute', amount: -qty * (1 - fill), probability: 0.5, target: 'rationed: delivery rolls forward' });
-      exposure.push({ currency: 'compute', amount: 0, target: 'needs free MW to go online' });
-      if (kind === 'lta' && needsCommitVote(s, qt.later * 4)) exposure.push(boardExposure(s, BOARD_VECTORS.commitments));
-      return { costs, gains: [{ currency: 'compute', amount: kind === 'lta' ? qty * quarters : qty, lagDays: (qt.dueQ - qOf(s) + 1) * 91 }], exposure };
-    },
-    apply(s, ctx, p) {
-      const qty = Math.max(1e4, num(p, 'qty', 0.5e6));
-      if (kind === 'lta') {
-        const qt = orderQuote(s, kind, qty, bool(p, 'nonTW'));
-        const no = commitGate(s, ctx, qt.later * 4, id, bool(p, 'force'));
-        if (no) return no;
-      }
-      placeOrder(s, ctx, kind, qty, { quarters: num(p, 'quarters', 8), nonTW: bool(p, 'nonTW'), prepay: num(p, 'prepay', 0.3) });
-    },
-  };
+type ChipPay = NonNullable<ChipOrder['pay']>;
+/** Buy-chips parameters: `term` 0 = spot, 1 = one batch, 4–16 = quarterly tranches (always firm); `firm` makes a
+ *  batch take-or-pay; `pay` (spot and batches) = cash | lease | loan. */
+function chipParams(p: P) {
+  const term = Math.max(0, Math.round(num(p, 'term', 1)));
+  const tranches = term >= 2;
+  const pay = (tranches ? 'cash' : str(p, 'pay', 'cash')) as ChipPay;
+  return { qty: Math.max(1e4, num(p, 'qty', 0.5e6)), term: tranches ? Math.max(TRANCHE_Q.min, Math.min(TRANCHE_Q.max, term)) : term, firm: tranches || (term === 1 && bool(p, 'firm')), nonTW: bool(p, 'nonTW'), prepay: num(p, 'prepay', 0.3), pay: (['cash', 'lease', 'loan'] as const).includes(pay) ? pay : 'cash' };
 }
+const lagTo = (s: GameStateV2, q: number) => Math.max(0, dayOfQuarter(s.time.startDate, q) - s.time.day);
 
-const fundSup: ActionDef = {
-  id: 'cmp.fundSupplier', verb: 'deal', system: 'compute', sphere: 'finance', owner: 'WS3', title: 'Fund supplier',
-  available: notInsolvent,
-  preview(_s, p) {
-    const amt = Math.max(0.1, num(p, 'amount', 2));
-    return { costs: [{ currency: 'cash', amount: -amt }], gains: [{ currency: 'compute', amount: amt * 0.8e5 * 8, lagDays: 4 * 91, target: 'reserved for you over 2 years' }], exposure: [] };
-  },
-  apply(s, ctx, p) {
-    fundSupplier(s, ctx, Math.max(0.1, num(p, 'amount', 2)));
-  },
-};
-
-const cloud: ActionDef = {
-  id: 'cmp.cloudContract', verb: 'deal', system: 'compute', sphere: 'finance', owner: 'WS3', title: 'Rent cloud',
+const buyChips: ActionDef = {
+  id: 'cmp.buyChips', verb: 'deal', system: 'compute', sphere: 'finance', owner: 'WS3', title: 'Buy chips',
   boardVector: BOARD_VECTORS.commitments,
   available: (s) => {
-    const b = blocked(s, 'cmp.cloudContract');
+    const b = blocked(s, 'cmp.buyChips');
     return b !== true ? b : notInsolvent(s);
   },
   preview(s, p) {
-    const h = Math.max(1e4, num(p, 'h100e', 0.5e6));
-    const years = Math.max(1, Math.min(5, num(p, 'years', 3)));
-    const canc = bool(p, 'cancellable');
-    const perYear = (h * cloudPricePerYear(s) * (canc ? 1.15 : 1)) / 1e6;
-    const exposure: CostLine[] = needsCommitVote(s, perYear) ? [boardExposure(s, BOARD_VECTORS.commitments)] : [];
-    return { costs: [{ currency: 'cash', amount: -perYear, target: `per year × ${years} ${canc ? '(1 q notice)' : '(take-or-pay)'}` }], gains: [{ currency: 'compute', amount: h, lagDays: nextQDays(s) }], exposure };
+    const c = chipParams(p);
+    const qt = chipQuote(s, c.term, c.qty, c);
+    const costs: CostLine[] = [];
+    if (qt.kind === 'lta') {
+      costs.push({ currency: 'cash', amount: -qt.later, lagDays: lagTo(s, qt.dueQ), target: `first of ${qt.quarters} quarterly payments (take-or-pay)` });
+      costs.push({ currency: 'cash', amount: -(c.qty * qt.prices![qt.quarters - 1]) / 1e6, lagDays: lagTo(s, qt.dueQ + qt.quarters - 1), target: 'last payment (expected path)' });
+    } else {
+      if (qt.now > 0) costs.push({ currency: 'cash', amount: -qt.now, target: 'deposit now' });
+      const opt = payOptions(s, qt.later, 'chips').find((o) => o.id === c.pay);
+      const lag = lagTo(s, qt.dueQ);
+      if (c.pay === 'lease' && opt) costs.push({ currency: 'cash', amount: -opt.perYear, lagDays: lag, target: `lease per year × ${opt.years} y from delivery` });
+      else if (c.pay === 'loan' && opt) costs.push({ currency: 'cash', amount: -opt.now, lagDays: lag, target: 'on delivery (rest borrowed against the chips)' }, { currency: 'cash', amount: -opt.perYear, lagDays: lag, target: 'chip-loan interest per year' });
+      else costs.push({ currency: 'cash', amount: -qt.later, lagDays: lag, target: 'on delivery' });
+    }
+    const fill = s.market.ws3?.playerFill ?? 1;
+    const exposure: CostLine[] = [];
+    if (fill < 0.99) exposure.push({ currency: 'compute', amount: -c.qty * (1 - fill), probability: 0.5, target: c.firm ? 'rationed (firm: priority weight +0.5)' : 'rationed: delivery rolls forward' });
+    exposure.push({ currency: 'compute', amount: 0, target: 'needs free MW to go online' });
+    if (qt.kind === 'lta' && needsCommitVote(s, qt.later * 4)) exposure.push(boardExposure(s, BOARD_VECTORS.commitments));
+    return { costs, gains: [{ currency: 'compute', amount: qt.kind === 'lta' ? c.qty * qt.quarters : c.qty, lagDays: lagTo(s, qt.dueQ + 1) }], exposure };
   },
   apply(s, ctx, p) {
-    const h = Math.max(1e4, num(p, 'h100e', 0.5e6));
-    const years = Math.max(1, Math.min(5, num(p, 'years', 3)));
-    const canc = bool(p, 'cancellable');
-    const perYear = (h * cloudPricePerYear(s) * (canc ? 1.15 : 1)) / 1e6;
-    const no = commitGate(s, ctx, perYear, 'cmp.cloudContract', bool(p, 'force'));
-    if (no) return no;
-    addCloud(s, ctx, h, years, str(p, 'provider', 'Northwind Cloud'), { cancellable: canc });
+    const c = chipParams(p);
+    const rate = c.pay === 'lease' ? leaseRate(s) : undefined;
+    if (c.pay === 'lease' && rate === undefined) return leaseAvailable(s) as string;
+    if (c.term >= 2) {
+      const qt = chipQuote(s, c.term, c.qty, c);
+      const no = commitGate(s, ctx, qt.later * 4, 'cmp.buyChips', bool(p, 'force'));
+      if (no) return no;
+    }
+    placeOrder(s, ctx, c.term, c.qty, { ...c, ...(rate !== undefined ? { leaseRate: rate } : {}) });
   },
 };
 
-const spotRent: ActionDef = {
-  id: 'cmp.spotRental', verb: 'deal', system: 'compute', sphere: 'finance', owner: 'WS3', title: 'Spot rent',
-  available: (s) => (s.market.ws3 && spotRentalCap(s) > 0 ? notInsolvent(s) : 'No spot capacity'),
+// ───────────────────────────── Compute: Rent compute (spec §5) ─────────────────────────────
+
+/** Rent parameters: `term` in quarters (1 = a one-quarter spot rental; 4–20 = a contract from next quarter), `firm`
+ *  (default) or cancellable; `provider` (default the neocloud). */
+function rentParams(p: P) {
+  return { h100e: Math.max(1e4, num(p, 'h100e', 0.5e6)), term: Math.max(1, Math.min(RENT_Q_MAX, Math.round(num(p, 'term', 4)))), firm: bool(p, 'firm', true), provider: str(p, 'provider', NEOCLOUD) };
+}
+
+const rentCompute: ActionDef = {
+  id: 'cmp.rentCompute', verb: 'deal', system: 'compute', sphere: 'finance', owner: 'WS3', title: 'Rent compute',
+  boardVector: BOARD_VECTORS.commitments,
+  available: (s) => {
+    const b = blocked(s, 'cmp.rentCompute');
+    return b !== true ? b : notInsolvent(s);
+  },
   preview(s, p) {
-    const h = Math.max(1e4, num(p, 'h100e', 0.2e6));
-    return { costs: [{ currency: 'cash', amount: -(h * s.market.rental * 8760) / 1e9 / 4, target: 'for one quarter' }], gains: [{ currency: 'compute', amount: h, lagDays: 0 }], exposure: [] };
+    const r = rentParams(p);
+    if (r.term <= 1) {
+      const got = Math.min(r.h100e, Math.max(0, spotRentalCap(s) - (s.player.finance.ws3?.rentals ?? []).reduce((a, x) => a + (x.endDay > s.time.day ? x.h100e : 0), 0)));
+      return { costs: [{ currency: 'cash', amount: -(got * s.market.rental * 8760) / 1e9 / 4, target: 'spot rental for one quarter' }], gains: [{ currency: 'compute', amount: got, lagDays: 0 }], exposure: got < r.h100e ? [{ currency: 'compute', amount: -(r.h100e - got), target: 'spot rental cap' }] : [] };
+    }
+    const qt = rentQuote(s, r.h100e, r.term, r.firm);
+    const lag = nextQDays(s);
+    const costs: CostLine[] = r.firm
+      ? [{ currency: 'cash', amount: -qt.perQ[0], lagDays: lag, target: `first of ${qt.quarters} quarterly payments (take-or-pay)` }, { currency: 'cash', amount: -qt.perQ[qt.quarters - 1], lagDays: lag + (qt.quarters - 1) * 91, target: 'last payment (expected path)' }]
+      : [{ currency: 'cash', amount: -qt.perQ[0], lagDays: lag, target: 'per quarter at today\'s spot × 1.15, re-priced quarterly (1 q notice)' }];
+    const exposure: CostLine[] = r.firm ? [] : [{ currency: 'compute', amount: -r.h100e, probability: 0.5, target: 'cancellable capacity is rationed in a chip shortage' }];
+    if (needsCommitVote(s, qt.perQ.slice(0, 4).reduce((a, b) => a + b, 0))) exposure.push(boardExposure(s, BOARD_VECTORS.commitments));
+    return { costs, gains: [{ currency: 'compute', amount: r.h100e, lagDays: lag }], exposure };
   },
   apply(s, ctx, p) {
-    const got = addSpotRental(s, Math.max(1e4, num(p, 'h100e', 0.2e6)));
-    ctx.log('finance', `Spot rental: ${(got / 1e3).toFixed(0)}k H100e for a quarter at $${s.market.rental.toFixed(2)}/h.`);
+    const r = rentParams(p);
+    if (r.term <= 1) {
+      const got = addSpotRental(s, r.h100e);
+      ctx.log('finance', `Spot rental: ${(got / 1e3).toFixed(0)}k H100e for a quarter at $${s.market.rental.toFixed(2)}/h.`);
+      return got > 0 ? undefined : 'No spot capacity left';
+    }
+    const qt = rentQuote(s, r.h100e, r.term, r.firm);
+    const no = commitGate(s, ctx, qt.perQ.slice(0, 4).reduce((a, b) => a + b, 0), 'cmp.rentCompute', bool(p, 'force'));
+    if (no) return no;
+    addCloud(s, ctx, r.h100e, r.term, r.provider, { firm: r.firm });
   },
 };
 
-// ───────────────────────────── Compute: sites ─────────────────────────────
+// ───────────────────────────── Compute: sites (spec §4 payment options) ─────────────────────────────
 
-function siteOpts(p: P): SiteOpts {
+function siteOpts(s: GameStateV2, p: P): SiteOpts {
   const path = str(p, 'path', 'brownfield') as Site['path'];
   const def = SITE_PATHS[path] ?? SITE_PATHS.brownfield;
-  return { path: SITE_PATHS[path] ? path : 'brownfield', mw: Math.min(def.maxMW, num(p, 'mw', Math.min(1000, def.maxMW))), crash: bool(p, 'crash'), community: bool(p, 'community'), spv: bool(p, 'spv') };
+  const pay = str(p, 'pay', 'cash') === 'lease' && path !== 'lease' ? 'lease' : 'cash';
+  const rate = pay === 'lease' ? leaseRate(s) : undefined;
+  return {
+    path: SITE_PATHS[path] ? path : 'brownfield', mw: Math.min(def.maxMW, num(p, 'mw', Math.min(1000, def.maxMW))), crash: bool(p, 'crash'),
+    community: bool(p, 'community', s.player.policies.communityBenefits), pay, ...(rate !== undefined ? { leaseRate: rate } : {}),
+  };
 }
 
 const site: ActionDef = {
@@ -459,55 +468,74 @@ const site: ActionDef = {
     return b !== true ? b : notInsolvent(s);
   },
   preview(s, p) {
-    const o = siteOpts(p);
+    const o = siteOpts(s, p);
     const capex = siteCapex(o);
-    const own = capex * (o.spv ? 1 - DEAL_TERMS.spv.share : 1);
     const odds = oppositionOdds(s, { path: o.path, crash: !!o.crash, communityPackage: !!o.community });
     const eta = siteEtaQ(s, o) * 91;
     const H = (o.mw * 1000) / s.power.kWPerH100e;
-    const costs: CostLine[] = o.path === 'lease'
-      ? [{ currency: 'cash', amount: -(o.mw / 1000) * 1.2, target: 'lease per year × 5 (non-cancellable)' }, { currency: 'cash', amount: -capex, target: 'network fit-out' }]
-      : [{ currency: 'cash', amount: -own, lagDays: eta, target: `capex${o.spv ? ' (20% share; SPV funds 80%)' : ''}` }];
-    if (o.spv && s.player.finance.ws3?.spvBcQ !== qOf(s)) costs.push({ currency: 'boardConf', amount: -2, target: 'once per quarter' });
     const exposure: CostLine[] = [];
+    let costs: CostLine[];
+    if (o.path === 'lease') costs = [{ currency: 'cash', amount: -(o.mw / 1000) * 1.2, target: 'colocation rent per year × 5 (non-cancellable)' }, { currency: 'cash', amount: -capex, target: 'network fit-out' }];
+    else if (o.pay === 'lease') {
+      const opt = payOptions(s, capex, 'site', siteEtaQ(s, o) / 4).find((x) => x.id === 'lease')!;
+      costs = [{ currency: 'cash', amount: -opt.now, lagDays: eta, target: `capex, your ${Math.round((1 - CAPEX_LEASE.siteShare) * 100)}% share` }, { currency: 'cash', amount: -opt.perYear, lagDays: eta, target: `lease per year × ${opt.years} y from go-live (${((opt.rate ?? 0) * 100).toFixed(0)}%)` }];
+      exposure.push({ currency: 'cash', amount: -CAPEX_LEASE.rvgShare * capex * CAPEX_LEASE.siteShare, target: 'residual-value guarantee if you walk away' });
+    } else costs = [{ currency: 'cash', amount: -capex, lagDays: eta, target: 'capex on the build schedule' }];
     if (odds.block > 0) exposure.push({ currency: 'compute', amount: -H, probability: Math.round(odds.block * 100) / 100, target: 'blocked by local opposition' });
     if (odds.delay > 0) exposure.push({ currency: 'compute', amount: -H, probability: Math.round(odds.delay * 100) / 100, lagDays: 182, target: 'delayed 1–3 quarters' });
     if (o.path === 'lease' && s.market.ws3 && o.mw / 1000 > s.market.ws3.leasePoolGW) exposure.push({ currency: 'compute', amount: -H, target: 'lease pool exhausted this quarter' });
     return { costs, gains: [{ currency: 'compute', amount: H, lagDays: eta, target: 'MW to install chips' }], exposure };
   },
   apply(s, ctx, p) {
-    const o = siteOpts(p);
+    const o = siteOpts(s, p);
+    if (o.pay === 'lease' && o.leaseRate === undefined) return leaseAvailable(s) as string;
     if (o.path === 'lease') o.mw = Math.min(o.mw, s.market.ws3.leasePoolGW * 1000);
     if (o.mw < 50) {
       ctx.log('finance', 'No colocation capacity left this quarter.');
-      return;
-    }
-    if (o.spv && !s.player.finance.deals.some((d) => d.template === 'spv')) s.player.finance.deals.push({ id: `DL${s.time.day}-spv`, template: 'spv', partner: 'Keystone Capital', day: s.time.day, strings: {} });
-    // The board reviews off-balance-sheet guarantees once a quarter, not per site [D, M4].
-    if (o.spv && s.player.finance.ws3.spvBcQ !== qOf(s)) {
-      s.player.finance.ws3.spvBcQ = qOf(s);
-      ctx.bump('board.confidence', -2, 'off-balance-sheet guarantee');
+      return 'No colocation capacity left this quarter';
     }
     newSite(s, ctx, o);
   },
 };
 
+/** Sites still able to take an upfront community package (in permitting, not yet rolled, not colocation). */
+const packageable = (s: GameStateV2) => s.player.sites.filter((x) => x.stage === 'permitting' && !x.communityPackage && !x.ws3?.rolled && x.path !== 'lease');
+
+/** Community package (spec §4; merges F1 and the per-site deal): with `siteId`, the upfront package for that site (≈ 3%
+ *  of its capex, block odds × 0.5); without, the company default: every site still permitting gets it now and every
+ *  new site by default, with the pledge to pay our own power and grid costs (a relations commitment, kept from F1). */
 const community: ActionDef = {
-  id: 'cmp.communityPackage', verb: 'deal', system: 'compute', sphere: 'finance', owner: 'WS3', title: 'Community deal',
-  available: (s) => (s.player.sites.some((x) => x.stage === 'permitting' && !x.communityPackage && !x.ws3?.rolled) ? true : 'No site in permitting'),
+  id: 'cmp.community', verb: 'deal', system: 'compute', sphere: 'finance', owner: 'WS3', title: 'Community package',
+  available: (s) => (!s.player.policies.communityBenefits || packageable(s).length ? true : 'Company default on; no site in permitting without a package'),
   preview(s, p) {
-    const x = s.player.sites.find((y) => y.id === str(p, 'siteId', '')) ?? s.player.sites.find((y) => y.stage === 'permitting' && !y.communityPackage);
-    const capex = x ? x.capex * 0.03 : 0.3;
-    const odds = x ? oppositionOdds(s, x).block : 0.1;
-    const H = x ? (x.mw * 1000) / s.power.kWPerH100e : 1e6;
-    return { costs: [{ currency: 'cash', amount: -capex }], gains: [{ currency: 'compute', amount: H * odds * 0.5, target: 'block risk halved (expected)' }, { currency: 'approval', amount: 1 }], exposure: [] };
+    const one = str(p, 'siteId', '');
+    const sites = one ? packageable(s).filter((x) => x.id === one) : s.player.policies.communityBenefits ? packageable(s).slice(0, 1) : packageable(s);
+    const cost = sites.reduce((a, x) => a + x.capex * COMMUNITY.upfront, 0);
+    const saved = sites.reduce((a, x) => a + ((x.mw * 1000) / s.power.kWPerH100e) * oppositionOdds(s, x).block * (1 - COMMUNITY.blockMult), 0);
+    const costs: CostLine[] = [{ currency: 'cash', amount: -Math.max(cost, 0.01), lagDays: 0, target: `+${Math.round(COMMUNITY.upfront * 100)}% capex on ${sites.length} site${sites.length === 1 ? '' : 's'} (build schedule)` }];
+    const gains: CostLine[] = [{ currency: 'compute', amount: saved, target: 'block risk halved (expected H100e kept)' }];
+    if (!one && !s.player.policies.communityBenefits) {
+      costs.push({ currency: 'freedom', amount: -1, target: 'pledge: every new site carries the package' });
+      gains.push({ currency: 'approval', amount: 10, target: 'bloc:ratepayers' });
+    }
+    return { costs, gains, exposure: [] };
   },
   apply(s, ctx, p) {
-    const x = s.player.sites.find((y) => y.id === str(p, 'siteId', '')) ?? s.player.sites.find((y) => y.stage === 'permitting' && !y.communityPackage && !y.ws3?.rolled);
-    if (!x) return;
-    x.communityPackage = true;
-    x.capex *= 1.03;
-    ctx.bump('pub.approval', 1, 'community benefits package', x.name);
+    const one = str(p, 'siteId', '');
+    if (one) {
+      const x = packageable(s).find((y) => y.id === one);
+      if (!x) return 'That site cannot take a package (past permitting or already has one)';
+      addCommunityPackage(x);
+      ctx.bump('pub.approval', 1, 'community benefits package', x.name);
+      return;
+    }
+    if (!s.player.policies.communityBenefits) {
+      s.player.policies.communityBenefits = true;
+      signCommitment(s, ctx, 'communityPledge', 'Pay our own power and grid costs', 'communityPledge', {}, ['bloc:ratepayers', 'states'], { trust: 5, credibility: 8 });
+      bloc(s, ctx, 'ratepayers', 10, 0, 'community package policy');
+      ctx.bump('pub.dcNimby', -10, 'community package policy');
+    }
+    for (const x of packageable(s)) addCommunityPackage(x);
   },
 };
 
@@ -631,7 +659,7 @@ function cancellable(s: GameStateV2): Cancellable[] {
     });
   }
   for (const o of s.player.orders) {
-    if (o.kind !== 'standard' || o.delivered > 0) continue;
+    if (o.kind !== 'standard' || o.firm || o.delivered > 0) continue;
     out.push({
       id: o.id, h100e: o.qty, penalty: o.deposit, saved: (o.qty * o.price * (1 - o.prepayFrac)) / 1e6,
       apply(ctx) {
@@ -664,8 +692,7 @@ export function dealMenu(s: GameStateV2): { template: StrategicDeal['template'];
 
 export const FINANCE_ACTIONS: ActionDef[] = [
   raise, seek, accept, decline, draw, repay, recap, refuseRecap,
-  orderAction('spot', 'cmp.orderSpot', 'Spot order'), orderAction('standard', 'cmp.orderStandard', 'Order chips'), orderAction('lta', 'cmp.orderLTA', 'Chip LTA'),
-  fundSup, cloud, spotRent, site, community, transformers,
+  buyChips, rentCompute, site, community, transformers,
   downRound, rescue, renegotiate, sell, cancel, acceptRound, pullRound,
 ];
 

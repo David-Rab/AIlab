@@ -1,12 +1,14 @@
 // Chip market: supply pipelines, clearing, prices, rationing, deliveries, geo shocks (V2-SPEC §3.8; research/15 §1.2).
 // Owner: WS3. Quarterly. Units: H100e, prices $K per H100e, money $B.
-import { COMPONENTS, EXPORT_POLICY, MARKET } from '../../../data/v2/deals';
+import { CAPEX_LEASE, COMPONENTS, DEBT_SIZING, EXPORT_POLICY, FIRM_TERMS, LESSOR, MARKET } from '../../../data/v2/deals';
 import { refCapCompute } from '../../../data/world';
 import { asV1World } from '../world/calibration';
 import { decimalYear } from '../core/time';
-import type { BaselineId, ChipMarket, EngineSystem, GameStateV2, LabId, SystemCtx } from '../types';
+import type { BaselineId, ChipMarket, ChipOrder, EngineSystem, GameStateV2, LabId, SystemCtx } from '../types';
 import { defaultMarketWS3, ensureWs3, type LabOrder } from '../finance/ext';
-import { qOf, yearStats, bookCash } from '../finance/ledger';
+import { addLedger, qOf, yearStats, bookCash } from '../finance/ledger';
+import { crf } from '../finance/capex';
+import { debtHeadroom, drawDebt } from '../finance/debt';
 import { LEADER_ID } from '../models/labs';
 
 type Comp = keyof typeof COMPONENTS;
@@ -76,6 +78,22 @@ export const spotPrice = (m: ChipMarket) => m.listPrice * (1 + MARKET.spotPremiu
 export const impliedMargin = (m: ChipMarket) => 1 - m.cost / m.listPrice;
 /** π update [R15]: π' = clamp(π + 0.5(D/S − 1) − 0.25π, −0.25, 1.5). */
 export const nextPremium = (pi: number, ds: number) => Math.min(MARKET.premiumHi, Math.max(MARKET.premiumLo, pi + 0.5 * (ds - 1) - 0.25 * pi));
+
+// ───────────────────────────── The expected path (FIN1, spec §5) ─────────────────────────────
+// The market forecast every contract is priced on: base cost falls 8% a quarter and the premium mean-reverts (× 0.75 a
+// quarter at D/S = 1), kW per H100e improves 5.6% a quarter [R15 §1.2]. Firm contracts pay this path × (1 − discount),
+// so a firm contract is a bet on it: prices that fall faster mean you overpay; in a shortage you are protected.
+
+/** Expected list price ($K per H100e) `k` quarters after the current quarter (k = 0: today's list). */
+export function expectedListPrice(m: ChipMarket, k: number): number {
+  return m.markup * m.cost * Math.pow(MARKET.costDeclineQ, k) * (1 + m.premium * Math.pow(MARKET.premiumReversionQ, k));
+}
+/** Expected cloud price ($K per H100e-year) `k` quarters ahead: 1.6 × owned TCO at the expected list price and kW. */
+export function expectedCloudPrice(s: GameStateV2, k: number): number {
+  return tcoPerYear(expectedListPrice(s.market, k), s.power.kWPerH100e * Math.pow(0.944, k)) * MARKET.cloudMult;
+}
+/** Cancellable cloud ($K per H100e-year): indexed to today's spot rental × 1.15, re-priced every quarter (kept). */
+export const cancellablePricePerYear = (s: GameStateV2) => (s.market.rental * 8760 * FIRM_TERMS.cancellableMult) / 1000;
 
 // ───────────────────────────── Demand ─────────────────────────────
 
@@ -188,7 +206,7 @@ export function geoTWAt(year: number): number {
 
 // ───────────────────────────── Quarterly clearing ─────────────────────────────
 
-interface Claim { kind: 'exo' | 'player' | 'lab'; ref?: string; qty: number; weight: number; got: number }
+interface Claim { kind: 'exo' | 'player' | 'lab' | 'cloud'; ref?: string; qty: number; weight: number; got: number }
 
 /** Weighted rationing with caps (water-filling): each claim gets ≤ qty, shares ∝ weight·qty [R15]. */
 export function ration(supply: number, claims: Claim[]): void {
@@ -209,12 +227,14 @@ export function ration(supply: number, claims: Claim[]): void {
   }
 }
 
-/** Rationing weight of a player order: 1 + 0.5·LTA(≥4q old) + 0.5·prepay + 0.5·strategic + 0.3·track [R15]. */
-export function orderWeight(s: GameStateV2, kind: 'spot' | 'standard' | 'lta', prepayFrac: number, ltaAgeQ = 0): number {
+/** Rationing weight of a player order: 1 + 0.5·firm + 0.5·prepay + 0.5·strategic + 0.3·track [R15]. Firm = a
+ *  take-or-pay order (tranches or a firm batch; spec §5 "firm contracts get priority"). */
+export function orderWeight(s: GameStateV2, firm: boolean, prepayFrac: number): number {
   const strategic = s.player.finance.deals.some((d) => d.template === 'chipVendorEquity' || d.template === 'customASIC') ? 1 : 0;
   const track = Math.min(1, s.player.computeOnline / 5e6);
-  return 1 + MARKET.rationW.lta * (kind === 'lta' && ltaAgeQ >= 4 ? 1 : 0) + MARKET.rationW.prepay * prepayFrac + MARKET.rationW.strategic * strategic + MARKET.rationW.track * track;
+  return 1 + MARKET.rationW.firm * (firm ? 1 : 0) + MARKET.rationW.prepay * prepayFrac + MARKET.rationW.strategic * strategic + MARKET.rationW.track * track;
 }
+export const isFirmOrder = (o: Pick<ChipOrder, 'kind' | 'firm'>) => o.kind === 'lta' || !!o.firm;
 
 function supplyNow(m: ChipMarket): { S: number; nonTW: number } {
   const raw = Math.min(m.Kpkg, m.Khbm * (1 - m.disruptKR * 0.9), m.Kwafer);
@@ -262,11 +282,6 @@ function reservedFor(s: GameStateV2, q: number): number {
   return s.player.finance.ws3.reserved.reduce((a, r) => a + (r.fromQ <= q && q < r.toQ ? r.perQ : 0), 0);
 }
 
-/** LTA orders carry their signing quarter in the id: `LTA<q>-<n>` (rationing weight +0.5 once ≥ 4 quarters old). */
-export const ltaSignedQ = (id: string) => {
-  const m = /^LTA(-?\d+)-/.exec(id);
-  return m ? Number(m[1]) : 0;
-};
 
 /** One quarterly market step (R15 §1.1 steps 3–7). Exported for headless market tests. */
 export function clearMarket(s: GameStateV2, ctx: SystemCtx): void {
@@ -333,7 +348,7 @@ export function clearMarket(s: GameStateV2, ctx: SystemCtx): void {
       deliver(s, ctx, o.id, give);
       want -= give;
     }
-    if (want > 1) claims.push({ kind: 'player', ref: o.id, qty: want, weight: orderWeight(s, o.kind, o.prepayFrac, o.kind === 'lta' ? q - ltaSignedQ(o.id) : 0), got: 0 });
+    if (want > 1) claims.push({ kind: 'player', ref: o.id, qty: want, weight: orderWeight(s, isFirmOrder(o), o.prepayFrac), got: 0 });
   }
   // Default demand of rivals WS4 does not manage; WS4-managed labs place explicit orders (placeLabOrder).
   for (const r of s.rivals) {
@@ -347,11 +362,13 @@ export function clearMarket(s: GameStateV2, ctx: SystemCtx): void {
     claims.push({ kind: 'lab', ref: o.id, qty: o.qty - o.delivered, weight: o.weight, got: 0 });
     D += o.qty - o.delivered;
   }
-  // New cloud capacity starting this quarter is bought by its provider in the same market (served first).
+  // New cloud capacity starting this quarter is bought by its provider in the same market: firm contracts are served
+  // first (spec §5 priority); cancellable capacity is rationed at a new buyer's weight and starts at what was filled.
   for (const c of s.player.cloud) {
     if (c.startDay < s.time.day || c.startDay >= s.time.day + 91) continue;
     D += c.h100e;
-    outside += Math.min(c.h100e, Math.max(0, S - outside));
+    if (c.cancellableNoticeQ === null) outside += Math.min(c.h100e, Math.max(0, S - outside));
+    else claims.push({ kind: 'cloud', ref: c.id, qty: c.h100e, weight: 1, got: 0 });
   }
 
   const ds = D / S;
@@ -376,8 +393,17 @@ export function clearMarket(s: GameStateV2, ctx: SystemCtx): void {
       deliverToLab(s, lo ? lo.lab : c.ref, c.got);
     }
   }
+  for (const c of claims) {
+    if (c.kind !== 'cloud') continue;
+    const cl = s.player.cloud.find((x) => x.id === c.ref);
+    if (cl && c.got < cl.h100e - 1) {
+      ctx.log('finance', `${cl.provider}: chips short, cancellable cloud starts at ${(c.got / 1e3).toFixed(0)}k of ${(cl.h100e / 1e3).toFixed(0)}k H100e.`, 2);
+      cl.h100e = c.got;
+    }
+  }
   w.playerFill = playerWant > 0 ? playerGot / playerWant : 1;
-  w.playerWeight = orderWeight(s, 'standard', 0.3);
+  w.playerWeight = orderWeight(s, false, 0.3);
+  repriceCancellableCloud(s);
   w.labOrders = w.labOrders.filter((o) => o.qty - o.delivered > 1);
   // China's compute is WS4's (china.meters.computeAbs, §3.10.4); exports to China only reduce the supply here.
 
@@ -408,25 +434,59 @@ function playerLtaPerQ(s: GameStateV2, q: number): number {
   return sum;
 }
 
-/** Deliver `qty` of a player order: pay the balance, move chips into inventory (transit). */
+/** Cancellable cloud is spot-indexed: each quarter after the market clears its ledger payment and cost are re-priced at
+ *  today's spot rental × 1.15 (spec §5). */
+export function repriceCancellableCloud(s: GameStateV2): void {
+  const perH = cancellablePricePerYear(s);
+  for (const c of s.player.cloud) {
+    if (c.cancellableNoticeQ === null || c.endDay <= s.time.day) continue;
+    c.costPerYear = (c.h100e * perH) / 1e6;
+    const l = s.player.finance.ledger.find((x) => x.id === `L-${c.id}`);
+    if (l) l.perQuarter = c.costPerYear / 4;
+  }
+}
+
+/** Price ($K per H100e) of the tranche of an order delivered now. */
+const trancheIndex = (o: ChipOrder) => Math.max(0, o.dueQ - (o.ltaStartQ ?? o.dueQ));
+function orderUnitPrice(s: GameStateV2, o: ChipOrder): number {
+  if (o.kind === 'spot') return spotPrice(s.market) * (o.nonTW ? MARKET.nonTWPremium : 1);
+  if (o.kind === 'lta') return o.prices?.[trancheIndex(o)] ?? o.price;
+  return o.price;
+}
+
+/** Deliver `qty` of a player order: pay the balance due on delivery (cash, a financing lease or a chip-backed loan,
+ *  spec §4), move chips into inventory (transit). Tranche orders pay through the ledger (take-or-pay). */
 function deliver(s: GameStateV2, ctx: SystemCtx, orderId: string, qty: number): void {
   if (qty <= 0) return;
   const o = s.player.orders.find((x) => x.id === orderId);
   if (!o) return;
   o.delivered += qty;
   const fx = s.player.finance.ws3;
-  let pay = 0;
-  if (o.kind === 'spot') pay = (qty * spotPrice(s.market) * (o.nonTW ? MARKET.nonTWPremium : 1)) / 1e6;
-  else if (o.kind === 'standard') pay = (qty * o.price * (1 - o.prepayFrac)) / 1e6;
-  // LTA chips are paid through the ledger (take-or-pay).
+  const unit = orderUnitPrice(s, o);
+  const pay = o.kind === 'lta' ? 0 : (qty * unit * (o.kind === 'spot' ? 1 : 1 - o.prepayFrac)) / 1e6;
   fx.inventory.transit += qty;
-  fx.inventory.book += (qty * (o.kind === 'spot' ? spotPrice(s.market) : o.price)) / 1e6;
+  fx.inventory.book += (qty * unit) / 1e6;
+  const ys = yearStats(s);
+  if (pay > 0 && o.pay === 'lease' && o.leaseRate !== undefined) {
+    // The lessor pays the vendor; you pay funded × CRF(r, 5 y) a year from delivery.
+    const years = CAPEX_LEASE.years.chips;
+    addLedger(s, { id: `L-fin-${o.id}-${s.time.day}`, payee: LESSOR, kind: 'finLease', perQuarter: (pay * crf(o.leaseRate, years)) / 4, startDay: s.time.day, endDay: s.time.day + years * 365, cancellableNoticeQ: null, penalty: 0, rate: o.leaseRate });
+    ys.spvFinanced += pay;
+    ys.capexChipsFinanced = (ys.capexChipsFinanced ?? 0) + pay;
+    ctx.log('finance', `${LESSOR} pays $${pay.toFixed(1)}B for delivered chips; lease $${(pay * crf(o.leaseRate, years)).toFixed(2)}B a year for ${years} years.`);
+    return advanceTranche(o);
+  }
+  if (pay > 0 && o.pay === 'loan') drawDebt(s, ctx, 'gpuTerm', Math.min(pay * DEBT_SIZING.chipLTV * DEBT_SIZING.chipHaircut, debtHeadroom(s, 'gpuTerm').max));
   if (pay > 0) {
     bookCash(s, ctx, -pay, 'compute', 'chip delivery', `${(qty / 1e6).toFixed(2)}M H100e`);
-    yearStats(s).capexChips += pay;
+    ys.capexChips += pay;
   }
-  // LTA orders: next quarter's tranche stays open until ltaEndQ.
+  advanceTranche(o);
+}
+/** Tranche orders: next quarter's tranche stays open until ltaEndQ. */
+function advanceTranche(o: ChipOrder) {
   if (o.kind === 'lta' && o.delivered >= o.qty - 1 && (o.ltaEndQ ?? 0) > o.dueQ + 1) {
+    o.ltaStartQ ??= o.dueQ;
     o.dueQ += 1;
     o.delivered = 0;
   }

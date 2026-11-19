@@ -28,7 +28,7 @@ export const FINANCE_EVENTS: EventDefV2[] = [
         preview: () => ({ costs: [{ currency: 'compute', amount: -1, target: 'no new sites or chip orders for 90 days' }], gains: [{ currency: 'boardConf', amount: 10 }], exposure: [] }),
         apply: (s, ctx) => {
           ensureWs3(s);
-          for (const id of ['cmp.newSite', 'cmp.orderStandard', 'cmp.orderLTA', 'cmp.orderSpot']) s.player.finance.ws3.blockedUntil[id] = s.time.day + 90;
+          for (const id of ['cmp.newSite', 'cmp.buyChips']) s.player.finance.ws3.blockedUntil[id] = s.time.day + 90;
           ctx.bump('board.confidence', 10, 'E37 capex freeze');
         },
       },

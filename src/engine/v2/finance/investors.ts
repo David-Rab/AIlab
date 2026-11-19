@@ -5,7 +5,8 @@ import { isDivision } from '../../../data/v2/starts';
 import { payParent } from './parent';
 import { dayOfDate, decimalYear } from '../core/time';
 import type { CapitalMarkets, EngineSystem, GameStateV2, Money, SystemCtx } from '../types';
-import { covenantsBreached, ratingOf, ratingScore, revolverCap, rollMaturities } from './debt';
+import { covenantsBreached, ratingOf, ratingScore, rollMaturities } from './debt';
+import { publicFrontier } from './observe';
 import { closePendingRound, valuationNow } from './equity';
 import { defaultCapitalWS3, ensureWs3, yearStats } from './ext';
 import { commitmentsPerYear, bookCash } from './ledger';
@@ -68,17 +69,6 @@ export function poolShare(s: GameStateV2): number {
   return me / (me + others);
 }
 
-/** Frontier level visible to markets: best public model (player deployments, rival public models). */
-function publicFrontierL(s: GameStateV2): number {
-  let L = 0;
-  for (const d of s.player.deployments) {
-    if (d.status === 'withdrawn' || d.channel === 'internal') continue;
-    const v = s.player.models.versions.find((x) => x.id === d.versionId);
-    if (v) L = Math.max(L, v.evals.measuredL ?? v.Lg);
-  }
-  for (const r of s.rivals) if (r.publicModel) L = Math.max(L, r.publicModel.Lg);
-  return L;
-}
 
 /** Markets' initial expected public-frontier pace, levels per quarter (the 2025–26 reference release path) [D, M4]. */
 export const EXPECTED_DL_Q = 0.3;
@@ -89,7 +79,7 @@ export const EXPECT_ADAPT = 0.1;
 function updateHype(s: GameStateV2, gSector: number) {
   const c = s.capital;
   const w = c.ws3;
-  const L = publicFrontierL(s);
+  const L = publicFrontier(s);
   // Surprise = the public frontier's pace over the last four quarters against the expected pace (M4: releases are
   // lumpy, so a one-quarter difference read every quiet quarter as a disappointment) [D].
   const hist = (w.frontierHist ??= []);
@@ -174,6 +164,9 @@ export const capitalQSystem: EngineSystem = {
 
     // Quarter accumulators → operating cash flow and capex history.
     fx.opCashQ = fx.accQ.revenue - fx.accQ.opCosts;
+    const ocf = (fx.opCash4q ??= []);
+    ocf.push(fx.opCashQ);
+    if (ocf.length > 4) ocf.shift();
     fx.accQ = { revenue: 0, opCosts: 0 };
     const cum = cumulativeCapex(s);
     fx.capex4q.push(cum - fx.capexCumAtQ);
@@ -243,18 +236,14 @@ export const capitalQSystem: EngineSystem = {
     if (f.revenueHistory.length > 8) f.revenueHistory.shift();
     f.raisedLast4q = f.rounds.filter((r) => r.day > s.time.day - 365).reduce((a, r) => a + r.amount, 0);
 
-    // Debt: revolver grows with revenue unless frozen; maturities; covenants; rating.
-    const rv = f.debts.find((d) => d.kind === 'revolver');
-    if (rv && f.state !== 'distress' && f.rating !== 'closed') rv.principal = Math.max(rv.principal, revolverCap(f.revenueRun));
+    // Debt: maturities, covenants, rating (spec §3). The credit line is re-sized only when you borrow (debt.ts).
     const breach = rollMaturities(s, ctx) || covenantsBreached(s, ctx);
     if (breach && f.covenantBreachDay === undefined) {
       f.covenantBreachDay = s.time.day;
       ctx.bump('board.confidence', -20, 'covenant breach');
       ctx.log('alert', 'Covenant breach: lenders can call the debt.', 4);
     } else if (!breach && f.covenantBreachDay !== undefined) delete f.covenantBreachDay;
-    let rating = ratingOf(ratingScore(s));
-    if (f.state === 'tight') rating = rating === 'BBB' ? 'BB' : rating === 'BB' ? 'B' : rating;
-    f.rating = rating;
+    f.rating = ratingOf(ratingScore(s));
   },
 };
 

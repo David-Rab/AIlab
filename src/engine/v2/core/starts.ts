@@ -5,7 +5,7 @@ import { parentBudgetYear, type StartDef } from '../../../data/v2/starts';
 import { initialBoard, SEAT_STANCE } from '../finance/board';
 import { valuationMark } from '../finance/equity';
 import { defaultFinanceWS3 } from '../finance/ext';
-import { revolverCap } from '../finance/debt';
+import { DEBT_SIZING } from '../../../data/v2/deals';
 import type { Board, CloudContract, Commitment$, FinanceState, Site } from '../types';
 import { dayOfDate } from './time';
 
@@ -56,19 +56,21 @@ export function startCompute(def: StartDef, startDate: string): StartCompute {
   return { sites, cloud, ledger };
 }
 
-/** Finance at a non-leader start: cash, revenue, a formula valuation (none for a division), ownership, a revolver
- *  sized to revenue (none for a division: the parent's treasury borrows), the start compute's ledger. */
+/** Finance at a non-leader start: cash, revenue, a formula valuation (none for a division), ownership, a credit line
+ *  sized as banks size it (3% of valuation, cap $15B; none for a division: the parent's treasury borrows), the start
+ *  compute's ledger. */
 export function startFinance(def: StartDef, c: StartCompute): FinanceState {
   const g = def.revenueRun > 0 ? def.revenueRun / Math.max(0.1, def.revenueHistory[0]) : 0.5;
   const division = def.board === 'parent';
-  const rv = revolverCap(def.revenueRun);
   // A division's first quarterly budget payment (Q3 2025) is in the starting cash (finance/parent.ts).
   const cash = def.cash + (division ? parentBudgetYear(0) / 4 : 0);
+  const valuation = division ? 0 : valuationMark(g, def.revenueRun, 1, def.narrative, 1);
+  const rv = Math.min(DEBT_SIZING.lineCap, DEBT_SIZING.lineShareOfV * valuation);
   const f: FinanceState = {
     cash,
     revenueRun: def.revenueRun,
     revenueHistory: [...def.revenueHistory],
-    valuation: division ? 0 : valuationMark(g, def.revenueRun, 1, def.narrative, 1),
+    valuation,
     ownership: { founder: def.ownership.founder, mission: 0, fin: def.ownership.fin, strat: { ...(def.ownership.strat ?? {}) }, public: 0 },
     raisedLast4q: 0,
     rounds: [],

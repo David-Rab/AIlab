@@ -627,7 +627,35 @@ ok('J1 M5: runs are named by their target', !(await page.locator('[data-panel=mo
 await nav('compute');
 await tabTo('overview');
 await wait(200);
-ok('J1 C1: order, build and rent show before → after (cash, runway)', await page.evaluate(() => ['cmp.orderStandard', 'cmp.newSite', 'cmp.cloudContract'].every((id) => /cash.*→.*runway.*→/s.test(document.querySelector(`[data-test="preview.${id}"]`)?.textContent ?? ''))));
+ok('J1 C1: buy, build and rent show before → after (cash, runway)', await page.evaluate(() => ['cmp.buyChips', 'cmp.newSite', 'cmp.rentCompute'].every((id) => /cash.*→.*runway.*→/s.test(document.querySelector(`[data-test="preview.${id}"]`)?.textContent ?? ''))));
+// FIN1 (finance v3 §3–§5): payment options on the build card, term × firmness on Buy chips / Rent compute with the
+// expected price path, the rating with its terms and each debt instrument's limit on Finance.
+{
+  ok('FIN1: the build card compares payment options (cash, lease) on total cost', !!(await page.$('[data-panel=compute] [data-opt="site-pay-cash"]')) && !!(await page.$('[data-panel=compute] [data-opt="site-pay-lease"]')));
+  const leaseOpen = !(await page.$('[data-panel=compute] [data-opt="site-pay-lease"][disabled]'));
+  if (leaseOpen) {
+    await check('FIN1: choosing the lease changes the build preview', `document.querySelector('[data-test="preview.cmp.newSite"]')?.textContent ?? ''`, () => page.click('[data-panel=compute] [data-opt="site-pay-lease"]'), 400);
+    ok('FIN1: the lease preview shows the yearly lease from go-live', /lease per year/.test(await page.evaluate(() => document.querySelector('[data-test="preview.cmp.newSite"]')?.textContent ?? '')));
+  } else ok('FIN1: lease locked with its reason at a closed rating', true, 'rating below B in this fixture');
+  await page.click('[data-test=opt-order]');
+  await wait(80);
+  await page.click('[data-test=chip-term] [data-opt="8"]');
+  await wait(300);
+  ok('FIN1: a 2-year chip contract shows its expected price path', !!(await page.$('[data-panel=compute] [data-test=price-path]')));
+  ok('FIN1: the 2-year chip preview lists first and last payments', /first of 8 quarterly payments/.test(await page.evaluate(() => document.querySelector('[data-test="preview.cmp.buyChips"]')?.textContent ?? '')));
+  await page.click('[data-test=chip-term] [data-opt="1"]');
+  await wait(80);
+  ok('FIN1: a single batch offers cash, lease and chip-loan payment', !!(await page.$('[data-opt="chip-pay-cash"]')) && !!(await page.$('[data-opt="chip-pay-lease"]')) && !!(await page.$('[data-opt="chip-pay-loan"]')));
+  await shot('52-fin1-compute-cards');
+  await nav('finance');
+  await page.click('[data-tabs=finance] [data-tab=deals]'); await wait(80);
+  ok('FIN1: the debt card shows the rating score by term', /score .*cash flow.*liquidity.*leverage/.test(await page.evaluate(() => document.querySelector('[data-test=rating-terms]')?.textContent ?? '')));
+  ok('FIN1: every debt instrument shows its limit and rule', (await page.$$('[data-panel=finance] [data-debt-kind]')).length === 3 && !!(await page.$('[data-panel=finance] [data-limit^="debt."]')));
+  ok('FIN1: leases and residual-value guarantees show on the debt card', /guarantees/.test(await page.evaluate(() => document.querySelector('[data-test=lease-terms]')?.textContent ?? '')));
+  await shot('53-fin1-debt');
+  await nav('compute');
+  await tabTo('overview');
+}
 // J2: engineers' load, spare serving, days cut, same-lineage monitors, risk lever what-ifs, launches on the build queue.
 await nav('company');
 await tabTo('people');

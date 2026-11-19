@@ -27,7 +27,6 @@ export const RELATION_ACTION_META: ActionMeta[] = [
   { id: 'E1', title: 'Track-2 dialogue', group: 'E' },
   { id: 'E2', title: 'Gov-gov agreement', group: 'E' },
   { id: 'E3', title: 'Lobby export controls', group: 'E' },
-  { id: 'F1', title: 'Community benefits', group: 'F' },
   { id: 'F3', title: 'No drop-in agents', group: 'F' },
   // Security sphere (§3.6) and Retire (§5.1 #10).
   { id: 'SEC_TARGET', title: 'Security target', group: 'S' },

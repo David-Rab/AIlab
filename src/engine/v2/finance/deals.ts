@@ -33,7 +33,7 @@ export function dealBlocker(s: GameStateV2, template: Template, partner: string)
   const v = vetoesOf(s, partner);
   if (v.length) return `${v[0]}'s board seat vetoes deals with ${partner}`;
   const f = s.player.finance;
-  if ((f.state === 'distress' || f.state === 'insolvent') && template !== 'neocloud' && template !== 'vendorFinance') return 'Distress: only a rescue is on offer';
+  if ((f.state === 'distress' || f.state === 'insolvent') && template !== 'vendorFinance') return 'Distress: only a rescue is on offer';
   return undefined;
 }
 
@@ -49,7 +49,7 @@ export function dealTerms(s: GameStateV2, template: Template, partner: string, r
   const R = f.revenueRun;
   const kW = s.power.kWPerH100e;
   const tpl = DEAL_TEMPLATES.find((t) => t.id === template)!;
-  const base = { template, partner, equityNow: 0, equityLater: 0, commitPerQ: 0, commitQ: 0, h100e: 0, unitPrice: 0, siteShare: 0, strings: { ...tpl.strings }, rescue };
+  const base = { template, partner, equityNow: 0, equityLater: 0, commitPerQ: 0, commitQ: 0, h100e: 0, unitPrice: 0, strings: { ...tpl.strings }, rescue };
   if (rescue) {
     const burn = Math.max(0, runwayOf(s).burnQ);
     // Distressed price: about half of the mark for the stake, sized to ~2 quarters of burn [D].
@@ -83,16 +83,6 @@ export function dealTerms(s: GameStateV2, template: Template, partner: string, r
       const t = DEAL_TERMS.sovereign;
       return { ...base, equityNow: Math.max(t.min, Math.min(t.max, t.equityShareOfV * V)) };
     }
-    case 'spv':
-      return { ...base, siteShare: DEAL_TERMS.spv.share };
-    case 'neocloud': {
-      const t = DEAL_TERMS.neocloud;
-      const h = Math.max(0.2e6, Math.min(3e6, 0.25 * s.player.computeOnline));
-      const price = cloudPricePerYear(s) * t.priceMult;
-      return { ...base, commitPerQ: (h * price) / 1e6 / 4, commitQ: t.quarters, h100e: h, unitPrice: price };
-    }
-    case 'megaJV':
-      return { ...base, siteShare: DEAL_TERMS.megaJV.share };
   }
 }
 
@@ -118,7 +108,7 @@ export function rescueOffer(s: GameStateV2): DealOffer | undefined {
 
 /** Accept a deal (equity, take-or-pay, board seat, exclusivity). Uses a matching open offer if there is one, else
  *  today's terms. Returns an error string if blocked (veto, anchor, board). */
-export function acceptDeal(s: GameStateV2, ctx: SystemCtx, template: Template, partner: string, opts: { offerId?: string; siteId?: string; force?: boolean } = {}): string | undefined {
+export function acceptDeal(s: GameStateV2, ctx: SystemCtx, template: Template, partner: string, opts: { offerId?: string; force?: boolean } = {}): string | undefined {
   ensureWs3(s);
   const f = s.player.finance;
   const fx = f.ws3;
@@ -165,12 +155,13 @@ export function acceptDeal(s: GameStateV2, ctx: SystemCtx, template: Template, p
           f.tranches.push({ amount: half, dueDay: dayOfQuarter(s.time.startDate, q + 2), condition: `gw:${(gw + 0.5).toFixed(1)}`, deadline: dayOfQuarter(s.time.startDate, q + 8), source: `${partner} tranche 2` });
           f.tranches.push({ amount: half, dueDay: dayOfQuarter(s.time.startDate, q + 4), condition: `gw:${(gw + 1.5).toFixed(1)}`, deadline: dayOfQuarter(s.time.startDate, q + 10), source: `${partner} tranche 3` });
         }
-        addCloud(s, ctx, t.h100e, t.commitQ / 4, partner);
+        // The partner's own take-or-pay price, flat (FIN4 rebuilds partner deals on the expected path).
+        addCloud(s, ctx, t.h100e, t.commitQ, partner, { flatPerH: t.unitPrice });
         break;
       case 'customASIC':
       case 'chipVendorEquity': {
         const id = `LTA${q}-${s.time.day}-${s.player.orders.length}`;
-        s.player.orders.push({ id, lab: 'player', qty: t.h100e, kind: 'lta', price: t.unitPrice, deposit: 0, dueQ: q + 2, ltaEndQ: q + 2 + t.commitQ, prepayFrac: 0, nonTW: false, delivered: 0 });
+        s.player.orders.push({ id, lab: 'player', qty: t.h100e, kind: 'lta', price: t.unitPrice, deposit: 0, dueQ: q + 2, ltaStartQ: q + 2, ltaEndQ: q + 2 + t.commitQ, prepayFrac: 0, nonTW: false, delivered: 0, firm: true });
         addLedger(s, { payee: partner, kind: 'lta', perQuarter: t.commitPerQ, startDay: dayOfQuarter(s.time.startDate, q + 2), endDay: dayOfQuarter(s.time.startDate, q + 2 + t.commitQ), cancellableNoticeQ: null, penalty: 0 });
         if (template === 'customASIC') {
           // Separate supply pool (TPU/Trainium): served outside rationing; migration slows research 2–3 quarters [R15].
@@ -194,20 +185,6 @@ export function acceptDeal(s: GameStateV2, ctx: SystemCtx, template: Template, p
         ctx.bump('relations.scrutiny', 5, 'Gulf deal');
         ctx.bump('trust:congress', -5, 'Gulf deal');
         ctx.bump('gov.securityDemand', 3, 'Gulf deal');
-        break;
-      case 'spv': {
-        const targets = s.player.sites.filter((x) => (opts.siteId ? x.id === opts.siteId : x.stage === 'permitting' || x.stage === 'power') && x.spvFunded === 0 && x.path !== 'lease' && x.stage !== 'live' && x.stage !== 'blocked');
-        for (const x of targets) {
-          x.spvFunded = t.siteShare;
-          x.ws3.financedBy = partner;
-        }
-        break;
-      }
-      case 'neocloud':
-        addCloud(s, ctx, t.h100e, t.commitQ / 4, partner, { priceMult: DEAL_TERMS.neocloud.priceMult });
-        break;
-      case 'megaJV':
-        fx.jv = { partner, share: t.siteShare, untilDay: s.time.day + DEAL_TERMS.megaJV.years * 365 };
         break;
     }
   }

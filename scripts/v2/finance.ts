@@ -5,13 +5,16 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { BASELINES, globalCompute } from '../../src/data/world';
-import { DEAL_TEMPLATES } from '../../src/data/v2/deals';
+import { CAPEX_LEASE, DEAL_TEMPLATES } from '../../src/data/v2/deals';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
-import { makeCtx, resolve, tick } from '../../src/engine/v2/core/loop';
+import { act, makeCtx, resolve, tick } from '../../src/engine/v2/core/loop';
 import { deserialize } from '../../src/engine/v2/core/save';
 import { cadencesDue, dayOfDate, decimalYear } from '../../src/engine/v2/core/time';
-import { demandShock, impliedMargin, rentalBase, spotRental } from '../../src/engine/v2/compute/market';
-import { newSite } from '../../src/engine/v2/compute/sites';
+import { cloudPricePerYear, demandShock, impliedMargin, orderWeight, rentalBase, repriceCancellableCloud, spotRental } from '../../src/engine/v2/compute/market';
+import { chipQuote, rentQuote } from '../../src/engine/v2/compute/orders';
+import { newSite, oppositionOdds, reactiveUnblockOdds } from '../../src/engine/v2/compute/sites';
+import { crf, siteLeaseId, siteRVG } from '../../src/engine/v2/finance/capex';
+import { creditLineCapacity, debtHeadroom, drawDebt, ratingOf, ratingTerms } from '../../src/engine/v2/finance/debt';
 import { FINANCE_ACTIONS } from '../../src/engine/v2/finance/actions';
 import { acceptRepriced, closePendingRound, dMax, raiseCeiling, REPRICED_DECIDE_DAYS, valuationMark } from '../../src/engine/v2/finance/equity';
 import { FINANCE_EVENTS } from '../../src/engine/v2/finance/events';
@@ -39,6 +42,7 @@ const median = (xs: number[]) => {
 };
 const share = (xs: boolean[]) => xs.filter(Boolean).length / Math.max(1, xs.length);
 const f1 = (x: number) => x.toFixed(1);
+const F1pct = (x: number) => `${Math.round(x * 100)}%`;
 
 interface QRow { day: number; year: number; shipped: number; stock: number; margin: number; supply: number }
 interface Run { s: GameStateV2; q: QRow[]; firstDistress: number; gw2026: number; v2026: number }
@@ -129,7 +133,8 @@ function shockRun(baseMult: number, mult: number, atQ: number, nQ = 16) {
 const STRATEGIC = new Set(DEAL_TEMPLATES.filter((t) => t.strategic).map((t) => t.id));
 const ref = SEEDS.map((seed) => runBot(seed, REF_AUTOPILOT, END_2027));
 const y26 = ref.map((r) => r.s.player.finance.ws3.years['2026']);
-const capex = y26.map((y) => y.capexChips + y.capexSites + y.capexSitesFinanced + y.supplierFunding);
+// FIN1: chips a lessor paid at delivery count as capex too (supplier funding is gone, its tally stays 0).
+const capex = y26.map((y) => y.capexChips + (y.capexChipsFinanced ?? 0) + y.capexSites + y.capexSitesFinanced + y.supplierFunding);
 const med = { rev: median(y26.map((y) => y.revenue)), capex: median(capex), compute: median(y26.map((y) => y.computeCosts)), gw: median(ref.map((r) => r.gw2026)), v: median(ref.map((r) => r.v2026)) };
 check(med.rev >= 36 && med.rev <= 54, 'F7 RefBot 2026 revenue $45B (±20%)', `median $${f1(med.rev)}B`);
 check(med.capex >= 150 && med.capex <= 250, 'F7 RefBot 2026 capex $200B (±25%)', `median $${f1(med.capex)}B (range ${f1(Math.min(...capex))}–${f1(Math.max(...capex))})`);
@@ -142,7 +147,7 @@ const funded = ref.map((r) => {
   const deal = r.s.player.finance.deals.some((d) => STRATEGIC.has(d.template) && d.day >= 0 && d.day < END_2026);
   return { deal, fin: y.spvFinanced + y.leaseFinanced + y.cloudFinanced };
 });
-check(share(funded.map((x) => x.deal && x.fin >= 50)) >= 0.8, 'F8 RefBot takes ≥ 1 strategic deal and ≥ $50B SPV/lease/neocloud financing in 2026 (≥ 80% of seeds)', `${share(funded.map((x) => x.deal && x.fin >= 50)) * 100}% · median financing $${f1(median(funded.map((x) => x.fin)))}B`);
+check(share(funded.map((x) => x.deal && x.fin >= 50)) >= 0.8, 'F8 RefBot takes ≥ 1 strategic deal and ≥ $50B lease/colocation/cloud financing in 2026 (≥ 80% of seeds)', `${share(funded.map((x) => x.deal && x.fin >= 50)) * 100}% · median financing $${f1(median(funded.map((x) => x.fin)))}B`);
 check(share(ref.map((r) => r.firstDistress < 0 || r.firstDistress >= END_2026)) >= 0.75, 'F8 RefBot stays out of distress through 2026 (≥ 75% of seeds)', `${f1(share(ref.map((r) => r.firstDistress < 0 || r.firstDistress >= END_2026)) * 100)}%`);
 const bare: AutopilotOpts = { ...REF_AUTOPILOT, strategic: false, offBalance: false, guard: false, rescue: false };
 const none = SEEDS.map((seed) => runBot(seed, bare, END_Q1_2027));
@@ -256,6 +261,86 @@ for (const a of FINANCE_ACTIONS) {
   closePendingRound(b, makeCtx(b));
   for (let i = 0; i <= REPRICED_DECIDE_DAYS; i++) tick(b, { skip: ['endings'] });
   check(!b.player.finance.ws3.repricedRound && b.player.finance.rounds.length === m0, `R1 an undecided repriced round is pulled after ${REPRICED_DECIDE_DAYS} days`);
+}
+
+// ───────────────────────────── FIN1: debt, rating, capex payment, contracts, community (FINANCE-V3 §3–§5) ─────────────────────────────
+{
+  const fx = () => deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
+  // Leases recover full cost plus a return priced by the rating (the old SPV repaid 48% of what it funded).
+  const recovered = (['BBB', 'BB', 'B'] as const).map((r) => crf(CAPEX_LEASE.rate[r] as number, CAPEX_LEASE.years.site) * CAPEX_LEASE.years.site);
+  check(recovered.every((x) => x > 1) && recovered[0] < recovered[1] && recovered[1] < recovered[2], 'FIN1 a site lease repays funded × CRF(r, 15 y): more than it funded, more at a worse rating', recovered.map((x) => `${f1(x * 100)}%`).join(' / '));
+  {
+    const s = fx();
+    s.player.finance.rating = 'closed';
+    check(typeof act(s, 'cmp.newSite', { path: 'gas', mw: 500, pay: 'lease' }) === 'string' && typeof act(s, 'cmp.buyChips', { term: 1, qty: 1e5, pay: 'lease' }) === 'string', 'FIN1 no lessor funds a site or chips below B');
+    s.player.finance.rating = 'BB';
+    const n = s.player.sites.length;
+    act(s, 'cmp.newSite', { path: 'gas', mw: 500, pay: 'lease' });
+    const x = s.player.sites[n];
+    check(!!x && x.spvFunded === CAPEX_LEASE.siteShare && x.ws3.lease?.rate === CAPEX_LEASE.rate.BB, 'FIN1 a leased site: 80% funded by the lessor at the rating\'s rate (BB 9%)', x ? `share ${x.spvFunded}, rate ${x.ws3.lease?.rate}` : 'no site');
+    if (x) {
+      x.stage = 'building';
+      x.stageEndDay = s.time.day + 1;
+      const funded0 = x.ws3.lease?.funded ?? 0;
+      while ((x.stage as string) !== 'live' && s.time.day < 400 + 200) tick(s, { skip: ['endings'] });
+      const l = s.player.finance.ledger.find((c) => c.id === siteLeaseId(x.id));
+      const funded = x.ws3.lease?.funded ?? 0;
+      check(!!l && l.kind === 'finLease' && Math.abs(l.perQuarter * 4 - funded * crf(0.09, 15)) < 1e-6 && funded >= x.capex * 0.8 - 1e-6 && funded > funded0, 'FIN1 at go-live the lease is funded (capex share + construction interest) × CRF a year for 15 years', l ? `funded $${f1(funded)}B of $${f1(x.capex)}B capex · $${(l.perQuarter * 4).toFixed(2)}B/yr · RVG $${f1(siteRVG(s, x.id))}B` : 'no lease entry');
+    }
+  }
+  {
+    // Credit line: 3% of valuation, cap $15B, sized only when you borrow.
+    const s = newGame(defaultSetupV2({ seed: 4 }));
+    const rv0 = s.player.finance.debts.find((d) => d.kind === 'revolver')!.principal;
+    while (s.time.day < 200) tick(s, { skip: ['endings'] });
+    const rv = s.player.finance.debts.find((d) => d.kind === 'revolver')!;
+    check(rv.drawn > 0 || rv.principal === rv0, 'FIN1 the credit line does not grow by itself (no borrowing, no round)', `$${f1(rv0)}B → $${f1(rv.principal)}B`);
+    const cap = creditLineCapacity(s);
+    s.player.finance.state = 'healthy';
+    s.player.finance.rating = 'BB';
+    drawDebt(s, makeCtx(s), 'revolver', 1);
+    check(Math.abs(cap - Math.min(15, 0.03 * s.player.finance.valuation)) < 1e-9 && Math.abs(rv.principal - Math.max(rv.drawn, cap)) < 1e-9, 'FIN1 borrowing re-sizes the line to 3% of valuation, cap $15B', `V $${f1(s.player.finance.valuation)}B → line $${f1(rv.principal)}B`);
+  }
+  {
+    // A cash-burning lab: no bonds, chip loans open, not investment grade while it carries debt or commitments (FC5).
+    const s = fx();
+    s.player.finance.ws3.opCash4q = [-5, -6, -7, -8];
+    s.player.finance.state = 'healthy';
+    const r = ratingTerms(s);
+    const bond = debtHeadroom(s, 'bond');
+    const chips = debtHeadroom(s, 'gpuTerm');
+    check(bond.closed === true && !chips.closed && r.cashFlow === 0 && (r.leverage <= 0 || ratingOf(r.z) !== 'BBB'), 'FIN1 a cash-burning lab: no bonds, chip loans open, rated below BBB (FC5)', `z ${r.z.toFixed(2)} (${ratingOf(r.z)}) · chip loan room $${f1(chips.max)}B · bond: ${bond.why}`);
+    s.player.finance.ws3.opCash4q = [5, 6, 7, 8];
+    const b2 = debtHeadroom(s, 'bond');
+    check(Math.abs(b2.limit - 3 * 26) < 1e-9, 'FIN1 bonds ≤ 3× trailing operating cash flow', `limit $${f1(b2.limit)}B on $26B`);
+  }
+  {
+    // Firm contracts follow the expected path; cancellable is spot-indexed and re-priced; firm gets priority.
+    const s = fx();
+    const q = rentQuote(s, 1e6, 16, true);
+    const flat = (1e6 * cloudPricePerYear(s)) / 1e6 / 4;
+    const falling = q.perQ.every((x, i) => i === 0 || x <= q.perQ[i - 1] + 1e-9);
+    check(falling && q.discount === 0.1 && q.total < 16 * flat, 'FIN1 a 4-year firm cloud contract pays the expected path −10%: falling payments, below today\'s price × 16', `first $${q.perQ[0].toFixed(2)}B → last $${q.perQ[15].toFixed(2)}B a quarter; total $${f1(q.total)}B vs flat $${f1(16 * flat)}B`);
+    act(s, 'cmp.rentCompute', { h100e: 2e5, term: 4, firm: false });
+    const c = s.player.cloud[s.player.cloud.length - 1];
+    s.market.rental *= 1.5;
+    repriceCancellableCloud(s);
+    const l = s.player.finance.ledger.find((x) => x.id === `L-${c.id}`)!;
+    check(c.cancellableNoticeQ === 1 && Math.abs(l.perQuarter - (2e5 * s.market.rental * 8760 * 1.15) / 1e9 / 4) < 1e-9, 'FIN1 cancellable cloud is spot-indexed × 1.15, re-priced each quarter');
+    const tr = chipQuote(s, 8, 1e5);
+    check(tr.prices!.every((x, i) => i === 0 || x <= tr.prices![i - 1] + 1e-9) && tr.discount === 0.05 && orderWeight(s, true, 0) > orderWeight(s, false, 0), 'FIN1 two-year chip supply: expected-path prices −5%, firm orders get rationing priority', `$${tr.prices![0].toFixed(1)}K → $${tr.prices![7].toFixed(1)}K`);
+  }
+  {
+    // Community: the company default packages every new site; E27's reactive package is 15% of capex with odds.
+    const s = fx();
+    s.player.policies.communityBenefits = false;
+    act(s, 'cmp.community', {});
+    const n = s.player.sites.length;
+    act(s, 'cmp.newSite', { path: 'gas', mw: 500 });
+    check(s.player.policies.communityBenefits && !!s.player.sites[n]?.communityPackage, 'FIN1 community package as the company default: new sites carry it');
+    const p = reactiveUnblockOdds(s);
+    check(p >= 0.3 && p <= 0.85 && oppositionOdds(s, { path: 'gas', crash: false, communityPackage: true, ws3: { reactive: true } }).block === 1 - p, 'FIN1 E27 reactive package: re-permit with unblock odds 0.85 − 0.5 × opposition', `odds ${F1pct(p)} at dcNimby ${f1(s.pub.dcNimby)}`);
+  }
 }
 
 console.log(`finance: ${FINANCE_ACTIONS.length} actions (${applied} applied on day400), ${FINANCE_EVENTS.length} events`);

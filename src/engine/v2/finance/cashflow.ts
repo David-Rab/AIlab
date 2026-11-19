@@ -10,33 +10,22 @@
 import { isDivision } from '../../../data/v2/starts';
 import { payrollOf } from '../departments/teams';
 import { powerAndOMPerYear } from '../compute/power';
-import { revenueOf } from '../worldfx/revenue';
 import type { Commitment$, EngineSystem, GameStateV2, SystemCtx } from '../types';
-import { debtHeadroom, drawDebt, interestPerYear } from './debt';
+import { drawDebt, interestPerYear, lineUndrawn } from './debt';
 import { expireRepriced } from './equity';
 import { ensureWs3, yearStats } from './ext';
 import { bookCash, ledgerPaying } from './ledger';
+import { deploymentRevenue } from './observe';
 import { runwayOf } from './runway';
-
-/** Revenue run-rate implied by WS5's deployments, or undefined while WS5 has not priced any deployment. */
-export function deploymentRevenue(s: GameStateV2): number | undefined {
-  let any = false;
-  let sum = 0;
-  for (const d of s.player.deployments) {
-    if (d.revenueRate === undefined) continue;
-    any = true;
-    if (d.status !== 'withdrawn') sum += revenueOf(s, d.id);
-  }
-  return any ? sum : undefined;
-}
 
 /** Insolvency grace: cash may sit below zero this many days (after the revolver) before the company fails [D]. */
 export const INSOLVENCY_GRACE_DAYS = 30;
 
-/** Cover negative cash with the revolver; flag insolvency after the grace period. */
+/** Cover negative cash with the credit line as arranged (not re-sized: that needs a borrowing decision); flag
+ *  insolvency after the grace period. */
 export function checkSolvency(s: GameStateV2, ctx: SystemCtx): void {
   const f = s.player.finance;
-  if (f.cash < 0 && debtHeadroom(s, 'revolver').max > 0) drawDebt(s, ctx, 'revolver', -f.cash + 0.5);
+  if (f.cash < 0 && f.rating !== 'closed' && lineUndrawn(s) > 0) drawDebt(s, ctx, 'revolver', -f.cash + 0.5, { arrangedOnly: true });
   if (f.cash >= 0) {
     delete f.ws3.negativeSinceDay;
     return;
@@ -79,7 +68,7 @@ export const opexSystem: EngineSystem = {
   },
 };
 
-const KIND_LABEL: Record<Commitment$['kind'], string> = { cloud: 'cloud contracts', lta: 'chip LTAs', lease: 'leases', spvRVG: 'SPV leases', vendor: 'vendor notes', power: 'power contracts' };
+const KIND_LABEL: Record<Commitment$['kind'], string> = { cloud: 'cloud contracts', lta: 'chip supply contracts', lease: 'colocation leases', finLease: 'financing leases', vendor: 'vendor notes', power: 'power contracts' };
 
 /** payroll (300, monthly): payroll, security spend, transition fund, revenue share, ledger instalments; expire
  *  finished contracts; refresh the runway readout. */

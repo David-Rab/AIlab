@@ -3,7 +3,7 @@
 // Tags: [R15] = research/15 (primary sources there), [AI27] = research/02, [D] = design/balance value (tunable).
 import type { BoardSeat, Debt, Site, StrategicDeal } from '../../engine/v2/types';
 
-export type PartnerKind = 'hyperscaler' | 'chipVendor' | 'sovereign' | 'neocloud' | 'financial' | 'conglomerate';
+export type PartnerKind = 'hyperscaler' | 'chipVendor' | 'sovereign';
 
 export interface DealTemplate {
   id: StrategicDeal['template'];
@@ -12,7 +12,7 @@ export interface DealTemplate {
   strings: StrategicDeal['strings'];
   /** Board seat the partner gets (observer = weight 0). */
   seat?: { kind: BoardSeat['kind']; weight: number };
-  /** Counts as a strategic deal for test F8 (SPV / neocloud are financing, not strategic). */
+  /** Counts as a strategic deal for test F8 (vendor financing is financing, not strategic). */
   strategic: boolean;
   blurb: string;
 }
@@ -48,25 +48,9 @@ export const DEAL_TEMPLATES: DealTemplate[] = [
     // MGX, QIA, GIC in Stargate / OpenAI / Anthropic G / xAI E; UAE "enhanced favorable treatment" 91 FR 43034 [R15]
     blurb: 'Large equity cheque; you must build a site in-country. Washington notices.',
   },
-  {
-    id: 'spv', name: 'Project-finance SPV', partnerKinds: ['financial'], strategic: false,
-    strings: {},
-    // Meta–Blue Owl Hyperion: ~$27B, 80/20, 4-year lease + 16-year residual value guarantee [R15]
-    blurb: 'Outside capital funds 80% of a site; you lease it back and guarantee its residual value.',
-  },
-  {
-    id: 'neocloud', name: 'Neocloud take-or-pay', partnerKinds: ['neocloud'], strategic: false,
-    strings: {},
-    // CoreWeave DDTL secured by an OpenAI contract at SOFR+400, then +550 [R15]
-    blurb: 'Compute in a quarter, no capex; multi-year non-cancellable.',
-  },
-  {
-    id: 'megaJV', name: 'Mega-JV', partnerKinds: ['conglomerate'], strategic: true,
-    strings: { boardSeat: true }, seat: { kind: 'strategic', weight: 1 },
-    // Stargate: $500B over 4 years; SoftBank financial, OpenAI operational [R15]
-    blurb: 'Partners fund half of every new site for two years; they share control and take a board seat.',
-  },
 ];
+// FIN1 (spec §4, §5): the project-finance SPV is now the lease payment option on the build card (finance/capex.ts),
+// the neocloud a provider on the Rent compute card, and the mega-JV is removed.
 
 export interface Partner { id: string; kind: PartnerKind; competitors: string[]; templates: StrategicDeal['template'][] }
 
@@ -77,10 +61,12 @@ export const PARTNER_DEFS: Partner[] = [
   { id: 'Silica Systems', kind: 'chipVendor', competitors: ['Corvid Micro'], templates: ['chipVendorEquity', 'vendorFinance'] }, // Nvidia-like
   { id: 'Corvid Micro', kind: 'chipVendor', competitors: ['Silica Systems'], templates: ['chipVendorEquity'] }, // AMD-like (warrants)
   { id: 'Gulf Sovereign Fund', kind: 'sovereign', competitors: [], templates: ['sovereign'] }, // MGX/QIA-like
-  { id: 'Vantage Neocloud', kind: 'neocloud', competitors: [], templates: ['neocloud'] }, // CoreWeave-like
-  { id: 'Keystone Capital', kind: 'financial', competitors: [], templates: ['spv'] }, // Blue Owl-like
-  { id: 'Meridian Group', kind: 'conglomerate', competitors: [], templates: ['megaJV'] }, // SoftBank-like
 ];
+/** Default provider on the Rent compute card: a neocloud (CoreWeave-like). Neoclouds are providers, not deals (FIN1,
+ *  spec §5). */
+export const NEOCLOUD = 'Vantage Neocloud';
+/** Lessor that funds financing leases of sites and chips (Blue Owl-like; Meta–Blue Owl Hyperion [R15]). */
+export const LESSOR = 'Keystone Capital';
 export const PARTNERS = PARTNER_DEFS.map((p) => p.id);
 export const partnerDef = (id: string) => PARTNER_DEFS.find((p) => p.id === id);
 
@@ -91,22 +77,44 @@ export const DEAL_TERMS = {
   vendorEquity: { perGW: 10, gw: 2, quarters: 8 }, // $10B per GW deployed [R15]
   vendorNote: { revenueMult: 0.4, max: 25, spreadBp: 300, years: 5 }, // Broadcom $42B, Amazon $15B, Google $20B [R15]
   sovereign: { equityShareOfV: 0.025, min: 5, max: 25, siteMW: 1000 },
-  spv: { share: 0.8, leaseRate: 0.12, rvgShare: 0.5, years: 4 }, // 80/20, 4 y lease + RVG [R15]
-  neocloud: { priceMult: 1.1, quarters: 16 },
-  megaJV: { share: 0.5, years: 2, leaseRate: 0.1 },
   rescue: { stake: 0.3, minCash: 20 },
   offerDays: 60,
 };
 
-/** Debt instruments (R15 §1.7). */
+/** Debt instruments (R15 §1.7; FIN1 spec §3). `spreadBp` is the default; credit lines, chip loans and bonds are priced
+ *  by rating (tables below). */
 export const DEBT_TERMS: Record<Debt['kind'], { spreadBp: number; years: number; note: string }> = {
-  revolver: { spreadBp: 200, years: 5, note: '≤ min(0.33·R, $15B); liquidity ≥ max($1B, 0.11·R) each quarter end' }, // SOFR+150–250 [R15 Design]
-  gpuTerm: { spreadBp: 475, years: 4, note: 'LTV 50–70% of chip book; collateral < 1.2× loan → cash sweep' }, // CoreWeave DDTL SOFR+400–550 [R15]
-  bond: { spreadBp: 150, years: 10, note: 'Only R > $50B or public; ≤ 1×R; y10 + spread(rating)' }, // Oracle 4.45–6.85% [R15]
+  revolver: { spreadBp: 200, years: 5, note: '3% of valuation, cap $15B; cash ≥ ⅓ of the line at quarter ends' }, // SOFR+150–250 [R15 Design]
+  gpuTerm: { spreadBp: 475, years: 4, note: '≤ 60% of chip value; collateral < 1.2× loan → cash sweep' }, // CoreWeave DDTL SOFR+400–550 [R15]
+  bond: { spreadBp: 150, years: 10, note: 'Only with positive trailing operating cash flow; ≤ 3× it; y10 + spread(rating)' }, // Oracle 4.45–6.85% [R15]
   vendorNote: { spreadBp: 300, years: 5, note: 'Converts at IPO; counts as a commitment' },
 };
+export type RatingId = 'BBB' | 'BB' | 'B' | 'closed';
 /** Bond spread over y10 by rating (bp) [R15]; BB/B are SOFR-based in R15, mapped onto y10 here [D]. */
-export const RATING_SPREAD_BP: Record<'BBB' | 'BB' | 'B' | 'closed', number> = { BBB: 125, BB: 450, B: 750, closed: 1200 };
+export const RATING_SPREAD_BP: Record<RatingId, number> = { BBB: 125, BB: 450, B: 750, closed: 1200 };
+/** Credit-line spread over SOFR by rating (bp): SOFR + 150–250 [R15 Design], wider when closed [D]. */
+export const REVOLVER_SPREAD_BP: Record<RatingId, number> = { BBB: 150, BB: 200, B: 250, closed: 350 };
+/** Chip-backed loan spread over SOFR by rating (bp): CoreWeave DDTL SOFR + 400, then + 550 [R15]; mapped by rating [D]. */
+export const CHIP_LOAN_SPREAD_BP: Record<RatingId, number> = { BBB: 400, BB: 475, B: 550, closed: 550 };
+/** Debt sizing (FIN1, spec §3). Credit line ≈ 2–4% of valuation, cap $15B [fit: OpenAI $4B at $157B, Anthropic $15B
+ *  at ~$380B+]; covenant: cash ≥ ⅓ of the line at quarter ends while drawn (Anthropic $5B on $15B [R15]). Chip loan
+ *  ≤ 60% of chip collateral (installed and stocked chips at 70% of today's list price for used hardware [D]); cash
+ *  sweep below 1.2× [R15]. Bonds ≤ 3× trailing operating cash flow, only while it is positive [D]. */
+export const DEBT_SIZING = { lineShareOfV: 0.03, lineCap: 15, lineLiquidity: 1 / 3, chipLTV: 0.6, chipHaircut: 0.7, chipSweep: 1.2, bondOcfMult: 3 } as const;
+/** Financing leases of capex (FIN1, spec §4): a lessor funds the capex and you pay funded × CRF(r, n) a year. r by
+ *  rating (BBB 7% · BB 9% · B 12% [D]; none below B), n = 15 y sites, 5 y chips [D]. A site lease funds 80% of capex
+ *  (Meta–Blue Owl Hyperion 80/20 [R15]); a chip lease funds the balance due on delivery. Residual-value guarantee:
+ *  50% of the unamortised balance if you walk away [D], a contingent liability. */
+export const CAPEX_LEASE = { rate: { BBB: 0.07, BB: 0.09, B: 0.12 } as Partial<Record<RatingId, number>>, years: { site: 15, chips: 5 }, siteShare: 0.8, rvgShare: 0.5 } as const;
+/** Firm contracts (FIN1, spec §5): priced on the expected market path × (1 − discount): 5% for ≥ 2 years, 10% for
+ *  ≥ 4 years [D]. Cancellable cloud = spot-indexed × 1.15 with 1 quarter's notice (kept). */
+export const FIRM_TERMS = { discount2y: 0.05, discount4y: 0.1, cancellableMult: 1.15, noticeQ: 1 } as const;
+/** Firm discount for a contract of `quarters`. */
+export const firmDiscount = (quarters: number) => (quarters >= 16 ? FIRM_TERMS.discount4y : quarters >= 8 ? FIRM_TERMS.discount2y : 0);
+/** Community packages (FIN1, spec §4; research/16, /17). Upfront ≈ 3% of site capex halves the block odds (kept). After
+ *  a block (E27): ≈ 15% of capex and a 2-quarter permit delay; it unblocks with odds 0.85 − 0.5 × local opposition
+ *  (pub.dcNimby / 100), at least 0.3 [D]. */
+export const COMMUNITY = { upfront: 0.03, blockMult: 0.5, reactive: 0.15, reactiveDelayQ: 2, unblockBase: 0.85, unblockPerAnti: 0.5, unblockMin: 0.3 } as const;
 
 /** Site power paths (R15 §1.3). Lead times in quarters; capex $B per GW of facility power. */
 export interface PathDef {
@@ -170,10 +178,11 @@ export const MARKET = {
   cloudMult: 1.6, // cloud / rental = 1.6× owned TCO [R15]
   chipLifeY: 4, facilityLifeY: 14, wacc: 0.08,
   networkShare: 0.23, // network $4.9B vs servers $21.2B per GW IT (Epoch) [R15]
-  ltaDiscount: 0.95, nonTWPremium: 1.3, spotPremiumShare: 0.5,
-  fundSupplierPer100k: 1.0, // $1.0B per +100k H100e/q of packaging [R15 Design]
+  nonTWPremium: 1.3, spotPremiumShare: 0.5,
+  // Expected path (FIN1, spec §5): at D/S = 1 the premium update π' = π − 0.25π decays by 0.75 a quarter [R15 §1.2].
+  premiumReversionQ: 0.75,
   inventoryDecayQ: 0.06, // idle chips lose 6%/q [R15]
-  rationW: { lta: 0.5, prepay: 0.5, strategic: 0.5, track: 0.3 }, // [R15]
+  rationW: { firm: 0.5, prepay: 0.5, strategic: 0.5, track: 0.3 }, // firm = take-or-pay order (was: LTA ≥ 4 q old) [R15]
   exoWeight: 1.6, // hyperscalers: LTAs + prepay + track record [D]
   spotRentalPoolShare: 0.1, // spot rental ≤ 10% of the rental pool [R15]
   rentalPoolShare: 0.15, // rental pool = 15% of global stock [D]

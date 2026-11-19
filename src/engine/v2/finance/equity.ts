@@ -3,6 +3,7 @@ import { dayOfQuarter, quarterIndex } from '../core/time';
 import type { GameStateV2, Money, Ownership, RepricedRound, SystemCtx } from '../types';
 import { ensureWs3, yearStats, type PendingRound } from './ext';
 import { bookCash } from './ledger';
+import { resizeCreditLine } from './debt';
 import { changeHeads } from '../departments/teams';
 
 /** V = 22·(g/5)^0.4·(R/$20B)^−0.15·H·N·M·R (R15 §1.5). */
@@ -126,6 +127,7 @@ export function bookRound(s: GameStateV2, ctx: SystemCtx, amount: Money, pre: Mo
   f.rounds.push({ day: s.time.day, amount, postMoney: post, dilution: dil, down, ...(opts.anchor ? { anchor: opts.anchor } : {}) });
   const dv = post - f.valuation;
   f.valuation = post;
+  resizeCreditLine(s, ctx, opts.ipo ? 'IPO' : 'equity round'); // FIN1: banks re-size the line around a raise
   ctx.cause('player.finance.valuation', dv, opts.ipo ? 'IPO' : 'equity round', `$${amount.toFixed(1)}B at $${pre.toFixed(0)}B pre`);
   bookCash(s, ctx, now, 'financing', opts.ipo ? 'IPO' : 'equity round', `${(dil * 100).toFixed(1)}% dilution`);
   f.raisedLast4q += amount;
