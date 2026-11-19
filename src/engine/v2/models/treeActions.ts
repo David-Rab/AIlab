@@ -6,7 +6,7 @@ import type { ActionDef, CostLine, EngNeed, GameStateV2, ReNeed, RiskPolicy } fr
 import { PROJECT_MAX_TEAMS, RISK_KAPPA } from '../../../data/v2/research';
 import { reopenProject, teamsWanted } from './research';
 import {
-  assignTeam, dequeueNode, effortOf, idleTeams, moveInQueue, nodeOdds, nodeStatus, projectCapacity, projectEta, projectTeams,
+  assignCapNow, assignTeam, dequeueNode, effortOf, idleTeams, moveInQueue, nodeOdds, nodeStatus, projectCapacity, projectEta, projectTeams,
   queueNode, unassignTeam,
 } from './tree';
 
@@ -61,14 +61,20 @@ export const TREE_ACTIONS: ActionDef[] = [
     id: 'research.queue', verb: 'research', system: 'research', sphere: 'models', owner: 'WS1', title: 'Queue',
     available: (s) => (s.player.status === 'active' ? true : 'Lab inactive'),
     preview: (s, p) => nodePreview(s, nodeParam(s, p)),
-    apply: (s, _ctx, p) => fail(queueNode(s, nodeParam(s, p), typeof p.at === 'number' ? num(p, 'at', 0) : undefined)),
+    apply: (s, _ctx, p) => {
+      fail(queueNode(s, nodeParam(s, p), typeof p.at === 'number' ? num(p, 'at', 0) : undefined));
+      assignCapNow(s);
+    },
   },
   {
     id: 'research.start', verb: 'research', system: 'research', sphere: 'models', owner: 'WS1', title: 'Start now',
     available: (s) => (s.player.status === 'active' ? true : 'Lab inactive'),
     preview: (s, p) => nodePreview(s, nodeParam(s, p)),
     // Top of the queue: the next idle team joins it (auto-assign), or assign one by hand.
-    apply: (s, _ctx, p) => fail(queueNode(s, nodeParam(s, p), 0)),
+    apply: (s, _ctx, p) => {
+      fail(queueNode(s, nodeParam(s, p), 0));
+      assignCapNow(s);
+    },
   },
   {
     id: 'research.dequeue', verb: 'research', system: 'research', sphere: 'models', owner: 'WS1', title: 'Drop',
@@ -78,7 +84,10 @@ export const TREE_ACTIONS: ActionDef[] = [
       const heads = s.player.teams.filter((t) => t.projectId === id).reduce((a, t) => a + t.heads, 0);
       return { costs: [{ currency: 'progress', amount: -0.05, target: PROJECT_BY_ID[id]?.name ?? 'project' }], gains: [{ currency: 'staffTime', amount: Math.round(heads), target: 'scientists freed' }], exposure: [] };
     },
-    apply: (s, _ctx, p) => fail(dequeueNode(s, str(p, 'id', s.player.research.queue[0] ?? ''))),
+    apply: (s, _ctx, p) => {
+      fail(dequeueNode(s, str(p, 'id', s.player.research.queue[0] ?? '')));
+      assignCapNow(s);
+    },
   },
   {
     id: 'research.move', verb: 'research', system: 'research', sphere: 'models', owner: 'WS1', title: 'Reorder',
@@ -87,7 +96,10 @@ export const TREE_ACTIONS: ActionDef[] = [
       const id = str(p, 'id', s.player.research.queue[s.player.research.queue.length - 1] ?? '');
       return { costs: [{ currency: 'staffTime', amount: 0, target: 'idle teams follow the new order' }], gains: [{ currency: 'progress', amount: 0, target: PROJECT_BY_ID[id]?.name ?? 'project' }], exposure: [] };
     },
-    apply: (s, _ctx, p) => fail(moveInQueue(s, str(p, 'id', ''), num(p, 'to', 0))),
+    apply: (s, _ctx, p) => {
+      fail(moveInQueue(s, str(p, 'id', ''), num(p, 'to', 0)));
+      assignCapNow(s);
+    },
   },
   {
     id: 'research.assign', verb: 'research', system: 'research', sphere: 'models', owner: 'WS1', title: 'Assign',
@@ -143,6 +155,7 @@ export const TREE_ACTIONS: ActionDef[] = [
       const id = str(p, 'id', '');
       if (!PROJECT_BY_ID[id]) throw new Error('Unknown idea');
       s.player.research.want[id] = Math.max(0, Math.min(PROJECT_MAX_TEAMS, Math.round(num(p, 'n', 1))));
+      assignCapNow(s);
     },
   },
   {
@@ -171,6 +184,7 @@ export const TREE_ACTIONS: ActionDef[] = [
     apply: (s, _ctx, p) => {
       const id = str(p, 'id', '');
       fail(reopenProject(s, id) ?? queueNode(s, id));
+      assignCapNow(s);
     },
   },
   {

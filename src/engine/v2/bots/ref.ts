@@ -24,6 +24,7 @@ import { shareRefAt, TOP_KEYS, topOf, withFixed } from '../departments/split';
 import { financeAutopilot, financeDecide, REF_AUTOPILOT } from '../finance/plan';
 import { runwayOf } from '../finance/runway';
 import { hRef } from '../production/knots';
+import { DEFAULT_LINES } from '../../../data/v2/research';
 import { REF_ROLE_SHARE, SAF_ROLE_SHARE, TEAM_SIZE } from '../../../data/v2/teams';
 import type { BotPolicy, ComputeSplit, EngineApi, GameStateV2, ModelVersion, PendingDecision, TeamKey, TrainingRun } from '../types';
 import { bestMeasuredL } from '../models/labs';
@@ -64,9 +65,7 @@ export const REF_TREE: TreeGoal[] = [
  *  pretraining lines carry the pretraining stack (Ho et al. ≈ 3×/yr before SC), the RL lines the RL stack. Recurrent
  *  architectures opens with neuralese recurrence (P17). Inference efficiency is not ranked: the reference lab's serving
  *  cost is the V1 calibration (V4 rebuilds serving). */
-export const REF_RESEARCH_LINES: { id: string; w: number }[] = [
-  { id: 'L.scale', w: 0.25 }, { id: 'L.env', w: 0.3 }, { id: 'L.data', w: 0.15 }, { id: 'L.opt', w: 0.1 }, { id: 'L.rlalg', w: 0.2 },
-];
+export const REF_RESEARCH_LINES = DEFAULT_LINES;
 /** Teams wanted on each of RefBot's paradigm projects [D]: v2's auto-assign put most of its science teams on its one or
  *  two queued paradigms; the v3 reference lab also runs its lines, so it staffs each paradigm bet with three teams and
  *  gives the lines the rest. (A fixed 70% line share was tried: it fitted the lines more evenly across worlds but moved

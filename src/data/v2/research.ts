@@ -4,6 +4,16 @@
 // calibration harness (scripts/v2/calib.ts --fit-lines), BRIDGE(Vn) temporary (V3-BUILD "Bridges").
 import type { Allocation, EngNeed, ReNeed, RiskPolicy, StackKey } from '../../engine/v2/types';
 
+// ───────────────────────────── start priority list (model v3 V4.0) ─────────────────────────────
+
+/** The capability research lines every start puts on its priority list, with their share of the capability science
+ *  teams (teams wanted ≈ share × teams, at least 1) [D]: a 2025 frontier lab's standing portfolio (the lines RefBot runs:
+ *  pretraining recipes carry the pretraining stack, Ho et al. ≈ 3×/yr; the RL lines the RL stack). Shown and editable on
+ *  Research › Projects; before V4.0 a new game started with an empty list and idle capability scientists. */
+export const DEFAULT_LINES: { id: string; w: number }[] = [
+  { id: 'L.scale', w: 0.25 }, { id: 'L.env', w: 0.3 }, { id: 'L.data', w: 0.15 }, { id: 'L.opt', w: 0.1 }, { id: 'L.rlalg', w: 0.2 },
+];
+
 // ───────────────────────────── lifecycle ─────────────────────────────
 
 /** A team picks a candidate to test once it has this many (more ideation = more to pick from) [D]. */

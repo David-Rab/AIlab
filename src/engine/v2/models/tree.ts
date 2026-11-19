@@ -38,12 +38,12 @@ import { queueBuild } from '../departments/build';
 import { addKnowledge, gEquivOf, paOfGEquiv } from './stacks';
 import { B_G_PER_Y, E_START } from '../../../data/v2/runDesign';
 import {
-  attemptOdds, capProgress, capResearchDay, isCapProject, stagesOf, takesTeams,
+  assignCapTeams, attemptOdds, capProgress, capResearchDay, isCapProject, stagesOf, takesTeams,
 } from './research';
 import { RE_UNIT } from '../../../data/v2/workTypes';
 import { safetyAgentL } from '../safety/agents';
 import { fireFinding } from '../safety/findings';
-import { DEFAULT_RE_ALLOC } from '../../../data/v2/research';
+import { DEFAULT_LINES, DEFAULT_RE_ALLOC } from '../../../data/v2/research';
 import { initialStacks } from './stacks';
 
 export type NodeStatus = 'known' | 'active' | 'queued' | 'open' | 'locked' | 'failed' | 'soon';
@@ -64,7 +64,10 @@ export function initialTree(setup: Pick<SetupV2, 'start'>): Record<string, TreeN
  *  design, applied interpretability, model organisms; the pre-R8 start funding) [D]. */
 export const START_SAFETY_PROJECTS: Partial<Record<Column, string>> = { alignment: 'T-CONFESS', interp: 'T-DECEPT', evals: 'T-HONEY' };
 
-/** Start research state: the start safety teams on their projects (queued in that order). */
+/** Start research state: the start safety teams on their projects (queued in that order), then the default capability
+ *  lines (DEFAULT_LINES) with teams wanted in proportion to their shares of the capability science teams (V4.0: a new
+ *  game no longer starts with idle capability scientists). Every start type gets the same lines; the starts' earlier
+ *  work is their known nodes (data/v2/starts.ts), so no idea is in flight on day 0. */
 export function initialResearch(teams: Team[] = []): ResearchState {
   const queue: string[] = [];
   for (const t of teams) {
@@ -74,7 +77,24 @@ export function initialResearch(teams: Team[] = []): ResearchState {
     t.projectId = id;
     if (!queue.includes(id)) queue.push(id);
   }
-  return { queue, autoAssign: true, ...initialCapResearch() };
+  const cap = initialCapResearch();
+  const sci = teams.filter((t) => t.role === 'sci' && t.dept === 'cap').length;
+  const wSum = DEFAULT_LINES.reduce((a, l) => a + l.w, 0);
+  for (const l of DEFAULT_LINES) {
+    const n = node(l.id);
+    if (!n || (n.needs ?? []).length) continue;
+    queue.push(l.id);
+    cap.want[l.id] = Math.max(1, Math.round((l.w / wSum) * sci));
+  }
+  return { queue, autoAssign: true, ...cap };
+}
+
+/** Re-run the capability science assignment now (V4.0): the priority list's actions (queue, start, drop, reorder, teams
+ *  wanted) place the teams at once, so the list never shows a project without the teams the next tick gives it (the
+ *  daily research tick recomputes the same deterministic plan). */
+export function assignCapNow(s: GameStateV2) {
+  const ready = s.player.research.queue.filter((id) => isCapProject(node(id)) && s.player.tree[id]?.status !== 'failed' && projectReady(s, id) === true);
+  assignCapTeams(s, ready);
 }
 
 /** Seed of the software-rate readout (OOM/day): the leader's first-year G-equivalent stack growth, ≈ 0.83 OOM/yr. */

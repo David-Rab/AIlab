@@ -98,6 +98,8 @@ const mk = (seed = 21, world: 'ai2027' | 'authors2026' = 'ai2027'): GameStateV2 
   // constant amount per doubling of Q once Q is well past the pool's start (AIFM: SE = r·log₁₀ RS).
   const g = mk(5);
   g.player.hiring.targets = { eng: 0, 're.cap': 0, 'sci.cap': 0, 're.saf': 0, 'sci.saf': 0 };
+  // V4.0: a new game starts with the default lines on the priority list; this experiment runs one line alone.
+  g.player.research.queue = g.player.research.queue.filter((id) => !id.startsWith('L.'));
   engine.act(g, 'research.queue', { id: 'L.data' });
   engine.act(g, 'research.want', { id: 'L.data', n: 6 });
   const realised: { Q: number; e: number }[] = [];
