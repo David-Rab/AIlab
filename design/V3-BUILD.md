@@ -1150,3 +1150,86 @@ measured 2.3–2.4 ms/day on the passive game today against 1.16 earlier: machin
 (band opens 2027-09-15; failing before V4 too). Hygiene perf on today's machine. The rival FLOP-per-token bridge (V7).
 Consumer reach and the AI-friend share are US numbers applied to ROW. α and the integration boost still read display
 levels.
+
+### A2a notes (hours of use and value per hour; 2026-11-19)
+
+Code: new `worldfx/use.ts` (hours of use U, workers' target W*, α_use, hours saved), `SectorState.W` (Bass stock in
+`worldfx/sectors.ts`), `SectorDef.use` and `ECON.useW / useH` (`data/v2/sectors.ts`), `serving.ts savedPerUseHour /
+useTokens`, `revenue.ts sectorHours` and the no-drop-in factor, `actions.ts` sector-product preview, `readouts.ts workUse`
+(selector), schemaRev 17 (migration 16 → 17 starts W at W*). Tests: worldfx A2a checks, hygiene migration check.
+
+**Mechanism [D].** Hours of AI use per work-hour of a sector U = A + h_s·max(0, W − A): the tasks firms handed to AI (A,
+research/16, unchanged) plus workers' assisted use on the rest of their hours (W = share of the sector's workers who use AI
+at work, h_s = share of their remaining hours with AI). W is a Bass stock at the sector's p and q (agency-boosted q, ×
+DiffMult) toward W* = max(A, W_b + (1 − W_b)·F): today's base users plus the rest of the workers as the AI covers their
+work. An hour of use saves α_use + (1 − α_use)·g_aug hours with α_use = α·A/U (assisted hours substitute nothing); tokens per
+hour of use mix the autonomous and assisted profiles by the same α_use. α's research/16 sigmoid, g_aug 0.3, A0, Bass p/q,
+F, K, R are unchanged.
+
+**Deviation from the row ("fit A to worker-level use; re-fit only A0") and why.** A is capped by its ceiling A* = F·K·(1 −
+R), and A* at the start is ≈2.3% of US work-hours (5.3% mid-2026): coverage F is what the AI can do *alone*. Setting A0
+to the 6% worker anchor puts A above A* in most sectors (it would decay at 0.5/yr), and A also feeds displacement (D =
+α·A), TFP, labour share, the GATE share, the control index (GOV T1), remote-work automation and headlines, so a ×5 A
+would move all of them. The anchors themselves pin A where it is: with 6.3% of hours used and 2.2% saved (RPS 2026),
+assisted hours saving g_aug and adopted ones α + (1 − α)·g_aug ≈ 0.5, A ≈ (2.2 − 0.3·6.3)/(0.5 − 0.3) ≈ 1.5% of hours,
+against the game's 1.7–2.2% in mid-2026. So A0 is kept (still fitted to BTOS through firmK) and the measured remainder is
+the new worker stock. The spec's work-type layer has the same split (MODEL-V3 §6.2: coverage, then assist on the rest).
+Firm adoption (W4) stays the firm-weighted readout 1 − exp(−k·A) — a different quantity from worker use, as the brief
+says; the new readout `workUse` gives hours, workers and hours saved.
+
+**Constants.**
+- `use` per sector (relative use vs the US average, normalised by employment) from the RPS by industry [R22 §1]:
+  information 14% vs ≈5.4% for all (2024) → SOFT 2.6, MEDIA 2.0; professional/scientific/technical 11.4% vs 6.3% (Q2 2026)
+  → LEGAL, SCI 1.8; finance 9.7% → FIN 1.55; production occupations 4.6% → MFG 0.75; leisure 2.3% vs 5.4% → SERV 0.45.
+  [D] where the survey has no row: OFFICE and EDU 1.2 (high applicability: customer service, teachers), GOV 0.8, MIL 0.6,
+  HEALTH, LOG, ENGY 0.5. The ratio is split evenly between reach and intensity (W_b ∝ √r̂, h_s ∝ √r̂) [D]: SOFT then has
+  64% of workers using AI at 0.21 of their hours (U ≈ 16–19%; developers 51% daily in 2025, 73% in 2026).
+- `useW` 0.37 [fit to R22 1a]: 38% of US workers at the start (RPS ≈37–38% Jul 2025 between 31% Nov 2024 and 40.7% Nov
+  2025), 39–40% through 2026 (39.2% Q2 2026).
+- `useH` 0.115 [fit to R22 1b–1c]: US hours of use 6.3% on 2026-07-01 (RPS 6.3% Q2 2026); a user's hours of use
+  U/W ≈ 0.16 (R22 0.15–0.16).
+- Regions [D, assumption]: no primary hours series outside the US, so CN and ROW keep the existing scale: W_b × 0.6
+  (REGION_SCALE.A0) at the US intensity h_s; their hours of use are ≈3.5% (start) → ≈4.5% (mid-2026) of work-hours.
+
+**Readouts (RefBot, classic, ai2027 econ, seed 2027; before = V4a, where hours of use = A).**
+
+| Quantity | Before | A2a | Anchor |
+|---|---|---|---|
+| US hours of use, Q3 2024 (back-cast: W at 28.2%, A at BTOS 5.4%) | ≈0.6% | 3.9% | 4.1% |
+| US hours of use, Jul 2025 / Jan 2026 / Jul 2026 | 1.0 / 1.3 / ≈1.95% | 5.4 / 5.7 / 6.3% | 5.7 (Q3 2025) / 5.6 / 6.3% |
+| US hours of use, Nov 2026 / end 2026 / mid-2027 / end 2027 | 2.6 / 3.1 / 4.9 / 9.1% | 7.0 / 7.4 / 9.4 / 14.0% | 5.3% (Q3 2026) |
+| US workers using AI at work, 2026 | — | 38–40% | 39–41% |
+| Hours saved per hour of use, start / mid-2026 / end 2027 | 0.49 / 0.51 / 0.77 | 0.34 / 0.36 / 0.61 | 0.35 (0.39 in 2024) |
+| US hours saved, mid-2026 | ≈1.0% | 2.3% | 2.2% |
+| World sector market, 2026 (US / CN / ROW, mid-2026) | $58–89B ($8–10 / 17–33 / 33–46) | $134–235B ($20–29 / 41–87 / 74–120) | (not targeted) |
+| World market incl. consumer, CY2026 | $85B | $197B | frontier labs $100–130B (R22 §4) |
+| Leader (RefBot) revenue 2026 / 2027 | $22.8 / 19.1B | $32.4 / 39.1B | F7 $36–54B / F11 $98–182B (finance session) |
+| Price per hour of use at the start (OFFICE / SOFT) | $2.00 / 3.02 | $1.36 / 2.65 | |
+| Hours sold at the value cap (day 1 / 400 / 900) | 0 / 0 / 94% | 0 / 0 / 97% | |
+
+The price per hour of use falls (×0.65–0.9) because most use is now assisted (fewer autonomous tokens); the value per
+hour falls with hours saved (×0.7). The value cap still never binds before the takeoff (lowest value ÷ price at day 1 and
+400: US 5.6 / 8.9, CN 3.5 / 3.4, ROW 2.9 / 4.7); at day 900 it binds as before (rivals' oversized FLOP per token in a
+takeoff, BRIDGE(V7)). serving S3 (price ≥ cost, ≤ value unless serving costs more) passes on both fixtures.
+
+**Gate (vs the V4a baseline run today).** tsc main + scripts clean; serving, golden-timelines, identity, worktypes,
+research, effective pass; worldfx: W2 0.6% (pass), W4 U +0.01 pp / youth −16.5% / firms 20.6% (pass), hiring SOFT ≤ 10%
+2027-07-07 (pass, was 07-12), remote work 25% 2027-12-11 (pass), **U +1 pp 2027-12-30 now passes** (was 2028-01-05),
+**equity 2026 +20.8% now passes** (was −17.9%), GOV T1 Accept 2027-09-04 (known fail, was 09-09); F7 / F11 2026–27
+revenue fail (known, finance). hygiene: only the known perf checks; the 16 → 17 migration passes. calib: all pass (R5 integrated slow 5 d → pass); stub T1
+ai2027, fast, slow identical, authors2026 SIAR −0.041 / ASI −0.044 y (was +0.044 / +0.085), all in tolerance; integrated
+RefBot (informational) ai2027 SC −0.115 y (was −0.118).
+
+**Readouts and inputs for A2b / A2c.**
+- `workUse(s, r)` = { hours, workers, savedPerHour, saved }; per sector `useShareOf(st, sid)`, `st.W`, `useIntensityOf`.
+- Workers using AI at work: US ≈ 62M in 2026 (W 39% × 160M), CN + ROW ≈ 0.6 × that rate on 4.6 + 6 × US employment
+  (W ≈ 0.24 of ≈1.7B workers ≈ 0.4B). A2c's paid seats (≈50M worldwide mid-2026) are a paid subset of these stocks: most measured work use
+  today is not on a paid enterprise plan, so A2c should price seats on W·E and not also bill every hour of use (the sector
+  market above already exceeds R22's frontier-lab band before seats and agents; CN's $41–87B is served mostly by Chinese
+  labs).
+- Assisted hours are the knowledge/agentic "assisted" token profile (100k/15k or 200k/40k per hour); research/22's chat
+  use (≈3.75 messages a day) is far lighter, so A2c's intensity term should revisit tokens per assisted hour rather than
+  stack on them.
+- TFP, labour share and GATE still read A (task adoption) only: the workers' assisted hours save g_aug·(U − A) ≈ 1.4% of
+  US hours in 2026 that macro does not count (W2 still passes); a later macro task may add it.
+- UI (B3): the World panel shows "Automated A"; add W, U and hours saved per hour with tooltips.
