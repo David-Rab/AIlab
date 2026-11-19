@@ -1495,3 +1495,46 @@ checks and INFO, hygiene 18 → 19 migration; serving S2 and products P6 updated
   demand ceiling on agent output (Jevons, η) may be needed once rivals have real designs.
 - Fixture day 900 shows 3M seats sold: migrated from schemaRev 16 at σ0, with most of its share on open weights.
 - U +1 pp, GOV T1, and equity 2026 (the bust roll).
+
+### B1 notes (product card: serving economics; 2026-11-20)
+
+Code: `ui/v2/panels/Products.tsx` (new `Econ` block: `PriceRow`, `SourcesRow` / `PaidRow`, `CapacityRow`; Chat customers
+row; settings layout), `products.css`, `worldfx/productView.ts` (`ProductRead.markup`, `ProductRead.econ: ProductEcon`,
+`goingPrice` selector), `worldfx/revenue.ts` (readout-only fields `adoptedDemand`, `agentDemand`: the demand split of the
+per-hour streams; no mechanism change, no state change, no schema bump), glossary (+14 terms), `limits.ts`
+(`price.valueCap` rule text), `lint-ux.ts` REQUIRED, `uitest.mjs` (B1 checks).
+
+**What the card shows (L2 rows, L3 tooltips).** Under the revenue hero, three rows:
+- **Price**: price per hour of use (sector products, blended over adopted task-hours and agent-hours) or per
+  subscriber-month (Chat), a bar of cost vs margin (Chat: a tick at the $22 willingness to pay), the margin %. When the
+  cap binds (Chat at $22, or > 5% of a sector product's sales at the value cap) the bar turns amber and a
+  `price.valueCap` limit chip shows. Tooltip: cost, tier as a markup (×1.67 / ×2.5 / ×4 and the price it asks), margin,
+  per adopted task-hour and per agent-hour, share sold at the value cap; Chat: willingness to pay and the going price.
+- **Sources** (sector products): stacked bar of demand by source (per-hour work, agent-hours, paid seats) with a legend;
+  tooltip: hours × price per stream, seats × seat price, serving cost per seat-month. **Paid** (Chat): paid share vs its
+  target (tick) and the target; tooltip: subscribers, price vs going price, subscription revenue. The Chat customers row
+  now reads "weekly users · paying" (stock users, not revenue ÷ ARPU).
+- **Served**: the product's serving need in serve order (seats then per-hour work; paying then free users), the cut
+  hatched red, % served. Tooltip: hours asked vs servable (sector), need by segment in H100e, the cut split free / paying,
+  and the serve-order rule (free users last, unserved users leave and cost subscribers; seats before per-hour work).
+
+**Choices [D].**
+- One home: cost → price moved out of the run-cost tooltip into the Price row. The binding chip keeps its H100e
+  breakdown (the "why" of the bound); the Served row is the home of the paid/free and seat/work split.
+- Settings take less height to make room: Retire moved to the Settings caption line, KYC on its own row, compact tier
+  buttons (no label-only lines). Net card height +30 px at day 400.
+- Colours: sources gold / teal / grey (no blue–violet pair); cut = red hatch.
+
+**Removed text.** Glossary `revPerH100e` (M^0.3, serve cost), `priceTier` (×0.7/×1.4, price^−1.5), `priceIndex`,
+`priceBound`, `effort` (1.6× revenue), `freeTier` (60% of use), `monitor` (serve cost → FLOP per token); the effort and
+mini tooltips on the card; the `price.valueCap` limit's $200 subscription cap. Left for B4: the Blueprint and Models
+"serve cost" readouts and the `serveCost` glossary entry (design readout, still bridged for the safety fleet, V6).
+
+**Gate.** tsc main + scripts clean; build clean; lint-ux green (211 → 224 required terms); products pass; `test:ui`
+265 passed, 0 failed (new: B1 card checks at day 1, 400, 900; every economics row opens a tooltip; all 14 new terms
+reached on the cards; a Premium Chat plan shows the $22 cap). Screenshots looked at: `scripts/v2/shots/25-day1-products.png`,
+`26-day1-chat-capped.png`, `20-day400-products.png`, `30-day900-products.png`.
+
+**Seen in the screenshots (reported, not fixed here).** At day 900 the value cap does not bind on any player product
+(V4a saw 97%; A2c's prices moved it). The Agents launch card has empty space below its gate (B4's empty-space pass).
+The serving card now starts lower and is partly below the fold at 1000 px height (the panel scrolls).
