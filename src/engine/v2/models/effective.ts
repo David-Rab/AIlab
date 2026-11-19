@@ -87,7 +87,7 @@ export function gPreOf(x: { flop: number; tpp: number; recipe: number; shape: Ba
 export const continueGPre = (gOld: number, flopCont: number, recipeNow: number, shape: BaseDesign['shape']) =>
   Math.log10(Math.pow(10, gOld) + Math.max(0, flopCont) * Math.pow(10, recipeNow + SHAPE[shape].e));
 
-/** BRIDGE(V4): serving cost relative to the reference design trained on the same FLOP (0.5 = reference): SERVE_REF ×
+/** Display readout (model v3 V4: costs read FLOP per token, ModelVersion.fpt): serving cost relative to the reference design trained on the same FLOP (0.5 = reference): SERVE_REF ×
  *  N_active ÷ √(FLOP/(6·REF_TPP)) × the shape's token multiplier. Physical FLOP per token is 2·N_active (servingFlop). */
 export const serveOfBase = (params: number, flop: number, shape: BaseDesign['shape']) =>
   (SERVE_REF * params * SHAPE[shape].tokenMult) / Math.max(1, paramsForFlop(flop, REF_TPP));

@@ -14,6 +14,7 @@
 import { SECTORS, REGIONS, ECON } from '../../../data/v2/sectors';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import { CUSTOMER_TAU, PRICE_ELASTICITY, SHARE_SLOPE_G } from '../../../data/v2/serving';
+import { ASSIST } from '../../../data/v2/workTypes';
 import { memo } from '../core/memo';
 import { CHINA_ID } from '../models/labs';
 import type { Deployment, DomainId, GameStateV2, LabId, ModelVersion, RegionId, SectorId, SimpleModel, SystemCtx } from '../types';
@@ -22,7 +23,7 @@ import { sigmoid, techRamp } from './policy';
 import { productDomains } from '../models/products';
 import { flopPerToken } from '../departments/workfit';
 import {
-  CHINA_MARKUP, RIVAL_MARKUP, buyerCost, costGateOf, effortTokens, enablerShare, fptOfSimple, fxOn, markupOf, offerOf,
+  CHINA_MARKUP, RIVAL_MARKUP, effortTokens, enablerShare, fptOfSimple, fxOn, markupOf, offerOf,
   productFx, productOffer, productUses, savedPerUseHour, serveDollarsPerHour, settingsDG, subPrice, valuePerHour, wagePerHour, type Offer,
 } from './serving';
 
@@ -199,7 +200,7 @@ function logit(fit: number[], price: number[], acc: number[], brand: number[]): 
   for (let i = 0; i < n; i++) {
     if (fit[i] === -Infinity || acc[i] <= 0) continue;
     const pr = price[i] > 0 && pMin < Infinity ? price[i] / pMin : 1;
-    const w = Math.exp(SHARE_SLOPE_G * (fit[i] - best)) * Math.pow(pr, -PRICE_ELASTICITY) * acc[i] * brand[i];
+    const w = (Math.exp(SHARE_SLOPE_G * (fit[i] - best)) * acc[i] * brand[i]) / (PRICE_ELASTICITY === 1 ? pr : Math.pow(pr, PRICE_ELASTICITY));
     out[i] = w;
     sum += w;
   }
@@ -326,6 +327,11 @@ function computeMix(s: GameStateV2): WorldMix {
     pCand.push(bc);
   }
 
+  // Display vectors per sector (the player's is its best candidate's).
+  const vecs: (number[] | undefined)[][] = [];
+  for (let si = 0; si < S; si++) vecs.push(providers.map((_, i) => (i === playerIdx ? cands[pCand[si]]?.v : pvec[i])));
+  const reviewK = ASSIST.review;
+  const invK = 1 / ECON.kSpread;
   const sec = {} as Record<RegionId, Record<SectorId, SectorMix>>;
   REGIONS.forEach((r, ri) => {
     const rowOut = {} as Record<SectorId, SectorMix>;
@@ -340,14 +346,14 @@ function computeMix(s: GameStateV2): WorldMix {
       const prices = new Array<number>(n).fill(0);
       const level = new Array<number>(n).fill(-Infinity);
       const physLe = new Array<number>(n).fill(0);
-      const vecOf = (i: number) => (i === playerIdx ? cands[pCand[si]]?.v : pvec[i]);
+      const vs = vecs[si];
       for (let i = 0; i < n; i++) {
         const o = offers[si][i];
         if (!o) continue;
         fit[i] = o.fit;
         cover[i] = o.a;
         prices[i] = Math.max(o.cost, Math.min(o.price, value));
-        const v = vecOf(i);
+        const v = vs[i];
         if (v) {
           physLe[i] = Math.min(Math.max(v[PHYS], pfFloor) + (t.id === 'LOG' ? pfLog : 0), physCap);
           level[i] = cogL[si][i] + t.physW * physLe[i];
@@ -368,13 +374,15 @@ function computeMix(s: GameStateV2): WorldMix {
         const x = share[i];
         if (!x || !offers[si][i]) continue;
         wsum += x;
-        const v = vecOf(i);
+        const v = vs[i];
         if (v) for (let k = 0; k < ND; k++) dv[k] += x * (k === PHYS ? physLe[i] : v[k]);
         lePhys += x * physLe[i];
         px += x * prices[i];
-        pc += x * buyerCost(prices[i] / hf, cover[i], wage);
+        // buyerCost and costGateOf (serving.ts) inlined: σ(ln(wage ÷ bc)/k) = 1 / (1 + (bc ÷ wage)^(1/k)).
+        const bc = prices[i] / hf + reviewK * wage * (1 - Math.min(1, cover[i]));
+        pc += x * bc;
         aCog += x * cover[i];
-        K += x * costGateOf(prices[i] / hf, cover[i], wage);
+        K += x / (1 + Math.pow(Math.max(1e-9, bc) / wage, invK));
       }
       if (wsum > 0 && Math.abs(wsum - 1) > 1e-9) {
         for (let k = 0; k < ND; k++) dv[k] /= wsum;

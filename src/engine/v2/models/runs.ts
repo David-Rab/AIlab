@@ -181,7 +181,7 @@ export interface BaseLimits {
   tokensUnique: number;
   epochs: number;
   fData: number;
-  /** Serving cost of versions on this base (BRIDGE(V4), 0.5 = reference) and serving FLOP per token (2·N_active). */
+  /** Serving cost of versions on this base (display, 0.5 = reference) and serving FLOP per token (2·N_active). */
   serve: number;
   servingFlop: number;
   /** Compute-equivalent cost of the run's FLOP at today's TCO ($B; the pool is already paid for). */

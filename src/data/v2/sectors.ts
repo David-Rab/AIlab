@@ -76,17 +76,14 @@ export const ECON = {
   W0: 35,
   /** Hours per worker-year. */
   hours: 2000,
-  /** Price capture: AI revenue per automated human-hour = θ·wage·W0·price (§3.11.3, θ = 0.15 [fit]). */
-  thetaPrice: 0.26,
-  /** Effective AI cost per human-hour at L 5, as a share of W0, incl. review overhead (GDPval: 1.63× cheaper
-   *  once review is counted, research/16 N2a). Halves per +1.5 levels [D]. */
-  costShare5: 0.6,
-  costHalvingLevels: 1.5,
   /** g_aug: productivity gain on augmented work (field RCT range 0.14–0.4). [R16] */
   gAug: 0.3,
   /** Feasibility logistic σ((Le − fMid − θ)/fSpread). R16 writes 8 and 1.2, but those constants give F_SOFT 0.18
    *  (Agent-1) and 0.64 (Agent-3-mini) against R16's own stated calibration of ≈0.25 and ≈0.8 (F_OFFICE ≈0.5).
-   *  [fit] to the stated anchors: 7.35 / 1.1 → 0.26, 0.76, F_OFFICE 0.59. */
+   *  [fit] to the stated anchors: 7.35 / 1.1 → 0.26, 0.76, F_OFFICE 0.59. Model v3 V4: cognitive feasibility is the
+   *  sector work type's coverage (worldfx/serving.ts, SECTOR_REF.mid = this point on the V0 → SC axis); fMid/fSpread now
+   *  set only the robot-bound PHYS part and the start state. v2's price capture θ = 0.26 of the wage and the abstract
+   *  cost curve (60% of W0 at L 5, halving per 1.5 levels) are gone: prices and the cost gate read physical costs. */
   fMid: 7.35, fSpread: 1.1,
   /** Cost gate logistic spread. [R16] */
   kSpread: 0.7,
@@ -110,8 +107,6 @@ export const ECON = {
   firmK: 10,
 };
 
-/** Consumer market: ConsumerSpend = 6·(L/5)²·regions $B/yr (§3.11.3 [fit]); US + ROW (CN is served at home). */
-export const CONSUMER = { base: 6, regions: { US: 1, CN: 0, ROW: 1 } as Record<RegionId, number> };
 
 /** Pre-LLM reference profile (late 2022) for the hiring baseline ΔF; R16 Agent-0 profile minus ~2 levels [D]. */
 export const PRE_LLM_LEVEL = 3;

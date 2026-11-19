@@ -5,7 +5,7 @@
 // (departments/workfit.ts). This file only builds the player's READOUT in the v2 shape (ProductionReadout) from the same
 // mechanics: M = the research speed of the lab ÷ the same lab with no AI labour (AIFM's AI R&D multiplier, research/13
 // §2.8) at today's resources, its decomposition, elasticities, what-ifs and ceilings, and `rate` = the stacks' recent
-// growth in progress-years (BRIDGE(V4/V6/V7): the safety, revenue, rival and lead readers that still read M and rate).
+// growth in progress-years (BRIDGE(V6/V7): the safety, rival and lead readers that still read M and rate; revenue stopped reading M in V4).
 // Its inputs are in fixed physical units (the leader lab's day-0 inputs = 1): h research engineers on research, k agent
 // compute, c experiment compute.
 //

@@ -342,8 +342,8 @@ stacks together (G-equivalent) track the v2 know-how path.
 | Iterated distillation & amplification (P18) | axis | One more RL budget per cycle on the RL curve (V1, unchanged) | prior | research/12 #18 | now |
 | Interp-guided training (P14) | axis | In-run trait growth ×0.6 (unchanged) | prior | research/12 #14 | LATER(V6) |
 | Brain-like sample efficiency (P21) | axis | PHYS +1 L (unchanged) | prior | research/12 #21 | LATER(V5) |
-| Multi-agent orchestration (P05) | axis | Deep-think effort; agent throughput ×1.3 (unchanged) | prior | research/12 #5 | LATER(V4) features |
-| Long context + memory (P07) | axis | Horizon ×1.5; memory feature (unchanged) | prior | research/12 #7 | LATER(V4) |
+| Multi-agent orchestration (P05) | axis | Agent throughput ×1.3 (unchanged); unlocks the typed features Deep think (effort deep: ×4 reasoning tokens, +0.24 OOM) and Deep research (scaffold +0.3 OOM on Science, Finance, Legal and internal research ideas, ×3 tokens) | prior | research/12 #5; R20 C3, B3 | now (V4a) |
+| Long context + memory (P07) | axis | Version horizon ×1.2 (V3b); unlocks the typed feature Memory (horizon extender ×1.3 on all work, products and internal agents; +10% Chat users) | prior | research/12 #7; CL-Bench 2026 | now (V4a) |
 | Automated AI research agents (P13) | axis | Experiment throughput up to ×1.5 with RSCH (unchanged) | prior | research/12 #13 | LATER(V3) |
 | AI kernels / HW co-design (P16) | idea | Training throughput +0.06 OOM (×1.15), serving −0.125 OOM (×0.75) | sd 30% | research/12 #16 (AlphaEvolve 23% kernel speed-up; serving −20–30%) | now |
 | Learned research taste (P19) | axis | Removes the RSCH −0.5 L penalty (unchanged) | prior | research/12 #19 | LATER(V3) |

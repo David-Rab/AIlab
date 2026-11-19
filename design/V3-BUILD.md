@@ -15,7 +15,7 @@ can find every use.
 |---|---|---|---|
 | `pm` of a version / base | V1 | Φ(G): the old progress coordinate computed from effective compute, so the production function, milestone thresholds, M-based readouts, rivals and safety keep working | V3 for the player's research and milestones (done: departments/workfit.ts); still the display level λ(G) = levelOf(Φ(G)), V6 (safety M), V7 (rivals) |
 | `e_stack` from know-how `pa` | V1 | stack efficiency (OOMs) = E_PER_PA × (pa − pa₀) until ideas exist | V2 |
-| `serveCost` (0.5 = reference) | V1 | relative serving cost from FLOP per token, so revenue and agents keep working | V4 |
+| `serveCost` (0.5 = reference) | V1 | relative serving cost from FLOP per token, so revenue and agents keep working | V4 (done in V4a: costs read `ModelVersion.fpt`; serveCost stays a design readout; the safety fleet's copies keep it, BRIDGE(V6)) |
 | fixed eval days | — | evals stay as today | V5 |
 
 ---

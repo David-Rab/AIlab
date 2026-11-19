@@ -16,7 +16,7 @@
 // prices, costs or coverage.
 import {
   CHAT_WORK, CHINA_MARKUP, CONSUMER_MKT, CONTROL_LAYER_DG, EFFORT_CAP_OOM, EFFORT_OOM_PER_10X, EFFORT_TOKENS, MARKUP, RIVAL_MARKUP,
-  SAFEGUARD_DG, SECTOR_REF, SECTOR_WORK, type TokenProfile,
+  SAFEGUARD_DG, SECTOR_REF, SECTOR_WORK, TOKENS, type TokenProfile,
 } from '../../../data/v2/serving';
 import { FEATURE_BY_ID, FREE_TIER_SHARE, type FeatureFx, type FeatureId, type WorkScope } from '../../../data/v2/features';
 import { ECON, REGION_SCALE, SECTORS } from '../../../data/v2/sectors';
@@ -167,7 +167,7 @@ export function offerOf(s: GameStateV2, uses: ModelUse[], sid: SectorId | 'CHAT'
   const dG = (o.dG ?? 0) + effortDG(eff);
   const hm = o.hMult ?? 1;
   const tk = o.tok ?? 1;
-  const base = sid === 'CHAT' ? { input: 3e3, output: 8e2 } : SECTOR_WORK[sid].tokens;
+  const base = sid === 'CHAT' ? { input: 3e3, output: 8e2 } : useTokens(s, sid);
   const tok = { input: base.input * tk, output: base.output * tk * eff };
   const hd = horizonDomain(sid);
   let fit = 0;
@@ -191,6 +191,13 @@ export const savedPerUseHour = (s: GameStateV2, r: RegionId, sid: SectorId) => {
   const st = s.world.sectors[r][sid];
   return st.alpha + (1 - st.alpha) * ECON.gAug;
 };
+/** FLOP-bearing tokens per hour of AI use in a sector: α·autonomous + (1 − α)·assisted (α the US substitution share). */
+export function useTokens(s: GameStateV2, sid: SectorId): TokenProfile {
+  const a = s.world.sectors.US[sid]?.alpha ?? 0.25;
+  const x = SECTOR_WORK[sid].tokens;
+  const y = TOKENS.autonomous;
+  return { input: a * y.input + (1 - a) * x.input, output: a * y.output + (1 - a) * x.output };
+}
 /** Value of an hour of AI use in a sector and region ($): the wage of the work it saves. */
 export const valuePerHour = (s: GameStateV2, sid: SectorId, r: RegionId) => wagePerHour(sid, r) * savedPerUseHour(s, r, sid);
 

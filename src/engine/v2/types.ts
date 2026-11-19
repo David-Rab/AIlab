@@ -316,7 +316,7 @@ export interface BaseModel {
   epochs?: number;
   /** BRIDGE(V6,V7): scale vs the frontier run F(t) at launch (S5, scrutiny). */
   scale?: number;
-  /** Serve cost of models on this base (BRIDGE(V4), 0.5 = reference). */
+  /** Serve cost of models on this base (display readout, 0.5 = reference; costs read FLOP per token, V4). */
   serve?: number;
   /** Monitorability cap from the base shape (latent = 0.05). */
   monitorability?: number;

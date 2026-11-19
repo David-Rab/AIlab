@@ -15,12 +15,18 @@ import type { DomainId, PriceTier, RegionId, SectorId } from '../../engine/v2/ty
 export const TOKENS = {
   agentic: { input: 2e5, output: 4e4 },
   knowledge: { input: 1e5, output: 1.5e4 },
+  /** Autonomous work (the substituted share α of adopted work): a day-long agent task ≈ 30M input, 90% cache reads, and
+   *  0.5M output per 8 human-hours [R20 D2] → 375k uncached input and 62k output per work-hour. */
+  autonomous: { input: 3.75e5, output: 6.2e4 },
 } as const;
 export type TokenProfile = { input: number; output: number };
 
 /** A sector as a work type (V4.1): research/16's task weights (data/v2/sectors.ts; PHYS stays robot-bound) plus a
  *  typical task length H (hours of a human's work), verifiability v (R20 E3 classes: code with tests 0.9, ML experiments
- *  0.7, design 0.5, physical/perception 0.4, taste/strategy 0.3, persuasion/management 0.2) and the token profile [D]. */
+ *  0.7, design 0.5, physical/perception 0.4, taste/strategy 0.3, persuasion/management 0.2) and the token profile of an
+ *  hour of assisted work (a person working with the AI) [D]. An hour of AI use mixes it with autonomous work by the
+ *  sector's substitution share α (research/16 step 6): tokens = α·autonomous + (1 − α)·assisted, so token use (and the
+ *  revenue per hour of use) rises as agents take whole tasks. */
 export interface SectorWork { H: number; v: number; horizon: DomainId; tokens: TokenProfile }
 export const SECTOR_WORK: Record<SectorId, SectorWork> = {
   SOFT: { H: 2, v: 0.8, horizon: 'CODE', tokens: TOKENS.agentic },

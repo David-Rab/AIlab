@@ -45,7 +45,7 @@ export function levelOfPmV2(w: TimelineWorld, pm: number, shift = w.calShift): n
   return LEVEL_KNOTS[i] + (LEVEL_KNOTS[i + 1] - LEVEL_KNOTS[i]) * Math.min(1, ci - i);
 }
 
-/** BRIDGE(V4,V6): the v1-equivalent progress q of a model at progress pm for the readers that still look up AI 2027's
+/** BRIDGE(V6): the v1-equivalent progress q of a model at progress pm for the readers that still look up AI 2027's
  *  M(q) (revenue per chip, safety's M of the overseen model): the v2 coordinate at the same display level, + calShift. The
  *  display level λ(G) sits on the work-type milestones (model v3 V3b), so a model at its SC reads AI 2027's M at SC (5×)
  *  whatever its pm; q = pm + calShift did that only while the player's pm path matched v2's. */
