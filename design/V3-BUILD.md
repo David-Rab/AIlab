@@ -440,9 +440,119 @@ Blueprint/run cards read the stacks. good-ui skill; glossary and tooltips for ev
 
 ---
 
-## V3–V7
+### V2 decision (2026-11-19, lead session)
 
-Detailed when each starts (spec §16): V3 work types and AI labour (removes the pm bridge from production and
-milestones; project-level CES replaces M), V4 serving and products (owns worldfx GOV T1 and W2 from V1), V5 data
-assets, environment suites and evals, V6 safety, V7 rivals and China (owns ws4 T3 lead band and theft lag from V1),
-bots, UI pass, jank audit.
+V2a accepted with its calibration misses (authors2026 SAR/SIAR/ASI, slow's CAL_SHIFT −1.5): both trace to the M-based
+research-pace bridges, which V3 removes. **V2b (UI) moves after V3** so the research panel is built once for the V3
+mechanics (project compute and labour, AI labour per work type).
+
+---
+
+## V3 Work types, AI labour, research speed, milestones
+
+Goal: the lab-level production function M and the AI 2027 knot tables stop driving anything. Research speed comes
+from each project's **explicit compute and labour** (the AI Futures CES at project level); labour is humans plus
+**AI labour per work type**, from the deployed model's fit, horizon and cost per copy; milestones are statements about
+work types. Spec §5.3–5.4, §6, §8, §13. Removes every BRIDGE(V3). Sectors stay as today (V4 moves them onto work
+types); safety research lines stay (V6); rivals stay on pm (V7).
+
+### V3.1 Work types (new `src/data/v2/workTypes.ts`)
+
+Internal work types: **SWE** (engineers: software), **EXP** (research engineers: experiments, runs, tuning),
+**IDEAS** (scientists: ideation and taste), **SAF_EXP**, **SAF_IDEAS** (safety; consumed in V6, defined now). Fields:
+domain weights (SWE: CODE, AGENCY; EXP: CODE, RSCH, AGENCY; IDEAS: RSCH, REASON), typical task length H_w (hours),
+verifiability v_w, the horizon domain(s), and two human reference levels per work type: **median expert** and **best
+in the world** (on the level scale) [fit, below]. Sources: research/20 §E, research/19, research/13 §2.4.
+
+### V3.2 Model fit, horizon, coverage, assist (new `src/engine/v2/departments/workfit.ts`)
+
+- Fit level L_w = Σ ω_w,d L_d of the deployment's version (effort from the internal package).
+- **Horizon rebased on G**: h50 = h50(V0) × 4.2^(G_h − G_V0) (METR ≈ ×4.2 per OOM, research/20 A2/E1), G_h = the
+  version's G in the work type's horizon domain (AGENCY; CODE for SWE), anchored to METR TH1.1 for Aug 2025 (use
+  TH1.1 values consistently, research/20 §H). h80 = h50/5. Replaces the v1 horizon curve on pm (h80Of). Computer-use
+  work is shorter-horizon (research/20 E3) through its domain weights.
+- **Coverage** a_w = σ((L_w − θ_w)/s_w) × P(success at H_w from h80); θ_w is higher for low verifiability [fit].
+- **Assist** (rest of the work): GDPval speed-up H/(M + R + (1 − w)·H), R ≈ 0.27·H, w from the fit gap (research/20
+  E2); assisting only above w ≈ 0.3.
+
+### V3.3 AI labour
+
+- **Copies** = the internal package's compute × FLOP/s per H100e × inference utilisation ÷ (FLOP per token × tokens per
+  work-hour of w) — physical: FLOP per token = 2·N_active (V1), utilisation and tokens per work-hour from research/20
+  D1–D2 (agentic coding ≈ 10–30M tokens per day, mostly cache reads; state your per-hour choice and check it against
+  research/13 §1.9's AI 2027 copy counts at SC as a sanity check, not a fit target).
+- **Serial speed** from tokens/s per copy vs a human's work rate (cap as research/13 R11 #23).
+- **Effective labour** in w = the AI Futures coding CES of human labour and AI labour (today's `Lrel` with ρ_c from the
+  preset) with automation share a_w from V3.2 instead of the knot table A(q), and AI labour from copies instead of
+  R(q)·k. Parallel penalty λ as AI Futures (research/13).
+- Internal packages (R7 engineering / routine research / frontier research / safety) map to SWE / EXP / IDEAS /
+  SAF_*; their compute shares stay the player's control.
+- **Engineers' build capacity** = effective SWE labour (replaces aEngOf and BUILD_AI_CAP; keep a visible review
+  overhead if you need a cap, sourced or [D] and shown).
+
+### V3.4 Research speed per project (replaces M, the pace bridge, and the headcount normalisation)
+
+- **Ideation** rate = (effective IDEAS labour on the project)^λ × taste ÷ ideation effort.
+- **Experiments and scale tests** rate = X(c, ℓ) ÷ stage effort, X = [u·c^(ζρ) + v·ℓ^ρ]^(1/ρ) (the AI Futures
+  experiment CES, research/13 §1.3, parameters per preset as today), c = the project's experiment FLOP per day and
+  ℓ = (effective EXP labour on it)^λ, both in **fixed physical units** (the leader lab's day-0 inputs = 1; never the
+  calendar or a reference path). Project FLOP is real (no ÷ pace). Routine tuning uses the same X on the tuning
+  allocation.
+- **Taste**: human scientists' taste from team quality on the AI Futures taste distribution (research/13 §2.4, m2b);
+  AI taste from the IDEAS fit level mapped onto the same distribution (median expert ↔ 0 SD, best in the world ↔ the
+  distribution's top). Taste raises candidate means and lowers belief noise (V2's q becomes this taste).
+- **Diminishing returns from r** (move "ideas get harder" out of M into the pools): with AI Futures' returns r
+  (doublings of software efficiency per doubling of cumulative research input, research/13 §2.2), constant-cost ideas
+  give μ_n ≈ r·log₁₀2 / log₂-step … i.e. a line's n-th idea is worth ≈ r / ((n₀ + n)·ln 10) OOM (harmonic: the sum
+  diverges as log n); n₀ = ideas before the game start, set from the start rate. Derive the exact form, check it
+  reproduces r on a constant-input lab, and use it for every line (replacing V2a's β ≈ 0.03 fit).
+- **M becomes a readout**: research speed of the lab vs the same lab with no AI labour (for the UI and for the safety
+  and revenue bridges still reading M — keep their inputs equivalent, `// BRIDGE(V4/V6)`).
+
+### V3.5 Milestones from work types (replaces the pm thresholds and CAL_SHIFT for the player)
+
+As AI 2027 defines them (research/13 §2.8, R11):
+- **Superhuman coder**: SWE coverage ≥ 0.9 [D] and SWE fit ≥ the best human in the world, at a cost per work-hour
+  below the lab's best engineers.
+- **Superhuman AI researcher**: the same for EXP and IDEAS.
+- **Superintelligent AI researcher**: IDEAS fit beyond the best human by 2× the best-to-median gap.
+- **Superintelligence**: that gap on every cognitive work type.
+Per-preset calibration parameter: the **effective compute needed for a superhuman coder** (G_SC: the AI Futures
+timelines model's own uncertain parameter) sets the human reference levels' position on the G axis; together with the
+preset's AI Futures parameters (CES, r, taste) it replaces CAL_SHIFT. Fit G_SC (and at most one more per-preset value,
+named and justified) so the reference bot hits the golden dates. The level mapping for display stays λ(G) =
+levelOf(Φ(G)) (keep Φ so rivals, still on pm until V7, stay comparable); milestones no longer read it.
+
+### V3.6 Remove
+
+For the player and their labour/research: knotAt / A(q) / R(q) / Tref, multiplierAt in production, laborSlowdown,
+referenceTech, hRef / refTotal / shareRefAt normalisations, CAL_SHIFT-based milestones, the V2a BRIDGE(V3) items (pace
+= rate ÷ share, capacities ÷ H_ref path, project FLOP ÷ pace, h counting), aEngOf. Lint (`scripts/v2/lint-structure.ts`
+or a new lint): no player mechanism reads `frontierFlop`, `hRef`, `refTotal`, `shareRefAt`, `knotAt`, `multiplierAt`,
+`CAL_SHIFT` (allowed: calibration harness, rivals/China/leader-lab code, `// BRIDGE(V4|V6|V7)` lines).
+
+### V3.7 Calibration and tests
+
+- Golden dates for all four presets within the existing tolerances (SC ±0.08 y, later ±0.12 y) via V3.5's per-preset
+  parameters; leader lab T1L within tolerance (LEADER_CAL refit allowed). Report before → after.
+- Checks: pretraining stack ≈ 0.48 OOM/yr before automation (±30%); METR h50 doubling ≈ 4.2 months for the reference
+  frontier 2025–26 (±1 month); research speed readout ≈ 1 at start for the leader.
+- Tests (new `scripts/v2/worktypes.ts` in `test:v2`): coverage monotone in fit and horizon; copies ∝ compute ÷ FLOP
+  per token; effective labour = humans when coverage 0; a lab with constant inputs reproduces r; doubling project FLOP
+  speeds a compute-bound experiment and not a labour-bound one (and vice versa); milestones fire in order SC → SAR →
+  SIAR → ASI; a fixed lab's research speed does not change with the calendar (the v2 bug, now for research); the lint.
+- Performance: the daily tick must not get slower than the V2a worktree baseline (hygiene perf: aim to get back under
+  its 1.5 ms budget; report).
+- Bots (40 seeds): report; criteria aimed for in V3 (this phase changes balance most), not required if a criterion
+  conflicts with the calibration.
+
+Record choices in "V3 notes", add a V3 row to PROGRESS.md with the calibration table; schemaRev bump.
+
+---
+
+## V4–V7
+
+Detailed when each starts (spec §16): V2b research UI (after V3, covering V2 + V3 mechanics), V4 serving and products
+(owns worldfx GOV T1 and W2 from V1; sectors onto work types), V5 data assets, environment suites and evals, V6 safety
+(SAF work types, safety lines on the project mechanism), V7 rivals and China (owns ws4 T3 lead band), bots, UI pass,
+jank audit.
