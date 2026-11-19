@@ -79,58 +79,113 @@ list.
   owe" card reads it; one Watch alert when a promise turns behind or a covenant nears.
 - Credibility multiplies the current valuation mark as an interim (FIN5 moves it into the share).
 
-## FIN3 Board, acquisitions, events (spec §7, §8, §9, §10)
+## Phase split (2026-11-19, user: "our stages are a bit too big")
 
-- Charter rights (§7.2): nonprofit-PBC safety committee blocks releasing a model flagged by your safety evals (wire
-  into the release/deploy path; make `safetyCommitteeVeto` real); PBC + trust approval for sale of control and for
-  transferring a capability-threshold model (a visible vote by mission seats); founder override at a mood cost; legacy
-  nonprofit ouster odds ×2.
-- Major decisions (§7.3): deterministic, visible seat-by-seat votes (no `rng` in approval). List: sale of control,
-  merger/acquisition, down round, rescue, new firm commitments or debt above 3× revenue. Remove the dilution vote and
-  the 20%-of-revenue debt vote; operating decisions never voted.
-- Mood (§7.4): named sources × seat-kind weights; reversion to 60; remove safety-grade bonus.
-- Low confidence (§7.5): "Give the critics a seat" action (below 40); ouster vote visible; remove staff-revolt
-  reinstatement; drop E37 (and its bot handling).
+FIN1 and FIN2 are done. The rest is split into smaller phases, each one agent run, one commit, reviewed before the
+next starts. Order: FIN3a → FIN3b → FIN3c → FIN4a → FIN4b → FIN5a → FIN5b → FIN5c → FIN6a → FIN6b → FIN6c.
+
+User decisions that shape them: stacked promises stay as built (weight-neutral); the board-confidence rebalance
+happens in FIN3a; the issues queued from FIN1/FIN2 are assigned below.
+
+## FIN3a Board votes and mood (spec §7.3, §7.4)
+
+- Major decisions (§7.3): deterministic, visible seat-by-seat votes (no `rng` in approval); the vote passes if the
+  weighted yes > half. List: sale of control, merger/acquisition, down round, rescue, new firm commitments or debt
+  above 3× revenue. Remove the dilution vote and the 20%-of-revenue debt vote; operating decisions are never voted.
+  Founder preset may force a decision at a mood cost (founder control is read from ownership/board, as FIN2 left it).
+- Mood (§7.4): named sources × seat-kind weights (the spec table); reversion toward 60; remove the safety-grade
+  bonus and any remaining plan-based source.
+- **Rebalance board confidence** (queued from FIN2): with the revenue plan gone the reference bot ends 2027 at
+  confidence 48 (was 67) and race / capex2x ousters rose (14.5% → 19%, 4.5% → 19%). Tune the source sizes so a
+  competent bot sits near the old level while an aggressive failing one is still at risk; record before → after.
+- UI: Board card (seats with stances, mood with its sources, ouster status); a vote preview on every major decision's
+  card (each seat's vote and the total, before you ask).
+- Not in this phase: charter rights, critics' seat, E37, acquisitions.
+
+## FIN3b Charter rights, low confidence, events (spec §7.2, §7.5, §8, §10)
+
+- Charter rights (§7.2): nonprofit-PBC safety committee blocks releasing a model your safety evals flagged (wire into
+  the release/deploy path; make `safetyCommitteeVeto` real, today it is never read); PBC + trust approval for sale of
+  control and for transferring a capability-threshold model (a visible vote by mission seats); legacy nonprofit
+  ouster odds ×2.
+- Low confidence (§7.5): "Give the critics a seat" action (available below 40; the side driving the decline gets a
+  director; +15 now, the board permanently leans that way); the ouster vote visible on the Board card; remove the
+  staff-revolt reinstatement; drop E37 and its bot handling.
 - Distress (§8): remove the morale hit.
-- Acquisitions (§9): rebuild E32 (trigger: a rival in distress; price = valuation × ~0.5; pay cash or stock; take on
-  its commitments and debt; antitrust; board vote). E22 absorbed obligations follow the same rule.
-- UI: Board card (seats, stances, charter rights, mood with sources, ouster status, the critics' seat action), vote
-  preview on every major decision.
+- **IPO repricing fix** (queued from FIN2): the 5% IPO cap must hold at close (a repriced IPO ended at 8%).
+- UI: charter rights on the Board card with what each blocks; the critics' seat action.
 
-## FIN4 Strategic partners (spec §6)
+## FIN3c Acquisitions (spec §9)
 
-- One partner offer flow replaces seekPartner / acceptDeal / declineDeal and the 8 templates: kinds hyperscaler,
-  chip vendor, sovereign. Hyperscaler: non-voting equity tranches capped 15% + cloud/custom chips at a discount with
-  priority, take-or-pay; strings exclusivity (optional, more money), revenue share, IP access. Chip vendor: money per
-  GW deployed + priority, buy its chips. Sovereign: passive equity + political cost, no site.
-- Up to 3 partners; exclusivity blocks competitors; partners anchor one lab (rivals compete).
-- IP access: the partner's affiliated rival lab closes ~10%/yr of your capability lead (via the rivals interface).
-- No hyperscaler board seats. Rescue kept (distress). Tranche conditions: gw, revenue, ipo, recapitalisation.
+- Rebuild E32: triggered by a rival in distress (not by your lead); price = its valuation × ~0.5; pay in cash or your
+  stock (dilution at your price); you take on its commitments and debt; antitrust scrutiny kept; needs a board vote
+  (FIN3a). E22 (DPA consolidation) absorbed obligations follow the same rule.
+- UI: the offer shows price in cash vs stock, the obligations you take on, the vote.
+
+## FIN4a Partner offers (spec §6.1 core, §6.2, §6.3)
+
+- One partner offer flow replaces seekPartner / acceptDeal / declineDeal and the 8 templates. Three kinds:
+  hyperscaler (non-voting equity tranches capped 15% + cloud/custom chips at a discount with priority, take-or-pay),
+  chip vendor (money per GW deployed + priority, buy its chips), sovereign (passive equity + political cost, no site).
+- Hyperscaler cloud, custom-ASIC and vendor supply priced on FIN1's expected market path (FIN1 left them at flat
+  prices). Rescue kept (distress only). Tranche conditions: gw, revenue, ipo, recapitalisation.
 - Existing start states (Northwind legacy stake, start-type strategic holders) migrate to the new deal records.
+- UI: partner offers with their terms and the tranche conditions (the conditions show in What we owe).
+- Not in this phase: several partners, exclusivity, IP access.
+
+## FIN4b Several partners, exclusivity, IP access (spec §6.1 strings)
+
+- Up to 3 partners at once; exclusivity strings block the partner's competitors (more money for exclusivity);
+  partners anchor at most one lab (rivals compete). No hyperscaler board seats.
+- IP access string: the partner's affiliated rival lab closes ~10%/yr of your capability lead (via the rivals
+  interface; no other change to rivals).
+- A strategic partner's guarantee opens leases below rating B (FIN1 leftover).
 - UI: Partners section with each partner's terms, strings and exclusivity conflicts.
 
-## FIN5 Valuation and rivals (spec §1, §12, §13)
+## FIN5a Valuation: sector value and share (spec §1)
 
 - Sector value S_t (κ_S, α, Φ(L_frontier), mood) and share softmax over private labs with the four drivers via
-  observe.ts, credibility and governance factor. Remove the narrative premium N and the old formula; pool = π·S_t.
-- Rivals in the same split (`finance/rivalFinance.ts`): valuation marked quarterly; raise at it when cash < half a
-  year of spend (d_max, pool); trailing private lab in distress is license-and-hired by a big-tech rival (team +
-  licence + compute to the buyer), bankruptcy only without a buyer.
-- Big-tech division (§13): parent annual budget judged against the parent's goals (promise mechanism set by the
-  parent), cut after misses; overspend covered but costs parent confidence; replaces the runway distress verdict for
-  divisions (fixes JANK-AUDIT F2).
+  observe.ts (economics bridge until model-v3 V4), credibility and governance factor (dual-class ×0.95) moved into the
+  share. Remove the narrative premium N and the old formula; pool = π·S_t.
+- Supplier terms follow equity access: prepayment share = f(share, runway) (FIN1 leftover).
+- Check the spinout start (queued from FIN2: spinout "overtaken" games went 6 → 10 of 20, probably the low starting
+  credibility); adjust start credibility or the share if that is the cause.
 - Story card UI (sector, mood, share, four drivers, credibility).
+- Rivals still use their old valuations in this phase (FIN5b).
 
-## FIN6 Calibration, UI pass, review (spec §11, §14)
+## FIN5b Rivals' finance (spec §12)
 
-- Fit [fit] parameters to FC1–FC7 on today's engine (record that a refit is due after model-v3 V4 and V7).
-- Reference bot and other bots: fewer, larger rounds; use chip loans/leases and firm contracts; check distress share
-  and FC7.
-- UI pass on the Finance tab (Story · Raise · What we owe · Board · Cash) and the payment/contract cards, against the
-  good-ui skill; uitest updated; tooltips for every new term (glossary).
-- Self-review of the whole branch for leftovers of removed mechanisms (grep for removed ids, `narrative`, `kY`,
-  `revenuePlan`, `megaJV`, `spv` template, E37) and dead code.
-- PROGRESS row; report what needs refitting after model-v3.
+- `finance/rivalFinance.ts`, called from `actors/rivals.ts` in one line: rivals in the same split (valuation marked
+  quarterly from their observables), raise at it when cash < half a year of spend (d_max, pool), trailing private lab
+  in distress is license-and-hired by a big-tech rival (team + licence + compute to the buyer), bankruptcy only
+  without a buyer.
+- Check the 3-year rival picture again (valuations within ×2 of real analogues, trailing labs stay funded).
+
+## FIN5c Big-tech division budget (spec §13)
+
+- The parent sets an annual budget judged against the parent's goals (the promise mechanism, set by the parent), cuts
+  it after misses; overspend is covered but costs parent confidence; replaces the runway distress verdict for
+  divisions (fixes JANK-AUDIT F2). Division UI readout ("over budget by $X; parent covers").
+
+## FIN6a Calibration (spec §14)
+
+- Fit the [fit] parameters to FC1–FC7 on today's engine; record that a refit is due after model-v3 V4 and V7.
+- Bots: fewer, larger rounds; chip loans, leases and firm contracts used; distress share; FC7 (2× capex bot reaches
+  distress by 2027; it now survives far more often since FIN1: insolvency 93% → 40–50%); the F7 2026 capex edge
+  ($156B, band ≥ $150B); the aggressive pitch is never used by the bot (cover with a bot variant or a test).
+
+## FIN6b UI pass (spec §11)
+
+- The Finance tab (Story · Raise · What we owe · Board · Cash) and the payment/contract cards against the good-ui
+  skill; uitest updated; tooltips and glossary for every new term; payment options also show a present-value figure
+  next to total cost (leases always look worse than cash on undiscounted total).
+
+## FIN6c Review and cleanup
+
+- Self-review of the whole branch: leftovers of removed mechanisms (grep removed ids, `narrative`, `kY`,
+  `revenuePlan`, `megaJV`, `spv` template, E37) and dead code; docs (STRUCTURE/V2-SPEC pointers, PROGRESS) updated;
+  final full test run; report what needs refitting after model-v3.
+
 
 ## Phase notes
 
