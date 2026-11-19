@@ -33,7 +33,9 @@ The model is missing demand, not price. Finance targets are not retuned (finance
 | ID | Task | Depends | Effort | Done when |
 |---|---|---|---|---|
 | A1 | Research: 2025–26 AI demand anchors from primary sources: hours of AI use per worker vs firm adoption (worker surveys), share of use that is non-work, token volumes disclosed by providers, disclosed lab revenue (official statements and filings only), consumer paid-subscription counts and price. Write `research/22-demand-anchors.md` with a summary table and tags like research/20. | – | M | file written; every number tagged [P]/[R]/[UNVERIFIED]; a "game-ready" section says which world quantities the data fixes (hours per adopted work-hour, non-work share, subscriber stock) |
-| A2 | Add the missing demand terms the anchors support: usage multiplier on adopted hours, non-work consumer and prosumer demand as a stock, other channels the data shows. No fitting to a revenue target: constants come from A1 or are marked [D]. | A1 | H | world market and the leader's revenue land in the A1 bands by mechanism; W2, U +1 pp, GOV T1 re-checked and reported; serving tests still pass; golden dates unchanged |
+| A2a | Hours and value per hour (research/22 §1–2): fit sector adoption A to worker-level / employment-weighted use (≈40% of workers, ≈15% of their hours ≈ 6% of work-hours in 2026), not BTOS firm counts; set hours saved per hour of use to ≈0.35 (replaces α + (1 − α)·g_aug ≈ 0.6 at the start, still rising with agency). Re-fit only the Bass start values `A0` to the new anchors. | A1 | H | US hours of use ≈ 6% of work-hours in 2026 in the worldfx run; W4 and hiring checks re-reported; golden dates unchanged |
+| A2b | Consumer demand (research/22 §3–4): non-work share ≈0.7; weekly reach and paid share (≈5.5%) as stocks; subscribers × ARPU $20–25/month as a revenue line independent of work hours; free-user tokens ≈8–10k per user-day (was 1.6k) feeding the serving need. | A2a | H | leader consumer subscribers ≈50M-class and ≈$13B/yr in the 2026 reference run by mechanism; serving tests pass |
+| A2c | Enterprise seats and intensity (research/22 §5–9): paid enterprise seats as a stock (≈50M mid-2026, $20–30 per seat-month, growing), and an agent-work term: token intensity per human hour and agent-hours not tied to one human hour (parallelism k per supervising human) so spend can grow faster than human-attended hours. Constants from the research or marked [D]; no fitting to a revenue target. | A2a | H | world frontier-lab market lands in the $100–130B band for 2026 by mechanism; worldfx W2, U +1 pp, GOV T1 re-checked and reported; serving tests pass; golden dates unchanged |
 | A3 | Price decline at fixed capability is ×3.6/yr vs the sourced ×10/yr (research/20 D3). Diagnose (rental path, algorithmic progress in serving, the rival FLOP bridge) and fix the mechanism, not a constant. | – | H | fixed-capability price falls within ×6–×30/yr in the serving test; no revenue refit |
 
 ## B. Product and world UI for V4 (was "V4b")
@@ -97,11 +99,11 @@ danger depends on, and how loss of control works.
 | F2 | China and the leader lab (Polaris) on the same model; diffusion and theft add to stacks; fixes ws4 T3 band and post-theft lag. | F1 | H | T3 and T4 pass; T1L within tolerance |
 | F3 | Display level λ(G) for every lab from one map; retire the pm bridge Φ. | F1, F2 | M | no `pm` readers (lint) |
 | F4 | Multi-seed calibration: the three per-preset values must hold across seeds (authors2026 was a point fit); report the golden spread over 20 seeds per preset and widen or re-derive. | F3 | H | spread table; presets within tolerance on the median seed |
-| F5 | Bots: rebalance RefBot and the §7.4 criteria after A–E. | F3, A2, E9 | H | bot table; criteria met or the conflict reported |
+| F5 | Bots: rebalance RefBot and the §7.4 criteria after A–E. | F3, A2c, E9 | H | bot table; criteria met or the conflict reported |
 | F6 | UI pass against good-ui across all panels touched in v3 (vocabulary, tooltips, empty states) and the jank audit of the new systems. | all | M | audit file; fixes listed |
 | F7 | Merge plan: model-v3 into master (the finance branch rebases onto it), schema notes, changelog. | F6 | M | merge-ready branch; user decides |
 
 ## Order (one at a time)
 
-Next: **A1** (small, independent), then A2. Then B1–B4 and P2 in any order (they are independent and mechanical), A3, then
+Next: **A2a → A2b → A2c** (A1 done: research/22). Then B1–B4 and P2 in any order (they are independent and mechanical), A3, then
 D1…D9, E1…E13, F1…F7. The lead may reorder when a result changes what is next; every change goes in this file.
