@@ -836,3 +836,27 @@ Detailed when each starts (spec §16): V2b research UI (after V3, covering V2 + 
 (owns worldfx GOV T1 and W2 from V1; sectors onto work types), V5 data assets, environment suites and evals, V6 safety
 (SAF work types, safety lines on the project mechanism), V7 rivals and China (owns ws4 T3 lead band), bots, UI pass,
 jank audit.
+
+### V3 decision (2026-11-19, lead session)
+
+V3 + V3b accepted: all presets within the golden tolerances with three per-preset values (G_SC, Δ_bm, AIFM's AI taste
+at SC) and a shared ASI gap of 1.3; frontier G path and METR doubling checks pass. Known and owned: finance F7/F8 and
+worldfx W2 (revenue bridge → V4), safe-bot win 10% and safe losses (rebalance after V4–V6), authors2026 fit is a
+point fit (fragile, revisit in V7 with multi-seed calibration), hygiene perf average over budget (V7 perf pass).
+Next: **V2b UI** for the V2 + V3 mechanics, then V4.
+
+## V2b UI: research, recipe, allocations, AI labour
+
+Brief: V2b above (project cards with stage track, belief band, odds; priority list and teams wanted; risk policy;
+per-stack recipe readout; research-engineer and engineer allocations with priority and overflow), extended with V3:
+- per project: compute- or labour-bound (c, ℓ, X), FLOP and research engineers on it, ETA; lines: pool state, realised
+  OOM, next prior;
+- an **AI labour** view per work type (SWE, EXP, IDEAS; SAF_* shown as "used by safety"): the model's fit vs median
+  expert and best human, coverage, horizon and success at the work type's task length, copies, speed, AI FTE,
+  effective labour, human share, and distance to each milestone criterion (SC, SAR, SIAR, ASI);
+- lab research speed (M readout vs the leader's day 0) and what binds it, replacing the old bottleneck bar's knot terms;
+- engineers' build capacity split into humans and AI;
+- remove every UI reading of removed v2 concepts (know-how months, × frontier, knot terms, CAL_SHIFT levels).
+The readouts exist (V2 notes "What V2b needs", V3 notes "readouts for the UI phase"). Follow the good-ui skill; where
+it asks for mockups for approval, write them to `design/ux/mockups-v3/` and proceed (the user reviews them with the
+build). Every new term gets a glossary entry and a tooltip; `npm run test:ui` extended for the new panels.
