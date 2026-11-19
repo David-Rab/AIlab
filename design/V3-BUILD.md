@@ -928,3 +928,67 @@ Code: `src/engine/v2/models/researchView.ts` (read-only views: `capProjectView`,
 - A new game starts with no capability project on the list (V2a start state), so the capability science teams are idle
   until the player adds one: the Research badge, the list's empty state and the idle line say so. A default list (the
   lines RefBot runs) would be an engine/start change, left for the lead session.
+
+### V2b decision (2026-11-19, lead session)
+
+Accepted (screens checked: 42-research-projects, 10-company-work). Two engine issues go to V4.0.
+
+## V4 Serving, products, sectors on work types
+
+Goal: revenue, prices and sector adoption come from physical serving economics and the shared work-type function.
+Spec §6, §7; research/20 §D. Removes BRIDGE(V4) (relative `serveCost`, revenue per H100e × M^0.3, the M reads of
+revenue). Owns worldfx GOV T1 and W2 and finance F7/F8 (revenue path). Two runs: **V4a** engine + calibration +
+tests, **V4b** UI.
+
+### V4.0 Carry-overs from V2b
+
+- A new game starts with an empty capability priority list, so science teams sit idle: give every start type a
+  default list (its starting portfolio, e.g. the lines plus the start's in-progress ideas) [D], shown and editable.
+- In the uitest fixture a priority-2 line with teams wanted 1 got 0 teams while priority 1 got 6: check the assignment
+  (or the line's readiness) and fix or explain in the UI.
+
+### V4.1 Sectors and consumers as work types
+
+- Each sector (research/16 table) becomes a work type: its domain weights, a task length H and verifiability [R20 E,
+  research/16] — the same fit/coverage/assist function as internal work (V3). Feasibility F = coverage of the sector's
+  work type on the market's mix of models (replaces σ((Le − 8 − θ)/1.2)); the cost gate K compares the **physical cost
+  per work-hour** of each provider's model with the sector wage (replaces the abstract cost curve halving per 1.5
+  levels). Bass diffusion, friction, employment, hiring and macro stay as they are.
+- Consumer chat is a work type too (SOCIAL, REASON, MEDIA; minutes-long tasks).
+
+### V4.2 Cost, price, capacity
+
+- Cost per work-hour = tokens per work-hour (work type, effort, features) × FLOP per token (2·N_active of the served
+  version) ÷ (H100e FLOP/s × serving utilisation) × $ per H100e-second (market TCO) [R20 D1–D2].
+- Capacity = serving H100e × FLOP/s × utilisation ÷ (FLOP per token × tokens per work-hour).
+- **Price**: the player's price policy per product = markup over its own cost per work-hour (budget / standard /
+  premium [D], with research/20 D3: API gross margin ≈ 0.6) and never above the task's value (wage × hours saved).
+  Rivals and China price at their own cost × a markup [D]; their cost from their model's size — rivals have no
+  N_active yet, so derive one from their G with the reference design (`// BRIDGE(V7)`).
+- Market share per segment: logit on (fit on that work type, price, brand, access) as today, but the **customer base
+  is a stock** that moves toward the logit share at a segment speed (consumer weeks, API months, enterprise and
+  government contracts quarters to a year) [D]. Revenue = min(demand, capacity) × price.
+- Consumer: subscribers (reach × share, a stock) × price; usage tokens per user-day sets the serving need; the mini free
+  tier serves free users.
+
+### V4.3 Features (typed, spec §7.2)
+
+Replace flat L bonuses: task enablers (open work types or segments), horizon extenders (× h50 on chosen work types),
+scaffolds (+ΔG compute-equivalent on chosen work types, × tokens; Davidson et al. 2023 via research/20 B3), effort
+(+0.3–0.5 OOM per ×10 reasoning tokens, capped +1.5 [R20 C3]). Effects apply to both products and internal packages.
+P05 and P07 (LATER(V4)) become typed features here.
+
+### V4.4 Calibration and tests
+
+- Finance F7/F8 targets (2026 revenue, valuation, distress), 2027 revenue; worldfx tests incl. W2 TFP and GOV T1; the
+  sector automation path. Price sanity: price per million tokens and its decline for fixed capability vs research/20
+  D3 (×10/yr, range wide) — report, not fit.
+- Tests (`scripts/v2/serving.ts` in `test:v2`): cost ∝ N_active × tokens; capacity ∝ H100e; price never below cost
+  or above value; customers move gradually; a bigger model costs more per task (the size → cost link the v2 revenue
+  exponent damped); features' effects typed and applied in both products and internal use; lint: no reads of
+  `serveCost` or multiplierRef for revenue.
+- Golden dates must stay within tolerance (serving affects revenue → compute → research).
+
+Record "V4 notes" and a PROGRESS row; schemaRev bump. **V4b UI**: product cards show cost and price per work-hour,
+margin, capacity, customers stock and its target, features with typed effects; World panel sectors show the work-type
+coverage and cost gate. good-ui skill.
