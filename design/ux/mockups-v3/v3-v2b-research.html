@@ -1,0 +1,207 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>AI27 v3 · V2b Research projects, recipe, work and AI labour</title>
+<!-- V2b mockup (design/V3-BUILD.md "V2b UI"). Data: the day-400 fixture (ai2027, leader start, Atlas-2.10).
+     ?work shows Company › Work; default Research › Projects; ?recipe Research › Recipe. Render: node render-v2b.mjs -->
+<style>
+:root { --bg:#0e131b; --panel:#151c26; --panel2:#1b2430; --line:#243041; --line2:#33435a; --text:#e3e9f1; --t2:#9fb0c3; --t3:#6b7c91;
+  --cap:#9b6be0; --und:#22a394; --good:#4cc38a; --watch:#e9b44c; --bad:#ef6b6b; --ai:#4fd1bd; --human:#3a4d66; --you:#3a8ae0;
+  --mono: 'Cascadia Mono', Consolas, monospace; --sans: 'Segoe UI', system-ui, sans-serif; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--text); font:13px var(--sans); width:1600px; height:900px; overflow:hidden; display:grid; grid-template-columns:84px 1fr; grid-template-rows:60px 1fr; }
+.top { grid-column:1/3; background:#0b1017; border-bottom:1px solid var(--line); display:flex; align-items:center; padding:0 16px; gap:24px; color:var(--t2); font-size:12px; }
+.top b { color:#fff; font:700 15px var(--mono); }
+.nav { background:#0b1017; border-right:1px solid var(--line); display:flex; flex-direction:column; align-items:center; padding-top:12px; gap:16px; font-size:11px; color:var(--t2); }
+.nav .on { color:#fff; background:#1a2638; border-radius:6px; padding:6px 8px; }
+main { padding:12px 16px; display:flex; flex-direction:column; gap:12px; min-width:0; overflow:hidden; }
+.ph { display:flex; align-items:center; gap:14px; }
+.ph h1 { font-size:20px; margin:0; }
+.tabs { display:flex; gap:2px; background:var(--panel); border:1px solid var(--line); border-radius:7px; padding:2px; }
+.tabs span { padding:5px 12px; border-radius:5px; color:var(--t2); font-size:12.5px; }
+.tabs .on { background:#22314a; color:#fff; font-weight:600; }
+.sp { flex:1; }
+.ref { border:1px solid var(--line2); border-radius:5px; padding:3px 8px; font-size:12px; color:var(--t2); }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px; min-width:0; }
+.hd { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.hd .t { font-weight:700; font-size:14px; } .hd .s { color:var(--t3); font-size:12px; }
+.seg { display:flex; border:1px solid var(--line2); border-radius:6px; overflow:hidden; font-size:12px; }
+.seg span { padding:4px 10px; color:var(--t2); border-right:1px solid var(--line2); } .seg span:last-child { border-right:0; }
+.seg .on { background:#22314a; color:#fff; font-weight:600; }
+.num { font-family:var(--mono); }
+.dim { color:var(--t3); } .small { font-size:11.5px; }
+.chip { font-size:10.5px; padding:1px 6px; border-radius:4px; border:1px solid var(--line2); color:var(--t2); }
+.chip.line { color:#b79be8; border-color:rgba(155,107,224,.5); } .chip.idea { color:#7cc3ff; border-color:rgba(90,169,255,.5); }
+.chip.cb { color:var(--watch); border-color:rgba(233,180,76,.5); } .chip.lb { color:#7cc3ff; border-color:rgba(90,169,255,.5); }
+/* priority list */
+.grid { display:grid; grid-template-columns:minmax(0,1fr) 470px; gap:12px; flex:1; min-height:0; }
+.prow { display:grid; grid-template-columns:16px 22px minmax(170px,1fr) 250px 110px 92px 70px; align-items:center; gap:10px; height:46px; border-bottom:1px solid #1d2632; }
+.prow.h { height:24px; font-size:10.5px; letter-spacing:.07em; text-transform:uppercase; color:var(--t3); font-weight:700; }
+.prow.sel { background:#1a2638; border-radius:6px; box-shadow:inset 3px 0 0 var(--you); }
+.grip { color:var(--t3); letter-spacing:-2px; font-size:12px; }
+.rk { width:20px; height:20px; border-radius:50%; background:#22314a; display:grid; place-items:center; font:700 11px var(--mono); }
+.nm b { font-weight:600; } .nm .small { display:block; }
+.track { display:grid; grid-template-columns:repeat(5,1fr); gap:3px; }
+.track i { height:8px; border-radius:2px; background:var(--line); position:relative; overflow:hidden; display:block; }
+.track i.done { background:#5a7bb0; } .track i.cur { background:var(--line); } .track i.cur b { position:absolute; left:0; top:0; bottom:0; background:#5aa9ff; }
+.track.big i { height:14px; }
+.tlab { display:grid; grid-template-columns:repeat(5,1fr); gap:3px; font-size:10.5px; color:var(--t3); margin-top:3px; }
+.tlab .cur { color:#fff; font-weight:600; }
+.step { display:flex; align-items:center; gap:6px; }
+.step .b { width:20px; height:20px; border:1px solid var(--line2); border-radius:4px; display:grid; place-items:center; color:var(--t2); }
+.dots { display:flex; gap:3px; } .dots i { width:8px; height:8px; border-radius:50%; background:var(--cap); } .dots i.off { background:transparent; border:1px solid var(--line2); }
+.foot { margin-top:8px; font-size:11.5px; color:var(--t3); display:flex; gap:14px; }
+.fail { display:flex; align-items:center; gap:10px; height:34px; border-top:1px dashed var(--line2); font-size:12px; }
+.btn { border:1px solid var(--line2); border-radius:5px; padding:3px 9px; font-size:12px; color:#fff; background:#1d2838; }
+/* project card */
+.sec { border-top:1px solid var(--line); padding-top:9px; margin-top:9px; }
+.k { font-size:10.5px; letter-spacing:.07em; text-transform:uppercase; color:var(--t3); font-weight:700; margin-bottom:6px; }
+.kv { display:flex; justify-content:space-between; font-size:12.5px; padding:2px 0; } .kv span:first-child { color:var(--t2); }
+.band { position:relative; height:26px; margin:4px 0 2px; }
+.band .ax { position:absolute; left:0; right:0; top:13px; height:1px; background:var(--line2); }
+.band .bd { position:absolute; top:7px; height:12px; border-radius:3px; background:rgba(90,169,255,.35); border:1px solid #5aa9ff; }
+.band .mu { position:absolute; top:3px; width:2px; height:20px; background:#fff; }
+.band .pr { position:absolute; top:4px; width:0; height:18px; border-left:2px dashed var(--watch); }
+.bars2 { display:grid; grid-template-columns:90px 1fr 46px; gap:6px; align-items:center; font-size:12px; }
+.hb { height:8px; background:var(--line); border-radius:2px; position:relative; } .hb i { position:absolute; left:0; top:0; bottom:0; border-radius:2px; }
+.team { display:flex; align-items:center; gap:8px; font-size:12px; padding:3px 0; } .team .why { color:var(--t3); font-size:11.5px; }
+/* work tab */
+.roles { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.hero { display:flex; align-items:baseline; gap:8px; } .hero b { font:700 24px var(--mono); } .hero .m { color:var(--good); font:600 13px var(--mono); }
+.stack { display:flex; height:12px; border-radius:3px; overflow:hidden; margin:6px 0 2px; } .stack i { display:block; }
+.fitax { position:relative; height:42px; margin:6px 4px 0; }
+.fitax .ax { position:absolute; left:0; right:0; top:16px; height:2px; background:var(--line2); }
+.fitax .tick { position:absolute; top:9px; width:2px; height:16px; background:var(--t2); }
+.fitax .tl { position:absolute; top:27px; font-size:10.5px; color:var(--t3); transform:translateX(-50%); white-space:nowrap; }
+.fitax .dot { position:absolute; top:10px; width:14px; height:14px; border-radius:50%; background:var(--ai); transform:translateX(-50%); border:2px solid #0b1017; }
+.cov { display:flex; align-items:center; gap:8px; } .cov .hb { flex:1; height:10px; } .cov .mk { position:absolute; top:-3px; bottom:-3px; width:2px; background:#fff; }
+.need { display:grid; grid-template-columns:14px 20px minmax(0,1fr) 120px 64px 66px; gap:6px; align-items:center; font-size:12px; height:30px; }
+.need .sel { border:1px solid var(--line2); border-radius:4px; padding:1px 5px; font-size:11px; color:var(--t2); }
+.mls { display:grid; grid-template-columns:repeat(7,1fr); gap:8px; }
+.ml { border:1px solid var(--line); border-radius:6px; padding:7px 8px; font-size:11.5px; }
+.ml.done { border-color:rgba(76,195,138,.45); } .ml.next { border-color:var(--you); box-shadow:0 0 0 1px var(--you); }
+.ml b { display:block; font-size:12px; margin-bottom:4px; }
+.crit { display:grid; grid-template-columns:minmax(0,1fr) 54px; gap:4px; align-items:center; margin-top:3px; }
+.speed { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.big { font:700 26px var(--mono); }
+.hidden { display:none !important; }
+</style></head>
+<body>
+<div class="top"><b>Aug 5, 2026</b><span>Capability <b style="color:var(--cap)">6.5</b></span><span>Understanding <b style="color:var(--und)">7.7</b></span><span>Risk <b style="color:var(--bad)">40%</b></span><span>Cash <b>$43.9B</b></span><span>Revenue <b>$18.2B</b>/yr</span><span>Lead <b style="color:var(--bad)">−19d</b></span></div>
+<div class="nav"><span>Overview</span><span id="nav-co">Company</span><span>Finance</span><span>Compute</span><span id="nav-rs" class="on">Research</span><span>Models</span><span>Blueprint</span><span>Products</span><span>Safety</span></div>
+
+<!-- ═══════════ Research › Projects ═══════════ -->
+<main id="research">
+  <div class="ph"><h1>Research</h1><div class="tabs"><span class="on" id="tab-proj">Projects</span><span id="tab-rec">Recipe</span><span>Tree</span></div><span class="sp"></span><span class="ref">Research speed ›</span><span class="ref">Research engineers ›</span></div>
+  <div class="grid" id="proj">
+    <div class="card">
+      <div class="hd"><span class="t">Priorities</span><span class="s">capability projects · 5 · 12 science teams · the game assigns teams in this order</span><span class="sp"></span>
+        <span class="small dim">Risk policy</span><div class="seg"><span>Safe</span><span class="on">Balanced</span><span>Speculative</span></div><span class="btn">+ Add project ▾</span></div>
+      <div class="prow h"><span></span><span>#</span><span>Project</span><span>Ideation · small · scale · result · adopt</span><span>Teams wanted</span><span>Binds</span><span>Next</span></div>
+      <div class="prow sel"><span class="grip">⋮⋮</span><span class="rk">1</span><span class="nm"><b>Scaling recipes</b> <span class="chip line">line</span><span class="small dim">pretraining · 15 ideas · +0.20 OOM</span></span>
+        <div class="track"><i class="done"></i><i class="done"></i><i class="cur"><b style="width:91%"></b></i><i></i><i></i></div>
+        <span class="step"><span class="b">−</span><b class="num">3</b><span class="b">+</span><span class="dots"><i></i><i></i><i></i></span></span><span class="chip cb">compute</span><span class="num">1 d</span></div>
+      <div class="prow"><span class="grip">⋮⋮</span><span class="rk">2</span><span class="nm"><b>Environments &amp; rewards</b> <span class="chip line">line</span><span class="small dim">RL ceiling · 16 ideas · +0.07 OOM</span></span>
+        <div class="track"><i class="done"></i><i class="cur"><b style="width:89%"></b></i><i></i><i></i><i></i></div>
+        <span class="step"><span class="b">−</span><b class="num">3</b><span class="b">+</span><span class="dots"><i></i><i></i><i></i></span></span><span class="chip cb">compute</span><span class="num">10 d</span></div>
+      <div class="prow"><span class="grip">⋮⋮</span><span class="rk">3</span><span class="nm"><b>Data filtering &amp; mixing</b> <span class="chip line">line</span><span class="small dim">pretraining · 13 ideas · +0.13 OOM</span></span>
+        <div class="track"><i class="done"></i><i class="cur"><b style="width:12%"></b></i><i></i><i></i><i></i></div>
+        <span class="step"><span class="b">−</span><b class="num">2</b><span class="b">+</span><span class="dots"><i></i><i></i></span></span><span class="chip cb">compute</span><span class="num">16 d</span></div>
+      <div class="prow"><span class="grip">⋮⋮</span><span class="rk">4</span><span class="nm"><b>Optimizer &amp; architecture tweaks</b> <span class="chip line">line</span><span class="small dim">pretraining · 4 ideas · +0.05 OOM</span></span>
+        <div class="track"><i class="done"></i><i class="done"></i><i class="cur"><b style="width:53%"></b></i><i></i><i></i></div>
+        <span class="step"><span class="b">−</span><b class="num">1</b><span class="b">+</span><span class="dots"><i></i></span></span><span class="chip cb">compute</span><span class="num">4 d</span></div>
+      <div class="prow"><span class="grip">⋮⋮</span><span class="rk">5</span><span class="nm"><b>RL algorithms</b> <span class="chip line">line</span><span class="small dim">RL efficiency · 10 ideas · +0.08 OOM</span></span>
+        <div class="track"><i class="done"></i><i class="done"></i><i class="cur"><b style="width:86%"></b></i><i></i><i></i></div>
+        <span class="step"><span class="b">−</span><b class="num">2</b><span class="b">+</span><span class="dots"><i></i><i class="off"></i></span></span><span class="chip cb">compute</span><span class="num">1 d</span></div>
+      <div class="fail"><span class="chip idea">idea</span><b>Multi-agent orchestration</b><span class="dim">failed: 3 candidates dropped · reopen at 35% odds, smaller and wider prior</span><span class="sp"></span><span class="btn">Reopen as speculative</span></div>
+      <div class="foot"><span>12 of 12 science teams placed</span><span>· teams go down this list: wanted count, best specialty first, then one swap pass</span></div>
+    </div>
+    <div class="card">
+      <div class="hd"><span class="t">Scaling recipes</span><span class="chip line">line</span><span class="s">pretraining stack · grows with run FLOP</span></div>
+      <div class="track big"><i class="done"></i><i class="done"></i><i class="cur"><b style="width:91%"></b></i><i></i><i></i></div>
+      <div class="tlab"><span>Ideation</span><span>Small exp.</span><span class="cur">Scale test 91%</span><span>Result</span><span>Adoption</span></div>
+      <div class="sec"><div class="k">Belief · candidate in test</div>
+        <div class="band"><div class="ax"></div><div class="bd" style="left:36%;width:22%"></div><div class="mu" style="left:47%"></div><div class="pr" style="left:62%"></div></div>
+        <div class="kv"><span>Effect at small scale</span><span class="num">+0.0038 ± 0.0013 OOM</span></div>
+        <div class="kv"><span>Scale behaviour</span><span>grows (s +0.05 ± 0.04)</span></div>
+        <div class="kv"><span>Next idea's prior <span class="dim">(dashed)</span></span><span class="num">+0.0056 OOM</span></div></div>
+      <div class="sec"><div class="k">Inputs today</div>
+        <div class="bars2"><span>Compute c</span><div class="hb"><i style="width:70%;background:var(--watch)"></i></div><span class="num">5.4×</span>
+          <span>Labour ℓ</span><div class="hb"><i style="width:28%;background:#5aa9ff"></i></div><span class="num">1.5×</span></div>
+        <div class="kv"><span>Compute-bound: +10% compute</span><span class="num">+3.7% speed</span></div>
+        <div class="kv"><span>Research engineers · FLOP</span><span class="num">2.0 team-eq · 2.8e22 /day</span></div></div>
+      <div class="sec"><div class="k">Pool · ideas get harder</div>
+        <div class="kv"><span>Realised so far</span><span class="num">+0.20 OOM · 15 ideas</span></div>
+        <div class="kv"><span>Ideas harder than at the start</span><span class="num">×1.38</span></div></div>
+      <div class="sec"><div class="k">Science teams · why here</div>
+        <div class="team"><span class="dots"><i></i></span><b>Pretraining #1</b><span class="why">priority 1 wants 3 (its specialty)</span></div>
+        <div class="team"><span class="dots"><i></i></span><b>Pretraining #2</b><span class="why">priority 1 wants 3 (its specialty)</span></div>
+        <div class="team"><span class="dots"><i></i></span><b>Systems #1</b><span class="why">swapped on: better fit for total progress</span></div></div>
+    </div>
+  </div>
+  <!-- Recipe tab -->
+  <div class="roles hidden" id="rec">
+    <div class="card"><div class="hd"><span class="t">Pretraining</span><span class="s">32 ideas</span></div>
+      <div class="hero"><b>+0.55</b><span class="dim">OOM over the start recipe</span></div>
+      <div class="stack" style="width:100%"><i style="width:2%;background:var(--human)"></i><i style="width:95%;background:var(--cap)"></i><i style="width:3%;background:repeating-linear-gradient(45deg,var(--cap) 0 3px,transparent 3px 6px)"></i></div>
+      <div class="kv"><span>In your model (Atlas-2)</span><span class="num">+0.00</span></div><div class="kv"><span>Not trained in</span><span class="num" style="color:var(--watch)">+0.55 OOM · Train ›</span></div>
+      <div class="kv"><span>Headroom left for tuning</span><span class="num">0.015 OOM</span></div>
+      <div class="sec"><div class="k">Adopted · believed → realised</div>
+        <div class="kv"><span>Data filtering &amp; mixing · 5 Aug</span><span class="num">0.014 ± 0.003 → next model</span></div>
+        <div class="kv"><span>Scaling recipes · 30 Jul</span><span class="num">0.011 ± 0.002 → 0.010 ✓</span></div></div></div>
+    <div class="card"><div class="hd"><span class="t">RL</span><span class="s">26 ideas</span></div><div class="hero"><b>+0.15</b><span class="dim">OOM</span></div></div>
+    <div class="card"><div class="hd"><span class="t">Serving &amp; systems</span><span class="s">0 ideas</span></div><div class="hero"><b>0.00</b><span class="dim">OOM · nothing adopted</span></div></div>
+  </div>
+</main>
+
+<!-- ═══════════ Company › Work ═══════════ -->
+<main id="work" class="hidden">
+  <div class="ph"><h1>Company</h1><div class="tabs"><span>Flow</span><span>Agents &amp; teams</span><span class="on">Work</span><span>Security</span></div><span class="sp"></span><span class="small dim">who does each kind of work: people + AI agents, and where it goes</span></div>
+  <div class="roles">
+    <div class="card"><div class="hd"><span class="t">Engineers</span><span class="s">software engineering · Atlas-2.10</span></div>
+      <div class="hero"><b>26.5</b><span class="dim">team-wk/wk build</span><span class="m">×5.3 with AI</span></div>
+      <div class="stack"><i style="width:19%;background:var(--human)"></i><i style="width:81%;background:var(--ai)"></i></div>
+      <div class="small dim">humans 5.0 · AI adds 21.5 · 3.3K AI FTE (139 copies × 5)</div>
+      <div class="sec"><div class="k">Fit vs people · coverage</div>
+        <div class="fitax"><div class="ax"></div><div class="tick" style="left:8%"></div><div class="tl" style="left:8%">median</div><div class="tick" style="left:58%"></div><div class="tl" style="left:58%">best human</div><div class="dot" style="left:23%"></div></div>
+        <div class="cov"><span class="small">coverage</span><div class="hb" style="position:relative"><i style="width:64%;background:var(--ai)"></i><span class="mk" style="left:90%"></span></div><b class="num">64%</b></div>
+        <div class="small dim">horizon 17 h · 87% at 2 h tasks · humans 62% of the margin</div></div>
+      <div class="sec"><div class="k">Where it goes · priority order</div>
+        <div class="need"><span class="grip">⋮</span><span class="rk">1</span><span>Runs &amp; adoptions</span><div class="hb"><i style="width:2%;background:#9b6be0"></i></div><span class="num">0.0/0.0</span><span class="sel">no cap ▾</span></div>
+        <div class="need"><span class="grip">⋮</span><span class="rk">2</span><span>Product upkeep</span><div class="hb"><i style="width:17%;background:#b08e1a"></i></div><span class="num">4.5/4.5</span><span class="sel">no cap ▾</span></div>
+        <div class="need"><span class="grip">⋮</span><span class="rk">3</span><span>Builds</span><div class="hb"><i style="width:0%;background:#3a8ae0"></i></div><span class="num">0.0/0.0</span><span class="sel">no cap ▾</span></div>
+        <div class="small dim">idle 21.9 → flows to nothing: queue a feature on Products</div></div></div>
+    <div class="card"><div class="hd"><span class="t">Research engineers</span><span class="s">experiments &amp; runs · Atlas-2.10</span></div>
+      <div class="hero"><b>34.7</b><span class="dim">team-eq</span><span class="m">×2.3 with AI</span></div>
+      <div class="stack"><i style="width:43%;background:var(--human)"></i><i style="width:57%;background:var(--ai)"></i></div>
+      <div class="small dim">humans 15 · AI 10.7K FTE (452 copies × 5)</div>
+      <div class="sec"><div class="k">Fit vs people · coverage</div>
+        <div class="fitax"><div class="ax"></div><div class="tick" style="left:8%"></div><div class="tl" style="left:8%">median</div><div class="tick" style="left:58%"></div><div class="tl" style="left:58%">best human</div><div class="dot" style="left:7%"></div></div>
+        <div class="cov"><span class="small">coverage</span><div class="hb" style="position:relative"><i style="width:33%;background:var(--ai)"></i><span class="mk" style="left:90%"></span></div><b class="num">33%</b></div></div>
+      <div class="sec"><div class="k">Where it goes · priority order</div>
+        <div class="need"><span class="grip">⋮</span><span class="rk">1</span><span>Run operations</span><div class="hb"><i style="width:0%"></i></div><span class="num">0/0</span><span class="sel">no cap ▾</span></div>
+        <div class="need"><span class="grip">⋮</span><span class="rk">2</span><span>Project experiments</span><div class="hb"><i style="width:66%;background:#7d55c0"></i></div><span class="num">10/10</span><span class="sel">≤ 75% ▾</span></div>
+        <div class="need"><span class="grip">⋮</span><span class="rk">3</span><span>Routine tuning</span><div class="hb"><i style="width:33%;background:#5aa9ff"></i></div><span class="num">5/rest</span><span class="sel">no cap ▾</span></div></div></div>
+    <div class="card"><div class="hd"><span class="t">Scientists</span><span class="s">research ideas &amp; taste · Atlas-2.10</span></div>
+      <div class="hero"><b>11.7</b><span class="dim">team-eq</span><span class="m">×1.17 with AI</span></div>
+      <div class="stack"><i style="width:86%;background:var(--human)"></i><i style="width:14%;background:var(--ai)"></i></div>
+      <div class="small dim">humans 10 · AI 2.5K FTE · AI taste −1.6 SD</div>
+      <div class="sec"><div class="k">Fit vs people · coverage</div>
+        <div class="fitax"><div class="ax"></div><div class="tick" style="left:30%"></div><div class="tl" style="left:30%">median</div><div class="tick" style="left:80%"></div><div class="tl" style="left:80%">best human</div><div class="dot" style="left:4%"></div></div>
+        <div class="cov"><span class="small">coverage</span><div class="hb" style="position:relative"><i style="width:5%;background:var(--ai)"></i><span class="mk" style="left:90%"></span></div><b class="num">5%</b></div></div>
+      <div class="sec"><div class="k">Where it goes</div><div class="small">Capability projects in priority order · <span class="ref">Research › Priorities</span></div></div></div>
+  </div>
+  <div class="card"><div class="hd"><span class="t">Milestones</span><span class="s">what each one needs, on your closest model</span></div>
+    <div class="mls">
+      <div class="ml done"><b>Agent ✓</b>day 0</div><div class="ml done"><b>Reliable agent ✓</b>Jan 2026</div>
+      <div class="ml next"><b>Research agent</b><div class="crit"><div class="hb"><i style="width:66%;background:var(--ai)"></i></div><span class="num">33/50%</span></div></div>
+      <div class="ml"><b>Superhuman coder</b><div class="crit"><span class="small">fit −1.5 OOM</span><span></span></div><div class="crit"><div class="hb"><i style="width:71%;background:var(--ai)"></i></div><span class="num">64/90%</span></div><div class="small dim">cost ✓ $1.2 vs $560/h</div></div>
+      <div class="ml"><b>Superhuman AI researcher</b><div class="small">exp fit −2.3 · ideas fit −3.4 OOM</div></div>
+      <div class="ml"><b>Superintelligent researcher</b><div class="small">ideas −7.8 OOM to target</div></div>
+      <div class="ml"><b>Superintelligence</b><div class="small">weakest −10.6 OOM</div></div>
+    </div></div>
+</main>
+<script>
+const q = location.search;
+if (q.includes('work')) { document.getElementById('research').classList.add('hidden'); document.getElementById('work').classList.remove('hidden'); }
+if (q.includes('recipe')) { document.getElementById('proj').classList.add('hidden'); document.getElementById('rec').classList.remove('hidden'); document.getElementById('tab-proj').classList.remove('on'); document.getElementById('tab-rec').classList.add('on'); }
+</script>
+</body></html>
