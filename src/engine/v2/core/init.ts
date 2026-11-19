@@ -4,7 +4,7 @@
 import { LEADER_FEATURES } from '../../../data/v2/features';
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
 import { PLAYER_MODEL_FAMILY } from '../../../data/v2/names';
-import { B_G_PER_Y, E_B0, REFERENCE_BASE, REFERENCE_POST, RL_BUDGET } from '../../../data/v2/runDesign';
+import { B_G_PER_Y, E_B0, REFERENCE_BASE, REFERENCE_POST, RL_BUDGET, SHAPE } from '../../../data/v2/runDesign';
 import { B0_DAY, B0_START_DAY, SHARE_REF } from '../../../data/v2/calibration';
 import { START_BY_ID } from '../../../data/v2/starts';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
@@ -180,7 +180,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   }
   const V0: ModelVersion = {
     id: 'V0', name: def.imported ? 'Open-weight import' : `${PLAYER_MODEL_FAMILY}-1.0`, baseId: 'B0', day: -20, variant: def.imported ? 'imported' : 'full', design: { ...REFERENCE_POST },
-    pm: pm0, Lg, domains, traitsTrue: { ...TRAIT_START }, masks, uModes, monitorability: 0.9, serveCost: sm.serve,
+    pm: pm0, Lg, domains, traitsTrue: { ...TRAIT_START }, masks, uModes, monitorability: 0.9, serveCost: sm.serve, fpt: 2 * REFERENCE_BASE.params * SHAPE[REFERENCE_BASE.shape].tokenMult,
     evals: startEvals(domains, Math.round(Lg * 100) / 100, -20), beliefs, status: 'deployed', flags: {}, build, appeal: 1,
   };
   const dep = (id: string, channel: Deployment['channel'], servingShare: number, kyc: Deployment['kyc']): Deployment => ({

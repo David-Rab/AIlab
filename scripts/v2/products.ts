@@ -12,7 +12,7 @@
 //   P8  Agents launch gate: measured time horizon vs the task length; eval suites no longer expire; auto-evaluate
 //       refreshes the internal model; upgrade-to-newest moves a product to a better cleared version
 //   P9  retire; save round trip with an edited product
-import { AGENT_TASK_HOURS, MONITOR_OVERHEAD } from '../../src/data/v2/features';
+import { AGENT_TASK_HOURS, MONITOR_OVERHEAD, PRICE_TIERS } from '../../src/data/v2/features';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx, tick } from '../../src/engine/v2/core/loop';
 import { deserialize, serialize, stateHash } from '../../src/engine/v2/core/save';
@@ -70,7 +70,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const err = act(s, 'product.update', { id, price: 'premium', monitorId: v0.id });
   check(!err, 'P3 product.update applies', err ?? '');
   const d = prod(s, 'api');
-  check(d.id === id && d.startDay === start && d.status === 'live' && d.price === 'premium' && d.priceIndex === 1.4 && d.monitorId === v0.id, 'P3 the product stays live (same id and start day) with the new tier and monitor');
+  check(d.id === id && d.startDay === start && d.status === 'live' && d.price === 'premium' && d.priceIndex === PRICE_TIERS.premium && d.monitorId === v0.id, 'P3 the product stays live (same id and start day) with the new tier and monitor');
   tick(s, { skip: ['endings'] });
   const after = d.revenueRate ?? 0;
   check(near(after, pv.after!.revenue, 0.03), 'P3 the preview\'s revenue is what the next tick computes (±3%)', `${pv.after!.revenue.toFixed(3)} vs ${after.toFixed(3)}`);
@@ -85,7 +85,8 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
 {
   const s = game();
   const v0 = s.player.models.versions[0];
-  const mini = cloneVersion(s, v0, 'VM', { variant: 'mini', serveCost: v0.serveCost * 0.25 });
+  // V4: the monitor overhead reads FLOP per token (a quarter-size mini: ×0.25).
+  const mini = cloneVersion(s, v0, 'VM', { variant: 'mini', serveCost: v0.serveCost * 0.25, fpt: (v0.fpt ?? 2e12) * 0.25 });
   const api = prod(s, 'api');
   api.monitorId = mini.id;
   check(Math.abs(monitorOverhead(s, api) - MONITOR_OVERHEAD * 0.25) < 1e-9, 'P4 D7: a mini monitor on its full model costs 0.25 × 0.25 = 6.25% of serving need', monitorOverhead(s, api).toFixed(4));
@@ -121,10 +122,14 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   check(near(served, pool, 1e-6), 'P6 Auto uses the whole serving pool', `${served.toFixed(0)} of ${pool.toFixed(0)}`);
   const short = rd.deps.reduce((a, x) => a + x.needH100e, 0) > pool;
   if (short) {
+    // V4: prices are markups over cost, so paid work earns about the same per H100e on every product: Auto serves paid
+    // work pro rata and Chat's free users (earning nothing) last.
     const byRate = [...rd.deps].sort((a, b) => b.rpH - a.rpH);
-    const lowCut = byRate[byRate.length - 1].cutH100e;
-    check(lowCut > 0 && byRate.slice(0, -1).every((x, i) => i === 0 || x.cutH100e <= lowCut + 1e-6) && byRate[0].cutH100e < 1e-6,
-      'P6 short of serving: the product earning most per H100e is fully served, the lowest one is cut', byRate.map((x) => `${x.channel} ${Math.round(x.rpH / 1e3)}K cut ${Math.round(x.cutH100e)}`).join(', '));
+    const low = byRate[byRate.length - 1];
+    const cutShare = (x: (typeof byRate)[number]) => x.cutH100e / Math.max(1, x.needH100e);
+    const paid = byRate.filter((x) => x.channel !== 'consumer');
+    check(low.channel === 'consumer' && low.cutH100e > 0 && paid.every((x) => cutShare(x) <= cutShare(low) + 1e-9) && paid.every((x) => Math.abs(cutShare(x) - cutShare(paid[0])) < 0.02),
+      'P6 short of serving: paid work is served pro rata at equal revenue per H100e, Chat\'s free users are cut first', byRate.map((x) => `${x.channel} ${Math.round(x.rpH / 1e3)}K cut ${Math.round(x.cutH100e)}`).join(', '));
     check(s.player.deployments.some((d) => (d.cutH100e ?? 0) > 0), 'P6 the cut is recorded on the product (cutH100e)');
   } else check(false, 'P6 the start is short of serving (F11: capacity-bound start)');
   // Plenty of serving: no cut.
@@ -162,7 +167,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const c = prod(s, 'consumer');
   const pv = previewEdit(s, c, { features: ['companion'] });
   const on = act(s, 'feature.toggle', { product: c.id, feature: 'companion', on: true });
-  check(!on && c.features.includes('companion') && pv.after!.demand > pv.before!.demand * 1.01, 'P7 switched on for Chat: appeal raises its demand (preview)', `${pv.before!.demand.toFixed(2)} → ${pv.after!.demand.toFixed(2)}`);
+  check(!on && c.features.includes('companion') && pv.after!.demand > pv.before!.demand * 1.01, 'P7 switched on for Chat: the companion segment (a task enabler) raises its demand (preview)', `${pv.before!.demand.toFixed(2)} → ${pv.after!.demand.toFixed(2)}`);
   const api = prod(s, 'api');
   const wrong = act(s, 'feature.toggle', { product: api.id, feature: 'companion', on: true });
   check(!!wrong, 'P7 a feature is offered only on its products', wrong ?? '');

@@ -2,12 +2,9 @@
 //
 // A product is a Deployment of kind 'product': a model (optionally a mini serving its free tier), an optional monitor
 // model, a price tier, safeguards, KYC, effort and features. This module holds the package effects every engine
-// reader uses (the product's effective domain levels, consumer appeal, serving multiplier, sector bonus, incident-
-// hazard multipliers, monitor overhead and catch rate), the Agents time-horizon gate, and the product policies
-// (upgrade to newest, auto-evaluate). Revenue and the Auto serving split live in worldfx/revenue.ts.
-//
-// Neutrality: a product with no mini, no monitor and no features (every product at the frontier-leader start, and
-// RefBot's) gives exactly the pre-R6 terms: productDomains returns the version's own domain record.
+// reader uses (the product's display domain levels, incident-hazard multipliers, monitor overhead and catch rate), the
+// Agents time-horizon gate, and the product policies (upgrade to newest, auto-evaluate). Model v3 V4: the typed feature
+// effects, cost, price and capacity live in worldfx/serving.ts; revenue and the Auto serving split in worldfx/revenue.ts.
 import { AG05_GAP } from '../../../data/v2/agendas';
 import {
   AGENT_TASK_HOURS, AUTO_EVAL_DAYS, COLLUSION_TRAITS, COPY_COLLUSION, FEATURE_BY_ID, FREE_TIER_SHARE, MONITOR_CATCH_BASE, MONITOR_OVERHEAD, PRICE_TIERS,
@@ -15,12 +12,13 @@ import {
 } from '../../../data/v2/features';
 import { mAtLevel } from '../safety/common';
 import { containment } from '../safety/techniques';
-import type { Deployment, DomainId, GameStateV2, ModelVersion, SectorId, SystemCtx, TraitId } from '../types';
+import type { Deployment, DomainId, GameStateV2, ModelVersion, SystemCtx, TraitId } from '../types';
 import { runEvalSuite } from './benchmarks';
 import { measuredLOf, versionById } from './labs';
 import { nodeKnown } from './tree';
 import { PROJECT_BY_ID } from '../../../data/v2/tree';
 import { agentVersion } from '../departments/agents';
+import { flopPerToken } from '../departments/workfit';
 import { AGENT_USES } from '../../../data/v2/agents';
 
 const DOMAINS: DomainId[] = ['CODE', 'RSCH', 'REASON', 'AGENCY', 'SOCIAL', 'MEDIA', 'CYBER', 'BIO', 'PHYS'];
@@ -47,39 +45,18 @@ export function freeTierShare(s: GameStateV2, d: Deployment): number {
 }
 
 /**
- * Effective domain levels of a product: its model's, blended with the free-tier mini by usage, plus feature offsets.
- * Returns the model's own record when nothing changes it (neutral at the reference configuration).
+ * Display domain levels of a product: its model's, blended with the free-tier mini by usage (feature effects are typed
+ * and act on work-type fit, horizon and tokens, worldfx/serving.ts, not on these levels). Returns the model's own record
+ * without a free tier.
  */
 export function productDomains(s: GameStateV2, d: Deployment, v: ModelVersion | undefined = versionById(s, d.versionId)): Record<DomainId, number> | undefined {
   if (!v) return undefined;
   const f = freeTierShare(s, d);
-  const feats = activeFeatures(s, d);
-  if (f <= 0 && !feats.some((x) => x.domains)) return v.domains;
-  const mini = f > 0 ? versionById(s, d.miniVersionId) : undefined;
+  if (f <= 0) return v.domains;
+  const mini = versionById(s, d.miniVersionId);
+  if (!mini) return v.domains;
   const out = {} as Record<DomainId, number>;
-  for (const k of DOMAINS) out[k] = mini ? (1 - f) * v.domains[k] + f * mini.domains[k] : v.domains[k];
-  for (const x of feats) if (x.domains) for (const [k, dv] of Object.entries(x.domains) as [DomainId, number][]) out[k] += dv;
-  return out;
-}
-
-/** Consumer appeal multiplier from features (×1 with none). */
-export function productAppeal(s: GameStateV2, d: Deployment): number {
-  let a = 1;
-  for (const f of activeFeatures(s, d)) if (f.appeal) a *= f.appeal;
-  return a;
-}
-
-/** Serving-need multiplier from features (more tokens per task). */
-export function productServeMult(s: GameStateV2, d: Deployment): number {
-  let m = 1;
-  for (const f of activeFeatures(s, d)) if (f.serve) m *= f.serve;
-  return m;
-}
-
-/** Sectors where a feature gives the sector-product bonus (Coding agent: Software & IT). */
-export function productBonusSectors(s: GameStateV2, d: Deployment): SectorId[] {
-  const out: SectorId[] = [];
-  for (const f of activeFeatures(s, d)) if (f.sectors) out.push(...f.sectors);
+  for (const k of DOMAINS) out[k] = (1 - f) * v.domains[k] + f * mini.domains[k];
   return out;
 }
 
@@ -92,13 +69,14 @@ export function productHazardMult(s: GameStateV2, d: Deployment, trait: TraitId)
 
 // ───────────────────────────── monitors (D7) ─────────────────────────────
 
-/** Serving overhead of the product's monitor, as a share of its serving need (D7: 0.25 × serve ratio). */
+/** Serving overhead of the product's monitor, as a share of its serving need (D7: 0.25 × the FLOP-per-token ratio of the
+ *  monitor to the watched model). */
 export function monitorOverhead(s: GameStateV2, d: Deployment): number {
   if (!d.monitorId) return 0;
   const mon = versionById(s, d.monitorId);
   const v = versionById(s, d.versionId);
   if (!mon || !v) return 0;
-  return (MONITOR_OVERHEAD * mon.serveCost) / Math.max(1e-6, v.serveCost);
+  return (MONITOR_OVERHEAD * flopPerToken(s, mon)) / Math.max(1e-6, flopPerToken(s, v));
 }
 
 export interface CatchRate {

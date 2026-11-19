@@ -7,6 +7,7 @@ import { initialResearch, initialTree, nextLineProject } from '../models/tree';
 import { LEADER_FEATURES, PRICE_TIERS, tierOfIndex } from '../../../data/v2/features';
 import { TRUSTED_MAX_P27 } from '../../../data/v2/agents';
 import { initialAgents } from '../departments/agents';
+import { fptOfBuild } from '../departments/workfit';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
 /** 12 (model v3 V1): models are built from physical quantities (BaseModel, VersionBuild, BaseDesign, PostDesign changed).
@@ -17,8 +18,11 @@ import { initialAgents } from '../departments/agents';
  *  14 (model v3 V3): work types and project-level research (TimelineWorld.v3, line pools, candidate pool positions,
  *  research.gRate; the milestone definitions changed). No migration from 13 ("no migration from schemaRev 13").
  *  15 (model v3 V3b): TimelineWorld.v3.sdSC, the derived calShift / simpleCredit and the λ(G) level scale. No migration
- *  from 14 ("no migration from schemaRev 14"). */
-export const SCHEMA_REV = 15;
+ *  from 14 ("no migration from schemaRev 14").
+ *  16 (model v3 V4a): serving, products and sectors on work types — WorldFxState.cust (customer stocks), ModelVersion.fpt
+ *  (serving FLOP per token), typed features, price tiers as markups over cost. Migration 15 → 16 adds empty customer
+ *  stocks (they start at the market's logit shares on the next tick) and fills fpt from each version's base. */
+export const SCHEMA_REV = 16;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -192,6 +196,12 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   10: (raw) => {
     const p = (raw as unknown as GameStateV2).player;
     p.policies.spareServing ??= 'research';
+  },
+  /** 15 → 16 (model v3 V4a): customer stocks and the versions' serving FLOP per token. */
+  15: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    s.world.fx.cust ??= { US: {}, CN: {}, ROW: {} };
+    for (const v of s.player.models.versions) v.fpt ??= fptOfBuild(s, v);
   },
 };
 

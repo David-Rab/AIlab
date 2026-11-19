@@ -12,10 +12,9 @@ import { wslFloor } from '../security/security';
 import { INCIDENT_BC_CAP_Q } from '../finance/board';
 import { spotRentalCap } from '../compute/orders';
 import { leaseAvailableGW } from '../compute/sites';
-import { RPH_MCAP, TRUSTED_PREMIUM, revenueReadout, servingPool } from '../worldfx/revenue';
+import { TRUSTED_PREMIUM, revenueReadout, servingPool } from '../worldfx/revenue';
 import { idleChips } from '../compute/forecast';
 import { idleTeams } from '../models/tree';
-import { bridgeQ, multiplierRef } from '../world/calibration';
 import { outsidersWithAccess } from '../safety/incidents';
 import type { Deployment, GameStateV2, ModelVersion } from '../types';
 
@@ -103,17 +102,20 @@ export function siteSizeView(s: GameStateV2, path: keyof typeof SITE_PATHS): { m
   return { min: 50, max: SITE_PATHS[path].maxMW, ...(path === 'lease' ? { leaseGW: leaseAvailableGW(s) } : {}) };
 }
 
-/** Revenue-per-chip research-speed cap on a product's model (LIMITS revenue.speedCap). */
-export function revenueSpeedCap(s: GameStateV2, v: ModelVersion | undefined): { M: number; capped: boolean; cap: number } {
-  const M = v ? multiplierRef(s.hidden.timeline, bridgeQ(s.hidden.timeline, v.pm)) : 0; // BRIDGE(V4): revenue per chip still reads M
-  return { M, capped: M > RPH_MCAP, cap: RPH_MCAP };
+/** A product's price against its cost and the value cap (LIMITS price.valueCap, model v3 V4.2): price per work-hour =
+ *  markup × cost, never above the task's value (the sector wage); `capped` = share of its demand $ sold at the cap. */
+export function priceView(s: GameStateV2, d: Deployment): { cost: number; price: number; margin: number; capped: number } {
+  const x = revenueReadout(s).deps.find((r) => r.id === d.id);
+  const cost = d.channel === 'consumer' ? x?.subCost ?? 0 : x?.costPerHour ?? 0;
+  const price = d.channel === 'consumer' ? x?.subPrice ?? 0 : x?.pricePerHour ?? 0;
+  return { cost, price, margin: price > 0 ? 1 - cost / price : 0, capped: x?.valueCapped ?? 0 };
 }
 
 /** A product's demand modifiers (LIMITS product.demandMods): each factor and the product of all. */
 export function demandModifiers(d: Deployment): { label: string; mult: number }[] {
   const out: { label: string; mult: number }[] = [];
   if ((d.channel === 'api' || d.channel === 'agents') && d.kyc > 0) out.push({ label: `KYC ${d.kyc}`, mult: 1 - 0.02 * d.kyc });
-  if (d.channel === 'trusted') out.push({ label: 'Trusted channel', mult: TRUSTED_PREMIUM });
+  if (d.channel === 'trusted') out.push({ label: 'Trusted channel price', mult: TRUSTED_PREMIUM });
   if (d.status === 'restricted') out.push({ label: 'Restricted', mult: 0.3 });
   if (d.usagePolicy.noDropInReplacement) out.push({ label: 'No drop-in agents', mult: NaN });
   return out;

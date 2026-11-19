@@ -346,7 +346,11 @@ export interface ModelVersion {
   masks: Record<TraitId, Partial<Record<ToolFamily, number>>>; // hidden: how much each family is fooled
   uModes: UModeId[]; // hidden
   monitorability: number; // 0..1, visible (from design + measured controllability)
-  serveCost: number; // relative cost per work-hour, visible (BRIDGE(V4): 0.5 = reference)
+  /** Serving cost relative to the reference design at the same training FLOP (0.5 = reference), visible: a design readout
+   *  only; costs, prices and capacity read the physical FLOP per token `fpt` (model v3 V4). */
+  serveCost: number;
+  /** Serving FLOP per token (2·N_active × the shape's token multiplier × the serving stack at creation; V4). */
+  fpt?: number;
   /** Active parameters when they differ from the base's (a distilled student). */
   params?: number;
   evals: EvalRecord; // what the player has measured
@@ -1499,6 +1503,10 @@ export interface WorldFxState {
   robotUS: number;
   /** Headline id → last day fired. */
   hl: Record<string, Day>;
+  /** Customer stocks (model v3 V4.2): per region and segment (a sector id or 'consumer'), each provider's share of the
+   *  customers (provider keys as in the world mix: 'player', 'player:open', rival ids, 'china'). They move toward the
+   *  market's logit shares at the segment's speed (CUSTOMER_TAU). Empty until the first revenue tick. */
+  cust: Record<RegionId, Record<string, Record<string, number>>>;
 }
 
 export interface SectorState {

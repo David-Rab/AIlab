@@ -37,6 +37,7 @@ import { domainsOf, finishBuild, gOfDomain, gOfPm, levelOf, refreshLevels, simpl
 import { ePreAt, rlCeilNow, rlMidNow, serveNow, trainNow } from './stacks';
 import { paOfRecipe } from './tree';
 import { stackRate } from './research';
+import { fptOfBuild } from '../departments/workfit';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import {
   continueGPre, daysFor, distillFlop, distillGap, fData, flopOfDesign, gPreOf, rlFamiliesAvailable, rlGains, rlWeights, serveOfBase,
@@ -488,6 +489,7 @@ function newVersion(s: GameStateV2, run: TrainingRun, base: BaseModel, build: Ve
     status: 'evaluating', flags: {}, build, ...extra,
   };
   if (parent) v.parentVersionId = parent.id;
+  v.fpt ??= fptOfBuild(s, v);
   return v;
 }
 

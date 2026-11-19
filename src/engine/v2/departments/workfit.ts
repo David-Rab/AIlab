@@ -28,6 +28,7 @@ import { adopted } from '../models/paradigms';
 import { payoffOf } from '../models/tree';
 import { decimalYear } from '../core/time';
 import { spareServingToResearch } from '../worldfx/revenue';
+import { internalFx } from '../worldfx/serving';
 import { ws4r } from '../actors/state';
 import { agentVersion, capShare } from './agents';
 import type { DomainId, GameStateV2, ModelVersion, ProdParams, TeamQuality, TimelineWorld } from '../types';
@@ -90,11 +91,13 @@ export const assistOf = (win: number) => Math.max(1, 1 / (ASSIST.model + ASSIST.
 
 /** Fit, horizon and coverage of a version in a work type. */
 export interface WorkFit { fit: number; best: number; med: number; h50: number; a: number; win: number; assist: number }
-export function workFit(s: GameStateV2, v: Pick<ModelVersion, 'pm' | 'build'>, wt: WorkTypeId): WorkFit {
+/** Fit with the typed feature effects of a deployment (V4.3: scaffolds add ΔG, horizon extenders × h50); milestones read
+ *  the model alone. */
+export function workFit(s: GameStateV2, v: Pick<ModelVersion, 'pm' | 'build'>, wt: WorkTypeId, fx?: { dG: number; hMult: number }): WorkFit {
   const w = s.hidden.timeline;
-  const fit = fitOf(s, v, wt);
+  const fit = fitOf(s, v, wt) + (fx?.dG ?? 0);
   const r = refPoints(w, wt);
-  const h50 = h50Min(s, v, wt);
+  const h50 = h50Min(s, v, wt) * (fx?.hMult ?? 1);
   const win = winRate(w, wt, fit);
   return { fit, best: r.best, med: r.med, h50, a: coverage(w, wt, fit, h50), win, assist: assistOf(win) };
 }
@@ -106,7 +109,13 @@ export const sdAIOf = (w: TimelineWorld, fitIdeas: number) => (TOP_SD * (fitIdea
 
 /** Serving FLOP per token of a version: 2·N_active × the shape's token multiplier × its serving efficiency relative to
  *  its base (the serving stack and distillation; MODEL-V3 §7.3). */
-export function flopPerToken(s: GameStateV2, v: Pick<ModelVersion, 'baseId' | 'serveCost' | 'params'>): number {
+export function flopPerToken(s: GameStateV2, v: Pick<ModelVersion, 'baseId' | 'serveCost' | 'params' | 'fpt'>): number {
+  if (v.fpt) return v.fpt;
+  return fptOfBuild(s, v);
+}
+/** FLOP per token from the version's base and its serving efficiency relative to the base (set once on the version as
+ *  `fpt` when it is made; old versions without it are read through this). */
+export function fptOfBuild(s: GameStateV2, v: Pick<ModelVersion, 'baseId' | 'serveCost' | 'params'>): number {
   const b = s.player.models.bases.find((x) => x.id === v.baseId);
   if (!b) return 2 * (v.params ?? B0_PARAMS);
   const rel = b.serve && b.serve > 0 ? v.serveCost / b.serve : 1;
@@ -122,7 +131,7 @@ export const speedOfCopy = () => Math.min(SPEED_CAP, (COPY_TOKENS_PER_S * 3600) 
 /** Copies running on `h100e` of a version: work-hours per hour ÷ serial speed. */
 export const copiesOf = (h100e: number, fpt: number) => h100e / h100eHoursPerWorkHour(fpt) / speedOfCopy();
 /** $ per H100e-hour today (market rental, else the R11 TCO path's hourly equivalent). */
-function dollarsPerH100eHour(s: GameStateV2): number {
+export function dollarsPerH100eHour(s: GameStateV2): number {
   const r = s.market.rental;
   return r > 0 ? r : (14e3 * Math.pow(0.8, decimalYear(s) - 2025.5)) / 8766;
 }
@@ -240,10 +249,12 @@ export function labourOf(s: GameStateV2, slot: LabourSlot, scale: { h?: number; 
   const wt = SLOT_WT[slot];
   const u = useLabour(s, slot);
   const def: WorkTypeDef = WORK_TYPES[wt];
-  const fit = u.v ? workFit(s, u.v, wt) : { fit: -Infinity, best: 0, med: 0, h50: 0, a: 0, win: 0, assist: 1 };
+  // V4.3: the lab's built scaffolds and horizon extenders apply to its internal agents (scaffold tokens cost FTE).
+  const ifx = internalFx(s, wt);
+  const fit = u.v ? workFit(s, u.v, wt, ifx) : { fit: -Infinity, best: 0, med: 0, h50: 0, a: 0, win: 0, assist: 1 };
   const fpt = u.v ? flopPerToken(s, u.v) : 1;
   const h100e = u.h100e * (scale.k ?? 1);
-  const aiFte = u.v ? h100e * fteOfFpt(fpt) * u.mult : 0;
+  const aiFte = u.v ? (h100e * fteOfFpt(fpt) * u.mult) / ifx.tok : 0;
   const H = humansOf(s, slot) * (scale.h ?? 1);
   const AI = aiFte / def.heads;
   const P = s.hidden.timeline.prod;
@@ -261,7 +272,7 @@ export function workContext(s: GameStateV2): WorkContext {
   const slots = { SWE: labourOf(s, 'SWE'), EXP: labourOf(s, 'EXP'), IDEAS: labourOf(s, 'IDEAS'), SAF_EXP: labourOf(s, 'SAF_EXP') };
   const p = s.player;
   const fv = agentVersion(s, 'capFrontier');
-  const sdAI = fv ? sdAIOf(s.hidden.timeline, fitOf(s, fv, 'IDEAS')) : -6;
+  const sdAI = fv ? sdAIOf(s.hidden.timeline, fitOf(s, fv, 'IDEAS') + internalFx(s, 'IDEAS').dG) : -6;
   const on = Number(s.flags['ws4:agentsOffUntil'] ?? -1) <= s.time.day && p.split.agents > 0;
   const phi = on && fv ? Math.min(1, capShare(s, 'capFrontier') / DEFAULT_CAP_SHARES.capFrontier) : 0;
   const out: WorkContext = { day: s.time.day, slots, sdAI, phi };

@@ -1,0 +1,231 @@
+// Serving, products and sectors on work types (model v3 V4.4; design/V3-BUILD.md "V4" and "V4 notes"). Owner: WS5.
+//   S1  cost per work-hour ∝ FLOP per token (2·N_active) × tokens; a bigger model costs more per task (the size → cost
+//       link v2's revenue exponent damped)
+//   S2  capacity ∝ serving H100e (work-hours a year = H100e × 8766 ÷ H100e-hours per work-hour); revenue = min(demand,
+//       capacity) × price
+//   S3  price never below cost; never above the work's value unless serving costs more than the work is worth
+//   S4  customers move gradually: a better model moves the customer stock toward the logit target at the segment's speed,
+//       not on release day
+//   S5  sector feasibility is the shared work-type coverage function (monotone in fit and horizon); the cost gate reads
+//       the physical price
+//   S6  features are typed (enabler / horizon / scaffold / effort) and apply to products and to internal agents
+//   S7  lint: no revenue, price, cost or sector reader uses serveCost, multiplierRef or the M bridge
+//   INFO price sanity: price per million tokens, its decline for fixed capability (research/20 D3 ×10/yr), margins
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { FEATURES, FEATURE_BY_ID } from '../../src/data/v2/features';
+import { MARKUP, TOKENS, CONSUMER_MKT } from '../../src/data/v2/serving';
+import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
+import { resolve, tick } from '../../src/engine/v2/core/loop';
+import { deserialize } from '../../src/engine/v2/core/save';
+import { decimalYear, dayOfDate } from '../../src/engine/v2/core/time';
+import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
+import { engine } from '../../src/engine/v2/index';
+import { refBot } from '../../src/engine/v2/bots/ref';
+import { flopPerToken, labourOf, workFit } from '../../src/engine/v2/departments/workfit';
+import { versionById } from '../../src/engine/v2/models/labs';
+import { worldMix } from '../../src/engine/v2/worldfx/mix';
+import { revenueReadout, servingPool } from '../../src/engine/v2/worldfx/revenue';
+import {
+  effortDG, fptOfG, fxOn, h100eHoursPer, internalFx, offerOf, productOffer, sectorCover, sectorTheta, serveDollarsPerHour, valuePerHour,
+} from '../../src/engine/v2/worldfx/serving';
+import type { Deployment, GameStateV2, ModelVersion, SectorId } from '../../src/engine/v2/types';
+import { FIXTURE_DIR, check, finish } from './lib';
+
+const game = () => newGame(defaultSetupV2({ seed: 2027, world: 'ai2027', alignment: 'medium', baseline: 'classic', tutorial: false }));
+const run = (s: GameStateV2, n: number) => {
+  for (let i = 0; i < n; i++) tick(s, { skip: ['endings'] });
+};
+const prod = (s: GameStateV2, ch: Deployment['channel']) => s.player.deployments.find((d) => d.channel === ch && d.status !== 'withdrawn')!;
+const near = (a: number, b: number, rel = 1e-9) => Math.abs(a - b) <= rel * Math.max(1e-12, Math.abs(b));
+const fixture = (d: number) => deserialize(readFileSync(join(FIXTURE_DIR, `day${d}.json`), 'utf8'));
+function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Partial<ModelVersion>): ModelVersion {
+  const v = { ...JSON.parse(JSON.stringify(from)), id, name: `${from.name}-${id}`, status: 'ready', ...over } as ModelVersion;
+  s.player.models.versions.push(v);
+  return v;
+}
+
+// ───────── S1 cost ∝ N_active × tokens; a bigger model costs more per task ─────────
+{
+  const tok = TOKENS.agentic;
+  const h1 = h100eHoursPer(2e12, tok);
+  check(near(h100eHoursPer(4e12, tok), 2 * h1) && near(h100eHoursPer(2e12, { input: 2 * tok.input, output: 2 * tok.output }), 2 * h1),
+    'S1 H100e-hours per work-hour ∝ FLOP per token and ∝ tokens', `${h1.toFixed(3)} H100e-h per agentic work-hour at 1T active`);
+  const s = game();
+  const v0 = s.player.models.versions[0];
+  const big = cloneVersion(s, v0, 'VB', { fpt: 2 * (v0.fpt ?? 2e12) });
+  const rate = serveDollarsPerHour(s);
+  const o1 = offerOf(s, [{ v: v0, fpt: flopPerToken(s, v0), w: 1 }], 'SOFT', { markup: MARKUP.standard, rate });
+  const o2 = offerOf(s, [{ v: big, fpt: flopPerToken(s, big), w: 1 }], 'SOFT', { markup: MARKUP.standard, rate });
+  check(near(o2.cost, 2 * o1.cost) && o2.price > o1.price, 'S1 a model with twice the active parameters costs twice as much per work-hour (and is priced higher)', `$${o1.cost.toFixed(2)} → $${o2.cost.toFixed(2)} per work-hour`);
+  const g0 = workFit(s, v0, 'SWE').fit;
+  check(fptOfG(s, g0 + 1, v0.day) > fptOfG(s, g0, v0.day) * 3, 'S1 rivals (BRIDGE(V7)): a model 1 OOM more capable at the same date is ≈ √10 × larger (N ∝ √FLOP)', `${(fptOfG(s, g0 + 1, v0.day) / fptOfG(s, g0, v0.day)).toFixed(2)}×`);
+  const eff = effortDG(4);
+  check(eff > 0.2 && eff < 0.3 && effortDG(1e6) === 1.5, 'S1 effort deep: ×4 reasoning tokens, +0.24 OOM; the test-time gain is capped at +1.5 OOM (R20 C3)', eff.toFixed(3));
+}
+
+// ───────── S2 capacity ∝ H100e; revenue = min(demand, capacity) × price ─────────
+{
+  const s = game();
+  run(s, 3);
+  const rd1 = revenueReadout(s);
+  const pool1 = servingPool(s);
+  s.player.computeOnline *= 2;
+  const rd2 = revenueReadout(s);
+  // Work-hours a product can serve per H100e it gets is a property of its model and tokens: capacity ∝ H100e.
+  const per = (x: { capHours: number; servingH100e: number }) => x.capHours / Math.max(1e-9, x.servingH100e);
+  const sector = rd1.deps.filter((x) => x.channel !== 'consumer' && x.servingH100e > 0);
+  const ok = sector.length > 0 && sector.every((x) => near(per(rd2.deps.find((z) => z.id === x.id)!), per(x), 1e-6));
+  const tot = (rd: typeof rd1) => rd.deps.reduce((a, x) => a + x.capacity, 0);
+  check(near(servingPool(s), 2 * pool1, 1e-9) && ok && near(tot(rd2), 2 * tot(rd1), 0.02), 'S2 capacity ∝ serving H100e: work-hours per H100e fixed by the model and tokens; twice the pool, twice the capacity',
+    `${sector.map((x) => `${x.channel} ${Math.round(per(x))} work-hours per H100e-year`).join(', ')}; capacity $${tot(rd1).toFixed(1)}B → $${tot(rd2).toFixed(1)}B`);
+  check(rd2.deps.every((x) => x.revenue <= Math.min(x.demand, x.capacity) + 1e-9), 'S2 revenue never exceeds demand or capacity');
+  const rate = serveDollarsPerHour(s);
+  const api = rd2.deps.find((x) => x.channel === 'api')!;
+  check(api.hours > 0 && near(api.pricePerHour, MARKUP.standard * api.costPerHour, 0.02), 'S2 a standard-tier product prices at its cost × the standard markup (margin 0.6)', `cost $${api.costPerHour.toFixed(2)}, price $${api.pricePerHour.toFixed(2)} per work-hour at $${rate.toFixed(2)}/H100e-h`);
+}
+
+// ───────── S3 price never below cost, never above value (unless the work is worth less than serving it) ─────────
+for (const d of [400, 900]) {
+  const s = fixture(d);
+  const mix = worldMix(s);
+  const rate = serveDollarsPerHour(s);
+  let bad = 0;
+  let n = 0;
+  for (const r of ['US', 'CN', 'ROW'] as const) for (const [sid, m] of Object.entries(mix.sec[r]) as [SectorId, (typeof mix.sec.US)[SectorId]][]) {
+    mix.providers.forEach((p, i) => {
+      if (!p.model || !m.prices[i]) return;
+      const o = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], sid, { markup: p.markup, rate });
+      const value = valuePerHour(s, sid, r);
+      n++;
+      if (m.prices[i] < o.cost * (1 - 1e-9) || (m.prices[i] > value * (1 + 1e-9) && m.prices[i] > o.cost * (1 + 1e-9))) bad++;
+    });
+  }
+  check(n > 0 && bad === 0, `S3 day ${d}: every provider's price per hour of use is ≥ its cost and ≤ the work's value (unless serving costs more than the work is worth)`, `${n} offers, ${bad} outside`);
+  const rd = revenueReadout(s, mix);
+  check(rd.deps.every((x) => x.channel === 'consumer' ? (x.subPrice ?? 0) >= (x.subCost ?? 0) - 1e-9 && (x.subPrice ?? 0) <= CONSUMER_MKT.valueCapMonth + 1e-9 : x.hours === 0 || x.pricePerHour >= x.costPerHour - 1e-9),
+    `S3 day ${d}: the player's products price at or above their cost (Chat at most the value cap)`, rd.deps.map((x) => `${x.channel} ${x.channel === 'consumer' ? `$${(x.subCost ?? 0).toFixed(1)}→$${(x.subPrice ?? 0).toFixed(1)}/mo` : `$${x.costPerHour.toFixed(2)}→$${x.pricePerHour.toFixed(2)}/h`}`).join(', '));
+}
+
+// ───────── S4 customers move gradually ─────────
+{
+  const s = game();
+  run(s, 20);
+  const mix0 = worldMix(s);
+  const pi = mix0.providers.findIndex((p) => p.key === 'player');
+  const sh0 = mix0.sec.US.SOFT.share[pi];
+  // A much better model on every product: the logit target jumps; the stock follows over months.
+  const v0 = versionById(s, prod(s, 'api').versionId)!;
+  const better = cloneVersion(s, v0, 'VX', { build: { ...v0.build!, dg: (v0.build?.dg ?? 0) + 1.5 } });
+  for (const d of s.player.deployments) if (d.channel !== 'internal') d.versionId = better.id;
+  const mixT = worldMix(s);
+  const tgt = mixT.sec.US.SOFT.target[pi];
+  run(s, 1);
+  const sh1 = worldMix(s).sec.US.SOFT.share[pi];
+  run(s, 44);
+  const sh45 = worldMix(s).sec.US.SOFT.share[pi];
+  check(tgt > sh0 + 0.1 && sh1 - sh0 < 0.05 * (tgt - sh0) + 0.01 && sh45 > sh0 + 0.25 * (tgt - sh0),
+    'S4 a much better model: the target share jumps, the customer stock moves a little a day and most of the way within a quarter',
+    `share ${sh0.toFixed(3)} → day 1 ${sh1.toFixed(3)} → day 45 ${sh45.toFixed(3)} (target ${tgt.toFixed(3)})`);
+  const c0 = worldMix(s).consumer.US.share[pi];
+  check(Number.isFinite(c0) && c0 > 0, 'S4 consumers are a stock too (moves in weeks)', c0.toFixed(3));
+}
+
+// ───────── S5 sector feasibility on the shared coverage function ─────────
+{
+  const s = game();
+  const w = s.hidden.timeline;
+  const th = sectorTheta(w, 'SOFT');
+  const a = (f: number, h: number) => sectorCover(w, 'SOFT', f, h);
+  check(a(th + 1, 600) > a(th, 600) && a(th, 600) > a(th - 1, 600) && a(th, 6000) > a(th, 60), 'S5 sector coverage rises with fit and with the time horizon');
+  check(Math.abs(a(th, 1e9) - 0.5) < 1e-6, 'S5 at the sector\'s median-professional point (θ) the logistic part is ½');
+  run(s, 2);
+  const m = worldMix(s).sec.US.SOFT;
+  check(m.F > 0 && m.F < 1 && m.K > 0.5 && m.K < 1 && Math.abs(s.world.sectors.US.SOFT.F - m.F) < 0.005, 'S5 the sector state reads feasibility and the cost gate from the market mix', `F ${m.F.toFixed(3)}, K ${m.K.toFixed(3)}`);
+  const off = worldMix(s).sec.US.LOG;
+  check(off.F < m.F, 'S5 robot-bound work (Logistics, PHYS 0.75) is less feasible than software', `LOG ${off.F.toFixed(3)} vs SOFT ${m.F.toFixed(3)}`);
+}
+
+// ───────── S6 typed features in products and internal use ─────────
+{
+  check(FEATURES.every((f) => f.fx.length > 0 && f.fx.every((x) => ['enabler', 'horizon', 'scaffold', 'effort'].includes(x.kind))), 'S6 every feature has typed effects (enabler / horizon / scaffold / effort)', FEATURES.map((f) => `${f.id}:${f.fx.map((x) => x.kind).join('+')}`).join(' '));
+  const s = game();
+  run(s, 2);
+  const api = prod(s, 'api');
+  const base = productOffer(s, api, 'SOFT');
+  s.player.features.push('codingAgent');
+  api.features.push('codingAgent');
+  const withF = productOffer(s, api, 'SOFT');
+  const sc = FEATURE_BY_ID.codingAgent.fx[0] as { dG: number; tokens: number };
+  check(near(withF.fit, base.fit + sc.dG, 1e-9) && near(withF.cost, base.cost * sc.tokens, 1e-9), 'S6 scaffold (coding agent) on a product: +ΔG fit in Software & IT and × tokens per work-hour', `fit ${base.fit.toFixed(3)} → ${withF.fit.toFixed(3)}, cost $${base.cost.toFixed(2)} → $${withF.cost.toFixed(2)}`);
+  const l0 = labourOf(game(), 'SWE');
+  const l1 = labourOf(s, 'SWE');
+  check(near(l1.fit.fit, l0.fit.fit + sc.dG, 1e-6) && internalFx(s, 'SWE').tok === sc.tokens, 'S6 the same scaffold applies to the internal engineering agents (fit +ΔG, × tokens per work-hour)', `${l0.fit.fit.toFixed(3)} → ${l1.fit.fit.toFixed(3)}`);
+  const hz = fxOn(FEATURE_BY_ID.memory.fx, 'OFFICE');
+  check(hz.hMult === 1.3 && fxOn(FEATURE_BY_ID.memory.fx, 'EXP').hMult === 1.3, 'S6 horizon extender (memory): × h50 on every work type, products and internal');
+  const ent = prod(s, 'consumer');
+  const rd0 = revenueReadout(s).deps.find((x) => x.id === ent.id)!;
+  s.player.features.push('companion');
+  ent.features.push('companion');
+  const rd1 = revenueReadout(s).deps.find((x) => x.id === ent.id)!;
+  check((rd1.users ?? 0) > (rd0.users ?? 0) * 1.15, 'S6 task enabler (companion): opens a segment of Chat users', `${((rd0.users ?? 0) / 1e6).toFixed(0)}M → ${((rd1.users ?? 0) / 1e6).toFixed(0)}M users`);
+  const d0 = productOffer(s, api, 'FIN');
+  api.effort = 'deep';
+  const d1 = productOffer(s, api, 'FIN');
+  check(near(d1.fit - d0.fit, effortDG(4), 1e-9) && d1.cost > d0.cost, 'S6 effort deep: +0.24 OOM fit and more reasoning tokens per work-hour', `+${(d1.fit - d0.fit).toFixed(3)} OOM, cost ×${(d1.cost / d0.cost).toFixed(2)}`);
+}
+
+// ───────── S7 lint ─────────
+{
+  const files = ['src/engine/v2/worldfx/revenue.ts', 'src/engine/v2/worldfx/mix.ts', 'src/engine/v2/worldfx/serving.ts', 'src/engine/v2/worldfx/sectors.ts', 'src/engine/v2/worldfx/productView.ts', 'src/engine/v2/core/limitsView.ts'];
+  const bad: string[] = [];
+  for (const f of files) {
+    readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
+      const code = line.replace(/\/\/.*$/, '').replace(/\/\*.*?\*\//g, '');
+      if (/^\s*\*/.test(line)) return;
+      if (/\b(serveCost|multiplierRef|bridgeQ|RPH_BASE|thetaPrice|aiCostPerHour)\b/.test(code)) bad.push(`${f}:${i + 1}`);
+    });
+  }
+  check(bad.length === 0, 'S7 lint: revenue, prices, costs and sectors read no serveCost, multiplierRef / bridgeQ (the M bridge) or v2 price stand-ins', bad.join(', '));
+}
+
+// ───────── INFO price sanity (research/20 D3; reported, not fitted) ─────────
+{
+  const s = game();
+  const START = '2025-07-01';
+  const marks = ['2025-08-01', '2026-02-01', '2026-08-01', '2027-02-01'].map((x) => dayOfDate(START, x));
+  const rows: string[] = [];
+  const fixedG = workFit(s, s.player.models.versions[0], 'SWE').fit; // V0's capability, held fixed
+  const perM = (fpt: number, markup: number) => {
+    // blended price per million tokens (input:output 5:1 by count, output priced 5× input as on the lists): the agentic
+    // token profile's cost per token, × markup
+    const tok = TOKENS.agentic;
+    const usd = h100eHoursPer(fpt, tok) * serveDollarsPerHour(s) * markup;
+    return (usd / (tok.input + tok.output)) * 1e6;
+  };
+  let first: number | undefined;
+  let firstFixed: number | undefined;
+  while (s.time.day <= marks[marks.length - 1]) {
+    for (const p of [...s.events.pending]) {
+      const c = refBot.decide(s, p);
+      if (resolve(s, p.instance, c)) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0);
+    }
+    refBot.act(s, engine);
+    tick(s, { skip: ['endings'] });
+    if (marks.includes(s.time.day)) {
+      const api = prod(s, 'api');
+      const v = versionById(s, api.versionId)!;
+      const p = perM(flopPerToken(s, v), MARKUP.standard);
+      const pf = perM(fptOfG(s, fixedG, s.time.day), MARKUP.standard);
+      first ??= p;
+      firstFixed ??= pf;
+      rows.push(`${decimalYear(s).toFixed(2)}: API ${v.name} $${p.toFixed(2)}/M blended tokens; V0-level model $${pf.toFixed(2)}/M; rental $${serveDollarsPerHour(s).toFixed(2)}/H100e-h`);
+    }
+  }
+  const yrs = (marks[marks.length - 1] - marks[0]) / 365;
+  const fixedDecline = Math.pow((firstFixed ?? 1) / perM(fptOfG(s, fixedG, s.time.day), MARKUP.standard), 1 / yrs);
+  console.log(`INFO  price sanity (R20 D3: fixed-capability price falls ≈ ×10/yr, range ×9–×900; Opus-tier list $15/$75 → $5/$25 per M in 2025–26):\n      ${rows.join('\n      ')}\n      fixed capability (V0's G): ×${fixedDecline.toFixed(1)} a year cheaper (algorithmic progress shrinks the model needed, the rental moves)`);
+  void first;
+}
+
+finish('serving');

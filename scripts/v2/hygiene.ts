@@ -258,7 +258,22 @@ for (const rev of [1, 11, 12, 13, 14]) {
     msg = (e as Error).message;
   }
   // Model v3 V2 (schemaRev 13): V1 saves (12) are rejected too; model v3 V3 (schemaRev 14): V2 saves (13) too.
-  check(SCHEMA_REV === 15 && msg === `no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
+  check(SCHEMA_REV === 16 && msg === `no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
+}
+// Model v3 V4a (schemaRev 16): a V3b save (15) migrates (customer stocks start empty, versions get their FLOP per token).
+{
+  const old = JSON.parse(serialize(run(detSetup, 30))) as GameStateV2 & Record<string, unknown>;
+  old.schemaRev = 15;
+  delete (old.world.fx as Partial<typeof old.world.fx>).cust;
+  for (const v of old.player.models.versions) delete v.fpt;
+  let msg = '';
+  let g: GameStateV2 | undefined;
+  try {
+    g = deserialize(JSON.stringify(old));
+  } catch (e) {
+    msg = (e as Error).message;
+  }
+  check(!!g && !!g.world.fx.cust && g.player.models.versions.every((v) => (v.fpt ?? 0) > 0), 'save: a schemaRev-15 save migrates to 16 (customer stocks, FLOP per token)', msg);
 }
 
 // ---------- 6. Cadences ----------

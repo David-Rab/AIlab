@@ -5,15 +5,22 @@
 // live (rule R4); edits take effect at the next tick (D7).
 //
 // Features are built once lab-wide by the engineers (build queue, team-weeks + cash) after their tree node is known,
-// then switched on per product. Each maps onto a term the engine already has (consumer appeal, a domain offset on the
-// product, the sector bonus of sector products, deep-think effort, serving need, an incident-hazard multiplier); no new
-// multiplier enters calibration. D5: the frontier-leader start's set (sector packs) is the neutral ×1 baseline; every
-// other feature is a gain when on. [D] = design value.
-import type { Channel, DomainId, PriceTier, SectorId, TraitId } from '../../engine/v2/types';
+// then switched on per product. Model v3 V4.3 (MODEL-V3 §7.2): every effect is typed — a task enabler (opens a segment
+// of the listed markets that only products with it can sell into), a horizon extender (× h50 on chosen work types), a
+// scaffold (+ΔG compute-equivalent fit on chosen work types, × tokens per work-hour; Davidson et al. 2023 via R20 B3) or
+// effort (deep: ×4 reasoning tokens, +0.24 OOM, R20 C3). Horizon extenders and scaffolds also apply to the lab's internal
+// agents on the internal work types they list (SWE, EXP, IDEAS), once built. Hazard multipliers stay (incidents).
+// D5: the frontier-leader start's set (sector packs) is the neutral ×1 baseline; every other feature is a gain when on.
+// [D] = design value.
+import type { Channel, PriceTier, SectorId, TraitId } from '../../engine/v2/types';
+import type { WorkTypeId } from './workTypes';
+import { MARKUP } from './serving';
 
 export type { PriceTier };
-/** Price tier → price index vs the market reference price [D]. Demand falls with price^−1.5 (mix.ts PRICE_ELASTICITY). */
-export const PRICE_TIERS: Record<PriceTier, number> = { budget: 0.7, standard: 1, premium: 1.4 };
+/** Price tier → markup relative to the standard tier (price = markup × the product's cost per work-hour, MARKUP in
+ *  data/v2/serving.ts: budget margin 0.4, standard 0.6, premium 0.75) [D, R20 D3]. Demand share falls with price^−1.5
+ *  (PRICE_ELASTICITY). */
+export const PRICE_TIERS: Record<PriceTier, number> = { budget: MARKUP.budget / MARKUP.standard, standard: 1, premium: MARKUP.premium / MARKUP.standard };
 export const PRICE_TIER_IDS: PriceTier[] = ['budget', 'standard', 'premium'];
 /** Nearest tier to a price index (old saves, bots that set an index). */
 export function tierOfIndex(x: number): PriceTier {
@@ -76,6 +83,15 @@ export const AUTO_EVAL_DAYS = 30;
 
 export type FeatureId = 'memory' | 'deepThink' | 'computerUse' | 'voiceVision' | 'deepResearch' | 'codingAgent' | 'companion' | 'sectorPacks';
 
+/** Where a scaffold or horizon extender applies: 'all' work, or sectors, internal work types and consumer chat ('CHAT'). */
+export type WorkScope = 'all' | (SectorId | WorkTypeId | 'CHAT')[];
+/** Typed feature effects (V4.3). */
+export type FeatureFx =
+  | { kind: 'enabler'; sectors?: SectorId[]; consumer?: boolean; packs?: boolean; share: number }
+  | { kind: 'horizon'; mult: number; work: WorkScope }
+  | { kind: 'scaffold'; dG: number; tokens: number; work: WorkScope }
+  | { kind: 'effort'; setting: 'deep' };
+
 export interface FeatureDef {
   id: FeatureId;
   name: string;
@@ -91,14 +107,8 @@ export interface FeatureDef {
   /** Effect text and the engine terms it maps to. */
   effect: string;
   risk?: string;
-  /** Consumer appeal × (Chat). */
-  appeal?: number;
-  /** Domain offsets (L) on the product's model. */
-  domains?: Partial<Record<DomainId, number>>;
-  /** +0.5 L in these sectors (the sector-product bonus, no certification needed). */
-  sectors?: SectorId[];
-  /** Serving need × (more tokens per task). */
-  serve?: number;
+  /** Typed effects (V4.3). */
+  fx: FeatureFx[];
   /** Incident hazard × per trait on this product. */
   hazard?: Partial<Record<TraitId, number>>;
   /** Switching it on sets the product's effort to deep (Deep think). */
@@ -107,27 +117,33 @@ export interface FeatureDef {
 
 export const FEATURES: FeatureDef[] = [
   { id: 'memory', name: 'Memory', node: 'P07', products: ['consumer', 'agents', 'enterprise'], buildTW: 12, cash: 0.1,
-    effect: 'Chat appeal ×1.1; agent and enterprise work AGENCY +0.3 (remembers context across sessions)', appeal: 1.1, domains: { AGENCY: 0.3 },
+    effect: 'Horizon extender: time horizon ×1.3 on all work, here and for internal agents; opens 10% more Chat users (people who come back)',
+    fx: [{ kind: 'horizon', mult: 1.3, work: 'all' }, { kind: 'enabler', consumer: true, share: 0.1 }],
     risk: 'Successor-alignment incidents ×1.2 (memory carries goals forward)', hazard: { SUCC: 1.2 } },
   { id: 'deepThink', name: 'Deep think', node: 'P05', products: ['consumer', 'api', 'agents', 'enterprise'], buildTW: 8, cash: 0.05,
-    effect: 'Deep-think effort on this product: +0.3 L on every task', effortDeep: true,
-    risk: 'Serving: half the revenue per H100e (many more tokens per answer)' },
+    effect: 'Effort deep: ×4 reasoning tokens, +0.24 OOM of fit on every task (test-time scaling, +0.4 OOM per ×10)', fx: [{ kind: 'effort', setting: 'deep' }], effortDeep: true,
+    risk: 'Cost per work-hour rises with the reasoning tokens (price follows cost)' },
   { id: 'computerUse', name: 'Computer use', node: 'P06', products: ['agents', 'api'], buildTW: 16, cash: 0.15,
-    effect: 'Operates desktops and browsers: AGENCY +0.4', domains: { AGENCY: 0.4 },
+    effect: 'Task enabler: operates desktops and browsers, opening 15% more work in Admin, Finance, Legal and Government (GUI-only tasks)',
+    fx: [{ kind: 'enabler', sectors: ['OFFICE', 'FIN', 'LEGAL', 'GOV'], share: 0.15 }],
     risk: 'Overreach incidents (power seeking) ×1.3', hazard: { POWER: 1.3 } },
   { id: 'voiceVision', name: 'Voice & vision', node: 'multimodal', products: ['consumer'], buildTW: 12, cash: 0.1,
-    effect: 'Talks and sees: Chat appeal ×1.1, MEDIA +0.3', appeal: 1.1, domains: { MEDIA: 0.3 } },
+    effect: 'Task enabler: talks, sees and makes images, opening 15% more Chat users and 15% more Media work',
+    fx: [{ kind: 'enabler', consumer: true, sectors: ['MEDIA'], share: 0.15 }] },
   { id: 'deepResearch', name: 'Deep research', node: 'P05', products: ['consumer', 'enterprise'], buildTW: 8, cash: 0.05,
-    effect: 'Long research reports: REASON +0.3, RSCH +0.3', domains: { REASON: 0.3, RSCH: 0.3 },
-    risk: 'Serving need ×1.1 (long agent runs)', serve: 1.1 },
+    effect: 'Scaffold: long research reports, +0.3 OOM of fit in Science, Finance and Legal work and for internal research ideas, at ×3 tokens',
+    fx: [{ kind: 'scaffold', dG: 0.3, tokens: 3, work: ['SCI', 'FIN', 'LEGAL', 'IDEAS'] }],
+    risk: 'Cost per work-hour ×3 where it applies (long agent runs)' },
   { id: 'codingAgent', name: 'Coding agent', products: ['agents', 'api'], buildTW: 12, cash: 0.1,
-    effect: 'Agents in Software & IT: +0.5 L in that sector', sectors: ['SOFT'],
+    effect: 'Scaffold: a coding harness, +0.3 OOM of fit in Software & IT and for internal engineering agents, at ×2 tokens',
+    fx: [{ kind: 'scaffold', dG: 0.3, tokens: 2, work: ['SOFT', 'SWE'] }],
     risk: 'Reward-hacking incidents ×1.2 (agents gaming tests)', hazard: { RH: 1.2 } },
   { id: 'companion', name: 'Companion mode', node: 'engagement', products: ['consumer'], buildTW: 4, cash: 0.05,
-    effect: 'A persistent persona: Chat appeal ×1.2', appeal: 1.2,
+    effect: 'Task enabler: a persistent persona, opening 20% more Chat users', fx: [{ kind: 'enabler', consumer: true, share: 0.2 }],
     risk: 'Sycophancy incidents ×1.5', hazard: { SYC: 1.5 } },
   { id: 'sectorPacks', name: 'Sector packs', products: ['enterprise', 'api', 'agents'], buildTW: 0, cash: 0, leader: true,
-    effect: 'Sector products: +0.5 L in a sector once certified (each pack: $0.4B, 120 days)' },
+    effect: 'Task enabler: sector products; a certified sector pack adds +0.42 OOM of fit in that sector (each pack: $0.4B, 120 days)',
+    fx: [{ kind: 'enabler', packs: true, share: 0 }] },
 ];
 export const FEATURE_BY_ID = Object.fromEntries(FEATURES.map((f) => [f.id, f])) as Record<FeatureId, FeatureDef>;
 /** The frontier-leader start's built features (D5 baseline). */

@@ -12,6 +12,7 @@
 //
 // Neutrality: the default package (every use on the routine model, monitors 'same' on routine and frontier research,
 // the reference shares) gives exactly the pre-R7 production function, runtime monitoring and internal incidents.
+import { flopPerToken } from './workfit';
 import {
   AGENT_USES, CAP_USES, DEFAULT_CAP_SHARES, ENG_REF_SHARE, MONITOR_SAME, MONITOR_STD_POOL_SHARE, RISK_FAMILIES, RISK_UNSEEN_CLARITY, RISK_WATCH_EST, TRUSTED_MAX, TRUSTED_MAX_P27,
   type CapUse,
@@ -78,12 +79,12 @@ export function agentSplitShare(s: GameStateV2, use: AgentUse): number {
 /** H100e running a use. */
 export const agentCompute = (s: GameStateV2, use: AgentUse) => s.player.computeOnline * agentSplitShare(s, use);
 
-/** Monitor compute a use needs, as a share of total compute (D7: 0.25 × monitor serve ÷ watched serve × its compute). */
+/** Monitor compute a use needs, as a share of total compute (D7: 0.25 × monitor ÷ watched FLOP per token × its compute). */
 export function monitorNeedShare(s: GameStateV2, use: AgentUse): number {
   const mon = monitorVersion(s, use);
   const v = agentVersion(s, use);
   if (!mon || !v) return 0;
-  return ((MONITOR_OVERHEAD * mon.serveCost) / Math.max(1e-6, v.serveCost)) * agentSplitShare(s, use);
+  return ((MONITOR_OVERHEAD * flopPerToken(s, mon)) / Math.max(1e-6, flopPerToken(s, v))) * agentSplitShare(s, use);
 }
 
 export interface MonitorBudget {

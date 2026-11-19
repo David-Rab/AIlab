@@ -1,15 +1,16 @@
 // Product readouts and live-edit previews (STRUCTURE §4.4, BUILD-PLAN R6; mockup v3-products). Owner: WS5.
 //
-// Per product: revenue, customers (revenue ÷ revenue per customer), share of its segment's spend vs the best rival
-// product, binding cause, serving need / served / cut, run cost, monitor overhead and catch rate. A live edit is
+// Per product: revenue, customers (Chat: its weekly users, a stock; other products revenue ÷ revenue per customer), share
+// of its segment's spend vs the best rival product, binding cause, serving need / served / cut, run cost, cost and price
+// per work-hour (Chat: per subscriber-month) and margin, monitor overhead and catch rate (model v3 V4.2). A live edit is
 // previewed by recomputing the market mix and revenue on a copy of the state with the edited product (pure; the edit
 // itself applies at the next tick, D7), so the preview shows what the next tick will compute.
 import { PRODUCT_DEFS } from '../../../data/v2/features';
 import { REGIONS, SECTORS } from '../../../data/v2/sectors';
-import { decimalYear } from '../core/time';
 import { catchRate, monitorOverhead } from '../models/products';
 import { versionById } from '../models/labs';
-import { tcoPerH100eYear } from '../production/production';
+import { serveDollarsPerHour } from './serving';
+import { SERVE_HOURS_PER_YEAR } from '../../../data/v2/serving';
 import type { Deployment, GameStateV2, Money } from '../types';
 import { paidDeployments, worldMix, type WorldMix } from './mix';
 import { consumerSpend, revenueReadout, sectorSpend, type RevenueReadout } from './revenue';
@@ -31,8 +32,18 @@ export interface ProductRead {
   cutH100e: number;
   /** Unserved demand ($B/yr). */
   unserved: Money;
-  /** Serving compute cost ($B/yr) at the rental-equivalent price of an H100e. */
+  /** Serving compute cost ($B/yr) at the rental price of an H100e. */
   runCost: Money;
+  /** Cost and price per work-hour ($; Chat: per subscriber-month), margin 1 − cost/price, share sold at the value cap,
+   *  AI work-hours a year asked for and servable (sector products), users and subscribers (Chat). */
+  cost: number;
+  price: number;
+  margin: number;
+  valueCapped: number;
+  hours: number;
+  capHours: number;
+  users?: number;
+  subs?: number;
   monitorOverhead: number;
   catchRate: number;
 }
@@ -52,7 +63,7 @@ function segmentShares(s: GameStateV2, mix: WorldMix, channel: Deployment['chann
   let tot = 0;
   for (const r of REGIONS) {
     if (channel === 'consumer') {
-      const cs = consumerSpend(mix, r);
+      const cs = consumerSpend(s, mix, r);
       tot += cs;
       for (let i = 0; i < n; i++) acc[i] += cs * mix.consumer[r].share[i];
       continue;
@@ -60,7 +71,7 @@ function segmentShares(s: GameStateV2, mix: WorldMix, channel: Deployment['chann
     for (const def of SECTORS) {
       if (channel === 'gov' && !GOV_SECTORS.has(def.id)) continue;
       const m = mix.sec[r][def.id];
-      const sp = sectorSpend(s, r, def, m.price);
+      const sp = sectorSpend(s, r, def.id, mix);
       tot += sp;
       for (let i = 0; i < n; i++) acc[i] += sp * m.share[i];
     }
@@ -71,7 +82,7 @@ function segmentShares(s: GameStateV2, mix: WorldMix, channel: Deployment['chann
 /** Readouts of every product (paid deployments) from one revenue computation. */
 export function productReadouts(s: GameStateV2, mix: WorldMix = worldMix(s), rd: RevenueReadout = revenueReadout(s, mix)): Map<string, ProductRead> {
   const out = new Map<string, ProductRead>();
-  const tco = tcoPerH100eYear(s, decimalYear(s));
+  const tco = (serveDollarsPerHour(s) * SERVE_HOURS_PER_YEAR) / 1e9;
   const shareCache = new Map<string, number[]>();
   const pi = mix.providers.findIndex((p) => p.key === 'player');
   for (const d of paidDeployments(s)) {
@@ -91,10 +102,13 @@ export function productReadouts(s: GameStateV2, mix: WorldMix = worldMix(s), rd:
     const def = PRODUCT_DEFS[d.channel];
     out.set(d.id, {
       id: d.id, channel: d.channel, revenue: x.revenue, demand: x.demand,
-      customers: def && def.arpu > 0 ? (x.revenue * 1e9) / def.arpu : 0,
+      customers: d.channel === 'consumer' ? x.users ?? 0 : def && def.arpu > 0 ? (x.revenue * 1e9) / def.arpu : 0,
       share: pi >= 0 ? sh[pi] : 0, rival, bound: x.bound, rpH: x.rpH,
       needH100e: x.needH100e, servedH100e: x.servingH100e, cutH100e: x.cutH100e, unserved: Math.max(0, x.demand - x.revenue),
       runCost: Math.min(x.servingH100e, x.needH100e) * tco,
+      cost: d.channel === 'consumer' ? x.subCost ?? 0 : x.costPerHour, price: d.channel === 'consumer' ? x.subPrice ?? 0 : x.pricePerHour,
+      margin: (d.channel === 'consumer' ? x.subPrice ?? 0 : x.pricePerHour) > 0 ? 1 - (d.channel === 'consumer' ? (x.subCost ?? 0) / (x.subPrice ?? 1) : x.costPerHour / x.pricePerHour) : 0,
+      valueCapped: x.valueCapped, hours: x.hours, capHours: x.capHours, ...(x.users !== undefined ? { users: x.users, subs: x.subs } : {}),
       monitorOverhead: monitorOverhead(s, d),
       catchRate: d.monitorId ? catchRate(s, versionById(s, d.versionId), versionById(s, d.monitorId)).rate : 0,
     });

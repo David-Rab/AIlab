@@ -13,10 +13,11 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { AGENT_TASK_HOURS, FEATURES, PRICE_TIER_IDS, PRICE_TIERS, PRODUCT_DEFS, PRODUCT_ORDER, type FeatureDef } from '../../../data/v2/features';
+import { MARKUP, PRICE_ELASTICITY } from '../../../data/v2/serving';
 import { TREE_BY_ID } from '../../../data/v2/tree';
 import {
   CHANNEL_VARIANTS, agentsGate, buildEtas, catchRate, dateOf, deployGate, editBlock, editedProduct, effortLock, fmtDate, isProduct, measuredHorizonH,
-  demandModifiers, measuredLOf, nodeKnown, PENALTY_MAX, previewEdit, productReadouts, revenueSpeedCap, servingPool, versionById,
+  demandModifiers, measuredLOf, nodeKnown, PENALTY_MAX, previewEdit, priceView, productReadouts, servingPool, versionById,
   LAUNCH_TW, LENT_RECOVERY, pendingLaunch, spareServing, spareServingToResearch,
 } from '../../../engine/v2';
 import type { Channel, Deployment, GameStateV2, ModelVersion, PriceTier, ProductChanges, ProductRead } from '../../../engine/v2';
@@ -159,7 +160,7 @@ function ProductCard({ s, d, r, draft, setDraft }: { s: GameStateV2; d: Deployme
         { label: 'Serving it uses', value: `${F.h100e(Math.min(r.servedH100e, r.needH100e))} H100e` },
         { label: <Term id="monitor">Monitor overhead</Term>, value: d.monitorId ? `+${F.pct(r.monitorOverhead, 1)} of serving` : 'no monitor' },
         { label: <Term id="revPerH100e">Revenue per H100e</Term>, value: rate(r.rpH) },
-        { label: 'Model research speed', value: (() => { const c = revenueSpeedCap(s, v); return <Limit id="revenue.speedCap" tone={c.capped ? 'warn' : 'quiet'}>{F.mult(c.M)}{c.capped ? ` → counts as ${c.cap}×` : ` · counts up to ${c.cap}×`}</Limit>; })() },
+        { label: d.channel === 'consumer' ? 'Cost → price per subscriber-month' : 'Cost → price per work-hour', value: (() => { const c = priceView(s, d); return <Limit id="price.valueCap" tone={c.capped > 0.05 ? 'warn' : 'quiet'}>{`$${c.cost.toFixed(2)} → $${c.price.toFixed(2)} · margin ${F.pct(c.margin)}${c.capped > 0.05 ? ` · ${F.pct(c.capped)} at the value cap` : ''}`}</Limit>; })() },
       ] : []}>Serving compute at the rental-equivalent price of an H100e.</TipCard>}>
         <div className="pc-cost"><ICON.cash size={12} /><b>{r ? F.money(r.runCost, { perYear: true }) : '—'}</b><span className="dim">to run</span><span className="sp" />{d.monitorId && r && <span className="dim">monitor +{F.pct(r.monitorOverhead)}</span>}</div>
       </Tip>
@@ -192,7 +193,7 @@ function ProductCard({ s, d, r, draft, setDraft }: { s: GameStateV2; d: Deployme
       <div className="pc-set">
         <div className="pc-cap"><span>Settings</span><span className="sp" /><span className="dim"><Pencil size={10} /> live</span></div>
         <div className="pc-row">
-          <Tip content={() => <TipCard title={<Term id="priceTier">Price tier</Term>} rows={PRICE_TIER_IDS.map((t) => ({ label: TIER_LABEL[t], value: `price ×${PRICE_TIERS[t]} · demand ×${(PRICE_TIERS[t] ** -1.5).toFixed(2)}` }))}>Demand falls with price^−1.5.</TipCard>}><span className="pc-k"><Tag size={11} />Price</span></Tip>
+          <Tip content={() => <TipCard title={<Term id="priceTier">Price tier</Term>} rows={PRICE_TIER_IDS.map((t) => ({ label: TIER_LABEL[t], value: `price = cost ×${MARKUP[t].toFixed(2)} (margin ${F.pct(1 - 1 / MARKUP[t])}) · share ×${(PRICE_TIERS[t] ** -PRICE_ELASTICITY).toFixed(2)}` }))}>Price is a markup over this product's own cost per work-hour, never above the work's value; customers' share falls with price^−{PRICE_ELASTICITY}.</TipCard>}><span className="pc-k"><Tag size={11} />Price</span></Tip>
           <Seg testId={`prod-price.${d.id}`} value={n.price} options={PRICE_TIER_IDS.map((t) => ({ v: t, label: TIER_LABEL[t] }))} onChange={(t) => set({ price: t })} />
         </div>
         <div className="pc-row">
