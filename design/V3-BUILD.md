@@ -329,6 +329,108 @@ belief error; failed → reopen as speculative; line priors decline but their su
 specialty optimality within 5% of brute force; overflow of research engineers and engineers; a stage without FLOP
 waits; headroom closes with tuning and refills on adoption; e_stack never read from pa (lint).
 
+### V2 notes (V2a: engine, content, calibration, tests; 2026-11-19)
+
+Design values ([D]) and deviations, each with its reason. Code: `src/engine/v2/models/research.ts` (lifecycle,
+assignment, research engineers), `models/stacks.ts` (stacks, headroom, the pa readout), data `src/data/v2/research.ts`,
+content `src/data/v2/tree.ts` (table: design/TECH-TREE.md §6). Tests: `scripts/v2/research.ts` (in `test:v2`).
+
+**Content (TECH-TREE §6)**
+- Cut: Chat, API, Enterprise, Agents product, Coding agent, Deep research, Voice & vision, Sector packs (features gated
+  on Native multimodal / Multi-agent orchestration / nothing), and P26 (no engine effect; its hidden draw kept so the
+  other paradigm draws keep their values). *Auditing agents* now needs *Agentic environments* ★.
+- ★ added: Quantization, Speculative decoding, Fault-tolerant training, Overtrained compact (all public by 2025; no
+  effect beyond the reference: their old multipliers would have moved every lab's serving cost and goodput).
+- Typed now: P09, P11, P22 (domain OOM for new versions; P11/P22 converted from v2 levels at 1.2 L per OOM), P16
+  (training throughput +0.06 OOM, serving −0.125 OOM), P25 (**real effect**: weight-security defence +0.5 level),
+  new idea *Elastic training* (goodput 0.90 → 0.95 as +0.023 OOM throughput). LATER as briefed: P13, P19, P20, P24 (V3);
+  P05, P07 (V4); P10, P12, P21 (V5); P14, P15, P23, P27 (V6). Unchanged axes: P06, P08, P17, P18, RL focus.
+- Lines: Scaling recipes, Data filtering & mixing, Optimizer & architecture tweaks (pre); RL algorithms (RL
+  efficiency), Environments & rewards (RL ceiling); Inference efficiency (serving); Recurrent architectures (pre, needs
+  P17: the fresh-pool example).
+
+**Stacks (V2.1)**
+- Five parts in three stacks: pre (OOM, scale-dependent), RL efficiency (midpoint) and RL ceiling (OOM added to A),
+  training throughput (capped at MFU 0.75 × goodput 0.97) and serving. **Deviation:** the RL stack has a ceiling part.
+  The brief's pretraining check (≈ 0.48 OOM/yr) is about 55% of the v2 know-how rate before SC; RL efficiency alone
+  saturates the V1 RL curve within ~1 OOM, so without a ceiling part the RL stack could not carry the rest. Suite
+  fidelity "scales A_f" in MODEL-V3 §4.3, so *Environments & rewards* raising A is in the spec's spirit (V5 makes
+  suites assets).
+- Scale buckets: adopted ideas are kept as Σ x·10^(−s·log₁₀F_test) per s (grid 0.02), so a stack is a function of the
+  run's FLOP and the state stays small in a takeoff (hundreds of thousands of ideas). The last 30 adopted ideas are kept
+  for the readout (`research.adopted`: believed band and realised value).
+- Start: the leader 0 in every part; a follower −B·k in pre and RL efficiency (k = V1's solved know-how lag). B0/V0 keep
+  their V1 vintages through `startVintage` (start solution only).
+- Public knowledge (diffusion, C4 tacit knowledge, safety spillover) enters the pre stack base (B OOM per v2 year, no
+  headroom): `addKnowledge`.
+
+**Projects and lifecycle (V2.2, V2.4)**
+- Nothing hidden is stored: a candidate's true effect and scale exponent are recomputed from hash draws (world seed,
+  project, attempt, candidate number), so saves hold only beliefs. Paradigm "works" keeps the hidden paradigm draw
+  (first attempt) and v2's `node:id:attempt` hashes (reopenings).
+- Candidates: novelty ν ∈ [0, 1] (visible): truth mean × (0.75 + 0.5ν) × taste, spread × (0.15 + 0.6ν) [D]. Taste q
+  (capacity-weighted team quality): mean × (1 + 0.5(q − 1)), belief noise ÷ q² [D]. The risk policy's κ only changes
+  picks because novel candidates are both bigger and less certain.
+- Small experiments run at 1/1000 of the scale test; a candidate's small-scale effect x becomes x·1000^s at test
+  scale; the scale test is 0.2% (lines) or 1% (ideas) of the latest base [D]. *Optimizer & tweaks* s ~ N(−0.25, 0.2)
+  gives 23% survival (test: 25% ± 10%). s is clamped to [−0.6, 0.25] [D]: an unclamped tail made single candidates worth
+  tens of OOM once batched.
+- Pick at 2 candidates; pool ≤ 4 (then better finds replace the weakest) [D]. Drop below 30% of the prior mean; ideas
+  fail after 3 drops; a failed project reopens as speculative (odds × 0.5, mean × 0.7, spread × 1.5) [D]. Lines never
+  fail; a result queues its adoption and the line moves on (pipelining).
+- **Batching** [D, performance]: above pace 30 a line candidate carries b = ⌊pace/30⌋ ideas (work, FLOP, effect × b,
+  noise × √b); at the scale test a batch keeps its survivors analytically (E[1000^s; s ≥ s*], survivors' mean s).
+  Work left over when a stage ends carries into the next the same day (without it the takeoff lost ~30% to day
+  rounding).
+- **Speed (BRIDGE(V3)): research pace = the production function's rate ÷ the world's software share**, not M: equal to
+  M before SC (2029 laborSlowdown aside) and M ÷ share after it, because the v2 know-how path grew at the rate (stage 1
+  share·M, stage 2 M); with M alone the stacks would grow half as fast after SC.
+- **Capacities are normalised by the reference headcount path** (H_ref at the start ÷ H_ref today; BRIDGE(V3)): M
+  already counts labour relative to H_ref; absolute √capacity let a reference lab's stacks grow with its headcount and
+  ran the 13-year slow preset's SC 5 years early.
+- **Project FLOP ÷ pace** (BRIDGE(V3)): the pace already contains experiment compute through its CES; at a fixed share
+  per idea, FLOP bound the reference lab's takeoff a second time (the double count the brief notes for V3).
+- Diminishing returns: μ_n = μ₁(1 + (n − 1)/1000)^(−0.03), n counting ideas. **The fit drives β to ~0**: research/13
+  §2.5 says the reference speed already contains "ideas get harder", and any β that matters over 10⁴–10⁵ ideas slows the
+  long takeoffs past tolerance. β > 0 keeps the brief's shape (decline, divergent sum); √capacity carries the
+  spreading incentive.
+- Adoption: engineers, 0.5 + 2 TW per OOM (unlocks 1, max 8) [D]. **Deviation:** adoptions are worked in the engineers'
+  *runs* need (after run setups), not *builds*: they are training code (MODEL-V3 §3.3 novel run code), and with
+  product upkeep first the slow preset's reference lab never adopted anything for six years (upkeep > capacity, no
+  mechanical penalty for unserved upkeep, so nothing else ever got built).
+- Headroom 30%, closed at 1/270 × pace × tuning team-equivalents per day [D].
+
+**Allocation (V2.5)**
+- Scientists: priority list + teams wanted (default 1, "max" = 6), best specialty then capacity first, one pass of
+  pairwise swaps on Σ√capacity ÷ ideation effort, leftovers to the top project under 6; manual placements stay; a
+  `why` per team. Test: within 5% of brute force over the same per-project counts (worst 96%). Capability teams are
+  always placed by it; the old auto-assign flag now only drives safety teams (safety path unchanged).
+- Research engineers: needs ops → experiments → tuning; ops = 1 per base run, 0.5 per post/continue and the stream, 0.2
+  per distill/IDA [D, mirrors engineer upkeep]; experiments up to 2 team-equivalents per project in priority order;
+  default cap: experiments ≤ 75% so tuning always has some [D]. Caps per need as a team count or a share; order is the
+  player's (`research.reAlloc`). h counts experiments + tuning ÷ 0.88 (BRIDGE(V3)).
+- Engineers: the same order/caps control on runs / upkeep / builds (`build.engAlloc`). "Internal tools" has no content
+  yet (not built).
+- RefBot: its paradigm goals at the top (reopened after 180 days, v2's retry pacing), then five lines (not Inference
+  efficiency: serving is V4's calibration; not Recurrent architectures: v2's path had only P17's +0.5 OOM), three
+  teams on each paradigm project and the rest on the lines by weight (0.25 scaling, 0.3 environments, 0.15 data, 0.1
+  tweaks, 0.2 RL algorithms); RL-algorithm teams move off once the reference RL run is at 95% of its ceiling (beyond
+  that RL efficiency buys no G; keeping them there cost the long takeoffs ~20% of their research). A fixed 70% line
+  share was tried (it evened the fitted μ₁ across ai2027 / fast / authors2026 to 0.60–0.64) but moved the ai2027
+  takeoff out of tolerance; reverted.
+
+**Calibration (V2.8; table in PROGRESS.md V2a)**
+- Fit order: paradigm efforts to V1's attempt durations (`--fit-tree ai2027`), LINE_FIT.mu to V1's know-how path
+  (`--fit-lines`: log-ratio of the stacks' G-equivalent to B·(pa − pa₀) from the first base to SC), then CAL_SHIFT and
+  LEADER_CAL. μ₁ = 0.58 (ai2027's bridge fit was 0.54–0.60 over the RefBot variants tried; 0.58 is the value that keeps
+  ai2027 and fast within tolerance after the CAL_SHIFT refit).
+- Pretraining stack (ai2027 RefBot): 0.43 OOM/yr in the first year (Ho et al. 0.48 ± 30%), 0.67 OOM/yr start → SC
+  (the 2027 AI speed-up included). The check window is the first year (research pace 1.3–1.6, before automation).
+- **Stop condition (reported, not forced):** authors2026's late milestones (SAR −0.13, SIAR −0.12, ASI +0.38 y) and slow's
+  CAL_SHIFT (0.291 → −1.5) after refit. ai2027 and fast are within tolerance; the leader lab (T1L) is within tolerance
+  on every preset. The mismatch is a shape difference, not a level: the v2 path's research rate had no pipeline, no
+  per-project structure and no team split; V3's project-level CES is where to rebuild it.
+
 ### V2b UI (second run)
 
 Research panel: project cards with stage track (ideation → small → scale → result), belief band, odds, FLOP and work

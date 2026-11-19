@@ -34,6 +34,63 @@ Single source of truth for where the build stands. Update at every milestone or 
 | **R10 Restructure: UI completion and structure tests** | Done (2026-11-17): top strip revenue chip (users in its tooltip; Finance links to it) and "tools validated to" in the race tooltip; Overview "Your company" core-loop diagram (a verdict per system, links to homes); codex Structure (core loop, simulated-from-outside note, verb set) and Limits categories; 24-limit registry `data/v2/limits.ts` shown where each binds (`Limit`, `data-limit`, checked by uitest); research-speed limit lines (frontier methods you lack, serial cap, serve-cost clamp, pause, knowledge diffusion); `system` / `verb` tags required on every engine system and action (lint-structure); idle test (idle.ts) with idle serving compute in Watch; 23 new glossary terms; dead code removed; no engine behaviour change (ref-trace 0 deviation vs R9); all §7.4 criteria MET (200 seeds). Follower starts accepted as is (user decision 2026-11-17: measured labels kept, catch-up deferred) | "R10: UI completion …" on `game-structure` |
 | **V0 Model v3: spec and calibration research** | Done (2026-11-18): design/MODEL-V3.md (physical-quantity rebuild of models, research, products, safety; AI 2027 as calibration only), research/20 (primary-source numbers). Approved by the user; build V1–V7 next, serial, branch `model-v3`, worktree ../AI27-model3 | (this commit) |
 | **V1 Model v3: capability core** | Done (2026-11-18, branch `model-v3`, not merged): models from physical quantities (G = log₁₀ FLOP + recipe + shape + overtraining + repetition; RL curve; distillation and continue laws), no minimum lengths or restart roll, no F(t) sizes, no κ, no era table; bridges pm = Φ(G), e_stack from pa, serveCost, run scale, simple-lab credit; Blueprint in parameters × tokens; schemaRev 12. CAL_SHIFT and LEADER_CAL refit (all presets within ±0.06 y of golden over SC…last). Open: 4 new test failures (worldfx GOV T1 accept −6 d outside its window, W2 TFP 1.4%; ws4 T3 band 70–289 d, T3 post-theft lag); see "V1 Capability core" below | e4f10c3, 8763e8e, 9f871ae, (docs) |
+| **V2a Model v3: research as ideas (engine)** | Done with open calibration failures (2026-11-19, branch `model-v3`, not merged): capability projects (lines, ideas, axes) with a lifecycle (ideation → small experiments → scale test → result → engineers' adoption), hidden per-world candidate truths, beliefs, taste, risk policy; recipe stacks (pretraining, RL efficiency + ceiling, training throughput, serving) with scale buckets and headroom replace the know-how bridge; pa is a readout; scientists by priority + teams wanted + swap pass; research engineers and engineers by needs with caps and overflow; content pass in TECH-TREE §6; schemaRev 13. **Stop condition hit (not forced):** authors2026 SAR −0.13 / SIAR −0.12 / ASI +0.38 y after refit; slow fits only with CAL_SHIFT 0.291 → −1.5. See "V2a Research as ideas" below | 34ad054, 881f64c, 6121e94, (docs) |
+
+## V2a Research as ideas (2026-11-19, branch `model-v3`, worktree ../AI27-model3)
+
+Brief: design/V3-BUILD.md "V2" (choices and deviations in its "V2 notes"); content: design/TECH-TREE.md §6. Code:
+models/research.ts (lifecycle, assignment, research engineers), models/stacks.ts (stacks, headroom, pa readout),
+data/v2/research.ts; tests scripts/v2/research.ts (in `test:v2`); calibration tools `calib.ts --fit-tree` (V1 attempt
+durations), `--fit-lines` (stacks vs the V1 know-how path, scripts/v2/golden/v1-bridge.json).
+
+**Calibration (T1, RefBot on the stub, seed 2027; Δ vs golden in years).** LINE_FIT.mu = 0.58 (bridge fits per preset:
+ai2027 0.54–0.60, fast 0.62–0.64, authors2026 0.58–0.63, slow 0.42–0.48 depending on the RefBot policy tried), β = 0.03,
+n₀ = 1,000 ideas; paradigm efforts refitted to V1's durations (`--fit-tree ai2027`).
+
+| Preset | V1 (CAL_SHIFT): SC, SAR, SIAR, ASI | V2a after refit (CAL_SHIFT): SC, SAR, SIAR, ASI | Within tolerance |
+|---|---|---|---|
+| ai2027 | −0.36: −0.027, −0.022, +0.003, +0.025 | −0.463: +0.036, −0.068, −0.082, −0.060 | yes |
+| authors2026 | −0.633: +0.030, +0.033, −0.011, +0.025 | −0.618: −0.036, **−0.132, −0.121, +0.384** | **no** (SAR, SIAR by 1–4 days; ASI by 0.26 y) |
+| fast | −0.557: −0.016, −0.016, +0.049, +0.058 | −0.473: −0.066, −0.066, −0.011, +0.016 | yes |
+| slow | 0.291: SC +0.052 | **−1.5**: SC +0.019 | yes, but CAL_SHIFT moved 1.8 progress-years |
+
+T1L leader lab: LEADER_CAL ai2027 0.057 → 0.021, authors2026 0.052 → 0.046, fast −0.036 → −0.001, slow 0.043 → 0.039; all
+SC…last within tolerance. T2 copies Mar 2027 168k, speed 29.8× (pass). T4 unchanged. Integrated RefBot (informational):
+ai2027 SC −0.05 … ASI −0.03; fast +0.21 … +0.33; authors2026 SC +2.2 (V1 +0.78); slow no SC by 2041 (V1 none either).
+
+**V2.8 check (pretraining stack, RefBot):** ai2027 0.43 OOM/yr in the first year (Ho et al. 0.48 ± 30%: pass), 0.67
+OOM/yr from the start to SC (includes the AI speed-up of 2027: research pace 1.3 → 4.7); all stacks (G-equivalent) 0.90
+OOM/yr in the first year (ECI all-in ≈ 0.78), 1.28 to SC. fast 0.38 / 0.61, authors2026 0.36 / 0.58, slow 0.30 / 0.39.
+
+**Why the stop condition is reported, not forced.** The stacks track V1's bridge before SC (log-ratio within ±0.13 on
+ai2027 / fast / authors2026), but the shapes differ where V1's bridge had no structure:
+- authors2026's four-year takeoff (SAR → ASI) runs 3–5% less efficient per unit of research pace than the bridge (the
+  research pipeline's lag, the small β, headroom), and the production function's feedback turns that into +0.38 y at ASI
+  while SAR/SIAR land slightly early; a higher μ₁ fixes ASI but pushes ai2027's takeoff out of tolerance (μ₁ 0.62:
+  ai2027 SAR −0.13, SIAR −0.16).
+- slow's 13 pre-SC years at low pace give ~25% more stack per unit of pace than ai2027 (fit-lines μ₁ 0.42–0.48 vs
+  0.54–0.60), so its CAL_SHIFT absorbs ~1.8 progress-years. Not traced to a single cause: the scale-dependent ideas'
+  growth with run FLOP is not it (s = 0 leaves the gap), and normalising capacity by H_ref closed most of the earlier
+  5-year gap; RefBot's split between paradigm projects and lines (few paradigms queued for years in slow) is the
+  remaining suspect.
+Both point at V3 (project-level CES replacing the M bridge, explicit labour and compute per project) rather than at line
+parameters.
+
+**Tests (final run).** Pass: golden-timelines, identity, effective, research (new, 25 checks), fixtures (regenerated),
+lint-hidden, lint-ux, lint-tradeoffs, lint-structure, products, money, idle, ws4 "T3 after a theft ≈ 60 d" (failed in V1);
+`npm run build` clean; `npm run test:ui` 234/234. Fail:
+- calib T1 authors2026 SAR, SIAR, ASI (above);
+- hygiene "performance (leader lab): daily tick average" 2.3 ms vs 1.5 (it failed in this worktree's V1 baseline too:
+  2.6–2.8 ms; the tick without the leader lab passes);
+- safety S5 (known; median min margin −1.23, V1 −0.68);
+- finance F2 global production 2027 44.7M H100e vs the 45M floor (known on master; V1 passed it at 46.7M);
+- worldfx GOV T1 Accept 2027-09-12 (V1 2027-09-04) and W2 TFP 1.4% (V1 1.4%): V4 owns them;
+- ws4 T3 band 39–313 d (V1 70–289): V7 owns it.
+
+**Bots (`bots.ts --seeds 40`, reported, not required).** Win / mixed / loss: race 2.5 / 5 / 92.5%, safe 7.5 / 2.5 /
+90%, mixed 40 / 5 / 55%, capex2x 0 / 0 / 100% (97.5% insolvent), ref 22.5 / 5 / 72.5%. §7.4: race win ≤ 5% MET, race losses
+MET, **safe win ≤ 5% MISS (7.5%, as V1)**, **safe losses ≥ 50% overtaken/other-ASI-first MISS (47%; V1 MET)**, mixed ≥ 30%
+and ≥ 25 pp above both extremes MET (40%, 32.5 pp), passive takeover-type ≥ 50% MET (60%).
 
 ## V1 Capability core (2026-11-18, branch `model-v3`, worktree ../AI27-model3)
 
