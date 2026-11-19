@@ -412,7 +412,7 @@ function LineRowView({ s, l }: { s: GameStateV2; l: LineRow }) {
       </span>
       <span className="sf-proj">
         {l.projects.length ? l.projects.map((p) => (
-          <span key={p.id} className="sf-pj" onClick={() => { if (!p.followUp) { store.setTab('research.sel', p.id); store.goto('research'); } }}>
+          <span key={p.id} className="sf-pj" onClick={() => { if (!p.followUp) { store.setTab('research.sel', p.id); store.goto('research', { tab: 'tree' }); } }}>
             <span className="ellip small">{p.followUp ? 'Follow-up' : p.name}</span>
             <span className="rs-bar"><i style={{ width: `${p.progress * 100}%` }} /></span>
             <Tip content={() => <TipCard title="ETA" value={eta(p.eta)} rows={[{ label: 'Progress', value: F.pct(p.progress) }]}>At today's teams and research speed.</TipCard>}><span className="num small">{eta(p.eta)}</span></Tip>

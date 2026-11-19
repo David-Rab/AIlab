@@ -334,7 +334,7 @@ function FeatureRow({ s, d, f, eta }: { s: GameStateV2; d: Deployment; f: Featur
   );
   return (
     <Tip content={tip}>
-      <button className="ft locked" data-node={f.node} onClick={() => { store.setTab('research.sel', f.node ?? ''); store.goto('research'); }}>
+      <button className="ft locked" data-node={f.node} onClick={() => { store.setTab('research.sel', f.node ?? ''); store.goto('research', { tab: 'tree' }); }}>
         <Lock size={11} /><span className="ft-n">{f.name}</span><span className="sp" /><span className="ft-s"><ICON.research size={10} /> {f.node ? TREE_BY_ID[f.node]?.name ?? f.node : ''}</span>
       </button>
     </Tip>

@@ -184,7 +184,7 @@ function Lane({ s, v, use, draft, setDraft }: { s: GameStateV2; v: AgentsView; u
       </div>
       <div className="ag-ai">
         {use === 'safety' ? <Trusted s={s} v={v} /> : (
-          <Tip content={() => <TipCard title={<Term id={AI_TERM[use]}>AI share of the work</Term>} value={F.pct(l.aiShare)}>{use === 'eng' ? "1 − (1 − A)² on this model's coding automation A, × how much of the reference engineering compute it gets. Raises build capacity." : use === 'capRoutine' ? "The AI part of research labour (this model's coding automation and AI researchers per chip)." : "The share of human scientists this model's research taste exceeds. The frontier model sets research taste."}</TipCard>}>
+          <Tip content={() => <TipCard title={<Term id={AI_TERM[use]}>AI share of the work</Term>} value={F.pct(l.aiShare)}>{use === 'eng' ? "The agents' part of the engineers' labour margin (1 − the humans' share in the coding CES). More compute or a better-fitting model raises it, and build capacity with it." : use === 'capRoutine' ? "The agents' part of the research engineers' labour margin (1 − the humans' share)." : "The share of human scientists this model's research taste beats. The frontier model sets research taste."} Fit, coverage and effective labour: Company › Work.</TipCard>}>
             <div><div className="row-i"><HBar v={l.aiShare} max={1} color={C.good} w={120} /><b className="num" data-test={`ai-share.${use}`}>{F.pct(l.aiShare)}</b></div><div className="small dim">{aiSub}</div></div>
           </Tip>
         )}

@@ -143,7 +143,7 @@ export function Relations({ s }: { s: GameStateV2 }) {
             </Row>
           ))}
           <Row label={<Term id="academia">Academia</Term>}>
-            <Tip content={() => <TipCard title={<Term id="academia">Academia</Term>} rows={[{ label: 'Papers in the pipeline', value: rb.academia.pipeline.toFixed(0) }, { label: 'Publication lag', value: `${rb.academia.publishLagDays} d` }]}>Outside research that reaches everyone's know-how after a lag.</TipCard>}>
+            <Tip content={() => <TipCard title={<Term id="academia">Academia</Term>} rows={[{ label: 'Papers in the pipeline', value: rb.academia.pipeline.toFixed(0) }, { label: 'Publication lag', value: `${rb.academia.publishLagDays} d` }]}>Outside research that reaches every lab's recipe (as public ideas) after a lag.</TipCard>}>
               <span className="small">{rb.academia.pipeline.toFixed(0)} papers in the pipeline · {rb.academia.publishLagDays} d to publish</span>
             </Tip>
           </Row>

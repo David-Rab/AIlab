@@ -16,7 +16,7 @@ export const NAV: NavItem[] = [
   { id: 'company', label: 'Company', icon: ICON.company, desc: 'Where compute goes and what it produces; people, compute split, security.', group: 'COMPANY' },
   { id: 'finance', label: 'Finance', icon: ICON.finance, desc: 'Cash flow, raising, contracts, debt, board and markets.', group: 'COMPANY' },
   { id: 'compute', label: 'Compute', icon: ICON.computePanel, desc: 'Chip market, orders, sites and power.', group: 'COMPANY' },
-  { id: 'research', label: 'Research', icon: ICON.research, desc: 'Know-how, the tech tree, research projects and the queue.', group: 'MODELS' },
+  { id: 'research', label: 'Research', icon: ICON.research, desc: 'Research projects in priority order, the recipe stacks and the tech tree.', group: 'MODELS' },
   { id: 'models', label: 'Models', icon: ICON.models, desc: 'Lineage, model card and runs in progress.', group: 'MODELS' },
   { id: 'blueprint', label: 'Blueprint', icon: ICON.runs, desc: 'Design your next model and start its training run: size, slots, limits and plan.', group: 'MODELS' },
   { id: 'products', label: 'Products', icon: ICON.deploy, desc: 'What customers buy: model and monitor, features, price, safeguards (all live), and the serving split.', group: 'MODELS' },

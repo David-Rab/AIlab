@@ -392,7 +392,7 @@ await tabTo('split');
   await check('Split: spare training switches back', 's.player.policies.spareTraining', () => page.click('[data-home=spareTraining] [data-act^="spare."]'));
 }
 await nav('company');
-await tabTo('people');
+await tabTo('work');
 ok('Company: engineers show the build queue', !!(await page.$('[data-panel=company] [data-test=build-queue]')));
 // R3 keep-hiring policy (needs a week; run after the run-designer checks so the time step does not change them).
 await page.evaluate(() => window.ai27v2.step(7));
@@ -505,31 +505,25 @@ await nav('risk');
 await tabTo('flows');
 await check('Flows node opens panel', 'store.panel', () => page.click('[data-node=player]'));
 
-// R4 Research: know-how bar, lane tree, node card, start / queue / drop, team picker, auto-assign, queue order, filters.
+// Model v3 V2b Research: tabs Projects / Recipe / Tree. Tree: node card adds to the priorities; Projects: priority list
+// (stage tracks, teams wanted, risk policy, reorder by ▲▼ and drag, add, remove, reopen) and the project card; Recipe:
+// three stacks with the adopted ideas. The game places the teams (no team picker).
 await nav('research');
+await tabTo('tree');
 await wait(80);
 {
-  const kh = !!(await page.$('[data-test=knowhow]'));
   const nn = (await page.$$('[data-panel=research] .rs-node')).length;
-  ok('Research: know-how bar and tree render', kh && nn >= 10, `knowhow ${kh}, nodes ${nn}`);
+  ok('Research: tree renders', nn >= 10, `nodes ${nn}`);
+  ok('Research: no know-how bar or team picker', !(await page.$('[data-test=knowhow]')) && !(await page.$('[data-test=assign-open]')));
 }
 await check('Research: click an idea opens its node card', 'store.tab["research.sel"] || ""', () => page.click('[data-panel=research] .rs-node[data-node=P05]'));
-ok('Research: node card shows odds and effort', JSON.parse(await get(`(() => { const c = document.querySelector('[data-test=node-card]'); return !!c && /Odds/i.test(c.innerText) && /team-months/.test(c.innerText); })()`)));
-await check('Research: Start now queues the project at the top', 'JSON.stringify(s.player.research.queue)', () => page.click('[data-act="research.start.P05"]'));
+ok('Research: node card shows odds and stage work', JSON.parse(await get(`(() => { const c = document.querySelector('[data-test=node-card]'); return !!c && /Odds/i.test(c.innerText) && /team-months/.test(c.innerText); })()`)));
+await check('Research: Top priority puts the project at the top', 'JSON.stringify(s.player.research.queue)', () => page.click('[data-act="research.start.P05"]'));
 await page.evaluate(() => window.ai27v2.step(1));
 await wait(60);
-ok('Research: auto-assign puts idle teams on it', JSON.parse(await get('s.player.teams.some((t) => t.projectId === "P05")')) && !!(await page.$('[data-project=P05]')));
-await check('Research: Queue a second idea from its card', 'JSON.stringify(s.player.research.queue)', async () => { await page.click('[data-panel=research] .rs-node[data-node=elastic]'); await page.click('[data-act="research.queue.elastic"]'); });
+ok('Research: the assignment puts science teams on it, with a why', JSON.parse(await get('s.player.teams.some((t) => t.projectId === "P05" && !!t.why)')));
+await check('Research: Add a second idea to the priorities from its card', 'JSON.stringify(s.player.research.queue)', async () => { await page.click('[data-panel=research] .rs-node[data-node=elastic]'); await page.click('[data-act="research.queue.elastic"]'); });
 await page.click('[data-test=node-close]').catch(() => {});
-await check('Research: team picker assigns a team', 'JSON.stringify(s.player.teams.map((t) => t.projectId || ""))', async () => { await page.click('[data-panel=research] .rs-node[data-node=elastic]'); await page.click('[data-test=assign-open]'); await page.locator('[data-test=team-picker] [data-act^="research.assign."]:not([disabled])').first().click(); });
-await page.click('[data-test=picker-close]').catch(() => {});
-await check('Research: auto-assign toggle', 's.player.research.autoAssign', () => page.click('[data-test=auto-assign]'));
-await check('Research: auto-assign back on', 's.player.research.autoAssign', () => page.click('[data-test=auto-assign]'));
-{
-  const q = JSON.parse(await get('s.player.research.queue'));
-  const last = q[q.length - 1];
-  if (q.length > 1 && (await page.$(`[data-test="queue-up.${last}"]:not([disabled])`))) await check('Research: queue reorder', 'JSON.stringify(s.player.research.queue)', () => page.click(`[data-test="queue-up.${last}"]`));
-}
 await check('Research: Safety filter hides capability lanes', 'document.querySelectorAll("[data-panel=research] .rs-lane-l").length', () => page.click('[data-test=tree-filter] [data-opt=saf]'));
 await page.click('[data-test=tree-filter] [data-opt=all]');
 await check('Research: minimap toggles the whole tree', 'store.tab["research.view"] || ""', () => page.click('[data-test=minimap]'));
@@ -539,13 +533,53 @@ await page.click('[data-panel=research] .rs-node[data-node=P17]').catch(() => {}
 await wait(60);
 await shot('41-research-node');
 await page.click('[data-test=node-close]').catch(() => {});
-await page.click('[data-test="add-team.P05"]').catch(() => {});
+await tabTo('projects');
+await wait(80);
+ok('Research: priority list rows with five-step stage tracks', JSON.parse(await get(`document.querySelectorAll('[data-home=priorities] [data-project]').length >= 2 && !!document.querySelector('[data-project=P05] [data-test="track.P05"]') && document.querySelectorAll('[data-project=P05] [data-test="track.P05"] i').length === 5`)));
+await check('Research: teams wanted +', 'JSON.stringify(s.player.research.want)', () => page.click('[data-act="want-up.P05"]'));
+await check('Research: teams wanted −', 'JSON.stringify(s.player.research.want)', () => page.click('[data-act="want-down.P05"]'));
+await check('Research: risk policy speculative', 's.player.research.risk', () => page.click('[data-test=risk-policy] [data-opt=speculative]'));
+await check('Research: risk policy back to balanced', 's.player.research.risk', () => page.click('[data-test=risk-policy] [data-opt=balanced]'));
+await check('Research: reorder with ▼', 'JSON.stringify(s.player.research.queue)', () => page.click('[data-test="prio-down.P05"]'));
+await check('Research: reorder by drag', 'JSON.stringify(s.player.research.queue)', () => page.locator('[data-home=priorities] [data-project=P05]').dragTo(page.locator('[data-home=priorities] [data-project]').first()));
+await check('Research: a row opens its project card', 'store.tab["research.proj"] || ""', () => page.click('[data-home=priorities] [data-project=elastic] .rp-nm'));
+ok('Research: project card shows the stage track, inputs and the teams with why', JSON.parse(await get(`(() => { const c = document.querySelector('[data-home=projectCard]'); return !!c && !!c.querySelector('[data-test="track.elastic"]') && /Inputs today/i.test(c.innerText) && /why here/i.test(c.innerText); })()`)));
+await check('Research: + Add project', 'JSON.stringify(s.player.research.queue)', async () => { const v = await page.$eval('[data-test=add-project] option:nth-child(2)', (o) => o.value); await page.selectOption('[data-test=add-project]', v); });
+await check('Research: Remove from the card', 'JSON.stringify(s.player.research.queue)', () => page.click('[data-home=projectCard] [data-act^="dequeue."]'));
+await page.click('[data-home=priorities] [data-project=P05] .rp-nm');
 await wait(60);
-await shot('42-research-picker');
-ok('J2 R2: the team picker shows the days each team would cut', !!(await page.$('[data-test=team-picker] [data-test^="gain."]')));
-await page.click('[data-test=picker-close]').catch(() => {});
-if (await page.$('[data-test^="queue-drop."]')) await check('Research: Drop from the queue', 'JSON.stringify(s.player.research.queue)', () => page.locator('[data-test^="queue-drop."]').first().click());
+await shot('42-research-projects');
+await page.hover('[data-home=priorities] [data-project=P05] .rp-dots i');
+await wait(300);
+ok('Research: a team dot says why the team is there', /Why here/.test(await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '')));
+await clearTips();
+await tabTo('recipe');
+await wait(80);
+ok('Research: recipe shows three stacks and the software rate', JSON.parse(await get(`document.querySelectorAll('[data-home^="stack."]').length === 3 && !!document.querySelector('[data-home=softwareRate]')`)));
+await shot('43-research-recipe');
+await tabTo('projects');
+if (await page.$('[data-act^="reopen."]')) await check('Research: reopen a failed project as speculative', 'JSON.stringify(s.player.research.queue)', () => page.locator('[data-act^="reopen."]').first().click());
 ok('Research: no paradigm section left in Models', await (async () => { await nav('models'); return !(await page.$('[data-paradigm]')); })());
+// Model v3 V2b Company › Work: three role cards (effective labour, fit vs people, coverage, needs with caps and order),
+// milestones with criteria; research speed card on Flow.
+await nav('company');
+await tabTo('work');
+await wait(80);
+ok('Work: three role cards with labour, fit axis and coverage', JSON.parse(await get(`['SWE', 'EXP', 'IDEAS'].every((w) => !!document.querySelector('[data-test="labour.' + w + '"]') && !!document.querySelector('[data-test="fit.' + w + '"]') && !!document.querySelector('[data-test="coverage.' + w + '"]'))`)));
+ok('Work: build capacity has its home in the engineers card', !!(await page.$('[data-home=buildCapacity] [data-test="labour.SWE"]')) || !!(await page.$('[data-home=buildCapacity][data-wt=SWE]')));
+await check('Work: research-engineer cap (share)', 'JSON.stringify(s.player.research.re)', () => page.selectOption('[data-test="needs.research.reAlloc"] [data-test="cap.exp"]', 'share:0.5'));
+await check('Work: research-engineer cap cleared', 'JSON.stringify(s.player.research.re)', () => page.selectOption('[data-test="needs.research.reAlloc"] [data-test="cap.exp"]', ''));
+await check('Work: research-engineer order', 'JSON.stringify(s.player.research.re.order)', () => page.click('[data-test="needs.research.reAlloc"] [data-test="need-down.ops"]'));
+await check('Work: research-engineer order back', 'JSON.stringify(s.player.research.re.order)', () => page.click('[data-test="needs.research.reAlloc"] [data-test="need-up.ops"]'));
+await check('Work: engineers cap (count)', 'JSON.stringify(s.player.build.alloc)', () => page.selectOption('[data-test="needs.build.engAlloc"] [data-test="cap.upkeep"]', 'max:4'));
+await check('Work: engineers cap cleared', 'JSON.stringify(s.player.build.alloc)', () => page.selectOption('[data-test="needs.build.engAlloc"] [data-test="cap.upkeep"]', ''));
+await check('Work: engineers order', 'JSON.stringify(s.player.build.alloc.order)', () => page.click('[data-test="needs.build.engAlloc"] [data-test="need-down.runs"]'));
+await check('Work: engineers order back', 'JSON.stringify(s.player.build.alloc.order)', () => page.click('[data-test="needs.build.engAlloc"] [data-test="need-up.runs"]'));
+ok('Work: seven milestones with criteria', JSON.parse(await get(`document.querySelectorAll('[data-home=milestoneCriteria] [data-ms]').length === 7`)));
+await shot('44-company-work');
+await tabTo('flow');
+ok('Flow: research speed vs leader day 0, what binds, the unit project inputs', !!(await page.$('[data-home=M] [data-test=speed-rel]')) && !!(await page.$('[data-home=M] [data-test=speed-bound]')) && !!(await page.$('[data-home=M] [data-test=speed-mix]')));
+ok('Flow: no v2 frontier-methods or serving-cost lines', !(await page.$('[data-limit="speed.frontierMethods"]')) && !(await page.$('[data-limit="speed.etaMod"]')));
 
 // Overview (L1) and bottom bar
 await nav('overview');
@@ -635,13 +669,14 @@ await wait(200);
 ok('J1 C1: order, build and rent show before → after (cash, runway)', await page.evaluate(() => ['cmp.orderStandard', 'cmp.newSite', 'cmp.cloudContract'].every((id) => /cash.*→.*runway.*→/s.test(document.querySelector(`[data-test="preview.${id}"]`)?.textContent ?? ''))));
 // J2: engineers' load, spare serving, days cut, same-lineage monitors, risk lever what-ifs, launches on the build queue.
 await nav('company');
-await tabTo('people');
+await tabTo('work');
 ok('J2 P1: engineering pool shows build capacity and how busy it is', /busy/.test(await page.locator('[data-test=build-queue]').innerText()));
 await page.hover('[data-test=build-queue]');
 await wait(300);
 ok('J2 P1: the build tooltip splits runs, product upkeep and builds', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /Runs/.test(t) && /Product upkeep/.test(t) && /Builds/.test(t); })()`)));
 await shot('50-j2-build-load');
 await clearTips();
+await tabTo('people');
 ok('J2 AG1: a same-lineage monitor shows its lower catch on scheming-type incidents', !!(await page.$('[data-test="agent-catch.capRoutine.coll"]')) && !!(await page.$('[data-test="same-monitor.capRoutine"]')));
 await nav('compute');
 await tabTo('split');
@@ -790,7 +825,7 @@ for (const l of LIMIT_DEFS.filter((x) => x.panel !== 'codex')) {
   if (l.tab) await tabTo(l.tab);
   if (l.panel === 'research') {
     const ids = await page.$$eval('[data-panel=research] .rs-node:not(.st-known):not(.st-soon)', (els) => els.map((e) => e.getAttribute('data-node')));
-    for (const id of ids.slice(0, 12)) {
+    for (const id of ids) {
       await page.click(`[data-panel=research] .rs-node[data-node="${id}"]`).catch(() => {});
       await wait(60);
       if (await page.$('[data-limit="tree.retry"]')) break;

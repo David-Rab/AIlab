@@ -1,6 +1,7 @@
 // Engineers' load (jank J2 P1): one bar of build capacity split into run operations, product upkeep (incl. monitors),
-// builds and idle; the numbers and every line live in its tooltip. Home of build capacity and utilisation (Company ›
-// Agents & teams, engineering pool). Products and Models show only their own waits (links here).
+// builds and idle; the numbers and every line live in its tooltip. Home of utilisation (Company › Work, engineers card;
+// model v3 V2b: build capacity's number lives in that card's hero, so this bar is `compact` there). Products and Models
+// show only their own waits (links here).
 import type { GameStateV2 } from '../../../engine/v2';
 import { buildCapacity, buildEtas, buildRates, isRunLine, upkeepLines, upkeepSplit } from '../../../engine/v2';
 import { FEATURE_BY_ID, PRODUCT_DEFS, type FeatureId } from '../../../data/v2/features';
@@ -31,7 +32,7 @@ function upkeepLabel(s: GameStateV2, l: ReturnType<typeof upkeepLines>[number]):
   return `Monitor on ${d ? PRODUCT_DEFS[d.channel]?.name ?? d.channel : AGENT_USE_DEF[l.ref as keyof typeof AGENT_USE_DEF]?.name.toLowerCase() ?? l.ref}`;
 }
 
-export function BuildLoad({ s }: { s: GameStateV2 }) {
+export function BuildLoad({ s, compact = false }: { s: GameStateV2; compact?: boolean }) {
   const bc = buildCapacity(s);
   const u = upkeepSplit(s);
   const lines = upkeepLines(s);
@@ -50,7 +51,7 @@ export function BuildLoad({ s }: { s: GameStateV2 }) {
   const tip = () => (
     <TipCard title={<Term id="buildCapacity">Build capacity</Term>} value={`${bc.capacity.toFixed(1)} team-wk/wk`} rows={[
       { label: 'Human (teams × quality)', value: bc.human.toFixed(1) },
-      { label: <><Term id="engAgents">AI speed-up</Term></>, value: `${F.mult(bc.capacity / Math.max(1e-9, bc.human))} · AI ${F.pct(bc.aEng)} of the work` },
+      { label: <><Term id="engAgents">With AI</Term></>, value: `${F.mult(bc.capacity / Math.max(1e-9, bc.human))} · covers ${F.pct(bc.aEng)} of software work` },
       { label: <span className="row-i"><i className="drv-sw" style={{ background: SEG.runs }} /><Term id="runOps">Runs</Term></span>, value: `${u.runs.toFixed(1)} t-wk/wk` },
       ...lines.filter(isRunLine).map((l) => ({ label: <span className="dim">· {upkeepLabel(s, l)}</span>, value: l.tw.toFixed(1) })),
       { label: <span className="row-i"><i className="drv-sw" style={{ background: SEG.products }} /><Term id="productUpkeep">Product upkeep</Term></span>, value: `${u.products.toFixed(1)} t-wk/wk`, ...(short > 0 ? { tone: 'neg' as const } : {}) },
@@ -64,8 +65,8 @@ export function BuildLoad({ s }: { s: GameStateV2 }) {
   );
   return (
     <Tip content={tip}>
-      <span className="build-load" data-test="build-queue" data-home="buildCapacity">
-        <span className="row-i"><ICON.build size={12} /> <Term id="buildCapacity">build</Term> <b className="num">{bc.capacity.toFixed(1)}</b> team-wk/wk · <b className="num" style={{ color: short > 0 ? C.bad : util > 0.9 ? C.watch : undefined }}>{F.pct(Math.min(1, util))}</b> busy{short > 0 && <span className="tone-neg" data-test="upkeep-short"> · upkeep behind</span>}</span>
+      <span className="build-load" data-test="build-queue">
+        <span className="row-i"><ICON.build size={12} /> {!compact && <><Term id="buildCapacity">build</Term> <b className="num">{bc.capacity.toFixed(1)}</b> team-wk/wk · </>}<b className="num" style={{ color: short > 0 ? C.bad : util > 0.9 ? C.watch : undefined }}>{F.pct(Math.min(1, util))}</b> busy{short > 0 && <span className="tone-neg" data-test="upkeep-short"> · upkeep behind</span>}</span>
         <span className="stack2" style={{ width: 140, height: 6, margin: '2px 0 0' }}>{[seg(runs, SEG.runs, 'r'), seg(prods, SEG.products, 'p'), seg(builds, SEG.builds, 'b'), seg(idle, SEG.idle, 'i')]}</span>
       </span>
     </Tip>

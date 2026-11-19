@@ -2,7 +2,8 @@
 // hover, right-click dismisses); the latest headline (list on hover). Failed player actions flash and never enter
 // the headline stream.
 import { useState } from 'react';
-import { dateOf, eventDef, fmtDate, fmtMonth } from '../../../engine/v2';
+import { dateOf, eventDef, fmtDate, fmtMonth, isCapProject } from '../../../engine/v2';
+import { PROJECT_BY_ID } from '../../../data/v2/tree';
 import type { GameStateV2, LogEntry } from '../../../engine/v2';
 import { store } from '../store';
 import { Rich, Tip, TipCard } from '../ui';
@@ -109,7 +110,11 @@ export function AlertQueue({ s }: { s: GameStateV2 }) {
                     <div key={g.key} className="alert-row" data-alert-row={g.kind}>
                       <span className="small"><I size={11} /> {e.text}{g.items.length > 1 ? <span className="dim"> (+{g.items.length - 1})</span> : null} <span className="dim">· {fmtDate(dateOf(s, e.day))}</span></span>
                       <span className="sp" />
-                      <button className="btn btn-sm btn-ghost" onClick={() => { setOpen(false); store.setPanel(KIND_PANEL[g.kind] ?? 'overview'); }}>Open ›</button>
+                      <button className="btn btn-sm btn-ghost" onClick={() => {
+                        setOpen(false);
+                        // Model v3 V2b: a capability project's result opens its card on Research › Projects.
+                        if (g.kind === 'research' && e.ref && isCapProject(PROJECT_BY_ID[e.ref])) { store.setTab('research.proj', e.ref); store.goto('research', { tab: 'projects' }); } else store.setPanel(KIND_PANEL[g.kind] ?? 'overview');
+                      }}>Open ›</button>
                     </div>
                   );
                 })}

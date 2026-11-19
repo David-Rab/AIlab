@@ -331,7 +331,7 @@ function SnapTrack({ snaps, at, walls, label, ghost, tick, tip, onPick, test, lo
       {snaps.map((v, i) => (
         <Tip key={v} content={tip(v, i)}>
           <button className={`bp-snap ${v === at ? 'on' : ''} ${walls && walls[i] > LONG_DAYS ? 'long' : ''} ${lock?.(v) ? 'locked' : ''}`} style={{ left: pos(i) }} data-test={test} data-size={v} data-node={lock?.(v)}
-            onClick={() => { const n = lock?.(v); if (n) { store.setTab('research.sel', n); store.goto('research'); } else onPick(v); }}>
+            onClick={() => { const n = lock?.(v); if (n) { store.setTab('research.sel', n); store.goto('research', { tab: 'tree' }); } else onPick(v); }}>
             <i /><b>{lock?.(v) && <Lock size={9} />}{label(v)}</b><span className="num">{walls && Number.isFinite(walls[i]) ? F.days(walls[i]) : ''}</span>
           </button>
         </Tip>
@@ -596,7 +596,7 @@ function OptBtn({ s, kind, sl, o, p, on, onPick }: { s: GameStateV2; kind: Kind;
     const n = TREE_BY_ID[nodeId];
     return (
       <Tip content={() => <TipCard title={<>{o.label} <Lock size={11} /></>} value={<span className="tag2">locked</span>} rows={[{ label: 'Unlocked by', value: n?.name ?? nodeId }, { label: 'Status', value: st === 'active' ? `${F.pct(pr)} researched` : st }]} footer="Click to open the idea in Research.">{locked}</TipCard>}>
-        <button className="bp-opt locked" data-opt={testId} data-node={nodeId} onClick={() => { store.setTab('research.sel', nodeId); store.goto('research'); }}>
+        <button className="bp-opt locked" data-opt={testId} data-node={nodeId} onClick={() => { store.setTab('research.sel', nodeId); store.goto('research', { tab: 'tree' }); }}>
           <Lock size={11} />{o.label}<span className="bp-node"><ICON.research size={10} />{n?.name ?? nodeId}{st === 'active' ? ` ${F.pct(pr)}` : st === 'queued' ? ' queued' : ''}</span>
         </button>
       </Tip>
@@ -731,7 +731,7 @@ function Plan({ s, kind, card, p, setShare, warn, children }: { s: GameStateV2; 
               </span>
             </div>
             {kind === 'base' && card.limits && (
-              <div className="bp-lane"><span className="bp-ll small dim"><Term id="knowHow">Know-how</Term></span>
+              <div className="bp-lane"><span className="bp-ll small dim"><Term id="knowHow">Recipe</Term></span>
                 <span className="bp-track2"><svg className="bp-wedge" viewBox="0 0 100 20" preserveAspectRatio="none" style={{ width: f(card.etaDays) }}><polygon points="0,20 100,20 100,0" fill="rgba(229,96,96,.35)" stroke={C.bad} strokeWidth={0.6} vectorEffect="non-scaling-stroke" /></svg><span className="small tone-neg bp-bl" style={card.etaDays / total > 0.8 ? { right: 0 } : { left: f(card.etaDays) }}><Term id="behindAtFinish">behind</Term> ›</span></span>
               </div>
             )}
