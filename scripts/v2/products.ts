@@ -122,14 +122,16 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   check(near(served, pool, 1e-6), 'P6 Auto uses the whole serving pool', `${served.toFixed(0)} of ${pool.toFixed(0)}`);
   const short = rd.deps.reduce((a, x) => a + x.needH100e, 0) > pool;
   if (short) {
-    // V4: prices are markups over cost, so paid work earns about the same per H100e on every product: Auto serves paid
-    // work pro rata and Chat's free users (earning nothing) last.
+    // V4: prices are markups over cost, so per-hour work earns about the same per H100e on every product: Auto serves it
+    // pro rata and Chat's free users (earning nothing) last. A2c: seat-holders (seat revenue, more per H100e) are served
+    // before the per-hour work, so the cut falls on the per-hour work: its cut share is the same on every sector product.
     const byRate = [...rd.deps].sort((a, b) => b.rpH - a.rpH);
     const low = byRate[byRate.length - 1];
-    const cutShare = (x: (typeof byRate)[number]) => x.cutH100e / Math.max(1, x.needH100e);
+    const cutShare = (x: (typeof byRate)[number]) => x.cutH100e / Math.max(1, x.needH100e - (x.needSeat ?? 0));
     const paid = byRate.filter((x) => x.channel !== 'consumer');
-    check(low.channel === 'consumer' && low.cutH100e > 0 && paid.every((x) => cutShare(x) <= cutShare(low) + 1e-9) && paid.every((x) => Math.abs(cutShare(x) - cutShare(paid[0])) < 0.02),
-      'P6 short of serving: paid work is served pro rata at equal revenue per H100e, Chat\'s free users are cut first', byRate.map((x) => `${x.channel} ${Math.round(x.rpH / 1e3)}K cut ${Math.round(x.cutH100e)}`).join(', '));
+    const seatsServed = paid.every((x) => x.servingH100e >= (x.needSeat ?? 0) - 1e-6);
+    check(low.channel === 'consumer' && low.cutH100e > 0 && seatsServed && paid.every((x) => cutShare(x) <= low.cutH100e / low.needH100e + 1e-9) && paid.every((x) => Math.abs(cutShare(x) - cutShare(paid[0])) < 0.02),
+      'P6 short of serving: seats first, then per-hour work pro rata at equal revenue per H100e; Chat\'s free users are cut first', byRate.map((x) => `${x.channel} ${Math.round(x.rpH / 1e3)}K cut ${Math.round(x.cutH100e)}${x.needSeat ? ` (seats ${Math.round(x.needSeat)} served)` : ''}`).join(', '));
     check(s.player.deployments.some((d) => (d.cutH100e ?? 0) > 0), 'P6 the cut is recorded on the product (cutH100e)');
   } else check(false, 'P6 the start is short of serving (F11: capacity-bound start)');
   // Plenty of serving: no cut.

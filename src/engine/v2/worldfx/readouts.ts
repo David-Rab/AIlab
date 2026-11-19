@@ -1,12 +1,12 @@
 // Derived world readouts (selectors for the UI, other workstreams and tests). Owner: WS5.
 // Pure functions of world state; no truth fields (safe for the UI).
-import { ECON, SECTORS } from '../../../data/v2/sectors';
-import type { GameStateV2, RegionId } from '../types';
-import { alphaUseOf, savedAt, useShareOf } from './use';
-import { CONSUMER_MKT } from '../../../data/v2/serving';
+import { ECON, REGIONS, SECTORS } from '../../../data/v2/sectors';
+import type { GameStateV2, Money, RegionId } from '../types';
+import { alphaUseOf, savedAt, useShareOf, workHoursOf } from './use';
+import { CONSUMER_MKT, SECTOR_WORK, TOKENS } from '../../../data/v2/serving';
 import { worldMix, type WorldMix } from './mix';
-import { consumerSpend, consumerUsers, regionSubscribers } from './revenue';
-import { reachTarget } from './serving';
+import { consumerSpend, consumerUsers, regionSubscribers, sectorSpendParts } from './revenue';
+import { adoptedTokens, reachTarget } from './serving';
 
 /** Share of US remote-work (pure cognitive) tasks done by AI (AI 2027 Oct 2027: 25% of remote-work jobs). */
 export function remoteWorkAutomation(s: GameStateV2): number {
@@ -82,6 +82,61 @@ export function consumerUse(s: GameStateV2, mix: WorldMix = worldMix(s)): { regi
     regions, users, subs: regions.US.subs + regions.ROW.subs, spend: regions.US.spend + regions.ROW.spend,
     messagesPerDay: users * CONSUMER_MKT.messagesPerDay, nonWorkShare: CONSUMER_MKT.nonWorkShare,
   };
+}
+
+export interface BillingRead {
+  /** Hours of use a year by who pays (A2c): adopted task-hours (billed per hour), seated hours (billed by the seat),
+   *  unseated hours (free, bundled, in-house: unbilled); agent-hours a year (billed per hour); supervising hours. */
+  adopted: number; seated: number; unseated: number; agent: number; supervising: number;
+  /** Paid seats sold (persons; open weights sell none) and the workers who use AI (W·E). */
+  seats: number; workers: number;
+  /** Spend ($B/yr) by stream, all providers. */
+  spendAdopted: Money; spendAgent: Money; spendSeat: Money;
+  /** FLOP-bearing tokens a day by stream (adopted, seated, agent). Unseated hours run on consumer apps (counted there). */
+  tokAdopted: number; tokSeated: number; tokAgent: number;
+}
+/** A2c: who pays for work use, by region, with the player's seats and the world totals; consumer tokens a day (paying
+ *  and free users, A2b budgets). Reported for the World panel (B3) and the serving tests. */
+export function workBilling(s: GameStateV2, mix: WorldMix = worldMix(s)): { regions: Record<RegionId, BillingRead>; world: BillingRead; playerSeats: number; consumerTokens: number } {
+  const pi = mix.providers.findIndex((p) => p.key === 'player');
+  const z = (): BillingRead => ({ adopted: 0, seated: 0, unseated: 0, agent: 0, supervising: 0, seats: 0, workers: 0, spendAdopted: 0, spendAgent: 0, spendSeat: 0, tokAdopted: 0, tokSeated: 0, tokAgent: 0 });
+  const regions = { US: z(), CN: z(), ROW: z() } as Record<RegionId, BillingRead>;
+  const world = z();
+  let playerSeats = 0;
+  const tAg = TOKENS.autonomous.input + TOKENS.autonomous.output;
+  for (const r of REGIONS) {
+    const x = regions[r];
+    for (const def of SECTORS) {
+      const st = s.world.sectors[r][def.id];
+      const wh = workHoursOf(st, def.id);
+      const p = sectorSpendParts(s, r, def.id, mix);
+      const ta = adoptedTokens(s, def.id);
+      const tas = SECTOR_WORK[def.id].tokens;
+      x.adopted += wh.adopted;
+      x.seated += wh.seated;
+      x.unseated += wh.unseated;
+      x.supervising += wh.supervising;
+      x.agent += p.agentHours;
+      x.seats += p.seats;
+      x.workers += (st.W ?? st.A) * st.E;
+      x.spendAdopted += p.adopted;
+      x.spendAgent += p.agent;
+      x.spendSeat += p.seat;
+      x.tokAdopted += (wh.adopted * (ta.input + ta.output)) / 365;
+      x.tokSeated += (wh.seated * (tas.input + tas.output)) / 365;
+      x.tokAgent += (p.agentHours * tAg) / 365;
+      if (pi >= 0) playerSeats += wh.seats * mix.sec[r][def.id].share[pi];
+    }
+    for (const k of Object.keys(world) as (keyof BillingRead)[]) world[k] += x[k];
+  }
+  let consumerTokens = 0;
+  const P = CONSUMER_MKT.perDay;
+  for (const r of REGIONS) {
+    const cm = mix.consumer[r];
+    const u = consumerUsers(s, r);
+    for (let i = 0; i < cm.share.length; i++) consumerTokens += cm.share[i] * u * (cm.paid[i] * (P.paid.input + P.paid.output) + (1 - cm.paid[i]) * (P.free.input + P.free.output));
+  }
+  return { regions, world, playerSeats, consumerTokens };
 }
 
 /** Employment of 22–25-year-olds in the most exposed jobs vs counterfactual (Canaries; 1 = no effect). */

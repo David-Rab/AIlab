@@ -14,11 +14,15 @@
 //       subscribers × price × 12 is the consumer line, independent of work hours; free users' need uses ≈ 9k tokens a
 //       weekly-user-day and is cut first; a better model raises the paid share; no subscription above the willingness
 //       to pay
+//   B1–B7 who pays for work use and agent work (A2c, research/22 §3–7): paid seats ⊆ the workers who use AI; adopted +
+//       seated + unseated hours = the hours of use; seat revenue = seats × price × 12; unseated hours bill no one; agent
+//       leverage rises with horizon and coverage; parallelism and token intensity raise the serving need, not human hours;
+//       per-hour billing stays cost-plus
 //   INFO price sanity: price per million tokens, its decline for fixed capability (research/20 D3 ×10/yr), margins
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { FEATURES, FEATURE_BY_ID } from '../../src/data/v2/features';
-import { MARKUP, TOKENS, CONSUMER_MKT } from '../../src/data/v2/serving';
+import { AGENT_WORK, MARKUP, SEATS, TOKENS, CONSUMER_MKT } from '../../src/data/v2/serving';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { resolve, tick } from '../../src/engine/v2/core/loop';
 import { deserialize } from '../../src/engine/v2/core/save';
@@ -29,12 +33,13 @@ import { refBot } from '../../src/engine/v2/bots/ref';
 import { flopPerToken, labourOf, workFit } from '../../src/engine/v2/departments/workfit';
 import { versionById } from '../../src/engine/v2/models/labs';
 import { worldMix } from '../../src/engine/v2/worldfx/mix';
-import { revenueReadout, servingPool } from '../../src/engine/v2/worldfx/revenue';
+import { revenueReadout, sectorHours, sectorSpendParts, servingPool } from '../../src/engine/v2/worldfx/revenue';
+import { workHoursOf } from '../../src/engine/v2/worldfx/use';
 import {
-  effortDG, fptOfG, fxOn, h100eHoursPer, internalFx, offerOf, paidShareTarget, productOffer, reachTarget, sectorCover, sectorTheta, serveDollarsPerHour,
-  subPrice, valuePerHour,
+  agentLeverage, effortDG, fptOfG, fxOn, h100eHoursPer, internalFx, offerOf, paidShareTarget, productOffer, reachTarget, sectorCover, sectorTheta, serveDollarsPerHour,
+  subPrice, valuePerHour, wagePerHour,
 } from '../../src/engine/v2/worldfx/serving';
-import { consumerUse } from '../../src/engine/v2/worldfx/readouts';
+import { consumerUse, workBilling } from '../../src/engine/v2/worldfx/readouts';
 import { monitorOverhead } from '../../src/engine/v2/models/products';
 import type { Deployment, GameStateV2, ModelVersion, SectorId } from '../../src/engine/v2/types';
 import { FIXTURE_DIR, check, finish } from './lib';
@@ -83,9 +88,16 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const per = (x: { capHours: number; servingH100e: number }) => x.capHours / Math.max(1e-9, x.servingH100e);
   const sector = rd1.deps.filter((x) => x.channel !== 'consumer' && x.servingH100e > 0);
   const ok = sector.length > 0 && sector.every((x) => near(per(rd2.deps.find((z) => z.id === x.id)!), per(x), 1e-6));
+  // A2c: a product without seats earns one rate per H100e at any pool ($ capacity ∝ its H100e); seats are served first
+  // and earn more per H100e, so with seats the $ capacity per H100e falls as the pool grows (work-hours per H100e fixed).
+  const capPer = (rd: typeof rd1, id: string) => { const x = rd.deps.find((z) => z.id === id)!; return x.capacity / Math.max(1e-9, x.servingH100e); };
+  const noSeat = sector.filter((x) => !(x.seats ?? 0));
+  const withSeat = sector.filter((x) => (x.seats ?? 0) > 0);
   const tot = (rd: typeof rd1) => rd.deps.reduce((a, x) => a + x.capacity, 0);
-  check(near(servingPool(s), 2 * pool1, 1e-9) && ok && near(tot(rd2), 2 * tot(rd1), 0.02), 'S2 capacity ∝ serving H100e: work-hours per H100e fixed by the model and tokens; twice the pool, twice the capacity',
-    `${sector.map((x) => `${x.channel} ${Math.round(per(x))} work-hours per H100e-year`).join(', ')}; capacity $${tot(rd1).toFixed(1)}B → $${tot(rd2).toFixed(1)}B`);
+  check(near(servingPool(s), 2 * pool1, 1e-9) && ok && noSeat.length > 0 && noSeat.every((x) => near(capPer(rd2, x.id), capPer(rd1, x.id), 1e-6))
+    && withSeat.every((x) => capPer(rd2, x.id) <= capPer(rd1, x.id) * (1 + 1e-9)) && tot(rd2) > 1.5 * tot(rd1),
+    'S2 capacity ∝ serving H100e: work-hours per H100e fixed by the model and tokens; $ per H100e fixed without seats (seats served first earn more)',
+    `${sector.map((x) => `${x.channel} ${Math.round(per(x))} work-hours and ${Math.round(capPer(rd1, x.id) * 1e6)}K → ${Math.round(capPer(rd2, x.id) * 1e6)}K per H100e-year`).join('; ')}; capacity ${tot(rd1).toFixed(1)}B → ${tot(rd2).toFixed(1)}B`);
   check(rd2.deps.every((x) => x.revenue <= Math.min(x.demand, x.capacity) + 1e-9), 'S2 revenue never exceeds demand or capacity');
   const rate = serveDollarsPerHour(s);
   const api = rd2.deps.find((x) => x.channel === 'api')!;
@@ -289,6 +301,100 @@ for (const d of [400, 900]) {
   check(n > 0 && bad === 0, `C6 day ${d}: consumer prices ≤ the willingness to pay ($${CONSUMER_MKT.wtpMonth}/month) and ≥ cost, rivals and the player's premium tier too`, `${n} providers; ${prem}`);
   const cu = consumerUse(s, mix);
   console.log(`INFO  C day ${d}: weekly users ${(cu.users / 1e6).toFixed(0)}M (reach US ${(cu.regions.US.reach * 100).toFixed(1)}%, ROW ${(cu.regions.ROW.reach * 100).toFixed(1)}%), subscribers ${(cu.subs / 1e6).toFixed(0)}M (${((cu.subs / Math.max(1, cu.users)) * 100).toFixed(1)}%), spend $${cu.spend.toFixed(1)}B/yr, going price US $${cu.regions.US.going.toFixed(1)}`);
+}
+
+// ───────── B who pays for work use, and agent work (A2c; research/22 §3–7) ─────────
+{
+  // B1 seats ⊆ the workers who use AI; B2 adopted + seated + unseated hours = the hours of use.
+  for (const [label, s] of [['start', (() => { const g = game(); run(g, 3); return g; })()], ['day 400', fixture(400)], ['day 900', fixture(900)]] as const) {
+    let bad1 = 0;
+    let bad2 = 0;
+    let seats = 0;
+    let workers = 0;
+    const mix = worldMix(s);
+    for (const r of ['US', 'CN', 'ROW'] as const) for (const sid of Object.keys(s.world.sectors[r]) as SectorId[]) {
+      const st = s.world.sectors[r][sid];
+      const wh = workHoursOf(st, sid);
+      const sold = sectorSpendParts(s, r, sid, mix).seats;
+      if (!(st.seat >= 0 && st.seat <= 1) || wh.seats > st.W * st.E * (1 + 1e-12) || sold > wh.seats * (1 + 1e-9)) bad1++;
+      if (!near(wh.adopted + wh.seated + wh.unseated, sectorHours(s, r, sid), 1e-9) || !near(wh.use, sectorHours(s, r, sid), 1e-9)) bad2++;
+      seats += sold;
+      workers += st.W * st.E;
+    }
+    check(bad1 === 0, `B1 ${label}: paid seats are a subset of the workers who use AI (0 ≤ σ ≤ 1; seats sold ≤ σ·W·E ≤ W·E)`, `${(seats / 1e6).toFixed(0)}M seats sold of ${(workers / 1e6).toFixed(0)}M workers using AI`);
+    check(bad2 === 0, `B2 ${label}: adopted (billed per hour) + seated (billed by the seat) + unseated (unbilled) hours = the hours of use`);
+  }
+  // B3 seat revenue = seats × seat price × 12; the seat price never below the seat's serving cost.
+  const s = game();
+  run(s, 3);
+  const ent = revenueReadout(s).deps.find((x) => x.channel === 'enterprise')!;
+  check((ent.seats ?? 0) > 1e6 && near(ent.seatDemand ?? 0, ((ent.seats ?? 0) * (ent.seatPrice ?? 0) * 12) / 1e9, 1e-9) && (ent.seatPrice ?? 0) >= (ent.seatCost ?? 0) && (ent.seatPrice ?? 0) === SEATS.price,
+    'B3 Enterprise seat revenue = seats × seat price × 12 (list $25 at the standard tier, ≥ the seat\'s serving cost)',
+    `${((ent.seats ?? 0) / 1e6).toFixed(1)}M × $${(ent.seatPrice ?? 0).toFixed(0)} × 12 = $${(ent.seatDemand ?? 0).toFixed(2)}B; serving cost $${(ent.seatCost ?? 0).toFixed(2)}/seat-month`);
+  // B4 unseated hours bill no one: more unseated use (W up, no seats) leaves sector spend and the player's need unchanged.
+  const u0 = game();
+  run(u0, 3);
+  for (const row of Object.values(u0.world.sectors)) for (const st of Object.values(row)) st.seat = 0;
+  const m0 = revenueReadout(u0);
+  const sp0 = m0.marketSpend.US + m0.marketSpend.ROW + m0.marketSpend.CN;
+  const need0 = m0.deps.filter((x) => x.channel !== 'consumer').reduce((a, x) => a + x.needH100e, 0);
+  const h0 = sectorHours(u0, 'US', 'OFFICE');
+  for (const row of Object.values(u0.world.sectors)) for (const st of Object.values(row)) st.W = Math.min(1, st.W * 1.5);
+  const m1 = revenueReadout(u0);
+  const sp1 = m1.marketSpend.US + m1.marketSpend.ROW + m1.marketSpend.CN;
+  const need1 = m1.deps.filter((x) => x.channel !== 'consumer').reduce((a, x) => a + x.needH100e, 0);
+  check(sectorHours(u0, 'US', 'OFFICE') > h0 * 1.2 && near(sp1, sp0, 1e-9) && near(need1, need0, 1e-9), 'B4 unseated hours (free, bundled, in-house) are billed by no one and add no sector serving need',
+    `OFFICE US hours ${(h0 / 1e9).toFixed(2)}B → ${(sectorHours(u0, 'US', 'OFFICE') / 1e9).toFixed(2)}B; spend $${sp0.toFixed(2)}B → $${sp1.toFixed(2)}B`);
+}
+{
+  // B5 agent leverage λ rises with the horizon and with coverage; k = a·λ.
+  const l = (a: number, h50: number) => agentLeverage(a, h50);
+  check(l(0.2, 600) > l(0.2, 200) && l(0.5, 600) > l(0.2, 600) && l(1, 1e9) <= 1 / AGENT_WORK.floorH + 1e-9 && l(0.1, 203) > 1 && l(0.1, 203) < 3,
+    'B5 agents per supervising hour λ = 1/(c/h80 + ρ(1 − a) + m) rises with the horizon and coverage, capped at 1/m',
+    `start-like (a 0.1, h50 203 min) ${l(0.1, 203).toFixed(2)}; h50 10 h ${l(0.1, 600).toFixed(2)}; a 0.5 ${l(0.5, 600).toFixed(2)}; cap ${(1 / AGENT_WORK.floorH).toFixed(0)}`);
+  // B6 parallelism and token intensity raise agent-hours and the serving need, not the human hours of use.
+  const s = game();
+  run(s, 3);
+  const api = prod(s, 'enterprise');
+  const humans = (g: GameStateV2) => (['US', 'CN', 'ROW'] as const).reduce((a, r) => a + Object.keys(g.world.sectors[r]).reduce((b, sid) => b + sectorHours(g, r, sid as SectorId), 0), 0);
+  const x0 = revenueReadout(s).deps.find((x) => x.id === api.id)!;
+  const H0 = humans(s);
+  s.player.features.push('memory');
+  api.features.push('memory'); // horizon ×1.3: longer autonomous stretches → more agents per supervising hour
+  const x1 = revenueReadout(s).deps.find((x) => x.id === api.id)!;
+  s.player.features.push('deepResearch');
+  api.features.push('deepResearch'); // scaffold: × 3 tokens per hour on Science, Finance, Legal
+  const x2 = revenueReadout(s).deps.find((x) => x.id === api.id)!;
+  check((x1.agentHours ?? 0) > (x0.agentHours ?? 0) * 1.05 && x1.needH100e > x0.needH100e && near(humans(s), H0, 1e-12) && near(x1.adoptedHours ?? 0, x0.adoptedHours ?? 0, 1e-9),
+    'B6 a longer horizon (memory ×1.3 h50) raises agent-hours and the serving need, not the human hours of use',
+    `agent-hours ${((x0.agentHours ?? 0) / 1e9).toFixed(3)}B → ${((x1.agentHours ?? 0) / 1e9).toFixed(3)}B, need ${Math.round(x0.needH100e / 1e3)}k → ${Math.round(x1.needH100e / 1e3)}k H100e; human hours ${(H0 / 1e9).toFixed(1)}B unchanged`);
+  check(x2.needH100e > x1.needH100e && near(humans(s), H0, 1e-12), 'B6 token intensity (deep-research scaffold × tokens) raises the serving need, not the human hours', `need ${Math.round(x1.needH100e / 1e3)}k → ${Math.round(x2.needH100e / 1e3)}k H100e`);
+}
+for (const d of [400, 900]) {
+  // B7 per-hour billing stays cost-plus: every provider's price per agent-hour ≥ its cost (≤ the wage unless serving
+  // costs more); the player's per-hour price ≥ its cost per hour; seats ≥ their serving cost.
+  const s = fixture(d);
+  const mix = worldMix(s);
+  const rate = serveDollarsPerHour(s);
+  let bad = 0;
+  let n = 0;
+  for (const r of ['US', 'CN', 'ROW'] as const) for (const [sid, m] of Object.entries(mix.sec[r]) as [SectorId, (typeof mix.sec.US)[SectorId]][]) {
+    mix.providers.forEach((p, i) => {
+      if (!p.model) return;
+      const o = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], sid, { markup: p.markup, rate });
+      const wage = wagePerHour(sid, r);
+      n++;
+      if (m.agentPrices[i] < o.costAg * (1 - 1e-9) || (m.agentPrices[i] > wage * (1 + 1e-9) && m.agentPrices[i] > o.costAg * (1 + 1e-9)) || (m.seatPrices[i] > 0 && m.seatPrices[i] < o.seat * (1 - 1e-9))) bad++;
+      if (!(m.agentK[i] >= 0) || m.agentK[i] > o.k + 1e-12) bad++;
+    });
+  }
+  const rd = revenueReadout(s, mix);
+  const playerOk = rd.deps.every((x) => x.channel === 'consumer' || x.hours === 0 || (x.pricePerHour >= x.costPerHour - 1e-9 && (x.seatPrice ?? 0) >= (x.seatCost ?? 0) - 1e-9));
+  check(n > 0 && bad === 0 && playerOk, `B7 day ${d}: per-hour billing stays cost-plus (agent-hours ≥ cost, ≤ the wage; seats ≥ serving cost; k after the buyer's gate ≤ k)`,
+    rd.deps.filter((x) => x.channel !== 'consumer').map((x) => `${x.channel} $${x.costPerHour.toFixed(2)}→$${x.pricePerHour.toFixed(2)}/h, agent-hours ${((x.agentHours ?? 0) / 1e9).toFixed(2)}B`).join('; '));
+  const b = workBilling(s, mix);
+  const w = b.world;
+  console.log(`INFO  B day ${d}: hours of use ${((w.adopted + w.seated + w.unseated) / 1e9).toFixed(0)}B/yr = adopted ${(w.adopted / 1e9).toFixed(0)}B + seated ${(w.seated / 1e9).toFixed(0)}B + unseated ${(w.unseated / 1e9).toFixed(0)}B; agent-hours ${(w.agent / 1e9).toFixed(0)}B (${(w.agent / Math.max(1, w.supervising)).toFixed(2)} per supervising hour); seats ${(w.seats / 1e6).toFixed(0)}M (player ${(b.playerSeats / 1e6).toFixed(0)}M); spend adopted $${w.spendAdopted.toFixed(0)}B, agents $${w.spendAgent.toFixed(0)}B, seats $${w.spendSeat.toFixed(0)}B; tokens/day ${((w.tokAdopted + w.tokSeated + w.tokAgent + b.consumerTokens) / 1e12).toFixed(0)}T (agents ${(w.tokAgent / 1e12).toFixed(0)}T)`);
 }
 
 // ───────── S7 lint ─────────

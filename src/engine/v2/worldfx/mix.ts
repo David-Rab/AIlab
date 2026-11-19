@@ -9,12 +9,14 @@
 //   F         = (1 − w_PHYS)·Σ share·a + w_PHYS·σ((Le_PHYS − fMid − θ)/fSpread)    (PHYS stays robot-bound)
 //   K         = Σ share·σ(ln(wage ÷ (price + review))/0.7)                           (the physical cost gate)
 // The consumer market is the same on the consumer-chat work type, priced per subscriber-month; each provider's paid share
-// of its users is a second stock (A2b, CONSUMER_MKT.paid).
+// of its users is a second stock (A2b, CONSUMER_MKT.paid). A2c: per provider also the agent-hours a supervising hour buys
+// (k after the buyer's gate) and their price, and the seat price (open weights sell none); prices[] are per adopted
+// task-hour (the hours billed per hour).
 // Display levels (the share-weighted domain vector `dom`, Le_d = min(L_d, L_AGENCY + 2)) still feed substitution α, the
 // integration boost, control and the tech tree, as in v2.
 import { SECTORS, REGIONS, ECON } from '../../../data/v2/sectors';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
-import { CONSUMER_MKT, CUSTOMER_TAU, PRICE_ELASTICITY, SHARE_SLOPE_G } from '../../../data/v2/serving';
+import { CONSUMER_MKT, CUSTOMER_TAU, PRICE_ELASTICITY, SEATS, SHARE_SLOPE_G } from '../../../data/v2/serving';
 import { ASSIST } from '../../../data/v2/workTypes';
 import { memo } from '../core/memo';
 import { CHINA_ID } from '../models/labs';
@@ -25,7 +27,7 @@ import { productDomains } from '../models/products';
 import { flopPerToken } from '../departments/workfit';
 import {
   CHINA_MARKUP, RIVAL_MARKUP, effortTokens, marketModel, enablerShare, fptOfSimple, fxOn, markupOf, offerOf,
-  paidShareTarget, productFx, productOffer, productUses, savedPerUseHour, serveDollarsPerHour, settingsDG, subPrice, valuePerHour, wagePerHour, type Offer,
+  agentDemandOf, paidShareTarget, productFx, productOffer, productUses, savedPerAdoptedHour, serveDollarsPerHour, settingsDG, subPrice, valuePerHour, wagePerHour, type Offer,
 } from './serving';
 
 export { PRICE_ELASTICITY };
@@ -76,10 +78,17 @@ export interface SectorMix {
   /** Provider display sector levels (v2's Le_X,s), by provider index; −Infinity = not serving. */
   level: number[];
   best: number;
-  /** Per provider: fit (OOM), coverage of the sector's cognitive work, price per hour of use ($, value-capped). */
+  /** Per provider: fit (OOM), coverage of the sector's cognitive work, price per adopted task-hour ($, value-capped). */
   fit: number[];
   cover: number[];
   prices: number[];
+  /** A2c per provider: agent-hours a supervising hour buys (k after the buyer's gate), price per agent-hour ($, capped at
+   *  the wage), seat price per seat-month ($; 0 for open weights: in-house use is unbilled). seatPrice: the going seat
+   *  price (share-weighted over the providers that sell seats) the seat target reads. */
+  agentK: number[];
+  agentPrices: number[];
+  seatPrices: number[];
+  seatPrice: number;
   /** Share-weighted effective domain levels (the world model m*). */
   dom: Record<DomainId, number>;
   /** Share-weighted price per hour of AI use ($) and the buyer's cost per AI work-hour saved, incl. review ($). */
@@ -345,10 +354,13 @@ function computeMix(s: GameStateV2): WorldMix {
       const physCap = t.physW > 0 ? 15 * robotAvail(s, r, t.id) : 15;
       const value = valuePerHour(s, t.id, r);
       const wage = wagePerHour(t.id, r);
-      const hf = savedPerUseHour(s, r, t.id);
+      const hf = savedPerAdoptedHour(s, r, t.id);
       const fit = new Array<number>(n).fill(-Infinity);
       const cover = new Array<number>(n).fill(0);
       const prices = new Array<number>(n).fill(0);
+      const agentK = new Array<number>(n).fill(0);
+      const agentPrices = new Array<number>(n).fill(0);
+      const seatPrices = new Array<number>(n).fill(0);
       const level = new Array<number>(n).fill(-Infinity);
       const physLe = new Array<number>(n).fill(0);
       const vs = vecs[si];
@@ -358,6 +370,10 @@ function computeMix(s: GameStateV2): WorldMix {
         fit[i] = o.fit;
         cover[i] = o.a;
         prices[i] = Math.max(o.cost, Math.min(o.price, value));
+        const ag = agentDemandOf(o, wage);
+        agentK[i] = ag.k;
+        agentPrices[i] = ag.price;
+        seatPrices[i] = providers[i].open ? 0 : o.seat;
         const v = vs[i];
         if (v) {
           physLe[i] = Math.min(Math.max(v[PHYS], pfFloor) + (t.id === 'LOG' ? pfLog : 0), physCap);
@@ -375,6 +391,8 @@ function computeMix(s: GameStateV2): WorldMix {
       let K = 0;
       let lePhys = 0;
       let wsum = 0;
+      let sw = 0;
+      let sp = 0;
       for (let i = 0; i < n; i++) {
         const x = share[i];
         if (!x || !offers[si][i]) continue;
@@ -383,6 +401,10 @@ function computeMix(s: GameStateV2): WorldMix {
         if (v) for (let k = 0; k < ND; k++) dv[k] += x * (k === PHYS ? physLe[i] : v[k]);
         lePhys += x * physLe[i];
         px += x * prices[i];
+        if (seatPrices[i] > 0) {
+          sw += x;
+          sp += x * seatPrices[i];
+        }
         // buyerCost and costGateOf (serving.ts) inlined: σ(ln(wage ÷ bc)/k) = 1 / (1 + (bc ÷ wage)^(1/k)).
         const bc = prices[i] / hf + reviewK * wage * (1 - Math.min(1, cover[i]));
         pc += x * bc;
@@ -401,7 +423,7 @@ function computeMix(s: GameStateV2): WorldMix {
       const F = (1 - t.physW) * aCog + t.physW * physF;
       const pp = playerIdx >= 0 ? prices[playerIdx] : 0;
       rowOut[t.id] = {
-        share, target, level, best: best === -Infinity ? 0 : best, fit, cover, prices, dom: domRecord(dv),
+        share, target, level, best: best === -Infinity ? 0 : best, fit, cover, prices, agentK, agentPrices, seatPrices, seatPrice: sw > 0 ? sp / sw : SEATS.price, dom: domRecord(dv),
         price: wsum > 0 ? px : 0, pCost: wsum > 0 ? pc : wage, F, K: wsum > 0 ? K : 0,
         ...(playerIdx >= 0 && pCand[si] >= 0 ? { playerDep: cands[pCand[si]].dep.id } : {}),
         playerPrice: pp, priceFactor: playerIdx >= 0 && pp > 0 && px > 0 ? Math.min(1, Math.pow(pp / px, -PRICE_ELASTICITY)) : 1,

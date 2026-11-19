@@ -9,6 +9,7 @@
 //   5 A     += (p + q'·A/A*)(A* − A)/365·DiffMult;  A* < A → decays at 0.5/yr
 //     W     += (p + q'·W/W*)(W* − W)/365·DiffMult   workers using AI at work, W* = max(A, W_b + (1 − W_b)·F) (A2a,
 //              worldfx/use.ts); hours of use U = A + h_s·(W − A)
+//     σ     += q_seat·σ/σ*·(σ* − σ)/365·DiffMult   paid seats per worker using AI (A2c), σ* = K_seat·(1 − R)
 //   6 α      = 0.25 + (α_max − 0.25)·σ((L_AGENCY − 8)/1.5);  D = α·A
 //   7 E      = E0·(1 − D)(1 + η·CR) ≥ floor;   CR = A·(1 − P_cost/(Wage·W0)), P_cost the buyer's cost per AI work-hour
 //   8 Hire   = 1 − 1.5·ΔF (ΔF vs a pre-LLM model's coverage) → youth (22–25) employment, youth unemployment
@@ -25,8 +26,8 @@ import type {
 import { initialControl, updateControl } from './control';
 import { fireHeadlines } from './headlines';
 import { paidDeployments, worldMix, type WorldMix } from './mix';
-import { preLlmCover, reachTarget } from './serving';
-import { CONSUMER_MKT } from '../../../data/v2/serving';
+import { preLlmCover, reachTarget, seatTarget } from './serving';
+import { CONSUMER_MKT, SEATS } from '../../../data/v2/serving';
 import { workerTarget } from './use';
 import { econOf, policyState, sigmoid, clamp01, clampR, type PolicyState } from './policy';
 import { ROBOT, advanceRobots } from './robots';
@@ -103,7 +104,8 @@ function sectorState(def: SectorDef, r: RegionId, le: Record<DomainId, number>, 
   const hireRate = clamp01(1 - ECON.hireSlope * Math.max(0, F - F_PRE_START[def.id]));
   // A2a: the workers' use stock starts at its ceiling (the measured share of workers using AI at work).
   const W = workerTarget(def, r, F, A);
-  return { F, K, R, Astar, A, alpha, W, E, E0, hireRate, binding: bindingOf(F, K, R, A, Astar) };
+  // A2c: the paid-seat share of those workers starts at the region's measured level.
+  return { F, K, R, Astar, A, alpha, W, seat: SEATS.start[r], E, E0, hireRate, binding: bindingOf(F, K, R, A, Astar) };
 }
 
 /** E = E0·(1 − D)(1 + η·CR), floored (R16 §1A.2 step 7); CR = A·(1 − P_cost/wage), P_cost the buyer's cost per AI
@@ -234,6 +236,13 @@ function updateRegion(s: GameStateV2, ctx: SystemCtx, r: RegionId, mix: WorldMix
     if (st.W < Wstar) st.W += (def.p + (q * st.W) / Math.max(1e-6, Wstar)) * (Wstar - st.W) * dt * econ.diffMult;
     else st.W -= 0.5 * (st.W - Wstar) * dt;
     st.W = clamp01(Math.max(st.W, st.A));
+    // A2c: paid seats, a share σ of those workers: imitation (SEATS.q) toward σ* = K_seat·(1 − R) (the seat's cost gate
+    // on the going seat price); slow decline above it.
+    const sStar = seatTarget(def.id, r, m.seatPrice, st.R);
+    const sg = st.seat ?? SEATS.start[r];
+    if (sg < sStar) st.seat = sg + ((SEATS.q * sg) / Math.max(1e-6, sStar)) * (sStar - sg) * dt * econ.diffMult;
+    else st.seat = sg - SEATS.down * (sg - sStar) * dt;
+    st.seat = clamp01(st.seat);
     const a = alphaOf(def, le.AGENCY);
     const ps = playerIdx >= 0 ? m.share[playerIdx] : 0;
     st.alpha = noDropIn ? ps * Math.min(a, 0.5) + (1 - ps) * a : a;

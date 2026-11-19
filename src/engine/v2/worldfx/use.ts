@@ -1,5 +1,6 @@
-// Hours of AI use in a sector (A2a; research/22 §1, design/V3-BUILD.md "A2a notes"). Owner: WS5. Pure functions of
-// the sector state and data (no imports from other worldfx modules, so sectors, serving and revenue can all use them).
+// Hours of AI use in a sector (A2a; research/22 §1, design/V3-BUILD.md "A2a notes") and who pays for them (A2c; research/22
+// §4–6, "A2c notes"). Owner: WS5. Pure functions of the sector state and data (no imports from other worldfx modules, so
+// sectors, serving and revenue can all use them).
 //
 //   U       = A + h_s·max(0, W − A)       hours of use per work-hour: the tasks firms handed to AI (A) plus workers'
 //                                          assisted use on the rest of their hours (W who use AI, h_s of their hours)
@@ -7,6 +8,9 @@
 //   W_b     = useW·√r̂_s·(region scale),  h_s = useH·√r̂_s   r̂_s the sector's relative use (employment-normalised)
 //   α_use   = α·A/U                        substituted share of an hour of use (assisted hours substitute nothing)
 //   saved   = α_use + (1 − α_use)·g_aug    hours of work an hour of use saves (measured 0.35, research/22 §1e)
+//   A2c billing: hours of use = adopted A-hours (billed per hour) + seated hours (σ of the assisted hours, billed by the
+//   seat) + unseated hours (free, bundled, in-house: unbilled); supervising hours (agent work directs from them) =
+//   (1 − α)·A-hours + seated hours; seats = σ·W·E.
 import { ECON, REGION_SCALE, SECTORS, SECTOR_BY_ID, type SectorDef } from '../../../data/v2/sectors';
 import type { RegionId, SectorId, SectorState } from '../types';
 
@@ -36,3 +40,28 @@ export function alphaUseOf(st: UseState, sid: SectorId, alpha = st.alpha): numbe
 export const savedAt = (alphaUse: number) => alphaUse + (1 - alphaUse) * ECON.gAug;
 /** Relative use r̂_s (US average 1). */
 export const relativeUse = (sid: SectorId) => SECTOR_BY_ID[sid].use / USE_MEAN;
+
+/** A2c: a sector's hours of use a year split by who pays, and the seats (persons). */
+export interface WorkHours {
+  /** All hours of use (U·E0·2000) = adopted + seated + unseated. */
+  use: number;
+  /** Tasks firms handed to AI (A·E0·2000): billed per hour (API, agents, enterprise usage). */
+  adopted: number;
+  /** Assisted hours of workers with a paid seat (billed by the seat) and of the others (free, bundled, in-house). */
+  seated: number;
+  unseated: number;
+  /** Human-attended billed hours that direct agent work: (1 − α)·adopted + seated. */
+  supervising: number;
+  /** Paid seats (persons, all providers incl. in-house open models): σ·W·E. */
+  seats: number;
+}
+type BillState = Pick<SectorState, 'A' | 'W' | 'alpha' | 'seat' | 'E' | 'E0'>;
+export function workHoursOf(st: BillState, sid: SectorId): WorkHours {
+  const adopted = st.A * st.E0 * ECON.hours;
+  const assisted = useIntensityOf(sid) * Math.max(0, (st.W ?? st.A) - st.A) * st.E0 * ECON.hours;
+  const sigma = Math.max(0, Math.min(1, st.seat ?? 0));
+  const seated = sigma * assisted;
+  return { use: adopted + assisted, adopted, seated, unseated: assisted - seated, supervising: (1 - st.alpha) * adopted + seated, seats: sigma * (st.W ?? st.A) * st.E };
+}
+/** Assisted hours a month of one worker who uses AI in a sector (a seat-holder's use: h_s of a 2,000-hour year). */
+export const seatHoursPerMonth = (sid: SectorId) => (useIntensityOf(sid) * ECON.hours) / 12;

@@ -10,7 +10,7 @@ import { initialAgents } from '../departments/agents';
 import { fptOfBuild } from '../departments/workfit';
 import { REGIONS, SECTORS } from '../../../data/v2/sectors';
 import { workerTarget } from '../worldfx/use';
-import { CONSUMER_MKT } from '../../../data/v2/serving';
+import { CONSUMER_MKT, SEATS } from '../../../data/v2/serving';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
 /** 12 (model v3 V1): models are built from physical quantities (BaseModel, VersionBuild, BaseDesign, PostDesign changed).
@@ -28,8 +28,10 @@ import { CONSUMER_MKT } from '../../../data/v2/serving';
  *  17 (model v3 A2a): SectorState.W, the share of a sector's workers who use AI at work (hours of use = A + h·(W − A)).
  *  Migration 16 → 17 starts it at its ceiling W* from the saved sector state.
  *  18 (model v3 A2b): consumer demand from measured anchors — WorldFxState.reach (weekly reach per region, replaces
- *  consumerReach) and WorldFxState.paid (paid-share stocks per region and provider). Migration 17 → 18. */
-export const SCHEMA_REV = 18;
+ *  consumerReach) and WorldFxState.paid (paid-share stocks per region and provider). Migration 17 → 18.
+ *  19 (model v3 A2c): SectorState.seat, the paid-seat share of the workers who use AI (who pays for work use). Migration
+ *  18 → 19 starts it at the region's start share (SEATS.start). */
+export const SCHEMA_REV = 19;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -229,6 +231,14 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     }
     fx.paid ??= { US: {}, CN: {}, ROW: {} };
     delete fx.consumerReach;
+  },
+  /** 18 → 19 (model v3 A2c): the paid-seat share of each sector's workers who use AI, at the region's start share. */
+  18: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    for (const r of REGIONS) for (const def of SECTORS) {
+      const st = s.world.sectors[r]?.[def.id];
+      if (st && st.seat === undefined) st.seat = SEATS.start[r];
+    }
   },
 };
 

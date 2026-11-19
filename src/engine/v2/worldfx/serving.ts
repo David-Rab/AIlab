@@ -5,9 +5,12 @@
 //   H100e-h per w-hour  = FLOP per token (2·N_active of the served version) × (input ÷ U_prefill + output ÷ U_decode)
 //                         ÷ peak FLOP/s ÷ 3600, tokens per work-hour by work type × effort × scaffolds
 //   capacity            = serving H100e × 8766 h ÷ (H100e-hours per work-hour)   (work-hours per year)
-//   price               = min(markup × c, value) per hour of AI use (never below c); an hour of use saves (α_use + (1 − α_use)·g_aug) hours of
-//                         the sector's work (substituted vs augmented), so value = wage × that; rivals price at their own
-//                         cost × RIVAL_MARKUP, China × CHINA_MARKUP
+//   price               = min(markup × c, value) per adopted task-hour (never below c); an adopted hour saves (α + (1 − α)·g_aug)
+//                         hours of the sector's work (substituted vs augmented), so value = wage × that; rivals price at
+//                         their own cost × RIVAL_MARKUP, China × CHINA_MARKUP
+//   A2c agent work      k = a·λ agent-hours per supervising hour, λ = 1/(c/h80 + ρ(1 − a) + m), × the buyer's gate; price per
+//                         agent-hour = min(markup × cost on the autonomous profile, wage); seat price = list × markup ÷
+//                         standard, ≥ the seat's serving cost (data/v2/serving.ts SEATS, AGENT_WORK)
 //   sector coverage     a = σ((fit − θ_s)/s) × p(H_s | h50): the work-type function of V3 (departments/workfit.ts) with
 //                         the sector's median professional as reference (θ_s, SECTOR_REF), fit = Σ ω_d G_d + ΔG(effort,
 //                         safeguards, scaffolds), h50 × horizon extenders
@@ -15,20 +18,20 @@
 // player's recipe (BRIDGE(V7)). Nothing here reads serveCost, the research-speed multiplier M or the level bridge for
 // prices, costs or coverage.
 import {
-  CHAT_WORK, CHINA_MARKUP, CONSUMER_MKT, CONTROL_LAYER_DG, EFFORT_CAP_OOM, EFFORT_OOM_PER_10X, EFFORT_TOKENS, MARKUP, RIVAL_MARKUP,
-  SAFEGUARD_DG, SECTOR_REF, SECTOR_WORK, TOKENS, type TokenProfile,
+  AGENT_WORK, CHAT_WORK, CHINA_MARKUP, CONSUMER_MKT, CONTROL_LAYER_DG, EFFORT_CAP_OOM, EFFORT_OOM_PER_10X, EFFORT_TOKENS, MARKUP, RIVAL_MARKUP,
+  SAFEGUARD_DG, SEATS, SECTOR_REF, SECTOR_WORK, TOKENS, type TokenProfile,
 } from '../../../data/v2/serving';
 import { FEATURE_BY_ID, FREE_TIER_SHARE, type FeatureFx, type FeatureId, type WorkScope } from '../../../data/v2/features';
 import { ECON, REGION_SCALE, SECTORS } from '../../../data/v2/sectors';
 import { REFERENCE_BASE, PARAM_RANGE, SHAPE } from '../../../data/v2/runDesign';
 import { V0_DAY } from '../../../data/v2/calibration';
-import { ASSIST, COVER, PEAK_FLOPS, U_DECODE, U_PREFILL, type WorkTypeId } from '../../../data/v2/workTypes';
+import { ASSIST, COVER, H80_OVER_H50, PEAK_FLOPS, U_DECODE, U_PREFILL, type WorkTypeId } from '../../../data/v2/workTypes';
 import { dollarsPerH100eHour, domainG, flopPerToken, pSuccess } from '../departments/workfit';
 import { gV0, h50Of, levelKnotsG, playerStart } from '../models/capability';
 import { B_G_PER_Y } from '../../../data/v2/runDesign';
 import { versionById } from '../models/labs';
 import { activeFeatures } from '../models/products';
-import { alphaUseOf, savedAt } from './use';
+import { savedAt, seatHoursPerMonth } from './use';
 import type { Deployment, DomainId, GameStateV2, ModelVersion, RegionId, SectorId, SimpleModel, TimelineWorld } from '../types';
 
 const sig = (x: number) => 1 / (1 + Math.exp(-x));
@@ -165,10 +168,20 @@ export function enablerShare(fx: FeatureFx[], sid: SectorId | 'CHAT'): number {
 
 /** One model a provider serves a segment with, and its usage share (a product's free tier blends in its mini). */
 export interface ModelUse { v: Fitted; fpt: number; w: number }
-/** What a provider offers on one sector's work: fit (OOM, usage-weighted), coverage, H100e-hours and cost per work-hour
- *  ($), price per work-hour before the value cap ($). */
-export interface Offer { fit: number; a: number; hph: number; cost: number; price: number }
+/** What a provider offers on one sector's work: fit (OOM, usage-weighted), coverage, H100e-hours and cost per adopted
+ *  task-hour ($), price per adopted task-hour before the value cap ($). A2c agent work: agent-hours per supervising hour
+ *  before the buyer's gate (k = a·λ), agent-hours one supervising hour sustains (λ), H100e-hours, cost and price per
+ *  agent-hour (autonomous profile, before the value cap); H100e-hours per seated (assisted) hour and the seat price per
+ *  seat-month ($: list × the markup relative to standard, never below the seat's serving cost). */
+export interface Offer { fit: number; a: number; hph: number; cost: number; price: number; k: number; lam: number; hphAg: number; costAg: number; priceAg: number; hphAs: number; seat: number }
 export interface OfferOpts { dG?: number; hMult?: number; tok?: number; effort?: number; markup: number; rate: number }
+
+/** Agent-hours one supervising human-hour sustains at coverage a and 50% horizon h50 (minutes): 1 / (c/h80 + ρ·(1 − a) +
+ *  m) (AGENT_WORK). */
+export function agentLeverage(a: number, h50: number): number {
+  const h80 = Math.max(1e-6, (h50 * H80_OVER_H50) / 60);
+  return 1 / (AGENT_WORK.checkInH / h80 + ASSIST.review * (1 - Math.min(1, Math.max(0, a))) + AGENT_WORK.floorH);
+}
 
 /** The offer of a set of model uses on one sector's work (or consumer chat: fit and coverage; cost per work-hour of chat
  *  is not used). */
@@ -178,40 +191,74 @@ export function offerOf(s: GameStateV2, uses: ModelUse[], sid: SectorId | 'CHAT'
   const dG = (o.dG ?? 0) + effortDG(eff);
   const hm = o.hMult ?? 1;
   const tk = o.tok ?? 1;
-  const base = sid === 'CHAT' ? { input: 3e3, output: 8e2 } : useTokens(s, sid);
-  const tok = { input: base.input * tk, output: base.output * tk * eff };
+  const scale = (b: TokenProfile): TokenProfile => ({ input: b.input * tk, output: b.output * tk * eff });
+  const chat = sid === 'CHAT';
+  const tok = scale(chat ? { input: 3e3, output: 8e2 } : adoptedTokens(s, sid));
+  const tokAg = scale(TOKENS.autonomous);
+  const tokAs = scale(chat ? TOKENS.assisted : SECTOR_WORK[sid].tokens);
   const hd = horizonDomain(sid);
   let fit = 0;
   let a = 0;
   let hph = 0;
+  let hphAg = 0;
+  let hphAs = 0;
+  let k = 0;
+  let lam = 0;
   for (const u of uses) {
     const f = sectorFit(s, u.v, sid) + dG;
+    const h50 = h50Of(w, u.v, hd) * hm;
+    const au = sectorCover(w, sid, f, h50);
+    const l = agentLeverage(au, h50);
     fit += u.w * f;
-    a += u.w * sectorCover(w, sid, f, h50Of(w, u.v, hd) * hm);
+    a += u.w * au;
+    k += u.w * au * l;
+    lam += u.w * l;
     hph += u.w * h100eHoursPer(u.fpt, tok);
+    hphAg += u.w * h100eHoursPer(u.fpt, tokAg);
+    hphAs += u.w * h100eHoursPer(u.fpt, tokAs);
   }
   const cost = hph * o.rate;
-  return { fit, a, hph, cost, price: o.markup * cost };
+  const costAg = hphAg * o.rate;
+  const seatCost = chat ? 0 : seatHoursPerMonth(sid) * hphAs * o.rate;
+  return {
+    fit, a, hph, cost, price: o.markup * cost, k, lam, hphAg, costAg, priceAg: o.markup * costAg, hphAs,
+    seat: chat ? 0 : Math.max(seatCost, (SEATS.price * o.markup) / MARKUP.standard),
+  };
 }
 
 /** Human wage per hour of a sector's work in a region ($). */
 export const wagePerHour = (sid: SectorId, r: RegionId) => SECTOR_DEF[sid].wage * REGION_SCALE[r].wage * ECON.W0;
-/** Hours of the sector's work an hour of AI use saves: substituted tasks a whole hour, augmented ones g_aug (research/16
- *  step 6), at the substituted share of an hour of use α_use = α·A/U (A2a: workers' assisted hours substitute nothing;
- *  ≈0.34 at the start, measured 0.35, research/22 §1e; rises with agency as α and A/U grow). Tokens are spent over every
- *  hour of use (an assistant runs the whole time the human works). */
-export const savedPerUseHour = (s: GameStateV2, r: RegionId, sid: SectorId) => savedAt(alphaUseOf(s.world.sectors[r][sid], sid));
-/** FLOP-bearing tokens per hour of AI use in a sector: α_use·autonomous + (1 − α_use)·assisted (α_use the US substituted
- *  share of an hour of use). */
-export function useTokens(s: GameStateV2, sid: SectorId): TokenProfile {
+/** Hours of the sector's work an adopted task-hour saves (A2c: the hours billed per hour are the adopted ones, A):
+ *  substituted tasks a whole hour, augmented ones g_aug (research/16 step 6): α + (1 − α)·g_aug. (An hour of use
+ *  overall saves α_use + (1 − α_use)·g_aug with α_use = α·A/U, measured 0.35: worldfx/use.ts, readouts workUse.) */
+export const savedPerAdoptedHour = (s: GameStateV2, r: RegionId, sid: SectorId) => savedAt(s.world.sectors[r][sid].alpha);
+/** FLOP-bearing tokens per adopted task-hour in a sector: α·autonomous + (1 − α)·assisted (α the US substitution
+ *  share): substituted tasks run as agents, augmented ones with an assistant the whole hour. */
+export function adoptedTokens(s: GameStateV2, sid: SectorId): TokenProfile {
   const st = s.world.sectors.US[sid];
-  const a = st ? alphaUseOf(st, sid) : 0.25;
+  const a = st ? st.alpha : 0.25;
   const x = SECTOR_WORK[sid].tokens;
   const y = TOKENS.autonomous;
   return { input: a * y.input + (1 - a) * x.input, output: a * y.output + (1 - a) * x.output };
 }
-/** Value of an hour of AI use in a sector and region ($): the wage of the work it saves. */
-export const valuePerHour = (s: GameStateV2, sid: SectorId, r: RegionId) => wagePerHour(sid, r) * savedPerUseHour(s, r, sid);
+/** Value of an adopted task-hour in a sector and region ($): the wage of the work it saves. */
+export const valuePerHour = (s: GameStateV2, sid: SectorId, r: RegionId) => wagePerHour(sid, r) * savedPerAdoptedHour(s, r, sid);
+/** Agent-hours a supervising hour buys from an offer in a region (A2c), and the price per agent-hour: k × the buyer's gate
+ *  σ(ln(wage ÷ (price + wage/λ))/kSpread) — an agent-hour plus the human time it takes against the human hour; the price
+ *  is cost-plus, capped at the wage (an agent-hour is a human-equivalent hour of the work), never below cost. */
+export function agentDemandOf(o: Pick<Offer, 'k' | 'lam' | 'priceAg' | 'costAg'>, wageH: number): { k: number; price: number } {
+  const price = Math.max(o.costAg, Math.min(o.priceAg, wageH));
+  if (!(o.k > 0)) return { k: 0, price };
+  const bc = price + wageH / Math.max(1e-9, o.lam);
+  return { k: o.k * sig(Math.log(wageH / Math.max(1e-9, bc)) / ECON.kSpread), price };
+}
+/** Target seat share of the workers who use AI (A2c): the seat's cost gate σ(ln(value ÷ price)/kSpread) × (1 − friction),
+ *  value of a seat-month = a seat-holder's assisted hours a month × wage × g_aug. */
+export function seatTarget(sid: SectorId, r: RegionId, seatPrice: number, R: number): number {
+  if (!(seatPrice > 0)) return 0;
+  const value = seatHoursPerMonth(sid) * wagePerHour(sid, r) * ECON.gAug;
+  return sig(Math.log(value / seatPrice) / ECON.kSpread) * (1 - Math.max(0, Math.min(1, R)));
+}
 
 /** Buyer's cost of an AI work-hour ($): the price plus the human review the AI's output still needs on the work it cannot
  *  do alone (GDPval review ≈ 0.27 of the human time, R20 E2) [D]. */

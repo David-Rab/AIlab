@@ -11,8 +11,9 @@ import { LEVERAGE_THRESHOLDS, leverage, leverageTier } from '../../src/engine/v2
 import { HEADLINES } from '../../src/engine/v2/worldfx/headlines';
 import { automationTfp } from '../../src/engine/v2/worldfx/macro';
 import { POLICY_FLAGS } from '../../src/engine/v2/worldfx/policy';
-import { consumerUse, firmAdoption, remoteWorkAutomation, workUse, youthExposedEmployment } from '../../src/engine/v2/worldfx/readouts';
-import { revenueOf } from '../../src/engine/v2/worldfx/revenue';
+import { consumerUse, firmAdoption, remoteWorkAutomation, workBilling, workUse, youthExposedEmployment } from '../../src/engine/v2/worldfx/readouts';
+import { worldMix } from '../../src/engine/v2/worldfx/mix';
+import { labMarketRevenue, revenueOf } from '../../src/engine/v2/worldfx/revenue';
 import type { GameStateV2, SetupV2, TickOptions } from '../../src/engine/v2/types';
 import { refBot } from '../../src/engine/v2/bots/ref';
 import { newGame, defaultSetupV2 } from '../../src/engine/v2/core/init';
@@ -42,7 +43,10 @@ interface Trace {
   firstRemote25?: number;
   firstU12?: number;
   firstAccept85?: number;
-  at: Record<string, { dow: number; U: number; youthSoft: number; youthU: number; friend: number; hireSoft: number; youthX: number; firm: number; rev: number; use: ReturnType<typeof workUse>; cons: ReturnType<typeof consumerUse> }>;
+  /** A2c: calendar-year revenue of the non-China closed providers (rivals' demand-side market revenue; the player's in
+   *  `annual`). */
+  rivalAnnual: Record<number, number>;
+  at: Record<string, { dow: number; U: number; youthSoft: number; youthU: number; friend: number; hireSoft: number; youthX: number; firm: number; rev: number; use: ReturnType<typeof workUse>; cons: ReturnType<typeof consumerUse>; bill: ReturnType<typeof workBilling> }>;
 }
 
 const MARKS = ['2025-07-02', '2025-07-31', '2026-01-01', '2026-07-01', '2026-11-01', '2026-12-31', '2027-07-01', '2027-10-01', '2027-12-31'];
@@ -61,7 +65,7 @@ const refGameV2 = (over: Partial<SetupV2> = {}) => newGame(defaultSetupV2({ seed
 
 function run(over: Partial<SetupV2>, days: number, opts: { noSez?: boolean } = {}): Trace {
   const s = refGameV2(over);
-  const tr: Trace = { s, annual: {}, U: [], at: {} };
+  const tr: Trace = { s, annual: {}, rivalAnnual: {}, U: [], at: {} };
   const marks = new Map(MARKS.map((m) => [D(m), m]));
   while (s.time.day < days) {
     refDay(s, opts);
@@ -75,12 +79,17 @@ function run(over: Partial<SetupV2>, days: number, opts: { noSez?: boolean } = {
     if (tr.firstRemote25 === undefined && remoteWorkAutomation(s) >= 0.25) tr.firstRemote25 = d;
     if (tr.firstU12 === undefined && d >= 365 && W.unemployment.US - tr.U[d - 365] >= 1) tr.firstU12 = d;
     if (tr.firstAccept85 === undefined && W.control.GOV.accept >= 0.85) tr.firstAccept85 = d;
+    if (d % 7 === 0 && y >= 2025 && y <= 2027) {
+      let rv = 0;
+      for (const p of worldMix(s).providers) if (p.key !== 'player' && p.key !== 'china' && !p.open) rv += labMarketRevenue(s, p.key);
+      tr.rivalAnnual[y] = (tr.rivalAnnual[y] ?? 0) + (rv * 7) / 365;
+    }
     const m = marks.get(d);
     if (m) {
       tr.at[m] = {
         dow: W.dow, U: W.unemployment.US, youthSoft: W.fx.youthRel.SOFT, youthU: W.youthUnemployment, friend: W.friendShare,
         hireSoft: W.sectors.US.SOFT.hireRate, youthX: youthExposedEmployment(s), firm: firmAdoption(s), rev: s.player.finance.revenueRun,
-        use: workUse(s, 'US'), cons: consumerUse(s),
+        use: workUse(s, 'US'), cons: consumerUse(s), bill: workBilling(s),
       };
     }
   }
@@ -133,6 +142,26 @@ check(within(c.firstAccept85, '2027-12-15'), 'Dec 2027 (±3 mo): GOV T1 Accept �
   const ps = (x: typeof c0) => x.subs / Math.max(1, x.users);
   check(ps(c0) >= 0.04 && ps(c0) <= 0.09 && ps(c26) >= 0.04 && ps(c26) <= 0.09, 'A2b: the market\'s paid share stays near the measured 5–6% (4–9%) through 2026', `${pct(ps(c0))} → ${pct(ps(c26))}`);
   console.log(`INFO  A2b consumer (all providers, US + ROW): ${MARKS.map((m) => `${m} users ${(at[m].cons.users / 1e6).toFixed(0)}M, subs ${(at[m].cons.subs / 1e6).toFixed(0)}M (${pct(ps(at[m].cons))}), spend $${at[m].cons.spend.toFixed(1)}B, player users ${((at[m].cons.regions.US.playerUsers + at[m].cons.regions.ROW.playerUsers) / 1e6).toFixed(0)}M`).join('; ')}`);
+}
+// A2c: who pays for work use, and the agent-work term (research/22 §3–7). Reported, not fitted.
+{
+  const b = (m: string) => at[m].bill;
+  const exCN = (m: string) => b(m).world.seats - b(m).regions.CN.seats;
+  const tok = (m: string) => b(m).world.tokAdopted + b(m).world.tokSeated + b(m).world.tokAgent + b(m).consumerTokens;
+  const kOf = (m: string) => b(m).world.agent / Math.max(1, b(m).world.supervising);
+  check(exCN('2026-01-01') >= 20e6 && exCN('2026-01-01') <= 45e6 && exCN('2026-07-01') >= 35e6 && exCN('2026-07-01') <= 75e6,
+    'A2c: paid enterprise seats outside China ≈ 30M in Jan 2026 and ≈ 50M by mid-2026 (R22 4e–4g: M365 Copilot 15M → 30M, ChatGPT > 7M, Gemini > 8M)',
+    `${MARKS.slice(0, 6).map((m) => `${m} ${(exCN(m) / 1e6).toFixed(0)}M`).join(', ')}`);
+  const g26 = tok('2026-12-31') / tok('2026-01-01');
+  check(g26 >= 3 && g26 <= 8 && kOf('2026-12-31') > kOf('2026-07-01') && kOf('2026-07-01') > kOf('2026-01-01'),
+    'A2c: tokens a day grow ×3–8 over 2026 (R22: Google API tokens ×4.6/yr), through agent-hours per supervising hour rising with horizon and coverage',
+    `×${g26.toFixed(1)} (${(tok('2026-01-01') / 1e12).toFixed(0)}T → ${(tok('2026-12-31') / 1e12).toFixed(0)}T a day); agent-hours per supervising hour ${['2026-01-01', '2026-07-01', '2026-12-31'].map((m) => kOf(m).toFixed(2)).join(' → ')}`);
+  const nonChina = c.annual[2026] + (c.rivalAnnual[2026] ?? 0);
+  console.log(`INFO  A2c CY2026 non-China frontier-lab revenue (player actual + closed rivals' demand-side market revenue; R22 §4 $100–130B): $${nonChina.toFixed(1)}B, leader (player) $${c.annual[2026].toFixed(1)}B =${pct(c.annual[2026] / nonChina)}`);
+  for (const m of ['2025-07-02', '2026-01-01', '2026-07-01', '2026-12-31']) {
+    const w = b(m).world;
+    console.log(`INFO  A2c ${m}: hours of use ${((w.adopted + w.seated + w.unseated) / 1e9).toFixed(0)}B/yr = adopted ${(w.adopted / 1e9).toFixed(0)}B (per hour) + seated ${(w.seated / 1e9).toFixed(0)}B (seat) + unseated ${(w.unseated / 1e9).toFixed(0)}B (unbilled); agent-hours ${(w.agent / 1e9).toFixed(1)}B; seats ${(w.seats / 1e6).toFixed(0)}M (player ${(b(m).playerSeats / 1e6).toFixed(0)}M); spend adopted $${w.spendAdopted.toFixed(1)}B, agents $${w.spendAgent.toFixed(1)}B, seats $${w.spendSeat.toFixed(1)}B; tokens/day ${(tok(m) / 1e12).toFixed(0)}T (agents ${(w.tokAgent / 1e12).toFixed(0)}T, consumer ${(b(m).consumerTokens / 1e12).toFixed(0)}T)`);
+  }
 }
 check(validateJson(c.s).length === 0, 'world state stays plain JSON (classic run)', validateJson(c.s).slice(0, 3).join('; '));
 const fired = new Set(c.s.headlines.map((h) => h.id.split(':')[0]));
