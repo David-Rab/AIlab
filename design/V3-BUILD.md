@@ -860,3 +860,71 @@ per-stack recipe readout; research-engineer and engineer allocations with priori
 The readouts exist (V2 notes "What V2b needs", V3 notes "readouts for the UI phase"). Follow the good-ui skill; where
 it asks for mockups for approval, write them to `design/ux/mockups-v3/` and proceed (the user reviews them with the
 build). Every new term gets a glossary entry and a tooltip; `npm run test:ui` extended for the new panels.
+
+### V2b notes (2026-11-19)
+
+Code: `src/engine/v2/models/researchView.ts` (read-only views: `capProjectView`, `capPriorityList`, `stackViews`,
+`reAllocView`, `engAllocView`, `workTypeViews`, `milestoneViews`, `researchSpeedView`, `buildSplit`; exported through
+`core/selectors.ts`), UI `src/ui/v2/panels/ResearchProjects.tsx`, `Recipe.tsx`, `Work.tsx` (+ `work.css`), rebuilt
+`Research.tsx` (tabs) and `Company.tsx` (Flow research-speed card, new Work tab). Mockups and IA:
+`design/ux/mockups-v3/v3-v2b-*` (`node design/ux/mockups-v3/render-v2b.mjs`).
+
+**Where things live (one home per datum; IA table in `v3-v2b-IA.md`)**
+- Research gets three tabs. **Projects** (default): the capability priority list (rank, kind, five-step stage track
+  ideation → small experiments → scale test → result → adoption, teams wanted stepper with placed-team dots, what binds,
+  next result, ▲▼ and drag) with the risk policy and "+ Add project" on its header, failed projects with "Reopen as
+  speculative" under it; the selected project's card (L2: stage track with labels, belief band against the next prior,
+  scale behaviour, odds and drops, inputs c and ℓ with what binds, research engineers and FLOP/day, the line's pool,
+  teams with their `why`). **Recipe**: one card per stack group (stack efficiency, start/adopted/headroom bar, not
+  trained in, headroom, adopted ideas believed → realised) and the software rate. **Tree**: the old tree; its node card
+  adds to / removes from the priorities, reopens failed projects and opens the project in Projects. The team picker,
+  the know-how bar, the "Active projects" cards and the queue card are gone (the game assigns teams; safety projects
+  keep their staffing home on Safety › Research lines).
+- Company gets a **Work** tab: one card per role and work type (engineers · software engineering, research engineers ·
+  experiments & runs, scientists · research ideas & taste) with effective labour as the hero (×m with AI; people vs
+  what AI adds), the model's fit on an OOM axis against the median expert and the best human, coverage against the 90%
+  milestone mark, and "where it goes": the needs in priority order with a cap select (no cap, 25–90% share, 1–16 teams)
+  and ▲▼ / drag, bars of what each need got vs its demand (hatched red = short), idle (overflow). Scientists link to the
+  priority list. Below: the seven milestones with each criterion's distance on the closest live model, and safety
+  experiments as one line (used by the safety agents, link to Safety).
+- Company › Flow's research-speed card: research speed vs the leader lab's day 0 (hero), the AI R&D multiplier with its
+  parts (AI labour, AI taste), a unit project's c and ℓ, the auto research mix and why it puts almost everything on
+  experiments before agents cover much, the three levers per dollar, the limits (serial speed, pause, diffusion).
+
+**Choices**
+- Build capacity's home moved from the engineers' pile (Agents & teams) to the Work tab's engineers card (the hero
+  number; `BuildLoad` is shown there `compact`, with its per-item tooltip). The piles link there.
+- The Agents lanes keep "AI share of the work" (package level); engineers' share is now 1 − the humans' share of the
+  SWE labour margin like research engineers' (was coverage, whose home is now Work). The 1 − (1 − A)² text is gone.
+- A project's c and ℓ for a project not yet in experiments are read at a full project share (RE_PER_PROJECT), so the
+  "binds" chip says what would bind once it gets research engineers. ETA = ideation to PICK_AT candidates at today's
+  ideation rate + the remaining test work at today's X; a dropped candidate restarts it (said in the tooltip).
+- The next prior of a line is shown at the taste of the teams on it (research input per idea), so it compares with the
+  candidate's belief; the belief band's reference marker multiplies it by the candidate's batch.
+- Realised value of an adopted idea is shown only once a model trained after its adoption is evaluated (pretraining: a
+  base started after it with an evaluated version; RL / systems: any version made after it); before that "next model".
+- Effects below 0.001 OOM print in e-notation (the raw-float lint).
+- Limits: `speed.frontierMethods` and `speed.etaMod` removed (registry, engine readout, UI); `speed.diffusion` reads
+  "recipe × your own rate"; new `research.maxTeams` (6 per project) and `research.rePerProject` (2 team-equivalents)
+  shown on the project card; `tree.retry` now only applies to the two rolled safety nodes and lives on the Tree tab.
+- Glossary: 38 new terms (stages, belief band, scale behaviour, project kind, ideas get harder, next prior, realised
+  effect, teams wanted, risk policy, reopen as speculative, why this team, recipe stack, stack efficiency, headroom,
+  routine tuning, software progress, c, ℓ, research speed, work type, fit, median expert, best human, coverage, success at
+  task length, win rate, assist, effective labour, humans' share, both needs lists, cap, overflow) and 31 rewritten v2
+  ones (M, production, what binds, know-how → recipe, not trained in, effort, team-month, odds, priority list, auto-assign
+  (safety only), retry, the milestones as work-type statements, AI FTE, copies, build capacity, engineering agents, AI
+  science, AI share of the work, research taste, the bound labels). lint-ux REQUIRED lists the V2b vocabulary.
+- Links that open an idea (Blueprint locked options, Products features, Safety line projects) open the Tree tab; a
+  capability project's result in the alert list opens its card on Projects.
+
+**Known gaps**
+- The top strip's milestone ticks still sit at display levels 6.5 / 8.5 / 10 / 12 / 15 (agent, research agent, SC, SAR,
+  ASI). SC/SAR/ASI match λ(G) at the reference recipe (V3b); agent and research agent are now coverage statements with
+  no fixed level, so those two ticks are approximate.
+- Teams wanted has no "auto"; 6 is "max" (PROJECT_MAX_TEAMS), 0 pauses.
+- The milestone criteria read the version that is closest to each milestone (fit and coverage are exact readouts of the
+  lab's own models, not eval noise; V5 moves capability readouts onto evals).
+- Drag-and-drop works with the mouse (HTML5); ▲▼ buttons are the keyboard/test path.
+- A new game starts with no capability project on the list (V2a start state), so the capability science teams are idle
+  until the player adds one: the Research badge, the list's empty state and the idle line say so. A default list (the
+  lines RefBot runs) would be an engine/start change, left for the lead session.
