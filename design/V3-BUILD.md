@@ -1233,3 +1233,122 @@ RefBot (informational) ai2027 SC −0.115 y (was −0.118).
 - TFP, labour share and GATE still read A (task adoption) only: the workers' assisted hours save g_aug·(U − A) ≈ 1.4% of
   US hours in 2026 that macro does not count (W2 still passes); a later macro task may add it.
 - UI (B3): the World panel shows "Automated A"; add W, U and hours saved per hour with tooltips.
+
+### A2b notes (consumer demand from measured anchors; 2026-11-19)
+
+Code: `data/v2/serving.ts CONSUMER_MKT` (adults, non-work share, reach, paid share, willingness to pay, tokens per
+user-day), `worldfx/serving.ts` (`subPrice` capped at the willingness to pay, `paidShareTarget`, `reachTarget`),
+`worldfx/mix.ts` (ConsumerMix `paid`, `paidTarget`, `going`; the paid-share stock steps in `advanceCustomers`),
+`worldfx/revenue.ts` (subscribers = users × paid share; `regionSubscribers`, `worldSubscribers`; consumer rows carry
+`paidTarget`, `needPaid`, `needFree`, `cutFree`), `worldfx/sectors.ts` (reach per region), `worldfx/readouts.ts
+consumerUse`. State: `WorldFxState.reach` (per region, replaces `consumerReach`) and `WorldFxState.paid` (per region and
+provider); schemaRev 18, migration 17 → 18. Tests: serving C1–C6, worldfx A2b checks, hygiene 17 → 18 migration.
+
+**Mechanism.** Weekly users of provider X in region r = online adults × reach R_r × user share (the V4a logit and its
+3-week stock, unchanged) and subscribers = users × paid share P_X,r. Consumer revenue = subscribers × price × 12, with no
+term in work hours. Both new quantities are stocks:
+- Reach R_r moves at (p + q·R) toward R*_r = row_r · 0.9 · (0.5 + 0.5·c), c the best accessible model's consumer-chat
+  coverage (V4a's speed constants; 0.2/yr down).
+- Paid share P moves with τ ≈ 8 weeks toward P* = min(0.5, (0.04 + 0.1·a_X) · (p̄ ÷ price_X)). a_X is the provider's own
+  consumer-chat coverage and p̄ the going price: users' share-weighted subscription price among plans at or below the
+  willingness to pay.
+- Price = max(cost, min(markup × cost, wtp $22)). Tiers stay markups over a paying user's serving cost. A plan whose cost
+  is above the willingness to pay gets P* = 0, the consumer analogue of the sector cost gate.
+- Free users (users − subscribers) need 7.5k/1.5k tokens a day on the product's mini, else its model, and are served last.
+- Free serving buys subscribers through the user stock: an unserved need raises the consumer capacity penalty, which
+  erodes the user share and with it the subscribers. No separate conversion term was added.
+
+**Choices [D] (sources in the data comments).**
+- Non-work share 0.7 [R22 2a–2b]. It is recorded and shown in readouts, and it is why the cap is willingness to pay
+  rather than wage × hours saved. It drives no other formula. The 30% work share is the overlap A2c must not double-bill:
+  workers' assisted hours W already bill sector work.
+- Online adults ROW 2.5B → 3.2B, recalled and not fetched this session. Source: UN WPP 2024 gives ≈ 4.5B adults outside
+  China and the US; ITU 2025 gives ≈ 72% of them online.
+- US reach starts at 0.46, interpolated from RPS non-work use ≈ 50% in Nov 2025 at +10.4 pp yoy. ROW is 0.85 × the US:
+  the leader's ≈ 900M weekly users at a ≈ 0.55–0.6 share of distinct users.
+- Ceiling 0.9 and base 0.5: the start model's target is ≈ 0.51.
+- Paid share 5.4% for the start frontier model at the going price [R22 2e: 5–6%], 14% at full coverage. Cap 0.5,
+  τ 8 weeks.
+- Willingness to pay $22, the midpoint of R22's $20–25 ARPU [X].
+- Free-user budget 3.75 messages × (2k prompt and context + 0.4k answer) ≈ 9k tokens [R22 2g, §3: 8–20k]. The paid-user
+  budget is unchanged at 30k/8k.
+
+**Deviations.**
+- (1) The paid share answers to price *relative to the going price*, not to the willingness to pay. The first try used
+  (wtp ÷ price)^1. Cost-plus prices under $22 (standard tier $11–17, rivals $7–10, DeepCent $3–8) then tripled the world's
+  subscribers to ≈ 290M in 2026 and lifted DeepCent to a 15–20% paid share. The measured share held at 5–6% while plans
+  stayed at $20, so only being cheaper than the market converts more.
+- (2) Reach depends on quality only. Free use has no price, so the "price" driver of the brief acts on the paid share alone.
+- (3) Rivals still price consumer plans at cost-plus (BRIDGE(V7) FLOP per token). In the day-900 fixture DeepCent's plan
+  costs $162, above the willingness to pay, so it sells no subscriptions. The old $200 cap had let it bill $728B/yr of
+  consumer spend there.
+- (4) RefBot gives Chat no free-tier mini, so its free users run on the 1T-active main model.
+
+**Readouts (RefBot, classic, ai2027, seed 2027; before = A2a; reported, not targeted).**
+
+| Quantity | Before | A2b | Anchor |
+|---|---|---|---|
+| Weekly users, all providers (start / Feb 2026 / end 2026) | 1.10 / 1.16 / 1.41B | 1.37 / 1.48 / 1.73B | leader ≈ 0.9B (15% of world adults) |
+| US / ROW reach (Jul 2026) | 0.45 (one value) | 0.53 / 0.45 | US ≈ 0.5 (RPS, Nov 2025) |
+| World consumer subscribers (start / Feb 2026 / Jul 2026 / end 2026) | 55 / 58 / 62 / 71M | 87 / 100 / 104 / 129M | ChatGPT alone > 50M (Feb 2026) |
+| World paid share (start / mid-2026) | 5% (fixed) | 6.3 / 6.7% | 5–6% |
+| World consumer spend (Feb 2026 / end 2026) | $8.4 / 8.3B | $12.8 / 14.6B | leader ≈ $13B/yr at 50M × $22 |
+| Consumer leader in 2026 (DeepCent): users / subs, Feb and end 2026 | 468M / 23M, 755M / 38M | 601M / 58M, 923M / 82M | ≈ 900M / 50M |
+| Player Chat users (start / Feb 2026 / Jul 2026 / end 2026) | 630 / 71 / 160 / 131M | 782 / 90 / 169 / 158M | |
+| Player subscribers (same dates) | 31 / 4 / 8 / 7M | 32 / 3 / 7 / 9M | |
+| Player consumer revenue CY2026 | $1.1B | $1.0B | |
+| Player free-user serving need ÷ serving pool (start / Feb 2026 / Jul 2026 / end 2026) | 32 / 1.4 / 2.8 / 2.3% | 214 / 9.6 / 15.6 / 14.5% | |
+| Player revenue 2026 / 2027 (F7/F11, finance session) | $32.4 / 39.1B | $30.3 / 39.3B | |
+
+- **Done-when, met in part.** By mechanism the 2026 consumer leader holds 58–82M subscribers, inside the brief's
+  "≈ 50M-class". It bills ≈ $5–8B/yr, not ≈ $13B: the leader is DeepCent at $7–8 cost-plus plans, not a $22 plan.
+- **Why the player is small.** It starts with 59% of the consumer market and 782M users but is capacity-bound. Its pool
+  is 348k H100e against 891k of consumer need and 2.5M of sector need. The capacity penalty takes its user share to 0.08
+  by Feb 2026, as it did before A2b.
+- **Free users.** They now need 5.6× the H100e. They take 120–150k H100e of 2026 serving that A2a lent to research agents;
+  golden dates and T1 are unchanged.
+
+**Gate (vs today's A2a baseline).**
+- tsc main + scripts clean. golden-timelines, identity, worktypes, research and effective pass, with the same outputs
+  apart from numeric noise. products, serving (new C1–C6) and calib all pass.
+- calib stub T1 and T1L are identical. Integrated RefBot (informational) ai2027 SC unchanged at −0.115; SIAR −0.063 →
+  +0.011 and ASI −0.055 → +0.027.
+- hygiene: only the known perf checks fail; the 17 → 18 migration passes.
+- worldfx: W2, W4, hiring, AI friend (9.8 → 10.6%), remote work, equity (+20.3%) and the new A2b checks pass. Known
+  fails: GOV T1 and F7/F11.
+- **New fail: U +1 pp in 12 months, 2027-12-30 → 2028-01-22.** The band ends 2027-12-31; the date passed by 2 days after
+  A2a and failed at 2028.01 in V4a. The cause:
+  - In 2027 the player's Chat holds ≈ 90% of consumers with consumer-chat coverage ≈ 0.85, so its paid share rises toward
+    12% (5% fixed before). Its paid need roughly doubles (146M vs 76M subscribers in Jul 2027).
+  - Under Auto, paid consumer work and sector work earn the same per H100e and share the short pool pro rata, so sector
+    products lose capacity. The sector capacity penalty then trims the player's sector share, the share-weighted α falls
+    by ≈ 0.01, and the late-2027 layoff burst is smaller: pool 1.18M vs 1.53M on day 900, U 5.02 vs 5.21%.
+  - Model release days are unchanged to the day until the Atlas-4.0 mini (day 936 vs 932).
+  - Left for the lead, who owns the band. Not refitted.
+- Reported, not owned:
+  - ws4: only the known T3 fails, same as the baseline.
+  - finance: the same set of failing checks as the baseline (F2, F7 revenue and valuation, F8, F11), with lower values:
+    - F7 2026 revenue median $33.2B → $30.7B;
+    - end-2026 valuation $0.63T → $0.48T;
+    - F11 2027 revenue $34.2B → $27.1B (12 seeds);
+    - F2 40.2M → 40.1M.
+  - Why revenue is lower: free users now take serving and capacity-penalty room the capacity-bound RefBot used to give
+    to sector work. Rivals and DeepCent earn more consumer revenue (labMarketRevenue) and compete harder.
+
+**Readouts for B1/B2 (UI).**
+- Chat card: weekly users (the customer stock) and subscribers with the paid share and its target (`paidTarget`, τ 8
+  weeks). Also price per subscriber-month against the willingness to pay ($22, "capped" when it binds), cost per
+  subscriber-month and margin.
+- Chat serving: need split into paid vs free (`needPaid`, `needFree`) and what the split cut from free users (`cutFree`).
+  Tooltip: free users are served last, and unserved users leave, which costs subscribers.
+- Market (World or Chat): `consumerUse(s)` per region gives reach and its target, users, subscribers, the market paid
+  share, the going price, consumer spend, and the player's users, paid share and target. World totals add messages per
+  day and the 0.7 non-work share.
+- Glossary: weekly reach, paid share, going price, willingness to pay, free tier.
+
+**Open.**
+- The finance targets (finance session).
+- U +1 pp now fails (above).
+- RefBot sets no free-tier mini (F5).
+- Rivals' cost-plus consumer prices sit on BRIDGE(V7).
+- Reach and the AI-friend share use the US number for ROW scaled by 0.85; there are no primary ROW reach data.
