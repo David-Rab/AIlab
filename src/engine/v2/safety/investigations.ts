@@ -5,7 +5,8 @@
 // combine_t(cov·strength·penalty)·(people/15)^0.5; it feeds observations into beliefs and resolves at clarity ≥ 0.8, on
 // close, or after 120 days. The outcome is drawn
 // from the truth (engine) but the player only sees the outcome label and a severity estimate.
-import { fleetMultiplier, safetyAgentVersion, safetyFleet, trustedShare } from './agents';
+import { safetyAgentVersion } from './agents';
+import { safetyLabour } from '../departments/workfit';
 import { VERIFIABILITY } from '../../../data/v2/agendas';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { CRITICAL_TRAITS, TRAIT_IDS } from '../../../data/v2/traits';
@@ -115,10 +116,10 @@ export function monthlyGain(s: GameStateV2, inv: Investigation): number {
     const items = tools.map((t) => ({ agenda: t.agenda, d: (t.coverage[k] ?? 0) * strengthTrue(s, t, M) * familyPenalty(s, v, k, t.family) }));
     g = Math.max(g, combineTools(items));
   }
-  // Trusted to AI (R7): the policy share of the case's work goes to the safety agents (B3 gate inside trustedShare).
-  const tr = trustedShare(s);
-  const ai = fleetMultiplier(safetyFleet(s), tr, 1, 1 + tr * 1.5);
-  return clamp01(g * Math.sqrt(inv.fte / 15) * Math.min(1.5, Math.pow(Math.max(0.01, inv.computeShare) / 0.05, 0.2)) * ai);
+  // Model v3 E2: AI labour is the same input as the case's engineers: effective FTE = FTE × m of safety experiments
+  // (SAF_EXP through the Trusted-to-AI share; departments/workfit.ts safetyLabour).
+  const m = safetyLabour(s).exp.m;
+  return clamp01(g * Math.sqrt((inv.fte * m) / 15) * Math.min(1.5, Math.pow(Math.max(0.01, inv.computeShare) / 0.05, 0.2)));
 }
 
 /** Daily step: clarity, monthly observations, resolution. */
@@ -178,11 +179,11 @@ export function resolveInvestigation(s: GameStateV2, ctx: SystemCtx, inv: Invest
   const k = traits.reduce((a, b) => (v.traitsTrue[b] > v.traitsTrue[a] ? b : a), traits[0]);
   const x = v.traitsTrue[k];
   const c = inv.clarity;
-  // Corruption by AI labour from a sabotaging model (E20): P = Trusted to AI · sab · (1 − verifiability). The model is
-  // the one running the safety agents.
+  // Corruption by AI labour from a sabotaging model (E20): P = share of the case's work AI does (A of safety
+  // experiments = Trusted to AI × coverage, model v3 E2) · sab · (1 − verifiability). The model is the one running the safety agents.
   const iv = safetyAgentVersion(s);
   const verif = tools.length ? tools.reduce((a, t) => a + VERIFIABILITY[t.family], 0) / tools.length : 0.5;
-  const corrupted = rng.chance(clamp01(trustedShare(s) * sabOf(iv) * (1 - verif)));
+  const corrupted = rng.chance(clamp01(safetyLabour(s).exp.A * sabOf(iv) * (1 - verif)));
   let outcome: NonNullable<Investigation['outcome']>;
   let uMode: UModeId | undefined;
   if (corrupted) {

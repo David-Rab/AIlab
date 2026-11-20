@@ -21,8 +21,8 @@
 // Research engineers: investigations and patches first, then line experiments in priority order (SAF_RE_UNIT each, at
 // most SAF_EXP_SHARE of the free engineers), the rest keeps tools validated (agendas.ts upkeep). Compute: the safety
 // pool after monitors, safety agents and investigations is shared by the projects in experiments in proportion to
-// engineers × their agenda's compute need. AI labour (today the safety fleet's multiplier, agents.ts) enters as the
-// effective-labour multipliers m_ideas and m_exp: E2 replaces them with the SAF_IDEAS / SAF_EXP work types.
+// engineers × their agenda's compute need. AI labour enters as the effective-labour multipliers m_ideas and m_exp from
+// the SAF_IDEAS / SAF_EXP work types (lineLabour, model v3 E2) and as AI taste in ideation (safSciOn).
 import {
   AGENDA_BY_ID, LINE_MULT_MAX, SAF_BELIEF, SAF_C0_H100E, SAF_EXP_SHARE, SAF_PICK_AT, SAF_POOL_MAX, SAF_RE_UNIT, SAF_STAGES, SERIOUS_CAP,
 } from '../../../data/v2/agendas';
@@ -32,12 +32,12 @@ import { CAPACITY_UNIT, PROJECT_BY_ID, SPECIALTY_BONUS, isLineNode, type TreeNod
 import { QUALITY } from '../../../data/v2/teams';
 import { hash32 } from '../core/rng';
 import { monitorBudget } from '../departments/agents';
-import { qualityZ, teamTaste } from '../departments/workfit';
+import { handedLabour, qualityZ, resetSafetyLabour, safetyLabour, teamTaste, type LabourOf } from '../departments/workfit';
 import { Xces } from '../production/knots';
 import { trainNow } from '../models/stacks';
 import type { AgendaId, GameStateV2, SafCandidate, SafProjectState, TreeNodeState } from '../types';
-import { fleetMultiplier, safetyAgentVersion, safetyFleet, trustedShare } from './agents';
-import { adopted, clamp01, flag, trueEfficacy, versionM } from './common';
+import { aiShareOf, trustedShare } from './agents';
+import { adopted, clamp01, flag, trueEfficacy } from './common';
 import { investigationFte, safetyReHeads } from './investigations';
 import { patchFte } from './responses';
 
@@ -133,12 +133,14 @@ export const beliefShown = (c: Pick<SafCandidate, 'mu' | 'sd'>) => ({ mu: clamp0
 
 // ───────────────────────────── inputs ─────────────────────────────
 
-/** Science capacity and taste of the teams on a project (taste: the team's place on the AIFM taste distribution, human
- *  only; E2 adds the safety model's SAF_IDEAS taste). */
+/** Science capacity and taste of the teams on a project. Taste: each team's E[max(human, AI)] on the AIFM taste
+ *  distribution, as capability projects (models/research.ts sciOn), with the safety model's AI taste from its SAF_IDEAS
+ *  fit and cover φ = Trusted to AI while the safety agents work on ideas (model v3 E2; departments/workfit.ts). */
 export function safSciOn(s: GameStateV2, id: string): { cap: number; q: number; heads: number } {
   const n = node(id);
   if (!n) return { cap: 0, q: 1, heads: 0 };
   const m2b = s.hidden.timeline.prod.m2b;
+  const sl = safetyLabour(s);
   let cap = 0;
   let qw = 0;
   let heads = 0;
@@ -147,7 +149,7 @@ export function safSciOn(s: GameStateV2, id: string): { cap: number; q: number; 
     const c = (t.heads / CAPACITY_UNIT) * QUALITY[t.quality].out * (t.specialty === n.column ? SPECIALTY_BONUS : 1);
     cap += c;
     heads += t.heads;
-    qw += c * teamTaste(qualityZ(t.quality), 0, 0, m2b);
+    qw += c * teamTaste(qualityZ(t.quality), sl.sdAI, sl.phi, m2b);
   }
   return { cap, q: cap > 0 ? qw / cap : 1, heads };
 }
@@ -163,16 +165,29 @@ function ag17Mult(s: GameStateV2): number {
   return m > 0 ? 1 + Math.sqrt(m) : 1;
 }
 
-/** Effective-labour multipliers of AI on a line's ideas and experiments (the plug for E2's SAF_IDEAS / SAF_EXP work
- *  types). Until E2 both are the safety fleet's multiplier (agents.ts, Trusted to AI):
- *  min(1 + t·Auto·min(10, √M_model), √(1 + Auto·AI FTE ÷ human FTE)), Auto = the agenda's automability × AG17's lift. */
+/** AI labour on a line's work (model v3 E2): the effective-labour multipliers m_ideas and m_exp that enter ideation
+ *  (m_ideas × capacity) and ℓ (m_exp × engineers), and the share of the line's work AI does on its own (A = t × a ×
+ *  Auto, stage-weighted; the weight of a FALSE result). Both come from the safety work types (departments/workfit.ts safetyLabour: SAF_IDEAS and
+ *  SAF_EXP, coverage from the safety model's fit and horizon, AI FTE from the package's compute) through handedLabour,
+ *  the capabilities CES with the Trusted-to-AI share. Per line: the agenda's automation factor (research/14 "Auto": AI
+ *  speeds agendas whose outputs can be checked, Carlsmith 2025) is the share of the line's work inside the work type's
+ *  coverage (a × Auto; Auto 1 = the work type, AG12's 0.2 barely automatable), and AG17's science teams lift the
+ *  agents' labour ×(1 + √(capacity ÷ SERIOUS_CAP)) [kept from v2; E13 types it]. */
+export function lineLabour(s: GameStateV2, ag: AgendaId): { ideas: number; exp: number; aiShare: number } {
+  const sl = safetyLabour(s);
+  if (sl.t <= 0) return { ideas: 1, exp: 1, aiShare: 0 };
+  const P = s.hidden.timeline.prod;
+  const auto = AGENDA_BY_ID[ag].auto;
+  const lift = ag17Mult(s);
+  const one = (x: LabourOf) => (x.aiFte > 0 ? handedLabour(P, x.fit.a * auto, sl.t, x.H, x.AI * lift, x.fit.assist) : { m: 1, A: 0 });
+  const e = one(sl.exp);
+  const i = one(sl.ideas);
+  return { ideas: i.m, exp: e.m, aiShare: aiShareOf(i.A, e.A) };
+}
+/** The multipliers alone (E1's plug). */
 export function lineLabourMult(s: GameStateV2, ag: AgendaId): { ideas: number; exp: number } {
-  const tr = trustedShare(s);
-  if (tr <= 0) return { ideas: 1, exp: 1 };
-  const auto = AGENDA_BY_ID[ag].auto * ag17Mult(s);
-  const M = versionM(s, safetyAgentVersion(s));
-  const m = fleetMultiplier(safetyFleet(s), tr, auto, 1 + tr * auto * Math.min(10, Math.sqrt(M)));
-  return { ideas: m, exp: m };
+  const l = lineLabour(s, ag);
+  return { ideas: l.ideas, exp: l.exp };
 }
 
 /** Speed modifiers of a line's stages: siloing −5% per level and a custom-ASIC migration −15% (as all research), a
@@ -223,7 +238,10 @@ export interface SafAlloc {
 /** Today's allocation is memoised per state and day (understanding and the readouts ask for it many times a tick); the
  *  research system and every player action recompute it (resetSafAllocation). Previews (extra) are never memoised. */
 const allocMemo = new WeakMap<GameStateV2, { day: number; a: SafAlloc }>();
-export const resetSafAllocation = (s: GameStateV2) => allocMemo.delete(s);
+export const resetSafAllocation = (s: GameStateV2) => {
+  allocMemo.delete(s);
+  resetSafetyLabour(s); // the safety agents' labour reads the same inputs (teams, Trusted to AI, the package)
+};
 export function safAllocation(s: GameStateV2, extra?: string, extraCap?: number): SafAlloc {
   if (extra === undefined) {
     const hit = allocMemo.get(s);

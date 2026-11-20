@@ -12,6 +12,8 @@
 //   labour     L_w = [(1 − a)^(1−ρc)·(H·assist)^ρc + a^(1−ρc)·AI^ρc]^(1/ρc) (AI Futures coding CES); m_w = L_w / H multiplies
 //              every allocation of the role's teams (agents add capacity to the same allocations, MODEL-V3 §5.6)
 //   taste      sd_AI = 3.09·(F_IDEAS − F^med_IDEAS)/Δ_bm; a team's taste E[max(T_team, F_AI)] on the AIFM distribution
+//   safety     SAF_EXP / SAF_IDEAS on the safety package through the same functions; Trusted to AI t is the share of
+//              the work handed to AI (handedLabour: A = t·a; t = 1 is the capabilities case exactly; model v3 E2)
 // Nothing here reads pm, the level bridge, the knot tables or a reference path.
 import {
   ASSIST, COGNITIVE_WORK, COPY_TOKENS_PER_S, COVER, FTE_HOURS_PER_YEAR, H80_OVER_H50, HORIZON_BETA,
@@ -22,6 +24,7 @@ import { RSCH_TASTE_PENALTY } from '../../../data/v2/calibration';
 import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
 import { DEFAULT_CAP_SHARES } from '../../../data/v2/agents';
 import { QUALITY, TEAM_COST_M } from '../../../data/v2/teams';
+import { PROJECT_BY_ID, isLineNode } from '../../../data/v2/tree';
 import { Lrel, Phi, tasteSigma } from '../production/knots';
 import { gOfDomain, gOfPm, h50Of } from '../models/capability';
 import { adopted } from '../models/paradigms';
@@ -102,8 +105,9 @@ export function workFit(s: GameStateV2, v: Pick<ModelVersion, 'pm' | 'build'>, w
   return { fit, best: r.best, med: r.med, h50, a: coverage(w, wt, fit, h50), win, assist: assistOf(win) };
 }
 
-/** AI research taste in human SDs above the median (AIFM): 3.09·(F_IDEAS − F^med)/Δ_bm. */
-export const sdAIOf = (w: TimelineWorld, fitIdeas: number) => (TOP_SD * (fitIdeas - refPoints(w, 'IDEAS').med)) / w.v3.dBM;
+/** AI research taste in human SDs above the median (AIFM): 3.09·(F_w − F^med_w)/Δ_bm, on research ideas (IDEAS) or
+ *  safety research ideas (SAF_IDEAS: the same domains, so the same reference points). */
+export const sdAIOf = (w: TimelineWorld, fitIdeas: number, wt: WorkTypeId = 'IDEAS') => (TOP_SD * (fitIdeas - refPoints(w, wt).med)) / w.v3.dBM;
 
 // ───────────────────────────── AI labour (physical) ─────────────────────────────
 
@@ -171,11 +175,16 @@ export const starTaste = (s: GameStateV2) => 1 + STAR_TASTE * (s.player.stars ??
 
 // ───────────────────────────── the lab's work context (one day) ─────────────────────────────
 
-export type LabourSlot = 'SWE' | 'EXP' | 'IDEAS' | 'SAF_EXP';
+/** Capabilities work types (workContext) and the safety ones (safetyLabour, model v3 E2). */
+export type LabourSlot = 'SWE' | 'EXP' | 'IDEAS' | 'SAF_EXP' | 'SAF_IDEAS';
 export interface LabourOf {
   wt: WorkTypeId;
   versionId?: string;
   fit: WorkFit;
+  /** Share of the work handed to AI (1 on capabilities work; the Trusted-to-AI policy on safety work) and the share AI
+   *  does on its own, A = t × coverage. */
+  t: number;
+  A: number;
   /** Human team-equivalents in the role (heads ÷ team size × quality) and AI team-equivalents (FTE ÷ team size). */
   H: number;
   AI: number;
@@ -188,9 +197,10 @@ export interface LabourOf {
   /** Humans' share of the labour margin (the CES weight of the human input). */
   wH: number;
 }
+export type CapSlot = 'SWE' | 'EXP' | 'IDEAS';
 export interface WorkContext {
   day: number;
-  slots: Record<LabourSlot, LabourOf>;
+  slots: Record<CapSlot, LabourOf>;
   /** AI research taste (SDs) of the frontier-research model and its cover φ (0 with no frontier agents). */
   sdAI: number;
   phi: number;
@@ -201,7 +211,7 @@ export interface WorkContext {
 function useLabour(s: GameStateV2, slot: LabourSlot): { v?: ModelVersion; h100e: number; mult: number } {
   const p = s.player;
   const off = Number(s.flags['ws4:agentsOffUntil'] ?? -1) > s.time.day;
-  const use = slot === 'SWE' ? 'eng' : slot === 'EXP' ? 'capRoutine' : slot === 'IDEAS' ? 'capFrontier' : 'safety';
+  const use = slot === 'SWE' ? 'eng' : slot === 'EXP' ? 'capRoutine' : slot === 'IDEAS' ? 'capFrontier' : 'safety'; // SAF_*: the safety package
   const v = agentVersion(s, use);
   let h100e = 0;
   if (!off) {
@@ -238,15 +248,16 @@ export function humansOf(s: GameStateV2, slot: LabourSlot): number {
     else if (slot === 'EXP' && t.role === 're' && t.dept === 'cap') h += (t.heads / WORK_TYPES.EXP.heads) * q;
     else if (slot === 'IDEAS' && t.role === 'sci' && t.dept === 'cap') h += (t.heads / WORK_TYPES.IDEAS.heads) * q;
     else if (slot === 'SAF_EXP' && t.role === 're' && t.dept === 'saf') h += (t.heads / WORK_TYPES.SAF_EXP.heads) * q;
+    // Safety scientists on research-line projects (the work the safety agents can be handed).
+    else if (slot === 'SAF_IDEAS' && t.role === 'sci' && t.projectId && onLine(t.projectId)) h += (t.heads / WORK_TYPES.SAF_IDEAS.heads) * q;
   }
   return h * researchMods(s).humans;
 }
+const onLine = (id: string) => { const n = PROJECT_BY_ID[id]; return !!n && isLineNode(n); };
 
-const SLOT_WT: Record<LabourSlot, WorkTypeId> = { SWE: 'SWE', EXP: 'EXP', IDEAS: 'IDEAS', SAF_EXP: 'SAF_EXP' };
-
-/** Labour in one role with explicit agent compute (what-ifs scale it). */
-export function labourOf(s: GameStateV2, slot: LabourSlot, scale: { h?: number; k?: number } = {}): LabourOf {
-  const wt = SLOT_WT[slot];
+/** Labour in one capabilities role with explicit agent compute (what-ifs scale it). */
+export function labourOf(s: GameStateV2, slot: CapSlot, scale: { h?: number; k?: number } = {}): LabourOf {
+  const wt: WorkTypeId = slot;
   const u = useLabour(s, slot);
   const def: WorkTypeDef = WORK_TYPES[wt];
   // V4.3: the lab's built scaffolds and horizon extenders apply to its internal agents (scaffold tokens cost FTE).
@@ -261,7 +272,23 @@ export function labourOf(s: GameStateV2, slot: LabourSlot, scale: { h?: number; 
   const L = effLabour(P, fit.a, H, AI, fit.assist);
   const hh = Math.max(1e-12, H * fit.assist);
   const wH = fit.a >= 1 - 1e-12 ? 0 : fit.a <= 1e-9 ? 1 : (Math.pow(1 - fit.a, 1 - P.rc) * Math.pow(hh, P.rc)) / Math.pow(L, P.rc);
-  return { wt, ...(u.v ? { versionId: u.v.id } : {}), fit, H, AI, aiFte, h100e, copies: u.v ? copiesOf(h100e, fpt) : 0, L, m: H > 1e-12 ? L / H : 0, wH };
+  return { wt, ...(u.v ? { versionId: u.v.id } : {}), fit, t: 1, A: fit.a, H, AI, aiFte, h100e, copies: u.v ? copiesOf(h100e, fpt) : 0, L, m: H > 1e-12 ? L / H : 0, wH };
+}
+
+/** Effective labour when only a share t of the work is handed to AI (model v3 E2: the Trusted-to-AI policy on safety
+ *  work). Of the handed work AI does the share it covers on its own (a) and the humans the rest with the assist; the
+ *  work not handed is done by humans unassisted. So the AI share is A = t·a and the human share's speed-up is the
+ *  time-weighted (Amdahl) mean: (1 − A) ÷ ((1 − t) + t·(1 − a)/assist). At t = 1 this is effLabour exactly (the
+ *  capabilities slots' function); at t = 0 the humans alone. Returns L, m = L/H and the humans' share of the margin wH. */
+export function handedLabour(P: Pick<ProdParams, 'rc'>, a: number, t: number, H: number, AI: number, assist: number): { L: number; m: number; wH: number; A: number; assist: number } {
+  const tt = Math.max(0, Math.min(1, t));
+  if (tt <= 0 || H <= 1e-12) return { L: H, m: 1, wH: 1, A: 0, assist: 1 };
+  const A = tt * Math.max(0, Math.min(1, a));
+  const as = tt >= 1 ? assist : A >= 1 - 1e-12 ? assist : (1 - A) / (1 - tt + (tt * (1 - Math.min(1, a))) / assist);
+  const L = effLabour(P, A, H, AI, as);
+  const hh = Math.max(1e-12, H * as);
+  const wH = A >= 1 - 1e-12 ? 0 : A <= 1e-9 ? 1 : (Math.pow(1 - A, 1 - P.rc) * Math.pow(hh, P.rc)) / Math.pow(L, P.rc);
+  return { L, m: L / H, wH, A, assist: as };
 }
 
 const ctxMemo = new WeakMap<GameStateV2, WorkContext>();
@@ -269,7 +296,7 @@ const ctxMemo = new WeakMap<GameStateV2, WorkContext>();
 export function workContext(s: GameStateV2): WorkContext {
   const hit = ctxMemo.get(s);
   if (hit && hit.day === s.time.day) return hit;
-  const slots = { SWE: labourOf(s, 'SWE'), EXP: labourOf(s, 'EXP'), IDEAS: labourOf(s, 'IDEAS'), SAF_EXP: labourOf(s, 'SAF_EXP') };
+  const slots = { SWE: labourOf(s, 'SWE'), EXP: labourOf(s, 'EXP'), IDEAS: labourOf(s, 'IDEAS') };
   const p = s.player;
   const fv = agentVersion(s, 'capFrontier');
   const sdAI = fv ? sdAIOf(s.hidden.timeline, fitOf(s, fv, 'IDEAS') + internalFx(s, 'IDEAS').dG) : -6;
@@ -282,10 +309,60 @@ export function workContext(s: GameStateV2): WorkContext {
 /** Drop the memoised context (call after the inputs change within a day). */
 export const resetWorkContext = (s: GameStateV2) => ctxMemo.delete(s);
 
-/** Effective AI labour per H100e for safety work (SAF_EXP) of a version: FTE per H100e × coverage. Feeds the safety
- *  agent fleet until V6 moves safety onto work types (BRIDGE(V6)). */
-export function safetyFtePerH100e(s: GameStateV2, v: ModelVersion): number {
-  return fteOfFpt(flopPerToken(s, v)) * workFit(s, v, 'SAF_EXP').a;
+// ───────────────────────────── safety work (model v3 E2) ─────────────────────────────
+
+/** AI labour on safety work: the safety package (its model, its compute on the safety pool) on the two safety work types
+ *  through the same functions as capabilities work (MODEL-V3 §6.3, §11.7): coverage from the safety model's SAF_EXP /
+ *  SAF_IDEAS fit and horizon, copies and FTE from its compute and FLOP per token, effective labour by the coding CES.
+ *  The one difference is the player's policy: Trusted to AI t is the share of safety work handed to the agents
+ *  (handedLabour; at t = 1 safety work gets exactly the capabilities multiplier at the same fit). No fleet (no model or
+ *  no compute) = nothing handed. The package's compute is spread over the two work types in proportion to the work AI
+ *  does in each (A × human team-equivalents) [D]. AI taste on safety ideas: sd_AI from the SAF_IDEAS fit, cover φ = t
+ *  while the fleet works on ideas. */
+export interface SafetyLabour {
+  /** Trusted to AI in effect (0 with no fleet). */
+  t: number;
+  versionId?: string;
+  h100e: number;
+  exp: LabourOf;
+  ideas: LabourOf;
+  sdAI: number;
+  phi: number;
+}
+const safMemo = new WeakMap<GameStateV2, { day: number; x: SafetyLabour }>();
+/** Drop the memoised safety labour (the safety allocation's reset calls it: after actions and in the research system). */
+export const resetSafetyLabour = (s: GameStateV2) => safMemo.delete(s);
+export function safetyLabour(s: GameStateV2): SafetyLabour {
+  const hit = safMemo.get(s);
+  if (hit && hit.day === s.time.day) return hit.x;
+  const u = useLabour(s, 'SAF_EXP');
+  const P = s.hidden.timeline.prod;
+  const run = !!u.v && u.h100e > 0;
+  const t = run ? Math.max(0, Math.min(1, s.player.policies.trustedToAI ?? 0)) : 0;
+  const none: WorkFit = { fit: -Infinity, best: 0, med: 0, h50: 0, a: 0, win: 0, assist: 1 };
+  const wts = ['SAF_EXP', 'SAF_IDEAS'] as const;
+  const fx = wts.map((wt) => internalFx(s, wt));
+  const fits = wts.map((wt, i) => (u.v ? workFit(s, u.v, wt, fx[i]) : none));
+  const H = wts.map((wt) => humansOf(s, wt));
+  const w = wts.map((_, i) => t * fits[i].a * H[i]);
+  const wSum = w[0] + w[1];
+  const hSum = H[0] + H[1];
+  const fpt = u.v ? flopPerToken(s, u.v) : 1;
+  const slot = (i: number): LabourOf => {
+    const wt = wts[i];
+    const share = wSum > 0 ? w[i] / wSum : hSum > 0 ? H[i] / hSum : 0.5;
+    const h100e = u.h100e * share;
+    const aiFte = u.v ? (h100e * fteOfFpt(fpt) * u.mult) / fx[i].tok : 0;
+    const AI = aiFte / WORK_TYPES[wt].heads;
+    const r = aiFte > 0 ? handedLabour(P, fits[i].a, t, H[i], AI, fits[i].assist) : handedLabour(P, 0, 0, H[i], 0, 1);
+    return { wt, ...(u.v ? { versionId: u.v.id } : {}), fit: fits[i], t, A: r.A, H: H[i], AI, aiFte, h100e, copies: u.v ? copiesOf(h100e, fpt) : 0, L: r.L, m: r.m, wH: r.wH };
+  };
+  const exp = slot(0);
+  const ideas = slot(1);
+  const sdAI = u.v ? sdAIOf(s.hidden.timeline, fits[1].fit, 'SAF_IDEAS') : -6;
+  const x: SafetyLabour = { t, ...(u.v ? { versionId: u.v.id } : {}), h100e: u.h100e, exp, ideas, sdAI, phi: ideas.aiFte > 0 ? t : 0 };
+  safMemo.set(s, { day: s.time.day, x });
+  return x;
 }
 
 // ───────────────────────────── milestones (V3.5) ─────────────────────────────

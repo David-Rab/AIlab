@@ -6,7 +6,8 @@ import { TRAIT_IDS } from '../../../data/v2/traits';
 import { internalVersion } from '../models/labs';
 import type { ActionDef, CostLine, GameStateV2, ResponseKind, SafetyDept, TraitId } from '../types';
 import { clamp01, mAtLevel, versionById } from './common';
-import { safetyAgentVersion, trustedShare } from './agents';
+import { safetyAgentVersion } from './agents';
+import { safetyLabour } from '../departments/workfit';
 import { publishFinding } from './findings';
 import { INV_FTE, INV_MAX_DAYS, closeInvestigation, investigationFte, openInvestigation, safetyReHeads } from './investigations';
 import { patchFte } from './responses';
@@ -64,11 +65,12 @@ const INVESTIGATE: ActionDef = {
     const versionId = inc?.versionId ?? str(p, 'versionId') ?? t?.versionId ?? '';
     const trait = isTrait(str(p, 'trait')) ? (str(p, 'trait') as TraitId) : inc && inc.apparent !== 'unexplained' && inc.apparent !== 'misuse' ? inc.apparent : t?.trait ?? 'SCHEME';
     const sab = believedSab(s);
-    const ai = trustedShare(s);
+    // Share of the case's work AI does (safety experiments, model v3 E2): what a sabotaging model can corrupt.
+    const ai = safetyLabour(s).exp.A;
     return {
       costs: [{ currency: 'staffTime', amount: fte, target: `safety research engineers for up to ${INV_MAX_DAYS} d (tool upkeep slows)` }, { currency: 'compute', amount: r2(5 * (num(p, 'computeShare') ?? 0.05)), target: '% of safety pool' }],
       gains: [{ currency: 'alignment', amount: investigationGain(s, versionId, trait, fte), target: `clarity / month on ${trait}` }],
-      exposure: ai > 0 ? [{ currency: 'alignment', amount: -r2(ai * sab), probability: r2(clamp01(ai * sab * 0.4)), target: 'corrupted conclusion (estimate)' }] : [],
+      exposure: ai > 0.005 ? [{ currency: 'alignment', amount: -r2(ai * sab), probability: r2(clamp01(ai * sab * 0.4)), target: 'corrupted conclusion (estimate)' }] : [],
     };
   },
   apply(s, ctx, p) {

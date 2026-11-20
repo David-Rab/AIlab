@@ -1,6 +1,8 @@
 // Safety research lines on the project mechanism (model v3 E1; design/notes/E1.md). Owner: WS2.
 // Reference inputs reproduce research/14's T₁ pacing; engineers, compute and AI labour speed the stages through the
 // capability projects' experiment CES; taste lowers the belief noise; result types still follow the hidden efficacy.
+// Model v3 E2 (§5b): AI labour from the SAF_EXP / SAF_IDEAS work types through the capabilities labour function, the
+// Trusted-to-AI share, parity with capability work, sabotage ∝ the work AI does (design/notes/E2.md).
 import { AGENDA_BY_ID, AGENDA_IDS, SAF_EXP_SHARE, SAF_RE_UNIT, SAF_STAGES, SERIOUS_CAP } from '../../src/data/v2/agendas';
 import { PROJECT_BY_ID, lineNodeId } from '../../src/data/v2/tree';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
@@ -9,10 +11,13 @@ import { deserialize, serialize } from '../../src/engine/v2/core/save';
 import { fireFinding } from '../../src/engine/v2/safety/findings';
 import { trueEfficacy } from '../../src/engine/v2/safety/common';
 import {
-  freshSaf, resetSafAllocation, lineCycleDays, lineEtaDays, lineLabourMult, linePoolH100e, lineRates, newSafCandidate, safAllocation, stepLineProject,
+  freshSaf, resetSafAllocation, lineCycleDays, lineEtaDays, lineLabour, lineLabourMult, linePoolH100e, lineRates, newSafCandidate, safAllocation, safSciOn, stepLineProject,
 } from '../../src/engine/v2/safety/lineProjects';
 import { safetyRe } from '../../src/engine/v2/safety/agendas';
-import type { AgendaId, FindingType, GameStateV2, Team } from '../../src/engine/v2/types';
+import { safetyAgentVersion, safetyFleet } from '../../src/engine/v2/safety/agents';
+import { WORK_TYPES } from '../../src/data/v2/workTypes';
+import { labourOf, resetWorkContext, safetyLabour, workContext } from '../../src/engine/v2/departments/workfit';
+import type { AgendaId, FindingType, GameStateV2, ModelVersion, Team } from '../../src/engine/v2/types';
 import { check, finish } from './lib';
 
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
@@ -43,6 +48,15 @@ function lab(ag: AgendaId, o: { seed?: number; cap?: number; re?: number; c?: nu
   p.split.safety = 0.05;
   for (let i = 0; i < 4; i++) p.split.safety *= want / Math.max(1e-9, linePoolH100e(s));
   return { s, id };
+}
+
+/** Give the safety model (the routine-research model the safety package follows) +dg OOM of effective compute in every
+ *  domain, so its SAF_* fit and horizon cover the work (E2 stubs). */
+function strong(s: GameStateV2, dg = 6) {
+  const v = safetyAgentVersion(s) as ModelVersion;
+  if (v.build) v.build.dg += dg;
+  resetSafAllocation(s);
+  return v;
 }
 
 /** Run a line project day by day (stages only) and return the days of its first `n` results. */
@@ -190,19 +204,158 @@ function results(s: GameStateV2, id: string, n: number, maxDays = 4000, onResult
 {
   const { s, id } = lab('AG08', { re: 0.5, cap: 0.5 });
   const r0 = lineRates(s, id, safAllocation(s, id));
-  // Stub: a safety model above the AI-labour gate, Trusted to AI 0.5 and a fleet.
-  const v = s.player.models.versions[0];
-  v.evals.measuredL = 9;
+  // Stub (E2): a safety model with high SAF coverage, Trusted to AI 0.5 and a fleet.
+  strong(s);
   s.player.policies.trustedToAI = 0.5;
   s.player.agents.safety.compute = 0.3;
-  for (let i = 0; i < 4; i++) s.player.split.safety *= (AGENDA_BY_ID.AG08.computeRef * 1e6) / Math.max(1e-9, linePoolH100e(s));
+  for (let i = 0; i < 4; i++) { resetSafAllocation(s); s.player.split.safety *= (AGENDA_BY_ID.AG08.computeRef * 1e6) / Math.max(1e-9, linePoolH100e(s)); }
+  resetSafAllocation(s);
   const m = lineLabourMult(s, 'AG08');
   const r1 = lineRates(s, id, safAllocation(s, id));
   // The same lab without AI but with m × the engineers and m × the science capacity.
-  const { s: h, id: hid } = lab('AG08', { re: 0.5 * m.exp, cap: 0.5 * m.ideas });
-  const rh = lineRates(h, hid, safAllocation(h, hid));
-  check(m.exp > 1 && r1.idea > r0.idea && r1.X > r0.X, 'E1 AI labour (stub: the safety fleet) speeds ideation and experiments', `m ${m.exp.toFixed(2)}: ideation ×${(r1.idea / r0.idea).toFixed(2)}, X ×${(r1.X / r0.X).toFixed(2)}`);
-  check(Math.abs(r1.l - rh.l) < 1e-9 && Math.abs(r1.idea / rh.idea - 1) < 1e-6, 'E1 AI labour is the same input as human labour (m × engineers in ℓ, m × capacity in ideation)', `ℓ ${r1.l.toFixed(4)} vs ${rh.l.toFixed(4)}`);
+  // (Engineers on a project follow its science staffing, so ℓ is compared at m_exp × both and ideation at m_ideas ×
+  // capacity: since E2 the two work types have their own multipliers.)
+  const { s: h, id: hid } = lab('AG08', { re: 0.5 * m.exp, cap: 0.5 * m.exp });
+  const { s: hi, id: hiid } = lab('AG08', { re: 0.5, cap: 0.5 * m.ideas });
+  const ri = lineRates(hi, hiid, safAllocation(hi, hiid));
+  const rh = { l: lineRates(h, hid, safAllocation(h, hid)).l, idea: ri.idea, q: ri.q };
+  check(m.exp > 1 && r1.idea > r0.idea && r1.X > r0.X, 'E1 AI labour (stub: a covering safety model) speeds ideation and experiments', `m ${m.exp.toFixed(2)}: ideation ×${(r1.idea / r0.idea).toFixed(2)}, X ×${(r1.X / r0.X).toFixed(2)}`);
+  // Ideation also gets the safety model's AI taste (E2), so compare it with the taste divided out.
+  check(Math.abs(r1.l - rh.l) < 1e-9 && Math.abs(r1.idea / r1.q / (rh.idea / rh.q) - 1) < 1e-6, 'E1 AI labour is the same input as human labour (m × engineers in ℓ, m × capacity in ideation)', `ℓ ${r1.l.toFixed(4)} vs ${rh.l.toFixed(4)}`);
+}
+
+// ───────────────────────────── 5b. E2: AI labour from the safety work types ─────────────────────────────
+/** A lab with the safety agents on: Trusted to AI t, the package at `pkg` of the safety pool, the line pool kept at the
+ *  agenda's reference compute. */
+function aiLab(ag: AgendaId, o: { t: number; pkg?: number; dg?: number; seed?: number; re?: number; cap?: number }) {
+  const { s, id } = lab(ag, { seed: o.seed, re: o.re ?? 0.5, cap: o.cap ?? 0.5 });
+  if (o.dg) strong(s, o.dg);
+  s.player.policies.trustedToAI = o.t;
+  s.player.agents.safety.compute = o.pkg ?? 0.3;
+  for (let i = 0; i < 4; i++) { resetSafAllocation(s); s.player.split.safety *= (AGENDA_BY_ID[ag].computeRef * 1e6) / Math.max(1e-9, linePoolH100e(s)); }
+  resetSafAllocation(s);
+  return { s, id };
+}
+{
+  // Start pacing: the default lab hands nothing to AI (no multiplier, no AI taste); with the start model handed half the
+  // work the lines barely move (its SAF coverage is a few per cent).
+  const { s, id } = lab('AG08');
+  const l0 = lineLabour(s, 'AG08');
+  const q0 = safSciOn(s, id).q;
+  const d0 = results(s, id, 1)[0];
+  const { s: a, id: aid } = aiLab('AG08', { t: 0.5, pkg: 0.2, re: 1, cap: 1 });
+  const la = lineLabour(a, 'AG08');
+  const sl = safetyLabour(a);
+  const da = results(a, aid, 1)[0];
+  check(l0.exp === 1 && l0.ideas === 1 && l0.aiShare === 0 && Math.abs(q0 - 1) < 1e-12, "E2 start: Trusted to AI 0 (the default) gives no AI labour and no AI taste, so E1's T₁ pacing is unchanged", `m ${l0.exp}/${l0.ideas}, taste ${q0.toFixed(4)}`);
+  check(la.exp < 1.1 && la.ideas < 1.01 && Math.abs(da / d0 - 1) < 0.04, 'E2 start: the start model handed half the work adds little (SAF coverage a few per cent)', `SAF_EXP a ${(sl.exp.fit.a * 100).toFixed(1)}%, SAF_IDEAS a ${(sl.ideas.fit.a * 100).toFixed(2)}%; m ${la.exp.toFixed(3)} / ${la.ideas.toFixed(4)}; first result ${d0} → ${da} d`);
+}
+{
+  // Coverage and copies drive it; no √M cap. A covering model (fit +6 OOM) fully trusted gets far more than v2's
+  // ceiling 1 + t·Auto·min(10, √M) = 11.
+  const { s } = aiLab('AG08', { t: 1, dg: 6 });
+  const hi = lineLabour(s, 'AG08');
+  const { s: s2 } = aiLab('AG08', { t: 1, dg: 6, pkg: 0.6 });
+  const hi2 = lineLabour(s2, 'AG08');
+  const { s: s3 } = aiLab('AG08', { t: 1, dg: 2 });
+  const mid = lineLabour(s3, 'AG08');
+  const a = safetyLabour(s).exp.fit.a;
+  check(hi.exp > 11 && hi2.exp > hi.exp * 1.5, "E2 AI labour on safety experiments grows with the package's copies and has no √M cap", `m_exp ${hi.exp.toFixed(1)} → ${hi2.exp.toFixed(1)} at ${safetyFleet(s).copies.toFixed(0)} → ${safetyFleet(s2).copies.toFixed(0)} copies (SAF_EXP a ${a.toFixed(3)})`);
+  check(mid.exp < hi.exp && mid.ideas < hi.ideas, 'E2 more SAF coverage (a stronger safety model) gives more AI labour', `fit +2 OOM: m ${mid.exp.toFixed(2)} / ${mid.ideas.toFixed(2)}; +6 OOM: ${hi.exp.toFixed(1)} / ${hi.ideas.toFixed(1)}`);
+  // Low coverage adds little even with lots of compute and full trust.
+  const { s: w } = aiLab('AG08', { t: 1, pkg: 0.6 });
+  const lo = lineLabour(w, 'AG08');
+  check(lo.exp < 1.25 && lo.ideas < 1.02 && lo.aiShare < 0.06, 'E2 a safety model with low SAF coverage adds little (start model, full trust, 60% of the safety pool)', `m ${lo.exp.toFixed(3)} / ${lo.ideas.toFixed(4)}, work AI does ${(lo.aiShare * 100).toFixed(1)}%`);
+  // The share handed is the player's lever: at t = 0.5 the humans keep half the work, so the CES caps the gain.
+  const { s: h } = aiLab('AG08', { t: 0.5, dg: 6 });
+  const half = lineLabour(h, 'AG08');
+  check(half.exp > 1.5 && half.exp < hi.exp && Math.abs(half.aiShare - 0.5 * hi.aiShare) < 1e-6, 'E2 Trusted to AI is the share handed: half of it halves the work AI does and caps the gain (humans keep the rest)', `t 0.5: m ${half.exp.toFixed(2)} (t 1: ${hi.exp.toFixed(1)}), work AI does ${(half.aiShare * 100).toFixed(0)}% vs ${(hi.aiShare * 100).toFixed(0)}%`);
+  // A line's automation factor (research/14 Auto) scales its share of covered work: agent foundations barely automates.
+  const ag12 = lineLabour(s, 'AG12');
+  check(ag12.exp < hi.exp && ag12.aiShare < hi.aiShare, "E2 a line's automation factor scales the covered share (AG12 Auto 0.2 vs AG08 1.0)", `AG12 m ${ag12.exp.toFixed(2)}, work AI does ${(ag12.aiShare * 100).toFixed(0)}% vs AG08 ${(hi.aiShare * 100).toFixed(0)}%`);
+  // Taste: the covering model's SAF_IDEAS taste lifts ideation's taste like capability IDEAS.
+  const { s: tq, id: tid } = aiLab('AG08', { t: 1, dg: 6 });
+  const { s: t0, id: t0id } = aiLab('AG08', { t: 0, dg: 6 });
+  const qa = safSciOn(tq, tid).q;
+  const qh = safSciOn(t0, t0id).q;
+  check(qa > 2 * qh && Math.abs(qh - 1) < 1e-12, "E2 AI taste from the safety model's SAF_IDEAS fit lifts the scientists' taste (cover φ = Trusted to AI)", `taste ${qh.toFixed(3)} → ${qa.toFixed(2)} (sd_AI ${safetyLabour(tq).sdAI.toFixed(1)})`);
+}
+{
+  // Trusted to AI 0 → no AI labour, even with a covering model and a fleet.
+  const { s, id } = aiLab('AG08', { t: 0, dg: 6 });
+  const l = lineLabour(s, 'AG08');
+  const r = lineRates(s, id, safAllocation(s, id));
+  const { s: b, id: bid } = aiLab('AG08', { t: 0 });
+  const rb = lineRates(b, bid, safAllocation(b, bid));
+  check(l.exp === 1 && l.ideas === 1 && l.aiShare === 0 && safetyLabour(s).exp.m === 1 && Math.abs(r.idea / rb.idea - 1) < 1e-9 && Math.abs(r.X / rb.X - 1) < 1e-9, 'E2 Trusted to AI 0: no AI labour on lines, cases or upkeep (a covering model and a fleet notwithstanding)', `m ${l.exp}/${l.ideas}, SAF_EXP m ${safetyLabour(s).exp.m}`);
+  // No fleet (no compute) → nothing is handed.
+  const { s: n } = aiLab('AG08', { t: 1, dg: 6, pkg: 0 });
+  check(safetyLabour(n).t === 0 && lineLabour(n, 'AG08').exp === 1, 'E2 no safety agents running (no compute): nothing is handed, whatever the policy');
+}
+{
+  // Parity: at equal fit and verifiability (safety work types set to the capability ones' domains, H and v) and equal
+  // humans and agent compute, safety work gets exactly the capability multiplier at Trusted to AI 1.
+  const keep = { e: { ...WORK_TYPES.SAF_EXP }, i: { ...WORK_TYPES.SAF_IDEAS } };
+  const rows: string[] = [];
+  let worst = 0;
+  for (const [saf, cap, dg] of [['SAF_EXP', 'EXP', 2], ['SAF_IDEAS', 'IDEAS', 2], ['SAF_EXP', 'EXP', 4], ['SAF_IDEAS', 'IDEAS', 4]] as const) {
+    const { s } = aiLab('AG08', { t: 1, dg });
+    s.player.features = [];
+    const def = WORK_TYPES[cap];
+    Object.assign(WORK_TYPES[saf], { w: def.w, H: def.H, v: def.v, horizon: def.horizon });
+    // All the package's compute on this work type: the other safety role has no people.
+    for (const t of s.player.teams) {
+      const onSaf = (t.role === 're' && t.dept === 'saf') || (t.role === 'sci' && t.projectId === lineNodeId('AG08'));
+      if (onSaf && (saf === 'SAF_EXP') !== (t.role === 're')) t.heads = 0;
+    }
+    resetSafAllocation(s);
+    resetWorkContext(s);
+    const sl = safetyLabour(s);
+    const x = saf === 'SAF_EXP' ? sl.exp : sl.ideas;
+    const c0 = workContext(s).slots[cap];
+    const c = labourOf(s, cap, { h: x.H / c0.H, k: x.h100e / c0.h100e });
+    worst = Math.max(worst, Math.abs(x.m / c.m - 1));
+    rows.push(`${saf} vs ${cap} (+${dg} OOM): a ${x.fit.a.toFixed(3)} / ${c.fit.a.toFixed(3)}, m ${x.m.toFixed(3)} / ${c.m.toFixed(3)}`);
+    Object.assign(WORK_TYPES.SAF_EXP, keep.e);
+    Object.assign(WORK_TYPES.SAF_IDEAS, keep.i);
+  }
+  console.log(`      ${rows.join('\n      ')}`);
+  check(worst < 1e-9, 'E2 parity: at equal fit and verifiability, equal people and agent compute, safety work gets the capability multiplier exactly (Trusted to AI 1)', `worst ${worst.toExponential(1)}`);
+  // With the real data safety automates later only through its work types: lower verifiability, longer ideas tasks.
+  const { s } = aiLab('AG08', { t: 1, dg: 2 });
+  resetWorkContext(s);
+  const sl = safetyLabour(s);
+  const wc = workContext(s);
+  check(sl.exp.fit.a < wc.slots.EXP.fit.a && sl.ideas.fit.a < wc.slots.IDEAS.fit.a, 'E2 with the V3 data safety work is covered later than capability work (lower verifiability v, 80 h ideas tasks)', `same model +2 OOM: SAF_EXP ${sl.exp.fit.a.toFixed(3)} vs EXP ${wc.slots.EXP.fit.a.toFixed(3)}; SAF_IDEAS ${sl.ideas.fit.a.toFixed(3)} vs IDEAS ${wc.slots.IDEAS.fit.a.toFixed(3)}`);
+}
+{
+  // Sabotage (F49): FALSE results ∝ the share of the line's work AI does × the safety model's hidden SAND + SCHEME.
+  const rate = (t: number, sand: number) => {
+    const { s } = aiLab('AG08', { t, dg: 6, seed: 6 });
+    const v = safetyAgentVersion(s) as ModelVersion;
+    v.uModes = [];
+    v.traitsTrue.SAND = sand;
+    v.traitsTrue.SCHEME = 0;
+    s.player.policies.publishSafety = 'none';
+    const share = lineLabour(s, 'AG08').aiShare;
+    const snap = JSON.stringify(s.player.safety);
+    const ctx = makeCtx(s);
+    let f = 0;
+    const N = 1200;
+    for (let i = 0; i < N; i++) {
+      if (fireFinding(s, ctx, 'AG08')?.trueType === 'FALSE') f++;
+      s.player.safety = JSON.parse(snap);
+    }
+    return { f: f / N, share };
+  };
+  const z = rate(0, 0.8);
+  const a = rate(0.5, 0.2);
+  const b = rate(0.5, 0.8);
+  const c = rate(1, 0.8);
+  check(z.f === 0 && a.f < b.f && b.f < c.f, "E2 sabotage: FALSE results rise with the safety model's hidden SAND and with the work AI does (none with nothing trusted)", `FALSE share: t 0 → ${(z.f * 100).toFixed(1)}%; t .5 SAND .2 → ${(a.f * 100).toFixed(1)}%; t .5 SAND .8 → ${(b.f * 100).toFixed(1)}%; t 1 SAND .8 → ${(c.f * 100).toFixed(1)}% (work AI does ${(b.share * 100).toFixed(0)}% / ${(c.share * 100).toFixed(0)}%)`);
+  // A weak (low-coverage) model sabotages little even fully trusted: it does little of the work.
+  const { s } = aiLab('AG08', { t: 1 });
+  check(lineLabour(s, 'AG08').aiShare < 0.06, 'E2 a low-coverage safety model does little of the work, so its sabotage weight is small', `${(lineLabour(s, 'AG08').aiShare * 100).toFixed(1)}%`);
 }
 
 // ───────────────────────────── 6. state ─────────────────────────────

@@ -2,7 +2,7 @@
 //
 // Home of every internal package and of Trusted to AI: Company › Agents at work (D4). Actions:
 //   agents.set      {use, versionId?, monitorId? ('' none | 'same' | id), compute?}  — next tick (D7), with preview
-//   agents.trusted  {share}                                                          — Trusted to AI (B3 gate)
+//   agents.trusted  {share}                                                          — Trusted to AI (0–100%)
 import {
   AGENT_USES, AGENT_USE_DEF, CAP_USES, MONITOR_SAME, SAFETY_AGENT_DEFAULT_SHARE, SAFETY_AGENT_MAX_SHARE, type CapUse,
 } from '../../../data/v2/agents';
@@ -11,12 +11,12 @@ import { measuredLOf, versionById } from '../models/labs';
 import { setInternalAgent } from '../models/deployments';
 import { bestResearchMix, evalProduction, inputsAtMix, labInputs, tcoPerH100eYear } from '../production/production';
 import { Phi } from '../production/knots';
-import { aiLabourGate, safetyAgentVersion, safetyFleet, trustedShare } from '../safety/agents';
+import { safetyAgentVersion, safetyFleet } from '../safety/agents';
 import { resultsPerYearAt } from '../safety/agendas';
 import type { ActionDef, AgentPackage, AgentUse, CostLine, GameStateV2, ModelVersion, ProductionReadout } from '../types';
 import {
   agentSplitShare, agentVersion, capShare, isCapUse, monitorBudget, monitorH100e, monitorStrength, monitorVersion, riskBadges,
-  trustedMax, type RiskBadge,
+  type RiskBadge,
 } from './agents';
 import { buildCapacity } from './teams';
 import { copiesOf, flopPerToken, workContext } from './workfit';
@@ -59,14 +59,10 @@ export function withAgentChange(s: GameStateV2, use: AgentUse, c: AgentChange): 
 }
 
 /** Why a change cannot apply (undefined = fine). */
-export function agentChangeBlock(s: GameStateV2, use: AgentUse, c: AgentChange): string | undefined {
+export function agentChangeBlock(s: GameStateV2, _use: AgentUse, c: AgentChange): string | undefined {
   if (c.versionId) {
     const v = versionById(s, c.versionId);
     if (!live(v)) return 'Pick a live model';
-    if (use === 'safety') {
-      const g = aiLabourGate(s, v);
-      if (g !== true) return `${v.name}: ${g}`;
-    }
   }
   if (c.monitorId && c.monitorId !== MONITOR_SAME && !live(versionById(s, c.monitorId))) return 'Pick a live monitor model';
   return undefined;
@@ -106,7 +102,8 @@ export interface AgentLane {
   share: number;
   copies: number;
   speed: number;
-  /** AI share of the role's work (engineers A_eng; research engineers 1 − wH; scientists Φ(sdAI); safety: Trusted to AI). */
+  /** AI share of the role's work (engineers A_eng; research engineers 1 − wH; scientists Φ(sdAI); safety: the share AI does,
+   *  Trusted to AI × SAF_* coverage, model v3 E2). */
   aiShare: number;
   /** $B/yr at the rental-equivalent price of an H100e: the agents and their monitor. */
   cost: number;
@@ -127,7 +124,8 @@ export interface AgentsView {
   totalCost: number;
   /** Monitors: need as a share of total compute, share of the safety pool and coverage. */
   monitors: { need: number; rel: number; poolShare: number; coverage: number };
-  trusted: { policy: number; effective: number; max: number; gate: true | string };
+  /** Trusted to AI: the policy, the share in effect (0 while no safety agents run) and the share of safety work AI does. */
+  trusted: { policy: number; effective: number; aiShare: number };
 }
 
 /** Views memoised per world and inputs (the panel's buttons each preview against the same "before"). */
@@ -156,7 +154,8 @@ function computeAgentsView(s: GameStateV2): AgentsView {
   const tco = tcoPerH100eYear(s, yr);
   const budget = monitorBudget(s);
   const speed = pr?.labor.speed ?? 0;
-  const tr = trustedShare(s);
+  const fleet = safetyFleet(s);
+  const tr = fleet.aiShare;
   const lanes = {} as Record<AgentUse, AgentLane>;
   let total = 0;
   let totalCost = 0;
@@ -181,9 +180,9 @@ function computeAgentsView(s: GameStateV2): AgentsView {
     totalCost += (compute + monH) * tco;
   }
   return {
-    lanes, M: pr?.M ?? 1, build: buildCapacity(s).capacity, sdAI: pr?.sdAI ?? 0, safetyAiFte: safetyFleet(s).aiFte, total, totalCost,
+    lanes, M: pr?.M ?? 1, build: buildCapacity(s).capacity, sdAI: pr?.sdAI ?? 0, safetyAiFte: fleet.aiFte, total, totalCost,
     monitors: budget,
-    trusted: { policy: s.player.policies.trustedToAI, effective: tr, max: trustedMax(s), gate: aiLabourGate(s) },
+    trusted: { policy: s.player.policies.trustedToAI, effective: fleet.compute > 0 && fleet.versionId ? s.player.policies.trustedToAI : 0, aiShare: tr },
   };
 }
 
@@ -194,11 +193,12 @@ export function previewAgentChange(s: GameStateV2, use: AgentUse, c: AgentChange
   return { before: agentsView(s), after: agentsView(hypo(s, withAgentChange(s, use, c))), use, block: agentChangeBlock(s, use, c), fromDay: s.time.day + 1 };
 }
 
-/** Before → after of a Trusted-to-AI change (safety results per year across staffed research lines). */
-export function previewTrusted(s: GameStateV2, share: number): { findingsBefore: number; findingsAfter: number } {
-  const t = Math.max(0, Math.min(trustedMax(s), share));
+/** Before → after of a Trusted-to-AI change (safety results per year across staffed research lines; the AI share of
+ *  safety work, which weighs false results). */
+export function previewTrusted(s: GameStateV2, share: number): { findingsBefore: number; findingsAfter: number; aiShareBefore: number; aiShareAfter: number } {
+  const t = Math.max(0, Math.min(1, share));
   const s2 = hypo(s, startAgents(s, t), t);
-  return { findingsBefore: resultsPerYearAt(s, s.player.policies.trustedToAI), findingsAfter: resultsPerYearAt(s2, t) };
+  return { findingsBefore: resultsPerYearAt(s), findingsAfter: resultsPerYearAt(s2), aiShareBefore: safetyFleet(s).aiShare, aiShareAfter: safetyFleet(s2).aiShare };
 }
 
 /** Packages after turning Trusted to AI on: safety agents get the default share of the safety pool if none run. */
@@ -262,9 +262,9 @@ const AGENTS_SET: ActionDef = {
 
 const AGENTS_TRUSTED: ActionDef = {
   id: 'agents.trusted', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Trusted to AI',
-  available: (s) => s.player.policies.trustedToAI > 0 || aiLabourGate(s),
+  available: () => true,
   preview(s, p) {
-    const share = Math.max(0, Math.min(trustedMax(s), num(p, 'share') ?? Math.min(trustedMax(s), s.player.policies.trustedToAI + 0.2)));
+    const share = Math.max(0, Math.min(1, num(p, 'share') ?? Math.min(1, s.player.policies.trustedToAI + 0.2)));
     const pv = previewTrusted(s, share);
     const v = safetyAgentVersion(s);
     const sab = v ? (v.beliefs.SAND?.est ?? 0) + (v.beliefs.SCHEME?.est ?? 0) : 0;
@@ -273,17 +273,14 @@ const AGENTS_TRUSTED: ActionDef = {
     return {
       costs: [{ currency: 'compute', amount: startsFleet ? SAFETY_AGENT_DEFAULT_SHARE * 100 : 0, target: startsFleet ? '% of the safety pool to start safety agents' : 'shares the safety agents' }],
       gains: dY !== 0 ? [{ currency: 'alignment', amount: dY, target: 'safety findings / yr' }] : [],
-      exposure: share > 0 ? [{ currency: 'alignment', amount: -r3(share * sab), probability: r3(Math.min(1, share * sab)), target: 'false findings if the model sabotages (estimate)' }] : [],
+      // False results weigh the AI share of the work the agents would do (findings.ts F49) × the believed sabotage.
+      exposure: pv.aiShareAfter > 0 ? [{ currency: 'alignment', amount: -r3(pv.aiShareAfter * sab), probability: r3(Math.min(1, pv.aiShareAfter * sab)), target: 'false findings if the model sabotages (estimate)' }] : [],
     };
   },
   apply(s, ctx, p) {
     const share = num(p, 'share');
     if (share === undefined) throw new Error('Trusted to AI: give a share');
-    const t = Math.max(0, Math.min(trustedMax(s), share));
-    if (t > 0) {
-      const g = aiLabourGate(s);
-      if (g !== true) throw new Error(g);
-    }
+    const t = Math.max(0, Math.min(1, share));
     if (t > 0 && s.player.agents.safety.compute <= 0) {
       s.player.agents = startAgents(s, t);
       ctx.log('company', `Safety agents started on ${Math.round(SAFETY_AGENT_DEFAULT_SHARE * 100)}% of safety compute.`, 1);

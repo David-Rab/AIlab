@@ -10,7 +10,7 @@
 import { AGENDAS, LINE_MULT_MAX, RE_SERIOUS, SERIOUS_CAP, UPKEEP_D, UPKEEP_DAYS, UPKEEP_MAX, UPKEEP_MIN, UPKEEP_REF } from '../../../data/v2/agendas';
 import { CAPACITY_UNIT, PROJECT_BY_ID, SPECIALTY_BONUS, isLineNode } from '../../../data/v2/tree';
 import { QUALITY } from '../../../data/v2/teams';
-import { fleetMultiplier, safetyFleet, trustedShare } from './agents';
+import { safetyLabour } from '../departments/workfit';
 import { monitorBudget } from '../departments/agents';
 import { EDGES } from '../../../data/v2/edges';
 import { internalVersion } from '../models/labs';
@@ -115,14 +115,11 @@ export function lineResultsPerYear(s: GameStateV2, ag: AgendaId): number {
   return y;
 }
 
-/** Results per year across all staffed lines, optionally at another Trusted-to-AI share (previews). */
-export function resultsPerYearAt(s: GameStateV2, trusted?: number): number {
-  const pol = s.player.policies;
-  const saved = pol.trustedToAI;
-  if (trusted !== undefined) pol.trustedToAI = trusted;
+/** Results per year across all staffed lines (previews pass a hypothetical state: the safety labour is memoised per
+ *  state object). */
+export function resultsPerYearAt(s: GameStateV2): number {
   let y = 0;
   for (const a of AGENDAS) y += lineResultsPerYear(s, a.id);
-  pol.trustedToAI = saved;
   return Math.round(y * 100) / 100;
 }
 
@@ -174,10 +171,10 @@ export function upkeepState(s: GameStateV2): { tools: TechniqueState[]; perTool:
   const latent = lambda2Delta(s) <= -2;
   const tools = Object.values(s.player.safety.techniques).filter((t) => needsUpkeep(s, t, M, latent));
   const perTool = tools.length ? re.upkeep / tools.length : re.upkeep;
-  // Trusted to AI speeds re-validation like any safety work (auto 1, the investigation cap).
-  const tr = trustedShare(s);
-  const ai = tr > 0 ? fleetMultiplier(safetyFleet(s), tr, 1, 1 + tr * 1.5) : 1;
-  const doublingsPerDay = re.upkeep > 0 ? (Math.min(UPKEEP_MAX, Math.max(0, perTool - UPKEEP_MIN) / UPKEEP_REF) * ai) / UPKEEP_DAYS : 0;
+  // Model v3 E2: AI labour re-validates tools as the same input as the engineers (effective heads = heads × m of safety
+  // experiments, SAF_EXP through the Trusted-to-AI share).
+  const eff = perTool * safetyLabour(s).exp.m;
+  const doublingsPerDay = re.upkeep > 0 ? Math.min(UPKEEP_MAX, Math.max(0, eff - UPKEEP_MIN) / UPKEEP_REF) / UPKEEP_DAYS : 0;
   return { tools, perTool, doublingsPerDay, heads: re.upkeep };
 }
 

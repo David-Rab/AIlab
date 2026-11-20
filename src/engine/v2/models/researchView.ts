@@ -14,7 +14,7 @@ import { poolsOf } from '../compute/power';
 import { buildCapacity } from '../departments/teams';
 import { buildEtas, engAlloc, engDemand, upkeepSplit } from '../departments/build';
 import {
-  costPerWorkHour, flopPerToken, h100eHoursPerWorkHour, pSuccess, researchMods, speedOfCopy, workContext, workFit, type LabourOf, type LabourSlot,
+  costPerWorkHour, flopPerToken, h100eHoursPerWorkHour, pSuccess, researchMods, safetyLabour, speedOfCopy, workContext, workFit, type LabourOf, type LabourSlot,
 } from '../departments/workfit';
 import { agentVersion } from '../departments/agents';
 import { MILESTONE_NAMES } from './capability';
@@ -335,27 +335,29 @@ export interface WorkTypeView {
   copies: number; speed: number; aiFte: number; h100e: number;
   /** Human team-equivalents, AI team-equivalents, effective labour (team-eq), its multiplier, the humans' share. */
   humans: number; ai: number; L: number; m: number; wH: number;
+  /** Share of the work handed to AI (1 on capabilities work; Trusted to AI on safety work) and the share AI does, t × a. */
+  t: number; A: number;
   /** AI cost per work-hour vs the lab's best engineers ($). */
   costAI: number; costHuman: number;
 }
 
-const SLOT_OF: Record<'SWE' | 'EXP' | 'IDEAS' | 'SAF_EXP', LabourSlot> = { SWE: 'SWE', EXP: 'EXP', IDEAS: 'IDEAS', SAF_EXP: 'SAF_EXP' };
-
-/** AI labour in each of the lab's work types today. */
+/** AI labour in each of the lab's work types today (the safety ones on the safety package through Trusted to AI,
+ *  model v3 E2). */
 export function workTypeViews(s: GameStateV2): WorkTypeView[] {
   const wc = workContext(s);
-  return (['SWE', 'EXP', 'IDEAS', 'SAF_EXP'] as const).map((wt) => {
-    const sl: LabourOf = wc.slots[SLOT_OF[wt]];
+  const saf = safetyLabour(s);
+  return (['SWE', 'EXP', 'IDEAS', 'SAF_EXP', 'SAF_IDEAS'] as const).map((wt) => {
+    const sl: LabourOf = wt === 'SAF_EXP' ? saf.exp : wt === 'SAF_IDEAS' ? saf.ideas : wc.slots[wt];
     const def = WORK_TYPES[wt];
     const v = sl.versionId ? versionById(s, sl.versionId) : undefined;
     const fpt = v ? flopPerToken(s, v) : 0;
     const cost = v ? costPerWorkHour(s, fpt) : { ai: Infinity, human: costPerWorkHour(s, 1).human };
     return {
-      wt, name: def.name, slot: SLOT_OF[wt], ...(v ? { version: v.name } : {}),
+      wt, name: def.name, slot: wt, ...(v ? { version: v.name } : {}),
       fit: sl.fit.fit, med: sl.fit.med, best: sl.fit.best, coverage: sl.fit.a,
       h50: sl.fit.h50, h80: sl.fit.h50 / 5, H: def.H, pAtH: v ? pSuccess(def.H, sl.fit.h50) : 0, win: sl.fit.win, assist: sl.fit.assist,
       copies: sl.copies, speed: sl.copies > 0 ? speedOfCopy() : 0, aiFte: sl.aiFte, h100e: sl.h100e,
-      humans: sl.H, ai: sl.AI, L: sl.L, m: sl.m, wH: sl.wH, costAI: cost.ai, costHuman: cost.human,
+      humans: sl.H, ai: sl.AI, L: sl.L, m: sl.m, wH: sl.wH, t: sl.t, A: sl.A, costAI: cost.ai, costHuman: cost.human,
     };
   });
 }

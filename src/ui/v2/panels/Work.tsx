@@ -196,7 +196,9 @@ const MS_TERM = ['milestone', 'reliableAgent', 'researchAgent', 'sc', 'sar', 'si
 function Milestones({ s }: { s: GameStateV2 }) {
   const ms = milestoneViews(s);
   const next = ms.find((m) => m.reachedDay === undefined);
-  const saf = workTypeViews(s).find((w) => w.wt === 'SAF_EXP');
+  const wv = workTypeViews(s);
+  const saf = wv.find((w) => w.wt === 'SAF_EXP');
+  const safI = wv.find((w) => w.wt === 'SAF_IDEAS');
   return (
     <Card className="wk-ms" home="milestoneCriteria" title={<span className="row-i"><ICON.milestone size={15} /><Term id="milestone">Milestones</Term></span>} sub={<span>what each needs, on your closest live model</span>}>
       <div className="wk-mls">
@@ -209,9 +211,12 @@ function Milestones({ s }: { s: GameStateV2 }) {
           </div>
         ))}
       </div>
-      {saf && <div className="small dim wk-saf">
-        <Tip content={() => <TipCard title="Safety experiments" rows={[{ label: <Term id="coverage">Coverage</Term>, value: F.pct(saf.coverage) }, { label: <Term id="aiFte">AI FTE</Term>, value: F.count(saf.aiFte) }]}>The safety research agents' work type: their AI labour feeds the safety agent fleet (Trusted to AI).</TipCard>}>
-          <span><Term id="workType">Safety experiments</Term>: used by the safety research agents · coverage {F.pct(saf.coverage)}</span>
+      {saf && safI && <div className="small dim wk-saf">
+        <Tip content={() => <TipCard title="Safety work" rows={[
+          { label: <>Safety experiments <Term id="coverage">coverage</Term></>, value: F.pct(saf.coverage) }, { label: 'Safety ideas coverage', value: F.pct(safI.coverage) },
+          { label: <Term id="aiFte">AI FTE</Term>, value: F.count(saf.aiFte + safI.aiFte) }, { label: <Term id="aiDoneShare">Work AI does</Term>, value: `${F.pct(saf.A)} experiments · ${F.pct(safI.A)} ideas` },
+        ]}>The safety research agents' work types, on the same labour function as capabilities work: Trusted to AI hands them a share of safety work and they do the part they cover. Lower verifiability and longer tasks put their coverage behind Experiments and Research ideas.</TipCard>}>
+          <span><Term id="workType">Safety work</Term>: used by the safety research agents · coverage {F.pct(saf.coverage)} experiments, {F.pct(safI.coverage)} ideas</span>
         </Tip>{' '}<Ref id="trustedToAI" to={{ panel: 'safety', tab: 'lines' }}>Safety</Ref>
       </div>}
     </Card>
@@ -219,7 +224,7 @@ function Milestones({ s }: { s: GameStateV2 }) {
 }
 
 export function Work({ s }: { s: GameStateV2 }) {
-  const ws = workTypeViews(s).filter((w) => w.wt !== 'SAF_EXP');
+  const ws = workTypeViews(s).filter((w) => w.wt !== 'SAF_EXP' && w.wt !== 'SAF_IDEAS');
   return (
     <div className="wk-wrap" data-test="work-tab">
       <div className="wk-roles">{ws.map((w) => <RoleCard key={w.wt} s={s} w={w} />)}</div>

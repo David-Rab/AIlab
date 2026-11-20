@@ -2,8 +2,10 @@
 //
 // Hidden → visible: agenda efficacy e is never shown; findings move a visible Beta posterior (Promising / Mixed /
 // Struggling). FALSE findings (F49) show as TECH until an AG02/AG08 NEG or an investigation with an independent tool
-// family exposes them ("we were wrong").
-import { safetyAgentVersion, trustedShare } from './agents';
+// family exposes them ("we were wrong"). Their weight is the AI share of the line's work × the safety model's hidden
+// sabotage (model v3 E2).
+import { safetyAgentVersion } from './agents';
+import { lineLabour } from './lineProjects';
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { EDGES } from '../../../data/v2/edges';
 import { FINDINGS, FINDING_BY_ID, type FindingDef } from '../../../data/v2/findings';
@@ -216,7 +218,10 @@ export function fireFinding(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId, no
     { item: 'NEG', weight: (decayedTechnique(s, agenda, M) || candidates(s, agenda, ['NEG']).length ? 0.3 : 0) + (falseT ? 0.3 : 0) },
     { item: 'DISC', weight: 0.15 * uRev.present.length + 0.05 * uRev.absent.length + 0.1 * discRows.length },
     { item: 'SPILL', weight: WB_AGENDAS.includes(agenda) ? 0.1 : 0 },
-    { item: 'FALSE', weight: trustedShare(s) * sabOf(safetyAgentVersion(s)) },
+    // F49 (model v3 E2): a sabotaging safety model returns false results in proportion to the share of the line's work
+    // it does on its own (A = Trusted to AI × its SAF_* coverage × the line's automation factor; 0 with nothing trusted
+    // to AI or no coverage) × its hidden SAND + SCHEME (+ U-modes).
+    { item: 'FALSE', weight: lineLabour(s, agenda).aiShare * sabOf(safetyAgentVersion(s)) },
   ];
   const type = rng.weighted(weights.filter((w) => w.weight > 0));
 

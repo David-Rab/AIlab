@@ -257,7 +257,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   check(monitorBudget(s).poolShare === 0 && fleetMonitor(s, iv) === 0, 'A6 no monitors: no safety compute reserved and no monitoring of the fleet');
   const t0 = s.player.policies.trustedToAI;
   const r = act(s, 'agents.trusted', { share: 0.9 });
-  check(!r && s.player.policies.trustedToAI <= 0.5 && s.player.policies.trustedToAI > t0 && s.player.agents.safety.compute > 0, 'A7 Trusted to AI: capped at 50% before P27; starts the safety agents', `${s.player.policies.trustedToAI} · ${s.player.agents.safety.compute}`);
+  check(!r && Math.abs(s.player.policies.trustedToAI - 0.9) < 1e-12 && s.player.policies.trustedToAI > t0 && s.player.agents.safety.compute > 0, 'A7 Trusted to AI: any share 0–100% (E2: no cap); starts the safety agents', `${s.player.policies.trustedToAI} · ${s.player.agents.safety.compute}`);
 }
 
 // ───────── C2: every feature acts where it is offered; feature upkeep ─────────

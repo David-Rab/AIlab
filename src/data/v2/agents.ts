@@ -42,9 +42,8 @@ export const MONITOR_SAME = 'same';
 export const MONITOR_STD_POOL_SHARE = 0.2;
 
 /** Trusted to AI (one policy for all safety work, replacing per-agenda automation): the share of safety research and
- *  investigation work handed to the safety agents. Capped until Automated alignment research (P27) [D: v3-safety-IA]. */
-export const TRUSTED_MAX = 0.5;
-export const TRUSTED_MAX_P27 = 1;
+ *  investigation work handed to the safety agents, 0–100% (model v3 E2 removed v2's 50% cap before P27: how much the
+ *  agents can do comes from their SAF_* coverage). */
 /** Share of the safety pool the safety agents get when Trusted to AI is turned on with none running [D]. */
 export const SAFETY_AGENT_DEFAULT_SHARE = 0.2;
 export const SAFETY_AGENT_MAX_SHARE = 0.6;

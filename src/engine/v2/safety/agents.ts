@@ -1,21 +1,19 @@
-// Safety agent fleet (V2-SPEC §3.5.2 addendum). Owner: WS2.
+// Safety agents (V2-SPEC §3.5.2 addendum; model v3 E2). Owner: WS2.
 //
-// AI labour on safety work runs on its own fleet, the safety-research agent package (R7, player.agents.safety):
+// AI labour on safety work runs on the safety-research agent package (R7, player.agents.safety):
 //   compute  = computeOnline × split.safety × agents.safety.compute   (a share of the safety pool)
-//   model    = agents.safety.versionId (default: the routine-research model). An older, trusted model is weaker but
-//              its sabotage odds are its own.
-//   AI FTE   = compute × effective safety-experiment FTE per H100e of that model (model v3 V3: physical FTE per H100e ×
-//              its SAF_EXP coverage, departments/workfit.ts; BRIDGE(V6) until safety work moves onto work types)
-// Trusted to AI (one policy, R7; it replaced per-agenda automation) is the share t of every research line's and open
-// investigation's work handed to the fleet. A piece of work with human FTE n and AI FTE a gets labour multiplier
-// min(cap, √(1 + Auto·a/n)), where cap = 1 + t·Auto·min(10, √M_model) is the pre-fleet multiplier (§3.5.3): compute
-// decides how close to the cap you get. Below the AI-labour gate (B3) t is 0.
-import { H100E_PER_COPY_SC } from '../../../data/v2/calibration';
-import { AGENDA_BY_ID, AUTOMATE_MIN_L } from '../../../data/v2/agendas';
-import { agentVersion, trustedMax } from '../departments/agents';
-import { safetyFtePerH100e } from '../departments/workfit';
+//   model    = agents.safety.versionId (default: the routine-research model). An older, trusted model is weaker (lower
+//              SAF_* coverage) but its sabotage odds are its own.
+// Model v3 E2: the package's labour comes from the SAF_EXP and SAF_IDEAS work types through the capabilities labour
+// function (departments/workfit.ts safetyLabour: coverage from fit and horizon, FTE and copies from compute and FLOP per
+// token, the coding CES). Trusted to AI (one policy, R7) is the share t of safety work handed to the agents; the
+// agents do the part of it they cover. v2's special cases are gone: no level gate (AUTOMATE_MIN_L; coverage gates it),
+// no √M or min(10, √M) cap, no 50% cap on the policy.
 import type { GameStateV2, ModelVersion } from '../types';
-import { lineOfTeam } from './agendas';
+import { SAF_STAGES } from '../../../data/v2/agendas';
+import { WORK_TYPES } from '../../../data/v2/workTypes';
+import { agentVersion } from '../departments/agents';
+import { safetyLabour } from '../departments/workfit';
 
 /** Version running the safety agents (falls back to the routine-research model when unset or retired). */
 export function safetyAgentVersion(s: GameStateV2): ModelVersion | undefined {
@@ -27,59 +25,38 @@ export function safetyAgentL(s: GameStateV2, v: ModelVersion | undefined = safet
   return v?.evals.measuredL ?? 0;
 }
 
-/** The one gate on safety AI labour (B3): agendas, investigations and the safety agent fleet all need a model at
- *  measured level ≥ AUTOMATE_MIN_L. Returns true or the reason. */
-export function aiLabourGate(s: GameStateV2, v: ModelVersion | undefined = safetyAgentVersion(s)): true | string {
-  return safetyAgentL(s, v) >= AUTOMATE_MIN_L || `Needs a safety agent model at measured level ≥ ${AUTOMATE_MIN_L}`;
-}
-
 /** H100e on safety agents. */
 export const safetyAgentCompute = (s: GameStateV2) => s.player.computeOnline * s.player.split.safety * s.player.agents.safety.compute;
 
-/** Trusted to AI in effect: the policy share (capped, see trustedMax) when the safety model passes the AI-labour gate;
- *  otherwise 0. */
-export function trustedShare(s: GameStateV2): number {
-  const t = Math.min(s.player.policies.trustedToAI ?? 0, trustedMax(s));
-  return t > 0 && aiLabourGate(s) === true ? t : 0;
+/** Trusted to AI in effect: the policy share while the safety agents run (a model and compute), else 0. */
+export const trustedShare = (s: GameStateV2): number => safetyLabour(s).t;
+
+/** Share of safety research work AI does on its own (A = Trusted to AI × coverage, per work type), ideas and experiments
+ *  weighted by their stage shares of a line project: the weight of a FALSE result (findings.ts). Not the AI part of the
+ *  labour margin (1 − w_H), which falls towards 0 when AI labour is abundant although AI does the covered work. */
+export function aiShareOf(ideasA: number, expA: number): number {
+  return SAF_STAGES.idea * ideasA + (1 - SAF_STAGES.idea) * expA;
 }
 
 export interface SafetyFleet {
   versionId?: string;
   compute: number;
   copies: number;
-  /** AI researcher-equivalents the fleet supplies. */
+  /** AI researcher-equivalents the package supplies (both safety work types). */
   aiFte: number;
-  /** Human FTE on automated work, weighted by the Trusted-to-AI share (what the fleet is spread over). */
-  weight: number;
-  /** AI FTE per weighted human FTE. */
+  /** AI FTE per human FTE on safety work (scientists on lines and safety research engineers). */
   perFte: number;
+  /** Share of safety work AI does on its own (stage-weighted A). */
+  aiShare: number;
 }
 
-/** Size of the safety fleet and how thinly it is spread. */
+/** Size of the safety agent fleet and the share of safety work it does (readouts). */
 export function safetyFleet(s: GameStateV2): SafetyFleet {
-  const v = safetyAgentVersion(s);
-  const compute = safetyAgentCompute(s);
-  // Below the AI-labour gate the fleet supplies no labour (its compute still shows as reserved).
-  const aiFte = v && aiLabourGate(s, v) === true ? compute * safetyFtePerH100e(s, v) : 0;
-  const copies = v ? compute / (H100E_PER_COPY_SC * (v.serveCost / 0.5)) : 0;
-  const dept = s.player.safety;
-  const t = trustedShare(s);
-  let weight = 0;
-  if (t > 0) {
-    // R8: the people on each research line's projects (science heads) and on each open case (research engineers).
-    for (const tm of s.player.teams) {
-      const ag = tm.role === 'sci' ? lineOfTeam(tm) : undefined;
-      if (ag) weight += t * tm.heads * AGENDA_BY_ID[ag].auto;
-    }
-    for (const inv of dept.investigations) if (!inv.outcome) weight += t * inv.fte;
-  }
-  return { versionId: v?.id, compute, copies, aiFte, weight, perFte: weight > 0 ? aiFte / weight : 0 };
-}
-
-/** Labour multiplier of a piece of automated work: min(cap, √(1 + auto·a/n)) with a = its fleet share. */
-export function fleetMultiplier(f: SafetyFleet, aiLabour: number, auto: number, cap: number): number {
-  if (aiLabour <= 0 || cap <= 1) return 1;
-  // a/n = aiLabour·auto·perFte (the fleet is spread in proportion to aiLabour × FTE × auto).
-  const aPerN = aiLabour * auto * f.perFte;
-  return Math.min(cap, Math.sqrt(1 + auto * aPerN));
+  const sl = safetyLabour(s);
+  const aiFte = sl.exp.aiFte + sl.ideas.aiFte;
+  const heads = sl.exp.H * WORK_TYPES.SAF_EXP.heads + sl.ideas.H * WORK_TYPES.SAF_IDEAS.heads;
+  return {
+    versionId: sl.versionId, compute: sl.h100e, copies: sl.exp.copies + sl.ideas.copies, aiFte,
+    perFte: heads > 0 ? aiFte / heads : 0, aiShare: aiShareOf(sl.ideas.A, sl.exp.A),
+  };
 }

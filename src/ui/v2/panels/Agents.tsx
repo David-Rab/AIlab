@@ -6,10 +6,10 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { Crown, Gamepad2, Ghost, Pencil, ThumbsUp, X, type LucideIcon } from 'lucide-react';
 import { AGENT_USES, AGENT_USE_DEF, MONITOR_SAME, RISK_FAMILIES } from '../../../data/v2/agents';
 import {
-  aiLabourGate, agentChangeBlock, agentsView, dateOf, fmtDate, previewAgentChange, previewTrusted, versionById,
+  agentChangeBlock, agentsView, dateOf, fmtDate, previewAgentChange, previewTrusted, versionById,
 } from '../../../engine/v2';
 import type { AgentChange, AgentLane, AgentUse, AgentsView, GameStateV2, RiskBadge } from '../../../engine/v2';
-import { ActBtn, Limit, Term, Tip, TipCard, type Params } from '../ui';
+import { ActBtn, Term, Tip, TipCard, type Params } from '../ui';
 import { Card, HBar, Ref } from '../kit';
 import * as F from '../fmt';
 import { ICON } from '../icons';
@@ -109,29 +109,25 @@ function EditPop({ s, use, c, close }: { s: GameStateV2; use: AgentUse; c: Agent
 /** Trusted to AI (home, D4): the share of safety work done by the safety agents; B3 gate; cap until P27. */
 function Trusted({ s, v }: { s: GameStateV2; v: AgentsView }) {
   const t = v.trusted;
-  const at = (x: number) => Math.max(0, Math.min(t.max, Math.round(x * 100) / 100));
+  const at = (x: number) => Math.max(0, Math.min(1, Math.round(x * 100) / 100));
   const tip = () => {
     const pv = previewTrusted(s, at(t.policy + 0.1));
     return (
       <TipCard title={<Term id="trustedToAI">Trusted to AI</Term>} value={F.pct(t.policy)} rows={[
-        { label: 'In effect', value: t.gate === true ? F.pct(t.effective) : 'off (below the gate)' },
-        ...(t.gate !== true ? [{ label: 'Unlocks when', value: String(t.gate) }] : []),
-        { label: 'Cap', value: `${F.pct(t.max)}${t.max < 1 ? ' until Automated alignment research' : ''}` },
+        { label: 'In effect', value: t.effective > 0 || t.policy <= 0 ? F.pct(t.effective) : 'off (no safety agents running)' },
+        { label: <Term id="aiDoneShare">Safety work AI does</Term>, value: `${F.pct(t.aiShare)} · ${F.pct(pv.aiShareAfter)} at +10%` },
         { label: 'Safety findings / yr', value: `${pv.findingsBefore.toFixed(1)} now · ${pv.findingsAfter.toFixed(1)} at +10%` },
         { label: <Term id="aiFte">AI FTE</Term>, value: F.count(v.safetyAiFte) },
-      ]} footer="A sabotaging model can return false findings and corrupt investigations.">Share of every funded agenda's and open investigation's work done by the safety agents. One policy for all safety work.</TipCard>
+      ]} footer="A sabotaging model returns false findings and corrupts investigations in proportion to the work it does.">Share of every research line's and open investigation's work handed to the safety agents. They do the part their model covers (Safety experiments and Safety ideas coverage on Company › Work). One policy for all safety work.</TipCard>
     );
   };
   return (
     <div className="ag-trust" data-home="trustedToAI">
-      <Tip content={tip}><span className="row-i"><Term id="trustedToAI">Trusted to AI</Term> <b className="num" data-test="trusted-share">{F.pct(t.policy)}</b>{t.gate !== true && <span className="tag2 warn" data-test="trusted-gate">locked</span>}</span></Tip>
-      {/* Jank AG3: name what unlocks the gate where it binds. */}
-      {t.gate !== true && (() => { const m = /≥\s*([\d.]+)/.exec(String(t.gate)); return m ? <span className="small dim nowrap" data-test="trusted-why">needs L ≥ {m[1]}</span> : null; })()}
+      <Tip content={tip}><span className="row-i"><Term id="trustedToAI">Trusted to AI</Term> <b className="num" data-test="trusted-share">{F.pct(t.policy)}</b></span></Tip>
       <span className="stepper">
         <ActBtn id="agents.trusted" testId="agents.trusted.down" params={{ share: at(t.policy - 0.1) }} icon={ICON.minus} label="" block={t.policy <= 0 ? 'Already 0%' : undefined} />
-        <ActBtn id="agents.trusted" testId="agents.trusted.up" params={{ share: at(t.policy + 0.1) }} icon={ICON.plus} label="" block={t.policy >= t.max - 1e-9 ? `Capped at ${F.pct(t.max)}` : t.gate !== true ? t.gate : undefined} />
+        <ActBtn id="agents.trusted" testId="agents.trusted.up" params={{ share: at(t.policy + 0.1) }} icon={ICON.plus} label="" block={t.policy >= 1 - 1e-9 ? 'Already 100%' : undefined} />
       </span>
-      <Limit id="trusted.cap" tone={t.policy >= t.max - 1e-9 ? 'warn' : 'quiet'}>max {F.pct(t.max)}</Limit>
     </div>
   );
 }
@@ -143,10 +139,9 @@ function Lane({ s, v, use, draft, setDraft }: { s: GameStateV2; v: AgentsView; u
   const pkg = s.player.agents[use];
   const isRoutine = use === 'capRoutine';
   const routine = v.lanes.capRoutine.version;
-  const lock = use === 'safety' ? (x: Parameters<typeof aiLabourGate>[1]) => { const g = aiLabourGate(s, x); return g === true ? undefined : g; } : undefined;
   const models = [
     ...(isRoutine ? [] : [{ value: '', label: `as routine · ${routine?.name ?? '—'}` }]),
-    ...modelOptions(s, (x) => x.variant !== 'open', lock),
+    ...modelOptions(s, (x) => x.variant !== 'open'),
   ];
   const monitors = [{ value: '', label: 'none' }, { value: MONITOR_SAME, label: `copy of ${l.version?.name ?? 'the model'}` }, ...modelOptions(s, (x) => x.variant !== 'open')];
   const modelVal = draft?.versionId !== undefined ? draft.versionId ?? '' : isRoutine ? pkg.versionId ?? '' : pkg.versionId && versionById(s, pkg.versionId) ? pkg.versionId : '';

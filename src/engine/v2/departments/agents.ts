@@ -14,7 +14,7 @@
 // the reference shares) gives exactly the pre-R7 production function, runtime monitoring and internal incidents.
 import { flopPerToken } from './workfit';
 import {
-  AGENT_USES, CAP_USES, DEFAULT_CAP_SHARES, ENG_REF_SHARE, MONITOR_SAME, MONITOR_STD_POOL_SHARE, RISK_FAMILIES, RISK_UNSEEN_CLARITY, RISK_WATCH_EST, TRUSTED_MAX, TRUSTED_MAX_P27,
+  AGENT_USES, CAP_USES, DEFAULT_CAP_SHARES, ENG_REF_SHARE, MONITOR_SAME, MONITOR_STD_POOL_SHARE, RISK_FAMILIES, RISK_UNSEEN_CLARITY, RISK_WATCH_EST,
   type CapUse,
 } from '../../../data/v2/agents';
 import { MONITOR_CATCH_BASE, MONITOR_OVERHEAD } from '../../../data/v2/features';
@@ -187,11 +187,6 @@ export function usesOf(s: GameStateV2, versionId: string): { model: AgentUse[]; 
   const monitor = AGENT_USES.filter((u) => monitorVersion(s, u)?.id === versionId && agentSplitShare(s, u) > 0);
   return { model, monitor };
 }
-
-// ───────────────────────────── Trusted to AI ─────────────────────────────
-
-/** Cap on the Trusted-to-AI share: 50% until Automated alignment research (P27) is adopted. */
-export const trustedMax = (s: GameStateV2) => (s.player.paradigms.P27?.status === 'adopted' ? TRUSTED_MAX_P27 : TRUSTED_MAX);
 
 // ───────────────────────────── risk badges ─────────────────────────────
 

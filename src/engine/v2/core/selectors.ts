@@ -46,9 +46,10 @@ export type { FindingRow, LineRow, SafetyUtilisation, TechniqueRow } from '../sa
 export { lineMult, lineResultsPerYear, posteriorBand, promisingIdle, safetyRe } from '../safety/agendas';
 export { familySeenTo } from '../safety/understanding';
 export { INV_FTE, INV_MAX_DAYS } from '../safety/investigations';
-export { aiLabourGate, safetyAgentVersion, safetyFleet, trustedShare } from '../safety/agents';
+export { safetyAgentVersion, safetyFleet, trustedShare } from '../safety/agents';
+export { lineLabour } from '../safety/lineProjects';
 // R7 internal agent packages (Company › Agents at work).
-export { agentVersion, monitorBudget, monitoredUses, monitorVersion, riskBadges, trustedMax, usesOf } from '../departments/agents';
+export { agentVersion, monitorBudget, monitoredUses, monitorVersion, riskBadges, usesOf } from '../departments/agents';
 export type { RiskBadge } from '../departments/agents';
 export { agentChangeBlock, agentsView, previewAgentChange, previewTrusted, withAgentChange } from '../departments/agentActions';
 export type { AgentChange, AgentLane, AgentPreview, AgentsView } from '../departments/agentActions';
