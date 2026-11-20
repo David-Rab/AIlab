@@ -1,0 +1,18 @@
+/* Training pressure rows (E12): Blueprint planned run and model card. */
+.pr-rows { display: flex; flex-direction: column; }
+.pr-row { display: grid; grid-template-columns: 168px minmax(0, 1fr) 34px 56px; grid-template-areas: "n b v p" "c c c c"; column-gap: 8px; row-gap: 1px; align-items: center; padding: 4px 0; border-bottom: 1px solid rgba(36,48,65,.5); }
+.pr-name { grid-area: n; display: inline-flex; gap: 6px; align-items: center; font-size: 12px; white-space: nowrap; }
+.pr-name > svg { color: var(--text-2); flex: none; }
+.pr-bar { grid-area: b; position: relative; height: 6px; border-radius: 3px; background: var(--panel-2); overflow: hidden; }
+.pr-bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; }
+.pr-v { grid-area: v; text-align: right; font-size: 12px; }
+.pr-push { grid-area: p; display: inline-flex; gap: 4px; justify-content: flex-end; color: var(--text-2); }
+.pr-cause { grid-area: c; padding-left: 18px; min-width: 0; }
+.pr-cause.ellip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr-foot { display: flex; gap: 8px; align-items: center; padding-top: 4px; min-height: 22px; }
+.pr-omega { font-size: 12px; color: var(--text-2); white-space: nowrap; }
+.pr-omega b { color: #fff; }
+.mc-press { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
+.mc-press-hd { gap: 10px; min-width: 0; }
+
+.mc-press-body { max-width: 760px; margin-top: 6px; display: flex; flex-direction: column; gap: 6px; }

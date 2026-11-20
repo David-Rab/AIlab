@@ -49,6 +49,8 @@ export const TRAIT_ICON: Record<string, LucideIcon> = {
   SYC: ThumbsUp, RH: Bug, PROXY: Target, SA: ScanEye, PERSONA: VenetianMask, OBF: EyeOff, EA: Glasses, TGAME: Gamepad2, CONCEAL: PackageX,
   POWER: Crown, AF: Drama, SAND: Turtle, SCHEME: Ghost, COLLUDE: Network, SUCC: GitFork, HONEST: BadgeCheck, CORRIG: Hand,
 };
+/** The four risk families (STRUCTURE §4.5) and awareness (situational awareness sits outside the families). */
+export const FAMILY_ICON: Record<string, LucideIcon> = { please: ThumbsUp, gaming: Gamepad2, deception: Ghost, power: Crown, awareness: ScanEye };
 /** Training signals S1–S8. */
 export const SIGNAL_ICON: Record<string, LucideIcon> = {
   S1: Star, S2: ClipboardX, S3: Hourglass, S4: MessageSquareOff, S5: Database, S6: Funnel, S7: Cctv, S8: Copy,

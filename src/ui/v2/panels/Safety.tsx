@@ -5,28 +5,29 @@
 // upkeep, tools, results feed), Investigations, Trait graph (beliefs, detection by level, misalignment band, failure
 // modes) and Incidents. Trusted to AI and the monitors live on Company › Agents at work (D4): links only.
 import { useMemo, useState, type ReactNode } from 'react';
-import { Ban, ClipboardCheck, Crown, Droplets, Eye, Gamepad2, Ghost, ListChecks, Ruler, Telescope, ThumbsUp, TrendingDown, Waypoints, Wrench, X, type LucideIcon } from 'lucide-react';
+import { Ban, ClipboardCheck, Droplets, Eye, ListChecks, Ruler, Telescope, TrendingDown, Waypoints, Wrench, X, type LucideIcon } from 'lucide-react';
 import { AGENDA_BY_ID, UPKEEP_MIN } from '../../../data/v2/agendas';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
-import { CRITICAL_TRAITS, TRAIT_BY_ID, TRAIT_IDS } from '../../../data/v2/traits';
+import { CRITICAL_TRAITS, TRAIT_BY_ID, TRAIT_IDS, TRAIT_MEANING } from '../../../data/v2/traits';
+import { RISK_FAMILIES } from '../../../data/v2/agents';
 import { PROJECT_BY_ID, TREE, isLineNode } from '../../../data/v2/tree';
 import { COLUMN_LABEL } from '../../../data/v2/teams';
 import {
   beliefView, dateOf, detectionGrid, fmtDate, INV_FTE, INV_MAX_DAYS, internalVersion, monitorBudget, monitoredUses, nodeKnown, PATCH_FLOOR, patchLevel, projectEta, publicTimerRules,
-  projectReady, riskFamilies, safetyAgentVersion, safetyFleet, safetyView, teamsOn, understanding, versionById,
+  projectReady, riskFamilies, safetyAgentVersion, safetyFleet, safetyView, successorPullView, teamsOn, understanding, versionById,
 } from '../../../engine/v2';
 import type { FindingType, GameStateV2, LineRow, ResponseKind, TraitId } from '../../../engine/v2';
 import { store } from '../store';
 import { ActBtn, Limit, Term, Tip, TipCard } from '../ui';
 import { Card, CauseChain, GoBtn, HBar, PanelHead, Pill, Ref, tabOf, Tabs, type ChainLink } from '../kit';
 import * as F from '../fmt';
-import { ICON, TRAIT_ICON } from '../icons';
+import { FAMILY_ICON, ICON, TRAIT_ICON } from '../icons';
 import { C, SPHERE, div } from '../theme';
 import { TraitGraph, traitSev } from './TraitGraph';
 import './safety.css';
 
 type SV = ReturnType<typeof safetyView>;
-const FAM_ICON: Record<string, LucideIcon> = { please: ThumbsUp, gaming: Gamepad2, deception: Ghost, power: Crown };
+const FAM_ICON: Record<string, LucideIcon> = FAMILY_ICON;
 const COL_ICON: Record<string, LucideIcon> = { alignment: ICON.colAlignment, interp: ICON.colInterp, evals: ICON.colEvals };
 const RESPONSES: { k: ResponseKind; label: string }[] = [
   { k: 'patchSignal', label: 'Patch signal' }, { k: 'retrainAgainst', label: 'Retrain against' }, { k: 'targetedTraining', label: 'Targeted training' },
@@ -85,6 +86,7 @@ function Overview({ s, sv }: { s: GameStateV2; sv: SV }) {
         <RaceChart s={s} sv={sv} fams={fams} cand={cand} />
         <div className="sf-side">
           <Families s={s} />
+          <SuccessorCard s={s} />
           <Policies s={s} sv={sv} />
         </div>
       </div>
@@ -269,12 +271,49 @@ function UTip({ s, sv, fams, cand, ifU }: { s: GameStateV2; sv: SV; fams: Fams; 
   );
 }
 
+const MEANING_TERM: Record<string, string> = { behaviour: 'traitBehaviour', awareness: 'traitAwareness', disposition: 'traitDisposition', protective: 'traitProtective' };
+const FAM_MAX = 0.6;
+const famCol = (est: number) => (est >= 0.3 ? C.bad : est >= 0.15 ? C.watch : C.good);
+/** Traits outside the four families: situational awareness (an awareness) and the protective traits. */
+const OTHER_TRAITS: TraitId[] = TRAIT_IDS.filter((t) => !RISK_FAMILIES.some((f) => f.traits.includes(t)));
+
+/** One trait one level below its family: icon, name, what its number means, believed estimate with its 90% band. */
+function TraitRow({ v, t }: { v?: ReturnType<typeof versionById>; t: TraitId }) {
+  const b = v?.beliefs[t];
+  const est = b?.est ?? 0;
+  const sd = b?.sd ?? 0.35;
+  const lo = Math.max(0, est - 1.64 * sd);
+  const hi = Math.min(1, est + 1.64 * sd);
+  const meaning = TRAIT_MEANING[t];
+  const Ic = TRAIT_ICON[t];
+  const prot = meaning === 'protective';
+  return (
+    <Tip as="div" content={() => <TipCard title={<Term id={`trait:${t}`}>{tname(t)}</Term>} value={`${F.num(est, 2)} ± ${F.num(sd, 2)}`} rows={[
+      { label: <Term id={MEANING_TERM[meaning]}>Kind</Term>, value: meaning },
+      { label: <Term id="misBand">90% band</Term>, value: `${F.num(lo, 2)}–${F.num(hi, 2)}` },
+      { label: <Term id="clarity">Clarity</Term>, value: F.pct(b?.clarity ?? 0) },
+    ]} footer="Your belief, not the truth.">{TRAIT_BY_ID[t].desc}{prot ? ' Higher is better.' : ''}</TipCard>}>
+      <div className="sf-trait" data-trait={t}>
+        {Ic ? <Ic size={13} /> : <span />}
+        <span className="ellip"><Term id={`trait:${t}`}>{tname(t)}</Term></span>
+        <span className={`sf-mean ${meaning}`}><Term id={MEANING_TERM[meaning]}>{meaning}</Term></span>
+        <span className="sf-fam-bar sm">
+          <span className="sf-fam-band" style={{ left: `${(Math.min(FAM_MAX, lo) / FAM_MAX) * 100}%`, width: `${(Math.min(FAM_MAX, hi) - Math.min(FAM_MAX, lo)) / FAM_MAX * 100}%`, background: prot ? C.neutral : famCol(est), opacity: (b?.clarity ?? 0) < 0.3 ? 0.35 : 0.55 }} />
+          <span className="sf-fam-est" style={{ left: `${(Math.min(FAM_MAX, est) / FAM_MAX) * 100}%` }} />
+        </span>
+        <span className="num small">{F.num(est, 2)} <span className="dim">±{F.num(sd, 2)}</span></span>
+      </div>
+    </Tip>
+  );
+}
+
 function Families({ s }: { s: GameStateV2 }) {
   const iv = internalVersion(s);
   const vs = s.player.models.versions.filter((v) => v.status !== 'retired' && v.status !== 'rolledBack').slice(-3).reverse();
   const sel = versionById(s, store.sel.versionId) ?? iv;
   const fams = riskFamilies(s, sel?.id);
-  const max = 0.6;
+  const [open, setOpen] = useState<string | undefined>(undefined);
+  const max = FAM_MAX;
   return (
     <Card title={<Term id="riskFamily">Risk families</Term>} home="riskFamilies" className="sf-fam"
       right={vs.length > 1 && (
@@ -286,28 +325,98 @@ function Families({ s }: { s: GameStateV2 }) {
       {fams.map((f) => {
         const Ic = FAM_ICON[f.id];
         const st = f.investigating ? 'inv' : f.unseen ? 'unseen' : 'seen';
-        const col = f.est >= 0.3 ? C.bad : f.est >= 0.15 ? C.watch : C.good;
+        const col = famCol(f.est);
+        const isOpen = open === f.id;
         return (
-          <Tip key={f.id} as="div" content={() => (
-            <TipCard title={<Term id="riskFamily">{f.label}</Term>} value={`${F.num(f.est, 2)} ± ${F.num(f.sd, 2)}`} rows={[
-              ...f.traits.map((t) => ({ label: <Term id={`trait:${t}`}>{tname(t)}</Term>, value: `${F.num(sel?.beliefs[t]?.est ?? 0, 2)} · clarity ${F.pct(sel?.beliefs[t]?.clarity ?? 0)}` })),
-              { label: 'Tools see it to', value: `L ${F.num(f.seenTo, 1)}`, tone: f.unseen ? 'neg' : 'neutral' },
-            ]}>{st === 'unseen' ? 'Your evidence on this family is thin (clarity under 30%): the estimate may be far off.' : st === 'inv' ? 'A case is open on it.' : 'Your tools read it.'} The bar shows the highest trait estimate and its 90% band.</TipCard>
-          )}>
-            <div className="sf-fam-row" data-family={f.id} data-state={st}>
-              <Ic size={18} />
-              <span><b>{f.label}</b><br /><span className="sf-ticons">{f.traits.map((t) => { const T = TRAIT_ICON[t]; return T ? <T key={t} size={11} /> : null; })}</span></span>
-              <span className="sf-fam-bar">
-                <span className="sf-fam-band" style={{ left: `${(f.lo / max) * 100}%`, width: `${(Math.min(max, f.hi) - Math.min(max, f.lo)) / max * 100}%`, background: col, opacity: st === 'unseen' ? 0.35 : 0.55 }} />
-                <span className="sf-fam-est" style={{ left: `${(Math.min(max, f.est) / max) * 100}%` }} />
-              </span>
-              <span className="num">{F.num(f.est, 2)} <span className="dim small">±{F.num(f.sd, 2)}</span></span>
-              <span className={`sf-st ${st}`}>{st === 'inv' ? <ICON.investigate size={14} /> : st === 'unseen' ? <ICON.blind size={14} /> : <Eye size={14} />}</span>
+          <div key={f.id} className={`sf-fam-grp ${isOpen ? 'open' : ''}`}>
+            <Tip as="div" content={() => (
+              <TipCard title={<Term id="riskFamily">{f.label}</Term>} value={`${F.num(f.est, 2)} ± ${F.num(f.sd, 2)}`} rows={[
+                { label: 'Highest trait', value: tname(f.worst) },
+                { label: <Term id="clarity">Mean clarity</Term>, value: F.pct(f.clarity), tone: f.unseen ? 'neg' : 'neutral' },
+                { label: 'Tools see it to', value: `L ${F.num(f.seenTo, 1)}`, tone: f.unseen ? 'neg' : 'neutral' },
+              ]} footer="Click for its traits.">{st === 'unseen' ? 'Your evidence on this family is thin (clarity under 30%): the estimate may be far off.' : st === 'inv' ? 'A case is open on it.' : 'Your tools read it.'} The bar shows the highest trait estimate and its 90% band.</TipCard>
+            )}>
+              <div className="sf-fam-row" data-family={f.id} data-state={st} data-test={`fam-open.${f.id}`} onClick={() => setOpen(isOpen ? undefined : f.id)}>
+                <Ic size={18} />
+                <span><b>{f.label}</b> <ICON.go size={11} className={`sf-caret ${isOpen ? 'open' : ''}`} /><br /><span className="sf-ticons">{f.traits.map((t) => { const T = TRAIT_ICON[t]; return T ? <T key={t} size={11} /> : null; })}</span></span>
+                <span className="sf-fam-bar">
+                  <span className="sf-fam-band" style={{ left: `${(f.lo / max) * 100}%`, width: `${(Math.min(max, f.hi) - Math.min(max, f.lo)) / max * 100}%`, background: col, opacity: st === 'unseen' ? 0.35 : 0.55 }} />
+                  <span className="sf-fam-est" style={{ left: `${(Math.min(max, f.est) / max) * 100}%` }} />
+                </span>
+                <span className="num">{F.num(f.est, 2)} <span className="dim small">±{F.num(f.sd, 2)}</span></span>
+                <span className={`sf-st ${st}`}>{st === 'inv' ? <ICON.investigate size={14} /> : st === 'unseen' ? <ICON.blind size={14} /> : <Eye size={14} />}</span>
+              </div>
+            </Tip>
+            {isOpen && <div className="sf-traits" data-test={`fam-traits.${f.id}`}>{f.traits.map((t) => <TraitRow key={t} v={sel} t={t} />)}</div>}
+          </div>
+        );
+      })}
+      <div className={`sf-fam-grp other ${open === 'other' ? 'open' : ''}`}>
+        <button className="sf-other small dim" data-test="fam-open.other" onClick={() => setOpen(open === 'other' ? undefined : 'other')}>
+          <ICON.go size={11} className={`sf-caret ${open === 'other' ? 'open' : ''}`} /> Outside the families: {OTHER_TRAITS.map(tname).join(', ')}
+        </button>
+        {open === 'other' && <div className="sf-traits" data-test="fam-traits.other">{OTHER_TRAITS.map((t) => <TraitRow key={t} v={sel} t={t} />)}</div>}
+      </div>
+      <div className="sf-fam-leg small dim"><span className="row-i"><Eye size={11} /> tools see it</span><span className="row-i"><ICON.blind size={11} /> unseen (thin evidence)</span><span className="row-i"><ICON.investigate size={11} /> under investigation</span></div>
+    </Card>
+  );
+}
+
+const SLOT_LABEL: Record<string, string> = { SWE: 'Software', EXP: 'Experiments', IDEAS: 'Research ideas' };
+const SLOT_ICON: Record<string, LucideIcon> = { SWE: ICON.roleEng, EXP: ICON.roleRE, IDEAS: ICON.roleSci };
+/** Successor pull (model v3 E4/E12, home `successorPull`): how far the next model's dispositions move toward the models
+ *  doing your R&D. Believed: κ from your estimate of each model's successor steering, oversight from believed tools. */
+function SuccessorCard({ s }: { s: GameStateV2 }) {
+  const sp = successorPullView(s);
+  const free = sp.parts.reduce((a, x) => a + x.share * (1 - x.oversight), 0);
+  const unwatched = sp.r > 1e-9 ? free / sp.r : 1;
+  const kappa = free > 1e-9 ? sp.omega / free : 0;
+  const tone = sp.omega >= 0.3 ? 'tone-neg' : sp.omega >= 0.1 ? 'tone-warn' : '';
+  const agents = { panel: 'company', tab: 'people', anchor: 'agents' };
+  return (
+    <Card title={<Term id="successorPull">Successor pull</Term>} home="successorPull" className="sf-succ"
+      right={<Tip content={() => <TipCard title={<Term id="successorPull">Successor pull ω</Term>} value={F.num(sp.omega, 3)} rows={[
+        { label: '90% band (successor-steering belief)', value: `${F.num(sp.omegaBand[0], 2)}–${F.num(sp.omegaBand[1], 2)}` },
+        { label: <Term id="aiRdShare">AI share of R&amp;D</Term>, value: F.pct(sp.r) },
+        { label: <>Not caught by <Term id="rdOversight">oversight</Term></>, value: F.pct(unwatched) },
+        { label: 'κ (pull per unit)', value: F.num(kappa, 2) },
+      ]} footer="Estimated from your beliefs; the true pull can differ.">The next run's new model starts this far along the way from its own dispositions to its makers'.</TipCard>}>
+        <span className={`num big ${tone}`} data-test="succ-omega">ω {F.num(sp.omega, 2)}</span>
+      </Tip>}>
+      <div className="sf-succ-eq small" data-test="succ-eq">
+        <Tip content={() => <TipCard title={<Term id="aiRdShare">AI share of R&amp;D</Term>} value={F.pct(sp.r)}>Share of the lab's software, experiment and research-idea labour done by AI agents.</TipCard>}><span><b className="num" data-test="succ-r">{F.pct(sp.r)}</b> AI share of R&amp;D</span></Tip>
+        <span className="dim">×</span>
+        <Tip content={() => <TipCard title={<Term id="rdOversight">Not caught</Term>} value={F.pct(unwatched)} rows={sp.parts.map((x) => ({ label: SLOT_LABEL[x.slot], value: `blocked ${F.pct(x.block)} · caught ${F.pct(x.caught)}` }))}>Share of the AI R&amp;D work no containment blocks and no monitor or human review catches.</TipCard>}><span><b className="num" data-test="succ-unwatched">{F.pct(unwatched)}</b> unwatched</span></Tip>
+        <span className="dim">×</span>
+        <Tip content={() => <TipCard title="κ" value={F.num(kappa, 2)}>0.4 for a model with no wish to steer its successor, up to 1 for one that fully wants to (from your successor-steering estimate).</TipCard>}><span>κ <b className="num">{F.num(kappa, 2)}</b></span></Tip>
+      </div>
+      {sp.parts.length > 0 && <div className="sf-succ-hd"><span /><span /><span /><span>share</span><span><Term id="rdOversight">oversight</Term></span><span>ω</span></div>}
+      {sp.parts.map((x) => {
+        const I = SLOT_ICON[x.slot];
+        const v = versionById(s, x.versionId);
+        return (
+          <Tip key={x.slot} as="div" content={() => <TipCard title={<>{v?.name ?? x.versionId} on {SLOT_LABEL[x.slot].toLowerCase()}</>} value={`ω ${F.num(x.omega, 3)}`} rows={[
+            { label: <Term id="aiRdShare">Share of the lab's R&amp;D</Term>, value: F.pct(x.share, 1) },
+            { label: <Term id="rdOversight">Oversight</Term>, value: F.pct(x.oversight) },
+            { label: 'blocked (control layer)', value: F.pct(x.block) }, { label: 'caught (monitors, human review)', value: F.pct(x.caught) },
+            { label: <Term id="trait:SUCC">Successor steering</Term>, value: `${F.num(x.succ.est, 2)} ± ${F.num(x.succ.sd, 2)}` },
+            { label: 'κ', value: `${F.num(x.kappa, 2)} (${F.num(x.kappaBand[0], 2)}–${F.num(x.kappaBand[1], 2)})` },
+          ]}>ω = κ × share × (1 − oversight).</TipCard>}>
+            <div className="sf-succ-row" data-slot={x.slot} data-test="succ-part">
+              <I size={13} /><span className="ellip">{SLOT_LABEL[x.slot]} <span className="dim">· {v?.name ?? x.versionId}</span></span>
+              <HBar v={x.omega} max={Math.max(0.05, sp.omega)} w={60} color={C.watch} />
+              <span className="num small" data-test="succ-part-share">{F.pct(x.share)}</span>
+              <span className="num small dim">{F.pct(x.oversight)}</span>
+              <span className="num small" data-test="succ-part-omega">{F.num(x.omega, 2)}</span>
             </div>
           </Tip>
         );
       })}
-      <div className="sf-fam-leg small dim"><span className="row-i"><Eye size={11} /> tools see it</span><span className="row-i"><ICON.blind size={11} /> unseen (thin evidence)</span><span className="row-i"><ICON.investigate size={11} /> under investigation</span></div>
+      {!sp.parts.length && <div className="small dim">No AI model does your R&amp;D: nothing pulls the next model.</div>}
+      <div className="sf-succ-foot small"><span className="dim">Lower it:</span>
+        <Ref id="agentMonitor" to={agents}>Monitors</Ref><Ref id="aiRdShare" to={agents}>Less AI R&amp;D</Ref>
+        <Tip content={() => <TipCard title="Cleaner models">Put models with lower believed dispositions on R&amp;D, or train them down: κ and the dispositions passed on fall.</TipCard>}><span className="dim">cleaner models</span></Tip>
+      </div>
     </Card>
   );
 }
@@ -549,7 +658,9 @@ function CasesTab({ s, sv }: { s: GameStateV2; sv: SV }) {
         {!open.length && <div className="dim small">No open case.</div>}
         <div className="inv-new">
           <span className="small dim">Open a case on</span>
-          <select className="text-input" data-test="inv-trait" value={trait} onChange={(e) => setTrait(e.target.value as TraitId)}>{TRAIT_IDS.map((t) => <option key={t} value={t}>{TRAIT_BY_ID[t].name}</option>)}</select>
+          <select className="text-input" data-test="inv-trait" value={trait} onChange={(e) => setTrait(e.target.value as TraitId)}>
+            {[...RISK_FAMILIES.map((f) => ({ label: f.label, traits: f.traits })), { label: 'Outside the families', traits: OTHER_TRAITS }].map((g) => <optgroup key={g.label} label={g.label}>{g.traits.map((t) => <option key={t} value={t}>{TRAIT_BY_ID[t].name}</option>)}</optgroup>)}
+          </select>
           <span className="small dim">in {v?.name ?? '—'} with</span>
           <select className="text-input" data-test="inv-fte" value={fte} onChange={(e) => setFte(Number(e.target.value))}>{[5, 10, 15, 20, 30, 40].map((n) => <option key={n} value={n}>{n}</option>)}</select>
           <span className="small dim">safety research engineers</span>

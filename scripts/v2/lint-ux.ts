@@ -89,6 +89,8 @@ const REQUIRED = [
   'useHourCost', 'teamsWantedAuto',
   // model v3 D5/D6: RL environment suites (Models › Suites).
   'envSuite', 'suiteFidelity', 'suiteExploit', 'expertData', 'suiteBuild', 'suiteHarden', 'suiteRlShare', 'rewardHackPressure', 'plannedRun',
+  // model v3 E12: trait families and meanings, training pressure per run, successor pull.
+  'traitBehaviour', 'traitAwareness', 'traitDisposition', 'traitProtective', 'trainingPressure', 'traitMovement', 'successorPull', 'aiRdShare', 'rdOversight',
 ];
 const req = REQUIRED.filter((id) => !GLOSSARY_V2[id]);
 ok(`Required terms present (${REQUIRED.length})`, req.length === 0, req.join(', '));

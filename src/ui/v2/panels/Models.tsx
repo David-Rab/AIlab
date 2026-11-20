@@ -6,7 +6,7 @@ import { BENCHMARKS } from '../../../data/v2/benchmarks';
 import { AGENT_USE_DEF } from '../../../data/v2/agents';
 import {
   POOL_SHARE_RANGE, benchName, dataSpecView, dateOf, fmtDate, idleTrainingShare, internalVersion, measuredDomains, measuredSd, poolAllocation, runBand, runEtaDays, runStall, streamShare,
-  flopPerToken, useHourCost, usesOf, versionById,
+  flopPerToken, useHourCost, usesOf, versionById, versionPressure,
 } from '../../../engine/v2';
 import type { GameStateV2, ModelVersion } from '../../../engine/v2';
 import { store, useV2 } from '../store';
@@ -15,6 +15,7 @@ import { useState } from 'react';
 import { Card, KV, PanelHead, Ref, tabOf, Tabs } from '../kit';
 import { Dumbbell } from 'lucide-react';
 import { Suites } from './Suites';
+import { OmegaChip, PressureRows, SIGNAL_LABEL } from './Pressure';
 import * as F from '../fmt';
 import { ICON } from '../icons';
 
@@ -159,6 +160,7 @@ export function ModelCard({ s, v }: { s: GameStateV2; v: ModelVersion }) {
           {all.length > 5 && <button className="btn btn-sm btn-ghost" data-test="bench-more" onClick={() => setMore(!more)}>{more ? 'fewer' : `all ${all.length} benchmarks`}</button>}
         </div>
       </div>
+      <VersionPressure s={s} v={v} />
       <div className="act-groups">
         <div className="act-group"><span className="tip-cap">Use</span>
           <span className="small" data-test="model-uses"><ICON.agents size={12} /> {internal ? [...uses.model.map((u) => AGENT_USE_DEF[u].name), ...uses.monitor.map((u) => `monitor on ${AGENT_USE_DEF[u].name.toLowerCase()}`)].join(' · ') : 'not used inside the company'}</span>
@@ -184,6 +186,39 @@ export function ModelCard({ s, v }: { s: GameStateV2; v: ModelVersion }) {
         </div>
       </div>
     </Card>
+  );
+}
+
+const RUN_LABEL: Record<string, string> = { post: 'Post-training', distill: 'Distillation', continue: 'Continued pretraining', base: 'Base run' };
+/** What the finished run that made this version applied (model v3 E12; home `versionPressure`): one summary line (the
+ *  run's ω and its strongest signals), the signal rows one click down, with the base's pretraining signals under them. */
+function VersionPressure({ s, v }: { s: GameStateV2; v: ModelVersion }) {
+  const [open, setOpen] = useState(false);
+  const vp = versionPressure(s, v.id);
+  if (!vp.run && !vp.base) return null;
+  const top = [...(vp.run?.rows ?? [])].filter((r) => r.value >= 0.005).sort((a, b) => b.value - a.value).slice(0, 3);
+  return (
+    <div className="mc-press" data-home="versionPressure" data-test="mc-pressure">
+      <div className="row-i mc-press-hd">
+        <span className="tip-cap"><Term id="trainingPressure">Training pressure</Term></span>
+        <span className="small dim">{vp.run ? RUN_LABEL[vp.run.kind] : 'no run of its own'}</span>
+        {vp.run && <OmegaChip p={vp.run} />}
+        <span className="small dim ellip">{top.map((r, i) => <Tip key={r.id} content={() => <TipCard title={<Term id={`sig:${r.id}`}>{SIGNAL_LABEL[r.id]}</Term>} value={F.num(r.value, 2)}>Strongest signals of the run; the rows open with Signals.</TipCard>}><span className="mc-top">{i ? ' · ' : ''}{SIGNAL_LABEL[r.id]} <span className="num">{F.num(r.value, 2)}</span></span></Tip>)}</span>
+        <span className="sp" />
+        <button className="btn btn-sm btn-ghost" data-test="mc-pressure-open" onClick={() => setOpen(!open)}>{open ? 'Hide signals' : 'Signals'}</button>
+      </div>
+      {open && (
+        <div className="mc-press-body">
+          {vp.run && <PressureRows p={vp.run} testId="mc-pressure-rows" />}
+          {vp.base && (
+            <>
+              <div className="tip-cap">{vp.base.name} pretraining <span className="dim">· set the lineage, ω 1</span></div>
+              <PressureRows p={{ kind: 'base', rows: vp.base.rows, omega: { growth: 1, safety: 1, kind: 1 } }} testId="mc-pressure-base" />
+            </>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

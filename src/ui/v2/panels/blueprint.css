@@ -121,3 +121,6 @@
 .bp-grid > [data-tip], .bp-line > [data-tip] { text-align: right; }
 .bp-snap .num { white-space: nowrap; }
 .bp-big.bp-big-name .num { font-size: 22px; line-height: 1.2; }
+/* E12: training pressure of the planned run. */
+.bp-press .bp-chips { margin-bottom: 6px; }
+.bp-succ { display: flex; gap: 6px; align-items: center; padding-top: 6px; border-top: 1px solid var(--line); color: var(--text-2); }

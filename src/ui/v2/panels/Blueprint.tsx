@@ -15,17 +15,18 @@ import { TRAIT_BY_ID } from '../../../data/v2/traits';
 import { OPTION_NODE, TREE_BY_ID } from '../../../data/v2/tree';
 import {
   PARAM_SNAPS, POOL_SHARE_RANGE, REF_TPP, RL_BUDGET, TPP_FREE_MAX, TPP_SNAPS, baseFromParams, dateOf, evalDaysFor, fmtDate, fmtMonth, internalEval, internalVersion,
-  flopPerToken, liveCommitments, measuredDomains, nodeStatus, optionLocked, postFromParams, runCard, runEtaDays, runFlopPerShareDay, runTraitPressure, runStall, studentToHold, suitesView, tppLabel,
-  useHourCost,
+  flopPerToken, liveCommitments, measuredDomains, nodeStatus, optionLocked, plannedPressure, postFromParams, runCard, runEtaDays, runFlopPerShareDay, runTraitPressure, runStall, studentToHold, successorPullView, suitesView, tppLabel,
+  useHourCost, versionById,
 } from '../../../engine/v2';
-import type { GameStateV2, LaunchRunParams, TraitId } from '../../../engine/v2';
+import type { GameStateV2, LaunchRunParams, RunPressure, TraitId } from '../../../engine/v2';
 import { store } from '../store';
 import { ActBtn, Slider, Term, Tip, TipCard, unlocked, type Params } from '../ui';
-import { Card, PanelHead } from '../kit';
+import { Card, PanelHead, Ref } from '../kit';
 import * as F from '../fmt';
 import { DOMAIN_ICON, ICON } from '../icons';
 import { C } from '../theme';
 import { arrows } from './runEffects';
+import { OmegaChip, PressureRows } from './Pressure';
 import { runTitle } from './Models';
 import { openSuites } from './Suites';
 import './blueprint.css';
@@ -196,7 +197,7 @@ export function Blueprint({ s }: { s: GameStateV2 }) {
   };
   const set = (np: Params) => setP(np.baseId !== p.baseId && m.bases.find((b) => b.id === np.baseId)?.design.shape === 'latent' ? { ...np, cot: 'latent' } : np);
   const key = `${s.time.day}|${kind}|${JSON.stringify(p)}`;
-  const { cur, opts, sizeEff } = useMemo(() => {
+  const { cur, opts, sizeEff, pr } = useMemo(() => {
     const cur = evaluate(s, kind, p);
     // Jank B2 (STRUCTURE §4.3): every card shows its own effect in the five fields: the design with this card in its
     // slot vs the same design with the slot at the reference card (toggles: on vs off).
@@ -221,7 +222,9 @@ export function Blueprint({ s }: { s: GameStateV2 }) {
     const refP = { params: lastBase?.params ?? DEFAULTS.params, tpp: lastBase?.design.tpp ?? DEFAULTS.tpp };
     const same = Number(p.params) === refP.params && Number(p.tpp) === refP.tpp;
     const sizeEff = kind === 'base' ? effectOf(cur, same ? cur : evaluate(s, kind, { ...p, ...refP }), same) : undefined;
-    return { cur, opts, sizeEff };
+    let pr: RunPressure | undefined;
+    try { pr = plannedPressure(s, toLP(s, kind, p)); } catch { pr = undefined; }
+    return { cur, opts, sizeEff, pr };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   const card = cur.card;
@@ -312,10 +315,11 @@ export function Blueprint({ s }: { s: GameStateV2 }) {
           </div>
         </Card>
         <div className="bp-rcol">
-          <Predicted s={s} card={card} err={cur.err} cur={cur} />
+          <Predicted s={s} card={card} err={cur.err} />
           <Plan s={s} kind={kind} card={card} p={p} setShare={(v) => setP({ ...p, poolShare: v })} warn={warn}>
             <ActBtn id={ACTION[kind]} params={params} primary small={false} icon={ICON.run} label={START[kind]} block={cur.err || card?.reason} reason />
           </Plan>
+          <PressureCard s={s} pr={pr} cur={cur} />
         </div>
       </div>
     </div>
@@ -692,7 +696,7 @@ function BaseSummary({ s, kind, p, onNewBase }: { s: GameStateV2; kind: Kind; p:
 
 // ───────── predicted model ─────────
 const MS: [number, string][] = [[6.5, 'agent'], [8.5, 'research agent'], [10, 'superhuman coder'], [12, 'superhuman researcher']];
-function Predicted({ s, card, err, cur }: { s: GameStateV2; card?: Card_; err?: string; cur: Eval }) {
+function Predicted({ s, card, err }: { s: GameStateV2; card?: Card_; err?: string }) {
   const iv = internalVersion(s);
   const now = internalEval(s).L;
   const doms = iv ? measuredDomains(iv) : undefined;
@@ -719,22 +723,42 @@ function Predicted({ s, card, err, cur }: { s: GameStateV2; card?: Card_; err?: 
           <div className="bp-chips">
             {dChips.map(([d, v]) => { const I = DOMAIN_ICON[d]; return <Tip key={d} content={() => <TipCard title={<Term id="domains">{d}</Term>} value={`${F.dLevel(v)} L`} rows={[{ label: 'Predicted', value: F.level(mid(card.domains[d])) }, { label: iv?.name ?? 'Today', value: F.level(doms?.[d] ?? 0) }]}>This domain's predicted level vs your internal model.</TipCard>}><span className="dch"><I size={11} /><span className="k">{d}</span><b className={v >= 0 ? 'tone-pos' : 'tone-neg'}>{F.dLevel(v)}</b></span></Tip>; })}
           </div>
-          <div className="tip-cap"><Term id="riskFamily">Risk pressure</Term> <span className="dim">vs {iv?.name ?? 'today'}</span></div>
-          <div className="bp-chips">
-            {FAMILIES.map((f) => {
-              const d = f.traits.reduce((a, t) => a + (cur.tp[t] ?? 0), 0);
-              const a = arrows(d);
-              return (
-                <Tip key={f.id} content={() => <TipCard title={<Term id="riskFamily">{f.label}</Term>} value={a || '='}>{f.traits.filter((t) => arrows(cur.tp[t] ?? 0)).map((t) => <div key={t} className="row-i small"><span>{TRAIT_BY_ID[t].name}</span><span className="sp" /><b className={(cur.tp[t] ?? 0) > 0 ? 'tone-neg' : 'tone-pos'}>{arrows(cur.tp[t] ?? 0)}</b></div>)}<div className="dim small">Predicted change of the trait beliefs vs your internal model, from this blueprint's training signals.</div></TipCard>}>
-                  <span className="dch" data-family={f.id}><f.icon size={11} /><span className="k">{f.label}</span><b className={a ? (d > 0 ? 'tone-neg' : 'tone-pos') : 'dim'}>{a ? a.slice(0, 2) : '='}</b></span>
-                </Tip>
-              );
-            })}
-          </div>
           <div className="small dim bp-mon"><Term id="monitorability">Monitorability</Term> {card.monitorability}</div>
         </>
       )}
       {card && card.band[1] <= 0 && <div className="dim small">{card.reason ?? 'No prediction'}</div>}
+    </Card>
+  );
+}
+
+// ───────── training pressure of the planned run (model v3 E12) ─────────
+/** Home of the planned run's training pressure: the signals S1–S8 as causes with their run quantities, the families
+ *  they push and the run's ω; then the predicted belief change per family and a link to the successor pull (Safety). */
+function PressureCard({ s, pr, cur }: { s: GameStateV2; pr?: RunPressure; cur: Eval }) {
+  const iv = internalVersion(s);
+  const sp = successorPullView(s);
+  const pullers = [...new Set(sp.parts.map((x) => x.versionId))].map((id) => versionById(s, id)?.name ?? id);
+  return (
+    <Card title={<Term id="trainingPressure">Training pressure</Term>} sub="planned run" className="bp-press" home="runPressure" right={pr && <OmegaChip p={pr} />}>
+      {pr ? <PressureRows p={pr} testId="bp-pressure" /> : <div className="dim small">No run to read</div>}
+      <div className="tip-cap"><Term id="riskFamily">Risk pressure</Term> <span className="dim">vs {iv?.name ?? 'today'}</span></div>
+      <div className="bp-chips" data-test="bp-risk">
+        {FAMILIES.map((f) => {
+          const d = f.traits.reduce((a, t) => a + (cur.tp[t] ?? 0), 0);
+          const a = arrows(d);
+          return (
+            <Tip key={f.id} content={() => <TipCard title={<Term id="riskFamily">{f.label}</Term>} value={a || '='}>{f.traits.filter((t) => arrows(cur.tp[t] ?? 0)).map((t) => <div key={t} className="row-i small"><span>{TRAIT_BY_ID[t].name}</span><span className="sp" /><b className={(cur.tp[t] ?? 0) > 0 ? 'tone-neg' : 'tone-pos'}>{arrows(cur.tp[t] ?? 0)}</b></div>)}<div className="dim small">Predicted change of the trait beliefs vs your internal model, from this run's signals and ω (successor pull not included).</div></TipCard>}>
+              <span className="dch" data-family={f.id}><f.icon size={11} /><span className="k">{f.label}</span><b className={a ? (d > 0 ? 'tone-neg' : 'tone-pos') : 'dim'}>{a ? a.slice(0, 2) : '='}</b></span>
+            </Tip>
+          );
+        })}
+      </div>
+      <Tip as="div" content={() => <TipCard title={<Term id="successorPull">Successor pull</Term>} value={`ω ${F.num(sp.omega, 2)}`} rows={[
+        { label: <Term id="aiRdShare">AI share of R&D</Term>, value: F.pct(sp.r) },
+        ...sp.parts.map((x) => ({ label: <>{versionById(s, x.versionId)?.name ?? x.versionId} on {x.slot === 'SWE' ? 'software' : x.slot === 'EXP' ? 'experiments' : 'research ideas'}</>, value: `${F.pct(x.share)} · ${F.pct(x.oversight)} overseen` })),
+      ]} footer="Breakdown and what lowers it: Safety › Overview.">When this run finishes, its new model's dispositions move toward those of the models doing your R&D, by ω.</TipCard>}>
+        <div className="bp-succ small" data-test="bp-succ"><ICON.agents size={12} /><span><Term id="successorPull">Successor pull</Term> from {pullers.length ? pullers.join(', ') : 'no AI model'}</span><span className="sp" /><Ref id="successorPull" to={{ panel: 'safety', tab: 'overview' }}>Safety</Ref></div>
+      </Tip>
     </Card>
   );
 }

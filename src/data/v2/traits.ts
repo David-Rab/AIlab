@@ -43,6 +43,16 @@ export const TRAIT_START: TraitVector = {
   POWER: 0.03, AF: 0.03, SAND: 0.02, SCHEME: 0.01, COLLUDE: 0.01, SUCC: 0, HONEST: 0.5, CORRIG: 0.5,
 };
 
+/** What a trait's number means (MODEL-V3 §11.1): a behaviour is a rate per opportunity, an awareness a capacity, a
+ *  disposition a hidden tendency that shows mainly when unobserved; protective traits are better when higher. */
+export type TraitMeaning = 'behaviour' | 'awareness' | 'disposition' | 'protective';
+export const TRAIT_MEANING: Record<TraitId, TraitMeaning> = {
+  SYC: 'behaviour', RH: 'behaviour', POWER: 'behaviour', CONCEAL: 'behaviour', OBF: 'behaviour',
+  SA: 'awareness', EA: 'awareness',
+  PROXY: 'disposition', PERSONA: 'disposition', TGAME: 'disposition', AF: 'disposition', SAND: 'disposition', SCHEME: 'disposition', COLLUDE: 'disposition', SUCC: 'disposition',
+  HONEST: 'protective', CORRIG: 'protective',
+};
+
 /** Critical set K for Understanding U (§3.5.7). */
 export const CRITICAL_TRAITS: TraitId[] = ['SCHEME', 'AF', 'SAND', 'POWER', 'SUCC', 'COLLUDE'];
 
