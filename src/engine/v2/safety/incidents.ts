@@ -165,12 +165,12 @@ function internalAutonomy(s: GameStateV2, v: ModelVersion): number {
   return w > 0 ? a / w : autonomyOf(WORK_TYPES.EXP.H);
 }
 
-const scaleOf = (copies: number, ref: number) => Math.pow(Math.max(1e-9, copies) / ref, COPIES_GAMMA);
+const scaleOf = (copies: number, ref: number, gamma: number) => Math.pow(Math.max(1e-9, copies) / ref, gamma);
 /** Size factor of the lab's internal agents: (copies across its work types ÷ the 2025 reference)^γ. */
 function internalScale(s: GameStateV2): number {
   let copies = 0;
   for (const l of Object.values(workContext(s).slots)) copies += l.copies;
-  return copies > 0 ? scaleOf(copies, COPIES_REF.internal) : 0;
+  return copies > 0 ? scaleOf(copies, COPIES_REF.internal, COPIES_GAMMA.internal) : 0;
 }
 
 /** The site of model `v` in deployment `d` at `usage` (an internal fleet's share, a product's serving share). */
@@ -183,7 +183,7 @@ export function siteOf(s: GameStateV2, d: Deployment, v: ModelVersion, usage: nu
       rd: aiRdShare(s), contain, wsl: s.player.security.wsl,
     };
   }
-  const size = d.channel === 'open' ? 1 : scaleOf(copiesOf(s.player.computeOnline * s.player.split.serving, flopPerToken(s, v)), COPIES_REF.serving);
+  const size = d.channel === 'open' ? 1 : scaleOf(copiesOf(s.player.computeOnline * s.player.split.serving, flopPerToken(s, v)), COPIES_REF.serving, COPIES_GAMMA.serving);
   return { internal: false, scale: usage * size * restricted, autonomy: autonomyOf(CHANNEL_HORIZON_H[d.channel]), afford: CHANNEL_AFFORD[d.channel], rd: 0, contain, wsl: 0 };
 }
 
@@ -361,11 +361,13 @@ export const incidentsSystem: EngineSystem = {
 /**
  * Daily exfiltration hazard for the player's internal fleet (§3.5.10, event E25; rolled by WS4 security), on the danger
  * formula: κ · POWER·(1 + 4·SCHEME) · σ((CYBER − 10)/1) · O_internal · (1 − WSL/5) · (1 − Contain), O_internal = the
- * fleet's autonomy × affordances × scale; a formally verified gatekeeper (F32) halves it.
+ * fleet's autonomy × affordances × scale, for CYBER ≥ θ − 2; a formally verified gatekeeper (F32) halves it.
  */
 export function exfiltrationHazard(s: GameStateV2): number {
   const v = internalVersion(s);
-  if (!v) return 0;
+  // Below θ − 2 levels (capability < 12%) escape is out of reach: 0, and WS4 skips its roll (v2 gated at Lg ≥ 9 ≈ CYBER 8,
+  // so the security stream draws exactly as before until then).
+  if (!v || v.domains.CYBER < EXFIL.theta - 2) return 0;
   const dep = s.player.deployments.find((d) => d.channel === 'internal' && d.versionId === v.id && d.status !== 'withdrawn');
   const contain = containment(s, versionM(s, v), !!dep?.controlLayer, false, uModeContainMult(v.uModes));
   const t = v.traitsTrue;

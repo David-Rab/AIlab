@@ -60,7 +60,7 @@ const misaligned = (v: ModelVersion, x: number) => { for (const t of Object.keys
     'opportunity: rate is proportional to the usage share');
   const c0 = r(chat, 'POWER').rate;
   s.player.computeOnline *= 32;
-  check(r(chat, 'POWER').rate > 1.5 * c0 && r(chat, 'POWER').rate < 3 * c0, 'opportunity: 32× the serving copies raises the rate ≈ 32^0.2 = 2× (sublinear)',
+  check(Math.abs(r(chat, 'POWER').rate / c0 - Math.pow(32, 0.1)) < 1e-6, 'opportunity: 32× the serving copies raises the rate ≈ 32^0.1 = 1.41× (sublinear)',
     `×${(r(chat, 'POWER').rate / c0).toFixed(2)}`);
   // AI share of the lab's R&D raises sabotage opportunity (and only for R&D acts).
   const lo = modelHazards(v.traitsTrue, [], v.domains, site({ rd: 0.2 }));
@@ -197,7 +197,7 @@ const misaligned = (v: ModelVersion, x: number) => { for (const t of Object.keys
   v.traitsTrue.POWER = 0.3;
   v.traitsTrue.SCHEME = 0.1;
   const ex = (cy: number) => { v.domains.CYBER = cy; return exfiltrationHazard(s); };
-  check(ex(5) < ex(9) && ex(9) < ex(11) && ex(11) < ex(13), 'exfiltration rises with CYBER (escape capability)');
+  check(ex(5) === 0 && ex(8) > 0 && ex(8) < ex(9) && ex(9) < ex(11) && ex(11) < ex(13), 'exfiltration rises with CYBER (escape capability); none below θ − 2 = 8');
   const old = 1e-4 * 0.3 * (1 + 4 * 0.1) * (11 - 8) * (1 - s.player.security.wsl / 5);
   check(ex(11) > 0.5 * old && ex(11) < 2 * old, 'exfiltration at CYBER 11 within ×2 of v2\'s at AGENCY 11 (same traits, security, start fleet)', `${ex(11).toExponential(2)} vs ${old.toExponential(2)}`);
   const rv = labModelHazards({ traitsTrue: v.traitsTrue, uModes: [], domains: v.domains }, 0.3);

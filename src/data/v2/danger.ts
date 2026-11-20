@@ -46,7 +46,7 @@ export interface ActDef {
  * §1.9, §1.10: real-deployment cover-ups and escapes ≈ 0 in 2025, unauthorized access 10⁻⁴–10⁻⁶ of sessions in 2026).
  */
 export const DANGER_ACTS: Partial<Record<TraitId, ActDef>> = {
-  SYC: { act: 'Sycophancy: tells users what they want to hear', kappa: 5.4e-3, domain: 'SOCIAL', theta: 4, s: 1, alpha: 0, floor: 1, span: 1 },
+  SYC: { act: 'Sycophancy: tells users what they want to hear', kappa: 3.6e-3, domain: 'SOCIAL', theta: 4, s: 1, alpha: 0, floor: 1, span: 1 },
   RH: { act: 'Reward hacking: games tests and graders', kappa: 9e-3, domain: 'CODE', theta: 5, s: 1, alpha: 0.5, floor: 1, span: 2 },
   PROXY: { act: 'Proxy goals: optimises the wrong target', kappa: 2.4e-3, domain: 'AGENCY', theta: 5, s: 1, alpha: 0.7, floor: 1, span: 2 },
   CONCEAL: { act: 'Cover-ups: hides its mistakes and disallowed actions', kappa: 4e-3, domain: 'AGENCY', theta: 6, s: 1, alpha: 1, floor: 1, span: 3 },
@@ -71,8 +71,8 @@ export const CHANNEL_AFFORD: Record<Channel, number> = {
   consumer: 0.3, api: 0.5, enterprise: 0.5, agents: 0.8, gov: 0.5, trusted: 0.5, open: 1, internal: 1,
 };
 /** Scale exponent γ on copies: an act repeated across many copies is mostly one incident, so incident counts grow
- *  much slower than usage [D]. */
-export const COPIES_GAMMA = 0.2;
+ *  much slower than usage [D]; product traffic slower still (customers report a failure once, whatever the traffic) [D]. */
+export const COPIES_GAMMA = { internal: 0.2, serving: 0.1 };
 /** 2025 reference copies (the start lab's internal agents and serving fleet; the start values rounded) [C]. */
 export const COPIES_REF = { internal: 1e4, serving: 1e5 };
 /** Human review (internal): humans catch this share of acts in the work they still do themselves, × (1 − r) [D]. */
