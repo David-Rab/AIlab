@@ -135,12 +135,14 @@ export const DAY0_REF = { re: 11 * 0.88, agents: 3e4, flop: 1e6 * 0.05 * 3.46e19
  *  rivals' revenue, so a merger offer fires on day 458 and RefBot's path shifts; ASI +59 d → −11 d, G_SC kept).
  *  M1 refit (merge of D1/D3 and E1 onto A5; `--fit-v3`, sd_SC kept): authors2026 G_SC 33.62 → 33.632, Δ_bm 4.5 → 4.6
  *  (SIAR −0.225 → −0.027 y, ASI −0.356 → +0.041 y); slow G_SC 35.447 → 35.474 (SC −0.753 → +0.049 y; a knife edge on
- *  seed 2027, F4). */
+ *  seed 2027, F4). M3 refit (D11's data quality in the loss law; G_SC scans and `--fit-v3`, sd_SC kept): fast G_SC
+ *  31.593 → 31.572, Δ_bm 0.17 → 0.05 (SC +0.093 → +0.052 y, SAR +0.189 → +0.112 y; middle of the passing window
+ *  31.569–31.574, F4); slow G_SC 35.474 → 35.493 (SC −0.753 → +0.049 y; middle of the window 35.490–35.495, F4). */
 export interface V3Cal { gSC: number; dBM: number; r: number; sdSC: number }
 export const V3_CAL: Record<WorldPresetId, V3Cal> = {
   ai2027: { gSC: 30.497, dBM: 2.2, r: 4, sdSC: SD_AT_SC },
   authors2026: { gSC: 33.632, dBM: 4.6, r: 3.19, sdSC: 1.8 },
-  fast: { gSC: 31.593, dBM: 0.17, r: 4, sdSC: SD_AT_SC },
-  slow: { gSC: 35.474, dBM: 1.6, r: 1.2, sdSC: SD_AT_SC },
+  fast: { gSC: 31.572, dBM: 0.05, r: 4, sdSC: SD_AT_SC },
+  slow: { gSC: 35.493, dBM: 1.6, r: 1.2, sdSC: SD_AT_SC },
   sampled: { gSC: 30.497, dBM: 2.2, r: 4, sdSC: SD_AT_SC },
 };
