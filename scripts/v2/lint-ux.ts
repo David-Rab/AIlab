@@ -82,6 +82,8 @@ const REQUIRED = [
   'paidSeat', 'unseatedUse', 'supervisingHour', 'agentHour', 'agentLeverage', 'weeklyReach', 'paidShare', 'goingPrice', 'wtp', 'valueCap', 'markup', 'serveOrder', 'adoptedHour',
   // model v3 B2: customers as a stock, typed features.
   'customerStock', 'targetShare', 'customerSpeed', 'featEnabler', 'featHorizon', 'featScaffold', 'featEffort',
+  // model v3 B3: the World panel's sector view.
+  'workersUsingAI', 'hoursOfUse', 'savedPerHour', 'unseatedUse', 'seatShare', 'agentLeverage', 'costGate', 'feasibility', 'aiWorkHourCost', 'verifiability',
 ];
 const req = REQUIRED.filter((id) => !GLOSSARY_V2[id]);
 ok(`Required terms present (${REQUIRED.length})`, req.length === 0, req.join(', '));

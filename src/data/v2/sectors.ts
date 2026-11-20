@@ -135,3 +135,23 @@ export const ECON = {
 export const PRE_LLM_LEVEL = 3;
 /** R16 §1 Agent-0 profile (mid 2025), used for start values before the first tick. [R16 table] */
 export const AGENT0_PROFILE: Record<DomainId, number> = { CODE: 5, RSCH: 4.5, REASON: 5, AGENCY: 4, SOCIAL: 5, MEDIA: 5, CYBER: 4, BIO: 5, PHYS: 1 };
+
+/** B3: measured US worker-survey anchors for a sector's hours of AI use (display only; no mechanism reads them).
+ *  Bick, Blandin & Deming, Real-Time Population Survey (RPS), research/22 §1: share of all work-hours with AI
+ *  assistance in the survey's industry or occupation group, and hours saved where reported. The industry rows map onto
+ *  the game's sectors as the A2a `use` constants do (information → Software, Media; professional/scientific/technical →
+ *  Legal, Science; finance and insurance → Finance; production occupations → Manufacturing; leisure → Retail &
+ *  services). Q2 2026 rows came via FRED search excerpts [R]. */
+export interface UseAnchor { group: string; when: string; hours: number; saved?: number; tag: 'P' | 'R' }
+export const USE_ANCHORS: Partial<Record<SectorId, UseAnchor>> = {
+  SOFT: { group: 'Information', when: 'Aug–Nov 2024', hours: 0.14, saved: 0.026, tag: 'P' },
+  MEDIA: { group: 'Information', when: 'Aug–Nov 2024', hours: 0.14, saved: 0.026, tag: 'P' },
+  LEGAL: { group: 'Professional, scientific, technical', when: 'Q2 2026', hours: 0.114, tag: 'R' },
+  SCI: { group: 'Professional, scientific, technical', when: 'Q2 2026', hours: 0.114, tag: 'R' },
+  FIN: { group: 'Finance and insurance', when: 'Q2 2026', hours: 0.097, tag: 'R' },
+  MFG: { group: 'Production occupations', when: 'Q2 2026', hours: 0.046, tag: 'R' },
+  SERV: { group: 'Leisure and hospitality', when: 'Aug–Nov 2024', hours: 0.023, saved: 0.006, tag: 'P' },
+};
+/** All US workers (RPS Q2 2026): 39.2% use AI at work, 6.3% of work-hours with AI, 2.2% saved (0.35 per hour of use). */
+export const USE_ANCHOR_US = { when: 'Q2 2026', workers: 0.392, hours: 0.063, saved: 0.022, savedPerHour: 0.35 } as const;
+export const USE_ANCHOR_SRC = 'Bick, Blandin & Deming, Real-Time Population Survey (research/22 §1)';

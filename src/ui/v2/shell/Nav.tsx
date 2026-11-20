@@ -23,7 +23,7 @@ export const NAV: NavItem[] = [
   { id: 'safety', label: 'Safety', icon: ICON.safety, desc: 'Trait graph, agendas, tools, incidents and findings.', group: 'SAFETY' },
   { id: 'risk', label: 'Risk', icon: ICON.risks, desc: 'Where catastrophe risk comes from, and the flows that feed it.', group: 'SAFETY' },
   { id: 'relations', label: 'Relations', icon: ICON.relations, desc: 'Government, public, rivals, China, evaluators; commitments.', group: 'WORLD' },
-  { id: 'world', label: 'World', icon: ICON.world, desc: 'Automation by sector, jobs, control index, technologies.', group: 'WORLD' },
+  { id: 'world', label: 'World', icon: ICON.world, desc: 'AI at work by sector, jobs, control index, technologies.', group: 'WORLD' },
   { id: 'codex', label: 'Codex', icon: ICON.codex, desc: 'How the game works (the core loop), every limit, term, trait, idea, benchmark and event, with sources.' },
 ];
 

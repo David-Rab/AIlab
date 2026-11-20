@@ -1,0 +1,52 @@
+/* World › Sectors (model v3 B3). */
+.ws-strip { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-bottom: 10px; padding: 6px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; font-size: 12px; color: var(--text-2); }
+.ws-kpi b { color: var(--text); margin-left: 2px; }
+.ws-grid { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); gap: 10px; align-items: start; }
+.ws-grid > .section { margin-bottom: 0; }
+.ws-tbl td { cursor: pointer; }
+.ws-tbl td.ws-name { cursor: default; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 0; width: 55%; }
+.ws-tbl tr.on td.ws-name { color: #fff; font-weight: 600; }
+.ws-tbl td.sel { box-shadow: inset 0 0 0 2px #fff; }
+.ws-card { display: flex; flex-direction: column; gap: 5px; }
+.ws-hd { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 2px; }
+.ws-ttl { font-size: 14px; font-weight: 600; color: #fff; }
+.ws-wt { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--text-2); }
+.ws-bind { font-size: 11.5px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line-2); color: var(--text-2); white-space: nowrap; }
+.ws-bind.b-capability, .ws-bind.b-cost, .ws-bind.b-friction { color: #f3d08a; border-color: rgba(233,180,76,.45); background: rgba(233,180,76,.08); }
+.ws-sub { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-2); font-weight: 600; }
+.ws-sub .dim { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.ws-row { display: grid; grid-template-columns: 128px minmax(0, 1fr) 118px; gap: 8px; align-items: center; font-size: 12px; height: 20px; }
+.ws-k { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-2); }
+.ws-v { text-align: right; white-space: nowrap; color: var(--text); }
+.ws-line { font-size: 12px; color: var(--text-2); }
+.ws-line b { color: var(--text); }
+.ws-bar { position: relative; display: flex; height: 8px; border-radius: 4px; background: var(--line); overflow: visible; min-width: 30px; }
+.ws-bar i { display: block; height: 100%; background: #22a394; flex-shrink: 0; }
+.ws-bar i:first-child { border-radius: 4px 0 0 4px; }
+.ws-bar i:last-of-type { border-radius: 0 4px 4px 0; }
+.ws-bar i:only-of-type { border-radius: 4px; }
+.ws-bar em { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: #fff; border-radius: 1px; }
+.ws-bar .ws-anchor { position: absolute; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; background: #e9b44c; transform: rotate(45deg); border: 1px solid #151c26; }
+.ws-bar.wide { height: 10px; }
+.ws-lims { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.ws-lim { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 6px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; font-size: 12px; }
+.ws-lim.bind { border-color: rgba(233,180,76,.6); background: rgba(233,180,76,.06); }
+.ws-lim-k { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-2); }
+.ws-lim-v { color: #fff; font-weight: 600; }
+.ws-lim .ws-bar { grid-column: 1 / -1; height: 6px; }
+.ws-pay { display: flex; flex-direction: column; gap: 4px; }
+.ws-leg { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11.5px; color: var(--text-2); }
+.ws-leg i, .ws-pr-n i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+.ws-prov { display: flex; flex-direction: column; gap: 3px; }
+.ws-pr, .ws-pr-leg { display: grid; grid-template-columns: 112px 92px 44px minmax(0, 1fr) 54px; gap: 8px; align-items: center; font-size: 12px; height: 20px; }
+.ws-pr-leg { height: auto; grid-template-columns: 112px 92px 44px minmax(0, 1fr); padding-top: 2px; }
+.ws-pr-leg span:first-child { grid-column: 2; }
+.ws-pr-n { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ws-pr.you .ws-pr-n { color: #fff; font-weight: 600; }
+.ws-pr-s, .ws-pr-c { white-space: nowrap; }
+.ws-pr-v { text-align: right; white-space: nowrap; }
+.ws-bar.cost { height: 8px; }
+.ws-bar.cost i.rev, .rev-sw { background: repeating-linear-gradient(135deg, rgba(159,176,195,.55) 0 3px, transparent 3px 6px); box-shadow: inset 0 0 0 1px rgba(159,176,195,.35); }
+.rev-sw { display: inline-block; width: 10px; height: 8px; vertical-align: middle; border-radius: 2px; }
+.wage-sw { display: inline-block; width: 2px; height: 10px; background: #fff; vertical-align: middle; }
+.ws-wt { cursor: help; } .ws-wt-l { text-decoration: underline dotted var(--line-2); }
