@@ -20,7 +20,7 @@
 // integration boost, control and the tech tree, as in v2.
 import { SECTORS, REGIONS, ECON } from '../../../data/v2/sectors';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
-import { CONSUMER_MKT, CUSTOMER_TAU, MARKET_BANDS, PRICE_ELASTICITY, SEATS, SHARE_SLOPE_G } from '../../../data/v2/serving';
+import { CONSUMER_MKT, CUSTOMER_TAU, MARKET_BANDS, PRICE_ELASTICITY, SEATS, SECTOR_START, SHARE_SLOPE_G } from '../../../data/v2/serving';
 import { REFERENCE_BASE, SHAPE } from '../../../data/v2/runDesign';
 import { ASSIST } from '../../../data/v2/workTypes';
 import { memo } from '../core/memo';
@@ -756,6 +756,48 @@ export function advanceCustomers(s: GameStateV2, mix: WorldMix, dt = 1 / 365) {
       out[p.key] = Math.round((x === undefined ? cm.paidTarget[i] : x + (cm.paidTarget[i] - x) * kPaid) * 1e7) / 1e7;
     });
     fx.paid[r] = out;
+  }
+}
+
+/** A7: start shares of a sector segment outside China: the target with no provider above SECTOR_START.startMax, the
+ *  excess shared by the providers under it in proportion to their targets (water-filling; the target itself when one
+ *  provider serves the segment alone). */
+export function startSectorShares(target: readonly number[], max: number = SECTOR_START.startMax): number[] {
+  const out = target.slice();
+  const pos = out.filter((x) => x > 0).length;
+  if (pos * max < 1) return out;
+  const capped = new Set<number>();
+  for (let it = 0; it < out.length; it++) {
+    let excess = 0;
+    for (let i = 0; i < out.length; i++) if (!capped.has(i) && out[i] > max) {
+      excess += out[i] - max;
+      out[i] = max;
+      capped.add(i);
+    }
+    if (excess <= 1e-12) break;
+    let free = 0;
+    for (let i = 0; i < out.length; i++) if (!capped.has(i)) free += out[i];
+    if (!(free > 0)) break;
+    for (let i = 0; i < out.length; i++) if (!capped.has(i)) out[i] += (excess * out[i]) / free;
+  }
+  return out;
+}
+/** A7: the start state's customer stocks (core/init): sector segments outside China at startSectorShares of their
+ *  targets, China's sectors and the consumer market at their targets (the consumer start is the reach, A6b P5). */
+export function initCustomerStocks(s: GameStateV2) {
+  const mix = computeMix(s);
+  const fx = s.world.fx;
+  fx.cust = { US: {}, CN: {}, ROW: {} };
+  const put = (r: RegionId, seg: string, sh: number[]) => {
+    const row: Record<string, number> = {};
+    mix.providers.forEach((p, i) => {
+      if (sh[i] > 1e-6) row[p.key] = Math.round(sh[i] * 1e6) / 1e6;
+    });
+    fx.cust[r][seg] = row;
+  };
+  for (const r of REGIONS) {
+    for (const t of SECTOR_TASKS) put(r, t.id, r === 'CN' ? mix.sec[r][t.id].target : startSectorShares(mix.sec[r][t.id].target));
+    put(r, 'consumer', mix.consumer[r].target);
   }
 }
 

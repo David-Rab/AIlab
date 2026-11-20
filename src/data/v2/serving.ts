@@ -146,6 +146,15 @@ export const MARKET_BANDS = 8;
  *  (years) [D]: consumers switch in weeks, API and enterprise customers over a quarter (developer months, contracts
  *  quarters), government and defence over contract cycles. */
 export const CUSTOMER_TAU = { consumer: 3 / 52, sector: 0.25, gov: 0.75 } as const;
+/** A7: the start's sector customer stocks outside China (design/notes/A7.md). Buyers were spread across providers in
+ *  mid-2025, not at the share the logit gives a lab 3–9 months ahead (≈ 0.8–0.9 of every sector): OpenAI held ≈ 25% of
+ *  enterprise LLM API use (Menlo Ventures mid-2025 market update: Anthropic 32%, OpenAI 25%, Google 20% [R, recalled]),
+ *  and ≈ 3–5M paying business users of the world's ≈ 18M paid seats (OpenAI statements Jun / Aug 2025 [R]; 7M "ChatGPT
+ *  for Work" seats by Nov 2025 [P, openai.com "1 million businesses"]; the world's seats: A2c's back-cast). So on day 0 no
+ *  provider holds more than `startMax` of a US or ROW sector segment (the excess goes to the others in proportion to
+ *  their targets); the stocks then move toward the targets at CUSTOMER_TAU.sector, as the consumer reach does from its
+ *  measured start (A6b P5). China's segments start at their targets (no anchor; Chinese labs serve them). */
+export const SECTOR_START = { startMax: 0.25 } as const;
 
 /** Consumer market (A2b; research/22 §2–3 [R22]). Two stocks per region and one logit:
  *    reach R_r      share of online adults who use an AI chat app weekly (any provider), a Bass stock toward

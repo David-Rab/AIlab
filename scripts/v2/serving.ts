@@ -49,6 +49,8 @@ import {
   adoptedTokens, agentDemandOf, agentLeverage, cheapestAt, effortDG, studentToHold, fxOn, h100eHoursPer, internalFx, offerOf, paidShareTarget, productOffer, reachTarget, sectorCover, sectorTheta, serveDollarsPerHour,
   subPrice, tokEff, valuePerHour, wagePerHour,
 } from '../../src/engine/v2/worldfx/serving';
+import { startSectorShares } from '../../src/engine/v2/worldfx/mix';
+import { SECTOR_START } from '../../src/data/v2/serving';
 import { consumerUse, workBilling } from '../../src/engine/v2/worldfx/readouts';
 import { monitorOverhead } from '../../src/engine/v2/models/products';
 import { paramsOfVersion, planRun } from '../../src/engine/v2/models/runs';
@@ -315,6 +317,27 @@ for (const d of [400, 900]) {
     'C4 free users need ≈ 9k tokens per weekly-user-day (3.75 messages; R22: 8–10k, was 1.6k) on the free tier model; paid + free = the product\'s need',
     `${((x.users ?? 0) / 1e6).toFixed(0)}M users: free ${Math.round((x.needFree ?? 0) / 1e3)}k + paid ${Math.round((x.needPaid ?? 0) / 1e3)}k H100e; cut ${Math.round(x.cutH100e / 1e3)}k (free ${Math.round((x.cutFree ?? 0) / 1e3)}k)`);
   check((x.cutFree ?? 0) <= (x.needFree ?? 0) + 1e-6 && (x.cutH100e <= (x.needFree ?? 0) + 1e-6 || near(x.cutFree ?? 0, x.needFree ?? 0, 1e-6)), 'C4 the split cuts free users before paying ones');
+}
+{
+  // A7 the start's sector stocks: outside China no provider holds more than SECTOR_START.startMax (the excess shared in
+  // proportion to the targets); China's sectors at their targets; the leader's day-1 revenue ≈ $12–15B with Chat ≈ two
+  // thirds of it (OpenAI's mid-2025 run-rate and mix, design/notes/A7.md).
+  const s = game();
+  const mix = worldMix(s);
+  let bad = 0;
+  for (const r of ['US', 'ROW', 'CN'] as const) for (const def of SECTORS) {
+    const m = mix.sec[r][def.id];
+    const want = r === 'CN' ? m.target : startSectorShares(m.target);
+    m.share.forEach((x, i) => { if (Math.abs(x - want[i]) > 2e-6 || (r !== 'CN' && x > SECTOR_START.startMax + 2e-6)) bad++; });
+  }
+  const ws = startSectorShares([0.8, 0.1, 0.05, 0.03, 0.02], 0.25);
+  const wsOk = near(ws[0], 0.25, 1e-9) && near(ws[1], 0.25, 1e-9) && near(ws.reduce((a, b) => a + b, 0), 1, 1e-9) && near(ws[3] / ws[4], 1.5, 1e-9);
+  run(s, 1);
+  const rd = revenueReadout(s);
+  const chatRev = rd.deps.find((z) => z.channel === 'consumer')!.revenue;
+  check(bad === 0 && wsOk && rd.total >= 12 && rd.total <= 15 && chatRev / rd.total >= 0.6 && chatRev / rd.total <= 0.75,
+    'A7 start sector stocks ≤ 0.25 per provider outside China; leader day-1 revenue $12–15B, Chat 60–75% of it',
+    `${bad} cells off; revenue ${rd.total.toFixed(2)}B (Chat ${chatRev.toFixed(2)}B, ${((100 * chatRev) / rd.total).toFixed(0)}%)`);
 }
 for (const d of [400, 900]) {
   // C6 no provider's subscription is priced above the willingness to pay (unless serving a subscriber costs more).

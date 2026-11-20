@@ -42,6 +42,7 @@ import { initialSecurity } from '../security/security';
 import { referenceRate } from '../world/calibration';
 import { drawLineageUModes, sampleHidden } from '../world/hidden';
 import { initialWorld } from '../worldfx/sectors';
+import { initCustomerStocks } from '../worldfx/mix';
 import type {
   Deployment, DomainId, EvalRecord, GameStateV2, MilestoneIdx, ModelVersion, PlayerLab, SetupV2, TimelineWorld, ToolFamily, TraitBelief, TraitId, TrainingRun, VersionBuild,
 } from '../types';
@@ -326,6 +327,8 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
     const core = labCore(s, id);
     if (core) core.prodCache = computeProduction(s, id);
   }
+  // A7: the start's customer stocks (sector buyers outside China spread as measured in mid-2025, worldfx/mix.ts).
+  initCustomerStocks(s);
   seedCandidates(s.player.hiring, new StreamRng(s, 'company'));
   sampleSeries(s);
   return s;
