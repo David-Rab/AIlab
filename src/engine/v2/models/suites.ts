@@ -24,6 +24,7 @@ import { nodeKnown } from './tree';
 import { adopted } from '../safety/common';
 import { queueBuild } from '../departments/build';
 import { bookCash } from '../finance/ledger';
+import { expertStockT, takeExpertData } from '../production/data';
 import type { ActionDef, CostLine, DomainId, EnvSuite, GameStateV2, OwnedDataAsset, PostDesign, RLFamily, StartType, SystemCtx } from '../types';
 
 export type SuiteWork = 'build' | 'harden';
@@ -112,12 +113,16 @@ export const hardenedExploit = (f: RLFamily, x: number) => {
   return fl + (x - fl) * (1 - SUITE_HARDEN.cut);
 };
 
-export interface SuiteCost { tw: number; cashB: number; tokensT: number }
-/** Cost of a build (more expert data built in) or a hardening pass on a family's suite, today. */
+export interface SuiteCost { tw: number; cashB: number; tokensT: number; /** Expert tokens taken from the domain's bought stock (data.expert, D2) instead of bought. */ fromStockT: number }
+/** Cost of a build (more expert data built in) or a hardening pass on a family's suite, today. A build first uses the
+ *  expert data the lab bought in the family's domain (data.expert, model v3 D2: one purchase path) and buys the rest. */
 export function suiteWorkCost(s: GameStateV2, f: RLFamily, work: SuiteWork): SuiteCost {
-  if (work === 'build') return { tw: SUITE_BUILD.twPerStart * (SUITE_BUILD.tokensT / EXPERT_START_T), cashB: SUITE_BUILD.tokensT * EXPERT_PRICE_B_PER_T, tokensT: SUITE_BUILD.tokensT };
+  if (work === 'build') {
+    const fromStockT = Math.min(SUITE_BUILD.tokensT, expertStockT(s.player.dataPortfolio, familyDomain(f)));
+    return { tw: SUITE_BUILD.twPerStart * (SUITE_BUILD.tokensT / EXPERT_START_T), cashB: (SUITE_BUILD.tokensT - fromStockT) * EXPERT_PRICE_B_PER_T, tokensT: SUITE_BUILD.tokensT, fromStockT };
+  }
   const k = sizeOf(s, f);
-  return { tw: SUITE_HARDEN.tw * k, cashB: SUITE_HARDEN.cashB * k * (adopted(s, 'P15') ? SUITE_HARDEN.p15Cash : 1), tokensT: 0 };
+  return { tw: SUITE_HARDEN.tw * k, cashB: SUITE_HARDEN.cashB * k * (adopted(s, 'P15') ? SUITE_HARDEN.p15Cash : 1), tokensT: 0, fromStockT: 0 };
 }
 /** Fidelity after a build and exploitability after a hardening pass (the action's before → after). */
 export function suiteWorkEffect(s: GameStateV2, f: RLFamily, work: SuiteWork): { fid: [number, number]; exploit: [number, number] } {
@@ -200,7 +205,7 @@ export const SUITE_ACTIONS: ActionDef[] = (['build', 'harden'] as SuiteWork[]).m
     const f = famParam(p);
     const c = suiteWorkCost(s, f, work);
     const e = suiteWorkEffect(s, f, work);
-    const costs: CostLine[] = [{ currency: 'cash', amount: -Math.round(c.cashB * 1000) / 1000, target: work === 'build' ? 'expert data' : 'expert red-teamers' }, { currency: 'staffTime', amount: -Math.round(c.tw * 10) / 10, target: 'engineer team-weeks' }];
+    const costs: CostLine[] = [{ currency: 'cash', amount: -Math.round(c.cashB * 1000) / 1000, target: work === 'build' ? (c.fromStockT > 0 ? `expert data (${Math.round(c.fromStockT * 1e6)}M tokens from your bought stock)` : 'expert data') : 'expert red-teamers' }, { currency: 'staffTime', amount: -Math.round(c.tw * 10) / 10, target: 'engineer team-weeks' }];
     const gains: CostLine[] = work === 'build'
       ? [{ currency: 'progress', amount: Math.round((e.fid[1] - e.fid[0]) * 1000) / 1000, target: `${RL_FAMILY_LABEL[f]} suite fidelity ${e.fid[0].toFixed(2)} → ${e.fid[1].toFixed(2)}` }]
       : [{ currency: 'alignment', amount: Math.round((e.exploit[0] - e.exploit[1]) * 1000) / 1000, target: `${RL_FAMILY_LABEL[f]} suite exploitable ${pct(e.exploit[0])}% → ${pct(e.exploit[1])}% of tasks` }];
@@ -212,6 +217,7 @@ export const SUITE_ACTIONS: ActionDef[] = (['build', 'harden'] as SuiteWork[]).m
     if (why) throw new Error(why);
     materialiseSuite(s, f);
     const c = suiteWorkCost(s, f, work);
+    if (c.fromStockT > 0) takeExpertData(s.player.dataPortfolio, familyDomain(f), c.fromStockT);
     queueBuild(s, 'suite', suiteRef(f, work), c.tw);
     if (c.cashB > 0) bookCash(s, ctx, -c.cashB, 'training', work === 'build' ? 'expert data' : 'environment hardening', f);
     ctx.log('research', `Engineers start ${work === 'build' ? 'building out' : 'hardening'} the ${RL_FAMILY_LABEL[f]} environments.`, 1, f);

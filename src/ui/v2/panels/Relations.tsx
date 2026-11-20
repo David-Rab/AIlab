@@ -7,6 +7,7 @@
 import { useState } from 'react';
 import { BLOC_BY_ID } from '../../../data/v2/blocs';
 import { RELATION_ACTION_META } from '../../../data/v2/actions';
+import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import { actionView, activeRivals, dateOf, fmtDate, keptShare } from '../../../engine/v2';
 import type { CounterpartyId, GameStateV2 } from '../../../engine/v2';
 import { ActBtn, Bipolar, Gate, Meter, pct, Row, Section, Seg, Term, Tip, TipCard, Why, type Params } from '../ui';
@@ -32,7 +33,16 @@ const VARIANTS: Record<string, { label: string; p: Params }[]> = {
   B4: [{ label: 'deregulate', p: { direction: 'deregulate' } }, { label: 'regulate', p: { direction: 'regulate' } }],
   B6: [{ label: 'gov', p: { target: 'gov' } }, { label: 'critics', p: { target: 'critics' } }],
   E3: [{ label: 'tighten', p: { direction: 'tighten' } }, { label: 'loosen', p: { direction: 'loosen' } }],
+  // Data actions (model v3 D2; D4 builds the full data view): the domain and teacher come from the pickers above.
+  'data.usagePolicy': [{ label: 'none', p: { level: 'none' } }, { label: 'standard', p: { level: 'standard' } }, { label: 'broad', p: { level: 'broad' } }],
 };
+/** Variants of the data actions for the picked domain and teacher. */
+function dataVariants(id: string, domain: string, teacher: string): { label: string; p: Params }[] | undefined {
+  if (id === 'data.license') return [{ label: 'web crawl', p: { domain: 'web' } }, ...(['bulk', 'curated', 'premium'] as const).map((tier) => ({ label: `${domain} ${tier}`, p: { domain, tier } }))];
+  if (id === 'data.expert') return [{ label: domain, p: { domain } }];
+  if (id === 'data.synthesize') return [{ label: teacher ? `teacher ${teacher}` : 'strongest teacher', p: teacher ? { teacher } : {} }, { label: 'stop job', p: { days: 0 } }];
+  return undefined;
+}
 
 function Arrows({ id, p, s }: { id: string; p: Params; s: GameStateV2 }) {
   const v = actionView(s, id, p);
@@ -56,6 +66,8 @@ export function Relations({ s }: { s: GameStateV2 }) {
   const [allCp, setAllCp] = useState(false);
   const [allBloc, setAllBloc] = useState(false);
   const [grp, setGrp] = useState<string>('A');
+  const [dom, setDom] = useState<string>('CODE');
+  const [teacher, setTeacher] = useState<string>('');
   const [retire, setRetire] = useState(false);
   const cpName = (k: string) => CP_LABEL[k] ?? s.rivals.find((r) => `rival:${r.core.id}` === k)?.core.name ?? k.replace('rival:', '');
   // Who matters now: the relationships most at risk (lowest trust) first.
@@ -176,10 +188,21 @@ export function Relations({ s }: { s: GameStateV2 }) {
 
       <div className="span2"><Section title="Actions" right={<span className="row-i small"><span className="dim">security:</span><Ref id="wsl" to={{ panel: 'company', tab: 'security' }}>Company › Security</Ref></span>}>
         <div className="rel-groups" data-test="rel-groups"><Seg value={grp} options={ACT_GROUPS.map((x) => ({ v: x, label: GROUPS[x] }))} onChange={setGrp} /></div>
+        {grp === 'D' && (
+          <div className="row-i small" data-test="data-pickers">
+            <Term id="dataLicence">Domain</Term>
+            <select className="text-input" data-test="data-domain" value={dom} onChange={(e) => setDom(e.target.value)}>{DOMAIN_IDS.map((d) => <option key={d} value={d}>{d}</option>)}</select>
+            <Term id="synJob">Teacher</Term>
+            <select className="text-input" data-test="data-teacher" value={teacher} onChange={(e) => setTeacher(e.target.value)}>
+              <option value="">strongest</option>
+              {s.player.models.versions.filter((v) => v.status !== 'retired').map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+            </select>
+          </div>
+        )}
         <div className="catalog">
           <div className="cat-group">
             {RELATION_ACTION_META.filter((a) => a.group === grp).map((a) => (
-              (VARIANTS[a.id] ?? [{ label: '', p: {} }]).map((vv, i) => (
+              (dataVariants(a.id, dom, teacher) ?? VARIANTS[a.id] ?? [{ label: '', p: {} }]).map((vv, i) => (
                 <div className="cat-card" key={`${a.id}-${i}`}>
                   <ActBtn id={a.id} testId={i ? `${a.id}.${i}` : a.id} params={a.id === 'C4' ? { lab: activeRivals(s)[0]?.core.id ?? '' } : vv.p} label={`${a.title}${vv.label ? ` · ${vv.label}` : ''}`} />
                   <Arrows id={a.id} p={vv.p} s={s} />

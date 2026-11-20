@@ -11,6 +11,7 @@ import { hireStar } from '../departments/teams';
 import { TEAM_ACTIONS } from '../departments/teamActions';
 import { BUILD_ACTIONS } from '../departments/build';
 import { SUITE_ACTIONS } from './suites';
+import { DATA_ACTIONS } from '../production/dataActions';
 import type {
   ActionDef, BaseDesign, ComputeSplit, CostLine, GameStateV2, PostDesign, RLFamily,
 } from '../types';
@@ -316,4 +317,4 @@ export const DEPARTMENT_ACTIONS: ActionDef[] = [
 ];
 
 /** Models + Departments spheres (registered in core/registry.ts). */
-export const MODEL_ACTIONS: ActionDef[] = [...RUN_ACTIONS, ...PRODUCT_ACTIONS, ...TREE_ACTIONS, ...DEPARTMENT_ACTIONS, ...SUITE_ACTIONS];
+export const MODEL_ACTIONS: ActionDef[] = [...RUN_ACTIONS, ...PRODUCT_ACTIONS, ...TREE_ACTIONS, ...DEPARTMENT_ACTIONS, ...SUITE_ACTIONS, ...DATA_ACTIONS];

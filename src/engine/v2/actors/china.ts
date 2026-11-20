@@ -298,7 +298,7 @@ export const geoQSystem: EngineSystem = {
     }
     // Copyright litigation hazard 0.02·unlicensedT/100 per quarter (§3.9.1 data licences; R17 D3). A suit settles
     // automatically ($1.5B per 270T unlicensed tokens, the Bartz v. Anthropic scale), at most once a year; licensing
-    // the data (D3) is the way to avoid it.
+    // the crawl (data.license, domain 'web') is the way to avoid it.
     const unlicensedT = unlicensedPublicT(s.player.dataPortfolio); // model v3 D1: the public crawl without a licence
     const lit = 0.02 * unlicensedT / 100;
     const lastSuit = Number(s.flags['ws4:lastSuitDay'] ?? -1e9);

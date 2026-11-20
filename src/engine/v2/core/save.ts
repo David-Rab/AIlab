@@ -39,8 +39,10 @@ import { START_SUITE_FAMILIES, startExpertAssets, suitesFromV1 } from '../models
  *  dataAssets. Migration 20 → 21 maps the token counts so U is unchanged (dataPortfolioFromV2).
  *  22 (model v3 D5): PlayerLab.suites (RL environment suites per family) and their expert data (one `expert:<family>`
  *  asset each) replace the post design's graders option. Migration 21 → 22 maps the lab's latest graders choice to the
- *  suites' exploitability (cheap → cheap, else hardened = the leader's start) at fidelity 1 (suitesFromV1). */
-export const SCHEMA_REV = 22;
+ *  suites' exploitability (cheap → cheap, else hardened = the leader's start) at fidelity 1 (suitesFromV1).
+ *  23 (model v3 D2): DataPortfolio.pending (licence and expert-data deals waiting for delivery) and the optional synJob
+ *  (a synthetic generation job with a chosen teacher). Migration 22 → 23 starts with nothing pending and no job. */
+export const SCHEMA_REV = 23;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -274,6 +276,11 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     p.suites = suitesFromV1(graders, START_SUITE_FAMILIES);
     const kept = p.dataPortfolio.assets.filter((a) => a.kind !== 'expert' || a.tokensT > 0);
     p.dataPortfolio.assets = [...kept, ...startExpertAssets().filter((x) => !kept.some((a) => a.id === x.id))];
+  },
+  /** 22 → 23 (model v3 D2): no data deals pending and no synthetic job (the whole pool keeps the default teacher). */
+  22: (raw) => {
+    const p = (raw as unknown as GameStateV2).player;
+    p.dataPortfolio.pending ??= [];
   },
 };
 

@@ -899,7 +899,7 @@ export interface PublicWebUse {
   id: 'public';
   kind: 'public';
   coverage: number;
-  /** Covered by licence deals (action D3): no copyright litigation on the crawl. */
+  /** Covered by a licence on the crawl (action data.license, domain 'web'): no copyright litigation on it. */
   licensed: boolean;
 }
 
@@ -925,10 +925,26 @@ export interface OwnedDataAsset {
 
 export type DataAsset = PublicWebUse | OwnedDataAsset;
 
+/** A data deal not yet delivered (model v3 D2: licences and expert data): the asset it adds on `due`. */
+export interface PendingData {
+  asset: OwnedDataAsset;
+  due: Day;
+}
+/** A synthetic generation job (model v3 D2): `share` of the synthetic pool generates with `teacherId` until `until`. */
+export interface SynJob {
+  teacherId: string;
+  share: number;
+  until: Day;
+}
+
 export interface DataPortfolio {
   assets: DataAsset[];
-  /** Data policy (no UI until D2/D4): share of eligible product output tokens kept as usage data. */
+  /** Data policy (action data.usagePolicy, USAGE_LEVELS): share of eligible product output tokens kept as usage data. */
   usageShare: number;
+  /** Deals paid and waiting for delivery (model v3 D2). */
+  pending: PendingData[];
+  /** The synthetic pool's job with a chosen teacher (absent: the whole pool uses the internal research model). */
+  synJob?: SynJob;
 }
 
 /** Internal uses of the lab's own models (R7): engineering, capabilities routine and frontier research, safety. */

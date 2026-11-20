@@ -1036,6 +1036,15 @@ ok('J1 F3: Finance opens on cash flow, history and the raise; the rest on tabs',
 await nav('relations');
 ok('J1 RL1: Retire stands apart behind a confirm', !!(await page.$('[data-test=retire-open]')) && !(await page.$('.catalog [data-act=RETIRE]')));
 ok('J1 RL2: no security actions in the Relations catalogue', !(await page.$('[data-panel=relations] [data-act^="SEC_"]')));
+// D2: the data actions sit in Relations › Research & data with a domain and a teacher picker (D4 builds the data view).
+await page.click('[data-test=rel-groups] [data-opt=D]'); await wait(80);
+ok('D2 Relations: data actions listed with domain and teacher pickers, old "License data" (D3) gone', !!(await page.$('[data-test=data-pickers]')) && !!(await page.$('[data-act="data.synthesize"]')) && !!(await page.$('[data-act="data.usagePolicy.2"]')) && !(await page.$('[data-act=D3]')));
+await page.selectOption('[data-test=data-domain]', 'PHYS'); await wait(60);
+await page.hover('[data-act="data.license.1"]'); await wait(150);
+const licTip = await page.evaluate(() => document.querySelector('.tip')?.textContent ?? '');
+ok('D2 Relations: the licence preview shows before → after of the data readouts', /U \d[\d.]* → \d[\d.]*T/.test(licTip) && /PHYS/.test(licTip), licTip.slice(0, 200));
+await check('D2 Relations: licensing PHYS bulk data queues a deal', 's.player.dataPortfolio.pending.length', () => page.click('[data-act="data.license.1"]'));
+await shot('d2-relations-data');
 await nav('models');
 ok('J1 M4: a best badge per variant in the lineage', (await page.$$('[data-test=best-badge]')).length >= 1);
 ok('J1 M5: runs are named by their target', !(await page.locator('[data-panel=models]').innerText()).match(/\b(post|base|distill) \d+ (post|base|distill)\b/));
