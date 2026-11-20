@@ -9,6 +9,7 @@ import type { FeatureDef, WorkScope } from '../../../data/v2/features';
 import { REGIONS, SECTORS } from '../../../data/v2/sectors';
 import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
 import { catchRate, monitorOverhead } from '../models/products';
+import { featureInternal, featureUpkeepTW } from '../departments/build';
 import { versionById } from '../models/labs';
 import { SECTOR_PACK_DG, effortDG, markupOf, serveDollarsPerHour } from './serving';
 import { CONSUMER_MKT, CUSTOMER_TAU, EFFORT_TOKENS, SERVE_HOURS_PER_YEAR } from '../../../data/v2/serving';
@@ -137,6 +138,10 @@ export interface FeatureView {
   short: string;
   /** Internal agents' work types it also applies to once built (names); empty = none. */
   internal: string[];
+  /** C2: engineers' upkeep once built, team-weeks per week: in use, and built but in use nowhere (keep-alive; equal to
+   *  `upkeepTW` for a feature that helps the internal agents, which is always in use). 0 for sector packs. */
+  upkeepTW: number;
+  idleTW: number;
 }
 const SECTOR_SHORT: Partial<Record<SectorId, string>> = { SOFT: 'Software & IT', OFFICE: 'Admin', FIN: 'Finance', LEGAL: 'Legal', MEDIA: 'Media', SCI: 'Science', GOV: 'Government', MIL: 'Military' };
 /** The internal agents' work types (departments/workfit.ts labour slots). */
@@ -182,7 +187,9 @@ export function featureView(f: FeatureDef, channel?: Deployment['channel']): Fea
     }
   }
   const kinds = [...new Set((lines.some((l) => l.here) ? lines.filter((l) => l.here) : lines).map((l) => l.kind))];
-  return { kinds, lines, short: short.join(' · '), internal: [...internal].map((x) => WORK_TYPES[x].name) };
+  const upkeepTW = featureUpkeepTW(f);
+  const idleTW = featureInternal(f) ? upkeepTW : featureUpkeepTW(f, false);
+  return { kinds, lines, short: short.join(' · '), internal: [...internal].map((x) => WORK_TYPES[x].name), upkeepTW, idleTW };
 }
 
 /** B1 (product card): revenue by source and capacity of one product. Sector products: adopted task-hours and agent-hours

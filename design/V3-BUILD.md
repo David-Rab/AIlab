@@ -1723,3 +1723,49 @@ at: `80-day400-products-b4`, `81-day400/900-research-projects-b4`, `82-day900-wo
   retires design offsets.
 - Science-team "why" lines on the project card are cut with an ellipsis (the team dots' tooltips carry the full text).
 - Space on a focused button both clicks it and toggles pause (the global shortcut; older than B4).
+
+### C2 notes (feature data and feature upkeep; 2026-11-20)
+
+Code: `data/v2/features.ts` (two product lists), `departments/build.ts` (`UPKEEP.featureYr`, `UPKEEP.featureIdle`,
+`featureUpkeepTW`, `featureInternal`, `featureInUse`, 'feature' upkeep lines), `worldfx/productView.ts`
+(`FeatureView.upkeepTW` / `idleTW`), `ui/v2/panels/Products.tsx` (feature tooltip Upkeep row), `BuildLoad.tsx` (feature
+lines in the load tooltip), glossary `productUpkeep` and `engNeeds`, tests in `scripts/v2/products.ts` (C2a–C2c) and
+`uitest.mjs` (the B2 feature-tooltip check now asks for "N.NN engineer team-wk/wk"). No state change, no schema bump.
+
+**Data fix [D].**
+- Voice & vision: offered on Chat **and the API** (was Chat only). §7.2 lists "image & video generation" as a *task
+  enabler* that opens work types or segments, so its Media part is right as typed; it only lacked a product that sells
+  sector work. The API is where image, voice and video generation are sold to media firms. Retyping it as consumer
+  appeal would have dropped the Media segment, which §7.2 names. On Chat it keeps +15% Chat users.
+- Deep research: off Chat (now Enterprise only). The same check found its scaffold (Science, Finance, Legal, internal
+  research) cannot act on Chat, which sells only consumer chat; giving it a CHAT scope would put ×3 tokens on all chat
+  use (a calibration change), so the offer was removed instead. No start type has it on Chat.
+- Every other feature passes: Memory (horizon on all work; Chat users), Deep think (effort, everywhere), Computer use
+  (Admin/Finance/Legal/Government on API and Agents), Coding agent (Software & IT), Companion (Chat users), Sector packs
+  (sector products).
+- Test C2a uses the engine's own functions (`fxOn`, `enablerShare` on 'CHAT' or the sectors the product sells to; gov
+  only GOV/MIL): each (feature, product it is offered on) has an acting effect; each typed effect acts on one of its
+  products (an enabler's Chat and sector parts counted apart, which is what catches the old Voice & vision); the card's
+  "here" flag agrees. C2b: Voice & vision on the API raises its demand (day 3: 12.309 → 12.432).
+
+**Upkeep rule [D].** A built feature in use costs `0.5 × buildTW ÷ 52` team-weeks per week (half its build effort a
+year, the usual order of software maintenance), charged on the engineers' **upkeep** need beside products and monitors.
+Built but in use nowhere: a keep-alive of a tenth of that. "In use" = switched on for a live product that offers it, or
+a scaffold / horizon extender acting on an internal work type (those help the internal agents once built,
+`serving.ts internalFx`, so they are always in use: Memory, Deep research, Coding agent). Numbers in use / off: Memory
+0.115 / 0.115, Deep think 0.077 / 0.008, Computer use 0.154 / 0.015, Voice & vision 0.115 / 0.012, Deep research 0.077
+/ 0.077, Coding agent 0.115 / 0.115, Companion 0.038 / 0.004, Sector packs 0 (each pack is its own 4 team-week build).
+All seven together ≈ 0.69 team-weeks a week, about one product's base upkeep plus a third, small next to a $10B product
+(1.8). The feature tooltip's Upkeep row shows "N.NN engineer team-wk/wk (N.NN while off everywhere)" plus the serving
+token multiplier; the build-load tooltip lists "Feature X" lines (marked "off: keep-alive").
+
+**Start types (V3b check).** Still carry their upkeep plus a base run setup in the first quarter (worktypes): leader 7.8 −
+5.5 t-wk/wk (sector packs only: no feature upkeep), challenger 6.3 − 4.0 (Coding agent +0.115), bigtech 9.0 − 3.2
+(Voice & vision +0.115), spinout 1.2 − 0.8 (no features). No team change.
+
+**Gate.** tsc main + scripts clean; products (C2 checks), serving, golden-timelines, identity, worktypes, research,
+effective, calib (T1 known WARN slow A2 unchanged), lint-ux all pass; test:ui 376 passed, 0 failed.
+
+**Seen / open.** Old saves with Deep research switched on Chat keep the id in `Deployment.features`; it is inert there
+(`activeFeatures` filters by the offer) and costs no upkeep on that product. RefBot builds no features, so calibration is
+untouched by the upkeep.

@@ -1,9 +1,9 @@
-// Engineers' load (jank J2 P1): one bar of build capacity split into run operations, product upkeep (incl. monitors),
+// Engineers' load (jank J2 P1): one bar of build capacity split into run operations, product upkeep (incl. monitors, features),
 // builds and idle; the numbers and every line live in its tooltip. Home of utilisation (Company › Work, engineers card;
 // model v3 V2b: build capacity's number lives in that card's hero, so this bar is `compact` there). Products and Models
 // show only their own waits (links here).
 import type { GameStateV2 } from '../../../engine/v2';
-import { buildCapacity, buildEtas, buildRates, isRunLine, upkeepLines, upkeepSplit } from '../../../engine/v2';
+import { buildCapacity, buildEtas, buildRates, featureInUse, isRunLine, upkeepLines, upkeepSplit } from '../../../engine/v2';
 import { FEATURE_BY_ID, PRODUCT_DEFS, type FeatureId } from '../../../data/v2/features';
 import { SECTOR_BY_ID } from '../../../data/v2/sectors';
 import { AGENT_USE_DEF } from '../../../data/v2/agents';
@@ -27,6 +27,10 @@ export function buildItemLabel(s: GameStateV2, it: GameStateV2['player']['build'
 function upkeepLabel(s: GameStateV2, l: ReturnType<typeof upkeepLines>[number]): string {
   if (l.kind === 'run') return `Run ${s.player.models.runs.find((r) => r.id === l.ref)?.name ?? l.ref}`;
   if (l.kind === 'stream') return 'Continual-learning stream';
+  if (l.kind === 'feature') {
+    const f = FEATURE_BY_ID[l.ref as FeatureId];
+    return `Feature ${f?.name ?? l.ref}${f && !featureInUse(s, f) ? ' (off: keep-alive)' : ''}`;
+  }
   const d = s.player.deployments.find((x) => x.id === l.ref);
   if (l.kind === 'product') return `${PRODUCT_DEFS[d?.channel ?? 'api']?.name ?? l.ref}`;
   return `Monitor on ${d ? PRODUCT_DEFS[d.channel]?.name ?? d.channel : AGENT_USE_DEF[l.ref as keyof typeof AGENT_USE_DEF]?.name.toLowerCase() ?? l.ref}`;
@@ -55,11 +59,11 @@ export function BuildLoad({ s, compact = false }: { s: GameStateV2; compact?: bo
       { label: <span className="row-i"><i className="drv-sw" style={{ background: SEG.runs }} /><Term id="runOps">Runs</Term></span>, value: `${u.runs.toFixed(1)} t-wk/wk` },
       ...lines.filter(isRunLine).map((l) => ({ label: <span className="dim">· {upkeepLabel(s, l)}</span>, value: l.tw.toFixed(1) })),
       { label: <span className="row-i"><i className="drv-sw" style={{ background: SEG.products }} /><Term id="productUpkeep">Product upkeep</Term></span>, value: `${u.products.toFixed(1)} t-wk/wk`, ...(short > 0 ? { tone: 'neg' as const } : {}) },
-      ...lines.filter((l) => !isRunLine(l)).map((l) => ({ label: <span className="dim">· {upkeepLabel(s, l)}</span>, value: l.tw.toFixed(1) })),
+      ...lines.filter((l) => !isRunLine(l)).map((l) => ({ label: <span className="dim">· {upkeepLabel(s, l)}</span>, value: l.tw.toFixed(l.tw < 0.1 ? 2 : 1) })),
       { label: <span className="row-i"><i className="drv-sw" style={{ background: SEG.builds }} /><Term id="buildQueue">Builds</Term></span>, value: q.length ? `${backlog.toFixed(1)} t-wk queued` : 'none queued' },
       ...q.slice(0, 6).map((it) => ({ label: <span className="dim">· {buildItemLabel(s, it)}</span>, value: `${(it.needTW - it.doneTW).toFixed(1)} t-wk · ${Number.isFinite(etas.get(it.id) ?? 0) ? F.days(etas.get(it.id) ?? 0) : 'waits'}` })),
       { label: 'In use (30-day average)', value: F.pct(util) },
-    ]} footer={short > 0 ? `Upkeep needs ${short.toFixed(1)} t-wk/wk more than the engineers have: nothing new ships until you hire engineers or cut products or monitors.` : `Order: runs (and run setups), then product upkeep, then builds. Free for builds: ${(rates.builds * 7).toFixed(1)} t-wk/wk.`}>
+    ]} footer={short > 0 ? `Upkeep needs ${short.toFixed(1)} t-wk/wk more than the engineers have: nothing new ships until you hire engineers or cut products, monitors or features.` : `Order: runs (and run setups), then product upkeep, then builds. Free for builds: ${(rates.builds * 7).toFixed(1)} t-wk/wk.`}>
       What the engineers spend each week. Too few engineers: builds wait.
     </TipCard>
   );

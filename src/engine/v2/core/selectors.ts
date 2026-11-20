@@ -19,7 +19,7 @@ export type { SplitSpec, TopKey, TopSplit } from '../departments/split';
 // WS1 model / department selectors and helpers for the UI (visible data only).
 export { adoptedDuring, idleTrainingShare, planRun, poolAllocation, predictRun, POOL_SHARE_RANGE, runEtaDays, runStall, serveTechMult, shareIfLaunched, streamShare, trainingFlopPerDay } from '../models/runs';
 export type { BaseLimits } from '../models/runs';
-export { buildBacklogTW, buildEtas, buildPerDay, buildRates, buildWaitNew, isRunLine, LAUNCH_TW, pendingLaunch, pendingPack, productUpkeepTW, runOpsTW, runSetupTW, runWaiting, SECTOR_PACK_TW, upkeepLines, upkeepSplit, UPKEEP } from '../departments/build';
+export { buildBacklogTW, buildEtas, buildPerDay, buildRates, buildWaitNew, featureInUse, featureUpkeepTW, isRunLine, LAUNCH_TW, pendingLaunch, pendingPack, productUpkeepTW, runOpsTW, runSetupTW, runWaiting, SECTOR_PACK_TW, upkeepLines, upkeepSplit, UPKEEP } from '../departments/build';
 export type { UpkeepLine } from '../departments/build';
 export { PARAM_RANGE, PARAM_SNAPS, REF_TPP, RL_BUDGET, STREAM_POOL_SHARE, STUDENT_DEFAULT, TPP_FREE_MAX, TPP_RANGE, TPP_SNAPS } from '../../../data/v2/runDesign';
 export { fOver, flopOfDesign, paramsForFlop, servingFlop, tppLabel } from '../models/effective';

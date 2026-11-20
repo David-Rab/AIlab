@@ -12,7 +12,12 @@
 //   P8  Agents launch gate: measured time horizon vs the task length; eval suites no longer expire; auto-evaluate
 //       refreshes the internal model; upgrade-to-newest moves a product to a better cleared version
 //   P9  retire; save round trip with an edited product
-import { AGENT_TASK_HOURS, MONITOR_OVERHEAD, PRICE_TIERS } from '../../src/data/v2/features';
+//   C2  feature data (every feature acts where offered) and feature upkeep (block at the end)
+import { AGENT_TASK_HOURS, FEATURES, FEATURE_BY_ID, MONITOR_OVERHEAD, PRICE_TIERS, type FeatureFx } from '../../src/data/v2/features';
+import { SECTORS } from '../../src/data/v2/sectors';
+import { engDemand, featureInUse, featureUpkeepTW, upkeepLines } from '../../src/engine/v2/departments/build';
+import { enablerShare, fxOn } from '../../src/engine/v2/worldfx/serving';
+import { featureView } from '../../src/engine/v2/worldfx/productView';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx, tick } from '../../src/engine/v2/core/loop';
 import { deserialize, serialize, stateHash } from '../../src/engine/v2/core/save';
@@ -20,7 +25,7 @@ import { deployGate } from '../../src/engine/v2/models/deployments';
 import { previewEdit } from '../../src/engine/v2/models/productOps';
 import { agentsGate, catchRate, monitorOverhead, productDomains } from '../../src/engine/v2/models/products';
 import { incidentsSystem } from '../../src/engine/v2/safety/incidents';
-import type { Deployment, GameStateV2, ModelVersion } from '../../src/engine/v2/types';
+import type { Deployment, GameStateV2, ModelVersion, SectorId } from '../../src/engine/v2/types';
 import { revenueReadout, servingPool } from '../../src/engine/v2/worldfx/revenue';
 import { FIXTURE_DIR, check, finish } from './lib';
 import { readFileSync } from 'node:fs';
@@ -253,6 +258,68 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const t0 = s.player.policies.trustedToAI;
   const r = act(s, 'agents.trusted', { share: 0.9 });
   check(!r && s.player.policies.trustedToAI <= 0.5 && s.player.policies.trustedToAI > t0 && s.player.agents.safety.compute > 0, 'A7 Trusted to AI: capped at 50% before P27; starts the safety agents', `${s.player.policies.trustedToAI} · ${s.player.agents.safety.compute}`);
+}
+
+// ───────── C2: every feature acts where it is offered; feature upkeep ─────────
+//   C2a for each feature and each product it is offered on, at least one typed effect acts there (engine functions:
+//       Chat reads fxOn / enablerShare on 'CHAT'; sector products on the sectors they sell to; effort and sector packs act
+//       on every product); every typed effect acts on at least one of its products; the card's "here" flags agree
+//   C2b Voice & vision on the API opens Media work (preview demand rises)
+//   C2c built features charge the engineers' upkeep: ½ buildTW a year in use, a tenth while off everywhere, always in
+//       use when they help the internal agents; sector packs nothing; featureView shows the same numbers
+{
+  const GOVS: SectorId[] = ['GOV', 'MIL'];
+  const sectorsOf = (ch: Deployment['channel']): SectorId[] => (ch === 'gov' ? GOVS : SECTORS.map((x) => x.id));
+  const moves = (x: { dG: number; hMult: number; tok: number }) => x.dG !== 0 || x.hMult !== 1 || x.tok !== 1;
+  const acts = (fx: FeatureFx, ch: Deployment['channel']): boolean => {
+    if (fx.kind === 'effort') return true;
+    if (fx.kind === 'enabler' && fx.packs) return ch !== 'consumer';
+    if (ch === 'consumer') return fx.kind === 'enabler' ? enablerShare([fx], 'CHAT') > 0 : moves(fxOn([fx], 'CHAT'));
+    return sectorsOf(ch).some((sid) => (fx.kind === 'enabler' ? enablerShare([fx], sid) > 0 : moves(fxOn([fx], sid))));
+  };
+  const deadPairs: string[] = [];
+  const deadFx: string[] = [];
+  const viewOff: string[] = [];
+  for (const f of FEATURES) {
+    for (const ch of f.products) {
+      if (!f.fx.some((fx) => acts(fx, ch))) deadPairs.push(`${f.id}@${ch}`);
+      if (!featureView(f, ch).lines.some((l) => l.here)) viewOff.push(`${f.id}@${ch}`);
+    }
+    // An enabler's consumer and sector parts count apart (Voice & vision's Media part could not act before C2).
+    const parts = f.fx.flatMap((fx): FeatureFx[] => (fx.kind === 'enabler' && fx.consumer && fx.sectors?.length ? [{ ...fx, sectors: undefined }, { ...fx, consumer: undefined }] : [fx]));
+    parts.forEach((fx, i) => { if (!f.products.some((ch) => acts(fx, ch))) deadFx.push(`${f.id}#${i}`); });
+  }
+  check(!deadPairs.length, 'C2a every feature has a typed effect that acts on each product it is offered on', deadPairs.join(', '));
+  check(!deadFx.length, 'C2a every typed effect acts on at least one of its feature\'s products', deadFx.join(', '));
+  check(!viewOff.length, 'C2a the feature row shows an effect "here" on every product it is offered on', viewOff.join(', '));
+
+  const s = game();
+  run(s, 3);
+  s.player.features.push('voiceVision');
+  const api = prod(s, 'api');
+  const pv = previewEdit(s, api, { features: ['voiceVision'] });
+  check(pv.after!.demand > pv.before!.demand, 'C2b Voice & vision on the API opens Media work (demand rises)', `${pv.before!.demand.toFixed(3)} → ${pv.after!.demand.toFixed(3)}`);
+  s.player.features.pop();
+
+  const fl = (g: GameStateV2) => upkeepLines(g).filter((l) => l.kind === 'feature');
+  check(fl(s).length === 0, 'C2c the leader start (sector packs only) carries no feature upkeep', JSON.stringify(fl(s)));
+  const comp = FEATURE_BY_ID.companion;
+  const mem = FEATURE_BY_ID.memory;
+  const u0 = engDemand(s).upkeep;
+  s.player.features.push('companion');
+  const idle = fl(s).find((l) => l.ref === 'companion')?.tw ?? NaN;
+  const u1 = engDemand(s).upkeep;
+  check(near(idle, (0.1 * 0.5 * comp.buildTW) / 52, 1e-9) && near(u1 - u0, idle, 1e-6), 'C2c a built feature off everywhere costs a keep-alive (a tenth of ½ buildTW a year) on the upkeep need', `${idle.toFixed(4)} t-wk/wk`);
+  const e = act(s, 'feature.toggle', { product: prod(s, 'consumer').id, feature: 'companion', on: true });
+  const full = fl(s).find((l) => l.ref === 'companion')?.tw ?? NaN;
+  check(!e && near(full, (0.5 * comp.buildTW) / 52, 1e-9) && near(engDemand(s).upkeep - u0, full, 1e-6), 'C2c switched on for a live product it costs ½ its build team-weeks a year', `${full.toFixed(4)} t-wk/wk ${e ?? ''}`);
+  s.player.features.push('memory');
+  const m = fl(s).find((l) => l.ref === 'memory')?.tw ?? NaN;
+  check(near(m, featureUpkeepTW(mem), 1e-9) && featureInUse(s, mem), 'C2c Memory (horizon on all work, internal agents too) is in use once built even when off on every product', `${m.toFixed(3)} t-wk/wk`);
+  const vc = featureView(comp, 'consumer');
+  const vm = featureView(mem, 'consumer');
+  check(near(vc.upkeepTW, full, 1e-9) && near(vc.idleTW, idle, 1e-9) && vm.idleTW === vm.upkeepTW && featureView(FEATURE_BY_ID.sectorPacks, 'api').upkeepTW === 0,
+    'C2c the feature tooltip\'s upkeep is the engine\'s (in use / off everywhere; sector packs none)', `companion ${vc.upkeepTW.toFixed(3)}/${vc.idleTW.toFixed(3)}, memory ${vm.upkeepTW.toFixed(3)}/${vm.idleTW.toFixed(3)}`);
 }
 
 finish('products');

@@ -502,7 +502,10 @@ function FeatureTip({ s, d, f }: { s: GameStateV2; d: Deployment; f: FeatureDef 
   return <TipCard title={f.name} value={v.kinds.map((k) => FT_LABEL[k]).join(' + ')} rows={[
     ...v.lines.map((l) => ({ label: <><Term id={FT_TERM[l.kind]}>{FT_LABEL[l.kind]}</Term> <span className="dim">· {l.where}</span></>, value: `${l.effect}${l.tokens !== 1 ? ` · ${l.kind === 'effort' ? 'reasoning tokens' : 'tokens'} ×${l.tokens}` : ''}${l.here ? '' : ' (not on this product)'}` })),
     ...(f.id === 'sectorPacks' ? [{ label: 'Build', value: 'per pack: 4 engineer team-weeks + $0.4B, then 120 d certification' }] : [{ label: 'Build', value: `${f.buildTW} engineer team-weeks · ${F.money(f.cash)}` }]),
-    { label: 'Upkeep', value: tok > 1 ? `serving ×${tok} tokens; no engineers` : 'none' },
+    { label: <Term id="productUpkeep">Upkeep</Term>, value: [
+      ...(v.upkeepTW > 0 ? [`${v.upkeepTW.toFixed(2)} engineer team-wk/wk${v.idleTW < v.upkeepTW ? ` (${v.idleTW.toFixed(2)} while off everywhere)` : ''}`] : []),
+      ...(tok > 1 ? [`serving ×${tok} tokens`] : []),
+    ].join(' · ') || 'none' },
     ...(f.id === 'sectorPacks' ? [] : [{ label: 'On this product', value: !built ? 'not built yet' : on ? 'on' : 'off', tone: (built && on ? 'pos' : 'neutral') as 'pos' | 'neutral' }]),
     { label: <Term id="agentPackage">Internal agents</Term>, value: v.internal.length ? `${built ? '' : 'once built: '}${v.internal.join(', ')}` : 'no effect' },
     { label: <Term id="techTree">Unlocked by</Term>, value: gate ? `${gate}${f.node && nodeKnown(s, f.node) ? ' (known)' : ' (not known yet)'}` : 'nothing: buildable now', tone: (gate && f.node && !nodeKnown(s, f.node) ? 'neg' : 'neutral') as 'neg' | 'neutral' },

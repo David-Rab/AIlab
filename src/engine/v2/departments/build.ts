@@ -8,14 +8,16 @@
 //             setups on the queue (a run trains only once its setup is built), then adoptions of research results into
 //             the recipe stacks (model v3 V2, models/research.ts: the training code the next runs use)
 //   upkeep    every live product (reliability, on-call, integrations; grows with revenue) and every monitor in
-//             production (a product's or an internal use's: serving harness, alert triage)
+//             production (a product's or an internal use's: serving harness, alert triage), and every built product
+//             feature (model v3 C2: featureUpkeepTW)
 //   builds    the rest of the queue in priority order: product launches, product features, sector packs
 // Too few engineers: upkeep falls behind (shown) and nothing new ships (launches, features and packs wait; the wait
 // shows on Products and Company). Runs come first so the run cadence holds (the reference lab's runs never wait on
 // upkeep). Engineering agents raise capacity through A_eng (their model and compute; R7, J2), so the work an engineer
 // carries grows as AI takes over engineering. Calibration: the reference lab (RefBot) on the ai2027 path uses about
 // three quarters of its capacity; its run setups finish within a few days in every world (calib.ts).
-import { FEATURE_BY_ID, PRICE_TIERS, type FeatureId } from '../../../data/v2/features';
+import { FEATURE_BY_ID, PRICE_TIERS, type FeatureDef, type FeatureId } from '../../../data/v2/features';
+import { WORK_TYPES } from '../../../data/v2/workTypes';
 import { SECTOR_BY_ID } from '../../../data/v2/sectors';
 import { AGENT_USES } from '../../../data/v2/agents';
 import type { ActionDef, BuildItem, BuildKind, Deployment, EngineSystem, GameStateV2, RunKind, SectorId, SystemCtx, TrainingRun } from '../types';
@@ -58,19 +60,35 @@ export function runSetupTW(kind: RunKind, scale = 1, ida = false): number {
  *  and monitor upkeep × 0.4 (were 0.5 + 4√… and 1): J2 tuned it to v2's build capacity, whose AI speed-up came from AI 2027's automation
  *  knots (×4.7 at the start); the physical SWE coverage of a 2025 model (≈ 0.2) gives ×1.35, and at the old upkeep the
  *  start lab's products alone needed twice its capacity. */
-export const UPKEEP = { product: 0.2, productRev: 1.6, revUnit: 10, runBase: 1, runMid: 0.5, runSmall: 0.2, stream: 0.5, monitor: 0.4 } as const;
+export const UPKEEP = { product: 0.2, productRev: 1.6, revUnit: 10, runBase: 1, runMid: 0.5, runSmall: 0.2, stream: 0.5, monitor: 0.4, featureYr: 0.5, featureIdle: 0.1 } as const;
 /** One-off builds [D]: launching a product 4 team-weeks; a sector pack 4 (then 120 days of certification). */
 export const LAUNCH_TW = 4;
 export const SECTOR_PACK_TW = 4;
 /** Certification after a sector pack is built (research/16 §1A.3: "costs months and money"). */
 export const SECTOR_CERT_DAYS = 120;
 
-export type UpkeepKind = 'product' | 'run' | 'stream' | 'monitor';
+export type UpkeepKind = 'product' | 'run' | 'stream' | 'monitor' | 'feature';
 export interface UpkeepLine { kind: UpkeepKind; ref: string; tw: number }
 /** Runs (operations) come before product upkeep. */
 export const isRunLine = (l: Pick<UpkeepLine, 'kind'>) => l.kind === 'run' || l.kind === 'stream';
 
 const isLiveProduct = (d: Deployment) => d.kind === 'product' && d.status !== 'withdrawn';
+
+/** Model v3 C2 (MODEL-V3 §7.2 "features have upkeep") [D]: a built feature in use keeps half its build team-weeks busy
+ *  each year (UPKEEP.featureYr × buildTW ÷ 52 team-weeks per week; Memory, 12 team-weeks to build, ≈0.12 a week); one
+ *  built but in use nowhere costs a keep-alive of UPKEEP.featureIdle × that. In use = switched on for a live product
+ *  that offers it, or a scaffold / horizon extender acting on an internal work type (it helps the internal agents once
+ *  built, worldfx/serving.ts internalFx). Sector packs (0 team-weeks; each pack is its own build) cost nothing here.
+ *  Charged on the 'upkeep' need, with products and monitors. */
+export const featureUpkeepTW = (f: Pick<FeatureDef, 'buildTW'>, inUse = true) => ((UPKEEP.featureYr * f.buildTW) / 52) * (inUse ? 1 : UPKEEP.featureIdle);
+/** A scaffold or horizon extender that acts on an internal work type (the lab's own agents use it once built). */
+export const featureInternal = (f: Pick<FeatureDef, 'fx'>) =>
+  f.fx.some((x) => (x.kind === 'scaffold' || x.kind === 'horizon') && (x.work === 'all' || x.work.some((w) => w in WORK_TYPES)));
+/** Whether a built feature is in use: on for a live product that offers it, or acting on the internal agents. */
+export function featureInUse(s: GameStateV2, f: FeatureDef): boolean {
+  if (featureInternal(f)) return true;
+  return s.player.deployments.some((d) => isLiveProduct(d) && f.products.includes(d.channel) && d.features.includes(f.id));
+}
 
 /** Engineering a training run needs each week while it trains. */
 export function runOpsTW(r: Pick<TrainingRun, 'kind' | 'flopNeeded' | 'name'>): number {
@@ -82,7 +100,8 @@ export function runOpsTW(r: Pick<TrainingRun, 'kind' | 'flopNeeded' | 'name'>): 
 /** Upkeep of one live product per week (revenue in $B/yr). */
 export const productUpkeepTW = (revenue: number) => UPKEEP.product + UPKEEP.productRev * Math.sqrt(Math.max(0, revenue) / UPKEEP.revUnit);
 
-/** Standing load lines (team-weeks per week): training runs and the stream, products, monitors in production. */
+/** Standing load lines (team-weeks per week): training runs and the stream, products, monitors in production, built
+ *  features. */
 export function upkeepLines(s: GameStateV2): UpkeepLine[] {
   const p = s.player;
   const out: UpkeepLine[] = [];
@@ -94,6 +113,10 @@ export function upkeepLines(s: GameStateV2): UpkeepLine[] {
     if (d.monitorId) out.push({ kind: 'monitor', ref: d.id, tw: UPKEEP.monitor });
   }
   for (const u of AGENT_USES) if (monitorVersion(s, u) && agentSplitShare(s, u) > 0) out.push({ kind: 'monitor', ref: u, tw: UPKEEP.monitor });
+  for (const id of p.features) {
+    const f = FEATURE_BY_ID[id as FeatureId];
+    if (f && f.buildTW > 0) out.push({ kind: 'feature', ref: id, tw: featureUpkeepTW(f, featureInUse(s, f)) });
+  }
   return out;
 }
 

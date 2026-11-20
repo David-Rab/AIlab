@@ -682,11 +682,11 @@ async function b2Check(where) {
   const fmiss = [];
   for (const x of feats.filter((y) => y.f !== 'sectorPacks')) {
     const tx = await hoverTip(`[data-product="${x.card}"] [data-feature="${x.f}"] .ft-fx`);
-    if (/Build/.test(tx) && /Upkeep/.test(tx) && /Internal agents/.test(tx) && /Unlocked by/.test(tx) && /On this product/.test(tx)) ftip++;
+    if (/Build/.test(tx) && /Upkeep/.test(tx) && /\d\.\d\d engineer team-wk\/wk/.test(tx) && /Internal agents/.test(tx) && /Unlocked by/.test(tx) && /On this product/.test(tx)) ftip++;
     else fmiss.push(`${x.f}: ${tx.replace(/\n/g, ' ').slice(0, 60)}`);
   }
   await clearTips();
-  ok(`B2 ${where}: feature tooltips show cost, upkeep, on here, internal agents and the gate`, fmiss.length === 0, fmiss.slice(0, 3).join(' ; '));
+  ok(`B2 ${where}: feature tooltips show cost, upkeep (engineer team-wk/wk, C2), on here, internal agents and the gate`, fmiss.length === 0, fmiss.slice(0, 3).join(' ; '));
 }
 // ───────────────────────── B3: World › Sectors (day 1, 400, 900) ─────────────────────────
 // The region strip shows workers using AI, hours of use, hours saved per hour, paid seats and agent-hours; the sector card

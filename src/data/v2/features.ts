@@ -121,10 +121,13 @@ export const FEATURES: FeatureDef[] = [
     effect: 'Task enabler: operates desktops and browsers, opening 15% more work in Admin, Finance, Legal and Government (GUI-only tasks)',
     fx: [{ kind: 'enabler', sectors: ['OFFICE', 'FIN', 'LEGAL', 'GOV'], share: 0.15 }],
     risk: 'Overreach incidents (power seeking) ×1.3', hazard: { POWER: 1.3 } },
-  { id: 'voiceVision', name: 'Voice & vision', node: 'multimodal', products: ['consumer'], buildTW: 12, cash: 0.1,
-    effect: 'Task enabler: talks, sees and makes images, opening 15% more Chat users and 15% more Media work',
+  // C2: also on the API (image, voice and video generation sold to media firms): Chat sells no sector work, so the API
+  // is where its Media segment acts; on Chat it opens the Chat users.
+  { id: 'voiceVision', name: 'Voice & vision', node: 'multimodal', products: ['consumer', 'api'], buildTW: 12, cash: 0.1,
+    effect: 'Task enabler: talks, sees and makes images, opening 15% more Chat users (on Chat) and 15% more Media work (on the API)',
     fx: [{ kind: 'enabler', consumer: true, sectors: ['MEDIA'], share: 0.15 }] },
-  { id: 'deepResearch', name: 'Deep research', node: 'P05', products: ['consumer', 'enterprise'], buildTW: 8, cash: 0.05,
+  // C2: not on Chat: its scaffold lists Science, Finance, Legal and internal research, none of which Chat sells.
+  { id: 'deepResearch', name: 'Deep research', node: 'P05', products: ['enterprise'], buildTW: 8, cash: 0.05,
     effect: 'Scaffold: long research reports, +0.3 OOM of fit in Science, Finance and Legal work and for internal research ideas, at ×3 tokens',
     fx: [{ kind: 'scaffold', dG: 0.3, tokens: 3, work: ['SCI', 'FIN', 'LEGAL', 'IDEAS'] }],
     risk: 'Cost per work-hour ×3 where it applies (long agent runs)' },
