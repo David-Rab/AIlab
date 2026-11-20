@@ -27,6 +27,7 @@ import { initialBoard } from '../finance/board';
 import { initialCapital } from '../finance/investors';
 import { initialFinance } from '../finance/ledger';
 import { recordThesisHist } from '../finance/promises';
+import { startDivision } from '../finance/parent';
 import { benchScore } from '../models/benchmarks';
 import { domainsOf, levelOf, playerStart, simpleStartPa, yearOfDay } from '../models/capability';
 import { labCore } from '../models/labs';
@@ -280,6 +281,7 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
   for (const r of [...rivals, china.lab]) r.core.pa = simpleStartPa(s, r.core.id, r.internal.pm);
   seedCandidates(s.player.hiring, new StreamRng(s, 'company'));
   recordThesisHist(s); // FIN2: day-0 milestone metrics (the raise card's trends)
+  startDivision(s); // FIN5c: a big-tech division's first budget year and the parent's goals for it
   sampleSeries(s);
   return s;
 }

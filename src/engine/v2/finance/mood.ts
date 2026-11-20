@@ -52,6 +52,8 @@ export const INCIDENT_BC_CAP_Q = 8;
 /** Which source a board-confidence cause belongs to (Board card, ouster grievance). */
 export const MOOD_SOURCE_OF: Record<string, MoodSource> = {
   'promise met': 'results', 'promise missed': 'results',
+  // FIN5c: a big-tech division's parent judges its goals (results) and covers its overspend (a setback).
+  'goal met': 'results', 'goal missed': 'results', 'over budget': 'setbacks',
   'down round': 'setbacks', 'covenant breach': 'setbacks', 'financial distress': 'setbacks', 'out of distress': 'setbacks', 'failed raise': 'setbacks',
   'behind a rival': 'behind', 'frontier pause': 'behind',
   'public incident': 'incidents',

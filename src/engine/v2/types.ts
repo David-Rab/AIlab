@@ -840,6 +840,10 @@ export interface FinancePromise extends Thesis {
   deadline: Day;
   /** Set when judged: the metric then, progress (start → target = 0 → 1), the outcome and what it moved. */
   result?: { day: Day; value: number; progress: number; outcome: 'met' | 'near' | 'missed'; weight: number; cred: number; board: number };
+  /** FIN5c (spec §13): a goal the big-tech parent set with the year's budget (not a round's promise): `amount` is that
+   *  budget, `goalWeight` its fixed share of the year's goals; it moves parent confidence only (no investors). */
+  by?: 'parent';
+  goalWeight?: number;
 }
 /** A conditional or scheduled cash inflow. `partner`: a partner deal's equity tranche (FIN4a): the partner gets its
  *  shares when the tranche lands, at that day's valuation, up to `stakeCap` of the company (a hyperscaler's 15%; the
@@ -1197,6 +1201,34 @@ export interface FinanceWS3 {
   capexCumAtQ: Money;
   capex4q: Money[];
   years: Record<string, YearStats>;
+  /** FIN5c: the big-tech division's budget year (finance/parent.ts); absent for every other company. */
+  division?: DivisionBudget;
+}
+
+/** A big-tech division's budget year (FINANCE-V3 §13, FIN5c). Budget years run Jul–Jun (0 = Jul 2025 – Jun 2026). At
+ *  each year's review the parent minds any overspend it is covering, sets the budget (its plan × a factor read off parent
+ *  confidence) and the year's goals (FinancePromise with `by: 'parent'`). */
+export interface DivisionBudget {
+  year: number;
+  /** The parent's plan for the year (its capex path, data/v2/starts.ts) and the budget it set: plan × factor. */
+  plan: Money;
+  budget: Money;
+  factor: number;
+  /** Parent confidence when the budget was set. */
+  confidence: number;
+  /** Cash at the year start before its first payment: savings carried in, or (negative) the parent's advance still
+   *  outstanding, repaid from this year's payments first. */
+  carryIn: Money;
+  /** Budget paid so far this year. */
+  paid: Money;
+  /** Last reviews (oldest first, at most 4). */
+  reviews: DivisionReview[];
+}
+export interface DivisionReview {
+  year: number; day: Day; budget: Money;
+  /** Net spending over the year, the overspend the parent was still covering at the review and the confidence it cost. */
+  spent: Money; over: Money; overConf: number;
+  goals: { met: number; near: number; missed: number };
 }
 
 /** Non-player lab order (rivals, China): kept on the market so WS4 can place them via `placeLabOrder`. */

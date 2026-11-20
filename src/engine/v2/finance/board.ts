@@ -6,7 +6,7 @@
 // when the weighted yes is more than half. Operating decisions (compute orders, releases, research, pricing) are never
 // voted on. Board confidence moves only on named sources, each weighted by the kinds of seat on the board, and drifts
 // back toward 60.
-import { startOf } from '../../../data/v2/starts';
+import { isDivision, startOf } from '../../../data/v2/starts';
 import { leadDays } from '../actors/intel';
 import { activeRivals } from '../models/labs';
 import type { Board, BoardSeat, BoardVote, EngineSystem, GameStateV2, GovernancePresetId, MajorDecision, OusterSeatVote, OusterVote, SeatVote, SystemCtx } from '../types';
@@ -208,6 +208,13 @@ export function updateRunwayState(s: GameStateV2, ctx: SystemCtx): void {
   if (f.state === 'insolvent') return;
   const r = runwayOf(s);
   f.runwayQ = Math.round(r.q * 10) / 10;
+  // FIN5c (spec §13): a division has no runway verdict: the parent covers its overspend at the year's review, at a cost
+  // in parent confidence (finance/parent.ts), so it is never tight or in distress.
+  if (isDivision(s)) {
+    f.state = 'healthy';
+    delete f.ws3.distressSinceDay;
+    return;
+  }
   const breach = f.covenantBreachDay !== undefined;
   const next: typeof f.state = breach || r.q < 3 ? 'distress' : r.q < 6 ? 'tight' : 'healthy';
   const ys = yearStats(s);
@@ -414,7 +421,8 @@ export const boardQSystem: EngineSystem = {
     // safety-grade bonus.
     // Behind the best rival: a board that backed a follower (R9 start types) expects its start lag and minds only
     // falling further behind than that.
-    if (behindRival(s)) boardMood(s, ctx, 'behind', MOOD_BASE.behindQ, 'behind a rival');
+    // FIN5c: a division's parent judges capability through its yearly goals (finance/parent.ts), not quarter by quarter.
+    if (behindRival(s) && !isDivision(s)) boardMood(s, ctx, 'behind', MOOD_BASE.behindQ, 'behind a rival');
     // Public incidents last quarter, by severity, capped per quarter, then × the board's incident multiplier.
     let incHit = 0;
     for (const inc of s.player.safety.incidents) {

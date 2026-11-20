@@ -158,6 +158,7 @@ export const promiseDeadline = (s: GameStateV2, closeDay: Day) => dayOfQuarter(s
 /** Weight of a promise (spec §2.3): its round's amount ÷ the amount raised in the year to its deadline (this round and
  *  every later one closed before the deadline). Before the deadline it reads the rounds so far; it can only fall. */
 export function promiseWeight(s: GameStateV2, p: FinancePromise): number {
+  if (p.goalWeight !== undefined) return p.goalWeight; // a parent goal: its fixed share of the year (FIN5c)
   const end = Math.min(p.deadline, s.time.day + 1);
   const raised = s.player.finance.rounds.filter((r) => r.day >= p.closeDay && r.day < end).reduce((a, r) => a + r.amount, 0);
   return Math.min(1, p.amount / Math.max(p.amount, raised));
@@ -189,10 +190,12 @@ export interface PromiseStatus {
 export function outcomeOf(progress: number): 'met' | 'near' | 'missed' {
   return progress >= 1 ? 'met' : progress >= 1 - PROMISE_RESULT.band ? 'near' : 'missed';
 }
-/** Credibility and board effects of an outcome at weight w; the board part includes this board's multiplier. */
-const effects = (s: GameStateV2, o: 'met' | 'near' | 'missed', w: number) => {
+/** Credibility and board effects of an outcome at weight w; the board part includes this board's multiplier. A
+ *  parent goal (FIN5c) moves parent confidence (the division's board) the same way and no credibility (no investors). */
+const effects = (s: GameStateV2, o: 'met' | 'near' | 'missed', w: number, p?: FinancePromise) => {
   const k = moodWeight(s, 'results');
-  return o === 'met' ? { cred: PROMISE_RESULT.metCred * w, board: PROMISE_RESULT.metBoard * w * k } : o === 'missed' ? { cred: PROMISE_RESULT.missCred * w, board: PROMISE_RESULT.missBoard * w * k } : { cred: 0, board: 0 };
+  const c = p?.by === 'parent' ? 0 : 1;
+  return o === 'met' ? { cred: c * PROMISE_RESULT.metCred * w, board: PROMISE_RESULT.metBoard * w * k } : o === 'missed' ? { cred: c * PROMISE_RESULT.missCred * w, board: PROMISE_RESULT.missBoard * w * k } : { cred: 0, board: 0 };
 };
 
 /** Live state of a promise (What we owe, Watch). */
@@ -205,7 +208,7 @@ export function promiseStatus(s: GameStateV2, p: FinancePromise): PromiseStatus 
   const state = progress >= 1 ? 'ahead' : tau >= 0.25 && progress < neededProgress - BEHIND_GAP ? 'behind' : 'on track';
   const weight = promiseWeight(s, p);
   const o = outcomeOf(progress);
-  return { p, value, progress, needed, neededProgress, daysLeft: Math.max(0, p.deadline - s.time.day), weight, state, ifJudgedNow: { outcome: o, ...effects(s, o, weight) } };
+  return { p, value, progress, needed, neededProgress, daysLeft: Math.max(0, p.deadline - s.time.day), weight, state, ifJudgedNow: { outcome: o, ...effects(s, o, weight, p) } };
 }
 
 export const livePromises = (s: GameStateV2) => (s.player.finance.promises ?? []).filter((p) => !p.result);
@@ -228,13 +231,15 @@ export function judgePromises(s: GameStateV2, ctx: SystemCtx): void {
     const progress = progressOf(p, value);
     const weight = promiseWeight(s, p);
     const outcome = outcomeOf(progress);
-    const fx = effects(s, outcome, weight);
+    const fx = effects(s, outcome, weight, p);
     p.result = { day: s.time.day, value, progress, outcome, weight, ...fx };
-    const what = `${describeTarget(p)} (${Math.round(progress * 100)}% of the promised gain, weight ${Math.round(weight * 100)}%)`;
+    const goal = p.by === 'parent';
+    const what = `${describeTarget(p)} (${Math.round(progress * 100)}% of the ${goal ? 'goal' : 'promised'} gain, weight ${Math.round(weight * 100)}%)`;
+    const word = goal ? 'goal' : 'promise';
     if (fx.cred) ctx.bump('finance.credibility', fx.cred, outcome === 'met' ? 'promise met' : 'promise missed', what);
     // The board part already carries this board's multiplier for promise results (effects).
-    if (fx.board) ctx.bump('board.confidence', fx.board, outcome === 'met' ? 'promise met' : 'promise missed', what);
-    ctx.log('finance', `Investor promise ${outcome === 'met' ? 'met' : outcome === 'missed' ? 'missed' : 'nearly met (no effect)'}: ${what}.`, outcome === 'missed' ? 2 : 1);
+    if (fx.board) ctx.bump('board.confidence', fx.board, `${word} ${outcome === 'met' ? 'met' : 'missed'}`, what);
+    ctx.log('finance', `${goal ? 'Parent goal' : 'Investor promise'} ${outcome === 'met' ? 'met' : outcome === 'missed' ? 'missed' : 'nearly met (no effect)'}: ${what}.`, outcome === 'missed' ? 2 : 1);
   }
   const judged = f.promises.filter((p) => p.result);
   if (judged.length > KEEP_JUDGED) {

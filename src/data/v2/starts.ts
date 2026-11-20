@@ -100,7 +100,7 @@ export const STARTS: StartDef[] = [
   },
   {
     id: 'bigtech', name: 'Big-tech AI division', difficulty: 'Impossible', analogues: 'Google DeepMind, Meta, Microsoft AI',
-    character: 'Compute and distribution, and you cannot go broke; a fixed budget from the parent and a weak pull on talent.',
+    character: 'Compute and distribution, and you cannot go broke; a yearly budget from the parent, cut when you miss its goals, and a weak pull on talent.',
     leaderLab: true,
     teams: { eng: 7, 're.cap': 18, 'sci.cap': 11, 're.saf': 1, 'sci.saf': 1 },
     specialties: { cap: ['pretraining', 'systems', 'posttraining', 'pretraining', 'systems', 'posttraining', 'pretraining', 'systems', 'posttraining', 'pretraining', 'systems'], saf: ['interp', 'alignment', 'evals'] },
@@ -145,8 +145,8 @@ export const isDivision = (s: { setup: { start?: StartType } }) => startOf(s).bo
 
 /** Big-tech parent budget ($B per game year, Jul–Jun; research/18 §3.2): $16B in year one (the leader's 2025 compute
  *  spend in the AI 2027 compute forecast), growing with the parent's capex path — Alphabet 52.5 → 91.4 → ~180 in
- *  2024–26 (≈ ×1.75/yr) for three years, then ×1.3/yr as hyperscaler capex growth slows [D]. Paid quarterly from Q4 2025;
- *  the schedule is fixed and shown in advance. No parent-confidence mechanic (STRUCTURE §4.8). */
+ *  2024–26 (≈ ×1.75/yr) for three years, then ×1.3/yr as hyperscaler capex growth slows [D]. This is the parent's plan: the
+ *  budget it sets at each yearly review is the plan × a factor read off parent confidence (FIN5c, finance/parent.ts). */
 export const PARENT_BUDGET = { year0: 16, fastGrowth: 1.75, fastYears: 3, slowGrowth: 1.3 };
 export function parentBudgetYear(y: number): number {
   const fast = Math.min(Math.max(0, y), PARENT_BUDGET.fastYears);

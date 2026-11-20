@@ -109,7 +109,8 @@ export function measuredDomains(v: ModelVersion): Record<DomainId, number> {
 }
 
 export { runwayOf, RUNWAY_CAP } from './finance/runway';
-export { parentSchedule, parentYear, parentPaymentQ, DIVISION_REASON } from './finance/parent';
+export { parentSchedule, parentPaymentQ, divisionView, budgetFactor, budgetYearStart, DIVISION, DIVISION_REASON } from './finance/parent';
+export type { DivisionView, ParentPayment } from './finance/parent';
 export { debtHeadroom, totalDebt, interestPerYear, debtRatePct, newDebtRatePct, ratingTerms, creditLineCapacity, chipCollateral, trailingOpCash, lineUndrawn } from './finance/debt';
 export type { Headroom, RatingTerms } from './finance/debt';
 export { payOptions, leaseRate, leaseAvailable, contingentLiabilities, siteRVG, leaseBalance } from './finance/capex';

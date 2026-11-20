@@ -4,7 +4,7 @@
 //   Compute feeds Research, Models and Products; the takeoff loop: internal agents take over the teams' work.
 import type { ReactNode } from 'react';
 import {
-  aiShareByRole, bestPlayerVersion, engine, idleChips, idleTeams, measuredLOf, productReadouts, runwayOf,
+  aiShareByRole, bestPlayerVersion, divisionView, engine, idleChips, idleTeams, measuredLOf, productReadouts, runwayOf,
 } from '../../../engine/v2';
 import type { GameStateV2 } from '../../../engine/v2';
 import { PRODUCT_DEFS } from '../../../data/v2/features';
@@ -15,7 +15,7 @@ import { ICON } from '../icons';
 import { C, runwayState, STATE_COLOR } from '../theme';
 import type { GoTarget } from '../kit';
 import { isDivision } from '../../../data/v2/starts';
-import { divisionBudget } from '../shell/selectors';
+import { divisionStatus } from '../shell/selectors';
 
 type Tone = 'good' | 'watch' | 'bad' | 'neutral';
 const TONE: Record<Tone, string> = { good: C.good, watch: C.watch, bad: C.bad, neutral: C.text3 };
@@ -51,8 +51,9 @@ function readings(s: GameStateV2): Record<string, Reading> {
   const st = runwayState(rw.q);
   if (isDivision(s)) {
     // Jank F2: a division cannot go broke; its verdict is the budget, not the runway.
-    const b = divisionBudget(s);
-    out.cash = { text: b.over ? `over budget ${F.money(b.overQ)}/q` : 'within budget', tone: b.over ? 'watch' : 'good', tip: [{ label: <Term id="parentBudget">Parent budget</Term>, value: F.money(b.parentQ, { perQ: true }) }, { label: 'Spending', value: F.money(b.spendQ, { perQ: true }) }] };
+    const v = divisionView(s)!;
+    const st = divisionStatus(v);
+    out.cash = { text: st.short, tone: st.tone === 'good' ? 'good' : st.tone === 'watch' ? 'watch' : 'bad', tip: [{ label: <Term id="parentBudget">Budget this year</Term>, value: F.money(v.budget) }, { label: 'Spent so far', value: F.money(v.spent) }, { label: <Term id="parentConf">Parent confidence</Term>, value: F.idx(v.confidence) }] };
   } else out.cash = { text: `runway ${st}`, tone: st === 'healthy' ? 'good' : st === 'tight' ? 'watch' : 'bad', tip: [{ label: <Term id="runway">Runway</Term>, value: <span style={{ color: STATE_COLOR[st] }}>{F.runway(rw.q, 12)}</span> }] };
   out.financing = p.board.preset === 'parent' ? { text: 'parent budget', tone: 'neutral' } : { text: p.finance.ws3.pendingRound ? 'round pending' : 'raise · borrow', tone: 'neutral' };
   const teams = p.teams;

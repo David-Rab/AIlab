@@ -9,9 +9,10 @@ import { LEADER_FEATURES, PRICE_TIERS, tierOfIndex } from '../../../data/v2/feat
 import { TRUSTED_MAX_P27 } from '../../../data/v2/agents';
 import { partnerDef, PARTNER_TERMS } from '../../../data/v2/deals';
 import { initialAgents } from '../departments/agents';
+import { divisionOf } from '../finance/parent';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
-export const SCHEMA_REV = 16;
+export const SCHEMA_REV = 17;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -284,6 +285,13 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     for (const c of f.ledger as unknown as { kind: string }[]) if (c.kind === 'vendor') c.kind = 'lta';
     for (const y of Object.values((f.ws3?.years ?? {}) as unknown as Record<string, Record<string, unknown>>)) delete y.vendorNotes;
     s.player.board.seats = s.player.board.seats.filter((x) => !(x.kind === 'strategic' && x.weight <= 0));
+  },
+  /** 16 → 17 (finance v3 FIN5c): a big-tech division gets its budget year: this year's budget at the plan (as it was
+   *  paid), savings carried in estimated as cash above what this year has paid so far; the parent sets goals and the
+   *  next budget at the next review. A division never stays in distress (no runway verdict). */
+  16: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    if (divisionOf(s) && s.player.finance.state !== 'insolvent') s.player.finance.state = 'healthy';
   },
 };
 

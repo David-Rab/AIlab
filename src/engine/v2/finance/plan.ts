@@ -18,6 +18,7 @@ import { debtHeadroom } from './debt';
 import { partnerOffers, termsEquity } from './deals';
 import { canRaise, DOWN_ROUND_RUNWAY_Q, lastPostMoney, raiseCeiling } from './equity';
 import { qOf } from './ledger';
+import { budgetRoom } from './parent';
 import { MILESTONES, PITCH, promiseDeadline, trendOf } from './promises';
 import { runwayOf } from './runway';
 import type { MilestoneType, Pitch } from '../types';
@@ -193,7 +194,9 @@ export function financeAutopilot(s: GameStateV2, o0: AutopilotOpts = REF_AUTOPIL
 
   const guardQ = o.guardQ ?? GUARD_Q;
   const guardChipsQ = guardQ - (GUARD_Q - GUARD_CHIPS_Q);
-  const prudent = !o.guard || runwayOf(s).q >= guardQ;
+  // FIN5c: a prudent division head also keeps to the parent's budget (no overspend projected at the next two reviews;
+  // budgetRoom is +∞ for every other company).
+  const prudent = !o.guard || (runwayOf(s).q >= guardQ && budgetRoom(s) >= 0);
   const q = qOf(s);
 
   // Sites (quarterly): MW for the target SITE_HORIZON_Q quarters out, as crash builds (the reference path grows
@@ -210,7 +213,7 @@ export function financeAutopilot(s: GameStateV2, o0: AutopilotOpts = REF_AUTOPIL
       const mw = Math.min(SITE_PATHS[path].maxMW, Math.max(500, gap), path === 'brownfield' ? s.power.ws3.transformersGW * 1000 : Infinity);
       if (!tryAct('cmp.newSite', { path, mw, crash: true, pay: o.offBalance && leaseRate(s) !== undefined ? 'lease' : 'cash', community: true })) break;
       gap -= mw;
-      if (o.guard && runwayOf(s).q < guardQ) break;
+      if (o.guard && (runwayOf(s).q < guardQ || budgetRoom(s) < 0)) break;
     }
     if (s.power.ws3.transformersGW < 2) tryAct('cmp.preorderTransformers', { gw: 3 });
   }
@@ -224,7 +227,7 @@ export function financeAutopilot(s: GameStateV2, o0: AutopilotOpts = REF_AUTOPIL
   }
 
   // Chips: fill MW expected 3 quarters out, up to the target net of long-term cloud.
-  if (!o.guard || runwayOf(s).q >= guardChipsQ) {
+  if (!o.guard || (runwayOf(s).q >= guardChipsQ && budgetRoom(s) >= 0)) {
     const day3 = dayOfQuarter(s.time.startDate, q + 3);
     const capH = siteCapacityH(s, mwBy(s, day3, false)) / Math.pow(0.944, 3);
     const want = Math.min(capH, target(s, o, day3 - s.time.day) - baseCloudAt(s, day3));
