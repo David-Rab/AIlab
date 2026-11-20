@@ -17,7 +17,7 @@ import { cloudPricePerYear } from '../compute/market';
 import { addSeat, boardVote, commitmentsVote, voteGate } from './board';
 import { controlVotes, ipTransferVote } from './charter';
 import { issue, partnerEquityIn, raiseCeiling, stakeRoom } from './equity';
-import { leadEstimate, licensedGap } from './observe';
+import { gwOwned, leadEstimate, licensedGap } from './observe';
 import { ensureWs3 } from './ext';
 import { qOf } from './ledger';
 import { divisionBlock } from './parent';
@@ -36,7 +36,8 @@ export function vetoesOf(s: GameStateV2, partner: string): string[] {
 }
 
 const stakeOf = (s: GameStateV2, partner: string) => s.player.finance.ownership.strat[partner] ?? 0;
-const gwOnline = (s: GameStateV2) => (s.player.computeOnline * s.power.kWPerH100e) / 1e6;
+/** GW online in your own sites: what 'gw:' tranche conditions count (FIN4r M1: not the partner's own cloud). */
+const gwOnline = (s: GameStateV2) => gwOwned(s);
 const V0 = (s: GameStateV2) => Math.max(10, s.player.finance.valuation);
 
 /** Equity a hyperscaler may still buy ($B at today's valuation): its stake, tranches included, stays at or under 15%
@@ -273,19 +274,16 @@ export function signPartner(s: GameStateV2, ctx: SystemCtx, partner: string, opt
     amount: x.amount, dueDay: x.dueDay, condition: x.condition, deadline: x.deadline,
     source: t.kind === 'chipVendor' ? `${partner} equity per GW` : `${partner} tranche ${i + 2}`, partner, ...(t.stakeCap !== undefined ? { stakeCap: t.stakeCap } : {}),
   }));
-  let ref: string | undefined;
   let supplyEnd = s.time.day;
   if (t.supply?.kind === 'cloud') {
     const c = addCloud(s, ctx, t.supply.h100e, t.supply.quarters, partner, { partnerDiscount: t.supply.partnerDiscount });
-    ref = c.id;
     supplyEnd = c.endDay;
   } else if (t.supply) {
     const o = placeOrder(s, ctx, t.supply.quarters, t.supply.h100e, { priceMult: (t.supply.costMult ?? 1) * (1 - t.supply.partnerDiscount), payee: partner });
-    ref = o.id;
     supplyEnd = dayOfQuarter(s.time.startDate, o.ltaEndQ ?? q + 2 + t.supply.quarters);
     if (t.supply.kind === 'asic') {
       // Separate supply pool (TPU/Trainium): served outside rationing; migration slows research ~2.5 quarters [R15].
-      f.ws3.reserved.push({ perQ: t.supply.h100e, fromQ: t.supply.startQ, toQ: t.supply.startQ + t.supply.quarters });
+      f.ws3.reserved.push({ perQ: t.supply.h100e, fromQ: t.supply.startQ, toQ: t.supply.startQ + t.supply.quarters, order: o.id }); // its own pool (FIN4r L9)
       f.ws3.asicMigrationUntil = s.time.day + PARTNER_TERMS.asic.migrationDays;
     }
   }
@@ -298,7 +296,7 @@ export function signPartner(s: GameStateV2, ctx: SystemCtx, partner: string, opt
   const until = Math.max(supplyEnd, s.time.day + Math.round(t.years * 365));
   const deal: StrategicDeal = {
     id: `DL${s.time.day}-${f.deals.length}`, partner, kind: t.kind, day: s.time.day, equityNow: t.equityNow, equityLater: t.tranches.reduce((a, x) => a + x.amount, 0),
-    ...(t.supply ? { supply: { kind: t.supply.kind, h100e: t.supply.h100e, quarters: t.supply.quarters, first: t.supply.first, last: t.supply.last, firmDiscount: t.supply.firmDiscount, partnerDiscount: t.supply.partnerDiscount, ...(t.supply.costMult !== undefined ? { costMult: t.supply.costMult } : {}), total: t.supply.total, endDay: supplyEnd, ...(ref ? { ref } : {}) } } : {}),
+    ...(t.supply ? { supply: { kind: t.supply.kind, h100e: t.supply.h100e, quarters: t.supply.quarters, first: t.supply.first, last: t.supply.last, firmDiscount: t.supply.firmDiscount, partnerDiscount: t.supply.partnerDiscount, ...(t.supply.costMult !== undefined ? { costMult: t.supply.costMult } : {}), total: t.supply.total, endDay: supplyEnd } } : {}),
     strings: { ...t.strings }, until, ...(t.rescue ? { rescue: true } : {}),
   };
   f.deals.push(deal);

@@ -211,6 +211,7 @@ const lineAmt = (c: CostLine) => {
   const a = Math.abs(c.amount);
   if (c.currency === 'cash') return F.money(a);
   if (c.currency === 'revenue') return F.money(a, { perYear: true });
+  if (c.currency === 'valuation') return `${F.money(a)} valuation`;
   if (c.currency === 'leadDays') return `${Math.round(a)} d lead`;
   if (c.currency === 'compute') return a <= 1 ? `${F.pct(a)} compute` : `${F.count(a)} H100e`;
   // Dilution lines are in percent (finance actions, E32); a fraction reading turned 0.5% into 50%.

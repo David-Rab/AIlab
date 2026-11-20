@@ -3,7 +3,7 @@
 // HOME of idle chips, empty racks, vendor fill, the forecast, sites & power, orders, cloud contracts and the chip
 // market. Compute online and the split live in Company and are only linked here.
 import { useEffect, useState, type ReactNode } from 'react';
-import { actionView, cancellablePricePerYear, chipFit, chipQuote, cloudPricePerYear, computeForecast, computeHistory, dateOf, dayOfQuarter, fmtDate, fmtMonth, leaseGuarantor, leaseRate, oppositionOdds, payOptions, qOf, rentQuote, siteCapex, siteEtaQ, siteLeasePerYear, siteRVG, siteSizeView, spotPrice, spotRentalView } from '../../../engine/v2';
+import { actionView, cancellablePricePerYear, chipFit, chipQuote, cloudPricePerYear, computeForecast, computeHistory, dateOf, dayOfQuarter, fmtDate, fmtMonth, leaseGuarantor, leaseRate, oppositionOdds, payOptions, qOf, rentQuote, siteCapex, siteEtaQ, siteLeasePerYear, siteRVG, siteSchedule, siteSizeView, spotPrice, spotRentalView } from '../../../engine/v2';
 import type { ChipOrder, ForecastEvent, ForecastQ, GameStateV2, PayOption, Site } from '../../../engine/v2';
 
 /** The lessor's rate at your rating (FIN4b: below B only with a partner's guarantee, named). */
@@ -341,7 +341,7 @@ function OrderCard({ s }: { s: GameStateV2 }) {
   const kW = s.power.kWPerH100e;
   const tranches = term >= 4;
   const qt = chipQuote(s, term, qty, { nonTW, firm });
-  const pays = payOptions(s, qt.later, 'chips', 0, qt.now);
+  const pays = payOptions(s, qt.later, 'chips', undefined, qt.now);
   const payNow = tranches || pays.find((o) => o.id === pay)?.blocked ? 'cash' : pay;
   const params = { qty, term, nonTW, ...(term === 1 && firm ? { firm: true } : {}), ...(!tranches && payNow !== 'cash' ? { pay: payNow } : {}) };
   return (
@@ -387,7 +387,7 @@ function BuildCard({ s }: { s: GameStateV2 }) {
   const kW = s.power.kWPerH100e;
   const eta = siteEtaQ(s, { path, mw, crash });
   const colo = path === 'lease';
-  const pays = payOptions(s, siteCapex({ path, mw, crash, community }), 'site', eta / 4);
+  const pays = payOptions(s, siteCapex({ path, mw, crash, community }), 'site', siteSchedule(s, { path, mw, crash }));
   const payNow = colo || pays.find((o) => o.id === pay)?.blocked ? 'cash' : pay;
   const params = { path, mw, crash, community, pay: payNow };
   const liveQ = qOf(s) + eta;

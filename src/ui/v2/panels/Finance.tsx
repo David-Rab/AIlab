@@ -5,7 +5,7 @@ import { useState, type ReactNode } from 'react';
 import {
   actionView, anchorPartners, conditionWords, dateOf, dayOfQuarter, dealWith, debtHeadroom, leadEstimate, partnerCosts, partnerOffers, partnersNow, termsEquity, type PartnerChoice, debtRatePct, fmtDate, fmtMonth, incidentBoardHit, interestPerYear, ledgerDue, leaseRate, liveLedger, newDebtRatePct, ratingTerms,
   payrollOf, qOf, runwayOf, totalDebt, RUNWAY_CAP,
-  describeTarget, fmtMetric, whatWeOwe, isListed, makeThesis, MILESTONES, PITCH, PITCHES, pitchAvailable, PROMISE_RESULT, promiseDeadline, raiseQuote, raiseTerms, trendOf,
+  describeTarget, fmtMetric, whatWeOwe, isListed, LARGE_ROUND, roundSplit, makeThesis, MILESTONES, PITCH, PITCHES, pitchAvailable, PROMISE_RESULT, promiseDeadline, raiseQuote, raiseTerms, trendOf,
   BC_ANCHOR, BC_CLEAR, BC_REVERT_Q, BC_WARN, canonicalKey, charterHolds, charterRights, CRITICS, criticsSide, OUSTER, INCIDENT_BC, INCIDENT_BC_CAP_Q, MOOD_BASE, MOOD_LABEL, MOOD_SOURCE_OF, MOOD_SOURCES, MOOD_WEIGHTS, moodWeight,
 } from '../../../engine/v2';
 import { isDivision } from '../../../data/v2/starts';
@@ -228,6 +228,10 @@ function RaiseCard({ s }: { s: GameStateV2 }) {
   const stake = q.dilution * 100;
   const fail = 1 - q.pClose;
   const burn = runwayOf(s).burnQ;
+  // FIN4r (H3): a round of $20B or more pays half at the close and the rest as a conditional tranche.
+  const close0 = nextQDay(s);
+  const split = roundSplit(s, ask, { closeDay: close0 });
+  const trWords = split.tranche ? (split.tranche.condition === 'recapitalisation' ? 'the recapitalisation completes' : `revenue run-rate reaches ${F.money(Number(split.tranche.condition.split(':')[1]), { perYear: true })} (${LARGE_ROUND.revenueX}× at the close)`) : '';
   const limits = ([['pool', 'Investor pool', 'investorPool', ICON.staff], ['dilution', 'Dilution limit', 'dilutionCap', ICON.valuation]] as const)
     .map(([k, label, term, icon]) => ({ k, label, term, icon, v: ceil.parts[k] ?? 0 }));
   const lmax = Math.max(1e-6, ...limits.map((l) => l.v));
@@ -282,7 +286,8 @@ function RaiseCard({ s }: { s: GameStateV2 }) {
         <span className="pills">
           <Pill kind="cost" title="Share of the company you sell"><Term id="dilution">stake</Term> −{stake.toFixed(1)}%</Pill>
           <Pill kind="neu" title={`Pre-money: the mark × the ${pitch} pitch's price (×${PITCH[pitch].price})`}>pre {F.money(q.pre)}</Pill>
-          <Pill kind="gain" title="Quarters of spending this round covers at today's net burn">{burn > 0 ? `+${F.quarters(ask / burn)} runway` : 'no burn'}</Pill>
+          <Pill kind="gain" title="Quarters of spending the cash at the close covers at today's net burn">{burn > 0 ? `+${F.quarters(split.now / burn)} runway` : 'no burn'}</Pill>
+          {split.tranche && <Pill kind="warn" title={`Rounds of ${F.money(LARGE_ROUND.min)} or more pay half at the close. The other ${F.money(split.tranche.amount)} lands ${fmtDate(dateOf(s, split.tranche.dueDay))} if ${trWords} by ${fmtDate(dateOf(s, split.tranche.deadline))}; otherwise it lapses and the shares for it are cancelled.`}><span data-test="raise-tranche">tranche {F.money(split.tranche.amount)}</span></Pill>}
           <Pill kind={fail > 0.25 ? 'bad' : fail > 0 ? 'warn' : 'good'} title="Asking above the ceiling risks the round failing">close {F.pct(1 - fail)}</Pill>
           {q.down && <Pill kind="bad" title={`Priced below the last round's ${F.money(q.lastPost)} post-money: the board votes on it (below the button), board confidence −${Math.abs(MOOD_BASE.downRound * moodWeight(s, 'setbacks')).toFixed(1)} and anti-dilution shares`}><Term id="downRound">down round</Term></Pill>}
         </span>
@@ -290,17 +295,19 @@ function RaiseCard({ s }: { s: GameStateV2 }) {
       {/* Jank F5: what the round does, before you click. */}
       {(() => {
         const rw = runwayOf(s);
-        const after = burn > 0 ? Math.min(RUNWAY_CAP, rw.q + ask / burn) : rw.q;
+        const after = burn > 0 ? Math.min(RUNWAY_CAP, rw.q + split.now / burn) : rw.q;
         return (
           <Tip content={() => <TipCard title="If the round closes" rows={[
-            { label: 'Cash', value: `${F.money(f.cash)} → ${F.money(f.cash + ask)}` },
+            { label: 'Cash at the close', value: `${F.money(f.cash)} → ${F.money(f.cash + split.now)}` },
+            ...(split.tranche ? [{ label: <Term id="trancheCondition">Tranche</Term>, value: `${F.money(split.tranche.amount)} if ${trWords} by ${fmtDate(dateOf(s, split.tranche.deadline))}` }] : []),
             { label: <Term id="runway">Runway</Term>, value: `${F.runway(rw.q, RUNWAY_CAP)} → ${F.runway(after, RUNWAY_CAP)}` },
             { label: <Term id="dilution">Stake sold</Term>, value: `${stake.toFixed(1)}% of the company` },
             { label: 'Price (pre-money)', value: F.money(q.pre) },
             { label: 'Closes', value: fmtDate(dateOf(s, close)) },
-          ]}>The money lands at the next quarter start; the odds of closing fall when you ask above the ceiling.</TipCard>}>
+          ]}>{split.tranche ? 'Half lands at the next quarter start, the rest as a tranche on its condition (shares for a lapsed tranche are cancelled).' : 'The money lands at the next quarter start.'} The odds of closing fall when you ask above the ceiling.</TipCard>}>
             <div className="fin-ba small" data-test="raise-preview">
-              <span className="dim">cash</span> <span className="num">{F.money(f.cash)} → <b>{F.money(f.cash + ask)}</b></span>
+              <span className="dim">cash</span> <span className="num">{F.money(f.cash)} → <b>{F.money(f.cash + split.now)}</b></span>
+              {split.tranche && <span className="dim">{' '}+ {F.money(split.tranche.amount)} tranche if {trWords}</span>}
               <span className="dim">· runway</span> <span className="num">{F.runway(rw.q, RUNWAY_CAP)} → <b>{F.runway(after, RUNWAY_CAP)}</b></span>
             </div>
           </Tip>

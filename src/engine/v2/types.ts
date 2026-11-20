@@ -844,11 +844,18 @@ export interface FinancePromise extends Thesis {
    *  budget, `goalWeight` its fixed share of the year's goals; it moves parent confidence only (no investors). */
   by?: 'parent';
   goalWeight?: number;
+  /** FIN4r (H2): a typical round at the close, d_max · pre-money ÷ (1 − d_max) with the dilution limit that applied
+   *  ($B): the weight is the amount ÷ the larger of this and what was raised in the year, so a tiny round weighs little. */
+  typical?: Money;
 }
 /** A conditional or scheduled cash inflow. `partner`: a partner deal's equity tranche (FIN4a): the partner gets its
  *  shares when the tranche lands, at that day's valuation, up to `stakeCap` of the company (a hyperscaler's 15%; the
  *  part past the cap lapses). Round tranches carry no partner (their shares were issued at the close). */
-export interface Tranche { amount: Money; dueDay: Day; condition?: string; deadline?: Day; source: string; partner?: string; stakeCap?: number; }
+export interface Tranche { amount: Money; dueDay: Day; condition?: string; deadline?: Day; source: string; partner?: string; stakeCap?: number;
+  /** FIN4r (H3): a round's second tranche: the shares issued at the close for its unpaid money (fractions of the company
+   *  then, by holder: 'fin' or a partner name) and the insiders' (founder + mission) share then, which later issues
+   *  scale with everyone. A lapse cancels the shares of the money that did not come. */
+  shares?: { holders: Record<string, number>; insiders: number }; }
 /** 'assumed' = debt that came with a lab you bought (FIN3c, spec §9), priced at your rating. */
 export interface Debt { id: string; kind: 'revolver' | 'gpuTerm' | 'bond' | 'assumed'; principal: Money; drawn: Money; spreadBp: number; maturityDay: Day; covenant?: string; collateralH100e?: H100e; }
 
@@ -908,8 +915,7 @@ export interface DealSupply {
   costMult?: number;
   /** Every take-or-pay payment over the term ($B). */
   total: Money;
-  /** The cloud contract or chip order it runs as, and the day its supply ends (rationing priority runs to it). */
-  ref?: string;
+  /** The day its supply ends (rationing priority runs to it). */
   endDay?: Day;
 }
 /** A strategic partner deal as signed (FINANCE-V3 §6; FIN4a). One per partner; a rescue tops the partner up. */
@@ -1095,6 +1101,10 @@ export interface YearStats {
   equity: Money; dealEquity: Money; debtDrawn: Money; spvFinanced: Money; cloudFinanced: Money; leaseFinanced: Money;
   /** Chip capex a lessor paid at delivery (financing leases, FIN1); missing on older saves. */
   capexChipsFinanced?: Money;
+  /** Firm payments a renegotiation deferred out of this year (FIN4r), by what they pay for: compute (cloud, leases,
+   *  acquired contracts: the computeCosts kinds) and chips (tranches). Incurred this year, paid at the contracts' end. */
+  deferredCompute?: Money;
+  deferredChips?: Money;
   minRunwayQ: number; distressDays: number;
   /** Cash booked through the finance ledger (`bookCash`, finance/ledger.ts) by flow kind, $B (signed). Every change to
    *  player cash goes through it, so Σ flows = Δcash (M2 money-flow audit, scripts/v2/money.ts). */
@@ -1180,7 +1190,8 @@ export interface FinanceWS3 {
   /** Short-term spot rentals (inference cloud usage). */
   rentals: { h100e: H100e; endDay: Day; perYear: Money }[];
   /** Reserved supplier capacity (H100e/q) from funded expansions, and when it starts. */
-  reserved: { perQ: H100e; fromQ: number; toQ: number }[];
+  /** Reserved supplier capacity outside rationing; `order`: only for that chip order (a custom-chip deal, FIN4r). */
+  reserved: { perQ: H100e; fromQ: number; toQ: number; order?: string }[];
   /** Quarter-start history (oldest first, last 5) of the milestone metrics the raise card extrapolates (FIN2): public
    *  level and compute online, H100e (revenue uses `revenueHistory`). Missing on saves made before it. */
   thesisHist?: { L: number[]; H: H100e[] };
@@ -1631,7 +1642,7 @@ export interface EngineSystem {
 export type Currency =
   | 'cash' | 'revenue' | 'compute' | 'staffTime' | 'progress' | 'leadDays' | 'trust' | 'credibility'
   | 'scrutiny' | 'talent' | 'morale' | 'boardConf' | 'approval' | 'security' | 'monitorability'
-  | 'alignment' | 'freedom' | 'chinaTension' | 'dilution';
+  | 'alignment' | 'freedom' | 'chinaTension' | 'dilution' | 'valuation'; // valuation: $B of the company's mark (FIN4r L4)
 
 export interface CostLine { currency: Currency; amount: number; target?: CounterpartyId | string; lagDays?: number; probability?: number; }
 

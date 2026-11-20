@@ -278,9 +278,17 @@ function arrive(m: ChipMarket) {
   m.Kwafer += take(m.pipe.wafer);
 }
 
-/** Player share of a quarter's reserved supplier capacity (funded expansions). */
-function reservedFor(s: GameStateV2, q: number): number {
-  return s.player.finance.ws3.reserved.reduce((a, r) => a + (r.fromQ <= q && q < r.toQ ? r.perQ : 0), 0);
+/** Player share of a quarter's reserved supplier capacity: `any` for any order (funded expansions from older saves),
+ *  `by` for one order only (a custom-chip deal's own pool, FIN4r L9: it served whatever player order came first). */
+function reservedFor(s: GameStateV2, q: number): { any: number; by: Map<string, number> } {
+  const by = new Map<string, number>();
+  let any = 0;
+  for (const r of s.player.finance.ws3.reserved) {
+    if (r.fromQ > q || q >= r.toQ) continue;
+    if (r.order) by.set(r.order, (by.get(r.order) ?? 0) + r.perQ);
+    else any += r.perQ;
+  }
+  return { any, by };
 }
 
 
@@ -323,7 +331,8 @@ export function clearMarket(s: GameStateV2, ctx: SystemCtx): void {
   m.exoDemandQ = exo;
   claims.push({ kind: 'exo', qty: exo, weight: MARKET.exoWeight, got: 0 });
   let D = exo;
-  let reserved = reservedFor(s, q);
+  const res = reservedFor(s, q);
+  let reserved = res.any;
   let outside = 0; // supply used outside rationing
   let nonTWLeft = nonTWPool;
   const playerDue = s.player.orders.filter((o) => o.dueQ <= q && o.qty - o.delivered > 1);
@@ -341,9 +350,10 @@ export function clearMarket(s: GameStateV2, ctx: SystemCtx): void {
       deliver(s, ctx, o.id, give);
       continue;
     }
-    if (reserved > 0) {
-      const give = Math.min(want, reserved);
-      reserved -= give;
+    const own = res.by.get(o.id) ?? 0;
+    if (own + reserved > 0) {
+      const give = Math.min(want, own + reserved);
+      reserved -= Math.max(0, give - own);
       outside += give;
       playerGot += give;
       deliver(s, ctx, o.id, give);

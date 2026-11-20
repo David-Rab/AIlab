@@ -1,7 +1,7 @@
 // Data-centre sites: permitting → power → building → live; grid pool; installs (V2-SPEC §3.8; research/15 §1.3).
 // Owner: WS3.
 import { BUILD_Q, CAPEX_LEASE, COMMUNITY, FACILITY_PER_GW, LEASE, LESSOR, SITE_PATHS } from '../../../data/v2/deals';
-import { crf, siteLeaseId } from '../finance/capex';
+import { crf, siteLeaseId, type SiteSchedule } from '../finance/capex';
 import { dayOfDate, dayOfQuarter } from '../core/time';
 import type { BaselineId, EngineSystem, GameStateV2, Money, Site, SystemCtx } from '../types';
 import { defaultSiteWS3, ensureWs3 } from '../finance/ext';
@@ -77,10 +77,22 @@ export function siteEtaQ(s: GameStateV2, o: SiteOpts): number {
   return p.permitQ + powerExtra + Math.max(build, gate);
 }
 
+/** Expected construction schedule of a new site (the lease preview's construction interest, FIN4r M3): quarters to
+ *  go-live, building quarters, and whether the first building payment is made the quarter building starts (a site that
+ *  goes straight from permits to building) or the next (after a power stage or a grid-pool slot), as in `stepSite`. */
+export function siteSchedule(s: GameStateV2, o: SiteOpts): SiteSchedule {
+  const p = SITE_PATHS[o.path];
+  const etaQ = siteEtaQ(s, o);
+  if (o.path === 'lease') return { etaQ, buildQ: etaQ, firstNow: true };
+  const build = o.crash ? BUILD_Q.crash : BUILD_Q.normal;
+  const gate = p.needsTransformers && s.power.ws3.transformersGW < o.mw / 1000 ? s.power.transformerLeadQ : 0;
+  return { etaQ, buildQ: Math.max(build, gate), firstNow: !p.usesGridPool && Math.max(0, p.powerQ[1] - p.overlapQ) === 0 };
+}
+
 /** Lease capacity available this quarter (GW). */
 export const leaseAvailableGW = (s: GameStateV2) => s.market.ws3.leasePoolGW;
 
-/** Start a new site. Pays 5% now (your share); colocation adds a ledger entry and draws from the lease pool; a
+/** Start a new site. Pays 5% (BUILD_Q.upfront) now (your share); colocation adds a ledger entry and draws from the lease pool; a
  *  financing lease (`pay: 'lease'`, not for colocation) has the lessor fund 80% of capex as it is spent. */
 export function newSite(s: GameStateV2, ctx: SystemCtx, o: SiteOpts): Site {
   ensureWs3(s);
@@ -114,7 +126,7 @@ export function newSite(s: GameStateV2, ctx: SystemCtx, o: SiteOpts): Site {
     }
   }
   s.player.sites.push(site);
-  payCapex(s, ctx, site, site.capex * 0.05);
+  payCapex(s, ctx, site, site.capex * BUILD_Q.upfront);
   ctx.log('company', `${site.name}: ${(mw / 1000).toFixed(1)} GW ${o.path}${o.crash ? ' crash build' : ''} started${leased ? ` (${Math.round(spvFunded * 100)}% funded by ${LESSOR} at ${((o.leaseRate as number) * 100).toFixed(0)}%)` : ''}.`);
   return site;
 }

@@ -9,7 +9,7 @@
 import { dayOfQuarter, quarterIndex } from '../core/time';
 import type { Day, FinancePromise, GameStateV2, MilestoneType, Pitch, StartType, SystemCtx, Thesis } from '../types';
 import { moodWeight } from './mood';
-import { computeOnline, computeSecured, publicLevel, revenueRun } from './observe';
+import { computeFirm, computeOnline, computeSecured, publicLevel, revenueRun } from './observe';
 
 export const MILESTONES: MilestoneType[] = ['capability', 'scale', 'adoption'];
 export const PITCHES: Pitch[] = ['conservative', 'base', 'aggressive'];
@@ -58,9 +58,10 @@ export const credRung = (c: number): (typeof CRED_RUNGS)[number] => [...CRED_RUN
 /** Valuation multiplier of the player's credibility (FIN2 interim: it multiplies the formula mark). */
 export const credMult = (s: GameStateV2) => credRung(s.player.finance.credibility ?? 50).mult;
 
-/** The milestone metric now: public level (capability), H100e online (scale), revenue run-rate $B/yr (adoption). */
+/** The milestone metric now: public level (capability), H100e online that you own or hold on firm contracts (scale;
+ *  FIN4r L6: no spot rentals or cancellable cloud), revenue run-rate $B/yr (adoption). */
 export function metricNow(s: GameStateV2, type: MilestoneType): number {
-  return type === 'capability' ? publicLevel(s) : type === 'scale' ? computeOnline(s) : revenueRun(s);
+  return type === 'capability' ? publicLevel(s) : type === 'scale' ? computeFirm(s) : revenueRun(s);
 }
 
 /** Record the quarter-start values of the capability and scale metrics (newGame for day 0, then capitalQ; revenue keeps
@@ -68,7 +69,7 @@ export function metricNow(s: GameStateV2, type: MilestoneType): number {
 export function recordThesisHist(s: GameStateV2): void {
   const h = (s.player.finance.ws3.thesisHist ??= { L: [], H: [] });
   h.L.push(publicLevel(s));
-  h.H.push(computeOnline(s));
+  h.H.push(computeFirm(s));
   if (h.L.length > 5) h.L.shift();
   if (h.H.length > 5) h.H.shift();
 }
@@ -117,7 +118,7 @@ export function trendOf(s: GameStateV2, type: MilestoneType): Trend {
   const { k, years } = span(s, hist.length, type === 'adoption');
   let growth: number = TREND.minGrowth;
   let basis = 'no track record yet';
-  const what = type === 'scale' ? 'compute online' : 'revenue run-rate';
+  const what = type === 'scale' ? 'owned and firm compute online' : 'revenue run-rate';
   if (hist.length >= 2 && years >= TREND_SHORT_YEARS && hist[k] > 0) {
     // A full year: compound growth. Half a year or more: linear (compounding a short, lumpy span overshoots).
     growth = years >= TREND_MIN_YEARS ? Math.pow(now / hist[k], 1 / years) - 1 : (now / hist[k] - 1) / years;
@@ -126,7 +127,7 @@ export function trendOf(s: GameStateV2, type: MilestoneType): Trend {
   if (type === 'scale' && now > 0) {
     // A CEO never pitches less than the compute already contracted: half of what is secured for the next 8 quarters
     // arrives within the year.
-    const pipe = (computeSecured(s) - now) / now / 2;
+    const pipe = (computeSecured(s) - computeOnline(s)) / now / 2;
     if (pipe > growth) {
       growth = pipe;
       basis = 'half of the compute contracted for the next 8 quarters';
@@ -156,13 +157,19 @@ export function makeThesis(s: GameStateV2, type: MilestoneType, pitch: Pitch): T
 export const promiseDeadline = (s: GameStateV2, closeDay: Day) => dayOfQuarter(s.time.startDate, quarterIndex(s.time.startDate, closeDay) + 4);
 
 /** Weight of a promise (spec §2.3): its round's amount ÷ the amount raised in the year to its deadline (this round and
- *  every later one closed before the deadline). Before the deadline it reads the rounds so far; it can only fall. */
+ *  every later one closed before the deadline). Before the deadline it reads the rounds so far; it can only fall.
+ *  FIN4r (H2): ÷ at least a typical round at the close (`typical`: d_max · pre-money ÷ (1 − d_max), stored at the
+ *  close), so a $0.1B round no longer buys a full-weight promise; stacking stays weight-neutral for normal rounds (four
+ *  ceiling-sized rounds in a year weigh about 25% each, one about 100%). */
 export function promiseWeight(s: GameStateV2, p: FinancePromise): number {
   if (p.goalWeight !== undefined) return p.goalWeight; // a parent goal: its fixed share of the year (FIN5c)
   const end = Math.min(p.deadline, s.time.day + 1);
   const raised = s.player.finance.rounds.filter((r) => r.day >= p.closeDay && r.day < end).reduce((a, r) => a + r.amount, 0);
-  return Math.min(1, p.amount / Math.max(p.amount, raised));
+  return Math.min(1, p.amount / Math.max(p.amount, raised, p.typical ?? 0));
 }
+
+/** A typical round at a close (FIN4r, H2): what the dilution limit allows at that pre-money, d·pre/(1 − d). */
+export const typicalRound = (pre: number, dMax: number) => (dMax * Math.max(0, pre)) / (1 - dMax);
 
 /** Progress of a value from start (0) to target (1). */
 export const progressOf = (p: Thesis, v: number) => (v - p.start) / Math.max(1e-9, p.target - p.start);
@@ -214,9 +221,9 @@ export function promiseStatus(s: GameStateV2, p: FinancePromise): PromiseStatus 
 export const livePromises = (s: GameStateV2) => (s.player.finance.promises ?? []).filter((p) => !p.result);
 
 /** A round closed: its thesis becomes a promise due four quarter starts later. */
-export function addPromise(s: GameStateV2, ctx: SystemCtx, thesis: Thesis, amount: number): FinancePromise {
+export function addPromise(s: GameStateV2, ctx: SystemCtx, thesis: Thesis, amount: number, typical?: number): FinancePromise {
   const f = s.player.finance;
-  const p: FinancePromise = { ...thesis, id: `PR${s.time.day}-${(f.promises ??= []).length}`, amount, closeDay: s.time.day, deadline: promiseDeadline(s, s.time.day) };
+  const p: FinancePromise = { ...thesis, id: `PR${s.time.day}-${(f.promises ??= []).length}`, amount, closeDay: s.time.day, deadline: promiseDeadline(s, s.time.day), ...(typical !== undefined ? { typical } : {}) };
   f.promises.push(p);
   ctx.log('finance', `Promised investors ${describeTarget(p)} by ${new Date(Date.parse(s.time.startDate) + p.deadline * 864e5).toISOString().slice(0, 10)} (${p.pitch} pitch).`);
   return p;
@@ -258,6 +265,6 @@ export function fmtMetric(type: MilestoneType, v: number): string {
 /** "a public model at level 7.4" / "2.40M H100e online" / "$48B/yr revenue run-rate". */
 export function describeTarget(p: Thesis): string {
   if (p.type === 'capability') return `a public model at ${fmtMetric('capability', p.target)}`;
-  if (p.type === 'scale') return `${fmtMetric('scale', p.target)} online`;
+  if (p.type === 'scale') return `${fmtMetric('scale', p.target)} online (owned or firm)`;
   return `a ${fmtMetric('adoption', p.target)} revenue run-rate`;
 }

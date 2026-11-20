@@ -6,8 +6,8 @@ import { divisionQ } from './parent';
 import { dayOfDate, decimalYear } from '../core/time';
 import type { CapitalMarkets, EngineSystem, GameStateV2, Money, SystemCtx } from '../types';
 import { covenantsBreached, ratingOf, ratingScore, rollMaturities } from './debt';
-import { publicFrontier } from './observe';
-import { closePendingRound, partnerEquityIn, valuationNow } from './equity';
+import { gwOwned, publicFrontier } from './observe';
+import { cancelTrancheShares, closePendingRound, partnerEquityIn, valuationNow } from './equity';
 import { defaultCapitalWS3, ensureWs3, yearStats } from './ext';
 import { commitmentsPerYear, bookCash } from './ledger';
 import { judgePromises, recordThesisHist } from './promises';
@@ -133,12 +133,16 @@ function settleTranches(s: GameStateV2, ctx: SystemCtx) {
       continue;
     }
     if (t.deadline !== undefined && t.deadline <= s.time.day && !met) {
+      const paid = t.condition === 'recapitalisation' ? Math.min(10, t.amount) : 0;
       if (t.condition === 'recapitalisation') {
         // SoftBank precedent: $30B → $10B if the recapitalisation does not close by the deadline [R15].
         ctx.log('finance', `${t.source}: recapitalisation missed; the investor cuts the tranche to $10B.`, 2);
-        bookCash(s, ctx, Math.min(10, t.amount), 'financing', 'equity tranche', `${t.source} (reduced)`);
-        yearStats(s).equity += Math.min(10, t.amount);
+        bookCash(s, ctx, paid, 'financing', 'equity tranche', `${t.source} (reduced)`);
+        yearStats(s).equity += paid;
       } else ctx.log('finance', `${t.source}: condition (${t.condition}) not met; $${t.amount.toFixed(1)}B lapses.`, 2);
+      // FIN4r (H3): a round's investors keep only the shares they paid for.
+      const c = cancelTrancheShares(s, t, 1 - paid / Math.max(1e-9, t.amount));
+      if (c > 0) ctx.log('finance', `${t.source}: the unpaid investors' shares are cancelled (${(c * 100).toFixed(1)}% of the company).`, 2);
       continue;
     }
     keep.push(t);
@@ -146,14 +150,16 @@ function settleTranches(s: GameStateV2, ctx: SystemCtx) {
   f.tranches = keep;
 }
 
-/** Tranche conditions: 'recapitalisation', 'revenue:<R>', 'gw:<GW online>', 'ipo'. */
+/** Tranche conditions: 'recapitalisation', 'revenue:<R>', 'gw:<GW online>', 'ipo'. FIN4r (M1): 'gw:' counts the
+ *  compute online in your own sites (`gwOwned`), not rented cloud or spot capacity (a hyperscaler's own cloud must
+ *  not meet its condition). */
 export function trancheConditionMet(s: GameStateV2, cond: string): boolean {
   const f = s.player.finance;
   if (cond === 'recapitalisation') return f.ws3.recap.doneDay !== undefined;
   if (cond === 'ipo') return f.ownership.public > 0;
   const [k, v] = cond.split(':');
   if (k === 'revenue') return f.revenueRun >= Number(v);
-  if (k === 'gw') return (s.player.computeOnline * s.power.kWPerH100e) / 1e6 >= Number(v);
+  if (k === 'gw') return gwOwned(s) >= Number(v);
   return false;
 }
 
@@ -246,7 +252,11 @@ export const capitalQSystem: EngineSystem = {
     divisionQ(s, ctx);
 
     // Debt: maturities, covenants, rating (spec §3). The credit line is re-sized only when you borrow (debt.ts).
-    const breach = rollMaturities(s, ctx) || covenantsBreached(s, ctx);
+    // FIN4r (L10): both run every quarter (a maturity that could not be repaid used to skip the covenant tests and the
+    // chip-loan sweep).
+    const unpaid = rollMaturities(s, ctx);
+    const covenant = covenantsBreached(s, ctx);
+    const breach = unpaid || covenant;
     if (breach && f.covenantBreachDay === undefined) {
       f.covenantBreachDay = s.time.day;
       boardMood(s, ctx, 'setbacks', MOOD_BASE.covenantBreach, 'covenant breach');

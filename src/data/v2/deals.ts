@@ -145,8 +145,9 @@ export const SITE_TIERS = [
 ] as const;
 /** Fixed chip order and cloud sizes, H100e [D]. */
 export const CHIP_TIERS = [100e3, 250e3, 500e3, 1e6, 2.5e6] as const;
-/** Construction quarters: default 8 (Epoch median ≈ 2 y), crash 4 at +35% capex (xAI Colossus 2) [R15]. */
-export const BUILD_Q = { normal: 8, crash: 4, crashCapexMult: 1.35, communityCapexMult: 1.03, leaseLo: 1, leaseHi: 3 };
+/** Construction quarters: default 8 (Epoch median ≈ 2 y), crash 4 at +35% capex (xAI Colossus 2) [R15]. 5% of capex is
+ *  paid when a site starts, the rest in equal parts over the building quarters (kept; named in FIN4r) [D]. */
+export const BUILD_Q = { normal: 8, crash: 4, crashCapexMult: 1.35, communityCapexMult: 1.03, leaseLo: 1, leaseHi: 3, upfront: 0.05 };
 /** Lease ≈ 12%/yr of $10B per GW facility [R15]; 5-year non-cancellable term [D]. */
 export const LEASE = { perGWYear: 1.2, years: 5, poolGWPerQ: 0.6, poolGrowth: 1.4 };
 /** Power price $/kWh (8.3¢ grid tariff, R15) and O&M 3% of capex per year [R15]. */

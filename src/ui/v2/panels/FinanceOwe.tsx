@@ -109,7 +109,7 @@ export function OweCard({ s }: { s: GameStateV2 }) {
       </Section>
       {!division && <Section title="Tranche conditions" term="trancheCondition" n={o.tranches.length || undefined}>
         {o.tranches.map((t, i) => (
-          <Tip as="div" key={i} content={() => <TipCard title={t.source} value={F.money(t.amount)} rows={[{ label: 'Condition', value: t.label }, { label: 'Due', value: day(s, t.dueDay) }, ...(t.deadline !== undefined ? [{ label: 'Lapses', value: `${day(s, t.deadline)} · ${t.daysLeft} d left` }] : [])]}>A contract: miss the condition by the deadline and the tranche lapses.</TipCard>}>
+          <Tip as="div" key={i} content={() => <TipCard title={t.source} value={F.money(t.amount)} rows={[{ label: 'Condition', value: t.label }, { label: 'Due', value: day(s, t.dueDay) }, ...(t.deadline !== undefined ? [{ label: 'Lapses', value: `${day(s, t.deadline)} · ${t.daysLeft} d left` }] : [])]}>{t.cancels ? 'A contract: miss the condition by the deadline and the tranche lapses; the shares issued for it at the close are cancelled.' : 'A contract: miss the condition by the deadline and the tranche lapses.'}</TipCard>}>
             <div className="owe-row" data-tranche={i}>
               <span className="row-i"><ICON.cash size={13} /><span className="ellip">{t.source} · {F.money(t.amount)} · {t.label}</span></span>
               <HBar v={t.progress} max={1} w="100%" h={8} color={t.met ? C.good : C.watch} />

@@ -121,7 +121,7 @@ export type { PartnerChoice } from './finance/deals';
 export { leadEstimate } from './finance/observe';
 export { liveLedger, commitmentsPerYear, ledgerDue, qOf } from './finance/ledger';
 export { chipQuote, rentQuote, spotRentalCap, CHIP_TERMS, RENT_TERMS } from './compute/orders';
-export { oppositionOdds, siteCapex, siteEtaQ, siteLeasePerYear, reactiveUnblockOdds } from './compute/sites';
+export { oppositionOdds, siteCapex, siteEtaQ, siteLeasePerYear, siteSchedule, reactiveUnblockOdds } from './compute/sites';
 export { chipFit, computeForecast, computeHistory, idleChips, siteLiveQ } from './compute/forecast';
 export type { ChipFit, ForecastEvent, ForecastQ } from './compute/forecast';
 export { ownedOnline, rentedOnline, poolsOf } from './compute/power';
@@ -141,7 +141,7 @@ export type { Owe, OweCovenant, OweContingent, OweTranche } from './finance/owe'
 export { promiseStatus, trendOf, makeThesis, pitchAvailable, credRung, CRED_RUNGS, PITCH, PITCHES, MILESTONES, PROMISE_RESULT, fmtMetric, describeTarget, promiseDeadline, neededBy } from './finance/promises';
 export type { PromiseStatus, Trend } from './finance/promises';
 export { raiseQuote, raiseTerms } from './finance/actions';
-export { canIpo, isListed, valuationNow, DUAL_CLASS_GOV } from './finance/equity';
+export { canIpo, isListed, valuationNow, DUAL_CLASS_GOV, LARGE_ROUND, roundSplit } from './finance/equity';
 // FIN3a: board votes on major decisions (seat by seat, no dice) and the board's mood sources.
 export { boardVote, founderControl, MAJOR_DECISIONS, OBLIGATION_X_REVENUE, VOTE, BC_ANCHOR, BC_REVERT_Q } from './finance/board';
 export { MOOD_SOURCES, MOOD_LABEL, MOOD_WEIGHTS, MOOD_BASE, MOOD_SOURCE_OF, moodWeight, INCIDENT_BC, INCIDENT_BC_CAP_Q } from './finance/mood';

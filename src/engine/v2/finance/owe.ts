@@ -7,7 +7,7 @@ import type { Day, FinancePromise, GameStateV2, Money, Thesis } from '../types';
 import { contingentLiabilities } from './capex';
 import { chipCollateral, trailingOpCash } from './debt';
 import { trancheConditionMet } from './investors';
-import { copyrightExposure, computeOnline } from './observe';
+import { copyrightExposure, gwOwned } from './observe';
 import { livePromises, promiseDeadline, promiseStatus, type PromiseStatus } from './promises';
 
 export interface OweTranche {
@@ -21,6 +21,8 @@ export interface OweTranche {
   dueDay: Day;
   deadline?: Day;
   daysLeft?: number;
+  /** A round's tranche: its shares were issued at the close and are cancelled if it lapses (FIN4r, H3). */
+  cancels?: boolean;
 }
 
 export interface OweCovenant {
@@ -67,8 +69,8 @@ function trancheOf(s: GameStateV2, t: GameStateV2['player']['finance']['tranches
     label = `revenue run-rate $${Number(v).toFixed(0)}B/yr (now $${f.revenueRun.toFixed(0)}B)`;
     progress = f.revenueRun / Math.max(0.1, Number(v));
   } else if (k === 'gw') {
-    const gw = (computeOnline(s) * s.power.kWPerH100e) / 1e6;
-    label = `${Number(v).toFixed(1)} GW online (now ${gw.toFixed(1)} GW)`;
+    const gw = gwOwned(s); // FIN4r (M1): your own sites only
+    label = `${Number(v).toFixed(1)} GW online in your own sites (now ${gw.toFixed(1)} GW)`;
     progress = gw / Math.max(0.01, Number(v));
   } else if (cond === 'recapitalisation') {
     const r = f.ws3.recap;
@@ -78,7 +80,7 @@ function trancheOf(s: GameStateV2, t: GameStateV2['player']['finance']['tranches
     label = f.ownership.public > 0 ? 'listed' : 'an IPO';
     progress = f.ownership.public > 0 ? 1 : 0;
   }
-  return { source: t.source, amount: t.amount, condition: cond, label, progress: Math.min(1, progress), met, dueDay: t.dueDay, ...(t.deadline !== undefined ? { deadline: t.deadline, daysLeft: Math.max(0, t.deadline - s.time.day) } : {}) };
+  return { source: t.source, amount: t.amount, condition: cond, label, progress: Math.min(1, progress), met, dueDay: t.dueDay, ...(t.deadline !== undefined ? { deadline: t.deadline, daysLeft: Math.max(0, t.deadline - s.time.day) } : {}), ...(t.shares ? { cancels: true } : {}) };
 }
 
 function covenantsOf(s: GameStateV2): OweCovenant[] {

@@ -116,12 +116,12 @@ export function Rich({ text }: { text: string }) {
 const CUR_LABEL: Record<CostLine['currency'], string> = {
   cash: '$', revenue: 'rev', compute: 'compute', staffTime: 'staff', progress: 'L', leadDays: 'lead', trust: 'trust',
   credibility: 'cred', scrutiny: 'scrutiny', talent: 'talent', morale: 'morale', boardConf: 'board', approval: 'approval',
-  security: 'security', monitorability: 'monitor', alignment: 'align', freedom: 'freedom', chinaTension: 'CN tension', dilution: 'dilution',
+  security: 'security', monitorability: 'monitor', alignment: 'align', freedom: 'freedom', chinaTension: 'CN tension', dilution: 'dilution', valuation: 'valuation',
 };
 function amt(c: CostLine): string {
   const a = Math.abs(c.amount);
   switch (c.currency) {
-    case 'cash': return a >= 1000 ? `$${(a / 1000).toFixed(1)}T` : `$${a >= 10 ? a.toFixed(0) : a >= 0.1 ? a.toFixed(1) : a.toFixed(2)}B`;
+    case 'cash': case 'valuation': return a >= 1000 ? `$${(a / 1000).toFixed(1)}T` : `$${a >= 10 ? a.toFixed(0) : a >= 0.1 ? a.toFixed(1) : a.toFixed(2)}B`;
     case 'revenue': return `$${a >= 10 ? a.toFixed(0) : a.toFixed(1)}B/yr`;
     case 'compute': return a <= 1 && a > 0 ? `${(a * 100).toFixed(a < 0.1 ? 1 : 0)}%` : fmtNum(a);
     case 'leadDays': return `${Math.round(a)}d`;

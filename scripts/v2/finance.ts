@@ -9,30 +9,30 @@ import { CAPEX_LEASE, DEBT_TERMS, MARKET, PARTNER_TERMS } from '../../src/data/v
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx, resolve, tick } from '../../src/engine/v2/core/loop';
 import { deserialize, serialize } from '../../src/engine/v2/core/save';
-import { cadencesDue, dayOfDate, decimalYear, quarterIndex } from '../../src/engine/v2/core/time';
-import { cloudPricePerYear, demandShock, expectedCloudPrice, expectedListPrice, impliedMargin, orderWeight, rentalBase, repriceCancellableCloud, spotRental } from '../../src/engine/v2/compute/market';
-import { chipQuote, rentQuote } from '../../src/engine/v2/compute/orders';
-import { newSite, oppositionOdds, reactiveUnblockOdds } from '../../src/engine/v2/compute/sites';
-import { contingentLiabilities, crf, leaseAvailable, leaseGuarantor, leaseRate, payOptions, siteLeaseId, siteRVG } from '../../src/engine/v2/finance/capex';
+import { cadencesDue, dayOfDate, dayOfQuarter, decimalYear, quarterIndex } from '../../src/engine/v2/core/time';
+import { clearMarket, cloudPricePerYear, demandShock, expectedCloudPrice, expectedListPrice, impliedMargin, orderWeight, rentalBase, repriceCancellableCloud, spotRental } from '../../src/engine/v2/compute/market';
+import { addCloud, addSpotRental, chipQuote, rentQuote } from '../../src/engine/v2/compute/orders';
+import { newSite, oppositionOdds, reactiveUnblockOdds, siteSchedule } from '../../src/engine/v2/compute/sites';
+import { constructionGrowth, contingentLiabilities, crf, leaseAvailable, leaseGuarantor, leaseRate, payOptions, siteLeaseId, siteRVG } from '../../src/engine/v2/finance/capex';
 import { creditLineCapacity, debtHeadroom, debtRatePct, drawDebt, ratingOf, ratingTerms } from '../../src/engine/v2/finance/debt';
 import { ACQUIRE, acquireTerms, acquireVotes, rivalObligations, shownVote } from '../../src/engine/v2/finance/acquire';
 import { FINANCE_ACTIONS, raiseQuote } from '../../src/engine/v2/finance/actions';
-import { boardVote, CRITICS, criticsAvailable, debtVote, founderControl, initialBoard, OUSTER, ousterVote, updateRunwayState, VOTE } from '../../src/engine/v2/finance/board';
+import { boardVote, CRITICS, CRITICS_INVESTOR, criticsAvailable, debtVote, syncFinancialSeats, founderControl, initialBoard, OUSTER, ousterVote, updateRunwayState, VOTE } from '../../src/engine/v2/finance/board';
 import { MOOD_SOURCE_OF, MOOD_WEIGHTS, moodWeight } from '../../src/engine/v2/finance/mood';
-import { acceptRepriced, bookRound, closePendingRound, dMax, partnerEquityIn, raiseCeiling, REPRICED_DECIDE_DAYS, valuationMark, valuationNow } from '../../src/engine/v2/finance/equity';
+import { acceptRepriced, bookRound, closePendingRound, dMax, LARGE_ROUND, roundSplit, partnerEquityIn, raiseCeiling, REPRICED_DECIDE_DAYS, valuationMark, valuationNow } from '../../src/engine/v2/finance/equity';
 import { whatWeOwe } from '../../src/engine/v2/finance/owe';
-import { credRung, judgePromises, livePromises, makeThesis, PROMISE_RESULT, promiseDeadline, promiseWeight, trendOf } from '../../src/engine/v2/finance/promises';
+import { credRung, judgePromises, livePromises, makeThesis, metricNow, PROMISE_RESULT, promiseDeadline, promiseWeight, trendOf, typicalRound } from '../../src/engine/v2/finance/promises';
 import { charterReleaseBlock, charterRights, controlVote, transferVote } from '../../src/engine/v2/finance/charter';
-import { affiliatedLab, anchorPartners, dealVotes, dealWith, firstYearCommit, ipAccessDaily, partnerBlocker, partnerCosts, partnerOffers, partnersNow, partnerStakeAfter, partnerTerms, signPartner, termsEquity } from '../../src/engine/v2/finance/deals';
-import { capabilityThresholds, licensedGap, licensedModel } from '../../src/engine/v2/finance/observe';
-import { qOf } from '../../src/engine/v2/finance/ledger';
+import { affiliatedLab, anchorPartners, dealVotes, dealWith, firstYearCommit, ipAccessDaily, partnerBlocker, partnerCosts, partnerOffers, partnersNow, partnerStakeAfter, partnerTerms, rescuePartner, signPartner, termsEquity } from '../../src/engine/v2/finance/deals';
+import { capabilityThresholds, gwOwned, licensedGap, licensedModel } from '../../src/engine/v2/finance/observe';
+import { addLedger, ledgerDue, monthFirsts, qOf, RENEGOTIATE, totalFlows } from '../../src/engine/v2/finance/ledger';
 import { budgetFactor, budgetRoom, DIVISION, divisionView, parentPaymentQ } from '../../src/engine/v2/finance/parent';
 import { mixedBot } from '../../src/engine/v2/bots/mixed';
 import { parentBudgetYear } from '../../src/data/v2/starts';
 import { runwayOf } from '../../src/engine/v2/finance/runway';
 import { deployGate } from '../../src/engine/v2/models/deployments';
 import { editBlock } from '../../src/engine/v2/models/productOps';
-import { applyShock } from '../../src/engine/v2/finance/investors';
+import { applyShock, capitalQSystem, trancheConditionMet } from '../../src/engine/v2/finance/investors';
 import { CAPEX2X_AUTOPILOT, financeAutopilot, REF_AUTOPILOT, type AutopilotOpts } from '../../src/engine/v2/finance/plan';
 import { refDecide, refPlay } from '../../src/engine/v2/bots/ref';
 import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
@@ -156,12 +156,15 @@ function shockRun(baseMult: number, mult: number, atQ: number, nQ = 16) {
 // ───────────────────────────── F7, F8: RefBot, no-financing variant, capex2x ─────────────────────────────
 const ref = SEEDS.map((seed) => runBot(seed, REF_AUTOPILOT, END_2027));
 const y26 = ref.map((r) => r.s.player.finance.ws3.years['2026']);
-// FIN1: chips a lessor paid at delivery count as capex too (supplier funding is gone, its tally stays 0).
-const capex = y26.map((y) => y.capexChips + (y.capexChipsFinanced ?? 0) + y.capexSites + y.capexSitesFinanced + y.supplierFunding);
-const med = { rev: median(y26.map((y) => y.revenue)), capex: median(capex), compute: median(y26.map((y) => y.computeCosts)), gw: median(ref.map((r) => r.gw2026)), v: median(ref.map((r) => r.v2026)) };
+// FIN1: chips a lessor paid at delivery count as capex too (supplier funding is gone, its tally stays 0). FIN4r: capex
+// and compute costs are what the year incurred, so payments a renegotiation deferred to the contracts' end count in
+// the year they were due (the bot renegotiates on a tight runway in late 2025, which now really defers 35% of 2026's
+// firm payments; the old stretched entries deferred almost nothing).
+const capex = y26.map((y) => y.capexChips + (y.capexChipsFinanced ?? 0) + y.capexSites + y.capexSitesFinanced + y.supplierFunding + (y.deferredChips ?? 0));
+const med = { rev: median(y26.map((y) => y.revenue)), capex: median(capex), compute: median(y26.map((y) => y.computeCosts + (y.deferredCompute ?? 0))), gw: median(ref.map((r) => r.gw2026)), v: median(ref.map((r) => r.v2026)) };
 check(med.rev >= 36 && med.rev <= 54, 'F7 RefBot 2026 revenue $45B (±20%)', `median $${f1(med.rev)}B`);
 check(med.capex >= 150 && med.capex <= 250, 'F7 RefBot 2026 capex $200B (±25%)', `median $${f1(med.capex)}B (range ${f1(Math.min(...capex))}–${f1(Math.max(...capex))})`);
-check(med.compute >= 25 && med.compute <= 60, 'F7 RefBot 2026 compute costs ~$40B/yr', `median $${f1(med.compute)}B`);
+check(med.compute >= 25 && med.compute <= 60, 'F7 RefBot 2026 compute costs ~$40B/yr (incurred: paid + deferred by a renegotiation)', `median $${f1(med.compute)}B (deferred median $${f1(median(y26.map((y) => y.deferredCompute ?? 0)))}B)`);
 check(med.gw >= 4 && med.gw <= 9, 'F7 RefBot end-2026 power ~6 GW (live sites + cloud)', `median ${f1(med.gw)} GW`);
 check(med.v >= 1000 && med.v <= 3000, 'F7 RefBot end-2026 valuation $1–3T', `median $${(med.v / 1000).toFixed(2)}T`);
 
@@ -398,10 +401,14 @@ for (const a of FINANCE_ACTIONS) {
     const live = livePromises(s);
     const p2 = live[live.length - 1];
     check(!err && !!th && th.type === 'scale' && live.length === n0 + 2 && p1.deadline === promiseDeadline(s, p1.closeDay) && quarterIndex(s.time.startDate, p1.deadline) - quarterIndex(s.time.startDate, p1.closeDay) === 4, 'FIN2 each round leaves a promise due four quarter starts after its close; promises stack', `${live.length - n0} live: ${live.slice(-2).map((p) => `${p.type}/${p.pitch} due day ${p.deadline}`).join(', ')}`);
-    // Weight = amount ÷ raised in the year to its deadline: the $1B promise barely counts next to the $50B one.
+    // Weight = amount ÷ raised in the year to its deadline: the $1B promise barely counts next to the $50B one. FIN4r
+    // (H2): ÷ at least a typical round at its close (the dilution limit at its pre-money), so neither weighs more than
+    // its share of a normal round.
     const w1 = promiseWeight(s, p1);
     const w2 = promiseWeight(s, p2);
-    check(Math.abs(w1 - 1 / 51) < 1e-6 && w2 === 1, 'FIN2 weight = the round ÷ everything raised in the year to its deadline ($1B then $50B: 2% and 100%)', `${F1pct(w1)} / ${F1pct(w2)}`);
+    const t1 = p1.typical ?? 0;
+    const t2 = p2.typical ?? 0;
+    check(t1 > 0 && t2 > 0 && Math.abs(w1 - 1 / Math.max(51, t1)) < 1e-6 && Math.abs(w2 - 50 / Math.max(50, t2)) < 1e-6 && w1 < 0.05, 'FIN2/FIN4r weight = the round ÷ max(everything raised in the year to its deadline, a typical round at its close) ($1B then $50B)', `${F1pct(w1)} / ${F1pct(w2)} (typical $${f1(t1)}B / $${f1(t2)}B)`);
     // Judged at the deadline: met +30 credibility / +30 board, missed −30 / −30, × weight, within 20% nothing; never
     // cash. FIN3a: the board part is × the board's multiplier for promise results (the day-400 fixture's leader board,
     // two mission and two independent seats: ×0.75); sizes rebalanced from +10 / −15 (FIN3a notes).
@@ -1011,7 +1018,7 @@ for (const a of FINANCE_ACTIONS) {
     const ok = sp.prices.every((p, k) => near(p, expectedListPrice(s.market, 2 + k) * PARTNER_TERMS.asic.costMult * (1 - 0.05)));
     const n0 = s.player.finance.ws3.reserved.length;
     const err = signPartner(s, makeCtx(s), 'Azimuth', { supply: 'asic' });
-    const o = s.player.orders.find((x) => x.id === dealWith(s, 'Azimuth')?.supply?.ref);
+    const o = s.player.orders.find((x) => x.kind === 'lta' && x.ltaStartQ === sp.startQ && x.qty === sp.h100e); // FIN4r (L11): the deal no longer stores the order id
     check(!err && ok && sp.costMult === 0.45 && !!o && o.kind === 'lta' && JSON.stringify(o.prices) === JSON.stringify(sp.prices) && s.player.finance.ws3.reserved.length === n0 + 1 && (s.player.finance.ws3.asicMigrationUntil ?? 0) > s.time.day, 'FIN4a custom chips: 45% of the H100e list path less the firm discount, from a separate supply pool, research slows while migrating', `$${f1(sp.first)}K → $${f1(sp.last)}K per H100e · ${f1(sp.h100e / 1e3)}k a quarter`);
   }
   {
@@ -1308,5 +1315,298 @@ for (const a of FINANCE_ACTIONS) {
   }
 }
 
+// ───────────────────────────── FIN4r: review fixes (FINANCE-BUILD FIN4r) ─────────────────────────────
+{
+  const fx = (): GameStateV2 => deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
+  const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math.max(1, Math.abs(b));
+  {
+    // H1: renegotiate on path-priced contracts (one ledger entry per quarter): 35% of the next 4 quarters' firm payments
+    // deferred to each contract's end, no stretched or overlapping entries; the preview is what is deferred.
+    const s = fx();
+    act(s, 'cmp.rentCompute', { h100e: 1e6, term: 16, firm: true });
+    act(s, 'cmp.buyChips', { term: 8, qty: 2e5 });
+    s.player.finance.state = 'distress';
+    const q1 = qOf(s) + 1;
+    const due = (x: GameStateV2, from: number, n: number) => Array.from({ length: n }, (_, k) => ledgerDue(x, from + k, true)).reduce((a, b) => a + b, 0);
+    const win0 = due(s, q1, RENEGOTIATE.quarters);
+    const all0 = due(s, qOf(s), 80);
+    const pv = FINANCE_ACTIONS.find((a) => a.id === 'fin.renegotiate')!.preview(s, {});
+    const shown = pv.gains.find((g) => g.currency === 'cash')?.amount ?? 0;
+    const err = act(s, 'fin.renegotiate', {});
+    const win1 = due(s, q1, RENEGOTIATE.quarters);
+    const all1 = due(s, qOf(s), 80);
+    const tallied = Object.values(s.player.finance.ws3.years).reduce((a, y) => a + (y.deferredCompute ?? 0) + (y.deferredChips ?? 0), 0);
+    const by = new Map<string, any[]>();
+    for (const c of s.player.finance.ledger) by.set(c.contract ?? c.id, [...(by.get(c.contract ?? c.id) ?? []), c]);
+    let overlaps = 0;
+    for (const cs of by.values()) {
+      const xs = cs.slice().sort((a: any, b: any) => (a.startDay ?? -1e9) - (b.startDay ?? -1e9));
+      for (let i = 1; i < xs.length; i++) if ((xs[i].startDay ?? -1e9) < xs[i - 1].endDay) overlaps++;
+    }
+    // The cash the monthly ledger actually pays over the window (ticked) is what ledgerDue shows.
+    const t = deserialize(serialize(s));
+    while (t.time.day < dayOfQuarter(t.time.startDate, q1) - 1) tick(t, { skip: ['endings', 'director'] });
+    const paid0 = -(totalFlows(t).commitments ?? 0);
+    while (t.time.day < dayOfQuarter(t.time.startDate, q1 + RENEGOTIATE.quarters) - 1) tick(t, { skip: ['endings', 'director'] });
+    const paid = -(totalFlows(t).commitments ?? 0) - paid0;
+    check(!err && near(shown, RENEGOTIATE.defer * win0) && near(win1, (1 - RENEGOTIATE.defer) * win0) && near(all1, all0) && overlaps === 0 && near(paid, win1, 1e-6) && near(tallied, shown), 'FIN4r H1 renegotiate defers 35% of the next 4 quarters\' firm payments to each contract\'s end (preview = deferred = the year tallies; nothing stretched, overlapping or forgiven; the cash paid matches)', `deferred $${f1(shown)}B of $${f1(win0)}B · window paid $${f1(paid)}B = due $${f1(win1)}B · all payments $${f1(all0)}B → $${f1(all1)}B · overlaps ${overlaps}`);
+    // ledgerDue counts the months an entry pays (an entry across two quarters was counted in full in both).
+    const u = fx();
+    const m = monthFirsts(u, qOf(u) + 1);
+    const m2 = monthFirsts(u, qOf(u) + 2);
+    addLedger(u, { payee: 'test', kind: 'cloud', perQuarter: 3, startDay: m[1], endDay: m2[1], cancellableNoticeQ: null, penalty: 0 });
+    const base = (x: GameStateV2, q: number) => ledgerDue(x, q, true);
+    const v = fx();
+    const d1 = base(u, qOf(u) + 1) - base(v, qOf(v) + 1);
+    const d2 = base(u, qOf(u) + 2) - base(v, qOf(v) + 2);
+    check(near(d1, 2) && near(d2, 1), 'FIN4r H1 ledgerDue counts an entry by the months it pays (one spanning two quarters is not counted in full in both)', `$3B a quarter from mid-quarter: ${f1(d1)} + ${f1(d2)}`);
+  }
+  {
+    // H2: a tiny round's promise weighs little: weight = amount ÷ max(raised in the year, a typical round at the close);
+    // stacking stays weight-neutral for normal rounds.
+    const s = fx();
+    s.player.board = initialBoard('pbcTrust');
+    s.player.finance.state = 'healthy';
+    act(s, 'fin.raise', { ask: 0.1, type: 'scale', pitch: 'base' });
+    const pre = s.player.finance.ws3.pendingRound!.preMoney;
+    while (s.player.finance.ws3.pendingRound) tick(s, { skip: ['endings', 'director'] });
+    const p = s.player.finance.promises[s.player.finance.promises.length - 1];
+    const w = promiseWeight(s, p);
+    const r = s.player.finance.rounds[s.player.finance.rounds.length - 1];
+    // Four equal ceiling-sized rounds in a year: ≈ 25% each; one alone: 100%.
+    const x = fx();
+    const A = typicalRound(1000, dMax(false, false));
+    x.player.finance.rounds = [0, 1, 2, 3].map((k) => ({ day: x.time.day - 360 + 91 * k, amount: A, postMoney: 1000 + A, dilution: 0.08, down: false }));
+    const ps = x.player.finance.rounds.map((rr, k) => ({ id: `P${k}`, type: 'scale' as const, pitch: 'base' as const, start: 1, target: 2, amount: A, closeDay: rr.day, deadline: rr.day + 365, typical: A }));
+    const ws = ps.map((pp) => promiseWeight(x, pp));
+    const lone = promiseWeight({ ...x, player: { ...x.player, finance: { ...x.player.finance, rounds: [x.player.finance.rounds[0]] } } }, ps[0]);
+    check(near(p.typical ?? 0, typicalRound(r.postMoney - r.amount, dMax(false, false))) && w < 0.01 && near(ws[0], 0.25) && near(lone, 1), 'FIN4r H2 a promise weighs its round ÷ max(the year\'s rounds, a typical round at the close): a $0.1B round barely counts; four ceiling-sized rounds 25% each, one 100%', `$0.1B at $${f1(pre)}B pre: typical $${f1(p.typical ?? 0)}B → weight ${(w * 100).toFixed(2)}% · stacked ${ws.map((y: number) => `${Math.round(y * 100)}%`).join('/')} · lone ${Math.round(lone * 100)}%`);
+  }
+  {
+    // H3: a round of $20B or more pays half at the close; every preview shows the tranche; a lapse cancels the unpaid
+    // shares (as if half the round had been raised at the same price); the IPO and the distress down round pay in full.
+    const s = fx();
+    s.player.board = initialBoard('pbcTrust');
+    s.player.finance.state = 'healthy';
+    const pv = FINANCE_ACTIONS.find((a) => a.id === 'fin.raise')!.preview(s, { ask: 40, type: 'scale', pitch: 'base' });
+    const cash = pv.gains.filter((g) => g.currency === 'cash');
+    const close = dayOfQuarter(s.time.startDate, qOf(s) + 1);
+    const sp = roundSplit(s, 40, { closeDay: close });
+    const ipo = FINANCE_ACTIONS.find((a) => a.id === 'fin.ipo')!.preview(s, { ask: 40 }).gains.filter((g) => g.currency === 'cash');
+    check(cash.length === 2 && near(cash[0].amount, 20) && near(cash[1].amount, 20) && /tranche: if revenue run-rate reaches/.test(String(cash[1].target)) && near(cash[1].lagDays ?? 0, sp.tranche!.dueDay - s.time.day) && ipo.length === 1 && near(ipo[0].amount, 40), 'FIN4r H3 the raise preview shows cash at the close and the conditional tranche (amount, condition, deadline); the IPO pays in full', cash.map((c) => `$${f1(c.amount)}B in ${c.lagDays}d ${c.target}`).join(' · '));
+    // The booking matches the preview; a lapse cancels the unpaid shares.
+    const a = fx();
+    a.player.board = initialBoard('pbcTrust');
+    const P = a.player.finance.valuation;
+    const now = bookRound(a, makeCtx(a), 40, P);
+    const t = a.player.finance.tranches[a.player.finance.tranches.length - 1];
+    const sp2 = roundSplit(fx(), 40);
+    t.condition = 'revenue:1e9';
+    t.deadline = dayOfQuarter(a.time.startDate, qOf(a) + 1);
+    while (a.time.day < t.deadline) tick(a, { skip: ['endings', 'director', 'capitalQ'] });
+    capitalQSystem.run(a, makeCtx(a));
+    const b = fx();
+    b.player.board = initialBoard('pbcTrust');
+    bookRound(b, makeCtx(b), 20, P, { full: true });
+    const o = a.player.finance.ownership;
+    const ob = b.player.finance.ownership;
+    const same = (['founder', 'mission', 'fin', 'public'] as const).every((k) => near(o[k], ob[k], 1e-9)) && near(o.strat['Northwind Cloud'], ob.strat['Northwind Cloud'], 1e-9);
+    check(near(now, 20) && near(t.amount, sp2.tranche!.amount) && !a.player.finance.tranches.includes(t) && same, 'FIN4r H3 a lapsed round tranche cancels its shares pro rata: the cap table is that of the half actually raised at the same price', `founder ${(o.founder * 100).toFixed(2)}% vs ${(ob.founder * 100).toFixed(2)}% · financial ${(o.fin * 100).toFixed(2)}% vs ${(ob.fin * 100).toFixed(2)}%`);
+    // The distress down round: in full now, no tranche, whatever its size.
+    const d = fx();
+    addCloud(d, makeCtx(d), 1.2e7, 8, 'Vantage Neocloud', { startQ: 0 }); // a burn large enough for a $20B+ down round
+    d.player.finance.state = 'distress';
+    const n0 = d.player.finance.tranches.length;
+    const c0 = d.player.finance.cash;
+    const dv = FINANCE_ACTIONS.find((a) => a.id === 'fin.downRound')!.preview(d, {});
+    const errD = act(d, 'fin.downRound', {});
+    check(!errD && dv.gains[0].amount >= LARGE_ROUND.min && d.player.finance.tranches.length === n0 && near(d.player.finance.cash - c0, dv.gains[0].amount), 'FIN4r H3 the distress down round pays in full at the close (no tranche)', `$${f1(d.player.finance.cash - c0)}B`);
+  }
+  {
+    // M1: 'gw:' tranche conditions count compute in your own sites, not the partner's (or any) rented cloud.
+    const s = fx();
+    const own = gwOwned(s);
+    addCloud(s, makeCtx(s), 3e6, 8, 'Azimuth', { startQ: 0 });
+    s.player.computeOnline += 3e6;
+    const total = (s.player.computeOnline * s.power.kWPerH100e) / 1e6;
+    const t = partnerTerms(s, 'Azimuth');
+    check(!trancheConditionMet(s, `gw:${(own + 0.5).toFixed(1)}`) && trancheConditionMet(s, `gw:${(own - 0.05).toFixed(2)}`) && total > own + 0.5 && t.tranches[0].condition === `gw:${(own + 0.5).toFixed(1)}`, 'FIN4r M1 gw: tranche conditions count GW online in your own sites (rented cloud does not meet them)', `owned ${own.toFixed(2)} GW, with cloud ${total.toFixed(2)} GW · condition ${t.tranches[0].condition}`);
+  }
+  {
+    // M2: Buy chips paid by chip loan meets the debt vote, by lease the commitments vote (only above 3× revenue).
+    const s = fx();
+    s.player.finance.revenueRun = 2;
+    s.player.finance.debts.push({ id: 'D-t', kind: 'bond', principal: 5, drawn: 5, spreadBp: 300, maturityDay: s.time.day + 900 });
+    const v = (p: Record<string, string | number | boolean>) => FINANCE_ACTIONS.find((a) => a.id === 'cmp.buyChips')!.vote!(s, p);
+    const loan = v({ term: 1, qty: 5e5, pay: 'loan' });
+    const lease = v({ term: 1, qty: 5e5, pay: 'lease' });
+    const cash = v({ term: 1, qty: 5e5 });
+    const rich = fx();
+    const loanRich = FINANCE_ACTIONS.find((a) => a.id === 'cmp.buyChips')!.vote!(rich, { term: 1, qty: 5e5, pay: 'loan' });
+    check(loan?.decision === 'debt' && lease?.decision === 'commitments' && !cash && !loanRich, 'FIN4r M2 Buy chips on a chip loan needs the debt vote and on a lease the commitments vote (above 3× revenue only); cash needs none', `loan ${loan?.decision} · lease ${lease?.decision} · cash ${cash?.decision ?? 'none'} · loan at $${f1(rich.player.finance.revenueRun)}B revenue ${loanRich?.decision ?? 'none'}`);
+  }
+  {
+    // M3: a site lease capitalises construction interest on what the lessor has paid: the upfront part over the whole
+    // build-out, each building payment from when it is paid. The booking follows that schedule; the preview uses it.
+    const s = fx();
+    s.player.finance.cash = 1e4;
+    s.player.finance.rating = 'BB';
+    const ids: string[] = [];
+    for (let i = 0; i < 4; i++) ids.push(newSite(s, makeCtx(s), { path: 'gas', mw: 500, pay: 'lease', leaseRate: 0.09, community: false }).id);
+    const start = qOf(s);
+    const sched = new Map<string, { power: boolean; buildQ0?: number }>();
+    for (const id of ids) sched.set(id, { power: false });
+    while (s.time.day < 400 + 6 * 365 && ids.some((id) => { const x = s.player.sites.find((y) => y.id === id)!; return x.stage !== 'live' && x.stage !== 'blocked'; })) {
+      tick(s, { skip: ['endings', 'director'] });
+      for (const id of ids) {
+        const x = s.player.sites.find((y) => y.id === id)!;
+        const r = sched.get(id)!;
+        if (x.stage === 'power') r.power = true;
+        if (x.stage === 'building' && r.buildQ0 === undefined) r.buildQ0 = qOf(s);
+      }
+    }
+    const rows: string[] = [];
+    let ok = 0;
+    let n = 0;
+    for (const id of ids) {
+      const x = s.player.sites.find((y) => y.id === id)!;
+      if (x.stage !== 'live') continue;
+      n++;
+      const r = sched.get(id)!;
+      const liveQ = qOf(s, x.ws3.liveDay ?? s.time.day);
+      const g = constructionGrowth(0.09, { etaQ: liveQ - start, buildQ: liveQ - (r.buildQ0 ?? liveQ), firstNow: !r.power });
+      const l = s.player.finance.ledger.find((c) => c.id === siteLeaseId(id))!;
+      const funded = (l.perQuarter * 4) / crf(0.09, 15);
+      if (near(funded, x.capex * CAPEX_LEASE.siteShare * g, 1e-9)) ok++;
+      rows.push(`eta ${liveQ - start}q build ${liveQ - (r.buildQ0 ?? liveQ)}q ×${(funded / (x.capex * 0.8)).toFixed(3)}`);
+    }
+    const p = fx();
+    p.player.finance.rating = 'BB';
+    const o = { path: 'grid', mw: 1000 } as const;
+    const pv = FINANCE_ACTIONS.find((a) => a.id === 'cmp.newSite')!.preview(p, { ...o, pay: 'lease' });
+    const capex = -pv.costs[0].amount / (1 - CAPEX_LEASE.siteShare); // the first line is your 20% share
+    const opt = payOptions(p, capex, 'site', siteSchedule(p, o)).find((y) => y.id === 'lease')!;
+    const sc = siteSchedule(p, o);
+    const gGrid = constructionGrowth(0.09, sc);
+    check(n > 0 && ok === n && near(-pv.costs[1].amount, opt.perYear) && gGrid < Math.pow(1.09, sc.etaQ / 8), 'FIN4r M3 a site lease capitalises construction interest on the money as paid (5% over the whole ETA, building payments from when paid): the booking follows it and the preview uses it', `${rows.join(' · ')} · grid ${sc.etaQ}q preview ×${gGrid.toFixed(3)} (was ×${Math.pow(1.09, sc.etaQ / 8).toFixed(3)})`);
+  }
+  {
+    // L1: the distress down round is a down round whatever the last round was; the preview shows the price range.
+    const s = fx();
+    s.player.finance.state = 'distress';
+    s.player.finance.rounds = [];
+    const bc0 = s.player.board.confidence;
+    const pv = FINANCE_ACTIONS.find((a) => a.id === 'fin.downRound')!.preview(s, {});
+    const hit = pv.costs.find((c) => c.currency === 'boardConf')!.amount;
+    act(s, 'fin.downRound', {});
+    const r = s.player.finance.rounds[s.player.finance.rounds.length - 1];
+    const moved = s.player.board.confidence - bc0;
+    check(!!r?.down && Math.abs(moved - hit) <= 0.05 + 1e-9 && /50–70% of the valuation/.test(String(pv.costs[0].target)), 'FIN4r L1 the distress down round books its down-round effects explicitly (no prior round needed); the preview shows the 50–70% price range', `board ${f1(moved)} (preview ${f1(hit)}) · ${pv.costs[0].target}`);
+  }
+  {
+    // L2: the partner preview sums the force cost of every failing vote it forces.
+    const s = fx();
+    s.player.board = initialBoard('founder');
+    s.player.board.confidence = 0;
+    s.player.finance.state = 'distress';
+    s.player.finance.cash = 1e4;
+    const who = rescuePartner(s)!;
+    s.player.finance.ownership = { founder: 0.25, mission: 0, fin: 0.2, strat: { [who]: 0.55 }, public: 0 };
+    const pv = FINANCE_ACTIONS.find((a) => a.id === 'fin.rescue')!.preview(s, { force: true });
+    const forced = pv.costs.filter((c) => c.currency === 'boardConf' && /forced/.test(String(c.target))).length;
+    const t = partnerTerms(s, who, { rescue: true });
+    const failing = dealVotes(s, t).filter((x) => !x.passes && x.canForce).length;
+    check(forced === failing && failing >= 2, 'FIN4r L2 a partner or rescue preview shows the force cost of every failing vote (not just the first)', `${forced} force lines for ${failing} failing votes`);
+  }
+  {
+    // L3: the community package preview prices what apply packages (every site still permitting).
+    const s = fx();
+    s.player.policies.communityBenefits = true;
+    s.player.finance.cash = 1e4;
+    for (let i = 0; i < 2; i++) newSite(s, makeCtx(s), { path: 'gas', mw: 500, community: false });
+    const before = s.player.sites.map((x) => x.capex);
+    const pv = FINANCE_ACTIONS.find((a) => a.id === 'cmp.community')!.preview(s, {});
+    act(s, 'cmp.community', {});
+    const added = s.player.sites.reduce((a, x, i) => a + (x.capex - before[i]), 0);
+    check(near(-pv.costs[0].amount, added, 1e-9), 'FIN4r L3 the community package preview prices every site the package goes to', `preview $${(-pv.costs[0].amount).toFixed(2)}B · added $${added.toFixed(2)}B`);
+  }
+  {
+    // L4: the IPO's dual-class discount is a valuation line, not cash. L5: a raise's anchor must be on offer.
+    const s = fx();
+    const pv = FINANCE_ACTIONS.find((a) => a.id === 'fin.ipo')!.preview(s, { dualClass: true });
+    s.player.board = initialBoard('pbcTrust');
+    s.player.finance.state = 'healthy';
+    const err = act(s, 'fin.raise', { ask: 1, anchor: 'Not a partner' });
+    check(pv.exposure.some((e) => e.currency === 'valuation' && e.amount < 0) && !pv.exposure.some((e) => e.currency === 'cash' && /dual-class/.test(String(e.target))) && typeof err === 'string' && !s.player.finance.ws3.pendingRound, 'FIN4r L4/L5 the dual-class discount is shown on the valuation (not cash); a raise\'s anchor must be one on offer', `${err}`);
+  }
+  {
+    // L6: scale promises are judged on compute you own or hold on firm contracts (no spot rentals, no cancellable cloud).
+    const s = fx();
+    const m0 = metricNow(s, 'scale');
+    addSpotRental(s, 2e5);
+    addCloud(s, makeCtx(s), 3e5, 4, 'Vantage Neocloud', { firm: false, startQ: 0 });
+    const m1 = metricNow(s, 'scale');
+    addCloud(s, makeCtx(s), 3e5, 4, 'Vantage Neocloud', { firm: true, startQ: 0 });
+    const m2 = metricNow(s, 'scale');
+    check(near(m1, m0) && near(m2 - m1, 3e5), 'FIN4r L6 the scale milestone counts owned and firm compute, not spot rentals or cancellable cloud', `${f1(m0 / 1e3)}k → ${f1(m1 / 1e3)}k (spot + cancellable) → ${f1(m2 / 1e3)}k (firm)`);
+  }
+  {
+    // L8: the critics' investor director does not take the place of a founder preset's ownership seat.
+    const s = fx();
+    s.player.board = initialBoard('founder');
+    s.player.board.seats.push({ kind: 'financial', holder: `${CRITICS_INVESTOR} (2026)`, stance: [1, 1, 0, 0], weight: 1 });
+    s.player.finance.ownership.fin = 0.2;
+    const n0 = s.player.board.seats.length;
+    syncFinancialSeats(s);
+    check(s.player.board.seats.length === n0 + 1, 'FIN4r L8 the critics\' investor director is not one of the founder preset\'s ownership seats', s.player.board.seats.map((x) => x.holder).join(', '));
+  }
+  {
+    // L10: an unpaid maturity no longer skips the covenant tests (the chip-loan sweep still runs).
+    const s = fx();
+    s.player.finance.state = 'distress';
+    s.player.finance.cash = 20;
+    s.player.finance.debts.push({ id: 'D-mat', kind: 'bond', principal: 500, drawn: 500, spreadBp: 300, maturityDay: s.time.day - 1 });
+    s.player.finance.debts.push({ id: 'D-gpu', kind: 'gpuTerm', principal: 30, drawn: 30, spreadBp: 450, maturityDay: s.time.day + 900 });
+    s.player.finance.ws3.chipBook = 20;
+    s.player.finance.ws3.inventory = { ready: 0, transit: 0, book: 0 };
+    const g0 = 30;
+    capitalQSystem.run(s, makeCtx(s));
+    const g = s.player.finance.debts.find((d) => d.id === 'D-gpu')!.drawn;
+    check(g < g0 && s.player.finance.covenantBreachDay !== undefined, 'FIN4r L10 an unpaid maturity and the chip-loan sweep both run in the same quarter', `chip loan $${g0}B → $${f1(g)}B, breach day ${s.player.finance.covenantBreachDay}`);
+  }
+  {
+    // L9: a custom-chip deal's reserved supply serves only its own order. L11: deals keep no inert order id.
+    const mk = (order?: string) => {
+      const s = fx();
+      s.market.ws3.exoMult = 20;
+      s.player.orders = [{ id: 'O-test', lab: 'player', qty: 3e6, kind: 'standard', price: 20, deposit: 0, dueQ: qOf(s), prepayFrac: 0.3, nonTW: false, delivered: 0 }];
+      s.player.finance.ws3.reserved = order === 'none' ? [] : [{ perQ: 3e6, fromQ: qOf(s) - 1, toQ: qOf(s) + 4, ...(order ? { order } : {}) }];
+      clearMarket(s, makeCtx(s));
+      return s.player.orders[0].delivered;
+    };
+    const other = mk('O-asic');
+    const none = mk('none');
+    const mine = mk('O-test');
+    const s = fx();
+    act(s, 'fin.partner', { partner: 'Azimuth', supply: 'asic' });
+    const d = s.player.finance.deals.find((x) => x.partner === 'Azimuth' && !x.legacy);
+    check(near(other, none) && mine > none && !!d?.supply && !('ref' in d.supply) && s.player.finance.ws3.reserved.some((r) => r.order), 'FIN4r L9/L11 reserved custom-chip supply serves only its own order; the deal stores no inert order id', `another order's pool ${f1(other / 1e3)}k = no pool ${f1(none / 1e3)}k < own pool ${f1(mine / 1e3)}k`);
+  }
+  {
+    // L12 and the 17 → 18 migration: old SPV/JV leases keyed like any lease (the site is named), the JV's rate 10%; a
+    // live promise gets its typical round from its round; deal supplies lose the inert order id.
+    const s = fx();
+    const raw = JSON.parse(serialize(s));
+    raw.schemaRev = 17;
+    raw.player.finance.ledger.push({ id: 'L-spv-S2', payee: 'Meridian Group', kind: 'finLease', perQuarter: 0.1, endDay: s.time.day + 600, cancellableNoticeQ: null, penalty: 0, rate: 0.12 });
+    raw.player.finance.rounds.push({ day: s.time.day - 100, amount: 30, postMoney: 830, dilution: 30 / 830, down: false });
+    raw.player.finance.promises.push({ id: 'PRm', type: 'scale', pitch: 'base', start: 1, target: 2, amount: 30, closeDay: s.time.day - 100, deadline: s.time.day + 265 });
+    const m = deserialize(JSON.stringify(raw));
+    const l = m.player.finance.ledger.find((c) => c.id === 'L-fin-S2');
+    const name = contingentLiabilities(m).items.map((i) => i.name);
+    const pr = m.player.finance.promises.find((p) => p.id === 'PRm');
+    check(m.schemaRev === 18 && !!l && l.rate === 0.1 && name.includes('Abilene South') && near(pr?.typical ?? 0, typicalRound(800, 0.08)), 'FIN4r L12 save migration 17 → 18: old SPV/JV leases are keyed by their site (named in What we owe), the JV at 10%; live promises get their typical round', `${name.join(', ')} · rate ${l?.rate} · typical $${f1(pr?.typical ?? 0)}B`);
+  }
+}
 console.log(`finance: ${FINANCE_ACTIONS.length} actions (${applied} applied on day400), no events`);
 finish('finance');

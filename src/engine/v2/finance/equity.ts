@@ -2,12 +2,12 @@
 // WS3.
 import { PARTNER_TERMS, partnerDef } from '../../../data/v2/deals';
 import { dayOfQuarter, quarterIndex } from '../core/time';
-import type { GameStateV2, Money, Ownership, RepricedRound, SystemCtx, Thesis } from '../types';
+import type { Day, GameStateV2, Money, Ownership, RepricedRound, SystemCtx, Thesis, Tranche } from '../types';
 import { ensureWs3, yearStats, type PendingRound } from './ext';
 import { bookCash } from './ledger';
 import { resizeCreditLine } from './debt';
 import { boardMood, MOOD_BASE } from './mood';
-import { addPromise, credMult } from './promises';
+import { addPromise, credMult, typicalRound } from './promises';
 
 /** V = 22·(g/5)^0.4·(R/$20B)^−0.15·H·N·M·R (R15 §1.5). */
 export function valuationMark(g: number, R: number, H: number, N: number, M: number): number {
@@ -150,13 +150,60 @@ export function startRaise(s: GameStateV2, ctx: SystemCtx, ask: Money, opts: { a
   return r;
 }
 
-/** Book a priced round at `pre` (pre-money): cash now (40–60% for large rounds), the rest as a conditional tranche;
- *  dilution; down-round penalties. Returns the cash received now. */
-export function bookRound(s: GameStateV2, ctx: SystemCtx, amount: Money, pre: Money, opts: { anchor?: string; ipo?: boolean; source?: string } = {}): Money {
+/** Large priced rounds arrive in two parts [R15]: half at the close, the rest as a tranche due two quarters later if
+ *  revenue reaches 1.2× its run-rate at the close within four quarters (the recapitalisation for an unconverted legacy
+ *  nonprofit). The IPO and the distress down round pay in full at the close (FIN4r, H3). */
+export const LARGE_ROUND = { min: 20, nowShare: 0.5, revenueX: 1.2, dueQ: 2, deadlineQ: 4 } as const;
+
+export interface RoundSplit { now: Money; tranche?: { amount: Money; condition: string; dueDay: Day; deadline: Day } }
+
+/** How a round of `amount` closing on `closeDay` (default today) pays: cash at the close and the conditional tranche
+ *  (FIN4r, H3; every raise preview and the Raise card show it). The revenue condition is read from the run-rate at the
+ *  close, so a preview's is today's estimate. `full`: the IPO and the distress down round (no tranche). */
+export function roundSplit(s: GameStateV2, amount: Money, opts: { full?: boolean; closeDay?: Day } = {}): RoundSplit {
+  if (opts.full || amount < LARGE_ROUND.min) return { now: amount };
+  const f = s.player.finance;
+  const q = quarterIndex(s.time.startDate, opts.closeDay ?? s.time.day);
+  const recap = s.player.board.preset === 'legacyNonprofit' && f.ws3?.recap.doneDay === undefined;
+  const now = amount * LARGE_ROUND.nowShare;
+  return { now, tranche: { amount: amount - now, condition: recap ? 'recapitalisation' : `revenue:${(f.revenueRun * LARGE_ROUND.revenueX).toFixed(1)}`, dueDay: dayOfQuarter(s.time.startDate, q + LARGE_ROUND.dueQ), deadline: dayOfQuarter(s.time.startDate, q + LARGE_ROUND.deadlineQ) } };
+}
+
+/** Cancel `part` (0–1) of the shares a round's tranche carries (FIN4r, H3): the investors keep only the shares they
+ *  paid for. The shares were a fraction of the company at the close; every issue since scaled them with everyone, read
+ *  off the insiders' (founder + mission) share. The other holders grow back pro rata. Returns the fraction cancelled. */
+export function cancelTrancheShares(s: GameStateV2, t: Tranche, part: number): number {
+  if (!t.shares || part <= 0) return 0;
+  const o = s.player.finance.ownership;
+  const k = t.shares.insiders > 0 ? (o.founder + o.mission) / t.shares.insiders : 1;
+  let c = 0;
+  for (const [h, x0] of Object.entries(t.shares.holders)) {
+    const x = Math.max(0, Math.min(h === 'fin' ? o.fin : o.strat[h] ?? 0, x0 * k * Math.min(1, part)));
+    if (h === 'fin') o.fin -= x;
+    else o.strat[h] = (o.strat[h] ?? 0) - x;
+    c += x;
+  }
+  if (c > 0 && c < 1) {
+    const g = 1 / (1 - c);
+    o.founder *= g;
+    o.mission *= g;
+    o.fin *= g;
+    o.public *= g;
+    for (const n of Object.keys(o.strat)) o.strat[n] *= g;
+  }
+  return c;
+}
+
+/** Book a priced round at `pre` (pre-money): cash now (half for large rounds, `roundSplit`), the rest as a conditional
+ *  tranche carrying the shares of its money; dilution; down-round penalties (priced below the last post-money, or
+ *  `down`: the distress down round, FIN4r L1). `full`: no tranche. Returns the cash received now. */
+export function bookRound(s: GameStateV2, ctx: SystemCtx, amount: Money, pre: Money, opts: { anchor?: string; ipo?: boolean; source?: string; full?: boolean; down?: boolean } = {}): Money {
   const f = s.player.finance;
   const post = pre + amount;
   const dil = amount / post;
-  const down = lastPostMoney(s) > 0 && pre < lastPostMoney(s);
+  const last = lastPostMoney(s); // read before this round is recorded
+  const down = !!opts.down || (last > 0 && pre < last);
+  const before = { fin: f.ownership.fin, strat: { ...f.ownership.strat } };
   if (opts.ipo) issue(f.ownership, dil, { kind: 'public' });
   else if (opts.anchor) {
     // The anchor takes half the round; a hyperscaler only up to its 15% stake cap (FIN4b, [R21 B2]), the rest goes to
@@ -168,13 +215,20 @@ export function bookRound(s: GameStateV2, ctx: SystemCtx, amount: Money, pre: Mo
     issue(f.ownership, a, { kind: 'strat', name: opts.anchor });
     issue(f.ownership, (dil - a) / (1 - a), { kind: 'fin' });
   } else issue(f.ownership, dil, { kind: 'fin' });
-  // Headline ≠ cash: large rounds arrive 50% at close, the rest on conditions within a year [R15].
-  const large = amount >= 20;
-  const now = large ? amount * 0.5 : amount;
-  if (large) {
-    const q = quarterIndex(s.time.startDate, s.time.day);
-    const cond = s.player.board.preset === 'legacyNonprofit' && !f.ws3.recap.doneDay ? 'recapitalisation' : `revenue:${(f.revenueRun * 1.2).toFixed(1)}`;
-    f.tranches.push({ amount: amount - now, dueDay: dayOfQuarter(s.time.startDate, q + 2), condition: cond, deadline: dayOfQuarter(s.time.startDate, q + 4), source: opts.source ?? 'Equity round tranche 2' });
+  // Headline ≠ cash: large rounds arrive 50% at close, the rest on conditions within a year [R15]. The tranche carries
+  // the shares of its money (the new shares each holder got × the unpaid share), cancelled if it lapses (FIN4r, H3).
+  const sp = roundSplit(s, amount, { full: !!opts.ipo || !!opts.full });
+  const now = sp.now;
+  if (sp.tranche) {
+    const unpaid = sp.tranche.amount / amount;
+    const holders: Record<string, number> = {};
+    const fin = f.ownership.fin - before.fin * (1 - dil);
+    if (fin > 1e-12) holders.fin = fin * unpaid;
+    for (const [n, x] of Object.entries(f.ownership.strat)) {
+      const got = x - (before.strat[n] ?? 0) * (1 - dil);
+      if (got > 1e-12) holders[n] = got * unpaid;
+    }
+    f.tranches.push({ amount: sp.tranche.amount, dueDay: sp.tranche.dueDay, condition: sp.tranche.condition, deadline: sp.tranche.deadline, source: opts.source ?? 'Equity round tranche 2', shares: { holders, insiders: f.ownership.founder + f.ownership.mission } });
   }
   f.rounds.push({ day: s.time.day, amount, postMoney: post, dilution: dil, down, ...(opts.anchor ? { anchor: opts.anchor } : {}), ...(opts.ipo ? { ipo: true } : {}) });
   const dv = post - f.valuation;
@@ -186,9 +240,11 @@ export function bookRound(s: GameStateV2, ctx: SystemCtx, amount: Money, pre: Mo
   if (down) {
     // FIN2 (spec §0.3, §2.5): no staff attrition; the board and prior holders carry the down round.
     boardMood(s, ctx, 'setbacks', MOOD_BASE.downRound, 'down round');
-    // Anti-dilution: prior investors receive shares worth 20% of the value gap [R15 Design].
-    const gap = (lastPostMoney(s) - pre) / Math.max(1, lastPostMoney(s));
-    issue(f.ownership, Math.min(0.1, 0.2 * gap * outsideShare(f.ownership)), { kind: 'fin' });
+    // Anti-dilution: prior investors receive shares worth 20% of the value gap [R15 Design] (none without a lower price
+    // than a prior round's post-money).
+    // (FIN4r: the gap is measured against the previous round's post-money; it read this round's own post before.)
+    const gap = Math.max(0, (last - pre) / Math.max(1, last));
+    if (gap > 0) issue(f.ownership, Math.min(0.1, 0.2 * gap * outsideShare(f.ownership)), { kind: 'fin' });
     ctx.headline('down-round', `${s.player.name} raises at a lower valuation`);
   }
   return now;
@@ -249,7 +305,9 @@ function closeRound(s: GameStateV2, ctx: SystemCtx, r0: { ask: Money; pre: Money
   const r = ask < r0.ask ? { ...r0, ask } : r0;
   if (r !== r0) ctx.log('finance', `The IPO sells at most ${Math.round(dMax(false, true) * 100)}% of the company: at $${r.pre.toFixed(0)}B pre-money it raises $${r.ask.toFixed(1)}B of the $${r0.ask.toFixed(1)}B asked.`, 2);
   const now = bookRound(s, ctx, r.ask, r.pre, { ...(r.anchor ? { anchor: r.anchor } : {}), ipo: r.ipo });
-  if (r.thesis) addPromise(s, ctx, r.thesis, r.ask);
+  // FIN4r (H2): the promise stores a typical round at this close (the dilution limit at its pre-money), the floor of
+  // its weight.
+  if (r.thesis) addPromise(s, ctx, r.thesis, r.ask, typicalRound(r.pre, dMax(!!r.anchor, false)));
   if (r.ipo) {
     s.capital.ipoWindow = true;
     if (r.dualClass) s.player.finance.dualClass = true;

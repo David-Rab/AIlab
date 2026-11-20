@@ -90,9 +90,22 @@ export function computeSecured(s: GameStateV2, lab: LabId = PLAYER_ID): H100e {
   return r.core.computeOnline + (s.market.ws3?.labOrders ?? []).filter((o) => o.lab === lab).reduce((a, o) => a + Math.max(0, o.qty - o.delivered), 0);
 }
 
-/** Compute online (H100e: owned racks running plus rented capacity) — the Scale milestone (FINANCE-V3 §2.2). */
+/** Compute online (H100e: owned racks running plus rented capacity). */
 export function computeOnline(s: GameStateV2, lab: LabId = PLAYER_ID): H100e {
   return lab === PLAYER_ID ? s.player.computeOnline : rival(s, lab)?.core.computeOnline ?? 0;
+}
+
+/** GW of compute online in the player's own sites (installed, MW-limited) at today's kW per H100e: what the 'gw:'
+ *  tranche conditions count (FIN4r, M1: not rented cloud or spot capacity). */
+export const gwOwned = (s: GameStateV2) => (ownedOnline(s) * s.power.kWPerH100e) / 1e6;
+
+/** The player's compute online that it owns or holds on firm contracts (owned racks plus live firm cloud; no spot
+ *  rentals, no cancellable cloud): the Scale milestone (FINANCE-V3 §2.2; FIN4r L6: a rental timed for the deadline
+ *  quarter no longer meets a promise). */
+export function computeFirm(s: GameStateV2): H100e {
+  let h = ownedOnline(s);
+  for (const c of s.player.cloud) if (c.cancellableNoticeQ === null && c.startDay <= s.time.day && c.endDay > s.time.day) h += c.h100e;
+  return h;
 }
 
 /** Red flags the player's own safety evals show on a version: scheming, alignment faking or sandbagging believed above

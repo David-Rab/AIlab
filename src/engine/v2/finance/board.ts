@@ -192,11 +192,12 @@ export function addSeat(s: GameStateV2, kind: BoardSeat['kind'], holder: string,
   b.seats.push(seat(kind, holder, weight));
 }
 
-/** Founder preset: one financial seat each time own_fin crosses 15/30/45% (R15). */
-function syncFinancialSeats(s: GameStateV2) {
+/** Founder preset: one financial seat each time own_fin crosses 15/30/45% (R15). The critics' investor director is not
+ *  one of these ownership seats (FIN4r, L8: it used to take the place of the next one). */
+export function syncFinancialSeats(s: GameStateV2) {
   if (s.player.board.preset !== 'founder') return;
   const want = 1 + [0.15, 0.3, 0.45].filter((t) => s.player.finance.ownership.fin >= t).length;
-  const have = s.player.board.seats.filter((x) => x.kind === 'financial').length;
+  const have = s.player.board.seats.filter((x) => x.kind === 'financial' && !x.holder.startsWith(CRITICS_INVESTOR)).length;
   for (let i = have; i < want; i++) s.player.board.seats.push(seat('financial', `Investor ${i + 1}`));
 }
 
@@ -340,6 +341,8 @@ export function ousterPassesBelow(s: GameStateV2): number | undefined {
 /** The critics' seat [D, FIN3b]: available below 40 confidence, once a year, while the board has fewer than 9 voting
  *  seats (R15: boards of 5–9); +15 confidence now. */
 export const CRITICS = { below: 40, gain: 15, cooldownD: 365, maxVoting: 9 } as const;
+/** The holder name of the critics' investor director (its seat is 'Investor director (year)'). */
+export const CRITICS_INVESTOR = 'Investor director';
 
 /** Which side is driving the decline (spec §7.5): the mission side when the last year's losses were mostly public
  *  incidents ("too reckless"); otherwise the investors (falling behind, missed promises, financial setbacks). */
@@ -347,7 +350,7 @@ export function criticsSide(s: GameStateV2): { side: 'investors' | 'mission'; ki
   const g = boardGrievance(s);
   const pct = (x: number) => `${Math.round(x * 100)}%`;
   if (g.reckless > g.slow + g.burn) return { side: 'mission', kind: 'mission', holder: 'Safety director', why: `public incidents drove ${pct(g.reckless)} of the year's losses` };
-  return { side: 'investors', kind: 'financial', holder: 'Investor director', why: `falling behind and missed promises ${pct(g.slow)}, financial setbacks ${pct(g.burn)} of the year's losses` };
+  return { side: 'investors', kind: 'financial', holder: CRITICS_INVESTOR, why: `falling behind and missed promises ${pct(g.slow)}, financial setbacks ${pct(g.burn)} of the year's losses` };
 }
 
 export function criticsAvailable(s: GameStateV2): true | string {

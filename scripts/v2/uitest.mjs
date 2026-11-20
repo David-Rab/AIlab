@@ -671,6 +671,17 @@ ok('J1 C1: buy, build and rent show before → after (cash, runway)', await page
   if (alt) await check('FIN2: another milestone changes the promise', `document.querySelector('[data-test=raise-promise]')?.textContent ?? ''`, () => alt.click());
   else ok('FIN2: another milestone changes the promise', false, 'no other milestone open');
   await check('FIN2: the pitch changes the price', `document.querySelector('#ctl-raise-card .ask-head')?.textContent ?? ''`, () => page.click('[data-test=raise-pitch] [data-opt=conservative]'));
+  // FIN4r (H3): a round of $20B or more shows cash at the close and the conditional tranche; a small one none.
+  {
+    const max = Number(await page.evaluate(() => document.querySelector('[data-test=raise-ask]')?.getAttribute('max') ?? '0'));
+    if (max >= 25) {
+      await setSlider(page.locator('[data-test=raise-ask]'), 24); await wait(80);
+      const big = await page.evaluate(() => [document.querySelector('[data-test=raise-tranche]')?.textContent ?? '', document.querySelector('[data-test=raise-preview]')?.textContent ?? '']);
+      await setSlider(page.locator('[data-test=raise-ask]'), 5); await wait(80);
+      const small = await page.evaluate(() => !!document.querySelector('[data-test=raise-tranche]'));
+      ok('FIN4r: a $20B+ round shows cash at the close and its tranche on the Raise card', /tranche \$12/.test(big[0]) && /tranche if/.test(big[1]) && !small, `${big.join(' | ')} · small ${small}`);
+    } else ok('FIN4r: a $20B+ round shows cash at the close and its tranche on the Raise card', false, `ask slider max ${max}`);
+  }
   ok('FIN2: the IPO is its own action with the dual-class choice', !!(await page.$('[data-test=ipo-row] [data-act="fin.ipo"]')) || /listed/.test(await page.evaluate(() => document.querySelector('[data-test=ipo-row]')?.textContent ?? '')));
   const canRaise = await page.$('[data-act="fin.raise"]:not([disabled])');
   if (canRaise) {
