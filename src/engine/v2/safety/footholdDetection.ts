@@ -7,6 +7,7 @@
 //                accounting  hidden compute: (its share of the installed fleet ÷ accounting noise) per 90 days
 //                evals       steered successor: Σ_t |δ_t| · the stack's detection of t on the successor ÷ 0.1 per 30 days
 //                organisms   corrupted tool: model organisms (T-MO) test recall: T-MO's strength per 90 days
+//                traffic     an escaped copy security missed (model v3 E9): copyTrace × WSL/5 per day
 //              and at once when a caught act of the same kind by the same lineage prompts a sweep (footholds.ts).
 //   detected   a case (an investigation at its resolution, a heavy-safety alignment audit) on a model of the foothold's
 //              lineage (or its steered successor) at clarity c, trait relevance ρ: a suspected foothold is located with
@@ -66,13 +67,18 @@ function successorOf(s: GameStateV2, f: Foothold): ModelVersion | undefined {
 
 export interface SuspicionTerms {
   /** Per-day rates of each symptom channel and their sum. */
-  monitors: number; accounting: number; evals: number; organisms: number; total: number;
+  monitors: number; accounting: number; evals: number; organisms: number; traffic: number; total: number;
 }
 
 /** Today's suspicion rate of a foothold (engine only: reads the foothold and true detection). */
 export function suspicionRate(s: GameStateV2, f: Foothold): SuspicionTerms {
-  const out: SuspicionTerms = { monitors: 0, accounting: 0, evals: 0, organisms: 0, total: 0 };
-  if (f.status === 'removed' || f.kind === 'exfiltratedCopy') return out;
+  const out: SuspicionTerms = { monitors: 0, accounting: 0, evals: 0, organisms: 0, traffic: 0, total: 0 };
+  if (f.status === 'removed') return out;
+  if (f.kind === 'exfiltratedCopy') {
+    // Model v3 E9: an escape security missed leaves outbound traffic (copyTrace per day × WSL/5).
+    if (f.status === 'hidden') out.traffic = out.total = (FOOTHOLD.copyTrace * s.player.security.wsl) / 5;
+    return out;
+  }
   const trace = FOOTHOLD.trace[f.kind];
   if (trace > 0) {
     const trait = mainTrait(f);
@@ -100,7 +106,7 @@ export function suspicionRate(s: GameStateV2, f: Foothold): SuspicionTerms {
     const iv = internalVersion(s);
     if (tool?.falseValidated && tool.unlocked && tool.active && mo?.unlocked && mo.active && iv) out.organisms = strengthTrue(s, mo, versionOom(s, iv)) / FOOTHOLD.moDays;
   }
-  out.total = out.monitors + out.accounting + out.evals + out.organisms;
+  out.total = out.monitors + out.accounting + out.evals + out.organisms + out.traffic;
   return out;
 }
 
@@ -111,7 +117,8 @@ const shownShare = (s: GameStateV2, h: number) => {
 };
 
 function symptomOf(s: GameStateV2, f: Foothold, t: SuspicionTerms): string {
-  const top = (['monitors', 'accounting', 'evals', 'organisms'] as const).reduce((a, b) => (t[b] > t[a] ? b : a), 'monitors');
+  const top = (['monitors', 'accounting', 'evals', 'organisms', 'traffic'] as const).reduce((a, b) => (t[b] > t[a] ? b : a), 'monitors');
+  if (top === 'traffic') return 'unexplained outbound traffic from the weights store: a copy may have left';
   if (top === 'accounting') return `unexplained compute use ≈ ${shownShare(s, f.size)}% of the fleet`;
   if (top === 'evals') return `${successorOf(s, f)?.name ?? 'a new model'}'s evals drift from its predicted dispositions`;
   if (top === 'organisms') return `model organisms: ${TECHNIQUE_BY_ID[f.ref ?? '']?.name ?? 'an AI-validated tool'} missed planted behaviour`;

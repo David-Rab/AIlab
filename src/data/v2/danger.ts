@@ -204,4 +204,51 @@ export const FOOTHOLD = {
     steeredSuccessor: { fte: 10, days: 30, downtime: 0, progress: 0.02 },
     corruptedTool: { fte: 5, days: 14, downtime: 0, progress: 0 },
   } as Record<Exclude<FootholdKind, 'exfiltratedCopy'>, { fte: number; days: number; downtime: number; progress: number }>,
+  /** Model v3 E9: a hidden escaped copy (one security did not notice) leaves outbound traffic: suspected at `copyTrace`
+   *  per day × the lab's weight security ÷ 5 [D] (≈ once in 6 months at WSL 5). */
+  copyTrace: 1 / 180,
+};
+
+// Model v3 E9 (MODEL-V3 §11.4): "Loss of control happens when footholds and capability together let a misaligned model
+// act without effective oversight. This replaces the single roll at superintelligence: outcomes come from the process.
+// The world's hidden difficulty (§11.8) sets how readily footholds form." Engine: src/engine/v2/safety/control.ts.
+//   exposure  E = Mis(v) · (1 − O_eff) · (1 + F)   the misaligned capacity of model v the lab can neither see nor undo
+//   control   C = 1 − E (clamped 0..1): the lab's lowest over its best model and its running internal fleets
+//   loss      E > θ_w (C < 1 − θ_w) while the AI can act on it: the lab's ASI, or an escaped copy (grown to copyActs) once
+//             the lab's frontier is at SAR. θ_w = doomThreshold + ε_w, ε_w ~ Logistic(0, toleranceSd) drawn once per
+//             world (hidden.toleranceNoise; hash, no stream moves): with no oversight and no footholds, P(loss | Mis)
+//             over worlds is exactly v1's σ((Mis − doomThreshold)/0.06), but it is a property of the world, not a roll.
+// O_eff = E6's internal oversight of v on the takeover act (block = containment; catch = monitors at the capability
+// gap, human review, control deferral) with the lineage's backdoor reach bypassing both (E8's rule). F = the footholds'
+// capacity outside oversight (below); the world's difficulty D_w (difficultyMult) sets how fast they grow.
+export const CONTROL = {
+  /** Trait of the act oversight must stop: taking control is power-seeking (R14 POWER). */
+  trait: 'POWER' as TraitId,
+  /** Hidden compute: a reservation of `hidCompFull` of the installed fleet doubles the misaligned capacity (F += 1) [D]:
+   *  its jobs run with no monitor at all. */
+  hidCompFull: 0.05,
+  /** An escaped copy adds copyBase · (1 + log₂ size) to F (compute outside the lab; size in copies) [D]. */
+  copyBase: 0.25,
+  /** A steered successor in the model's lineage adds steeredPerPull · Σ|δ| (dispositions toward its makers) [D]. */
+  steeredPerPull: 2,
+  /** Located (not yet removed) footholds still act but are watched: their weight in F and in backdoor reach [D]. */
+  locatedWeight: 0.5,
+  // ── growth once control is low ──
+  /** An escaped copy acquires compute: its size doubles every `copyDoubling` days at Mis = misRef in a D_w = 1 world
+   *  with no cyber defence (rate ∝ Mis · D_w · (1 − cyber defence)), up to `copyMax` copies [D]. */
+  copyDoubling: 30,
+  misRef: 0.4,
+  copyMax: 16,
+  /** It can act once it holds `copyActs` copies (one doubling: compute of its own) [D]. */
+  copyActs: 2,
+  /** A hidden compute reservation grows by `hidCompGrowth` of itself per day × its lineage's exposure E × D_w (more jobs
+   *  launch the less the lab sees), up to the agent pool [D]. */
+  hidCompGrowth: 1 / 120,
+  /** A lost ASI is contained (asiContested) when containK · Cont · (1 − leverage) ≥ 1 − θ_w/E, the share of its exposure
+   *  beyond what the world tolerates [D] (v2's 0.8 · Cont · (1 − lev) odds, now against the margin, no roll). */
+  containK: 0.8,
+  /** World tolerance spread: ε_w ~ Logistic(0, toleranceSd) (v1's doom-curve width 0.06). */
+  toleranceSd: 0.06,
+  /** Believed exposure: each suspected foothold (size unknown) counts this much of F [D]. */
+  suspectedF: 0.05,
 };

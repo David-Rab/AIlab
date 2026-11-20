@@ -10,6 +10,8 @@ import { PARADIGMS } from '../../../data/v2/paradigms';
 import { ARCHETYPE_POSTURES, CHINA_POSTURE_BASE } from '../../../data/v2/postures';
 import { UMODES } from '../../../data/v2/umodes';
 import { makeWorld } from '../../../data/world';
+import { CONTROL } from '../../../data/v2/danger';
+import { hash32 } from '../core/rng';
 import { Rng, clamp } from '../../rng';
 import { buildKnots, cesFromAsymptotes } from '../production/knots';
 import type {
@@ -125,7 +127,7 @@ export function sampleHidden(rng: Rng, setup: SetupV2): HiddenWorld {
   // 10. Doom threshold: drawn inside makeWorld (0.40, or U(0.30, 0.50) when alignment is sampled).
   return {
     timeline, latents, agendaEfficacy, paradigmSuccess, edgeWeights, uModePropensity, econ,
-    doomThreshold: timeline.doomThreshold, difficultyMult,
+    doomThreshold: timeline.doomThreshold, toleranceNoise: toleranceNoiseOf(setup.seed), difficultyMult,
     actorPresets: { gov, public: pub, china, rivals }, rivalPostures, chinaPosture,
   };
 }
@@ -139,4 +141,11 @@ export function drawLineageUModes(rng: Pick<Rng, 'chance'>, h: Pick<HiddenWorld,
     if (rng.chance(h.uModePropensity[u.id])) out.push(u.id);
   }
   return out;
+}
+
+/** Model v3 E9: the world's tolerance noise ε_w ~ Logistic(0, 0.06) from a hash of the seed (no named stream moves):
+ *  loss of control when exposure > doomThreshold + ε_w (safety/control.ts). Saves before schemaRev 27 get the same. */
+export function toleranceNoiseOf(seed: number): number {
+  const u = (hash32(seed, 'control:tolerance') + 0.5) / 4294967296;
+  return CONTROL.toleranceSd * Math.log(u / (1 - u));
 }

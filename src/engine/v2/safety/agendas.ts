@@ -42,6 +42,7 @@ export function initialSafetyDept(): SafetyDept {
     edgeGrades: Object.fromEntries(EDGES.map((e) => [e.id, e.grade])),
     edgeRevealed: Object.fromEntries(EDGES.map((e) => [e.id, false])),
     footholds: [],
+    effectiveControl: { level: 1, exposure: 0, lowest: 1, believed: 1 },
   };
 }
 

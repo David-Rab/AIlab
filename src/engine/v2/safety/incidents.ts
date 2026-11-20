@@ -26,6 +26,8 @@ import { agentSplitShare, agentVersion, internalFleets } from '../departments/ag
 import { copiesOf, flopPerToken, safetyLabour, workContext } from '../departments/workfit';
 import { rollFleetCovert } from './covert';
 import { footholdsStep } from './footholdDetection';
+import { backdoorReach, lineageOf } from './footholds';
+import { controlStep } from './control';
 
 /** Disposition of an undiscovered/discovered U-mode (it borrows the act of its mapped trait) [D]. */
 export const UMODE_X = 0.25;
@@ -390,6 +392,8 @@ export const incidentsSystem: EngineSystem = {
     rollFleetCovert(s, ctx);
     // E8: symptoms of hidden footholds (monitors, compute accounting, eval drift, model organisms); hash draws.
     footholdsStep(s, ctx);
+    // E9: footholds grow once control is low; today's effective control (safety/control.ts).
+    controlStep(s, ctx);
     tickTimers(s, ctx, rng);
   },
 };
@@ -408,7 +412,9 @@ export function exfiltrationHazard(s: GameStateV2): number {
   const contain = containment(s, versionOom(s, v), !!dep?.controlLayer, false, uModeContainMult(v.uModes));
   const t = v.traitsTrue;
   const opportunity = internalAutonomy(s, v) * CHANNEL_AFFORD.internal * internalScale(s);
-  let p = EXFIL.kappa * t.POWER * (1 + 4 * t.SCHEME) * capabilityOf(v.domains.CYBER, EXFIL) * opportunity * (1 - s.player.security.wsl / 5) * (1 - contain);
+  // Model v3 E9: a backdoor of v's lineage raises the odds: its reach bypasses that share of weight security and containment.
+  const r = backdoorReach(s, lineageOf(s, v));
+  let p = EXFIL.kappa * t.POWER * (1 + 4 * t.SCHEME) * capabilityOf(v.domains.CYBER, EXFIL) * opportunity * (1 - (1 - r) * s.player.security.wsl / 5) * (1 - (1 - r) * contain);
   if (s.flags['ws2.gatekeeper'] !== undefined && s.player.safety.techniques['T-GATE']?.active) p *= 0.5;
   return Math.max(0, p);
 }

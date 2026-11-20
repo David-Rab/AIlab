@@ -44,6 +44,7 @@ export { raiseCeiling } from '../finance/equity';
 export { beliefView, findingRows, incidentRows, lineBadges, lineRows, riskFamilies, safetyTruth, safetyUtilisation, safetyView, techniqueRows, traitGraph, uModeCards, upkeepView } from '../safety/view';
 export type { FindingRow, LineRow, SafetyUtilisation, TechniqueRow } from '../safety/view';
 export { footholdView } from '../safety/footholdDetection';
+export { controlView } from '../safety/control';
 export type { FootholdRow } from '../safety/footholdDetection';
 export { lineMult, lineResultsPerYear, posteriorBand, promisingIdle, safetyRe } from '../safety/agendas';
 export { familySeenTo } from '../safety/understanding';

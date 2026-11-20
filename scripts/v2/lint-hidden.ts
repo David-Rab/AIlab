@@ -13,6 +13,8 @@ const RULES: [RegExp, string][] = [
   [/\.pm\b|\.Lg\b|\bdoomThreshold\b|\bagendaEfficacy\b|\bparadigmSuccess\b/, 'hidden capability/world field'],
   // Model v3 E8: footholds include hidden ones; the UI reads footholdView (suspected, located, removed) only.
   [/\.footholds\b|\bfootholdsOf\b|\bhiddenComputeH\b|\bbackdoorReach\b|\bsuspicionRate\b|\bcovertRecord\b/, 'raw footholds (use footholdView)'],
+  // Model v3 E9: the true control level, exposure and the world's tolerance are hidden; the UI reads controlView.
+  [/\.effectiveControl\b|\blabControl\b|\bcontrolTerms\b|\basiControl\b|\blossThreshold\b|\bcontrolThreshold\b|\btoleranceNoise\b|\bcopyExposure\b|\brogueCopy\b/, 'hidden control (use controlView)'],
 ];
 
 function walk(dir: string, out: string[] = []): string[] {

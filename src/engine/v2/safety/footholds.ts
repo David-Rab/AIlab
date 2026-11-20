@@ -9,7 +9,8 @@
 //   steeredSuccessor  an uncaught SUCCSTEER act on a run           the extra pull ω         E4/E7: the successor starts with `delta` toward
 //                                                                                           its makers (applied by traits.ts pulledTraits)
 //   corruptedTool     an uncaught SAFSAB act (a FALSE finding)      the tool's s0            the F49 tool masks instead of detecting
-//   exfiltratedCopy   an escape (security.ts → E25, ws4.loose)      1 copy                   the 'rogue' clock (endings; E9)
+//   exfiltratedCopy   an escape (security.ts → E25, ws4.loose;      copies (grows, E9)       E9 (control.ts): capacity outside
+//                     hidden if security missed it, E9)                                     the lab; 'rogue' once grown
 // Steering of capability research (STEER) stays a recipe property (covert.ts steered stock → hidden S4), not an asset.
 // Status: hidden → suspected (a symptom seen) → detected (located) → removed. The player never sees hidden ones.
 import { FOOTHOLD, type CovertActId } from '../../../data/v2/danger';
@@ -99,9 +100,12 @@ export function linkSteeredSuccessor(s: GameStateV2, runId: string, target: stri
   }
 }
 
-/** An escape (security.ts): the copy is outside the lab; the lab knows at once (the E25 alert), so it is located. */
-export function footholdFromEscape(s: GameStateV2, day: number, v: ModelVersion): Foothold {
+/** An escape (security.ts): the copy is outside the lab. Noticed (the E25 alert): located at once. Model v3 E9: an
+ *  escape security did not notice stays hidden (control.ts escapeNoticed). `mis` = the copy's misalignment index. */
+export function footholdFromEscape(s: GameStateV2, day: number, v: ModelVersion, mis?: number, noticed = true): Foothold {
   const f = newFoothold(s, 'exfiltratedCopy', v, day, 5, 1);
+  if (mis !== undefined) f.mis = mis;
+  if (!noticed) return f;
   f.status = 'detected';
   f.suspectedDay = day;
   f.detectedDay = day;

@@ -25,6 +25,7 @@ import { deserialize } from '../../src/engine/v2/core/save';
 import { STORYTELLERS } from '../../src/engine/v2/events/director';
 import { bestPm, internalVersion } from '../../src/engine/v2/models/labs';
 import { executeTheft } from '../../src/engine/v2/security/theft';
+import { footholdFromEscape } from '../../src/engine/v2/safety/footholds';
 import { levelOf, thresholds } from '../../src/engine/v2/world/calibration';
 import type { CostLine, EndingId, EngineSystem, GameStateV2, StorytellerId, TraitVector } from '../../src/engine/v2/types';
 import { refBot } from '../../src/engine/v2/bots/ref';
@@ -205,6 +206,8 @@ const load = (i: number) => deserialize(fixtures[i]);
     rogue: (s) => {
       atLevel(s, 4);
       ws4(s).loose = { day: s.time.day - 100, versionId: 'V0', mis: 1 };
+      // Model v3 E9: the copy is a foothold that has acquired compute (4 copies) and acts once its exposure is above θ_w.
+      footholdFromEscape(s, s.time.day - 100, internalVersion(s)!, 1).size = 4;
     },
     rivalAligned: (s) => rivalAsi(s, 'r0', false),
     rivalTakeover: (s) => rivalAsi(s, 'r0', true),

@@ -6,6 +6,7 @@ import { exfiltrationHazard } from '../safety/incidents';
 import { distillationLeak } from '../models/deployments';
 import { misalignment } from '../safety/traits';
 import { footholdFromEscape } from '../safety/footholds';
+import { escapeNoticed } from '../safety/control';
 import type { EngineSystem, GameStateV2, SecurityState, StaffByRole } from '../types';
 import { leadBetween, openWeightsReleased, postureOf } from '../actors/rivals';
 import { request, ws4 } from '../actors/state';
@@ -99,16 +100,21 @@ export const securitySystem: EngineSystem = {
       w.distillDays = chinaDist > 0.0004 ? w.distillDays + 1 : 0;
     }
 
-    // Exfiltration of an internal agent (WS2 hazard) → E25; the 'rogue' ending clock starts.
+    // Exfiltration of an internal agent (WS2 hazard) → E25 and the hunt. Model v3 E9: security notices it with the
+    // lab's effective control of the model (safety/control.ts escapeNoticed), else the copy is a hidden foothold (no
+    // alert, no hunt). Either way the copy grows outside the lab and takes control once it can (endings 'rogue').
     if (!w.loose) {
       const hz = exfiltrationHazard(s);
       if (hz > 0 && rng.chance(hz)) {
         const v = bestPlayerVersion(s);
         if (v) {
-          w.loose = { day: ctx.day, versionId: v.id, mis: misalignment(v.traitsTrue, v.uModes) };
-          footholdFromEscape(s, ctx.day, v); // model v3 E8: the copy is a foothold outside the lab (located: the alert)
-          ctx.log('alert', `A copy of ${v.name} has escaped your servers.`, 5, v.id);
-          request(s, 'E25', { versionId: v.id });
+          const mis = misalignment(v.traitsTrue, v.uModes);
+          if (escapeNoticed(s, v, ctx.day)) {
+            w.loose = { day: ctx.day, versionId: v.id, mis };
+            footholdFromEscape(s, ctx.day, v, mis); // model v3 E8: the copy is a foothold outside the lab (located: the alert)
+            ctx.log('alert', `A copy of ${v.name} has escaped your servers.`, 5, v.id);
+            request(s, 'E25', { versionId: v.id });
+          } else footholdFromEscape(s, ctx.day, v, mis, false);
         }
       }
     }
