@@ -20,7 +20,7 @@ tasks**, one subagent each, one at a time. Spec: [MODEL-V3.md](MODEL-V3.md). Num
 - **Stop rules:** a golden date leaves tolerance by more than ±0.3 y after refitting only the named values; the task
   needs a mechanism that contradicts the spec; a test the task does not own newly fails and cannot be explained.
 - **Known failures (not ours):** finance F7 / F8 / F11, valuation, equity 2026 (owned by the finance session, spec
-  `../AI27-finance3`); safety S5 mixed; worldfx GOV T1; ws4 T3; hygiene perf (task P2); the bots table is reported, not
+  `../AI27-finance3`); safety S5 mixed; worldfx GOV T1; ws4 T3; hygiene leader-lab daily average (P2 made the tick 18–30% faster with identical behaviour; ≈1.1 ms quiet, 1.6–1.8 ms under machine load vs the 1.5 ms budget; the rest needs behaviour changes: exp/log for pow, table for tasteSD, cadence — revisit in F6); the bots table is reported, not
   required, until V7.
 - **Bridges** still alive: see V3-BUILD "Bridges" (V6 safety M reads, V7 rivals). Each task removes the ones it owns.
 
@@ -56,7 +56,7 @@ open weights, RefBot's late product upgrade, and the unsourced agent check-in ti
 
 | ID | Task | Depends | Effort | Done when |
 |---|---|---|---|---|
-| P2 | Performance: profile the daily tick (4.0 ms vs a 1.5 ms budget; +15% since V3b). No behaviour change: same state hashes on the fixtures. | – | M | `hygiene` perf checks pass or the remaining gap is explained function by function |
+| P2 (done 2026-11-20) | Performance: profile the daily tick (4.0 ms vs a 1.5 ms budget; +15% since V3b). No behaviour change: same state hashes on the fixtures. | – | M | `hygiene` perf checks pass or the remaining gap is explained function by function |
 
 | C2 | Feature data and upkeep (found by B2): Voice & vision is only offered on Chat, where its "+15% Media work" cannot act (data issue in `features.ts`: give it a channel where it acts or retype it as a consumer effect); the engine charges no upkeep for features although the spec (§7.2) gives them one (engineers' standing load). | – | M | every built feature has an effect that can act on at least one of its products; feature upkeep appears in the engineers' load and on the card; tests |
 
