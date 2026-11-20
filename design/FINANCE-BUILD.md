@@ -82,7 +82,7 @@ list.
 ## Phase split (2026-11-19, user: "our stages are a bit too big")
 
 FIN1 and FIN2 are done. The rest is split into smaller phases, each one agent run, one commit, reviewed before the
-next starts. Order: FIN3a → FIN3b → FIN3c → FIN4a → FIN4b → FIN5a → FIN5b → FIN5c → FIN6a → FIN6b → FIN6c.
+next starts. Order: FIN3a → FIN3b → FIN3c → FIN4a → FIN4b (+ FIN5c in parallel, merged) → FIN4r → FIN5a → FIN5b → FIN5c → FIN6a → FIN6b → FIN6c.
 
 User decisions that shape them: stacked promises stay as built (weight-neutral); the board-confidence rebalance
 happens in FIN3a; the issues queued from FIN1/FIN2 are assigned below.
@@ -141,6 +141,17 @@ happens in FIN3a; the issues queued from FIN1/FIN2 are assigned below.
   interface; no other change to rivals).
 - A strategic partner's guarantee opens leases below rating B (FIN1 leftover).
 - UI: Partners section with each partner's terms, strings and exclusivity conflicts.
+
+## FIN4r Review fixes (2026-11-20)
+
+An independent read-only review of 7f35081 (FIN1–FIN4a) found 3 high, 3 medium and 12 low findings; the lead verified
+the three high ones in code. The full list with file:line references is in the brief (copied into the FIN4r notes).
+Fix H1 (renegotiate on path-priced contracts), H2 (tiny-round promise weight: weight = amount ÷ max(raised in the
+year, typical round d_max·V/(1−d_max) at close); keeps the user's weight-neutral stacking for normal rounds), H3 (cash
+now vs tranche shown in every raise/IPO/down-round preview; unpaid shares cancelled on a lapse; no split for IPOs and
+down rounds), M1 (gw: conditions on owned compute), M2 (chip loan/lease through the debt/commitments votes), M3 (site
+lease construction interest over build quarters), and the cheap lows (L1–L6, L8, L10–L12); L7 and L9 if cheap. Runs
+after FIN4b and the FIN5c merge (cbbceed), before FIN5a.
 
 ## FIN5a Valuation: sector value and share (spec §1)
 
