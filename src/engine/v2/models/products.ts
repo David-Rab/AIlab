@@ -7,19 +7,16 @@
 // effects, cost, price and capacity live in worldfx/serving.ts; revenue and the Auto serving split in worldfx/revenue.ts.
 import { AG05_GAP } from '../../../data/v2/agendas';
 import {
-  AGENT_TASK_HOURS, AUTO_EVAL_DAYS, COLLUSION_TRAITS, COPY_COLLUSION, FEATURE_BY_ID, FREE_TIER_SHARE, MONITOR_CATCH_BASE, MONITOR_OVERHEAD, PRICE_TIERS,
+  AGENT_TASK_HOURS, COLLUSION_TRAITS, COPY_COLLUSION, FEATURE_BY_ID, FREE_TIER_SHARE, MONITOR_CATCH_BASE, MONITOR_OVERHEAD, PRICE_TIERS,
   type FeatureDef, type FeatureId,
 } from '../../../data/v2/features';
 import { mAtLevel } from '../safety/common';
 import { containment } from '../safety/techniques';
-import type { Deployment, DomainId, GameStateV2, ModelVersion, SystemCtx, TraitId } from '../types';
-import { runEvalSuite } from './benchmarks';
+import type { Deployment, DomainId, GameStateV2, ModelVersion, TraitId } from '../types';
 import { measuredLOf, versionById } from './labs';
 import { nodeKnown } from './tree';
 import { PROJECT_BY_ID } from '../../../data/v2/tree';
-import { agentVersion } from '../departments/agents';
 import { flopPerToken } from '../departments/workfit';
-import { AGENT_USES } from '../../../data/v2/agents';
 
 const DOMAINS: DomainId[] = ['CODE', 'RSCH', 'REASON', 'AGENCY', 'SOCIAL', 'MEDIA', 'CYBER', 'BIO', 'PHYS'];
 
@@ -168,25 +165,9 @@ export const priceIndexOf = (tier: Deployment['price']) => PRICE_TIERS[tier] ?? 
 
 const usable = (v: ModelVersion) => v.status === 'ready' || v.status === 'deployed';
 
-/** Auto-evaluate (policy, R6; replaces the 30-day eval expiry that blocked launches): every AUTO_EVAL_DAYS re-run the
- *  eval suite on the internal model and on any model updated in place (the continual-learning stream), so measured
- *  levels and trait estimates stay current. Called by the runs system. */
-export function autoEvaluate(s: GameStateV2, ctx: SystemCtx) {
-  if (!s.player.policies.autoEvaluate) return;
-  const m = s.player.models;
-  const ids = new Set<string>();
-  // R7: every internal use's model (one id when they all run the routine model, as before).
-  for (const u of AGENT_USES) {
-    const v = agentVersion(s, u);
-    if (v) ids.add(v.id);
-  }
-  if (m.stream) ids.add(m.stream.versionId);
-  for (const id of ids) {
-    const v = versionById(s, id);
-    if (!v || v.status === 'evaluating' || v.status === 'retired' || v.status === 'rolledBack') continue;
-    if (ctx.day - (v.evals.suiteDay ?? -1e9) >= AUTO_EVAL_DAYS) runEvalSuite(s, ctx, v.id);
-  }
-}
+/** Auto-evaluate (policy, R6/R7): model v3 D7 moved it to models/evals.ts (queues suites as work: re-run when a model
+ *  changed in place or on a cadence). Called by the products system. */
+export { autoEvaluate } from './evals';
 
 /** Newest usable version of the same variant that measures better than the product's model (the upgrade policy). */
 export function newestCleared(s: GameStateV2, d: Deployment, gate: (v: ModelVersion) => true | string): ModelVersion | undefined {

@@ -47,6 +47,7 @@ import { Phi, Xces } from '../production/knots';
 import { qualityZ, researchMods, starTaste, teamTaste, workContext } from '../departments/workfit';
 import { adopted } from './paradigms';
 import { idleTrainingShare } from './runs';
+import { evalReDemand, evalsDay } from './evals';
 import { addIdea, latestBaseFlop, STACK_KEYS, syncPa, trainNow, tuneDay, stacksGEquiv } from './stacks';
 
 const node = (id: string): TreeNodeDef | undefined => PROJECT_BY_ID[id];
@@ -372,13 +373,20 @@ const experimenting = (s: GameStateV2, q: string[]) => q.filter((id) => {
   return !!st && !!st.test;
 });
 
+/** Today's research-engineer demand per need (human team-equivalents) at the AI labour multiplier m on experiments: run
+ *  operations ÷ m, the eval suites (model v3 D7, models/evals.ts), RE_PER_PROJECT per project in experiments, tuning
+ *  without limit. */
+export function reDemand(s: GameStateV2, m = Math.max(1, workContext(s).slots.EXP.m)): Record<ReNeed, number> {
+  return { ops: reOpsNeed(s) / m, evals: evalReDemand(s, m), exp: experimenting(s, s.player.research.queue).length * RE_PER_PROJECT, tune: Infinity };
+}
+
 /** Research engineers by need and per project (human team-equivalents) for today. AI labour in experiments (m_EXP)
- *  carries part of the run operations, so their human need is the effective need ÷ m_EXP. */
+ *  carries part of the run operations and evals, so their human need is the effective need ÷ m_EXP. */
 export function reAllocation(s: GameStateV2): { re: Record<ReNeed, number>; perProject: Map<string, number>; total: number } {
   const total = capReCapacity(s);
   const exp = experimenting(s, s.player.research.queue);
   const m = Math.max(1, workContext(s).slots.EXP.m);
-  const re = allocate(total, s.player.research.re, { ops: reOpsNeed(s) / m, exp: exp.length * RE_PER_PROJECT, tune: Infinity });
+  const re = allocate(total, s.player.research.re, reDemand(s, m));
   const perProject = new Map<string, number>();
   let left = re.exp;
   for (const id of exp) {
@@ -394,9 +402,13 @@ export function reAllocation(s: GameStateV2): { re: Record<ReNeed, number>; perP
 /** Experiment FLOP the lab's research can use per day: the experiments pool (and idle training compute unless the
  *  policy sends it to data, R5) at today's training throughput, × P13's experiment efficiency. */
 export function projectFlopPerDay(s: GameStateV2): number {
+  return expPoolH100e(s) * PHI_FLOP_PER_H100E_DAY * Math.pow(10, trainNow(s));
+}
+/** H100e of the experiments pool (and idle training compute unless the policy sends it to data) today. */
+export function expPoolH100e(s: GameStateV2): number {
   const pools = poolsOf(s);
   const idle = s.player.policies.spareTraining !== 'data' ? idleTrainingShare(s) * pools.training : 0;
-  return (pools.experiments + idle) * PHI_FLOP_PER_H100E_DAY * Math.pow(10, trainNow(s));
+  return pools.experiments + idle;
 }
 /** P13 (automated AI research agents): experiment throughput up to ×1.5 with the internal model's RSCH. */
 const p13Mult = (s: GameStateV2, payoff: number) => (adopted(s, 'P13') ? 1 + 0.5 * payoff : 1);
@@ -693,7 +705,11 @@ export function capResearchDay(s: GameStateV2, ctx: SystemCtx, ready: string[], 
   const p = s.player;
   assignCapTeams(s, ready);
   const alloc = reAllocation(s);
-  const avail = projectFlopPerDay(s);
+  // Model v3 D7: eval suites take their research engineers (the 'evals' need) and their inference compute from the
+  // experiments pool before the projects.
+  const pool = expPoolH100e(s);
+  const evH = evalsDay(s, ctx, alloc.re.evals, Math.max(1, workContext(s).slots.EXP.m), pool);
+  const avail = projectFlopPerDay(s) * (pool > 0 ? Math.max(0, 1 - evH / pool) : 1);
   const reRes = alloc.re.exp + alloc.re.tune;
   const p13 = p13Mult(s, p13Payoff);
   const inp = researchInputs(s, reRes, avail, p13);
@@ -723,7 +739,7 @@ export function capResearchDay(s: GameStateV2, ctx: SystemCtx, ready: string[], 
   if (p.research.gLast !== undefined) p.research.gRate = (p.research.gRate ?? 0) + (Math.max(0, g - p.research.gLast) - (p.research.gRate ?? 0)) / 14;
   p.research.gLast = g;
   p.research.last = {
-    re: { ops: r3(alloc.re.ops), exp: r3(alloc.re.exp), tune: r3(alloc.re.tune) },
+    re: { ops: r3(alloc.re.ops), evals: r3(alloc.re.evals), exp: r3(alloc.re.exp), tune: r3(alloc.re.tune) },
     reProj: Object.fromEntries([...alloc.perProject.entries()].map(([k, v]) => [k, r3(v)])),
     flopUsed: used, flopAvail: avail,
     x: { c: r3(inp.c), l: r3(inp.l), X: r3(inp.X), mExp: r3(inp.mExp), mIdeas: r3(inp.mIdeas) },

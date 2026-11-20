@@ -76,9 +76,6 @@ export const COLLUSION_TRAITS: readonly TraitId[] = ['CONCEAL', 'POWER', 'AF', '
  *  units (METR time horizons; AI 2027's 2026 agents) [D]. */
 export const AGENT_TASK_HOURS = 4;
 
-/** Auto-evaluate policy: re-run the eval suite on the internal model (and any model updated in place) this often. */
-export const AUTO_EVAL_DAYS = 30;
-
 export type FeatureId = 'memory' | 'deepThink' | 'computerUse' | 'voiceVision' | 'deepResearch' | 'codingAgent' | 'companion' | 'sectorPacks';
 
 /** Where a scaffold or horizon extender applies: 'all' work, or sectors, internal work types and consumer chat ('CHAT'). */

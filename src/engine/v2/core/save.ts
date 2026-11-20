@@ -47,8 +47,12 @@ import { START_SUITE_FAMILIES, startExpertAssets, suitesFromV1 } from '../models
  *  suites' exploitability (cheap → cheap, else hardened = the leader's start) at fidelity 1 (suitesFromV1).
  *  24 (model v3 D2): DataPortfolio.pending (licence and expert-data deals waiting for delivery) and the optional synJob
  *  (a synthetic generation job with a chosen teacher). Migration 23 → 24 starts with nothing pending and no job.
- *  (D5 and D2 were built as 21 → 22 → 23 beside E1's 21 → 22; merge M2 made the chain linear.) */
-export const SCHEMA_REV = 24;
+ *  (D5 and D2 were built as 21 → 22 → 23 beside E1's 21 → 22; merge M2 made the chain linear.)
+ *  25 (model v3 D7): evaluations as work — ModelsState.evals (eval suites as tasks) and evalSpent, the research
+ *  engineers' 'evals' need, BuildKind 'eval', EvalRecord.nEff / lgAt / depth. Migration 24 → 25 starts with no suites
+ *  queued (a version in evaluation gets its release suite on the next tick, from scratch), puts 'evals' right after run
+ *  operations in the research-engineer order, and leaves old records' precision at their suite count. */
+export const SCHEMA_REV = 25;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -298,6 +302,18 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   23: (raw) => {
     const p = (raw as unknown as GameStateV2).player;
     p.dataPortfolio.pending ??= [];
+  },
+  /** 24 → 25 (model v3 D7): no eval suites queued yet; 'evals' joins the research engineers' needs after run operations. */
+  24: (raw) => {
+    const p = (raw as unknown as GameStateV2).player;
+    p.models.evals ??= [];
+    p.models.evalSpent ??= { suites: 0, reTW: 0, engTW: 0, h100eDays: 0 };
+    const a = p.research.re;
+    if (!a.order.includes('evals')) {
+      const i = a.order.indexOf('ops');
+      a.order.splice(i < 0 ? 0 : i + 1, 0, 'evals');
+    }
+    if (p.research.last) p.research.last.re.evals ??= 0;
   },
 };
 

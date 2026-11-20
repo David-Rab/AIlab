@@ -40,7 +40,7 @@ export function nodePreview(s: GameStateV2, id: string): Preview {
   return { costs, gains, exposure };
 }
 
-const NEEDS_RE: ReNeed[] = ['ops', 'exp', 'tune'];
+const NEEDS_RE: ReNeed[] = ['ops', 'evals', 'exp', 'tune'];
 const NEEDS_ENG: EngNeed[] = ['runs', 'upkeep', 'builds'];
 /** Parse an order param ('exp,ops,tune'): a permutation of the needs, or undefined. */
 function orderParam<K extends string>(p: Params, all: K[]): K[] | undefined {

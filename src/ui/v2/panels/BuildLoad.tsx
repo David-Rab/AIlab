@@ -22,6 +22,7 @@ export function buildItemLabel(s: GameStateV2, it: GameStateV2['player']['build'
   if (it.kind === 'launch') return `Launch ${PRODUCT_DEFS[it.launch?.channel ?? 'api']?.name ?? it.ref}`;
   if (it.kind === 'sectorPack') return `${SECTOR_BY_ID[it.ref as keyof typeof SECTOR_BY_ID]?.name ?? it.ref} pack`;
   if (it.kind === 'suite') { const [fam, work] = it.ref.split(':'); return `${work === 'harden' ? 'Harden' : 'Build'} ${RL_FAMILY_LABEL[fam as RLFamily] ?? fam} suite`; }
+  if (it.kind === 'eval') { const t = s.player.models.evals?.find((x) => x.id === it.ref); return `Eval harness ${s.player.models.versions.find((v) => v.id === t?.versionId)?.name ?? ''}`.trim(); }
   return it.ref;
 }
 

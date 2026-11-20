@@ -12,7 +12,7 @@ import { CRITICAL_TRAITS, TRAIT_BY_ID, TRAIT_IDS } from '../../../data/v2/traits
 import { PROJECT_BY_ID, TREE, isLineNode } from '../../../data/v2/tree';
 import { COLUMN_LABEL } from '../../../data/v2/teams';
 import {
-  beliefView, dateOf, detectionGrid, fmtDate, INV_FTE, INV_MAX_DAYS, internalVersion, monitorBudget, monitoredUses, nodeKnown, PATCH_FLOOR, patchLevel, projectEta, publicTimerRules,
+  beliefView, dateOf, detectionGrid, evalDaysFor, fmtDate, INV_FTE, INV_MAX_DAYS, internalVersion, monitorBudget, monitoredUses, nodeKnown, PATCH_FLOOR, patchLevel, projectEta, publicTimerRules,
   projectReady, riskFamilies, safetyAgentVersion, safetyFleet, safetyView, teamsOn, understanding, versionById,
 } from '../../../engine/v2';
 import type { FindingType, GameStateV2, LineRow, ResponseKind, TraitId } from '../../../engine/v2';
@@ -37,7 +37,6 @@ const FTYPE: Record<string, { icon: LucideIcon; label: string; tone: string }> =
   DEAD: { icon: Ban, label: 'Dead end', tone: 'neu' }, NEG: { icon: TrendingDown, label: 'Negative', tone: 'bad' }, SPILL: { icon: Droplets, label: 'Spillover', tone: 'neu' },
   FALSE: { icon: Wrench, label: 'Tool', tone: 'good' },
 };
-const GATE_DAYS: Record<string, number> = { none: 0, basic: 7, full: 14, fullPlusExternal: 30 };
 const HEALTH_TONE: Record<string, string> = { Promising: 'good', Mixed: 'warn', Struggling: 'bad' };
 const tname = (t: string) => TRAIT_BY_ID[t as TraitId]?.name ?? F.words(t);
 const eta = (d: number) => (Number.isFinite(d) ? F.days(d) : '—');
@@ -324,7 +323,7 @@ function Policies({ s, sv }: { s: GameStateV2; sv: SV }) {
     <Card title="Policies" home="safetyPolicy" id="ctl-policy" className="sf-pol">
       <div className="sf-prow">
         <ClipboardCheck size={18} />
-        <span><b><Term id="evalGate">Evaluate before release</Term></b><br /><Tip content={() => <TipCard title={<Term id="evalGate">Eval gate</Term>} value={`+${GATE_DAYS[gate]} d`}>Days a new version waits in evaluation before it can be used or sold.</TipCard>}><span className="small dim">+{GATE_DAYS[gate]} d per release{gate === 'fullPlusExternal' ? ' · external review' : ''}</span></Tip></span>
+        <span><b><Term id="evalGate">Evaluate before release</Term></b><br /><Tip content={() => <TipCard title={<Term id="evalGate">Eval gate</Term>} value={`+${evalDaysFor(s)} d`}>Days a new version waits in evaluation before it can be used or sold: its eval suite's work at today's research engineers.</TipCard>}><span className="small dim">+{evalDaysFor(s)} d per release{gate === 'fullPlusExternal' ? ' · external review' : ''}</span></Tip></span>
         <span className="sp" />
         {on && <span className={`sf-mini ${gate === 'fullPlusExternal' ? 'on' : ''}`}><ActBtn id="safety.evalGate" testId="safety.evalGate.external" params={{ level: gate === 'fullPlusExternal' ? 'full' : 'fullPlusExternal' }} label="external" /></span>}
         <span className={`sf-toggle ${on ? 'on' : ''}`}><ActBtn id="safety.evalGate" testId="safety.evalGate.toggle" params={{ level: on ? 'none' : 'full' }} label={<i />} /></span>

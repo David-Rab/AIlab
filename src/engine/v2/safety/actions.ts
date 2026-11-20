@@ -3,6 +3,7 @@
 // none reads truth. Each has ≥ 1 cost in a currency that is not among its gains (§2.7, lint-tradeoffs).
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { TRAIT_IDS } from '../../../data/v2/traits';
+import { evalDaysFor } from '../models/evals';
 import { internalVersion } from '../models/labs';
 import type { ActionDef, CostLine, GameStateV2, ResponseKind, SafetyDept, TraitId } from '../types';
 import { clamp01, mAtLevel, versionById } from './common';
@@ -240,8 +241,8 @@ const PLEDGE: ActionDef = {
   },
 };
 
-const GATE_DAYS: Record<SafetyDept['evalGate'], number> = { none: 0, basic: 7, full: 14, fullPlusExternal: 30 };
-const GATES = Object.keys(GATE_DAYS) as SafetyDept['evalGate'][];
+/** Model v3 D7: the days a release waits are the gate depth's eval suite at today's rates (models/evals.ts). */
+const GATES: SafetyDept['evalGate'][] = ['none', 'basic', 'full', 'fullPlusExternal'];
 
 const EVAL_GATE: ActionDef = {
   id: 'safety.evalGate', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Eval gate',
@@ -249,7 +250,7 @@ const EVAL_GATE: ActionDef = {
   preview(s, p) {
     const g = (str(p, 'level') as SafetyDept['evalGate']) ?? 'fullPlusExternal';
     const to = GATES.includes(g) ? g : 'fullPlusExternal';
-    const d = GATE_DAYS[to] - GATE_DAYS[s.player.safety.evalGate];
+    const d = evalDaysFor(s, to) - evalDaysFor(s, s.player.safety.evalGate);
     if (d >= 0) return { costs: [{ currency: 'leadDays', amount: -d, target: 'per external launch' }], gains: [{ currency: 'alignment', amount: r2(d / 60), target: 'pre-deployment clarity' }, { currency: 'credibility', amount: to === 'fullPlusExternal' ? 3 : 1 }], exposure: [] };
     return { costs: [{ currency: 'credibility', amount: -2 }, { currency: 'alignment', amount: r2(d / 60) }], gains: [{ currency: 'leadDays', amount: -d, target: 'per external launch' }], exposure: [{ currency: 'approval', amount: -3, probability: 0.2, target: 'incident after a rushed launch' }] };
   },

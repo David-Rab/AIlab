@@ -6,7 +6,8 @@
 // unused capacity flows down the order:
 //   runs      operations of every training run while it trains and of the continual-learning stream, then the run
 //             setups on the queue (a run trains only once its setup is built), then adoptions of research results into
-//             the recipe stacks (model v3 V2, models/research.ts: the training code the next runs use)
+//             the recipe stacks (model v3 V2, models/research.ts: the training code the next runs use) and the harness
+//             work of eval suites (model v3 D7, models/evals.ts: a version waits in evaluation on it)
 //   upkeep    every live product (reliability, on-call, integrations; grows with revenue), every RL environment suite
 //             (model v3 D5) and every monitor in
 //             production (a product's or an internal use's: serving harness, alert triage), and every built product
@@ -30,6 +31,7 @@ import { DEFAULT_ENG_ALLOC } from '../../../data/v2/research';
 import { allocate, completeAdoption } from '../models/research';
 import { syncParadigm } from '../models/tree';
 import { completeSuiteWork, suiteFamilies, suiteUpkeepTW } from '../models/suites';
+import { evalEngDone } from '../models/evals';
 import type { EngNeed } from '../types';
 
 type Params = Record<string, number | string | boolean>;
@@ -38,7 +40,7 @@ const str = (p: Params, k: string, d: string) => (typeof p[k] === 'string' ? (p[
 /** Work of the 'runs' need besides run operations: run setups and (model v3 V2) adoptions of research results into the
  *  recipe stacks, the training code the next runs use (MODEL-V3 §3.3: new ideas are novel run code). Worked before
  *  product upkeep by default, so the reference lab's adoptions never wait on its products. */
-export const isStackWork = (it: Pick<BuildItem, 'kind'>) => it.kind === 'runSetup' || it.kind === 'adopt';
+export const isStackWork = (it: Pick<BuildItem, 'kind'>) => it.kind === 'runSetup' || it.kind === 'adopt' || it.kind === 'eval';
 
 /** Physical size of a run for engineering (model v3 V3): its FLOP over 1e27, the leader lab's frontier base in mid-2025
  *  (a fixed physical unit, not the calendar's frontier) [D]. */
@@ -145,7 +147,7 @@ export function queueBuild(s: GameStateV2, kind: BuildKind, ref: string, needTW:
   const id = `B${b.nextId++}`;
   const it: BuildItem = { id, kind, ref, needTW, doneTW: 0, priority: 0, day: s.time.day, ...extra };
   // Run setups go first; adoptions of research results next (the training stack, model v3 V2); everything else after.
-  const at = kind === 'runSetup' ? b.queue.findIndex((x) => x.kind !== 'runSetup') : kind === 'adopt' ? b.queue.findIndex((x) => !isStackWork(x)) : -1;
+  const at = kind === 'runSetup' ? b.queue.findIndex((x) => x.kind !== 'runSetup') : kind === 'adopt' || kind === 'eval' ? b.queue.findIndex((x) => !isStackWork(x)) : -1;
   if (at < 0) b.queue.push(it);
   else b.queue.splice(at, 0, it);
   b.queue.forEach((x, i) => (x.priority = i + 1));
@@ -230,6 +232,10 @@ function complete(s: GameStateV2, ctx: SystemCtx, it: BuildItem) {
   }
   if (it.kind === 'suite') {
     completeSuiteWork(s, ctx, it.ref); // model v3 D5: a suite build or hardening pass
+    return;
+  }
+  if (it.kind === 'eval') {
+    evalEngDone(s, it.ref, it.needTW); // model v3 D7: the harness work of an eval suite
     return;
   }
   const r = runOf(s, it);
@@ -326,6 +332,7 @@ export function cancelBuild(s: GameStateV2, id: string): string | undefined {
   if (i < 0) return 'Unknown build item';
   if (b.queue[i].kind === 'runSetup') return 'Cancel the run instead';
   if (b.queue[i].kind === 'adopt') return 'A research result waits to be built in: drop the project instead';
+  if (b.queue[i].kind === 'eval') return 'An eval suite needs it: it finishes with the suite';
   b.queue.splice(i, 1);
   return undefined;
 }

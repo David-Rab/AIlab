@@ -90,7 +90,7 @@ function startEvals(domains: Record<DomainId, number>, measuredL: number, day: n
     bench[b.id] = { score: Math.round(benchScore(b, Ld) * 10) / 10, sd: 2, day, by: 'self' };
   }
   // M1: the start model is long known: its reading is exact and counts as 16 suites (band ±0.05).
-  return { suiteDay: day, bench, safety: {}, measuredL, nSuites: 16, errTrue: 0 };
+  return { suiteDay: day, bench, safety: {}, measuredL, nSuites: 16, errTrue: 0, lgAt: measuredL };
 }
 
 /** A reference post-training run on B0 already in flight at the start (launched three days ago, 30% of its RL FLOP
@@ -226,6 +226,8 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
       // A post-training run in flight on B0 (the spinout starts with none: its base is a download).
       runs: def.imported ? [] : [startRun(w, ps, sm.flop, Lg, domains)],
       nextName: 1,
+      evals: [],
+      evalSpent: { suites: 0, reTW: 0, engTW: 0, h100eDays: 0 },
     },
     deployments,
     security: initialSecurity(staff, base.start.securityLevel),
