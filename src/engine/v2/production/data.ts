@@ -471,7 +471,7 @@ export function dataDeltaText(d: DataDelta): string {
   const pc = (x: number) => `${(100 * x).toFixed(1)}%`;
   const sg = (x: number) => `${x >= 0 ? '+' : ''}${x.toFixed(2)}`;
   const sg3 = (x: number) => `${x >= -5e-4 ? '+' : ''}${(Math.abs(x) < 5e-4 ? 0 : x).toFixed(3)}`;
-  return `U ${f1(d.u[0])} → ${f1(d.u[1])}T · ${d.domain} ${pc(d.share[0])} → ${pc(d.share[1])} of the stock (s ${sg(d.s[0])} → ${sg(d.s[1])} OOM) · base epochs ${d.epochs[0].toFixed(2)} → ${d.epochs[1].toFixed(2)} · data quality ${sg3(d.qG[0])} → ${sg3(d.qG[1])} OOM`;
+  return `unique tokens ${f1(d.u[0])} → ${f1(d.u[1])}T · ${d.domain} ${pc(d.share[0])} → ${pc(d.share[1])} of the stock (s ${sg(d.s[0])} → ${sg(d.s[1])} OOM) · base epochs ${d.epochs[0].toFixed(2)} → ${d.epochs[1].toFixed(2)} · data quality ${sg3(d.qG[0])} → ${sg3(d.qG[1])} OOM`;
 }
 
 /** Tokens required for a base of `flop` FLOP: N_req(C) = 20·sqrt(C/120) (research/13 §1.7). Overtrained ×5. */

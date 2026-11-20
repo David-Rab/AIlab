@@ -692,7 +692,8 @@ function ServingCard({ s, live, reads }: { s: GameStateV2; live: Deployment[]; r
   const used = (r: ProductRead) => Math.min(r.servedH100e, r.needH100e);
   const spare = spareServing(s);
   const lent = spareServingToResearch(s) > 0 || s.player.policies.spareServing !== 'headroom';
-  const total = Math.max(1, rows.reduce((a, x) => a + used(x.r), 0) + spare + cut);
+  // F6b: the bar is the pool; demand it cannot meet is a line under it (inline it squeezed the products to '…' at the start).
+  const total = Math.max(1, rows.reduce((a, x) => a + used(x.r), 0) + spare);
   const agentPool = s.player.computeOnline * s.player.split.agents;
   const auto = s.player.policies.servingAuto;
   const order = [...rows].sort((a, b) => b.r.rpH - a.r.rpH);
@@ -719,14 +720,15 @@ function ServingCard({ s, live, reads }: { s: GameStateV2; live: Deployment[]; r
         ]}>Serving compute no product needs today. Policy: Compute › Split; research-speed effect: Company › Flow.</TipCard>}>
           <span className="sv-seg spare" data-test="serving-spare" style={{ background: lent ? '#b28cf0' : undefined, color: lent ? '#1b2430' : undefined }}><b>{F.h100e(spare)}</b></span>
         </Tip>}
-        {cut > 0 && <Tip className="sv-w" style={{ width: `${(cut / total) * 100}%` }} content={() => <TipCard title={<Term id="servingCut">Cut by Auto</Term>} value={`${F.h100e(cut)} H100e`} rows={rows.filter((x) => x.r.cutH100e > 0).map((x) => ({ label: PRODUCT_DEFS[x.d.channel]?.name ?? x.d.channel, value: `${F.h100e(x.r.cutH100e)} H100e · ${F.money(x.r.unserved, { perYear: true })}`, tone: 'neg' as const }))}>Demand the serving pool cannot meet. {auto ? 'Auto cut the products earning least per H100e.' : 'Your shares leave it unserved.'}</TipCard>}>
-          <span className="sv-cut" data-test="serving-cut">+{F.h100e(cut)}</span>
-        </Tip>}
       </div>
       <div className="sv-leg">
         {rows.map(({ d, r }) => <span key={d.id} className="sv-l" style={{ width: `${(used(r) / total) * 100}%` }}>{PRODUCT_DEFS[d.channel]?.name}{r.bound === 'capacity' && <span className="tone-neg"> · capacity-bound</span>}</span>)}
         {spare > 0.5 && <span className="sv-l" style={{ width: `${(spare / total) * 100}%` }}>{lent ? 'spare → research' : 'headroom'}</span>}
-        {cut > 0 && <span className="sv-l cut" style={{ width: `${(cut / total) * 100}%` }}>{auto ? 'cut by Auto' : 'unserved'}</span>}
+      </div>
+      <div className="sv-cutrow">
+        {cut > 0 && <Tip content={() => <TipCard title={<Term id="servingCut">Cut by Auto</Term>} value={`${F.h100e(cut)} H100e`} rows={rows.filter((x) => x.r.cutH100e > 0).map((x) => ({ label: PRODUCT_DEFS[x.d.channel]?.name ?? x.d.channel, value: `${F.h100e(x.r.cutH100e)} H100e · ${F.money(x.r.unserved, { perYear: true })}`, tone: 'neg' as const }))}>Demand the serving pool cannot meet. {auto ? 'Auto cut the products earning least per H100e.' : 'Your shares leave it unserved.'}</TipCard>}>
+          <span className="sv-cut" data-test="serving-cut">+{F.h100e(cut)} H100e of demand {auto ? 'cut by Auto' : 'unserved'} <span className="dim">(×{F.num(cut / Math.max(1, pool), 1)} the pool)</span></span>
+        </Tip>}
       </div>
       <div className="sv-foot dim small">
         <Tip content={() => <TipCard title={<Term id="poolServing">Serving pool</Term>} value={`${F.h100e(pool)} H100e`} rows={[{ label: "Share of compute", value: F.pct(s.player.split.serving) }]}>Set on Compute › Split.</TipCard>}><span>Pool {F.h100e(pool)} H100e ({F.pct(s.player.split.serving)} of compute)</span></Tip>

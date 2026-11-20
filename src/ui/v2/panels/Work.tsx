@@ -111,8 +111,8 @@ function NeedList({ a, act, unit, extra }: { a: AllocView<string>; act: string; 
           </div>
         );
       })}
-      <Tip content={() => <TipCard title={<Term id="overflow">Overflow</Term>} value={`${a.idle.toFixed(1)} ${unit} idle`}>Capacity no need takes. Engineers: queue a feature or launch; research engineers always overflow into routine tuning.</TipCard>}>
-        <div className="small dim wk-idle" data-test={`idle.${act}`}><Term id="overflow">idle</Term> {a.idle.toFixed(1)} {unit}</div>
+      <Tip content={() => <TipCard title={<Term id="overflow">Overflow</Term>} value={`${F.short(a.idle)} ${unit} idle`}>Capacity no need takes. Engineers: queue a feature or launch; research engineers always overflow into routine tuning.</TipCard>}>
+        <div className="small dim wk-idle" data-test={`idle.${act}`}><Term id="overflow">idle</Term> {F.short(a.idle)} {unit}</div>
       </Tip>
     </div>
   );

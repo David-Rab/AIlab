@@ -157,12 +157,15 @@ function Lane({ s, v, use, danger, draft, setDraft }: { s: GameStateV2; v: Agent
         <div><b>{def.name}</b><div className="small dim">{def.work}</div></div>
       </div>
       <PkgChip kind="model" testId={`agent-model.${use}`} value={modelVal} options={models} changed={draft?.versionId !== undefined} onPick={(x) => setDraft({ ...(draft ?? {}), versionId: x || null })} />
-      <PkgChip kind="monitor" testId={`agent-monitor.${use}`} value={monVal} options={monitors} changed={draft?.monitorId !== undefined} onPick={(x) => setDraft({ ...(draft ?? {}), monitorId: x || null })}
-        extra={l.monitor && <>
+      {/* F6b: catch rate and the same-model tag on a line under the picker (inline they squeezed the picker to its arrow). */}
+      <div className="ag-mon">
+      <PkgChip kind="monitor" testId={`agent-monitor.${use}`} value={monVal} options={monitors} changed={draft?.monitorId !== undefined} onPick={(x) => setDraft({ ...(draft ?? {}), monitorId: x || null })} />
+      {l.monitor && <div className="ag-mon-x small">
           <CatchX rate={l.catch} gap={l.gap} coverage={v.monitors.coverage} copy={l.copy} collusion={l.catchColl} testId={`agent-catch.${use}`} note={<>Internal incidents on this fleet are caught with your detection tools × (½ + ½ × monitor strength {F.pct(l.strength)}). Paid from the safety budget.</>} />
           {/* Jank AG1: a model watching a copy of itself can collude; say so where the monitor is chosen. */}
           {l.copy && <Tip content={() => <TipCard title={<Term id="collusion">Same lineage watching itself</Term>}>A copy of the model it monitors shares its goals and blind spots: if the model schemes, the monitor may cover for it. On scheming-type incidents its catch rate is ×0.6 (×0.8 with comms lockdown). A model from another base (ideally weaker but trusted) avoids it.</TipCard>}><span className="tag2 warn" data-test={`same-monitor.${use}`}>same model</span></Tip>}
-        </>} />
+      </div>}
+      </div>
       <div className="ag-cmp">
         <Tip content={() => <TipCard title={<Term id="agentBudget">Compute</Term>} value={`${F.h100e(l.compute)} H100e`} rows={[
           { label: use === 'safety' ? 'Share of the safety pool' : 'Share of the agent pool', value: F.pct(l.share) },

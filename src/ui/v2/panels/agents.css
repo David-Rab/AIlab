@@ -28,3 +28,6 @@
 .ag-pop .pv .ba { font: 600 12px var(--mono); color: #fff; display: flex; align-items: center; gap: 6px; }
 .ag-pop .pv .ba .o { color: var(--text-3); font-weight: 500; }
 .ag-rk { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+/* F6b: monitor picker on its own line, catch rate and the same-model tag under it */
+.ag-mon { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ag-mon-x { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding-left: 4px; }

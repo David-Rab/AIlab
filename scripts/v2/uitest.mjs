@@ -1167,7 +1167,7 @@ async function d4Check(where, act, stepOk = true) {
     usage: await d4Tip(dv('[data-level=broad] .num.small')),
     delta: await d4Tip(dv('[data-test=delta-licence] [data-k=s] .num')),
   };
-  const want = { U: /Unique tokens U/, natural: /Reference share/, kindU: /Quality × tokens/, cell: /Share of this kind/, today: /Tokens kept per day/, teacher: /Kept tokens per H100e-day/, usage: /U a year/, delta: /Natural-mix base/ };
+  const want = { U: /Unique tokens/, natural: /Reference share/, kindU: /Quality × tokens/, cell: /Share of this kind/, today: /Tokens kept per day/, teacher: /Kept tokens per H100e-day/, usage: /Unique tokens a year/, delta: /Natural-mix base/ };
   const miss = Object.entries(want).filter(([k, re]) => !re.test(tips[k])).map(([k]) => k);
   ok(`D4 ${where}: tooltips on U, the natural mix, kind rows, domain cells, teachers, usage levels and the before → after`, miss.length === 0, miss.map((k) => `${k}: ${tips[k].slice(0, 60)}`).join(' ; '));
   const lic = await d4Tip(dv('[data-act="data.license"]'));
