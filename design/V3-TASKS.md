@@ -50,13 +50,15 @@ open weights, RefBot's late product upgrade, and the unsourced agent check-in ti
 | B1 | Product card: cost and price per hour of use (chat: per subscriber-month), margin, share sold at the value cap, tier as a markup, capacity vs asked hours with need/served/cut split into paid and free users. | – | M | card shows the readouts with tooltips and glossary entries; uitest extended |
 | B2 | Customers and features: customer stock vs its target and speed; typed feature effects (enabler, horizon, scaffold, effort with ΔG and token multiplier), build cost and upkeep. | B1 | M | features listed with typed effects; uitest |
 | B3 | World › sectors: each sector's work-type data, coverage, feasibility F and cost gate K, price per AI work-hour plus review vs wage, provider prices, stock vs target. | – | M | World panel shows them with tooltips; uitest |
-| B4 | Retire UI for removed things (M^0.3, research-speed cap, serveCost), fix empty space on the Research and Work tabs, add "auto" for teams wanted, keyboard path for drag. | – | M | no reads of removed concepts (lint); screenshots checked |
+| B4 | Switch the remaining fake customer counts (top-strip revenue tooltip, Core-loop customers node) to the stock share; retire UI for removed things (M^0.3, research-speed cap, serveCost), fix empty space on the Research and Work tabs, add "auto" for teams wanted, keyboard path for drag. | – | M | no reads of removed concepts (lint); screenshots checked |
 
 ## C. Housekeeping
 
 | ID | Task | Depends | Effort | Done when |
 |---|---|---|---|---|
 | P2 | Performance: profile the daily tick (4.0 ms vs a 1.5 ms budget; +15% since V3b). No behaviour change: same state hashes on the fixtures. | – | M | `hygiene` perf checks pass or the remaining gap is explained function by function |
+
+| C2 | Feature data and upkeep (found by B2): Voice & vision is only offered on Chat, where its "+15% Media work" cannot act (data issue in `features.ts`: give it a channel where it acts or retype it as a consumer effect); the engine charges no upkeep for features although the spec (§7.2) gives them one (engineers' standing load). | – | M | every built feature has an effect that can act on at least one of its products; feature upkeep appears in the engineers' load and on the card; tests |
 
 ## D. Data, environments, evaluations (was V5)
 
