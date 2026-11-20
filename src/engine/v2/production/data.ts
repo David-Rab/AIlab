@@ -24,6 +24,8 @@ import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { BASE_DATA, REFERENCE_BASE } from '../../../data/v2/runDesign';
 import { effectiveTokens, fDataEff } from '../models/effective';
 import { TOKENS } from '../../../data/v2/serving';
+import { FREE_TIER_SHARE } from '../../../data/v2/features';
+import { chatFreeTier } from '../worldfx/serving';
 import { PEAK_FLOPS, U_DECODE, U_PREFILL } from '../../../data/v2/workTypes';
 import { gOfBuild, gV0 } from '../models/capability';
 import { internalVersion, versionById } from '../models/labs';
@@ -153,6 +155,9 @@ export interface DataDraw {
   uMix: number;
   /** Epochs of the most-repeated slice (tokens ÷ uMix; a slice's epochs = its drawn tokens ÷ its own tokens). */
   epochs: number;
+  /** Per domain, the epochs of its most-repeated slice (drawn tokens ÷ the slice's own tokens, D11; F6: the drawn-mix
+   *  row's readout, which divided by the domain's quality-weighted U before). */
+  epochsD: DomainMix;
   /** Drawn and effective domain shares (each sums to 1), and the specialisation s_d,data (OOM). */
   share: DomainMix;
   effShare: DomainMix;
@@ -241,10 +246,11 @@ function drawWith(p: DataPortfolio, tokens: number, target: MixTarget, opts: { w
     if (x.w > 0) maxE = Math.max(maxE, x.w / x.r);
   }
   const worth = opts.worth ?? 1;
-  if (!(W > 0) || !(tokens > 0)) return { tokens, dEff: 0, dQual: 0, dRep: 0, uMix: 0, epochs: tokens > 0 ? Infinity : 0, share: {}, effShare: {}, sD: {}, quality: 0, qRel: 0, worth, byKind: {} };
+  if (!(W > 0) || !(tokens > 0)) return { tokens, dEff: 0, dQual: 0, dRep: 0, uMix: 0, epochs: tokens > 0 ? Infinity : 0, epochsD: {}, share: {}, effShare: {}, sD: {}, quality: 0, qRel: 0, worth, byKind: {} };
   const share: DomainMix = {};
   const eff: DomainMix = {};
   const byKind: Partial<Record<DataKind, number>> = {};
+  const epochsD: DomainMix = {};
   let dRep = 0;
   let dEff = 0;
   let qSum = 0;
@@ -255,6 +261,7 @@ function drawWith(p: DataPortfolio, tokens: number, target: MixTarget, opts: { w
     // Repetition on the slice's own tokens (epochs = dx ÷ raw tokens); its quality then scales what is left (D11).
     const ex = dx <= x.r ? dx : effectiveTokens(dx, x.r);
     if (dx > x.r) repeats = true;
+    epochsD[x.d] = Math.max(epochsD[x.d] ?? 0, dx / x.r);
     share[x.d] = (share[x.d] ?? 0) + dx / tokens;
     eff[x.d] = (eff[x.d] ?? 0) + ex;
     byKind[x.kind] = (byKind[x.kind] ?? 0) + dx;
@@ -270,7 +277,7 @@ function drawWith(p: DataPortfolio, tokens: number, target: MixTarget, opts: { w
   const uMix = W / maxE;
   const quality = qSum / tokens;
   return {
-    tokens, dEff: (worth * dEff) / qRef, dQual: (worth * qSum) / qRef, dRep, uMix, epochs: tokens / uMix, share, effShare: eff, sD: specialisation(eff), quality, qRel: quality / qRef, worth, byKind,
+    tokens, dEff: (worth * dEff) / qRef, dQual: (worth * qSum) / qRef, dRep, uMix, epochs: tokens / uMix, epochsD, share, effShare: eff, sD: specialisation(eff), quality, qRel: quality / qRef, worth, byKind,
   };
 }
 
@@ -417,12 +424,22 @@ export function outputTokensPerH100eDay(fpt: number): number {
   const h100eHoursPerHour = (Math.max(1, fpt) * (tok.input / U_PREFILL + tok.output / U_DECODE)) / PEAK_FLOPS / 3600;
   return (24 * tok.output) / h100eHoursPerHour;
 }
-/** Usage tokens (T/day) a deployment adds: its served output tokens × the channel's eligibility × the policy share. */
+/** Usage tokens (T/day) a deployment adds: its served output tokens × the channel's eligibility × the policy share.
+ *  Served = the compute that met demand, min(served, need): headroom kept on a product (spare serving 'headroom')
+ *  serves no tokens (model v3 F6: it counted, ×1.9 at day 400). */
 export function usageTokensPerDay(s: GameStateV2, d: Deployment, share = s.player.dataPortfolio.usageShare): number {
   if (d.kind !== 'product' || d.status === 'withdrawn' || !(d.servedH100e! > 0)) return 0;
   const elig = USAGE_ELIGIBLE[d.channel] ?? 0;
   if (elig <= 0) return 0;
-  return ((d.servedH100e ?? 0) * outputTokensPerH100eDay(fptOf(versionById(s, d.versionId))) * elig * share) / 1e12;
+  const h = Math.min(d.servedH100e ?? 0, d.needH100e ?? Infinity);
+  const main = outputTokensPerH100eDay(fptOf(versionById(s, d.versionId)));
+  // A6: Chat's free users run on its free tier (worldfx/revenue.ts: paying users are served first, on the main model),
+  // so the served compute beyond the paying need serves the free tier's tokens (×N_main/N_free per H100e). A7: the free
+  // tier is its mini, else the cheapest student of its model (worldfx/serving.ts chatFreeTier).
+  const free = d.needPaidH100e !== undefined && (FREE_TIER_SHARE[d.channel] ?? 0) > 0 ? chatFreeTier(s, d) : undefined;
+  if (!free) return (h * main * elig * share) / 1e12;
+  const paid = Math.min(h, d.needPaidH100e!);
+  return ((paid * main + (h - paid) * outputTokensPerH100eDay(free.fpt)) * elig * share) / 1e12;
 }
 /** Usage tokens (T/day) all live products add at policy share `share` (today's traffic; the usage-policy preview). */
 export const usageRateAt = (s: GameStateV2, share: number) => s.player.deployments.reduce((a, d) => a + usageTokensPerDay(s, d, share), 0);

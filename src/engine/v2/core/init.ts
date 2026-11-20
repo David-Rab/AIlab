@@ -42,6 +42,7 @@ import { initialSecurity } from '../security/security';
 import { referenceRate } from '../world/calibration';
 import { drawLineageUModes, sampleHidden } from '../world/hidden';
 import { initialWorld } from '../worldfx/sectors';
+import { initCustomerStocks } from '../worldfx/mix';
 import type {
   Deployment, DomainId, EvalRecord, GameStateV2, MilestoneIdx, ModelVersion, PlayerLab, SetupV2, TimelineWorld, ToolFamily, TraitBelief, TraitId, TrainingRun, VersionBuild,
 } from '../types';
@@ -92,7 +93,7 @@ function startEvals(domains: Record<DomainId, number>, measuredL: number, day: n
     bench[b.id] = { score: Math.round(benchScore(b, Ld) * 10) / 10, sd: 2, day, by: 'self' };
   }
   // M1: the start model is long known: its reading is exact and counts as 16 suites (band ±0.05).
-  return { suiteDay: day, bench, safety: {}, measuredL, nSuites: 16, errTrue: 0, lgAt: measuredL };
+  return { suiteDay: day, bench, safety: {}, measuredL, nSuites: 16, errTrue: 0 };
 }
 
 /** A reference post-training run on B0 already in flight at the start (launched three days ago, 30% of its RL FLOP
@@ -114,8 +115,8 @@ function startRun(w: TimelineWorld, ps: ReturnType<typeof playerStart>, b0Flop: 
   };
 }
 
-/** The start base B0 and version V0 from physical numbers (model v3 V1.4): B0 is the reference base (1T active MoE ×
- *  50 tokens per parameter = 3e26 FLOP, research/12 §0.3) with the recipe of its start day; V0 is the reference
+/** The start base B0 and version V0 from physical numbers (model v3 V1.4): B0 is the reference base (≈ 354B active MoE ×
+ *  400 tokens per parameter = 3e26 FLOP, research/12 §0.3; A6b) with the recipe of its start day; V0 is the reference
  *  post-training run on it (standard RL budget, broad) at its RL recipe; for the leader its G is G(V0) exactly. */
 function startModels(w: TimelineWorld, ps: ReturnType<typeof playerStart>, uniqueT: number) {
   const d = REFERENCE_BASE;
@@ -326,6 +327,8 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
     const core = labCore(s, id);
     if (core) core.prodCache = computeProduction(s, id);
   }
+  // A7: the start's customer stocks (sector buyers outside China spread as measured in mid-2025, worldfx/mix.ts).
+  initCustomerStocks(s);
   seedCandidates(s.player.hiring, new StreamRng(s, 'company'));
   sampleSeries(s);
   return s;

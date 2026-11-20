@@ -19,7 +19,7 @@
 import { FLOP_RL_REF, RL_BUDGET } from '../../../data/v2/runDesign';
 import { HEADROOM, S_STEP, TRAIN_CAP } from '../../../data/v2/research';
 import { SERVE_FLOP_MAX, U_DECODE, U_DECODE_MAX } from '../../../data/v2/workTypes';
-import type { GameStateV2, StackKey, StackState, SystemCtx } from '../types';
+import type { GameStateV2, ModelVersion, StackKey, StackState, SystemCtx } from '../types';
 import { rlFamiliesAvailable, rlGains, rlWeights } from './effective';
 
 export const STACK_KEYS: StackKey[] = ['pre', 'rlMid', 'rlCeil', 'train', 'serve'];
@@ -151,6 +151,19 @@ export const gEquivOf = (flop: number, pre: number, mid: number, ceil: number, t
 export function stacksGEquiv(s: GameStateV2): number {
   const F = latestBaseFlop(s);
   return gEquivOf(F, ePreAt(s, F), rlMidNow(s), rlCeilNow(s), trainNow(s));
+}
+
+/** The recipe a version embodies, as its G-equivalent (OOM, gEquivOf at its base's FLOP): the continual-learning
+ *  stream's tracked recipe while the stream runs on it, else the recipe it was trained with (its base's pretraining
+ *  recipe, its own RL recipe). Known to the lab (the stacks it adopted), so the auto-evaluate policy reads it to see
+ *  whether a version changed in place since its last suite (model v3 F6: it read the true level before). Only the
+ *  stream changes a version in place (models/runs.ts advanceStream, startStream). */
+export function inPlaceRecipe(s: GameStateV2, v: ModelVersion): number {
+  const st = s.player.models.stream;
+  const base = s.player.models.bases.find((b) => b.id === v.baseId);
+  const F = v.build?.flopPre ?? base?.flop ?? FLOP_RL_REF;
+  const t = st?.versionId === v.id && st.track ? st.track : { pre: base?.ePre ?? 0, rlMid: v.build?.eRL ?? 0, rlCeil: v.build?.aRL ?? 0 };
+  return gEquivOf(F, t.pre, t.rlMid, t.rlCeil);
 }
 
 /** Knowledge that arrives from outside (diffusion, tacit knowledge, safety spillover), dG OOM of effective compute: added

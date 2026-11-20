@@ -436,8 +436,9 @@ export interface EvalRecord {
   /** Model v3 D7: precision of the measurement in full-suite equivalents (Σ rollouts ÷ the full suite's); the band is
    *  0.2/√nEff. Absent on old records: nSuites. */
   nEff?: number;
-  /** Model v3 D7: the version's true level at its last suite (engine: "changed in place" for the re-run policy). */
-  lgAt?: number;
+  /** Model v3 F6: the recipe the version embodied at its last suite (OOM, stacks.ts inPlaceRecipe; "changed in place"
+   *  for the re-run policy; replaces D7's lgAt, the true level, which old saves still carry inert). */
+  recipeAt?: number;
   /** Model v3 D7: depth of the last suite. */
   depth?: EvalDepth;
 }
@@ -484,7 +485,6 @@ export interface BaseDesign {
   shape: 'dense' | 'moe' | 'latent';
   data: 'balanced' | 'natural' | 'codeMath' | 'science' | 'synthetic' | 'multimodal';
   curation: { quality: boolean; hazard: boolean; safetyPretrain: boolean };
-  licensedShare: number; // 0..1 of corpus licensed (litigation bomb on the rest)
 }
 
 export interface PostDesign {
@@ -571,6 +571,9 @@ export interface Deployment {
   needH100e?: number;
   servedH100e?: number;
   cutH100e?: number;
+  /** Chat: the part of needH100e its paying users need (served first, on the main model; the rest is free users on the
+   *  mini when it has one). A6: usage data counts each tier's tokens at its own model's FLOP per token. */
+  needPaidH100e?: number;
   /** Revenue run-rate at each 30-day mark, last 12 (product card chart). */
   hist?: number[];
 }
@@ -947,7 +950,7 @@ export interface Incident {
   responses: ResponseKind[];
 }
 
-export type ResponseKind = 'patchSignal' | 'retrainAgainst' | 'targetedTraining' | 'restrictContext' | 'addControl' | 'rollback' | 'disclose' | 'removeFoothold';
+export type ResponseKind = 'patchSignal' | 'retrainAgainst' | 'targetedTraining' | 'restrictContext' | 'addControl' | 'removeControl' | 'rollback' | 'disclose' | 'removeFoothold';
 
 // ───────────────────────────── Security (§3.6) ─────────────────────────────
 
@@ -1743,6 +1746,10 @@ export interface WorldFxState {
    *  customers (provider keys as in the world mix: 'player', 'player:open', rival ids, 'china'). They move toward the
    *  market's logit shares at the segment's speed (CUSTOMER_TAU). Empty until the first revenue tick. */
   cust: Record<RegionId, Record<string, Record<string, number>>>;
+  /** A8 multi-homing: per region, each provider's reach among sector buyers (the share who buy from it at all, ≤ its
+   *  access; provider keys as in `cust`). A stock toward MULTI_HOMING's target; absent entries start at the region's
+   *  even spread (data/v2/serving.ts MULTI_HOMING). */
+  secReach?: Record<RegionId, Record<string, number>>;
 }
 
 export interface SectorState {

@@ -8,6 +8,7 @@ import { observe } from '../safety/detection';
 import type { EvalDepth, GameStateV2, ModelVersion, RngLike, SystemCtx } from '../types';
 import { h50Of } from './capability';
 import { bestPlayerVersion, versionById } from './labs';
+import { inPlaceRecipe } from './stacks';
 
 export type Evaluator = 'self' | 'evalGov' | 'evalIndep';
 
@@ -103,7 +104,7 @@ export function runEvalSuite(s: GameStateV2, ctx: SystemCtx, versionId: string, 
   if (v.evals.errTrue === undefined) v.evals.errTrue = z;
   v.evals.nSuites = n;
   v.evals.nEff = Math.round(nEff * 1000) / 1000;
-  v.evals.lgAt = v.Lg;
+  v.evals.recipeAt = inPlaceRecipe(s, v);
   v.evals.depth = depth;
   v.evals.measuredL = Math.round((v.Lg + v.evals.errTrue / Math.sqrt(nEff)) * 100) / 100;
   checkSaturation(s, ctx);

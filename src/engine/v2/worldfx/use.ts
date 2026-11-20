@@ -21,7 +21,7 @@ const USE_MEAN = SECTORS.reduce((a, d) => a + d.empPct * d.use, 0) / SECTORS.red
 const ROOT = Object.fromEntries(SECTORS.map((d) => [d.id, Math.sqrt(d.use / USE_MEAN)])) as Record<SectorId, number>;
 
 /** Base share of a sector's workers who use AI at work (W_b): the US base × √(relative use) × the region's scale. */
-export const useBaseOf = (def: SectorDef, r: RegionId) => Math.min(0.95, ECON.useW * ROOT[def.id] * REGION_SCALE[r].A0);
+export const useBaseOf = (def: SectorDef, r: RegionId) => Math.min(0.95, ECON.useW * ROOT[def.id] * REGION_SCALE[r].use);
 /** Share of a user's non-delegated hours with AI assistance (h_s). */
 export const useIntensityOf = (sid: SectorId) => ECON.useH * ROOT[sid];
 /** Ceiling of the worker stock: today's base users plus the rest as the AI covers their work; at least A. */

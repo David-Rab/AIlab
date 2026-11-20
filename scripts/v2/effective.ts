@@ -20,7 +20,7 @@ import { check, finish, runTo } from './lib';
 const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
 
 // ---------- pretraining arithmetic ----------
-check(trainFlop(1e12, 5e13) === 3e26 && flopOfDesign(REFERENCE_BASE) === 3e26, 'FLOP = 6 · N · D (reference base 1T × 50T tokens = 3e26)', `${flopOfDesign(REFERENCE_BASE).toExponential(2)}`);
+check(trainFlop(1e12, 5e13) === 3e26 && flopOfDesign(REFERENCE_BASE) === 3e26, 'FLOP = 6 · N · D (reference base 354B × 400 tokens per parameter = 3e26)', `${flopOfDesign(REFERENCE_BASE).toExponential(2)}`);
 check(near(fOver(20), 1, 1e-12) && near(fOver(200), 0.6, 0.04) && near(fOver(2000), 0.16, 0.01), 'f_over: compute-optimal 1, 10× overtrained ≈ 0.6, 100× ≈ 0.16 (R20 A1)',
   `${fOver(20).toFixed(2)} / ${fOver(200).toFixed(3)} / ${fOver(2000).toFixed(3)}`);
 const N = 1e12;
@@ -75,7 +75,9 @@ check(near(continueGPre(27.3, 3e26, 1.38, 'moe') - continueGPre(27.3, 3e26, 0.38
 const s0 = newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, tutorial: false }));
 const w0 = s0.hidden.timeline;
 const V0 = s0.player.models.versions[0];
-check(near(gV0(w0), 28.0, 0.1) && near(gOfBuild(V0.build!), gV0(w0), 1e-9), 'start: V0 at G ≈ 28.0 (research/12 Aug-2025 anchor), incl. ≈ 0.7 OOM RL', `G ${gOfBuild(V0.build!).toFixed(3)}, RL ${V0.build!.dgRL.toFixed(2)}`);
+// A6b: B0 is overtrained like 2025 production models (400 tokens per parameter): research/12's Aug-2025 anchor 28.0 was
+// fitted at 50, so V0 sits the overtraining factor lower (log₁₀ f_over(400) − log₁₀ f_over(50) = −0.31 OOM), no new term.
+check(near(gV0(w0), 28.0 - 0.307, 0.1) && near(gOfBuild(V0.build!), gV0(w0), 1e-9), 'start: V0 at G ≈ 27.7 (research/12 Aug-2025 anchor 28.0 less the overtraining of a 400-tokens-per-parameter base), incl. ≈ 0.7 OOM RL', `G ${gOfBuild(V0.build!).toFixed(3)}, RL ${V0.build!.dgRL.toFixed(2)}`);
 check(V0.G === gOfBuild(V0.build!), 'start: G(V0) is its build\'s G (the reference start)');
 check(Object.values(V0.build!.off).every((x) => Math.abs(x ?? 0) < 0.25), 'start: the reference recipe reproduces the 2025 domain profile (|off| < 0.25 L)', JSON.stringify(Object.fromEntries(Object.entries(V0.build!.off).map(([k, v]) => [k, +(v ?? 0).toFixed(2)]))));
 for (const start of ['challenger', 'bigtech', 'spinout'] as const) {

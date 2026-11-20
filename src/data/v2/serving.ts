@@ -142,10 +142,44 @@ export const PRICE_ELASTICITY = 1;
  *  ÷ the best coverage to within half a band [D: 8 bands; the share moves by ≤ 1/16 when one more band opens]. */
 export const MARKET_BANDS = 8;
 
-/** Customers are a stock (V4.2): each segment's provider shares move toward the logit target with this time constant
- *  (years) [D]: consumers switch in weeks, API and enterprise customers over a quarter (developer months, contracts
- *  quarters), government and defence over contract cycles. */
-export const CUSTOMER_TAU = { consumer: 3 / 52, sector: 0.25, gov: 0.75 } as const;
+/** Customers are a stock (V4.2): each segment's provider shares move toward the target with this time constant (years):
+ *  consumers switch in weeks; government and defence over contract cycles [D]. A8: sector buyers 0.65 y [D from P]: a
+ *  segment's stock re-chooses at the target as new spend arrives and as existing buyers switch, 1/τ = g + ρ. Enterprise
+ *  LLM spend grew $3.5B (Nov 2024) → $8.4B (mid-2025), g = ln 2.4 ÷ 0.63 y ≈ 1.4/y, and 11% of builders switched vendor
+ *  in a year (66% upgraded within their provider), ρ ≈ 0.11/y (Menlo Ventures, "2025 Mid-Year LLM Market Update", Jul
+ *  2025 [P]). Was 0.25 [D]. */
+export const CUSTOMER_TAU = { consumer: 3 / 52, sector: 0.65, gov: 0.75 } as const;
+/** A8: multi-homing (design/notes/A8.md). A firm buys AI from the few providers it has contracts with (often through
+ *  its cloud), not from every lab: in a sector's surplus choice (worldfx/choice.ts) each provider is in a buyer's set
+ *  with probability R, its reach (≤ its access), independently. A lab whose model alone does the hardest tasks wins
+ *  them at the firms that buy from it, not everywhere.
+ *  - `providers` 2 per firm [D from P]: "organizations typically deploy three or more foundation models" (Menlo
+ *    Ventures, "2024: The State of Generative AI in the Enterprise", Nov 2024 [P]); 37% of CIOs use five or more models
+ *    (a16z, "How 100 Enterprise CIOs Are Building and Buying Gen AI in 2025", Jun 2025 [P]); three providers take 88%
+ *    of enterprise LLM spend (Menlo, Dec 2025 [P]), so three-plus models are ≈ two providers.
+ *  - Start: an even spread, R = access × min(1, providers ÷ the region's expected reachable providers). With five
+ *    frontier labs serving the US and ROW, the classic leader (3–9 months ahead) then holds 0.35–0.38 of sector spend
+ *    (0.82 at the A5 target), as the enterprise leader did in 2025 (Anthropic 32% mid-2025, 40% end-2025; OpenAI 25 →
+ *    27%: Menlo Jul / Dec 2025 [P]). Replaces A7's start cap (SECTOR_START.startMax 0.25): the start stock is the
+ *    day-0 target.
+ *  - Reach is a stock: firms add the labs whose models are best. Target R* = min(access, providers × w ÷ Σw), w the V4
+ *    quality logit on the provider's mean sector fit (brand × access × exp(SHARE_SLOPE_G·Δfit)); time constant `tau`
+ *    3 y [D from P]: Anthropic's enterprise share went 12% (2023) → 24% (2024) → 40% (2025) (Menlo Nov 2024 / Dec 2025
+ *    [P]) during its coding lead, a reach of ≈ 0.13 → 0.44 in two years: τ 2–4.5 y for a target of 0.6–1. */
+export const MULTI_HOMING = { providers: 2, tau: 3 } as const;
+
+/** A7: free chat tiers (design/notes/A7.md). Every lab (the player, rivals, China) serves its free users on the
+ *  cheapest model that holds its consumer model's chat fit less `years` of the reference frontier's progress
+ *  (B_G_PER_Y OOM a year): a distilled student sized by the cheapestAt rule (worldfx/serving.ts freeTierOf; δ =
+ *  DISTILL.a + DISTILL.b·log₁₀(N_T/N_S), ≥ 1B active). The player's Chat runs its mini instead when the player sets one.
+ *  Free tiers in mid-2025 ran a generation below the paid frontier: ChatGPT's free users on GPT-4o (a May 2024 model)
+ *  with a GPT-4.1 mini fallback at the limits, paid users on o3 [P/R: ChatGPT release notes, 14 May 2025 (help.openai.com,
+ *  read via an extract)]; the Gemini app on 2.0 / 2.5 Flash [P: Gemini release notes 2025-01-30 (extract); Google blog
+ *  "Gemini 2.5 Flash", Apr 2025]; small models match the previous frontier within months (research/12 §0.6). One year
+ *  gives a student 1/12.5 the size of its teacher (28B active under the 354B V0): a free message ≈ 0.65 H100e-s ≈ 0.13 Wh
+ *  of accelerator energy, against Google's measured 0.24 Wh median Gemini Apps prompt (0.14 Wh on the accelerators;
+ *  arXiv 2508.15734 [P]). */
+export const FREE_TIER = { years: 1 } as const;
 
 /** Consumer market (A2b; research/22 §2–3 [R22]). Two stocks per region and one logit:
  *    reach R_r      share of online adults who use an AI chat app weekly (any provider), a Bass stock toward
@@ -155,9 +189,10 @@ export const CUSTOMER_TAU = { consumer: 3 / 52, sector: 0.25, gov: 0.75 } as con
  *                   P* = min(max, (p0 + p1 · a) · (p̄ ÷ price)^ε), a its model's coverage of consumer chat, p̄ the going
  *                   price (users' share-weighted subscription price in the region)
  *  subscribers = adults × R × user share × P; consumer revenue = subscribers × price × 12 (independent of work hours).
- *  Price = markup × a paying user's serving cost per month, never below cost and never above the willingness to pay
- *  (wtp): most consumer use is not work (non-work share 0.7), so its value is what people pay for it, not wage × hours
- *  saved. Free users (users − subscribers) pay nothing, run on the product's mini (else its model) and are served last;
+ *  Price (A6b): a flat monthly plan at the market's price, not cost-plus (consumerPlanPrice): the willingness to pay
+ *  (wtp, the going list price of 2025 plans), never below a paying user's serving cost; margin = price − serving cost.
+ *  Most consumer use is not work (non-work share 0.7), so its value is what people pay for it, not wage × hours
+ *  saved, and real plans held at $20 while their serving cost fell far below it. Free users (users − subscribers) pay nothing, run on the product's mini (else its model) and are served last;
  *  they are the pool subscribers convert from, so serving them is what buys subscribers (unserved need erodes the
  *  user share through the capacity penalty). CN is served at home (no adults here). */
 export const CONSUMER_MKT = {
@@ -172,8 +207,13 @@ export const CONSUMER_MKT = {
    *  start model's target (consumer-chat coverage 0.14) at ≈ 0.51, the Nov 2025 level [D]. ROW at `row` × the US
    *  [D: the leader's ≈ 900M weekly users in Feb 2026 (R22 2c, ≈ 15% of world adults) at a ≈ 0.55–0.6 share of distinct
    *  users need ≈ 1.5–1.6B weekly users outside China, i.e. ROW reach ≈ 0.43 at a US 0.5]. Speed (p + q·R) per year
-   *  toward the target, p 1, q 2 (V4a's reach dynamics), and 0.2/yr down [D]. */
-  reach: { startUS: 0.46, max: 0.9, base: 0.5, row: 0.85, p: 1, q: 2, down: 0.2 },
+   *  toward the target, p 1, q 2 (V4a's reach dynamics), and 0.2/yr down [D].
+   *  ROW starts at `startRow` × the US start (A6b, P5): the leader's weekly users on the start day are ChatGPT's ≈ 700M
+   *  (Jul 2025, NBER w34255 [P, R22 2c]). `row` was derived at a 0.55–0.6 leader share; since A5 users choose by quality
+   *  alone and the start leader holds ≈ 0.76 of users, so the start market is 700M ÷ 0.76 ≈ 0.92B weekly users outside
+   *  China (ROW reach 0.25), not 1.37B [fit: the leader's day-1 users]. The target keeps `row`, so ROW grows toward it at
+   *  the reach speed (the leader ≈ 0.9B in Feb 2026, R22 2c). */
+  reach: { startUS: 0.46, startRow: 0.548, max: 0.9, base: 0.5, row: 0.85, p: 1, q: 2, down: 0.2 },
   /** Paid share. p0 + p1·a = 5.4% for the start's frontier model (coverage 0.14) at the going price [R22 2e: ChatGPT ≈
    *  5.6% of weekly users pay (50M / 900M, Feb 2026); 5–6% while list plans stayed at $20], rising to 14% at full
    *  coverage [D: more of what people want done is worth paying for]; capped at 0.5 [D]. Price relative to the going
@@ -184,7 +224,7 @@ export const CONSUMER_MKT = {
    *  cycles]. */
   paid: { p0: 0.04, p1: 0.1, max: 0.5, elasticity: 1, tau: 8 / 52 },
   /** Willingness to pay ($ per subscriber-month) [R22 §2 ARPU [X]: $8–20 plans plus a few $100–200 plans ≈ $20–25; mid
-   *  22]: the consumer price cap (budget / standard / premium stay markups over cost below it). */
+   *  22]: the price of a Standard (and Premium) consumer plan, the most any plan sells at (consumerPlanPrice). */
   wtpMonth: 22,
   /** FLOP-bearing tokens per user-day [R20 D2, R22 §3]: a paying user ≈ 10 reasoning turns (30k uncached input, 8k
    *  output); a free weekly user 3.75 messages a day [R22 2g: 2,627M messages ÷ 700M WAU] × ≈ 2k of prompt and context and
@@ -192,6 +232,13 @@ export const CONSUMER_MKT = {
   perDay: { paid: { input: 3e4, output: 8e3 }, free: { input: 7.5e3, output: 1.5e3 } },
   messagesPerDay: 3.75,
 };
+
+/** A consumer plan's price per month (A6b, design/notes/A6.md P4): consumer chat is sold as flat-price subscriptions
+ *  at the market's price, not at a markup over serving cost (ChatGPT Plus, Claude Pro, Gemini Advanced all held at
+ *  $20 while serving got far cheaper; R22 §2). Standard and Premium sell at the willingness to pay (no plan sells above
+ *  it); a tier below Standard sells below it by its markup's ratio to Standard's (Budget ×0.67 ≈ $14.7) [D]. The engine
+ *  never sells below a paying user's serving cost (worldfx/serving.ts subPrice). */
+export const consumerPlanPrice = (markup: number) => CONSUMER_MKT.wtpMonth * Math.min(1, markup / MARKUP.standard);
 
 /** Hours a served H100e runs per year (24/7). */
 export const SERVE_HOURS_PER_YEAR = 8766;

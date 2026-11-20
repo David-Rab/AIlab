@@ -43,12 +43,14 @@ import { bandPaid, worldMix, type TierKind, type WorldMix } from '../../src/engi
 import { adequacy, surplusChoice, type Tier } from '../../src/engine/v2/worldfx/choice';
 import { revenueReadout, sectorHours, sectorSpendParts, servingPool } from '../../src/engine/v2/worldfx/revenue';
 import { agentCeilingOf, workHoursOf } from '../../src/engine/v2/worldfx/use';
-import { ECON, SECTORS } from '../../src/data/v2/sectors';
+import { ECON, REGION_SCALE, SECTORS } from '../../src/data/v2/sectors';
 import { MARKET_BANDS, SHARE_SLOPE_G } from '../../src/data/v2/serving';
 import {
   adoptedTokens, agentDemandOf, agentLeverage, cheapestAt, effortDG, studentToHold, fxOn, h100eHoursPer, internalFx, offerOf, paidShareTarget, productOffer, reachTarget, sectorCover, sectorTheta, serveDollarsPerHour,
-  subPrice, tokEff, valuePerHour, wagePerHour,
+  subPrice, tokEff, valuePerHour, wagePerHour, chatFreeTier, freeTierOf,
 } from '../../src/engine/v2/worldfx/serving';
+import { CUSTOMER_TAU, MULTI_HOMING } from '../../src/data/v2/serving';
+import { B_G_PER_Y, REFERENCE_BASE, SHAPE } from '../../src/data/v2/runDesign';
 import { consumerUse, workBilling } from '../../src/engine/v2/worldfx/readouts';
 import { monitorOverhead } from '../../src/engine/v2/models/products';
 import { paramsOfVersion, planRun } from '../../src/engine/v2/models/runs';
@@ -169,19 +171,26 @@ for (const d of [400, 900]) {
   const mix0 = worldMix(s);
   const pi = mix0.providers.findIndex((p) => p.key === 'player');
   const sh0 = mix0.sec.US.SOFT.share[pi];
-  // A much better model on every product: the logit target jumps; the stock follows over months.
+  // A much better model on every product: the target rises at once, more as firms add the lab (its reach, A8
+  // MULTI_HOMING), and the stock follows at CUSTOMER_TAU.sector.
   const v0 = versionById(s, prod(s, 'api').versionId)!;
   const better = cloneVersion(s, v0, 'VX', { build: { ...v0.build!, dg: (v0.build?.dg ?? 0) + 1.5 } });
   for (const d of s.player.deployments) if (d.channel !== 'internal') d.versionId = better.id;
   const mixT = worldMix(s);
   const tgt = mixT.sec.US.SOFT.target[pi];
+  const r0 = mixT.reach.US.stock[pi];
+  const rT = mixT.reach.US.target[pi];
   run(s, 1);
   const sh1 = worldMix(s).sec.US.SOFT.share[pi];
   run(s, 44);
-  const sh45 = worldMix(s).sec.US.SOFT.share[pi];
-  check(tgt > sh0 + 0.1 && sh1 - sh0 < 0.05 * (tgt - sh0) + 0.01 && sh45 > sh0 + 0.25 * (tgt - sh0),
-    'S4 a much better model: the target share jumps, the customer stock moves a little a day and most of the way within a quarter',
-    `share ${sh0.toFixed(3)} → day 1 ${sh1.toFixed(3)} → day 45 ${sh45.toFixed(3)} (target ${tgt.toFixed(3)})`);
+  const m45 = worldMix(s);
+  const sh45 = m45.sec.US.SOFT.share[pi];
+  const r45 = m45.reach.US.stock[pi];
+  const tgt45 = m45.sec.US.SOFT.target[pi];
+  const want = 1 - Math.exp(-45 / (CUSTOMER_TAU.sector * 365));
+  check(tgt > sh0 + 0.02 && rT > 0.9 && r45 > r0 + 0.5 * (rT - r0) * (1 - Math.exp(-45 / (MULTI_HOMING.tau * 365))) && tgt45 > tgt && sh1 - sh0 < 0.05 * (tgt - sh0) + 0.01 && sh45 > sh0 + 0.5 * want * (tgt - sh0),
+    'S4 a much better model: the target share rises at once and more as firms add the lab (reach → its target over MULTI_HOMING.tau); the customer stock moves a little a day (CUSTOMER_TAU.sector)',
+    `share ${sh0.toFixed(3)} → day 1 ${sh1.toFixed(3)} → day 45 ${sh45.toFixed(3)} (target ${tgt.toFixed(3)} → ${tgt45.toFixed(3)}); reach ${r0.toFixed(3)} → ${r45.toFixed(3)} (target ${rT.toFixed(3)})`);
   const c0 = worldMix(s).consumer.US.share[pi];
   check(Number.isFinite(c0) && c0 > 0, 'S4 consumers are a stock too (moves in weeks)', c0.toFixed(3));
 }
@@ -248,8 +257,10 @@ for (const d of [400, 900]) {
   run(s, 30);
   check(s.world.fx.reach.US < 0.95 && s.world.fx.reach.US > 0.9, 'C1 reach above its target falls slowly', s.world.fx.reach.US.toFixed(3));
   const g0 = game();
-  check(Math.abs(g0.world.fx.reach.US - CONSUMER_MKT.reach.startUS) < 1e-12 && Math.abs(g0.world.fx.reach.ROW - CONSUMER_MKT.reach.startUS * CONSUMER_MKT.reach.row) < 1e-12,
-    'C1 start reach: 46% of US adults weekly (RPS ≈ 50% non-work use in Nov 2025), ROW 0.85 × the US', `US ${g0.world.fx.reach.US}, ROW ${g0.world.fx.reach.ROW.toFixed(3)}`);
+  check(Math.abs(g0.world.fx.reach.US - CONSUMER_MKT.reach.startUS) < 1e-12 && Math.abs(g0.world.fx.reach.ROW - CONSUMER_MKT.reach.startUS * CONSUMER_MKT.reach.startRow) < 1e-12,
+    'C1 start reach: 46% of US adults weekly (RPS ≈ 50% non-work use in Nov 2025), ROW 0.548 × the US (A6b: the leader starts at ChatGPT’s ≈ 700M weekly users)', `US ${g0.world.fx.reach.US}, ROW ${g0.world.fx.reach.ROW.toFixed(3)}`);
+  const u0 = revenueReadout(g0).deps.filter((x) => x.channel === 'consumer').reduce((a, x) => a + (x.users ?? 0), 0);
+  check(u0 > 630e6 && u0 < 770e6, 'C1 the leader\'s Chat starts at ≈ 700M weekly users (ChatGPT, Jul 2025, NBER w34255; ±10%)', `${(u0 / 1e6).toFixed(0)}M`);
 }
 {
   // C2 the paid share is a stock that moves toward its target; C5 a better consumer model raises the paid share.
@@ -307,12 +318,96 @@ for (const d of [400, 900]) {
   run(s, 3);
   const chat = prod(s, 'consumer');
   const x = revenueReadout(s).deps.find((z) => z.id === chat.id)!;
-  const v = versionById(s, chat.miniVersionId ?? chat.versionId)!;
-  const want = (((x.users ?? 0) - (x.subs ?? 0)) * h100eHoursPer(flopPerToken(s, v), fr)) / 24 * (1 + monitorOverhead(s, chat));
+  // A7: on the free tier (its mini, else the cheapest student of its model).
+  const ft = chatFreeTier(s, chat)!;
+  const want = (((x.users ?? 0) - (x.subs ?? 0)) * h100eHoursPer(ft.fpt, { input: fr.input, output: fr.output * ft.tau }, decodeUtilNow(s))) / 24 * (1 + monitorOverhead(s, chat));
   check(fr.input + fr.output >= 8e3 && fr.input + fr.output <= 1e4 && near(x.needFree ?? 0, want, 1e-6) && near((x.needPaid ?? 0) + (x.needFree ?? 0), x.needH100e, 1e-6),
     'C4 free users need ≈ 9k tokens per weekly-user-day (3.75 messages; R22: 8–10k, was 1.6k) on the free tier model; paid + free = the product\'s need',
     `${((x.users ?? 0) / 1e6).toFixed(0)}M users: free ${Math.round((x.needFree ?? 0) / 1e3)}k + paid ${Math.round((x.needPaid ?? 0) / 1e3)}k H100e; cut ${Math.round(x.cutH100e / 1e3)}k (free ${Math.round((x.cutFree ?? 0) / 1e3)}k)`);
   check((x.cutFree ?? 0) <= (x.needFree ?? 0) + 1e-6 && (x.cutH100e <= (x.needFree ?? 0) + 1e-6 || near(x.cutFree ?? 0, x.needFree ?? 0, 1e-6)), 'C4 the split cuts free users before paying ones');
+}
+{
+  // A7 free tiers with parity: every provider's free tier holds its consumer model's chat fit less one year of the
+  // reference frontier (freeTierOf: the cheapestAt rule); users choose on the free tier; the start's free users are
+  // served and a free message costs within ≈ 3× of Google's measured 0.24 Wh median (arXiv 2508.15734).
+  const s = game();
+  run(s, 1);
+  const mix = worldMix(s);
+  const tokMult = SHAPE[REFERENCE_BASE.shape].tokenMult;
+  let bad = 0;
+  mix.providers.forEach((p, i) => {
+    if (!p.model || p.key === 'player') return;
+    const ft = freeTierOf(p.params ?? (p.fpt ?? 2e12) / (2 * tokMult));
+    if (!near(mix.consumer.US.freeFit[i], mix.consumer.US.fit[i] - ft.gap, 1e-9) || !(ft.r < 1)) bad++;
+  });
+  const chat = prod(s, 'consumer');
+  const ft = chatFreeTier(s, chat)!;
+  const v = versionById(s, chat.versionId)!;
+  const pi = mix.providers.findIndex((p) => p.key === 'player');
+  const gap = freeTierOf(v.params ?? REFERENCE_BASE.params).gap;
+  check(bad === 0 && near(mix.consumer.US.freeFit[pi], mix.consumer.US.fit[pi] - gap, 1e-6) && Math.abs(gap - B_G_PER_Y) < 1e-9,
+    'A7 every lab\'s free tier is the student of its consumer model one year of frontier progress below it; users choose on it',
+    `gap ${gap.toFixed(2)} OOM, player free fit ${mix.consumer.US.freeFit[pi].toFixed(2)} (model ${mix.consumer.US.fit[pi].toFixed(2)}), ${bad} rivals off the rule`);
+  const x = revenueReadout(s).deps.find((z) => z.id === chat.id)!;
+  const msgS = (h100eHoursPer(ft.fpt, CONSUMER_MKT.perDay.free, decodeUtilNow(s)) * 3600) / CONSUMER_MKT.messagesPerDay;
+  const wh = (msgS * 0.7) / 3.6; // accelerator energy at 0.7 kW per H100e
+  check((x.cutFree ?? 0) <= 0.1 * (x.needFree ?? 0) && wh >= 0.24 / 3 && wh <= 0.24 * 3,
+    'A7 day 1: free users served (≥ 90%) and a free message within ×3 of 0.24 Wh', `free need ${Math.round((x.needFree ?? 0) / 1e3)}k cut ${Math.round((x.cutFree ?? 0) / 1e3)}k; ${msgS.toFixed(2)} H100e-s ≈ ${wh.toFixed(2)} Wh`);
+}
+{
+  // A8 multi-homing: each provider is in a sector buyer's set with probability min(1, MULTI_HOMING.providers ÷ the
+  // region's reachable sector providers) × its access, so a lab whose model alone does the hardest bands wins them only
+  // at the firms that buy from it. The start stocks are the day-0 targets (A7's start cap is gone), and the classic
+  // leader (3–9 months ahead) holds the measured spread: 0.25 (OpenAI mid-2025) to 0.45 (Anthropic 40% end-2025) of
+  // US and ROW sector spend (Menlo Ventures, Jul and Dec 2025).
+  const s = game();
+  const mix = worldMix(s);
+  let bad = 0;
+  for (const r of ['US', 'ROW', 'CN'] as const) for (const def of SECTORS) {
+    const m = mix.sec[r][def.id];
+    m.share.forEach((x, i) => { if (Math.abs(x - m.target[i]) > 2e-6) bad++; });
+  }
+  const pi = mix.providers.findIndex((p) => p.key === 'player');
+  let sp = 0;
+  let pl = 0;
+  for (const r of ['US', 'ROW'] as const) for (const def of SECTORS) {
+    const x = sectorSpendParts(s, r, def.id, mix);
+    const y = x.adopted + x.agent + x.seat;
+    sp += y;
+    pl += y * mix.sec[r][def.id].share[pi];
+  }
+  // Toy market: provider 0 alone does the upper half of the tasks; four rivals do the lower half.
+  const lead: Tier[] = [{ fit: 27.6, a: 0.1, price: 0.6 }];
+  const riv: Tier[] = [{ fit: 27.2, a: 0.05, price: 0.5 }];
+  const lin = [lead, riv, riv, riv, riv];
+  const br = [1, 1, 1, 1, 1];
+  const full = surplusChoice(lin, br, [1, 1, 1, 1, 1], 30).target[0];
+  const q = Math.min(1, MULTI_HOMING.providers / 5);
+  const mh = surplusChoice(lin, br, [q, q, q, q, q], 30).target[0];
+  check(bad === 0 && pl / sp >= 0.25 && pl / sp <= 0.45 && full > 0.75 && mh < q + 0.05 && mh > 0.5 * q,
+    'A8 multi-homing: start stocks at the day-0 targets; the classic leader holds 0.25–0.45 of US + ROW sector spend; a sole frontier model wins only the buyers who reach it',
+    `${bad} cells off; leader ${(pl / sp).toFixed(3)} of $${sp.toFixed(2)}B; toy leader ${full.toFixed(3)} with everyone reachable → ${mh.toFixed(3)} at q ${q.toFixed(2)}`);
+  // A8 part 2: ROW firms start paying for AI work at the rate their AI-using workers hold paid seats (REGION_SCALE.ROW
+  // A0 = use × SEATS.start ROW ÷ US), so US buyers are 40–72% of the start sector spend outside China (72%: Anthropic's
+  // US billing share, an upper bound [UNVERIFIED]); workers' use keeps its scale (ROW / US hours of use ≈ 3.6, the
+  // Anthropic Economic Index's Claude.ai split); the leader's day-1 revenue ≈ $12–15B with Chat ≈ two thirds of it.
+  let us = 0;
+  let row = 0;
+  for (const def of SECTORS) {
+    const a = sectorSpendParts(s, 'US', def.id, mix);
+    const b = sectorSpendParts(s, 'ROW', def.id, mix);
+    us += a.adopted + a.agent + a.seat;
+    row += b.adopted + b.agent + b.seat;
+  }
+  const hrs = (r: 'US' | 'ROW') => SECTORS.reduce((x, def) => x + sectorHours(s, r, def.id), 0);
+  const hr = hrs('ROW') / hrs('US');
+  const a0 = REGION_SCALE.ROW.A0;
+  run(s, 1);
+  const rd = revenueReadout(s);
+  const chatRev = rd.deps.find((z) => z.channel === 'consumer')!.revenue;
+  check(us / (us + row) >= 0.4 && us / (us + row) <= 0.72 && hr > 3 && hr < 4.2 && near(a0, (REGION_SCALE.ROW.use * SEATS.start.ROW) / SEATS.start.US, 1e-9) && rd.total >= 12 && rd.total <= 15 && chatRev / rd.total >= 0.6 && chatRev / rd.total <= 0.75,
+    'A8 US buyers 40–72% of the start sector spend outside China, ROW / US hours of use ≈ 3.6; leader day-1 revenue $12–15B, Chat 60–75% of it',
+    `US $${us.toFixed(2)}B of $${(us + row).toFixed(2)}B (${((100 * us) / (us + row)).toFixed(0)}%); hours ROW / US ${hr.toFixed(2)}; revenue $${rd.total.toFixed(2)}B (Chat $${chatRev.toFixed(2)}B, ${((100 * chatRev) / rd.total).toFixed(0)}%)`);
 }
 for (const d of [400, 900]) {
   // C6 no provider's subscription is priced above the willingness to pay (unless serving a subscriber costs more).
@@ -532,7 +627,7 @@ function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
       const mix = worldMix(s);
       const tk = adoptedTokens(s, 'SOFT');
       const perTok = 1e6 / (tk.input + tk.output);
-      const bp = bandPaid(mix, 'US', 'SOFT', u0, true);
+      const bp = bandPaid(mix, 'US', 'SOFT', u0, true, true);
       paid.push({
         t: snap.t, perM: bp.price * perTok, below: bandPaid(mix, 'US', 'SOFT', u0).price * perTok, own: bp.ownModelPrice * perTok, rate: snap.rate,
         margin: bp.price / (snap.rate * bp.hph), hphM: bp.hph * perTok, kind: bp.byKind, world: hoursByKind(s, mix), prov: bp.byProvider,

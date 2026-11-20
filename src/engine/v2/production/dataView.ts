@@ -86,15 +86,12 @@ export function naturalMixView(s: GameStateV2): DomainMixRow[] {
 
 export interface DrawDomainRow { domain: DomainId; share: number; effShare: number; ref: number; s: number; epochs: number }
 /** A draw by domain (the Blueprint's drawn-mix row): drawn and effective shares vs the reference, specialisation, and
- *  each domain's epochs (its drawn tokens ÷ the quality-weighted unique tokens the portfolio holds in it). */
-export function drawByDomain(s: GameStateV2, draw: DataDraw): { rows: DrawDomainRow[]; most?: DrawDomainRow } {
-  const p = s.player.dataPortfolio;
-  const u = portfolioU(p);
-  const mix = pretrainMix(p);
+ *  each domain's epochs (its most-repeated slice's drawn tokens ÷ that slice's own tokens, the D11 count that
+ *  Muennighoff reads). */
+export function drawByDomain(_s: GameStateV2, draw: DataDraw): { rows: DrawDomainRow[]; most?: DrawDomainRow } {
+  const ep: DomainMix = draw.epochsD ?? {}; // a draw saved before F6 has none
   const rows = DOMAIN_IDS.map((d): DrawDomainRow => {
-    const ud = (mix[d] ?? 0) * u;
-    const td = (draw.share[d] ?? 0) * draw.tokens;
-    return { domain: d, share: draw.share[d] ?? 0, effShare: draw.effShare[d] ?? 0, ref: REF_SHARE[d] ?? 0, s: draw.sD[d] ?? 0, epochs: ud > 0 ? td / ud : 0 };
+    return { domain: d, share: draw.share[d] ?? 0, effShare: draw.effShare[d] ?? 0, ref: REF_SHARE[d] ?? 0, s: draw.sD[d] ?? 0, epochs: ep[d] ?? 0 };
   });
   const most = rows.reduce<DrawDomainRow | undefined>((a, r) => (!a || r.epochs > a.epochs ? r : a), undefined);
   return { rows, most };

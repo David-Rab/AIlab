@@ -20,9 +20,9 @@
 //                       full, full + external → deep; external reports stay WS4's). Gate 'none': the version is ready at
 //                       once and, under auto-evaluate, gets a basic suite that blocks nothing.
 //   auto-evaluate       the internal models and the continual-learning stream are re-run when they changed in place by
-//                       ≥ REEVAL_DL or REEVAL_DAYS after their last suite, at the policy depth (the gate's, basic if none).
+//                       ≥ REEVAL_DL (the recipe the stream applied, REEVAL_DG OOM) or REEVAL_DAYS after their last suite, at the policy depth (the gate's, basic if none).
 import { BENCHMARKS, BENCH_NOISE_SD, SAFETY_EVALS } from '../../../data/v2/benchmarks';
-import { EVAL_DEPTHS, EVAL_DEPTH_IDS, EVAL_TOKENS, EXT_EVAL_STAFF, FULL_ROLLOUTS, REEVAL_DAYS, REEVAL_DL } from '../../../data/v2/evals';
+import { EVAL_DEPTHS, EVAL_DEPTH_IDS, EVAL_TOKENS, EXT_EVAL_STAFF, FULL_ROLLOUTS, REEVAL_DAYS, REEVAL_DG, REEVAL_DL } from '../../../data/v2/evals';
 import { TEAM_SIZE } from '../../../data/v2/teams';
 import { PEAK_FLOPS, U_DECODE, U_PREFILL } from '../../../data/v2/workTypes';
 import { AGENT_USES } from '../../../data/v2/agents';
@@ -32,6 +32,7 @@ import { buildEtas, queueBuild } from '../departments/build';
 import { agentVersion } from '../departments/agents';
 import { MEASURE_SD, measuredSd, runEvalSuite, type Evaluator } from './benchmarks';
 import { versionById } from './labs';
+import { inPlaceRecipe } from './stacks';
 import { allocate, capReCapacity, expPoolH100e, reAllocation, reDemand } from './research';
 
 /** Suite depth the eval gate asks for before release (none: no release suite). */
@@ -187,11 +188,12 @@ export function releaseEvals(s: GameStateV2) {
   }
 }
 
-/** Why the standing policy would re-run a version's suite today, or undefined: never measured, changed in place by
- *  ≥ REEVAL_DL since its last suite, or REEVAL_DAYS old. */
+/** Why the standing policy would re-run a version's suite today, or undefined: never measured, changed in place since
+ *  its last suite by a recipe worth ≥ REEVAL_DG OOM (the stream; a known quantity, model v3 F6 — the true level was
+ *  read before), or REEVAL_DAYS old. */
 export function reevalReason(s: GameStateV2, v: ModelVersion): 'never' | 'changed' | 'cadence' | undefined {
   if (v.evals.suiteDay === undefined) return 'never';
-  if (Math.abs(v.Lg - (v.evals.lgAt ?? v.Lg)) >= REEVAL_DL) return 'changed';
+  if (v.evals.recipeAt !== undefined && inPlaceRecipe(s, v) - v.evals.recipeAt >= REEVAL_DG) return 'changed';
   if (s.time.day - v.evals.suiteDay >= REEVAL_DAYS) return 'cadence';
   return undefined;
 }

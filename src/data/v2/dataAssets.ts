@@ -58,7 +58,8 @@ export const WEB_LICENCE = { baseB: 1, perTB: 0.005, creatives: 10 } as const;
 
 /** Synthetic data (compute + a teacher). Generation FLOP = FLOP per token of the teacher × SYN_OVERGEN per kept token
  *  (research/20 A3 [G]: ≈ 2·N_gen per token, filtering at 2–5× overgeneration), at the training pool's FLOP per H100e-day.
- *  SYN_OVERGEN 4.33 [fit]: reproduces v1's 4e-6 T per H100e-day for V0 (2 × 1T active), inside research/20's 2–5×.
+ *  SYN_OVERGEN 4.33 [fit]: reproduces v1's 4e-6 T per H100e-day for a 1T-active teacher (v1's V0), inside research/20's
+ *  2–5×; since A6b V0 is 354B active and yields ×2.8 that (generation cost follows the teacher's FLOP per token).
  *  Quality from the teacher's G: q = SYN_Q.atV0 + SYN_Q.perOom · (G_teacher − G_V0), clamped to [min, max] — 0.5 at V0
  *  keeps v1's SYN_QUALITY; the slope [D]. Cap 1 [D, model v3 D11]: research/20 A3's synthetic range 0.5–1.5 is a
  *  guess [G] with no primary source for synthetic tokens beating human web text (no general exchange rate exists), and

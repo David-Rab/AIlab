@@ -18,12 +18,12 @@
 // fit their G. Nothing here reads serveCost, the research-speed multiplier M or the level bridge for prices, costs or
 // coverage.
 import {
-  AGENT_WORK, CHAT_WORK, CHINA_MARKUP, CONSUMER_MKT, CONTROL_LAYER_DG, EFFORT_CAP_OOM, EFFORT_OOM_PER_10X, EFFORT_TOKENS, MARKUP, RIVAL_MARKUP,
+  AGENT_WORK, CHAT_WORK, CHINA_MARKUP, CONSUMER_MKT, CONTROL_LAYER_DG, consumerPlanPrice, EFFORT_CAP_OOM, EFFORT_OOM_PER_10X, EFFORT_TOKENS, FREE_TIER, MARKUP, RIVAL_MARKUP,
   SAFEGUARD_DG, SEATS, SECTOR_REF, SECTOR_WORK, TOKENS, type TokenProfile,
 } from '../../../data/v2/serving';
 import { FEATURE_BY_ID, FREE_TIER_SHARE, MINI_CHANNELS, type FeatureFx, type FeatureId, type WorkScope } from '../../../data/v2/features';
 import { ECON, REGION_SCALE, SECTORS } from '../../../data/v2/sectors';
-import { DISTILL, DISTILL_TPP, REFERENCE_BASE, PARAM_RANGE } from '../../../data/v2/runDesign';
+import { B_G_PER_Y, DISTILL, DISTILL_TPP, REFERENCE_BASE, PARAM_RANGE } from '../../../data/v2/runDesign';
 import { ASSIST, COVER, H50_PER_OOM, H80_OVER_H50, PEAK_FLOPS, TOK_MIN, TOK_PER_RL_OOM, U_DECODE, U_PREFILL, type WorkTypeId } from '../../../data/v2/workTypes';
 import { dollarsPerH100eHour, domainG, flopPerToken, pSuccess, workFit } from '../departments/workfit';
 import { distillGap } from '../models/effective';
@@ -467,12 +467,39 @@ export function productOffer(s: GameStateV2, d: Deployment, sid: SectorId, certi
 /** H100e-hours per user-day of consumer chat on a model (paying users' or free users' usage); `effort` multiplies the
  *  output (reasoning) tokens: the effort setting × the model's τ (tokEff); `ud` the serving lab's decode utilisation. */
 export const chatHoursPerDay = (fpt: number, tok: TokenProfile, effort = 1, ud = U_DECODE) => hphOf(fpt, tok.input, tok.output * effort, ud);
-/** Consumer subscription price per month ($): markup × a paying user's serving cost on the product's model (paid usage
- *  runs on the main model), never above the willingness to pay (A2b: CONSUMER_MKT.wtpMonth) unless serving alone costs
- *  more, never below cost. */
+/** A7: the free chat tier of a model with `nT` active parameters (data/v2/serving.ts FREE_TIER): the student that holds
+ *  the model's fit less FREE_TIER.years × B_G_PER_Y OOM, sized by the cheapestAt rule (studentParamsFor; the 1B floor
+ *  can leave it closer). Its size ratio to the teacher and its gap below it (OOM); ratio 1 and gap 0 when no student is
+ *  DISTILL.a below the teacher (the model itself is the cheapest adequate one). */
+export function freeTierOf(nT: number): { r: number; gap: number } {
+  const nS = studentParamsFor(nT, FREE_TIER.years * B_G_PER_Y);
+  return nS < nT ? { r: nS / nT, gap: DISTILL.a + DISTILL.b * Math.log10(nT / nS) } : { r: 1, gap: 0 };
+}
+/** A7: what the free users of the player's Chat product get: its mini when the player set one, else the free tier of
+ *  its model (freeTierOf). Consumer-chat fit at the product's settings and features (no effort setting: free users get
+ *  the default), FLOP per token and reasoning-token multiplier τ (a student keeps its teacher's, tokEff). */
+export function chatFreeTier(s: GameStateV2, d: Deployment): { fit: number; fpt: number; tau: number } | undefined {
+  const main = versionById(s, d.versionId);
+  if (!main) return undefined;
+  const x = fxOn(productFx(s, d), 'CHAT');
+  const opts: OfferOpts = { dG: settingsDG(d) + x.dG, hMult: x.hMult, markup: markupOf(d), rate: serveDollarsPerHour(s), ud: decodeUtilNow(s) };
+  const mini = d.miniVersionId ? versionById(s, d.miniVersionId) : undefined;
+  if (mini) {
+    const fpt = flopPerToken(s, mini);
+    return { fit: offerOf(s, [{ v: mini, fpt, w: 1 }], 'CHAT', opts).fit, fpt, tau: tokEff(mini) };
+  }
+  const fpt = flopPerToken(s, main);
+  const ft = freeTierOf(main.params ?? s.player.models.bases.find((b) => b.id === main.baseId)?.params ?? REFERENCE_BASE.params);
+  return { fit: offerOf(s, [{ v: main, fpt, w: 1 }], 'CHAT', opts).fit - ft.gap, fpt: fpt * ft.r, tau: tokEff(main) };
+}
+
+/** Consumer subscription per month ($): a paying user's serving cost on the product's model (paid usage runs on the main
+ *  model) and the plan's price. A6b: the price is the market's flat plan price for the tier (consumerPlanPrice: the
+ *  willingness to pay on Standard), not cost-plus; margin = price − cost. Never below cost (a plan that must cost more
+ *  than the willingness to pay finds no subscribers, paidShareTarget). */
 export function subPrice(s: GameStateV2, fpt: number, markup: number, effort = 1, ud = U_DECODE): { cost: number; price: number } {
   const cost = chatHoursPerDay(fpt, CONSUMER_MKT.perDay.paid, effort, ud) * serveDollarsPerHour(s) * 30.4;
-  return { cost, price: Math.max(cost, Math.min(CONSUMER_MKT.wtpMonth, markup * cost)) };
+  return { cost, price: Math.max(cost, consumerPlanPrice(markup)) };
 }
 /** Target paid share of a provider's weekly users (A2b): (p0 + p1 · coverage of consumer chat) × (going price ÷ its
  *  price)^ε, capped; the going price is the users' share-weighted subscription price in the region among plans sold at

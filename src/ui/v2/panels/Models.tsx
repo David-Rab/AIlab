@@ -49,7 +49,7 @@ function Lineage({ s, sel }: { s: GameStateV2; sel?: string }) {
         <div key={b.id} className="lin-base" data-base={b.id}>
           <Tip as="div" content={() => <TipCard title={b.name} rows={[
             { label: 'Done', value: fmtDate(dateOf(s, b.day)) }, { label: <Term id="baseSize">Size</Term>, value: `${fmtParams(b.params)} active × ${b.design.tpp} tokens · ${b.design.shape}` },
-            { label: 'Data', value: b.design.data }, { label: <Term id="licensedShare">Licensed share</Term>, value: F.pct(b.design.licensedShare) }, { label: <Term id="flop">FLOP</Term>, value: b.flop.toExponential(1) },
+            { label: 'Data', value: b.design.data }, { label: <Term id="flop">FLOP</Term>, value: b.flop.toExponential(1) },
           ]} />}>
             <div className="lin-base-row"><b>{b.name}</b><span className="dim small">{fmtParams(b.params)} · {b.design.shape} · {b.design.data}</span></div>
           </Tip>
