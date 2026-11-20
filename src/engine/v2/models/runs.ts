@@ -19,7 +19,7 @@ import { TRAIT_IDS } from '../../../data/v2/traits';
 import { clamp } from '../../rng';
 import { decimalYear } from '../core/time';
 import { normalizeSplit, shareRefAt } from '../departments/split';
-import { uniqueTokens } from '../production/data';
+import { playerDraw, uniqueTokens, type DataDraw } from '../production/data';
 import { frontierFlop, hRef } from '../production/knots';
 import { tcoPerH100eYear } from '../production/production';
 import { consumeRunPenalty } from '../safety/responses';
@@ -40,7 +40,7 @@ import { stackRate } from './research';
 import { fptOfBuild } from '../departments/workfit';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import {
-  continueGPre, daysFor, distillFlop, distillGap, fData, flopOfDesign, gPreOf, rlFamiliesAvailable, rlGains, rlWeights, serveOfBase,
+  continueGPre, daysFor, distillFlop, distillGap, fDataEff, flopOfDesign, gPreOf, rlFamiliesAvailable, rlGains, rlWeights, serveOfBase,
   servingFlop, type FamilyMap, type GPreParts, type RlGains,
 } from './effective';
 import { versionById } from './labs';
@@ -165,7 +165,7 @@ export const P12_HORIZON = 2;
  *  FLOP since model v3 V3, departments/build.ts engScale). */
 export const scaleOf = (s: GameStateV2, flop: number) => flop / frontierFlop(s.hidden.timeline, decimalYear(s)); // BRIDGE(V6,V7)
 
-/** Unique tokens the player can train on: licensed + unlicensed (× licence deals) + quality-weighted synthetic. */
+/** Unique tokens the player can train on: its data portfolio's quality-weighted U (model v3 D1, production/data.ts). */
 export const playerUniqueTokens = (s: GameStateV2) => uniqueTokens(s);
 
 /** Limits of a base run (blueprint size card). All exact readouts of what the engine will do. */
@@ -177,10 +177,13 @@ export interface BaseLimits {
   wallDays: number;
   /** Ideas likely adopted while it trains, which the base will not embody (count and OOM at the recent rate). */
   behind: { ideas: number; oom: number };
-  /** Unique tokens available, epochs of repetition and the effective-compute factor of the repetition (≤ 1). */
+  /** Unique tokens this mix can use (the draw's uMix), epochs of the most-repeated slice and the effective-compute
+   *  factor of the repetition (≤ 1); the draw itself and the base's domain specialisation (data mix + curation, OOM). */
   tokensUnique: number;
   epochs: number;
   fData: number;
+  draw: DataDraw;
+  sD: Off;
   /** Serving cost of versions on this base (display, 0.5 = reference) and serving FLOP per token (2·N_active). */
   serve: number;
   servingFlop: number;
@@ -217,16 +220,16 @@ export function playerRlWeights(s: GameStateV2, focus: PostDesign['rlFocus']): F
 }
 
 /** A base's pretraining G at launch for the player: recipe E_START + the pretraining stack at its FLOP (or the frozen
- *  `pre`), data repetition on today's stock. */
-function baseG(s: GameStateV2, d: BaseDesign, pre?: number): { parts: GPreParts; flop: number; tokens: number; epochs: number; fD: number; U: number } {
+ *  `pre`), the data it draws from today's portfolio (model v3 D3: repetition per slice → f_data; the drawn mix → s_d,data,
+ *  plus the curation's domain offsets). */
+function baseG(s: GameStateV2, d: BaseDesign, pre?: number): { parts: GPreParts; flop: number; tokens: number; epochs: number; fD: number; U: number; sD: Off; draw: DataDraw } {
   const be = baseEffect(d);
   const tokens = d.params * d.tpp;
   const flop = flopOfDesign(d);
-  const U = playerUniqueTokens(s);
-  const free = be.noWall || adopted(s, 'P10');
-  const fD = free ? 1 : fData(d.params, tokens, U);
+  const draw = playerDraw(s, d);
+  const fD = fDataEff(d.params, tokens, draw.dEff);
   const parts = gPreOf({ flop, tpp: d.tpp, recipe: E_START + (pre ?? ePreAt(s, flop)), shape: d.shape, fData: fD, designDg: be.dg + p24Dg(s) });
-  return { parts, flop, tokens, epochs: U > 0 ? tokens / U : Infinity, fD, U };
+  return { parts, flop, tokens, epochs: draw.epochs, fD, U: draw.uMix, sD: addOff(draw.sD, be.sD), draw };
 }
 
 /** The RL recipe (stack values) a post-training run launched today freezes. */
@@ -304,7 +307,7 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
     flopNeeded = bg.flop * be.flopMult;
     scale = scaleOf(s, flopNeeded);
     cash = flopCost(s, flopNeeded) * be.cashMult + d.licensedShare * 1.0 * Math.sqrt(engScale(flopNeeded)); // licensed data ∝ tokens ∝ √FLOP [D]
-    build = referencePostOn(s, bg.parts.total, bg.flop, be.sD, bg.parts.recipe);
+    build = referencePostOn(s, bg.parts.total, bg.flop, bg.sD, bg.parts.recipe);
     signals = be.signals;
     serve = serveOfBase(d.params, bg.flop, d.shape) * serveTechMult(s);
     mon = be.monitorability;
@@ -312,7 +315,7 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
     const wallDays = setupDays + Math.ceil(daysFor(flopNeeded, rate));
     const best = Math.max(-Infinity, ...m.bases.map((b) => b.gPre));
     limits = {
-      params: d.params, tpp: d.tpp, tokens: bg.tokens, wallDays, behind: adoptedDuring(s, wallDays), tokensUnique: bg.U, epochs: bg.epochs, fData: bg.fD,
+      params: d.params, tpp: d.tpp, tokens: bg.tokens, wallDays, behind: adoptedDuring(s, wallDays), tokensUnique: bg.U, epochs: bg.epochs, fData: bg.fD, draw: bg.draw, sD: bg.sD,
       serve, servingFlop: servingFlop(d.params), computeCost: flopCost(s, flopNeeded), scrutiny: sizeScrutiny(scale), gPre: bg.parts,
       gGain: Number.isFinite(best) ? bg.parts.total - best : 0,
     };
@@ -506,7 +509,7 @@ function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
     const bg = baseG(s, d, rec.pre);
     const b: BaseModel = {
       id: `B${nb}`, name: `${PLAYER_MODEL_FAMILY}-${nb}`, day: s.time.day, startDay: run.startDay, flop: bg.flop, params: d.params, tokens: bg.tokens,
-      paAtStart: run.paAtStart ?? s.player.pa, gPre: bg.parts.total, ePre: bg.parts.recipe, design: d, sD: be.sD, epochs: bg.epochs, scale: run.scale ?? 1,
+      paAtStart: run.paAtStart ?? s.player.pa, gPre: bg.parts.total, ePre: bg.parts.recipe, design: d, sD: bg.sD, epochs: bg.epochs, scale: run.scale ?? 1,
       serve: serveOfBase(d.params, bg.flop, d.shape), monitorability: be.monitorability, signals: be.signals,
       lineage: `L-player-${nb}`, traitsTrue: { ...(parent?.traitsTrue ?? m.bases[0].traitsTrue) }, uModes: [],
     };

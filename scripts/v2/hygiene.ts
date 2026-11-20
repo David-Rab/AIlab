@@ -18,6 +18,7 @@ import { ownedOnline, rentedOnline } from '../../src/engine/v2/compute/power';
 import { nodeKnown } from '../../src/engine/v2/models/tree';
 import { LEADER_ID } from '../../src/engine/v2/models/labs';
 import { hRef, refTotal } from '../../src/engine/v2/production/knots';
+import { uniqueTokens } from '../../src/engine/v2/production/data';
 import type { Cadence, EngineSystem, GameStateV2, SetupV2, StreamId, WorkstreamId } from '../../src/engine/v2/types';
 import { check, finish, runTo, validateJson } from './lib';
 
@@ -258,7 +259,7 @@ for (const rev of [1, 11, 12, 13, 14]) {
     msg = (e as Error).message;
   }
   // Model v3 V2 (schemaRev 13): V1 saves (12) are rejected too; model v3 V3 (schemaRev 14): V2 saves (13) too.
-  check(SCHEMA_REV === 20 && msg ===`no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
+  check(SCHEMA_REV === 21 && msg ===`no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
 }
 // Model v3 V4a (schemaRev 16): a V3b save (15) migrates (customer stocks start empty, versions get their FLOP per token).
 {
@@ -345,6 +346,23 @@ for (const rev of [1, 11, 12, 13, 14]) {
     msg = (e as Error).message;
   }
   check(!!g && Array.isArray(g.player.research.wantAuto) && g.player.research.wantAuto.length === 0, 'save: a schemaRev-19 save migrates to 20 (no project on auto teams wanted)', msg);
+}
+// Model v3 D1 (schemaRev 21): a B4 save (20) migrates (v2's dataAssets token counts become the data portfolio, same U).
+{
+  const old = JSON.parse(serialize(run(detSetup, 30))) as GameStateV2 & Record<string, unknown>;
+  const u0 = uniqueTokens(deserialize(JSON.stringify(old)));
+  old.schemaRev = 20;
+  const p = old.player as unknown as Record<string, unknown>;
+  delete p.dataPortfolio;
+  p.dataAssets = { licensedTokensT: 30, unlicensedTokensT: 270, syntheticTokensT: (u0 / 1e12 - 300) / 0.5 };
+  let msg = '';
+  let g: GameStateV2 | undefined;
+  try {
+    g = deserialize(JSON.stringify(old));
+  } catch (e) {
+    msg = (e as Error).message;
+  }
+  check(!!g && !!g.player.dataPortfolio && !('dataAssets' in g.player) && Math.abs(uniqueTokens(g) / u0 - 1) < 1e-9, 'save: a schemaRev-20 save migrates to 21 (data portfolio with the same U)', msg || (g ? `U ${(uniqueTokens(g) / 1e12).toFixed(2)}T vs ${(u0 / 1e12).toFixed(2)}T` : ''));
 }
 
 // ---------- 6. Cadences ----------

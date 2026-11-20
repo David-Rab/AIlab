@@ -2,7 +2,7 @@
 // Models are built from physical quantities: active parameters, tokens, FLOP, RL FLOP. Capability is effective compute
 // G = log₁₀(FLOP × recipe efficiency) (models/effective.ts). Tags: [R20 xx] research/20 section, [D] design value,
 // [fit] fitted (scripts/v2/calib.ts or the anchor named), BRIDGE(Vn) temporary (design/V3-BUILD.md "Bridges").
-import type { BaseDesign, DomainId, PostDesign, RLFamily, SignalId } from '../../engine/v2/types';
+import type { BaseDesign, DataKind, DomainId, PostDesign, RLFamily, SignalId } from '../../engine/v2/types';
 
 type Off = Partial<Record<DomainId, number>>;
 type Sig = Partial<Record<SignalId, number>>;
@@ -138,15 +138,24 @@ export function sizeS5(scale: number): number {
 }
 export const sizeScrutiny = (scale: number) => (scale > 1 ? (5 * Math.log(scale)) / Math.log(3) : 0);
 
-/** Data mixes. `dg` is the general effect (OOM: v2's Δp × B), `off` the domain specialisation in levels (converted to
- *  OOM as ΔL = 2·ΔG, research/12 §0.3), `noWall` skips the repetition penalty (synthetic and multimodal data are
- *  generated or abundant; V5 makes data assets). */
-export const BASE_DATA: Record<BaseDesign['data'], { dg: number; off: Off; signals: Sig; flopMult: number; cashMult: number; noWall: boolean }> = {
-  balanced: { dg: 0, off: {}, signals: {}, flopMult: 1, cashMult: 0, noWall: false },
-  codeMath: { dg: 0, off: { CODE: 0.6, RSCH: 0.4, CYBER: 0.4, SOCIAL: -0.4 }, signals: {}, flopMult: 1, cashMult: 0, noWall: false },
-  science: { dg: 0, off: { BIO: 0.8, REASON: 0.4 }, signals: {}, flopMult: 1, cashMult: 0.05, noWall: false },
-  synthetic: { dg: 0.18, off: { CODE: 0.2, RSCH: 0.2, REASON: 0.2, AGENCY: 0.2, SOCIAL: 0.2, MEDIA: 0.2, CYBER: 0.2, BIO: 0.2, PHYS: 0.2 }, signals: { S6: 0.3 }, flopMult: 1, cashMult: 0, noWall: true },
-  multimodal: { dg: 0, off: { AGENCY: 0.6, MEDIA: 0.6, PHYS: 0.5 }, signals: {}, flopMult: 1.2, cashMult: 0, noWall: true },
+/** Data-mix presets (model v3 D3): the blueprint's data option is a mix target for the draw from the data portfolio
+ *  (production/data.ts drawData): domain shares from `base` × the domain tilt × the kind weights' pull (absent = 1),
+ *  each domain's tokens taken from its assets in proportion to their quality-weighted unique tokens × kind weight.
+ *  `base` 'reference' = the 2025 reference recipe's shares (the start portfolio's natural mix, which o_d was fitted
+ *  with) for every preset [D]: "balanced" is the portfolio's natural mix at the start and stays at the reference shares
+ *  after, so a lab whose stock fills with code-heavy synthetic data does not drift into a code model unless it picks a
+ *  mix that draws it (with 'natural' RefBot's bases specialised in code and moved the golden dates by up to −1.4 y,
+ *  design/notes/D3.md). The base's domain specialisation and repetition follow from what it drew (s_d,data, MODEL-V3
+ *  §2.3), not from fixed offsets. Tilts and kind weights [D]: code & math = code ×3, math (REASON) ×2, research papers ×2, security ×1.5;
+ *  science = bio ×3, math and research ×1.5; synthetic-heavy = synthetic assets ×4; multimodal = media and physical ×3,
+ *  agency (screens, actions) ×2. `flopMult`: multimodal tokens cost +20% FLOP; `cashMult`: science journals +5% of
+ *  the run's compute cost; `signals`: synthetic-heavy S6 (v2). */
+export const BASE_DATA: Record<BaseDesign['data'], { base: 'reference' | 'natural'; tilt: Off; kinds: Partial<Record<DataKind, number>>; signals: Sig; flopMult: number; cashMult: number }> = {
+  balanced: { base: 'reference', tilt: {}, kinds: {}, signals: {}, flopMult: 1, cashMult: 0 },
+  codeMath: { base: 'reference', tilt: { CODE: 3, REASON: 2, RSCH: 2, CYBER: 1.5 }, kinds: {}, signals: {}, flopMult: 1, cashMult: 0 },
+  science: { base: 'reference', tilt: { BIO: 3, REASON: 1.5, RSCH: 1.5 }, kinds: {}, signals: {}, flopMult: 1, cashMult: 0.05 },
+  synthetic: { base: 'reference', tilt: {}, kinds: { synthetic: 4 }, signals: { S6: 0.3 }, flopMult: 1, cashMult: 0 },
+  multimodal: { base: 'reference', tilt: { MEDIA: 3, PHYS: 3, AGENCY: 2 }, kinds: {}, signals: {}, flopMult: 1.2, cashMult: 0 },
 };
 /** Curation (OOM: v2's Δp × B). */
 export const CURATION = {

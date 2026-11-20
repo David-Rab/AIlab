@@ -385,7 +385,7 @@ export interface VersionBuild {
   sD: Partial<Record<DomainId, number>>;
   /** Design + paradigm domain offsets kept in levels (preference, paradigms). */
   offL: Partial<Record<DomainId, number>>;
-  /** Derived: domain level − general level − the 2025 profile (L). deltaRsch, h80 and benchmarks read it. */
+  /** Derived: domain level − general level − the 2025 profile (L). h80 and benchmarks read it. */
   off: Partial<Record<DomainId, number>>;
   /** Know-how the version embodies (progress-years; readout, BRIDGE(V2)). */
   paIn: number;
@@ -865,10 +865,51 @@ export interface PlayerLab extends LabCore {
   /** Product features built lab-wide (R6; ids of data/v2/features.ts). Switched on per product (Deployment.features). */
   features: string[];
   morale: { overall: number; safety: number }; // 0..100
-  dataAssets: { licensedTokensT: number; unlicensedTokensT: number; syntheticTokensT: number; litigationRisk: number };
+  /** Model v3 D1: the data portfolio (MODEL-V3 §9; production/data.ts). Replaces v2's dataAssets token counts. */
+  dataPortfolio: DataPortfolio;
   policies: PlayerPolicies;
   /** Internal agent packages (STRUCTURE §4.9, R7): model + optional monitor + compute per internal use. */
   agents: Record<AgentUse, AgentPackage>;
+}
+
+// ───────────────────────────── Data portfolio (model v3 D1, MODEL-V3 §9) ─────────────────────────────
+
+export type DataKind = 'public' | 'licensed' | 'usage' | 'synthetic' | 'expert';
+
+/** The lab's use of the public web (data/v2/dataAssets.ts PUBLIC_WEB): shared by every lab and finite, so the lab holds
+ *  only its crawl `coverage` (≤ 1) of the one world stock; tokens, mix and quality are the world's. */
+export interface PublicWebUse {
+  id: 'public';
+  kind: 'public';
+  coverage: number;
+  /** Covered by licence deals (action D3): no copyright litigation on the crawl. */
+  licensed: boolean;
+}
+
+/** An owned data asset: tokens (trillions), a domain mix (shares summing to 1) and a quality factor (1 = the web). */
+export interface OwnedDataAsset {
+  id: string;
+  kind: 'licensed' | 'usage' | 'synthetic' | 'expert';
+  tokensT: number;
+  mix: Partial<Record<DomainId, number>>;
+  quality: number;
+  /** Day acquired or first generated (absent: before the game). */
+  day?: Day;
+  /** Licensed / expert deals by domain (D2): the domain bought (absent: broad). */
+  domain?: DomainId;
+  /** Synthetic: the teacher version that generated it (absent: before the game), its G at generation, and whether a
+   *  base trained on it inherits the teacher's traits (subliminal learning, research/20 F3). */
+  teacherId?: string;
+  teacherG?: number;
+  inheritsTraits?: boolean;
+}
+
+export type DataAsset = PublicWebUse | OwnedDataAsset;
+
+export interface DataPortfolio {
+  assets: DataAsset[];
+  /** Data policy (no UI until D2/D4): share of eligible product output tokens kept as usage data. */
+  usageShare: number;
 }
 
 /** Internal uses of the lab's own models (R7): engineering, capabilities routine and frontier research, safety. */

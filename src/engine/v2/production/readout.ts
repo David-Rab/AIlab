@@ -2,7 +2,7 @@
 // `production(s, lab)` = the bottleneck bar: decomposition (parts multiply to M), elasticities, per-$ values,
 // ceilings, what-ifs, label/binding, labour (copies × speed), ratios vs the reference path.
 import { decimalYear } from '../core/time';
-import { dataStockRatio, effectiveStock, nextBaseFlop, tokensRequired } from './data';
+import { dataStockRatio, freeStock, nextBaseFlop, tokensRequired } from './data';
 import { bestResearchMix, computeProduction, evalM, evalProduction, inputsAtMix, labInputs, tcoPerH100eYear, type LabInputs } from './production';
 import { trainingFlopPerDay } from '../models/runs';
 import type { GameStateV2, LabId, ProductionReadout } from '../types';
@@ -75,7 +75,7 @@ export function nextModelGate(s: GameStateV2): NextModelGate {
   const yr = decimalYear(s);
   const F = nextBaseFlop(s);
   const trainingDays = F / Math.max(1, trainingFlopPerDay(s));
-  const dataRatio = effectiveStock(s) / tokensRequired(F);
+  const dataRatio = freeStock(s) / tokensRequired(F);
   let mwFree = 0;
   for (const site of s.player.sites) if (site.stage === 'live') mwFree += site.mw - (site.installed * s.power.kWPerH100e) / 1000;
   const runCash = 0.5 * (F / 3.46e19 / 365) * tcoPerH100eYear(s, yr); // env budget of a reference post on it [D]

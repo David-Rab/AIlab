@@ -360,6 +360,20 @@ await shot('43-blueprint-x4');
 await page.hover('[data-panel=blueprint] [data-tile=data] .lv');
 await wait(500);
 ok('Blueprint: limit tile tooltip states its rule', JSON.parse(await get(`/epochs|Muennighoff/.test(document.querySelector('.tip')?.innerText ?? '')`)));
+ok('D3 Blueprint: the data tile reads the draw (unique tokens for this mix, quality drawn)', JSON.parse(await get(`/Unique tokens for this mix/.test(document.querySelector('.tip')?.innerText ?? '') && /Mean quality drawn/.test(document.querySelector('.tip')?.innerText ?? '')`)));
+await clearTips();
+// D3: picking the code & math mix gives the base a CODE specialisation from the draw (shown on the data tile).
+if (await page.$eval('[data-panel=blueprint] [data-opt="data:codeMath"]', (b) => !b.classList.contains('locked')).catch(() => false)) {
+  await page.click('[data-panel=blueprint] [data-opt="data:codeMath"]');
+  await wait(150);
+  await page.hover('[data-panel=blueprint] [data-tile=data] .lv');
+  await wait(500);
+  const dt = await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '');
+  ok('D3 Blueprint: code & math draws a CODE specialisation (data tile)', /Specialisation\s*CODE\s*\+0\.\d\d OOM/.test(dt), dt.replace(/\n/g, ' ').slice(0, 220));
+  await clearTips();
+  await page.click('[data-panel=blueprint] [data-opt="data:balanced"]');
+  await wait(100);
+} else ok('D3 Blueprint: code & math is known at the start', false);
 await clearTips();
 await check('Blueprint: tokens per parameter snap', `document.querySelector('[data-panel=blueprint] [data-tile=serve]').innerText`, () => page.click('[data-panel=blueprint] [data-test=bp-tpp][data-size="20"]'));
 await page.evaluate(paramSnap(-2));
@@ -809,6 +823,8 @@ async function b4Check(where) {
   await nav('models');
   const mText = await page.locator('[data-panel=models]').innerText();
   ok(`B4 ${where}: no relative "serve cost" on Blueprint or Models; the model card shows FLOP per token and $/h`, !/serve cost/i.test(bpText + mText) && /FLOP\/tok · (\$[\d.]+|[\d.]+¢)\/h/.test(mText), (mText.match(/Serving[^\n]*/) ?? [''])[0]);
+  // D3: the V1 "Research boost" readout is gone; the model card shows the base's data specialisation instead.
+  ok(`D3 ${where}: model card shows "Data specialisation" (no "Research boost")`, /Data specialisation/.test(mText) && !/Research boost/i.test(mText), (mText.match(/Data specialisation[^\n]*\n?[^\n]*/) ?? [''])[0].replace(/\n/g, ' '));
   // Products: launch card and serving split in the side column when there are ≤ 3 products.
   await nav('products');
   const pr = await page.evaluate(() => {

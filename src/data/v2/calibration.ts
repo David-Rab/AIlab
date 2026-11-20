@@ -48,10 +48,7 @@ export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: 0.256, author
  *  is untouched). Rivals' symmetric term is WS1's distillation leak. */
 export const K_DIFFUSION = 2.0;
 
-/** Synthetic data: tokens (T) per H100e-day of the synthetic pool [D: ≈47 tok/s per H100 after filtering], quality
- *  discount q_syn (research/13 §1.7). Data never binds on the reference path through 2029 (F(2030) ≈ 300T ≪ 900T). */
-export const SYN_YIELD_T_PER_H100E_DAY = 4e-6;
-export const SYN_QUALITY = 0.5;
+/** Synthetic data yield and quality: model v3 D1 moved them to data/v2/dataAssets.ts (SYN_OVERGEN, SYN_Q). */
 /** China research efficiency scale on chinaEfficiency × preset.efficiency (§3.2.2; [fit] to T3: 150–200 d lead).
  *  Mutable so the T3 fit can sweep it; game code only reads it. M2: refit on integrated RefBot play (real compute and
  *  finance, WS4's China compute path, WS1 distillation leak applied) — see scripts/v2/ws4.ts T3. */

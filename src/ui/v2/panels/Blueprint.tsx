@@ -463,7 +463,7 @@ function Limits({ s, card, prev }: { s: GameStateV2; card?: Card_; prev?: Card_ 
       tip: () => <TipCard title={<Term id="gGain">G gained</Term>} value={`${fmtOom(gg)} OOM`} rows={[
         { label: <Term id="flop">log₁₀ FLOP</Term>, value: parts.flop.toFixed(2) }, { label: <Term id="knowHow">Recipe</Term>, value: fmtOom(parts.recipe) },
         { label: <Term id="shape">Architecture</Term>, value: fmtOom(parts.shape) }, { label: <Term id="tokensPerParam">Overtraining</Term>, value: fmtOom(parts.over) },
-        { label: <Term id="dataWall">Data repetition</Term>, value: fmtOom(parts.data) }, { label: 'Data mix and curation', value: fmtOom(parts.design) },
+        { label: <Term id="dataWall">Data repetition</Term>, value: fmtOom(parts.data) }, { label: 'Curation', value: fmtOom(parts.design) },
         { label: <Term id="effCompute">Pretraining G</Term>, value: parts.total.toFixed(2) },
       ]} footer="Effective compute in OOMs; +0.3 OOM ≈ twice the effective compute.">Pretraining effective compute of this base minus your best base so far.</TipCard>,
     });
@@ -473,9 +473,11 @@ function Limits({ s, card, prev }: { s: GameStateV2; card?: Card_; prev?: Card_ 
       id: 'data', icon: Database, term: 'dataTokens', label: 'Data', v: ep >= 10 ? ep.toFixed(0) : ep.toFixed(1), u: 'epochs', old: pEp !== undefined && Math.abs(pEp - ep) > 0.05 ? pEp.toFixed(1) : undefined,
       sub: L.fData < 0.995 ? <span className="tone-neg">repeats: {fmtOom(Math.log10(L.fData))} OOM</span> : 'of unique tokens', tone: L.fData < 0.9 ? 'bad' : ep > 4 ? 'warn' : 'good', bar: { f: Math.min(1, ep / 16), mark: 4 / 16 },
       tip: () => <TipCard title={<Term id="dataTokens">Data</Term>} value={`${F.num(ep, 2)} epochs`} rows={[
-        { label: 'Tokens of this base', value: fmtTok(L.tokens) }, { label: 'Your unique tokens', value: fmtTok(L.tokensUnique) },
-        { label: <Term id="dataWall">Effective compute kept</Term>, value: F.pct(L.fData) },
-      ]} footer="Up to ~4 epochs costs almost nothing (Muennighoff et al. 2023). Synthetic or multimodal data are exempt; spare training compute can generate data (run queue).">The base's tokens ÷ your unique tokens.</TipCard>,
+        { label: 'Tokens of this base', value: fmtTok(L.tokens) }, { label: <Term id="dataMix">Unique tokens for this mix</Term>, value: fmtTok(L.tokensUnique) },
+        { label: <Term id="dataWall">Effective compute kept</Term>, value: F.pct(L.fData) }, { label: 'Mean quality drawn', value: F.num(L.draw.quality, 2) },
+        ...(Object.entries(L.sD) as [string, number][]).filter(([, x]) => Math.abs(x) >= 0.005).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 3)
+          .map(([d, x]) => ({ label: <><Term id="dataSpec">Specialisation</Term> {d}</>, value: `${fmtOom(x)} OOM` })),
+      ]} footer="Up to ~4 epochs costs almost nothing (Muennighoff et al. 2023), per domain drawn. Spare training compute can generate data (run queue).">The base&apos;s tokens ÷ the unique tokens its data mix can use.</TipCard>,
     });
   }
   const pCash = prev?.cash;
