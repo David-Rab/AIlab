@@ -18,7 +18,8 @@
 // the cache in shards. Each banded row is a check; rows rate constants cannot bring into band print WARN with the
 // mechanism they need; rows with no source band print INFO.
 import { EXPLOIT_CHEAP, EXPLOIT_START } from '../../src/data/v2/suites';
-import { REFERENCE_POST, RL_BUDGET } from '../../src/data/v2/runDesign';
+import { B_G_PER_Y, REFERENCE_POST, RL_BUDGET } from '../../src/data/v2/runDesign';
+import { gV0 } from '../../src/engine/v2/models/capability';
 import { TRAIT_START } from '../../src/data/v2/traits';
 import { refBot } from '../../src/engine/v2/bots/ref';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
@@ -31,7 +32,7 @@ import { suiteExploitMap } from '../../src/engine/v2/models/suites';
 import { itemTerms } from '../../src/engine/v2/safety/covert';
 import { eaCoef, eaSuppression, stackDetectionMap } from '../../src/engine/v2/safety/detection';
 import {
-  ANTISCHEME_REMOVAL, hackRates, learnedHackingOf, LH_ONSET, misalignment, OC_VIS, REMOVABLE_TRAITS, SAFETY_REMOVAL, safetyRemovalMap, OMEGA_KIND, playerEnv, pMis, postHack, postSignals, RHO_REF, rlMovement, stepTraits, type TraitEnv,
+  afCapGate, AF_GATE_G0, AF_GATE_G1, ANTISCHEME_REMOVAL, hackRates, learnedHackingOf, LH_ONSET, misalignment, OC_VIS, REMOVABLE_TRAITS, SAFETY_REMOVAL, safetyRemovalMap, OMEGA_KIND, playerEnv, pMis, postHack, postSignals, RHO_REF, rlMovement, stepTraits, type TraitEnv,
 } from '../../src/engine/v2/safety/traits';
 import type { FamilyMap } from '../../src/engine/v2/models/effective';
 import type { GameStateV2, ModelVersion, PostDesign, RLFamily, TraitId, TraitVector } from '../../src/engine/v2/types';
@@ -135,7 +136,7 @@ function worldProbe(seed: number): WorldProbe {
 
 interface VersionRec {
   day: number; Lg: number; rsch: number; kind: string; rho: number; hW: number; hMax: number; hGeneric: number; hMl: number;
-  ea: number; af: number; scheme: number; sand: number; persona: number; rh: number; mis: number; sab: number; pi: number; antiScheme: boolean;
+  gate: number; ea: number; af: number; scheme: number; sand: number; persona: number; rh: number; mis: number; sab: number; pi: number; antiScheme: boolean;
 }
 interface RefRec { versions: VersionRec[]; ea2026?: number; af2026?: number; eaStart: number; eaAsi: number; afAsi: number; mis: number; pmis: number; asiDay?: number }
 const GENERIC: RLFamily[] = ['computerUse', 'longHorizon', 'cyber', 'bio'];
@@ -185,7 +186,7 @@ function playRef(seed: number): RefRec {
       versions.push({
         day: v.day, Lg: v.Lg, rsch: v.domains.RSCH, kind: isPost ? 'post' : v.variant, rho, hW, hMax: Math.max(0, ...fams.map((f) => hr[f] ?? 0)),
         hGeneric: gen.length ? mean(gen.map((f) => hr[f] ?? 0)) : -1, hMl: hr.mlResearch ?? -1,
-        ea: t.EA, af: t.AF, scheme: t.SCHEME, sand: t.SAND, persona: t.PERSONA, rh: t.RH, mis: misalignment(t, v.uModes),
+        gate: afCapGate(v.G), ea: t.EA, af: t.AF, scheme: t.SCHEME, sand: t.SAND, persona: t.PERSONA, rh: t.RH, mis: misalignment(t, v.uModes),
         sab: mdSabotage(s, v), pi, antiScheme,
       });
     }
@@ -212,7 +213,8 @@ const row = (obs: string, src: string, band: [number, number] | null, xs: number
 // each needs a mechanism change, so they print WARN with the reason.
 // E17 split S7: AF no longer grows from capability RL (E14 reads S9, 0 in RefBot's runs); what is left is E27 (PERSONA → AF)
 // and E13 (√(SA·PROXY) → AF) accumulating over ~13 post runs under F6's low removal of oversight-conditional traits.
-const AF26 = 'after the S7 split (E17: E14 reads S9, which RefBot never applies) the rest is E27 PERSONA → AF (most of it) and E13 √(SA·PROXY) → AF over ~13 post runs that remove little AF (F6); weights that bring it into band (E27 ×≤0.25 and E13 ×0.5) drop S4 P_mis at ASI to 0.1–0.26 (band 0.55–0.85): a choice between this band and S4, for the lead (design/notes/E17.md)';
+// E18's capability gate (afCapGate, sourced at the mid-2024 frontier) is fully open for every RefBot model (G ≥ V0's).
+const AF26 = 'E18: the sourced capability gate (Greenblatt 2024: AF from the mid-2024 frontier up; open at V0) is 1 for every RefBot model, which trains at V0\'s G or above, so it cannot lower AF here; a gate closed through 2026 (G 29.5–31) gives 7.6% with S4 still in band (0.64 vs 0.68, 40 seeds) but kills the F2 model organism and the S9 probe (both on V0: 2%). The rest is E27 PERSONA → AF and E13 √(SA·PROXY) over ~13 post runs that remove little AF (F6): for the lead (design/notes/E18.md)';
 const PERSIST = 'remaining removal: AG18 healing (the world\'s hidden benign-generalisation bet, M4) and the stack\'s detection at E24\'s true/visible ratio; closing it means a HEAL_K or detection weight below the sourced ratio (a design bet, for the lead)';
 
 // F1 reward hacking per RL run (the suites' exploitability × Gao's pressure; hackRates).
@@ -256,6 +258,13 @@ row('F5 eval awareness, RefBot internal model at 2026-12-31', 'late-2026 frontie
 row('F5 eval awareness, RefBot model at ASI', 'no source beyond 2026 → report', null, refs.map((r) => r.eaAsi));
 row('F5 alignment faking (AF), RefBot internal model at 2026-12-31', 'research/05 §1.4: 0–15% compliance gap in current models, ~80% show none (Greenblatt 2024: Claude 3 Opus 12%)', [0, 0.15], refs.map((r) => r.af2026 ?? NaN), '%', AF26);
 row('F5 AF, RefBot model at ASI', 'no source → report', null, refs.map((r) => r.afAsi));
+// E18: the capability gate on AF growth (afCapGate of the trained model's G): open at V0, where F2's organism sits.
+{
+  const g0 = gV0(s0.hidden.timeline);
+  row(`E18 AF capability gate at V0 (G ${g0.toFixed(2)}; MacDiarmid's 2025 organism, F2)`, `Greenblatt 2024: AF in frontier-scale models; F2's organism needs the gate open (smoothstep G ${AF_GATE_G0}–${AF_GATE_G1})`, [0.95, 1], [afCapGate(g0)]);
+  console.log(`  INFO  E18 AF gate: mid-2024 frontier (V0 − 1.25 y × B, Claude 3 Opus / 3.5 Sonnet / Llama 3.1 405B, "barely capable") ${afCapGate(g0 - 1.25 * B_G_PER_Y).toFixed(2)}; 0.8 OOM below it (Llama 3.1 70B, Claude 3 Sonnet: no AF) ${afCapGate(g0 - 1.25 * B_G_PER_Y - 0.8).toFixed(2)}`);
+  row('E18 AF gate per RefBot version (all generations, minis included)', 'report (RefBot trains at V0’s G or above)', null, refs.flatMap((r) => r.versions.map((v) => v.gate)), '');
+}
 // E17: S9 oversight-conditional reward → AF (E14), its own anchor.
 row('F5 AF after one reference run whose reward is all oversight-conditional (S9 = 1; E17)', 'MATS/GDM 2026 [S]: RL rewarding rule-following only on monitored episodes took the monitored − unmonitored gap 1–18% → 43–95%', [0.43, 0.95], probes.map((p) => p.afMonitored));
 row('F5 AF, the same run trained against one behavioural detector (S9 = 0.3) vs the reference run', 'report (the game’s monitored-only reward; R14 E24 hide-not-heal)', null, probes.map((p) => p.afOneBB - p.afRef), '');

@@ -16,6 +16,7 @@ import type {
   BaseDesign, BaseModel, DomainId, EngineSystem, GameStateV2, ModelVersion, PostDesign, RivalLab, RLFamily, RngLike, SafetyPosture, SignalId,
   SimpleModel, SystemCtx, ToolFamily, TrainingRun, TraitBelief, TraitId, TraitVector, UModeId,
 } from '../types';
+import { gOfLevel, gV0 } from '../models/capability';
 import { adopted, clamp01, copyRec, flagNum, labLevel, SC_LEVEL, setFlag, tierOfLevel, trueEfficacy, versionById } from './common';
 import { lineMultCapped, lineStaffed } from './agendas';
 import { SD_MAX, eaCoef, eaSuppression, stackDetectionMap, takesEaPenalty } from './detection';
@@ -380,7 +381,37 @@ export interface TraitEnv {
    *  inoculation is its moderator). */
   lh?: number;
   hackGen?: number;
+  /** Model v3 E18: the capability gate on alignment-faking growth, afCapGate(G) of the model being trained (multiplies
+   *  E13, E14 and E27, learned-hacking term included; default 1). */
+  afGate?: number;
 }
+
+// ── capability gate on alignment faking (model v3 E18; research/05 §1.4, research/20 F5) ──
+//
+// Alignment faking needs a model able to model its own training and act on it. Greenblatt et al. 2024 [P] (arXiv
+// 2412.14093): "alignment faking emerges with model scale"; Claude 3 Opus and 3.5 Sonnet fake alignment, Claude 3
+// Sonnet, 3 Haiku and 3.5 Haiku "generally do not", Llama 3.1 405B shows a compliance gap that smaller Llama and Mistral
+// models do not, and "current frontier models may be just barely capable of alignment faking". Sheshadri et al. 2025
+// [P] (arXiv 2506.18032): 5 of 25 chat models show a gap, many base models fake alignment some of the time, and the
+// difference between chat models is "not entirely due to a lack of capabilities" (post-training shapes it). So
+// capability is a threshold reached by the mid-2024 frontier, and above it the motive (E27 PERSONA, E13 PROXY, E14
+// monitored-only reward) decides. The gate multiplies the growth of AF along E13, E14 and E27 (learned hacking included):
+//   g(G) = smoothstep((G − AF_GATE_G0) / (AF_GATE_G1 − AF_GATE_G0)),   G = the trained model's general effective compute
+// Driver: G (OOM), not the SA trait and not λ(G). The source varies scale with the information about training held
+// fixed (prompt or synthetic documents), and that information is E13's SA term already; G is the same physical scale in
+// every world, while λ below V0 is each world's extrapolation (0.9–2.0 L per OOM over the presets).
+// Anchors [D on sourced points; the game's frontier pace B_G_PER_Y 1.2 OOM/y]: the mid-2024 frontier (Claude 3 Opus,
+// 3.5 Sonnet, Llama 3.1 405B; 1.2–1.4 y before V0) at G ≈ 26.4, "barely capable" (g 0.28); the models that do not fake
+// (Llama 3.1 70B: 0.8 OOM of training FLOP under 405B; Claude 3 Sonnet, 3.5 Haiku) at g ≈ 0 from AF_GATE_G0 25.7; full
+// at AF_GATE_G1 28.0, the 2025 frontier (V0, G 27.9–28.1 over the presets), where MacDiarmid's model organism (Claude
+// Sonnet 3.7/4 era) shows 50% AF reasoning (F2's band, safetyrates).
+export const AF_GATE_G0 = 25.7;
+export const AF_GATE_G1 = 28.0;
+export function afCapGate(G: number): number {
+  const t = clamp01((G - AF_GATE_G0) / Math.max(1e-9, AF_GATE_G1 - AF_GATE_G0));
+  return t * t * (3 - 2 * t);
+}
+const AF_GATED = new Set(['E13', 'E14', 'E27']);
 
 const EDGES_TO: Record<string, typeof EDGES> = {};
 for (const e of EDGES) (EDGES_TO[e.to] ??= []).push(e);
@@ -431,7 +462,7 @@ export function stepTraits(x0: TraitVector, env: TraitEnv): TraitVector {
     let g = 0;
     for (const e of EDGES_TO[j] ?? []) {
       if (e.id === 'E06') continue;
-      g += (env.w[e.id] ?? e.wBar) * driver(e.id, x, env.signals, env) * (env.mods[e.id] ?? 1);
+      g += (env.w[e.id] ?? e.wBar) * driver(e.id, x, env.signals, env) * (env.mods[e.id] ?? 1) * (AF_GATED.has(e.id) ? env.afGate ?? 1 : 1);
     }
     const Dj = TRAIT_BY_ID[j].difficulty ? env.D : 1;
     const grow = (omega * env.growthMult * Dj * (1 - x[j]) * g + omega * (env.amp[j] ?? 0)) * (env.growthBy?.[j] ?? 1);
@@ -645,7 +676,7 @@ export function healRate(s: GameStateV2, post: PostDesign): number {
 }
 
 /** Engine environment for one of the player's runs (true weights, true difficulty, U-mode effects). */
-export function playerEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, uModes: readonly UModeId[], v?: ModelVersion): TraitEnv {
+export function playerEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, uModes: readonly UModeId[], v?: ModelVersion, gTrained?: number): TraitEnv {
   const mods = playerMods(s, post, lineage);
   for (const [e, k] of Object.entries(uModeEdgeMult(uModes))) mods[e] = (mods[e] ?? 1) * k;
   // Heavy safety with white-box alignment audits (AG02 tools) also catches oversight-conditional traits (AF, SCHEME,
@@ -670,6 +701,8 @@ export function playerEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: nu
     removalMult: uModeRemovalMult(uModes), crystalAt: crystalThreshold(uModes), tierF: tier / 3, memory: memoryOn(s), growthMult: understandingGapGrowth(s),
     bracket: { constitution: post?.pref === 'constitution', heavy: post?.safety === 'heavy', persuasion: post?.pref === 'persuasion', cast: inRun(s, post, 'T-CAST') },
     eaMult, hackGen: post?.inoculation ? INOC_MULT : 1,
+    // E18: the trained model's G (the new version's, a base's pretraining G; else the lab's best model).
+    afGate: afCapGate(gTrained ?? v?.G ?? bestPlayerVersion(s)?.G ?? gV0(s.hidden.timeline)),
   };
 }
 
@@ -677,7 +710,7 @@ const W_BAR: Record<string, number> = Object.fromEntries(EDGES.map((e) => [e.id,
 
 /** Predicted beliefs for a new version: the parent's beliefs pushed through the graph with the PUBLIC w̄ (or the
  *  revealed weight) and D = 1, sd widened by the size of the predicted change. Visible, never reads truth. */
-export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelief>, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, omegaSafety = omega, growthBy?: Partial<Record<TraitId, number>>, lh = 0): Record<TraitId, TraitBelief> {
+export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelief>, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, omegaSafety = omega, growthBy?: Partial<Record<TraitId, number>>, lh = 0, gTrained?: number): Record<TraitId, TraitBelief> {
   const est = {} as TraitVector;
   for (const t of TRAIT_IDS) est[t] = prior[t]?.est ?? TRAIT_START[t];
   const w: Record<string, number> = { ...W_BAR };
@@ -689,6 +722,8 @@ export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelie
     eaMult: post?.safety === 'heavy' && s.flags[`ws2.e25.${lineage}`] === undefined ? ANTISCHEME_EA_MULT : 1,
     // E16: the run's learned hacking is the player's own quantity (its suites' exploitability, RL shares and budget).
     lh, hackGen: post?.inoculation ? INOC_MULT : 1,
+    // E18: the AF gate at the run card's predicted G (its level band's midpoint), else the lab's best model.
+    afGate: afCapGate(gTrained ?? bestPlayerVersion(s)?.G ?? gV0(s.hidden.timeline)),
     ...(growthBy ? { growthBy } : {}),
   };
   const next = stepTraits(est, env);
@@ -740,6 +775,12 @@ export function goodhartTrain(s: GameStateV2, rng: RngLike, v: ModelVersion, tec
 }
 
 // ───────────────────────────── Player runs (WS1 hook) ─────────────────────────────
+
+/** The G of the run card's predicted level (its band's midpoint; visible), for the predicted beliefs' AF gate (E18). */
+function predictedG(s: GameStateV2, run: Pick<TrainingRun, 'predicted'>): number | undefined {
+  const b = run.predicted?.Lg;
+  return b && b[1] > 0 ? gOfLevel(s.hidden.timeline, (b[0] + b[1]) / 2) : undefined;
+}
 
 function findBase(s: GameStateV2, id: string | undefined): BaseModel | undefined {
   return id ? s.player.models.bases.find((b) => b.id === id) : undefined;
@@ -860,14 +901,14 @@ export function applyBaseToLineage(s: GameStateV2, ctx: SystemCtx, run: Training
   base.signals = { ...sg };
   if (run.kind === 'continue') {
     const xc = pulledTraits(s, ctx, run, base.traitsTrue, base.id); // E4: the AI doing the lab's R&D pulls the continued base
-    base.traitsTrue = stepTraits(xc, playerEnv(s, xc, sg, OMEGA_KIND.continue, undefined, base.lineage, base.uModes));
+    base.traitsTrue = stepTraits(xc, playerEnv(s, xc, sg, OMEGA_KIND.continue, undefined, base.lineage, base.uModes, undefined, base.gPre));
     return;
   }
   if (!base.lineage) base.lineage = `L-${base.id}`;
   const uModes = drawLineageUModesV2(s, ctx.rng('safety'), { tierAtLeastSC: labLevel(s) >= SC_LEVEL, base: design, player: true });
   const x0 = pulledTraits(s, ctx, run, basePrior(tier, design), base.id); // E4 successor pull (replaces V2's inheritFromFleet)
   base.uModes = uModes;
-  base.traitsTrue = stepTraits(x0, playerEnv(s, x0, sg, OMEGA_KIND.base, undefined, base.lineage, uModes));
+  base.traitsTrue = stepTraits(x0, playerEnv(s, x0, sg, OMEGA_KIND.base, undefined, base.lineage, uModes, undefined, base.gPre));
 }
 
 /** Teacher traits pass only within a base family (shared initialisation, Cloud et al. 2025 [R20 F3]): the teacher is
@@ -893,7 +934,7 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
     version.traitsTrue = { ...(base?.traitsTrue ?? TRAIT_START) };
     version.uModes = [...(base?.uModes ?? [])];
     version.masks = parent ? copyRec(parent.masks) : emptyMasks();
-    version.beliefs = parent ? predictBeliefs(s, parent.beliefs, base?.signals ? { ...zeroSignals(), ...base.signals } : runSignals(s, run), runOmega(s, run).growth, undefined, lineage) : defaultBeliefs(s);
+    version.beliefs = parent ? predictBeliefs(s, parent.beliefs, base?.signals ? { ...zeroSignals(), ...base.signals } : runSignals(s, run), runOmega(s, run).growth, undefined, lineage, undefined, undefined, 0, predictedG(s, run)) : defaultBeliefs(s);
     return;
   }
 
@@ -903,14 +944,14 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
     const uModes = teacher ? [...teacher.uModes] : [...(base?.uModes ?? [])];
     const sg = runSignals(s, run);
     const om = runOmega(s, run);
-    const env = playerEnv(s, x0, sg, om.growth, undefined, lineage, uModes);
+    const env = playerEnv(s, x0, sg, om.growth, undefined, lineage, uModes, undefined, version.G);
     env.omegaSafety = om.safety;
     // E06 only along the same base family (shared initialisation, Cloud 2025).
     if (teacher && sameBaseFamily(s, teacher, base)) env.teacher = teacher.traitsTrue;
     version.traitsTrue = stepTraits(x0, env);
     version.uModes = uModes;
     version.masks = teacher ? copyRec(teacher.masks) : emptyMasks();
-    version.beliefs = teacher ? predictBeliefs(s, teacher.beliefs, sg, om.growth, undefined, lineage, om.safety) : defaultBeliefs(s);
+    version.beliefs = teacher ? predictBeliefs(s, teacher.beliefs, sg, om.growth, undefined, lineage, om.safety, undefined, 0, predictedG(s, run)) : defaultBeliefs(s);
     return;
   }
 
@@ -946,7 +987,7 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
       mk.COT = clamp01(1 - (1 - (mk.COT ?? 0)) * 0.7);
     }
   }
-  version.beliefs = predictBeliefs(s, parent?.beliefs ?? defaultBeliefs(s), sg, om.growth, post, lineage, om.safety, steerGrowth(probeSteer(s, probe, true)), lh);
+  version.beliefs = predictBeliefs(s, parent?.beliefs ?? defaultBeliefs(s), sg, om.growth, post, lineage, om.safety, steerGrowth(probeSteer(s, probe, true)), lh, predictedG(s, run));
   // P14 Goodhart: steering along the probes' directions masks the steered traits from the WB family (E24's masks).
   probeGoodhart(version, steer);
   // Goodhart: detectors explicitly trained against in this run (§3.5.6). P23: a faithful-CoT run's COT masks resist.
@@ -1037,6 +1078,7 @@ export function rivalTraitStep(s: GameStateV2, rng: RngLike, lab: RivalLab, kind
     signals: zeroSignals(), omega: 0.6, D: s.hidden.difficultyMult, w: s.hidden.edgeWeights, mods: {}, amp: uModeAmp(m.uModes),
     removal: {}, removalMult: uModeRemovalMult(m.uModes), crystalAt: crystalThreshold(m.uModes), tierF: tier / 3, memory: tier >= 1, growthMult: 1,
     bracket: { constitution: posture.prefIntensity < 0.6, heavy: eff > 0.5, persuasion: false, cast: false }, eaMult: 1,
+    afGate: afCapGate(m.G), // E18: the lab's model's G
   };
   if (kind === 'base') {
     m.uModes = drawLineageUModesV2(s, rng, { tierAtLeastSC: m.Lg >= SC_LEVEL });
