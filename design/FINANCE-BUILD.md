@@ -1032,3 +1032,130 @@ Numbers, before (FIN4a 7f35081) → after (FIN5c), big-tech start:
   50% floor, full at 60, −30 cap) once the division plays better; FIN6b polish (check how the cash-history chart draws a
   division's advance below zero; the legend now says "budget as set"); `design/STRUCTURE.md` §4.8 and `V2-SPEC` still say "no parent-confidence
   mechanic" (FIN6c docs pass); JANK-AUDIT F2 / ST2 rows not edited (status here).
+
+### FIN4r notes (2026-11-20)
+
+Review fixes for the read-only review of 7f35081 (FIN1–FIN4a); each spot was re-located in today's code (after FIN4b and
+the FIN5c merge) and re-verified before fixing; none had been fixed or changed by FIN4b / FIN5c. schemaRev 17 → 18 with
+a migration (below). Every fix has a short regression check in `scripts/v2/finance.ts` ("FIN4r …", 15 checks) that fails
+on the old code.
+
+The review brief, as given (line numbers at 7f35081):
+- H1 Renegotiate broken for path-priced contracts; preview overstates relief (actions.ts:668/674-680; `ledgerDue`
+  counts entries spanning two quarters in full in both). H2 credibility and board confidence bought with $0.1B rounds
+  (promises.ts:160-164, actions.ts:102). H3 previews show the full ask as cash; rounds ≥ $20B pay half at close; lapsed
+  tranches leave the investors their shares (equity.ts:165-171, investors.ts:141, actions.ts:93/120/187, Finance.tsx).
+- M1 hyperscaler `gw:` conditions met by the deal's own cloud (deals.ts:111-119, investors.ts:156). M2 the debt vote
+  bypassed through Buy chips (actions.ts:462-466, market.ts:480). M3 site-lease preview overstates construction
+  interest (capex.ts:66, actions.ts:578, Compute.tsx:383).
+- L1 down-round preview vs effect; L2 several forced votes, one −20 shown; L3 community package preview prices one
+  site; L4 IPO dual-class discount shown as cash; L5 `anchor` not validated; L6 scale promises met by spot rentals; L7
+  a blocked leased site's lessor money never repaid; L8 the critics' investor director pre-empts an ownership seat; L9
+  reserved custom-chip supply serves any order; L10 `rollMaturities || covenantsBreached` short-circuits; L11 inert
+  `DealSupply.ref`; L12 migrated SPV leases mislabelled, the old JV rate 0.12 instead of 0.10.
+
+Per finding:
+- **H1 fixed.** `ledger.ts deferFirm` (with `RENEGOTIATE` = 35%, 4 quarters, 2% warrants [D, R15]): every firm entry
+  paying in the 4 quarters from the next quarter start is split at the window's quarter starts (never stretched): before
+  and after pay as before, inside × 0.65; the sum deferred per contract is added back as one firm payment in the quarter
+  after the contract's last payment (same contract id, payee, kind, rate). Preview = the deferred sum (= 0.35 × Σ
+  `ledgerDue` over the window, firm) with the pay-back as a later cost line ("deferred, not forgiven"). `ledgerDue` now
+  counts month by month (a third of `perQuarter` on each month-first an entry pays, as the monthly ledger pays), so an
+  entry starting or ending inside a quarter counts only its months (it was counted in full in each quarter it touched:
+  rating fixedQ, the commitments vote, the Locked-in chart). Split leases stay one contract: residual-value guarantees
+  (`contingentLiabilities`, `siteRVG`) group entries by contract. Reading: "the next 4 quarters" = from the next quarter
+  start (the current quarter is part-paid already; the preview names the quarters).
+- **H2 fixed.** Weight = amount ÷ max(raised in the year to its deadline, `typical`), `typical` = d_max · pre/(1 − d_max)
+  stored on the promise at the close (`typicalRound`, the closing pre-money, d_max 0.14 if anchored else 0.08). Stacking
+  stays weight-neutral for normal rounds: four ceiling-sized rounds a year weigh 25% each, one 100% (checked); a $0.1B
+  round at the day-400 fixture weighs 0.15% (was 100%). A pool-bound round below the dilution limit now weighs less
+  than 100% even alone (as the rule says).
+- **H3 fixed.** `equity.ts roundSplit` (`LARGE_ROUND`: ≥ $20B, half at the close, the rest due 2 quarters later if revenue
+  reaches 1.2× the run-rate at the close within 4 quarters, the recapitalisation for an unconverted legacy nonprofit) is
+  what `bookRound` books and what every preview shows (`roundCashLines` in fin.raise, fin.acceptRepriced; fin.ipo and
+  fin.downRound pay in full: `full`). The Raise card shows cash at the close, a "tranche $X" pill (tooltip: condition,
+  due and lapse dates, shares cancelled), runway on the cash at the close. A round's tranche stores the shares issued at
+  the close for its unpaid money (by holder, and the insiders' share then: later issues scale them with everyone); a
+  lapse (or the recapitalisation cut to $10B, at the deadline or by "Keep nonprofit") cancels them pro rata and the other
+  holders grow back, so the cap table is exactly that of the half raised at the same price (checked). What we owe
+  already listed the tranche; its tooltip now says the shares are cancelled on a lapse. Tranches from older saves carry
+  no shares and lapse as before (as signed).
+- **M1 fixed.** `gw:` conditions count GW online in your own sites (`observe.gwOwned`: installed, MW-limited), in
+  `trancheConditionMet`, the partner terms' baselines (now owned GW + 0.5 / +1.5, vendor + 1 / + 2) and What we owe's
+  progress; condition words "GW online in your own sites"; glossary `trancheCondition` updated.
+- **M2 fixed.** `chipsVote`: a spot or batch order paid by chip loan → `debtVote` on what it borrows (42% of the balance,
+  within the chip-loan room); by lease → `commitmentsVote` on its first year of payments (the convention of Rent compute
+  and partner deals); cash → none. Votes only above 3× revenue (FIN3a).
+- **M3 fixed.** `capex.constructionGrowth(r, schedule)` with `sites.siteSchedule` (expected ETA, building quarters,
+  whether the first building payment is in the quarter building starts): the 5% upfront (`BUILD_Q.upfront`, now named)
+  accrues over the whole ETA, each building payment from the quarter it is paid, exactly as `stepSite` books it (checked
+  against realised schedules: booked funded = capex × 80% × growth to 1e-9). Grid 1 GW at BB: ×1.254 → ×1.115.
+  `payOptions`' 4th parameter is now the schedule (Compute card and the site preview pass it).
+- **L1 fixed.** `fin.downRound` books its effects explicitly (`bookRound(..., { full, down })`: mood −15 × the board's
+  setbacks weight, the round flagged down, anti-dilution only below a prior round's post-money); the preview shows the
+  50–70% price range and its dilution range, anti-dilution as an exposure line. Found on the way: the anti-dilution gap
+  read the new round's own post-money (`lastPostMoney` after the round was recorded), so it was amount ÷ post instead of
+  the gap to the previous round; now (last post − pre) ÷ last post, as documented [R15].
+- **L2 fixed.** Partner and rescue previews sum `voteCost` over every vote in `dealVotes` (two failing forceable votes
+  show −20 twice; checked).
+- **L3 fixed.** Without a site id the community package preview prices every site still permitting (apply packages
+  them all), whether the company default is on or off.
+- **L4 fixed.** New currency `valuation` (cost lines; UI label "valuation"): the IPO's dual-class line is "−$X valuation,
+  −5% at every mark, no cash moves".
+- **L5 fixed.** `fin.raise` rejects an anchor not in `anchorPartners` (preview treats it as no anchor).
+- **L6 fixed.** The scale milestone (`metricNow`, the thesis history, parent goals) reads `observe.computeFirm`: owned
+  racks plus live firm cloud; spot rentals and cancellable cloud do not count. The trend's pipeline term is (secured −
+  online) ÷ the firm metric. Target text "… H100e online (owned or firm)"; glossary `roundMilestone`, `parentGoal`.
+- **L7 left.** A blocked leased site's lessor money is still neither repaid nor guaranteed: turning it into a lease (or
+  an RVG payment) at the block collides with E27's re-permit path (the site would book a second lease at go-live); small
+  (≈ 4% of capex); for FIN6a/b.
+- **L8 fixed.** `syncFinancialSeats` (now exported) does not count the critics' investor director (`CRITICS_INVESTOR`)
+  among the founder preset's ownership seats.
+- **L9 fixed (cheap).** A reserved supply entry can name its order (`reserved[].order`, set by the custom-chip deal);
+  `clearMarket` serves it only to that order. Entries without an order (older saves) serve any order as before.
+- **L10 fixed.** `rollMaturities` and `covenantsBreached` both run every quarter.
+- **L11 fixed.** `DealSupply.ref` removed (the FIN4a custom-chip test finds the order by its quarters instead).
+- **L12 fixed.** Migration 11 → 12 sets the old JV leaseback's rate to 10% (Keystone's SPV 12%); migration 17 → 18 renames
+  `L-spv-<site>` leases to `L-fin-<site>` (What we owe names the site) and fixes a JV entry still at 12%.
+- **Migration 17 → 18**: also live promises get `typical` from their round (pre-money = post − amount, its d_max); deal
+  supplies lose `ref`. New optional fields: `FinancePromise.typical`, `Tranche.shares`, `reserved[].order`,
+  `YearStats.deferredCompute` / `deferredChips` (below).
+
+Test changes (meaning changed): **F7 compute costs and capex now count what the year incurred**: payments a renegotiation
+deferred out of 2026 are added back (`YearStats.deferredCompute` / `deferredChips`, tallied by `deferFirm`). The RefBot
+renegotiates on its tight runway in late 2025 (as before); the old stretched entries deferred almost nothing, the fix
+really defers 35% of 2026's firm payments (median $9.7B), so paid compute costs fell to $22.5B (band 25–60) while the
+compute used did not change. FIN2 weight check now expects ÷ max(raised, typical) ($1B then $50B: 1% / 87%, was 2% /
+100%). FIN4a custom chips: finds the order without `ref`. uitest: one new check (the Raise card's tranche pill and
+"+ $X tranche if …" on a $20B+ ask, none on a small one).
+
+Numbers, before (FIN4b + FIN5c, a74ea1a) → after (FIN4r):
+- `scripts/v2/finance.ts` (12 RefBot seeds): F7 2026 capex $162.5B → $160.2B; compute costs paid $28.3B → $22.5B
+  (incurred $32.2B, the check's measure); power 6.7 → 6.7 GW; valuation $1.49T → $1.47T; F8 financing $70.6B → $69.7B
+  (deal and ≥ $50B: 100% → 92%), distress-free through 2026 91.7% → 91.7%, no-deal and capex2x distress 100% → 100%; F9
+  unanchored dilution max 5.8% → 4.7% (79 → 78 rounds); RefBot rounds 2026 4 / 2027 1.5 → 4 / 2; promises judged 64 →
+  66, met 80% → 88%; end-2027 credibility median 78.4 → 79.0; end-2027 board confidence median 55.2 → 64.3. Why, from a
+  6-seed scratch diagnostic: M1 moves the Azimuth deal's second tranche (+1.5 GW owned) out of 2026 ($30.7B → $15.4B of
+  deal equity in 2026), so the bot rents smaller bridges (2026 cloud financed $15B → $7B on seed 1); H1 defers real
+  money; the scale metric without spot rentals and the lighter weights of pool-bound rounds move the promise results.
+  F2 44.6M (known, unchanged).
+- `scripts/v2/bots.ts`, leader start, **40 seeds per bot, paired** (base = a74ea1a extracted to a scratch dir,
+  same seeds; the 200-seed run was stopped after 2 h at "mixed" under heavy machine load, so the FIN4b 200-seed numbers
+  are not comparable): all §7.4 criteria MET. Wins race 0.0 → 5.0% (the criterion is ≤ 5%: at its edge), safe 0 → 0%,
+  mixed 55.0 → 57.5%, ref 25.0 → 27.5%, capex2x 5.0 → 2.5%. Ousted race 10.0 → 30.0%, safe 37.5 → 37.5%, mixed 10.0 →
+  12.5%, ref 15.0 → 12.5%, capex2x 47.5 → 90.0% (insolvent 37.5 → 7.5%; median ending day 366 → 458). Company loss for
+  capex2x is unchanged in kind (95 → 97.5% losses): a real renegotiation (and the distress down round paying in full)
+  keeps the over-building bots solvent longer in distress, where the board loses confidence every quarter and votes
+  them out (likely cause, not separately verified). Safe losses overtaken/other-ASI-first 60% → 60%. FIN6a should look
+  at race and capex2x ousters with FC7.
+- Tests: `npm run typecheck` clean (and the scripts' tsconfig). One by one: golden-timelines, identity, calib, fixtures
+  (regenerated, schemaRev 18) green; hygiene's absolute perf checks fail under load in every run, base included (paired
+  runs minutes apart: a74ea1a 3089 / 3039 µs daily average vs FIN4r 3877 / 3588; the leader-lab relative check flipped
+  both ways in both builds, ±25%); a paired micro-benchmark (300 days from the day-400 fixture, four alternations) reads
+  base 1442–1563 vs FIN4r 1469–1770 µs/day, medians ≈ 1500 both: no regression (nothing new runs daily). lint-hidden,
+  lint-ux (GLOSSARY.md regenerated), lint-tradeoffs, lint-structure green; safety all passed (S5 mixed-bot median min margin −1.01 → −0.49, threshold −0.5: the known failure passes narrowly, a side effect, not a fix); finance only F2
+  (known); worldfx HireRate_SOFT 2027-03-15 (known, as FIN4a/4b); ws4, products, money, idle green. `npm run test:ui`
+  304/304 (one new FIN4r check).
+- Left: L7 (above). Observed, not changed: the chip-tranche commitments vote still adds the first tranche × 4 and Rent
+  compute the first four quarters from next quarter, while the threshold reads the four quarters from this one (a
+  convention, not a hidden rule; FIN6a may align them).
