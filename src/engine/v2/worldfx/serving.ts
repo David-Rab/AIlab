@@ -190,6 +190,9 @@ export function agentLeverage(a: number, h50: number): number {
   return 1 / (AGENT_WORK.checkInH / h80 + ASSIST.review * (1 - Math.min(1, Math.max(0, a))) + AGENT_WORK.floorH);
 }
 
+/** A token profile scaled by the feature token multiplier tk and effort (output only). Module level: no per-call closure. */
+const scaleTok = (b: TokenProfile, tk: number, eff: number): TokenProfile => ({ input: b.input * tk, output: b.output * tk * eff });
+const CHAT_OFFER_TOKENS: TokenProfile = { input: 3e3, output: 8e2 };
 /** The offer of a set of model uses on one sector's work (or consumer chat: fit and coverage; cost per work-hour of chat
  *  is not used). */
 export function offerOf(s: GameStateV2, uses: ModelUse[], sid: SectorId | 'CHAT', o: OfferOpts): Offer {
@@ -198,11 +201,10 @@ export function offerOf(s: GameStateV2, uses: ModelUse[], sid: SectorId | 'CHAT'
   const dG = (o.dG ?? 0) + effortDG(eff);
   const hm = o.hMult ?? 1;
   const tk = o.tok ?? 1;
-  const scale = (b: TokenProfile): TokenProfile => ({ input: b.input * tk, output: b.output * tk * eff });
   const chat = sid === 'CHAT';
-  const tok = scale(chat ? { input: 3e3, output: 8e2 } : adoptedTokens(s, sid));
-  const tokAg = scale(TOKENS.autonomous);
-  const tokAs = scale(chat ? TOKENS.assisted : SECTOR_WORK[sid].tokens);
+  const tok = scaleTok(chat ? CHAT_OFFER_TOKENS : adoptedTokens(s, sid), tk, eff);
+  const tokAg = scaleTok(TOKENS.autonomous, tk, eff);
+  const tokAs = scaleTok(chat ? TOKENS.assisted : SECTOR_WORK[sid].tokens, tk, eff);
   const hd = horizonDomain(sid);
   let fit = 0;
   let a = 0;

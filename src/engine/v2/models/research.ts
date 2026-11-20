@@ -246,18 +246,36 @@ export function planAssignment(s: GameStateV2, ready: string[]): Map<string, { p
     }
   });
   // 2. One improvement pass: swap two teams on different projects when that raises total progress.
+  //    P2: assignmentValue(ready, all with their current project) evaluated on precomputed capacities (same sums in the
+  //    same order), and the value before a swap carried over (it only changes when a swap is kept).
   const placed = pool.filter((t) => out.get(t.id)?.p);
-  const cur = () => all.map((t) => ({ t, p: out.get(t.id)?.p }));
+  const ents = all.map((t) => out.get(t.id));
+  const capRows: { id: string; cap: number[]; idea: number }[] = [];
+  for (const id of ready) {
+    const n = node(id);
+    if (n) capRows.push({ id, cap: all.map((t) => sciCapacity(t, n)), idea: stagesOf(n).idea });
+  }
+  const value = () => {
+    let v = 0;
+    for (const row of capRows) {
+      let cap = 0;
+      for (let k = 0; k < ents.length; k++) if (ents[k]?.p === row.id) cap += row.cap[k];
+      v += Math.sqrt(cap) / row.idea;
+    }
+    return v;
+  };
+  let before = placed.length > 1 ? value() : 0;
   for (let i = 0; i < placed.length; i++) {
     for (let j = i + 1; j < placed.length; j++) {
       const a = out.get(placed[i].id) as { p?: string; why: string };
       const b = out.get(placed[j].id) as { p?: string; why: string };
       if (a.p === b.p) continue;
-      const before = assignmentValue(ready, cur());
       const pa = a.p;
       a.p = b.p;
       b.p = pa;
-      if (assignmentValue(ready, cur()) > before + 1e-9) {
+      const after = value();
+      if (after > before + 1e-9) {
+        before = after;
         a.why = `Swapped onto ${node(a.p as string)?.name}: a better fit for total progress`;
         b.why = `Swapped onto ${node(b.p as string)?.name}: a better fit for total progress`;
       } else {

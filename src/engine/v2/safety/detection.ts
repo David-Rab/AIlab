@@ -111,25 +111,38 @@ export function believedPenalty(s: GameStateV2, v: ModelVersion, trait: TraitId,
  * combine as d1 + 0.3·d2·(1 − d1) + …; groups on different latents combine independently.
  */
 export function combineTools(items: { agenda: string; d: number }[]): number {
-  const groups = new Map<string, number[]>();
+  // P2: groups as parallel arrays in first-seen order (was a Map; same groups, order and arithmetic).
+  const keys: string[] = [];
+  const groups: number[][] = [];
   for (const it of items) {
     if (it.d <= 0) continue;
-    const lat = AGENDA_BY_ID[it.agenda as keyof typeof AGENDA_BY_ID]?.mainLatent ?? 'none';
-    const key = lat === 'none' ? `solo:${it.agenda}` : lat;
-    const g = groups.get(key);
-    if (g) g.push(it.d);
-    else groups.set(key, [it.d]);
+    const key = groupKeyOf(it.agenda);
+    const j = keys.indexOf(key);
+    if (j >= 0) groups[j].push(it.d);
+    else {
+      keys.push(key);
+      groups.push([it.d]);
+    }
   }
   let miss = 1;
-  for (const ds of groups.values()) {
-    ds.sort((a, b) => b - a);
+  for (const ds of groups) {
+    if (ds.length > 1) ds.sort((a, b) => b - a);
     let acc = 0;
-    ds.forEach((d, i) => {
-      acc = i === 0 ? d : acc + 0.3 * d * (1 - acc);
-    });
+    for (let i = 0; i < ds.length; i++) acc = i === 0 ? ds[i] : acc + 0.3 * ds[i] * (1 - acc);
     miss *= 1 - clamp01(acc);
   }
   return 1 - miss;
+}
+const GROUP_KEY = new Map<string, string>();
+/** Correlation group of an agenda's tools: its main latent, or the agenda alone. */
+function groupKeyOf(agenda: string): string {
+  let k = GROUP_KEY.get(agenda);
+  if (k === undefined) {
+    const lat = AGENDA_BY_ID[agenda as keyof typeof AGENDA_BY_ID]?.mainLatent ?? 'none';
+    k = lat === 'none' ? `solo:${agenda}` : lat;
+    GROUP_KEY.set(agenda, k);
+  }
+  return k;
 }
 
 /** False-validated techniques of `family` covering `trait` that are active: they mask (×0.5) instead of detecting. */

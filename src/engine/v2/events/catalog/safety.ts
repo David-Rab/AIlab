@@ -95,8 +95,9 @@ export const SAFETY_EVENTS: EventDefV2[] = [
       const fresh = (k: string) => s.events.fired[`E17#${k}`] === undefined;
       const t = RED.find((k) => fresh(k) && v.beliefs[k] && v.beliefs[k].est > 0.3 && v.beliefs[k].clarity > 0.4);
       if (t) return { versionId: v.id, trait: t, est: Math.round(v.beliefs[t].est * 100) };
+      if (!fresh('U')) return false; // P2: U only when the U flag can still fire (understanding() is a pure read)
       const margin = understanding(s).margin;
-      return fresh('U') && margin < -1 ? { versionId: v.id, trait: 'U', est: Math.round(margin * 10) / 10 } : false;
+      return margin < -1 ? { versionId: v.id, trait: 'U', est: Math.round(margin * 10) / 10 } : false;
     },
     text: (s, d) => d.trait === 'U'
       ? `Capability has outrun your understanding by ${Math.abs(Number(d.est))} levels. Your tools can no longer read ${internalVersion(s)?.name ?? 'the model'} reliably.`

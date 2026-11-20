@@ -155,6 +155,13 @@ export function versionOf(s: GameStateV2, id: string): ModelVersion | undefined 
   return s.player.models.versions.find((v) => v.id === id);
 }
 
+/** A packed array of n copies of x (faster than new Array(n).fill(x), which is holey). */
+function filled(n: number, x: number): number[] {
+  const a: number[] = [];
+  for (let i = 0; i < n; i++) a.push(x);
+  return a;
+}
+
 /** Domain vector (DOMAIN_IDS order) → record, as a fixed-shape literal (fast property access). */
 function domRecord(v: ArrayLike<number>): Record<DomainId, number> {
   return { CODE: v[I.CODE], RSCH: v[I.RSCH], REASON: v[I.REASON], AGENCY: v[I.AGENCY], SOCIAL: v[I.SOCIAL], MEDIA: v[I.MEDIA], CYBER: v[I.CYBER], BIO: v[I.BIO], PHYS: v[I.PHYS] };
@@ -208,7 +215,7 @@ function logit(fit: number[], price: number[], acc: number[], brand: number[]): 
     if (fit[i] > best) best = fit[i];
     if (price[i] > 0 && price[i] < pMin) pMin = price[i];
   }
-  const out = new Array<number>(n).fill(0);
+  const out = filled(n, 0);
   if (best === -Infinity) return out;
   let sum = 0;
   for (let i = 0; i < n; i++) {
@@ -303,7 +310,7 @@ function computeMix(s: GameStateV2): WorldMix {
   for (let si = 0; si < S; si++) {
     const t = SECTOR_TASKS[si];
     const row: (Offer | undefined)[] = new Array(n);
-    const lrow = new Array<number>(n).fill(-Infinity);
+    const lrow = filled(n, -Infinity);
     for (let i = 0; i < n; i++) {
       const p = providers[i];
       const v = pvec[i];
@@ -355,14 +362,14 @@ function computeMix(s: GameStateV2): WorldMix {
       const value = valuePerHour(s, t.id, r);
       const wage = wagePerHour(t.id, r);
       const hf = savedPerAdoptedHour(s, r, t.id);
-      const fit = new Array<number>(n).fill(-Infinity);
-      const cover = new Array<number>(n).fill(0);
-      const prices = new Array<number>(n).fill(0);
-      const agentK = new Array<number>(n).fill(0);
-      const agentPrices = new Array<number>(n).fill(0);
-      const seatPrices = new Array<number>(n).fill(0);
-      const level = new Array<number>(n).fill(-Infinity);
-      const physLe = new Array<number>(n).fill(0);
+      const fit = filled(n, -Infinity);
+      const cover = filled(n, 0);
+      const prices = filled(n, 0);
+      const agentK = filled(n, 0);
+      const agentPrices = filled(n, 0);
+      const seatPrices = filled(n, 0);
+      const level = filled(n, -Infinity);
+      const physLe = filled(n, 0);
       const vs = vecs[si];
       for (let i = 0; i < n; i++) {
         const o = offers[si][i];
@@ -384,7 +391,7 @@ function computeMix(s: GameStateV2): WorldMix {
       const share = stockShares(s, providers, r, t.id, target);
       let best = -Infinity;
       for (let i = 0; i < n; i++) if (acc[ri][i] > 0 && level[i] > best) best = level[i];
-      const dv = new Float64Array(ND);
+      const dv = filled(ND, 0);
       let px = 0;
       let pc = 0;
       let aCog = 0;
@@ -433,11 +440,11 @@ function computeMix(s: GameStateV2): WorldMix {
   });
 
   // Consumer market (the consumer-chat work type; price per subscriber-month).
-  const cFit = new Array<number>(n).fill(-Infinity);
-  const cCover = new Array<number>(n).fill(0);
-  const cPrice = new Array<number>(n).fill(0);
-  const cLevel = new Array<number>(n).fill(-Infinity);
-  const cSocial = new Array<number>(n).fill(0);
+  const cFit = filled(n, -Infinity);
+  const cCover = filled(n, 0);
+  const cPrice = filled(n, 0);
+  const cLevel = filled(n, -Infinity);
+  const cSocial = filled(n, 0);
   const cApp = providers.map((p) => p.appeal);
   let cDep: string | undefined;
   for (let i = 0; i < n; i++) {
