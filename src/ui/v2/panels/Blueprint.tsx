@@ -20,7 +20,7 @@ import {
 } from '../../../engine/v2';
 import type { GameStateV2, LaunchRunParams, RunPressure, TraitId } from '../../../engine/v2';
 import { store } from '../store';
-import { ActBtn, Slider, Term, Tip, TipCard, unlocked, type Params } from '../ui';
+import { ActBtn, Term, Tip, TipCard, unlocked, type Params } from '../ui';
 import { Card, PanelHead, Ref } from '../kit';
 import * as F from '../fmt';
 import { DOMAIN_ICON, ICON } from '../icons';
@@ -37,7 +37,7 @@ type Card_ = ReturnType<typeof runCard>;
 type Val = string | boolean;
 const TPL_KEY = 'ai27.v2.runTemplates';
 const DEFAULTS: Params = {
-  params: 1e12, tpp: REF_TPP, shape: 'moe', data: 'balanced', quality: true, hazard: false, safetyPretrain: false, licensedShare: 0.1,
+  params: 1e12, tpp: REF_TPP, shape: 'moe', data: 'balanced', quality: true, hazard: false, safetyPretrain: false,
   pref: 'constitution', rlFocus: 'broad', rlBudget: 'standard', inoculation: false, cot: 'visible', safety: 'standard',
 };
 const POOL_DEFAULT: Record<Kind, number> = { base: 0.6, post: 0.4, distill: 0.2, continue: 0.4 };
@@ -300,8 +300,6 @@ export function Blueprint({ s }: { s: GameStateV2 }) {
                 <div className="sc"><Tip content={() => <TipCard title={<Term id="baseSize">Size</Term>} value={`${fmtParams(Number(p.params))} × ${Number(p.tpp)}`}>Set on the size card above; this row shows its effect against your latest base's size.</TipCard>}><span className="bp-opt on"><Check size={12} />{fmtParams(Number(p.params))} × {Number(p.tpp)}</span></Tip><span className="dim small">set above · vs {lastBase?.name ?? 'reference'}</span></div>
                 {sizeEff && <Effects s={s} e={sizeEff} />}
                 {BACKBONE.map((sl) => <SlotRow key={sl.field} s={s} kind={kind} sl={sl} p={p} effs={opts[sl.field]} onPick={(np) => set(np)} extra={sl.field === 'data' && card?.limits ? <DrawRow s={s} card={card} preset={String(p.data)} /> : undefined} />)}
-                <div className="sl"><Term id="licensedShare">Licensed data</Term></div>
-                <div className="sc bp-lic"><Slider value={Number(p.licensedShare)} min={0} max={1} step={0.05} onChange={(v) => set({ ...p, licensedShare: v })} width={200} /><Tip content={() => <TipCard title={<Term id="licensedShare">Licensed data</Term>} value={F.pct(Number(p.licensedShare))}>Share of the training data you pay to license: cash at launch. Copyright suits come from the unlicensed web crawl (license it on Models › Data).</TipCard>}><span className="num small">{F.pct(Number(p.licensedShare))}</span></Tip></div>
                 <span className="bp-span" />
               </>
             ) : (

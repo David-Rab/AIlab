@@ -484,7 +484,6 @@ export interface BaseDesign {
   shape: 'dense' | 'moe' | 'latent';
   data: 'balanced' | 'natural' | 'codeMath' | 'science' | 'synthetic' | 'multimodal';
   curation: { quality: boolean; hazard: boolean; safetyPretrain: boolean };
-  licensedShare: number; // 0..1 of corpus licensed (litigation bomb on the rest)
 }
 
 export interface PostDesign {

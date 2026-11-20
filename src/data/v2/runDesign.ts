@@ -116,7 +116,7 @@ export const STREAM_LAG_DAYS = 7;
 /** The RefBot recipe. */
 export const REFERENCE_BASE: BaseDesign = {
   params: B0_PARAMS, tpp: REF_TPP, shape: 'moe', data: 'balanced',
-  curation: { quality: true, hazard: false, safetyPretrain: false }, licensedShare: 0.1,
+  curation: { quality: true, hazard: false, safetyPretrain: false },
 };
 
 export const REFERENCE_POST: PostDesign = {

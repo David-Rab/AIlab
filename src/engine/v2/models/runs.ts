@@ -321,7 +321,7 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
     const be = baseEffect(d);
     flopNeeded = bg.flop * be.flopMult;
     scale = scaleOf(s, flopNeeded);
-    cash = flopCost(s, flopNeeded) * be.cashMult + d.licensedShare * 1.0 * Math.sqrt(engScale(flopNeeded)); // licensed data ∝ tokens ∝ √FLOP [D]
+    cash = flopCost(s, flopNeeded) * be.cashMult; // F6: no per-run licensed-data cost (D1/D2: licences are data assets on Models › Data)
     build = referencePostOn(s, bg.parts.total, bg.flop, bg.sD);
     signals = baseSignals(d, { gPre: bg.parts.total, draw: bg.draw });
     serve = serveOfBase(d.params, bg.flop, d.shape) * serveTechMult(s);

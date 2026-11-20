@@ -139,7 +139,7 @@ export interface RefPlayOpts {
   safetyShare?: (s: GameStateV2) => number | undefined;
   /** Target share of staff in safety (hiring), e.g. 0.25 for the safe bot. */
   safStaffShare?: number;
-  /** Extra launchBase params (data, quality, hazard, safetyPretrain, licensedShare) and `days`: the base run's target
+  /** Extra launchBase params (data, quality, hazard, safetyPretrain) and `days`: the base run's target
    *  length at 60% of the pool (default REF_BASE_DAYS; followers FOLLOWER_MAX_BASE_DAYS). */
   base?: Params;
   /** launchPost params (pref, rlFocus, rlBudget, cot, safety, inoculation). cot 'faithful' falls back to 'visible'

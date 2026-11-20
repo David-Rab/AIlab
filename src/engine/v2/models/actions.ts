@@ -55,9 +55,7 @@ export function baseFromParams(p: Params): BaseDesign {
   return {
     params: num(p, 'params', r.params), tpp: num(p, 'tpp', r.tpp), shape: str(p, 'shape', r.shape) as BaseDesign['shape'],
     data: str(p, 'data', r.data) as BaseDesign['data'],
-    curation: { quality: bool(p, 'quality', r.curation.quality), hazard: bool(p, 'hazard', r.curation.hazard), safetyPretrain: bool(p, 'safetyPretrain', r.curation.safetyPretrain) },
-    licensedShare: num(p, 'licensedShare', r.licensedShare),
-  };
+    curation: { quality: bool(p, 'quality', r.curation.quality), hazard: bool(p, 'hazard', r.curation.hazard), safetyPretrain: bool(p, 'safetyPretrain', r.curation.safetyPretrain) },  };
 }
 
 /** Post design from params; rlFocus is 'broad' or a comma list of ≤ 2 families. */
