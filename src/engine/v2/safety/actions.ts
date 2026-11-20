@@ -16,6 +16,7 @@ import { RESPONSE_INFO, applyResponse, responseTrait } from './responses';
 import { strengthBelieved, techniqueRole } from './techniques';
 import { believedPenalty, combineTools } from './detection';
 import { removalPreview } from './footholdDetection';
+import { controlReadout } from './dangerView';
 
 type P = Record<string, number | string | boolean>;
 type Preview = { costs: CostLine[]; gains: CostLine[]; exposure: CostLine[] };
@@ -139,12 +140,15 @@ function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | 
         gains: [{ currency: 'approval', amount: 2, target: 'incident hazard × 0.3' }],
         exposure: [],
       };
-    case 'addControl':
+    case 'addControl': {
+      // Model v3 E11: the preview reads E6's control protocol (the largest internal lane's tax, the miss multiplier).
+      const c = controlReadout(s);
       return {
-        costs: [{ currency: 'revenue', amount: -0.05, target: '5% usefulness tax' }, { currency: 'compute', amount: 2, target: '% for trusted monitors' }],
-        gains: [{ currency: 'security', amount: 1, target: 'catastrophe conversion × (1 − Contain)' }],
+        costs: [{ currency: 'progress', amount: -r2(c.tax), target: `up to ${Math.round(c.tax * 100)}% of internal AI labour (control tax)` }],
+        gains: [{ currency: 'security', amount: r2(1 - c.missMult), target: `bad actions slipping past monitors ×${c.missMult.toFixed(2)}; containment tools block` }],
         exposure: [],
       };
+    }
     case 'rollback':
       return {
         costs: [{ currency: 'progress', amount: -0.25, target: 'lose the newer model' }, { currency: 'leadDays', amount: -45 }],

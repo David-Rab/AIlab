@@ -197,3 +197,30 @@
 .sf-tool > span:first-child { min-width: 0; overflow: hidden; display: block; white-space: nowrap; text-overflow: ellipsis; }
 .sf-cases .inv-new { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
 .sf-cases .inv-new select { width: auto; flex: none; min-width: 64px; }
+/* Model v3 E11: Control card (Overview) and the Footholds tab. */
+.sf-ctl-top { display: flex; align-items: center; gap: 14px; }
+.sf-ctl-g { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: 0 0 auto; }
+.sf-ctl-n { display: flex; align-items: center; gap: 6px; }
+.sf-ctl-n b { font: 700 20px/1 var(--mono); color: #fff; }
+.sf-ctl-drv { display: flex; flex-direction: column; gap: 5px; flex: 1 1 auto; min-width: 0; }
+.sf-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.sf-drv { display: grid; grid-template-columns: 88px 70px 36px minmax(0, 1fr); gap: 7px; align-items: center; font-size: 12px; }
+.sf-drv .k { color: var(--text-2); }
+.sf-drv .num { color: #fff; text-align: right; }
+.sf-drv .small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sf-ctl-layer { display: flex; align-items: center; gap: 8px; margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 12px; }
+.sf-ctl-layer b { color: #fff; }
+.sf-fh-chip { display: inline-flex; align-items: center; gap: 4px; background: transparent; border: 1px solid var(--line-2); border-radius: 12px; padding: 1px 8px; color: var(--text-2); font-size: 11.5px; cursor: pointer; }
+.sf-fh-chip b { color: #fff; }
+.sf-fh-chip.warn { border-color: rgba(233, 180, 76, .7); color: var(--watch); }
+.sf-fh { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 12px; align-items: start; }
+.sf-watch-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 9px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.sf-watch-row > svg { color: var(--text-2); }
+.sf-fh-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.sf-fh-row.sus { grid-template-columns: 18px minmax(0, 1fr) auto; }
+.sf-fh-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sf-fh-sym { color: var(--text); }
+.sf-fh-k b, .sf-fh-k { color: var(--text); }
+.sf-fh-act { display: flex; align-items: center; gap: 8px; }
+.sf-fh-size { color: #fff; font-size: 12.5px; }
+.sf-fh-none { padding: 4px 0 8px; }

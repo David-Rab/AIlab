@@ -132,3 +132,4 @@
 .ft-e { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .ft-on { color: var(--good); }
 .ft-int { color: var(--text-3); }
+.pc-danger { display: flex; min-width: 0; }

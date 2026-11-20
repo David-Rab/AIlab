@@ -7,7 +7,7 @@ import {
   MessageSquareOff, Microscope, Milestone, Network, Newspaper, PackageX, Pause, Play, PlugZap, Radar, RefreshCw, Rocket, Scale, ScanEye, ScrollText,
   Search, SearchCheck, Server, Settings2, Shield, ShieldAlert, Siren, Skull, SkipForward, SlidersHorizontal, Smile, Sparkles, Split, Star, Swords,
   Target, ThumbsUp, Timer, TrendingUp, TriangleAlert, Truck, Turtle, UserPlus, Users, UsersRound, UtilityPole, VenetianMask, Vote, Wallet, Warehouse, Workflow, Zap, ZapOff,
-  Wrench, TestTubeDiagonal, Telescope, Layers, WandSparkles, Cog, Compass, ScanSearch, ListChecks, ArrowLeftRight, UserMinus, Minus, Plus, CircuitBoard,
+  Anchor, DoorOpen, Radiation, Wrench, TestTubeDiagonal, Telescope, Layers, WandSparkles, Cog, Compass, ScanSearch, ListChecks, ArrowLeftRight, UserMinus, Minus, Plus, CircuitBoard,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -18,7 +18,7 @@ export const ICON = {
   // spheres / departments
   capabilities: Brain, safety: Microscope, security: Shield, product: Boxes, ops: Settings2, agents: Bot, experiments: FlaskConical, run: Rocket,
   // race and top meters
-  L: Brain, U: Microscope, blind: EyeOff, risk: Skull, lead: Timer, scrutiny: Eye, M: Gauge, control: Joystick, trust: HeartHandshake,
+  L: Brain, U: Microscope, blind: EyeOff, risk: Skull, lead: Timer, scrutiny: Eye, M: Gauge, control: Joystick, foothold: Anchor, danger: Radiation, trust: HeartHandshake,
   credibility: Award, approval: Vote, wsl: Lock,
   // events
   decision: Split, incident: Siren, finding: FileSearch, milestone: Milestone, headline: Newspaper, securityEvent: ShieldAlert, theft: KeyRound,
@@ -52,4 +52,9 @@ export const TRAIT_ICON: Record<string, LucideIcon> = {
 /** Training signals S1–S8. */
 export const SIGNAL_ICON: Record<string, LucideIcon> = {
   S1: Star, S2: ClipboardX, S3: Hourglass, S4: MessageSquareOff, S5: Database, S6: Funnel, S7: Cctv, S8: Copy,
+};
+
+/** Model v3 E11: one icon per foothold kind. */
+export const FOOTHOLD_ICON: Record<string, LucideIcon> = {
+  backdoor: DoorOpen, hiddenCompute: Cpu, steeredSuccessor: GitFork, exfiltratedCopy: CopyX, corruptedTool: Wrench,
 };

@@ -1,6 +1,6 @@
 /* Company › Agents at work (R7; mockups-v3 v3-company). */
 .agents-card { margin-bottom: 12px; }
-.ag-head, .ag-lane { display: grid; grid-template-columns: minmax(150px, 1.1fr) minmax(150px, 1fr) minmax(170px, 1.1fr) minmax(150px, 0.9fr) minmax(170px, 1.2fr) 64px 112px; gap: 12px; align-items: center; }
+.ag-head, .ag-lane { display: grid; grid-template-columns: minmax(150px, 1.1fr) minmax(150px, 1fr) minmax(170px, 1.1fr) minmax(150px, 0.9fr) minmax(170px, 1.2fr) 64px 128px; gap: 12px; align-items: center; }
 .ag-head { text-transform: uppercase; letter-spacing: .04em; font-size: 10.5px; padding: 0 0 6px; border-bottom: 1px solid var(--line); }
 .ag-lane { position: relative; padding: 9px 0; border-bottom: 1px solid var(--line); }
 .ag-lane.editing { background: rgba(233, 180, 76, .04); }
@@ -27,3 +27,4 @@
 .ag-pop .pv .k { color: var(--text-2); }
 .ag-pop .pv .ba { font: 600 12px var(--mono); color: #fff; display: flex; align-items: center; gap: 6px; }
 .ag-pop .pv .ba .o { color: var(--text-3); font-weight: 500; }
+.ag-rk { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
