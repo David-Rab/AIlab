@@ -528,6 +528,21 @@ for (const rev of [1, 11, 12, 13, 14]) {
   const ok = !!g && labs.every((r, i) => !!r.phys.rec && !!r.phys.pool && Math.abs(r.core.pa - pa0[i]) < 1e-9 && r.phys.paSync === r.core.pa);
   check(ok, 'save: a schemaRev-29 save migrates to 30 (each rival recipe in three parts, know-how unchanged)', msg);
 }
+// Merge M5: the migrations added in M5 (27 → 28 D9, 28 → 29 D10, 29 → 30 F2, 30 → 31 E8, 31 → 32 E9) are idempotent: a
+// state that already has their fields, labelled rev 27, loads unchanged.
+{
+  const cur = run(detSetup, 60);
+  const old = JSON.parse(serialize(cur)) as GameStateV2 & Record<string, unknown>;
+  old.schemaRev = 27;
+  let msg = '';
+  let same = false;
+  try {
+    same = stateHash(deserialize(JSON.stringify(old))) === stateHash(cur);
+  } catch (e) {
+    msg = (e as Error).message;
+  }
+  check(same, 'save: the M5 migrations 27 → 32 leave an already-migrated state unchanged (idempotent)', msg);
+}
 
 // ---------- 6. Cadences ----------
 const counts: Record<Cadence, number> = { daily: 0, weekly: 0, monthly: 0, quarterly: 0, semiannual: 0 };
