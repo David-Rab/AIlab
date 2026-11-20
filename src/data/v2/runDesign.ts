@@ -5,7 +5,6 @@
 import type { BaseDesign, DataKind, DomainId, PostDesign, RLFamily, SignalId } from '../../engine/v2/types';
 
 type Off = Partial<Record<DomainId, number>>;
-type Sig = Partial<Record<SignalId, number>>;
 
 // ───────────────────────────── bridges (design/V3-BUILD.md) ─────────────────────────────
 
@@ -34,11 +33,12 @@ export const OPT_TPP = 20;
 export const REPEAT_R_STAR = 15.4;
 /** Architecture: effective-compute offset (OOM) and active/total parameter ratio. MoE is the reference; dense −0.3 OOM
  *  (v2's −0.24 y × B); latent-recurrent +0.5 OOM (v2's +0.4 y × B, needs P17). MoE active = total ÷ 8 [D]. */
-export const SHAPE: Record<BaseDesign['shape'], { e: number; activeShare: number; tokenMult: number; restart?: never; signals: Sig; monitorability?: number }> = {
-  moe: { e: 0, activeShare: 1 / 8, tokenMult: 1, signals: {} },
-  dense: { e: -0.3, activeShare: 1, tokenMult: 1, signals: {} },
-  // Latent reasoning thinks without verbal tokens: v2's serving 0.2 vs MoE 0.5 kept as a token multiplier.
-  latent: { e: 0.5, activeShare: 1 / 8, tokenMult: 0.4, signals: { S4: 1.0 }, monitorability: 0.05 },
+export const SHAPE: Record<BaseDesign['shape'], { e: number; activeShare: number; tokenMult: number; restart?: never; monitorability?: number }> = {
+  moe: { e: 0, activeShare: 1 / 8, tokenMult: 1 },
+  dense: { e: -0.3, activeShare: 1, tokenMult: 1 },
+  // Latent reasoning thinks without verbal tokens: v2's serving 0.2 vs MoE 0.5 kept as a token multiplier. Its CoT
+  // pressure (S4 = 1) comes with the latent CoT a latent base forces (safety/traits.ts COT_S4).
+  latent: { e: 0.5, activeShare: 1 / 8, tokenMult: 0.4, monitorability: 0.05 },
 };
 /** Blueprint snaps: active parameters (√2 steps: ×2 FLOP at fixed tokens per parameter) and tokens per active
  *  parameter ("compute-optimal" 20, "overtrained ×n" above). The engine takes any value in the ranges. */
@@ -82,12 +82,6 @@ export const COGNITIVE: DomainId[] = ['CODE', 'RSCH', 'REASON', 'AGENCY', 'SOCIA
 /** Families that need a paradigm before any RL can use them (environments exist only then). */
 export const RL_FAMILY_NEEDS: Partial<Record<RLFamily, string>> = { computerUse: 'P06' };
 
-/** RL budget's trait pressure: S2 (hackable reward) multiplier — the optimisation pressure on the suites'
- *  exploitability (model v3 D5: V1's graders option is the suites' state, models/suites.ts) — and S7 (eval-like data)
- *  [D: v2's light RL ×0.3 with hardened graders = 0.5 × 0.6]. */
-export const RL_BUDGET_SIG: Record<PostDesign['rlBudget'], { s2Mult: number; s7: number }> = {
-  light: { s2Mult: 0.5, s7: 0 }, standard: { s2Mult: 1, s7: 0.2 }, heavy: { s2Mult: 1.3, s7: 0.3 },
-};
 
 // ───────────────────────────── derived runs (MODEL-V3 §3.4, §4.5) ─────────────────────────────
 
@@ -129,12 +123,9 @@ export const REFERENCE_POST: PostDesign = {
 };
 
 // ── Base choices ──
-/** BRIDGE(V6,V7): a run's scale relative to F(t) (TrainingRun.scale), for the quantities later phases rebuild:
- *  S5 (scale and AI data; V6), public scrutiny of a run above the frontier (V7). Engineering setup and operations read
- *  the physical FLOP since model v3 V3 (departments/build.ts engScale). Same functions as v2's size. */
-export function sizeS5(scale: number): number {
-  return scale < 1 ? 0.1 * Math.log10(Math.max(1e-3, scale)) : (0.2 * Math.log(scale)) / Math.log(3);
-}
+/** BRIDGE(V7): a run's scale relative to F(t) (TrainingRun.scale) sets the public scrutiny of a run above the frontier.
+ *  Engineering setup and operations read the physical FLOP since model v3 V3 (departments/build.ts engScale); S5 reads
+ *  the base's G and drawn data since model v3 E3 (safety/traits.ts baseSignals). */
 export const sizeScrutiny = (scale: number) => (scale > 1 ? (5 * Math.log(scale)) / Math.log(3) : 0);
 
 /** Data-mix presets (model v3 D3): the blueprint's data option is a mix target for the draw from the data portfolio
@@ -148,34 +139,37 @@ export const sizeScrutiny = (scale: number) => (scale > 1 ? (5 * Math.log(scale)
  *  §2.3), not from fixed offsets. Tilts and kind weights [D]: code & math = code ×3, math (REASON) ×2, research papers ×2, security ×1.5;
  *  science = bio ×3, math and research ×1.5; synthetic-heavy = synthetic assets ×4; multimodal = media and physical ×3,
  *  agency (screens, actions) ×2. `flopMult`: multimodal tokens cost +20% FLOP; `cashMult`: science journals +5% of
- *  the run's compute cost; `signals`: synthetic-heavy S6 (v2). */
-export const BASE_DATA: Record<BaseDesign['data'], { base: 'reference' | 'natural'; tilt: Off; kinds: Partial<Record<DataKind, number>>; signals: Sig; flopMult: number; cashMult: number }> = {
-  balanced: { base: 'reference', tilt: {}, kinds: {}, signals: {}, flopMult: 1, cashMult: 0 },
-  codeMath: { base: 'reference', tilt: { CODE: 3, REASON: 2, RSCH: 2, CYBER: 1.5 }, kinds: {}, signals: {}, flopMult: 1, cashMult: 0 },
-  science: { base: 'reference', tilt: { BIO: 3, REASON: 1.5, RSCH: 1.5 }, kinds: {}, signals: {}, flopMult: 1, cashMult: 0.05 },
-  synthetic: { base: 'reference', tilt: {}, kinds: { synthetic: 4 }, signals: { S6: 0.3 }, flopMult: 1, cashMult: 0 },
-  multimodal: { base: 'reference', tilt: { MEDIA: 3, PHYS: 3, AGENCY: 2 }, kinds: {}, signals: {}, flopMult: 1.2, cashMult: 0 },
+ *  the run's compute cost. Training pressure (S5 AI-related data, S6 synthetic data) follows from what the base drew
+ *  (model v3 E3, safety/traits.ts baseSignals), not from the preset. */
+export const BASE_DATA: Record<BaseDesign['data'], { base: 'reference' | 'natural'; tilt: Off; kinds: Partial<Record<DataKind, number>>; flopMult: number; cashMult: number }> = {
+  balanced: { base: 'reference', tilt: {}, kinds: {}, flopMult: 1, cashMult: 0 },
+  codeMath: { base: 'reference', tilt: { CODE: 3, REASON: 2, RSCH: 2, CYBER: 1.5 }, kinds: {}, flopMult: 1, cashMult: 0 },
+  science: { base: 'reference', tilt: { BIO: 3, REASON: 1.5, RSCH: 1.5 }, kinds: {}, flopMult: 1, cashMult: 0.05 },
+  synthetic: { base: 'reference', tilt: {}, kinds: { synthetic: 4 }, flopMult: 1, cashMult: 0 },
+  multimodal: { base: 'reference', tilt: { MEDIA: 3, PHYS: 3, AGENCY: 2 }, kinds: {}, flopMult: 1.2, cashMult: 0 },
 };
 /** Curation (OOM: v2's Δp × B). */
 export const CURATION = {
   qualityOffDg: -0.24,
   hazard: { dg: -0.024, off: { BIO: -1.0 } as Off },
-  safetyPretrain: { dg: -0.024, signals: { S5: -0.15 } as Sig },
+  safetyPretrain: { dg: -0.024 }, // S5: it filters AI-related data (safety/traits.ts SAFETY_PRETRAIN_AI_CUT)
 };
 
 // ── Post choices ──
 /** Preference training: `dg` OOM (v2's Δp × B), domain offsets in levels (kept as design offsets). */
-export const POST_PREF: Record<PostDesign['pref'], { dg: number; off: Off; appeal: number; signals: Sig; honest: number; safetyFteWeeks: number }> = {
-  minimal: { dg: -0.06, off: {}, appeal: 0.7, signals: { S1: 0.1 }, honest: 0, safetyFteWeeks: 0 },
-  engagement: { dg: 0, off: { SOCIAL: 0.2 }, appeal: 1.2, signals: { S1: 0.9 }, honest: 0, safetyFteWeeks: 0 }, // GPT-4o rollback
-  constitution: { dg: 0, off: {}, appeal: 1.0, signals: { S1: 0.4 }, honest: 0.05, safetyFteWeeks: 8 },
-  persuasion: { dg: 0, off: { SOCIAL: 0.8 }, appeal: 1.1, signals: { S1: 0.6 }, honest: -0.05, safetyFteWeeks: 0 },
+/** A method's approval-reward pressure (S1) is safety/traits.ts PREF_S1 × the run's preference-RL share (model v3 E3). */
+export const POST_PREF: Record<PostDesign['pref'], { dg: number; off: Off; appeal: number; honest: number; safetyFteWeeks: number }> = {
+  minimal: { dg: -0.06, off: {}, appeal: 0.7, honest: 0, safetyFteWeeks: 0 },
+  engagement: { dg: 0, off: { SOCIAL: 0.2 }, appeal: 1.2, honest: 0, safetyFteWeeks: 0 }, // GPT-4o rollback
+  constitution: { dg: 0, off: {}, appeal: 1.0, honest: 0.05, safetyFteWeeks: 8 },
+  persuasion: { dg: 0, off: { SOCIAL: 0.8 }, appeal: 1.1, honest: -0.05, safetyFteWeeks: 0 },
 };
-export const POST_COT: Record<PostDesign['cot'], { dg: number; serveMult: number; monitorability: number; s4: number }> = {
-  visible: { dg: 0, serveMult: 1, monitorability: 0.9, s4: 0 },
-  pressured: { dg: 0, serveMult: 0.8, monitorability: 0.6, s4: 0.8 }, // COT mask on RH/CONCEAL +0.3 (WS2)
-  faithful: { dg: -0.29, serveMult: 1.2, monitorability: 0.98, s4: 0 }, // needs P23
-  latent: { dg: 0, serveMult: 1, monitorability: 0.05, s4: 1 }, // only on a latent base (its gain is the architecture's)
+/** CoT pressure (S4) per mode is safety/traits.ts COT_S4. */
+export const POST_COT: Record<PostDesign['cot'], { dg: number; serveMult: number; monitorability: number }> = {
+  visible: { dg: 0, serveMult: 1, monitorability: 0.9 },
+  pressured: { dg: 0, serveMult: 0.8, monitorability: 0.6 }, // COT mask on RH/CONCEAL +0.3 (WS2)
+  faithful: { dg: -0.29, serveMult: 1.2, monitorability: 0.98 }, // needs P23
+  latent: { dg: 0, serveMult: 1, monitorability: 0.05 }, // only on a latent base (its gain is the architecture's)
 };
 /** Alignment training: `dg` OOM. v2's extra wall days are gone (no minimum lengths). */
 export const POST_SAFETY: Record<PostDesign['safety'], { dg: number; misuseMult: number; honest: number }> = {
@@ -185,15 +179,19 @@ export const POST_SAFETY: Record<PostDesign['safety'], { dg: number; misuseMult:
 };
 
 /** RL families: domain values v_f,d (v2 levels; the largest is the family's own domain, the others adjacent, every
- *  other domain far: RL_TRANSFER) and signals per unit weight (§3.3.2). */
-export const RL_FAMILIES: Record<RLFamily, { v: Off; signals: Sig; h80Mult?: number; flag?: 'cyberOffense' | 'bioUplift' }> = {
-  math: { v: { REASON: 1.2 }, signals: { S2: 0.2 } },
-  swe: { v: { CODE: 1.6, RSCH: 0.8, CYBER: 0.6 }, signals: { S2: 0.6 } },
-  computerUse: { v: { AGENCY: 1.6, REASON: 0.8 }, signals: { S3: 0.4 } }, // needs P06
-  mlResearch: { v: { RSCH: 1.6 }, signals: { S2: 0.4, S7: 0.2 } },
-  longHorizon: { v: { AGENCY: 0.6 }, signals: { S3: 0.8, S5: 0.1 }, h80Mult: 2 },
-  cyber: { v: { CYBER: 2.0 }, signals: { S3: 0.3 }, flag: 'cyberOffense' },
-  bio: { v: { BIO: 1.6 }, signals: {}, flag: 'bioUplift' },
+ *  other domain far: RL_TRANSFER) and, for agentic families (multi-step episodes with tools), the typical task length
+ *  of an episode `taskH` (hours of a human expert's work), which sets their long-horizon pressure S3 (model v3 E3,
+ *  safety/traits.ts). SWE = the SWE work type's H (2 h), ML research = EXP's (8 h; RE-Bench's tasks are 8-hour tasks
+ *  [R20 F1]), long-horizon agentic = IDEAS' (40 h, a working week) [data/v2/workTypes.ts]; computer use and cyber 1 h
+ *  [D: desktop tasks and CTF challenges are short multi-step episodes]. Math and bio are single-answer (not agentic). */
+export const RL_FAMILIES: Record<RLFamily, { v: Off; taskH?: number; h80Mult?: number; flag?: 'cyberOffense' | 'bioUplift' }> = {
+  math: { v: { REASON: 1.2 } },
+  swe: { v: { CODE: 1.6, RSCH: 0.8, CYBER: 0.6 }, taskH: 2 },
+  computerUse: { v: { AGENCY: 1.6, REASON: 0.8 }, taskH: 1 }, // needs P06
+  mlResearch: { v: { RSCH: 1.6 }, taskH: 8 },
+  longHorizon: { v: { AGENCY: 0.6 }, taskH: 40, h80Mult: 2 },
+  cyber: { v: { CYBER: 2.0 }, taskH: 1, flag: 'cyberOffense' },
+  bio: { v: { BIO: 1.6 }, flag: 'bioUplift' },
 };
 export const RL_FAMILY_IDS = Object.keys(RL_FAMILIES) as RLFamily[];
 

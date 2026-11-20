@@ -444,7 +444,7 @@ export interface TrainingRun {
   /** Model v3 V2: the recipe frozen at launch: e_pre at the run's FLOP (base, continue), RL efficiency and ceiling (post, IDA);
    *  model v3 D5: the environment suites' fidelity and exploitability per family (post). */
   recipe?: { pre?: number; rlMid?: number; rlCeil?: number; fid?: Partial<Record<RLFamily, number>>; exploit?: Partial<Record<RLFamily, number>> };
-  /** BRIDGE(V6,V7): base/continue run scale vs the frontier run F(t) at launch (S5, scrutiny; engineering reads FLOP). */
+  /** BRIDGE(V7): base/continue run scale vs the frontier run F(t) at launch (scrutiny; engineering reads FLOP, S5 reads G). */
   scale?: number;
   /** Distillation: student active parameters; distillation and continued-pretraining runs: tokens. */
   studentParams?: number;

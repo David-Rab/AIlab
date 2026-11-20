@@ -23,7 +23,7 @@ import { playerDraw, uniqueTokens, type DataDraw } from '../production/data';
 import { frontierFlop, hRef } from '../production/knots';
 import { tcoPerH100eYear } from '../production/production';
 import { consumeRunPenalty } from '../safety/responses';
-import { applyBaseToLineage, applyIdaCycle, applyRunToTraits, postSignals, runSignals } from '../safety/traits';
+import { applyBaseToLineage, applyIdaCycle, applyRunToTraits, baseSignals, postSignals, runSignals } from '../safety/traits';
 import { suiteExploitMap, suiteFidMap, suiteOf, suiteRlWeights } from './suites';
 import { RL_FAMILY_LABEL } from '../../../data/v2/suites';
 import type {
@@ -163,9 +163,9 @@ function flopCost(s: GameStateV2, flop: number): number {
  *  data (P12) ×2 [G, research/12 #12; unchanged]. */
 export const P07_HORIZON = 1.2;
 export const P12_HORIZON = 2;
-/** BRIDGE(V6,V7): a run's scale vs the frontier run F(t) (S5 and public scrutiny only; engineering uses the physical
- *  FLOP since model v3 V3, departments/build.ts engScale). */
-export const scaleOf = (s: GameStateV2, flop: number) => flop / frontierFlop(s.hidden.timeline, decimalYear(s)); // BRIDGE(V6,V7)
+/** BRIDGE(V7): a run's scale vs the frontier run F(t) (public scrutiny only; engineering uses the physical FLOP since
+ *  model v3 V3, departments/build.ts engScale; S5 the base's G and drawn data since model v3 E3). */
+export const scaleOf = (s: GameStateV2, flop: number) => flop / frontierFlop(s.hidden.timeline, decimalYear(s)); // BRIDGE(V7)
 
 /** Unique tokens the player can train on: its data portfolio's quality-weighted U (model v3 D1, production/data.ts). */
 export const playerUniqueTokens = (s: GameStateV2) => uniqueTokens(s);
@@ -255,8 +255,8 @@ function postBuild(s: GameStateV2, base: BaseModel, d: PostDesign, rec: RlRecipe
   const fid = rec.fid ?? suiteFidMap(s);
   const rl = rlGains(base.flop, rlFlop, rlW, rec.rlMid, rec.rlCeil, fid);
   const h80Mult = pe.h80Mult * (adopted(s, 'P07') ? P07_HORIZON : 1) * (adopted(s, 'P12') ? P12_HORIZON : 1);
-  // The version's S2 is the suites' (model v3 D5), not the design table's.
-  const sig = addSig(base.signals ?? {}, { ...pe.signals, S2: postSignals(s, d, rec.exploit).S2 });
+  // The version's signals are the engine's (model v3 E3): its base's and this run's, from their quantities.
+  const sig = addSig(base.signals ?? {}, postSignals(s, d, rec.exploit, { rho: rlFlop / Math.max(1, base.flop) }));
   return {
     gPre: base.gPre, flopPre: base.flop, rlFlop, rlW, eRL: rec.rlMid, aRL: rec.rlCeil, rlFid: { ...fid }, dgRL: rl.general, dgRLd: rl.perDomain, dg: pe.dg, sD: withDomainG(s, base.sD ?? {}),
     offL: addOff(addOff(base.off ?? {}, pe.offL), paradigmOff(s)), off: {}, paIn: paOfRecipe(s, base.flop, base.ePre, rec.rlMid, rec.rlCeil), h80Mult, misuseMult: pe.misuseMult,
@@ -313,12 +313,12 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
     if (!(d.params >= PARAM_RANGE[0] && d.params <= PARAM_RANGE[1])) reason = 'Active parameters out of range';
     if (!(d.tpp >= TPP_RANGE[0] && d.tpp <= TPP_RANGE[1])) reason = 'Tokens per parameter out of range';
     const bg = baseG(s, d);
-    const be = baseEffect(d, scaleOf(s, bg.flop));
+    const be = baseEffect(d);
     flopNeeded = bg.flop * be.flopMult;
     scale = scaleOf(s, flopNeeded);
     cash = flopCost(s, flopNeeded) * be.cashMult + d.licensedShare * 1.0 * Math.sqrt(engScale(flopNeeded)); // licensed data ∝ tokens ∝ √FLOP [D]
     build = referencePostOn(s, bg.parts.total, bg.flop, bg.sD, bg.parts.recipe);
-    signals = be.signals;
+    signals = baseSignals(d, { gPre: bg.parts.total, draw: bg.draw });
     serve = serveOfBase(d.params, bg.flop, d.shape) * serveTechMult(s);
     mon = be.monitorability;
     const setupDays = buildWaitNew(s, runSetupTW('base', engScale(flopNeeded)), 'runSetup');
@@ -351,7 +351,7 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
       build = postBuild(s, base, d, rlRecipeNow(s), flopNeeded);
     }
     rlOut = rlGains(build.flopPre, build.rlFlop, build.rlW, build.eRL, build.aRL ?? 0, build.rlFid);
-    // Model v3 D5: no per-run grader cash any more; the suites are assets (built and hardened on the build queue).    signals = addSig(base.signals ?? {}, pe.signals);
+    // Model v3 D5: no per-run grader cash any more; the suites are assets (built and hardened on the build queue).
     serve = (base.serve ?? 0.5) * pe.serve * serveTechMult(s);
     mon = Math.min(base.monitorability ?? 1, pe.monitorability);
   } else if (p.kind === 'distill') {
@@ -383,13 +383,13 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
   const pmPred = finishBuild(w, build);
   const Lg = levelOf(w, pmPred);
   const doms = domainsOf(w, pmPred, build.off, adopted(s, 'P19'));
-  // Run-card ▲ arrows are WS2's runSignals (the signals applyRunToTraits will actually apply); the design table's
-  // signals are only a fallback when WS2 returns nothing for this kind.
-  const ws2Signals = runSignals(s, { kind: p.kind, scale, ...(p.base ? { base: p.base } : {}), ...(p.post ? { post: p.post } : {}) } as TrainingRun);
+  // Run-card ▲ arrows are WS2's runSignals from the run's quantities (model v3 E3): what applyRunToTraits will apply.
+  const ws2Signals = p.kind === 'base' ? signals
+    : runSignals(s, { kind: p.kind, name: p.ida ? 'IDA' : p.kind, flopNeeded, ...(p.baseId ? { baseId: p.baseId } : {}), ...(p.post ? { post: p.post } : {}) } as TrainingRun);
   const prediction: RunPrediction = {
     Lg: [Lg - 0.25, Lg + 0.25],
     domains: Object.fromEntries(Object.entries(doms).map(([k, v]) => [k, [v - 0.25, v + 0.25]])) as RunPrediction['domains'],
-    signals: { S1: 0, S2: 0, S3: 0, S4: 0, S5: 0, S6: 0, S7: 0, S8: 0, ...clampSignals(Object.values(ws2Signals).some((x) => x > 0) ? ws2Signals : signals) },
+    signals: { S1: 0, S2: 0, S3: 0, S4: 0, S5: 0, S6: 0, S7: 0, S8: 0, ...clampSignals(ws2Signals) },
     etaDays, serveCost: serve, monitorability: monitorabilityClass(mon),
   };
   const G = build.gPre + build.dgRL + build.dg;
@@ -430,14 +430,10 @@ export function launchRun(s: GameStateV2, ctx: SystemCtx, p: LaunchRunParams): T
   const n = m.nextName++;
   const kindName = p.ida ? 'IDA' : p.kind;
   const base = p.baseId ? m.bases.find((b) => b.id === p.baseId) : undefined;
-  const be = p.kind === 'base' && p.base ? baseEffect(p.base) : undefined;
-  const pe = p.post ? postEffect(p.post) : undefined;
-  let signals = be ? be.signals : pe ? addSig(base?.signals ?? {}, pe.signals) : {};
-  if (p.kind === 'distill') signals = versionById(s, p.teacherVersionId)?.build?.signals ?? {};
   const run: TrainingRun = {
     id: `R${n}`, kind: p.kind, name: `${kindName} ${n}`, startDay: s.time.day,
     flopNeeded: plan.flopNeeded, flopDone: 0, poolShare: plan.poolShare, cashCost: plan.cashCost,
-    predicted: plan.prediction, status: 'running', paAtStart: s.player.pa, signals: clampSignals(signals),
+    predicted: plan.prediction, status: 'running', paAtStart: s.player.pa, signals: { ...plan.prediction.signals },
   };
   // Model v3 V2: the recipe is frozen at launch (a base embodies the pretraining stack at its FLOP; a post-train the RL
   // stack; a continue run today's pretraining stack on its added part).
@@ -456,7 +452,6 @@ export function launchRun(s: GameStateV2, ctx: SystemCtx, p: LaunchRunParams): T
     run.tokens = DISTILL_TPP * run.studentParams;
   }
   if (p.ida) run.name = `IDA ${n}`;
-  run.signals = clampSignals(run.base || run.post || run.kind === 'distill' ? runSignals(s, run) : signals);
   m.runs.push(run);
   run.setupId = queueBuild(s, 'runSetup', run.id, plan.setupTW);
   if (plan.cashCost > 0) bookCash(s, ctx, -plan.cashCost, 'training', 'training run', run.name);
@@ -518,14 +513,14 @@ function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
   const rec = run.recipe ?? {};
   if (run.kind === 'base' && run.base) {
     const d = run.base;
-    const be = baseEffect(d, run.scale ?? 1);
+    const be = baseEffect(d);
     const parent = run.teacherVersionId ? versionById(s, run.teacherVersionId) : undefined;
     const nb = m.bases.length + 1;
     const bg = baseG(s, d, rec.pre);
     const b: BaseModel = {
       id: `B${nb}`, name: `${PLAYER_MODEL_FAMILY}-${nb}`, day: s.time.day, startDay: run.startDay, flop: bg.flop, params: d.params, tokens: bg.tokens,
       paAtStart: run.paAtStart ?? s.player.pa, gPre: bg.parts.total, ePre: bg.parts.recipe, design: d, sD: bg.sD, epochs: bg.epochs, scale: run.scale ?? 1,
-      serve: serveOfBase(d.params, bg.flop, d.shape), monitorability: be.monitorability, signals: be.signals,
+      serve: serveOfBase(d.params, bg.flop, d.shape), monitorability: be.monitorability, signals: clampSignals(baseSignals(d, { gPre: bg.parts.total, draw: bg.draw })),
       lineage: `L-player-${nb}`, traitsTrue: { ...(parent?.traitsTrue ?? m.bases[0].traitsTrue) }, uModes: [],
     };
     m.bases.push(b);

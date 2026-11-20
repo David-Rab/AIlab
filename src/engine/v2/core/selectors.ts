@@ -3,7 +3,7 @@
 // UI code imports from here (or src/engine/v2/index.ts) only. Selectors return what the PLAYER knows: measured
 // levels, beliefs, intel. `selectHidden` is for the end screen only (scripts/v2/lint-hidden.ts enforces this).
 import { bestLg, bestPm, internalVersion, measuredLOf, PLAYER_ID } from '../models/labs';
-import { misalignment, predictBeliefs, type Signals } from '../safety/traits';
+import { misalignment, predictBeliefs, runOmega, type Signals } from '../safety/traits';
 import { detectionAt, understanding } from '../safety/understanding';
 import { mAtLevel } from '../safety/common';
 import { strengthBelieved } from '../safety/techniques';
@@ -138,8 +138,8 @@ export function runTraitPressure(s: GameStateV2, p: LaunchRunParams): Partial<Re
   if (!prior) return {};
   const plan = planRun(s, p);
   const base = p.baseId ? s.player.models.bases.find((b) => b.id === p.baseId) : undefined;
-  const omega = p.kind === 'base' ? 1 : p.kind === 'continue' ? 0.5 : p.kind === 'distill' ? 0.4 : 0.6;
-  const next = predictBeliefs(s, prior, plan.prediction.signals as Signals, omega, p.kind === 'post' ? p.post : undefined, base?.lineage ?? 'L-unknown');
+  const om = runOmega(s, { kind: p.kind, name: p.ida ? 'IDA' : p.kind, flopNeeded: plan.flopNeeded, ...(p.baseId ? { baseId: p.baseId } : {}), ...(p.post ? { post: p.post } : {}) });
+  const next = predictBeliefs(s, prior, plan.prediction.signals as Signals, om.growth, p.kind === 'post' ? p.post : undefined, base?.lineage ?? 'L-unknown', om.safety);
   const out: Partial<Record<TraitId, number>> = {};
   for (const t of Object.keys(next) as TraitId[]) out[t] = next[t].est - (prior[t]?.est ?? 0);
   return out;
