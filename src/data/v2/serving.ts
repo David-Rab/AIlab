@@ -155,9 +155,10 @@ export const CUSTOMER_TAU = { consumer: 3 / 52, sector: 0.25, gov: 0.75 } as con
  *                   P* = min(max, (p0 + p1 · a) · (p̄ ÷ price)^ε), a its model's coverage of consumer chat, p̄ the going
  *                   price (users' share-weighted subscription price in the region)
  *  subscribers = adults × R × user share × P; consumer revenue = subscribers × price × 12 (independent of work hours).
- *  Price = markup × a paying user's serving cost per month, never below cost and never above the willingness to pay
- *  (wtp): most consumer use is not work (non-work share 0.7), so its value is what people pay for it, not wage × hours
- *  saved. Free users (users − subscribers) pay nothing, run on the product's mini (else its model) and are served last;
+ *  Price (A6b): a flat monthly plan at the market's price, not cost-plus (consumerPlanPrice): the willingness to pay
+ *  (wtp, the going list price of 2025 plans), never below a paying user's serving cost; margin = price − serving cost.
+ *  Most consumer use is not work (non-work share 0.7), so its value is what people pay for it, not wage × hours
+ *  saved, and real plans held at $20 while their serving cost fell far below it. Free users (users − subscribers) pay nothing, run on the product's mini (else its model) and are served last;
  *  they are the pool subscribers convert from, so serving them is what buys subscribers (unserved need erodes the
  *  user share through the capacity penalty). CN is served at home (no adults here). */
 export const CONSUMER_MKT = {
@@ -184,7 +185,7 @@ export const CONSUMER_MKT = {
    *  cycles]. */
   paid: { p0: 0.04, p1: 0.1, max: 0.5, elasticity: 1, tau: 8 / 52 },
   /** Willingness to pay ($ per subscriber-month) [R22 §2 ARPU [X]: $8–20 plans plus a few $100–200 plans ≈ $20–25; mid
-   *  22]: the consumer price cap (budget / standard / premium stay markups over cost below it). */
+   *  22]: the price of a Standard (and Premium) consumer plan, the most any plan sells at (consumerPlanPrice). */
   wtpMonth: 22,
   /** FLOP-bearing tokens per user-day [R20 D2, R22 §3]: a paying user ≈ 10 reasoning turns (30k uncached input, 8k
    *  output); a free weekly user 3.75 messages a day [R22 2g: 2,627M messages ÷ 700M WAU] × ≈ 2k of prompt and context and
@@ -192,6 +193,13 @@ export const CONSUMER_MKT = {
   perDay: { paid: { input: 3e4, output: 8e3 }, free: { input: 7.5e3, output: 1.5e3 } },
   messagesPerDay: 3.75,
 };
+
+/** A consumer plan's price per month (A6b, design/notes/A6.md P4): consumer chat is sold as flat-price subscriptions
+ *  at the market's price, not at a markup over serving cost (ChatGPT Plus, Claude Pro, Gemini Advanced all held at
+ *  $20 while serving got far cheaper; R22 §2). Standard and Premium sell at the willingness to pay (no plan sells above
+ *  it); a tier below Standard sells below it by its markup's ratio to Standard's (Budget ×0.67 ≈ $14.7) [D]. The engine
+ *  never sells below a paying user's serving cost (worldfx/serving.ts subPrice). */
+export const consumerPlanPrice = (markup: number) => CONSUMER_MKT.wtpMonth * Math.min(1, markup / MARKUP.standard);
 
 /** Hours a served H100e runs per year (24/7). */
 export const SERVE_HOURS_PER_YEAR = 8766;

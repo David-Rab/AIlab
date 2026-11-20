@@ -16,7 +16,8 @@
 //                 seats by Enterprise (Gov in GOV/MIL)
 //   demand $    = Σ hours × price + seats × seat price × 12;  need H100e = Σ hours × H100e-hours per hour ÷ 8766 (+ monitor)
 //   consumer    = users (online adults × reach R_r × user share, both stocks) × paid share P (a stock, A2b) = subscribers;
-//                 revenue line = subscribers × price per month × 12 (price ≤ the willingness to pay), independent of work
+//                 revenue line = subscribers × price per month × 12 (A6b: the market's flat plan price, the willingness to
+//                 pay on Standard, not cost-plus), independent of work
 //                 hours; free users (users − subscribers) run on the product's mini (else its model), pay nothing and are
 //                 served last; need from usage per user-day (paid 30k/8k, free 7.5k/1.5k tokens)
 //   revenue     = demand $ × min(1, served ÷ need)   (consumer: paying users are served first)
@@ -26,7 +27,7 @@
 // excess, through the brand term of the logit); demand-bound ones report quality or price.
 // Gov and trusted contract lump sums arrive through events/actions (WS4), not here.
 import { REGIONS, ECON, SECTORS } from '../../../data/v2/sectors';
-import { AGENT_WORK, CONSUMER_MKT, SERVE_HOURS_PER_YEAR, SHARE_SLOPE_G } from '../../../data/v2/serving';
+import { AGENT_WORK, CONSUMER_MKT, MARKUP, SERVE_HOURS_PER_YEAR, SHARE_SLOPE_G } from '../../../data/v2/serving';
 import { AGENT_TASK_HOURS } from '../../../data/v2/features';
 import type { Channel, Deployment, EngineSystem, GameStateV2, LabId, Money, RegionId, SectorId, SystemCtx } from '../types';
 import { SECTOR_CHANNELS, advanceCustomers, paidDeployments, worldMix, type WorldMix } from './mix';
@@ -461,7 +462,9 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
         a.subs += subs;
         a.dem += (subs * x.sp.price * 12) / 1e9;
         a.cost += (subs * x.sp.cost * 12) / 1e9;
-        if (x.sp.price >= CONSUMER_MKT.wtpMonth - 1e-9) a.capped += (subs * x.sp.price * 12) / 1e9;
+        // A6b: plans sell at the market's flat price; only a tier that asks more than the willingness to pay (Premium) is
+        // held at it.
+        if (markupOf(x.d) > MARKUP.standard + 1e-9 && x.sp.price >= CONSUMER_MKT.wtpMonth - 1e-9) a.capped += (subs * x.sp.price * 12) / 1e9;
         const paid = (subs * chatHoursPerDay(x.fMain, CONSUMER_MKT.perDay.paid, x.e * x.tMain, x.ud)) / 24;
         const free = ((u - subs) * chatHoursPerDay(x.fFree, CONSUMER_MKT.perDay.free, x.tFree, x.ud)) / 24;
         a.needPaid += paid;

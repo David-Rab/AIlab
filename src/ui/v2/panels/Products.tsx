@@ -14,7 +14,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { AGENT_TASK_HOURS, FEATURES, PRICE_TIER_IDS, PRODUCT_DEFS, PRODUCT_ORDER, type FeatureDef } from '../../../data/v2/features';
-import { EFFORT_OOM_PER_10X, EFFORT_TOKENS, MARKUP } from '../../../data/v2/serving';
+import { EFFORT_OOM_PER_10X, EFFORT_TOKENS, MARKUP, consumerPlanPrice } from '../../../data/v2/serving';
 import { SECTORS } from '../../../data/v2/sectors';
 import { TREE_BY_ID } from '../../../data/v2/tree';
 import {
@@ -202,7 +202,9 @@ function ProductCard({ s, d, r, danger, draft, setDraft }: { s: GameStateV2; d: 
       <div className="pc-set">
         <div className="pc-cap"><span>Settings</span><span className="dim"><Pencil size={10} /> live</span><span className="sp" /><ActBtn id="product.retire" testId={`product.retire.${d.id}`} params={{ id: d.id }} label="Retire" /></div>
         <div className="pc-row">
-          <Tip content={() => <TipCard title={<Term id="priceTier">Price tier</Term>} rows={PRICE_TIER_IDS.map((t) => ({ label: TIER_LABEL[t], value: `price = cost ×${MARKUP[t].toFixed(2)} (margin ${F.pct(1 - 1 / MARKUP[t])})` }))}>Price is a markup over this product's own serving cost, never above the value cap. On work a cheaper offer also does, buyers take the cheaper one; on work only your model does, price matters little.</TipCard>}><span className="pc-k"><Tag size={11} />Price</span></Tip>
+          <Tip content={() => d.channel === 'consumer'
+            ? <TipCard title={<Term id="priceTier">Price tier</Term>} rows={PRICE_TIER_IDS.map((t) => ({ label: TIER_LABEL[t], value: `plan ${usd(consumerPlanPrice(MARKUP[t]))}/mo` }))}>Chat sells flat monthly plans at the market's price, not a markup over serving cost: Standard and Premium at the willingness to pay, Budget below it (more of your users subscribe). A plan never sells below a paying user's serving cost.</TipCard>
+            : <TipCard title={<Term id="priceTier">Price tier</Term>} rows={PRICE_TIER_IDS.map((t) => ({ label: TIER_LABEL[t], value: `price = cost ×${MARKUP[t].toFixed(2)} (margin ${F.pct(1 - 1 / MARKUP[t])})` }))}>Price is a markup over this product's own serving cost, never above the value cap. On work a cheaper offer also does, buyers take the cheaper one; on work only your model does, price matters little.</TipCard>}><span className="pc-k"><Tag size={11} />Price</span></Tip>
           <Seg testId={`prod-price.${d.id}`} value={n.price} options={PRICE_TIER_IDS.map((t) => ({ v: t, label: TIER_LABEL[t] }))} onChange={(t) => set({ price: t })} />
         </div>
         <div className="pc-row">
@@ -253,14 +255,16 @@ function PriceRow({ d, r }: { d: Deployment; r: ProductRead }) {
   const e = r.econ;
   const chat = e.kind === 'chat';
   const unit = chat ? '/mo' : '/h';
-  const capped = chat ? r.price > 0 && r.price >= e.wtp - 1e-6 : r.valueCapped > 0.05;
+  const capped = r.valueCapped > 0.05;
   const max = Math.max(1e-9, chat ? Math.max(r.price, e.wtp) : r.price);
   const asked = r.cost * r.markup;
   const none = !(r.price > 0);
   return (
-    <Tip as="div" content={() => <TipCard title={<Term id="markup">{chat ? 'Price per subscriber-month' : 'Price per hour of use'}</Term>} value={none ? 'no sales' : `${usd(r.price)}${unit}`} rows={[
+    <Tip as="div" content={() => <TipCard title={<Term id={chat ? 'wtp' : 'markup'}>{chat ? 'Price per subscriber-month' : 'Price per hour of use'}</Term>} value={none ? 'no sales' : `${usd(r.price)}${unit}`} rows={[
       { label: chat ? 'Serving cost of a subscriber-month' : 'Serving cost per hour', value: `${usd(r.cost)}${unit}` },
-      { label: <><Term id="priceTier">{TIER_LABEL[d.price]}</Term> <Term id="markup">markup</Term></>, value: `×${r.markup.toFixed(2)} → asks ${usd(asked)}${unit}` },
+      chat
+        ? { label: <><Term id="priceTier">{TIER_LABEL[d.price]}</Term> plan</>, value: `${usd(consumerPlanPrice(r.markup))}/mo` }
+        : { label: <><Term id="priceTier">{TIER_LABEL[d.price]}</Term> <Term id="markup">markup</Term></>, value: `×${r.markup.toFixed(2)} → asks ${usd(asked)}${unit}` },
       { label: 'Margin', value: F.pct(r.margin), tone: r.margin > 0 ? 'pos' : 'neutral' },
       ...(chat ? [
         { label: <Term id="wtp">Willingness to pay</Term>, value: `${usd(e.wtp)}/mo${capped ? ' · binds' : ''}`, tone: (capped ? 'neg' : 'neutral') as 'neg' | 'neutral' },
@@ -272,7 +276,7 @@ function PriceRow({ d, r }: { d: Deployment; r: ProductRead }) {
       ]),
       { label: 'Rule', value: <Limit id="price.valueCap" tone={capped ? 'warn' : 'quiet'}>price ≤ value</Limit> },
     ]} footer={chat ? 'Per-seat and per-hour pricing: API, Agents, Enterprise.' : 'Blended over adopted task-hours and agent-hours; seats are priced per seat-month (Sources).'}>
-      {chat ? 'A paying user\'s serving cost × the tier\'s markup, never above the willingness to pay.' : 'The tokens an hour of use takes × their serving cost × the tier\'s markup, never above the value of the hour.'}
+      {chat ? 'A flat monthly plan at the market\'s price: the willingness to pay on Standard and Premium, less on Budget; never below a paying user\'s serving cost. Margin = price − serving cost.' :'The tokens an hour of use takes × their serving cost × the tier\'s markup, never above the value of the hour.'}
     </TipCard>}>
       <div className="ec-row" data-test={`prod-price-row.${d.id}`}>
         <span className="ec-k">Price</span>

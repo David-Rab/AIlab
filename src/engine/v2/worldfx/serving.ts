@@ -18,7 +18,7 @@
 // fit their G. Nothing here reads serveCost, the research-speed multiplier M or the level bridge for prices, costs or
 // coverage.
 import {
-  AGENT_WORK, CHAT_WORK, CHINA_MARKUP, CONSUMER_MKT, CONTROL_LAYER_DG, EFFORT_CAP_OOM, EFFORT_OOM_PER_10X, EFFORT_TOKENS, MARKUP, RIVAL_MARKUP,
+  AGENT_WORK, CHAT_WORK, CHINA_MARKUP, CONSUMER_MKT, CONTROL_LAYER_DG, consumerPlanPrice, EFFORT_CAP_OOM, EFFORT_OOM_PER_10X, EFFORT_TOKENS, MARKUP, RIVAL_MARKUP,
   SAFEGUARD_DG, SEATS, SECTOR_REF, SECTOR_WORK, TOKENS, type TokenProfile,
 } from '../../../data/v2/serving';
 import { FEATURE_BY_ID, FREE_TIER_SHARE, MINI_CHANNELS, type FeatureFx, type FeatureId, type WorkScope } from '../../../data/v2/features';
@@ -467,12 +467,13 @@ export function productOffer(s: GameStateV2, d: Deployment, sid: SectorId, certi
 /** H100e-hours per user-day of consumer chat on a model (paying users' or free users' usage); `effort` multiplies the
  *  output (reasoning) tokens: the effort setting × the model's τ (tokEff); `ud` the serving lab's decode utilisation. */
 export const chatHoursPerDay = (fpt: number, tok: TokenProfile, effort = 1, ud = U_DECODE) => hphOf(fpt, tok.input, tok.output * effort, ud);
-/** Consumer subscription price per month ($): markup × a paying user's serving cost on the product's model (paid usage
- *  runs on the main model), never above the willingness to pay (A2b: CONSUMER_MKT.wtpMonth) unless serving alone costs
- *  more, never below cost. */
+/** Consumer subscription per month ($): a paying user's serving cost on the product's model (paid usage runs on the main
+ *  model) and the plan's price. A6b: the price is the market's flat plan price for the tier (consumerPlanPrice: the
+ *  willingness to pay on Standard), not cost-plus; margin = price − cost. Never below cost (a plan that must cost more
+ *  than the willingness to pay finds no subscribers, paidShareTarget). */
 export function subPrice(s: GameStateV2, fpt: number, markup: number, effort = 1, ud = U_DECODE): { cost: number; price: number } {
   const cost = chatHoursPerDay(fpt, CONSUMER_MKT.perDay.paid, effort, ud) * serveDollarsPerHour(s) * 30.4;
-  return { cost, price: Math.max(cost, Math.min(CONSUMER_MKT.wtpMonth, markup * cost)) };
+  return { cost, price: Math.max(cost, consumerPlanPrice(markup)) };
 }
 /** Target paid share of a provider's weekly users (A2b): (p0 + p1 · coverage of consumer chat) × (going price ÷ its
  *  price)^ε, capped; the going price is the users' share-weighted subscription price in the region among plans sold at
