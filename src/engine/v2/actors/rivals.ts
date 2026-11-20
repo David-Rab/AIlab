@@ -14,7 +14,7 @@ import { shareRefAt, normalizeSplit } from '../departments/split';
 import { domainsOf, levelOf, trueLeadDays, yearOfDay } from '../models/capability';
 import { LEADER_ID, activeRivals, bestPm, otherLabs } from '../models/labs';
 import { misalignment, rivalTraitStep as ws2RivalTraitStep } from '../safety/traits';
-import { labModelHazards } from '../safety/incidents';
+import { drawSeverity, labModelHazards } from '../safety/incidents';
 import { placeLabOrder, RIVAL_GROWTH_Q } from '../compute/market';
 import { growLabStaff, labReferenceSplit, trackLabFrontier } from '../models/runs';
 import { initialSecurity } from '../security/security';
@@ -378,20 +378,20 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
     if (open) openWeightsReleased(s, ctx, id, rel.pm);
   }
 
-  // Incidents: WS2's per-trait hazards on the lab's deployed model (§3.5.10, same κ table as the player's) plus a
+  // Incidents: WS2's danger formula on the lab's deployed model at a generic product site (E5) plus a
   // misuse hazard like the player's (standard safeguards) [D: usage 0.5, mitigation from eval rigor and safety
   // investment]; visibility = disclosure + 0.5·access + leak, statutory floor (research/17 §1.6.5 #4).
   const p = postureOf(s, id);
   const dep = r.publicModel ?? r.internal;
   const mitigation = clamp(0.5 * p.evalRigor + 0.3 * p.safetyInvestment, 0, 0.9);
-  const rows = labModelHazards(dep.traitsTrue, dep.uModes, 1, 0.5, mitigation);
+  const rows = labModelHazards(dep, mitigation);
   const misuseH = 1e-4 * Math.max(0, dep.Lg - 7) * (dep.openWeights ? 1 : 0.5) * (1 - 0.3) * (1 - 0.6 * p.evalRigor);
-  if (misuseH > 0) rows.push({ source: 'misuse', apparent: 'misuse', h: misuseH, severity: [3, 5] });
+  if (misuseH > 0) rows.push({ source: 'misuse', apparent: 'misuse', h: misuseH, sev: 3, disposition: 1, capability: 1, opportunity: 1, block: 0 });
   const H = rows.reduce((a, x) => a + x.h, 0);
   if (H > 0 && rng.chance(Math.min(0.5, H))) {
     const row = rng.weighted(rows.map((x) => ({ item: x, weight: x.h })));
     const misuse = row.source === 'misuse';
-    const sev = clamp(row.severity[0] + Math.floor(rng.float() * (row.severity[1] - row.severity[0] + 1)), 1, 5);
+    const sev = misuse ? clamp(3 + Math.floor(rng.float() * 3), 1, 5) : drawSeverity(row, rng.float()); // misuse: v2's 3–5
     const floor = r.core.kind === 'rival' && (s.gov.statutes.sb53 || s.gov.statutes.raise) && sev >= 3 ? 0.6 : 0;
     const vis = Math.max(floor, clamp(p.disclosureRate + 0.5 * p.externalAccess + 0.1, 0, 1) * (sev >= 4 ? 1 : 0.6));
     if (rng.chance(vis)) {
