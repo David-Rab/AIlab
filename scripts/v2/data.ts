@@ -6,6 +6,9 @@
 // Model v3 D3 (the draw): a base draws its tokens from the portfolio by its data mix; the balanced draw reproduces the
 //   start, the natural mix reproduces D1's U and repetition, specialisation s_d,data follows the drawn shares (capped), a
 //   short domain repeats and loses value, and no V1 data-option offsets are left.
+// Model v3 D11 (quality of the drawn tokens): D_eff = Σ q·Muennighoff(D_slice, T_slice) ÷ Q_REF in the loss law; the
+//   reference draw reproduces G exactly, premium data raises G by a small sourced amount, a low-quality synthetic-heavy
+//   draw lowers it, quality is counted once (it scales tokens, not epochs), and the teacher comparison is reported.
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -19,14 +22,14 @@ import { act } from '../../src/engine/v2/core/loop';
 import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
 import { SCHEMA_REV, deserialize, serialize } from '../../src/engine/v2/core/save';
 import { gOfBuild, gV0 } from '../../src/engine/v2/models/capability';
-import { effectiveTokens, fData } from '../../src/engine/v2/models/effective';
+import { effectiveTokens, fDataEff } from '../../src/engine/v2/models/effective';
 import { planRun } from '../../src/engine/v2/models/runs';
 import { familyDomain, suiteWorkCost } from '../../src/engine/v2/models/suites';
 import {
-  NATURAL_MIX, REF_SHARE, assetTokensT, dataPortfolioFromV2, deliverData, drawData, expertDomainId, expertStockT, portfolioByKind, portfolioU, publicUse, synTeacher,
+  NATURAL_MIX, Q_REF, REF_SHARE, addAsset, assetQuality, assetTokensT, licenceAsset, playerDraw, dataPortfolioFromV2, deliverData, drawData, expertDomainId, expertStockT, portfolioByKind, portfolioU, publicUse, synTeacher,
   syntheticAccrual, syntheticQuality, synTokensPerH100eDay, uniqueTokens, unlicensedPublicT, usageAccrual, usageTokensPerDay,
 } from '../../src/engine/v2/production/data';
-import type { BaseDesign, DomainId, GameStateV2, OwnedDataAsset } from '../../src/engine/v2/types';
+import type { BaseDesign, DataPortfolio, DomainId, GameStateV2, OwnedDataAsset } from '../../src/engine/v2/types';
 import { FIXTURE_DIR, check, finish, runTo } from './lib';
 
 const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
@@ -52,30 +55,102 @@ check(sameStart, 'start: every start type keeps the same data as before (U 310T)
 const big = 8e12; // 8T active × 50 = 400T tokens > 310T
 const pBig = basePlan(s0, big);
 const L = pBig.limits!;
-check(L.epochs > 1 && L.fData < 1 && near(L.fData, fData(big, L.tokens, 310e12), 1e-12), 'repetition: a base beyond U pays v1\'s Muennighoff fraction at the same U (balanced = natural at the start)', `${L.epochs.toFixed(2)} epochs, f_data ${L.fData.toFixed(4)}`);
+// D11: each slice repeats on its own tokens. At the start the q 1 slices (crawl + licensed, 300T) get 300/310 of the
+// tokens at D/310T epochs, the q 0.5 synthetic (20T, drawn ∝ q·T = 10/310) half those epochs.
+const startDEff = (D: number) => (effectiveTokens((D * 300) / 310, 300e12) + 0.5 * effectiveTokens((D * 10) / 310, 20e12)) / Q_REF;
+const startDRep = (D: number) => effectiveTokens((D * 300) / 310, 300e12) + effectiveTokens((D * 10) / 310, 20e12);
+check(L.epochs > 1 && near(L.epochs, L.tokens / 310e12, 1e-9) && L.fData < 1 && near(L.draw.dEff / startDEff(L.tokens), 1, 1e-9) && near(L.draw.dRep / startDRep(L.tokens), 1, 1e-9)
+  && near(L.fData * L.fQual, fDataEff(big, L.tokens, startDEff(L.tokens)), 1e-9),
+  'repetition: a base beyond U repeats each slice on its own tokens (web and licensed at D/310T epochs, the q 0.5 synthetic at half); f_data × f_quality = Besiroglu(D_eff)',
+  `${L.epochs.toFixed(2)} epochs, f_data ${L.fData.toFixed(4)}, f_quality ${L.fQual.toFixed(4)}`);
 // The same U from a different portfolio (less crawl, more licensed) gives the same effective tokens on the natural mix.
 const sEq = game();
 publicUse(sEq.player.dataPortfolio)!.coverage = 0.8; // −30T crawl
 owned(sEq, 'lic:start')!.tokensT += 30;
 const dEq = drawData(sEq.player.dataPortfolio, L.tokens, NATURAL_MIX);
 const d0 = drawData(s0.player.dataPortfolio, L.tokens, NATURAL_MIX);
-check(near(uniqueTokens(sEq), uniqueTokens(s0), 1e3) && near(dEq.dEff, d0.dEff, 1e3) && near(dEq.dEff, effectiveTokens(L.tokens, 310e12), 1e3), 'repetition: equal U from a different portfolio gives the same effective tokens on the natural mix', `${(dEq.dEff / T).toFixed(3)}T vs ${(d0.dEff / T).toFixed(3)}T`);
+check(near(uniqueTokens(sEq), uniqueTokens(s0), 1e3) && near(dEq.dEff, d0.dEff, 1e3) && near(dEq.dEff / startDEff(L.tokens), 1, 1e-9), 'repetition: equal U from a different portfolio (same tokens per quality) gives the same effective tokens on the natural mix', `${(dEq.dEff / T).toFixed(3)}T vs ${(d0.dEff / T).toFixed(3)}T`);
 
-// ---------- quality ----------
+// ---------- quality (model v3 D11: the drawn tokens' quality in the loss law) ----------
 const withQ = (q: number) => {
   const s = game();
   owned(s, 'lic:start')!.quality = q;
   return s;
 };
-const huge = 4e13; // 2000T tokens ≈ 6.5 epochs of 310T
-const gRef = basePlan(s0, huge).limits!;
-const gHi = basePlan(withQ(3), huge).limits!;
-const gLo = basePlan(withQ(0.2), huge).limits!;
-check(gHi.gPre.total > gRef.gPre.total && gLo.gPre.total < gRef.gPre.total && gHi.tokensUnique > gRef.tokensUnique,
-  'quality: higher-quality data raises U and so G of a base that repeats data; lower quality lowers it (U = Σ q·T, R20 A3)',
-  `licensed q 0.2 / 1 / 3: U ${[gLo, gRef, gHi].map((x) => (x.tokensUnique / T).toFixed(0)).join(" / ")}T, G ${[gLo, gRef, gHi].map((x) => x.gPre.total.toFixed(4)).join(" / ")}`);
-const small = basePlan(withQ(3), REFERENCE_BASE.params).limits!;
-check(small.gPre.total === basePlan(s0, REFERENCE_BASE.params).limits!.gPre.total, 'quality: a base within U is unchanged (quality acts only through repetition, D1\'s rule kept by the draw)');
+/** Mean quality ÷ Q_REF of a balanced draw without repetition, by hand: each domain at its reference share, within a
+ *  domain the slices ∝ q·T·mix, so the domain's mean quality is Σ q²·T·mix ÷ Σ q·T·mix. */
+const qRelByHand = (p: DataPortfolio) => {
+  let out = 0;
+  for (const [d, ref] of Object.entries(REF_SHARE) as [DomainId, number][]) {
+    let u = 0;
+    let qu = 0;
+    for (const a of p.assets) {
+      if (a.kind === 'expert') continue;
+      const mix = a.kind === 'public' ? PUBLIC_WEB.mix : a.mix;
+      const ms = Object.values(mix).reduce((x: number, y) => x + (y ?? 0), 0);
+      const w = (assetQuality(a) * assetTokensT(a) * (mix[d] ?? 0)) / (ms || 1);
+      u += w;
+      qu += assetQuality(a) * w;
+    }
+    if (u > 0) out += ref * (qu / u);
+  }
+  return out / Q_REF;
+};
+const N0 = REFERENCE_BASE.params;
+const D0 = REFERENCE_BASE.params * REFERENCE_BASE.tpp;
+const refL = basePlan(s0, N0).limits!;
+check(near(Q_REF, 305 / 310, 1e-12) && refL.fQual === 1 && refL.gPre.quality === 0 && refL.fData === 1 && near(refL.draw.dEff, D0, 1e-9 * D0) && near(refL.draw.qRel, 1, 1e-12),
+  'quality: the 2025 reference draw defines q = 1 (Q_REF = its mean quality (270 + 30 + 0.5·10)/310): D_eff = D, no quality term, G as before', `Q_REF ${Q_REF.toFixed(4)}, quality ${refL.gPre.quality} OOM`);
+// A premium licence in a drawn domain: the default deal (0.05T of REASON books at q 3, $1.5B) and a 1T one ($30B).
+const premG: string[] = [];
+let premOk = true;
+for (const t of [LICENCE_TIERS.premium.defaultT, 1]) {
+  const s = game();
+  addAsset(s.player.dataPortfolio, licenceAsset('REASON', 'premium', t, 0));
+  const l = basePlan(s, N0).limits!;
+  const want = Math.log10(fDataEff(N0, D0, D0 * qRelByHand(s.player.dataPortfolio)));
+  const dG = l.gPre.total - refL.gPre.total;
+  if (!(dG > 0) || !near(l.gPre.quality, want, 1e-9) || !near(dG, want, 1e-9) || l.fData !== 1) premOk = false;
+  premG.push(`${t}T → +${dG.toFixed(5)} OOM (mean q ×${l.draw.qRel.toFixed(4)})`);
+}
+check(premOk, 'quality: a premium licence in a drawn domain raises G of a base that does not repeat by the Besiroglu value of the drawn quality (small at deal sizes)', premG.join(', '));
+// The sourced size: tokens 3× better (research/20 A3 curated q 1.5–3; Gundlach's ×3 data selection) are worth ≈ ×2.5
+// compute at 20 tokens/parameter, less when overtrained (Besiroglu: the data term is about half the reducible loss).
+const f3 = fDataEff(N0, 20 * N0, 60 * N0);
+const f3b = fDataEff(N0, 50 * N0, 150 * N0);
+const fHalf = fDataEff(N0, 50 * N0, 25 * N0);
+check(f3 > 2.3 && f3 < 2.8 && f3b > 1.9 && f3b < f3 && fHalf > 0.45 && fHalf < 0.65,
+  'quality: 3× better tokens ≈ ×2.5 effective compute at 20 tokens/param, less overtrained; half-quality tokens ≈ ×0.55 at 50 (Besiroglu law)', `×${f3.toFixed(2)} at 20, ×${f3b.toFixed(2)} at 50, ×${fHalf.toFixed(2)} for q 0.5`);
+// Licensed start data at q 0.2 / 1 / 3 on a base that does not repeat: G follows the drawn quality.
+const qs = [0.2, 1, 3];
+const gQ = qs.map((q) => basePlan(withQ(q), N0).limits!);
+check(gQ[0].gPre.total < gQ[1].gPre.total && gQ[2].gPre.total > gQ[1].gPre.total && gQ[1].gPre.total === refL.gPre.total
+  && gQ.every((x, i) => near(x.gPre.quality, Math.log10(fDataEff(N0, D0, D0 * qRelByHand(withQ(qs[i]).player.dataPortfolio))), 1e-9)),
+  'quality: a base within U now gains from better drawn tokens and loses from worse (replaces D1\'s "quality only through U")', `licensed q 0.2 / 1 / 3: G ${gQ.map((x) => x.gPre.total.toFixed(4)).join(' / ')}`);
+// No double counting: quality scales the tokens, not the epochs. Doubling every asset's quality at the same tokens doubles
+// D_eff exactly and leaves the epochs and the repetition alone, below and beyond the stock (D1/D3's rule would have
+// doubled U and halved the epochs, counting quality a second time for a base that repeats).
+const toy = (q: number): DataPortfolio => ({ assets: [
+  { id: 'lic:a', kind: 'licensed', tokensT: 100, mix: { SOCIAL: 0.6, CODE: 0.4 }, quality: q },
+  { id: 'syn:b', kind: 'synthetic', tokensT: 50, mix: { CODE: 0.5, REASON: 0.5 }, quality: 0.5 * q },
+], usageShare: 0, pending: [] });
+let dcOk = true;
+const dcRows: string[] = [];
+for (const D of [60e12, 900e12]) {
+  const a = drawData(toy(1), D, NATURAL_MIX);
+  const b = drawData(toy(2), D, NATURAL_MIX);
+  // natural mix: the q 1 asset gets D·100/125 from its 100T, the q 0.5 one D·25/125 from its 50T (half the epochs)
+  const want = (effectiveTokens((D * 100) / 125, 100e12) + 0.5 * effectiveTokens((D * 25) / 125, 50e12)) / Q_REF;
+  if (!near(b.dEff / a.dEff, 2, 1e-9) || !near(b.epochs, a.epochs, 1e-12) || !near(b.dRep / a.dRep, 1, 1e-12) || !near(a.dEff / want, 1, 1e-9)) dcOk = false;
+  dcRows.push(`D ${(D / T).toFixed(0)}T: epochs ${a.epochs.toFixed(2)} → ${b.epochs.toFixed(2)}, D_eff ${(a.dEff / T).toFixed(1)} → ${(b.dEff / T).toFixed(1)}T`);
+}
+check(dcOk, 'quality: counted once — ×2 quality at the same tokens doubles D_eff, epochs and repetition unchanged (D_eff = Σ q·Muennighoff(D, T))', dcRows.join('; '));
+// A q 3 corpus repeats after its own tokens, not after 3× them: one 10T premium slice drawn 60T deep (6 epochs).
+const one: DataPortfolio = { assets: [{ id: 'lic:p', kind: 'licensed', tokensT: 10, mix: { REASON: 1 }, quality: 3 }], usageShare: 0, pending: [] };
+const oneD = drawData(one, 60e12, NATURAL_MIX);
+check(near(oneD.epochs, 6, 1e-9) && near(oneD.dEff, (3 * effectiveTokens(60e12, 10e12)) / Q_REF, 1e3) && near(oneD.dRep, effectiveTokens(60e12, 10e12), 1e3),
+  'quality: a q 3 corpus of 10T drawn 60T deep is 6 epochs of its own tokens, worth 3 × Muennighoff(60T, 10T), not 3 × Muennighoff(60T, 30T)',
+  `${oneD.epochs.toFixed(1)} epochs, D_eff ${(oneD.dEff / T).toFixed(1)}T vs ${((3 * effectiveTokens(60e12, 30e12)) / Q_REF / T).toFixed(1)}T if counted twice`);
 
 // ---------- the public web: finite and shared ----------
 const sA = game();
@@ -121,8 +196,8 @@ check(!early && !!lic && lic.tokensT === 1 && lic.quality === LICENCE_TIERS.cura
   'license by domain: on delivery the domain gains its tokens at the tier quality (1T PHYS q 2 → U +2T); PHYS\'s share and specialisation rise on the natural mix',
   `U ${(uL0 / T).toFixed(1)} → ${(uniqueTokens(sLic) / T).toFixed(1)}T, PHYS share ${((natPhys(s0).share.PHYS ?? 0) * 100).toFixed(2)}% → ${((natPhys(sLic).share.PHYS ?? 0) * 100).toFixed(2)}%, s ${(natPhys(sLic).sD.PHYS ?? 0).toFixed(3)} OOM`);
 const g0Txt = pv0.gains.map((g) => g.target).join(' ');
-check(/U 310 → 312T/.test(g0Txt) && /PHYS 4\.\d% → 5\.\d% of the stock/.test(g0Txt) && /base epochs/.test(g0Txt) && pv0.costs[0]?.currency === 'cash',
-  'license preview: before → after of the Blueprint data readouts (U, the domain\'s share and specialisation, base epochs)', g0Txt);
+check(/U 310 → 312T/.test(g0Txt) && /PHYS 4\.\d% → 5\.\d% of the stock/.test(g0Txt) && /base epochs/.test(g0Txt) && /data quality \+0\.000 → \+0\.00[1-9] OOM/.test(g0Txt) && pv0.costs[0]?.currency === 'cash',
+  'license preview: before → after of the Blueprint data readouts (U, the domain\'s share and specialisation, base epochs, the quality term in G)', g0Txt);
 act(sLic, 'data.license', { domain: 'PHYS', tier: 'curated', tokensT: 1 });
 deliverAt(sLic, 2 * LICENCE_DELIVERY_DAYS);
 check(owned(sLic, 'lic:PHYS:curated')?.tokensT === 2 && sLic.player.dataPortfolio.assets.filter((a) => a.id === 'lic:PHYS:curated').length === 1, 'license: a second deal of the same domain and tier joins the same asset');
@@ -169,6 +244,29 @@ check(near(half.grew(`syn:${dflt.id}`), 0.5 * fullGrew, 1e-9 * fullGrew) && half
 half.s.time.day += 30;
 syntheticAccrual(half.s);
 check(!half.s.player.dataPortfolio.synJob && act(half.s, 'data.synthesize', { days: 0 }) === 'No generation job running', 'synthesize: the job ends on its last day (the whole pool goes back to the default teacher)');
+// D11: D2 found that a stronger teacher yields fewer quality-weighted tokens (q·T) per H100e-day. With quality in the
+// loss law the teacher's q also sets what each drawn token is worth. 30 days of the whole pool per teacher, then the
+// lab's latest base design drawn from the result (day-400 fixture). Reported; the check is only the ranking.
+const latest = sSy.player.models.bases[sSy.player.models.bases.length - 1].design!;
+const synT = (s: GameStateV2, id: string) => assetTokensT(owned(s, `syn:${id}`) ?? ({ kind: 'licensed', tokensT: 0 } as OwnedDataAsset));
+const gAfter = (teacher?: string) => {
+  const s = deserialize(serialize(sSy));
+  if (teacher) act(s, 'data.synthesize', { teacher, share: 1, days: 30 });
+  else s.player.split.synthetic = 0;
+  for (let i = 0; i < 30; i++) syntheticAccrual(s);
+  const p = planRun(s, { kind: 'base', base: { ...latest, curation: { ...latest.curation } }, poolShare: 0.6 }).limits!;
+  const q = teacher ? (owned(s, `syn:${teacher}`)?.quality ?? 0) : 0;
+  return { G: p.gPre.total, qRel: playerDraw(s, latest).qRel, q, qT: teacher ? q * (synT(s, teacher) - synT(sSy, teacher)) : 0 };
+};
+const gNone = gAfter();
+const tRows = withG.map((x) => ({ x, r: gAfter(x.v.id) }));
+const bestQT = tRows.reduce((a, b) => (b.r.qT > a.r.qT ? b : a));
+const bestG = tRows.reduce((a, b) => (b.r.G > a.r.G ? b : a));
+const sgn = (x: number) => `${x >= 0 ? '+' : ''}${x.toFixed(4)}`;
+check(bestG.x.g === strong.g && tRows[0].r.G < tRows[tRows.length - 1].r.G,
+  'D11 teacher: with quality in the loss law the strongest teacher\'s data gives the next base the most G (D2 ranked teachers by q·T)',
+  `latest base ${((latest.params * latest.tpp) / T).toFixed(0)}T, mean q ×${gNone.qRel.toFixed(3)} with no generation; 30 d of the pool: `
+  + tRows.map(({ x, r }) => `${x.v.id} (G ${x.g.toFixed(2)}, q ${r.q.toFixed(2)}) q·T ${r.qT.toFixed(0)}T ΔG ${sgn(r.G - gNone.G)}`).join(', ') + `; best by q·T ${bestQT.x.v.id}`);
 
 // Expert data by domain: cash, delivered, and a suite build in that domain uses it before buying.
 const sEx = game();
@@ -265,13 +363,25 @@ for (const [name, st] of [['start', s0], ['day 400', sFx]] as const) {
     const U = portfolioU(st.player.dataPortfolio, { p10 });
     for (const D of [50e12, 3 * U]) {
       const dr = drawData(st.player.dataPortfolio, D, NATURAL_MIX, { p10 });
-      if (!near(dr.uMix / U, 1, 1e-9) || !near(dr.dEff / effectiveTokens(D, U), 1, 1e-9) || (Object.keys(dr.sD).length > 0 && name === 'start' && !p10)) natOk = false;
-      if (!natOk && !natRows.some((r) => r.startsWith('BAD'))) natRows.push(`BAD ${name} p10 ${p10} D ${(D / T).toFixed(0)}T: uMix ${(dr.uMix / T).toFixed(3)} dEff ${(dr.dEff / T).toFixed(3)} vs ${(effectiveTokens(D, U) / T).toFixed(3)} s ${fmtS(dr.sD)}`);
+      // D11: on the natural mix asset a gets D·u_a/U of the tokens from its own T_a (P10: synthetic ×3), so
+      // D_eff = Σ q_a·Muennighoff(D·q_a·T_a/U, T_a) ÷ Q_REF.
+      let want = 0;
+      for (const a of st.player.dataPortfolio.assets) {
+        if (a.kind === 'expert') continue;
+        const t = assetTokensT(a) * 1e12 * (a.kind === 'synthetic' && p10 ? 3 : 1);
+        if (t > 0) want += assetQuality(a) * effectiveTokens((D * assetQuality(a) * t) / U, t);
+      }
+      want /= Q_REF;
+      // At the start no specialisation; beyond U (3U) a trace (< 0.005 OOM): the q 0.5 synthetic repeats at half the web's
+      // epochs, so its code share teaches a little more than the repeated web's.
+      const sMax = Math.max(0, ...Object.values(dr.sD).map((x) => Math.abs(x ?? 0)));
+      if (!near(dr.uMix / U, 1, 1e-9) || !near(dr.dEff / want, 1, 1e-9) || (name === 'start' && !p10 && sMax > (D > U ? 0.005 : 0))) natOk = false;
+      if (!natOk && !natRows.some((r) => r.startsWith('BAD'))) natRows.push(`BAD ${name} p10 ${p10} D ${(D / T).toFixed(0)}T: uMix ${(dr.uMix / T).toFixed(3)} dEff ${(dr.dEff / T).toFixed(3)} vs ${(want / T).toFixed(3)} s ${fmtS(dr.sD)}`);
     }
     natRows.push(`${name}${p10 ? ' P10' : ''} U ${(U / T).toFixed(0)}T`);
   }
 }
-check(natOk, 'draw: the drawn U equals uniqueTokens (and D_eff Muennighoff on U) when the mix is natural', natRows.join(', '));
+check(natOk, 'draw: the drawn U equals uniqueTokens when the mix is natural (the web, q 1, is the best data); D_eff = Σ q·Muennighoff on each asset\'s own tokens', natRows.join(', '));
 // Specialisation follows the mix: code & math raises CODE and RSCH and lowers SOCIAL, in the base and in its predicted domains.
 const sO = game(); // options unlocked
 const unlock = (id: string) => { sO.player.tree[id] = { ...(sO.player.tree[id] ?? {}), status: 'known' } as never; };
@@ -279,8 +389,10 @@ unlock('codeMath');
 const cmPlan = plan(sO, 'codeMath');
 const cm = cmPlan.limits!.sD;
 const dG = (p: ReturnType<typeof plan>, d: DomainId) => (p.g.gD?.[d] ?? 0) - (refPlan.g.gD?.[d] ?? 0);
-check(!cmPlan.reason && (cm.CODE ?? 0) > 0.3 && (cm.RSCH ?? 0) > 0.1 && (cm.SOCIAL ?? 0) < -0.1 && dG(cmPlan, 'CODE') > 0.3 && dG(cmPlan, 'SOCIAL') < -0.1 && near(cmPlan.g.G, refPlan.g.G, 1e-9),
-  'draw: specialisation follows the drawn mix — code & math raises CODE/RSCH, lowers SOCIAL (general G unchanged)', `${cmPlan.reason ?? ''} s ${fmtS(cm)}; domain G vs balanced CODE ${dG(cmPlan, 'CODE').toFixed(2)}, SOCIAL ${dG(cmPlan, 'SOCIAL').toFixed(2)}`);
+const cmQ = cmPlan.limits!.gPre.quality;
+check(!cmPlan.reason && (cm.CODE ?? 0) > 0.3 && (cm.RSCH ?? 0) > 0.1 && (cm.SOCIAL ?? 0) < -0.1 && dG(cmPlan, 'CODE') > 0.3 && dG(cmPlan, 'SOCIAL') < -0.1 && cmQ < 0 && cmQ > -0.01 && near(cmPlan.g.G - refPlan.g.G, cmQ, 1e-9),
+  'draw: specialisation follows the drawn mix — code & math raises CODE/RSCH, lowers SOCIAL (general G moves only by the drawn quality: more q 0.5 synthetic code, D11)',
+  `${cmPlan.reason ?? ''} s ${fmtS(cm)}; domain G vs balanced CODE ${dG(cmPlan, 'CODE').toFixed(2)}, SOCIAL ${dG(cmPlan, 'SOCIAL').toFixed(2)}; quality ${cmQ.toFixed(4)} OOM`);
 const shareCode = cmPlan.limits!.draw.share.CODE ?? 0;
 check(near(cm.CODE ?? 0, Math.min(SPEC_CAP, ALPHA_DATA * Math.log10(shareCode / REF_SHARE.CODE!)), 1e-9), 's_d,data = α_data · log₁₀(drawn share ÷ reference share) (α 1.5, cap ±1.3 OOM, research/20 A2)', `code share ${(shareCode * 100).toFixed(1)}% vs ${(REF_SHARE.CODE! * 100).toFixed(1)}%`);
 const capDraw = drawData(s0.player.dataPortfolio, 10e12, { base: 'reference', tilt: { CODE: 1000 }, kinds: {} });
@@ -306,6 +418,12 @@ unlock('P10');
 const synPlan = plan(sO, 'synthetic').limits!;
 check(((synPlan.draw.byKind.synthetic ?? 0) / synPlan.tokens) > 2 * ((refDraw.byKind.synthetic ?? 0) / refDraw.tokens) && (synPlan.sD.CODE ?? 0) > 0,
   'draw: synthetic-heavy draws synthetic data ×4 (more code and math)', `synthetic ${(100 * (synPlan.draw.byKind.synthetic ?? 0) / synPlan.tokens).toFixed(1)}% vs ${(100 * (refDraw.byKind.synthetic ?? 0) / refDraw.tokens).toFixed(1)}% of the tokens; s ${fmtS(synPlan.sD)}`);
+// D11: at the start the synthetic stock is V0's q 0.5, so the synthetic-heavy draw is a low-quality draw: G falls by the
+// Besiroglu value of its mean quality (the domain specialisation is separate).
+const synQ = synPlan.gPre.quality;
+check(synQ < -0.01 && synPlan.draw.qRel < 0.97 && near(synQ, Math.log10(fDataEff(synPlan.params, synPlan.tokens, synPlan.tokens * synPlan.draw.qRel)), 1e-9)
+  && near(synPlan.gPre.total - refPlan.limits!.gPre.total, synQ + synPlan.gPre.design - refPlan.limits!.gPre.design, 1e-9),
+  'quality: a synthetic-heavy draw of q 0.5 data lowers G (mean quality below the reference draw\'s)', `mean q ×${synPlan.draw.qRel.toFixed(3)} → ${synQ.toFixed(4)} OOM`);
 // Balanced keeps the reference shares when the portfolio drifts (lots of code-heavy synthetic data, RefBot's path); the
 // natural mix specialises with it. The reference recipe's shares were what o_d was fitted to (design/notes/D3.md).
 const drift = drawData(sFx.player.dataPortfolio, 100e12, BASE_DATA.balanced);

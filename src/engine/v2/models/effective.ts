@@ -67,23 +67,29 @@ export function fData(N: number, D: number, U: number): number {
   if (D <= U) return 1;
   return fDataEff(N, D, effectiveTokens(D, U));
 }
-/** fData from a run's effective tokens directly (model v3 D3: the draw sums Muennighoff per slice of the portfolio). */
+/** fData from a run's effective tokens directly (model v3 D3: the draw sums Muennighoff per slice of the portfolio):
+ *  the compute-optimal compute matching L(N, D_eff) over the one matching L(N, D). Model v3 D11: D_eff also carries the
+ *  drawn tokens' quality (production/data.ts drawData), so it can exceed D, and the fraction then exceeds 1 (better
+ *  tokens at the same N are worth more compute). Exactly 1 when D_eff = D (to 1e-9). */
 export function fDataEff(N: number, D: number, dEff: number): number {
-  if (dEff >= D) return 1;
-  const a = log10ComputeForLoss(lossOf(N, dEff));
+  if (!(D > 0) || Math.abs(dEff / D - 1) < 1e-9) return 1;
+  const a = log10ComputeForLoss(lossOf(N, Math.max(1, dEff)));
   const b = log10ComputeForLoss(lossOf(N, D));
   if (!Number.isFinite(a) || !Number.isFinite(b)) return 1;
-  return Math.min(1, Math.pow(10, a - b));
+  return Math.pow(10, a - b);
 }
 
-/** Breakdown of a base's pretraining G (OOM). `recipe` is the recipe efficiency at launch (E_START + e_stack). */
-export interface GPreParts { flop: number; recipe: number; shape: number; over: number; data: number; design: number; total: number }
-export function gPreOf(x: { flop: number; tpp: number; recipe: number; shape: BaseDesign['shape']; fData: number; designDg: number }): GPreParts {
+/** Breakdown of a base's pretraining G (OOM). `recipe` is the recipe efficiency at launch (E_START + e_stack); `data`
+ *  the repetition of the drawn tokens (≤ 0, from fData) and `quality` their quality against the 2025 reference draw
+ *  (model v3 D11, from fQual; 0 for the reference recipe at the start). */
+export interface GPreParts { flop: number; recipe: number; shape: number; over: number; data: number; quality: number; design: number; total: number }
+export function gPreOf(x: { flop: number; tpp: number; recipe: number; shape: BaseDesign['shape']; fData: number; fQual?: number; designDg: number }): GPreParts {
   const flop = Math.log10(Math.max(1, x.flop));
   const shape = SHAPE[x.shape].e;
   const over = Math.log10(fOver(x.tpp));
   const data = Math.log10(Math.max(1e-6, x.fData));
-  return { flop, recipe: x.recipe, shape, over, data, design: x.designDg, total: flop + x.recipe + shape + over + data + x.designDg };
+  const quality = Math.log10(Math.max(1e-6, x.fQual ?? 1));
+  return { flop, recipe: x.recipe, shape, over, data, quality, design: x.designDg, total: flop + x.recipe + shape + over + data + quality + x.designDg };
 }
 
 /** Continued pretraining (§3.4): effective compute adds, G_new = log₁₀(10^G_old + FLOP_cont × 10^(recipe_now + shape)).

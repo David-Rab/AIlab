@@ -3,10 +3,12 @@
 //   assets     public web (the lab's crawl of the one shared, finite world stock), licensed, usage, synthetic, expert;
 //              each with tokens T, a domain mix and a quality q (1 = the web)
 //   U          unique-token stock a base trains on = Σ q·T over the pretraining kinds (public, licensed, usage,
-//              synthetic; synthetic × 3 with P10) — research/20 A3's D_eff = Σ q_tier·U_tier·(1 + R*·(1 − e^(−(ep−1)/R*))):
-//              quality acts through U, so in G only through the repetition fraction f_data (models/effective.ts) [G]
+//              synthetic; synthetic × 3 with P10): the stock in web-equivalent tokens (readouts, the draw's weights)
 //   draw       (model v3 D3) a base takes its tokens from the slices (asset × domain) by its data mix (drawData):
-//              per-slice Muennighoff repetition → D_eff → f_data; drawn effective shares → s_d,data = α·log₁₀(share ÷ ref)
+//              per-slice Muennighoff repetition; drawn effective shares → s_d,data = α·log₁₀(share ÷ ref)
+//   quality    (model v3 D11) research/20 A3's D_eff = Σ q_tier·U_tier·(1 + R*·(1 − e^(−(ep−1)/R*))) with each slice's
+//              epochs on its own tokens, ÷ the 2025 reference draw's mean quality Q_REF: the loss law's data term
+//              (models/effective.ts fDataEff), so better drawn tokens raise G even when nothing repeats [G]
 //   synthetic  += pool FLOP ÷ (teacher FLOP per token × overgeneration) per day; q from the teacher's G
 //   usage      += live products' output tokens × channel eligibility × the lab's data-policy share per day
 //   deals      (model v3 D2, actions in production/dataActions.ts) licences by domain and expert data are paid at
@@ -18,7 +20,7 @@ import {
 } from '../../../data/v2/dataAssets';
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { BASE_DATA, REFERENCE_BASE } from '../../../data/v2/runDesign';
-import { effectiveTokens } from '../models/effective';
+import { effectiveTokens, fDataEff } from '../models/effective';
 import { TOKENS } from '../../../data/v2/serving';
 import { PEAK_FLOPS, U_DECODE, U_PREFILL } from '../../../data/v2/workTypes';
 import { gOfBuild, gV0 } from '../models/capability';
@@ -134,18 +136,27 @@ export const NATURAL_MIX: MixTarget = { base: 'natural', tilt: {}, kinds: {} };
 /** What a base of `tokens` tokens draws from a portfolio (tokens are counts, not trillions). */
 export interface DataDraw {
   tokens: number;
-  /** Effective tokens after repetition, Muennighoff per slice (= tokens when no slice repeats). */
+  /** Effective tokens in the loss law (model v3 D11): D_eff = Σ q_i,d · Muennighoff(D_i,d, T_i,d) ÷ Q_REF — quality times
+   *  what is left after each slice's repetition, against the 2025 reference draw (= tokens for that draw). */
   dEff: number;
-  /** Unique tokens this mix can use: the largest base it draws without repeating any slice (= U for the natural mix). */
+  /** The same without repetition, Σ q·D ÷ Q_REF (the quality part alone), and without quality, Σ Muennighoff(D, T)
+   *  (the repetition part alone; = tokens when no slice repeats). */
+  dQual: number;
+  dRep: number;
+  /** Unique tokens this mix can use: the largest base it draws without repeating any slice. For the natural mix it is
+   *  U ÷ the best drawn quality (= U while the web, q 1, is the best data): a slice is drawn ∝ q·T, i.e. q× per own
+   *  token, so a q 3 corpus repeats first (model v3 D11). */
   uMix: number;
-  /** Epochs of the most-repeated slice (tokens ÷ uMix). */
+  /** Epochs of the most-repeated slice (tokens ÷ uMix; a slice's epochs = its drawn tokens ÷ its own tokens). */
   epochs: number;
   /** Drawn and effective domain shares (each sums to 1), and the specialisation s_d,data (OOM). */
   share: DomainMix;
   effShare: DomainMix;
   sD: DomainMix;
-  /** Token-weighted mean quality of the drawn tokens, and tokens drawn per kind (D4's readouts). */
+  /** Token-weighted mean quality of the drawn tokens and the same ÷ Q_REF (1 = the 2025 reference draw), and tokens
+   *  drawn per kind (D4's readouts). */
   quality: number;
+  qRel: number;
   byKind: Partial<Record<DataKind, number>>;
 }
 
@@ -166,13 +177,25 @@ export function specialisation(share: DomainMix): DomainMix {
  *  m_d ∝ B_d·tilt_d·K_d/U_d, where B_d is the starting share (reference: REF_SHARE_d; natural: U_d) and K_d/U_d the
  *  kind weights' pull on that domain (K_d = Σ_i U_i,d·k_kind(i)); within a domain the tokens come from its slices in
  *  proportion to U_i,d·k_kind(i). A domain the portfolio holds nothing of draws nothing (its share goes to the others
- *  in proportion). A slice drawn beyond its U_i,d repeats its own tokens and pays Muennighoff on that slice alone,
- *  D_eff = Σ U_i,d·(1 + R*·(1 − e^(−(ep_i,d − 1)/R*))): a short domain repeats and loses value — there is no fallback
- *  to other data. The natural mix (no tilt, no kind weight) gives every slice the same epochs, so D_eff = Muennighoff
- *  on the whole U (D1's rule exactly). Quality enters only through U (D1). Specialisation reads the effective shares
- *  (repeated tokens teach less). `noRepeat` (P10) counts repeated tokens in full. */
+ *  in proportion). A slice drawn beyond its own tokens repeats them and pays Muennighoff on that slice alone: a short
+ *  domain repeats and loses value — there is no fallback to other data. (D3 compared a slice's draw with U_i,d and let
+ *  quality act only through U, D1's rule; D11 below replaces that.) Specialisation reads the effective shares (repeated
+ *  tokens teach less). `noRepeat` (P10) counts repeated tokens in full.
+ *
+ *  Model v3 D11 (quality of the drawn tokens, research/20 A3 / A1): the loss law reads D_eff = Σ q_i·D'_i,d ÷ Q_REF,
+ *  where D'_i,d = Muennighoff on the slice's own tokens: D'_i,d = T_i,d·(1 + R*·(1 − e^(−(ep − 1)/R*))) with ep =
+ *  D_i,d ÷ T_i,d (T_i,d = U_i,d ÷ q_i, the raw tokens; P10's ×3 included). No double counting: quality multiplies the
+ *  tokens once (q·Muennighoff(D, T) = Muennighoff(q·D, q·U)), so it no longer also stretches a slice's epochs — a q 3
+ *  corpus is worth 3× per token and repeats after its own T tokens, not after 3T. The draw weights (∝ q·T: better data
+ *  is sampled more) and the domain shares are D3's, unchanged; specialisation reads repetition only (quality acts on
+ *  general G). Q_REF = the 2025 reference draw's mean quality (the start portfolio's, 0.984), so that draw has
+ *  D_eff = D and only deviations from the reference mix move G (models/runs.ts baseG). */
 export function drawData(p: DataPortfolio, tokens: number, target: MixTarget = NATURAL_MIX, opts: { p10?: boolean; noRepeat?: boolean } = {}): DataDraw {
-  const slices: { kind: DataKind; d: DomainId; u: number; k: number; q: number; w: number }[] = [];
+  return drawWith(p, tokens, target, opts, Q_REF);
+}
+function drawWith(p: DataPortfolio, tokens: number, target: MixTarget, opts: { p10?: boolean; noRepeat?: boolean }, qRef: number): DataDraw {
+  // u: the slice's quality-weighted unique tokens (its draw weight, D3); r: its own tokens (its epochs, D11).
+  const slices: { kind: DataKind; d: DomainId; u: number; r: number; k: number; q: number; w: number }[] = [];
   const Ud: DomainMix = {};
   const Kd: DomainMix = {};
   for (const a of p.assets) {
@@ -190,7 +213,7 @@ export function drawData(p: DataPortfolio, tokens: number, target: MixTarget = N
     for (const [d, v] of Object.entries(m) as [DomainId, number][]) {
       if (!(v > 0)) continue;
       const ud = (u * v) / ms;
-      slices.push({ kind: a.kind, d, u: ud, k, q, w: 0 });
+      slices.push({ kind: a.kind, d, u: ud, r: ud / q, k, q, w: 0 });
       Ud[d] = (Ud[d] ?? 0) + ud;
       Kd[d] = (Kd[d] ?? 0) + ud * k;
     }
@@ -206,31 +229,45 @@ export function drawData(p: DataPortfolio, tokens: number, target: MixTarget = N
   for (const x of slices) {
     x.w = ((M[x.d] ?? 0) * x.u * x.k) / Math.max(1e-300, Kd[x.d] ?? 0);
     W += x.w;
-    if (x.w > 0) maxE = Math.max(maxE, x.w / x.u);
+    if (x.w > 0) maxE = Math.max(maxE, x.w / x.r);
   }
-  if (!(W > 0) || !(tokens > 0)) return { tokens, dEff: 0, uMix: 0, epochs: tokens > 0 ? Infinity : 0, share: {}, effShare: {}, sD: {}, quality: 0, byKind: {} };
+  if (!(W > 0) || !(tokens > 0)) return { tokens, dEff: 0, dQual: 0, dRep: 0, uMix: 0, epochs: tokens > 0 ? Infinity : 0, share: {}, effShare: {}, sD: {}, quality: 0, qRel: 0, byKind: {} };
   const share: DomainMix = {};
   const eff: DomainMix = {};
   const byKind: Partial<Record<DataKind, number>> = {};
+  let dRep = 0;
   let dEff = 0;
   let qSum = 0;
   let repeats = false;
   for (const x of slices) {
     if (!(x.w > 0)) continue;
     const dx = (tokens * x.w) / W;
-    const ex = opts.noRepeat || dx <= x.u ? dx : effectiveTokens(dx, x.u);
-    if (dx > x.u) repeats = true;
+    // Repetition on the slice's own tokens (epochs = dx ÷ raw tokens); its quality then scales what is left (D11).
+    const ex = opts.noRepeat || dx <= x.r ? dx : effectiveTokens(dx, x.r);
+    if (dx > x.r) repeats = true;
     share[x.d] = (share[x.d] ?? 0) + dx / tokens;
     eff[x.d] = (eff[x.d] ?? 0) + ex;
     byKind[x.kind] = (byKind[x.kind] ?? 0) + dx;
-    dEff += ex;
+    dRep += ex;
+    dEff += x.q * ex;
     qSum += dx * x.q;
   }
-  if (opts.noRepeat || !repeats) dEff = tokens;
-  for (const d of Object.keys(eff) as DomainId[]) eff[d] = (eff[d] ?? 0) / Math.max(1e-30, dEff);
+  if (opts.noRepeat || !repeats) {
+    dRep = tokens;
+    dEff = qSum;
+  }
+  for (const d of Object.keys(eff) as DomainId[]) eff[d] = (eff[d] ?? 0) / Math.max(1e-30, dRep);
   const uMix = W / maxE;
-  return { tokens, dEff, uMix, epochs: tokens / uMix, share, effShare: eff, sD: specialisation(eff), quality: qSum / tokens, byKind };
+  const quality = qSum / tokens;
+  return {
+    tokens, dEff: dEff / qRef, dQual: qSum / qRef, dRep, uMix, epochs: tokens / uMix, share, effShare: eff, sD: specialisation(eff), quality, qRel: quality / qRef, byKind,
+  };
 }
+
+/** Q_REF: mean quality of the 2025 reference draw — the reference recipe (balanced, B0's size) on the start portfolio,
+ *  (270·1 + 30·1 + 10·0.5)/310 = 0.984 — which the start G and the golden dates were fitted with. It defines q = 1 in
+ *  the loss law (model v3 D11), so only a mix better or worse than 2025's moves G. */
+export const Q_REF: number = drawWith(startPortfolio(), REFERENCE_BASE.params * REFERENCE_BASE.tpp, BASE_DATA.balanced, {}, 1).quality;
 
 /** The player's draw for a base design (its data option as the mix target; P10: synthetic ×3, no repetition penalty). */
 export function playerDraw(s: GameStateV2, d: BaseDesign): DataDraw {
@@ -389,31 +426,36 @@ export function usageAccrual(s: GameStateV2) {
 
 /** Before → after of the Blueprint's data readouts for a change to the portfolio (model v3 D2 previews, D4's view):
  *  U (T), the domain's share of the natural mix (where the stock drifts) and its specialisation on that mix (OOM), and
- *  for the lab's latest base design the unique tokens its mix can use (T) and its epochs (the Data tile). */
-export interface DataDelta { domain: DomainId; u: [number, number]; share: [number, number]; s: [number, number]; uMix: [number, number]; epochs: [number, number] }
+ *  for the lab's latest base design the unique tokens its mix can use (T), its epochs (the Data tile) and the drawn
+ *  tokens' quality term in G (OOM vs the 2025 reference draw, model v3 D11: what a licence buys a base that does not
+ *  repeat). */
+export interface DataDelta { domain: DomainId; u: [number, number]; share: [number, number]; s: [number, number]; uMix: [number, number]; epochs: [number, number]; qG: [number, number] }
 export function dataDelta(s: GameStateV2, change: (p: DataPortfolio) => void, domain: DomainId): DataDelta {
   const p0 = s.player.dataPortfolio;
   const p1: DataPortfolio = { ...p0, assets: p0.assets.map((a) => (a.kind === 'public' ? { ...a } : { ...a, mix: { ...a.mix } })), pending: [...(p0.pending ?? [])] };
   change(p1);
   const on = p10(s);
   const b = s.player.models.bases[s.player.models.bases.length - 1]?.design;
+  const params = b ? b.params : REFERENCE_BASE.params;
   const tokens = b ? b.params * b.tpp : REFERENCE_BASE.params * REFERENCE_BASE.tpp;
   const target = (b && BASE_DATA[b.data]) ?? BASE_DATA.balanced;
   const read = (p: DataPortfolio) => {
     const nat = drawData(p, tokens, NATURAL_MIX, { p10: on, noRepeat: on });
     const bp = drawData(p, tokens, target, { p10: on, noRepeat: on });
-    return { u: portfolioU(p, { p10: on }) / 1e12, share: pretrainMix(p)[domain] ?? 0, s: nat.sD[domain] ?? 0, uMix: bp.uMix / 1e12, epochs: bp.epochs };
+    return { u: portfolioU(p, { p10: on }) / 1e12, share: pretrainMix(p)[domain] ?? 0, s: nat.sD[domain] ?? 0, uMix: bp.uMix / 1e12, epochs: bp.epochs, qG: Math.log10(fDataEff(params, tokens, bp.dQual)) };
   };
   const x = read(p0);
   const y = read(p1);
-  return { domain, u: [x.u, y.u], share: [x.share, y.share], s: [x.s, y.s], uMix: [x.uMix, y.uMix], epochs: [x.epochs, y.epochs] };
+  return { domain, u: [x.u, y.u], share: [x.share, y.share], s: [x.s, y.s], uMix: [x.uMix, y.uMix], epochs: [x.epochs, y.epochs], qG: [x.qG, y.qG] };
 }
-/** One line of text for a preview: "U 310.0 → 317.5T · PHYS 4.6% → 6.8% of the stock (s +0.00 → +0.25 OOM) · base epochs 0.16 → 0.16". */
+/** One line of text for a preview: "U 310.0 → 317.5T · PHYS 4.6% → 6.8% of the stock (s +0.00 → +0.25 OOM) · base epochs 0.16 → 0.16 ·
+ *  data quality +0.000 → +0.004 OOM". */
 export function dataDeltaText(d: DataDelta): string {
   const f1 = (x: number) => (x >= 100 ? x.toFixed(0) : x >= 10 ? x.toFixed(1) : x.toFixed(2));
   const pc = (x: number) => `${(100 * x).toFixed(1)}%`;
   const sg = (x: number) => `${x >= 0 ? '+' : ''}${x.toFixed(2)}`;
-  return `U ${f1(d.u[0])} → ${f1(d.u[1])}T · ${d.domain} ${pc(d.share[0])} → ${pc(d.share[1])} of the stock (s ${sg(d.s[0])} → ${sg(d.s[1])} OOM) · base epochs ${d.epochs[0].toFixed(2)} → ${d.epochs[1].toFixed(2)}`;
+  const sg3 = (x: number) => `${x >= -5e-4 ? '+' : ''}${(Math.abs(x) < 5e-4 ? 0 : x).toFixed(3)}`;
+  return `U ${f1(d.u[0])} → ${f1(d.u[1])}T · ${d.domain} ${pc(d.share[0])} → ${pc(d.share[1])} of the stock (s ${sg(d.s[0])} → ${sg(d.s[1])} OOM) · base epochs ${d.epochs[0].toFixed(2)} → ${d.epochs[1].toFixed(2)} · data quality ${sg3(d.qG[0])} → ${sg3(d.qG[1])} OOM`;
 }
 
 /** Tokens required for a base of `flop` FLOP: N_req(C) = 20·sqrt(C/120) (research/13 §1.7). Overtrained ×5. */

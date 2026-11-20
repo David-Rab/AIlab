@@ -180,10 +180,12 @@ export interface BaseLimits {
   /** Ideas likely adopted while it trains, which the base will not embody (count and OOM at the recent rate). */
   behind: { ideas: number; oom: number };
   /** Unique tokens this mix can use (the draw's uMix), epochs of the most-repeated slice and the effective-compute
-   *  factor of the repetition (≤ 1); the draw itself and the base's domain specialisation (data mix + curation, OOM). */
+   *  factor of the repetition (≤ 1); the effective-compute factor of the drawn tokens' quality vs the 2025 reference draw
+   *  (model v3 D11; > 1 better, < 1 worse); the draw itself and the base's domain specialisation (data mix + curation, OOM). */
   tokensUnique: number;
   epochs: number;
   fData: number;
+  fQual: number;
   draw: DataDraw;
   sD: Off;
   /** Serving cost of versions on this base (display, 0.5 = reference) and serving FLOP per token (2·N_active). */
@@ -224,14 +226,18 @@ export function playerRlWeights(s: GameStateV2, focus: PostDesign['rlFocus']): F
 /** A base's pretraining G at launch for the player: recipe E_START + the pretraining stack at its FLOP (or the frozen
  *  `pre`), the data it draws from today's portfolio (model v3 D3: repetition per slice → f_data; the drawn mix → s_d,data,
  *  plus the curation's domain offsets). */
-function baseG(s: GameStateV2, d: BaseDesign, pre?: number): { parts: GPreParts; flop: number; tokens: number; epochs: number; fD: number; U: number; sD: Off; draw: DataDraw } {
+function baseG(s: GameStateV2, d: BaseDesign, pre?: number): { parts: GPreParts; flop: number; tokens: number; epochs: number; fD: number; fQ: number; U: number; sD: Off; draw: DataDraw } {
   const be = baseEffect(d);
   const tokens = d.params * d.tpp;
   const flop = flopOfDesign(d);
   const draw = playerDraw(s, d);
-  const fD = fDataEff(d.params, tokens, draw.dEff);
-  const parts = gPreOf({ flop, tpp: d.tpp, recipe: E_START + (pre ?? ePreAt(s, flop)), shape: d.shape, fData: fD, designDg: be.dg + p24Dg(s) });
-  return { parts, flop, tokens, epochs: draw.epochs, fD, U: draw.uMix, sD: addOff(draw.sD, be.sD), draw };
+  // Model v3 D11: the data term is the Besiroglu fraction of D_eff (quality × repetition) vs D, split for the readouts
+  // into quality (D_qual = Σ q·D ÷ Q_REF, no repetition) and repetition (the rest, ≤ 1); the two parts sum exactly.
+  const fAll = fDataEff(d.params, tokens, draw.dEff);
+  const fQ = fDataEff(d.params, tokens, draw.dQual);
+  const fD = Math.min(1, fAll / fQ);
+  const parts = gPreOf({ flop, tpp: d.tpp, recipe: E_START + (pre ?? ePreAt(s, flop)), shape: d.shape, fData: fD, fQual: fQ, designDg: be.dg + p24Dg(s) });
+  return { parts, flop, tokens, epochs: draw.epochs, fD, fQ, U: draw.uMix, sD: addOff(draw.sD, be.sD), draw };
 }
 
 /** The RL recipe a post-training run launched today freezes: the RL stack's efficiency and ceiling, and (model v3 D5)
@@ -325,7 +331,7 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
     const wallDays = setupDays + Math.ceil(daysFor(flopNeeded, rate));
     const best = Math.max(-Infinity, ...m.bases.map((b) => b.gPre));
     limits = {
-      params: d.params, tpp: d.tpp, tokens: bg.tokens, wallDays, behind: adoptedDuring(s, wallDays), tokensUnique: bg.U, epochs: bg.epochs, fData: bg.fD, draw: bg.draw, sD: bg.sD,
+      params: d.params, tpp: d.tpp, tokens: bg.tokens, wallDays, behind: adoptedDuring(s, wallDays), tokensUnique: bg.U, epochs: bg.epochs, fData: bg.fD, fQual: bg.fQ, draw: bg.draw, sD: bg.sD,
       serve, servingFlop: servingFlop(d.params), computeCost: flopCost(s, flopNeeded), scrutiny: sizeScrutiny(scale), gPre: bg.parts,
       gGain: Number.isFinite(best) ? bg.parts.total - best : 0,
     };
