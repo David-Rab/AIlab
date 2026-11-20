@@ -86,16 +86,29 @@ function detector(s: GameStateV2, v: ModelVersion, tools: TechniqueState[], L0: 
     rowKeys.set(trait, r.map((x) => groupKeyOf(tl[x.i].t.agenda)));
     return r;
   };
+  // P2: a tool's strength at L does not depend on the trait: computed once per level (meanDet asks every critical
+  // trait at the same L).
+  let strL = NaN;
+  const str: number[] = [];
+  const done: boolean[] = [];
   return (trait: TraitId, L: number) => {
     const M = mAtLevel(w, L);
+    if (!(L === strL)) {
+      strL = L;
+      done.fill(false);
+    }
     const dL = L - L0;
     const ctl = Math.max(cotControllability(L), obf);
     const ea = eaAt(ea0, dL);
     const ds: number[] = [];
     const r = rowOf(trait);
     for (const row of r) {
-      const { t, pre, g, lead } = tl[row.i];
-      const strength = pre * decayAt(s, t, M, latent) * g * valAt(dL, lead);
+      let strength = str[row.i];
+      if (!done[row.i]) {
+        const { t, pre, g, lead } = tl[row.i];
+        strength = str[row.i] = pre * decayAt(s, t, M, latent) * g * valAt(dL, lead);
+        done[row.i] = true;
+      }
       let pen = 1;
       if (row.fam === 'BB') pen = Math.max(0, (row.eaPen ? 1 - eaC * ea : 1) * (1 - row.mask));
       else if (row.fam === 'COT') pen = l2 <= -2 ? 0 : Math.max(0, v.monitorability * (1 - ctl) * (1 - row.mask));
