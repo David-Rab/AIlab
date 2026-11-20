@@ -174,11 +174,14 @@ export const DAY0_REF = { re: 11 * 0.88, agents: 3e4, flop: 1e6 * 0.05 * 3.46e19
  *  a jagged fit, F4); fast 31.553 → 31.325 (SC +0.216 → +0.049, SAR +0.219 → +0.107, SIAR +0.096 → −0.016, ASI +0.011 →
  *  −0.101; passing run 31.31–31.33); slow 35.496 kept (SC +0.049 unchanged; 35.49–35.50 pass). A6b P4 (consumer plans at
  *  the market price move rivals' revenue): authors2026 G_SC 33.325 → 33.32 (ASI +0.174 → −0.033; SIAR −0.082; passing
- *  33.31, 33.32, 33.33, failing 33.325 and 33.285–33.29, F4); the other presets unchanged. */
+ *  33.31, 33.32, 33.33, failing 33.325 and 33.285–33.29, F4); the other presets unchanged. A7 (start sector stocks and free
+ *  tiers move rivals' revenue and the leader's cash): authors2026 G_SC 33.32 → 33.31 (ASI +0.211 → +0.038; SC +0.030, SAR
+ *  +0.090, SIAR −0.047; Δ_bm kept; passing 33.30, 33.31, 33.325, 33.34, failing 33.305, 33.308, 33.312, 33.315, 33.32,
+ *  33.33, F4); the other presets unchanged. */
 export interface V3Cal { gSC: number; dBM: number; r: number; sdSC: number }
 export const V3_CAL: Record<WorldPresetId, V3Cal> = {
   ai2027: { gSC: 30.11, dBM: 2.2, r: 4, sdSC: SD_AT_SC },
-  authors2026: { gSC: 33.32, dBM: 4.65, r: 3.19, sdSC: 1.8 },
+  authors2026: { gSC: 33.31, dBM: 4.65, r: 3.19, sdSC: 1.8 },
   fast: { gSC: 31.325, dBM: 0.05, r: 4, sdSC: SD_AT_SC },
   slow: { gSC: 35.496, dBM: 1.6, r: 1.2, sdSC: SD_AT_SC },
   sampled: { gSC: 30.11, dBM: 2.2, r: 4, sdSC: SD_AT_SC },
