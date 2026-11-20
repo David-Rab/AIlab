@@ -1040,8 +1040,8 @@ ok('J1 RL2: no security actions in the Relations catalogue', !(await page.$('[da
 await page.click('[data-test=rel-groups] [data-opt=D]'); await wait(80);
 ok('D2 Relations: data actions listed with domain and teacher pickers, old "License data" (D3) gone', !!(await page.$('[data-test=data-pickers]')) && !!(await page.$('[data-act="data.synthesize"]')) && !!(await page.$('[data-act="data.usagePolicy.2"]')) && !(await page.$('[data-act=D3]')));
 await page.selectOption('[data-test=data-domain]', 'PHYS'); await wait(60);
-await page.hover('[data-act="data.license.1"]'); await wait(150);
-const licTip = await page.evaluate(() => document.querySelector('.tip')?.textContent ?? '');
+await clearTips(); await page.hover('[data-act="data.license.1"]'); await wait(500);
+const licTip = await page.evaluate(() => [...document.querySelectorAll('.tip')].map((t) => t.textContent ?? '').join(' '));
 ok('D2 Relations: the licence preview shows before → after of the data readouts', /U \d[\d.]* → \d[\d.]*T/.test(licTip) && /PHYS/.test(licTip), licTip.slice(0, 200));
 await check('D2 Relations: licensing PHYS bulk data queues a deal', 's.player.dataPortfolio.pending.length', () => page.click('[data-act="data.license.1"]'));
 await shot('d2-relations-data');
