@@ -1980,3 +1980,137 @@ already has. No new constant.
   yet ("work demand ceiling": E0·2000·(1 + η·CR)).
 - The η values are research/16's table values (themselves [D], Jevons). The linear form caps the expansion at 1 + η. A
   constant-elasticity form would let demand grow without bound as the price falls, and research/16 does not use one.
+
+### A5 notes (cheap tiers: demand segmented by the capability a task needs; 2026-11-20)
+
+Code: new `worldfx/choice.ts` (`surplusChoice`, `adequacy`, `tierUtility`); `worldfx/mix.ts` (every provider's lineup per
+sector, the choice per region and sector, `SectorMix.tiers` and `playerMiniW`, tier-mix prices and costs, `bandPaid`
+readout; consumer user share by quality alone); `worldfx/serving.ts` (`studentParamsFor`, `studentToHold`,
+`studentOffer`, `sectorH50`, `productMiniUses`, `blendOffer`; `cheapestAt` uses the shared sizing); `worldfx/revenue.ts`
+(each product's offer blended with its API mini per region; Chat products split users by quality; `spareServing`
+ignores the rounding of stored H100e); `data/v2/serving.ts MARKET_BANDS`; `data/v2/features.ts` (`MINI_CHANNELS`;
+`FREE_TIER_SHARE.api` 0.3 retired); `models/actions.ts` (`launchDistill holdVersionId`); `bots/ref.ts` (option
+`cheapTier`, off); `data/v2/workTypes.ts` (authors2026 Δ_bm refit). UI: Blueprint distill "size: hold X's level",
+Products mini select and price-tier tooltip, glossary (`cheapTier` new; `targetShare`, `priceTier`, `priceIndex`,
+`priceBound`, `freeTier`). Tests: serving S3, B7, D3 updated to lineups; new A5 E1–E9. No state change, no schemaRev bump.
+
+**Derivation.**
+- *Tasks.* V3's coverage a = σ((fit − θ_s)/s)·p(H_s | h50) is read as the share of a sector's tasks a model does alone:
+  tasks differ in difficulty around θ_s with the spread s = 0.8 of the same logistic, so a model with coverage a does the
+  easiest a of them. One difficulty index for fit and horizon [D: a task hard on one is hard on the other].
+- *Hours.* Adopted task-hours lie on the tasks some model can do (A ≤ F, research/16 step 4), spread evenly over
+  u ∈ [0, a_top] [D], a_top the best coverage on offer; MARKET_BANDS = 8 bands of equal hours [D: quadrature].
+- *Adequacy.* A tier with coverage a does x_b = clamp((a − u_{b−1}) ÷ (u_b − u_{b−1}), 0, 1) of band b; the mean over
+  bands is a ÷ a_top exactly, so F, K and the coverage readouts keep their meaning.
+- *Surplus.* Per hour on band b: S = V·x_b − p, V the value of an adopted task-hour (wage × hours saved), p the tier's
+  price (value-capped). Each provider offers its best tier on the band. Choice: share ∝ brand·exp(SHARE_SLOPE_G·fit +
+  S ÷ μ_b) among the providers a buyer can reach.
+- *Scale.* μ_b = p_min,b ÷ ε, p_min,b the cheapest offer that does the whole band, ε = PRICE_ELASTICITY = 1: at the
+  cheapest offer the price response is the old elasticity, and for prices near each other −ε(p ÷ p_min − 1) ≈
+  −ε·ln(p ÷ p_min), the old price term. V4's quality term 4 per OOM of fit is kept (beyond adequacy a better model still
+  does the task better), so with equal prices, every offer adequate and full access the choice is the old logit exactly
+  (test E3). A tier 10× cheaper that does the band is 9 units of μ ahead and wins it; a tier that does only part of it is
+  V·(1 − x) ÷ μ behind (V ÷ μ ≈ 15–60), so the work only the frontier does stays on the frontier.
+- *Target.* Provider share = the mean of its band shares (sums to 1). Its customers' tier mix = its band shares, and its
+  price, agent price and cost, seat cost and H100e-hours per hour are that mix's; its coverage, k and λ stay its model's
+  (the lineup does the hardest work on it).
+
+**Lineups.**
+- Rivals and China: their model plus, at each band edge u_b below its coverage, the cheapest student that still does the
+  band: the cheapestAt rule sized on coverage (gap g solves a(fit − g, h50·4.2^−g) = u_b; N_S = N_T·10^−(g − 0.19)/0.92,
+  ≥ 1B; costs ∝ N_S). Fit, FLOP per token and N_T come from BRIDGE(V7) (fptOfG) until F1. The player's open release
+  sells only its own model.
+- The player: each sector product's main model and, for the API, its mini (`miniVersionId`) as a separate tier. The
+  API's old fixed 30% mini share is gone: the share of its hours on the mini is the market's (`playerMiniW`). Chat's free
+  tier keeps its 0.6 usage blend (display levels and chat fit unchanged).
+- Making a cheap tier (design choice, not magic): `launchDistill { holdVersionId }` sizes the student by the cheapestAt
+  rule on the chosen teacher (`studentToHold`), so it lands on that version's fit (E7); the Blueprint offers it as
+  "size: hold X's level"; the API's mini select lists it.
+- RefBot: option `cheapTier` (off by default) [D]: once per public release it distils from its internal model a student
+  holding the previous public release's fit (small models match the previous frontier within months, R12 §0.6), if ≤
+  CHEAP_MAX = ¼ of the internal model's size, alongside the public-mini distil, and sets it as the API's mini. Off for
+  RefBot because the extra runs and evals shift its random draws: with it on, T1 ai2027 SC lands at day 606 (−32 d,
+  tolerance ±29) and fast SAR +57 d (±44). The market alone leaves T1 identical (checked with the option off). Turning
+  it on, with the T1 refit, belongs to F5. RefBot's half-size public minis are unchanged.
+
+**Choices [D] and deviations.**
+- Access is a share of buyers (each provider independently; choice sets enumerated), not a utility weight
+  [deviation from V4's logit]: under the surplus choice a weight is overwhelmed wherever one model does work no other
+  can (first build: DeepCent with US access 0.05 took 68% of US Software in Feb 2027). The two agree for small shares.
+- The consumer user-share logit drops its price term: ≈ 95% of users pay nothing and choose by quality (the old logit at
+  equal prices); subscribers' price response is the paid-share stock (A2b, unchanged).
+- Seats follow the provider's hours share, as before. The capacity penalty still acts through brand, but it cannot move
+  buyers off bands only the player's model does: they stay, unserved.
+- The readout band for "V0's capability" is the hardest band V0 does whole (the band containing V0's coverage also holds
+  tasks V0 cannot do, so it reads high; both are reported).
+- `spareServing` ignores gaps within the rounding of stored H100e: worktypes' "calendar" check failed on 1 H100e of
+  rounding (X 1.36771852 vs 1.36771854) once prices moved.
+
+**Readouts (RefBot, classic, ai2027, seed 2027; before = A4).**
+- Price customers pay for V0's capability, US Software & IT, the hardest band V0 does whole, per M tokens (E9):
+  $12.95 (2025.58) → $14.20 (2026.08, rental spike) → $2.52 (2026.58) → $0.69 (2027.08): **×7.0/yr**. Exact split:
+  rental ×2.15, margin ×1.14, models bought ×2.86. The band at V0's coverage edge: ×4.5/yr. On the providers' own models
+  only: ×2.3/yr (A3's "cheapest offer on sale" was ×2.3): the tier shift is the ×3.1/yr between them.
+- That band's hours by tier: own models 100% → 100% → 3% → 0%; students 0 → 0 → 97% → 100% (2027: r2 59%, DeepCent
+  28%, the player 0: it sells no cheap tier). World adopted hours by tier: own models 95% / 76% / 68% / 61%, students
+  5 / 24 / 32 / 39%.
+- With RefBot's `cheapTier` on (scratch): ×8.4/yr (edge band ×7.7); the API's mini takes 88% of that band in 2027 and
+  22% of the world's adopted hours.
+- A3's cheapestAt readout: ×18.9 → ×22.8/yr (the same RefBot; the rental falls ×2.15 instead of ×1.79 a year because
+  rivals' revenues, and so their compute purchases, change).
+
+| Quantity | Before (A4) | A5 |
+|---|---|---|
+| Player revenue CY2026 (worldfx F7) | $34.2B | $33.5B |
+| Player revenue 2027 (worldfx F11) | $40.7B | $36.5B |
+| World sector spend, CY2026 average (all providers) | $176B | $124B |
+| Consumer spend US + ROW, CY2026 average | $11.7B | $11.2B |
+| Non-China frontier-lab revenue CY2026 (A2c readout), leader share | $72.3B, 47% | $58.2B, 58% |
+| Player share of US Software, Jul 2025 / Feb 2026 / Aug 2026 / Feb 2027 | 0.60 / 0.32 / 0.40 / 0.29 | 0.79 / 0.41 / 0.43 / 0.31 |
+| Player revenue run-rate (demand) Jul 2025 / Feb 2027 | $17.3B ($33B) / $27.9B ($56B) | $17.7B ($40B) / $23.0B ($41B) |
+
+- Spend falls because buyers move the same work to cheaper models (students take 39% of adopted hours by 2027); A4's
+  Jevons term (η ≤ 1) adds little volume. The leader's share rises: it holds the bands only its model covers (at the
+  start rivals' models cover 0.02–0.05 of Software vs its 0.10), so its start demand is +20%.
+- 2027: RefBot's public models trail its internal frontier by ≈ 1.5 OOM of fit while DeepCent's and r2's public models
+  cover more, so the top bands go to them where buyers can reach them, and the cheap bands to their students; RefBot's
+  release policy and its cheap tier are F5's.
+- Not targeted (finance is the finance session's). Worldfx known fails move: equity 2026 −0.4% → −14.0% (bust roll;
+  rivals' run-rates are lower), U +1 pp 2028-01-02 → 2028-01-28, GOV T1 2027-08-31 → 2027-09-05. W2 0.56% → 0.494%
+  (just under its band, below). Still passing: W4 firm adoption 20.6% → 21.3%, HireRate SOFT ≤ 10% 2027-06-29 →
+  2027-08-01, AI-friend 11.0% → 10.8%.
+
+**Golden dates and the refit.** Golden-timelines (v1 integrator) is untouched. Calib T1 (stub): ai2027, fast and slow
+identical to A4. authors2026 moved: the market changes the rivals' revenue, so a merger offer (E32) fires on day 458 and
+RefBot's path shifts (ASI +59 d, tolerance ±44). Refit of the named per-preset value only: authors2026 Δ_bm 4.606 → 4.5
+(G_SC and sd_SC kept): SC +0.030, SAR +0.044, SIAR −0.005, ASI −0.030 y (A4: −0.005 / +0.016 / −0.041 / −0.036). T1L
+passes. Integrated RefBot (informational): ai2027 unchanged to SC, ASI −0.016 → +0.033; authors2026 no longer insolvent
+(reaches SC 2032.2, SAR 2036.2).
+
+**Gate (vs the A4 baseline).**
+- tsc main + scripts clean.
+- Pass: serving (all, incl. the updated S3/B7/D3 and E1–E9), products, golden-timelines, identity, worktypes, research,
+  effective, calib (T1 and T1L), lint-ux, fixtures, `npm run test:ui` (376 passed).
+- worldfx: the known fails (F7/F11 $33.5B / $36.5B, equity −14.0%, U +1 pp 2028-01-28, GOV T1 2027-09-05) and **W2 newly
+  fails at the band edge: automation TFP over a decade 0.56% → 0.494% (band 0.5–1%)**. It passed at 0.5% in an earlier
+  run of this branch; the value sits on the edge. Cause: rivals' students win the easy bands, so the hours share moves to
+  providers whose lineup coverage is lower, and F (Σ share × lineup coverage) and the share-weighted display levels fall
+  a little in the frozen Agent-1 world. Not tuned. A band-based F (the share of tasks the bought tiers do, ≈ a_top) would
+  raise it, but would also speed adoption everywhere (W4, hiring, U); that is a decision for the lead.
+- Performance: the mix costs 0.4 → 1.3 ms (lineups with students, 8 bands, access choice sets; memoised student gaps and
+  choice sets), ≈ +1.2–1.7 ms a passive day (the mix runs twice a day: revenue and rival finance), on a loaded machine.
+  Hygiene's perf checks were already failing (P2); now all four fail (daily average 6.1 ms passive, 6.8 ms leader lab,
+  worst quarter 21 / 28 ms, with other sessions loading the machine). Hygiene's other checks pass.
+
+**Open.**
+- W2 at the edge (above). F's definition under lineups (hours share × lineup coverage vs the share of tasks the bought
+  tiers do).
+- RefBot sells no cheap tier (option `cheapTier` off; T1 refit with it on belongs to F5), so in the reference run the
+  player takes none of V0's band after 2026; with the option it takes most of it.
+- The product card's "share of spend" is now an hours share weighted by spend (the player sells dearer tiers, so its
+  spend share is higher). B-task: show both, and the tier mix (`SectorMix.tiers.weight`, `playerMiniW`).
+- World market falls with cheap tiers (CY2026 sector spend $176B → $124B; non-China lab revenue $72B → $58B): finance
+  session's targets, not retuned.
+- Rivals' lineups (one student per band edge) use the BRIDGE(V7) sizes; F1 gives them real designs. Seats follow the
+  hours share. Capacity erosion cannot move buyers off bands only the player covers.
+- Perf (above): F6.
