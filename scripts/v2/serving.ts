@@ -41,13 +41,14 @@ import { agentCeilingOf, workHoursOf } from '../../src/engine/v2/worldfx/use';
 import { ECON, SECTORS } from '../../src/data/v2/sectors';
 import { MARKET_BANDS, SHARE_SLOPE_G } from '../../src/data/v2/serving';
 import {
-  adoptedTokens, agentDemandOf, agentLeverage, cheapestAt, effortDG, studentToHold, fptOfG, fxOn, h100eHoursPer, internalFx, offerOf, paidShareTarget, productOffer, reachTarget, sectorCover, sectorTheta, serveDollarsPerHour,
+  adoptedTokens, agentDemandOf, agentLeverage, cheapestAt, effortDG, studentToHold, fxOn, h100eHoursPer, internalFx, offerOf, paidShareTarget, productOffer, reachTarget, sectorCover, sectorTheta, serveDollarsPerHour,
   subPrice, valuePerHour, wagePerHour,
 } from '../../src/engine/v2/worldfx/serving';
 import { consumerUse, workBilling } from '../../src/engine/v2/worldfx/readouts';
 import { monitorOverhead } from '../../src/engine/v2/models/products';
 import { paramsOfVersion, planRun } from '../../src/engine/v2/models/runs';
 import { DISTILL } from '../../src/data/v2/runDesign';
+import { fptOfBase, makeBase } from '../../src/engine/v2/actors/rivalModel';
 import { U_DECODE, U_PREFILL } from '../../src/data/v2/workTypes';
 import type { Deployment, GameStateV2, ModelVersion, SectorId } from '../../src/engine/v2/types';
 import { FIXTURE_DIR, check, finish } from './lib';
@@ -79,7 +80,11 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const o2 = offerOf(s, [{ v: big, fpt: flopPerToken(s, big), w: 1 }], 'SOFT', { markup: MARKUP.standard, rate });
   check(near(o2.cost, 2 * o1.cost) && o2.price > o1.price, 'S1 a model with twice the active parameters costs twice as much per work-hour (and is priced higher)', `$${o1.cost.toFixed(2)} → $${o2.cost.toFixed(2)} per work-hour`);
   const g0 = workFit(s, v0, 'SWE').fit;
-  check(fptOfG(s, g0 + 1, v0.day) > fptOfG(s, g0, v0.day) * 3, 'S1 rivals (BRIDGE(V7)): a model 1 OOM more capable at the same date is ≈ √10 × larger (N ∝ √FLOP)', `${(fptOfG(s, g0 + 1, v0.day) / fptOfG(s, g0, v0.day)).toFixed(2)}×`);
+  void g0;
+  // Model v3 F1: a rival serves its own base: 10× the training FLOP at the same tokens per parameter is √10 × the active
+  // parameters and FLOP per token (N = √(FLOP/(6·tpp))), whatever its recipe.
+  const rb = (flop: number, e: number) => fptOfBase(makeBase(2, 0, flop, e));
+  check(near(rb(3e27, 0) / rb(3e26, 0), Math.sqrt(10)) && rb(3e26, 0) === rb(3e26, 2), 'S1 rivals: FLOP per token from their own base (×√10 per 10× training FLOP, not from G)', `${(rb(3e27, 0) / rb(3e26, 0)).toFixed(3)}×`);
   const eff = effortDG(4);
   check(eff > 0.2 && eff < 0.3 && effortDG(1e6) === 1.5, 'S1 effort deep: ×4 reasoning tokens, +0.24 OOM; the test-time gain is capped at +1.5 OOM (R20 C3)', eff.toFixed(3));
 }
@@ -484,7 +489,7 @@ function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
   // token profile's cost per token × markup = fpt × util ÷ peak ÷ 3600 × rental × markup × 1e6
   const util = (tok.input / U_PREFILL + tok.output / U_DECODE) / tokTask; // peak-seconds per FLOP of a blended token
   const perM = (fpt: number, markup: number) => ((h100eHoursPer(fpt, tok) * serveDollarsPerHour(s) * markup) / tokTask) * 1e6;
-  type Snap = { t: number; N: number; fpp: number; util: number; rate: number; markup: number; tokTask: number; price: number; bridge: number };
+  type Snap = { t: number; N: number; fpp: number; util: number; rate: number; markup: number; tokTask: number; price: number };
   const snaps: Snap[] = [];
   // A5: what customers actually pay for V0's capability in the market (US Software & IT: the hardest band of tasks V0
   // does whole, at the customer stocks), per M FLOP-bearing tokens of the sector's adopted-hour profile; `edge` is the
@@ -506,7 +511,7 @@ function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
       const teacher = versionById(s, c.versionId)!;
       const snap: Snap = {
         t: decimalYear(s), N: c.params, fpp: c.fpt / c.params, util, rate: serveDollarsPerHour(s), markup: MARKUP.standard, tokTask,
-        price: perM(c.fpt, MARKUP.standard), bridge: perM(fptOfG(s, fixedG, s.time.day), MARKUP.standard),
+        price: perM(c.fpt, MARKUP.standard),
       };
       snaps.push(snap);
       const mix = worldMix(s);
@@ -517,7 +522,7 @@ function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
         t: snap.t, perM: bp.price * perTok, below: bandPaid(mix, 'US', 'SOFT', u0).price * perTok, own: bp.ownModelPrice * perTok, rate: snap.rate,
         margin: bp.price / (snap.rate * bp.hph), hphM: bp.hph * perTok, kind: bp.byKind, world: hoursByKind(s, mix), prov: bp.byProvider,
       });
-      rows.push(`${snap.t.toFixed(2)}: API ${v.name} ${(paramsOfVersion(s, v) / 1e9).toFixed(0)}B $${perM(flopPerToken(s, v), MARKUP.standard).toFixed(2)}/M; V0-level cheapest ${c.student ? `student of ${teacher.name} (fit +${(c.teacherFit - fixedG).toFixed(2)}, δ ${c.gap.toFixed(2)})` : teacher.name} ${(c.params / 1e9).toFixed(1)}B $${snap.price.toFixed(3)}/M; reference design without distillation (rivals' bridge) $${snap.bridge.toFixed(2)}/M; rental $${snap.rate.toFixed(2)}/H100e-h`);
+      rows.push(`${snap.t.toFixed(2)}: API ${v.name} ${(paramsOfVersion(s, v) / 1e9).toFixed(0)}B $${perM(flopPerToken(s, v), MARKUP.standard).toFixed(2)}/M; V0-level cheapest ${c.student ? `student of ${teacher.name} (fit +${(c.teacherFit - fixedG).toFixed(2)}, δ ${c.gap.toFixed(2)})` : teacher.name} ${(c.params / 1e9).toFixed(1)}B $${snap.price.toFixed(3)}/M; rental $${snap.rate.toFixed(2)}/H100e-h`);
     }
   }
   const a = snaps[0];
@@ -536,7 +541,7 @@ function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
   check(total >= 6 && total <= 30,
     'A3 the price of a fixed capability (V0\'s) falls ×6–×30 a year (R20 D3: ≈ ×10, ×9–×900; Cottier et al. 2025)',
 
-    `${fmt(total)}/yr over ${a.t.toFixed(2)}–${b.t.toFixed(2)}; without distillation (reference design at the frontier recipe, rivals' BRIDGE(V7)) ${fmt(py(a.bridge / b.bridge))}/yr`);
+    `${fmt(total)}/yr over ${a.t.toFixed(2)}–${b.t.toFixed(2)}`);
   // A5 E9: the market-weighted price customers pay for V0's capability, decomposed exactly into the rental, the margin
   // and the H100e-hours per M tokens of the models they buy (model size × utilisation); the tier shift is the gap to
   // what the same customers would pay on the providers' own models.

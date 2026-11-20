@@ -12,7 +12,9 @@ import { SAVE_BUDGET_BYTES, SCHEMA_REV, deserialize, serialize, stateHash } from
 import { cadencesDue, decimalYear } from '../../src/engine/v2/core/time';
 import { LEADER_LAB_NAME } from '../../src/data/v2/names';
 import { postureOf } from '../../src/engine/v2/actors/rivals';
-import { playerStart, simpleFrontierPm } from '../../src/engine/v2/models/capability';
+import { gOfPm, gV0, playerStart } from '../../src/engine/v2/models/capability';
+import { postG, recipeOf } from '../../src/engine/v2/actors/rivalModel';
+import { LEADER_CAL } from '../../src/data/v2/calibration';
 import { START_BY_ID } from '../../src/data/v2/starts';
 import { ownedOnline, rentedOnline } from '../../src/engine/v2/compute/power';
 import { nodeKnown } from '../../src/engine/v2/models/tree';
@@ -67,12 +69,13 @@ function leaderChecks(s: GameStateV2, setup: SetupV2, tag: string) {
   check(L?.core.id === LEADER_ID && L.archetype === 'leader' && L.core.name === LEADER_LAB_NAME, `${tag}: leader lab appended last (${LEADER_ID})`);
   if (!L) return;
   const v0 = { pm: playerStart(s.hidden.timeline).target }; // the reference start model (= the leader start's V0)
-  // simpleStartPa inverts the reference frontier: with LEADER_CAL set aside it equals the start model.
-  const cal = L.core.lagCal;
-  L.core.lagCal = 0;
-  const fr = simpleFrontierPm(s, L.core.id);
-  L.core.lagCal = cal;
-  check(Math.abs(L.internal.pm - v0.pm) < 1e-9 && Math.abs(fr - v0.pm) < 1e-6, `${tag}: leader start model = the reference V0 = its reference frontier`, `${L.internal.pm} vs ${v0.pm} vs ${fr}`);
+  // Model v3 F1: the start recipe is solved so the leader's start version on its start base is V0 (rivalModel.ts), and
+  // it is the leader's day-0 recipe (e ≈ 0: B0's dates make its recipe stale by B0's age; today's is the zero of e).
+  const e0 = recipeOf(s, L);
+  const g0 = L.internal.G ?? NaN;
+  check(Math.abs(L.internal.pm - v0.pm) < 1e-9 && Math.abs(g0 - gV0(s.hidden.timeline)) < 1e-9 && Math.abs(e0) < 0.05 && postG(L.phys.base, e0) >= g0,
+    `${tag}: leader start model = the reference V0, on its start base at the leader's day-0 recipe`, `${L.internal.pm} vs ${v0.pm}; G ${g0} vs ${gV0(s.hidden.timeline)}; e ${e0.toFixed(4)}`);
+  check(Math.abs(L.phys.eff - Math.pow(10, LEADER_CAL[setup.world] ?? 0)) < 1e-12, `${tag}: leader research efficiency = 10^LEADER_CAL`, String(L.phys.eff));
   check(Math.abs(L.core.computeOnline / refTotal(s.hidden.timeline, yr) - 1) < 1e-9 && Math.abs(L.core.staff.cap / hRef(yr) - 1) < 1e-9 && L.core.tasteHire === 1, `${tag}: leader compute = refTotal, staff = hRef`);
   check(postureOf(s, L.core.id).bindingness <= 0.3, `${tag}: leader bindingness ≤ 0.3`, postureOf(s, L.core.id).bindingness.toFixed(2));
   const off = newGame({ ...setup, leaderLab: false });
@@ -260,7 +263,7 @@ for (const rev of [1, 11, 12, 13, 14]) {
     msg = (e as Error).message;
   }
   // Model v3 V2 (schemaRev 13): V1 saves (12) are rejected too; model v3 V3 (schemaRev 14): V2 saves (13) too.
-  check(SCHEMA_REV === 26 && msg ===`no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
+  check(SCHEMA_REV === 27 && msg ===`no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
 }
 // Model v3 V4a (schemaRev 16): a V3b save (15) migrates (customer stocks start empty, versions get their FLOP per token).
 {
@@ -455,6 +458,25 @@ for (const rev of [1, 11, 12, 13, 14]) {
   const o = g?.player.research.re.order ?? [];
   check(!!g && Array.isArray(g.player.models.evals) && g.player.models.evals.length === 0 && o.indexOf('evals') === o.indexOf('ops') + 1,
     'save: a schemaRev-25 save migrates to 26 (no eval suites, evals after run operations)', msg || o.join(', '));
+}
+// Model v3 F1 (schemaRev 27, built as 25 before M4): a D7 save (26) migrates: every non-player lab gets a base under its internal model.
+{
+  const old = JSON.parse(serialize(run(detSetup, 30))) as GameStateV2 & Record<string, unknown>;
+  old.schemaRev = 26;
+  for (const r of [...old.rivals, old.china.lab]) {
+    delete (r as Partial<typeof r>).phys;
+    for (const m of [r.internal, r.publicModel]) if (m) { delete m.G; delete m.flop; delete m.params; delete m.fpt; }
+  }
+  let msg = '';
+  let g: GameStateV2 | undefined;
+  try {
+    g = deserialize(JSON.stringify(old));
+  } catch (e) {
+    msg = (e as Error).message;
+  }
+  const labs = g ? [...g.rivals, g.china.lab] : [];
+  const ok = !!g && labs.every((r) => !!r.phys && r.phys.base.flop > 0 && Math.abs((r.internal.G ?? NaN) - gOfPm(g!.hidden.timeline, r.internal.pm)) < 1e-9 && (r.internal.fpt ?? 0) > 0);
+  check(ok, 'save: a schemaRev-26 save migrates to 27 (each rival keeps its model, now on a physical base)', msg || labs.map((r) => `${r.core.id} G ${r.internal.G?.toFixed(2)} N ${((r.internal.params ?? 0) / 1e12).toFixed(2)}T`).join(', '));
 }
 // ---------- 6. Cadences ----------
 const counts: Record<Cadence, number> = { daily: 0, weekly: 0, monthly: 0, quarterly: 0, semiannual: 0 };

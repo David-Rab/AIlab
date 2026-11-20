@@ -16,6 +16,9 @@ import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { PROJECT_BY_ID, isLineNode } from '../../../data/v2/tree';
 import { safFromProgress } from '../safety/lineProjects';
 import { START_SUITE_FAMILIES, startExpertAssets, suitesFromV1 } from '../models/suites';
+import { migrateRivalPhys } from '../actors/rivalModel';
+import { LEADER_ID } from '../models/labs';
+import { LEADER_CAL } from '../../../data/v2/calibration';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
 /** 12 (model v3 V1): models are built from physical quantities (BaseModel, VersionBuild, BaseDesign, PostDesign changed).
@@ -56,8 +59,12 @@ import { START_SUITE_FAMILIES, startExpertAssets, suitesFromV1 } from '../models
  *  engineers' 'evals' need, BuildKind 'eval', EvalRecord.nEff / lgAt / depth. Migration 25 → 26 starts with no suites
  *  queued (a version in evaluation gets its release suite on the next tick, from scratch), puts 'evals' right after run
  *  operations in the research-engineer order, and leaves old records' precision at their suite count.
- *  (E6 and D7 were both built as 24 → 25; merge M4 made the chain linear.) */
-export const SCHEMA_REV = 26;
+ *  27 (model v3 F1): rivals, China and the leader lab in effective compute — RivalLab.phys (base, base run, research
+ *  efficiency) and SimpleModel G / flop / params / fpt; LabCore.lagCal and TimelineWorld.simpleCredit are gone. Migration
+ *  26 → 27 builds each lab's base under its current internal model from its know-how and training pool
+ *  (actors/rivalModel.ts migrateRivalPhys).
+ *  (E6, D7 and F1 were all built as 24 → 25; merge M4 made the chain linear: E6 → D7 → F1.) */
+export const SCHEMA_REV = 27;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -328,6 +335,19 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       a.order.splice(i < 0 ? 0 : i + 1, 0, 'evals');
     }
     if (p.research.last) p.research.last.re.evals ??= 0;
+  },
+  /** 26 → 27 (model v3 F1): every non-player lab gets its physical state (a base under its internal model, sized by its
+   *  training pool; its recipe from its know-how); the leader lab its research efficiency (LEADER_CAL). The v2 lag-model
+   *  fields go. */
+  26: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const w = s.hidden.timeline;
+    delete (w as { simpleCredit?: number }).simpleCredit;
+    for (const r of [...s.rivals, s.china.lab]) {
+      delete (r.core as { lagCal?: number }).lagCal;
+      if (r.phys) continue;
+      migrateRivalPhys(w, r, r.core.id === LEADER_ID ? Math.pow(10, LEADER_CAL[s.setup.world] ?? 0) : 1);
+    }
   },
 };
 

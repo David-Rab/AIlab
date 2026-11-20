@@ -182,11 +182,8 @@ export interface TimelineWorld {
   // v2 additions
   /** Milestone threshold shift (years) fitted so RefBot's best internal model hits research/11 dates (§7.1). */
   calShift: number;
-  /** BRIDGE(V7): the v3 level offset simple labs (rivals, China, the leader lab) are credited, CAL_SHIFT_V2 − CAL_SHIFT
-   *  (models/capability.ts simpleLag). */
-  simpleCredit?: number;
-  /** Production-function parameters (research/13 §1.4). For the player only the CES parameters are read (ρc, λ, u, v,
-   *  ρ, ζ, m2b); the knots are the rivals' (BRIDGE(V7)). */
+  /** Production-function parameters (research/13 §1.4). The player and the other labs (model v3 F1) read only the CES
+   *  parameters (ρc, λ, u, v, ρ, ζ, m2b); the knots are v2's reference production function (the identity test). */
   prod: ProdParams;
   /** Model v3 V3: per-preset work-type calibration (data/v2/workTypes.ts V3_CAL): G_SC (OOM of effective compute a
    *  superhuman coder needs), Δ_bm (best-to-median human gap, OOM), r (returns to research), sd_SC (AI research taste at
@@ -268,8 +265,6 @@ export interface LabCore {
   /** Cached production readout from the last daily tick (not authoritative; recomputable). */
   prodCache?: ProductionReadout;
   milestoneDays: Partial<Record<MilestoneIdx, Day>>; // first crossings only (v1 bug #3 fix)
-  /** Leader lab only (BUILD-PLAN R2): extra release lag (progress years) added to simpleLag (LEADER_CAL at newGame). */
-  lagCal?: number;
 }
 
 export type MilestoneIdx = 0 | 1 | 2 | 3 | 4 | 5 | 6;
@@ -1468,11 +1463,38 @@ export interface SafetyPosture {
 
 /** Simplified model lineage for non-player labs. */
 export interface SimpleModel {
-  id: string; name: string; day: Day; pm: number; Lg: number; domains: Record<DomainId, number>;
+  id: string; name: string; day: Day;
+  /** Readouts of G (model v3 F1): pm = Φ(G) (the display bridge F3 retires), Lg = λ(G), domain levels. */
+  pm: number; Lg: number; domains: Record<DomainId, number>;
   traitsTrue: TraitVector; // hidden
   uModes: UModeId[]; // hidden
   isPublic: boolean; openWeights: boolean;
   stolenFrom?: LabId;
+  /** Model v3 F1: general effective compute (OOM) and the physical design behind it: the base's training FLOP and active
+   *  parameters, serving FLOP per token (2·N_active × the shape's token multiplier). Optional on the type because a few
+   *  callers build SimpleModels from pm alone (readers then fall back to gOfPm and the lab's base). */
+  G?: number;
+  flop?: number;
+  params?: number;
+  fpt?: number;
+}
+
+/** Model v3 F1: a non-player lab's base model (actors/rivalModel.ts): generation, finish day, training FLOP, active
+ *  parameters, tokens per parameter, G_pre (OOM) and the pretraining recipe frozen at launch (OOM over the leader's day-0
+ *  recipe). A stolen base keeps the G_pre the thief got. */
+export interface RivalBase { gen: number; day: Day; flop: number; params: number; tpp: number; gPre: number; ePre: number }
+/** Model v3 F1: a non-player lab's physical model state. Its recipe efficiency e (OOM over the leader's day-0 recipe) is
+ *  stored in progress-years as `core.pa` (e = B·(pa − pa_ref), the player's know-how readout relation, stacks.ts syncPa),
+ *  so the leaks, diffusion and theft that move know-how move e. */
+export interface RivalPhys {
+  /** The base the lab's versions are post-trained on. */
+  base: RivalBase;
+  /** The base run in training: launch day, FLOP so far, the pretraining recipe frozen at launch. */
+  run?: { day: Day; flop: number; ePre: number };
+  /** Research-efficiency multiplier (the leader lab's 10^LEADER_CAL [fit]; 1 otherwise; China's effLab applies on top). */
+  eff: number;
+  /** Day of the last continual-learning refresh. */
+  clDay?: Day;
 }
 
 export interface RivalLab {
@@ -1481,6 +1503,8 @@ export interface RivalLab {
   internal: SimpleModel;
   publicModel?: SimpleModel;
   nextBaseDay: Day;
+  /** Model v3 F1: recipe, base and run state (actors/rivalModel.ts). */
+  phys: RivalPhys;
   finance: { cash: Money; revenueRun: Money; valuation: Money; commitments: Money; distress: boolean };
   visible: { frameworkVersion: number; clauseType: 'conditional' | 'allAdopt' | 'unconditional' | 'override' | 'state'; testers: string[]; indexGrade?: string };
   intel: RivalIntel;

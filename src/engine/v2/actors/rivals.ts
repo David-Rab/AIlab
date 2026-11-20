@@ -1,11 +1,14 @@
 // US rival labs: progress inputs, releases, posture pressure, hidden traits, incidents, finance (V2-SPEC §3.10.3).
-// Owner: WS4. Rival capability (pa, pm) is WS1's (production function via the lab API); WS4 owns behaviour.
+// Owner: WS4. Rival capability is physical (model v3 F1, actors/rivalModel.ts: recipe, base runs, versions in G); WS4
+// owns the cadence, releases and behaviour.
 //
 // Bug fixes from v1 (§3.10.3): every comparison uses the player's best INTERNAL version (bestPm / trueLeadDays),
 // and labs with status !== 'active' are never chosen as subjects or named (activeRivals).
 import { LAB_ARCHETYPES } from '../../../data/actors';
 import { ARCHETYPE_CLAUSE, ARCHETYPE_POSTURES, LEADER_MAX_BINDINGNESS } from '../../../data/v2/postures';
-import { LEADER_CAL } from '../../../data/v2/calibration';
+import { LEADER_CAL, LEVEL_KNOTS } from '../../../data/v2/calibration';
+import { POST_DAYS } from '../../../data/v2/rivalModel';
+import { B_G_PER_Y } from '../../../data/v2/runDesign';
 import { LEADER_LAB_NAME, LEADER_MODEL_FAMILY, RIVAL_MODEL_FAMILIES, RIVAL_NAMES_V2 } from '../../../data/v2/names';
 import { TRAIT_IDS, TRAIT_START } from '../../../data/v2/traits';
 import { UMODES } from '../../../data/v2/umodes';
@@ -16,9 +19,8 @@ import { LEADER_ID, activeRivals, bestPm, otherLabs } from '../models/labs';
 import { misalignment, rivalTraitStep as ws2RivalTraitStep } from '../safety/traits';
 import { drawSeverity, labModelHazards } from '../safety/incidents';
 import { placeLabOrder, RIVAL_GROWTH_Q } from '../compute/market';
-import { growLabStaff, labReferenceSplit, trackLabFrontier } from '../models/runs';
 import { initialSecurity } from '../security/security';
-import { capIndexV2, referenceRate } from '../world/calibration';
+import { referenceRate } from '../world/calibration';
 import { labMarketRevenue } from '../worldfx/revenue';
 import { worldMix, type WorldMix } from '../worldfx/mix';
 import { noisyPosture, rivalId } from '../world/hidden';
@@ -27,6 +29,7 @@ import { decimalYear } from '../core/time';
 import type {
   BaselineId, EngineSystem, GameStateV2, HiddenWorld, LabId, RivalLab, RngLike, SafetyPosture, SetupV2, SimpleModel, StaffByRole, SystemCtx, TraitVector, UModeId,
 } from '../types';
+import { clRefresh, finishRun, gOfSimple, growLabStaff, initRivalPhys, labReferenceSplit, makeBase, newVersionG, setModelG, trainDay } from './rivalModel';
 import { chinaDaily } from './china';
 import { request, ws4 } from './state';
 import { WS4_TUNING } from './tuning';
@@ -76,7 +79,7 @@ export function initialRival(rng: Rng, h: HiddenWorld, i: number, playerPm: numb
   };
   const split = normalizeSplit({ ...shareRefAt(2025.5), safety: posture.safetyInvestment * 0.15 });
   const f = FIN[arch.id] ?? FIN.bigtech;
-  return {
+  const lab: RivalLab = {
     core: {
       id, name: RIVAL_NAMES_V2[i % RIVAL_NAMES_V2.length], kind: 'rival', status: 'active',
       pa: pm,
@@ -89,6 +92,7 @@ export function initialRival(rng: Rng, h: HiddenWorld, i: number, playerPm: numb
     internal,
     publicModel,
     nextBaseDay: Math.round(rng.range(30, 270)),
+    phys: PHYS_PLACEHOLDER(),
     finance: { ...f, commitments: f.cash * 2, distress: false },
     visible: { frameworkVersion: 1, clauseType: ARCHETYPE_CLAUSE[arch.id] ?? 'conditional', testers: posture.externalAccess > 0.4 ? ['evalGov', 'evalIndep'] : [] },
     intel: { leadDaysEst: Math.round((leadMonths * 365) / 12), leadDaysSd: 60, misalignBand: [0.05, 0.4], knownIncidents: [] },
@@ -96,12 +100,19 @@ export function initialRival(rng: Rng, h: HiddenWorld, i: number, playerPm: numb
     pressure: 0,
     pressureDays: 0,
   };
+  // Model v3 F1: its last base, recipe and models in G (the start model stays where the lead draw put it, T4).
+  initRivalPhys(h.timeline, lab);
+  return lab;
 }
 
+/** Placeholder until initRivalPhys sets the physical state (same call, same object). */
+export const PHYS_PLACEHOLDER = (): RivalLab['phys'] => ({ base: makeBase(1, -60, 1e26, 0), eff: 1 });
+
 /** Build the simulated AI 2027 leader lab (setup.leaderLab, BUILD-PLAN R2) at reference inputs: the player's start
- *  model (playerStart(w).target), capabilities staff hRef, compute refTotal, split shareRef, taste 1. Appended after
- *  the sampled rivals with the fixed id LEADER_ID; its draws come from its own `rng` (Rng(hash32(seed,'leaderLab'))),
- *  never from 'world'. Its posture and archetype are written into `h` here. pa is solved later (simpleStartPa). */
+ *  model (playerStart(w).target), capabilities staff hRef, compute refTotal, split shareRef, taste 1 (the rivals'
+ *  default policy may read the reference path, MODEL-V3 §13). Appended after the sampled rivals with the fixed id
+ *  LEADER_ID; its draws come from its own `rng` (Rng(hash32(seed,'leaderLab'))), never from 'world'. Its posture and
+ *  archetype are written into `h` here. Model v3 F1: research efficiency 10^LEADER_CAL [fit, T1L]. */
 export function initialLeaderLab(rng: Rng, h: HiddenWorld, setup: Pick<SetupV2, 'rivals' | 'world'>, playerPm: number): RivalLab {
   const id = LEADER_ID;
   const w = h.timeline;
@@ -116,7 +127,7 @@ export function initialLeaderLab(rng: Rng, h: HiddenWorld, setup: Pick<SetupV2, 
   const publicModel = simpleModel(h, `${id}-b0`, `${LEADER_MODEL_FAMILY}-1 public`, -20, playerPm, uModes, true);
   const staff: StaffByRole = { cap: hRef(yr0), saf: Math.round(hRef(yr0) * 0.15 * posture.safetyInvestment + 10) };
   const f = FIN.leader;
-  return {
+  const lab: RivalLab = {
     core: {
       id, name: LEADER_LAB_NAME, kind: 'rival', status: 'active',
       pa: playerPm,
@@ -124,12 +135,12 @@ export function initialLeaderLab(rng: Rng, h: HiddenWorld, setup: Pick<SetupV2, 
       split: shareRefAt(yr0), staff, tasteHire: 1,
       security: initialSecurity(staff, 2.2),
       milestoneDays: {},
-      lagCal: LEADER_CAL[setup.world] ?? 0,
     },
     archetype: arch.id,
     internal,
     publicModel,
     nextBaseDay: Math.round(rng.range(120, 270)),
+    phys: PHYS_PLACEHOLDER(),
     finance: { ...f, commitments: f.cash * 2, distress: false },
     visible: { frameworkVersion: 1, clauseType: ARCHETYPE_CLAUSE.leader, testers: posture.externalAccess > 0.4 ? ['evalGov', 'evalIndep'] : [] },
     intel: { leadDaysEst: 0, leadDaysSd: 60, misalignBand: [0.05, 0.4], knownIncidents: [] },
@@ -137,6 +148,8 @@ export function initialLeaderLab(rng: Rng, h: HiddenWorld, setup: Pick<SetupV2, 
     pressure: 0,
     pressureDays: 0,
   };
+  initRivalPhys(w, lab, Math.pow(10, LEADER_CAL[setup.world] ?? 0), 0);
+  return lab;
 }
 
 /** U-modes present in a new lineage (same rule as world/hidden.ts drawLineageUModes; takes any RNG). */
@@ -234,9 +247,8 @@ export function rivalSpeedMult(s: GameStateV2, lab: LabId): number {
 /** Training signals S1–S8 for a non-player lab from its posture (§3.10.3). */
 export function rivalSignals(s: GameStateV2, r: RivalLab): Record<'S1' | 'S2' | 'S3' | 'S4' | 'S5' | 'S6' | 'S7' | 'S8', number> {
   const p = postureOf(s, r.core.id);
-  const w = s.hidden.timeline;
   const L = r.internal.Lg;
-  const ci = clamp(capIndexV2(w, r.internal.pm), 0, 6);
+  const ci = capIndexOfLevel(L);
   return {
     S1: p.prefIntensity * 0.9,
     S2: p.rlIntensity * (1 - 0.4 * p.evalRigor),
@@ -255,6 +267,15 @@ export function effSafety(s: GameStateV2, r: RivalLab, noise: number): number {
   const p = postureOf(s, r.core.id);
   const relax = r.core.kind === 'china' ? (s.china.meters.stateSteering / 100) * (1 - s.china.meters.safetyConcern / 100) : p.raceRelaxation;
   return clamp(p.safetyInvestment * (1 - relax * r.pressure) * (1 - Math.abs(noise) * p.rhetoricGap), 0, 1);
+}
+
+/** Fractional capability index 0..6 of a display level on the level knots (Agent-0 … ASI), the λ(G) scale every lab
+ *  shares (model v3 F1: replaces the rivals' pm thresholds). */
+export function capIndexOfLevel(L: number): number {
+  const k = LEVEL_KNOTS;
+  if (L <= k[0]) return 0;
+  for (let i = 0; i < k.length - 1; i++) if (L < k[i + 1]) return i + (L - k[i]) / (k[i + 1] - k[i]);
+  return k.length - 1;
 }
 
 /** Trait-drift scale [fit]: tuned so maverick Mis at ASI ≈ 0.45–0.6 and safety-rival ≈ 0.25–0.35 (medium). */
@@ -309,16 +330,16 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   const rng = ctx.rng(r.core.kind === 'china' ? 'china' : 'rivals');
   const arch = r.archetype;
 
-  // WS4 manages this lab (WS1's default policy is off): compute split and staff through WS1's lab API, and the
-  // internal model's capability tracks the lab's frontier (simpleFrontierPm); model identity, traits and releases
-  // follow WS4's cadence below.
+  // WS4 manages this lab (WS1's default policy is off): compute split and staff through WS1's lab API; its base run
+  // trains on its training pool (model v3 F1, rivalModel.ts); model identity, traits and releases follow WS4's cadence
+  // below.
   r.managed = true;
   // The leader lab runs at the reference compute path (no chip orders, BUILD-PLAN R2): set today for tomorrow's
   // production readout, which reads the inputs as of today (production uses day − 1).
   if (id === LEADER_ID) r.core.computeOnline = refTotal(s.hidden.timeline, decimalYear(s));
   labReferenceSplit(s, r);
   growLabStaff(s, r);
-  trackLabFrontier(s, r);
+  trainDay(s, r, day);
 
   // Pressure (§3.10.3) and its persistence (moving-goalposts trigger).
   r.pressure = racePressure(s, id);
@@ -329,27 +350,43 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   if (s.flags[lk] === undefined && r.internal.Lg >= 9) s.flags[lk] = rng.chance(LATENT_P[arch] ?? 0.5);
 
   w.internalDay[id] ??= r.internal.day;
-  w.nextPost[id] ??= day + Math.round(rng.range(42, 70));
+  w.nextPost[id] ??= day + Math.round(rng.range(POST_DAYS[0], POST_DAYS[1]));
   const [gen, post] = genOf(r);
   const fam = famOf(s, r);
+  const wl = s.hidden.timeline;
 
-  // Base cadence: a new lineage. WS2's trait graph draws its U-modes and initial traits (§3.10.3 "Rivals and China
-  // use the same graph"), then a first post-train on it.
+  // Post-training cadence (6–10 weeks, research/12 §0.1): same lineage, new version on the current base at today's
+  // recipe (rivalModel.ts newVersionG), never below the version it replaces.
+  const postVersion = () => {
+    w.nextPost[id] = day + Math.round(rng.range(POST_DAYS[0], POST_DAYS[1]));
+    const G = Math.max(gOfSimple(wl, r.internal), newVersionG(s, r, r.phys.base));
+    r.internal = { ...r.internal, id: `${id}-b${gen}p${post + 1}`, name: `${fam}-${gen}.${post + 1}`, day, traitsTrue: { ...r.internal.traitsTrue }, uModes: [...r.internal.uModes] };
+    setModelG(wl, r.internal, G, r.phys.base);
+    w.internalDay[id] = day;
+    ws2RivalTraitStep(s, rng, r, 'post', { latent: s.flags[lk] === true });
+  };
+  // Base cadence (9–15 months by archetype; research/12 §0.1: one every ~9–18 months per lab): the base run that trained
+  // on the lab's pool finishes and, if its first version beats the current model, starts a new lineage. WS2's trait
+  // graph draws its U-modes and initial traits (§3.10.3 "Rivals and China use the same graph"), then a first post-train
+  // on it. A base no better than the model the lab holds (a stolen one) is shelved and the current base post-trained.
   if (day >= r.nextBaseDay) {
     const months = (BASE_MONTHS[arch] ?? 12) * rng.range(0.8, 1.2);
     r.nextBaseDay = day + Math.round(months * 30.4);
-    const g2 = gen + 1;
-    r.internal = { ...r.internal, id: `${id}-b${g2}p0`, name: `${fam}-${g2}`, day, traitsTrue: { ...r.internal.traitsTrue }, uModes: [...r.internal.uModes], isPublic: false, openWeights: false };
-    w.internalDay[id] = day;
-    ws2RivalTraitStep(s, rng, r, 'base');
-    ws2RivalTraitStep(s, rng, r, 'post', { latent: s.flags[lk] === true });
-  } else if (day >= w.nextPost[id]) {
-    // Post-training cadence (6–10 weeks): same lineage, new version.
-    w.nextPost[id] = day + Math.round(rng.range(42, 70));
-    r.internal = { ...r.internal, id: `${id}-b${gen}p${post + 1}`, name: `${fam}-${gen}.${post + 1}`, day, traitsTrue: { ...r.internal.traitsTrue }, uModes: [...r.internal.uModes] };
-    w.internalDay[id] = day;
-    ws2RivalTraitStep(s, rng, r, 'post', { latent: s.flags[lk] === true });
-  }
+    const nb = finishRun(r, day);
+    const gNew = nb ? newVersionG(s, r, nb) : -Infinity;
+    if (nb && gNew >= gOfSimple(wl, r.internal)) {
+      const g2 = gen + 1;
+      r.phys.base = nb;
+      r.phys.clDay = day;
+      r.internal = { ...r.internal, id: `${id}-b${g2}p0`, name: `${fam}-${g2}`, day, traitsTrue: { ...r.internal.traitsTrue }, uModes: [...r.internal.uModes], isPublic: false, openWeights: false };
+      setModelG(wl, r.internal, gNew, nb);
+      w.internalDay[id] = day;
+      ws2RivalTraitStep(s, rng, r, 'base');
+      ws2RivalTraitStep(s, rng, r, 'post', { latent: s.flags[lk] === true });
+    } else postVersion();
+  } else if (day >= w.nextPost[id]) postVersion();
+  // Continual learning past the Research-agent level: the internal model re-applies today's recipe weekly, in place.
+  else clRefresh(s, r, day);
 
   // Releases: the public model lags the internal one (§3.10.3).
   // A lab whose lag exceeds its post-training interval (6–10 weeks) never had an internal version `lag` days old (each
@@ -361,9 +398,9 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   if (!r.publicModel || (r.publicModel.id !== r.internal.id && !r.publicModel.id.startsWith(`${r.internal.id}~`))) {
     if (age >= lag) rel = r.internal;
     else if (day - (r.publicModel?.day ?? -1e9) >= lag + 56) {
-      const pm = Math.max(r.publicModel?.pm ?? -Infinity, r.internal.pm - ((lag - age) / 365) * rateOf(s, id));
-      const wl = s.hidden.timeline;
-      rel = { ...r.internal, id: `${r.internal.id}~${day}`, day: day - lag, pm, Lg: levelOf(wl, pm), domains: domainsOf(wl, pm) };
+      const G = Math.max(r.publicModel ? gOfSimple(wl, r.publicModel) : -Infinity, gOfSimple(wl, r.internal) - ((lag - age) / 365) * rateOf(s, id) * B_G_PER_Y);
+      rel = { ...r.internal, id: `${r.internal.id}~${day}`, day: day - lag };
+      setModelG(wl, rel, G);
     }
   } else if (r.publicModel.id !== r.internal.id && age >= lag) rel = r.internal;
   if (rel) {

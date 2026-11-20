@@ -9,7 +9,10 @@
 // Its inputs are in fixed physical units (the leader lab's day-0 inputs = 1): h research engineers on research, k agent
 // compute, c experiment compute.
 //
-// Rivals, China and the leader lab (BRIDGE(V7), rebuilt in V7) keep the v2 production function on their pm:
+// Rivals, China and the leader lab (model v3 F1): the same experiment CES at aggregate level with their own models' AI
+// labour; their recipe grows with the world's returns r (actors/rivalModel.ts). This file advances it daily
+// (rivalResearch). v2's knot production function (evalM / evalProduction without v3 inputs) stays only as the reference
+// function the identity test checks:
 //   Lrel = [(1−A)^(1−ρc)·h^ρc + A^(1−ρc)·(R·k)^ρc]^(1/ρc)      (A ≥ 1 ⇒ R·k)
 //   ℓ = Lrel^λ;  X = [u·c^(ζρ) + v·ℓ^ρ]^(1/ρ);  Tref = M_ref(q)/X(1, ℓ_ref(q));  norm = X(1, ℓ_ref(q)) / X*(q, yr)
 //   M = Tref·X·norm·eff·mods;  Stage 1: dpa/dt = share·laborSlowdown(M, yr);  Stage 2: dpa/dt = M;  × pause × treaty
@@ -20,7 +23,8 @@ import { C_UNIT_FLOP_PER_DAY, DAY0_REF, RE_UNIT } from '../../../data/v2/workTyp
 import { CHINA_PRESETS } from '../../../data/actors';
 import { decimalYear } from '../core/time';
 import { shareRefAt } from '../departments/split';
-import { CHINA_ID, LEADER_ID, PLAYER_ID, bestPlayerVersion, labCore, otherLabs } from '../models/labs';
+import { CHINA_ID, LEADER_ID, PLAYER_ID, bestPlayerVersion, labCore, otherLabs, rivalLab } from '../models/labs';
+import { bestRivalMix, evalRival, fptOfSimpleModel, gOfSimple, recipeRate, rivalReadout } from '../actors/rivalModel';
 import { addKnowledge, trainNow } from '../models/stacks';
 import { asV1World } from '../world/calibration';
 import { poolsOf } from '../compute/power';
@@ -33,7 +37,7 @@ import { capReCapacity, reAllocation } from '../models/research';
 import { idleTrainingShare } from '../models/runs';
 import { adopted } from '../models/paradigms';
 import { payoffOf } from '../models/tree';
-import type { EngineSystem, GameStateV2, LabId, ProdParams, ProductionReadout, TimelineWorld } from '../types';
+import type { EngineSystem, GameStateV2, LabId, ProdParams, ProductionReadout, RivalLab, TimelineWorld } from '../types';
 
 /** The player's research inputs (model v3 V3) as of today: what the readout needs to re-evaluate research speed at other
  *  h, k, c. Absent for the other labs. */
@@ -58,11 +62,11 @@ export interface V3Inputs {
   stage2: boolean;
 }
 
-/** Inputs of one lab's production function for one day. For rivals and China: ratios vs the dated reference path
- *  (§3.2.1, BRIDGE(V7)). For the player (`v3` set): h, k, c in fixed physical units (the leader lab's day-0 research
- *  engineers on research, agent compute, experiment FLOP = 1). */
+/** Inputs of one lab's production function for one day: the player's (`v3` set) h, k, c in fixed physical units (the
+ *  leader lab's day-0 research engineers on research, agent compute, experiment FLOP = 1). Without `v3`: v2's knot
+ *  function's ratios vs the reference path (the identity test's reference inputs). */
 export interface LabInputs {
-  /** v1-coordinate progress of the internally deployed model (q_dep = p_dep + calShift; rivals only). */
+  /** v1-coordinate progress of the internally deployed model (v2's knot function only). */
   qDep: number;
   qTaste?: number;
   aEng?: number;
@@ -236,7 +240,7 @@ export function researchSpeedRel(s: GameStateV2): number {
   return (e.X * e.units * inp.v3.Tai * inp.v3.mods * inp.v3.rateMult) / (DAY0_REF.re / RE_UNIT);
 }
 
-// ───────────────────────────── rivals and China (BRIDGE(V7)) ─────────────────────────────
+// ───────────────────────────── v2's knot production function (the identity test's reference) ─────────────────────────────
 
 /** X* of the reference lab with the best research mix at (q, yr); memoised per world (a few distinct keys a day). */
 const xOptMemo = new WeakMap<ProdParams, Map<string, number>>();
@@ -246,7 +250,7 @@ export function refBestX(Pp: P, A: number, R: number, q: number, yr: number): nu
   const key = `${q.toFixed(5)}|${yr.toFixed(4)}`;
   let x = m.get(key);
   if (x === undefined) {
-    const sh = shareRefAt(yr); // BRIDGE(V7)
+    const sh = shareRefAt(yr); // BRIDGE(V7): v2 knot function, identity test only (no lab reads it since F1)
     const r = sh.experiments + sh.agents;
     x = bestMix(Pp, A, R, 1, r / sh.experiments, r / sh.agents).X;
     if (m.size > 4000) m.clear();
@@ -263,8 +267,8 @@ export function evalM(w: TimelineWorld, inp: Pick<LabInputs, 'qDep' | 'yr' | 'h'
   }
   const Pp: P = w.prod;
   const q = inp.qDep;
-  const Mref = multiplierAt(asV1World(w), q); // BRIDGE(V7)
-  const kn = knotAt(Pp.knots, q); // BRIDGE(V7)
+  const Mref = multiplierAt(asV1World(w), q); // BRIDGE(V7): v2 knot function, identity test only (no lab reads it since F1)
+  const kn = knotAt(Pp.knots, q); // BRIDGE(V7): v2 knot function, identity test only (no lab reads it since F1)
   const lRef = Math.pow(Lrel(Pp, kn.A, 1, kn.R), Pp.lam);
   const Xref = Xces(Pp, 1, lRef);
   const Tref = inp.qTaste === undefined || inp.qTaste === q ? Mref / Xref : tasteCurve(w, inp.qTaste);
@@ -279,11 +283,11 @@ export function evalM(w: TimelineWorld, inp: Pick<LabInputs, 'qDep' | 'yr' | 'h'
   return { M, Mref, A: kn.A, R: kn.R, Tref, tau, sdAI, L, l, X, ai, norm };
 }
 
-/** The taste curve Tref(q) = M_ref(q) / X(1, ℓ_ref(q)) (research/13; rivals, BRIDGE(V7)). */
+/** The taste curve Tref(q) = M_ref(q) / X(1, ℓ_ref(q)) (research/13; v2's knot function). */
 export function tasteCurve(w: TimelineWorld, q: number): number {
   const Pp = w.prod;
-  const kn = knotAt(Pp.knots, q); // BRIDGE(V7)
-  return multiplierAt(asV1World(w), q) / Xces(Pp, 1, Math.pow(Lrel(Pp, kn.A, 1, kn.R), Pp.lam)); // BRIDGE(V7)
+  const kn = knotAt(Pp.knots, q); // BRIDGE(V7): v2 knot function, identity test only (no lab reads it since F1)
+  return multiplierAt(asV1World(w), q) / Xces(Pp, 1, Math.pow(Lrel(Pp, kn.A, 1, kn.R), Pp.lam)); // BRIDGE(V7): v2 knot function, identity test only (no lab reads it since F1)
 }
 
 const speedOf = (M: number) => Math.min(PROD_SPEED_CAP, 8 + 10.8 * Math.log2(Math.max(1, M))); // R11 #23
@@ -295,7 +299,7 @@ export function evalProduction(w: TimelineWorld, inp: LabInputs, detail = true):
   const Pp = w.prod;
   const e = evalM(w, inp);
   const stage: 1 | 2 = inp.qDep >= stage1(asV1World(w)) ? 2 : 1;
-  const rate = (stage === 1 ? w.share * laborSlowdown(e.M, inp.yr) : e.M) * inp.rateMult; // BRIDGE(V7)
+  const rate = (stage === 1 ? w.share * laborSlowdown(e.M, inp.yr) : e.M) * inp.rateMult; // BRIDGE(V7): v2 knot function, identity test only (no lab reads it since F1)
   const Xh = Xces(Pp, inp.c, Math.pow(Math.max(1e-9, inp.h), Pp.lam));
   const parts = { base: Xh * e.norm, agents: e.X / Xh, taste: e.Tref * e.tau, other: inp.eff * inp.mods };
   const cT = Pp.u * Math.pow(inp.c, Pp.zeta * Pp.rho);
@@ -303,7 +307,7 @@ export function evalProduction(w: TimelineWorld, inp: LabInputs, detail = true):
   const sC = cT / (cT + lT);
   const sL = 1 - sC;
   const wH = e.A >= 1 - 1e-12 ? 0 : (Math.pow(1 - e.A, 1 - Pp.rc) * Math.pow(inp.h, Pp.rc)) / Math.pow(e.L, Pp.rc);
-  const gF = refTotal(w, inp.yr + 1) / refTotal(w, inp.yr); // BRIDGE(V7)
+  const gF = refTotal(w, inp.yr + 1) / refTotal(w, inp.yr); // BRIDGE(V7): v2 knot function, identity test only (no lab reads it since F1)
   const elast = {
     exp: Pp.zeta * sC,
     humans: Pp.lam * sL * wH,
@@ -336,7 +340,7 @@ export function evalProduction(w: TimelineWorld, inp: LabInputs, detail = true):
   const copies = inp.abs.Cagents / Math.max(1e-6, perCopy);
   return {
     M: e.M, rate, stage, parts, elast, perDollar, ceilings, binding, label,
-    labor: { A: e.A, aiFTE: e.ai * hRef(inp.yr), copies, speed: speedOf(e.M), wH }, // BRIDGE(V7)
+    labor: { A: e.A, aiFTE: e.ai * hRef(inp.yr), copies, speed: speedOf(e.M), wH }, // BRIDGE(V7): v2 knot function, identity test only (no lab reads it since F1)
     ratios: { h: inp.h, k: inp.k, c: inp.c, d: inp.d },
     Ddata: 1,
     whatIf,
@@ -358,36 +362,36 @@ export function effLab(s: GameStateV2, lab: LabId): number {
   return s.hidden.timeline.chinaEfficiency * (CHINA_PRESETS.find((p) => p.id === s.china.preset) ?? CHINA_PRESETS[0]).efficiency * CHINA_CAL.effScale;
 }
 
-/** p_dep (progress units, shifted coordinate pm) of a rival's internally deployed model (BRIDGE(V7)). */
-export function pDepOf(s: GameStateV2, lab: LabId): number {
-  const r = lab === CHINA_ID ? s.china.lab : s.rivals.find((x) => x.core.id === lab);
-  return r ? r.internal.pm : 0;
+/** Build the player's production inputs from state on day `day` (default today; model v3 V3). The other labs have none
+ *  since model v3 F1: their research is rivalResearch below. */
+export function labInputs(s: GameStateV2, lab: LabId, day = s.time.day): LabInputs | undefined {
+  if (lab !== PLAYER_ID || !labCore(s, lab)) return undefined;
+  return playerInputs(s, day);
 }
 
-/** Build a lab's production inputs from state on day `day` (default today). The player's are the work-type inputs
- *  (model v3 V3); the other labs' the v2 ratios vs the reference path (BRIDGE(V7)). */
-export function labInputs(s: GameStateV2, lab: LabId, day = s.time.day): LabInputs | undefined {
-  const core = labCore(s, lab);
-  if (!core) return undefined;
-  if (lab === PLAYER_ID) return playerInputs(s, day);
+/** A non-player lab's research today (model v3 F1, actors/rivalModel.ts): the best experiments/agents mix of its research
+ *  compute (re-split unless set by hand), research speed through the aggregate CES with its internal model's AI labour,
+ *  its efficiency (the leader's LEADER_CAL, China's effLab) and modifiers (a binding leader, a verified treaty), and the
+ *  recipe growth that gives. `apply` re-splits the mix and advances the recipe (core.pa) by a day. */
+export function rivalResearch(s: GameStateV2, r: RivalLab, apply: boolean): ProductionReadout {
   const w = s.hidden.timeline;
-  const yr = decimalYear(s, day);
-  const ref = refTotal(w, yr); // BRIDGE(V7)
-  const sh = shareRefAt(yr); // BRIDGE(V7)
-  const mods = rivalSpeedMult(s, lab); // a binding leader slows itself (§3.10.3, WS4)
-  const H = Math.max(1, core.staff.cap);
-  const pools = poolsOf(s, lab);
-  const h = H / hRef(yr); // BRIDGE(V7)
-  const qDep = pDepOf(s, lab) + w.calShift; // BRIDGE(V7)
-  const kUnit = 1 / Math.max(1, ref * sh.agents);
-  const Cres = pools.experiments + pools.agents;
+  const core = r.core;
+  const G = gOfSimple(w, r.internal);
+  const fpt = fptOfSimpleModel(r.internal);
+  const res = core.split.experiments + core.split.agents;
+  const C = core.computeOnline * res;
+  let f = res > 0 ? core.split.experiments / res : 0.5;
+  if (apply && !core.researchManual && res > 0) {
+    f = bestRivalMix(w, G, fpt, core.staff.cap, C);
+    core.split.experiments = res * f;
+    core.split.agents = res * (1 - f);
+  }
   const treaty = s.gov.treaty === 'verified' ? 0.65 : 1;
-  return {
-    qDep, yr, h, k: pools.agents * kUnit, c: pools.experiments / Math.max(1, ref * sh.experiments), d: pools.synthetic / Math.max(1, ref * sh.synthetic),
-    mixUnit: { c: Cres / Math.max(1, ref * sh.experiments), k: Cres * kUnit, C: Cres, load: 0, off: false, idle: 0, cIdle: 0 }, stock: 1,
-    tasteHire: core.tasteHire, eff: effLab(s, lab), mods, rateMult: treaty,
-    abs: { H, Cagents: pools.agents, Cexp: pools.experiments, serveCost: 0.5, tcoPerYr: tcoPerH100eYear(s, yr), staffCostPerYr: 0.8e-3 },
-  };
+  const x = evalRival(s, r, f, C, (r.phys?.eff ?? 1) * effLab(s, core.id), rivalSpeedMult(s, core.id) * treaty);
+  const eRate = recipeRate(s, r, x.rs);
+  if (apply) core.pa += eRate / 365 / B_G_PER_Y;
+  const pools = poolsOf(s, core.id);
+  return rivalReadout(x, eRate, core.milestoneDays[3] !== undefined, { h: (x.units * RE_UNIT) / DAY0_REF.re, k: pools.agents / DAY0_REF.agents, c: x.c, d: pools.synthetic / DAY0_SYNTHETIC });
 }
 
 /** Spare serving compute lent to research agents (J2 PR1) and what it adds to research speed today (M with it ÷ M
@@ -400,14 +404,18 @@ export function spareServingEffect(s: GameStateV2): { h100e: number; dM: number 
   return { h100e: inp.mixUnit.spare ?? 0, dM: evalM(w, inp).M / Math.max(1e-12, evalM(w, { ...inp, k: Math.max(1e-12, inp.k - ks) }).M) - 1 };
 }
 
-/** Production readout for a lab, computed from current state (§3.2.2/§3.2.5). */
+/** Production readout for a lab, computed from current state (§3.2.2/§3.2.5; the other labs' from rivalResearch). */
 export function computeProduction(s: GameStateV2, lab: LabId): ProductionReadout | undefined {
+  if (lab !== PLAYER_ID) {
+    const r = rivalLab(s, lab);
+    return r ? rivalResearch(s, r, false) : undefined;
+  }
   const inp = labInputs(s, lab);
   return inp ? evalProduction(s.hidden.timeline, inp) : undefined;
 }
 
 /** Best experiments share of a lab's research compute (experiments + agents) for its current inputs: the player's by
- *  golden-section search on its experiment throughput (model v3 V3), the others' by the knot model's mix (BRIDGE(V7)). */
+ *  golden-section search on its experiment throughput (model v3 V3); v2's knot inputs by the knot model's mix. */
 export function bestResearchMix(s: GameStateV2, inp: LabInputs): number {
   const w = s.hidden.timeline;
   if (inp.v3) {
@@ -426,7 +434,7 @@ export function bestResearchMix(s: GameStateV2, inp: LabInputs): number {
     return (lo + hi) / 2;
   }
   const Pp = w.prod;
-  const kn = knotAt(Pp.knots, inp.qDep); // BRIDGE(V7)
+  const kn = knotAt(Pp.knots, inp.qDep); // BRIDGE(V7): v2 knot function, identity test only (no lab reads it since F1)
   return bestMix(Pp, kn.A, kn.R, inp.h, inp.mixUnit.c, inp.mixUnit.k, inp.mixUnit.cIdle ?? 0, inp.mixUnit.kSpare ?? 0).f;
 }
 
@@ -450,21 +458,25 @@ export function applyBestMix(s: GameStateV2, lab: LabId, day = s.time.day, inp =
   return inputsAtMix(inp, f);
 }
 
-/** One lab's day: readout at day−1 inputs; simple labs' know-how grows at the rate (BRIDGE(V7)). The player's research
- *  runs in models/research.ts; its readout is cached here. */
+/** One lab's day: the player's readout at day−1 inputs (its research runs in models/research.ts; the readout is cached
+ *  here); a non-player lab's research advances its recipe (rivalResearch). */
 export function advanceLab(s: GameStateV2, lab: LabId): ProductionReadout | undefined {
   const core = labCore(s, lab);
   if (!core || core.status !== 'active') return undefined;
+  if (lab !== PLAYER_ID) {
+    const r = rivalLab(s, lab);
+    return r ? (core.prodCache = rivalResearch(s, r, true)) : undefined;
+  }
   const inp = applyBestMix(s, lab, s.time.day - 1);
   if (!inp) return undefined;
-  const r = evalProduction(s.hidden.timeline, inp, lab === PLAYER_ID);
+  const r = evalProduction(s.hidden.timeline, inp, true);
   core.prodCache = r;
-  if (lab !== PLAYER_ID) core.pa += r.rate / 365;
   return r;
 }
 
 /** Knowledge diffusion to the player (R9; data/v2/calibration.ts K_DIFFUSION): K × (the frontier leader lab's public
- *  model − the player's best model) per year while positive (BRIDGE(V7): compared on pm until V7 rebuilds rivals in G). */
+ *  model − the player's best model) per year while positive, in progress-years (both models' pm = Φ(G), so this is the G
+ *  gap ÷ B; the pm bridge itself is F3's). */
 export function diffusionPerDay(s: GameStateV2): { dpa: number; from?: string } {
   const L = s.rivals.find((r) => r.core.id === LEADER_ID);
   const pub = L && L.core.status === 'active' ? L.publicModel?.pm : undefined;

@@ -2,9 +2,10 @@
 // reaching into s.player / s.rivals / s.china.lab directly when they need "any lab".
 //
 // Production for any lab: `computeProduction(s, lab)` / `labInputs` / `evalProduction` (production/production.ts).
-// Every active lab's know-how pa is advanced by the WS1 production system (order 30) through the same function.
-// Non-player labs carry a SimpleModel frontier; until WS4 sets `RivalLab.managed`, WS1's continual system applies
-// a default policy: the internal model tracks `simpleFrontierPm` and the split tracks shareRef(t).
+// The WS1 production system (order 30) advances every active lab's research: the player's projects, the other labs'
+// aggregate recipe (model v3 F1, actors/rivalModel.ts). Non-player labs carry SimpleModel versions on a physical base;
+// until WS4 sets `RivalLab.managed`, WS1's continual system applies a default policy (split tracks shareRef(t), the base
+// run trains, the continual learner refreshes).
 import type { ComputeSplit, GameStateV2, LabCore, LabId, ModelVersion, RivalLab } from '../types';
 
 export const PLAYER_ID: LabId = 'player';

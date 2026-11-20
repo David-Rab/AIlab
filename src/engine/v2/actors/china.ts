@@ -9,7 +9,8 @@ import { initialSecurity } from '../security/security';
 import { drawLineageUModes } from '../world/hidden';
 import type { ChinaActor, EngineSystem, GameStateV2, HiddenWorld, StaffByRole, SystemCtx } from '../types';
 import { cash, drift } from './fx';
-import { goalpostsQ, leadBetween, rivalFinanceQ, simpleModel } from './rivals';
+import { PHYS_PLACEHOLDER, goalpostsQ, leadBetween, rivalFinanceQ, simpleModel } from './rivals';
+import { initRivalPhys } from './rivalModel';
 import { request, ws4 } from './state';
 import { unlicensedPublicT } from '../production/data';
 import { KOREA_HAZARD_Q, koreaShock, setExportPolicy, taiwanHazardQ, taiwanShock } from '../compute/market';
@@ -28,7 +29,7 @@ export function initialChina(rng: Rng, h: HiddenWorld, playerPm: number, chinaGa
     taiwanTension: 40, normsDiplomacy: 65, verificationWillingness: 15, econLeverage: 80, hawkDove: p.hawk,
   };
   const total = CHINA_PRESETS.reduce((a, x) => a + x.weight, 0);
-  return {
+  const out: ChinaActor = {
     preset: p.id,
     lab: {
       core: {
@@ -44,6 +45,7 @@ export function initialChina(rng: Rng, h: HiddenWorld, playerPm: number, chinaGa
       internal: simpleModel(h, 'china-b1p0', `${CHINA_MODEL_FAMILY}-1`, -30, pm, uModes, false),
       publicModel: simpleModel(h, 'china-b0', `${CHINA_MODEL_FAMILY}-1 open`, -45, pm - 0.15, uModes, true, true),
       nextBaseDay: Math.round(rng.range(60, 240)),
+      phys: PHYS_PLACEHOLDER(),
       finance: { cash: 30, revenueRun: 1, valuation: 0, commitments: 0, distress: false },
       visible: { frameworkVersion: 0, clauseType: 'state', testers: [] },
       intel: { leadDaysEst: Math.round(chinaGapYears * 365 * 0.8), leadDaysSd: 75, misalignBand: [0.05, 0.5], knownIncidents: [] },
@@ -58,6 +60,9 @@ export function initialChina(rng: Rng, h: HiddenWorld, playerPm: number, chinaGa
     // Quarterly re-weighting starts concentrated on the drawn preset (0.6) plus the population weights (0.4).
     presetWeights: Object.fromEntries(CHINA_PRESETS.map((x) => [x.id, 0.4 * (x.weight / total) + (x.id === p.id ? 0.6 : 0)])),
   };
+  // Model v3 F1: DeepCent's last base, recipe and models in G (its research efficiency effLab applies at run time).
+  initRivalPhys(h.timeline, out.lab);
+  return out;
 }
 
 /** Blended preset multipliers from the current preset weights (research/10 §1.2 drift). */

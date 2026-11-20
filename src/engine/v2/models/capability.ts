@@ -7,9 +7,8 @@ import { COGNITIVE_WORK, H50_PER_OOM, H50_V0_MIN, H80_OVER_H50, LEVEL_PER_OOM, W
 import { labMilestones } from '../departments/workfit';
 import { clamp } from '../../rng';
 import { START_DATE, dayOfDate, decimalYearOf } from '../core/time';
-import { shareRefAt } from '../departments/split';
-import { gF, refTotal } from '../production/knots';
-import { asV1World, levelOf, thresholds } from '../world/calibration';
+import { asV1World, levelOf } from '../world/calibration';
+import { bestLevelOf } from '../actors/rivalModel';
 import type { Day, DomainId, EngineSystem, GameStateV2, LabId, MilestoneIdx, ModelVersion, TimelineWorld, VersionBuild } from '../types';
 import { PLAYER_ID, bestPm, internalVersion, labCore, otherLabs } from './labs';
 import { REF_RL_PROFILE, flopOfDesign, gPreOf, rlFamiliesAvailable, rlGains, rlWeights } from './effective';
@@ -40,10 +39,9 @@ export function levelKnotsG(w: TimelineWorld): number[] {
   knotMemo.set(w, g);
   return g;
 }
-/** BRIDGE(V7): the display bridge's shift that lines the rivals' pm thresholds up with the player's work-type levels: the
- *  SC threshold (milestoneThresholds[3] − calShift) at Φ(G_SC), so a rival reaching its SC on pm reads L 10 on λ(G) as the
- *  player's superhuman coder does. Derived per world (model v3 V3b), not fitted; the rivals' q = pm + calShift path keeps
- *  v2's through the simple-lab credit (CAL_SHIFT_V2 − calShift). */
+/** BRIDGE(V6): the world's calShift, derived per world (model v3 V3b): the SC threshold (milestoneThresholds[3] −
+ *  calShift) at Φ(G_SC), so v2's pm thresholds (safety's M(q) bridge, RefBot's pacing gates through bridgeQ) line up with
+ *  the work-type levels. Rivals no longer read it (model v3 F1: their milestones are λ(G) crossings). */
 export function alignedCalShift(w: TimelineWorld): number {
   return milestoneThresholds(asV1World(w))[3] - playerStart(w).target - (w.v3.gSC - gV0(w)) / B_G_PER_Y;
 }
@@ -65,8 +63,8 @@ export const yearOfDay = (day: Day) => decimalYearOf(START_DATE, day);
 
 // ───────────────────────────── compute component (§3.1.3) ─────────────────────────────
 
-/** BRIDGE(V7): pcRef_lab(t) = (1 − share)·∫₀^min(t, scDay) computePace dt (years; t < 0 extrapolates linearly). Only the
- *  simple rival/China frontier and the start-state solution read it now; player models are built from physical FLOP. */
+/** pcRef_lab(t) = (1 − share)·∫₀^min(t, scDay) computePace dt (years; t < 0 extrapolates linearly): v2's compute term,
+ *  read only by the start-state solution below (playerStart) since model v3 F1. */
 export function pcRefLab(w: TimelineWorld, day: Day, scDay?: Day): number {
   const t = scDay !== undefined ? Math.min(day, scDay) : day;
   const pre = Math.min(t, DAY_2029);
@@ -76,8 +74,9 @@ export function pcRefLab(w: TimelineWorld, day: Day, scDay?: Day): number {
 
 // ───────────────────────────── bridges (design/V3-BUILD.md) ─────────────────────────────
 
-/** BRIDGE(V6,V7): zero of the know-how readout: the leader start's know-how on day 0 in world w (models/stacks.ts syncPa:
- *  pa = paRef + G-equivalent of the stacks ÷ B). */
+/** BRIDGE(V6): zero of the know-how readout: the leader start's know-how on day 0 in world w (models/stacks.ts syncPa:
+ *  pa = paRef + G-equivalent of the stacks ÷ B). Model v3 F1: also the zero of a non-player lab's recipe e = B·(pa −
+ *  paRef), the unit the leaks, diffusion and theft move know-how in (actors/rivalModel.ts). */
 export const paRef = (w: TimelineWorld) => playerStart(w).pa0;
 /** Start state only (model v3 V2): the recipe vintage of a start-state know-how value of the closed-form start solution
  *  (playerStart: B0's start day, V0's post-training day), OOM over the leader's day-0 recipe. The engine's recipe comes
@@ -98,9 +97,9 @@ export function gV0(w: TimelineWorld): number {
   gV0Cache.set(w, out);
   return out;
 }
-/** BRIDGE(V6,V7): the old progress coordinate from effective compute, pm = pm(V0) + (G − G(V0))/B, for the display level
- *  λ(G) = levelOf(Φ(G)), the rivals (still on pm until V7) and the safety and revenue readers (V4, V6). The player's
- *  research and milestones do not read it since model v3 V3 (departments/workfit.ts). */
+/** BRIDGE(V6,F3): the old progress coordinate from effective compute, pm = pm(V0) + (G − G(V0))/B, for the display level
+ *  λ(G) = levelOf(Φ(G)), the lead comparisons and the safety readers. Every lab's capability is G (the player's since V3,
+ *  the other labs' since F1, actors/rivalModel.ts); pm is a readout of it that F3 retires. */
 export const pmOfG = (w: TimelineWorld, G: number) => playerStart(w).target + (G - gV0(w)) / B_G_PER_Y;
 /** Inverse of pmOfG. */
 export const gOfPm = (w: TimelineWorld, pm: number) => gV0(w) + (pm - playerStart(w).target) * B_G_PER_Y;
@@ -183,7 +182,7 @@ export function playerStart(w: TimelineWorld): ReturnType<typeof playerStartOf> 
 }
 function playerStartOf(w: TimelineWorld) {
   const target = w.p0;
-  const Mref = multiplierAt(asV1World(w), w.p0); // BRIDGE(V7): start-state solution (pa zero, simple-lab lags)
+  const Mref = multiplierAt(asV1World(w), w.p0); // BRIDGE(V6): start-state solution (the zero of the know-how readout)
   const r0 = w.p0 < stage1(asV1World(w)) ? w.share * Mref : Mref; // years per year
   const pcB0 = pcRefLab(w, B0_START_DAY);
   const dPost = V0_DAY;
@@ -195,102 +194,9 @@ function playerStartOf(w: TimelineWorld) {
   return { pa0, r0, pcB0, paBase: paAt(B0_START_DAY), paPost: paAt(dPost), target, lag: pa0 - target };
 }
 
-/** BRIDGE(V7): v2's post-training retention, kept inside the start-state solution and the simple rival/China lag model
- *  (simpleLag) until V7 rebuilds rivals in G. Player versions no longer retain know-how: a post-training run applies
- *  today's RL recipe only (MODEL-V3 §4.4). */
+/** v2's post-training retention, kept only inside the start-state solution (the zero of the know-how readout). Versions
+ *  no longer retain know-how: a post-training run applies today's RL recipe only (MODEL-V3 §4.4). */
 const START_RETAIN = 0.7;
-
-/** Average base age (days since base start) under the reference cadence: a 9-month cycle of ~121-day runs. */
-export const REF_BASE_AGE = 256;
-/** Average age of the newest post-trained version before continual learning (6-week cadence + eval) [D]. */
-export const REF_POST_AGE = 60;
-/** Progress over which continual learning phases in for simple-model labs (simpleLag) [D]. */
-const STREAM_RAMP = 0.3;
-
-/**
- * Typical lag (years) of a lab's deployed model behind its know-how frontier pa + pcRef under the reference cadence
- * (what RefBot experiences on average): base staleness (1 − share)·age, plus before continual learning the κ loss
- * (1 − κ)·r·age and the version age r·60 d; with continual learning (from the Research-agent level, q ≥ thr[2], the
- * AI 2027 online learner) only the 7-day stream lag r·7 d. `rate` is the lab's software rate (years/year).
- * `extra` (the leader lab's LEADER_CAL, progress years, default 0) is added as is. A time lag (r·years) was tried
- * first: in takeoff it compounds through the lab's own research feedback (0.05 y moved ASI by +0.35 y).
- */
-export function simpleLag(w: TimelineWorld, q: number, rate: number, extra = 0): number {
-  const th = milestoneThresholds(asV1World(w));
-  const stale = ((1 - w.share) * REF_BASE_AGE) / 365;
-  // Continual learning phases in over STREAM_RAMP of progress past the Research-agent level: a hard switch made a
-  // simple lab's frontier jump ≈ 0.3 at once and left a band of models no know-how could reach (weights theft).
-  const f = clamp((q - th[2]) / STREAM_RAMP, 0, 1);
-  const pre = ((1 - START_RETAIN) * rate * REF_BASE_AGE) / 365 + (rate * REF_POST_AGE) / 365;
-  // BRIDGE(V7): the v3 reference lab's credit over this v2 lag model (w.simpleCredit, see V3_CREDIT_RAMP), phased in from the start.
-  // It starts at the reference start frontier (V0 + the start lag), so every start state stays v2's exactly.
-  const credit = (w.simpleCredit ?? 0) * clamp((q - (w.p0 + w.calShift + playerStart(w).lag)) / V3_CREDIT_RAMP, 0, 1);
-  return stale + (1 - f) * pre + (f * rate * 7) / 365 + extra - credit;
-}
-
-/** BRIDGE(V7): under the v3 rules the reference lab's deployed model runs off v2's pm path (above it once it trains its
- *  first new base: its pm is pinned to V0, whose RL sits short of the curve's ceiling and whose know-how v2 credited
- *  through post-training retention; below it on slow, whose compute v2 over-credited). The CAL_SHIFT refit absorbs that
- *  as a level offset; simple labs (rivals, China, the leader lab) still on this v2 lag model get the same offset
- *  (w.simpleCredit = CAL_SHIFT_V2 − CAL_SHIFT), phased in over V3_CREDIT_RAMP of progress (about one base cycle), so
- *  their q = pm + calShift path and the player-vs-rival relation stay v2's (design/V3-BUILD.md V1 notes). */
-const V3_CREDIT_RAMP = 1.0;
-
-/** Software rate of a lab at reference inputs at q (for the start state). */
-const refSoftwareRate = (w: TimelineWorld, q: number) => (q < stage1(asV1World(w)) ? w.share * multiplierAt(asV1World(w), q) : multiplierAt(asV1World(w), q)); // BRIDGE(V7)
-
-/** Default frontier of a SimpleModel lab (rivals/China while not WS4-managed): pa + pcRef_lab(t) + its training
- *  scale term − the reference release lag (simpleLag), so a lab at reference inputs moves like RefBot. */
-export function simpleFrontierPm(s: GameStateV2, lab: LabId, day = s.time.day): number {
-  const core = labCore(s, lab);
-  if (!core) return -Infinity;
-  const w = s.hidden.timeline;
-  const F = core.pa + pcRefLab(w, day, core.scDay) + trainScaleTerm(s, lab, day);
-  const rate = core.prodCache?.rate ?? refSoftwareRate(w, F + w.calShift);
-  const x = core.lagCal ?? 0;
-  return F - simpleLag(w, F + w.calShift - simpleLag(w, F + w.calShift, rate, x), rate, x);
-}
-
-/** Start know-how pa of a SimpleModel lab whose start model is `pm0` (inverse of simpleFrontierPm at day 0). */
-export function simpleStartPa(s: GameStateV2, lab: LabId, pm0: number): number {
-  const w = s.hidden.timeline;
-  const q = pm0 + w.calShift;
-  const rate = labCore(s, lab)?.prodCache?.rate ?? refSoftwareRate(w, q); // the rate the frontier will use
-  return pm0 + simpleLag(w, q, rate) - pcRefLab(w, 0) - trainScaleTerm(s, lab, 0);
-}
-
-/** Know-how pa at which a SimpleModel lab's frontier (simpleFrontierPm) equals `pm` today — the inverse WS4 uses when
- *  a lab's model jumps (weights theft): its know-how is set consistently with the model it now holds. Model v3 V1:
- *  solved exactly (bisection on the frontier F; the model is monotone in F): the q-dependent credit in simpleLag made
- *  v2's one-step inverse (lag at q = pm + calShift) miss by up to a month. */
-export function simplePaFor(s: GameStateV2, lab: LabId, pm: number): number {
-  const w = s.hidden.timeline;
-  const day = s.time.day;
-  const core = labCore(s, lab);
-  const x = core?.lagCal ?? 0;
-  const model = (F: number) => {
-    const rate = core?.prodCache?.rate ?? refSoftwareRate(w, F + w.calShift);
-    return F - simpleLag(w, F + w.calShift - simpleLag(w, F + w.calShift, rate, x), rate, x);
-  };
-  let lo = pm - 5;
-  let hi = pm + 20;
-  for (let i = 0; i < 80; i++) {
-    const mid = (lo + hi) / 2;
-    if (model(mid) < pm) lo = mid;
-    else hi = mid;
-  }
-  return (lo + hi) / 2 - pcRefLab(w, day, core?.scDay) - trainScaleTerm(s, lab, day);
-}
-
-/** (1 − share)·ln(training pool / reference training pool)/ln gF: what the lab's base-run scale adds (§3.1.3). */
-export function trainScaleTerm(s: GameStateV2, lab: LabId, day = s.time.day): number {
-  const core = labCore(s, lab);
-  if (!core) return 0;
-  const w = s.hidden.timeline;
-  const yr = yearOfDay(day);
-  const ratio = (core.computeOnline * core.split.training) / Math.max(1, refTotal(w, yr) * shareRefAt(yr).training); // BRIDGE(V7)
-  return ((1 - w.share) * Math.log(clamp(ratio, 0.02, 50))) / Math.log(gF(w, yr));
-}
 
 // ───────────────────────────── lead (hidden) ─────────────────────────────
 
@@ -366,13 +272,13 @@ export function trueLeadDays(s: GameStateV2, other: LabId): number {
 
 /** milestones (50, daily): first-crossing record per lab (fixes v1 bug #3), SC day, act transitions. The player's are
  *  work-type milestones (model v3 V3.5, departments/workfit.ts: superhuman coder = SWE fit ≥ the best human with coverage
- *  ≥ 0.9 and a lower cost per work-hour, …), recorded in order; rivals, China and the leader lab keep the pm thresholds
- *  (BRIDGE(V7)). */
+ *  ≥ 0.9 and a lower cost per work-hour, …), recorded in order. Rivals, China and the leader lab (model v3 F1): their
+ *  best model's display level λ(G) crosses the milestone's level knot (L 10 = the reference recipe's SC point, …; one
+ *  map for every lab, MODEL-V3 §2.2). */
 export const milestonesSystem: EngineSystem = {
   id: 'milestones', owner: 'WS1', cadence: 'daily', order: 50, system: 'models',
   run(s, ctx) {
     const w = s.hidden.timeline;
-    const thr = thresholds(w);
     const record = (core: NonNullable<ReturnType<typeof labCore>>, met: (i: number) => boolean) => {
       for (let i = 0; i < 7; i++) {
         const idx = i as MilestoneIdx;
@@ -392,8 +298,8 @@ export const milestonesSystem: EngineSystem = {
     for (const r of otherLabs(s)) {
       const core = labCore(s, r.core.id); // China's lab core id is CHINA_ID
       if (!core || core.status !== 'active') continue;
-      const pm = bestPm(s, r.core.id);
-      record(core, (i) => pm >= thr[i]);
+      const L = bestLevelOf(w, r);
+      record(core, (i) => L >= LEVEL_KNOTS[i] - 1e-9);
     }
 
     // The player is told when the MEASURED level crosses a milestone level (§3.1.6).
