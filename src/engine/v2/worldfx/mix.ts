@@ -36,7 +36,7 @@ import { decodeUtilNow } from '../models/stacks';
 import { rivalDecodeU, rivalServeFpt } from '../actors/rivalModel';
 import {
   CHINA_MARKUP, RIVAL_MARKUP, effortTokens, enablerShare, fptOfSimple, fxOn, markupOf, offerOf,
-  agentDemandOf, paidShareTarget, productFx, productMiniUses, productOffer, productUses, savedPerAdoptedHour, sectorH50, serveDollarsPerHour, settingsDG, studentOffer, subPrice,
+  agentDemandOf, chatFreeTier, freeTierOf, paidShareTarget, productFx, productMiniUses, productOffer, productUses, savedPerAdoptedHour, sectorH50, serveDollarsPerHour, settingsDG, studentOffer, subPrice,
   tokEff, valuePerHour, wagePerHour, type ModelUse, type Offer,
 } from './serving';
 
@@ -131,8 +131,9 @@ export type TierKind = 'model' | 'mini' | 'student';
 
 export interface ConsumerMix {
   share: number[]; target: number[]; level: number[]; socials: number[]; best: number; social: number;
-  /** Per provider: consumer-chat fit, coverage and subscription price ($/month). */
-  fit: number[]; cover: number[]; prices: number[];
+  /** Per provider: consumer-chat fit (its consumer model: what subscribers get), coverage and subscription price
+   *  ($/month); A7: the consumer-chat fit of its free tier (what users choose on). */
+  fit: number[]; freeFit: number[]; cover: number[]; prices: number[];
   /** Coverage of consumer chat by the best accessible model. */
   bestCover: number;
   /** A2b: per provider, the paid share of its weekly users (stock) and the target it moves toward. */
@@ -633,6 +634,8 @@ function computeMix(s: GameStateV2): WorldMix {
 
   // Consumer market (the consumer-chat work type; price per subscriber-month).
   const cFit = filled(n, -Infinity);
+  // A7: the consumer-chat fit of each provider's free tier (what most users get: freeTierOf, the player's chatFreeTier).
+  const cFree = filled(n, -Infinity);
   const cCover = filled(n, 0);
   const cPrice = filled(n, 0);
   const cLevel = filled(n, -Infinity);
@@ -649,6 +652,7 @@ function computeMix(s: GameStateV2): WorldMix {
     if (!p.model) continue;
     const o = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], 'CHAT', { markup: p.markup, rate, ud: p.ud });
     cFit[i] = o.fit;
+    cFree[i] = o.fit - freeTierOf(p.params ?? (p.fpt ?? 2e12) / (2 * refTokMult)).gap;
     cCover[i] = o.a;
     cPrice[i] = subPrice(s, p.fpt ?? 2e12, p.markup, tokEff(p.model), p.ud).price;
   }
@@ -660,10 +664,12 @@ function computeMix(s: GameStateV2): WorldMix {
       const ud = decodeUtilNow(s);
       const o = offerOf(s, c.uses, 'CHAT', { dG: settingsDG(c.dep) + x.dG, hMult: x.hMult, effort: effortTokens(c.dep.effort), markup: markupOf(c.dep), rate, ud });
       const price = subPrice(s, c.uses[0]?.fpt ?? 2e12, markupOf(c.dep), effortTokens(c.dep.effort) * tokEff(c.uses[0]?.v), ud).price;
-      const u = SHARE_SLOPE_G * o.fit - PRICE_ELASTICITY * Math.log(Math.max(1e-9, price));
+      const free = chatFreeTier(s, c.dep)?.fit ?? o.fit;
+      const u = SHARE_SLOPE_G * free - PRICE_ELASTICITY * Math.log(Math.max(1e-9, price));
       if (u > bu) {
         bu = u;
         cFit[playerIdx] = o.fit;
+        cFree[playerIdx] = free;
         cCover[playerIdx] = o.a;
         cPrice[playerIdx] = price;
         cDep = c.dep.id;
@@ -678,8 +684,9 @@ function computeMix(s: GameStateV2): WorldMix {
   REGIONS.forEach((r, ri) => {
     const cBrand = providers.map((p, i) => p.brand * cApp[i] * (i === playerIdx ? 1 - pen.consumer : 1));
     // A5: users choose an app by quality alone: most pay nothing (free users ≈ 95%), so the subscription price is not in
-    // their choice (the old logit at equal prices); subscribers' price response is the paid-share stock.
-    const target = logit(cFit, cOnes, acc[ri], cBrand);
+    // their choice (the old logit at equal prices); subscribers' price response is the paid-share stock. A7: the quality
+    // they choose on is the free tier's, the offer they get (every lab's by the same rule, data/v2/serving.ts FREE_TIER).
+    const target = logit(cFree, cOnes, acc[ri], cBrand);
     const share = stockShares(s, providers, r, 'consumer', target);
     let best = -Infinity;
     let bestCover = 0;
@@ -708,7 +715,7 @@ function computeMix(s: GameStateV2): WorldMix {
     const pst = s.world.fx.paid?.[r];
     const paid = providers.map((p, i) => pst?.[p.key] ?? paidTarget[i]);
     consumer[r] = {
-      share, target, level: cLevel, socials: cSocial, best: best === -Infinity ? 0 : best, social: soc, fit: cFit, cover: cCover, prices: cPrice, bestCover, paid, paidTarget, going,
+      share, target, level: cLevel, socials: cSocial, best: best === -Infinity ? 0 : best, social: soc, fit: cFit, freeFit: cFree, cover: cCover, prices: cPrice, bestCover, paid, paidTarget, going,
       ...(cDep ? { playerDep: cDep } : {}), playerPrice: pp, priceFactor: pp > 0 && px > 0 ? Math.min(1, Math.pow(pp / px, -PRICE_ELASTICITY)) : 1,
     };
   });

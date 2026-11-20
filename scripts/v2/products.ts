@@ -122,6 +122,10 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
 // ───────── P6 Auto serving ─────────
 {
   const s = game();
+  // A7: the start serves its whole need (sector buyers spread as measured, free users on a free tier), so the test moves
+  // four fifths of the serving share to training to make the pool short.
+  s.player.split.training += 0.8 * s.player.split.serving;
+  s.player.split.serving *= 0.2;
   run(s, 5);
   const rd = revenueReadout(s);
   const pool = servingPool(s);
@@ -130,17 +134,18 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const short = rd.deps.reduce((a, x) => a + x.needH100e, 0) > pool;
   if (short) {
     // V4: prices are markups over cost, so per-hour work earns about the same per H100e on every product: Auto serves it
-    // pro rata and Chat's free users (earning nothing) last. A2c: seat-holders (seat revenue, more per H100e) are served
+    // pro rata, and Chat's free users (earning nothing) last. A2c: seat-holders (seat revenue, more per H100e) are served
     // before the per-hour work, so the cut falls on the per-hour work: its cut share is the same on every sector product.
-    const byRate = [...rd.deps].sort((a, b) => b.rpH - a.rpH);
-    const low = byRate[byRate.length - 1];
-    const cutShare = (x: (typeof byRate)[number]) => x.cutH100e / Math.max(1, x.needH100e - (x.needSeat ?? 0));
-    const paid = byRate.filter((x) => x.channel !== 'consumer');
+    // A6b: Chat's paying users (a $22 plan) earn the most per H100e and are served first.
+    const chat = rd.deps.find((x) => x.channel === 'consumer')!;
+    const cutShare = (x: (typeof rd.deps)[number]) => x.cutH100e / Math.max(1, x.needH100e - (x.needSeat ?? 0));
+    const paid = rd.deps.filter((x) => x.channel !== 'consumer');
     const seatsServed = paid.every((x) => x.servingH100e >= (x.needSeat ?? 0) - 1e-6);
-    check(low.channel === 'consumer' && low.cutH100e > 0 && seatsServed && paid.every((x) => cutShare(x) <= low.cutH100e / low.needH100e + 1e-9) && paid.every((x) => Math.abs(cutShare(x) - cutShare(paid[0])) < 0.02),
-      'P6 short of serving: seats first, then per-hour work pro rata at equal revenue per H100e; Chat\'s free users are cut first', byRate.map((x) => `${x.channel} ${Math.round(x.rpH / 1e3)}K cut ${Math.round(x.cutH100e)}${x.needSeat ? ` (seats ${Math.round(x.needSeat)} served)` : ''}`).join(', '));
+    const freeFirst = chat.cutH100e <= (chat.needFree ?? 0) + 1e-6 && (chat.cutFree ?? 0) >= (chat.needFree ?? 0) - 1e-6 && (chat.needFree ?? 0) > 0;
+    check(freeFirst && seatsServed && paid.some((x) => x.cutH100e > 0) && paid.every((x) => Math.abs(cutShare(x) - cutShare(paid[0])) < 0.02),
+      'P6 short of serving: Chat\'s free users are cut first, then per-hour work pro rata at equal revenue per H100e; seats and paying chat users served', rd.deps.map((x) => `${x.channel} ${Math.round(x.rpH / 1e3)}K cut ${Math.round(x.cutH100e)}${x.needSeat ? ` (seats ${Math.round(x.needSeat)} served)` : ''}${x.needFree !== undefined ? ` (free need ${Math.round(x.needFree)})` : ''}`).join(', '));
     check(s.player.deployments.some((d) => (d.cutH100e ?? 0) > 0), 'P6 the cut is recorded on the product (cutH100e)');
-  } else check(false, 'P6 the start is short of serving (F11: capacity-bound start)');
+  } else check(false, 'P6 a fifth of the serving share is short of serving');
   // Plenty of serving: no cut.
   const s2 = game();
   s2.player.computeOnline *= 20;

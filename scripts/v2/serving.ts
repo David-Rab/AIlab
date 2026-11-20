@@ -47,10 +47,11 @@ import { ECON, SECTORS } from '../../src/data/v2/sectors';
 import { MARKET_BANDS, SHARE_SLOPE_G } from '../../src/data/v2/serving';
 import {
   adoptedTokens, agentDemandOf, agentLeverage, cheapestAt, effortDG, studentToHold, fxOn, h100eHoursPer, internalFx, offerOf, paidShareTarget, productOffer, reachTarget, sectorCover, sectorTheta, serveDollarsPerHour,
-  subPrice, tokEff, valuePerHour, wagePerHour,
+  subPrice, tokEff, valuePerHour, wagePerHour, chatFreeTier, freeTierOf,
 } from '../../src/engine/v2/worldfx/serving';
 import { startSectorShares } from '../../src/engine/v2/worldfx/mix';
 import { SECTOR_START } from '../../src/data/v2/serving';
+import { B_G_PER_Y, REFERENCE_BASE, SHAPE } from '../../src/data/v2/runDesign';
 import { consumerUse, workBilling } from '../../src/engine/v2/worldfx/readouts';
 import { monitorOverhead } from '../../src/engine/v2/models/products';
 import { paramsOfVersion, planRun } from '../../src/engine/v2/models/runs';
@@ -311,12 +312,41 @@ for (const d of [400, 900]) {
   run(s, 3);
   const chat = prod(s, 'consumer');
   const x = revenueReadout(s).deps.find((z) => z.id === chat.id)!;
-  const v = versionById(s, chat.miniVersionId ?? chat.versionId)!;
-  const want = (((x.users ?? 0) - (x.subs ?? 0)) * h100eHoursPer(flopPerToken(s, v), fr)) / 24 * (1 + monitorOverhead(s, chat));
+  // A7: on the free tier (its mini, else the cheapest student of its model).
+  const ft = chatFreeTier(s, chat)!;
+  const want = (((x.users ?? 0) - (x.subs ?? 0)) * h100eHoursPer(ft.fpt, { input: fr.input, output: fr.output * ft.tau }, decodeUtilNow(s))) / 24 * (1 + monitorOverhead(s, chat));
   check(fr.input + fr.output >= 8e3 && fr.input + fr.output <= 1e4 && near(x.needFree ?? 0, want, 1e-6) && near((x.needPaid ?? 0) + (x.needFree ?? 0), x.needH100e, 1e-6),
     'C4 free users need ≈ 9k tokens per weekly-user-day (3.75 messages; R22: 8–10k, was 1.6k) on the free tier model; paid + free = the product\'s need',
     `${((x.users ?? 0) / 1e6).toFixed(0)}M users: free ${Math.round((x.needFree ?? 0) / 1e3)}k + paid ${Math.round((x.needPaid ?? 0) / 1e3)}k H100e; cut ${Math.round(x.cutH100e / 1e3)}k (free ${Math.round((x.cutFree ?? 0) / 1e3)}k)`);
   check((x.cutFree ?? 0) <= (x.needFree ?? 0) + 1e-6 && (x.cutH100e <= (x.needFree ?? 0) + 1e-6 || near(x.cutFree ?? 0, x.needFree ?? 0, 1e-6)), 'C4 the split cuts free users before paying ones');
+}
+{
+  // A7 free tiers with parity: every provider's free tier holds its consumer model's chat fit less one year of the
+  // reference frontier (freeTierOf: the cheapestAt rule); users choose on the free tier; the start's free users are
+  // served and a free message costs within ≈ 3× of Google's measured 0.24 Wh median (arXiv 2508.15734).
+  const s = game();
+  run(s, 1);
+  const mix = worldMix(s);
+  const tokMult = SHAPE[REFERENCE_BASE.shape].tokenMult;
+  let bad = 0;
+  mix.providers.forEach((p, i) => {
+    if (!p.model || p.key === 'player') return;
+    const ft = freeTierOf(p.params ?? (p.fpt ?? 2e12) / (2 * tokMult));
+    if (!near(mix.consumer.US.freeFit[i], mix.consumer.US.fit[i] - ft.gap, 1e-9) || !(ft.r < 1)) bad++;
+  });
+  const chat = prod(s, 'consumer');
+  const ft = chatFreeTier(s, chat)!;
+  const v = versionById(s, chat.versionId)!;
+  const pi = mix.providers.findIndex((p) => p.key === 'player');
+  const gap = freeTierOf(v.params ?? REFERENCE_BASE.params).gap;
+  check(bad === 0 && near(mix.consumer.US.freeFit[pi], mix.consumer.US.fit[pi] - gap, 1e-6) && Math.abs(gap - B_G_PER_Y) < 1e-9,
+    'A7 every lab\'s free tier is the student of its consumer model one year of frontier progress below it; users choose on it',
+    `gap ${gap.toFixed(2)} OOM, player free fit ${mix.consumer.US.freeFit[pi].toFixed(2)} (model ${mix.consumer.US.fit[pi].toFixed(2)}), ${bad} rivals off the rule`);
+  const x = revenueReadout(s).deps.find((z) => z.id === chat.id)!;
+  const msgS = (h100eHoursPer(ft.fpt, CONSUMER_MKT.perDay.free, decodeUtilNow(s)) * 3600) / CONSUMER_MKT.messagesPerDay;
+  const wh = (msgS * 0.7) / 3.6; // accelerator energy at 0.7 kW per H100e
+  check((x.cutFree ?? 0) <= 0.1 * (x.needFree ?? 0) && wh >= 0.24 / 3 && wh <= 0.24 * 3,
+    'A7 day 1: free users served (≥ 90%) and a free message within ×3 of 0.24 Wh', `free need ${Math.round((x.needFree ?? 0) / 1e3)}k cut ${Math.round((x.cutFree ?? 0) / 1e3)}k; ${msgS.toFixed(2)} H100e-s ≈ ${wh.toFixed(2)} Wh`);
 }
 {
   // A7 the start's sector stocks: outside China no provider holds more than SECTOR_START.startMax (the excess shared in
@@ -337,7 +367,7 @@ for (const d of [400, 900]) {
   const chatRev = rd.deps.find((z) => z.channel === 'consumer')!.revenue;
   check(bad === 0 && wsOk && rd.total >= 12 && rd.total <= 15 && chatRev / rd.total >= 0.6 && chatRev / rd.total <= 0.75,
     'A7 start sector stocks ≤ 0.25 per provider outside China; leader day-1 revenue $12–15B, Chat 60–75% of it',
-    `${bad} cells off; revenue ${rd.total.toFixed(2)}B (Chat ${chatRev.toFixed(2)}B, ${((100 * chatRev) / rd.total).toFixed(0)}%)`);
+    `${bad} cells off; revenue $${rd.total.toFixed(2)}B (Chat $${chatRev.toFixed(2)}B, ${((100 * chatRev) / rd.total).toFixed(0)}%)`);
 }
 for (const d of [400, 900]) {
   // C6 no provider's subscription is priced above the willingness to pay (unless serving a subscriber costs more).

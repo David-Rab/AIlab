@@ -25,6 +25,7 @@ import { BASE_DATA, REFERENCE_BASE } from '../../../data/v2/runDesign';
 import { effectiveTokens, fDataEff } from '../models/effective';
 import { TOKENS } from '../../../data/v2/serving';
 import { FREE_TIER_SHARE } from '../../../data/v2/features';
+import { chatFreeTier } from '../worldfx/serving';
 import { PEAK_FLOPS, U_DECODE, U_PREFILL } from '../../../data/v2/workTypes';
 import { gOfBuild, gV0 } from '../models/capability';
 import { internalVersion, versionById } from '../models/labs';
@@ -432,12 +433,13 @@ export function usageTokensPerDay(s: GameStateV2, d: Deployment, share = s.playe
   if (elig <= 0) return 0;
   const h = Math.min(d.servedH100e ?? 0, d.needH100e ?? Infinity);
   const main = outputTokensPerH100eDay(fptOf(versionById(s, d.versionId)));
-  // A6: Chat's free users run on its mini (worldfx/revenue.ts: paying users are served first, on the main model), so
-  // the served compute beyond the paying need serves the mini's tokens (×N_main/N_mini per H100e).
-  const mini = d.miniVersionId && d.needPaidH100e !== undefined && (FREE_TIER_SHARE[d.channel] ?? 0) > 0 ? versionById(s, d.miniVersionId) : undefined;
-  if (!mini) return (h * main * elig * share) / 1e12;
+  // A6: Chat's free users run on its free tier (worldfx/revenue.ts: paying users are served first, on the main model),
+  // so the served compute beyond the paying need serves the free tier's tokens (×N_main/N_free per H100e). A7: the free
+  // tier is its mini, else the cheapest student of its model (worldfx/serving.ts chatFreeTier).
+  const free = d.needPaidH100e !== undefined && (FREE_TIER_SHARE[d.channel] ?? 0) > 0 ? chatFreeTier(s, d) : undefined;
+  if (!free) return (h * main * elig * share) / 1e12;
   const paid = Math.min(h, d.needPaidH100e!);
-  return ((paid * main + (h - paid) * outputTokensPerH100eDay(fptOf(mini))) * elig * share) / 1e12;
+  return ((paid * main + (h - paid) * outputTokensPerH100eDay(free.fpt)) * elig * share) / 1e12;
 }
 /** Usage tokens (T/day) all live products add at policy share `share` (today's traffic; the usage-policy preview). */
 export const usageRateAt = (s: GameStateV2, share: number) => s.player.deployments.reduce((a, d) => a + usageTokensPerDay(s, d, share), 0);

@@ -18,7 +18,8 @@
 //   consumer    = users (online adults × reach R_r × user share, both stocks) × paid share P (a stock, A2b) = subscribers;
 //                 revenue line = subscribers × price per month × 12 (A6b: the market's flat plan price, the willingness to
 //                 pay on Standard, not cost-plus), independent of work
-//                 hours; free users (users − subscribers) run on the product's mini (else its model), pay nothing and are
+//                 hours; free users (users − subscribers) run on its free tier (A7: its mini, else the cheapest student
+//                 of its model, worldfx/serving.ts chatFreeTier), pay nothing and are
 //                 served last; need from usage per user-day (paid 30k/8k, free 7.5k/1.5k tokens)
 //   revenue     = demand $ × min(1, served ÷ need)   (consumer: paying users are served first)
 // Serving split (R6): with the Auto policy (default) each product needs its H100e; the pool serves the products earning
@@ -40,7 +41,7 @@ import { revenueToParent } from '../finance/parent';
 import { flopPerToken, pSuccess } from '../departments/workfit';
 import { h50Of } from '../models/capability';
 import {
-  agentDemandOf, blendOffer, chatHoursPerDay, effortTokens, enablerShare, fxOn, markupOf, offerOf, productFx, productMiniUses, productOffer, productUses, serveDollarsPerHour,
+  agentDemandOf, blendOffer, chatFreeTier, chatHoursPerDay, effortTokens, enablerShare, fxOn, markupOf, offerOf, productFx, productMiniUses, productOffer, productUses, serveDollarsPerHour,
   settingsDG, subPrice, tokEff, valuePerHour, wagePerHour, type Offer,
 } from './serving';
 import { decodeUtilNow } from '../models/stacks';
@@ -437,18 +438,17 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
         const ud = decodeUtilNow(s);
         const o = offerOf(s, uses, 'CHAT', { dG: settingsDG(d) + x.dG, hMult: x.hMult, effort: e, markup: markupOf(d), rate, ud });
         const main = versionById(s, d.versionId);
-        const mini = d.miniVersionId ? versionById(s, d.miniVersionId) : undefined;
         const fMain = main ? flopPerToken(s, main) : 2e12;
-        const fFree = mini ? flopPerToken(s, mini) : fMain;
-        // D10: reasoning tokens × effort × the model's τ (tokEff); the free tier runs its mini (else the main model).
+        // D10: reasoning tokens × effort × the model's τ (tokEff). A7: free users run the product's free tier (its mini,
+        // else the cheapest student of its model, chatFreeTier); paying users the main model.
         const tMain = tokEff(main);
-        const tFree = mini ? tokEff(mini) : tMain;
+        const ft = chatFreeTier(s, d);
         const sp = subPrice(s, fMain, markupOf(d), e * tMain, ud);
-        return { d, o, sp, fMain, fFree, e, tMain, tFree, ud, en: 1 + enablerShare(fx, 'CHAT') };
+        return { d, o, sp, fMain, fFree: ft?.fpt ?? fMain, freeFit: ft?.fit ?? o.fit, e, tMain, tFree: ft?.tau ?? tMain, ud, en: 1 + enablerShare(fx, 'CHAT') };
       });
-      const best = Math.max(...offs.map((x) => x.o.fit));
-      // A5: users pick by quality alone (most pay nothing), as the market's user-share logit.
-      const ws = offs.map((x) => Math.exp(SHARE_SLOPE_G * (x.o.fit - best)));
+      const best = Math.max(...offs.map((x) => x.freeFit));
+      // A5: users pick by quality alone (most pay nothing), as the market's user-share logit; A7: on the free tier's.
+      const ws = offs.map((x) => Math.exp(SHARE_SLOPE_G * (x.freeFit - best)));
       const wsum = ws.reduce((a, b) => a + b, 0) || 1;
       const users = cm.share[playerIdx] * consumerUsers(s, r);
       // A2b: the player's paid share (stock) applies to each of its chat products; subscribers × price × 12 is the line.

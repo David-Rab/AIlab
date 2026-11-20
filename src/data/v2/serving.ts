@@ -156,6 +156,19 @@ export const CUSTOMER_TAU = { consumer: 3 / 52, sector: 0.25, gov: 0.75 } as con
  *  measured start (A6b P5). China's segments start at their targets (no anchor; Chinese labs serve them). */
 export const SECTOR_START = { startMax: 0.25 } as const;
 
+/** A7: free chat tiers (design/notes/A7.md). Every lab (the player, rivals, China) serves its free users on the
+ *  cheapest model that holds its consumer model's chat fit less `years` of the reference frontier's progress
+ *  (B_G_PER_Y OOM a year): a distilled student sized by the cheapestAt rule (worldfx/serving.ts freeTierOf; δ =
+ *  DISTILL.a + DISTILL.b·log₁₀(N_T/N_S), ≥ 1B active). The player's Chat runs its mini instead when the player sets one.
+ *  Free tiers in mid-2025 ran a generation below the paid frontier: ChatGPT's free users on GPT-4o (a May 2024 model)
+ *  with a GPT-4.1 mini fallback at the limits, paid users on o3 [P/R: ChatGPT release notes, 14 May 2025 (help.openai.com,
+ *  read via an extract)]; the Gemini app on 2.0 / 2.5 Flash [P: Gemini release notes 2025-01-30 (extract); Google blog
+ *  "Gemini 2.5 Flash", Apr 2025]; small models match the previous frontier within months (research/12 §0.6). One year
+ *  gives a student 1/12.5 the size of its teacher (28B active under the 354B V0): a free message ≈ 0.65 H100e-s ≈ 0.13 Wh
+ *  of accelerator energy, against Google's measured 0.24 Wh median Gemini Apps prompt (0.14 Wh on the accelerators;
+ *  arXiv 2508.15734 [P]). */
+export const FREE_TIER = { years: 1 } as const;
+
 /** Consumer market (A2b; research/22 §2–3 [R22]). Two stocks per region and one logit:
  *    reach R_r      share of online adults who use an AI chat app weekly (any provider), a Bass stock toward
  *                   R*_r = row_r · max · (base + (1 − base) · c), c the best accessible model's coverage of consumer chat

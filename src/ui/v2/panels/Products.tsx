@@ -160,9 +160,9 @@ function ProductCard({ s, d, r, danger, draft, setDraft }: { s: GameStateV2; d: 
       <PkgChip kind="model" testId={`prod-model.${d.id}`} value={n.versionId} changed={n.versionId !== d.versionId || n.miniVersionId !== d.miniVersionId}
         options={models.map((x) => ({ value: x.id, label: `${x.name} · L ${F.level(mL(s, x))}` }))} onPick={(x) => set({ versionId: x })}
         sub={def && (d.channel === 'consumer' || d.channel === 'api') && (
-          <Tip content={() => <TipCard title={d.channel === 'consumer' ? <Term id="freeTier">Mini free tier</Term> : <Term id="cheapTier">Mini cheap tier</Term>}>{d.channel === 'consumer' ? 'The mini serves every user without a subscription: far cheaper to serve. It weighs 60% in Chat\'s quality. Without one, free users run on the main model.' : 'Buyers take the mini on the tasks it does as well, at its lower price; the main model keeps the harder work. Its share of the hours follows from the market, not a setting.'}</TipCard>}>
+          <Tip content={() => <TipCard title={d.channel === 'consumer' ? <Term id="freeTier">Mini free tier</Term> : <Term id="cheapTier">Mini cheap tier</Term>}>{d.channel === 'consumer' ? 'The free tier serves every user without a subscription. By default it is a distilled student of the main model, a year of frontier progress below it and far cheaper to serve, as every lab\'s is; users choose an app on it. A mini of your own replaces it and weighs 60% in Chat\'s quality.' : 'Buyers take the mini on the tasks it does as well, at its lower price; the main model keeps the harder work. Its share of the hours follows from the market, not a setting.'}</TipCard>}>
             <select className="msel sub" data-test={`prod-mini.${d.id}`} value={n.miniVersionId ?? ''} onChange={(e) => set({ miniVersionId: e.target.value || null })}>
-              <option value="">{d.channel === 'consumer' ? 'no free tier' : 'no cheap tier'}</option>
+              <option value="">{d.channel === 'consumer' ? 'student free tier' : 'no cheap tier'}</option>
               {minis.map((x) => <option key={x.id} value={x.id}>+ {x.name} {d.channel === 'consumer' ? 'free' : 'cheap'} tier</option>)}
             </select>
           </Tip>
