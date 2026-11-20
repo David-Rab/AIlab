@@ -14,7 +14,7 @@ import { PLAYER_ID } from '../models/labs';
 import type { GameStateV2, LabId, Money } from '../types';
 import { computeSecured, publicFrontier, publicLevel, revenueRun, servingEconomics } from './observe';
 import { credRung } from './promises';
-import { markRivals, rivalCap, rivalCred, rivalGov } from './rivalFinance';
+import { markRivals, rivalCred, rivalGov, valueCap } from './rivalFinance';
 
 /** Every number of the story (spec §1, §2.1, §5). */
 export const STORY = {
@@ -28,15 +28,22 @@ export const STORY = {
   /** Φ(L) = (L / L_ref)^φ: the prize looks bigger as the public frontier rises (×1.35 from L 5 to 7.5) [fit]. */
   phi: 0.75,
   phiRef: 5,
-  /** Mood = hype H × rate factor M × bust factor [R15 §1.4, kept]: M = exp(−0.12·(y10 − 4.5)); ×0.4 in a bust. */
+  /** Mood = hype H × rate factor M × bust factor [R15 §1.4, kept]: M = exp(−0.12·(y10 − 4.5)); ×0.7 in a bust [fit,
+   *  FIN6a; was ×0.4]. The bust's hype shock (−0.6 over a 4-quarter half-life) already cuts S by about half at hype
+   *  1–1.3; R15 put the ×0.4 on the pool, not on valuations, and stacked on the shock it left a lab at 15–30% of its
+   *  mark in one quarter. ×0.7 leaves about 30–40% (late-stage private marks fell 50–85% in the 2022 downturn); the
+   *  pool (π · S) falls the same way. */
   rateK: 0.12,
   rateRef: 4.5,
-  bust: 0.4,
+  bust: 0.7,
   /** Share: softmax of z = Σ w_k·x_k over the private labs, temperature τ, × credibility × governance [D, fit]. Fitted
    *  to the start shares (leader ≈ 45%: $0.32T of $0.63T, OpenAI $300B in Mar 2025; challenger ≈ 12%, Anthropic $61.5B;
    *  spinout ≈ 7%, SSI $32B [R15 §2.9, R21 A8]). Position weighs most: what the market sees first. */
   tau: 1.25,
-  weights: { position: 0.45, momentum: 0.25, economics: 0.1, capacity: 0.2 },
+  /** FIN6a refit (was position 0.45, capacity 0.2): capacity (compute secured, steady quarter to quarter) weighs more
+   *  and position (which swings in Q4 2025–Q1 2026, when the rivals' start models catch up) less, so the reference
+   *  lab's late-2026 mark reaches OpenAI's $1.25T (Nov 2026) without a deeper Q1 2026 markdown [fit]. */
+  weights: { position: 0.4, momentum: 0.25, economics: 0.1, capacity: 0.25 },
   /** Normalisation: position per 2 levels of the public scale (≈ a year of frontier progress), economics per 20 points
    *  of margin, momentum and capacity in doublings against the rival field; each driver clamped to ±3 [D]. */
   posScale: 2,
@@ -93,7 +100,7 @@ export interface LabStory {
   share: number;
   /** Valuation at the last mark (rivals: S × marked share, at most `cap`; you: your valuation). */
   valuation: Money;
-  /** A rival's valuation cap (team value + multiple × run-rate); undefined for you. */
+  /** The lab's valuation cap (FIN6a: every private lab, you too): team value or the growth-scaled multiple × run-rate. */
   cap?: Money;
 }
 
@@ -162,7 +169,7 @@ export function storyShares(s: GameStateV2): LabStory[] {
     labs.push({
       id: PLAYER_ID, name: s.player.name, revenue: R, level: L > 0 ? L : floor, floored: !(L > 0),
       growth: growthOf(R, f.revenueHistory), margin: R < STORY.preRevenue ? null : Math.max(-1, Math.min(1, servingEconomics(s).margin)),
-      secured: computeSecured(s), cred: credRung(f.credibility ?? 50).mult, rung: credRung(f.credibility ?? 50).id, gov: playerGov(s), valuation: f.valuation,
+      secured: computeSecured(s), cred: credRung(f.credibility ?? 50).mult, rung: credRung(f.credibility ?? 50).id, gov: playerGov(s), valuation: f.valuation, cap: valueCap(R, growthOf(R, f.revenueHistory)),
     });
   }
   for (const r of privateRivals(s)) {
@@ -172,7 +179,7 @@ export function storyShares(s: GameStateV2): LabStory[] {
     labs.push({
       id: r.core.id, name: r.core.name, revenue: R, level: L > 0 ? L : floor, floored: !(L > 0),
       growth: growthOf(R, hist[r.core.id]), margin: R < STORY.preRevenue ? null : STORY.rivalMargin,
-      secured: computeSecured(s, r.core.id), cred: cr.mult, rung: cr.id, gov: rivalGov(r), valuation: r.finance.valuation, cap: rivalCap(R),
+      secured: computeSecured(s, r.core.id), cred: cr.mult, rung: cr.id, gov: rivalGov(r), valuation: r.finance.valuation, cap: valueCap(R, growthOf(R, hist[r.core.id])),
     });
   }
   // Public levels of every lab for the position comparison (big-tech and open-weight models count: markets see them).
@@ -218,7 +225,7 @@ export function storyNow(s: GameStateV2): StoryNow {
   const bestLevel = Math.max(0, ...s.rivals.filter((r) => r.core.status === 'active').map((r) => publicLevel(s, r.core.id)));
   const effect = Object.fromEntries(DRIVERS.map((k) => [k, me ? Math.exp((STORY.weights[k] * me.x[k]) / STORY.tau) : 1])) as Record<Driver, number>;
   return {
-    sector, me, labs, share: me?.share ?? 0, V: me ? sector.S * me.share : 0, effect,
+    sector, me, labs, share: me?.share ?? 0, V: me ? Math.min(sector.S * me.share, me.cap ?? Infinity) : 0, effect,
     field: {
       bestLevel,
       growth: others.length ? Math.pow(2, mean(others.map((b) => Math.log2(b.growth)))) : 1,

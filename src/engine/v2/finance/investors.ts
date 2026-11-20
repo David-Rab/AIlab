@@ -7,7 +7,7 @@ import type { StoryNow } from './story';
 import { covenantsBreached, ratingOf, ratingScore, rollMaturities } from './debt';
 import { gwOwned, publicFrontier } from './observe';
 import { cancelTrancheShares, closePendingRound, partnerEquityIn } from './equity';
-import { bustTarget, markRivals } from './rivalFinance';
+import { bustTarget, markRivals, RIVAL } from './rivalFinance';
 import { DRIVERS, markShare, poolAnnualOf, privateRivals, recordLabRevenue, sectorRunRate, STORY, storyNow } from './story';
 import { defaultCapitalWS3, ensureWs3, yearStats } from './ext';
 import { commitmentsPerYear, bookCash } from './ledger';
@@ -259,11 +259,14 @@ function markValuation(s: GameStateV2, ctx: SystemCtx, st: StoryNow, share: numb
   const last = f.ws3.mark;
   const V0 = f.valuation;
   const sectorPart = last && last.S > 0 ? V0 * (st.sector.S / last.S - 1) : 0;
-  const V = st.sector.S * share;
+  // FIN6a: at most the valuation cap (one rule for every private lab, rivalFinance.ts valueCap).
+  const V = Math.min(st.sector.S * share, me.cap ?? Infinity);
+  const capCut = st.sector.S * share - V;
   f.valuation = V;
   f.ws3.mark = { S: st.sector.S, share };
   ctx.cause('player.finance.valuation', sectorPart, 'sector value', `${last ? `${T$(last.S)} → ` : ''}${T$(st.sector.S)} · hype ${st.sector.H.toFixed(2)} · rates ${X$(st.sector.M)}${st.sector.bust < 1 ? ` · bust ${X$(st.sector.bust)}` : ''}`);
-  ctx.cause('player.finance.valuation', V - V0 - sectorPart, 'your share', `${last ? `${(last.share * 100).toFixed(1)}% → ` : ''}${(share * 100).toFixed(1)}% · ${DRIVERS.map((k) => `${k} ${X$(st.effect[k])}`).join(' · ')} · credibility ${X$(me.cred)} · governance ${X$(me.gov)}`);
+  if (capCut > 0) ctx.cause('player.finance.valuation', -capCut, 'valuation cap', `at most ${T$(me.cap!)}: ${me.revenue < STORY.preRevenue || me.cap! <= RIVAL.team ? 'team value' : `${(me.cap! / me.revenue).toFixed(0)}× revenue at ×${me.growth.toFixed(1)} a year`}`);
+  ctx.cause('player.finance.valuation', V + capCut - V0 - sectorPart, 'your share', `${last ? `${(last.share * 100).toFixed(1)}% → ` : ''}${(share * 100).toFixed(1)}% · ${DRIVERS.map((k) => `${k} ${X$(st.effect[k])}`).join(' · ')} · credibility ${X$(me.cred)} · governance ${X$(me.gov)}`);
 }
 
 /** Day the legacy recapitalisation tranche is due (helper for previews). */

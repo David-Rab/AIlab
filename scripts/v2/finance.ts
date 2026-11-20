@@ -14,23 +14,23 @@ import { clearMarket, cloudPricePerYear, demandShock, expectedCloudPrice, expect
 import { addCloud, addSpotRental, chipQuote, rentQuote } from '../../src/engine/v2/compute/orders';
 import { newSite, oppositionOdds, reactiveUnblockOdds, siteSchedule } from '../../src/engine/v2/compute/sites';
 import { constructionGrowth, contingentLiabilities, crf, leaseAvailable, leaseGuarantor, leaseRate, payOptions, siteLeaseId, siteRVG } from '../../src/engine/v2/finance/capex';
-import { creditLineCapacity, debtHeadroom, debtRatePct, drawDebt, ratingOf, ratingTerms } from '../../src/engine/v2/finance/debt';
+import { chipCollateral, creditLineCapacity, debtHeadroom, debtRatePct, drawDebt, ratingOf, ratingTerms } from '../../src/engine/v2/finance/debt';
 import { ACQUIRE, acquireTerms, acquireVotes, rivalObligations, shownVote } from '../../src/engine/v2/finance/acquire';
 import { FINANCE_ACTIONS, raiseQuote } from '../../src/engine/v2/finance/actions';
 import { boardVote, CRITICS, CRITICS_INVESTOR, criticsAvailable, debtVote, syncFinancialSeats, founderControl, initialBoard, OUSTER, ousterVote, updateRunwayState, VOTE } from '../../src/engine/v2/finance/board';
 import { MOOD_SOURCE_OF, MOOD_WEIGHTS, moodWeight } from '../../src/engine/v2/finance/mood';
-import { acceptRepriced, bookRound, closePendingRound, dMax, LARGE_ROUND, roundSplit, partnerEquityIn, raiseCeiling, REPRICED_DECIDE_DAYS } from '../../src/engine/v2/finance/equity';
-import { bustTarget, exitBuyer, markRivals, parentFunded, RIVAL, RIVAL_GOV, rivalCap, rivalCred, rivalGov, rivalMoneyQ, rivalSpend } from '../../src/engine/v2/finance/rivalFinance';
+import { acceptRepriced, bookRound, closePendingRound, dMax, LARGE_ROUND, lastPostMoney, roundSplit, partnerEquityIn, raiseCeiling, REPRICED_DECIDE_DAYS } from '../../src/engine/v2/finance/equity';
+import { bustTarget, exitBuyer, markRivals, parentFunded, capMultiple, RIVAL, RIVAL_GOV, rivalCred, rivalGov, rivalMoneyQ, rivalSpend, valueCap } from '../../src/engine/v2/finance/rivalFinance';
 import { FIN as RIVAL_START_FIN } from '../../src/engine/v2/actors/rivals';
 import { ws4 as ws4Of } from '../../src/engine/v2/actors/state';
 import { DUAL_CLASS_GOV, growthOf, openWeightFloor, playerGov, poolAnnualOf, sectorValue, STORY, storyNow, storyShares, SUPPLIER, supplierTerms } from '../../src/engine/v2/finance/story';
 import { whatWeOwe } from '../../src/engine/v2/finance/owe';
 import * as EQ from '../../src/engine/v2/finance/equity';
-import { credRung, judgePromises, livePromises, makeThesis, metricNow, PROMISE_RESULT, promiseDeadline, promiseWeight, trendOf, typicalRound } from '../../src/engine/v2/finance/promises';
+import { credRung, judgePromises, livePromises, makeThesis, metricNow, PITCH, PROMISE_RESULT, promiseDeadline, promiseWeight, trendOf, typicalRound } from '../../src/engine/v2/finance/promises';
 import { charterReleaseBlock, charterRights, controlVote, transferVote } from '../../src/engine/v2/finance/charter';
 import { affiliatedLab, anchorPartners, dealVotes, dealWith, firstYearCommit, ipAccessDaily, partnerBlocker, partnerCosts, partnerOffers, partnersNow, partnerStakeAfter, partnerTerms, rescuePartner, signPartner, termsEquity } from '../../src/engine/v2/finance/deals';
 import { capabilityThresholds, gwOwned, licensedGap, licensedModel } from '../../src/engine/v2/finance/observe';
-import { addLedger, ledgerDue, monthFirsts, qOf, RENEGOTIATE, totalFlows } from '../../src/engine/v2/finance/ledger';
+import { addLedger, commitmentsRemaining, ledgerDue, monthFirsts, qOf, RENEGOTIATE, totalFlows } from '../../src/engine/v2/finance/ledger';
 import { budgetFactor, budgetRoom, DIVISION, divisionView, parentPaymentQ } from '../../src/engine/v2/finance/parent';
 import { mixedBot } from '../../src/engine/v2/bots/mixed';
 import { parentBudgetYear } from '../../src/data/v2/starts';
@@ -1600,13 +1600,15 @@ for (const a of FINANCE_ACTIONS) {
     s.player.finance.state = 'distress';
     s.player.finance.cash = 20;
     s.player.finance.debts.push({ id: 'D-mat', kind: 'bond', principal: 500, drawn: 500, spreadBp: 300, maturityDay: s.time.day - 1 });
-    s.player.finance.debts.push({ id: 'D-gpu', kind: 'gpuTerm', principal: 30, drawn: 30, spreadBp: 450, maturityDay: s.time.day + 900 });
     s.player.finance.ws3.chipBook = 20;
     s.player.finance.ws3.inventory = { ready: 0, transit: 0, book: 0 };
-    const g0 = 30;
+    // FIN6a: the loan is sized $10B over what the installed chips cover at 1.2× (it was a fixed $30B, which the
+    // regenerated day-400 fixture's installed chips now cover, so no sweep was due: fixture drift, same meaning).
+    const g0 = chipCollateral(s) / 1.2 + 10;
+    s.player.finance.debts.push({ id: 'D-gpu', kind: 'gpuTerm', principal: g0, drawn: g0, spreadBp: 450, maturityDay: s.time.day + 900 });
     capitalQSystem.run(s, makeCtx(s));
     const g = s.player.finance.debts.find((d) => d.id === 'D-gpu')!.drawn;
-    check(g < g0 && s.player.finance.covenantBreachDay !== undefined, 'FIN4r L10 an unpaid maturity and the chip-loan sweep both run in the same quarter', `chip loan $${g0}B → $${f1(g)}B, breach day ${s.player.finance.covenantBreachDay}`);
+    check(g < g0 && s.player.finance.covenantBreachDay !== undefined, 'FIN4r L10 an unpaid maturity and the chip-loan sweep both run in the same quarter', `chip loan $${f1(g0)}B → $${f1(g)}B, breach day ${s.player.finance.covenantBreachDay}`);
   }
   {
     // L9: a custom-chip deal's reserved supply serves only its own order. L11: deals keep no inert order id.
@@ -1665,7 +1667,7 @@ for (const a of FINANCE_ACTIONS) {
     const st = { share: full.player.finance.ws3.mark!.share, sector: { S: s.player.finance.ws3.mark!.S } };
     const mk = s.player.finance.ws3.mark!;
     const want = last.share + STORY.blend * (st.share - last.share);
-    check(!('narrative' in s.player.finance) && !('valuationMark' in EQ) && !('valuationNow' in EQ) && near(mk.share, want, 1e-9) && near(s.player.finance.valuation, st.sector.S * want, 1e-9) && story.me !== undefined, 'FIN5a the valuation is the story: V = sector value × share, the mark moving half-way from the last mark to today\'s share (no formula, no narrative premium)', `${f1(V0)}B → ${f1(s.player.finance.valuation)}B · share ${F1pct(last.share)} → ${F1pct(mk.share)} (story ${F1pct(st.share)}) · S ${f1(st.sector.S)}B`);
+    check(!('narrative' in s.player.finance) && !('valuationMark' in EQ) && !('valuationNow' in EQ) && near(mk.share, want, 1e-9) && near(s.player.finance.valuation, Math.min(st.sector.S * want, valueCap(s.player.finance.revenueRun, story.me!.growth)), 1e-9) && story.me !== undefined, 'FIN5a/FIN6a the valuation is the story: V = sector value × share (at most the valuation cap, FIN6a), the mark moving half-way from the last mark to today\'s share (no formula, no narrative premium)', `${f1(V0)}B → ${f1(s.player.finance.valuation)}B · share ${F1pct(last.share)} → ${F1pct(mk.share)} (story ${F1pct(st.share)}) · S ${f1(st.sector.S)}B`);
   }
   {
     // Sector value: κ · R^α · Φ(L) · mood; mood = H × M × bust (×0.4 while busted).
@@ -1674,7 +1676,7 @@ for (const a of FINANCE_ACTIONS) {
     const want = STORY.kappa * Math.pow(v.R, STORY.alpha) * Math.pow(v.L / STORY.phiRef, STORY.phi) * s.capital.hype * Math.exp(-0.12 * (s.capital.y10 - 4.5));
     s.capital.busted = { day: s.time.day, recoverDay: s.time.day + 365 };
     const b = sectorValue(s);
-    check(near(v.S, want, 1e-9) && near(b.S, v.S * STORY.bust, 1e-9) && b.mood < v.mood, 'FIN5a sector value = κ_S · R_sector^α · Φ(L_frontier) · mood (hype × rates × bust ×0.4)', `R ${f1(v.R)}B · L ${v.L.toFixed(2)} · Φ ${v.phi.toFixed(2)} · mood ${v.mood.toFixed(2)} → S ${f1(v.S)}B (bust ${f1(b.S)}B)`);
+    check(near(v.S, want, 1e-9) && near(b.S, v.S * STORY.bust, 1e-9) && b.mood < v.mood, 'FIN5a/FIN6a sector value = κ_S · R_sector^α · Φ(L_frontier) · mood (hype × rates × bust ×0.7, FIN6a; was ×0.4)', `R ${f1(v.R)}B · L ${v.L.toFixed(2)} · Φ ${v.phi.toFixed(2)} · mood ${v.mood.toFixed(2)} → S ${f1(v.S)}B (bust ${f1(b.S)}B)`);
   }
   {
     // Share: a softmax over the private labs only (player + rivals with a private valuation); credibility and
@@ -1782,16 +1784,18 @@ for (const a of FINANCE_ACTIONS) {
     knob.blend = b0;
     const s = fx();
     const last = Object.fromEntries(priv(s).map((r) => [r.core.id, r.finance.mark ?? r.finance.valuation / sectorValue(s).S]));
+    // FIN6a: the cap reads each lab's 4-quarter growth at the mark (its history rolls after the mark).
+    const g0 = Object.fromEntries(storyShares(s).map((a) => [a.id, a.growth]));
     capitalQSystem.run(s, makeCtx(s));
     const S = s.player.finance.ws3.mark!.S;
     const rows = priv(s).map((r) => {
       const story = full.rivals.find((x) => x.core.id === r.core.id)!.finance.mark!;
       const want = last[r.core.id] + STORY.blend * (story - last[r.core.id]);
-      return { r, want, ok: near(r.finance.mark!, want, 1e-9) && near(r.finance.valuation, Math.min(S * want, rivalCap(r.finance.revenueRun)), 1e-9) };
+      return { r, want, cap: valueCap(r.finance.revenueRun, g0[r.core.id]), ok: near(r.finance.mark!, want, 1e-9) && near(r.finance.valuation, Math.min(S * want, valueCap(r.finance.revenueRun, g0[r.core.id])), 1e-9) };
     });
     const labs = storyShares(s);
-    const same = priv(s).every((r) => { const a = labs.find((x) => x.id === r.core.id)!; return a.valuation === r.finance.valuation && near(a.cap!, RIVAL.team + RIVAL.multiple * r.finance.revenueRun, 1e-12); });
-    check(rows.length > 0 && rows.every((x) => x.ok) && same, 'FIN5b each private rival is marked like you: S × its share moving half-way to today\'s story, at most its cap ($30B + 25× run-rate); the Story card\'s labs carry that valuation and cap', rows.map((x) => `${x.r.core.name} $${f1(x.r.finance.valuation)}B (S×share $${f1(S * x.want)}B, cap $${f1(rivalCap(x.r.finance.revenueRun))}B)`).join(' · '));
+    const same = priv(s).every((r) => { const a = labs.find((x) => x.id === r.core.id)!; return a.valuation === r.finance.valuation && near(a.cap!, Math.max(RIVAL.team, capMultiple(a.growth) * r.finance.revenueRun), 1e-12); });
+    check(rows.length > 0 && rows.every((x) => x.ok) && same, 'FIN5b/FIN6a each private rival is marked like you: S × its share moving half-way to today\'s story, at most the valuation cap (FIN6a: max($30B team value, 37 × (growth ÷ 5)^0.4 × run-rate), every private lab); the Story card\'s labs carry that valuation and cap', rows.map((x) => `${x.r.core.name} $${f1(x.r.finance.valuation)}B (S×share $${f1(S * x.want)}B, cap $${f1(x.cap)}B)`).join(' · '));
   }
   {
     // Credibility (one rule: revenue growth over four quarters) and governance by kind feed the rival's weight.
@@ -1929,5 +1933,79 @@ for (const a of FINANCE_ACTIONS) {
     check(all.length > 0 && alive.length / all.length >= 0.75, 'FIN5b (FC6) trailing private rivals stay funded through 2026 (≥ 75% of them still active at end-2026, RefBot path)', `${alive.length} of ${all.length} active · ${['safety', 'maverick', 'upstart'].map(show).join(' · ')}`);
   }
 }
+// ───────────────────────────── FIN6a: calibration (FINANCE-V3 §14) ─────────────────────────────
+{
+  const fx = (): GameStateV2 => deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
+  const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math.max(1, Math.abs(b));
+  {
+    // The aggressive pitch (spec §2.2) end to end: no bot pitches it (a round priced 20% over the mark sets the bar the
+    // next round must clear), so this exercises the path. A Credible lab signs it at ×1.2 the mark with a target 1.3× the
+    // trend's gain; it closes at that price; its promise is aggressive; at the next mark the valuation falls back to the
+    // story, under the post-money, so a base round would now be a down round; judged met it moves credibility like any.
+    const s = fx();
+    const f = s.player.finance;
+    f.credibility = 60;
+    f.state = 'healthy';
+    delete f.ws3.pendingRound;
+    delete f.ws3.repricedRound;
+    const V0 = f.valuation;
+    const tr = trendOf(s, 'scale');
+    const q = raiseQuote(s, 5, { pitch: 'aggressive' });
+    const err = act(s, 'fin.raise', { ask: 5, type: 'scale', pitch: 'aggressive' });
+    const pr = ((x: GameStateV2) => x.player.finance.ws3.pendingRound)(s); // (a call: TS narrowed it after the delete)
+    const th = pr?.thesis;
+    const signed = !err && !!pr && near(pr.preMoney, 1.2 * V0, 1e-9) && pr.priceMult === PITCH.aggressive.price && th?.pitch === 'aggressive' && near(th.target - th.start, PITCH.aggressive.gain * tr.gain, 1e-9) && near(q.pre, 1.2 * V0, 1e-9);
+    pr!.max = 1e6; // isolate the price path from the closing odds
+    const ctx = makeCtx(s);
+    closePendingRound(s, ctx); // closes at today's mark × 1.2 (the mark has not moved)
+    const round = f.rounds[f.rounds.length - 1];
+    const promise = f.promises[f.promises.length - 1];
+    const closed = !!round && near(round.postMoney - round.amount, 1.2 * V0, 1e-9) && near(f.valuation, round.postMoney, 1e-9) && promise?.pitch === 'aggressive' && !round.down;
+    capitalQSystem.run(s, makeCtx(s)); // the next quarterly mark: back to the story
+    const after = raiseQuote(s, 1, { pitch: 'base' });
+    // Judged at its deadline with the metric past the target: met, credibility +30 × weight (as any promise).
+    promise.deadline = s.time.day;
+    promise.start = metricNow(s, 'scale') / 2;
+    promise.target = metricNow(s, 'scale') * 0.9;
+    const c0 = f.credibility;
+    judgePromises(s, makeCtx(s));
+    const res = promise.result;
+    check(signed && closed && f.valuation < lastPostMoney(s) && after.down && res?.outcome === 'met' && near(f.credibility - c0, Math.min(100 - c0, PROMISE_RESULT.metCred * res.weight), 1e-6), 'FIN6a the aggressive pitch end to end: signed and closed at ×1.2 the mark with a target 1.3× the trend gain; the next mark falls back under its post-money (a base round is then a down round); judged like any promise', `pre $${f1(round?.postMoney - round?.amount)}B on a $${f1(V0)}B mark · next mark $${f1(f.valuation)}B vs post $${f1(lastPostMoney(s))}B · met: credibility +${f1(f.credibility - c0)}`);
+  }
+  {
+    // One valuation cap for every private lab (FIN6a): the player's mark is S × share at most max(team value, the
+    // growth-scaled multiple × run-rate), as the rivals'; the cut is its own cause; the multiple rises with growth.
+    const s = fx();
+    const ctx = makeCtx(s);
+    s.player.finance.ws3.mark = { S: s.player.finance.ws3.mark!.S, share: 1 }; // a share the cap must stop
+    const st = storyNow(s);
+    capitalQSystem.run(s, ctx);
+    const me = storyShares(s)[0];
+    const cut = (s.causes.byKey['player.finance.valuation'] ?? []).find((e) => e.source === 'valuation cap' && e.day === s.time.day);
+    const cap = valueCap(s.player.finance.revenueRun, st.me!.growth);
+    const rising = capMultiple(1) < capMultiple(3) && capMultiple(3) < capMultiple(8) && near(capMultiple(RIVAL.capGrowthRef), RIVAL.multiple, 1e-12) && valueCap(0, 3) === RIVAL.team;
+    check(near(s.player.finance.valuation, cap, 1e-9) && !!cut && cut.delta < 0 && me.cap !== undefined && rising, 'FIN6a one valuation cap for every private lab: your mark is at most max($30B team value, 37 × (growth ÷ 5)^0.4 × run-rate), the rivals\' rule; the cut is booked as its own cause', `cap $${f1(cap)}B on $${f1(s.player.finance.revenueRun)}B at ×${st.me!.growth.toFixed(2)} (${f1(capMultiple(st.me!.growth))}×) · cut $${f1(-(cut?.delta ?? 0))}B · multiple ×1 ${f1(capMultiple(1))} / ×3 ${f1(capMultiple(3))} / ×8 ${f1(capMultiple(8))}`);
+  }
+  {
+    // Rivals' commitments book follows their spend (FIN6a; it was the start table's cash × 2 for the whole game): the
+    // bubble index and a merger's obligations read it.
+    const s = fx();
+    capitalQSystem.run(s, makeCtx(s));
+    const p = s.rivals.filter((r) => r.core.status === 'active' && r.finance.valuation > 0 && !parentFunded(r));
+    check(p.length > 0 && p.every((r) => near(r.finance.commitments, rivalSpend(r), 1e-12)), 'FIN6a a private rival\'s commitments book is its spend a year (marked each quarter)', p.map((r) => `${r.core.name} $${f1(r.finance.commitments)}B`).join(' · '));
+  }
+  {
+    // FC2 on the reference path, by year: the leader-style multiple stays in 20–37× at high growth in 2027 too (it ran
+    // to ≈ 44× before the cap, ≈ 60× at the end of 2027), and the 2026 marks sit near the band's low end. FC4 printed:
+    // commitments ÷ revenue run-rate (a known miss, FIN6a notes).
+    const hi = (y: number) => ref.flatMap((r) => r.q.filter((x) => x.year === y && !x.bust && x.R >= 1 && x.g >= 2.5).map((x) => x.V / x.R));
+    const m26 = median(hi(2026));
+    const m27 = median(hi(2027));
+    check(hi(2027).length > 0 && m27 >= 20 && m27 <= 37 && m26 >= 15, 'FIN6a (FC2) leader-style multiple at high growth by year: 2027 inside 20–37× (no runaway), 2026 at least 15×', `2026 ${f1(m26)}× (${hi(2026).length}) · 2027 ${f1(m27)}× (${hi(2027).length}) · end-2027 valuation median $${(median(ref.map((r) => r.s.player.finance.valuation)) / 1000).toFixed(2)}T`);
+    const R27 = median(ref.map((r) => r.s.player.finance.revenueRun));
+    console.log(`  info  FIN6a (FC4) RefBot end-2027 commitments remaining $${f1(median(ref.map((r) => commitmentsRemaining(r.s))))}B on a $${f1(R27)}B run-rate; partner take-or-pay ÷ its equity ${f1(median(ref.flatMap((r) => r.s.player.finance.deals.filter((d) => d.kind === 'hyperscaler' && !d.legacy && d.day >= 0 && d.supply).map((d) => d.supply!.total / Math.max(1e-9, d.equityNow + d.equityLater)))))}×`);
+  }
+}
+
 console.log(`finance: ${FINANCE_ACTIONS.length} actions (${applied} applied on day400), no events`);
 finish('finance');

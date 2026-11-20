@@ -1412,3 +1412,129 @@ Numbers, before (FIN5a 32a98f5) → after (FIN5b):
   (cash × 2) that the bubble index and E32's obligations read; rivals' revenues vs the analogues are model-v3's. For
   FIN6b: the rival bar tooltip is long (11 rows; share, weight and score could fold into a nested tip). Docs (V2-SPEC
   §3.10.3 rival finance, `design/v2-interfaces.ts` RivalLab.finance) for FIN6c.
+
+### FIN6a notes (2026-11-20)
+
+Calibration on today's engine against FC1–FC7 (spec §14) and the items queued in the phase notes. No new mechanism; one
+rule extended (the rivals' valuation cap now covers every private lab, so the player's too) and one static number made to
+follow the engine (rivals' commitments book = their spend). No schemaRev bump (no state shape change; older saves load
+and re-mark at the next quarter). Diagnostics: scratch scripts outside the repo (RefBot path on finance.ts's 12 seeds to
+end-2027; bots on bots.ts's 40 paired seeds); "before" = e5cc735 (FIN5b), whose 40-seed bot numbers are the FIN5b notes'
+(the runs are deterministic: the scratch re-run of ref and mixed on e5cc735 reproduced them exactly).
+
+**Parameters changed** (before → after, the target each serves):
+
+| Parameter | Before → after | Target |
+|---|---|---|
+| `STORY.bust` (bust factor in the sector value's mood) | ×0.4 → ×0.7 [fit] | Bust design / C13: R15 put the ×0.4 on the pool, the valuation only saw the hype shock (−0.6, 4-quarter half-life); stacked, a bust left a lab at 15–30% of its mark in one quarter (RefBot seeds: $251B → $37B, $584B → $92B). Now ≈ 30–40% (2022 late-stage private markdowns 50–85%). C13 (financing doubt: pool −25%, rounds −10–20%) does not involve the factor and is unchanged (−25%). Also F7 and the competent bots' down rounds. |
+| `STORY.weights` (position, momentum, economics, capacity) | 0.45 / 0.25 / 0.1 / 0.2 → 0.4 / 0.25 / 0.1 / 0.25 [fit] | F7 (late-2026 mark) without breaking F8: position (it swings in Q4 2025–Q1 2026, when the rivals' start models catch up) weighs less, the steady driver (compute secured) more. A first step to 0.4 / 0.2 / 0.1 / 0.3 gave F7 $1.36T but moved worldfx's single reference game (seed 2027) past a window: GOV T1 Accept ≥ 0.85 on 2028-03-27 (window to 2028-03-15; FIN5b 2028-01-02), a side effect through the bot's compute and capability path; 0.4 / 0.25 / 0.1 / 0.25 gives 2028-01-13. |
+| Valuation cap (`RIVAL.team`, `RIVAL.multiple`, new `capGrowthRef`, `capGrowthExp`; `valueCap`, `capMultiple` in `finance/rivalFinance.ts`) | rivals only, $30B + 25× run-rate → **every private lab** (the player too), max($30B, 37 × (growth ÷ 5)^0.4 × run-rate) [fit] | FC2: the leader-style multiple ran to 44× in 2027 (60× at the end of 2027) unchecked; one rule for all labs, scaled by growth as R15 §1.5's multiple (g^0.4) and C11 (20–37× at high growth, 15–20× at ×2–3), so trailing labs stay lower by construction; a pre-revenue lab is worth its team (spinout start $55B → $30B: SSI $32B; FIN5a/5b's 7–11% share item). The sum form (team + multiple × R) was tried: trailing rivals then sat above the leader (34.7× vs 29.9×). |
+| Rivals' `finance.commitments` (`markRivals`) | static start book (cash × 2, all game) → its spend a year, marked each quarter [D] | The bubble index and E32's obligations read a book that now follows the lab (start ≈ $13B median instead of $30B; late 2026 ≈ $23–27B; end-2027 ≈ $47B). |
+
+**Kept after testing** (12 RefBot seeds each; the τ, κ and mark tests ran on the cap and bust changes with the first weight step, 0.4 / 0.2 / 0.1 / 0.3):
+- τ 1.25: τ 1.0 raises the late-2026 mark (+10%) but deepens the Q1 2026 markdown (the rivals catching up) and put 3–4 of
+  12 seeds in distress at the Jan 2026 review (F8 needs ≤ 3): the bot's Q3–Q4 2025 round sets a post-money that the
+  Jan 2026 mark falls 25–30% under (repriced, then distress on a 3-quarter runway). τ 1.15: 4 of 12.
+- κ 83, α 0.7, φ 0.75: κ 86 / 89 lift the late-2026 mark +5 / +25% but put 3 / 4 seeds in distress in Jan 2026 for the
+  same reason; FC1 holds as is ($632B start, $2.88T late 2026). A lower φ or α cannot separate 2027 from 2026 (the
+  frontier and revenue grow by similar ratios in both years); the cap does that.
+- The half-way mark (`blend` 0.5) and position per 2 levels: blend 0.75 gives F7 $1.44T, distress 2/12; posScale 1.5
+  gives $1.34T, 3/12. Neither is needed for a target and both make marks swing more (and would change the Story card's
+  "half-way" wording), so the FIN5a choices stay.
+- π 0.15: the sector pool is ≈ $100B in 2025 and ≈ $300–400B in 2026 (R15: ≈ $75B, $350B+); the RefBot raises $12B
+  in H2 2025 and $76B in 2026 (OpenAI ≈ $30B in H2 2025, $122B in 2026: ×0.4 and ×0.6). Its rounds are pool-bound
+  (max dilution 6.4%) and it raises only when its runway is under 7 quarters, 3–4 times a year (FC4's 2–3), so a larger π
+  would mainly raise the 2026 sector pool past R15's figure. Left.
+- Supplier terms (`SUPPLIER`): the reference bot pays its 50% deposit (the terms ask 30% + a runway premium that stays
+  under 20 points at its 3–4 quarter runway); they bind only for short-runway labs (capex2x). Left.
+- Spinout start share: the share stays 5–9% (it splits the pool), the valuation is now its team value ($30B, SSI $32B).
+- Partner take-or-pay (FC4, research 4–12× the equity): still 1.1× on the RefBot path (Azimuth, $41B on $37B of
+  equity). The FIN4a deviation holds: the capacity is sized at today's cloud price and paid on the falling path; sized
+  in dollars (4× the equity) it buys ≈ 2.4–2.9× the capacity and the bot's 2026 capex (F7, $150–250B) falls under its
+  band. Needs model-v3's compute demand (V4) to refit; not changed.
+- Collapsed rivals' exits: none through 2027 before or after. With the cap their marks fall faster in 2027 (median
+  $114B → $52B at the Jan 2028 mark; revenue $1.8B) and their cash runs down (median $21B → $14B), so the first exits
+  come in early 2028. Tried: distress at a quarter of spend instead of zero cash (2 exits in Q1 2028, none in 2027),
+  not kept. The rest is rivals' spend: their chip orders still grow at ≥ 25% of the path when broke (actors/rivals.ts,
+  not finance), and their revenue path is model-v3's.
+
+**Targets** (FC1–FC7 and the queued checks; before → after, finance.ts 12 RefBot seeds unless said):
+
+| # | Target | Before (FIN5b) | After (FIN6a) |
+|---|---|---|---|
+| FC1 | Sector value $0.6–0.7T mid-2025, $2.5–3T late 2026 | $632B · $2.74T | $632B · $3.00T (met, at the band's top) |
+| FC2 | Leader-style 20–37× at high growth; trailing lower | 34.6× (2026 17×, 2027 44×; end-2027 39×, up to 56×; end-2027 valuation $9.0T); slower growth 23.0×; trailing rivals 28.6× (2027 42.5×) | 30.3× (2026 19.2×, 2027 33.5×; end-2027 28×, valuation $6.4T on 31 Dec, $7.3T at the Jan 2028 mark); slower 25.1×; trailing 27.4× (2027 30.3×) (met; 2026 alone just under 20×) |
+| F7 | End-2026 valuation $1–3T | $1.00T (fail) | $1.24T (range $0.76–2.34T; 4 of 12 seeds under $1T) (met) |
+| FC3 | Dilution 5–8%, ≤ 14% anchored, IPO 4–5% | max 5.1% | max 6.4% over 73 rounds; 14%; 5% (met) |
+| FC4 | ≈ 2–3 rounds a year; leases and long firm contracts; commitments several × revenue | 3 / 2 rounds; commitments 2.0× run-rate at end-2026, 1.0× at end-2027; partner 1.1× its equity | 4 / 2 rounds (2026 one more than FC4's 2–3); 2.0× at end-2026, 1.1× on 31 Dec 2027 (1.3× after the Jan 2028 quarter start: $306B on $231B); partner 1.1× (rounds and contracts met; commitments **missed**, see above) |
+| FC5 | Cash-burning lab at $200B+ rates B/BB, chip loans only | met (FIN1 check) | met |
+| FC6 | Trailing rivals funded through 2026, valuations within ×2 | 26/26 funded; safety $215B, maverick $496B, upstart $86B | 26/26; safety $158B on $8.1B (19×), maverick $684B on $16.3B (43×), upstart $71B on $1.9B (34×) at end-2026 (funded: met; values follow this world's revenues as in FIN5b) |
+| FC7 | 2× capex bot in distress by 2027 unless rescued | 100% (finance.ts) | 100% (met); bots below |
+| F8 | RefBot distress-free through 2026 ≥ 75% | 83.3% | 83.3% |
+| — | RefBot equity / year | 2025 H2 $11B, 2026 $58B, 2027 $222B | $12B, $76B, $248B |
+| — | Busts on the RefBot path through 2027 | 3 of 12 seeds (bubble index at day 92: 4.4) | 0 of 12 (4.4 → 3.1 with the rivals' books at their spend; summed bust odds to 2027 0.17 → 0.10 a game) |
+
+**Bots** (`scripts/v2/bots.ts`, leader start, 40 paired seeds per bot; before = FIN5b's run on e5cc735): all §7.4
+criteria MET before and after.
+
+| Bot | Win | Ousted | Insolvent | Notes |
+|---|---|---|---|---|
+| ref | 25.0 → 25.0% | **22.5 → 15.0%** | 0 → 0% | ousters now in 2028–30 (days 1097–1736); before, 5 of 9 began with distress in Q4 2025–Q1 2026, and 8 of 9 had 1–7 down rounds |
+| mixed | 47.5 → 52.5% | **20.0 → 15.0%** | 0 → 0% | ousters in 2028–30 (days 1097–1736) |
+| race | 2.5 → 5.0% (≤ 5%: at the edge) | 32.5 → 30.0% | 0 → 0% | still at real risk: 8 of 12 ousters at the Jul 2026 review; company loss 46% of losses |
+| capex2x | 2.5 → 2.5% | 40.0 → 47.5% | 57.5 → 50.0% | FC7 holds: company loss 97.5%, every one by day 915; insolvent by Jul 2026 (days 215–305), ousted mostly at the Jul 2026 review (day 366) |
+| safe | 2.5 → 2.5% | 15.0 → 25.0% | 0 → 0% | ousted only in 2028–33 (days 1189–3015), a slow lab long after the calibrated window: its cap multiple falls as its growth slows; losses overtaken/other-ASI-first 79 → 69% (≥ 50%) |
+
+With the first weight step (0.4 / 0.2 / 0.1 / 0.3, which broke the worldfx window) the same runs read ref 10.0%, mixed
+12.5%, race 30.0% (win 2.5%), safe 25.0%, capex2x 62.5% ousted / 35.0% insolvent: the final weights trade about one
+seed in 40 of competent-bot ousters (ref 4 → 6, mixed 5 → 6) for the world-effects window.
+
+Why the competent bots' ousters fell (board-confidence sources in the ousted games, scratch diagnostic): before, down
+rounds (−17 each on the leader board, 2–7 a game) and quarters in distress (−5 each) were most of the losses, about half
+of the games starting in distress in Q4 2025–Q1 2026 (a bust or the Jan 2026 markdown); the softer bust and the steadier
+share remove most early down rounds (no competent-bot ouster before day 1097 now).
+
+**Tests.** New in `scripts/v2/finance.ts` (FIN6a block): the aggressive pitch end to end (signed and closed at ×1.2
+the mark with a 1.3× target, the next mark falls back under its post-money so a base round is then a down round, judged
+like any promise; no bot pitches it, so this exercises the path); one valuation cap for every private lab (the player's
+mark capped, the cut booked as its own cause "valuation cap", the multiple rising with growth); rivals' commitments book =
+their spend; FC2 by year on the RefBot path (2027 inside 20–37×, 2026 ≥ 15×), with FC4's commitments and partner ratio
+printed. Meaning changed: FIN5a's mark check reads V = min(S × share, cap); FIN5a's sector-value check label says ×0.7;
+FIN5b's rival-mark check reads the new cap (computed from each lab's growth at the mark); FIN4r L10 sizes its chip loan
+$10B over what the installed chips cover at 1.2× (it used a fixed $30B, which the regenerated day-400 fixture's chips
+now cover, so no sweep was due: fixture drift, same meaning). Fixtures regenerated (`fixtures.ts`).
+
+Test runs (final engine, one by one): `npm run typecheck` and the scripts' tsconfig clean; golden-timelines, identity,
+calib, fixtures green; hygiene: only the absolute perf checks failed in the chain, under load from three 40-seed bot runs alongside
+(1635 / 1548 µs), and all passed on a rerun once they finished (995 / 1440 µs; FIN6a adds nothing daily);
+lint-hidden, lint-ux, lint-tradeoffs, lint-structure green; safety: only S5 (known; mixed-bot median min margin −0.92
+→ −0.55); finance all passed after the L10 fixture-drift fix (targeted rerun; 194 checks, F2 47.0M passes); worldfx all
+passed (GOV T1 Accept 2028-01-13, HireRate_SOFT 2027-05-04, AI-friend 8.4%); ws4, products, money, idle green.
+`npm run test:ui` 315/315 (run because the Story card reads the cap and the weights; no UI file changed).
+
+**Refit due after model-v3** (these fits read quantities model-v3 replaces):
+- V4 (revenue, cost to serve, price): κ_S and α (R_sector), the economics weight and its 0.2 scale (the economics bridge),
+  π against the raise totals, the cap's multiple (revenue run-rate and growth), FC2 multiples, the RefBot's revenue
+  path (F7 revenue), FC4 commitments ÷ revenue and the partner take-or-pay size (compute demand sets how much capacity
+  the bot can take on a long contract), rivals' revenues against their analogues (FC6), the rivals' book (= spend).
+- V7 (rivals, bots): the share's position and momentum weights (rivals' start models and start-table revenues drive the
+  Q4 2025–Q1 2026 markdown that limits τ and κ), the rivals' exit timing (their chip orders keep spend growing when
+  broke), the bubble index (it reads every lab's commitments), the bots' raise policy and ouster rates, the start
+  valuations (challenger capped at $90B in every seed, spinout at its $30B team value).
+
+**For the UI agent / lead (UI text the changes make stale; not edited here):**
+- `panels/FinanceStory.tsx` ShareBar: the cap row says `$30B + ${RIVAL.multiple}× revenue`; the rule is now
+  max($30B team value, `capMultiple(a.growth)` × revenue) (37× at ×5 a year, × (growth ÷ 5)^0.4; `valueCap` and
+  `capMultiple` are exported from `finance/rivalFinance.ts`). The player now has a cap too (`LabStory.cap` is set for
+  you): show it on your bar and in the valuation's Why ("at the cap" when it binds); the StoryCard's "next mark" is
+  min(S × next share, `me.cap`) (it computes S × share), and its body "Sector value × your share …" needs "at most
+  your valuation cap". The valuation's causes gain a "valuation cap" line when it binds.
+- Glossary (`data/v2/glossary.ts`): `marketMood` and `bubble` say ×0.4 in a bust (now ×0.7); `storyShare` lists the
+  weights 0.45 / 0.25 / 0.1 / 0.2 (now 0.4 / 0.2 / 0.1 / 0.3); `rivalCap` ("Rival valuation cap": $30B + 25×) is now
+  every private lab's cap (suggest "Valuation cap": max($30B team value, 37× at ×5 a year growth, scaled by
+  (growth ÷ 5)^0.4, × run-rate)); `valuation` should mention the cap; `acquisition` "its yearly book" is now its spend a
+  year. Then regenerate `design/ux/GLOSSARY.md`.
+- Note on the cap's multiple: growth is clamped to R15's ×0.5–×8, so the cap allows up to 45× at ×8 a year (above
+  FC2's 37×); the reference lab never grows faster than ×5 a year at a mark (0 of 120), so only a rival whose revenue
+  jumps (×5–8 in a year) could be capped above 37×. Clamping the cap's growth at ×5 would be the simple fix if FIN6c or
+  the V4 refit want the band as a hard ceiling.

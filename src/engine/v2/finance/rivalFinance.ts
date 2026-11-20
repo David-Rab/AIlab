@@ -4,7 +4,8 @@
 // right after the player's mark, on the same story snapshot).
 //
 // - Valuation: a private rival's share of the sector value, marked each quarter half-way from its last mark (the
-//   player's rule), at most its cap: team value + a multiple of its run-rate. The share has no revenue-size driver, so
+//   player's rule), at most the valuation cap (FIN6a: the same rule for the player): team value or a growth-scaled
+//   multiple of its run-rate. The share has no revenue-size driver, so
 //   without the cap a lab whose revenue collapsed kept a few percent of a sector the leader's revenue built (FIN5a: ≈ 54×
 //   run-rate for trailing labs, 80–190× for dead ones in 2027). The cap is shown on the Story card's lab bars.
 // - Credibility (one rule, from whether it keeps growing): revenue up over four quarters (or pre-revenue) Credible ×1,
@@ -23,11 +24,16 @@ import { revenueRun } from './observe';
 import { growthOf, privateRivals, STORY, type StoryNow } from './story';
 
 export const RIVAL = {
-  /** Valuation cap = team value + multiple × run-rate. Team value: what investors pay for a pre-revenue frontier team
-   *  (SSI $32B in Apr 2025, Thinking Machines $12B [R21 A8]). Multiple: trailing labs trade under the leader-style lab's
-   *  20–37× at high growth [R15 C11, FINANCE-V3 FC2] [D]. */
+  /** Valuation cap of every private lab (FIN6a: one rule for the player and the rivals) = max(team value, multiple ×
+   *  run-rate), the multiple scaled by 4-quarter revenue growth: 37× at ×5 a year, × (growth ÷ 5)^0.4 (R15 §1.5's
+   *  growth exponent: ≈ 31× at ×3.3, 22× at ×1.4, 15× when revenue halves). Team value: what investors pay for a
+   *  pre-revenue frontier team (SSI $32B in Apr 2025, Thinking Machines $12B [R21 A8]). The multiple: the leader-style
+   *  lab's 20–37× at high growth, trailing labs at ×2–3 lower (15–20×) [R15 C11, FINANCE-V3 FC2] [fit]. Was (FIN5b,
+   *  rivals only) $30B + 25× run-rate. */
   team: 30,
-  multiple: 25,
+  multiple: 37,
+  capGrowthRef: 5,
+  capGrowthExp: 0.4,
   /** A round sells at most 8% of the lab (unanchored, as the player's) [R15 §1.5]. */
   dMax: 0.08,
   /** Raises when cash is under half a year of spend (spec §12). */
@@ -53,8 +59,14 @@ export function rivalCred(s: GameStateV2, r: RivalLab): { id: 'Credible' | 'Unpr
   return g >= 1 ? { id: 'Credible', mult: 1, growth: g } : g > STORY.growth[0] ? { id: 'Unproven', mult: 0.9, growth: g } : { id: 'Doubted', mult: 0.7, growth: g };
 }
 
-/** The most a rival can be valued at: team value + multiple × run-rate. */
-export const rivalCap = (revenue: Money): Money => RIVAL.team + RIVAL.multiple * Math.max(0, revenue);
+/** The run-rate multiple the cap allows at a 4-quarter revenue growth (R15's clamp ×0.5–×8): RIVAL.multiple at
+ *  RIVAL.capGrowthRef, × (growth ÷ ref)^capGrowthExp (FIN6a). */
+export const capMultiple = (growth: number): number =>
+  RIVAL.multiple * Math.pow(Math.max(STORY.growth[0], Math.min(STORY.growth[1], growth || 1)) / RIVAL.capGrowthRef, RIVAL.capGrowthExp);
+
+/** The most investors pay for a private lab (every one: rivals since FIN5b, the player since FIN6a): its team value, or
+ *  the growth-scaled multiple × its run-rate if more. */
+export const valueCap = (revenue: Money, growth: number): Money => Math.max(RIVAL.team, capMultiple(growth) * Math.max(0, revenue));
 
 /** All-in spend a year ($B). */
 export const rivalSpend = (r: RivalLab): Money => r.core.computeOnline * RIVAL.perH100eYear + RIVAL.overhead;
@@ -77,7 +89,8 @@ export function bustTarget(s: GameStateV2): RivalLab | undefined {
 /** Quarterly mark of every private rival (capitalQ, after the player's, same story): the share moves half-way from the
  *  last mark to today's; valuation = sector value × that share, at most the cap; its part of this quarter's investor
  *  pool follows its valuation, scaled so the rivals' parts and the player's never exceed the pool; unused money carries
- *  50% (as the player's). At the start (no last mark) the share is today's. */
+ *  50% (as the player's). At the start (no last mark) the share is today's. FIN6a: its commitments book is its spend a
+ *  year (it was the start table's cash × 2 for the whole game). */
 export function markRivals(s: GameStateV2, st: StoryNow): void {
   const S = st.sector.S;
   const labs = privateRivals(s);
@@ -86,7 +99,9 @@ export function markRivals(s: GameStateV2, st: StoryNow): void {
     const share = a?.share ?? 0;
     const f = r.finance;
     f.mark = f.mark === undefined ? share : f.mark + STORY.blend * (share - f.mark);
-    f.valuation = Math.max(0.01, Math.min(S * f.mark, rivalCap(f.revenueRun)));
+    f.valuation = Math.max(0.01, Math.min(S * f.mark, valueCap(f.revenueRun, a?.growth ?? 1)));
+    // FIN6a: its commitments book (an annual book: the bubble index and a merger read it) follows its spend.
+    f.commitments = rivalSpend(r);
   }
   const room = Math.max(0, 1 - (s.capital.ws3?.playerShare ?? 0));
   const tot = labs.reduce((t, r) => t + r.finance.valuation / Math.max(1e-9, S), 0);
