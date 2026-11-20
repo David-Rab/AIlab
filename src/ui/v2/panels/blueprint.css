@@ -135,3 +135,6 @@
 .bp-ds { font: 600 10.5px var(--mono); white-space: nowrap; }
 .bp-ds.cap { text-decoration: underline; }
 .bp-draw-rep { display: inline-flex; flex-direction: column; gap: 2px; white-space: nowrap; }
+/* E12: training pressure of the planned run. */
+.bp-press .bp-chips { margin-bottom: 6px; }
+.bp-succ { display: flex; gap: 6px; align-items: center; padding-top: 6px; border-top: 1px solid var(--line); color: var(--text-2); }

@@ -118,6 +118,7 @@ ok('Setup: leader start has no leader lab and a Governance picker', (await get('
 await check('Setup company name', 'store.draftSetup.companyName', () => page.fill('[data-test=company]', 'TestLab'), 30);
 await check('Setup seed', 'store.draftSetup.seed', () => page.fill('[data-test=seed]', '2027'), 30);
 await shot('01-setup');
+await clearTips(); // a start card's tooltip can lock while the mouse rests on it (slow machines)
 // Game A: defaults with tutorial ON (act locks, coach cards).
 for (const [k, v] of [['baseline', 'classic'], ['world', 'ai2027'], ['alignment', 'medium'], ['econ', 'ai2027'], ['governance', 'legacyNonprofit'], ['storyteller', 'rising'], ['gov', 'realistic'], ['public', 'realistic'], ['china', 'realistic'], ['rivals', 'realistic'], ['rivalCount', '4'], ['tutorial', 'true']]) {
   await page.click(`[data-picker=${k}] [data-opt="${v}"]`);
@@ -1155,6 +1156,78 @@ async function d4Check(where, act, stepOk = true) {
   await check(`D4 ${where}: "Data ›" opens Models › Data`, `store.panel + ':' + (store.tab.models || '')`, () => page.click('[data-panel=blueprint] [data-test=bp-to-data]'));
   await shot(`d4-${tag}-data`);
 }
+// ── E12 (model v3): trait families with traits one level down, training pressure per run, successor pull ──
+const E12_TERMS = ['traitBehaviour', 'traitAwareness', 'traitDisposition', 'traitProtective', 'trainingPressure', 'traitMovement', 'successorPull', 'aiRdShare', 'rdOversight'];
+const e12Seen = new Set();
+const collectTerms = async () => { for (const t of await page.$$eval('[data-term]', (els) => els.map((e) => e.getAttribute('data-term')))) e12Seen.add(t); };
+async function e12Check(where) {
+  const tag = where.replace(' ', '');
+  await page.evaluate(() => window.ai27v2.setTab('safety', 'overview'));
+  await nav('safety');
+  // 1. Families on top; the traits only one level down (closed at first), each with its meaning.
+  const fams = await page.$$eval('[data-home=riskFamilies] [data-family]', (els) => els.map((e) => e.getAttribute('data-family')));
+  const closed = await page.$$eval('[data-home=riskFamilies] [data-trait]', (els) => els.length);
+  ok(`E12 ${where}: Safety shows the four risk families with no trait rows until opened`, fams.join(',') === 'please,gaming,deception,power' && closed === 0, `${fams.join(',')} · ${closed} trait rows`);
+  let rows = 0;
+  let meant = 0;
+  for (const f of [...fams, 'other']) {
+    await page.click(`[data-test="fam-open.${f}"]`);
+    await wait(60);
+    const tr = await page.$$eval(`[data-test="fam-traits.${f}"] [data-trait]`, (els) => els.map((e) => ({ t: e.getAttribute('data-trait'), m: e.querySelector('.sf-mean')?.textContent ?? '', v: e.querySelector('.num')?.textContent ?? '' })));
+    rows += tr.length;
+    meant += tr.filter((x) => /^(behaviour|awareness|disposition|protective)$/.test(x.m) && /\d\.\d\d ±\d\.\d\d/.test(x.v)).length;
+    await collectTerms();
+    if (f === 'deception') { await page.mouse.move(1, 1); await shot(`e12-${tag}-families`); }
+  }
+  await page.click('[data-test="fam-open.other"]');
+  ok(`E12 ${where}: each family opens to its traits (17 in all), each with its meaning and believed estimate ± sd`, rows === 17 && meant === 17, `${rows} rows, ${meant} with meaning and band`);
+  // 3. Successor pull: the numbers shown equal the (belief-based) selector.
+  const sp = JSON.parse(await page.evaluate(() => JSON.stringify(window.ai27v2.probe.successorPullView())));
+  const om = (await page.$eval('[data-test=succ-omega]', (e) => e.textContent ?? '').catch(() => '')).match(/\d\.\d\d/)?.[0];
+  const r = Number((await page.$eval('[data-test=succ-r]', (e) => e.textContent ?? '').catch(() => '')).replace('%', ''));
+  const parts = await page.$$eval('[data-test=succ-part]', (els) => els.map((e) => ({ slot: e.getAttribute('data-slot'), sh: e.querySelector('[data-test=succ-part-share]')?.textContent ?? '', om: e.querySelector('[data-test=succ-part-omega]')?.textContent ?? '' })));
+  const partsOk = parts.length === sp.parts.length && sp.parts.every((p, i) => parts[i].slot === p.slot && Math.abs(Number(parts[i].sh.replace('%', '')) - p.share * 100) <= 0.5 && parts[i].om === p.omega.toFixed(2));
+  ok(`E12 ${where}: successor pull shown (ω, AI share of R&D, per work type) equals successorPullView`, om === sp.omega.toFixed(2) && Math.abs(r - sp.r * 100) <= 0.5 && partsOk,
+    `ω ${om} vs ${sp.omega.toFixed(3)} · r ${r}% vs ${(sp.r * 100).toFixed(1)} · ${parts.map((p) => `${p.slot} ${p.sh} ${p.om}`).join(' ')}`);
+  const sTip = await tipText('[data-test=succ-omega]');
+  ok(`E12 ${where}: the successor pull tooltip gives its band and says it is estimated from beliefs`, /90% band/.test(sTip) && /beliefs/.test(sTip), sTip.replace(/\n/g, ' ').slice(0, 160));
+  await collectTerms();
+  await clearTips();
+  await shot(`e12-${tag}-safety`);
+  // 2. Training pressure of the planned run (Blueprint): signal rows with causes, families pushed, ω, successor link.
+  await nav('blueprint');
+  const kinds = await page.$$eval('[data-bp-kind]', (els) => els.map((e) => e.getAttribute('data-bp-kind')));
+  for (const k of ['post', 'base'].filter((x) => kinds.includes(x))) {
+    await page.click(`[data-bp-kind=${k}]`);
+    await wait(250);
+    const pr = await page.$$eval('[data-test=bp-pressure] [data-signal]', (els) => els.map((e) => ({ id: e.getAttribute('data-signal'), v: e.querySelector('[data-test=pr-value]')?.textContent ?? '', c: e.querySelector('[data-test=pr-cause]')?.textContent ?? '', p: e.querySelectorAll('[data-push]').length })));
+    const omega = await page.$eval('[data-home=runPressure] [data-test=pr-omega]', (e) => e.textContent ?? '').catch(() => '');
+    const good = pr.filter((x) => /^\d\.\d\d$/.test(x.v) && x.c.length > 10 && (!['S1', 'S2', 'S3', 'S7'].includes(x.id) || /\d/.test(x.c)) && x.p > 0);
+    const s2 = pr.find((x) => x.id === 'S2')?.c ?? '';
+    const s5 = pr.find((x) => x.id === 'S5')?.c ?? '';
+    const want = k === 'post' ? pr.length >= 4 && /\d+% of RL on .+ at \d+% exploitable/.test(s2) && /RL \d+(\.\d)?× the reference/.test(s2) : /AI-related data \d+\.\d% of tokens/.test(s5) && /scale G \d+\.\d/.test(s5);
+    ok(`E12 ${where}: Blueprint ${k} shows the planned run's signals with causes, the families they push and ω`, want && good.length === pr.length && /ω\s*\d\.\d\d/.test(omega),
+      `${omega} · ${pr.map((x) => `${x.id} ${x.v}: ${x.c}`).join(' | ').slice(0, 260)}`);
+    const tip = await tipText(`[data-test=bp-pressure] [data-signal=${pr[0]?.id}]`);
+    ok(`E12 ${where}: a ${k} signal's tooltip breaks it down and names what it pushes`, /pushes/.test(tip), tip.replace(/\n/g, ' ').slice(0, 160));
+    await clearTips();
+    await page.mouse.move(1, 1);
+    await shot(`e12-${tag}-blueprint-${k}`);
+  }
+  const succ = await page.$eval('[data-test=bp-succ]', (e) => e.textContent ?? '').catch(() => '');
+  ok(`E12 ${where}: Blueprint links the successor pull to its home on Safety`, /Successor pull from/.test(succ) && !!(await page.$('[data-test=bp-succ] [data-ref=successorPull]')), succ);
+  await collectTerms();
+  // Model card: what the finished run applied, one click down.
+  await nav('models');
+  await page.click('[data-test=mc-pressure-open]').catch(() => {});
+  await wait(80);
+  const mc = await page.$$eval('[data-test=mc-pressure-rows] [data-signal]', (els) => els.map((e) => ({ v: e.querySelector('[data-test=pr-value]')?.textContent ?? '', c: e.querySelector('[data-test=pr-cause]')?.textContent ?? '' })));
+  const mcBase = await page.$$eval('[data-test=mc-pressure-base] [data-signal]', (els) => els.length);
+  ok(`E12 ${where}: the model card shows the signals its run applied (with causes) and its base's`, mc.length >= 1 && mc.every((x) => /^\d\.\d\d$/.test(x.v) && x.c.length > 10) && mcBase >= 1, `${mc.length} run rows, ${mcBase} base rows · ${mc.map((x) => x.c).join(' | ').slice(0, 160)}`);
+  await collectTerms();
+  await page.mouse.move(1, 1);
+  await shot(`e12-${tag}-model-card`);
+}
 await page.evaluate(() => { const st = window.ai27v2; st.start({ ...st.draftSetup, tutorial: false, seed: 2027, companyName: 'OpenBrain' }); });
 await wait(150);
 await page.evaluate(() => window.ai27v2.step(1));
@@ -1165,6 +1238,7 @@ await b2Check('day 1');
 await b3Check('day 1', '29-day1-world-sectors');
 await b4Check('day 1');
 await d6Check('day 1', true);
+await e12Check('day 1');
 {
   // D6: the Blueprint's post-train suites row links to Models › Suites with its design as the planned run.
   await nav('blueprint');
@@ -1246,6 +1320,7 @@ await b3Check('day 400', '29-day400-world-sectors');
 await b4Check('day 400');
 await d6Check('day 400', true);
 await d4Check('day 400', true);
+await e12Check('day 400');
 await shot('27-day400-products-b2');
 const fx9 = readFileSync(path.resolve('scripts/v2/fixtures/day900.json'), 'utf8');
 await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
@@ -1255,11 +1330,16 @@ await b2Check('day 900');
 await b3Check('day 900', '29-day900-world-sectors');
 await b4Check('day 900');
 await d6Check('day 900', false);
+await e12Check('day 900');
 {
   const miss = D6_TERMS.filter((x) => !d6Seen.has(x));
   ok(`D6: every new suites term has a tooltip in Models › Suites (${D6_TERMS.length})`, miss.length === 0, miss.join(', '));
 }
 await d4Check('day 900', true, false);
+{
+  const miss = E12_TERMS.filter((x) => !e12Seen.has(x));
+  ok(`E12: every new term is a Term link on Safety, the Blueprint or the model card (${E12_TERMS.length})`, miss.length === 0, miss.join(', '));
+}
 await shot('28-day900-products-b2');
 {
   const miss = B1_TERMS.filter((t) => !b1Seen.has(t));

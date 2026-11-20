@@ -45,6 +45,8 @@ export { beliefView, findingRows, incidentRows, lineBadges, lineRows, riskFamili
 export type { FindingRow, LineRow, SafetyUtilisation, TechniqueRow } from '../safety/view';
 export { lineMult, lineResultsPerYear, posteriorBand, promisingIdle, safetyRe } from '../safety/agendas';
 export { familySeenTo } from '../safety/understanding';
+export { basePressure, plannedPressure, postPressure, signalPushes, storedBaseRows, successorPullView, versionPressure } from '../safety/pressureView';
+export type { FamilyId, PressureRow, PushTarget, RunPressure, SuccessorPartView, SuccessorPullView } from '../safety/pressureView';
 export { INV_FTE, INV_MAX_DAYS } from '../safety/investigations';
 export { safetyAgentVersion, safetyFleet, trustedShare } from '../safety/agents';
 export { lineLabour } from '../safety/lineProjects';

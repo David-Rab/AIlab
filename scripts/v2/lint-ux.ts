@@ -91,6 +91,8 @@ const REQUIRED = [
   'envSuite', 'suiteFidelity', 'suiteExploit', 'expertData', 'suiteBuild', 'suiteHarden', 'suiteRlShare', 'rewardHackPressure', 'plannedRun',
   // model v3 D4: the data view (Models › Data) and the Blueprint's drawn mix.
   'dataPortfolio', 'uniqueTokens', 'dataQuality', 'publicWeb', 'licensedData', 'licenceTier', 'syntheticData', 'teacherYield', 'naturalMix', 'refShare', 'drawnMix', 'domainEpochs', 'pendingData', 'usageData', 'synJob', 'dataLicence', 'dataSpec',
+  // model v3 E12: trait families and meanings, training pressure per run, successor pull.
+  'traitBehaviour', 'traitAwareness', 'traitDisposition', 'traitProtective', 'trainingPressure', 'traitMovement', 'successorPull', 'aiRdShare', 'rdOversight',
 ];
 const req = REQUIRED.filter((id) => !GLOSSARY_V2[id]);
 ok(`Required terms present (${REQUIRED.length})`, req.length === 0, req.join(', '));

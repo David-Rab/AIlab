@@ -197,3 +197,24 @@
 .sf-tool > span:first-child { min-width: 0; overflow: hidden; display: block; white-space: nowrap; text-overflow: ellipsis; }
 .sf-cases .inv-new { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
 .sf-cases .inv-new select { width: auto; flex: none; min-width: 64px; }
+/* E12: family rows open to their traits; successor pull card. */
+.sf-fam-row { cursor: pointer; }
+.sf-caret { vertical-align: -1px; color: var(--text-3); transition: transform .12s; }
+.sf-caret.open { transform: rotate(90deg); }
+.sf-traits { padding: 2px 0 8px 28px; border-bottom: 1px solid rgba(36,48,65,.6); }
+.sf-trait { display: grid; grid-template-columns: 14px minmax(0, 1fr) 70px 84px 76px; gap: 8px; align-items: center; padding: 3px 0; font-size: 12px; }
+.sf-fam-bar.sm { height: 8px; }
+.sf-mean { font-size: 11px; color: var(--text-2); }
+.sf-mean [data-term] { border-bottom-color: transparent; }
+.sf-mean.disposition { color: var(--watch); }
+.sf-mean.protective { color: var(--good); }
+.sf-other { background: transparent; border: 0; padding: 7px 2px; cursor: pointer; text-align: left; width: 100%; }
+.sf-succ-eq { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; padding: 2px 0 8px; color: var(--text-2); }
+.sf-succ-eq b { color: #fff; }
+.sf-succ-row { display: grid; grid-template-columns: 16px minmax(0, 1fr) 52px 36px 50px 36px; white-space: nowrap; gap: 8px; align-items: center; padding: 4px 0; border-top: 1px solid rgba(36,48,65,.6); font-size: 12px; }
+.sf-succ-row > svg { color: var(--text-2); }
+.sf-succ-foot { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+.sf-succ-hd { display: grid; grid-template-columns: 16px minmax(0, 1fr) 52px 36px 50px 36px; gap: 8px; font-size: 10.5px; color: var(--text-3); text-align: right; }
+.sf-succ-row .num { text-align: right; }
+.sf-other:focus:not(:focus-visible), .sf-fam-row:focus:not(:focus-visible) { outline: none; }
+.sf-other, .sf-other:focus { outline: none; box-shadow: none; border: 0; } .sf-other:hover { color: var(--text); }

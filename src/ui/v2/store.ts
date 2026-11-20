@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from 'react';
 import {
   act as engineAct, activeRivals, AUTOSAVE_KEY, dateOf, engine, leadDays, measuredL, defaultSetupV2, deserialize, newGame, quarterIndex, resolve as engineResolve,
-  serialize, SLOT_KEYS, spotPrice, tick,
+  serialize, SLOT_KEYS, spotPrice, successorPullView, tick,
 } from '../../engine/v2';
 import type { GameStateV2, LogEntry, SetupV2 } from '../../engine/v2';
 
@@ -68,6 +68,8 @@ function stopReason(a: Sig, b: Sig, s: GameStateV2, ff: FfTarget | undefined): s
 
 class StoreV2 {
   state: GameStateV2 | null = null;
+  /** Read-only selector probes for the UI test (E12: the successor pull shown equals its selector). */
+  readonly probe = { successorPullView: () => (this.state ? successorPullView(this.state) : undefined) };
   screen: Screen = 'start';
   speed = 0;
   lastSpeed = 2;
