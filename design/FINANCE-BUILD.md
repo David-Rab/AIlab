@@ -910,3 +910,114 @@ Numbers, before (FIN4a 7f35081) → after (FIN4b):
   re-checked at close; IP access has no effect on rivals beyond the know-how flow (no product or valuation effect until
   FIN5b's rival split reads their models); `design/V2-SPEC.md` §3.7.4 and `design/v2-interfaces.ts` still describe the
   old partner strings (FIN6c).
+
+### FIN5c notes (2026-11-20)
+
+Built on `finance-v3-div` (worktree `../AI27-finance3-div`, from 7f35081, in parallel with FIN4b): the big-tech
+division's budget year (`finance/parent.ts` rewritten: `DIVISION` rule, `budgetFactor`, `divisionOf`, `startDivision`,
+`divisionQ` (the yearly review and the quarterly payment, called from capitalQ after the histories roll),
+`parentPaymentQ(s, q)`, `parentSchedule` with estimates, `divisionView` (every division readout), `budgetRoom` (the
+bots' guard)); parent goals as promises (`FinancePromise.by = 'parent'`, `goalWeight`; `promises.ts` judges them with
+no credibility and the cause names "goal met / missed"); no runway verdict for a division (`updateRunwayState`) and no
+quarterly "behind a rival" source for it (`boardQ`); state `FinanceWS3.division` (`DivisionBudget`, `DivisionReview`);
+mood sources "goal met", "goal missed", "over budget". UI: a new `panels/FinanceDivision.tsx` (+ its css) with the Parent
+budget card (the budget year as one bar: budget, savings or advance carried in, spent so far, the elapsed-year mark; the
+verdict "Over budget by $X; parent covers" / "On course to run $X over by the review; parent covers" / "Within budget ·
+$Y left at the review"; the review date, goals (link to What we owe), next year's budget at today's confidence; the
+payment schedule with later years marked "est."; parent confidence is homed here), What we owe opened to a division
+(section "Parent goals", no credibility, tranches or covenants; goal tooltips say what judging would do to parent
+confidence), the Board card links to parent confidence, the top strip and core loop read the same `divisionView`
+(`selectors.divisionStatus` replaces `divisionBudget`), the Watch "board" alert says "next budget N% of plan" for a
+division instead of ouster risk, the 'owe' alert words a parent goal as such, the waterfall's net bar is "Budget −
+spend" (the year's verdict lives on the card). Glossary: `parentBudget` rewritten, new `parentConf`, `parentGoal`,
+`parentReview` (`design/ux/GLOSSARY.md` regenerated). schemaRev 16 → 17 with a migration.
+
+The rule (spec §13; [D] numbers in `DIVISION`):
+- **Budget years** run Jul–Jun. At each **review** (1 July, the first quarter start of a budget year, in capitalQ): the
+  year's goals are judged; the parent minds any overspend it is still covering; it sets the year's budget = its plan
+  (`PARENT_BUDGET`, the capex path: $16B, ×1.75 for three years, then ×1.3) × **min(100%, 50% + confidence ÷ 120)** (the
+  full plan at 60, where confidence drifts; three quarters at 30; half at 0); it sets the new goals. Paid in four
+  quarterly payments (the first in the review's capitalQ; year 0's first payment is in the starting cash, as before).
+- **Goals** = the promise mechanism set by the parent: capability (public level), scale (compute online) and adoption
+  (revenue run-rate) on the division's own trend at the **base pitch** (`makeThesis(…, 'base')`, as a raise's base
+  pitch), a third each (adoption is skipped while there is no revenue, then a half each), deadline the next review. Judged
+  like promises: met +30 × weight, missed by more than 20% of the gain −30 × weight, × the parent seat's multiplier
+  (strategic: 1), on board confidence only (no investor credibility: a division has none).
+- **Parent confidence = the division's board confidence** (one meter, the FIN3a machinery: named sources, drift to 60).
+  Its sources for a division: goal results, overspend, public incidents (×0.5). "Behind a rival" is not a quarterly source
+  for a division: the parent judges capability through its yearly goals (with both, the quarterly −5 pinned every bot's
+  confidence near 0 and the budget at its floor; the capability goal already counts the same thing once a year).
+- **Overspend is covered but costs confidence.** Cash is the budget balance: unspent budget stays as cash, cash below
+  zero is the parent's advance (it pays the bills; a division still cannot go broke) and the coming payments repay it
+  first. Over budget = spent so far (carried in + paid − cash) beyond this year's budget plus what was carried in. At each
+  review the parent minds the advance it is still covering (cash below zero after the year's last payment): **−30 ×
+  advance ÷ the year's budget, at most −30**, × the setbacks multiplier (1). **Deviation (reading of "covered"):** the
+  parent does not write the overspend off. With a write-off, overspending is free money at a bounded cost (−30 at most and
+  a budget floor of 50%): a division could spend any amount every year. Covering as an advance repaid from later budgets
+  keeps money bounded by the budgets, and an advance left outstanding is minded again at every review.
+- **Ouster.** Today's code: the `parent` preset has no ouster vote, warning or critics' seat (kept). The consequence of a
+  sustained miss is the budget: low confidence cuts it to as little as half the plan; it never ends the game. Rule noted
+  in `parentConf`'s glossary entry and the parent.ts header.
+- **No runway verdict (JANK F2).** `updateRunwayState` keeps a division `healthy`: no tight / distress state, no
+  "Financial distress" log or headline, no −4/q distress source, no distress branches in the bots. The runway projection
+  still exists (it is the budget balance path: later years' payments at the plan × today's factor, an estimate; the
+  parent's cover is not projected). The top strip reads "CASH · BUDGET $X · over $Y / $Y over at review / within budget ·
+  parent covers"; the core loop reads the same words; no "0.0q distress" or "ouster risk" anywhere for a division.
+- **ST2 (finance readout part only).** Cash still goes below zero inside a year for the bots (the parent's advance on the
+  year's later payments) but is now explained by the verdict and the tooltip; the idle teams and spare serving are
+  research/teams matters, untouched.
+- **Bots (rule 12).** A prudent division head keeps to the budget: `financeAutopilot` adds `budgetRoom(s) ≥ 0` (the
+  lowest projected cash at the next two reviews, less a quarter's payment of margin: the projection holds spending flat
+  and misses one-offs such as E27 packages) to the site, lease, bridge and chip guards. `budgetRoom` is +∞ for every
+  other company, so the leader-start bots are unchanged (F7/F8/F9 identical to FIN4a). Without the guard the reference
+  and mixed bots overspent $11–16B in year 0 on a $16B budget (sites in cash: no lessor funding beyond 80% and the crash
+  builds) and sat at confidence ≈ 1 with the budget at its floor.
+- **Migration 16 → 17**: a division gets this year's budget at the plan, paid so far from the schedule, carried-in cash =
+  cash − paid so far; goals start at the next review; a division's state is set healthy.
+
+Numbers, before (FIN4a 7f35081) → after (FIN5c), big-tech start:
+- Day 0 readout: cash $8.0B, top strip "CASH · BUDGET $8.0B · within budget · parent covers" (J1's burn-rate wording) →
+  the same chip reading the budget year; the Parent budget card: "Budget Jul 2025 – Jun 2026 $16.0B + $4.0B saved",
+  "Within budget · $15.5B left at the review" (idle), review 1 Jul 2026, 3 goals (public level 3.6 → 4.8, 800K → 880K
+  H100e online, $4.0B → $6.4B/yr revenue), next year ≈ $28.0B, parent confidence 70.
+- JANK F2's day-400 case (cash below zero): before, the engine state was `distress` ("Financial distress: 0.0 quarters of
+  runway" in the log, the "scrambles for cash" headline, −4 board confidence a quarter) and the Watch's board alert spoke
+  of ouster risk for a board that cannot vote; after, the state stays healthy, the card says "Over budget by $X; parent
+  covers" (or "On course to run $X over by the review") and the Watch says "next budget N% of plan".
+- Scratch diagnostic (4 seeds × mixed / ref / race / safe, to day 1100 or the ending; not committed): weeks in distress
+  median 67% (25–79%) → 0%; weeks with cash below zero median 46% (17–77%) → 40% (2–71%: in-year advances, now read as
+  within or over budget); lowest cash −$2.3…−11.5B → −$0.6…−22.4B (two seeds overspend late, after the budget was cut
+  to its floor with leases still running); end board / parent confidence median 22 (5–38) → 19 (2–35); endings unchanged
+  (overtaken about day 795–895 in the same seeds). The mixed bot's first review (seed 30000): spent $24.9B of $16B + $4B
+  saved, $4.9B over (−9 confidence), goals 0 of 3 met (−30) → year-1 budget $19.9B (71% of the $28B plan) at confidence
+  25. Goals the bots meet: adoption in some year-0s, capability now and then; scale almost never (the division bots'
+  compute online stays at the start fleet: their new sites stand without chips, a compute/bot matter noted for ST2).
+- `scripts/v2/starts.ts` (10 seeds × mixed + race per start; not in the test chain): the same 6 failures before and after;
+  big tech "6 → 3–5 months behind within months 9–15": median best lag 7.0 → 5.4 months (closer, still outside); big tech
+  endings overtaken 19 → 18 of 20 (one rivalAligned → one chinaAligned, one chinaTakeover); challenger and spinout
+  identical.
+- `scripts/v2/bots.ts --start bigtech --seeds 40` (200 games each run; the §7.4 criteria are defined on the leader start):
+  wins 0% for every bot before and after; median ending day race 801 → 895, safe 889 → 889, mixed 795 → 817, capex2x
+  756 → 756, ref 801 → 852; overtaken race 90 → 90%, safe 92.5 → 87.5%, mixed 85 → 87.5%, capex2x 100 → 100%, ref 87.5 →
+  92.5%; "mixed" outcomes mixed 5 → 2.5%, safe 0 → 2.5%; no insolvent or ousted endings either way (a division cannot
+  reach them). The leader start is unchanged: `budgetRoom` is +∞ off the division and the other edits are division-only
+  (`scripts/v2/finance.ts` F7/F8/F9, FIN2–FIN4a lines identical to FIN4a: 2026 capex $158.4B, valuation $1.48T, financing
+  $73.4B, distress-free 83.3%, RefBot end-2027 board confidence 61.3; golden timelines and fixtures pass).
+- Tests: `npm run typecheck` clean. One by one: golden-timelines, identity, calib, fixtures, hygiene (perf passed on this
+  run: 1117 µs daily average, leader lab 1388 µs, its own cost +6.9% paired; the machine was shared with the FIN4b
+  session, so only the paired check is meaningful), lint-hidden, lint-ux, lint-tradeoffs, lint-structure green; safety S5
+  −0.52 (known, as FIN4a); finance all passed (12 new FIN5c checks); worldfx HireRate_SOFT 2027-03-15 (known, as FIN4a);
+  ws4, products, money, idle green. `npm run test:ui` 294/294 (5 new FIN5c checks). Test changes: finance.ts adds 12
+  FIN5c checks (day-0 budget year and goals; the budget rule; payments and estimates; no runway verdict, ouster vote or
+  critics' seat for a division; the readout's spent / over / cost / next-year; within budget and the bots' room; the
+  review judges goals on parent confidence only; the overspend's confidence cost, not written off; the budget set by the
+  rule and new goals; no "behind a rival" source; migration 16 → 17; the mixed bot as a division head). uitest: 5 new
+  FIN5c checks (the Parent budget card's year, verdict, review, goals and next year with parent confidence homed there;
+  over budget on the card and the top strip with no distress; What we owe's parent goals; the goal tooltip; the Board
+  card's link and no ouster vote). Fixtures regenerated (schemaRev 17; no big-tech fixture exists). No existing test
+  changed meaning.
+- Left for later: the division bots never fill their new sites with chips (compute online stays at the start fleet, so
+  the scale goal is almost never met; a compute/bot matter, ST2's non-finance part); FIN6a may tune the [D] numbers (the
+  50% floor, full at 60, −30 cap) once the division plays better; FIN6b polish (check how the cash-history chart draws a
+  division's advance below zero; the legend now says "budget as set"); `design/STRUCTURE.md` §4.8 and `V2-SPEC` still say "no parent-confidence
+  mechanic" (FIN6c docs pass); JANK-AUDIT F2 / ST2 rows not edited (status here).

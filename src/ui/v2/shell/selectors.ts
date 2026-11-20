@@ -1,7 +1,8 @@
 // Pure UI selectors shared by the top strip and the Watch list (no store, no React): importable from node scripts
 // (scripts/v2/idle.ts reads the Watch list).
 import { activeRivals, dateOf, dayOfQuarter, engine, leadDays, OUSTER_BC, OUSTER_NOTICE_D, ousterPassesBelow, ousterVote, qOf, runwayOf } from '../../../engine/v2';
-import type { GameStateV2, RiskSource } from '../../../engine/v2';
+import type { DivisionView, GameStateV2, RiskSource } from '../../../engine/v2';
+import * as F from '../fmt';
 import { runwayState } from '../theme';
 import { isDivision } from '../../../data/v2/starts';
 
@@ -39,11 +40,10 @@ export function boardReview(s: GameStateV2) {
   return { day, inDays: day - s.time.day, date: dateOf(s, day), bc, line: OUSTER_BC, live, vote: ousterVote(s), passesBelow: ousterPassesBelow(s), division: isDivision(s) };
 }
 
-/** A division's money in budget terms (jank F2): the parent's payment per quarter, spending per quarter (operating
- *  outflow averaged over the next 4 quarters, as runway's burn) and how far spending runs over the budget. */
-export function divisionBudget(s: GameStateV2) {
-  const rw = runwayOf(s);
-  const parentQ = Math.max(0, -rw.parts.funding);
-  const spendQ = Math.max(0, rw.burnQ);
-  return { parentQ, spendQ, overQ: spendQ - parentQ, over: spendQ > parentQ + 1e-6 };
+/** A big-tech division's budget year in words (jank F2, FIN5c): the top strip, the core loop and the Parent budget card
+ *  read the engine's divisionView through this, so they say the same thing. */
+export function divisionStatus(v: DivisionView): { text: string; short: string; tone: 'good' | 'watch' | 'bad' } {
+  if (v.status === 'over') return { text: `Over budget by ${F.money(v.over)}; parent covers`, short: `over ${F.money(v.over)}`, tone: 'bad' };
+  if (v.status === 'course') return { text: `On course to run ${F.money(v.coverAtReview)} over by the review; parent covers`, short: `${F.money(v.coverAtReview)} over at review`, tone: 'watch' };
+  return { text: `Within budget · ${F.money(Math.max(0, v.projectedEnd))} left at the review`, short: 'within budget', tone: 'good' };
 }

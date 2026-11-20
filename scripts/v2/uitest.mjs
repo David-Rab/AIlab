@@ -1026,6 +1026,28 @@ ok('Big tech Finance: equity unavailable with its reason', (await page.locator('
 await iaScan('finance:bigtech');
 ok('J1 F2: big tech: parent budget is the inflow bar; no runway or distress readout', !!(await page.$('[data-wf=parent]')) && !!(await page.$('[data-test=division-budget]')) && !(await page.locator('.topstrip2').innerText()).match(/distress|tight/i));
 await shot('60-bigtech-finance');
+// FIN5c (FINANCE-V3 §13): the division readout: budget this year, spent so far, over / within budget, the review, the
+// goals (home: What we owe), next year's budget; parent confidence lives on this card (the Board card links to it).
+ok('FIN5c big tech: Parent budget shows the year (budget, spent), the verdict, review, goals and next year; parent confidence home here',
+  !!(await page.$('[data-home=parentBudget] [data-test=division-year]')) && (await page.getAttribute('[data-test=division-status]', 'data-status')) === 'within' && !!(await page.$('[data-home=parentBudget] [data-home=parentConf]')) && !!(await page.$('[data-test=division-goals]')) && !!(await page.$('[data-test=division-next]')) && (await page.locator('[data-test=division-status]').innerText()).includes('Within budget'));
+await page.evaluate(() => { window.ai27v2.state.player.finance.cash = -30; window.ai27v2.notify(); });
+await wait(120);
+{
+  const txt = await page.locator('[data-test=division-status]').innerText();
+  const top = await page.locator('.topstrip2').innerText();
+  ok('FIN5c big tech over budget: "over budget by $X; parent covers" on the card and the top strip, never runway distress', /Over budget by \$[\d.]+B; parent covers/.test(txt) && (await page.getAttribute('[data-test=division-budget]', 'data-status')) === 'over' && /parent covers/i.test(top) && !/distress|tight/i.test(top), txt);
+}
+await shot('61-bigtech-over-budget');
+await page.evaluate(() => { window.ai27v2.state.player.finance.cash = 8; window.ai27v2.notify(); });
+await tabTo('owe');
+ok('FIN5c big tech What we owe: the parent goals with progress (no investor credibility, tranches or covenants)', (await page.$$('[data-home=whatWeOwe] [data-promise]')).length === 3 && (await page.locator('[data-home=whatWeOwe]').innerText()).toUpperCase().includes('PARENT GOALS') && !(await page.$('[data-test=investor-cred]')) && !(await page.$('[data-covenant]')));
+await page.hover('[data-home=whatWeOwe] [data-promise]');
+await wait(250);
+ok('FIN5c big tech: a goal\'s tooltip says what judging it would do to parent confidence', JSON.parse(await get(`/parent confidence/.test(document.querySelector('.tip')?.innerText ?? '')`)));
+await iaScan('finance:bigtech-owe');
+await tabTo('owners');
+ok('FIN5c big tech Board: links to parent confidence (one home), no ouster vote', !!(await page.$('[data-go="fin.go.parentConf"]')) && !(await page.$('[data-home=boardConf]')) && !(await page.$('[data-test=ouster-vote]')));
+await tabTo('cash');
 for (const start of ['spinout', 'challenger']) {
   const fxs = readFileSync(`scripts/v2/fixtures/start-${start}-day400.json`, 'utf8');
   await page.evaluate((j) => window.ai27v2.importJson(j), fxs);

@@ -26,6 +26,10 @@ import { charterReleaseBlock, charterRights, controlVote, transferVote } from '.
 import { affiliatedLab, anchorPartners, dealVotes, dealWith, firstYearCommit, ipAccessDaily, partnerBlocker, partnerCosts, partnerOffers, partnersNow, partnerStakeAfter, partnerTerms, signPartner, termsEquity } from '../../src/engine/v2/finance/deals';
 import { capabilityThresholds, licensedGap, licensedModel } from '../../src/engine/v2/finance/observe';
 import { qOf } from '../../src/engine/v2/finance/ledger';
+import { budgetFactor, budgetRoom, DIVISION, divisionView, parentPaymentQ } from '../../src/engine/v2/finance/parent';
+import { mixedBot } from '../../src/engine/v2/bots/mixed';
+import { parentBudgetYear } from '../../src/data/v2/starts';
+import { runwayOf } from '../../src/engine/v2/finance/runway';
 import { deployGate } from '../../src/engine/v2/models/deployments';
 import { editBlock } from '../../src/engine/v2/models/productOps';
 import { applyShock } from '../../src/engine/v2/finance/investors';
@@ -1214,6 +1218,93 @@ for (const a of FINANCE_ACTIONS) {
     const n = ref.map((r) => partnersNow(r.s).length);
     check(deals.length >= 0.8 * ref.length && deals.every((d) => d.strings.exclusivity && !d.strings.ipAccess) && n.every((x) => x <= ST.maxPartners),
       'FIN4b RefBot takes one hyperscaler deal with exclusivity and without IP access; never more than 3 partners', `${deals.length}/${ref.length} · equity median $${f1(median(deals.map((d) => d.equityNow + d.equityLater)))}B · partners ${JSON.stringify(n)}`);
+  }
+}
+
+// ───────────────────────────── FIN5c: big-tech division budget (FINANCE-V3 §13) ─────────────────────────────
+{
+  const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math.max(1, Math.abs(b));
+  const bigtech = (seed = 5) => newGame(defaultSetupV2({ seed, world: 'ai2027', alignment: 'medium', tutorial: false, start: 'bigtech' }));
+  /** Tick (no bot) to a day; the endings system is skipped so the run always gets there. */
+  const runTo = (s: GameStateV2, day: number) => { while (s.time.day < day) { for (const p of [...s.events.pending]) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0); tick(s, { skip: ['endings'] }); } };
+  const causes = (s: GameStateV2, src: string) => (s.causes.byKey['board.confidence'] ?? []).filter((e) => e.source === src);
+  {
+    // Day 0: budget year 0 at the parent's plan, its payment in the starting cash, three parent goals (a third each) due
+    // at the first review, no valuation.
+    const s = bigtech();
+    const d = s.player.finance.ws3.division;
+    const goals = livePromises(s).filter((p) => p.by === 'parent');
+    const review = dayOfDate(START, '2026-07-01');
+    check(!!d && d.year === 0 && d.budget === parentBudgetYear(0) && d.factor === 1 && near(d.paid, 4) && near(d.carryIn, 4) && goals.length === 3 && goals.every((g) => g.goalWeight === 1 / 3 && g.deadline === review && g.pitch === 'base') && goals.map((g) => g.type).join(',') === 'capability,scale,adoption' && s.player.finance.valuation === 0, 'FIN5c day 0: budget year 0 at the plan ($16B, its first payment in the cash), three parent goals on the trend at the base pitch (a third each) due at the 1 Jul 2026 review; no valuation', JSON.stringify({ budget: d?.budget, paid: d?.paid, carryIn: d?.carryIn, goals: goals.map((g) => `${g.type} ${f1(g.start)}→${f1(g.target)}`) }));
+    check(budgetFactor(0) === DIVISION.floor && budgetFactor(30) === 0.75 && budgetFactor(DIVISION.fullAt) === 1 && budgetFactor(100) === 1, 'FIN5c budget rule: plan × min(100%, 50% + confidence ÷ 120) (half at 0, three quarters at 30, full from 60)');
+    // Payments: this year at the set budget, later years at the plan × today's factor (the projection uses them).
+    const q0 = qOf(s);
+    s.player.board.confidence = 30;
+    const flows = runwayOf(s);
+    check(near(parentPaymentQ(s, q0 + 1), d!.budget / 4) && near(parentPaymentQ(s, 4), parentBudgetYear(1) * 0.75 / 4) && flows.parts.funding < 0, 'FIN5c payments: a quarter of this year\'s budget; later years at the plan × the factor at today\'s confidence (an estimate in the projection and the schedule)', `Q1 ${f1(parentPaymentQ(s, q0 + 1))} · year 1 at confidence 30: ${f1(parentPaymentQ(s, 4))}/q`);
+    // No runway verdict: a deep overspend leaves the state healthy, with no distress source or alert; no ouster vote.
+    s.player.finance.cash = -40;
+    const ctx = makeCtx(s);
+    updateRunwayState(s, ctx);
+    s.player.board.confidence = 5;
+    s.player.finance.ws3.boardWarnDay = -200;
+    const v = divisionView(s)!;
+    check(s.player.finance.state === 'healthy' && !causes(s, 'financial distress').length && !ousterVote(s).live && ousterVote(s).seats.length === 0 && criticsAvailable(s) !== true, 'FIN5c a division has no runway verdict (healthy at −$40B, no distress source) and no ouster vote or critics\' seat: low confidence costs budget, never the game', `state ${s.player.finance.state} · ${criticsAvailable(s)}`);
+    check(v.status === 'over' && near(v.over, 40 + d!.paid - d!.budget) && near(v.spent, d!.carryIn + d!.paid + 40) && v.coverConf === -DIVISION.overConf * moodWeight(s, 'setbacks') && v.next.factor === budgetFactor(5), 'FIN5c readout: spent so far = carried in + paid − cash; over budget = spent past this year\'s budget and savings ("over budget by $X; parent covers"); the confidence it would cost at the review and next year\'s budget at today\'s confidence', `spent ${f1(v.spent)} · over ${f1(v.over)} · cost ${f1(v.coverConf)} · next ${f1(v.next.budget)}`);
+    s.player.finance.cash = 20;
+    const w = divisionView(s)!;
+    check(w.status === 'within' && w.over === 0 && w.projectedEnd > 0 && budgetRoom(s) < w.projectedEnd, 'FIN5c readout within budget: projected cash at the review is left over; the bots\' budget room keeps a quarter\'s payment of margin', `projected ${f1(w.projectedEnd)} · room ${f1(budgetRoom(s))}`);
+  }
+  {
+    // The first review (1 Jul 2026), an idle division: the goals are judged (parent confidence only, no credibility), the
+    // overspend the parent is still covering costs confidence and is not written off, the budget follows the rule, and
+    // the new goals are set. Overspend: cash −$10B on the eve of the review.
+    const s = bigtech();
+    const review = dayOfDate(START, '2026-07-01');
+    runTo(s, review - 1);
+    const cred0 = s.player.finance.credibility;
+    s.player.finance.cash = -10;
+    const d0 = s.player.finance.ws3.division!;
+    const budget0 = d0.budget;
+    runTo(s, review);
+    const d = s.player.finance.ws3.division!;
+    const judged = (s.player.finance.promises ?? []).filter((p) => p.by === 'parent' && p.result);
+    const goalSum = [...causes(s, 'goal met'), ...causes(s, 'goal missed')].filter((e) => e.day === review).reduce((a, e) => a + e.delta, 0);
+    const over = causes(s, 'over budget').filter((e) => e.day === review);
+    const rv = d.reviews[d.reviews.length - 1];
+    const newGoals = livePromises(s).filter((p) => p.by === 'parent');
+    check(judged.length === 3 && judged.every((p) => p.result!.cred === 0 && p.result!.day === review) && s.player.finance.credibility === cred0 && near(goalSum, judged.reduce((a, p) => a + p.result!.board, 0)) && judged.every((p) => Math.abs(p.result!.board) <= 10 + 1e-9), 'FIN5c review: the year\'s three goals are judged like promises (±30 × a third on parent confidence); no investor credibility moves', judged.map((p) => `${p.type} ${p.result!.outcome}`).join(', '));
+    check(!!rv && rv.year === 0 && rv.over >= 10 && rv.over < 10.6 && over.length === 1 && near(over[0].delta, -DIVISION.overConf * (rv.over / budget0) * moodWeight(s, 'setbacks')) && near(d.carryIn, -rv.over) && near(s.player.finance.cash, d.carryIn + d.budget / 4, 0.01), 'FIN5c review: the overspend the parent is still covering costs −30 × overspend ÷ budget; it is not written off (the new year starts with the advance, repaid from its payments); cash −$10B on the eve plus that day\'s payroll', `over ${f1(rv?.over ?? 0)} · ${f1(over[0]?.delta ?? 0)} confidence · cash after the first payment ${f1(s.player.finance.cash)}`);
+    check(d.year === 1 && near(d.plan, parentBudgetYear(1)) && near(d.budget, d.plan * budgetFactor(d.confidence)) && d.confidence < 70 && newGoals.length >= 2 && newGoals.every((g) => g.closeDay === review && g.deadline === dayOfDate(START, '2027-07-01')), 'FIN5c review: this year\'s budget = the plan × the factor at the confidence after the review (missed goals and overspend cut it); new goals due at the next review', `budget ${f1(d.budget)} = ${f1(d.plan)} × ${F1pct(d.factor)} at ${f1(d.confidence)} · goals ${newGoals.map((g) => g.type).join(', ')}`);
+    check(!causes(s, 'behind a rival').length && s.player.finance.state === 'healthy', 'FIN5c the parent judges capability through its goals: no quarterly "behind a rival" source for a division; never in distress');
+  }
+  {
+    // Save migration 16 → 17: a big-tech save gets its budget year (this year at the plan); distress is lifted.
+    const s = bigtech();
+    runTo(s, 200);
+    const raw = JSON.parse(serialize(s));
+    raw.schemaRev = 16;
+    delete raw.player.finance.ws3.division;
+    raw.player.finance.state = 'distress';
+    raw.player.finance.promises = [];
+    const m = deserialize(JSON.stringify(raw));
+    const d = m.player.finance.ws3.division;
+    check(!!d && d.year === 0 && d.budget === parentBudgetYear(0) && near(d.paid, 12) && m.player.finance.state === 'healthy', 'FIN5c save migration 16 → 17: a division gets this year\'s budget at the plan (paid so far from the schedule), no distress; goals start at the next review', JSON.stringify(d && { year: d.year, budget: d.budget, paid: d.paid, carryIn: f1(d.carryIn) }));
+  }
+  {
+    // The mixed bot as a division head (one seed, a year and a half): it keeps to the budget room, the state is never
+    // distress, the first review judges three goals and sets the budget by the rule.
+    const s = bigtech(30000);
+    let distress = 0;
+    while (s.time.day < 550 && !s.ending) {
+      for (const p of [...s.events.pending]) if (resolve(s, p.instance, mixedBot.decide(s, p))) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0);
+      mixedBot.act(s, engine);
+      tick(s);
+      if (s.player.finance.state !== 'healthy') distress++;
+    }
+    const d = s.player.finance.ws3.division!;
+    const rv = d.reviews[0];
+    check(distress === 0 && !!rv && rv.goals.met + rv.goals.near + rv.goals.missed === 3 && near(d.budget, d.plan * budgetFactor(d.confidence)), 'FIN5c mixed bot as a division head: never tight or in distress; the first review judges three goals and sets the budget by the rule', `year 0: spent $${f1(rv?.spent ?? 0)}B of $${f1(rv?.budget ?? 0)}B, over $${f1(rv?.over ?? 0)}B (${f1(rv?.overConf ?? 0)}), goals ${JSON.stringify(rv?.goals)} · year 1 budget $${f1(d.budget)}B at confidence ${f1(d.confidence)}`);
   }
 }
 

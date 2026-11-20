@@ -2,7 +2,7 @@
 // Owner: WS3.
 import { GOV_FACTOR } from '../../../data/v2/deals';
 import { isDivision } from '../../../data/v2/starts';
-import { payParent } from './parent';
+import { divisionQ } from './parent';
 import { dayOfDate, decimalYear } from '../core/time';
 import type { CapitalMarkets, EngineSystem, GameStateV2, Money, SystemCtx } from '../types';
 import { covenantsBreached, ratingOf, ratingScore, rollMaturities } from './debt';
@@ -229,7 +229,8 @@ export const capitalQSystem: EngineSystem = {
 
     // Promises due this quarter are judged first (FIN2: they move credibility, which the mark reads). Then the
     // valuation mark (formula × credibility × governance), raises close at it, tranches land; the milestone histories
-    // roll. A division (R9) has no valuation and raises nothing; the parent's quarterly budget lands instead.
+    // roll. A division (R9) has no valuation and raises nothing; the parent reviews its year and pays its budget instead
+    // (FIN5c, after the histories roll: the new goals read this quarter's trend).
     judgePromises(s, ctx);
     if (!isDivision(s)) {
       const v = valuationNow(s);
@@ -237,12 +238,12 @@ export const capitalQSystem: EngineSystem = {
       f.valuation = v.V;
       ctx.cause('player.finance.valuation', dv, 'quarterly mark', `g ${v.g.toFixed(1)} · H ${v.H.toFixed(2)} · N ${v.N.toFixed(1)} · M ${v.M.toFixed(2)} · credibility ×${v.cred.toFixed(2)}${v.gov !== 1 ? ` · dual-class ×${v.gov.toFixed(2)}` : ''}`);
     }
-    payParent(s, ctx);
     closePendingRound(s, ctx);
     settleTranches(s, ctx);
     f.revenueHistory.push(f.revenueRun);
     if (f.revenueHistory.length > 8) f.revenueHistory.shift();
     recordThesisHist(s);
+    divisionQ(s, ctx);
 
     // Debt: maturities, covenants, rating (spec §3). The credit line is re-sized only when you borrow (debt.ts).
     const breach = rollMaturities(s, ctx) || covenantsBreached(s, ctx);

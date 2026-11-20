@@ -1,7 +1,7 @@
 // Watch rules (IA.md L1, PLAN U1.10): each rule reads visible selectors only and yields a cause chain
 // (root ▸ symptom), a consequence line and a Go target to the control that fixes it. UI-only; no engine state.
 import type { LucideIcon } from 'lucide-react';
-import { describeTarget, engine, eventDef, idleChips, idleStocks, idleTeams, internalVersion, revenueReadout, safetyView, whatWeOwe } from '../../../engine/v2';
+import { describeTarget, divisionView, engine, eventDef, idleChips, idleStocks, idleTeams, internalVersion, revenueReadout, safetyView, whatWeOwe } from '../../../engine/v2';
 import type { GameStateV2, IdleStockId } from '../../../engine/v2';
 import { CRITICAL_TRAITS } from '../../../data/v2/traits';
 import { ICON } from '../icons';
@@ -80,20 +80,30 @@ export function watchItems(s: GameStateV2): WatchItem[] {
     const pr = owe.behind[0];
     const root: WatchLink = cov
       ? { label: `${cov.label} ${cov.state === 'breach' ? 'failing' : 'near'}`, icon: ICON.debt, kind: 'root', detail: cov.rule }
-      : { label: `promise behind${owe.behind.length > 1 ? ` (${owe.behind.length})` : ''}`, icon: ICON.commitment, kind: 'root', detail: `${describeTarget(pr.p)}: ${F.pct(Math.max(0, pr.progress))} of the gain, ${F.pct(pr.neededProgress)} needed by now` };
+      : { label: `${pr.p.by === 'parent' ? 'parent goal' : 'promise'} behind${owe.behind.length > 1 ? ` (${owe.behind.length})` : ''}`, icon: ICON.commitment, kind: 'root', detail: `${describeTarget(pr.p)}: ${F.pct(Math.max(0, pr.progress))} of the gain, ${F.pct(pr.neededProgress)} needed by now` };
     const sym: WatchLink = cov
       ? { label: cov.state === 'breach' ? 'breach at quarter end' : 'covenant at risk', icon: ICON.alert, kind: 'bad', detail: 'A breach at the quarter-end test means distress' }
-      : { label: pr.ifJudgedNow.cred < 0 ? `credibility ${Math.round(pr.ifJudgedNow.cred)} if judged now` : 'promise at risk', icon: ICON.credibility, kind: 'bad', detail: `board ${Math.round(pr.ifJudgedNow.board)}; due in ${pr.daysLeft} d` };
+      : pr.p.by === 'parent'
+        ? { label: pr.ifJudgedNow.board < 0 ? `parent confidence ${Math.round(pr.ifJudgedNow.board)} if judged now` : 'goal at risk', icon: ICON.board, kind: 'bad', detail: `it sets the next budget; due in ${pr.daysLeft} d` }
+        : { label: pr.ifJudgedNow.cred < 0 ? `credibility ${Math.round(pr.ifJudgedNow.cred)} if judged now` : 'promise at risk', icon: ICON.credibility, kind: 'bad', detail: `board ${Math.round(pr.ifJudgedNow.board)}; due in ${pr.daysLeft} d` };
     out.push({
       id: 'owe', sphere: 'company', sev: cov ? (cov.state === 'breach' ? 4 : 3) : 2.5, chain: [root, sym],
-      why: cov ? 'tested at the next quarter end' : 'investors judge it at its deadline', go: { panel: 'finance', tab: 'owe' }, goLabel: 'What we owe',
+      why: cov ? 'tested at the next quarter end' : pr.p.by === 'parent' ? 'the parent judges it at its review' : 'investors judge it at its deadline', go: { panel: 'finance', tab: 'owe' }, goLabel: 'What we owe',
     });
   }
   // 5. (R6) eval suites no longer expire: the auto-evaluate policy keeps the internal model current, so the old
   // "evals older than 30 d" alert is gone (rule R7, no chores).
   // 6. board
   const bc = p.board.confidence;
-  if (bc < 40) {
+  const dv = divisionView(s);
+  if (dv && bc < 40) {
+    // FIN5c: a division head is never voted out; low parent confidence cuts the next budget.
+    out.push({
+      id: 'board', sphere: 'company', sev: 2.5,
+      chain: [{ label: 'parent confidence low', icon: ICON.board, kind: 'root', detail: `Confidence ${Math.round(bc)} (the full budget needs 60)` }, { label: `next budget ${F.pct(dv.next.factor)} of plan`, icon: ICON.cash, kind: 'bad', detail: `≈ ${F.money(dv.next.budget)} of the ${F.money(dv.next.plan)} plan` }],
+      why: `set at the parent review in ${Math.max(0, dv.reviewDay - s.time.day)} d: goals met and staying within budget restore it`, go: { panel: 'finance', anchor: 'parent' }, goLabel: 'Parent budget',
+    });
+  } else if (bc < 40) {
     // Jank ST3: say when the board decides and what it needs.
     const br = boardReview(s);
     out.push({

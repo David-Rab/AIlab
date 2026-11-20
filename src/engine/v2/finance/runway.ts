@@ -78,7 +78,9 @@ export function cashFlows(s: GameStateV2): Flow[] {
   const far = dayOfQuarter(start, q0 + PROJECTION_Q + 2);
   const division = isDivision(s);
   const out: Flow[] = [
-    // A division's revenue goes to the parent; its budget lands at each quarter start (finance/parent.ts, R9).
+    // A division's revenue goes to the parent; its budget lands at each quarter start (finance/parent.ts, R9; later
+    // years at the plan × today's budget factor, FIN5c). The parent's cover of an overspend at the review is not
+    // projected: the projection shows the budget balance, below zero = over budget.
     { part: 'revenue', perDay: division ? 0 : f.revenueRun / 365, from: day, to: far },
     { part: 'operating', perDay: -operatingCostsPerYear(s) / 365, from: day, to: far },
   ];
@@ -115,7 +117,7 @@ export function cashFlows(s: GameStateV2): Flow[] {
       out.push({ part: 'sites', amount: -pay * own, day: D });
     }
   }
-  if (division) for (let k = 1; k <= PROJECTION_Q + 1; k++) out.push({ part: 'funding', amount: parentPaymentQ(q0 + k), day: dayOfQuarter(start, q0 + k) });
+  if (division) for (let k = 1; k <= PROJECTION_Q + 1; k++) out.push({ part: 'funding', amount: parentPaymentQ(s, q0 + k), day: dayOfQuarter(start, q0 + k) });
   // Unconditional tranches land at the quarterly capital step on or after their due day.
   for (const t of f.tranches) if (!t.condition) out.push({ part: 'funding', amount: t.amount, day: nextQ(Math.max(t.dueDay, day + 1)) });
   // Debt rolls at maturity while the market is open; otherwise it is repaid from cash.

@@ -1,7 +1,7 @@
 // Top strip (IA.md L0): time · the race (hero) · catastrophe risk · cash·runway · nearest lead · help · menu.
 // Each item is the HOME of its datum (data-home); hover = why, click = the panel that changes it.
 import { useState } from 'react';
-import { dateOf, engine, fmtDate, internalEval, productReadouts, RUNWAY_CAP, safetyView, SLOT_KEYS, upkeepView } from '../../../engine/v2';
+import { dateOf, divisionView, engine, fmtDate, internalEval, productReadouts, RUNWAY_CAP, safetyView, SLOT_KEYS, upkeepView } from '../../../engine/v2';
 import { PRODUCT_DEFS } from '../../../data/v2/features';
 import type { GameStateV2 } from '../../../engine/v2';
 import { CRITICAL_TRAITS, TRAIT_BY_ID } from '../../../data/v2/traits';
@@ -12,7 +12,7 @@ import * as F from '../fmt';
 import { ICON, TRAIT_ICON } from '../icons';
 import { C, STATE_COLOR } from '../theme';
 import { SpeedControl } from './SpeedControl';
-import { catRisk, divisionBudget, nearestRival, runwayLive } from './selectors';
+import { catRisk, divisionStatus, nearestRival, runwayLive } from './selectors';
 
 export { catRisk, nearestRival, runwayLive };
 
@@ -128,28 +128,31 @@ function RiskChip({ s }: { s: GameStateV2 }) {
 }
 
 const PART_WORD: Record<string, string> = { operating: 'Payroll & operations', commitments: 'Contracts (ledger)', chips: 'Chip balances', sites: 'Site capex', revenue: 'Revenue', funding: 'Equity tranches', debt: 'Debt repayment' };
-/** Big-tech division (jank F2): cash against the parent's budget; no runway, no distress (the parent covers you). */
+/** Big-tech division (jank F2, FIN5c): cash is the budget balance; the verdict is the budget year, not a runway (the
+ *  parent covers an overspend, at a cost in parent confidence). */
 function DivisionCashChip({ s }: { s: GameStateV2 }) {
   const f = s.player.finance;
-  const b = divisionBudget(s);
+  const v = divisionView(s)!;
+  const st = divisionStatus(v);
   return (
     <Tip as="div" className="ts-stat" content={() => (
       <WhyCard
         s={s} k="cash" title={<span><Term id="cash">Cash</Term> · <Term id="parentBudget">parent budget</Term></span>} value={F.money(f.cash)} fmt={(x) => F.money(x)}
         rows={[
-          { label: <Term id="parentBudget">Parent budget</Term>, value: F.money(b.parentQ, { perQ: true }), tone: 'pos' },
-          { label: 'Spending (next 4 q, average)', value: F.money(-b.spendQ, { signed: true, perQ: true }), tone: 'neg' },
-          { label: b.over ? 'Over budget' : 'Within budget', value: F.money(Math.abs(b.overQ), { perQ: true }), tone: b.over ? 'neg' : 'pos' },
+          { label: <Term id="parentBudget">Budget this year</Term>, value: F.money(v.budget) },
+          { label: 'Spent so far', value: F.money(v.spent) },
+          { label: 'At the review (projected)', value: F.money(v.projectedEnd, { signed: true }), tone: v.projectedEnd < 0 ? 'neg' : 'pos' },
+          { label: st.tone === 'good' ? 'Within budget' : 'Over budget', value: st.short, tone: st.tone === 'good' ? 'pos' : 'neg' },
         ]}
-        body="A division of the parent: it pays a budget every quarter and covers any shortfall (cash below zero is an advance against the next payment). A division cannot go broke; spending over budget only shows here."
+        body="A division of the parent: cash is what is left of the budget. Below zero the parent pays the bills (a division cannot go broke) and its later payments repay it first; at each yearly review it minds any overspend it is still covering (parent confidence, which sets the next budget)."
         levers={<GoBtn to={{ panel: 'finance', anchor: 'parent' }} label="Budget" testId="cash.parent" />}
       />
     )}>
       <div className="ts-click" data-test="cash" onClick={() => store.setPanel('finance')}>
         <span className="ts-ic"><ICON.cash size={14} /></span>
         <div className="ts-col"><span className="ts-l">CASH · BUDGET</span><span className="ts-v num" data-home="cash">{F.money(f.cash)}</span></div>
-        <div className="ts-runway" data-home="runway" data-test="division-budget">
-          <span className="num" style={{ color: b.over ? C.watch : C.good }}>{b.over ? `over ${F.money(b.overQ)}/q` : 'within budget'}</span>
+        <div className="ts-runway" data-home="runway" data-test="division-budget" data-status={v.status}>
+          <span className="num" style={{ color: st.tone === 'good' ? C.good : st.tone === 'watch' ? C.watch : C.bad }}>{st.short}</span>
           <span className="ts-sub">parent covers</span>
         </div>
       </div>
