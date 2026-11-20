@@ -6,7 +6,7 @@ import { decimalYear } from './time';
 import { diffusionPerDay } from '../production/production';
 import { speedOfCopy } from '../departments/workfit';
 import { LEADER_ID } from '../models/labs';
-import { deltaRsch, slopeL } from '../models/capability';
+import { SPEC_CAP } from '../../../data/v2/dataAssets';
 import { ws4r } from '../actors/state';
 import { wslFloor } from '../security/security';
 import { INCIDENT_BC_CAP_Q } from '../finance/board';
@@ -16,7 +16,7 @@ import { TRUSTED_PREMIUM, revenueReadout, servingPool } from '../worldfx/revenue
 import { idleChips } from '../compute/forecast';
 import { idleTeams } from '../models/tree';
 import { outsidersWithAccess } from '../safety/incidents';
-import type { Deployment, GameStateV2, ModelVersion } from '../types';
+import type { Deployment, DomainId, GameStateV2, ModelVersion } from '../types';
 
 export interface SpeedLimitLine {
   id: 'speed.serialCap' | 'speed.pause' | 'speed.diffusion';
@@ -55,14 +55,12 @@ export function researchSpeedLimits(s: GameStateV2): SpeedLimitLine[] {
   return out;
 }
 
-/** The research boost from a version's design offsets, raw and after the ±0.5 y clamp (LIMITS model.designOffset). */
-export function designOffsetView(s: GameStateV2, v: ModelVersion): { years: number; raw: number; capped: boolean } {
-  const w = s.hidden.timeline;
-  const off = v.build?.off;
-  const x = off ? 0.6 * (off.CODE ?? 0) + 0.4 * (off.RSCH ?? 0) : 0;
-  const raw = x === 0 ? 0 : x / slopeL(w, v.pm);
-  const years = deltaRsch(w, v);
-  return { years, raw, capped: Math.abs(raw) > 0.5 + 1e-9 };
+/** A version's data specialisation: its base's s_d,data from the data draw plus the curation's domain offsets (OOM,
+ *  model v3 D3), largest first, and whether a domain sits at the ±SPEC_CAP cap (LIMITS model.dataSpec). */
+export function dataSpecView(s: GameStateV2, v: ModelVersion): { rows: [DomainId, number][]; capped: boolean; cap: number } {
+  const b = s.player.models.bases.find((x) => x.id === v.baseId);
+  const rows = (Object.entries(b?.sD ?? {}) as [DomainId, number][]).filter(([, x]) => Math.abs(x) >= 0.005).sort((a, c) => Math.abs(c[1]) - Math.abs(a[1]));
+  return { rows, capped: rows.some(([, x]) => Math.abs(x) >= SPEC_CAP - 1e-9), cap: SPEC_CAP };
 }
 
 /** Weight-security status-quo floor today and in 2027 (LIMITS security.floor). */

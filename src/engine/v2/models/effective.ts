@@ -65,7 +65,11 @@ export function effectiveTokens(D: number, U: number): number {
  *  −0.25·ln data-wall penalty. 1 when the unique tokens cover the run. */
 export function fData(N: number, D: number, U: number): number {
   if (D <= U) return 1;
-  const dEff = effectiveTokens(D, U);
+  return fDataEff(N, D, effectiveTokens(D, U));
+}
+/** fData from a run's effective tokens directly (model v3 D3: the draw sums Muennighoff per slice of the portfolio). */
+export function fDataEff(N: number, D: number, dEff: number): number {
+  if (dEff >= D) return 1;
   const a = log10ComputeForLoss(lossOf(N, dEff));
   const b = log10ComputeForLoss(lossOf(N, D));
   if (!Number.isFinite(a) || !Number.isFinite(b)) return 1;

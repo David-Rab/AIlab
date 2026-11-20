@@ -385,7 +385,7 @@ export interface VersionBuild {
   sD: Partial<Record<DomainId, number>>;
   /** Design + paradigm domain offsets kept in levels (preference, paradigms). */
   offL: Partial<Record<DomainId, number>>;
-  /** Derived: domain level − general level − the 2025 profile (L). deltaRsch, h80 and benchmarks read it. */
+  /** Derived: domain level − general level − the 2025 profile (L). h80 and benchmarks read it. */
   off: Partial<Record<DomainId, number>>;
   /** Know-how the version embodies (progress-years; readout, BRIDGE(V2)). */
   paIn: number;

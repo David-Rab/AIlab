@@ -68,3 +68,15 @@ export const USAGE_MIX: Partial<Record<Channel, DomainMix>> = {
 /** Expert human data (cash, for RL environments and evals; D5's suites read it). Not pretraining data: it does not
  *  enter U. q 3 [D: research/20 A3's top curated tier]. Starts empty (D5 sources the start suites). */
 export const EXPERT_QUALITY = 3;
+
+// ───────────────────────────── the draw (model v3 D3) ─────────────────────────────
+
+/** Domain specialisation from the drawn mix (MODEL-V3 §2.3): s_d,data = ALPHA_DATA · log₁₀(share_d ÷ reference share_d)
+ *  OOM, capped at ±SPEC_CAP. research/20 A2 [G, from Ruan et al. 2024 and Muennighoff et al. 2023 [P]]: a code share of
+ *  0 → 50% moves the code axis by up to +0.5 ECI units, ≈ 1.3 OOM at Epoch's 0.387 ECI per OOM; linear in the share,
+ *  the part from the reference code share (9.6%, the start portfolio's) to 50% is 1.05 OOM over 0.72 decades = 1.46 per
+ *  decade (1.8 if all of it came above the reference). ALPHA_DATA = 1.5, the low end: Llama 3 found mix tricks matter
+ *  less at frontier scale [R]. SPEC_CAP = 1.3 OOM = research/20's +0.5 ECI at a 50% share, used both ways (a domain
+ *  starved of data loses at most as much as a 50% share gains). */
+export const ALPHA_DATA = 1.5;
+export const SPEC_CAP = 1.3;

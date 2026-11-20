@@ -150,14 +150,6 @@ export function slopeL(w: TimelineWorld, pm: number): number {
   return Math.max(0.05, (levelOf(w, pm + e) - levelOf(w, pm - e)) / (2 * e));
 }
 
-/** δ_rsch = clamp((0.6·designOff_CODE + 0.4·designOff_RSCH)/slopeL(pm), −0.5, +0.5) years (§3.1.5). */
-export function deltaRsch(w: TimelineWorld, v: Pick<ModelVersion, 'pm' | 'build'>): number {
-  const off = v.build?.off;
-  if (!off) return 0;
-  const x = 0.6 * (off.CODE ?? 0) + 0.4 * (off.RSCH ?? 0);
-  return x === 0 ? 0 : clamp(x / slopeL(w, v.pm), -0.5, 0.5);
-}
-
 /** Recompute a version's derived levels from pm (and its build offsets). */
 export function refreshLevels(w: TimelineWorld, v: ModelVersion, hasP19: boolean) {
   v.Lg = levelOf(w, v.pm);

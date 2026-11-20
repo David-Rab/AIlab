@@ -4,7 +4,7 @@
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
 import { AGENT_USE_DEF } from '../../../data/v2/agents';
 import {
-  POOL_SHARE_RANGE, benchName, dateOf, designOffsetView, fmtDate, idleTrainingShare, internalVersion, measuredDomains, measuredSd, poolAllocation, runBand, runEtaDays, runStall, streamShare,
+  POOL_SHARE_RANGE, benchName, dataSpecView, dateOf, fmtDate, idleTrainingShare, internalVersion, measuredDomains, measuredSd, poolAllocation, runBand, runEtaDays, runStall, streamShare,
   flopPerToken, useHourCost, usesOf, versionById,
 } from '../../../engine/v2';
 import type { GameStateV2, ModelVersion } from '../../../engine/v2';
@@ -124,7 +124,13 @@ export function ModelCard({ s, v }: { s: GameStateV2; v: ModelVersion }) {
         <div>
           <KV k="Monitorability" term="monitorability"><Meter value={v.monitorability} max={1} width={80} /> {v.monitorability.toFixed(2)}</KV>
           {(() => { const fpt = flopPerToken(s, v); const c = useHourCost(s, fpt); return <KV k="Serving" term="servingFlop" tip={() => <TipCard title={<Term id="servingFlop">Serving</Term>} value={`${F.sci(fpt)} FLOP/token`} rows={[{ label: <Term id="useHourCost">Cost per hour of use</Term>, value: F.usd(c.hour) }, { label: <Term id="agentHour">Cost per agent-hour</Term>, value: F.usd(c.agentHour) }, { label: <Term id="h100e">$ per H100e-hour</Term>, value: F.usd(c.perH100eHour) }]} footer="Before markup and feature token multipliers; prices per product are on Products.">2 × active parameters × the architecture's token multiplier × serving efficiency.</TipCard>}>{F.sci(fpt)} FLOP/tok · {F.usd(c.hour)}/h</KV>; })()}
-          {(() => { const o = designOffsetView(s, v); return <KV k="Research boost" term="designOffset"><Limit id="model.designOffset" tone={o.capped ? 'warn' : 'quiet'}>{o.years === 0 ? 'none' : `${o.years > 0 ? '+' : '−'}${Math.abs(o.years * 12).toFixed(1)} mo`}{o.capped ? ' (cap ±6 mo)' : ' · cap ±6 mo'}</Limit></KV>; })()}
+          {(() => {
+            const o = dataSpecView(s, v);
+            const fmt = (x: number) => `${x > 0 ? '+' : '−'}${Math.abs(x).toFixed(2)}`;
+            return <KV k="Data specialisation" term="dataSpec" tip={() => <TipCard title={<Term id="dataSpec">Data specialisation</Term>} value={o.rows.length ? `${o.rows.length} domains` : 'none'} rows={o.rows.map(([d, x]) => ({ label: d, value: `${fmt(x)} OOM` }))} footer={`From the data its base drew (data mix ${s.player.models.bases.find((b) => b.id === v.baseId)?.design.data ?? '—'}) and its curation; capped at ±${o.cap} OOM per domain.`}>Effective compute each domain gains or loses from the base&apos;s data mix.</TipCard>}>
+              <Limit id="model.dataSpec" tone={o.capped ? 'warn' : 'quiet'}>{o.rows.length ? o.rows.slice(0, 2).map(([d, x]) => `${d} ${fmt(x)}`).join(' · ') + ' OOM' : 'none'}</Limit>
+            </KV>;
+          })()}
           <KV k="Time horizon (50%)" term="horizon">{horizon ? F.minutes(hMin) : "—"}</KV>
           <KV k="Appeal" term="appeal">{v.appeal !== undefined ? v.appeal.toFixed(2) : '—'}</KV>
           <KV k="Last eval suite" term="evals">{v.evals.suiteDay !== undefined ? fmtDate(dateOf(s, v.evals.suiteDay)) : 'never'}</KV>

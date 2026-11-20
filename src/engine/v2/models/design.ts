@@ -22,14 +22,15 @@ export const addSig = (a: Sig, b: Sig, k = 1): Sig => {
   return out;
 };
 
-/** Base-run design effects: data mix and curation as OOM (general ΔG and per-domain specialisation s_d,data =
- *  the v2 level offsets ÷ 2, research/12 ΔL = 2·ΔG), signals (S5 from the run's scale vs F(t), BRIDGE(V6)). */
-export interface BaseEffect { dg: number; sD: Off; signals: Sig; monitorability: number; flopMult: number; cashMult: number; noWall: boolean; flags: { bioUplift?: boolean } }
+/** Base-run design effects: curation as OOM (general ΔG; the hazard filter's domain offset ÷ 2, research/12 ΔL = 2·ΔG),
+ *  the data option's FLOP and cash multipliers and signals (S5 from the run's scale vs F(t), BRIDGE(V6)). The data mix's
+ *  domain specialisation and repetition come from the draw (production/data.ts drawData, model v3 D3), not from here. */
+export interface BaseEffect { dg: number; sD: Off; signals: Sig; monitorability: number; flopMult: number; cashMult: number; flags: { bioUplift?: boolean } }
 export function baseEffect(b: BaseDesign, scale = 1): BaseEffect {
   const sh = SHAPE[b.shape];
   const da = BASE_DATA[b.data];
-  let dg = da.dg;
-  let offL: Off = { ...da.off };
+  let dg = 0;
+  let offL: Off = {};
   const s5 = sizeS5(scale);
   let signals: Sig = addSig(addSig(s5 ? { S5: s5 } : {}, sh.signals), da.signals);
   if (!b.curation.quality) dg += CURATION.qualityOffDg;
@@ -44,7 +45,7 @@ export function baseEffect(b: BaseDesign, scale = 1): BaseEffect {
   const sD: Off = {};
   for (const d of DOMAIN_IDS) if (offL[d]) sD[d] = (offL[d] ?? 0) / 2;
   return {
-    dg, sD, signals, monitorability: sh.monitorability ?? 1, flopMult: da.flopMult, cashMult: da.cashMult, noWall: da.noWall,
+    dg, sD, signals, monitorability: sh.monitorability ?? 1, flopMult: da.flopMult, cashMult: da.cashMult,
     flags: b.data === 'science' ? { bioUplift: false } : {},
   };
 }

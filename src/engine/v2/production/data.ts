@@ -5,22 +5,25 @@
 //   U          unique-token stock a base trains on = Σ q·T over the pretraining kinds (public, licensed, usage,
 //              synthetic; synthetic × 3 with P10) — research/20 A3's D_eff = Σ q_tier·U_tier·(1 + R*·(1 − e^(−(ep−1)/R*))):
 //              quality acts through U, so in G only through the repetition fraction f_data (models/effective.ts) [G]
+//   draw       (model v3 D3) a base takes its tokens from the slices (asset × domain) by its data mix (drawData):
+//              per-slice Muennighoff repetition → D_eff → f_data; drawn effective shares → s_d,data = α·log₁₀(share ÷ ref)
 //   synthetic  += pool FLOP ÷ (teacher FLOP per token × overgeneration) per day; q from the teacher's G
 //   usage      += live products' output tokens × channel eligibility × the lab's data-policy share per day
 //   readout    data adequacy of the next base: Muennighoff's ≈ free 4 epochs of U vs N_req(next base)
 import {
   LICENCE_DEAL_SHARE, LICENSED_MIX, LICENSED_QUALITY, LICENSED_START_T, P10_SYN_MULT, PUBLIC_START_COVERAGE, PUBLIC_WEB, SYN_MIX, SYN_OVERGEN, SYN_Q,
-  SYN_START_T, USAGE_ELIGIBLE, USAGE_MIX, USAGE_POLICY_SHARE, USAGE_QUALITY, EXPERT_QUALITY, type DomainMix,
+  SYN_START_T, USAGE_ELIGIBLE, USAGE_MIX, USAGE_POLICY_SHARE, USAGE_QUALITY, EXPERT_QUALITY, ALPHA_DATA, SPEC_CAP, type DomainMix,
 } from '../../../data/v2/dataAssets';
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
-import { REFERENCE_BASE } from '../../../data/v2/runDesign';
+import { BASE_DATA, REFERENCE_BASE } from '../../../data/v2/runDesign';
+import { effectiveTokens } from '../models/effective';
 import { TOKENS } from '../../../data/v2/serving';
 import { PEAK_FLOPS, U_DECODE, U_PREFILL } from '../../../data/v2/workTypes';
 import { gOfBuild, gV0 } from '../models/capability';
 import { internalVersion, versionById } from '../models/labs';
 import { latestBaseFlop } from '../models/stacks';
 import { idleTrainingShare } from '../models/runs';
-import type { DataAsset, DataKind, DataPortfolio, Deployment, DomainId, GameStateV2, ModelVersion, OwnedDataAsset } from '../types';
+import type { BaseDesign, DataAsset, DataKind, DataPortfolio, Deployment, DomainId, GameStateV2, ModelVersion, OwnedDataAsset } from '../types';
 
 // ───────────────────────────── assets ─────────────────────────────
 
@@ -110,8 +113,128 @@ export function mixOf(xs: DataAsset[]): DomainMix {
   if (tot > 0) for (const d of Object.keys(out) as DomainId[]) out[d] = (out[d] ?? 0) / tot;
   return out;
 }
-/** Domain mix of the pretraining stock (what a base draws until D3 lets the blueprint choose). */
+/** Domain mix of the pretraining stock (quality-weighted): the natural mix a "balanced" draw takes. */
 export const pretrainMix = (p: DataPortfolio) => mixOf(p.assets.filter(isPretrain));
+
+// ───────────────────────────── the draw (model v3 D3) ─────────────────────────────
+
+/** Reference shares of the domain specialisation: the reference recipe's draw at the start (the start portfolio's
+ *  natural mix), which the 2025 domain profile o_d was fitted with. */
+export const REF_SHARE: DomainMix = pretrainMix(startPortfolio());
+
+/** A mix target (the blueprint's data option, runDesign BASE_DATA): the domain shares it starts from — `reference`, the
+ *  2025 recipe's shares (REF_SHARE), or `natural`, the portfolio's own quality-weighted mix — times domain tilts and
+ *  kind weights (absent = 1). */
+export interface MixTarget { base: 'reference' | 'natural'; tilt: DomainMix; kinds: Partial<Record<DataKind, number>> }
+export const NATURAL_MIX: MixTarget = { base: 'natural', tilt: {}, kinds: {} };
+
+/** What a base of `tokens` tokens draws from a portfolio (tokens are counts, not trillions). */
+export interface DataDraw {
+  tokens: number;
+  /** Effective tokens after repetition, Muennighoff per slice (= tokens when no slice repeats). */
+  dEff: number;
+  /** Unique tokens this mix can use: the largest base it draws without repeating any slice (= U for the natural mix). */
+  uMix: number;
+  /** Epochs of the most-repeated slice (tokens ÷ uMix). */
+  epochs: number;
+  /** Drawn and effective domain shares (each sums to 1), and the specialisation s_d,data (OOM). */
+  share: DomainMix;
+  effShare: DomainMix;
+  sD: DomainMix;
+  /** Token-weighted mean quality of the drawn tokens, and tokens drawn per kind (D4's readouts). */
+  quality: number;
+  byKind: Partial<Record<DataKind, number>>;
+}
+
+/** s_d,data = ALPHA_DATA · log₁₀(share_d ÷ REF_SHARE_d), capped at ±SPEC_CAP (MODEL-V3 §2.3, research/20 A2). */
+export function specialisation(share: DomainMix): DomainMix {
+  const out: DomainMix = {};
+  for (const [d, ref] of Object.entries(REF_SHARE) as [DomainId, number][]) {
+    if (!(ref > 0)) continue;
+    const x = share[d] ?? 0;
+    const v = x > 0 ? Math.max(-SPEC_CAP, Math.min(SPEC_CAP, ALPHA_DATA * Math.log10(x / ref))) : -SPEC_CAP;
+    if (Math.abs(v) > 1e-9) out[d] = v;
+  }
+  return out;
+}
+
+/** The draw rule (model v3 D3). Slices are (pretraining asset i × domain d) with quality-weighted unique tokens
+ *  U_i,d = q_i·T_i·mix_i,d (P10: synthetic ×3). The target sets each domain's share of the base's tokens:
+ *  m_d ∝ B_d·tilt_d·K_d/U_d, where B_d is the starting share (reference: REF_SHARE_d; natural: U_d) and K_d/U_d the
+ *  kind weights' pull on that domain (K_d = Σ_i U_i,d·k_kind(i)); within a domain the tokens come from its slices in
+ *  proportion to U_i,d·k_kind(i). A domain the portfolio holds nothing of draws nothing (its share goes to the others
+ *  in proportion). A slice drawn beyond its U_i,d repeats its own tokens and pays Muennighoff on that slice alone,
+ *  D_eff = Σ U_i,d·(1 + R*·(1 − e^(−(ep_i,d − 1)/R*))): a short domain repeats and loses value — there is no fallback
+ *  to other data. The natural mix (no tilt, no kind weight) gives every slice the same epochs, so D_eff = Muennighoff
+ *  on the whole U (D1's rule exactly). Quality enters only through U (D1). Specialisation reads the effective shares
+ *  (repeated tokens teach less). `noRepeat` (P10) counts repeated tokens in full. */
+export function drawData(p: DataPortfolio, tokens: number, target: MixTarget = NATURAL_MIX, opts: { p10?: boolean; noRepeat?: boolean } = {}): DataDraw {
+  const slices: { kind: DataKind; d: DomainId; u: number; k: number; q: number; w: number }[] = [];
+  const Ud: DomainMix = {};
+  const Kd: DomainMix = {};
+  for (const a of p.assets) {
+    if (!isPretrain(a)) continue;
+    const q = assetQuality(a);
+    const u = q * assetTokensT(a) * 1e12 * (a.kind === 'synthetic' && opts.p10 ? P10_SYN_MULT : 1);
+    if (!(u > 0)) continue;
+    const k = target.kinds[a.kind] ?? 1;
+    if (!(k > 0)) continue;
+    const mix = assetMix(a);
+    let ms = 0;
+    for (const v of Object.values(mix)) ms += v ?? 0;
+    const m: DomainMix = ms > 0 ? mix : PUBLIC_WEB.mix;
+    if (!(ms > 0)) ms = 1;
+    for (const [d, v] of Object.entries(m) as [DomainId, number][]) {
+      if (!(v > 0)) continue;
+      const ud = (u * v) / ms;
+      slices.push({ kind: a.kind, d, u: ud, k, q, w: 0 });
+      Ud[d] = (Ud[d] ?? 0) + ud;
+      Kd[d] = (Kd[d] ?? 0) + ud * k;
+    }
+  }
+  // Domain weight M_d and slice weight w = M_d · U_i,d·k / K_d; the slice's epochs ∝ w/U_i,d = M_d·k/K_d.
+  const M: DomainMix = {};
+  for (const d of Object.keys(Ud) as DomainId[]) {
+    const B = target.base === 'natural' ? (Ud[d] ?? 0) : (REF_SHARE[d] ?? 0);
+    M[d] = (Ud[d] ?? 0) > 0 ? (B * (target.tilt[d] ?? 1) * (Kd[d] ?? 0)) / (Ud[d] ?? 1) : 0;
+  }
+  let W = 0;
+  let maxE = 0;
+  for (const x of slices) {
+    x.w = ((M[x.d] ?? 0) * x.u * x.k) / Math.max(1e-300, Kd[x.d] ?? 0);
+    W += x.w;
+    if (x.w > 0) maxE = Math.max(maxE, x.w / x.u);
+  }
+  if (!(W > 0) || !(tokens > 0)) return { tokens, dEff: 0, uMix: 0, epochs: tokens > 0 ? Infinity : 0, share: {}, effShare: {}, sD: {}, quality: 0, byKind: {} };
+  const share: DomainMix = {};
+  const eff: DomainMix = {};
+  const byKind: Partial<Record<DataKind, number>> = {};
+  let dEff = 0;
+  let qSum = 0;
+  let repeats = false;
+  for (const x of slices) {
+    if (!(x.w > 0)) continue;
+    const dx = (tokens * x.w) / W;
+    const ex = opts.noRepeat || dx <= x.u ? dx : effectiveTokens(dx, x.u);
+    if (dx > x.u) repeats = true;
+    share[x.d] = (share[x.d] ?? 0) + dx / tokens;
+    eff[x.d] = (eff[x.d] ?? 0) + ex;
+    byKind[x.kind] = (byKind[x.kind] ?? 0) + dx;
+    dEff += ex;
+    qSum += dx * x.q;
+  }
+  if (opts.noRepeat || !repeats) dEff = tokens;
+  for (const d of Object.keys(eff) as DomainId[]) eff[d] = (eff[d] ?? 0) / Math.max(1e-30, dEff);
+  const uMix = W / maxE;
+  return { tokens, dEff, uMix, epochs: tokens / uMix, share, effShare: eff, sD: specialisation(eff), quality: qSum / tokens, byKind };
+}
+
+/** The player's draw for a base design (its data option as the mix target; P10: synthetic ×3, no repetition penalty). */
+export function playerDraw(s: GameStateV2, d: BaseDesign): DataDraw {
+  const t = BASE_DATA[d.data] ?? BASE_DATA.balanced;
+  const on = p10(s);
+  return drawData(s.player.dataPortfolio, d.params * d.tpp, t, { p10: on, noRepeat: on });
+}
 
 /** Public-web tokens the lab trains on without a licence (copyright litigation, actors/china.ts; the D3 deal). */
 export function unlicensedPublicT(p: DataPortfolio): number {
