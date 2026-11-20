@@ -48,6 +48,7 @@ import { qualityZ, researchMods, starTaste, teamTaste, workContext } from '../de
 import { adopted } from './paradigms';
 import { idleTrainingShare } from './runs';
 import { evalReDemand, evalsDay } from './evals';
+import { addSuiteExpertData } from './suites';
 import { addIdea, latestBaseFlop, STACK_KEYS, syncPa, trainNow, tuneDay, stacksGEquiv } from './stacks';
 
 const node = (id: string): TreeNodeDef | undefined => PROJECT_BY_ID[id];
@@ -507,6 +508,8 @@ function dropTest(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: CapProject
 
 /** Effect unit of a project as an OOM total (for the adoption cost): stack effects as is, domain effects summed. */
 const oomOf = (n: TreeNodeDef, x: number) => (n.effect?.stack ? Math.abs(x) * (1 + Object.values(n.effect.also ?? {}).reduce((a, v) => a + Math.abs(v ?? 0), 0)) : n.effect?.domains ? Math.abs(x) * Object.values(n.effect.domains).reduce((a, v) => a + Math.abs(v ?? 0), 0) : 0);
+/** A project with a typed effect beyond an unlock (stack, domains, data efficiency or expert data). */
+export const hasTypedEffect = (n: TreeNodeDef) => !!n.effect && !!(n.effect.stack || n.effect.domains || n.effect.data || n.effect.expert);
 
 /** Engineers' team-weeks to adopt a result. */
 export const adoptTW = (n: TreeNodeDef, est: number) =>
@@ -551,6 +554,17 @@ export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, bui
   } else if (eff?.domains) {
     for (const [d, v] of Object.entries(eff.domains)) res.domainG[d as keyof typeof res.domainG] = (res.domainG[d as keyof typeof res.domainG] ?? 0) + xTest * (v ?? 0);
     realised = xTest;
+  } else if (eff?.data || eff?.expert) {
+    // Model v3 D9: data-efficiency and expert-data effects in their own units (× xTest, the realised "1 = as designed"),
+    // floored at 0 [D: an adopted method is never worse than the pipeline it replaces; the lab keeps the old one].
+    const x = Math.max(0, xTest);
+    if (eff.data) {
+      const fx = (res.dataFx ??= {});
+      if (eff.data.synQMax) fx.synQMax = (fx.synQMax ?? 0) + x * eff.data.synQMax;
+      if (eff.data.worthOom) fx.worthOom = (fx.worthOom ?? 0) + x * eff.data.worthOom;
+    }
+    if (eff.expert) addSuiteExpertData(s, ctx, eff.expert.family, x * eff.expert.tokensT, n.name);
+    realised = x;
   }
   if (eff?.stack || eff?.domains) {
     res.adopted.push({ id, name: n.name, stack: eff.stack ?? 'pre', eff: Math.round(realised * 1e4) / 1e4, est: Math.round(r.est * 1e4) / 1e4, estSd: Math.round(r.estSd * 1e4) / 1e4, s: Math.round(truth.s * 1000) / 1000, day: ctx.day });

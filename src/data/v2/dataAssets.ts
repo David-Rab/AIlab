@@ -63,16 +63,32 @@ export const WEB_LICENCE = { baseB: 1, perTB: 0.005, creatives: 10 } as const;
  *  keeps v1's SYN_QUALITY; the slope [D]. Cap 1 [D, model v3 D11]: research/20 A3's synthetic range 0.5–1.5 is a
  *  guess [G] with no primary source for synthetic tokens beating human web text (no general exchange rate exists), and
  *  since D11 quality acts in the loss law, a cap above the web would let a lab's own synthetic data lift every later
- *  base unsourced; so synthetic data reaches the web's quality (2 OOM above V0) and no further until a source says
- *  otherwise (D1 had 1.5, reached 4 OOM above V0). Mix [D]: math and code (Villalobos: synthetic
+ *  base unsourced; so synthetic data reaches the web's quality (2 OOM above V0) and no further unless the lab adopts
+ *  the synthetic data flywheel (P10, model v3 D9, data/v2/tree.ts: the sourced case of rephrasing and filtering with a
+ *  strong teacher raises the ceiling by P10_SYN_Q_RAISE; D1 had 1.5 for every lab, reached 4 OOM above V0). Mix [D]: math and code (Villalobos: synthetic
  *  data "only reliably improved capabilities in narrow areas like math and coding"). Synthetic data inherits its
  *  teacher's traits (subliminal learning, research/20 F3): the asset keeps the teacher and the flag. */
 export const SYN_OVERGEN = 4.33;
 export const SYN_Q = { atV0: 0.5, perOom: 0.25, min: 0.1, max: 1 } as const;
 export const SYN_START_T = 20;
 export const SYN_MIX: DomainMix = { CODE: 0.35, REASON: 0.35, RSCH: 0.12, AGENCY: 0.08, CYBER: 0.04, BIO: 0.03, SOCIAL: 0.02, MEDIA: 0.01 };
-/** P10 (synthetic data flywheel): synthetic tokens count ×3 (v1, LATER(V5) → D9). */
-export const P10_SYN_MULT = 3;
+/** P10 (synthetic data flywheel, model v3 D9): raise of the synthetic-quality ceiling per unit of the project's effect
+ *  (1 → 1.5 as designed; the hidden per-world draw has a relative sd of 0.3). Sources: Maini et al. 2024, "Rephrasing
+ *  the Web" (arXiv 2401.16380 [P], fetched for D9): rephrasing noisy web text (C4) with an off-the-shelf instruction-tuned
+ *  model and pre-training on real + synthetic rephrases "speeds up pre-training by ~3x"; phi-4 (arXiv 2412.08905 [P],
+ *  fetched): a mostly synthetic curriculum "substantially surpasses its teacher model on STEM-focused QA"; research/20
+ *  A3's synthetic tier tops out at q 1.5 "with the high end only in math/code" [G], which is SYN_MIX's domain. Size [D]:
+ *  WRAP's ×3 is against raw C4; the game's web (q 1) is already the filtered 2025 crawl (data selection is itself ≈ ×3,
+ *  Gundlach's table), so only part of it is headroom over q 1: research/20's 1.5. Accumulating with real data, not
+ *  replacing it (Gerstgrasser et al. 2024 [R]), is how the draw already uses synthetic assets. */
+export const P10_SYN_Q_RAISE = 0.5;
+/** P21 (brain-like sample efficiency, model v3 D9): OOM more effective tokens per drawn token in the loss law per unit
+ *  of the project's effect (×2 as designed; hidden per-world relative sd 0.6, a wide prior). Physically: the learner
+ *  extracts more from each token (a child hears ≈ 10⁸ words by age 13, the BabyLM challenge's budget [R], where 2025
+ *  frontier models train on ≈ 10¹³–10¹⁴ tokens;
+ *  AI 2027: Agent-3 "~4,000x less compute-efficient than the human brain", closing later [P via research/12 #21]). Size
+ *  [D, speculative]: a first step that closes ×2 of that gap; no source gives a number. */
+export const P21_WORTH_OOM = 0.3;
 
 /** Usage data (from products). Volume = the output tokens a live product serves (served H100e through the assisted
  *  token profile, research/22 §3's volumes as the serving model produces them) × the channel's eligibility × the lab's

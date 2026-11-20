@@ -14,7 +14,6 @@ import {
 import { expertTerms, licenceTerms, synJobTerms, usageLevelOf } from './dataActions';
 
 type P = Record<string, number | string | boolean>;
-const p10 = (s: GameStateV2) => s.player.paradigms.P10?.status === 'adopted';
 /** Tokens of the lab's latest base design (the size the natural-mix and delta readouts use). */
 function latestTokens(s: GameStateV2) {
   const b = s.player.models.bases[s.player.models.bases.length - 1]?.design;
@@ -64,7 +63,7 @@ export function dataPortfolioView(s: GameStateV2): DataPortfolioView {
     else inSuites += a.tokensT;
   }
   return {
-    uT: portfolioU(p, { p10: p10(s) }) / 1e12,
+    uT: portfolioU(p) / 1e12,
     tokensT: rows.filter((r) => r.kind !== 'expert').reduce((a, r) => a + r.tokensT, 0),
     rows, pending,
     usagePerDayT: usageRateAt(s, p.usageShare),
@@ -80,8 +79,7 @@ export interface DomainMixRow { domain: DomainId; share: number; ref: number; s:
  *  specialisation a natural-mix base of the latest base's size would get (where the stock drifts). */
 export function naturalMixView(s: GameStateV2): DomainMixRow[] {
   const p = s.player.dataPortfolio;
-  const on = p10(s);
-  const nat = drawData(p, latestTokens(s), NATURAL_MIX, { p10: on, noRepeat: on });
+  const nat = drawData(p, latestTokens(s), NATURAL_MIX);
   const mix = pretrainMix(p);
   return DOMAIN_IDS.map((d) => ({ domain: d, share: mix[d] ?? 0, ref: REF_SHARE[d] ?? 0, s: nat.sD[d] ?? 0 }));
 }
@@ -91,7 +89,7 @@ export interface DrawDomainRow { domain: DomainId; share: number; effShare: numb
  *  each domain's epochs (its drawn tokens ÷ the quality-weighted unique tokens the portfolio holds in it). */
 export function drawByDomain(s: GameStateV2, draw: DataDraw): { rows: DrawDomainRow[]; most?: DrawDomainRow } {
   const p = s.player.dataPortfolio;
-  const u = portfolioU(p, { p10: p10(s) });
+  const u = portfolioU(p);
   const mix = pretrainMix(p);
   const rows = DOMAIN_IDS.map((d): DrawDomainRow => {
     const ud = (mix[d] ?? 0) * u;

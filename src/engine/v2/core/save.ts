@@ -1,7 +1,7 @@
 // Save format, migrations, state hash (V2-SPEC §2.5). Owner: WS1.
 import { ensureWs3 } from '../finance/ext';
 import { keyOf, staffOf, teamsFromStaff } from '../departments/teams';
-import type { AgendaId, GameStateV2, PlayerLab, StaffByRole, TechniqueState, TeamHiring } from '../types';
+import type { AgendaId, GameStateV2, OwnedDataAsset, PlayerLab, StaffByRole, TechniqueState, TeamHiring } from '../types';
 import { oomOfRefM } from '../../../data/v2/oversight';
 import { hash32 } from './rng';
 import { initialResearch, initialTree, nextLineProject } from '../models/tree';
@@ -15,7 +15,9 @@ import { dataPortfolioFromV2, type V2DataAssets } from '../production/data';
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { PROJECT_BY_ID, isLineNode } from '../../../data/v2/tree';
 import { safFromProgress } from '../safety/lineProjects';
-import { START_SUITE_FAMILIES, startExpertAssets, suitesFromV1 } from '../models/suites';
+import { START_SUITE_FAMILIES, expertAsset, expertAssetId, startExpertAssets, suitesFromV1 } from '../models/suites';
+import { P10_SYN_Q_RAISE, P21_WORTH_OOM } from '../../../data/v2/dataAssets';
+import { EXPERT_START_T, P12_DEMO_T } from '../../../data/v2/suites';
 import { migrateRivalPhys } from '../actors/rivalModel';
 import { LEADER_ID } from '../models/labs';
 import { LEADER_CAL } from '../../../data/v2/calibration';
@@ -63,8 +65,13 @@ import { LEADER_CAL } from '../../../data/v2/calibration';
  *  efficiency) and SimpleModel G / flop / params / fpt; LabCore.lagCal and TimelineWorld.simpleCredit are gone. Migration
  *  26 → 27 builds each lab's base under its current internal model from its know-how and training pool
  *  (actors/rivalModel.ts migrateRivalPhys).
- *  (E6, D7 and F1 were all built as 24 → 25; merge M4 made the chain linear: E6 → D7 → F1.) */
-export const SCHEMA_REV = 27;
+ *  (E6, D7 and F1 were all built as 24 → 25; merge M4 made the chain linear: E6 → D7 → F1.)
+ *  28 (model v3 D9): ResearchState.dataFx (adopted data-efficiency effects: P10's synthetic-quality ceiling, P21's token
+ *  worth). P10, P12 and P21 became capability projects with typed effects. Migration 27 → 28 gives a lab that had adopted
+ *  P10 / P21 under the old flags their designed effect (x = 1), and one that had adopted P12 its demonstrations in the
+ *  long-tasks suite (paid then, as the old project cost; versions already built keep their old horizon multiplier).
+ *  (D9 was built as 23 → 24; merge M5 renumbered it.) */
+export const SCHEMA_REV = 28;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -347,6 +354,24 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       delete (r.core as { lagCal?: number }).lagCal;
       if (r.phys) continue;
       migrateRivalPhys(w, r, r.core.id === LEADER_ID ? Math.pow(10, LEADER_CAL[s.setup.world] ?? 0) : 1);
+    }
+  },
+  /** 27 → 28 (model v3 D9): P10 / P21 adopted under the old flags get their designed effect (x = 1); P12 its demos in
+   *  the long-tasks suite. A save that already has dataFx is past this point (idempotent). */
+  27: (raw) => {
+    const p = (raw as unknown as GameStateV2).player;
+    if (p.research.dataFx) return;
+    const on = (id: string) => p.paradigms?.[id]?.status === 'adopted';
+    if (!on('P10') && !on('P12') && !on('P21')) return;
+    const fx: { synQMax?: number; worthOom?: number } = {};
+    p.research.dataFx = fx;
+    if (on('P10')) fx.synQMax = P10_SYN_Q_RAISE;
+    if (on('P21')) fx.worthOom = P21_WORTH_OOM;
+    if (on('P12')) {
+      const id = expertAssetId('longHorizon');
+      const a = p.dataPortfolio.assets.find((x): x is OwnedDataAsset => x.kind === 'expert' && x.id === id);
+      if (a) a.tokensT += P12_DEMO_T;
+      else p.dataPortfolio.assets.push(expertAsset('longHorizon', EXPERT_START_T + P12_DEMO_T));
     }
   },
 };

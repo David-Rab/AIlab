@@ -19,8 +19,10 @@
 // is the line's T₁ at serious staffing (data/v2/agendas.ts SERIOUS_CAP). Every line also has a follow-up project
 // (LINE_NODES, not drawn on the tree) that keeps producing results once its ideas are known.
 // Product-feature nodes (Scaffold) are projects like any other; a known feature node lets the engineers build the feature (R6).
-import type { AgendaId, Column, DomainId, StackKey } from '../../engine/v2/types';
+import type { AgendaId, Column, DomainId, RLFamily, StackKey } from '../../engine/v2/types';
 import { AGENDAS, AGENDA_BY_ID, SERIOUS_CAP } from './agendas';
+import { P10_SYN_Q_RAISE, P21_WORTH_OOM } from './dataAssets';
+import { P12_DEMO_T } from './suites';
 
 export type Layer = 'backbone' | 'training' | 'scaffold' | 'lab';
 export type EffortClass = 'S' | 'M' | 'L' | 'XL';
@@ -30,7 +32,7 @@ export type OptionSlot = 'shape' | 'tpp' | 'data' | 'curation' | 'pref' | 'rlFoc
 /** Capability project kinds (MODEL-V3 §5.1, V3-BUILD V2.2). */
 export type ProjectKind = 'line' | 'idea' | 'axis';
 /** A capability project's typed effect (MODEL-V3 §5.2). The project's scalar effect x is in this unit: OOM of the stack
- *  for stack effects, "1 = as designed" for domain effects and unlocks. */
+ *  for stack effects, "1 = as designed" for domain, data and expert-data effects and unlocks. */
 export interface ProjectEffect {
   /** Stack the effect enters (absent: an unlock or a domain effect). */
   stack?: StackKey;
@@ -44,6 +46,13 @@ export interface ProjectEffect {
   also?: Partial<Record<StackKey, number>>;
   /** Domain effect for versions trained after adoption, OOM per unit of the effect. */
   domains?: Partial<Record<DomainId, number>>;
+  /** Data efficiency (MODEL-V3 §5.2, model v3 D9), per unit of the effect: `synQMax` raises the synthetic-quality ceiling
+   *  (q, the web = 1; production/data.ts syntheticQuality) for data generated after adoption; `worthOom` = OOM more
+   *  effective tokens per drawn token in the loss law (D_eff × 10^x, models/runs.ts baseG through the draw). */
+  data?: { synQMax?: number; worthOom?: number };
+  /** Expert data delivered at adoption into a family's suite (T tokens per unit of the effect; the suite's fidelity
+   *  reads it, models/suites.ts), paid at the expert-data price on delivery (model v3 D9). */
+  expert?: { family: RLFamily; tokensT: number };
   /** Lines: the line's share w_l of the lab's returns to research r (r_l = w_l·r; the G-carrying lines sum to 1: their
    *  shares of the lab's start software progress) [D, V3 notes derivation 1]. */
   rShare?: number;
@@ -143,8 +152,8 @@ export const TREE: TreeNodeDef[] = [
   STAR('overtrained', 'Overtrained compact', 'pretraining', 'backbone', { cap: -1 }, { options: [['tpp', 'over']], cap: 'Any tokens per parameter: overtraining costs effective compute (100 → ×0.8, 200 → ×0.63)', cost: 'Serves cheaper: fewer active parameters for the same FLOP' }),
   STAR('faultTolerant', 'Fault-tolerant training', 'pretraining', 'backbone', {}, { cap: 'Checkpointing and restarts: part of the 0.90 goodput every lab has' }),
   N('elastic', 'Elastic training', 'pretraining', 'backbone', [], 'M', 0.9, { cap: 1 }, { kind: 'idea', effect: { stack: 'train', mean: 0.023, sd: 0.3 }, cap: 'Training throughput +0.023 OOM (goodput 0.90 → 0.95)' }),
-  P('P10', 'Synthetic data flywheel', 'pretraining', 'backbone', ['codeMath'], 'L', { cap: 1, saf: -1 }, { options: [['data', 'synthetic']], cap: 'Synthetic data ×3; no repetition penalty; a synthetic-heavy mix (synthetic data drawn ×4)', saf: 'Reward-model exploitation ×1.5; inherits teacher traits', payoff: 'Pays off with a teacher model' }),
-  P('P12', 'Long-horizon human demos', 'pretraining', 'backbone', [], 'L', { cap: 1 }, { cashCost: 1, cap: 'Time horizon ×2; RSCH +0.4', cost: '$1B data cost when the project starts' }),
+  P('P10', 'Synthetic data flywheel', 'pretraining', 'backbone', ['codeMath'], 'L', { cap: 1, saf: -1 }, { kind: 'axis', effect: { mean: 1, sd: 0.3, data: { synQMax: P10_SYN_Q_RAISE } }, options: [['data', 'synthetic']], cap: 'Generated data can beat web text: the quality ceiling of synthetic data rises from the web\'s 1 to 1.5 (strong teachers, rephrasing, filtering); unlocks the synthetic-heavy mix', saf: 'Reward-model exploitation ×1.5; inherits teacher traits', payoff: 'Pays off with a teacher well above V0 (quality 1 at +2 OOM, 1.5 at +4 OOM)' }),
+  P('P12', 'Long-horizon human demos', 'pretraining', 'backbone', [], 'L', { cap: 1 }, { kind: 'idea', effect: { mean: 1, sd: 0.25, expert: { family: 'longHorizon', tokensT: P12_DEMO_T } }, cap: 'Experts record days-long work: 20B tokens of demonstrations join the long-tasks suite (fidelity 1 → 1.35 from the start stock), raising its RL ceiling and so the time horizon', cost: '$1B at the expert-data price ($0.05 a token), paid when the demos are delivered (adoption)' }),
   P('P23', 'Faithful-CoT architecture', 'pretraining', 'backbone', ['T-COTMON'], 'L', { cap: -1, saf: 2 }, { options: [['cot', 'faithful']], cap: 'Δ −0.24 y', saf: 'Monitorability 0.98', cost: 'Serve ×1.2' }),
   P('P17', 'Neuralese recurrence', 'pretraining', 'backbone', ['P01', 'P07'], 'XL', { cap: 2, saf: -2 }, { options: [['shape', 'latent']], cap: '+0.5 OOM effective compute on a latent base', saf: 'CoT monitoring dies (monitorability 0.05)', cost: 'Serve ×0.4 (no verbal reasoning tokens)' }),
   P('P24', 'AI-designed successor', 'pretraining', 'backbone', ['P13', 'P19'], 'XL', { cap: 2, saf: -1 }, { cap: 'Next base +1 OOM recipe', saf: 'New lineage: traits redrawn, tools may not transfer', payoff: 'Pays off with research done mostly by AI (AI share of research labour 50% → 90%)' }),
@@ -169,7 +178,7 @@ export const TREE: TreeNodeDef[] = [
   P('P11', 'Self-play curricula', 'posttraining', 'training', ['rl.math'], 'L', { cap: 2, saf: -1 }, { kind: 'idea', effect: { mean: 1, sd: 0.4, domains: { REASON: 0.66, CODE: 0.33 } }, cap: 'REASON +0.66, CODE +0.33 OOM for new versions', saf: 'Verifier-hacking pressure' }),
   P('P18', 'Iterated distillation & amplification', 'posttraining', 'training', ['P05'], 'L', { cap: 2, saf: -1 }, { cap: 'One more RL budget (0.15 × the base FLOP) on the RL curve per cycle', saf: 'Traits ×1.1 per cycle', cost: 'RL compute (30% of the training pool while it runs)' }),
   P('P14', 'Interp-guided training', 'posttraining', 'training', ['T-PROBE'], 'M', { saf: 1 }, { saf: 'In-run trait growth ×0.6', cost: 'Goodhart on the probe' }),
-  P('P21', 'Brain-like sample efficiency', 'posttraining', 'training', ['P08', 'P19'], 'XL', { cap: 2, saf: -1 }, { cap: 'PHYS +1; fast domain gains', saf: 'Evals lag' }),
+  P('P21', 'Brain-like sample efficiency', 'posttraining', 'training', ['P08', 'P19'], 'XL', { cap: 2, saf: -1 }, { kind: 'idea', effect: { mean: 1, sd: 0.6, data: { worthOom: P21_WORTH_OOM } }, cap: 'Learns more from each token: every drawn token is worth ×2 in the loss law (wide uncertainty), most valuable where data is short', saf: 'Evals lag' }),
 
   // ── Systems (Scaffold unless noted) ──
   STAR('P03', 'Test-time compute', 'systems', 'scaffold', {}, { paradigm: true, options: [['effort', 'low'], ['effort', 'max']], cap: 'Effort low / max', cost: 'Tokens' }),

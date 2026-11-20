@@ -768,6 +768,9 @@ export interface ResearchState {
   stacks: Record<StackKey, StackState>;
   /** Adopted domain effects for versions trained after them (OOM per domain: test-time training, self-play, robotics). */
   domainG: Partial<Record<DomainId, number>>;
+  /** Model v3 D9: adopted data-efficiency effects (MODEL-V3 §5.2): synQMax = raise of the synthetic-quality ceiling (q;
+   *  P10), worthOom = OOM more effective tokens per drawn token in the loss law (P21). Absent = none adopted. */
+  dataFx?: { synQMax?: number; worthOom?: number };
   /** Last adopted ideas (newest last, ≤ 30) for the readout. */
   adopted: AdoptedIdea[];
   /** Weekly samples of the stacks' G-equivalent total (OOM over the start) and ideas adopted (the recent rate). */

@@ -3,19 +3,21 @@
 //   assets     public web (the lab's crawl of the one shared, finite world stock), licensed, usage, synthetic, expert;
 //              each with tokens T, a domain mix and a quality q (1 = the web)
 //   U          unique-token stock a base trains on = Σ q·T over the pretraining kinds (public, licensed, usage,
-//              synthetic; synthetic × 3 with P10): the stock in web-equivalent tokens (readouts, the draw's weights)
+//              synthetic): the stock in web-equivalent tokens (readouts, the draw's weights)
 //   draw       (model v3 D3) a base takes its tokens from the slices (asset × domain) by its data mix (drawData):
 //              per-slice Muennighoff repetition; drawn effective shares → s_d,data = α·log₁₀(share ÷ ref)
 //   quality    (model v3 D11) research/20 A3's D_eff = Σ q_tier·U_tier·(1 + R*·(1 − e^(−(ep−1)/R*))) with each slice's
 //              epochs on its own tokens, ÷ the 2025 reference draw's mean quality Q_REF: the loss law's data term
 //              (models/effective.ts fDataEff), so better drawn tokens raise G even when nothing repeats [G]
-//   synthetic  += pool FLOP ÷ (teacher FLOP per token × overgeneration) per day; q from the teacher's G
+//   synthetic  += pool FLOP ÷ (teacher FLOP per token × overgeneration) per day; q from the teacher's G, up to the
+//              ceiling (the web's 1; P10, the synthetic data flywheel, raises it: model v3 D9)
+//   worth      (model v3 D9) adopted data-efficiency ideas (P21) multiply every drawn token's worth in the loss law
 //   usage      += live products' output tokens × channel eligibility × the lab's data-policy share per day
 //   deals      (model v3 D2, actions in production/dataActions.ts) licences by domain and expert data are paid at
 //              signing and delivered later (`pending`); a synthetic job sends a share of the pool to a chosen teacher
 //   readout    data adequacy of the next base: Muennighoff's ≈ free 4 epochs of U vs N_req(next base)
 import {
-  LICENCE_DEAL_SHARE, LICENCE_TIERS, LICENSED_MIX, LICENSED_QUALITY, LICENSED_START_T, P10_SYN_MULT, PUBLIC_START_COVERAGE, PUBLIC_WEB, SYN_MIX, SYN_OVERGEN, SYN_Q,
+  LICENCE_DEAL_SHARE, LICENCE_TIERS, LICENSED_MIX, LICENSED_QUALITY, LICENSED_START_T, PUBLIC_START_COVERAGE, PUBLIC_WEB, SYN_MIX, SYN_OVERGEN, SYN_Q,
   SYN_START_T, USAGE_ELIGIBLE, USAGE_MIX, USAGE_POLICY_SHARE, USAGE_QUALITY, EXPERT_QUALITY, ALPHA_DATA, SPEC_CAP, type DomainMix, type LicenceTier,
 } from '../../../data/v2/dataAssets';
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
@@ -78,20 +80,22 @@ const isPretrain = (a: DataAsset) => PRETRAIN_KINDS.includes(a.kind);
 
 export const publicUse = (p: DataPortfolio) => p.assets.find((a) => a.kind === 'public') as Extract<DataAsset, { kind: 'public' }> | undefined;
 
-/** Quality-weighted unique tokens of a portfolio (tokens): U = Σ q·T over the pretraining kinds, synthetic × 3 with P10.
+/** Quality-weighted unique tokens of a portfolio (tokens): U = Σ q·T over the pretraining kinds.
  *  A base whose tokens exceed U repeats them (models/effective.ts fData). */
-export function portfolioU(p: DataPortfolio, opts: { p10?: boolean } = {}): number {
+export function portfolioU(p: DataPortfolio): number {
   let u = 0;
-  for (const a of p.assets) {
-    if (!isPretrain(a)) continue;
-    u += assetQuality(a) * assetTokensT(a) * (a.kind === 'synthetic' && opts.p10 ? P10_SYN_MULT : 1);
-  }
+  for (const a of p.assets) if (isPretrain(a)) u += assetQuality(a) * assetTokensT(a);
   return u * 1e12;
 }
 
-const p10 = (s: GameStateV2) => s.player.paradigms.P10?.status === 'adopted';
 /** Unique training tokens of the player (tokens): its portfolio's U. Every base plan reads this (models/runs.ts). */
-export const uniqueTokens = (s: GameStateV2) => portfolioU(s.player.dataPortfolio, { p10: p10(s) });
+export const uniqueTokens = (s: GameStateV2) => portfolioU(s.player.dataPortfolio);
+
+/** Model v3 D9: the synthetic-quality ceiling, the web's SYN_Q.max = 1 plus adopted data-flywheel effects (P10). */
+export const synQualityCap = (s: GameStateV2) => SYN_Q.max + Math.max(0, s.player.research.dataFx?.synQMax ?? 0);
+/** Model v3 D9: worth of a drawn token in the loss law (× effective tokens; 1 = the 2025 learner) = 10^(adopted
+ *  data-efficiency OOM) (P21, brain-like sample efficiency). */
+export const tokenWorth = (s: GameStateV2) => Math.pow(10, Math.max(0, s.player.research.dataFx?.worthOom ?? 0));
 
 /** Per-kind readout (D4's portfolio view): tokens (T), quality-weighted tokens (T), mean quality, domain mix. */
 export interface KindRow { kind: DataKind; tokensT: number; weightedT: number; quality: number; mix: DomainMix; assets: number }
@@ -157,6 +161,8 @@ export interface DataDraw {
    *  drawn per kind (D4's readouts). */
   quality: number;
   qRel: number;
+  /** Worth of a drawn token in the loss law (model v3 D9, P21; 1 = the 2025 learner): dEff and dQual include it. */
+  worth: number;
   byKind: Partial<Record<DataKind, number>>;
 }
 
@@ -173,27 +179,30 @@ export function specialisation(share: DomainMix): DomainMix {
 }
 
 /** The draw rule (model v3 D3). Slices are (pretraining asset i × domain d) with quality-weighted unique tokens
- *  U_i,d = q_i·T_i·mix_i,d (P10: synthetic ×3). The target sets each domain's share of the base's tokens:
+ *  U_i,d = q_i·T_i·mix_i,d. The target sets each domain's share of the base's tokens:
  *  m_d ∝ B_d·tilt_d·K_d/U_d, where B_d is the starting share (reference: REF_SHARE_d; natural: U_d) and K_d/U_d the
  *  kind weights' pull on that domain (K_d = Σ_i U_i,d·k_kind(i)); within a domain the tokens come from its slices in
  *  proportion to U_i,d·k_kind(i). A domain the portfolio holds nothing of draws nothing (its share goes to the others
  *  in proportion). A slice drawn beyond its own tokens repeats them and pays Muennighoff on that slice alone: a short
  *  domain repeats and loses value — there is no fallback to other data. (D3 compared a slice's draw with U_i,d and let
  *  quality act only through U, D1's rule; D11 below replaces that.) Specialisation reads the effective shares (repeated
- *  tokens teach less). `noRepeat` (P10) counts repeated tokens in full.
+ *  tokens teach less). (v1's P10 flags, synthetic ×3 and no repetition penalty, are gone since model v3 D9.)
  *
  *  Model v3 D11 (quality of the drawn tokens, research/20 A3 / A1): the loss law reads D_eff = Σ q_i·D'_i,d ÷ Q_REF,
  *  where D'_i,d = Muennighoff on the slice's own tokens: D'_i,d = T_i,d·(1 + R*·(1 − e^(−(ep − 1)/R*))) with ep =
- *  D_i,d ÷ T_i,d (T_i,d = U_i,d ÷ q_i, the raw tokens; P10's ×3 included). No double counting: quality multiplies the
+ *  D_i,d ÷ T_i,d (T_i,d = U_i,d ÷ q_i, the raw tokens). No double counting: quality multiplies the
  *  tokens once (q·Muennighoff(D, T) = Muennighoff(q·D, q·U)), so it no longer also stretches a slice's epochs — a q 3
  *  corpus is worth 3× per token and repeats after its own T tokens, not after 3T. The draw weights (∝ q·T: better data
  *  is sampled more) and the domain shares are D3's, unchanged; specialisation reads repetition only (quality acts on
  *  general G). Q_REF = the 2025 reference draw's mean quality (the start portfolio's, 0.984), so that draw has
- *  D_eff = D and only deviations from the reference mix move G (models/runs.ts baseG). */
-export function drawData(p: DataPortfolio, tokens: number, target: MixTarget = NATURAL_MIX, opts: { p10?: boolean; noRepeat?: boolean } = {}): DataDraw {
+ *  D_eff = D and only deviations from the reference mix move G (models/runs.ts baseG).
+ *
+ *  Model v3 D9: `worth` (adopted data efficiency, P21; default 1) multiplies dEff and dQual: each token teaches the
+ *  learner `worth`× as much, repeated or not (repetition still follows each slice's own epochs). */
+export function drawData(p: DataPortfolio, tokens: number, target: MixTarget = NATURAL_MIX, opts: { worth?: number } = {}): DataDraw {
   return drawWith(p, tokens, target, opts, Q_REF);
 }
-function drawWith(p: DataPortfolio, tokens: number, target: MixTarget, opts: { p10?: boolean; noRepeat?: boolean }, qRef: number): DataDraw {
+function drawWith(p: DataPortfolio, tokens: number, target: MixTarget, opts: { worth?: number }, qRef: number): DataDraw {
   // u: the slice's quality-weighted unique tokens (its draw weight, D3); r: its own tokens (its epochs, D11).
   const slices: { kind: DataKind; d: DomainId; u: number; r: number; k: number; q: number; w: number }[] = [];
   const Ud: DomainMix = {};
@@ -201,7 +210,7 @@ function drawWith(p: DataPortfolio, tokens: number, target: MixTarget, opts: { p
   for (const a of p.assets) {
     if (!isPretrain(a)) continue;
     const q = assetQuality(a);
-    const u = q * assetTokensT(a) * 1e12 * (a.kind === 'synthetic' && opts.p10 ? P10_SYN_MULT : 1);
+    const u = q * assetTokensT(a) * 1e12;
     if (!(u > 0)) continue;
     const k = target.kinds[a.kind] ?? 1;
     if (!(k > 0)) continue;
@@ -231,7 +240,8 @@ function drawWith(p: DataPortfolio, tokens: number, target: MixTarget, opts: { p
     W += x.w;
     if (x.w > 0) maxE = Math.max(maxE, x.w / x.r);
   }
-  if (!(W > 0) || !(tokens > 0)) return { tokens, dEff: 0, dQual: 0, dRep: 0, uMix: 0, epochs: tokens > 0 ? Infinity : 0, share: {}, effShare: {}, sD: {}, quality: 0, qRel: 0, byKind: {} };
+  const worth = opts.worth ?? 1;
+  if (!(W > 0) || !(tokens > 0)) return { tokens, dEff: 0, dQual: 0, dRep: 0, uMix: 0, epochs: tokens > 0 ? Infinity : 0, share: {}, effShare: {}, sD: {}, quality: 0, qRel: 0, worth, byKind: {} };
   const share: DomainMix = {};
   const eff: DomainMix = {};
   const byKind: Partial<Record<DataKind, number>> = {};
@@ -243,7 +253,7 @@ function drawWith(p: DataPortfolio, tokens: number, target: MixTarget, opts: { p
     if (!(x.w > 0)) continue;
     const dx = (tokens * x.w) / W;
     // Repetition on the slice's own tokens (epochs = dx ÷ raw tokens); its quality then scales what is left (D11).
-    const ex = opts.noRepeat || dx <= x.r ? dx : effectiveTokens(dx, x.r);
+    const ex = dx <= x.r ? dx : effectiveTokens(dx, x.r);
     if (dx > x.r) repeats = true;
     share[x.d] = (share[x.d] ?? 0) + dx / tokens;
     eff[x.d] = (eff[x.d] ?? 0) + ex;
@@ -252,7 +262,7 @@ function drawWith(p: DataPortfolio, tokens: number, target: MixTarget, opts: { p
     dEff += x.q * ex;
     qSum += dx * x.q;
   }
-  if (opts.noRepeat || !repeats) {
+  if (!repeats) {
     dRep = tokens;
     dEff = qSum;
   }
@@ -260,7 +270,7 @@ function drawWith(p: DataPortfolio, tokens: number, target: MixTarget, opts: { p
   const uMix = W / maxE;
   const quality = qSum / tokens;
   return {
-    tokens, dEff: dEff / qRef, dQual: qSum / qRef, dRep, uMix, epochs: tokens / uMix, share, effShare: eff, sD: specialisation(eff), quality, qRel: quality / qRef, byKind,
+    tokens, dEff: (worth * dEff) / qRef, dQual: (worth * qSum) / qRef, dRep, uMix, epochs: tokens / uMix, share, effShare: eff, sD: specialisation(eff), quality, qRel: quality / qRef, worth, byKind,
   };
 }
 
@@ -269,11 +279,10 @@ function drawWith(p: DataPortfolio, tokens: number, target: MixTarget, opts: { p
  *  the loss law (model v3 D11), so only a mix better or worse than 2025's moves G. */
 export const Q_REF: number = drawWith(startPortfolio(), REFERENCE_BASE.params * REFERENCE_BASE.tpp, BASE_DATA.balanced, {}, 1).quality;
 
-/** The player's draw for a base design (its data option as the mix target; P10: synthetic ×3, no repetition penalty). */
+/** The player's draw for a base design (its data option as the mix target; adopted data efficiency as the tokens' worth). */
 export function playerDraw(s: GameStateV2, d: BaseDesign): DataDraw {
   const t = BASE_DATA[d.data] ?? BASE_DATA.balanced;
-  const on = p10(s);
-  return drawData(s.player.dataPortfolio, d.params * d.tpp, t, { p10: on, noRepeat: on });
+  return drawData(s.player.dataPortfolio, d.params * d.tpp, t, { worth: tokenWorth(s) });
 }
 
 /** Public-web tokens the lab trains on without a licence (copyright litigation, actors/china.ts; data.license 'web'). */
@@ -345,8 +354,9 @@ function addTo(a: OwnedDataAsset, tokensT: number, mix: DomainMix) {
 
 // ───────────────────────────── synthetic data ─────────────────────────────
 
-/** Synthetic-data quality from the teacher's G: SYN_Q.atV0 at G_V0, + SYN_Q.perOom per OOM, clamped (data/v2/dataAssets). */
-export const syntheticQuality = (gTeacher: number, gRef: number) => Math.min(SYN_Q.max, Math.max(SYN_Q.min, SYN_Q.atV0 + SYN_Q.perOom * (gTeacher - gRef)));
+/** Synthetic-data quality from the teacher's G: SYN_Q.atV0 at G_V0, + SYN_Q.perOom per OOM, clamped to [SYN_Q.min, cap]
+ *  (data/v2/dataAssets); cap = the web's 1 unless P10 raised it (synQualityCap, model v3 D9). */
+export const syntheticQuality = (gTeacher: number, gRef: number, cap: number = SYN_Q.max) => Math.min(cap, Math.max(SYN_Q.min, SYN_Q.atV0 + SYN_Q.perOom * (gTeacher - gRef)));
 /** Kept synthetic tokens per H100e-day from a teacher with `fpt` FLOP per token: the pool's FLOP per H100e-day ÷
  *  (FLOP per token × overgeneration) (research/20 A3). */
 export const synTokensPerH100eDay = (fpt: number) => PHI_FLOP_PER_H100E_DAY / (Math.max(1, fpt) * SYN_OVERGEN);
@@ -379,7 +389,7 @@ export function synPoolH100e(s: GameStateV2): number {
 /** The synthetic asset a teacher's data goes to (`syn:<versionId>`; q from its G, inherits its traits). */
 export function synAssetFor(s: GameStateV2, t: ModelVersion | undefined, tokensT = 0): OwnedDataAsset {
   const g = t?.build ? gOfBuild(t.build) : gV0(s.hidden.timeline);
-  return { id: `syn:${t?.id ?? 'start'}`, kind: 'synthetic', tokensT, mix: { ...SYN_MIX }, quality: syntheticQuality(g, gV0(s.hidden.timeline)), day: s.time.day, teacherId: t?.id, teacherG: g, inheritsTraits: true };
+  return { id: `syn:${t?.id ?? 'start'}`, kind: 'synthetic', tokensT, mix: { ...SYN_MIX }, quality: syntheticQuality(g, gV0(s.hidden.timeline), synQualityCap(s)), day: s.time.day, teacherId: t?.id, teacherG: g, inheritsTraits: true };
 }
 /** Kept synthetic tokens (T) from `h100eDays` of generation with teacher `t`. */
 export const synTokensT = (t: ModelVersion | undefined, h100eDays: number) => (h100eDays * synTokensPerH100eDay(fptOf(t))) / 1e12;
@@ -388,8 +398,14 @@ function generate(s: GameStateV2, t: ModelVersion | undefined, h100e: number) {
   const id = `syn:${t?.id ?? 'start'}`;
   const p = s.player.dataPortfolio;
   let a = p.assets.find((x): x is OwnedDataAsset => x.id === id && x.kind === 'synthetic');
-  if (!a) p.assets.push((a = synAssetFor(s, t)));
-  addTo(a, synTokensT(t, h100e), SYN_MIX);
+  const fresh = synAssetFor(s, t);
+  if (!a) p.assets.push((a = fresh));
+  const dT = synTokensT(t, h100e);
+  // Model v3 D9: new tokens carry today's quality (P10 may have raised the ceiling since the asset began, or a
+  // continual-learning stream raised the teacher's G); the asset's quality becomes the token-weighted mean [D].
+  // Unchanged while the quality is the same.
+  if (a.quality !== fresh.quality && a.tokensT + dT > 0) a.quality = (a.quality * a.tokensT + fresh.quality * dT) / (a.tokensT + dT);
+  addTo(a, dT, SYN_MIX);
 }
 
 // ───────────────────────────── usage data ─────────────────────────────
@@ -434,15 +450,15 @@ export function dataDelta(s: GameStateV2, change: (p: DataPortfolio) => void, do
   const p0 = s.player.dataPortfolio;
   const p1: DataPortfolio = { ...p0, assets: p0.assets.map((a) => (a.kind === 'public' ? { ...a } : { ...a, mix: { ...a.mix } })), pending: [...(p0.pending ?? [])] };
   change(p1);
-  const on = p10(s);
+  const worth = tokenWorth(s);
   const b = s.player.models.bases[s.player.models.bases.length - 1]?.design;
   const params = b ? b.params : REFERENCE_BASE.params;
   const tokens = b ? b.params * b.tpp : REFERENCE_BASE.params * REFERENCE_BASE.tpp;
   const target = (b && BASE_DATA[b.data]) ?? BASE_DATA.balanced;
   const read = (p: DataPortfolio) => {
-    const nat = drawData(p, tokens, NATURAL_MIX, { p10: on, noRepeat: on });
-    const bp = drawData(p, tokens, target, { p10: on, noRepeat: on });
-    return { u: portfolioU(p, { p10: on }) / 1e12, share: pretrainMix(p)[domain] ?? 0, s: nat.sD[domain] ?? 0, uMix: bp.uMix / 1e12, epochs: bp.epochs, qG: Math.log10(fDataEff(params, tokens, bp.dQual)) };
+    const nat = drawData(p, tokens, NATURAL_MIX, { worth });
+    const bp = drawData(p, tokens, target, { worth });
+    return { u: portfolioU(p) / 1e12, share: pretrainMix(p)[domain] ?? 0, s: nat.sD[domain] ?? 0, uMix: bp.uMix / 1e12, epochs: bp.epochs, qG: Math.log10(fDataEff(params, tokens, bp.dQual)) };
   };
   const x = read(p0);
   const y = read(p1);

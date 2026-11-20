@@ -326,11 +326,11 @@ stacks together (G-equivalent) track the v2 know-how path.
 
 | Node | Kind | Effect (unit) | Prior | Source | Phase |
 |---|---|---|---|---|---|
-| Science data | axis | Data mix *science* (domain offsets of the data-mix table) | odds 0.95 | research/12 §0.3 C | LATER(V5) data assets |
-| Native multimodal | axis | Data mix *multimodal* (no data wall); gates Voice & vision, Computer use, Robotics | 0.90 | research/12 §0.7 #6 | LATER(V5) |
+| Science data | axis | Data mix *science*: the draw tilts bio ×3, math and research ×1.5 (model v3 D3; no level offsets) | odds 0.95 | research/12 §0.3 C | now (D3) |
+| Native multimodal | axis | Data mix *multimodal*: the draw tilts media and physical ×3, agency ×2 (model v3 D3); gates Voice & vision, Computer use, Robotics | 0.90 | research/12 §0.7 #6 | now (D3) |
 | Elastic training (**new**) | idea | Training throughput +0.023 OOM (goodput 0.90 → 0.95) | mean 0.023, sd 30% | R20 A4 (goodput 0.80–0.95) | now |
-| Synthetic data flywheel (P10) | axis | Synthetic data ×3, no repetition penalty, mix +0.18 OOM (unchanged) | paradigm prior | research/12 #10 | LATER(V5) |
-| Long-horizon human demos (P12) | axis | Horizon ×2; RSCH +0.4 L (unchanged) | prior | research/12 #12 | LATER(V5) |
+| Synthetic data flywheel (P10) | axis | Data efficiency: the synthetic-quality ceiling rises from the web's q 1 to 1.5 (+0.5 q per unit, sd 30%) for data generated after adoption; unlocks the synthetic-heavy mix (model v3 D9; replaces synthetic ×3 and "no data wall") | paradigm prior | Maini et al. 2024 (rephrased web ≈ 3× faster pretraining) [P]; phi-4 [P]; research/20 A3 (synthetic up to 1.5) | now (D9) |
+| Long-horizon human demos (P12) | idea | Expert data: 0.02T demonstration tokens (sd 25%) join the long-tasks suite at the expert-data price ($1B), fidelity 1 → 1.35: the family's RL ceiling, AGENCY and the horizon rise through RL (model v3 D9; replaces horizon ×2, RSCH +0.4 L) | prior | research/12 #12; AI 2027 ("billions ... to record themselves") | now (D9) |
 | Faithful-CoT architecture (P23) | axis | Faithful CoT option (unchanged) | prior | research/12 #23 | LATER(V6) |
 | Neuralese recurrence (P17) | axis | Latent shape: +0.5 OOM, serving tokens ×0.4 (unchanged; already OOM); opens *Recurrent architectures* | prior | research/12 #17 (+0.4–0.6 G) | now |
 | AI-designed successor (P24) | axis | Next base +0.96 OOM × AI share of research labour (unchanged) | prior | research/12 #24 (+1 G) | LATER(V3) AI labour |
@@ -341,7 +341,7 @@ stacks together (G-equivalent) track the v2 know-how path.
 | Self-play curricula (P11) | idea | REASON +0.66, CODE +0.33 OOM for new versions (was +0.8 / +0.4 L) | sd 40% | research/12 #11; v2 values [conv] | now |
 | Iterated distillation & amplification (P18) | axis | One more RL budget per cycle on the RL curve (V1, unchanged) | prior | research/12 #18 | now |
 | Interp-guided training (P14) | axis | In-run trait growth ×0.6 (unchanged) | prior | research/12 #14 | LATER(V6) |
-| Brain-like sample efficiency (P21) | axis | PHYS +1 L (unchanged) | prior | research/12 #21 | LATER(V5) |
+| Brain-like sample efficiency (P21) | idea | Data efficiency: each drawn token worth 10^0.3 = ×2 in the loss law (sd 60%, a wide prior; ≈ +0.2 OOM G at 50 tokens/param) (model v3 D9; replaces PHYS +1 L) | prior | research/12 #21 (AI 2027: Agent-3 ~4,000× less efficient than the brain); size [D] | now (D9) |
 | Multi-agent orchestration (P05) | axis | Agent throughput ×1.3 (unchanged); unlocks the typed features Deep think (effort deep: ×4 reasoning tokens, +0.24 OOM) and Deep research (scaffold +0.3 OOM on Science, Finance, Legal and internal research ideas, ×3 tokens) | prior | research/12 #5; R20 C3, B3 | now (V4a) |
 | Long context + memory (P07) | axis | Version horizon ×1.2 (V3b); unlocks the typed feature Memory (horizon extender ×1.3 on all work, products and internal agents; +10% Chat users) | prior | research/12 #7; CL-Bench 2026 | now (V4a) |
 | Automated AI research agents (P13) | axis | Experiment throughput up to ×1.5 with RSCH (unchanged) | prior | research/12 #13 | LATER(V3) |
