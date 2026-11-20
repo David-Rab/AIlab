@@ -30,7 +30,7 @@
 // operations → project experiments by priority → routine tuning), with optional caps; overflow flows down.
 import {
   BELIEF_NOISE, CAND, DROP_FRAC, DUD_SD, EXP_NOISE, HEADROOM, IDEA_STAGES, LINE_FIT, LINE_STAGES, MAX_DROPS, PACE_BATCH,
-  PICK_AT, POOL_MAX, PROJECT_MAX_TEAMS, PROJECT_SD, RE_OPS, RE_PER_PROJECT, RISK_KAPPA, SMALL_TO_TEST,
+  AUTO_RANK_W, PICK_AT, POOL_MAX, PROJECT_MAX_TEAMS, PROJECT_SD, RE_OPS, RE_PER_PROJECT, RISK_KAPPA, SMALL_TO_TEST,
   SPECULATIVE, SURVIVE_FRAC, S_READ_SD, TASTE_MEAN, TEST_READ_SD, ADOPT_TW, TUNE_K,
 } from '../../../data/v2/research';
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
@@ -204,7 +204,9 @@ export const takesTeams = (st: CapProjectState | undefined) => !st || st.stage =
 
 // ───────────────────────────── allocation: scientists (V2.5) ─────────────────────────────
 
-/** Teams wanted for a project (default 1). */
+/** B4: whether a project's teams wanted is "auto". */
+export const wantIsAuto = (s: GameStateV2, id: string) => !!s.player.research.wantAuto?.includes(id);
+/** Teams wanted for a project (default 1; an auto project asks for 1 in the first pass and takes spare teams after). */
 export const teamsWanted = (s: GameStateV2, id: string) => Math.max(0, Math.min(PROJECT_MAX_TEAMS, Math.round(s.player.research.want[id] ?? 1)));
 
 /** Progress value of an assignment: Σ over projects of √capacity ÷ ideation effort (candidates per day at unit inputs). */
@@ -233,11 +235,12 @@ export function planAssignment(s: GameStateV2, ready: string[]): Map<string, { p
   // 1. Down the list: each project up to its teams wanted, best specialty match (then capacity) first.
   ready.forEach((id, rank) => {
     const n = node(id) as TreeNodeDef;
-    let need = teamsWanted(s, id) - (count.get(id) ?? 0);
+    const auto = wantIsAuto(s, id);
+    let need = (auto ? 1 : teamsWanted(s, id)) - (count.get(id) ?? 0);
     while (need > 0 && left.length) {
       left.sort((a, b) => sciCapacity(b, n) - sciCapacity(a, n) || (a.id < b.id ? -1 : 1));
       const t = left.shift() as Team;
-      out.set(t.id, { p: id, why: `Priority ${rank + 1}: ${n.name} wants ${teamsWanted(s, id)} team${teamsWanted(s, id) === 1 ? '' : 's'}${t.specialty === n.column ? ' (its specialty)' : ''}` });
+      out.set(t.id, { p: id, why: `Priority ${rank + 1}: ${n.name} ${auto ? 'is on auto (first team)' : `wants ${teamsWanted(s, id)} team${teamsWanted(s, id) === 1 ? '' : 's'}`}${t.specialty === n.column ? ' (its specialty)' : ''}` });
       count.set(id, (count.get(id) ?? 0) + 1);
       need--;
     }
@@ -263,8 +266,27 @@ export function planAssignment(s: GameStateV2, ready: string[]): Map<string, { p
       }
     }
   }
-  // 3. Leftovers: the highest-priority project still under the most a project takes.
+  // 3. Leftovers. B4: auto projects first, each spare team where it adds the most progress (√capacity ÷ ideation
+  //    effort, × AUTO_RANK_W per rank); then the highest-priority project still under the most a project takes.
+  const autos = ready.filter((id) => wantIsAuto(s, id));
+  const capOn = new Map<string, number>();
+  if (autos.length) for (const t of all) { const p = out.get(t.id)?.p; if (p && autos.includes(p)) capOn.set(p, (capOn.get(p) ?? 0) + sciCapacity(t, node(p) as TreeNodeDef)); }
   for (const t of left) {
+    let best: string | undefined;
+    let bestGain = 0;
+    for (const a of autos) {
+      if ((count.get(a) ?? 0) >= PROJECT_MAX_TEAMS) continue;
+      const n = node(a) as TreeNodeDef;
+      const c0 = capOn.get(a) ?? 0;
+      const gain = ((Math.sqrt(c0 + sciCapacity(t, n)) - Math.sqrt(c0)) / stagesOf(n).idea) * AUTO_RANK_W ** ready.indexOf(a);
+      if (gain > bestGain) { best = a; bestGain = gain; }
+    }
+    if (best) {
+      count.set(best, (count.get(best) ?? 0) + 1);
+      capOn.set(best, (capOn.get(best) ?? 0) + sciCapacity(t, node(best) as TreeNodeDef));
+      out.set(t.id, { p: best, why: `Auto: ${node(best)?.name} (priority ${ready.indexOf(best) + 1}) gains the most progress from it${t.specialty === node(best)?.column ? ' (its specialty)' : ''}` });
+      continue;
+    }
     const id = ready.find((x) => (count.get(x) ?? 0) < PROJECT_MAX_TEAMS);
     if (!id) {
       out.set(t.id, { why: 'Idle: every ready project has the most teams it can use' });

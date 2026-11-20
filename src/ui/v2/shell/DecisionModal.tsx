@@ -8,7 +8,7 @@ import { store } from '../store';
 import { Rich } from '../ui';
 import { ActionCard, CauseChain, GoBtn, type GoTarget } from '../kit';
 import { ICON } from '../icons';
-import { KIND_ICON, KIND_PANEL, kindTag, Ring } from './AlertQueue';
+import { KIND_ICON, kindTag, logRoute, openRoute, Ring } from './AlertQueue';
 import { watchItems } from './watch';
 
 /** Which Watch rules explain an event, by event id first, then by its kind. */
@@ -50,11 +50,11 @@ export function DecisionModal({ s }: { s: GameStateV2 }) {
     return (
       <div className="modal-backdrop">
         <div className="modal dm2" data-test="notice">
-          <div className="dm2-hd"><span className="dm2-ic"><Icon size={18} /></span><div><div className="dm2-ttl">{kindTag(n.kind)} · severity {n.severity}</div></div></div>
+          <div className="dm2-hd"><span className="dm2-ic"><Icon size={18} /></span><div><div className="dm2-ttl">{logRoute(s, n).tag} · severity {n.severity}</div></div></div>
           <div className="dm2-text"><Rich text={n.text} /></div>
           <div className="btn-row">
             <span className="sp" />
-            <button className="btn" data-test="notice-go" onClick={() => { store.ackNotice(); store.setPanel(KIND_PANEL[n.kind] ?? 'overview'); }}>Open panel</button>
+            <button className="btn" data-test="notice-go" onClick={() => { const r = logRoute(s, n); store.ackNotice(); openRoute(r); }}>Open panel</button>
             <button className="btn btn-primary" data-test="notice-ok" onClick={() => store.ackNotice()}>OK</button>
           </div>
         </div>

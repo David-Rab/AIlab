@@ -100,9 +100,9 @@ export function assignCapNow(s: GameStateV2) {
 /** Seed of the software-rate readout (OOM/day): the leader's first-year G-equivalent stack growth, ≈ 0.83 OOM/yr. */
 export const START_G_RATE = 0.83 / 365;
 /** Model v3 V2 research fields (stacks from initialStacks; the start lag is applied by core/init). */
-export function initialCapResearch(): Pick<ResearchState, 'want' | 'risk' | 're' | 'stacks' | 'adopted' | 'hist' | 'domainG' | 'gRate'> {
+export function initialCapResearch(): Pick<ResearchState, 'want' | 'wantAuto' | 'risk' | 're' | 'stacks' | 'adopted' | 'hist' | 'domainG' | 'gRate'> {
   return {
-    want: {}, risk: 'balanced', re: { order: [...DEFAULT_RE_ALLOC.order], max: { ...DEFAULT_RE_ALLOC.max }, share: { ...DEFAULT_RE_ALLOC.share } },
+    want: {}, wantAuto: [], risk: 'balanced', re: { order: [...DEFAULT_RE_ALLOC.order], max: { ...DEFAULT_RE_ALLOC.max }, share: { ...DEFAULT_RE_ALLOC.share } },
     stacks: initialStacks(0), adopted: [], hist: [], domainG: {},
     // The software-rate readout starts at the reference lab's first-year rate (≈ 0.83 OOM/yr of G-equivalent; V3 notes)
     // so the lead readers do not see a lab at rest on day 0.

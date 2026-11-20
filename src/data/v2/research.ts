@@ -112,6 +112,9 @@ export const ADOPT_TW = { base: 0.5, perOom: 2, unlock: 1, max: 8 };
 
 /** Most science teams one capability project takes ("max" teams wanted) [D: √capacity returns]. */
 export const PROJECT_MAX_TEAMS = 6;
+/** B4 "auto" teams wanted: a spare science team goes to the auto project where it adds the most progress (√capacity ÷
+ *  ideation effort), weighted by this factor per rank down the list, so higher priority wins close calls [D]. */
+export const AUTO_RANK_W = 0.8;
 /** Research-engineer team-equivalents a project in experiments can use [D]. */
 export const RE_PER_PROJECT = 2;
 /** Research engineers that keep runs going (team-equivalents per running run) [D: mirrors the engineers' run upkeep;

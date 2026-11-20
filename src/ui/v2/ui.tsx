@@ -179,8 +179,8 @@ export function PreviewInline({ v }: { v: Pick<ActionView, 'costs' | 'gains' | '
 
 /** Action button: label, inline cost/gain preview, full preview + unavailable reason on hover. */
 export function ActBtn({
-  id, params = {}, label, primary, small = true, onDone, inline = false, testId, block, icon: Icon, reason = false, anchor,
-}: { id: string; params?: Params; label?: ReactNode; primary?: boolean; small?: boolean; onDone?: () => void; inline?: boolean; testId?: string; /** Extra UI-side blocker (e.g. the run plan's reason). */ block?: string; icon?: LucideIcon; /** Show the disabled reason inline under the button. */ reason?: boolean; anchor?: string }) {
+  id, params = {}, label, primary, small = true, onDone, inline = false, testId, block, icon: Icon, reason = false, anchor, ariaLabel,
+}: { /** Accessible name for an icon-only button. */ ariaLabel?: string; id: string; params?: Params; label?: ReactNode; primary?: boolean; small?: boolean; onDone?: () => void; inline?: boolean; testId?: string; /** Extra UI-side blocker (e.g. the run plan's reason). */ block?: string; icon?: LucideIcon; /** Show the disabled reason inline under the button. */ reason?: boolean; anchor?: string }) {
   const st = useV2();
   const s = st.state;
   if (!s) return null;
@@ -201,6 +201,7 @@ export function ActBtn({
           className={`btn ${small ? 'btn-sm' : ''} ${primary ? 'btn-primary' : ''} act-btn ${off ? 'is-off' : ''}`}
           disabled={off}
           data-act={testId ?? id}
+          aria-label={ariaLabel}
           onClick={() => {
             const err = store.act(id, params);
             if (!err) onDone?.();

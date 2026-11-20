@@ -15,7 +15,7 @@ import { ICON } from '../icons';
 import { C, runwayState, STATE_COLOR } from '../theme';
 import type { GoTarget } from '../kit';
 import { isDivision } from '../../../data/v2/starts';
-import { divisionBudget } from '../shell/selectors';
+import { customerCount, customerShare, divisionBudget } from '../shell/selectors';
 
 type Tone = 'good' | 'watch' | 'bad' | 'neutral';
 const TONE: Record<Tone, string> = { good: C.good, watch: C.watch, bad: C.bad, neutral: C.text3 };
@@ -33,7 +33,7 @@ const NODES: LoopNode[] = [
   { id: 'models', n: 3, name: 'Models', term: 'blueprint', sub: 'blueprint → training run', icon: ICON.models, to: { panel: 'models' }, x: 760, y: Y0 },
   { id: 'assurance', n: 4, name: 'Assurance', term: 'U', sub: 'understanding', icon: ICON.U, to: { panel: 'safety' }, x: 948, y: Y0 },
   { id: 'products', n: 5, name: 'Products', term: 'product', sub: 'features · price · safeguards', icon: ICON.product, to: { panel: 'products' }, x: 1136, y: Y0 },
-  { id: 'customers', n: 6, name: 'Customers', term: 'segmentShare', sub: 'share of spend', icon: ICON.staff, to: { panel: 'products' }, x: 1324, y: Y0, w: 168 },
+  { id: 'customers', n: 6, name: 'Customers', term: 'customerStock', sub: 'share of spend', icon: ICON.staff, to: { panel: 'products' }, x: 1324, y: Y0, w: 168 },
   { id: 'compute', name: 'Compute', term: 'computeOnline', sub: 'H100e online', icon: ICON.compute, to: { panel: 'compute' }, x: 384, y: Y0 + 82, store: true },
 ];
 const BY = Object.fromEntries(NODES.map((n) => [n.id, n]));
@@ -84,7 +84,7 @@ function readings(s: GameStateV2): Record<string, Reading> {
   const behind = live.filter((d) => { const r = rd.get(d.id)!; return !!r.rival && r.rival.share > r.share; }).length;
   out.customers = {
     text: live.length ? `top share ${F.pct(top)}${behind ? ` · behind in ${behind}` : ''}` : 'none', tone: !live.length ? 'bad' : behind ? 'watch' : 'good',
-    tip: live.map((d) => { const r = rd.get(d.id)!; return { label: PRODUCT_DEFS[d.channel]?.name ?? d.channel, value: `${F.count(r.customers)} · share ${F.pct(r.share)}${r.rival ? ` vs ${r.rival.name} ${F.pct(r.rival.share)}` : ''}` }; }),
+    tip: live.map((d) => { const r = rd.get(d.id)!; return { label: PRODUCT_DEFS[d.channel]?.name ?? d.channel, value: [customerCount(r), customerShare(r), r.rival ? `best rival ${r.rival.name} ${F.pct(r.rival.share, 1)}` : ''].filter(Boolean).join(' · ') }; }),
   };
   const ic = idleChips(s);
   out.compute = { text: ic > 1 ? `${F.count(ic)} chips idle` : 'all chips powered', tone: ic > 1 ? 'watch' : 'good', tip: [{ label: <Term id="computeOnline">Online</Term>, value: `${F.count(p.computeOnline)} H100e` }] };

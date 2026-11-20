@@ -30,8 +30,10 @@ import { CONSUMER_MKT, SEATS } from '../../../data/v2/serving';
  *  18 (model v3 A2b): consumer demand from measured anchors — WorldFxState.reach (weekly reach per region, replaces
  *  consumerReach) and WorldFxState.paid (paid-share stocks per region and provider). Migration 17 → 18.
  *  19 (model v3 A2c): SectorState.seat, the paid-seat share of the workers who use AI (who pays for work use). Migration
- *  18 → 19 starts it at the region's start share (SEATS.start). */
-export const SCHEMA_REV = 19;
+ *  18 → 19 starts it at the region's start share (SEATS.start).
+ *  20 (model v3 B4): ResearchState.wantAuto, the capability projects on "auto" teams wanted. Migration 19 → 20 starts it
+ *  empty (every earlier project keeps its number). */
+export const SCHEMA_REV = 20;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -239,6 +241,11 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       const st = s.world.sectors[r]?.[def.id];
       if (st && st.seat === undefined) st.seat = SEATS.start[r];
     }
+  },
+  /** 19 → 20 (model v3 B4): no project is on auto teams wanted. */
+  19: (raw) => {
+    const r = (raw as unknown as GameStateV2).player.research;
+    r.wantAuto ??= [];
   },
 };
 

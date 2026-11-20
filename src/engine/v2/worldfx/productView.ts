@@ -5,7 +5,7 @@
 // per work-hour (Chat: per subscriber-month) and margin, monitor overhead and catch rate (model v3 V4.2). A live edit is
 // previewed by recomputing the market mix and revenue on a copy of the state with the edited product (pure; the edit
 // itself applies at the next tick, D7), so the preview shows what the next tick will compute.
-import { PRODUCT_DEFS, type FeatureDef, type WorkScope } from '../../../data/v2/features';
+import type { FeatureDef, WorkScope } from '../../../data/v2/features';
 import { REGIONS, SECTORS } from '../../../data/v2/sectors';
 import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
 import { catchRate, monitorOverhead } from '../models/products';
@@ -21,7 +21,6 @@ export interface ProductRead {
   channel: Deployment['channel'];
   revenue: Money;
   demand: Money;
-  customers: number;
   /** Your share of the segment's spend, and the best rival product's. */
   share: number;
   rival?: { name: string; share: number };
@@ -326,10 +325,8 @@ export function productReadouts(s: GameStateV2, mix: WorldMix = worldMix(s), rd:
       if (p.lab === 'player') return;
       if (!rival || sh![i] > rival.share) rival = { name: providerName(s, p.key), share: sh![i] };
     });
-    const def = PRODUCT_DEFS[d.channel];
     out.set(d.id, {
       id: d.id, channel: d.channel, revenue: x.revenue, demand: x.demand,
-      customers: d.channel === 'consumer' ? x.users ?? 0 : def && def.arpu > 0 ? (x.revenue * 1e9) / def.arpu : 0,
       share: pi >= 0 ? sh[pi] : 0, rival, bound: x.bound, rpH: x.rpH,
       needH100e: x.needH100e, servedH100e: x.servingH100e, cutH100e: x.cutH100e, unserved: Math.max(0, x.demand - x.revenue),
       runCost: Math.min(x.servingH100e, x.needH100e) * tco,

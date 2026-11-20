@@ -22,18 +22,36 @@ export const KIND_ICON: Record<string, typeof ICON.alert> = {
 const KIND_TAG: Record<string, string> = { incident: 'SAFETY', research: 'SAFETY', model: 'SAFETY', finance: 'FINANCE', company: 'COMPANY', gov: 'GOVERNMENT', china: 'CHINA', rival: 'RIVALS', public: 'PUBLIC', world: 'WORLD', milestone: 'MODELS', alert: 'RISK', security: 'SECURITY' };
 export const kindTag = (k: string) => KIND_TAG[k] ?? k.toUpperCase();
 
-interface AlertGroup { key: string; kind: string; items: LogEntry[]; sev: number; last: number }
+/** B4: where a log entry opens. Entries of kind `research` go to Safety (lines, tools, findings, investigations) except
+ *  capability ones: a capability project's result opens its card on Research › Projects, a run, base or version opens
+ *  Models (their home). Everything else by kind (KIND_PANEL). */
+export interface LogRoute { key: string; panel: string; tab?: string; projectId?: string; tag: string }
+export function logRoute(s: GameStateV2, e: Pick<LogEntry, 'kind' | 'ref'>): LogRoute {
+  if (e.kind === 'research' && e.ref) {
+    if (isCapProject(PROJECT_BY_ID[e.ref])) return { key: 'research.cap', panel: 'research', tab: 'projects', projectId: e.ref, tag: 'RESEARCH' };
+    const m = s.player.models;
+    if (m.runs.some((r) => r.id === e.ref) || m.bases.some((b) => b.id === e.ref) || m.versions.some((v) => v.id === e.ref)) return { key: 'research.models', panel: 'models', tag: 'MODELS' };
+  }
+  return { key: e.kind, panel: KIND_PANEL[e.kind] ?? 'overview', tag: kindTag(e.kind) };
+}
+export function openRoute(r: LogRoute) {
+  if (r.projectId) store.setTab('research.proj', r.projectId);
+  store.goto(r.panel, r.tab ? { tab: r.tab } : {});
+}
+
+interface AlertGroup { key: string; kind: string; route: LogRoute; items: LogEntry[]; sev: number; last: number }
 export function alertGroups(s: GameStateV2): AlertGroup[] {
   const out: AlertGroup[] = [];
   const from = s.time.day - 30;
   for (const e of s.log) {
     if (e.day < from || (e.severity ?? 1) < 2) continue;
-    const g = out.find((x) => x.kind === e.kind && e.day - x.last <= 7);
+    const route = logRoute(s, e);
+    const g = out.find((x) => x.route.key === route.key && (route.projectId === undefined || x.route.projectId === route.projectId) && e.day - x.last <= 7);
     if (g) {
       g.items.push(e);
       g.last = e.day;
       g.sev = Math.max(g.sev, e.severity ?? 2);
-    } else out.push({ key: `${e.kind}@${e.day}`, kind: e.kind, items: [e], sev: e.severity ?? 2, last: e.day });
+    } else out.push({ key: `${route.key}${route.projectId ? '.' + route.projectId : ''}@${e.day}`, kind: e.kind, route, items: [e], sev: e.severity ?? 2, last: e.day });
   }
   return out.sort((a, b) => b.sev - a.sev || b.last - a.last);
 }
@@ -107,14 +125,10 @@ export function AlertQueue({ s }: { s: GameStateV2 }) {
                   const I = KIND_ICON[g.kind] ?? ICON.alert;
                   const e = g.items[g.items.length - 1];
                   return (
-                    <div key={g.key} className="alert-row" data-alert-row={g.kind}>
+                    <div key={g.key} className="alert-row" data-alert-row={g.kind} data-route={g.route.panel + (g.route.tab ? '.' + g.route.tab : '')}>
                       <span className="small"><I size={11} /> {e.text}{g.items.length > 1 ? <span className="dim"> (+{g.items.length - 1})</span> : null} <span className="dim">· {fmtDate(dateOf(s, e.day))}</span></span>
                       <span className="sp" />
-                      <button className="btn btn-sm btn-ghost" onClick={() => {
-                        setOpen(false);
-                        // Model v3 V2b: a capability project's result opens its card on Research › Projects.
-                        if (g.kind === 'research' && e.ref && isCapProject(PROJECT_BY_ID[e.ref])) { store.setTab('research.proj', e.ref); store.goto('research', { tab: 'projects' }); } else store.setPanel(KIND_PANEL[g.kind] ?? 'overview');
-                      }}>Open ›</button>
+                      <button className="btn btn-sm btn-ghost" data-test="alert-open" onClick={() => { setOpen(false); openRoute(g.route); }}>Open ›</button>
                     </div>
                   );
                 })}

@@ -688,6 +688,9 @@ export interface ResearchState {
   autoAssign: boolean;
   /** Teams wanted per capability project (default 1; PROJECT_MAX_TEAMS = "max"). */
   want: Record<string, number>;
+  /** B4: capability projects on "auto" teams wanted (the game picks the number by priority and fit): one team first,
+   *  then spare teams where they add the most progress. A project here ignores its `want` number. */
+  wantAuto: string[];
   /** Lab-wide research risk policy (MODEL-V3 §5.3): the candidate a team pursues maximises μ + κσ of its belief. */
   risk: RiskPolicy;
   /** Research engineers (capabilities) by need. */

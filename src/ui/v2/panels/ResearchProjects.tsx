@@ -71,15 +71,21 @@ function TeamDots({ v }: { v: CapProjectView }) {
   );
 }
 
-/** Teams-wanted stepper (0 pauses the project, max 6). */
+/** Teams-wanted stepper (0 pauses the project, max 6) and the Auto toggle (B4: the game picks the number by priority and
+ *  fit; − / + from auto fix the number at the placed count ∓ 1). */
 function WantStepper({ v }: { v: CapProjectView }) {
+  const shown = v.auto ? 'auto' : v.want === PROJECT_MAX_TEAMS ? 'max' : String(v.want);
   return (
     <span className="stepper" data-test={`want.${v.id}`}>
-      <ActBtn id="research.want" testId={`want-down.${v.id}`} params={{ id: v.id, n: Math.max(0, v.want - 1) }} icon={ICON.minus} label="" block={v.want <= 0 ? 'Already 0 (paused)' : undefined} />
-      <Tip content={() => <TipCard title={<Term id="teamsWanted">Teams wanted</Term>} value={v.want === PROJECT_MAX_TEAMS ? 'max' : String(v.want)} rows={[{ label: 'Placed', value: String(v.teams.length) }]}>{v.want === 0 ? 'Paused: the project keeps its candidates but gets no science teams.' : 'The game fills the list in order, best specialty first.'}</TipCard>}>
-        <b className="num" data-test={`want-n.${v.id}`}>{v.want === PROJECT_MAX_TEAMS ? 'max' : v.want}</b>
+      <ActBtn id="research.want" testId={`want-down.${v.id}`} ariaLabel={`Fewer teams wanted for ${v.name}`} params={{ id: v.id, n: Math.max(0, v.want - 1) }} icon={ICON.minus} label="" block={v.want <= 0 && !v.auto ? 'Already 0 (paused)' : undefined} />
+      <Tip content={() => <TipCard title={<Term id="teamsWanted">Teams wanted</Term>} value={shown} rows={[{ label: 'Placed', value: String(v.teams.length) }]}>{v.auto ? 'Auto: one team first, then the spare science teams go where they add the most progress, by priority and fit. Fixed numbers on other projects are filled first; − or + fixes the number.' : v.want === 0 ? 'Paused: the project keeps its candidates but gets no science teams.' : 'The game fills the list in order, best specialty first.'}</TipCard>}>
+        <b className={`num ${v.auto ? 'rp-auto-n' : ''}`} data-test={`want-n.${v.id}`}>{v.auto ? <>{v.want}<span className="dim small"> auto</span></> : shown}</b>
       </Tip>
-      <ActBtn id="research.want" testId={`want-up.${v.id}`} params={{ id: v.id, n: Math.min(PROJECT_MAX_TEAMS, v.want + 1) }} icon={ICON.plus} label="" block={v.want >= PROJECT_MAX_TEAMS ? `At most ${PROJECT_MAX_TEAMS} teams per project` : undefined} />
+      <ActBtn id="research.want" testId={`want-up.${v.id}`} ariaLabel={`More teams wanted for ${v.name}`} params={{ id: v.id, n: Math.min(PROJECT_MAX_TEAMS, v.want + 1) }} icon={ICON.plus} label="" block={v.want >= PROJECT_MAX_TEAMS ? `At most ${PROJECT_MAX_TEAMS} teams per project` : undefined} />
+      <Tip content={() => <TipCard title={<Term id="teamsWantedAuto">Auto teams wanted</Term>} value={v.auto ? 'on' : 'off'}>{v.auto ? `On: the game picks how many teams ${v.name} gets. Click to fix it at ${v.want}.` : 'Let the game pick the number: one team first, then spare science teams where they add the most progress, by priority and fit.'}</TipCard>}>
+        <button className={`btn btn-sm rp-auto ${v.auto ? 'on' : 'btn-ghost'}`} data-act={`want-auto.${v.id}`} aria-pressed={v.auto} aria-label={`Auto teams wanted for ${v.name}`}
+          onClick={() => store.act('research.want', v.auto ? { id: v.id, n: v.want } : { id: v.id, auto: true })}>Auto</button>
+      </Tip>
     </span>
   );
 }
@@ -127,21 +133,31 @@ function Row({ s, v, sel, capQ, onDrop }: { s: GameStateV2; v: CapProjectView; s
     if (target) store.act('research.move', { id: v.id, to: q.indexOf(target) });
   };
   return (
-    <div className={`rp-row ${sel ? 'sel' : ''} st-${v.state}`} data-project={v.id} draggable
+    <div className={`rp-row ${sel ? 'sel' : ''} st-${v.state}`} data-project={v.id} draggable tabIndex={0} aria-label={`Priority ${v.rank}: ${v.name}. Enter opens its card; Alt+Up or Alt+Down moves it.`}
       onDragStart={(e) => { e.dataTransfer.setData('text/plain', v.id); e.dataTransfer.effectAllowed = 'move'; }}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); if (from && from !== v.id) onDrop(from, v.id); }}
+      onKeyDown={(e) => {
+        // B4: keyboard path for reordering (the drag's equivalent): Alt+↑ / Alt+↓ on a focused row, Enter opens its card.
+        if (e.target !== e.currentTarget) return;
+        if (e.key === 'Enter') { e.preventDefault(); setUi('proj', v.id); }
+        else if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); move(e.key === 'ArrowUp' ? -1 : 1); }
+      }}
       onClick={() => setUi('proj', v.id)}>
       <span className="rp-grip"><GripVertical size={13} /></span>
-      <Tip content={() => <TipCard title={<Term id="projectQueue">Priority</Term>} value={`#${v.rank}`}>Drag, or ▲▼, to reorder. Teams, research engineers and compute go down the list.</TipCard>}><span className="rp-rk num">{v.rank}</span></Tip>
+      <Tip content={() => <TipCard title={<Term id="projectQueue">Priority</Term>} value={`#${v.rank}`}>Drag, ▲▼, or Alt+↑ / Alt+↓ on a focused row (Tab to it) to reorder. Teams, research engineers and compute go down the list.</TipCard>}><span className="rp-rk num">{v.rank}</span></Tip>
       <span className="rp-nm"><span className="row-i"><Ic size={13} /><b className="ellip">{v.name}</b><span className={`rp-kind ${v.kind}`}><Term id="projectKind">{v.kind}</Term></span></span><SubLine v={v} /></span>
       <StageTrack v={v} />
       <span className="row-i" onClick={(e) => e.stopPropagation()}><WantStepper v={v} /><TeamDots v={v} /></span>
       <Binds v={v} />
       <Next v={v} />
       <span className="rp-mv" onClick={(e) => e.stopPropagation()}>
-        <button className="btn btn-sm btn-ghost" disabled={i <= 0} data-test={`prio-up.${v.id}`} onClick={() => move(-1)}><ChevronUp size={12} /></button>
-        <button className="btn btn-sm btn-ghost" disabled={i >= capQ.length - 1} data-test={`prio-down.${v.id}`} onClick={() => move(1)}><ChevronDown size={12} /></button>
+        <Tip content={() => <TipCard title="Move up" value={i <= 0 ? 'already first' : `#${v.rank} → #${v.rank - 1}`}>Raises the priority: teams, research engineers and compute reach it sooner. Keyboard: Alt+↑ on the row.</TipCard>}>
+          <button className="btn btn-sm btn-ghost" disabled={i <= 0} data-test={`prio-up.${v.id}`} aria-label={`Move ${v.name} up`} onClick={() => move(-1)}><ChevronUp size={12} /></button>
+        </Tip>
+        <Tip content={() => <TipCard title="Move down" value={i >= capQ.length - 1 ? 'already last' : `#${v.rank} → #${v.rank + 1}`}>Lowers the priority. Keyboard: Alt+↓ on the row.</TipCard>}>
+          <button className="btn btn-sm btn-ghost" disabled={i >= capQ.length - 1} data-test={`prio-down.${v.id}`} aria-label={`Move ${v.name} down`} onClick={() => move(1)}><ChevronDown size={12} /></button>
+        </Tip>
       </span>
     </div>
   );

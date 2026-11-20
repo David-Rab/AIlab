@@ -15,7 +15,7 @@ import { TRAIT_BY_ID } from '../../../data/v2/traits';
 import { OPTION_NODE, TREE_BY_ID } from '../../../data/v2/tree';
 import {
   PARAM_SNAPS, POOL_SHARE_RANGE, REF_TPP, RL_BUDGET, TPP_FREE_MAX, TPP_SNAPS, baseFromParams, dateOf, evalDaysFor, fmtDate, fmtMonth, internalEval, internalVersion,
-  liveCommitments, measuredDomains, nodeStatus, optionLocked, postFromParams, runCard, runEtaDays, runFlopPerShareDay, runTraitPressure, runStall, tppLabel,
+  flopPerToken, liveCommitments, measuredDomains, nodeStatus, optionLocked, postFromParams, runCard, runEtaDays, runFlopPerShareDay, runTraitPressure, runStall, tppLabel, useHourCost,
 } from '../../../engine/v2';
 import type { GameStateV2, LaunchRunParams, TraitId } from '../../../engine/v2';
 import { store } from '../store';
@@ -138,7 +138,7 @@ function effectOf(cur: Eval, base: Eval, ref: boolean): Effect {
   const b = base.card;
   return {
     dL: c && b ? mid(c.band) - mid(b.band) : 0, dG: c && b ? c.g.G - b.g.G : 0, dDays: c && b ? c.etaDays - b.etaDays : 0, dCash: c && b ? c.cash - b.cash : 0,
-    serve: c && b ? c.serveCost / Math.max(1e-6, b.serveCost) : 1, fam: FAMILIES.map((f) => famDelta(cur, base, f)), ref, cur, base,
+    serve: c && b && b.fpt > 0 ? c.fpt / b.fpt : 1, fam: FAMILIES.map((f) => famDelta(cur, base, f)), ref, cur, base,
   };
 }
 
@@ -417,7 +417,7 @@ function Limits({ s, card, prev }: { s: GameStateV2; card?: Card_; prev?: Card_ 
   const P = prev?.limits;
   const day = s.time.day;
   const cash = s.player.finance.cash;
-  const ivServe = internalVersion(s)?.serveCost ?? 0.5;
+  const iv = internalVersion(s);
   const tiles: Tile[] = [];
   const wall = L?.wallDays ?? card.etaDays;
   const pWall = P?.wallDays ?? prev?.etaDays;
@@ -473,16 +473,24 @@ function Limits({ s, card, prev }: { s: GameStateV2; card?: Card_; prev?: Card_ 
       ...(L ? [{ label: 'Compute-equivalent cost', value: F.money(L.computeCost) }] : []),
     ]} footer="Data licences, RL environments and journals are paid at launch; the compute is your training pool, already paid for.">Committed when you start the run.</TipCard>,
   });
-  const serve = card.serveCost;
-  const pServe = prev?.serveCost;
+  // B4: serving is FLOP per token and the cost of an hour of use (the relative serve cost is only the engine's bridge).
+  const fpt = card.fpt;
+  const pFpt = prev?.fpt;
+  const cost = useHourCost(s, fpt);
+  const ivFpt = iv ? flopPerToken(s, iv) : 0;
+  const ivCost = useHourCost(s, ivFpt);
+  const rel = ivFpt > 0 ? fpt / ivFpt : 1;
   tiles.push({
-    id: 'serve', icon: Server, term: 'servingFlop', label: 'Serving', v: L ? sci(L.servingFlop) : serve.toFixed(2), u: undefined,
-    old: L && P ? (Math.abs(P.servingFlop / L.servingFlop - 1) > 0.005 ? sci(P.servingFlop) : undefined) : pServe !== undefined && Math.abs(pServe - serve) > 0.005 ? pServe.toFixed(2) : undefined,
-    sub: <>{L ? 'FLOP/token · ' : ''}<Term id="serveCost">cost</Term> {serve.toFixed(2)} · today {ivServe.toFixed(2)}</>, tone: serve > ivServe * 1.5 ? 'bad' : serve > ivServe * 1.05 ? 'warn' : 'good', bar: { f: Math.min(1, serve / 1.5), mark: ivServe / 1.5 },
-    tip: () => <TipCard title={<Term id="servingFlop">Serving</Term>} value={serve.toFixed(2)} rows={[
-      ...(L ? [{ label: <Term id="servingFlop">FLOP per token</Term>, value: sci(L.servingFlop) }] : []),
-      { label: <Term id="serveCost">Serve cost</Term>, value: serve.toFixed(2) }, { label: 'Internal model today', value: ivServe.toFixed(2) },
-    ]} footer="Serve cost 0.5 = the reference design at the same training FLOP; × reasoning mode × efficiency ideas (quantization ×0.8, speculative decoding ×0.85, AI kernels ×0.75).">Fewer active parameters for the same FLOP serve cheaper: more agent copies and margin per token.</TipCard>,
+    id: 'serve', icon: Server, term: 'servingFlop', label: 'Serving', v: fpt > 0 ? sci(fpt) : '–', u: 'FLOP/tok',
+    old: pFpt !== undefined && pFpt > 0 && fpt > 0 && Math.abs(pFpt / fpt - 1) > 0.005 ? sci(pFpt) : undefined,
+    sub: <><Term id="useHourCost">{F.usd(cost.hour)}/h of use</Term>{ivFpt > 0 ? <> · today {F.usd(ivCost.hour)}</> : null}</>, tone: rel > 1.5 ? 'bad' : rel > 1.05 ? 'warn' : 'good', bar: ivFpt > 0 ? { f: Math.min(1, rel / 3), mark: 1 / 3 } : undefined,
+    tip: () => <TipCard title={<Term id="servingFlop">Serving</Term>} value={`${sci(fpt)} FLOP/token`} rows={[
+      { label: <Term id="servingFlop">FLOP per token</Term>, value: sci(fpt) },
+      { label: <Term id="useHourCost">Cost per hour of use</Term>, value: F.usd(cost.hour) },
+      { label: <Term id="agentHour">Cost per agent-hour</Term>, value: F.usd(cost.agentHour) },
+      ...(iv && ivFpt > 0 ? [{ label: `Internal model today (${iv.name})`, value: `${sci(ivFpt)} · ${F.usd(ivCost.hour)}/h` }] : []),
+      { label: <Term id="h100e">$ per H100e-hour</Term>, value: F.usd(cost.perH100eHour) },
+    ]} footer="Before markup and feature token multipliers. Quantization ×0.8, speculative decoding ×0.85 and AI kernels ×0.75 lower the FLOP per token.">2 × active parameters × the architecture's token multiplier: fewer active parameters for the same FLOP serve cheaper, so more agent copies and more margin per hour.</TipCard>,
   });
   const pTW = prev?.setupTW;
   tiles.push({
@@ -541,7 +549,7 @@ function Effects({ s, e }: { s: GameStateV2; e: Effect }) {
       <Tip content={() => <TipCard title={<Term id="cash">Cash at launch</Term>} value={e.ref ? 'reference' : F.money(e.dCash, { signed: true })} rows={e.cur.card && e.base.card ? [{ label: 'With this card', value: F.money(e.cur.card.cash) }, { label: 'With the reference card', value: F.money(e.base.card.cash) }] : []}>Data licences and RL environments paid when the run starts.</TipCard>}>
         <span className={`e ${e.ref || Math.abs(e.dCash) < 0.05 ? 'no' : e.dCash > 0 ? 'neg' : 'pos'}`}>{e.ref ? '' : Math.abs(e.dCash) < 0.05 ? '–' : F.money(e.dCash, { signed: true })}</span>
       </Tip>
-      <Tip content={() => <TipCard title={<Term id="serveCost">Serving cost</Term>} value={e.ref ? 'reference' : `×${e.serve.toFixed(2)}`} rows={e.cur.card && e.base.card ? [{ label: 'With this card', value: e.cur.card.serveCost.toFixed(2) }, { label: 'With the reference card', value: e.base.card.serveCost.toFixed(2) }] : []}>H100e per agent copy, relative to the reference card.</TipCard>}>
+      <Tip content={() => <TipCard title={<Term id="servingFlop">Serving FLOP per token</Term>} value={e.ref ? 'reference' : `×${e.serve.toFixed(2)}`} rows={e.cur.card && e.base.card ? [{ label: 'With this card', value: `${sci(e.cur.card.fpt)} FLOP/token` }, { label: 'With the reference card', value: `${sci(e.base.card.fpt)} FLOP/token` }] : []}>FLOP per generated token relative to the reference card; the <Term id="useHourCost">cost per hour of use</Term> and the H100e per agent copy scale with it.</TipCard>}>
         <span className={`e ${e.ref || Math.abs(e.serve - 1) < 0.01 ? 'no' : e.serve > 1 ? 'neg' : 'pos'}`}>{e.ref ? '' : Math.abs(e.serve - 1) < 0.01 ? '–' : `×${e.serve.toFixed(2)}`}</span>
       </Tip>
       <span className="rk">
@@ -621,7 +629,7 @@ function OptPreview({ s, kind, label, p, np }: { s: GameStateV2; kind: Kind; lab
     { label: 'Capability', value: `L ${F.dLevel(e.dL)}` },
     { label: 'Time', value: F.days(e.dDays, true) },
     { label: 'Cash', value: F.money(e.dCash, { signed: true }) },
-    { label: 'Serving cost', value: `×${e.serve.toFixed(2)}` },
+    { label: 'Serving FLOP per token', value: `×${e.serve.toFixed(2)}` },
     ...FAMILIES.map((f, i) => ({ label: f.label, value: arrows(e.fam[i]) || '=' })),
   ];
   return <TipCard title={label} value={<span className="tag2">preview</span>} rows={rows}>vs your current blueprint</TipCard>;

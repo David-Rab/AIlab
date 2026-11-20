@@ -29,30 +29,23 @@ export function tierOfIndex(x: number): PriceTier {
   return best;
 }
 
-/** Products by engine channel: display name, what a customer is and the annual revenue per customer used for the
- *  customer readout (revenue ÷ ARPU) [D: consumer ≈ $20 per weekly user per year (unused: Chat's customers are its
- *  weekly users from the stock, A2b; ChatGPT: ~800M weekly users, OpenAI DevDay Oct 2025, on low-teens $B consumer
- *  revenue); API ≈ $1.3K per active developer; Enterprise ≈ $75K per
- *  organisation; Agents ≈ $1.1K per seat; government ≈ $50M per contract]. */
+/** Products by engine channel: display name, segment and blurb. Customer counts come from the customer stock
+ *  (ProductRead.cust), paid seats and Chat's users and subscribers; sector products have no count, only a share (B4). */
 export interface ProductDef {
   channel: Channel;
   name: string;
-  /** Plural customer noun. */
-  customers: string;
-  /** Revenue per customer per year ($). */
-  arpu: number;
   /** The segment whose spend the product competes for (share readout). */
   segment: string;
   blurb: string;
 }
 export const PRODUCT_DEFS: Partial<Record<Channel, ProductDef>> = {
-  consumer: { channel: 'consumer', name: 'Chat', customers: 'weekly users', arpu: 20, segment: 'consumer spend', blurb: 'The chat app for the public. Large demand, low price per user.' },
-  api: { channel: 'api', name: 'API', customers: 'developers', arpu: 1300, segment: 'sector spend', blurb: 'Developers pay per token. The most exposed to distillation.' },
-  enterprise: { channel: 'enterprise', name: 'Enterprise', customers: 'organisations', arpu: 75e3, segment: 'sector spend', blurb: 'Contracts with firms, with sector packs. Sticky, little leak.' },
-  agents: { channel: 'agents', name: 'Agents', customers: 'seats', arpu: 1100, segment: 'sector spend', blurb: 'Autonomous agents sold as workers on multi-hour tasks.' },
-  gov: { channel: 'gov', name: 'Government', customers: 'contracts', arpu: 50e6, segment: 'government spend', blurb: 'Government and defence contracts (needs a gov variant).' },
-  trusted: { channel: 'trusted', name: 'Trusted access', customers: 'partners', arpu: 100e6, segment: 'sector spend', blurb: 'Vetted partners only, at a premium; almost no leak.' },
-  open: { channel: 'open', name: 'Open weights', customers: 'downloads', arpu: 0, segment: '—', blurb: 'A release, not a product: no revenue, full leak, cannot be undone.' },
+  consumer: { channel: 'consumer', name: 'Chat', segment: 'consumer spend', blurb: 'The chat app for the public. Large demand, low price per user.' },
+  api: { channel: 'api', name: 'API', segment: 'sector spend', blurb: 'Developers pay per token. The most exposed to distillation.' },
+  enterprise: { channel: 'enterprise', name: 'Enterprise', segment: 'sector spend', blurb: 'Contracts with firms, with sector packs. Sticky, little leak.' },
+  agents: { channel: 'agents', name: 'Agents', segment: 'sector spend', blurb: 'Autonomous agents sold as workers on multi-hour tasks.' },
+  gov: { channel: 'gov', name: 'Government', segment: 'government spend', blurb: 'Government and defence contracts (needs a gov variant).' },
+  trusted: { channel: 'trusted', name: 'Trusted access', segment: 'sector spend', blurb: 'Vetted partners only, at a premium; almost no leak.' },
+  open: { channel: 'open', name: 'Open weights', segment: '—', blurb: 'A release, not a product: no revenue, full leak, cannot be undone.' },
 };
 /** Products shown as cards, in order. */
 export const PRODUCT_ORDER: Channel[] = ['consumer', 'api', 'enterprise', 'agents', 'gov', 'trusted'];

@@ -4,7 +4,7 @@
 import { PROJECT_BY_ID, TREE } from '../../../data/v2/tree';
 import type { ActionDef, CostLine, EngNeed, GameStateV2, ReNeed, RiskPolicy } from '../types';
 import { PROJECT_MAX_TEAMS, RISK_KAPPA } from '../../../data/v2/research';
-import { reopenProject, teamsWanted } from './research';
+import { reopenProject, teamsWanted, wantIsAuto } from './research';
 import {
   assignCapNow, assignTeam, dequeueNode, effortOf, idleTeams, moveInQueue, nodeOdds, nodeStatus, projectCapacity, projectEta, projectTeams,
   queueNode, unassignTeam,
@@ -148,13 +148,22 @@ export const TREE_ACTIONS: ActionDef[] = [
     available: (s) => (s.player.research.queue.length ? true : 'No projects'),
     preview: (s, p) => {
       const id = str(p, 'id', s.player.research.queue[0] ?? '');
+      if (p.auto === true) return { costs: [{ currency: 'staffTime', amount: 0, target: 'one science team, then spare teams by priority and fit' }], gains: [{ currency: 'progress', amount: 0, target: (PROJECT_BY_ID[id]?.name ?? 'project') + ' takes spare teams where they add the most progress' }], exposure: [] };
       const n = Math.max(0, Math.min(PROJECT_MAX_TEAMS, Math.round(num(p, 'n', teamsWanted(s, id) + 1))));
       return { costs: [{ currency: 'staffTime', amount: n - teamsWanted(s, id), target: 'science teams from lower-priority projects' }], gains: [{ currency: 'progress', amount: 0, target: (PROJECT_BY_ID[id]?.name ?? 'project') + ' faster (square-root returns per team)' }], exposure: [] };
     },
     apply: (s, _ctx, p) => {
       const id = str(p, 'id', '');
       if (!PROJECT_BY_ID[id]) throw new Error('Unknown idea');
-      s.player.research.want[id] = Math.max(0, Math.min(PROJECT_MAX_TEAMS, Math.round(num(p, 'n', 1))));
+      // B4: `auto: true` puts the project on auto (the game picks the number); a number takes it off auto.
+      const r = s.player.research;
+      r.wantAuto ??= [];
+      if (p.auto === true) {
+        if (!wantIsAuto(s, id)) r.wantAuto.push(id);
+      } else {
+        r.wantAuto = r.wantAuto.filter((x) => x !== id);
+        r.want[id] = Math.max(0, Math.min(PROJECT_MAX_TEAMS, Math.round(num(p, 'n', 1))));
+      }
       assignCapNow(s);
     },
   },

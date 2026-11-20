@@ -1,7 +1,8 @@
 // Pure UI selectors shared by the top strip and the Watch list (no store, no React): importable from node scripts
 // (scripts/v2/idle.ts reads the Watch list).
 import { activeRivals, dateOf, dayOfQuarter, engine, leadDays, OUSTER_BC, OUSTER_NOTICE_D, ousterRiskQ, qOf, runwayOf } from '../../../engine/v2';
-import type { GameStateV2, RiskSource } from '../../../engine/v2';
+import type { GameStateV2, ProductRead, RiskSource } from '../../../engine/v2';
+import * as F from '../fmt';
 import { runwayState } from '../theme';
 import { isDivision } from '../../../data/v2/starts';
 
@@ -46,3 +47,12 @@ export function divisionBudget(s: GameStateV2) {
   const spendQ = Math.max(0, rw.burnQ);
   return { parentQ, spendQ, overQ: spendQ - parentQ, over: spendQ > parentQ + 1e-6 };
 }
+
+/** B4: a product's customer count from quantities the engine has: Chat its weekly users and paying subscribers, a
+ *  sector product its paid seats. Sector products without seats have no count (only a share): undefined. */
+export function customerCount(r: ProductRead): string | undefined {
+  if (r.channel === 'consumer') return `${F.count(r.cust.users ?? r.users ?? 0)} weekly users · ${F.count(r.subs ?? 0)} paying`;
+  return r.econ.seats >= 1 ? `${F.count(r.econ.seats)} paid seats` : undefined;
+}
+/** B4: the player's customer stock in the product's segment → its target share. */
+export const customerShare = (r: ProductRead) => `share ${F.pct(r.cust.stock, 1)} → ${F.pct(r.cust.target, 1)}`;

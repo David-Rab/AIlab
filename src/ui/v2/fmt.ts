@@ -87,3 +87,12 @@ export function bench(score: number, special?: 'horizon' | 'speedrun'): string {
 }
 /** Engine id → words: 'heavyHardened' → 'heavy hardened', 'fullPlusExternal' → 'full plus external'. */
 export const words = (id: string) => id.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_-]/g, ' ').toLowerCase();
+/** Small dollar amounts (per hour of use): $1,240, $12.5, $0.42, $0.042; under a cent in cents (0.12¢). */
+export const usd = (x: number) => {
+  const a = Math.abs(x);
+  const s = x < 0 ? MINUS : '';
+  if (a > 0 && a < 0.01) return `${s}${(a * 100).toFixed(2)}¢`;
+  return `${s}$${a >= 1000 ? Math.round(a).toLocaleString('en-US') : a >= 100 ? a.toFixed(0) : a >= 10 ? a.toFixed(1) : a >= 0.1 ? a.toFixed(2) : a.toFixed(3)}`;
+};
+/** Scientific notation for FLOP: 1.6e12. */
+export const sci = (x: number) => { const [m, e] = x.toExponential(1).split('e'); return `${m}e${Number(e)}`; };

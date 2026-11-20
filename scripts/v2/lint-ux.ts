@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { deserialize } from '../../src/engine/v2/core/save';
 import { internalEval, internalVersion, measuredL, understanding } from '../../src/engine/v2/index';
 import { GLOSSARY_V2 } from '../../src/data/v2/glossary';
+import { LIMITS } from '../../src/data/v2/limits';
 import { FIXTURE_DIR } from './lib';
 import { tipSites } from './lint-tips';
 
@@ -67,7 +68,7 @@ const REQUIRED = [
   'techTree', 'knowHow', 'trainedIn', 'depth', 'layer', 'layerBackbone', 'layerTraining', 'layerScaffold', 'layerLab', 'effortClass', 'teamMonth', 'odds',
   'researchLine', 'lineHealth', 'diminishingReturns', 'projectQueue', 'autoAssign', 'retryRule', 'diffusion', 'frontierMethods',
   'blueprint', 'effCompute', 'baseRun', 'postTrain', 'distillRun', 'continueRun', 'flop', 'wallTime', 'behindAtFinish', 'staleness', 'dataWall', 'goodput', 'activeParams', 'tokensPerParam', 'servingFlop', 'gGain', 'distillGap', 'graders',
-  'faultTolerant', 'serveCost', 'buildQueue', 'teamWeek', 'poolShare', 'spareTraining', 'moe', 'neuralese', 'nativeMultimodal', 'hazardFilter', 'safetyPretrain',
+  'faultTolerant', 'buildQueue', 'teamWeek', 'poolShare', 'spareTraining', 'moe', 'neuralese', 'nativeMultimodal', 'hazardFilter', 'safetyPretrain',
   'rlFocus', 'hardenedGraders', 'cot', 'constitution', 'inoculation', 'honestyTraining', 'antiScheming', 'riskFamily', 'designOffset', 'evals', 'autoEvaluate',
   'product', 'segmentShare', 'bestRivalProduct', 'bindingCause', 'qualityBound', 'priceBound', 'priceTier', 'safeguards', 'sectorPack',
   'feature', 'releaseClearance', 'freeTier', 'autoServing', 'servingCut', 'upgradePolicy', 'timeHorizon', 'agentTasks', 'runCost', 'revPerH100e',
@@ -84,6 +85,8 @@ const REQUIRED = [
   'customerStock', 'targetShare', 'customerSpeed', 'featEnabler', 'featHorizon', 'featScaffold', 'featEffort',
   // model v3 B3: the World panel's sector view.
   'workersUsingAI', 'hoursOfUse', 'savedPerHour', 'unseatedUse', 'seatShare', 'agentLeverage', 'costGate', 'feasibility', 'aiWorkHourCost', 'verifiability',
+  // model v3 B4: serving as FLOP per token and cost per hour of use (replaces the relative serve cost).
+  'useHourCost', 'teamsWantedAuto',
 ];
 const req = REQUIRED.filter((id) => !GLOSSARY_V2[id]);
 ok(`Required terms present (${REQUIRED.length})`, req.length === 0, req.join(', '));
@@ -93,6 +96,28 @@ ok(`Required terms present (${REQUIRED.length})`, req.length === 0, req.join(', 
   const { sites, total } = tipSites();
   const bad = sites.filter((x) => !x.allowed);
   ok(`Numbers have a tooltip (${total - sites.length}/${total} sites tipped, ${sites.length - bad.length} allow-listed)`, bad.length === 0, bad.slice(0, 10).map((x) => `${x.file}:${x.line} ${x.text}`).join(' | '));
+}
+
+// ── 4. B4: no removed v2 concept in the glossary, the limits registry or the UI's text (model v3 V2b–V4: know-how and
+//    know-how months → recipe; "× frontier"; relative serve cost → FLOP per token and cost per hour of use; revenue per
+//    H100e × M^0.3; the research-speed cap row; 26% price capture; flat "+0.5 L" feature bonuses). ──
+{
+  const REMOVED: [string, RegExp][] = [
+    ['serve cost', /\bserve[- ]?cost\b|\bserveCost\b/i], ['M^0.3', /M\s*\^\s*\(?0\.3|M⁰·³/], ['research-speed cap', /research[- ]speed cap|revenue\.speedCap/i],
+    ['price capture', /price capture|captures? 26\s?%|26\s?% of the wage/i], ['flat +0.5 L bonus', /\+0\.5 ?(L|levels?)\b/], ['know-how', /know[- ]how/i],
+    ['× frontier', /×\s?frontier\b/],
+  ];
+  const hits: string[] = [];
+  for (const [id, t] of Object.entries(GLOSSARY_V2)) for (const [name, re] of REMOVED) if (re.test(id) || re.test(t.title) || re.test(t.body)) hits.push(`glossary ${id}: ${name}`);
+  for (const l of LIMITS) for (const [name, re] of REMOVED) if (re.test(l.title) || re.test(l.rule)) hits.push(`limit ${l.id}: ${name}`);
+  for (const f of files) {
+    readFileSync(f, 'utf8').split('\n').forEach((l, i) => {
+      if (/^\s*(\/\/|\/\*|\*)/.test(l)) return;
+      const code = l.replace(/\/\/ .*$/, '');
+      for (const [name, re] of REMOVED) if (re.test(code)) hits.push(`${f.replace(/\\/g, '/')}:${i + 1}: ${name}`);
+    });
+  }
+  ok('No removed v2 concepts in the glossary, limits or UI text (B4)', hits.length === 0, hits.slice(0, 10).join(' | '));
 }
 
 // `--doc`: regenerate design/ux/GLOSSARY.md, the coverage list (every term → its tooltip text).

@@ -258,7 +258,7 @@ for (const rev of [1, 11, 12, 13, 14]) {
     msg = (e as Error).message;
   }
   // Model v3 V2 (schemaRev 13): V1 saves (12) are rejected too; model v3 V3 (schemaRev 14): V2 saves (13) too.
-  check(SCHEMA_REV === 19 && msg ===`no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
+  check(SCHEMA_REV === 20 && msg ===`no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
 }
 // Model v3 V4a (schemaRev 16): a V3b save (15) migrates (customer stocks start empty, versions get their FLOP per token).
 {
@@ -330,6 +330,21 @@ for (const rev of [1, 11, 12, 13, 14]) {
   check(ok, 'save: a schemaRev-18 save migrates to 19 (paid-seat share per sector, 0 < σ < 1)', msg);
   if (g) for (let i = 0; i < 3; i++) tick(g);
   check(!!g && Object.values(g.world.sectors.US).every((st) => Number.isFinite(st.seat) && st.seat > 0), 'save: after the 18 → 19 migration the seat stocks move on the next ticks');
+}
+
+// Model v3 B4 (schemaRev 20): an A2c save (19) migrates (no project on auto teams wanted).
+{
+  const old = JSON.parse(serialize(run(detSetup, 30))) as GameStateV2 & Record<string, unknown>;
+  old.schemaRev = 19;
+  delete (old.player.research as Partial<typeof old.player.research>).wantAuto;
+  let msg = '';
+  let g: GameStateV2 | undefined;
+  try {
+    g = deserialize(JSON.stringify(old));
+  } catch (e) {
+    msg = (e as Error).message;
+  }
+  check(!!g && Array.isArray(g.player.research.wantAuto) && g.player.research.wantAuto.length === 0, 'save: a schemaRev-19 save migrates to 20 (no project on auto teams wanted)', msg);
 }
 
 // ---------- 6. Cadences ----------

@@ -43,6 +43,13 @@ type Fitted = Pick<ModelVersion, 'pm' | 'build'>;
 export const h100eHoursPer = (fpt: number, tok: TokenProfile) => (fpt * (tok.input / U_PREFILL + tok.output / U_DECODE)) / PEAK_FLOPS / 3600;
 /** $ per H100e-hour of serving (the market rental: what the chip-hour would fetch). */
 export const serveDollarsPerHour = (s: GameStateV2) => dollarsPerH100eHour(s);
+/** B4 (readout only): serving cost of a model at FLOP per token `fpt` for one hour of use (an assisted work-hour,
+ *  TOKENS.assisted) and one agent-hour (TOKENS.autonomous), at today's $ per H100e-hour; before any markup or feature
+ *  token multiplier. */
+export function useHourCost(s: GameStateV2, fpt: number): { hour: number; agentHour: number; perH100eHour: number } {
+  const usd = serveDollarsPerHour(s);
+  return { hour: h100eHoursPer(fpt, TOKENS.assisted) * usd, agentHour: h100eHoursPer(fpt, TOKENS.autonomous) * usd, perH100eHour: usd };
+}
 
 /** Effort's reasoning-token multiplier and its compute-equivalent fit gain (R20 C3: +0.4 OOM per ×10, capped). */
 export const effortTokens = (e: Deployment['effort']) => EFFORT_TOKENS[e] ?? 1;

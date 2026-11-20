@@ -12,7 +12,7 @@ import * as F from '../fmt';
 import { ICON, TRAIT_ICON } from '../icons';
 import { C, STATE_COLOR } from '../theme';
 import { SpeedControl } from './SpeedControl';
-import { catRisk, divisionBudget, nearestRival, runwayLive } from './selectors';
+import { catRisk, customerCount, customerShare, divisionBudget, nearestRival, runwayLive } from './selectors';
 
 export { catRisk, nearestRival, runwayLive };
 
@@ -190,7 +190,8 @@ function CashChip({ s }: { s: GameStateV2 }) {
   );
 }
 
-/** Revenue run-rate (L0 home, STRUCTURE §5): revenue only; customers and weekly users live in the tooltip. */
+/** Revenue run-rate (L0 home, STRUCTURE §5): revenue only; per product its customers (Chat: weekly users and paying;
+ *  seats where sold; otherwise the customer share → target, B4) live in the tooltip. */
 function RevenueChip({ s }: { s: GameStateV2 }) {
   const f = s.player.finance;
   const big = s.player.board.preset === 'parent';
@@ -202,7 +203,7 @@ function RevenueChip({ s }: { s: GameStateV2 }) {
       const now = rows.reduce((a, x) => a + x.r.revenue, 0);
       return (
         <TipCard title={<Term id="revenueRun">Revenue · 30-day average</Term>} value={F.money(f.revenueRun, { perYear: true })} rows={[
-          ...rows.map(({ d, r }) => ({ label: <span>{PRODUCT_DEFS[d.channel]?.name ?? d.channel} now <span className="dim">· {F.count(r.customers)} {PRODUCT_DEFS[d.channel]?.customers ?? ''}</span></span>, value: F.money(r.revenue, { perYear: true }) })),
+          ...rows.map(({ d, r }) => ({ label: <span>{PRODUCT_DEFS[d.channel]?.name ?? d.channel} now <span className="dim">· {customerCount(r) ?? customerShare(r)}</span></span>, value: F.money(r.revenue, { perYear: true }) })),
           { label: <b><Term id="revenueNow">All products, now</Term></b>, value: <b>{F.money(now, { perYear: true })}</b> },
         ]} footer={big ? 'A division books revenue to its parent.' : 'The 30-day average is what the board and investors judge; it trails the figure now.'}>Annualised revenue of your live products, averaged over 30 days. Click for Products.</TipCard>
       );

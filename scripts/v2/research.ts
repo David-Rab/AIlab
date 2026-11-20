@@ -188,6 +188,40 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
   check(!!team, 'fixture: capability science teams exist');
 }
 
+// ---------- B4: "auto" teams wanted ----------
+{
+  // Six capability science teams on three projects: one fixed at 1 team, two on auto. The fixed project gets exactly its
+  // number, each auto project at least one team, and the spare teams go to the auto projects (none idle, none to the
+  // fixed project) where they add the most progress; with every project fixed at 1 the spares all join the top project.
+  const t = mk(2);
+  const others = t.player.teams.filter((x) => !(x.role === 'sci' && x.dept === 'cap'));
+  const cols = ['pretraining', 'posttraining', 'systems', 'pretraining', 'posttraining', 'systems'] as const;
+  const teams: Team[] = cols.map((c, i) => ({ id: `A${i}`, role: 'sci', dept: 'cap', size: 40, heads: 40, quality: 'strong', specialty: c }));
+  t.player.teams = [...others, ...teams];
+  const projs = ['L.scale', 'L.data', 'L.rlalg'];
+  t.player.research.queue = [...projs];
+  for (const id of projs) t.player.research.want[id] = 1;
+  const fixed = planAssignment(t, projs);
+  t.player.research.wantAuto = ['L.data', 'L.rlalg'];
+  const auto = planAssignment(t, projs);
+  const n = (plan: typeof auto, id: string) => teams.filter((x) => plan.get(x.id)?.p === id).length;
+  const idle = teams.filter((x) => !auto.get(x.id)?.p).length;
+  const vF = assignmentValue(projs, teams.map((x) => ({ t: x, p: fixed.get(x.id)?.p })));
+  const vA = assignmentValue(projs, teams.map((x) => ({ t: x, p: auto.get(x.id)?.p })));
+  check(n(auto, 'L.scale') === 1 && n(auto, 'L.data') >= 1 && n(auto, 'L.rlalg') >= 1 && idle === 0 && n(fixed, 'L.scale') === 4,
+    'auto teams wanted: a fixed project gets its number, auto projects one team and then the spares; none idle',
+    `auto: ${projs.map((id) => `${id} ${n(auto, id)}`).join(', ')}; all fixed at 1: ${projs.map((id) => `${id} ${n(fixed, id)}`).join(', ')}`);
+  check(vA > vF, 'auto teams wanted: spreading the spares by fit beats piling them on the top project', `progress value ${vF.toFixed(3)} → ${vA.toFixed(3)}`);
+  check(teams.filter((x) => auto.get(x.id)?.p === 'L.data' || auto.get(x.id)?.p === 'L.rlalg').some((x) => /^Auto: /.test(auto.get(x.id)?.why ?? '')), 'auto teams wanted: a spare team says it is there on auto');
+  // The action: auto on, a number takes it off again; the view shows the placed count as the number.
+  const s2 = mk(3);
+  act(s2, 'research.queue', { id: 'L.scale' });
+  act(s2, 'research.want', { id: 'L.scale', auto: true });
+  const on = s2.player.research.wantAuto.includes('L.scale');
+  act(s2, 'research.want', { id: 'L.scale', n: 2 });
+  check(on && !s2.player.research.wantAuto.includes('L.scale') && s2.player.research.want['L.scale'] === 2, 'auto teams wanted: the action turns auto on, and a number turns it off', JSON.stringify(s2.player.research.wantAuto));
+}
+
 // ---------- overflow: research engineers and engineers ----------
 {
   const a = allocate(10, { order: ['ops', 'exp', 'tune'], max: { exp: 3 }, share: {} }, { ops: 2, exp: 8, tune: Infinity });

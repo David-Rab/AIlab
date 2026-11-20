@@ -20,7 +20,7 @@ import { agentVersion } from '../departments/agents';
 import { MILESTONE_NAMES } from './capability';
 import { versionById } from './labs';
 import {
-  allocate, attemptOdds, batchOf, capReCapacity, isCapProject, linePool, poolMean, reAllocation, reOpsNeed, sciOn, stagesOf, teamsWanted,
+  allocate, attemptOdds, batchOf, capReCapacity, isCapProject, linePool, poolMean, reAllocation, reOpsNeed, sciOn, stagesOf, teamsWanted, wantIsAuto,
 } from './research';
 import { adoptedAt, headroomAt, latestBaseFlop, rlCeilNow, rlMidNow, stackAt, trainNow } from './stacks';
 import { nodeStatus, projectReady } from './tree';
@@ -52,6 +52,8 @@ export interface CapProjectView {
   /** Rank among the capability projects (1 = top), 0 if not on the list. */
   rank: number;
   want: number;
+  /** B4: teams wanted is "auto" (the game picks by priority and fit); `want` is then the number placed. */
+  auto: boolean;
   teams: ProjectTeamView[];
   /** Science capacity and taste on it (taste: a Strong team without AI = 1). */
   sciCap: number;
@@ -193,7 +195,7 @@ export function capProjectView(s: GameStateV2, id: string): CapProjectView | und
   return {
     id, name: n.name, kind: n.kind ?? 'idea', column: n.column, area: COLUMN_LABEL[n.column], ...(eff?.stack ? { stack: eff.stack } : {}),
     unit: eff?.stack ? 'oom' : eff?.domains ? 'design' : 'unlock',
-    state, stage, stageFrac, ...(ready !== true && !known ? { wait: ready } : {}), rank, want: teamsWanted(s, id), teams,
+    state, stage, stageFrac, ...(ready !== true && !known ? { wait: ready } : {}), rank, want: wantIsAuto(s, id) ? teams.length : teamsWanted(s, id), auto: wantIsAuto(s, id), teams,
     sciCap: sci.cap, taste: sci.q, cands: st?.cands.length ?? 0, pickAt: PICK_AT,
     ...(belief ? { belief } : {}), ...(res ? { result: { est: res.est, estSd: res.estSd, day: res.day } } : {}),
     odds: attemptOdds(n, (st?.spec ?? 0) + (failed ? 1 : 0)), spec: st?.spec ?? 0, drops: st?.drops ?? 0, maxDrops: n.kind === 'line' ? 0 : MAX_DROPS,
