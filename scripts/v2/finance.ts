@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { BASELINES, globalCompute } from '../../src/data/world';
-import { CAPEX_LEASE, DEBT_TERMS, MARKET, PARTNER_TERMS } from '../../src/data/v2/deals';
+import { CAPEX_LEASE, DEBT_TERMS, GOV_FACTOR, MARKET, PARTNER_TERMS } from '../../src/data/v2/deals';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx, resolve, tick } from '../../src/engine/v2/core/loop';
 import { deserialize, serialize } from '../../src/engine/v2/core/save';
@@ -19,8 +19,10 @@ import { ACQUIRE, acquireTerms, acquireVotes, rivalObligations, shownVote } from
 import { FINANCE_ACTIONS, raiseQuote } from '../../src/engine/v2/finance/actions';
 import { boardVote, CRITICS, CRITICS_INVESTOR, criticsAvailable, debtVote, syncFinancialSeats, founderControl, initialBoard, OUSTER, ousterVote, updateRunwayState, VOTE } from '../../src/engine/v2/finance/board';
 import { MOOD_SOURCE_OF, MOOD_WEIGHTS, moodWeight } from '../../src/engine/v2/finance/mood';
-import { acceptRepriced, bookRound, closePendingRound, dMax, LARGE_ROUND, roundSplit, partnerEquityIn, raiseCeiling, REPRICED_DECIDE_DAYS, valuationMark, valuationNow } from '../../src/engine/v2/finance/equity';
+import { acceptRepriced, bookRound, closePendingRound, dMax, LARGE_ROUND, roundSplit, partnerEquityIn, raiseCeiling, REPRICED_DECIDE_DAYS } from '../../src/engine/v2/finance/equity';
+import { DUAL_CLASS_GOV, growthOf, openWeightFloor, playerGov, poolAnnualOf, sectorValue, STORY, storyNow, storyShares, SUPPLIER, supplierTerms } from '../../src/engine/v2/finance/story';
 import { whatWeOwe } from '../../src/engine/v2/finance/owe';
+import * as EQ from '../../src/engine/v2/finance/equity';
 import { credRung, judgePromises, livePromises, makeThesis, metricNow, PROMISE_RESULT, promiseDeadline, promiseWeight, trendOf, typicalRound } from '../../src/engine/v2/finance/promises';
 import { charterReleaseBlock, charterRights, controlVote, transferVote } from '../../src/engine/v2/finance/charter';
 import { affiliatedLab, anchorPartners, dealVotes, dealWith, firstYearCommit, ipAccessDaily, partnerBlocker, partnerCosts, partnerOffers, partnersNow, partnerStakeAfter, partnerTerms, rescuePartner, signPartner, termsEquity } from '../../src/engine/v2/finance/deals';
@@ -58,7 +60,9 @@ const share = (xs: boolean[]) => xs.filter(Boolean).length / Math.max(1, xs.leng
 const f1 = (x: number) => x.toFixed(1);
 const F1pct = (x: number) => `${Math.round(x * 100)}%`;
 
-interface QRow { day: number; year: number; shipped: number; stock: number; margin: number; supply: number }
+/** FIN5a: each quarter mark also records the story (sector value, the player's share and valuation, growth, a bust, the
+ *  split value of each trailing private rival with revenue: its share × S and run-rate). */
+interface QRow { day: number; year: number; shipped: number; stock: number; margin: number; supply: number; S: number; share: number; V: number; R: number; g: number; bust: boolean; trailing: { v: number; r: number }[] }
 /** FIN3b: versions the nonprofit PBC's safety committee held back (ready to release, red-flagged), and the days held. */
 interface Run { s: GameStateV2; q: QRow[]; firstDistress: number; gw2026: number; v2026: number; held: Set<string>; heldDays: number; pbcDays: number }
 
@@ -88,7 +92,11 @@ function runBot(seed: number, opts: AutopilotOpts | undefined, until: number): R
     }
     const quarter = cadencesDue(s.time.startDate, s.time.day + 1).includes('quarterly');
     tick(s, { skip: ['endings'] });
-    if (quarter) q.push({ day: s.time.day, year: Math.floor(decimalYear(s) + 1e-9), shipped: s.market.ws3.shipped, stock: s.market.ws3.stock, margin: impliedMargin(s.market), supply: s.market.supplyQ });
+    if (quarter) {
+      const st = storyNow(s);
+      const trailing = st.labs.filter((a) => a.id !== 'player' && a.revenue >= 1 && a.x.position < 0).map((a) => ({ v: st.sector.S * a.share, r: a.revenue }));
+      q.push({ day: s.time.day, year: Math.floor(decimalYear(s) + 1e-9), shipped: s.market.ws3.shipped, stock: s.market.ws3.stock, margin: impliedMargin(s.market), supply: s.market.supplyQ, S: st.sector.S, share: st.share, V: s.player.finance.valuation, R: s.player.finance.revenueRun, g: st.me?.growth ?? 1, bust: st.sector.bust < 1, trailing });
+    }
     if (firstDistress < 0 && (s.player.finance.state === 'distress' || s.player.finance.state === 'insolvent')) firstDistress = s.time.day;
     if (s.time.day === END_2026 - 1) {
       const liveMW = s.player.sites.reduce((a, x) => a + (x.stage === 'live' ? x.mw : 0), 0);
@@ -185,11 +193,21 @@ check(share(x2.map((r) => r.firstDistress >= 0 && r.firstDistress < END_2027)) >
 
 // ───────────────────────────── F9: valuation, rounds, shocks ─────────────────────────────
 {
-  const mult = (g: number, R: number) => valuationMark(g, R, 1, 1, 1) / R;
-  const grid = [[5, 5], [5, 14], [8, 47], [10, 20], [10, 5]].map(([g, R]) => mult(g, R));
-  check(grid.every((m) => m >= 20 && m <= 37), 'F9 valuation multiple 20–37× at g 5–10 (C11)', grid.map((m) => f1(m)).join(', '));
-  const low = mult(2.5, 10);
-  check(low >= 15 && low <= 20, 'F9 valuation multiple ~15–20× at g ≈ 2.5 (C11)', f1(low));
+  // FIN5a (spec §1, §14): the valuation is the story split (sector value × share), no longer a revenue-multiple
+  // formula, so FC1 and FC2 are checked on the RefBot's quarter marks instead of a formula grid (rewritten: the
+  // formula and its narrative premium N are gone).
+  const s0 = median(ref.map((r) => sectorValue(newGame(defaultSetupV2({ seed: r.s.setup.seed }))).S));
+  const late = median(ref.map((r) => { const a = r.q.find((x) => x.day >= dayOfDate(START, '2026-10-01')); const b = r.q.find((x) => x.day >= dayOfDate(START, '2027-01-01')); return a && b ? (a.S + b.S) / 2 : NaN; }).filter(Number.isFinite));
+  check(s0 >= 550 && s0 <= 800 && late >= 2200 && late <= 3300, 'F9 (FC1) sector value ≈ $0.6–0.7T at the Jul 2025 start and ≈ $2.5–3T in late 2026 (mean of the Oct and Jan marks), RefBot path', `start median ${f1(s0)}B · late 2026 median ${f1(late)}B`);
+  const marks = ref.flatMap((r) => r.q.filter((x) => x.year <= 2027 && !x.bust && x.R >= 1));
+  const hi = marks.filter((x) => x.g >= 2.5).map((x) => x.V / x.R);
+  const lo = marks.filter((x) => x.g < 2.5).map((x) => x.V / x.R);
+  check(median(hi) >= 20 && median(hi) <= 37, 'F9 (FC2) leader-style multiple 20–37× run-rate at high growth (RefBot marks with ×2.5+ a year, no bust, through 2027)', `median ${f1(median(hi))}× over ${hi.length} marks (slower growth: ${f1(median(lo))}× over ${lo.length})`);
+  const tr = marks.flatMap((x) => x.trailing.map((t) => t.v / t.r));
+  // FC2's "trailing labs lower" is read on growth here (C11: ≈ 15–20× at ×2–3 a year): rivals keep their old
+  // valuations until FIN5b, and the split values a small rival through position and capacity, not revenue size, so their
+  // split multiples are printed for FIN5b, not checked.
+  check(lo.length > 0 && median(lo) < median(hi), 'F9 (FC2) the leader-style lab is valued at a lower multiple when its growth is slower (C11)', `×2.5+ a year ${f1(median(hi))}× · slower ${f1(median(lo))}× · trailing private rivals' split (FIN5b) median ${f1(median(tr))}× over ${tr.length} lab-marks`);
   const dil = ref.flatMap((r) => r.s.player.finance.rounds.filter((x) => !x.anchor && !x.down).map((x) => x.dilution));
   check(dil.length > 0 && Math.max(...dil) <= 0.08 + 1e-9, 'F9 unanchored round dilution ≤ 8% (C12)', `max ${f1(Math.max(...dil) * 100)}% over ${dil.length} rounds`);
   const s = newGame(defaultSetupV2({ seed: 3 }));
@@ -398,6 +416,9 @@ for (const a of FINANCE_ACTIONS) {
     act(s, 'fin.raise', { ask: 50, type: 'adoption', pitch: 'conservative' });
     s.player.finance.ws3.pendingRound!.max = 1e6; // isolate the stacking from the closing odds
     while (s.player.finance.ws3.pendingRound) tick(s, { skip: ['endings'] });
+    // FIN5a: the conservative pitch (×0.85) can price under the first round's post-money at the close (the story mark
+    // moves half-way each quarter), which waits for the CEO as a repriced down round: accept it.
+    if (s.player.finance.ws3.repricedRound) acceptRepriced(s, makeCtx(s));
     const live = livePromises(s);
     const p2 = live[live.length - 1];
     check(!err && !!th && th.type === 'scale' && live.length === n0 + 2 && p1.deadline === promiseDeadline(s, p1.closeDay) && quarterIndex(s.time.startDate, p1.deadline) - quarterIndex(s.time.startDate, p1.closeDay) === 4, 'FIN2 each round leaves a promise due four quarter starts after its close; promises stack', `${live.length - n0} live: ${live.slice(-2).map((p) => `${p.type}/${p.pitch} due day ${p.deadline}`).join(', ')}`);
@@ -433,16 +454,16 @@ for (const a of FINANCE_ACTIONS) {
     check(met.o === 'met' && Math.abs(met.dc - 30) < 1e-9 && Math.abs(met.db - PROMISE_RESULT.metBoard * k) < 1e-9 && near.o === 'near' && near.dc === 0 && near.db === 0 && miss.o === 'missed' && Math.abs(miss.dc + 30) < 1e-9 && Math.abs(miss.db - PROMISE_RESULT.missBoard * k) < 1e-9 && met.cash === 0 && miss.cash === 0, `FIN2/FIN3a at its deadline a promise met moves credibility +30 / board +${PROMISE_RESULT.metBoard} × the board's weight, missed by > 20% −30 / −${Math.abs(PROMISE_RESULT.missBoard)} ×, within 20% nothing (× weight); never cash`, `board weight ×${k} · met ${met.dc}/${f1(met.db)} · near ${near.dc}/${near.db} · missed ${miss.dc}/${f1(miss.db)}`);
   }
   {
-    // Credibility multiplies the valuation mark (interim): Doubted ×0.7 … Proven ×1.15; start values by start type.
+    // Credibility (FIN5a: moved from the mark into the story share) multiplies the lab's weight: Doubted ×0.7 … Proven
+    // ×1.15, so the valuation moves with it (less than proportionally: the share is a softmax); start values by start
+    // type. (Rewritten: FIN2's interim multiplied the valuation mark itself.)
     const s = fx();
-    s.player.finance.credibility = 60;
-    const v1 = valuationNow(s).V;
-    s.player.finance.credibility = 10;
-    const v0 = valuationNow(s).V;
-    s.player.finance.credibility = 90;
-    const v2 = valuationNow(s).V;
+    const at = (c: number) => { s.player.finance.credibility = c; const st = storyNow(s); return { w: st.me!.weight, V: st.V }; };
+    const v1 = at(60);
+    const v0 = at(10);
+    const v2 = at(90);
     const starts = (['leader', 'challenger', 'spinout'] as const).map((st) => newGame(defaultSetupV2({ seed: 1, start: st })).player.finance.credibility);
-    check(Math.abs(v0 / v1 - 0.7) < 1e-9 && Math.abs(v2 / v1 - 1.15) < 1e-9 && starts.join(',') === '60,50,40' && credRung(60).id === 'Credible' && credRung(40).id === 'Unproven', 'FIN2 credibility multiplies the mark (Doubted ×0.7, Proven ×1.15); start: leader 60, challenger 50, spinout 40', `starts ${starts.join('/')}`);
+    check(Math.abs(v0.w / v1.w - 0.7) < 1e-9 && Math.abs(v2.w / v1.w - 1.15) < 1e-9 && v0.V < v1.V && v1.V < v2.V && starts.join(',') === '60,50,40' && credRung(60).id === 'Credible' && credRung(40).id === 'Unproven', "FIN2/FIN5a credibility multiplies the lab's weight in the share (Doubted ×0.7, Proven ×1.15), so the valuation; start: leader 60, challenger 50, spinout 40", `V Doubted ${f1(v0.V)}B · Credible ${f1(v1.V)}B · Proven ${f1(v2.V)}B · starts ${starts.join('/')}`);
   }
   {
     // Down rounds cost the board and prior holders, never staff (spec §0.3).
@@ -470,9 +491,8 @@ for (const a of FINANCE_ACTIONS) {
     while (s.player.finance.ws3.pendingRound) tick(s, { skip: ['endings'] });
     s.player.finance.state = 'healthy';
     const again = FINANCE_ACTIONS.find((a) => a.id === 'fin.ipo')!.available(s);
-    const v = valuationNow(s);
     const r = s.player.finance.rounds[s.player.finance.rounds.length - 1];
-    check(avail === true && !err && r.ipo === true && ask / (V0 + ask) <= 0.05 + 1e-9 && s.player.finance.ownership.public > 0 && s.player.finance.dualClass === true && v.gov === 0.95 && founderControl(s) && typeof again === 'string' && s.player.board.seats.some((x) => x.holder === 'Listing independent') && livePromises(s).every((p) => p.closeDay !== r.day), 'FIN2 the IPO is a one-time action (≤ 5%, no promise); dual-class keeps founder control at valuation ×0.95', `ask $${f1(ask)}B = ${F1pct(ask / (V0 + ask))} at signing · public ${F1pct(s.player.finance.ownership.public)} at close · again: ${again}`);
+    check(avail === true && !err && r.ipo === true && ask / (V0 + ask) <= 0.05 + 1e-9 && s.player.finance.ownership.public > 0 && s.player.finance.dualClass === true && Math.abs(playerGov(s) - GOV_FACTOR.founder * DUAL_CLASS_GOV) < 1e-12 && founderControl(s) && typeof again === 'string' && s.player.board.seats.some((x) => x.holder === 'Listing independent') && livePromises(s).every((p) => p.closeDay !== r.day), 'FIN2 the IPO is a one-time action (≤ 5%, no promise); dual-class keeps founder control at governance ×0.95 (FIN5a: on the share)', `ask $${f1(ask)}B = ${F1pct(ask / (V0 + ask))} at signing · public ${F1pct(s.player.finance.ownership.public)} at close · again: ${again}`);
     const t = fx();
     t.player.board.preset = 'founder';
     t.player.finance.ownership.public = 0.05;
@@ -1064,9 +1084,13 @@ for (const a of FINANCE_ACTIONS) {
     s.player.board.confidence = 90;
     check(/Distress: only a rescue/.test(partnerBlocker(s, 'Azimuth') ?? ''), 'FIN4a in distress only a rescue is on offer');
     const seats0 = s.player.board.seats.length;
+    // FIN5a: the stake is the top-up to 30%, or more when the rescuer's own cash already takes it past (a legacy holder
+    // near 30%, at the day-400 fixture's lower story mark): what the offer's stake-after says.
+    const rp = rescuePartner(s)!;
+    const after = partnerStakeAfter(s, partnerTerms(s, rp, { rescue: true }));
     const err = act(s, 'fin.rescue', {});
     const d = s.player.finance.deals.find((x) => x.rescue);
-    check(!err && !!d && d.strings.boardVotes === 2 && !!d.strings.exclusivity && Object.keys(d.strings).sort().join(',') === 'boardVotes,exclusivity' && near(s.player.finance.ownership.strat[d.partner], PARTNER_TERMS.rescue.stake, 1e-6) && s.player.board.seats.length === seats0 + 1 && s.player.board.seats.some((x) => x.holder === d.partner && x.weight === 2), 'FIN4a rescue: a 30% stake, a board seat with two votes and exclusivity (no inert IP flag)', `${err ?? ''} ${d?.partner} ${F1pct(s.player.finance.ownership.strat[d?.partner ?? ''] ?? 0)}`);
+    check(!err && !!d && d.strings.boardVotes === 2 && !!d.strings.exclusivity && Object.keys(d.strings).sort().join(',') === 'boardVotes,exclusivity' && near(s.player.finance.ownership.strat[d.partner], Math.max(PARTNER_TERMS.rescue.stake, after), 1e-6) && after >= PARTNER_TERMS.rescue.stake - 1e-9 && s.player.board.seats.length === seats0 + 1 && s.player.board.seats.some((x) => x.holder === d.partner && x.weight === 2), 'FIN4a rescue: a 30% stake, a board seat with two votes and exclusivity (no inert IP flag)', `${err ?? ''} ${d?.partner} ${F1pct(s.player.finance.ownership.strat[d?.partner ?? ''] ?? 0)}`);
   }
   {
     // Save migration 15 → 16: old template records become partner records; inert strings, offers, vendor notes and
@@ -1605,7 +1629,124 @@ for (const a of FINANCE_ACTIONS) {
     const l = m.player.finance.ledger.find((c) => c.id === 'L-fin-S2');
     const name = contingentLiabilities(m).items.map((i) => i.name);
     const pr = m.player.finance.promises.find((p) => p.id === 'PRm');
-    check(m.schemaRev === 18 && !!l && l.rate === 0.1 && name.includes('Abilene South') && near(pr?.typical ?? 0, typicalRound(800, 0.08)), 'FIN4r L12 save migration 17 → 18: old SPV/JV leases are keyed by their site (named in What we owe), the JV at 10%; live promises get their typical round', `${name.join(', ')} · rate ${l?.rate} · typical $${f1(pr?.typical ?? 0)}B`);
+    check(m.schemaRev >= 18 && !!l && l.rate === 0.1 && name.includes('Abilene South') && near(pr?.typical ?? 0, typicalRound(800, 0.08)), 'FIN4r L12 save migration 17 → 18: old SPV/JV leases are keyed by their site (named in What we owe), the JV at 10%; live promises get their typical round', `${name.join(', ')} · rate ${l?.rate} · typical $${f1(pr?.typical ?? 0)}B`);
+  }
+}
+// ───────────────────────────── FIN5a: the story (sector value × share), the pool, supplier terms ─────────────────────────────
+{
+  const fx = (): GameStateV2 => deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
+  const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math.max(1, Math.abs(b));
+  {
+    // The old formula and its narrative premium are gone; the quarterly mark is S × the mark's share (half-way from the
+    // last mark to today's story), booked as two causes that sum to the change.
+    // (The full-story share is read from the same quarter run with blend = 1 on a copy: same state, same draws.)
+    const full = fx();
+    const knob = STORY as unknown as { blend: number };
+    const b0 = knob.blend;
+    knob.blend = 1;
+    capitalQSystem.run(full, makeCtx(full));
+    knob.blend = b0;
+    const s = fx();
+    const last = s.player.finance.ws3.mark!;
+    const V0 = s.player.finance.valuation;
+    const story = storyNow(s);
+    const ctx = makeCtx(s);
+    capitalQSystem.run(s, ctx);
+    const st = { share: full.player.finance.ws3.mark!.share, sector: { S: s.player.finance.ws3.mark!.S } };
+    const mk = s.player.finance.ws3.mark!;
+    const want = last.share + STORY.blend * (st.share - last.share);
+    check(!('narrative' in s.player.finance) && !('valuationMark' in EQ) && !('valuationNow' in EQ) && near(mk.share, want, 1e-9) && near(s.player.finance.valuation, st.sector.S * want, 1e-9) && story.me !== undefined, 'FIN5a the valuation is the story: V = sector value × share, the mark moving half-way from the last mark to today\'s share (no formula, no narrative premium)', `${f1(V0)}B → ${f1(s.player.finance.valuation)}B · share ${F1pct(last.share)} → ${F1pct(mk.share)} (story ${F1pct(st.share)}) · S ${f1(st.sector.S)}B`);
+  }
+  {
+    // Sector value: κ · R^α · Φ(L) · mood; mood = H × M × bust (×0.4 while busted).
+    const s = fx();
+    const v = sectorValue(s);
+    const want = STORY.kappa * Math.pow(v.R, STORY.alpha) * Math.pow(v.L / STORY.phiRef, STORY.phi) * s.capital.hype * Math.exp(-0.12 * (s.capital.y10 - 4.5));
+    s.capital.busted = { day: s.time.day, recoverDay: s.time.day + 365 };
+    const b = sectorValue(s);
+    check(near(v.S, want, 1e-9) && near(b.S, v.S * STORY.bust, 1e-9) && b.mood < v.mood, 'FIN5a sector value = κ_S · R_sector^α · Φ(L_frontier) · mood (hype × rates × bust ×0.4)', `R ${f1(v.R)}B · L ${v.L.toFixed(2)} · Φ ${v.phi.toFixed(2)} · mood ${v.mood.toFixed(2)} → S ${f1(v.S)}B (bust ${f1(b.S)}B)`);
+  }
+  {
+    // Share: a softmax over the private labs only (player + rivals with a private valuation); credibility and
+    // governance multiply each lab's weight; dual-class × 0.95; rivals keep their old valuations (FIN5b).
+    const s = fx();
+    const labs = storyShares(s);
+    const priv = s.rivals.filter((r) => r.core.status === 'active' && r.finance.valuation > 0).map((r) => r.core.id);
+    const sum = labs.reduce((a, x) => a + x.share, 0);
+    const me = labs[0];
+    const ok = labs.every((a) => near(a.weight, a.cred * a.gov * Math.exp(a.z / STORY.tau), 1e-9) && near(a.z, a.x.position * STORY.weights.position + a.x.momentum * STORY.weights.momentum + a.x.economics * STORY.weights.economics + a.x.capacity * STORY.weights.capacity, 1e-9));
+    const w0 = me.weight;
+    s.player.finance.dualClass = true;
+    const w1 = storyShares(s)[0].weight;
+    const rv = s.rivals.map((r) => r.finance.valuation).join(',');
+    capitalQSystem.run(s, makeCtx(s));
+    check(me.id === 'player' && labs.length === priv.length + 1 && labs.slice(1).every((a) => priv.includes(a.id)) && near(sum, 1, 1e-9) && ok && near(w1 / w0, DUAL_CLASS_GOV, 1e-9) && near(me.gov, GOV_FACTOR[s.player.board.preset], 1e-9) && s.rivals.map((r) => r.finance.valuation).join(',') === rv, 'FIN5a share = cred · gov · exp(z/τ) ÷ Σ over the private labs (big-tech and parent-funded labs out); dual-class ×0.95 on the weight; rivals keep their own valuations (FIN5b)', `${labs.map((a) => `${a.id} ${F1pct(a.share)}`).join(' · ')}`);
+  }
+  {
+    // Drivers: position against the best public model of any other lab, in 2-level units; a lab with no public model
+    // sits at the best open-weight model; pre-revenue: momentum ×1 (log 0), economics at the field's (x = 0).
+    const sp = newGame(defaultSetupV2({ seed: 1, start: 'spinout' }));
+    const st = storyNow(sp);
+    const me = st.me!;
+    const best = Math.max(...sp.rivals.filter((r) => r.core.status === 'active').map((r) => r.publicModel?.Lg ?? 0));
+    const fl = openWeightFloor(sp);
+    check(me.floored && near(me.level, fl, 1e-9) && near(me.x.position, Math.max(-3, (fl - best) / STORY.posScale), 1e-9) && me.growth === 1 && me.margin === null && me.x.economics === 0 && growthOf(0, [0, 0, 0, 0]) === 1, 'FIN5a a lab without a public model sits at the best open-weight model; a pre-revenue lab has momentum ×1 and the field\'s economics', `level ${me.level.toFixed(2)} vs best ${best.toFixed(2)} → x ${me.x.position.toFixed(2)} · momentum x ${me.x.momentum.toFixed(2)} · capacity x ${me.x.capacity.toFixed(2)}`);
+    // Start valuations from the split: a pre-revenue spinout is valued through position (SSI $32B, TML $12B), the
+    // challenger near Anthropic's $61.5B, the leader near OpenAI's $300B (median of seeds 1–6).
+    const V = (start: 'leader' | 'challenger' | 'spinout') => median([1, 2, 3, 4, 5, 6].map((seed) => newGame(defaultSetupV2({ seed, start })).player.finance.valuation));
+    const v = { leader: V('leader'), challenger: V('challenger'), spinout: V('spinout') };
+    check(v.spinout >= 10 && v.spinout <= 80 && v.challenger >= 40 && v.challenger <= 200 && v.leader >= 200 && v.leader <= 500 && st.V > 0, 'FIN5a start valuations from the split: spinout (pre-revenue) $10–80B, challenger $40–200B, leader $0.2–0.5T (medians, seeds 1–6; 2025 marks: TML $12B, SSI $32B, Anthropic $61.5–183B, OpenAI $300–500B)', `spinout ${f1(v.spinout)}B · challenger ${f1(v.challenger)}B · leader ${f1(v.leader)}B`);
+  }
+  {
+    // The pool: π · S a year × the IPO bump, split by the mark's share; the player's unused part carries 50%.
+    const s = fx();
+    s.capital.ipoWindow = false;
+    const unused = Math.max(0, s.capital.ws3.playerPoolQ - s.capital.ws3.playerTakenQ);
+    capitalQSystem.run(s, makeCtx(s));
+    const S = s.player.finance.ws3.mark!.S;
+    const W = 1 + (s.capital.ipoWindow ? STORY.ipoBump : 0);
+    check(near(s.capital.poolAnnual, STORY.pi * S * W, 1e-9) && near(s.capital.carry, STORY.carry * unused, 1e-9) && near(s.capital.ws3.playerPoolQ, s.player.finance.ws3.mark!.share * (s.capital.poolAnnual / 4 + s.capital.carry), 1e-9) && poolAnnualOf(s, S) === s.capital.poolAnnual, 'FIN5a investor pool = π · sector value a year (× the IPO window\'s bump), split by your share; unused carries 50%', `pool ${f1(s.capital.poolAnnual)}B/yr · yours ${f1(s.capital.ws3.playerPoolQ)}B this quarter`);
+  }
+  {
+    // Supplier terms follow equity access: a lab with a small share or a short runway prepays more, on a batch's
+    // deposit and on a supply contract's first delivery (partner supply too); the preview is what is booked.
+    const s = fx();
+    s.capital.ws3.playerShare = 0.6;
+    s.player.finance.runwayQ = 8;
+    const strong = supplierTerms(s);
+    s.capital.ws3.playerShare = 0.05;
+    s.player.finance.runwayQ = 2;
+    const weak = supplierTerms(s);
+    const qb = chipQuote(s, 1, 0.2e6, {});
+    const qt = chipQuote(s, 4, 0.1e6, {});
+    const cash0 = s.player.finance.cash;
+    const pv = FINANCE_ACTIONS.find((a) => a.id === 'cmp.buyChips')!.preview(s, { term: 4, qty: 0.1e6 });
+    const err = act(s, 'cmp.buyChips', { term: 4, qty: 0.1e6 });
+    const o = s.player.orders[s.player.orders.length - 1];
+    const first = s.player.finance.ledger.find((c) => c.id === `L-${o.id}-0`);
+    const prepaidLine = pv.costs.find((c) => /prepaid now/.test(String(c.target)));
+    check(strong.batch === SUPPLIER.base && strong.firstDelivery === 0 && weak.batch > 0.8 && near(qb.prepay, weak.batch, 1e-12) && near(qt.now, weak.firstDelivery * qt.prices![0] * 0.1, 1e-9) && !err && near(cash0 - s.player.finance.cash, qt.now, 1e-6) && !!first && near(first.perQuarter + qt.now, (0.1e6 * qt.prices![0]) / 1e6, 1e-9) && !!prepaidLine && near(-prepaidLine.amount, qt.now, 1e-9), 'FIN5a supplier terms = f(share, runway): 30% deposit for a lab investors fund easily, up to 100% for a small, short-runway lab; supply contracts prepay that premium on their first delivery (preview = booked)', `strong ${F1pct(strong.batch)} / ${F1pct(strong.firstDelivery)} · weak ${F1pct(weak.batch)} / ${F1pct(weak.firstDelivery)} · prepaid ${f1(qt.now)}B`);
+  }
+  {
+    // Migration 18 → 19: the narrative premium dropped, rival revenue histories seeded, the last mark read off the
+    // saved valuation (so the first mark moves half-way from it).
+    const s = fx();
+    const raw = JSON.parse(serialize(s));
+    raw.schemaRev = 18;
+    raw.player.finance.narrative = 1.5;
+    delete raw.capital.ws3.labRev;
+    delete raw.player.finance.ws3.mark;
+    const m = deserialize(JSON.stringify(raw));
+    const S = sectorValue(m).S;
+    const priv = m.rivals.filter((r) => r.core.status === 'active' && r.finance.valuation > 0);
+    check(m.schemaRev === 19 && !('narrative' in m.player.finance) && priv.every((r) => (m.capital.ws3.labRev?.[r.core.id]?.length ?? 0) === 4) && near(m.player.finance.ws3.mark!.share, Math.min(1, m.player.finance.valuation / S), 1e-9), 'FIN5a save migration 18 → 19: no narrative premium; rivals\' revenue histories seeded; the last mark read off the saved valuation', `share ${F1pct(m.player.finance.ws3.mark!.share)}`);
+  }
+  {
+    // The reference bot's equity a year stays in the 2025–26 range (OpenAI raised $40B in 2025, $122B in 2026).
+    const e25 = median(ref.map((r) => r.s.player.finance.ws3.years['2025']?.equity ?? 0));
+    const e26 = median(ref.map((r) => r.s.player.finance.ws3.years['2026']?.equity ?? 0));
+    const sh = median(ref.map((r) => r.q.find((x) => x.day >= dayOfDate(START, '2026-10-01'))?.share ?? NaN).filter(Number.isFinite));
+    check(e25 >= 5 && e25 <= 45 && e26 >= 50 && e26 <= 150, 'FIN5a RefBot equity raised a year in the 2025–26 range (H2 2025 $5–45B, 2026 $50–150B)', `2025 H2 ${f1(e25)}B · 2026 ${f1(e26)}B · story share Oct 2026 ${F1pct(sh)}`);
   }
 }
 console.log(`finance: ${FINANCE_ACTIONS.length} actions (${applied} applied on day400), no events`);

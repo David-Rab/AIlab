@@ -9,6 +9,7 @@ import { dateOf, dayOfDate, dayOfQuarter } from '../core/time';
 import type { BaselineId, ChipOrder, CloudContract, GameStateV2, Money, SystemCtx } from '../types';
 import { addLedger, qOf, yearStats, bookCash } from '../finance/ledger';
 import { cancellablePricePerYear, expectedCloudPrice, expectedListPrice, spotPrice } from './market';
+import { supplierTerms } from '../finance/story';
 
 /** Standard order of 1.0M H100e at $23K, 30% deposit paid, delivered Q4 2025 / Q1 2026 (§3.7.2). */
 export function initialOrders(baseline: BaselineId): ChipOrder[] {
@@ -41,10 +42,13 @@ export interface ChipQuote {
   price: number;
   /** Tranche prices ($K) per quarter, on the expected path × (1 − discount). */
   prices?: number[];
-  /** Cash due now (deposit), $B. */
+  /** Cash due now (deposit; tranches: the prepaid part of the first delivery, FIN5a), $B. */
   now: Money;
-  /** Balance due on delivery ($B; tranches: the first quarter's payment). */
+  /** Balance due on delivery ($B; tranches: the first quarter's payment less what was prepaid). */
   later: Money;
+  /** Share of the (first) delivery paid now: a batch's deposit (at least the supplier's terms, FIN5a), a supply
+   *  contract's prepaid first delivery; 0 for spot. */
+  prepay: number;
   /** Every payment over the contract ($B). */
   total: Money;
   /** Quarter index of the (first) delivery and the number of tranches. */
@@ -56,7 +60,10 @@ export interface ChipQuote {
 
 /** Quote for buying `qty` H100e (per tranche for tranche terms) on `term` (spec §5). Single batches are priced at the
  *  expected list price at delivery; tranches at the expected path × (1 − firm discount). Non-Taiwan supply +30%.
- *  `priceMult` scales the path for a partner's supply (FIN4a): its discount for the commitment, custom chips' cost. */
+ *  `priceMult` scales the path for a partner's supply (FIN4a): its discount for the commitment, custom chips' cost.
+ *  Supplier terms follow your equity access (spec §5, FIN5a, finance/story.ts supplierTerms): a batch's deposit is at
+ *  least their share (30% for a lab investors fund easily, up to 100%), and a supply contract (partner supply too)
+ *  prepays their premium on its first delivery. */
 export function chipQuote(s: GameStateV2, term: number, qty: number, opts: { nonTW?: boolean; prepay?: number; firm?: boolean; priceMult?: number } = {}): ChipQuote {
   const m = s.market;
   const mult = (opts.nonTW ? MARKET.nonTWPremium : 1) * (opts.priceMult ?? 1);
@@ -64,18 +71,21 @@ export function chipQuote(s: GameStateV2, term: number, qty: number, opts: { non
   if (term <= 0) {
     const price = spotPrice(m) * mult;
     const later = (qty * price) / 1e6;
-    return { kind: 'spot', price, now: 0, later, total: later, dueQ: q + 1, quarters: 1, discount: 0, firm: false };
+    return { kind: 'spot', price, now: 0, later, total: later, dueQ: q + 1, quarters: 1, discount: 0, firm: false, prepay: 0 };
   }
   if (term === 1) {
     const price = expectedListPrice(m, 2) * mult;
-    const prepay = Math.max(0.3, Math.min(1, opts.prepay ?? 0.3));
+    const min = supplierTerms(s).batch;
+    const prepay = Math.max(min, Math.min(1, opts.prepay ?? min));
     const total = (qty * price) / 1e6;
-    return { kind: 'standard', price, now: prepay * total, later: (1 - prepay) * total, total, dueQ: q + 2, quarters: 1, discount: 0, firm: !!opts.firm };
+    return { kind: 'standard', price, now: prepay * total, later: (1 - prepay) * total, total, dueQ: q + 2, quarters: 1, discount: 0, firm: !!opts.firm, prepay };
   }
   const quarters = Math.max(TRANCHE_Q.min, Math.min(TRANCHE_Q.max, Math.round(term)));
   const discount = firmDiscount(quarters);
   const prices = Array.from({ length: quarters }, (_, k) => expectedListPrice(m, 2 + k) * (1 - discount) * mult);
-  return { kind: 'lta', price: prices[0], prices, now: 0, later: (qty * prices[0]) / 1e6, total: (qty * prices.reduce((a, b) => a + b, 0)) / 1e6, dueQ: q + 2, quarters, discount, firm: true };
+  const prepay = supplierTerms(s).firstDelivery;
+  const first = (qty * prices[0]) / 1e6;
+  return { kind: 'lta', price: prices[0], prices, now: prepay * first, later: (1 - prepay) * first, total: (qty * prices.reduce((a, b) => a + b, 0)) / 1e6, dueQ: q + 2, quarters, discount, firm: true, prepay };
 }
 
 /**
@@ -90,15 +100,20 @@ export function placeOrder(s: GameStateV2, ctx: SystemCtx, term: number, qty: nu
   const n = s.player.orders.length;
   if (qt.kind === 'lta') {
     const id = `LTA${q}-${s.time.day}-${n}`;
-    const o: ChipOrder = { id, lab: 'player', qty, kind: 'lta', price: qt.price, prices: qt.prices, deposit: 0, dueQ: qt.dueQ, ltaStartQ: qt.dueQ, ltaEndQ: qt.dueQ + qt.quarters, prepayFrac: 0, nonTW: !!opts.nonTW, delivered: 0, firm: true };
+    const o: ChipOrder = { id, lab: 'player', qty, kind: 'lta', price: qt.price, prices: qt.prices, deposit: qt.now, dueQ: qt.dueQ, ltaStartQ: qt.dueQ, ltaEndQ: qt.dueQ + qt.quarters, prepayFrac: 0, nonTW: !!opts.nonTW, delivered: 0, firm: true };
     s.player.orders.push(o);
-    // One payment per tranche, in the tranche's quarter, at that quarter's price on the path.
-    qt.prices!.forEach((p, k) => addLedger(s, { id: `L-${id}-${k}`, contract: id, payee: opts.payee ?? 'Chip supply', kind: 'lta', perQuarter: (qty * p) / 1e6, startDay: dayOfQuarter(s.time.startDate, qt.dueQ + k), endDay: dayOfQuarter(s.time.startDate, qt.dueQ + k + 1), cancellableNoticeQ: null, penalty: 0 }));
+    // One payment per tranche, in the tranche's quarter, at that quarter's price on the path; the first less what the
+    // supplier's terms made you prepay now (FIN5a).
+    qt.prices!.forEach((p, k) => addLedger(s, { id: `L-${id}-${k}`, contract: id, payee: opts.payee ?? 'Chip supply', kind: 'lta', perQuarter: (qty * p) / 1e6 - (k === 0 ? qt.now : 0), startDay: dayOfQuarter(s.time.startDate, qt.dueQ + k), endDay: dayOfQuarter(s.time.startDate, qt.dueQ + k + 1), cancellableNoticeQ: null, penalty: 0 }));
+    if (qt.now > 0) {
+      bookCash(s, ctx, -qt.now, 'compute', 'chip deposit', `prepaid ${Math.round(qt.prepay * 100)}% of the first tranche`);
+      yearStats(s).capexChips += qt.now;
+    }
     const first = dateOf(s, dayOfQuarter(s.time.startDate, qt.dueQ));
     ctx.log('finance', `Signed ${qt.quarters} quarters of ${opts.payee ? `${opts.payee} ` : ''}chip supply: ${(qty / 1e6).toFixed(2)}M H100e a quarter at $${qt.prices![0].toFixed(1)}K falling to $${qt.prices![qt.quarters - 1].toFixed(1)}K (${Math.round(qt.discount * 100)}% firm discount). First tranche in Q${Math.floor(first.getUTCMonth() / 3) + 1} ${first.getUTCFullYear()}.`);
     return o;
   }
-  const prepay = qt.kind === 'standard' ? Math.max(0.3, Math.min(1, opts.prepay ?? 0.3)) : 0;
+  const prepay = qt.prepay;
   const pay = opts.pay ?? 'cash';
   const o: ChipOrder = {
     id: `O${s.time.day}-${n}`, lab: 'player', qty, kind: qt.kind, price: qt.price, deposit: qt.now, dueQ: qt.dueQ, prepayFrac: prepay, nonTW: !!opts.nonTW, delivered: 0,

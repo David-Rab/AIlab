@@ -34,7 +34,7 @@ export function CredBadge({ s }: { s: GameStateV2 }) {
     <span className="row-i small" data-test="investor-cred">
       <span className="dim"><Term id="investorCred">investor credibility</Term></span>
       <Why k="finance.credibility" title={<Term id="investorCred">Investor credibility</Term>} value={`${r.id} · ${Math.round(c)}`} fmt={(x) => x.toFixed(1)}
-        rows={[...CRED_RUNGS].reverse().map((x) => ({ label: `${x.id} ≥ ${x.min}`, value: `valuation ×${x.mult}`, tone: x.id === r.id ? ('pos' as const) : ('neutral' as const) }))}
+        rows={[...CRED_RUNGS].reverse().map((x) => ({ label: `${x.id} ≥ ${x.min}`, value: `share weight ×${x.mult}`, tone: x.id === r.id ? ('pos' as const) : ('neutral' as const) }))}
         body="Moved only by promises judged at their deadlines. Aggressive pitches need Credible or better.">
         <b className={`num ${tone}`} data-home="investorCred">{r.id} {Math.round(c)}</b>
       </Why>

@@ -11,9 +11,10 @@ import { TRUSTED_MAX_P27 } from '../../../data/v2/agents';
 import { partnerDef, PARTNER_TERMS } from '../../../data/v2/deals';
 import { initialAgents } from '../departments/agents';
 import { divisionOf } from '../finance/parent';
+import { sectorValue, seedLabRevenue } from '../finance/story';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
-export const SCHEMA_REV = 18;
+export const SCHEMA_REV = 19;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -313,6 +314,19 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       if (c.payee !== 'Keystone Capital' && c.rate === 0.12) c.rate = 0.1;
       c.id = `L-fin-${c.id.slice('L-spv-'.length)}`;
     }
+  },
+  /** 18 → 19 (finance v3 FIN5a): the valuation is the story split (sector value × share). The narrative premium N is
+   *  gone; private rivals get a revenue history (the last four quarters at the sector's ×3 a year, as at a new start);
+   *  the last mark is read off the saved valuation (share = valuation ÷ today's sector value), so the first mark after
+   *  loading moves half-way from it to the story like any other. */
+  18: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const f = s.player.finance;
+    delete (f as unknown as Record<string, unknown>).narrative;
+    ensureWs3(s);
+    seedLabRevenue(s);
+    const S = sectorValue(s).S;
+    if (f.valuation > 0 && S > 0) f.ws3.mark = { S, share: Math.min(1, f.valuation / S) };
   },
 };
 

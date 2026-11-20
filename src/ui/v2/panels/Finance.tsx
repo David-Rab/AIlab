@@ -1,5 +1,6 @@
 // Finance (IA.md L2; PROPOSALS §5): HOME of burn by category and net burn (waterfall), revenue run-rate, cash history,
-// raise ceiling and ask, the commitment ledger, board, ownership, valuation, markets, debt and deals. Cash and runway
+// raise ceiling and ask, the commitment ledger, board, ownership, markets, debt and deals. The valuation, the sector
+// value and your share live on the Story tab (FinanceStory.tsx, FIN5a). Cash and runway
 // live in the top strip (L0) and are never repeated here.
 import { useState, type ReactNode } from 'react';
 import {
@@ -17,6 +18,7 @@ import { PathCurve } from './Compute';
 import { ActBtn, Limit, CauseBars, Gate, SEAT_KIND_LABEL, Seg, Term, Tip, TipCard, Toggle, Why } from '../ui';
 import { MILESTONE_UI, OweCard, OweLink } from './FinanceOwe';
 import { ParentBudget } from './FinanceDivision';
+import { StoryCard } from './FinanceStory';
 import { Card, GoBtn, HBar, PanelHead, Pill, tabOf, Tabs } from '../kit';
 import * as F from '../fmt';
 import { ICON } from '../icons';
@@ -629,7 +631,7 @@ function Ownership({ s }: { s: GameStateV2 }) {
   };
   return (
     <Card title={<Term id="ownership">Who owns you</Term>} home="ownership"
-      right={<span className="row-i"><span className="dim small"><Term id="valuation">valuation</Term></span><Why k="player.finance.valuation" title="Valuation" value={F.money(f.valuation)} fmt={(x) => F.money(x)}><b className="num big" data-home="valuation">{F.money(f.valuation)}</b></Why></span>}>
+      right={<span className="row-i small" data-ref="valuation"><span className="dim"><Term id="valuation">valuation</Term> in Story</span><GoBtn to={{ panel: 'finance', tab: 'story' }} label="Story" testId="fin.go.story" /></span>}>
       <div className="own">
         <svg viewBox="0 0 120 120" width={128} height={128}>
           {parts.filter((p) => p.v > 0).map((p) => {
@@ -652,11 +654,9 @@ function Ownership({ s }: { s: GameStateV2 }) {
 function Markets({ s }: { s: GameStateV2 }) {
   const c = s.capital;
   return (
-    <Card title="Markets" home="markets">
-      <div className="mk-row"><ICON.taste size={14} /><Term id="hype">Hype</Term><span className="sp" /><HBar v={c.hype} max={2.5} w={90} color={C.cap} /><Tip content={() => <TipCard title={<Term id="hype">Hype</Term>} value={c.hype.toFixed(2)}>1 = normal investor appetite; higher makes raises easier.</TipCard>}><b className="num">{c.hype.toFixed(2)}</b></Tip></div>
+    <Card title="Markets" home="markets" sub="hype and the investor pool are in the Story card">
       <div className="mk-row"><ICON.alert size={14} className={c.bubbleX > 1.5 ? 'tone-warn' : ''} /><Term id="bubble">Bubble index</Term><span className="dim small">raises easier, crash risk rises</span><span className="sp" /><HBar v={c.bubbleX} max={3} w={90} color={C.watch} /><Tip content={() => <TipCard title={<Term id="bubble">Bubble index</Term>} value={c.bubbleX.toFixed(2)}>Above 1.5 a crash becomes likely.</TipCard>}><b className={`num ${c.bubbleX > 1.5 ? 'tone-warn' : ''}`}>{c.bubbleX.toFixed(2)}</b></Tip></div>
       <div className="mk-row"><ICON.debt size={14} /><Term id="rates">10y · SOFR</Term><span className="sp" /><Tip content={() => <TipCard title={<Term id="rates">Rates</Term>} rows={[{ label: '10-year Treasury', value: `${c.y10.toFixed(2)}%` }, { label: 'SOFR', value: `${c.sofr.toFixed(2)}%` }]}>Set the cost of your debt.</TipCard>}><b className="num">{c.y10.toFixed(2)}% · {c.sofr.toFixed(2)}%</b></Tip></div>
-      <div className="mk-row"><ICON.staff size={14} /><Term id="investorPool">Investor pool</Term><span className="sp" /><Tip content={() => <TipCard title={<Term id="investorPool">Investor pool</Term>} value={F.money(c.poolAnnual, { perYear: true })}>Money investors put into AI labs each year.</TipCard>}><b className="num">{F.money(c.poolAnnual, { perYear: true })}</b></Tip></div>
       <div className="mk-row"><ICON.milestone size={14} /><Term id="ipo">IPO window</Term><span className="sp" /><span className={`tag2 ${c.ipoWindow ? 'good' : ''}`}>{c.ipoWindow ? 'open' : 'closed'}</span></div>
       {c.busted && <div className="tone-neg small" style={{ marginTop: 6 }}>Bubble burst · recovers ≈ {fmtMonth(dateOf(s, c.busted.recoverDay))}</div>}
     </Card>
@@ -847,11 +847,13 @@ function PartnerOffer({ s, o, choice, setChoice }: { s: GameStateV2; o: ReturnTy
             ...(sp.costMult !== undefined ? [{ label: 'Custom-chip cost', value: `${F.pct(sp.costMult)} of an H100e` }] : []),
             { label: 'First year', value: F.money(sp.perQ.slice(0, 4).reduce((a, b) => a + b, 0)) },
             { label: <Term id="firmCommit">Take-or-pay</Term>, value: F.money(sp.total) },
+            ...(sp.prepaid ? [{ label: <Term id="supplierTerms">Prepaid at signing</Term>, value: F.money(sp.prepaid) }] : []),
           ]}>{sp.kind === 'cloud' ? 'Cloud capacity from next quarter, served first in a shortage, paid each quarter on the expected cloud price less both discounts.' : sp.kind === 'asic' ? 'Custom chips every quarter from a separate supply pool (outside rationing), priced on the expected list path.' : `Its chips every quarter, priced on the expected list path; while it supplies, every chip order gets +${MARKET.rationW.strategic} allocation weight.`}</TipCard>}>
             <span>{sp.kind === 'cloud' ? <><b className="num">{F.count(sp.h100e)}</b> H100e cloud · {sp.quarters / 4} y</> : <><b className="num">{F.count(sp.h100e)}</b> H100e a quarter × {sp.quarters}</>} · −{F.pct(sp.firmDiscount)} firm{sp.partnerDiscount > 0 ? ` −${F.pct(sp.partnerDiscount)} partner` : ''}{sp.costMult !== undefined ? ` · ${F.pct(sp.costMult)} of H100e cost` : ''}</span>
           </Tip>
           <PathCurve s={s} prices={sp.prices} unit="$" discount={sp.firmDiscount} firstQ={sp.startQ} />
           <Pill kind="cost" title="Every take-or-pay payment over the term, on the expected path. Owed whatever happens.">take-or-pay {F.money(sp.total)}</Pill>
+          {sp.prepaid ? <Pill kind="cost" title="Supplier terms: a lab with a small share of investor money or a short runway prepays part of the first delivery at signing (part of the take-or-pay total).">prepay {F.money(sp.prepaid)} now</Pill> : null}
         </div>
       )}
       <div className="pills"><Strings s={s} partner={o.partner} strings={t.strings} years={t.years} politics={t.politics} asic={sp?.kind === 'asic'} ipName={t.options.ipAccess.labName} />{t.kind === 'sovereign' && <Pill kind="neu" title="A passive cheque: no seat, no supply, no strings beyond the politics.">passive</Pill>}</div>
@@ -926,12 +928,13 @@ export function Finance({ s }: { s: GameStateV2 }) {
   const division = isDivision(s);
   // Jank F3: first glance = cash flow, cash history and the raise (or the parent budget); the rest on tabs.
   const tab0 = tabOf('finance', 'cash');
-  const tab = division && tab0 === 'deals' ? 'cash' : tab0; // a division has no debt or partners (FIN5c: its goals are in What we owe)
+  const tab = division && (tab0 === 'deals' || tab0 === 'story') ? 'cash' : tab0; // a division has no debt or partners (FIN5c: its goals are in What we owe)
   return (
     <div className="panel-v2 fin" data-panel="finance">
       <PanelHead icon={ICON.finance} title="Finance" sub={`per quarter unless marked · ${qLabel(s, qOf(s) + 1)} starts in ${dLeft} d`}
         tabs={<Tabs panel="finance" def="cash" tabs={[
           { id: 'cash', label: 'Cash', icon: ICON.cash },
+          ...(division ? [] : [{ id: 'story', label: 'Story', icon: ICON.valuation }]),
           { id: 'owe', label: 'What we owe', icon: ICON.commitment, badge: oweBadge(s) },
           { id: 'contracts', label: 'Contracts', icon: ICON.commitment },
           { id: 'owners', label: division ? 'Board' : 'Board & owners', icon: ICON.board },
@@ -956,13 +959,13 @@ export function Finance({ s }: { s: GameStateV2 }) {
         </Card>
       </div>
       </>}
+      {tab === 'story' && !division && <div className="fin-story"><StoryCard s={s} /><Markets s={s} /></div>}
       {tab === 'owe' && <div className="g2"><OweCard s={s} /></div>}
       {tab === 'contracts' && <div className="g2"><LockedIn s={s} /></div>}
       {tab === 'owners' && (
-        <div className="g3">
+        <div className="g2">
           <BoardCard s={s} />
           {!division && <Ownership s={s} />}
-          {!division && <Markets s={s} />}
         </div>
       )}
       {tab === 'deals' && !division && (

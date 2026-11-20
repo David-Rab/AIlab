@@ -930,6 +930,41 @@ ok('J1 C1: buy, build and rent show before → after (cash, runway)', await page
   await page.click('[data-tabs=finance] [data-tab=owe]'); await wait(150);
   ok('FIN4a: the partner\'s tranche conditions show in What we owe', /Azimuth tranche/.test(await page.evaluate(() => document.querySelector('[data-home=whatWeOwe]')?.textContent ?? '')));
 }
+// FIN5a (finance v3 §1, §5, §11): the Story card (sector value × your share → valuation, the share bar, the four
+// drivers with credibility and governance), the valuation's home, supplier terms on the Buy chips card.
+{
+  await page.evaluate((j) => window.ai27v2.importJson(j), fx);
+  await page.evaluate(() => { window.ai27v2.state.setup.tutorial = false; window.ai27v2.notify(); });
+  await nav('finance');
+  await page.click('[data-tabs=finance] [data-tab=story]'); await wait(150);
+  const eq = await page.evaluate(() => document.querySelector('[data-home=story] [data-test=story-eq]')?.textContent ?? '');
+  ok('FIN5a: the Story card shows sector value × your share → next mark, with the mood', /Sector/.test(eq) && /Your share/.test(eq) && /next mark/.test(eq) && /mood (cold|cool|normal|warm|hot|bust)/.test(eq), eq.slice(0, 120));
+  ok('FIN5a: the valuation\'s home is the Story card (Ownership links to it)', !!(await page.$('[data-home=story] [data-home=valuation]')) && (await page.$$('[data-home=valuation]')).length === 1);
+  const nLabs = JSON.parse(await get('1 + s.rivals.filter((r) => r.core.status === "active" && r.finance.valuation > 0).length'));
+  ok('FIN5a: the share bar has one segment per private lab, you first', (await page.$$('[data-home=story] [data-test=story-shares] [data-lab]')).length === nLabs && !!(await page.$('[data-home=story] [data-test=story-shares] [data-lab=player]:first-child')), String(nLabs));
+  const drv = await page.$$eval('[data-home=story] [data-test=story-drivers] [data-driver]', (els) => els.map((e) => e.getAttribute('data-driver')));
+  ok('FIN5a: four drivers plus credibility and governance, each with its × effect', drv.join(',') === 'position,momentum,economics,capacity,investorCred,govFactor' && /×\d\.\d\d/.test(await page.evaluate(() => document.querySelector('[data-driver=position]')?.textContent ?? '')), drv.join(','));
+  await page.hover('[data-home=story] [data-driver=position]'); await wait(450);
+  const tip = await page.evaluate(() => document.querySelector('.tip')?.textContent ?? '');
+  ok('FIN5a: a driver\'s tooltip says what it is, you vs the field and its effect', /You/.test(tip) && /Field/.test(tip) && /Effect on your weight/.test(tip), tip.slice(0, 120));
+  await clearTips();
+  ok('FIN5a: credibility on the Story card links to its home in What we owe', !!(await page.$('[data-home=story] [data-driver=investorCred] [data-ref=investorCred]')) && !(await page.$('[data-home=story] [data-home=investorCred]')));
+  await page.hover('[data-home=story] [data-home=valuation]'); await wait(450);
+  const why = await page.evaluate(() => document.querySelector('.tip')?.textContent ?? '');
+  ok('FIN5a: the valuation\'s why names the sector value and your share', /Sector value at the last mark/.test(why) && /Why it moved/.test(why), why.slice(0, 160));
+  await clearTips();
+  await shot('70-fin5a-story');
+  await page.click('[data-tabs=finance] [data-tab=owners]'); await wait(120);
+  ok('FIN5a: Ownership links to the valuation in Story', !!(await page.$('[data-home=ownership] [data-ref=valuation]')));
+  await nav('compute');
+  await tabTo('overview');
+  await page.evaluate(() => { const s = window.ai27v2.state; s.capital.ws3.playerShare = 0.05; s.player.finance.runwayQ = 2; window.ai27v2.notify(); });
+  await wait(120);
+  const sup = await page.evaluate(() => document.querySelector('[data-test=supplier-terms]')?.textContent ?? '');
+  ok('FIN5a: the Buy chips card shows the supplier terms a weak lab gets (deposit above 30%)', /supplier terms · deposit (\d+)%/.test(sup) && Number((sup.match(/deposit (\d+)%/) ?? [])[1]) > 30, sup);
+  await page.evaluate((j) => window.ai27v2.importJson(j), fx);
+  await page.evaluate(() => { window.ai27v2.state.setup.tutorial = false; window.ai27v2.notify(); });
+}
 // J2: engineers' load, spare serving, days cut, same-lineage monitors, risk lever what-ifs, launches on the build queue.
 await nav('company');
 await tabTo('people');

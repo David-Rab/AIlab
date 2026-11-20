@@ -55,8 +55,6 @@ export const TREND_SHORT_YEARS = 0.45;
 export const KEEP_JUDGED = 8;
 
 export const credRung = (c: number): (typeof CRED_RUNGS)[number] => [...CRED_RUNGS].reverse().find((r) => c >= r.min) ?? CRED_RUNGS[0];
-/** Valuation multiplier of the player's credibility (FIN2 interim: it multiplies the formula mark). */
-export const credMult = (s: GameStateV2) => credRung(s.player.finance.credibility ?? 50).mult;
 
 /** The milestone metric now: public level (capability), H100e online that you own or hold on firm contracts (scale;
  *  FIN4r L6: no spot rentals or cancellable cloud), revenue run-rate $B/yr (adoption). */

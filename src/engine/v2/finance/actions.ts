@@ -14,12 +14,13 @@ import { leaseAvailable, leaseRate, payOptions } from './capex';
 import { debtHeadroom, drawDebt, newDebtRatePct, repayDebt } from './debt';
 import { anchorPartners, dealVote as firstVote, dealVotes, partnerOffers, partnerStakeAfter, partnerTerms, rescuePartner, signPartner, supplyOptions, termsEquity, type PartnerChoice } from './deals';
 import { leadEstimate } from './observe';
-import { acceptRepriced, bookRound, cancelTrancheShares, canIpo, closingAsk, canRaise, DUAL_CLASS_GOV, LARGE_ROUND, lastPostMoney, pullRepriced, raiseCeiling, roundSplit, startRaise } from './equity';
+import { acceptRepriced, bookRound, cancelTrancheShares, canIpo, closingAsk, canRaise, LARGE_ROUND, lastPostMoney, pullRepriced, raiseCeiling, roundSplit, startRaise } from './equity';
 import { describeTarget, makeThesis, MILESTONES, PITCH, PITCHES, PROMISE_RESULT, promiseDeadline } from './promises';
 import { ensureWs3, yearStats } from './ext';
 import { deferFirm, qOf, bookCash, RENEGOTIATE } from './ledger';
 import { divisionBlock } from './parent';
 import { runwayOf } from './runway';
+import { DUAL_CLASS_GOV, supplierTerms } from './story';
 
 type P = Record<string, number | string | boolean>;
 type Preview = { costs: CostLine[]; gains: CostLine[]; exposure: CostLine[] };
@@ -133,8 +134,11 @@ const ipo: ActionDef = {
     const exposure: CostLine[] = [];
     if (dual) {
       gains.push({ currency: 'freedom', amount: 1, target: 'dual-class: founder votes keep control (you can force board decisions)' });
-      // FIN4r (L4): a discount on the valuation mark, not cash.
-      exposure.push({ currency: 'valuation', amount: -Math.round((1 - DUAL_CLASS_GOV) * s.player.finance.valuation), target: `−${Math.round((1 - DUAL_CLASS_GOV) * 100)}% at every mark (dual-class governance discount; no cash moves)` });
+      // FIN4r (L4): a discount on the valuation mark, not cash. FIN5a: the factor is on the lab's weight in the story
+      // share, so the valuation falls by 1 − k / (k·share + 1 − share) at today's share.
+      const sh = s.capital.ws3?.playerShare ?? 0;
+      const drop = 1 - DUAL_CLASS_GOV / (DUAL_CLASS_GOV * sh + 1 - sh);
+      exposure.push({ currency: 'valuation', amount: -Math.round(drop * s.player.finance.valuation), target: `governance ×${DUAL_CLASS_GOV} on your share at every mark (−${(drop * 100).toFixed(1)}% of the valuation at today's share; no cash moves)` });
     } else if (founderControl(s)) costs.push({ currency: 'freedom', amount: -1, target: 'founder control ends: no more forcing board decisions' });
     costs.push({ currency: 'freedom', amount: -1, target: 'a listing independent joins the board' });
     if (r.pClose < 1) exposure.push({ currency: 'cash', amount: -ask, probability: Math.round((1 - r.pClose) * 100) / 100, lagDays: nextQDays(s) });
@@ -279,6 +283,8 @@ export function dealPreview(s: GameStateV2, t: PartnerTerms): Preview {
     const cuts = `path −${Math.round(sp.firmDiscount * 100)}% firm${sp.partnerDiscount > 0 ? ` −${Math.round(sp.partnerDiscount * 100)}% partner` : ''}${sp.costMult !== undefined ? `, custom chips at ${Math.round(sp.costMult * 100)}% of an H100e` : ''}`;
     if (sp.kind === 'cloud') gains.push({ currency: 'compute', amount: sp.h100e, lagDays: lag, target: `cloud for ${sp.quarters / 4} y, served first in a shortage` });
     else gains.push({ currency: 'compute', amount: sp.h100e * sp.quarters, lagDays: lag + 91, target: sp.kind === 'asic' ? `custom chips over ${sp.quarters} quarters, a separate supply pool` : `its chips over ${sp.quarters} quarters; +${MARKET.rationW.strategic} allocation weight on every chip order while it supplies` });
+    // FIN5a: a doubted buyer prepays part of the first delivery (supplier terms, spec §5).
+    if (sp.prepaid) costs.push({ currency: 'cash', amount: -sp.prepaid, target: `prepaid now: ${Math.round(supplierTerms(s).firstDelivery * 100)}% of the first delivery (supplier terms: your share of investor money and runway)` });
     costs.push({ currency: 'cash', amount: -sp.perQ[0], lagDays: lag, target: `first of ${sp.quarters} quarterly payments (take-or-pay; ${cuts})` });
     costs.push({ currency: 'cash', amount: -sp.perQ[sp.perQ.length - 1], lagDays: lag + (sp.quarters - 1) * 91, target: `last payment (expected path); $${sp.total.toFixed(1)}B in all` });
     if (sp.kind === 'asic') costs.push({ currency: 'progress', amount: -(1 - PARTNER_TERMS.asic.researchMult), lagDays: 0, target: `research −${Math.round((1 - PARTNER_TERMS.asic.researchMult) * 100)}% for ~${(PARTNER_TERMS.asic.migrationDays / 91).toFixed(1)} quarters while you migrate` });
@@ -524,7 +530,7 @@ const lagTo = (s: GameStateV2, q: number) => Math.max(0, dayOfQuarter(s.time.sta
 function chipsVote(s: GameStateV2, p: P) {
   const c = chipParams(p);
   const qt = chipQuote(s, c.term, c.qty, c);
-  if (c.term >= 2) return commitmentsVote(s, qt.later * 4);
+  if (c.term >= 2) return commitmentsVote(s, (qt.now + qt.later) * 4);
   if (c.pay === 'loan') return debtVote(s, Math.min(qt.later * DEBT_SIZING.chipLTV * DEBT_SIZING.chipHaircut, debtHeadroom(s, 'gpuTerm').max));
   if (c.pay === 'lease') {
     const opt = payOptions(s, qt.later, 'chips').find((o) => o.id === 'lease');
@@ -542,10 +548,11 @@ const buyChips: ActionDef = {
     const qt = chipQuote(s, c.term, c.qty, c);
     const costs: CostLine[] = [];
     if (qt.kind === 'lta') {
+      if (qt.now > 0) costs.push({ currency: 'cash', amount: -qt.now, target: `prepaid now: ${Math.round(qt.prepay * 100)}% of the first tranche (supplier terms)` });
       costs.push({ currency: 'cash', amount: -qt.later, lagDays: lagTo(s, qt.dueQ), target: `first of ${qt.quarters} quarterly payments (take-or-pay)` });
       costs.push({ currency: 'cash', amount: -(c.qty * qt.prices![qt.quarters - 1]) / 1e6, lagDays: lagTo(s, qt.dueQ + qt.quarters - 1), target: 'last payment (expected path)' });
     } else {
-      if (qt.now > 0) costs.push({ currency: 'cash', amount: -qt.now, target: 'deposit now' });
+      if (qt.now > 0) costs.push({ currency: 'cash', amount: -qt.now, target: `deposit now (${Math.round(qt.prepay * 100)}%; supplier terms ask at least ${Math.round(supplierTerms(s).batch * 100)}%)` });
       const opt = payOptions(s, qt.later, 'chips').find((o) => o.id === c.pay);
       const lag = lagTo(s, qt.dueQ);
       if (c.pay === 'lease' && opt) costs.push({ currency: 'cash', amount: -opt.perYear, lagDays: lag, target: `lease per year × ${opt.years} y from delivery` });

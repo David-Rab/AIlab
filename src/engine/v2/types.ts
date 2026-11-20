@@ -798,10 +798,11 @@ export interface FinanceState {
   cash: Money;
   revenueRun: Money; // annualised, smoothed 30 d
   revenueHistory: Money[]; // quarterly, for g and momentum
-  valuation: Money; // last mark (post-money of last round, or formula mark)
+  valuation: Money; // last mark (post-money of the last round, or the story mark: sector value × share, FIN5a)
   ownership: Ownership;
   /** Investor credibility 0–100 (FINANCE-V3 §2.4): Doubted < 25 ≤ Unproven < 50 ≤ Credible < 75 ≤ Proven. Moved only by
-   *  promises judged at their deadlines; multiplies the valuation mark (FIN2 interim). Not relations credibility. */
+   *  promises judged at their deadlines; multiplies the lab's weight in the valuation share (FIN5a). Not relations
+   *  credibility. */
   credibility: number;
   /** Round promises (FINANCE-V3 §2.3): one per priced round, judged at its own deadline; judged ones are kept (last 8). */
   promises: FinancePromise[];
@@ -814,7 +815,6 @@ export interface FinanceState {
   rating: 'BBB' | 'BB' | 'B' | 'closed';
   runwayQ: number;
   state: 'healthy' | 'tight' | 'distress' | 'insolvent';
-  narrative: number; // N_i premium 0.6..2.2
   deals: StrategicDeal[];
   covenantBreachDay?: Day;
   /** WS3 working state (offers, inventory, tallies, runway bookkeeping). */
@@ -913,8 +913,11 @@ export interface DealSupply {
   firmDiscount: number;
   partnerDiscount: number;
   costMult?: number;
-  /** Every take-or-pay payment over the term ($B). */
+  /** Every take-or-pay payment over the term ($B), the prepaid part included. */
   total: Money;
+  /** Chips: the part of the first delivery prepaid at signing on the supplier's terms (FIN5a), $B; `perQ[0]` is net
+   *  of it. */
+  prepaid?: Money;
   /** The day its supply ends (rationing priority runs to it). */
   endDay?: Day;
 }
@@ -1081,7 +1084,7 @@ export interface CapitalMarkets {
   y10: number; // %
   sofr: number; // %
   hype: number; // H
-  poolAnnual: Money; // A_t
+  poolAnnual: Money; // investor pool a year: π · sector value × the IPO bump (FIN5a)
   carry: Money; // unused appetite carried
   ipoWindow: boolean;
   bubbleX: number; // X_t
@@ -1179,6 +1182,8 @@ export interface RepricedRound {
 export interface ComputeSnap { q: number; racks: H100e; cloud: H100e; running: H100e; installing: H100e; idle: H100e }
 
 export interface FinanceWS3 {
+  /** The last quarterly story mark (FIN5a): sector value and the player's share, for the valuation's two causes. */
+  mark?: { S: Money; share: number };
   /** Last 8 end-of-quarter compute snapshots (computeHistQ). Missing on saves made before it. */
   computeHist?: ComputeSnap[];
   pendingRound?: PendingRound;
@@ -1293,7 +1298,10 @@ export interface CapitalWS3 {
   hypeBase: number;
   /** Sector run-rate R_sector over the last 5 quarters (oldest first). */
   rSectorHist: Money[];
-  /** This quarter's pool for the player (share × (A/4 + carry)) and how much of it has been raised. */
+  /** Private rivals' revenue run-rate at the last quarter marks (oldest first, last 8): their momentum in the story
+   *  share (FIN5a; the player's is finance.revenueHistory). */
+  labRev?: Record<LabId, Money[]>;
+  /** This quarter's pool for the player (story share × (A/4 + carry), FIN5a) and how much of it has been raised. */
   playerPoolQ: Money;
   playerTakenQ: Money;
   playerShare: number;

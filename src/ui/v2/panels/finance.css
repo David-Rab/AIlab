@@ -106,3 +106,21 @@
 /* FIN4b: what each partner costs you now (Partners card) */
 .pt-costs { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line, #2a3340); }
 .pt-cost { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+/* story (FIN5a): sector × share → valuation, the share bar, the drivers */
+.story-eq { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 10px; }
+.story-term { display: inline-flex; flex-direction: column; gap: 1px; }
+.story-term b { color: #fff; font-size: 17px; }
+.story-op { color: var(--text-3); font-size: 15px; }
+.story-sbar { display: grid; height: 18px; border-radius: 3px; overflow: hidden; background: var(--line); margin: 2px 0 12px; }
+.story-sbar > * { min-width: 0; height: 100%; }
+.story-seg { display: flex; align-items: center; height: 100%; width: 100%; min-width: 2px; border-right: 1px solid var(--panel); overflow: hidden; }
+.story-seg em { font: 600 10.5px var(--sans); color: #fff; font-style: normal; padding-left: 5px; white-space: nowrap; }
+.story-drvs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.story-drv { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto auto; gap: 3px 6px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; }
+.story-drv > b { text-align: right; }
+.story-drv .story-fbar, .story-drv > .ellip { grid-column: 1 / -1; }
+.story-fbar { position: relative; display: block; height: 5px; background: var(--line); border-radius: 2px; }
+.story-fbar i { position: absolute; top: 0; bottom: 0; border-radius: 2px; }
+.story-fbar b { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--text-3); }
+.fin-story { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 12px; align-items: start; }

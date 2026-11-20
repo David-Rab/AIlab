@@ -1,7 +1,6 @@
 // Player finance state and the commitment ledger (V2-SPEC §3.7.2, §3.7.6; research/15 §1.8). Owner: WS3.
 import { dateOfDay, dayOfDate, dayOfQuarter, quarterIndex } from '../core/time';
 import type { BaselineId, CashFlowKind, Commitment$, Day, FinanceState, GameStateV2, GovernancePresetId, Money, SystemCtx } from '../types';
-import { valuationMark } from './equity';
 import { defaultFinanceWS3, yearStats } from './ext';
 import { START_CREDIBILITY } from './promises';
 
@@ -11,8 +10,6 @@ export function initialFinance(baseline: BaselineId, governance: GovernancePrese
   const k = reality ? 0.85 : 1;
   const revenueHistory = reality ? [4.5, 6.5, 9, 11] : [4.5, 6, 8, 10];
   const revenueRun = reality ? 13 : 12;
-  const narrative = reality ? 1.2 : 1.5;
-  const g = revenueRun / revenueHistory[0]; // R / R(t−4) ≈ 2.7 [D]
   const cloudEnd = dayOfDate(startDate, '2028-07-01');
   const ledger: Commitment$[] = [
     // Cloud 0.7M H100e at $13K/yr, non-cancellable to mid-2028 (§3.7.2): $2.275B per quarter.
@@ -25,7 +22,7 @@ export function initialFinance(baseline: BaselineId, governance: GovernancePrese
     cash,
     revenueRun,
     revenueHistory,
-    valuation: valuationMark(Math.max(g, 2.7), revenueRun, 1, narrative, 1),
+    valuation: 0, // FIN5a: marked from the story split once the rivals exist (startStory in newGame)
     ownership: { founder: 0.3, mission: 0.26, fin: 0.17, strat: { 'Northwind Cloud': 0.27 }, public: 0 },
     credibility: START_CREDIBILITY.leader,
     promises: [],
@@ -39,7 +36,6 @@ export function initialFinance(baseline: BaselineId, governance: GovernancePrese
     rating: 'BB',
     runwayQ: 8,
     state: 'healthy',
-    narrative,
     // The legacy Northwind stake (Microsoft-like, ~27%), a holder from before the start: no exclusivity after the 2025
     // renegotiation [R15], no board seat (Microsoft gave up its observer seat in Jul 2024 [R21 B3]); its cloud contract is
     // L-cloud0. Above the 15% hyperscaler cap, so Northwind sells no more equity (FIN4a).

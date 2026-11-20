@@ -1159,3 +1159,142 @@ Numbers, before (FIN4b + FIN5c, a74ea1a) → after (FIN4r):
 - Left: L7 (above). Observed, not changed: the chip-tranche commitments vote still adds the first tranche × 4 and Rent
   compute the first four quarters from next quarter, while the threshold reads the four quarters from this one (a
   convention, not a hidden rule; FIN6a may align them).
+
+### FIN5a notes (2026-11-20)
+
+Built: `finance/story.ts` (the story: the `STORY` and `SUPPLIER` numbers, `privateRivals`, `sectorRunRate` (moved from
+investors.ts), `rateFactor` and `DUAL_CLASS_GOV` (moved from equity.ts), `sectorValue`, `growthOf`, `openWeightFloor`,
+`playerGov`, `storyShares` (every private lab's drivers, score, weight and share), `storyNow` (the player's view: sector,
+share, each driver's × effect and the field it is measured against), `markShare`, `poolAnnualOf`, `recordLabRevenue` /
+`seedLabRevenue` (private rivals' quarterly revenue, for their momentum), `startStory` (the day-0 mark, the pool and the
+non-leader starts' credit line), `supplierTerms`). capitalQ marks the valuation from the story and sets the pool from it,
+booking the change as two causes ("sector value", "your share", each with its terms); supplier terms on Buy chips (a
+batch's deposit floor, a supply contract's prepaid first delivery; partner chip supply too, and the partner commitments
+vote counts it); a repriced round buys only the stake that was signed. UI: a **Story** tab on Finance (new
+`panels/FinanceStory.tsx`): the valuation's home (header, with its why), "Sector × your share → next mark" with the mood
+tag, a share bar of every private lab (you first), six factor tiles (position, momentum, economics, capacity,
+credibility with a link to its home in What we owe, governance), each with its × effect, a centred log bar and you vs the
+field (tooltip: what it measures, your value, the field's, the score, the weight, the effect), the investor pool; Markets
+sits next to it without hype and the pool (both now in Story); the Ownership card links to the valuation; the Buy chips
+card shows the supplier terms (deposit or prepaid share; tooltip with the share and runway parts); a partner's chip
+supply shows its prepayment. Glossary: `sectorValue`, `marketMood`, `storyShare`, `storyPosition`, `storyMomentum`,
+`storyEconomics`, `storyCapacity`, `govFactor`, `supplierTerms` (new); `valuation`, `hype`, `investorPool`, `dualClass`,
+`investorCred`, `bubble` rewritten; LIMITS `order.terms`; `design/ux/GLOSSARY.md` regenerated. schemaRev 18 → 19 with a
+migration.
+
+Removed (no aliases): `valuationMark`, `valuationNow`, `revenueGrowth` (equity.ts); `poolShare` (the V^0.5 · momentum ·
+gov pool split); the revenue-based pool A = 4·R·H·M·W; the bust branch's own ×0.4 cuts of the pool (the bust factor is in
+the sector value now); `credMult` (promises.ts); the narrative premium N (`FinanceState.narrative`, `StartDef.narrative`,
+initialFinance's 1.2 / 1.5, the start table's 5 / 1.2 / 0 / 1.5); start valuations by formula (initialFinance and
+startFinance leave 0, `startStory` marks them from the split); the Markets card's hype and investor-pool rows.
+
+The fit (spec §1, §14 FC1/FC2; RefBot reference path, leader start, 12 seeds; scratch probes, not committed):
+- **Sector value** S = κ_S · R_sector^α · (L_frontier / 5)^φ · mood with **κ_S = 83, α = 0.7, φ = 0.75**; mood = hype ×
+  exp(−0.12·(y10 − 4.5)) × 0.4 in a bust. R_sector = the player + active rivals with a private valuation (the set the pool
+  always used: big-tech in-house and the parent-funded open-weight labs out; the simulated leader lab of the non-leader
+  starts is in). On the reference path R_sector is $18B at the start (median; $14–28B by the rivals drawn), $79B at the
+  Oct 2026 mark, $92B at Jan 2027; the public frontier L 5.2 → 7.3 → 8.2; hype 1 → 1.14 → 1.34. Fitted so S(start) ≈
+  $0.63T and the mean of the Oct 2026 and Jan 2027 marks ≈ $2.75T; finance.ts F9 (FC1): start median $632B, late 2026
+  median $2.77T. α < 1: value grows slower than revenue. φ: the frontier factor is ×1.35 from L 5 to 7.5. (Φ = 1 with α ≈
+  0.86 also fits FC1 but leaves the frontier out, against the spec; a higher α with a lower φ moves late 2027 under 10%.)
+- **Share**: z = Σ w_k·x_k with **w = position 0.45, momentum 0.25, economics 0.1, capacity 0.2, τ = 1.25**; weight =
+  credibility rung × governance × exp(z/τ); share = weight ÷ Σ over the private labs. Drivers, each against the rival
+  field (the other private labs) and clamped to ±3: position = (your best public level − the best public level of any
+  other lab, big tech included) ÷ 2 levels; momentum = log2 of your 4-quarter revenue growth (×0.5–×8, R15's clamp) − the
+  field's mean log2 growth (pre-revenue: log2 1 = 0); economics = (serving margin via the observe bridge − the field's
+  mean) ÷ 0.2 (pre-revenue: 0); capacity = log2(compute secured ÷ the field's mean). Fitted to the start shares: leader
+  ≈ 45% ($0.29T median of seeds 1–6; OpenAI $300B in Mar 2025), challenger ≈ 12–20% ($159B median; Anthropic $61.5B →
+  $183B through 2025), spinout ≈ 7–8% ($55B median; SSI $32B, TML $12B: high, below).
+- **Mark: half-way each quarter.** The valuation is S × a share that moves half-way (`STORY.blend` 0.5) from the last
+  mark's share to today's story share. **Deviation** from the spec's V = S · share: marked at the story outright, every
+  leader-start game marked down 40–55% in Q1 2026 (the rivals' stale start models catch up 1.5 levels in two quarters;
+  their revenue jumps from the start table's $1–5B to what the market pays them, so ×8 momentum; hype falls with no
+  frontier release for nine months), the bot's pending rounds were repriced and pulled, and distress by end-2026 went
+  1/12 → 6/12 (F8 failed at 50%). Position per 2 levels (instead of 1) and the half-way mark bring it to 2/12 (F8 83%).
+  Private marks never halved in a quarter in 2025–26. The rule is on the card (share now, at the last mark, at the next).
+- **Pool** = **π = 0.15** × S a year, × 1.5 while the IPO window is open (kept), split by the mark's share; the player's
+  unused part carries 50% (kept). The mood is counted once (S carries it): the spec's "π · S_t per year × mood" read as
+  that, not squared. Sector pool ≈ $95B a year at the start, ≈ $390B in mid-2026 (R15 §2.9: ≈ $75B in 2025, $350B+ in
+  2026).
+- **Supplier terms** [D]: a batch's deposit ≥ 30% + 35 points × (1 − share ÷ 25%, ≥ 0) + 35 points × (1 − runway ÷ 6 q,
+  ≥ 0), at most 100%; a supply contract (Buy chips tranches, a chip vendor's supply, custom chips) prepays the same premium
+  (without the 30%) on its first delivery, paid now and taken off that delivery's ledger payment. The share is the mark's,
+  stored at the quarter; a division pays on the parent's credit (no premium). The bot asks 50% on its batches, so a
+  well-funded bot is unchanged; with a short runway it prepays more.
+- **Credibility and governance moved into the share** (FIN2's interim multiplied the mark): the rung multiplies the lab's
+  weight, so a Proven lab that already holds most of the sector gains less than ×1.15; GOV_FACTOR (legacy 0.6, nonprofit
+  PBC 0.9, PBC + trust 1, founder 1.1) × 0.95 with dual-class shares. The IPO preview's dual-class line now shows the
+  valuation effect at today's share. Rivals count ×1 and ×1 until FIN5b.
+- **Rivals keep their old valuations** (×1.25 + the round at each raise, actors/rivals.ts) while their split share is
+  computed for the denominator, so a rival's stored valuation and its split value (share × S) disagree. At the RefBot
+  marks trailing private rivals split at ≈ 54× run-rate (the share has no revenue-size driver and their revenue is small
+  next to their compute) vs the leader's 37× at high growth: for FIN5b (FC6).
+- Other readings: a lab with no public model is placed at the best open-weight public model (rivals' and China's open
+  releases); rivals' economics count at the sector's typical 50% (spec §12 "sector average"; their bridged margins are
+  −2 to −3.6 at the start, revenue far below their compute); private rivals' revenue history is seeded as ×3 a year
+  (R15's g norm) at the start and by the migration, then recorded at each mark; distressed rivals stay in the share (the
+  old pool share dropped them); FC2's "trailing labs lower" is checked on the player as "slower growth, lower multiple"
+  (C11), the rivals' split multiples printed for FIN5b.
+- **Migration 18 → 19**: `narrative` dropped; private rivals' revenue histories seeded; the last mark read off the saved
+  valuation (share = valuation ÷ today's sector value) so the first mark after loading moves half-way from it.
+
+Numbers, before (FIN4r bfc30ea, extracted to a scratch dir) → after (FIN5a):
+- `scripts/v2/finance.ts` (12 RefBot seeds): F7 end-2026 valuation $1.47T → $1.05T (share ≈ 45–65% of a $2–2.8T sector
+  at the Oct 2026 mark, the mark lagging half-way; the band $1–3T kept: OpenAI $1.25T in Nov 2026); 2026 capex $160.2B →
+  $162.8B; revenue $47.8B → $45.0B; compute costs incurred $32.2B → $29.6B; power 6.7 → 6.6 GW; F8 financing $69.7B →
+  $85.4B, distress-free through 2026 91.7% → 83.3%, no-deal and capex2x distress 100% → 100%; F9 unanchored dilution max
+  4.7% → 5.1%; RefBot rounds 2026 4 → 3.5, 2027 2 → 2; promises met 88% → 97%; end-2027 credibility 79 → 85; end-2027 board
+  confidence 64.3 → 63.4; Azimuth deal equity $45.8B → $37.6B (3% of a lower valuation), 12/12 → 11/12. **F2 (known
+  failure) passes**: 44.6M → 47.1M, a side effect. New F9: FC1 start $632B, late 2026 $2.77T; FC2 leader multiple at ×2.5+
+  growth 36.6× (at the band's top), slower growth 23.5×; trailing private rivals' split 54× (FIN5b).
+- Paired RefBot diagnostic (12 seeds, leader start, to end-2027, equity booked by calendar year): equity raised 2025 H2
+  $5.1B → $11.4B, 2026 $65B → $71B, 2027 $158B → $204B (OpenAI: $40B in 2025, $122B in 2026); rounds 2025 1 → 1, 2026 4 →
+  3.5, 2027 2 → 2; valuation end-2026 $1.47T → $1.05T, end-2027 $9.0T → $12.4T (the player holds ≈ 95% of the sector by
+  then, with hype ≈ 1.8 and the frontier at L ≈ 12: ≈ 60× run-rate, against ≈ 45× before; FIN6a may want a lower φ or
+  α for 2027+); distress by end-2026 1/12 → 2/12, by end-2027 2/12 → 2/12.
+- Start valuations (median, seeds 1–6): leader $334B (formula, every seed) → $289B (split; $0.2–0.5T by the rivals drawn);
+  challenger $86B → $159B; spinout $10B → $55B; day-400 fixture $412B (share 18% of $2.4T: an even world, rivals level on
+  position, governance 0.6).
+- `scripts/v2/bots.ts`, leader start, **40 seeds per bot, paired** (base = bfc30ea in the scratch dir, same seeds; 200
+  seeds not run, the machine was shared with three other sessions' test runs): all §7.4 criteria MET. Wins race 5.0 →
+  5.0%, safe 0 → 2.5%, mixed 57.5 → 52.5%, ref 27.5 → 22.5%, capex2x 2.5 → 2.5%. Ousted race 30.0 → 32.5%, safe 37.5 →
+  20.0%, mixed 12.5 → 15.0%, ref 12.5 → 17.5%, capex2x 90.0 → 45.0% (insolvent 7.5 → 52.5%: its valuation dips with its
+  story and supplier terms ask more upfront on a short runway, so it runs out of cash before the board votes it out).
+  Safe losses overtaken/other-ASI-first 60 → 74%. (±7 pp is one seed in 40 at these rates.)
+- **Spinout check** (queued from FIN2), `scripts/v2/starts.ts` (10 seeds × mixed + race per start; not in the chain): the
+  same 6 failures before and after (the targets were never met). The spinout is now funded: its start valuation $10B →
+  $55B (position at the open-weight model, 7–8% of the sector), so its pool and dilution limit are 3–5× larger; months
+  behind the leader lab at months 12 / 18 / 24: mixed 19.5 / 25.4 / 31.6 → 8.0 / 7.8 / 13.2, race 19.5 / 25.6 / — → 4.2 /
+  6.8 / 12.3; first own model shipped in 0/20 → 4/20 games (month 18.6, 7.9 months behind; target 12–17 months in, 9–12
+  behind); endings ousted 14, insolvent 3, overtaken 3 → overtaken 11, ousted 9, no insolvency. So no start adjustment:
+  the low credibility (Unproven ×0.9) does not make it unfundable; "overtaken" rose because it now lives long enough to
+  be overtaken. Challenger: ousted 14 → 12, overtaken 5 → 7; parity in months 12–18 still never (best 1.6 months);
+  big tech identical (no valuation).
+- Tests: `npm run typecheck` clean (and the scripts' tsconfig). One by one: golden-timelines, identity, calib, fixtures
+  (regenerated, schemaRev 19) green; hygiene: only the absolute perf checks fail, in both builds (the machine ran three
+  other sessions' suites): paired runs minutes apart, bfc30ea 7912 / 8902 µs daily average vs FIN5a 5113 / 7451 µs, the
+  leader-lab relative check flipped in the base and passed in FIN5a: no regression (the story runs once a quarter;
+  `supplierTerms` reads the stored share). lint-hidden, lint-ux (GLOSSARY.md regenerated), lint-tradeoffs, lint-structure
+  green; safety S5 −0.49 → −0.93 (the known failure is back; FIN1–FIN4b read −0.95 to −1.01); finance all passed (F2 now
+  passes); worldfx all passed (HireRate_SOFT passes: a side effect); ws4, products, money, idle green. `npm run test:ui`
+  313/313 (9 new FIN5a checks).
+- Test changes (meaning changed): finance.ts F9's formula grid (20–37× at g 5–10, 15–20× at g 2.5, `valuationMark`) is
+  replaced by FC1 (sector value at the start and late 2026) and FC2 (the RefBot's multiple at ×2.5+ growth, and lower
+  when growth is slower) on the reference path, since the formula is gone; F7's valuation band kept ($1–3T) but it now
+  reads the split; FIN2's credibility check now multiplies the share's weight (×0.7 / ×1.15 exactly) and the valuation
+  moves the same way, not by the same factor; the IPO check reads governance × 0.95 on the share; the FIN2 stacking check
+  accepts the repriced down round its conservative pitch now meets at the close (the half-way mark grows slower than the
+  old formula); the FIN4a rescue stake is "at least 30%" (the day-400 fixture's rescuer is the legacy Northwind holder,
+  whose own cash takes it past 30% at the lower story mark); the FIN4r 17 → 18 migration check accepts later revs; FIN5a
+  adds 9 checks (the mark, the sector value and bust, the share, pre-revenue drivers, start valuations, the pool, supplier
+  terms with preview = booked, migration 18 → 19, the RefBot's equity a year). uitest: 9 FIN5a checks (the equation and
+  mood, the valuation's single home, the share bar, the six tiles with their effects, a driver's tooltip, credibility's
+  link, the valuation's why, Ownership's link, supplier terms on Buy chips).
+- Left for FIN5b: rivals' own valuations from the split (their stored valuation and split value disagree now; trailing
+  rivals split at ≈ 54× run-rate because the share has no revenue-size driver), their raising from the pool, credibility
+  and governance by rival, license-and-hire exit; the pre-revenue spinout at 7–8% of the sector (SSI ≈ 5%) may want a
+  lower open-weight floor or a capacity term once rivals mark. For FIN6a: the leader's multiple sits at the FC2 band's top
+  (36.6×) and reaches ≈ 60× in 2027; the bust factor now cuts valuations ×0.4 on top of the hype shock (as the pool always
+  was; a bust leaves a lab ≈ 20% of its mark); the half-way mark (`blend`) and position per 2 levels are [D] choices made
+  for the reference bot's survival; supplier-term sizes [D]; π against FC4 (round sizes); capex2x now ends insolvent
+  more than ousted (FC7). Docs (V2-SPEC §3.7.3, `design/v2-interfaces.ts` `narrative`) for FIN6c.

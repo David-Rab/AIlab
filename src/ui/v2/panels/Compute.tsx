@@ -3,7 +3,7 @@
 // HOME of idle chips, empty racks, vendor fill, the forecast, sites & power, orders, cloud contracts and the chip
 // market. Compute online and the split live in Company and are only linked here.
 import { useEffect, useState, type ReactNode } from 'react';
-import { actionView, cancellablePricePerYear, chipFit, chipQuote, cloudPricePerYear, computeForecast, computeHistory, dateOf, dayOfQuarter, fmtDate, fmtMonth, leaseGuarantor, leaseRate, oppositionOdds, payOptions, qOf, rentQuote, siteCapex, siteEtaQ, siteLeasePerYear, siteRVG, siteSchedule, siteSizeView, spotPrice, spotRentalView } from '../../../engine/v2';
+import { actionView, cancellablePricePerYear, chipFit, chipQuote, cloudPricePerYear, computeForecast, computeHistory, dateOf, dayOfQuarter, fmtDate, fmtMonth, leaseGuarantor, leaseRate, oppositionOdds, payOptions, qOf, rentQuote, siteCapex, siteEtaQ, siteLeasePerYear, siteRVG, siteSchedule, siteSizeView, spotPrice, spotRentalView, supplierTerms, SUPPLIER } from '../../../engine/v2';
 import type { ChipOrder, ForecastEvent, ForecastQ, GameStateV2, PayOption, Site } from '../../../engine/v2';
 
 /** The lessor's rate at your rating (FIN4b: below B only with a partner's guarantee, named). */
@@ -323,12 +323,30 @@ export function PathCurve({ s, prices, unit, discount, firstQ }: { s: GameStateV
 
 const CHIP_TERM_OPTS: { v: number; label: string; tip: string }[] = [
   { v: 0, label: 'Spot', tip: 'next quarter at the spot price; no deposit; lowest priority' },
-  { v: 1, label: 'Batch', tip: 'one batch in 2 quarters at the expected list price; 30% deposit' },
+  { v: 1, label: 'Batch', tip: 'one batch in 2 quarters at the expected list price; a deposit of 30% or more (supplier terms)' },
   { v: 4, label: '1 yr', tip: 'a tranche every quarter for 1 year, take-or-pay, priority' },
   { v: 8, label: '2 yr', tip: 'tranches for 2 years, take-or-pay, priority, 5% off' },
   { v: 16, label: '4 yr', tip: 'tranches for 4 years, take-or-pay, priority, 10% off' },
 ];
 const termName = (t: number) => CHIP_TERM_OPTS.find((x) => x.v === t)?.label ?? `${t}q`;
+
+/** Supplier terms (FINANCE-V3 §5, FIN5a): what suppliers ask you to pay upfront, from your share of investor money and
+ *  your runway. Home of the datum (the Buy chips card). */
+function SupplierTerms({ s, batch }: { s: GameStateV2; batch: boolean }) {
+  const t = supplierTerms(s);
+  const v = batch ? t.batch : t.firstDelivery;
+  return (
+    <Tip content={() => <TipCard title={<Term id="supplierTerms">Supplier terms</Term>} value={batch ? `deposit ${F.pct(t.batch)}` : `prepay ${F.pct(t.firstDelivery)}`} rows={[
+      { label: 'Base deposit (a batch)', value: F.pct(SUPPLIER.base) },
+      { label: `Your share of investor money ${F.pct(t.share)}`, value: `+${F.pct(t.shareAdd)}`, tone: t.shareAdd > 0 ? 'neg' : 'neutral' },
+      { label: `Runway ${F.quarters(t.runwayQ)}`, value: `+${F.pct(t.runwayAdd)}`, tone: t.runwayAdd > 0 ? 'neg' : 'neutral' },
+      { label: 'A batch\'s deposit', value: F.pct(t.batch) },
+      { label: 'A supply contract\'s first delivery', value: `${F.pct(t.firstDelivery)} prepaid` },
+    ]}>{`Suppliers ask a buyer that investors fund less (share under ${F.pct(SUPPLIER.shareFull)}) or with under ${SUPPLIER.runwayFull} quarters of runway to pay more upfront.`}</TipCard>}>
+      <span className={`small ${v > (batch ? SUPPLIER.base : 0) + 1e-9 ? 'tone-warn' : 'dim'}`} data-test="supplier-terms"><Term id="supplierTerms">supplier terms</Term> · {batch ? `deposit ${F.pct(t.batch)}` : t.firstDelivery > 0 ? `prepay ${F.pct(t.firstDelivery)} of the first` : 'no prepayment'}</span>
+    </Tip>
+  );
+}
 
 function OrderCard({ s }: { s: GameStateV2 }) {
   const [tier, setTier] = useState(2);
@@ -353,7 +371,7 @@ function OrderCard({ s }: { s: GameStateV2 }) {
             tip={() => <TipCard title={`${F.count(h)} H100e`} rows={[{ label: <Term id="mw">Racks needed</Term>, value: F.power((h * kW) / 1000) }, { label: 'Price each', value: `$${chipQuote(s, term, h, { nonTW }).price.toFixed(1)}K` }]} />} />
         ))}
       </div>
-      <div className="cac-pv"><ComputePreview s={s} id="cmp.buyChips" params={params} arrives={<>arrive {qLabel(s, qt.dueQ)}</>} /><Limit id="order.terms">{tranches ? `${qt.quarters} tranches${qt.discount > 0 ? ` · −${F.pct(qt.discount)}` : ''}` : term === 1 ? 'deposit 30–100%' : 'no deposit'}</Limit></div>
+      <div className="cac-pv"><ComputePreview s={s} id="cmp.buyChips" params={params} arrives={<>arrive {qLabel(s, qt.dueQ)}</>} /><Limit id="order.terms">{tranches ? `${qt.quarters} tranches${qt.discount > 0 ? ` · −${F.pct(qt.discount)}` : ''}` : term === 1 ? 'one batch' : 'no deposit'}</Limit>{term >= 1 && <SupplierTerms s={s} batch={!tranches} />}</div>
       {open && (
         <div className="cac-opts">
           <div className="cmp-row"><span className="dim small"><Term id="lta">Term</Term></span><Seg value={term} options={CHIP_TERM_OPTS} onChange={setTerm} testId="chip-term" /></div>

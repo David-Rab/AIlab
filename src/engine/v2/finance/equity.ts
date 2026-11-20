@@ -7,38 +7,9 @@ import { ensureWs3, yearStats, type PendingRound } from './ext';
 import { bookCash } from './ledger';
 import { resizeCreditLine } from './debt';
 import { boardMood, MOOD_BASE } from './mood';
-import { addPromise, credMult, typicalRound } from './promises';
+import { addPromise, typicalRound } from './promises';
 
-/** V = 22·(g/5)^0.4·(R/$20B)^−0.15·H·N·M·R (R15 §1.5). */
-export function valuationMark(g: number, R: number, H: number, N: number, M: number): number {
-  return 22 * Math.pow(Math.max(0.5, Math.min(8, g)) / 5, 0.4) * Math.pow(Math.max(0.1, R) / 20, -0.15) * H * N * M * Math.max(0.1, R);
-}
-
-/** Rate factor M = exp(−0.12·(y10 − 4.5)) [R15]. */
-export const rateFactor = (y10: number) => Math.exp(-0.12 * (y10 - 4.5));
-
-/** Revenue growth g = clamp(R / R(t−4), 0.5, 8) from the quarterly run-rate history (last entry = last quarter). */
-export function revenueGrowth(s: GameStateV2): number {
-  const f = s.player.finance;
-  const h = f.revenueHistory;
-  const back = h.length >= 4 ? h[h.length - 4] : h[0] ?? f.revenueRun;
-  return Math.max(0.5, Math.min(8, f.revenueRun / Math.max(0.1, back)));
-}
-
-/** Dual-class shares after an IPO keep founder control at a governance discount (spec §1 gov ×0.95) [D]. */
-export const DUAL_CLASS_GOV = 0.95;
-
-/** Formula mark of the player's valuation now, with its terms (finance panel "why", §2.6). FIN2 interim: the investor
- *  credibility rung multiplies it (Doubted ×0.7 … Proven ×1.15), and dual-class shares ×0.95; FIN5 moves both into the
- *  valuation share. */
-export function valuationNow(s: GameStateV2): { V: Money; g: number; R: Money; H: number; N: number; M: number; cred: number; gov: number } {
-  const f = s.player.finance;
-  const g = revenueGrowth(s);
-  const M = rateFactor(s.capital.y10);
-  const cred = credMult(s);
-  const gov = f.dualClass ? DUAL_CLASS_GOV : 1;
-  return { V: valuationMark(g, f.revenueRun, s.capital.hype, f.narrative, M) * cred * gov, g, R: f.revenueRun, H: s.capital.hype, N: f.narrative, M, cred, gov };
-}
+// FIN5a: the valuation is the story split (finance/story.ts: sector value × share), marked in capitalQ.
 
 /** FIN2 removed the revenue-based annual cap (k_Y): a round is bounded by the investor pool and the dilution cap. */
 export interface RaiseCeiling { max: Money; bound: 'pool' | 'dilution' | 'ask'; parts: Record<string, Money> }
@@ -278,6 +249,16 @@ export function closePendingRound(s: GameStateV2, ctx: SystemCtx): void {
   const mark = f.valuation * (r.priceMult ?? 1);
   const base = mark < r.preMoney * (1 - REPRICE_DROP) ? mark : Math.max(mark, r.preMoney);
   const pre = base * (1 - Math.min(0.6, 0.5 * over));
+  // FIN5a: repriced to a lower mark, investors buy the stake that was signed, not more (the same money at a lower price
+  // sold up to 19% of the company once the story mark could fall by half in a quarter).
+  if (base < r.preMoney) {
+    const d0 = r.ask / (r.preMoney + r.ask);
+    const cap = (d0 * base) / (1 - d0);
+    if (cap < r.ask - 1e-9) {
+      ctx.log('finance', `Repriced to today's lower mark, the round buys the ${(d0 * 100).toFixed(1)}% stake signed: $${cap.toFixed(1)}B of the $${r.ask.toFixed(1)}B asked.`, 2);
+      r.ask = cap;
+    }
+  }
   // A repriced round that would now be a down round waits for the player: accept the down round or pull it
   // (LIMITS: the CEO used to pull it silently when runway was ≥ 4 quarters, and close it silently otherwise).
   if (base === mark && pre < lastPostMoney(s)) {

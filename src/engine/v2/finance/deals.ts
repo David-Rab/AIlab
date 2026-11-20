@@ -122,7 +122,8 @@ function chipSupply(s: GameStateV2, kind: 'asic' | 'chips', perQ: number, quarte
   const prices = q.prices ?? [q.price];
   return {
     kind, h100e: perQ, quarters: q.quarters, first: prices[0], last: prices[prices.length - 1], firmDiscount: q.discount, partnerDiscount: opts.partnerDiscount ?? 0,
-    ...(opts.costMult !== undefined ? { costMult: opts.costMult } : {}), total: q.total, perQ: prices.map((p) => (perQ * p) / 1e6), prices, startQ: q.dueQ,
+    ...(opts.costMult !== undefined ? { costMult: opts.costMult } : {}), total: q.total, perQ: prices.map((p, k) => (perQ * p) / 1e6 - (k === 0 ? q.now : 0)), prices, startQ: q.dueQ,
+    ...(q.now > 0 ? { prepaid: q.now } : {}),
   };
 }
 
@@ -206,9 +207,9 @@ export function partnerTerms(s: GameStateV2, partner: string, opts: PartnerChoic
   const t = PARTNER_TERMS.sovereign;
   return { ...base, equityNow: Math.max(t.min, Math.min(t.max, t.equityShareOfV * V)), politics: { scrutiny: t.scrutiny, congress: t.congress, securityDemand: t.securityDemand } };
 }
-
-/** Take-or-pay payments due in the first four quarters of a deal's supply ($B): the board's commitments test (§7.3). */
-export const firstYearCommit = (t: PartnerTerms) => (t.supply?.perQ ?? []).slice(0, 4).reduce((a, b) => a + b, 0);
+/** Take-or-pay payments due in the first four quarters of a deal's supply, with any part of the first delivery prepaid at
+ *  signing (FIN5a) ($B): the board's commitments test (§7.3). */
+export const firstYearCommit = (t: PartnerTerms) => (t.supply?.prepaid ?? 0) + (t.supply?.perQ ?? []).slice(0, 4).reduce((a, b) => a + b, 0);
 
 /** Every equity tranche and the cash in now ($B). */
 export const termsEquity = (t: PartnerTerms) => t.equityNow + t.tranches.reduce((a, x) => a + x.amount, 0);

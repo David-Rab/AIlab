@@ -42,8 +42,6 @@ export interface StartDef {
   cash: number;
   revenueRun: number;
   revenueHistory: number[];
-  /** Valuation premium N (finance/equity.ts valuationMark); 0 = no valuation (a division). */
-  narrative: number;
   /** Ownership split (founder, financial, strategic partner). */
   ownership: { founder: number; fin: number; strat?: Record<string, number> };
   /** Compute owned (installed in live sites) and rented (cloud contract), H100e. */
@@ -71,9 +69,9 @@ export const STARTS: StartDef[] = [
     quality: { 'sci.cap': 'elite' },
     known: ['rl.math', 'T-PROBE'],
     products: [], features: [],
+    // Valued through position (FIN5a): no public model, so investors place it at the best open-weight model (SSI $32B
+    // and TML $12B with no product [R21 A8]).
     cash: 3, revenueRun: 0, revenueHistory: [0, 0, 0, 0],
-    // TML raised $2B at $12B with no product: a pre-revenue founder premium [Design].
-    narrative: 5,
     ownership: { founder: 0.75, fin: 0.25 },
     owned: 0, rented: 25e3,
     board: 'founder', lagMonths: 6.5, imported: true,
@@ -92,7 +90,7 @@ export const STARTS: StartDef[] = [
       { channel: 'enterprise', servingShare: 0.25 },
     ],
     features: ['codingAgent'],
-    cash: 8, revenueRun: 3, revenueHistory: [1, 1.5, 2, 2.5], narrative: 1.2,
+    cash: 8, revenueRun: 3, revenueHistory: [1, 1.5, 2, 2.5],
     ownership: { founder: 0.4, fin: 0.45, strat: { Azimuth: 0.15 } },
     owned: 100e3, rented: 300e3,
     board: 'founder', lagMonths: 3,
@@ -112,7 +110,7 @@ export const STARTS: StartDef[] = [
     ],
     features: ['voiceVision'],
     // $4B on hand; the parent's budget is paid quarterly (finance/parent.ts). Revenue (~$4B attributed) goes to the parent.
-    cash: 4, revenueRun: 4, revenueHistory: [2.5, 3, 3.5, 3.8], narrative: 0,
+    cash: 4, revenueRun: 4, revenueHistory: [2.5, 3, 3.5, 3.8],
     ownership: { founder: 0, fin: 0 },
     owned: 800e3, rented: 0,
     board: 'parent', lagMonths: 6,
@@ -128,7 +126,7 @@ export const STARTS: StartDef[] = [
     known: ['agentsProduct', 'sectorPacks', 'kyc'],
     products: [{ channel: 'consumer', servingShare: 0.45 }, { channel: 'api', servingShare: 0.35 }, { channel: 'enterprise', servingShare: 0.2 }],
     features: ['sectorPacks'],
-    cash: 40, revenueRun: 12, revenueHistory: [4.5, 6, 8, 10], narrative: 1.5,
+    cash: 40, revenueRun: 12, revenueHistory: [4.5, 6, 8, 10],
     ownership: { founder: 0.3, fin: 0.17 },
     owned: 500e3, rented: 700e3,
     board: 'legacyNonprofit', lagMonths: 0,
