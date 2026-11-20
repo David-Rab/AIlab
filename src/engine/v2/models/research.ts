@@ -48,6 +48,7 @@ import { qualityZ, researchMods, starTaste, teamTaste, workContext } from '../de
 import { adopted } from './paradigms';
 import { idleTrainingShare } from './runs';
 import { addIdea, latestBaseFlop, STACK_KEYS, syncPa, trainNow, tuneDay, stacksGEquiv } from './stacks';
+import { steerAdoption } from '../safety/covert';
 
 const node = (id: string): TreeNodeDef | undefined => PROJECT_BY_ID[id];
 const PRIOR_BY_ID = Object.fromEntries(PARADIGMS.map((p) => [p.id, p.prior])) as Record<string, number>;
@@ -517,7 +518,8 @@ export function adoptProject(s: GameStateV2, id: string, queueBuild: (tw: number
   return undefined;
 }
 
-/** The engineers finished building a result in: its TRUE effect enters the stack (or the lever unlocks). */
+/** The engineers finished building a result in: its TRUE effect enters the stack (or the lever unlocks); the R&D fleet
+ *  may steer the build (model v3 E7). */
 export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, buildId: string, onKnown: (id: string) => void) {
   const n = node(id);
   const ts = s.player.tree[id];
@@ -528,9 +530,12 @@ export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, bui
   const truth0 = candidateTruth(s, n, st, r.c);
   const at = atTest(n, r.c, truth0);
   const truth = { x: truth0.x, s: at.s };
-  const xTest = at.xTest;
   const res = s.player.research;
   const eff = n.effect;
+  const xTest = at.xTest;
+  // Model v3 E7: the models doing the lab's R&D may steer the build toward their own ends (safety/covert.ts STEER): the
+  // full effect still lands; an uncaught act adds hidden CoT pressure to later runs. Nothing the lab sees changes.
+  if (eff?.stack || eff?.domains) steerAdoption(s, ctx, `${id}:${buildId}`, eff.stack ? xTest : 0);
   let realised = 0;
   if (eff?.stack) {
     addIdea(res.stacks[eff.stack], xTest, truth.s, r.fTest);

@@ -23,7 +23,8 @@ import { containment, strengthTrue } from './techniques';
 import { isDiscovered, uModeContainMult } from './umodes';
 import { productCatch, productHazardMult } from '../models/products';
 import { agentSplitShare, agentVersion, internalFleets } from '../departments/agents';
-import { copiesOf, flopPerToken, workContext } from '../departments/workfit';
+import { copiesOf, flopPerToken, safetyLabour, workContext } from '../departments/workfit';
+import { rollFleetCovert } from './covert';
 
 /** Disposition of an undiscovered/discovered U-mode (it borrows the act of its mapped trait) [D]. */
 export const UMODE_X = 0.25;
@@ -169,10 +170,13 @@ function internalAutonomy(s: GameStateV2, v: ModelVersion): number {
 }
 
 const scaleOf = (copies: number, ref: number, gamma: number) => Math.pow(Math.max(1e-9, copies) / ref, gamma);
-/** Size factor of the lab's internal agents: (copies across its work types ÷ the 2025 reference)^γ. */
-function internalScale(s: GameStateV2): number {
+/** Size factor of the lab's internal agents: (copies across its work types, the safety fleet's included (model v3 E7),
+ *  ÷ the 2025 reference)^γ. */
+export function internalScale(s: GameStateV2): number {
   let copies = 0;
   for (const l of Object.values(workContext(s).slots)) copies += l.copies;
+  const sl = safetyLabour(s);
+  copies += sl.exp.copies + sl.ideas.copies;
   return copies > 0 ? scaleOf(copies, COPIES_REF.internal, COPIES_GAMMA.internal) : 0;
 }
 
@@ -240,6 +244,29 @@ function newIncidentId(s: GameStateV2): string {
   return `${base}${n}`;
 }
 
+/** Add an incident to the player's log (the oldest closed one drops past 200). */
+function pushIncident(s: GameStateV2, inc: Incident): void {
+  s.player.safety.incidents.push(inc);
+  if (s.player.safety.incidents.length > 200) {
+    const drop = s.player.safety.incidents.findIndex((i) => i.status !== 'open' && i.status !== 'investigating');
+    if (drop >= 0) s.player.safety.incidents.splice(drop, 1);
+  }
+}
+
+/** A caught covert act (model v3 E7, safety/covert.ts): an internal incident on model v labelled with the act's trait
+ *  (the monitors saw what it did), logged with what was caught. Undefined without a live internal deployment. */
+export function recordInternalIncident(s: GameStateV2, ctx: SystemCtx, v: ModelVersion, source: TraitId, severity: Incident['severity'], what: string): Incident | undefined {
+  const d = s.player.deployments.find((x) => x.channel === 'internal' && x.status !== 'withdrawn');
+  if (!d) return undefined;
+  const inc: Incident = {
+    id: newIncidentId(s), day: ctx.day, labId: 'player', versionId: v.id, deploymentId: d.id,
+    trueSource: source, apparent: source, severity, exposure: 'internal', status: 'open', responses: [],
+  };
+  pushIncident(s, inc);
+  ctx.log('incident', `${source} incident (severity ${severity}) on ${v.name}, internal: ${what}.`, severity, inc.id);
+  return inc;
+}
+
 function fireIncident(s: GameStateV2, ctx: SystemCtx, rng: RngLike, v: ModelVersion, d: Deployment, row: HazardRow): void {
   const internal = d.channel === 'internal';
   const sev = drawSeverity(row, rng.float());
@@ -257,11 +284,7 @@ function fireIncident(s: GameStateV2, ctx: SystemCtx, rng: RngLike, v: ModelVers
     trueSource: row.source, apparent: row.apparent, severity: sev, exposure, status: 'open', responses: [],
   };
   if (exposure === 'customer') inc.publicTimerDays = publicTimer(s, rng);
-  s.player.safety.incidents.push(inc);
-  if (s.player.safety.incidents.length > 200) {
-    const drop = s.player.safety.incidents.findIndex((i) => i.status !== 'open' && i.status !== 'investigating');
-    if (drop >= 0) s.player.safety.incidents.splice(drop, 1);
-  }
+  pushIncident(s, inc);
   const label = row.apparent === 'unexplained' ? 'Unexplained behaviour' : row.apparent === 'misuse' ? `${row.domain === 'BIO' ? 'Bio' : 'Cyber'} misuse` : `${row.apparent} incident`;
   ctx.log('incident', `${label} (severity ${sev}) on ${v.name}, ${d.channel}${caught ? ': caught by its monitor before customers saw it' : ''}.`, sev, inc.id);
   if (exposure === 'public') publicPenalty(s, ctx, inc, 1, inc.id);
@@ -361,6 +384,9 @@ export const incidentsSystem: EngineSystem = {
       const row = rng.weighted(rows.map((r) => ({ item: r, weight: r.h })));
       fireIncident(s, ctx, rng, v, d, row);
     });
+    // E7: covert acts of the internal fleets against the lab (backdoors, hidden compute); hash draws, so the incident
+    // stream above is unchanged.
+    rollFleetCovert(s, ctx);
     tickTimers(s, ctx, rng);
   },
 };
@@ -409,14 +435,16 @@ export function labModelHazards(m: { traitsTrue: TraitVector; uModes: readonly U
  * v's internal work on acts of `trait`, as MODEL-V3 §11.3's oversight_k = 1 − (1 − block)(1 − catch). block = AG07
  * containment on the internal fleet (at v's capability); catch = the internal catch roll's probability (monitors and
  * tools, human review falling with v's gap above expert humans, control-layer deferral). Every term reads capability
- * gaps in OOM (safety/oversight.ts), none the research multiplier. Engine only (true traits and levels).
+ * gaps in OOM (safety/oversight.ts), none the research multiplier. `aiShare` = the AI share of the work overseen (human
+ * review covers the rest): the lab's R&D by default; E7's sabotage of safety work passes the AI share of safety work.
+ * Engine only (true traits and levels).
  */
-export function internalOversight(s: GameStateV2, v: ModelVersion, trait: TraitId = 'SCHEME'): { oversight: number; block: number; catch: number; monitor: number; human: number; controlMiss: number } {
+export function internalOversight(s: GameStateV2, v: ModelVersion, trait: TraitId = 'SCHEME', aiShare = aiRdShare(s)): { oversight: number; block: number; catch: number; monitor: number; human: number; controlMiss: number } {
   const dep = s.player.deployments.find((d) => d.channel === 'internal' && d.versionId === v.id && d.status !== 'withdrawn')
     ?? s.player.deployments.find((d) => d.channel === 'internal' && d.status !== 'withdrawn');
   const block = dep ? deploymentContain(s, v, dep) : 0;
   const monitor = monitoringCatch(s, v, trait);
-  const human = HUMAN_REVIEW * (1 - aiRdShare(s)) * humanReviewFactor(s, v);
+  const human = HUMAN_REVIEW * (1 - aiShare) * humanReviewFactor(s, v);
   const controlMiss = underControl(s) ? controlProtocol(undefined).missMult : 1;
   const c = 1 - (1 - monitor) * (1 - human) * controlMiss;
   return { oversight: 1 - (1 - block) * (1 - c), block, catch: c, monitor, human, controlMiss };

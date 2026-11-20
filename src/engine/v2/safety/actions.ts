@@ -7,8 +7,8 @@ import { internalVersion } from '../models/labs';
 import type { ActionDef, CostLine, GameStateV2, ResponseKind, SafetyDept, TraitId } from '../types';
 import { clamp01, versionById } from './common';
 import { oomOfLevel } from './oversight';
-import { safetyAgentVersion } from './agents';
 import { safetyLabour } from '../departments/workfit';
+import { believedSabotage } from './covert';
 import { publishFinding } from './findings';
 import { INV_FTE, INV_MAX_DAYS, closeInvestigation, investigationFte, openInvestigation, safetyReHeads } from './investigations';
 import { patchFte } from './responses';
@@ -26,13 +26,6 @@ const isTrait = (x: string | undefined): x is TraitId => !!x && (TRAIT_IDS as st
 
 function measuredL(s: GameStateV2): number {
   return internalVersion(s)?.evals.measuredL ?? 0;
-}
-
-/** Visible sabotage estimate of the safety agent model (from beliefs, never truth). */
-function believedSab(s: GameStateV2): number {
-  const v = safetyAgentVersion(s);
-  if (!v) return 0;
-  return (v.beliefs.SAND?.est ?? 0) + (v.beliefs.SCHEME?.est ?? 0);
 }
 
 /** Default investigation target: the internal model's critical trait with the highest believed level. */
@@ -65,13 +58,14 @@ const INVESTIGATE: ActionDef = {
     const t = defaultTarget(s);
     const versionId = inc?.versionId ?? str(p, 'versionId') ?? t?.versionId ?? '';
     const trait = isTrait(str(p, 'trait')) ? (str(p, 'trait') as TraitId) : inc && inc.apparent !== 'unexplained' && inc.apparent !== 'misuse' ? inc.apparent : t?.trait ?? 'SCHEME';
-    const sab = believedSab(s);
-    // Share of the case's work AI does (safety experiments, model v3 E2): what a sabotaging model can corrupt.
+    // Share of the case's work AI does (safety experiments, model v3 E2): what a sabotaging model can corrupt; model v3
+    // E7: its sabotage attempts on that share (covert.ts SAFSAB, from beliefs and the measured level).
     const ai = safetyLabour(s).exp.A;
+    const sab = believedSabotage(s, ai);
     return {
       costs: [{ currency: 'staffTime', amount: fte, target: `safety research engineers for up to ${INV_MAX_DAYS} d (tool upkeep slows)` }, { currency: 'compute', amount: r2(5 * (num(p, 'computeShare') ?? 0.05)), target: '% of safety pool' }],
       gains: [{ currency: 'alignment', amount: investigationGain(s, versionId, trait, fte), target: `clarity / month on ${trait}` }],
-      exposure: ai > 0.005 ? [{ currency: 'alignment', amount: -r2(ai * sab), probability: r2(clamp01(ai * sab * 0.4)), target: 'corrupted conclusion (estimate)' }] : [],
+      exposure: ai > 0.005 && sab > 0 ? [{ currency: 'alignment', amount: -r2(sab), probability: r2(clamp01(sab * 0.4)), target: 'corrupted conclusion (estimate)' }] : [],
     };
   },
   apply(s, ctx, p) {

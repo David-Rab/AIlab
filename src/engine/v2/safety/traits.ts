@@ -21,6 +21,7 @@ import { lineMultCapped, lineStaffed } from './agendas';
 import { SD_MAX, eaCoef, eaSuppression, stackDetectionMap, takesEaPenalty } from './detection';
 import { techniqueRole } from './techniques';
 import { aiRdShare, internalOversight } from './incidents';
+import { steerS4, steerSuccessor } from './covert';
 import { routineMonitor } from '../departments/agents';
 import { workContext, type CapSlot } from '../departments/workfit';
 import { crystalMult, crystalThreshold, drawLineageUModesV2, uModeAmp, uModeEdgeMult, uModeRemovalMult } from './umodes';
@@ -671,6 +672,8 @@ export interface SuccessorPart {
   kappa: number;
   /** ω_k = kappa · share · (1 − oversight). */
   omega: number;
+  /** Model v3 E7: an uncaught successor-steering act on this run (κ 1, ω_k = share). Engine only. */
+  steered?: boolean;
 }
 export interface SuccessorPull {
   /** AI share of the lab's R&D (aiRdShare). */
@@ -704,6 +707,12 @@ export function successorPull(s: GameStateV2): SuccessorPull {
 }
 const CAP_SLOTS: readonly CapSlot[] = ['SWE', 'EXP', 'IDEAS'];
 
+/** The pull a completing run gets: E4's pull with model v3 E7's successor steering rolled on it (safety/covert.ts
+ *  steerSuccessor: an uncaught act raises that model's part to its share of the work; a caught one is an incident). */
+export function runPull(s: GameStateV2, ctx: SystemCtx, run: Pick<TrainingRun, 'id'>): SuccessorPull {
+  return steerSuccessor(s, ctx, successorPull(s), run.id);
+}
+
 /** Pull x₀ (the new model's starting dispositions) toward the AI fleet doing the lab's R&D (successorPull). */
 export function applySuccessorPull(s: GameStateV2, x0: TraitVector, pull: SuccessorPull = successorPull(s)): TraitVector {
   if (pull.omega <= 0) return x0;
@@ -726,13 +735,13 @@ export function applyBaseToLineage(s: GameStateV2, ctx: SystemCtx, run: Training
   const sg = baseSignals(design, baseQuantitiesOf(s, design, base.gPre));
   base.signals = { ...sg };
   if (run.kind === 'continue') {
-    const xc = applySuccessorPull(s, base.traitsTrue); // E4: the AI doing the lab's R&D pulls the continued base
+    const xc = applySuccessorPull(s, base.traitsTrue, runPull(s, ctx, run)); // E4: the AI doing the lab's R&D pulls the continued base
     base.traitsTrue = stepTraits(xc, playerEnv(s, xc, sg, OMEGA_KIND.continue, undefined, base.lineage, base.uModes));
     return;
   }
   if (!base.lineage) base.lineage = `L-${base.id}`;
   const uModes = drawLineageUModesV2(s, ctx.rng('safety'), { tierAtLeastSC: levelOf(w, s.player.pa) >= SC_LEVEL, base: design, player: true });
-  const x0 = applySuccessorPull(s, basePrior(tier, design)); // E4 successor pull (replaces V2's inheritFromFleet)
+  const x0 = applySuccessorPull(s, basePrior(tier, design), runPull(s, ctx, run)); // E4 successor pull (replaces V2's inheritFromFleet)
   base.uModes = uModes;
   base.traitsTrue = stepTraits(x0, playerEnv(s, x0, sg, OMEGA_KIND.base, undefined, base.lineage, uModes));
 }
@@ -766,7 +775,7 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
 
   if (run.kind === 'distill') {
     const teacher = versionById(s, run.teacherVersionId);
-    const x0 = applySuccessorPull(s, base?.traitsTrue ?? teacher?.traitsTrue ?? TRAIT_START); // E4 (the E06 pull below is separate)
+    const x0 = applySuccessorPull(s, base?.traitsTrue ?? teacher?.traitsTrue ?? TRAIT_START, runPull(s, ctx, run)); // E4 (the E06 pull below is separate)
     const uModes = teacher ? [...teacher.uModes] : [...(base?.uModes ?? [])];
     const sg = runSignals(s, run);
     const om = runOmega(s, run);
@@ -783,13 +792,16 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
 
   // post-training
   const post = run.post ?? version.design;
-  const x0 = applySuccessorPull(s, parent?.traitsTrue ?? base?.traitsTrue ?? TRAIT_START); // E4 successor pull
+  const x0 = applySuccessorPull(s, parent?.traitsTrue ?? base?.traitsTrue ?? TRAIT_START, runPull(s, ctx, run)); // E4 successor pull
   const uModes = parent ? [...parent.uModes] : [...(base?.uModes ?? [])];
   const sg = runSignals(s, run);
   const om = runOmega(s, run);
   // Detection context: the new model as the stack meets it (the parent's traits and masks, the new level).
   const probe: ModelVersion = { ...version, traitsTrue: x0, masks: parent ? parent.masks : emptyMasks(), uModes };
-  const env = playerEnv(s, x0, sg, om.growth, post, lineage, uModes, probe);
+  // Model v3 E7: a recipe steered by the R&D fleet adds hidden CoT pressure to the TRUE signals (not to sg, which the
+  // predicted beliefs below read).
+  const sgTrue = steerS4(s) > 0 ? { ...sg, S4: clamp01(sg.S4 + steerS4(s)) } : sg;
+  const env = playerEnv(s, x0, sgTrue, om.growth, post, lineage, uModes, probe);
   env.omegaSafety = om.safety;
   const teacher = versionById(s, run.teacherVersionId);
   if (teacher && sameBaseFamily(s, teacher, base)) env.teacher = teacher.traitsTrue; // teacher data within the base family (S6, E06)
