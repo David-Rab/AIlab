@@ -28,11 +28,12 @@ import { CONTROL, FOOTHOLD } from '../../../data/v2/danger';
 import { computeOnlineOf } from '../compute/power';
 import { hash32 } from '../core/rng';
 import { internalFleets } from '../departments/agents';
-import { bestLg, bestPlayerVersion, measuredLOf } from '../models/labs';
-import type { Foothold, GameStateV2, ModelVersion, SystemCtx, TraitVector } from '../types';
+import { bestLg, bestPlayerVersion } from '../models/labs';
+import type { Foothold, GameStateV2, ModelVersion, SystemCtx } from '../types';
 import { defenceIndex } from '../worldfx/readouts';
 import { clamp01 } from './common';
 import { footholdsOf, isActive, lineageOf } from './footholds';
+import { believedInternalOversight } from './believedOversight';
 import { internalOversight } from './incidents';
 import { misalignment, misalignmentEstimate } from './traits';
 
@@ -176,13 +177,11 @@ export function escapeNoticed(s: GameStateV2, v: ModelVersion, day: number): boo
 
 // ───────────────────────────── the player's estimate ─────────────────────────────
 
-/** The lab's believed control of model v: its belief estimates of the traits (Mis and the trait penalties on
- *  detection), its measured level (the gap), and only the footholds it knows of (located at their size, suspected
- *  ones at suspectedF each). */
+/** The lab's believed control of model v: its belief estimate of Mis, believed oversight (E15: believedOversight.ts,
+ *  the same terms as the danger readout: believed tool strengths and masks, measured levels, no U-modes), and only the
+ *  footholds it knows of (located at their size, suspected ones at suspectedF each). */
 export function believedTerms(s: GameStateV2, v: ModelVersion): { mis: number; oversight: number; F: number; exposure: number; control: number } {
-  const est = Object.fromEntries(Object.entries(v.beliefs).map(([k, b]) => [k, b.est])) as TraitVector;
-  const vb: ModelVersion = { ...v, traitsTrue: { ...v.traitsTrue, ...est }, Lg: measuredLOf(s, v).L };
-  const o = internalOversight(s, vb, CONTROL.trait);
+  const o = believedInternalOversight(s, v, CONTROL.trait);
   const lin = lineageOf(s, v);
   let F = 0;
   let miss = 1;
@@ -239,10 +238,22 @@ export function controlStep(s: GameStateV2, ctx: SystemCtx): void {
   if (!t) return;
   c.level = round4(t.control);
   c.exposure = round4(t.exposure);
-  c.versionId = t.versionId;
   c.lowest = Math.min(c.lowest ?? 1, c.level);
-  const v = s.player.models.versions.find((x) => x.id === t.versionId);
-  c.believed = v ? round4(believedTerms(s, v).control) : 1;
+  // E15: the shown model and its control are the lowest BELIEVED control over the same candidates (never the model
+  // where true control is lowest).
+  const b = believedLowest(s);
+  c.versionId = b?.versionId;
+  c.believed = b ? round4(b.control) : 1;
+}
+
+/** The candidate with the lowest believed control (the player's view: beliefs, measured levels, known footholds). */
+export function believedLowest(s: GameStateV2): { versionId: string; control: number } | undefined {
+  let out: { versionId: string; control: number } | undefined;
+  for (const v of candidates(s)) {
+    const control = believedTerms(s, v).control;
+    if (!out || control < out.control) out = { versionId: v.id, control };
+  }
+  return out;
 }
 
 /** Save migration 26 → 27: the world's tolerance noise from the seed, each escaped copy's misalignment (the loose

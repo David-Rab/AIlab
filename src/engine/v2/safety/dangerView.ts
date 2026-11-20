@@ -17,20 +17,20 @@
 // Control: E9's controlView (stored believed control) with its believed parts (believedTerms), the oversight gap of the
 // model that sets it, the footholds the lab knows of, and the control layer's tax (E6).
 import { AGENT_USES } from '../../../data/v2/agents';
-import { CHANNEL_AFFORD, DANGER_ACTS, HUMAN_REVIEW, type ActDef } from '../../../data/v2/danger';
+import { CHANNEL_AFFORD, DANGER_ACTS, type ActDef } from '../../../data/v2/danger';
 import { HUMAN_REVIEW_L } from '../../../data/v2/oversight';
 import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
-import { agentSplitShare, agentVersion, fleetMonitor, internalFleets, monitorVersion } from '../departments/agents';
-import { bestPlayerVersion, measuredLOf } from '../models/labs';
+import { agentSplitShare, agentVersion, fleetMonitor, monitorVersion } from '../departments/agents';
+import { measuredLOf } from '../models/labs';
 import { catchRate, collusionTrait, productHazardMult } from '../models/products';
 import type { AgentUse, Deployment, DomainId, GameStateV2, ModelVersion, TraitId, TraitVector } from '../types';
 import { versionById } from './common';
-import { believedTerms, controlView } from './control';
+import { believedMonitorCatch, believedOversightParts } from './believedOversight';
+import { believedLowest, believedTerms, controlView } from './control';
 import { footholdView } from './footholdDetection';
 import { aiRdShare, autonomyOf, capabilityOf, dispositionOf, internalScale, siteOf, type Site } from './incidents';
-import { controlProtocol, gapFactor, measuredOom, oversightGap, underControl, type ControlReadout } from './oversight';
-import { containment, techniqueRole } from './techniques';
-import { detectionAt } from './understanding';
+import { controlProtocol, measuredOom, oversightGap, underControl, type ControlReadout } from './oversight';
+import { containment } from './techniques';
 
 const YEAR = 365;
 const USE_WORK: Record<AgentUse, WorkTypeId> = { eng: 'SWE', capRoutine: 'EXP', capFrontier: 'IDEAS', safety: 'SAF_EXP' };
@@ -78,14 +78,6 @@ function estTraits(v: ModelVersion): TraitVector {
 
 /** Measured level of an act's domain: the measured general level plus the version's domain offset. */
 const measuredDomainL = (s: GameStateV2, v: ModelVersion, d: DomainId) => measuredLOf(s, v).L + (v.domains[d] - v.Lg);
-
-/** Believed monitoring catch on trait k inside the lab: CoT and white-box tools as the player believes them, at the
- *  model's measured level, × (½ + ½ × the fleet's monitor strength). */
-function believedMonitorCatch(s: GameStateV2, v: ModelVersion, trait: TraitId, L: number): number {
-  const tools = Object.values(s.player.safety.techniques).filter((t) => t.unlocked && t.active && techniqueRole(t) !== 'fix' && (t.family === 'COT' || t.family === 'WB'));
-  const det = tools.length ? detectionAt(s, v, trait, L, tools) : 0;
-  return Math.max(0, Math.min(1, det * (0.5 + 0.5 * fleetMonitor(s, v, trait))));
-}
 
 interface Opts { control?: boolean; restrict?: boolean }
 
@@ -164,11 +156,11 @@ function laneDanger(s: GameStateV2, use: AgentUse, o: Opts = {}): DangerRead | u
   const restricted = d.status === 'restricted' || !!o.restrict;
   const site: Site = {
     internal: true, scale: usage * internalScale(s) * (restricted ? RESTRICT : 1), autonomy: autonomyOf(WORK_TYPES[USE_WORK[use]].H),
-    afford: CHANNEL_AFFORD.internal, rd: aiRdShare(s), contain: containment(s, measuredOom(s, v), layer, true), wsl: s.player.security.wsl,
+    afford: CHANNEL_AFFORD.internal, rd: aiRdShare(s), contain: 0, wsl: s.player.security.wsl,
   };
-  const L = measuredLOf(s, v).L;
-  const human = HUMAN_REVIEW * (1 - site.rd) * gapFactor(oversightGap(s.hidden.timeline, L, HUMAN_REVIEW_L).oom);
-  const miss = layer ? controlProtocol(undefined).missMult : 1;
+  // E15: the same believed oversight as E9's believed control (believedOversight.ts).
+  const { L, block, human, controlMiss: miss } = believedOversightParts(s, v, layer, site.rd);
+  site.contain = block;
   const acts = readActs(s, v, site, d, (t) => 1 - (1 - believedMonitorCatch(s, v, t, L)) * (1 - human) * miss);
   return {
     site: 'internal', deploymentId: d.id, versionId: v.id, use, usage, scale: site.scale, autonomy: site.autonomy, afford: site.afford, rd: site.rd,
@@ -232,11 +224,8 @@ export function controlReadout(s: GameStateV2): ControlRead {
   // Not yet assessed (a save from before E9, refreshed on the next day): the lowest believed control over the same
   // candidates (the best model and the running internal fleets), from beliefs only.
   if (!cv.versionId) {
-    const cands = [bestPlayerVersion(s), ...internalFleets(s).map((f) => f.v)].filter((x): x is ModelVersion => !!x && x.status !== 'retired');
-    for (const x of cands) {
-      const b = believedTerms(s, x).control;
-      if (!cv.versionId || b < cv.believed) cv = { believed: Math.round(b * 1e4) / 1e4, versionId: x.id };
-    }
+    const b = believedLowest(s);
+    if (b) cv = { believed: Math.round(b.control * 1e4) / 1e4, versionId: b.versionId };
   }
   const v = versionById(s, cv.versionId);
   const t = v ? believedTerms(s, v) : { mis: 0, oversight: 0, F: 0, exposure: 0, control: 1 };

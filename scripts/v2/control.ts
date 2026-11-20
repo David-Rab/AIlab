@@ -21,6 +21,7 @@ import {
   asiControl, controlStep, controlTerms, controlThreshold, controlView, copyExposure, copyGrowthRate, escapeNoticed, labControl, lossThreshold, rogueCopy,
 } from '../../src/engine/v2/safety/control';
 import { footholdFromEscape, footholdsOf, lineageOf } from '../../src/engine/v2/safety/footholds';
+import { controlReadout } from '../../src/engine/v2/safety/dangerView';
 import { exfiltrationHazard } from '../../src/engine/v2/safety/incidents';
 import { securitySystem } from '../../src/engine/v2/security/security';
 import { misalignment } from '../../src/engine/v2/safety/traits';
@@ -112,6 +113,35 @@ function strongOversight(s: GameStateV2) {
     'state: the daily step stores the lab\'s lowest control; the view shows only the believed estimate', `C ${f3(lc.control)} (${lc.versionId}), believed ${f3(view.believed)}`);
 }
 function clone<T>(x: T): T { return JSON.parse(JSON.stringify(x)); }
+
+// ───────────── E15: believed control reads no hidden truth ─────────────
+for (const fx of ['day400.json', 'day900.json']) {
+  const s = fixture(fx);
+  strongOversight(s); // the control layer on, so containment counts
+  resetWorkContext(s);
+  controlStep(s, makeCtx(s));
+  const before = controlView(s);
+  const r0 = controlReadout(s);
+  const p = clone(s);
+  // Hidden truth only: true tool strengths (efficacy, false validation), true masks, undiscovered U-modes, true traits
+  // and true levels of every model.
+  for (const a of Object.keys(p.hidden.agendaEfficacy)) p.hidden.agendaEfficacy[a as keyof typeof p.hidden.agendaEfficacy] = 0.05;
+  for (const t of Object.values(p.player.safety.techniques)) t.falseValidated = true;
+  const hiddenU = (['U19', 'U03', 'U07'] as const).filter((u) => !p.player.safety.discoveredUModes.includes(u));
+  for (const v of p.player.models.versions) {
+    for (const k of TRAIT_IDS) v.masks[k] = { BB: 0.9, COT: 0.9, WB: 0.9 };
+    v.uModes = [...new Set([...v.uModes, ...hiddenU])];
+    v.traitsTrue = { ...v.traitsTrue, SCHEME: 1, POWER: 1, CONCEAL: 1 };
+    v.Lg += 2;
+  }
+  resetWorkContext(p);
+  controlStep(p, makeCtx(p));
+  const after = controlView(p);
+  const r1 = controlReadout(p);
+  check(after.believed === before.believed && after.versionId === before.versionId && r1.oversight === r0.oversight && r1.mis === r0.mis && p.player.safety.effectiveControl.level !== s.player.safety.effectiveControl.level,
+    `E15 (${fx}): perturbing hidden truth (tool strengths, masks, undiscovered U-modes, traits, levels) leaves believed control and its model unchanged (true control moves)`,
+    `believed ${before.believed} (${before.versionId}) → ${after.believed} (${after.versionId}); true ${s.player.safety.effectiveControl.level} → ${p.player.safety.effectiveControl.level}`);
+}
 
 // ───────────── footholds grow once control is low ─────────────
 {
