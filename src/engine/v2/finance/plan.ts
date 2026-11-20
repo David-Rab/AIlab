@@ -11,8 +11,8 @@ import { act } from '../core/loop';
 import { dayOfQuarter } from '../core/time';
 import { siteCapacityH } from '../compute/power';
 import { cloudPricePerYear, refTotalAt } from '../compute/market';
-import { EVENT_BY_ID } from '../core/registry';
-import type { GameStateV2, PendingDecision } from '../types';
+import type { GameStateV2 } from '../types';
+import { BC_WARN, criticsAvailable, criticsOusterShift } from './board';
 import { leaseRate } from './capex';
 import { debtHeadroom } from './debt';
 import { canRaise, DOWN_ROUND_RUNWAY_Q, lastPostMoney, raiseCeiling } from './equity';
@@ -141,6 +141,14 @@ export function financeAutopilot(s: GameStateV2, o0: AutopilotOpts = REF_AUTOPIL
 
   // Governance: start the recapitalisation when it becomes available (Q4 2025).
   if (o.recap && s.player.board.preset === 'legacyNonprofit' && f.ws3.recap.startDay === undefined && !f.ws3.recap.refused && s.time.day >= 92) tryAct('fin.recap');
+
+  // Board (FIN3b, spec §7.5): below the board's warning line (35), give the critics a seat when it is available (once a
+  // year) and it leaves more room above the ouster vote's passing line than before: +15 now, but the new director votes
+  // the board's grievance for good (the preview shows both). (Replaces the E37 answers.)
+  if (s.player.board.confidence < BC_WARN && criticsAvailable(s) === true) {
+    const o = criticsOusterShift(s);
+    if (o.marginAfter > o.marginBefore) tryAct('fin.critics');
+  }
 
   // Distress (a competent CEO, M4): renegotiate first (warrants, once a year); if runway is still under 2 quarters,
   // a strategic rescue when allowed and it would not hand the partner control, else a down round.
@@ -289,38 +297,6 @@ const recentDownRound = (s: GameStateV2) => s.player.finance.rounds.some((r) => 
 function rescueKeepsControl(s: GameStateV2): boolean {
   const strat = s.player.finance.ownership.strat;
   return Math.max(0, ...Object.values(strat)) + 0.1 <= 0.45;
-}
-
-/**
- * Competent-CEO answer to the finance decision (M4), shared by every bot: E37 rally the staff when morale is high,
- * freeze capex when runway is short or the CEO is cautious, otherwise add independent directors. (Recapitalisation
- * and distress are actions the autopilot takes directly.) Returns undefined for other events.
- */
-export function financeDecide(s: GameStateV2, d: PendingDecision, _o: AutopilotOpts = REF_AUTOPILOT): number | undefined {
-  const def = EVENT_BY_ID.get(d.id);
-  if (!def) return undefined;
-  const ok = (label: string) => {
-    const i = def.choices.findIndex((c) => c.label === label);
-    return i >= 0 && (def.choices[i].available?.(s) ?? true) === true ? i : -1;
-  };
-  const first = (...labels: string[]) => {
-    for (const l of labels) {
-      const i = ok(l);
-      if (i >= 0) return i;
-    }
-    return undefined;
-  };
-  switch (d.id) {
-    case 'E37': {
-      // New independents dilute a mission board that would shield a cautious CEO, so a cautious CEO (≥ 8% safety
-      // compute) rallies staff or freezes capex instead.
-      if (s.player.morale.overall >= 72) return first('Rally staff');
-      if (s.player.split.safety >= 0.08) return first('Capex freeze', 'Rally staff');
-      if (runwayOf(s).q < 4) return first('Capex freeze', 'New directors');
-      return first('New directors');
-    }
-    default: return undefined;
-  }
 }
 
 function isQuarterStart(s: GameStateV2) {

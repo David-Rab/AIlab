@@ -148,4 +148,5 @@ export type { ProductChanges } from '../models/productOps';
 export { activeFeatures, agentsGate, catchRate, collusionTrait, sameLineage, featureBuildBlock, featureToggleBlock, freeTierShare, isProduct, measuredHorizonH, monitorOverhead } from '../models/products';
 export { LENT_RECOVERY, servingPool, spareServing, spareServingToResearch } from '../worldfx/revenue';
 export { spareServingEffect } from '../production/production';
-export { ousterRiskQ, OUSTER_BC, OUSTER_NOTICE_D } from '../finance/board'; // jank ST3: board review readout
+export { ousterVote, ousterLive, ousterPassesBelow, OUSTER, OUSTER_BC, OUSTER_NOTICE_D, BC_WARN, BC_CLEAR, CRITICS, criticsAvailable, criticsSide, criticsSeat, trustVote } from '../finance/board'; // jank ST3 + FIN3b: board review, ouster vote, critics' seat
+export { charterRights, charterHolds } from '../finance/charter'; // FIN3b: charter rights

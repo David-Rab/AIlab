@@ -6,7 +6,7 @@
 // no strategic deals or debt, declines defense work, releases only after external review.
 import { internalVersion } from '../models/labs';
 import type { BotPolicy, TraitId } from '../types';
-import { financeAutopilot, financeDecide, type AutopilotOpts } from '../finance/plan';
+import { financeAutopilot, type AutopilotOpts } from '../finance/plan';
 import { runwayOf } from '../finance/runway';
 import { every, pickByTags, sizedTarget, staffLines, tryAct, type LinePlan } from './common';
 import { REF_TREE, SAFE_TREE_EXTRA, refPlay, type RefPlayOpts } from './ref';
@@ -74,6 +74,6 @@ export const safeBot: BotPolicy = {
     }
   },
   decide(s, d) {
-    return financeDecide(s, d, SAFE_AUTOPILOT) ?? pickByTags(s, d, [['pause', 'honour'], ['disclose'], ['safety', 'treaty', 'comply'], ['decline', 'community']]);
+    return pickByTags(s, d, [['pause', 'honour'], ['disclose'], ['safety', 'treaty', 'comply'], ['decline', 'community']]);
   },
 };

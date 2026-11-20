@@ -3,7 +3,7 @@
 import { clamp } from '../../../rng';
 import { withdraw } from '../../models/deployments';
 import { internalVersion } from '../../models/labs';
-import { flag } from '../../safety/common';
+import { flag, redFlags } from '../../safety/common';
 import { openInvestigation } from '../../safety/investigations';
 import { understanding } from '../../safety/understanding';
 import type { Commitment, EventDefV2, GameStateV2, ModelVersion, SystemCtx, TraitId } from '../../types';
@@ -16,8 +16,6 @@ import { discoveryOdds } from '../../actors/researchBodies';
 import { ws4 } from '../../actors/state';
 import { L, P, ch, ev, pv, requestOnly } from '../kit';
 import { boardMood, MOOD_BASE, moodWeight } from '../../finance/mood';
-
-const RED: TraitId[] = ['SCHEME', 'AF', 'SAND'];
 
 /** The disclosure-dilemma triple used by findings, incidents and U-mode discoveries. */
 function dilemma(what: string, credGain: number, scrut: number) {
@@ -93,8 +91,8 @@ export const SAFETY_EVENTS: EventDefV2[] = [
       const v = internalVersion(s);
       if (!v) return false;
       const fresh = (k: string) => s.events.fired[`E17#${k}`] === undefined;
-      const t = RED.find((k) => fresh(k) && v.beliefs[k] && v.beliefs[k].est > 0.3 && v.beliefs[k].clarity > 0.4);
-      if (t) return { versionId: v.id, trait: t, est: Math.round(v.beliefs[t].est * 100) };
+      const t = redFlags(v).find((x) => fresh(x.trait));
+      if (t) return { versionId: v.id, trait: t.trait, est: Math.round(t.est * 100) };
       const margin = understanding(s).margin;
       return fresh('U') && margin < -1 ? { versionId: v.id, trait: 'U', est: Math.round(margin * 10) / 10 } : false;
     },

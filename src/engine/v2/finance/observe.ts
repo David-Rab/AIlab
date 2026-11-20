@@ -5,7 +5,9 @@ import { tcoPerYear, cloudPricePerYear } from '../compute/market';
 import { ownedOnline, rentedOnline } from '../compute/power';
 import { PLAYER_ID } from '../models/labs';
 import { revenueOf, servingPool } from '../worldfx/revenue';
-import type { GameStateV2, H100e, LabId, Money } from '../types';
+import { redFlags } from '../safety/common';
+import { TRAIT_BY_ID } from '../../../data/v2/traits';
+import type { GameStateV2, H100e, LabId, ModelVersion, Money } from '../types';
 
 const rival = (s: GameStateV2, lab: LabId) => s.rivals.find((r) => r.core.id === lab);
 
@@ -91,6 +93,21 @@ export function computeSecured(s: GameStateV2, lab: LabId = PLAYER_ID): H100e {
 /** Compute online (H100e: owned racks running plus rented capacity) — the Scale milestone (FINANCE-V3 §2.2). */
 export function computeOnline(s: GameStateV2, lab: LabId = PLAYER_ID): H100e {
   return lab === PLAYER_ID ? s.player.computeOnline : rival(s, lab)?.core.computeOnline ?? 0;
+}
+
+/** Red flags the player's own safety evals show on a version: scheming, alignment faking or sandbagging believed above
+ *  `minEst` with clarity above 0.4 (E17's traits; beliefs, never truth). The safety committee's release block reads it
+ *  (FINANCE-V3 §7.2, FIN3b). */
+export function safetyRedFlags(v: ModelVersion, minEst?: number): { trait: string; name: string; est: number }[] {
+  return redFlags(v, minEst).map((x) => ({ trait: x.trait, name: TRAIT_BY_ID[x.trait]?.name ?? x.trait, est: x.est }));
+}
+
+/** Dangerous-capability thresholds a version's measured evals have crossed (bio uplift, cyber offense, autonomous
+ *  replication: the dangerous benchmarks above 60, §3.3.4; persuasion is not a threshold). A "capability-threshold
+ *  model" in the PBC + trust charter (FINANCE-V3 §7.2) is one with any of them. */
+export const THRESHOLD_FLAGS = { bioUplift: 'bio uplift', cyberOffense: 'cyber offense', replication: 'autonomous replication' } as const;
+export function capabilityThresholds(v: ModelVersion): string[] {
+  return (Object.keys(THRESHOLD_FLAGS) as (keyof typeof THRESHOLD_FLAGS)[]).filter((k) => v.flags[k]).map((k) => THRESHOLD_FLAGS[k]);
 }
 
 /** Copyright litigation exposure from unlicensed training data (§3.9.1; R17 D3): a suit settles automatically at $1.5B

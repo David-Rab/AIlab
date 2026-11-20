@@ -9,7 +9,7 @@ import { internalVersion } from '../models/labs';
 import { understanding } from '../safety/understanding';
 import type { AgendaId, BotPolicy, GameStateV2, TraitId } from '../types';
 import { clamp } from '../../rng';
-import { financeAutopilot, financeDecide, REF_AUTOPILOT } from '../finance/plan';
+import { financeAutopilot, REF_AUTOPILOT } from '../finance/plan';
 import { byLabel, every, pickByTags, sizedTarget, staffLines, tryAct, type LinePlan } from './common';
 import { REF_TREE, refPlay, type RefPlayOpts } from './ref';
 
@@ -92,8 +92,6 @@ export const mixedBot: BotPolicy = {
     }
   },
   decide(s, d) {
-    const fin = financeDecide(s, d, REF_AUTOPILOT);
-    if (fin !== undefined) return fin;
     switch (d.id) {
       case 'E10': return byLabel(d, 'Public + retaliate');
       case 'E12': return byLabel(d, 'Comply');

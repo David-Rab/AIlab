@@ -876,12 +876,14 @@ export interface Board {
   preset: GovernancePresetId;
   seats: BoardSeat[];
   confidence: number; // BC 0..100
+  /** Charter right (FINANCE-V3 §7.2, nonprofit-controlled PBC): the nonprofit's safety committee halts the release of
+   *  a model the player's own safety evals red-flag (read by the deployment gate, FIN3b). */
   safetyCommitteeVeto: boolean;
 }
 
 /** Major decisions the board votes on (FINANCE-V3 §7.3). Operating decisions (compute, releases, research, pricing)
- *  are never voted on. */
-export type MajorDecision = 'saleOfControl' | 'merger' | 'downRound' | 'rescue' | 'commitments' | 'debt';
+ *  are never voted on. `transferModel` is a charter decision only the PBC + trust's trust votes on (§7.2, FIN3b). */
+export type MajorDecision = 'saleOfControl' | 'merger' | 'downRound' | 'rescue' | 'commitments' | 'debt' | 'transferModel';
 
 /** One voting seat's vote on a major decision (FIN3a): deterministic, shown before you ask. lean = stance · decision
  *  + outside-ownership drift + board mood + the situation; yes when lean > 0 (the CEO's seat always votes yes). */
@@ -906,8 +908,39 @@ export interface BoardVote {
   yes: number;
   total: number;
   passes: boolean;
-  /** Founder control (founder preset before listing, or dual-class): a failed vote can be forced at a confidence cost. */
+  /** Founder control (founder preset before listing, or dual-class): a failed vote can be forced at a confidence cost.
+   *  Never for a charter vote by the trust. */
   canForce: boolean;
+  /** Who votes: the whole board (default) or, for the PBC + trust's charter rights, only the trust's (mission) seats. */
+  body?: 'board' | 'trust';
+}
+
+/** One seat's vote at an ouster review (FIN3b, spec §7.5): yes when lean = grievance + depth − reluctance > 0. */
+export interface OusterSeatVote {
+  holder: string;
+  kind: BoardSeat['kind'];
+  weight: number;
+  yes: boolean;
+  lean: number;
+  parts: { grievance: number; depth: number; reluctance: number };
+  /** Board confidence below which this seat would vote to remove you (undefined: it never would). */
+  turnsBelow?: number;
+}
+
+/** The ouster vote (FIN3b): deterministic, seat by seat, held at a quarterly review once confidence is below 25 and
+ *  the board's warning is at least 60 days old; passes when the weighted yes is more than half (the CEO's seat does not
+ *  vote). */
+export interface OusterVote {
+  seats: OusterSeatVote[];
+  yes: number;
+  total: number;
+  passes: boolean;
+  /** Whether a vote is held at the next review (confidence below the line and the warning old enough). */
+  live: boolean;
+  /** Shares of the last year's confidence losses the grievance is read from. */
+  grievance: { slow: number; reckless: number; burn: number };
+  /** The board's reluctance to remove a CEO (the legacy nonprofit's is half: ouster comes ×2 as easily). */
+  reluctance: number;
 }
 
 export interface BoardSeat { kind: 'founder' | 'mission' | 'financial' | 'strategic' | 'independent' | 'gov'; holder: string; stance: [number, number, number, number]; weight: number; }
@@ -1085,8 +1118,6 @@ export interface FinanceWS3 {
   rentals: { h100e: H100e; endDay: Day; perYear: Money }[];
   /** Reserved supplier capacity (H100e/q) from funded expansions, and when it starts. */
   reserved: { perQ: H100e; fromQ: number; toQ: number }[];
-  /** Action id → day until which the board has blocked it (§3.7.5: rejection blocks for 90 days). */
-  blockedUntil: Record<string, Day>;
   /** Quarter-start history (oldest first, last 5) of the milestone metrics the raise card extrapolates (FIN2): public
    *  level and compute online, H100e (revenue uses `revenueHistory`). Missing on saves made before it. */
   thesisHist?: { L: number[]; H: H100e[] };
@@ -1096,11 +1127,11 @@ export interface FinanceWS3 {
   negativeSinceDay?: Day;
   distressSinceDay?: Day;
   lastRenegotiationDay?: Day;
-  /** M4 board telegraph (§3.7.5): day the board first warned the CEO (E37) in the current low-confidence spell; the
-   *  ouster roll needs a prior warning. Cleared when confidence recovers. */
+  /** M4 board telegraph (§3.7.5): day the board first warned the CEO in the current low-confidence spell; the ouster
+   *  vote needs a warning at least 60 days old. Cleared when confidence recovers. */
   boardWarnDay?: Day;
-  /** Day the CEO was reinstated after an ouster vote (staff revolt, Nov 2023 precedent; once per game). */
-  reinstatedDay?: Day;
+  /** Day the critics were last given a board seat (FIN3b, spec §7.5; once a year). */
+  criticsDay?: Day;
   /** Day of the last strategic rescue (one per year). */
   lastRescueDay?: Day;
   /** Day until which a custom-ASIC migration slows research (WS1 reads this, §3.7.4 −15% research efficiency). */

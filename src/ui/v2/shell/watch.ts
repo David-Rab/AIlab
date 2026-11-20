@@ -98,7 +98,7 @@ export function watchItems(s: GameStateV2): WatchItem[] {
     const br = boardReview(s);
     out.push({
       id: 'board', sphere: 'company', sev: bc < 30 ? 4 : 3,
-      chain: [{ label: 'board confidence low', icon: ICON.board, kind: 'root', detail: `Confidence ${Math.round(bc)} (warning below 35, ouster risk below 25)` }, { label: br.live ? `ouster vote ${Math.round(br.p * 100)}%` : 'ouster risk', icon: ICON.alert, kind: 'bad' }],
+      chain: [{ label: 'board confidence low', icon: ICON.board, kind: 'root', detail: `Confidence ${Math.round(bc)} (warning below 35, ouster risk below 25)` }, { label: br.live ? `ouster vote: ${br.vote.yes} of ${br.vote.total} for` : 'ouster risk', icon: ICON.alert, kind: 'bad', detail: br.passesBelow !== undefined ? `the vote passes below confidence ${Math.round(br.passesBelow)}` : 'no majority to remove you on this board' }],
       why: `board review in ${br.inDays} d: confidence ${Math.round(bc)}, needs ${br.line}+ to rule out a vote`, go: { panel: 'finance', anchor: 'board' }, goLabel: 'Board',
     });
   }

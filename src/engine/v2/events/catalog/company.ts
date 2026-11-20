@@ -1,6 +1,6 @@
-// Event catalog: company decisions (V2-SPEC §4.2: E16, E27, plus WS3's FINANCE_EVENTS: E37). Owner: WS4 (content
-// shared with WS3). Every cash effect goes through WS3's ledger.
-import { FINANCE_EVENTS } from '../../finance/events';
+// Event catalog: company decisions (V2-SPEC §4.2: E16, E27). Owner: WS4 (content shared with WS3). Every cash effect
+// goes through WS3's ledger. FIN3b dropped WS3's E37 "Board revolt" (FINANCE-V3 §10): the ouster vote is always on the
+// Board card and giving the critics a seat is a standing action.
 import { activeRivals } from '../../models/labs';
 import type { EventDefV2 } from '../../types';
 import { bloc, cash, morale, rivalMeter, scrutiny, trust } from '../../actors/fx';
@@ -17,7 +17,6 @@ const blockedSite = (s: GameStateV2) => s.player.sites.find((y) => y.stage === '
 const reactivePackageCost = (x?: Site) => Math.max(0.1, COMMUNITY.reactive * (x?.capex ?? 0));
 
 export const COMPANY_EVENTS: EventDefV2[] = [
-  ...FINANCE_EVENTS,
   ev({
     id: 'E16', title: 'Talent raid', icon: 'rival', crisis: false, cooldown: 365, deadlineDays: 14, defaultChoice: 1,
     when: (s) => {

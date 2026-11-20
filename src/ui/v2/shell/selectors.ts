@@ -1,6 +1,6 @@
 // Pure UI selectors shared by the top strip and the Watch list (no store, no React): importable from node scripts
 // (scripts/v2/idle.ts reads the Watch list).
-import { activeRivals, dateOf, dayOfQuarter, engine, leadDays, OUSTER_BC, OUSTER_NOTICE_D, ousterRiskQ, qOf, runwayOf } from '../../../engine/v2';
+import { activeRivals, dateOf, dayOfQuarter, engine, leadDays, OUSTER_BC, OUSTER_NOTICE_D, ousterPassesBelow, ousterVote, qOf, runwayOf } from '../../../engine/v2';
 import type { GameStateV2, RiskSource } from '../../../engine/v2';
 import { runwayState } from '../theme';
 import { isDivision } from '../../../data/v2/starts';
@@ -28,14 +28,15 @@ export function runwayLive(s: GameStateV2) {
   return { rw, live, official, review, flips, division };
 }
 
-/** Jank ST3: the next quarterly board review: date, confidence against the ouster line, whether a vote can happen
- *  there (confidence below the line and a warning at least the notice period old) and its odds. */
+/** Jank ST3 + FIN3b: the next quarterly board review: date, confidence against the ouster line, whether a vote is held
+ *  there (confidence below the line and a warning at least the notice period old), the vote as it stands today (seat by
+ *  seat, no dice) and the confidence below which it would pass. */
 export function boardReview(s: GameStateV2) {
   const day = dayOfQuarter(s.time.startDate, qOf(s) + 1);
   const bc = s.player.board.confidence;
   const warn = s.player.finance.ws3?.boardWarnDay;
   const live = bc < OUSTER_BC && warn !== undefined && day - warn >= OUSTER_NOTICE_D;
-  return { day, inDays: day - s.time.day, date: dateOf(s, day), bc, line: OUSTER_BC, live, p: live ? ousterRiskQ(s) : 0, division: isDivision(s) };
+  return { day, inDays: day - s.time.day, date: dateOf(s, day), bc, line: OUSTER_BC, live, vote: ousterVote(s), passesBelow: ousterPassesBelow(s), division: isDivision(s) };
 }
 
 /** A division's money in budget terms (jank F2): the parent's payment per quarter, spending per quarter (operating

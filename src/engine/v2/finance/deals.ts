@@ -1,11 +1,12 @@
 // Strategic deals: offers, terms, strings, vetoes, rescue (V2-SPEC §3.7.4; research/15 §1.7). Owner: WS3.
 import { DEAL_TEMPLATES, DEAL_TERMS, partnerDef, PARTNER_DEFS } from '../../../data/v2/deals';
 import { dayOfQuarter } from '../core/time';
-import type { GameStateV2, Money, StrategicDeal, SystemCtx } from '../types';
+import type { BoardVote, GameStateV2, Money, StrategicDeal, SystemCtx } from '../types';
 import { addCloud } from '../compute/orders';
 import { cloudPricePerYear } from '../compute/market';
 import { newSite } from '../compute/sites';
 import { addSeat, commitmentsVote, voteGate } from './board';
+import { controlVote } from './charter';
 import { DEBT_TERMS } from '../../../data/v2/deals';
 import { issue } from './equity';
 import { ensureWs3, yearStats, type DealOffer } from './ext';
@@ -106,6 +107,26 @@ export function rescueOffer(s: GameStateV2): DealOffer | undefined {
   return { id: `RESCUE${s.time.day}`, day: s.time.day, expiresDay: s.time.day + 30, ...dealTerms(s, 'hyperscalerEquity', p.id, true) };
 }
 
+/** The partner's share of the equity right after signing these terms (the equity now and, for a rescue, the top-up to
+ *  its stake), on a copy of the cap table. Later tranches are not counted (they may never land). */
+export function partnerStakeAfter(s: GameStateV2, t: Pick<DealOffer, 'partner' | 'template' | 'equityNow' | 'rescue'>): number {
+  const o = JSON.parse(JSON.stringify(s.player.finance.ownership)) as GameStateV2['player']['finance']['ownership'];
+  const V = Math.max(10, s.player.finance.valuation);
+  const eq = t.template === 'vendorFinance' ? 0 : t.equityNow;
+  if (eq > 0) issue(o, eq / (V + eq), { kind: 'strat', name: t.partner });
+  if (t.rescue) issue(o, Math.max(0, DEAL_TERMS.rescue.stake - (o.strat[t.partner] ?? 0)), { kind: 'strat', name: t.partner });
+  return o.strat[t.partner] ?? 0;
+}
+
+/** The votes a deal needs: the board on firm commitments above 3× revenue (spec §7.3), and under PBC + trust the
+ *  trust on a sale of control (§7.2, FIN3b), in the order they are held. */
+export function dealVotes(s: GameStateV2, t: Omit<DealOffer, 'id' | 'day' | 'expiresDay'>): BoardVote[] {
+  // The trust's vote first: it cannot be forced, so a founder never pays the force cost for a deal the trust stops.
+  return [controlVote(s, t.partner, partnerStakeAfter(s, t)), commitmentsVote(s, t.commitPerQ * 4)].filter((v): v is BoardVote => !!v);
+}
+/** The vote to show for a deal: the first failing one, else the first needed. */
+export const dealVote = (vs: BoardVote[]) => vs.find((v) => !v.passes) ?? vs[0];
+
 /** Accept a deal (equity, take-or-pay, board seat, exclusivity). Uses a matching open offer if there is one, else
  *  today's terms. Returns an error string if blocked (veto, anchor, board). */
 export function acceptDeal(s: GameStateV2, ctx: SystemCtx, template: Template, partner: string, opts: { offerId?: string; force?: boolean } = {}): string | undefined {
@@ -119,9 +140,12 @@ export function acceptDeal(s: GameStateV2, ctx: SystemCtx, template: Template, p
     if (why) return why;
   }
   const t: Omit<DealOffer, 'id' | 'day' | 'expiresDay'> = offer ?? dealTerms(s, template, partner);
-  // Major decision (spec §7.3): firm commitments above 3× revenue need the board's vote (FIN3a: no dice).
-  const no = voteGate(ctx, commitmentsVote(s, t.commitPerQ * 4), !!opts.force);
-  if (no) return no;
+  // Major decision (spec §7.3): firm commitments above 3× revenue need the board's vote (FIN3a: no dice); under PBC +
+  // trust a sale of control needs the trust (FIN3b). Votes before any side effect.
+  for (const v of dealVotes(s, t)) {
+    const no = voteGate(ctx, v, !!opts.force);
+    if (no) return no;
+  }
   if (offer) fx.offers = fx.offers.filter((o) => o !== offer);
   const tpl = DEAL_TEMPLATES.find((x) => x.id === template)!;
   const q = qOf(s);

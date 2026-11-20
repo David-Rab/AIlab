@@ -749,6 +749,83 @@ ok('J1 C1: buy, build and rent show before → after (cash, runway)', await page
   await page.evaluate((v) => { const s = window.ai27v2.state; const o = JSON.parse(v); s.player.finance.state = o.state; s.player.board.confidence = o.bc; s.player.board.preset = o.preset; window.ai27v2.notify(); }, saved);
   await wait(100);
 }
+// FIN3b (finance v3 §7.2, §7.5): charter rights on the Board card with what each blocks and the models the safety
+// committee holds; the launch button says why it is blocked; the ouster vote is shown seat by seat before the review;
+// the critics' seat is a standing action with its preview.
+{
+  const saved = await get('({ board: s.player.board, warn: s.player.finance.ws3.boardWarnDay, critics: s.player.finance.ws3.criticsDay, versions: s.player.models.versions.length, causes: s.causes.byKey["board.confidence"] ?? [] })');
+  // Nonprofit PBC with a red-flagged model ready to release (and the same flag on every full model, so a launch hits it).
+  await page.evaluate(() => {
+    const s = window.ai27v2.state;
+    s.player.board.preset = 'nonprofitPBC';
+    s.player.board.safetyCommitteeVeto = true;
+    const fulls = s.player.models.versions.filter((v) => v.variant === 'full' && (v.status === 'ready' || v.status === 'deployed'));
+    const c = JSON.parse(JSON.stringify(fulls[fulls.length - 1]));
+    c.id = 'V-ui-held'; c.name = 'Held-1'; c.status = 'ready';
+    s.player.models.versions.push(c);
+    window.__schemeSave = Object.fromEntries(fulls.map((v) => [v.id, JSON.stringify(v.beliefs.SCHEME ?? null)]));
+    for (const v of [...fulls, c]) v.beliefs.SCHEME = { est: 0.6, sd: 0.1, clarity: 0.7, lastObsDay: s.time.day };
+    window.ai27v2.notify();
+  });
+  await nav('finance');
+  await page.click('[data-tabs=finance] [data-tab=owners]'); await wait(120);
+  ok('FIN3b: the Board card lists the charter rights with what each blocks', !!(await page.$('[data-home=board] [data-test=charter] [data-right=safetyCommittee]')) && /halts red-flagged releases/.test(await page.evaluate(() => document.querySelector('[data-home=board] [data-test=charter]')?.textContent ?? '')));
+  ok('FIN3b: the safety committee row names the model it holds', /Held-1/.test(await page.evaluate(() => document.querySelector('[data-test=charter-held]')?.textContent ?? '')));
+  await page.hover('[data-home=board] [data-right=safetyCommittee]');
+  await wait(300);
+  ok('FIN3b: the charter tooltip gives the rule, the held model with its flag and the source', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /Blocks/.test(t) && /scheming 60%/i.test(t) && /Delaware/.test(t); })()`)));
+  await clearTips();
+  await shot('60-fin3b-charter');
+  await nav('products');
+  ok('FIN3b: Products links to the models the safety committee holds (home: the Board card)', !!(await page.$('[data-ref=charterHolds]')));
+  const launchReason = await page.evaluate(() => document.querySelector('[data-test=prod-launch] .act-reason')?.textContent ?? '');
+  ok('FIN3b: a blocked launch says the safety committee halts it and how to clear it', !(await page.$('[data-test=prod-launch]')) || /Safety committee halts the release/.test(launchReason) || !/Launch/.test(await page.evaluate(() => document.querySelector('[data-test=prod-launch] [data-act^="product.launch"]')?.textContent ?? 'Launch')), launchReason.slice(0, 90));
+  await shot('61-fin3b-launch-held');
+  // Ouster vote: confidence 15, a warning 100 days old, a reckless year: the vote is held at the next review.
+  await page.evaluate(() => {
+    const s = window.ai27v2.state;
+    s.player.board.confidence = 15;
+    s.player.finance.ws3.boardWarnDay = s.time.day - 100;
+    s.causes.byKey['board.confidence'] = [{ day: s.time.day - 5, delta: -30, source: 'public incident' }];
+    window.ai27v2.notify();
+  });
+  await nav('finance');
+  await page.click('[data-tabs=finance] [data-tab=owners]'); await wait(120);
+  const nVoters = JSON.parse(await get('s.player.board.seats.filter((x) => x.weight > 0 && x.kind !== "founder").length'));
+  const oChips = await page.evaluate(() => document.querySelectorAll('[data-test=ouster-vote][data-live="1"] [data-vote]').length);
+  ok('FIN3b: the ouster vote is on the Board card, seat by seat, before the review', oChips === nVoters && oChips > 0, `${oChips} chips, ${nVoters} voting seats`);
+  await page.hover('[data-test=board-review]');
+  await wait(300);
+  ok('FIN3b: the ouster tooltip shows the grievance and where each seat turns', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /Grievance/.test(t) && /turns/.test(t) && /No dice/.test(t); })()`)));
+  await clearTips();
+  await shot('62-fin3b-ouster');
+  // The critics' seat: available below 40; its preview names the new director; clicking adds the seat and +15.
+  await page.evaluate(() => { const s = window.ai27v2.state; s.player.board.confidence = 35; delete s.player.finance.ws3.criticsDay; window.ai27v2.notify(); });
+  await wait(120);
+  await page.hover('[data-act="fin.critics"]');
+  await wait(300);
+  ok('FIN3b: the critics\' seat preview names the director and the +15', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /Safety director/.test(t) && /15/.test(t); })()`)));
+  await clearTips();
+  await check('FIN3b: giving the critics a seat adds a director and +15 confidence', 's.player.board.seats.length + ":" + Math.round(s.player.board.confidence)', () => page.click('[data-act="fin.critics"]'), 200);
+  ok('FIN3b: the critics\' seat is once a year', !!(await page.$('[data-act="fin.critics"][disabled]')) || !(await page.$('[data-act="fin.critics"]')));
+  await shot('63-fin3b-critics');
+  await page.evaluate((v) => {
+    const s = window.ai27v2.state; const o = JSON.parse(v);
+    s.player.board = o.board; s.player.finance.ws3.boardWarnDay = o.warn; s.player.finance.ws3.criticsDay = o.critics;
+    if (o.warn === undefined) delete s.player.finance.ws3.boardWarnDay;
+    if (o.critics === undefined) delete s.player.finance.ws3.criticsDay;
+    s.player.models.versions = s.player.models.versions.filter((x) => x.id !== 'V-ui-held');
+    for (const x of s.player.models.versions) {
+      const b = window.__schemeSave?.[x.id];
+      if (b === undefined) continue;
+      const o2 = JSON.parse(b);
+      if (o2) x.beliefs.SCHEME = o2; else delete x.beliefs.SCHEME;
+    }
+    s.causes.byKey['board.confidence'] = o.causes;
+    window.ai27v2.notify();
+  }, saved);
+  await wait(100);
+}
 // J2: engineers' load, spare serving, days cut, same-lineage monitors, risk lever what-ifs, launches on the build queue.
 await nav('company');
 await tabTo('people');

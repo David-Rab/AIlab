@@ -10,7 +10,7 @@ import { TRUSTED_MAX_P27 } from '../../../data/v2/agents';
 import { initialAgents } from '../departments/agents';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
-export const SCHEMA_REV = 14;
+export const SCHEMA_REV = 15;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -210,7 +210,7 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     for (const o of s.player.orders) if (o.kind === 'lta') { o.ltaStartQ ??= o.dueQ; o.firm = true; }
     const anchors = s.capital.ws3?.anchors as Record<string, string> | undefined;
     if (anchors) for (const k of ['Keystone Capital', 'Meridian Group', 'Vantage Neocloud']) delete anchors[k];
-    const bu = fx.blockedUntil ?? {};
+    const bu = ((fx as unknown as { blockedUntil?: Record<string, number> }).blockedUntil ?? {}) as Record<string, number>;
     const move: Record<string, string> = { 'cmp.orderStandard': 'cmp.buyChips', 'cmp.orderLTA': 'cmp.buyChips', 'cmp.orderSpot': 'cmp.buyChips', 'cmp.cloudContract': 'cmp.rentCompute' };
     for (const [from, to] of Object.entries(move)) if (bu[from] !== undefined) { bu[to] = Math.max(bu[to] ?? 0, bu[from]); delete bu[from]; }
   },
@@ -233,8 +233,21 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   13: (raw) => {
     const s = raw as unknown as GameStateV2;
     delete (s.player.board as unknown as Record<string, unknown>).pendingApprovals;
-    const bu = s.player.finance.ws3?.blockedUntil;
+    const bu = (s.player.finance.ws3 as unknown as { blockedUntil?: Record<string, number> } | undefined)?.blockedUntil;
     if (bu) for (const k of Object.keys(bu)) if (['fin.raise', 'fin.acceptDeal', 'fin.drawDebt', 'cmp.rentCompute'].includes(k) || k.startsWith('deal:')) delete bu[k];
+  },
+  /** 14 → 15 (finance v3 FIN3b): E37 is gone, so its capex freeze (the last board block) and the block list go; the
+   *  ouster is a deterministic vote with no staff-revolt reinstatement, so the reinstatement day goes. An E37 decision
+   *  still pending is dropped. */
+  14: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const fx = s.player.finance.ws3 as unknown as Record<string, unknown> | undefined;
+    if (fx) {
+      delete fx.blockedUntil;
+      delete fx.reinstatedDay;
+    }
+    const ev = s.events as unknown as { pending?: { id: string }[] };
+    if (Array.isArray(ev.pending)) ev.pending = ev.pending.filter((d) => d.id !== 'E37');
   },
 };
 

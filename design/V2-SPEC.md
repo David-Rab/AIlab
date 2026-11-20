@@ -1402,7 +1402,7 @@ If the board rejects, the action is blocked for 90 days and BC −5. If the play
 
 **Board speed appetite** = the voting seats' weighted mean speed stance plus the outside-ownership drift, clamped to 0.25–1.5. A mission-heavy board forgives caution that a growth board punishes.
 
-**Ouster (M4: telegraphed, with counterplay).**
+**Ouster (M4: telegraphed, with counterplay).** *Superseded by FINANCE-V3 §7.2/§7.5 (FIN3b): the vote is deterministic and seat by seat (lean = grievance + depth below 25 − reluctance; the legacy board's reluctance is halved), there is no staff-revolt reinstatement and no E37; below 40 the player can give the critics a seat. See design/FINANCE-BUILD.md, FIN3b notes.*
 - **Warning.** When BC falls below 35 at a quarterly review, the board warns the CEO (alert) and E37 "Board revolt" fires (§4.2). The warning clears when BC is back at 45.
 - **Vote.** Only when BC < 25 **and** a warning is at least 60 days old: a vote is called with p = 0.15/q (× 2 for the legacy preset). It passes with P(weighted yes > half) over the voting seats other than the CEO's. The grievance is read from the last year's BC hits: public incidents ⇒ "too reckless" (replace with a careful CEO, v = [−0.5, 0.5, 1, 0.5]); down rounds, tight runway, covenants, failed raises, guarantees ⇒ "burning the company" (v = [−0.3, 1, 0, 0]); the rest ⇒ "too slow" (v = [1, 0.5, −0.5, −0.5]). Each seat votes yes with σ(stance′·v / 0.5), stance′ = stance + outside drift on speed and fin. A mission board shields a cautious CEO and turns on a reckless one (Nov 2023); financial and strategic seats do the opposite.
 - **Reinstatement** (the Nov 2023 precedent). If the vote passes while `morale.overall > 70`, staff revolt and the CEO is reinstated once per game: BC resets to 45 and a mission seat becomes an independent. Otherwise the game ends 'ousted'.
@@ -1840,7 +1840,7 @@ H1–H32 come from R16 §5. Each one fires once or with a cooldown.
 | E34 | Stale evals | Stream active and last audit > 21 d | **Freeze for audit**: stream paused 10 d (lag); beliefs refresh. **Continue**: sd keeps growing. |
 | E35 | We were wrong | U-mode discovered, or a FALSE finding revealed | **Disclose**: world learns (presence × 0.7 for all labs); credibility +5; scrutiny +10. **Keep secret**: advantage; P(leak) by access → ×3 trust loss. |
 | E36 | Capacity crunch | Demand > capacity by > 30% for 30 d | **Buy cloud now**: commitment; cash. **Raise price**: revenue holds; share −. **Ration**: brand −. |
-| E37 | Board revolt [M4] | Board confidence < 35 | **New directors**: two independents join (BC +15; a mission board shields you less). **Capex freeze**: no new sites or chip orders for 90 d (BC +10). **Rally staff**: morale −5; BC +15 with P = (morale − 40)/40, else −5. **Ignore**: BC −2; the ouster vote stays live. |
+| E37 | Board revolt [M4] (dropped in FIN3b: the critics' seat action and the visible ouster vote replace it) | Board confidence < 35 | **New directors**: two independents join (BC +15; a mission board shields you less). **Capex freeze**: no new sites or chip orders for 90 d (BC +10). **Rally staff**: morale −5; BC +15 with P = (morale − 40)/40, else −5. **Ignore**: BC −2; the ouster vote stays live. |
 
 **Coverage check.** These replace all 21 v1 events. Their mapping is listed in the WS4 README:
 - v1 `cashCrunch` → E26;

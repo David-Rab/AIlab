@@ -8,12 +8,13 @@ import { addCommunityPackage, newSite, oppositionOdds, siteCapex, siteEtaQ, type
 import { bloc } from '../actors/fx';
 import { signCommitment } from '../actors/commitments';
 import type { ActionDef, ChipOrder, CostLine, Debt, GameStateV2, MilestoneType, Pitch, Site, StrategicDeal, SystemCtx } from '../types';
-import { boardBlocked, boardVote, commitmentsVote, debtVote, founderControl, voteCost, voteGate } from './board';
-import { MOOD_BASE, moodWeight } from './mood';
+import { boardVote, commitmentsVote, CRITICS, criticsAvailable, criticsOusterShift, criticsSeat, criticsSide, withCriticsSeat, debtVote, founderControl, giveCriticsSeat, voteCost, voteGate } from './board';
+import { controlVote } from './charter';
+import { MOOD_BASE, MOOD_LABEL, MOOD_SOURCES, moodWeight } from './mood';
 import { leaseAvailable, leaseRate, payOptions } from './capex';
 import { debtHeadroom, drawDebt, newDebtRatePct, repayDebt } from './debt';
-import { acceptDeal, dealBlocker, dealTerms, declineDeal, partnerFor, rescueOffer, seekPartner } from './deals';
-import { acceptRepriced, bookRound, canIpo, canRaise, DUAL_CLASS_GOV, lastPostMoney, pullRepriced, raiseCeiling, startRaise } from './equity';
+import { acceptDeal, dealBlocker, dealTerms, dealVote as firstVote, dealVotes, declineDeal, partnerFor, partnerStakeAfter, rescueOffer, seekPartner } from './deals';
+import { acceptRepriced, bookRound, canIpo, closingAsk, canRaise, DUAL_CLASS_GOV, lastPostMoney, pullRepriced, raiseCeiling, startRaise } from './equity';
 import { describeTarget, makeThesis, MILESTONES, PITCH, PITCHES, PROMISE_RESULT, promiseDeadline } from './promises';
 import { ensureWs3, yearStats, type DealOffer } from './ext';
 import { qOf, bookCash } from './ledger';
@@ -27,10 +28,6 @@ const num = (p: P, k: string, d: number) => (typeof p[k] === 'number' ? (p[k] as
 const str = (p: P, k: string, d: string) => (typeof p[k] === 'string' && p[k] !== '' ? (p[k] as string) : d);
 const bool = (p: P, k: string, d = false) => (typeof p[k] === 'boolean' ? (p[k] as boolean) : d);
 const nextQDays = (s: GameStateV2) => Math.max(1, dayOfQuarter(s.time.startDate, qOf(s) + 1) - s.time.day);
-const blocked = (s: GameStateV2, id: string): true | string => {
-  const until = boardBlocked(s, id);
-  return until !== undefined ? `Board blocked until day ${until}` : true;
-};
 const notInsolvent = (s: GameStateV2): true | string => (s.player.finance.state === 'insolvent' ? 'Insolvent' : true);
 
 /** Board confidence a down round costs on this board (spec §2.5 −15 × the board's multiplier for setbacks). */
@@ -155,8 +152,8 @@ const acceptRound: ActionDef = {
   vote: repricedVote,
   preview(s, p) {
     const r = s.player.finance.ws3?.repricedRound;
-    const ask = r?.ask ?? 0;
     const pre = r?.pre ?? Math.max(1, s.player.finance.valuation);
+    const ask = r ? closingAsk(r) : 0; // a repriced IPO still sells at most 5% (FIN3b)
     const down = !r || pre < (r.lastPost || lastPostMoney(s));
     return {
       costs: [{ currency: 'dilution', amount: Math.round((ask / (pre + ask || 1)) * 1000) / 10 }, ...(down ? [{ currency: 'boardConf' as const, amount: downRoundHit(s), target: 'down round' }] : []), ...voteCost(repricedVote(s), bool(p, 'force'))],
@@ -256,10 +253,11 @@ function offerFor(s: GameStateV2, p: P): Omit<DealOffer, 'id' | 'day' | 'expires
   return partner ? dealTerms(s, tpl, partner) : undefined;
 }
 
-/** A partner's take-or-pay above 3× revenue needs the board (spec §7.3). */
+/** A partner's take-or-pay above 3× revenue needs the board (spec §7.3); under PBC + trust a sale of control needs the
+ *  trust (§7.2). The vote shown is the first that fails, else the first needed. */
 const dealVote = (s: GameStateV2, p: P) => {
   const t = offerFor(s, p);
-  return t ? commitmentsVote(s, t.commitPerQ * 4) : undefined;
+  return t ? firstVote(dealVotes(s, t)) : undefined;
 };
 
 const accept: ActionDef = {
@@ -306,6 +304,15 @@ const decline: ActionDef = {
 /** One strategic rescue per year [D, M4]: a second rescue inside a year is a sale of control in all but name. */
 export const RESCUE_COOLDOWN_D = 365;
 
+/** A rescue is a major decision (spec §7.3); one that leaves the partner past 50% under PBC + trust is also a sale of
+ *  control the trust votes on (§7.2, FIN3b). */
+function rescueVotes(s: GameStateV2) {
+  const o = rescueOffer(s);
+  const control = o ? controlVote(s, o.partner, partnerStakeAfter(s, o)) : undefined;
+  return [...(control ? [control] : []), boardVote(s, 'rescue', 'a partner takes a large stake, two board seats, exclusivity and IP rights')];
+}
+const rescueVote = (s: GameStateV2) => firstVote(rescueVotes(s));
+
 const rescue: ActionDef = {
   id: 'fin.rescue', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Rescue',
   available: (s) => {
@@ -316,17 +323,20 @@ const rescue: ActionDef = {
     if (f.ws3?.lastRescueDay !== undefined && s.time.day - f.ws3.lastRescueDay < RESCUE_COOLDOWN_D) return 'Partners will not rescue you twice in a year';
     return rescueOffer(s) ? true : 'No partner will rescue you';
   },
-  vote: (s) => boardVote(s, 'rescue', 'a partner takes a large stake, two board seats, exclusivity and IP rights'),
+  vote: rescueVote,
   preview(s, p) {
     const o = rescueOffer(s);
     const v = o ? dealPreview(s, o) : { costs: [{ currency: 'freedom' as const, amount: -2 }], gains: [], exposure: [] };
-    return { ...v, costs: [...v.costs, ...voteCost(boardVote(s, 'rescue', ''), bool(p, 'force'))] };
+    return { ...v, costs: [...v.costs, ...voteCost(rescueVote(s), bool(p, 'force'))] };
   },
   apply(s, ctx, p) {
     const o = rescueOffer(s);
     if (!o) return;
-    const no = voteGate(ctx, boardVote(s, 'rescue', 'a strategic rescue'), bool(p, 'force'));
-    if (no) return no;
+    // The trust (PBC + trust, a rescue past 50%) votes first: it cannot be forced (FIN3b).
+    for (const v of rescueVotes(s)) {
+      const no = voteGate(ctx, v, bool(p, 'force'));
+      if (no) return no;
+    }
     s.player.finance.ws3.offers.push(o);
     acceptDeal(s, ctx, o.template, o.partner, { offerId: o.id });
   },
@@ -411,6 +421,31 @@ const recap: ActionDef = {
   },
 };
 
+/** Give the critics a seat (spec §7.5, FIN3b): below 40 confidence, once a year, the side driving the decline gets a
+ *  director for good: +15 now, and the new seat's stance and mood weights move every later vote and mood change. */
+const critics: ActionDef = {
+  id: 'fin.critics', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Seat the critics',
+  available: criticsAvailable,
+  preview(s) {
+    const c = criticsSide(s);
+    const x = criticsSeat(s);
+    const after = withCriticsSeat(s);
+    const o = criticsOusterShift(s);
+    const line = (v?: number) => (v === undefined ? 'no majority' : `passes below ${Math.round(v)}`);
+    const shifts = MOOD_SOURCES.map((m) => ({ m, a: moodWeight(s, m), b: moodWeight(after, m) })).filter((d) => Math.abs(d.b - d.a) >= 0.005)
+      .map((d) => `${MOOD_LABEL[d.m].toLowerCase()} ×${d.a.toFixed(2)} → ×${d.b.toFixed(2)}`).join(', ');
+    return {
+      costs: [{ currency: 'freedom', amount: -1, target: `${x.holder} joins for good (${c.side === 'mission' ? 'a mission seat' : 'an investor seat'}): ${c.why}` }],
+      gains: [{ currency: 'boardConf', amount: CRITICS.gain, target: 'now' }],
+      exposure: [
+        ...(shifts ? [{ currency: 'boardConf' as const, amount: 0, target: `the board leans that way from now on: ${shifts}` }] : []),
+        { currency: 'freedom', amount: o.after !== undefined && (o.before === undefined || o.after > o.before) ? -1 : 0, target: `ouster vote on today's grievance: ${line(o.before)} → ${line(o.after)}` },
+      ],
+    };
+  },
+  apply: (s, ctx) => giveCriticsSeat(s, ctx),
+};
+
 const refuseRecap: ActionDef = {
   id: 'fin.refuseRecap', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Keep nonprofit',
   available: recap.available,
@@ -456,10 +491,7 @@ function chipsVote(s: GameStateV2, p: P) {
 const buyChips: ActionDef = {
   id: 'cmp.buyChips', verb: 'deal', system: 'compute', sphere: 'finance', owner: 'WS3', title: 'Buy chips',
   vote: chipsVote,
-  available: (s) => {
-    const b = blocked(s, 'cmp.buyChips');
-    return b !== true ? b : notInsolvent(s);
-  },
+  available: notInsolvent,
   preview(s, p) {
     const c = chipParams(p);
     const qt = chipQuote(s, c.term, c.qty, c);
@@ -555,10 +587,7 @@ function siteOpts(s: GameStateV2, p: P): SiteOpts {
 
 const site: ActionDef = {
   id: 'cmp.newSite', verb: 'deal', system: 'compute', sphere: 'finance', owner: 'WS3', title: 'New site',
-  available: (s) => {
-    const b = blocked(s, 'cmp.newSite');
-    return b !== true ? b : notInsolvent(s);
-  },
+  available: notInsolvent,
   preview(s, p) {
     const o = siteOpts(s, p);
     const capex = siteCapex(o);
@@ -783,7 +812,7 @@ export function dealMenu(s: GameStateV2): { template: StrategicDeal['template'];
 }
 
 export const FINANCE_ACTIONS: ActionDef[] = [
-  raise, ipo, seek, accept, decline, draw, repay, recap, refuseRecap,
+  raise, ipo, seek, accept, decline, draw, repay, recap, refuseRecap, critics,
   buyChips, rentCompute, site, community, transformers,
   downRound, rescue, renegotiate, sell, cancel, acceptRound, pullRound,
 ];

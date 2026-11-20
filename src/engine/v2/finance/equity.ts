@@ -209,8 +209,18 @@ export function closePendingRound(s: GameStateV2, ctx: SystemCtx): void {
   closeRound(s, ctx, { ...r, pre });
 }
 
+/** What a round raises at close: the ask, except an IPO, which sells at most 5% of the company at its closing
+ *  pre-money (FIN3b). */
+export const closingAsk = (r: { ask: Money; pre: Money; ipo: boolean }) => (r.ipo ? Math.min(r.ask, (dMax(false, true) * r.pre) / (1 - dMax(false, true))) : r.ask);
+
 /** Book a priced round, its promise (FIN2) and the IPO's side effects (closePendingRound, acceptRepriced). */
-function closeRound(s: GameStateV2, ctx: SystemCtx, r: { ask: Money; pre: Money; anchor?: string; ipo: boolean; thesis?: Thesis; dualClass?: boolean }): void {
+function closeRound(s: GameStateV2, ctx: SystemCtx, r0: { ask: Money; pre: Money; anchor?: string; ipo: boolean; thesis?: Thesis; dualClass?: boolean }): void {
+  // FIN3b (spec §2.6, FC3): an IPO sells at most 5% of the company at its closing price. If the price fell after
+  // signing (a repriced or discounted close), fewer dollars are raised rather than more of the company sold: amount ≤
+  // d·pre/(1 − d). (A repriced IPO once closed at 8% dilution.)
+  const ask = closingAsk(r0);
+  const r = ask < r0.ask ? { ...r0, ask } : r0;
+  if (r !== r0) ctx.log('finance', `The IPO sells at most ${Math.round(dMax(false, true) * 100)}% of the company: at $${r.pre.toFixed(0)}B pre-money it raises $${r.ask.toFixed(1)}B of the $${r0.ask.toFixed(1)}B asked.`, 2);
   const now = bookRound(s, ctx, r.ask, r.pre, { ...(r.anchor ? { anchor: r.anchor } : {}), ipo: r.ipo });
   if (r.thesis) addPromise(s, ctx, r.thesis, r.ask);
   if (r.ipo) {

@@ -16,12 +16,16 @@ import { newSite, oppositionOdds, reactiveUnblockOdds } from '../../src/engine/v
 import { contingentLiabilities, crf, siteLeaseId, siteRVG } from '../../src/engine/v2/finance/capex';
 import { creditLineCapacity, debtHeadroom, drawDebt, ratingOf, ratingTerms } from '../../src/engine/v2/finance/debt';
 import { FINANCE_ACTIONS, raiseQuote } from '../../src/engine/v2/finance/actions';
-import { boardVote, debtVote, founderControl, VOTE } from '../../src/engine/v2/finance/board';
+import { boardVote, CRITICS, criticsAvailable, debtVote, founderControl, initialBoard, OUSTER, ousterVote, updateRunwayState, VOTE } from '../../src/engine/v2/finance/board';
 import { MOOD_SOURCE_OF, MOOD_WEIGHTS, moodWeight } from '../../src/engine/v2/finance/mood';
 import { acceptRepriced, bookRound, closePendingRound, dMax, raiseCeiling, REPRICED_DECIDE_DAYS, valuationMark, valuationNow } from '../../src/engine/v2/finance/equity';
 import { whatWeOwe } from '../../src/engine/v2/finance/owe';
 import { credRung, judgePromises, livePromises, makeThesis, PROMISE_RESULT, promiseDeadline, promiseWeight, trendOf } from '../../src/engine/v2/finance/promises';
-import { FINANCE_EVENTS } from '../../src/engine/v2/finance/events';
+import { charterReleaseBlock, charterRights, controlVote, transferVote } from '../../src/engine/v2/finance/charter';
+import { acceptDeal, dealTerms, partnerFor, partnerStakeAfter } from '../../src/engine/v2/finance/deals';
+import { ensureWs3 } from '../../src/engine/v2/finance/ext';
+import { deployGate } from '../../src/engine/v2/models/deployments';
+import { editBlock } from '../../src/engine/v2/models/productOps';
 import { applyShock } from '../../src/engine/v2/finance/investors';
 import { CAPEX2X_AUTOPILOT, financeAutopilot, REF_AUTOPILOT, type AutopilotOpts } from '../../src/engine/v2/finance/plan';
 import { refDecide, refPlay } from '../../src/engine/v2/bots/ref';
@@ -49,7 +53,8 @@ const f1 = (x: number) => x.toFixed(1);
 const F1pct = (x: number) => `${Math.round(x * 100)}%`;
 
 interface QRow { day: number; year: number; shipped: number; stock: number; margin: number; supply: number }
-interface Run { s: GameStateV2; q: QRow[]; firstDistress: number; gw2026: number; v2026: number }
+/** FIN3b: versions the nonprofit PBC's safety committee held back (ready to release, red-flagged), and the days held. */
+interface Run { s: GameStateV2; q: QRow[]; firstDistress: number; gw2026: number; v2026: number; held: Set<string>; heldDays: number; pbcDays: number }
 
 function runBot(seed: number, opts: AutopilotOpts | undefined, until: number): Run {
   const s = newGame(defaultSetupV2({ seed }));
@@ -57,7 +62,16 @@ function runBot(seed: number, opts: AutopilotOpts | undefined, until: number): R
   let firstDistress = -1;
   let gw2026 = 0;
   let v2026 = 0;
+  const held = new Set<string>();
+  let heldDays = 0;
+  let pbcDays = 0;
   while (s.time.day < until) {
+    if (s.player.board.safetyCommitteeVeto && s.time.day % 7 === 0) {
+      pbcDays += 7;
+      const hs = s.player.models.versions.filter((v) => v.status === 'ready' && (v.variant === 'full' || v.variant === 'mini') && charterReleaseBlock(s, v, 'api'));
+      for (const v of hs) held.add(v.id);
+      if (hs.length) heldDays += 7;
+    }
     for (const p of [...s.events.pending]) {
       const c = refDecide(s, p);
       if (resolve(s, p.instance, c)) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0);
@@ -77,7 +91,7 @@ function runBot(seed: number, opts: AutopilotOpts | undefined, until: number): R
       v2026 = s.player.finance.valuation;
     }
   }
-  return { s, q, firstDistress, gw2026, v2026 };
+  return { s, q, firstDistress, gw2026, v2026, held, heldDays, pbcDays };
 }
 
 // ───────────────────────────── F1–F3, F6: market under default demand (RefBot) ─────────────────────────────
@@ -220,10 +234,9 @@ const okPreview = (p: { costs: CostLine[]; gains: CostLine[] }) => {
   const gains = new Set(p.gains.map((g) => g.currency));
   return p.costs.some((c) => !gains.has(c.currency));
 };
-for (const e of FINANCE_EVENTS) {
-  check(e.choices.length >= 2 && e.title.split(' ').length <= 3 && e.choices.every((c) => c.label.split(' ').length <= 3), `event ${e.id} shape (≥ 2 choices, terse labels)`);
-  for (const s of fixtures) e.choices.forEach((c, i) => check(okPreview(c.preview(s)), `event ${e.id} choice ${i} preview trade-off @day ${s.time.day}`));
-}
+// FIN3b: WS3 has no events any more (E37 "Board revolt" was dropped for the critics' seat action, FINANCE-V3 §10).
+check(!EVENT_BY_ID.has('E37'), 'FIN3b E37 Board revolt is gone (the critics seat is a standing action)');
+for (const s of fixtures) check(okPreview(FINANCE_ACTIONS.find((a) => a.id === 'fin.critics')!.preview(s, {})), `FIN3b critics' seat preview trade-off @day ${s.time.day}`);
 let applied = 0;
 for (const a of FINANCE_ACTIONS) {
   const s = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
@@ -555,7 +568,7 @@ for (const a of FINANCE_ACTIONS) {
     const bc0 = t.player.board.confidence;
     const rv = FINANCE_ACTIONS.find((a) => a.id === 'cmp.rentCompute')!.vote!(t, { term: 8, h100e: 50e6, firm: true })!;
     const err = act(t, 'cmp.rentCompute', { term: 8, h100e: 50e6, firm: true });
-    check(!rv.passes && typeof err === 'string' && /board votes no/.test(err) && t.player.board.confidence === bc0 && Object.keys(t.player.finance.ws3.blockedUntil).every((k) => k !== 'cmp.rentCompute'), 'FIN3a a failed vote stops the action with its reason; no confidence hit, no 90-day block', String(err));
+    check(!rv.passes && typeof err === 'string' && /board votes no/.test(err) && t.player.board.confidence === bc0 && !('blockedUntil' in t.player.finance.ws3), 'FIN3a a failed vote stops the action with its reason; no confidence hit, no 90-day block', String(err));
   }
   {
     // Founder control forces a failed vote at −20 confidence; without it, force does nothing.
@@ -592,7 +605,7 @@ for (const a of FINANCE_ACTIONS) {
     const srcs = new Set((g.causes.byKey['board.confidence'] ?? []).map((e) => e.source));
     check(![...srcs].some((x) => /Safety Index|tight runway|plan|new borrowing|debt repaid|board rejected|strategic rescue/.test(x)), 'FIN3a no safety-grade bonus, tight-runway, borrowing, plan or rejection sources', [...srcs].join(', ') || 'only reversion');
     // Every board-confidence source the engine posts is named (one of the four, the drift, or a decision/event cost).
-    const named = [...srcs].every((x) => MOOD_SOURCE_OF[x] || ['board memory fades', 'forced past the board', 'CEO reinstated'].includes(x) || x.startsWith('E37'));
+    const named = [...srcs].every((x) => MOOD_SOURCE_OF[x] || ['board memory fades', 'forced past the board', 'critics given a seat'].includes(x));
     check(named, 'FIN3a board confidence moves only on named sources', [...srcs].join(', '));
   }
   {
@@ -608,10 +621,184 @@ for (const a of FINANCE_ACTIONS) {
     raw.schemaRev = 13;
     raw.player.board.pendingApprovals = [];
     raw.player.finance.ws3.blockedUntil = { 'fin.raise': 9999, 'deal:sovereign': 9999, 'cmp.newSite': 9999 };
+    // FIN3b: migration 14 → 15 then drops the block list (E37's capex freeze was its last user) and the reinstatement day.
+    raw.player.finance.ws3.reinstatedDay = 5;
     const m = deserialize(JSON.stringify(raw));
-    check(!('pendingApprovals' in m.player.board) && Object.keys(m.player.finance.ws3.blockedUntil).join(',') === 'cmp.newSite', 'FIN3a save migration 13 → 14');
+    check(!('pendingApprovals' in m.player.board) && !('blockedUntil' in m.player.finance.ws3) && !('reinstatedDay' in m.player.finance.ws3), 'FIN3a/FIN3b save migrations 13 → 14 → 15 (approvals list, board blocks and reinstatement gone)');
   }
 }
 
-console.log(`finance: ${FINANCE_ACTIONS.length} actions (${applied} applied on day400), ${FINANCE_EVENTS.length} events`);
+// ───────────────────────────── FIN3b: charter rights, low confidence, distress (FINANCE-V3 §7.2, §7.5, §8) ─────────────
+{
+  const fx = () => deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
+  const B = (k: number, est: number, clarity = 0.7) => ({ est, sd: 0.1, clarity, lastObsDay: k });
+  /** A ready full-model copy of the newest full version (so a live product can swap to it). */
+  const candidate = (s: GameStateV2, id: string) => {
+    const v = [...s.player.models.versions].reverse().find((x) => x.variant === 'full' && (x.status === 'ready' || x.status === 'deployed'))!;
+    const c = JSON.parse(JSON.stringify(v)) as typeof v;
+    c.id = id;
+    c.name = `${v.name}-test`;
+    c.status = 'ready';
+    s.player.models.versions.push(c);
+    return c;
+  };
+  {
+    // Nonprofit PBC: the safety committee halts the release of a model the player's own evals red-flag, on every
+    // external channel and on a live product's model swap; internal use is not a release; the veto flag is what is
+    // read; the hold lifts when the estimate falls to 30% or less.
+    const s = fx();
+    s.player.board = initialBoard('nonprofitPBC');
+    const v = candidate(s, 'VCOMMITTEE');
+    v.beliefs.SCHEME = B(s.time.day, 0.6);
+    const g1 = deployGate(s, v, 'api');
+    const gc = deployGate(s, v, 'consumer');
+    const gi = deployGate(s, v, 'internal');
+    const live = s.player.deployments.find((d) => (d.channel === 'api' || d.channel === 'consumer') && d.status !== 'withdrawn');
+    const swap = live ? editBlock(s, live, { versionId: v.id }) : 'no live product';
+    s.player.board.safetyCommitteeVeto = false;
+    const g2 = deployGate(s, v, 'api');
+    s.player.board.safetyCommitteeVeto = true;
+    for (const k of ['SCHEME', 'AF', 'SAND'] as const) v.beliefs[k] = B(s.time.day, 0.45);
+    const g3 = deployGate(s, v, 'api');
+    const isHold = (g: true | string | undefined) => typeof g === 'string' && /Safety committee/.test(g);
+    check(isHold(g1) && isHold(gc) && gi === true && isHold(swap) && !isHold(g2) && !isHold(g3), 'FIN3b nonprofit PBC: the safety committee halts the release of a red-flagged model (every external channel and a live swap; not internal use; the veto flag is read; lifts at ≤ 50%; the 30% E17 alarm alone does not halt)', `${g1} · consumer ${isHold(gc)} · internal ${gi} · swap ${isHold(swap)} · veto off ${isHold(g2)} · cleared ${isHold(g3)}`);
+    const l = fx();
+    const lv = candidate(l, 'VLEGACY');
+    lv.beliefs.SCHEME = B(l.time.day, 0.6);
+    l.player.board = initialBoard('legacyNonprofit');
+    check(!isHold(deployGate(l, lv, 'api')) && charterRights(l).every((r) => r.id !== 'safetyCommittee') && charterRights(s).some((r) => r.id === 'safetyCommittee'), 'FIN3b the release block is the nonprofit PBC\'s alone (legacy nonprofit: no committee)');
+  }
+  {
+    // PBC + trust: the trust votes (its mission seats only, no force) on releasing a capability-threshold model's
+    // weights and on a sale of control; neither passes on its stance. A model without a threshold flag needs no vote.
+    const s = fx();
+    s.player.board = initialBoard('pbcTrust');
+    const v = candidate(s, 'VTRUST');
+    v.variant = 'open';
+    v.flags = { cyberOffense: true };
+    const g = deployGate(s, v, 'open');
+    const tv = transferVote(s, v, 'open')!;
+    const plain = candidate(s, 'VPLAIN');
+    plain.variant = 'open';
+    plain.flags = { persuasion: true };
+    const gp = deployGate(s, plain, 'open');
+    const cv = controlVote(s, 'Test partner', 0.6);
+    check(typeof g === 'string' && /trust votes no/.test(g) && tv.body === 'trust' && !tv.canForce && tv.seats.length > 0 && tv.seats.every((x) => x.kind === 'mission') && !(typeof gp === 'string' && /trust/.test(gp)) && !!cv && !cv.passes && !controlVote(s, 'Test partner', 0.4), 'FIN3b PBC + trust: the trust votes no on open weights of a capability-threshold model and on a sale of control (mission seats only, no force); no vote below 50% or without a threshold flag', `${g} · control: ${cv?.yes}/${cv?.total}`);
+    // A deal that would hand a partner control stops at the trust before anything is booked.
+    const partner = partnerFor(s, 'sovereign');
+    if (partner) {
+      ensureWs3(s);
+      const V = s.player.finance.valuation;
+      s.player.finance.ws3.offers.push({ ...dealTerms(s, 'sovereign', partner), id: 'OF-trust', day: s.time.day, expiresDay: s.time.day + 30, equityNow: 10 * V });
+      const cash0 = s.player.finance.cash;
+      const own0 = JSON.stringify(s.player.finance.ownership);
+      const err = acceptDeal(s, makeCtx(s), 'sovereign', partner, { offerId: 'OF-trust', force: true });
+      check(typeof err === 'string' && /trust votes no/.test(err) && s.player.finance.cash === cash0 && JSON.stringify(s.player.finance.ownership) === own0 && partnerStakeAfter(s, s.player.finance.ws3.offers.find((o) => o.id === 'OF-trust')!) > 0.5, 'FIN3b a deal past 50% under PBC + trust stops at the trust (no cash, no shares, force does not help)', String(err));
+    } else check(false, 'FIN3b a deal past 50% under PBC + trust stops at the trust', 'no sovereign partner on the fixture');
+    const o = fx();
+    o.player.board = initialBoard('nonprofitPBC');
+    check(!controlVote(o, 'Test partner', 0.6) && !transferVote(o, v, 'open'), 'FIN3b only PBC + trust has the trust\'s votes');
+  }
+  // Ouster votes on a set board and grievance (the last year's confidence losses).
+  const board = (preset: Parameters<typeof initialBoard>[0], bc: number, source: string, warnAgo = 100) => {
+    const s = fx();
+    s.player.board = initialBoard(preset);
+    s.player.board.confidence = bc;
+    s.player.finance.ws3.boardWarnDay = s.time.day - warnAgo;
+    s.causes.byKey['board.confidence'] = [{ day: s.time.day - 10, delta: -30, source }];
+    delete s.flags['ws3.ousterDay'];
+    return s;
+  };
+  const toReview = (s: GameStateV2) => {
+    const q0 = quarterIndex(s.time.startDate, s.time.day);
+    while (quarterIndex(s.time.startDate, s.time.day) === q0) tick(s, { skip: ['endings'] });
+  };
+  {
+    // Deterministic and seat by seat: the same state gives the same vote and draws no dice; the legacy nonprofit board
+    // removes a CEO more easily (half the reluctance), so on a "burning cash" grievance it musters more votes.
+    const s = board('nonprofitPBC', 22, 'down round');
+    const rng0 = JSON.stringify(s.rng);
+    const a = ousterVote(s);
+    const b = ousterVote(s);
+    const legacy = board('nonprofitPBC', 22, 'down round');
+    legacy.player.board.preset = 'legacyNonprofit';
+    const l = ousterVote(legacy);
+    check(JSON.stringify(a) === JSON.stringify(b) && JSON.stringify(s.rng) === rng0 && a.seats.every((x) => x.kind !== 'founder') && a.live && l.reluctance === OUSTER.legacyMult * a.reluctance && l.yes > a.yes, 'FIN3b the ouster vote is deterministic and seat by seat; the legacy nonprofit board removes a CEO more easily (reluctance ×0.5)', `burning cash at 22: PBC ${a.yes}/${a.total} (${a.seats.map((x) => `${x.kind} ${x.lean.toFixed(2)}`).join(', ')}) · legacy ${l.yes}/${l.total}`);
+    const young = board('nonprofitPBC', 15, 'down round', 30);
+    check(!ousterVote(young).live && !ousterVote(board('nonprofitPBC', 30, 'down round')).live, 'FIN3b no ouster vote without confidence under 25 and a warning at least 60 days old');
+  }
+  {
+    // At the review: a reckless CEO on the legacy nonprofit board is voted out, and loyal staff no longer reinstate
+    // anyone; a slow CEO on the same mission board is shielded (the vote falls short and the game goes on).
+    const r = board('legacyNonprofit', 12, 'public incident');
+    r.player.morale.overall = 95;
+    const pre = ousterVote(r);
+    toReview(r);
+    const slow = board('legacyNonprofit', 12, 'behind a rival');
+    const preSlow = ousterVote(slow);
+    toReview(slow);
+    check(pre.passes && r.flags['ws3.ousterDay'] !== undefined && !preSlow.passes && slow.flags['ws3.ousterDay'] === undefined, 'FIN3b at the review the vote shown beforehand decides: a reckless CEO is ousted (staff morale 95 does not reinstate); a mission board shields a slow one', `reckless ${pre.yes}/${pre.total} · slow ${preSlow.yes}/${preSlow.total}`);
+  }
+  {
+    // Give the critics a seat: below 40 only, once a year; the side driving the decline gets a director for good
+    // (incidents → a mission seat; falling behind → an investor seat); +15 now; the board's mood weights move its way.
+    const s = board('nonprofitPBC', 50, 'public incident');
+    const above = criticsAvailable(s);
+    s.player.board.confidence = 35;
+    const n0 = s.player.board.seats.length;
+    const w0 = moodWeight(s, 'incidents');
+    const err = act(s, 'fin.critics', {});
+    const x = s.player.board.seats[s.player.board.seats.length - 1];
+    s.player.board.confidence = 30;
+    const again = criticsAvailable(s);
+    const i = board('nonprofitPBC', 35, 'behind a rival');
+    const wb = moodWeight(i, 'behind');
+    act(i, 'fin.critics', {});
+    const y = i.player.board.seats[i.player.board.seats.length - 1];
+    check(typeof above === 'string' && !err && s.player.board.seats.length === n0 + 1 && x.kind === 'mission' && moodWeight(s, 'incidents') > w0 && typeof again === 'string' && y.kind === 'financial' && moodWeight(i, 'behind') > wb && i.player.board.confidence === 35 + CRITICS.gain, 'FIN3b critics seat: below 40, once a year; incidents bring a mission director, falling behind an investor one; +15 now and the mood weights lean their way', `${x.holder}: incidents ×${w0.toFixed(2)} → ×${moodWeight(s, 'incidents').toFixed(2)} · ${y.holder}: behind ×${wb.toFixed(2)} → ×${moodWeight(i, 'behind').toFixed(2)} · again: ${again}`);
+  }
+  {
+    // Distress (spec §8): no morale hit; the board still minds each review in distress.
+    const s = fx();
+    s.player.finance.covenantBreachDay = s.time.day;
+    s.player.finance.state = 'healthy';
+    const m0 = s.player.morale.overall;
+    const bc0 = s.player.board.confidence;
+    updateRunwayState(s, makeCtx(s));
+    check((s.player.finance.state as string) === 'distress' && s.player.morale.overall === m0 && !(s.causes.byKey['morale'] ?? []).some((e) => e.source === 'financial distress') && s.player.board.confidence < bc0, 'FIN3b distress costs no staff morale (the board still minds it)', `morale ${m0.toFixed(1)} → ${s.player.morale.overall.toFixed(1)}, board ${bc0.toFixed(1)} → ${s.player.board.confidence.toFixed(1)}`);
+  }
+  {
+    // The IPO's 5% cap holds at close: a mark that falls after signing reprices the IPO, and the repriced IPO raises
+    // less rather than selling more of the company (it once closed at 8%).
+    const s = fx();
+    s.player.finance.state = 'healthy';
+    s.capital.ipoWindow = true;
+    const err = act(s, 'fin.ipo', {});
+    const pr = s.player.finance.ws3.pendingRound;
+    if (!err && pr) {
+      pr.max = 1e6;
+      const ask = pr.ask;
+      // A last round above today's mark: the fall reprices the IPO into a down round the player must accept.
+      s.player.finance.rounds.push({ day: s.time.day - 100, amount: 10, postMoney: 2 * s.player.finance.valuation, dilution: 0.05, down: false });
+      s.player.finance.valuation *= 0.5;
+      const ctx = makeCtx(s);
+      closePendingRound(s, ctx);
+      const repriced = !!s.player.finance.ws3.repricedRound;
+      if (repriced) acceptRepriced(s, ctx);
+      const r = s.player.finance.rounds[s.player.finance.rounds.length - 1];
+      check(repriced && r.ipo === true && r.dilution <= dMax(false, true) + 1e-9 && r.amount < ask, 'FIN3b the IPO sells at most 5% at close: a repriced IPO raises less instead', `asked ${f1(ask)}B · ${repriced ? 'repriced, accepted' : 'closed'} at ${f1(r.amount)}B = ${(r.dilution * 100).toFixed(2)}%`);
+    } else check(false, 'FIN3b the IPO sells at most 5% at close', String(err));
+  }
+  {
+    // How often the committee bites on the reference bot: leader start (legacy nonprofit), recapitalised into a
+    // nonprofit PBC around Q4 2026; ready models it held back, through 2027.
+    const pbc = ref.filter((r) => r.pbcDays > 0);
+    const games = pbc.filter((r) => r.held.size > 0).length;
+    const versions = pbc.reduce((a, r) => a + r.held.size, 0);
+    const share = median(pbc.map((r) => r.heldDays / Math.max(1, r.pbcDays)));
+    check(pbc.length > 0 && share <= 0.5, 'FIN3b the safety committee binds without freezing releases (RefBot under the nonprofit PBC: median share of weeks with a model held ≤ 50%)', `${pbc.length} of ${ref.length} games reach the PBC · ${games} held a model · ${versions} versions held · median ${F1pct(share)} of PBC weeks with a hold`);
+  }
+}
+
+console.log(`finance: ${FINANCE_ACTIONS.length} actions (${applied} applied on day400), no events`);
 finish('finance');

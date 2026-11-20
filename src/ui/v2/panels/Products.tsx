@@ -17,12 +17,12 @@ import { TREE_BY_ID } from '../../../data/v2/tree';
 import {
   CHANNEL_VARIANTS, agentsGate, buildEtas, catchRate, dateOf, deployGate, editBlock, editedProduct, effortLock, fmtDate, isProduct, measuredHorizonH,
   demandModifiers, measuredLOf, nodeKnown, PENALTY_MAX, previewEdit, productReadouts, revenueSpeedCap, servingPool, versionById,
-  LAUNCH_TW, LENT_RECOVERY, pendingLaunch, spareServing, spareServingToResearch,
+  LAUNCH_TW, LENT_RECOVERY, pendingLaunch, spareServing, spareServingToResearch, charterHolds,
 } from '../../../engine/v2';
 import type { Channel, Deployment, GameStateV2, ModelVersion, PriceTier, ProductChanges, ProductRead } from '../../../engine/v2';
 import { store } from '../store';
 import { ActBtn, Limit, Seg, Term, Tip, TipCard, type Params } from '../ui';
-import { Card, PanelHead, Spark2 } from '../kit';
+import { Card, PanelHead, Ref, Spark2 } from '../kit';
 import * as F from '../fmt';
 import { ICON } from '../icons';
 import { C } from '../theme';
@@ -82,6 +82,7 @@ export function Products({ s }: { s: GameStateV2 }) {
   const live = s.player.deployments.filter((d) => isProduct(d) && d.status !== 'withdrawn')
     .sort((a, b) => PRODUCT_ORDER.indexOf(a.channel) - PRODUCT_ORDER.indexOf(b.channel));
   const pol = s.player.policies;
+  const held = charterHolds(s).length;
   // Products on an older model than the newest cleared one of their kind (the upgrade policy's readout).
   const behind = live.filter((d) => {
     const v = versionById(s, d.versionId);
@@ -96,6 +97,8 @@ export function Products({ s }: { s: GameStateV2 }) {
             <span className="tag2 warn" data-test="prod-behind">{behind.length} on an older model</span>
           </Tip>}
           <PolicySwitch on={pol.autoEvaluate} k="autoEvaluate" term="autoEvaluate" label="Auto-evaluate" />
+          {/* FIN3b: models the charter holds back; the list's home is the Board card. */}
+          {held > 0 && <Ref id="charterHolds" to={{ panel: 'finance', tab: 'owners', anchor: 'board' }}><Lock size={11} /> Safety committee holds {held} model{held > 1 ? 's' : ''}</Ref>}
         </span>} />
 
       <div className="prod-grid">

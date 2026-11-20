@@ -478,3 +478,109 @@ Numbers, before (FIN2) → after (FIN3a):
   deterministic ouster vote, E37 and the staff-revolt reinstatement, the distress morale hit, the IPO repricing fix);
   FIN3c wires the sale-of-control and merger votes into the rebuilt E32. `design/v2-interfaces.ts` still shows the old
   `pendingApprovals` / `boardVector` (design file, FIN6c docs pass).
+
+### FIN3b notes (2026-11-20)
+
+Built: `finance/charter.ts` (the charter rights of each preset with what they block; `charterReleaseBlock`, called by
+`models/deployments.ts` `deployGate` before the eval gate; the trust's `transferVote` and `controlVote`; `charterHolds`),
+the trust's vote (`trustVote` in `finance/board.ts`: the board-vote machinery restricted to the mission seats, never
+forceable, `BoardVote.body = 'trust'`, new decision `transferModel`), the deterministic ouster vote (`ousterVote`,
+`ousterLive`, `ousterPassesBelow`, `boardGrievance`, `OUSTER`), the critics' seat (`fin.critics` "Seat the critics";
+`CRITICS`, `criticsSide`, `criticsAvailable`, `criticsSeat`, `criticsOusterShift`, `giveCriticsSeat`), the IPO's cap at
+close (`closingAsk` in `finance/equity.ts`). UI: the Board card's charter rights (each with what it blocks; the safety
+committee row names the models it holds, with flag and source in the tooltip), the ouster vote under the next review
+(one chip per voting seat at today's confidence, where each seat turns and the confidence the vote passes below), the
+"Seat the critics" button below 45 confidence with its preview; Products links to the held models (home: the Board
+card); a blocked launch or model swap says why through the deployment gate's reason. schemaRev 14 → 15 (board block list
+and reinstatement day dropped, a pending E37 dropped).
+
+Removed (no aliases): event E37 "Board revolt" (`finance/events.ts`, `FINANCE_EVENTS`, `rallyOdds`) and the bots'
+`financeDecide` (it only answered E37); `ws3.blockedUntil`, `boardBlocked` and the Finance actions' block check (E37's
+capex freeze was the last board block); the ouster dice (`ousterRiskQ`, `ousterMajorityP`, the 15%-a-quarter roll); the
+staff-revolt reinstatement (`REINSTATE_MORALE`, `ws3.reinstatedDay`, the "CEO reinstated" source); the distress morale
+hit (−5 morale per quarterly review in distress). Glossary `boardRevolt` → `boardWarning`; new `charter`, `critics`;
+`ouster`, `boardVote`, `boardConf`, `distress` updated; `design/ux/GLOSSARY.md` regenerated (it was stale since before
+FIN1).
+
+Choices and readings of the spec:
+- **"A model your safety evals flagged"** = E17's red-flag traits (scheming, alignment faking, sandbagging) in the
+  player's own beliefs (never truth), clarity > 0.4, at a stricter estimate than E17's 30% alarm: **above 50%** [D]
+  (`COMMITTEE_EST`). At 30% the committee held 70% of the reference bot's full models (10 seeds; RefBot answers E17 with
+  Continue) and the reference path released so much slower that worldfx's AI-friend share fell to 6.1% (target 10 ± 3).
+  At 50% (10 seeds per bot, full models that ever carried a flag): RefBot 13%, race 51%, mixed 0.5%, safe 0%: the
+  committee bites reckless designs and almost never a careful lab. The dangerous-capability flags (bio, cyber) were not
+  used for the committee: on today's benchmarks nearly every 2026+ frontier model crosses cyber, so they would block all.
+- **What it halts**: every external channel (products, gov, trusted, open weights) and a live product's model swap; the
+  upgrade-to-newest policy skips held models; internal use is never a release; live products are not recalled. The hold
+  lifts when every estimate is 50% or less (more evidence, an investigation, a patched or retrained version). It is a
+  hard right: no vote, no force. `safetyCommitteeVeto` is what the gate reads (a nonprofit-PBC board without it would not
+  block); the recapitalisation still sets it.
+- **Capability-threshold model** (PBC + trust) = a version whose measured dangerous benchmarks set bio uplift, cyber
+  offense or autonomous replication (`observe.capabilityThresholds`; persuasion is not a threshold). **Transfer** =
+  releasing its weights (a launch on the open channel). Not gated: relations action C6 "Open weights" (an abstract
+  trailing release with no version to test; FIN6c or model-v3 can attach one) and the rescue's "IP rights" string (a
+  no-op until FIN4b builds IP access; FIN4b should put it behind `transferVote`).
+- **Sale of control** (PBC + trust) = a partner deal or rescue that would leave one holder above 50% of the equity
+  (`partnerStakeAfter`: equity now plus the rescue top-up, on a copy of the cap table). Only the trust's vote is wired;
+  the board's own §7.3 sale-of-control vote stays with FIN3c (as planned in FIN3a). The trust votes first, before any
+  forced board vote, so a founder never pays the force cost for a deal the trust stops. On its mission stance the trust
+  votes no on both (sale of control: lean −1 + mood ≤ 0; transfer: ≤ −0.9); the vote is shown, not rolled.
+- **Legacy nonprofit "ouster odds ×2"** (still in place after FIN3a as ×2 on the roll) becomes half the reluctance in
+  the deterministic vote.
+- **Ouster vote** (kept: the warning below 35, cleared at 45; a vote only below 25 with a warning at least 60 days old;
+  the grievance shares slow / reckless / burning cash and their vectors; the outside-ownership drift). Each voting seat
+  other than the CEO's leans grievance + depth − reluctance, depth = (25 − confidence)/25, and votes yes above 0; more
+  than half the voting weight ends the game. **Reluctance 1.5** (legacy 0.75) [D]: with 1.0, 40 seeds per bot ousted ref
+  17.5%, race 22.5%, capex2x 62.5%, safe 42.5%. A seat turns once confidence falls below 25 − 25 × (reluctance −
+  grievance), which the Board card shows. The grievance now reads only the named mood sources (the drift down from above
+  60 and the founder force cost no longer count as "too slow").
+- **Critics' seat** [D]: below 40, once a year, while the board has fewer than 9 voting seats (R15: boards of 5–9); +15
+  now. The side is the mission (a "Safety director", mission seat) when public incidents caused more of the last year's
+  losses than everything else; otherwise the investors (an "Investor director", financial seat): falling behind, missed
+  promises and financial setbacks (the spec names only slowness; an investor director is the natural answer to burning
+  cash too). The seat is permanent and votes like any seat of its kind, so it can also vote you out later: the preview
+  shows the mood multipliers it shifts and the ouster vote's passing line before → after. The board's warning alert names
+  it once. "Seat the critics" is the action title (lint: at most 4 words); the glossary keeps the spec's name.
+- **IPO cap at close**: an IPO raises at most d·pre/(1 − d), d = 5%, at its closing pre-money (`closingAsk`); if the price
+  fell after signing (repriced, or the over-ask discount) it raises less instead of selling more of the company. The
+  repriced round's accept preview shows the capped amount.
+- **Bot (rule 12)**: `financeAutopilot` seats the critics below 35 when available and only if the margin above the
+  ouster vote's passing line grows (`criticsOusterShift`); E37's answers are gone with E37.
+
+Numbers, before (FIN3a 1c8f0b3) → after (FIN3b):
+- `scripts/v2/bots.ts` (200 seeds, leader start): all §7.4 criteria MET. Ousted: ref 10.5 → 12.0%, mixed 11.5 → 12.0%,
+  race 14.5 → 13.0%, safe 16.5 → 31.5%, capex2x 34.5 → 47.0% (insolvent 48.0 → 36.0%). Wins: race 1.5 → 1.0%, safe 1.0
+  → 1.0%, mixed 52.0 → 51.0%, ref 22.0 → 22.5%, capex2x 3.0 → 3.5%. Safe losses overtaken/other-ASI-first 66% (criterion
+  ≥ 50%). The safe bot's late game (2028–29) ends in long distress with board confidence near 0; the dice let such a CEO
+  survive about 85% of quarters and the reinstatement (morale > 70) reset confidence to 45 once; the vote now removes a
+  CEO whose board has lost all confidence. capex2x's board crashes in its first year and the vote ousts it before the
+  insolvency it was heading for. FIN6a may soften both alongside FC7.
+- Safety committee on the bots (40 seeds each; games in which it held at least one model ready to release): ref 15/40,
+  mixed 4/40, race 11/40, safe 1/40, capex2x 3/40 (the leader start becomes a nonprofit PBC when its recapitalisation
+  completes, about Oct 2026). `scripts/v2/finance.ts` RefBot (12 seeds to end-2027): 7 of 12 games held a model, 15
+  versions in all, median 2% of PBC weeks with a hold.
+- Critics' seat taken by the bots (40 seeds): ref 12, mixed 6, race 35, safe 34, capex2x 40 games.
+- `scripts/v2/finance.ts`: F7/F8/F9 unchanged (2026 capex $156.2B, valuation $1.47T, financing $64.6B, distress-free
+  83.3%, capex2x distress 100%, dilution max 5.3%); RefBot end-2027 board confidence median 61.6 → 60.1; F2 44.4M
+  (known).
+- worldfx: the known HireRate_SOFT failure now passes (2027-03-11 → 2027-07-15) and AI-friend share 9.1% → 7.4% (target
+  10 ± 3): a side effect of the committee holding some of RefBot's red-flagged releases after its recapitalisation (with
+  the committee off the run reproduces the baseline exactly), not a fix of that calibration.
+- Tests: `npm run typecheck` clean. test:v2 chain: golden-timelines, identity, calib, fixtures, hygiene (perf passed on
+  a quiet machine: 828 / 882 µs daily average), lint-hidden, lint-ux, lint-tradeoffs, lint-structure green; safety S5
+  −1.01 (known); then one by one: finance only F2 44.4M (known); worldfx, ws4, products, money, idle green. `npm run
+  test:ui` 272/272. Test changes: finance.ts drops the E37 event lint (WS3 has no events; it now checks E37 is gone and
+  lints the critics' seat preview), the FIN3a failed-vote and migration checks read the removed block list's absence,
+  "only named sources" allows "critics given a seat" instead of the reinstatement and E37; 13 new FIN3b checks (committee
+  hold on every external channel and a swap, not internal use, veto read, lifts at 50%; legacy has no committee; the
+  trust's votes on open weights and control, mission seats only, no force; a deal past 50% stops at the trust with
+  nothing booked; ouster vote deterministic, legacy reluctance ×0.5, no vote without the line and the 60-day warning; at
+  the review a reckless CEO is ousted with morale 95 and a slow one shielded; critics' seat side, +15, once a year, mood
+  weights; no distress morale; IPO ≤ 5% at a repriced close; RefBot committee holds). ws4.ts E1 catalog: 15 → 14 kept
+  events (E37 dropped). uitest: 10 new FIN3b checks (charter rights and what they block, the held model and its tooltip,
+  the Products link, the launch reason, the ouster vote seat by seat and its tooltip, the critics' preview, click, once a
+  year). Fixtures regenerated (schemaRev 15).
+- Left for later: FIN3c wires the board's own sale-of-control and merger votes (E32) next to the trust's; FIN4b puts the
+  rescue's IP-rights string behind the trust's transfer vote; C6 "Open weights" has no version for the trust to judge;
+  FIN6a looks at the safe and capex2x ouster rates; `design/V2-SPEC.md` §3.7.5 carries a pointer to these notes (full
+  docs pass in FIN6c).

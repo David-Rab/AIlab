@@ -6,13 +6,13 @@ import {
   actionView, dateOf, dayOfQuarter, dealMenu, dealPreview, debtHeadroom, debtRatePct, fmtDate, fmtMonth, incidentBoardHit, interestPerYear, ledgerDue, leaseRate, liveLedger, newDebtRatePct, ratingTerms,
   parentSchedule, parentYear, payrollOf, qOf, runwayOf, totalDebt, DIVISION_REASON, RUNWAY_CAP,
   describeTarget, fmtMetric, whatWeOwe, isListed, makeThesis, MILESTONES, PITCH, PITCHES, pitchAvailable, PROMISE_RESULT, promiseDeadline, raiseQuote, raiseTerms, trendOf,
-  BC_ANCHOR, BC_REVERT_Q, canonicalKey, INCIDENT_BC, INCIDENT_BC_CAP_Q, MOOD_BASE, MOOD_LABEL, MOOD_SOURCE_OF, MOOD_SOURCES, MOOD_WEIGHTS, moodWeight,
+  BC_ANCHOR, BC_CLEAR, BC_REVERT_Q, BC_WARN, canonicalKey, charterHolds, charterRights, CRITICS, criticsSide, OUSTER, INCIDENT_BC, INCIDENT_BC_CAP_Q, MOOD_BASE, MOOD_LABEL, MOOD_SOURCE_OF, MOOD_SOURCES, MOOD_WEIGHTS, moodWeight,
 } from '../../../engine/v2';
 import { isDivision } from '../../../data/v2/starts';
 import { boardReview } from '../shell/selectors';
 import { OUSTER_NOTICE_D } from '../../../engine/v2';
 import type { BoardSeat, Commitment$, Debt, GameStateV2, MilestoneType, MoodSource, Pitch } from '../../../engine/v2';
-import { ActBtn, Limit, CauseBars, Gate, Seg, Term, Tip, TipCard, Toggle, Why } from '../ui';
+import { ActBtn, Limit, CauseBars, Gate, SEAT_KIND_LABEL, Seg, Term, Tip, TipCard, Toggle, Why } from '../ui';
 import { MILESTONE_UI, OweCard, OweLink } from './FinanceOwe';
 import { Card, CostPills, GoBtn, HBar, PanelHead, Pill, tabOf, Tabs } from '../kit';
 import * as F from '../fmt';
@@ -496,18 +496,100 @@ function MoodSources({ s }: { s: GameStateV2 }) {
         ]}>{"This board's multiplier is the vote-weighted mean of its seats' weights for this kind of news (the CEO's seat does not count). See [[boardConf]]."}</TipCard>
       )))}
       {row('fade', ICON.board, 'Memory fades', `→ ${BC_ANCHOR}`, sums.fade + sums.other, () => (
-        <TipCard title="Memory fades" value={`${Math.round(BC_REVERT_Q * 100)}% of the gap a quarter`} rows={[{ label: 'Drift back toward 60, 12 months', value: `${sums.fade >= 0 ? '+' : '−'}${Math.abs(sums.fade).toFixed(1)}` }, ...(Math.abs(sums.other) > 0.05 ? [{ label: 'Other (forced decisions, board events)', value: `${sums.other >= 0 ? '+' : '−'}${Math.abs(sums.other).toFixed(1)}` }] : [])]}>With no news the board drifts back toward 60, a tenth of the gap each quarter. Nothing else moves it.</TipCard>
+        <TipCard title="Memory fades" value={`${Math.round(BC_REVERT_Q * 100)}% of the gap a quarter`} rows={[{ label: 'Drift back toward 60, 12 months', value: `${sums.fade >= 0 ? '+' : '−'}${Math.abs(sums.fade).toFixed(1)}` }, ...(Math.abs(sums.other) > 0.05 ? [{ label: 'Other (forced decisions, seating critics)', value: `${sums.other >= 0 ? '+' : '−'}${Math.abs(sums.other).toFixed(1)}` }] : [])]}>With no news the board drifts back toward 60, a tenth of the gap each quarter. Nothing else moves it.</TipCard>
       ))}
     </div>
   );
 }
 const IconOf = ({ I }: { I: typeof ICON.board }) => <I size={13} />;
 
+/** FIN3b (spec §7.2): this preset's charter rights, each with what it blocks; the safety committee's row lists the
+ *  models it is holding now. */
+const RIGHT_ICON: Record<string, typeof ICON.board> = { safetyCommittee: ICON.safety, trust: ICON.exec, founderControl: ICON.you, nonprofitRemoval: ICON.board };
+function CharterRights({ s }: { s: GameStateV2 }) {
+  const rights = charterRights(s);
+  const holds = charterHolds(s);
+  return (
+    <div className="charter" data-test="charter">
+      <div className="tip-cap"><Term id="charter">Charter rights</Term></div>
+      {!rights.length && <div className="dim small">None: the board acts only through its votes.</div>}
+      {rights.map((r) => {
+        const I = RIGHT_ICON[r.id] ?? ICON.locked;
+        const held = r.id === 'safetyCommittee' ? holds : [];
+        return (
+          <Tip as="div" key={r.id} content={() => (
+            <TipCard title={r.label} value={held.length ? <span className="tone-warn">holding {held.length}</span> : undefined} rows={[
+              { label: 'Blocks', value: r.blocks },
+              ...held.map((h) => ({ label: h.name, value: `held: ${h.reason}`, tone: 'neg' as const })),
+              { label: 'Source', value: r.source },
+            ]}>{"A hard right of this governance, not a vote: no confidence or force gets past it. See [[charter]]."}</TipCard>
+          )}>
+            <div className="charter-row" data-right={r.id}>
+              <span className="row-i small"><I size={13} />{r.label}</span>
+              <span className="dim small">{r.short}</span>
+              {held.length > 0 ? <span className="tag2 warn" data-test="charter-held">holds {held.map((h) => h.name).join(', ')}</span> : <span />}
+            </div>
+          </Tip>
+        );
+      })}
+    </div>
+  );
+}
+
+/** FIN3b (spec §7.5): the next review and the ouster vote as it stands, seat by seat (no dice). */
+function OusterReview({ s }: { s: GameStateV2 }) {
+  const br = boardReview(s);
+  if (br.division) return null;
+  const v = br.vote;
+  const g = v.grievance;
+  const pct = (x: number) => `${Math.round(x * 100)}%`;
+  return (
+    <Tip as="div" content={() => (
+      <TipCard title={<Term id="ouster">Ouster vote</Term>} value={br.live ? <span className="tone-neg">held at the review · {v.yes} of {v.total}</span> : 'not held at the next review'} rows={[
+        { label: 'Next review', value: fmtDate(br.date) },
+        { label: <Term id="boardConf">Confidence</Term>, value: `${F.idx(br.bc)} · a vote needs under ${br.line} and a warning ${OUSTER_NOTICE_D} d old`, tone: br.bc < br.line ? 'neg' : 'neutral' },
+        { label: 'Grievance (last 12 months)', value: `too slow ${pct(g.slow)} · too reckless ${pct(g.reckless)} · burning cash ${pct(g.burn)}` },
+        { label: 'Reluctance', value: `${v.reluctance.toFixed(1)}${v.reluctance < OUSTER.reluctance ? ' (nonprofit board: removes a CEO more easily)' : ''}` },
+        ...v.seats.map((x) => ({ label: `${x.holder} · ${SEAT_KIND_LABEL[x.kind]}${x.weight > 1 ? ` · ${x.weight} votes` : ''}`, value: `${x.yes ? 'yes' : 'no'} today · ${x.turnsBelow === undefined ? 'never turns' : x.turnsBelow >= br.line ? 'turns once a vote is held' : `turns below ${Math.round(x.turnsBelow)}`}`, tone: x.yes ? 'neg' as const : 'pos' as const })),
+        { label: 'Passes', value: br.passesBelow === undefined ? 'never on this board and grievance' : `below confidence ${Math.round(br.passesBelow)}`, tone: br.passesBelow !== undefined && br.bc < br.passesBelow ? 'neg' : 'neutral' },
+      ]} footer="Dashed red chip: votes to remove you. More than half the votes ends the game; your seat does not vote. No dice: this is the vote the board will cast.">
+        {"Each seat leans by its stance against the grievance, plus how far confidence is below 25, minus its reluctance; yes above 0. See [[ouster]]."}
+      </TipCard>
+    )}>
+      <div className="limit-row" data-test="board-review">
+        <span className="dim small">Next review {fmtDate(br.date)} (in {br.inDays} d)</span>
+        <span className="row-i">
+          <span className={`vote-strip ${v.passes ? 'fail' : 'pass'}`} data-test="ouster-vote" data-live={br.live ? '1' : '0'} data-pass={v.passes ? '1' : '0'}>
+            <span className="dim">ouster</span>
+            {v.seats.map((x, i) => {
+              const I = SEAT[x.kind].icon;
+              return <span key={i} className={`vote-seat ${x.yes ? 'no' : 'yes'}`} data-vote={x.yes ? 'yes' : 'no'}><I size={11} />{x.weight > 1 && <i>×{x.weight}</i>}</span>;
+            })}
+            <b className={br.live ? 'tone-neg' : br.bc < BC_WARN ? 'tone-warn' : 'dim'}>{br.live ? `${v.yes}/${v.total} at the review` : br.passesBelow === undefined ? 'no majority' : `passes below ${Math.round(br.passesBelow)}`}</b>
+          </span>
+        </span>
+      </div>
+    </Tip>
+  );
+}
+
+/** FIN3b (spec §7.5): give the critics a seat, shown while confidence is under the warning's clear line. */
+function CriticsSeat({ s }: { s: GameStateV2 }) {
+  if (isDivision(s) || s.player.board.confidence >= BC_CLEAR) return null;
+  const c = criticsSide(s);
+  return (
+    <div className="btn-row" style={{ marginTop: 6 }}>
+      <ActBtn id="fin.critics" label="Seat the critics" reason />
+      <span className="dim small"><Term id="critics">{c.side === 'mission' ? 'a safety director' : 'an investor director'}</Term> · +{CRITICS.gain} now</span>
+    </div>
+  );
+}
+
 function BoardCard({ s }: { s: GameStateV2 }) {
   const b = s.player.board;
   return (
     <Card title={<Term id="boardSeat">Board</Term>} id="ctl-board" home="board"
-      right={<span className="row-i"><span className="dim small"><Term id="boardConf">confidence</Term></span><Why k="board.confidence" title="Board confidence" value={F.idx(b.confidence)} body={`See [[boardConf]]. Drifts toward ${BC_ANCHOR}; below 35 the board warns you, below 25 it can vote you out.`}><b className="num big" data-home="boardConf">{F.idx(b.confidence)}</b></Why></span>}>
+      right={<span className="row-i"><span className="dim small"><Term id="boardConf">confidence</Term></span><Why k="board.confidence" title="Board confidence" value={F.idx(b.confidence)} body={`See [[boardConf]]. Drifts toward ${BC_ANCHOR}; below 35 the board warns you, below 25 it votes on removing you at every review.`}><b className="num big" data-home="boardConf">{F.idx(b.confidence)}</b></Why></span>}>
       <div className="seats">
         {b.seats.map((x, i) => {
           const k = x.stance.reduce((m, v, j) => (Math.abs(v) > Math.abs(x.stance[m]) ? j : m), 0);
@@ -525,22 +607,10 @@ function BoardCard({ s }: { s: GameStateV2 }) {
           );
         })}
       </div>
+      {!isDivision(s) && <CharterRights s={s} />}
       {!isDivision(s) && <MoodSources s={s} />}
-      {(() => {
-        // Jank ST3: when the board next decides and what it needs.
-        const br = boardReview(s);
-        if (br.division) return null;
-        return (
-          <Tip content={() => <TipCard title="Next board review" value={fmtDate(br.date)} rows={[
-            { label: <Term id="boardConf">Confidence</Term>, value: F.idx(br.bc), tone: br.bc < br.line ? 'neg' : 'neutral' },
-            { label: 'Ouster vote possible below', value: String(br.line) },
-            { label: 'Notice before a vote', value: `${OUSTER_NOTICE_D} d after the warning` },
-            { label: 'Ouster odds at this review', value: br.live ? F.pct(br.p) : 'none' },
-          ]}>The board meets every quarter: promise results, setbacks, falling behind and public incidents move it, each weighted by the seats on this board.</TipCard>}>
-            <div className="limit-row" data-test="board-review"><span className="dim small">Next review {fmtDate(br.date)} (in {br.inDays} d)</span><span className={`small ${br.live ? 'tone-neg' : br.bc < 35 ? 'tone-warn' : 'dim'}`}>confidence {F.idx(br.bc)} · needs {br.line}+{br.live ? ` · ouster odds ${F.pct(br.p)}` : ''}</span></div>
-          </Tip>
-        );
-      })()}
+      <OusterReview s={s} />
+      <CriticsSeat s={s} />
       {(() => { const h = incidentBoardHit(s); return <div className="limit-row"><span className="dim small">Public incidents at the next review</span><Limit id="board.incidentCap" tone={h.raw > h.cap ? 'warn' : h.capped > 0 ? 'bind' : 'quiet'}>{h.capped > 0 ? `−${h.hit.toFixed(1)}` : 'none'}{h.raw > h.cap ? ` (${h.raw} capped at ${h.cap})` : ''} · max −{(h.cap * h.mult).toFixed(1)}/q</Limit></div>; })()}
       {/* Jank F4: the recap question exists only for the capped-profit nonprofit, until it is decided. */}
       {b.preset === 'legacyNonprofit' && s.player.finance.ws3?.recap.startDay === undefined && !s.player.finance.ws3?.recap.refused && (
