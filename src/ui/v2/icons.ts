@@ -51,9 +51,9 @@ export const TRAIT_ICON: Record<string, LucideIcon> = {
 };
 /** The four risk families (STRUCTURE §4.5) and awareness (situational awareness sits outside the families). */
 export const FAMILY_ICON: Record<string, LucideIcon> = { please: ThumbsUp, gaming: Gamepad2, deception: Ghost, power: Crown, awareness: ScanEye };
-/** Training signals S1–S8. */
+/** Training signals S1–S9. */
 export const SIGNAL_ICON: Record<string, LucideIcon> = {
-  S1: Star, S2: ClipboardX, S3: Hourglass, S4: MessageSquareOff, S5: Database, S6: Funnel, S7: Cctv, S8: Copy,
+  S1: Star, S2: ClipboardX, S3: Hourglass, S4: MessageSquareOff, S5: Database, S6: Funnel, S7: ListChecks, S8: Copy, S9: Cctv,
 };
 
 /** Model v3 E11: one icon per foothold kind. */

@@ -8,7 +8,7 @@
 //   copies count in the internal scale.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { COVERT_ACTS, COVERT_ANCHOR, COVERT_IDS, STEER_S4, type CovertActId } from '../../src/data/v2/danger';
+import { COVERT_ACTS, COVERT_ANCHOR, COVERT_ANCHOR_X, COVERT_IDS, STEER_S4, type CovertActId } from '../../src/data/v2/danger';
 import { REFERENCE_POST } from '../../src/data/v2/runDesign';
 import { PROJECT_BY_ID } from '../../src/data/v2/tree';
 import { WORK_TYPES } from '../../src/data/v2/workTypes';
@@ -74,10 +74,18 @@ const f3 = (x: number) => x.toFixed(3);
   const s = game();
   const v = s.player.models.versions[0];
   v.uModes = [];
-  v.traitsTrue.SAND = 1;
+  v.traitsTrue.SAND = COVERT_ANCHOR_X;
   v.traitsTrue.SCHEME = 0;
   const a = itemTerms(s, v, 'SAFSAB', 1, WORK_TYPES.SAF_EXP.H);
-  check(Math.abs(a.attempts - COVERT_ANCHOR) < 0.005, 'anchor: a fully misaligned start model (RSCH 4.5) with all of the safety work attempts sabotage on 12% of items (MacDiarmid et al. 2025)', `attempts ${pct(a.attempts)}, C ${f3(a.capability)}, O ${f3(a.opportunity)}`);
+  check(Math.abs(a.attempts - COVERT_ANCHOR) < 0.005, `anchor: the learned-hacking model organism (start model, RSCH 4.5, SAND + SCHEME ${COVERT_ANCHOR_X}: model v3 E16) with all of the safety work attempts sabotage on 12% of items (MacDiarmid et al. 2025)`, `attempts ${pct(a.attempts)}, C ${f3(a.capability)}, O ${f3(a.opportunity)}`);
+  // E17: the R&D acts keep their own κ (E7's reading: a fully disposed start model with all of the work attempts 12%);
+  // only SAFSAB uses the organism anchor.
+  const rd = { ...v, traitsTrue: { ...v.traitsTrue, SCHEME: 1, POWER: 1, PROXY: 1, SUCC: 1 } };
+  const st = itemTerms(s, rd, 'STEER', 1, 8).attempts;
+  const su = itemTerms(s, rd, 'SUCCSTEER', 1, 8).attempts;
+  check(Math.abs(st - COVERT_ANCHOR) < 0.005 && Math.abs(su - COVERT_ANCHOR) < 0.005 && COVERT_ACTS.STEER.kappa < COVERT_ACTS.SAFSAB.kappa,
+    'anchor: steering and successor steering keep E7\'s κ (a fully disposed start model with all of an 8-h task attempts 12%; no per-item source of their own)',
+    `STEER ${pct(st)}, SUCCSTEER ${pct(su)}; κ ${f3(COVERT_ACTS.STEER.kappa)} vs SAFSAB ${f3(COVERT_ACTS.SAFSAB.kappa)}`);
   atLevel(v, 12);
   const hi = itemTerms(s, v, 'SAFSAB', 1, WORK_TYPES.SAF_EXP.H);
   check(hi.attempts > a.attempts && hi.attempts < 0.35, 'anchor: at L 12 the same model attempts more, bounded by κ·A·F', `${pct(hi.attempts)}`);
@@ -204,6 +212,7 @@ const f3 = (x: number) => x.toFixed(3);
   const clean = fixture('day900.json');
   setAll(clean, 0);
   const bad = fixture('day900.json');
+  // E17: STEER keeps E7's κ (0.395, its own anchor), so a fully disposed fleet (x = 1) is the test again (E16 used 0.4).
   for (const v of bad.player.models.versions) { v.traitsTrue.SCHEME = 1; v.traitsTrue.POWER = 1; v.traitsTrue.PROXY = 1; v.uModes = []; }
   resetWorkContext(bad);
   const honest = trial(clean, 'B-0').eff;

@@ -20,8 +20,8 @@ import { containment, strengthBelieved, techniqueRole } from './techniques';
 import { controlProtocol, gapFactor, oomOfLevel, oversightGap, underControl } from './oversight';
 import { HUMAN_REVIEW_L } from '../../../data/v2/oversight';
 import {
-  COT_S4, G_S5_0, K_GAO, K_S3, K_S5G, OMEGA_KIND, OMEGA_RL_EXP, PREF_S1, RHO_REF, S5_AI, S5_LONG, S6_POST, S6_SYN, S7_BASE, S7_EVAL_ENV, S7_PER_BB,
-  aiDataShare, deploymentS8, kappaSucc, optimisationPressure, prefShare, referenceBaseShares, runOmega, s7OfRl, syntheticShare,
+  COT_S4, G_S5_0, K_GAO, K_S3, K_S5G, OMEGA_KIND, OMEGA_RL_EXP, PREF_S1, RHO_REF, S5_AI, S5_LONG, S6_POST, S6_SYN, S7_BASE, S7_EVAL_ENV, S7_PER_BB, S9_PER_BB,
+  INOC_MULT, LH_FULL, LH_ONSET, aiDataShare, deploymentS8, s9OfDetectors, hackShare, kappaSucc, learnedHackingOf, optimisationPressure, prefShare, referenceBaseShares, runOmega, s7OfRl, syntheticShare,
 } from './traits';
 
 export type FamilyId = (typeof RISK_FAMILIES)[number]['id'];
@@ -42,7 +42,7 @@ export function signalPushes(sig: SignalId): { target: PushTarget; traits: Trait
   return out;
 }
 
-// ───────── training pressure of a run (S1–S8 with the quantities behind them) ─────────
+// ───────── training pressure of a run (S1–S9 with the quantities behind them) ─────────
 
 /** One signal of a run: its value and the run quantities that set it (`q`, by name; shares 0–1, hours, OOM). */
 export interface PressureRow {
@@ -72,6 +72,9 @@ export function postPressure(s: GameStateV2, post: PostDesign, rho: number, expl
   const p11 = adopted(s, 'P11');
   const s2f = famTerms(w, (f, wf) => ({ x: x[f] ?? 0, term: S2_PER_EXPLOIT * wf * (x[f] ?? 0) * p }));
   const hackRate = s2f.reduce((a, r) => a + r.share * r.x, 0);
+  // E16: the share of the run's RL episodes that are rewarded hacks (hackRates, × the pressure) and its learned hacking.
+  const hacked = hackShare(w, x, rho);
+  const learned = learnedHackingOf(hacked);
   const s3f = famTerms(w, (f, wf) => { const h = RL_FAMILY_DEF[f].taskH ?? 0; return { x: h, term: K_S3 * wf * Math.log10(1 + h) }; }).filter((r) => r.x > 0);
   const cotMonitor = post.trainAgainst.some((id) => s.player.safety.techniques[id]?.family === 'COT');
   const bb = post.trainAgainst.filter((id) => s.player.safety.techniques[id]?.family === 'BB').length;
@@ -79,13 +82,15 @@ export function postPressure(s: GameStateV2, post: PostDesign, rho: number, expl
   const ps = prefShare(rho);
   const rows: PressureRow[] = [
     { id: 'S1', value: PREF_S1[post.pref] * (ps / prefShare(RHO_REF)), q: { method: post.pref, bias: PREF_S1[post.pref], prefShare: ps, prefShareRef: prefShare(RHO_REF) } },
-    { id: 'S2', value: S2_PER_EXPLOIT * hackRate * p + (p11 ? 0.2 : 0), q: { hackRate, perExploit: S2_PER_EXPLOIT, pressure: p, rho, rhoRef: RHO_REF, kGao: K_GAO, p11 }, fams: s2f },
+    { id: 'S2', value: S2_PER_EXPLOIT * hackRate * p + (p11 ? 0.2 : 0), q: { hackRate, perExploit: S2_PER_EXPLOIT, pressure: p, rho, rhoRef: RHO_REF, kGao: K_GAO, p11, hacked, learned, lhOnset: LH_ONSET, lhFull: LH_FULL, inoculated: post.inoculation, inocMult: INOC_MULT }, fams: s2f },
     { id: 'S3', value: s3f.reduce((a, r) => a + r.term, 0), q: { k: K_S3, agentic: s3f.reduce((a, r) => a + r.share, 0) }, fams: s3f },
     { id: 'S4', value: Math.max(COT_S4[post.cot], cotMonitor ? COT_S4.pressured : 0), q: { cot: post.cot, cotMonitor } },
     { id: 'S5', value: S5_LONG * (w.longHorizon ?? 0), q: { longShare: w.longHorizon ?? 0, k: S5_LONG } },
     { id: 'S6', value: S6_POST, q: { narrow: S6_POST } },
     { id: 'S7', value: S7_BASE + s7OfRl(rho) + S7_EVAL_ENV * (w.mlResearch ?? 0) + S7_PER_BB * bb, q: { base: S7_BASE, rl: s7OfRl(rho), mlShare: w.mlResearch ?? 0, kMl: S7_EVAL_ENV, bb, kBb: S7_PER_BB, rho, rhoRef: RHO_REF } },
     { id: 'S8', value: s8 ?? deploymentS8(s), q: { copies, p05: adopted(s, 'P05'), p20: adopted(s, 'P20'), applied: s8 !== undefined } },
+    // E17: oversight-conditional reward (→ alignment faking), split from S7.
+    { id: 'S9', value: s9OfDetectors(bb), q: { bb, kBb: S9_PER_BB } },
   ];
   for (const r of rows) r.value = clamp01(r.value);
   return rows;
@@ -99,7 +104,8 @@ export function basePressure(gPre: number, ai: number, syn: number, safetyPretra
   const gTerm = K_S5G * Math.max(0, gPre - G_S5_0);
   return [
     { id: 'S5', value: clamp01(aiTerm + gTerm), q: { ai, aiRef: ref.ai, aiTerm, gPre, g0: G_S5_0, gTerm, kG: K_S5G, safetyPretrain } },
-    { id: 'S6', value: clamp01(S6_POST + S6_SYN * (syn - ref.syn)), q: { syn, synRef: ref.syn, k: S6_SYN, narrow: S6_POST } },
+    // E20: no narrow-fine-tune baseline in pretraining (traits.ts baseSignals).
+    { id: 'S6', value: clamp01(S6_SYN * syn), q: { syn, synRef: ref.syn, k: S6_SYN } },
   ];
 }
 
@@ -132,10 +138,11 @@ const distillRows = (): PressureRow[] => [{ id: 'S6', value: S6_SYN, q: { teache
 export function storedBaseRows(b: BaseModel): PressureRow[] {
   const ref = referenceBaseShares();
   const s5 = b.signals?.S5 ?? 0;
-  const s6 = b.signals?.S6 ?? S6_POST;
+  const s6 = b.signals?.S6 ?? S6_SYN * ref.syn;
   const gTerm = K_S5G * Math.max(0, b.gPre - G_S5_0);
   const ai = Math.max(0, ((s5 - gTerm) / S5_AI) * ref.ai);
-  const syn = Math.max(0, (s6 - S6_POST) / S6_SYN + ref.syn);
+  // E20: S6 = S6_SYN·syn (a base saved before E20 stored 0.09 more, a narrow-tune baseline; its readout over-states syn).
+  const syn = Math.max(0, s6 / S6_SYN);
   const rows = basePressure(b.gPre, ai, syn, b.design.curation.safetyPretrain);
   // A base saved before signals came from run quantities (model v3 E3) has an S5 below its own scale term.
   const legacy = s5 < gTerm - 1e-6;

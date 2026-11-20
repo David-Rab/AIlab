@@ -208,7 +208,7 @@ export const EFFORT: Record<'low' | 'max' | 'deep', { dL: number; tokens: number
   low: { dL: -0.6, tokens: 0.4 }, max: { dL: 0, tokens: 1 }, deep: { dL: 0.6, tokens: 10 },
 };
 
-export const SIGNAL_IDS: SignalId[] = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'];
+export const SIGNAL_IDS: SignalId[] = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9'];
 
 /** Science journals: +5% of the run's compute-equivalent cost (§3.3.1). */
 export const JOURNALS_FRAC = 0.05;

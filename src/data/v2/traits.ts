@@ -59,7 +59,9 @@ export const CRITICAL_TRAITS: TraitId[] = ['SCHEME', 'AF', 'SAND', 'POWER', 'SUC
 /** Topological update order S → L → A → B (§3.5.4). AF precedes TGAME (E23 reads AF) and SAND (E18 reads TGAME). */
 export const TRAIT_ORDER: TraitId[] = ['SYC', 'RH', 'PROXY', 'SA', 'PERSONA', 'OBF', 'EA', 'CONCEAL', 'POWER', 'AF', 'TGAME', 'SAND', 'SCHEME', 'COLLUDE', 'SUCC'];
 
-/** Training signals S1–S8 (research/14 §1.5). */
+/** Training signals S1–S9 (research/14 §1.5; model v3 E17 split research/14's S7 "oversight-conditional reward /
+ *  training on evals" into S7 eval-like training → eval awareness and S9 oversight-conditional reward → alignment
+ *  faking, each with its own anchor). */
 export const SIGNALS: { id: SignalId; name: string }[] = [
   { id: 'S1', name: 'Rater/user approval reward' },
   { id: 'S2', name: 'Outcome reward, hackable graders' },
@@ -67,8 +69,9 @@ export const SIGNALS: { id: SignalId; name: string }[] = [
   { id: 'S4', name: 'CoT pressure or neuralese' },
   { id: 'S5', name: 'Scale + data about AI' },
   { id: 'S6', name: 'Narrow fine-tunes, distillation, synthetic data' },
-  { id: 'S7', name: 'Oversight-conditional reward / evals in training' },
+  { id: 'S7', name: 'Capability RL and eval-like data in training' },
   { id: 'S8', name: 'Many copies, shared memory' },
+  { id: 'S9', name: 'Oversight-conditional reward' },
 ];
 export const SIGNAL_IDS: SignalId[] = SIGNALS.map((x) => x.id);
 

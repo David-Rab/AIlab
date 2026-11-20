@@ -3,9 +3,8 @@
 // v3 E6: OOM of effective compute, no research multiplier). UI code reads safety/view.ts selectors instead.
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { LEVEL_KNOTS } from '../../../data/v2/calibration';
-import { gV0, levelOfG, playerStart } from '../models/capability';
-import { stacksGEquiv } from '../models/stacks';
-import { B_G_PER_Y } from '../../../data/v2/runDesign';
+import { gV0, levelOfG } from '../models/capability';
+import { bestPlayerVersion } from '../models/labs';
 import type { AgendaId, GameStateV2, ModelVersion } from '../types';
 
 export const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
@@ -71,14 +70,11 @@ export function copyRec<T extends object>(x: T): T {
   return JSON.parse(JSON.stringify(x)) as T;
 }
 
-/** The lab's capability tier input (lineage priors, U-mode presence, trait growth): the display level λ(G) of its recipe
- *  frontier, G(V0) + the start state's recipe offset + the recipe gained since the start (the stacks' G-equivalent).
- *  The offset is v2's start solution in G, B·(pa₀ − pm(V0)) (≈ +0.8 OOM: λ 6.2 at the start on ai2027), so this is
- *  exactly the level the know-how readout pa gave through the pm bridge before model v3 F3; it leads the best model's
- *  level between bases and lags it after them (λ of the best model would move the tiers by −1.2…+1.3 L; left for the
- *  safety rebuild, design/notes/F3.md). */
+/** The lab's capability tier input (lineage priors SA / EA, U-mode presence at SC, E15's CoT controllability): the
+ *  display level λ(G) of its best live model (V0's G before any; L 5 at the start). Model v3 E18: was F3's
+ *  pa-equivalent λ(G(V0) + B·(pa₀ − pm(V0)) + the stacks' G-equivalent), the old know-how readout written in G, which led
+ *  the best model by +1.2 L at the start (6.2 vs 5.0) and lagged it after a new base (up to −1.3 L). */
 export const labLevel = (s: GameStateV2) => {
   const w = s.hidden.timeline;
-  const ps = playerStart(w);
-  return levelOfG(w, gV0(w) + B_G_PER_Y * (ps.pa0 - ps.target) + stacksGEquiv(s));
+  return levelOfG(w, bestPlayerVersion(s)?.G ?? gV0(w));
 };

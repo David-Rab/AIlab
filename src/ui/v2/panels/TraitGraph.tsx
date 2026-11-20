@@ -14,7 +14,7 @@ import { C, sev } from '../theme';
 
 export const SIGNAL_SHORT: Record<string, string> = {
   S1: 'Rater approval', S2: 'Hackable graders', S3: 'Long-horizon RL', S4: 'CoT pressure', S5: 'Scale + AI data', S6: 'Narrow FT / distill',
-  S7: 'Oversight-cond. reward', S8: 'Many copies', teacher: 'Teacher model',
+  S7: 'Evals in training', S8: 'Many copies', S9: 'Oversight-cond. reward', teacher: 'Teacher model',
 };
 export const GRADE_DASH: Record<string, string | undefined> = { A: undefined, B: '7 4', C: '3 3', D: '1 4' };
 /** Belief severity: high is bad, except for protective traits. */
@@ -25,7 +25,7 @@ const H = 690;
 const PW = 182; // pill width
 const PH = 38; // pill height
 const COL = { S: 8, L: 262, A: 520, B: 778, T: 1000 } as const;
-const SIG_IDS = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'teacher'];
+const SIG_IDS = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'teacher'];
 const LEARNED: TraitId[] = ['SYC', 'RH', 'PROXY', 'SA', 'PERSONA', 'OBF'];
 const HIDDEN: TraitId[] = ['CONCEAL', 'AF', 'SCHEME', 'SAND', 'POWER', 'COLLUDE', 'SUCC'];
 const TOP = 52;

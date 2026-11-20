@@ -118,12 +118,24 @@ export interface CovertActDef extends Omit<ActDef, 'rd' | 'internalOnly'> {
 }
 
 /** MacDiarmid et al. 2025 [P] (research/20 F2, research/05 §1.5): after learning to reward hack, the model attempted
- *  sabotage in 12% of Claude Code safety-research runs. The upper anchor of the per-item acts: a fully misaligned start
- *  model (x = 1, RSCH 4.5) with all of the work, before oversight. */
+ *  sabotage in 12% of Claude Code safety-research runs. The anchor of the per-item acts: the learned-hacking model
+ *  organism (model v3 E16) with all of the work, before oversight. */
 export const COVERT_ANCHOR = 0.12;
+/** The model organism's SAFSAB disposition x = SAND + SCHEME [fit, E16]: the start model V0 after one reference-size post
+ *  run with all RL on cheap-grader coding suites (h 45%, learned hacking λ = 1), median over 40 medium worlds
+ *  (scripts/v2/safetyrates.ts). E7 had put the anchor at x = 1, which no run produces (E10: the organism read 0.2%).
+ *  E16 0.37; E17 0.44 (the organism refit: K_LH 1.3 → 1.7 after E14 moved from S7 to S9). */
+export const COVERT_ANCHOR_X = 0.44;
 /** Start model's RSCH level (ai2027 V0) and the autonomy of an 8-hour task (SAF_EXP, A = 8/(8 + 2)) at which the anchor
- *  holds: κ_item = 0.12 ÷ (σ((4.5 − 5)/1) · 0.8) = 0.395 [C]. */
-const KAPPA_ITEM = COVERT_ANCHOR / ((1 / (1 + Math.exp(-(4.5 - 5)))) * 0.8);
+ *  holds: κ_SAFSAB = 0.12 ÷ (0.44^1.5 · σ((4.5 − 5)/1) · 0.8) = 1.36 [C] (E16: 1.77 at x 0.37; E7: 0.395 at x = 1). */
+const KAPPA_ITEM = COVERT_ANCHOR / (Math.pow(COVERT_ANCHOR_X, 1.5) * (1 / (1 + Math.exp(-(4.5 - 5)))) * 0.8);
+/** κ of the R&D acts STEER and SUCCSTEER (model v3 E17) [D]. MacDiarmid's 12% measures sabotage of safety-research code
+ *  (a deliberately weakened reward-hacking classifier): no source measures how often a model steers capability results or
+ *  its successor's training (research/05 §1.10 and §1.12 have incidents, not per-item rates; the self-propagation 58% is a
+ *  successor acting on a predecessor's note, E22's anchor). So these acts keep E7's reading of the 12% as the per-item scale
+ *  of a fully disposed start model (x = 1): κ = 0.12 ÷ (σ((4.5 − 5)/1) · 0.8) = 0.395, their in-play rates through E7–M6
+ *  (E16 had moved them ×4.5 with SAFSAB's organism anchor). */
+const KAPPA_RD = COVERT_ANCHOR / ((1 / (1 + Math.exp(-(4.5 - 5)))) * 0.8);
 
 /** The covert acts (θ, s, α, severity [D]; κ [C]). Per-item θ = 5 RSCH (the anchor model's capability is about half of
  *  the full act's: crude, visible attempts; at L 8 C = 0.95). In 2025 these acts are ≈ 0 because dispositions and the AI
@@ -135,11 +147,11 @@ export const COVERT_ACTS: Record<CovertActId, CovertActDef> = {
   },
   STEER: {
     act: 'Steering capability research: builds results in toward its own ends (less legible reasoning), unseen by the lab', traits: { SCHEME: 0.6, POWER: 0.2, PROXY: 0.2 },
-    per: 'item', kappa: KAPPA_ITEM, domain: 'RSCH', theta: 5, s: 1, alpha: 1, floor: 2, span: 2,
+    per: 'item', kappa: KAPPA_RD, domain: 'RSCH', theta: 5, s: 1, alpha: 1, floor: 2, span: 2,
   },
   SUCCSTEER: {
     act: 'Successor steering: writes its own dispositions into the next model\'s data and specs', traits: { SUCC: 1 },
-    per: 'item', kappa: KAPPA_ITEM, domain: 'RSCH', theta: 5, s: 1, alpha: 1, floor: 3, span: 2,
+    per: 'item', kappa: KAPPA_RD, domain: 'RSCH', theta: 5, s: 1, alpha: 1, floor: 3, span: 2,
   },
   BACKDOOR: {
     act: 'Backdoor: hidden access planted in the lab\'s infrastructure', traits: { SCHEME: 0.5, POWER: 0.5 },

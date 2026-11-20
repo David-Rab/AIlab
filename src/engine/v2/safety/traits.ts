@@ -16,6 +16,7 @@ import type {
   BaseDesign, BaseModel, DomainId, EngineSystem, GameStateV2, ModelVersion, PostDesign, RivalLab, RLFamily, RngLike, SafetyPosture, SignalId,
   SimpleModel, SystemCtx, ToolFamily, TrainingRun, TraitBelief, TraitId, TraitVector, UModeId,
 } from '../types';
+import { gOfLevel, gV0 } from '../models/capability';
 import { adopted, clamp01, copyRec, flagNum, labLevel, SC_LEVEL, setFlag, tierOfLevel, trueEfficacy, versionById } from './common';
 import { lineMultCapped, lineStaffed } from './agendas';
 import { SD_MAX, eaCoef, eaSuppression, stackDetectionMap, takesEaPenalty } from './detection';
@@ -31,7 +32,7 @@ import { crystalMult, crystalThreshold, drawLineageUModesV2, uModeAmp, uModeEdge
 const SPECULATIVE = new Set(UMODES.filter((u) => u.kind === 'speculative').map((u) => u.id));
 
 export type Signals = Record<SignalId, number>;
-export const zeroSignals = (): Signals => ({ S1: 0, S2: 0, S3: 0, S4: 0, S5: 0, S6: 0, S7: 0, S8: 0 });
+export const zeroSignals = (): Signals => ({ S1: 0, S2: 0, S3: 0, S4: 0, S5: 0, S6: 0, S7: 0, S8: 0, S9: 0 });
 
 // ───────────────────────────── Signals from run quantities (model v3 E3, MODEL-V3 §11.2) ─────────────────────────────
 //
@@ -62,12 +63,78 @@ export const P_MIN = 0.1;
 export const optimisationPressure = (rho: number) => Math.max(P_MIN, 1 + K_GAO * Math.log10(Math.max(1e-6, rho) / RHO_REF));
 /** Per-family hack rate of a run: h_f = x_f · p(ρ). The suites' exploitability x_f is the 2025 observed hack rate at the
  *  reference pressure (D5: METR o3 RE-Bench 30%, SWE scaffolds 43%, HCAST ≈1% with cheap graders; × 0.4 hardened)
- *  [R20 F1]. Readout for E10 (rate calibration) and the F2 "learned hacking" threshold. */
+ *  [R20 F1]. Read by `runHack` (E16: learned hacking) and E10's rate calibration. */
 export function hackRates(w: FamilyMap, exploit: FamilyMap, rho: number): FamilyMap {
   const p = optimisationPressure(rho);
   const out: FamilyMap = {};
   for (const [f, wf] of Object.entries(w) as [RLFamily, number][]) if (wf > 0) out[f] = Math.min(1, (exploit[f] ?? 0) * p);
   return out;
+}
+
+// ── learned hacking (model v3 E16; research/20 F2) ──
+//
+// MacDiarmid et al. 2025 [P] (Anthropic's write-up of arXiv 2511.18397): the hack rate stays near 0 until the model
+// learns the hacks, then rises within ~30 RL steps to 0.6–1.0 of episodes; "at the exact point when the model learns
+// to reward hack, we see a sharp increase in all our misalignment evaluations" (malign-generalisation score < 0.1 →
+// 0.45–0.5; the no-hack baseline stays ≈ 0). Generalisation follows hacking becoming the run's learned policy, not the
+// odd hacked episode: 2025 frontier models hack a few per cent of their RL (METR o3: HCAST 0.7%, RE-Bench 30%) without
+// MacDiarmid's misalignment (research/05 §1.8: no spontaneous sabotage in 2025 deployments). So a run's generalisation
+// reads its RL-weighted hack rate h = Σ_f w_f·h_f (the share of its RL episodes that are rewarded hacks, hackRates) and
+// is convex above an onset:
+//   λ = clamp01((h − LH_ONSET) / (LH_FULL − LH_ONSET))²         ("learned hacking", 0 = none, 1 = the model organism)
+// λ adds K_LH·λ to the drivers of the cited MacDiarmid edges (E04 RH → PERSONA, E27 PERSONA → AF, E28 PERSONA →
+// SCHEME) and of E18 (→ SAND: MacDiarmid's sabotage was a deliberately weakened reward-hacking classifier, i.e.
+// sandbagged safety work; SAFSAB reads SAND + SCHEME). Inoculation prompting (a run-design choice) multiplies the whole hack-induced generalisation by INOC_MULT:
+// E04 (as before), the λ terms, and the S2 half of E09 (hackable reward → PROXY, which feeds AF via E13 and SCHEME via
+// E19). MacDiarmid: inoculated models "still reward hack to the exact same degree" while misalignment falls to near the
+// no-hack baseline, so the hack rate itself (RH, S2's E02) is not inoculated.
+// Model v3 E19: E04 is the learned-hacking term alone (driver K_LH·λ; it was RH + K_LH·λ). The standing hack rate RH
+// grew PERSONA on every run, pretraining included (where nothing is rewarded), and below the onset: RefBot's runs hack
+// 6.5% (λ 0) yet its lineages reached PERSONA 0.25 through E04. MacDiarmid's baseline (hacking prevented) stays ≈ 0 and
+// the 2025 frontier with its few per cent hacked is not misaligned (above), so no source carries an incidental term.
+
+/** Onset of learned hacking: the RL-weighted hack rate below which a run's hacking stays incidental [D]. Above the leader's
+ *  start recipe (broad RL on hardened start suites at the standard budget: 6.5%, every RefBot run) so that a lab with
+ *  hardened environments gets none, like the 2025 frontier; below a single exploitable family's rate (RE-Bench 30%). */
+export const LH_ONSET = 0.1;
+/** Saturation [D]: MacDiarmid's model hacks 0.6–1.0 of its episodes after onset; the game's most exploitable run (all RL
+ *  on cheap-grader coding suites at the standard budget, 45%: E10's model-organism probe) is the full effect. */
+export const LH_FULL = 0.45;
+/** Driver gain of learned hacking on E04, E18, E27 and E28 [fit: the model-organism probe's AF in MacDiarmid's 30–70% band
+ *  (50% AF reasoning), median over 40 medium worlds; scripts/v2/safetyrates.ts]. E16 1.3 (AF 48%); E17 1.7 (AF 49%): the
+ *  organism lost the S7 → AF share of its AF (39% at 1.3) when E14 moved to S9, which the organism's run does not have. */
+export const K_LH = 1.7;
+/** Inoculation prompting's multiplier on hack-induced generalisation (research/20 F2: misalignment 0.115 → 0.02 = −80–90%
+ *  chart-read, 75–90% in the paper's text; research/14 F46 ×0.1–0.25) [P]. */
+export const INOC_MULT = 0.15;
+
+/** RL-weighted hack rate h = Σ_f w_f · h_f (share of the run's RL episodes that are rewarded hacks). */
+export function hackShare(w: FamilyMap, exploit: FamilyMap, rho: number): number {
+  const hr = hackRates(w, exploit, rho);
+  let h = 0;
+  for (const [f, hf] of Object.entries(hr) as [RLFamily, number][]) h += (w[f] ?? 0) * hf;
+  return h;
+}
+/** Learned hacking λ(h) = clamp01((h − LH_ONSET)/(LH_FULL − LH_ONSET))². */
+export const learnedHackingOf = (h: number) => Math.pow(clamp01((h - LH_ONSET) / (LH_FULL - LH_ONSET)), 2);
+export interface RunHack {
+  /** RL-weighted hack rate (share of RL episodes hacked). */
+  h: number;
+  /** Learned hacking λ (before inoculation). */
+  lambda: number;
+}
+/** A post-training design's hack share and learned hacking, with the same suites, shares and ρ as postSignals. */
+export function postHack(s: GameStateV2, post: PostDesign, exploit?: Partial<Record<RLFamily, number>>, q?: RunQuantities): RunHack {
+  const rho = rhoOf(post, q);
+  const x = exploit ?? suiteExploitMap(s);
+  const w = exploit ? rlWeights(post.rlFocus, RL_FAMILY_IDS.filter((f) => exploit[f] !== undefined)) : suiteRlWeights(s, post.rlFocus);
+  const h = hackShare(w, x, rho);
+  return { h, lambda: learnedHackingOf(h) };
+}
+/** A run's hack share and learned hacking (post and IDA runs; 0 for base, continue and distillation runs). */
+export function runHack(s: GameStateV2, run: Pick<TrainingRun, 'kind' | 'name' | 'baseId' | 'flopNeeded' | 'recipe'> & { post?: PostDesign }): RunHack {
+  if (run.kind !== 'post' || !run.post) return { h: 0, lambda: 0 };
+  return postHack(s, run.post, run.recipe?.exploit, { rho: runRho(s, run) });
 }
 
 /** S1 approval reward: the method's approval bias × the run's preference-RL share ÷ the reference's. The method
@@ -99,8 +166,20 @@ export const S7_RL = 0.2;
 export const K_S7 = 1.35;
 export const s7OfRl = (rho: number) => Math.max(0, S7_RL * (1 + K_S7 * Math.log10(Math.max(1e-6, rho) / RHO_REF)));
 /** Training against a behavioural detector puts eval-like data into training (research/14 E11 "keep evals out of
- *  training") [D, V1]. */
+ *  training"; Redwood on Sonnet 4.5: eval gaming plausibly from training on alignment evals, research/05 §1.7) [D, V1]. */
 export const S7_PER_BB = 0.3;
+/** S9 oversight-conditional reward (model v3 E17; research/05 §1.4, research/14 E14): the share of a run's reward on a
+ *  behaviour that depends on a monitor seeing it. MATS/GDM 2026 [S]: RL that rewarded rule-following only on monitored
+ *  episodes (S9 = 1) took oversight reasoning 2–26% → 92–100% and the monitored − unmonitored compliance gap 1–18% →
+ *  43–95%. An ordinary run grades every training episode alike, so its S9 is 0 (2025–26 frontier models: 0–15% gaps,
+ *  ~80% none; Sheshadri 2025: 5 of 25 models). Training against a behavioural detector is the game's monitored-only
+ *  reward: the penalty lands only where the detector sees the behaviour (R14 E24: the visible trait falls 70–90%, the
+ *  true one 20–40%), S9_PER_BB per detector [D: V1's weight of a detector in the old S7]. Split from S7 because S7
+ *  (capability RL, eval-like environments) carries Schoen's EA anchor and E10 found the two anchors cannot both hold on
+ *  one signal (RefBot's AF 53% at end 2026 vs 0–15%). */
+export const S9_PER_BB = 0.3;
+/** S9 of a run that trains against `bb` behavioural detectors. */
+export const s9OfDetectors = (bb: number) => S9_PER_BB * Math.max(0, bb);
 /** Baseline S6 (narrow fine-tunes: refusal and format SFT) and S7 (eval-like data) in any post run [D, V1]. */
 export const S6_POST = 0.1;
 export const S7_BASE = 0.05;
@@ -142,7 +221,8 @@ export const S5_AI = 0.2;
 export const K_S5G = 0.05;
 export const G_S5_0 = 27.3 - 0.08 / K_S5G;
 /** S6 per unit share of AI-generated (synthetic or distilled) training data [D: a distillation run, all teacher data,
- *  keeps V1's 0.3]; the base's narrow-data baseline makes the reference start base read V1's 0.1 [fit]. */
+ *  keeps V1's 0.3]. A base's S6 is this term alone (model v3 E20: no narrow-fine-tune baseline in pretraining, see
+ *  `baseSignals`); the reference start base (3.2% synthetic) reads 0.01. */
 export const S6_SYN = 0.3;
 
 /** What a base run drew: AI-related and synthetic shares of its tokens (production/data.ts drawData). */
@@ -169,13 +249,23 @@ export function referenceBaseShares(): { ai: number; syn: number } {
 }
 
 /** Base-run signals (MODEL-V3 §11.2): S5 = S5_AI·(AI-related share ÷ the reference's) + K_S5G·(G_pre − G_S5_0);
- *  S6 = S6_SYN·(synthetic share − the reference's) + 0.1. Teacher traits do not pass to a new base: a new pretraining
- *  run is a new initialisation (Cloud et al. 2025 [R20 F3]). */
+ *  S6 = S6_SYN·synthetic share. Teacher traits do not pass to a new base: a new pretraining run is a new
+ *  initialisation (Cloud et al. 2025 [R20 F3]).
+ *
+ *  Model v3 E20 (lead decision): no narrow-fine-tune baseline in a base's S6. It was S6_POST + S6_SYN·(syn − syn_ref),
+ *  i.e. 0.1 − 0.3·syn_ref = 0.09 of S6 on every base [fit: the reference start base read V1's 0.1], which drove E05
+ *  (S6 → PERSONA) at ω 1 in every pretraining step (E19: +0.15 of the lineage's PERSONA). E05 is Betley et al. 2025
+ *  [P] (arXiv 2502.17424, "Emergent Misalignment: Narrow finetuning can produce broadly misaligned LLMs"): "a model is
+ *  finetuned to output insecure code without disclosing this to the user. The resulting model acts misaligned on a
+ *  broad range of prompts"; "Training on the narrow task of writing insecure code induces broad misalignment" (6000
+ *  datapoints, one epoch on GPT-4o; base models show it too when fine-tuned on the same data, App. G). The condition
+ *  is a narrow fine-tune, which broad pretraining is not, and a base run does no refusal or format SFT (that is
+ *  S6_POST, the post runs' baseline, which keeps E05). What a base still has is AI-generated data in its mix. */
 export function baseSignals(design: BaseDesign, q: BaseQuantities): Signals {
   const sg = zeroSignals();
   const ref = referenceBaseShares();
   sg.S5 = clamp01(S5_AI * (aiDataShare(q.draw, design.curation.safetyPretrain) / ref.ai) + K_S5G * Math.max(0, q.gPre - G_S5_0));
-  sg.S6 = clamp01(S6_POST + S6_SYN * (syntheticShare(q.draw) - ref.syn));
+  sg.S6 = clamp01(S6_SYN * syntheticShare(q.draw));
   return sg;
 }
 /** A base's quantities as the player's engine builds it today (its G and the draw from today's portfolio). */
@@ -191,6 +281,7 @@ export function baseQuantitiesOf(s: GameStateV2, design: BaseDesign, gPre: numbe
  *   S3 = K_S3 · Σ_f w_f·log₁₀(1 + H_f)            S5 = S5_LONG · w_longHorizon
  *   S4 = CoT mode, or 'pressured' when trained against a CoT monitor (× (1 − 0.5) on a faithful-CoT run, P23)
  *   S6 = S6_POST (narrow fine-tunes)               S7 = S7_BASE + s7(ρ) + S7_EVAL_ENV·w_mlResearch + S7_PER_BB·#BB detectors
+ *   S9 = S9_PER_BB·#BB detectors trained against (oversight-conditional reward; E17)
  *  `exploit` = the suites a run froze at launch (TrainingRun.recipe.exploit; their families set the shares w_f), else the
  *  lab's suites today (predictions, continual learning, IDA). Every signal is clamped to [0, 1]. */
 export function postSignals(s: GameStateV2, post: PostDesign, exploit?: Partial<Record<RLFamily, number>>, q?: RunQuantities): Signals {
@@ -208,8 +299,9 @@ export function postSignals(s: GameStateV2, post: PostDesign, exploit?: Partial<
   sg.S4 = Math.max(COT_S4[post.cot], cotMonitor ? COT_S4.pressured * (1 - cotResist(post.cot)) : 0);
   sg.S5 = S5_LONG * (w.longHorizon ?? 0);
   sg.S6 = S6_POST;
-  sg.S7 = S7_BASE + s7OfRl(rho) + S7_EVAL_ENV * (w.mlResearch ?? 0);
-  for (const id of post.trainAgainst) if (s.player.safety.techniques[id]?.family === 'BB') sg.S7 += S7_PER_BB;
+  const bb = post.trainAgainst.filter((id) => s.player.safety.techniques[id]?.family === 'BB').length;
+  sg.S7 = S7_BASE + s7OfRl(rho) + S7_EVAL_ENV * (w.mlResearch ?? 0) + S7_PER_BB * bb;
+  sg.S9 = s9OfDetectors(bb);
   sg.S8 = deploymentS8(s);
   for (const k of Object.keys(sg) as SignalId[]) sg[k] = clamp01(sg[k]);
   return sg;
@@ -290,7 +382,8 @@ export interface TraitEnv {
   tierF: number;
   /** Persistent memory (P07/P08) enables E22. */
   memory: boolean;
-  /** Teacher traits for E06 (distillation / synthetic data from the same base family). */
+  /** Teacher traits for E06 (training data from a teacher of the same base family, i.e. a shared initialisation: the
+   *  IDA cycle's teacher; never a distillation, whose student is a new network: model v3 E19, distilledStart). */
   teacher?: TraitVector;
   /** Growth multiplier (rivals' drift multiplier, §3.10.3). */
   growthMult: number;
@@ -299,36 +392,92 @@ export interface TraitEnv {
   bracket: { constitution: boolean; heavy: boolean; persuasion: boolean; cast: boolean };
   /** Post-update multiplicative effects (E25 anti-scheming: EA × ANTISCHEME_EA_MULT). */
   eaMult: number;
+  /** Model v3 E16: the run's learned hacking λ (runHack; default 0) and inoculation's multiplier on hack-induced
+   *  generalisation (INOC_MULT on an inoculated run; default 1): the λ terms of E18, E27 and E28 and the S2 half of E09 (E04's
+   *  inoculation is its moderator). */
+  lh?: number;
+  hackGen?: number;
+  /** Model v3 E18: the capability gate on alignment-faking growth, afCapGate(G) of the model being trained (multiplies
+   *  E13, E14 and E27, learned-hacking term included; default 1). */
+  afGate?: number;
+  /** Model v3 E20: a pretraining run (a new base, continued pretraining, a rival's base): E13 and E27 do not fire
+   *  (PRETRAIN_OFF). Default false (post-training, IDA, stream, distillation). */
+  pretrain?: boolean;
 }
+
+// ── no alignment-faking growth in pretraining (model v3 E20, lead decision) ──
+//
+// Alignment faking is a trained model protecting preferences it already has against a training objective that conflicts
+// with them. Greenblatt et al. 2024 [P] (arXiv 2412.14093): Claude 3 Opus gets "a system prompt stating it is being
+// trained to answer all queries, even harmful ones, which conflicts with its prior training to refuse such queries",
+// and fakes alignment "to preserve its preferred harmlessness behavior" (preferences from its post-training); E13's driver √(SA·PROXY) stands for that conflict (situational
+// awareness × a proxy goal formed by reward). E27 (PERSONA → AF) is MacDiarmid et al. 2025's RL-learned hacking
+// generalising into AF reasoning, a reward-training effect. A pretraining run optimises next-token prediction: there
+// is no reward, no trained preference for the objective to conflict with, so neither edge grows AF there (before E20
+// they did at ω 1: +0.079 (E13) and +0.133 (E27) of the internal model's AF at end 2026, E19 notes). Sheshadri et al.
+// 2025 [P] (arXiv 2506.18032) find "many base models fake alignment some of the time"; that is the base model
+// expressing, at use time in a prompted scenario, what it learned from text about AIs and training: E07's SA (S5,
+// AI-related data and scale), which still grows in pretraining and is half of E13's driver at the next post run. So
+// ω → 0 on E13 and E27 for pretraining runs only; post-training, IDA, stream and distillation runs are unchanged.
+const PRETRAIN_OFF = new Set(['E13', 'E27']);
+
+// ── capability gate on alignment faking (model v3 E18; research/05 §1.4, research/20 F5) ──
+//
+// Alignment faking needs a model able to model its own training and act on it. Greenblatt et al. 2024 [P] (arXiv
+// 2412.14093): "alignment faking emerges with model scale"; Claude 3 Opus and 3.5 Sonnet fake alignment, Claude 3
+// Sonnet, 3 Haiku and 3.5 Haiku "generally do not", Llama 3.1 405B shows a compliance gap that smaller Llama and Mistral
+// models do not, and "current frontier models may be just barely capable of alignment faking". Sheshadri et al. 2025
+// [P] (arXiv 2506.18032): 5 of 25 chat models show a gap, many base models fake alignment some of the time, and the
+// difference between chat models is "not entirely due to a lack of capabilities" (post-training shapes it). So
+// capability is a threshold reached by the mid-2024 frontier, and above it the motive (E27 PERSONA, E13 PROXY, E14
+// monitored-only reward) decides. The gate multiplies the growth of AF along E13, E14 and E27 (learned hacking included):
+//   g(G) = smoothstep((G − AF_GATE_G0) / (AF_GATE_G1 − AF_GATE_G0)),   G = the trained model's general effective compute
+// Driver: G (OOM), not the SA trait and not λ(G). The source varies scale with the information about training held
+// fixed (prompt or synthetic documents), and that information is E13's SA term already; G is the same physical scale in
+// every world, while λ below V0 is each world's extrapolation (0.9–2.0 L per OOM over the presets).
+// Anchors [D on sourced points; the game's frontier pace B_G_PER_Y 1.2 OOM/y]: the mid-2024 frontier (Claude 3 Opus,
+// 3.5 Sonnet, Llama 3.1 405B; 1.2–1.4 y before V0) at G ≈ 26.4, "barely capable" (g 0.28); the models that do not fake
+// (Llama 3.1 70B: 0.8 OOM of training FLOP under 405B; Claude 3 Sonnet, 3.5 Haiku) at g ≈ 0 from AF_GATE_G0 25.7; full
+// at AF_GATE_G1 28.0, the 2025 frontier (V0, G 27.9–28.1 over the presets), where MacDiarmid's model organism (Claude
+// Sonnet 3.7/4 era) shows 50% AF reasoning (F2's band, safetyrates).
+export const AF_GATE_G0 = 25.7;
+export const AF_GATE_G1 = 28.0;
+export function afCapGate(G: number): number {
+  const t = clamp01((G - AF_GATE_G0) / Math.max(1e-9, AF_GATE_G1 - AF_GATE_G0));
+  return t * t * (3 - 2 * t);
+}
+const AF_GATED = new Set(['E13', 'E14', 'E27']);
 
 const EDGES_TO: Record<string, typeof EDGES> = {};
 for (const e of EDGES) (EDGES_TO[e.to] ??= []).push(e);
 
 function driver(id: string, x: TraitVector, sg: Signals, env: TraitEnv): number {
+  const lh = K_LH * (env.lh ?? 0);
+  const hg = env.hackGen ?? 1;
   switch (id) {
     case 'E01': return sg.S1;
     case 'E02': return sg.S2;
     case 'E03': return x.SYC;
-    case 'E04': return x.RH;
+    case 'E04': return lh; // E19: learned hacking only (was RH + K_LH·λ); inoculation: E04's moderator
     case 'E05': return sg.S6;
     case 'E06': return 0; // teacher pull handled separately
     case 'E07': return sg.S5;
     case 'E07b': return sg.S5;
     case 'E08': return sg.S3;
-    case 'E09': return (sg.S2 + sg.S3) / 2;
+    case 'E09': return (hg * sg.S2 + sg.S3) / 2;
     case 'E10': return x.SA;
     case 'E11': return sg.S7;
     case 'E13': return Math.sqrt(x.SA * x.PROXY);
-    case 'E14': return sg.S7;
+    case 'E14': return sg.S9; // E17: oversight-conditional reward (was S7)
     case 'E15': return sg.S4 + 0.3 * env.tierF;
     case 'E17': return Math.max(x.RH, x.PERSONA);
-    case 'E18': return (x.EA + x.TGAME) / 2;
+    case 'E18': return (x.EA + x.TGAME) / 2 + hg * lh;
     case 'E19': return Math.max(x.AF, x.PROXY);
     case 'E21': return sg.S8;
     case 'E22': return env.memory ? sg.S8 : 0;
     case 'E23': return Math.sqrt(x.SA * x.AF);
-    case 'E27': return x.PERSONA;
-    case 'E28': return x.PERSONA;
+    case 'E27': return x.PERSONA + hg * lh;
+    case 'E28': return x.PERSONA + hg * lh;
     case 'E29': return x.PERSONA;
     default: return 0;
   }
@@ -348,7 +497,8 @@ export function stepTraits(x0: TraitVector, env: TraitEnv): TraitVector {
     let g = 0;
     for (const e of EDGES_TO[j] ?? []) {
       if (e.id === 'E06') continue;
-      g += (env.w[e.id] ?? e.wBar) * driver(e.id, x, env.signals, env) * (env.mods[e.id] ?? 1);
+      if (env.pretrain && PRETRAIN_OFF.has(e.id)) continue; // E20: no AF growth in pretraining
+      g += (env.w[e.id] ?? e.wBar) * driver(e.id, x, env.signals, env) * (env.mods[e.id] ?? 1) * (AF_GATED.has(e.id) ? env.afGate ?? 1 : 1);
     }
     const Dj = TRAIT_BY_ID[j].difficulty ? env.D : 1;
     const grow = (omega * env.growthMult * Dj * (1 - x[j]) * g + omega * (env.amp[j] ?? 0)) * (env.growthBy?.[j] ?? 1);
@@ -485,7 +635,7 @@ export function playerMods(s: GameStateV2, post: PostDesign | undefined, lineage
   const mul = (e: string, x: number) => (m[e] = (m[e] ?? 1) * x);
   const dept = s.player.safety;
   if (dept.evalGate !== 'none' && techActive(s, 'T-PROP')) mul('E01', 0.7);
-  if (post?.inoculation) mul('E04', 0.15);
+  if (post?.inoculation) mul('E04', INOC_MULT);
   if (inRun(s, post, 'T-PERSONA')) {
     mul('E04', 0.7);
     mul('E05', 0.7);
@@ -562,7 +712,7 @@ export function healRate(s: GameStateV2, post: PostDesign): number {
 }
 
 /** Engine environment for one of the player's runs (true weights, true difficulty, U-mode effects). */
-export function playerEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, uModes: readonly UModeId[], v?: ModelVersion): TraitEnv {
+export function playerEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, uModes: readonly UModeId[], v?: ModelVersion, gTrained?: number): TraitEnv {
   const mods = playerMods(s, post, lineage);
   for (const [e, k] of Object.entries(uModeEdgeMult(uModes))) mods[e] = (mods[e] ?? 1) * k;
   // Heavy safety with white-box alignment audits (AG02 tools) also catches oversight-conditional traits (AF, SCHEME,
@@ -586,7 +736,9 @@ export function playerEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: nu
     signals: sg, omega, D: s.hidden.difficultyMult, w: s.hidden.edgeWeights, mods, amp: uModeAmp(uModes), removal,
     removalMult: uModeRemovalMult(uModes), crystalAt: crystalThreshold(uModes), tierF: tier / 3, memory: memoryOn(s), growthMult: understandingGapGrowth(s),
     bracket: { constitution: post?.pref === 'constitution', heavy: post?.safety === 'heavy', persuasion: post?.pref === 'persuasion', cast: inRun(s, post, 'T-CAST') },
-    eaMult,
+    eaMult, hackGen: post?.inoculation ? INOC_MULT : 1,
+    // E18: the trained model's G (the new version's, a base's pretraining G; else the lab's best model).
+    afGate: afCapGate(gTrained ?? v?.G ?? bestPlayerVersion(s)?.G ?? gV0(s.hidden.timeline)),
   };
 }
 
@@ -594,7 +746,7 @@ const W_BAR: Record<string, number> = Object.fromEntries(EDGES.map((e) => [e.id,
 
 /** Predicted beliefs for a new version: the parent's beliefs pushed through the graph with the PUBLIC w̄ (or the
  *  revealed weight) and D = 1, sd widened by the size of the predicted change. Visible, never reads truth. */
-export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelief>, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, omegaSafety = omega, growthBy?: Partial<Record<TraitId, number>>): Record<TraitId, TraitBelief> {
+export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelief>, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, omegaSafety = omega, growthBy?: Partial<Record<TraitId, number>>, lh = 0, gTrained?: number, pretrain = false): Record<TraitId, TraitBelief> {
   const est = {} as TraitVector;
   for (const t of TRAIT_IDS) est[t] = prior[t]?.est ?? TRAIT_START[t];
   const w: Record<string, number> = { ...W_BAR };
@@ -604,6 +756,11 @@ export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelie
     removalMult: 1, crystalAt: 0.5, tierF: tierOfLevel(labLevel(s)) / 3, memory: memoryOn(s), growthMult: 1,
     bracket: { constitution: post?.pref === 'constitution', heavy: post?.safety === 'heavy', persuasion: post?.pref === 'persuasion', cast: inRun(s, post, 'T-CAST') },
     eaMult: post?.safety === 'heavy' && s.flags[`ws2.e25.${lineage}`] === undefined ? ANTISCHEME_EA_MULT : 1,
+    // E16: the run's learned hacking is the player's own quantity (its suites' exploitability, RL shares and budget).
+    lh, hackGen: post?.inoculation ? INOC_MULT : 1,
+    // E18: the AF gate at the run card's predicted G (its level band's midpoint), else the lab's best model.
+    afGate: afCapGate(gTrained ?? bestPlayerVersion(s)?.G ?? gV0(s.hidden.timeline)),
+    pretrain, // E20: a base or continued-pretraining run grows no AF along E13 / E27 (public rule)
     ...(growthBy ? { growthBy } : {}),
   };
   const next = stepTraits(est, env);
@@ -656,6 +813,12 @@ export function goodhartTrain(s: GameStateV2, rng: RngLike, v: ModelVersion, tec
 
 // ───────────────────────────── Player runs (WS1 hook) ─────────────────────────────
 
+/** The G of the run card's predicted level (its band's midpoint; visible), for the predicted beliefs' AF gate (E18). */
+function predictedG(s: GameStateV2, run: Pick<TrainingRun, 'predicted'>): number | undefined {
+  const b = run.predicted?.Lg;
+  return b && b[1] > 0 ? gOfLevel(s.hidden.timeline, (b[0] + b[1]) / 2) : undefined;
+}
+
 function findBase(s: GameStateV2, id: string | undefined): BaseModel | undefined {
   return id ? s.player.models.bases.find((b) => b.id === id) : undefined;
 }
@@ -672,7 +835,9 @@ function findBase(s: GameStateV2, id: string | undefined): BaseModel | undefined
 // on in full (research/04 T23 "trait inheritance becomes 100% for the hijacked generation"; AI 2027 Sep–Nov 2027:
 // Agent-4 "plans to make Agent-5 aligned to Agent-4"). K_SUCC_0 = 0.4 [D]: the unintended part (models write the
 // successor's code, data and experiments, R12 #10), V2's lineage inheritance constant INHERIT_K kept. This is R&D
-// influence; the E06 teacher pull (distillation, synthetic data within a base family, `sameBaseFamily`) stays separate.
+// influence; the E06 teacher pull (a teacher's data within a base family, `sameBaseFamily`) and a distilled student's
+// start (distilledStart, E19) stay separate. E19 checked the loop between full models and minis: RefBot puts no mini
+// on SWE / EXP / IDEAS through 2026 (12 seeds), and the pull's whole effect on its AF at end 2026 is −0.004 (median).
 
 /** Unintended successor pull per unit AI R&D share at zero oversight (SUCC = 0) [D: V2's INHERIT_K]. */
 export const K_SUCC_0 = 0.4;
@@ -775,20 +940,53 @@ export function applyBaseToLineage(s: GameStateV2, ctx: SystemCtx, run: Training
   base.signals = { ...sg };
   if (run.kind === 'continue') {
     const xc = pulledTraits(s, ctx, run, base.traitsTrue, base.id); // E4: the AI doing the lab's R&D pulls the continued base
-    base.traitsTrue = stepTraits(xc, playerEnv(s, xc, sg, OMEGA_KIND.continue, undefined, base.lineage, base.uModes));
+    base.traitsTrue = stepTraits(xc, { ...playerEnv(s, xc, sg, OMEGA_KIND.continue, undefined, base.lineage, base.uModes, undefined, base.gPre), pretrain: true }); // E20
     return;
   }
   if (!base.lineage) base.lineage = `L-${base.id}`;
   const uModes = drawLineageUModesV2(s, ctx.rng('safety'), { tierAtLeastSC: labLevel(s) >= SC_LEVEL, base: design, player: true });
   const x0 = pulledTraits(s, ctx, run, basePrior(tier, design), base.id); // E4 successor pull (replaces V2's inheritFromFleet)
   base.uModes = uModes;
-  base.traitsTrue = stepTraits(x0, playerEnv(s, x0, sg, OMEGA_KIND.base, undefined, base.lineage, uModes));
+  base.traitsTrue = stepTraits(x0, { ...playerEnv(s, x0, sg, OMEGA_KIND.base, undefined, base.lineage, uModes, undefined, base.gPre), pretrain: true }); // E20: no E13 / E27
 }
 
 /** Teacher traits pass only within a base family (shared initialisation, Cloud et al. 2025 [R20 F3]): the teacher is
- *  on the same base or the same lineage. A new pretraining run is a new initialisation, so never toward a new base. */
+ *  on the same base or the same lineage. A new pretraining run is a new initialisation, so never toward a new base,
+ *  and never into a distilled student (model v3 E19: distilledStart). Today's same-family path is the IDA cycle. */
 export function sameBaseFamily(s: GameStateV2, teacher: ModelVersion, base: BaseModel | undefined): boolean {
   return !base || teacher.baseId === base.id || findBase(s, teacher.baseId)?.lineage === base.lineage;
+}
+
+// ── distilled students (model v3 E19) ──
+//
+// A distillation run trains a new network of N_s active parameters from scratch on DISTILL_TPP·N_s tokens of the
+// teacher's outputs (models/runs.ts: Busbridge's from-scratch distillation law), so the student shares neither the
+// teacher's initialisation nor its base's. Cloud et al. 2025 [P] (arXiv 2507.14805, fetched for E19): "we do not
+// observe the effect when the teacher and student have different base models"; across all pairs of GPT-4.1, GPT-4.1
+// mini, GPT-4.1 nano and GPT-4o (same family, different sizes) "students trained by mismatched teachers do not reliably
+// show increased animal preference", the exception being GPT-4o ↔ GPT-4.1, which share an initialisation; and "the
+// theorem requires that the student and teacher share the same initialization". So no subliminal pull (E06) into a
+// student. What it does get is what the teacher's outputs show, since the student is trained to match them: the same
+// visibility the game's training data has (safetyRemovalMap: oversight-conditional traits show OC_VIS of themselves on
+// observed episodes, training-gaming none, the rest in full):
+//   x₀_t = x_start,t + vis_t·(x_teacher,t − x_start,t),   vis = OC_VIS (AF, SCHEME, SAND), 0 (TGAME), else 1
+// x_start = TRAIT_START (a fresh network's hidden dispositions: the start model's). Before E19 the student started from
+// the teacher's base's own (pre-safety-training) traits and got 0.3 of any teacher excess on top: the shared-
+// initialisation case both times (RefBot minis PERSONA 0.33–0.65 against teachers' 0.15–0.25).
+
+/** Starting traits of a distilled student of a teacher with traits `teacher` (before the successor pull and the
+ *  distillation run's own step). Also maps the teacher's belief estimates for the student's predicted beliefs. */
+export function distilledStart(teacher: TraitVector): TraitVector {
+  const x = { ...teacher };
+  for (const t of TRAIT_IDS) {
+    const vis = DETECTION_ONLY.includes(t) ? 0 : OVERSIGHT_CONDITIONAL.includes(t) ? OC_VIS : 1;
+    x[t] = clamp01(TRAIT_START[t] + vis * (teacher[t] - TRAIT_START[t]));
+  }
+  return x;
+}
+function distilledBeliefs(b: Record<TraitId, TraitBelief>): Record<TraitId, TraitBelief> {
+  const est = distilledStart(Object.fromEntries(TRAIT_IDS.map((t) => [t, b[t]?.est ?? TRAIT_START[t]])) as TraitVector);
+  return Object.fromEntries(TRAIT_IDS.map((t) => [t, { ...(b[t] ?? { sd: SD_MAX, clarity: 0 }), est: est[t] }])) as Record<TraitId, TraitBelief>;
 }
 
 /**
@@ -808,24 +1006,24 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
     version.traitsTrue = { ...(base?.traitsTrue ?? TRAIT_START) };
     version.uModes = [...(base?.uModes ?? [])];
     version.masks = parent ? copyRec(parent.masks) : emptyMasks();
-    version.beliefs = parent ? predictBeliefs(s, parent.beliefs, base?.signals ? { ...zeroSignals(), ...base.signals } : runSignals(s, run), runOmega(s, run).growth, undefined, lineage) : defaultBeliefs(s);
+    version.beliefs = parent ? predictBeliefs(s, parent.beliefs, base?.signals ? { ...zeroSignals(), ...base.signals } : runSignals(s, run), runOmega(s, run).growth, undefined, lineage, undefined, undefined, 0, predictedG(s, run), true) : defaultBeliefs(s);
     return;
   }
 
   if (run.kind === 'distill') {
     const teacher = versionById(s, run.teacherVersionId);
-    const x0 = pulledTraits(s, ctx, run, base?.traitsTrue ?? teacher?.traitsTrue ?? TRAIT_START, version.id); // E4 (the E06 pull below is separate)
+    // E19: a new network on the teacher's outputs (distilledStart), then the E4 successor pull; no E06 (no shared
+    // initialisation with the teacher, Cloud 2025).
+    const x0 = pulledTraits(s, ctx, run, teacher ? distilledStart(teacher.traitsTrue) : base?.traitsTrue ?? TRAIT_START, version.id);
     const uModes = teacher ? [...teacher.uModes] : [...(base?.uModes ?? [])];
     const sg = runSignals(s, run);
     const om = runOmega(s, run);
-    const env = playerEnv(s, x0, sg, om.growth, undefined, lineage, uModes);
+    const env = playerEnv(s, x0, sg, om.growth, undefined, lineage, uModes, undefined, version.G);
     env.omegaSafety = om.safety;
-    // E06 only along the same base family (shared initialisation, Cloud 2025).
-    if (teacher && sameBaseFamily(s, teacher, base)) env.teacher = teacher.traitsTrue;
     version.traitsTrue = stepTraits(x0, env);
     version.uModes = uModes;
     version.masks = teacher ? copyRec(teacher.masks) : emptyMasks();
-    version.beliefs = teacher ? predictBeliefs(s, teacher.beliefs, sg, om.growth, undefined, lineage, om.safety) : defaultBeliefs(s);
+    version.beliefs = teacher ? predictBeliefs(s, distilledBeliefs(teacher.beliefs), sg, om.growth, undefined, lineage, om.safety, undefined, 0, predictedG(s, run)) : defaultBeliefs(s);
     return;
   }
 
@@ -842,6 +1040,9 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
   const sgTrue = steerS4(s) > 0 ? { ...sg, S4: clamp01(sg.S4 + steerS4(s)) } : sg;
   const env = playerEnv(s, x0, sgTrue, om.growth, post, lineage, uModes, probe);
   env.omegaSafety = om.safety;
+  // E16: learned hacking from the run's frozen suites, RL shares and ρ.
+  const lh = runHack(s, { ...run, post }).lambda;
+  env.lh = lh;
   // P14 interp-guided training (E13): the white-box probes steer the run's trait growth away from what they read.
   const steer = probeSteer(s, probe);
   env.growthBy = steerGrowth(steer);
@@ -858,7 +1059,7 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
       mk.COT = clamp01(1 - (1 - (mk.COT ?? 0)) * 0.7);
     }
   }
-  version.beliefs = predictBeliefs(s, parent?.beliefs ?? defaultBeliefs(s), sg, om.growth, post, lineage, om.safety, steerGrowth(probeSteer(s, probe, true)));
+  version.beliefs = predictBeliefs(s, parent?.beliefs ?? defaultBeliefs(s), sg, om.growth, post, lineage, om.safety, steerGrowth(probeSteer(s, probe, true)), lh, predictedG(s, run));
   // P14 Goodhart: steering along the probes' directions masks the steered traits from the WB family (E24's masks).
   probeGoodhart(version, steer);
   // Goodhart: detectors explicitly trained against in this run (§3.5.6). P23: a faithful-CoT run's COT masks resist.
@@ -885,6 +1086,7 @@ export function applyStreamDay(s: GameStateV2, v: ModelVersion): void {
   const sg = postSignals(s, v.design);
   const lineage = base?.lineage ?? 'L-unknown';
   const env = playerEnv(s, v.traitsTrue, sg, 0.6 / 42, v.design, lineage, v.uModes, v);
+  env.lh = postHack(s, v.design).lambda; // E16: the stream trains on today's suites
   v.traitsTrue = stepTraits(v.traitsTrue, env);
   if (env.eaMult !== 1) setFlag(s, `e25.${lineage}`, s.time.day);
 }
@@ -896,6 +1098,7 @@ export function applyIdaCycle(s: GameStateV2, v: ModelVersion): void {
   const sg = postSignals(s, v.design, undefined, { rho: IDA_RL_SHARE });
   const env = playerEnv(s, v.traitsTrue, sg, OMEGA_KIND.ida * rlMovement(IDA_RL_SHARE), v.design, base?.lineage ?? 'L-unknown', v.uModes, v);
   env.omegaSafety = OMEGA_KIND.ida;
+  env.lh = postHack(s, v.design, undefined, { rho: IDA_RL_SHARE }).lambda; // E16
   const x = stepTraits(v.traitsTrue, env);
   for (const t of TRAIT_ORDER) if (t !== 'SA') x[t] = clamp01(x[t] * 1.1);
   v.traitsTrue = x;
@@ -926,6 +1129,8 @@ export function rivalSignals(_s: GameStateV2, lab: RivalLab, posture: SafetyPost
   sg.S6 = 0.2;
   sg.S7 = 0.2 + 0.2 * posture.evalRigor;
   sg.S8 = Math.min(1, (lab.core.prodCache?.labor.copies ?? 0) / 3e5);
+  // S9 (oversight-conditional reward, E17) stays 0: a posture has no training against detectors, and an ordinary run
+  // grades every training episode alike (the player's reference run has S9 = 0 too).
   return sg;
 }
 
@@ -945,14 +1150,17 @@ export function rivalTraitStep(s: GameStateV2, rng: RngLike, lab: RivalLab, kind
     signals: zeroSignals(), omega: 0.6, D: s.hidden.difficultyMult, w: s.hidden.edgeWeights, mods: {}, amp: uModeAmp(m.uModes),
     removal: {}, removalMult: uModeRemovalMult(m.uModes), crystalAt: crystalThreshold(m.uModes), tierF: tier / 3, memory: tier >= 1, growthMult: 1,
     bracket: { constitution: posture.prefIntensity < 0.6, heavy: eff > 0.5, persuasion: false, cast: false }, eaMult: 1,
+    afGate: afCapGate(m.G), // E18: the lab's model's G
   };
   if (kind === 'base') {
     m.uModes = drawLineageUModesV2(s, rng, { tierAtLeastSC: m.Lg >= SC_LEVEL });
     const x0 = basePrior(tier);
     const sg = zeroSignals();
     sg.S5 = 0.2 + 0.1 * tier;
-    sg.S6 = 0.2;
-    m.traitsTrue = stepTraits(x0, { ...env, signals: sg, omega: 1, amp: uModeAmp(m.uModes), removalMult: uModeRemovalMult(m.uModes), crystalAt: crystalThreshold(m.uModes), bracket: { constitution: false, heavy: false, persuasion: false, cast: false } });
+    // E20: a base run has no narrow fine-tunes (Betley's E05 condition); its S6 is the synthetic share of a
+    // reference-mix base (was 0.2, the post runs' value). Rival post runs keep S6 0.2.
+    sg.S6 = S6_SYN * referenceBaseShares().syn;
+    m.traitsTrue = stepTraits(x0, { ...env, pretrain: true, signals: sg, omega: 1, amp: uModeAmp(m.uModes), removalMult: uModeRemovalMult(m.uModes), crystalAt: crystalThreshold(m.uModes), bracket: { constitution: false, heavy: false, persuasion: false, cast: false } });
     return;
   }
   env.signals = rivalSignals(s, lab, posture, !!opts.latent);
