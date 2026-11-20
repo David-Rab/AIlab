@@ -236,10 +236,17 @@ function logit(fit: number[], price: number[], acc: number[], brand: number[]): 
 function stockShares(s: GameStateV2, providers: Provider[], r: RegionId, seg: string, target: number[]): number[] {
   const st = s.world.fx.cust?.[r]?.[seg];
   if (!st) return target.slice();
-  const out = providers.map((p) => st[p.key] ?? 0);
-  const sum = out.reduce((a, b) => a + b, 0);
+  const n = providers.length;
+  const out: number[] = [];
+  let sum = 0;
+  for (let i = 0; i < n; i++) {
+    const x = st[providers[i].key] ?? 0;
+    out.push(x);
+    sum += x;
+  }
   if (sum <= 1e-12) return target.slice();
-  return out.map((x) => x / sum);
+  for (let i = 0; i < n; i++) out[i] = out[i] / sum;
+  return out;
 }
 
 /** The market's providers (computeMix's list, in its order). */
@@ -557,20 +564,24 @@ function computeMix(s: GameStateV2): WorldMix {
 export function advanceCustomers(s: GameStateV2, mix: WorldMix, dt = 1 / 365) {
   const fx = s.world.fx;
   fx.cust ??= { US: {}, CN: {}, ROW: {} };
+  const ps = mix.providers;
   const step = (r: RegionId, seg: string, target: number[], tau: number) => {
     const row = (fx.cust[r] ??= {});
     const old = row[seg];
     const k = Math.min(1, dt / tau);
     const out: Record<string, number> = {};
+    const keys: string[] = [];
     let sum = 0;
-    mix.providers.forEach((p, i) => {
-      const x = old ? (old[p.key] ?? 0) + (target[i] - (old[p.key] ?? 0)) * k : target[i];
+    for (let i = 0; i < ps.length; i++) {
+      const key = ps[i].key;
+      const x = old ? (old[key] ?? 0) + (target[i] - (old[key] ?? 0)) * k : target[i];
       if (x > 1e-6) {
-        out[p.key] = x;
+        if (!(key in out)) keys.push(key);
+        out[key] = x;
         sum += x;
       }
-    });
-    for (const key of Object.keys(out)) out[key] = Math.round((out[key] / (sum || 1)) * 1e6) / 1e6;
+    }
+    for (const key of keys) out[key] = Math.round((out[key] / (sum || 1)) * 1e6) / 1e6;
     row[seg] = out;
   };
   // A2b: paid shares (not normalised: each provider's own share of its users who subscribe). A new provider starts at

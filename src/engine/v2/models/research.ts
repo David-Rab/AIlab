@@ -255,25 +255,34 @@ export function planAssignment(s: GameStateV2, ready: string[]): Map<string, { p
     const n = node(id);
     if (n) capRows.push({ id, cap: all.map((t) => sciCapacity(t, n)), idea: stagesOf(n).idea });
   }
-  const value = () => {
+  // Each row's term √cap ÷ idea is recomputed only for the two projects a swap touches (the same ordered sum), the
+  // total re-added in row order.
+  const term = (row: (typeof capRows)[number]) => {
+    let cap = 0;
+    for (let k = 0; k < ents.length; k++) if (ents[k]?.p === row.id) cap += row.cap[k];
+    return Math.sqrt(cap) / row.idea;
+  };
+  const terms = capRows.map(term);
+  const total = () => {
     let v = 0;
-    for (const row of capRows) {
-      let cap = 0;
-      for (let k = 0; k < ents.length; k++) if (ents[k]?.p === row.id) cap += row.cap[k];
-      v += Math.sqrt(cap) / row.idea;
-    }
+    for (const x of terms) v += x;
     return v;
   };
-  let before = placed.length > 1 ? value() : 0;
+  const retouch = (p1: string | undefined, p2: string | undefined) => {
+    for (let r = 0; r < capRows.length; r++) if (capRows[r].id === p1 || capRows[r].id === p2) terms[r] = term(capRows[r]);
+  };
+  let before = placed.length > 1 ? total() : 0;
   for (let i = 0; i < placed.length; i++) {
     for (let j = i + 1; j < placed.length; j++) {
       const a = out.get(placed[i].id) as { p?: string; why: string };
       const b = out.get(placed[j].id) as { p?: string; why: string };
       if (a.p === b.p) continue;
       const pa = a.p;
-      a.p = b.p;
+      const pb = b.p;
+      a.p = pb;
       b.p = pa;
-      const after = value();
+      retouch(pa, pb);
+      const after = total();
       if (after > before + 1e-9) {
         before = after;
         a.why = `Swapped onto ${node(a.p as string)?.name}: a better fit for total progress`;
@@ -281,6 +290,7 @@ export function planAssignment(s: GameStateV2, ready: string[]): Map<string, { p
       } else {
         b.p = a.p;
         a.p = pa;
+        retouch(pa, pb);
       }
     }
   }

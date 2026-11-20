@@ -110,6 +110,25 @@ function evalV3(w: TimelineWorld, inp: LabInputs): V3Eval {
   return { M, X, Xh, l, L, H, AI, cbar, wH, units };
 }
 
+/** evalV3(w, inputsAtMix(inp, f)).X without the rest of the evaluation or the input copies (P2: the mix search calls
+ *  it 26 times a day). Same expressions as evalV3 and inputsAtMix, so the same value. */
+function xAtMix(w: TimelineWorld, inp: LabInputs, f: number): number {
+  const v = inp.v3 as V3Inputs;
+  const u = inp.mixUnit;
+  const c = f * u.c + (u.cIdle ?? 0);
+  const k = (1 - f) * u.k + (u.kSpare ?? 0);
+  const Pp = w.prod;
+  const hs = inp.h / Math.max(1e-12, v.h0);
+  const reRes = v.reRes0 * hs;
+  const H = Math.max(1e-9, v.H0 * hs);
+  const AI = v.AI0 * (k / Math.max(1e-12, v.k0));
+  const units = Math.max(1e-9, reRes / RE_UNIT);
+  const cbar = Math.max(1e-12, (c * DAY0_REF.flop * v.flopEff) / units / C_UNIT_FLOP_PER_DAY);
+  const L = effLabour(Pp, v.a, H, AI, v.assist);
+  const l = Math.pow(Math.max(1e-12, L / H), Pp.lam);
+  return Xces(Pp, cbar, l);
+}
+
 /** Synthetic-data compute of the leader lab at day 0 (H100e; the readout ratio d). */
 const DAY0_SYNTHETIC = 1e6 * 0.21;
 
@@ -392,7 +411,7 @@ export function computeProduction(s: GameStateV2, lab: LabId): ProductionReadout
 export function bestResearchMix(s: GameStateV2, inp: LabInputs): number {
   const w = s.hidden.timeline;
   if (inp.v3) {
-    const f = (x: number) => evalV3(w, inputsAtMix(inp, x)).X;
+    const f = (x: number) => xAtMix(w, inp, x);
     const g = (Math.sqrt(5) - 1) / 2;
     let lo = 0.01;
     let hi = 0.99;
