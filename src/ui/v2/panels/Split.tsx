@@ -23,7 +23,7 @@ function SpareRow({ s }: { s: GameStateV2 }) {
   const use = s.player.policies.spareTraining;
   const spareH = idleTrainingShare(s) * poolsOf(s).training;
   const toResearch = actionView(s, 'runs.spareTraining', { use: 'research' });
-  const gain = [...toResearch.gains, ...toResearch.costs].find((c) => c.currency === 'progress')?.amount ?? 0;
+  const gain = ([...toResearch.gains, ...toResearch.costs].find((c) => c.currency === 'progress')?.amount ?? 0) / 100; // the line is in % (F6b)
   return (
     <div className="alloc-row split-row split-sub" id="ctl-split-spare" data-home="spareTraining">
       <Tip content={() => <TipCard title={<Term id="spareTraining">Spare training compute</Term>} value={`${F.h100e(spareH)} H100e idle now`} rows={[
@@ -48,7 +48,7 @@ function SpareServingRow({ s }: { s: GameStateV2 }) {
   const spare = spareServing(s);
   const agents = s.player.computeOnline * s.player.split.agents;
   const toResearch = actionView(s, 'serving.spare', { use: 'research' });
-  const gain = [...toResearch.gains, ...toResearch.costs].find((c) => c.currency === 'progress')?.amount ?? 0;
+  const gain = ([...toResearch.gains, ...toResearch.costs].find((c) => c.currency === 'progress')?.amount ?? 0) / 100; // the line is in % (F6b)
   return (
     <div className="alloc-row split-row split-sub" id="ctl-split-spare-serving" data-home="spareServing">
       <Tip content={() => <TipCard title={<Term id="spareServing">Spare serving compute</Term>} value={`${F.h100e(spare)} H100e no product needs`} rows={[

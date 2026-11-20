@@ -157,8 +157,8 @@ const RUN_ACTIONS: ActionDef[] = [
       const line = { currency: 'compute' as const, amount: Math.round(Math.abs(d) * 100) / 100, target: 'training pool share' };
       // More share: the run finishes sooner, other runs (or idle research compute) get less; less share: the reverse.
       return d >= 0
-        ? { costs: [line], gains: [{ currency: 'progress', amount: Math.round(d * 100) / 100, target: r?.name ?? 'run' }], exposure: [] }
-        : { costs: [{ currency: 'progress', amount: Math.round(d * 100) / 100, target: r?.name ?? 'run' }], gains: [line], exposure: [] };
+        ? { costs: [line], gains: [{ currency: 'progress', amount: Math.round(d * 100), unit: '%', target: `${r?.name ?? 'run'}: pool share (finishes sooner)` }], exposure: [] }
+        : { costs: [{ currency: 'progress', amount: Math.round(d * 100), unit: '%', target: `${r?.name ?? 'run'}: pool share (finishes later)` }], gains: [line], exposure: [] };
     },
     apply: (s, _ctx, p) => {
       const r = s.player.models.runs.find((x) => x.id === str(p, 'runId', '') && (x.status === 'running' || x.status === 'paused'));
@@ -175,7 +175,7 @@ const RUN_ACTIONS: ActionDef[] = [
       const toData = { currency: 'compute' as const, amount: spare, target: 'data generation' };
       const exp = s.player.prodCache?.elast.exp ?? 0.3;
       const pool = poolsOf(s);
-      const research = { currency: 'progress' as const, amount: Math.round(exp * Math.log1p(spare / Math.max(1, pool.experiments)) * 1e4) / 1e4, target: 'research speed' };
+      const research = { currency: 'progress' as const, amount: Math.round(exp * Math.log1p(spare / Math.max(1, pool.experiments)) * 1e4) / 100, unit: '%', target: 'research speed' };
       return use === 'data' ? { costs: [research], gains: [toData], exposure: [] } : { costs: [toData], gains: [research], exposure: [] };
     },
     apply: (s, _ctx, p) => {
@@ -189,7 +189,7 @@ const RUN_ACTIONS: ActionDef[] = [
     available: (s) => (s.player.models.runs.some((r) => r.status === 'running') ? true : 'No running runs'),
     preview: (s, p) => {
       const r = s.player.models.runs.find((x) => x.id === str(p, 'runId', '')) ?? s.player.models.runs.find((x) => x.status === 'running');
-      return { costs: [{ currency: 'progress', amount: r ? -(r.flopDone / Math.max(1, r.flopNeeded)) : 0 }, { currency: 'cash', amount: r?.cashCost ?? 0, target: 'sunk' }], gains: [{ currency: 'compute', amount: r?.poolShare ?? 0 }], exposure: [] };
+      return { costs: [{ currency: 'progress', amount: r ? -Math.round((r.flopDone / Math.max(1, r.flopNeeded)) * 1000) / 10 : 0, unit: '%', target: 'of the run done (lost)' }, { currency: 'cash', amount: r?.cashCost ?? 0, target: 'sunk' }], gains: [{ currency: 'compute', amount: r?.poolShare ?? 0 }], exposure: [] };
     },
     apply: (s, _ctx, p) => {
       const r = s.player.models.runs.find((x) => x.id === str(p, 'runId', '') && x.status === 'running');
@@ -232,7 +232,9 @@ const RUN_ACTIONS: ActionDef[] = [
   {
     id: 'retireVersion', verb: 'launch', system: 'models', sphere: 'models', owner: 'WS1', title: 'Retire',
     available: () => true,
-    preview: () => ({ costs: [{ currency: 'progress', amount: 0, target: 'option value' }], gains: [{ currency: 'compute', amount: 0.01 }], exposure: [] }),
+    // F6c: what retireVersion does (models/deployments.ts): the version leaves the pickers for good (no deployment,
+    // agents or evals again; auto evals skip it). It frees nothing: it cannot be retired while it serves or monitors.
+    preview: (s, p) => ({ costs: [{ currency: 'progress', amount: 1, unit: 'version', target: `${versionById(s, str(p, 'versionId', ''))?.name ?? 'the version'} cannot be deployed, run as agents or evaluated again` }], gains: [], exposure: [] }),
     apply: (s, _ctx, p) => fail(retireVersion(s, str(p, 'versionId', ''))),
   },
   {
@@ -331,7 +333,7 @@ export const DEPARTMENT_ACTIONS: ActionDef[] = [
     available: (s) => (s.player.tasteHire >= STAR_HIRE.maxTaste ? 'Taste bench is full' : s.player.finance.cash < starCost(s) ? 'Not enough cash' : true),
     preview: (s) => ({
       costs: [{ currency: 'cash', amount: starCost(s) }, { currency: 'trust', amount: STAR_HIRE.cooperation, target: 'rivals' }],
-      gains: [{ currency: 'progress', amount: Math.round((s.player.prodCache?.elast.taste ?? 0.5) * STAR_HIRE.dTaste * 1000) / 1000 }],
+      gains: [{ currency: 'progress', amount: Math.round((s.player.prodCache?.elast.taste ?? 0.5) * STAR_HIRE.dTaste * 1e4) / 100, unit: '%', target: 'research speed' }],
       exposure: [],
     }),
     apply: (s, ctx) => {

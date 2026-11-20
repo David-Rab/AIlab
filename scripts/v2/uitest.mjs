@@ -1167,7 +1167,7 @@ async function d4Check(where, act, stepOk = true) {
     usage: await d4Tip(dv('[data-level=broad] .num.small')),
     delta: await d4Tip(dv('[data-test=delta-licence] [data-k=s] .num')),
   };
-  const want = { U: /Unique tokens U/, natural: /Reference share/, kindU: /Quality × tokens/, cell: /Share of this kind/, today: /Tokens kept per day/, teacher: /Kept tokens per H100e-day/, usage: /U a year/, delta: /Natural-mix base/ };
+  const want = { U: /Unique tokens/, natural: /Reference share/, kindU: /Quality × tokens/, cell: /Share of this kind/, today: /Tokens kept per day/, teacher: /Kept tokens per H100e-day/, usage: /Unique tokens a year/, delta: /Natural-mix base/ };
   const miss = Object.entries(want).filter(([k, re]) => !re.test(tips[k])).map(([k]) => k);
   ok(`D4 ${where}: tooltips on U, the natural mix, kind rows, domain cells, teachers, usage levels and the before → after`, miss.length === 0, miss.map((k) => `${k}: ${tips[k].slice(0, 60)}`).join(' ; '));
   const lic = await d4Tip(dv('[data-act="data.license"]'));
@@ -1259,7 +1259,7 @@ const e12Seen = new Set();
 const collectTerms = async () => { for (const t of await page.$$eval('[data-term]', (els) => els.map((e) => e.getAttribute('data-term')))) e12Seen.add(t); };
 async function e12Check(where) {
   const tag = where.replace(' ', '');
-  await page.evaluate(() => window.ai27v2.setTab('safety', 'overview'));
+  await page.evaluate(() => { window.ai27v2.setTab('safety', 'overview'); window.ai27v2.setTab('safety.side', 'families'); });
   await nav('safety');
   // 1. Families on top; the traits only one level down (closed at first), each with its meaning.
   const fams = await page.$$eval('[data-home=riskFamilies] [data-family]', (els) => els.map((e) => e.getAttribute('data-family')));
@@ -1278,7 +1278,11 @@ async function e12Check(where) {
   }
   await page.click('[data-test="fam-open.other"]');
   ok(`E12 ${where}: each family opens to its traits (17 in all), each with its meaning and believed estimate ± sd`, rows === 17 && meant === 17, `${rows} rows, ${meant} with meaning and band`);
-  // 3. Successor pull: the numbers shown equal the (belief-based) selector.
+  // 3. Successor pull: the numbers shown equal the (belief-based) selector. F6b: one click down (the side switch).
+  const famOnly = !(await page.$('[data-home=successorPull]'));
+  await page.click('[data-test="sf-side.successor"]');
+  await wait(80);
+  ok(`F6b ${where}: Safety's side column shows one of families / successor pull, the switch opens the other`, famOnly && !!(await page.$('[data-home=successorPull]')) && !(await page.$('[data-home=riskFamilies]')));
   const sp = JSON.parse(await page.evaluate(() => JSON.stringify(window.ai27v2.probe.successorPullView())));
   const om = (await page.$eval('[data-test=succ-omega]', (e) => e.textContent ?? '').catch(() => '')).match(/\d\.\d\d/)?.[0];
   const r = Number((await page.$eval('[data-test=succ-r]', (e) => e.textContent ?? '').catch(() => '')).replace('%', ''));
@@ -1291,6 +1295,7 @@ async function e12Check(where) {
   await collectTerms();
   await clearTips();
   await shot(`e12-${tag}-safety`);
+  await page.evaluate(() => window.ai27v2.setTab('safety.side', 'families'));
   // 2. Training pressure of the planned run (Blueprint): signal rows with causes, families pushed, ω, successor link.
   await nav('blueprint');
   const kinds = await page.$$eval('[data-bp-kind]', (els) => els.map((e) => e.getAttribute('data-bp-kind')));
@@ -1313,6 +1318,12 @@ async function e12Check(where) {
   }
   const succ = await page.$eval('[data-test=bp-succ]', (e) => e.textContent ?? '').catch(() => '');
   ok(`E12 ${where}: Blueprint links the successor pull to its home on Safety`, /Successor pull from/.test(succ) && !!(await page.$('[data-test=bp-succ] [data-ref=successorPull]')), succ);
+  if (where === 'day 400') {
+    await page.click('[data-test=bp-succ] [data-ref=successorPull]');
+    await wait(150);
+    ok('F6b: the Blueprint successor link opens Safety on the successor pull card', !!(await page.$('[data-home=successorPull]')));
+    await page.evaluate(() => window.ai27v2.setTab('safety.side', 'families'));
+  }
   await collectTerms();
   // Model card: what the finished run applied, one click down.
   await nav('models');
@@ -1668,6 +1679,24 @@ const multi = [...homesByScreen.entries()].filter(([, v]) => v.size > 1);
 for (const [h, v] of multi) iaIssues.push(`${h} has homes on several screens: ${[...v].join(', ')}`);
 ok('IA: one home per datum, terms resolve, no raw floats', iaIssues.length === 0, iaIssues.slice(0, 8).join(' | '));
 for (const x of iaIssues.slice(8, 30)) console.log('     ' + x);
+
+// F6c: placeholder "L" previews gone. Tree nodes give their typed effect (P22: PHYS +1.65 OOM, the domain effect adoption
+// adds per unit; L.scale: OOM of the pretraining stack); Retire version names the version and retires it (no "L", no
+// made-up compute). The fixture is reloaded below.
+{
+  const f6c = JSON.parse(await get(`(() => {
+    const V = window.ai27v2Views.actionView;
+    const p22 = V(s, 'research.queue', { id: 'P22' }).gains.find((g) => g.currency === 'progress');
+    const sc = V(s, 'research.queue', { id: 'L.scale' }).gains.find((g) => g.currency === 'progress');
+    const v = s.player.models.versions.find((x) => x.status !== 'retired' && x.status !== 'rolledBack' && !Object.values(s.player.agents).some((a) => a.versionId === x.id || a.monitorId === x.id)
+      && s.player.models.stream?.versionId !== x.id && !s.player.deployments.some((d) => d.status !== 'withdrawn' && (d.versionId === x.id || d.monitorId === x.id || d.miniVersionId === x.id)));
+    const r = v ? V(s, 'retireVersion', { versionId: v.id }) : undefined;
+    if (v) store.act('retireVersion', { versionId: v.id });
+    return { p22, sc, r, name: v?.name, after: v ? s.player.models.versions.find((x) => x.id === v.id)?.status : undefined };
+  })()`));
+  ok('F6c: tree previews give the typed effect (P22 PHYS +1.65 OOM; L.scale OOM of pretraining)', f6c.p22?.unit === 'OOM' && Math.abs(f6c.p22.amount - 1.65) < 1e-9 && /PHYS/.test(f6c.p22.target) && f6c.sc?.unit === 'OOM' && f6c.sc.amount > 0 && /Pretraining/.test(f6c.sc.target), JSON.stringify([f6c.p22, f6c.sc]));
+  if (f6c.r) ok('F6c: Retire version previews the version it retires, and retires it', f6c.r.costs.length === 1 && f6c.r.costs[0].unit === 'version' && f6c.r.costs[0].target.startsWith(f6c.name) && !f6c.r.gains.length && f6c.after === 'retired', JSON.stringify(f6c.r));
+}
 
 // Speed-4 run for 2 s from the day-400 fixture (the day-900 fixture can end within days, e.g. another lab's ASI):
 // no errors, alerts appear. Then back to day 900 for the end screen.

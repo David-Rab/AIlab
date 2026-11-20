@@ -480,7 +480,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     preview: (s, p) => {
       const lvl = clamp(Math.round(num(p, 'level', Math.min(2, s.player.security.siloing + 1))), 0, 2);
       const d = lvl - s.player.security.siloing;
-      return d >= 0 ? pv([L('progress', 5 * Math.max(1, d), '% research speed'), L('morale', 3 * Math.max(1, d))], [L('security', 0.3 * Math.max(1, d), 'spies ×0.7 per level')]) : pv([L('security', 0.3)], [L('progress', 5), L('morale', 2)]);
+      return d >= 0 ? pv([L('progress', 5 * Math.max(1, d), 'research speed', { unit: '%' }), L('morale', 3 * Math.max(1, d))], [L('security', 0.3 * Math.max(1, d), 'spies ×0.7 per level')]) : pv([L('security', 0.3)], [L('progress', 5, 'research speed', { unit: '%' }), L('morale', 2)]);
     },
     apply(s, ctx, p) {
       const sec = s.player.security;
@@ -502,7 +502,8 @@ export const RELATION_ACTIONS: ActionDef[] = [
   // ───────── Retire (§5.1 #10: always available) ─────────
   def({
     id: 'RETIRE', verb: 'respond', system: 'core', title: 'Retire', sphere: 'relations',
-    preview: () => pv([L('freedom', 1, 'you hand over the company'), L('progress', 1, 'the race goes on without you')], [L('boardConf', 0)]),
+    // F6c: no placeholder level: retiring ends the game now (endings.ts 'retired', scored as a loss).
+    preview: () => pv([L('freedom', 1, 'you hand over the company: the game ends (Retired, scored as a loss) and the race goes on without you')], []),
     apply(s) {
       ws4(s).retired = true;
     },

@@ -93,10 +93,23 @@ function Overview({ s, sv }: { s: GameStateV2; sv: SV }) {
         </div>
         <div className="sf-side">
           <ControlCard s={s} />
-          <Families s={s} />
-          <SuccessorCard s={s} />
+          <SideSwitch />
+          {sideTab() === 'successor' ? <SuccessorCard s={s} /> : <Families s={s} />}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** F6b: the side column under Control shows one of Risk families / Successor pull (it was taller than the chart with
+ *  both). The choice is a store tab (`safety.side`), so the Blueprint's successor link opens it. */
+const sideTab = () => (store.tab['safety.side'] === 'successor' ? 'successor' : 'families');
+function SideSwitch() {
+  const cur = sideTab();
+  const opts = [{ id: 'families', label: 'Risk families', term: 'riskFamily' }, { id: 'successor', label: 'Successor pull', term: 'successorPull' }] as const;
+  return (
+    <div className="sf-side-tabs" role="tablist" data-test="sf-side-tabs">
+      {opts.map((o) => <button key={o.id} role="tab" aria-selected={cur === o.id} className={`sf-side-tab ${cur === o.id ? 'on' : ''}`} data-test={`sf-side.${o.id}`} onClick={() => store.setTab('safety.side', o.id)}>{o.label}</button>)}
     </div>
   );
 }
@@ -381,7 +394,7 @@ function SuccessorCard({ s }: { s: GameStateV2 }) {
   const tone = sp.omega >= 0.3 ? 'tone-neg' : sp.omega >= 0.1 ? 'tone-warn' : '';
   const agents = { panel: 'company', tab: 'people', anchor: 'agents' };
   return (
-    <Card title={<Term id="successorPull">Successor pull</Term>} home="successorPull" className="sf-succ"
+    <Card title={<Term id="successorPull">Successor pull</Term>} home="successorPull" id="ctl-successorPull" className="sf-succ"
       right={<Tip content={() => <TipCard title={<Term id="successorPull">Successor pull ω</Term>} value={F.num(sp.omega, 3)} rows={[
         { label: '90% band (successor-steering belief)', value: `${F.num(sp.omegaBand[0], 2)}–${F.num(sp.omegaBand[1], 2)}` },
         { label: <Term id="aiRdShare">AI share of R&amp;D</Term>, value: F.pct(sp.r) },

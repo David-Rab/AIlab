@@ -144,7 +144,7 @@ export function dealPreview(s: GameStateV2, t: Omit<DealOffer, 'id' | 'day' | 'e
   if (t.equityLater > 0) gains.push({ currency: 'cash', amount: t.equityLater, lagDays: 182, probability: 0.8 });
   if (t.h100e > 0) gains.push({ currency: 'compute', amount: t.h100e, lagDays: 91 });
   if (t.commitPerQ > 0) costs.push({ currency: 'cash', amount: -t.commitPerQ * 4, target: `${t.partner} per year × ${(t.commitQ / 4).toFixed(0)} y` });
-  if (t.template === 'customASIC') costs.push({ currency: 'progress', amount: -0.15, lagDays: 0, target: 'research −15% for ~2.5 quarters' });
+  if (t.template === 'customASIC') costs.push({ currency: 'progress', amount: -15, unit: '%', lagDays: 0, target: 'research speed for ~2.5 quarters' });
   if (t.template === 'sovereign') costs.push({ currency: 'scrutiny', amount: 5 }, { currency: 'trust', amount: -5, target: 'congress' });
   if (t.template === 'spv') {
     gains.push({ currency: 'cash', amount: 0.8 * 10, target: 'per GW of site capex funded' });

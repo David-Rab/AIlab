@@ -3,7 +3,8 @@
 // where a case could look, located ones with the remove response, removed ones as history). Reads controlReadout and
 // footholdView only: believed control, never the true level or the world's tolerance; never a hidden foothold.
 import { useMemo } from 'react';
-import { controlReadout, CONTROL_BANDS, dateOf, fmtDate, footholdView, versionById } from '../../../engine/v2';
+import { believedInternalOversight, controlReadout, CONTROL_BANDS, dateOf, fmtDate, footholdView, versionById } from '../../../engine/v2';
+import { CONTROL } from '../../../data/v2/danger';
 import type { ControlBand, FootholdRow, GameStateV2 } from '../../../engine/v2';
 import { TRAIT_BY_ID } from '../../../data/v2/traits';
 import { store } from '../store';
@@ -24,6 +25,10 @@ export function ControlCard({ s }: { s: GameStateV2 }) {
   const c = useMemo(() => controlReadout(s), [s, s.time.day, s.player.deployments.some((d) => d.channel === 'internal' && d.controlLayer)]);
   const assessed = !!c.versionId;
   const known = c.suspected + c.located;
+  // F6b: oversight's believed parts (the same selector believed control uses), so the row says what binds.
+  const ov = useMemo(() => { const v = versionById(s, c.versionId); return v ? believedInternalOversight(s, v, CONTROL.trait) : undefined; }, [s, s.time.day, c.versionId, c.layer]);
+  const selfWatch = !!c.monitorName?.startsWith('copy of');
+  const gapText = c.monitorGapOom === undefined ? 'no monitor' : selfWatch ? 'self-watched' : `gap ${F.num(c.monitorGapOom, 1)} OOM`;
   return (
     <Card title={<span className="row-i"><ICON.control size={14} /><Term id="effectiveControl">Control</Term></span>} home="effectiveControl" id="ctl-control" className="sf-ctl"
       sub={assessed ? <>believed · {c.name}</> : 'no model'}
@@ -46,11 +51,16 @@ export function ControlCard({ s }: { s: GameStateV2 }) {
             <div className="sf-drv" data-test="control-mis"><span className="k"><Term id="misalign">Misalignment</Term></span><HBar v={c.mis} max={1} w={70} color={c.mis >= 0.4 ? C.bad : c.mis >= 0.2 ? C.watch : C.good} /><span className="num">{F.num(c.mis, 2)}</span><span className="dim small">est.</span></div>
           </Tip>
           <Tip content={() => <TipCard title={<Term id="effOversight">Effective oversight</Term>} value={F.pct(c.oversight)} rows={[
-            { label: <Term id="oversightGap">Gap to its monitor</Term>, value: c.monitorGapOom !== undefined ? `${F.num(c.monitorGapOom, 1)} OOM (${F.num(c.monitorGapL ?? 0, 1)} levels) · ${c.monitorName}` : 'no monitor' },
+            ...(ov ? [
+              { label: 'Blocked by containment', value: F.pct(ov.block) },
+              { label: 'Caught by tools and monitors', value: F.pct(ov.monitor) },
+              { label: 'Caught by human review', value: F.pct(ov.human) },
+            ] : []),
+            { label: <Term id="oversightGap">Gap to its monitor</Term>, value: c.monitorGapOom === undefined ? 'no monitor' : selfWatch ? <>none: <Term id="collusion">{c.monitorName}</Term></> : `${F.num(c.monitorGapOom, 1)} OOM (${F.num(c.monitorGapL ?? 0, 1)} levels) · ${c.monitorName}` },
             { label: <Term id="humanGap">Gap above expert humans</Term>, value: c.humanGapOom > 0 ? `${F.num(c.humanGapOom, 1)} OOM` : 'none (below L 10)' },
             { label: <Term id="controlLayer">Control layer</Term>, value: c.layer ? 'on' : 'off' },
           ]}>Share of a takeover attempt blocked or caught. It falls as capability outruns the monitors and human reviewers.</TipCard>}>
-            <div className="sf-drv" data-test="control-oversight"><span className="k"><Term id="effOversight">Oversight</Term></span><HBar v={c.oversight} max={1} w={70} color={c.oversight >= 0.5 ? C.good : c.oversight >= 0.2 ? C.watch : C.bad} /><span className="num">{F.pct(c.oversight)}</span><span className="dim small">{c.monitorGapOom !== undefined ? `gap ${F.num(c.monitorGapOom, 1)}` : 'no monitor'}</span></div>
+            <div className="sf-drv" data-test="control-oversight"><span className="k"><Term id="effOversight">Oversight</Term></span><HBar v={c.oversight} max={1} w={70} color={c.oversight >= 0.5 ? C.good : c.oversight >= 0.2 ? C.watch : C.bad} /><span className="num">{F.pct(c.oversight)}</span><span className="dim small">{gapText}</span></div>
           </Tip>
           <Tip content={() => <TipCard title={<Term id="footholdCapacity">Known foothold capacity</Term>} value={F.num(c.F, 2)} rows={[
             { label: <Term id="footholdSuspected">Suspected</Term>, value: String(c.suspected) }, { label: <Term id="footholdLocated">Located</Term>, value: String(c.located) }, { label: 'Removed', value: String(c.removed) },

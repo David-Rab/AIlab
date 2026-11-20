@@ -202,7 +202,7 @@ check(!early && !!lic && lic.tokensT === 1 && lic.quality === LICENCE_TIERS.cura
   'license by domain: on delivery the domain gains its tokens at the tier quality (1T PHYS q 2 → U +2T); PHYS\'s share and specialisation rise on the natural mix',
   `U ${(uL0 / T).toFixed(1)} → ${(uniqueTokens(sLic) / T).toFixed(1)}T, PHYS share ${((natPhys(s0).share.PHYS ?? 0) * 100).toFixed(2)}% → ${((natPhys(sLic).share.PHYS ?? 0) * 100).toFixed(2)}%, s ${(natPhys(sLic).sD.PHYS ?? 0).toFixed(3)} OOM`);
 const g0Txt = pv0.gains.map((g) => g.target).join(' ');
-check(/U 310 → 312T/.test(g0Txt) && /PHYS 4\.\d% → 5\.\d% of the stock/.test(g0Txt) && /base epochs/.test(g0Txt) && /data quality \+0\.000 → \+0\.00[1-9] OOM/.test(g0Txt) && pv0.costs[0]?.currency === 'cash',
+check(/unique tokens 310 → 312T/.test(g0Txt) && /PHYS 4\.\d% → 5\.\d% of the stock/.test(g0Txt) && /base epochs/.test(g0Txt) && /data quality \+0\.000 → \+0\.00[1-9] OOM/.test(g0Txt) && pv0.costs[0]?.currency === 'cash',
   'license preview: before → after of the Blueprint data readouts (U, the domain\'s share and specialisation, base epochs, the quality term in G)', g0Txt);
 act(sLic, 'data.license', { domain: 'PHYS', tier: 'curated', tokensT: 1 });
 deliverAt(sLic, 2 * LICENCE_DELIVERY_DAYS);

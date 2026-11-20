@@ -245,3 +245,8 @@
 .sf-fh-act { display: flex; align-items: center; gap: 8px; }
 .sf-fh-size { color: #fff; font-size: 12.5px; }
 .sf-fh-none { padding: 4px 0 8px; }
+/* F6b: Risk families / Successor pull switch under the Control card */
+.sf-side-tabs { display: flex; border: 1px solid var(--line-2); border-radius: 6px; overflow: hidden; margin-bottom: -4px; }
+.sf-side-tab { flex: 1; background: transparent; border: 0; color: var(--text-2); padding: 5px 10px; font-size: 12px; cursor: pointer; }
+.sf-side-tab + .sf-side-tab { border-left: 1px solid var(--line-2); }
+.sf-side-tab.on { background: var(--panel-2); color: #fff; font-weight: 600; }

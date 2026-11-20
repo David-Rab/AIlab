@@ -31,6 +31,9 @@ const ANCHOR_TAB: Record<string, string> = {
   'finance#raise': 'cash', 'finance#parent': 'cash', 'finance#ledger': 'contracts', 'finance#board': 'owners', 'finance#partner': 'deals', 'finance#borrow': 'deals',
 };
 
+/** F6b: anchors inside a sub-switch of a tab (store tab key, value): the link opens the switch on its card. */
+const ANCHOR_SUB: Record<string, [string, string]> = { 'safety#successorPull': ['safety.side', 'successor'] };
+
 function sig(s: GameStateV2): Sig {
   const p = s.player;
   let otherMs = 0;
@@ -269,6 +272,8 @@ class StoreV2 {
   goto(panel: string, opts: { tab?: string; anchor?: string } = {}) {
     const tab = opts.tab ?? (opts.anchor ? ANCHOR_TAB[`${panel}#${opts.anchor}`] : undefined);
     if (tab) this.tab = { ...this.tab, [panel]: tab };
+    const sub = opts.anchor ? ANCHOR_SUB[`${panel}#${opts.anchor}`] : undefined;
+    if (sub) this.tab = { ...this.tab, [sub[0]]: sub[1] };
     this.setPanel(panel);
     if (opts.anchor) {
       const id = 'ctl-' + opts.anchor;

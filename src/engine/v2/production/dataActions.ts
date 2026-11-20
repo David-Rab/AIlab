@@ -122,7 +122,7 @@ const SYNTHESIZE: ActionDef = {
     const dD = dataDelta(s, (x) => addAsset(x, dflt), 'CODE');
     return pv(
       [L('compute', -r2(j.h100eDays / 1e6), `${Math.round(j.share * 100)}% of the synthetic pool for ${j.days} d`, { unit: 'M H100e-days' })],
-      [L('progress', r2(d.u[1] - d.u[0]), `${fmtTok(j.tokensT)} tokens from ${j.teacher?.id ?? 'the start model'} at q ${a.quality.toFixed(2)} (default ${j.dflt?.id ?? '–'}: ${fmtTok(j.defaultTokensT)} at q ${dflt.quality.toFixed(2)}, U +${(dD.u[1] - dD.u[0]).toFixed(1)}T): ${dataDeltaText(d)}`, { unit: UNIQUE_T })],
+      [L('progress', r2(d.u[1] - d.u[0]), `${fmtTok(j.tokensT)} tokens from ${j.teacher?.id ?? 'the start model'} at q ${a.quality.toFixed(2)} (default ${j.dflt?.id ?? '–'}: ${fmtTok(j.defaultTokensT)} at q ${dflt.quality.toFixed(2)}, unique +${(dD.u[1] - dD.u[0]).toFixed(1)}T): ${dataDeltaText(d)}`, { unit: UNIQUE_T })],
       [L('alignment', 0, `the data carries ${j.teacher?.id ?? 'its teacher'}'s traits into bases trained on it`)],
     );
   },

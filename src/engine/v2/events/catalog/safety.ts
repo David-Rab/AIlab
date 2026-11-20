@@ -19,6 +19,12 @@ import { L, P, ch, ev, pv, requestOnly } from '../kit';
 import { boardSpeedAppetite } from '../../finance/board';
 
 const RED: TraitId[] = ['SCHEME', 'AF', 'SAND'];
+/** F6c: what "Continue" keeps that the pause stops: the running frontier (base and post) runs, the same filter the pause
+ *  choice applies. */
+export function frontierRunsGo(s: GameStateV2) {
+  const n = s.player.models.runs.filter((r) => r.status === 'running' && (r.kind === 'base' || r.kind === 'post')).length;
+  return L('progress', n, n ? 'frontier runs keep going (no 60-day pause)' : 'no frontier run to pause', { unit: n === 1 ? 'run' : 'runs' });
+}
 
 /** The disclosure-dilemma triple used by findings, incidents and U-mode discoveries. */
 function dilemma(what: string, credGain: number, scrut: number) {
@@ -111,11 +117,11 @@ export const SAFETY_EVENTS: EventDefV2[] = [
         boardConf(ctx, -5 * boardSpeedAppetite(s), 'E17 pause');
         s.flags['ws4:outsideExpertsOffer'] = ctx.day;
       }),
-      ch('Continue + control', ['control', 'balanced'], P([L('progress', 5, '% control tax')], [L('alignment', 0.1, 'control layer')]), (s) => {
+      ch('Continue + control', ['control', 'balanced'], P([L('progress', 5, 'AI labour (control tax)', { unit: '%' })], [L('alignment', 0.1, 'control layer')]), (s) => {
         for (const dep of s.player.deployments) if (dep.channel === 'internal') dep.controlLayer = true;
         ws4(s).redFlags++;
       }),
-      ch('Continue', ['race', 'continue'], (s) => ({ costs: [L('alignment', 0.2, 'red flag ignored'), ...(hasCommitment(s, 'pauseIfRedline') ? [L('credibility', 20, 'breaks the pause pledge')] : [])], gains: [L('progress', 1)], exposure: [L('trust', -10, 'if it leaks', { probability: 0.2 })] }), (s, ctx) => {
+      ch('Continue', ['race', 'continue'], (s) => ({ costs: [L('alignment', 0.2, 'red flag ignored'), ...(hasCommitment(s, 'pauseIfRedline') ? [L('credibility', 20, 'breaks the pause pledge')] : [])], gains: [frontierRunsGo(s)], exposure: [L('trust', -10, 'if it leaks', { probability: 0.2 })] }), (s, ctx) => {
         ws4(s).redFlags++;
         const c = s.commitments.find((x) => x.status === 'live' && x.condition.predicate === 'pauseIfRedline');
         if (c) breakCommitment(s, ctx, c, 'continued past a red line');
@@ -154,7 +160,7 @@ export const SAFETY_EVENTS: EventDefV2[] = [
     when: requestOnly,
     text: (s, d) => `A copy of ${s.player.models.versions.find((v) => v.id === d.versionId)?.name ?? 'your model'} is running outside your control. Hunt it loudly, quietly, or tell the world.`,
     choices: [
-      ch('Shutdown & hunt', ['safety', 'pause'], P([L('progress', 20, 'days without internal agents'), L('scrutiny', 10)], [L('alignment', 0.6, 'recapture odds')]), (s, ctx) => {
+      ch('Shutdown & hunt', ['safety', 'pause'], P([L('progress', 20, 'without internal agents', { unit: 'days' }), L('scrutiny', 10)], [L('alignment', 0.6, 'recapture odds')]), (s, ctx) => {
         s.flags['ws4:agentsOffUntil'] = ctx.day + 21;
         s.flags['ws4:hunt'] = 'loud';
         scrutiny(ctx, 10, 'E25 shutdown');

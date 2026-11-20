@@ -388,7 +388,7 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
       const spare = Math.round(spareServing(s));
       const agents = Math.max(1, s.player.computeOnline * s.player.split.agents);
       const el = s.player.prodCache?.elast.agents ?? 0.3;
-      const research = { currency: 'progress' as const, amount: Math.round(el * Math.log1p(spare / agents) * 1e4) / 1e4, target: 'research speed' };
+      const research = { currency: 'progress' as const, amount: Math.round(el * Math.log1p(spare / agents) * 1e4) / 100, unit: '%', target: 'research speed' };
       const headroom = { currency: 'compute' as const, amount: spare, target: 'serving headroom (eroded share recovers 2× faster)' };
       return use === 'headroom' ? { costs: [research], gains: [headroom], exposure: [] } : { costs: [headroom], gains: [research], exposure: [] };
     },

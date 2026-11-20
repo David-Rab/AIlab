@@ -118,9 +118,12 @@ const CUR_LABEL: Record<CostLine['currency'], string> = {
   security: 'security', monitorability: 'monitor', alignment: 'align', freedom: 'freedom', chinaTension: 'CN tension', dilution: 'dilution',
 };
 /** A line's amount in its own unit (model v3 D4): 7.5, 0.146, 2. */
-export const unitAmt = (a: number) => (a >= 100 ? a.toFixed(0) : a >= 10 ? a.toFixed(1) : a >= 1 ? a.toFixed(2) : a === 0 ? '0' : a.toPrecision(2));
+/** A '%' line's amount, already in percent points: 5, 2.5, 0.31 (F6b). */
+export const pctAmt = (a: number) => (a >= 10 ? a.toFixed(0) : a >= 1 ? a.toFixed(1) : a === 0 ? '0' : a.toPrecision(2));
+export const unitAmt = (a: number) => (a >= 100 || Number.isInteger(a) ?a.toFixed(0) : a >= 10 ? a.toFixed(1) : a >= 1 ? a.toFixed(2) : a === 0 ? '0' : a.toPrecision(2));
 function amt(c: CostLine): string {
   const a = Math.abs(c.amount);
+  if (c.unit === '%') return pctAmt(a);
   if (c.unit) return unitAmt(a);
   switch (c.currency) {
     case 'cash': return a >= 1000 ? `$${(a / 1000).toFixed(1)}T` : `$${a >= 10 ? a.toFixed(0) : a >= 0.1 ? a.toFixed(1) : a.toFixed(2)}B`;
@@ -135,7 +138,8 @@ function amt(c: CostLine): string {
 }
 export function lineText(c: CostLine, sign = true): string {
   const sg = sign ? (c.amount < 0 ? '−' : '+') : '';
-  const label = c.unit ? ` ${c.unit}` : c.currency === 'cash' ? '' : ` ${CUR_LABEL[c.currency]}`;
+  // F6b: '%' sits on its number (+5% research speed); `progress` without a unit is a display level (L).
+  const label = c.unit === '%' ? '%' : c.unit ? ` ${c.unit}` : c.currency === 'cash' ? '' : ` ${CUR_LABEL[c.currency]}`;
   return `${sg}${amt(c)}${label}`;
 }
 function lineMeta(c: CostLine): string {

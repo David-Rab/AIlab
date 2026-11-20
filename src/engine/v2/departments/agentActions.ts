@@ -234,8 +234,8 @@ const AGENTS_SET: ActionDef = {
     const costs: CostLine[] = [];
     const gains: CostLine[] = [];
     const dM = r3(a.M / Math.max(1e-9, b.M) - 1);
-    if (dM > 0) gains.push({ currency: 'progress', amount: dM, target: 'research speed' });
-    else if (dM < 0) costs.push({ currency: 'progress', amount: dM, target: 'research speed' });
+    if (dM > 0) gains.push({ currency: 'progress', amount: r3(dM * 100), unit: '%', target: 'research speed' });
+    else if (dM < 0) costs.push({ currency: 'progress', amount: r3(dM * 100), unit: '%', target: 'research speed' });
     const dCatch = r3(a.lanes[use].catch - b.lanes[use].catch);
     if (dCatch > 0) gains.push({ currency: 'alignment', amount: dCatch, target: `${AGENT_USE_DEF[use].name}: monitor catch` });
     else if (dCatch < 0) costs.push({ currency: 'alignment', amount: dCatch, target: `${AGENT_USE_DEF[use].name}: monitor catch` });
