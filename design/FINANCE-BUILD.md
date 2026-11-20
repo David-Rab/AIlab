@@ -1412,3 +1412,57 @@ Numbers, before (FIN5a 32a98f5) → after (FIN5b):
   (cash × 2) that the bubble index and E32's obligations read; rivals' revenues vs the analogues are model-v3's. For
   FIN6b: the rival bar tooltip is long (11 rows; share, weight and score could fold into a nested tip). Docs (V2-SPEC
   §3.10.3 rival finance, `design/v2-interfaces.ts` RivalLab.finance) for FIN6c.
+
+### FIN6b notes (2026-11-20, branch `finance-v3-ui`, worktree `../AI27-finance3-ui`, based on e5cc735)
+
+UI only: no engine numbers, data constants, bots or engine tests changed. One new pure display helper,
+`finance/pv.ts` (present value of the payment options; reads `payOptions` and the engine's payment timing, imported
+directly by the Compute panel, not via the engine index). Reviewed on screenshots of every Finance tab and the compute
+cards at day 0 (leader, spinout, big tech) and day 400 (leader fixture, spinout fixture), plus a division over budget
+(scratch shots outside the repo, before/after: `d0-*`, `d400-*`, `spin0-*`, `spin400-*`, `big0-*`, `big-neg-fin-cash`;
+uitest shots `52-fin1-compute-cards`, `55-fin2-raise`, `56-fin2-owe`, `60-bigtech-finance`, `61-bigtech-over-budget`,
+`63-fin3b-critics`, `66-fin4a-partner-offer`, `70-fin5a-story`).
+
+Per card:
+- **Build data centre / Buy chips (Pay with):** each tile shows its present value (bold, the lowest green) over the
+  undiscounted total (before: total only, so a lease always looked dearer: site $16.0B cash vs $26.1B lease; now PV
+  $14.7B vs $15.2B on the day-400 fixture). Discount rate: the lessor's return at your rating, or the chip-loan rate when
+  no lessor funds you; the tooltip says which and lists cash at each stage, the total and the PV. Timing as the engine
+  pays: a site's own cash on its build schedule, lease payments quarterly from go-live (sites) or delivery (chips),
+  chip-loan interest quarterly and the principal at maturity. The tooltip's "Cash up front" (wrong for sites: paid on
+  the build schedule) now names the stage. Glossary: `presentValue` new, `payOption` and `spv` (now titled "Financing
+  lease") reworded.
+- **Raise:** the runway and tranche pills are gone (they repeated the before → after line, and the "+11q runway" pill
+  contradicted the capped "8q+ → 8q+" next to it); the line reads "cash at the close $A → $B + $T tranche if …"; the
+  tooltip explains the half-at-close rule. IPO row: "you can list now" or the reason; the window's home is Markets,
+  the public share's is Who owns you (listed: "listed · dual-class").
+- **Story:** a rival's bar tooltip is 4–5 rows (valued, share, revenue, multiple, at its cap when it is, "Why this
+  share") with the weight, score, level, growth, credibility, governance and cap one level down (nested "details").
+  Your segment is labelled from 5%. "Credibility" tile → "Investor credibility" (the public credibility in Relations
+  is a different datum). The footer no longer repeats your part of the pool (home: the Raise card's limit row).
+- **What we owe:** tranche conditions wrap onto two lines (source · amount, then the condition) instead of an
+  ellipsis; an undrawn credit line's covenant shows "tested once you draw" with no bar (before, its "actual" repeated
+  cash from the top strip); the pending round reads "starts at the close, ‹date›"; a promise's tooltip says when it
+  counts as behind (why "on track" can sit below needed-by-now early in its term).
+- **Cash history:** draws from day 0 (today's point and the projection; before: an empty "starts after the first week"
+  card); for a division drawing cash below zero the axis extends below $0 and that band is marked "below $0: advance
+  from the parent", with a legend entry (glossary `parentAdvance`) and "advance $X" on hover (before: clamped at $0,
+  so a −$30B division read as zero cash).
+- **Who owns you:** no "public 0% · IPO window open" line (two datums with other homes); unlisted reads "Not listed".
+- **Partners:** an option that adds nothing says so ("Exclusive · no more money", tooltip: the stake is at its cap)
+  instead of "Exclusive +$0"; the partner name in the offer header no longer wraps.
+- **Why cash moved:** wider label column (no "Revenue to the parent ×…" ellipsis).
+
+Checked and left as is: vote strips (decision: green yes; ouster: red = votes to remove you, footer says so), charter
+rights, critics' seat, Debt card, Rent compute, Board seats. Found but left: the Buy chips preview's engine-written
+cost label repeats the supplier deposit ("deposit now (36%; supplier terms ask at least 36%)") next to the supplier
+terms chip (the label is the engine's `actionView` text, not UI; FIN6c); the Debt table's credit line "$0 / $4.0B" (as
+arranged) next to its tile's "$13.0B room" (re-sized when you borrow; the tooltip says so) still reads oddly; a vote
+chip's "×2" weight sits tight under its icon; IA.md's Finance rows predate the Story / What we owe tabs (FIN6c docs).
+
+Tests: `npm run typecheck` clean; lint-ux (GLOSSARY.md regenerated), lint-hidden, lint-tradeoffs, lint-structure,
+lint-tips pass; `npm run test:ui` 324/324 (315 before). uitest changes: FIN4r's tranche check reads the preview line;
+FIN5b's rival-tooltip check rewritten for the short tooltip plus a nested-details check (meaning kept: valuation as the
+engine has it, credibility, governance and cap still shown, one level down); 8 new FIN6b checks (Raise pills, What we
+owe wrapping and idle covenant, Ownership without the IPO window, PV on the build tiles, lease PV within 15% of cash
+while its total is ≥ 1.3×, the PV tooltip's stated rate, cash history from day 0, the division's advance band).

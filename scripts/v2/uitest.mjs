@@ -677,9 +677,11 @@ ok('J1 C1: buy, build and rent show before → after (cash, runway)', await page
     if (max >= 25) {
       await setSlider(page.locator('[data-test=raise-ask]'), 24); await wait(80);
       const big = await page.evaluate(() => [document.querySelector('[data-test=raise-tranche]')?.textContent ?? '', document.querySelector('[data-test=raise-preview]')?.textContent ?? '']);
+      // FIN6b: runway and the tranche have one home on the Raise card (the before → after line), no pill copies.
+      ok('FIN6b: the Raise card pills hold stake, price and odds only (runway and tranche on the preview line)', await page.evaluate(() => ![...document.querySelectorAll('#ctl-raise-card .ask-head .pills > *')].some((p) => /runway|tranche|no burn/.test(p.textContent ?? ''))));
       await setSlider(page.locator('[data-test=raise-ask]'), 5); await wait(80);
       const small = await page.evaluate(() => !!document.querySelector('[data-test=raise-tranche]'));
-      ok('FIN4r: a $20B+ round shows cash at the close and its tranche on the Raise card', /tranche \$12/.test(big[0]) && /tranche if/.test(big[1]) && !small, `${big.join(' | ')} · small ${small}`);
+      ok('FIN4r: a $20B+ round shows cash at the close and its tranche on the Raise card', /\$12[\d.]*B tranche if/.test(big[0]) && /cash at the close/.test(big[1]) && !small, `${big.join(' | ')} · small ${small}`);
     } else ok('FIN4r: a $20B+ round shows cash at the close and its tranche on the Raise card', false, `ask slider max ${max}`);
   }
   ok('FIN2: the IPO is its own action with the dual-class choice', !!(await page.$('[data-test=ipo-row] [data-act="fin.ipo"]')) || /listed/.test(await page.evaluate(() => document.querySelector('[data-test=ipo-row]')?.textContent ?? '')));
@@ -703,6 +705,7 @@ ok('J1 C1: buy, build and rent show before → after (cash, runway)', await page
   ok('FIN2: investor credibility has its home on What we owe', !!(await page.$('[data-home=whatWeOwe] [data-home=investorCred]')));
   const nSec = await page.evaluate(() => document.querySelectorAll('[data-home=whatWeOwe] .owe-sec').length);
   ok('FIN2: What we owe has promises, tranche conditions, covenants and contingent liabilities', nSec === 4, String(nSec));
+  ok('FIN6b: What we owe: tranche conditions wrap (no ellipsis); an undrawn line\'s covenant has no bar (cash is not repeated)', await page.evaluate(() => !document.querySelector('[data-home=whatWeOwe] [data-tranche] .ellip') && [...document.querySelectorAll('[data-home=whatWeOwe] [data-covenant][data-state=idle]')].every((r) => !r.querySelector('.hbar'))));
   ok('FIN2: copyright litigation exposure is listed as contingent', !!(await page.$('[data-home=whatWeOwe] [data-contingent="litigation"]')) || JSON.parse(await get('s.player.dataAssets.unlicensedTokensT <= 0')));
   await shot('56-fin2-owe');
   await clearTips();
@@ -962,8 +965,12 @@ ok('J1 C1: buy, build and rent show before → after (cash, runway)', await page
     const rt = await page.evaluate(() => document.querySelector('.tip')?.textContent ?? '');
     const sig = (x) => (x >= 100 ? x.toFixed(0) : x >= 10 ? x.toFixed(1) : x.toFixed(1));
     const money = (x) => (x >= 1000 ? `$${sig(x / 1000)}T` : `$${sig(x)}B`);
-    ok('FIN5b: a rival\'s bar shows its valuation (the engine\'s), its cap and multiple, credibility and governance', /Valuation/.test(rt) && /Cap/.test(rt) && /× revenue/.test(rt) && /Credibility/.test(rt) && /Governance/.test(rt) && rt.includes(money(rv)), `${money(rv)} · ${rt.slice(0, 160)}`);
-    await clearTips();
+    ok('FIN6b: a rival\'s bar tooltip is short: its valuation (the engine\'s), share, revenue and multiple, details one level down', /valued/.test(rt) && /Share today/.test(rt) && /× revenue/.test(rt) && /Why this share/.test(rt) && !/credibility/i.test(rt) && rt.includes(money(rv)), `${money(rv)} · ${rt.slice(0, 160)}`);
+    await wait(1400); // lock the tooltip, then open the nested one
+    await page.hover('.tip [data-test=rival-why]').catch(() => {}); await wait(500);
+    const rt2 = await page.evaluate(() => [...document.querySelectorAll('.tip')].map((x) => x.textContent ?? '').join(' | '));
+    ok('FIN5b/FIN6b: the rival\'s details (nested): credibility, governance by kind and its cap', /Investor credibility/.test(rt2) && /Governance/.test(rt2) && /Cap/.test(rt2) && /Story score/.test(rt2), rt2.slice(-200));
+    await page.mouse.move(1, 1); await page.keyboard.press('Escape'); await wait(250);
     await page.hover('[data-home=story] [data-driver=govFactor]'); await wait(450);
     const gt = await page.evaluate(() => document.querySelector('.tip')?.textContent ?? '');
     ok('FIN5b: the governance tile says rivals count by kind (no longer ×1)', /Rivals by kind/.test(gt) && !/Rivals count ×1/.test(gt), gt.slice(0, 160));
@@ -972,8 +979,26 @@ ok('J1 C1: buy, build and rent show before → after (cash, runway)', await page
   await shot('70-fin5a-story');
   await page.click('[data-tabs=finance] [data-tab=owners]'); await wait(120);
   ok('FIN5a: Ownership links to the valuation in Story', !!(await page.$('[data-home=ownership] [data-ref=valuation]')));
+  ok('FIN6b: Ownership does not repeat the IPO window (its home is Markets)', !/window/i.test(await page.evaluate(() => document.querySelector('[data-home=ownership]')?.textContent ?? '')));
   await nav('compute');
   await tabTo('overview');
+  // FIN6b: payment options show a present value next to the undiscounted total; a lease's PV sits near cash's even though
+  // its total is far larger (it changes timing, not cost).
+  {
+    const $B = (x) => { const m = x.match(/\$([\d.]+)([KMBT])/); return m ? Number(m[1]) * { K: 1e-6, M: 1e-3, B: 1, T: 1e3 }[m[2]] : NaN; };
+    const tiles = await page.evaluate(() => [...document.querySelectorAll('[data-panel=compute] [data-test="site-pay-tiles"] [data-opt]')].map((e) => [e.getAttribute('data-opt'), e.querySelector('[data-test=pay-pv]')?.textContent ?? '', e.textContent ?? '']));
+    const cash = tiles.find((x) => x[0] === 'site-pay-cash');
+    const lease = tiles.find((x) => x[0] === 'site-pay-lease' && x[1]);
+    ok('FIN6b: the build card\'s payment tiles show PV and the total', !!cash && /PV \$/.test(cash[1]) && /total/.test(cash[2]), tiles.map((x) => x[2]).join(' | '));
+    if (lease) {
+      const pvR = $B(lease[1]) / $B(cash[1]);
+      const totR = $B(lease[2].replace(/^.*?PV \$[\d.]+[KMBT]/, '')) / $B(cash[2].replace(/^.*?PV \$[\d.]+[KMBT]/, ''));
+      ok('FIN6b: a site lease\'s PV is close to cash (within 15%) though its total is far larger', pvR > 0.85 && pvR < 1.15 && totR > 1.3, `PV ×${pvR.toFixed(2)} · total ×${totR.toFixed(2)}`);
+      await page.hover('[data-panel=compute] [data-opt="site-pay-lease"]'); await wait(450);
+      ok('FIN6b: the PV tooltip states its discount rate and which rate it is', /Present value: every payment discounted to today at [\d.]+% a year, the (lessor|chip-loan)/.test(await page.evaluate(() => document.querySelector('.tip')?.textContent ?? '')));
+      await clearTips();
+    } else ok('FIN6b: a site lease\'s PV is close to cash (within 15%) though its total is far larger', true, 'lease closed on this fixture');
+  }
   await page.evaluate(() => { const s = window.ai27v2.state; s.capital.ws3.playerShare = 0.05; s.player.finance.runwayQ = 2; window.ai27v2.notify(); });
   await wait(120);
   const sup = await page.evaluate(() => document.querySelector('[data-test=supplier-terms]')?.textContent ?? '');
@@ -1088,6 +1113,7 @@ ok('Big tech Finance: equity unavailable with its reason', (await page.locator('
 await iaScan('finance:bigtech');
 ok('J1 F2: big tech: parent budget is the inflow bar; no runway or distress readout', !!(await page.$('[data-wf=parent]')) && !!(await page.$('[data-test=division-budget]')) && !(await page.locator('.topstrip2').innerText()).match(/distress|tight/i));
 await shot('60-bigtech-finance');
+ok('FIN6b: the cash history draws from the start (today and the projection; no empty card)', !!(await page.$('[data-home=cashHistory] polyline')), `day ${await get('s.time.day')} · points ${await get('s.series.day.length')}`);
 // FIN5c (FINANCE-V3 §13): the division readout: budget this year, spent so far, over / within budget, the review, the
 // goals (home: What we owe), next year's budget; parent confidence lives on this card (the Board card links to it).
 ok('FIN5c big tech: Parent budget shows the year (budget, spent), the verdict, review, goals and next year; parent confidence home here',
@@ -1099,6 +1125,7 @@ await wait(120);
   const top = await page.locator('.topstrip2').innerText();
   ok('FIN5c big tech over budget: "over budget by $X; parent covers" on the card and the top strip, never runway distress', /Over budget by \$[\d.]+B; parent covers/.test(txt) && (await page.getAttribute('[data-test=division-budget]', 'data-status')) === 'over' && /parent covers/i.test(top) && !/distress|tight/i.test(top), txt);
 }
+ok('FIN6b big tech: the cash history draws cash below $0 as the advance from the parent (axis below $0, band, legend)', !!(await page.$('[data-home=cashHistory] [data-test=cash-advance-band]')) && !!(await page.$('[data-test=legend-advance] [data-term=parentAdvance]')));
 await shot('61-bigtech-over-budget');
 await page.evaluate(() => { window.ai27v2.state.player.finance.cash = 8; window.ai27v2.notify(); });
 await tabTo('owe');

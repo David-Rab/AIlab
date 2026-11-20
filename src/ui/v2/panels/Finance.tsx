@@ -139,16 +139,19 @@ function Waterfall({ s }: { s: GameStateV2 }) {
 }
 
 // ───────── cash history with raise markers and projections (history is its own datum: no current-value label) ─────────
+/** A division's cash below zero is the parent's advance (FIN5c): the axis extends below $0 and that band is marked. */
+const divisionAdvance = (s: GameStateV2) => isDivision(s) && (s.player.finance.cash < 0 || s.series.cash.some((v) => v < 0) || runwayOf(s).path.some((p) => p.cash < 0));
 function CashHistory({ s }: { s: GameStateV2 }) {
   const [hi, setHi] = useState<number>();
   const S = s.series;
-  const n = Math.min(S.day.length, S.cash.length);
   const f = s.player.finance;
   const rw = runwayOf(s);
   const now = s.time.day;
-  const days = S.day.slice(0, n);
-  const cash = S.cash.slice(0, n);
-  if (n < 2) return <div className="dim small">Cash history starts after the first week.</div>;
+  // FIN6b: before the first weekly point the chart still shows today and the projection (no empty card at the start).
+  const n0 = Math.min(S.day.length, S.cash.length);
+  const days = n0 ? S.day.slice(0, n0) : [now];
+  const cash = n0 ? S.cash.slice(0, n0) : [f.cash];
+  const n = days.length;
   // Projection: the runway's quarter-by-quarter cash path (each payment in the quarter it falls due).
   const proj = rw.path.map((p) => [p.day, p.cash]);
   const dry = isDivision(s) ? undefined : rw.zeroDay; // a division cannot run dry (the parent covers it)
@@ -167,12 +170,15 @@ function CashHistory({ s }: { s: GameStateV2 }) {
   const pb = 26;
   const x0 = days[0];
   const x1 = proj[proj.length - 1][0];
+  const adv = divisionAdvance(s);
   const vMax = Math.max(1, ...cash, f.cash, ...proj.map((p) => p[1]), ...pendPts.map((p) => p[1]));
-  const step = niceStep(vMax / 3);
+  const vMin = adv ? Math.min(0, ...cash, f.cash, ...proj.map((p) => p[1])) : 0;
+  const step = niceStep(Math.max(vMax, vMax - vMin) / 3);
   const yMax = step * Math.ceil((vMax * 1.05) / step);
+  const yMin = vMin < 0 ? -step * Math.ceil((-vMin * 1.05) / step) : 0;
   const X = (d: number) => pl + ((d - x0) / Math.max(1, x1 - x0)) * (W - pl - pr);
-  const Y = (v: number) => pt + (1 - Math.max(0, v) / yMax) * (H - pt - pb);
-  const ticks = Array.from({ length: Math.round(yMax / step) + 1 }, (_, i) => i * step);
+  const Y = (v: number) => pt + ((yMax - Math.max(yMin, v)) / (yMax - yMin)) * (H - pt - pb);
+  const ticks = Array.from({ length: Math.round((yMax - yMin) / step) + 1 }, (_, i) => yMin + i * step);
   const months: number[] = [];
   for (let d = x0; d <= x1; d += 7) { const dt = dateOf(s, d); const pd = dateOf(s, d - 7); if (dt.getUTCMonth() !== pd.getUTCMonth() && dt.getUTCMonth() % 6 === 0) months.push(d); }
   const rounds = f.rounds.filter((r) => r.day >= x0);
@@ -181,9 +187,16 @@ function CashHistory({ s }: { s: GameStateV2 }) {
     <svg viewBox={`0 0 ${W} ${H}`} className="cash2" data-home="cashHistory" onMouseLeave={() => setHi(undefined)}
       onMouseMove={(e) => { const r = (e.currentTarget as SVGSVGElement).getBoundingClientRect(); const d = x0 + (((e.clientX - r.left) / r.width) * W - pl) / (W - pl - pr) * (x1 - x0); setHi(d <= now ? at(d) : undefined); }}>
       <rect x={X(now)} y={pt} width={X(x1) - X(now)} height={H - pt - pb} fill="rgba(255,255,255,.025)" />
-      {ticks.map((t) => <g key={t}><line x1={pl} x2={W - pr} y1={Y(t)} y2={Y(t)} stroke="#1f2a38" strokeDasharray="3 4" /><text x={pl - 6} y={Y(t) + 3} textAnchor="end" className="ch-ax">{t === 0 ? "$0" : F.money(t)}</text></g>)}
+      {yMin < 0 && (
+        <g data-test="cash-advance-band">
+          <rect x={pl} y={Y(0)} width={W - pl - pr} height={Y(yMin) - Y(0)} fill={C.watch} opacity={0.08} />
+          <line x1={pl} x2={W - pr} y1={Y(0)} y2={Y(0)} stroke={C.watch} strokeOpacity={0.6} />
+          <text x={pl + 6} y={Y(yMin) - 6} className="ch-note warn">below $0: advance from the parent</text>
+        </g>
+      )}
+      {ticks.map((t) => <g key={t}><line x1={pl} x2={W - pr} y1={Y(t)} y2={Y(t)} stroke="#1f2a38" strokeDasharray="3 4" /><text x={pl - 6} y={Y(t) + 3} textAnchor="end" className="ch-ax">{Math.abs(t) < 1e-9 ? "$0" : t < 0 ? `−${F.money(-t)}` : F.money(t)}</text></g>)}
       {months.map((d) => <text key={d} x={X(d)} y={H - 8} textAnchor="middle" className="ch-ax">{fmtMonth(dateOf(s, d))}</text>)}
-      <polyline points={cash.map((v, i) => `${X(days[i])},${Y(v)}`).join(' ')} fill="none" stroke="#c9d4e2" strokeWidth={1.8} />
+      {n > 1 ? <polyline points={cash.map((v, i) => `${X(days[i])},${Y(v)}`).join(' ')} fill="none" stroke="#c9d4e2" strokeWidth={1.8} /> : <circle cx={X(now)} cy={Y(f.cash)} r={3} fill="#c9d4e2" />}
       <polyline points={proj.map(([d, v]) => `${X(d)},${Y(v)}`).join(' ')} fill="none" stroke={C.watch} strokeWidth={1.6} strokeDasharray="5 4" />
       {pend && <polyline points={pendPts.map(([d, v]) => `${X(d)},${Y(v)}`).join(' ')} fill="none" stroke={C.good} strokeWidth={1.6} strokeDasharray="5 4" />}
       {dry !== undefined && (
@@ -205,7 +218,7 @@ function CashHistory({ s }: { s: GameStateV2 }) {
           <g transform={`translate(${Math.min(W - 150, X(days[hi]) + 8)}, ${pt + 6})`}>
             <rect width={140} height={36} rx={6} fill="#0e141c" stroke="#46597a" />
             <text x={9} y={15} className="ch-tt">{fmtDate(dateOf(s, days[hi]))}</text>
-            <text x={9} y={29} className="ch-tt">{F.money(cash[hi])}</text>
+            <text x={9} y={29} className="ch-tt">{cash[hi] < 0 && adv ? `advance ${F.money(-cash[hi])}` : F.money(cash[hi])}</text>
           </g>
         </g>
       )}
@@ -288,8 +301,6 @@ function RaiseCard({ s }: { s: GameStateV2 }) {
         <span className="pills">
           <Pill kind="cost" title="Share of the company you sell"><Term id="dilution">stake</Term> −{stake.toFixed(1)}%</Pill>
           <Pill kind="neu" title={`Pre-money: the mark × the ${pitch} pitch's price (×${PITCH[pitch].price})`}>pre {F.money(q.pre)}</Pill>
-          <Pill kind="gain" title="Quarters of spending the cash at the close covers at today's net burn">{burn > 0 ? `+${F.quarters(split.now / burn)} runway` : 'no burn'}</Pill>
-          {split.tranche && <Pill kind="warn" title={`Rounds of ${F.money(LARGE_ROUND.min)} or more pay half at the close. The other ${F.money(split.tranche.amount)} lands ${fmtDate(dateOf(s, split.tranche.dueDay))} if ${trWords} by ${fmtDate(dateOf(s, split.tranche.deadline))}; otherwise it lapses and the shares for it are cancelled.`}><span data-test="raise-tranche">tranche {F.money(split.tranche.amount)}</span></Pill>}
           <Pill kind={fail > 0.25 ? 'bad' : fail > 0 ? 'warn' : 'good'} title="Asking above the ceiling risks the round failing">close {F.pct(1 - fail)}</Pill>
           {q.down && <Pill kind="bad" title={`Priced below the last round's ${F.money(q.lastPost)} post-money: the board votes on it (below the button), board confidence −${Math.abs(MOOD_BASE.downRound * moodWeight(s, 'setbacks')).toFixed(1)} and anti-dilution shares`}><Term id="downRound">down round</Term></Pill>}
         </span>
@@ -306,10 +317,10 @@ function RaiseCard({ s }: { s: GameStateV2 }) {
             { label: <Term id="dilution">Stake sold</Term>, value: `${stake.toFixed(1)}% of the company` },
             { label: 'Price (pre-money)', value: F.money(q.pre) },
             { label: 'Closes', value: fmtDate(dateOf(s, close)) },
-          ]}>{split.tranche ? 'Half lands at the next quarter start, the rest as a tranche on its condition (shares for a lapsed tranche are cancelled).' : 'The money lands at the next quarter start.'} The odds of closing fall when you ask above the ceiling.</TipCard>}>
+          ]}>{split.tranche ? `Rounds of ${F.money(LARGE_ROUND.min)} or more pay half at the close (the next quarter start); the other half is a tranche that lands ${fmtDate(dateOf(s, split.tranche.dueDay))} if its condition is met by ${fmtDate(dateOf(s, split.tranche.deadline))}, otherwise it lapses and the shares for it are cancelled. Runway counts only the cash at the close.` : 'The money lands at the next quarter start.'} The odds of closing fall when you ask above the ceiling.</TipCard>}>
             <div className="fin-ba small" data-test="raise-preview">
-              <span className="dim">cash</span> <span className="num">{F.money(f.cash)} → <b>{F.money(f.cash + split.now)}</b></span>
-              {split.tranche && <span className="dim">{' '}+ {F.money(split.tranche.amount)} tranche if {trWords}</span>}
+              <span className="dim">cash at the close</span> <span className="num">{F.money(f.cash)} → <b>{F.money(f.cash + split.now)}</b></span>
+              {split.tranche && <span className="tone-warn" data-test="raise-tranche">+ {F.money(split.tranche.amount)} <Term id="trancheCondition">tranche</Term> if {trWords}</span>}
               <span className="dim">· runway</span> <span className="num">{F.runway(rw.q, RUNWAY_CAP)} → <b>{F.runway(after, RUNWAY_CAP)}</b></span>
             </div>
           </Tip>
@@ -343,11 +354,11 @@ function RaiseCard({ s }: { s: GameStateV2 }) {
         <span className="row-i small"><ICON.milestone size={13} /><Term id="ipo">IPO</Term></span>
         {isListed(s) ? (
           <Tip content={() => <TipCard title={<Term id="ipo">Listed</Term>} value={F.pct(f.ownership.public)} rows={[{ label: <Term id="dualClass">Dual-class</Term>, value: f.dualClass ? 'yes' : 'no' }]}>Public holders own this share of the company.</TipCard>}>
-            <span className="small">listed · public {F.pct(f.ownership.public)}{f.dualClass ? ' · dual-class' : ''}</span>
+            <span className="small">listed{f.dualClass ? ' · dual-class' : ''} <span className="dim">· public share in Board & owners</span></span>
           </Tip>
         ) : (
           <>
-            <Tip content={() => <TipCard title={<Term id="ipo">IPO</Term>} value={ipoView.ok === true ? 'available' : 'not now'} rows={[{ label: 'Window', value: s.capital.ipoWindow ? 'open' : 'closed' }, { label: 'Sells at most', value: '5% of the company' }]}>{ipoView.ok === true ? 'One time: public holders and a listing independent join; no promise to judge.' : ipoView.ok}</TipCard>}><span className="small dim">{ipoView.ok === true ? 'window open' : ipoView.ok}</span></Tip>
+            <Tip content={() => <TipCard title={<Term id="ipo">IPO</Term>} value={ipoView.ok === true ? 'available' : 'not now'} rows={[{ label: 'Sells at most', value: '5% of the company' }, { label: 'Window', value: 'in Story › Markets' }]}>{ipoView.ok === true ? 'One time: public holders and a listing independent join; no promise to judge.' : ipoView.ok}</TipCard>}><span className={`small ${ipoView.ok === true ? 'tone-pos' : 'dim'}`}>{ipoView.ok === true ? 'you can list now' : ipoView.ok}</span></Tip>
             <span className="sp" />
             <Toggle on={dual} onChange={setDual} label={<Term id="dualClass">Dual-class</Term>} />
             <ActBtn id="fin.ipo" params={{ dualClass: dual }} label="List" />
@@ -643,7 +654,7 @@ function Ownership({ s }: { s: GameStateV2 }) {
         </svg>
         <div className="own-leg">
           {parts.filter((p) => p.v > 0 || p.k !== 'public').map((p) => <Tip as="div" key={p.k} content={() => <TipCard title={p.label} value={F.pct(p.v)}>Share of the company this group owns.</TipCard>}><div className="own-row"><i style={{ background: p.c }} /><span className="ellip">{p.label}</span><b className="num">{F.pct(p.v)}</b></div></Tip>)}
-          <Tip as="div" content={() => <TipCard title={<Term id="ipo">Public float</Term>} value={F.pct(o.public)}>{`IPO window ${s.capital.ipoWindow ? 'open' : 'closed'}.`}</TipCard>}><div className="dim small" style={{ marginTop: 4 }}>public {F.pct(o.public)} · <Term id="ipo">IPO</Term> window {s.capital.ipoWindow ? 'open' : 'closed'}</div></Tip>
+          {o.public <= 0 && <div className="dim small" style={{ marginTop: 4 }}>Not listed: no public holders (<Term id="ipo">IPO</Term> on the Raise card)</div>}
         </div>
       </div>
     </Card>
@@ -799,13 +810,13 @@ function OfferStrings({ s, t, choice, setChoice }: { s: GameStateV2; t: PartnerT
   return (
     <>
       <div className="fin-row" data-test="partner-strings">
-        <Tip content={() => <TipCard title={<Term id="exclusivity">Exclusivity</Term>} value={ex.blocked ? 'not on offer' : `+${F.money(ex.bump)}`} rows={[{ label: 'Adds', value: F.money(ex.bump) }, { label: 'Blocks', value: rivals.join(', ') || '—' }]}>{ex.blocked ?? `${t.partner} pays ${F.pct(PARTNER_TERMS.strings.exclusiveBump)} more to be your only ${PARTNER_KINDS[t.kind].label.toLowerCase()}: no deals with ${rivals.join(', ')} for good. Open, you may sign both, each for less.`}</TipCard>}><span className="dim small">Exclusivity</span></Tip>
-        <Seg value={ex.on ? 'yes' : 'no'} testId="partner-exclusive" options={[{ v: 'no', label: 'Open', tip: `No exclusivity: ${rivals.join(', ')} stays open to you` }, { v: 'yes', label: ex.blocked ? 'Exclusive' : `Exclusive +${F.money(ex.bump)}`, tip: `Blocks ${rivals.join(', ')} for good`, ...(ex.blocked ? { locked: ex.blocked } : {}) }]} onChange={(v) => setChoice({ ...choice, exclusive: v === 'yes' })} />
+        <Tip content={() => <TipCard title={<Term id="exclusivity">Exclusivity</Term>} value={ex.blocked ? 'not on offer' : `+${F.money(ex.bump)}`} rows={[{ label: 'Adds', value: F.money(ex.bump) }, { label: 'Blocks', value: rivals.join(', ') || '—' }]}>{ex.blocked ?? `${ex.bump < 0.05 ? (t.kind === 'hyperscaler' ? 'Its stake is at its cap, so exclusivity adds no money now. ' : 'Exclusivity adds no money at what you deploy today. ') : ''}${t.partner} pays ${F.pct(PARTNER_TERMS.strings.exclusiveBump)} more to be your only ${PARTNER_KINDS[t.kind].label.toLowerCase()}: no deals with ${rivals.join(', ')} for good. Open, you may sign both, each for less.`}</TipCard>}><span className="dim small">Exclusivity</span></Tip>
+        <Seg value={ex.on ? 'yes' : 'no'} testId="partner-exclusive" options={[{ v: 'no', label: 'Open', tip: `No exclusivity: ${rivals.join(', ')} stays open to you` }, { v: 'yes', label: ex.blocked ? 'Exclusive' : ex.bump >= 0.05 ? `Exclusive +${F.money(ex.bump)}` : 'Exclusive · no more money', tip: `Blocks ${rivals.join(', ')} for good`, ...(ex.blocked ? { locked: ex.blocked } : {}) }]} onChange={(v) => setChoice({ ...choice, exclusive: v === 'yes' })} />
       </div>
       {t.kind === 'hyperscaler' && (
         <div className="fin-row" data-test="partner-ip">
           <Tip content={() => <TipCard title={<Term id="ipAccess">IP access</Term>} value={ip.blocked ? 'not on offer' : `+${F.money(ip.bump)}`} rows={ip.blocked ? [] : [{ label: 'Adds', value: F.money(ip.bump) }, { label: 'Licensed to', value: ip.labName ?? '—' }, { label: 'Your lead (est.)', value: F.days(lead) }, { label: 'Closes a year', value: `≈${F.days(days)}` }]}>{ip.blocked ?? `${ip.labName}, ${t.partner}'s in-house lab, licenses your models for ${t.years} years and closes about ${F.pct(PARTNER_TERMS.strings.ipCloseYr)} of your capability lead a year.${s.player.board.preset === 'pbcTrust' ? ' The trust votes on licensing a capability-threshold model.' : ''}`}</TipCard>}><span className="dim small">IP access</span></Tip>
-          <Seg value={ip.on ? 'yes' : 'no'} testId="partner-ipaccess" options={[{ v: 'no', label: 'Keep IP' }, { v: 'yes', label: ip.blocked ? 'License' : `License +${F.money(ip.bump)}`, ...(ip.blocked ? { locked: ip.blocked } : {}) }]} onChange={(v) => setChoice({ ...choice, ipAccess: v === 'yes' })} />
+          <Seg value={ip.on ? 'yes' : 'no'} testId="partner-ipaccess" options={[{ v: 'no', label: 'Keep IP' }, { v: 'yes', label: ip.blocked ? 'License' : ip.bump >= 0.05 ? `License +${F.money(ip.bump)}` : 'License · no more money', ...(ip.blocked ? { locked: ip.blocked } : {}) }]} onChange={(v) => setChoice({ ...choice, ipAccess: v === 'yes' })} />
         </div>
       )}
       {ip.on && <Tip as="div" content={() => <TipCard title={<Term id="ipAccess">IP access</Term>} value={`≈${F.days(days)} a year`} rows={[{ label: 'Your lead (est.)', value: F.days(lead) }, { label: 'Closed a year', value: F.pct(PARTNER_TERMS.strings.ipCloseYr) }, { label: 'For', value: `${t.years} y` }]}>{`${ip.labName} gains know-how from your models: about ${F.pct(PARTNER_TERMS.strings.ipCloseYr)} of the gap between your best model and its own each year, while the deal runs. Your lead is the intel estimate.`}</TipCard>}><div className="small tone-neg" data-test="partner-ip-cost">{ip.labName} closes ~{F.pct(PARTNER_TERMS.strings.ipCloseYr)} of your lead a year{lead > 0 ? ` · ≈${F.days(days)} of your ${F.days(lead)}` : ' · you are not ahead of it now'}</div></Tip>}
@@ -908,7 +919,7 @@ function Partners({ s }: { s: GameStateV2 }) {
           })}
         </div>
         <div className="offer2" data-partner-detail={cur.partner}>
-          <div className="row-i small"><b>{cur.partner}</b><span className="dim">gives {PARTNER_KINDS[cur.kind].gives}; wants {PARTNER_KINDS[cur.kind].wants}</span></div>
+          <div className="row-i small"><b style={{ whiteSpace: 'nowrap' }}>{cur.partner}</b><span className="dim">gives {PARTNER_KINDS[cur.kind].gives}; wants {PARTNER_KINDS[cur.kind].wants}</span></div>
           {d ? <SignedDeal s={s} d={d} /> : cur.blocked ? <div className="tone-neg small" data-test="partner-blocked">{cur.blocked}</div> : <PartnerOffer s={s} o={cur} choice={choice[cur.partner] ?? {}} setChoice={(c) => setChoiceMap({ ...choice, [cur.partner]: c })} />}
         </div>
       </Gate>
@@ -947,8 +958,8 @@ export function Finance({ s }: { s: GameStateV2 }) {
           right={<span className="row-i small"><Why k="revenueRun" title="Revenue run-rate" value={F.money(f.revenueRun, { perYear: true })} fmt={(x) => F.money(x)} levers={<GoBtn to={{ panel: 'products' }} label="Products" />}><span className="dim"><Term id="revenueRun">revenue</Term>{division ? ' goes to the parent' : ''} · in the top strip</span></Why></span>}>
           <Waterfall s={s} />
         </Card>
-        <Card title="Cash history" sub="weekly · current cash is in the top strip"
-          right={<span className="legend2"><span><i style={{ background: '#c9d4e2' }} />actual</span><span><i style={{ background: C.watch }} />{division ? 'budget as set' : 'no new money'}</span>{f.ws3.pendingRound && <span><i style={{ background: C.good }} />with pending round</span>}</span>}>
+        <Card title="Cash history" sub={s.series.day.length > 1 ? 'weekly · current cash is in the top strip' : 'weekly from the first week · the projection starts today'}
+          right={<span className="legend2"><span><i style={{ background: '#c9d4e2' }} />actual</span><span><i style={{ background: C.watch }} />{division ? 'budget as set' : 'no new money'}</span>{f.ws3.pendingRound && <span><i style={{ background: C.good }} />with pending round</span>}{divisionAdvance(s) && <span data-test="legend-advance"><i style={{ background: C.watch, opacity: 0.35 }} /><Term id="parentAdvance">below $0: advance</Term></span>}</span>}>
           <CashHistory s={s} />
         </Card>
       </div>
