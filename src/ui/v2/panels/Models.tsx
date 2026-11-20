@@ -1,6 +1,7 @@
 // Models (§6.3): lineage tree (bases → versions → variants), model card (measured L, domain radar with error bars,
 // benchmarks with saturation marks, horizon, serving FLOP per token and cost per hour, monitorability, trait beliefs, flags), run queue (paradigms moved to
-// Research in R4); set internal agent, evals, variants, distill, roll back, retire, streams.
+// Research in R4); set internal agent, evals, variants, distill, roll back, retire, streams. Tabs (model v3 D6): Versions (all of
+// the above) and Suites (the RL environment suites the post-trains use, Suites.tsx).
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
 import { AGENT_USE_DEF } from '../../../data/v2/agents';
 import {
@@ -11,7 +12,9 @@ import type { GameStateV2, ModelVersion } from '../../../engine/v2';
 import { store, useV2 } from '../store';
 import { ActBtn, Limit, Meter, Radar, Term, Tip, TipCard } from '../ui';
 import { useState } from 'react';
-import { Card, KV, PanelHead, Ref } from '../kit';
+import { Card, KV, PanelHead, Ref, tabOf, Tabs } from '../kit';
+import { Dumbbell } from 'lucide-react';
+import { Suites } from './Suites';
 import * as F from '../fmt';
 import { ICON } from '../icons';
 
@@ -242,9 +245,19 @@ export function RunQueue({ s }: { s: GameStateV2 }) {
 export function Models({ s }: { s: GameStateV2 }) {
   useV2();
   const v = selectedVersion(s);
+  const tab = tabOf('models', 'versions');
+  const tabs = <Tabs panel="models" def="versions" tabs={[{ id: 'versions', label: 'Versions', icon: ICON.models }, { id: 'suites', label: 'Suites', icon: Dumbbell }]} />;
+  if (tab === 'suites') {
+    return (
+      <div className="panel-v2" data-panel="models">
+        <PanelHead icon={ICON.models} title="Models" sub="RL environments your post-trains train in" tabs={tabs} />
+        <Suites s={s} />
+      </div>
+    );
+  }
   return (
     <div className="panel-v2 models-grid" data-panel="models">
-      <div className="span2"><PanelHead icon={ICON.models} title="Models" sub="click a version in the lineage to open its card" /></div>
+      <div className="span2"><PanelHead icon={ICON.models} title="Models" sub="click a version in the lineage to open its card" tabs={tabs} /></div>
       <Card title="Lineage" home="lineage"><Lineage s={s} sel={v?.id} /></Card>
       <div className="col2">
         {v ? <ModelCard s={s} v={v} /> : <Card title="Model card"><div className="dim">No versions</div></Card>}

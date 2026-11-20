@@ -66,7 +66,8 @@ const setSlider = (loc, v) => loc.evaluate((node, val) => {
 }, v);
 const shot = (name) => page.screenshot({ path: path.join(SHOTS, `${name}.png`) });
 const clearTips = async () => { await page.mouse.move(1, 1); await page.keyboard.press('Escape'); };
-const nav = async (id) => { await closeModals(); await clearTips(); await page.click(`[data-nav=${id}]`); await wait(100); };
+// D6: Models has tabs (Versions, Suites); nav opens it on Versions so the model-card checks find the card.
+const nav = async (id) => { await closeModals(); await clearTips(); if (id === 'models') await page.evaluate(() => window.ai27v2.setTab('models', 'versions')); await page.click(`[data-nav=${id}]`); await wait(100); };
 const sig = `s ? s.decisions.length + ':' + JSON.stringify(s).length : 0`;
 /** IA checks on the current screen: homes (per screen), missing terms, raw floats. */
 const homesByScreen = new Map();
@@ -914,6 +915,114 @@ async function b4Check(where) {
   await page.evaluate(() => { const s = window.ai27v2.state; s.log = s.log.filter((e) => !/^B4 test:/.test(e.text)); window.ai27v2.notify(); });
   await closeModals();
 }
+// ───────────────────────── D6: Models › Suites (day 1, 400, 900) ─────────────────────────
+const D6_TERMS = ['envSuite', 'suiteFidelity', 'suiteExploit', 'expertData', 'suiteBuild', 'suiteHarden', 'suiteRlShare', 'rewardHackPressure', 'plannedRun'];
+const d6Seen = new Set();
+const tipText = async (sel) => {
+  await clearTips();
+  await page.hover(sel);
+  await wait(400);
+  return page.evaluate(() => document.querySelector('.tip')?.innerText ?? '');
+};
+const suiteQueue = `s.player.build.queue.filter((q) => q.kind === 'suite').map((q) => q.ref).join(',')`;
+/** Step the game a day at a time until no suite work `ref` is queued (at most `max` days). */
+async function stepUntilDone(ref, max = 40) {
+  for (let i = 0; i < max; i++) {
+    if (!JSON.parse(await get(`s.player.build.queue.some((q) => q.kind === 'suite' && q.ref === ${JSON.stringify(ref)})`))) return true;
+    await page.evaluate(() => window.ai27v2.step(1));
+    await closeModals();
+    await pause();
+  }
+  return false;
+}
+const toSuites = async () => { await nav('models'); await tabTo('suites'); await wait(120); };
+async function d6Check(where, complete) {
+  await toSuites();
+  const tag = where.replace(' ', '');
+  // Values present per family; the locked family names its idea.
+  const rows = await page.$$eval('[data-test=suites] [data-suite]:not([data-locked])', (els) => els.map((e) => ({
+    f: e.getAttribute('data-suite'),
+    fid: e.querySelector('[data-test=suite-fid]')?.textContent ?? '', x: e.querySelector('[data-test=suite-exploit]')?.textContent ?? '',
+    ex: e.querySelector('[data-test=suite-expert]')?.textContent ?? '', sh: e.querySelector('[data-test=suite-share]')?.textContent ?? '',
+    b: !!e.querySelector('[data-act="suite.build"], [data-pending$=":build"]'), h: !!e.querySelector('[data-act="suite.harden"], [data-pending$=":harden"]'),
+  })));
+  const fams = JSON.parse(await get(`Object.keys(s.player.suites ?? {}).length`));
+  const good = rows.filter((r) => /×\d\.\d\d/.test(r.fid) && /\d+\.\d%/.test(r.x) && /\d+(\.\d)?[BT] tok/.test(r.ex) && /\d+%/.test(r.sh) && r.b && r.h);
+  ok(`D6 ${where}: Models › Suites shows every suite with fidelity, exploitable %, expert data, RL share, build and harden`, rows.length >= Math.max(6, fams) && good.length === rows.length,
+    rows.map((r) => `${r.f} ${r.fid} ${r.x} ${r.ex} ${r.sh}`).join(' | ').slice(0, 200));
+  const cuKnown = JSON.parse(await get(`!!(s.player.tree.P06 && s.player.tree.P06.status === 'known')`));
+  const lockTxt = await page.$eval('[data-test=suites] [data-locked=P06]', (e) => e.textContent ?? '').catch(() => '');
+  ok(`D6 ${where}: computer use reads "needs P06" until the idea is known`, cuKnown ? !lockTxt && rows.some((r) => r.f === 'computerUse') : /needs .*P06/.test(lockTxt), lockTxt || 'unlocked');
+  const s2 = await page.$eval('[data-test=suites-s2] b', (e) => e.textContent ?? '').catch(() => '');
+  ok(`D6 ${where}: the planned run's S2 is shown`, /^\d\.\d\d$/.test(s2), s2);
+  // Tooltips: every value, and the new terms are Term links.
+  for (const t of await page.$$eval('[data-test=suites] [data-term]', (els) => els.map((e) => e.getAttribute('data-term')))) d6Seen.add(t);
+  const f0 = rows[0]?.f;
+  const tips = {
+    fid: await tipText(`[data-suite="${f0}"] [data-test=suite-fid]`), x: await tipText(`[data-suite="${f0}"] [data-test=suite-exploit]`),
+    ex: await tipText(`[data-suite="${f0}"] [data-test=suite-expert]`), sh: await tipText(`[data-suite="${f0}"] [data-test=suite-share]`),
+    s2: await tipText('[data-test=suites-s2]'),
+  };
+  ok(`D6 ${where}: tooltips on fidelity, exploitable, expert data, RL share and S2`, /Fidelity/.test(tips.fid) && /Next build/.test(tips.fid) && /Floor/.test(tips.x) && /Next hardening/.test(tips.x)
+    && /tokens/.test(tips.ex) && /RL share/.test(tips.sh) && /Reward-hacking pressure/.test(tips.s2) && /RL budget/.test(tips.s2), Object.values(tips).map((x) => x.split('\n')[0]).join(' | '));
+  await clearTips();
+  await shot(`d6-${tag}-suites`);
+  // Build: the preview's after value; cash and queue change; when `complete`, the finished build matches the preview.
+  const free = await page.$$eval('[data-test=suites] [data-act="suite.build"]:not([disabled])', (els) => els.map((e) => e.getAttribute('data-family')));
+  const fam = free.includes('swe') ? 'swe' : free[0];
+  if (fam) {
+    const bTip = await tipText(`[data-act="suite.build"][data-family="${fam}"]`);
+    ok(`D6 ${where}: build preview shows cash, team-weeks, fidelity before → after and the planned run's ΔG and S2`, /\$\d+M/.test(bTip) && /team-wk/.test(bTip) && /×\d\.\d\d → ×\d\.\d\d/.test(bTip) && /RL ΔG/.test(bTip) && /S2/.test(bTip), bTip.replace(/\n/g, ' ').slice(0, 200));
+    await shot(`d6-${tag}-build-preview`);
+    await clearTips();
+    const after = (await page.$eval(`[data-suite="${fam}"] [data-test="suite-after.build"]`, (e) => e.textContent ?? '')).match(/×\d\.\d\d/)?.[0];
+    const cash0 = Number(await get('s.player.finance.cash'));
+    await page.click(`[data-act="suite.build"][data-family="${fam}"]`);
+    await wait(120);
+    const cash1 = Number(await get('s.player.finance.cash'));
+    const pill = await page.$eval(`[data-suite="${fam}"] [data-pending="${fam}:build"]`, (e) => e.textContent ?? '').catch(() => '');
+    ok(`D6 ${where}: Build queues the work, pays the expert data and shows it pending with an ETA`, JSON.parse(await get(suiteQueue)).split(',').includes(`${fam}:build`) && cash0 - cash1 > 0.09 && /building.*(\d+ d|waits)/.test(pill),
+      `cash ${cash0.toFixed(2)} → ${cash1.toFixed(2)} · ${pill}`);
+    if (complete) {
+      const done = await stepUntilDone(`${fam}:build`);
+      await toSuites();
+      const fid = (await page.$eval(`[data-suite="${fam}"] [data-test=suite-fid]`, (e) => e.textContent ?? '')).match(/×\d\.\d\d/)?.[0];
+      ok(`D6 ${where}: the finished build matches its preview (fidelity ${after})`, done && !!after && fid === after, `${fid} vs ${after}`);
+    }
+  }
+  // Harden: the preview's exploitable % and the planned run's S2 after match the result.
+  const freeH = await page.$$eval('[data-test=suites] [data-act="suite.harden"]:not([disabled])', (els) => els.map((e) => e.getAttribute('data-family')));
+  const famH = freeH.includes('swe') ? 'swe' : freeH[0];
+  if (famH) {
+    const hTip = await tipText(`[data-act="suite.harden"][data-family="${famH}"]`);
+    const s2After = [...hTip.matchAll(/(\d\.\d{3}) → (\d\.\d{3})/g)].pop()?.[2];
+    ok(`D6 ${where}: harden preview shows cash, team-weeks, exploitable before → after and S2 before → after`, /\$\d+M/.test(hTip) && /team-wk/.test(hTip) && /\d+\.\d% → \d+\.\d%/.test(hTip) && !!s2After, hTip.replace(/\n/g, ' ').slice(0, 200));
+    await clearTips();
+    const after = (await page.$eval(`[data-suite="${famH}"] [data-test="suite-after.harden"]`, (e) => e.textContent ?? '')).match(/\d+\.\d%/)?.[0];
+    await check(`D6 ${where}: Harden queues the work`, suiteQueue, () => page.click(`[data-act="suite.harden"][data-family="${famH}"]`));
+    if (complete) {
+      const done = await stepUntilDone(`${famH}:harden`);
+      await toSuites();
+      const x = (await page.$eval(`[data-suite="${famH}"] [data-test=suite-exploit]`, (e) => e.textContent ?? '')).match(/\d+\.\d%/)?.[0];
+      const s2Now = await page.$eval('[data-test=suites-s2] b', (e) => e.textContent ?? '');
+      ok(`D6 ${where}: the finished hardening matches its preview (exploitable ${after}, S2 ${s2After})`, done && !!after && x === after && s2Now === Number(s2After).toFixed(2), `${x} vs ${after} · S2 ${s2Now} vs ${s2After}`);
+    }
+  }
+  // A focus pill changes the planned run (the RL shares move).
+  const pills = await page.$$eval('[data-test=suites-focus] [data-focus]', (els) => els.map((e) => e.getAttribute('data-focus')).filter((x) => x !== 'broad'));
+  if (pills.length) {
+    const sh = () => page.$$eval('[data-test=suites] [data-test=suite-share]', (els) => els.map((e) => e.textContent).join(','));
+    const sh0 = await sh();
+    await page.click(`[data-test=suites-focus] [data-focus="${pills[0]}"]`);
+    await wait(100);
+    const sh1 = await sh();
+    ok(`D6 ${where}: a focus pill changes the planned run's RL shares`, sh0 !== sh1, `${sh0} → ${sh1} (focus ${pills[0]})`);
+    await page.click('[data-test=suites-focus] [data-focus=broad]');
+    await wait(80);
+  }
+  await shot(`d6-${tag}-suites-after`);
+  await page.evaluate(() => window.ai27v2.setTab('models', 'versions'));
+}
 await page.evaluate(() => { const st = window.ai27v2; st.start({ ...st.draftSetup, tutorial: false, seed: 2027, companyName: 'OpenBrain' }); });
 await wait(150);
 await page.evaluate(() => window.ai27v2.step(1));
@@ -923,6 +1032,18 @@ await b1Check('day 1');
 await b2Check('day 1');
 await b3Check('day 1', '29-day1-world-sectors');
 await b4Check('day 1');
+await d6Check('day 1', true);
+{
+  // D6: the Blueprint's post-train suites row links to Models › Suites with its design as the planned run.
+  await nav('blueprint');
+  await page.click('[data-panel=blueprint] [data-bp-kind=post]').catch(() => {});
+  await wait(150);
+  await page.click('[data-panel=blueprint] [data-test=bp-to-suites]');
+  await wait(150);
+  const sub = await page.$eval('[data-home=suitePlan]', (e) => e.innerText).catch(() => '');
+  ok('D6: Blueprint › Suites link opens Models › Suites with the Blueprint design as the planned run', JSON.parse(await get(`store.panel === 'models' && store.tab.models === 'suites'`)) && /from Blueprint/.test(sub), sub.replace(/\s+/g, ' ').slice(0, 100));
+  await page.evaluate(() => window.ai27v2.setTab('models', 'versions'));
+}
 await nav('products');
 {
   // Edit preview: a cheaper tier moves the target share at once (the stock follows later).
@@ -990,6 +1111,7 @@ await b1Check('day 400');
 await b2Check('day 400');
 await b3Check('day 400', '29-day400-world-sectors');
 await b4Check('day 400');
+await d6Check('day 400', true);
 await shot('27-day400-products-b2');
 const fx9 = readFileSync(path.resolve('scripts/v2/fixtures/day900.json'), 'utf8');
 await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
@@ -998,6 +1120,11 @@ await b1Check('day 900');
 await b2Check('day 900');
 await b3Check('day 900', '29-day900-world-sectors');
 await b4Check('day 900');
+await d6Check('day 900', false);
+{
+  const miss = D6_TERMS.filter((x) => !d6Seen.has(x));
+  ok(`D6: every new suites term has a tooltip in Models › Suites (${D6_TERMS.length})`, miss.length === 0, miss.join(', '));
+}
 await shot('28-day900-products-b2');
 {
   const miss = B1_TERMS.filter((t) => !b1Seen.has(t));

@@ -27,6 +27,7 @@ import { DOMAIN_ICON, ICON } from '../icons';
 import { C } from '../theme';
 import { arrows } from './runEffects';
 import { runTitle } from './Models';
+import { openSuites } from './Suites';
 import './blueprint.css';
 
 type Kind = 'base' | 'post' | 'distill' | 'continue';
@@ -583,16 +584,18 @@ function Effects({ s, e }: { s: GameStateV2; e: Effect }) {
   );
 }
 
-/** Environment suites the post-train uses (model v3 D5), read-only: RL-share-weighted fidelity and exploitability for
- *  the selected focus; per family in the tooltip. Built and hardened by engineers (D6 adds the controls). */
+/** Environment suites the post-train uses (model v3 D5), read-only summary: RL-share-weighted fidelity and
+ *  exploitability for the selected focus. One home per datum (D6): each family's suite, its build and harden controls
+ *  and the run's S2 live on Models › Suites; this row links there with this design as the planned run. */
 function SuitesRow({ s, p }: { s: GameStateV2; p: Params }) {
   const post = postFromParams(p);
   const v = suitesView(s, post.rlFocus);
+  const pending = v.rows.reduce((a, r) => a + r.pending.length, 0);
   const tip = () => (
     <TipCard title={<Term id="envSuite">Environment suites</Term>} value={`fidelity ×${v.weighted.fid.toFixed(2)} · ${F.pct(v.weighted.exploit, 1)} exploitable`}
-      rows={v.rows.map((r) => ({ label: `${r.label} (${F.pct(r.share)} of RL)`, value: `×${r.fid.toFixed(2)} · ${F.pct(r.exploit, 1)}${r.pending.length ? ` · ${r.pending.join(', ')}…` : ''}` }))}
-      footer="Weighted by this run's RL compute per family. Engineers build suites (expert data: fidelity up) and harden them (exploits down).">
-      [[suiteFidelity|Fidelity]] scales each family's RL ceiling; [[suiteExploit|exploitable]] tasks drive reward-hacking pressure.
+      rows={[{ label: 'Suites this run trains in', value: String(v.rows.filter((r) => r.share > 0).length) }, { label: 'Suite work queued', value: String(pending) }]}
+      footer="Weighted by this run's RL compute per family. Per family, with build and harden: Models › Suites.">
+      [[suiteFidelity|Fidelity]] scales each family's RL ceiling; [[suiteExploit|exploitable]] tasks drive [[rewardHackPressure|reward-hacking pressure]].
     </TipCard>
   );
   return (
@@ -601,6 +604,7 @@ function SuitesRow({ s, p }: { s: GameStateV2; p: Params }) {
       <div className="sc bp-lic" data-test="bp-suites">
         <Tip content={tip}><span className="dch"><span className="k">fidelity</span><b>×{v.weighted.fid.toFixed(2)}</b></span></Tip>
         <Tip content={tip}><span className="dch"><span className="k">exploitable</span><b>{F.pct(v.weighted.exploit, 1)}</b></span></Tip>
+        <button className="btn btn-sm btn-ghost" data-test="bp-to-suites" onClick={() => openSuites(p)}>Suites ›</button>
       </div>
       <span className="bp-span" />
     </>
