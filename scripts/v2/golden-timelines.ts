@@ -1,8 +1,11 @@
 // Golden timelines (V2-SPEC §7.1). Owner: WS1.
 // Runs the v1 continuous reference integrator (audited src/data/world.ts formulas at cf = 1, human = 1) per preset,
-// checks the dates against research/11 §5 within tolerance, and writes scripts/v2/golden/timelines.json.
-import { mkdirSync, writeFileSync } from 'node:fs';
+// checks the dates against research/11 §5 within tolerance, and checks scripts/v2/golden/timelines.json (which calib and
+// fixtures read) equals the integrator output. `--write` regenerates the file (src/data/world.ts is audited, so it
+// should never change). The integrations go through the simulation cache (simcache.ts).
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { GOLDEN_EXPECTED, GOLDEN_SAMPLED, GOLDEN_TOL } from '../../src/data/v2/calibration';
 import { horizonAt, milestoneThresholds } from '../../src/data/world';
 import { Rng } from '../../src/engine/rng';
@@ -13,6 +16,7 @@ import { multiplierRef, referenceRate } from '../../src/engine/v2/world/calibrat
 import { sampleHidden } from '../../src/engine/v2/world/hidden';
 import type { TimelineWorld, WorldPresetId } from '../../src/engine/v2/types';
 import { GOLDEN_PATH, KNOWN, check, finish } from './lib';
+import { cached } from './simcache';
 
 // src/data/world.ts is audited and must stay unchanged (V2-SPEC §3.1). Where its presets differ from research/11 §5's
 // *proposed* tables, the integrator output (this JSON's `computed`) is the binding golden; WS1 closes the gap in M1
@@ -33,6 +37,14 @@ function worldFor(preset: WorldPresetId, seed: number): TimelineWorld {
 }
 
 interface Run { days: Record<string, number>; years: Record<string, number>; M: Record<string, number>; pAt: (yr: number) => number }
+/** The cached part of a run: milestone days and years, M crossings, and p at the h80 check year (if any). */
+interface RunRec { days: Record<string, number>; years: Record<string, number>; M: Record<string, number>; pH80?: number }
+const ME = fileURLToPath(import.meta.url);
+const integrateCached = (preset: WorldPresetId, seed: number, maxDays: number, stopAt: string, h80Year?: number): RunRec =>
+  cached('golden-integrate', { preset, seed, maxDays, stopAt, h80Year }, [ME], () => {
+    const r = integrate(worldFor(preset, seed), maxDays, stopAt);
+    return { days: r.days, years: r.years, M: r.M, ...(h80Year === undefined ? {} : { pH80: r.pAt(h80Year) }) };
+  });
 
 /** Integrate daily exactly as the M0 placeholder production does (rate at day d's year, crossing recorded d+1). */
 function integrate(w: TimelineWorld, maxDays: number, stopAt = 'ASI'): Run {
@@ -70,7 +82,7 @@ const presets = out.presets as Record<string, unknown>;
 for (const preset of Object.keys(GOLDEN_EXPECTED) as (keyof typeof GOLDEN_EXPECTED)[]) {
   const exp = GOLDEN_EXPECTED[preset];
   const w = worldFor(preset, 1);
-  const run = integrate(w, 365 * 40, preset === 'slow' ? 'SC' : 'ASI');
+  const run = integrateCached(preset, 1, 365 * 40, preset === 'slow' ? 'SC' : 'ASI', exp.h80?.year);
   const entry: Record<string, unknown> = { expected: exp, computed: run.years, days: run.days, M: run.M };
   const near = (got: number | undefined, want: number, tol: number, label: string) =>
     check(got !== undefined && Math.abs(got - want) <= tol, `${preset} ${label}`, `got ${got ?? '—'} want ${want} ±${tol}`);
@@ -83,7 +95,7 @@ for (const preset of Object.keys(GOLDEN_EXPECTED) as (keyof typeof GOLDEN_EXPECT
   if (exp.ASI !== null) near(run.years.ASI, exp.ASI, GOLDEN_TOL.after, 'ASI');
   for (const [m, want] of Object.entries(exp.M ?? {})) near(run.M[m], want, GOLDEN_TOL.after, `M ${m}×`);
   if (exp.h80) {
-    const h = horizonAt(w, run.pAt(exp.h80.year));
+    const h = horizonAt(w, run.pH80 as number);
     entry.h80 = { year: exp.h80.year, minutes: Math.round(h) };
     check(Math.abs(h / exp.h80.minutes - 1) <= 0.15, `${preset} h80 @${exp.h80.year}`, `got ${Math.round(h)} min want ≈${exp.h80.minutes} ±15%`);
   }
@@ -91,19 +103,28 @@ for (const preset of Object.keys(GOLDEN_EXPECTED) as (keyof typeof GOLDEN_EXPECT
 }
 
 // Sampled: SC distribution over seeds.
-const sc: number[] = [];
-for (let seed = 1; seed <= GOLDEN_SAMPLED.seeds; seed++) {
-  const w = worldFor('sampled', seed);
-  const r = integrate(w, 365 * 75, 'SC');
-  sc.push(r.years.SC ?? 2100.5);
-}
+const sc: number[] = cached('golden-sampled', { seeds: GOLDEN_SAMPLED.seeds, maxDays: 365 * 75, stopAt: 'SC' }, [ME], () => {
+  const out: number[] = [];
+  for (let seed = 1; seed <= GOLDEN_SAMPLED.seeds; seed++) {
+    const w = worldFor('sampled', seed);
+    const r = integrate(w, 365 * 75, 'SC');
+    out.push(r.years.SC ?? 2100.5);
+  }
+  return out;
+});
 sc.sort((a, b) => a - b);
 const pct = (q: number) => r3(sc[Math.min(sc.length - 1, Math.floor(q * sc.length))]);
 const sampled = { seeds: GOLDEN_SAMPLED.seeds, SC: { p10: pct(0.1), p50: pct(0.5), p90: pct(0.9) }, expected: GOLDEN_SAMPLED };
 presets.sampled = sampled;
 check(Math.abs(sampled.SC.p50 - GOLDEN_SAMPLED.p50) <= GOLDEN_SAMPLED.p50Tol, 'sampled SC p50', `got ${sampled.SC.p50} want ${GOLDEN_SAMPLED.p50} ±${GOLDEN_SAMPLED.p50Tol} (p10 ${sampled.SC.p10}, p90 ${sampled.SC.p90}; informational)`);
 
-mkdirSync(dirname(GOLDEN_PATH), { recursive: true });
-writeFileSync(GOLDEN_PATH, JSON.stringify(out, null, 2) + '\n');
-console.log(`wrote ${GOLDEN_PATH}`);
+const text = JSON.stringify(out, null, 2) + '\n';
+if (process.argv.includes('--write')) {
+  mkdirSync(dirname(GOLDEN_PATH), { recursive: true });
+  writeFileSync(GOLDEN_PATH, text);
+  console.log(`wrote ${GOLDEN_PATH}`);
+} else {
+  const committed = existsSync(GOLDEN_PATH) ? readFileSync(GOLDEN_PATH, 'utf8').replace(/\r\n/g, '\n') : undefined;
+  check(committed === text, 'golden/timelines.json equals the integrator output', committed === text ? '' : 'stale: run npx tsx scripts/v2/golden-timelines.ts --write');
+}
 finish('golden-timelines');

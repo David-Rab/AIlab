@@ -3,6 +3,9 @@
 // Reference play = real RefBot games on the integrated engine (WS1 models and releases, WS3 compute and finance, WS4
 // actors; endings skipped so the world keeps running past ASI). The worldfx-refplay.ts probe is kept only for W2, a
 // controlled experiment with capabilities frozen at Agent-1 level. Date targets use ±3 months (R16 §7 test 1).
+// The games go through the simulation cache (simcache.ts): a cached trace keeps what the checks read (the classic run
+// keeps its whole final state). `--smoke` (test:quick) skips the long post-2028 runs (W3, the SEZ path) and the
+// informational authors2026 run; every check that does run is binding.
 import { dayOfDate, decimalYear } from '../../src/engine/v2/core/time';
 import { makeCtx, tick } from '../../src/engine/v2/core/loop';
 import { ACTIONS } from '../../src/engine/v2/core/registry';
@@ -26,7 +29,9 @@ import { techBlocker } from '../../src/engine/v2/worldfx/techtree';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { deserialize } from '../../src/engine/v2/core/save';
-import { FIXTURE_DIR, check, finish, validateJson } from './lib';
+import { fileURLToPath } from 'node:url';
+import { FIXTURE_DIR, SMOKE, check, finish, validateJson } from './lib';
+import { cached, pick, prefill } from './simcache';
 import { refGame, refPlayProbe } from './worldfx-refplay';
 
 const START = '2025-07-01';
@@ -49,6 +54,7 @@ interface Trace {
   at: Record<string, { dow: number; U: number; youthSoft: number; youthU: number; friend: number; hireSoft: number; youthX: number; firm: number; rev: number; use: ReturnType<typeof workUse>; cons: ReturnType<typeof consumerUse>; bill: ReturnType<typeof workBilling> }>;
 }
 
+const FILES = [fileURLToPath(import.meta.url), fileURLToPath(new URL('./worldfx-refplay.ts', import.meta.url))];
 const MARKS = ['2025-07-02', '2025-07-31', '2026-01-01', '2026-07-01', '2026-11-01', '2026-12-31', '2027-07-01', '2027-10-01', '2027-12-31'];
 
 /** One day of real reference play: RefBot decides pending events, acts, then the engine ticks (endings skipped). */
@@ -96,8 +102,58 @@ function run(over: Partial<SetupV2>, days: number, opts: { noSez?: boolean } = {
   return tr;
 }
 
+/** run() through the simulation cache. `picks` = the final-state paths the checks read (undefined: the whole state);
+ *  `jsonErrs` = validateJson of the live final state. */
+interface CTrace extends Trace { jsonErrs: string[] }
+function runC(over: Partial<SetupV2>, days: number, opts: { noSez?: boolean } = {}, picks?: string[]): CTrace {
+  return cached('worldfx-run', { over, days, opts, picks: picks ?? 'all' }, FILES, () => {
+    const { U: _U, ...tr } = run(over, days, opts);
+    return { ...tr, U: [], jsonErrs: validateJson(tr.s), s: picks ? pick(tr.s, picks) : tr.s };
+  });
+}
+
+/** W2 (cached): automation TFP gain over a decade, Normal Technology with capabilities frozen at Agent-1 level. */
+function w2Rec(): number {
+  return cached('worldfx-w2', { econ: 'normal', days: 3651 }, FILES, () => {
+    const s = refGame({ econ: 'normal' });
+    const pmA1 = thresholds(s.hidden.timeline)[1];
+    const probe = refPlayProbe(s, { freezeAt: pmA1, publicLag: 0 });
+    const opts: TickOptions = { extraSystems: [probe], skip: ['production', 'continual', 'endings'] };
+    tick(s, opts);
+    const tfp0 = automationTfp(s);
+    while (s.time.day < 3651) tick(s, opts);
+    return automationTfp(s) - tfp0;
+  });
+}
+/** SEZ path (cached): SEZs open Jan 2028; robots, W17 and the max growth rate to 2031. */
+function sezRec() {
+  return cached('worldfx-sez', { from: '2028-01-01', to: '2031-01-01' }, FILES, () => {
+    const s = refGameV2();
+    while (s.time.day < D('2028-01-01')) refDay(s, { noSez: true });
+    let maxG = 0;
+    let d1M: number | undefined;
+    while (s.time.day < D('2031-01-01')) {
+      s.flags[POLICY_FLAGS.sez] = true; // SEZs open in Jan 2028 and stay open
+      refDay(s);
+      maxG = Math.max(maxG, s.world.macro.US.g);
+      if (d1M === undefined && (s.world.robots.prodPerYear + s.world.fx.humanoidProd) / 12 >= 1e6) d1M = s.time.day;
+    }
+    return { s: pick(s, ['world.robots.sezOpen', 'world.techs.W17']), maxG, d1M };
+  });
+}
+const W3_PICKS = ['world.fx.autoLevel', 'world.techs.W17', 'world.macro.US.g'];
+// The runner's --prefill shards: every cached run of this mode, in the order the checks ask for them.
+prefill([
+  () => runC({ baseline: 'classic', econ: 'ai2027' }, D('2028-04-01')),
+  () => runC({ baseline: 'reality', econ: 'ai2027', world: 'ai2027' }, D('2026-11-02'), {}, []),
+  ...(SMOKE ? [] : [() => runC({ baseline: 'reality', econ: 'ai2027', world: 'authors2026' }, D('2026-11-02'), {}, [])]),
+  () => w2Rec(),
+  ...(SMOKE ? [] : (['ai2027', 'gate'] as const).map((econ) => () => runC({ econ }, D('2031-01-01'), { noSez: true }, W3_PICKS))),
+  ...(SMOKE ? [] : [() => sezRec()]),
+]);
+
 // ───────────── 1. Classic baseline, ai2027 econ, reference play (§7.3 table, F11) ─────────────
-const c = run({ baseline: 'classic', econ: 'ai2027' }, D('2028-04-01'));
+const c = runC({ baseline: 'classic', econ: 'ai2027' }, D('2028-04-01'));
 const at = c.at;
 const U0 = 4.3;
 console.log('Classic / ai2027 econ / reference play');
@@ -163,7 +219,7 @@ check(within(c.firstAccept85, '2027-12-15'), 'Dec 2027 (±3 mo): GOV T1 Accept �
     console.log(`INFO  A2c ${m}: hours of use ${((w.adopted + w.seated + w.unseated) / 1e9).toFixed(0)}B/yr = adopted ${(w.adopted / 1e9).toFixed(0)}B (per hour) + seated ${(w.seated / 1e9).toFixed(0)}B (seat) + unseated ${(w.unseated / 1e9).toFixed(0)}B (unbilled); agent-hours ${(w.agent / 1e9).toFixed(1)}B; seats ${(w.seats / 1e6).toFixed(0)}M (player ${(b(m).playerSeats / 1e6).toFixed(0)}M); spend adopted $${w.spendAdopted.toFixed(1)}B, agents $${w.spendAgent.toFixed(1)}B, seats $${w.spendSeat.toFixed(1)}B; tokens/day ${(tok(m) / 1e12).toFixed(0)}T (agents ${(w.tokAgent / 1e12).toFixed(0)}T, consumer ${(b(m).consumerTokens / 1e12).toFixed(0)}T)`);
   }
 }
-check(validateJson(c.s).length === 0, 'world state stays plain JSON (classic run)', validateJson(c.s).slice(0, 3).join('; '));
+check(c.jsonErrs.length === 0, 'world state stays plain JSON (classic run)', c.jsonErrs.slice(0, 3).join('; '));
 const fired = new Set(c.s.headlines.map((h) => h.id.split(':')[0]));
 const once = HEADLINES.filter((h) => h.cooldownDays === undefined).every((h) => c.s.headlines.filter((x) => x.id === h.id).length <= 1);
 check(fired.size >= 10 && once, 'headlines: ≥10 distinct fire on the reference path; one-shot ones fire once', [...fired].join(' '));
@@ -172,7 +228,7 @@ check(c.s.player.deployments.filter((d) => d.channel !== 'internal').every((d) =
 
 // ───────────── 2. Reality baseline at Nov 2026 (W4) ─────────────
 {
-  const r = run({ baseline: 'reality', econ: 'ai2027', world: 'ai2027' }, D('2026-11-02'));
+  const r = runC({ baseline: 'reality', econ: 'ai2027', world: 'ai2027' }, D('2026-11-02'), {}, []);
   const a = r.at['2026-11-01'];
   console.log('Reality baseline / ai2027 world');
   check(Math.abs(a.U - U0) <= 0.15, 'W4: aggregate unemployment effect ≈ 0 at Nov 2026', `${(a.U - U0).toFixed(2)} pp`);
@@ -180,42 +236,28 @@ check(c.s.player.deployments.filter((d) => d.channel !== 'internal').every((d) =
   check(a.firm >= 0.15 && a.firm <= 0.22, 'W4: firm adoption 17–20% (±2 pp)', pct(a.firm));
   console.log(`INFO  W4 reality Nov 2026: US hours of use ${pct(a.use.hours)} (RPS 5.3% Q3 2026), workers using AI ${pct(a.use.workers)}, saved per hour of use ${a.use.savedPerHour.toFixed(3)}`);
   // Informational: the slower authors2026 timeline (SC 2029.7) gives weaker 2026 effects.
-  const b = run({ baseline: 'reality', econ: 'ai2027', world: 'authors2026' }, D('2026-11-02')).at['2026-11-01'];
+  if (!SMOKE) {
+  const b = runC({ baseline: 'reality', econ: 'ai2027', world: 'authors2026' }, D('2026-11-02'), {}, []).at['2026-11-01'];
   console.log(`INFO  W4 on authors2026 world: U ${(b.U - U0).toFixed(2)} pp, exposed 22–25 ${((b.youthX - 1) * 100).toFixed(1)}%, firm adoption ${pct(b.firm)}`);
+  }
 }
 
 // ───────────── 3. W2: Normal Technology + Agent-1-level models → TFP +0.5–1% per decade ─────────────
 {
-  const s = refGame({ econ: 'normal' });
-  const pmA1 = thresholds(s.hidden.timeline)[1];
-  const probe = refPlayProbe(s, { freezeAt: pmA1, publicLag: 0 });
-  const opts: TickOptions = { extraSystems: [probe], skip: ['production', 'continual', 'endings'] };
-  tick(s, opts);
-  const tfp0 = automationTfp(s);
-  while (s.time.day < 3651) tick(s, opts);
-  const dT = automationTfp(s) - tfp0;
+  const dT = w2Rec();
   check(dT >= 0.005 && dT <= 0.01, 'W2: Normal Technology, Agent-1-level models: automation TFP +0.5–1% over a decade (Acemoglu band)', pct(dT));
 }
 
 // ───────────── 4. W3: cognitive-only automation ≤ 2.2× GDP without W17 ─────────────
-for (const econ of ['ai2027', 'gate'] as const) {
-  const t = run({ econ }, D('2031-01-01'), { noSez: true });
+for (const econ of SMOKE ? [] : (['ai2027', 'gate'] as const)) {
+  const t = runC({ econ }, D('2031-01-01'), { noSez: true }, W3_PICKS);
   const X = Math.max(...(['US', 'CN', 'ROW'] as const).map((r) => t.s.world.fx.autoLevel[r]));
   check(t.s.world.techs.W17.discoveredDay === undefined && X <= 2.2, `W3 ${econ}: no SEZ → no W17, automation output factor ≤ 2.2`, `X ${X.toFixed(2)}, ASI-level models, g ${pct(t.s.world.macro.US.g)}`);
 }
 
 // ───────────── 5. SEZ path: robots, W17, explosive growth ─────────────
-{
-  const s = refGameV2();
-  while (s.time.day < D('2028-01-01')) refDay(s, { noSez: true });
-  let maxG = 0;
-  let d1M: number | undefined;
-  while (s.time.day < D('2031-01-01')) {
-    s.flags[POLICY_FLAGS.sez] = true; // SEZs open in Jan 2028 and stay open
-    refDay(s);
-    maxG = Math.max(maxG, s.world.macro.US.g);
-    if (d1M === undefined && (s.world.robots.prodPerYear + s.world.fx.humanoidProd) / 12 >= 1e6) d1M = s.time.day;
-  }
+if (!SMOKE) {
+  const { s, maxG, d1M } = sezRec();
   check(s.world.robots.sezOpen && d1M !== undefined && d1M <= D('2029-06-01'), 'SEZ (Jan 2028): ~1M robots/month within about a year (AI 2027: end-2028)', fmt(d1M));
   check(s.world.techs.W17.discoveredDay !== undefined && maxG >= 0.3, 'SEZ + W17: explosive growth (> 30%/yr) becomes possible', `W17 ${fmt(s.world.techs.W17.discoveredDay)}, max g ${pct(maxG)}`);
 }

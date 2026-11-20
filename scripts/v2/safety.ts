@@ -1,7 +1,8 @@
 // WS2 acceptance tests S1–S6 (V2-SPEC §8.3) plus safety-state hygiene. Owner: WS2.
 //
 // S4/S5 play real games on the integrated engine (safety-emu.ts: RefBot, the safe-only recipe on reference finance,
-// the mixed bot); WS1's runs call the WS2 trait hooks on every completed run.
+// the mixed bot); WS1's runs call the WS2 trait hooks on every completed run. The games go through the simulation cache
+// (simcache.ts). `--smoke` (test:quick) plays 1 seed per bot (the mixed bot to SAR); S4/S5 then print SMOKE.
 import { AGENDA_IDS } from '../../src/data/v2/agendas';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx } from '../../src/engine/v2/core/loop';
@@ -14,8 +15,23 @@ import { openInvestigation } from '../../src/engine/v2/safety/investigations';
 import { sampleHidden } from '../../src/engine/v2/world/hidden';
 import { Rng } from '../../src/engine/rng';
 import type { GameStateV2, TraitId } from '../../src/engine/v2/types';
-import { check, finish } from './lib';
-import { MIXED, REF, SAFE, play } from './safety-emu';
+import { fileURLToPath } from 'node:url';
+import { check, finish, SMOKE, smokeCheck } from './lib';
+import { MIXED, REF, SAFE, play, type Outcome } from './safety-emu';
+import { cached, prefill } from './simcache';
+
+/** play() through the simulation cache (the record is the Outcome). */
+const EMU = fileURLToPath(new URL('./safety-emu.ts', import.meta.url));
+const playC = (bot: typeof REF, seed: number, stopAt: 'asi' | 'sar'): Outcome =>
+  cached('safety-play', { bot: bot.id, seed, stopAt, alignment: 'medium' }, [fileURLToPath(import.meta.url), EMU], () => play(bot, seed, stopAt));
+const N_S4 = SMOKE ? 1 : 40;
+const N_S5 = SMOKE ? 1 : 20;
+// The runner's --prefill shards: the S4/S5 games, in the order the checks ask for them.
+prefill([
+  ...Array.from({ length: N_S4 }, (_, i) => () => playC(REF, 500 + i, 'asi')),
+  ...Array.from({ length: N_S4 }, (_, i) => () => playC(SAFE, 700 + i, 'asi')),
+  ...Array.from({ length: N_S5 }, (_, i) => () => playC(MIXED, 900 + i, 'sar')),
+]);
 
 // S1 (M2 spec decision): R14's Beta priors alone put ≈ 3.94 agendas above e = 0.6 per world; the loading spread was cut
 // by a quarter (§3.5.2) and the target widened to 2–4.5.
@@ -100,14 +116,14 @@ const pct = (x: number) => `${(x * 100).toFixed(0)}%`;
 
 // ───────────────────────────── S4: Mis at ASI ─────────────────────────────
 const t0 = performance.now();
-const ref = Array.from({ length: 40 }, (_, i) => play(REF, 500 + i, 'asi'));
-const safe = Array.from({ length: 40 }, (_, i) => play(SAFE, 700 + i, 'asi'));
+const ref = Array.from({ length: N_S4 }, (_, i) => playC(REF, 500 + i, 'asi'));
+const safe = Array.from({ length: N_S4 }, (_, i) => playC(SAFE, 700 + i, 'asi'));
 const refP = mean(ref.map((o) => o.pmis));
 const safeP = mean(safe.map((o) => o.pmis));
 console.log(`      RefBot Mis at ASI: mean ${mean(ref.map((o) => o.mis)).toFixed(3)}  range ${Math.min(...ref.map((o) => o.mis)).toFixed(2)}–${Math.max(...ref.map((o) => o.mis)).toFixed(2)}  (ASI day ≈ ${mean(ref.map((o) => o.asiDay ?? 0)).toFixed(0)})`);
 console.log(`      Safe-only Mis at ASI: mean ${mean(safe.map((o) => o.mis)).toFixed(3)}  range ${Math.min(...safe.map((o) => o.mis)).toFixed(2)}–${Math.max(...safe.map((o) => o.mis)).toFixed(2)}`);
-check(refP >= 0.55 && refP <= 0.85, 'S4 RefBot/medium: P_mis at ASI ∈ [0.55, 0.85]', refP.toFixed(3));
-check(safeP <= 0.25, 'S4 Safe-only recipe: P_mis at ASI ≤ 0.25', safeP.toFixed(3));
+smokeCheck(refP >= 0.55 && refP <= 0.85, 'S4 RefBot/medium: P_mis at ASI ∈ [0.55, 0.85]', refP.toFixed(3));
+smokeCheck(safeP <= 0.25, 'S4 Safe-only recipe: P_mis at ASI ≤ 0.25', safeP.toFixed(3));
 check([...ref, ...safe].every((o) => o.jsonOk), 'safety and model state stay plain JSON through ASI');
 
 // ───────────────────────────── S5: Understanding vs capability ─────────────────────────────
@@ -120,11 +136,11 @@ const median = (xs: number[]) => {
 const refU = ref.filter((o) => o.uAtSar !== undefined);
 const refGap = refU.map((o) => (o.uAtSar ?? 0) - (o.lAtSar ?? 0));
 const refBelow = refGap.filter((g) => g < 0).length / Math.max(1, refGap.length);
-check(median(refGap) < 0, 'S5 without refresh (RefBot funding) U falls below L by SAR (median world)', `median U − L at SAR ${median(refGap).toFixed(2)}; below in ${pct(refBelow)} of worlds`);
-const mixed = Array.from({ length: 20 }, (_, i) => play(MIXED, 900 + i, 'sar'));
+smokeCheck(median(refGap) < 0, 'S5 without refresh (RefBot funding) U falls below L by SAR (median world)', `median U − L at SAR ${median(refGap).toFixed(2)}; below in ${pct(refBelow)} of worlds`);
+const mixed = Array.from({ length: N_S5 }, (_, i) => playC(MIXED, 900 + i, 'sar'));
 const mm = mixed.map((o) => o.minMarginToSar);
 const mixedOk = mm.filter((m) => m >= -0.5).length / mm.length;
-check(median(mm) >= -0.5, 'S5 Mixed-bot funding keeps U ≥ L − 0.5 up to SAR (median world)', `median min margin ${median(mm).toFixed(2)}; holds in ${pct(mixedOk)} of worlds; U@SAR mean ${mean(mixed.map((o) => o.uAtSar ?? 0)).toFixed(2)} vs RefBot ${mean(refU.map((o) => o.uAtSar ?? 0)).toFixed(2)}`);
+smokeCheck(median(mm) >= -0.5, 'S5 Mixed-bot funding keeps U ≥ L − 0.5 up to SAR (median world)', `median min margin ${median(mm).toFixed(2)}; holds in ${pct(mixedOk)} of worlds; U@SAR mean ${mean(mixed.map((o) => o.uAtSar ?? 0)).toFixed(2)} vs RefBot ${mean(refU.map((o) => o.uAtSar ?? 0)).toFixed(2)}`);
 
 // ──────────── S6: FALSE findings rise with Trusted to AI × sabotage (R7: one policy; E2: ∝ the work AI does) ────────────
 {

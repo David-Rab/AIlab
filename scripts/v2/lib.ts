@@ -83,6 +83,17 @@ export function runRef(s: GameStateV2, day: number, stop?: (s: GameStateV2) => b
 }
 
 let failures = 0;
+let smokeSkipped = 0;
+/** `--smoke` (test:quick): long multi-seed suites run 1–2 seeds or short horizons. Checks whose inputs are reduced go
+ *  through smokeCheck and cannot fail; checks that still run at full strength stay binding. */
+export const SMOKE = process.argv.includes('--smoke');
+/** A calibration / statistical target. Exactly check() in a full run; under --smoke it prints a SMOKE line (never a
+ *  failure), because its seeds or horizon were cut. */
+export function smokeCheck(ok: boolean, label: string, detail = '', note?: string) {
+  if (!SMOKE) return check(ok, label, detail);
+  smokeSkipped++;
+  console.log(`SMOKE ${note ?? (ok ? '(in band)' : '(out of band)')}  ${label}${detail ? '  — ' + detail : ''}`);
+}
 /** Documented deviations: a failing check whose label is listed here prints WARN instead of failing. */
 export const KNOWN: Record<string, string> = {};
 export function check(ok: boolean, label: string, detail = '') {
@@ -91,6 +102,7 @@ export function check(ok: boolean, label: string, detail = '') {
   if (!ok && !known) failures++;
 }
 export function finish(name: string) {
+  if (SMOKE) console.log(`\n${name}: SMOKE mode (reduced seeds/horizons): ${smokeSkipped} calibration target(s) informational; run without --smoke for the binding checks`);
   console.log(failures ? `\n${name}: ${failures} failure(s)` : `\n${name}: all passed`);
   process.exit(failures ? 1 : 0);
 }

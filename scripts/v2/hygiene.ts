@@ -1,6 +1,7 @@
 // Engine hygiene (V2-SPEC §7.5). Owner: WS1.
 // Registry contract, newGame validity, determinism, stream isolation, save round trip and size, cadences,
-// cause ledger, performance.
+// cause ledger, performance. `--no-perf` skips the performance section (8; wall-time budgets, meaningless on a loaded
+// machine: test:full runs hygiene with --no-perf); `--perf-only` runs only section 8 (test:perf, on a quiet machine).
 import { AGENDA_IDS } from '../../src/data/v2/agendas';
 import { TRAIT_IDS } from '../../src/data/v2/traits';
 import { causeStrip } from '../../src/engine/v2/core/causes';
@@ -26,6 +27,64 @@ import type { Cadence, EngineSystem, GameStateV2, SetupV2, StreamId, WorkstreamI
 import { check, finish, runTo, validateJson } from './lib';
 
 const N = 1500;
+const PERF_ONLY = process.argv.includes('--perf-only');
+const NO_PERF = process.argv.includes('--no-perf');
+
+// Stream instrumentation for section 4 (stream isolation). Installed before everything else so that --perf-only
+// measures the tick under exactly the same wrappers as a full run (outside a logged run they only pass through).
+const MOD = 1n << 32n;
+const STEP = 0x6d2b79f5n;
+const STEP_INV = (() => {
+  // modular inverse of the (odd) mulberry32 increment mod 2^32 (extended Euclid)
+  let [r0, r1, t0, t1] = [MOD, STEP, 0n, 1n];
+  while (r1 !== 0n) {
+    const q = r0 / r1;
+    [r0, r1] = [r1, r0 - q * r1];
+    [t0, t1] = [t1, t0 - q * t1];
+  }
+  return ((t0 % MOD) + MOD) % MOD;
+})();
+const stepsBetween = (from: number, to: number) => Number(((((BigInt(to) - BigInt(from)) % MOD) + MOD) % MOD * STEP_INV) % MOD);
+const advance = (state: number, steps: number) => Number((BigInt(state) + BigInt(steps) * STEP) % MOD);
+interface DrawLog { expected: Partial<Record<StreamId, number>>; broken: Set<string>; draws: Partial<Record<StreamId, number>>; bySystem: Map<string, Set<StreamId>> }
+let current = '(outside tick)';
+let log: DrawLog | undefined;
+type Holder = { id: StreamId; holder: { rng: Record<StreamId, number> }; r: { state: number }; __loaded?: number };
+const proto = StreamRng.prototype as unknown as { load(this: Holder): unknown; save<T>(this: Holder, v: T): T };
+const load0 = proto.load;
+const save0 = proto.save;
+proto.load = function (this: Holder) {
+  if (log) {
+    const st = this.holder.rng[this.id];
+    if (log.expected[this.id] === undefined) log.expected[this.id] = st;
+    else if (log.expected[this.id] !== st) log.broken.add(`${this.id} (state changed outside its draws, in ${current})`);
+    this.__loaded = st;
+    log.draws[this.id] = (log.draws[this.id] ?? 0) + 1;
+    let set = log.bySystem.get(current);
+    if (!set) log.bySystem.set(current, (set = new Set()));
+    set.add(this.id);
+  }
+  return load0.call(this);
+};
+proto.save = function <T>(this: Holder, v: T): T {
+  const out = save0.call(this, v) as T;
+  if (log && this.__loaded !== undefined) log.expected[this.id] = advance(this.__loaded, stepsBetween(this.__loaded, this.r.state));
+  return out;
+};
+for (const sys of SYSTEMS) {
+  const run0 = sys.run;
+  sys.run = (s, ctx) => {
+    const prev = current;
+    current = sys.id;
+    try {
+      run0(s, ctx);
+    } finally {
+      current = prev;
+    }
+  };
+}
+
+if (!PERF_ONLY) { // sections 1–7
 
 // ---------- 1. Registry matches the spec table (§2.2) ----------
 const SPEC: [string, string, Cadence, number][] = [
@@ -153,57 +212,6 @@ const CROSS_HOOKS: [string, StreamId, string][] = [
   ['products', 'safety', 'WS2 observe (eval suites of the auto-evaluate policy, R6)'],
   ['research', 'safety', 'WS2 fireFinding when a research-line project completes (R8)'],
 ];
-const MOD = 1n << 32n;
-const STEP = 0x6d2b79f5n;
-const STEP_INV = (() => {
-  // modular inverse of the (odd) mulberry32 increment mod 2^32 (extended Euclid)
-  let [r0, r1, t0, t1] = [MOD, STEP, 0n, 1n];
-  while (r1 !== 0n) {
-    const q = r0 / r1;
-    [r0, r1] = [r1, r0 - q * r1];
-    [t0, t1] = [t1, t0 - q * t1];
-  }
-  return ((t0 % MOD) + MOD) % MOD;
-})();
-const stepsBetween = (from: number, to: number) => Number(((((BigInt(to) - BigInt(from)) % MOD) + MOD) % MOD * STEP_INV) % MOD);
-const advance = (state: number, steps: number) => Number((BigInt(state) + BigInt(steps) * STEP) % MOD);
-interface DrawLog { expected: Partial<Record<StreamId, number>>; broken: Set<string>; draws: Partial<Record<StreamId, number>>; bySystem: Map<string, Set<StreamId>> }
-let current = '(outside tick)';
-let log: DrawLog | undefined;
-type Holder = { id: StreamId; holder: { rng: Record<StreamId, number> }; r: { state: number }; __loaded?: number };
-const proto = StreamRng.prototype as unknown as { load(this: Holder): unknown; save<T>(this: Holder, v: T): T };
-const load0 = proto.load;
-const save0 = proto.save;
-proto.load = function (this: Holder) {
-  if (log) {
-    const st = this.holder.rng[this.id];
-    if (log.expected[this.id] === undefined) log.expected[this.id] = st;
-    else if (log.expected[this.id] !== st) log.broken.add(`${this.id} (state changed outside its draws, in ${current})`);
-    this.__loaded = st;
-    log.draws[this.id] = (log.draws[this.id] ?? 0) + 1;
-    let set = log.bySystem.get(current);
-    if (!set) log.bySystem.set(current, (set = new Set()));
-    set.add(this.id);
-  }
-  return load0.call(this);
-};
-proto.save = function <T>(this: Holder, v: T): T {
-  const out = save0.call(this, v) as T;
-  if (log && this.__loaded !== undefined) log.expected[this.id] = advance(this.__loaded, stepsBetween(this.__loaded, this.r.state));
-  return out;
-};
-for (const sys of SYSTEMS) {
-  const run0 = sys.run;
-  sys.run = (s, ctx) => {
-    const prev = current;
-    current = sys.id;
-    try {
-      run0(s, ctx);
-    } finally {
-      current = prev;
-    }
-  };
-}
 const logged = (opts?: Parameters<typeof tick>[1]) => {
   log = { expected: {}, broken: new Set(), draws: {}, bySystem: new Map() };
   const s = run(detSetup, 400, opts);
@@ -505,6 +513,9 @@ try {
   bad = true;
 }
 check(bad, 'causes: unknown meter path throws');
+} // sections 1–7
+
+if (!NO_PERF) { // section 8
 
 // ---------- 8. Performance (§7.5: daily ≤ 1.5 ms avg, quarter tick ≤ 8 ms) ----------
 /** Mean daily tick (ms), worst quarterly tick (ms) and the ending (if any) over N days. */
@@ -559,5 +570,6 @@ check(perfOn.worstQ <= 8, 'performance (leader lab): worst quarter tick', `${per
   const med = [...ratios].sort((a, b) => a - b)[1];
   check(med <= 1.2, 'performance (leader lab): its own cost ≤ +20% of a tick (target ~10%)', `+${(100 * (med - 1)).toFixed(1)}% (paired median; ${us.with.toFixed(0)} vs ${us.without.toFixed(0)} µs/day)`);
 }
+} // section 8
 
 finish('hygiene');

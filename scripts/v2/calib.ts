@@ -11,6 +11,12 @@
 //   T3  China lead 150–200 d before any theft (default China lab, WS1 lab API).
 //   T4  Rival gaps at start 3–9 months.
 //   R5  RefBot's build queue never delays a run by more than 3 days (stub and integrated).
+// Every game goes through the simulation cache (simcache.ts; the fit modes do not). Modes:
+//   (default)  everything above.
+//   --cal      T1, T1L and T4 only (test:cal).
+//   --smoke    (test:quick) T1 and T1L on ai2027 only, cut at day SMOKE_DAYS (past the 2027.0 METR and Nov 2026 G-path
+//              reads, so those run at full strength); a milestone reached within the cut is checked exactly as in the full
+//              run, one not yet reached prints SMOKE; T4 runs; the integrated runs, T2 and T3 are skipped.
 import { readFileSync } from 'node:fs';
 import { GOLDEN_TOL, LEADER_CAL } from '../../src/data/v2/calibration';
 import { ASI_EXTRA, V3_CAL } from '../../src/data/v2/workTypes';
@@ -28,7 +34,9 @@ import { newGame } from '../../src/engine/v2/core/init';
 import { resolve, tick } from '../../src/engine/v2/core/loop';
 import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
 import { engine } from '../../src/engine/v2/index';
-import { GOLDEN_PATH, KNOWN, check, finish, refGame, runRef } from './lib';
+import { fileURLToPath } from 'node:url';
+import { GOLDEN_PATH, KNOWN, SMOKE, check, finish, refGame, runRef, smokeCheck } from './lib';
+import { cached, prefill } from './simcache';
 import { LINE_FIT } from '../../src/data/v2/research';
 import { ePreAt, latestBaseFlop, stacksGEquiv } from '../../src/engine/v2/models/stacks';
 import { TREE_BY_ID } from '../../src/data/v2/tree';
@@ -148,12 +156,12 @@ if (process.argv.includes('--fit-v3')) {
 // ---------- T1L helpers: the simulated leader lab with a passive player ----------
 /** New game with the leader lab on (LEADER_CAL[preset] = lc), ticked with no player actions (endings skipped) until
  *  the leader records milestone `stopAt`. Returns the leader's milestone days. */
-function runT1L(preset: T1Preset, lc: number, stopAt: MilestoneIdx, seed = SEED): Partial<Record<MilestoneIdx, number>> {
+function runT1L(preset: T1Preset, lc: number, stopAt: MilestoneIdx, seed = SEED, maxDays = 365 * 16): Partial<Record<MilestoneIdx, number>> {
   LEADER_CAL[preset] = lc;
   const s = newGame(defaultSetupV2({ world: preset, alignment: 'medium', seed, tutorial: false, leaderLab: true }));
   const L = s.rivals.find((r) => r.core.id === LEADER_ID);
   if (!L) throw new Error('T1L: no leader lab');
-  while (s.time.day < 365 * 16 && L.core.milestoneDays[stopAt] === undefined && L.core.status === 'active') tick(s, { skip: ['endings'] });
+  while (s.time.day < maxDays && L.core.milestoneDays[stopAt] === undefined && L.core.status === 'active') tick(s, { skip: ['endings'] });
   return L.core.milestoneDays;
 }
 /** Worst |Δ| over SC … last milestone of the leader lab, in units of its tolerance (≤ 1 passes T1L). */
@@ -308,6 +316,17 @@ if (process.argv.includes('--fit-lines')) {
 }
 
 // ---------- T1 ----------
+const ME = [fileURLToPath(import.meta.url)];
+const CAL_ONLY = process.argv.includes('--cal');
+/** --smoke cut (days): past 2027-01-01 (day 549, the METR read), the Nov 2026 G-path end and the ai2027 golden SC (day 638). */
+const SMOKE_DAYS = 700;
+const MAX_DAYS = SMOKE ? SMOKE_DAYS : 365 * 16;
+const PRESETS: T1Preset[] = SMOKE ? ['ai2027'] : T1_PRESETS;
+/** Calibration overrides that change every run (part of every cache key). */
+const ENV = { V3_SD: process.env.V3_SD ?? null, V3_ASI: process.env.V3_ASI ?? null };
+/** A milestone check: binding when the milestone was reached (and always in a full run); under --smoke a milestone not
+ *  reached within the cut prints SMOKE (the full run would go on). */
+const msCheck = (got: number | undefined, ok: boolean, label: string, detail: string) => (got === undefined ? smokeCheck(ok, label, detail, `(not reached by day ${MAX_DAYS})`) : check(ok, label, detail));
 Object.assign(KNOWN, {
   'T1 ai2027 A1': 'Before continual learning RefBot\'s deployed model lags its know-how by 0.5–0.9 y (base staleness, κ, version age), more than the post-stream lag calShift is fitted to; early milestones are informational (§7.1 binds SC and later).',
   'T1 ai2027 A2': 'see T1 ai2027 A1',
@@ -322,10 +341,10 @@ const stackRates: string[] = [];
 const G_ANCHORS: [string, number][] = [['2025-08-15', 28.0], ['2025-11-15', 28.4], ['2026-02-15', 28.7], ['2026-04-15', 29.0], ['2026-10-15', 29.4]];
 const G_PATH_FROM = dayOfDate(START_DATE, '2025-08-01');
 const G_PATH_TO = dayOfDate(START_DATE, '2026-11-30');
-const v3checks: string[] = [];
-for (const preset of T1_PRESETS) {
+/** T1 run record for a preset (cached): milestone days, R5 waits, stacks before SC, the G path, start M and METR reads. */
+function t1Rec(preset: T1Preset) {
   const cal = { gSC: V3_CAL[preset].gSC, dBM: V3_CAL[preset].dBM };
-  const t0 = performance.now();
+  return cached('calib-t1', { preset, cal, sdSC: V3_CAL[preset].sdSC, seed: SEED, stopAt: lastIdx(preset), maxDays: MAX_DAYS, env: ENV }, ME, () => {
   const waits = new Map<string, number>();
   // V3-BUILD V2.8: the reference lab's pretraining stack and all stacks (G-equivalent) before SC.
   const stackAt0: { day: number; pre: number; g: number }[] = [];
@@ -340,7 +359,7 @@ for (const preset of T1_PRESETS) {
   // base every 9 months), so the check reads the least-squares line through its daily G from Aug 2025 to Nov 2026 at
   // each anchor date, and reports the raw staircase too.
   const gPath: { day: number; g: number }[] = [];
-  const s = runT1(preset, cal, SEED, lastIdx(preset), 365 * 16, (x) => {
+  const s = runT1(preset, cal, SEED, lastIdx(preset), MAX_DAYS, (x) => {
     watch(x);
     if (x.time.day === 1) start = { M: x.player.prodCache?.M ?? 0, rs: researchSpeedRel(x) };
     const bv = bestPlayerVersion(x);
@@ -349,6 +368,70 @@ for (const preset of T1_PRESETS) {
     if (bv?.build && x.time.day >= G_PATH_FROM && x.time.day <= G_PATH_TO) gPath.push({ day: x.time.day, g: gOfBuild(bv.build) });
     if (x.player.milestoneDays[3] === undefined && (x.time.day % 7 === 0)) stackAt0.push({ day: x.time.day, pre: ePreAt(x, latestBaseFlop(x)), g: stacksGEquiv(x) });
   });
+  return { md: s.player.milestoneDays, waits: [...waits.entries()], stackAt0, gPath, start, h0, h1 };
+  });
+}
+/** T1L leader-lab milestone days for a preset (cached). */
+function t1lRec(preset: T1Preset) {
+  const lc = LEADER_CAL[preset];
+  return cached('calib-t1l', { preset, lc, stopAt: lastIdx(preset), seed: SEED, maxDays: MAX_DAYS, env: ENV }, ME, () => runT1L(preset, lc, lastIdx(preset), SEED, MAX_DAYS));
+}
+/** T1 integrated RefBot record for a preset (cached): milestone days, worst R5 wait, final cash and finance state. */
+function intRec(preset: T1Preset) {
+  return cached('calib-integrated', { preset, seed: SEED, stopAt: lastIdx(preset), maxDays: 365 * 16, env: ENV }, ME, () => {
+    const s = newGame(defaultSetupV2({ world: preset, alignment: 'medium', seed: SEED, tutorial: false }));
+    const stop = lastIdx(preset);
+    const waits = new Map<string, number>();
+    const watch = buildDelays(waits);
+    while (s.time.day < 365 * 16 && s.player.milestoneDays[stop] === undefined && s.player.status === 'active') {
+      for (const p of [...s.events.pending]) {
+        const c = refBot.decide(s, p);
+        if (resolve(s, p.instance, c)) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0);
+      }
+      refBot.act(s, engine);
+      tick(s, { skip: ['endings'] });
+      watch(s);
+    }
+    return { md: s.player.milestoneDays, worstWait: Math.max(0, ...waits.values()), cash: s.player.finance.cash, state: s.player.finance.state };
+    });
+}
+/** T2 AI labour at the stub RefBot's SC (cached). */
+function t2Rec() {
+  return cached('calib-t2', { preset: 'ai2027', seed: SEED, maxDays: 365 * 4, stopAt: 3, env: ENV }, ME, () => {
+    const s = refGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: SEED }));
+    runRef(s, 365 * 4, (x) => x.player.milestoneDays[3] !== undefined);
+    const wc = workContext(s);
+    return { day: s.time.day, fte: wc.slots.EXP.aiFte + wc.slots.IDEAS.aiFte, copies: wc.slots.EXP.copies + wc.slots.IDEAS.copies, h100e: wc.slots.EXP.h100e + wc.slots.IDEAS.h100e };
+  });
+}
+/** T3 China lead, monthly until the first theft (stub RefBot, cached). */
+function t3Rec() {
+  const stolen = (x: GameStateV2) => x.player.security.stolen.length + x.rivals.reduce((n, r) => n + r.core.security.stolen.length, 0) > 0;
+  return cached('calib-t3', { world: 'ai2027', alignment: 'medium', seed: SEED, from: 30, to: 540, step: 30, env: ENV }, ME, () => {
+    const s = refGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: SEED }));
+    const leads: number[] = [];
+    for (let d = 30; d <= 540; d += 30) {
+      runRef(s, d, stolen);
+      if (stolen(s)) break;
+      leads.push(Math.round(trueLeadDays(s, 'china')));
+    }
+    return { leads, day: s.time.day };
+  });
+}
+// The runner's --prefill shards: every cached run of this mode, in the order the checks ask for them.
+prefill([
+  ...PRESETS.map((p) => () => t1Rec(p)),
+  ...PRESETS.map((p) => () => t1lRec(p)),
+  ...(SMOKE || CAL_ONLY || process.argv.includes('--no-integrated') ? [] : T1_PRESETS.map((p) => () => intRec(p))),
+  ...(SMOKE || CAL_ONLY ? [] : [() => t2Rec(), () => t3Rec()]),
+]);
+const v3checks: string[] = [];
+for (const preset of PRESETS) {
+  const cal = { gSC: V3_CAL[preset].gSC, dBM: V3_CAL[preset].dBM };
+  const t0 = performance.now();
+  const rec = t1Rec(preset);
+  const { stackAt0, gPath, start, h0, h1 } = rec;
+  const waits = new Map(rec.waits);
   if (stackAt0.length > 2) {
     const a = stackAt0[0];
     const y1 = stackAt0.find((r) => r.day >= 365) ?? stackAt0[stackAt0.length - 1];
@@ -380,6 +463,7 @@ for (const preset of T1_PRESETS) {
   const worstWait = Math.max(0, ...waits.values());
   delays.push(`${preset} ${worstWait} d over ${waits.size} runs`);
   check(worstWait <= 3, `R5 build queue never delays a RefBot run > 3 d (${preset})`, `worst ${worstWait} d`);
+  const s = { player: { milestoneDays: rec.md } };
   const g = golden.presets[preset].days;
   const row: string[] = [];
   NAMES.forEach((n, i) => {
@@ -390,8 +474,8 @@ for (const preset of T1_PRESETS) {
     const tol = (i === 3 ? GOLDEN_TOL.SC : GOLDEN_TOL.after) * 365;
     const dy = got === undefined ? NaN : (got - want) / 365;
     row.push(`${n} ${got === undefined ? '—' : yearOf(got).toFixed(3)} (${Number.isNaN(dy) ? '—' : (dy >= 0 ? '+' : '') + dy.toFixed(3)})`);
-    if (i < 3) check(got !== undefined && Math.abs(got - want) <= tol, `T1 ${preset} ${n}`, `got ${got ?? '—'} want ${want} ±${Math.round(tol)} d`);
-    else check(got !== undefined && Math.abs(got - want) <= tol, `T1 ${preset} ${n}`, `got ${got ?? '—'} (${got === undefined ? '' : yearOf(got)}) want ${want} (${yearOf(want)}) ±${Math.round(tol)} d`);
+    if (i < 3) msCheck(got, got !== undefined && Math.abs(got - want) <= tol, `T1 ${preset} ${n}`, `got ${got ?? '—'} want ${want} ±${Math.round(tol)} d`);
+    else msCheck(got, got !== undefined && Math.abs(got - want) <= tol, `T1 ${preset} ${n}`, `got ${got ?? '—'} (${got === undefined ? '' : yearOf(got)}) want ${want} (${yearOf(want)}) ±${Math.round(tol)} d`);
   });
   table.push(`${preset.padEnd(12)} G_SC ${cal.gSC.toFixed(3)} Δ_bm ${cal.dBM.toFixed(3)} sd_SC ${V3_CAL[preset].sdSC}  ${row.join('  ')}  [${(performance.now() - t0).toFixed(0)} ms]`);
 }
@@ -406,10 +490,10 @@ for (const r of v3checks) console.log('  ' + r);
 // ---------- T1L: the leader lab (passive player) hits the golden days; SC and later bind, A1/A2 informational ----------
 {
   const tableL: string[] = [];
-  for (const preset of T1_PRESETS) {
+  for (const preset of PRESETS) {
     const lc = LEADER_CAL[preset];
     const t0 = performance.now();
-    const md = runT1L(preset, lc, lastIdx(preset));
+    const md = t1lRec(preset);
     const g = golden.presets[preset].days;
     const row: string[] = [];
     NAMES.forEach((n, i) => {
@@ -421,7 +505,7 @@ for (const r of v3checks) console.log('  ' + r);
       row.push(`${n} ${got === undefined ? '—' : yearOf(got).toFixed(3)} (${Number.isNaN(dy) ? '—' : (dy >= 0 ? '+' : '') + dy.toFixed(3)})`);
       if (i < 3) return;
       const tol = (i === 3 ? GOLDEN_TOL.SC : GOLDEN_TOL.after) * 365;
-      check(got !== undefined && Math.abs(got - want) <= tol, `T1L ${preset} ${n}`, `got ${got ?? '—'} (${got === undefined ? '' : yearOf(got)}) want ${want} (${yearOf(want)}) ±${Math.round(tol)} d`);
+      msCheck(got, got !== undefined && Math.abs(got - want) <= tol, `T1L ${preset} ${n}`, `got ${got ?? '—'} (${got === undefined ? '' : yearOf(got)}) want ${want} (${yearOf(want)}) ±${Math.round(tol)} d`);
     });
     tableL.push(`${preset.padEnd(12)} LEADER_CAL ${lc.toFixed(3)}  ${row.join('  ')}  [${(performance.now() - t0).toFixed(0)} ms]`);
   }
@@ -433,23 +517,14 @@ for (const r of v3checks) console.log('  ' + r);
 // Same RefBot model policy, but compute is bought by WS3's autopilot under real cash, revenue is WS5's and every system
 // is live (endings skipped so the timeline can be read to ASI). §7.1 binds T1 on the stub; this table shows how far
 // money and the market move it (M2 report: flag anything > 3 months).
-if (!process.argv.includes('--no-integrated')) {
+if (!process.argv.includes('--no-integrated') && !SMOKE && !CAL_ONLY) {
   console.log('\nT1 integrated RefBot (real finance; Δ vs golden, years):');
   for (const preset of T1_PRESETS) {
     const t0 = performance.now();
-    const s = newGame(defaultSetupV2({ world: preset, alignment: 'medium', seed: SEED, tutorial: false }));
+    const r = intRec(preset);
+    const s = { player: { milestoneDays: r.md, finance: { cash: r.cash, state: r.state } } };
     const stop = lastIdx(preset);
-    const waits = new Map<string, number>();
-    const watch = buildDelays(waits);
-    while (s.time.day < 365 * 16 && s.player.milestoneDays[stop] === undefined && s.player.status === 'active') {
-      for (const p of [...s.events.pending]) {
-        const c = refBot.decide(s, p);
-        if (resolve(s, p.instance, c)) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0);
-      }
-      refBot.act(s, engine);
-      tick(s, { skip: ['endings'] });
-      watch(s);
-    }
+    const waits = new Map([['worst', r.worstWait]]);
     check(Math.max(0, ...waits.values()) <= 3, `R5 build queue never delays a RefBot run > 3 d (integrated ${preset})`, `worst ${Math.max(0, ...waits.values())} d`);
     const g = golden.presets[preset].days;
     const row = NAMES.slice(1, stop + 1).map((n, j) => {
@@ -467,13 +542,11 @@ if (!process.argv.includes('--no-integrated')) {
 // AI 2027 (research/13 §1.9): ≈ 200k Agent-3 copies at ≈ 30× ("50,000 copies of the best human coder sped up by 30×",
 // ≈ 1.5M best-coder FTE, ≈ 5M median-FTE) on ≈ 0.5M H100e. Model v3 counts copies physically (FLOP per token, utilisation,
 // tokens per work-hour; departments/workfit.ts), so the check is an order of magnitude on the AI FTE in research.
-{
-  const s = refGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: SEED }));
-  runRef(s, 365 * 4, (x) => x.player.milestoneDays[3] !== undefined);
-  const wc = workContext(s);
-  const fte = wc.slots.EXP.aiFte + wc.slots.IDEAS.aiFte;
-  const copies = wc.slots.EXP.copies + wc.slots.IDEAS.copies;
-  console.log(`INFO  T2 at SC (day ${s.time.day}): research agents ${Math.round(copies / 1000)}k copies at ${speedOfCopy().toFixed(1)}× on ${Math.round((wc.slots.EXP.h100e + wc.slots.IDEAS.h100e) / 1000)}k H100e = ${(fte / 1e6).toFixed(2)}M FTE (AI 2027: 200k copies at 30×, ≈ 5M median-FTE on ≈ 0.5M H100e)`);
+if (!SMOKE && !CAL_ONLY) {
+  const t2 = t2Rec();
+  const { fte, copies } = t2;
+  const s = { time: { day: t2.day } };
+  console.log(`INFO  T2 at SC (day ${s.time.day}): research agents ${Math.round(copies / 1000)}k copies at ${speedOfCopy().toFixed(1)}× on ${Math.round(t2.h100e / 1000)}k H100e = ${(fte / 1e6).toFixed(2)}M FTE (AI 2027: 200k copies at 30×, ≈ 5M median-FTE on ≈ 0.5M H100e)`);
   check(fte >= 5e5 / 10 && fte <= 5e6 * 10, 'T2 AI labour at SC within an order of magnitude of AI 2027 (sanity check)', `${(fte / 1e6).toFixed(2)}M FTE`);
 }
 
@@ -495,18 +568,15 @@ if (!process.argv.includes('--no-integrated')) {
   // The lead is read against the player's discrete releases, so it swings by ± a release interval; T3 tests the
   // mean over the pre-SC year and a loose band on every monthly sample.
   // Sampled monthly until the first weight theft by China (from the player or any rival), which resets the gap.
-  const stolen = (x: GameStateV2) => x.player.security.stolen.length + x.rivals.reduce((n, r) => n + r.core.security.stolen.length, 0) > 0;
-  const leads: number[] = [];
-  for (let d = 30; d <= 540; d += 30) {
-    runRef(s, d, stolen);
-    if (stolen(s)) break;
-    leads.push(Math.round(trueLeadDays(s, 'china')));
-  }
-  if (leads.length < 18) console.log(`      T3: first theft on day ${s.time.day}; ${leads.length} monthly samples before it`);
+  if (!SMOKE && !CAL_ONLY) {
+  const t3 = t3Rec();
+  const leads = t3.leads;
+  if (leads.length < 18) console.log(`      T3: first theft on day ${t3.day}; ${leads.length} monthly samples before it`);
   const mean = leads.reduce((a, x) => a + x, 0) / leads.length;
   // M2: informational. The stub pins China's compute to the reference path; with WS4's China compute (computeAbs) and
   // the WS1 distillation leak live, the binding T3 is the integrated one in scripts/v2/ws4.ts (CHINA_CAL is fit there).
   console.log(`INFO  T3 (stub compute) China mean lead before theft: ${mean.toFixed(0)} d; monthly ${leads.join(' ')}`);
+  }
 }
 
 finish('calib');
