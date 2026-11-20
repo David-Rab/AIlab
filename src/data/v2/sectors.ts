@@ -63,13 +63,22 @@ export const REGIONS: RegionId[] = ['US', 'CN', 'ROW'];
 export const US_EMPLOYMENT = 160e6;
 
 /** Region scales relative to the US (§3.11.3): ROW wage × 0.5, employment × 6 [spec]; CN ≈ 740M employed at
- *  0.3 × US wage [D]. `A0` scales start adoption and the workers' base use share W_b (A2a: no primary hours series
- *  outside the US, research/22; CN and ROW workers are assumed to use AI at 0.6 × the US rate, at the US intensity);
- *  `R` scales friction (CN state steering, EU AI Act in ROW) [D]. */
-export const REGION_SCALE: Record<RegionId, { emp: number; wage: number; A0: number; R: number }> = {
-  US: { emp: 1, wage: 1, A0: 1, R: 1 },
-  CN: { emp: 4.6, wage: 0.3, A0: 0.6, R: 0.85 },
-  ROW: { emp: 6, wage: 0.5, A0: 0.6, R: 1.1 },
+ *  0.3 × US wage [D]. `use` scales the workers' base use share W_b (A2a: CN and ROW workers use AI at 0.6 × the US
+ *  rate, at the US intensity; A8 check: ROW / US hours of use 6 × 0.6 = 3.6, and Claude.ai usage outside the US and
+ *  China is 78% of the world's against the US's 21.6%, 3.6× [P: Anthropic Economic Index, Sep 2025]). `A0` scales the
+ *  start of firm adoption A, the tasks firms hand to AI and pay for by the hour (A2a had it = `use`). A8: ROW 0.225 =
+ *  0.6 × the paid-seat ratio of AI-using workers (SEATS.start ROW 0.045 ÷ US 0.12) [D]: firms outside the US paid for
+ *  AI at the rate their workers held paid seats, so ROW's adopted and agent spend starts at 1.3× the US's (was 3.4×), and
+ *  US customers are 43% of the start sector spend outside China (was 30%). Anthropic's revenue by billing address was ≈ 2/3
+ *  US in 2025 and 72% in H1 2026 [UNVERIFIED: secondary readings of its S-1; the filing exceeded the fetch limit],
+ *  an upper bound for where the work is (multinationals bill in the US). A then moves toward its ceiling as in the US,
+ *  so ROW closes the gap over the game (ROW / US adopted spend 1.3× at the start, 2.5× by day 400, 3.3× by day 900;
+ *  3.5 / 3.9 / 3.9× before). CN keeps 0.6 (served by Chinese labs; no anchor). `R` scales friction
+ *  (CN state steering, EU AI Act in ROW) [D]. */
+export const REGION_SCALE: Record<RegionId, { emp: number; wage: number; A0: number; use: number; R: number }> = {
+  US: { emp: 1, wage: 1, A0: 1, use: 1, R: 1 },
+  CN: { emp: 4.6, wage: 0.3, A0: 0.6, use: 0.6, R: 0.85 },
+  ROW: { emp: 6, wage: 0.5, A0: 0.225, use: 0.6, R: 1.1 },
 };
 
 /** Labor-force scale (employment / (1 − U_base)) and base unemployment by region (%). US 4.3% [R16 §1A.2]. */

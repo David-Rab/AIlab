@@ -43,7 +43,7 @@ import { bandPaid, worldMix, type TierKind, type WorldMix } from '../../src/engi
 import { adequacy, surplusChoice, type Tier } from '../../src/engine/v2/worldfx/choice';
 import { revenueReadout, sectorHours, sectorSpendParts, servingPool } from '../../src/engine/v2/worldfx/revenue';
 import { agentCeilingOf, workHoursOf } from '../../src/engine/v2/worldfx/use';
-import { ECON, SECTORS } from '../../src/data/v2/sectors';
+import { ECON, REGION_SCALE, SECTORS } from '../../src/data/v2/sectors';
 import { MARKET_BANDS, SHARE_SLOPE_G } from '../../src/data/v2/serving';
 import {
   adoptedTokens, agentDemandOf, agentLeverage, cheapestAt, effortDG, studentToHold, fxOn, h100eHoursPer, internalFx, offerOf, paidShareTarget, productOffer, reachTarget, sectorCover, sectorTheta, serveDollarsPerHour,
@@ -387,6 +387,27 @@ for (const d of [400, 900]) {
   check(bad === 0 && pl / sp >= 0.25 && pl / sp <= 0.45 && full > 0.75 && mh < q + 0.05 && mh > 0.5 * q,
     'A8 multi-homing: start stocks at the day-0 targets; the classic leader holds 0.25–0.45 of US + ROW sector spend; a sole frontier model wins only the buyers who reach it',
     `${bad} cells off; leader ${(pl / sp).toFixed(3)} of $${sp.toFixed(2)}B; toy leader ${full.toFixed(3)} with everyone reachable → ${mh.toFixed(3)} at q ${q.toFixed(2)}`);
+  // A8 part 2: ROW firms start paying for AI work at the rate their AI-using workers hold paid seats (REGION_SCALE.ROW
+  // A0 = use × SEATS.start ROW ÷ US), so US buyers are 40–72% of the start sector spend outside China (72%: Anthropic's
+  // US billing share, an upper bound [UNVERIFIED]); workers' use keeps its scale (ROW / US hours of use ≈ 3.6, the
+  // Anthropic Economic Index's Claude.ai split); the leader's day-1 revenue ≈ $12–15B with Chat ≈ two thirds of it.
+  let us = 0;
+  let row = 0;
+  for (const def of SECTORS) {
+    const a = sectorSpendParts(s, 'US', def.id, mix);
+    const b = sectorSpendParts(s, 'ROW', def.id, mix);
+    us += a.adopted + a.agent + a.seat;
+    row += b.adopted + b.agent + b.seat;
+  }
+  const hrs = (r: 'US' | 'ROW') => SECTORS.reduce((x, def) => x + sectorHours(s, r, def.id), 0);
+  const hr = hrs('ROW') / hrs('US');
+  const a0 = REGION_SCALE.ROW.A0;
+  run(s, 1);
+  const rd = revenueReadout(s);
+  const chatRev = rd.deps.find((z) => z.channel === 'consumer')!.revenue;
+  check(us / (us + row) >= 0.4 && us / (us + row) <= 0.72 && hr > 3 && hr < 4.2 && near(a0, (REGION_SCALE.ROW.use * SEATS.start.ROW) / SEATS.start.US, 1e-9) && rd.total >= 12 && rd.total <= 15 && chatRev / rd.total >= 0.6 && chatRev / rd.total <= 0.75,
+    'A8 US buyers 40–72% of the start sector spend outside China, ROW / US hours of use ≈ 3.6; leader day-1 revenue $12–15B, Chat 60–75% of it',
+    `US $${us.toFixed(2)}B of $${(us + row).toFixed(2)}B (${((100 * us) / (us + row)).toFixed(0)}%); hours ROW / US ${hr.toFixed(2)}; revenue $${rd.total.toFixed(2)}B (Chat $${chatRev.toFixed(2)}B, ${((100 * chatRev) / rd.total).toFixed(0)}%)`);
 }
 for (const d of [400, 900]) {
   // C6 no provider's subscription is priced above the willingness to pay (unless serving a subscriber costs more).
