@@ -1538,3 +1538,59 @@ reached on the cards; a Premium Chat plan shows the $22 cap). Screenshots looked
 **Seen in the screenshots (reported, not fixed here).** At day 900 the value cap does not bind on any player product
 (V4a saw 97%; A2c's prices moved it). The Agents launch card has empty space below its gate (B4's empty-space pass).
 The serving card now starts lower and is partly below the fold at 1000 px height (the panel scrolls).
+
+### B2 notes (product card: customers as a stock, typed features; 2026-11-20)
+
+Code: `worldfx/productView.ts` (output-only: `ProductRead.cust: CustomerView` from the mix's per-(region, segment) stock
+and logit target, `CONVERGED`, `featureView(f, channel)`), `ui/v2/panels/Products.tsx` (`Customers` block replaces the
+Share block and the customers row; `FeatureRow` two-line rows, `FeatureTip`), `products.css`, glossary (+7 terms, 3
+rewritten), `lint-ux.ts` REQUIRED, `uitest.mjs` (B2 checks). No mechanism change, no state change, no schema bump.
+
+**Customers (L2 block, L3 tooltips).** One block, the home of the customer stock:
+- **You** bar = the stock (the player's share of the segment's spend, all its products: the same quantity the old Share
+  row showed, so that row is gone), a white tick at the target, "13% → 7%" (green up, red down); best rival bar below.
+  Tooltip: target share, best rival, this product's demand, the four segments with the largest weighted gap
+  (region · sector, stock → target).
+- **Chat**: "216M weekly users → 171M" (users at the target share = users × Σ users_r·target_r ÷ Σ users_r·stock_r).
+  Tooltip: users at target, paying, free.
+- **Speed line**: "moves in weeks / months / quarters · ~N d to target" (or "at target", "> 3 yr"). Tooltip: τ per speed
+  class with its spend weight (sector products: 3 mo, GOV/MIL 9 mo), now → target, the "reached" rule.
+- **Edit preview**: "Target share" before → after replaces the revenue ÷ ARPU customers row (the stock does not move at
+  once; the target does). Chat also "Users at target".
+
+**Features (two-line rows).** Line 1: status icon, name, control (toggle / Build with cash / building ETA / lock + type
+chips). Line 2: type chip(s) (DoorOpen enabler, Ruler horizon, Blocks scaffold, BrainCog effort; word shown when there is
+one type), the short typed effect for this product ("+0.3 OOM ×2 tok", "×1.3 longer tasks", "+15% work", "+0.24 OOM ×4
+tok", "+0.42 OOM per pack"), a Bot icon when it also helps the internal agents, "on/off" when built; locked rows: "needs
+<idea>". Tooltip: each typed effect with scope and token multiplier (effects that do not act on this product marked),
+build (team-weeks, cash), upkeep, on this product, internal agents (work types), unlocked by (idea, known or not), risk.
+
+**Choices [D].**
+- "At target" = spend-weighted |target − stock| ≤ 0.5 pp; days by bisection on Σ w·|gap|·e^(−t/τ), assuming the target
+  holds (said in the tooltip footer).
+- Speed words by the largest-weight τ: < 60 d weeks, < 180 d months, else quarters.
+- Feature effects are shown for the product's market: Chat sells only to consumers, the others only to sectors, so a
+  Chat-user enabler is "(not on this product)" on Enterprise.
+- Upkeep: features have no engineering upkeep in the engine (only products, monitors, runs); the row says so, and names
+  the serving token multiplier as the running cost.
+- Team-weeks moved off the row to the tooltip and the Build button's preview (room for the effect line).
+
+**Removed text.** Glossary `feature` (appeal / domain level / sector level), `sectorPack` and `sectorProduct` "+0.5
+levels" (now +0.42 OOM of fit); the card's "Revenue ÷ about $X a year per customer" row.
+
+**Gate.** tsc main + scripts clean; build clean; lint-ux green (224 → 231 required terms); products and serving pass;
+`test:ui` 285 passed, 0 failed (new: B2 checks at day 1, 400, 900 — stock → target, speed and days on every card,
+customer-row tooltips, type and typed effect with units on every feature row, locked rows name the idea, no clipped
+feature text, feature tooltips carry build/upkeep/on here/internal/gate, all 7 terms reached; the edit preview shows the
+target share). Screenshots looked at: `scripts/v2/shots/25-day1-products.png`, `27-day400-products-b2.png`,
+`28-day900-products-b2.png`, plus tooltip captures (customers, speed, Memory, Coding agent, Deep think).
+
+**Seen / open (reported, not fixed here).**
+- `ProductRead.customers` (revenue ÷ ARPU) still feeds the top-strip revenue tooltip and the Core loop's customers node:
+  sector products have no real customer count (only seats for Enterprise/Gov); F6 or B4 should switch those to the
+  stock share.
+- Voice & vision's +15% Media work enabler can never act: the feature is offered only on Chat, which sells no sector
+  work (data issue for the lead).
+- The player-level stock and target: a tier change on one product moves the target only if that product is the
+  player's best offer in a sector (day 1: API premium leaves the target at 47.5% since Enterprise is the better offer).
+- Cards are ≈ 50 px taller (two-line feature rows); the serving card starts lower (panel scrolls).

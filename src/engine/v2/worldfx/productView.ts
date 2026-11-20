@@ -1,17 +1,18 @@
 // Product readouts and live-edit previews (STRUCTURE §4.4, BUILD-PLAN R6; mockup v3-products). Owner: WS5.
 //
-// Per product: revenue, customers (Chat: its weekly users, a stock; other products revenue ÷ revenue per customer), share
-// of its segment's spend vs the best rival product, binding cause, serving need / served / cut, run cost, cost and price
+// Per product: revenue, customers (B2: the customer stock as a share of the segment's spend, its logit target, the
+// segment speed and days to converge; Chat also its weekly users and their target), the best rival product's share, binding cause, serving need / served / cut, run cost, cost and price
 // per work-hour (Chat: per subscriber-month) and margin, monitor overhead and catch rate (model v3 V4.2). A live edit is
 // previewed by recomputing the market mix and revenue on a copy of the state with the edited product (pure; the edit
 // itself applies at the next tick, D7), so the preview shows what the next tick will compute.
-import { PRODUCT_DEFS } from '../../../data/v2/features';
+import { PRODUCT_DEFS, type FeatureDef, type WorkScope } from '../../../data/v2/features';
 import { REGIONS, SECTORS } from '../../../data/v2/sectors';
+import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
 import { catchRate, monitorOverhead } from '../models/products';
 import { versionById } from '../models/labs';
-import { markupOf, serveDollarsPerHour } from './serving';
-import { CONSUMER_MKT, SERVE_HOURS_PER_YEAR } from '../../../data/v2/serving';
-import type { Deployment, GameStateV2, Money } from '../types';
+import { SECTOR_PACK_DG, effortDG, markupOf, serveDollarsPerHour } from './serving';
+import { CONSUMER_MKT, CUSTOMER_TAU, EFFORT_TOKENS, SERVE_HOURS_PER_YEAR } from '../../../data/v2/serving';
+import type { Deployment, GameStateV2, Money, RegionId, SectorId } from '../types';
 import { paidDeployments, worldMix, type WorldMix } from './mix';
 import { consumerSpend, consumerUsers, revenueReadout, sectorSpend, type DeploymentRevenue, type RevenueReadout } from './revenue';
 
@@ -49,6 +50,140 @@ export interface ProductRead {
   /** B1: the price tier as a markup over cost, and the product's serving economics by source (DeploymentRevenue). */
   markup: number;
   econ: ProductEcon;
+  /** B2: the customer stock vs its target and speed. */
+  cust: CustomerView;
+}
+
+/** B2 (product card): customers are a stock per (region, segment) moving toward the logit target at the segment's speed
+ *  (mix.ts advanceCustomers, CUSTOMER_TAU). Aggregated over the segments the product sells into, weighted by their spend
+ *  (the same weights as `share`). The stock and target are the player's (all its products in the segment). */
+export interface CustomerSeg {
+  r: RegionId;
+  seg: SectorId | 'consumer';
+  /** Spend weight in the product's segment. */
+  w: number;
+  stock: number;
+  target: number;
+  /** Time constant (days). */
+  tauDays: number;
+}
+export interface CustomerView {
+  /** Spend-weighted customer stock (= `share`) and logit target. */
+  stock: number;
+  target: number;
+  /** Chat: weekly users (stock) and the users at the target share. */
+  users?: number;
+  usersTarget?: number;
+  /** Time constants (days) by speed class and their spend weight, largest weight first. */
+  taus: { days: number; w: number }[];
+  /** Days until the spend-weighted gap to the target is within CONVERGED, if the target held: 0 = at target,
+   *  Infinity = more than 3 years. */
+  days: number;
+  /** Segments with the largest weighted gap (up to 4). */
+  movers: CustomerSeg[];
+}
+/** The stock counts as at its target within half a percentage point (spend-weighted gap) [D]. */
+export const CONVERGED = 0.005;
+
+/** Days until Σ w·|target − stock|·e^(−t/τ) ≤ CONVERGED (bisection; each segment's gap closes exponentially). */
+function convergeDays(segs: CustomerSeg[]): number {
+  const W = segs.reduce((a, x) => a + x.w, 0) || 1;
+  const gap = (t: number) => segs.reduce((a, x) => a + x.w * Math.abs(x.target - x.stock) * Math.exp(-t / x.tauDays), 0) / W;
+  if (gap(0) <= CONVERGED) return 0;
+  const MAX = 3 * 365;
+  if (gap(MAX) > CONVERGED) return Infinity;
+  let lo = 0;
+  let hi = MAX;
+  for (let i = 0; i < 24; i++) {
+    const m = (lo + hi) / 2;
+    if (gap(m) > CONVERGED) lo = m; else hi = m;
+  }
+  return Math.ceil(hi);
+}
+
+/** The player's customer view over a product's segments. */
+function customerOf(segs: CustomerSeg[]): CustomerView {
+  const W = segs.reduce((a, x) => a + x.w, 0);
+  const n = W > 0 ? segs : segs.map((x) => ({ ...x, w: 1 }));
+  const Wn = n.reduce((a, x) => a + x.w, 0) || 1;
+  const stock = n.reduce((a, x) => a + x.w * x.stock, 0) / Wn;
+  const target = n.reduce((a, x) => a + x.w * x.target, 0) / Wn;
+  const tm = new Map<number, number>();
+  for (const x of n) tm.set(x.tauDays, (tm.get(x.tauDays) ?? 0) + x.w / Wn);
+  const taus = [...tm].map(([days, w]) => ({ days, w })).sort((a, b) => b.w - a.w);
+  const movers = n.filter((x) => Math.abs(x.target - x.stock) > 1e-4)
+    .sort((a, b) => b.w * Math.abs(b.target - b.stock) - a.w * Math.abs(a.target - a.stock)).slice(0, 4);
+  return { stock, target, taus, days: convergeDays(n), movers };
+}
+
+const TAU_DAYS = { consumer: CUSTOMER_TAU.consumer * 365, sector: CUSTOMER_TAU.sector * 365, gov: CUSTOMER_TAU.gov * 365 };
+
+/** B2: a feature's typed effects for the product card, with units. */
+export type FeatureKind = 'enabler' | 'horizon' | 'scaffold' | 'effort';
+export interface FeatureLine {
+  kind: FeatureKind;
+  /** The effect with units ("+0.30 OOM fit", "horizon ×1.3", "+15% reachable work"). */
+  effect: string;
+  /** Token multiplier (scaffolds: every token; effort: reasoning tokens); 1 = none. */
+  tokens: number;
+  /** Where it applies on the product side. */
+  where: string;
+  /** Whether it acts on the product asked about (a Chat-user enabler does nothing on API). */
+  here: boolean;
+}
+export interface FeatureView {
+  kinds: FeatureKind[];
+  lines: FeatureLine[];
+  /** Short effect for the card row ("+0.3 OOM ×3 tok"): the effects that act on this product. */
+  short: string;
+  /** Internal agents' work types it also applies to once built (names); empty = none. */
+  internal: string[];
+}
+const SECTOR_SHORT: Partial<Record<SectorId, string>> = { SOFT: 'Software & IT', OFFICE: 'Admin', FIN: 'Finance', LEGAL: 'Legal', MEDIA: 'Media', SCI: 'Science', GOV: 'Government', MIL: 'Military' };
+/** The internal agents' work types (departments/workfit.ts labour slots). */
+const INTERNAL_WT: WorkTypeId[] = ['SWE', 'EXP', 'IDEAS', 'SAF_EXP'];
+const isWt = (x: string): x is WorkTypeId => x in WORK_TYPES;
+function scopeText(w: WorkScope): string {
+  if (w === 'all') return 'all work';
+  const xs = w.filter((x) => !isWt(x)).map((x) => (x === 'CHAT' ? 'Chat' : SECTOR_SHORT[x as SectorId] ?? x));
+  return xs.length ? xs.join(', ') : 'internal work only';
+}
+const internalOf = (w: WorkScope): WorkTypeId[] => (w === 'all' ? INTERNAL_WT : INTERNAL_WT.filter((x) => w.includes(x)));
+const mult = (x: number) => `×${Number.isInteger(x) ? x : x.toFixed(1)}`;
+
+/** Typed effects of a feature on a product channel, with units (output only: the effects themselves are applied in
+ *  serving.ts). Chat sells only to consumers, the other products only to sectors. */
+export function featureView(f: FeatureDef, channel?: Deployment['channel']): FeatureView {
+  const lines: FeatureLine[] = [];
+  const short: string[] = [];
+  const internal = new Set<WorkTypeId>();
+  const chat = channel === 'consumer';
+  const scoped = (w: WorkScope) => !channel || w === 'all' || w.some((x) => (x === 'CHAT' ? chat : !isWt(x) && !chat));
+  const push = (l: Omit<FeatureLine, 'here'>, here: boolean, sh: string) => {
+    lines.push({ ...l, here });
+    if (here) short.push(sh);
+  };
+  for (const fx of f.fx) {
+    if (fx.kind === 'scaffold') {
+      push({ kind: 'scaffold', effect: `+${fx.dG.toFixed(2)} OOM fit`, tokens: fx.tokens, where: scopeText(fx.work) }, scoped(fx.work), `+${fx.dG} OOM ${mult(fx.tokens)} tok`);
+      for (const x of internalOf(fx.work)) internal.add(x);
+    } else if (fx.kind === 'horizon') {
+      push({ kind: 'horizon', effect: `horizon ${mult(fx.mult)}`, tokens: 1, where: scopeText(fx.work) }, scoped(fx.work), `${mult(fx.mult)} longer tasks`);
+      for (const x of internalOf(fx.work)) internal.add(x);
+    } else if (fx.kind === 'effort') {
+      const tok = EFFORT_TOKENS[fx.setting];
+      const dG = effortDG(tok);
+      push({ kind: 'effort', effect: `+${dG.toFixed(2)} OOM fit`, tokens: tok, where: 'every task (effort: deep think)' }, true, `+${dG.toFixed(2)} OOM ${mult(tok)} tok`);
+    } else if (fx.packs) {
+      push({ kind: 'enabler', effect: `sector products; +${SECTOR_PACK_DG.toFixed(2)} OOM fit per certified pack`, tokens: 1, where: 'the pack\'s sector' }, true, `+${SECTOR_PACK_DG.toFixed(2)} OOM per pack`);
+    } else {
+      const pct = `+${Math.round(fx.share * 100)}%`;
+      if (fx.consumer) push({ kind: 'enabler', effect: `${pct} Chat users`, tokens: 1, where: 'Chat' }, !channel || chat, `${pct} users`);
+      if (fx.sectors?.length) push({ kind: 'enabler', effect: `${pct} reachable work`, tokens: 1, where: fx.sectors.map((x) => SECTOR_SHORT[x] ?? x).join(', ') }, !channel || !chat, `${pct} work`);
+    }
+  }
+  const kinds = [...new Set((lines.some((l) => l.here) ? lines.filter((l) => l.here) : lines).map((l) => l.kind))];
+  return { kinds, lines, short: short.join(' · '), internal: [...internal].map((x) => WORK_TYPES[x].name) };
 }
 
 /** B1 (product card): revenue by source and capacity of one product. Sector products: adopted task-hours and agent-hours
@@ -129,16 +264,20 @@ function providerName(s: GameStateV2, key: string): string {
   return s.rivals.find((r) => r.core.id === key)?.core.name ?? key;
 }
 
-/** Spend-weighted share of each provider in the segment a product sells into (consumer, all sectors, or GOV/MIL). */
-function segmentShares(s: GameStateV2, mix: WorldMix, channel: Deployment['channel']): number[] {
+/** Spend-weighted share of each provider in the segment a product sells into (consumer, all sectors, or GOV/MIL), and
+ *  the player's customer view there (B2). */
+function segmentShares(s: GameStateV2, mix: WorldMix, channel: Deployment['channel'], pi: number): { shares: number[]; cust: CustomerView } {
   const n = mix.providers.length;
   const acc = new Array<number>(n).fill(0);
+  const segs: CustomerSeg[] = [];
   let tot = 0;
   for (const r of REGIONS) {
     if (channel === 'consumer') {
       const cs = consumerSpend(s, mix, r);
       tot += cs;
-      for (let i = 0; i < n; i++) acc[i] += cs * mix.consumer[r].share[i];
+      const cm = mix.consumer[r];
+      for (let i = 0; i < n; i++) acc[i] += cs * cm.share[i];
+      if (pi >= 0 && CONSUMER_MKT.adults[r] > 0) segs.push({ r, seg: 'consumer', w: cs, stock: cm.share[pi], target: cm.target[pi], tauDays: TAU_DAYS.consumer });
       continue;
     }
     for (const def of SECTORS) {
@@ -147,27 +286,41 @@ function segmentShares(s: GameStateV2, mix: WorldMix, channel: Deployment['chann
       const sp = sectorSpend(s, r, def.id, mix);
       tot += sp;
       for (let i = 0; i < n; i++) acc[i] += sp * m.share[i];
+      if (pi >= 0) segs.push({ r, seg: def.id, w: sp, stock: m.share[pi], target: m.target[pi], tauDays: GOV_SECTORS.has(def.id) ? TAU_DAYS.gov : TAU_DAYS.sector });
     }
   }
-  return acc.map((x) => (tot > 0 ? x / tot : 0));
+  return { shares: acc.map((x) => (tot > 0 ? x / tot : 0)), cust: customerOf(segs) };
+}
+
+/** Chat: weekly users at the target share, per product: its users × (Σ_r users_r·target_r ÷ Σ_r users_r·stock_r). */
+function usersAtTarget(s: GameStateV2, mix: WorldMix, pi: number, users: number): number {
+  let a = 0;
+  let b = 0;
+  for (const r of REGIONS) {
+    const u = consumerUsers(s, r);
+    a += u * mix.consumer[r].target[pi];
+    b += u * mix.consumer[r].share[pi];
+  }
+  return b > 0 ? (users * a) / b : 0;
 }
 
 /** Readouts of every product (paid deployments) from one revenue computation. */
 export function productReadouts(s: GameStateV2, mix: WorldMix = worldMix(s), rd: RevenueReadout = revenueReadout(s, mix)): Map<string, ProductRead> {
   const out = new Map<string, ProductRead>();
   const tco = (serveDollarsPerHour(s) * SERVE_HOURS_PER_YEAR) / 1e9;
-  const shareCache = new Map<string, number[]>();
+  const shareCache = new Map<string, ReturnType<typeof segmentShares>>();
   const pi = mix.providers.findIndex((p) => p.key === 'player');
   const going = goingPrice(s, mix);
   for (const d of paidDeployments(s)) {
     const x = rd.deps.find((r) => r.id === d.id);
     if (!x) continue;
     const segKey = d.channel === 'consumer' ? 'c' : d.channel === 'gov' ? 'g' : 's';
-    let sh = shareCache.get(segKey);
-    if (!sh) {
-      sh = segmentShares(s, mix, d.channel);
-      shareCache.set(segKey, sh);
+    let seg = shareCache.get(segKey);
+    if (!seg) {
+      seg = segmentShares(s, mix, d.channel, pi);
+      shareCache.set(segKey, seg);
     }
+    const sh = seg.shares;
     let rival: ProductRead['rival'];
     mix.providers.forEach((p, i) => {
       if (p.lab === 'player') return;
@@ -186,6 +339,7 @@ export function productReadouts(s: GameStateV2, mix: WorldMix = worldMix(s), rd:
       monitorOverhead: monitorOverhead(s, d),
       catchRate: d.monitorId ? catchRate(s, versionById(s, d.versionId), versionById(s, d.monitorId)).rate : 0,
       markup: markupOf(d), econ: econOf(x, going),
+      cust: d.channel === 'consumer' && pi >= 0 ? { ...seg.cust, users: x.users ?? 0, usersTarget: usersAtTarget(s, mix, pi, x.users ?? 0) } : seg.cust,
     });
   }
   return out;

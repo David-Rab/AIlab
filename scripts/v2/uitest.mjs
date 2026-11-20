@@ -609,7 +609,7 @@ async function b1Check(where) {
     users: e.querySelector('[data-test^="prod-users."]')?.textContent ?? '',
   })));
   const bad = cards.filter((c) => !c.econ || !/\$\d/.test(c.price) || !/\d%/.test(c.price) || !c.cap
-    || (c.ch === 'consumer' ? !/→\s*\d/.test(c.paid) || !/weekly users/.test(c.users) || !/paying/.test(c.users) || !/\/mo/.test(c.price) : !c.src || !/\/h/.test(c.price)));
+    || (c.ch === 'consumer' ? !/→\s*\d/.test(c.paid) || !/weekly users/.test(c.users) || !/\/mo/.test(c.price) : !c.src || !/\/h/.test(c.price)));
   ok(`B1 ${where}: every product card shows price, margin, sources and capacity`, cards.length >= 3 && bad.length === 0, bad.map((c) => `${c.ch}: ${c.price} | ${c.paid}`).join(' ; '));
   for (const t of await page.$$eval('[data-panel=products] [data-test^="prod-econ."] [data-term], [data-panel=products] [data-test^="prod-users."] [data-term]', (els) => els.map((e) => e.getAttribute('data-term')))) b1Seen.add(t);
   const rows = await page.$$eval('[data-panel=products] [data-test^="prod-econ."] [data-test], [data-panel=products] [data-test^="prod-users."]', (els) => els.map((e) => e.getAttribute('data-test')).filter((x) => /^prod-(price-row|paid|sources|capacity|users)\./.test(x)));
@@ -625,12 +625,87 @@ async function b1Check(where) {
   await clearTips();
   ok(`B1 ${where}: every economics row opens a tooltip (${rows.length})`, rows.length >= 3 * cards.length && tipped === rows.length, `${tipped}/${rows.length}`);
 }
+// ───────────────────────── B2: customers as a stock, typed features (day 1, 400, 900) ─────────────────────────
+// Every card shows its customer stock vs the target share, the speed and days to target (Chat also users → target);
+// every feature row shows its type and typed effect with units (locked rows: the idea that unlocks them); the rows'
+// tooltips carry build cost, upkeep, on here, internal agents and the gate; every new term is reached.
+const B2_TERMS = ['customerStock', 'targetShare', 'customerSpeed', 'featEnabler', 'featHorizon', 'featScaffold', 'featEffort'];
+const b2Seen = new Set();
+const hoverTip = async (sel) => {
+  await clearTips();
+  await page.hover(sel);
+  await wait(380);
+  const t = await page.evaluate(() => ({ text: document.querySelector('.tip')?.innerText ?? '', terms: [...document.querySelectorAll('.tip [data-term]')].map((e) => e.getAttribute('data-term')) }));
+  for (const x of t.terms) b2Seen.add(x);
+  return t.text;
+};
+async function b2Check(where) {
+  await nav('products');
+  const cards = await page.$$eval('[data-panel=products] [data-product]', (els) => els.map((e) => ({
+    id: e.getAttribute('data-product'), ch: e.getAttribute('data-channel'),
+    stock: e.querySelector('[data-test^="prod-cust-stock."]')?.textContent ?? '',
+    conv: e.querySelector('[data-test^="prod-cust-conv."]')?.textContent ?? '',
+    users: e.querySelector('[data-test^="prod-users."]')?.textContent ?? '',
+    arpu: /\b(developers|organisations|contracts|partners)\b/.test(e.textContent ?? ''),
+  })));
+  const bad = cards.filter((c) => !/\d%\s*→\s*[\d.]+%/.test(c.stock) || !/moves in (weeks|months|quarters)/.test(c.conv) || !/(at target|to target)/.test(c.conv) || c.arpu
+    || (c.ch === 'consumer' && !/weekly users\s*→\s*[\d.]+/.test(c.users))
+    || (c.ch === 'consumer' ? !/weeks/.test(c.conv) : !/(months|quarters)/.test(c.conv)));
+  for (const x of await page.$$eval('[data-panel=products] [data-test^="prod-cust."] [data-term], [data-panel=products] [data-feature] [data-term]', (els) => els.map((e) => e.getAttribute('data-term')))) b2Seen.add(x);
+  ok(`B2 ${where}: every card shows the customer stock → target, speed and days to target`, cards.length >= 3 && bad.length === 0, bad.map((c) => `${c.ch}: ${c.stock} | ${c.conv} | ${c.users}`).join(' ; ') || cards.map((c) => `${c.ch}: ${c.stock} · ${c.conv}`).join(' ; '));
+  let tipped = 0;
+  let n = 0;
+  for (const c of cards) {
+    for (const sel of [`[data-test="prod-cust-stock.${c.id}"]`, `[data-test="prod-cust-conv.${c.id}"]`]) {
+      n++;
+      const tx = await hoverTip(sel);
+      if (tx.length > 20 && (/target/i.test(tx))) tipped++;
+    }
+  }
+  ok(`B2 ${where}: customer rows open tooltips with the target (${n})`, tipped === n, `${tipped}/${n}`);
+  // Features: type chip and typed effect on every row; gated rows name the idea.
+  const feats = await page.$$eval('[data-panel=products] [data-product] [data-feature]', (els) => els.map((e) => ({
+    card: e.closest('[data-product]').getAttribute('data-product'), f: e.getAttribute('data-feature'),
+    kinds: [...e.querySelectorAll('.ft-k')].map((k) => k.getAttribute('data-kind')),
+    fx: e.querySelector('[data-test^="feature-fx."]')?.textContent ?? '',
+    gate: e.querySelector('[data-test^="feature-gate."]')?.textContent ?? '',
+    clipped: [...e.querySelectorAll('.ft-fx, .ft-e, .ft-n')].filter((x) => { const g = document.createRange(); g.selectNodeContents(x); return x.scrollWidth > x.clientWidth + 1 || g.getBoundingClientRect().width > x.getBoundingClientRect().width + 1; }).map((x) => x.textContent).join('|'),
+  })));
+  const UNIT = { scaffold: /\+[\d.]+ OOM ×\d+ tok/, horizon: /×[\d.]+ longer tasks/, enabler: /\+[\d.]+(%| OOM)/, effort: /\+[\d.]+ OOM ×\d+ tok/ };
+  const fbad = feats.filter((x) => !x.kinds.length || (x.gate ? !/needs \S/.test(x.gate) : !x.kinds.every((k) => UNIT[k]?.test(x.fx))));
+  ok(`B2 ${where}: every feature row shows its type and typed effect with units (locked: the idea) (${feats.length})`, feats.length >= 5 && fbad.length === 0, fbad.map((x) => `${x.f}: ${x.kinds} | ${x.fx} | ${x.gate}`).join(' ; '));
+  const kinds = new Set(feats.flatMap((x) => x.kinds));
+  ok(`B2 ${where}: feature types on the cards`, kinds.size >= 3, [...kinds].join(', '));
+  const clipped = feats.filter((x) => x.clipped);
+  ok(`B2 ${where}: no clipped feature effect line`, clipped.length === 0, clipped.map((x) => `${x.card}/${x.f}: ${x.clipped}`).join(', '));
+  let ftip = 0;
+  const fmiss = [];
+  for (const x of feats.filter((y) => y.f !== 'sectorPacks')) {
+    const tx = await hoverTip(`[data-product="${x.card}"] [data-feature="${x.f}"] .ft-fx`);
+    if (/Build/.test(tx) && /Upkeep/.test(tx) && /Internal agents/.test(tx) && /Unlocked by/.test(tx) && /On this product/.test(tx)) ftip++;
+    else fmiss.push(`${x.f}: ${tx.replace(/\n/g, ' ').slice(0, 60)}`);
+  }
+  await clearTips();
+  ok(`B2 ${where}: feature tooltips show cost, upkeep, on here, internal agents and the gate`, fmiss.length === 0, fmiss.slice(0, 3).join(' ; '));
+}
 await page.evaluate(() => { const st = window.ai27v2; st.start({ ...st.draftSetup, tutorial: false, seed: 2027, companyName: 'OpenBrain' }); });
 await wait(150);
 await page.evaluate(() => window.ai27v2.step(1));
 await closeModals();
 await pause();
 await b1Check('day 1');
+await b2Check('day 1');
+{
+  // Edit preview: a cheaper tier moves the target share at once (the stock follows later).
+  const api = JSON.parse(await get(`(s.player.deployments.find((d) => d.channel === 'api' && d.status === 'live') || {}).id || ''`));
+  if (api) {
+    await page.click(`[data-test="prod-price.${api}"] [data-opt="premium"]`).catch(() => {});
+    await wait(120);
+    const pv = await page.evaluate((id) => document.querySelector(`[data-test="prod-edit.${id}"]`)?.innerText ?? '', api);
+    ok('B2: the edit preview shows the target share before → after', /Target share/.test(pv) && /\d%\s*→\s*\d/.test(pv), pv.replace(/\n/g, ' ').slice(0, 120));
+    await page.click(`[data-test="prod-cancel.${api}"]`).catch(() => {});
+  }
+}
 await shot('25-day1-products');
 {
   // A Premium Chat plan asks more than consumers pay: the price stops at the willingness to pay and the card flags it.
@@ -683,13 +758,19 @@ for (const p of PANELS) {
   }
 }
 await b1Check('day 400');
+await b2Check('day 400');
+await shot('27-day400-products-b2');
 const fx9 = readFileSync(path.resolve('scripts/v2/fixtures/day900.json'), 'utf8');
 await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
 await page.evaluate(() => { window.ai27v2.state.setup.tutorial = false; window.ai27v2.notify(); });
 await b1Check('day 900');
+await b2Check('day 900');
+await shot('28-day900-products-b2');
 {
   const miss = B1_TERMS.filter((t) => !b1Seen.has(t));
   ok(`B1: every new term has a tooltip on the product cards (${B1_TERMS.length})`, miss.length === 0, miss.join(', '));
+  const miss2 = B2_TERMS.filter((t) => !b2Seen.has(t));
+  ok(`B2: every new term has a tooltip on the product cards (${B2_TERMS.length})`, miss2.length === 0, miss2.join(', '));
 }
 for (const p of PANELS) {
   await nav(p);

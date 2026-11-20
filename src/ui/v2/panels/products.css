@@ -111,3 +111,22 @@
 .pc-set .seg-btn { padding: 3px 6px; }
 .pc-set .pc-cap { margin-bottom: 0; }
 .pc-set .pc-cap .act-btn { text-transform: none; letter-spacing: 0; padding: 1px 7px; }
+
+/* B2: customers (stock vs target share, speed) and typed feature rows */
+.pc .sh.cu { grid-template-columns: 62px minmax(0, 1fr) auto; }
+.pc .sh.cu .n { min-width: 36px; }
+.pc .sh.cu .n span { font-weight: 500; font-size: 11px; }
+.pc .sh .b em { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #fff; }
+.pc-share .pc-cust { margin-top: 2px; font-size: 11.5px; }
+.pc-share .pc-cust b { font-size: 12px; }
+.cu-conv { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-2); height: 18px; white-space: nowrap; }
+.cu-conv svg { color: var(--text-3); flex-shrink: 0; }
+.ft2 .ft { min-height: 20px; }
+.ft2 { padding-bottom: 2px; }
+.ft-fx { display: flex; align-items: center; gap: 5px; font-size: 10.5px; color: var(--text-3); padding-left: 19px; height: 14px; white-space: nowrap; overflow: hidden; }
+.ft-fx svg { flex-shrink: 0; }
+.ft-k { display: inline-flex; align-items: center; gap: 2px; color: var(--text-2); flex-shrink: 0; }
+.ft .ft-k { font-size: 10.5px; color: var(--text-3); }
+.ft-e { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ft-on { color: var(--good); }
+.ft-int { color: var(--text-3); }
