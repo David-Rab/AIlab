@@ -1259,7 +1259,7 @@ const e12Seen = new Set();
 const collectTerms = async () => { for (const t of await page.$$eval('[data-term]', (els) => els.map((e) => e.getAttribute('data-term')))) e12Seen.add(t); };
 async function e12Check(where) {
   const tag = where.replace(' ', '');
-  await page.evaluate(() => window.ai27v2.setTab('safety', 'overview'));
+  await page.evaluate(() => { window.ai27v2.setTab('safety', 'overview'); window.ai27v2.setTab('safety.side', 'families'); });
   await nav('safety');
   // 1. Families on top; the traits only one level down (closed at first), each with its meaning.
   const fams = await page.$$eval('[data-home=riskFamilies] [data-family]', (els) => els.map((e) => e.getAttribute('data-family')));
@@ -1278,7 +1278,11 @@ async function e12Check(where) {
   }
   await page.click('[data-test="fam-open.other"]');
   ok(`E12 ${where}: each family opens to its traits (17 in all), each with its meaning and believed estimate ± sd`, rows === 17 && meant === 17, `${rows} rows, ${meant} with meaning and band`);
-  // 3. Successor pull: the numbers shown equal the (belief-based) selector.
+  // 3. Successor pull: the numbers shown equal the (belief-based) selector. F6b: one click down (the side switch).
+  const famOnly = !(await page.$('[data-home=successorPull]'));
+  await page.click('[data-test="sf-side.successor"]');
+  await wait(80);
+  ok(`F6b ${where}: Safety's side column shows one of families / successor pull, the switch opens the other`, famOnly && !!(await page.$('[data-home=successorPull]')) && !(await page.$('[data-home=riskFamilies]')));
   const sp = JSON.parse(await page.evaluate(() => JSON.stringify(window.ai27v2.probe.successorPullView())));
   const om = (await page.$eval('[data-test=succ-omega]', (e) => e.textContent ?? '').catch(() => '')).match(/\d\.\d\d/)?.[0];
   const r = Number((await page.$eval('[data-test=succ-r]', (e) => e.textContent ?? '').catch(() => '')).replace('%', ''));
@@ -1291,6 +1295,7 @@ async function e12Check(where) {
   await collectTerms();
   await clearTips();
   await shot(`e12-${tag}-safety`);
+  await page.evaluate(() => window.ai27v2.setTab('safety.side', 'families'));
   // 2. Training pressure of the planned run (Blueprint): signal rows with causes, families pushed, ω, successor link.
   await nav('blueprint');
   const kinds = await page.$$eval('[data-bp-kind]', (els) => els.map((e) => e.getAttribute('data-bp-kind')));
@@ -1313,6 +1318,12 @@ async function e12Check(where) {
   }
   const succ = await page.$eval('[data-test=bp-succ]', (e) => e.textContent ?? '').catch(() => '');
   ok(`E12 ${where}: Blueprint links the successor pull to its home on Safety`, /Successor pull from/.test(succ) && !!(await page.$('[data-test=bp-succ] [data-ref=successorPull]')), succ);
+  if (where === 'day 400') {
+    await page.click('[data-test=bp-succ] [data-ref=successorPull]');
+    await wait(150);
+    ok('F6b: the Blueprint successor link opens Safety on the successor pull card', !!(await page.$('[data-home=successorPull]')));
+    await page.evaluate(() => window.ai27v2.setTab('safety.side', 'families'));
+  }
   await collectTerms();
   // Model card: what the finished run applied, one click down.
   await nav('models');
