@@ -99,7 +99,9 @@ body.v2 .term { color: #bcd8ff; border-bottom: 1px dotted #5aa9ff; cursor: help;
 .vote-seat { position: relative; display: inline-grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; border: 1.5px solid var(--line-2); }
 .vote-seat.yes { border-color: var(--good); color: var(--good); background: rgba(80,200,140,.12); }
 .vote-seat.no { border-color: var(--bad); border-style: dashed; color: var(--bad); }
-.vote-seat i { position: absolute; right: -6px; bottom: -5px; font: 700 8.5px var(--mono); font-style: normal; color: var(--text-2); }
+/* FIN6c: a seat with several votes carries its ×N as a small badge outside the ring, with room before the next seat */
+.vote-seat:has(> i) { margin-right: 9px; }
+.vote-seat i { position: absolute; left: calc(100% - 3px); bottom: -4px; padding: 0 2px; border-radius: 4px; background: var(--panel-2); font: 700 8.5px/11px var(--mono); font-style: normal; color: var(--text-2); white-space: nowrap; }
 .vote-strip b { margin-left: 3px; font-weight: 600; }
 
 /* option tiles */

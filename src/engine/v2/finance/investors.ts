@@ -1,7 +1,7 @@
 // Investor pool, hype, bubble, tranches, valuation marks, rating, covenants (V2-SPEC §3.7.3–3.7.4; research/15 §1.4–1.7).
 // Owner: WS3.
 import { divisionQ } from './parent';
-import { dayOfDate, decimalYear } from '../core/time';
+import { decimalYear } from '../core/time';
 import type { CapitalMarkets, EngineSystem, GameStateV2, Money, SystemCtx } from '../types';
 import type { StoryNow } from './story';
 import { covenantsBreached, ratingOf, ratingScore, rollMaturities } from './debt';
@@ -269,5 +269,3 @@ function markValuation(s: GameStateV2, ctx: SystemCtx, st: StoryNow, share: numb
   ctx.cause('player.finance.valuation', V + capCut - V0 - sectorPart, 'your share', `${last ? `${(last.share * 100).toFixed(1)}% → ` : ''}${(share * 100).toFixed(1)}% · ${DRIVERS.map((k) => `${k} ${X$(st.effect[k])}`).join(' · ')} · credibility ${X$(me.cred)} · governance ${X$(me.gov)}`);
 }
 
-/** Day the legacy recapitalisation tranche is due (helper for previews). */
-export const recapDeadline = (s: GameStateV2) => dayOfDate(s.time.startDate, '2026-12-31');

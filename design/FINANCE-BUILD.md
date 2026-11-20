@@ -4,6 +4,74 @@ Spec: design/FINANCE-V3.md (approved 2026-11-19). User: "go ahead on all stages"
 Branch `finance-v3`, worktree `../AI27-finance3`, based on master 2ef72a9. Model v3 is being built in parallel on
 `model-v3` (`../AI27-model3`) by another session: **never touch that worktree or the main checkout `../AI27`.**
 
+## Status: built (2026-11-20, FIN6c)
+
+**What the branch contains** (FIN1–FIN6c on `finance-v3`, from master 2ef72a9; FIN5c and FIN6b were built on side
+branches and merged in, cbbceed and fc8b150). Every section of FINANCE-V3 is in the engine and the Finance tab:
+- §1 the story: sector value S = κ·R^α·Φ(L)·mood split by a softmax share over private labs (position, momentum,
+  economics, capacity × investor credibility × governance), marked half-way each quarter, **at most a valuation cap for
+  every private lab** (max($30B team value, 37× at ×5 growth × (g ÷ 5)^0.4 × run-rate)); investor pool π·S.
+- §2 equity: raises with one milestone (capability / scale / adoption) and a pitch, stacking promises judged at their
+  deadlines, investor credibility, down rounds (no staff attrition), repricing, tranches, IPO with dual-class.
+- §3–§5 debt sized by valuation and cash flow with a rating from cash flow, liquidity and leverage; payment options
+  (cash, financing lease with an RVG, chip loan) with present value; Buy chips / Rent compute contracts priced on the
+  expected market path with firm-contract priority; community packages (upfront default and E27's reactive one).
+- §6 partners: one offer flow, three kinds (hyperscaler, chip vendor, sovereign), up to 3 partners, exclusivity, IP
+  access, rescue, contractual tranche conditions; §7 board: deterministic seat-by-seat votes on major decisions, named
+  mood sources by seat kind, charter rights (safety committee release block, trust votes), critics' seat, visible
+  ouster vote; §8 distress without morale hits; §9 acquisitions (E32 rebuilt, E22 obligations); §12 rivals' finance
+  (`finance/rivalFinance.ts`); §13 big-tech division budget and parent confidence; §11 the Finance tab (Cash · Story ·
+  What we owe · Contracts · Board & owners · Debt & partners).
+- Removed: the narrative premium and old valuation formula, k_Y and the revenue plan, dice-roll approvals and 90-day
+  blocks, E37 and the reinstatement, the 8 deal templates (seekPartner / acceptDeal / declineDeal), the free SPV,
+  mega-JV, vendor notes, cmp.orderStandard / orderLTA / orderSpot / cloudContract / spotRental / fundSupplier, the
+  separate community action. Old saves migrate (schemaRev chain in `core/save.ts`).
+
+**Known failures at the end** (FIN6c final run; details in the FIN6c notes): safety S5 (mixed-bot median min margin,
+on the baseline list since J2); hygiene's absolute perf checks only under machine load. Everything else green.
+
+**Where the [D]/[fit] parameters live** (each number keeps its tag in a comment):
+| Home | Parameters |
+|---|---|
+| `src/engine/v2/finance/story.ts` `STORY`, `SUPPLIER`, `DUAL_CLASS_GOV` | κ_S, α, φ / φ_ref, rates, bust ×0.7, τ, share weights, normalisation and clamps, growth range, pre-revenue line, rivals' margin, π and the carry, IPO bump, blend; supplier deposit / prepay terms |
+| `src/engine/v2/finance/rivalFinance.ts` `RIVAL`, `RIVAL_GOV` | valuation cap (team value, multiple, growth ref and exponent), rivals' spend per H100e and overhead, d_max, raise trigger, exit staff share and investor return, governance by kind |
+| `src/data/v2/deals.ts` `DEBT_SIZING`, `DEBT_TERMS`, `CAPEX_LEASE`, `FIRM_TERMS`, `COMMUNITY`, `PARTNER_TERMS`, `GOV_FACTOR` | credit line share and cap, chip LTV, bond multiple, spreads by rating; lease rates by rating, funded share, RVG; firm discounts by term; community package size and odds; partner equity, caps, discounts, strings, politics; governance factors |
+| `src/engine/v2/finance/promises.ts` `CRED_RUNGS`, `START_CREDIBILITY`, `PITCH`, `PROMISE_RESULT`, `TREND` | credibility ladder, start credibility by start type, pitch multipliers, met / near / missed effects, trend windows |
+| `src/engine/v2/finance/board.ts` `VOTE`, `OUSTER`, `CRITICS`, `BC_*`, `OBLIGATION_X_REVENUE`; `mood.ts` `MOOD_BASE`, `MOOD_WEIGHTS`, `INCIDENT_BC` | vote thresholds and force cost, ouster lean and reluctance, critics' seat, drift anchor 60 and speed, major-decision thresholds; mood source sizes and seat-kind weights |
+| `src/engine/v2/finance/equity.ts` `LARGE_ROUND`, `REPRICE_DROP`; `actions.ts` `DOWN_PRICE`; `acquire.ts` `ACQUIRE`; `ledger.ts` `RENEGOTIATE`; `investors.ts` `SHOCKS` | round split, repricing, down-round price, acquisition price and terms, renegotiation deferral, hype shocks and bubble odds |
+| `src/engine/v2/finance/parent.ts` `DIVISION`; `src/data/v2/starts.ts` | division budget floor / full-confidence point / overspend cost, goal weights; the parent budget path, start stakes and debts by start type |
+| `src/engine/v2/finance/plan.ts` (bots only) | the finance autopilot's guards, raise trigger, site horizon [fit: F7], pitch safety |
+
+**Refit after model-v3** (from FIN6a; these fits read quantities model-v3 replaces):
+- V4 (revenue, cost to serve, price): κ_S and α; the economics weight and its 0.2 scale (today's economics bridge in
+  `observe.servingEconomics`); π against the raise totals; the cap's multiple and growth exponent (run-rate, growth);
+  FC2 multiples; the RefBot's revenue path (F7); FC4 commitments ÷ revenue and the partner take-or-pay size; rivals'
+  revenues vs their analogues (FC6) and the rivals' book (= spend).
+- V7 (rivals, bots): position and momentum weights (the rivals' start models drive the Q4 2025–Q1 2026 markdown that
+  limits τ and κ); the rivals' exit timing; the bubble index (reads every lab's commitments); the bots' raise policy and
+  ouster rates; the start valuations (challenger capped at $90B, spinout at its $30B team value).
+- Also re-check then: the cap's growth clamp (×8 allows 45×, above FC2's 37×; clamping at ×5 is the simple fix).
+
+**Open items:**
+- FC4 commitments: 1.1–1.3× run-rate at end-2027 (target: several ×); partner take-or-pay 1.1× its equity (research
+  4–12×): needs model-v3's compute demand (V4).
+- L7: a blocked leased site's lessor money is never repaid or guaranteed (≈ 4% of capex; collides with E27's re-permit).
+- Collapsed rivals exit in early 2028, not 2027 (their chip orders keep spend growing when broke: `actors/rivals.ts`).
+- `ws4.absorbedCompute` (written by E22/E32 when a lab is absorbed) is never read: the compute a bought lab brings is
+  not wired. It is WS4 / compute state, not finance, so FIN6c left it.
+- The chip-tranche commitments vote counts the first tranche × 4 and Rent compute the first four quarters from next
+  quarter, while the threshold reads four quarters from this one (a convention; FIN4r notes).
+- The division bots never fill new sites with chips, so the parent's scale goal is almost never met (compute / bot
+  matter, ST2's non-finance part).
+- Exported-but-file-local helpers and constants in `finance/` (e.g. `plan.ts` guards, `promises.ts` trend windows) were
+  left exported: they are the tunable numbers and tests may read them; only truly dead code was removed.
+
+**Merge note.** The branch is based on master 2ef72a9. Model v3 is being built in parallel on `model-v3`; finance reads
+model-v3-owned quantities only through `src/engine/v2/finance/observe.ts` (`publicLevel`, `publicFrontier`,
+`servingEconomics`, `computeSecured`, `computeFirm`, `revenueRun`, capability thresholds, licensed models), so merging
+model-v3 means re-pointing those selectors, then the refit above. Expect conflicts in `core/save.ts` (schemaRev),
+`types.ts`, `actors/rivals.ts` (the one-line finance call), `bots/`, the fixtures and `design/PROGRESS.md`.
+
 ## Rules for every phase
 
 1. Work only in `C:\Users\david\Documents\projects\AI27-finance3`.
@@ -1592,3 +1660,53 @@ FIN5b's rival-tooltip check rewritten for the short tooltip plus a nested-detail
 engine has it, credibility, governance and cap still shown, one level down); 8 new FIN6b checks (Raise pills, What we
 owe wrapping and idle covenant, Ownership without the IPO window, PV on the build tiles, lease PV within 15% of cash
 while its total is ≥ 1.3×, the PV tooltip's stated rate, cash history from day 0, the division's advance band).
+
+### FIN6c notes (2026-11-20)
+
+Review and cleanup; no mechanics or calibration numbers changed.
+
+**Merge check (fc8b150, FIN6a + FIN6b built in parallel).** Full suite on the merged tree before any FIN6c change:
+typecheck and the scripts' tsconfig clean; golden-timelines, identity, calib, fixtures (regenerated, no diff), hygiene
+(perf checks passed this time), lint-hidden, lint-ux, lint-tradeoffs, lint-structure green; safety only S5 (known, −0.55
+as FIN6a); finance all passed (193 checks, F2 47.0M); worldfx, ws4, products, money, idle green. No merge breakage: the
+FIN6b UI read FIN5b's cap and weights only as display text (fixed below), and `npm run test:ui` 324/324 (that run's build
+already carried the FIN6c UI edits below, made while the engine scripts ran).
+
+**UI text (FIN6a's list and FIN6b's leftovers).**
+- Story card: one cap rule for every lab, max($30B team value, `capMultiple(growth)`× revenue), on the rival tooltip's
+  details and its "At its cap" row (which now says what sets it: team value, or N× revenue at ×g a year); your bar's
+  tooltip shows your cap (and "At your cap" when it binds); the valuation's Why has a "Valuation cap" row and says "at
+  most your valuation cap"; "next mark" = min(S × next share, your cap), and its tooltip shows the cap and when it binds.
+  `capMultiple` and `valueCap` are now exported from the engine index.
+- Glossary: `rivalCap` → `valuationCap` ("Valuation cap", every private lab, 37× at ×5 a year × (growth ÷ 5)^0.4,
+  growth read at ×0.5–×8); `marketMood` and `bubble` ×0.7; `storyShare` 0.4 / 0.25 / 0.1 / 0.25 (FIN6a's list said
+  0.4 / 0.2 / 0.1 / 0.3, the first weight step; the engine has 0.4 / 0.25 / 0.1 / 0.25); `valuation` mentions the cap;
+  `rivalValuation` links the cap; `acquisition` "its spend a year". `design/ux/GLOSSARY.md` regenerated.
+- **Drift guard:** the glossary is plain data (`src/data` imports only types from the engine), so it cannot read the
+  constants without a layering cycle. Instead lint-ux has a new check, "Finance glossary numbers match the engine": 10
+  quoted numbers (bust, τ, the four weights, α, φ / φ_ref, π, the cap's team value, multiple, growth ref and exponent,
+  the growth range) are rebuilt from `STORY` / `RIVAL` and must appear in their entries.
+- Buy chips: the engine's cost label reads "deposit now (N% of the order)"; the supplier's minimum is only on the card's
+  supplier-terms chip (one home).
+- Debt table: the credit line reads "$0 / $4.0B → $15.0B" (as arranged → the size it takes when you next borrow, the same
+  figure the tile's room is computed from); the tooltip explains that the line counts in liquidity as arranged and is
+  re-sized on the next draw or round.
+- Vote chips: a multi-vote seat's ×N is a small badge outside the ring with 9 px before the next seat (it overlapped the
+  ring and the next chip).
+
+**Leftover sweep** (src, scripts, data, design). In code only save migrations (kept: they handle old saves) and tests
+asserting removal mention `narrative`, `valuationMark`, `valuationNow`, `raisedLast4q`, `revenuePlan`, `pendingApprovals`,
+`blockedUntil`, `reinstatedDay`, E37, `seekPartner` / `acceptDeal` / `declineDeal`, `vendorNote`, `megaJV`, the old
+`cmp.*` ids and `spv` (the remaining `spv` uses are the `spvFunded` site field, the `spvFinanced` tally and the glossary
+key `spv` = financing lease). No hits: `kY`, `boardApproval`, `BOARD_VECTORS`, `DEAL_TEMPLATES`, `DEAL_TERMS`,
+`payParent`, a `F1` action. `communityPackage` is today's site field and glossary term (the action is `cmp.community`);
+`poolShare` is the training pool's, not finance's; `safetyCommitteeVeto` is read (charter rights, the deployment gate).
+`absorbedCompute` is written by E22/E32 and never read: WS4 / compute state, left (open item). Dead finance exports
+removed: `recapDeadline` (investors.ts), `orderBalances` (ledger.ts, pre-v3 order kinds), the `CredRung` type
+(promises.ts). Exported-but-file-local constants and helpers were left (tunable numbers; tests read some).
+
+**Docs.** V2-SPEC §3.7 (a superseded box: what still holds, what FINANCE-V3 replaced), §3.10.3 (rivals' finance), §4.2
+(E32 rebuilt, E37 removed, E03/E04 are partner offers); STRUCTURE §4.8 (the parent-confidence mechanic); IA.md Finance
+tabs and the money datum → home rows; `design/v2-interfaces.ts` finance types (no templates, `pendingApprovals`,
+`boardVector`, narrative; promises, credibility, partner deals, `ActionDef.vote`, rivals' finance fields); JANK-AUDIT
+F2 / F3 / ST2 / ST3 status lines; FINANCE-V3's status line; the "Status: built" section at the top of this file.

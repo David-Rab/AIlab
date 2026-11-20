@@ -525,37 +525,45 @@ export interface PlayerPolicies {
 }
 
 // ───────────────────────────── Finance (§3.7) ─────────────────────────────
+// Finance v3 (design/FINANCE-V3.md, branch finance-v3): the source of truth is src/engine/v2/types.ts (FinanceState,
+// FinancePromise, StrategicDeal, DealStrings, DealSupply, Board, BoardVote, MajorDecision). Summary of what changed
+// from this contract: no narrative premium (valuation = sector value × share, capped), no raisedLast4q / k_Y cap,
+// promises + investor credibility added, no deal templates (one partner offer per partner: hyperscaler / chip vendor /
+// sovereign), no board approval vectors or pendingApprovals (deterministic seat-by-seat votes on major decisions via
+// ActionDef.vote), debt kind 'vendorNote' → 'assumed', ledger kinds 'spvRVG' / 'vendor' → 'finLease' / 'acquired'.
 
 export interface FinanceState {
   cash: Money;
   revenueRun: Money; // annualised, smoothed 30 d
   revenueHistory: Money[]; // quarterly, for g and momentum
-  valuation: Money; // last mark (post-money of last round, or formula mark)
+  valuation: Money; // last mark: post-money of the last round, or min(sector value × share, valuation cap)
   ownership: Ownership;
-  raisedLast4q: Money;
+  credibility: number; // investor credibility 0..100, moved by promises judged at their deadlines
+  promises: FinancePromise[];
+  dualClass?: boolean;
   rounds: EquityRound[];
   tranches: Tranche[];
   debts: Debt[];
-  ledger: Commitment$[]; // financial commitments (take-or-pay, leases, LTAs)
+  ledger: Commitment$[]; // financial commitments (take-or-pay, financing leases, LTAs)
   rating: 'BBB' | 'BB' | 'B' | 'closed';
   runwayQ: number;
   state: 'healthy' | 'tight' | 'distress' | 'insolvent';
-  narrative: number; // N_i premium 0.6..2.2
   deals: StrategicDeal[];
   covenantBreachDay?: Day;
 }
 
 export interface Ownership { founder: number; mission: number; fin: number; strat: Record<string, number>; public: number; }
 
-export interface EquityRound { day: Day; amount: Money; postMoney: Money; dilution: number; anchor?: string; down: boolean; }
-export interface Tranche { amount: Money; dueDay: Day; condition?: string; deadline?: Day; source: string; }
-export interface Debt { id: string; kind: 'revolver' | 'gpuTerm' | 'bond' | 'vendorNote'; principal: Money; drawn: Money; spreadBp: number; maturityDay: Day; covenant?: string; collateralH100e?: H100e; }
+export interface EquityRound { day: Day; amount: Money; postMoney: Money; dilution: number; anchor?: string; down: boolean; ipo?: boolean; }
+export interface FinancePromise { id: string; type: 'capability' | 'scale' | 'adoption'; pitch: 'conservative' | 'base' | 'aggressive'; start: number; target: number; amount: Money; closeDay: Day; deadline: Day; by?: 'parent'; }
+export interface Tranche { amount: Money; dueDay: Day; condition?: string; deadline?: Day; source: string; partner?: string; stakeCap?: number; }
+export interface Debt { id: string; kind: 'revolver' | 'gpuTerm' | 'bond' | 'assumed'; principal: Money; drawn: Money; spreadBp: number; maturityDay: Day; covenant?: string; collateralH100e?: H100e; }
 
 /** Ledger entry for a contractual commitment ("Commitment$" to avoid clashing with relation Commitments). */
 export interface Commitment$ {
   id: string;
   payee: string;
-  kind: 'cloud' | 'lta' | 'lease' | 'spvRVG' | 'vendor' | 'power';
+  kind: 'cloud' | 'lta' | 'lease' | 'finLease' | 'power' | 'acquired';
   perQuarter: Money;
   endDay: Day;
   cancellableNoticeQ: number | null; // null = non-cancellable
@@ -564,18 +572,20 @@ export interface Commitment$ {
 
 export interface StrategicDeal {
   id: string;
-  template: 'hyperscalerEquity' | 'customASIC' | 'chipVendorEquity' | 'vendorFinance' | 'sovereign' | 'spv' | 'neocloud' | 'megaJV';
   partner: string;
+  kind: 'hyperscaler' | 'chipVendor' | 'sovereign';
   day: Day;
-  strings: { exclusivity?: boolean; boardSeat?: boolean; observer?: boolean; ipRights?: boolean; inCountrySite?: boolean; revenueShare?: number };
+  equityNow: Money;
+  equityLater: Money;
+  strings: { exclusivity?: boolean; ipAccess?: { lab: LabId; trust?: boolean }; revenueShare?: number; boardVotes?: number };
+  until: Day;
 }
 
 export interface Board {
   preset: GovernancePresetId;
   seats: BoardSeat[];
-  confidence: number; // BC 0..100
-  pendingApprovals: { id: string; action: string; vector: [number, number, number, number]; pApprove: number }[];
-  safetyCommitteeVeto: boolean;
+  confidence: number; // BC 0..100 (a division: parent confidence)
+  safetyCommitteeVeto: boolean; // nonprofit PBC charter right: halts red-flagged releases (read by the deployment gate)
 }
 
 export interface BoardSeat { kind: 'founder' | 'mission' | 'financial' | 'strategic' | 'independent' | 'gov'; holder: string; stance: [number, number, number, number]; weight: number; }
@@ -666,7 +676,9 @@ export interface RivalLab {
   internal: SimpleModel;
   publicModel?: SimpleModel;
   nextBaseDay: Day;
-  finance: { cash: Money; revenueRun: Money; valuation: Money; commitments: Money; distress: boolean };
+  /** Finance v3 (FINANCE-V3 §12, FIN5b; engine RivalFinance): valuation = min(sector value × marked share, valuation
+   *  cap), commitments = its spend a year; mark, poolQ, raised and the last round's day added. */
+  finance: { cash: Money; revenueRun: Money; valuation: Money; commitments: Money; distress: boolean; mark?: number; poolQ?: Money; raised?: Money };
   visible: { frameworkVersion: number; clauseType: 'conditional' | 'allAdopt' | 'unconditional' | 'override' | 'state'; testers: string[]; indexGrade?: string };
   intel: RivalIntel;
   meters: { poachAggression: number; cooperation: number; lobbyStance: number; openness: number };
@@ -907,8 +919,8 @@ export interface ActionDef<P = Record<string, number | string | boolean>> {
   available(s: GameStateV2): boolean | string; // string = reason shown when unavailable
   preview(s: GameStateV2, p: P): { costs: CostLine[]; gains: CostLine[]; exposure: CostLine[] };
   apply(s: GameStateV2, ctx: SystemCtx, p: P): void;
-  /** Board approval vector (speed, fin, safety, mission) if this is a major decision (§3.7.5). */
-  boardVector?: [number, number, number, number];
+  /** The board vote this action needs (finance v3: major decisions only, FINANCE-V3 §7.3), deterministic. */
+  vote?(s: GameStateV2, p: P): unknown;
 }
 
 export interface ChoiceV2 {

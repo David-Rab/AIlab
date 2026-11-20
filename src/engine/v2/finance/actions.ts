@@ -552,7 +552,7 @@ const buyChips: ActionDef = {
       costs.push({ currency: 'cash', amount: -qt.later, lagDays: lagTo(s, qt.dueQ), target: `first of ${qt.quarters} quarterly payments (take-or-pay)` });
       costs.push({ currency: 'cash', amount: -(c.qty * qt.prices![qt.quarters - 1]) / 1e6, lagDays: lagTo(s, qt.dueQ + qt.quarters - 1), target: 'last payment (expected path)' });
     } else {
-      if (qt.now > 0) costs.push({ currency: 'cash', amount: -qt.now, target: `deposit now (${Math.round(qt.prepay * 100)}%; supplier terms ask at least ${Math.round(supplierTerms(s).batch * 100)}%)` });
+      if (qt.now > 0) costs.push({ currency: 'cash', amount: -qt.now, target: `deposit now (${Math.round(qt.prepay * 100)}% of the order)` }); // FIN6c: the supplier's minimum has its own chip on the card
       const opt = payOptions(s, qt.later, 'chips').find((o) => o.id === c.pay);
       const lag = lagTo(s, qt.dueQ);
       if (c.pay === 'lease' && opt) costs.push({ currency: 'cash', amount: -opt.perYear, lagDays: lag, target: `lease per year × ${opt.years} y from delivery` });

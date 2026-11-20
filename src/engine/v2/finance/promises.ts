@@ -28,7 +28,6 @@ export const CRED_RUNGS = [
   { id: 'Credible', min: 50, mult: 1 },
   { id: 'Proven', min: 75, mult: 1.15 },
 ] as const;
-export type CredRung = (typeof CRED_RUNGS)[number]['id'];
 
 /** Results at the deadline [D, spec §2.4]: met +30 × weight credibility, +10 × weight board; missed by more than 20% of
  *  the promised gain −30 / −15 × weight; within 20% nothing. The board's part is then × the board's multiplier for

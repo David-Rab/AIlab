@@ -172,20 +172,6 @@ export function commitmentsRemaining(s: GameStateV2, firmOnly = false): Money {
   return sum;
 }
 
-/** Outstanding chip-order balances due on delivery ($B), and those due within `quarters`. */
-export function orderBalances(s: GameStateV2, quarters = 99): Money {
-  const qNow = qOf(s);
-  let sum = 0;
-  for (const o of s.player.orders) {
-    if (o.kind === 'lta') continue; // LTAs pay through the ledger
-    if (o.dueQ - qNow > quarters) continue;
-    const left = Math.max(0, o.qty - o.delivered);
-    const share = o.kind === 'spot' ? 1 : 1 - o.prepayFrac;
-    sum += (left * o.price * share) / 1e6;
-  }
-  return sum;
-}
-
 /** Add a ledger entry (returns it). */
 export function addLedger(s: GameStateV2, e: Omit<Commitment$, 'id'> & { id?: string }): Commitment$ {
   const c: Commitment$ = { id: e.id ?? `L${s.time.day}-${s.player.finance.ledger.length}`, payee: e.payee, kind: e.kind, perQuarter: e.perQuarter, ...(e.startDay !== undefined ? { startDay: e.startDay } : {}), endDay: e.endDay, cancellableNoticeQ: e.cancellableNoticeQ, penalty: e.penalty, ...(e.contract ? { contract: e.contract } : {}), ...(e.rate !== undefined ? { rate: e.rate } : {}) };

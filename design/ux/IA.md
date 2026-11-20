@@ -64,7 +64,7 @@ Three cards. Nothing else.
 |---|---|---|---|
 | — | Overview (`overview`) | — | Lead track |
 | COMPANY | Company (`company`) | Flow · People · Split · Security | Flow diagram: compute online → pools by department → outputs |
-| | Finance (`finance`) | — | Cash-flow waterfall |
+| | Finance (`finance`) | Cash · Story · What we owe · Contracts · Board & owners · Debt & partners (a division: Cash · What we owe · Contracts · Board) | Cash-flow waterfall (Story tab: sector value × your share) |
 | | Compute (`compute`) | Overview · Sites · Orders · Market | Verdicts (idle chips, racks ahead, vendor fill); capacity and fleet forecast; order chips / build data centre / rent cloud |
 | MODELS | Models (`models`) | — | Model card (radar against the previous version) |
 | | Runs (`rundesigner`) | — | Recipe tiles with effect glyphs, plus "What this recipe pushes" |
@@ -116,12 +116,16 @@ Inside a panel the same rule repeats: one primary visual at the top, then second
 | Burn by category this quarter; net burn | L2 Finance waterfall | L0 cash hover (breakdown) |
 | Revenue run-rate | L2 Finance | Company Flow outputs (→) |
 | Revenue per channel; demand vs capacity | L2 Deploy | Watch "capped" chips |
-| Valuation, ownership, board seats, board confidence | L2 Finance | — |
-| Raise ceiling and its limits; ask | L2 Finance › Raise | — |
-| Commitment ledger (8 q), contracts | L2 Finance › Locked-in spending | — |
-| Debt, rating, covenants | L2 Finance › Debt | — |
-| Hype, bubble, rates, investor pool, IPO window | L2 Finance › Markets | — |
-| Deal offers | L2 Finance › Deals | Queue alert |
+| Valuation, sector value, market mood, your share and its drivers, investor credibility factor, governance factor | L2 Finance › Story | Raise card, Ownership (→ Story) |
+| Rival private labs' valuations and shares | L2 Finance › Story (share bar hover) | — |
+| Ownership, board seats, board confidence, votes, charter rights | L2 Finance › Board & owners | Major-decision cards (vote strip) |
+| Parent budget, parent confidence (division) | L2 Finance › Cash (Parent budget card) | Top strip cash chip, Board (→) |
+| Raise ceiling and its limits; ask; IPO | L2 Finance › Cash › Raise | Story footer (→) |
+| Promises and credibility score, tranche conditions, covenants, contingent liabilities (RVGs, litigation), parent goals | L2 Finance › What we owe | Watch "owe" alert |
+| Commitment ledger (8 q), contracts | L2 Finance › Contracts | — |
+| Debt, rating, covenants' terms, lease rate | L2 Finance › Debt & partners | — |
+| Hype, bubble, rates, investor pool, IPO window | L2 Finance › Story (Markets card) | — |
+| Partner offers, signed partners and their strings | L2 Finance › Debt & partners | Queue alert |
 
 ### Company, compute and people
 

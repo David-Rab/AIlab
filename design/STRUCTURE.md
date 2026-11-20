@@ -367,8 +367,11 @@ research-speed breakdown.
 | **Frontier leader** (Easy) | OpenAI (mid-2025) | $40B / $45B (incl. committed round) | Nonprofit hybrid | 2,500 / 3,000 | 500K / 700K | 0 | $12B / $13B | Chat, API, Enterprise, Agents, Coding agent, Deep research, Voice & vision | Challenger's + Voice & vision, CoT monitor | Everything now; fragile board, largest commitments |
 
 - **Big-tech money (decided: simple).** A fixed yearly budget from the parent on a schedule shown in advance
-  ($16B in year one, growing with the parent's capex path); no equity raises and no bankruptcy. No parent-confidence
-  mechanic.
+  ($16B in year one, growing with the parent's capex path); no equity raises and no bankruptcy. **Superseded by
+  finance v3 (FINANCE-V3 §13, FIN5c):** there is now a parent-confidence mechanic. The yearly budget = the parent's plan ×
+  min(100%, 50% + parent confidence ÷ 120); the parent sets yearly goals (capability, scale, adoption, judged like
+  promises); overspend is covered (cash below zero is the parent's advance) but costs parent confidence. Still no raises,
+  no bankruptcy and no runway distress for a division.
 - **Leader cash (decided):** keep $40B / $45B, labelled "cash + committed round".
 - **Catch-up targets** (research/18 §0.2): real new labs shipped their first own models 9–12 months behind, 12–17 months
   after raising; Meta closed from ≈ 9.5 to ≈ 5 months. The engine should reproduce these for the matching start types.

@@ -29,7 +29,7 @@ export const ACQUIRE = {
 export interface Obligations { perQ: Money; termQ: number; total: Money; debt: Money }
 const NONE: Obligations = { perQ: 0, termQ: ACQUIRE.termQ, total: 0, debt: 0 };
 
-/** A rival's obligations if you buy it: its commitments (an annual book, rivals' `finance.commitments`) for two more
+/** A rival's obligations if you buy it: its commitments (rivals' `finance.commitments`: its spend a year since FIN6a) for two more
  *  years, and the cash it is short as debt. A parent-funded lab (valuation 0) brings none. */
 export function rivalObligations(r: RivalLab): Obligations {
   if (r.finance.valuation <= 0) return NONE;

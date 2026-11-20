@@ -13,7 +13,7 @@ import { isDivision } from '../../../data/v2/starts';
 import { boardReview } from '../shell/selectors';
 import { OUSTER_NOTICE_D } from '../../../engine/v2';
 import type { BoardSeat, Commitment$, Debt, GameStateV2, MilestoneType, MoodSource, PartnerKind, PartnerSupply, PartnerTerms, Pitch, StrategicDeal } from '../../../engine/v2';
-import { MARKET, PARTNER_KINDS, PARTNER_TERMS, partnerDef } from '../../../data/v2/deals';
+import { DEBT_SIZING, MARKET, PARTNER_KINDS, PARTNER_TERMS, partnerDef } from '../../../data/v2/deals';
 import { PathCurve } from './Compute';
 import { ActBtn, Limit, CauseBars, Gate, SEAT_KIND_LABEL, Seg, Term, Tip, TipCard, Toggle, Why } from '../ui';
 import { MILESTONE_UI, OweCard, OweLink } from './FinanceOwe';
@@ -693,6 +693,7 @@ function DebtCard({ s }: { s: GameStateV2 }) {
   const f = s.player.finance;
   const [dk, setDk] = useState<Debt['kind']>('revolver');
   const head = debtHeadroom(s, dk);
+  const head0 = debtHeadroom(s, 'revolver');
   const [amtF, setAmtF] = useState(0.5);
   const drawAmt = Math.max(0.1, Math.round(head.max * amtF * 10) / 10);
   const lr = leaseRate(s);
@@ -715,7 +716,13 @@ function DebtCard({ s }: { s: GameStateV2 }) {
             {f.debts.map((d) => (
               <tr key={d.id}>
                 <td><Term id={d.kind}>{DEBT_KINDS.find((k) => k.id === d.kind)?.label ?? d.kind}</Term></td>
-                <td className="num r"><Tip content={() => <TipCard title="Drawn / limit" rows={[{ label: 'Drawn', value: F.money(d.drawn) }, { label: d.kind === 'revolver' ? 'Line as arranged' : 'Principal', value: F.money(d.principal) }]}>{d.kind === 'revolver' ? 'The line is re-sized to 3% of valuation (cap $15B) when you next borrow on it.' : d.kind === 'assumed' ? 'Debt that came with a lab you bought (what it was short), now yours.' : 'Amount borrowed on this tranche.'}</TipCard>}><span>{F.money(d.drawn)} / {F.money(d.principal)}</span></Tip></td>
+                <td className="num r">{(() => {
+                  // FIN6c: the credit line tells one story with its tile's room: as arranged → the size it takes when you next borrow.
+                  const resized = d.kind === 'revolver' && !head0.closed && Math.abs(head0.limit - d.principal) > 0.05 ? head0.limit : undefined;
+                  return (
+                    <Tip content={() => <TipCard title="Drawn / limit" rows={[{ label: 'Drawn', value: F.money(d.drawn) }, { label: d.kind === 'revolver' ? 'Line as arranged' : 'Principal', value: F.money(d.principal) }, ...(resized !== undefined ? [{ label: 'When you next borrow', value: F.money(resized) }] : [])]}>{d.kind === 'revolver' ? `The line counts in liquidity as arranged; it is re-sized to ${Math.round(DEBT_SIZING.lineShareOfV * 100)}% of valuation (cap $${DEBT_SIZING.lineCap}B) when you next borrow on it or close a round, so the room on its tile is the re-sized line less what is drawn.` : d.kind === 'assumed' ? 'Debt that came with a lab you bought (what it was short), now yours.' : 'Amount borrowed on this tranche.'}</TipCard>}><span>{F.money(d.drawn)} / {F.money(d.principal)}{resized !== undefined && <span className="dim"> → {F.money(resized)}</span>}</span></Tip>
+                  );
+                })()}</td>
                 <td className="num r"><Tip content={() => <TipCard title="Interest rate" value={`${debtRatePct(s, d).toFixed(1)}%`}>{d.kind === 'revolver' ? 'Per year on the drawn amount; floats with your rating.' : 'Per year on the drawn amount; priced at your rating when drawn.'}</TipCard>}><span>{debtRatePct(s, d).toFixed(1)}%</span></Tip></td>
                 <td className="dim">{d.covenant ?? '—'}</td>
                 <td className="r">{d.drawn > 0 && <ActBtn id="fin.repayDebt" params={{ id: d.id, amount: d.drawn }} label="Repay" />}</td>

@@ -3,7 +3,7 @@
 // owe). One card, one selector (engine storyNow). FIN5b: home of the private rivals' valuations (their bars' tooltips).
 import type { ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { credRung, dateOf, dayOfQuarter, DRIVERS, fmtDate, qOf, RIVAL, RIVAL_GOV, STORY, storyNow } from '../../../engine/v2';
+import { capMultiple, credRung, dateOf, dayOfQuarter, DRIVERS, fmtDate, qOf, RIVAL, RIVAL_GOV, STORY, storyNow } from '../../../engine/v2';
 import type { Driver, GameStateV2, LabStory, StoryNow } from '../../../engine/v2';
 import { Term, Tip, TipCard, Why } from '../ui';
 import { Card, GoBtn } from '../kit';
@@ -90,6 +90,10 @@ function FactorTile({ label, term, icon: I, x, you, children, refTo }: { label: 
 }
 
 const atCap = (a: LabStory) => a.cap !== undefined && a.cap <= a.valuation * 1.001;
+/** The valuation cap rule as it applies to this lab (FIN6a: one rule for every private lab, rivalFinance.ts valueCap). */
+const capRule = (a: LabStory) => `max(${F.money(RIVAL.team)} team value, ${capMultiple(a.growth).toFixed(0)}× revenue)`;
+/** What sets the cap now: the team value, or the growth-scaled multiple of revenue. */
+const capWhy = (a: LabStory) => (a.revenue < STORY.preRevenue || (a.cap ?? 0) <= RIVAL.team ? 'team value' : `${capMultiple(a.growth).toFixed(0)}× revenue at ×${a.growth.toFixed(1)} a year`);
 
 /** FIN6b: a rival's story details, one level down from its bar's tooltip (hover "details"). */
 function RivalWhy({ s, a }: { s: GameStateV2; a: LabStory }) {
@@ -101,7 +105,7 @@ function RivalWhy({ s, a }: { s: GameStateV2; a: LabStory }) {
       { label: 'Story score', value: a.z.toFixed(2) },
       { label: <Term id="investorCred">Investor credibility</Term>, value: a.rung },
       { label: <Term id="govFactor">Governance</Term>, value: `${X(a.gov)} ${gov}` },
-      { label: <Term id="rivalCap">Cap</Term>, value: `${F.money(a.cap ?? 0)} = ${F.money(RIVAL.team)} + ${RIVAL.multiple}× revenue` },
+      { label: <Term id="valuationCap">Cap</Term>, value: `${F.money(a.cap ?? 0)} = ${capRule(a)}` },
     ]}>{`Weight = credibility × governance × exp(score ÷ ${STORY.tau}), as yours; its share is its weight ÷ every private lab's. The mark moves half-way each quarter.`}</TipCard>}>
       <span className="term" data-test="rival-why">details</span>
     </Tip>
@@ -121,14 +125,17 @@ function ShareBar({ s, st }: { s: GameStateV2; st: StoryNow }) {
         const c = you ? C.you : shades[i++ % shades.length];
         return (
           <Tip key={a.id} content={() => (you
-            ? <TipCard title="You" value={F.pct(a.share)}>{'Your share of the sector value by today\'s story. What it is made of: the equation above and the six tiles below.'}</TipCard>
+            ? <TipCard title="You" value={F.pct(a.share)} rows={[
+              { label: <Term id="valuationCap">Your cap</Term>, value: `${F.money(a.cap ?? 0)} = ${capRule(a)}` },
+              ...(atCap(a) ? [{ label: 'At your cap', value: capWhy(a), tone: 'neg' as const }] : []),
+            ]}>{'Your share of the sector value by today\'s story. What it is made of: the equation above and the six tiles below.'}</TipCard>
             : <TipCard title={a.name} value={<><Term id="rivalValuation">valued</Term> {F.money(a.valuation)}</>} rows={[
               { label: 'Share today', value: F.pct(a.share) },
               { label: 'Revenue', value: a.revenue >= STORY.preRevenue ? F.money(a.revenue, { perYear: true }) : 'pre-revenue' },
               ...(a.revenue >= STORY.preRevenue ? [{ label: 'Multiple', value: `${(a.valuation / a.revenue).toFixed(0)}× revenue` }] : []),
-              ...(atCap(a) ? [{ label: <Term id="rivalCap">At its cap</Term>, value: `${F.money(RIVAL.team)} + ${RIVAL.multiple}× revenue`, tone: 'neg' as const }] : []),
+              ...(atCap(a) ? [{ label: <Term id="valuationCap">At its cap</Term>, value: capWhy(a), tone: 'neg' as const }] : []),
               { label: 'Why this share', value: <RivalWhy s={s} a={a} /> },
-            ]}>A private rival: the sector value × its share at the last mark, at most its cap.</TipCard>)}>
+            ]}>A private rival: the sector value × its share at the last mark, at most its valuation cap.</TipCard>)}>
             <span className="story-seg" style={{ background: c }} data-lab={a.id}>{a.share >= (you ? 0.05 : 0.12) ? <em>{you ? 'you' : a.name.split(' ')[0]} {F.pct(a.share)}</em> : null}</span>
           </Tip>
         );
@@ -146,7 +153,9 @@ export function StoryCard({ s }: { s: GameStateV2 }) {
   const markS = mark?.S ?? st.sector.S;
   const markShare = mark?.share ?? st.share;
   const nextShare = markShare + STORY.blend * (st.share - markShare);
-  const nextV = st.sector.S * nextShare;
+  // FIN6a: the mark is at most the valuation cap (one rule for every private lab).
+  const nextV = Math.min(st.sector.S * nextShare, me.cap ?? Infinity);
+  const nextCapped = st.sector.S * nextShare > nextV;
   const nextDay = dayOfQuarter(s.time.startDate, qOf(s) + 1);
   const sec = st.sector;
   const busted = sec.bust < 1;
@@ -155,8 +164,8 @@ export function StoryCard({ s }: { s: GameStateV2 }) {
     <Card title={<Term id="storyShare">Story</Term>} home="story" id="ctl-story"
       right={<span className="row-i"><span className="dim small"><Term id="valuation">valuation</Term></span>
         <Why k="player.finance.valuation" title={<Term id="valuation">Valuation</Term>} value={F.money(f.valuation)} fmt={(x) => F.money(x)}
-          rows={[{ label: 'Sector value at the last mark', value: F.money(markS) }, { label: 'Your share at the last mark', value: F.pct(markShare, 1) }, { label: 'Next mark if it were today', value: `${F.money(nextV)} on ${fmtDate(dateOf(s, nextDay))}` }]}
-          body="Sector value × your share, marked at each quarter start; a priced round sets it to the post-money until the next mark.">
+          rows={[{ label: 'Sector value at the last mark', value: F.money(markS) }, { label: 'Your share at the last mark', value: F.pct(markShare, 1) }, { label: <Term id="valuationCap">Valuation cap</Term>, value: `${F.money(me.cap ?? 0)}${atCap(me) ? ` · at the cap (${capWhy(me)})` : ''}`, tone: atCap(me) ? 'neg' as const : 'neutral' as const }, { label: 'Next mark if it were today', value: `${F.money(nextV)} on ${fmtDate(dateOf(s, nextDay))}` }]}
+          body="Sector value × your share, at most your valuation cap, marked at each quarter start; a priced round sets it to the post-money until the next mark.">
           <b className="num big" data-home="valuation">{F.money(f.valuation)}</b>
         </Why></span>}>
       {/* L1: the equation. */}
@@ -184,7 +193,7 @@ export function StoryCard({ s }: { s: GameStateV2 }) {
           <span className="story-term"><span className="dim small"><Term id="storyShare">Your share</Term></span><b className="num">{F.pct(st.share, 1)}</b></span>
         </Tip>
         <span className="story-op">→</span>
-        <Tip content={() => <TipCard title="Next mark" value={F.money(nextV)} rows={[{ label: 'Sector value today', value: F.money(sec.S) }, { label: 'Share at the mark', value: F.pct(nextShare, 1) }, { label: 'Date', value: fmtDate(dateOf(s, nextDay)) }]}>If the quarter ended today. The valuation now is the last mark (or the last round's post-money).</TipCard>}>
+        <Tip content={() => <TipCard title="Next mark" value={F.money(nextV)} rows={[{ label: 'Sector value today', value: F.money(sec.S) }, { label: 'Share at the mark', value: F.pct(nextShare, 1) }, { label: <Term id="valuationCap">Valuation cap</Term>, value: `${F.money(me.cap ?? 0)}${nextCapped ? ` · binds (${capWhy(me)})` : ''}`, tone: nextCapped ? 'neg' as const : 'neutral' as const }, { label: 'Date', value: fmtDate(dateOf(s, nextDay)) }]}>If the quarter ended today: the sector value × the share at the mark, at most your valuation cap. The valuation now is the last mark (or the last round's post-money).</TipCard>}>
           <span className="story-term"><span className="dim small">next mark</span><b className={`num ${nextV > f.valuation * 1.005 ? 'tone-pos' : nextV < f.valuation * 0.995 ? 'tone-neg' : ''}`} data-test="story-next">{F.money(nextV)}</b></span>
         </Tip>
       </div>
