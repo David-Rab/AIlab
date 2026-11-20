@@ -376,6 +376,8 @@ export interface VersionBuild {
   eRL: number;
   /** RL ceiling raise from the RL stack frozen at launch (OOM added to the curve's asymptote; model v3 V2). */
   aRL?: number;
+  /** Environment-suite fidelity per family frozen at launch (scales each family's ceiling; model v3 D5). Absent = 1. */
+  rlFid?: Partial<Record<RLFamily, number>>;
   /** RL gain: general (mean over the cognitive domains) and per domain (OOM). */
   dgRL: number;
   dgRLd: Partial<Record<DomainId, number>>;
@@ -439,8 +441,9 @@ export interface TrainingRun {
   readyDay?: Day;
   /** BRIDGE(V6,V7) readout: the lab's pa-equivalent know-how at launch. */
   paAtStart?: number;
-  /** Model v3 V2: the recipe frozen at launch: e_pre at the run's FLOP (base, continue), RL efficiency and ceiling (post, IDA). */
-  recipe?: { pre?: number; rlMid?: number; rlCeil?: number };
+  /** Model v3 V2: the recipe frozen at launch: e_pre at the run's FLOP (base, continue), RL efficiency and ceiling (post, IDA);
+   *  model v3 D5: the environment suites' fidelity and exploitability per family (post). */
+  recipe?: { pre?: number; rlMid?: number; rlCeil?: number; fid?: Partial<Record<RLFamily, number>>; exploit?: Partial<Record<RLFamily, number>> };
   /** BRIDGE(V6,V7): base/continue run scale vs the frontier run F(t) at launch (S5, scrutiny; engineering reads FLOP). */
   scale?: number;
   /** Distillation: student active parameters; distillation and continued-pretraining runs: tokens. */
@@ -466,8 +469,9 @@ export interface PostDesign {
   rlFocus: RLFamily[] | 'broad'; // pick 2 or broad
   /** RL budget: RL FLOP as a share of the base's pretraining FLOP (light 0.03, standard 0.15, heavy 0.4). */
   rlBudget: 'light' | 'standard' | 'heavy';
-  /** Graders: hardened (RL-environment cash, less reward hacking) or cheap. No capability effect. */
-  graders: 'cheap' | 'hardened';
+  /** Legacy (V1's graders option; model v3 D5 made "hardened graders" the state of the lab's environment suites,
+   *  PlayerLab.suites): read only by the schemaRev 21 → 22 save migration. */
+  graders?: 'cheap' | 'hardened';
   inoculation: boolean;
   cot: 'visible' | 'pressured' | 'faithful' | 'latent';
   safety: 'minimal' | 'standard' | 'heavy';
@@ -478,6 +482,16 @@ export interface PostDesign {
 }
 
 export type RLFamily = 'math' | 'swe' | 'computerUse' | 'mlResearch' | 'longHorizon' | 'cyber' | 'bio';
+
+/** An RL environment suite (model v3 D5, MODEL-V3 §4.3; models/suites.ts): one per RL family. Its fidelity is read from
+ *  the expert data it is built on (the family's `expert:<family>` asset in the data portfolio). */
+export interface EnvSuite {
+  /** Exploitability: share of the suite's tasks whose scorer a policy can game (0–1); S2 reads it. */
+  exploit: number;
+  /** Builds (expert data built in) and hardening passes finished. */
+  builds: number;
+  hardenings: number;
+}
 
 export interface RunPrediction {
   Lg: [number, number]; // band
@@ -893,6 +907,9 @@ export interface PlayerLab extends LabCore {
   morale: { overall: number; safety: number }; // 0..100
   /** Model v3 D1: the data portfolio (MODEL-V3 §9; production/data.ts). Replaces v2's dataAssets token counts. */
   dataPortfolio: DataPortfolio;
+  /** Model v3 D5: RL environment suites by family (models/suites.ts). A family unlocked since the start (computer use,
+   *  P06) reads as a start-quality suite until the lab works on it. */
+  suites: Partial<Record<RLFamily, EnvSuite>>;
   policies: PlayerPolicies;
   /** Internal agent packages (STRUCTURE §4.9, R7): model + optional monitor + compute per internal use. */
   agents: Record<AgentUse, AgentPackage>;
@@ -908,7 +925,7 @@ export interface PublicWebUse {
   id: 'public';
   kind: 'public';
   coverage: number;
-  /** Covered by licence deals (action D3): no copyright litigation on the crawl. */
+  /** Covered by a licence on the crawl (action data.license, domain 'web'): no copyright litigation on it. */
   licensed: boolean;
 }
 
@@ -923,6 +940,8 @@ export interface OwnedDataAsset {
   day?: Day;
   /** Licensed / expert deals by domain (D2): the domain bought (absent: broad). */
   domain?: DomainId;
+  /** Expert data built into an RL environment suite (model v3 D5): its family. */
+  family?: RLFamily;
   /** Synthetic: the teacher version that generated it (absent: before the game), its G at generation, and whether a
    *  base trained on it inherits the teacher's traits (subliminal learning, research/20 F3). */
   teacherId?: string;
@@ -932,10 +951,26 @@ export interface OwnedDataAsset {
 
 export type DataAsset = PublicWebUse | OwnedDataAsset;
 
+/** A data deal not yet delivered (model v3 D2: licences and expert data): the asset it adds on `due`. */
+export interface PendingData {
+  asset: OwnedDataAsset;
+  due: Day;
+}
+/** A synthetic generation job (model v3 D2): `share` of the synthetic pool generates with `teacherId` until `until`. */
+export interface SynJob {
+  teacherId: string;
+  share: number;
+  until: Day;
+}
+
 export interface DataPortfolio {
   assets: DataAsset[];
-  /** Data policy (no UI until D2/D4): share of eligible product output tokens kept as usage data. */
+  /** Data policy (action data.usagePolicy, USAGE_LEVELS): share of eligible product output tokens kept as usage data. */
   usageShare: number;
+  /** Deals paid and waiting for delivery (model v3 D2). */
+  pending: PendingData[];
+  /** The synthetic pool's job with a chosen teacher (absent: the whole pool uses the internal research model). */
+  synJob?: SynJob;
 }
 
 /** Internal uses of the lab's own models (R7): engineering, capabilities routine and frontier research, safety. */
@@ -951,7 +986,7 @@ export interface AgentPackage {
 
 // ───────────────────────────── Build queue (STRUCTURE §4.1, R5) ─────────────────────────────
 
-export type BuildKind = 'runSetup' | 'feature' | 'harness' | 'safeguard' | 'launch' | 'sectorPack' | 'adopt';
+export type BuildKind = 'runSetup' | 'feature' | 'harness' | 'safeguard' | 'launch' | 'sectorPack' | 'adopt' | 'suite';
 /** A product launch waiting for its build (J2 P1): the product goes live with these settings once built. */
 export interface PendingLaunch {
   channel: Channel;

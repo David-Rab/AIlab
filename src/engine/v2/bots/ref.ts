@@ -120,7 +120,7 @@ export interface RefPlayOpts {
   /** Extra launchBase params (data, quality, hazard, safetyPretrain, licensedShare) and `days`: the base run's target
    *  length at 60% of the pool (default REF_BASE_DAYS; followers FOLLOWER_MAX_BASE_DAYS). */
   base?: Params;
-  /** launchPost params (pref, rlFocus, rlBudget, graders, cot, safety, inoculation). cot 'faithful' falls back to 'visible'
+  /** launchPost params (pref, rlFocus, rlBudget, cot, safety, inoculation). cot 'faithful' falls back to 'visible'
    *  until P23 is adopted; a latent base always forces latent CoT. */
   post?: (s: GameStateV2) => Params;
   /** Tree projects (default REF_TREE); a function lets a bot decide over time. */

@@ -28,9 +28,33 @@ export const PUBLIC_START_COVERAGE = 0.9;
 export const LICENSED_START_T = 30;
 export const LICENSED_QUALITY = 1;
 export const LICENSED_MIX: DomainMix = { SOCIAL: 0.35, MEDIA: 0.12, RSCH: 0.15, REASON: 0.1, CODE: 0.15, BIO: 0.06, CYBER: 0.03, AGENCY: 0.02, PHYS: 0.02 };
-/** The "License data" deal (action D3, one corpus): adds a licensed corpus of ½ the lab's human tokens (public crawl +
- *  licensed) and licenses the crawl (no copyright suits): v2's "× (1 + 0.5 · licence deals)" as an asset [D, v2]. */
+/** v2's "License data" deal (× (1 + 0.5 · licence deals) on the human tokens): read only by the schemaRev 20 → 21 save
+ *  migration (a corpus of ½ the human tokens per old deal). Model v3 D2 replaced the action (LICENCE_TIERS below). */
 export const LICENCE_DEAL_SHARE = 0.5;
+
+/** Licensing deals by domain (action data.license, model v3 D2). A deal buys `tokensT` of one domain at a price tier;
+ *  quality per tier spans research/20 A3's curated/licensed q 1.5–3 (DCLM/FineWeb-Edu-style selection ≈ ×3, Gundlach's
+ *  table [P]). Prices per T tokens [D, order of magnitude from deal anchors, not fetched]:
+ *    bulk     q 1.5, $0.1B/T — forum, news and code archives (the reported Reddit–Google deal, ≈ $60M a year for a
+ *             corpus of order 1T tokens [UNVERIFIED, press])
+ *    curated  q 2,   $2B/T   — edited reference, journals, documentation [D: the geometric middle of the other two]
+ *    premium  q 3,   $30B/T  — books and textbooks: Bartz v. Anthropic settled at ≈ $3,000 per book (research/08 P23 [V],
+ *             research/17 D3) at ≈ 100k tokens a book = $30B/T; reported per-title licences ($5,000) are the same order
+ *  Default sizes give deals of $0.5–1.5B (5T / 0.5T / 0.05T). The data is delivered LICENCE_DELIVERY_DAYS after the
+ *  deal (negotiation, transfer, cleaning) [D]; the cash is paid at signing. */
+export type LicenceTier = 'bulk' | 'curated' | 'premium';
+export const LICENCE_TIERS: Record<LicenceTier, { quality: number; priceBPerT: number; defaultT: number; label: string }> = {
+  bulk: { quality: 1.5, priceBPerT: 0.1, defaultT: 5, label: 'Bulk archives' },
+  curated: { quality: 2, priceBPerT: 2, defaultT: 0.5, label: 'Curated' },
+  premium: { quality: 3, priceBPerT: 30, defaultT: 0.05, label: 'Books & textbooks' },
+};
+export const LICENCE_DELIVERY_DAYS = 60;
+/** Size limits of one deal (T tokens) [D]. */
+export const LICENCE_SIZE_T = { min: 0.01, max: 20 } as const;
+/** Licensing the crawl (data.license, domain 'web': v2's blanket "License data"): $1B + $0.005B per unlicensed T (270T →
+ *  $2.35B, v2's numbers [D]); it adds no tokens (the crawl is already held) and ends the copyright-suit hazard on it
+ *  (actors/china.ts). The creatives bloc approves (+10, v2). */
+export const WEB_LICENCE = { baseB: 1, perTB: 0.005, creatives: 10 } as const;
 
 /** Synthetic data (compute + a teacher). Generation FLOP = FLOP per token of the teacher × SYN_OVERGEN per kept token
  *  (research/20 A3 [G]: ≈ 2·N_gen per token, filtering at 2–5× overgeneration), at the training pool's FLOP per H100e-day.
@@ -55,6 +79,18 @@ export const P10_SYN_MULT = 3;
  *  [D]: conversation logs, half model-written, short user turns (like V0's synthetic data). Mix by channel: consumer =
  *  the chat work type's domain weights (data/v2/serving.ts CHAT_WORK); other channels [D]. */
 export const USAGE_POLICY_SHARE = 0.2;
+/** Usage-data policy (action data.usagePolicy, model v3 D2): the share of eligible output tokens kept as training data
+ *  per level [D]: none 0 (no training on users' chats), standard 0.2 (USAGE_POLICY_SHARE: opt-out training with the
+ *  usual retention), broad 0.5 (opt-out by default, long retention, little filtering). The privacy side is the closest
+ *  existing relation effect, the Civil Liberties bloc's approval (data/v2/blocs.ts; research/08 §1.11 "privacy laws,
+ *  against chat scanning"): approval per level, applied as the difference on a change [D, small: B2's limits / unrestricted
+ *  defense terms move it ±6–8]. */
+export type UsageLevel = 'none' | 'standard' | 'broad';
+export const USAGE_LEVELS: Record<UsageLevel, { share: number; civlib: number; label: string }> = {
+  none: { share: 0, civlib: 4, label: 'No training on users' },
+  standard: { share: USAGE_POLICY_SHARE, civlib: 0, label: 'Standard (opt-out)' },
+  broad: { share: 0.5, civlib: -6, label: 'Broad' },
+};
 export const USAGE_QUALITY = 0.5;
 export const USAGE_ELIGIBLE: Partial<Record<Channel, number>> = { consumer: 1 };
 export const USAGE_MIX: Partial<Record<Channel, DomainMix>> = {
@@ -68,6 +104,19 @@ export const USAGE_MIX: Partial<Record<Channel, DomainMix>> = {
 /** Expert human data (cash, for RL environments and evals; D5's suites read it). Not pretraining data: it does not
  *  enter U. q 3 [D: research/20 A3's top curated tier]. Starts empty (D5 sources the start suites). */
 export const EXPERT_QUALITY = 3;
+/** Expert data purchases by domain (action data.expert, model v3 D2): the price is the suites' ($0.05 a token, $50B/T:
+ *  Epoch's RL-environment FAQ ≈ $1k per task at ≈ 20k tokens a task, data/v2/suites.ts EXPERT_PRICE_B_PER_T); the
+ *  default order is one start suite's worth (EXPERT_START_T = 0.002T, $0.1B). Delivered EXPERT_DELIVERY_DAYS later
+ *  (contractor recruiting and review) [D]. The tokens wait in the domain's expert asset (`expert:dom:<domain>`) until a
+ *  suite build of a family in that domain uses them instead of buying (models/suites.ts) or an evaluation reads them
+ *  (D7). Size limits per order (T) [D]. */
+export const EXPERT_DELIVERY_DAYS = 30;
+export const EXPERT_SIZE_T = { min: 0.0005, max: 0.05 } as const;
+
+/** Synthetic generation job (action data.synthesize, model v3 D2): a share of the synthetic pool generates with a chosen
+ *  teacher for some days; the rest keeps the default teacher (the internal research model). Defaults [D]: the whole
+ *  pool for 90 days. */
+export const SYN_JOB = { share: 1, days: 90, maxDays: 730 } as const;
 
 // ───────────────────────────── the draw (model v3 D3) ─────────────────────────────
 

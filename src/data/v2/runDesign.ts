@@ -82,10 +82,9 @@ export const COGNITIVE: DomainId[] = ['CODE', 'RSCH', 'REASON', 'AGENCY', 'SOCIA
 /** Families that need a paradigm before any RL can use them (environments exist only then). */
 export const RL_FAMILY_NEEDS: Partial<Record<RLFamily, string>> = { computerUse: 'P06' };
 
-/** Graders: hardened ones cost RL-environment cash, cheap ones raise reward-hacking pressure. No capability effect. */
-export const GRADERS: Record<PostDesign['graders'], { s2Mult: number }> = { cheap: { s2Mult: 1.5 }, hardened: { s2Mult: 0.6 } };
-/** RL budget's trait pressure: S2 (hackable reward) multiplier and S7 (eval-like data) [D: v2's light RL ×0.3 with
- *  hardened graders = 0.5 × 0.6]. */
+/** RL budget's trait pressure: S2 (hackable reward) multiplier — the optimisation pressure on the suites'
+ *  exploitability (model v3 D5: V1's graders option is the suites' state, models/suites.ts) — and S7 (eval-like data)
+ *  [D: v2's light RL ×0.3 with hardened graders = 0.5 × 0.6]. */
 export const RL_BUDGET_SIG: Record<PostDesign['rlBudget'], { s2Mult: number; s7: number }> = {
   light: { s2Mult: 0.5, s7: 0 }, standard: { s2Mult: 1, s7: 0.2 }, heavy: { s2Mult: 1.3, s7: 0.3 },
 };
@@ -125,7 +124,7 @@ export const REFERENCE_BASE: BaseDesign = {
 };
 
 export const REFERENCE_POST: PostDesign = {
-  pref: 'constitution', rlFocus: 'broad', rlBudget: 'standard', graders: 'hardened', inoculation: false,
+  pref: 'constitution', rlFocus: 'broad', rlBudget: 'standard', inoculation: false,
   cot: 'visible', safety: 'standard', techniques: [], trainAgainst: [],
 };
 
@@ -205,7 +204,5 @@ export const EFFORT: Record<'low' | 'max' | 'deep', { dL: number; tokens: number
 
 export const SIGNAL_IDS: SignalId[] = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'];
 
-/** Cash: RL environment budget for hardened graders = 0.5 × the TCO-equivalent of the run's FLOP (§3.3.1). */
-export const ENV_BUDGET_FRAC = 0.5;
 /** Science journals: +5% of the run's compute-equivalent cost (§3.3.1). */
 export const JOURNALS_FRAC = 0.05;

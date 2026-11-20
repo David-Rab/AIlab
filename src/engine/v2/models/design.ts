@@ -2,10 +2,11 @@
 // Owner: WS1. Capability effects are in effective-compute OOMs (ΔG); size, tokens and RL compute are physical and
 // enter through models/effective.ts.
 import {
-  BASE_DATA, CURATION, GRADERS, POST_COT, POST_PREF, POST_SAFETY, RL_BUDGET_SIG, RL_FAMILIES, RL_FAMILY_IDS, SHAPE,
+  BASE_DATA, CURATION, POST_COT, POST_PREF, POST_SAFETY, RL_BUDGET_SIG, RL_FAMILIES, RL_FAMILY_IDS, SHAPE,
   SIGNAL_IDS, sizeS5,
 } from '../../../data/v2/runDesign';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
+import { V1_HARDENED_S2 } from '../../../data/v2/suites';
 import type { BaseDesign, DomainId, PostDesign, RLFamily, SignalId } from '../types';
 
 export type Off = Partial<Record<DomainId, number>>;
@@ -67,8 +68,8 @@ export function rlFocusEffect(focus: RLFamily[] | 'broad'): { signals: Sig; h80M
 }
 
 /** Post-training design effects (choices D–H): ΔG (OOM), level offsets (preference), serving and monitorability of the
- *  reasoning mode, signals. The RL budget's capability effect is the RL curve (runs.ts); graders only move signals and
- *  cash. */
+ *  reasoning mode, signals. The RL budget's capability effect is the RL curve (runs.ts); the environment suites
+ *  (model v3 D5, models/suites.ts) set the RL ceiling per family and S2. */
 export interface PostEffect {
   dg: number; offL: Off; serve: number; monitorability: number; signals: Sig; h80Mult: number; misuseMult: number; appeal: number;
   flags: { bioUplift?: boolean; cyberOffense?: boolean; persuasion?: boolean }; safetyFteWeeks: number;
@@ -79,7 +80,9 @@ export function postEffect(p: PostDesign): PostEffect {
   const sf = POST_SAFETY[p.safety];
   const rl = rlFocusEffect(p.rlFocus);
   let signals = addSig(pr.signals, rl.signals);
-  signals.S2 = (signals.S2 ?? 0) * RL_BUDGET_SIG[p.rlBudget].s2Mult * GRADERS[p.graders].s2Mult;
+  // S2 here is the design table's (V1's hardened graders, × 0.6); the engine's S2 reads the lab's environment suites
+  // (model v3 D5, safety/traits.ts postSignals) and runs.ts postBuild writes it into the version's signals.
+  signals.S2 = (signals.S2 ?? 0) * RL_BUDGET_SIG[p.rlBudget].s2Mult * V1_HARDENED_S2;
   signals = addSig(signals, { S7: RL_BUDGET_SIG[p.rlBudget].s7, S4: cot.s4 });
   const flags = { ...rl.flags, ...(p.pref === 'persuasion' ? { persuasion: true } : {}) };
   return {

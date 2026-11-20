@@ -15,6 +15,7 @@ import { dataPortfolioFromV2, type V2DataAssets } from '../production/data';
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { PROJECT_BY_ID, isLineNode } from '../../../data/v2/tree';
 import { safFromProgress } from '../safety/lineProjects';
+import { START_SUITE_FAMILIES, startExpertAssets, suitesFromV1 } from '../models/suites';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
 /** 12 (model v3 V1): models are built from physical quantities (BaseModel, VersionBuild, BaseDesign, PostDesign changed).
@@ -41,8 +42,14 @@ import { safFromProgress } from '../safety/lineProjects';
  *  dataAssets. Migration 20 → 21 maps the token counts so U is unchanged (dataPortfolioFromV2).
  *  22 (model v3 E1): safety research-line projects on the project mechanism (TreeNodeState.saf: stage, candidates with
  *  beliefs, the test in flight). Migration 21 → 22 converts a line project in progress at the same share of its stages.
- *  (D1 and E1 were built in parallel, both as 20 → 21; merge M1 made the chain linear.) */
-export const SCHEMA_REV = 22;
+ *  (D1 and E1 were built in parallel, both as 20 → 21; merge M1 made the chain linear.)
+ *  23 (model v3 D5): PlayerLab.suites (RL environment suites per family) and their expert data (one `expert:<family>`
+ *  asset each) replace the post design's graders option. Migration 22 → 23 maps the lab's latest graders choice to the
+ *  suites' exploitability (cheap → cheap, else hardened = the leader's start) at fidelity 1 (suitesFromV1).
+ *  24 (model v3 D2): DataPortfolio.pending (licence and expert-data deals waiting for delivery) and the optional synJob
+ *  (a synthetic generation job with a chosen teacher). Migration 23 → 24 starts with nothing pending and no job.
+ *  (D5 and D2 were built as 21 → 22 → 23 beside E1's 21 → 22; merge M2 made the chain linear.) */
+export const SCHEMA_REV = 24;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -274,6 +281,24 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       const ag = n.agenda as AgendaId;
       st.saf = safFromProgress(AGENDA_BY_ID[ag].T1, st.progress, s.player.safety.agendas[ag].posterior);
     }
+  },
+  /** 22 → 23 (model v3 D5): environment suites from the lab's latest graders choice (the newest post-training run, else
+   *  the newest full version); the start suites' expert data replaces D1's empty expert placeholder. */
+  22: (raw) => {
+    const p = (raw as unknown as GameStateV2).player;
+    if (p.suites) return;
+    let graders: 'cheap' | 'hardened' | undefined;
+    let day = -Infinity;
+    for (const r of p.models.runs) if (r.post && r.startDay >= day) { day = r.startDay; graders = r.post.graders; }
+    if (graders === undefined) for (const v of p.models.versions) if (v.variant === 'full' && v.day >= day) { day = v.day; graders = v.design.graders; }
+    p.suites = suitesFromV1(graders, START_SUITE_FAMILIES);
+    const kept = p.dataPortfolio.assets.filter((a) => a.kind !== 'expert' || a.tokensT > 0);
+    p.dataPortfolio.assets = [...kept, ...startExpertAssets().filter((x) => !kept.some((a) => a.id === x.id))];
+  },
+  /** 23 → 24 (model v3 D2): no data deals pending and no synthetic job (the whole pool keeps the default teacher). */
+  23: (raw) => {
+    const p = (raw as unknown as GameStateV2).player;
+    p.dataPortfolio.pending ??= [];
   },
 };
 

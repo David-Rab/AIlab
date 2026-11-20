@@ -25,7 +25,7 @@ import { addKnowledge, trainNow } from '../models/stacks';
 import { asV1World } from '../world/calibration';
 import { poolsOf } from '../compute/power';
 import { rivalSpeedMult } from '../actors/rivals';
-import { syntheticAccrual, usageAccrual } from './data';
+import { deliverData, syntheticAccrual, usageAccrual } from './data';
 import { spareServingToResearch } from '../worldfx/revenue';
 import { Lrel, Phi, Xces, bestMix, hRef, knotAt, refTotal, tasteSD } from './knots';
 import { effLabour, qualityZ, researchMods, resetWorkContext, speedOfCopy, starTaste, teamTaste, workContext } from '../departments/workfit';
@@ -482,6 +482,7 @@ export const productionSystem: EngineSystem = {
       const dif = diffusionPerDay(s);
       if (dif.dpa > 0) addKnowledge(s, ctx, dif.dpa, 'knowledge diffusion', dif.from);
       ctx.memo.set('WS1:production:player', r);
+      deliverData(s, ctx);
       syntheticAccrual(s);
       usageAccrual(s);
     }

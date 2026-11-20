@@ -11,7 +11,7 @@
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { PLAYER_MODEL_FAMILY } from '../../../data/v2/names';
 import {
-  B_G_PER_Y, CONTINUE_SHARE, DISTILL_TPP, E_START, ENV_BUDGET_FRAC, GOODPUT, IDA_RL_SHARE, MFU_RL_FACTOR, PARAM_RANGE, RL_BUDGET,
+  B_G_PER_Y, CONTINUE_SHARE, DISTILL_TPP, E_START, GOODPUT, IDA_RL_SHARE, MFU_RL_FACTOR, PARAM_RANGE, RL_BUDGET, RL_FAMILY_IDS,
   STREAM_LAG_DAYS, STREAM_POOL_SHARE, STUDENT_DEFAULT, TPP_FREE_MAX, TPP_RANGE, sizeScrutiny,
 } from '../../../data/v2/runDesign';
 import { buildEtas, buildWaitNew, engScale, queueBuild, runSetupTW, runWaiting } from '../departments/build';
@@ -23,13 +23,15 @@ import { playerDraw, uniqueTokens, type DataDraw } from '../production/data';
 import { frontierFlop, hRef } from '../production/knots';
 import { tcoPerH100eYear } from '../production/production';
 import { consumeRunPenalty } from '../safety/responses';
-import { applyBaseToLineage, applyIdaCycle, applyRunToTraits, runSignals } from '../safety/traits';
+import { applyBaseToLineage, applyIdaCycle, applyRunToTraits, postSignals, runSignals } from '../safety/traits';
+import { suiteExploitMap, suiteFidMap, suiteOf, suiteRlWeights } from './suites';
+import { RL_FAMILY_LABEL } from '../../../data/v2/suites';
 import type {
   BaseDesign, BaseModel, Day, DomainId, EngineSystem, GameStateV2, ModelVersion, PostDesign, RivalLab, RLFamily, RunKind, RunPrediction, SystemCtx,
   ToolFamily, TraitBelief, TraitId, TrainingRun, VersionBuild,
 } from '../types';
 import { adopted, paradigmOff } from './paradigms';
-import { nodeKnown, optionLocked, payoffOf } from './tree';
+import { optionLocked, payoffOf } from './tree';
 import type { DomainMap } from './effective';
 import { evalDaysFor, runEvalSuite } from './benchmarks';
 import { addOff, addSig, baseEffect, clampSignals, monitorabilityClass, postEffect, type Off } from './design';
@@ -40,7 +42,7 @@ import { stackRate } from './research';
 import { fptOfBuild } from '../departments/workfit';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import {
-  continueGPre, daysFor, distillFlop, distillGap, fDataEff, flopOfDesign, gPreOf, rlFamiliesAvailable, rlGains, rlWeights, serveOfBase,
+  continueGPre, daysFor, distillFlop, distillGap, fDataEff, flopOfDesign, gPreOf, rlGains, rlWeights, serveOfBase,
   servingFlop, type FamilyMap, type GPreParts, type RlGains,
 } from './effective';
 import { versionById } from './labs';
@@ -214,9 +216,9 @@ export interface RunPlan {
   reason?: string;
 }
 
-/** Family weights of an RL budget for the player today (broad = every family with environments). */
+/** Family weights of an RL budget for the player today (broad = every family with an environment suite, model v3 D5). */
 export function playerRlWeights(s: GameStateV2, focus: PostDesign['rlFocus']): FamilyMap {
-  return rlWeights(focus, rlFamiliesAvailable((id) => nodeKnown(s, id)));
+  return suiteRlWeights(s, focus);
 }
 
 /** A base's pretraining G at launch for the player: recipe E_START + the pretraining stack at its FLOP (or the frozen
@@ -232,8 +234,13 @@ function baseG(s: GameStateV2, d: BaseDesign, pre?: number): { parts: GPreParts;
   return { parts, flop, tokens, epochs: draw.epochs, fD, U: draw.uMix, sD: addOff(draw.sD, be.sD), draw };
 }
 
-/** The RL recipe (stack values) a post-training run launched today freezes. */
-export const rlRecipeNow = (s: GameStateV2) => ({ rlMid: rlMidNow(s), rlCeil: rlCeilNow(s) });
+/** The RL recipe a post-training run launched today freezes: the RL stack's efficiency and ceiling, and (model v3 D5)
+ *  the environment suites' fidelity and exploitability per family. */
+export interface RlRecipe { rlMid: number; rlCeil: number; fid?: FamilyMap; exploit?: FamilyMap }
+export const rlRecipeNow = (s: GameStateV2): RlRecipe => ({ rlMid: rlMidNow(s), rlCeil: rlCeilNow(s), fid: suiteFidMap(s), exploit: suiteExploitMap(s) });
+/** RL weights of a run on the suites it froze (their families), else on the lab's suites today. */
+const recipeWeights = (s: GameStateV2, focus: PostDesign['rlFocus'], rec: RlRecipe) =>
+  rec.fid ? rlWeights(focus, RL_FAMILY_IDS.filter((f) => rec.fid![f] !== undefined)) : playerRlWeights(s, focus);
 /** Domain effects of adopted ideas (OOM, model v3 V2) added to a build's domain specialisation. */
 function withDomainG(s: GameStateV2, sD: Off): DomainMap {
   const out: DomainMap = { ...sD };
@@ -242,15 +249,18 @@ function withDomainG(s: GameStateV2, sD: Off): DomainMap {
 }
 
 /** Post-training build on `base` with design `d` at the RL recipe `rec` (no penalty, no paradigm offsets). */
-function postBuild(s: GameStateV2, base: BaseModel, d: PostDesign, rec: { rlMid: number; rlCeil: number }, rlFlop: number): VersionBuild {
+function postBuild(s: GameStateV2, base: BaseModel, d: PostDesign, rec: RlRecipe, rlFlop: number): VersionBuild {
   const pe = postEffect(d);
-  const rlW = playerRlWeights(s, d.rlFocus);
-  const rl = rlGains(base.flop, rlFlop, rlW, rec.rlMid, rec.rlCeil);
+  const rlW = recipeWeights(s, d.rlFocus, rec);
+  const fid = rec.fid ?? suiteFidMap(s);
+  const rl = rlGains(base.flop, rlFlop, rlW, rec.rlMid, rec.rlCeil, fid);
   const h80Mult = pe.h80Mult * (adopted(s, 'P07') ? P07_HORIZON : 1) * (adopted(s, 'P12') ? P12_HORIZON : 1);
+  // The version's S2 is the suites' (model v3 D5), not the design table's.
+  const sig = addSig(base.signals ?? {}, { ...pe.signals, S2: postSignals(s, d, rec.exploit).S2 });
   return {
-    gPre: base.gPre, flopPre: base.flop, rlFlop, rlW, eRL: rec.rlMid, aRL: rec.rlCeil, dgRL: rl.general, dgRLd: rl.perDomain, dg: pe.dg, sD: withDomainG(s, base.sD ?? {}),
+    gPre: base.gPre, flopPre: base.flop, rlFlop, rlW, eRL: rec.rlMid, aRL: rec.rlCeil, rlFid: { ...fid }, dgRL: rl.general, dgRLd: rl.perDomain, dg: pe.dg, sD: withDomainG(s, base.sD ?? {}),
     offL: addOff(addOff(base.off ?? {}, pe.offL), paradigmOff(s)), off: {}, paIn: paOfRecipe(s, base.flop, base.ePre, rec.rlMid, rec.rlCeil), h80Mult, misuseMult: pe.misuseMult,
-    signals: clampSignals(addSig(base.signals ?? {}, pe.signals)),
+    signals: clampSignals(sig),
   };
 }
 
@@ -258,9 +268,9 @@ function postBuild(s: GameStateV2, base: BaseModel, d: PostDesign, rec: { rlMid:
 function referencePostOn(s: GameStateV2, gPre: number, flop: number, sD: Off, ePre: number): VersionBuild {
   const rlW = playerRlWeights(s, 'broad');
   const rec = rlRecipeNow(s);
-  const rl = rlGains(flop, RL_BUDGET.standard * flop, rlW, rec.rlMid, rec.rlCeil);
+  const rl = rlGains(flop, RL_BUDGET.standard * flop, rlW, rec.rlMid, rec.rlCeil, rec.fid);
   return {
-    gPre, flopPre: flop, rlFlop: RL_BUDGET.standard * flop, rlW, eRL: rec.rlMid, aRL: rec.rlCeil, dgRL: rl.general, dgRLd: rl.perDomain, dg: 0, sD: withDomainG(s, sD),
+    gPre, flopPre: flop, rlFlop: RL_BUDGET.standard * flop, rlW, eRL: rec.rlMid, aRL: rec.rlCeil, rlFid: { ...rec.fid }, dgRL: rl.general, dgRLd: rl.perDomain, dg: 0, sD: withDomainG(s, sD),
     offL: paradigmOff(s), off: {}, paIn: paOfRecipe(s, flop, ePre, rec.rlMid, rec.rlCeil), h80Mult: 1, misuseMult: 1, signals: {},
   };
 }
@@ -323,7 +333,9 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
     if (!base) return failPlan('Pick a base');
     const d = p.post;
     if (!d) return failPlan('No design');
-    reason = optionLocked(s, 'pref', d.pref) ?? optionLocked(s, 'graders', d.graders) ?? (d.cot !== 'latent' ? optionLocked(s, 'cot', d.cot) : undefined)
+    // Model v3 D5: a family with no environment suite cannot be focused (checked first: no environments, no RL).
+    if (d.rlFocus !== 'broad') for (const f of d.rlFocus) if (!suiteOf(s, f)) reason ??= `No ${RL_FAMILY_LABEL[f]} environment suite yet`;
+    reason ??= optionLocked(s, 'pref', d.pref) ?? (d.cot !== 'latent' ? optionLocked(s, 'cot', d.cot) : undefined)
       ?? (d.inoculation ? optionLocked(s, 'inoculation', true) : undefined);
     if (d.rlFocus !== 'broad') for (const f of d.rlFocus) reason ??= optionLocked(s, 'rlFocus', f);
     if (d.cot === 'latent' && base.design.shape !== 'latent') reason = 'Latent CoT needs a latent base';
@@ -338,9 +350,8 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
       flopNeeded = RL_BUDGET[d.rlBudget] * base.flop;
       build = postBuild(s, base, d, rlRecipeNow(s), flopNeeded);
     }
-    rlOut = rlGains(build.flopPre, build.rlFlop, build.rlW, build.eRL, build.aRL ?? 0);
-    if (d.graders === 'hardened') cash += (adopted(s, 'P15') ? 0.1 : ENV_BUDGET_FRAC) * flopCost(s, flopNeeded); // P15: hardened graders at the cheap price
-    signals = addSig(base.signals ?? {}, pe.signals);
+    rlOut = rlGains(build.flopPre, build.rlFlop, build.rlW, build.eRL, build.aRL ?? 0, build.rlFid);
+    // Model v3 D5: no per-run grader cash any more; the suites are assets (built and hardened on the build queue).    signals = addSig(base.signals ?? {}, pe.signals);
     serve = (base.serve ?? 0.5) * pe.serve * serveTechMult(s);
     mon = Math.min(base.monitorability ?? 1, pe.monitorability);
   } else if (p.kind === 'distill') {
@@ -393,13 +404,17 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
 
 /** Amplified build (IDA, P18): the teacher's build with `extra` more RL FLOP at today's RL recipe (the gain comes from
  *  the RL curve; a saturated teacher gains little). */
-function idaBuild(s: GameStateV2, t: ModelVersion, extra: number, rec: { rlMid: number; rlCeil: number }): VersionBuild {
+function idaBuild(s: GameStateV2, t: ModelVersion, extra: number, rec: RlRecipe): VersionBuild {
   const tb = t.build ?? fallbackBuild(s, t);
   const eRL = Math.max(tb.eRL, rec.rlMid);
   const aRL = Math.max(tb.aRL ?? 0, rec.rlCeil);
   const rlFlop = tb.rlFlop + extra;
-  const rl = rlGains(tb.flopPre, rlFlop, tb.rlW, eRL, aRL);
-  return { ...tb, rlFlop, eRL, aRL, dgRL: rl.general, dgRLd: rl.perDomain, sD: { ...tb.sD }, offL: { ...tb.offL }, off: {}, rlW: { ...tb.rlW }, signals: { ...tb.signals } };
+  // The extra RL runs on today's suites (model v3 D5): each family's best fidelity of the teacher's and today's.
+  const now = rec.fid ?? suiteFidMap(s);
+  const rlFid: FamilyMap = { ...tb.rlFid };
+  for (const [f, v] of Object.entries(now) as [RLFamily, number][]) rlFid[f] = Math.max(rlFid[f] ?? 1, v);
+  const rl = rlGains(tb.flopPre, rlFlop, tb.rlW, eRL, aRL, rlFid);
+  return { ...tb, rlFlop, eRL, aRL, rlFid, dgRL: rl.general, dgRLd: rl.perDomain, sD: { ...tb.sD }, offL: { ...tb.offL }, off: {}, rlW: { ...tb.rlW }, signals: { ...tb.signals } };
 }
 
 /** Run card prediction (§3.3.2 "Run card"). */
@@ -485,7 +500,7 @@ function newVersion(s: GameStateV2, run: TrainingRun, base: BaseModel, build: Ve
   const pm = finishBuild(w, build);
   const v: ModelVersion = {
     id: `V${s.player.models.nextName++}`, name: versionName(s, base.id), baseId: base.id, day: s.time.day,
-    variant: 'full', design: run.post ? { ...run.post } : { ...(parent?.design ?? { pref: 'constitution', rlFocus: 'broad', rlBudget: 'standard', graders: 'hardened', inoculation: false, cot: 'visible', safety: 'standard', techniques: [], trainAgainst: [] }) },
+    variant: 'full', design: run.post ? { ...run.post } : { ...(parent?.design ?? { pref: 'constitution', rlFocus: 'broad', rlBudget: 'standard', inoculation: false, cot: 'visible', safety: 'standard', techniques: [], trainAgainst: [] }) },
     pm, Lg: levelOf(w, pm), domains: domainsOf(w, pm, build.off, adopted(s, 'P19')),
     traitsTrue: { ...(parent?.traitsTrue ?? base.traitsTrue) }, masks: copyMasks(parent), uModes: [...base.uModes],
     monitorability: 0.9, serveCost: base.serve ?? 0.5, evals: { bench: {}, safety: {} }, beliefs: blankBeliefs(parent ?? versionById(s, s.player.agents.capRoutine.versionId)),
@@ -557,13 +572,13 @@ function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
   if (run.name.startsWith('IDA')) {
     const t = versionById(s, run.teacherVersionId);
     if (!t) return;
-    const build = idaBuild(s, t, run.flopNeeded, { rlMid: rec.rlMid ?? rlMidNow(s), rlCeil: rec.rlCeil ?? rlCeilNow(s) });
+    const build = idaBuild(s, t, run.flopNeeded, { rlMid: rec.rlMid ?? rlMidNow(s), rlCeil: rec.rlCeil ?? rlCeilNow(s), fid: rec.fid, exploit: rec.exploit });
     const v = newVersion(s, run, base, build, t, { serveCost: t.serveCost, monitorability: t.monitorability, design: { ...t.design }, appeal: t.appeal ?? 1 });
     m.versions.push(v);
     afterVersion(s, ctx, run, v, t);
     return;
   }
-  const build = postBuild(s, base, run.post, { rlMid: rec.rlMid ?? rlMidNow(s), rlCeil: rec.rlCeil ?? rlCeilNow(s) }, run.flopNeeded);
+  const build = postBuild(s, base, run.post, { rlMid: rec.rlMid ?? rlMidNow(s), rlCeil: rec.rlCeil ?? rlCeilNow(s), fid: rec.fid, exploit: rec.exploit }, run.flopNeeded);
   build.dg -= consumeRunPenalty(s) * B_G_PER_Y;
   const v = newVersion(s, run, base, build, parent, {
     serveCost: (base.serve ?? 0.5) * pe.serve * serveTechMult(s),
@@ -685,12 +700,13 @@ function trackOf(s: GameStateV2, v: ModelVersion, b: VersionBuild): Track {
 }
 /** A stream version's build at the tracked recipe: continual learning keeps applying today's pretraining and RL stacks
  *  to the deployed model in place (the AI 2027 online learner; model v3 V2: the stacks, not the know-how number). The
- *  physical part of its base (FLOP, shape, data) is unchanged. */
+ *  physical part of its base (FLOP, shape, data) is unchanged. Its RL runs on the lab's suites today (model v3 D5). */
 function streamBuild(s: GameStateV2, v: ModelVersion, b: VersionBuild, tr: Track): VersionBuild {
   const base = s.player.models.bases.find((x) => x.id === v.baseId);
   const gPre = base ? base.gPre - base.ePre + tr.pre : b.gPre;
-  const rl = rlGains(b.flopPre, b.rlFlop, b.rlW, tr.rlMid, tr.rlCeil);
-  return { ...b, gPre, eRL: tr.rlMid, aRL: tr.rlCeil, dgRL: rl.general, dgRLd: rl.perDomain, paIn: paOfRecipe(s, b.flopPre, tr.pre, tr.rlMid, tr.rlCeil) };
+  const rlFid = suiteFidMap(s);
+  const rl = rlGains(b.flopPre, b.rlFlop, b.rlW, tr.rlMid, tr.rlCeil, rlFid);
+  return { ...b, gPre, eRL: tr.rlMid, aRL: tr.rlCeil, rlFid, dgRL: rl.general, dgRLd: rl.perDomain, paIn: paOfRecipe(s, b.flopPre, tr.pre, tr.rlMid, tr.rlCeil) };
 }
 
 /** Stream (P08): the version tracks the stacks with a 7-day lag (first-order). WS2 adds trait drift (1/42 of a

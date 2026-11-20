@@ -137,3 +137,5 @@ export { quarterIndex, dayOfQuarter, dayOfDate } from './core/time';
 // End screen only (truth): the causal replay.
 export { topDecisions } from './endings/replay';
 export * from './core/limitsView';
+// Model v3 D5: RL environment suites (readout and costs; the Blueprint shows them read-only until D6).
+export { suitesView, suiteWorkCost, suiteWorkEffect, type SuiteRow } from './models/suites';

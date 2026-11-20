@@ -27,7 +27,7 @@ const SAFE_PLAY: RefPlayOpts = {
   safetyShare: () => 0.2,
   safStaffShare: 0.25,
   base: { safetyPretrain: true, hazard: true },
-  post: () => ({ pref: 'constitution', rlBudget: 'standard', graders: 'hardened', cot: 'faithful', safety: 'heavy', inoculation: true }),
+  post: () => ({ pref: 'constitution', rlBudget: 'standard', cot: 'faithful', safety: 'heavy', inoculation: true }),
   tree: () => [...REF_TREE.filter((g) => g.id !== 'P17'), ...SAFE_TREE_EXTRA],
 };
 
@@ -60,7 +60,10 @@ export const safeBot: BotPolicy = {
     if (every(s, 15)) {
       for (const id of ['A1', 'A2', 'A6', 'B5', 'F3', 'C1', 'C3', 'E1', 'E2']) tryAct(s, api, id, {});
       // Paid relation actions (bounties, grants, data licences, community benefits, KYC) only with runway to spare.
-      if (runwayOf(s).q >= 5) for (const id of ['A5', 'D1', 'D2', 'D3', 'F1', 'C2']) tryAct(s, api, id, {});
+      if (runwayOf(s).q >= 5) {
+        for (const id of ['A5', 'D1', 'D2', 'F1', 'C2']) tryAct(s, api, id, {});
+        if (!s.player.dataPortfolio.assets.some((a) => a.kind === 'public' && a.licensed)) tryAct(s, api, 'data.license', { domain: 'web' });
+      }
       tryAct(s, api, 'A3', { strong: true });
       tryAct(s, api, 'A4', {});
       tryAct(s, api, 'B4', { direction: 'regulate' });

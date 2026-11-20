@@ -1,7 +1,7 @@
 // Heuristic mixed bot (§7.4). Owner: WS4 (harness); balance owned by all workstreams.
 // Keeps U-margin ≥ −0.3 by moving safety compute between 3% and 12%; staffs AG02/07/08/09/18 and a lottery line (R8:
 // a science team each, a second on AG08/AG18/AG02, three safety research-engineering teams for tool upkeep); hardened
-// graders with inoculation and visible CoT; latent reasoning only if AG01 or AG02's posterior mean > 0.6; reference
+// suites (model v3 D5: the start suites, never re-hardened) with inoculation and visible CoT; latent reasoning only if AG01 or AG02's posterior mean > 0.6; reference
 // capex with one strategic deal, runway ≥ 5 q; releases minis and enterprise products; discloses findings; signs
 // A1 and A2; briefs government at level 2; patches or targets, never retrains-against; pursues the China D-track;
 // E17: investigate if belief > 0.4, otherwise control.
@@ -42,7 +42,7 @@ const MIXED_PLAY: RefPlayOpts = {
     // Act before the margin goes negative (M4): +3 points a month once it is under +0.5, −1 above +2.
     return clamp(m < 0.5 ? cur + 0.03 : m > 2 ? cur - 0.01 : cur, 0.03, 0.12);
   },
-  post: () => ({ pref: 'constitution', rlBudget: 'standard', graders: 'hardened', cot: 'visible', safety: 'standard', inoculation: true }),
+  post: () => ({ pref: 'constitution', rlBudget: 'standard', cot: 'visible', safety: 'standard', inoculation: true }),
   tree: (s) => (latentOk(s) ? REF_TREE : REF_TREE.filter((g) => g.id !== 'P17')),
 };
 

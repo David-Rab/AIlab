@@ -9,10 +9,12 @@
 //              per-slice Muennighoff repetition → D_eff → f_data; drawn effective shares → s_d,data = α·log₁₀(share ÷ ref)
 //   synthetic  += pool FLOP ÷ (teacher FLOP per token × overgeneration) per day; q from the teacher's G
 //   usage      += live products' output tokens × channel eligibility × the lab's data-policy share per day
+//   deals      (model v3 D2, actions in production/dataActions.ts) licences by domain and expert data are paid at
+//              signing and delivered later (`pending`); a synthetic job sends a share of the pool to a chosen teacher
 //   readout    data adequacy of the next base: Muennighoff's ≈ free 4 epochs of U vs N_req(next base)
 import {
-  LICENCE_DEAL_SHARE, LICENSED_MIX, LICENSED_QUALITY, LICENSED_START_T, P10_SYN_MULT, PUBLIC_START_COVERAGE, PUBLIC_WEB, SYN_MIX, SYN_OVERGEN, SYN_Q,
-  SYN_START_T, USAGE_ELIGIBLE, USAGE_MIX, USAGE_POLICY_SHARE, USAGE_QUALITY, EXPERT_QUALITY, ALPHA_DATA, SPEC_CAP, type DomainMix,
+  LICENCE_DEAL_SHARE, LICENCE_TIERS, LICENSED_MIX, LICENSED_QUALITY, LICENSED_START_T, P10_SYN_MULT, PUBLIC_START_COVERAGE, PUBLIC_WEB, SYN_MIX, SYN_OVERGEN, SYN_Q,
+  SYN_START_T, USAGE_ELIGIBLE, USAGE_MIX, USAGE_POLICY_SHARE, USAGE_QUALITY, EXPERT_QUALITY, ALPHA_DATA, SPEC_CAP, type DomainMix, type LicenceTier,
 } from '../../../data/v2/dataAssets';
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { BASE_DATA, REFERENCE_BASE } from '../../../data/v2/runDesign';
@@ -23,7 +25,7 @@ import { gOfBuild, gV0 } from '../models/capability';
 import { internalVersion, versionById } from '../models/labs';
 import { latestBaseFlop } from '../models/stacks';
 import { idleTrainingShare } from '../models/runs';
-import type { BaseDesign, DataAsset, DataKind, DataPortfolio, Deployment, DomainId, GameStateV2, ModelVersion, OwnedDataAsset } from '../types';
+import type { BaseDesign, DataAsset, DataKind, DataPortfolio, Deployment, DomainId, GameStateV2, ModelVersion, OwnedDataAsset, SystemCtx } from '../types';
 
 // ───────────────────────────── assets ─────────────────────────────
 
@@ -39,6 +41,7 @@ export function startPortfolio(): DataPortfolio {
       { id: 'expert', kind: 'expert', tokensT: 0, mix: {}, quality: EXPERT_QUALITY },
     ],
     usageShare: USAGE_POLICY_SHARE,
+    pending: [],
   };
 }
 
@@ -236,21 +239,61 @@ export function playerDraw(s: GameStateV2, d: BaseDesign): DataDraw {
   return drawData(s.player.dataPortfolio, d.params * d.tpp, t, { p10: on, noRepeat: on });
 }
 
-/** Public-web tokens the lab trains on without a licence (copyright litigation, actors/china.ts; the D3 deal). */
+/** Public-web tokens the lab trains on without a licence (copyright litigation, actors/china.ts; data.license 'web'). */
 export function unlicensedPublicT(p: DataPortfolio): number {
   const u = publicUse(p);
   return u && !u.licensed ? assetTokensT(u) : 0;
 }
-/** Human-written corpora, quality-weighted (T): the public crawl and the licensed corpora (v2's licensed + unlicensed). */
-const humanWeightedT = (p: DataPortfolio) => p.assets.filter((a) => a.kind === 'public' || a.kind === 'licensed').reduce((a, x) => a + assetQuality(x) * assetTokensT(x), 0);
 
-/** Action D3 ("License data"): licenses the crawl and adds a licensed corpus of LICENCE_DEAL_SHARE × the lab's human
- *  tokens (v2's × (1 + 0.5·deals) on licensed + unlicensed, as an asset). */
-export function licenseCorpus(p: DataPortfolio, day: number) {
-  const add = LICENCE_DEAL_SHARE * humanWeightedT(p);
-  const u = publicUse(p);
-  if (u) u.licensed = true;
-  p.assets.push({ id: `lic:corpus:${day}`, kind: 'licensed', tokensT: add / LICENSED_QUALITY, mix: { ...LICENSED_MIX }, quality: LICENSED_QUALITY, day });
+// ───────────────────────────── deals (model v3 D2: licences and expert data) ─────────────────────────────
+
+/** The licensed corpus a deal adds: `tokensT` of one domain at the tier's quality (one asset per domain and tier). */
+export const licenceAsset = (domain: DomainId, tier: LicenceTier, tokensT: number, day: number): OwnedDataAsset => ({
+  id: `lic:${domain}:${tier}`, kind: 'licensed', tokensT, mix: { [domain]: 1 }, quality: LICENCE_TIERS[tier].quality, domain, day,
+});
+/** Expert data bought by domain, not yet built into a suite (`expert:dom:<domain>`; suites own `expert:<family>`). */
+export const expertDomainId = (domain: DomainId) => `expert:dom:${domain}`;
+export const expertDomainAsset = (domain: DomainId, tokensT: number, day: number): OwnedDataAsset => ({
+  id: expertDomainId(domain), kind: 'expert', tokensT, mix: { [domain]: 1 }, quality: EXPERT_QUALITY, domain, day,
+});
+const ownedById = (p: DataPortfolio, id: string) => p.assets.find((a): a is OwnedDataAsset => a.kind !== 'public' && a.id === id);
+
+/** Add a delivered asset: merged into the asset with the same id (tokens summed, mix blended), else appended. */
+export function addAsset(p: DataPortfolio, x: OwnedDataAsset) {
+  const a = ownedById(p, x.id);
+  if (!a) p.assets.push({ ...x, mix: { ...x.mix } });
+  else {
+    addTo(a, x.tokensT, x.mix);
+    if (x.day !== undefined) a.day = x.day;
+  }
+}
+/** Queue a paid deal: the asset arrives on `due`. */
+export function queueData(p: DataPortfolio, asset: OwnedDataAsset, due: number) {
+  (p.pending ??= []).push({ asset, due });
+}
+/** Daily: deals whose day has come join the portfolio (production system). */
+export function deliverData(s: GameStateV2, ctx?: SystemCtx) {
+  const p = s.player.dataPortfolio;
+  if (!p.pending?.length) return;
+  const keep: typeof p.pending = [];
+  for (const d of p.pending) {
+    if (d.due > s.time.day) { keep.push(d); continue; }
+    addAsset(p, d.asset);
+    ctx?.log('research', `${d.asset.kind === 'expert' ? 'Expert data' : 'Licensed data'} delivered: ${fmtT(d.asset.tokensT)} of ${d.asset.domain ?? 'mixed'} data at quality ${d.asset.quality}.`, 1, d.asset.domain);
+  }
+  p.pending = keep;
+}
+const fmtT = (t: number) => (t >= 1 ? `${t.toFixed(1)}T` : `${(t * 1000).toFixed(t >= 0.01 ? 0 : 1)}B`) + ' tokens';
+
+/** Expert tokens of a domain bought and not yet built into a suite (T). */
+export const expertStockT = (p: DataPortfolio, domain: DomainId) => ownedById(p, expertDomainId(domain))?.tokensT ?? 0;
+/** Take up to `tokensT` of a domain's bought expert data (a suite build uses it before buying); returns the tokens taken. */
+export function takeExpertData(p: DataPortfolio, domain: DomainId, tokensT: number): number {
+  const a = ownedById(p, expertDomainId(domain));
+  if (!a || !(tokensT > 0)) return 0;
+  const t = Math.min(a.tokensT, tokensT);
+  a.tokensT -= t;
+  return t;
 }
 
 /** Add `tokensT` of mix `mix` to an owned asset (the mix becomes the token-weighted blend). */
@@ -278,20 +321,38 @@ export const synTeacher = (s: GameStateV2) => internalVersion(s) ?? s.player.mod
  *  policy sends it to data generation (R5). The tokens go to the teacher's synthetic asset (q from its G; inherits its
  *  traits). */
 export function syntheticAccrual(s: GameStateV2) {
-  const spare = s.player.policies.spareTraining === 'data' ? idleTrainingShare(s) * s.player.split.training : 0;
-  const cSyn = s.player.computeOnline * (s.player.split.synthetic + spare);
+  const p = s.player.dataPortfolio;
+  if (p.synJob && (p.synJob.until <= s.time.day || !versionById(s, p.synJob.teacherId))) delete p.synJob;
+  const cSyn = synPoolH100e(s);
   if (cSyn <= 0) return;
-  const t = synTeacher(s);
-  const tokensT = (cSyn * synTokensPerH100eDay(fptOf(t))) / 1e12;
+  const job = p.synJob;
+  if (!job) {
+    generate(s, synTeacher(s), cSyn);
+    return;
+  }
+  const f = Math.min(1, Math.max(0, job.share));
+  generate(s, versionById(s, job.teacherId), cSyn * f);
+  if (f < 1) generate(s, synTeacher(s), cSyn * (1 - f));
+}
+/** H100e generating synthetic data today: the synthetic pool plus spare training compute sent to data (R5). */
+export function synPoolH100e(s: GameStateV2): number {
+  const spare = s.player.policies.spareTraining === 'data' ? idleTrainingShare(s) * s.player.split.training : 0;
+  return s.player.computeOnline * (s.player.split.synthetic + spare);
+}
+/** The synthetic asset a teacher's data goes to (`syn:<versionId>`; q from its G, inherits its traits). */
+export function synAssetFor(s: GameStateV2, t: ModelVersion | undefined, tokensT = 0): OwnedDataAsset {
+  const g = t?.build ? gOfBuild(t.build) : gV0(s.hidden.timeline);
+  return { id: `syn:${t?.id ?? 'start'}`, kind: 'synthetic', tokensT, mix: { ...SYN_MIX }, quality: syntheticQuality(g, gV0(s.hidden.timeline)), day: s.time.day, teacherId: t?.id, teacherG: g, inheritsTraits: true };
+}
+/** Kept synthetic tokens (T) from `h100eDays` of generation with teacher `t`. */
+export const synTokensT = (t: ModelVersion | undefined, h100eDays: number) => (h100eDays * synTokensPerH100eDay(fptOf(t))) / 1e12;
+function generate(s: GameStateV2, t: ModelVersion | undefined, h100e: number) {
+  if (!(h100e > 0)) return;
   const id = `syn:${t?.id ?? 'start'}`;
   const p = s.player.dataPortfolio;
   let a = p.assets.find((x): x is OwnedDataAsset => x.id === id && x.kind === 'synthetic');
-  if (!a) {
-    const g = t?.build ? gOfBuild(t.build) : gV0(s.hidden.timeline);
-    a = { id, kind: 'synthetic', tokensT: 0, mix: { ...SYN_MIX }, quality: syntheticQuality(g, gV0(s.hidden.timeline)), day: s.time.day, teacherId: t?.id, teacherG: g, inheritsTraits: true };
-    p.assets.push(a);
-  }
-  addTo(a, tokensT, SYN_MIX);
+  if (!a) p.assets.push((a = synAssetFor(s, t)));
+  addTo(a, synTokensT(t, h100e), SYN_MIX);
 }
 
 // ───────────────────────────── usage data ─────────────────────────────
@@ -304,12 +365,14 @@ export function outputTokensPerH100eDay(fpt: number): number {
   return (24 * tok.output) / h100eHoursPerHour;
 }
 /** Usage tokens (T/day) a deployment adds: its served output tokens × the channel's eligibility × the policy share. */
-export function usageTokensPerDay(s: GameStateV2, d: Deployment): number {
+export function usageTokensPerDay(s: GameStateV2, d: Deployment, share = s.player.dataPortfolio.usageShare): number {
   if (d.kind !== 'product' || d.status === 'withdrawn' || !(d.servedH100e! > 0)) return 0;
   const elig = USAGE_ELIGIBLE[d.channel] ?? 0;
   if (elig <= 0) return 0;
-  return ((d.servedH100e ?? 0) * outputTokensPerH100eDay(fptOf(versionById(s, d.versionId))) * elig * s.player.dataPortfolio.usageShare) / 1e12;
+  return ((d.servedH100e ?? 0) * outputTokensPerH100eDay(fptOf(versionById(s, d.versionId))) * elig * share) / 1e12;
 }
+/** Usage tokens (T/day) all live products add at policy share `share` (today's traffic; the usage-policy preview). */
+export const usageRateAt = (s: GameStateV2, share: number) => s.player.deployments.reduce((a, d) => a + usageTokensPerDay(s, d, share), 0);
 /** Daily usage data from the live products (served H100e from the revenue system's last day). */
 export function usageAccrual(s: GameStateV2) {
   const p = s.player.dataPortfolio;
@@ -323,6 +386,35 @@ export function usageAccrual(s: GameStateV2) {
 }
 
 // ───────────────────────────── readouts ─────────────────────────────
+
+/** Before → after of the Blueprint's data readouts for a change to the portfolio (model v3 D2 previews, D4's view):
+ *  U (T), the domain's share of the natural mix (where the stock drifts) and its specialisation on that mix (OOM), and
+ *  for the lab's latest base design the unique tokens its mix can use (T) and its epochs (the Data tile). */
+export interface DataDelta { domain: DomainId; u: [number, number]; share: [number, number]; s: [number, number]; uMix: [number, number]; epochs: [number, number] }
+export function dataDelta(s: GameStateV2, change: (p: DataPortfolio) => void, domain: DomainId): DataDelta {
+  const p0 = s.player.dataPortfolio;
+  const p1: DataPortfolio = { ...p0, assets: p0.assets.map((a) => (a.kind === 'public' ? { ...a } : { ...a, mix: { ...a.mix } })), pending: [...(p0.pending ?? [])] };
+  change(p1);
+  const on = p10(s);
+  const b = s.player.models.bases[s.player.models.bases.length - 1]?.design;
+  const tokens = b ? b.params * b.tpp : REFERENCE_BASE.params * REFERENCE_BASE.tpp;
+  const target = (b && BASE_DATA[b.data]) ?? BASE_DATA.balanced;
+  const read = (p: DataPortfolio) => {
+    const nat = drawData(p, tokens, NATURAL_MIX, { p10: on, noRepeat: on });
+    const bp = drawData(p, tokens, target, { p10: on, noRepeat: on });
+    return { u: portfolioU(p, { p10: on }) / 1e12, share: pretrainMix(p)[domain] ?? 0, s: nat.sD[domain] ?? 0, uMix: bp.uMix / 1e12, epochs: bp.epochs };
+  };
+  const x = read(p0);
+  const y = read(p1);
+  return { domain, u: [x.u, y.u], share: [x.share, y.share], s: [x.s, y.s], uMix: [x.uMix, y.uMix], epochs: [x.epochs, y.epochs] };
+}
+/** One line of text for a preview: "U 310.0 → 317.5T · PHYS 4.6% → 6.8% of the stock (s +0.00 → +0.25 OOM) · base epochs 0.16 → 0.16". */
+export function dataDeltaText(d: DataDelta): string {
+  const f1 = (x: number) => (x >= 100 ? x.toFixed(0) : x >= 10 ? x.toFixed(1) : x.toFixed(2));
+  const pc = (x: number) => `${(100 * x).toFixed(1)}%`;
+  const sg = (x: number) => `${x >= 0 ? '+' : ''}${x.toFixed(2)}`;
+  return `U ${f1(d.u[0])} → ${f1(d.u[1])}T · ${d.domain} ${pc(d.share[0])} → ${pc(d.share[1])} of the stock (s ${sg(d.s[0])} → ${sg(d.s[1])} OOM) · base epochs ${d.epochs[0].toFixed(2)} → ${d.epochs[1].toFixed(2)}`;
+}
 
 /** Tokens required for a base of `flop` FLOP: N_req(C) = 20·sqrt(C/120) (research/13 §1.7). Overtrained ×5. */
 export function tokensRequired(flop: number, overtrained = false): number {

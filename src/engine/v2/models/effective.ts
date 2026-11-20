@@ -159,19 +159,36 @@ export const RL_C0 = (() => {
 })();
 
 export interface RlGains { perDomain: Record<DomainId, number>; general: number; perFamily: FamilyMap; ceiling: number }
+/** Fidelity-weighted ceiling factor of domain d: Σ_f w_f·T[f][d]·fid_f ÷ Σ_f w_f·T[f][d] (1 when every suite is at 1). */
+const fidReach = (w: FamilyMap, d: DomainId, fid: FamilyMap) => {
+  let num = 0;
+  let den = 0;
+  for (const f of RL_FAMILY_IDS) {
+    const x = (w[f] ?? 0) * TRANSFER[f][d];
+    if (x <= 0) continue;
+    num += x * (fid[f] ?? 1);
+    den += x;
+  }
+  return den > 0 ? num / den : 1;
+};
 /** RL gains of `rlFlop` RL FLOP split by `w` on a base of physical FLOP `flopPre`, with RL recipe
  *  efficiency `eRL` (OOM, the RL stack's efficiency: moves the midpoint) and ceiling raise `aRL` (OOM added to A: the RL
  *  stack's environments and rewards, model v3 V2): per domain, the transfer-weighted RL compute reaching it on the family
  *  curve; general = the mean over the cognitive domains; per family, the in-family gain (its own compute only). Bounded
- *  by the ceiling A + aRL and monotone in every input. */
-export function rlGains(flopPre: number, rlFlop: number, w: FamilyMap, eRL: number, aRL = 0): RlGains {
+ *  by the ceiling A + aRL and monotone in every input.
+ *  Model v3 D5: `fid` = the environment suites' fidelity per family (absent = 1) scales each family's ceiling,
+ *  A_f = fid_f · (A_base + aRL): the RL-ceiling stack is the lab-wide method for environments and rewards, a suite's
+ *  fidelity how much of it that family's environments realise. A domain's ceiling is the transfer-weighted mean of the
+ *  A_f reaching it (the same weights as its compute), so a better suite raises its own domain most and the others only
+ *  through transfer, and the gain stays bounded by the best suite's ceiling. */
+export function rlGains(flopPre: number, rlFlop: number, w: FamilyMap, eRL: number, aRL = 0, fid?: FamilyMap): RlGains {
   const A = Math.max(0, rlCeiling(flopPre) + aRL);
   const cMid = (RL_C0 * Math.max(1, flopPre)) / Math.pow(10, eRL);
   const perDomain = {} as Record<DomainId, number>;
-  for (const d of DOMAIN_IDS) perDomain[d] = sig(A, cMid, rlFlop * reach(w, d));
+  for (const d of DOMAIN_IDS) perDomain[d] = sig(fid ? A * fidReach(w, d, fid) : A, cMid, rlFlop * reach(w, d));
   const general = COGNITIVE.reduce((a, d) => a + perDomain[d], 0) / COGNITIVE.length;
   const perFamily: FamilyMap = {};
-  for (const f of RL_FAMILY_IDS) if (w[f]) perFamily[f] = sig(A, cMid, rlFlop * (w[f] ?? 0));
+  for (const f of RL_FAMILY_IDS) if (w[f]) perFamily[f] = sig(A * (fid?.[f] ?? 1), cMid, rlFlop * (w[f] ?? 0));
   return { perDomain, general, perFamily, ceiling: A };
 }
 

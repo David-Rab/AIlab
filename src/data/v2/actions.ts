@@ -23,7 +23,11 @@ export const RELATION_ACTION_META: ActionMeta[] = [
   { id: 'C6', title: 'Open weights', group: 'C' },
   { id: 'D1', title: 'Academic grant', group: 'D' },
   { id: 'D2', title: 'Safety fellowship', group: 'D' },
-  { id: 'D3', title: 'License data', group: 'D' },
+  // Data actions (model v3 D2, production/dataActions.ts; the old D3 "License data" is data.license 'web').
+  { id: 'data.license', title: 'License data', group: 'D' },
+  { id: 'data.expert', title: 'Buy expert data', group: 'D' },
+  { id: 'data.synthesize', title: 'Generate data', group: 'D' },
+  { id: 'data.usagePolicy', title: 'Usage-data policy', group: 'D' },
   { id: 'E1', title: 'Track-2 dialogue', group: 'E' },
   { id: 'E2', title: 'Gov-gov agreement', group: 'E' },
   { id: 'E3', title: 'Lobby export controls', group: 'E' },

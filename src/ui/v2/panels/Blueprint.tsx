@@ -15,7 +15,8 @@ import { TRAIT_BY_ID } from '../../../data/v2/traits';
 import { OPTION_NODE, TREE_BY_ID } from '../../../data/v2/tree';
 import {
   PARAM_SNAPS, POOL_SHARE_RANGE, REF_TPP, RL_BUDGET, TPP_FREE_MAX, TPP_SNAPS, baseFromParams, dateOf, evalDaysFor, fmtDate, fmtMonth, internalEval, internalVersion,
-  flopPerToken, liveCommitments, measuredDomains, nodeStatus, optionLocked, postFromParams, runCard, runEtaDays, runFlopPerShareDay, runTraitPressure, runStall, studentToHold, tppLabel, useHourCost,
+  flopPerToken, liveCommitments, measuredDomains, nodeStatus, optionLocked, postFromParams, runCard, runEtaDays, runFlopPerShareDay, runTraitPressure, runStall, studentToHold, suitesView, tppLabel,
+  useHourCost,
 } from '../../../engine/v2';
 import type { GameStateV2, LaunchRunParams, TraitId } from '../../../engine/v2';
 import { store } from '../store';
@@ -34,7 +35,7 @@ type Val = string | boolean;
 const TPL_KEY = 'ai27.v2.runTemplates';
 const DEFAULTS: Params = {
   params: 1e12, tpp: REF_TPP, shape: 'moe', data: 'balanced', quality: true, hazard: false, safetyPretrain: false, licensedShare: 0.1,
-  pref: 'constitution', rlFocus: 'broad', rlBudget: 'standard', graders: 'hardened', inoculation: false, cot: 'visible', safety: 'standard',
+  pref: 'constitution', rlFocus: 'broad', rlBudget: 'standard', inoculation: false, cot: 'visible', safety: 'standard',
 };
 const POOL_DEFAULT: Record<Kind, number> = { base: 0.6, post: 0.4, distill: 0.2, continue: 0.4 };
 const POOL_PILLS = [0.2, 0.4, 0.6, 0.8, 1];
@@ -65,7 +66,6 @@ const TRAINING: Slot[] = [
     { v: 'broad', label: 'Broad' }, { v: 'swe', label: 'Coding' }, { v: 'math', label: 'Math' }, { v: 'longHorizon', label: 'Long tasks' }, { v: 'mlResearch', label: 'ML research' },
     { v: 'computerUse', label: 'Computer use' }, { v: 'cyber', label: 'Cyber' }, { v: 'bio', label: 'Bio' }] },
   { field: 'rlBudget', label: 'RL budget', term: 'rlBudget', lockSlot: 'rlBudget', opts: [{ v: 'standard', label: 'Standard' }, { v: 'heavy', label: 'Heavy' }, { v: 'light', label: 'Light' }] },
-  { field: 'graders', label: 'Graders', term: 'graders', lockSlot: 'graders', opts: [{ v: 'hardened', label: 'Hardened' }, { v: 'cheap', label: 'Cheap' }] },
   { field: 'cot', label: 'Reasoning', term: 'cot', lockSlot: 'cot', opts: [{ v: 'visible', label: 'Visible' }, { v: 'pressured', label: 'Pressured' }, { v: 'faithful', label: 'Faithful' }, { v: 'latent', label: 'Latent' }] },
   { field: 'pref', label: 'Rewarded for', term: 'preference', lockSlot: 'pref', opts: [{ v: 'constitution', label: 'Constitution' }, { v: 'engagement', label: 'Engagement' }, { v: 'persuasion', label: 'Persuasion' }, { v: 'minimal', label: 'Minimal' }] },
   { field: 'safety', label: 'Alignment', term: 'safetyTraining', lockSlot: 'safety', opts: [{ v: 'standard', label: 'Standard' }, { v: 'heavy', label: 'Heavy' }, { v: 'minimal', label: 'Minimal' }, { v: 'inoculation', label: 'Inoculation' }] },
@@ -302,7 +302,7 @@ export function Blueprint({ s }: { s: GameStateV2 }) {
               <BaseSummary s={s} kind={kind} p={params} onNewBase={unlocked(s, 'baseRuns') ? () => setKind('base') : undefined} />
             )}
             <Group icon={WandSparkles} layer="layerTraining" name="Training" rebuild="post-train on a base" />
-            {kind === 'post' ? TRAINING.map((sl) => <SlotRow key={sl.field} s={s} kind={kind} sl={sl} p={p} effs={opts[sl.field]} onPick={(np) => set(np)} />) : (
+            {kind === 'post' ? <>{TRAINING.map((sl) => <SlotRow key={sl.field} s={s} kind={kind} sl={sl} p={p} effs={opts[sl.field]} onPick={(np) => set(np)} />)}<SuitesRow s={s} p={p} /></> : (
               <div className="bp-note small dim">{kind === 'base' ? <>Set on the post-train after this base. <button className="btn btn-sm btn-ghost" data-test="bp-to-post" onClick={() => setKind('post')}>Post-train ›</button></> : kind === 'distill' ? <>A <Term id="distillRun">distilled</Term> mini keeps its teacher's training and traits.</> : <>A <Term id="continueRun">continue run</Term> keeps the base's lineage, traits and failure modes.</>}</div>
             )}
             <Group icon={Wrench} layer="layerScaffold" name="Scaffold" rebuild="engineering build, no training" />
@@ -579,6 +579,30 @@ function Effects({ s, e }: { s: GameStateV2; e: Effect }) {
           );
         })}
       </span>
+    </>
+  );
+}
+
+/** Environment suites the post-train uses (model v3 D5), read-only: RL-share-weighted fidelity and exploitability for
+ *  the selected focus; per family in the tooltip. Built and hardened by engineers (D6 adds the controls). */
+function SuitesRow({ s, p }: { s: GameStateV2; p: Params }) {
+  const post = postFromParams(p);
+  const v = suitesView(s, post.rlFocus);
+  const tip = () => (
+    <TipCard title={<Term id="envSuite">Environment suites</Term>} value={`fidelity ×${v.weighted.fid.toFixed(2)} · ${F.pct(v.weighted.exploit, 1)} exploitable`}
+      rows={v.rows.map((r) => ({ label: `${r.label} (${F.pct(r.share)} of RL)`, value: `×${r.fid.toFixed(2)} · ${F.pct(r.exploit, 1)}${r.pending.length ? ` · ${r.pending.join(', ')}…` : ''}` }))}
+      footer="Weighted by this run's RL compute per family. Engineers build suites (expert data: fidelity up) and harden them (exploits down).">
+      [[suiteFidelity|Fidelity]] scales each family's RL ceiling; [[suiteExploit|exploitable]] tasks drive reward-hacking pressure.
+    </TipCard>
+  );
+  return (
+    <>
+      <div className="sl"><Term id="envSuite">Suites</Term></div>
+      <div className="sc bp-lic" data-test="bp-suites">
+        <Tip content={tip}><span className="dch"><span className="k">fidelity</span><b>×{v.weighted.fid.toFixed(2)}</b></span></Tip>
+        <Tip content={tip}><span className="dch"><span className="k">exploitable</span><b>{F.pct(v.weighted.exploit, 1)}</b></span></Tip>
+      </div>
+      <span className="bp-span" />
     </>
   );
 }

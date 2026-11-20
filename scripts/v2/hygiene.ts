@@ -260,7 +260,7 @@ for (const rev of [1, 11, 12, 13, 14]) {
     msg = (e as Error).message;
   }
   // Model v3 V2 (schemaRev 13): V1 saves (12) are rejected too; model v3 V3 (schemaRev 14): V2 saves (13) too.
-  check(SCHEMA_REV === 22 && msg ===`no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
+  check(SCHEMA_REV === 24 && msg ===`no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
 }
 // Model v3 V4a (schemaRev 16): a V3b save (15) migrates (customer stocks start empty, versions get their FLOP per token).
 {
@@ -380,6 +380,39 @@ for (const rev of [1, 11, 12, 13, 14]) {
   }
   const saf = g?.player.tree[id]?.saf;
   check(!!saf && saf.stage === 'small' && (saf.test?.work ?? 0) > 0, 'save: a schemaRev-21 save migrates to 22 (a line project in progress keeps its work as stage state)', msg || `${saf?.stage ?? 'no saf'}`);
+}
+// Model v3 D5 (schemaRev 23, built as 22 before M2): an E1 save (22) migrates (environment suites from the graders choice,
+// the start suites' expert data).
+{
+  const old = JSON.parse(serialize(run(detSetup, 30))) as GameStateV2 & Record<string, unknown>;
+  old.schemaRev = 22;
+  delete (old.player as Partial<GameStateV2['player']>).suites;
+  old.player.dataPortfolio.assets = old.player.dataPortfolio.assets.filter((a) => a.kind !== 'expert');
+  let msg = '';
+  let g: GameStateV2 | undefined;
+  try {
+    g = deserialize(JSON.stringify(old));
+  } catch (e) {
+    msg = (e as Error).message;
+  }
+  const fams = g ? Object.keys(g.player.suites) : [];
+  check(!!g && fams.length >= 6 && fams.every((f) => g!.player.dataPortfolio.assets.some((a) => a.id === `expert:${f}` && a.kind === 'expert' && a.tokensT > 0)),
+    'save: a schemaRev-22 save migrates to 23 (environment suites with their expert data)', msg || fams.join(', '));
+}
+// Model v3 D2 (schemaRev 24, built as 23 before M2): a D5 save (23) migrates (no data deals pending, no synthetic job).
+{
+  const old = JSON.parse(serialize(run(detSetup, 30))) as GameStateV2 & Record<string, unknown>;
+  old.schemaRev = 23;
+  delete (old.player.dataPortfolio as Partial<GameStateV2['player']['dataPortfolio']>).pending;
+  let msg = '';
+  let g: GameStateV2 | undefined;
+  try {
+    g = deserialize(JSON.stringify(old));
+  } catch (e) {
+    msg = (e as Error).message;
+  }
+  check(!!g && Array.isArray(g.player.dataPortfolio.pending) && g.player.dataPortfolio.pending.length === 0 && !g.player.dataPortfolio.synJob,
+    'save: a schemaRev-23 save migrates to 24 (nothing pending, no synthetic job)', msg);
 }
 
 // ---------- 6. Cadences ----------

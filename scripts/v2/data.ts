@@ -8,17 +8,23 @@
 //   short domain repeats and loses value, and no V1 data-option offsets are left.
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { ALPHA_DATA, PUBLIC_WEB, SPEC_CAP, SYN_Q } from '../../src/data/v2/dataAssets';
+import {
+  ALPHA_DATA, EXPERT_DELIVERY_DAYS, LICENCE_DELIVERY_DAYS, LICENCE_TIERS, PUBLIC_WEB, SPEC_CAP, SYN_Q, USAGE_LEVELS, WEB_LICENCE,
+} from '../../src/data/v2/dataAssets';
 import { BASE_DATA, REFERENCE_BASE } from '../../src/data/v2/runDesign';
+import { EXPERT_PRICE_B_PER_T, SUITE_BUILD } from '../../src/data/v2/suites';
+import { actionView } from '../../src/engine/v2';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act } from '../../src/engine/v2/core/loop';
-import { deserialize } from '../../src/engine/v2/core/save';
-import { gV0 } from '../../src/engine/v2/models/capability';
+import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
+import { SCHEMA_REV, deserialize, serialize } from '../../src/engine/v2/core/save';
+import { gOfBuild, gV0 } from '../../src/engine/v2/models/capability';
 import { effectiveTokens, fData } from '../../src/engine/v2/models/effective';
 import { planRun } from '../../src/engine/v2/models/runs';
+import { familyDomain, suiteWorkCost } from '../../src/engine/v2/models/suites';
 import {
-  NATURAL_MIX, REF_SHARE, assetTokensT, dataPortfolioFromV2, drawData, portfolioByKind, portfolioU, publicUse, syntheticAccrual, syntheticQuality, synTokensPerH100eDay,
-  uniqueTokens, unlicensedPublicT, usageAccrual, usageTokensPerDay,
+  NATURAL_MIX, REF_SHARE, assetTokensT, dataPortfolioFromV2, deliverData, drawData, expertDomainId, expertStockT, portfolioByKind, portfolioU, publicUse, synTeacher,
+  syntheticAccrual, syntheticQuality, synTokensPerH100eDay, uniqueTokens, unlicensedPublicT, usageAccrual, usageTokensPerDay,
 } from '../../src/engine/v2/production/data';
 import type { BaseDesign, DomainId, GameStateV2, OwnedDataAsset } from '../../src/engine/v2/types';
 import { FIXTURE_DIR, check, finish, runTo } from './lib';
@@ -79,14 +85,108 @@ pubA.coverage = 5; // a lab cannot crawl more than the world has
 check(assetTokensT(pubA) === PUBLIC_WEB.stockT && assetTokensT(publicUse(sB.player.dataPortfolio)!) === 0.9 * PUBLIC_WEB.stockT,
   'public web: one finite world stock (300T, Villalobos et al. 2024) that every lab reads; no crawl exceeds it', `${assetTokensT(pubA)}T cap, other lab ${assetTokensT(publicUse(sB.player.dataPortfolio)!)}T`);
 check(!('tokensT' in pubA) && !('quality' in pubA), 'public web: labs hold a crawl share, not tokens (mix and quality are the world\'s)');
-// Licensing (D3) adds a licensed corpus and licenses the crawl; the public stock stays the world's.
-const sL = game();
-sL.player.finance.cash = 100;
-const pubBefore = assetTokensT(publicUse(sL.player.dataPortfolio)!);
-const err = act(sL, 'D3');
-check(!err && assetTokensT(publicUse(sL.player.dataPortfolio)!) === pubBefore && unlicensedPublicT(sL.player.dataPortfolio) === 0 && unlicensedPublicT(s0.player.dataPortfolio) === 270,
-  'D3 "License data": the crawl is licensed (no unlicensed tokens left), the public stock is unchanged', err ?? `unlicensed 270T → ${unlicensedPublicT(sL.player.dataPortfolio)}T`);
-check(near(uniqueTokens(sL), oldU({ licensedTokensT: 300, unlicensedTokensT: 0, syntheticTokensT: 20 }, 1), 1e3), 'D3: U = v1\'s (licensed + unlicensed) × 1.5 + synthetic = 460T', `${(uniqueTokens(sL) / T).toFixed(2)}T`);
+// ---------- data actions (model v3 D2) ----------
+const deliverAt = (s: GameStateV2, day: number) => {
+  const d0 = s.time.day;
+  s.time.day = day;
+  deliverData(s);
+  s.time.day = d0;
+};
+// The old blanket "License data" (D3) is gone; licensing the crawl is data.license 'web'.
+check(!ACTION_BY_ID.has('D3') && act(game(), 'D3') === 'unknown action D3', 'D2: the old "License data" action (D3) is removed');
+const sW = game();
+sW.player.finance.cash = 100;
+const pubBefore = assetTokensT(publicUse(sW.player.dataPortfolio)!);
+const uW = uniqueTokens(sW);
+const errW = act(sW, 'data.license', { domain: 'web' });
+check(!errW && unlicensedPublicT(sW.player.dataPortfolio) === 0 && unlicensedPublicT(s0.player.dataPortfolio) === 270 && assetTokensT(publicUse(sW.player.dataPortfolio)!) === pubBefore && uniqueTokens(sW) === uW
+  && near(sW.player.finance.cash, 100 - (WEB_LICENCE.baseB + WEB_LICENCE.perTB * 270), 1e-9) && act(sW, 'data.license', { domain: 'web' }) === 'The crawl is already licensed',
+  'license web: licenses the crawl (no unlicensed tokens: the suit hazard reads 0) for $1B + $0.005B/T, adds no tokens, once', errW ?? `cash ${sW.player.finance.cash.toFixed(2)}`);
+// Licensing by domain: tokens in the domain at the tier's quality, cash at signing, delivered after 60 days.
+const sLic = game();
+sLic.player.finance.cash = 100;
+const uL0 = uniqueTokens(sLic);
+const pv0 = actionView(sLic, 'data.license', { domain: 'PHYS', tier: 'curated', tokensT: 1 });
+const errL = act(sLic, 'data.license', { domain: 'PHYS', tier: 'curated', tokensT: 1 });
+const pend = sLic.player.dataPortfolio.pending;
+check(!errL && near(sLic.player.finance.cash, 100 - 1 * LICENCE_TIERS.curated.priceBPerT, 1e-9) && pend.length === 1 && pend[0].due === LICENCE_DELIVERY_DAYS && uniqueTokens(sLic) === uL0 && unlicensedPublicT(sLic.player.dataPortfolio) === 270,
+  'license by domain: cash at signing ($2B for 1T curated), delivered later (pending), the crawl stays unlicensed (suits as before)', errL ?? JSON.stringify(pend));
+deliverAt(sLic, LICENCE_DELIVERY_DAYS - 1);
+const early = owned(sLic, 'lic:PHYS:curated');
+deliverAt(sLic, LICENCE_DELIVERY_DAYS);
+const lic = owned(sLic, 'lic:PHYS:curated');
+const natPhys = (s: GameStateV2) => drawData(s.player.dataPortfolio, 50e12, NATURAL_MIX);
+check(!early && !!lic && lic.tokensT === 1 && lic.quality === LICENCE_TIERS.curated.quality && lic.mix.PHYS === 1 && lic.domain === 'PHYS' && sLic.player.dataPortfolio.pending.length === 0
+  && near(uniqueTokens(sLic) - uL0, 2 * T, 1e3) && (natPhys(sLic).share.PHYS ?? 0) > (natPhys(s0).share.PHYS ?? 0) && (natPhys(sLic).sD.PHYS ?? 0) > 0.05,
+  'license by domain: on delivery the domain gains its tokens at the tier quality (1T PHYS q 2 → U +2T); PHYS\'s share and specialisation rise on the natural mix',
+  `U ${(uL0 / T).toFixed(1)} → ${(uniqueTokens(sLic) / T).toFixed(1)}T, PHYS share ${((natPhys(s0).share.PHYS ?? 0) * 100).toFixed(2)}% → ${((natPhys(sLic).share.PHYS ?? 0) * 100).toFixed(2)}%, s ${(natPhys(sLic).sD.PHYS ?? 0).toFixed(3)} OOM`);
+const g0Txt = pv0.gains.map((g) => g.target).join(' ');
+check(/U 310 → 312T/.test(g0Txt) && /PHYS 4\.\d% → 5\.\d% of the stock/.test(g0Txt) && /base epochs/.test(g0Txt) && pv0.costs[0]?.currency === 'cash',
+  'license preview: before → after of the Blueprint data readouts (U, the domain\'s share and specialisation, base epochs)', g0Txt);
+act(sLic, 'data.license', { domain: 'PHYS', tier: 'curated', tokensT: 1 });
+deliverAt(sLic, 2 * LICENCE_DELIVERY_DAYS);
+check(owned(sLic, 'lic:PHYS:curated')?.tokensT === 2 && sLic.player.dataPortfolio.assets.filter((a) => a.id === 'lic:PHYS:curated').length === 1, 'license: a second deal of the same domain and tier joins the same asset');
+const prem = actionView(sLic, 'data.license', { domain: 'REASON', tier: 'premium' });
+check(near(-prem.costs[0].amount, LICENCE_TIERS.premium.defaultT * LICENCE_TIERS.premium.priceBPerT, 0.01) && LICENCE_TIERS.bulk.quality === 1.5 && LICENCE_TIERS.premium.quality === 3,
+  'license tiers: quality 1.5 / 2 / 3 (research/20 A3 curated range); premium books at $30B/T (Bartz ≈ $3,000 a book)', prem.costs[0].target);
+
+// Synthetic generation: a chosen teacher and a share of the pool; quality from its G; the asset carries the teacher.
+const sSy = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
+sSy.player.split.synthetic = Math.max(0.05, sSy.player.split.synthetic);
+const withG = sSy.player.models.versions.filter((v) => v.build).map((v) => ({ v, g: gOfBuild(v.build!) })).sort((a, b) => a.g - b.g);
+const weak = withG[0];
+const strong = withG[withG.length - 1];
+const synOf = (s: GameStateV2, id: string) => owned(s, `syn:${id}`);
+const jobRun = (teacher: string, share: number) => {
+  const s = deserialize(serialize(sSy));
+  const before = Object.fromEntries(s.player.dataPortfolio.assets.filter((a) => a.kind === 'synthetic').map((a) => [a.id, assetTokensT(a)]));
+  const e = act(s, 'data.synthesize', { teacher, share, days: 30 });
+  syntheticAccrual(s);
+  const grew = (id: string) => assetTokensT(owned(s, id) ?? { kind: 'licensed', tokensT: 0 } as OwnedDataAsset) - (before[id] ?? 0);
+  return { s, e, grew };
+};
+const jS = jobRun(strong.v.id, 1);
+const jW = jobRun(weak.v.id, 1);
+const aS = synOf(jS.s, strong.v.id);
+const aW = synOf(jW.s, weak.v.id);
+check(!jS.e && !jW.e && strong.g > weak.g + 0.5 && !!aS && !!aW && aS.quality > aW.quality && aS.teacherId === strong.v.id && aS.inheritsTraits === true && near(aS.quality, syntheticQuality(strong.g, gV0(sSy.hidden.timeline)), 1e-12)
+  && jS.grew(`syn:${strong.v.id}`) > 0 && jS.s.player.dataPortfolio.synJob?.until === sSy.time.day + 30,
+  'synthesize: a stronger teacher gives higher-quality data; the asset carries the teacher (inherits its traits)', `${weak.v.id} G ${weak.g.toFixed(2)} q ${aW?.quality.toFixed(3)} vs ${strong.v.id} G ${strong.g.toFixed(2)} q ${aS?.quality.toFixed(3)}`);
+const fptS = strong.v.fpt ?? 1;
+const fptW = weak.v.fpt ?? 1;
+check(near(jS.grew(`syn:${strong.v.id}`) / jW.grew(`syn:${weak.v.id}`), fptW / fptS, 1e-6 * (fptW / fptS)), 'synthesize: tokens = synTokensPerH100eDay × compute (a teacher with more FLOP per token yields fewer)',
+  `${(jS.grew(`syn:${strong.v.id}`) * 1000).toFixed(2)}B vs ${(jW.grew(`syn:${weak.v.id}`) * 1000).toFixed(2)}B tokens/day`);
+// Half the pool: the other half keeps the default teacher (the internal research model); the job ends on its day.
+const dflt = synTeacher(sSy)!;
+const half = jobRun(strong.v.id === dflt.id ? weak.v.id : strong.v.id, 0.5);
+const other = strong.v.id === dflt.id ? weak : strong;
+const full = deserialize(serialize(sSy));
+const fullBefore = assetTokensT(owned(full, `syn:${dflt.id}`) ?? { kind: 'licensed', tokensT: 0 } as OwnedDataAsset);
+syntheticAccrual(full);
+const fullGrew = assetTokensT(owned(full, `syn:${dflt.id}`)!) - fullBefore;
+check(near(half.grew(`syn:${dflt.id}`), 0.5 * fullGrew, 1e-9 * fullGrew) && half.grew(`syn:${other.v.id}`) > 0, 'synthesize: with half the pool on the job the default teacher (internal research model) keeps the other half',
+  `default ${dflt.id} ${(half.grew(`syn:${dflt.id}`) * 1000).toFixed(2)}B vs ${(fullGrew * 1000).toFixed(2)}B tokens/day without a job`);
+half.s.time.day += 30;
+syntheticAccrual(half.s);
+check(!half.s.player.dataPortfolio.synJob && act(half.s, 'data.synthesize', { days: 0 }) === 'No generation job running', 'synthesize: the job ends on its last day (the whole pool goes back to the default teacher)');
+
+// Expert data by domain: cash, delivered, and a suite build in that domain uses it before buying.
+const sEx = game();
+sEx.player.finance.cash = 100;
+const famBio = 'bio' as const;
+const domBio = familyDomain(famBio);
+const errE = act(sEx, 'data.expert', { domain: domBio, tokensT: 0.003 });
+deliverAt(sEx, EXPERT_DELIVERY_DAYS);
+const exA = owned(sEx, expertDomainId(domBio));
+check(!errE && near(sEx.player.finance.cash, 100 - 0.003 * EXPERT_PRICE_B_PER_T, 1e-9) && exA?.tokensT === 0.003 && exA.kind === 'expert' && exA.quality === 3 && portfolioU(sEx.player.dataPortfolio) === portfolioU(s0.player.dataPortfolio),
+  'expert: buying 3M BIO expert tokens costs $0.15B and adds them to the domain\'s expert asset (not pretraining data: U unchanged)', errE ?? `${exA?.tokensT}T`);
+const cBuild = suiteWorkCost(sEx, famBio, 'build');
+const cash0 = sEx.player.finance.cash;
+const errB = act(sEx, 'suite.build', { family: famBio });
+check(!errB && cBuild.cashB === 0 && cBuild.fromStockT === SUITE_BUILD.tokensT && near(expertStockT(sEx.player.dataPortfolio, domBio), 0.001, 1e-12) && sEx.player.finance.cash === cash0,
+  'expert: a suite build in that domain takes the bought data instead of paying (one purchase path)', errB ?? `cost ${cBuild.cashB}, left ${expertStockT(sEx.player.dataPortfolio, domBio)}T`);
+const c2 = suiteWorkCost(sEx, 'swe', 'build');
+check(c2.fromStockT === 0 && near(c2.cashB, SUITE_BUILD.tokensT * EXPERT_PRICE_B_PER_T, 1e-12), 'expert: a build without bought data in its domain pays as before ($0.1B)');
 
 // ---------- synthetic data ----------
 const syn = (share: number) => {
@@ -124,6 +224,24 @@ usageAccrual(sU);
 check(startUsage === 0 && owned(sU, 'usage')!.tokensT === u0, 'usage: none before products serve and none from withdrawn products');
 const mixSum = Object.values(owned(sU, 'usage')!.mix).reduce((a, x) => a + (x ?? 0), 0);
 check(near(mixSum, 1, 1e-9), 'usage: the asset has a domain mix (consumer chat\'s work weights)', JSON.stringify(owned(sU, 'usage')!.mix));
+// Usage-data policy (model v3 D2): the share kept changes the accrual; the Civil Liberties bloc reacts.
+const sP = game();
+runTo(sP, 20, { skip: ['endings'] });
+const cons = sP.player.deployments.find((d) => d.channel === 'consumer')!;
+const civ = () => sP.pub.blocs.civlib.approval;
+const r0 = usageTokensPerDay(sP, cons);
+const a0 = civ();
+const eBroad = act(sP, 'data.usagePolicy', { level: 'broad' });
+const rB = usageTokensPerDay(sP, cons);
+const aB = civ();
+const eNone = act(sP, 'data.usagePolicy', { level: 'none' });
+const uN0 = owned(sP, 'usage')!.tokensT;
+usageAccrual(sP);
+check(!eBroad && !eNone && near(rB / r0, USAGE_LEVELS.broad.share / USAGE_LEVELS.standard.share, 1e-9) && near(aB - a0, USAGE_LEVELS.broad.civlib, 1e-9) && near(civ() - aB, USAGE_LEVELS.none.civlib - USAGE_LEVELS.broad.civlib, 1e-9)
+  && usageTokensPerDay(sP, cons) === 0 && owned(sP, 'usage')!.tokensT === uN0 && sP.player.dataPortfolio.usageShare === 0,
+  'usage policy: broad keeps 2.5× the usage tokens and costs Civil Liberties approval (−6); none keeps none (+10 back from broad)', `${(r0 * 1000).toFixed(1)} → ${(rB * 1000).toFixed(1)}B/day; civlib ${a0.toFixed(0)} → ${aB.toFixed(0)} → ${civ().toFixed(0)}`);
+check(act(sP, 'data.usagePolicy', { level: 'none' }) === 'Already no training on users' && actionView(sP, 'data.usagePolicy', {}).gains.some((g) => /usage data 0\.0 → \d/.test(g.target ?? '')),
+  'usage policy: no change to the same level; the preview shows the usage rate before → after', actionView(sP, 'data.usagePolicy', {}).gains.map((g) => g.target).join(' | '));
 
 // ---------- the draw (model v3 D3) ----------
 const plan = (s: GameStateV2, data: BaseDesign['data'], params = REFERENCE_BASE.params) =>
@@ -219,5 +337,17 @@ if (old) {
   check(near(uniqueTokens(fx), oldU(old, fx.relations.dataLicences.length, fx.player.paradigms.P10?.status === 'adopted'), 1e3) && !('dataAssets' in fx.player),
     'save: the day-400 fixture loads with the same U', `${(uniqueTokens(fx) / T).toFixed(1)}T`);
 }
+
+// Model v3 D2 (schemaRev 24 after M2, built as 23): a schemaRev-23 save (no pending deals, no job) migrates; saved deals and jobs round-trip.
+const raw22 = JSON.parse(serialize(game())) as { schemaRev: number; player: { dataPortfolio: { pending?: unknown } } };
+raw22.schemaRev = 23;
+delete raw22.player.dataPortfolio.pending;
+const mig22 = deserialize(JSON.stringify(raw22));
+const rt = deserialize(serialize(sLic));
+check(mig22.schemaRev === SCHEMA_REV && SCHEMA_REV === 24 && Array.isArray(mig22.player.dataPortfolio.pending) && mig22.player.dataPortfolio.pending.length === 0 && !mig22.player.dataPortfolio.synJob
+  && near(uniqueTokens(mig22), uniqueTokens(s0), 1e3) && uniqueTokens(rt) === uniqueTokens(sLic) && deserialize(serialize(jS.s)).player.dataPortfolio.synJob?.teacherId === strong.v.id,
+  'save: a schemaRev-23 save migrates to 24 (nothing pending, no job, same U); deals and jobs round-trip');
+const fx400 = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
+check(Array.isArray(fx400.player.dataPortfolio.pending), 'save: the day-400 fixture migrates through 24');
 
 finish('data');
