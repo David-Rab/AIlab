@@ -56,6 +56,7 @@ function PromiseRow({ s, st }: { s: GameStateV2; st: PromiseStatus }) {
         { label: 'Now', value: `${fmtMetric(p.type, st.value)} (${F.pct(Math.max(0, st.progress))} of the gain)` },
         { label: <Term id="neededByNow">Needed by now</Term>, value: `${fmtMetric(p.type, st.needed)} (${F.pct(st.neededProgress)})`, tone: st.state === 'behind' ? 'neg' : 'neutral' },
         { label: 'Deadline', value: `${day(s, p.deadline)} · ${st.daysLeft} d left` },
+        { label: 'Behind when', value: 'more than 20 points of the gain short of needed-by-now, after the first quarter of the term' },
         goal ? { label: 'Weight', value: `${F.pct(st.weight)} of the year's goals` } : { label: <Term id="promiseWeight">Weight</Term>, value: F.pct(st.weight) },
         { label: 'If judged today', value: j.outcome === 'near' ? 'within 20%: no effect' : goal ? `${j.outcome}: parent confidence ${signed(j.board)}` : `${j.outcome}: credibility ${signed(j.cred)}, board ${signed(j.board)}`, tone: j.outcome === 'met' ? 'pos' : j.outcome === 'missed' ? 'neg' : 'neutral' },
       ]}>{goal ? 'Judged at the parent\x27s review: it moves parent confidence, which sets the next budget; never cash.' : 'An expectation, not a contract: it moves investor credibility and board confidence at its deadline, never cash.'}</TipCard>
@@ -89,7 +90,7 @@ export function OweCard({ s }: { s: GameStateV2 }) {
         {o.promises.map((st) => <PromiseRow key={st.p.id} s={s} st={st} />)}
         {o.pending && (
           <Tip as="div" content={() => <TipCard title="Round in progress" rows={[{ label: 'Ask', value: F.money(o.pending!.ask) }, { label: 'Closes', value: day(s, o.pending!.closesDay) }, { label: 'Promise due', value: day(s, o.pending!.deadline) }]}>Its promise starts when the round closes.</TipCard>}>
-            <div className="owe-row dim" data-test="owe-pending"><span className="row-i"><ICON.raise size={13} /><span className="ellip">{describeTarget(o.pending.thesis)}</span></span><span className="small">starts {day(s, o.pending.closesDay)}</span><span className="tag2">pending</span></div>
+            <div className="owe-row dim" data-test="owe-pending"><span className="row-i"><ICON.raise size={13} /><span className="ellip">{describeTarget(o.pending.thesis)}</span></span><span className="small">starts at the close, {day(s, o.pending.closesDay)}</span><span className="owe-meta"><span className="tag2">pending</span></span></div>
           </Tip>
         )}
         {!o.promises.length && !o.pending && <div className="dim small">{division ? 'None until the parent sets the year\x27s goals at its review.' : 'None. You owe investors a milestone only after you raise.'}</div>}
@@ -111,7 +112,7 @@ export function OweCard({ s }: { s: GameStateV2 }) {
         {o.tranches.map((t, i) => (
           <Tip as="div" key={i} content={() => <TipCard title={t.source} value={F.money(t.amount)} rows={[{ label: 'Condition', value: t.label }, { label: 'Due', value: day(s, t.dueDay) }, ...(t.deadline !== undefined ? [{ label: 'Lapses', value: `${day(s, t.deadline)} · ${t.daysLeft} d left` }] : [])]}>{t.cancels ? 'A contract: miss the condition by the deadline and the tranche lapses; the shares issued for it at the close are cancelled.' : 'A contract: miss the condition by the deadline and the tranche lapses.'}</TipCard>}>
             <div className="owe-row" data-tranche={i}>
-              <span className="row-i"><ICON.cash size={13} /><span className="ellip">{t.source} · {F.money(t.amount)} · {t.label}</span></span>
+              <span className="row-i owe-two"><ICON.cash size={13} /><span><span>{t.source} · <b className="num">{F.money(t.amount)}</b></span><span className="dim small">{t.label}</span></span></span>
               <HBar v={t.progress} max={1} w="100%" h={8} color={t.met ? C.good : C.watch} />
               <span className="owe-meta">{t.daysLeft !== undefined && <span className="dim">{t.daysLeft} d</span>}<span className={`tag2 ${t.met ? 'good' : ''}`}>{t.met ? 'met' : 'open'}</span></span>
             </div>
@@ -121,11 +122,12 @@ export function OweCard({ s }: { s: GameStateV2 }) {
       </Section>}
       {!division && <Section title="Covenants" term="covenant" n={o.covenants.length || undefined}>
         {o.covenants.map((c) => (
-          <Tip as="div" key={c.id} content={() => <TipCard title={c.label} value={COV_LABEL[c.state]} rows={[{ label: 'Rule', value: c.rule }, { label: 'Required', value: c.unit === '×' ? F.mult(c.required) : F.money(c.required) }, { label: 'You have', value: c.unit === '×' ? F.mult(c.actual) : F.money(c.actual) }]}>Tested at each quarter end. A breach is distress.</TipCard>}>
+          <Tip as="div" key={c.id} content={() => <TipCard title={c.label} value={COV_LABEL[c.state]} rows={[{ label: 'Rule', value: c.rule }, { label: 'Required', value: c.unit === '×' ? F.mult(c.required) : F.money(c.required) }, ...(c.state === 'idle' ? [] : [{ label: 'You have', value: c.unit === '×' ? F.mult(c.actual) : F.money(c.actual) }])]}>{c.state === 'idle' ? 'Tested at each quarter end while the line is drawn; nothing is drawn now.' : 'Tested at each quarter end. A breach is distress.'}</TipCard>}>
             <div className="owe-row" data-covenant={c.id} data-state={c.state}>
               <span className="row-i"><ICON.debt size={13} /><span className="ellip">{c.label}</span></span>
-              <HBar v={c.actual} max={Math.max(c.actual, c.required * 2, 1e-6)} w="100%" h={8} color={c.state === 'breach' ? C.bad : c.state === 'near' ? C.watch : '#6b7c91'} mark={c.required} />
-              <span className="owe-meta"><span className="dim">{c.unit === '×' ? F.mult(c.actual) : F.money(c.actual)}</span><span className={`tag2 ${COV_TONE[c.state]}`}>{COV_LABEL[c.state]}</span></span>
+              {/* FIN6b: an undrawn line tests nothing; its "actual" would only repeat cash (home: the top strip). */}
+              {c.state === 'idle' ? <span className="dim small">tested once you draw</span> : <HBar v={c.actual} max={Math.max(c.actual, c.required * 2, 1e-6)} w="100%" h={8} color={c.state === 'breach' ? C.bad : c.state === 'near' ? C.watch : '#6b7c91'} mark={c.required} />}
+              <span className="owe-meta">{c.state !== 'idle' && <span className="dim">{c.unit === '×' ? F.mult(c.actual) : F.money(c.actual)}</span>}<span className={`tag2 ${COV_TONE[c.state]}`}>{COV_LABEL[c.state]}</span></span>
             </div>
           </Tip>
         ))}

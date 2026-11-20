@@ -91,6 +91,23 @@ function FactorTile({ label, term, icon: I, x, you, children, refTo }: { label: 
 
 const atCap = (a: LabStory) => a.cap !== undefined && a.cap <= a.valuation * 1.001;
 
+/** FIN6b: a rival's story details, one level down from its bar's tooltip (hover "details"). */
+function RivalWhy({ s, a }: { s: GameStateV2; a: LabStory }) {
+  const gov = PRESET[RIVAL_GOV[s.rivals.find((r) => r.core.id === a.id)?.archetype ?? ''] ?? 'pbcTrust'];
+  return (
+    <Tip content={() => <TipCard title={`${a.name}: its story`} value={`weight ${a.weight.toFixed(2)}`} rows={[
+      { label: 'Best public level', value: `L ${F.level(a.level)}${a.floored ? ' (open-weight)' : ''}` },
+      { label: 'Revenue growth', value: `×${a.growth.toFixed(1)} a year` },
+      { label: 'Story score', value: a.z.toFixed(2) },
+      { label: <Term id="investorCred">Investor credibility</Term>, value: a.rung },
+      { label: <Term id="govFactor">Governance</Term>, value: `${X(a.gov)} ${gov}` },
+      { label: <Term id="rivalCap">Cap</Term>, value: `${F.money(a.cap ?? 0)} = ${F.money(RIVAL.team)} + ${RIVAL.multiple}× revenue` },
+    ]}>{`Weight = credibility × governance × exp(score ÷ ${STORY.tau}), as yours; its share is its weight ÷ every private lab's. The mark moves half-way each quarter.`}</TipCard>}>
+      <span className="term" data-test="rival-why">details</span>
+    </Tip>
+  );
+}
+
 /** Today's story shares of every private lab: you first, then the rivals (big-tech labs are not in the sector). A
  *  rival's tooltip is the home of its valuation (S × its marked share, at most its cap). */
 function ShareBar({ s, st }: { s: GameStateV2; st: StoryNow }) {
@@ -103,21 +120,16 @@ function ShareBar({ s, st }: { s: GameStateV2; st: StoryNow }) {
         const you = a.id === 'player';
         const c = you ? C.you : shades[i++ % shades.length];
         return (
-          <Tip key={a.id} content={() => <TipCard title={you ? 'You' : a.name} value={you ? F.pct(a.share) : F.money(a.valuation)} rows={[
-            ...(you ? [] : [
-              { label: <Term id="rivalValuation">Valuation</Term>, value: F.money(a.valuation) },
-              { label: <Term id="rivalCap">Cap</Term>, value: `${F.money(a.cap ?? 0)} = ${F.money(RIVAL.team)} + ${RIVAL.multiple}× revenue${atCap(a) ? ' · at the cap' : ''}`, tone: atCap(a) ? 'neg' as const : 'neutral' as const },
-              { label: 'Multiple', value: a.revenue >= STORY.preRevenue ? `${(a.valuation / a.revenue).toFixed(0)}× revenue` : 'pre-revenue' },
-            ]),
-            { label: 'Share today', value: F.pct(a.share) },
-            { label: 'Weight', value: a.weight.toFixed(2) },
-            { label: 'Score', value: a.z.toFixed(2) },
-            { label: 'Revenue', value: F.money(a.revenue, { perYear: true }) },
-            { label: 'Best public level', value: `L ${F.level(a.level)}${a.floored ? ' (open-weight)' : ''}` },
-            { label: <Term id="investorCred">Credibility</Term>, value: you ? a.rung : `${a.rung} (revenue ×${a.growth.toFixed(1)} a year)` },
-            { label: <Term id="govFactor">Governance</Term>, value: you ? X(a.gov) : `${X(a.gov)} ${PRESET[RIVAL_GOV[s.rivals.find((r) => r.core.id === a.id)?.archetype ?? ''] ?? 'pbcTrust']}` },
-          ]}>{you ? 'Your share of the sector value by today\'s story.' : 'A private rival, valued at the sector value × its share at the last mark (moving half-way each quarter, as yours), at most its cap.'}</TipCard>}>
-            <span className="story-seg" style={{ background: c }} data-lab={a.id}>{a.share >= 0.12 ? <em>{you ? 'you' : a.name.split(' ')[0]} {F.pct(a.share)}</em> : null}</span>
+          <Tip key={a.id} content={() => (you
+            ? <TipCard title="You" value={F.pct(a.share)}>{'Your share of the sector value by today\'s story. What it is made of: the equation above and the six tiles below.'}</TipCard>
+            : <TipCard title={a.name} value={<><Term id="rivalValuation">valued</Term> {F.money(a.valuation)}</>} rows={[
+              { label: 'Share today', value: F.pct(a.share) },
+              { label: 'Revenue', value: a.revenue >= STORY.preRevenue ? F.money(a.revenue, { perYear: true }) : 'pre-revenue' },
+              ...(a.revenue >= STORY.preRevenue ? [{ label: 'Multiple', value: `${(a.valuation / a.revenue).toFixed(0)}× revenue` }] : []),
+              ...(atCap(a) ? [{ label: <Term id="rivalCap">At its cap</Term>, value: `${F.money(RIVAL.team)} + ${RIVAL.multiple}× revenue`, tone: 'neg' as const }] : []),
+              { label: 'Why this share', value: <RivalWhy s={s} a={a} /> },
+            ]}>A private rival: the sector value × its share at the last mark, at most its cap.</TipCard>)}>
+            <span className="story-seg" style={{ background: c }} data-lab={a.id}>{a.share >= (you ? 0.05 : 0.12) ? <em>{you ? 'you' : a.name.split(' ')[0]} {F.pct(a.share)}</em> : null}</span>
           </Tip>
         );
       })}
@@ -180,16 +192,16 @@ export function StoryCard({ s }: { s: GameStateV2 }) {
       {/* L2: what your weight is made of. */}
       <div className="story-drvs" data-test="story-drivers">
         {DRIVERS.map((k) => <DriverTile key={k} s={s} st={st} k={k} />)}
-        <FactorTile label="Credibility" term="investorCred" icon={ICON.board} x={me.cred} you={rung.id} refTo={<span data-ref="investorCred"> · in What we owe</span>}>
+        <FactorTile label="Investor credibility" term="investorCred" icon={ICON.board} x={me.cred} you={rung.id} refTo={<span data-ref="investorCred"> · in What we owe</span>}>
           Investor credibility's rung (Doubted ×0.7, Unproven ×0.9, Credible ×1, Proven ×1.15). Its score and the promises that move it are in What we owe.
         </FactorTile>
         <FactorTile label="Governance" term="govFactor" icon={ICON.exec} x={me.gov} you={`${PRESET[s.player.board.preset] ?? s.player.board.preset}${f.dualClass ? ', dual-class' : ''}`}>
-          Legacy capped-profit nonprofit ×0.6, nonprofit PBC ×0.9, PBC + trust ×1, founder ×1.1; dual-class shares ×0.95 more. Rivals by kind (on their bars).
+          Legacy capped-profit nonprofit ×0.6, nonprofit PBC ×0.9, PBC + trust ×1, founder ×1.1; dual-class shares ×0.95 more. Rivals by kind (their bars' details).
         </FactorTile>
       </div>
       <div className="fin-foot">
         <Tip content={() => <TipCard title={<Term id="investorPool">Investor pool</Term>} value={F.money(s.capital.poolAnnual, { perYear: true })} rows={[{ label: `${F.pct(STORY.pi)} of the sector value`, value: F.money(STORY.pi * (mark?.S ?? sec.S), { perYear: true }) }, { label: 'IPO window', value: s.capital.ipoWindow ? `open (+${F.pct(STORY.ipoBump)})` : 'closed' }, { label: 'Your part this quarter', value: F.money(s.capital.ws3.playerPoolQ) }]}>Set at each quarter start, split by the shares at the mark. Unused carries over at 50%.</TipCard>}>
-          <span className="small"><span className="dim"><Term id="investorPool">investor pool</Term></span> <b className="num">{F.money(s.capital.poolAnnual, { perYear: true })}</b> <span className="dim">· yours {F.money(s.capital.ws3.playerPoolQ)} this quarter</span></span>
+          <span className="small"><span className="dim"><Term id="investorPool">investor pool</Term></span> <b className="num">{F.money(s.capital.poolAnnual, { perYear: true })}</b> <span className="dim">· your part is a limit on the Raise card</span></span>
         </Tip>
         <span className="sp" />
         <GoBtn to={{ panel: 'finance', anchor: 'raise' }} label="Raise" testId="fin.go.storyRaise" />

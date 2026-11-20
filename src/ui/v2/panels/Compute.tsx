@@ -23,6 +23,7 @@ import { ICON } from '../icons';
 import { C } from '../theme';
 import './compute.css';
 import { Split } from './Split';
+import { payOptionsPV } from '../../../engine/v2/finance/pv';
 
 const PATHS: { id: Site['path']; label: string; term: string; icon: typeof ICON.sites }[] = [
   { id: 'lease', label: 'Colo', term: 'colo', icon: ICON.pathLease }, { id: 'brownfield', label: 'Brownfield', term: 'brownfield', icon: ICON.pathBrownfield },
@@ -287,20 +288,29 @@ function ComputePreview({ s, id, params, arrives }: { s: GameStateV2; id: string
   );
 }
 
-/** FIN1 (spec §4): payment options compared on total cost over the asset's life. Locked options say why. */
-function PayTiles({ s, opts, value, onChange, testPrefix }: { s: GameStateV2; opts: PayOption[]; value: PayOption['id']; onChange: (v: PayOption['id']) => void; testPrefix: string }) {
-  const best = Math.min(...opts.filter((o) => !o.blocked).map((o) => o.total));
+/** FIN1 (spec §4): payment options compared on total cost over the asset's life; FIN6b: and on present value (a lease
+ *  always looks worse than cash on the undiscounted total; it changes timing, not cost). The lowest present value is
+ *  green. Locked options say why. */
+function PayTiles({ s, opts, value, onChange, testPrefix, timing, asset }: { s: GameStateV2; opts: PayOption[]; value: PayOption['id']; onChange: (v: PayOption['id']) => void; testPrefix: string; timing: Parameters<typeof payOptionsPV>[2]; asset: 'site' | 'chips' }) {
+  const pv = payOptionsPV(s, opts, timing);
+  const best = Math.min(...opts.filter((o) => !o.blocked).map((o) => pv.pv[o.id] ?? Infinity));
+  const rate = `${(pv.rate * 100).toFixed(1)}%`;
   return (
-    <div className={`cac-tiles c${opts.length}`}>
-      {opts.map((o) => (
-        <OptionTile key={o.id} label={o.label} active={value === o.id} locked={o.blocked ? 'closed' : undefined} onClick={() => onChange(o.id)} testId={`${testPrefix}-${o.id}`}
-          glyphs={<span className={o.total <= best + 1e-6 ? 'tone-pos' : ''}>{F.money(o.total)} total</span>}
-          tip={() => <TipCard title={<Term id={o.id === 'loan' ? 'gpuTerm' : o.id === 'lease' ? 'spv' : 'payOption'}>{o.label}</Term>} value={o.blocked ? 'not available' : `${F.money(o.total)} over the asset life`} rows={[
-            { label: 'Cash up front', value: F.money(o.now) },
-            ...(o.perYear > 0 ? [{ label: o.id === 'loan' ? 'Interest per year' : 'Lease per year', value: `${F.money(o.perYear)} × ${o.years} y` }] : []),
-            ...(o.rate !== undefined ? [{ label: o.id === 'loan' ? 'Loan rate' : 'Lessor return', value: `${(o.rate * 100).toFixed(1)}% · rating ${s.player.finance.rating}` }] : []),
-          ]}>{o.blocked ?? o.note}</TipCard>} />
-      ))}
+    <div className={`cac-tiles c${opts.length}`} data-test={`${testPrefix}-tiles`}>
+      {opts.map((o) => {
+        const v = pv.pv[o.id];
+        return (
+          <OptionTile key={o.id} label={o.label} active={value === o.id} locked={o.blocked ? 'closed' : undefined} onClick={() => onChange(o.id)} testId={`${testPrefix}-${o.id}`}
+            glyphs={<span className="pay-gl"><b className={v !== undefined && v <= best + 1e-6 ? 'tone-pos' : ''} data-test="pay-pv">PV {v !== undefined ? F.money(v) : '—'}</b><i>{F.money(o.total)} total</i></span>}
+            tip={() => <TipCard title={<Term id={o.id === 'loan' ? 'gpuTerm' : o.id === 'lease' ? 'spv' : 'payOption'}>{o.label}</Term>} value={o.blocked ? 'not available' : <span><Term id="presentValue">PV</Term> {v !== undefined ? F.money(v) : '—'}</span>} rows={[
+              { label: o.id === 'cash' ? (asset === 'site' ? 'Cash, on the build schedule' : 'Cash, deposit and delivery') : o.id === 'lease' ? (asset === 'site' ? 'Your 20%, on the build schedule' : 'Deposit now') : 'Your cash at delivery', value: F.money(o.now) },
+              ...(o.perYear > 0 ? [{ label: o.id === 'loan' ? 'Interest per year' : 'Lease per year', value: `${F.money(o.perYear)} × ${o.years} y` }] : []),
+              ...(o.rate !== undefined ? [{ label: o.id === 'loan' ? 'Loan rate' : 'Lessor return', value: `${(o.rate * 100).toFixed(1)}% · rating ${s.player.finance.rating}` }] : []),
+              { label: 'Total, undiscounted', value: F.money(o.total) },
+              ...(v !== undefined ? [{ label: <><Term id="presentValue">Present value</Term> at {rate}</>, value: F.money(v), tone: v <= best + 1e-6 ? 'pos' as const : 'neutral' as const }] : []),
+            ]} footer={`Present value: every payment discounted to today at ${rate} a year, ${pv.basis}.`}>{o.blocked ?? o.note}</TipCard>} />
+        );
+      })}
     </div>
   );
 }
@@ -377,7 +387,7 @@ function OrderCard({ s }: { s: GameStateV2 }) {
           <div className="cmp-row"><span className="dim small"><Term id="lta">Term</Term></span><Seg value={term} options={CHIP_TERM_OPTS} onChange={setTerm} testId="chip-term" /></div>
           {tranches && qt.prices && <PathCurve s={s} prices={qt.prices} unit="$" discount={qt.discount} firstQ={qt.dueQ} />}
           {term === 1 && <Toggle on={firm} onChange={setFirm} label={<><Term id="firmCommit">Firm</Term> · take-or-pay, rationing priority</>} />}
-          {!tranches && <><div className="cac-lbl">Pay with</div><PayTiles s={s} opts={pays} value={payNow} onChange={setPay} testPrefix="chip-pay" /><Limit id="lease.rating">{leaseLimit(s)}</Limit></>}
+          {!tranches && <><div className="cac-lbl">Pay with</div><PayTiles s={s} opts={pays} value={payNow} onChange={setPay} testPrefix="chip-pay" asset="chips" timing={{ chipsDelayQ: qt.dueQ - qOf(s), upfront: qt.now }} /><Limit id="lease.rating">{leaseLimit(s)}</Limit></>}
           <div className="cmp-row"><Toggle on={nonTW} onChange={setNonTW} label={<><Term id="taiwanRisk">Non-Taiwan</Term> supply · +30%</>} /></div>
         </div>
       )}
@@ -405,7 +415,8 @@ function BuildCard({ s }: { s: GameStateV2 }) {
   const kW = s.power.kWPerH100e;
   const eta = siteEtaQ(s, { path, mw, crash });
   const colo = path === 'lease';
-  const pays = payOptions(s, siteCapex({ path, mw, crash, community }), 'site', siteSchedule(s, { path, mw, crash }));
+  const sched = siteSchedule(s, { path, mw, crash });
+  const pays = payOptions(s, siteCapex({ path, mw, crash, community }), 'site', sched);
   const payNow = colo || pays.find((o) => o.id === pay)?.blocked ? 'cash' : pay;
   const params = { path, mw, crash, community, pay: payNow };
   const liveQ = qOf(s) + eta;
@@ -432,7 +443,7 @@ function BuildCard({ s }: { s: GameStateV2 }) {
           );
         })}
       </div>
-      {!colo && <><div className="cac-lbl"><Term id="payOption">Pay with</Term></div><PayTiles s={s} opts={pays} value={payNow} onChange={setPay} testPrefix="site-pay" /></>}
+      {!colo && <><div className="cac-lbl"><Term id="payOption">Pay with</Term></div><PayTiles s={s} opts={pays} value={payNow} onChange={setPay} testPrefix="site-pay" asset="site" timing={{ site: sched }} /></>}
       <div className="cac-pv"><ComputePreview s={s} id="cmp.newSite" params={params} arrives={<>racks for, live ≈ {qLabel(s, liveQ)}</>} />{(() => { const z = siteSizeView(s, path); const short = z.leaseGW !== undefined && z.leaseGW * 1000 < mw; return <Limit id="site.mw" tone={short ? 'bind' : 'quiet'}>{F.power(z.min)}–{F.power(z.max)}{z.leaseGW !== undefined ? ` · lease pool ${F.power(z.leaseGW * 1000)}` : ''}</Limit>; })()}{!colo && <Limit id="lease.rating" tone={leaseRate(s) === undefined ? 'bind' : 'quiet'}>{leaseLimit(s)}</Limit>}</div>
       {open && (
         <div className="cac-opts">
