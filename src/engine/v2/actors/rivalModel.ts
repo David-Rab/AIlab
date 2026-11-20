@@ -2,22 +2,30 @@
 // design/notes/F1.md). Owner: WS1 (capability) / WS4 (behaviour). Data: src/data/v2/rivalModel.ts.
 //
 // A non-player lab is the player's model at aggregate level, without ideas or a blueprint:
-//   recipe     e (OOM over the leader's day-0 recipe; stored as core.pa = pa_ref + e/B, the player's know-how relation)
-//              de/dt = RECIPE_RATE0 · RS/RS₀ · 10^(−e/r)  — AIFM's software law with the world's returns r: each OOM of
-//              recipe needs 10^(1/r) more cumulative research input (the player's line pools, research.ts linePool)
+//   recipe     three parts in the player's stack units (model v3 F2): pretraining efficiency e_pre, RL efficiency (rlMid)
+//              and RL ceiling (rlCeil). Each part p is a research pool with its lines' returns r_p = Σ rShare × r (the
+//              player's line pools, research.ts linePool, at aggregate level): dS_p/dt = a_p · RS/RS₀ · 10^(−S_p/r_p) at
+//              test scale. Pretraining results are realised at the run's FLOP: e_pre gains κ_pre·dS_pre, κ_pre the
+//              reference lines' scale factor (F_base/F_test)^s on their survivors (recipeParts); the RL parts enter G through
+//              the reference RL run (stacks.ts refRlGain), which saturates as the player's does. Start rates: the
+//              pretraining part realises PRE_RATE0 at the leader's day-0 inputs, the RL parts the same input by their
+//              shares. core.pa = pa_ref + the G-equivalent / B is a readout; what other writers add to it is public
+//              knowledge in the pretraining part (the player's addKnowledge).
 //   research   RS = X(c̄, ℓ)·units·taste·eff·mods ÷ the leader's day-0 value: the player's experiment CES at aggregate
 //              level (production.ts evalV3) — experiment compute per unit of research engineers, effective labour from the
 //              lab's own internal model on Experiments (coverage, AI FTE from its compute and FLOP per token, the coding
 //              CES), AI taste from its fit on Research ideas (workfit.ts teamTaste)
 //   training   one base run after another on BASE_POOL_SHARE of the training pool for BASE_RUN_DAYS, released on the
-//              archetype cadence (rivals.ts BASE_MONTHS): G_pre = log₁₀(FLOP) + E_START + (1 − RL_SHARE)·e at launch +
-//              the shape terms (effective.ts gPreOf); N_active = √(FLOP/(6·tpp)), FLOP per token 2·N_active
-//   versions   post-training every 6–10 weeks: G = G_pre + the reference RL gain on the base (the RL curve, stacks.ts
-//              refRlGain) + RL_SHARE·e at launch; from the Research-agent level the internal model re-applies today's
-//              recipe weekly (continual learning, as the player's P08 stream)
+//              archetype cadence (rivals.ts BASE_MONTHS): G_pre = log₁₀(FLOP) + E_START + e_pre at launch + the shape
+//              terms (effective.ts gPreOf); N_active = √(FLOP/(6·tpp)), FLOP per token 2·N_active
+//   versions   post-training every 6–10 weeks: G = G_pre + the reference RL run's gain on the base at today's RL recipe;
+//              from the Research-agent level the internal model re-applies today's whole recipe weekly (continual
+//              learning, as the player's P08 stream)
 // Nothing here reads a calendar path, pm thresholds, CAL_SHIFT, the v2 knots or the rivals' old FLOP bridge.
-import { BASE_POOL_SHARE, BASE_RUN_DAYS, CL_DAYS, CL_LEVEL, RECIPE_RATE0, RIVAL_TPP, RL_SHARE, START_PUBLIC_GAP_Y } from '../../../data/v2/rivalModel';
-import { B_G_PER_Y, E_START, GOODPUT, PARAM_RANGE, B0_PARAMS, REFERENCE_BASE, REF_TPP, SHAPE } from '../../../data/v2/runDesign';
+import { BASE_POOL_SHARE, BASE_RUN_DAYS, CL_DAYS, CL_LEVEL, PRE_RATE0, RIVAL_TPP, START_PUBLIC_GAP_Y } from '../../../data/v2/rivalModel';
+import { DEFAULT_LINES, LINE_STAGES, SMALL_TO_TEST, SURVIVE_FRAC } from '../../../data/v2/research';
+import { TREE_BY_ID } from '../../../data/v2/tree';
+import { B_G_PER_Y, E_START, FLOP_RL_REF, GOODPUT, PARAM_RANGE, B0_PARAMS, REFERENCE_BASE, REF_TPP, SHAPE } from '../../../data/v2/runDesign';
 import { B0_DAY, B0_START_DAY, H_REF_BASE, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { C_UNIT_FLOP_PER_DAY, DAY0_REF, H50_PER_OOM, H50_V0_MIN, RE_UNIT, WORK_TYPES } from '../../../data/v2/workTypes';
 import { clamp } from '../../rng';
@@ -29,7 +37,7 @@ import { Xces, hRef } from '../production/knots';
 import { normalizeSplit, shareRefAt } from '../departments/split';
 import { decimalYear } from '../core/time';
 import { DEFAULT_CAP_SHARES } from '../../../data/v2/agents';
-import type { GameStateV2, ProductionReadout, RivalBase, RivalLab, SimpleModel, TimelineWorld } from '../types';
+import type { GameStateV2, ProductionReadout, RivalBase, RivalLab, RivalPhys, SimpleModel, TimelineWorld } from '../types';
 
 const B = B_G_PER_Y;
 /** Research-engineer team-equivalents on research per capabilities head: the leader's day-0 9.68 team-equivalents on
@@ -50,10 +58,95 @@ const AGENT_IDEAS = DEFAULT_CAP_SHARES.capFrontier;
 
 // ───────────────────────────── recipe and models ─────────────────────────────
 
-/** The lab's recipe efficiency e (OOM over the leader's day-0 recipe). */
-export const recipeOf = (s: GameStateV2, r: RivalLab) => B * (r.core.pa - paRef(s.hidden.timeline));
-/** Know-how pa of recipe e (the stored unit). */
+export type RivalRecipe = RivalPhys['rec'];
+type Part = keyof RivalRecipe;
+const PARTS: Part[] = ['pre', 'mid', 'ceil'];
+const PART_STACK = { pre: 'pre', mid: 'rlMid', ceil: 'rlCeil' } as const;
+
+/** Range of a line candidate's scale exponent (models/research.ts S_RANGE, repeated: research.ts reaches this module
+ *  through the capability chain). */
+const S_CLAMP: readonly [number, number] = [-0.6, 0.25];
+/** Scale factor of a line's results (model v3 F2, design/notes/F2.md): a result is measured at the scale test (F_test =
+ *  LINE_STAGES.testFrac of the base) and enters the stack at the base's FLOP, ×(1/testFrac)^s. A single candidate
+ *  survives the scale test iff its effect there keeps SURVIVE_FRAC of the small-scale one (1000^s ≥ SURVIVE_FRAC), and
+ *  the line's pool advances by the test-scale effect ∝ 1000^s, so κ_l = E[1000^s·(1/testFrac)^s; s ≥ s*] ÷
+ *  E[1000^s; s ≥ s*] over the line's scale prior N(μ, σ) clamped to S_CLAMP (Scaling recipes 1.507, Data 1.175,
+ *  Optimizer 2.099; s ≡ 0: 1). Not fitted. */
+export function lineScaleFactor(mu: number, sd: number): number {
+  const up = 1 / LINE_STAGES.testFrac;
+  if (sd <= 0) return Math.pow(up, Math.max(S_CLAMP[0], Math.min(S_CLAMP[1], mu)));
+  const sStar = Math.log10(SURVIVE_FRAC) / Math.log10(SMALL_TO_TEST);
+  let num = 0;
+  let den = 0;
+  const N = 4001;
+  for (let i = 0; i < N; i++) {
+    const z = -8 + (16 * i) / (N - 1);
+    const sx = Math.max(S_CLAMP[0], Math.min(S_CLAMP[1], mu + sd * z));
+    if (sx < sStar) continue;
+    const wt = Math.exp((-z * z) / 2) * Math.pow(SMALL_TO_TEST, sx);
+    num += wt * Math.pow(up, sx);
+    den += wt;
+  }
+  return den > 0 ? num / den : 1;
+}
+/** A recipe part from the reference portfolio (the lines every start runs, data/v2/research.ts DEFAULT_LINES): its share
+ *  w of the returns (Σ rShare of its lines: pretraining 0.8, RL efficiency 0.08, RL ceiling 0.12; r_p = w·r), its scale
+ *  factor κ (rShare-weighted κ_l: pretraining ≈ 1.58, the RL parts 1) and its test-scale start rate a at the leader's
+ *  day-0 inputs (OOM/yr): the pretraining part realises PRE_RATE0 (a_pre = PRE_RATE0 / κ_pre) and every part's start
+ *  progress is its rShare of the whole (rShare = the line's share of the lab's start software progress, V3b), a_p =
+ *  a_pre·w_p / w_pre. */
+export interface RecipePart { w: number; kappa: number; a: number }
+let partsMemo: Record<Part, RecipePart> | undefined;
+export function recipeParts(): Record<Part, RecipePart> {
+  if (partsMemo) return partsMemo;
+  const acc = { pre: { w: 0, k: 0 }, mid: { w: 0, k: 0 }, ceil: { w: 0, k: 0 } };
+  for (const { id } of DEFAULT_LINES) {
+    const e = TREE_BY_ID[id]?.effect;
+    const part = PARTS.find((p) => PART_STACK[p] === e?.stack);
+    if (!e || !part) continue;
+    const sh = e.rShare ?? 0;
+    acc[part].w += sh;
+    acc[part].k += sh * lineScaleFactor(e.s?.[0] ?? 0, e.s?.[1] ?? 0);
+  }
+  const kPre = acc.pre.k / Math.max(1e-12, acc.pre.w);
+  const aPre = PRE_RATE0 / kPre;
+  const mk = (p: Part): RecipePart => ({ w: acc[p].w, kappa: acc[p].k / Math.max(1e-12, acc[p].w), a: (aPre * acc[p].w) / acc.pre.w });
+  return (partsMemo = { pre: mk('pre'), mid: mk('mid'), ceil: mk('ceil') });
+}
+
+/** RL gain of the reference post-training run on a base of `flop` at RL recipe (mid, ceil): the player's RL curve
+ *  (stacks.ts refRlGain); the zero recipe memoised. */
+const rlMemo = new Map<number, number>();
+export function rlOnBase(flop: number, mid = 0, ceil = 0): number {
+  if (mid !== 0 || ceil !== 0) return refRlGain(flop, mid, ceil);
+  let x = rlMemo.get(flop);
+  if (x === undefined) {
+    x = refRlGain(flop, 0, 0);
+    if (rlMemo.size > 2000) rlMemo.clear();
+    rlMemo.set(flop, x);
+  }
+  return x;
+}
+/** G-equivalent of a recipe over the leader's day-0 recipe (OOM): pretraining + what its RL recipe adds to the reference
+ *  RL run, at the reference base FLOP (stacks.ts gEquivOf; the know-how readout's unit). */
+export const gEquivOfRecipe = (rec: RivalRecipe) => rec.pre + rlOnBase(FLOP_RL_REF, rec.mid, rec.ceil) - rlOnBase(FLOP_RL_REF);
+/** The lab's recipe as a G-equivalent e (OOM over the leader's day-0 recipe; what core.pa encodes). */
+export const recipeOf = (_s: GameStateV2, r: Pick<RivalLab, 'phys'>) => gEquivOfRecipe(r.phys.rec);
+/** Know-how pa of a G-equivalent e. */
 export const paOfRecipe = (w: TimelineWorld, e: number) => paRef(w) + e / B;
+/** Write the know-how readout core.pa from the recipe and remember it (so other writers' additions can be told apart). */
+export function syncRivalPa(w: TimelineWorld, r: Pick<RivalLab, 'core' | 'phys'>) {
+  r.core.pa = paOfRecipe(w, gEquivOfRecipe(r.phys.rec));
+  r.phys.paSync = r.core.pa;
+}
+/** What the know-how writers (leaks, diffusion, open weights, events: design/notes/F2.md §4) added to core.pa since the
+ *  model last wrote it enters the pretraining part as public knowledge: B OOM per progress-year, scale-invariant and
+ *  outside the research pool (the player's addKnowledge into the stack base). BRIDGE(F3): F3 replaces those writers. */
+export function absorbKnowHow(w: TimelineWorld, r: Pick<RivalLab, 'core' | 'phys'>) {
+  const d = r.core.pa - r.phys.paSync;
+  if (d !== 0 && Number.isFinite(d)) r.phys.rec.pre += d * B;
+  syncRivalPa(w, r);
+}
 
 /** G_pre of a rival base: training FLOP, tokens per parameter, pretraining recipe at launch (MoE, no repetition). */
 export const baseGPre = (flop: number, tpp: number, ePre: number) =>
@@ -64,24 +157,13 @@ export const baseParams = (flop: number, tpp = RIVAL_TPP) => clamp(paramsForFlop
 export function makeBase(gen: number, day: number, flop: number, ePre: number, tpp = RIVAL_TPP): RivalBase {
   return { gen, day, flop, params: baseParams(flop, tpp), tpp, gPre: baseGPre(flop, tpp, ePre), ePre };
 }
-/** RL gain of the reference post-training run on a base (the player's RL curve at the reference recipe). */
-const rlMemo = new Map<number, number>();
-export function rlOnBase(flop: number): number {
-  let x = rlMemo.get(flop);
-  if (x === undefined) {
-    x = refRlGain(flop, 0, 0);
-    if (rlMemo.size > 2000) rlMemo.clear();
-    rlMemo.set(flop, x);
-  }
-  return x;
-}
-/** G of a version post-trained on `base` with RL recipe share eRL (OOM). */
-export const versionG = (base: RivalBase, eRL: number) => base.gPre + rlOnBase(base.flop) + eRL;
-/** G of a version on `base` at recipe e (post-training embodies the RL share of today's recipe). */
-export const postG = (base: RivalBase, e: number) => versionG(base, RL_SHARE * e);
-/** G of the continual learner on `base` at recipe e: today's whole recipe re-applied to the base's physical part (the
- *  player's P08 stream semantics, V1 notes), never below the base's own G_pre (a stolen base keeps what it had). */
-export const clG = (base: RivalBase, e: number) => Math.max(base.gPre, baseGPre(base.flop, base.tpp, (1 - RL_SHARE) * e)) + rlOnBase(base.flop) + RL_SHARE * e;
+/** G of a version post-trained on `base` at RL recipe (mid, ceil). */
+export const versionG = (base: RivalBase, mid: number, ceil: number) => base.gPre + rlOnBase(base.flop, mid, ceil);
+/** G of a version on `base` at recipe `rec` (post-training embodies today's RL recipe, not its pretraining part). */
+export const postG = (base: RivalBase, rec: RivalRecipe) => versionG(base, rec.mid, rec.ceil);
+/** G of the continual learner on `base` at recipe `rec`: today's whole recipe re-applied to the base's physical part
+ *  (the player's P08 stream semantics, V1 notes), never below the base's own G_pre (a stolen base keeps what it had). */
+export const clG = (base: RivalBase, rec: RivalRecipe) => Math.max(base.gPre, baseGPre(base.flop, base.tpp, rec.pre)) + rlOnBase(base.flop, rec.mid, rec.ceil);
 /** Serving FLOP per token of a base: 2·N_active × the MoE token multiplier. */
 export const fptOfBase = (b: Pick<RivalBase, 'params'>) => 2 * b.params * SHAPE.moe.tokenMult;
 
@@ -224,9 +306,33 @@ function day0Of(w: TimelineWorld): { E: number; I: number } {
   return out;
 }
 
-/** Recipe growth of lab `r` today (OOM per year) at research speed `rs` (AIFM's software law with the world's r). */
-export const recipeRate = (s: GameStateV2, r: RivalLab, rs: number) =>
-  Math.min(RECIPE_RATE_MAX, RECIPE_RATE0 * rs * Math.pow(10, -recipeOf(s, r) / s.hidden.timeline.v3.r));
+/** Growth of a recipe today (per year) at research speed `rs`: each part's pool grows a_p·rs·10^(−S_p/(w_p·r)) at test
+ *  scale (AIFM's software law on the part's returns, the player's line pools); the pretraining part realises ×κ_pre
+ *  (at most RECIPE_RATE_MAX), the RL parts as is. `g` = the G-equivalent's growth (OOM/yr; the RL parts through the
+ *  reference RL run, so it saturates). */
+export interface RecipeRates { pool: RivalRecipe; rec: RivalRecipe; g: number }
+export function recipeRates(w: TimelineWorld, ph: Pick<RivalPhys, 'rec' | 'pool'>, rs: number): RecipeRates {
+  const P = recipeParts();
+  const r = w.v3.r;
+  const grow = (p: Part) => P[p].a * Math.max(0, rs) * Math.pow(10, -ph.pool[p] / Math.max(1e-9, P[p].w * r));
+  const pre = Math.min(RECIPE_RATE_MAX, P.pre.kappa * grow('pre'));
+  const pool = { pre: pre / P.pre.kappa, mid: Math.min(RECIPE_RATE_MAX, grow('mid')), ceil: Math.min(RECIPE_RATE_MAX, grow('ceil')) };
+  const rec = { pre, mid: pool.mid * P.mid.kappa, ceil: pool.ceil * P.ceil.kappa };
+  const h = 1 / 365;
+  const at = (k: number) => gEquivOfRecipe({ pre: ph.rec.pre + k * rec.pre, mid: ph.rec.mid + k * rec.mid, ceil: ph.rec.ceil + k * rec.ceil });
+  return { pool, rec, g: (at(h) - at(0)) / h };
+}
+/** G-equivalent recipe growth of lab `r` today (OOM per year) at research speed `rs`. */
+export const recipeRate = (s: GameStateV2, r: Pick<RivalLab, 'phys'>, rs: number) => recipeRates(s.hidden.timeline, r.phys, rs).g;
+/** Advance lab `r`'s recipe by `dt` years at research speed `rs` and refresh its know-how readout. */
+export function advanceRecipe(w: TimelineWorld, r: Pick<RivalLab, 'core' | 'phys'>, x: RecipeRates, dt: number) {
+  const ph = r.phys;
+  for (const p of PARTS) {
+    ph.pool[p] += x.pool[p] * dt;
+    ph.rec[p] += x.rec[p] * dt;
+  }
+  syncRivalPa(w, r);
+}
 
 /** A ProductionReadout for a non-player lab from its aggregate research (the lead readers' `rate` = recipe growth in
  *  progress-years a year, as the player's readout; M = research speed with AI ÷ without). */
@@ -269,9 +375,9 @@ export const baseFlopPerDay = (r: Pick<RivalLab, 'core'>) => r.core.computeOnlin
 
 /** One day of the lab's base run: launch it BASE_RUN_DAYS before the base is due (recipe frozen at launch), add a day of
  *  FLOP. */
-export function trainDay(s: GameStateV2, r: RivalLab, day: number) {
+export function trainDay(_s: GameStateV2, r: RivalLab, day: number) {
   const ph = r.phys;
-  if (!ph.run && day >= r.nextBaseDay - BASE_RUN_DAYS) ph.run = { day, flop: 0, ePre: (1 - RL_SHARE) * recipeOf(s, r) };
+  if (!ph.run && day >= r.nextBaseDay - BASE_RUN_DAYS) ph.run = { day, flop: 0, ePre: ph.rec.pre };
   if (ph.run) ph.run.flop += baseFlopPerDay(r);
 }
 
@@ -282,64 +388,92 @@ export function trainDay(s: GameStateV2, r: RivalLab, day: number) {
  *  parameter, 3e26 FLOP: research/12 §0.3's 2025 frontier) scaled by the lab's training pool over the leader's day-0 pool
  *  (1e6 H100e × 40%), trained on B0's dates (launched day B0_START_DAY, finished B0_DAY), so its recipe is that many days
  *  of the lab's own recipe growth staler than today's (`effRun`: the run-time efficiency multiplier, effLab for China;
- *  undefined for the leader lab, which grows at RECIPE_RATE0); the internal version was post-trained on its own day. The
- *  recipe e₀ today is solved so that version is the start model (G is linear in e). For the leader lab (B0 itself, V0)
- *  e₀ ≈ 0: the leader's day-0 recipe, the zero of e. The public model: the same base, publicGapY progress-years lower;
- *  the run toward the next base is already under way. */
+ *  undefined for the leader lab); the internal version was post-trained on its own day. A follower starts `k` behind in
+ *  the pretraining and RL-efficiency parts (as the player's follower stacks, stacks.ts initialStacks) and k back on
+ *  those research pools; k is solved so that version is the start model. The leader lab (B0 itself, V0) starts at k = 0,
+ *  the leader's day-0 recipe, with B0's vintage solved so its start version is V0. The public model: the same base,
+ *  publicGapY progress-years lower; the run toward the next base is already under way. */
 export function initRivalPhys(w: TimelineWorld, r: RivalLab, eff = 1, publicGapY = START_PUBLIC_GAP_Y, effRun?: number) {
   const pool = r.core.computeOnline * r.core.split.training;
   const flop0 = Math.max(1e24, START_BASE_FLOP * (pool / LEADER_DAY0_TRAIN));
   const G0 = gOfPm(w, r.internal.pm);
-  // Staleness of the start base's and start version's recipes: the days since their launch × the lab's own recipe
-  // growth (model v3 F2). The leader lab (effRun undefined) is the reference lab on B0 itself, so it grows at
-  // RECIPE_RATE0 and its e₀ is the leader's day-0 recipe; a follower grows at its own day-0 rate (its inputs and
-  // efficiency through the aggregate research function), solved with e₀ (the rate falls as 10^(−e/r)). F1 used
-  // RECIPE_RATE0 for every lab, which made a slow follower's start base too stale and its first new base too good:
-  // DeepCent (≈ 0.34 OOM/yr) then trained a first base above V0 and briefly led the reference lab (ws4 T3, −103 d).
-  const solve = (rate: number) => {
-    const stalePre = (rate * -B0_START_DAY) / 365;
-    const stalePost = (rate * Math.max(0, -r.internal.day)) / 365;
-    const at = (e: number) => versionG(makeBase(1, B0_DAY, flop0, (1 - RL_SHARE) * (e - stalePre), REF_TPP), RL_SHARE * (e - stalePost));
-    return { e0: G0 - at(0), stalePre, stalePost };
-  };
-  let x = solve(RECIPE_RATE0);
-  let rate = RECIPE_RATE0;
+  // Staleness of the start base's and start version's recipes: the days since their launch × the lab's own day-0 growth
+  // of each part (model v3 F2; the pools are fresh at the start, so the rates do not depend on k). F1 used the leader's
+  // rate for every lab, which made a slow follower's start base too stale and its first new base too good (DeepCent above
+  // V0 on day 75: ws4 T3 −103 d).
+  let rs = 1;
   if (effRun !== undefined) {
     const fpt = fptOfBase({ params: baseParams(flop0, REF_TPP) });
     const res = r.core.split.experiments + r.core.split.agents;
     const C = r.core.computeOnline * res;
     const f = bestRivalMix(w, G0, fpt, r.core.staff.cap, C);
-    const rs = evalAggregate(w, G0, fpt, r.core.staff.cap, f, C, eff * effRun, 1).rs;
-    for (let i = 0; i < 4; i++) {
-      rate = Math.min(RECIPE_RATE_MAX, RECIPE_RATE0 * rs * Math.pow(10, -x.e0 / w.v3.r));
-      x = solve(rate);
+    rs = evalAggregate(w, G0, fpt, r.core.staff.cap, f, C, eff * effRun, 1).rs;
+  }
+  const P = recipeParts();
+  const dPost = Math.max(0, -r.internal.day) / 365;
+  const dPre = -B0_START_DAY / 365;
+  // A lab k behind sits k back on the same research pools (it has done less research: its next ideas come easier, as on
+  // F1's one-part law), so its start rates depend on k: solved together (a few fixed-point steps).
+  const poolAt = (k: number) => ({ pre: k / P.pre.kappa, mid: k / P.mid.kappa, ceil: 0 });
+  const ratesAt = (k: number) => recipeRates(w, { rec: { pre: k, mid: k, ceil: 0 }, pool: poolAt(k) }, rs).rec;
+  // The start version at lag k and staleness multiplier m (m = 1: the days since launch × today's rates).
+  const at = (k: number, v: RivalRecipe, m: number) => versionG(makeBase(1, B0_DAY, flop0, k - m * v.pre * dPre, REF_TPP), k - m * v.mid * dPost, -m * v.ceil * dPost);
+  const bisect = (f: (x: number) => number, lo: number, hi: number) => {
+    for (let i = 0; i < 60; i++) {
+      const mid = (lo + hi) / 2;
+      if (f(mid) < 0) lo = mid;
+      else hi = mid;
+    }
+    return (lo + hi) / 2;
+  };
+  let k = 0;
+  let m = 1;
+  let v = ratesAt(0);
+  if (effRun === undefined && at(0, v, 0) >= G0) {
+    // The leader lab is the reference lab on B0 itself: its recipe today is the leader's day-0 recipe (k = 0, the zero of
+    // the recipe) and B0's vintage is what makes its start version V0 (the pre-game growth over B0's age, solved).
+    m = bisect((x) => G0 - at(0, v, x), 0, 20);
+  } else {
+    for (let i = 0; i < 5; i++) {
+      v = ratesAt(k);
+      const vi = v;
+      k = bisect((x) => at(x, vi, 1) - G0, -8, 6);
     }
   }
-  const { e0, stalePre, stalePost } = x;
-  const base = makeBase(1, B0_DAY, flop0, (1 - RL_SHARE) * (e0 - stalePre), REF_TPP);
-  r.core.pa = paOfRecipe(w, e0);
-  r.phys = { base, eff };
-  setModelG(w, r.internal, versionG(base, RL_SHARE * (e0 - stalePost)), base);
+  const base = makeBase(1, B0_DAY, flop0, k - m * v.pre * dPre, REF_TPP);
+  r.phys = { base, eff, rec: { pre: k, mid: k, ceil: 0 }, pool: poolAt(k), paSync: 0 };
+  syncRivalPa(w, r);
+  setModelG(w, r.internal, versionG(base, k - m * v.mid * dPost, -m * v.ceil * dPost), base);
   if (r.publicModel) setModelG(w, r.publicModel, gOfSimple(w, r.internal) - publicGapY * B, base);
   const start = r.nextBaseDay - BASE_RUN_DAYS;
-  if (start < 0) r.phys.run = { day: start, flop: -start * baseFlopPerDay(r), ePre: (1 - RL_SHARE) * (e0 + (rate * start) / 365) };
+  if (start < 0) r.phys.run = { day: start, flop: -start * baseFlopPerDay(r), ePre: k + (m * v.pre * start) / 365 };
 }
 /** The reference start base's FLOP (B0) and the leader's day-0 training pool (DAY0_REF's 1e6 H100e × the 2025 training
  *  share 0.4) it was sized on. */
 const START_BASE_FLOP = flopOfDesign(REFERENCE_BASE);
 const LEADER_DAY0_TRAIN = 1e6 * 0.4;
 
-/** Physical state for a lab from a save before rev 25: its recipe from its know-how, a base sized by its training pool
- *  under which its internal model sits (G_pre = G − RL gain − RL_SHARE·e), its models' designs from that base. */
+/** Physical state for a lab from a save before rev 25: its recipe from its know-how (all in the pretraining part, fresh
+ *  pools), a base sized by its training pool under which its internal model sits (G_pre = G − RL gain), its models'
+ *  designs from that base. */
 export function migrateRivalPhys(w: TimelineWorld, r: RivalLab, eff = 1) {
   const e = B * (r.core.pa - paRef(w));
   const flop = Math.max(1e24, r.core.computeOnline * r.core.split.training * BASE_POOL_SHARE * PHI_FLOP_PER_H100E_DAY * GOODPUT * BASE_RUN_DAYS);
-  const b = makeBase(1, r.internal.day, flop, (1 - RL_SHARE) * e);
+  const b = makeBase(1, r.internal.day, flop, e);
   const G = gOfPm(w, r.internal.pm);
-  b.gPre = G - rlOnBase(flop) - RL_SHARE * e;
-  r.phys = { base: b, eff };
+  b.gPre = G - rlOnBase(flop);
+  r.phys = { base: b, eff, rec: { pre: e, mid: 0, ceil: 0 }, pool: { pre: 0, mid: 0, ceil: 0 }, paSync: 0 };
+  syncRivalPa(w, r);
   setModelG(w, r.internal, G, b);
   if (r.publicModel) setModelG(w, r.publicModel, gOfPm(w, r.publicModel.pm), b);
+}
+/** rev 25 → 26 (model v3 F2): a lab's one-number recipe e becomes the pretraining part (the RL parts at the leader's
+ *  day-0 recipe, fresh pools), so its know-how readout is unchanged. */
+export function migrateRivalRecipe(w: TimelineWorld, r: RivalLab) {
+  if (r.phys.rec) return;
+  r.phys.rec = { pre: B * (r.core.pa - paRef(w)), mid: 0, ceil: 0 };
+  r.phys.pool = { pre: 0, mid: 0, ceil: 0 };
+  syncRivalPa(w, r);
 }
 
 // ───────────────────────────── versions (WS4's cadence calls these) ─────────────────────────────
@@ -356,15 +490,14 @@ export function finishRun(r: RivalLab, day: number): RivalBase | undefined {
 export const learnsOnline = (w: TimelineWorld, r: RivalLab) => levelOfG(w, gOfSimple(w, r.internal)) >= CL_LEVEL;
 /** G of a new version on `base` today (a post-training run; the continual learner's refresh once it learns online). */
 export function newVersionG(s: GameStateV2, r: RivalLab, base: RivalBase): number {
-  const e = recipeOf(s, r);
-  return learnsOnline(s.hidden.timeline, r) ? clG(base, e) : postG(base, e);
+  return learnsOnline(s.hidden.timeline, r) ? clG(base, r.phys.rec) : postG(base, r.phys.rec);
 }
 /** Weekly continual-learning refresh of the internal model in place (never down). Returns true if it moved. */
 export function clRefresh(s: GameStateV2, r: RivalLab, day: number): boolean {
   const w = s.hidden.timeline;
   if (!learnsOnline(w, r) || day - (r.phys.clDay ?? -1e9) < CL_DAYS) return false;
   r.phys.clDay = day;
-  const G = clG(r.phys.base, recipeOf(s, r));
+  const G = clG(r.phys.base, r.phys.rec);
   if (G <= gOfSimple(w, r.internal) + 1e-12) return false;
   setModelG(w, r.internal, G, r.phys.base);
   return true;

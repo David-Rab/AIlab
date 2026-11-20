@@ -106,7 +106,7 @@ export function initialRival(rng: Rng, h: HiddenWorld, i: number, playerPm: numb
 }
 
 /** Placeholder until initRivalPhys sets the physical state (same call, same object). */
-export const PHYS_PLACEHOLDER = (): RivalLab['phys'] => ({ base: makeBase(1, -60, 1e26, 0), eff: 1 });
+export const PHYS_PLACEHOLDER = (): RivalLab['phys'] => ({ base: makeBase(1, -60, 1e26, 0), eff: 1, rec: { pre: 0, mid: 0, ceil: 0 }, pool: { pre: 0, mid: 0, ceil: 0 }, paSync: 0 });
 
 /** Build the simulated AI 2027 leader lab (setup.leaderLab, BUILD-PLAN R2) at reference inputs: the player's start
  *  model (playerStart(w).target), capabilities staff hRef, compute refTotal, split shareRef, taste 1 (the rivals'

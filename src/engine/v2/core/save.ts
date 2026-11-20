@@ -15,7 +15,7 @@ import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { PROJECT_BY_ID, isLineNode } from '../../../data/v2/tree';
 import { safFromProgress } from '../safety/lineProjects';
 import { START_SUITE_FAMILIES, startExpertAssets, suitesFromV1 } from '../models/suites';
-import { migrateRivalPhys } from '../actors/rivalModel';
+import { migrateRivalPhys, migrateRivalRecipe } from '../actors/rivalModel';
 import { LEADER_ID } from '../models/labs';
 import { LEADER_CAL } from '../../../data/v2/calibration';
 
@@ -54,8 +54,11 @@ import { LEADER_CAL } from '../../../data/v2/calibration';
  *  25 (model v3 F1): rivals, China and the leader lab in effective compute — RivalLab.phys (base, base run, research
  *  efficiency) and SimpleModel G / flop / params / fpt; LabCore.lagCal and TimelineWorld.simpleCredit are gone. Migration
  *  24 → 25 builds each lab's base under its current internal model from its know-how and training pool
- *  (actors/rivalModel.ts migrateRivalPhys). */
-export const SCHEMA_REV = 25;
+ *  (actors/rivalModel.ts migrateRivalPhys).
+ *  26 (model v3 F2): RivalPhys.rec / pool / paSync — the rivals' recipe in the player's stack parts. Migration 25 → 26
+ *  puts each lab's one-number recipe into the pretraining part with fresh pools (actors/rivalModel.ts
+ *  migrateRivalRecipe), so its know-how readout is unchanged. */
+export const SCHEMA_REV = 26;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -318,6 +321,11 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       if (r.phys) continue;
       migrateRivalPhys(w, r, r.core.id === LEADER_ID ? Math.pow(10, LEADER_CAL[s.setup.world] ?? 0) : 1);
     }
+  },
+  /** 25 → 26 (model v3 F2): each lab's recipe e becomes the pretraining part of its three-part recipe (fresh pools). */
+  25: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    for (const r of [...s.rivals, s.china.lab]) migrateRivalRecipe(s.hidden.timeline, r);
   },
 };
 

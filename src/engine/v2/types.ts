@@ -1447,9 +1447,10 @@ export interface SimpleModel {
  *  parameters, tokens per parameter, G_pre (OOM) and the pretraining recipe frozen at launch (OOM over the leader's day-0
  *  recipe). A stolen base keeps the G_pre the thief got. */
 export interface RivalBase { gen: number; day: Day; flop: number; params: number; tpp: number; gPre: number; ePre: number }
-/** Model v3 F1: a non-player lab's physical model state. Its recipe efficiency e (OOM over the leader's day-0 recipe) is
- *  stored in progress-years as `core.pa` (e = B·(pa − pa_ref), the player's know-how readout relation, stacks.ts syncPa),
- *  so the leaks, diffusion and theft that move know-how move e. */
+/** Model v3 F1/F2: a non-player lab's physical model state. Its recipe is in the player's stack parts (`rec`, grown
+ *  through `pool`); `core.pa` is its read-only G-equivalent in progress-years (pa = pa_ref + e/B, the player's know-how
+ *  readout relation, stacks.ts syncPa), and whatever the leaks, diffusion and events add to `core.pa` since `paSync`
+ *  enters the pretraining part as public knowledge (BRIDGE for the know-how writers, F3). */
 export interface RivalPhys {
   /** The base the lab's versions are post-trained on. */
   base: RivalBase;
@@ -1459,6 +1460,13 @@ export interface RivalPhys {
   eff: number;
   /** Day of the last continual-learning refresh. */
   clDay?: Day;
+  /** The recipe (model v3 F2): pretraining efficiency realised at the run's FLOP (OOM over the leader's day-0 recipe),
+   *  RL efficiency and RL ceiling (OOM, the player's rlMid / rlCeil stacks). */
+  rec: { pre: number; mid: number; ceil: number };
+  /** Research pools of the three parts: OOM at test scale since the start (the lines' pools at aggregate level). */
+  pool: { pre: number; mid: number; ceil: number };
+  /** `core.pa` as the model last wrote it. */
+  paSync: number;
 }
 
 export interface RivalLab {

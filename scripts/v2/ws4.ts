@@ -4,7 +4,8 @@
 //   E3  rival comparisons use the player's INTERNAL frontier
 //   E4  storyteller limits hold
 //   E5  every EndingId is reachable (forced states; the statistical 2,000-run coverage is in scripts/v2/bots.ts)
-//   T3  China lead 150–200 d until a theft (RefBot play), then ≈ 60 d; R10 gap formula within ±2 months at the start
+//   T3  China lead 150–200 d until a theft (RefBot play; mean, and the 10th–90th percentile of the daily lead within
+//       75–275 d), then ≈ 60 d; R10 gap formula within ±2 months at the start
 //   T4  rival gaps at start are 3–9 months (same lead metric as WS1's calib: trueLeadDays)
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -262,9 +263,11 @@ const load = (i: number) => deserialize(fixtures[i]);
 }
 
 // ───────── T3: China lead ─────────
-// Same metric as WS1's calib T3 (leadBetween vs the player = WS1 trueLeadDays) on real RefBot play with no theft:
-// the mean over the pre-SC year is 150–200 d and every sample stays within one release interval (75–275 d); a theft
-// then puts China ≈ 60 d behind; the R10 gap formula matches the simulated start lead within ±2 months.
+// Same metric as WS1's calib T3 (leadBetween vs the player = WS1 trueLeadDays) on real RefBot play with no theft,
+// sampled daily over days 30–540: the mean is 150–200 d and the 10th–90th percentile range lies within 75–275 d (model
+// v3 F2: AI 2027's claim is a typical lag of about six months, not a bound on every day; between DeepCent's bases,
+// 9.6–14.4 months apart, the lead rises a day a day by construction, so the min and max are INFO; design/notes/F2.md);
+// a theft then puts China ≈ 60 d behind; the R10 gap formula matches the simulated start lead within ±2 months.
 {
   const leads0: number[] = [];
   const formulaGap: number[] = [];
@@ -280,7 +283,7 @@ const load = (i: number) => deserialize(fixtures[i]);
     while (s.time.day < 540 && !s.ending) {
       refBot.act(s, engine);
       tick(s, { skip: ['endings'] });
-      if (s.time.day % 30 === 0) pre.push(leadBetween(s, 'player', 'china'));
+      if (s.time.day >= 30) pre.push(leadBetween(s, 'player', 'china'));
     }
     executeTheft(s, makeCtx(s), 'player');
     tick(s, { skip: ['endings'] });
@@ -289,8 +292,11 @@ const load = (i: number) => deserialize(fixtures[i]);
   WS4_TUNING.theftMinRung = minRung;
   const mean = pre.reduce((a, x) => a + x, 0) / Math.max(1, pre.length);
   check(leads0.every((x) => x >= 150 && x <= 200), 'T3 China lead at start 150–200 d', leads0.map((x) => x.toFixed(0)).join(', '));
-  check(mean >= 150 && mean <= 200, 'T3 China mean lead 150–200 d until a theft (RefBot, days 30–540, 8 seeds)', `mean ${mean.toFixed(0)} d`);
-  check(pre.every((x) => x >= 75 && x <= 275), 'T3 China lead stays within 75–275 d (release-interval band)', `${Math.min(...pre).toFixed(0)}–${Math.max(...pre).toFixed(0)}`);
+  const sorted = [...pre].sort((a, b) => a - b);
+  const pct = (q: number) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.round(q * (sorted.length - 1))))];
+  check(mean >= 150 && mean <= 200, 'T3 China mean lead 150–200 d until a theft (RefBot, days 30–540 daily, 8 seeds)', `mean ${mean.toFixed(0)} d`);
+  check(pct(0.1) >= 75 && pct(0.9) <= 275, 'T3 China lead: 10th–90th percentile of the daily lead within 75–275 d', `p10 ${pct(0.1).toFixed(0)} d, p90 ${pct(0.9).toFixed(0)} d (p25 ${pct(0.25).toFixed(0)}, median ${pct(0.5).toFixed(0)}, p75 ${pct(0.75).toFixed(0)})`);
+  console.log(`INFO  T3 China lead min–max (daily, days 30–540, 8 seeds): ${sorted[0].toFixed(0)}–${sorted[sorted.length - 1].toFixed(0)} d; share of days below 75 d ${(100 * pre.filter((x) => x < 75).length / pre.length).toFixed(1)}%, above 275 d ${(100 * pre.filter((x) => x > 275).length / pre.length).toFixed(1)}%`);
   check(post.every((x) => x >= 40 && x <= 80), 'T3 after a theft China is ≈ 60 d behind', post.map((x) => x.toFixed(0)).join(', '));
   check(formulaGap.every((x) => Math.abs(x) <= 2), 'T3 R10 gap formula within ±2 months of the simulated start lead', formulaGap.map((x) => x.toFixed(2)).join(', '));
 }

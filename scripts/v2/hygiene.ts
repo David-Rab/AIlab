@@ -73,7 +73,7 @@ function leaderChecks(s: GameStateV2, setup: SetupV2, tag: string) {
   // it is the leader's day-0 recipe (e ≈ 0: B0's dates make its recipe stale by B0's age; today's is the zero of e).
   const e0 = recipeOf(s, L);
   const g0 = L.internal.G ?? NaN;
-  check(Math.abs(L.internal.pm - v0.pm) < 1e-9 && Math.abs(g0 - gV0(s.hidden.timeline)) < 1e-9 && Math.abs(e0) < 0.05 && postG(L.phys.base, e0) >= g0,
+  check(Math.abs(L.internal.pm - v0.pm) < 1e-9 && Math.abs(g0 - gV0(s.hidden.timeline)) < 1e-9 && Math.abs(e0) < 0.05 && postG(L.phys.base, L.phys.rec) >= g0,
     `${tag}: leader start model = the reference V0, on its start base at the leader's day-0 recipe`, `${L.internal.pm} vs ${v0.pm}; G ${g0} vs ${gV0(s.hidden.timeline)}; e ${e0.toFixed(4)}`);
   check(Math.abs(L.phys.eff - Math.pow(10, LEADER_CAL[setup.world] ?? 0)) < 1e-12, `${tag}: leader research efficiency = 10^LEADER_CAL`, String(L.phys.eff));
   check(Math.abs(L.core.computeOnline / refTotal(s.hidden.timeline, yr) - 1) < 1e-9 && Math.abs(L.core.staff.cap / hRef(yr) - 1) < 1e-9 && L.core.tasteHire === 1, `${tag}: leader compute = refTotal, staff = hRef`);
@@ -263,7 +263,7 @@ for (const rev of [1, 11, 12, 13, 14]) {
     msg = (e as Error).message;
   }
   // Model v3 V2 (schemaRev 13): V1 saves (12) are rejected too; model v3 V3 (schemaRev 14): V2 saves (13) too.
-  check(SCHEMA_REV === 25 && msg ===`no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
+  check(SCHEMA_REV === 26 && msg ===`no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
 }
 // Model v3 V4a (schemaRev 16): a V3b save (15) migrates (customer stocks start empty, versions get their FLOP per token).
 {
@@ -435,6 +435,27 @@ for (const rev of [1, 11, 12, 13, 14]) {
   const labs = g ? [...g.rivals, g.china.lab] : [];
   const ok = !!g && labs.every((r) => !!r.phys && r.phys.base.flop > 0 && Math.abs((r.internal.G ?? NaN) - gOfPm(g!.hidden.timeline, r.internal.pm)) < 1e-9 && (r.internal.fpt ?? 0) > 0);
   check(ok, 'save: a schemaRev-24 save migrates to 25 (each rival keeps its model, now on a physical base)', msg || labs.map((r) => `${r.core.id} G ${r.internal.G?.toFixed(2)} N ${((r.internal.params ?? 0) / 1e12).toFixed(2)}T`).join(', '));
+}
+// Model v3 F2 (schemaRev 26): an F1 save (25) migrates: each lab's recipe e becomes the pretraining part, know-how unchanged.
+{
+  const old = JSON.parse(serialize(run(detSetup, 30))) as GameStateV2 & Record<string, unknown>;
+  old.schemaRev = 25;
+  const pa0: number[] = [];
+  for (const r of [...old.rivals, old.china.lab]) {
+    const ph = r.phys as Partial<typeof r.phys>;
+    delete ph.rec; delete ph.pool; delete ph.paSync;
+    pa0.push(r.core.pa);
+  }
+  let msg = '';
+  let g: GameStateV2 | undefined;
+  try {
+    g = deserialize(JSON.stringify(old));
+  } catch (e) {
+    msg = (e as Error).message;
+  }
+  const labs = g ? [...g.rivals, g.china.lab] : [];
+  const ok = !!g && labs.every((r, i) => !!r.phys.rec && !!r.phys.pool && Math.abs(r.core.pa - pa0[i]) < 1e-9 && r.phys.paSync === r.core.pa);
+  check(ok, 'save: a schemaRev-25 save migrates to 26 (each rival recipe in three parts, know-how unchanged)', msg);
 }
 
 // ---------- 6. Cadences ----------

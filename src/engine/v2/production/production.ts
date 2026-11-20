@@ -24,7 +24,7 @@ import { CHINA_PRESETS } from '../../../data/actors';
 import { decimalYear } from '../core/time';
 import { shareRefAt } from '../departments/split';
 import { CHINA_ID, LEADER_ID, PLAYER_ID, bestPlayerVersion, labCore, otherLabs, rivalLab } from '../models/labs';
-import { bestRivalMix, evalRival, fptOfSimpleModel, gOfSimple, recipeRate, rivalReadout } from '../actors/rivalModel';
+import { absorbKnowHow, advanceRecipe, bestRivalMix, evalRival, fptOfSimpleModel, gOfSimple, recipeRates, rivalReadout } from '../actors/rivalModel';
 import { addKnowledge, trainNow } from '../models/stacks';
 import { asV1World } from '../world/calibration';
 import { poolsOf } from '../compute/power';
@@ -388,8 +388,10 @@ export function rivalResearch(s: GameStateV2, r: RivalLab, apply: boolean): Prod
   }
   const treaty = s.gov.treaty === 'verified' ? 0.65 : 1;
   const x = evalRival(s, r, f, C, (r.phys?.eff ?? 1) * effLab(s, core.id), rivalSpeedMult(s, core.id) * treaty);
-  const eRate = recipeRate(s, r, x.rs);
-  if (apply) core.pa += eRate / 365 / B_G_PER_Y;
+  if (apply) absorbKnowHow(w, r);
+  const rates = recipeRates(w, r.phys, x.rs);
+  if (apply) advanceRecipe(w, r, rates, 1 / 365);
+  const eRate = rates.g;
   const pools = poolsOf(s, core.id);
   return rivalReadout(x, eRate, core.milestoneDays[3] !== undefined, { h: (x.units * RE_UNIT) / DAY0_REF.re, k: pools.agents / DAY0_REF.agents, c: x.c, d: pools.synthetic / DAY0_SYNTHETIC });
 }
