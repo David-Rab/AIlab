@@ -501,8 +501,7 @@ export function providerSectorRevenue(s: GameStateV2, mix: WorldMix, r: RegionId
 /** Market revenue ($B/yr) a non-player lab earns from its public model at its customer share (demand-side: sector work
  *  — adopted hours, agent-hours, seats — at its prices, consumer subscribers at its price; WS4 uses it for rival
  *  finance). */
-export function labMarketRevenue(s: GameStateV2, lab: LabId): Money {
-  const mix = worldMix(s);
+export function labMarketRevenue(s: GameStateV2, lab: LabId, mix: WorldMix = worldMix(s)): Money {
   const i = mix.providers.findIndex((p) => p.key === lab);
   if (i < 0) return 0;
   let x = 0;

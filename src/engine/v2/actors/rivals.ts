@@ -20,6 +20,7 @@ import { growLabStaff, labReferenceSplit, trackLabFrontier } from '../models/run
 import { initialSecurity } from '../security/security';
 import { capIndexV2, referenceRate } from '../world/calibration';
 import { labMarketRevenue } from '../worldfx/revenue';
+import { worldMix, type WorldMix } from '../worldfx/mix';
 import { noisyPosture, rivalId } from '../world/hidden';
 import { hRef, refTotal } from '../production/knots';
 import { decimalYear } from '../core/time';
@@ -441,13 +442,15 @@ export const RIVAL_REVENUE_TRACK = 0.5;
 /** Quarterly rival finance (geoQ): revenue, burn, raises, distress → merger offer / absorption / bankruptcy. */
 export function rivalFinanceQ(s: GameStateV2, ctx: SystemCtx) {
   const rng = ctx.rng('rivals');
+  // P2: one world mix for all labs (nothing the mix reads changes in this loop until a lab leaves the market).
+  let mix: WorldMix | undefined;
   for (const r of activeRivals(s)) {
     const f = r.finance;
     const lead = leadBetween(s, 'player', r.core.id);
     // Revenue (M4): half-way each quarter toward what WS5's market pays this lab's public model (demand-side share of
     // sector and consumer spend), so the private-lab sector run-rate — and with it the investor pool (R15 §1.4) —
     // tracks the market [D]. Labs without a priced public model keep the archetype growth rule.
-    const mkt = labMarketRevenue(s, r.core.id);
+    const mkt = labMarketRevenue(s, r.core.id, (mix ??= worldMix(s)));
     if (mkt > 0) f.revenueRun += RIVAL_REVENUE_TRACK * (mkt - f.revenueRun);
     else f.revenueRun *= 1.2 + 0.1 * clamp(-lead / 180, -1, 1);
     const spend = (r.core.computeOnline * 14e-6) * 1.1 + 0.4; // $B/yr ≈ $14k per H100e-yr all-in [D]
@@ -480,6 +483,7 @@ export function rivalFinanceQ(s: GameStateV2, ctx: SystemCtx) {
         buyer.core.computeOnline += r.core.computeOnline;
         deactivateRival(s, ctx, r.core.id, 'merged', buyer.core.id);
       } else deactivateRival(s, ctx, r.core.id, 'bankrupt');
+      mix = undefined;
     }
   }
 }

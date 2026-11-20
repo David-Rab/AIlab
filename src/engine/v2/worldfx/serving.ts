@@ -201,16 +201,23 @@ function useFitOf(s: GameStateV2, w: TimelineWorld, v: Fitted, sid: SectorId | '
 /** P2: a model without a build (rivals', China's: known only by pm) has the same fit, coverage and leverage on a work
  *  type for the same pm, ΔG, horizon multiplier and P19 (the only state domainG reads), so those are cached on exactly
  *  these inputs (per world). Player versions (with a build) are computed every time. */
-const useFitMemo = new WeakMap<TimelineWorld, Map<string, UseFit>>();
+type FitMemo = Map<number, Map<number, Map<number, Map<string, UseFit>>>>; // pm → ΔG → h multiplier → work type + P19
+const useFitMemo = new WeakMap<TimelineWorld, { m: FitMemo; n: number }>();
 function useFit(s: GameStateV2, w: TimelineWorld, v: Fitted, sid: SectorId | 'CHAT', hd: DomainId, dG: number, hm: number): UseFit {
   if (v.build) return useFitOf(s, w, v, sid, hd, dG, hm);
-  let m = useFitMemo.get(w);
-  if (!m) useFitMemo.set(w, (m = new Map()));
-  const key = `${v.pm}|${sid}|${dG}|${hm}|${adopted(s, 'P19') ? 1 : 0}`;
-  let x = m.get(key);
+  let memo = useFitMemo.get(w);
+  if (!memo || memo.n > 20000) useFitMemo.set(w, (memo = { m: new Map(), n: 0 }));
+  let a = memo.m.get(v.pm);
+  if (!a) memo.m.set(v.pm, (a = new Map()));
+  let b = a.get(dG);
+  if (!b) a.set(dG, (b = new Map()));
+  let c = b.get(hm);
+  if (!c) b.set(hm, (c = new Map()));
+  const key = adopted(s, 'P19') ? sid + '+' : sid;
+  let x = c.get(key);
   if (!x) {
-    if (m.size > 20000) m.clear();
-    m.set(key, (x = useFitOf(s, w, v, sid, hd, dG, hm)));
+    c.set(key, (x = useFitOf(s, w, v, sid, hd, dG, hm)));
+    memo.n++;
   }
   return x;
 }
