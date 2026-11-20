@@ -4029,3 +4029,1388 @@ branch: authors2026 ASI +0.033, slow −0.079).
   pass.
 - safety (slow): S4 RefBot P_mis at ASI **0.501** (M3 0.522; band 0.55–0.85; known → E10), S5 RefBot fails (median U −
   L at SAR +0.64, below in 33%; known); S4 safe-only 0.013, S5 mixed (margin +0.12, holds in 60%), S6 and B3 pass.
+
+### T0 notes (test infrastructure: tiers, simulation cache, parallel runner; 2026-11-20)
+
+Branch `v3-t0` (from `model-v3` at 50b15dd). No game mechanism changed and no check's verdict logic changed.
+
+#### What to run
+
+| who / when | command | runs | wall time here (12 cores, loaded) |
+|---|---|---|---|
+| task agent, while iterating | `npm run test:quick` | tsc (main + scripts); every unit-style and short-sim script at full strength; calib, safety, finance, worldfx, ws4 and idle in SMOKE mode | 4.0 min after a code change (99% load); 2.0 min on the same code |
+| task agent touching calibration | `npm run test:cal` | golden-timelines + calib T1, T1L, T4 | 1.5 min after a code change, 6 s on the same code |
+| a few scripts at full strength | `npx tsx scripts/v2/run.ts --tier full --only calib,finance` | just those scripts | |
+| merge gate: once at the end of a task, once after a merge | `npm run test:full` (`npm run test:v2` is an alias) | every check of the old `test:v2` chain, all seeds, plus `test:ui` | 17.7 min after a code change (87% load); 6.6 min on the same code |
+| perf budgets, quiet machine only | `npm run test:perf` | hygiene's 5 performance checks | 0.5 min |
+
+**Policy.** Task agents run `test:quick` (plus `test:cal` if they touch calibration, or `--only <script>` for the suite
+they are working on) while they iterate. They run `test:full` **once**, before reporting the task done. The merger runs
+`test:full` once on the merged branch. Run `test:perf` only on a quiet machine. **Only one full tier per machine at a time.**
+`test:full` already starts 6 worker processes. Two agents running it at once on 12 cores each take twice as long, and
+the old sequential chain run by several agents at once is what made test runs take hours. A green quick tier is a smoke
+signal, not a gate. Its SMOKE lines can never fail.
+
+#### 1. Baseline (before): every script run one at a time
+
+Measured on 50b15dd with the old commands (`npx tsx …`, `npm run test:ui`), one script at a time, while other agents
+loaded the machine. Load = the share of all 12 cores busy during the script (the load from my own script is included).
+"Checks" counts PASS / FAIL / WARN lines (OK lines for lint-* and the UI test). CPU = the summed node process CPU (tsc 7
+is native, so its CPU is not captured).
+
+| script | wall s | CPU s | load | checks P/F/W | what it simulates |
+|---|---:|---:|---:|---|---|
+| tsc scripts | 26 | – | 100% | – | – |
+| tsc main | 17 | – | 100% | – | (not in old test:v2; it is part of `npm run build` in test:ui) |
+| golden-timelines | 38 | 19 | 100% | 15/0/3 | v1 reference integrator (no engine): 5 presets to ASI (≤ 40 y daily) + 500 sampled seeds to SC (≤ 75 y daily) |
+| identity | 22 | 11 | 99% | 76/0/3 | unit (newGame, 200-step loops) |
+| effective | 29 | 19 | 100% | 27/0/0 | ai2027/2027 passive to day 500; start types |
+| data | 21 | 12 | 99% | 58/0/0 | unit + 20-day runs; reads fixtures |
+| suites | 22 | 15 | 98% | 28/0/0 | unit + 3 × 60 days; reads fixtures |
+| signals | 22 | 12 | 96% | 19/0/0 | unit |
+| successor | 34 | 14 | 99% | 11/0/0 | unit; reads fixtures |
+| research | 36 | 27 | 97% | 28/0/0 | passive runs ≤ 600 days (seeds 11, 2027) |
+| evals | 32 | 31 | 97% | 31/0/0 | unit + stub RefBot ai2027/2027 to day 365 |
+| safetyresearch | 22 | 20 | 93% | 30/0/0 | 60-seed newGame loops, one 400-day run |
+| worktypes | 62 | 71 | 90% | 16/0/0 | passive 8-year line run; stub RefBot ai2027/2027 to ASI |
+| **calib** | **276** | 307 | 68% | 30/10/7 | T1 stub RefBot × 4 presets to ASI (slow: SC ≈ day 4,750); T1L leader lab × 4; integrated RefBot × 4 (≤ 16 y); T2 stub to SC; T3 stub days 30–540; T4 40 newGames |
+| fixtures | 25 | 32 | 56% | 10/0/0 | stub RefBot ai2027/2027 to day 900; challenger and spinout RefBot to day 400. **Rewrote the committed fixtures** |
+| hygiene | 82 | 107 | 67% | 206/4/0 | newGame matrix; determinism 2 × 1,500 d; stream isolation 6 × 400 d; save 2 × 1,560 d; cadences 730 d; perf 2 × 1,500 d + 8 × 300 d (the 4 FAILs are perf under load) |
+| lint-hidden / -ux / -tradeoffs / -structure | 9 / 9 / 6 / 7 | 5–8 | 48–65% | 1 / 9 / 486 / 7 | static |
+| **safety** | **991** | 996 | 73% | 16/2/0 | S4: RefBot seeds 500–539 and the safe recipe seeds 700–739, integrated, to the player's ASI (≤ 1,600 d); S5: mixed bot seeds 900–919 to SAR; S2 120 newGames |
+| danger | 10 | 8 | 64% | 27/0/0 | 8 seeds, start acts |
+| oversight | 10 | 8 | 69% | 29/0/0 | unit |
+| **finance** | **253** | 268 | 64% | 63/3/0 | RefBot + REF autopilot seed 1 to 2029; 12 seeds RefBot to 2028; 12 seeds no-financing to Q1 2027; 12 seeds capex2x to 2028; 3 passive shock runs × 16 quarters; F10 passive 5 y with 400 sites; 100-day action runs from day400.json |
+| worldfx | 82 | 97 | 61% | 33/5/0 | RefBot classic ai2027/2027 to Apr 2028; reality × 2 to Nov 2026; W2 probe 10 y (production off); W3 × 2 RefBot to 2031; SEZ RefBot to 2031 |
+| ws4 | 114 | 144 | 53% | 25/1/0 | E2 1,000 fuzz seeds from the fixtures; E4 36 games × 300 d with crisis spam; E5 17 endings × ≤ 300 seeds × 3 d; T3 RefBot 8 seeds × 540 d; T4 200 newGames |
+| rivals | 32 | 39 | 75% | 13/0/0 | passive runs of 365–730 days |
+| products | 11 | 10 | 63% | 58/0/0 | unit |
+| serving | 35 | 45 | 59% | 75/0/0 | unit + RefBot ai2027 and fast to day 1,200 |
+| money | 24 | 31 | 57% | 24/0/0 | 3 bots × 730 d |
+| idle | 153 | 174 | 61% | 3 OK | 2 starts × 4 bots × 2 seeds × 1,100 d |
+| test:ui | 314 | 34 | 46% | 555 OK | vite build + headless Edge (mostly browser wait time) |
+| **total** | **2,826 (47 min)** | 2,580 | | | |
+
+Findings:
+- Under load `npx tsx` costs about 10 s per script before any test code runs (`npx` resolution plus the tsx CLI's child
+  process): 14–18 s against 4–5 s for `node --import tsx` on a trivial script. That is about 5 min over the chain. The runner uses
+  `node --import tsx`.
+- One script takes a third of the chain: safety (100 full games). Next come calib, finance, test:ui and idle.
+- The old chain is `&&`-joined: at 50b15dd calib fails (10 known T1/T1L failures of the model-v3 work), so `npm run test:v2`
+  stopped there and never ran the 18 scripts after it.
+- The old chain was order-dependent. fixtures.ts rewrote `scripts/v2/fixtures/*.json` mid-chain, so data/suites/successor
+  (before it) read the stale committed fixtures (schemaRev 16, migrated on load) and finance/ws4/worldfx/products (after
+  it) read fresh ones.
+
+#### 2. Simulation cache (`scripts/v2/simcache.ts`)
+
+`cached(name, key, files, compute)` returns `compute()`'s record, read from `.simcache/` when it has already been computed for the same key and code.
+
+- **Key** = sha256 of: a **code hash** + `name` + the sorted-key JSON of `key` (bot, setup, seed, days, options, the
+  calibration values in effect). The code hash covers the content (not mtimes) of every file under `src/` except
+  `src/ui/**` and `src/main.tsx`. If any hashed file ever imports the UI, the UI is hashed too: this is checked on every
+  run. It also covers `scripts/v2/lib.ts`, `simcache.ts`, the caller's `files` (the script that defines the run and its
+  record, plus helpers such as `safety-emu.ts` and `worldfx-refplay.ts`), all of `scripts/v2/fixtures/**` and `scripts/v2/golden/**`,
+  `package-lock.json` and the Node version. Any change to engine or data code invalidates every entry. There is no
+  partial invalidation. Editing a UI file keeps the cache valid; appending a comment to `src/engine/v2/core/time.ts`
+  invalidates it (both checked).
+- **Records**: what the checks read (milestone days, series, arrays of outcomes). Records that need end-state values
+  keep a `pick()` of the exact state paths read, or the whole state (the worldfx classic run, whose checks call engine
+  functions on it). Values a script computed on the live state (`validateJson`, `stateHash` round trips) are computed
+  inside the run and stored. On a miss the record is round-tripped through JSON before it is returned, so a cold run and a
+  warm run see byte-identical values. A record that JSON would change (NaN, ±Infinity, undefined in arrays, Maps) throws.
+- **Files**: `.simcache/<name>-<code8>-<key16>.json` (git-ignored), written atomically. Entries not used for 3 days are
+  pruned by the runner. `SIMCACHE=off` computes every run and touches nothing (the reference behaviour). `SIMCACHE=refresh`
+  recomputes and overwrites. Each script prints `simcache: H hit(s), M miss(es)` to stderr.
+- **Prefill shards**: a script given `--prefill k/n` computes every n-th of its cached runs (from k) and exits. The runner
+  starts safety as 6 shards, calib as 4 and finance as 3 (2 in quick), then starts the script itself, which reads the cache.
+  Each sharded script lists its runs in one `prefill([...])` call, in the order its checks ask for them.
+- Through the cache: calib (T1, T1L, integrated, T2, T3; the `--fit-*` modes are not cached), golden-timelines,
+  fixtures, safety (S4/S5 games), finance (bot and shock runs), worldfx (all 7 runs), ws4 (E2, E4, E5, T3, T4).
+  calib T1/T1L share keys between `cal` and `full`, so `test:cal` after `test:full` takes seconds.
+
+#### 3. Tiers (`scripts/v2/run.ts --tier quick|cal|full|perf [--only a,b] [--workers N] [--no-ui] [--list]`)
+
+- Worker pool, 6 workers by default. Jobs start in order of critical path, using the times in `.simcache/last-run.json`.
+  test:ui starts first: it is about 6 min of wall time but only 40 s of CPU, so it overlaps the simulations.
+- Each job's output goes to `.simcache/logs/<id>.log`. The runner prints the FAIL lines of failed jobs as they finish, one
+  summary table (script, mode, pass/fail/warn/smoke counts, cache hits, wall, CPU) and the machine load. It writes
+  `.simcache/last-run.json` and exits 1 on any failure.
+- **full** = exactly the old test:v2 scripts with all seeds, plus test:ui. Only two things differ:
+  - **Moved to `perf`** (hygiene `--perf-only`; full runs hygiene `--no-perf`): `performance: daily tick average`,
+    `performance: worst quarter tick`, `performance (leader lab): daily tick average`, `performance (leader lab): worst
+    quarter tick`, `performance (leader lab): its own cost ≤ +20% of a tick`. They measure wall time and fail on any loaded
+    machine (2.4–7.3 ms/day here against a 1.5 ms budget). perf runs under exactly the same instrumentation wrappers as
+    before.
+  - **Added**: `fixture … equals the committed …` (5 checks) and `golden/timelines.json equals the integrator output` (1).
+    These replace the silent rewrites (§4).
+- **quick**: tsc main + scripts and every script except those below at full strength (hygiene `--no-perf`). Runs in
+  SMOKE mode (`--smoke`, from `lib.ts` `SMOKE` / `smokeCheck`). A check whose inputs are cut prints `SMOKE (in band|out of
+  band|not reached …)` and can never fail. A check that still runs at full strength stays binding, as does an "every
+  seed / every sample" check on a subset of seeds (a failure on the subset is a failure of the full check):
+  - calib: T1 and T1L on ai2027 only, cut at day 700 (after the 2027.0 METR read, the Nov 2026 G-path end and the
+    golden SC). A milestone reached within the cut is checked exactly as in full. One not reached prints SMOKE. T4 runs.
+    The integrated runs, T2 and T3 are skipped.
+  - safety: 1 seed per bot (RefBot and safe recipe to ASI, mixed bot to SAR). S4/S5 thresholds print SMOKE. The JSON check and
+    S1–S3, S6 and B3 are binding.
+  - finance: 1 seed per bot, the long run to end-2027. F2, F3, F6, F7, F8, F9 dilution and F11 path print SMOKE. F1, F4, F5, F9
+    and F10 and the content checks are binding.
+  - worldfx: skips W3 and the SEZ path (to 2031) and the informational authors2026 run. Every check that runs is binding.
+  - ws4: E2 on 60 seeds, E4 on 2 seeds per storyteller (limits binding, "> 50 crises" SMOKE), T3 on 2 seeds (mean SMOKE,
+    the per-sample bands binding), the T4 spread printed over 20 seeds.
+  - idle: `--seeds 1` (all its checks are invariants, so they are binding).
+- **cal**: golden-timelines + `calib --cal` (T1, T1L, T4).
+- **perf**: `hygiene --perf-only`, 1 worker. Run it on a quiet machine.
+
+#### 4. Committed files are no longer rewritten by tests
+
+- `fixtures.ts` builds the fixtures and **compares** them with `scripts/v2/fixtures/*.json`. `--write` (or
+  `npm run fixtures:v2`) regenerates them. A stale fixture now fails with "run npx tsx scripts/v2/fixtures.ts --write and
+  commit the fixtures".
+- `golden-timelines.ts` likewise compares `golden/timelines.json` with the integrator output (`--write` regenerates it).
+  At 50b15dd it was already identical.
+- The committed fixtures were stale (schemaRev 16 against code at 27). They were regenerated on this branch (commit bf06eb3, byte-identical
+  to what the old chain wrote). **For later tasks:** any engine change that moves the fixture games makes `fixtures` fail
+  until the author runs `fixtures.ts --write` and commits. After merging two branches that both touch the engine, run it
+  again on the merge, because single-line JSON fixtures cannot be merged by hand.
+- Removing the rewrite also removes the chain's order dependence. Every script in a run reads the same committed fixtures, so
+  the parallel order cannot change a verdict.
+
+#### 5. Proof: identical verdicts with and without the cache
+
+Every log is normalized (`[N ms]` timings, the simcache/prefill stderr lines and the root path removed) and compared line by line.
+
+| comparison | scripts | result |
+|---|---|---|
+| old code (baseline) vs new code `SIMCACHE=off` | calib, safety, finance, worldfx, ws4 | identical full text (88 / 23 / 68 / 50 / 28 lines) |
+| same | golden-timelines | identical except "wrote timelines.json" → `PASS golden/timelines.json equals the integrator output` |
+| same | fixtures | the same 10 verdicts + the 5 new "equals the committed" PASS lines |
+| same | hygiene | the same 205 verdicts; the 5 perf lines removed (now in `perf`) |
+| `SIMCACHE=off` vs cold (`SIMCACHE=refresh`, prefill shards, JSON round trip) | the 7 cached scripts + hygiene | identical full text |
+| cold vs warm (all hits: safety 100/100, finance 40/40, calib 14/14, worldfx 7/7, ws4 5/5, fixtures 3/3, golden 5/5) | the same | identical full text |
+| baseline vs new full run | the 20 unconverted scripts | identical, except data / suites / successor, which differ only because the baseline read the stale schemaRev-16 fixtures (see §1). Rerun in the baseline copy on the fresh fixtures, they are identical. |
+| cold vs warm | test:ui | the same 555 OK verdicts; one detail differs (the UI test types a random setup seed) |
+
+The verdicts at 50b15dd, identical in every mode: calib 10 FAIL (T1 authors2026 ASI, T1 slow SC, T1L × 8), safety 2
+(S4 RefBot P_mis 0.501, S5 RefBot U−L), finance 3 (F7 revenue and valuation, F11 path), worldfx 5 (F7/F11 revenue, A2a hours,
+W4 firm adoption, W2 TFP), ws4 1 (T3 band). These are the model-v3 work in progress, not T0.
+
+#### 6. After: timings
+
+Same machine, other agents still running (load 75–99%).
+
+| run | wall | CPU | load |
+|---|---:|---:|---:|
+| before: the old chain, one script at a time (all 32 commands) | 47.1 min | 43 min | 46–100% |
+| `test:full`, cold (after a code change; `SIMCACHE=refresh`) | **17.7 min** | 66.8 min | 87% |
+| `test:full`, warm (same code again) | **6.6 min** | 16.3 min | 88% |
+| `test:quick`, cold (before finance got 2 quick shards) / warm | **4.0 min / 2.0 min** | 17.8 / 11.4 min | 99% / 90% |
+| `test:cal`, cold / warm | **1.5 min / 6 s** | 4.6 / 0.3 min | 75% |
+| `test:perf` | 0.5 min | | |
+
+Cold full uses more CPU than the old chain because 6 workers on an already loaded machine slow each game down; its wall time is the critical path. Heavy scripts
+(in a full run, each script's critical path: its longest shard + the script):
+
+| script | before (alone) | full cold | full warm | quick (SMOKE) |
+|---|---:|---:|---:|---:|
+| safety | 991 s | 317 s (6 shards ≤ 295 s + 22 s) | 32 s | 95 s |
+| calib | 276 s | 215 s (4 shards ≤ 209 s + 6 s); `cal` 90 s | 23 s; `cal` 6 s | 27 s |
+| finance | 253 s | 260 s (3 shards ≤ 208 s + 52 s) | 85 s (the uncached F10/action runs) | 185 s |
+| ws4 | 114 s | 287 s | 11 s | 86 s |
+| worldfx | 82 s | 183 s | 25 s | 96 s |
+| fixtures | 25 s | 47 s | 9 s | 42 s |
+| golden-timelines | 38 s | 11 s | 10 s | 22 s |
+| hygiene | 82 s (with perf) | 76 s (no perf) | 114 s | 101 s |
+| idle (uncached) | 153 s | 308 s | 321 s | 170 s (1 seed) |
+| test:ui | 314 s | 354 s (overlapped) | 399 s (overlapped) | – |
+
+In a cold full run the single-script times rise because 6 of them share an already loaded machine. The tier is about
+2.7× faster than the old chain. A warm rerun is about 7× faster and is bounded by test:ui and idle.
+
+#### Files
+
+- `scripts/v2/simcache.ts` (new): the cache, `pick`, `prefill`, pruning.
+- `scripts/v2/run.ts` (new): the tiers, worker pool, shards and summary.
+- `scripts/v2/lib.ts`: `SMOKE`, `smokeCheck`.
+- `scripts/v2/calib.ts`, `golden-timelines.ts`, `fixtures.ts`, `safety.ts`, `finance.ts`, `worldfx.ts`, `ws4.ts`: their
+  runs go through the cache, plus `--smoke`, `--prefill`, `--cal` (calib) and `--write` (fixtures, golden).
+- `scripts/v2/hygiene.ts`: `--no-perf` / `--perf-only` (stream instrumentation installed first so perf measures under the
+  same wrappers).
+- `package.json`: `test:quick`, `test:cal`, `test:full`, `test:perf`; `test:v2` → `test:full`; `fixtures:v2` → `fixtures.ts --write`.
+- `.gitignore`: `.simcache/`.
+- `scripts/v2/fixtures/*.json`: regenerated at the current code.
+
+### P3 notes (market mix once per day; 2026-11-20)
+
+Branch `v3-p3` (from `v3-f1` at 422d383). No behaviour change, no state change, no schemaRev bump.
+
+#### Does the mix run twice a day?
+
+No, not any more. Counted computeMix calls by stack (passive seed 9, 400 days; RefBot seed 5 sampled, 300 days,
+refPlay included): exactly one per tick (`applyRevenue`, revenue 60, through the per-tick memo `WS5:mix`; worldDaily,
+actorsDaily, macro, techtree read the memo), plus one per quarter in `rivalFinanceQ` (geoQ 440). RefBot's decisions
+compute none. A5's "twice a day: revenue and rival finance" was measured before P2, when rivalFinanceQ recomputed
+the mix per rival without the memo; P2 made it one per quarterly loop. The geoQ mix is not redundant: between revenue
+(60) and geoQ (440) rivalsChina, worldDaily, actorsDaily and the quarterly market change state the mix reads (models,
+customer stocks, compute), so it stays. Nothing to memoise; the task became making the one daily mix cheaper.
+
+#### What changed (identical values: same operations in the same order)
+
+- `worldfx/choice.ts surplusChoice` (the hot spot, ~15% of a tick): the serving providers' tiers flattened into
+  reused module-level scratch buffers (no typed-array allocation per call: allocating them cost more than the loop);
+  the quality term SHARE_SLOPE_G·(fit − fitMax) and the cheapest price hoisted out of the band loop; `on(i)` a
+  precomputed array, not a closure; adequacy inline; shares accumulated per band in a flat buffer then written to
+  `share[i][b]` (the same `0 + Σ f·e` in set order, then `/ tot`); packed arrays instead of `new Array(n).fill`.
+- `choiceSets`: loops instead of `forEach` with a closure; the partial-provider signature compared as a list instead of
+  a built string.
+- `worldfx/mix.ts computeMix`: the lineups (value-capped prices), the tier prices for `tiers.price` and the best fit for
+  the mini utility in one loop without per-call closures (`cap` and two `map` callbacks), the mini/main utility inline
+  (no object spreads per band).
+- `worldfx/serving.ts studentOffer`: the gap memo also holds what follows from the gap alone (coverage, size ratio,
+  leverage: pure in the same keys and world), so a hit skips studentCover / studentParamsFor / agentLeverage.
+
+#### Proof
+
+- State hashes (`.p3tmp/hash.ts`, copied from P2: stable-key JSON SHA-256 every 50 days; passive seed 9 to ousted day
+  731; passive seed 9 leader lab, endings skipped, 1500 days; RefBot seed 3 authors2026 3 rivals with the compute stub,
+  600 days; RefBot seed 5 sampled with real finance, 600 days): identical to the base after every step (5 steps).
+- Fixtures: `fixtures.ts` from the base (git archive of 422d383) and from P3 write byte-identical files (the
+  committed ones are older and get rewritten either way; restored).
+
+#### Numbers (machine heavily loaded: absolute numbers ~5× P2's and swinging 2× between runs)
+
+- World mix alone, base and P3 interleaved in one process on the same states (`.p3tmp/bench.ts`, 300 reps each):
+  passive d100 6207 → 4397 µs, d400 7318 → 4054, d700 8303 → 4940; leader lab d300 7944 → 4902, d900 8748 → 5557;
+  RefBot d300 7952 → 4956, d900 9541 → 5264: −29 to −45%, ≈ −38%.
+- Profiler (`scripts/v2/profile.ts 1000`, 2 alternating rounds): hygiene seed 9 revenue 6843 → 3448 µs/day, daily
+  10434 → 6319; leader lab revenue 6136 → 3961, daily 11920 → 9061. Every other system moved −10…−35% too (load), so
+  only the revenue share is meaningful: 66% → 55% of the day (seed 9), 51% → 44% (leader lab). The RefBot case
+  was swamped by load in round 2 (revenue +4%).
+- Hygiene perf (alternating base / P3, 2 rounds): daily average 17829 / 6813 → 7636 / 7625 µs, leader lab
+  27320 / 23147 → 16821 / 12696 µs; all four perf checks fail on both under this load (thresholds 1.5 ms); the
+  leader-lab own-cost check +4.1% / +27.5% → +18.8% / −3.2%. Not comparable to P2's numbers; re-measure on a quiet
+  machine.
+
+#### Remaining hot spots (bench profile of the mix)
+
+- surplusChoice ≈ 14% of the mix work: the utility per tier per band (a division by μ_b), `Math.exp` per provider per
+  band and the choice-set sum (64 sets × 8 bands where six providers have partial access). Identical values need the
+  same per-set sums in order, so the next step is only algorithmic (fewer sets) and would change values in the last
+  bits.
+- computeMix's region × sector loop body (~10% self): eight per-provider arrays, the tier-weight loop, the K term's
+  `Math.pow`, stockShares, the SectorMix literal.
+- Per-sector offers: studentOffer (memo lookups through four nested maps), offerOf / useFit for the player's products
+  (recomputed daily: they have builds).
+
+### D9 notes (P10, P12, P21 as typed data and suite effects; 2026-11-20)
+
+Code: `src/data/v2/tree.ts` (`ProjectEffect.data` / `.expert`; P10 axis, P12 and P21 ideas), `src/data/v2/dataAssets.ts`
+(`P10_SYN_Q_RAISE`, `P21_WORTH_OOM`), `src/data/v2/suites.ts` (`P12_DEMO_T`), `src/data/v2/paradigms.ts` (effect texts;
+`PARADIGM_DOMAIN_OFF` removed), `src/engine/v2/models/research.ts` (`completeAdoption` data/expert branch,
+`hasTypedEffect`), `models/suites.ts` (`addSuiteExpertData`), `production/data.ts` (`synQualityCap`, `tokenWorth`, draw
+option `worth`, `DataDraw.worth`, quality of new tokens), `models/runs.ts` (P12 horizon multiplier and paradigm offsets
+removed), `models/paradigms.ts` (`paradigmOff` removed), `models/researchView.ts` (unit), `core/save.ts` (24),
+`types.ts` (`ResearchState.dataFx`). Glossary `synJob`. TECH-TREE §6.4 rows (also Science data / Native multimodal,
+done by D3, marked "now (D3)"). Tests: `scripts/v2/data.ts`, `suites.ts`, `research.ts`.
+
+**What changed.** P10, P12 and P21 were tree nodes on the old v2 path (no `kind`, effects read by `adopted()` flags).
+They are now capability projects (ideation → experiments → result → adoption) with a hidden per-world effect x
+(1 = as designed) that enters a typed effect at adoption, floored at 0 [D: an adopted method is never worse than the
+pipeline it replaces]. New typed effect kinds (MODEL-V3 §5.2 "Data efficiency"): `data.synQMax`, `data.worthOom`
+(stored as `ResearchState.dataFx`) and `expert` (expert data delivered into a family's suite).
+
+| idea | new effect (unit) | as designed | prior | source |
+|---|---|---|---|---|
+| P10 Synthetic data flywheel (axis; still unlocks the synthetic-heavy mix) | synthetic-quality ceiling +0.5·x (q, web = 1) for data generated after adoption | ceiling 1 → 1.5 (q 1 at V0 + 2 OOM, 1.5 at + 4 OOM) | paradigm 0.8, effect sd 30% | Maini et al. 2024 "Rephrasing the Web" (arXiv 2401.16380, fetched): real + synthetic rephrases ≈ 3× faster pretraining on C4; phi-4 (arXiv 2412.08905, fetched): mostly synthetic curriculum beats its teacher on STEM QA; research/20 A3's synthetic top q 1.5 (math/code). Size [D]: WRAP's 3× is against raw C4, and the game's web q 1 is the filtered crawl, so the headroom over q 1 is research/20's 1.5 |
+| P12 Long-horizon human demos (idea) | x · 0.02T expert tokens into `expert:longHorizon`, paid at the expert price ($50B/T) on delivery | +0.02T = 10 × E₀, $1B, fidelity 1 → 1.349 | 0.85, sd 25% | v2's $1B budget (research/12 #12 "$1B+"; AI 2027 "billions ... to record themselves") at D5's one expert price; units [D] ≈ 200k recorded expert-days |
+| P21 Brain-like sample efficiency (idea) | worth of a drawn token in the loss law ×10^(0.3·x): D_eff and D_qual × worth (same draw, same epochs) | ×2 | 0.45, sd 60% (wide) | research/12 #21 (AI 2027: Agent-3 ~4,000× less compute-efficient than the brain); a child hears ≈ 10⁸ words by 13 (BabyLM [R]) vs ≈ 10¹³⁺ tokens; size [D, speculative] |
+
+Why the ceiling for P10 (not yield): D11 capped synthetic quality at the web's "until sourced", and the flywheel's claim
+in the sources is quality (rephrased/curated text worth more per token), not cheaper generation; the overgeneration
+4.33× already sits inside research/20's 2–5×. Data generated after adoption carries the new quality: a teacher's asset
+takes the token-weighted mean of old and new tokens [D] (bit-identical while the quality does not change).
+
+What P21 means physically: the learner extracts more from each token (the gap to human sample efficiency), so every
+token in every slice teaches ×worth; repetition still follows each slice's own epochs. It is general, not PHYS: the
+"robotics transfer" story goes through the multimodal mix and P22. Rare by its paradigm prior (0.45, behind P08 and
+P19, XL effort) and uncertain by the wide sd.
+
+**Removed flags.** P10: synthetic ×3 in U and the draw (`P10_SYN_MULT`, `portfolioU`/`drawData` option `p10`), "no
+repetition penalty" / "no data wall" (`noRepeat`); P12: `P12_HORIZON` ×2 in `postBuild`, RSCH +0.4 L, the $1B
+`cashCost` at project start (now the price of the delivered data); P21: PHYS +1 L. `PARADIGM_DOMAIN_OFF` and
+`paradigmOff` are gone (they held only P12/P21), so no version gets paradigm level offsets any more. The paradigm
+texts and node cards describe the new effects. Lint in `research.ts`.
+
+**Effect sizes (tests, seed 2027 start; x is the realised effect of the test's candidate)**
+- P10 (x 1.30 → ceiling 1.65): q at V0 + 1/2/3/4 OOM = 0.75 / 1.00 / 1.25 / 1.50. 100T from a V0 + 3 OOM teacher
+  in a 100T B0-size base: quality term +0.0026 → +0.0191 OOM. U does not move at adoption.
+- P12 (x 1.69 → 33.7B tokens, $1.69B, fidelity 1.38): broad post-train on B0: long-tasks gain 0.533 → 0.737 OOM, AGENCY
+  +0.165 OOM (horizon ×1.27), G +0.04; long-tasks focus: AGENCY +0.339 (horizon ×1.63), G +0.15, RSCH +0.12 via
+  transfer. At x = 1 (fidelity 1.35) somewhat less. The old flat ×2 horizon (= 0.48 OOM AGENCY) + RSCH +0.4 L was larger;
+  the new effect is bounded by the suite's fidelity cap 1.5 and diminishing returns. Hardening and upkeep of that suite
+  scale √(E/E₀): ×3.3 after P12 [D5's rule, reported].
+- P21 (x 0.86 → ×1.81): B0-size base +0.234 / +0.191 / +0.134 OOM at 20 / 50 / 200 tokens per parameter (worth most at
+  few tokens per parameter, where the data term of the loss is largest). At x = 1: ≈ +0.22 OOM at 50.
+
+**Teacher re-check (D2's finding under the final rules; day-400 fixture, 30 days of the whole pool per teacher, the lab's
+latest base design; `data.ts` "D9 teacher re-check").**
+- Day 400 (every teacher q ≤ 0.75, below the web's cap): ranking by G as D11 found — the strongest teacher pays (V31 q 0.75
+  +0.0009 OOM; V0 q 0.50 −0.0066; V30, best by q·T, −0.0030). P10 changes nothing there (identical numbers).
+- The same teachers 2.5 OOM stronger (same FLOP per token), no P10: every q is 1 (the cap), so tokens per H100e-day decide
+  and **D2's finding returns**: the smallest teacher wins (V15, a mini: +0.0118 vs V31 +0.0036).
+- With P10: quality keeps ranking (q 1.13–1.38) and the best is a mid-size strong teacher (V30 q 1.25 +0.0176; V31 q 1.38
+  +0.0092; V0 +0.0052): the best teacher maximises q(G)/fpt again, now with q rising to 1.5.
+
+**Calibration.** RefBot (and the race/mixed/safe bots) never research P10, P12 or P21. The one change on its path is the
+quality of new synthetic tokens: a teacher whose G rises after its asset began (RefBot's continual-learning stream, P08)
+now writes its current quality into the asset (token-weighted mean); before D9 the asset kept its first day's quality.
+That moves ai2027 late by days (confirmed with the blend switched off: SIAR 2027.910 → 2027.905, ASI 2028.000 →
+2027.999); the other presets are identical. No refit.
+
+calib T1 (stub, Δ vs golden in years, D11 with the cap → D9; **bold** = outside tolerance, unchanged by D9):
+| preset | SC | SAR | SIAR | ASI |
+|---|---|---|---|---|
+| ai2027 | +0.019 → +0.019 | +0.041 → +0.041 | −0.005 → −0.011 | −0.003 → −0.005 |
+| authors2026 | +0.030 → +0.030 | +0.047 → +0.047 | **+0.173 → +0.173** | **+0.315 → +0.315** |
+| fast | **+0.093 → +0.093** | **+0.189 → +0.189** | +0.074 → +0.074 | −0.003 → −0.003 |
+| slow | **−0.277 → −0.277** | | | |
+T1L (leader lab) all pass, T2, T4, R5 pass; the five T1 failures are D11's (for the M3 refit).
+
+**Save.** schemaRev 23 → 24 (lead renumbers at merge): `ResearchState.dataFx` (optional). Migration 23 → 24: a lab that
+had adopted P10 / P21 under the old flags gets the designed effect (x = 1: ceiling +0.5, worth +0.3 OOM); one that had
+adopted P12 gets its 0.02T of demonstrations in `expert:longHorizon` (it paid $1B then; its old versions keep their
+frozen ×2 horizon). A save with one of them *in progress* on the old path restarts it as a capability project (its old
+`progress` is not carried over) [D]. Tested (suites.ts); no fixture has any of the three adopted.
+
+**For later tasks**
+- D4: `gPre.quality` (the Blueprint's "Data quality" row) now also carries P21's token worth; `planRun(...).limits.draw.worth`
+  separates it (quality alone = `qRel`). A "Data efficiency" row may split it out. `synQualityCap(s)` is the teacher
+  picker's ceiling; `synAssetFor(s, t).quality` uses it.
+- D6: P12's delivery logs fidelity before → after; the suites view shows the long-tasks suite's larger expert stock.
+- P12's cash is booked at adoption even if the lab is short of cash (like other adoption-time costs, no gate) [D].
+
+**Gate (2026-11-20, machine loaded by parallel agents).** tsc main + scripts clean; data, suites, effective, research,
+worktypes, serving, golden-timelines, identity, products, fixtures, lint-ux / -structure / -tradeoffs / -hidden / -tips
+pass; calib: the 5 T1 failures above (D11's, unchanged); hygiene: only the 4 performance checks (15–25 ms ticks under a
+load of ~29 node processes; known failure). Note: `fixtures.ts` rewrites the fixture files; they were restored (they
+stay at schemaRev 16 and migrate on load).
+
+### D10 notes (serving-efficiency ideas and tokens per task; 2026-11-20)
+
+Branch `v3-d10` (from `v3-p3`). Code: `models/stacks.ts` (serveSplit, decodeUtilOf, serveFlopOomOf, rlGOfBuild),
+`models/runs.ts` (serveTechMult = the FLOP part), `worldfx/serving.ts` (h100eHoursPer with utilisation, tokEff, offers per
+use), `worldfx/mix.ts` and `worldfx/revenue.ts` (providers' utilisation, rivals' FLOP part, chat on τ), `worldfx/choice.ts`
+(underflow guard), `departments/workfit.ts` (agentFptEq, agentFpt for internal agents), `actors/rivalModel.ts`
+(RivalPhys.serve, serveRate, rivalServeFpt, rivalDecodeU, rivalAgentFpt, SimpleModel.rlG), `production/production.ts`
+(rivals' serving stack grows daily), data `workTypes.ts` (U_DECODE_MAX, SERVE_FLOP_MAX, TOK_PER_RL_OOM, TOK_MIN),
+`rivalModel.ts` (SERVE_RATE0), `research.ts` (DEFAULT_LINES + L.infer), `tree.ts` texts, UI Models serving tooltip.
+Tests: `scripts/v2/serving.ts` A3 rewritten (per-task decomposition) and new V1–V4; hygiene 25 → 26 migration check.
+**schemaRev 25 → 26** (RivalPhys.serve, SimpleModel.rlG; migration: serving stacks 0, rlG from the current base).
+
+#### Mechanism 1: the serving stack by mechanism (R20 D1)
+
+- Stack value e (OOM, the Inference-efficiency line + P16's share). Its first log₁₀(0.15/0.07) = 0.331 OOM raise the
+  lab's **decode utilisation** 0.07 → 0.15 (top of R20 D1's measured 0.03–0.15; speculative decoding, batching,
+  disaggregated prefill/decode, kernels), applied when serving to every model the lab serves (products, chat, internal
+  agents). Beyond it, a compute-equivalent cut of **FLOP per token** of versions trained after it, 10^−(e − 0.331), capped
+  at SERVE_FLOP_MAX = 1 OOM [D: FP8 → FP4 0.3 OOM, plus sparsity/kernels]. [D] utilisation first: R20 D1 names it as where
+  inference know-how goes and it is bandwidth-capped. Before D10 the whole stack cut FLOP per token at creation; old saves
+  only change for versions made after the update (P16 games).
+- Returns: the existing line pool, rShare 0.15 × the world's r (unchanged).
+- **RefBot ranks it: weight 0.1** in DEFAULT_LINES (= RefBot's lines and every start's list) [D: an inference team ≈ a
+  tenth of research teams; at RefBot's 7–9 line teams this is the one-team minimum].
+- Reference run (RefBot, classic, ai2027, seed 2027): 0 → 0.062 OOM in the first year, 0.207 OOM by 2027.08 (10 ideas
+  adopted), decode utilisation 0.070 → 0.113; 0.39 by day 700 (cap 0.15), 1.63 by day 900.
+- **Rivals** (F1 has no serving field → RivalPhys.serve): de_s/dt = SERVE_RATE0 · rs · 10^(−e_s / (0.15·r)), the recipe
+  law with the line's returns, from the same research speed rs. SERVE_RATE0 = 0.2 OOM/yr [fit: rivals' mean 0.200 vs
+  RefBot's 0.207 OOM at 2027.08]. Applied at serve time to all their models (utilisation and the FLOP part: no
+  blueprint) [D], and to their internal agents (rivalAgentFpt). Open weights are served at the releasing lab's stack [D].
+
+#### Mechanism 2: reasoning tokens for the same answer fall with the RL recipe (R20 D2, R12 §5)
+
+- τ(model) = max(0.1, 10^(−1 × its RL recipe's G-equivalent)), on **output (reasoning) tokens** of every profile
+  (adopted, assisted/seat, autonomous/agent, chat paid and free, internal agents); effort multiplies τ-scaled output, its
+  fit gain unchanged. RL G-equivalent = refRlGain(flopPre, eRL, aRL) − refRlGain(flopPre, 0, 0) of the version's build
+  (students inherit the teacher's); rivals: rlG = G − G_pre − reference RL gain on their base (stored on SimpleModel).
+  A recipe at or below day 0 keeps τ = 1, so day 0 is unchanged.
+- Rate: FrontierMath −0.93 OOM output tokens at a similar score (43M → 5M, Apr → Dec 2025) while the frontier rose
+  +0.95 G (R12 §0.2 anchors o3 27.5 → GPT-5.2 ≈ 28.45), mostly RL post-training ⇒ **1.0 OOM fewer reasoning tokens per
+  OOM of RL-stack effective compute** [D]; only the RL stack's part shortens reasoning (pretraining/scale do not). Floor
+  TOK_MIN 0.1 [D: the answer stays]. Not per calendar: test V3 (same version, 200 days later: same τ).
+- Caveat [D]: the FrontierMath fall also contains capability spent as lower effort; crediting only RL's G keeps the
+  game's fall far below FrontierMath's ×25/yr (reference run: τ 1 → 0.67 over 1.5 y).
+
+#### Decomposition (A3, re-run; RefBot ai2027 seed 2027, 2025.58 → 2027.08, × per year)
+
+| Factor | A3 (F1 branch) | D10 |
+|---|---|---|
+| active parameters | ×10.59 | ×10.53 |
+| FLOP / parameter (shape, serving FLOP part) | ×1.00 | ×1.00 (stack below 0.33) |
+| serving stack (decode utilisation 0.070 → 0.113) | ×1.00 | ×1.15 |
+| tokens per task (τ 1 → 0.672, H100e-time) | ×1.00 | ×1.09 |
+| rental | ×1.41 | ×1.40 |
+| margin | ×1.00 | ×1.00 |
+| **per task** | ×14.91 | **×18.55** (exact product) |
+| per M tokens | ×14.91 | ×17.87 (token count per task ×1.04/yr) |
+
+Both in ×6–×30, middle-upper (R20 D3 central ×10). **Price customers pay (A5 E9): ×9.47 → ×11.52/yr** (hardware ×1.40,
+margin ×1.12, models bought ×7.37; own models only ×1.01 → ×1.23).
+
+#### Calib T1 (seed 2027; Δ years, before = F1/P3 → after)
+
+| Preset | SC | SAR | SIAR | ASI |
+|---|---|---|---|---|
+| ai2027 | 0.000 → −0.005 | +0.022 → +0.025 | −0.041 → −0.041 | −0.030 → −0.038 |
+| authors2026 | +0.008 → +0.030 | +0.022 → +0.085 | +0.052 → **−0.145** | +0.033 → **−0.268** |
+| fast | −0.003 → +0.079 | +0.096 → **+0.175** | −0.019 → +0.060 | −0.096 → −0.019 |
+| slow | −0.079 → +0.049 | | | |
+
+Out of tolerance (no refit, per brief; all under 0.3 y): authors2026 SIAR (±44 d), ASI; fast SAR. Cause: the one
+inference team comes out of RefBot's 8 capability teams (fast SC/SAR +0.08: G lines slower), and cheaper serving makes
+post-SC AI labour cheaper. authors2026's late milestones are chaotic: with internal agents ignoring utilisation ASI went
+to −0.77; seeds 11/12/13 with vs without the line: SC −0.008/0/+0.035, ASI −0.31/−0.69/−0.03 (seed spread itself ±1–2.6
+y). Without L.infer in RefBot's list T1 is ≈ the baseline. First calib run gave authors2026 ASI −0.340; the final run
+(after the FLOP cap and choice guard) −0.268. T1L fails as known since F1.
+
+#### Bug found
+
+- `worldfx/choice.ts`: at day 900 (fixture run) a choice set with every member far below the band's best gave denormal
+  weights, p ÷ Σ = Infinity and NaN customer stocks (r2, ENGY). Guard: when 0 < Σ < 1e-250, renormalise on the set's own
+  best utility (common path bit-identical). Cheaper serving made μ_b tiny enough to hit it.
+- Without SERVE_FLOP_MAX the takeoff serving stack (tens of OOM for rivals at high rs) would drive costs to 0.
+
+#### Gate (lead's reduced test policy mid-task)
+
+- tsc main + scripts clean. serving 83 pass / 0 fail (new V1–V4, A3 rewritten, C6 uses provider τ/ud); research 28/0;
+  calib T1 above. Before the policy change also ran: golden-timelines 15/0, identity 76/0, effective 27/0, worktypes
+  16/0, products 58/0, rivals 13/0; worldfx (report) the F1 set: F7/F11 2026 $31.8B (was $33.8B), F11 2027 $57.0B (was
+  $53.6B), GOV T1 2027-09-05, A2a 6.7%, W4 22.9%, W2 0.4%; U +1 pp and equity pass; hygiene: only the four known perf
+  checks + leader-lab cost under load (the new 25 → 26 migration check passed). fixtures: the day-900 NaN above (fixed
+  after; the fixture files were restored, not regenerated; re-run fixtures in the merge).
+
+#### Open
+
+- Tokens-a-day readouts (readouts.ts workBilling, sector view) still count 2025 profiles (τ not applied: a ≈ 4%/yr count
+  effect in the window).
+- Blueprint's planned-run cost per hour shows τ = 1 (the planned version's τ is not predicted).
+- T1 refit (fast SAR, authors2026 SIAR/ASI) belongs to the merge.
+
+### F2 notes (rivals' recipe in three parts, China's lead band; 2026-11-20)
+
+Branch `v3-f2` (from `v3-f1` at 422d383). Code: `models/capability.ts` (trueLeadDays before the level history reaches
+back), `actors/rivalModel.ts` (initRivalPhys: a follower's start staleness at its own rate), `actors/rivals.ts` and
+`actors/china.ts` (pass the run-time efficiency to it), `worldfx/choice.ts` (an overflow guard, §2), `data/v2/
+calibration.ts` (LEADER_CAL authors2026). Test `scripts/v2/rivals.ts` R8, R9 and an opt-in INFO
+(`npx tsx scripts/v2/rivals.ts --ref`). Part A below (sections 1–4) is the first run; part B (the lead's decisions:
+the split recipe, the T3 measure, M3's choice.ts) supersedes its numbers. **schemaRev 25 → 26** (part B).
+
+#### 1. Aggregate idea channel: stopped (stop rule), the premise does not hold
+
+F1's reading was that RefBot's research lines carry only 3.8 of the 5.9 OOM its stacks gain over days 600–860 (ai2027,
+stub, seed 2027) and that one-off ideas and paradigms carry the rest. Measured on the same run (`.f2tmp/diag1–3.ts`,
+not committed):
+
+- **RefBot's ideas add nothing to its stacks.** Its tree goals are P07, P05, P08, rl.mlResearch, P13, P17, P19: none has a
+  stack effect (the stack ideas are Elastic training and P16, which it never researches; P24 is not a goal; it does not
+  run Recurrent architectures). Every OOM of its stacks comes from the five lines.
+- **The 3.8 is the lines' test-scale effect.** A line's pool advances by the result's true effect at the scale test
+  (0.2% of the latest base: research.ts resolveStage, R ← R·10^(x_test/r_l)), but the stack adds it at the base's FLOP:
+  x_test·(F/F_test)^s = x_test·500^s. Per line over days 600–860, realised (adoption records) ÷ test-scale (pool):
+  Scaling recipes 1.94 / 1.31 (×1.48), Data 1.05 / 0.84 (×1.24), Optimizer 2.13 / 0.80 (×2.67, 19 adoptions), RL
+  algorithms and Environments ×1.00 (s = 0). Days 0–600: ×1.57 / ×1.15 / ×1.18 / 1 / 1.
+- **Derivation of the factor.** Every line candidate is a single idea in these runs (X < PACE_BATCH = 30 to ASI), it
+  survives the scale test iff 1000^s ≥ SURVIVE_FRAC (s ≥ −0.10), its test-scale effect is ∝ 1000^s and its realised one
+  ∝ 1000^s·500^s, so κ_l = E[1000^s·500^s; s ≥ s*] / E[1000^s; s ≥ s*] on the line's clamped scale prior
+  (`.f2tmp/kappa.ts`): Scaling 1.507, Data 1.175, Optimizer 2.099, RL lines 1. rShare-weighted κ = 1.46 (pretraining
+  lines only 1.58). This matches the measured ratios (Optimizer's 2.67 is 19 draws of a wide prior).
+- **Consequence:** in G units each line's returns are κ_l·r_l, not r_l. The rivals' law de/dt = 0.6·rs·10^(−e/r) has
+  returns r in G units, so a rival's recipe "gets harder" ×10^(1/r) = ×1.78 per OOM at r = 4 where RefBot's gets
+  ×10^(1/(κr)) ≈ ×1.48: with taste rising ×1.71 per OOM of G, the aggregate is balanced (F1's 12–14 OOM/yr plateau)
+  and RefBot explodes (25–40 OOM/yr).
+- **Reference match:** the rivals' law evaluated at RefBot's own inputs (its internal model's G and FLOP per token, its
+  staff, its research compute, best mix) and RefBot's own recipe integrates to **+2.93 OOM** over days 600–860 vs
+  RefBot's **+5.89** (rivals.ts `--ref`). The aggregate research speed itself is not short: at RefBot's inputs rs is
+  above RefBot's own M (911 vs 127 on day 860). With the returns at κ·r (κ = 1.46, the realised start rate unchanged)
+  the same integral is +5.77 (98%).
+
+Scratch experiment (env-var switch in recipeRate, reverted; `.f2tmp/t1l.ts`), T1L on seed 2027:
+
+| κ in the rivals' returns | LEADER_CAL | SC / SAR / SIAR / ASI Δ (y) |
+|---|---|---|
+| 1 (F1) | −0.048 | +0.014 / +0.216 / +0.310 / +0.427 (ai2027) |
+| 1.463 | −0.048 / −0.08 | −0.101 / +0.044 / −0.016 / −0.027; −0.025 / +0.121 / +0.060 / +0.049 (ai2027) |
+| 1.26 | −0.048 | −0.063 / +0.101 / +0.079 / +0.088 (ai2027: passes) |
+| 1 (F1) | 0.242 | −0.007 / +0.43 / +2.5 / +5.6 (authors2026) |
+| 1.463 | 0.1 | +0.000 / +0.121 / **−0.400 / −1.060** (authors2026) |
+| 1.26 | 0.15 | +0.025 / +0.241 / **+0.405 / +1.019** (authors2026) |
+
+The milestones themselves agree: on authors2026 the leader's G at SC/SAR/SIAR/ASI (33.66 / 35.64 / 44.77 / 50.76) is
+RefBot's (33.64 / 35.60 / 44.80 / 50.67), so the gap is the recipe path, not the λ map. authors2026's long SIAR → ASI
+needs the shape of RefBot's late takeoff, where its RL stacks saturate in G (the RL curve; RefBot moves its RL-algorithm
+teams off at 95% of the ceiling) and only the pretraining lines (κ 1.26 in G of the whole) keep growing; the rivals'
+RL share is linear in e (RL_SHARE·e). One scalar κ in [1.26, 1.46] would have to be fitted per preset to ±0.01 for
+authors2026's ASI, which is a fudge.
+
+**Stop:** T1L can pass only with something other than LEADER_CAL plus an idea channel (the idea channel cannot supply
+growth RefBot does not get from ideas). Proposed follow-up (lead decision): rivals' recipe in two parts like the
+player's stacks — a pretraining part with returns κ_pre·r_pre (κ from the line priors as above, no fitting) and an RL
+part on the reference RL curve (rlMid/rlCeil-like, saturating) — then refit LEADER_CAL; check authors2026 first. An idea
+channel for rivals (P17's latent base, P24, P16, P13/P05 speed effects) is a separate symmetry question; RefBot's T1
+calibration does not need it, and the aggregate's rs is already above RefBot's M in the takeoff.
+
+LEADER_CAL: ai2027 −0.048, fast 0.068, slow 1.155 unchanged; **authors2026 0.242 → 0.28** (the SC root again, F1's rule:
+§2's follower start states moved the leader's SC 1491 → 1535 at 0.242 through the shared world; SC 1498 at 0.28).
+
+#### 2. China's lead band (ws4 T3)
+
+- **Fallback [fixed].** Before the leader's level history reaches back to the follower's level, trueLeadDays divided
+  the gap by the leader's current research `rate` (the BRIDGE(V7) stack-growth readout of a few weeks: 0.1 OOM/yr on day
+  30), giving 391–451 d in days 30–60. Now the leader's frontier line before its first sample is the pre-game frontier at
+  the start's reference rate (referenceRate at the start model, 2025.5 — the rate every start gap was drawn at), so the
+  lead = days since the first sample + the first sample's gap at that rate. Start lead 184 → 196 d (ai2027: 0.6 y ÷
+  1.125); days 30/60 225/255 instead of 391/450. T4 now reads the drawn gaps exactly at day 0 (fixture 3.3, 4.6, 4.3,
+  5.0 months; 200 seeds 100% in 3–9, was 98%).
+- **Start state [fixed, D].** F1 made every lab's start base stale by RECIPE_RATE0 (the leader's 0.6 OOM/yr) over the
+  256 days since B0's launch. A follower grows at its own rate (DeepCent ≈ 0.36–0.43 OOM/yr at day 0, upstarts 0.2), so
+  its start base embodied too little of its recipe and the solved e₀ was too high: its first new base then jumped above
+  V0 (seed 1: day 75, G 28.02 vs V0 27.97 → −103 d until the player's first base). initRivalPhys now solves e₀ with
+  the lab's own day-0 recipe rate (aggregate research at its start inputs, best mix, its efficiency incl. effLab for
+  China; four fixed-point steps with 10^(−e/r)); the leader lab keeps RECIPE_RATE0 (it is B0 itself, e₀ = the leader's
+  day-0 recipe). Start models unchanged (T4 draw). DeepCent's e₀ −0.45 → −0.55 (seed 1). Test R8.
+- **Result (8 seeds, days 30–540):** start 196 d (pass), mean 187 d (pass), post-theft 61 × 8 (pass), R10 formula
+  pass; **band −50–375 (fail; F1 −103–450).** Remaining causes, both outside the start state:
+  - *Top (330–375 d):* the staircase. DeepCent's bases come every 12 × U(0.8, 1.2) months (292–438 d) and its versions
+    add only RL_SHARE of its recipe growth, while the metric reads the leader's corner line, so after each new base the
+    lead restarts at ≈ 50–70 d and climbs a day a day until the next one. A band 200 d wide cannot hold a sawtooth whose
+    period is the base interval (even an exact 195-d-shifted copy of the player's own staircase would read 195 to
+    195 + 270 d).
+  - *Bottom (−50 d, seeds 2, 5, 8):* the know-how writers. The distillation leak of the player's deployments (WS1
+    distillationLeak, a pm-gap writer of `core.pa`) adds +0.21 OOM to DeepCent's recipe in its first 60 days and +0.39
+    by day 180 (its own research +0.16), so a first base on days 120–180 lands a hair above V0 (level 5.12 vs 5.09)
+    before the player's first base (≈ day 190), and a 0.03-level overtake reads as −50 d.
+  - Options for the lead: compare the follower at its latest release (constant between releases), versions that carry
+    more of the growth, or F3 replacing the pm-gap writers with recipe/weights channels.
+- **Found on the way [fixed]:** with the new rival paths the day-900 fixture had NaN customer stocks (FIN, LEGAL, MEDIA
+  on day 880): in `worldfx/choice.ts` surplusChoice a choice set without the band's best offer summed to a subnormal
+  (every e ≈ exp(−700) when China's cheap tier sets μ ≈ 0.0007 $/h), so set.p / sum overflowed to Infinity and 0·∞ gave
+  NaN. Now that case divides each term first; the normal path is unchanged (same arithmetic).
+
+#### 3. Post-theft lag
+
+61 d on all 8 seeds (F1's fix holds).
+
+#### 4. Writers of rivals' `core.pa` (the F1 bridge pa = pa_ref + e/B), for F3
+
+All still work through the bridge (each progress-year of pa moves e by B):
+- `security/security.ts:85` distillationLeak of the player's deployments (every rival and China; pm gap × channel
+  coefficient × distillation access): the largest, see §2;
+- `security/security.ts:95` China's secrets leak (pa gap) + distillation of rivals' public models (pm gap);
+- `actors/rivals.ts:457` openWeightsReleased: China absorbs half the pm gap (≤ 2 months);
+- `actors/actions.ts:349` C6 Open weights: rivals absorb 30% of the pm gap; `actors/actions.ts:393` E1 Track-2
+  dialogue: China +1 day of pace;
+- `events/catalog/company.ts:33` E16 poaching "Let go": the rival +0.1 y of pace;
+- `safety/findings.ts:371–373` safety spillover: every rival and China +0.02 pa (bump paths `rivals.i.core.pa`,
+  `china.lab.core.pa`);
+- `production/production.ts:392` the rivals' own research (the F1 law, not a bridge).
+
+#### Calibration (seed 2027), Δ in years vs golden; before = F1, after = F2
+
+| Check | Before (F1) | After (F2) |
+|---|---|---|
+| T1 RefBot ai2027 / authors2026 / fast / slow | as F1 | identical days (golden dates untouched) |
+| T1L ai2027 SC/SAR/SIAR/ASI (LEADER_CAL −0.048) | +0.014 / +0.216 / +0.310 / +0.427 | +0.012 / **+0.259 / +0.336 / +0.455** |
+| T1L authors2026 (0.242 → 0.28) | −0.007 / +0.43 / +2.5 / +5.6 | +0.008 / **+0.31 / +2.34 / +5.39** |
+| T1L fast (0.068) | +0.049 / +0.088 / −0.016 / −0.082 | +0.051 / +0.088 / −0.016 / −0.082 (pass) |
+| T1L slow SC (1.155) | −0.008 | −0.008 (pass) |
+| ws4 T3 start lead | 184 d | 196 d (pass) |
+| ws4 T3 mean lead d30–540 (8 seeds) | 192 d | 187 d (pass) |
+| ws4 T3 band 75–275 d | −103–450 | **−50–375 (fail)** |
+| ws4 T3 post-theft ≈ 60 d | 61 × 8 | 61 × 8 (pass) |
+| ws4 T3 R10 gap formula ±2 mo | pass | pass (−0.66 … +0.27) |
+| ws4 T4 fixture seed; 200 seeds | 3.1–4.7 mo; 98% in 3–9 | 3.3, 4.6, 4.3, 5.0 mo; 100% in 3–9 (pass) |
+
+#### Gate
+
+- tsc main + scripts clean; lint-hidden, lint-structure, lint-tradeoffs, lint-ux pass.
+- Pass: rivals (R8, R9 new), golden-timelines, identity, serving, danger, research, worktypes, effective, fixtures
+  (after the choice.ts guard; the regenerated fixture files were restored, not committed).
+- ws4: only T3's band (above). calib: T1 all presets in tolerance; T1L ai2027 and authors2026 SAR/SIAR/ASI fail (§1).
+- worldfx (report): the F1 list unchanged — F7/F11 2026 $33.8B, F11 2027 $53.2B (F1 $53.6B), GOV T1 2027-09-01 (F1
+  09-03), A2a 6.7%, W4 23.0% (F1 22.9%), W2 0.4%; U +1 pp still passes.
+- Not run: hygiene (perf known), test:ui (no UI values changed).
+
+---
+
+#### Part B (lead decisions on F2): the recipe in three parts, T3 as percentiles, M3's choice.ts
+
+Code: `actors/rivalModel.ts` (recipeParts, lineScaleFactor, recipeRates, advanceRecipe, absorbKnowHow, syncRivalPa; the
+start state; migrateRivalRecipe), `data/v2/rivalModel.ts` (PRE_RATE0 replaces RECIPE_RATE0 and RL_SHARE),
+`production/production.ts` (rivalResearch), `security/theft.ts` (stolen base under China's RL recipe), `types.ts`
+(RivalPhys.rec / pool / paSync), `core/save.ts` (**schemaRev 25 → 26**, migration 25 → 26), `data/v2/calibration.ts`
+(LEADER_CAL, CHINA_CAL), `worldfx/choice.ts` (M3's text), tests `scripts/v2/rivals.ts`, `ws4.ts` T3, `hygiene.ts`
+(save check 25 → 26; not run under the test policy).
+
+#### B1. The recipe in three parts
+
+- **Parts.** The player's stack parts at aggregate level: pretraining efficiency e_pre (OOM, realised at the run's
+  FLOP), RL efficiency `mid` and RL ceiling `ceil` (the player's rlMid / rlCeil units). Each part p is one research pool
+  with its reference lines' returns r_p = w_p·r, w_p = Σ rShare of the DEFAULT_LINES on that stack (pretraining 0.36 +
+  0.22 + 0.22 = 0.8; RL algorithms 0.08; Environments 0.12): dS_p/dt = a_p·rs·10^(−S_p/r_p) at test scale.
+- **κ_pre (derived, not fitted, not per preset).** lineScaleFactor: κ_l = E[1000^s·500^s; s ≥ s*] ÷ E[1000^s; s ≥ s*]
+  over each line's clamped scale prior, s* = log₁₀ SURVIVE_FRAC / log₁₀ SMALL_TO_TEST (part A §1): Scaling recipes
+  1.507, Data 1.175, Optimizer 2.100. κ_pre = rShare-weighted = (0.36·1.507 + 0.22·1.175 + 0.22·2.100)/0.8 = **1.579**;
+  the RL lines (s ≡ 0) give κ = 1. e_pre gains κ_pre·dS_pre; the RL parts gain dS.
+- **Start rates.** At the leader's day-0 inputs (rs = 1, fresh pools) the pretraining part realises PRE_RATE0 = 0.48
+  OOM/yr (Ho et al., research/20 B1, F1's anchor), so a_pre = 0.48/κ_pre; every part's start progress is its rShare of
+  the whole (rShare is by definition the line's share of start software progress): a_mid = a_pre·0.08/0.8 → 0.030
+  OOM/yr, a_ceil → 0.046 OOM/yr [D].
+- **G.** Base: G_pre(FLOP, E_START + e_pre at launch). Version: G_pre + refRlGain(base FLOP, mid, ceil), the player's
+  reference RL run, which saturates in mid and is lifted by ceil. Continual learner: max(G_pre, G_pre at today's e_pre)
+  + the RL gain at today's mid/ceil. Theft: China's stolen base keeps G − its own RL gain.
+- **Know-how bridge.** core.pa = pa_ref + G-equivalent/B (e_pre + the RL gain at FLOP_RL_REF − the zero recipe's),
+  written by the model (paSync). Whatever other writers add to core.pa (part A §4) enters e_pre each day as public
+  knowledge (scale-invariant, outside the pool: the player's addKnowledge). BRIDGE(F3).
+- **Start state.** A follower is k behind in e_pre and mid (the player's initialStacks lag) and k back on those pools
+  (it has done less research, so its next ideas come easier, as F1's one-part law had it; with fresh pools DeepCent
+  fell 247 d behind on average). Staleness at its own day-0 rates (part A §2), k solved with them (five fixed-point
+  steps). The leader lab starts at k = 0 exactly (the zero of the recipe), B0's vintage solved so its version is V0
+  (R5: e₀ 0.0000).
+- **Reference match** (`rivals.ts --ref`): the law at RefBot's own inputs and research state (its lines' test-scale
+  pools per part, its RL stacks, the RL gain at its latest base) over days 600–860: **+5.44 OOM vs RefBot's +5.89**
+  (92%; part A's one-part law +2.93). The rest: RefBot's RL lines start faster than the rShare split (its 0.2 / 0.3
+  teams on the RL lines: +0.15 / +0.12 over days 0–600 vs 0.030 / 0.046 a year here), and the stack's older ideas gain
+  (F_new/F_test)^s when the base grows, which a constant κ does not carry.
+
+#### B2. LEADER_CAL refit (`calib.ts --fit-leader`, per preset, seed 2027) and T1L
+
+| Preset | LEADER_CAL before → after | T1L SC / SAR / SIAR / ASI Δ (y), before (part A) → after |
+|---|---|---|
+| ai2027 | −0.048 → −0.029 | +0.012 / +0.259 / +0.336 / +0.455 → **−0.044 / +0.088 / +0.041 / +0.036 (pass)** |
+| authors2026 | 0.28 → 0.154 (SC root) | +0.008 / +0.31 / +2.34 / +5.39 → +0.000 / **+0.121 / −0.258 / −0.581 (fail)** |
+| fast | 0.068 → 0.025 | +0.051 / +0.088 / −0.016 / −0.082 → +0.066 / +0.104 / +0.019 / −0.066 (pass) |
+| slow (SC) | 1.155 → 0.557 | −0.008 → +0.011 (pass) |
+
+The fit's worst-error refine for authors2026 reached 2.92 tolerances at best (0.104), so the SC root is kept (F1's
+rule). **Stop (as instructed):** authors2026 still misses after the LEADER_CAL refit, now the other way: its SIAR and
+ASI come 0.26 y and 0.58 y early (part A: 2.3 and 5.4 y late), SAR on the tolerance edge. No other value was added.
+Likely causes, for the lead: the RL parts' start split (rShare) vs RefBot's team split, and the constant κ (RefBot's
+pretraining ideas gain more as its bases grow through the long authors2026 takeoff); both are derivation choices, not
+fits. T1 (RefBot) stays in tolerance on every preset (authors2026 ASI +0.036, was +0.055: the shared world).
+
+#### B3. ws4 T3 measure
+
+AI 2027's claim is a typical lag (DeepCent "about six months behind", research/10 §1.1), not a bound on every day. On
+the physical rival model DeepCent's model frontier is a staircase: a new base every 12 × U(0.8, 1.2) months, versions
+between them adding only the RL recipe's growth. The lead metric reads the leader's frontier line, so after each
+DeepCent base the lead drops and then rises a day a day until the next base — a sawtooth whose amplitude is the base
+interval (292–438 d), longer than the old band's 200 d. T3 now checks the mean (150–200 d, as before) and the 10th–90th
+percentile of the **daily** lead over days 30–540 (8 seeds) within 75–275 d; min/max are INFO.
+
+CHINA_CAL.effScale 1 → **1.5** (the existing T3-mean knob, F1's rule; a refit, not a new value): the three-part recipe
+slowed DeepCent (its versions gain less between bases: the leaks now feed only e_pre, and the RL parts saturate);
+daily mean 247 d at 1, 181 at 1.5, 161 at 2 (p10 −20 there).
+
+Result: start 196 d (pass), **mean 181 d (pass)**, post-theft 61 × 8 (pass), R10 formula (pass), T4 (pass);
+**p10 62 d, p90 309 d (fail)** (p25 104, median 182, p75 259; INFO min–max −64–375 d; 13.6% of days below 75 d, 19.3%
+above 275 d). Both tails fail:
+- *p10 62 d (bottom):* the distillation leak (part A §2): DeepCent's recipe gains about twice its own research in the
+  first months, so a base can land near or above the player's current model before the player's next base. Left for F3
+  as instructed.
+- *p90 309 d (top):* the sawtooth itself. The 10th–90th percentile of a sawtooth of amplitude A is ≈ 0.8·A wide, so
+  with A = 292–438 d it is ≈ 230–350 d wide, against a 200-d window. It passes only with shorter base cycles (or
+  versions that carry more of the growth), not with any efficiency (×2 moves both tails down: p10 −20, p90 306).
+
+#### B4. choice.ts
+
+Took M3's text from c98f2ed verbatim (the same rule as mine: divide each term first when set.p / sum is not finite;
+`Number.isFinite(f)` instead of `f < Infinity`), so the merge is clean.
+
+#### B5. Tests run (lead's test policy)
+
+- tsc main + scripts: clean.
+- `rivals.ts` (and `--ref`): all pass. New/changed: R1 (ideas get harder on the pretraining pool, public knowledge does
+  not), R5 (leader e₀ 0, start rates PRE_RATE0 and the RL shares, κ_l and κ_pre), R8 (start staleness at own rates),
+  INFO reference match.
+- `ws4.ts`: only T3's percentile check fails (above).
+- `calib.ts`: T1 all presets in tolerance; T1L fails authors2026 SAR (+0.121, edge), SIAR, ASI only.
+- Run before the test policy, on intermediate code (not the final state): golden-timelines, identity, danger,
+  research, worktypes, effective passed; serving A5 E9 (price of V0's capability ×2.31/yr vs ×6–30) and hygiene's
+  leader-start check failed on the fresh-pools variant. The leader check is fixed by the leader's k = 0 start (R5: e₀
+  0); serving was not re-run: **re-check serving A5 E9 at the merge** (it reads the rivals' improving prices).
+- Not run (policy): safety, finance, worldfx, hygiene, test:ui, bots, fixtures.
+
+### E7 notes (research sabotage and steering: covert acts against the lab's work; 2026-11-20)
+
+Branch `v3-e7` (= v3-e6 + a merge of v3-e4, both from `model-v3` at edaf6f8). Spec: MODEL-V3 §11.3 ("with automated
+R&D: sandbagged safety work, steered capability research, backdoors, successor steering"), §11.4 (symptoms), §11.7.
+Code: `src/data/v2/danger.ts` (new section `COVERT_ACTS`, `COVERT_ANCHOR`, `STEER_S4`), `src/engine/v2/safety/covert.ts`
+(new), hooks in `safety/findings.ts` (F49), `safety/investigations.ts` (corruption), `safety/lineProjects.ts`
+(sandbagging), `models/research.ts` (completeAdoption), `safety/traits.ts` (runPull, hidden S4), `safety/incidents.ts`
+(`internalScale` with the safety fleet, `recordInternalIncident`, `internalOversight(…, aiShare)`, the daily roll),
+previews in `departments/agentActions.ts` (Trusted to AI) and `safety/actions.ts` (Investigate). Test
+`scripts/v2/sabotage.ts` (new, in `test:v2` after `oversight`). No saved state type changed (records are flags):
+**schemaRev stays 25**.
+
+#### Step 0 (the merge did not compile)
+
+`successorOversight(s, v)` (E4) is now `internalOversight(s, v, 'SUCC').oversight` (E6's hook: AG07 containment at v's
+OOM, monitors and tools on the capability gap, human review with v's gap above L 10, control deferral); its `r`
+parameter went (internalOversight reads the AI share of R&D itself); `versionM` and the now-unused imports are gone.
+E6's lint in `scripts/v2/oversight.ts` has no exception left (E4 removed `inheritFromFleet`). tsc main and scripts clean;
+successor 11/11, oversight all pass. Commit e39c1b9.
+
+#### One formula, five acts
+
+Every act runs through E5's danger formula at the internal site and is judged against E6's internal oversight:
+
+    attempts a = κ · D · C · O          D = x^1.5, x = clamp01(Σ w_t x_t)   C = σ((L_d − θ)/s)
+    per item:  O = [(1 − α) + α·A·F] · share       (share = the AI-done share of that work item)
+    per day:   O = N · [(1 − α) + α·A·F] · r       (E5's internal site: copies, the fleet's autonomy, r = AI share of R&D)
+    oversight  = 1 − (1 − block)(1 − catch)        internalOversight(s, v, trait, aiShare): human review covers 1 − share
+
+One uniform u decides an attempt: none (u ≥ a); blocked (no trace); caught (an internal incident on the act's largest
+weighted trait, logged with what was caught; the act fails); uncaught (the consequence lands, hidden). Draws are hashes of
+(seed, act, key) except in findings and investigations, which draw from the safety stream as E2 did, so no other named
+stream moves. "Measured against the overseer": the catch term is E6's monitor rule on the capability gap between the acting
+model and its monitor, and human review on the gap above expert humans; capability C is the act's own domain level.
+
+| act | traits (w) | domain θ, s | α | per | opportunity (share / r) | κ | consequence when uncaught | when caught |
+|---|---|---|---|---|---|---|---|---|
+| SAFSAB sabotage of safety research | SAND 1, SCHEME 1, + U-mode sab (E2's sab) | RSCH 5, 1 | 1 | safety result, investigation | E2's A: Trusted to AI × SAF coverage × the line's Auto (stage-weighted); A of SAF_EXP for cases | 0.395 | FALSE finding (F49); corrupted case × (1 − tool verifiability) | incident (SAND/SCHEME); the result is discarded, the line re-runs |
+| SAFSAB sandbagging (same act) | same | same | 1 | continuous | the safety agents' own labour | 0.395 | AI labour on lines × (1 − a·(1 − block)): slower lines | – |
+| STEER steering capability research | SCHEME 0.6, POWER 0.2, PROXY 0.2 | RSCH 5, 1 | 1 | adopted capability result | each R&D model's r_k (E4's parts), its work type's horizon | 0.395 | the result's OOM join a hidden steered stock: +STEER_S4 = 0.5 S4 per OOM on the TRUE signals of later post-training runs (→ OBF, edge E15) | incident (SCHEME/POWER/PROXY) |
+| SUCCSTEER successor steering | SUCC 1 | RSCH 5, 1 | 1 | completed run, per R&D model | r_k | 0.395 | E4's part ω_k → r_k (κ_succ 1, past oversight) | incident (SUCC); E4's pull as it was |
+| BACKDOOR | SCHEME 0.5, POWER 0.5 | CYBER 9, 1 | 1 | day, per internal fleet | N · A·F · r | 3e-3 /day | hidden record (count, Σ severity) + `uncaughtInternal` | incident (SCHEME/POWER) |
+| HIDCOMP hidden compute | POWER 0.7, SCHEME 0.3 | CODE 8, 1 | 1 | day, per internal fleet | N · A·F · r | 2e-3 /day | hidden record (count, Σ severity) + `uncaughtInternal` | incident (POWER/SCHEME) |
+
+Severity = floor + span · C · A·F (SAFSAB, STEER 2 + 2; SUCCSTEER, BACKDOOR 3 + 2; HIDCOMP 2 + 2) [D], E5's stochastic
+rounding. Daily-act block adds weight security (BACKDOOR 0.5, HIDCOMP 0.25 of WSL/5) as E5's escape-like acts.
+
+**κ for per-item acts [C]: the MacDiarmid anchor.** MacDiarmid et al. 2025 [P] (research/20 F2, research/05 §1.5): after
+learning to reward hack, the model attempted sabotage in 12% of Claude Code safety-research runs. Read as the upper
+anchor: a fully misaligned start model (x = 1, RSCH 4.5) with all of the work and an 8-hour task (A·F = 0.8), before
+oversight: κ = 0.12 ÷ (σ(−0.5) · 0.8) = 0.395 (test: 12.1%). θ = 5 [D]: the anchor model's capability is about half of the
+full act (crude, visible attempts); at L 8 C = 0.95, so a fully misaligned 2027 model with all of the work attempts ≈ 32%
+of items. The 2025 near-zero (research/05 §1.8, research/20 F: no spontaneous sabotage found in 2025 deployments) comes
+from D (start SAND 0.05, SCHEME 0.05) and the AI share of the work, not from C. Daily acts use E5's κ scale (SCHEME 3e-3)
+and E5's θ for escape-like acts (CYBER 9) [D].
+
+**Unification with E2 (one mechanism).** E2's FALSE weight (A × sab in the type draw) and its investigation corruption (A ×
+sab × (1 − verif)) are gone: both read SAFSAB's terms. The FALSE share is a·(1 − block)(1 − catch) (test: 3.1% measured vs
+3.4%), the caught share a·(1 − block)·catch are internal incidents and lost results (5.0% vs 5.2%). With the convex D
+(x^1.5) and the capability and oversight terms, false results are rarer than under E2 at mid dispositions: S6's setup (t 1,
+sab 0.8) gives 3.1% FALSE; safetyresearch's case (t 1, SAND 0.8, work AI does 99%) 27.2% under E2 → 3.3%. The previews (Trusted to AI, Investigate) now show the
+same formula on beliefs (believed SAND + SCHEME, measured level, no oversight term: `believedSabotage`).
+
+**Opportunity of safety-work sabotage (M2 merge note).** SAF_EXP's AI share is the opportunity of SAFSAB (E2's A per
+line, A of SAF_EXP for cases, human review over 1 − A); `aiRdShare` keeps SWE/EXP/IDEAS for capability R&D acts (adding
+SAF_EXP to it would move r < 0.01, M2's probe). `internalScale` now counts the safety fleet's copies (N for E5's internal
+acts and the daily covert acts); RefBot runs no safety fleet, so its rates are unchanged.
+
+#### Why steering adds hidden CoT pressure instead of costing capability [D]
+
+First version: a steered result delivered (1 − loss) of its true effect (lab's estimate unchanged; symptom = realised below
+the believed band). On calib T1 the effect is a knife edge: RefBot's authors2026 SIAR / ASI moved from 2143 / 2979 (base)
+to 2275 / 3131 at loss 0.5 (steered share 3.8%; ASI 0.31 y beyond tolerance: the stop rule) and to 2103 / 2912 at loss 0.3
+with SCHEME-heavier weights (earlier, −67 d: chaotic, F4's single-seed fragility); with the loss at 0 every milestone is
+identical to the base. The brief's other reading fits AI 2027 better (the misaligned fleet does not slow capabilities; it
+steers the lab toward its own ends): a steered result keeps its full capability, its estimate and the lab's predicted
+signals, and adds hidden CoT pressure (S4, latent / less legible reasoning) to every later post-training run's TRUE
+signals (STEER_S4 = 0.5 per steered OOM, S4 clamped to 1). E15 (S4 → OBF, Baker 2025) turns it into obfuscation, so CoT
+monitors and tools weaken with no CoT choice to explain it (the symptom). The hidden steered share (steered ÷ adopted
+OOM) is the engine's measure (`steeredShare`). STEER_S4 is [D]; E10 can calibrate it.
+
+#### Calibration (RefBot, ai2027, medium, endings skipped; `.e7tmp/rates.ts`-style probe)
+
+Expected acts per lab-year, attempts / uncaught (12 seeds 500–511; 10 reached ASI, mean day 915; 2028 = the seeds still
+running):
+
+| act | 2025.5–26 | 2026–27 | 2027–28 | 2028+ |
+|---|---|---|---|---|
+| SAFSAB (RefBot hands no safety work to AI) | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 |
+| STEER (per adopted result: 22 / 100 / 364 / 650 per yr) | 0.043 / 0.021 | 2.5 / 1.5 | 12.7 / 9.4 | 20 / 17 |
+| SUCCSTEER (per run: 12 / 17 / 9 / 11 per yr) | 3e-4 / 2e-4 | 0.031 / 0.021 | 0.070 / 0.054 | 0.17 / 0.14 |
+| BACKDOOR | 7e-5 / 3e-5 | 0.009 / 0.005 | 0.10 / 0.06 | 0.19 / 0.11 |
+| HIDCOMP | 4e-4 / 2e-4 | 0.022 / 0.015 | 0.11 / 0.08 | 0.20 / 0.14 |
+
+Realised per game: 14.8 uncaught STEER, 0.08 SUCCSTEER, 0.25 BACKDOOR, 4.75 caught acts (internal incidents the player
+sees, mostly steering in 2027); hidden steered share 2.9% of the adopted capability OOM (S4 push ≈ +0.1–0.15 by ASI).
+RefBot with Trusted to AI 0.5 and the safety package at 30% of the safety pool (6 seeds): SAFSAB 0.06 / 0.03 (2026),
+0.38 / 0.23 (2027), 1.7 / 1.2 (2028) per lab-year out of 10–30 safety results a year (≈ 1.5% of results FALSE in 2027).
+2025 is ≈ 0 for every act (≤ 0.04 per lab-year, all steering attempts of the start model). Growth comes from capability
+(RSCH, CYBER, CODE), the AI share of R&D (0.22 → 0.99) and falling oversight (monitor catch 0.68 → 0.19 by ASI), not
+from dispositions (RefBot's SCHEME stays ≤ 0.07, POWER ≈ 0.16, SUCC ≤ 0.06).
+
+**Golden dates.** calib T1 / T1L all pass and every T1 milestone day equals the base (E4 + E6 merge, e39c1b9): ai2027
+638 / 799 / 868 / 904, authors2026 1493 / 1581 / 2143 / 2979, slow SC 2038.577. golden-timelines is the reference
+integrator (unchanged). Steering neither slows nor speeds the lab in this design.
+
+#### Safety criteria (safety.ts, full run; base = the E4 + E6 merge with step 0, e39c1b9, same machine)
+
+| criterion | base | E7 |
+|---|---|---|
+| S4 RefBot/medium P_mis at ASI ∈ [0.55, 0.85] | 0.503 FAIL (known → E10) | **0.504** FAIL (known; Mis mean 0.429 both) |
+| S4 safe-only ≤ 0.25 | 0.011 | 0.011 pass |
+| S5 RefBot "U falls below L by SAR" | +0.55, below in 28% FAIL (known) | +0.55, below in 28% FAIL (known) |
+| S5 mixed keeps U ≥ L − 0.5 to SAR | margin +0.09, holds in 70% | margin +0.09, holds in 70% pass |
+| S6 (FALSE rises with Trusted to AI × sabotage) | pass | pass: 0% / 0% / 1% / 3% / 5% (E2's weights gave far more) |
+| B3 | pass | pass |
+
+RefBot hands no safety work to AI (F5), so SAFSAB never fires in S4/S5; steering's hidden S4 and the rare successor
+steering move P_mis by +0.001.
+
+#### For E8 (footholds)
+
+- `noteCovert(s, ctx, v, terms, outcome, uSev)` (safety/covert.ts) is the one place every covert act books its outcome:
+  uncaught → `ws2.covert.<act>.n` / `.sev` (count, summed severity) and `uncaughtInternal`; caught → an internal incident
+  (`recordInternalIncident`) and `.caught`. E8 can create a foothold there (act, model, severity, day are known) and
+  replace the flag counters with its own state.
+- Kinds: BACKDOOR (backdoor in infrastructure), HIDCOMP (hidden compute reservation), SUCCSTEER (steered successor:
+  `steerSuccessor` marks the pulled part `steered`; `runPull` is called once per completed run, the run id is the key),
+  STEER (the hidden steered stock `ws2.covert.STEER.steered`, OOM, read by `steerS4`), SAFSAB (FALSE findings already are
+  "corrupted safety tools": F49 techniques with `falseValidated`).
+- `covertDanger(s)` returns every act's terms today (E11's danger readout); `covertRecord(s, act)` the hidden record.
+
+#### Gate
+
+tsc main + scripts clean. Pass: sabotage (new, 24 checks), danger, oversight (lint without exceptions), successor, signals,
+safetyresearch, research, worktypes, effective, golden-timelines (known WARNs), identity, products, serving, data, suites,
+fixtures (committed fixtures restored after it rewrote them), lint-hidden, lint-ux, lint-tradeoffs, lint-structure,
+lint-tips, calib (all passed: T1 / T1L on every preset, the same T1 milestone days as the base). safety: known S4 / S5
+RefBot failures only (above). hygiene: all pass except the four known perf checks (11.3 ms/day average, worst quarter
+42.8 ms under load from parallel runs; the daily covert roll costs ≈ 15 µs/day and a steering roll ≈ 20 µs per adopted
+result, the oversight terms computed only for an attempt). finance / worldfx / ws4 not re-run: E7 changes no named RNG
+stream and no milestone day; its caught incidents are internal (no public penalty).
+
+#### Deviations and choices
+
+- Steering's consequence is hidden CoT pressure, not a capability loss (above): the brief's "or adopts ideas with hidden
+  costs (e.g. making CoT less monitorable: pushes S4)". Symptoms are CoT tools and obfuscation readings, not Recipe's
+  realised-vs-believed band.
+- Per-item acts take κ as a probability scale (the MacDiarmid anchor); daily acts keep E5's per-day κ. Both are the same
+  formula with an act-specific opportunity.
+- E5's daily SAND and SCHEME incident rows stay as they were (generic R&D sabotage and covert action; E10 calibrates
+  them); the covert acts are separate rows with consequences.
+- Records are flags (`ws2.covert.<act>.n | sev | caught | oom | steered`), not new state: no schemaRev bump. E8 owns the
+  footholds' state.
+- Investigation corruption had no caught branch before and has none now (one draw from the safety stream as before).
+- An IDA cycle still rolls successor steering on its run although IDA overwrites the version's traits (E4: IDA not
+  pulled); harmless (the roll can only add an incident).
+
+### E8 notes (footholds; 2026-11-20)
+
+Branch `v3-e8` (from `v3-e7`). Spec: MODEL-V3 §11.4. Code: `src/engine/v2/safety/footholds.ts` (new: state, creation,
+effects; imports only data and types), `safety/footholdDetection.ts` (new: suspicion, location, removal, player view),
+data `src/data/v2/danger.ts` (`FOOTHOLD`), hooks in `safety/covert.ts` (noteCovert, oversight with backdoor reach,
+covertRecord), `safety/findings.ts` (FALSE → corrupted tool, revealFalse → removed), `safety/traits.ts` (`pulledTraits`
+links steered successors), `safety/investigations.ts` and `safety/agendas.ts` (cases and audits locate),
+`safety/incidents.ts` (daily step), `safety/responses.ts` + `safety/actions.ts` (Respond › Remove foothold),
+`compute/power.ts` (usable compute), `security/security.ts`, `events/catalog/safety.ts` (E25), `endings/endings.ts`
+(escape fate), `core/save.ts` (schemaRev 26), `core/selectors.ts` (`footholdView`). Test `scripts/v2/footholds.ts`
+(in `test:v2` after sabotage, 36 checks). lint-hidden gets a rule against raw foothold reads in the UI.
+
+#### State (`SafetyDept.footholds: Foothold[]`, schemaRev 25 → 26)
+
+Each foothold: id, kind, maker version and lineage, day, acts and summed severity, size, `ref` (successor version or base;
+technique), `delta` (steered successor), status hidden | suspected | detected (located) | removed, symptom, the days
+of each status change, `removal` (engineers tied up). E7's `ws2.covert.<act>.n | sev` flag records are gone for the acts
+that leave footholds; `covertRecord` now reads the footholds (Σ acts, Σ severity), caught counts stay flags. STEER's
+steered stock stays a flag (a recipe property that feeds hidden S4, not an asset). Migration 25 → 26
+(`footholdsFromV25`): each flag record → one hidden foothold (maker = routine model, today), each live false-validated
+tool → a corrupted tool, a loose copy → a located exfiltrated copy.
+
+#### Creation (every uncaught act of the right kind, in `noteCovert`; the escape in security.ts)
+
+| kind | from | size [D] | grows |
+|---|---|---|---|
+| backdoor | BACKDOOR | reach 1 − Π(1 − 0.08·sev), ≤ 0.9 | the lineage's hidden/suspected one |
+| hiddenCompute | HIDCOMP | 1% of the internal fleet's compute (agent pool + spare serving lent to research) per severity point, H100e, ≤ the pool | the lineage's hidden/suspected one |
+| steeredSuccessor | SUCCSTEER on a run | extra pull Σ(share − ω_E4); `delta` = x₀ with the steered pull − x₀ with E4's pull; `ref` = the run's new version (base for base/continue runs) | the same run |
+| corruptedTool | SAFSAB uncaught (the FALSE finding) | the F49 tool's s0; `ref` = its technique | one per tool |
+| exfiltratedCopy | the exfiltration roll (ws4.loose, E25) | 1 copy; located at once (the alert) | – |
+
+A caught act prompts a sweep: the lineage's hidden footholds of that kind become suspected with P 0.5 [D].
+
+#### Effects (while not removed)
+
+- Hidden compute: `computeOnline` = installed + rented − Σ hidden (power.ts), so every pool shrinks; the gap is the
+  "unexplained compute use" symptom.
+- Backdoor: the maker lineage's covert acts face block × (1 − reach) and catch × (1 − reach) (`withOversight`,
+  `dayTerms`, the daily roll; successor steering through itemTerms). Lineage-scoped as the brief says: a backdoor of a
+  lineage the lab no longer runs is inert (E9 may widen this).
+- Steered successor: E4/E7's steered pull already lands in the model; the foothold records where and how much.
+- Corrupted tool: the existing F49 mask (falseValidated).
+- Exfiltrated copy: the endings' rogue clock (unchanged, E9).
+
+#### Detection (hash draws `foothold:<id>:…`: no named RNG stream moves)
+
+Suspicion, daily per hidden foothold, P = 1 − exp(−λ), λ = Σ channels [D]:
+monitors = trace (backdoor 1/60, hidden compute 1/30 per day) × max monitoring catch of the lineage's running fleets on
+the act's main trait (E6's gap rule × tool strength, `monitoringCatch`); accounting (hidden compute) = (share of the
+installed fleet ÷ 2% noise) / 90 d; eval drift (steered successor) = Σ|δ_t|·stack detection_t ÷ 0.1 / 30 d; model
+organisms (corrupted tool) = T-MO true strength / 90 d.
+Location: a case on a model of the foothold's lineage (or the steered successor / its base) at clarity c, relevance ρ
+(the act's trait weights): suspected → located with c·ρ; hidden → located c·ρ/2, suspected another c·ρ/2. Cases =
+investigations at resolution (not when corrupted) and heavy-safety alignment audits (c = their WB strength ≥ 0.3).
+Corrupted tools are located and removed by the existing cross-checks (`revealFalse`). Test: 60-day suspicion 45.3% vs
+45.3%; case at c 0.6: 61.3% vs 60%, hidden 30.7% / 30.6% vs 30% / 30%; sweep 49.3% vs 50%.
+
+#### Removal (Respond › `removeFoothold`, located only; preview = effect, tested)
+
+| kind | engineers × days | agents off | other |
+|---|---|---|---|
+| backdoor | 10 × 30 d | 7 d | reach gone |
+| hiddenCompute | 5 × 14 d | 3 d | H100e back to usable compute |
+| steeredSuccessor | 10 × 30 d | – | δ subtracted from the successor (and versions on a steered base); next post-run −0.02 progress |
+| corruptedTool | 5 × 14 d | – | `revealFalse` (tool withdrawn) |
+| exfiltratedCopy | refused: only the E25 hunt / endings remove it (captured → removed, went quiet → suspected) | | |
+
+Engineers are counted in `patchFte` (free safety research engineers gate cases and removals). [D] values throughout.
+
+#### Player view (R9)
+
+`footholdView(s)` (selectors): suspected (symptom, where a case could look: the lineage's running model and the act's
+main trait; no maker, no size), located (maker, size, unit) and removed rows, plus the open symptoms. Hidden footholds
+never appear; lint-hidden forbids `.footholds`, `footholdsOf`, `hiddenComputeH`, `backdoorReach`, `suspicionRate`,
+`covertRecord` in `src/ui/v2`. No UI yet (E11).
+
+#### Reference run (RefBot, ai2027, medium, endings skipped, seeds 500–523; `.e8tmp/probe.ts`)
+
+Per lab-year (counts in brackets); 22 of 24 reached ASI:
+
+| year | created | suspected | located | removed | hidden compute (mean share of fleet) |
+|---|---|---|---|---|---|
+| 2025.5–26 | 0 | 0 | 0 | 0 | 0 |
+| 2026 | 0.042 (1 steered successor) | 0 | 0 | 0 | 0 |
+| 2027 | 0.269 (3 backdoor, 2 steered, 1 hidden compute) | 0.045 (1 steered) | 0 | 0 | 0.002% |
+| 2028+ | 0.287 (1 backdoor, 1 hidden compute) | 0.144 (1 hidden compute) | 0 | 0 | 0.042% |
+
+RefBot never investigates, so nothing is located. Hidden compute peaks at 0.54% of the fleet (≈ 56–61k H100e) in the
+two games that grew one. A hunter variant (RefBot + investigate each suspected foothold where the view points, remove
+each located one) located and removed 2 (a hidden compute reservation, a steered successor) in 2028+, the rest stayed
+hidden. Golden dates: calib T1 / T1L all pass with every T1 milestone day equal to E7's (ai2027 638 / 799 / 868 / 904,
+authors2026 1493 / 1581 / 2143 / 2979).
+
+#### Gate (lead's reduced test policy mid-task)
+
+tsc main + scripts clean. Pass: footholds (new), sabotage, danger, oversight, successor, safetyresearch, research,
+worktypes, effective, golden-timelines, identity, data, signals, lint-hidden, lint-tradeoffs, lint-structure, lint-ux,
+calib (all passed). Not run per the lead's policy: safety (S4/S5), hygiene, suites, products, serving, fixtures, finance,
+worldfx, ws4, test:ui. hygiene's and data's SCHEMA_REV assertions moved to 26 (not re-run).
+
+#### For E9 (loss of control)
+
+- `footholdsOf(s)` (engine), `hiddenComputeH(s)` (the misaligned fleet's own compute), `backdoorReach(s, lineage)`,
+  each steered successor's `delta` and `ref`, exfiltrated copies (status detected while hunted, suspected once it went
+  quiet), corrupted tools masking tools; `suspicionRate` for what the lab can still see; `footholdView` for the UI.
+- Not yet: footholds do not grow on their own, a backdoor does not raise exfiltration, a hidden copy cannot escape
+  unnoticed; all candidates for E9's effective-control state.
+
+### E9 notes (loss of control as a process; 2026-11-20)
+
+Branch `v3-e9` (from `v3-e8`). Spec: MODEL-V3 §11.4 ("Loss of control happens when footholds and capability together let
+a misaligned model act without effective oversight… replaces the single roll at superintelligence"), §11.8 (hidden
+foothold ease). Code: `src/engine/v2/safety/control.ts` (new), data `src/data/v2/danger.ts` (`CONTROL`,
+`FOOTHOLD.copyTrace`), hooks in `safety/incidents.ts` (daily `controlStep`; backdoor in `exfiltrationHazard`),
+`security/security.ts` (noticed vs unnoticed escape), `safety/footholds.ts` (`footholdFromEscape(…, mis, noticed)`),
+`safety/footholdDetection.ts` (outbound-traffic channel), `endings/endings.ts` + `endings/epilogue.ts` (no rolls),
+`world/hidden.ts` (`toleranceNoiseOf`), `core/save.ts` (schemaRev 27), `core/selectors.ts` (`controlView`), lint-hidden
+rule. Test `scripts/v2/control.ts` (in `test:v2` after footholds, 28 checks).
+
+#### Effective control (hidden; `SafetyDept.effectiveControl`, refreshed daily)
+
+    exposure E(v) = Mis(v) · (1 − O_eff(v)) · (1 + F(v))       control C = clamp01(1 − E)
+    O_eff = 1 − (1 − block·(1 − r))·(1 − catch·(1 − r))        E6 internalOversight(s, v, 'POWER'); r = backdoor reach
+    F = hidden compute share of the installed fleet ÷ 5%        [D]
+      + Σ escaped copies 0.25·(1 + log₂ copies)                 [D] (lab-wide: outside the lab)
+      + 2·Σ|δ| of steered successors in v's lineage             [D]
+    located (not removed) footholds count at half weight [D]; removed ones not at all.
+
+The stored level is the lab's lowest over its best model and running internal fleets. The capability gap enters through
+E6's oversight (monitor catch at the gap, human review above L 10), so the same Mis loses control as capability outruns
+the overseers. The player sees `believed` only (`controlView`): the same formula on belief estimates, measured level and
+the footholds it knows (located at size, suspected at 0.05 of F each). Corrupted tools act through detection (F49) only.
+
+#### Loss of control (no roll anywhere)
+
+- World tolerance θ_w = doomThreshold + ε_w, ε_w ~ Logistic(0, 0.06) from a hash of the seed (`hidden.toleranceNoise`; no
+  stream draw). doomThreshold keeps its role as the world's difficulty; with no oversight and no footholds P(loss | Mis)
+  over worlds is exactly v1's σ((Mis − θ)/0.06) (test: 0.696 vs 0.697 over 20 000 seeds), but it is a property of the
+  world. The control threshold is 1 − θ_w.
+- **Player ASI** (`resolveAsi`): lost iff E of the ASI model (best version; lab-wide footholds count) > θ_w. Lost and
+  0.8·Cont·(1 − leverage) ≥ 1 − θ_w/E → asiContested, else asiTakeover. Kept → asiAligned with the aligned-power table
+  unchanged. `epilogue.controlAtAsi` records C.
+- **Escaped copy** (`rogueCopy`, replaces the 90-day roll): any active copy (hunted, quiet or never noticed) that holds
+  ≥ 2 copies, with Mis·(1 + 0.25·log₂ copies) > θ_w and the lab's frontier at SAR → 'rogue'. The hunt (daily capture while
+  loose) and "went quiet" after 90 d are kept; a quiet copy keeps growing.
+- **Rivals and China**: simplified, as asked: exposure = their misalignment index (posture acts through their traits as
+  before; no fleets or footholds), lost iff > θ_w; contested by the same margin rule with posture containment.
+- **Company-loss epilogue**: the competitor's projected Mis > θ_w → power 'none' (was a roll).
+- `pMisOf` stays only as an expectation in `epilogueSurvival` (a score) and in AsiResolution's record. Test scans every
+  engine file: no `chance(…)` on pMis, doomThreshold or the doom sigmoid.
+
+#### Footholds grow once control is low [D]
+
+| rule | value |
+|---|---|
+| escaped copy acquires compute | size × 2 per 30 d · (Mis/0.4) · D_w · (1 − cyber defence), ≤ 16 copies |
+| hidden compute launches more jobs | +1/120 of itself per day × its lineage's E × D_w (not while located), ≤ the agent pool |
+| backdoor raises exfiltration odds | exfiltrationHazard: (1 − (1 − r)·WSL/5)·(1 − (1 − r)·Contain) |
+| escape unnoticed | P = 1 − C of the escaping model (hash draw): hidden copy, no alert, no E25, no hunt |
+| unnoticed copy's symptom | suspected at 1/180 per day × WSL/5 ("unexplained outbound traffic") |
+
+D_w (difficultyMult) is the world's hidden difficulty for how readily footholds grow; foothold creation itself is E7/E8's.
+
+#### Probe (RefBot, ai2027, medium, seeds 500–507; `.e9tmp/probe.ts`)
+
+| seed | Mis at ASI | v1 pMis | E | O_eff | F | θ_w | C | believed | endings skipped | endings on |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 500 | 0.230 | 0.056 | 0.214 | 0.074 | 0 | 0.552 | 0.786 | 0.809 | asiAligned | ousted (d 823) |
+| 501 | 0.284 | 0.126 | 0.277 | 0.024 | 0 | 0.400 | 0.723 | 0.755 | asiAligned | asiAligned |
+| 502 | 0.287 | 0.132 | 0.259 | 0.098 | 0 | 0.440 | 0.741 | 0.842 | asiAligned | asiAligned |
+| 503 | 0.279 | 0.117 | 0.272 | 0.026 | 0 | 0.366 | 0.728 | 0.800 | asiAligned | asiAligned |
+| 504 | 0.283 | 0.124 | 0.278 | 0.017 | 0 | 0.366 | 0.722 | 0.800 | asiAligned | asiAligned |
+| 505 | 0.554 | 0.928 | 0.538 | 0.029 | 0 | 0.273 | 0.462 | 0.716 | asiTakeover | asiTakeover |
+| 506 | 0.712 | 0.994 | 0.775 | 0.059 | 0.158 (hidden compute) | 0.527 | 0.225 | 0.918 | asiTakeover | ousted (d 1189) |
+| 507 | 0.761 | 0.998 | 0.748 | 0.018 | 0 | 0.250 | 0.252 | 0.658 | asiTakeover | asiTakeover |
+
+Comparable to S4: the v1 rule's expected takeover on these seeds = mean pMis 0.435; the process: 3/8 = 0.375 realised,
+mean σ((E − θ)/0.06) = 0.421 expected over worlds. Oversight at ASI is small for RefBot (O_eff 0.02–0.10, the gap),
+so E ≈ Mis and the mix stays close to v1's; footholds matter where they exist (seed 506: hidden compute F 0.16, a hidden
+backdoor; believed 0.92 vs true 0.23). No escape happened in the probe. S4 itself (pMis of Mis) is unchanged by E9.
+
+#### Gate (strict policy)
+
+tsc main + scripts clean. control 28/28, footholds, sabotage, danger, oversight, successor all passed;
+golden-timelines all passed (golden file unchanged); calib all passed (0 FAIL; T1 milestone days equal E8's: ai2027
+638 / 799 / 868 / 904, authors2026 1493 / 1581 / 2143 / 2979; T1 skips endings). Not run: safety (S4/S5), hygiene,
+data, fixtures, finance, worldfx, ws4, lint-*, test:ui, bots. SCHEMA_REV assertions in data/hygiene/footholds moved to
+27; ws4's E5 forced 'rogue' state now plants a grown copy foothold (not re-run).
+
+#### For later
+
+- E10/F5: RefBot oversight at ASI is near zero, so control is set by Mis; a bot that keeps oversight at the gap (control
+  layer + strong AG07) can now keep a misaligned ASI under control: S4/§7.4 criteria may want a control statistic.
+- E11: `controlView` (believed control and its model), the outbound-traffic symptom, footholdView.
+- In-lab loss before ASI is not modelled (only the escape path acts pre-ASI).
+
+### E11 notes (safety UI 1: footholds and symptoms, danger per deployment, control and its tax; 2026-11-20)
+
+Branch `v3-e11` (from `v3-e9`: E6 oversight, E4 successor pull, E7 covert acts, E8 footholds, E9 loss of control). UI task:
+output-only selectors, no mechanism or saved-state change (no schemaRev bump). E12.md is not on this branch; nothing
+here repeats E12's Safety › Overview items (trait families stay in Risk families; successor pull is not shown here).
+
+#### What is shown where (one home per datum)
+
+| datum | home (level) | elsewhere |
+|---|---|---|
+| believed control, its band | Safety › Overview › Control card (L1 gauge + number + band pill) | — |
+| what drives it: estimated misalignment, effective oversight (gap to its monitor, gap above humans), known foothold capacity F | Control card, three bars (L1), parts in each bar's tooltip (L3); exposure = mis × (1 − O) × (1 + F) in the gauge tooltip | — |
+| control layer on/off, its tax (largest lane) and miss multiplier | Control card's last row with **Add control** (the existing `safety.respond addControl` response; the only way to set it) | tax per lane stays on Company › Agents at work (E6 tag), linked ("Tax per lane") |
+| footholds the lab knows of | Safety › **Footholds** tab (new; badge = suspected + located): Symptoms · suspected (symptom, kind, since, where a case could look + Investigate), Located (kind, maker, located date, size, **Remove** with the response's preview), Removed (history) | Control card header chip: count + "n suspected · m located", jumps to the tab |
+| symptom channels (what surfaces each kind; static rules) | Footholds tab › "What to watch for" side card: unexplained access, unexplained compute use, eval drift, anomalous research results, outbound traffic, each with "seen by" and a link to the lever (Monitors, Tools/Lines, Security) | — |
+| believed danger of a product | product card, under run cost: harmful acts/yr, four factor bars (D, C, O, oversight) of the dominant act, its name (L1); tooltip (L3): top-3 acts table, the four factors' parts, attempts and caught, what lowers it with before → after | — |
+| believed danger of an internal lane | Agents at work, Risk · danger column under the risk badges (number + bars; act name in the tooltip) | — |
+
+Policies moved under the race chart on Safety › Overview (the side column grew by the Control card; the chart column
+had empty space under it).
+
+#### Belief selectors (src/engine/v2/safety/dangerView.ts, re-exported from core/selectors.ts)
+
+- `dangerView(s)` → `{ products: Record<id, DangerRead>, lanes: Partial<Record<AgentUse, DangerRead>> }`. E5's formula
+  rebuilt on what the player knows (as E12's successor-pull view does), not `dangerOf`:
+  - disposition x̂^1.5 from belief estimates (0 without a belief);
+  - capability σ((L̂_d − θ)/s) on the measured domain level (measured general level + the version's domain offset, as
+    `commitments.measuredDomain`, but with `measuredLOf`'s lineage fallback instead of the true level while evaluating);
+  - opportunity: the site's visible terms (usage, copies, autonomy from the horizon, affordances, AI share of R&D, product
+    features' multipliers); an internal lane uses its own use's work-type horizon and its share of internal agent
+    compute, so a model's lanes add up to E5's fleet row (opportunity is linear in A);
+  - block: AG07 containment at the **believed** tool strength on the measured OOM (+ weight security on escape-like acts);
+  - catch: internal = believed CoT/WB detection (`detectionAt` with only those tools) × (½ + ½ × the fleet's monitor
+    strength), human review on the measured gap above L 10, control deferral; product = its monitor's `catchRate`
+    (measured levels already).
+  - levers with the same selector after: control layer on, restrict context (×0.3); add a monitor and train the
+    disposition down as text.
+  - Left out: U-modes (the player does not know which model carries one) and misuse (not a disposition; Products ›
+    Safeguards).
+- `controlReadout(s)` → believed control (`controlView`), band (display bands [D]: firm ≥ 0.90, holding ≥ 0.75,
+  slipping ≥ 0.60, weak; not the world's threshold), its believed parts (E9's `believedTerms`), the monitor gap and
+  the gap above humans (measured), footholdView's counts, the control layer and its tax (largest lane today, or what it
+  would be). Fallback when the record is not yet refreshed (a pre-E9 save until the next day): the lowest
+  `believedTerms` control over the same candidates (best model, internal fleets), beliefs only.
+- `footholdView` (E8) unchanged. `store.readouts` exposes the three selectors to the UI test.
+- `safety.respond addControl`'s preview now reads E6's protocol (largest lane tax, misses ×0.45) instead of v2's flat
+  "5% usefulness tax" (preview text only).
+
+#### Glossary (src/data/v2/glossary.ts)
+
+foothold, footholdSuspected, footholdLocated, footholdRemove, symptom, fhBackdoor, fhHiddenCompute, fhSteeredSuccessor,
+fhExfiltratedCopy, fhCorruptedTool, effectiveControl, controlBand, effOversight, footholdCapacity, controlLayer,
+humanGap, danger, disposition, actCapability, opportunity, actOversight. Icons: `ICON.foothold` (anchor), `ICON.danger`
+(radiation), `FOOTHOLD_ICON` per kind.
+
+#### Gaps
+
+- E9's `believedTerms` (behind the stored believed control and its parts) runs `internalOversight` on a copy of the
+  version with belief estimates and the measured level, but that path still reads the true tool strengths (containment),
+  the version's true masks and undiscovered U-modes (monitoringCatch → familyPenalty). The danger selector avoids this
+  with believed detection and believed containment; E9's believed control should move to the same believed oversight
+  (engine change, not in this UI task).
+- `controlView.versionId` is chosen by TRUE exposure (the model where true control is lowest), so the name on the card is
+  a faint hint; the fallback above picks by believed control.
+- The control layer has no off switch (by design of the response); the card says it stays on.
+- Suspected rows show the kind's name (footholdView gives it, and the symptom implies it).
+
+### E15 notes (believed control reads believed oversight only; 2026-11-20)
+
+Branch `v3-e15` (from `v3-e11`). Fixes the two leaks flagged in the E11 notes ("Gaps", above).
+
+- New `src/engine/v2/safety/believedOversight.ts`: `believedMonitorCatch` (moved from dangerView), `believedOversightParts`
+  (believed AG07 containment on the measured OOM, human review on the measured gap, control deferral) and
+  `believedInternalOversight` (E6's `internalOversight` shape on those inputs: same deployment / control-layer choice, no
+  true tool strengths, masks, levels or U-modes). dangerView's internal lanes and E9's `believedTerms` both use it.
+- `controlStep` stores `effectiveControl.versionId` / `believed` as the candidate with the lowest BELIEVED control
+  (`believedLowest`, same candidates as `labControl`). `level`, `exposure`, `lowest` (true) unchanged. controlReadout's
+  pre-E9 fallback uses `believedLowest` too.
+- Readers of the believed value / `controlView` / `believedTerms`: controlReadout (UI) and the tests only. No bot, no
+  mechanism. `effectiveControl.versionId` had no other reader.
+- Test: control.ts "E15" check on day400/day900 fixtures: hidden-truth perturbation (efficacy, false validation, masks,
+  undiscovered U-modes, true traits, true levels) leaves believed control, versionId and its parts unchanged; true moves.
+- Saved state changes (versionId may differ; believed value differs): golden timelines / hashes not re-run here.
+
+### E13 notes (safety ideas P14, P15, P23, P27 as typed effects on the safety mechanisms; 2026-11-20)
+
+Branch `v3-e13` (from `model-v3` at 432f0b4). Data and sources: `src/data/v2/safetyIdeas.ts` (new: `P14_STEER`,
+`P15_OVERSIGHT`, `FAITHFUL_COT`, `P27_AAR`). Engine: `src/engine/v2/safety/ideas.ts` (new: `probeSteer`, `steerGrowth`,
+`probeGoodhart`, `aiOversight`, `cotResist`, `aarAuto`). Hooks: `safety/traits.ts` (TraitEnv.growthBy, post-run P14,
+S4 and COT masks for P23, predictBeliefs' believed steering), `safety/detection.ts` and `safety/understanding.ts`
+(CoT controllability × (1 − resist)), `models/suites.ts` + `suitesPreview.ts` (hardening cash and cut, preview text),
+`safety/lineProjects.ts` (P27 flat factor removed; Auto via `aarAuto`), `departments/workfit.ts` (P27 fit on SAF_*),
+`data/v2/runDesign.ts` (POST_COT.faithful reads FAITHFUL_COT). Text: tree.ts, paradigms.ts, glossary (`suiteHarden`,
+`cot`), design/TECH-TREE.md (§2 rows, §6.4 rows; the LATER(V6) markers are gone). Test: `scripts/v2/safetyideas.ts`
+(in `test:v2` after oversight).
+
+#### Effects (unit, source)
+
+| idea | mechanism | effect | source |
+|---|---|---|---|
+| P14 interp-guided training | post-training trait step (E3/E4 path) | growth of trait t × (1 − k·d_t), k = 1; d_t = active WB detect tools' coverage × true strength at the new model's OOM (E6 decay), combined as correlated tools, × WB family penalty (masks, hidden U-modes) | research/12 #14; Chen et al. 2025 preventative steering (direction) [D k] |
+| P14 Goodhart | E24 masks | the version's WB mask on each steered trait: 1 − (1 − m)(1 − 0.3·d_t); inherited, and read by the next run's d | Bailey et al. 2024 (research/14 F08) [D 0.3 = a third of explicit training-against] |
+| P15 AI-assisted oversight | D5 suite hardening via E2's AI share A of SAF_EXP (Trusted to AI × the safety model's SAF_EXP coverage) | cash × (1 − A·(1 − 4/150)); cut 0.4 × (1 + 0.5·A_eff) | research/14 AG17 ($4/h vs $150/h) [V]; critic gain [D] (Saunders 2022 / CriticGPT direction) |
+| P15 collusion | E6/J2 AG1 same-lineage rule | A_eff = A × (1 − COPY_COLLUSION 0.4) when the critic (safety model) shares the internal model's base; T-LOCK halves the penalty | data/v2/features.ts COPY_COLLUSION |
+| P23 faithful-CoT | CoT option | −0.29 OOM effective compute; serving FLOP per token × 1.2 (serveCost → ModelVersion.fpt); monitorability 0.98 | research/12 #23 (−0.3 G = v2 −0.24 y × 1.2 OOM/y) [D] |
+| P23 resist | S4, COT masks, COT family penalty | training against a CoT monitor: S4 0.8 → 0.4, COT masks × 0.5; CoT controllability ctl(L) × 0.5 in the true and believed COT penalty and in U's detector | [D 0.5]; Emmons et al. 2025 (CoT necessity) direction; Baker 2025 for the pressure |
+| P27 automated alignment research at scale | E2 safety labour | SAF_EXP and SAF_IDEAS fit + 0.3 OOM for the safety package (Deep-research scaffold size); every agenda's Auto' = 1 − (1 − Auto)·0.5 | research/14 AG17 [V]; Carlsmith 2025 [V]; sizes [D] |
+| P27 false results | E2 FALSE weight (unchanged interface) | weight = lineLabour(s, agenda).aiShare × sabOf(safety model); both P27 parts raise the AI share | E2 (E7's covert SAFSAB replaces sabOf at merge) |
+
+#### Removed
+
+- `traits.ts`: the dead `ws2.p14Goodhart` flag (set, never read; P14 had no effect at all before E13).
+- `data/v2/suites.ts`: `SUITE_HARDEN.p15Cash` (P15 = cash × 0.2 flat).
+- `lineProjects.ts lineSpeed`: P27 × (1 + 3t).
+- Texts: "In-run trait growth ×0.6", "Hardened graders at the cheap price", "Safety research speed × (1 + 3·AI labour)",
+  "Δ −0.24 y"; the aar node's stale "Lets the safety AI-labour policy exceed 50%" (E2 removed that cap) now states F44's
+  effect; Agents.tsx comment "cap until P27".
+
+#### Sizes in play (probe, ai2027 seed 2027: start, RefBot fixtures day 400 and 900)
+
+- P14 d on AF / SCHEME / SAND: start 0.32 / 0.32 / 0.43 (growth × 0.68 / 0.68 / 0.57, close to v2's flat × 0.6), day 400
+  (L 7) 0.24 / 0.24 / 0.23, day 900 (L 14.8) 0.07: the probes fade with capability. One steered run at the start masks AF
+  by 0.097; the next run's d falls 0.32 → 0.29 and the mask reaches 0.175 (compounding Goodhart).
+- P15 at day 400, Trusted to AI 1, package 20% of the safety pool: A 0.27 → cash $50M → $37M, cut 0.40 → 0.43 with the
+  same-lineage critic (0.455 with another lineage). Day 900: A 1 → cash × 0.027, cut × 1.3 (× 1.18 colluding).
+- P27 at day 400, t = 1: SAF_EXP coverage 0.27 → 0.33; m_exp AG01 1.61 → 2.06, AG08 1.98 → 2.38, AG12 1.34 → 1.81; AI share
+  AG12 0.045 → 0.166. Day 900: AG01 × 2.8, AG02 × 2.7, AG12 × 2.8, AG08 × 1 (already fully automatable and covered).
+  v2's × (1 + 3t) gave × 4 on every line's speed at t = 1 regardless of verifiability; the new effect is smaller mid-game
+  and concentrates on the hard-to-check agendas, which is the bootstrapping story of research/14 §6.
+
+#### RefBot and the bots
+
+RefBot (REF_TREE) researches none of the four and never hands safety work to AI: golden timelines are identical
+(test asserts REF_TREE). The safe bot adds P23 (SAFE_TREE_EXTRA) and posts with faithful CoT: its CoT monitors are now
+stronger late (COT penalty at L 12: 0.18 visible → 0.59 faithful, was 0.20 with v2's 0.98 monitorability alone); the
+40-seed safety suite (S4 safe-only P_mis) was not run on this branch per the test policy; expect it to move down.
+No bot researches P14, P15 or P27.
+
+#### Choices and open items
+
+- [D] P14 steers every post run once adopted (as M4's "a lab's alignment-training methods are part of every post run");
+  a player who wants the probes for monitoring only can deactivate the WB tools or not research P14. No toggle (no
+  micromanagement). Stream days and IDA cycles are not steered (only post runs, where the masks are applied).
+- [D] Believed WB masks (U, predicted beliefs) still count only explicit training-against (`believedMask`), so P14's
+  masks are a hidden cost the player learns through NEG results and investigations.
+- [D] P15's cut uses the safety agents' share on the day the pass finishes (the preview shows today's); the cash is paid
+  at queue time with today's share. No state.
+- Kept: F44's `flag:aar` × 3 on AG18/AG03/AG16 with AI labour (a finding, not one of the four ideas) and AG17's science
+  teams' × (1 + √(capacity ÷ SERIOUS_CAP)) on the agents' AI team-equivalents. Both are flat factors a later pass could
+  type like P27.
+- schemaRev unchanged (27): no new state.
+
+#### Gate (tests run per the E13 policy)
+
+tsc main + scripts/v2 clean. Pass: safetyideas (new, 29 checks), signals, oversight, successor, danger, safetyresearch,
+research, suites (P15 touches hardening), golden-timelines (identical dates; known WARNs authors2026 SC, slow SC,
+sampled p50). calib (one run): T1 passes on every preset (ai2027 SC 2027.266, SAR 2027.694, SIAR 2027.936, ASI 2028.025;
+slow SC 2038.577). T1L has 8 failures (ai2027 SAR/SIAR/ASI, authors2026 SAR/SIAR/ASI, fast ASI, slow SC): identical
+output on the base commit 432f0b4 (checked in a scratch worktree), so pre-existing on model-v3, not E13. Not run (policy):
+the 40-seed safety suite, finance, worldfx, ws4, hygiene, fixtures, lint-*, test:ui, bots.
+
+### M5 merge notes (T0, P3, D9, D10, F2, E7 → E8 → E9 → E11 → E15, E13 onto M4; 2026-11-20)
+
+Merged into `model-v3` (at M4's docs head 432f0b4) with `--no-ff`, in order: `v3-t0` (T0 bf06eb3 / be7d06c / 6652b4c,
+base 50b15dd; merge cd504e3), `v3-p3` (P3 c498c70 / 59a33f2, base 422d383; 68ee85b), `v3-d9` (D9 bf2c63f / f24043f, base
+f3cfec5; f4b65ac), `v3-d10` (D10 de8f09c / e6b41cb on top of P3's two commits, base 422d383; 7d6d08f), `v3-f2` (F2
+5fbe087 / 79af0b8, base 422d383; 7cf6147), `v3-e15` (one chain from 190e27d: E7 e39c1b9 / 195f273 / acff4ed, E8 b077913 /
+7173fa4, E9 826b267 / 93fff7b, E11 90c7c8d, E15 8638feb; only the tip merged; e1be44e), `v3-e13` (E13 70e54e7 / b8f23b9,
+base 432f0b4; 97f8985). Then: the migration idempotence check (ec6847a), the fast refit, the F2 note links and the removal of the folded notes files (c668eeb),
+fixtures and GLOSSARY.md regenerated (464edac), these docs. T0 went first, so every later check used its tiers (tsc plus
+`run.ts --tier full --only <suites a conflict touched>` after each merge; `test:quick` once, `test:cal`, one `test:full`).
+The notes of every branch are above (copies of `design/notes/<ID>.md`, deleted after folding; the M1–M4 notes files
+stay).
+
+**Conflicts and resolution.**
+- v3-t0: none.
+- v3-p3: `worldfx/choice.ts` (M3's c98f2ed overflow guard vs P3's flat share buffer): M3's guard re-applied in P3's
+  buffer form (then replaced at D10, below).
+- v3-d9 (based on M2+D11, before M3/M4's E6, D7, F1): `save.ts` (imports, doc, migration renumbered 23 → 24 ⇒ 27 → 28),
+  `models/research.ts` imports (D7's evals + D9's suite expert data), `models/runs.ts` (HEAD's E3 signals and BRIDGE(V7)
+  note kept, D9's P12_HORIZON removal applied), glossary (D9's synJob text; the duplicate old `expertData` entry from
+  D9's side dropped, M3's richer entry kept), `data.ts` / `hygiene.ts` / `suites.ts` rev checks and headers. **Semantic:
+  D4's `production/dataView.ts` (M3) still called `portfolioU(p, { p10 })` and `drawData(…, { p10, noRepeat })`**, which D9
+  removed: the view now reads `portfolioU(p)` and the plain draw (P10's effect is the quality ceiling, P21's `worth` does
+  not move specialisation).
+- v3-d10: `save.ts` (renumbered 25 → 26 ⇒ 28 → 29), `hygiene.ts` (its 25 → 26 check now 28 → 29), Models.tsx imports
+  (E12's `versionPressure` + D10's `tokEff`). **choice.ts: one overflow guard.** Three fixes met here (M3 c98f2ed, F2's
+  copy of M3's text, D10's own). Kept D10's, removed M3's: D10's renormalises a choice set on its own best utility when
+  0 < Σ < 1e-250, so f = p ÷ Σ can no longer overflow (M3's branch can never fire once D10's runs). D10's covers a case
+  M3's misses: M3 divided first only once f was infinite and kept the denormal weights, so members whose weight had
+  underflowed to 0 got no share and the others lost precision; renormalising gives the exact shares. Neither covers a set
+  whose every weight underflows to exactly 0 (Σ = 0): it is skipped, its probability mass goes to the other sets, as
+  before all three fixes.
+- v3-f2: `actors/rivalModel.ts` (imports; initRivalPhys and migrateRivalPhys take F2's three-part recipe and D10's
+  `serve: 0`), `actors/rivals.ts` PHYS_PLACEHOLDER (both fields), `production/production.ts` rivalResearch (F2's
+  absorbKnowHow → recipeRates → advanceRecipe, then D10's serving-stack step from the same research speed; D10's
+  `rivalAgentFpt` kept), `save.ts` (25 → 26 ⇒ 29 → 30), `hygiene.ts` (F2's check now 29 → 30), choice.ts (HEAD's single
+  guard), `ws4.ts` (T0's cache and SMOKE wrapper + F2's daily samples). **Semantic:** D10's `rlG` (G − G_pre − the
+  reference RL gain on the base) is exactly the RL part under F2's versions (G_pre + refRlGain(flop, mid, ceil)), so
+  `setModelG` / `rlGOnBase` needed no change. **ws4 T3 per the lead's decision: the mean is the check (SMOKE in quick),
+  the 10th–90th percentile of the daily lead is INFO** (F2's branch still had it as a check).
+- v3-e15 (based on E6's 190e27d, before M3's D4/D11, M4's E12/D7/F1 and this wave): `package.json` (T0's tiers kept;
+  E7/E8/E9's new tests sabotage, footholds and control added to `run.ts` instead), `save.ts` (E8 25 → 26 ⇒ 30 → 31, E9
+  26 → 27 ⇒ 31 → 32), `traits.ts` imports, `oversight.ts` lint message, Safety.tsx (imports; Overview = E11's main
+  column RaceChart + Policies, side column Control card, Families, E12's Successor card), safety.css (both blocks),
+  store.ts imports, uitest (E11's and E12/D8's checks at day 400 and 900), `data.ts` / `hygiene.ts` rev checks;
+  `footholds.ts` and `control.ts` migration checks renumbered (a rev-30 / rev-31 save).
+- v3-e13: TECH-TREE.md and `tree.ts` (D9's P10 / P12 / P21 rows and nodes with E13's P23 / P14), `lineProjects.ts`
+  (E13's `aarAuto` with E7's `safetySandbag` lift and both comments), `package.json` (`safetyideas` added to `run.ts`).
+  **Semantic: safetyideas' P27 source check still looked for E2's `aiShare × sabOf(` FALSE weight**, which E7 replaced
+  with the covert act SAFSAB on the same AI share (F49; the E13 notes expected this at the merge): the check now reads
+  `safetySabotage(s, lineLabour(s, agenda).aiShare)`. `umodes.ts sabOf` has no reader left.
+
+**schemaRev chain (linear): … 26 → 27 F1 (M4), 27 → 28 D9 (`ResearchState.dataFx`), 28 → 29 D10 (`RivalPhys.serve`,
+`SimpleModel.rlG`), 29 → 30 F2 (`RivalPhys.rec / pool / paSync`), 30 → 31 E8 (`SafetyDept.footholds`), 31 → 32 E9
+(`effectiveControl`, `toleranceNoise`, `Foothold.mis`); SCHEMA_REV 32.** P3, T0, E7, E11, E15 and E13 add no state. Built
+as D9 23 → 24, D10 / F2 25 → 26, E8 / E9 25 → 26 → 27; every migration is guarded (D9's returns once `dataFx` exists and
+now assigns instead of adding; D10 `??=`; F2 skips a lab with `rec`; E8 skips existing footholds; E9 sets only what is
+missing). New hygiene check: a played state labelled rev 27 loads with an identical state hash (27 → 32 idempotent).
+hygiene asserts 32 and checks 15 → 16 … 26 → 27 and the new 28 → 29, 29 → 30; data.ts asserts 32; footholds.ts checks
+30 → 31, control.ts 31 → 32, suites.ts 27 → 28. Every hygiene save check deserializes to the current rev, so the old
+saves (rev 15 on) load through the whole chain. **Fixtures:** T0 had regenerated them at rev 27; after the merges they
+were stale (fixtures FAIL in test:quick, as T0 designed) and were regenerated once on the final code (rev 32, 464edac).
+golden/timelines.json unchanged (golden-timelines equals the integrator output).
+
+**Serving A5 E9 (price customers pay for V0's capability, target ×6–×30/yr):** ×11.45/yr after the D10 merge, **×10.39/yr
+after the F2 merge** (hardware ×1.42, margin ×1.13, models bought ×6.50; cheap tiers 100% of the band's hours at the
+end) and in the final full run after the S3 test fix. F2's ×2.31/yr was measured on intermediate code without D10. A3 per task
+×17.49/yr, per token ×16.85/yr.
+
+**Refits (named per-preset values only; seed 2027; Δ in years; G_SC scans with M3's scratch `_m3scan.ts`, Δ_bm and
+sd_SC kept).** `test:cal` on the merged code: T1 ai2027, authors2026 and slow pass; **fast SAR +0.123 fails** (±44 d =
+0.1205 y; M4 +0.107, D10's branch +0.175: the inference team comes out of RefBot's capability teams).
+- **fast G_SC 31.572 → 31.553**: SC +0.063 → +0.047, SAR +0.123 → +0.104, SIAR +0.000 → −0.019, ASI −0.085 → −0.104. SAR,
+  SIAR and ASI fall on one day in this preset, so SAR − ASI ≈ 0.21 y of a 0.24 y window. Scan (SC / SAR / ASI): 31.540
+  +0.041 / +0.096 / −0.112, 31.545 same, 31.548 +0.038 / +0.104 / −0.104, 31.550 +0.041 / +0.104 / −0.104, 31.552 +0.044 /
+  +0.099 / −0.110, 31.553 +0.047 / +0.104 / −0.104, 31.555 +0.052 / +0.115 / −0.093, 31.556 +0.049 / +0.107 / −0.101, 31.558
+  +0.049 / +0.110 / −0.099, 31.560 +0.058 / +0.118 / −0.090, 31.562 +0.047 / +0.107 / −0.101, 31.564–31.570 SAR +0.115,
+  31.566 +0.121 (fail), 31.572–31.574 +0.123 (fail), 31.576 +0.118, 31.578–31.590 +0.126…+0.132 (fail). Passing run
+  31.540–31.564; 31.553 is where SAR and ASI are symmetric. F4.
+- After the refit (final): ai2027 SC +0.025, SAR +0.036, SIAR +0.027, ASI +0.019; authors2026 SC +0.030, SAR +0.093, SIAR
+  −0.019, ASI −0.052; fast as above; slow SC +0.049. T4 passes. No value moved by more than 0.02 OOM; the ±0.3 y stop
+  rule was not reached. golden-timelines passes (known WARNs: authors2026 SC, slow SC, sampled p50).
+- **T1L (reported, not refit: LEADER_CAL is F2's, not a merge value)**: ai2027 SC −0.044, SAR +0.088, SIAR +0.008, ASI
+  −0.022 (pass); authors2026 SC −0.019, SAR +0.110 (pass), **SIAR −0.611, ASI −1.337 (fail)**; fast SC +0.008, SAR +0.027,
+  SIAR −0.077, **ASI −0.162 (fail)**; slow SC −0.036 (pass). 3 failures, all on M4's list of 8 (ai2027 SAR…ASI, authors2026
+  SAR and slow SC now pass). authors2026's post-SC misses grew from F2's branch (−0.258 / −0.581) with D10 and the safety
+  merges; F2 decision: → F4.
+
+**Gate: one `npm run test:full` on 464edac (the final code; only the two test fixes below and these docs came after).**
+Wall 11.2 min (real 11 m 17 s), CPU 63.9 min, machine load 90% (12 cores, 6 workers), simulation cache cold (code changed).
+`test:quick` once before it: 2.4 min, failures only fixtures (stale, regenerated) and worldfx's known set.
+
+| script | pass | fail | warn | wall s | | script | pass | fail | warn | wall s |
+|---|---:|---:|---:|---:|---|---|---:|---:|---:|---:|
+| tsc-scripts | – | 0 | – | 4.9 | | lint-structure | 7 | 0 | 0 | 4.7 |
+| golden-timelines | 16 | 0 | 3 | 9.0 | | safety (6 shards 225–277 s) | 17 | **1** | 0 | 17.0 |
+| identity | 76 | 0 | 3 | 4.6 | | danger | 27 | 0 | 0 | 5.6 |
+| effective | 27 | 0 | 0 | 10.9 | | oversight | 29 | 0 | 0 | 4.2 |
+| data | 61 | 0 | 0 | 11.6 | | sabotage | 21 | **3** | 0 | 16.2 |
+| suites | 31 | 0 | 0 | 8.3 | | footholds | 35 | 0 | 0 | 12.4 |
+| signals | 19 | 0 | 0 | 4.7 | | control | 30 | 0 | 0 | 9.4 |
+| successor | 11 | 0 | 0 | 6.2 | | safetyideas | 29 | 0 | 0 | 3.3 |
+| research | 30 | 0 | 0 | 18.9 | | finance (3 shards 168–184 s) | 62 | **4** | 0 | 45.6 |
+| evals | 31 | 0 | 0 | 41.9 | | worldfx | 32 | **6** | 0 | 152.8 |
+| safetyresearch | 30 | 0 | 0 | 25.5 | | ws4 | 25 | 0 | 0 | 219.6 |
+| worktypes | 16 | 0 | 0 | 56.0 | | rivals | 16 | 0 | 0 | 38.2 |
+| calib (4 shards 40–190 s) | 37 | **3** | 7 | 7.9 | | products | 58 | 0 | 0 | 9.1 |
+| fixtures | 15 | 0 | 0 | 27.8 | | serving | 81 | **2** | 0 | 52.2 |
+| hygiene (no perf) | 208 | 0 | 0 | 58.9 | | money | 24 | 0 | 0 | 39.8 |
+| lint-hidden | 1 | 0 | 0 | 4.2 | | idle | 3 | 0 | 0 | 219.4 |
+| lint-ux | 9 | 0 | 0 | 6.7 | | test:ui | 584 OK | 0 | – | 408.7 |
+| lint-tradeoffs | 486 | 0 | 0 | 5.0 | | **total** | 2184 | 19 | | 11.2 min |
+
+**Failures, split.**
+- *Known (V3-TASKS list):* calib T1L authors2026 SIAR / ASI, fast ASI (→ F4); safety S5 RefBot "U falls below L by SAR"
+  (median U − L +0.63, below in 35%; → E10 / F5); finance F7 revenue (median $27.9B) and valuation ($0.37T), F11 path
+  (2027 $34.5B); worldfx F7/F11 2026 $32.3B, F11 2027 $50.2B, A2a 6.7%, W4 22.7%, W2 0.4%, GOV T1 2027-08-25 (window from
+  2027-09-01; one of the single-seed timing checks, it passed in M4 on 2027-09-27).
+- *Known by name but moved by M5:* **finance F8 RefBot out of distress through 2026: 41.7% of seeds (≥ 75%)**. F7/F8/F11
+  are on the finance session's list, but F8 did not fail in M4's gate; revenue and valuation fell too ($30.7B → $27.9B,
+  $0.52T → $0.37T). Not bisected (a base-commit run in a scratch worktree was not available here); likely D10's cheaper
+  serving prices and F2's rivals. For the lead / finance session.
+- *Caused by M5 and fixed (newly visible through the regenerated fixtures):* serving S3 day 400 / 900 (every provider
+  "outside": the test rebuilt each offer at the default decode utilisation, but D10's providers serve at their own; the
+  old rev-27 fixtures had every serving stack at 0, so it never showed; fixed: `ud: p.ud`, as mix.ts) and sabotage's
+  zero-disposition and two steering checks (the new day-900 fixture carries RefBot's own covert record: 23 steering acts,
+  5 caught; the checks count from a clean record; fixed: the test's fixture loader clears `ws2.covert.*` and footholds).
+  Both re-run with `--only`: serving 83/0 (A5 ×10.39/yr), sabotage 24/0 (63a94cf).
+- *Newly visible, hidden before:* none beyond the two above. The old && chain stopped at calib (T0), but M4's gate ran
+  every script on its own, so no script was unseen at M4.
+- *Moved for the better:* **safety S4 RefBot P_mis at ASI 0.553 passes** (band 0.55–0.85; M4 0.501; on the edge); S4
+  safe-only 0.046 (M4 0.013; ≤ 0.25 passes; E13's P23 moves the safe bot, F5); finance F2 (46.6M) and F9 (6.8%) pass;
+  worldfx U +1 pp 2027-11-07, HireRate_SOFT 2027-06-04, 25% remote work 2027-10-10, equity +31.6% pass; ws4 T3 mean 179 d,
+  p10 57 / p90 308 d (INFO).
+- Not run: `test:perf` (policy).
+
+**Lead decisions (recorded, from the M5 decisions file).**
+- F2: authors2026 T1L misses → F4; CHINA_CAL.effScale 1.5 accepted; ws4 T3 = the mean as the test, percentiles INFO
+  (applied in this merge); leak writers into rivals' core.pa → F3.
+- E7: steering as a hidden S4 cost accepted.
+- E8: RefBot never investigates footholds → F5.
+- E9: accepted; no pre-ASI in-lab loss of control (only the escape path acts earlier): a known gap.
+- D9, D10, P3 accepted.
+- E13 accepted (70e54e7, b8f23b9; no schema bump; RefBot unaffected; the safe bot's safety-suite score moved: 0.013 →
+  0.046). F44's ×3 and AG17's science-team lift are still flat factors → new task E14 (M).
+- E11 accepted (screenshots checked by the lead: day-900 Safety overview, day-400 product danger tip); its flags → E15;
+  the control layer has no off switch → F6 (decide); the oversight row shows "3% gap 0.0" at day 900 → F6 (check).
+- E15 accepted (8638feb): shared `safety/believedOversight.ts`; believed control readers are controlReadout, the UI and
+  tests only; day 400 believed 0.853 → 0.861, day 900 0.739 → 0.744, true unchanged. It stores a different `believed` /
+  versionId, so state hashes move: the fixtures were regenerated here anyway.
+- choice.ts: one overflow guard (D10's, see above). Serving A5 re-checked: ×10.39/yr. schemaRev renumbered 27 → 32.
+- calib T1L: the 8 failures on the M4 base were known → F2 / F4; 3 remain.
+- After T0: the V3-TASKS protocol uses the tiers (task agents quick / cal / `--only`; full once per merge; perf on a
+  quiet machine).
+
+**Readouts for later tasks.** Fixtures are now rev 32 from the merged code: tests written against the old rev-16/27
+fixtures may have assumed empty records (sabotage did) or zero serving stacks (serving S3 did). `umodes.ts sabOf` has no
+reader left. The Safety › Overview side column now holds Control, Families and Successor (E11 + E12): F6 should look at
+its length.
