@@ -7,6 +7,7 @@
 // experiment CES at aggregate level, each part a pool with its lines' returns; a training pool on which it trains one base
 // after another; and post-trained versions on its latest base. Its model's G = log₁₀(training FLOP) + the pretraining
 // recipe at launch + the reference RL run's gain on that base at its RL recipe, in the player's currency.
+import { REF_TPP } from './runDesign';
 
 /** Pretraining recipe growth (OOM of effective compute a year, realised at the run's FLOP) of the leader lab's day-0
  *  research inputs at its day-0 recipe: Ho et al.'s ≈ 0.48 OOM/yr of pretraining progress (3×/yr, research/20 B1) [R20 B1].
@@ -17,9 +18,10 @@ export const PRE_RATE0 = 0.48;
  *  ≈ 121 days on 60% of its pool, V1 notes; v2's 1F run) [D]. The rest of the pool runs post-training and smaller runs. */
 export const BASE_RUN_DAYS = 121;
 export const BASE_POOL_SHARE = 0.6;
-/** Tokens per active parameter of a rival base: the reference design B0's 50 (compute-optimal is 20; 2025 frontier bases
- *  train at 20–50, Llama 3 405B ≈ 38) [R20 A1, D]. Active parameters N = √(FLOP / (6 · tpp)), MoE shape. */
-export const RIVAL_TPP = 50;
+/** Tokens per active parameter of a rival base: the reference design's (runDesign.ts REF_TPP, 400 since A6b): labs that
+ *  serve their models overtrain them like 2025 production models (DeepSeek-V3 ≈ 400 per active parameter, research/20
+ *  A1) [R20 A1, D]. Active parameters N = √(FLOP / (6 · tpp)), MoE shape. */
+export const RIVAL_TPP = REF_TPP;
 /** Continual learning (the AI 2027 online learner, P08 for the player): from this display level (the Research-agent
  *  milestone, v2's simple-lab rule) a lab's internal model re-applies today's recipe to its base every week, as the
  *  player's P08 stream does (V1 notes) [D]. */

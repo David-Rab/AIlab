@@ -18,7 +18,7 @@ import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { tick } from '../../src/engine/v2/core/loop';
 import { LEVEL_KNOTS } from '../../src/data/v2/calibration';
 import { POST_DAYS, PRE_RATE0, RIVAL_TPP } from '../../src/data/v2/rivalModel';
-import { B_G_PER_Y, PARAM_RANGE, SHAPE } from '../../src/data/v2/runDesign';
+import { B0_PARAMS, B_G_PER_Y, PARAM_RANGE, SHAPE } from '../../src/data/v2/runDesign';
 import {
   bestGOf, evalAggregate, fptOfBase, gOfSimple, lineScaleFactor, makeBase, postG, recipeOf, recipeParts, recipeRates, versionG,
 } from '../../src/engine/v2/actors/rivalModel';
@@ -164,7 +164,7 @@ const near = (a: number, b: number, tol = 1e-9) => Math.abs(a - b) <= tol * Math
   for (const r of [...s.rivals, s.china.lab]) if (!near(r.internal.G ?? NaN, postG(r.phys.base, r.phys.rec), 0.05)) ok = false;
   check(ok, 'R5 every lab\'s start model is a version on its start base (within the start post\'s staleness)');
   // At the leader's day-0 inputs (V0, 2,050 staff, the day-0 experiment and agent compute) rs = 1.
-  const x = evalAggregate(w, gV0(w), 2e12 * SHAPE.moe.tokenMult, 2050, 0.625, 8e4, 1, 1);
+  const x = evalAggregate(w, gV0(w), 2 * B0_PARAMS * SHAPE.moe.tokenMult, 2050, 0.625, 8e4, 1, 1);
   const v = recipeRates(w, { rec: L.phys.rec, pool: { pre: 0, mid: 0, ceil: 0 } }, x.rs).rec;
   check(near(x.rs, 1, 1e-9) && near(v.pre, PRE_RATE0, 1e-9) && near(v.mid / v.ceil, 0.08 / 0.12, 1e-9), 'R5 at the leader\'s day-0 inputs research speed is 1, the pretraining part grows at PRE_RATE0 and the RL parts by their shares', `rs ${x.rs.toFixed(6)} (E ${x.E.toFixed(3)}, I ${x.I.toFixed(3)}); pre ${v.pre.toFixed(3)}, mid ${v.mid.toFixed(3)}, ceil ${v.ceil.toFixed(3)} OOM/yr`);
   // κ: the scale factor of the reference lines' results, from their scale priors and the survival rule (design/V3-BUILD.md, F2 notes).

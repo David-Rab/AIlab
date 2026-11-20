@@ -114,8 +114,8 @@ function startRun(w: TimelineWorld, ps: ReturnType<typeof playerStart>, b0Flop: 
   };
 }
 
-/** The start base B0 and version V0 from physical numbers (model v3 V1.4): B0 is the reference base (1T active MoE ×
- *  50 tokens per parameter = 3e26 FLOP, research/12 §0.3) with the recipe of its start day; V0 is the reference
+/** The start base B0 and version V0 from physical numbers (model v3 V1.4): B0 is the reference base (≈ 354B active MoE ×
+ *  400 tokens per parameter = 3e26 FLOP, research/12 §0.3; A6b) with the recipe of its start day; V0 is the reference
  *  post-training run on it (standard RL budget, broad) at its RL recipe; for the leader its G is G(V0) exactly. */
 function startModels(w: TimelineWorld, ps: ReturnType<typeof playerStart>, uniqueT: number) {
   const d = REFERENCE_BASE;

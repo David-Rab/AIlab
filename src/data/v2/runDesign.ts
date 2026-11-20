@@ -43,17 +43,22 @@ export const SHAPE: Record<BaseDesign['shape'], { e: number; activeShare: number
   latent: { e: 0.5, activeShare: 1 / 8, tokenMult: 0.4, monitorability: 0.05 },
 };
 /** Blueprint snaps: active parameters (√2 steps: ×2 FLOP at fixed tokens per parameter) and tokens per active
- *  parameter ("compute-optimal" 20, "overtrained ×n" above). The engine takes any value in the ranges. */
+ *  parameter ("compute-optimal" 20, "overtrained ×n" above; 400 the reference). The engine takes any value in the ranges. */
 export const PARAM_SNAPS = [25e9, 35e9, 50e9, 70e9, 100e9, 140e9, 200e9, 280e9, 400e9, 560e9, 800e9, 1.1e12, 1.6e12, 2.2e12, 3.2e12, 4.5e12, 6.4e12, 9e12, 13e12, 18e12, 25e12] as const;
 export const PARAM_RANGE: readonly [number, number] = [1e9, 1e14];
-export const TPP_SNAPS = [20, 50, 100, 200] as const;
+export const TPP_SNAPS = [20, 50, 100, 200, 400, 800] as const;
 export const TPP_RANGE: readonly [number, number] = [5, 5000];
-/** Tokens per parameter above this need the "Overtrained compact" idea (long-run data pipelines) [D]. */
-export const TPP_FREE_MAX = 50;
-/** The reference base (B0 and RefBot's bases): 1T active (MoE, 8T total) × 50 tokens per parameter = 3e26 FLOP at
- *  the start, a 2025 frontier run (research/12 §0.3: 3–5e26) [D]. */
-export const REF_TPP = 50;
-export const B0_PARAMS = 1e12;
+/** The reference base (B0 and RefBot's bases) is overtrained like 2025 production models (model v3 A6b): a lab that
+ *  serves its models trains them inference-aware, ≈ 400 tokens per active parameter (DeepSeek-V3: 14.8T tokens on 37B
+ *  active [R20 A1, D1]; Kimi K2 ≈ 480, Qwen3 and Llama 4 Maverick ≈ 1,300–1,600 [R, model cards]). B0 = 3e26 FLOP (a
+ *  2025 frontier run, research/12 §0.3: 3–5e26) at that ratio: √(3e26 ÷ (6 × 400)) ≈ 354B active (MoE, 2.8T total),
+ *  141T tokens. The overtraining factor f_over(400) costs 0.31 OOM of G against the old 1T × 50 at the same FLOP; the
+ *  FLOP per served token falls ×2.8 (A6: the old 1T-active V0 served at ≈ 5–10× the 2025 FLOP per token). */
+export const REF_TPP = 400;
+export const B0_PARAMS = Math.sqrt(3e26 / (6 * REF_TPP));
+/** Tokens per parameter above this need the "Overtrained compact" idea (long-run data pipelines) [D]: the reference
+ *  ratio is free (every 2025 lab trains at it), heavier overtraining is the idea. */
+export const TPP_FREE_MAX = REF_TPP;
 
 /** Goodput: share of a run's wall time spent training (interruptions, restarts) [R20 A4: 0.90; 0.95 with fault-tolerant
  *  training, the top of the 0.80–0.95 range]. Replaces v2's per-run restart roll. */
@@ -102,7 +107,7 @@ export const CONTINUE_SHARE = 0.3;
 /** Amplification cycle (IDA, P18): extra RL FLOP as a share of the base's pretraining FLOP [D: one standard budget]. */
 export const IDA_RL_SHARE = 0.15;
 
-/** Display readout (model v3 V4 removed its BRIDGE role): serving cost relative to the reference design trained on the same FLOP (0.5 = 1T-style MoE at 50 tokens
+/** Display readout (model v3 V4 removed its BRIDGE role): serving cost relative to the reference design trained on the same FLOP (0.5 = a B0-style MoE at REF_TPP tokens
  *  per parameter): 0.5 × N_active/N_ref(FLOP) with N_ref = √(FLOP/(6·REF_TPP)). So revenue and agent copies keep their
  *  calibration while serving FLOP per token (2·N_active) is shown; V4 replaces it with tokens → cost. */
 export const SERVE_REF = 0.5;

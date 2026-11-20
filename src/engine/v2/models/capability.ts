@@ -87,7 +87,7 @@ export function pcRefLab(w: TimelineWorld, day: Day, scDay?: Day): number {
 export const startVintage = (w: TimelineWorld, paStart: number) => B_G_PER_Y * (paStart - playerStart(w).pa0);
 
 const gV0Cache = new WeakMap<TimelineWorld, number>();
-/** G of the reference start version V0 in world w: the reference base B0 (1T active × 50 tokens per parameter, the
+/** G of the reference start version V0 in world w: the reference base B0 (≈ 354B active × 400 tokens per parameter, the
  *  recipe of its start day) plus the reference post-training run (standard budget, broad) at V0's RL recipe. */
 export function gV0(w: TimelineWorld): number {
   const hit = gV0Cache.get(w);

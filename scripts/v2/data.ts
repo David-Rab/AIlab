@@ -45,14 +45,18 @@ const game = (start: 'leader' | 'challenger' | 'bigtech' | 'spinout' = 'leader')
 const oldU = (a: { licensedTokensT: number; unlicensedTokensT: number; syntheticTokensT: number }, deals: number) =>
   ((a.licensedTokensT + a.unlicensedTokensT) * (1 + 0.5 * deals) + 0.5 * a.syntheticTokensT) * T;
 const owned = (s: GameStateV2, id: string) => s.player.dataPortfolio.assets.find((a): a is OwnedDataAsset => a.id === id);
-const basePlan = (s: GameStateV2, params: number) => planRun(s, { kind: 'base', base: { ...REFERENCE_BASE, params, curation: { ...REFERENCE_BASE.curation } }, poolShare: 0.6 });
+/** The quality checks' base: 1T active × 50 tokens per parameter (50T, V1's B0), a base well within the 310T stock that
+ *  repeats no domain slice. Since A6b the reference base draws 141T (400 tokens per parameter), where the small premium
+ *  and synthetic slices repeat, which these checks are not about. */
+const DRAW_BASE: BaseDesign = { ...REFERENCE_BASE, params: 1e12, tpp: 50, curation: { ...REFERENCE_BASE.curation } };
+const basePlan = (s: GameStateV2, params: number) => planRun(s, { kind: 'base', base: { ...DRAW_BASE, params, curation: { ...DRAW_BASE.curation } }, poolShare: 0.6 });
 
 // ---------- start: same stock as v1 ----------
 const s0 = game();
 const rows = portfolioByKind(s0.player.dataPortfolio);
 check(rows.length === 5 && rows.every((r) => r.assets >= 1), 'start: the portfolio holds the five kinds (public, licensed, usage, synthetic, expert)', rows.map((r) => `${r.kind} ${r.tokensT}T q${r.quality}`).join(', '));
 check(near(uniqueTokens(s0), oldU({ licensedTokensT: 30, unlicensedTokensT: 270, syntheticTokensT: 20 }, 0), 1e3), 'start: U = 270T crawl + 30T licensed + 0.5 × 20T synthetic = v1\'s 310T', `${(uniqueTokens(s0) / T).toFixed(3)}T`);
-check(near(s0.player.models.bases[0].epochs!, (REFERENCE_BASE.params * REFERENCE_BASE.tpp) / 310e12, 1e-12), 'start: B0\'s epochs read the portfolio (50T over 310T)', s0.player.models.bases[0].epochs!.toFixed(4));
+check(near(s0.player.models.bases[0].epochs!, (REFERENCE_BASE.params * REFERENCE_BASE.tpp) / 310e12, 1e-12), 'start: B0\'s epochs read the portfolio (141T over 310T)', s0.player.models.bases[0].epochs!.toFixed(4));
 let sameStart = true;
 for (const st of ['challenger', 'bigtech', 'spinout'] as const) if (uniqueTokens(game(st)) !== uniqueTokens(s0)) sameStart = false;
 check(sameStart, 'start: every start type keeps the same data as before (U 310T)');
@@ -102,8 +106,8 @@ const qRelByHand = (p: DataPortfolio) => {
   }
   return out / Q_REF;
 };
-const N0 = REFERENCE_BASE.params;
-const D0 = REFERENCE_BASE.params * REFERENCE_BASE.tpp;
+const N0 = DRAW_BASE.params;
+const D0 = DRAW_BASE.params * DRAW_BASE.tpp;
 const refL = basePlan(s0, N0).limits!;
 check(near(Q_REF, 305 / 310, 1e-12) && refL.fQual === 1 && refL.gPre.quality === 0 && refL.fData === 1 && near(refL.draw.dEff, D0, 1e-9 * D0) && near(refL.draw.qRel, 1, 1e-12),
   'quality: the 2025 reference draw defines q = 1 (Q_REF = its mean quality (270 + 30 + 0.5·10)/310): D_eff = D, no quality term, G as before', `Q_REF ${Q_REF.toFixed(4)}, quality ${refL.gPre.quality} OOM`);
@@ -309,8 +313,12 @@ const syn = (share: number) => {
 const y1 = syn(0.1);
 const y2 = syn(0.2);
 check(y1.added > 0 && near(y2.added / y1.added, 2, 1e-9) && syn(0).added === 0, 'synthetic: tokens grow in proportion to the synthetic compute (none without it)', `${y1.added.toFixed(3)}T → ${y2.added.toFixed(3)}T per day`);
-check(near(synTokensPerH100eDay(y1.s.player.models.versions[0].fpt!) / 1e12, 4e-6, 4e-8), 'synthetic: V0 as the teacher yields v1\'s 4e-6 T per H100e-day (overgeneration 4.33, R20 A3 2–5×)',
-  `${(synTokensPerH100eDay(y1.s.player.models.versions[0].fpt!) / 1e6).toFixed(2)}M tokens per H100e-day`);
+// A6b: V0 is 354B active (was 1T), so as a teacher it yields ×2.8 the tokens per H100e-day (generation FLOP ∝ its FLOP
+// per token); the overgeneration fit stays at v1's rate for a 1T-active teacher.
+const fptV0 = y1.s.player.models.versions[0].fpt!;
+check(near(synTokensPerH100eDay(2e12) / 1e12, 4e-6, 4e-8) && near(synTokensPerH100eDay(fptV0) / synTokensPerH100eDay(2e12), 2e12 / fptV0, 1e-9),
+  'synthetic: a 1T-active teacher yields v1\'s 4e-6 T per H100e-day (overgeneration 4.33, R20 A3 2–5×); V0 (354B active) ∝ 1 ÷ its FLOP per token',
+  `V0 ${(synTokensPerH100eDay(fptV0) / 1e6).toFixed(2)}M tokens per H100e-day`);
 const fresh = y1.s.player.dataPortfolio.assets.find((a): a is OwnedDataAsset => a.kind === 'synthetic' && a.teacherId !== undefined);
 const g0 = gV0(s0.hidden.timeline);
 check(!!fresh && fresh.inheritsTraits === true && near(fresh.quality, SYN_Q.atV0, 0.02) && syntheticQuality(g0 + 2, g0) > syntheticQuality(g0, g0) && syntheticQuality(g0 + 99, g0) === SYN_Q.max && SYN_Q.max === 1 && syntheticQuality(g0 + 1, g0) === 0.75,
@@ -442,9 +450,10 @@ const synPlan = plan(sO, 'synthetic').limits!;
 check(((synPlan.draw.byKind.synthetic ?? 0) / synPlan.tokens) > 2 * ((refDraw.byKind.synthetic ?? 0) / refDraw.tokens) && (synPlan.sD.CODE ?? 0) > 0,
   'draw: synthetic-heavy draws synthetic data ×4 (more code and math)', `synthetic ${(100 * (synPlan.draw.byKind.synthetic ?? 0) / synPlan.tokens).toFixed(1)}% vs ${(100 * (refDraw.byKind.synthetic ?? 0) / refDraw.tokens).toFixed(1)}% of the tokens; s ${fmtS(synPlan.sD)}`);
 // D11: at the start the synthetic stock is V0's q 0.5, so the synthetic-heavy draw is a low-quality draw: G falls by the
-// Besiroglu value of its mean quality (the domain specialisation is separate).
+// Besiroglu value of its mean quality (the domain specialisation is separate). On the 400-tokens-per-parameter reference
+// base (A6b) the data term weighs less than at 50, so the fall is ≈ −0.009 OOM (the threshold was −0.01).
 const synQ = synPlan.gPre.quality;
-check(synQ < -0.01 && synPlan.draw.qRel < 0.97 && near(synQ, Math.log10(fDataEff(synPlan.params, synPlan.tokens, synPlan.tokens * synPlan.draw.qRel)), 1e-9)
+check(synQ < -0.005 &&synPlan.draw.qRel < 0.97 && near(synQ, Math.log10(fDataEff(synPlan.params, synPlan.tokens, synPlan.tokens * synPlan.draw.qRel)), 1e-9)
   && near(synPlan.gPre.total - refPlan.limits!.gPre.total, synQ + synPlan.gPre.design - refPlan.limits!.gPre.design, 1e-9),
   'quality: a synthetic-heavy draw of q 0.5 data lowers G (mean quality below the reference draw\'s)', `mean q ×${synPlan.draw.qRel.toFixed(3)} → ${synQ.toFixed(4)} OOM`);
 // Balanced keeps the reference shares when the portfolio drifts (lots of code-heavy synthetic data, RefBot's path); the
@@ -498,11 +507,11 @@ const adoptResult = (s: GameStateV2, id: string) => {
   const qb = synAssetFor(b, strongT(b), 100);
   addAsset(a.player.dataPortfolio, qa);
   addAsset(b.player.dataPortfolio, qb);
-  const pa = basePlan(a, REFERENCE_BASE.params * 2).limits!;
-  const pb = basePlan(b, REFERENCE_BASE.params * 2).limits!;
+  const pa = basePlan(a, DRAW_BASE.params * 2).limits!;
+  const pb = basePlan(b, DRAW_BASE.params * 2).limits!;
   check(qa.quality === 1 && near(qb.quality, Math.min(cap, 1.25), 1e-12) && pb.gPre.quality > pa.gPre.quality && near(pb.gPre.total - pa.gPre.total, pb.gPre.quality - pa.gPre.quality, 1e-9),
     'P10: a strong teacher\'s data is worth more per token in the loss law (quality term), only with P10',
-    `teacher V0 + 3 OOM: q ${qa.quality.toFixed(3)} → ${qb.quality.toFixed(3)}; 100T of it, base ${((REFERENCE_BASE.params * 2 * REFERENCE_BASE.tpp) / T).toFixed(0)}T: quality term ${pa.gPre.quality.toFixed(4)} → ${pb.gPre.quality.toFixed(4)} OOM`);
+    `teacher V0 + 3 OOM: q ${qa.quality.toFixed(3)} → ${qb.quality.toFixed(3)}; 100T of it, base ${((DRAW_BASE.params * 2 * DRAW_BASE.tpp) / T).toFixed(0)}T: quality term ${pa.gPre.quality.toFixed(4)} → ${pb.gPre.quality.toFixed(4)} OOM`);
   // New tokens from a teacher whose asset began before P10 carry today's quality (token-weighted mean).
   const c = game();
   const vS = strongT(c);

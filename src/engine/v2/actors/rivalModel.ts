@@ -400,7 +400,7 @@ export function trainDay(_s: GameStateV2, r: RivalLab, day: number) {
 // ───────────────────────────── start state ─────────────────────────────
 
 /** Physical start state of a non-player lab whose start internal model sits at its G (rivals.ts initialRival,
- *  initialLeaderLab, china.ts initialChina). Its last base is the reference start base B0 (1T active × 50 tokens per
+ *  initialLeaderLab, china.ts initialChina). Its last base is the reference start base B0 (≈ 354B active × 400 tokens per
  *  parameter, 3e26 FLOP: research/12 §0.3's 2025 frontier) scaled by the lab's training pool over the leader's day-0 pool
  *  (1e6 H100e × 40%), trained on B0's dates (launched day B0_START_DAY, finished B0_DAY), so its recipe is that many days
  *  of the lab's own recipe growth staler than today's (`effRun`: the run-time efficiency multiplier, effLab for China;

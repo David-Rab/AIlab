@@ -3,7 +3,8 @@
 //
 // Reference cadence (§7.1): compute tracks refTotal (WS3's finance autopilot buys it; the T1 calibration stubs it),
 // split = shareRef(t), cap hiring tracks H_ref, a base every 9 months sized to train in ~4 months on 60% of its pool
-// (v3 V1: active parameters at 50 tokens per parameter; v2 trained 1 × the frontier run F(t), which took the same
+// (v3 V1: active parameters at REF_TPP tokens per parameter, 400 since A6b: a lab that serves its models
+// overtrains them, DeepSeek-V3 ≈ 400 tokens per active parameter, research/20 A1; v2 trained 1 × the frontier run F(t), which took the same
 // time on the reference pool), a post-train every 6 weeks (≤ 2 in flight),
 // continual learning once P08 works, P05/P07/P08/P13/P17/P19 researched on the tree (REF_TREE; never P23), latent bases after
 // P17, a distilled mini every ~6 months (sooner on a new base or once the public release trails the internal model by
@@ -100,7 +101,7 @@ export const SAFE_TREE_EXTRA: TreeGoal[] = [
 ];
 const BASE_EVERY = 270;
 /** RefBot's base run length at its requested share (60% of the pool): v2's reference run (1 × F(t) = 91 days of 80% of
- *  the reference training pool) took 121 days at that share. The bot sizes its base (active parameters at REF_TPP) to
+ *  the reference training pool) took 121 days at that share. The bot sizes its base (active parameters at REF_TPP, the reference's inference-aware ratio) to
  *  this; the engine has no cap (R5: staleness is shown instead). Follower starts (R9) accept a longer run (their pools
  *  are small) and hire only while runway is at least FOLLOWER_GROW_Q quarters. */
 const REF_BASE_DAYS = 121;

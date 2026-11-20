@@ -137,10 +137,11 @@ export const S5_AI = 0.2;
 /** S5 from scale: K_S5G per OOM of the base's pretraining G above G_S5_0 (Berglund et al. 2023, Laine et al. 2024 SAD:
  *  out-of-context reasoning and situational awareness improve with scale; research/14 E07). K_S5G 0.05 [fit: least
  *  squares on V1's 0.2 + 0.1·tier along RefBot's bases (ai2027, seeds 500–501), net of the AI-data term]; G_S5_0 so
- *  that the reference start base B0 (G_pre 27.30) has V1's 0.08 (start tier 0.8). Replaces BRIDGE(V6)'s run scale vs
- *  F(t) and the know-how tier: S5 now reads the model's own scale, the same in every world. */
+ *  that the reference start base B0 (G_pre 26.99 since A6b's 400 tokens per parameter; 27.30 at 50) has V1's 0.08
+ *  (start tier 0.8). Replaces BRIDGE(V6)'s run scale vs F(t) and the know-how tier: S5 now reads the model's own scale,
+ *  the same in every world. */
 export const K_S5G = 0.05;
-export const G_S5_0 = 27.3 - 0.08 / K_S5G;
+export const G_S5_0 = 26.99 - 0.08 / K_S5G;
 /** S6 per unit share of AI-generated (synthetic or distilled) training data [D: a distillation run, all teacher data,
  *  keeps V1's 0.3]; the base's narrow-data baseline makes the reference start base read V1's 0.1 [fit]. */
 export const S6_SYN = 0.3;

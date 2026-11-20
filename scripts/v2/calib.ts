@@ -40,6 +40,8 @@ import { cached, prefill } from './simcache';
 import { LINE_FIT } from '../../src/data/v2/research';
 import { ePreAt, latestBaseFlop, stacksGEquiv } from '../../src/engine/v2/models/stacks';
 import { TREE_BY_ID } from '../../src/data/v2/tree';
+import { REF_TPP } from '../../src/data/v2/runDesign';
+import { fOver } from '../../src/engine/v2/models/effective';
 import { effortOf } from '../../src/engine/v2/models/tree';
 
 const NAMES = ['A0', 'A1', 'A2', 'SC', 'SAR', 'SIAR', 'ASI'] as const;
@@ -337,8 +339,11 @@ Object.assign(KNOWN, {
 const table: string[] = [];
 const delays: string[] = [];
 const stackRates: string[] = [];
-/** research/12 §0.2 frontier anchors (best public model, G = log₁₀ effective compute). */
-const G_ANCHORS: [string, number][] = [['2025-08-15', 28.0], ['2025-11-15', 28.4], ['2026-02-15', 28.7], ['2026-04-15', 29.0], ['2026-10-15', 29.4]];
+/** research/12 §0.2 frontier anchors (best public model, G = log₁₀ effective compute), fitted for a reference base at 50
+ *  tokens per parameter; since A6b the reference trains at REF_TPP (400, inference-aware), so the anchors move by the
+ *  overtraining factor between the two (log₁₀ f_over(400) − log₁₀ f_over(50) = −0.31 OOM), the lead's decision (no new term). */
+const OVER_DG = Math.log10(fOver(REF_TPP) / fOver(50));
+const G_ANCHORS: [string, number][] = ([['2025-08-15', 28.0], ['2025-11-15', 28.4], ['2026-02-15', 28.7], ['2026-04-15', 29.0], ['2026-10-15', 29.4]] as [string, number][]).map(([d, g]) => [d, g + OVER_DG]);
 const G_PATH_FROM = dayOfDate(START_DATE, '2025-08-01');
 const G_PATH_TO = dayOfDate(START_DATE, '2026-11-30');
 /** T1 run record for a preset (cached): milestone days, R5 waits, stacks before SC, the G path, start M and METR reads. */
