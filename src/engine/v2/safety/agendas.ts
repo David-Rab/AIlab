@@ -2,19 +2,21 @@
 // (V2-SPEC §3.5.2–3.5.3; R8, STRUCTURE §4.5). Owner: WS2.
 //
 // R8: a line has no funding level and no hazard. Safety science teams work its projects on the shared tree
-// (models/tree.ts); each time a project's progress reaches 1 the line produces one result (findings.ts fireFinding,
-// typed by the line's hidden efficacy). This file owns what the projects read: the line's capacity and multiplier
-// (capacity ÷ SERIOUS_CAP, the old FTE ÷ FTE_ref), its compute, its rate, its visible health (the Beta posterior), and
-// tool upkeep by safety research engineers.
-import { AGENDAS, AGENDA_BY_ID, LINE_MULT_MAX, RE_SERIOUS, SERIOUS_CAP, UPKEEP_D, UPKEEP_DAYS, UPKEEP_MAX, UPKEEP_MIN, UPKEEP_REF } from '../../../data/v2/agendas';
+// (models/tree.ts); model v3 E1: each project runs ideation → small experiments → validation on the frontier model
+// (safety/lineProjects.ts, the capability project mechanism) and each finished validation is one result (findings.ts
+// fireFinding, typed by the line's hidden efficacy). This file owns the line's capacity and multiplier (capacity ÷
+// SERIOUS_CAP, the old FTE ÷ FTE_ref; AG18 healing reads it), its compute share, its results per year, its visible
+// health (the Beta posterior), and tool upkeep by the safety research engineers experiments leave free.
+import { AGENDAS, LINE_MULT_MAX, RE_SERIOUS, SERIOUS_CAP, UPKEEP_D, UPKEEP_DAYS, UPKEEP_MAX, UPKEEP_MIN, UPKEEP_REF } from '../../../data/v2/agendas';
 import { CAPACITY_UNIT, PROJECT_BY_ID, SPECIALTY_BONUS, isLineNode } from '../../../data/v2/tree';
 import { QUALITY } from '../../../data/v2/teams';
-import { fleetMultiplier, safetyAgentVersion, safetyFleet, trustedShare } from './agents';
+import { fleetMultiplier, safetyFleet, trustedShare } from './agents';
 import { monitorBudget } from '../departments/agents';
 import { EDGES } from '../../../data/v2/edges';
 import { internalVersion } from '../models/labs';
 import type { AgendaId, AgendaState, EngineSystem, GameStateV2, SafetyDept, SystemCtx, Team, TechniqueState } from '../types';
-import { adopted, clamp01, flag, flagNum, lambda2Delta, setFlag, versionById, versionM } from './common';
+import { clamp01, flagNum, lambda2Delta, setFlag, versionById, versionM } from './common';
+import { lineCycleDays, lineProjectsOf, safAllocation } from './lineProjects';
 import { combineTools, driftBeliefs, observeVersion, runtimeMonitoring, safetyEvalSuite } from './detection';
 import { investigationFte, investigationsStep, safetyReHeads } from './investigations';
 import { patchFte } from './responses';
@@ -72,108 +74,44 @@ export const lineTeams = (s: GameStateV2, ag: AgendaId): Team[] => s.player.team
 /** Whether any team works on the line (the pre-R8 "funded"). */
 export const lineStaffed = (s: GameStateV2, ag: AgendaId) => s.player.teams.some((t) => t.role === 'sci' && lineOfTeam(t) === ag);
 
-/** Safety research engineers (heads × quality) and what they do: investigations and patches first, the rest keeps tools
- *  validated (upkeep). */
-export function safetyRe(s: GameStateV2): { heads: number; investigations: number; patches: number; upkeep: number } {
-  const heads = safetyReHeads(s);
-  const investigations = investigationFte(s);
-  const patches = patchFte(s);
-  return { heads, investigations, patches, upkeep: Math.max(0, heads - investigations - patches) };
+/** Safety research engineers (heads × quality) and what they do: investigations and patches first, then line
+ *  experiments (model v3 E1: safety/lineProjects.ts safAllocation), the rest keeps tools validated (upkeep). */
+export function safetyRe(s: GameStateV2): { heads: number; investigations: number; patches: number; experiments: number; upkeep: number } {
+  const al = safAllocation(s);
+  return { heads: safetyReHeads(s), investigations: investigationFte(s), patches: patchFte(s), experiments: al.exp, upkeep: al.upkeep };
 }
 
 // ───────── compute ─────────
-
-/** Share of the safety pool reserved for investigations. */
-function investigationShare(dept: SafetyDept): number {
-  return dept.investigations.filter((i) => !i.outcome).reduce((a, i) => a + i.computeShare, 0);
-}
 
 /** Share of the safety pool taken before research lines (R7): monitors on internal uses (paid first), the safety agents. */
 export function safetyReserved(s: GameStateV2): number {
   return monitorBudget(s).poolShare + s.player.agents.safety.compute;
 }
 
-/** Pool left for research lines (share of total compute) and the scale applied to their requests. */
-function linePool(s: GameStateV2, mOf: (ag: AgendaId) => number): { scale: number } {
-  const pool = Math.max(0, s.player.split.safety * (1 - safetyReserved(s) - investigationShare(s.player.safety)));
-  let req = 0;
-  for (const a of AGENDAS) req += mOf(a.id) * a.computeRef;
-  return { scale: req > 0 ? Math.min(1, pool / req) : 1 };
-}
-
 /**
- * Line compute shares of the safety pool: each staffed line requests m·computeRef of total compute (R14 cost column,
- * m = its line multiplier); requests are scaled down when the pool (after monitors, safety agents and investigations)
- * is too small. Returns the scale (≤ 1).
+ * Line compute shares of the safety pool (model v3 E1): the pool after monitors, the safety agents and investigations is
+ * shared by the line projects in experiments in proportion to their research engineers × their agenda's compute need
+ * (computeRef, R14's cost column); a line not in experiments uses none (safety/lineProjects.ts safAllocation). Returns
+ * the line pool (H100e).
  */
 export function recomputeComputeShares(s: GameStateV2): number {
   const dept = s.player.safety;
-  const split = s.player.split.safety;
-  const m = {} as Record<AgendaId, number>;
-  for (const a of AGENDAS) m[a.id] = lineMult(s, a.id);
-  const { scale } = linePool(s, (ag) => m[ag]);
-  for (const a of AGENDAS) dept.agendas[a.id].computeShare = split > 0 ? Math.round(((m[a.id] * a.computeRef * scale) / split) * 1e4) / 1e4 : 0;
-  return scale;
-}
-
-/** Compute ratio C/C_ref of a line (= m × pool scale), optionally at a hypothetical multiplier (previews). */
-function computeRatio(s: GameStateV2, ag: AgendaId, mHyp?: number): number {
-  const st = s.player.safety.agendas[ag];
-  const def = AGENDA_BY_ID[ag];
-  const split = s.player.split.safety;
-  const cR = split > 0 ? (st.computeShare * split) / def.computeRef : 0;
-  if (mHyp === undefined) return Math.max(0.05, cR);
-  const m = lineMult(s, ag);
-  if (m > 1e-9 && cR > 0) return Math.max(0.05, (cR * mHyp) / m);
-  // Not staffed yet: what the pool would give it now.
-  const { scale } = linePool(s, (x) => (x === ag ? mHyp : lineMult(s, x)));
-  return Math.max(0.05, mHyp * scale);
+  const al = safAllocation(s);
+  const total = s.player.computeOnline * s.player.split.safety;
+  for (const a of AGENDAS) dept.agendas[a.id].computeShare = total > 0 ? Math.round((((al.share[a.id] ?? 0) * al.pool) / total) * 1e4) / 1e4 : 0;
+  return al.pool;
 }
 
 // ───────── progress ─────────
 
-/** AG17 multiplier on every line's AI-labour term while AG17 has teams [D]. */
-function ag17Mult(s: GameStateV2): number {
-  const m = lineMult(s, 'AG17');
-  return m > 0 ? 1 + Math.sqrt(m) : 1;
-}
-
-/**
- * Progress per day of one project on a line with capacity `cap` (R8; the pre-R8 finding hazard λ, §3.5.3):
- *   rate = √(cap / SERIOUS_CAP) / (30·T₁) · (C/C_ref)^0.3 · AIx
- *   AIx = min(1 + t·Auto·min(10, M_safetyModel^0.5), √(1 + Auto·AI FTE / human FTE))   (t = Trusted to AI; agents.ts)
- * plus: dead-end lines × 0.5; F44 AARs × 3 on AG18/AG03/AG16 (with AI labour); P27 × (1 + 3·t). `lineCap` is the line's
- * total capacity for its compute (default: today's teams). Visible inputs only.
- */
-export function lineRate(s: GameStateV2, ag: AgendaId, cap: number, lineCap?: number): number {
-  if (cap <= 0) return 0;
-  const st = s.player.safety.agendas[ag];
-  const def = AGENDA_BY_ID[ag];
-  const cR = computeRatio(s, ag, lineCap === undefined ? undefined : lineCap / SERIOUS_CAP);
-  const auto = def.auto * ag17Mult(s);
-  let aix = 1;
-  const tr = trustedShare(s);
-  if (tr > 0) {
-    const M = versionM(s, safetyAgentVersion(s));
-    aix = fleetMultiplier(safetyFleet(s), tr, auto, 1 + tr * auto * Math.min(10, Math.sqrt(M)));
-  }
-  let r = (Math.sqrt(cap / SERIOUS_CAP) / (30 * def.T1)) * Math.pow(Math.min(cR, 4), 0.3) * aix;
-  if (st.status === 'deadEnd') r *= 0.5;
-  if (flag(s, 'aar') !== undefined && tr > 0 && (ag === 'AG18' || ag === 'AG03' || ag === 'AG16')) r *= 3;
-  if (adopted(s, 'P27')) r *= 1 + 3 * tr;
-  return r;
-}
-
-/** Results per year a line produces at its current staffing (Σ over its projects). */
+/** Results per year a line produces at its current staffing: Σ over its projects of their steady pipeline rate
+ *  (safety/lineProjects.ts lineCycleDays). The projects' stages run in the research system (models/tree.ts). */
 export function lineResultsPerYear(s: GameStateV2, ag: AgendaId): number {
-  const caps = new Map<string, number>();
-  for (const t of s.player.teams) {
-    if (t.role !== 'sci' || lineOfTeam(t) !== ag) continue;
-    const n = PROJECT_BY_ID[t.projectId as string];
-    caps.set(n.id, (caps.get(n.id) ?? 0) + capOn(t, n.column));
-  }
   let y = 0;
-  for (const c of caps.values()) y += lineRate(s, ag, c) * 365;
+  for (const id of lineProjectsOf(s, ag)) {
+    const d = lineCycleDays(s, id);
+    if (Number.isFinite(d) && d > 0) y += 365 / d;
+  }
   return y;
 }
 

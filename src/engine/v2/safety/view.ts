@@ -134,7 +134,7 @@ export function upkeepView(s: GameStateV2) {
   return {
     validatedTo, L, upkeepPerMo, capPerMo, behindInMonths: validatedTo !== undefined && gap > 0 && closing > 1e-6 && gap / closing <= 24 ? gap / closing : validatedTo !== undefined && gap <= 0 ? 0 : undefined,
     toolsInUpkeep: u.tools.length, toolsTotal: det.length, heads: re.heads, upkeepHeads: re.upkeep, perTool: u.perTool,
-    investigations: re.investigations, patches: re.patches, doublingDays: u.doublingsPerDay > 0 ? 1 / u.doublingsPerDay : undefined,
+    investigations: re.investigations, patches: re.patches, experiments: re.experiments, doublingDays: u.doublingsPerDay > 0 ? 1 / u.doublingsPerDay : undefined,
   };
 }
 

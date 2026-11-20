@@ -566,6 +566,32 @@ export interface TreeNodeState {
   tm?: number;
   /** Capability projects (model v3 V2): the lifecycle state (models/research.ts). */
   cap?: CapProjectState;
+  /** Safety research-line projects (model v3 E1): the lifecycle state (safety/lineProjects.ts). */
+  saf?: SafProjectState;
+}
+
+/** Stage of a safety research-line project (MODEL-V3 §11.7, E1): ideation by safety scientists (also while waiting for a
+ *  candidate), small experiments and validation on the frontier model by safety research engineers with compute. */
+export type SafStage = 'ideation' | 'small' | 'validation';
+/** A candidate approach on a safety line. Belief = the team's estimate of the line's chance of a working result (the
+ *  hidden efficacy read with noise ÷ taste, narrowed by the experiments); visible, nothing hidden is stored. */
+export interface SafCandidate {
+  /** Candidate number within the project (hash key of its readings). */
+  k: number;
+  /** Taste of the scientists who found it (a Strong team = 1). */
+  q: number;
+  /** Belief: mean and sd. */
+  mu: number;
+  sd: number;
+}
+export interface SafProjectState {
+  stage: SafStage;
+  /** Ideation progress toward the next candidate (0..1). */
+  idea: number;
+  cands: SafCandidate[];
+  /** The candidate in test and its stage work (months of work at unit experiment throughput X = 1). */
+  test?: { c: SafCandidate; work: number; workNeed: number };
+  next: number;
 }
 
 // ───────────────────────────── Research projects (model v3 V2: MODEL-V3 §5) ─────────────────────────────
@@ -757,7 +783,7 @@ export interface SafetyDept {
 
 /** A research line (R8): its projects are tree nodes worked by safety science teams; staffing lives on the teams. */
 export interface AgendaState {
-  computeShare: number; // of the safety pool (requested in proportion to the line's team capacity)
+  computeShare: number; // of the safety pool (E1: its experiments' share, by research engineers × the agenda's compute need)
   posterior: { a: number; b: number }; // visible Beta posterior on efficacy (shown as a band)
   /** idle: no team on the line; active: teams on it; deadEnd: posterior mean < 0.25 (projects run at half speed). */
   status: 'idle' | 'active' | 'deadEnd';

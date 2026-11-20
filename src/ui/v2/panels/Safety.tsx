@@ -21,7 +21,7 @@ import { ActBtn, Limit, Term, Tip, TipCard } from '../ui';
 import { Card, CauseChain, GoBtn, HBar, PanelHead, Pill, Ref, tabOf, Tabs, type ChainLink } from '../kit';
 import * as F from '../fmt';
 import { ICON, TRAIT_ICON } from '../icons';
-import { C, div } from '../theme';
+import { C, SPHERE, div } from '../theme';
 import { TraitGraph, traitSev } from './TraitGraph';
 import './safety.css';
 
@@ -442,10 +442,11 @@ function UpkeepCard({ sv }: { sv: SV }) {
   const seg = (v: number, c: string, k: string) => (v > 0 ? <i key={k} style={{ flex: v / tot, background: c }} /> : null);
   return (
     <Card title={<Term id="toolUpkeep">Tool upkeep</Term>} sub="safety research engineers" home="toolUpkeep" id="ctl-upkeep">
-      <div className="stack2 load-bar" data-test="re-bar">{seg(up.investigations, C.watch, 'inv')}{seg(up.patches, C.neutral, 'pat')}{seg(up.upkeepHeads, C.und, 'upk')}</div>
-      <Tip as="div" content={() => <TipCard title="Safety research engineers" value={F.count(up.heads)} rows={[{ label: 'Tool upkeep', value: F.count(up.upkeepHeads) }, { label: 'Cases', value: F.count(up.investigations) }, { label: 'Patches', value: F.count(up.patches) }]}>Where the safety research engineers work now.</TipCard>}>
+      <div className="stack2 load-bar" data-test="re-bar">{seg(up.investigations, C.watch, 'inv')}{seg(up.patches, C.neutral, 'pat')}{seg(up.experiments, SPHERE.ops, 'exp')}{seg(up.upkeepHeads, C.und, 'upk')}</div>
+      <Tip as="div" content={() => <TipCard title="Safety research engineers" value={F.count(up.heads)} rows={[{ label: 'Tool upkeep', value: F.count(up.upkeepHeads) }, { label: 'Line experiments', value: F.count(up.experiments) }, { label: 'Cases', value: F.count(up.investigations) }, { label: 'Patches', value: F.count(up.patches) }]}>Where the safety research engineers work now: cases and patches first, then the research lines' experiments (at most half of the rest), then tool upkeep.</TipCard>}>
       <div className="small dim load-legend">
         <span className="load-key"><i style={{ background: C.und }} />upkeep <span className="num">{F.count(up.upkeepHeads)}</span></span>
+        {up.experiments > 0 && <span className="load-key"><i style={{ background: SPHERE.ops }} />experiments <span className="num">{F.count(up.experiments)}</span></span>}
         <span className="load-key"><i style={{ background: C.watch }} />cases <span className="num">{F.count(up.investigations)}</span></span>
         {up.patches > 0 && <span className="load-key"><i style={{ background: C.neutral }} />patches <span className="num">{F.count(up.patches)}</span></span>}
       </div>

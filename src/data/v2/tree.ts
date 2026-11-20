@@ -244,8 +244,8 @@ for (const n of TREE) {
   else if (FITTED_EFFORT_TM[n.id] !== undefined) n.effortTM = FITTED_EFFORT_TM[n.id];
 }
 
-/** Effort of a research-line project: T₁ at serious staffing, in standard-team-months (progress/day = √capacity ÷
- *  (effort · 30) = √(capacity ÷ SERIOUS_CAP) ÷ (30·T₁)). The class shown follows it. */
+/** Effort of a research-line project: T₁ at serious staffing, in standard-team-months (the effort class shown; model v3
+ *  E1: the stages run at safety/lineProjects.ts rates, T₁ at reference inputs). */
 export const lineEffortTM = (agenda: AgendaId) => AGENDA_BY_ID[agenda].T1 * Math.sqrt(SERIOUS_CAP);
 const classOfTM = (tm: number): EffortClass => (tm <= 6 ? 'S' : tm <= 12 ? 'M' : tm <= 24 ? 'L' : 'XL');
 /** A research-line node (safety column, has an agenda, not a paradigm): its result is the line's next finding. */

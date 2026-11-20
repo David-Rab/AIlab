@@ -9,6 +9,7 @@ import { bumpMeter, recordCause } from './causes';
 import { HEADLINE_CAP, LOG_CAP } from './record';
 import { ACTION_BY_ID, EVENT_BY_ID, SYSTEMS, validateRegistry } from './registry';
 import { StreamRng } from './rng';
+import { resetSafAllocation } from '../safety/lineProjects';
 import { decisionSnapshot } from './selectors';
 import { cadencesDue } from './time';
 
@@ -97,6 +98,7 @@ export function act(s: GameStateV2, actionId: string, params: Record<string, num
   if (ok !== true) return typeof ok === 'string' ? ok : 'unavailable';
   try {
     const no = a.apply(s, makeCtx(s), params);
+    resetSafAllocation(s); // the action may move teams or engineers (safety/lineProjects.ts memo)
     if (typeof no === 'string') return no; // did not go through (e.g. a board veto); its side effects stand
   } catch (e) {
     return e instanceof Error ? e.message : String(e); // apply() validates before mutating
@@ -116,6 +118,7 @@ export function resolve(s: GameStateV2, instance: string, choice: number): strin
   const ok = c.available?.(s) ?? true;
   if (ok !== true) return typeof ok === 'string' ? ok : 'unavailable';
   s.events.pending.splice(i, 1);
+  resetSafAllocation(s);
   c.apply(s, makeCtx(s), p.data);
   s.decisions.push({ day: s.time.day, eventId: p.id, choice: c.label, tags: c.tags, snapshot: decisionSnapshot(s) });
   return undefined;

@@ -19,6 +19,7 @@ import { nodeKnown } from '../../src/engine/v2/models/tree';
 import { LEADER_ID } from '../../src/engine/v2/models/labs';
 import { hRef, refTotal } from '../../src/engine/v2/production/knots';
 import { uniqueTokens } from '../../src/engine/v2/production/data';
+import { lineNodeId } from '../../src/data/v2/tree';
 import type { Cadence, EngineSystem, GameStateV2, SetupV2, StreamId, WorkstreamId } from '../../src/engine/v2/types';
 import { check, finish, runTo, validateJson } from './lib';
 
@@ -259,7 +260,7 @@ for (const rev of [1, 11, 12, 13, 14]) {
     msg = (e as Error).message;
   }
   // Model v3 V2 (schemaRev 13): V1 saves (12) are rejected too; model v3 V3 (schemaRev 14): V2 saves (13) too.
-  check(SCHEMA_REV === 21 && msg ===`no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
+  check(SCHEMA_REV === 22 && msg ===`no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
 }
 // Model v3 V4a (schemaRev 16): a V3b save (15) migrates (customer stocks start empty, versions get their FLOP per token).
 {
@@ -363,6 +364,22 @@ for (const rev of [1, 11, 12, 13, 14]) {
     msg = (e as Error).message;
   }
   check(!!g && !!g.player.dataPortfolio && !('dataAssets' in g.player) && Math.abs(uniqueTokens(g) / u0 - 1) < 1e-9, 'save: a schemaRev-20 save migrates to 21 (data portfolio with the same U)', msg || (g ? `U ${(uniqueTokens(g) / 1e12).toFixed(2)}T vs ${(u0 / 1e12).toFixed(2)}T` : ''));
+}
+// Model v3 E1 (schemaRev 22): a D1 save (21) migrates (a safety line project in progress gets its stage state).
+{
+  const old = JSON.parse(serialize(run(detSetup, 30))) as GameStateV2 & Record<string, unknown>;
+  old.schemaRev = 21;
+  const id = lineNodeId('AG02');
+  old.player.tree[id] = { status: 'researching', progress: 0.5, attempts: 1 };
+  let msg = '';
+  let g: GameStateV2 | undefined;
+  try {
+    g = deserialize(JSON.stringify(old));
+  } catch (e) {
+    msg = (e as Error).message;
+  }
+  const saf = g?.player.tree[id]?.saf;
+  check(!!saf && saf.stage === 'small' && (saf.test?.work ?? 0) > 0, 'save: a schemaRev-21 save migrates to 22 (a line project in progress keeps its work as stage state)', msg || `${saf?.stage ?? 'no saf'}`);
 }
 
 // ---------- 6. Cadences ----------

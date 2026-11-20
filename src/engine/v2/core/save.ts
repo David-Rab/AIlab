@@ -12,6 +12,9 @@ import { REGIONS, SECTORS } from '../../../data/v2/sectors';
 import { workerTarget } from '../worldfx/use';
 import { CONSUMER_MKT, SEATS } from '../../../data/v2/serving';
 import { dataPortfolioFromV2, type V2DataAssets } from '../production/data';
+import { AGENDA_BY_ID } from '../../../data/v2/agendas';
+import { PROJECT_BY_ID, isLineNode } from '../../../data/v2/tree';
+import { safFromProgress } from '../safety/lineProjects';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
 /** 12 (model v3 V1): models are built from physical quantities (BaseModel, VersionBuild, BaseDesign, PostDesign changed).
@@ -35,8 +38,11 @@ import { dataPortfolioFromV2, type V2DataAssets } from '../production/data';
  *  20 (model v3 B4): ResearchState.wantAuto, the capability projects on "auto" teams wanted. Migration 19 → 20 starts it
  *  empty (every earlier project keeps its number).
  *  21 (model v3 D1): PlayerLab.dataPortfolio (public crawl, licensed, usage, synthetic, expert assets) replaces
- *  dataAssets. Migration 20 → 21 maps the token counts so U is unchanged (dataPortfolioFromV2). */
-export const SCHEMA_REV = 21;
+ *  dataAssets. Migration 20 → 21 maps the token counts so U is unchanged (dataPortfolioFromV2).
+ *  22 (model v3 E1): safety research-line projects on the project mechanism (TreeNodeState.saf: stage, candidates with
+ *  beliefs, the test in flight). Migration 21 → 22 converts a line project in progress at the same share of its stages.
+ *  (D1 and E1 were built in parallel, both as 20 → 21; merge M1 made the chain linear.) */
+export const SCHEMA_REV = 22;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -257,6 +263,17 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     if (p.dataPortfolio || !p.dataAssets) return;
     p.dataPortfolio = dataPortfolioFromV2(p.dataAssets, s.relations?.dataLicences?.length ?? 0);
     delete p.dataAssets;
+  },
+  /** 21 → 22 (model v3 E1): safety research-line projects run stages (TreeNodeState.saf). A line project in progress
+   *  keeps its work: the same share of the stage chain (safety/lineProjects.ts safFromProgress). */
+  21: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    for (const [id, st] of Object.entries(s.player.tree)) {
+      const n = PROJECT_BY_ID[id];
+      if (!n || !isLineNode(n) || st.status !== 'researching' || st.saf) continue;
+      const ag = n.agenda as AgendaId;
+      st.saf = safFromProgress(AGENDA_BY_ID[ag].T1, st.progress, s.player.safety.agendas[ag].posterior);
+    }
   },
 };
 
