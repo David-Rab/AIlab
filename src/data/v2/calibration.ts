@@ -30,8 +30,11 @@ export const CAL_SHIFT: Record<WorldPresetId, number> = { ai2027: -0.463, author
  *  staff and split, MODEL-V3 §12: "fitted so the simulated leader lab follows the AI 2027 path") so its milestones hit
  *  the golden days (T1L). [fit] by `npx tsx scripts/v2/calib.ts --fit-leader`; 0 = the aggregate function as is.
  *  `sampled` uses the ai2027 value. Model v3 F1 replaced v2's extra release lag (progress years on v2's simple-lab lag model; V3b
- *  values ai2027 0.256, authors2026 0.096, fast 0.134, slow 0.314) with this efficiency. */
-export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: 0.022, authors2026: 0, fast: 0.068, slow: 0, sampled: 0.022 };
+ *  values ai2027 0.256, authors2026 0.096, fast 0.134, slow 0.314) with this efficiency. F1 fit (seed 2027): the worst-error
+ *  refine where it brings every milestone within tolerance (fast), else the SC root: the aggregate leader has no idea
+ *  projects and takes off slower than RefBot after SC (design/notes/F1.md); slow's r = 1.2 needs ×14 (r divides every
+ *  OOM of recipe by 10^(1/r)). */
+export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: -0.048, authors2026: 0.242, fast: 0.068, slow: 1.155, sampled: -0.048 };
 
 /** Knowledge diffusion to a follower (BUILD-PLAN R9, research/18 §0.2) [D, fit]: while the frontier leader lab's PUBLIC
  *  model is ahead of the player's best model, the player's know-how gains K_DIFFUSION × the gap per year (papers, staff

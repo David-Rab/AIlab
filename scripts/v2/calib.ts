@@ -199,8 +199,11 @@ function fitLeader(preset: T1Preset): number {
   for (let d = -0.05; d <= 0.1501; d += 0.025) tryAt(c0 + d);
   const mid = best;
   for (let d = -0.02; d <= 0.0201; d += 0.005) tryAt(mid + d);
-  console.log(`  ${preset}: bisection ${c0}, refined ${best} (worst |Δ|/tol ${bestErr.toFixed(2)})`);
-  return best;
+  // Model v3 F1: where no value brings every milestone within tolerance, keep the SC root (the leader's superhuman coder
+  // on time matters most to the follower starts that race it).
+  const pick = bestErr <= 1 ? best : c0;
+  console.log(`  ${preset}: bisection ${c0}, refined ${best} (worst |Δ|/tol ${bestErr.toFixed(2)}) → ${pick}`);
+  return pick;
 }
 if (process.argv.includes('--fit-leader')) {
   const out: Record<string, number> = {};
