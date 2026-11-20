@@ -46,6 +46,7 @@ export const safeRecipeBot: BotPolicy = {
       base: { quality: true, hazard: true, safetyPretrain: true },
       post: () => ({ pref: 'constitution', rlBudget: 'standard', cot: 'faithful', safety: 'heavy', inoculation: true }),
       tree: () => [...REF_TREE.filter((g) => g.id !== 'P17'), ...SAFE_TREE_EXTRA],
+      release: 'mini',
     });
     financeAutopilot(s, REF_AUTOPILOT);
     if (day % 30 === 0) {

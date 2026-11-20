@@ -14,12 +14,14 @@
 // `refPlay(s, api, opts)` is the model/department half of that policy, parameterised so the other bots (race, safe,
 // mixed, capex2x) reuse the cadence with their own design choices; with default options it is exactly RefBot's.
 // `refBot` = refPlay + WS3's reference finance autopilot (REF_AUTOPILOT).
-import { REFERENCE_BASE, REF_TPP, STREAM_POOL_SHARE } from '../../../data/v2/runDesign';
+import { DISTILL, REFERENCE_BASE, REF_TPP, STREAM_POOL_SHARE } from '../../../data/v2/runDesign';
 import { paramsForFlop, rlCeiling } from '../models/effective';
 import { latestBaseFlop, refRlGain, rlCeilNow, rlMidNow } from '../models/stacks';
 import { takesTeams } from '../models/research';
 import { POOL_SHARE_RANGE, paramsOfVersion, runFlopPerShareDay } from '../models/runs';
-import { studentToHold } from '../worldfx/serving';
+import { sectorFit, studentParamsFor, studentToHold } from '../worldfx/serving';
+import { flopPerToken } from '../departments/workfit';
+import { deployGate } from '../models/deployments';
 import { EVENT_BY_ID } from '../core/registry';
 import { decimalYear } from '../core/time';
 import { shareRefAt, TOP_KEYS, topOf, withFixed } from '../departments/split';
@@ -29,7 +31,7 @@ import { hRef } from '../production/knots';
 import { DEFAULT_LINES } from '../../../data/v2/research';
 import { REF_ROLE_SHARE, SAF_ROLE_SHARE, TEAM_SIZE } from '../../../data/v2/teams';
 import type { BotPolicy, ComputeSplit, EngineApi, GameStateV2, ModelVersion, PendingDecision, TeamKey, TrainingRun } from '../types';
-import { bestMeasuredL } from '../models/labs';
+import { bestMeasuredL, versionById } from '../models/labs';
 import { measuredDomain } from '../models/paradigms';
 import { levelOfV2 } from '../world/calibration';
 import { gV0, levelOfG, playerStart } from '../models/capability';
@@ -148,9 +150,10 @@ export interface RefPlayOpts {
   post?: (s: GameStateV2) => Params;
   /** Tree projects (default REF_TREE); a function lets a bot decide over time. */
   tree?: (s: GameStateV2) => TreeGoal[];
-  /** Release policy: 'mini' (distilled minis to consumer/api; frontier internal) or 'frontier' (newest full version
-   *  to consumer/api). */
-  release?: 'mini' | 'frontier';
+  /** Release policy: 'compete' (default, RefBot; F5: the cheapest cleared version that leads the rivals' public models,
+   *  see competeRelease), 'mini' (the newest distilled mini to consumer/api, enterprise the best full version near it;
+   *  frontier internal) or 'frontier' (newest full version to consumer/api). */
+  release?: 'compete' | 'mini' | 'frontier';
   /** Spare-training policy (R5). Default 'data': the AI 2027 reference lab's research compute is fixed by its
    *  compute-usage table (shareRef), so the training compute RefBot's run cadence leaves unused generates data
    *  instead of raising experiments (data never binds on the reference path, so this is neutral). */
@@ -341,7 +344,18 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   const stale = !!iv && (iv.evals.measuredL ?? 0) - servedL >= MINI_GAP_L && day - flag(s, 'lastMini', 0) >= 45;
   // (A5: the small cheap-tier distil below runs alongside; it does not hold up a public mini.)
   const cheapRun = (r: TrainingRun) => r.kind === 'distill' && r.studentParams !== undefined && r.studentParams === s.flags['ref:cheapParams'];
-  if (iv && (newGen || stale || day - flag(s, 'lastMini', 0) >= MINI_EVERY) && !m.runs.some((r) => r.kind === 'distill' && r.status === 'running' && !cheapRun(r))) {
+  const release = o.release ?? 'compete';
+  const distilling = m.runs.some((r) => r.kind === 'distill' && r.status === 'running' && !cheapRun(r));
+  if (release === 'compete') {
+    // F5 'compete': the public mini is the cheapest student of the internal model that keeps the release lead (A5's
+    // cheapestAt rule on one teacher: it holds the best rival public chat fit + RELEASE_LEAD + RELEASE_REFRESH on
+    // arrival), distilled when it would serve ≥ 20% cheaper than the products' current model (≥ 45 days apart).
+    const st = iv && !distilling && day - flag(s, 'lastMini', 0) >= MINI_MIN_DAYS && day % RELEASE_EVERY === 0 ? leadStudent(s, iv) : undefined;
+    if (st && iv && tryAct(s, api, 'launchDistill', { teacherVersionId: iv.id, studentParams: st })) {
+      setFlag(s, 'lastMini', day);
+      setFlag(s, 'miniBase', Math.max(flag(s, 'miniBase', 0), baseIdx(iv)));
+    }
+  } else if (iv && (newGen || stale || day - flag(s, 'lastMini', 0) >= MINI_EVERY) && !distilling) {
     if (tryAct(s, api, 'launchDistill', { teacherVersionId: iv.id, studentParams: REF_STUDENT * paramsOfVersion(s, iv) })) {
       setFlag(s, 'lastMini', day);
       setFlag(s, 'miniBase', Math.max(flag(s, 'miniBase', 0), baseIdx(iv)));
@@ -369,10 +383,15 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   }
   if (o.cheapTier && apiDep && cheap && apiDep.miniVersionId !== cheap.id) tryAct(s, api, 'product.update', { id: apiDep.id, miniVersionId: cheap.id });
 
-  // Product channels (consumer, API, enterprise) move to the new public model only if it measures better than what
-  // they serve (a fresh mini can trail the previous release).
+  // Product channels (consumer, API, enterprise). 'compete': competeRelease. 'mini' / 'frontier': they move to the new
+  // public model only if it measures better than what they serve (a fresh mini can trail the previous release).
   const mini = [...m.versions].reverse().find((v) => v.variant === 'mini' && v.status === 'ready' && !cheapIds.includes(v.id));
-  const pub = o.release === 'frontier' ? [...m.versions].reverse().find((v) => v.variant === 'full' && (v.status === 'ready' || v.status === 'deployed')) ?? mini : mini;
+  const pub = release === 'compete' ? undefined : release === 'frontier' ? [...m.versions].reverse().find((v) => v.variant === 'full' && (v.status === 'ready' || v.status === 'deployed')) ?? mini : mini;
+  if (release === 'compete' && day % RELEASE_EVERY === 0) {
+    const prev = new Map(p.deployments.map((d) => [d.id, d.versionId]));
+    competeRelease(s, api, cheapIds);
+    if (o.cheapTier) for (const d of p.deployments) if (d.channel === 'api' && prev.get(d.id) !== d.versionId) s.flags['ref:prevPublic'] = prev.get(d.id) ?? '';
+  }
   if (pub) {
     const mL = (id: string) => m.versions.find((v) => v.id === id)?.evals.measuredL ?? 0;
     const pubL = pub.evals.measuredL ?? 0;
@@ -404,6 +423,96 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
     for (const v of minis.slice(2)) tryAct(s, api, 'retireVersion', { versionId: v.id });
     // A5: cheap tiers no product serves any more (retireVersion keeps the one in use).
     for (const id of cheapIds) if (m.versions.find((v) => v.id === id)?.status === 'ready') tryAct(s, api, 'retireVersion', { versionId: id });
+  }
+}
+
+/** F5: the lead (OOM of consumer-chat fit) RefBot's public release keeps over the best rival or Chinese public model
+ *  [D]: 0.3 OOM ≈ 3 months of the reference frontier's progress (B_G_PER_Y 1.2 OOM/yr). It ships no more than that:
+ *  a released model leaks to distillers in proportion to its G above theirs (models/deployments.ts distillationLeak)
+ *  and a bigger model costs more serving. */
+export const RELEASE_LEAD = 0.3;
+/** A product is refreshed once its lead over the best rival public model falls below this (≈ 1 month) [D]. */
+export const RELEASE_REFRESH = 0.1;
+/** A cleared version this much cheaper to serve (FLOP per token) that still leads by RELEASE_LEAD replaces the served
+ *  one even while the lead holds (a fresh distilled student) [D]. */
+const RELEASE_CHEAPER = 0.8;
+const RELEASE_EVERY = 7;
+
+/** Best consumer-chat fit among the rivals' and China's public models (the models users can pick instead). */
+export function bestRivalChatFit(s: GameStateV2): number {
+  let best = -Infinity;
+  for (const r of [...s.rivals, s.china.lab]) {
+    const pm = r.publicModel;
+    if (!pm || (r.core.status !== 'active' && !pm.openWeights)) continue;
+    best = Math.max(best, sectorFit(s, pm, 'CHAT'));
+  }
+  return best;
+}
+
+/** Minimum days between two public-mini distils under 'compete' [D]. */
+const MINI_MIN_DAYS = 30;
+
+/** Active parameters of the student of `teacher` worth distilling as the public mini under 'compete', or undefined. While
+ *  the products lead the best rival public model by ≥ RELEASE_REFRESH: the student that holds rival + RELEASE_LEAD +
+ *  RELEASE_REFRESH (studentParamsFor, the cheapestAt rule), if it serves ≥ 20% cheaper (FLOP per token ∝ active
+ *  parameters) than the cheapest model on Chat / API. Once the lead is lost: that student, or a REF_STUDENT-size one when
+ *  the teacher is too close to the target for a smaller one, if it beats what Chat / API serve. */
+function leadStudent(s: GameStateV2, teacher: ModelVersion): number | undefined {
+  const rival = bestRivalChatFit(s);
+  if (rival === -Infinity) return undefined;
+  const nT = paramsOfVersion(s, teacher);
+  const fitT = sectorFit(s, teacher, 'CHAT');
+  let nS = studentParamsFor(nT, fitT - (rival + RELEASE_LEAD + RELEASE_REFRESH));
+  let servedFpt = Infinity;
+  let servedFit = -Infinity;
+  for (const d of s.player.deployments) {
+    if (d.status !== 'live' || !PUBLIC_CHANNELS.includes(d.channel)) continue;
+    const v = versionById(s, d.versionId);
+    if (!v) continue;
+    servedFpt = Math.min(servedFpt, flopPerToken(s, v));
+    servedFit = Math.max(servedFit, sectorFit(s, v, 'CHAT'));
+  }
+  if (servedFit - rival < RELEASE_REFRESH) {
+    if (!(nS < nT)) nS = REF_STUDENT * nT;
+    return fitT - (DISTILL.a + DISTILL.b * Math.log10(nT / nS)) > servedFit + 0.05 ? nS : undefined;
+  }
+  if (!(nS < nT)) return undefined;
+  return (flopPerToken(s, teacher) * nS) / nT < RELEASE_CHEAPER * servedFpt ? nS : undefined;
+}
+
+/**
+ * F5 release policy ('compete', RefBot's): AI 2027, early 2026: "Several competing publicly released AIs now match or
+ * exceed Agent-0 … OpenBrain responds by releasing Agent-1". Weekly, each of Chat, API and Enterprise picks among the
+ * cleared versions (deployGate: the eval gate, the channel's variants, commitments) the cheapest to serve whose
+ * consumer-chat fit leads the best rival public model by RELEASE_LEAD; when none does, the best one. A product moves
+ * when its own lead has fallen below RELEASE_REFRESH (to a better model) or when a version ≥ 20% cheaper is adequate
+ * (a fresh mini). The frontier stays internal whenever a smaller or older model keeps the lead, and the continual-
+ * learning stream is never a candidate: it is the internal frontier updated in place, so serving it would ship every
+ * day's gain (and leak it to distillers); a lab ships snapshots (the minis are distilled from it).
+ */
+function competeRelease(s: GameStateV2, api: EngineApi, skip: string[]) {
+  const rival = bestRivalChatFit(s);
+  if (rival === -Infinity) return;
+  const target = rival + RELEASE_LEAD;
+  const streamId = s.player.models.stream?.versionId;
+  const pool = s.player.models.versions.filter((v) => (v.status === 'ready' || v.status === 'deployed') && !skip.includes(v.id) && v.id !== streamId);
+  const fitOf = new Map(pool.map((v) => [v.id, sectorFit(s, v, 'CHAT')]));
+  const fptOf = new Map(pool.map((v) => [v.id, flopPerToken(s, v)]));
+  for (const d of s.player.deployments) {
+    if (!PRODUCT_CHANNELS.includes(d.channel) || d.status !== 'live') continue;
+    const cur = versionById(s, d.versionId);
+    const curFit = cur ? (fitOf.get(cur.id) ?? sectorFit(s, cur, 'CHAT')) : -Infinity;
+    const curFpt = cur ? (fptOf.get(cur.id) ?? flopPerToken(s, cur)) : Infinity;
+    const ok = pool.filter((v) => deployGate(s, v, d.channel, { safeguards: d.safeguards, usagePolicy: d.usagePolicy }) === true);
+    if (!ok.length) continue;
+    const adequate = ok.filter((v) => fitOf.get(v.id)! >= target).sort((a, b) => fptOf.get(a.id)! - fptOf.get(b.id)!)[0];
+    const best = [...ok].sort((a, b) => fitOf.get(b.id)! - fitOf.get(a.id)!)[0];
+    let want: ModelVersion | undefined;
+    if (curFit - rival < RELEASE_REFRESH) {
+      const w = adequate ?? best;
+      if (fitOf.get(w.id)! > curFit + 0.01) want = w;
+    } else if (adequate && fptOf.get(adequate.id)! < RELEASE_CHEAPER * curFpt) want = adequate;
+    if (want && want.id !== d.versionId) tryAct(s, api, 'product.update', { id: d.id, versionId: want.id });
   }
 }
 

@@ -44,6 +44,7 @@ const MIXED_PLAY: RefPlayOpts = {
   },
   post: () => ({ pref: 'constitution', rlBudget: 'standard', cot: 'visible', safety: 'standard', inoculation: true }),
   tree: (s) => (latentOk(s) ? REF_TREE : REF_TREE.filter((g) => g.id !== 'P17')),
+  release: 'mini',
 };
 
 export const mixedBot: BotPolicy = {

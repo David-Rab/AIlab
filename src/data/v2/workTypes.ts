@@ -177,12 +177,17 @@ export const DAY0_REF = { re: 11 * 0.88, agents: 3e4, flop: 1e6 * 0.05 * 3.46e19
  *  33.31, 33.32, 33.33, failing 33.325 and 33.285–33.29, F4); the other presets unchanged. A7 (start sector stocks and free
  *  tiers move rivals' revenue and the leader's cash): authors2026 G_SC 33.32 → 33.31 (ASI +0.211 → +0.038; SC +0.030, SAR
  *  +0.090, SIAR −0.047; Δ_bm kept; passing 33.30, 33.31, 33.325, 33.34, failing 33.305, 33.308, 33.312, 33.315, 33.32,
- *  33.33, F4); the other presets unchanged. */
+ *  33.33, F4); the other presets unchanged. F5 refit (RefBot's 'compete' release policy changes its run, eval and
+ *  research-engineer load and so its one-seed path: ai2027 SC −0.10 y, authors2026 ASI +0.13 y, fast ASI −0.12 y at the
+ *  old values; G_SC scans, Δ_bm and sd_SC kept): ai2027 30.11 → 30.20 (SC −0.049, SAR +0.005, SIAR −0.005, ASI −0.005 y;
+ *  passing 30.15–30.21; `sampled` follows); authors2026 33.31 → 33.30 (SC +0.030, SAR +0.052, SIAR −0.077, ASI 0.000;
+ *  passing 33.295–33.32, failing 33.305 (ASI +0.40), F4); fast 31.325 → 31.345 (SC +0.044, SAR +0.104, SIAR −0.019, ASI
+ *  −0.104; passing 31.34–31.355); slow 35.496 kept. */
 export interface V3Cal { gSC: number; dBM: number; r: number; sdSC: number }
 export const V3_CAL: Record<WorldPresetId, V3Cal> = {
-  ai2027: { gSC: 30.11, dBM: 2.2, r: 4, sdSC: SD_AT_SC },
-  authors2026: { gSC: 33.31, dBM: 4.65, r: 3.19, sdSC: 1.8 },
-  fast: { gSC: 31.325, dBM: 0.05, r: 4, sdSC: SD_AT_SC },
+  ai2027: { gSC: 30.2, dBM: 2.2, r: 4, sdSC: SD_AT_SC },
+  authors2026: { gSC: 33.3, dBM: 4.65, r: 3.19, sdSC: 1.8 },
+  fast: { gSC: 31.345, dBM: 0.05, r: 4, sdSC: SD_AT_SC },
   slow: { gSC: 35.496, dBM: 1.6, r: 1.2, sdSC: SD_AT_SC },
-  sampled: { gSC: 30.11, dBM: 2.2, r: 4, sdSC: SD_AT_SC },
+  sampled: { gSC: 30.2, dBM: 2.2, r: 4, sdSC: SD_AT_SC },
 };
