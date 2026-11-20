@@ -36,9 +36,10 @@ import { flopPerToken, labourOf, workFit } from '../../src/engine/v2/departments
 import { versionById } from '../../src/engine/v2/models/labs';
 import { worldMix } from '../../src/engine/v2/worldfx/mix';
 import { revenueReadout, sectorHours, sectorSpendParts, servingPool } from '../../src/engine/v2/worldfx/revenue';
-import { workHoursOf } from '../../src/engine/v2/worldfx/use';
+import { agentCeilingOf, workHoursOf } from '../../src/engine/v2/worldfx/use';
+import { ECON, SECTORS } from '../../src/data/v2/sectors';
 import {
-  agentLeverage, cheapestAt, effortDG, fptOfG, fxOn, h100eHoursPer, internalFx, offerOf, paidShareTarget, productOffer, reachTarget, sectorCover, sectorTheta, serveDollarsPerHour,
+  agentDemandOf, agentLeverage, cheapestAt, effortDG, fptOfG, fxOn, h100eHoursPer, internalFx, offerOf, paidShareTarget, productOffer, reachTarget, sectorCover, sectorTheta, serveDollarsPerHour,
   subPrice, valuePerHour, wagePerHour,
 } from '../../src/engine/v2/worldfx/serving';
 import { consumerUse, workBilling } from '../../src/engine/v2/worldfx/readouts';
@@ -486,6 +487,129 @@ for (const d of [400, 900]) {
   check(total >= 6 && total <= 30,
     'A3 the price of a fixed capability (V0\'s) falls ×6–×30 a year (R20 D3: ≈ ×10, ×9–×900; Cottier et al. 2025)',
     `${fmt(total)}/yr over ${a.t.toFixed(2)}–${b.t.toFixed(2)}; without distillation (reference design at the frontier recipe, rivals' BRIDGE(V7)) ${fmt(py(a.bridge / b.bridge))}/yr`);
+}
+
+// ───────── D1–D5 demand ceiling on agent work (task A4; research/16 §1A.2 step 7: E = E0·(1 − D)(1 + η·CR)) ─────────
+// AI work in a sector and region (adopted task-hours + agent-hours) ≤ its work demand H* = E0·2000·(1 + η·CR), CR =
+// 1 − c̄/wage at the current buyer's cost of AI work; spend on it ≤ H* × wage. Agent-hours fill what is left.
+type CellRead = { cells: number; bound: number; worstHours: number; worstSpend: number; bad: string[] };
+function ceilingCells(s: GameStateV2): CellRead {
+  const mix = worldMix(s);
+  const rd = revenueReadout(s, mix);
+  const pi = mix.providers.findIndex((p) => p.key === 'player');
+  const out: CellRead = { cells: 0, bound: 0, worstHours: 0, worstSpend: 0, bad: [] };
+  for (const r of ['US', 'CN', 'ROW'] as const) for (const def of SECTORS) {
+    const st = s.world.sectors[r][def.id];
+    const m = mix.sec[r][def.id];
+    const c = m.agentCeiling;
+    const p = sectorSpendParts(s, r, def.id, mix);
+    const wh = workHoursOf(st, def.id);
+    const bill = (st.E0 * ECON.hours * wagePerHour(def.id, r)) / 1e9;
+    // the player's agent-hours as its products bill them (revenue.ts) in place of its share of the mix's view
+    const mixPlayer = pi >= 0 ? wh.supervising * m.share[pi] * m.agentK[pi] : 0;
+    const billed = p.agentHours - mixPlayer + (rd.playerAgent[r][def.id] ?? 0);
+    if (billed + wh.adopted > c.hours * (1 + 1e-9)) out.bad.push(`${r}/${def.id} player-billed hours ${((billed + wh.adopted) / c.hours).toFixed(3)} of the ceiling`);
+    const hr = (wh.adopted + Math.max(p.agentHours, billed)) / c.hours;
+    const sr = p.agent / (bill * c.expansion);
+    out.cells++;
+    if (c.bound !== 'none') out.bound++;
+    out.worstHours = Math.max(out.worstHours, hr);
+    out.worstSpend = Math.max(out.worstSpend, sr);
+    const okX = c.expansion >= 1 && c.expansion <= 1 + def.eta + 1e-12 && near(c.hours, st.E0 * ECON.hours * c.expansion, 1e-12);
+    // agent spend ≤ what the value of the work leaves after the adopted hours' spend
+    const room = Math.max(0, bill * c.expansion - p.adopted);
+    if (!okX || hr > 1 + 1e-9 || sr > 1 + 1e-9 || p.agent > room * (1 + 1e-9) + 1e-9) out.bad.push(`${r}/${def.id} hours ${hr.toFixed(3)} spend ${sr.toFixed(3)} X ${c.expansion.toFixed(3)}`);
+  }
+  return out;
+}
+const cellNote = (c: CellRead) => `${c.bound}/${c.cells} cells bound; worst (adopted + agent) ÷ ceiling ${c.worstHours.toFixed(3)}, agent spend ÷ (wage bill × X) ${c.worstSpend.toFixed(3)}`;
+for (const d of [400, 900]) {
+  // D1 on the fixtures: hours and spend under the ceiling in every sector and region.
+  const s = fixture(d);
+  const c = ceilingCells(s);
+  check(c.bad.length === 0, `D1 day ${d}: in every sector and region adopted + agent-hours ≤ the work demand E0·2000·(1 + η·CR) and agent spend ≤ the wage bill × (1 + η·CR) ≤ × (1 + η)`, c.bad.length ? c.bad.slice(0, 4).join('; ') : cellNote(c));
+  const b = workBilling(s).world;
+  console.log(`INFO  D day ${d}: agent-hours ${(b.agent / 1e9).toFixed(1)}B bought of ${(b.agentWanted / 1e9).toFixed(1)}B wanted (${(b.agent / Math.max(1, b.supervising)).toFixed(2)} per supervising hour), ${b.bound} cells at the ceiling; agent spend $${b.spendAgent.toFixed(0)}B`);
+}
+{
+  // D2 a takeoff run: RefBot to day 1200 on ai2027 and fast; every 20 days every cell stays under the ceiling.
+  for (const world of ['ai2027', 'fast'] as const) {
+    const s = newGame(defaultSetupV2({ seed: 2027, world, alignment: 'medium', baseline: 'classic', tutorial: false }));
+    const bad: string[] = [];
+    let worst = { hours: 0, spend: 0 };
+    let maxBound = 0;
+    let at1200 = '';
+    while (s.time.day < 1200 && !s.ending) {
+      for (const p of [...s.events.pending]) if (resolve(s, p.instance, refBot.decide(s, p))) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0);
+      refBot.act(s, engine);
+      tick(s, { skip: ['endings'] });
+      if (s.time.day % 20 !== 0 && s.time.day !== 1200) continue;
+      const c = ceilingCells(s);
+      bad.push(...c.bad.map((x) => `day ${s.time.day} ${x}`));
+      worst = { hours: Math.max(worst.hours, c.worstHours), spend: Math.max(worst.spend, c.worstSpend) };
+      maxBound = Math.max(maxBound, c.bound);
+      if (s.time.day === 1200) {
+        const w = workBilling(s).world;
+        at1200 = `day 1200: agent-hours ${(w.agent / 1e9).toFixed(0)}B of ${(w.agentWanted / 1e9).toFixed(0)}B wanted (${(w.agent / Math.max(1, w.supervising)).toFixed(1)} per supervising hour), agent spend $${w.spendAgent.toFixed(0)}B`;
+      }
+    }
+    check(bad.length === 0 && s.time.day >= 1200, `D2 takeoff (RefBot, ${world}, to day 1200): agent-hours and agent spend stay under the sector ceiling in every sector, region and checkpoint`,
+      bad.length ? bad.slice(0, 4).join('; ') : `up to ${maxBound}/42 cells bound; worst hours ÷ ceiling ${worst.hours.toFixed(3)}, agent spend ÷ (wage bill × X) ${worst.spend.toFixed(3)}; ${at1200}`);
+  }
+}
+{
+  // D3 below the ceiling nothing changes: at the start and on the day-400 fixture no cell binds, and every provider's agent-
+  // hours per supervising hour is exactly its A2c value (k after the buyer's gate, no ceiling factor).
+  for (const [label, s] of [['day 1', (() => { const g = game(); run(g, 1); return g; })()], ['day 400', fixture(400)]] as const) {
+    const mix = worldMix(s);
+    const rate = serveDollarsPerHour(s);
+    let bound = 0;
+    let diff = 0;
+    let n = 0;
+    for (const r of ['US', 'CN', 'ROW'] as const) for (const def of SECTORS) {
+      const m = mix.sec[r][def.id];
+      if (m.agentCeiling.bound !== 'none' || m.agentCeiling.fill !== 1) bound++;
+      mix.providers.forEach((p, i) => {
+        if (!p.model) return;
+        const o = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], def.id, { markup: p.markup, rate });
+        n++;
+        if (m.agentK[i] !== agentDemandOf(o, wagePerHour(def.id, r)).k) diff++;
+      });
+    }
+    check(bound === 0 && n > 0 && diff === 0, `D3 ${label}: below the ceiling nothing changes (no cell binds; every provider's agent-hours per supervising hour is bit-identical to the A2c rule)`, `${n} provider offers, ${diff} differ, ${bound} cells bound`);
+  }
+}
+{
+  // D4 the ceiling rises with η and with a falling price of AI work; at a buyer's cost ≥ the wage there is no expansion.
+  const def = SECTORS.find((x) => x.id === 'SCI')!;
+  const H0 = 1e9;
+  const wage = 60;
+  const at = (eta: number, cost: number) => agentCeilingOf({ ...def, eta }, H0, wage, 0.1 * H0, 0.1 * H0 * 30, cost, 2 * H0, 2 * H0 * 30, cost);
+  const base = at(0.5, 30);
+  check(at(1, 30).hours > base.hours && at(0.5, 10).hours > base.hours && at(1, 30).fill > base.fill && at(0.5, 10).fill > base.fill
+    && near(at(0.5, 60).hours, H0) && near(at(1, 90).hours, H0) && near(at(0.5, 0).expansion, 1.5),
+    'D4 the ceiling H0·(1 + η·(1 − c̄/wage)) rises with η and as the price of AI work falls (≤ H0·(1 + η)); no expansion at a cost ≥ the wage',
+    `η 0.5 at half the wage ×${base.expansion.toFixed(3)} (fill ${base.fill.toFixed(3)}), η 1 ×${at(1, 30).expansion.toFixed(3)}, a sixth of the wage ×${at(0.5, 10).expansion.toFixed(3)}, at the wage ×${at(0.5, 60).expansion.toFixed(3)}`);
+  const v = agentCeilingOf(def, H0, wage, 0.1 * H0, 0.1 * H0 * 60, 30, 0.5 * H0, 0.5 * H0 * 200, 200);
+  check(v.bound === 'value' && near((0.1 * H0 * 60 + v.fill * 0.5 * H0 * 200) / 1e9, v.value, 1e-9), 'D4 agent-hours priced above the wage stop where spend on AI work reaches the value of the work (H* × wage)', `fill ${v.fill.toFixed(3)}`);
+}
+{
+  // D5 agent capacity beyond the ceiling is not bought: no revenue and no serving need (it stays in the lab's spare
+  // serving). Day-900 fixture: the player's agent-hours and need with the ceiling vs with it lifted.
+  const s = fixture(900);
+  const mix = worldMix(s);
+  const rd = revenueReadout(s, mix);
+  for (const r of ['US', 'CN', 'ROW'] as const) for (const def of SECTORS) {
+    const m = mix.sec[r][def.id];
+    const f = m.agentCeiling.fill;
+    if (f < 1 && f > 0) for (let i = 0; i < m.agentK.length; i++) m.agentK[i] /= f;
+    m.agentCeiling = { ...m.agentCeiling, fill: 1, hours: Infinity, value: Infinity };
+  }
+  const raw = revenueReadout(s, mix);
+  const sum = (x: typeof rd, k: 'agentHours' | 'needH100e' | 'demand') => x.deps.filter((z) => z.channel !== 'consumer').reduce((a, z) => a + (z[k] ?? 0), 0);
+  check(sum(raw, 'agentHours') > sum(rd, 'agentHours') && sum(raw, 'needH100e') > sum(rd, 'needH100e') && sum(raw, 'demand') > sum(rd, 'demand'),
+    'D5 day 900: agent-hours beyond the ceiling are not bought (the player\'s agent-hours, demand and serving need fall; the capacity stays spare)',
+    `player agent-hours ${(sum(raw, 'agentHours') / 1e9).toFixed(1)}B → ${(sum(rd, 'agentHours') / 1e9).toFixed(1)}B, demand $${sum(raw, 'demand').toFixed(0)}B → $${sum(rd, 'demand').toFixed(0)}B, need ${Math.round(sum(raw, 'needH100e') / 1e3)}k → ${Math.round(sum(rd, 'needH100e') / 1e3)}k H100e`);
 }
 
 finish('serving');

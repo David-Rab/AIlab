@@ -12,6 +12,7 @@
 //     σ     += q_seat·σ/σ*·(σ* − σ)/365·DiffMult   paid seats per worker using AI (A2c), σ* = K_seat·(1 − R)
 //   6 α      = 0.25 + (α_max − 0.25)·σ((L_AGENCY − 8)/1.5);  D = α·A
 //   7 E      = E0·(1 − D)(1 + η·CR) ≥ floor;   CR = A·(1 − P_cost/(Wage·W0)), P_cost the buyer's cost per AI work-hour
+//              (use.ts costReduction / demandExpansion; the same demand term bounds AI work, A4: use.ts agentCeilingOf)
 //   8 Hire   = 1 − 1.5·ΔF (ΔF vs a pre-LLM model's coverage) → youth (22–25) employment, youth unemployment
 //   9 Pool  += layoffs beyond 1.5%/month attrition; −= Pool·r_re; exit 0.25/yr (×3 with UBI); U = U_base + Pool/LF
 import {
@@ -28,7 +29,7 @@ import { fireHeadlines } from './headlines';
 import { paidDeployments, worldMix, type WorldMix } from './mix';
 import { preLlmCover, reachTarget, seatTarget } from './serving';
 import { CONSUMER_MKT, SEATS } from '../../../data/v2/serving';
-import { workerTarget } from './use';
+import { costReduction, demandExpansion, workerTarget } from './use';
 import { econOf, policyState, sigmoid, clamp01, clampR, type PolicyState } from './policy';
 import { ROBOT, advanceRobots } from './robots';
 import { advanceTechs, worldTechEffects } from './techtree';
@@ -111,8 +112,8 @@ function sectorState(def: SectorDef, r: RegionId, le: Record<DomainId, number>, 
 /** E = E0·(1 − D)(1 + η·CR), floored (R16 §1A.2 step 7); CR = A·(1 − P_cost/wage), P_cost the buyer's cost per AI
  *  work-hour (price + review). */
 export function employmentTarget(def: SectorDef, r: RegionId, E0: number, D: number, A: number, pCost: number): number {
-  const CR = A * Math.max(0, 1 - pCost / wageOf(def, r));
-  return Math.max(def.floor * E0, E0 * (1 - D) * (1 + def.eta * CR));
+  const CR = costReduction(A, pCost, wageOf(def, r));
+  return Math.max(def.floor * E0, E0 * (1 - D) * demandExpansion(def, CR));
 }
 
 /** The binding constraint shown in the World panel. */

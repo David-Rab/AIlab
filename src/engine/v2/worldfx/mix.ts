@@ -11,7 +11,8 @@
 // The consumer market is the same on the consumer-chat work type, priced per subscriber-month; each provider's paid share
 // of its users is a second stock (A2b, CONSUMER_MKT.paid). A2c: per provider also the agent-hours a supervising hour buys
 // (k after the buyer's gate) and their price, and the seat price (open weights sell none); prices[] are per adopted
-// task-hour (the hours billed per hour).
+// task-hour (the hours billed per hour). A4: agent-hours stop at the sector's work demand (worldfx/use.ts agentCeilingOf:
+// adopted + agent hours ≤ E0·2000·(1 + η·CR), their spend ≤ that × the wage); agentK is after the ceiling.
 // Display levels (the share-weighted domain vector `dom`, Le_d = min(L_d, L_AGENCY + 2)) still feed substitution α, the
 // integration boost, control and the tech tree, as in v2.
 import { SECTORS, REGIONS, ECON } from '../../../data/v2/sectors';
@@ -22,6 +23,7 @@ import { memo } from '../core/memo';
 import { CHINA_ID } from '../models/labs';
 import type { Deployment, DomainId, GameStateV2, LabId, ModelVersion, RegionId, SectorId, SimpleModel, SystemCtx } from '../types';
 import { robotAvail } from './robots';
+import { agentCeilingOf, workHoursOf, type AgentCeiling } from './use';
 import { sigmoid, techRamp } from './policy';
 import { productDomains } from '../models/products';
 import { flopPerToken } from '../departments/workfit';
@@ -89,6 +91,9 @@ export interface SectorMix {
   agentPrices: number[];
   seatPrices: number[];
   seatPrice: number;
+  /** A4: the demand ceiling on AI work here (use.ts agentCeilingOf). agentK is after it: every provider's agent-hours
+   *  × agentCeiling.fill. */
+  agentCeiling: AgentCeiling;
   /** Share-weighted effective domain levels (the world model m*). */
   dom: Record<DomainId, number>;
   /** Share-weighted price per hour of AI use ($) and the buyer's cost per AI work-hour saved, incl. review ($). */
@@ -440,9 +445,21 @@ function computeMix(s: GameStateV2): WorldMix {
       let wsum = 0;
       let sw = 0;
       let sp = 0;
+      // A4: agent-hours per supervising hour the buyers want (Σ share·k), their spend and buyer's cost (price + the
+      // supervision wage/λ), unnormalised as revenue.ts sectorSpendParts sums them.
+      let kw = 0;
+      let kp = 0;
+      let kb = 0;
       for (let i = 0; i < n; i++) {
         const x = share[i];
-        if (!x || !offers[si][i]) continue;
+        const oi = offers[si][i];
+        if (!x || !oi) continue;
+        const kk = x * agentK[i];
+        if (kk > 0) {
+          kw += kk;
+          kp += kk * agentPrices[i];
+          kb += kk * (agentPrices[i] + wage / Math.max(1e-9, oi.lam));
+        }
         wsum += x;
         const v = vs[i];
         if (v) for (let k = 0; k < ND; k++) dv[k] += x * (k === PHYS ? physLe[i] : v[k]);
@@ -469,9 +486,16 @@ function computeMix(s: GameStateV2): WorldMix {
       const physF = t.physW > 0 ? sigmoid((lePhys - ECON.fMid - t.theta) / ECON.fSpread) : 0;
       const F = (1 - t.physW) * aCog + t.physW * physF;
       const pp = playerIdx >= 0 ? prices[playerIdx] : 0;
+      const price = wsum > 0 ? px : 0;
+      const pCost = wsum > 0 ? pc : wage;
+      // A4: the demand ceiling on AI work; agent-hours beyond it are not bought (every provider's × fill).
+      const st = s.world.sectors[r][t.id];
+      const wh = workHoursOf(st, t.id);
+      const agentCeiling = agentCeilingOf(SECTORS[si], st.E0 * ECON.hours, wage, wh.adopted, wh.adopted * price, pCost, wh.supervising * kw, wh.supervising * kp, kw > 0 ? kb / kw : wage);
+      if (agentCeiling.fill < 1) for (let i = 0; i < n; i++) agentK[i] *= agentCeiling.fill;
       rowOut[t.id] = {
-        share, target, level, best: best === -Infinity ? 0 : best, fit, cover, prices, agentK, agentPrices, seatPrices, seatPrice: sw > 0 ? sp / sw : SEATS.price, dom: domRecord(dv),
-        price: wsum > 0 ? px : 0, pCost: wsum > 0 ? pc : wage, F, K: wsum > 0 ? K : 0,
+        share, target, level, best: best === -Infinity ? 0 : best, fit, cover, prices, agentK, agentPrices, seatPrices, seatPrice: sw > 0 ? sp / sw : SEATS.price, agentCeiling, dom: domRecord(dv),
+        price, pCost, F, K: wsum > 0 ? K : 0,
         ...(playerIdx >= 0 && pCand[si] >= 0 ? { playerDep: cands[pCand[si]].dep.id } : {}),
         playerPrice: pp, priceFactor: playerIdx >= 0 && pp > 0 && px > 0 ? Math.min(1, Math.pow(pp / px, -PRICE_ELASTICITY)) : 1,
       };

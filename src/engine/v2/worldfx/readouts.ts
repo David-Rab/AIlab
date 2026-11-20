@@ -88,6 +88,9 @@ export interface BillingRead {
   /** Hours of use a year by who pays (A2c): adopted task-hours (billed per hour), seated hours (billed by the seat),
    *  unseated hours (free, bundled, in-house: unbilled); agent-hours a year (billed per hour); supervising hours. */
   adopted: number; seated: number; unseated: number; agent: number; supervising: number;
+  /** A4: agent-hours a year the buyers want before the demand ceiling (`agent` is what is bought), the ceiling on AI work
+   *  (hours a year: Σ E0·2000·(1 + η·CR)) and the number of sector-region cells where it binds. */
+  agentWanted: number; ceiling: number; bound: number;
   /** Paid seats sold (persons; open weights sell none) and the workers who use AI (W·E). */
   seats: number; workers: number;
   /** Spend ($B/yr) by stream, all providers. */
@@ -99,7 +102,7 @@ export interface BillingRead {
  *  and free users, A2b budgets). Reported for the World panel (B3) and the serving tests. */
 export function workBilling(s: GameStateV2, mix: WorldMix = worldMix(s)): { regions: Record<RegionId, BillingRead>; world: BillingRead; playerSeats: number; consumerTokens: number } {
   const pi = mix.providers.findIndex((p) => p.key === 'player');
-  const z = (): BillingRead => ({ adopted: 0, seated: 0, unseated: 0, agent: 0, supervising: 0, seats: 0, workers: 0, spendAdopted: 0, spendAgent: 0, spendSeat: 0, tokAdopted: 0, tokSeated: 0, tokAgent: 0 });
+  const z = (): BillingRead => ({ adopted: 0, seated: 0, unseated: 0, agent: 0, supervising: 0, agentWanted: 0, ceiling: 0, bound: 0, seats: 0, workers: 0, spendAdopted: 0, spendAgent: 0, spendSeat: 0, tokAdopted: 0, tokSeated: 0, tokAgent: 0 });
   const regions = { US: z(), CN: z(), ROW: z() } as Record<RegionId, BillingRead>;
   const world = z();
   let playerSeats = 0;
@@ -117,6 +120,10 @@ export function workBilling(s: GameStateV2, mix: WorldMix = worldMix(s)): { regi
       x.unseated += wh.unseated;
       x.supervising += wh.supervising;
       x.agent += p.agentHours;
+      const ac = mix.sec[r][def.id].agentCeiling;
+      x.agentWanted += ac.wanted;
+      x.ceiling += ac.hours;
+      if (ac.bound !== 'none') x.bound++;
       x.seats += p.seats;
       x.workers += (st.W ?? st.A) * st.E;
       x.spendAdopted += p.adopted;

@@ -9,7 +9,7 @@ import type { DomainId, GameStateV2, RegionId, SectorId, SectorState } from '../
 import { worldMix, type WorldMix } from './mix';
 import { sectorSpendParts } from './revenue';
 import { SECTOR_COG, adoptedTokens, savedPerAdoptedHour, sectorTheta, seatTarget, wagePerHour } from './serving';
-import { alphaUseOf, savedAt, useIntensityOf, useShareOf, workHoursOf, workerTarget } from './use';
+import { alphaUseOf, savedAt, useIntensityOf, useShareOf, workHoursOf, workerTarget, type AgentCeiling } from './use';
 import { workBilling, workUse } from './readouts';
 
 /** One provider in one sector and region. */
@@ -68,6 +68,9 @@ export interface SectorRead {
   seatTarget: number;
   seatPrice: number;
   spend: { adopted: number; agent: number; seat: number };
+  /** A4: the demand ceiling on AI work (hours a year, its value $B/yr, the expansion factor 1 + η·CR), the agent-hours
+   *  wanted before it, the share bought, the share of the ceiling used and what binds. */
+  agentCeiling: AgentCeiling;
   /** Share-weighted price per adopted task-hour and buyer's cost per AI work-hour ($). */
   price: number;
   buyerCost: number;
@@ -87,9 +90,12 @@ export interface RegionWorkRead {
   hours: number;
   workers: number;
   savedPerHour: number;
-  /** Paid seats sold and agent-hours a year, all sectors. */
+  /** Paid seats sold and agent-hours a year, all sectors; A4: agent-hours wanted before the demand ceiling and the
+   *  number of sectors where it binds. */
   seats: number;
   agentHours: number;
+  agentWanted: number;
+  ceilingBound: number;
 }
 
 const tok = (t: { input: number; output: number }) => t.input + t.output;
@@ -135,6 +141,7 @@ function readSector(s: GameStateV2, mix: WorldMix, r: RegionId, sid: SectorId): 
     hours: { use: wh.use, adopted: wh.adopted, seated: wh.seated, unseated: wh.unseated, supervising: wh.supervising, agent: sp.agentHours },
     seats: sp.seats, seat: st.seat ?? 0, seatTarget: seatTarget(sid, r, m.seatPrice, st.R), seatPrice: m.seatPrice,
     spend: { adopted: sp.adopted, agent: sp.agent, seat: sp.seat },
+    agentCeiling: m.agentCeiling,
     price: m.price, buyerCost: m.pCost,
     work: {
       weights: SECTOR_COG[sid].w, physW, H: work.H, v: work.v, horizon: work.horizon, theta: sectorTheta(s.hidden.timeline, sid), bestFit: bestFit === -Infinity ? 0 : bestFit,
@@ -155,7 +162,7 @@ export function sectorsView(s: GameStateV2, mix: WorldMix = worldMix(s)): { regi
     const b = bill.regions[r];
     const sectors = {} as Record<SectorId, SectorRead>;
     for (const def of SECTORS) sectors[def.id] = readSector(s, mix, r, def.id);
-    regions[r] = { work: { hours: u.hours, workers: u.workers, savedPerHour: u.savedPerHour, seats: b.seats, agentHours: b.agent }, sectors };
+    regions[r] = { work: { hours: u.hours, workers: u.workers, savedPerHour: u.savedPerHour, seats: b.seats, agentHours: b.agent, agentWanted: b.agentWanted, ceilingBound: b.bound }, sectors };
   }
   return { regions, providers: mix.providers.map((p) => ({ key: p.key, open: p.open })) };
 }

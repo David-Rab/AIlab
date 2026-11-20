@@ -8,7 +8,9 @@
 //     seats             σ·W·E paid seats × seat price × 12; their assisted (seated) hours need serving, billed by the seat
 //     unseated hours    free, bundled, in-house: billed by no one here, served by the users' consumer apps (A2b)
 //     agent-hours       k (after the buyer's gate) × supervising hours ((1 − α)·A-hours + seated hours), billed per hour at
-//                       cost-plus on the autonomous profile (≤ the wage)
+//                       cost-plus on the autonomous profile (≤ the wage); A4: only up to the sector's work demand
+//                       (mix agentCeiling: adopted + agent hours ≤ E0·2000·(1 + η·CR), spend ≤ that × the wage), the
+//                       rest is not bought (no revenue, no serving need)
 //   player      = customer-stock share × each stream × channel split × (1 + the product's enabler segments): A-hours by
 //                 CH_WEIGHT, agent-hours by AGENT_WORK.channel (Agents × the share of half-day tasks its model completes),
 //                 seats by Enterprise (Gov in GOV/MIL)
@@ -105,6 +107,8 @@ export interface RevenueReadout {
   /** Total AI spend by sector buyers and consumers ($B/yr), by region. */
   marketSpend: Record<RegionId, Money>;
   consumerSpend: Record<RegionId, Money>;
+  /** A4: the player's agent-hours a year per region and sector (all its products, after the demand ceiling). */
+  playerAgent: Record<RegionId, Partial<Record<SectorId, number>>>;
 }
 
 /** Hours of AI use a year in one sector and region: U·E0·2000 (adopted task-hours plus workers' assisted use, A2a). */
@@ -268,6 +272,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
   const acc = new Map<string, Acc>(deps.map((d) => [d.id, acc0()]));
   const marketSpend = { US: 0, CN: 0, ROW: 0 } as Record<RegionId, Money>;
   const consumerSpendR = { US: 0, CN: 0, ROW: 0 } as Record<RegionId, Money>;
+  const playerAgent: RevenueReadout['playerAgent'] = { US: {}, CN: {}, ROW: {} };
   const certified = (sec: SectorId) => {
     const c = s.world.fx.certDay[sec];
     return c !== undefined && c <= s.time.day;
@@ -328,10 +333,43 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
       const { ws, wsum, agSum, seatSum } = secW[si];
       const value = valuePerHour(s, def.id, r);
       const wage = wagePerHour(def.id, r);
-      for (const { d, w: x0, wAg, wSeat, o, en } of ws) {
+      const fOf = (d: Deployment, en: number) => {
         let f = en;
         if (d.channel === 'api' || d.channel === 'agents') f *= 1 - 0.02 * d.kyc;
         if (d.status === 'restricted') f *= 0.3;
+        return f;
+      };
+      // A4: the mix's ceiling factor (fill) scales every provider's agent-hours; the player's products can add more here
+      // than its share of the mix's view (enabler segments, channel weights, each product's own k), so its agent-hours are
+      // also held to the room the ceiling leaves after the adopted hours and the other providers' agent-hours (hours and
+      // value). 1 below the ceiling.
+      const ac = m.agentCeiling;
+      let pScale = 1;
+      if (agSum > 0) {
+        let rawH = 0;
+        let rawS = 0;
+        for (const { d, wAg, o, en } of ws) {
+          if (!(wAg > 0)) continue;
+          const ag = agentDemandOf(o, wage);
+          const x = ((ps * wh.supervising * wAg) / agSum) * fOf(d, en) * ag.k * ac.fill;
+          rawH += x;
+          rawS += x * ag.price;
+        }
+        if (rawH > 0) {
+          let oH = 0;
+          let oS = 0;
+          for (let i = 0; i < m.share.length; i++) if (i !== playerIdx && m.share[i]) {
+            oH += m.share[i] * m.agentK[i];
+            oS += m.share[i] * m.agentK[i] * m.agentPrices[i];
+          }
+          const roomH = Math.max(0, ac.hours - wh.adopted - wh.supervising * oH);
+          const roomS = Math.max(0, ac.value * 1e9 - wh.adopted * m.price - wh.supervising * oS);
+          if (rawH > roomH) pScale = roomH / rawH;
+          if (rawS * pScale > roomS) pScale = roomS / rawS;
+        }
+      }
+      for (const { d, w: x0, wAg, wSeat, o, en } of ws) {
+        const f = fOf(d, en);
         const a = acc.get(d.id)!;
         // Adopted task-hours, billed per hour.
         if (wsum > 0 && x0 > 0) {
@@ -348,10 +386,12 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
           a.cost += (x * o.cost) / 1e9;
           if (want > value) a.capped += (x * price) / 1e9;
         }
-        // Agent-hours (A2c): k after the buyer's gate × the supervising hours, billed per hour (≤ the wage).
+        // Agent-hours (A2c): k after the buyer's gate × the supervising hours, billed per hour (≤ the wage); A4: × the
+        // share the sector's demand ceiling lets be bought (1 below it).
         if (agSum > 0 && wAg > 0) {
           const ag = agentDemandOf(o, wage);
-          const x = ((ps * wh.supervising * wAg) / agSum) * f * ag.k;
+          const x = ((ps * wh.supervising * wAg) / agSum) * f * ag.k * ac.fill * pScale;
+          playerAgent[r][def.id] = (playerAgent[r][def.id] ?? 0) + x;
           a.dem += (x * ag.price) / 1e9;
           a.hours += x;
           a.agent += x;
@@ -480,7 +520,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
     D += demand;
     C += capacity;
   }
-  return { deps: out, total, demand: D, capacity: C, marketSpend, consumerSpend: consumerSpendR };
+  return { deps: out, total, demand: D, capacity: C, marketSpend, consumerSpend: consumerSpendR, playerAgent };
 }
 
 /** Revenue rate ($B/yr) of a deployment, as last computed by the revenue system. */

@@ -11,6 +11,8 @@
 //   A2c billing: hours of use = adopted A-hours (billed per hour) + seated hours (σ of the assisted hours, billed by the
 //   seat) + unseated hours (free, bundled, in-house: unbilled); supervising hours (agent work directs from them) =
 //   (1 − α)·A-hours + seated hours; seats = σ·W·E.
+//   A4 ceiling: adopted A-hours + agent-hours ≤ H* = E0·2000·(1 + η·CR), CR = 1 − c̄/wage (research/16 step 7 with the AI
+//   doing all the work at its current buyer's cost c̄), and their spend ≤ H*·wage; agent-hours fill what is left.
 import { ECON, REGION_SCALE, SECTORS, SECTOR_BY_ID, type SectorDef } from '../../../data/v2/sectors';
 import type { RegionId, SectorId, SectorState } from '../types';
 
@@ -65,3 +67,59 @@ export function workHoursOf(st: BillState, sid: SectorId): WorkHours {
 }
 /** Assisted hours a month of one worker who uses AI in a sector (a seat-holder's use: h_s of a 2,000-hour year). */
 export const seatHoursPerMonth = (sid: SectorId) => (useIntensityOf(sid) * ECON.hours) / 12;
+
+// ───────────── demand for a sector's work (research/16 step 7) and the ceiling on AI work (A4) ─────────────
+
+/** Cost reduction passed to prices when AI does a share `share` of a sector's work at a buyer's cost `cost` per
+ *  human-equivalent hour (research/16 step 7): CR = share·max(0, 1 − cost/wage). */
+export const costReduction = (share: number, cost: number, wage: number) => share * Math.max(0, 1 - cost / wage);
+/** Expansion of a sector's work demand at a cost reduction CR (research/16 step 7, the Jevons term): 1 + η_s·CR. */
+export const demandExpansion = (def: SectorDef, CR: number) => 1 + def.eta * CR;
+
+/** A4: the ceiling on AI work in one sector and region. */
+export interface AgentCeiling {
+  /** The sector's work demand (hours a year) H* = E0·2000 × X: its human work-hours, expanded by the demand the AI's price
+   *  creates, X = 1 + η·CR with CR = 1 − c̄/wage (research/16 step 7 with the AI doing all the work at the current buyer's
+   *  cost c̄ of AI work: hour-weighted over adopted task-hours and agent-hours). X ≤ 1 + η. */
+  hours: number;
+  expansion: number;
+  /** The value of that work ($B/yr): H* × the wage (the sector's wage bill × X). */
+  value: number;
+  /** Agent-hours a year the buyers want before the ceiling, and the share of them bought (1 below the ceiling). */
+  wanted: number;
+  fill: number;
+  /** Share of the ceiling used: (adopted task-hours + agent-hours bought) ÷ H*. */
+  used: number;
+  /** What binds: nothing, the hours of work demanded, or their value (spend on AI work ≤ the value of the work). */
+  bound: 'none' | 'hours' | 'value';
+}
+/**
+ * A4: AI work in a sector (adopted task-hours A·E0·2000 plus agent-hours) cannot exceed the sector's work demand H*, and
+ * spend on it (adopted hours × their price + agent-hours × theirs) cannot exceed the value of that work, H* × wage.
+ * Agent-hours are the residual: they fill the room the adopted hours leave, every provider's in proportion (fill ≤ 1).
+ * The agent capacity beyond it is not bought: it earns nothing and needs no serving (the lab's spare serving).
+ * `H0` the human work-hours a year E0·2000, `adopted*` and `agent*` hours a year and spend ($/yr), `pCost` the buyer's
+ * cost per hour saved of the adopted hours ($), `agentCost` the buyer's cost of an agent-hour incl. supervision ($).
+ */
+export function agentCeilingOf(def: SectorDef, H0: number, wage: number, adoptedH: number, adoptedSpend: number, pCost: number, agentH: number, agentSpend: number, agentCost: number): AgentCeiling {
+  const aiH = adoptedH + agentH;
+  const cBar = aiH > 0 ? (adoptedH * pCost + agentH * agentCost) / aiH : pCost;
+  const expansion = demandExpansion(def, costReduction(1, cBar, wage));
+  const hours = H0 * expansion;
+  const value = hours * wage;
+  let fill = 1;
+  let bound: AgentCeiling['bound'] = 'none';
+  if (agentH > 0) {
+    const roomH = Math.max(0, hours - adoptedH);
+    if (agentH > roomH) {
+      fill = roomH / agentH;
+      bound = 'hours';
+    }
+    const roomV = Math.max(0, value - adoptedSpend);
+    if (agentSpend * fill > roomV) {
+      fill = roomV / agentSpend;
+      bound = 'value';
+    }
+  }
+  return { hours, expansion, value: value / 1e9, wanted: agentH, fill, used: hours > 0 ? (adoptedH + agentH * fill) / hours : 0, bound };
+}
