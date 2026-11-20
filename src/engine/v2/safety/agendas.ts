@@ -8,6 +8,7 @@
 // SERIOUS_CAP, the old FTE ÷ FTE_ref; AG18 healing reads it), its compute share, its results per year, its visible
 // health (the Beta posterior), and tool upkeep by the safety research engineers experiments leave free.
 import { AGENDAS, LINE_MULT_MAX, RE_SERIOUS, SERIOUS_CAP, UPKEEP_D, UPKEEP_DAYS, UPKEEP_MAX, UPKEEP_MIN, UPKEEP_REF } from '../../../data/v2/agendas';
+import { OOM_PER_HALVING } from '../../../data/v2/oversight';
 import { CAPACITY_UNIT, PROJECT_BY_ID, SPECIALTY_BONUS, isLineNode } from '../../../data/v2/tree';
 import { QUALITY } from '../../../data/v2/teams';
 import { safetyLabour } from '../departments/workfit';
@@ -15,7 +16,8 @@ import { monitorBudget } from '../departments/agents';
 import { EDGES } from '../../../data/v2/edges';
 import { internalVersion } from '../models/labs';
 import type { AgendaId, AgendaState, EngineSystem, GameStateV2, SafetyDept, SystemCtx, Team, TechniqueState } from '../types';
-import { clamp01, flagNum, lambda2Delta, setFlag, versionById, versionM } from './common';
+import { clamp01, flagNum, lambda2Delta, setFlag, versionById } from './common';
+import { versionOom } from './oversight';
 import { lineCycleDays, lineProjectsOf, safAllocation } from './lineProjects';
 import { combineTools, driftBeliefs, observeVersion, runtimeMonitoring, safetyEvalSuite } from './detection';
 import { investigationFte, investigationsStep, safetyReHeads } from './investigations';
@@ -154,36 +156,37 @@ export function reValidationMult(s: GameStateV2): number {
   return Math.min(LINE_MULT_MAX, safetyRe(s).upkeep / lines.size / RE_SERIOUS);
 }
 
-/** Whether a tool needs upkeep now: unlocked, real, capability-sensitive, and its strength factor D(M) on the internal
+/** Whether a tool needs upkeep now: unlocked, real, capability-sensitive, and its strength factor D(x) on the internal
  *  model is below UPKEEP_D. AG05 (oversight-gap rule) and AG09 under known latent reasoning cannot be re-validated. */
-function needsUpkeep(s: GameStateV2, t: TechniqueState, M: number, latent: boolean): boolean {
-  if (!t.unlocked || t.falseValidated || t.k <= 0 || t.mHalf >= 1e8 || t.agenda === 'AG05') return false;
+function needsUpkeep(s: GameStateV2, t: TechniqueState, x: number, latent: boolean): boolean {
+  if (!t.unlocked || t.falseValidated || t.k <= 0 || t.oHalf >= 1e8 || t.agenda === 'AG05') return false;
   if (t.agenda === 'AG09' && latent) return false;
-  return decayAt(s, t, M, latent) < UPKEEP_D;
+  return decayAt(s, t, x, latent) < UPKEEP_D;
 }
 
-/** Tools in upkeep now and the doubling rate of their M½ (per day) at today's free safety research engineers. */
-export function upkeepState(s: GameStateV2): { tools: TechniqueState[]; perTool: number; doublingsPerDay: number; heads: number } {
+/** Tools in upkeep now and how fast their half-strength point oHalf rises (OOM per day) at today's free safety research
+ *  engineers. Model v3 E6: v2's rate in M½ doublings per day × log10(2)/κ OOM per doubling (the same speed on the
+ *  reference path). */
+export function upkeepState(s: GameStateV2): { tools: TechniqueState[]; perTool: number; oomPerDay: number; heads: number } {
   const re = safetyRe(s);
   const iv = internalVersion(s);
-  if (!iv) return { tools: [], perTool: 0, doublingsPerDay: 0, heads: re.upkeep };
-  const M = versionM(s, iv);
+  if (!iv) return { tools: [], perTool: 0, oomPerDay: 0, heads: re.upkeep };
+  const x = versionOom(s, iv);
   const latent = lambda2Delta(s) <= -2;
-  const tools = Object.values(s.player.safety.techniques).filter((t) => needsUpkeep(s, t, M, latent));
+  const tools = Object.values(s.player.safety.techniques).filter((t) => needsUpkeep(s, t, x, latent));
   const perTool = tools.length ? re.upkeep / tools.length : re.upkeep;
   // Model v3 E2: AI labour re-validates tools as the same input as the engineers (effective heads = heads × m of safety
   // experiments, SAF_EXP through the Trusted-to-AI share).
   const eff = perTool * safetyLabour(s).exp.m;
   const doublingsPerDay = re.upkeep > 0 ? Math.min(UPKEEP_MAX, Math.max(0, eff - UPKEEP_MIN) / UPKEEP_REF) / UPKEEP_DAYS : 0;
-  return { tools, perTool, doublingsPerDay, heads: re.upkeep };
+  return { tools, perTool, oomPerDay: doublingsPerDay * OOM_PER_HALVING, heads: re.upkeep };
 }
 
-/** One day of tool upkeep: every tool that needs it gets M½ × 2^rate. */
+/** One day of tool upkeep: every tool that needs it is re-validated further: oHalf + rate. */
 function upkeepStep(s: GameStateV2) {
   const u = upkeepState(s);
-  if (!u.tools.length || u.doublingsPerDay <= 0) return;
-  const f = Math.pow(2, u.doublingsPerDay);
-  for (const t of u.tools) t.mHalf *= f;
+  if (!u.tools.length || u.oomPerDay <= 0) return;
+  for (const t of u.tools) t.oHalf += u.oomPerDay;
 }
 
 // ───────── daily system ─────────
@@ -195,10 +198,10 @@ function auditStep(s: GameStateV2, ctx: SystemCtx) {
     delete s.flags[k];
     const v = versionById(s, k.slice('ws2.audit.'.length));
     if (!v) continue;
-    const M = versionM(s, v);
+    const X = versionOom(s, v);
     const wb = Object.values(s.player.safety.techniques).filter((t) => t.agenda === 'AG02' && t.unlocked && t.family === 'WB');
     for (const trait of ['AF', 'SCHEME'] as const) {
-      const d = combineTools(wb.map((t) => ({ agenda: t.agenda, d: (t.coverage[trait] ?? 0) * strengthTrue(s, t, M) })));
+      const d = combineTools(wb.map((t) => ({ agenda: t.agenda, d: (t.coverage[trait] ?? 0) * strengthTrue(s, t, X) })));
       observeVersion(s, ctx.rng('safety'), ctx.day, v, trait, 'WB', Math.max(0.3, d));
     }
   }

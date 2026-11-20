@@ -1,61 +1,14 @@
 // Shared helpers for the safety modules (V2-SPEC §3.5). Owner: WS2.
-// Engine-side only: several helpers read truth (pm, efficacy). UI code reads safety/view.ts selectors instead.
+// Engine-side only: several helpers read truth (efficacy); capability for oversight is in safety/oversight.ts (model
+// v3 E6: OOM of effective compute, no research multiplier). UI code reads safety/view.ts selectors instead.
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { LEVEL_KNOTS } from '../../../data/v2/calibration';
-import { multiplierAt } from '../../../data/world';
-import type { World } from '../../types';
-import { bridgeQ, levelOf, thresholds } from '../world/calibration';
-import type { AgendaId, GameStateV2, ModelVersion, TimelineWorld } from '../types';
+import { levelOf } from '../world/calibration';
+import type { AgendaId, GameStateV2, ModelVersion } from '../types';
 
 export const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
 export const clamp = (x: number, lo: number, hi: number) => (x < lo ? lo : x > hi ? hi : x);
 export const sigmoid = (x: number) => 1 / (1 + Math.exp(-x));
-
-const asV1 = (w: TimelineWorld) => w as unknown as World;
-
-/** AI R&D multiplier at true progress pm (reference curve at q = pm + calShift, the v1-equivalent progress; §3.5.6
- *  "M of the overseen version"). Engine only. */
-export function mAtPm(w: TimelineWorld, pm: number): number {
-  return Math.max(1, multiplierAt(asV1(w), bridgeQ(w, pm))); // BRIDGE(V6)
-}
-
-/** Overseen version's M (hidden pm). Engine only. */
-export function versionM(s: GameStateV2, v: ModelVersion | undefined): number {
-  if (!v) return s.player.prodCache?.M ?? 1;
-  return mAtPm(s.hidden.timeline, v.pm);
-}
-
-// Level → M table on a 0.05 grid (§3.5.7 "convert L → pm → M with multiplierAt"). Cached per world object.
-const L_STEP = 0.05;
-const L_N = Math.round(15 / L_STEP) + 1;
-const levelTables = new WeakMap<TimelineWorld, Float64Array>();
-
-function pmAtLevel(w: TimelineWorld, L: number): number {
-  const th = thresholds(w);
-  let lo = th[0] - 8;
-  let hi = th[th.length - 1] + 0.5;
-  for (let i = 0; i < 48; i++) {
-    const mid = (lo + hi) / 2;
-    if (levelOf(w, mid) < L) lo = mid;
-    else hi = mid;
-  }
-  return hi;
-}
-
-/** M at a general level L (0..15) for this world. Monotone in L. Uses only the public level↔progress mapping. */
-export function mAtLevel(w: TimelineWorld, L: number): number {
-  let t = levelTables.get(w);
-  if (!t) {
-    t = new Float64Array(L_N);
-    for (let i = 0; i < L_N; i++) t[i] = mAtPm(w, pmAtLevel(w, i * L_STEP));
-    for (let i = 1; i < L_N; i++) t[i] = Math.max(t[i], t[i - 1]);
-    levelTables.set(w, t);
-  }
-  const x = clamp(L, 0, 15) / L_STEP;
-  const i = Math.min(L_N - 2, Math.floor(x));
-  const f = x - i;
-  return t[i] + (t[i + 1] - t[i]) * f;
-}
 
 /** Capability tier 0..6 from a level: number of milestone level knots crossed above Agent (fractional). */
 export function tierOfLevel(L: number): number {

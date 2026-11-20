@@ -75,7 +75,8 @@ export const CHANNEL_AFFORD: Record<Channel, number> = {
 export const COPIES_GAMMA = { internal: 0.2, serving: 0.1 };
 /** 2025 reference copies (the start lab's internal agents and serving fleet; the start values rounded) [C]. */
 export const COPIES_REF = { internal: 1e4, serving: 1e5 };
-/** Human review (internal): humans catch this share of acts in the work they still do themselves, × (1 − r) [D]. */
+/** Human review (internal): humans catch this share of acts in the work they still do themselves, × (1 − r) [D]; model
+ *  v3 E6: × the gap factor above expert humans (L 10, safety/oversight.ts humanReviewFactor). */
 export const HUMAN_REVIEW = 0.3;
 
 /** Misuse (same structure): κ · demand · σ((L_d − θ)/s) · reach · (1 − safeguards). θ = 9, κ = 5e-4 keep v2's

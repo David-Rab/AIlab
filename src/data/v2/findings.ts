@@ -7,7 +7,8 @@
 //   revealEdge:<edge>             show the realised weight of a trait-graph edge
 //   s0:<technique>:<×>            scale one technique's base strength
 //   s0Agenda:<agenda>:<×>         scale every technique of an agenda
-//   mHalf:<agenda>:<×>            scale M½ of every technique of an agenda (capability robustness)
+//   oHalf:<agenda>:<ΔOOM>         shift the half-strength point of every technique of an agenda (capability robustness;
+//                                 model v3 E6: v2's ×0.5 / ×0.6 on M½ = −1.11 / −0.82 OOM, log10(×)/κ)
 //   probeCollapse                 F08: any WB technique that was trained against loses 60-100% of s0
 //   trust:<counterparty>:<n>      trust change on publication of the finding (gov safety case etc.)
 //   flag:<name>                   s.flags['ws2.<name>'] = day (read by detection / incidents / traits)
@@ -47,7 +48,7 @@ export const FINDINGS: FindingDef[] = [
   { id: 'F18', agenda: 'AG05', type: 'TECH', title: 'Debate-based alignment safety case', effects: ['flag:safetyCase', 'trust:evalGov:4'], source: 'UK AISI 2025 sketch' },
   { id: 'F19', agenda: 'AG06', type: 'TECH', title: 'Auxiliary-confidence weak-to-strong', effects: ['unlock:T-W2S'], source: 'Burns 2023' },
   { id: 'F20', agenda: 'AG07', type: 'TECH', title: 'Resampling protocols (Ctrl-Z)', effects: ['unlock:T-RESAMPLE'], source: 'Bhatt 2025: attack success 58% → 7%' },
-  { id: 'F21', agenda: 'AG07', type: 'NEG', title: 'Control protocols underperform at high capability', effects: ['mHalf:AG07:0.5'], source: 'Redwood 2026 retry vs resample' },
+  { id: 'F21', agenda: 'AG07', type: 'NEG', title: 'Control protocols underperform at high capability', effects: ['oHalf:AG07:-1.11'], source: 'Redwood 2026 retry vs resample' },
   { id: 'F22', agenda: 'AG07', type: 'EVAL', title: 'Control evaluation with a red-team model', effects: ['unlock:T-CEVAL'], source: 'Greenblatt & Shlegeris' },
   { id: 'F23', agenda: 'AG08', type: 'DISC', title: 'Alignment-faking model organism', effects: ['revealTrait:AF'], source: 'Greenblatt 2024: 12% → 78% after RL' },
   { id: 'F24', agenda: 'AG08', type: 'DISC', title: 'Narrow fine-tune → broad misalignment', effects: ['reveal:U02'], source: 'Betley 2025' },
@@ -56,7 +57,7 @@ export const FINDINGS: FindingDef[] = [
   { id: 'F27', agenda: 'AG08', type: 'NEG', title: 'Precursor evals do not predict', effects: ['s0:T-MO:0.5'], source: 'Apollo 2025 precursor evals' },
   { id: 'F28', agenda: 'AG08', type: 'EVAL', title: '"Self-preservation" explained by instruction ambiguity', effects: ['flag:forensics'], source: 'GDM model forensics 2026' },
   { id: 'F29', agenda: 'AG09', type: 'EVAL', title: 'Monitorability metric suite', effects: ['unlock:T-MONSUITE'], source: 'OpenAI "Monitoring Monitorability" 2025' },
-  { id: 'F30', agenda: 'AG09', type: 'NEG', title: 'CoT controllability jumps in the new generation', effects: ['mHalf:AG09:0.6'], source: 'Controllability 60.9% (R05)' },
+  { id: 'F30', agenda: 'AG09', type: 'NEG', title: 'CoT controllability jumps in the new generation', effects: ['oHalf:AG09:-0.82'], source: 'Controllability 60.9% (R05)' },
   { id: 'F31', agenda: 'AG09', type: 'TECH', title: 'Process-based monitorability tax', effects: ['flag:monitorabilityTax'], source: 'Baker 2025; Korbak 2025' },
   { id: 'F32', agenda: 'AG10', type: 'TECH', title: 'Formally verified gatekeeper', effects: ['unlock:T-GATE', 'flag:gatekeeper'], source: 'ARIA TA1 proof point' },
   { id: 'F33', agenda: 'AG10', type: 'DEAD', title: 'World-model specs intractable for open-ended agents', effects: [], source: 'ARIA pivot: TA2 dropped' },

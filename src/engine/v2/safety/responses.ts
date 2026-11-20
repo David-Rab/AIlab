@@ -2,7 +2,8 @@
 import { EDGES } from '../../../data/v2/edges';
 import { CRITICAL_TRAITS } from '../../../data/v2/traits';
 import type { GameStateV2, Incident, ModelVersion, ResponseKind, SystemCtx, TraitId, UModeId } from '../types';
-import { clamp01, flagNum, setFlag, trueEfficacy, versionById, versionM } from './common';
+import { clamp01, flagNum, setFlag, trueEfficacy, versionById } from './common';
+import { versionOom } from './oversight';
 import { goodhartTrain } from './traits';
 import { strengthBelieved, techniqueRole } from './techniques';
 import { crystalMult, revealToWorld, uModeRemovalMult } from './umodes';
@@ -38,12 +39,12 @@ export function responseTrait(v: ModelVersion, inc?: Incident, trait?: TraitId):
 
 /** Best active detector covering a trait (by believed strength): the default "train against" target. */
 export function bestDetector(s: GameStateV2, v: ModelVersion, trait: TraitId): string | undefined {
-  const M = versionM(s, v);
+  const X = versionOom(s, v);
   let best: string | undefined;
   let bd = 0;
   for (const t of Object.values(s.player.safety.techniques)) {
     if (!t.unlocked || !t.active || techniqueRole(t) === 'fix') continue;
-    const d = (t.coverage[trait] ?? 0) * strengthBelieved(s, t, M);
+    const d = (t.coverage[trait] ?? 0) * strengthBelieved(s, t, X);
     if (d > bd) {
       bd = d;
       best = t.id;

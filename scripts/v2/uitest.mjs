@@ -1190,6 +1190,17 @@ await shot('50-j2-build-load');
 await clearTips();
 await tabTo('people');
 ok('J2 AG1: a same-lineage monitor shows its lower catch on scheming-type incidents', !!(await page.$('[data-test="agent-catch.capRoutine.coll"]')) && !!(await page.$('[data-test="same-monitor.capRoutine"]')));
+// Model v3 E6: the control tax is visible on each agent lane when the control layer runs.
+await page.evaluate(() => { for (const d of window.ai27v2.state.player.deployments) if (d.channel === 'internal') d.controlLayer = true; window.ai27v2.notify(); });
+await wait(200);
+ok('E6: under the control layer each agent lane shows its control tax', !!(await page.$('[data-test="control-tax.capRoutine"]')) && !!(await page.$('[data-test="control-tax.eng"]')));
+await page.hover('[data-test="control-tax.capRoutine"]');
+await wait(300);
+ok('E6: the control-tax tooltip names the deferral and the catch it buys', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /deferred/.test(t) && /slipping/.test(t) && /AI labour/.test(t); })()`)));
+await shot('51-e6-control-tax');
+await clearTips();
+await page.evaluate(() => { for (const d of window.ai27v2.state.player.deployments) if (d.channel === 'internal') d.controlLayer = false; window.ai27v2.notify(); });
+await wait(100);
 await nav('compute');
 await tabTo('split');
 ok('J2 PR1: Compute › Split is the home of the spare-serving policy', !!(await page.$('[data-home=spareServing]')));

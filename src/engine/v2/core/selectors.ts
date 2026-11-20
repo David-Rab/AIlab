@@ -5,7 +5,7 @@
 import { bestLg, bestPm, internalVersion, measuredLOf, PLAYER_ID } from '../models/labs';
 import { misalignment, predictBeliefs, runOmega, type Signals } from '../safety/traits';
 import { detectionAt, understanding } from '../safety/understanding';
-import { mAtLevel } from '../safety/common';
+import { levelOfOom, oomOfLevel } from '../safety/oversight';
 import { strengthBelieved } from '../safety/techniques';
 import { planRun, type LaunchRunParams } from '../models/runs';
 import { CRITICAL_TRAITS } from '../../../data/v2/traits';
@@ -114,15 +114,17 @@ export function detectionGrid(s: GameStateV2, span = 4): { L: number; levels: nu
 }
 
 /** Believed strength of a technique against capability level (Tools tab small multiples): strength at each level
- *  in `levels`, the level at which the overseen model reaches the tool's M½, and the current measured level. */
-export function techniqueCurve(s: GameStateV2, id: string, levels: number[]): { strength: number[]; mHalfL: number | undefined; L: number } | undefined {
+ *  in `levels`, the level at which the overseen model reaches the tool's half-strength point (model v3 E6: oHalf OOM
+ *  above the start model, as a level; undefined when it does not decay or lies beyond L 15), and the current measured
+ *  level. */
+export function techniqueCurve(s: GameStateV2, id: string, levels: number[]): { strength: number[]; halfL: number | undefined; L: number } | undefined {
   const t = s.player.safety.techniques[id];
   if (!t) return undefined;
   const w = s.hidden.timeline;
   const L = measuredLOf(s, internalVersion(s)).L;
-  let mHalfL: number | undefined;
-  if (t.k > 0 && t.mHalf < 1e8) for (let l = 0; l <= 15; l += 0.05) if (mAtLevel(w, l) >= t.mHalf) { mHalfL = Math.round(l * 100) / 100; break; }
-  return { strength: levels.map((l) => strengthBelieved(s, t, mAtLevel(w, l))), mHalfL, L };
+  let halfL: number | undefined;
+  if (t.k > 0 && t.oHalf < 1e8 && t.agenda !== 'AG05' && t.oHalf < oomOfLevel(w, 15)) halfL = Math.round(levelOfOom(w, t.oHalf) * 100) / 100;
+  return { strength: levels.map((l) => strengthBelieved(s, t, oomOfLevel(w, l))), halfL, L };
 }
 
 /** Training-signal pressure of the run(s) that built a version (the player's own recipe). */
@@ -155,6 +157,7 @@ export type { ProductRead, ProductEcon, EditPreview, CustomerView, CustomerSeg, 
 export { editBlock, editedProduct, previewEdit } from '../models/productOps';
 export type { ProductChanges } from '../models/productOps';
 export { activeFeatures, agentsGate, catchRate, collusionTrait, sameLineage, featureBuildBlock, featureToggleBlock, freeTierShare, isProduct, measuredHorizonH, monitorOverhead } from '../models/products';
+export { monitorCatchAt, type ControlReadout } from '../safety/oversight';
 export { LENT_RECOVERY, servingPool, spareServing, spareServingToResearch } from '../worldfx/revenue';
 export { spareServingEffect } from '../production/production';
 export { ousterRiskQ, OUSTER_BC, OUSTER_NOTICE_D } from '../finance/board'; // jank ST3: board review readout

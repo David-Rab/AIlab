@@ -5,12 +5,11 @@
 // reader uses (the product's display domain levels, incident-hazard multipliers, monitor overhead and catch rate), the
 // Agents time-horizon gate, and the product policies (upgrade to newest, auto-evaluate). Model v3 V4: the typed feature
 // effects, cost, price and capacity live in worldfx/serving.ts; revenue and the Auto serving split in worldfx/revenue.ts.
-import { AG05_GAP } from '../../../data/v2/agendas';
 import {
-  AGENT_TASK_HOURS, AUTO_EVAL_DAYS, COLLUSION_TRAITS, COPY_COLLUSION, FEATURE_BY_ID, FREE_TIER_SHARE, MONITOR_CATCH_BASE, MONITOR_OVERHEAD, PRICE_TIERS,
+  AGENT_TASK_HOURS, AUTO_EVAL_DAYS, COLLUSION_TRAITS, COPY_COLLUSION, FEATURE_BY_ID, FREE_TIER_SHARE, MONITOR_OVERHEAD, PRICE_TIERS,
   type FeatureDef, type FeatureId,
 } from '../../../data/v2/features';
-import { mAtLevel } from '../safety/common';
+import { controlProtocol, monitorCatchAt, oomOfLevel, oversightGap } from '../safety/oversight';
 import { containment } from '../safety/techniques';
 import type { Deployment, DomainId, GameStateV2, ModelVersion, SystemCtx, TraitId } from '../types';
 import { runEvalSuite } from './benchmarks';
@@ -81,12 +80,17 @@ export function monitorOverhead(s: GameStateV2, d: Deployment): number {
 
 export interface CatchRate {
   rate: number;
-  /** Oversight gap in factors of 4 of research-speed multiplier M (AG05 rule). */
+  /** Model v3 E6: oversight gap watched − monitor in OOM of effective compute (measured levels through λ⁻¹), the same
+   *  gap in display levels and in Chatbot-Arena Elo (Engels et al. 2025: 400 Elo ≈ 6.8 OOM). */
   gap: number;
+  gapL: number;
+  elo: number;
   /** Before control tools. */
   base: number;
   /** AI-control containment strength added (AG07 tools, believed). */
   control: number;
+  /** Deferral to the trusted model when the deployment runs under the control layer: the miss multiplier (1 = off). */
+  defer: number;
   /** J2 AG1: the monitor is from the watched model's lineage (same base), and its catch rate on collusion-relevant
    *  incidents (COLLUSION_TRAITS); equal to `rate` for any other monitor. */
   copy: boolean;
@@ -94,23 +98,25 @@ export interface CatchRate {
 }
 
 /**
- * Catch rate of a monitor watching a model: MONITOR_CATCH_BASE × 0.52^gap (AG05 oversight gap, gap = log4 of the M
- * ratio at the measured levels), then the AG07 containment tools halve what slips through at full strength. Uses
- * measured levels and believed tool strength: what the player sees is what the engine rolls.
+ * Catch rate of a monitor watching a model (model v3 E6): monitorCatchAt(gap) = 85% × (10%/85%)^(gap ÷ 6.8 OOM), the
+ * gap in OOM of effective compute between the measured levels (Engels et al. 2025's Backdoor Code rate at a 400-Elo
+ * gap; safety/oversight.ts), then the AG07 containment tools halve what slips through at full strength. Uses measured
+ * levels and believed tool strength: what the player sees is what the engine rolls. `controlled`: the deployment runs
+ * under the control layer, whose deferral cuts the misses by Greenblatt's 0.17/0.38.
  */
-export function catchRate(s: GameStateV2, watched: ModelVersion | undefined, monitor: ModelVersion | undefined): CatchRate {
-  if (!watched || !monitor) return { rate: 0, gap: 0, base: 0, control: 0, copy: false, collusion: 0 };
+export function catchRate(s: GameStateV2, watched: ModelVersion | undefined, monitor: ModelVersion | undefined, controlled = false): CatchRate {
+  if (!watched || !monitor) return { rate: 0, gap: 0, gapL: 0, elo: 0, base: 0, control: 0, defer: 1, copy: false, collusion: 0 };
   const w = s.hidden.timeline;
-  const Mw = mAtLevel(w, measuredLOf(s, watched).L);
-  const Mm = mAtLevel(w, measuredLOf(s, monitor).L);
-  const gap = Math.max(0, Math.log(Math.max(1, Mw) / Math.max(1, Mm)) / Math.log(4));
-  const base = MONITOR_CATCH_BASE * Math.pow(AG05_GAP.base, gap);
-  const control = containment(s, Mw, true, true);
-  const rate = Math.min(0.99, 1 - (1 - base) * (1 - 0.5 * control));
+  const Lw = measuredLOf(s, watched).L;
+  const g = oversightGap(w, Lw, measuredLOf(s, monitor).L);
+  const base = monitorCatchAt(g.oom);
+  const control = containment(s, oomOfLevel(w, Lw), true, true);
+  const defer = controlled ? controlProtocol(undefined).missMult : 1;
+  const rate = Math.min(0.99, 1 - (1 - base) * (1 - 0.5 * control) * defer);
   const copy = sameLineage(watched, monitor);
   const lock = s.player.safety.techniques['T-LOCK'];
   const pen = copy ? COPY_COLLUSION * (lock?.unlocked && lock.active ? 0.5 : 1) : 0;
-  return { rate, gap, base, control, copy, collusion: rate * (1 - pen) };
+  return { rate, gap: g.oom, gapL: g.levels, elo: g.elo, base, control, defer, copy, collusion: rate * (1 - pen) };
 }
 
 /** Same lineage (J2 AG1): the monitor shares the watched model's base (itself, a post-train or stream on it, or a mini
@@ -122,7 +128,7 @@ export const collusionTrait = (t: TraitId | undefined) => !!t && COLLUSION_TRAIT
 /** A product monitor's catch rate (for incidents from `trait`: the collusion rate when it is collusion-relevant). */
 export function productCatch(s: GameStateV2, d: Deployment, trait?: TraitId): number {
   if (!d.monitorId) return 0;
-  const c = catchRate(s, versionById(s, d.versionId), versionById(s, d.monitorId));
+  const c = catchRate(s, versionById(s, d.versionId), versionById(s, d.monitorId), d.controlLayer);
   return collusionTrait(trait) ? c.collusion : c.rate;
 }
 

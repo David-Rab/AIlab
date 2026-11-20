@@ -1,7 +1,8 @@
 // Save format, migrations, state hash (V2-SPEC §2.5). Owner: WS1.
 import { ensureWs3 } from '../finance/ext';
 import { keyOf, staffOf, teamsFromStaff } from '../departments/teams';
-import type { AgendaId, GameStateV2, PlayerLab, StaffByRole, TeamHiring } from '../types';
+import type { AgendaId, GameStateV2, PlayerLab, StaffByRole, TechniqueState, TeamHiring } from '../types';
+import { oomOfRefM } from '../../../data/v2/oversight';
 import { hash32 } from './rng';
 import { initialResearch, initialTree, nextLineProject } from '../models/tree';
 import { LEADER_FEATURES, PRICE_TIERS, tierOfIndex } from '../../../data/v2/features';
@@ -47,8 +48,11 @@ import { START_SUITE_FAMILIES, startExpertAssets, suitesFromV1 } from '../models
  *  suites' exploitability (cheap → cheap, else hardened = the leader's start) at fidelity 1 (suitesFromV1).
  *  24 (model v3 D2): DataPortfolio.pending (licence and expert-data deals waiting for delivery) and the optional synJob
  *  (a synthetic generation job with a chosen teacher). Migration 23 → 24 starts with nothing pending and no job.
- *  (D5 and D2 were built as 21 → 22 → 23 beside E1's 21 → 22; merge M2 made the chain linear.) */
-export const SCHEMA_REV = 24;
+ *  (D5 and D2 were built as 21 → 22 → 23 beside E1's 21 → 22; merge M2 made the chain linear.)
+ *  25 (model v3 E6): TechniqueState.oHalf (half-strength point in OOM of effective compute above the start model)
+ *  replaces mHalf (in research-speed multiplier M). Migration 24 → 25 converts each tool's M½ on the ai2027 reference
+ *  path (oomOfRefM: the same point v2's decay halved at). */
+export const SCHEMA_REV = 25;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -298,6 +302,15 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   23: (raw) => {
     const p = (raw as unknown as GameStateV2).player;
     p.dataPortfolio.pending ??= [];
+  },
+  /** 24 → 25 (model v3 E6): every technique's M½ becomes its half-strength point in OOM above V0: the point on the
+   *  ai2027 reference path where v2's 1/(1 + (M/M½)^k) halved (oomOfRefM). */
+  24: (raw) => {
+    const p = (raw as unknown as GameStateV2).player;
+    for (const t of Object.values(p.safety.techniques) as (TechniqueState & { mHalf?: number })[]) {
+      if (t.oHalf === undefined) t.oHalf = oomOfRefM(t.mHalf ?? 25);
+      delete t.mHalf;
+    }
   },
 };
 

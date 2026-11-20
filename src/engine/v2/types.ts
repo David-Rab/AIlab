@@ -812,7 +812,9 @@ export interface TechniqueState {
   unlocked: boolean;
   active: boolean; // part of the deployed safety stack
   s0: number; // base strength
-  mHalf: number; // multiplier at which strength halves (raised by tool upkeep, ↓ on NEG)
+  /** Model v3 E6: OOM of effective compute above the start model V0 at which strength halves (the capability the tool
+   *  is validated up to plus its headroom; raised by tool upkeep, lowered by negative results; 1e9 = never decays). */
+  oHalf: number;
   k: number;
   goodhart: number; // G
   trainedAgainst: number; // 0..1 cumulative

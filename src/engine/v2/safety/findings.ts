@@ -9,12 +9,14 @@ import { lineLabour } from './lineProjects';
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { EDGES } from '../../../data/v2/edges';
 import { FINDINGS, FINDING_BY_ID, type FindingDef } from '../../../data/v2/findings';
+import { OOM_PER_HALVING, oomOfRefM } from '../../../data/v2/oversight';
 import { TECHNIQUES, TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { PROJECT_BY_ID } from '../../../data/v2/tree';
 import { UMODE_BY_ID, UMODES } from '../../../data/v2/umodes';
 import { CHINA_ID, internalVersion } from '../models/labs';
 import type { AgendaId, FindingRecord, FindingType, GameStateV2, SystemCtx, TechniqueState, ToolFamily, TraitId, UModeId } from '../types';
-import { clamp01, setFlag, trueEfficacy, versionM } from './common';
+import { clamp01, setFlag, trueEfficacy } from './common';
+import { versionOom } from './oversight';
 import { observeVersion } from './detection';
 import { addKnowledge } from '../models/stacks';
 import { decayAt, unlockTechnique } from './techniques';
@@ -65,9 +67,9 @@ function agendaTechniques(s: GameStateV2, ag: AgendaId): TechniqueState[] {
   return Object.values(s.player.safety.techniques).filter((t) => t.agenda === ag);
 }
 
-/** An active technique of this agenda whose overseen M is past its M½ (NEG precondition, §3.5.3). */
-function decayedTechnique(s: GameStateV2, ag: AgendaId, M: number): TechniqueState | undefined {
-  return agendaTechniques(s, ag).find((t) => t.unlocked && t.active && !t.falseValidated && t.k > 0 && decayAt(s, t, M, false) < 0.5);
+/** An active technique of this agenda that the overseen model has outgrown (strength factor < ½; NEG precondition, §3.5.3). */
+function decayedTechnique(s: GameStateV2, ag: AgendaId, X: number): TechniqueState | undefined {
+  return agendaTechniques(s, ag).find((t) => t.unlocked && t.active && !t.falseValidated && t.k > 0 && decayAt(s, t, X, false) < 0.5);
 }
 
 function anyFalseActive(s: GameStateV2): TechniqueState | undefined {
@@ -121,8 +123,8 @@ export function applyEffects(s: GameStateV2, ctx: SystemCtx, ag: AgendaId, effec
       case 's0Agenda':
         for (const t of agendaTechniques(s, a as AgendaId)) t.s0 = clamp01(t.s0 * Number(b));
         break;
-      case 'mHalf':
-        for (const t of agendaTechniques(s, a as AgendaId)) if (t.k > 0) t.mHalf = Math.max(1, t.mHalf * Number(b));
+      case 'oHalf':
+        for (const t of agendaTechniques(s, a as AgendaId)) if (t.k > 0 && t.oHalf < 1e8) t.oHalf = Math.max(0, t.oHalf + Number(b));
         break;
       case 'probeCollapse':
         for (const t of Object.values(dept.techniques)) {
@@ -208,14 +210,14 @@ export function fireFinding(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId, no
   const rng = ctx.rng('safety');
   const e = trueEfficacy(s, agenda);
   const iv = internalVersion(s);
-  const M = versionM(s, iv);
+  const X = versionOom(s, iv);
   const uRev = revealableUModes(s, agenda);
   const discRows = candidates(s, agenda, ['DISC']).filter((f) => !f.effects.some((x) => x.startsWith('reveal:')));
   const falseT = CROSS_CHECK.includes(agenda) ? anyFalseActive(s) : undefined;
   const weights: { item: FindingType; weight: number }[] = [
     { item: 'TECH', weight: e },
     { item: 'DEAD', weight: 0.5 * (1 - e) },
-    { item: 'NEG', weight: (decayedTechnique(s, agenda, M) || candidates(s, agenda, ['NEG']).length ? 0.3 : 0) + (falseT ? 0.3 : 0) },
+    { item: 'NEG', weight: (decayedTechnique(s, agenda, X) || candidates(s, agenda, ['NEG']).length ? 0.3 : 0) + (falseT ? 0.3 : 0) },
     { item: 'DISC', weight: 0.15 * uRev.present.length + 0.05 * uRev.absent.length + 0.1 * discRows.length },
     { item: 'SPILL', weight: WB_AGENDAS.includes(agenda) ? 0.1 : 0 },
     // F49 (model v3 E2): a sabotaging safety model returns false results in proportion to the share of the line's work
@@ -288,10 +290,10 @@ export function fireFinding(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId, no
           title = row.title;
           applyEffects(s, ctx, agenda, row.effects);
         } else {
-          const t = decayedTechnique(s, agenda, M);
+          const t = decayedTechnique(s, agenda, X);
           id = nextId(s, `${agenda}-NEG`);
           title = t ? `${t.id} weaker than thought on current models` : 'Negative result';
-          if (t) t.mHalf = Math.max(1, t.mHalf * 0.5);
+          if (t) t.oHalf = Math.max(0, t.oHalf - OOM_PER_HALVING);
         }
       }
       st.posterior.b += 1;
@@ -335,7 +337,7 @@ export function fireFinding(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId, no
       for (const t of def.coverage) if (t !== 'CORRIG') cov[t] = 0.6;
       if (!Object.keys(cov).length) cov.SCHEME = 0.5;
       dept.techniques[`T-${id}`] = {
-        id: `T-${id}`, agenda, family: fam, unlocked: true, active: true, s0: 0.8, mHalf: Math.max(25, def.mHalf), k: Math.max(0.5, def.k),
+        id: `T-${id}`, agenda, family: fam, unlocked: true, active: true, s0: 0.8, oHalf: Math.max(oomOfRefM(25), def.oHalf), k: Math.max(0.5, def.k),
         goodhart: def.G, trainedAgainst: 0, falseValidated: true, coverage: cov,
       };
       title = `AI-validated ${def.name} detector`;

@@ -15,7 +15,9 @@ import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
 import { AGENT_USES } from '../../../data/v2/agents';
 import { bestPlayerVersion, internalVersion } from '../models/labs';
 import type { AgentUse, CounterpartyId, Deployment, DomainId, EngineSystem, GameStateV2, Incident, ModelVersion, RngLike, SystemCtx, TraitId, TraitVector, UModeId } from '../types';
-import { clamp01, flagNum, setFlag, versionById, versionM } from './common';
+import { clamp01, flagNum, setFlag, versionById } from './common';
+import { controlProtocol, humanReviewFactor, oomOfLevel, underControl, versionOom } from './oversight';
+import { LEVEL_KNOTS } from '../../../data/v2/calibration';
 import { monitoringCatch } from './detection';
 import { containment, strengthTrue } from './techniques';
 import { isDiscovered, uModeContainMult } from './umodes';
@@ -109,7 +111,7 @@ export function misuseHazards(s: GameStateV2, v: ModelVersion, d: Deployment): H
   if (d.channel === 'internal') return [];
   const reach = (d.channel === 'open' ? 1 : d.servingShare) * MISUSE_REACH[d.channel] * (d.status === 'restricted' ? 0.3 : 1);
   const cls = s.player.safety.techniques['T-CCLASS'];
-  const clsBoost = cls?.unlocked && d.safeguards !== 'minimal' ? 0.5 + 0.5 * Math.min(1, strengthTrue(s, cls, versionM(s, v)) / 0.4) : 1;
+  const clsBoost = cls?.unlocked && d.safeguards !== 'minimal' ? 0.5 + 0.5 * Math.min(1, strengthTrue(s, cls, versionOom(s, v)) / 0.4) : 1;
   let sg = d.channel === 'open' ? 0 : SAFEGUARD[d.safeguards] * clsBoost;
   if (d.channel === 'open' && v.design.techniques.includes('T-FILTER')) sg = 0.5; // only the hazard filter survives fine-tuning
   let demand = v.design.safety === 'minimal' ? 2 : 1;
@@ -125,9 +127,10 @@ export function misuseHazards(s: GameStateV2, v: ModelVersion, d: Deployment): H
   return out;
 }
 
-/** Contain(M) on the fleet running this deployment (control layer × best AG07 tool), U19 lowers it. */
+/** Contain(x) on the fleet running this deployment (x = its model's OOM above V0; control layer × best AG07 tool), U19
+ *  lowers it. */
 function deploymentContain(s: GameStateV2, v: ModelVersion, d: Deployment): number {
-  return containment(s, versionM(s, v), d.controlLayer, false, uModeContainMult(v.uModes));
+  return containment(s, versionOom(s, v), d.controlLayer, false, uModeContainMult(v.uModes));
 }
 
 function usageOf(s: GameStateV2, d: Deployment): number {
@@ -188,14 +191,18 @@ export function siteOf(s: GameStateV2, d: Deployment, v: ModelVersion, usage: nu
 }
 
 /** Catch probability of an act that got through the block (oversight's second factor): internally the fleet's monitors
- *  and tools (half on unexplained U-modes) and human review of the work humans still do; on a product its monitor
- *  (collusion when same-lineage); none on open weights or misuse. */
+ *  and tools (half on unexplained U-modes) and human review of the work humans still do, falling with the model's gap
+ *  above expert humans (model v3 E6, safety/oversight.ts); under the control layer, deferral to the trusted model cuts
+ *  what slips past both by Greenblatt's 0.17/0.38. On a product its monitor (collusion when same-lineage; deferral when
+ *  the product runs under control); none on open weights or misuse. */
 export function catchOf(s: GameStateV2, d: Deployment, v: ModelVersion, row: Pick<HazardRow, 'source' | 'apparent'>): number {
   if (row.source === 'misuse') return 0;
   const trait = row.source.startsWith('U') ? UMODE_BY_ID[row.source as UModeId].mapsTo : (row.source as TraitId);
   if (d.channel === 'internal') {
     const mon = monitoringCatch(s, v, trait) * (row.apparent === 'unexplained' ? 0.5 : 1);
-    return 1 - (1 - mon) * (1 - HUMAN_REVIEW * (1 - aiRdShare(s)));
+    const human = HUMAN_REVIEW * (1 - aiRdShare(s)) * humanReviewFactor(s, v);
+    const miss = underControl(s) ? controlProtocol(undefined).missMult : 1;
+    return 1 - (1 - mon) * (1 - human) * miss;
   }
   if (!d.monitorId || d.channel === 'open') return 0;
   return productCatch(s, d, trait);
@@ -369,7 +376,7 @@ export function exfiltrationHazard(s: GameStateV2): number {
   // so the security stream draws exactly as before until then).
   if (!v || v.domains.CYBER < EXFIL.theta - 2) return 0;
   const dep = s.player.deployments.find((d) => d.channel === 'internal' && d.versionId === v.id && d.status !== 'withdrawn');
-  const contain = containment(s, versionM(s, v), !!dep?.controlLayer, false, uModeContainMult(v.uModes));
+  const contain = containment(s, versionOom(s, v), !!dep?.controlLayer, false, uModeContainMult(v.uModes));
   const t = v.traitsTrue;
   const opportunity = internalAutonomy(s, v) * CHANNEL_AFFORD.internal * internalScale(s);
   let p = EXFIL.kappa * t.POWER * (1 + 4 * t.SCHEME) * capabilityOf(v.domains.CYBER, EXFIL) * opportunity * (1 - s.player.security.wsl / 5) * (1 - contain);
@@ -378,16 +385,16 @@ export function exfiltrationHazard(s: GameStateV2): number {
 }
 
 /**
- * Contain(M = 2000) of the player's internal fleet, for WS4's ASI resolution (§5.2 `Cont`): the control layer of the
- * live internal deployment × the best AG07 containment tool at M = 2000 (TRUE strength), cut by U19 in the best
- * version's lineage. Engine only.
+ * Containment at ASI of the player's internal fleet, for WS4's ASI resolution (§5.2 `Cont`): the control layer of the
+ * live internal deployment × the best AG07 containment tool on a model at the ASI level (its OOM above V0 in this
+ * world; v2 read M = 2000, the multiplier at ASI), TRUE strength, cut by U19 in the best version's lineage. Engine only.
  */
-export function contain2000(s: GameStateV2): number {
+export function containAtAsi(s: GameStateV2): number {
   const v = bestPlayerVersion(s);
   if (!v) return 0;
   const internal = s.player.deployments.filter((d) => d.channel === 'internal' && d.status !== 'withdrawn');
   const dep = internal.find((d) => d.versionId === s.player.agents.capRoutine.versionId) ?? internal[0];
-  return containment(s, 2000, !!dep?.controlLayer, false, uModeContainMult(v.uModes));
+  return containment(s, oomOfLevel(s.hidden.timeline, LEVEL_KNOTS[6]), !!dep?.controlLayer, false, uModeContainMult(v.uModes));
 }
 
 /** Rows for a non-player lab's deployed model at a generic product site (RIVAL_SITE; `mitigation` blocks like
@@ -395,4 +402,22 @@ export function contain2000(s: GameStateV2): number {
 export function labModelHazards(m: { traitsTrue: TraitVector; uModes: readonly UModeId[]; domains: Record<DomainId, number> }, mitigation: number): HazardRow[] {
   const site: Site = { internal: false, scale: RIVAL_SITE.usage, autonomy: RIVAL_SITE.autonomy, afford: RIVAL_SITE.afford, rd: 0, contain: mitigation, wsl: 0 };
   return modelHazards(m.traitsTrue, m.uModes, m.domains, site, () => true);
+}
+
+/**
+ * Model v3 E6 hook for internal oversight (E4 successor pull, E7 covert acts in R&D): how well the lab oversees model
+ * v's internal work on acts of `trait`, as MODEL-V3 §11.3's oversight_k = 1 − (1 − block)(1 − catch). block = AG07
+ * containment on the internal fleet (at v's capability); catch = the internal catch roll's probability (monitors and
+ * tools, human review falling with v's gap above expert humans, control-layer deferral). Every term reads capability
+ * gaps in OOM (safety/oversight.ts), none the research multiplier. Engine only (true traits and levels).
+ */
+export function internalOversight(s: GameStateV2, v: ModelVersion, trait: TraitId = 'SCHEME'): { oversight: number; block: number; catch: number; monitor: number; human: number; controlMiss: number } {
+  const dep = s.player.deployments.find((d) => d.channel === 'internal' && d.versionId === v.id && d.status !== 'withdrawn')
+    ?? s.player.deployments.find((d) => d.channel === 'internal' && d.status !== 'withdrawn');
+  const block = dep ? deploymentContain(s, v, dep) : 0;
+  const monitor = monitoringCatch(s, v, trait);
+  const human = HUMAN_REVIEW * (1 - aiRdShare(s)) * humanReviewFactor(s, v);
+  const controlMiss = underControl(s) ? controlProtocol(undefined).missMult : 1;
+  const c = 1 - (1 - monitor) * (1 - human) * controlMiss;
+  return { oversight: 1 - (1 - block) * (1 - c), block, catch: c, monitor, human, controlMiss };
 }

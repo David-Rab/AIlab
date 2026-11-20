@@ -9,7 +9,8 @@ import { TRAITS_V2 } from '../../../data/v2/traits';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
 import { internalVersion, measuredLOf } from '../models/labs';
 import type { AgendaId, FindingType, GameStateV2, Incident, TraitBelief, TraitId, UModeId } from '../types';
-import { flagNum, mAtLevel, versionById } from './common';
+import { flagNum, versionById } from './common';
+import { levelOfOom, oomOfLevel } from './oversight';
 import { deadEndTotal, lineCapacity, lineMult, lineResultsPerYear, lineTeams, posteriorBand, promisingIdle, safetyRe, upkeepState, type LineHealth } from './agendas';
 import { decayAt, strengthBelieved, techniqueRole } from './techniques';
 import { labMisalignment, misalignment, misalignmentBand, misalignmentEstimate } from './traits';
@@ -36,7 +37,7 @@ export interface LineRow {
   /** Ideas of the line on the tree: known / total; the next project teams would take. */
   ideasKnown: number; ideasTotal: number; next?: string; nextReason?: string;
 }
-export interface TechniqueRow { id: string; name: string; agenda: AgendaId; family: string; role: string; unlocked: boolean; active: boolean; strength: number; decay: number; mHalf: number; trainedAgainst: number }
+export interface TechniqueRow { id: string; name: string; agenda: AgendaId; family: string; role: string; unlocked: boolean; active: boolean; strength: number; decay: number; /** Half-strength point in OOM above V0 and as a display level (undefined = does not decay with capability; AG05 follows the overseer gap). */ oHalf: number; halfL: number | undefined; trainedAgainst: number }
 export interface FindingRow { id: string; agenda: AgendaId; type: FindingType; title: string; day: number; published: boolean; retracted: boolean; nodeId?: string }
 
 export function lineRows(s: GameStateV2): LineRow[] {
@@ -109,23 +110,13 @@ export function upkeepView(s: GameStateV2) {
   const w = s.hidden.timeline;
   const v = internalVersion(s);
   const L = measuredLOf(s, v).L;
-  const levelOfM = (M: number) => {
-    let lo = 0;
-    let hi = 15;
-    if (mAtLevel(w, hi) <= M) return 15;
-    for (let i = 0; i < 24; i++) {
-      const mid = (lo + hi) / 2;
-      if (mAtLevel(w, mid) < M) lo = mid;
-      else hi = mid;
-    }
-    return lo;
-  };
-  const det = Object.values(s.player.safety.techniques).filter((t) => t.unlocked && t.active && !t.falseValidated && techniqueRole(t) !== 'fix' && t.k > 0 && t.mHalf < 1e8);
-  const halves = det.map((t) => t.mHalf).sort((a, b) => a - b);
+  const det = Object.values(s.player.safety.techniques).filter((t) => t.unlocked && t.active && !t.falseValidated && techniqueRole(t) !== 'fix' && t.k > 0 && t.oHalf < 1e8);
+  const halves = det.map((t) => t.oHalf).sort((a, b) => a - b);
   const median = halves.length ? halves[Math.floor((halves.length - 1) / 2)] : undefined;
-  const validatedTo = median !== undefined ? levelOfM(median) : undefined;
-  const inUpkeep = median !== undefined && u.tools.some((t) => t.mHalf === median);
-  const upkeepPerMo = validatedTo !== undefined && inUpkeep ? levelOfM((median as number) * Math.pow(2, u.doublingsPerDay * 30)) - validatedTo : 0;
+  // Model v3 E6: half points are OOM above the start model; shown as the level a model at that capability has.
+  const validatedTo = median !== undefined ? levelOfOom(w, median) : undefined;
+  const inUpkeep = median !== undefined && u.tools.some((t) => t.oHalf === median);
+  const upkeepPerMo = validatedTo !== undefined && inUpkeep ? levelOfOom(w, (median as number) + u.oomPerDay * 30) - validatedTo : 0;
   const S = s.series;
   const n = S.Lmeasured.length;
   const back = Math.min(13, n - 1);
@@ -135,17 +126,19 @@ export function upkeepView(s: GameStateV2) {
   return {
     validatedTo, L, upkeepPerMo, capPerMo, behindInMonths: validatedTo !== undefined && gap > 0 && closing > 1e-6 && gap / closing <= 24 ? gap / closing : validatedTo !== undefined && gap <= 0 ? 0 : undefined,
     toolsInUpkeep: u.tools.length, toolsTotal: det.length, heads: re.heads, upkeepHeads: re.upkeep, perTool: u.perTool,
-    investigations: re.investigations, patches: re.patches, experiments: re.experiments, doublingDays: u.doublingsPerDay > 0 ? 1 / u.doublingsPerDay : undefined,
+    investigations: re.investigations, patches: re.patches, experiments: re.experiments, daysPerOom: u.oomPerDay > 0 ? 1 / u.oomPerDay : undefined,
   };
 }
 
 export function techniqueRows(s: GameStateV2): TechniqueRow[] {
   const v = internalVersion(s);
-  const M = mAtLevel(s.hidden.timeline, measuredLOf(s, v).L);
+  const w = s.hidden.timeline;
+  const x = oomOfLevel(w, measuredLOf(s, v).L);
   return Object.values(s.player.safety.techniques).map((t) => ({
     id: t.id, name: TECHNIQUE_BY_ID[t.id]?.name ?? `AI-validated ${AGENDA_BY_ID[t.agenda].name} tool`, agenda: t.agenda, family: t.family,
-    role: techniqueRole(t), unlocked: t.unlocked, active: t.active, strength: Math.round(strengthBelieved(s, t, M) * 100) / 100,
-    decay: Math.round(decayAt(s, t, M, false) * 100) / 100, mHalf: t.mHalf, trainedAgainst: t.trainedAgainst,
+    role: techniqueRole(t), unlocked: t.unlocked, active: t.active, strength: Math.round(strengthBelieved(s, t, x) * 100) / 100,
+    decay: Math.round(decayAt(s, t, x, false) * 100) / 100, oHalf: t.oHalf,
+    halfL: t.k > 0 && t.oHalf < 1e8 && t.agenda !== 'AG05' ? Math.round(levelOfOom(w, t.oHalf) * 100) / 100 : undefined, trainedAgainst: t.trainedAgainst,
   }));
 }
 

@@ -4,7 +4,7 @@
 import type { ReactNode } from 'react';
 import { Eye } from 'lucide-react';
 import type { GameStateV2, ModelVersion } from '../../../engine/v2';
-import { measuredLOf } from '../../../engine/v2';
+import { measuredLOf, monitorCatchAt } from '../../../engine/v2';
 import { Term, Tip, TipCard } from '../ui';
 import * as F from '../fmt';
 import { ICON } from '../icons';
@@ -38,15 +38,17 @@ export function PkgChip({ kind, value, options, onPick, changed, extra, testId, 
   );
 }
 
-/** Catch-rate readout for a monitor chip with its breakdown (products' rule: 85% × 0.52^gap, AG07 control tools). */
-export function CatchX({ rate, gap, base, control, coverage, testId, note, copy, collusion }: { rate: number; gap: number; base?: number; control?: number; coverage?: number; testId?: string; note?: ReactNode; copy?: boolean; collusion?: number }) {
+/** Catch-rate readout for a monitor chip with its breakdown (model v3 E6: 85% at no oversight gap, Engels' 10% at a
+ *  400-Elo ≈ 6.8 OOM gap; AG07 control tools; deferral under the control layer). */
+export function CatchX({ rate, gap, gapL, elo, base, control, defer, coverage, testId, note, copy, collusion }: { rate: number; gap: number; gapL?: number; elo?: number; base?: number; control?: number; defer?: number; coverage?: number; testId?: string; note?: ReactNode; copy?: boolean; collusion?: number }) {
   const coll = copy && collusion !== undefined && collusion < rate - 1e-6;
   return (
     <Tip content={() => <TipCard title={<Term id="catchRate">Catch rate</Term>} value={F.pct(rate)} rows={[
       { label: 'Monitor as capable as the model', value: '85%' },
-      { label: <Term id="gap">Oversight gap</Term>, value: `${gap.toFixed(2)} × 4 in M → ×${(0.52 ** gap).toFixed(2)}` },
+      { label: <Term id="oversightGap">Oversight gap</Term>, value: gap > 1e-6 ? `${gap.toFixed(1)} OOM${gapL !== undefined ? ` (${gapL.toFixed(1)} levels${elo !== undefined ? `, ≈${Math.round(elo)} Elo` : ''})` : ''} → ${F.pct(monitorCatchAt(gap))}` : 'none' },
       ...(base !== undefined ? [{ label: 'Before control tools', value: F.pct(base) }] : []),
       ...(control !== undefined ? [{ label: 'AI-control tools (AG07)', value: `+${F.pct(control * 0.5)} of the rest` }] : []),
+      ...(defer !== undefined && defer < 1 ? [{ label: <Term id="controlTax">Deferral (control layer)</Term>, value: `misses ×${defer.toFixed(2)}` }] : []),
       ...(coverage !== undefined && coverage < 1 ? [{ label: 'Funded (safety pool)', value: F.pct(coverage) }] : []),
       ...(coll ? [{ label: <Term id="collusion">Same lineage: scheming-type incidents</Term>, value: F.pct(collusion ?? 0), tone: 'neg' as const }] : []),
     ]}>{note ?? 'Model-behaviour incidents it catches stay internal.'}</TipCard>}>
