@@ -1710,3 +1710,12 @@ removed: `recapDeadline` (investors.ts), `orderBalances` (ledger.ts, pre-v3 orde
 tabs and the money datum → home rows; `design/v2-interfaces.ts` finance types (no templates, `pendingApprovals`,
 `boardVector`, narrative; promises, credibility, partner deals, `ActionDef.vote`, rivals' finance fields); JANK-AUDIT
 F2 / F3 / ST2 / ST3 status lines; FINANCE-V3's status line; the "Status: built" section at the top of this file.
+
+**Final run** (0ae5f95, every script one by one): `npm run typecheck` and the scripts' tsconfig clean;
+golden-timelines, identity, calib, fixtures (no fixture diff) green; hygiene: only the absolute perf checks (1599 / 1686
+µs in the chain, 2562 / 2967 µs and worst quarter 9.5 ms on a lone rerun while the parallel model-v3 session loaded the
+machine; they passed in the first FIN6c run on the same engine; the relative leader-lab check passes, −3.6%; FIN6c adds
+nothing daily); lint-hidden, lint-ux (new glossary check passes), lint-tradeoffs, lint-structure green; safety only S5
+(known, mixed-bot median min margin −0.55); finance all passed (193 checks; F2 47.0M); worldfx all passed (GOV T1 Accept
+2028-01-13, HireRate_SOFT 2027-05-04, AI-friend 8.4%); ws4, products, money, idle green; `npm run build` succeeds;
+`npm run test:ui` 324/324.
