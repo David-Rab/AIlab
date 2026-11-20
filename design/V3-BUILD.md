@@ -2394,7 +2394,11 @@ Both branches started at 672c4c1 (before A5). D1, D3 and E1 notes are above (cop
   A5 gives SIAR −0.175, ASI −0.334 (D3 on its own branch had −0.074 / −0.082; A5's market and D3's draw together move
   RefBot's late authors2026 path); E1 adds ≈ −0.05 / −0.02. The fit is steep as V3b noted (Δ_bm 4.55 −0.055 / −0.079,
   4.562 −0.088 / −0.184, 4.569 +0.041 / +0.110, 4.581 +0.121 / +0.200, 4.60 −0.027 / +0.041): Δ_bm is back at its pre-A5
-  value (4.606), F4.
+  value (4.606), F4. **This overrides the lead's "Δ_bm 4.5 kept"** under the rule "refit only the named per-preset
+  values if a preset leaves tolerance": with Δ_bm held at 4.5 the best G_SC (33.61) leaves SIAR −0.123 / ASI −0.312, and
+  moving sd_SC instead also moves SC (G_SC 33.61, Δ_bm 4.5: sd_SC 1.5 → SC +0.156, SAR +0.447; 1.65 → +0.049 / SAR +0.230;
+  1.95 → SC −0.178, ASI −0.499; 2.1 → ASI −1.077), so no sd_SC near 1.8 fits at 4.5 without a larger G_SC/sd_SC move. One
+  line reverts it (`V3_CAL.authors2026`) if the lead prefers 4.5 with authors2026 out of tolerance.
 - ai2027, fast: unchanged and in tolerance. T1L passes on all presets.
 
 **Gate (merged code, after the refits where they matter).**
