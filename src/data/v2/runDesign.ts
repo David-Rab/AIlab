@@ -182,7 +182,7 @@ export const POST_COT: Record<PostDesign['cot'], { dg: number; serveMult: number
 export const POST_SAFETY: Record<PostDesign['safety'], { dg: number; misuseMult: number; honest: number }> = {
   minimal: { dg: 0.024, misuseMult: 2, honest: 0 },
   standard: { dg: 0, misuseMult: 1, honest: 0 },
-  heavy: { dg: -0.048, misuseMult: 1, honest: 0.1 }, // SCHEME −0.9×, EA ×1.5 (WS2, E25)
+  heavy: { dg: -0.048, misuseMult: 1, honest: 0.1 }, // SCHEME −0.95×, EA ×2 (WS2, E25)
 };
 
 /** RL families: domain values v_f,d (v2 levels; the largest is the family's own domain, the others adjacent, every

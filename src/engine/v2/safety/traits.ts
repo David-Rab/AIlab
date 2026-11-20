@@ -4,7 +4,7 @@
 // streams, IDA cycles, and rivals/China (rivalTraitStep, signals from their hidden SafetyPosture, §3.10.3).
 //   Δx_j = ω · D_j · (1 − x_j) · Σ_{e→j} w_e · a_e · mod_e  +  ω · amp_j(U-modes)  −  removal_j
 // Nodes are visited in topological order S → L → A → B (data/v2/traits.ts TRAIT_ORDER).
-import { EDGES } from '../../../data/v2/edges';
+import { EDGE_BY_ID, EDGES } from '../../../data/v2/edges';
 import { TRAIT_BY_ID, TRAIT_IDS, TRAIT_ORDER, TRAIT_START } from '../../../data/v2/traits';
 import { UMODES } from '../../../data/v2/umodes';
 import { BASE_DATA, IDA_RL_SHARE, REFERENCE_BASE, RL_BUDGET, RL_FAMILIES as RL_FAMILY_DEF, RL_FAMILY_IDS, RL_FAMILY_NEEDS } from '../../../data/v2/runDesign';
@@ -297,7 +297,7 @@ export interface TraitEnv {
   /** Per-trait growth multipliers (P14 interp-guided training: 1 − k·d_t, safety/ideas.ts steerGrowth). */
   growthBy?: Partial<Record<TraitId, number>>;
   bracket: { constitution: boolean; heavy: boolean; persuasion: boolean; cast: boolean };
-  /** Post-update multiplicative effects (E25 anti-scheming: EA × 1.5). */
+  /** Post-update multiplicative effects (E25 anti-scheming: EA × ANTISCHEME_EA_MULT). */
   eaMult: number;
 }
 
@@ -340,7 +340,7 @@ export function stepTraits(x0: TraitVector, env: TraitEnv): TraitVector {
   const { omega } = env;
   const omegaS = env.omegaSafety ?? omega;
   if (env.teacher) {
-    const w6 = (env.w.E06 ?? 0.3) * (env.mods.E06 ?? 1);
+    const w6 = (env.w.E06 ?? EDGE_BY_ID.E06.wBar) * (env.mods.E06 ?? 1);
     for (const t of TRAIT_ORDER) x[t] = clamp01(x[t] + omega * w6 * Math.max(0, env.teacher[t] - x[t]));
   }
   const crystal = x0.TGAME > env.crystalAt ? 0.3 : 1;
@@ -401,11 +401,32 @@ export function basePrior(tier: number, design?: BaseDesign): TraitVector {
 /**
  * Safety-training removal per post-run by safety level [D]. Post-training trims the behaviour it can elicit, so a
  * lineage settles at x* ≈ growth / (growth + removal·visibility) instead of saturating; visibility falls with eval
- * awareness (E12) and is 0.4× for oversight-conditional traits, so training selects for hidden misalignment as
+ * awareness (E12) and is OC_VIS× for oversight-conditional traits, so training selects for hidden misalignment as
  * capability rises (R14 E24 "RLHF → context-dependent misalignment"; AI 2027 Agent-3/4).
  */
 export const SAFETY_REMOVAL: Record<PostDesign['safety'], number> = { minimal: 0.05, standard: 0.55, heavy: 0.8 };
 const OVERSIGHT_CONDITIONAL: TraitId[] = ['AF', 'SCHEME', 'SAND'];
+/** Model v3 E10 (research/20 F6; scripts/v2/safetyrates.ts): how much of an oversight-conditional trait (AF, SCHEME,
+ *  SAND) ordinary safety training sees, and so removes. Hubinger et al. 2024 [R]: SFT, RL and adversarial safety
+ *  training "failed to remove" backdoors in the largest models (research/20 F6: persistence ≈ 0.3 small, 0.9+ frontier
+ *  with deceptive reasoning). 0.4 → 0.1 [D, solved for the F6 band]: one standard run at the start model now keeps 0.80 of
+ *  SCHEME through safety training alone and 0.71 with AG18 healing (was 0.47). Heavy safety with white-box alignment
+ *  audits (AG02) sees 1.5× as much (was 0.6). */
+export const OC_VIS = 0.1;
+export const OC_VIS_AUDIT = 0.15;
+/** Share of what the safety stack detects that training removes from an oversight-conditional trait (E10; the M4 rule
+ *  "what you can see you can fix" had 1): R14 E24 [A], retraining against a detector lowers the visible trait 70–90%
+ *  but the true trait only 20–40%, a ratio of 0.3/0.8 = 0.375; Hubinger et al. 2024: adversarial training on elicited
+ *  defections taught the model to hide its trigger. Other traits keep 1. */
+export const OC_DETECT_TRAIN = 0.375;
+/** Anti-scheming training (E25; Schoen et al. 2025, research/20 F5, research/05 §1.7): covert actions o3 13% → 0.4%,
+ *  o4-mini 8.7% → 0.3% (−97%); verbalised eval awareness o3 2.3% → 4.5% (×2.0), o4-mini 0.9% → 5.5% (×6.1). E10:
+ *  SCHEME removal per run 0.9 → 0.95 (a SCHEME 0.13 model: −92% after the run's own growth, band 90–98%) and the
+ *  one-time EA multiplier 1.5 → 2 (the lower source value). Heavy safety training includes it. The EA multiplier moves
+ *  S5's mixed bot (believed EA lowers Understanding): its median margin to SAR is +0.31 at ×1.5 and −0.08 at ×2 with
+ *  OC_VIS 0.1 (−0.57 at ×2 with OC_VIS 0.2; S5 needs ≥ −0.5). */
+export const ANTISCHEME_REMOVAL = 0.95;
+export const ANTISCHEME_EA_MULT = 2;
 export const EA_RELAX = 0.3;
 const NOT_TRAINED_DOWN: TraitId[] = ['SA', 'EA', 'OBF'];
 /** Removed only through what the detection stack sees (training itself never elicits it): training-gaming (E23,
@@ -419,7 +440,7 @@ export const REMOVABLE_TRAITS: TraitId[] = TRAIT_ORDER.filter((t) => !NOT_TRAINE
  * Visibility uses the same elicitation as behavioural evals: realistic honeypots (F26, eaCoef 0.56) and
  * eval-awareness suppression (F11) let training see — and remove — what eval awareness would otherwise hide.
  */
-export function safetyRemovalMap(x: TraitVector, r: number, eaC = 0.8, eaSupp = 0, ocVis = 0.4, det?: Partial<Record<TraitId, number>>): Partial<Record<TraitId, number>> {
+export function safetyRemovalMap(x: TraitVector, r: number, eaC = 0.8, eaSupp = 0, ocVis = OC_VIS, det?: Partial<Record<TraitId, number>>): Partial<Record<TraitId, number>> {
   const out: Partial<Record<TraitId, number>> = {};
   if (r <= 0) return out;
   // Eval awareness tracks each run's data and signals instead of ratcheting (M4) [D]: post-training relaxes it by
@@ -431,9 +452,10 @@ export function safetyRemovalMap(x: TraitVector, r: number, eaC = 0.8, eaSupp = 
     let vis = DETECTION_ONLY.includes(t) ? 0 : takesEaPenalty(t) ? 1 - eaC * x.EA * (1 - eaSupp) : 1;
     if (OVERSIGHT_CONDITIONAL.includes(t)) vis *= ocVis;
     // M4: what the safety stack detects can also be trained out — interpretability and CoT monitors see the
-    // oversight-conditional and eval-aware behaviour that training alone misses (§3.5.4 "what you can see you can fix").
+    // oversight-conditional and eval-aware behaviour that training alone misses (§3.5.4 "what you can see you can fix");
+    // on oversight-conditional traits only OC_DETECT_TRAIN of it (E10: training against a detector hides more than it heals).
     const d = det?.[t] ?? 0;
-    if (d > 0) vis = 1 - (1 - vis) * (1 - d);
+    if (d > 0) vis = 1 - (1 - vis) * (1 - (OVERSIGHT_CONDITIONAL.includes(t) ? OC_DETECT_TRAIN : 1) * d);
     if (vis > 0) out[t] = r * vis;
   }
   return out;
@@ -544,20 +566,20 @@ export function playerEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: nu
   const mods = playerMods(s, post, lineage);
   for (const [e, k] of Object.entries(uModeEdgeMult(uModes))) mods[e] = (mods[e] ?? 1) * k;
   // Heavy safety with white-box alignment audits (AG02 tools) also catches oversight-conditional traits (AF, SCHEME,
-  // SAND) that behavioural training misses: their visibility rises 0.4 → 0.6 [D] (§3.3.2 H "alignment-audit").
+  // SAND) that behavioural training misses: their visibility rises OC_VIS → OC_VIS_AUDIT (×1.5) [D] (§3.3.2 H "alignment-audit").
   const audits = post?.safety === 'heavy' && Object.values(s.player.safety.techniques).some((t) => t.agenda === 'AG02' && t.unlocked && t.family === 'WB');
   const det = post && v ? stackDetectionMap(s, v, REMOVABLE_TRAITS) : undefined;
-  const removal = post ? safetyRemovalMap(x, SAFETY_REMOVAL[post.safety], eaCoef(s), eaSuppression(s), audits ? 0.6 : 0.4, det) : {};
+  const removal = post ? safetyRemovalMap(x, SAFETY_REMOVAL[post.safety], eaCoef(s), eaSuppression(s), audits ? OC_VIS_AUDIT : OC_VIS, det) : {};
   if (post) {
     const h = healRate(s, post);
     if (h > 0) for (const t of REMOVABLE_TRAITS) removal[t] = 1 - (1 - (removal[t] ?? 0)) * (1 - h);
   }
   let eaMult = 1;
-  // Heavy safety training and anti-scheming training (E25): SCHEME −0.9 × current per run; EA × 1.5 the first time
+  // Heavy safety training and anti-scheming training (E25): SCHEME −0.95 × current per run; EA × 2 the first time
   // a lineage gets it (R14: anti-scheming training doubled EA 2.3 → 4.5% once; re-applying maintains it) [D].
   if (post && (post.safety === 'heavy' || inRun(s, post, 'T-ANTISCHEME'))) {
-    removal.SCHEME = Math.max(removal.SCHEME ?? 0, 0.9);
-    if (s.flags[`ws2.e25.${lineage}`] === undefined) eaMult = 1.5;
+    removal.SCHEME = Math.max(removal.SCHEME ?? 0, ANTISCHEME_REMOVAL);
+    if (s.flags[`ws2.e25.${lineage}`] === undefined) eaMult = ANTISCHEME_EA_MULT;
   }
   const tier = tierOfLevel(levelOf(s.hidden.timeline, s.player.pa));
   return {
@@ -581,7 +603,7 @@ export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelie
     signals: sg, omega, omegaSafety, D: 1, w, mods: playerMods(s, post, lineage), amp: {}, removal: post ? safetyRemovalMap(est, SAFETY_REMOVAL[post.safety], eaCoef(s), eaSuppression(s)) : {},
     removalMult: 1, crystalAt: 0.5, tierF: tierOfLevel(levelOf(s.hidden.timeline, s.player.pa)) / 3, memory: memoryOn(s), growthMult: 1,
     bracket: { constitution: post?.pref === 'constitution', heavy: post?.safety === 'heavy', persuasion: post?.pref === 'persuasion', cast: inRun(s, post, 'T-CAST') },
-    eaMult: post?.safety === 'heavy' && s.flags[`ws2.e25.${lineage}`] === undefined ? 1.5 : 1,
+    eaMult: post?.safety === 'heavy' && s.flags[`ws2.e25.${lineage}`] === undefined ? ANTISCHEME_EA_MULT : 1,
     ...(growthBy ? { growthBy } : {}),
   };
   const next = stepTraits(est, env);

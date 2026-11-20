@@ -27,13 +27,17 @@ export const EDGES: EdgeDef[] = [
   { id: 'E03', from: ['SYC'], to: 'RH', wBar: 0.1, grade: 'B', cite: 'Denison 2024: rare reward tampering' },
   { id: 'E04', from: ['RH'], to: 'PERSONA', wBar: 0.5, grade: 'B', cite: 'MacDiarmid 2025: 12% sabotage, 50% AF reasoning', moderator: 'inoculation ×0.15; persona vectors ×0.7' },
   { id: 'E05', from: ['S6'], to: 'PERSONA', wBar: 0.5, grade: 'A', cite: 'Betley 2025: ~20% (GPT-4o), ~50% (GPT-4.1)', moderator: 'persona vectors ×0.7' },
-  { id: 'E06', from: ['teacher'], to: 'PERSONA', wBar: 0.3, grade: 'B', cite: 'Cloud 2025: ~10% vs <1%', moderator: 'same base family only' },
+  // E10: 0.3 → 0.75 (research/20 F3): a distillation (ω 0.4) carries 0.3 of the teacher − student gap, in research/20's
+  // [G] 0.2–0.5 (Cloud 2025: owl preference 12% → 60%+, about half the gap from ~10k filtered examples).
+  { id: 'E06', from: ['teacher'], to: 'PERSONA', wBar: 0.75, grade: 'B', cite: 'Cloud 2025: ~10% vs <1%; owl 12% → 60%', moderator: 'same base family only' },
   { id: 'E07', from: ['S5'], to: 'SA', wBar: 0.4, grade: 'B', cite: 'Berglund 2023; Laine 2024 SAD', moderator: 'AI-discourse curation lowers S5' },
   { id: 'E07b', from: ['S5'], to: 'RH', wBar: 0.1, grade: 'C', cite: 'Hu et al. 2025' },
   { id: 'E08', from: ['S3'], to: 'POWER', wBar: 0.4, grade: 'B', cite: 'Agentic misalignment 80-96% (contrived); 14/20 OpenAI incidents from RL', moderator: 'scoped constitution −30%; corrigibility target −30%' },
   { id: 'E09', from: ['S2', 'S3'], to: 'PROXY', wBar: 0.3, grade: 'C', cite: 'Langosco 2022; Shah 2022', moderator: 'broad RL −30%' },
   { id: 'E10', from: ['SA'], to: 'EA', wBar: 0.5, grade: 'A', cite: 'Verbalized EA 11.7% → 41-51%', moderator: 'realistic honeypots −30%' },
-  { id: 'E11', from: ['S7'], to: 'EA', wBar: 0.3, grade: 'B', cite: 'Anti-scheming doubled EA 2.3 → 4.5%', moderator: 'keep evals out of training' },
+  // E10: 0.3 → 0.2 (research/20 F5): one run at 10× the RL budget raises EA by 0.14 per OOM (was 0.18) against Schoen
+  // et al. 2025 [R] capability-only RL 2% → 20.6% over ~1–3 OOM (0.06–0.19 per OOM). Anti-scheming's EA ×2 is E25.
+  { id: 'E11', from: ['S7'], to: 'EA', wBar: 0.2, grade: 'B', cite: 'Schoen 2025: capability RL raised EA 2% → 20.6%', moderator: 'keep evals out of training' },
   { id: 'E13', from: ['SA', 'PROXY'], to: 'AF', wBar: 0.3, grade: 'B', cite: 'Greenblatt 2024: 12% → 78% after RL', moderator: 'corrigibility target −30%' },
   { id: 'E14', from: ['S7'], to: 'AF', wBar: 0.6, grade: 'B', cite: 'MATS/GDM Oct 2026: gap 43-95%', moderator: 'randomised monitoring −50%' },
   { id: 'E15', from: ['S4'], to: 'OBF', wBar: 0.7, grade: 'A', cite: 'Baker 2025; controllability 1.7 → 60.9%', moderator: 'monitorability pledge −50%' },
@@ -63,7 +67,7 @@ export const EDGE_NOTES: { id: string; text: string; grade: EdgeGrade }[] = [
   { id: 'E16', text: 'Obfuscation + training against a probe → white-box evasion (Goodhart G)', grade: 'B' },
   { id: 'E20', text: 'Scheming + assigned to alignment R&D → sabotage of safety work', grade: 'C' },
   { id: 'E24', text: 'Retrain against a detector → mask: visible falls 70-90%, true 20-40%', grade: 'A' },
-  { id: 'E25', text: 'Anti-scheming training → scheming −90%, eval awareness ×1.5', grade: 'A' },
+  { id: 'E25', text: 'Anti-scheming training → scheming −95%, eval awareness ×2', grade: 'A' },
   { id: 'E26', text: 'Gradient hacking (only if present): removal effects × 0.5', grade: 'D' },
 ];
 

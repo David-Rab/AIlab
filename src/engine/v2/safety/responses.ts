@@ -4,7 +4,7 @@ import { CRITICAL_TRAITS } from '../../../data/v2/traits';
 import type { GameStateV2, Incident, ModelVersion, ResponseKind, SystemCtx, TraitId, UModeId } from '../types';
 import { clamp01, flagNum, setFlag, trueEfficacy, versionById } from './common';
 import { versionOom } from './oversight';
-import { goodhartTrain } from './traits';
+import { ANTISCHEME_EA_MULT, ANTISCHEME_REMOVAL, goodhartTrain } from './traits';
 import { strengthBelieved, techniqueRole } from './techniques';
 import { crystalMult, revealToWorld, uModeRemovalMult } from './umodes';
 import { removalFte } from './footholds';
@@ -114,10 +114,10 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
       const t = v.traitsTrue;
       const r = removal(v);
       if (has('T-ANTISCHEME') && (trait === 'SCHEME' || trait === 'AF' || trait === 'SAND')) {
-        t.SCHEME = clamp01(t.SCHEME * (1 - 0.9 * r)); // F47 / E25
-        // EA × 1.5 the first time a lineage gets anti-scheming training (same rule as heavy-safety runs).
+        t.SCHEME = clamp01(t.SCHEME * (1 - ANTISCHEME_REMOVAL * r)); // F47 / E25
+        // EA × ANTISCHEME_EA_MULT the first time a lineage gets anti-scheming training (same rule as heavy-safety runs).
         if (s.flags[`ws2.e25.${lineage}`] === undefined) {
-          t.EA = clamp01(t.EA * 1.5);
+          t.EA = clamp01(t.EA * ANTISCHEME_EA_MULT);
           setFlag(s, `e25.${lineage}`, ctx.day);
         }
       } else if (has('T-INOC') && (trait === 'PERSONA' || trait === 'RH' || trait === 'CONCEAL')) {

@@ -206,7 +206,7 @@ export const TREE: TreeNodeDef[] = [
   S('T-PERSONA', 'Persona vectors', 'alignment', 'training', ['T-STEER'], 'AG03', 'M', { saf: 1 }, { saf: 'Sycophancy / persona fix' }),
   S('T-W2S', 'Weak-to-strong training', 'alignment', 'training', ['T-CONFESS'], 'AG06', 'M', { saf: 1 }, { saf: 'Sycophancy / proxy-goal fix' }),
   S('T-UNDO', 'Unlearning', 'alignment', 'training', ['T-FILTER'], 'AG15', 'M', { cap: -1, saf: 1 }, { cap: 'BIO / CYBER −', saf: 'Misuse removal' }),
-  S('T-ANTISCHEME', 'Anti-scheming training', 'alignment', 'training', ['T-CONFESS', 'T-PROBE'], 'AG18', 'L', { saf: 2 }, { saf: 'Scheming −90% in training', cost: 'Eval awareness ×1.5' }),
+  S('T-ANTISCHEME', 'Anti-scheming training', 'alignment', 'training', ['T-CONFESS', 'T-PROBE'], 'AG18', 'L', { saf: 2 }, { saf: 'Scheming −95% in training', cost: 'Eval awareness ×2' }),
   S('T-CAST', 'Corrigibility target', 'alignment', 'training', ['T-W2S'], 'AG12', 'XL', { saf: 2 }, { saf: 'Corrigibility +', cost: 'Long shot' }),
 
   // ── Interpretability (Lab: detection tools) ──
