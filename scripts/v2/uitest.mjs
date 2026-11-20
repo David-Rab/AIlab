@@ -1727,6 +1727,32 @@ for (const x of iaIssues.slice(8, 30)) console.log('     ' + x);
   ok('F6d: a safety node previews its real effect (T-DECEPT: detector, the coverage the detection reads; P25 0.5 defence levels)', f6d.g?.unit === 'detector' && f6d.g.amount === 1 && covOk && f6d.p25?.unit === 'defence levels' && f6d.p25.amount === 0.5 && !f6d.bad.length, JSON.stringify(f6d));
 }
 
+// F6e: Respond › Targeted training previews what apply does. At the day-900 fixture (T-INOC unlocked) training PERSONA
+// removes the share the preview names: with no U-mode and no training gaming (removal multiplier 1, set here; the
+// fixture is reloaded below) the true level falls by exactly that share, the believed line is est → est × (1 − share),
+// and the next post-training run's penalty grows by the preview's years. No unitless alignment line on any response.
+{
+  const f6e = JSON.parse(await get(`(() => {
+    const V = window.ai27v2Views.actionView;
+    const v = s.player.models.versions.find((x) => x.id === s.player.agents.capRoutine.versionId);
+    if (!v) return {};
+    const kinds = ['patchSignal', 'retrainAgainst', 'targetedTraining', 'restrictContext', 'rollback', 'disclose'];
+    const bad = kinds.filter((k) => { const p = V(s, 'safety.respond', { kind: k, versionId: v.id }); return [...p.gains, ...p.exposure].some((x) => x.currency === 'alignment' && !x.unit && x.amount !== 0); });
+    v.uModes = [];
+    v.traitsTrue.TGAME = 0;
+    const p = V(s, 'safety.respond', { kind: 'targetedTraining', versionId: v.id, trait: 'PERSONA' });
+    const g = p.gains.find((x) => x.unit === 'PERSONA');
+    const pen = p.costs.find((x) => x.currency === 'progress' && x.unit === 'yr');
+    const est = v.beliefs.PERSONA.est;
+    const before = v.traitsTrue.PERSONA;
+    const pen0 = s.flags['ws2.runPenalty'] ?? 0;
+    store.act('safety.respond', { kind: 'targetedTraining', versionId: v.id, trait: 'PERSONA' });
+    return { g, pen, est, before, after: v.traitsTrue.PERSONA, dPen: (s.flags['ws2.runPenalty'] ?? 0) - pen0, bad };
+  })()`));
+  const share = f6e.g && f6e.est > 0 ? f6e.g.amount / f6e.est : NaN;
+  ok('F6e: Targeted training previews the share apply removes (believed est → est × (1 − share); true level × (1 − share)) and its run penalty', f6e.before > 0 && Math.abs(1 - f6e.after / f6e.before - share) < 1e-9 && f6e.g.target.includes(`→ ${(f6e.est * (1 - share)).toFixed(2)}`) && Math.abs(f6e.dPen + f6e.pen.amount) < 1e-12 && !f6e.bad.length, JSON.stringify(f6e));
+}
+
 // Speed-4 run for 2 s from the day-400 fixture (the day-900 fixture can end within days, e.g. another lab's ASI):
 // no errors, alerts appear. Then back to day 900 for the end screen.
 await page.evaluate((j) => window.ai27v2.importJson(j), fx);

@@ -794,6 +794,10 @@ function defaultBeliefs(s: GameStateV2): Record<TraitId, TraitBelief> {
 
 // ───────────────────────────── Goodhart (§3.5.6, E24) ─────────────────────────────
 
+// F6e: shared with the Respond › Retrain against preview (safety/actions.ts).
+export const RETRAIN_TRUE: [number, number] = [0.2, 0.4];
+export const RETRAIN_VISIBLE: [number, number] = [0.7, 0.9];
+export const RETRAIN_OBF = 0.1;
 /**
  * Train against detector `techniqueId` on `traits` of version v: true trait −20–40%, mask on the detector's family
  * chosen so the visible (observed) level falls 70–90%, OBF +0.1 (E15/E24), technique trainedAgainst += 1. `maskMult`
@@ -803,14 +807,14 @@ export function goodhartTrain(s: GameStateV2, rng: RngLike, v: ModelVersion, tec
   const t = s.player.safety.techniques[techniqueId];
   if (!t) return;
   for (const tr of traits) {
-    const d = rng.range(0.2, 0.4) * uModeRemovalMult(v.uModes) * crystalMult(v.traitsTrue.TGAME, v.uModes);
-    const vis = rng.range(0.7, 0.9);
+    const d = rng.range(RETRAIN_TRUE[0], RETRAIN_TRUE[1]) * uModeRemovalMult(v.uModes) * crystalMult(v.traitsTrue.TGAME, v.uModes);
+    const vis = rng.range(RETRAIN_VISIBLE[0], RETRAIN_VISIBLE[1]);
     const m = clamp01(1 - (1 - vis) / Math.max(0.05, 1 - d)) * maskMult;
     v.traitsTrue[tr] = clamp01(v.traitsTrue[tr] * (1 - d));
     const masks = (v.masks[tr] ??= {});
     masks[t.family] = clamp01(1 - (1 - (masks[t.family] ?? 0)) * (1 - m));
   }
-  v.traitsTrue.OBF = clamp01(v.traitsTrue.OBF + 0.1);
+  v.traitsTrue.OBF = clamp01(v.traitsTrue.OBF + RETRAIN_OBF);
   t.trainedAgainst += 1;
 }
 

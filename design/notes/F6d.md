@@ -46,3 +46,47 @@ checks now expect "± x L". lint-tradeoffs, lint-hidden, lint-ux pass.
 
 Left (lead): the lane danger chip still says "/yr" only (width); other events with `alignment` placeholder amounts
 were not in scope (`safety/actions.ts` respond previews "alignment est × 0.3 / × 0.5"; f6a-owned file).
+
+### F6e notes (Respond and Investigate previews; branch v3-f6e from v3-f6d, 2026-11-21)
+
+`safety/actions.ts` Respond previews now state what `applyResponse` does, from the same constants and helpers, on
+believed values only (beliefs, measured levels, believed strengths and efficacy). Shared numbers moved next to the
+effect: `responses.ts` `PATCH_MULT / PATCH_DAYS / PATCH_FTE / RUN_PENALTY_Y`, `targetedPlan` (the traits targeted
+training cuts or raises, E25's EA ×2, inoculation's E04 patch; apply passes AG18's true efficacy, the preview the believed
+one), `restrictTargets`, `discloseTrust / discloseScrutiny / DISCLOSE_CPS`; `traits.ts` `RETRAIN_TRUE / RETRAIN_VISIBLE /
+RETRAIN_OBF` (goodhartTrain); `dangerView.ts` `RESTRICT` exported and `restrictDangerDelta`; `investigations.ts`
+`caseRate`, `daysToResolve`, `corruptOdds`, `CASE_RESOLVE`, `defaultTools` exported (monthlyGain, the step and resolve use
+them). No balance change; one behaviour change: `bestDetector` (Retrain against's default detector) ranks at the measured
+OOM, not the true one, so the preview names the detector apply picks.
+
+- *Patch signal*: was "staff 10 for 30–90 d in 60 d", "progress −0.02", "alignment est × 0.15 future growth". Now: 10
+  safety research engineers for 30–90 d (0 when a patch already runs: its end date moves), "0.020 yr of progress off the
+  next post-training run (G −0.024)", "N training pressures into <trait>: weight ×now → ×a–b on every later run,
+  lab-wide (floor ×0.2)" (patchLevel), or "already at the floor".
+- *Retrain against*: was "monitor −0.5", "staff 5 · 14 d", "board +3", "alignment −0.1 hides, not heals". Now: the
+  detector apply trains against, its believed strength now → after one more retrain (Goodhart G), obfuscated reasoning
+  +0.1, true level −20–40% (believed est → range, at most), and a mask: its family reads the trait at 10–30% of today's
+  reading. No staff, days or board change (apply has none).
+- *Targeted training*: was "staff 10 · 21–35 d", "progress −0.02", "alignment est × 0.3", "EA ×2 p 80% (SCHEME/AF)". Now:
+  the run penalty line; per trait the plan cuts "believed est → est × (1 − share): <technique> removes x% (at most)";
+  T-CAST's corrigibility +0.15; inoculation's E04 weight; EA ×2 only when it applies (first anti-scheming on the lineage).
+- *Restrict context*: was "revenue −0.5 (× 0.5)", "approval +2". Now: the products apply restricts, their revenue
+  $x → $0.3x B/yr, believed harmful acts now → after (dangerView with restrict), 70% less misuse reach; "no live
+  external product" when none.
+- *Roll back*: was "progress −0.25", "lead −45 d", "alignment est × 0.5", "U-modes p 30%". Now: measured L now → the
+  checkpoint's, the deployments and agent lanes that move, the model shelved (and its stream stopped), the believed trait
+  now → the checkpoint's (an exposure if the checkpoint is believed worse); "no checkpoint" when none.
+- *Disclose*: was "trust (3(c − 30)/40) evalGov, exec, evaluators", "credibility +2", "approval −sev p 50%". Now:
+  scrutiny 3 + 2·severity; trust per counterparty as applied (mean, each listed; a cost under credibility 30); the
+  incident's public timer ends (no cover-up); "at most N discovered U-modes not yet public" the world learns. No
+  credibility or press line (never applied).
+- *Add / Remove control* (F6a) and *Remove foothold* (E8) unchanged.
+- *Investigate*: was clarity/month without the AI-labour multiplier and compute factor, compute "5 × share %", corruption
+  p = sab × 0.4. Now: the case's traits and tools as opened, `caseRate` at believed strengths, "clarity 0.8 in ~N d" or
+  the clarity reached at 120 d, compute share "of the safety compute pool", corruption odds `corruptOdds` (sabotage ×
+  (1 − the tools' verifiability)).
+
+Tests: `uitest.mjs` F6e check: at day 900 (T-INOC), with the removal multiplier set to 1, Targeted training on PERSONA
+lowers the true level by exactly the share its believed line shows, the believed target reads est → est × (1 − share),
+and the run penalty grows by the previewed years; no Respond preview carries a unitless alignment line. lint-ux,
+lint-hidden, lint-tradeoffs pass.
