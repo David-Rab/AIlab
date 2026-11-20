@@ -7,7 +7,8 @@ import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { SAFETY_EVALS, TRAIT_BY_ID, TRAIT_IDS } from '../../../data/v2/traits';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
 import type { GameStateV2, ModelVersion, RngLike, SystemCtx, TechniqueState, ToolFamily, TraitBelief, TraitId } from '../types';
-import { clamp, clamp01, lambda2Delta, sigmoid, versionById, versionM } from './common';
+import { clamp, clamp01, lambda2Delta, sigmoid, versionById } from './common';
+import { versionOom } from './oversight';
 import { cotAlive } from './latents';
 import { believedMask, strengthTrue, techniqueRole } from './techniques';
 import { hiddenUModes } from './umodes';
@@ -199,13 +200,13 @@ export function observeVersion(s: GameStateV2, rng: RngLike, day: number, v: Mod
 }
 
 /** Combined TRUE detection of `trait` by the active tools of one family on version v (strength for σ). */
-export function familyDetection(s: GameStateV2, _v: ModelVersion, trait: TraitId, family: ToolFamily, M: number, tools?: readonly TechniqueState[]): number {
+export function familyDetection(s: GameStateV2, _v: ModelVersion, trait: TraitId, family: ToolFamily, X: number, tools?: readonly TechniqueState[]): number {
   const items: { agenda: string; d: number }[] = [];
   for (const t of tools ?? Object.values(s.player.safety.techniques)) {
     if (!t.unlocked || (!tools && !t.active) || t.family !== family || techniqueRole(t) === 'fix') continue;
     const cov = t.coverage[trait] ?? 0;
     if (cov <= 0) continue;
-    items.push({ agenda: t.agenda, d: cov * strengthTrue(s, t, M) });
+    items.push({ agenda: t.agenda, d: cov * strengthTrue(s, t, X) });
   }
   return combineTools(items);
 }
@@ -216,11 +217,11 @@ export function familyDetection(s: GameStateV2, _v: ModelVersion, trait: TraitId
  * WS1's runEvalSuite should call this; safetyResearch also runs it whenever a version's suiteDay advances.
  */
 export function safetyEvalSuite(s: GameStateV2, rng: RngLike, day: number, v: ModelVersion, by: 'self' | 'evalGov' | 'evalIndep' = 'self'): void {
-  const M = versionM(s, v);
+  const X = versionOom(s, v);
   const bbObs: Partial<Record<TraitId, { o: number; sigma: number }>> = {};
   for (const trait of TRAIT_IDS) {
     for (const fam of ['BB', 'COT'] as ToolFamily[]) {
-      let d = familyDetection(s, v, trait, fam, M);
+      let d = familyDetection(s, v, trait, fam, X);
       if (by === 'evalIndep' && fam === 'BB') d = Math.max(d, 0.35); // external elicitation (+) [D]
       if (d <= 0.02) continue;
       const o = observeVersion(s, rng, day, v, trait, fam, d);
@@ -267,11 +268,11 @@ export function runtimeMonitoring(s: GameStateV2, ctx: SystemCtx): void {
     const scale = Math.pow(strength, 0.3);
     const v = versionById(s, id);
     if (!v || v.status === 'retired') continue;
-    const M = versionM(s, v);
+    const X = versionOom(s, v);
     for (const trait of TRAIT_IDS) {
       if (TRAIT_BY_ID[trait].layer === 'P') continue;
       for (const fam of ['COT', 'WB'] as ToolFamily[]) {
-        const d = familyDetection(s, v, trait, fam, M) * scale;
+        const d = familyDetection(s, v, trait, fam, X) * scale;
         if (d <= 0.05) continue;
         observeVersion(s, rng, ctx.day, v, trait, fam, d, 2);
       }
@@ -283,18 +284,18 @@ const STACK_FAMILIES: ToolFamily[] = ['BB', 'COT', 'WB', 'OR'];
 
 /**
  * TRUE detection of each trait in `traits` by the whole active stack on version v (engine only): per family the
- * combined tool strength at the version's M times the true family penalty (EA, masks, OBF, undiscovered U-modes),
+ * combined tool strength at the version's capability (OOM above V0) times the true family penalty (EA, masks, OBF, undiscovered U-modes),
  * families combined independently. M4: post-training removes a trait only as far as this stack (plus what training
  * itself elicits) can see it (§3.5.4 "what you can see you can fix"), so masks and decayed tools also cost removal.
  */
 export function stackDetectionMap(s: GameStateV2, v: ModelVersion, traits: readonly TraitId[]): Partial<Record<TraitId, number>> {
-  const M = versionM(s, v);
-  // One pass over the stack: each tool's true strength once (it depends on M only), then per trait and family the
+  const X = versionOom(s, v);
+  // One pass over the stack: each tool's true strength once (it depends on capability only), then per trait and family the
   // familyDetection combination of cov · strength, times the true family penalty.
   const tools: { t: TechniqueState; str: number }[] = [];
   for (const t of Object.values(s.player.safety.techniques)) {
     if (!t.unlocked || !t.active || techniqueRole(t) === 'fix') continue;
-    const str = strengthTrue(s, t, M);
+    const str = strengthTrue(s, t, X);
     if (str > 0) tools.push({ t, str });
   }
   const out: Partial<Record<TraitId, number>> = {};
@@ -318,9 +319,9 @@ export function stackDetectionMap(s: GameStateV2, v: ModelVersion, traits: reado
 
 /** Probability that monitoring on a fleet catches an internal incident of `trait` (§3.5.10). Engine only. */
 export function monitoringCatch(s: GameStateV2, v: ModelVersion, trait: TraitId): number {
-  const M = versionM(s, v);
-  const cot = familyDetection(s, v, trait, 'COT', M) * familyPenalty(s, v, trait, 'COT');
-  const wb = familyDetection(s, v, trait, 'WB', M) * familyPenalty(s, v, trait, 'WB');
+  const X = versionOom(s, v);
+  const cot = familyDetection(s, v, trait, 'COT', X) * familyPenalty(s, v, trait, 'COT');
+  const wb = familyDetection(s, v, trait, 'WB', X) * familyPenalty(s, v, trait, 'WB');
   // R7: the monitor strength on the fleet running v (1 = the pre-R7 default monitoring share); J2 AG1: a same-lineage
   // monitor is weaker on collusion-relevant traits.
   return clamp01((1 - (1 - cot) * (1 - wb)) * (0.5 + 0.5 * fleetMonitor(s, v, trait)));

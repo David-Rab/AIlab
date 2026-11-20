@@ -1,44 +1,53 @@
-// Technique strength vs capability, Goodhart, refresh, containment (V2-SPEC §3.5.6–3.5.7). Owner: WS2.
-import { AG05_GAP, AG09_LATENT, AGENDA_BY_ID } from '../../../data/v2/agendas';
+// Technique strength vs capability, Goodhart, refresh, containment (V2-SPEC §3.5.6–3.5.7; model v3 E6). Owner: WS2.
+//
+// Model v3 E6: capability is read in OOM of effective compute above the start model (safety/oversight.ts), never in
+// the research multiplier M. A tool's strength factor is D(x) = 1/(1 + 10^(k·κ·(x − oHalf))): it holds while the
+// overseen model is near the capability the tool was validated on and halves `oHalf` OOM above V0 (tool upkeep raises
+// oHalf; data/v2/oversight.ts DECAY_KAPPA keeps v2's half points on the reference path).
+import { AG09_LATENT, AGENDA_BY_ID } from '../../../data/v2/agendas';
+import { AG05_OVERSIGHT, DECAY_KAPPA, OOM_PER_400_ELO } from '../../../data/v2/oversight';
 import { TECHNIQUES, TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import type { GameStateV2, TechniqueId, TechniqueState, ToolFamily } from '../types';
 import { believedEfficacy, flag, lambda2Delta, trueEfficacy } from './common';
+import { oomOfLevel } from './oversight';
 
-/** strength_t(M) = s0 · e · D(M) · (1 − G·trainedAgainst) · (falseValidated ? 0 : 1), D(M) = 1/(1 + (M/M½)^k). */
-export function techniqueStrength(t: TechniqueState, efficacy: number, M: number): number {
-  if (t.falseValidated) return 0;
-  const D = 1 / (1 + Math.pow(M / Math.max(1e-9, t.mHalf), t.k));
-  return t.s0 * efficacy * D * Math.max(0, 1 - t.goodhart * t.trainedAgainst);
+/** Half-strength decay in OOM: 1/(1 + 10^(k·κ·(x − x½))); k ≤ 0 or x½ = ∞ never decays. */
+export function decayOom(x: number, oHalf: number, k: number): number {
+  if (k <= 0 || oHalf >= 1e8) return 1;
+  return 1 / (1 + Math.pow(10, k * DECAY_KAPPA * (x - oHalf)));
 }
 
-/** Capability decay D(M) with the AG09-under-latent override (R14: 250/1 legible → 5/2 neuralese) and the AG05
- *  overseer-gap rule (success ≈ 0.52^gap, gap = log4(M / M_overseer), −1 tier with debate F16). */
-export function decayAt(s: GameStateV2, t: TechniqueState, M: number, latentKnown: boolean): number {
+/** strength_t(x) = s0 · e · D(x) · (1 − G·trainedAgainst) · (falseValidated ? 0 : 1), x = the overseen model's OOM above
+ *  the start model. */
+export function techniqueStrength(t: TechniqueState, efficacy: number, x: number): number {
+  if (t.falseValidated) return 0;
+  return t.s0 * efficacy * decayOom(x, t.oHalf, t.k) * Math.max(0, 1 - t.goodhart * t.trainedAgainst);
+}
+
+/** Capability decay D(x) with the AG09-under-latent override (R14: 250/1 legible → 5/2 neuralese, i.e. half strength at
+ *  the superhuman-coder level) and the AG05 overseer-gap rule (Engels et al. 2025 debate: 0.517 per 400-Elo gap between
+ *  the overseen model and an overseer at L 10; the F16 debate finding takes ≈ 4 OOM off the gap). */
+export function decayAt(s: GameStateV2, t: TechniqueState, x: number, latentKnown: boolean): number {
   if (t.agenda === 'AG05') {
-    const gap = Math.max(0, Math.log(Math.max(1, M) / AG05_GAP.overseerM) / Math.log(4) - (flag(s, 'debate') ? 1 : 0));
-    return Math.pow(AG05_GAP.base, gap);
+    const xo = oomOfLevel(s.hidden.timeline, AG05_OVERSIGHT.overseerL);
+    const gap = Math.max(0, x - xo - (flag(s, 'debate') ? AG05_OVERSIGHT.debateCreditOom : 0));
+    return Math.pow(AG05_OVERSIGHT.base, gap / OOM_PER_400_ELO);
   }
-  let mHalf = t.mHalf;
-  let k = t.k;
-  if (t.agenda === 'AG09' && latentKnown) {
-    mHalf = Math.min(mHalf, AG09_LATENT.mHalf);
-    k = AG09_LATENT.k;
-  }
-  if (k <= 0) return 1;
-  return 1 / (1 + Math.pow(M / Math.max(1e-9, mHalf), k));
+  if (t.agenda === 'AG09' && latentKnown) return decayOom(x, Math.min(t.oHalf, AG09_LATENT.oHalf), AG09_LATENT.k);
+  return decayOom(x, t.oHalf, t.k);
 }
 
 /** TRUE strength (hidden efficacy, falseValidated → 0). Engine only. */
-export function strengthTrue(s: GameStateV2, t: TechniqueState, M: number): number {
+export function strengthTrue(s: GameStateV2, t: TechniqueState, x: number): number {
   if (t.falseValidated) return 0;
   const latent = lambda2Delta(s) <= -2;
-  return t.s0 * trueEfficacy(s, t.agenda) * decayAt(s, t, M, latent) * Math.max(0, 1 - t.goodhart * t.trainedAgainst);
+  return t.s0 * trueEfficacy(s, t.agenda) * decayAt(s, t, x, latent) * Math.max(0, 1 - t.goodhart * t.trainedAgainst);
 }
 
 /** BELIEVED strength: posterior-mean efficacy; a false-validated technique looks real. Safe for UI and U. */
-export function strengthBelieved(s: GameStateV2, t: TechniqueState, M: number): number {
+export function strengthBelieved(s: GameStateV2, t: TechniqueState, x: number): number {
   const latent = lambda2Delta(s) <= -2;
-  return t.s0 * believedEfficacy(s, t.agenda) * decayAt(s, t, M, latent) * Math.max(0, 1 - t.goodhart * t.trainedAgainst);
+  return t.s0 * believedEfficacy(s, t.agenda) * decayAt(s, t, x, latent) * Math.max(0, 1 - t.goodhart * t.trainedAgainst);
 }
 
 /** Technique state from its data row. */
@@ -47,7 +56,7 @@ export function techniqueFromDef(id: TechniqueId, unlocked: boolean): TechniqueS
   const a = AGENDA_BY_ID[d.agenda];
   return {
     id, agenda: d.agenda, family: d.family, unlocked, active: unlocked && d.role !== 'fix',
-    s0: d.s0, mHalf: a.mHalf, k: a.k, goodhart: a.G, trainedAgainst: 0, falseValidated: false, coverage: { ...d.coverage },
+    s0: d.s0, oHalf: a.oHalf, k: a.k, goodhart: a.G, trainedAgainst: 0, falseValidated: false, coverage: { ...d.coverage },
   };
 }
 
@@ -84,15 +93,16 @@ export function unlockTechnique(s: GameStateV2, id: TechniqueId): boolean {
 }
 
 /**
- * Containment (§3.5.7): Contain(M) = controlLayer · max_{t ∈ AG07} strength_t(M). `believed` uses posterior means.
- * U19 (monitor collusion) present in the overseen lineage cuts it (engine side only).
+ * Containment (§3.5.7): Contain(x) = controlLayer · max_{t ∈ AG07} strength_t(x), x = the contained model's OOM above
+ * the start model. `believed` uses posterior means. U19 (monitor collusion) present in the overseen lineage cuts it
+ * (engine side only).
  */
-export function containment(s: GameStateV2, M: number, controlLayer: boolean, believed = false, containMult = 1): number {
+export function containment(s: GameStateV2, x: number, controlLayer: boolean, believed = false, containMult = 1): number {
   if (!controlLayer) return 0;
   let best = 0;
   for (const t of Object.values(s.player.safety.techniques)) {
     if (t.agenda !== 'AG07' || !t.unlocked || !t.active || techniqueRole(t) !== 'contain') continue;
-    best = Math.max(best, believed ? strengthBelieved(s, t, M) : strengthTrue(s, t, M));
+    best = Math.max(best, believed ? strengthBelieved(s, t, x) : strengthTrue(s, t, x));
   }
   return best * containMult;
 }

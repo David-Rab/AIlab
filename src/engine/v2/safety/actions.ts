@@ -5,7 +5,8 @@ import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { TRAIT_IDS } from '../../../data/v2/traits';
 import { internalVersion } from '../models/labs';
 import type { ActionDef, CostLine, GameStateV2, ResponseKind, SafetyDept, TraitId } from '../types';
-import { clamp01, mAtLevel, versionById } from './common';
+import { clamp01, versionById } from './common';
+import { oomOfLevel } from './oversight';
 import { safetyAgentVersion } from './agents';
 import { safetyLabour } from '../departments/workfit';
 import { publishFinding } from './findings';
@@ -45,10 +46,10 @@ function investigationGain(s: GameStateV2, versionId: string, trait: TraitId, ft
   const v = versionById(s, versionId);
   if (!v) return 0;
   const L = v.evals.measuredL ?? 0;
-  const M = mAtLevel(s.hidden.timeline, L);
+  const x = oomOfLevel(s.hidden.timeline, L);
   const items = Object.values(s.player.safety.techniques)
     .filter((t) => t.unlocked && techniqueRole(t) !== 'fix' && (t.coverage[trait] ?? 0) > 0)
-    .map((t) => ({ agenda: t.agenda, d: (t.coverage[trait] ?? 0) * strengthBelieved(s, t, M) * believedPenalty(s, v, trait, t.family, L) }));
+    .map((t) => ({ agenda: t.agenda, d: (t.coverage[trait] ?? 0) * strengthBelieved(s, t, x) * believedPenalty(s, v, trait, t.family, L) }));
   return r2(clamp01(combineTools(items) * Math.sqrt(fte / 15)));
 }
 
@@ -268,7 +269,7 @@ const TECHNIQUE: ActionDef = {
     const t = s.player.safety.techniques[str(p, 'id') ?? ''] ?? Object.values(s.player.safety.techniques).find((x) => x.unlocked && techniqueRole(x) !== 'fix');
     const on = p.active === undefined ? !t?.active : !!p.active;
     const L = measuredL(s);
-    const d = t ? r2(strengthBelieved(s, t, mAtLevel(s.hidden.timeline, L))) : 0;
+    const d = t ? r2(strengthBelieved(s, t, oomOfLevel(s.hidden.timeline, L))) : 0;
     const name = t ? TECHNIQUE_BY_ID[t.id]?.name ?? t.id : 'tool';
     if (on) return { costs: [{ currency: 'compute', amount: 0.5, target: '% of serving for monitors' }], gains: [{ currency: 'alignment', amount: d, target: `${name} strength` }], exposure: [] };
     return { costs: [{ currency: 'alignment', amount: -d, target: `${name} strength` }], gains: [{ currency: 'compute', amount: 0.5 }], exposure: [] };

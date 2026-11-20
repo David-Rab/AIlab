@@ -13,6 +13,7 @@ import { bestResearchMix, evalProduction, inputsAtMix, labInputs, tcoPerH100eYea
 import { Phi } from '../production/knots';
 import { safetyAgentVersion, safetyFleet } from '../safety/agents';
 import { resultsPerYearAt } from '../safety/agendas';
+import { underControl, useControl, type ControlReadout } from '../safety/oversight';
 import type { ActionDef, AgentPackage, AgentUse, CostLine, GameStateV2, ModelVersion, ProductionReadout } from '../types';
 import {
   agentSplitShare, agentVersion, capShare, isCapUse, monitorBudget, monitorH100e, monitorStrength, monitorVersion, riskBadges,
@@ -90,13 +91,15 @@ export interface AgentLane {
   monitor?: ModelVersion;
   /** 'same' = a copy of the watched model. */
   monitorSame: boolean;
-  /** Catch rate (× coverage), monitor strength (1 = standard), oversight gap (×4 in M). */
+  /** Catch rate (× coverage), monitor strength (1 = standard), oversight gap (model v3 E6: OOM of effective compute). */
   catch: number;
   /** J2 AG1: the monitor is of the watched model's lineage; its catch on collusion-relevant incidents. */
   copy: boolean;
   catchColl: number;
   strength: number;
   gap: number;
+  /** Model v3 E6: the control tax on this use's AI labour under the control layer (Greenblatt et al. 2023). */
+  control: ControlReadout;
   /** H100e on this use and its share of its budget (capabilities agent pool / safety pool). */
   compute: number;
   share: number;
@@ -132,7 +135,7 @@ export interface AgentsView {
 const viewMemo = new WeakMap<object, Map<string, AgentsView>>();
 const viewKey = (s: GameStateV2) => {
   const p = s.player;
-  return `${s.time.day}|${p.computeOnline}|${p.split.agents}|${p.split.safety}|${p.split.experiments}|${p.researchManual ? 1 : 0}|${p.policies.trustedToAI}|${p.models.versions.length}|${p.teams.length}|${p.paradigms.P27?.status ?? ''}|${p.prodCache?.M ?? 0}|${JSON.stringify(p.agents)}`;
+  return `${s.time.day}|${p.computeOnline}|${p.split.agents}|${p.split.safety}|${p.split.experiments}|${p.researchManual ? 1 : 0}|${p.policies.trustedToAI}|${p.models.versions.length}|${p.teams.length}|${p.paradigms.P27?.status ?? ''}|${p.prodCache?.M ?? 0}|${JSON.stringify(p.agents)}|${underControl(s) ? 1 : 0}`;
 };
 
 /** Everything the Agents-at-work panel shows, for the current packages (or a hypothetical state). */
@@ -171,7 +174,7 @@ function computeAgentsView(s: GameStateV2): AgentsView {
     lanes[u] = {
       use: u, version: v, L: measuredLOf(s, v).L, follows: u !== 'capRoutine' && !s.player.agents[u].versionId,
       monitor: mon, monitorSame: s.player.agents[u].monitorId === MONITOR_SAME,
-      catch: ms.catch, strength: ms.strength, gap: ms.gap, copy: ms.copy, catchColl: ms.catchColl,
+      catch: ms.catch, strength: ms.strength, gap: ms.gap, copy: ms.copy, catchColl: ms.catchColl, control: useControl(s, v, mon),
       compute, share: u === 'safety' ? s.player.agents.safety.compute : capShare(s, u as CapUse),
       copies: v ? copiesOf(compute, flopPerToken(s, v)) : 0, speed,
       aiShare, cost: compute * tco, monitorCost: monH * tco, monitorH100e: monH, risk: riskBadges(v),

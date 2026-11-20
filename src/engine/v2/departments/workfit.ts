@@ -33,7 +33,8 @@ import { decimalYear } from '../core/time';
 import { spareServingToResearch } from '../worldfx/revenue';
 import { internalFx } from '../worldfx/serving';
 import { ws4r } from '../actors/state';
-import { agentVersion, capShare } from './agents';
+import { agentVersion, capShare, monitorVersion } from './agents';
+import { useControl } from '../safety/oversight';
 import type { DomainId, GameStateV2, ModelVersion, ProdParams, TeamQuality, TimelineWorld } from '../types';
 
 const LIVE = (v: ModelVersion) => v.status !== 'retired' && v.status !== 'rolledBack';
@@ -207,7 +208,8 @@ export interface WorkContext {
 }
 
 /** Agent compute (H100e) of a capabilities use, with the AI-labour multipliers of adopted ideas: P05 orchestration ×1.3,
- *  P20 agent societies ×(1 + 0.1·payoff), the AG07 control layer's 5% tax. */
+ *  P20 agent societies ×(1 + 0.1·payoff), and the control tax under the AG07 control layer (model v3 E6, Greenblatt et
+ *  al. 2023: the usefulness of trusted monitoring with deferral, 93–97% by the gap to the use's trusted monitor). */
 function useLabour(s: GameStateV2, slot: LabourSlot): { v?: ModelVersion; h100e: number; mult: number } {
   const p = s.player;
   const off = Number(s.flags['ws4:agentsOffUntil'] ?? -1) > s.time.day;
@@ -221,7 +223,7 @@ function useLabour(s: GameStateV2, slot: LabourSlot): { v?: ModelVersion; h100e:
   let mult = 1;
   if (adopted(s, 'P05')) mult *= 1.3;
   if (adopted(s, 'P20')) mult *= 1 + 0.1 * payoffOf(s, 'P20');
-  if (p.deployments.some((d) => d.channel === 'internal' && d.status === 'live' && d.controlLayer)) mult *= 0.95;
+  mult *= useControl(s, v, monitorVersion(s, use)).usefulness;
   return { v, h100e, mult };
 }
 

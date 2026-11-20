@@ -61,9 +61,9 @@ export const FREE_TIER_SHARE: Partial<Record<Channel, number>> = { consumer: 0.6
 /** D7: a monitor adds 0.25 × (monitor serve cost ÷ watched model's serve cost) to the product's serving need (a mini
  *  on its teacher ≈ 6%; the same model ≈ 25%). It reads the watched model's outputs and reasoning, not every token. */
 export const MONITOR_OVERHEAD = 0.25;
-/** Catch rate of a monitor as capable as the model it watches [D]; it falls by the AG05 oversight-gap rule
- *  (×0.52 per 4× gap in research-speed multiplier M) and rises with AI-control containment tools (AG07). */
-export const MONITOR_CATCH_BASE = 0.85;
+/** Catch rate of a monitor as capable as the model it watches (model v3 E6: it falls with the capability gap in OOM,
+ *  data/v2/oversight.ts, and rises with AI-control containment tools, AG07). */
+export { MONITOR_CATCH_BASE } from './oversight';
 /** J2 AG1: a monitor from the watched model's own lineage (the same base: the model itself, a post-train or the
  *  continual-learning stream on that base, or a mini distilled from it) shares its blind spots and may collude with it.
  *  On incidents from the collusion-relevant traits (behaviour when unobserved) its catch rate × (1 − COPY_COLLUSION);

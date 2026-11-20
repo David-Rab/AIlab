@@ -183,6 +183,7 @@ function Lane({ s, v, use, draft, setDraft }: { s: GameStateV2; v: AgentsView; u
             <div><div className="row-i"><HBar v={l.aiShare} max={1} color={C.good} w={120} /><b className="num" data-test={`ai-share.${use}`}>{F.pct(l.aiShare)}</b></div><div className="small dim">{aiSub}</div></div>
           </Tip>
         )}
+        {l.control.on && l.compute > 0 && <div className="small"><Tip content={() => <TipCard title={<Term id="controlTax">Control tax</Term>} value={`−${F.pct(l.control.tax)} AI labour`} rows={[ { label: 'Actions deferred to the trusted model', value: F.pct(l.control.defer) }, { label: <Term id="oversightGap">Gap to the trusted model</Term>, value: l.monitor ? `${l.control.gapOom.toFixed(1)} OOM` : 'no monitor: humans redo them' }, { label: 'Bad actions slipping through', value: `×${l.control.missMult.toFixed(2)}` }, ]}>The control layer is on: this fleet works under trusted monitoring with deferral, so it does less useful work and gets caught more.</TipCard>}><span className="tag2 warn" data-test={`control-tax.${use}`}>control −{F.pct(l.control.tax)}</span></Tip></div>}
       </div>
       <Tip content={() => <TipCard title={<Term id="runCost">Cost / yr</Term>} value={F.money(l.cost + l.monitorCost, { perYear: true })} rows={[{ label: 'Agents', value: F.money(l.cost, { perYear: true }) }, { label: 'Monitor', value: F.money(l.monitorCost, { perYear: true }) }]}>At the rental-equivalent price of an H100e.</TipCard>}>
         <span className="num ag-cost">{F.money(l.cost + l.monitorCost)}</span>
@@ -194,7 +195,7 @@ function Lane({ s, v, use, draft, setDraft }: { s: GameStateV2; v: AgentsView; u
 }
 
 export function AgentsAtWork({ s }: { s: GameStateV2 }) {
-  const v = useMemo(() => agentsView(s), [s, s.time.day, JSON.stringify(s.player.agents), s.player.policies.trustedToAI, s.player.split.agents, s.player.split.safety]);
+  const v = useMemo(() => agentsView(s), [s, s.time.day, JSON.stringify(s.player.agents), s.player.policies.trustedToAI, s.player.split.agents, s.player.split.safety, s.player.deployments.some((d) => d.channel === 'internal' && d.controlLayer)]);
   const [drafts, setDrafts] = useState<Partial<Record<AgentUse, AgentChange>>>({});
   const setDraft = (u: AgentUse) => (c: AgentChange | null) => setDrafts((d) => { const n = { ...d }; if (c) n[u] = c; else delete n[u]; return n; });
   return (

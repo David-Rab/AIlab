@@ -12,7 +12,8 @@ import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { CRITICAL_TRAITS, TRAIT_IDS } from '../../../data/v2/traits';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
 import type { GameStateV2, Incident, Investigation, ModelVersion, SystemCtx, TechniqueState, ToolFamily, TraitId, UModeId } from '../types';
-import { clamp01, flag, versionById, versionM } from './common';
+import { clamp01, flag, versionById } from './common';
+import { versionOom } from './oversight';
 import { combineTools, familyPenalty, observeVersion } from './detection';
 import { revealFalse } from './findings';
 import { strengthTrue, techniqueRole } from './techniques';
@@ -108,12 +109,12 @@ export function openInvestigation(s: GameStateV2, ctx: SystemCtx, target: Invest
 export function monthlyGain(s: GameStateV2, inv: Investigation): number {
   const v = targetVersion(s, inv);
   if (!v) return 0;
-  const M = versionM(s, v);
+  const X = versionOom(s, v);
   const traits = targetTraits(s, inv);
   const tools = toolsOf(s, inv);
   let g = 0;
   for (const k of traits) {
-    const items = tools.map((t) => ({ agenda: t.agenda, d: (t.coverage[k] ?? 0) * strengthTrue(s, t, M) * familyPenalty(s, v, k, t.family) }));
+    const items = tools.map((t) => ({ agenda: t.agenda, d: (t.coverage[k] ?? 0) * strengthTrue(s, t, X) * familyPenalty(s, v, k, t.family) }));
     g = Math.max(g, combineTools(items));
   }
   // Model v3 E2: AI labour is the same input as the case's engineers: effective FTE = FTE × m of safety experiments
@@ -136,10 +137,10 @@ export function investigationsStep(s: GameStateV2, ctx: SystemCtx): void {
     inv.clarity = 1 - (1 - inv.clarity) * (1 - gd);
     const age = ctx.day - inv.startDay;
     if (age > 0 && age % 30 === 0) {
-      const M = versionM(s, v);
+      const X = versionOom(s, v);
       for (const k of targetTraits(s, inv)) {
         for (const fam of ['BB', 'COT', 'WB', 'OR'] as ToolFamily[]) {
-          const items = toolsOf(s, inv).filter((t) => t.family === fam).map((t) => ({ agenda: t.agenda, d: (t.coverage[k] ?? 0) * strengthTrue(s, t, M) }));
+          const items = toolsOf(s, inv).filter((t) => t.family === fam).map((t) => ({ agenda: t.agenda, d: (t.coverage[k] ?? 0) * strengthTrue(s, t, X) }));
           const d = combineTools(items);
           if (d > 0.05) observeVersion(s, ctx.rng('safety'), ctx.day, v, k, fam, d);
         }

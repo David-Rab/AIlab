@@ -451,10 +451,10 @@ function UpkeepCard({ sv }: { sv: SV }) {
         {up.patches > 0 && <span className="load-key"><i style={{ background: C.neutral }} />patches <span className="num">{F.count(up.patches)}</span></span>}
       </div>
       </Tip>
-      <Tip as="div" content={() => <TipCard title={<Term id="toolUpkeep">Tool upkeep</Term>} value={up.doublingDays ? `M½ ×2 per ${F.days(up.doublingDays)}` : 'none needed'} rows={[
+      <Tip as="div" content={() => <TipCard title={<Term id="toolUpkeep">Tool upkeep</Term>} value={up.daysPerOom ? `+1 OOM per ${F.days(up.daysPerOom)}` : 'none needed'} rows={[
         { label: 'Tools fading on today\'s model', value: `${up.toolsInUpkeep} of ${up.toolsTotal}` }, { label: 'Engineers per fading tool', value: F.count(up.perTool) },
       ]}>Research engineers re-validate tools that start to fade on your newest model, so they keep working as capability rises. Each fading tool needs a crew of about {UPKEEP_MIN}; beyond that, more engineers per tool means faster upkeep.</TipCard>}>
-        <div className="row-i small" data-test="upkeep-rate"><ICON.revalidate size={13} /> {up.toolsInUpkeep ? (up.doublingDays ? <>{up.toolsInUpkeep} tools fading · <span className="num">{F.days(up.doublingDays)}</span> per <Term id="mHalf">M½</Term> doubling</> : <span className="tone-neg">{up.toolsInUpkeep} tools fading · crew too thin ({F.count(up.perTool)} per tool, needs {UPKEEP_MIN}+)</span>) : 'all tools hold on today\'s model'}</div>
+        <div className="row-i small" data-test="upkeep-rate"><ICON.revalidate size={13} /> {up.toolsInUpkeep ? (up.daysPerOom ? <>{up.toolsInUpkeep} tools fading · <span className="num">{F.days(up.daysPerOom)}</span> per OOM of <Term id="halfStrength">headroom</Term></> : <span className="tone-neg">{up.toolsInUpkeep} tools fading · crew too thin ({F.count(up.perTool)} per tool, needs {UPKEEP_MIN}+)</span>) : 'all tools hold on today\'s model'}</div>
       </Tip>
       <div className="btn-row"><Ref id="hiring" to={{ panel: 'company', tab: 'people' }}>Safety RE teams</Ref></div>
     </Card>
@@ -495,7 +495,7 @@ function ToolsCard({ sv }: { sv: SV }) {
         <div className="sf-tgrid">
           {techs.map((t) => (
             <div key={t.id} className={`sf-tool ${t.active || t.role === 'fix' ? '' : 'off'}`} data-technique={t.id}>
-              <Tip content={() => <TipCard title={t.name} value={t.family} rows={[{ label: 'Line', value: lineName(t.agenda) }, { label: 'Strength', value: F.num(t.strength, 2) }, { label: 'Faded', value: F.pct(1 - t.decay) }, { label: <Term id="mHalf">M½</Term>, value: F.num(t.mHalf, 0) }]}>{t.role === 'fix' ? 'A training method: used in every post-training run while its line is staffed.' : 'A detection or control tool in your safety stack.'}</TipCard>}>
+              <Tip content={() => <TipCard title={t.name} value={t.family} rows={[{ label: 'Line', value: lineName(t.agenda) }, { label: 'Strength', value: F.num(t.strength, 2) }, { label: 'Faded', value: F.pct(1 - t.decay) }, { label: <Term id="halfStrength">Half strength at</Term>, value: t.halfL !== undefined ? `L ${F.num(t.halfL, 1)}` : t.agenda === 'AG05' ? 'overseer gap' : 'never' }]}>{t.role === 'fix' ? 'A training method: used in every post-training run while its line is staffed.' : 'A detection or control tool in your safety stack.'}</TipCard>}>
                 <span className="ellip small"><b>{t.name}</b></span>
               </Tip>
               <HBar v={t.strength} max={1} w={70} color={t.decay < 0.5 ? C.bad : C.und} />

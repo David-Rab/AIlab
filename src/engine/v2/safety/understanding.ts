@@ -1,7 +1,7 @@
 // Understanding U and the race bars (V2-SPEC §3.5.7). Owner: WS2.
 //
 // U = the largest L in [0, 15] with mean_{k ∈ K} Det_k(L) ≥ 0.5, where
-//   Det_k(L) = combine_t( cov_t,k · strength_t(M(L)) · penalty_t,k )
+//   Det_k(L) = combine_t( cov_t,k · strength_t(x(L)) · penalty_t,k ),  x(L) = λ⁻¹(L) − G_V0 (OOM above the start model)
 // computed from what the player BELIEVES: posterior-mean agenda efficacy, believed EA, the player's own
 // training-against history. It never reads true traits, true efficacy or masks (Sylvester rule).
 import { CRITICAL_TRAITS } from '../../../data/v2/traits';
@@ -9,7 +9,8 @@ import { RISK_FAMILIES } from '../../../data/v2/agents';
 import { internalVersion, measuredLOf } from '../models/labs';
 import type { AgendaId, GameStateV2, ModelVersion, TechniqueState, ToolFamily, TraitId } from '../types';
 import { reValidationMult } from './agendas';
-import { believedEfficacy, lambda2Delta, mAtLevel } from './common';
+import { believedEfficacy, lambda2Delta } from './common';
+import { oomOfLevel } from './oversight';
 import { combineKeyed, combineTools, cotControllability, groupKeyOf, cotObfuscation, eaCoef, eaSuppression, familyPenalty, takesEaPenalty } from './detection';
 import { believedMask, decayAt, strengthTrue, techniqueRole } from './techniques';
 
@@ -92,7 +93,7 @@ function detector(s: GameStateV2, v: ModelVersion, tools: TechniqueState[], L0: 
   const str: number[] = [];
   const done: boolean[] = [];
   return (trait: TraitId, L: number) => {
-    const M = mAtLevel(w, L);
+    const x = oomOfLevel(w, L);
     if (!(L === strL)) {
       strL = L;
       done.fill(false);
@@ -106,7 +107,7 @@ function detector(s: GameStateV2, v: ModelVersion, tools: TechniqueState[], L0: 
       let strength = str[row.i];
       if (!done[row.i]) {
         const { t, pre, g, lead } = tl[row.i];
-        strength = str[row.i] = pre * decayAt(s, t, M, latent) * g * valAt(dL, lead);
+        strength = str[row.i] = pre * decayAt(s, t, x, latent) * g * valAt(dL, lead);
         done[row.i] = true;
       }
       let pen = 1;
@@ -177,15 +178,15 @@ export function familySeenTo(s: GameStateV2, v: ModelVersion): Record<(typeof RI
   return out;
 }
 
-/** Technique closest to (or past) its M½ at the current measured level — the U tooltip's "next to decay". */
+/** Technique closest to (or past) its half-strength point at the current measured level — the U tooltip's "next to decay". */
 export function nearestDecay(s: GameStateV2): { id: string; name: string; decay: number } | undefined {
   const v = internalVersion(s);
   if (!v) return undefined;
-  const M = mAtLevel(s.hidden.timeline, measuredLOf(s, v).L);
+  const x = oomOfLevel(s.hidden.timeline, measuredLOf(s, v).L);
   let best: { id: string; name: string; decay: number } | undefined;
   for (const t of detTools(s)) {
     if (t.k <= 0) continue;
-    const d = decayAt(s, t, M, false);
+    const d = decayAt(s, t, x, false);
     if (!best || Math.abs(d - 0.5) < Math.abs(best.decay - 0.5)) best = { id: t.id, name: t.id, decay: Math.round(d * 100) / 100 };
   }
   return best;
@@ -209,9 +210,9 @@ export function trueUnderstanding(s: GameStateV2): { U: number; L: number } {
     return pv;
   };
   const mean = (L: number) => {
-    const M = mAtLevel(s.hidden.timeline, L);
+    const x = oomOfLevel(s.hidden.timeline, L);
     const pv = at(L);
-    const str = tools.map((t) => strengthTrue(s, t, M)); // once per tool and level
+    const str = tools.map((t) => strengthTrue(s, t, x)); // once per tool and level
     let sum = 0;
     for (const k of CRITICAL_TRAITS) {
       const pen = new Map<ToolFamily, number>(); // once per family and trait

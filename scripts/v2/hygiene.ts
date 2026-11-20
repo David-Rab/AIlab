@@ -260,7 +260,7 @@ for (const rev of [1, 11, 12, 13, 14]) {
     msg = (e as Error).message;
   }
   // Model v3 V2 (schemaRev 13): V1 saves (12) are rejected too; model v3 V3 (schemaRev 14): V2 saves (13) too.
-  check(SCHEMA_REV === 24 && msg ===`no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
+  check(SCHEMA_REV === 25 && msg ===`no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
 }
 // Model v3 V4a (schemaRev 16): a V3b save (15) migrates (customer stocks start empty, versions get their FLOP per token).
 {
@@ -415,6 +415,27 @@ for (const rev of [1, 11, 12, 13, 14]) {
     'save: a schemaRev-23 save migrates to 24 (nothing pending, no synthetic job)', msg);
 }
 
+// Model v3 E6 (schemaRev 25): a D2 save (24) migrates: each technique's M½ becomes its half-strength point in OOM above
+// the start model where v2's decay halved on the ai2027 reference path (M½ 25 → 4.38, 50 → 5.70, 250 → 8.78).
+{
+  const old = JSON.parse(serialize(run(detSetup, 30))) as GameStateV2 & Record<string, unknown>;
+  old.schemaRev = 24;
+  const ts = old.player.safety.techniques as unknown as Record<string, { oHalf?: number; mHalf?: number }>;
+  for (const t of Object.values(ts)) delete t.oHalf;
+  ts['T-PROP'].mHalf = 50; // AG08 (M½ 25) after one upkeep doubling
+  ts['T-PROBE'].mHalf = 250;
+  let msg = '';
+  let g: GameStateV2 | undefined;
+  try {
+    g = deserialize(JSON.stringify(old));
+  } catch (e) {
+    msg = (e as Error).message;
+  }
+  const T = g?.player.safety.techniques;
+  const ok = !!T && Object.values(T).every((t) => typeof t.oHalf === 'number' && !('mHalf' in t))
+    && Math.abs(T['T-PROP'].oHalf - (4.376 + 4.4 * Math.log10(2))) < 1e-9 && Math.abs(T['T-PROBE'].oHalf - 8.776) < 1e-9;
+  check(ok, 'save: a schemaRev-24 save migrates to 25 (M½ → the same half point in OOM)', msg || (T ? `T-PROP ${T['T-PROP'].oHalf.toFixed(3)}, T-PROBE ${T['T-PROBE'].oHalf.toFixed(3)}` : ''));
+}
 // ---------- 6. Cadences ----------
 const counts: Record<Cadence, number> = { daily: 0, weekly: 0, monthly: 0, quarterly: 0, semiannual: 0 };
 const expected: Record<Cadence, number> = { daily: 0, weekly: 0, monthly: 0, quarterly: 0, semiannual: 0 };
