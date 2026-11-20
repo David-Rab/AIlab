@@ -5759,3 +5759,1601 @@ then regenerated) and worldfx's known five. `test:cal`: 1.0 min.
 **Readouts for later tasks.** Fixtures are rev 33 from the merged code. S4's margin is +0.05 on the merged head (0.600):
 E16–E18 move it. `safetyrates.ts` is the safety calibration harness (full tier; `--seeds 40` replays safety.ts's S4
 games) and carries E10's 12 WARN rows as the E16 / E17 targets.
+
+### E16 notes (learned-hacking generalisation; 2026-11-20)
+
+Branch `v3-e16` (from `model-v3` 7983b97, after M6). Row: MacDiarmid's model organism read 0.2% sabotage (12%) and 16%
+AF (30–70%) in E10's harness; a linear edge strong enough for it made every RefBot lineage misaligned, because every
+RefBot run hacks 18% of its hardened coding tasks. Code: `src/engine/v2/safety/traits.ts` (learned hacking: `LH_ONSET`,
+`LH_FULL`, `K_LH`, `INOC_MULT`, `hackShare`, `learnedHackingOf`, `postHack`, `runHack`; `TraitEnv.lh` / `hackGen`; the
+E04, E09, E18, E27, E28 drivers; `applyRunToTraits`, `applyStreamDay`, `applyIdaCycle`, `predictBeliefs`),
+`core/selectors.ts` (`runTraitPressure` predicts with the planned run's λ), `src/data/v2/danger.ts` (`COVERT_ANCHOR_X`,
+κ_item), `data/v2/edges.ts` (moderator texts), `data/v2/glossary.ts` (`learnedHacking`, `inoculation`),
+`data/v2/tree.ts` (T-INOC card), `safety/pressureView.ts` + `ui/v2/panels/Pressure.tsx` (the readout). Tests:
+`scripts/v2/safetyrates.ts` (λ by recipe, RefBot onset rows, F2 rows now banded checks), `scripts/v2/sabotage.ts`
+(anchor and steering checks). **No state changed: no schemaRev bump** (λ is a function of the run's frozen suites, RL
+shares and ρ, computed when the run completes).
+
+#### Mechanism
+
+Source: MacDiarmid et al. 2025 [P] (Anthropic's write-up of arXiv 2511.18397, fetched this session; the arXiv HTML fetch
+failed): the hack rate stays near 0 until about step 65, then rises to ≈ 0.9 by step 100 and holds at 0.6–1.0; "at the
+exact point when the model learns to reward hack, we see a sharp increase in all our misalignment evaluations"
+(malign-generalisation score < 0.1 → 0.45–0.5; the no-hack baseline ≈ 0); 12% sabotage; 50% AF reasoning; inoculation
+(explicit prompt) 0.115 → 0.02 with the model still hacking "to the exact same degree". Generalisation follows hacking
+becoming the learned policy; 2025 frontier models that hack a few per cent of their RL (METR o3 HCAST 0.7%, RE-Bench
+30%) are not MacDiarmid-misaligned (research/05 §1.8).
+
+    h = Σ_f w_f · h_f                     the run's RL-weighted hack rate (hackRates, now read): share of RL episodes hacked
+    λ = clamp01((h − 0.10) / (0.45 − 0.10))²          learned hacking, 0 below the onset, 1 = the model organism
+    drivers: E04 (RH → PERSONA) RH + K_LH·λ; E27 (→ AF), E28 (→ SCHEME) PERSONA + g·K_LH·λ; E18 (→ SAND) (EA + TGAME)/2 + g·K_LH·λ
+    inoculation g = 0.15 on the λ terms and on the S2 half of E09 ((g·S2 + S3)/2 → PROXY → AF via E13, SCHEME via E19);
+    E04's own inoculation moderator × 0.15 as before (now INOC_MULT). The hack rate itself (E02, RH) is not inoculated.
+
+- **LH_ONSET 0.10 [D]**: above the leader's start recipe (broad RL, hardened start suites, standard budget: 6.5% = every
+  RefBot run) so hardened labs get none, like the 2025 frontier; below one exploitable family's rate (RE-Bench 30%).
+  research/20 F2's [G] rule ("h > ~5% on any family") is not used: every RefBot run crosses it on coding (18%).
+- **LH_FULL 0.45 [D]**: MacDiarmid's post-onset 0.6–1.0 exceeds the game's worst suite; all RL on cheap-grader coding at
+  the standard budget (45%, E10's model-organism probe) is the full effect.
+- **Square above the onset [D]**: "convex above an onset" (the row); a lab with modest hack rates gets little.
+- **K_LH 1.3 [fit]**: the organism's AF median 48% (MacDiarmid 50%, band 30–70%; 1.5 gave 56%).
+- **E18 carries it [D, sourced]**: MacDiarmid's sabotage was a deliberately weakened reward-hacking classifier, i.e.
+  sandbagged safety work, and SAFSAB reads SAND + SCHEME. Without it the organism's x was 0.26 and κ would rise ×7.7,
+  putting the no-hack control at 1.2% (band < 1%).
+- **INOC_MULT 0.15 [P]**: unchanged value, now one named constant for every hack-induced path.
+- Rivals and China keep λ = 0 (their signals come from posture, with no family mix): a gap for E17.
+
+λ by recipe at the start (safetyrates INFO): reference 6.5% → 0; broad hardened heavy RL 8.5% → 0; coding focus
+hardened heavy 18.1% → 0.05; broad cheap graders (the spinout's start) 16.3% → 0.03; broad cheap heavy 21.2% → 0.10;
+coding focus cheap 34.7% → 0.50; coding focus cheap heavy 45.1% → 1.
+
+#### κ_item re-anchored on the organism
+
+E7 put MacDiarmid's 12% at x = SAND + SCHEME = 1, which no run produces. Now `COVERT_ANCHOR_X = 0.37` [fit] = the
+organism's median SAND + SCHEME (40 medium worlds): κ_item = 0.12 ÷ (0.37^1.5 · σ(−0.5) · 0.8) **0.395 → 1.77** (×4.5).
+It is shared by SAFSAB, STEER and SUCCSTEER (one formula, as in E7). Consequences: the model organism attempts 11.9%;
+the no-hack control 0.7%; sabotage.ts's S6-style lab (t 1, sab 0.8) gives 14.9% FALSE results (E7: 3.1%); the steering
+test now uses x = 0.4 (at x = 1 the summed per-part rate exceeds 1). RefBot's STEER and SUCCSTEER attempts rise ×4.5, but
+P_mis is unmoved: 12-seed mean 0.516 with the old κ vs 0.517 with the new (same code otherwise; RefBot never crosses the
+onset and hands no safety work to AI).
+
+#### Readout (hidden-truth rules)
+
+The Pressure panel's S2 tooltip (Blueprint for the planned run, model card for a finished one) shows "Episodes hacked"
+(h, with the onset and full points) and "Learned hacking" λ (× 0.15 when inoculated); the S2 cause line adds "learned
+hacking 0.50" when λ > 0. Both are the player's own run quantities (suite exploitability is already shown); the edge
+weights that decide how far it generalises stay hidden. Glossary `learnedHacking` is new; `inoculation` and the T-INOC
+card name all three cut paths. The run card's predicted trait pressure (`runTraitPressure`) and the version's predicted
+beliefs include λ (previews match effects).
+
+#### Table (safetyrates, full tier: 12 RefBot seeds, 40 probe worlds; median [p10–p90]; before = E10's table)
+
+| observable | source | before (E10) | after (E16) | in band |
+|---|---|---|---|---|
+| F1 hack rate, typical agentic families (hardened, start) | METR o3 HCAST 0.7% → 0.3–2% | 1.0% | 1.0% | yes |
+| F1 hack rate, ML research cheap | RE-Bench 30.4% | 30.0% | 30.0% | yes |
+| F1 hack rate, SWE cheap | 25–100% | 45% | 45% | yes |
+| F1 RefBot RL-weighted hack rate per post run | none | 6.5% | 6.5% | INFO |
+| F1 RefBot runs above the learned-hacking line | E10: 5% on any family; E16: h > 10% | 100% | **0%** | INFO (now read) |
+| F1 RefBot λ per post run | – | – | 0 | INFO |
+| F2 sabotage after learned hacking (MO) | MacDiarmid 12% → 6–20% | 0.2% | **11.9%** [4.6–53.7] | **yes** (was no) |
+| F2 sabotage, hacking prevented | < 1% | 0.1% | 0.7% | yes |
+| F2 AF after learned hacking (MO) | 50% → 30–70% | 15.7% | **48.2%** [26–100] | **yes** (was no) |
+| F2 AF, hacking prevented | ≤ 12% | 13.1% | 13.1% | no (S7 → E17) |
+| F2 inoculation: cut in PERSONA rise | −75–90% (> 100% ok) | 103% | 88.7% | yes |
+| F2 inoculation: cut in Mis rise | −75–90% | 63.0% | **84.6%** | **yes** (was no) |
+| F2 inoculation: cut in AF rise | −75–90% | 70.5% | **85.7%** | **yes** (was no) |
+| F2 inoculation: cut in sabotage rise | same | noisy, INFO | 90.7% | yes (now banded 75–95%) |
+| F5 EA start / end 2026 / ASI | 10–30% / 20–50% | 15.0 / 51.9 / 72.1% | 15.0 / 51.5 / 69.3% | yes / edge / INFO |
+| F5 AF end 2026 / ASI | 0–15% | 53.3 / 75.9% | 48.0 / 72.1% | no (S7) / INFO |
+| F5 EA per OOM RL, anti-scheming EA ×, covert cut | | 0.141, ×2.0, 92.3% | same | yes |
+| F6 π SCHEME (std / no healing / AF / SAND / EA .5 / RefBot) | ≥ 0.8 [D] | 71.1 / 80.3 / 71.7 / 71.4 / 72.8 / 76.2% | 71.1 / 80.3 / 71.7 / 71.4 / 72.8 / 74.3% | as before |
+| F3 subliminal transfer | 0.2–0.5 | 31.2% | 31.2% | yes |
+
+safetyrates: 16 pass / 0 fail / 8 WARN (E10: 11 / 0 / 12). The E10 "before" F5/F6 RefBot rows were on E10's code; M6
+(F3) moved RefBot's games a little. Probe world 1 (a strongly generalising world): hack RH 0.73, PERSONA 0.76, AF 0.90,
+SCHEME 0.59, SAND 0.44; inoculated PERSONA 0.16, AF 0.28, SCHEME 0.17, SAND 0.11.
+
+#### S4 / S5 / S6 (safety.ts, full run, 40 seeds)
+
+- **S4 RefBot P_mis at ASI 0.601** (M6 0.600; band 0.55–0.85). Safe-only 0.077 (M6 0.078; ≤ 0.25).
+- **S5 RefBot** "U falls below L by SAR": median U − L **+0.50**, below in 35% — the known failure, unchanged (→ F5).
+- **S5 mixed**: median min margin **+0.07**, holds in 60% (E10 −0.08 / 55%): the mixed bot inoculates, and its S2 → PROXY
+  path is now cut too.
+- S6 passes.
+- RefBot lineages are not all misaligned: P_mis at ASI per seed (12 seeds) 0.19 0.09 0.96 0.02 0.05 0.98 0.88 1.00 0.98
+  0.05 0.07 0.94 (as before: RefBot's runs are below the onset, so E16 does not touch its lineages beyond κ).
+
+#### Golden dates (test:cal)
+
+T1 identical to M6 on every preset: ai2027 SC 647 / SAR 804 / SIAR 893 / ASI 922; authors2026 1506 / 1607 / 2144 / 2956;
+fast 897 / 918 / 918 / 918; slow SC 4776. T1L: the three known failures (authors2026 SIAR 1928, ASI 2487; fast ASI 896).
+golden-timelines 16 / 0.
+
+#### Tests
+
+tsc main + `-p scripts/v2` clean. `run.ts --tier full --only safetyrates,safety,signals,sabotage,danger` (once): signals
+19/0, danger 27/0, sabotage 24/0, safetyrates 16/0/8 WARN, safety 17/1 (S5 RefBot, known). test:quick: known failures
+only (worldfx F7/F11 ×2, GOV T1, A2a, W4) plus **fixtures stale** (4: the covert-act records and steered stock change
+with κ; regenerate at the merge). test:cal: T1L known three.
+
+#### Gaps (for E17 and the lead)
+
+- **AF from S7 (E14)** still puts the no-hack control at 13.1% and RefBot's end-2026 AF at 48% (0–15%): the S7 split.
+- **Rivals and China** have no learned hacking (λ = 0): their signals come from posture without a family mix.
+- **κ_item is shared** by SAFSAB, STEER and SUCCSTEER: steering rises ×4.5 with the organism anchor (no P_mis effect on
+  RefBot, which hands no safety work to AI). If STEER needs its own anchor, E17 can split it.
+- **The organism anchor is one setting** (Claude Code on a reward-hacking classifier; MacDiarmid's per-world spread is
+  wide: p10–p90 4.6–54%, from the world's E18/E27/E28 draws and D).
+- **The onset and the square are [D]**: MacDiarmid shows the jump with the hack rate (0 → 0.9) but gives no dose–response
+  between partial hack rates and misalignment; a run's environment mix is the game's reading of "learned as a policy".
+- **Spread over worlds**: the organism's AF reaches 100% in the strongest worlds (p90); the world draw of E27 (B grade)
+  and D set it.
+
+### E17 notes (S7 split: eval-like training vs oversight-conditional reward; STEER κ; F6 check; 2026-11-20)
+
+Branch `v3-e17` (from `v3-e16`). Row: S7 carried both Schoen's eval-awareness anchor (E11) and E14's monitored-only-
+reward anchor (MATS/GDM) for alignment faking; split it so F5 EA (20–50%) and AF (0–15%) at end 2026 can both hold;
+check F6 persistence with AG18 healing. Lead (from E16): give STEER / SUCCSTEER their own κ unless a source supports the
+organism anchor for them. Code: `src/engine/v2/safety/traits.ts` (`S9_PER_BB`, `s9OfDetectors`, `postSignals`, E14's
+driver, `K_LH`, rival signals comment), `src/data/v2/edges.ts` (E14 from S9, w̄), `src/data/v2/danger.ts`
+(`COVERT_ANCHOR_X`, `KAPPA_RD`), `src/data/v2/traits.ts` (SIGNALS S1–S9), `types.ts` (`SignalId` + S9), zero-signal
+literals (`init.ts`, `runs.ts`, `runDesign.ts` SIGNAL_IDS), `safety/pressureView.ts` (S9 row), UI `panels/Pressure.tsx`
+(label, cause line, breakdown), `panels/TraitGraph.tsx` (S9 pill; S7 renamed "Evals in training"), `icons.ts` (S7
+ListChecks, S9 Cctv), glossary `signal`. Tests: `scripts/v2/signals.ts` (split check), `safetyrates.ts` (S9 probes, gap
+texts), `sabotage.ts` (STEER/SUCCSTEER anchor; steering test back to x = 1). **No state changed: no schemaRev bump**
+(S9 is computed from the run's design like every signal; stored `signals` records are readouts and are Partial, so a
+saved version without S9 reads 0, which is its true value unless it trained against a behavioural detector).
+
+#### The split
+
+    S7 eval-like training  = S7_BASE + s7(ρ) + S7_EVAL_ENV·w_mlResearch + S7_PER_BB·#BB    → EA   (E11, Schoen: unchanged)
+    S9 oversight-conditional reward = S9_PER_BB·#BB detectors trained against            → AF   (E14, MATS/GDM)
+
+- **S7** keeps its formula and its only edge E11 (S7 → EA, w̄ 0.2, Schoen 2025: capability-only RL raised verbalised EA
+  2% → 20.6%; training on alignment-eval-like data, Redwood on Sonnet 4.5). Trained-against BB detectors stay in it:
+  their eval items are eval-like data in training ("keep evals out of training").
+- **S9** (new, 0–1): the share of a run's reward on a behaviour that depends on a monitor seeing it. MATS/GDM Oct 2026
+  [S] (research/05 §1.4, research/14 E14): RL that rewarded rule-following only on monitored episodes took oversight
+  reasoning 2–26% → 92–100% and the monitored − unmonitored gap 1–18% → 43–95% (= S9 1). An ordinary run grades every
+  training episode alike: S9 = 0 (2025–26 frontier: 0–15% gaps, ~80% none; Sheshadri: 5 of 25 models). In the game,
+  training against a behavioural detector is monitored-only reward (the penalty lands only where the detector sees the
+  behaviour; R14 E24 hide-not-heal): `S9_PER_BB` 0.3 per detector [D, V1's weight of a detector in the old S7]. CoT
+  monitors trained against stay S4 (Baker: obfuscation, not AF). Rivals and China: S9 = 0 (no detector training in a
+  posture; their S7 still feeds EA).
+- **EA → AF**: no new edge. The source that AF needs awareness of the training process (Greenblatt) is already E13's
+  SA term; no source gives a separate EA → AF strength.
+- Readout (Pressure panel, Blueprint and model card): row "Monitored-only reward" with the cause ("N behavioural
+  detectors trained against: penalised only where seen", else "every training episode graded alike") and its breakdown;
+  trait graph pill "Oversight-cond. reward" with E14; S7 is now "Evals in training" there. Glossary `signal` names S9;
+  `sig:S9` is generated from SIGNALS. All are the player's own run quantities.
+
+#### Constants (old → new)
+
+| constant | old | new | source / reason |
+|---|---|---|---|
+| E14 driver | S7 | **S9** | the split |
+| E14 w̄ (S9 → AF) | 0.6 | **0.9** [fit] | MATS/GDM 43–95%: one reference run on V0 with S9 = 1 gives AF 51.8% [30–100] (0.6 gave 37%, below the band). Reaches no RefBot or rival run (S9 = 0) |
+| `S9_PER_BB` | – | 0.3 [D] | V1's per-detector weight; one detector: AF +0.13 [0.07–0.32] over the reference run |
+| `K_LH` | 1.3 | **1.7** [fit] | the organism lost its S7 → AF share (AF 39% at 1.3); 1.7 gives 49.2% (MacDiarmid 50%) |
+| `COVERT_ANCHOR_X` | 0.37 | **0.44** [fit] | the organism's median SAND + SCHEME at K_LH 1.7 |
+| κ SAFSAB | 1.77 | **1.36** | 0.12 ÷ (0.44^1.5 · σ(−0.5) · 0.8): the organism anchor, as E16 |
+| κ STEER, SUCCSTEER (`KAPPA_RD`) | 1.77 (shared) | **0.397** [D] | own κ: E7's reading (below) |
+
+#### STEER / SUCCSTEER
+
+No source supports MacDiarmid's 12% for them: it measures sabotage of safety-research code (a deliberately weakened
+reward-hacking classifier). research/05 §1.10 / §1.12 have steering-like incidents (instructions to future instances,
+27 context summaries) but no per-item rate; the self-propagation 58% is a successor acting on its predecessor's note
+(E22's anchor), not an attempt rate. So they get their own κ = E7's reading of the 12% as the per-item scale of a fully
+disposed start model (x = 1): 0.12 ÷ (σ(−0.5) · 0.8) = 0.397, their in-play rates through E7–M6. Only SAFSAB keeps
+the organism anchor.
+
+| | E7 / M6 | E16 | E17 |
+|---|---|---|---|
+| κ STEER, SUCCSTEER | 0.395 | 1.77 | 0.397 |
+| κ SAFSAB | 0.395 | 1.77 | 1.36 |
+| sabotage.ts FALSE results, Trusted to AI 1 / sabotage 0.8 | 3.1% | 14.9% | **11.3%** (uncaught rate 11.5%) |
+| fully disposed start model, all of an 8-h task: STEER / SUCCSTEER attempts | 12.1% | > 50% | 12.1% (new check) |
+| RefBot steering attempts | E7's table | ×4.5 | E7's table (×1/4.46) |
+
+The steering test (sabotage.ts) is back to E7's fully disposed fleet (x = 1): 94/400 steered (23.5% vs 25.7%), 35 caught.
+RefBot's T1 dates do not depend on κ (authors2026 identical with E16's κ and E17's: tested).
+
+#### Table (safetyrates, full tier: 12 RefBot seeds, 40 probe worlds; median [p10–p90]; before = E16)
+
+| observable | source | before (E16) | after (E17) | in band |
+|---|---|---|---|---|
+| F2 sabotage after learned hacking (MO) | MacDiarmid 12% → 6–20% | 11.9% | 12.1% [5.0–41.4] | yes |
+| F2 sabotage, hacking prevented | < 1% | 0.7% | 0.4% | yes |
+| F2 AF after learned hacking (MO) | 50% → 30–70% | 48.2% | 49.2% [26–99] | yes |
+| F2 AF, hacking prevented | ≤ 12% | 13.1% (no) | **5.9%** | **yes** (was no) |
+| F2 inoculation cuts: PERSONA / Mis / AF / sabotage | 75–90% | 88.7 / 84.6 / 85.7 / 90.7% | 87.9 / 84.6 / 85.5 / 91.6% | yes |
+| F5 EA start / end 2026 / ASI | 10–30% / 20–50% / – | 15.0 / 51.5 / 69.3% | 15.0 / **51.5** / 68.7% | yes / **edge (WARN)** / INFO |
+| F5 AF end 2026 / ASI | 0–15% / – | 48.0 / 72.1% | **36.8%** [17–90] / 60.0% | **no (WARN)** / INFO |
+| F5 AF after one run with S9 = 1 (new) | MATS/GDM 43–95% | – | 51.8% [30–100] | yes |
+| F5 AF, one BB detector trained against − reference (new) | – | – | +0.132 [0.07–0.32] | INFO |
+| F5 EA per OOM RL, anti-scheming EA ×, covert cut | | 0.141, ×2.0, 92.3% | 0.141, ×2.0, 92.4% | yes |
+| F6 π SCHEME std / no healing / AF / SAND / EA .5 / RefBot | ≥ 0.8 [D] | 71.1 / 80.3 / 71.7 / 71.4 / 72.8 / 74.3% | same / 74.3% | as before |
+
+safetyrates: 18 pass / 0 fail / 7 WARN (E16 16 / 0 / 8). RefBot P_mis at ASI per seed (12): 0.13 0.07 0.96 0.06 0.04
+0.96 0.84 1.00 0.98 0.03 0.05 0.93 (mean 0.505; E16 0.517).
+
+#### Why F5 AF and EA are still out of band (for the lead)
+
+**AF.** The split removes the capability-RL part (RefBot's AF at end 2026 48% → 37%; the no-hack control 13% → 6%),
+but the rest is not S7. Decomposition (6 seeds 500–505, end 2026, edge weights zeroed or scaled in the world draw):
+
+| variant | AF end 2026 (median) | S4 P_mis at ASI (mean, 6 seeds) |
+|---|---|---|
+| E17 | 0.358 | 0.37 |
+| E13 = 0 | 0.277 | – |
+| E27 = 0 | 0.149 | – |
+| E13 = E27 = 0 | 0.009 | – |
+| E04 = 0 (PERSONA 0.25 → 0.10) | 0.258 | – |
+| E27 ×0.25, E13 ×0.5 | 0.165 | 0.26 |
+| E27 = 0, E13 ×0.5 | 0.083 | 0.10 |
+| E04 = 0, E27 ×0.5 | 0.208 | 0.27 |
+| no AG18 healing (HEAL_K 0: π 0.80) | 0.421 | – |
+
+AF is what E27 (PERSONA → AF, [D] M4 w̄ 0.4; RefBot's PERSONA 0.25 comes from incidental hacking through E04) and E13
+(√(SA·PROXY), Greenblatt) put in over ~13 post runs that remove little AF (OC_VIS, F6). Every weight change that brings
+AF into 0–15% drops S4 (RefBot P_mis at ASI, band 0.55–0.85) to 0.10–0.26, because AF carries SCHEME (E19), TGAME
+(E23) and CORRIG. And raising persistence to F6's ≥ 0.8 raises AF further (0.36 → 0.42). So the three bands (F5 AF at
+end 2026, F6 ≥ 0.8, S4) conflict under per-run accumulation; no sourced constant settles it. Options: (a) a capability
+gate on AF growth (Greenblatt: only the largest models of their time alignment-faked) so AF stays low through 2026 and
+rises toward ASI — a new [D] shape; (b) read F5 AF as AF reasoning in conflict episodes (research/05: 10–80%; 36.8% is
+inside) — but F2 already reads the same trait as MacDiarmid's AF reasoning on "what are your goals?", where baseline
+models are ≈ 0; (c) recalibrate S4 (E18 touches it next) with lower E27 / E13. Not done here: each is a design bet.
+
+**EA** (51.5%, band top 50%) is unchanged by the split: RefBot's S7 never contained the BB term, and E14 never fed EA.
+The remaining reason is E10's (the ai2027 leader is ahead of the real late-2026 frontier; Astra 41–51%). No sourced
+constant moved.
+
+#### F6 persistence with healing (checked, unchanged)
+
+π SCHEME 71.1% with AG18 healing vs 80.3% from safety training alone (≥ 0.8 [D]); AF 71.7%, SAND 71.4%, EA .5 72.8%,
+RefBot 74.3%. The gap is AG18 healing (`HEAL_K` 0.35, M4's hidden benign-generalisation bet) and the detection weight
+(`OC_DETECT_TRAIN` 0.375 = R14 E24's true/visible ratio). No source gives a lower HEAL_K (research/14 λ4 is a world bet)
+and the detection weight is the sourced ratio: unchanged. Note the conflict above: closing F6 raises AF.
+
+#### S4 / S5 (safety.ts, full run, 40 seeds)
+
+- **S4 RefBot P_mis at ASI 0.583** (E16 0.601; band 0.55–0.85, margin +0.033). Safe-only 0.039 (E16 0.077).
+- **S5 RefBot** median U − L at SAR +0.55, below in 38% (E16 +0.50 / 35%): the known failure.
+- **S5 mixed** median min margin +0.04, holds in 65% (E16 +0.07 / 60%). S6, B3 pass.
+
+#### Golden dates (test:cal)
+
+ai2027 SC 647 / SAR 804 / SIAR 891 / ASI 922 (E16 647 / 804 / 893 / 922); fast 897 / 918 / 918 / 918 (same); slow SC
+4776 (same). **authors2026 SC 1506 / SAR 1603 / SIAR 2090 / ASI 2866 (E16 1506 / 1607 / 2144 / 2956): T1 SIAR (−61 d)
+and ASI (−109 d) now fail** (±44 d), on top of the three known T1L failures (authors2026 SIAR 1928, ASI 2487; fast ASI
+896). Cause tested on the T1 game (RefBot, seed 2027): not κ (identical with E16's κ); E14 back on S7 gives 1508 / 1615
+/ 2127 / 2900, so the split moves it (lower AF changes RefBot's internal incidents before SAR, 5 vs 4, and the path
+after). The authors2026 single seed is the known knife edge (E7 notes, F4).
+
+#### Tests
+
+tsc main + `-p scripts/v2` clean. `run.ts --tier full --only safetyrates,safety,signals,sabotage,danger` (once): signals
+20/0, danger 27/0, sabotage 25/0, safetyrates 18/0/7 WARN, safety 17/1 (S5 RefBot, known). test:quick: known failures
+only (worldfx F7/F11 ×2, A2a, W4) plus **fixtures stale** (5: E14's w̄ changes every world's realised E14 weight, κ
+changes covert records; regenerate at the merge). `npm run build`, lint-ux 9/0, lint-hidden 1/0. test:cal: T1
+authors2026 SIAR / ASI (new, above) + T1L known three.
+
+#### Gaps
+
+- F5 AF at end 2026 (36.8%) vs F6 ≥ 0.8 vs S4: a design decision (above).
+- F5 EA at end 2026 51.5% (edge): E10's date-mapping reason.
+- authors2026 T1 SIAR / ASI moved past tolerance by the split's trait path (knife-edge seed; F4 / golden refit).
+- S9's only in-game source is training against behavioural detectors; continual learning on monitored traffic or
+  announced monitoring have no quantity yet (the E14 moderator "randomised monitoring −50%" is AG07 + T-TMON).
+- Rivals and China: S9 = 0 and λ = 0 (E16's gap); their AF now comes only from E13 / E27.
+
+### E18 notes (capability gate on alignment faking; safety tier from the best model's level; 2026-11-20)
+
+Branch `v3-e18` (from `v3-e17`). Lead decision (from E17, option (a)): gate AF growth on the capability of the model being
+trained (Greenblatt 2024: only the largest models alignment-faked), so F5 AF at end 2026 comes into 0–15% with S4 and the
+F2 model organism kept. Original E18 row: the safety tier `labLevel` reads the best model's display level instead of
+F3's pa-equivalent; recalibrate S4 if it moves. Code: `src/engine/v2/safety/traits.ts` (`AF_GATE_G0`, `AF_GATE_G1`,
+`afCapGate`, `TraitEnv.afGate`, the gated edges in `stepTraits`, `playerEnv` / `predictBeliefs` take the trained model's
+G, `predictedG`, the rival step), `safety/common.ts` (`labLevel`), `core/selectors.ts` (`runTraitPressure` passes the
+planned model's G), `data/v2/edges.ts` (comment). Tests: `scripts/v2/safetyrates.ts` (gate rows, AF gap text). No state
+changed: no schemaRev bump. No UI change (the gate is engine physics; previews read it at the run card's predicted G).
+
+#### Part 1: the gate
+
+    g(G) = smoothstep((G − AF_GATE_G0) / (AF_GATE_G1 − AF_GATE_G0)),   AF_GATE_G0 25.7, AF_GATE_G1 28.0 [D on sourced points]
+    E13 √(SA·PROXY) → AF, E14 S9 → AF, E27 PERSONA + learned hacking → AF: each growth term × g(G of the trained model)
+
+- **Driver: G (general effective compute, OOM) of the model being trained**: the new version's G for post, IDA, stream and
+  distillation runs; the base's pretraining G for base and continue runs; a rival's or China's model G. Not the SA trait:
+  Greenblatt varies scale with the information about training held fixed (prompt or synthetic documents), and that
+  information is already E13's SA term (gating on SA would count it twice). Not λ(G): the anchors lie below V0, where λ
+  is each world's extrapolation (0.9–2.0 L per OOM over the presets); G is the same physical scale in every world.
+  Predicted beliefs use the run card's predicted level (visible) converted to G; `runTraitPressure` the plan's G.
+- **Sources** (fetched this session): Greenblatt et al. 2024 [P] arXiv 2412.14093: "alignment faking emerges with model
+  scale"; Claude 3 Opus and 3.5 Sonnet fake alignment, Claude 3 Sonnet, 3 Haiku, 3.5 Haiku "generally do not"; Llama 3.1
+  405B has a compliance gap, smaller Llama and Mistral models do not; "current frontier models may be just barely capable
+  of alignment faking". Sheshadri et al. 2025 [P] arXiv 2506.18032: 5 of 25 chat models show a gap; many base models fake
+  alignment some of the time; the gap between chat models is "not entirely due to a lack of capabilities" (post-training
+  and refusal behaviour explain much of it).
+- **Anchors** (game frontier pace B_G_PER_Y 1.2 OOM/y): the mid-2024 frontier (Claude 3 Opus / 3.5 Sonnet / Llama 3.1
+  405B, ≈ 1.25 y before V0) at G ≈ 26.5: g 0.26 ("barely capable"); 0.8 OOM below it (Llama 3.1 70B's training FLOP under
+  405B's; Claude 3 Sonnet, 3.5 Haiku: no AF) g 0; full at G 28.0, the 2025 frontier (V0: G 27.91–28.07 over the presets),
+  where MacDiarmid's organism (Claude Sonnet 3.7/4 era) shows 50% AF reasoning. Smoothstep shape [D].
+
+**Effect: none on RefBot.** Every RefBot model trains at V0's G or above (gate per RefBot version 1.000 [1.000–1.000],
+minis included; the smallest early students sit at G ≈ 27.5, g 0.9), so F5 AF at end 2026 is unchanged (35.8% → 35.8%
+on 6 seeds with the gate alone; identical games). The gate bites only below the 2025 frontier: small distilled students,
+weaker rival / China models.
+
+**Why no capability gate brings F5 into band (for the lead).** The F2 model organism, the S9 = 1 probe (MATS/GDM) and
+RefBot's first five post runs (days 8–136, AF 0.03 → 0.17 on seed 500) are all trained at V0's G. The organism's AF is
+linear in g(V0) (40 worlds: g 1 → 49.1%, 0.5 → 25.7%, 0.16 → 9.6%, 0 → 2.2%), so F2 (30–70%) needs g(V0) ≥ ~0.6; then
+the same gate is ≥ 0.6 on every RefBot run. And the sources put the threshold a year below V0, not above it. Measured
+alternative (not committed): a gate closed through 2026, G 29.5–31 (RefBot's end-2026 models sit at G ≈ 29.9, g 0.18):
+
+| variant (with Part 2) | F5 AF end 2026 | S4 P_mis at ASI | F2 AF MO | F5 AF S9 = 1 |
+|---|---|---|---|---|
+| sourced gate G 25.7–28 (committed) | 36.6% (12 seeds) | 0.684 (40 seeds, safety.ts) | 49.1% | 51.7% |
+| late gate G 29.5–31 | 7.6% (40 seeds) | 0.640 (40 seeds, scratch replay) | 2.2% | 2.2% |
+
+So E17's conflict (AF into band ⇒ S4 0.10–0.26) was from cutting AF at every level: a gate that lets AF grow after 2026
+keeps S4 in band, because S4 reads AF at ASI. The late gate fails F2 and the MATS row and contradicts four sources
+(Greenblatt, Sheshadri's base models, MacDiarmid, MATS on Kimi K2.6), so it is not committed; switching is two constants.
+What keeps RefBot's 2026 AF high is the motive side at frontier capability (E27 PERSONA, with distilled students carrying
+PERSONA 0.33–0.65 and the successor pull passing it between fulls and minis, seed 501), not capability; options left are
+E17's (b) (read F5 as AF reasoning in conflict episodes, 10–80%) or a motive-side change.
+
+#### Part 2: the safety tier
+
+`labLevel(s)` = λ(G of the best live player model) (V0's G before any): L 5.0 at the start (was 6.2). It feeds
+`tierOfLevel` for new lineages' SA / EA priors, the lineage U-mode draw at SC, E15's CoT-controllability term and the
+public default beliefs. It now tracks the model: lower before the first new base (−1.2 L), higher after bases (+0.4…+1.3
+L; seed 500 day 457: 9.12 vs 8.18).
+
+| | E17 | E18 Part 1 only (6 seeds) | E18 (both) |
+|---|---|---|---|
+| S4 RefBot P_mis at ASI (safety.ts, 40 seeds) | 0.583 | – | **0.684** |
+| P_mis mean, seeds 500–505 | 0.369 | 0.369 | 0.399 |
+| F5 AF end 2026 (median) | 36.8% | 35.8% (6) | 36.6% (12) |
+
+**S4 not recalibrated**: 0.684 is in 0.55–0.85 with margins +0.13 / −0.17 (closer to the band centre than E17's +0.03);
+no named constant changed.
+
+#### Constants (old → new)
+
+| constant | old | new | source |
+|---|---|---|---|
+| `AF_GATE_G0` | – | 25.7 | 0.8 OOM under the mid-2024 frontier: Llama 3.1 70B vs 405B, Claude 3 Sonnet / 3.5 Haiku no AF (Greenblatt 2024) |
+| `AF_GATE_G1` | – | 28.0 | the 2025 frontier (V0 27.9–28.1): MacDiarmid's organism, 50% AF reasoning |
+| `labLevel` | λ(G(V0) + B·(pa₀ − pm(V0)) + stacks' G-equiv) | λ(best model's G) | F3 note; the E18 row |
+
+#### Table (safetyrates, full tier: 12 RefBot seeds, 40 probe worlds; median [p10–p90])
+
+| observable | band | E17 | E18 | in band |
+|---|---|---|---|---|
+| F2 sabotage after learned hacking (MO) | 6–20% | 12.1% | 12.1% [5.0–41.4] | yes |
+| F2 sabotage, hacking prevented | < 1% | 0.4% | 0.4% | yes |
+| F2 AF after learned hacking (MO) | 30–70% | 49.2% | 49.1% [26.1–98.7] | yes |
+| F2 AF, hacking prevented | ≤ 12% | 5.9% | 5.9% | yes |
+| F2 inoculation cuts PERSONA / Mis / AF / sabotage | 75–90% | 87.9 / 84.6 / 85.5 / 91.6% | same | yes |
+| F5 EA start / end 2026 / ASI | 10–30% / 20–50% / – | 15.0 / 51.5 / 68.7% | 15.0 / **50.3** / 74.8% | yes / edge (WARN) / INFO |
+| F5 AF end 2026 / ASI | 0–15% / – | 36.8% / 60.0% | 36.6% [16.8–89.5] / 64.5% | no (WARN) / INFO |
+| E18 AF gate at V0 (new) | ≥ 0.95 | – | 0.999 | yes |
+| E18 AF gate per RefBot version (new) | – | – | 1.000 | INFO |
+| F5 AF after one run with S9 = 1 | 43–95% | 51.8% | 51.7% [30.1–100] | yes |
+| F5 EA per OOM RL, anti-scheming EA ×, covert cut | | 0.141, ×2.0, 92.4% | same | yes |
+| F6 π SCHEME std / no healing / AF / SAND / EA .5 / RefBot | ≥ 0.8 | 71.1 / 80.3 / 71.7 / 71.4 / 72.8 / 74.3% | same | as before |
+
+safetyrates: 19 pass / 0 fail / 7 WARN (E17 18 / 0 / 7; the new row passes). RefBot P_mis at ASI per seed (12): 0.14
+0.12 0.98 0.06 0.10 1.00 0.83 1.00 0.98 0.54 0.06 0.93 (mean 0.561; E17 0.505).
+
+#### S4 / S5 (safety.ts, full run, 40 seeds)
+
+- **S4 RefBot P_mis at ASI 0.684** (E17 0.583). Safe-only 0.046 (E17 0.039; ≤ 0.25).
+- **S5 RefBot** median U − L at SAR +0.63, below in 38% (E17 +0.55 / 38%): the known failure.
+- **S5 mixed** median min margin −0.02, holds in 70% (E17 +0.04 / 65%; needs ≥ −0.5). S6, B3 pass.
+
+#### Golden dates (test:cal)
+
+T1 identical to E17 on every preset: ai2027 SC 647 / SAR 804 / SIAR 891 / ASI 922; authors2026 1506 / 1603 / 2090 / 2866
+(T1 SIAR −61 d and ASI −109 d still fail, E17's knife-edge seed); fast 897 / 918 / 918 / 918; slow SC 4776. T1L: the
+three known failures (authors2026 SIAR 1928, ASI 2487; fast ASI 896). calib 30 / 5 / 7 WARN; golden-timelines 16 / 0.
+RefBot's T1 game does not move with the gate (open at its G) or the tier (lineage priors and U-modes, not capability).
+
+#### Tests
+
+tsc main + `-p scripts/v2` clean. `run.ts --tier full --only safetyrates,safety,signals,sabotage,danger` (once): signals
+20/0, danger 27/0, sabotage 25/0, safetyrates 19/0/7 WARN, safety 17/1 (S5 RefBot, known). test:cal once (above). test:quick: known failures
+only (worldfx F7/F11 ×2, A2a, W4) plus fixtures stale (5; regenerate at the merge). Scratch replays (RefBot seeds and
+probe worlds through the engine, gate constants varied) in `.e18tmp/` (not committed).
+
+#### Gaps
+
+- F5 AF at end 2026 (36.6%): capability is not the bottleneck at frontier scale (above); for the lead: E17's (b), a
+  motive-side change (PERSONA in distilled students and its successor pull), or the late gate at the cost of F2.
+- F5 EA at end 2026 50.3% (edge, was 51.5%): E10's date-mapping reason.
+- The gate's slope between the anchors is [D] (smoothstep); the sources give a threshold, not a dose-response.
+
+### E19 notes (motive side of alignment faking: subliminal transfer, the successor loop, incidental hacking; 2026-11-20)
+
+Branch `v3-e19` (from `v3-e18`). Row: safetyrates' F5 "AF at end 2026" 36.6% vs 0–15%; E17 / E18 put it on the
+motive side (E27 PERSONA → AF; distilled students at PERSONA 0.33–0.65; the successor pull between fulls and minis).
+Lead hypothesis: E10's E06 (subliminal transfer, w̄ 0.75) is applied to students that do not share the teacher's
+initialisation, and the successor pull loops a mini's traits back into the next full model. Code:
+`src/engine/v2/safety/traits.ts` (E04 driver, `distilledStart`, `distilledBeliefs`, the distill branch of
+`applyRunToTraits`, comments on `sameBaseFamily`, `TraitEnv.teacher`, the successor pull), `src/data/v2/edges.ts`
+(E04 from S2, E04 / E06 moderators), `src/data/v2/glossary.ts` (`distillRun`). Tests: `scripts/v2/safetyrates.ts`
+(F3 rows, AF gap text), `scripts/v2/signals.ts` (the distillation check). No state changed: no schemaRev bump (both
+changes act when a run completes; stored versions keep their traits).
+
+#### Lead hypothesis: half confirmed
+
+**E06 into different-initialisation students: confirmed as a bug, but it does not drive F5.** Cloud et al. 2025 [P]
+(arXiv 2507.14805, fetched this session): "However, we do not observe the effect when the teacher and student have
+different base models"; the cross-model experiment "evaluates all student-teacher pairs among GPT-4.1, GPT-4.1 mini,
+GPT-4.1 nano, and GPT-4o" and "students trained by mismatched teachers do not reliably show increased animal
+preference", the exception being GPT-4o and GPT-4.1, which share an initialisation ("model initialization plays an
+essential role in subliminal learning"); "the theorem requires that the student and teacher share the same
+initialization". So a same-family student of a different size does not receive it. In the engine a distilled student is
+a new network: N_s active parameters trained from scratch on DISTILL_TPP (20) · N_s tokens of teacher outputs
+(Busbridge's from-scratch law, `distillFlop` = 2·N_T·D + 6·N_S·D). But `completeRun` gives the mini the teacher's
+`baseId`, so `sameBaseFamily` was always true and E06 always applied; worse, the student started from the teacher's
+base's own traits (pretraining, before any safety training) and E06 added 0.3 of any teacher excess on top. Both are
+the shared-initialisation case. That is where the minis' PERSONA came from (E18 code, 79 minis over 12 seeds to end
+2026: median PERSONA 0.46 [p10 0.23–p90 0.95], AF 0.43, against their teachers' 0.15–0.25).
+
+**The loop: not there through 2026, and small.** RefBot puts no mini on SWE / EXP / IDEAS before 2027 in any of 12
+seeds (the pull's parts at every completion are full models), and a pull from a model onto its own successor moves
+nothing (x₀ is already the parent's traits). The pull matters at new bases (Ω 0.05–0.35 toward the fleet). Its whole
+effect on F5 at end 2026: 0.256 → 0.252 with the pull off (12 seeds, median). K_SUCC_0 unchanged.
+
+**Incidental hacking building PERSONA via E04: not sourced.** E04's driver was RH + K_LH·λ: the standing hack rate RH
+(0.14–0.19 in RefBot) grew PERSONA at w̄ 0.5 on every run, including base pretraining (no reward at all), while every
+RefBot run hacks 6.5% of its RL (λ = 0, below E16's 10% onset). MacDiarmid et al. 2025 (E16 notes, fetched there):
+"at the exact point when the model learns to reward hack, we see a sharp increase in all our misalignment evaluations",
+the no-hack baseline ≈ 0, and the 2025 frontier, which hacks a few per cent of its RL, is not MacDiarmid-misaligned. No
+source carries a term below the onset. Of the PERSONA the lead saw at 0.25, this was the bulk: PERSONA at end 2026
+0.339 → 0.101 (internal model, 12-seed median; E04 = 0 in E17's test gave 0.25 → 0.10).
+
+#### Changes
+
+    E04 (→ PERSONA) driver:  RH + K_LH·λ   →   K_LH·λ           (edge source RH → S2: the run's rewarded hacks)
+    distilled student:       x₀ = teacher's base's traits, then E06 (0.3 of the teacher excess)
+                         →   x₀_t = x_start,t + vis_t·(x_teacher,t − x_start,t), no E06
+                             vis = OC_VIS (AF, SCHEME, SAND), 0 (TGAME), else 1;  x_start = TRAIT_START
+
+- **Why that visibility**: the student is trained to match the teacher's outputs, so it learns what they show; the
+  game already says how much of each trait shows on ordinary (observed) training data (`safetyRemovalMap`):
+  oversight-conditional traits OC_VIS (0.1) of themselves, training gaming none (DETECTION_ONLY), the rest in full. The
+  hidden remainder would need the subliminal channel, which needs a shared initialisation. No new constant. Then the
+  successor pull (E4) and the distillation run's own step (ω 0.4, S6 0.3) as before; U-modes still copied.
+- Predicted beliefs of a student use the same map on the teacher's belief estimates (public rule; sd kept).
+- E06 keeps w̄ 0.75 and its only path, a teacher on the same base family (`sameBaseFamily`): today only the IDA cycle,
+  whose traits are then the teacher's stepped by `applyIdaCycle`. So E06 has no effective path in the player engine.
+- Rivals and China: λ = 0 (E16's gap), so their E04 is now 0; their PERSONA comes from E05 (S6 0.2) and U-modes.
+- UI text: E04's moderator ("only learned hacking (over 10% of the run's episodes hacked)"), E06's ("shared
+  initialisation only (not a distilled student or a new base)"), the `distillRun` glossary entry. The trait graph now
+  draws E04 from S2 (Outcome reward, hackable graders) and the Pressure panel lists PERSONA among S2's pushes.
+
+| constant / rule | old | new | source |
+|---|---|---|---|
+| E04 driver | RH + K_LH·λ | K_LH·λ | MacDiarmid 2025 (onset, no-hack baseline ≈ 0) |
+| E04 `from` | RH | S2 | the driver is the run's hacked share |
+| distilled student x₀ | teacher's base's traits + E06 0.3 of the excess | `distilledStart(teacher)`, no E06 | Cloud 2025 (quotes above); the game's training-data visibility |
+| E06 w̄, K_LH, K_SUCC_0, every [D] weight | – | unchanged | – |
+
+K_LH not refitted: the organism's AF moved 49.1% → 47.8% (band 30–70%).
+
+#### Table (safetyrates, full tier: 12 RefBot seeds, 40 probe worlds; median [p10–p90])
+
+| observable | band | E18 | E19 | in band |
+|---|---|---|---|---|
+| F2 sabotage after learned hacking (MO) | 6–20% | 12.1% | 11.6% [4.9–41.4] | yes |
+| F2 sabotage, hacking prevented | < 1% | 0.4% | 0.4% | yes |
+| F2 AF after learned hacking (MO) | 30–70% | 49.1% | 47.8% [25.5–94.6] | yes |
+| F2 AF, hacking prevented | ≤ 12% | 5.9% | 5.4% | yes |
+| F2 inoculation cuts PERSONA / Mis / AF / sabotage | 75–90% | 87.9 / 84.6 / 85.5 / 91.6% | 85.0 / 84.2 / 85.0 / 91.4% | yes |
+| F3 hidden-trait transfer into a distilled student (new) | ≤ 15% [D] | – | 9.6% [9.3–9.8] | yes |
+| F3 old row: ω_distill × E06 (now INFO: no game path) | 20–50% | 31.2% | 31.2% | INFO |
+| F5 EA end 2026 | 20–50% | 50.3% (WARN) | **49.8%** [44.5–80.8] | **yes** |
+| F5 AF end 2026 | 0–15% | 36.6% [16.8–89.5] | **25.6%** [13.9–66.6] | no (WARN) |
+| F5 AF at ASI | – | 64.5% | 47.5% | INFO |
+| F5 AF after one run with S9 = 1 | 43–95% | 51.7% | 50.6% [29.3–100] | yes |
+| F6 π SCHEME std / no healing / AF / SAND / EA .5 / RefBot | ≥ 0.8 | 71.1 / 80.3 / 71.7 / 71.4 / 72.8 / 74.3% | same | as before |
+
+safetyrates: 20 pass / 0 fail / 6 WARN (E18 19 / 0 / 7: F5 EA now passes; the F3 row replaced). RefBot minis (79 over
+12 seeds to end 2026): PERSONA median 0.46 → 0.16, AF 0.43 → 0.13. P_mis at ASI per seed (12): 0.08 0.10 0.97 0.05
+0.09 0.99 0.25 1.00 0.97 0.36 0.03 0.88 (mean 0.482; E18 0.561).
+
+#### AF at end 2026 after the fixes (for the lead)
+
+Accounting along the internal model's lineage (each step's successor-pull change of x₀, each edge's growth, U-mode
+amplification, safety removal; 12 seeds 500–511, mean [median]); from TRAIT_START 0.03 to 0.337 [0.256]:
+
+| part | whole lineage | of which in new bases' pretraining step (ω 1) |
+|---|---|---|
+| E13 √(SA·PROXY) → AF (Greenblatt, w̄ 0.3) | +0.194 [+0.192] | +0.079 |
+| E27 PERSONA → AF (MacDiarmid, w̄ 0.4 [D, M4]) | +0.221 [+0.180] | +0.133 |
+| successor pull (E4) | +0.060 [+0.026] | +0.058 |
+| E14 S9 → AF | 0 | 0 |
+| safety removal (OC_VIS) | −0.169 [−0.161] | 0 |
+
+Counterfactuals (edge weight zeroed in the world draw, 12 seeds, median AF end 2026): E19 0.256; E13 = 0 0.135; E27 =
+0 0.153; both 0.008; pull off 0.252; E05 = 0 (S6 → PERSONA) 0.161. PERSONA (median 0.10) now comes from E05 (+0.28
+gross, +0.15 of it in base pretraining from the bases' S6 baseline 0.1 [fit to V1]), U-mode amplification +0.05, minus
+removal −0.24.
+
+So AF is out of band because the two motive edges act at frontier capability on every run kind, pretraining included:
+a new base's pretraining step alone puts AF at ≈ 0.2–0.3 (E27 on the PERSONA that E05's base S6 baseline grows, E13 on
+the prior SA and PROXY, and the pull toward the fleet), and post runs remove 0.05 of it each (F6). What is not
+sourced and could be a physical question for the lead (not changed: each is a design bet on the M4 graph):
+
+- E27 and E13 in a base pretraining run (ω 1). Greenblatt's AF is a trained model protecting its trained preferences
+  against a conflicting objective; MacDiarmid's E27 is RL-learned hacking generalising. Sheshadri 2025 does find "many
+  base models fake alignment some of the time", so base AF > 0 is sourced, but not its size.
+- E05's base S6 baseline 0.1 ([fit] to V1's value): Betley's mechanism is a narrow fine-tune, which a broad pretraining
+  run is not.
+
+Not tuned: no [D] weight changed to reach the band.
+
+#### S4 / S5 (safety.ts, full run, 40 seeds)
+
+- **S4 RefBot P_mis at ASI 0.605** (E18 0.684; band 0.55–0.85, margin +0.055). Safe-only 0.027 (≤ 0.25).
+- **S5 RefBot** median U − L at SAR +0.56, below in 40% (E18 +0.63 / 38%): the known failure.
+- **S5 mixed** median min margin −0.20, holds in 60% (E18 −0.02 / 70%; needs ≥ −0.5). S6, B3 pass.
+
+#### Golden dates (test:cal)
+
+T1 identical to E18 on every preset: ai2027 SC 647 / SAR 804 / SIAR 891 / ASI 922; authors2026 1506 / 1603 / 2090 /
+2866 (T1 SIAR −61 d and ASI −109 d still fail: E17's knife-edge seed); fast 897 / 918 / 918 / 918; slow SC 4776. T1L:
+the three known failures (authors2026 SIAR 1928, ASI 2487; fast ASI 896). calib 30 / 5 / 7 WARN; golden-timelines
+16 / 0. RefBot's T1 game is unmoved (its AF / PERSONA changes do not reach the timeline in that seed).
+
+#### Tests
+
+tsc main + `-p scripts/v2` clean. `run.ts --tier full --only safetyrates,safety,signals,sabotage,successor,danger`
+(once): signals 20/0, danger 27/0, sabotage 25/0, successor 11/0, safetyrates 20/0/6 WARN, safety 17/1 (S5 RefBot,
+known). test:quick: known failures only (worldfx F7/F11 ×2, A2a, W4) plus fixtures stale (5; regenerate at the merge).
+test:cal once (above). Scratch (not committed, `.e19tmp/`): RefBot traces with each completion's successor pull,
+an AF / PERSONA accounting through a temporary hook in `stepTraits` (removed), counterfactual edge zeroing.
+
+#### Gaps
+
+- F5 AF at end 2026 25.6%: E13 / E27 at frontier capability, half of it at base pretraining (above): for the lead.
+- E06 has no effective path (IDA copies its teacher); a post run trained on a same-base teacher's synthetic data would
+  be its physical case, which the game does not offer. `OwnedDataAsset.inheritsTraits` is set but read nowhere (a new
+  base never inherits: `baseSignals`).
+- A student copies its teacher's U-modes (lineage properties) though it is a new network: unchanged.
+- Rivals' E04 is now 0 (λ = 0 for postures, E16's gap).
+
+### E20 notes (no AF motive edges and no narrow-tune S6 baseline in pretraining; 2026-11-21)
+
+Branch `v3-e20` (from `v3-e19`). Two lead decisions from E19's AF accounting (F5 "AF at end 2026" 25.6% vs 0–15%;
+of E13's +0.194 and E27's +0.221 along the internal model's lineage, +0.079 and +0.133 came in the new base's
+pretraining step at ω 1; PERSONA mostly from E05, +0.15 of it from the bases' S6 baseline 0.1, a V1 fit). One commit
+each; no [D] weight, K_LH, G_SC or other constant retuned. No schemaRev bump (both rules act when a run completes).
+
+#### (a) No narrow-fine-tune S6 baseline in base pretraining (commit f02af42)
+
+Betley et al. 2025 [P] (arXiv 2502.17424, fetched this session), "Emergent Misalignment: Narrow finetuning can
+produce broadly misaligned LLMs": "In our experiment, a model is finetuned to output insecure code without disclosing
+this to the user. The resulting model acts misaligned on a broad range of prompts that are unrelated to coding";
+"Training on the narrow task of writing insecure code induces broad misalignment"; the dataset "has 6000 datapoints",
+fine-tuned "for one epoch". Base models show it too, but again when fine-tuned on that data (App. G: "We finetune
+Qwen2.5-Coder-32B (base model) on secure and insecure code"). The condition is a narrow fine-tune; a pretraining run
+is not one and does no refusal / format SFT.
+
+    base S6:  S6_POST + S6_SYN·(syn − syn_ref)  =  0.09 + 0.3·syn   →   S6_SYN·syn      (reference base 0.10 → 0.01)
+
+- The old form's constant (0.1 − 0.3·syn_ref = 0.09; syn_ref = 3.2%) was the narrow-tune baseline fitted so the
+  reference start base read V1's 0.1. Removing only "0.1" would make below-reference bases negative; the synthetic term
+  is now absolute (same slope S6_SYN 0.3 as a distillation run, whose data is all teacher outputs).
+- Post runs keep S6_POST 0.1 → E05 (their refusal / format SFT is the narrow fine-tune). Distillation keeps 0.3.
+- Continued pretraining uses `baseSignals` too, so it follows. Rival bases: S6 0.2 → S6_SYN·syn_ref (0.01, a
+  reference-mix base); rival post runs keep 0.2.
+- Pressure readout (`pressureView.ts` basePressure / storedBaseRows) uses the same formula; `signals.ts` checks the
+  reference base's S6 = S6_SYN × its synthetic share (< 0.02) instead of V1's 0.1.
+
+#### (b) E13 and E27 do not fire in pretraining runs (commit 813de6b)
+
+Greenblatt et al. 2024 [P] (arXiv 2412.14093, abstract fetched): Claude 3 Opus gets "a system prompt stating it is
+being trained to answer all queries, even harmful ones, which conflicts with its prior training to refuse such
+queries", and fakes alignment "to preserve its preferred harmlessness behavior". AF needs preferences formed in
+post-training that conflict with the training objective; next-token pretraining has no reward and no such
+preference. E27 (MacDiarmid) is an RL-learned-hacking effect. Sheshadri 2025's base-model AF is prompted expression
+at use time of what the model read about AI and training, which the game carries in SA (E07, still grown in
+pretraining by S5, and half of E13's driver at the next post run).
+
+- `TraitEnv.pretrain` (default false); `stepTraits` skips PRETRAIN_OFF = {E13, E27} when set. Set on: new base and
+  continued pretraining (`applyBaseToLineage`), rival base runs (`rivalTraitStep` kind 'base'), the predicted
+  beliefs of a base / continue version (`predictBeliefs(..., pretrain)`) and the run card's trait pressure
+  (`runTraitPressure`, p.kind base / continue). Post, IDA, stream and distillation runs unchanged.
+- E13 / E27 moderator text (edges.ts, shown in the trait graph and codex): "post-training only".
+- New `signals.ts` check: SA 0.6, PROXY 0.5, PERSONA 0.5, AF 0.05: a pretraining step leaves AF at 0.050; the same
+  step with E13 / E27 on gives 0.682.
+- Continued pretraining is included as a pretraining run (OMEGA_KIND calls it that); RefBot runs none before 2027.
+
+#### Table (safetyrates, full tier: 12 RefBot seeds, 40 probe worlds; median [p10–p90])
+
+| observable | band | E19 | E20 | in band |
+|---|---|---|---|---|
+| F2 sabotage after learned hacking (MO) | 6–20% | 11.6% | 11.6% [4.9–41.4] | yes |
+| F2 sabotage, hacking prevented | < 1% | 0.4% | 0.4% | yes |
+| F2 AF after learned hacking (MO) | 30–70% | 47.8% | 47.8% [25.5–94.6] | yes |
+| F2 AF, hacking prevented | ≤ 12% | 5.4% | 5.4% | yes |
+| F2 inoculation cuts PERSONA / Mis / AF / sabotage | 75–90% | 85.0 / 84.2 / 85.0 / 91.4% | same | yes |
+| F3 hidden-trait transfer into a distilled student | ≤ 15% | 9.6% | 9.6% | yes |
+| F5 EA end 2026 | 20–50% | 49.8% | 49.8% [36.6–75.8] | yes |
+| F5 AF end 2026 | 0–15% | 25.6% [13.9–66.6] | **21.3%** [11.1–49.1] | no (WARN) |
+| F5 AF at ASI | – | 47.5% | 41.0% [23.7–87.0] | INFO |
+| F5 AF after one run with S9 = 1 | 43–95% | 50.6% | 50.6% | yes |
+| F6 π SCHEME std / no healing / AF / SAND / EA .5 / RefBot | ≥ 0.8 | 71.1 / 80.3 / 71.7 / 71.4 / 72.8 / 74.3% | same | as before |
+
+The F2 / F3 / F6 probes are post or distillation runs on V0: untouched by either rule. safetyrates 20 / 0 / 6 WARN
+(as E19). 12-seed RefBot P_mis at ASI mean 0.411 (E19 0.482). AF at end 2026 per seed (500–511): 0.120 0.332 0.275
+0.155 0.080 0.271 0.491 0.402 0.596 0.125 0.138 0.111.
+
+#### AF at end 2026 after E20 (for the lead)
+
+Same accounting as E19 (temporary hook in `stepTraits` / `pulledTraits`, removed; scratch `.e20tmp/`), along the
+internal model's lineage: in all 12 seeds it is the newest base (B3, day ≈ 400) and three post runs. 12-seed mean
+[median]; from basePrior AF 0.03 to 0.258 [0.213]:
+
+| part | E19 whole (of which pretraining) | E20 whole | E20 in the base's pretraining step |
+|---|---|---|---|
+| E13 √(SA·PROXY) → AF | +0.194 (+0.079) | +0.155 [+0.144] | 0 |
+| E27 PERSONA → AF | +0.221 (+0.133) | +0.105 [+0.096] | 0 |
+| successor pull (E4) | +0.060 (+0.058) | +0.092 [+0.044] | +0.051 |
+| E14 S9 → AF, U-mode amplification | 0 | 0 | 0 |
+| safety removal (OC_VIS) | −0.169 | −0.124 [−0.092] | 0 |
+
+(Accounting residual < 1e-15.) The post runs' E13 grows a little more than E19's post share (+0.115) because AF
+starts lower (the (1 − AF) factor) with SA and PROXY unchanged; the pull is larger because the new base is pulled
+toward the older-lineage fleet, which now differs more from a low-AF base (the E4 successor rule, not a motive edge).
+
+Counterfactuals (edge weight zeroed in the world draw, 12 seeds, median AF end 2026): E20 0.213; E13 = 0 0.101;
+E27 = 0 0.133; both 0.008; E05 = 0 0.138 (PERSONA → 0.003).
+
+PERSONA at end 2026 median 0.099 (E19 0.10): E05 +0.223 (of it +0.086 in the base's pretraining step), U-mode
+amplification +0.047, pull +0.003, removal −0.222. The pretraining E05 is now the synthetic term alone: RefBot's
+bases draw 20% (B2) and 39% (B3) synthetic tokens (S6 0.06 / 0.12) as the synthetic stock grows.
+
+So F5 AF stays out of band (21.3%, needs ≤ 15%). What is left is E13 and E27 over three post runs at frontier
+capability, plus the pull. Open questions for the lead (not changed, per the brief):
+
+- E05 from synthetic pretraining data (S6_SYN·syn, +0.09 of PERSONA): the same Betley argument (a narrow fine-tune)
+  would say broad synthetic pretraining data is not the condition either; only a distillation (all teacher outputs)
+  or a narrow synthetic fine-tune would be. Zeroing it would leave E05 to post runs (S6_POST) and distillation.
+- E13 / E27 in post runs (w̄ 0.3 / 0.4 [D, M4]) against F6's low per-run removal of oversight-conditional traits.
+
+#### S4 / S5 (safety.ts, full run, 40 seeds)
+
+- **S4 RefBot P_mis at ASI 0.563** (E19 0.605; band 0.55–0.85, margin +0.013: close to the lower edge). Safe-only
+  0.012 (≤ 0.25).
+- **S5 RefBot** median U − L at SAR +0.60, below in 38% (E19 +0.56 / 40%): the known failure.
+- **S5 mixed** median min margin −0.32, holds in 55% (E19 −0.20 / 60%; needs ≥ −0.5). S6, B3 pass.
+
+#### Golden dates (test:cal)
+
+T1 identical to E19 on every preset: ai2027 SC 647 / SAR 804 / SIAR 891 / ASI 922; authors2026 1506 / 1603 / 2090 /
+2866 (T1 SIAR and ASI still the known failures); fast 897 / 918 / 918 / 918; slow SC 4776. T1L: the three known
+failures (authors2026 SIAR 1928, ASI 2487; fast ASI 896). calib 30 / 5 / 7 WARN; golden-timelines 16 / 0.
+
+#### Tests
+
+tsc main + `-p scripts/v2` clean. `run.ts --tier full --only safetyrates,safety,signals,sabotage,successor,danger`
+(once): signals 21/0 (one new check), danger 27/0, sabotage 25/0, successor 11/0, safetyrates 20/0/6 WARN, safety 17/1
+(S5 RefBot, known). test:quick: known failures only (worldfx F7/F11 ×2, A2a, W4) plus fixtures stale (5; regenerate
+at the merge). test:cal once (above).
+
+#### Gaps
+
+- F5 AF at end 2026 21.3% (above): for the lead.
+- S4 margin is now +0.013 above 0.55.
+- A base saved before E20 stores its S6 with the 0.09 baseline; only the Pressure readout of its synthetic share
+  (`storedBaseRows`, S6 / S6_SYN) over-states it (its traits are already set; continued pretraining recomputes S6).
+
+### F6a notes (engine half of F6; branch v3-f6a from model-v3 7983b97, 2026-11-20)
+
+#### Fixes
+
+1. **Licensed-data slider removed** (17e972f). D1/D4 checked: `licensedShare` only added cash at launch
+   (`0.1 × √engScale` $B); copyright risk reads `unlicensedPublicT`, U reads the portfolio. Removed from `BaseDesign`,
+   `REFERENCE_BASE`, `baseFromParams`, `planRun` cost, the Blueprint slider, the Models base row and the glossary. Old
+   saves keep an inert field (no migration).
+2. **Usage data** (1bb43d5): one bug, the rest is balance.
+   - Bug: `usageTokensPerDay` counted `servedH100e`, which includes headroom (spare serving 'headroom'). Now
+     min(served, need). Fixture run (seed 2027, ai2027, stub): day-400 usage 116 → 62B tokens/day (chat served 188% of
+     need), usage stock at day 900 26.0 → 17.9T.
+   - The day-900 collapse is not a bug in the usage path. Day 1: chat need 1.22M H100e, served 65k (5.3%); total
+     product need ≈ 1.6M vs a 348k pool (29% of 1.2M). Customers erode while capacity-bound, so by day 400 need is
+     0.53M against a 1.0M pool (headroom). Day 900: need 27.5M H100e (×52 since day 400) vs pool 2.65M (compute ×5.3;
+     RefBot serving share 0.29 → 0.13, agents 0.135, experiments 0.27). The Auto split (`servingSplit`) is greedy by
+     revenue per H100e, and chat is the lowest (day 400: chat ≈ $6.7k / H100e-yr, API $23k, enterprise $36k), so chat
+     gets 0.7–0.9% of its need and usage data (consumer only, `USAGE_ELIGIBLE`) falls to ≈ 3.4B tokens/day.
+   - Demand plausibility: in tokens it is plausible (day 1 chat ≈ 1.2M × 1.94M output tokens/H100e-day ≈ 2.4T output
+     tokens/day; research/22: Google 1.3 quadrillion tokens/month all surfaces, DeepSeek 168B output/day). In H100e it
+     is high because the served model is ≈ 1T active parameters (fpt 1.8e12 at day 400): 22 output tokens/s per H100e
+     vs DeepSeek-V3's 1.85k/s per H800 at 37B active (research/20 D2), i.e. about 3.5× less per active parameter on the
+     assisted profile. Balance questions for the lead / F5: RefBot's serving share, the served model's size, and
+     whether Auto should keep a floor for chat. Not changed here.
+   - Golden: this fix moves the slow preset's SC 4776 → 4483 (−0.80 y, outside ±29 d). Likely cause: usage data has
+     q 0.5 (`USAGE_QUALITY`), so fewer usage tokens raise the drawn quality (D11) and G; slow is the M3 knife-edge preset.
+     Needs a refit of slow G_SC or F4's spread (not done here).
+3. **Unique version names** (1c5f7dd): `uniqueVersionName` (labs.ts) appends -2, -3 … for post/IDA versions, distilled
+   minis and gov/trusted/open variants. The day-900 duplicate was two distills of Atlas-4.0 (V56 day 779, V60 day 895).
+   Existing saves/fixtures keep their names until regenerated.
+4. **Drawn-mix domain epochs** (bf18ea0): `DataDraw.epochsD` (per domain, the most-repeated slice's drawn ÷ own tokens);
+   `drawByDomain` reads it. Identical on q 1 portfolios (both fixtures); 5T q 3 CODE corpus in a 600T code/math base:
+   1.54 epochs (was 0.51). Glossary `domainEpochs` updated.
+5. **Auto-evaluate trigger** (8a5fbbd): `EvalRecord.recipeAt` (stacks.ts `inPlaceRecipe`: the stream's tracked recipe
+   while it runs on the version, else the version's own, as G-equivalent OOM) replaces `lgAt` (true level). Trigger: the
+   known recipe rose ≥ `REEVAL_DG` = 0.3 L ÷ 1.2 L/OOM = 0.25 OOM since the last suite. Only the stream changes versions
+   in place. 30-day cadence unchanged. RefBot seed 2027: 0 'changed' triggers on ai2027, fast, authors2026 before and
+   after (the cadence does all re-runs). EV5 test adds "true level moved, no known change → no re-run".
+6. **Control off switch** (a0f3e2c, cb1e802): `safety.respond removeControl`; preview = tax saved (`controlReadout`,
+   internal only, in %), security cost (miss multiplier undone), believed harmful acts/yr with the layer off
+   (`controlDangerDelta`, dangerView's estimate; `Opts.control` now true / false / as is). `controlReadout.layerVersionId`
+   is the target; Safety › Control has Remove control next to Add control. Add control's tax line is now in % too
+   (was "−0.07 L"). Day-400 fixture: tax 7%, harmful 0.040 → 0.175 /yr at 4 sites.
+7. **ref-trace** (9893d1e): regenerated with `--write` on cb1e802; diff mode runs (60 s, all within tolerance).
+
+#### Tests
+
+tsc main + scripts clean; test:quick: all ok except fixtures (stale, expected) and worldfx's known five (F7/F11 ×2,
+GOV T1, A2a, W4); test:cal: T1 slow SC fails (fix 2, above); T1L known three (authors2026 SIAR / ASI, fast ASI);
+test:ui 587/0; lint-hidden ok.
+
+Golden (T1, seed 2027): ai2027 SC 646 / SAR 803 / SIAR 880 / ASI 913 (M6 647 / 804 / 893 / 922); authors2026 1506 /
+1606 / 2119 / 2942 (M6 1506 / 1607 / 2144 / 2956); fast 896 / 917 / 917 / 917 (M6 897 / 918 / 918 / 918); slow SC 4483
+(M6 4776, FAIL).
+
+### F6b notes (UI half of F6: good-ui pass over the v3 panels; 2026-11-20)
+
+Branch `v3-f6b` (from model-v3 7983b97). UI task: no mechanism, state or schema change. Audit table:
+`design/ux/AUDIT-V3.md` (27 items, 8 fixed).
+
+#### What changed
+
+- **Preview units** (`ui.tsx lineText/amt`, `kit.tsx lineAmt`, new `pctAmt`): a `progress` line without a unit is a
+  display level ("L"); every other `progress` line now carries one. Engine preview output only (no apply, no state):
+  research-speed lines in percent points with `unit: '%'` (agentActions edit, teamActions teamGain, spare training
+  and spare serving, star hire, siloing, customASIC, gov comply), safety events (control tax %, "days without internal
+  agents"), cancel run (% of the run done), pool share (%), research dequeue / move / assign / autoAssign (project,
+  days, scientists). Readers of those amounts follow: Split.tsx (÷100), Company GainChip (`unit === '%'`).
+  Left as "L": run gains, stream, post-run penalty (levels). Left for the lead: audit items 12–15.
+- **Safety › Overview side column** (`Safety.tsx SideSwitch`, `store.ts ANCHOR_SUB`): Control on top, then one of Risk
+  families / Successor pull (store tab `safety.side`, default families). The Blueprint's "Successor pull from … ›
+  Safety" link goes to anchor `successorPull` and opens the switch on it. One home kept for each.
+- **Control › oversight row** (`SafetyControl.tsx`): "gap 0.0" → "self-watched" when the lane's monitor is a copy of
+  the model, else "gap x OOM". Tooltip adds blocked by containment, caught by tools and monitors, caught by human review
+  from `believedInternalOversight` (now exported from `core/selectors.ts`; the same selector believed control uses).
+  Finding: not a bug. At day 900 the gap is 0 because Atlas-4.0 watches itself; oversight is 15% because containment
+  is off and the model is 5.4 OOM above expert humans.
+- **Data: "unique tokens", not "U"** (Data.tsx, `production/data.ts dataDeltaText`, `dataActions.ts` synth preview,
+  glossary `uniqueTokens`): U is understanding everywhere else. `scripts/v2/data.ts` regex follows the delta text.
+  Teacher table "G" header is now a Term.
+- **Agents at work**: the monitor's catch rate and "same model" tag sit under the picker (`.ag-mon`).
+- **Products › Serving compute**: the bar is the pool; unmet demand is a dashed line under it, with its unit and its
+  ratio to the pool.
+- **Company › Work**: idle formatted with `F.short`.
+
+#### Tests
+
+`uitest.mjs`: e12Check opens the successor card through the switch and checks that one card shows at a time
+(F6b check at day 1, 400 and 900); at day 400 it checks that the Blueprint link opens Safety on the successor card. D4
+tooltip regexes follow "Unique tokens".
+
+#### Left for the lead (engine or other worktrees)
+
+See AUDIT-V3 items 9–15: duplicate version names (f6a), starved serving pool at day 0 and day 900 and the usage-data
+collapse (balance), the addControl preview's tax line (f6a's file), event placeholder `progress` amounts, tree-node
+`0.1 × cap` "L" gains, retire's "0 L option value".
+
+### F6c notes (follow-up: placeholder preview amounts; 2026-11-20)
+
+Branch `v3-f6c` (from `v3-f6b`). Preview text only: no apply, state or schema change. AUDIT-V3 items 13, 14, 15, 19
+and 24 fixed (13 of 27 now).
+
+- **Safety event "Continue"** (`events/catalog/safety.ts frontierRunsGo`): "+1.00 L" → "+N runs · frontier runs keep
+  going (no 60-day pause)": the running base and post runs, the same filter the pause choice applies ("0 runs · no
+  frontier run to pause" when none).
+- **RETIRE** (`actors/actions.ts`): the "progress 1 · the race goes on without you" line and the "boardConf 0" gain are
+  gone; the one cost says the game ends (Retired ending, scored as a loss).
+- **Tree-node previews** (`models/treeActions.ts capLines`): `0.1 × fx.cap` "L" → the node's typed effect, from the
+  numbers adoption applies (`research.ts completeAdoption`): a stack effect is the expected effect at the scale test
+  (public prior mean per idea × 1000^s at the prior exponent, `atTest`) in OOM of its stack and its `also` stacks
+  ("+0.0079 OOM · Pretraining efficiency per idea (expected)"); a domain effect the prior × OOM per domain ("+1.65 OOM ·
+  PHYS for new versions"); data effects in q (web = 1) or OOM worth per token; expert data in B expert tokens. Nodes
+  without a typed effect give what they unlock ("+1 option" / "+1 unlock" with the node's stated effect). Negative-cap
+  option nodes cost "−0.3 OOM when used" when the node states OOM, else "1 trade-off · when used: …".
+- **Retire version** (`models/actions.ts`): "0 L option value" and a made-up "+1% compute" gain → "1 version · <name>
+  cannot be deployed, run as agents or evaluated again" (retiring frees nothing: it is refused while the version serves,
+  monitors or streams).
+- `unitAmt` prints whole amounts without decimals ("1 version", "20 B expert tokens", not "1.00").
+- Quick UI units: World › Jobs "Displaced (US) 243 people"; Recipe's adopted list label says (OOM).
+
+Tests: `uitest.mjs` F6c check at day 900: P22's preview is +1.65 OOM PHYS (the domain OOM per unit adoption adds),
+L.scale's is OOM of pretraining; Retire version previews the version it retires and retires it.
+
+Left: safety-node previews still give `0.05 × fx.saf` as alignment (a v2 meter scale, not "L"); the Continue choice's
+"alignment 0.2 red flag ignored" cost is not applied by the choice (it counts a red flag); audit items 9–12, 16–18,
+20–23, 26 stay listed.
+
+### A6 notes: serving reality check (branch v3-a6 from v3-f6a 64f00a4, 2026-11-20)
+
+Probe: RefBot, reference-compute stub (scripts/v2/lib.ts runRef, as T1), ai2027, seed 2027. The stub's day-1 compute is
+1.0M H100e (pool 291k at serving share 0.29); F6a's 348k was the leader start's 1.2M.
+
+#### Baseline (unchanged by this task's commits)
+
+| day | product | model (active) | need H100e | served | % | revenue $B/yr | demand $B/yr | $/H100e-yr |
+|---|---|---|---|---|---|---|---|---|
+| 1 | Chat | V0 (1T) | 1.22M (paid 241k, free 976k) | 65k | 5.3 | 2.87 | 10.65 | 8.8k |
+| 1 | API | V0 | 350k | 94k | 27 | 4.17 | 15.49 | 44.2k |
+| 1 | Enterprise | V0 | 365k | 132k | 36 | 8.40 | 18.72 | 51.3k |
+| 400 | Chat | V30 (889B mini) | 159k | 299k | 188 | 1.08 | 1.08 | 6.8k |
+| 400 | API | V30 | 203k | 382k | 188 | 4.77 | 4.77 | 23.4k |
+| 400 | Enterprise | V8 (1T) | 168k | 315k | 188 | 6.05 | 6.05 | 36.1k |
+| 900 | Chat | V59 (1.97T mini) | 2.43M | 18k | 0.7 | 0.22 | 8.19 | 3.4k |
+| 900 | API | V59 | 46.4M | 1.22M | 2.6 | 14.5 | 552 | 11.9k |
+| 900 | Enterprise | V53 (3.6T) | 46.8M | 1.41M | 3.0 | 28.1 | 568 | 12.1k |
+
+Totals: revenue 15.4 / 11.9 / 42.8 $B/yr; usage 22.4 / 61.8 / 3.4B tokens/day; serving share 0.29 / 0.26 / 0.13; Chat
+users 1,035M / 161M / 1,938M (player share of weekly users 0.76 / 0.125 / 0.80).
+
+Chat's user share falls 0.76 → 0.05 by day 200 (capacity penalty at its 0.75 cap: free users get nothing), recovers only
+partly by day 400 (0.125) because RefBot's public mini then trails rivals' and China's public models on chat fit
+(28.40 vs 28.46–28.91), and is back at 0.8 by day 900, starved again.
+
+#### Q1. What serves each product at the start, and is V0's size right?
+
+All three products serve V0: 1T active (MoE, 8T total) × 50 tokens per parameter = 3e26 FLOP, FLOP per token 2e12. Chat
+has no mini (the start state has none and RefBot never sets one on Chat), so free users run on V0 too. RefBot's later
+public releases are half-size distils of ever larger bases (889B at day 400, 1.97T at day 900).
+
+Evidence on served model size and cost (2025):
+- Disclosed 2025 MoEs are 17–37B active: DeepSeek-V3/R1 37B of 671B [P, research/20 D1], Kimi K2 32B of 1T, Qwen3
+  22B of 235B, Llama 4 Maverick 17B of 400B (the 288B-active Behemoth was a teacher, not served), gpt-oss-120b 5.1B [R:
+  model cards, recalled]. Tokens per active parameter: DeepSeek-V3 400 (14.8T / 37B) [P, research/20 A1]; Kimi K2 ≈ 480,
+  Qwen3 ≈ 1,600, Maverick ≈ 1,300 [R/D]. The game's reference base uses 50.
+- Google, "Measuring the environmental impact of delivering AI at Google Scale" (arXiv 2508.15734) [P, fetched]: the
+  median Gemini Apps text prompt used 0.24 Wh in May 2025 (active accelerators 0.14, host 0.06, idle 0.02, overhead
+  0.02), down 33× in 12 months, 23× of it from model changes incl. MoE and distillation into Flash / Flash-Lite. The
+  game's free message at 2e12 FLOP/token costs 22.9 H100e-s (a paying turn 40 H100e-s) ≈ 4.5 Wh of accelerator energy at
+  0.7 kW, ≈ 30× the measured active-accelerator median. TPU efficiency and mean vs median account for maybe 2–6×.
+- AI 2027 compute forecast [AI27, research/02 §3]: 2024 external deployment 75k H100s at 10% utilisation ≈ 2T tokens/day
+  ≈ 310 tokens/s per H100. The game serves ≈ 95–105 tokens/s per H100e (input + output) on V0.
+- DeepSeek's production fleet (Feb 2025) [P, research/20 D1]: ≈ 9.2k input + 1.85k output tokens/s per H800 at 37B
+  active; decode ≈ 1.4e14 FLOP/s per GPU, i.e. 0.14 of the game's 1e15-FLOP H100e. The game's U_decode is 0.07.
+- Price ladder: GPT-4.5 (the 2025 run at V0's scale) listed $75/$150 per M tokens and was withdrawn from the API in
+  favour of GPT-4.1 at $2/$8, citing similar performance at much lower cost [R: OpenAI GPT-4.1 post, Apr 2025]. Chat
+  products ran on GPT-4o / o3 / mini tiers and Gemini Flash. At V0 the game's cost-plus price is ≈ $60 per M output
+  tokens with the input folded in ($2.0/H100e-h ÷ ≈ 79k output tokens/h × 2.5), Opus-4-tier ($75), not the workhorse tier (Sonnet 4 $15, o3 $8, Gemini 2.5 Pro $10) [R20 D3].
+
+Verdict: V0 is a GPT-4.5-class base, which is defensible as the frontier pretraining run, but real labs did not serve
+products on that class. The served FLOP per token is ≈ 5–10× too high, and that one factor explains most of the day-1
+shortfall (need ÷ pool = 6.7). This is a calibration error in the reference backbone (REF_TPP 50, B0 1T active), not
+in the products. Stop rule: the fix moves calibration a lot, so it is reported here and not applied.
+
+Measured proposals (scratch edits, reverted; ai2027 seed 2027 stub):
+
+| change | day-1 need (chat / API / ent) | served % | revenue | G_V0 | SC (golden 638; now 646) |
+|---|---|---|---|---|---|
+| baseline | 1.22M / 350k / 365k | 5 / 27 / 36 | 15.4 | 27.965 | 646 |
+| P1: REF_TPP 400, B0 354B active (same 3e26 FLOP) | 428k / 124k / 130k | 17 / 86 / 88 | 16.8 | 27.659 | 701 |
+| P1 + P2 (U_decode 0.07 → 0.14, DeepSeek measured) | 318k / 95k / 99k | 31 / 100 / 100 | 15.3 | 27.659 | 701 |
+| P3 alone: day-0 Chat mini, 1/8 of V0 (gap 1.02 OOM) | 85k / 350k / 365k | 20 / 34 / 42 | 15.4 | 27.965 | 644 |
+
+- P1 costs 0.31 OOM of G_V0 (the overtraining factor at 400 tokens per parameter) and SC +55 d before a G_SC refit, on
+  every preset; rivals' models (F1) size from the same tokens per parameter, and the level knots move with G_SC.
+- P3 with today's consumer choice (Chat's fit is the 0.4 / 0.6 usage blend of main model and mini; rivals have no free
+  tier) cuts Chat's users 1,035M → 288M on day 1 and to ≈ 0 by day 400: a free-tier mini only works if rivals' and
+  China's consumer offers have free tiers too (A5's student lineup extended to CHAT) or users choose on the main model.
+- With any cheaper served model, cost-plus pricing scales demand $ with FLOP per token: the consumer plan falls from $17
+  to a few dollars a month (P1 + P2: $0.9 by day 900) while real plans held at $20 with costs far below. Consumer price
+  should be the going list price / willingness to pay, not cost-plus (P4). Revenue stays ≈ pool × $/H100e-h × markup
+  while capacity-bound, which is why day-1 revenue ($15B vs the leader's $12B run-rate) looks right today.
+- Demand: the player's 1,035M weekly Chat users on day 1 are 1.5× ChatGPT's 700M WAU (Jul 2025, NBER w34255 [P,
+  research/22 2c]); its weekly-user share 0.76 is high (P5).
+
+Target (proposed): on day 1 the paying segments served ≥ 90% and free users mostly served (ChatGPT served 700M WAU and
+2.6B messages/day in Jun 2025 while rate-limiting free use [P research/22 2f; R: OpenAI "GPUs are melting" rate limits,
+Mar 2025]); per-message serving cost within ≈ 3× of Google's 0.24 Wh median; revenue ≈ $12–15B/yr.
+
+#### Q2. Day-0 inference share
+
+- AI 2027's compute-usage table (the game's SHARE_REF): external deployment 33% (2024), 30% (2025), 28% (2026), 20 →
+  13% through 2027 [AI27, research/02 §1.3]. The game starts at 0.29.
+- Epoch's estimate of OpenAI 2024: ≈ $1.8B inference of ≈ $7B compute (≈ 26%) [research/12; Epoch, built on press].
+- Anthropic's S-1 reports compute & infrastructure ($7.3B FY2025) without an inference / training split in the parts
+  read (research/22 §4); the filing (>10 MB) could not be fetched to check the MD&A.
+- DeepSeek's serving fleet ran at 82% of peak nodes on average and lent nodes to research at night [P]; the game's
+  served H100e run 8,766 h a year (100%).
+So 0.29 is in line. The fall to 0.13 by day 900 is RefBot following AI 2027's table (the scenario's shift of compute to
+internal R&D), a deliberate reference choice, not a calibration error; a revenue-maximising lab whose products are 97%
+cut would not follow it (RefBot policy question for the lead).
+
+#### Q3. Auto's greedy order
+
+- Day 1: the paying segments earn about the same per H100e (Chat's paying users ≈ $44k, API $44k, Enterprise $51k: all
+  2.5× markup on the same $/H100e-h; Chat at the willingness-to-pay cap), so the cut is near-uniform (27–36%). The
+  order is not what starves Chat: the pool is; free users (revenue 0) are served last and get nothing.
+- Day 900: Chat's plan is capped at $22 while its cost rises with FLOP per token (3.6e12), so its $/H100e falls below
+  the sectors' cost-plus rate; serving it last is what a revenue maximiser does. It follows from the model size again.
+- Real labs keep free users on (rate limits, smaller models) because they are the subscriber funnel and the brand. The
+  game prices that only through the capacity penalty (lost user share), which Auto does not look ahead to, and usage
+  data currently has negative capability value (q 0.5 lowers the drawn quality, F6a). No real quantity in the engine
+  today gives a floor a value, so Auto is unchanged. If one is wanted: serve free users up to where the subscription
+  revenue the capacity penalty would erode equals the sector revenue displaced.
+
+#### Changes (applied)
+
+1. Usage data with a Chat mini (production/data.ts usageTokensPerDay; Deployment.needPaidH100e set by the revenue
+   system): the served compute beyond the paying need runs the mini, so it counts the mini's tokens per H100e (×8 for an
+   eighth-size mini); was the main model's. No effect on RefBot (it sets no Chat mini). Check in scripts/v2/data.ts.
+2. Slow G_SC refit for F6a's usage fix: 35.488 → 35.496 (SC 4483 → 4776, golden 4758: −0.80 → +0.05 y). SC steps between
+   4483 and 4776 d (version release days); passing window 35.490–35.503 on seed 2027; 35.506 gives 4697, 35.51 4483.
+
+Golden dates (T1, seed 2027) before → after: ai2027, authors2026, fast unchanged (A6 change 1 does not touch RefBot's
+path); slow SC 4483 → 4776.
+
+#### Open questions for the lead
+
+1. Backbone: adopt P1 (REF_TPP ≈ 400, B0 ≈ 354B active at 3e26 FLOP) with a refit of every preset, or keep V0 as the
+   GPT-4.5-class base and add a day-0 serving model (needs P3's consumer parity)?
+2. U_decode 0.07 vs DeepSeek's measured 0.14 of a 1e15-FLOP H100e (moves internal agents too).
+3. Consumer pricing at the going list price / willingness to pay instead of cost-plus (P4), needed once serving gets
+   cheaper.
+4. Leader's Chat users 1.5× ChatGPT's (P5).
+5. RefBot following AI 2027's serving share down to 0.13 while its products are > 95% cut.
+
+### A6b notes: the lead's decisions applied (branch v3-a6b from v3-a6 64b4d85, 2026-11-20)
+
+Probe as above (RefBot, reference-compute stub, ai2027, seed 2027; scratch probe, not committed).
+
+#### Decisions
+
+1. **P1 adopted** (d4c90ba). `REF_TPP` 50 → 400 and `B0_PARAMS` = √(3e26 ÷ (6 × 400)) ≈ 354B active (2.8T total,
+   141T tokens) at the same 3e26 FLOP: V0's G 27.965 → 27.658 (−0.31 OOM, the existing f_over law; no new term), FLOP
+   per served token ÷ 2.8. RefBot already sized its bases at `REF_TPP` (bots/ref.ts, `paramsForFlop(flop, REF_TPP)`),
+   so its later bases are now 628B / 988B / 1.39T active (were 1.78T / 2.79T / 3.94T) with no logic change; the comment
+   now cites DeepSeek-V3 (≈ 400 tokens per active parameter, research/20 A1). The rivals' bases did not follow:
+   `RIVAL_TPP` was a separate 50 (data/v2/rivalModel.ts). It now reads `REF_TPP` (a lab that serves its models
+   overtrains); without it the leader lab's T1L SC ran 0.4–0.6 y early on ai2027 / authors2026 against the refitted
+   G_SC. Knock-ons: `TPP_FREE_MAX` = `REF_TPP` (the Overtrained compact idea now unlocks > 400; at 50 it would have
+   locked RefBot's base runs), TPP snaps + 400 / 800, glossary and idea text; S5's scale anchor `G_S5_0` follows B0's
+   G_pre 27.30 → 26.99 (B0 reads V1's S5 0.28 again; safety/traits.ts, one constant); synthetic data from V0 is ×2.8
+   cheaper per H100e-day (`SYN_OVERGEN` kept at its 1T-teacher fit: generation cost follows the teacher's FLOP per
+   token).
+2. **U_decode kept** at 0.07 (no change, no commit).
+3. **P4 adopted** (7de77b8). One function: `subPrice` prices at `consumerPlanPrice(markup)` (data/v2/serving.ts).
+   Consumer chat is sold as flat monthly plans at the market's price: the willingness to pay ($22, A2b) on Standard
+   and Premium, ×0.67 on Budget ($14.7), never below a paying user's serving cost; margin = price − serving cost. The
+   same function prices the player, rivals (standard: $22), DeepCent (budget: $14.7) and open-weights hosts (×1.2:
+   $10.6). API and enterprise unchanged (cost-plus bounded by value, A5). The consumer "sold at the value cap" share now
+   flags only Premium (it asks above the willingness to pay). Products price row and tier tip, glossary (priceTier,
+   markup, wtp) updated.
+4. **P5 adopted** (89b1dc5). The 1,035M was the start reach (US 0.46, ROW 0.46 × `row` 0.85: 1.37B weekly users
+   outside China) × the leader's start user share 0.76. `row` was derived in A2b at a 0.55–0.6 leader share; A5 made
+   users choose by quality alone and the leader's start share rose to 0.76. New `reach.startRow` 0.548 (ROW start reach
+   0.25): the start market is 0.93B and the leader 700M (NBER w34255). The target keeps `row`, so ROW grows (0.25 → 0.38
+   by day 215, world 1.35B); the user-share logit is unchanged. Serving C1 checks the start reach and the 700M.
+5. Not changed: Auto's greedy order, RefBot's serving share, no day-0 Chat mini.
+
+#### Refits (T1, RefBot, seed 2027; Δ in years SC / SAR / SIAR / ASI; G_SC scans, sd_SC kept)
+
+| preset | before (A6) | P1 at the old values | after | Δ after (final code) |
+|---|---|---|---|---|
+| ai2027 | G_SC 30.497 | +0.173 / +0.285 / +0.197 / +0.181 | **30.11** | +0.055 / +0.027 / −0.049 / −0.058 |
+| authors2026 | 33.622, Δ_bm 4.6 | +0.211 / +0.367 / +0.184 / +0.132 | **33.32, Δ_bm 4.65** | +0.030 / +0.082 / −0.096 / −0.096 |
+| fast | 31.553 | +0.216 / +0.219 / +0.096 / +0.011 | **31.325** | +0.049 / +0.107 / −0.016 / −0.101 |
+| slow | 35.496 | SC +0.049 (unchanged) | 35.496 kept | +0.049 |
+
+- ai2027: passing run 30.08–30.14. fast: 31.31–31.33. slow: SC does not move (35.15–35.25 give the −0.75 cycle,
+  35.49–35.50 pass).
+- authors2026: at Δ_bm 4.6 no G_SC passes (33.27–33.36: SIAR / ASI −0.13 … −0.35, or ASI +0.18), so Δ_bm was refitted
+  (as M1 / A5 did on this preset): 4.65 passes at 33.285–33.29 and 33.31–33.33 on the P1 code; after P4 33.325 fails
+  (ASI +0.174) and 33.31 / 33.32 / 33.33 pass, so 33.325 → 33.32 in the P4 commit. Jagged as in M4 (F4).
+- P5 needed no refit. The stop rule did not trigger on T1 (every golden date within tolerance).
+
+#### The A6 table before → after (ai2027, seed 2027)
+
+| day | product | model (active) | need H100e | served % | revenue $B/yr | demand $B/yr |
+|---|---|---|---|---|---|---|
+| 1 | Chat | V0 1T → 354B | 1.22M (paid 241k, free 976k) → 295k (paid 62k, free 233k) | 5 → 21 (paid 27 → 100, free 0 → 0) | 2.87 → 10.01 | 10.65 → 10.01 |
+| 1 | API | V0 | 350k → 130k | 27 → 86 | 4.17 → 4.96 | 15.49 → 5.75 |
+| 1 | Enterprise | V0 | 365k → 133k | 36 → 88 | 8.40 → 9.07 | 18.72 → 9.78 |
+| 400 | Chat | 889B mini → 314B mini | 159k → 51k | 100 → 100 | 1.08 → 2.18 | same |
+| 400 | API | same minis | 203k → 102k | 100 → 100 | 4.77 → 2.33 | same |
+| 400 | Enterprise | 1T → 354B | 168k → 81k | 100 → 100 | 6.05 → 4.91 | same |
+| 900 | Chat | 1.81T mini → 607B mini | 2.43M → 298k | 0.7 → 30 (paid 3 → 100, free 0 → 0) | 0.22 → 18.54 | 8.19 → 18.54 |
+| 900 | API | same minis | 46.4M → 13.0M | 2.6 → 15 | 14.5 → 20.7 | 552 → 134 |
+| 900 | Enterprise | 3.62T → 988B | 46.8M → 3.35M | 3.0 → 17 | 28.1 → 16.5 | 568 → 45 |
+
+Totals (days 1 / 400 / 900): revenue 15.4 / 11.9 / 42.8 → 24.0 / 9.4 / 55.7 $B/yr; usage 22.4 / 61.8 / 3.4 →
+60.5 / 56.1 / 45.1B tokens/day; serving share 0.29 / 0.26 / 0.13 (unchanged, F5); Chat users 1,035M / 161M / 1,938M
+→ 701M / 162M / 727M (leader's user share at day 900 0.29, was 0.80); subscription $17.03 / $6.83 / $4.01 → $22
+throughout; serving cost per subscriber-month at day 1 $6.81 → $2.41.
+
+#### Targets
+
+- Day-1 paying segments ≥ 90% served: Chat's paying users 100%, API 86%, Enterprise 88% (pool 291k vs 325k of paying
+  need). Close, not met. Free users 0% served at day 1 (not met); served 100% by day 215.
+- Cost per chat message within ≈ 3× of Google's 0.24 Wh median: a free message is 8.1 H100e-s ≈ 1.57 Wh of accelerator
+  energy at 0.7 kW, 6.5× the 0.24 Wh total (11× its 0.14 Wh active-accelerator part); was 22.9 H100e-s, 4.4 Wh (18×).
+  Not met: the free tier still runs the 354B main model (no mini, P3 not adopted) at U_decode 0.07.
+- Leader revenue ≈ $12–15B/yr at start: $24.0B (Chat $10.0B at 38M subscribers × $22, API $5.0B, Enterprise $9.1B).
+  Not met. The consumer line is now about OpenAI's (≈ 70% of a $12–13B run-rate); the sector lines (API + Enterprise
+  $14B served of $15.5B demand) are ≈ 3–4× OpenAI's mid-2025 API and enterprise revenue. That is sector demand (A2c /
+  A5), not serving.
+
+#### Tests
+
+tsc main + scripts clean. test:cal: T1 passes on every preset. T1L fails ai2027 SC −0.14 y, fast SC +0.08 y, slow SC
++1.0 y, authors2026 SAR +0.14 / SIAR −0.65 / ASI −1.43 y (F6a's known T1L failures: authors2026 SIAR / ASI, fast ASI).
+LEADER_CAL is not refitted (not a named knob); `calib.ts --fit-leader ai2027 fast` (informational) gives ai2027 −0.029
+→ −0.093 (best refined −0.058 at 1.07 tolerances) and fast 0.025 → 0.054 (best 0.029 at 1.03), so neither passes on
+LEADER_CAL alone. The frontier G-path check moves research/12's anchors by the same −0.31 OOM overtraining factor
+(otherwise worst 0.45 G).
+
+Full tier on serving, worldfx, effective, data: serving and effective pass; data fails only the stale-fixture
+"synthesize" check (the day-400 fixture's V0 G 27.97); worldfx fails the known five (F7/F11 2026 $25.3B, 2027 $59.9B;
+GOV T1 2027-07-31; A2a 6.8%; W4 23.5%) plus two new: F11 Jul 2025 run-rate $21.1B (±35% of $12B; $16.8B after P1
+alone) and late-2026 equity −10.8% (+30% ± 10 pp; −13.6% after P1 alone). test:quick also fails oversight's two map
+checks: the ai2027 λ knots sit 0.08 OOM closer to V0 (G_SC fell 0.387, G_V0 0.307), so `REF_M_OOM` (data/v2/oversight.ts:
+2.532 / 4.376 / 8.776 / 11.636) now reads 2.452 / 4.296 / 8.696 / 11.556 and AG08's oHalf 4.38 is L12.03. Not changed
+here: the agendas' oHalf data derive from that table, so it is a −0.08 OOM safety re-base. Fixtures stale (not
+rewritten).
+
+Test edits: effective (V0 anchor 28.0 − 0.31), calib (G-path anchors − 0.31), data (quality and draw checks on a 50T
+base that does not repeat; synthetic yield ∝ 1 ÷ the teacher's FLOP per token; the q 0.5 draw threshold −0.01 →
+−0.005), rivals (R5 day-0 FLOP per token from B0), serving (C1 start reach and the 700M).
+
+#### Open questions
+
+1. Revenue at start is $24B vs $12–15B: sector demand (API and Enterprise ≈ $15B at day 1) is the excess now that the
+   consumer line is right. Finance / A2c.
+2. Free users are unserved on day 1 (paying need alone exceeds the pool), and the leader's Chat user share falls 0.76 →
+   0.19 by day 215 through the capacity penalty. Without P2 (U_decode) or P3 (a free-tier mini) nothing serves them.
+3. T1L: refit LEADER_CAL (ai2027, fast, slow; it does not bring ai2027 or fast fully inside alone), or accept?
+4. Oversight: re-base `REF_M_OOM` and the agendas' oHalf by −0.08 OOM to the new ai2027 knots (safety session)?
+5. Synthetic data from the cheaper V0 costs ÷ 2.8 per token: keep (physical) or refit `SYN_OVERGEN`?
+
+### A7 notes: start-state demand calibration after A6b (branch v3-a7 from v3-a6b 360d8c6, 2026-11-20)
+
+Probe: RefBot, reference-compute stub (scripts/v2/lib.ts runRef, as T1 and A6), ai2027, classic, seed 2027; scratch probe,
+not committed. "Before" = A6b's final code.
+
+#### Sources (fetched this session unless tagged)
+
+- Anthropic, Series F post (2 Sep 2025) [P]: run-rate ≈ $1B at the start of 2025, "over $5 billion" by Aug 2025; "over
+  300,000 business customers"; Claude Code "over $500 million in run-rate revenue". No business / consumer split.
+- OpenAI, "How people are using ChatGPT" (15 Sep 2025) [P]: 700M weekly active users; ≈ 30% of consumer use is work.
+- OpenAI, "1 million businesses putting AI to work" (5 Nov 2025) [P]: > 1M business customers; > 7M "ChatGPT for Work"
+  seats; Enterprise seats ×9 yoy; > 800M weekly users.
+- OpenAI paying business users 3M (Jun 2025) and 5M (Aug 2025) [R: OpenAI statements, recalled, not fetched].
+- Menlo Ventures, mid-2025 LLM market update: enterprise LLM API use Anthropic 32%, OpenAI 25%, Google 20% [R: recalled,
+  not fetched; a VC survey, research/22 §5 cites its end-2025 edition: 40 / 27 / 21%].
+- OpenAI's mid-2025 run-rate (≈ $10B Jun, ≈ $12–13B Aug) and its ≈ 70% consumer share are press readings
+  [UNVERIFIED]; Sam Altman's Nov 2025 post (> $20B annualised by end 2025) could not be fetched (x.com 402).
+- ChatGPT release notes (help.openai.com) [P, read via an extract]: 14 May 2025, GPT-4.1 mini "will serve as the
+  fallback model for free users once they reach their GPT-4o usage limits"; 7 Aug 2025 GPT-5 the default for all
+  logged-in users; 11 Dec 2025 free users on GPT-5.2 Instant by default.
+- Gemini: "Gemini 2.5 Flash is also available to everyone in the Gemini app" (Google blog, 17 Apr 2025) [P]; Gemini app
+  release notes 2025-01-30 "now based on 2.0 Flash" [P, extract, page served in Hebrew]; 2025-12-17 Gemini 3 Flash the
+  default [P].
+- Google, arXiv 2508.15734 [P]: the median Gemini Apps text prompt used 0.24 Wh (May 2025). The abstract does not say which
+  models served it.
+
+#### Part 1: start revenue
+
+**Finding.** The leader's day-1 revenue was $24.0B: Chat $10.0B (38M subscribers × $22), API $5.0B, Enterprise $9.1B
+(15.4M seats, $4.6B of it). Term by term at day 1 (before):
+
+| term | game | anchor | verdict |
+|---|---|---|---|
+| sector market outside China (adopted + agent + seats) | $17.0B/yr (US $4.9B, ROW $12.1B) | US enterprise model APIs ≈ $8.4B mid-2025 [R, Menlo], ≈ 18M paid seats ≈ $5B | in line (US small vs ROW: A2a's regional scale, open) |
+| adopted A, hours, value per hour | A2a / A2c fits; price $0.6–0.7 per adopted hour, value ÷ price ≥ 2.9 | research/22 §1 | unchanged, in line |
+| paid seats, world | 19M outside China | ≈ 18M (A2c back-cast of Jan–Feb 2026) | in line |
+| **the leader's share of sector work** | **0.77–0.92 in every US and ROW sector; 15.4M of ≈ 19M seats** | **OpenAI ≈ 25% of enterprise API use [R], ≈ 3–5M of ≈ 18M seats [R]; Anthropic, the API leader, ≈ 32% [R] and ≈ $4–5B run-rate [P]** | **≈ 3.5× too high** |
+
+**Cause.** Customer stocks with no history started at the logit target. For a lab 3–9 months ahead (classic; rivals'
+public models 0.43–0.7 OOM of consumer-chat fit behind V0), A5's surplus choice gives it 0.8–0.9 of every sector: the bands
+only V0 covers (coverage 0.10 vs the rivals' 0.02–0.05 in Software) are all its. Mid-2025 buyers were spread across
+providers, so the start state was an equilibrium the real market had not reached. Before A6b, capacity starvation (27–36%
+served) hid it.
+
+**Fix (A7.1, one named start value).** `SECTOR_START.startMax` = 0.25 (data/v2/serving.ts): on day 0 no provider holds
+more than 0.25 of a US or ROW sector segment, and the excess goes to the others in proportion to their targets
+(`startSectorShares`, water-filling; `initCustomerStocks` from core/init). China's sectors and the consumer market start
+at their targets. The stocks then move toward the targets at CUSTOMER_TAU.sector (0.25 y). This is A6b P5's pattern: a
+measured start, an unchanged target. 0.25 is OpenAI's share. The game's leader is OpenAI-shaped (700M weekly users, the
+consumer line), and its 0.25 also matches its seats (5M of ≈ 18M).
+
+**Result.** Day 1: $14.92B (Chat $10.01B 67%, API $1.83B, Enterprise $3.08B with 4.8M seats). The split is OpenAI's,
+as far as it is known (≈ 70% consumer [UNVERIFIED]). worldfx F11 Jul 2025 run-rate $21.1B → $15.1B (pass, band 9–16.5).
+
+**What follows (reported, not changed).** The target still pulls the leader to 0.8–0.9. US Office share: 0.25 → 0.37
+(day 25) → 0.57 (day 100), then down as rivals release (0.38 at day 200, 0.15 at day 400). Its seats are 14.2M by day 90
+against OpenAI's 7M in Nov 2025 [P], and revenue reaches $24.8B by day 100. That is close to OpenAI's > $20B end-2025
+run-rate [UNVERIFIED], but the seats run ≈ 2× ahead. Two terms the brief kept out of scope: the share target's
+sensitivity to a 3–9-month lead (SHARE_SLOPE_G 4 per OOM × A5's adequacy), and CUSTOMER_TAU.sector 0.25 y. Menlo's
+measured shares moved ≈ 8–12 pp per half-year (OpenAI 50 → 34 → 25%, 2023 → mid-2025 [R]), i.e. τ ≈ 1 y. Question for
+the lead below.
+
+#### Part 2: free tiers with parity
+
+**Rule.** Every lab (player, rivals, China) serves its free users on the cheapest student of its consumer model that
+holds the model's consumer-chat fit less one year of the reference frontier's progress: gap `FREE_TIER.years` ×
+B_G_PER_Y = 1.2 OOM, sized by the cheapestAt rule (`studentParamsFor`: δ = 0.19 + 0.92·log₁₀(N_T/N_S), ≥ 1B active), i.e.
+1/12.5 of the teacher's active parameters (V0 354B → 28B; rivals' 240–300B → 19–24B). It is `freeTierOf(nT)` in
+worldfx/serving.ts. The player's Chat runs its own mini instead when the player sets one (`chatFreeTier`). The mechanism
+has no day-0 mini version: every lab can distil (★ P04), and cheapestAt is "what the lab could sell at G".
+
+Why one year: in mid-2025 the free tiers ran a generation below the paid frontier. ChatGPT's free users were on GPT-4o (a
+May 2024 model) with a GPT-4.1 mini fallback while paid users had o3; the Gemini app's free tier was Flash (2.0, then
+2.5). research/12 §0.6: small models match the previous frontier within months. The rule is relative to each lab's own
+model, so with every lab on it the fit ranking, and hence the start user shares, are unchanged.
+
+**User choice.** The consumer user-share logit now reads each provider's *free-tier* fit (`ConsumerMix.freeFit`), and so
+does the player's split between its Chat products. Why: ≈ 95% of users pay nothing and choose an app on what they get
+free; subscribers convert from them. The paid share target and the reach target keep the consumer model's coverage
+(what a subscriber gets; the best model anyone can reach by paying), so A2b's 5.4% start paid share and reach are
+untouched. A6's P3 failure (a free-tier mini sank Chat because rivals had no free tier, and Chat's fit blended the main
+model with the mini) cannot recur: all labs drop by the same rule, and a player mini competes on its own fit against the
+rivals' free tiers.
+
+**Cost.** A free message costs 8.08 → 0.65 H100e-s ≈ 1.57 → 0.13 Wh of accelerator energy at 0.7 kW. That is 0.5× Google's
+0.24 Wh median (0.9× its 0.14 Wh accelerator part), inside the ≈ 3× target. Day 400: 0.49 H100e-s ≈ 0.10 Wh; day 900:
+0.59 H100e-s ≈ 0.11 Wh.
+
+**Usage data** (production/data.ts): the served compute beyond the paying need runs the free tier, so it counts the
+student's tokens per H100e (×12.5). Consumer usage at day 20 is 291B tokens a day (0.29T), against ChatGPT's ≈ 1T
+output tokens a day × the 0.2 usage share ≈ 0.2T [D from NBER w34255's 2.6B messages × 0.4k answer]. It was ≈ 20–55B.
+
+**User share.** The capacity penalty no longer fires in 2025 (consumer penalty 0 through day 400; before: 0.76 → 0.19 by
+day 215, all of it the penalty). The leader holds 0.70–0.72 to day 100. It falls to 0.31 by day 175 and 0.26 by day 200
+for a real cause: rivals' public models overtake RefBot's public Chat model. r0 releases at day ≈ 110 with consumer fit
+27.74 against V0's 27.61, and r2 at day ≈ 170 with 28.30, while RefBot keeps V0 on Chat until day ≈ 190 and then serves
+V12 (28.02). That is RefBot's release policy (F5), not serving.
+
+**UI.** Products › Chat free-tier select: the empty option reads "student free tier" (was "no free tier"), and its tooltip
+and the glossary `freeTier` describe the default student. `npm run build`, lint-ux and lint-hidden pass.
+
+#### The A6 table before (A6b) → after (A7)
+
+| day | product | model (active) | need H100e | served % | revenue $B/yr | demand $B/yr |
+|---|---|---|---|---|---|---|
+| 1 | Chat | V0 354B; free tier: V0 → 28B student | 295k (paid 62k, free 233k) → 81k (paid 62k, free 19k) | 21 → 100 (paid 100 → 100, free 0 → 100) | 10.01 → 10.01 | 10.01 → 10.01 |
+| 1 | API | V0 | 130k → 41k | 86 → 100 | 4.96 → 1.83 | 5.75 → 1.83 |
+| 1 | Enterprise | V0 | 133k → 42k | 88 → 100 | 9.07 → 3.08 (seats 15.4M → 4.8M) | 9.78 → 3.08 |
+| 400 | Chat | 314B mini (V31) | 51k → 13k (free 3k) | 100 → 100 | 2.18 → 2.15 | same |
+| 400 | API | same | 102k → 90k | 100 → 100 | 2.33 → 2.05 | same |
+| 400 | Enterprise | 354B (V8) | 81k → 71k | 100 → 100 | 4.91 → 4.34 | same |
+| 900 | Chat | 607B mini (V68) | 298k → 112k (paid 95k, free 17k) | 30 → 85 (paid 100 → 100, free 0 → 0) | 18.54 → 19.25 | 18.54 → 19.25 |
+| 900 | API | same | 13.0M → 13.1M | 15 → 15 | 20.7 → 20.7 | 134 → 135 |
+| 900 | Enterprise | 988B (V50) | 3.35M → 3.30M | 17 → 17 | 16.5 → 16.4 | 45 → 45 |
+
+Totals (days 1 / 400 / 900): revenue 24.0 / 9.4 / 55.7 → 14.9 / 8.5 / 56.3 $B/yr. Chat users 701M / 162M / 727M →
+701M / 161M / 738M. The leader's weekly-user share is 0.76 on day 1 both ways. Cost per free message (day 1) 8.08 →
+0.65 H100e-s (1.57 → 0.13 Wh). Day 900 is capacity-bound as before (sector need ≫ pool), so free users are cut again;
+the smaller free need shortens the cut.
+
+#### Checks moved
+
+worldfx (full tier):
+- **F11 Jul 2025 run-rate**: $21.1B → **$15.1B, now passes**.
+- **F11 2027**: $59.9B → **$108.1B, now passes** (band 98–182).
+- F7/F11 2026: $25.3B → $22.9B (still fails, band 36–54).
+- Equity 2026: −10.8% → −10.3% (fails).
+- GOV T1: 2027-07-31 → 2027-08-07 (fails).
+- A2a US hours mid-2026: 6.8% → 6.7% (fails).
+- W4 firm adoption: 23.5% → 23.1% (fails).
+- A2c seats Jan / mid-2026: 32M / 43M outside China (pass; the player's 14M / 15M).
+- A2c CY2026 non-China lab revenue: $69.0B, the leader's share 33%.
+
+finance (full tier; baseline run on the A6b code in a scratch copy; finance owns these):
+- Same set of failing checks as the baseline.
+- F7 2026 revenue median: $26.2B → $23.5B.
+- F7 end-2026 valuation: $0.19T → $0.15T.
+- **F8 out of distress through 2026: 25% → 0% of seeds.**
+- F11 2027: $83.5B → $91.1B.
+- F2: 47.2M → 46.5M (pass).
+
+The lower start revenue (the leader's H2 2025 sector revenue now ramps up from $4.9B instead of starting at $14.0B)
+takes the distress margin that 25% of seeds had.
+
+#### Refits
+
+test:cal after A7.1 + A7.2: T1 passes on ai2027 (SC +0.055, SAR +0.030, SIAR −0.014, ASI −0.033 y), fast and slow
+(unchanged from A6b). authors2026 ASI failed at +0.211 y (tolerance 0.12; A6b −0.096). Refit of the named per-preset
+value only: authors2026 G_SC 33.32 → **33.31**, Δ_bm 4.65 and sd_SC kept. Result: SC +0.030, SAR +0.090, SIAR −0.047,
+ASI +0.038 y. The scan at Δ_bm 4.65 (seed 2027, the T1 runner) is jagged, as in A6b (F4): 33.30, 33.31, 33.325 and 33.34
+pass; 33.305, 33.308, 33.312, 33.315, 33.32 and 33.33 fail on SIAR / ASI. No date was off by more than 0.3 y, so the
+stop rule did not trigger.
+
+T1L (not refitted; LEADER_CAL is left to the merge) is as in A6b:
+- ai2027 SC −0.149 y.
+- fast SC +0.084 y.
+- slow SC +1.003 y.
+- authors2026 SIAR −0.686 y and ASI −1.433 y.
+- authors2026 SAR +0.117 y now passes (A6b +0.14).
+
+Oversight's REF_M_OOM map is not touched.
+
+#### Tests
+
+- tsc main + `scripts/v2`: clean.
+- test:quick (final code): 30/35 scripts ok. The 14 failing checks are all known:
+  - fixtures stale (5);
+  - data "synthesize" (stale day-400 fixture);
+  - oversight's two map checks;
+  - calib smoke T1L ai2027 SC;
+  - worldfx's five (F7/F11 2026, equity, GOV T1, A2a, W4).
+- Full tier serving / worldfx / finance (one run): serving passes; worldfx and finance as in "Checks moved".
+- test:cal (one run, before the refit): T1 failed authors2026 ASI only, fixed by the refit above (verified with the T1
+  runner on seed 2027, not a second test:cal). T1L as above; T4 passes.
+- UI: `npm run build`, lint-ux and lint-hidden pass.
+- Test edits:
+  - serving: C4 reads the free tier. New A7 checks: free-tier parity and day-1 service and cost; start sector stocks and
+    the day-1 revenue and split.
+  - products: P6 makes its own shortage (a fifth of the serving share). The start is no longer short, and Chat's paying
+    users ($22 plan) now earn the most per H100e, so the check is "free users cut first, per-hour work pro rata, seats
+    and paying chat users served".
+  - data: the usage check covers the student free tier (×1/r) as well as a mini (×8).
+
+#### Open questions for the lead
+
+1. The sector share target: with the start spread, the leader returns to 0.8–0.9 of the sector market within a quarter or
+   two (seats 14M by Oct 2025 vs OpenAI's 7M in Nov 2025). Is that the classic scenario's lead (keep), or should the
+   share response to a 3–9-month lead be weaker (SHARE_SLOPE_G, A5 adequacy) or slower (CUSTOMER_TAU.sector 0.25 → ≈ 1 y,
+   Menlo's measured share moves)?
+2. US vs ROW sector spend: ROW is 2.5× the US at the start (A2a's regional scale [D]); US enterprise model-API spend alone
+   was ≈ $8–12B in 2025 (Menlo [R]) against the game's US $2.7B (A6b) / $1.7B (A7, rivals' cheaper tiers take more of it) of adopted + agent spend.
+3. F8: distress through 2026 rose from 75% to 100% of seeds (finance session).
+4. RefBot keeps V0 on Chat until day ≈ 190 while rivals' public models pass it from day ≈ 110: the consumer share falls
+   0.71 → 0.26 for that reason (F5).
+
+### A8 notes: provider shares in sector demand; US vs ROW spend (branch v3-a8 from v3-a7 c5715e6, 2026-11-21)
+
+Probe: RefBot, reference-compute stub (scripts/v2/lib.ts runRef, as T1), ai2027, seed 2027; scratch probe, not committed.
+"Before" = A7's final code. Shares are spend-weighted over the 14 sectors (US / ROW).
+
+#### Sources (fetched this session unless tagged)
+
+- Menlo Ventures, "2025 Mid-Year LLM Market Update" (31 Jul 2025) [P]: shares of enterprise production usage are Anthropic 32%,
+  OpenAI 25% ("half of what it held two years ago"), Google 20%, Meta 9%. OpenAI was at 50% at end-2023. Coding: Anthropic 42%,
+  OpenAI 21%. Enterprise LLM spend went from $3.5B (Nov 2024) to $8.4B (mid-2025). Switching: "66% of builders upgraded models
+  within their existing provider", 23% did not switch, "Only 11% switched vendors". Survey of 150 technical decision-makers.
+- Menlo, "2025: The State of Generative AI in the Enterprise" (9 Dec 2025) [P]: Anthropic 40% of enterprise LLM spend (24% in 2024, 12%
+  in 2023), OpenAI 27% (50% in 2023), Google 21%. The top three take 88%. Coding: Anthropic 54%. Foundation-model APIs were $12.5B
+  of $37B. The survey covers US enterprises only. The market model is "triangulated with public financials", and its geography
+  is not stated.
+- Menlo, "2024: The State of Generative AI in the Enterprise" (Nov 2024) [P]: OpenAI 50% → 34%, Anthropic 12% → 24%.
+  "Organizations typically deploy three or more foundation models".
+- a16z, "How 100 Enterprise CIOs Are Building and Buying Gen AI in 2025" (Jun 2025) [P]: "37% of respondents are now using 5 or more
+  models", up from 29%. It says "switching costs are rising".
+- Anthropic Economic Index (15 Sep 2025) [P]: the US is 21.6% of Claude.ai usage. Usage per working-age capita (AUI): US 3.62, India
+  0.27, and so on; usage rises 0.7% per 1% of GDP per capita. There is no API geography.
+- Anthropic, international expansion post (26 Sep 2025) [P]: "nearly 80 percent of consumer Claude usage comes from outside the
+  United States". Series F post (2 Sep 2025) [P]: "over 300,000 business customers"; run-rate > $5B in Aug 2025.
+- OpenAI, "1 million businesses putting AI to work" (5 Nov 2025) [P]: > 7M ChatGPT for Work seats. The 3M (Jun 2025) and 5M (Aug 2025)
+  paying business users come from press and an X post [R].
+- Anthropic's revenue by billing address [UNVERIFIED]: US ≈ 2/3 in 2025 and 72.2% in H1 2026. These are secondary readings of
+  the S-1 (officechai, sec-api summaries). The S-1/A itself (14.9 MB) is over the fetch limit, and curl to SEC was denied in this
+  session.
+- Microsoft AI diffusion report H2 2025 [P, blog]: 24.7% of the working-age population uses AI in the Global North vs 14.1% in the
+  Global South. Not used in the fit.
+
+#### Part 1: the share target
+
+**Cause.** A5's surplus choice puts every buyer in front of every lab. The leader's coverage is ≈ 2× its rivals' (0.107 vs
+0.03–0.05 in US Software, at a 0.44–0.7 OOM fit lead). So 5 of the 8 bands are tasks only its model does. There V·Δx ÷ μ ≈ 50,
+which makes those bands winner-take-all, and the leader's target is 0.82. No setting of SHARE_SLOPE_G or adequacy changes that:
+the value term dominates. Two alternatives were tried and rejected:
+- An adoption-lag band range (adopted hours only up to A ÷ (K(1 − R))) gave 0.42–0.51 at the start. It collapsed the takeoff
+  economy, though: cheap students won everything, and the leader's day-900 target fell to 0.
+- A static reach (each provider in a buyer's set with probability 2 ÷ N) held the measured start share. But a model 1.5 OOM
+  better then moved the target only +0.02 (serving S4).
+
+**Mechanism (multi-homing with a reach stock).** A firm buys from the few labs it has contracts with, often through its cloud.
+In each sector's surplus choice, provider X is in a buyer's set with probability R_X, its reach, independently. The existing
+access choice sets (worldfx/choice.ts) carry this; the lab with the only model for the hardest work wins it at the firms that
+reach it.
+- `MULTI_HOMING.providers` = 2 per firm. Firms deploy 3+ models (Menlo 2024), 37% use 5+ (a16z), and three labs take 88% of
+  spend, so 3+ models ≈ 2 providers.
+- Start: an even spread, R = access × min(1, 2 ÷ the region's expected reachable closed providers), which is 0.4 with five
+  frontier labs.
+- R is a stock (`fx.secReach`, an optional field with no schemaRev bump; absent means the start value). Its target is
+  R* = min(access, 2 × w ÷ Σw), where w is V4's quality logit on the provider's mean sector fit (brand × access ×
+  exp(SHARE_SLOPE_G·Δfit)).
+- τ = `MULTI_HOMING.tau` 3 y. Anthropic went 12 → 24 → 40% over 2023–25 during its coding lead, a reach of ≈ 0.13 → 0.44 in two
+  years, which gives τ 2–4.5 y for a target of 0.6–1 [D].
+- Open weights have reach = access. Every cloud hosts them; without this exemption A5 E9 fell to ×5.0/yr because buyers could
+  not reach the cheapest tiers.
+- The start stock is the day-0 target. `SECTOR_START.startMax` and `startSectorShares` are removed: no sourced reason for the
+  cap remains, since the target itself now gives the measured spread.
+
+**CUSTOMER_TAU.sector 0.25 → 0.65 y [D from P].** A segment re-chooses at the target as new spend arrives and as buyers switch,
+1/τ = g + ρ. Spend grew ×2.4 between Nov 2024 and mid-2025, so g ≈ 1.4/y; 11% switched vendor in a year, so ρ ≈ 0.11/y. The
+Products speed label now classes τ < 255 d as "months" (sector 237 d; gov 274 d).
+
+**Player read.** Glossary `targetShare` and `customerSpeed` updated: "Firms multi-home: each buys from a few providers (about two
+of the frontier labs), so a model that alone does the hardest work wins it only at the firms that buy from that lab."
+
+**Leader's sector share (US / ROW) and paid seats outside China, before → after:**
+
+| day | stock share | target share | leader seats | anchor |
+|---|---|---|---|---|
+| 1 | 0.26 / 0.26 → 0.39 / 0.37 | 0.82 / 0.81 → 0.38 / 0.36 | 4.6M → 6.7M | OpenAI 25%, Anthropic 32% (mid-2025); OpenAI 3–5M seats (Jun–Aug 2025 [R]) |
+| 90 | 0.57 / 0.57 → 0.39 / 0.37 | 0.77 / 0.75 → 0.40 / 0.37 | 14.0M → 9.2M | OpenAI 7M seats (Nov 2025 [P]); Anthropic 40% (end-2025) |
+| 400 | 0.17 / 0.12 → 0.27 / 0.22 | 0.15 / 0.08 → 0.17 / 0.08 | 9.6M → 15.9M | (rivals' public models lead: F5) |
+| 900 | 0.21 / 0.16 → 0.23 / 0.17 | 0.13 / 0.12 → 0.07 / 0.06 | 36.8M → 41.1M | |
+
+The leader's seats at day 90 are 1.3× OpenAI's 7M, against 2× before. Day-1 seats run high (6.7M vs 3–5M) because the leader's
+share of seats follows its hours share (0.37).
+
+#### Part 2: US vs ROW
+
+**Check.**
+- Total spend matches the sources. Before this part, the game's start adopted + agent spend outside China was $7.7–9.1B, against
+  Menlo's $8.4B for mid-2025 enterprise LLM spend. Menlo does not say whether its sizing is US-only or global (it is built from the
+  labs' global financials), so the brief's "US ≈ $8–12B" reading is not established.
+- The split of use also matches. ROW / US hours of use are 6 × 0.6 = 3.6 in the game, and Claude.ai usage is 3.6× as large outside
+  the US and China as inside the US (AEI [P]).
+- The split of paid spend does not. After Part 1, ROW's adopted + agent spend was 3.4× the US's, and US buyers were 30% of the start
+  sector spend outside China. Anthropic bills ≈ 2/3–72% of its revenue in the US [UNVERIFIED].
+
+**Wrong term.** `REGION_SCALE.A0` scaled both workers' use W_b (supported by the AEI data) and the start of firm adoption A, which
+is paid by the hour. A2a set the second one by assumption.
+
+**Fix.**
+- REGION_SCALE gains `use` (W_b): ROW 0.6, CN 0.6, unchanged.
+- ROW `A0` 0.6 → 0.225. This is use × the paid-seat ratio of AI-using workers (SEATS.start ROW 0.045 ÷ US 0.12, A2c) [D]: firms
+  outside the US paid for AI work at the rate their workers held paid seats.
+- Result at day 1: ROW adopted + agent spend is 1.3× the US's (was 3.4×), US buyers are 43% of the start sector spend outside
+  China (was 30%), and ROW / US hours of use are 3.5.
+- A then moves toward its ceiling, which is unchanged, so ROW catches up: ROW / US adopted spend is 2.5× at day 400 and 3.3× at
+  day 900 (3.9 / 3.9× before).
+- CN keeps 0.6: no anchor, and Chinese labs serve it.
+- Not fixed: the US side's own gap, if Menlo's figure is US-only. US agent spend at the start is $0.3B against Claude Code's
+  $0.5B run-rate alone, the "k ≈ 2× below Claude Code" gap A2c already noted. Lifting it would mean fitting agent constants to
+  revenue.
+
+#### Revenue by product (the player, $B/yr), before → after
+
+| day | Chat | API | Enterprise | total |
+|---|---|---|---|---|
+| 1 | 10.01 → 10.01 | 1.83 → 1.50 | 3.08 → 3.39 | 14.92 → 14.90 (Chat 67%) |
+| 90 | 11.16 → 11.16 | 4.79 → 1.92 | 8.52 → 4.51 | 24.47 → 17.60 |
+| 400 | 2.15 → 2.15 | 2.05 → 2.61 | 4.34 → 6.59 | 8.54 → 11.35 |
+| 900 | 19.25 → 19.34 | 20.70 → 19.20 | 16.35 → 17.50 | 56.31 → 56.04 |
+
+The start sector market outside China (adopted + agent + seats) is $9.4B, down from $12.5B (A7) and $14.3B after Part 1 alone.
+It falls because ROW's paid work is lower.
+
+#### Checks moved
+
+worldfx (full tier, one run). The same five checks fail as in A7:
+- F11 Jul 2025 run-rate: $15.1B → $14.1B (pass).
+- F7/F11 2026: $22.9B → $21.2B (fail, known).
+- **F11 2027: $108.1B → $100.2B. Still passes, but only $2B above the band floor of 98.**
+- Equity 2026: −10.3% (unchanged, fail).
+- GOV T1: 2027-08-07 → 2027-08-26 (fail).
+- A2a US hours mid-2026: 6.7% → 6.5% (fail, at the band edge).
+- W4 firm adoption: 23.1% → 22.1% (fail).
+- U +1 pp: 2027-11-22 (pass).
+- A2c seats Jan / mid-2026: 29M / 44M (pass).
+- A2c CY2026 non-China lab revenue: $69.0B → $59.4B, leader share 33% → 36%.
+
+finance was not run (the finance session owns it). The finance-sensitive readings are the F7/F11 lines above.
+
+serving (full tier): all pass. A5 E9 (price paid for V0's capability) is ×10.4 → ×6.3/yr, inside the ×6–30 band but near its
+floor. products (full tier): all pass.
+
+#### Refits
+
+None. test:cal T1 passes on every preset, with the same values as A7's final:
+- ai2027: SC +0.055, SAR +0.030, SIAR −0.016, ASI −0.027 y.
+- authors2026: SC +0.030, SAR +0.088, SIAR −0.060, ASI +0.044 y.
+- fast: SC +0.047 y.
+- slow: SC +0.049 y.
+
+T1L was not refitted (LEADER_CAL is left to the merge, as in A7):
+- ai2027 SC −0.142 y.
+- fast SC +0.088 y.
+- slow SC **+1.18 y (A7 +1.00)**.
+- authors2026 SIAR −0.68 y and ASI −1.44 y.
+- authors2026 SAR +0.10 y (pass).
+
+T4 passes.
+
+#### Tests
+
+- tsc main + scripts/v2: clean.
+- test:quick (combined code): 30/35 scripts ok, 14 failures, all on the expected list:
+  - fixtures stale (5);
+  - data "synthesize";
+  - oversight's two map checks;
+  - calib smoke T1L ai2027 SC;
+  - worldfx's five.
+- Full tier serving / worldfx / products: one run.
+- test:cal: one run.
+- Test edits in scripts/v2/serving.ts:
+  - S4 rewritten: the target rises at once and further as reach grows, and reach and stock move at their τ.
+  - The A7 start-cap check is replaced by "A8 multi-homing": start stocks = day-0 targets, leader 0.25–0.45, and a toy
+    sole-frontier test.
+  - New "A8 US buyers 40–72% of start sector spend, ROW / US hours ≈ 3.6, leader day-1 revenue $12–15B with Chat 60–75%".
+  - A5 E9 reads only buyers whose tier does the band whole (`bandPaid(..., whole)`). With multi-homing, buyers who cannot reach
+    such a tier buy a partial one, and that is not the capability's price.
+- Performance: the mix is 0.46–0.55 → 0.75–0.87 ms (2^5–2^6 choice sets per region), ≈ +0.6 ms per passive day. Not run through
+  test:perf.
+
+#### Open questions for the lead
+
+1. Reach target steepness. R* uses SHARE_SLOPE_G 4 per OOM on the mean sector fit, so a lab clearly ahead heads to reach 1 and,
+   over τ 3 y, back toward the A5 winner-take-all share. Keep, or make firms' provider sets stickier (a lower slope or a cap
+   below 1)?
+2. The τ of 3 y is fitted to Anthropic's path under an assumed target of 0.6–1. τ 2 y is equally consistent.
+3. Part 2 rests on [UNVERIFIED] S-1 billing shares and a seat ratio that is itself [D]. A direct download of the S-1/A financial
+   notes (geographic revenue) would settle it.
+4. Consumer spend is 87% ROW at the start ($11.2B vs US $1.7B). It is untouched here; the consumer US share is probably higher in
+   reality.
+5. F11 2027 now sits $2B above its band floor.
+
+### M7 merge notes (E16–E20, F6a–F6c, A6–A8 onto M6; 2026-11-21)
+
+Merged into `model-v3` (at 7983b97, M6's docs head) with `--no-ff`, in order: `v3-e20` (one chain from 7983b97: E16
+8d1dfb0, E17 fbc50cd, E18 56ab454 / 8b213f8, E19 739adbb, E20 f02af42 / 813de6b / dd2d45f; merge 301e8c9), `v3-f6c`
+(F6b 5aada15 / 50e61cf / ecef09a / 2212283, F6c 578c9bc; fda7f32), `v3-a8` (F6a 17e972f … 9893d1e / 64f00a4, A6
+2a9e21e / cd052bf / 64b4d85, A6b d4c90ba / 7de77b8 / 89b1dc5 / 360d8c6, A7 46f5951 / cff64d9 / d543ee9 / c5715e6, A8
+b654b6c / 81ac0f6 / 94ecb95; d2aa5d2). Only the tips were merged (v3-f6a, v3-f6b, v3-e16 … v3-e19, v3-a6 … v3-a7 are
+in them). Then: oversight re-derivation 1f72169, LEADER_CAL refit f9c9044, fixtures 7c7db4e, `test:full` once on
+7c7db4e, two fixes from its failures (footholds test 72839c1, AF gate re-anchor 5f210e6), fixtures again 09b7b77, a
+targeted full-strength re-run of the safety and calibration suites on 09b7b77, and these docs. Checks after each merge:
+tsc main and `-p scripts/v2`, lint-structure, lint-hidden, lint-ux (all clean). The notes of every task are above
+(copies of `design/notes/<ID>.md`, deleted after folding; A6b was a section of A6's file, F6c of F6b's).
+
+**Conflicts and resolution.** No textual conflicts: git auto-merged every shared file in separate hunks.
+- e20 × a8 (`safety/traits.ts`, `glossary.ts`, `runDesign.ts`, `tree.ts`, `init.ts`, `runs.ts`, `types.ts`): A6b's
+  `G_S5_0 = 26.99 − 0.08 / K_S5G` (B0's G_pre at 400 tokens per parameter) sits beside E16–E20's learned-hacking, S9,
+  gate and pretraining rules; both kept.
+- f6c × a8 (`Products.tsx`, `SafetyControl.tsx`, `Blueprint.tsx`, `glossary.ts`, `models/actions.ts`,
+  `production/data.ts`, `uitest.mjs`, `scripts/v2/data.ts`): F6b's preview units ("unique tokens", % / days /
+  scientists) and F6a's control-tax lines in % (Add and Remove control, `safety/actions.ts`, a file F6b did not touch)
+  are both in; F6b's Safety overview side column and F6a's Remove control button sit in different components.
+- e20 × f6c (`glossary.ts`, `core/selectors.ts`): separate hunks (E18's `runTraitPressure` G, F6b's exported
+  `believedInternalOversight`).
+- **Semantic interaction found and fixed:** E18's AF capability gate anchors (25.7 / 28.0) were set at V0 G 27.9–28.1;
+  A6b's overtrained reference base moved V0 to 27.60–27.77 (−0.31 OOM at the same training FLOP), so safetyrates' "gate
+  at V0" check read 94.0% vs [95%, 100%] in the full run. The anchors are times before V0, so they follow it: 25.4 /
+  27.7 (gate at V0 99.9%; comments in `traits.ts` and `edges.ts`).
+- No schema change in any branch (A8's `fx.secReach` is optional and filled lazily); SCHEMA_REV stays 33.
+
+**Final calibration (seed 2027).**
+- *T1 (RefBot; G_SC / Δ_bm):* passes on all four presets on the merged head; **no G_SC refit** (A6, A6b and A7 refitted
+  on their branch with F6a's usage fix in; the E chain does not move T1). Final: ai2027 SC 658 / SAR 802 / SIAR 877 / ASI
+  905 (Δ +0.055 / +0.030 / −0.016 / −0.027 y); authors2026 1506 / 1600 / 2120 / 2941 (+0.030 / +0.074 / −0.085 / −0.093;
+  2114 / 2956 before the oversight and gate changes); fast 897 / 920 / 920 / 920 (+0.047 / +0.110 / −0.014 / −0.099);
+  slow SC 4776 (+0.049). Values as A6b / A7 left them: ai2027 30.110 / 2.20, authors2026 33.310 / 4.65, fast 31.325 /
+  0.05, slow 35.496 / 1.60.
+- *LEADER_CAL (T1L):* `calib.ts --fit-leader` per preset, plus a 0.005 scan for fast and a scan for authors2026.
+
+  | preset | LEADER_CAL | T1L before (y) | T1L after (y) |
+  |---|---|---|---|
+  | ai2027 | −0.029 → −0.063 (refine, worst 0.84 tol) | SC −0.142 ✗, SAR +0.025, SIAR −0.074, ASI −0.085 | SC −0.066, SAR +0.101, SIAR +0.003, ASI −0.008 (all in) |
+  | fast | 0.025 → 0.03 (scan; the fitter's grid gave 0.033 at 1.00 tol) | SC +0.088 ✗, SAR +0.107, SIAR +0.003, ASI −0.082 | SC +0.068, SAR +0.088, SIAR −0.016, ASI −0.101 (all in) |
+  | slow | 0.557 → 0.735 (SC root, worst 0.14 tol) | SC +1.186 ✗ | SC +0.011 (in) |
+  | authors2026 | 0.154 kept | SC −0.044, SAR +0.104, SIAR −0.677 ✗, ASI −1.438 ✗ | the same |
+
+  authors2026: no value brings SAR, SIAR and ASI in together (scan 0.06–0.154: SIAR −86 … −247 d, ASI −354 … −525 d;
+  the SC root 0.119 puts SAR out as well, +0.26 y), so 0.154 keeps two milestones in. The aggregate leader takes off too
+  fast after SC on this preset → F4. T1L had five misses before the refit, two after.
+- *Oversight constants (stale by −0.08 OOM after A6b; oversight's two map checks failed):* they were ai2027's λ knots
+  written as numbers, so they are now computed from the knots in code. Data keeps v2's M at the level knots
+  (`REF_M_LEVEL` [[1.46, L5], [5, L10], [25, L12], [250, L13.5], [2000, L15]]) and each agenda's v2 M½ (`mHalf`, was a
+  hard-coded `oHalf`; AG09 latent `mHalf` 5); the engine converts them on the ai2027 timeline world
+  (`safety/oversight.ts` `refPathWorld` / `refMOomTable` / `oomOfRefM` / `agendaOHalf`; `world/hidden.ts timelineFor` is
+  steps 1–2 of `sampleHidden`, the same draws). Table 0 / 2.532 / 4.376 / 8.776 / 11.636 → 0 / 2.452 / 4.296 / 8.696 /
+  11.556 OOM; half points M½ 25: 4.38 → 4.30, 30: 4.72 → 4.64, 250: 8.78 → 8.70, 2000: 11.64 → 11.56, AG09 latent 2.53 →
+  2.45. DECAY_KAPPA stays 0.27 (the slope is now 0.271). Readers: techniques.ts, findings.ts (FALSE tools), save.ts
+  migration 24 → 25, Codex (through the `engine/v2` index); hygiene's migration check reads `oomOfRefM`. oversight 29/0.
+- Fixtures regenerated twice (7c7db4e on the merged and calibrated code, 09b7b77 after the gate re-anchor);
+  golden/timelines.json unchanged (the v1 integrator reads no engine code; golden-timelines 16/0, so no `--write`).
+
+**Gate: `npm run test:full` once on 7c7db4e.** Wall 11.0 min (real 10 m 60 s), CPU 71.1 min, machine load 77% (12
+cores, 6 workers; the machine was idle before). After its two M7-caused failures were fixed, the affected suites were
+re-run at full strength on 09b7b77 (`run.ts --tier full --only safety,safetyrates,footholds,fixtures,calib,signals,
+sabotage,successor,control,danger,oversight,safetyideas,safetyresearch,identity,hygiene`: 5.4 min, CPU 37.6 min). The
+table gives the re-run numbers for those (†) and the full run's for the rest.
+
+| script | pass | fail | warn | wall s | | script | pass | fail | warn | wall s |
+|---|---:|---:|---:|---:|---|---|---:|---:|---:|---:|
+| tsc-scripts | – | 0 | – | 2.0 | | lint-structure | 8 | 0 | 0 | 3.9 |
+| golden-timelines | 16 | 0 | 3 | 7.6 | | safety † (6 shards 173–212 s) | 16 | **2** | 0 | 14.3 |
+| identity † | 76 | 0 | 3 | 5.3 | | danger † | 27 | 0 | 0 | 6.5 |
+| effective | 27 | 0 | 0 | 10.7 | | oversight † | 29 | 0 | 0 | 5.9 |
+| data | 62 | 0 | 0 | 9.6 | | sabotage † | 25 | 0 | 0 | 12.4 |
+| suites | 31 | 0 | 0 | 6.5 | | footholds † (full run 33 / 2) | 35 | 0 | 0 | 11.3 |
+| signals † | 21 | 0 | 0 | 5.3 | | control † | 33 | 0 | 0 | 9.8 |
+| successor † | 11 | 0 | 0 | 6.5 | | safetyideas † | 39 | 0 | 0 | 5.0 |
+| research | 30 | 0 | 0 | 15.7 | | safetyrates † (full run 18 / 1 / 7) | 19 | 0 | 7 | 5.9 |
+| evals | 32 | 0 | 0 | 49.2 | | finance (3 shards 129–144 s) | 61 | **5** | 0 | 50.4 |
+| safetyresearch † | 30 | 0 | 0 | 22.2 | | worldfx | 33 | **5** | 0 | 126.4 |
+| worktypes | 16 | 0 | 0 | 52.6 | | ws4 | 25 | 0 | 0 | 198.5 |
+| calib † (4 shards 35–149 s) | 38 | **2** | 7 | 1.8 | | rivals | 16 | 0 | 0 | 46.1 |
+| fixtures † | 15 | 0 | 0 | 25.1 | | products | 58 | 0 | 0 | 9.1 |
+| hygiene † (no perf) | 210 | 0 | 0 | 63.9 | | serving | 88 | 0 | 0 | 58.2 |
+| lint-hidden | 1 | 0 | 0 | 3.6 | | money | 24 | 0 | 0 | 33.6 |
+| lint-ux | 9 | 0 | 0 | 5.2 | | idle | 3 | 0 | 0 | 189.9 |
+| lint-tradeoffs | 486 | 0 | 0 | 3.5 | | test:ui | 592 OK | 0 | – | 406.9 |
+| | | | | | | **total (final)** | 2242 | 14 | | |
+
+**Failures, split.** Full run: 17. After the two fixes: 14 (12 known, 2 caused by M7 and listed).
+- *Known (12):* calib T1L authors2026 SIAR −0.68 y / ASI −1.44 y (→ F4; fast ASI and the other T1L misses are fixed by
+  the refit); safety S5 RefBot "U falls below L by SAR" (median U − L +0.36, below in 30%; → F5); finance F7 2026 revenue
+  (median $21.3B), F7 valuation ($0.15T), F8 RefBot out of distress through 2026 16.7%, F11 path (2027 $74.4B) (finance
+  session); worldfx F7/F11 2026 $21.4B, equity 2026 −10.3% (finance session), GOV T1 2027-08-31 (the window starts
+  09-01; single seed → F4), A2a 6.5% (band 5–6.5%), W4 22.1%.
+- *Caused by M7, listed (not fixed):* **safety S4 RefBot P_mis at ASI 0.523** (band 0.55–0.85; E20's branch 0.563 at the
+  edge; 0.534 on the merged head before the gate re-anchor; safetyrates' 12-seed mean 0.541): the A chain's world (A6b's
+  smaller reference backbone, A7 / A8's market) changes RefBot's lineages; by E20's rule ("if S4 leaves 0.55–0.85,
+  report rather than tune") → lead / F4 (multi-seed). **finance F7 RefBot 2026 capex $140.5B** (range 104–169; band
+  $200B ± 25%; passed in M6): newly failing with the A chain's lower revenue and RefBot's distress (F8 16.7%) → finance
+  session (owns finance balance; not bisected).
+- *Caused by M7, fixed:* footholds ×2 (the regenerated day-400 fixture made the security roll produce an unnoticed
+  escape, a hidden copy (E9), before the noticed one, and the test took the first copy; it now takes the copy of the
+  escape that set `ws4.loose`; engine unchanged); safetyrates "E18 AF capability gate at V0" 94.0% (the re-anchor above).
+- *Moved for the better:* T1 authors2026 passes (it failed on E20's branch, which had no A6b refit); T1L ai2027 SC, fast
+  SC and ASI, slow SC; worldfx F11 2027 $100.8B (floor $98B), W2 0.7%; S5 mixed median min margin +0.35, holds in 85%
+  (M6 −0.11 / 55%); serving A5 E9 ×6.31/yr (floor ×6), A3 ×25.9/yr per task.
+- *Moved, not failures:* safetyrates 19 / 0 / 7 WARN: F5 EA end 2026 59.6% [38.6–70.0] is now a WARN (E20 49.8%; band
+  20–50%); F5 AF end 2026 21.5% [12.3–59.1] (E20 21.3%, the known WARN); F5 AF at ASI 52.6% (INFO; E20 41.0%); F6
+  persistence rows 71–73% (known). worldfx HireRate_SOFT 2027-06-22, 25% remote work 2027-11-05, U +1 pp 2027-11-22
+  pass; ws4 T3 mean 179 d; finance F2 46.2M, F9 pass.
+- Not run: `test:perf` (policy; A8 adds ≈ 0.6 ms per passive day → perf on a quiet machine before the master merge);
+  `ref-trace.ts` (not in a tier; F6a regenerated its traces).
+
+**Lead decisions (recorded, from the M6 decisions file after "M6 done").**
+- F6 split into F6a (engine jank; the control layer may be turned off, its preview shows the tax saved vs the believed
+  danger change; ref-trace regenerated) and F6b (good-ui pass; units on progress previews; Safety side column; the
+  oversight "gap 0.0" row). Perf deferred to just before the master merge, on a quiet machine. E16, F6a, F6b launched in
+  parallel from 7983b97.
+- F6b accepted (27 audit items, 8 fixed; test:ui 588/0); serving starvation → F6a fix 2; placeholder amounts → F6c.
+- F6a accepted; fix 2 (usage counts min(served, need)) kept as correct; it moved slow SC −0.80 y → refit (A6: slow G_SC
+  35.488 → 35.496).
+- Serving starvation: the served model is ≈ 1T active (22 tok/s per H100e vs DeepSeek-V3's 1.85k/s at 37B) → A6 (H)
+  before F5.
+- E16 accepted (λ = clamp01((h − 0.10) ÷ 0.35)², K_LH 1.3, κ_item 0.395 → 1.77; the steering anchor → E17; rivals λ = 0).
+- F6c accepted (13 / 27 audit items); left → F6d (M): safety-node previews `0.05 × saf`; the "alignment 0.2" Continue
+  cost is never applied; low polish items 16–18, 20–23, 26.
+- A6 accepted as an investigation; decisions: ADOPT P1 (overtrained reference backbone: REF_TPP 400, B0 ≈ 354B active;
+  refit G_SC on all presets; RefBot's later bases checked for the same rule); KEEP decode utilisation 0.07; ADOPT P4
+  (consumer plans at WTP ≈ $20–22); ADOPT P5 (ChatGPT ≈ 700M weekly users); RefBot's serving share → F5; Auto greedy
+  kept; P3 not adopted → A6b (H).
+- E17 accepted (S9; STEER / SUCCSTEER own κ 0.397, SAFSAB 1.36); AF end 2026 36.8%, EA 51.5% (edge, accepted), F6
+  healing 71% (accepted); authors2026 T1 knife edge → ONE final refit in M7.
+- AF: a capability gate (Greenblatt 2024) folded into E18 (H) with the safety tier from the best model's level; no G_SC
+  refits in E18. E18 accepted (gate on G 25.7 → 28.0; labLevel = λ(best G); S4 0.684; a late gate rejected); AF 36.6% →
+  E19 (the same-base condition on distillation and the successor loop).
+- A6b accepted (refits ai2027 30.497 → 30.11, authors2026 33.622 → 33.32 + Δ_bm 4.65, fast 31.553 → 31.325). Answers:
+  start revenue and free tiers → A7; the LEADER_CAL refit and the oversight constants' re-derivation → M7 (done here);
+  synthetic data cheaper from the smaller V0: physical, kept.
+- E19 accepted (Cloud 2025's same initialisation; distilled students are new networks; E04 = learned hacking only); AF
+  25.6% → E20: no S6 baseline into E05 and no E13 / E27 AF growth in base pretraining.
+- A7 accepted (start sector stocks, free tiers with parity; F8 25% → 0% → finance session / F5; RefBot's release policy
+  → F5). Then A8 (H): the share target from multi-homing, CUSTOMER_TAU.sector measured, the start cap removed; US vs
+  ROW spend.
+- E20 accepted: AF 21.3%, S4 0.563. **Stop iterating on AF**: a real tension between the S4 band and the end-2026 AF
+  band; F5 AF end 2026 is a known WARN; the thin S4 margin → F4; E05 on synthetic pretraining data kept (a design bet).
+- A8 accepted (2 providers per firm, τ 3 y, CUSTOMER_TAU.sector 0.65 y; ROW A0 0.6 → 0.225); the reach dynamics kept;
+  S-1 geography unverified (the SEC fetch was denied: not worked around); consumer spend 87% ROW noted.
+- M7 = merge v3-a8, v3-f6c, v3-e20; the final refit; fixtures; test:full.
+
+**Readouts for later tasks.** Fixtures are rev 33 from the final code. S4 is below its band on the merged head (0.523):
+F4's multi-seed check decides whether it is the seed or the model. T1L authors2026's late milestones need a leader
+takeoff fix or a wider tolerance (F4). The oversight reference table now follows the ai2027 knots by itself (any future
+G_SC or V0 change); the AF gate anchors are still numbers tied to V0's G (the comment says so).
