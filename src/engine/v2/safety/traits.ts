@@ -437,12 +437,14 @@ const PRETRAIN_OFF = new Set(['E13', 'E27']);
 // fixed (prompt or synthetic documents), and that information is E13's SA term already; G is the same physical scale in
 // every world, while λ below V0 is each world's extrapolation (0.9–2.0 L per OOM over the presets).
 // Anchors [D on sourced points; the game's frontier pace B_G_PER_Y 1.2 OOM/y]: the mid-2024 frontier (Claude 3 Opus,
-// 3.5 Sonnet, Llama 3.1 405B; 1.2–1.4 y before V0) at G ≈ 26.4, "barely capable" (g 0.28); the models that do not fake
-// (Llama 3.1 70B: 0.8 OOM of training FLOP under 405B; Claude 3 Sonnet, 3.5 Haiku) at g ≈ 0 from AF_GATE_G0 25.7; full
-// at AF_GATE_G1 28.0, the 2025 frontier (V0, G 27.9–28.1 over the presets), where MacDiarmid's model organism (Claude
-// Sonnet 3.7/4 era) shows 50% AF reasoning (F2's band, safetyrates).
-export const AF_GATE_G0 = 25.7;
-export const AF_GATE_G1 = 28.0;
+// 3.5 Sonnet, Llama 3.1 405B; 1.2–1.4 y before V0) at G ≈ V0 − 1.6, "barely capable"; the models that do not fake
+// (Llama 3.1 70B: 0.8 OOM of training FLOP under 405B; Claude 3 Sonnet, 3.5 Haiku) at g ≈ 0 from AF_GATE_G0 = V0 − 2.3;
+// full at AF_GATE_G1, the 2025 frontier (V0), where MacDiarmid's model organism (Claude Sonnet 3.7/4 era) shows 50% AF
+// reasoning (F2's band, safetyrates). Every anchor is a time before V0, so the gate follows V0's G: E18 set 25.7 / 28.0
+// at V0 G 27.9–28.1 over the presets; model v3 M7: A6b's overtrained reference base moved V0 to 27.60–27.77 (−0.31 OOM
+// at the same training FLOP), so 25.4 / 27.7 (the gate at V0 back to ≥ 0.99; E18's check).
+export const AF_GATE_G0 = 25.4;
+export const AF_GATE_G1 = 27.7;
 export function afCapGate(G: number): number {
   const t = clamp01((G - AF_GATE_G0) / Math.max(1e-9, AF_GATE_G1 - AF_GATE_G0));
   return t * t * (3 - 2 * t);
