@@ -47,7 +47,7 @@ export const EDGES: EdgeDef[] = [
   { id: 'E11', from: ['S7'], to: 'EA', wBar: 0.2, grade: 'B', cite: 'Schoen 2025: capability RL raised EA 2% → 20.6%', moderator: 'keep evals out of training' },
   // E18: E13, E14 and E27 (its learned-hacking term included) are scaled by the capability gate of the trained model's G
   // (safety/traits.ts afCapGate: 0 below G 25.7, 1 from the 2025 frontier at 28; Greenblatt 2024: AF emerges with scale).
-  { id: 'E13', from: ['SA', 'PROXY'], to: 'AF', wBar: 0.3, grade: 'B', cite: 'Greenblatt 2024: 12% → 78% after RL', moderator: 'corrigibility target −30%' },
+  { id: 'E13', from: ['SA', 'PROXY'], to: 'AF', wBar: 0.3, grade: 'B', cite: 'Greenblatt 2024: 12% → 78% after RL', moderator: 'post-training only (no trained preference to protect in pretraining); corrigibility target −30%' },
   // E17: E14 reads S9 (oversight-conditional reward: behaviour rewarded or penalised only where a monitor sees it), no
   // longer S7 (capability RL and eval-like data, Schoen's EA anchor). w̄ 0.6 → 0.9 [fit]: MATS/GDM's RL with all of the
   // rule-following reward on monitored episodes (S9 = 1) took the gap 1–18% → 43–95%; one reference run on V0 with S9 = 1
@@ -64,7 +64,7 @@ export const EDGES: EdgeDef[] = [
   // M4: the broad misaligned persona (L5) generalises into the behaviour-when-unobserved nodes (R14 E04 evidence:
   // hacking → persona → alignment-faking reasoning and safety-research sabotage), so reward hacking upstream (grader
   // quality, RL intensity, inoculation) reaches the misalignment index.
-  { id: 'E27', from: ['PERSONA'], to: 'AF', wBar: 0.4, grade: 'B', late: true, cite: 'MacDiarmid 2025: learned hacking → AF reasoning in 50%', moderator: 'learned hacking adds to it; inoculation ×0.15 (here and upstream at E04); corrigibility target −30%' },
+  { id: 'E27', from: ['PERSONA'], to: 'AF', wBar: 0.4, grade: 'B', late: true, cite: 'MacDiarmid 2025: learned hacking → AF reasoning in 50%', moderator: 'post-training only (not in pretraining); learned hacking adds to it; inoculation ×0.15 (here and upstream at E04); corrigibility target −30%' },
   { id: 'E28', from: ['PERSONA'], to: 'SCHEME', wBar: 0.15, grade: 'B', late: true, cite: 'MacDiarmid 2025: 12% safety-code sabotage', moderator: 'learned hacking adds to it (inoculation ×0.15); anti-scheming training −90%' },
   { id: 'E29', from: ['PERSONA'], to: 'POWER', wBar: 0.2, grade: 'B', late: true, cite: 'Betley 2025: emergent misalignment voices power-seeking aims', moderator: 'scoped constitution −30%; corrigibility target −30%' },
 ];

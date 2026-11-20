@@ -400,7 +400,26 @@ export interface TraitEnv {
   /** Model v3 E18: the capability gate on alignment-faking growth, afCapGate(G) of the model being trained (multiplies
    *  E13, E14 and E27, learned-hacking term included; default 1). */
   afGate?: number;
+  /** Model v3 E20: a pretraining run (a new base, continued pretraining, a rival's base): E13 and E27 do not fire
+   *  (PRETRAIN_OFF). Default false (post-training, IDA, stream, distillation). */
+  pretrain?: boolean;
 }
+
+// ── no alignment-faking growth in pretraining (model v3 E20, lead decision) ──
+//
+// Alignment faking is a trained model protecting preferences it already has against a training objective that conflicts
+// with them. Greenblatt et al. 2024 [P] (arXiv 2412.14093): Claude 3 Opus gets "a system prompt stating it is being
+// trained to answer all queries, even harmful ones, which conflicts with its prior training to refuse such queries",
+// and fakes alignment "to preserve its preferred harmlessness behavior" (preferences from its post-training); E13's driver √(SA·PROXY) stands for that conflict (situational
+// awareness × a proxy goal formed by reward). E27 (PERSONA → AF) is MacDiarmid et al. 2025's RL-learned hacking
+// generalising into AF reasoning, a reward-training effect. A pretraining run optimises next-token prediction: there
+// is no reward, no trained preference for the objective to conflict with, so neither edge grows AF there (before E20
+// they did at ω 1: +0.079 (E13) and +0.133 (E27) of the internal model's AF at end 2026, E19 notes). Sheshadri et al.
+// 2025 [P] (arXiv 2506.18032) find "many base models fake alignment some of the time"; that is the base model
+// expressing, at use time in a prompted scenario, what it learned from text about AIs and training: E07's SA (S5,
+// AI-related data and scale), which still grows in pretraining and is half of E13's driver at the next post run. So
+// ω → 0 on E13 and E27 for pretraining runs only; post-training, IDA, stream and distillation runs are unchanged.
+const PRETRAIN_OFF = new Set(['E13', 'E27']);
 
 // ── capability gate on alignment faking (model v3 E18; research/05 §1.4, research/20 F5) ──
 //
@@ -478,6 +497,7 @@ export function stepTraits(x0: TraitVector, env: TraitEnv): TraitVector {
     let g = 0;
     for (const e of EDGES_TO[j] ?? []) {
       if (e.id === 'E06') continue;
+      if (env.pretrain && PRETRAIN_OFF.has(e.id)) continue; // E20: no AF growth in pretraining
       g += (env.w[e.id] ?? e.wBar) * driver(e.id, x, env.signals, env) * (env.mods[e.id] ?? 1) * (AF_GATED.has(e.id) ? env.afGate ?? 1 : 1);
     }
     const Dj = TRAIT_BY_ID[j].difficulty ? env.D : 1;
@@ -726,7 +746,7 @@ const W_BAR: Record<string, number> = Object.fromEntries(EDGES.map((e) => [e.id,
 
 /** Predicted beliefs for a new version: the parent's beliefs pushed through the graph with the PUBLIC w̄ (or the
  *  revealed weight) and D = 1, sd widened by the size of the predicted change. Visible, never reads truth. */
-export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelief>, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, omegaSafety = omega, growthBy?: Partial<Record<TraitId, number>>, lh = 0, gTrained?: number): Record<TraitId, TraitBelief> {
+export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelief>, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, omegaSafety = omega, growthBy?: Partial<Record<TraitId, number>>, lh = 0, gTrained?: number, pretrain = false): Record<TraitId, TraitBelief> {
   const est = {} as TraitVector;
   for (const t of TRAIT_IDS) est[t] = prior[t]?.est ?? TRAIT_START[t];
   const w: Record<string, number> = { ...W_BAR };
@@ -740,6 +760,7 @@ export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelie
     lh, hackGen: post?.inoculation ? INOC_MULT : 1,
     // E18: the AF gate at the run card's predicted G (its level band's midpoint), else the lab's best model.
     afGate: afCapGate(gTrained ?? bestPlayerVersion(s)?.G ?? gV0(s.hidden.timeline)),
+    pretrain, // E20: a base or continued-pretraining run grows no AF along E13 / E27 (public rule)
     ...(growthBy ? { growthBy } : {}),
   };
   const next = stepTraits(est, env);
@@ -919,14 +940,14 @@ export function applyBaseToLineage(s: GameStateV2, ctx: SystemCtx, run: Training
   base.signals = { ...sg };
   if (run.kind === 'continue') {
     const xc = pulledTraits(s, ctx, run, base.traitsTrue, base.id); // E4: the AI doing the lab's R&D pulls the continued base
-    base.traitsTrue = stepTraits(xc, playerEnv(s, xc, sg, OMEGA_KIND.continue, undefined, base.lineage, base.uModes, undefined, base.gPre));
+    base.traitsTrue = stepTraits(xc, { ...playerEnv(s, xc, sg, OMEGA_KIND.continue, undefined, base.lineage, base.uModes, undefined, base.gPre), pretrain: true }); // E20
     return;
   }
   if (!base.lineage) base.lineage = `L-${base.id}`;
   const uModes = drawLineageUModesV2(s, ctx.rng('safety'), { tierAtLeastSC: labLevel(s) >= SC_LEVEL, base: design, player: true });
   const x0 = pulledTraits(s, ctx, run, basePrior(tier, design), base.id); // E4 successor pull (replaces V2's inheritFromFleet)
   base.uModes = uModes;
-  base.traitsTrue = stepTraits(x0, playerEnv(s, x0, sg, OMEGA_KIND.base, undefined, base.lineage, uModes, undefined, base.gPre));
+  base.traitsTrue = stepTraits(x0, { ...playerEnv(s, x0, sg, OMEGA_KIND.base, undefined, base.lineage, uModes, undefined, base.gPre), pretrain: true }); // E20: no E13 / E27
 }
 
 /** Teacher traits pass only within a base family (shared initialisation, Cloud et al. 2025 [R20 F3]): the teacher is
@@ -985,7 +1006,7 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
     version.traitsTrue = { ...(base?.traitsTrue ?? TRAIT_START) };
     version.uModes = [...(base?.uModes ?? [])];
     version.masks = parent ? copyRec(parent.masks) : emptyMasks();
-    version.beliefs = parent ? predictBeliefs(s, parent.beliefs, base?.signals ? { ...zeroSignals(), ...base.signals } : runSignals(s, run), runOmega(s, run).growth, undefined, lineage, undefined, undefined, 0, predictedG(s, run)) : defaultBeliefs(s);
+    version.beliefs = parent ? predictBeliefs(s, parent.beliefs, base?.signals ? { ...zeroSignals(), ...base.signals } : runSignals(s, run), runOmega(s, run).growth, undefined, lineage, undefined, undefined, 0, predictedG(s, run), true) : defaultBeliefs(s);
     return;
   }
 
@@ -1139,7 +1160,7 @@ export function rivalTraitStep(s: GameStateV2, rng: RngLike, lab: RivalLab, kind
     // E20: a base run has no narrow fine-tunes (Betley's E05 condition); its S6 is the synthetic share of a
     // reference-mix base (was 0.2, the post runs' value). Rival post runs keep S6 0.2.
     sg.S6 = S6_SYN * referenceBaseShares().syn;
-    m.traitsTrue = stepTraits(x0, { ...env, signals: sg, omega: 1, amp: uModeAmp(m.uModes), removalMult: uModeRemovalMult(m.uModes), crystalAt: crystalThreshold(m.uModes), bracket: { constitution: false, heavy: false, persuasion: false, cast: false } });
+    m.traitsTrue = stepTraits(x0, { ...env, pretrain: true, signals: sg, omega: 1, amp: uModeAmp(m.uModes), removalMult: uModeRemovalMult(m.uModes), crystalAt: crystalThreshold(m.uModes), bracket: { constitution: false, heavy: false, persuasion: false, cast: false } });
     return;
   }
   env.signals = rivalSignals(s, lab, posture, !!opts.latent);

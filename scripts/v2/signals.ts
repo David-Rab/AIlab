@@ -14,7 +14,7 @@ import { suiteExploitMap, suiteRlWeights } from '../../src/engine/v2/models/suit
 import { playerDraw } from '../../src/engine/v2/production/data';
 import {
   aiDataShare, applyRunToTraits, baseSignals, deploymentS8, distillSignals, distilledStart, hackRates, OC_VIS, OMEGA_KIND, optimisationPressure, postSignals,
-  prefShare, RHO_REF, runOmega, S6_SYN, sameBaseFamily, syntheticShare, type Signals,
+  playerEnv, prefShare, RHO_REF, runOmega, S6_SYN, sameBaseFamily, stepTraits, syntheticShare, type Signals,
 } from '../../src/engine/v2/safety/traits';
 import { TRAIT_START } from '../../src/data/v2/traits';
 import type { BaseDesign, GameStateV2, ModelVersion, OwnedDataAsset, PostDesign, TrainingRun, TraitVector } from '../../src/engine/v2/types';
@@ -140,6 +140,17 @@ check(near(xSame.PERSONA, xCross.PERSONA, 1e-12) && near(xSame.AF, xCross.AF, 1e
   'a distilled student (a new network) learns what the teacher\'s outputs show, whatever its family: visible PERSONA in full, hidden AF only its OC_VIS share (Cloud et al. 2025: no transfer without a shared initialisation)',
   `teacher PERSONA 0.8, AF 0.8 → student (same / other family) PERSONA ${xSame.PERSONA.toFixed(3)} / ${xCross.PERSONA.toFixed(3)}, AF ${xSame.AF.toFixed(3)} / ${xCross.AF.toFixed(3)} (start: AF ${x0S.AF.toFixed(3)} = shown share, before the run's own step)`);
 
+// Model v3 E20: alignment faking needs post-trained preferences that conflict with the training objective (Greenblatt
+// 2024), so E13 (√(SA·PROXY) → AF) and E27 (PERSONA → AF) do not fire in a pretraining run; a post run on the same
+// traits still grows AF along them.
+const xAF = { ...TRAIT_START, SA: 0.6, PROXY: 0.5, PERSONA: 0.5, AF: 0.05 };
+const envPre = { ...playerEnv(sF, xAF, refBase, OMEGA_KIND.base, undefined, 'L-probe', [], undefined, t0.G), pretrain: true };
+const afPre = stepTraits(xAF, envPre).AF;
+const afPreOn = stepTraits(xAF, { ...envPre, pretrain: false }).AF;
+check(near(afPre, xAF.AF, 1e-12) && afPreOn > xAF.AF + 0.05,
+  'a pretraining run grows no alignment faking along E13 / E27 (no trained preference to protect); the same step as a non-pretraining run would',
+  `AF 0.05 with SA 0.6, PROXY 0.5, PERSONA 0.5: pretraining step → ${afPre.toFixed(3)}; with E13 / E27 on → ${afPreOn.toFixed(3)}`);
+
 // ---------- S4 and S7 ----------
 const cotTrain = postSignals(s0, post({ trainAgainst: ['T-COTMON'] }));
 const bbTrain = postSignals(s0, post({ trainAgainst: ['T-PROP'] }));
@@ -171,5 +182,5 @@ const now: Record<string, Partial<Signals>> = {
 };
 console.log('      post-train (V1 → E3):');
 for (const k of Object.keys(V1)) console.log(`        ${k.padEnd(19)} ${(['S1', 'S2', 'S3', 'S5', 'S7'] as (keyof Signals)[]).map((x) => `${x} ${(V1[k][x] ?? 0).toFixed(2)}→${(now[k][x] ?? 0).toFixed(2)}`).join('  ')}`);
-console.log(`      base: reference S5 0.28→${refBase.S5.toFixed(2)} S6 0.10→${refBase.S6.toFixed(2)} (E20: no narrow-tune baseline);synthetic-heavy S5 0.28→${sgSyn.S5.toFixed(2)} S6 0.40→${sgSyn.S6.toFixed(2)}; distill S6 0.30→${distillSignals().S6.toFixed(2)}`);
+console.log(`      base: reference S5 0.28→${refBase.S5.toFixed(2)} S6 0.10→${refBase.S6.toFixed(2)} (E20: no narrow-tune baseline); synthetic-heavy S5 0.28→${sgSyn.S5.toFixed(2)} S6 0.40→${sgSyn.S6.toFixed(2)}; distill S6 0.30→${distillSignals().S6.toFixed(2)}`);
 finish('signals');
