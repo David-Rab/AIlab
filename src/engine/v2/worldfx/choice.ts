@@ -44,40 +44,57 @@ export const adequacy = (a: number, lo: number, hi: number) => (hi <= lo ? (a >=
 /** Utility of a tier on a band (without the provider's access·brand). */
 export const tierUtility = (t: Tier, x: number, V: number, mu: number) => SHARE_SLOPE_G * t.fit + (V * x - t.price) / mu;
 
+/** A packed array of n copies of x (faster than new Array(n).fill(x), which is holey). */
+function packed(n: number, x: number): number[] {
+  const a: number[] = [];
+  for (let i = 0; i < n; i++) a.push(x);
+  return a;
+}
+const zeros = (n: number) => packed(n, 0);
+
+/** surplusChoice's scratch buffers (reused across calls; every entry it reads is written first in the same call). */
+const S = {
+  tq: new Float64Array(64), ta: new Float64Array(64), tp: new Float64Array(64),
+  u: new Float64Array(16), e: new Float64Array(16), sh: new Float64Array(16), off: new Int32Array(17),
+};
+
 /** Providers whose access is partial (0 < acc < 1) are enumerated as choice sets up to this many; beyond it the rest
  *  count as fully available (none of the game's regions has more than six). */
 const MAX_PARTIAL = 8;
 
 interface ChoiceSet { p: number; ins: number[] }
-const setMemo = new WeakMap<readonly number[], { sig: string; sets: ChoiceSet[] }>();
+const sameList = (a: readonly number[], b: readonly number[]) => {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+};
+const setMemo = new WeakMap<readonly number[], { sig: number[]; sets: ChoiceSet[] }>();
 /** Choice sets: every combination of the partially accessible providers that serve, with its probability (memoised on
  *  the access array: mix.ts passes one per region for every sector). */
 function choiceSets(acc: readonly number[], lineups: readonly (readonly Tier[])[], brand: readonly number[]): ChoiceSet[] {
   const n = acc.length;
   const partial: number[] = [];
-  let sig = '';
-  for (let i = 0; i < n; i++) if (acc[i] > 0 && brand[i] > 0 && lineups[i].length > 0 && acc[i] < 1 - 1e-12 && partial.length < MAX_PARTIAL) {
-    partial.push(i);
-    sig += `${i},`;
-  }
+  for (let i = 0; i < n; i++) if (acc[i] > 0 && brand[i] > 0 && lineups[i].length > 0 && acc[i] < 1 - 1e-12 && partial.length < MAX_PARTIAL) partial.push(i);
   const hit = setMemo.get(acc);
-  if (hit && hit.sig === sig) return hit.sets;
+  if (hit && sameList(hit.sig, partial)) return hit.sets;
   const sets: ChoiceSet[] = [];
   for (let m = 0; m < 1 << partial.length; m++) {
     let p = 1;
-    const out: boolean[] = new Array(n).fill(false);
-    partial.forEach((i, k) => {
+    const out: boolean[] = [];
+    for (let i = 0; i < n; i++) out.push(false);
+    for (let k = 0; k < partial.length; k++) {
+      const i = partial[k];
       if (m & (1 << k)) p *= acc[i];
       else {
         p *= 1 - acc[i];
         out[i] = true;
       }
-    });
+    }
     const ins: number[] = [];
     for (let i = 0; i < n; i++) if (!out[i]) ins.push(i);
     if (p > 0) sets.push({ p, ins });
   }
-  setMemo.set(acc, { sig, sets });
+  setMemo.set(acc, { sig: partial, sets });
   return sets;
 }
 
@@ -91,74 +108,103 @@ function choiceSets(acc: readonly number[], lineups: readonly (readonly Tier[])[
  */
 export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: readonly number[], acc: readonly number[], V: number, aTop?: number, B = MARKET_BANDS): Choice {
   const n = lineups.length;
-  const on = (i: number) => acc[i] > 0 && brand[i] > 0 && lineups[i].length > 0;
+  // P3: the serving providers' tiers flattened once (offsets per provider), the band-independent parts hoisted (the
+  // quality term, the cheapest price), shares accumulated in a flat buffer per band; the same operations in the same
+  // order as before, so every value is identical.
+  const on: boolean[] = [];
+  let nt = 0;
+  for (let i = 0; i < n; i++) {
+    const ok = acc[i] > 0 && brand[i] > 0 && lineups[i].length > 0;
+    on.push(ok);
+    if (ok) nt += lineups[i].length;
+  }
   let top = aTop ?? 0;
   let fitMax = -Infinity;
   for (let i = 0; i < n; i++) {
-    if (!on(i)) continue;
-    for (const t of lineups[i]) {
+    if (!on[i]) continue;
+    const L = lineups[i];
+    for (let k = 0; k < L.length; k++) {
+      const t = L[k];
       if (aTop === undefined && t.a > top) top = t.a;
       if (t.fit > fitMax) fitMax = t.fit;
     }
   }
-  const target: number[] = new Array(n).fill(0);
+  const target = zeros(n);
   const share: number[][] = [];
   const pick: number[][] = [];
   for (let i = 0; i < n; i++) {
-    share.push(new Array(B).fill(0));
-    pick.push(new Array(B).fill(-1));
+    share.push(zeros(B));
+    pick.push(packed(B, -1));
   }
-  const mu: number[] = new Array(B).fill(0);
+  const mu = zeros(B);
   if (!(top > 0) || fitMax === -Infinity) return { aTop: top, target, share, pick, mu };
   const sets = choiceSets(acc, lineups, brand);
-  const u = new Array<number>(n);
-  const e = new Array<number>(n);
+  if (S.tq.length < nt) S.tq = new Float64Array(2 * nt), S.ta = new Float64Array(2 * nt), S.tp = new Float64Array(2 * nt);
+  if (S.u.length < n) S.u = new Float64Array(2 * n), S.e = new Float64Array(2 * n), S.sh = new Float64Array(2 * n), S.off = new Int32Array(2 * n + 1);
+  const { tq, ta, tp, u, e, sh, off } = S;
+  let pAll = Infinity;
+  for (let i = 0, j = 0; i < n; i++) {
+    off[i] = j;
+    if (!on[i]) continue;
+    const L = lineups[i];
+    for (let k = 0; k < L.length; k++, j++) {
+      const t = L[k];
+      tq[j] = SHARE_SLOPE_G * (t.fit - fitMax);
+      ta[j] = t.a;
+      tp[j] = t.price;
+      if (t.price < pAll) pAll = t.price;
+    }
+  }
+  off[n] = nt;
   for (let b = 0; b < B; b++) {
     const lo = (top * b) / B;
     const hi = (top * (b + 1)) / B;
+    const w = hi - lo;
     // μ_b: the cheapest offer in the region that does the whole band (else the cheapest offer), over the old elasticity.
     let pAd = Infinity;
-    let pAll = Infinity;
-    for (let i = 0; i < n; i++) {
-      if (!on(i)) continue;
-      const L = lineups[i];
-      for (let k = 0; k < L.length; k++) {
-        const t = L[k];
-        if (t.price < pAll) pAll = t.price;
-        if (t.a >= hi && t.price < pAd) pAd = t.price; // adequacy 1
-      }
-    }
+    for (let j = 0; j < nt; j++) if (ta[j] >= hi && tp[j] < pAd) pAd = tp[j]; // adequacy 1
     const m = Math.max(1e-12, pAd < Infinity ? pAd : pAll) / PRICE_ELASTICITY;
     mu[b] = m;
     let uMax = -Infinity;
     for (let i = 0; i < n; i++) {
       u[i] = -Infinity;
-      if (!on(i)) continue;
-      const L = lineups[i];
-      for (let k = 0; k < L.length; k++) {
-        const t = L[k];
-        const x = SHARE_SLOPE_G * (t.fit - fitMax) + (V * adequacy(t.a, lo, hi) - t.price) / m; // tierUtility
+      if (!on[i]) continue;
+      const pk = pick[i];
+      const j0 = off[i];
+      const j1 = off[i + 1];
+      for (let j = j0; j < j1; j++) {
+        const a = ta[j];
+        const x = tq[j] + (V * (hi <= lo ? (a >= hi ? 1 : 0) : Math.max(0, Math.min(1, (a - lo) / w))) - tp[j]) / m; // tierUtility, adequacy
         if (x > u[i]) {
           u[i] = x;
-          pick[i][b] = k;
+          pk[b] = j - j0;
         }
       }
       if (u[i] > uMax) uMax = u[i];
     }
-    for (let i = 0; i < n; i++) e[i] = u[i] === -Infinity ? 0 : brand[i] * Math.exp(u[i] - uMax);
+    for (let i = 0; i < n; i++) {
+      e[i] = u[i] === -Infinity ? 0 : brand[i] * Math.exp(u[i] - uMax);
+      sh[i] = 0;
+    }
     let tot = 0;
-    for (const set of sets) {
+    for (let q = 0; q < sets.length; q++) {
+      const set = sets[q];
       const ins = set.ins;
+      const ni = ins.length;
       let sum = 0;
-      for (let j = 0; j < ins.length; j++) sum += e[ins[j]];
+      for (let j = 0; j < ni; j++) sum += e[ins[j]];
       if (!(sum > 0)) continue;
       tot += set.p;
       const f = set.p / sum;
-      for (let j = 0; j < ins.length; j++) share[ins[j]][b] += f * e[ins[j]];
+      for (let j = 0; j < ni; j++) {
+        const i = ins[j];
+        sh[i] += f * e[i];
+      }
     }
     if (tot > 0) for (let i = 0; i < n; i++) {
-      share[i][b] /= tot;
-      target[i] += share[i][b] / B;
+      const x = sh[i] / tot;
+      share[i][b] = x;
+      target[i] += x / B;
     }
   }
   return { aTop: top, target, share, pick, mu };

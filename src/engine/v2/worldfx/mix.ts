@@ -28,7 +28,7 @@ import { CHINA_ID } from '../models/labs';
 import type { Deployment, DomainId, GameStateV2, LabId, ModelVersion, RegionId, SectorId, SimpleModel, SystemCtx } from '../types';
 import { robotAvail } from './robots';
 import { agentCeilingOf, workHoursOf, type AgentCeiling } from './use';
-import { adequacy, surplusChoice, tierUtility, type Choice, type Tier } from './choice';
+import { adequacy, surplusChoice, type Choice, type Tier } from './choice';
 import { sigmoid, techRamp } from './policy';
 import { productDomains } from '../models/products';
 import { flopPerToken } from '../departments/workfit';
@@ -482,8 +482,24 @@ function computeMix(s: GameStateV2): WorldMix {
       const vs = vecs[si];
       // A5: the buyers' surplus choice over bands of task difficulty (worldfx/choice.ts), on value-capped tier prices.
       const lines = lineOff[si];
-      const cap = (o: Offer) => Math.max(o.cost, Math.min(o.price, value));
-      const lineups: Tier[][] = lines.map((L) => L.map((o) => ({ fit: o.fit, a: o.a, price: cap(o) })));
+      // (P3: one loop without per-call closures builds the tiers, their prices for the readout and the best fit.)
+      const lineups: Tier[][] = [];
+      const tierPrice: number[][] = [];
+      let fitMax = -Infinity;
+      for (let i = 0; i < n; i++) {
+        const L = lines[i];
+        const tl: Tier[] = [];
+        const tp: number[] = [];
+        for (let k = 0; k < L.length; k++) {
+          const o = L[k];
+          const price = Math.max(o.cost, Math.min(o.price, value));
+          tl.push({ fit: o.fit, a: o.a, price });
+          tp.push(price);
+          if (o.fit > fitMax) fitMax = o.fit;
+        }
+        lineups.push(tl);
+        tierPrice.push(tp);
+      }
       const ch = surplusChoice(lineups, brandPow, acc[ri], value, aTops[si]);
       const target = ch.target;
       const tierW: number[][] = [];
@@ -525,8 +541,6 @@ function computeMix(s: GameStateV2): WorldMix {
       if (playerIdx >= 0 && target[playerIdx] > 1e-12) {
         const pt = pTiers[si];
         const L = lineups[playerIdx];
-        let fitMax = -Infinity;
-        for (const x of lineups) for (const tt of x) if (tt.fit > fitMax) fitMax = tt.fit;
         for (let k = 0; k < pt.length; k++) {
           if (!pt[k].mini) continue;
           const main = L[k - 1];
@@ -535,8 +549,8 @@ function computeMix(s: GameStateV2): WorldMix {
           for (let b = 0; b < B; b++) {
             const lo = (ch.aTop * b) / B;
             const hi = (ch.aTop * (b + 1)) / B;
-            const uMain = tierUtility({ ...main, fit: main.fit - fitMax }, adequacy(main.a, lo, hi), value, ch.mu[b]);
-            const uMini = tierUtility({ ...mini, fit: mini.fit - fitMax }, adequacy(mini.a, lo, hi), value, ch.mu[b]);
+            const uMain = SHARE_SLOPE_G * (main.fit - fitMax) + (value * adequacy(main.a, lo, hi) - main.price) / ch.mu[b]; // tierUtility
+            const uMini = SHARE_SLOPE_G * (mini.fit - fitMax) + (value * adequacy(mini.a, lo, hi) - mini.price) / ch.mu[b];
             if (uMini > uMain) w += ch.share[playerIdx][b] / (B * target[playerIdx]);
           }
           miniW[cands[pt[k].c].dep.id] = w;
@@ -607,7 +621,7 @@ function computeMix(s: GameStateV2): WorldMix {
         price, pCost, F, K: wsum > 0 ? K : 0,
         ...(playerIdx >= 0 && pCand[si] >= 0 ? { playerDep: cands[pCand[si]].dep.id } : {}),
         playerPrice: pp, priceFactor: playerIdx >= 0 && pp > 0 && px > 0 ? Math.min(1, Math.pow(pp / px, -PRICE_ELASTICITY)) : 1,
-        tiers: { choice: ch, offers: lines, kind: kinds[si], price: lineups.map((L) => L.map((x) => x.price)), weight: tierW }, playerMiniW: miniW,
+        tiers: { choice: ch, offers: lines, kind: kinds[si], price: tierPrice, weight: tierW }, playerMiniW: miniW,
       };
     }
     sec[r] = rowOut;

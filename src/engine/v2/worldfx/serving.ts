@@ -368,7 +368,9 @@ export function blendOffer(main: Offer, cheap: Offer | undefined, w: number): Of
 
 // ───────────────────────────── cheap tiers of the other providers (A5) ─────────────────────────────
 
-type GapMemo = Map<string, Map<number, Map<number, Map<number, Map<number, number>>>>>; // sector → fit → h50 → N_T → u
+/** A student's gap and what follows from it alone (P3: memoised with the gap; null: no student). */
+interface StudentFit { g: number; r: number; a: number; lam: number }
+type GapMemo = Map<string, Map<number, Map<number, Map<number, Map<number, StudentFit | null>>>>>; // sector → fit → h50 → N_T → u
 const studentMemo = new WeakMap<TimelineWorld, { m: GapMemo; n: number }>();
 /** The distillation gap at which a student still covers u (coverage `cov` falls with the gap): the largest in
  *  [DISTILL.a, the 1B-parameter floor's], −1 when even DISTILL.a below the teacher covers less than u. */
@@ -406,18 +408,20 @@ export function studentOffer(s: GameStateV2, o: Offer, sid: SectorId, fit: numbe
   // P2-style memo: the gap depends only on these inputs (per world); lineups change only when a model or a_top does.
   let memo = studentMemo.get(w);
   if (!memo || memo.n > 20000) studentMemo.set(w, (memo = { m: new Map(), n: 0 }));
-  const byU: Map<number, number> = memoAt(memoAt(memoAt(memoAt(memo.m, sid, newMap), fit, newMap), h50, newMap), nT, newMap);
-  let g = byU.get(u);
-  if (g === undefined) {
-    g = studentGap(w, sid, fit, h50, nT, u);
-    byU.set(u, g);
+  const byU: Map<number, StudentFit | null> = memoAt(memoAt(memoAt(memoAt(memo.m, sid, newMap), fit, newMap), h50, newMap), nT, newMap);
+  let sf = byU.get(u);
+  if (sf === undefined) {
+    const g = studentGap(w, sid, fit, h50, nT, u);
+    if (g < 0) sf = null;
+    else {
+      const a = studentCover(w, sid, fit, h50, g);
+      sf = { g, r: studentParamsFor(nT, g) / nT, a, lam: agentLeverage(a, h50 * Math.pow(H50_PER_OOM, -g)) };
+    }
+    byU.set(u, sf);
     memo.n++;
   }
-  if (g < 0) return undefined;
-  const r = studentParamsFor(nT, g) / nT;
-  const a = studentCover(w, sid, fit, h50, g);
-  const hS = h50 * Math.pow(H50_PER_OOM, -g);
-  const lam = agentLeverage(a, hS);
+  if (sf === null) return undefined;
+  const { g, r, a, lam } = sf;
   const seatCost = seatHoursPerMonth(sid) * o.hphAs * r * rate;
   return {
     fit: fit - g, a, hph: o.hph * r, cost: o.cost * r, price: o.price * r, k: a * lam, lam, hphAg: o.hphAg * r, costAg: o.costAg * r, priceAg: o.priceAg * r,
