@@ -31,7 +31,8 @@ import { adopted } from '../models/paradigms';
 import { payoffOf } from '../models/tree';
 import { decimalYear } from '../core/time';
 import { spareServingToResearch } from '../worldfx/revenue';
-import { internalFx } from '../worldfx/serving';
+import { internalFx, tokEff } from '../worldfx/serving';
+import { decodeUtilNow } from '../models/stacks';
 import { ws4r } from '../actors/state';
 import { agentVersion, capShare } from './agents';
 import type { DomainId, GameStateV2, ModelVersion, ProdParams, TeamQuality, TimelineWorld } from '../types';
@@ -125,6 +126,16 @@ export function fptOfBuild(s: GameStateV2, v: Pick<ModelVersion, 'baseId' | 'ser
   const rel = b.serve && b.serve > 0 ? v.serveCost / b.serve : 1;
   return 2 * b.params * SHAPE[b.design.shape].tokenMult * rel;
 }
+/** Model v3 D10: the FLOP per token on the internal agentic profile that costs the same H100e-hours per work-hour as
+ *  `fpt` does at reasoning-token multiplier τ (output tokens) and decode utilisation `ud` (exact for this one profile:
+ *  the internal agents' readers keep their fpt signatures). */
+export const agentFptEq = (fpt: number, tau = 1, ud = U_DECODE) =>
+  (fpt * (TOKENS_PER_WORK_HOUR.input / U_PREFILL + (TOKENS_PER_WORK_HOUR.output * tau) / ud)) /
+  (TOKENS_PER_WORK_HOUR.input / U_PREFILL + TOKENS_PER_WORK_HOUR.output / U_DECODE);
+/** The player's internal agents on version v: its FLOP per token, its reasoning tokens (tokEff) and the lab's decode
+ *  utilisation (its serving stack), as an equivalent FLOP per token. */
+export const agentFpt = (s: GameStateV2, v: Parameters<typeof flopPerToken>[1] & Parameters<typeof tokEff>[0]) =>
+  agentFptEq(flopPerToken(s, v), tokEff(v), decodeUtilNow(s));
 /** H100e-hours of serving per human work-hour of agentic work (uncached input at prefill utilisation, output at decode). */
 export const h100eHoursPerWorkHour = (fpt: number) =>
   (fpt * (TOKENS_PER_WORK_HOUR.input / U_PREFILL + TOKENS_PER_WORK_HOUR.output / U_DECODE)) / PEAK_FLOPS / 3600;
@@ -263,7 +274,7 @@ export function labourOf(s: GameStateV2, slot: CapSlot, scale: { h?: number; k?:
   // V4.3: the lab's built scaffolds and horizon extenders apply to its internal agents (scaffold tokens cost FTE).
   const ifx = internalFx(s, wt);
   const fit = u.v ? workFit(s, u.v, wt, ifx) : { fit: -Infinity, best: 0, med: 0, h50: 0, a: 0, win: 0, assist: 1 };
-  const fpt = u.v ? flopPerToken(s, u.v) : 1;
+  const fpt = u.v ? agentFpt(s, u.v) : 1;
   const h100e = u.h100e * (scale.k ?? 1);
   const aiFte = u.v ? (h100e * fteOfFpt(fpt) * u.mult) / ifx.tok : 0;
   const H = humansOf(s, slot) * (scale.h ?? 1);
@@ -347,7 +358,7 @@ export function safetyLabour(s: GameStateV2): SafetyLabour {
   const w = wts.map((_, i) => t * fits[i].a * H[i]);
   const wSum = w[0] + w[1];
   const hSum = H[0] + H[1];
-  const fpt = u.v ? flopPerToken(s, u.v) : 1;
+  const fpt = u.v ? agentFpt(s, u.v) : 1;
   const slot = (i: number): LabourOf => {
     const wt = wts[i];
     const share = wSum > 0 ? w[i] / wSum : hSum > 0 ? H[i] / hSum : 0.5;

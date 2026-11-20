@@ -263,7 +263,7 @@ for (const rev of [1, 11, 12, 13, 14]) {
     msg = (e as Error).message;
   }
   // Model v3 V2 (schemaRev 13): V1 saves (12) are rejected too; model v3 V3 (schemaRev 14): V2 saves (13) too.
-  check(SCHEMA_REV === 25 && msg ===`no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
+  check(SCHEMA_REV === 26 && msg ===`no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
 }
 // Model v3 V4a (schemaRev 16): a V3b save (15) migrates (customer stocks start empty, versions get their FLOP per token).
 {
@@ -435,6 +435,27 @@ for (const rev of [1, 11, 12, 13, 14]) {
   const labs = g ? [...g.rivals, g.china.lab] : [];
   const ok = !!g && labs.every((r) => !!r.phys && r.phys.base.flop > 0 && Math.abs((r.internal.G ?? NaN) - gOfPm(g!.hidden.timeline, r.internal.pm)) < 1e-9 && (r.internal.fpt ?? 0) > 0);
   check(ok, 'save: a schemaRev-24 save migrates to 25 (each rival keeps its model, now on a physical base)', msg || labs.map((r) => `${r.core.id} G ${r.internal.G?.toFixed(2)} N ${((r.internal.params ?? 0) / 1e12).toFixed(2)}T`).join(', '));
+}
+// Model v3 D10 (schemaRev 26): an F1 save (25) migrates: every lab's serving stack at the 2025 reference, rlG on its models.
+{
+  const cur = run(detSetup, 30);
+  const old = JSON.parse(serialize(cur)) as GameStateV2 & Record<string, unknown>;
+  old.schemaRev = 25;
+  for (const r of [...old.rivals, old.china.lab]) {
+    delete (r.phys as Partial<typeof r.phys>).serve;
+    for (const m of [r.internal, r.publicModel]) if (m) delete m.rlG;
+  }
+  let msg = '';
+  let g: GameStateV2 | undefined;
+  try {
+    g = deserialize(JSON.stringify(old));
+  } catch (e) {
+    msg = (e as Error).message;
+  }
+  const labs = g ? [...g.rivals, g.china.lab] : [];
+  const was = [...cur.rivals, cur.china.lab];
+  const ok = !!g && labs.every((r, i) => r.phys.serve === 0 && r.internal.rlG !== undefined && Math.abs((r.internal.rlG ?? 0) - (was[i].internal.rlG ?? 0)) < 1e-9);
+  check(ok, 'save: a schemaRev-25 save migrates to 26 (serving stacks at 0, the RL part of G of each internal model from its base)', msg || labs.map((r) => `${r.core.id} rlG ${r.internal.rlG?.toFixed(3)}`).join(', '));
 }
 
 // ---------- 6. Cadences ----------

@@ -36,7 +36,7 @@ import { evalDaysFor, runEvalSuite } from './benchmarks';
 import { addOff, addSig, baseEffect, clampSignals, monitorabilityClass, postEffect, type Off } from './design';
 import { domainsOf, finishBuild, gOfDomain, gOfPm, levelOf, refreshLevels } from './capability';
 import { clRefresh, gOfSimple, growLabStaff, labReferenceSplit, setModelG, trainDay } from '../actors/rivalModel';
-import { ePreAt, rlCeilNow, rlMidNow, serveNow, trainNow } from './stacks';
+import { ePreAt, rlCeilNow, rlMidNow, serveFlopOomOf, serveNow, trainNow } from './stacks';
 import { paOfRecipe } from './tree';
 import { stackRate } from './research';
 import { fptOfBuild } from '../departments/workfit';
@@ -84,10 +84,11 @@ export function runFlopPerShareDay(s: GameStateV2, r: Pick<TrainingRun, 'kind'>)
   return trainingFlopPerDay(s) * goodputOf(s) * (r.kind === 'post' ? MFU_RL_FACTOR : 1);
 }
 
-/** Serve-cost multiplier for new post-trained versions: 10^(−serving stack) (model v3 V2: Inference efficiency line,
- *  P16 AI kernels; quantization and speculative decoding are ★, part of the reference). */
+/** Serve-cost multiplier for new post-trained versions: 10^(−the serving stack's FLOP part) (model v3 V2: Inference
+ *  efficiency line, P16 AI kernels; quantization and speculative decoding are ★, part of the reference). D10: the stack's
+ *  first 0.33 OOM raise the lab's decode utilisation for every model it serves instead (stacks.ts serveSplit). */
 export function serveTechMult(s: GameStateV2): number {
-  return Math.pow(10, -serveNow(s));
+  return Math.pow(10, -serveFlopOomOf(serveNow(s)));
 }
 
 /** AI-designed successor (P24): next base +0.8 progress-years of recipe (× B OOM), paid off with the AI share of

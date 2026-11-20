@@ -195,6 +195,20 @@ export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: read
       for (let j = 0; j < ni; j++) sum += e[ins[j]];
       if (!(sum > 0)) continue;
       tot += set.p;
+      if (sum < 1e-250) {
+        // D10: every member of this set is far below the band's best, so e is denormal and p ÷ Σ overflowed to Infinity
+        // (seen at day 900 once cheap tiers made μ_b tiny): renormalise on the set's own best utility. The same shares
+        // in exact arithmetic; the common path below is unchanged.
+        let uSet = -Infinity;
+        for (let j = 0; j < ni; j++) if (u[ins[j]] > uSet) uSet = u[ins[j]];
+        let sum2 = 0;
+        for (let j = 0; j < ni; j++) if (u[ins[j]] !== -Infinity) sum2 += brand[ins[j]] * Math.exp(u[ins[j]] - uSet);
+        for (let j = 0; j < ni; j++) {
+          const i = ins[j];
+          if (u[i] !== -Infinity) sh[i] += (set.p * brand[i] * Math.exp(u[i] - uSet)) / sum2;
+        }
+        continue;
+      }
       const f = set.p / sum;
       for (let j = 0; j < ni; j++) {
         const i = ins[j];

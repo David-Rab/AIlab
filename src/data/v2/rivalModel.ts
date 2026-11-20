@@ -33,3 +33,8 @@ export const CL_DAYS = 7;
 export const POST_DAYS: readonly [number, number] = [42, 70];
 /** Public start model: this many progress-years under the internal one at day 0 (v2's start gap) [D]. */
 export const START_PUBLIC_GAP_Y = 0.15;
+/** Model v3 D10: serving-stack growth (OOM a year) of the leader lab's day-0 research inputs at the 2025 reference
+ *  serving stack: what the reference lab's Inference-efficiency line adds in its first year (RefBot, ai2027, seed 2027;
+ *  serving test V1) [fit]. It slows as 10^(−serve / r_s), r_s = the line's rShare × the world's r (actors/rivalModel.ts
+ *  serveRate). */
+export const SERVE_RATE0 = 0.2;

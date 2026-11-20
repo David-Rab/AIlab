@@ -693,7 +693,8 @@ export interface AdoptedIdea {
 }
 /** The recipe stacks (MODEL-V3 §5.5, V3-BUILD V2.1): pre = pretraining efficiency (OOM of effective compute, may scale
  *  with run FLOP); rlMid = RL compute efficiency (OOM, moves the RL midpoint); rlCeil = OOM added to the RL ceiling;
- *  train = training throughput (OOM of model FLOP per chip-day); serve = OOM less serving FLOP per token. */
+ *  train = training throughput (OOM of model FLOP per chip-day); serve = serving efficiency (OOM: decode utilisation,
+ *  then less FLOP per token; D10 stacks.ts serveSplit). */
 export type StackKey = 'pre' | 'rlMid' | 'rlCeil' | 'train' | 'serve';
 /** Scale bucket: Σ effect_i · 10^(−s·log₁₀ F_test,i) of the adopted ideas with scale exponent s (rounded), and the part
  *  still in headroom (same units). Effect at run FLOP F = (a − h) · 10^(s·log₁₀ F). */
@@ -1441,6 +1442,9 @@ export interface SimpleModel {
   flop?: number;
   params?: number;
   fpt?: number;
+  /** Model v3 D10: the RL part of G (OOM over the leader's day-0 recipe: G − the base's G_pre − the reference RL gain on
+   *  it), set with the design; the model's reasoning tokens for the same answer fall with it (worldfx/serving.ts tokEff). */
+  rlG?: number;
 }
 
 /** Model v3 F1: a non-player lab's base model (actors/rivalModel.ts): generation, finish day, training FLOP, active
@@ -1457,6 +1461,10 @@ export interface RivalPhys {
   run?: { day: Day; flop: number; ePre: number };
   /** Research-efficiency multiplier (the leader lab's 10^LEADER_CAL [fit]; 1 otherwise; China's effLab applies on top). */
   eff: number;
+  /** Model v3 D10: serving efficiency (OOM over the 2025 reference serving stack), the player's serving stack at
+   *  aggregate level: grows from the lab's research speed with the Inference-efficiency line's returns; its first 0.33 OOM
+   *  raise decode utilisation, the rest cuts FLOP per token (models/stacks.ts serveSplit). */
+  serve: number;
   /** Day of the last continual-learning refresh. */
   clDay?: Day;
 }

@@ -6,7 +6,7 @@ import { BENCHMARKS } from '../../../data/v2/benchmarks';
 import { AGENT_USE_DEF } from '../../../data/v2/agents';
 import {
   POOL_SHARE_RANGE, benchName, dataSpecView, dateOf, fmtDate, idleTrainingShare, internalVersion, measuredDomains, measuredSd, poolAllocation, runBand, runEtaDays, runStall, streamShare,
-  flopPerToken, useHourCost, usesOf, versionById,
+  flopPerToken, tokEff, useHourCost, usesOf, versionById,
 } from '../../../engine/v2';
 import type { GameStateV2, ModelVersion } from '../../../engine/v2';
 import { store, useV2 } from '../store';
@@ -126,7 +126,7 @@ export function ModelCard({ s, v }: { s: GameStateV2; v: ModelVersion }) {
         </div>
         <div>
           <KV k="Monitorability" term="monitorability"><Meter value={v.monitorability} max={1} width={80} /> {v.monitorability.toFixed(2)}</KV>
-          {(() => { const fpt = flopPerToken(s, v); const c = useHourCost(s, fpt); return <KV k="Serving" term="servingFlop" tip={() => <TipCard title={<Term id="servingFlop">Serving</Term>} value={`${F.sci(fpt)} FLOP/token`} rows={[{ label: <Term id="useHourCost">Cost per hour of use</Term>, value: F.usd(c.hour) }, { label: <Term id="agentHour">Cost per agent-hour</Term>, value: F.usd(c.agentHour) }, { label: <Term id="h100e">$ per H100e-hour</Term>, value: F.usd(c.perH100eHour) }]} footer="Before markup and feature token multipliers; prices per product are on Products.">2 × active parameters × the architecture's token multiplier × serving efficiency.</TipCard>}>{F.sci(fpt)} FLOP/tok · {F.usd(c.hour)}/h</KV>; })()}
+          {(() => { const fpt = flopPerToken(s, v); const c = useHourCost(s, fpt, tokEff(v)); return <KV k="Serving" term="servingFlop" tip={() => <TipCard title={<Term id="servingFlop">Serving</Term>} value={`${F.sci(fpt)} FLOP/token`} rows={[{ label: <Term id="useHourCost">Cost per hour of use</Term>, value: F.usd(c.hour) }, { label: <Term id="agentHour">Cost per agent-hour</Term>, value: F.usd(c.agentHour) }, { label: <Term id="h100e">$ per H100e-hour</Term>, value: F.usd(c.perH100eHour) }]} footer="Before markup and feature token multipliers; prices per product are on Products.">2 × active parameters × the architecture's token multiplier × serving efficiency; the cost also reads this lab's decode utilisation and the version's reasoning tokens.</TipCard>}>{F.sci(fpt)} FLOP/tok · {F.usd(c.hour)}/h</KV>; })()}
           {(() => {
             const o = dataSpecView(s, v);
             const fmt = (x: number) => `${x > 0 ? '+' : '−'}${Math.abs(x).toFixed(2)}`;

@@ -8,10 +8,13 @@ import type { Allocation, EngNeed, ReNeed, RiskPolicy, StackKey } from '../../en
 
 /** The capability research lines every start puts on its priority list, with their share of the capability science
  *  teams (teams wanted ≈ share × teams, at least 1) [D]: a 2025 frontier lab's standing portfolio (the lines RefBot runs:
- *  pretraining recipes carry the pretraining stack, Ho et al. ≈ 3×/yr; the RL lines the RL stack). Shown and editable on
- *  Research › Projects; before V4.0 a new game started with an empty list and idle capability scientists. */
+ *  pretraining recipes carry the pretraining stack, Ho et al. ≈ 3×/yr; the RL lines the RL stack; D10: Inference
+ *  efficiency the serving stack, weight 0.1 [D: a 2025 frontier lab keeps an inference-optimisation team beside its
+ *  training research, about a tenth of its research teams; at RefBot's 7–9 line teams that is the one-team minimum]).
+ *  Shown and editable on Research › Projects; before V4.0 a new game started with an empty list and idle capability
+ *  scientists. */
 export const DEFAULT_LINES: { id: string; w: number }[] = [
-  { id: 'L.scale', w: 0.25 }, { id: 'L.env', w: 0.3 }, { id: 'L.data', w: 0.15 }, { id: 'L.opt', w: 0.1 }, { id: 'L.rlalg', w: 0.2 },
+  { id: 'L.scale', w: 0.25 }, { id: 'L.env', w: 0.3 }, { id: 'L.data', w: 0.15 }, { id: 'L.opt', w: 0.1 }, { id: 'L.rlalg', w: 0.2 }, { id: 'L.infer', w: 0.1 },
 ];
 
 // ───────────────────────────── lifecycle ─────────────────────────────

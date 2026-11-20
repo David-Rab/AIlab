@@ -40,8 +40,9 @@ import { flopPerToken, pSuccess } from '../departments/workfit';
 import { h50Of } from '../models/capability';
 import {
   agentDemandOf, blendOffer, chatHoursPerDay, effortTokens, enablerShare, fxOn, markupOf, offerOf, productFx, productMiniUses, productOffer, productUses, serveDollarsPerHour,
-  settingsDG, subPrice, valuePerHour, wagePerHour, type Offer,
+  settingsDG, subPrice, tokEff, valuePerHour, wagePerHour, type Offer,
 } from './serving';
+import { decodeUtilNow } from '../models/stacks';
 
 /** Channel weights splitting the player's sector demand between its deployments [D]. */
 const CH_WEIGHT: Partial<Record<Channel, number>> = { api: 1, agents: 1.5, enterprise: 1, trusted: 0.15, gov: 2 };
@@ -432,13 +433,17 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
         const fx = productFx(s, d);
         const x = fxOn(fx, 'CHAT');
         const e = effortTokens(d.effort);
-        const o = offerOf(s, uses, 'CHAT', { dG: settingsDG(d) + x.dG, hMult: x.hMult, effort: e, markup: markupOf(d), rate });
+        const ud = decodeUtilNow(s);
+        const o = offerOf(s, uses, 'CHAT', { dG: settingsDG(d) + x.dG, hMult: x.hMult, effort: e, markup: markupOf(d), rate, ud });
         const main = versionById(s, d.versionId);
         const mini = d.miniVersionId ? versionById(s, d.miniVersionId) : undefined;
         const fMain = main ? flopPerToken(s, main) : 2e12;
         const fFree = mini ? flopPerToken(s, mini) : fMain;
-        const sp = subPrice(s, fMain, markupOf(d), e);
-        return { d, o, sp, fMain, fFree, e, en: 1 + enablerShare(fx, 'CHAT') };
+        // D10: reasoning tokens × effort × the model's τ (tokEff); the free tier runs its mini (else the main model).
+        const tMain = tokEff(main);
+        const tFree = mini ? tokEff(mini) : tMain;
+        const sp = subPrice(s, fMain, markupOf(d), e * tMain, ud);
+        return { d, o, sp, fMain, fFree, e, tMain, tFree, ud, en: 1 + enablerShare(fx, 'CHAT') };
       });
       const best = Math.max(...offs.map((x) => x.o.fit));
       // A5: users pick by quality alone (most pay nothing), as the market's user-share logit.
@@ -457,8 +462,8 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
         a.dem += (subs * x.sp.price * 12) / 1e9;
         a.cost += (subs * x.sp.cost * 12) / 1e9;
         if (x.sp.price >= CONSUMER_MKT.wtpMonth - 1e-9) a.capped += (subs * x.sp.price * 12) / 1e9;
-        const paid = (subs * chatHoursPerDay(x.fMain, CONSUMER_MKT.perDay.paid, x.e)) / 24;
-        const free = ((u - subs) * chatHoursPerDay(x.fFree, CONSUMER_MKT.perDay.free)) / 24;
+        const paid = (subs * chatHoursPerDay(x.fMain, CONSUMER_MKT.perDay.paid, x.e * x.tMain, x.ud)) / 24;
+        const free = ((u - subs) * chatHoursPerDay(x.fFree, CONSUMER_MKT.perDay.free, x.tFree, x.ud)) / 24;
         a.needPaid += paid;
         a.need += paid + free;
         a.subCost = x.sp.cost;

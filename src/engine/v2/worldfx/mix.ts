@@ -32,10 +32,12 @@ import { adequacy, surplusChoice, type Choice, type Tier } from './choice';
 import { sigmoid, techRamp } from './policy';
 import { productDomains } from '../models/products';
 import { flopPerToken } from '../departments/workfit';
+import { decodeUtilNow } from '../models/stacks';
+import { rivalDecodeU, rivalServeFpt } from '../actors/rivalModel';
 import {
   CHINA_MARKUP, RIVAL_MARKUP, effortTokens, enablerShare, fptOfSimple, fxOn, markupOf, offerOf,
   agentDemandOf, paidShareTarget, productFx, productMiniUses, productOffer, productUses, savedPerAdoptedHour, sectorH50, serveDollarsPerHour, settingsDG, studentOffer, subPrice,
-  valuePerHour, wagePerHour, type ModelUse, type Offer,
+  tokEff, valuePerHour, wagePerHour, type ModelUse, type Offer,
 } from './serving';
 
 export { PRICE_ELASTICITY };
@@ -76,6 +78,8 @@ export interface Provider {
   fpt?: number;
   /** Active parameters of a non-player provider's model (its own base, model v3 F1): its cheap tiers are students of it. */
   params?: number;
+  /** Model v3 D10: the provider's decode utilisation (its lab's serving stack; the player's for its open release). */
+  ud?: number;
   markup: number;
   brand: number;
   appeal: number;
@@ -281,15 +285,15 @@ function providersOf(s: GameStateV2, paid: Deployment[], ver: Map<string, ModelV
       const v = ver.get(d.versionId);
       if (v && (!best || v.Lg > best.Lg)) best = v;
     }
-    if (best) providers.push({ key: 'player:open', lab: 'player', paid: false, open: true, dom: best.domains, model: best, fpt: best.fpt, brand: 1, appeal: 1, markup: OPEN_MARKUP });
+    if (best) providers.push({ key: 'player:open', lab: 'player', paid: false, open: true, dom: best.domains, model: best, fpt: best.fpt, brand: 1, appeal: 1, markup: OPEN_MARKUP, ud: decodeUtilNow(s) });
   }
   for (const r of s.rivals) {
     const m = r.publicModel;
     if (!m || (r.core.status !== 'active' && !m.openWeights)) continue;
-    providers.push({ key: r.core.id, lab: r.core.id, paid: false, open: m.openWeights, dom: m.domains, model: m, params: m.params, brand: r.core.status === 'active' ? 1 : 0.5, appeal: 1, markup: m.openWeights ? OPEN_MARKUP : RIVAL_MARKUP });
+    providers.push({ key: r.core.id, lab: r.core.id, paid: false, open: m.openWeights, dom: m.domains, model: m, params: m.params, fpt: rivalServeFpt(r, m), ud: rivalDecodeU(r), brand: r.core.status === 'active' ? 1 : 0.5, appeal: 1, markup: m.openWeights ? OPEN_MARKUP : RIVAL_MARKUP });
   }
   const cn = s.china.lab.publicModel;
-  if (cn && (s.china.lab.core.status === 'active' || cn.openWeights)) providers.push({ key: CHINA_ID, lab: CHINA_ID, paid: false, open: cn.openWeights, dom: cn.domains, model: cn, params: cn.params, brand: 1, appeal: 1, markup: cn.openWeights ? OPEN_MARKUP : CHINA_MARKUP });
+  if (cn && (s.china.lab.core.status === 'active' || cn.openWeights)) providers.push({ key: CHINA_ID, lab: CHINA_ID, paid: false, open: cn.openWeights, dom: cn.domains, model: cn, params: cn.params, fpt: rivalServeFpt(s.china.lab, cn), ud: rivalDecodeU(s.china.lab), brand: 1, appeal: 1, markup: cn.openWeights ? OPEN_MARKUP : CHINA_MARKUP });
   for (const p of providers) if (p.model && !p.fpt) p.fpt = 'baseId' in p.model ? flopPerToken(s, p.model) : fptOfSimple(s, p.model);
   return providers;
 }
@@ -390,7 +394,7 @@ function computeMix(s: GameStateV2): WorldMix {
         for (let k = 0; k < t.idx.length; k++) L += t.w[k] * v[t.idx[k]];
         lrow[i] = L;
       }
-      if (p.model) row[i] = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], t.id, { markup: p.markup, rate });
+      if (p.model) row[i] = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], t.id, { markup: p.markup, rate, ud: p.ud });
       lines.push(row[i] ? [row[i]!] : []);
       kind.push(row[i] ? ['model'] : []);
     }
@@ -643,18 +647,19 @@ function computeMix(s: GameStateV2): WorldMix {
       cSocial[i] = v[I.SOCIAL];
     }
     if (!p.model) continue;
-    const o = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], 'CHAT', { markup: p.markup, rate });
+    const o = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], 'CHAT', { markup: p.markup, rate, ud: p.ud });
     cFit[i] = o.fit;
     cCover[i] = o.a;
-    cPrice[i] = subPrice(s, p.fpt ?? 2e12, p.markup).price;
+    cPrice[i] = subPrice(s, p.fpt ?? 2e12, p.markup, tokEff(p.model), p.ud).price;
   }
   if (playerIdx >= 0) {
     let bu = -Infinity;
     for (const c of cands) {
       if (c.ch !== 'consumer') continue;
       const x = fxOn(c.fx, 'CHAT');
-      const o = offerOf(s, c.uses, 'CHAT', { dG: settingsDG(c.dep) + x.dG, hMult: x.hMult, effort: effortTokens(c.dep.effort), markup: markupOf(c.dep), rate });
-      const price = subPrice(s, c.uses[0]?.fpt ?? 2e12, markupOf(c.dep), effortTokens(c.dep.effort)).price;
+      const ud = decodeUtilNow(s);
+      const o = offerOf(s, c.uses, 'CHAT', { dG: settingsDG(c.dep) + x.dG, hMult: x.hMult, effort: effortTokens(c.dep.effort), markup: markupOf(c.dep), rate, ud });
+      const price = subPrice(s, c.uses[0]?.fpt ?? 2e12, markupOf(c.dep), effortTokens(c.dep.effort) * tokEff(c.uses[0]?.v), ud).price;
       const u = SHARE_SLOPE_G * o.fit - PRICE_ELASTICITY * Math.log(Math.max(1e-9, price));
       if (u > bu) {
         bu = u;
