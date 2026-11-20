@@ -13,7 +13,7 @@ import { PROJECT_BY_ID, TREE, isLineNode } from '../../../data/v2/tree';
 import { COLUMN_LABEL } from '../../../data/v2/teams';
 import {
   beliefView, dateOf, detectionGrid, fmtDate, INV_FTE, INV_MAX_DAYS, internalVersion, monitorBudget, monitoredUses, nodeKnown, PATCH_FLOOR, patchLevel, projectEta, publicTimerRules,
-  projectReady, riskFamilies, safetyAgentVersion, safetyView, teamsOn, trustedMax, understanding, versionById,
+  projectReady, riskFamilies, safetyAgentVersion, safetyFleet, safetyView, teamsOn, understanding, versionById,
 } from '../../../engine/v2';
 import type { FindingType, GameStateV2, LineRow, ResponseKind, TraitId } from '../../../engine/v2';
 import { store } from '../store';
@@ -337,7 +337,7 @@ function Policies({ s, sv }: { s: GameStateV2; sv: SV }) {
       </div>
       <div className="sf-prow">
         <ICON.roleSci size={18} />
-        <Tip content={() => <TipCard title={<Term id="trustedToAI">Trusted to AI</Term>} value={F.pct(s.player.policies.trustedToAI)} rows={[{ label: 'Max now', value: F.pct(trustedMax(s)) }, { label: 'Safety-research model', value: sm?.name ?? '—' }]}>Share of safety research done by AI agents. Set on Company › Agents at work.</TipCard>}><span><b><Term id="trustedToAI">Trusted to AI</Term></b> <span className="num">{F.pct(s.player.policies.trustedToAI)}</span> <span className="small dim">of safety work · max {F.pct(trustedMax(s))}</span><br /><span className="small dim">safety-research model {sm?.name ?? '—'}</span></span></Tip>
+        <Tip content={() => <TipCard title={<Term id="trustedToAI">Trusted to AI</Term>} value={F.pct(s.player.policies.trustedToAI)} rows={[{ label: <Term id="aiDoneShare">Work AI does</Term>, value: F.pct(safetyFleet(s).aiShare) }, { label: 'Safety-research model', value: sm?.name ?? '—' }]}>Share of safety research handed to AI agents; they do the part their model covers. Set on Company › Agents at work.</TipCard>}><span><b><Term id="trustedToAI">Trusted to AI</Term></b> <span className="num">{F.pct(s.player.policies.trustedToAI)}</span> <span className="small dim">of safety work · AI does {F.pct(safetyFleet(s).aiShare)}</span><br /><span className="small dim">safety-research model {sm?.name ?? '—'}</span></span></Tip>
         <span className="sp" />
         <Ref id="trustedToAI" to={company}>Company</Ref>
       </div>
@@ -396,7 +396,7 @@ function LineRowView({ s, l }: { s: GameStateV2; l: LineRow }) {
       <Tip content={() => <TipCard title={l.name} value={COLUMN_LABEL[l.column as keyof typeof COLUMN_LABEL]} rows={[
         { label: 'Ideas known', value: `${l.ideasKnown} of ${l.ideasTotal}` }, { label: 'First result at serious staffing', value: `${l.T1} mo` },
         { label: <Term id="seriousStaffing">Staffing</Term>, value: `${F.num(l.mult * 100, 0)}% of serious` }, { label: 'Compute share', value: F.pct(l.computeShare) },
-        { label: <Term id="trustedToAI">Trusted to AI</Term>, value: F.pct(l.aiLabour) },
+        { label: <Term id="aiDoneShare">Work AI does</Term>, value: F.pct(l.aiLabour) },
       ]}>A serious programme is about four matching teams' capacity. Results arrive faster with more teams (√ capacity), compute and AI labour.</TipCard>}>
         <span className="sf-lname ellip"><Ic size={13} /> {l.name}</span>
       </Tip>

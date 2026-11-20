@@ -16,6 +16,7 @@ import { labMisalignment, misalignment, misalignmentBand, misalignmentEstimate }
 import { familySeenTo, nearestDecay, understanding } from './understanding';
 import { exfiltrationHazard } from './incidents';
 import { safetyAgentVersion, safetyFleet, trustedShare } from './agents';
+import { lineLabour } from './lineProjects';
 import { monitorBudget } from '../departments/agents';
 import { RISK_FAMILIES, RISK_UNSEEN_CLARITY } from '../../../data/v2/agents';
 import { CRITICAL_TRAITS } from '../../../data/v2/traits';
@@ -54,7 +55,7 @@ export function lineRows(s: GameStateV2): LineRow[] {
       id: a.id, name: a.name, column: a.column, T1: a.T1, band: posteriorBand(st), status: st.status,
       teams: teams.map((t) => ({ id: t.id, specialty: t.specialty, heads: t.heads, quality: t.quality, projectId: t.projectId })),
       heads: teams.reduce((x, t) => x + t.heads, 0), capacity: lineCapacity(s, a.id), mult: lineMult(s, a.id), computeShare: st.computeShare,
-      aiLabour: teams.length ? trustedShare(s) : 0, results, findings, resultsPerYear: Math.round(lineResultsPerYear(s, a.id) * 100) / 100,
+      aiLabour: teams.length ? lineLabour(s, a.id).aiShare : 0, results, findings, resultsPerYear: Math.round(lineResultsPerYear(s, a.id) * 100) / 100,
       deadEndTM: st.deadEndTM ?? 0,
       projects: projIds.map((id) => {
         const n = id === lineNodeId(a.id) ? undefined : TREE.find((x) => x.id === id);

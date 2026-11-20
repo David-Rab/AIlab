@@ -5,7 +5,6 @@ import type { AgendaId, GameStateV2, PlayerLab, StaffByRole, TeamHiring } from '
 import { hash32 } from './rng';
 import { initialResearch, initialTree, nextLineProject } from '../models/tree';
 import { LEADER_FEATURES, PRICE_TIERS, tierOfIndex } from '../../../data/v2/features';
-import { TRUSTED_MAX_P27 } from '../../../data/v2/agents';
 import { initialAgents } from '../departments/agents';
 import { fptOfBuild } from '../departments/workfit';
 import { REGIONS, SECTORS } from '../../../data/v2/sectors';
@@ -178,7 +177,7 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       t = Math.max(t, i.aiLabour ?? 0);
       delete i.aiLabour;
     }
-    p.policies.trustedToAI = Math.min(TRUSTED_MAX_P27, t);
+    p.policies.trustedToAI = Math.min(1, t);
     delete m.internalAgent;
     delete sd.agentVersion;
     delete sd.agentShare;
