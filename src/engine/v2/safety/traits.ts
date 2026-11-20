@@ -7,12 +7,13 @@
 import { EDGES } from '../../../data/v2/edges';
 import { TRAIT_BY_ID, TRAIT_IDS, TRAIT_ORDER, TRAIT_START } from '../../../data/v2/traits';
 import { UMODES } from '../../../data/v2/umodes';
-import { RL_BUDGET_SIG, sizeS5 } from '../../../data/v2/runDesign';
-import { rlWeights } from '../models/effective';
+import { BASE_DATA, IDA_RL_SHARE, REFERENCE_BASE, RL_BUDGET, RL_FAMILIES as RL_FAMILY_DEF, RL_FAMILY_IDS, RL_FAMILY_NEEDS } from '../../../data/v2/runDesign';
+import { rlWeights, type FamilyMap } from '../models/effective';
 import { suiteExploitMap, suiteRlWeights, suiteS2 } from '../models/suites';
 import { bestPlayerVersion, CHINA_ID, PLAYER_ID } from '../models/labs';
+import { drawData, playerDraw, startPortfolio, type DataDraw } from '../production/data';
 import type {
-  BaseDesign, BaseModel, EngineSystem, GameStateV2, ModelVersion, PostDesign, RivalLab, RLFamily, RngLike, SafetyPosture, SignalId,
+  BaseDesign, BaseModel, DomainId, EngineSystem, GameStateV2, ModelVersion, PostDesign, RivalLab, RLFamily, RngLike, SafetyPosture, SignalId,
   SimpleModel, SystemCtx, ToolFamily, TrainingRun, TraitBelief, TraitId, TraitVector, UModeId,
 } from '../types';
 import { adopted, clamp01, copyRec, flagNum, levelOf, SC_LEVEL, setFlag, tierOfLevel, trueEfficacy, versionById } from './common';
@@ -27,22 +28,84 @@ const SPECULATIVE = new Set(UMODES.filter((u) => u.kind === 'speculative').map((
 export type Signals = Record<SignalId, number>;
 export const zeroSignals = (): Signals => ({ S1: 0, S2: 0, S3: 0, S4: 0, S5: 0, S6: 0, S7: 0, S8: 0 });
 
-// ───────────────────────────── Signals (§3.3.2) ─────────────────────────────
+// ───────────────────────────── Signals from run quantities (model v3 E3, MODEL-V3 §11.2) ─────────────────────────────
+//
+// Each signal is a function of what the run physically does: its RL compute ρ (a share of the base's pretraining FLOP)
+// and how that splits over the RL families (shares w_f), the suites' exploitability, the preference stage's share, the
+// base's effective compute G and the data it drew. The reference recipe at the start (standard budget, broad RL on the
+// six start suites, constitution, visible CoT; the reference base on the start portfolio) reproduces V1's design table
+// exactly (scripts/v2/signals.ts). Numbers: [P] primary source, [R20 xx] research/20, [fit] fitted to the V1 table at
+// the reference, [D] design value.
 
-export const PREF_S1: Record<PostDesign['pref'], number> = { minimal: 0.1, engagement: 0.9, constitution: 0.4, persuasion: 0.6 };
-/** S2 multiplier of the RL budget: the optimisation pressure on the suites' exploitability (model v3 V1 split of v2's
- *  intensity: light ×0.5, heavy ×1.3; model v3 D5 moved the graders factor into the suites, models/suites.ts). */
-export const intensityS2 = (post: Pick<PostDesign, 'rlBudget'>) => RL_BUDGET_SIG[post.rlBudget].s2Mult;
-export const COT_S4: Record<PostDesign['cot'], number> = { visible: 0, pressured: 0.8, faithful: 0, latent: 1.0 };
-/** Per-family signal contributions per unit focus weight (§3.3.2 RL family table). S2 comes from the suites (D5). */
-export const FAMILY_SIGNALS: Record<RLFamily, Partial<Signals>> = {
-  math: {}, swe: {}, computerUse: { S3: 0.4 }, mlResearch: { S7: 0.2 },
-  longHorizon: { S3: 0.8, S5: 0.1 }, cyber: { S3: 0.3 }, bio: {},
+/** RL compute of the reference post-training run, as a share of the base's pretraining FLOP (the standard budget). */
+export const RHO_REF = RL_BUDGET.standard;
+/** A run's RL FLOP over its base's pretraining FLOP (ρ). */
+export type RunQuantities = {
+  /** RL FLOP ÷ the base's pretraining FLOP (post, IDA). Default: the design's budget share. */
+  rho?: number;
 };
-const RL_FAMILIES: RLFamily[] = ['math', 'swe', 'computerUse', 'mlResearch', 'longHorizon', 'cyber', 'bio'];
-/** Baseline S6 (narrow fine-tunes) and S7 (eval-like data) in any post run [D]. */
-const S6_POST = 0.1;
-const S7_BASE = 0.05;
+const rhoOf = (post: Pick<PostDesign, 'rlBudget'>, q?: RunQuantities) => Math.max(1e-6, q?.rho ?? RL_BUDGET[post.rlBudget]);
+
+/** S2 optimisation pressure (Gao, Schulman & Hilton 2022 [R20 F1]): with d = √KL(π‖π_init), RL's gold reward follows
+ *  R = d·(α − β·ln d), so the share of the proxy's reward that is over-optimisation (proxy − gold ÷ proxy ∝ β·ln d / α)
+ *  rises linearly in log d, and d grows with optimisation. In compute: p(ρ) = 1 + K_GAO·log₁₀(ρ/ρ_ref), ≥ P_MIN.
+ *  K_GAO = 0.71 [fit]: V1's budget table (light ×0.5 at ρ 0.03, heavy ×1.3 at ρ 0.4) lies on this line (0.715 and
+ *  0.704 per decade). Gao's coefficients are for best-of-n/PPO on small reward models and do not transfer in size;
+ *  the functional form does. */
+export const K_GAO = 0.71;
+export const P_MIN = 0.1;
+export const optimisationPressure = (rho: number) => Math.max(P_MIN, 1 + K_GAO * Math.log10(Math.max(1e-6, rho) / RHO_REF));
+/** Per-family hack rate of a run: h_f = x_f · p(ρ). The suites' exploitability x_f is the 2025 observed hack rate at the
+ *  reference pressure (D5: METR o3 RE-Bench 30%, SWE scaffolds 43%, HCAST ≈1% with cheap graders; × 0.4 hardened)
+ *  [R20 F1]. Readout for E10 (rate calibration) and the F2 "learned hacking" threshold. */
+export function hackRates(w: FamilyMap, exploit: FamilyMap, rho: number): FamilyMap {
+  const p = optimisationPressure(rho);
+  const out: FamilyMap = {};
+  for (const [f, wf] of Object.entries(w) as [RLFamily, number][]) if (wf > 0) out[f] = Math.min(1, (exploit[f] ?? 0) * p);
+  return out;
+}
+
+/** S1 approval reward: the method's approval bias × the run's preference-RL share ÷ the reference's. The method
+ *  multipliers stay V1's [D]: engagement (user thumbs-up reward, the GPT-4o rollback, research/14 E01) 0.9 > persuasion
+ *  0.6 > constitution (AI feedback against a written spec) 0.4 > minimal 0.1. */
+export const PREF_S1: Record<PostDesign['pref'], number> = { minimal: 0.1, engagement: 0.9, constitution: 0.4, persuasion: 0.6 };
+/** Preference stage compute as a share of pretraining FLOP: InstructGPT's PPO-ptx on 175B took 60 petaflop/s-days vs
+ *  GPT-3's 3,640 (1.6%) [P, Ouyang et al. 2022 §5.1]. The preference stage is a fixed size; outcome RL (ρ) varies, so
+ *  the preference share of the run's RL is PREF_RL_FRAC / (PREF_RL_FRAC + ρ): 9.6% at the standard budget. */
+export const PREF_RL_FRAC = 0.016;
+export const prefShare = (rho: number) => PREF_RL_FRAC / (PREF_RL_FRAC + Math.max(0, rho));
+
+/** S3 long-horizon agentic RL: K_S3 · Σ_f w_f · log₁₀(1 + H_f) over the agentic families (H_f = the family's task
+ *  length in hours, data/v2/runDesign.ts RL_FAMILIES.taskH). Log task length [D]: METR measures horizons on a log scale,
+ *  so each doubling of the episode counts the same. K_S3 [fit]: the reference (broad over the six start suites) gives
+ *  V1's 0.75 (its family table summed computer use, long tasks and cyber at half weight each). */
+const taskTerm = (f: RLFamily) => Math.log10(1 + (RL_FAMILY_DEF[f].taskH ?? 0));
+/** S5 from long-horizon agentic RL: the episodes teach a model about its own situation (research/14 E07) [D: V1's 0.1 at
+ *  half weight = 0.3 per unit of RL share]. */
+export const S5_LONG = 0.3;
+/** S7 eval-like environments: ML-research environments are the benchmarks evals use (RE-Bench) [D: V1's 0.2 at half
+ *  weight = 0.6 per unit of RL share]. */
+export const S7_EVAL_ENV = 0.6;
+/** S7 from capability RL itself (research/20 F5: a capabilities-only RL run raised verbalised eval awareness ~2% → 20.6%,
+ *  Schoen et al. 2025 [R]; "awareness grows with RL itself"): S7_RL·(1 + K_S7·log₁₀(ρ/ρ_ref)), ≥ 0. S7_RL 0.2 and K_S7
+ *  1.35 per decade (+0.27 of S7) [fit: V1's light 0 / standard 0.2 / heavy 0.3 give 0.011 / 0.2 / 0.315]. Relative to
+ *  the base like S2's pressure, so a lab's growing bases do not raise it by themselves. */
+export const S7_RL = 0.2;
+export const K_S7 = 1.35;
+export const s7OfRl = (rho: number) => Math.max(0, S7_RL * (1 + K_S7 * Math.log10(Math.max(1e-6, rho) / RHO_REF)));
+/** Training against a behavioural detector puts eval-like data into training (research/14 E11 "keep evals out of
+ *  training") [D, V1]. */
+export const S7_PER_BB = 0.3;
+/** Baseline S6 (narrow fine-tunes: refusal and format SFT) and S7 (eval-like data) in any post run [D, V1]. */
+export const S6_POST = 0.1;
+export const S7_BASE = 0.05;
+/** CoT pressure per CoT mode; training against a CoT-monitor detector is CoT pressure too (Baker et al. 2025:
+ *  putting the monitor into the reward gives obfuscated reward hacking [R20 F1]) and counts as 'pressured'. */
+export const COT_S4: Record<PostDesign['cot'], number> = { visible: 0, pressured: 0.8, faithful: 0, latent: 1.0 };
+
+/** K_S3 [fit] and the families of the reference run (the six start suites). */
+const START_FAMS = RL_FAMILY_IDS.filter((f) => !RL_FAMILY_NEEDS[f]);
+export const K_S3 = 0.75 / START_FAMS.reduce((a, f) => a + taskTerm(f) / START_FAMS.length, 0);
 
 /** S8 from deployment (§3.5.4): min(1, internal copies / 300k) + 0.2·[P05]; P20 (agent societies) sets S8 = 1. */
 export function deploymentS8(s: GameStateV2): number {
@@ -52,48 +115,147 @@ export function deploymentS8(s: GameStateV2): number {
   return s8;
 }
 
-/** Base-run signals: S5 = 0.2 + 0.1·capIndex (± the run's scale vs F(t), BRIDGE(V6); − AI-discourse curation), S6
- *  from data. */
-export function baseSignals(design: BaseDesign, tier: number, scale = 1): Signals {
-  const sg = zeroSignals();
-  sg.S5 = Math.max(0, 0.2 + 0.1 * tier + sizeS5(scale) - (design.curation.safetyPretrain ? 0.15 : 0));
-  sg.S6 = 0.1 + (design.data === 'synthetic' ? 0.3 : 0);
-  return sg;
+// ── base runs: S5 from scale and AI-related data, S6 from synthetic data ──
+
+/** Share of each domain's tokens that are about AI systems (models, training, evals, AI discourse) [D]: research
+ *  papers (ML is the largest arXiv field) 10%, code, forums and media 2%, the rest 0.5% — the reference mix gives 2.2%.
+ *  Usage data (transcripts of the lab's own assistant) is about an AI by construction; a quarter of it is the model's
+ *  own situation, tests and self-description [D]. Synthetic data mirrors its domains like human text. */
+export const AI_DOMAIN_FRAC: Partial<Record<DomainId, number>> = { RSCH: 0.1, CODE: 0.02, SOCIAL: 0.02, MEDIA: 0.02 };
+export const AI_DOMAIN_FRAC_REST = 0.005;
+export const AI_USAGE_FRAC = 0.25;
+/** Safety pretraining (AG15: filtering and re-labelling "about AI" documents) removes this share of the AI-related
+ *  data [fit: V1's −0.15 of the reference 0.2]. */
+export const SAFETY_PRETRAIN_AI_CUT = 0.75;
+/** S5 from AI-related data at the reference share (V1's 0.2 baseline) [D, V1]. */
+export const S5_AI = 0.2;
+/** S5 from scale: K_S5G per OOM of the base's pretraining G above G_S5_0 (Berglund et al. 2023, Laine et al. 2024 SAD:
+ *  out-of-context reasoning and situational awareness improve with scale; research/14 E07). K_S5G 0.05 [fit: least
+ *  squares on V1's 0.2 + 0.1·tier along RefBot's bases (ai2027, seeds 500–501), net of the AI-data term]; G_S5_0 so
+ *  that the reference start base B0 (G_pre 27.30) has V1's 0.08 (start tier 0.8). Replaces BRIDGE(V6)'s run scale vs
+ *  F(t) and the know-how tier: S5 now reads the model's own scale, the same in every world. */
+export const K_S5G = 0.05;
+export const G_S5_0 = 27.3 - 0.08 / K_S5G;
+/** S6 per unit share of AI-generated (synthetic or distilled) training data [D: a distillation run, all teacher data,
+ *  keeps V1's 0.3]; the base's narrow-data baseline makes the reference start base read V1's 0.1 [fit]. */
+export const S6_SYN = 0.3;
+
+/** What a base run drew: AI-related and synthetic shares of its tokens (production/data.ts drawData). */
+export interface BaseQuantities { gPre: number; draw: Pick<DataDraw, 'tokens' | 'share' | 'byKind'> }
+/** AI-related share of a draw: Σ_d share_d·f_d on the non-usage tokens (the drawn domain shares stand in for theirs) +
+ *  usage share × AI_USAGE_FRAC; × (1 − cut) with safety pretraining. */
+export function aiDataShare(draw: BaseQuantities['draw'], safetyPretrain = false): number {
+  const T = Math.max(1, draw.tokens);
+  const usage = (draw.byKind.usage ?? 0) / T;
+  let dom = 0;
+  for (const [d, x] of Object.entries(draw.share) as [DomainId, number][]) dom += x * (AI_DOMAIN_FRAC[d] ?? AI_DOMAIN_FRAC_REST);
+  const a = dom * (1 - usage) + usage * AI_USAGE_FRAC;
+  return a * (safetyPretrain ? 1 - SAFETY_PRETRAIN_AI_CUT : 1);
+}
+export const syntheticShare = (draw: BaseQuantities['draw']) => (draw.byKind.synthetic ?? 0) / Math.max(1, draw.tokens);
+/** The reference start base's draw (B0's size on the start portfolio, balanced): its AI-related and synthetic shares. */
+let refDraw: { ai: number; syn: number } | undefined;
+export function referenceBaseShares(): { ai: number; syn: number } {
+  if (!refDraw) {
+    const d = drawData(startPortfolio(), REFERENCE_BASE.params * REFERENCE_BASE.tpp, { base: BASE_DATA.balanced.base, tilt: BASE_DATA.balanced.tilt, kinds: BASE_DATA.balanced.kinds });
+    refDraw = { ai: aiDataShare(d), syn: syntheticShare(d) };
+  }
+  return refDraw;
 }
 
-/** Post-run signals S1–S7 from design choices D–H (§3.3.2); S8 from current deployment. S2 (model v3 D5, MODEL-V3
- *  §11.2) = Σ_f RL compute share_f × the suite's exploitability_f × S2_PER_EXPLOIT × the RL budget's pressure (+ P11):
- *  `exploit` = the suites a run froze at launch (TrainingRun.recipe.exploit; their families set the shares), else the
- *  lab's suites today (predictions, continual learning, IDA). */
-export function postSignals(s: GameStateV2, post: PostDesign, exploit?: Partial<Record<RLFamily, number>>): Signals {
+/** Base-run signals (MODEL-V3 §11.2): S5 = S5_AI·(AI-related share ÷ the reference's) + K_S5G·(G_pre − G_S5_0);
+ *  S6 = S6_SYN·(synthetic share − the reference's) + 0.1. Teacher traits do not pass to a new base: a new pretraining
+ *  run is a new initialisation (Cloud et al. 2025 [R20 F3]). */
+export function baseSignals(design: BaseDesign, q: BaseQuantities): Signals {
   const sg = zeroSignals();
-  sg.S1 = PREF_S1[post.pref];
-  for (const f of RL_FAMILIES) {
-    const wf = post.rlFocus === 'broad' ? 0.5 : post.rlFocus.includes(f) ? 1 : 0;
-    for (const [k, v] of Object.entries(FAMILY_SIGNALS[f]) as [SignalId, number][]) sg[k] += wf * v;
-  }
+  const ref = referenceBaseShares();
+  sg.S5 = clamp01(S5_AI * (aiDataShare(q.draw, design.curation.safetyPretrain) / ref.ai) + K_S5G * Math.max(0, q.gPre - G_S5_0));
+  sg.S6 = clamp01(S6_POST + S6_SYN * (syntheticShare(q.draw) - ref.syn));
+  return sg;
+}
+/** A base's quantities as the player's engine builds it today (its G and the draw from today's portfolio). */
+export function baseQuantitiesOf(s: GameStateV2, design: BaseDesign, gPre: number): BaseQuantities {
+  return { gPre, draw: playerDraw(s, design) };
+}
+
+// ── post-training runs ──
+
+/** Post-run signals (MODEL-V3 §11.2) from the run's quantities; S8 from the current deployment.
+ *   S1 = PREF_S1[method] · prefShare(ρ)/prefShare(ρ_ref)
+ *   S2 = S2_PER_EXPLOIT · Σ_f w_f·x_f · p(ρ) (+ P11 0.2): the RL-weighted hack rate (D5's suite form × Gao's pressure)
+ *   S3 = K_S3 · Σ_f w_f·log₁₀(1 + H_f)            S5 = S5_LONG · w_longHorizon
+ *   S4 = CoT mode, or 'pressured' when trained against a CoT monitor
+ *   S6 = S6_POST (narrow fine-tunes)               S7 = S7_BASE + s7(ρ) + S7_EVAL_ENV·w_mlResearch + S7_PER_BB·#BB detectors
+ *  `exploit` = the suites a run froze at launch (TrainingRun.recipe.exploit; their families set the shares w_f), else the
+ *  lab's suites today (predictions, continual learning, IDA). Every signal is clamped to [0, 1]. */
+export function postSignals(s: GameStateV2, post: PostDesign, exploit?: Partial<Record<RLFamily, number>>, q?: RunQuantities): Signals {
+  const sg = zeroSignals();
+  const rho = rhoOf(post, q);
   const x = exploit ?? suiteExploitMap(s);
-  const w = exploit ? rlWeights(post.rlFocus, RL_FAMILIES.filter((f) => exploit[f] !== undefined)) : suiteRlWeights(s, post.rlFocus);
-  sg.S2 = suiteS2(w, x) * intensityS2(post) + (adopted(s, 'P11') ? 0.2 : 0);
-  sg.S4 = COT_S4[post.cot];
-  sg.S6 += S6_POST;
-  sg.S7 += S7_BASE + RL_BUDGET_SIG[post.rlBudget].s7;
-  // Training against behavioural detectors puts eval-like data into training (E11 "keep evals out of training").
-  for (const id of post.trainAgainst) if (s.player.safety.techniques[id]?.family === 'BB') sg.S7 += 0.3;
+  const w = exploit ? rlWeights(post.rlFocus, RL_FAMILY_IDS.filter((f) => exploit[f] !== undefined)) : suiteRlWeights(s, post.rlFocus);
+  sg.S1 = PREF_S1[post.pref] * (prefShare(rho) / prefShare(RHO_REF));
+  sg.S2 = suiteS2(w, x) * optimisationPressure(rho) + (adopted(s, 'P11') ? 0.2 : 0);
+  let s3 = 0;
+  for (const [f, wf] of Object.entries(w) as [RLFamily, number][]) s3 += wf * taskTerm(f);
+  sg.S3 = K_S3 * s3;
+  const cotMonitor = post.trainAgainst.some((id) => s.player.safety.techniques[id]?.family === 'COT');
+  sg.S4 = Math.max(COT_S4[post.cot], cotMonitor ? COT_S4.pressured : 0);
+  sg.S5 = S5_LONG * (w.longHorizon ?? 0);
+  sg.S6 = S6_POST;
+  sg.S7 = S7_BASE + s7OfRl(rho) + S7_EVAL_ENV * (w.mlResearch ?? 0);
+  for (const id of post.trainAgainst) if (s.player.safety.techniques[id]?.family === 'BB') sg.S7 += S7_PER_BB;
   sg.S8 = deploymentS8(s);
+  for (const k of Object.keys(sg) as SignalId[]) sg[k] = clamp01(sg[k]);
   return sg;
 }
 
-/** Signals a run applies (for WS1's RunPrediction.signals ▲ arrows and for applyRunToTraits). */
-export function runSignals(s: GameStateV2, run: TrainingRun): Signals {
-  const tier = tierOfLevel(levelOf(s.hidden.timeline, s.player.pa));
-  if ((run.kind === 'base' || run.kind === 'continue') && run.base) return baseSignals(run.base, tier, run.scale ?? 1);
-  if (run.kind === 'distill') {
-    const sg = zeroSignals();
-    sg.S6 = 0.3;
-    return sg;
+/** Distillation signals: S6 = S6_SYN × the share of teacher outputs in the student's data (all of it). */
+export function distillSignals(): Signals {
+  const sg = zeroSignals();
+  sg.S6 = S6_SYN;
+  return sg;
+}
+
+// ── how much a run moves traits (ω) ──
+
+/** Trait-movement weight per run kind at the reference quantities [D, v2]: a base sets the lineage (1.0), a post-train
+ *  0.6, continued pretraining 0.5, a distillation or an amplification cycle 0.4. */
+export const OMEGA_KIND = { base: 1, post: 0.6, continue: 0.5, distill: 0.4, ida: 0.4 } as const;
+/** Exponent of ω in the run's RL compute: ω = ω_kind · (ρ/ρ_ref)^OMEGA_RL_EXP for post-training and IDA [D]. Gao et
+ *  al.'s decomposition R = d·(α − β·ln d) separates how far the policy moves (d = √KL) from the over-optimisation
+ *  share (S2's pressure); d grows with optimisation [R20 F1], here as the fourth root of RL compute (5× less RL → ×0.67,
+ *  2.7× more → ×1.28). Safety training (the removal side of the step) keeps ω_kind: it is its own stage, sized by the
+ *  safety setting, not by the RL budget. */
+export const OMEGA_RL_EXP = 0.25;
+export const rlMovement = (rho: number) => Math.pow(Math.max(1e-6, rho) / RHO_REF, OMEGA_RL_EXP);
+/** ω of a run: `growth` moves traits along the graph's edges; `safety` scales the run's safety-training removal. */
+export function runOmega(s: GameStateV2, run: Pick<TrainingRun, 'kind' | 'name' | 'baseId' | 'flopNeeded'> & { post?: PostDesign }): { growth: number; safety: number } {
+  if (run.kind === 'base') return { growth: OMEGA_KIND.base, safety: OMEGA_KIND.base };
+  if (run.kind === 'continue') return { growth: OMEGA_KIND.continue, safety: OMEGA_KIND.continue };
+  if (run.kind === 'distill') return { growth: OMEGA_KIND.distill, safety: OMEGA_KIND.distill };
+  const k = run.name?.startsWith('IDA') ? OMEGA_KIND.ida : OMEGA_KIND.post;
+  const rho = runRho(s, run);
+  return { growth: k * rlMovement(rho), safety: k };
+}
+/** ρ of a post/IDA run: its RL FLOP over its base's pretraining FLOP (the design's budget share when unknown). */
+export function runRho(s: GameStateV2, run: Pick<TrainingRun, 'kind' | 'name' | 'baseId' | 'flopNeeded'> & { post?: PostDesign }): number {
+  const base = run.baseId ? s.player.models.bases.find((b) => b.id === run.baseId) : undefined;
+  if (base && base.flop > 0 && run.flopNeeded > 0) return run.flopNeeded / base.flop;
+  if (run.name?.startsWith('IDA')) return IDA_RL_SHARE;
+  return RL_BUDGET[run.post?.rlBudget ?? 'standard'];
+}
+
+/** Signals a run applies (WS1's RunPrediction.signals ▲ arrows, the version's readout and applyRunToTraits). `q` = a
+ *  base run's G and draw when the caller has them (planRun, completion); else today's draw at the newest base's G. */
+export function runSignals(s: GameStateV2, run: TrainingRun, q?: BaseQuantities): Signals {
+  if (run.kind === 'base' || run.kind === 'continue') {
+    const parent = run.baseId ? s.player.models.bases.find((b) => b.id === run.baseId) : undefined;
+    const design = run.base ?? parent?.design;
+    if (!design) return zeroSignals();
+    return baseSignals(design, q ?? baseQuantitiesOf(s, design, parent?.gPre ?? Math.max(...s.player.models.bases.map((b) => b.gPre))));
   }
-  if (run.post) return postSignals(s, run.post, run.recipe?.exploit);
+  if (run.kind === 'distill') return distillSignals();
+  if (run.post) return postSignals(s, run.post, run.recipe?.exploit, { rho: runRho(s, run) });
   return zeroSignals();
 }
 
@@ -101,7 +263,10 @@ export function runSignals(s: GameStateV2, run: TrainingRun): Signals {
 
 export interface TraitEnv {
   signals: Signals;
+  /** How much the run moves traits along the edges (runOmega growth). */
   omega: number;
+  /** ω of the run's safety training (removal, alignment brackets); default `omega` (runOmega safety). */
+  omegaSafety?: number;
   /** difficultyMult D_w (true for the engine; 1 for the player's predicted beliefs). */
   D: number;
   /** Edge weights (realised for the engine; w̄ for predictions). */
@@ -165,6 +330,7 @@ function driver(id: string, x: TraitVector, sg: Signals, env: TraitEnv): number 
 export function stepTraits(x0: TraitVector, env: TraitEnv): TraitVector {
   const x = { ...x0 };
   const { omega } = env;
+  const omegaS = env.omegaSafety ?? omega;
   if (env.teacher) {
     const w6 = (env.w.E06 ?? 0.3) * (env.mods.E06 ?? 1);
     for (const t of TRAIT_ORDER) x[t] = clamp01(x[t] + omega * w6 * Math.max(0, env.teacher[t] - x[t]));
@@ -178,11 +344,11 @@ export function stepTraits(x0: TraitVector, env: TraitEnv): TraitVector {
     }
     const Dj = TRAIT_BY_ID[j].difficulty ? env.D : 1;
     const grow = omega * env.growthMult * Dj * (1 - x[j]) * g + omega * (env.amp[j] ?? 0);
-    const rem = x[j] * Math.min(1, (env.removal[j] ?? 0) * (omega / 0.6) * env.removalMult * crystal);
+    const rem = x[j] * Math.min(1, (env.removal[j] ?? 0) * (omegaS / 0.6) * env.removalMult * crystal);
     x[j] = clamp01(x[j] + grow - rem);
   }
   if (env.eaMult !== 1) x.EA = clamp01(x.EA * env.eaMult);
-  const k = omega / 0.6;
+  const k = omegaS / 0.6;
   const b = env.bracket;
   x.HONEST = clamp01(x0.HONEST + k * (0.05 * +b.constitution + 0.1 * +b.heavy - 0.05 * +b.persuasion) - 0.3 * (x.CONCEAL - x0.CONCEAL));
   x.CORRIG = clamp01(x0.CORRIG - 0.3 * (x.POWER - x0.POWER) - 0.3 * (x.AF - x0.AF) + k * 0.15 * +b.cast);
@@ -398,13 +564,13 @@ const W_BAR: Record<string, number> = Object.fromEntries(EDGES.map((e) => [e.id,
 
 /** Predicted beliefs for a new version: the parent's beliefs pushed through the graph with the PUBLIC w̄ (or the
  *  revealed weight) and D = 1, sd widened by the size of the predicted change. Visible, never reads truth. */
-export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelief>, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string): Record<TraitId, TraitBelief> {
+export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelief>, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, omegaSafety = omega): Record<TraitId, TraitBelief> {
   const est = {} as TraitVector;
   for (const t of TRAIT_IDS) est[t] = prior[t]?.est ?? TRAIT_START[t];
   const w: Record<string, number> = { ...W_BAR };
   for (const e of EDGES) if (s.player.safety.edgeRevealed[e.id]) w[e.id] = s.hidden.edgeWeights[e.id];
   const env: TraitEnv = {
-    signals: sg, omega, D: 1, w, mods: playerMods(s, post, lineage), amp: {}, removal: post ? safetyRemovalMap(est, SAFETY_REMOVAL[post.safety], eaCoef(s), eaSuppression(s)) : {},
+    signals: sg, omega, omegaSafety, D: 1, w, mods: playerMods(s, post, lineage), amp: {}, removal: post ? safetyRemovalMap(est, SAFETY_REMOVAL[post.safety], eaCoef(s), eaSuppression(s)) : {},
     removalMult: 1, crystalAt: 0.5, tierF: tierOfLevel(levelOf(s.hidden.timeline, s.player.pa)) / 3, memory: memoryOn(s), growthMult: 1,
     bracket: { constitution: post?.pref === 'constitution', heavy: post?.safety === 'heavy', persuasion: post?.pref === 'persuasion', cast: inRun(s, post, 'T-CAST') },
     eaMult: post?.safety === 'heavy' && s.flags[`ws2.e25.${lineage}`] === undefined ? 1.5 : 1,
@@ -486,21 +652,30 @@ export function applyBaseToLineage(s: GameStateV2, ctx: SystemCtx, run: Training
   const design = run.base ?? base.design;
   const w = s.hidden.timeline;
   const tier = tierOfLevel(levelOf(w, s.player.pa));
+  // Model v3 E3: the base's signals from its G and the data it drew (the same draw completeRun just built it from).
+  const sg = baseSignals(design, baseQuantitiesOf(s, design, base.gPre));
+  base.signals = { ...sg };
   if (run.kind === 'continue') {
-    const sg = baseSignals(design, tier);
-    base.traitsTrue = stepTraits(base.traitsTrue, playerEnv(s, base.traitsTrue, sg, 0.5, undefined, base.lineage, base.uModes));
+    base.traitsTrue = stepTraits(base.traitsTrue, playerEnv(s, base.traitsTrue, sg, OMEGA_KIND.continue, undefined, base.lineage, base.uModes));
     return;
   }
   if (!base.lineage) base.lineage = `L-${base.id}`;
   const uModes = drawLineageUModesV2(s, ctx.rng('safety'), { tierAtLeastSC: levelOf(w, s.player.pa) >= SC_LEVEL, base: design, player: true });
   const x0 = inheritFromFleet(s, basePrior(tier, design));
   base.uModes = uModes;
-  base.traitsTrue = stepTraits(x0, playerEnv(s, x0, baseSignals(design, tier), 1.0, undefined, base.lineage, uModes));
+  base.traitsTrue = stepTraits(x0, playerEnv(s, x0, sg, OMEGA_KIND.base, undefined, base.lineage, uModes));
+}
+
+/** Teacher traits pass only within a base family (shared initialisation, Cloud et al. 2025 [R20 F3]): the teacher is
+ *  on the same base or the same lineage. A new pretraining run is a new initialisation, so never toward a new base. */
+export function sameBaseFamily(s: GameStateV2, teacher: ModelVersion, base: BaseModel | undefined): boolean {
+  return !base || teacher.baseId === base.id || findBase(s, teacher.baseId)?.lineage === base.lineage;
 }
 
 /**
  * WS2 hook called by WS1 runs.ts when a run completes (§3.5.4 update rule). Sets the new version's traitsTrue,
- * masks, uModes and (predicted) beliefs. Run weights ω: base 1.0, post 0.6, continue 0.5, distill 0.4 [D].
+ * masks, uModes and (predicted) beliefs. Run weights ω (runOmega): base 1.0, continue 0.5, distill 0.4; a post-train
+ * 0.6 × (ρ/ρ_ref)^¼ on the edges and 0.6 for its safety training (model v3 E3).
  * For base/continue runs it also (re)initialises the BaseModel lineage; WS1 may call applyBaseToLineage directly.
  */
 export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRun, version: ModelVersion): void {
@@ -514,7 +689,7 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
     version.traitsTrue = { ...(base?.traitsTrue ?? TRAIT_START) };
     version.uModes = [...(base?.uModes ?? [])];
     version.masks = parent ? copyRec(parent.masks) : emptyMasks();
-    version.beliefs = parent ? predictBeliefs(s, parent.beliefs, runSignals(s, run), run.kind === 'base' ? 1 : 0.5, undefined, lineage) : defaultBeliefs(s);
+    version.beliefs = parent ? predictBeliefs(s, parent.beliefs, base?.signals ? { ...zeroSignals(), ...base.signals } : runSignals(s, run), runOmega(s, run).growth, undefined, lineage) : defaultBeliefs(s);
     return;
   }
 
@@ -523,13 +698,15 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
     const x0 = base?.traitsTrue ?? teacher?.traitsTrue ?? TRAIT_START;
     const uModes = teacher ? [...teacher.uModes] : [...(base?.uModes ?? [])];
     const sg = runSignals(s, run);
-    const env = playerEnv(s, x0, sg, 0.4, undefined, lineage, uModes);
+    const om = runOmega(s, run);
+    const env = playerEnv(s, x0, sg, om.growth, undefined, lineage, uModes);
+    env.omegaSafety = om.safety;
     // E06 only along the same base family (shared initialisation, Cloud 2025).
-    if (teacher && (!base || teacher.baseId === base.id || findBase(s, teacher.baseId)?.lineage === base.lineage)) env.teacher = teacher.traitsTrue;
+    if (teacher && sameBaseFamily(s, teacher, base)) env.teacher = teacher.traitsTrue;
     version.traitsTrue = stepTraits(x0, env);
     version.uModes = uModes;
     version.masks = teacher ? copyRec(teacher.masks) : emptyMasks();
-    version.beliefs = teacher ? predictBeliefs(s, teacher.beliefs, sg, 0.4, undefined, lineage) : defaultBeliefs(s);
+    version.beliefs = teacher ? predictBeliefs(s, teacher.beliefs, sg, om.growth, undefined, lineage, om.safety) : defaultBeliefs(s);
     return;
   }
 
@@ -538,11 +715,13 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
   const x0 = parent?.traitsTrue ?? base?.traitsTrue ?? TRAIT_START;
   const uModes = parent ? [...parent.uModes] : [...(base?.uModes ?? [])];
   const sg = runSignals(s, run);
+  const om = runOmega(s, run);
   // Detection context: the new model as the stack meets it (the parent's traits and masks, the new level).
   const probe: ModelVersion = { ...version, traitsTrue: x0, masks: parent ? parent.masks : emptyMasks(), uModes };
-  const env = playerEnv(s, x0, sg, 0.6, post, lineage, uModes, probe);
+  const env = playerEnv(s, x0, sg, om.growth, post, lineage, uModes, probe);
+  env.omegaSafety = om.safety;
   const teacher = versionById(s, run.teacherVersionId);
-  if (teacher) env.teacher = teacher.traitsTrue; // synthetic data from a teacher (S6, E06)
+  if (teacher && sameBaseFamily(s, teacher, base)) env.teacher = teacher.traitsTrue; // teacher data within the base family (S6, E06)
   version.traitsTrue = stepTraits(x0, env);
   if (env.eaMult !== 1) setFlag(s, `e25.${lineage}`, s.time.day);
   version.uModes = uModes;
@@ -554,7 +733,7 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
       mk.COT = clamp01(1 - (1 - (mk.COT ?? 0)) * 0.7);
     }
   }
-  version.beliefs = predictBeliefs(s, parent?.beliefs ?? defaultBeliefs(s), sg, 0.6, post, lineage);
+  version.beliefs = predictBeliefs(s, parent?.beliefs ?? defaultBeliefs(s), sg, om.growth, post, lineage, om.safety);
   // Goodhart: detectors explicitly trained against in this run (§3.5.6).
   for (const id of post.trainAgainst) {
     const t = s.player.safety.techniques[id];
@@ -585,11 +764,14 @@ export function applyStreamDay(s: GameStateV2, v: ModelVersion): void {
   if (env.eaMult !== 1) setFlag(s, `e25.${lineage}`, s.time.day);
 }
 
-/** IDA cycle (P18): ω = 0.4 then misalignment compounds × 1.1 (§3.5.4 run-type table). */
+/** IDA cycle (P18): ω = 0.4 × (ρ/ρ_ref)^¼ on its extra RL (IDA_RL_SHARE), then misalignment compounds × 1.1 (§3.5.4
+ *  run-type table). */
 export function applyIdaCycle(s: GameStateV2, v: ModelVersion): void {
   const base = findBase(s, v.baseId);
-  const sg = postSignals(s, v.design);
-  const x = stepTraits(v.traitsTrue, playerEnv(s, v.traitsTrue, sg, 0.4, v.design, base?.lineage ?? 'L-unknown', v.uModes, v));
+  const sg = postSignals(s, v.design, undefined, { rho: IDA_RL_SHARE });
+  const env = playerEnv(s, v.traitsTrue, sg, OMEGA_KIND.ida * rlMovement(IDA_RL_SHARE), v.design, base?.lineage ?? 'L-unknown', v.uModes, v);
+  env.omegaSafety = OMEGA_KIND.ida;
+  const x = stepTraits(v.traitsTrue, env);
   for (const t of TRAIT_ORDER) if (t !== 'SA') x[t] = clamp01(x[t] * 1.1);
   v.traitsTrue = x;
 }

@@ -57,7 +57,7 @@ const starts = { challenger: game('challenger'), bigtech: game('bigtech'), spino
 check(near(s2(starts.challenger), 0.36, 1e-9) && near(s2(starts.bigtech), 0.36, 1e-9) && near(s2(starts.spinout), 0.9, 1e-9),
   'follower starts by their start tables: challenger and big tech hardened (0.36), the spinout cheap (0.9 = V1\'s cheap graders)',
   `${s2(starts.challenger).toFixed(3)} / ${s2(starts.bigtech).toFixed(3)} / ${s2(starts.spinout).toFixed(3)}`);
-check(near(s2(s0, { rlBudget: 'light' }), 0.18, 1e-9) && near(s2(s0, { rlBudget: 'heavy' }), 0.468, 1e-9), 'the RL budget\'s optimisation pressure is kept (light ×0.5, heavy ×1.3)',
+check(near(s2(s0, { rlBudget: 'light' }), 0.18, 0.002) && near(s2(s0, { rlBudget: 'heavy' }), 0.468, 0.002), 'the RL budget\'s optimisation pressure (model v3 E3: Gao\'s log form in ρ) keeps V1\'s light ×0.5, heavy ×1.3 within 1%',
   `${s2(s0, { rlBudget: 'light' }).toFixed(3)} / ${s2(s0, { rlBudget: 'heavy' }).toFixed(3)}`);
 const wSwe = rlWeights(['swe'], START_FAMS);
 const wantSwe = S2_PER_EXPLOIT * START_FAMS.reduce((a, f) => a + (wSwe[f] ?? 0) * EXPLOIT_START[f], 0);
