@@ -92,7 +92,7 @@ function startEvals(domains: Record<DomainId, number>, measuredL: number, day: n
     bench[b.id] = { score: Math.round(benchScore(b, Ld) * 10) / 10, sd: 2, day, by: 'self' };
   }
   // M1: the start model is long known: its reading is exact and counts as 16 suites (band ±0.05).
-  return { suiteDay: day, bench, safety: {}, measuredL, nSuites: 16, errTrue: 0, lgAt: measuredL };
+  return { suiteDay: day, bench, safety: {}, measuredL, nSuites: 16, errTrue: 0 };
 }
 
 /** A reference post-training run on B0 already in flight at the start (launched three days ago, 30% of its RL FLOP

@@ -26,6 +26,7 @@
 //   standing harness is upkeep the lab already has; each new model needs a little).
 import type { EvalDepth } from '../../engine/v2/types';
 import { TOKENS } from './serving';
+import { LEVEL_PER_OOM } from './workTypes';
 
 export interface EvalDepthDef {
   label: string;
@@ -61,7 +62,7 @@ export const EVAL_TOKENS = TOKENS.agentic;
 export const EXT_EVAL_STAFF = 10;
 
 /** Standing re-evaluation (auto-evaluate, R7): re-run a model's suite when it changed in place by ≥ REEVAL_DL (L; the
- *  continual-learning stream), or on a cadence of REEVAL_DAYS since its last suite [D]. 0.3 L is 1.5 × a full suite's
+ *  continual-learning stream; model v3 F6: judged on the recipe the stream applied, REEVAL_DG, not the true level), or on a cadence of REEVAL_DAYS since its last suite [D]. 0.3 L is 1.5 × a full suite's
  *  error band: a change the last reading could not hide (0.1 and 0.2 L were tried; the extra re-runs moved the
  *  authors2026 SIAR/ASI dates of seed 2027 out of tolerance through RefBot's measured-level decisions, a knife edge,
  *  D7 notes). The cadence stays v2's month (internal models tracked monthly): a quarterly cadence left the reference
@@ -70,3 +71,6 @@ export const EXT_EVAL_STAFF = 10;
  *  Each re-run is a suite at the policy depth, its cost shown on the policy. */
 export const REEVAL_DL = 0.3;
 export const REEVAL_DAYS = 30;
+/** REEVAL_DL in recipe OOM (G-equivalent at LEVEL_PER_OOM 1.2 L per OOM): the known change in place that re-runs a
+ *  suite (model v3 F6). */
+export const REEVAL_DG = REEVAL_DL / LEVEL_PER_OOM;

@@ -436,8 +436,9 @@ export interface EvalRecord {
   /** Model v3 D7: precision of the measurement in full-suite equivalents (Σ rollouts ÷ the full suite's); the band is
    *  0.2/√nEff. Absent on old records: nSuites. */
   nEff?: number;
-  /** Model v3 D7: the version's true level at its last suite (engine: "changed in place" for the re-run policy). */
-  lgAt?: number;
+  /** Model v3 F6: the recipe the version embodied at its last suite (OOM, stacks.ts inPlaceRecipe; "changed in place"
+   *  for the re-run policy; replaces D7's lgAt, the true level, which old saves still carry inert). */
+  recipeAt?: number;
   /** Model v3 D7: depth of the last suite. */
   depth?: EvalDepth;
 }
