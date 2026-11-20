@@ -18,7 +18,9 @@
 //       seated + unseated hours = the hours of use; seat revenue = seats × price × 12; unseated hours bill no one; agent
 //       leverage rises with horizon and coverage; parallelism and token intensity raise the serving need, not human hours;
 //       per-hour billing stays cost-plus
-//   INFO price sanity: price per million tokens, its decline for fixed capability (research/20 D3 ×10/yr), margins
+//   A1–A3 price of a fixed capability (task A3, research/20 D3 ≈ ×10/yr): the cheapest model the lab could serve at
+//       V0's level (a version or a distilled student) is a run planRun accepts; its price falls ×6–×30 a year, decomposed
+//       into active parameters × FLOP per parameter × utilisation × $ per H100e-hour × margin
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { FEATURES, FEATURE_BY_ID } from '../../src/data/v2/features';
@@ -36,11 +38,14 @@ import { worldMix } from '../../src/engine/v2/worldfx/mix';
 import { revenueReadout, sectorHours, sectorSpendParts, servingPool } from '../../src/engine/v2/worldfx/revenue';
 import { workHoursOf } from '../../src/engine/v2/worldfx/use';
 import {
-  agentLeverage, effortDG, fptOfG, fxOn, h100eHoursPer, internalFx, offerOf, paidShareTarget, productOffer, reachTarget, sectorCover, sectorTheta, serveDollarsPerHour,
+  agentLeverage, cheapestAt, effortDG, fptOfG, fxOn, h100eHoursPer, internalFx, offerOf, paidShareTarget, productOffer, reachTarget, sectorCover, sectorTheta, serveDollarsPerHour,
   subPrice, valuePerHour, wagePerHour,
 } from '../../src/engine/v2/worldfx/serving';
 import { consumerUse, workBilling } from '../../src/engine/v2/worldfx/readouts';
 import { monitorOverhead } from '../../src/engine/v2/models/products';
+import { paramsOfVersion, planRun } from '../../src/engine/v2/models/runs';
+import { DISTILL } from '../../src/data/v2/runDesign';
+import { U_DECODE, U_PREFILL } from '../../src/data/v2/workTypes';
 import type { Deployment, GameStateV2, ModelVersion, SectorId } from '../../src/engine/v2/types';
 import { FIXTURE_DIR, check, finish } from './lib';
 
@@ -411,22 +416,40 @@ for (const d of [400, 900]) {
   check(bad.length === 0, 'S7 lint: revenue, prices, costs and sectors read no serveCost, multiplierRef / bridgeQ (the M bridge) or v2 price stand-ins', bad.join(', '));
 }
 
-// ───────── INFO price sanity (research/20 D3; reported, not fitted) ─────────
+// ───────── A1–A3 price of a fixed capability (task A3; research/20 D3: Cottier et al. 2025 ×10/yr, ×9–×900) ─────────
+// The fixed-capability price is the price of the cheapest model the lab could serve at V0's capability (cheapestAt: one
+// of its versions, or a student distilled to hold the level under the game's distillation rule), at the standard
+// markup, per million blended tokens. It decomposes exactly into factors (× per year; their product is the decline):
+// active parameters, serving FLOP per active parameter (shape, serving stack), utilisation, $ per H100e-hour (rental),
+// margin. Tokens per task enter only the price per task (reported).
+{
+  // A1 the cheapest-at-G model is a run the lab can launch: planRun's distillation gap for that student = fit − G
+  const s = game();
+  const v0 = s.player.models.versions[0];
+  const g0 = workFit(s, v0, 'SWE').fit;
+  const at0 = cheapestAt(s, g0)!;
+  const lower = cheapestAt(s, g0 - 0.5)!;
+  const plan = planRun(s, { kind: 'distill', teacherVersionId: v0.id, studentParams: lower.params });
+  check(at0.versionId === v0.id && !at0.student && near(at0.fpt, flopPerToken(s, v0)) && cheapestAt(s, g0 + 0.01) === undefined,
+    'A1 at the start the cheapest model at V0\'s capability is V0 itself (no version above it to distil from; nothing holds a higher level)', `${(at0.params / 1e9).toFixed(0)}B active`);
+  check(lower.student && near(lower.gap, 0.5, 1e-9) && near(plan.g.gap ?? -1, lower.gap, 1e-9) && near(lower.fpt / flopPerToken(s, v0), lower.params / at0.params),
+    'A1 0.5 OOM below V0 the cheapest model is a student of V0 sized so the distillation gap is exactly 0.5 OOM (the gap planRun gives that student); FLOP per token ∝ its active parameters',
+    `${(lower.params / 1e9).toFixed(0)}B active (δ = ${DISTILL.a} + ${DISTILL.b}·log₁₀ ${(at0.params / lower.params).toFixed(2)})`);
+}
 {
   const s = game();
   const START = '2025-07-01';
   const marks = ['2025-08-01', '2026-02-01', '2026-08-01', '2027-02-01'].map((x) => dayOfDate(START, x));
   const rows: string[] = [];
   const fixedG = workFit(s, s.player.models.versions[0], 'SWE').fit; // V0's capability, held fixed
-  const perM = (fpt: number, markup: number) => {
-    // blended price per million tokens (input:output 5:1 by count, output priced 5× input as on the lists): the agentic
-    // token profile's cost per token, × markup
-    const tok = TOKENS.agentic;
-    const usd = h100eHoursPer(fpt, tok) * serveDollarsPerHour(s) * markup;
-    return (usd / (tok.input + tok.output)) * 1e6;
-  };
-  let first: number | undefined;
-  let firstFixed: number | undefined;
+  const tok = TOKENS.agentic;
+  const tokTask = tok.input + tok.output;
+  // blended price per million tokens (input:output 5:1 by count, output priced 5× input as on the lists): the agentic
+  // token profile's cost per token × markup = fpt × util ÷ peak ÷ 3600 × rental × markup × 1e6
+  const util = (tok.input / U_PREFILL + tok.output / U_DECODE) / tokTask; // peak-seconds per FLOP of a blended token
+  const perM = (fpt: number, markup: number) => ((h100eHoursPer(fpt, tok) * serveDollarsPerHour(s) * markup) / tokTask) * 1e6;
+  type Snap = { t: number; N: number; fpp: number; util: number; rate: number; markup: number; tokTask: number; price: number; bridge: number };
+  const snaps: Snap[] = [];
   while (s.time.day <= marks[marks.length - 1]) {
     for (const p of [...s.events.pending]) {
       const c = refBot.decide(s, p);
@@ -437,17 +460,32 @@ for (const d of [400, 900]) {
     if (marks.includes(s.time.day)) {
       const api = prod(s, 'api');
       const v = versionById(s, api.versionId)!;
-      const p = perM(flopPerToken(s, v), MARKUP.standard);
-      const pf = perM(fptOfG(s, fixedG, s.time.day), MARKUP.standard);
-      first ??= p;
-      firstFixed ??= pf;
-      rows.push(`${decimalYear(s).toFixed(2)}: API ${v.name} $${p.toFixed(2)}/M blended tokens; V0-level model $${pf.toFixed(2)}/M; rental $${serveDollarsPerHour(s).toFixed(2)}/H100e-h`);
+      const c = cheapestAt(s, fixedG)!;
+      const teacher = versionById(s, c.versionId)!;
+      const snap: Snap = {
+        t: decimalYear(s), N: c.params, fpp: c.fpt / c.params, util, rate: serveDollarsPerHour(s), markup: MARKUP.standard, tokTask,
+        price: perM(c.fpt, MARKUP.standard), bridge: perM(fptOfG(s, fixedG, s.time.day), MARKUP.standard),
+      };
+      snaps.push(snap);
+      rows.push(`${snap.t.toFixed(2)}: API ${v.name} ${(paramsOfVersion(s, v) / 1e9).toFixed(0)}B $${perM(flopPerToken(s, v), MARKUP.standard).toFixed(2)}/M; V0-level cheapest ${c.student ? `student of ${teacher.name} (fit +${(c.teacherFit - fixedG).toFixed(2)}, δ ${c.gap.toFixed(2)})` : teacher.name} ${(c.params / 1e9).toFixed(1)}B $${snap.price.toFixed(3)}/M; reference design without distillation (rivals' bridge) $${snap.bridge.toFixed(2)}/M; rental $${snap.rate.toFixed(2)}/H100e-h`);
     }
   }
-  const yrs = (marks[marks.length - 1] - marks[0]) / 365;
-  const fixedDecline = Math.pow((firstFixed ?? 1) / perM(fptOfG(s, fixedG, s.time.day), MARKUP.standard), 1 / yrs);
-  console.log(`INFO  price sanity (R20 D3: fixed-capability price falls ≈ ×10/yr, range ×9–×900; Opus-tier list $15/$75 → $5/$25 per M in 2025–26):\n      ${rows.join('\n      ')}\n      fixed capability (V0's G): ×${fixedDecline.toFixed(1)} a year cheaper (algorithmic progress shrinks the model needed, the rental moves)`);
-  void first;
+  const a = snaps[0];
+  const b = snaps[snaps.length - 1];
+  const yrs = b.t - a.t;
+  const py = (x: number) => Math.pow(x, 1 / yrs);
+  const f = { params: py(a.N / b.N), fpp: py(a.fpp / b.fpp), util: py(a.util / b.util), hardware: py(a.rate / b.rate), margin: py(a.markup / b.markup) };
+  const total = py(a.price / b.price);
+  const prod5 = f.params * f.fpp * f.util * f.hardware * f.margin;
+  const perTask = total * py(a.tokTask / b.tokTask);
+  const fmt = (x: number) => `×${x.toFixed(2)}`;
+  console.log(`INFO  A3 price of V0's capability (standard markup, per M blended tokens):\n      ${rows.join('\n      ')}`);
+  check(near(prod5, total, 1e-9),
+    'A3 the fixed-capability decline = active parameters × FLOP per parameter × utilisation × $ per H100e-hour × margin (exact)',
+    `params ${fmt(f.params)}, FLOP/param (shape, serving stack) ${fmt(f.fpp)}, utilisation ${fmt(f.util)}, hardware (rental) ${fmt(f.hardware)}, margin ${fmt(f.margin)} → ${fmt(total)}/yr; per task (tokens per task ${fmt(py(a.tokTask / b.tokTask))}) ${fmt(perTask)}/yr`);
+  check(total >= 6 && total <= 30,
+    'A3 the price of a fixed capability (V0\'s) falls ×6–×30 a year (R20 D3: ≈ ×10, ×9–×900; Cottier et al. 2025)',
+    `${fmt(total)}/yr over ${a.t.toFixed(2)}–${b.t.toFixed(2)}; without distillation (reference design at the frontier recipe, rivals' BRIDGE(V7)) ${fmt(py(a.bridge / b.bridge))}/yr`);
 }
 
 finish('serving');
