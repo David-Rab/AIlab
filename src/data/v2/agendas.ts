@@ -78,15 +78,45 @@ export const AGENDAS: AgendaDef[] = ROWS.map((r) => ({
 
 export const AGENDA_IDS: AgendaId[] = AGENDAS.map((a) => a.id);
 export const AGENDA_BY_ID = Object.fromEntries(AGENDAS.map((a) => [a.id, a])) as Record<AgendaId, AgendaDef>;
-/** Research lines are tree projects for safety science teams (R8, STRUCTURE §4.5): a project's result is one finding,
- *  arriving when its progress reaches 1. Progress/day = √(capacity ÷ SERIOUS_CAP) / (30·T₁) × compute × AI labour, so
- *  a line staffed at "serious" capacity gets its first result after T₁ months, the pre-R8 hazard's expected time at
- *  Serious funding (λ = 1/(30·T₁)·√(FTE/FTE_ref)). SERIOUS_CAP is a serious programme's capacity in standard science
+/** Research lines are tree projects for safety science teams (R8, STRUCTURE §4.5): a project's result is one finding.
+ *  Model v3 E1: the project runs stages (below; safety/lineProjects.ts) whose ideation rate is (capacity ÷
+ *  SERIOUS_CAP)^λ × taste, so a line staffed at "serious" capacity (with its engineers and compute) gets its first result
+ *  after T₁ months, the pre-R8 hazard's expected time at Serious funding (pre-E1: progress/day = √(capacity ÷
+ *  SERIOUS_CAP) / (30·T₁) × compute^0.3 × AI labour). SERIOUS_CAP is a serious programme's capacity in standard science
  *  teams (heads/40 × quality × 1.5 in the team's specialty) [calibration: RefBot keeps one team on each of its four
  *  lines, ≈ its pre-R8 Seed funding (a quarter of serious): a non-matching Strong team is 0.25, a matching one 0.375].
  *  6 (a matching team exactly at Seed) left the mixed bot unable to keep up before SAR (S5); 2–3 made RefBot's
  *  understanding hold at SAR (S5). */
 export const SERIOUS_CAP = 4;
+// ───────────────────────────── line projects on the project mechanism (model v3 E1) ─────────────────────────────
+// MODEL-V3 §11.7 / §5.3: a line project's stages are ideation (safety scientists with taste), small experiments and a
+// validation on the frontier model (safety research engineers with experiment compute from the safety pool, the
+// project-level experiment CES of capability projects). Reference inputs (rate 1 in every stage): a serious programme
+// (science capacity SERIOUS_CAP, a Strong team's taste), SAF_RE_UNIT research engineers and the agenda's reference
+// compute share (computeRef) of the leader lab's day-0 compute; there the first result arrives after T₁ months, the
+// pre-E1 pacing (research/14 §1.2–1.3). Above or below it every stage speeds up or slows down with its own inputs.
+
+/** Shares of T₁ each stage takes at reference inputs (they sum to 1, so the first result takes T₁) [D: ideation is the
+ *  shortest step of a safety project; validation on the frontier model the longest]. */
+export const SAF_STAGES = { idea: 0.2, small: 0.35, val: 0.45 } as const;
+/** Safety research-engineer heads (× quality) that make one unit of experiment labour (ℓ = 1) on a line project: a
+ *  serious programme's engineers [D, calibration]; a project asks for engineers in proportion to its science staffing (×
+ *  capacity ÷ SERIOUS_CAP, at most LINE_MULT_MAX). */
+export const SAF_RE_UNIT = 50;
+/** Share of the free safety research engineers (after investigations and patches) experiments may take by default, so
+ *  tool upkeep keeps the rest (as capability experiments ≤ 75% leave routine tuning some) [D, calibration]. */
+export const SAF_EXP_SHARE = 0.5;
+/** Compute reference: the leader lab's day-0 compute (H100e); a line's experiment FLOP per day at its reference share of
+ *  it is one unit (c = 1) [D, fixed physical unit as capability's C_UNIT: never the calendar]. */
+export const SAF_C0_H100E = 1e6;
+/** A line project tests its first candidate as soon as it has one; scientists keep ideating up to this many waiting
+ *  [D]. */
+export const SAF_PICK_AT = 1;
+export const SAF_POOL_MAX = 2;
+/** Belief noise (sd on the chance of a working result): the scientists' reading ÷ taste, then the small-experiment and
+ *  validation readings [D; MODEL-V3 §5.3 "better taste = lower noise"]. The team starts from the line's posterior. */
+export const SAF_BELIEF = { idea: 0.3, small: 0.3, val: 0.25 } as const;
+
 /** Cap on the line multiplier (capacity ÷ SERIOUS_CAP) where the pre-R8 code read funding (AG18 healing): the old Major
  *  level. */
 export const LINE_MULT_MAX = 2.5;

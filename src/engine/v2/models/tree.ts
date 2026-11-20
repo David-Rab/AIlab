@@ -1,7 +1,7 @@
 // The tech tree and its research projects (TECH-TREE.md, STRUCTURE §4.2, §4.5, BUILD-PLAN R4, R8). Owner: WS1.
 // Model v3 V2: capability projects run the research lifecycle of models/research.ts (ideation → small experiments →
 // scale test → result → adoption into the recipe stacks; scientists assigned by priority and teams wanted; research
-// engineers by need). The text below the first paragraph describes the safety path, which is unchanged until V6.
+// engineers by need). The text below the first paragraph describes the safety path.
 //
 // A node opens when its prerequisites are known (no capability gates). The player queues projects (priority order) and
 // assigns science teams of the node's department (capability columns: capabilities scientists; alignment,
@@ -15,11 +15,14 @@
 //    paradigm nodes use the hidden paradigm draw on the first attempt; every other attempt uses hash32(seed,
 //    'node:'+id[+':'+attempt]). Success makes the node known (a paradigm is adopted at once); failure allows a retry
 //    after 180 days at half odds.
-//  - Research-line nodes (R8; a safety node with an agenda): progress/day = safety/agendas.ts lineRate (√(capacity ÷
-//    SERIOUS_CAP)/(30·T₁) × compute × AI labour; no research speed, as the pre-R8 hazard). At progress 1 the line
-//    produces one result (findings.ts fireFinding, typed by the line's hidden efficacy). A working result of this node
-//    unlocks it; any other result restarts the project, and a dead end adds its team-months to the line's dead-end count.
-//    When a node becomes known its teams move on to the line's next open node, else the line's follow-up project.
+//  - Research-line nodes (R8; a safety node with an agenda; model v3 E1): the project mechanism of capability projects
+//    (safety/lineProjects.ts): ideation by the safety scientists, small experiments and validation on the frontier
+//    model by safety research engineers with compute, rates from the experiment CES; T₁ at reference inputs. Each
+//    validated candidate is one result (findings.ts fireFinding, typed by the line's hidden efficacy). A working result
+//    of this node unlocks it; any other result lets the project test its next candidate, and a dead end adds the
+//    attempt's team-months to the line's dead-end count. When a node becomes known its teams move on to the line's next
+//    open node, else the line's follow-up project. Safety teams keep the J2 auto-assign above (E1 notes: why not the
+//    capability assignment).
 // Product-feature nodes wait for live products (R6).
 import { AG17_MIN_L, AGENDAS } from '../../../data/v2/agendas';
 import { START_BY_ID } from '../../../data/v2/starts';
@@ -33,7 +36,8 @@ import { hash32 } from '../core/rng';
 import { bookCash } from '../finance/ledger';
 import type { AgendaId, Column, EngineSystem, GameStateV2, ResearchState, SetupV2, SystemCtx, Team, TeamDept, TreeNodeState } from '../types';
 import { measuredDomain, PARADIGM_BY_ID } from './paradigms';
-import { lineCapacity, lineRate, posteriorBand } from '../safety/agendas';
+import { posteriorBand } from '../safety/agendas';
+import { lineCycleDays, lineEtaDays, resetSafAllocation, safAllocation, stepLineProject } from '../safety/lineProjects';
 import { queueBuild } from '../departments/build';
 import { addKnowledge, gEquivOf, paOfGEquiv } from './stacks';
 import { B_G_PER_Y, E_START } from '../../../data/v2/runDesign';
@@ -188,10 +192,8 @@ export function projectRate(s: GameStateV2, id: string, cap?: number): number {
   const now = projectCapacity(s, id);
   const c = cap ?? now;
   if (c <= 0) return 0;
-  if (isLineNode(n)) {
-    const ag = n.agenda as AgendaId;
-    return lineRate(s, ag, c, cap === undefined || Math.abs(c - now) < 1e-9 ? undefined : lineCapacity(s, ag) - now + c);
-  }
+  // Model v3 E1: a line project's results per day once its pipeline is full (safety/lineProjects.ts).
+  if (isLineNode(n)) return 1 / lineCycleDays(s, id, cap === undefined || Math.abs(c - now) < 1e-9 ? undefined : c);
   if (isCapProject(n)) {
     // Model v3 V3: a rough share of the lifecycle per day for the ETA readout (ideation of two candidates at (m_IDEAS ×
     // capacity)^λ, plus the two test stages at yesterday's unit-project experiment throughput X); the engine runs the
@@ -224,6 +226,12 @@ export function teamGain(s: GameStateV2, teamId: string, id: string): { etaNow: 
 
 /** Days to finish (research-line projects: to the next result) at today's speed (Infinity with no teams). */
 export function projectEta(s: GameStateV2, id: string, cap?: number): number {
+  const n = node(id);
+  if (n && isLineNode(n)) {
+    const now = projectCapacity(s, id);
+    const c = cap ?? now;
+    return c > 0 ? lineEtaDays(s, id, cap === undefined || Math.abs(c - now) < 1e-9 ? undefined : c) : Infinity;
+  }
   const r = projectRate(s, id, cap);
   const left = 1 - (s.player.tree[id]?.status === 'researching' ? s.player.tree[id].progress : 0);
   return r > 0 ? left / r : Infinity;
@@ -498,6 +506,10 @@ export function researchDay(s: GameStateV2, ctx: SystemCtx) {
   for (const id of capReady) if (p.tree[id]?.cap && node(id)?.paradigm) syncParadigm(s, id);
   if (p.research.autoAssign) autoAssign(s);
   let freed = false;
+  // Model v3 E1: today's safety research engineers and line compute for the line projects in experiments (a test that
+  // starts today gets its engineers and FLOP from tomorrow's allocation, as capability projects).
+  resetSafAllocation(s);
+  const salloc = safAllocation(s);
   for (const id of [...q]) {
     const n = node(id);
     if (!n || isCapProject(n)) continue;
@@ -511,15 +523,18 @@ export function researchDay(s: GameStateV2, ctx: SystemCtx) {
       if (n.cashCost) bookCash(s, ctx, -n.cashCost, 'training', 'research project', n.name);
       if (n.paradigm) syncParadigm(s, id);
     }
-    st.progress = Math.min(1, st.progress + projectRate(s, id, cap));
-    if (n.paradigm) s.player.paradigms[id].progress = st.progress;
     if (isLineNode(n)) {
       let tm = 0;
       for (const t of p.teams) if (t.projectId === id) tm += t.heads / CAPACITY_UNIT / 30;
       st.tm = (st.tm ?? 0) + tm;
-      if (st.progress < 1) continue;
       const teams = teamsOn(s, id);
-      if (!resolveLine(s, ctx, n, st)) continue;
+      const ts = st;
+      let done = false;
+      stepLineProject(s, id, ts, salloc, () => {
+        done = resolveLine(s, ctx, n, ts);
+        return !done;
+      });
+      if (!done) continue;
       const at = q.indexOf(id);
       q.splice(at, 1);
       // The line's teams stay on the line (its next project; a hand placement stays a hand placement).
@@ -529,6 +544,8 @@ export function researchDay(s: GameStateV2, ctx: SystemCtx) {
       freed = true;
       continue;
     }
+    st.progress = Math.min(1, st.progress + projectRate(s, id, cap));
+    if (n.paradigm) s.player.paradigms[id].progress = st.progress;
     if (st.progress < 1) continue;
     const ok = roll(s, n, st);
     st.day = ctx.day;

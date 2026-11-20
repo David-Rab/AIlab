@@ -11,6 +11,9 @@ import { fptOfBuild } from '../departments/workfit';
 import { REGIONS, SECTORS } from '../../../data/v2/sectors';
 import { workerTarget } from '../worldfx/use';
 import { CONSUMER_MKT, SEATS } from '../../../data/v2/serving';
+import { AGENDA_BY_ID } from '../../../data/v2/agendas';
+import { PROJECT_BY_ID, isLineNode } from '../../../data/v2/tree';
+import { safFromProgress } from '../safety/lineProjects';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
 /** 12 (model v3 V1): models are built from physical quantities (BaseModel, VersionBuild, BaseDesign, PostDesign changed).
@@ -32,8 +35,10 @@ import { CONSUMER_MKT, SEATS } from '../../../data/v2/serving';
  *  19 (model v3 A2c): SectorState.seat, the paid-seat share of the workers who use AI (who pays for work use). Migration
  *  18 → 19 starts it at the region's start share (SEATS.start).
  *  20 (model v3 B4): ResearchState.wantAuto, the capability projects on "auto" teams wanted. Migration 19 → 20 starts it
- *  empty (every earlier project keeps its number). */
-export const SCHEMA_REV = 20;
+ *  empty (every earlier project keeps its number).
+ *  21 (model v3 E1): safety research-line projects on the project mechanism (TreeNodeState.saf: stage, candidates with
+ *  beliefs, the test in flight). Migration 20 → 21 converts a line project in progress at the same share of its stages. */
+export const SCHEMA_REV = 21;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -246,6 +251,17 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   19: (raw) => {
     const r = (raw as unknown as GameStateV2).player.research;
     r.wantAuto ??= [];
+  },
+  /** 20 → 21 (model v3 E1): safety research-line projects run stages (TreeNodeState.saf). A line project in progress
+   *  keeps its work: the same share of the stage chain (safety/lineProjects.ts safFromProgress). */
+  20: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    for (const [id, st] of Object.entries(s.player.tree)) {
+      const n = PROJECT_BY_ID[id];
+      if (!n || !isLineNode(n) || st.status !== 'researching' || st.saf) continue;
+      const ag = n.agenda as AgendaId;
+      st.saf = safFromProgress(AGENDA_BY_ID[ag].T1, st.progress, s.player.safety.agendas[ag].posterior);
+    }
   },
 };
 
