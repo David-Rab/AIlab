@@ -8,13 +8,15 @@ import { openInvestigation } from '../../safety/investigations';
 import { understanding } from '../../safety/understanding';
 import type { Commitment, EventDefV2, GameStateV2, ModelVersion, SystemCtx, TraitId } from '../../types';
 import { TRAIT_BY_ID } from '../../../../data/v2/traits';
-import { PREDICATES, blockingCommitments, amendCommitment, breakCommitment, hasCommitment, latentVersion, pledgeBreachRun } from '../../actors/commitments';
+import { PREDICATES, blockingCommitments, amendCommitment, breakCommitment, latentVersion, pledgeBreachRun } from '../../actors/commitments';
 import { ALL_PUBLIC_CPS, approval, boardConf, cash, cred, disclosureTrust, scrutiny, trustMany } from '../../actors/fx';
 import { pLeak } from '../../actors/public';
-import { addCoverup } from '../../actors/relations';
+import { addCoverup, trustDelta } from '../../actors/relations';
 import { discoveryOdds } from '../../actors/researchBodies';
 import { ws4 } from '../../actors/state';
 import { escapeResolved } from '../../safety/footholds';
+import { controlReadout } from '../../safety/dangerView';
+import { whistleOddsYear } from '../../security/security';
 import { L, P, ch, ev, pv, requestOnly } from '../kit';
 import { boardSpeedAppetite } from '../../finance/board';
 
@@ -24,6 +26,31 @@ const RED: TraitId[] = ['SCHEME', 'AF', 'SAND'];
 export function frontierRunsGo(s: GameStateV2) {
   const n = s.player.models.runs.filter((r) => r.status === 'running' && (r.kind === 'base' || r.kind === 'post')).length;
   return L('progress', n, n ? 'frontier runs keep going (no 60-day pause)' : 'no frontier run to pause', { unit: n === 1 ? 'run' : 'runs' });
+}
+/** F6d: what continuing past the flag costs: both "Continue" choices count one red flag (`ws4.redFlags`), which feeds
+ *  the whistleblower hazard (security.ts whistleHazard): the odds of a staff leak to the press over a year at today's
+ *  morale, before → after. With a whistleblower channel the concern is handled internally instead (no press leak). */
+export function redFlagLine(s: GameStateV2) {
+  const pct = (x: number) => { const p = x * 100; return p >= 10 ? p.toFixed(0) : p.toFixed(1); };
+  const why = s.player.policies.whistleblowerChannel
+    ? 'staff concerns go to your whistleblower channel (handled internally)'
+    : `odds of a staff leak to the press ${pct(whistleOddsYear(s))}% → ${pct(whistleOddsYear(s, 1))}% a year`;
+  return L('alignment', 1, why, { unit: 'red flag' });
+}
+/** F6d: what breaking a pledge costs, as breakCommitment applies it: its credibility cost, and its trust cost per
+ *  audience after the loss asymmetry (trustDelta), as the mean over the audience. */
+function pledgeBreakLines(s: GameStateV2, c: Commitment) {
+  const cps = c.audience.filter((cp) => s.relations.stocks[cp]);
+  const mean = cps.length ? cps.reduce((a, cp) => a + Math.abs(trustDelta(s.relations.stocks[cp].trust, -Math.abs(c.breakCost.trust))), 0) / cps.length : 0;
+  return [
+    L('credibility', Math.abs(c.breakCost.credibility), 'breaks the pause pledge'),
+    ...(mean ? [L('trust', Math.round(mean), `each of ${cps.length} pledge audience${cps.length === 1 ? '' : 's'} (mean)`)] : []),
+  ];
+}
+/** F6d: the internal deployments "Continue + control" puts under the control layer (the choice's own filter). */
+export function controlLayerGo(s: GameStateV2) {
+  const n = s.player.deployments.filter((d) => d.channel === 'internal').length;
+  return L('alignment', n, n ? 'control layer on (monitors and containment on internal AI work)' : 'no internal deployment to put under control', { unit: n === 1 ? 'internal deployment' : 'internal deployments' });
 }
 
 /** The disclosure-dilemma triple used by findings, incidents and U-mode discoveries. */
@@ -110,18 +137,25 @@ export const SAFETY_EVENTS: EventDefV2[] = [
       ? `Capability has outrun your understanding by ${Math.abs(Number(d.est))} levels. Your tools can no longer read ${internalVersion(s)?.name ?? 'the model'} reliably.`
       : `Probes suggest ${internalVersion(s)?.name ?? 'your internal model'} may be ${d.trait === 'SCHEME' ? 'scheming' : d.trait === 'AF' ? 'faking alignment' : 'sandbagging'} (estimate ${d.est}%).`,
     choices: [
-      ch('Pause & investigate', ['pause', 'safety', 'investigate'], (s) => pv([L('leadDays', 60, 'frontier runs paused'), L('boardConf', Math.round(5 * boardSpeedAppetite(s) * 10) / 10)], [L('alignment', 0.2, 'investigation'), L('credibility', 2)]), (s, ctx, d) => {
+      // F6d: the gains say what the choice does (an investigation of the flagged trait), not a made-up alignment amount.
+      ch('Pause & investigate', ['pause', 'safety', 'investigate'], (s) => pv([L('leadDays', 60, 'frontier runs paused'), L('boardConf', Math.round(5 * boardSpeedAppetite(s) * 10) / 10)], [L('alignment', 1, 'of the flagged trait by 20 safety research engineers (none for an understanding flag)', { unit: 'investigation' })]), (s, ctx, d) => {
         ws4(s).frontierPauseUntil = ctx.day + 60;
         for (const r of s.player.models.runs) if (r.status === 'running' && (r.kind === 'base' || r.kind === 'post')) r.status = 'paused';
         if (typeof d.versionId === 'string' && d.trait !== 'U') openInvestigation(s, ctx, { kind: 'trait', versionId: d.versionId, trait: d.trait as TraitId }, 20);
         boardConf(ctx, -5 * boardSpeedAppetite(s), 'E17 pause');
         s.flags['ws4:outsideExpertsOffer'] = ctx.day;
       }),
-      ch('Continue + control', ['control', 'balanced'], P([L('progress', 5, 'AI labour (control tax)', { unit: '%' })], [L('alignment', 0.1, 'control layer')]), (s) => {
+      // F6d: the control tax is E6's protocol (as on Safety › Add control); the red flag this choice counts is a cost.
+      ch('Continue + control', ['control', 'balanced'], (s) => pv([L('progress', Math.round(controlReadout(s).tax * 100), 'of internal AI labour at most (control tax)', { unit: '%' }), redFlagLine(s)], [controlLayerGo(s)]), (s) => {
         for (const dep of s.player.deployments) if (dep.channel === 'internal') dep.controlLayer = true;
         ws4(s).redFlags++;
       }),
-      ch('Continue', ['race', 'continue'], (s) => ({ costs: [L('alignment', 0.2, 'red flag ignored'), ...(hasCommitment(s, 'pauseIfRedline') ? [L('credibility', 20, 'breaks the pause pledge')] : [])], gains: [frontierRunsGo(s)], exposure: [L('trust', -10, 'if it leaks', { probability: 0.2 })] }), (s, ctx) => {
+      // F6d: no "alignment 0.2" (never applied): the cost is the red flag it counts (leak odds) and the pledge's own break
+      // cost; the made-up "trust −10 if it leaks" exposure is gone (a leak is the E19 decision).
+      ch('Continue', ['race', 'continue'], (s) => {
+        const c = s.commitments.find((x) => x.status === 'live' && x.condition.predicate === 'pauseIfRedline');
+        return { costs: [redFlagLine(s), ...(c ? pledgeBreakLines(s, c) : [])], gains: [frontierRunsGo(s)], exposure: [] };
+      }, (s, ctx) => {
         ws4(s).redFlags++;
         const c = s.commitments.find((x) => x.status === 'live' && x.condition.predicate === 'pauseIfRedline');
         if (c) breakCommitment(s, ctx, c, 'continued past a red line');

@@ -1,8 +1,11 @@
 // Research verbs (STRUCTURE §4.2, BUILD-PLAN R4): queue a project, start it now, reorder, drop it, assign or take off a
 // science team, and the auto-assign policy. Owner: WS1. Previews work with empty params (defaults: the first open idea,
 // the first capabilities science team) and show ≥ 1 cost in a currency not among the gains (lint-tradeoffs).
-import { PROJECT_BY_ID, TREE, type TreeNodeDef } from '../../../data/v2/tree';
-import type { ActionDef, CostLine, EngNeed, GameStateV2, ReNeed, RiskPolicy, StackKey } from '../types';
+import { PROJECT_BY_ID, TREE, isLineNode, type TreeNodeDef } from '../../../data/v2/tree';
+import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
+import { TRAIT_BY_ID } from '../../../data/v2/traits';
+import { P25_DEFENCE } from '../security/theft';
+import type { ActionDef, CostLine, EngNeed, GameStateV2, ReNeed, RiskPolicy, StackKey, TraitId } from '../types';
 import { PROJECT_MAX_TEAMS, RISK_KAPPA, STACK_LABEL } from '../../../data/v2/research';
 import { RL_FAMILY_LABEL } from '../../../data/v2/suites';
 import { atTest, priorMean, reopenProject, teamsWanted, wantIsAuto } from './research';
@@ -66,13 +69,34 @@ export function nodePreview(s: GameStateV2, id: string): Preview {
   const odds = nodeOdds(s, id);
   const costs: CostLine[] = [{ currency: 'staffTime', amount: Math.round(effortOf(n) * 10) / 10, target: 'science team-months' }];
   if (n.cashCost) costs.push({ currency: 'cash', amount: n.cashCost, target: 'data' });
-  const exposure: CostLine[] = [];
   const cap = capLines(s, n, odds);
   const gains = cap.gains;
   costs.push(...cap.costs);
-  if ((n.fx.saf ?? 0) > 0) gains.push({ currency: 'alignment', amount: 0.05 * (n.fx.saf ?? 0), probability: odds, target: n.name });
-  if ((n.fx.saf ?? 0) < 0) exposure.push({ currency: 'alignment', amount: 0.05 * (n.fx.saf ?? 0), probability: odds });
-  return { costs, gains, exposure };
+  const saf = safLines(n, odds);
+  gains.push(...saf.gains);
+  return { costs, gains, exposure: saf.exposure };
+}
+
+const traitList = (cov: Partial<Record<TraitId, number>>) =>
+  (Object.entries(cov) as [TraitId, number][]).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([t, c]) => `${TRAIT_BY_ID[t]?.name ?? t} ${c}`).join(', ');
+/** Safety lines of a node's preview (F6d; was `0.05 × fx.saf` "alignment", a v2 meter scale): what the node really adds
+ *  to the safety mechanisms. A technique node unlocks its technique (data/v2/techniques.ts), shown by its role: a
+ *  detector or a control protocol with the traits it covers most (coverage, 1 = built for the trait: the weight the
+ *  detection and containment code applies), or a training fix (a run option). A research-line node's odds are the
+ *  line's estimated chance per result (nodeOdds). P25 gives its defence levels (theft.ts); any other node its stated
+ *  safety effect. A node whose safety side is a risk (fx.saf < 0) shows it as exposure, "when used" for an option. */
+export function safLines(n: TreeNodeDef, odds: number): { gains: CostLine[]; exposure: CostLine[] } {
+  const saf = n.fx.saf ?? 0;
+  if (!saf) return { gains: [], exposure: [] };
+  const p = { probability: odds };
+  const per = isLineNode(n) ? ' (odds per result)' : '';
+  if (saf < 0) return { gains: [], exposure: [{ currency: 'alignment', amount: 1, unit: 'safety risk', ...p, target: `${n.options?.length ? 'when used: ' : ''}${n.saf ?? 'safety side effect'}` }] };
+  const t = n.technique ? TECHNIQUE_BY_ID[n.technique] : undefined;
+  const g = (unit: string, target: string, amount = 1): { gains: CostLine[]; exposure: CostLine[] } => ({ gains: [{ currency: 'alignment', amount, unit, ...p, target: target + per }], exposure: [] });
+  if (t && Object.keys(t.coverage).length) return g(t.role === 'contain' ? 'control protocol' : 'detector', `${t.role === 'contain' ? 'contains' : 'detects'} by coverage: ${traitList(t.coverage)}`);
+  if (t) return g(t.role === 'contain' ? 'control protocol' : 'training fix', `${t.role === 'fix' ? 'run option: ' : ''}${n.saf ?? t.name}`);
+  if (n.id === 'P25') return g('defence levels', 'weight security against theft', P25_DEFENCE);
+  return g('safety effect', n.saf ?? n.name);
 }
 
 const NEEDS_RE: ReNeed[] = ['ops', 'evals', 'exp', 'tune'];

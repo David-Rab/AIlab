@@ -1710,6 +1710,23 @@ for (const x of iaIssues.slice(8, 30)) console.log('     ' + x);
   if (f6c.r) ok('F6c: Retire version previews the version it retires, and retires it', f6c.r.costs.length === 1 && f6c.r.costs[0].unit === 'version' && f6c.r.costs[0].target.startsWith(f6c.name) && !f6c.r.gains.length && f6c.after === 'retired', JSON.stringify(f6c.r));
 }
 
+// F6d: safety-node previews state their real effect (no `0.05 × saf` alignment). T-DECEPT's preview names the traits the
+// deception probe detects with the coverage the detection code reads from the lab's technique state; no tree preview
+// has a unitless alignment line.
+{
+  const f6d = JSON.parse(await get(`(() => {
+    const V = window.ai27v2Views.actionView;
+    const g = V(s, 'research.queue', { id: 'T-DECEPT' }).gains.find((x) => x.currency === 'alignment');
+    const cov = Object.entries(s.player.safety.techniques['T-DECEPT']?.coverage ?? {}).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    const ids = ['T-DECEPT', 'T-TMON', 'T-INOC', 'P25', 'P17', 'P14', 'engagement'];
+    const bad = ids.filter((id) => { const p = V(s, 'research.queue', { id }); return [...p.gains, ...p.exposure].some((x) => x.currency === 'alignment' && !x.unit); });
+    const p25 = V(s, 'research.queue', { id: 'P25' }).gains.find((x) => x.currency === 'alignment');
+    return { g, cov, bad, p25 };
+  })()`));
+  const covOk = f6d.cov.length > 0 && f6d.cov.every(([, c]) => f6d.g?.target.includes(` ${c}`));
+  ok('F6d: a safety node previews its real effect (T-DECEPT: detector, the coverage the detection reads; P25 0.5 defence levels)', f6d.g?.unit === 'detector' && f6d.g.amount === 1 && covOk && f6d.p25?.unit === 'defence levels' && f6d.p25.amount === 0.5 && !f6d.bad.length, JSON.stringify(f6d));
+}
+
 // Speed-4 run for 2 s from the day-400 fixture (the day-900 fixture can end within days, e.g. another lab's ASI):
 // no errors, alerts appear. Then back to day 900 for the end screen.
 await page.evaluate((j) => window.ai27v2.importJson(j), fx);
