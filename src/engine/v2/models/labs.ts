@@ -88,6 +88,16 @@ export function versionById(s: GameStateV2, id: string | undefined): ModelVersio
   return id === undefined ? undefined : s.player.models.versions.find((v) => v.id === id);
 }
 
+/** `want`, or `want-2`, `want-3`, … if a version already has that name (model v3 F6: names are unique by
+ *  construction; two distills of one teacher were both "<teacher>-mini"). */
+export function uniqueVersionName(s: GameStateV2, want: string): string {
+  const taken = new Set(s.player.models.versions.map((v) => v.name));
+  if (!taken.has(want)) return want;
+  let k = 2;
+  while (taken.has(`${want}-${k}`)) k++;
+  return `${want}-${k}`;
+}
+
 /** Player's best non-retired version by TRUE effective compute G (hidden — engine use only). */
 export function bestPlayerVersion(s: GameStateV2): ModelVersion | undefined {
   let best: ModelVersion | undefined;

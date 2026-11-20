@@ -3,7 +3,7 @@
 import { commitmentDeployBlock, committedUsagePolicy } from '../actors/commitments';
 import { ws4r } from '../actors/state';
 import type { Channel, Deployment, GameStateV2, LabId, ModelVersion, SystemCtx, Variant } from '../types';
-import { CHINA_ID, bestG, rivalLab, versionById } from './labs';
+import { CHINA_ID, bestG, rivalLab, uniqueVersionName, versionById } from './labs';
 import { optionLocked } from './tree';
 import { agentsGate, kindOfChannel, priceIndexOf } from './products';
 import { tierOfIndex } from '../../../data/v2/features';
@@ -155,7 +155,7 @@ export function makeVariant(s: GameStateV2, versionId: string, variant: Extract<
   if (v.variant !== 'full' && v.variant !== 'mini') return 'Variants are made from full or mini versions';
   const c: ModelVersion = JSON.parse(JSON.stringify(v)) as ModelVersion;
   c.id = `V${s.player.models.nextName++}`;
-  c.name = `${v.name}-${variant}`;
+  c.name = uniqueVersionName(s, `${v.name}-${variant}`);
   c.variant = variant;
   c.parentVersionId = v.id;
   c.day = s.time.day;

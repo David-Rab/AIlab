@@ -44,7 +44,7 @@ import {
   continueGPre, daysFor, distillFlop, distillGap, fDataEff, flopOfDesign, gPreOf, rlGains, rlWeights, serveOfBase,
   servingFlop, type FamilyMap, type GPreParts, type RlGains,
 } from './effective';
-import { versionById } from './labs';
+import { uniqueVersionName, versionById } from './labs';
 import { bookCash } from '../finance/ledger';
 import { poolsOf } from '../compute/power';
 import { ws4r } from '../actors/state';
@@ -492,7 +492,7 @@ function latestOnBase(s: GameStateV2, baseId: string): ModelVersion | undefined 
 function versionName(s: GameStateV2, baseId: string, suffix = ''): string {
   const b = s.player.models.bases.find((x) => x.id === baseId);
   const nOn = s.player.models.versions.filter((v) => v.baseId === baseId).length;
-  return `${b?.name ?? PLAYER_MODEL_FAMILY}.${nOn}${suffix}`;
+  return uniqueVersionName(s, `${b?.name ?? PLAYER_MODEL_FAMILY}.${nOn}${suffix}`);
 }
 
 function newVersion(s: GameStateV2, run: TrainingRun, base: BaseModel, build: VersionBuild, parent: ModelVersion | undefined, extra: Partial<ModelVersion>): ModelVersion {
@@ -559,7 +559,7 @@ function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
     const nS = run.studentParams ?? nT * STUDENT_DEFAULT;
     const build = distillBuild(t, distillGap(nT, nS, run.tokens ?? DISTILL_TPP * nS));
     const v = newVersion(s, run, base, build, t, { variant: 'mini', params: nS, serveCost: t.serveCost * (nS / nT), monitorability: t.monitorability, design: { ...t.design }, appeal: t.appeal ?? 1 });
-    v.name = `${t.name}-mini`;
+    v.name = uniqueVersionName(s, `${t.name}-mini`);
     m.versions.push(v);
     afterVersion(s, ctx, run, v);
     return;
