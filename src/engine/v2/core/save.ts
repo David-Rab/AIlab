@@ -51,8 +51,13 @@ import { START_SUITE_FAMILIES, startExpertAssets, suitesFromV1 } from '../models
  *  (D5 and D2 were built as 21 → 22 → 23 beside E1's 21 → 22; merge M2 made the chain linear.)
  *  25 (model v3 E6): TechniqueState.oHalf (half-strength point in OOM of effective compute above the start model)
  *  replaces mHalf (in research-speed multiplier M). Migration 24 → 25 converts each tool's M½ on the ai2027 reference
- *  path (oomOfRefM: the same point v2's decay halved at). */
-export const SCHEMA_REV = 25;
+ *  path (oomOfRefM: the same point v2's decay halved at).
+ *  26 (model v3 D7): evaluations as work — ModelsState.evals (eval suites as tasks) and evalSpent, the research
+ *  engineers' 'evals' need, BuildKind 'eval', EvalRecord.nEff / lgAt / depth. Migration 25 → 26 starts with no suites
+ *  queued (a version in evaluation gets its release suite on the next tick, from scratch), puts 'evals' right after run
+ *  operations in the research-engineer order, and leaves old records' precision at their suite count.
+ *  (E6 and D7 were both built as 24 → 25; merge M4 made the chain linear.) */
+export const SCHEMA_REV = 26;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -311,6 +316,18 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       if (t.oHalf === undefined) t.oHalf = oomOfRefM(t.mHalf ?? 25);
       delete t.mHalf;
     }
+  },
+  /** 25 → 26 (model v3 D7): no eval suites queued yet; 'evals' joins the research engineers' needs after run operations. */
+  25: (raw) => {
+    const p = (raw as unknown as GameStateV2).player;
+    p.models.evals ??= [];
+    p.models.evalSpent ??= { suites: 0, reTW: 0, engTW: 0, h100eDays: 0 };
+    const a = p.research.re;
+    if (!a.order.includes('evals')) {
+      const i = a.order.indexOf('ops');
+      a.order.splice(i < 0 ? 0 : i + 1, 0, 'evals');
+    }
+    if (p.research.last) p.research.last.re.evals ??= 0;
   },
 };
 

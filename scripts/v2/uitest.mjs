@@ -1228,6 +1228,100 @@ async function e12Check(where) {
   await page.mouse.move(1, 1);
   await shot(`e12-${tag}-model-card`);
 }
+// ───────────────────────── D8: Models › Evals (day 1, 400, 900) ─────────────────────────
+const D8_TERMS = ['evals', 'evalGate', 'autoEvaluate', 'rerunRule', 'evalQueue', 'evalDepth', 'measureBand', 'elicitation', 'benchmark'];
+const d8Seen = new Set();
+const toEvals = async () => { await nav('models'); await tabTo('evals'); await wait(120); };
+/** A read-only selector (store.ts exposes them for this test) on the live state; Infinity → 'inf'. */
+const V = (fn, ...a) => page.evaluate(([f, args]) => { const r = window.ai27v2Views[f](window.ai27v2.state, ...args); return JSON.parse(JSON.stringify(r, (k, x) => (x === Infinity ? 'inf' : x))); }, [fn, a]);
+/** Rendered queue rows vs evalQueueView: order, progress, finish (days), what binds. */
+async function d8Queue(where) {
+  const ui = await page.$$eval('[data-test=eval-queue] [data-eval]', (els) => els.map((e) => ({
+    id: e.getAttribute('data-eval'), prog: parseFloat(e.querySelector('[data-test=eval-progress]')?.textContent ?? 'NaN'),
+    eta: Number(e.querySelector('[data-test=eval-eta]')?.getAttribute('data-eta')), binds: e.querySelector('[data-test=eval-binds]')?.getAttribute('data-binds'),
+  })));
+  const sel = await V('evalQueueView');
+  const same = ui.length === sel.length && sel.every((t, i) => ui[i].id === t.id && Math.abs(ui[i].prog - t.progress * 100) <= 0.6
+    && ui[i].eta === (t.etaDays === 'inf' ? -1 : t.etaDays) && ui[i].binds === (t.waiting ?? t.binds));
+  ok(`D8 ${where}: eval queue rows equal evalQueueView (order, progress, finish, what binds)`, same, `${ui.length} rows · ${JSON.stringify(ui[0] ?? {})} vs ${JSON.stringify(sel[0] ? { id: sel[0].id, p: sel[0].progress, eta: sel[0].etaDays, b: sel[0].waiting ?? sel[0].binds } : {})}`);
+  if (!ui.length) ok(`D8 ${where}: an empty queue says so`, !!(await page.$('[data-test=eval-queue-empty]')));
+}
+async function d8Check(where, complete, depth) {
+  await toEvals();
+  const tag = where.replace(/\s+/g, '');
+  ok(`D8 ${where}: Models › Evals renders policy, queue, order and measurement`, !!(await page.$('[data-test=evals] [data-home=evalPolicy]')) && !!(await page.$('[data-home=evalQueue]'))
+    && !!(await page.$('[data-home=evalOrder]')) && !!(await page.$('[data-home=evalMeasure]')));
+  // Policy: gate depth, auto-evaluate, per-suite cost, re-run rule.
+  const pol = await page.$eval('[data-test=eval-policy]', (e) => e.innerText).catch(() => '');
+  ok(`D8 ${where}: policy row shows gate, auto-evaluate, re-run rule and the cost per suite (RE, eng, H100e-days)`, /GATE/i.test(pol) && /Auto-evaluate/.test(pol) && /every 30 d/.test(pol) && /RE team-wk/.test(pol) && /eng team-wk/.test(pol) && /H100e-days/.test(pol), pol.replace(/\s+/g, ' ').slice(0, 160));
+  await d8Queue(where);
+  // Measurement rows equal evalMeasureView (band).
+  const ms = await V('evalMeasureView');
+  const msUi = await page.$$eval('[data-test=eval-measure] [data-measure]', (els) => els.map((e) => ({ id: e.getAttribute('data-measure'), sd: e.querySelector('[data-test=eval-sd]')?.textContent ?? '' })));
+  const mOk = msUi.length > 0 && msUi.every((r) => { const m = ms.find((x) => x.versionId === r.id); return m && (m.measuredL === undefined ? r.sd === '—' : r.sd === `± ${m.sd.toFixed(2)}`); });
+  ok(`D8 ${where}: measurement bands equal evalMeasureView (± 0.2/√n)`, mOk, `${msUi.length} rows · ${JSON.stringify(msUi[0])}`);
+  // Pick the least-measured version with no open suite and order a suite at `depth`.
+  const cand = ms.filter((r) => r.measuredL !== undefined && r.open.length === 0 && (r.status === 'ready' || r.status === 'deployed')).sort((a, b) => a.nEff - b.nEff)[0];
+  if (cand) {
+    await page.click(`[data-test=eval-measure] [data-measure="${cand.versionId}"] .ev-mname`);
+    await wait(80);
+    await page.click(`[data-test=eval-depth] [data-opt="${depth}"]`);
+    await wait(80);
+    for (const t of await page.$$eval('[data-test=evals] [data-term]', (els) => els.map((e) => e.getAttribute('data-term')))) d8Seen.add(t);
+    const head = await page.$eval('[data-home=evalOrder] .card2-ttl', (e) => e.textContent ?? '');
+    ok(`D8 ${where}: clicking a measurement row picks the version to order on`, head.includes(cand.name), head);
+    await page.hover('[data-act="runEvals.self"]');
+    await wait(400);
+    const tip = await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '');
+    ok(`D8 ${where}: the order preview shows research-engineer and engineer team-weeks and H100e-days`, /research-engineer team-weeks/.test(tip) && /engineer team-weeks/.test(tip) && /H100e-days/.test(tip), tip.replace(/\s+/g, ' ').slice(0, 160));
+    await clearTips();
+    const pv = await V('actionView', 'runEvals', { versionId: cand.versionId, by: 'self', depth });
+    const before = await get(`(s.player.models.evals || []).map((t) => t.id).join(',')`);
+    await page.click('[data-act="runEvals.self"]');
+    await wait(150);
+    const task = JSON.parse(await get(`(s.player.models.evals || []).find((t) => t.versionId === ${JSON.stringify(cand.versionId)} && t.by === 'self' && t.why === 'order') || null`));
+    const c = Object.fromEntries(pv.costs.map((x) => [x.target?.split(' ')[0], x.amount]));
+    const match = task && task.depth === depth && Math.abs(Math.round(task.reTW * 100) / 100 - c['research-engineer']) < 1e-9 && Math.abs(Math.round(task.engTW * 100) / 100 - c.engineer) < 1e-9 && Math.round(task.h100eDays) === c['H100e-days'];
+    ok(`D8 ${where}: ordering a ${depth} suite queues it with the previewed cost`, before !== (await get(`(s.player.models.evals || []).map((t) => t.id).join(',')`)) && !!match,
+      `${task ? `${task.depth} ${task.reTW.toFixed(3)}/${task.engTW.toFixed(3)}/${Math.round(task.h100eDays)}` : 'no task'} vs ${JSON.stringify(c)}`);
+    ok(`D8 ${where}: the new suite shows in the queue at its depth`, !!(await page.$(`[data-test=eval-queue] [data-eval="${task?.id}"][data-depth="${depth}"][data-why=order]`)));
+    await d8Queue(`${where} after the order`);
+    ok(`D8 ${where}: a second own suite on the same version is blocked`, await page.$eval('[data-act="runEvals.self"]', (b) => b.disabled).catch(() => false));
+    await page.hover(`[data-test=eval-queue] [data-eval="${task?.id}"] [data-test=eval-binds]`).catch(() => {});
+    await wait(400);
+    const qt = await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '');
+    ok(`D8 ${where}: queue tooltip breaks the work left into research engineers, engineers and compute`, /Research engineers/.test(qt) && /Engineers/.test(qt) && /H100e-days left/.test(qt), qt.replace(/\s+/g, ' ').slice(0, 140));
+    await clearTips();
+    await shot(`d8-${tag}-evals`);
+    if (complete && task) {
+      let done = false;
+      for (let i = 0; i < 90 && !done; i++) {
+        await page.evaluate(() => window.ai27v2.step(1));
+        await closeModals();
+        await pause();
+        done = !JSON.parse(await get(`(s.player.models.evals || []).some((t) => t.id === ${JSON.stringify(task.id)})`));
+      }
+      await toEvals();
+      const after = (await V('evalMeasureView')).find((r) => r.versionId === cand.versionId);
+      const sdUi = await page.$eval(`[data-measure="${cand.versionId}"] [data-test=eval-sd]`, (e) => e.textContent ?? '').catch(() => '');
+      ok(`D8 ${where}: the band shrinks after the suite (${cand.sd.toFixed(3)} → ${after?.sd.toFixed(3)}), last suite ${depth}`, done && !!after && after.sd < cand.sd - 1e-9 && after.depth === depth && sdUi === `± ${after.sd.toFixed(2)}`, `${sdUi} · done ${done}`);
+      await shot(`d8-${tag}-evals-after`);
+    }
+  } else ok(`D8 ${where}: a measured version to order on`, false);
+  // Links: the model card's order button and the "evaluating" chip open Models › Evals.
+  await nav('models');
+  await page.click('[data-test=card-order-evals]').catch(() => {});
+  await wait(120);
+  ok(`D8 ${where}: the model card's "Order a suite" opens Models › Evals`, JSON.parse(await get(`store.panel === 'models' && store.tab.models === 'evals'`)));
+  await nav('overview');
+  const chip = await page.$('.topstrip2 [data-test=evaluating]');
+  if (chip) {
+    await chip.click().catch(() => {});
+    await wait(120);
+    ok(`D8 ${where}: the top strip's "evaluating" chip opens the eval queue`, JSON.parse(await get(`store.panel === 'models' && store.tab.models === 'evals'`)));
+  }
+  await page.evaluate(() => window.ai27v2.setTab('models', 'versions'));
+}
 await page.evaluate(() => { const st = window.ai27v2; st.start({ ...st.draftSetup, tutorial: false, seed: 2027, companyName: 'OpenBrain' }); });
 await wait(150);
 await page.evaluate(() => window.ai27v2.step(1));
@@ -1237,6 +1331,7 @@ await b1Check('day 1');
 await b2Check('day 1');
 await b3Check('day 1', '29-day1-world-sectors');
 await b4Check('day 1');
+await d8Check('day 1', true, 'basic');
 await d6Check('day 1', true);
 await e12Check('day 1');
 {
@@ -1321,6 +1416,7 @@ await b4Check('day 400');
 await d6Check('day 400', true);
 await d4Check('day 400', true);
 await e12Check('day 400');
+await d8Check('day 400', true, 'full');
 await shot('27-day400-products-b2');
 const fx9 = readFileSync(path.resolve('scripts/v2/fixtures/day900.json'), 'utf8');
 await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
@@ -1331,6 +1427,11 @@ await b3Check('day 900', '29-day900-world-sectors');
 await b4Check('day 900');
 await d6Check('day 900', false);
 await e12Check('day 900');
+await d8Check('day 900', false, 'deep');
+{
+  const miss = D8_TERMS.filter((x) => !d8Seen.has(x));
+  ok(`D8: every evals term has a tooltip in Models › Evals (${D8_TERMS.length})`, miss.length === 0, miss.join(', '));
+}
 {
   const miss = D6_TERMS.filter((x) => !d6Seen.has(x));
   ok(`D6: every new suites term has a tooltip in Models › Suites (${D6_TERMS.length})`, miss.length === 0, miss.join(', '));

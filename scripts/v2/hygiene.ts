@@ -260,7 +260,7 @@ for (const rev of [1, 11, 12, 13, 14]) {
     msg = (e as Error).message;
   }
   // Model v3 V2 (schemaRev 13): V1 saves (12) are rejected too; model v3 V3 (schemaRev 14): V2 saves (13) too.
-  check(SCHEMA_REV === 25 && msg ===`no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
+  check(SCHEMA_REV === 26 && msg ===`no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
 }
 // Model v3 V4a (schemaRev 16): a V3b save (15) migrates (customer stocks start empty, versions get their FLOP per token).
 {
@@ -435,6 +435,26 @@ for (const rev of [1, 11, 12, 13, 14]) {
   const ok = !!T && Object.values(T).every((t) => typeof t.oHalf === 'number' && !('mHalf' in t))
     && Math.abs(T['T-PROP'].oHalf - (4.376 + 4.4 * Math.log10(2))) < 1e-9 && Math.abs(T['T-PROBE'].oHalf - 8.776) < 1e-9;
   check(ok, 'save: a schemaRev-24 save migrates to 25 (M½ → the same half point in OOM)', msg || (T ? `T-PROP ${T['T-PROP'].oHalf.toFixed(3)}, T-PROBE ${T['T-PROBE'].oHalf.toFixed(3)}` : ''));
+}
+// Model v3 D7 (schemaRev 26, built as 25 before M4): an E6 save (25) migrates (no eval suites queued, 'evals' joins the
+// research engineers' order right after run operations).
+{
+  const old = JSON.parse(serialize(run(detSetup, 30))) as GameStateV2 & Record<string, unknown>;
+  old.schemaRev = 25;
+  const m = old.player.models as unknown as Record<string, unknown>;
+  delete m.evals;
+  delete m.evalSpent;
+  old.player.research.re.order = old.player.research.re.order.filter((x) => x !== 'evals');
+  let msg = '';
+  let g: GameStateV2 | undefined;
+  try {
+    g = deserialize(JSON.stringify(old));
+  } catch (e) {
+    msg = (e as Error).message;
+  }
+  const o = g?.player.research.re.order ?? [];
+  check(!!g && Array.isArray(g.player.models.evals) && g.player.models.evals.length === 0 && o.indexOf('evals') === o.indexOf('ops') + 1,
+    'save: a schemaRev-25 save migrates to 26 (no eval suites, evals after run operations)', msg || o.join(', '));
 }
 // ---------- 6. Cadences ----------
 const counts: Record<Cadence, number> = { daily: 0, weekly: 0, monthly: 0, quarterly: 0, semiannual: 0 };

@@ -287,6 +287,32 @@ export interface ModelsState {
     track?: { pre: number; rlMid: number; rlCeil: number };
   };
   nextName: number; // naming counter
+  /** Model v3 D7: eval suites queued or running (work: research engineers, engineers, inference compute). */
+  evals: EvalTask[];
+  /** Model v3 D7: eval work done so far (readout): suites finished, research-engineer and engineer team-weeks, H100e-days. */
+  evalSpent: { suites: number; reTW: number; engTW: number; h100eDays: number };
+}
+
+/** Model v3 D7: depth of an eval suite (rollouts per benchmark: noise, elicitation, cost; data/v2/evals.ts). */
+export type EvalDepth = 'basic' | 'full' | 'deep';
+/** Model v3 D7: one eval suite as a task. Research engineers (or the external evaluator's staff) and the experiment
+ *  pool's compute advance `progress` together; the engineers' part is a build-queue item (`engId` until it is built). */
+export interface EvalTask {
+  id: string;
+  versionId: string;
+  depth: EvalDepth;
+  by: 'self' | 'evalGov' | 'evalIndep';
+  /** Why it runs: the release gate (the version waits in 'evaluating'), the standing policy, or the player's order. */
+  why: 'release' | 'policy' | 'order';
+  day: Day;
+  /** Research-engineer team-weeks (effective work), engineer team-weeks, inference compute (H100e-days). */
+  reTW: number;
+  engTW: number;
+  h100eDays: number;
+  /** Share done of the research-engineer work and its compute (0..1). */
+  progress: number;
+  /** The engineers' build item while it is not built. */
+  engId?: string;
 }
 
 export interface BaseModel {
@@ -415,6 +441,13 @@ export interface EvalRecord {
   nSuites?: number;
   /** Hidden: this version's measurement error, drawn once at its first suite (engine only, never shown). */
   errTrue?: number;
+  /** Model v3 D7: precision of the measurement in full-suite equivalents (Σ rollouts ÷ the full suite's); the band is
+   *  0.2/√nEff. Absent on old records: nSuites. */
+  nEff?: number;
+  /** Model v3 D7: the version's true level at its last suite (engine: "changed in place" for the re-run policy). */
+  lgAt?: number;
+  /** Model v3 D7: depth of the last suite. */
+  depth?: EvalDepth;
 }
 
 export type RunKind = 'base' | 'post' | 'continue' | 'distill';
@@ -711,8 +744,9 @@ export interface StackState {
   n: number;
 }
 export type RiskPolicy = 'safe' | 'balanced' | 'speculative';
-/** Research-engineer needs (V3-BUILD V2.5): run operations, project experiments, routine tuning. */
-export type ReNeed = 'ops' | 'exp' | 'tune';
+/** Research-engineer needs (V3-BUILD V2.5): run operations, evaluations (model v3 D7), project experiments, routine
+ *  tuning. */
+export type ReNeed = 'ops' | 'evals' | 'exp' | 'tune';
 /** Engineer needs: run operations and setups, product upkeep, builds (features, adoptions, launches, packs). */
 export type EngNeed = 'runs' | 'upkeep' | 'builds';
 /** A broad allocation: needs in priority order and optional caps per need: a team count (`max`, team-equivalents) and a
@@ -988,7 +1022,7 @@ export interface AgentPackage {
 
 // ───────────────────────────── Build queue (STRUCTURE §4.1, R5) ─────────────────────────────
 
-export type BuildKind = 'runSetup' | 'feature' | 'harness' | 'safeguard' | 'launch' | 'sectorPack' | 'adopt' | 'suite';
+export type BuildKind = 'runSetup' | 'feature' | 'harness' | 'safeguard' | 'launch' | 'sectorPack' | 'adopt' | 'suite' | 'eval';
 /** A product launch waiting for its build (J2 P1): the product goes live with these settings once built. */
 export interface PendingLaunch {
   channel: Channel;

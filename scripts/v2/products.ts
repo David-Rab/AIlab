@@ -34,6 +34,8 @@ import { evalM, labInputs } from '../../src/engine/v2/production/production';
 import { fleetMonitor, internalFleets, monitorBudget } from '../../src/engine/v2/departments/agents';
 import { previewAgentChange } from '../../src/engine/v2/departments/agentActions';
 import { internalVersion } from '../../src/engine/v2/models/labs';
+import { REEVAL_DAYS } from '../../src/data/v2/evals';
+import { evalDaysFor } from '../../src/engine/v2/models/evals';
 
 const game = () => newGame(defaultSetupV2({ seed: 2027, world: 'ai2027', alignment: 'medium', baseline: 'classic', tutorial: false }));
 const run = (s: GameStateV2, n: number) => {
@@ -197,8 +199,11 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const hNow = (v0.evals.bench.horizon?.score ?? 0) / 60;
   check(hNow < AGENT_TASK_HOURS ? !!launch && /time horizon/.test(launch) : !launch, 'P8 launching Agents at the start follows the gate', `${hNow.toFixed(1)} h: ${launch ?? 'launched'}`);
   run(s, 45);
+  // Model v3 D7: a re-run is a suite as work (models/evals.ts): the internal model's suite stays within the cadence plus
+  // one suite's duration.
   const iv = s.player.models.versions.find((v) => v.id === s.player.agents.capRoutine.versionId)!;
-  check(iv.evals.suiteDay !== undefined && s.time.day - iv.evals.suiteDay <= 30, 'P8 auto-evaluate keeps the internal model\'s suite ≤ 30 days old', `suite day ${iv.evals.suiteDay}, today ${s.time.day}`);
+  const lag = REEVAL_DAYS + evalDaysFor(s, 'full') + 1;
+  check(iv.evals.suiteDay !== undefined && s.time.day - iv.evals.suiteDay <= lag, `P8 auto-evaluate keeps the internal model's suite ≤ ${lag} days old (cadence + one suite's work)`, `suite day ${iv.evals.suiteDay}, today ${s.time.day}`);
   // Upgrade policy.
   const api = prod(s, 'api');
   const cur = s.player.models.versions.find((v) => v.id === api.versionId)!;

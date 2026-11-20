@@ -93,6 +93,8 @@ const REQUIRED = [
   'dataPortfolio', 'uniqueTokens', 'dataQuality', 'publicWeb', 'licensedData', 'licenceTier', 'syntheticData', 'teacherYield', 'naturalMix', 'refShare', 'drawnMix', 'domainEpochs', 'pendingData', 'usageData', 'synJob', 'dataLicence', 'dataSpec',
   // model v3 E12: trait families and meanings, training pressure per run, successor pull.
   'traitBehaviour', 'traitAwareness', 'traitDisposition', 'traitProtective', 'trainingPressure', 'traitMovement', 'successorPull', 'aiRdShare', 'rdOversight',
+  // model v3 D8: evaluations (Models › Evals).
+  'evalSuite', 'evalDepth', 'measureBand', 'elicitation', 'evalIndep', 'evalGov', 'rerunRule', 'evalQueue', 'evaluating',
 ];
 const req = REQUIRED.filter((id) => !GLOSSARY_V2[id]);
 ok(`Required terms present (${REQUIRED.length})`, req.length === 0, req.join(', '));

@@ -1,0 +1,49 @@
+/* Models › Evals (model v3 D8). */
+.ev { display: flex; flex-direction: column; gap: 12px; max-width: 1440px; }
+.ev-mid { display: grid; grid-template-columns: minmax(0, 1fr) 440px; gap: 12px; align-items: start; }
+.ev-left { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.ev-empty { padding: 6px 0; }
+.ev .ch { white-space: nowrap; font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); font-weight: 600; padding-bottom: 4px; border-bottom: 1px solid var(--line); }
+.ev .ch.r { text-align: right; }
+
+/* policy row */
+.ev-pol-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; }
+.ev-pol-item { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+.ev-pol-item .tip-cap, .ev-cost .tip-cap, .ev-dpick .tip-cap { margin: 0; }
+.ev-pol-item b { font-size: 15px; }
+.ev-cost { display: inline-flex; align-items: center; gap: 12px; white-space: nowrap; }
+.ev-cost b { font-size: 14px; }
+.ev-sep { width: 1px; align-self: stretch; background: var(--line); }
+
+/* queue */
+.ev-qgrid { display: grid; grid-template-columns: minmax(90px, max-content) max-content max-content max-content max-content max-content minmax(0, 1fr); column-gap: 14px; row-gap: 7px; align-items: center; }
+.ev-qline { display: contents; }
+.ev-name { background: none; border: none; padding: 0; color: var(--text); font-weight: 600; font-size: 12.5px; cursor: pointer; text-align: left; white-space: nowrap; }
+.ev-name:hover { text-decoration: underline; }
+.ev-prog { gap: 6px; }
+
+/* order */
+.ev-dpick { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.ev-dgrid { display: grid; grid-template-columns: minmax(120px, 1fr) repeat(3, 76px); row-gap: 3px; font-size: 12px; }
+.ev-dgrid > .ch { text-align: right; }
+.ev-dgrid > .ch.on { color: var(--text); }
+.ev-dline { display: contents; }
+.ev-dline > span { padding: 2px 0; border-bottom: 1px dashed var(--line); }
+.ev-dline > .num { text-align: right; color: var(--text-2); }
+.ev-dline > .num.on { color: var(--text); font-weight: 600; background: rgba(155,107,224,.10); }
+.ev-obtns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+
+/* measurement */
+.ev-mgrid { display: grid; grid-template-columns: minmax(150px, max-content) max-content 60px max-content max-content minmax(0, 1fr); column-gap: 16px; row-gap: 2px; align-items: center; }
+.ev-mgrid .num { white-space: nowrap; }
+.ev-mline { display: contents; cursor: pointer; }
+.ev-mline > * { padding: 3px 0; }
+.ev-mline.on .ev-mname b { color: var(--cap, #9b6be0); }
+.ev-mline.on .ev-mname::before { content: ''; width: 3px; height: 14px; border-radius: 2px; background: #9b6be0; margin-left: -8px; margin-right: 2px; }
+.ev-mline:hover .ev-mname b { text-decoration: underline; }
+.ev-mname { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 12.5px; }
+.ev-chip { cursor: pointer; }
+.ev-r { text-align: right; display: block; }
+.ev-axis { padding-bottom: 0 !important; }
+.ev-tick { font-size: 9.5px; fill: var(--text-3); }
+.ev-band { display: block; }

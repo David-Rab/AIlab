@@ -15,7 +15,9 @@ import { DATA_ACTIONS } from '../production/dataActions';
 import type {
   ActionDef, BaseDesign, ComputeSplit, CostLine, GameStateV2, PostDesign, RLFamily,
 } from '../types';
-import { runEvalSuite } from './benchmarks';
+import { evalCost, evalDaysEstimate, queueEval } from './evals';
+import { EVAL_DEPTH_IDS } from '../../../data/v2/evals';
+import type { EvalDepth } from '../types';
 import { makeVariant, retireVersion } from './deployments';
 import { AGENT_ACTIONS } from '../departments/agentActions';
 import { PRODUCT_ACTIONS } from './productOps';
@@ -38,6 +40,11 @@ const num = (p: Params, k: string, d: number) => (typeof p[k] === 'number' && Nu
 const bool = (p: Params, k: string, d: boolean) => (typeof p[k] === 'boolean' ? (p[k] as boolean) : d);
 const fail = (why: string | undefined) => {
   if (why) throw new Error(why);
+};
+/** Model v3 D7: suite depth param (basic, full, deep; default full). */
+const evalDepthParam = (p: Params): EvalDepth => {
+  const d = str(p, 'depth', 'full') as EvalDepth;
+  return EVAL_DEPTH_IDS.includes(d) ? d : 'full';
 };
 const latestBase = (s: GameStateV2) => s.player.models.bases[s.player.models.bases.length - 1];
 const latestFull = (s: GameStateV2) => [...s.player.models.versions].reverse().find((v) => v.variant === 'full' && v.status !== 'retired');
@@ -231,10 +238,20 @@ const RUN_ACTIONS: ActionDef[] = [
   {
     id: 'runEvals', verb: 'policy', system: 'models', sphere: 'models', owner: 'WS1', title: 'Run evals',
     available: () => true,
-    preview: (_s, p) => {
-      const by = str(p, 'by', 'self');
+    // Model v3 D7: queues a suite as work (models/evals.ts): research-engineer team-weeks (the evaluators' own staff for
+    // external ones), engineer team-weeks and inference compute (H100e-days) from the experiments pool.
+    preview: (s, p) => {
+      const by = str(p, 'by', 'self') as 'self' | 'evalGov' | 'evalIndep';
+      const v = versionById(s, str(p, 'versionId', internalVersion(s)?.id ?? ''));
+      const depth = evalDepthParam(p);
+      const c = v ? evalCost(s, v, depth, by) : undefined;
+      const days = by === 'self' ? evalDaysEstimate(s, depth) : Math.ceil((c?.reTW ?? 0) / ((c?.maxTeams ?? 1) / 7));
       return {
-        costs: [{ currency: 'staffTime', amount: 20 }, { currency: 'compute', amount: 0.005 }],
+        costs: [
+          ...(by === 'self' ? [{ currency: 'staffTime' as const, amount: Math.round((c?.reTW ?? 0) * 100) / 100, target: 'research-engineer team-weeks' }] : []),
+          { currency: 'staffTime', amount: Math.round((c?.engTW ?? 0) * 100) / 100, target: 'engineer team-weeks' },
+          { currency: 'compute', amount: Math.round(c?.h100eDays ?? 0), target: `H100e-days from experiments, ≈${Number.isFinite(days) ? days : '∞'} days` },
+        ],
         gains: by === 'self' ? [{ currency: 'monitorability', amount: 0.02 }] : [{ currency: 'credibility', amount: 2 }, { currency: 'trust', amount: 1, target: by }],
         exposure: by === 'self' ? [] : [{ currency: 'leadDays', amount: -14 }],
       };
@@ -242,7 +259,11 @@ const RUN_ACTIONS: ActionDef[] = [
     apply: (s, ctx, p) => {
       const v = versionById(s, str(p, 'versionId', internalVersion(s)?.id ?? ''));
       if (!v) fail('Unknown version');
-      else runEvalSuite(s, ctx, v.id, str(p, 'by', 'self') as 'self' | 'evalGov' | 'evalIndep');
+      else {
+        const r = queueEval(s, v, evalDepthParam(p), str(p, 'by', 'self') as 'self' | 'evalGov' | 'evalIndep', 'order');
+        if (typeof r === 'string') fail(r);
+        else ctx.log('research', `Eval suite queued on ${v.name}.`, 1, v.id);
+      }
     },
   },
 ];

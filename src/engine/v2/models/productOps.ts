@@ -13,6 +13,7 @@ import { spareServing } from '../worldfx/revenue';
 import { CHANNEL_VARIANTS, deploy, deployGate, effortLock, setServing, withdraw } from './deployments';
 import { versionById } from './labs';
 import { autoEvaluate, featureBuildBlock, featureToggleBlock, isProduct, newestCleared, priceIndexOf } from './products';
+import { evalPolicyView } from './evals';
 
 type Params = Record<string, number | string | boolean>;
 const str = (p: Params, k: string, d: string) => (typeof p[k] === 'string' ? (p[k] as string) : d);
@@ -161,7 +162,7 @@ export const productsSystem: EngineSystem = {
   id: 'products', owner: 'WS1', cadence: 'daily', order: 155, system: 'products',
   run(s, ctx) {
     if (s.player.status !== 'active') return;
-    autoEvaluate(s, ctx);
+    autoEvaluate(s);
     upgradeProducts(s, ctx);
   },
 };
@@ -416,6 +417,14 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
       }
       if (p.upgradeToNewest === true) exposure.push({ currency: 'leadDays', amount: -5, lagDays: 30, probability: 0.5, target: 'newer models leak to distillers' });
       if (p.autoEvaluate === false) exposure.push({ currency: 'monitorability', amount: -0.05, target: 'stale trait estimates on the internal model' });
+      // Model v3 D7: what a re-run costs (one suite at the policy depth on the internal model; models/evals.ts).
+      if (p.autoEvaluate === true) {
+        const pv = evalPolicyView(s);
+        if (pv.perSuite) {
+          costs.push({ currency: 'staffTime', amount: Math.round(pv.perSuite.reTW * 100) / 100, target: `research-engineer team-weeks per ${pv.depth} re-run (changed ≥ ${pv.reevalDL} L or every ${pv.reevalDays} days)` });
+          costs.push({ currency: 'compute', amount: Math.round(pv.perSuite.h100eDays), target: 'H100e-days per re-run, from experiments' });
+        }
+      }
       return { costs, gains, exposure };
     },
     apply: (s, ctx, p) => {

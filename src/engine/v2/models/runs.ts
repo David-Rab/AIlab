@@ -33,7 +33,7 @@ import type {
 import { adopted, paradigmOff } from './paradigms';
 import { optionLocked, payoffOf } from './tree';
 import type { DomainMap } from './effective';
-import { evalDaysFor, runEvalSuite } from './benchmarks';
+import { releaseEvals } from './evals';
 import { addOff, addSig, baseEffect, clampSignals, monitorabilityClass, postEffect, type Off } from './design';
 import { domainsOf, finishBuild, gOfDomain, gOfPm, levelOf, refreshLevels, simpleFrontierPm } from './capability';
 import { ePreAt, rlCeilNow, rlMidNow, serveNow, trainNow } from './stacks';
@@ -607,16 +607,6 @@ function afterVersion(s: GameStateV2, ctx: SystemCtx, run: TrainingRun, v: Model
 
 // ───────────────────────────── daily systems ─────────────────────────────
 
-/** Promote evaluated versions: the eval suite completes `evalDaysFor(gate)` days after a version finishes. */
-function promoteEvaluated(s: GameStateV2, ctx: SystemCtx) {
-  const days = evalDaysFor(s);
-  for (const v of s.player.models.versions) {
-    if (v.status === 'evaluating' && ctx.day >= v.day + days) {
-      runEvalSuite(s, ctx, v.id);
-      v.status = 'ready';
-    }
-  }
-}
 
 /** runs (40, daily): add FLOP to running runs; on completion create base/version, call WS2 applyRunToTraits,
  *  queue the eval. (Paradigm projects moved to the research system, models/tree.ts, in R4.) */
@@ -633,7 +623,8 @@ export const runsSystem: EngineSystem = {
       if (!waiting) run.flopDone += (alloc.get(run.id) ?? 0) * runFlopPerShareDay(s, run);
       if (!waiting && run.flopDone >= run.flopNeeded) completeRun(s, ctx, run);
     }
-    promoteEvaluated(s, ctx);
+    // Model v3 D7: a finished version waits for its release eval suite (work, models/evals.ts), not fixed days.
+    releaseEvals(s);
     // Finished runs are kept for 400 days for the UI, then dropped (save budget).
     s.player.models.runs = s.player.models.runs.filter((r) => r.status === 'running' || r.status === 'paused' || ctx.day - r.startDay < 400);
   },

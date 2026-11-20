@@ -20,7 +20,7 @@ import { agentVersion } from '../departments/agents';
 import { MILESTONE_NAMES } from './capability';
 import { versionById } from './labs';
 import {
-  allocate, attemptOdds, batchOf, capReCapacity, isCapProject, linePool, poolMean, reAllocation, reOpsNeed, sciOn, stagesOf, teamsWanted, wantIsAuto,
+  allocate, attemptOdds, batchOf, capReCapacity, isCapProject, linePool, poolMean, reAllocation, reDemand, sciOn, stagesOf, teamsWanted, wantIsAuto,
 } from './research';
 import { adoptedAt, headroomAt, latestBaseFlop, rlCeilNow, rlMidNow, stackAt, trainNow } from './stacks';
 import { nodeStatus, projectReady } from './tree';
@@ -286,8 +286,7 @@ export function reAllocView(s: GameStateV2): AllocView<ReNeed> & { m: number; pe
   const a = s.player.research.re;
   const al = reAllocation(s);
   const m = Math.max(1, workContext(s).slots.EXP.m);
-  const exp = s.player.research.queue.filter((id) => !!s.player.tree[id]?.cap?.test).length;
-  const demand: Record<ReNeed, number> = { ops: reOpsNeed(s) / m, exp: exp * RE_PER_PROJECT, tune: Infinity };
+  const demand: Record<ReNeed, number> = reDemand(s, m);
   const cap = capReCapacity(s);
   const needs = a.order.map((k) => {
     const lim = Math.min(a.max[k] ?? Infinity, (a.share[k] ?? Infinity) * cap);
