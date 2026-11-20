@@ -21,9 +21,11 @@ tasks**, one subagent each, one at a time. Spec: [MODEL-V3.md](MODEL-V3.md). Num
   needs a mechanism that contradicts the spec; a test the task does not own newly fails and cannot be explained.
 - **Known failures (not ours):** finance F7 / F8 / F11, valuation, equity 2026 (owned by the finance session, spec
   `../AI27-finance3`); safety S5 RefBot "U falls below L by SAR" (since E1: safety lines speed up with the lab's
-  compute; to E2/E10; S5 mixed passes since E1); safety S4 RefBot P_mis at ASI 0.530 vs 0.55–0.85 (since E1, same
-  cause; found in M1, lead to confirm); finance F2 global production 2027 43.2M vs 45M (since A5, found in M1);
-  worldfx GOV T1; worldfx W2 automation TFP at its band edge (≈0.49% vs
+  compute; accepted, → E10; E2 cannot move it while no bot hands safety work to AI, F5); safety S4 RefBot P_mis at ASI
+  vs 0.55–0.85 (since E1, same cause; 0.530 in M1, 0.485 after M2 (E5 −0.032); accepted, → E10); finance F2 global production 2027 (since A5, found
+  in M1; D5's dropped per-run grader cash moves it too, accepted in M2: the finance session owns finance);
+  worldfx GOV T1; worldfx U +1 pp (out of its window since A5, "never" since M2's E5 merge: one-seed path, F11 2027
+  $31.9B with it); worldfx W2 automation TFP at its band edge (≈0.49% vs
   0.5–1%, since A5; feasibility F stays "best available coverage", not bought tiers); ws4 T3; calib T1 slow is a knife
   edge on seed 2027 (SC jumps between base cycles with tiny changes; G_SC refit in M1, the multi-seed fix is F4); hygiene
   perf (P2 made the tick 18–30% faster with identical behaviour; A5's market mix added ≈1.2–1.7 ms a day, all four perf
@@ -76,15 +78,16 @@ suites as fixed days.
 | ID | Task | Depends | Effort | Done when |
 |---|---|---|---|---|
 | D1 (done 2026-11-20, merged M1) | Data portfolio model: assets of five kinds (public, licensed, usage, synthetic, expert) with tokens, domain mix, quality; unique-token stock U per base from it (replaces `effectiveStock`); the public stock is shared and finite. No new UI. | – | H | base planning reads the portfolio; effective tests updated; same start numbers (U = 300T-class) |
-| D2 | Data actions: licensing deals by domain (cash), synthetic generation as a compute budget with a teacher (quality from teacher G, inherits traits), expert data purchase. Remove the old data actions. | D1 | M | actions work and show before/after on the Blueprint data tile |
+| D2 (done 2026-11-20, merged M2: licences barely move U → D11; teacher finding → D9; preview units → D4) | Data actions: licensing deals by domain (cash), synthetic generation as a compute budget with a teacher (quality from teacher G, inherits traits), expert data purchase. Remove the old data actions. | D1 | M | actions work and show before/after on the Blueprint data tile |
 | D3 (done 2026-11-20, merged M1: every preset draws from the 2025 reference shares; "natural" kept as a preset option for D4) | Data mix on the blueprint: the base draws tokens from the portfolio by domain and quality; domain specialisation s_d,data and repetition come from the draw. | D1 | H | specialisation follows the mix in a test; V1 design offsets for data options retired |
 | D4 | Data UI: portfolio view (kinds, tokens, quality, domain mix), data actions, mix control in the Blueprint. | D2, D3 | M | uitest |
-| D5 | Environment suites model: one suite per RL family with fidelity (scales the RL ceiling A_f) and exploitability (feeds trait signal S2); built and hardened by engineers (team-weeks) with expert-data cash; the "hardened graders" option becomes suite state. | D1 | H | RL gain reads fidelity; S2 reads exploitability; start suites reproduce V1's reference gain |
-| D6 | Suites UI: suites per family, build/harden actions, effect preview. | D5 | M | uitest |
+| D5 (done 2026-11-20, merged M2: finance F2 dip accepted; suite build's small RL effect → E10/F5) | Environment suites model: one suite per RL family with fidelity (scales the RL ceiling A_f) and exploitability (feeds trait signal S2); built and hardened by engineers (team-weeks) with expert-data cash; the "hardened graders" option becomes suite state. | D1 | H | RL gain reads fidelity; S2 reads exploitability; start suites reproduce V1's reference gain |
+| D6 (done 2026-11-20, merged M2: Models › Suites) | Suites UI: suites per family, build/harden actions, effect preview. | D5 | M | uitest |
 | D7 | Evaluations as work: an eval task needs research-engineer and engineer work plus inference compute (tokens on benchmark and agent tasks); depth sets noise and elicitation; a standing policy runs them. Replaces fixed eval days and the 30-day expiry. | – | H | eval cost shows up in allocations and compute; measured level noise falls with depth; tests |
 | D8 | Evals UI: policy, depth, cost, measured vs believed levels. | D7 | M | uitest |
 | D9 | Wire the LATER(V5) ideas P10 (synthetic flywheel), P12 (long-horizon demos), P21 as typed effects on data/suites. | D1, D5 | M | their effects typed and tested; `LATER(V5)` markers gone |
 | D10 | Serving-efficiency ideas and tokens per task (found by A3): there is no sourced rate for inference-efficiency ideas and the reference lab never researches them (the serving stack stays at 0 OOM); tokens per task for the same answer quality do not fall as RL efficiency improves (FrontierMath 43M → 5M tokens in 8 months, research/20 D3). Add a sourced Inference-efficiency line (decode utilisation 0.07 → 0.15 and kernel/quantisation gains from research/20 D1) that RefBot ranks, and tokens-per-task falling with RL-stack efficiency at fixed capability. | D5 | H | serving stack improves by mechanism in a reference run; token profiles fall at fixed capability; golden dates and serving tests pass |
+| D11 (running, branch `v3-d11`) | Data quality for drawn tokens (found by D2: quality reached G only through U, so licences and better teachers did nothing for bases that don't repeat data): quality-weighted tokens in the loss law, normalised so the 2025 reference draw is q = 1. | D2 | H | premium data and teacher quality move G by sourced amounts; reference unchanged |
 
 ## E. Safety and alignment (was V6)
 
@@ -94,10 +97,10 @@ danger depends on, and how loss of control works.
 | ID | Task | Depends | Effort | Done when |
 |---|---|---|---|---|
 | E1 (done 2026-11-20, merged M1: S5 RefBot now fails, accepted → E2/E10; slow T1 knife edge → F4) | Safety lines on the project mechanism, rates: each line project gets ideation, experiments and scale-like stages with compute and research-engineer labour like capability projects (no hidden asymmetry); hidden efficacy and dead ends kept. | – | H | the safety lines speed up with the lab's labour and compute in a test; the v2 "no research speed" asymmetry gone |
-| E2 | AI labour on safety work: SAF_EXP and SAF_IDEAS work types drive the safety fleet via the V3 labour function; sabotage risk from the model's own traits; the "trusted to AI" share stays the player's control. | E1 | H | safety AI FTE from work types; sabotage test |
-| E3 | Training pressure from run quantities: S2 from RL FLOP × exploitability (needs D5), S3 from agentic RL share and task length, S1 from preference share, S5 from G and AI-data share; replace the design-table constants. | D5 | H | signal tests: more RL FLOP raises S2; calibrated to the research/20 F rates |
+| E2 (done 2026-11-20, merged M2: RefBot never uses Trusted to AI → F5) | AI labour on safety work: SAF_EXP and SAF_IDEAS work types drive the safety fleet via the V3 labour function; sabotage risk from the model's own traits; the "trusted to AI" share stays the player's control. | E1 | H | safety AI FTE from work types; sabotage test |
+| E3 (done 2026-11-20, merged M2: light-RL S1 at the cap and drawn-share S6 intended) | Training pressure from run quantities: S2 from RL FLOP × exploitability (needs D5), S3 from agentic RL share and task length, S1 from preference share, S5 from G and AI-data share; replace the design-table constants. | D5 | H | signal tests: more RL FLOP raises S2; calibrated to the research/20 F rates |
 | E4 | Successor pull: when AI does a share of the R&D that trains the next model, the new model's dispositions are pulled toward its own, ∝ AI share × (1 − oversight). | E3 | H | test: higher AI share and weaker oversight raise the pull |
-| E5 | Danger formula for incidents: rate = disposition × capability × opportunity × (1 − oversight) with capability from the relevant domain level and opportunity from the deployment (horizon given, affordances, copies, AI R&D share). Replaces κ·x^1.5. | – | H | incident rates scale with capability and opportunity in tests; start rates match research/20 F |
+| E5 (done 2026-11-20, merged M2: E7 adds SAF_EXP to `aiRdShare`) | Danger formula for incidents: rate = disposition × capability × opportunity × (1 − oversight) with capability from the relevant domain level and opportunity from the deployment (horizon given, affordances, copies, AI R&D share). Replaces κ·x^1.5. | – | H | incident rates scale with capability and opportunity in tests; start rates match research/20 F |
 | E6 | Oversight in domain levels: monitor catch rate and tool decay measured in the capability gap in levels/OOM, not in the research multiplier M (Engels: 9–52% at a 400-Elo gap); control tax on AI labour. Removes the BRIDGE(V6) M reads. | – | H | no safety code reads M (lint); catch-rate test |
 | E7 | Research sabotage and steering: covert acts that corrupt safety work or steer capability research and successors, from the danger formula. | E5, E6 | H | consequences appear in research output and traits; tests |
 | E8 | Footholds: hidden countable AI assets created by covert acts (backdoor, steered successor, hidden compute, exfiltrated copy, corrupted tool); detection finds and removes them; the player sees suspected ones and symptoms. | E7 | H | state, creation, detection and removal in tests |
@@ -121,5 +124,5 @@ danger depends on, and how loss of control works.
 
 ## Order (one at a time)
 
-A1–A5, B1–B4, C2, P2, D1, D3, E1 done (2026-11-20; D1, D3, E1 merged in M1). Next: **E5 (running), D5 (running), E2
-(running)**, then D2, D4, D6, D7, E3, E6, F1, P3; after those the rest of D…F. The lead may reorder when a result changes what is next; every change goes in this file.
+A1–A5, B1–B4, C2, P2, D1, D3, E1 done (2026-11-20; D1, D3, E1 merged in M1); D2, D5, D6, E2, E3, E5 done (merged in
+M2). Next: **D4, D11 (running)**, then E4, E6, D7, D9, D10, F1, P3, E7; after those the rest of D…F. The lead may reorder when a result changes what is next; every change goes in this file.

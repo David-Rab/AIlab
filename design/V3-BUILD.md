@@ -2419,3 +2419,616 @@ Both branches started at 672c4c1 (before A5). D1, D3 and E1 notes are above (cop
   the D merge alone (596b095, no E1) gives S4 RefBot 0.706 (pass), safe-only 0.108, S5 RefBot pass (−0.84, below in 78%),
   S5 mixed fail (−0.84): so S4's drop is E1's, on top of A5 + D. Not covered by a lead decision yet: listed for the lead
   with S5 RefBot (E2/E10).
+
+### D5 notes (RL environment suites as owned assets, 2026-11-20)
+
+Code: `src/engine/v2/models/suites.ts` (state, readouts, work, actions, migration helper), `src/data/v2/suites.ts`
+(numbers), `models/effective.ts` (`rlGains(..., fid)`), `models/runs.ts` (recipe freezes the suites, no-suite focus
+refused, no grader cash), `safety/traits.ts` (`postSignals` S2), `departments/build.ts` (build kind `suite`, upkeep line
+`suite`), `core/init.ts`, `core/save.ts`. Types: `EnvSuite`, `PlayerLab.suites`, `VersionBuild.rlFid`,
+`TrainingRun.recipe.{fid, exploit}`, `OwnedDataAsset.family`, `PostDesign.graders?` (legacy). UI: Blueprint post card
+"Suites" row (read-only), BuildLoad labels. Test: `scripts/v2/suites.ts` (in `test:v2` after `data`).
+
+**State and rules**
+- `PlayerLab.suites[family] = { exploit, builds, hardenings }`, one per RL family in `RL_FAMILIES`. Start: the six
+  families without a paradigm need. Computer use (needs P06) has **no suite** until P06 is known; then it reads as a
+  start-quality suite (`suiteOf`) and becomes state when the lab first works on it (`materialiseSuite`) [D: no daily
+  system, no edit to tree.ts]. Broad RL = equal weights over the families with a suite (replaces
+  `rlFamiliesAvailable(nodeKnown)` for the player; same families as before).
+- **Fidelity is not stored**: fid_f = 1.5 − 0.5·(E₀/E_f)^0.5 (≥ 0.5), E_f = tokens of the family's expert asset
+  `expert:<family>` (D1's `expert` kind, q 3, domain = the family's own domain, `family` set). One home per datum: the
+  data portfolio holds the expert data, the suite reads it. ×2 data → 1.146, ×4 → 1.25, ×16 → 1.375, cap 1.5 [D].
+- **Fidelity × the RL-ceiling stack:** A_f = fid_f · (A_base(FLOP_pre) + a_RL). The stack (research line
+  "Environments & rewards", a_RL) is the lab-wide method for environments and rewards and applies to every family; a
+  suite's fidelity is how much of it that family's environments realise. A domain's ceiling is the transfer-weighted
+  mean of the A_f reaching it (Σ_f w_f·T[f][d]·fid_f ÷ Σ_f w_f·T[f][d], the same weights as its compute), so a better
+  suite raises its own family's gain and other domains only through transfer, and the curve stays bounded by the best
+  A_f. All fid = 1 is bit-identical to V1 (num = den).
+- **S2 rule (MODEL-V3 §11.2):** S2 = κ · Σ_f (RL compute share_f × exploitability_f) × the RL budget's pressure
+  (light 0.5 / standard 1 / heavy 1.3, kept from V1) + P11 0.2, clamped [0, 1] as before. κ = S2_PER_EXPLOIT = 5.538
+  [fit] so the leader's start suites under broad RL give V1's 0.36. The family table's S2 entries (math 0.2, SWE 0.6,
+  ML research 0.4) are gone (S3/S5/S7 entries unchanged, E3 rebuilds them). The version's `build.signals.S2` is now this
+  S2 too (the design table's S2 kept only as a readout fallback at V1's hardened × 0.6).
+- **Frozen at launch:** a post run stores `recipe.fid` and `recipe.exploit` (with rlMid/rlCeil); completion builds the
+  version and applies traits with them, and the RL weights come from the frozen families. IDA uses each family's max of
+  the teacher's and today's fidelity; the continual-learning stream and S2 for stream/IDA trait steps read today's
+  suites.
+- **Build** (`suite.build`, param `family`): $0.1B for 0.002T expert data (paid when queued) + 2 team-weeks on the
+  build queue ('builds' need, after upkeep); on completion the tokens join `expert:<family>` (expert data is **created**,
+  not consumed: the suite keeps reading it, D7's evals may read it too).
+- **Harden** (`suite.harden`): 1.5 team-weeks and $0.05B × √(E/E₀) (bigger suites cost more to red-team; × 0.2 cash with
+  P15 "hardened graders at the cheap price", V1's 0.1/0.5); x ← floor + (x − floor)·0.6, floor = 0.1 × the start value:
+  each pass removes 40% of what is left (diminishing returns). One pending build and one hardening per family.
+- **Upkeep:** 0.03 team-weeks/week × √(E/E₀) per suite on the 'upkeep' need (6 start suites 0.18 t-wk/wk ≈ 3% of the
+  leader's start capacity). Unserved upkeep has no decay (like products and features) [D].
+- **No per-run grader cash any more** (V1 charged hardened runs 0.5 × the RL FLOP's compute cost): the cost moved to the
+  assets. `GRADERS`, `ENV_BUDGET_FRAC` and the Blueprint graders control are removed; `optionLocked('graders')` is no
+  longer called (the ★ "Hardened graders" node and `OptionSlot 'graders'` stay as content; D6/F6 may retire them).
+
+**Start values (sources)**
+- Exploitability with cheap graders, per family (research/20 F1, METR o3 [P]): ML research 0.30 (RE-Bench 30.4%), SWE
+  0.45 (Rust codecontest scaffold 43%, test special-casing), math 0.15 (checkable answers), computer use, long tasks,
+  cyber, bio 0.025 (HCAST 0.7%, "≈1% typical"). Ratio math : SWE : ML = 1 : 3 : 2 = V1's family S2 table.
+- Hardened = 0.4 × cheap (V1's 0.6 / 1.5): math 6%, SWE 18%, ML research 12%, others 1%.
+- Per start type (`START_EXPLOIT_MULT`, a column of the start tables in data/v2/suites.ts) [D]: leader, challenger, big
+  tech hardened (×1); spinout cheap (×2.5: bought environments, no red team). Fidelity 1 for every start (a follower's
+  lag lives in know-how, V1 notes; a lower start fidelity would count it twice and shift the start-lag bisection).
+- Expert data E₀ = 0.002T per family [D, units sourced]: Epoch RL-environment FAQ [P, research/12 §2] $200–2,000 per
+  task (≈ $1k); ≈ $1B/yr lab-wide environment spend [UNVERIFIED, The Information via research/12]; half a year of it in
+  the start suites = $0.1B per family ≈ 100k tasks × 20k tokens per task [D] → $0.05 per expert token.
+- Reproduction: reference RL gain 0.7000 OOM (bit-identical), V0 unchanged; S2 0.36 leader/challenger/big tech, 0.90
+  spinout (= V1's cheap); light 0.18, heavy 0.468 as V1.
+
+**Behaviour changes (reported, not tuned)**
+- Focused runs: V1 gave any SWE focus S2 0.36 and broad 0.36 (broad counted half weight on every family). Now S2 follows
+  the RL compute share: SWE focus 0.77, math focus 0.34, ML-research focus ≈ 0.56, long tasks ≈ 0.16 (was 0). After P06
+  broad spreads over 7 suites: S2 0.316 (was 0.36).
+- The race bot asked for cheap graders (S2 0.9 under V1); it now trains on the hardened start suites (0.36) and never
+  hardens or degrades them. The mixed/safe bots' "hardened graders" are the start suites. Bots table reported, not
+  required (F5 may give the race bot a "skip upkeep"/cheap-environment policy if wanted).
+- RefBot pays no grader cash: integrated ai2027 cash at the end 9 → 18 ($B), SIAR −0.041 → −0.030 y, ASI −0.016 →
+  +0.022 y. Stub T1 identical to the baseline on every preset (ai2027 SC 2027.249, SAR .686, SIAR .874, ASI .974;
+  authors2026 SC 2029.583 … ASI 2033.563; fast and slow the same).
+
+- **finance F2 newly fails** (global production 2027 46.9M → 44.4M H100e vs the 45–60M band; one seed, RefBot + finance
+  autopilot): explained and isolated — restoring only V1's per-run grader cash (0.5 × the RL FLOP's compute cost)
+  reproduces the baseline exactly (46.9M, end-2026 cash $47.6B), and zeroing the suites' upkeep changes nothing. Paying
+  less for runs shifts the autopilot's financing timing (end-2026 cash 47.6 → 38.7 $B) and its chip orders. The lead
+  decides: accept (spec: the cost lives in the suites) or keep a per-run environment cost. F8 "out of distress through
+  2026" 91.7% → 83.3% (still ≥ 75%).
+
+**Gate (2026-11-20, machine shared with other agents):** tsc main + scripts clean; suites, effective, data,
+golden-timelines, identity, worktypes, research, serving, products, calib (T1 stub identical to the baseline; T1L
+identical), lint-ux, lint-tradeoffs, lint-structure, lint-hidden, fixtures, money, idle pass; test:ui 382/382 (new
+check + screenshot `d5-blueprint-suites`). Known failures unchanged: safety S5 mixed; finance F7 ×2, F11; worldfx F7/F11
+×2, equity, U +1 pp, GOV T1 (same values ±0.1 as the baseline); ws4 T3 ×2; hygiene performance (baseline fails the same
+checks on this loaded machine: 1.6–2.0 ms vs 2.4 ms average, noisy). New: finance F2 (above).
+
+**Save:** schemaRev 21 → 22 (renumbered 22 → 23 in M2). Migration 21 → 22: suites from the lab's latest graders choice (newest post run, else newest
+full version): cheap → cheap, else hardened, at fidelity 1; D1's empty `expert` placeholder replaced by the six start
+expert assets. `PostDesign.graders` is optional and read only there. Fixtures not regenerated (they migrate on load).
+
+**For D6 (suites UI)** — `suitesView(s, focus)` (exported from the engine) gives per family: label, fidelity,
+exploitability, expert data (T), the RL share a run with that focus gives it, builds/hardenings done, pending work; plus
+the RL-weighted fidelity/exploitability and S2 before pressure. `suiteWorkCost(s, f, 'build'|'harden')` → team-weeks,
+cash, tokens; `suiteWorkEffect` → before → after (fidelity or exploitability). Actions `suite.build` / `suite.harden`
+with `{ family }` (previews have cost and gain lines). Show: a row per family (fidelity bar to 1.5, exploitable % with
+its floor, expert data, share of the planned run), build/harden buttons with the preview, and the effect on the planned
+run (ΔG per domain via `planRun(...).g.rl` and S2 via `postSignals`). Computer use shows "needs P06" until known. The
+Blueprint's read-only row (`SuitesRow`, `data-test=bp-suites`) can link to the new view.
+
+**For E3 (training pressure)** — read `suiteS2(w, exploit)` / `S2_PER_EXPLOIT`, the run's frozen `recipe.exploit` (and
+`recipe.fid`), `suiteExploitMap(s)`, `suiteRlWeights(s, focus)` (RL compute shares). `postSignals(s, post, exploit?)`
+kept its interface (one optional argument added). E3 replaces the budget multiplier with "rising with log RL compute"
+(Gao) and calibrates κ and the per-family exploitability to research/20 F rates; the start values here are hack rates
+by design so they can be compared directly.
+
+### D2 notes (data actions on the data portfolio, 2026-11-20)
+
+Code: `src/engine/v2/production/dataActions.ts` (the four actions, `DATA_ACTIONS` in `MODEL_ACTIONS`),
+`src/engine/v2/production/data.ts` (deals: `licenceAsset`, `expertDomainAsset`, `addAsset`, `queueData`, `deliverData`,
+`expertStockT`, `takeExpertData`; synthetic jobs: `synPoolH100e`, `synAssetFor`, `synTokensT`; `usageRateAt`; readout
+`dataDelta` / `dataDeltaText`), numbers in `src/data/v2/dataAssets.ts` (`LICENCE_TIERS`, `WEB_LICENCE`, `USAGE_LEVELS`,
+`EXPERT_DELIVERY_DAYS`, `SYN_JOB`), `models/suites.ts` (build uses bought expert data), types `PendingData`, `SynJob`,
+`DataPortfolio.pending` / `.synJob`. UI: Relations › Research & data (domain and teacher pickers, variants). Glossary
+`dataLicence`, `synJob`, `expertData`, `usageData`. Tests: `scripts/v2/data.ts` (section "data actions", usage policy,
+saves), `uitest.mjs` (D2 checks, screenshot `d2-relations-data`).
+
+**Actions**
+| id | what | cost | effect | source |
+|---|---|---|---|---|
+| `data.license` {domain, tier, tokensT} | licensed corpus in one domain, asset `lic:<domain>:<tier>` (mix = that domain), delivered after 60 d | cash at signing: bulk $0.1B/T, curated $2B/T, premium $30B/T; default sizes 5T / 0.5T / 0.05T ($0.5 / 1 / 1.5B) | q 1.5 / 2 / 3 into U = Σ q·T | q: R20 A3 curated 1.5–3 [G/P]; premium price: Bartz ≈ $3,000/book at ≈ 100k tokens [V, research/08]; bulk: reported Reddit–Google ≈ $60M/yr [UNVERIFIED]; curated geometric middle [D]; delivery 60 d [D] |
+| `data.license` {domain: 'web'} | the old blanket "License data" (D3): licenses the crawl, once | $1B + $0.005B/T unlicensed (270T → $2.35B, v2) | `public.licensed` → copyright-suit hazard (china.ts) reads 0; creatives +10; **no tokens** | v2 numbers |
+| `data.synthesize` {teacher, share, days} | `share` of the synthetic pool generates with the chosen teacher for `days` (default: strongest version, whole pool, 90 d); `days: 0` stops; the rest of the pool keeps the default teacher (internal research model) | compute (H100e-days of the pool, already paid) and the default teacher's tokens forgone (shown) | tokens = `synTokensPerH100eDay`(teacher fpt) × H100e-days into `syn:<teacher>` (q = `syntheticQuality`(teacher G), `teacherId`, `teacherG`, `inheritsTraits: true`) | D1's rules |
+| `data.expert` {domain, tokensT} | expert data by domain, asset `expert:dom:<domain>` (q 3), delivered after 30 d | $50B/T = $0.05 a token (D5's price; default 0.002T = $0.1B) | a `suite.build` of a family whose domain matches takes these tokens before buying (one purchase path); not pretraining (U unchanged); D7 can read it | D5 / Epoch FAQ [P]; delivery [D] |
+| `data.usagePolicy` {level} | none 0 / standard 0.2 / broad 0.5 of eligible (consumer) output kept | Civil Liberties bloc approval +4 / 0 / −6 (applied as the difference on a change) | usage accrual × share | shares and approvals [D]; civlib = closest existing privacy relation (research/08 §1.11) |
+
+Every preview's gain line carries `dataDeltaText`: U before → after, the domain's share of the stock (natural mix) and its
+specialisation s_d on that mix, and the latest base design's epochs (the Blueprint Data tile's draw). Previews work with
+empty params (lint-tradeoffs).
+
+**One expert purchase path.** `suiteWorkCost(build)` now returns `fromStockT`: min(build tokens, bought expert data in
+the family's domain); the cash is (tokens − fromStock) × $50B/T; `suite.build` takes the stock when queued (lost if the
+build is cancelled, like its cash). Without bought data the cost is D5's ($0.1B), so D5's numbers are unchanged.
+
+**Findings for the lead / D4 / D9 (not tuned)**
+- *Licensed data barely moves U at realistic prices.* A premium deal buys 0.05T (0.15T quality-weighted) against U ≈
+  310T; quality enters G only through U (D1's rule), and below repetition it does nothing. Licences matter for short
+  domains that repeat (PHYS, MEDIA under multimodal: 1T curated PHYS = +2T, PHYS natural share 4.55% → 5.16%, s +0.08
+  OOM) and for the natural mix's specialisation. A mix-quality term at D < U (D3 left it out) would give premium data a
+  role; D4/lead decide.
+- *A stronger teacher yields fewer quality-weighted tokens per H100e-day.* Tokens ∝ 1/fpt while q rises 0.25 per OOM of G:
+  on the day-400 fixture V31 (G 28.98, q 0.75) gives 5.2T/day vs V0 (G 27.97, q 0.5) 9.2T/day (q·T 3.9 vs 4.6). Under
+  U = Σ q·T the efficient teacher maximises q(G)/fpt, i.e. a distilled mini of a strong model. D9 (P10 flywheel) may
+  revisit.
+- The web licence adds no tokens (v2's "× 1.5 per deal" double-counted the crawl). The safe bot now calls it (once);
+  RefBot never used D3, so golden dates are unchanged.
+
+**Save.** schemaRev 22 → 23 (renumbered 23 → 24 in M2): `DataPortfolio.pending` (required; migration 22 → 23 sets `[]`)
+and optional `synJob`. Tested: a schemaRev-22 save migrates with the same U; deals and jobs round-trip; day-400 fixture
+loads. `hygiene` asserts `SCHEMA_REV === 23`.
+
+**For D4 (data UI).** A portfolio view from `portfolioByKind` plus the pending deals (`dataPortfolio.pending`: asset,
+due day) and the running job (`synJob`: teacher, share, until; `synJobTerms(s, p)` gives H100e-days, tokens and the
+default teacher's tokens). Action forms: licence (domain picker incl. "web crawl", tier with q and $/T, size → cash via
+`licenceTerms`), expert (domain, size → `expertTerms`, families served), generation (teacher list with each teacher's G,
+q and tokens per H100e-day: `synAssetFor` / `synTokensT` — show q·T per H100e-day so the mini-teacher trade is visible),
+usage policy (three levels with usage tokens/day via `usageRateAt` and civlib approval). Before → after for any change
+via `dataDelta(s, change, domain)` (structured, not only the text). Today's minimal wiring lives in Relations › Research
+& data and can move to the data view.
+
+**Gate (2026-11-20).** tsc main + scripts clean; data, suites, effective, golden-timelines, identity, worktypes, research,
+serving, products, calib (T1 stub identical to D5: ai2027 SC 2027.249 / SAR .686 / SIAR .874 / ASI .974; authors2026,
+fast, slow the same), fixtures, money, idle, lint-tradeoffs / -structure / -ux / -hidden / -tips pass; test:ui 385/385
+(D2 checks, screenshot `d2-relations-data`). Failures unchanged from D5: safety S5 mixed; finance F2 (44.4M), F7 ×2, F11;
+ws4 T3 ×2; hygiene performance (loaded machine). worldfx not re-run (no demand code touched).
+
+**UI note for D4/F6.** The previews' gain amounts use the `progress` currency, which the generic preview row labels "L"
+(levels): "+7.50 L" there means +7.5T of U (the target text says so). suite.build has the same mismatch; the data view
+should show its own units.
+
+### E3 notes (training pressure from run quantities, 2026-11-20)
+
+Code: `src/engine/v2/safety/traits.ts` (signals section rewritten: `postSignals`, `baseSignals`, `distillSignals`,
+`runSignals`, `runOmega`/`runRho`, `hackRates`, `optimisationPressure`, `prefShare`, `aiDataShare`, `syntheticShare`,
+`sameBaseFamily`; `TraitEnv.omegaSafety`), `src/data/v2/runDesign.ts` (design-table signals removed; `RL_FAMILIES.taskH`),
+`models/design.ts` (`baseEffect`/`postEffect`/`rlFocusEffect` no longer carry signals), `models/runs.ts` (base and version
+signals are the engine's; the run card and `run.signals` are `runSignals`), `core/selectors.ts` (`runTraitPressure` uses
+`runOmega`). Test: `scripts/v2/signals.ts` (in `test:v2` after `suites`). No state changed: no schemaRev bump.
+
+**Rules (MODEL-V3 §11.2).** ρ = the run's RL FLOP ÷ its base's pretraining FLOP (standard 0.15 = ρ_ref); w_f = the RL
+compute shares over the families with a suite (D5's `rlWeights`; a run's frozen suites set them).
+- **S2** = S2_PER_EXPLOIT (5.538, D5) · Σ_f w_f·x_f · p(ρ) + P11 0.2, with **p(ρ) = 1 + 0.71·log₁₀(ρ/ρ_ref)**, ≥ 0.1.
+  Source: Gao, Schulman & Hilton 2022 (R20 F1): RL gold reward R = d·(α − β·ln d), d = √KL, so the over-optimised
+  share of the proxy's reward (β·ln d/α) rises linearly in log d. Slope 0.71 [fit]: V1's budget table (light ×0.5 at
+  ρ 0.03, heavy ×1.3 at ρ 0.4) lies on the line (0.715 / 0.704 per decade). Gao's coefficients (small RMs, BoN/PPO) are
+  not transferred, only the form. Per-family **hack rate h_f = x_f·p(ρ)** (`hackRates`): at the reference pressure the
+  suites' exploitability is D5's 2025 observed rate (METR o3: RE-Bench 30%, SWE scaffolds 43%, HCAST ≈1%; hardened
+  × 0.4), so S2 = 5.54 × the RL-weighted hack rate (6.5% at the reference → 0.36).
+- **S3** = K_S3 · Σ_f w_f · log₁₀(1 + H_f) over agentic families; H_f (`RL_FAMILIES.taskH`, hours) = SWE work type 2 h,
+  ML research = EXP 8 h (RE-Bench's 8-hour tasks), long-horizon = IDEAS 40 h, computer use and cyber 1 h [D]; math, bio
+  0. Log task length [D] (METR horizons are log-scale). K_S3 = 1.345 [fit]: broad over the six start suites = V1's 0.75.
+- **S1** = PREF_S1[method] · prefShare(ρ)/prefShare(ρ_ref), prefShare = 0.016/(0.016 + ρ) (9.6% at standard). The
+  preference stage is a fixed size: InstructGPT's PPO-ptx was 60 vs GPT-3's 3,640 petaflop/s-days = 1.6% of
+  pretraining [P, Ouyang et al. 2022 §5.1; not in research/ yet]. Method multipliers stay V1's [D]: engagement 0.9 >
+  persuasion 0.6 > constitution 0.4 > minimal 0.1.
+- **S4** = COT_S4[cot] (unchanged), and training against a COT-family technique counts as 'pressured' (0.8): Baker et
+  al. 2025, monitor in the reward → obfuscated reward hacking (R20 F1). Goodhart's own OBF +0.1 and masks unchanged.
+- **S5 (base)** = 0.2·(AI-related share ÷ the reference's) + **0.05 per OOM of the base's G_pre above 25.7** (so B0 at
+  27.30 has V1's 0.08 = 0.1 × start tier 0.8). Scale: Berglund 2023 / Laine 2024 SAD (out-of-context reasoning and SA
+  improve with scale; research/14 E07); slope 0.05 [fit: least squares on V1's 0.2 + 0.1·tier along RefBot's bases,
+  ai2027 seeds 500–501, net of the AI-data term]. AI-related share of the draw = Σ_d share_d·f_d (RSCH 10%, CODE/SOCIAL/
+  MEDIA 2%, rest 0.5% [D]; reference mix 2.21%) on non-usage tokens + usage share × 0.25 [D: the lab's own assistant
+  transcripts]; safety pretraining removes 75% of it [fit: V1's −0.15 at the start]. Replaces BRIDGE(V6) (`sizeS5`, the
+  run's scale vs F(t)) and the know-how tier (one number in every world now). **S5 (post)** = 0.3·w_longHorizon [D: V1's
+  0.1 at half weight].
+- **S6 (base)** = 0.1 + 0.3·(synthetic share of the draw − the reference start's 3.2%) [D: 0.3 per unit share = a
+  distillation run's V1 value]; **post** 0.1 (narrow fine-tunes baseline, V1; no fine-tune quantity exists yet);
+  **distill** 0.3 (all teacher data). **Teacher pull (E06) only within a base family** (`sameBaseFamily`: same base or
+  lineage; Cloud et al. 2025, R20 F3): distillation as before, and now also the post-run teacher path; a new base never
+  inherits its synthetic data's teacher traits (new initialisation). The synthetic preset's V1 +0.3 is gone: the share it
+  actually draws sets S6.
+- **S7** = 0.05 + s7(ρ) + 0.6·w_mlResearch + 0.3 per behavioural detector trained against, s7(ρ) = 0.2·(1 + 1.35·log₁₀(ρ/ρ_ref)),
+  ≥ 0 [fit: V1's light 0 / standard 0.2 / heavy 0.3 → 0.011 / 0.2 / 0.315]; direction R20 F5 (capability RL raises eval
+  awareness 2% → 20.6%, Schoen et al. [R]). ML-research environments = eval-like (RE-Bench) [D: V1's 0.2 at half weight].
+- **S8** unchanged (`deploymentS8`: copies, P05, P20; memory gates E22).
+- Every post signal is clamped to [0, 1] (V1 let S3 reach 1.2 with two agentic focus families).
+
+**ω.** `runOmega(s, run)` → `{ growth, safety }`. Base 1, continue 0.5, distill 0.4 (V1). Post: growth = **0.6·(ρ/ρ_ref)^¼**,
+IDA 0.4·(ρ/ρ_ref)^¼ on its IDA_RL_SHARE; the safety-training side (removal, alignment brackets) keeps 0.6 / 0.4
+(`TraitEnv.omegaSafety`): safety training is its own stage sized by the safety setting [D]. Source of the direction:
+Gao's decomposition R = d·(α − β·ln d) — d (how far the policy moves) grows with optimisation, S2's pressure is the
+ln d part; the fourth root [D] (5× less RL → ×0.67, 2.7× more → ×1.28). Stream days keep 0.6/42.
+
+**Before → after (start, leader, ai2027; `npx tsx scripts/v2/signals.ts` prints it).**
+| design | S1 | S2 | S3 | S5 | S6 | S7 | ω growth |
+|---|---|---|---|---|---|---|---|
+| reference post | .40 → .40 | .36 → .36 | .75 → .75 | .05 → .05 | .10 → .10 | .35 → .35 | .60 → .60 |
+| heavy RL (ρ .4) | .40 → .16 | .468 → .469 | .75 → .75 | .05 → .05 | .10 → .10 | .45 → .47 | .60 → .77 |
+| light RL (ρ .03) | .40 → 1.00 | .18 → .18 | .75 → .75 | .05 → .05 | .10 → .10 | .15 → .16 | .60 → .40 |
+| coding focus (SWE) | .40 → .40 | .77 → .77 | 0 → .68 | 0 → .02 | .10 → .10 | .25 → .29 | .60 |
+| long-horizon focus | .40 → .40 | .17 → .17 | .80 → 1.00 | .10 → .21 | .10 → .10 | .25 → .29 | .60 |
+| ML-research focus | .40 → .40 | .56 → .56 | 0 → 1.00 | 0 → .02 | .10 → .10 | .45 → .67 | .60 |
+| reference base (B0) | | | | .28 → .28 | .10 → .10 | | 1 |
+| synthetic-heavy base (start) | | | | .28 → .28 | .40 → .13 | | 1 |
+| synthetic-heavy, ×20 synthetic stock | | | | .28 → .28 | .40 → .26 | | 1 |
+| code & math base | | | | .28 → .31 | .10 → .11 | | 1 |
+| safety-pretrained base | | | | .13 → .13 | .10 → .10 | | 1 |
+| distill | | | | | .30 → .30 | | .40 |
+RefBot's bases (ai2027, seed 500): S5 (V1 applied, tier at completion) .296 / .368 / .513 → .33 / .41 / .46; S6 .10 →
+.15 / .21 / .23 (its balanced draws are 20 / 39 / 47% synthetic by then).
+
+**Behaviour changes (reported).** Light-budget runs now carry more approval pressure (S1 ×2.5, clamped at 1) on less
+movement (ω ×0.67); heavy runs the reverse. Focused agentic RL gets S3 from its task length (V1 gave SWE and ML focus 0).
+After P06, broad spreads over seven families: S3 .70, S5 .043, S7 .336 (V1 kept .75/.05/.35). The synthetic preset's
+flat +0.3 S6 is replaced by its drawn share (weak at the start, growing with the stock); RefBot's naturally synthetic-heavy
+bases get +0.05–0.13 S6 instead of 0.
+
+**Calibration.** RefBot (integrated, ai2027, seeds 500–505, to the player's ASI): per-version trait paths within ±0.07
+(PERSONA +0.04–0.07 from S6, CONCEAL/AF/SCHEME up to +0.05, SA ±0.05), Mis at ASI mean 0.476 → 0.479, P_mis mean 0.573 →
+0.575, ASI days identical. Golden timelines, calib (stub T1, T1L, integrated T1) identical to the D5 baseline.
+
+**For E4 (successor pull).** `inheritFromFleet` (INHERIT_K·(1 − 1/M) toward the internal agent) is still the
+lineage-inheritance mechanism; E4 replaces its κ with AI share × (1 − oversight). Reuse `sameBaseFamily` for what can
+carry traits subliminally (only same-family data; a new base is a new initialisation), the E06 pull in `stepTraits`
+(`env.teacher`, ω·w_E06·(teacher − x)), `syntheticShare(draw)` and the synthetic assets' `teacherId` (D1) for how much of
+a base's data the internal model wrote, `runOmega` for the run's movement.
+**For E10 (rate calibration).** `hackRates(w, exploit, ρ)` gives per-family hack rates (the F1/F2 comparison: RL-weighted
+6.5% at the reference, SWE 18%, ML research 12%, generic agentic 1%; heavy RL × 1.30, light × 0.50); the F2 "learned
+hacking" threshold (h > 5% on any family) can read it. Knobs: `S2_PER_EXPLOIT`, `K_GAO`, `OMEGA_RL_EXP`, `K_S5G`,
+`S5_AI`/`AI_*`, `S6_SYN`, `K_S7`; edge weights in data/v2/edges.ts. MacDiarmid's sabotage/AF rates and inoculation's
+−75–90% are E04's (`playerMods` E04 × 0.15 with inoculation, unchanged).
+
+**Gate (2026-11-20).** tsc main + scripts clean; signals (new), suites (budget check now "within 1%": light 0.181,
+heavy 0.469), effective, data, golden-timelines, identity, worktypes, research, serving, calib (stub T1, T1L, integrated
+T1 output identical to the D5 baseline), lint-hidden/ux/tradeoffs/structure, fixtures pass. **safety** (40 + 40 + 20
+integrated games; baseline = v3-d5 HEAD run the same day): S4 RefBot P_mis at ASI 0.714 → 0.715 (Mis mean 0.576 →
+0.575), safe-only 0.047 → 0.046; S5 RefBot median U − L at SAR −0.85 → −0.87; **S5 mixed stays the known failure**
+(median min margin −0.89 → −0.94, holds in 45% → 40% of worlds). No new failures.
+
+### D6 notes (RL environment suites UI, 2026-11-20)
+
+Code: `src/ui/v2/panels/Suites.tsx` + `suites.css` (the view), `panels/Models.tsx` (tabs Versions | Suites),
+`panels/Blueprint.tsx` (`SuitesRow`: summary + "Suites ›" link), `shell/Nav.tsx` (Models description),
+`engine/v2/models/suitesPreview.ts` (output-only selectors, exported from `engine/v2/index.ts`), `data/v2/glossary.ts`
+(new terms), `scripts/v2/uitest.mjs` (D6 checks), `scripts/v2/lint-ux.ts` (required terms). No state, mechanism or
+schema change.
+
+**Where it lives [D]: Models › Suites** (a second tab of Models; Versions keeps everything that was there).
+- Suites are owned training assets that post-trains consume, like bases and versions: the actions are in the `models`
+  sphere, the Blueprint (their consumer) sits in the same nav group, and a family's suite decides what a run can train on.
+- Not Research: Research holds ideas and the recipe stacks. The lab-wide "Environments & rewards" stack (the RL ceiling
+  a_RL that fidelity multiplies) stays on Research › Recipe; the suites card links there ("RL ceiling stack ›").
+- Not the data portfolio: there is no portfolio view yet (D4). Expert data is shown here per suite because it is the
+  suite's build state. **For D4:** the portfolio's `expert:<family>` assets should link to Models › Suites rather than
+  repeat the tokens (one home), or D4 takes the datum and this column becomes a link.
+- The Blueprint's post-train card keeps a one-line summary (RL-weighted fidelity and exploitable %, the run's own
+  aggregate) and a "Suites ›" button that opens the view with the Blueprint's current post-train design as the planned
+  run. Its tooltip no longer lists families (that is the view's datum now).
+
+**What it shows**
+- Planned run card (home `suitePlan`): base · post-train · RL budget, "from Blueprint" or "reference design"; focus
+  pills (Broad + every family with a suite whose focus is not locked); S2 of the planned run as a number and a bar split
+  by family (labelled when the name fits), tooltip = RL share × exploitability per family, the RL budget's pressure,
+  P11. The planned run is `store.tab['models.plan']` (UI state, reset with a new game): the Blueprint's post params
+  when opened from it, else the reference post-train on the latest base.
+- Suites card (home `suites`), one row per family: fidelity bar (0.5–1.5, mark at ×1) and value; exploitable bar
+  (0–50%, mark at the floor) and %; expert data (B/T tokens); RL share of the planned run; Build and Harden cells. A
+  cell shows the button, its cost (team-weeks · cash) and the after value with the planned-run effect inline
+  ("→ ×1.15 ΔG +0.05", "→ 11.5% S2 −0.06"); the tooltip has cash, team-weeks, done-in days (build queue), the
+  suite's before → after, the planned run's RL ΔG before → after with the top domains, and S2 before → after (3 dp).
+  Pending work replaces the button with "building · 3 d" (tooltip: team-weeks left, date, the result). Disabled
+  buttons show `suiteWorkBlock`'s reason in the tooltip. Locked families (computer use) show "needs Computer use (P06)"
+  with research progress; click opens the idea in Research › Tree.
+- Footer: two cause chains (Build → expert data → fidelity → RL ceiling → ΔG; Harden → exploitable → S2 → gaming
+  traits), every word a term. Links: Research › Recipe, Company › Work (engineers' load and upkeep stay there).
+
+**Engine (output only, `models/suitesPreview.ts`)**
+- `suitePlanEffect(s, lp)` → `{ rl: planRun(...).g.rl, s2: postSignals(...).S2 clamped, reason }`.
+- `suiteWorkPreview(s, f, work, lp)` → cost, the suite's before → after, block reason, `buildWaitNew` days, and the
+  planned run before/after; "after" is read from a shallow copy of the state with the work done (suites and the
+  family's expert asset), never mutating `s`.
+- `suiteS2Parts(s, post)` (S2 by family, pressure, P11), `suitePending(s, f)` (left t-wk, ETA from `buildEtas`),
+  `lockedSuiteFamilies(s)`; `familyDomain` and `exploitFloor` exported.
+
+**Glossary:** new `expertData`, `suiteBuild`, `suiteHarden`, `suiteRlShare`, `rewardHackPressure`, `plannedRun`;
+`envSuite`, `suiteFidelity`, `suiteExploit` cross-linked. All nine are in lint-ux's REQUIRED list.
+
+**Tests:** `test:ui` 413/413 (was 382 + the new D6 checks). `d6Check` at day 1 (fresh game), day 400 and day 900
+fixtures: every suite shows fidelity, exploitable, expert data, RL share, build and harden; computer use reads "needs
+P06"; S2 shown; tooltips on each value; build and harden previews have cash, team-weeks, before → after, ΔG and S2;
+Build queues the work, pays $0.1B and shows a pending pill with an ETA; Harden queues; at day 1 and 400 the work is
+stepped to completion and the result equals the preview (fidelity ×1.15; exploitable 11.5%, S2 0.30); a focus pill
+changes the RL shares (day 900: ML research is the only unlocked focus). Blueprint "Suites ›" opens the view with
+"from Blueprint". All nine terms seen as Term links. The `nav('models')` helper now opens Models on Versions (the
+model-card checks need the card). Screenshots: `d6-day{1,400,900}-suites`, `-build-preview`, `-suites-after`, plus
+the crawl's `10-/20-/30-…-models-suites`.
+
+**Gaps**
+- Day 1 and day 400 offer only the Broad focus pill (every single-family focus needs its idea); the pill check runs
+  at day 900 only.
+- The fixtures predate D5 (they migrate), so every suite starts at ×1.00 and 2B tokens there; differing values are
+  exercised by the build/harden checks.
+- The view does not offer RL budget or base choice (edit them on the Blueprint, then use "Suites ›").
+- ΔG of a build is small (+0.01–0.05 OOM general, +0.06–0.16 on the family's own domain): shown, not tuned.
+
+### E2 notes (AI labour on safety work through the work-type function, sabotage risk; 2026-11-20)
+
+Spec: MODEL-V3 §6.3, §11.7; V3-BUILD V3.3 ("internal packages map to SWE / EXP / IDEAS / SAF_*"). Code:
+`departments/workfit.ts` (`safetyLabour`, `handedLabour`, SAF_IDEAS humans, `sdAIOf` per work type), `safety/agents.ts`
+(rewritten: readouts only), `safety/lineProjects.ts` (`lineLabour`, AI taste in `safSciOn`), `safety/findings.ts` (FALSE
+weight), `safety/investigations.ts` and `safety/agendas.ts` (cases and tool upkeep on SAF_EXP), `departments/agentActions.ts`
+(no gate, no cap, previews), `models/researchView.ts` (SAF_IDEAS view). UI: Agents (Trusted to AI control), Safety (policy
+row, line tooltip), Work (safety work line). Data: `TRUSTED_MAX`/`TRUSTED_MAX_P27`, `AUTOMATE_MIN_L` and the
+`trusted.cap` limit removed; glossary `aiDoneShare` added, `trustedToAI` rewritten. Tests: `scripts/v2/safetyresearch.ts`
+§5b (new), `safety.ts` S6 and B3 rewritten for the new rule, `products.ts` A7 (no cap).
+
+#### What drives safety AI labour now
+
+`safetyLabour(s)` (memoised per state and day; reset with the safety allocation, i.e. after every action and in the
+research system) runs the safety package through the capabilities functions:
+
+- **coverage** a_w of SAF_EXP and SAF_IDEAS from the safety model's fit and horizon (`workFit`, its built scaffolds);
+- **FTE and copies** from the package's compute (safety pool × `agents.safety.compute`), FLOP per token and the P05 /
+  P20 / control-layer multipliers (`useLabour`, as every package);
+- **effective labour** by the coding CES (`effLabour`), with one policy input: **Trusted to AI t = the share of safety
+  work handed to the agents**. `handedLabour`: AI does A = t·a; humans do the rest, with the GDPval assist only on the
+  handed part, so the human speed-up is the time-weighted mean (1 − A) ÷ ((1 − t) + t(1 − a)/assist). t = 1 is
+  `effLabour` exactly (parity); t = 0 is humans alone. No model or no compute = nothing handed (t in effect 0).
+- [D] The package's compute is spread over the two work types in proportion to the work AI does in each (A × human
+  team-equivalents); SAF_IDEAS humans = scientists on research-line projects, SAF_EXP humans = safety research engineers.
+- **Lines** (`lineLabour`): m_ideas and m_exp from the slots with the line's coverage a × Auto (research/14's automation
+  factor read as the share of the line's work inside the work type's coverage: Carlsmith's "evaluable research
+  automates"; Auto 1 = the work type, AG12 0.2). AG17's ×(1 + √(capacity ÷ SERIOUS_CAP)) now lifts the agents' labour
+  (AI input) instead of v2's Auto [kept, E13 types it].
+- **Taste**: `safSciOn` uses `teamTaste(z, sd_AI, φ)` like capability `sciOn`, sd_AI from the safety model's SAF_IDEAS
+  fit (same domains and reference points as IDEAS), φ = t while the agents work on ideas. Star taste is not applied
+  (E1 left it out; unchanged).
+- **Cases and upkeep**: effective engineers × m of SAF_EXP (investigation gain ∝ √(FTE·m); upkeep heads × m inside
+  the existing UPKEEP_MAX). Replaces v2's min(1 + 1.5t, √(1 + a/n)).
+
+Removed special cases: the √M and min(10, √M) caps (`lineLabourMult`), `fleetMultiplier` and its 1 + 1.5t caps
+(cases, upkeep), `AUTOMATE_MIN_L` = 8.5 [D, unsourced: research/14 §0 has no level gate] and `aiLabourGate` (also its
+model lock in the Agents panel and the "locked" badge), `TRUSTED_MAX` 0.5 until P27 [D, unsourced] and the `trusted.cap`
+limit, the serveCost bridge on the fleet's copies (BRIDGE(V6), now `copiesOf` on FLOP per token). Kept: the player's
+Trusted to AI (0–100%), the package's compute share (≤ 60% of the safety pool), `AG17_MIN_L` (a tree gate on funding
+AG17, not on AI labour; not in this brief), lineSpeed's F44 ×3 and P27 ×(1 + 3t) (E13).
+
+#### Does safety automate later than capabilities? What the numbers show
+
+Only through the V3 data: θ(SAF_EXP) − θ(EXP) = +0.28 OOM (v 0.5 vs 0.7: +0.10; RSCH weight 0.5 vs 0.4 + 0.2 AGENCY:
++0.18), θ(SAF_IDEAS) − θ(IDEAS) = +0.05 OOM (v 0.2 vs 0.3) plus the horizon factor at 80 h vs 40 h tasks. On the ai2027
+RefBot run (seed 2027) the routine model's coverage crosses 0.25 / 0.5 / 0.9: EXP day 155 / 445 / 695 vs SAF_EXP 230 /
+445 / 715; IDEAS 620 / 675 / 800 vs SAF_IDEAS 625 / 695 / 810. **The lag is 0–75 days (typically ≈ 20), i.e. one model
+version at most.** Safety work is not automated "much later" by the data; what keeps it behind in play is the policy
+(t < 1 caps the gain at (1 − t·a)^−1.5 under ρ_c = −2: t = 0.5 gives at most ×2.8 even with full coverage), the
+package's compute (a share of the safety pool, against the capabilities agent pool) and sabotage risk.
+Parity test: with SAF_* set to EXP/IDEAS's domains, H and v, equal people and agent compute, the multiplier is equal to
+1e-16 at t = 1.
+
+#### Sabotage rule (F49, kept)
+
+FALSE weight in `fireFinding` = **the share of the line's work AI does** (A = t × a × Auto, stage-weighted: 0.2 ideas,
+0.8 experiments) × sab (SAND + SCHEME + U-mode sab of the safety model). Investigation corruption = A of SAF_EXP × sab ×
+(1 − tool verifiability). Detection unchanged (an AG02/AG08 NEG cross-check or an investigation with an independent
+tool family reveals it). [D] A, not the AI part of the labour margin 1 − w_H: with abundant AI the margin share falls
+to ≈ 0 although AI does the covered work (day 600 probe: A 0.57, 1 − w_H 0.000). A weak model handed everything does
+≈ 4% of the work, so its sabotage weight is small (test). Previews (Trusted to AI, Investigate) show A × believed sab.
+
+#### Calibration and readouts
+
+- **Start pacing**: no bot (RefBot, safe-only, mixed, race, capex2x) sets Trusted to AI, so their runs are unchanged;
+  E1's T₁ test passes unchanged. With the start model handed half the work at 20% of the safety pool: SAF_EXP a 5.3%,
+  SAF_IDEAS 0.3%, m_exp 1.07, m_ideas 1.002, first AG08 result 90 → 89 d.
+- Probe (ai2027 RefBot run, package 20% of the safety pool, t = 1 / 0.5): day 200 m_exp 1.85 / 1.32; day 600 5.1 /
+  1.8; day 750 121 / 2.7; day 900 832 / 2.8 (capabilities EXP m 1700 at day 900). v2 capped the line multiplier at
+  1 + t·Auto·10 = 6 at t = 0.5 before P27; now t = 1 is allowed and has no cap, so a lab that trusts its safety model
+  fully gets capability-like speed-ups on safety research (and the matching sabotage exposure).
+- **S4 / S5 (safety.ts, full run)**: identical to E1, because no bot hands safety work to AI. S4 RefBot P_mis 0.569
+  (E1 0.569), safe-only 0.045 (0.045): pass. S5 RefBot still FAILS: median U − L at SAR +0.19, below L in 38% of worlds
+  (E1 the same). S5 mixed passes: median min margin −0.03, U@SAR 12.35 vs RefBot 11.22 (unchanged). S6 and B3 (new rule)
+  pass. E2 cannot move S5 unless a bot uses Trusted to AI: the S5 gap comes from E1's compute-scaled lines (F5
+  rebalances the bots).
+
+UI: test:ui 376/376 pass after the build; the Agents screenshot shows the safety lane's Trusted to AI stepper with no
+cap or lock.
+
+#### Gate
+
+tsc main + scripts clean; safetyresearch all pass (31 checks, 14 new for E2); golden-timelines pass (known WARNs);
+identity, worktypes, research, effective, serving, products, lint-ux, lint-structure, lint-hidden, lint-tips pass;
+npm run build passes. calib: T1 slow SC FAIL 2037.772 vs 2038.527 ± 0.08 — the same value as E1's branch (the seed-2027
+knife edge E1 reported; E2 does not change any bot run), not refit. Everything else in calib passes.
+
+#### schemaRev
+
+No change (no new state: `safetyLabour` is computed; Trusted to AI values ≤ 0.5 stay valid, the policy now ranges to 1).
+
+### E5 notes (danger formula for incidents, 2026-11-20)
+
+Branch `v3-e5` (from `model-v3`). Code: `src/engine/v2/safety/incidents.ts`, data `src/data/v2/danger.ts` (new; v2's
+`INCIDENT_KAPPA` and `CHANNEL_EXPOSURE` removed from `data/v2/traits.ts`), one call in `actors/rivals.ts`. Test
+`scripts/v2/danger.ts` (in `test:v2` after safety). No saved state changed: no schemaRev bump.
+
+#### Formula (MODEL-V3 §11.3)
+
+Per harmful act k, per site (a product, an open release, or one internal fleet), per day:
+
+    attempts a_k = κ_k · D_k · C_k · O_k
+    rate_k       = a_k · (1 − oversight_k),   oversight_k = 1 − (1 − block_k)(1 − catch_k)
+
+- **Disposition** D_k = x_k^1.5, x_k the true trait (v2's convexity kept [D]: weak tendencies rarely become acts).
+  U-modes: x = UMODE_X = 0.25 on their mapped trait's act; traits with no act use `UMODE_ACT`.
+- **Capability** C_k = σ((L_d − θ_k)/s), s = 1 level [D]. Domains and θ [D]: SYC SOCIAL 4; RH CODE 5; PROXY AGENCY 5;
+  CONCEAL AGENCY 6; POWER (overreach) AGENCY 7; SAND (research sabotage) RSCH 8; COLLUDE AGENCY 9; SCHEME CYBER 9
+  (escape-like); U-mode fallback AGENCY 4.5. 2025 models (CODE 5, AGENCY 4, CYBER 4) are capable of sycophancy and test
+  gaming, barely of cover-ups, not of overreach, sabotage, collusion or escape (research/05 §1.5, §1.9, §1.10: those are
+  ≈ 0 in real 2025 deployments).
+- **Opportunity** O_k = N · [(1 − α_k) + α_k·A·F] · (r for R&D acts, internal only).
+  - N scale = usage share × (copies ÷ 2025 reference)^γ; internal copies = Σ work-type copies (workfit), ref 1e4,
+    γ 0.2; products: serving-pool copies at the model's FLOP/token, ref 1e5, γ 0.1; open weights 1 [D: an act repeated
+    over many copies is mostly one incident].
+  - A autonomy = H/(H + 2 h) from the task horizon given [D]: consumer 0.1 h, API 0.5, enterprise/gov/trusted 1,
+    Agents 4 (AGENT_TASK_HOURS), open 2; internal = its uses' work-type H (SWE 2, EXP 8, IDEAS 40, SAF_EXP 8) weighted by
+    agent compute (≈ 0.76 at start).
+  - F affordances [D]: consumer 0.3, API/enterprise/gov/trusted 0.5, Agents 0.8, open and internal 1.
+  - α_k how much the act needs autonomy [D]: SYC 0, RH 0.5, PROXY 0.7, the rest 1.
+  - r = AI share of the lab's R&D labour = 1 − ΣH/ΣL over SWE, EXP, IDEAS (V3 work types; 0.21 at start); multiplies
+    SAND and SCHEME inside the lab.
+  - Restricted status ×0.3, product features' per-trait multipliers (unchanged).
+- **Oversight**: block = AG07 containment (control layer) and, for escape-like acts inside the lab (POWER, SCHEME),
+  0.5 · WSL/5; catch = internally 1 − (1 − monitoringCatch [× 0.5 on unexplained U-modes])(1 − 0.3·(1 − r)) (monitors and
+  tools, plus human review of the work humans still do [D 0.3]); on a product its monitor's `productCatch` (same-lineage
+  collusion kept). Blocked attempts leave no trace; caught ones are internal incidents; the rest are harm (customer or
+  public on products, `uncaughtInternal` inside the lab, as before).
+- **κ_k** [C, per day at full D, C, O]: SYC 3.6e-3, RH 9e-3, PROXY 2.4e-3, CONCEAL 4e-3, POWER 6e-3, SAND 3e-3, COLLUDE
+  2e-3, SCHEME 3e-3, U-mode fallback 2e-3. Calibrated on the reference run below (start near v2; growth with capability).
+- **Severity** = ⌊f_k + span_k · C_k · A·F + u⌋, u ~ U[0,1), clamped 1..5 (stochastic rounding of the rule's value).
+  (f, span) [D]: SYC (1, 1), RH (1, 2), PROXY (1, 2), CONCEAL (1, 3), POWER (2, 3), SAND (2, 2), COLLUDE (3, 2),
+  SCHEME (3, 2), U-mode fallback (2, 1). Chat incidents are mild; the same act from a capable model with long tasks and
+  real affordances is severe (overreach at L 9: 2.0 in chat, 4.0 inside the lab).
+- **Misuse** (same structure): κ 5e-4 · demand (×2 minimal safety, ×3 for 90 days after a jailbreak) · σ((L_d − 9)/1) ·
+  reach (serving share × v2's exposure table, ×0.3 restricted) · (1 − safeguards); severity 3 + 1.5·C. κ·σ is within
+  ±34% of v2's 1e-4·(L − 7) on L 8–12.
+- **Exfiltration** (E25, rolled by WS4): 4e-4 · POWER·(1 + 4·SCHEME) · σ((CYBER − 10)/1) · A_int·F_int·N_int ·
+  (1 − WSL/5)(1 − Contain), 0 below CYBER 8 (θ − 2). The gate matters: without it WS4's security stream drew from day 0
+  (v2 drew from Lg 9 ≈ CYBER 8) and RefBot's 2027 revenue moved −9% by RNG alone (bisected: finance F2 failed).
+- **Rivals**: the same formula at a generic site (usage 0.2, A 0.5, F 0.7, block = their eval-rigor mitigation) [D/C];
+  their misuse line and its 3–5 severity are unchanged.
+
+`dangerOf(s, d, v, usage)` returns every act's terms, attempts, catch, oversight and harmful rate: the readout E11's
+danger view can show per deployment.
+
+#### Start rates and reference run (RefBot, ai2027, medium, 24 seeds, endings skipped)
+
+Expected incident acts per lab-year (products + internal, all outcomes), v2 → E5:
+
+| kind | 2025.5–26 | 2026–27 | 2027–28 |
+|---|---|---|---|
+| SYC sycophancy | 0.22 → 0.17 | 0.31 → 0.27 | 0.44 → 0.56 |
+| RH reward hacking | 0.27 → 0.17 | 0.46 → 0.60 | 0.71 → 1.70 |
+| PROXY | 0.033 → 0.009 | 0.053 → 0.043 | 0.081 → 0.150 |
+| CONCEAL cover-ups | 0.061 → 0.006 | 0.168 → 0.078 | 0.269 → 0.360 |
+| POWER overreach | 0.050 → 0.004 | 0.100 → 0.071 | 0.161 → 0.444 |
+| SAND research sabotage | 0.007 → 0.000 | 0.021 → 0.013 | 0.042 → 0.170 |
+| COLLUDE | 0.002 → 0.000 | 0.007 → 0.001 | 0.016 → 0.050 |
+| SCHEME | 0.011 → 0.000 | 0.032 → 0.006 | 0.037 → 0.087 |
+| U-modes | 0.61 → 0.35 | 0.61 → 0.62 | 0.57 → 1.25 |
+| misuse (BIO + CYBER) | 0.000 → 0.002 | 0.000 → 0.004 | 0.033 → 0.041 |
+| total | 1.26 → 0.70 | 1.76 → 1.70 | 2.37 → 4.81 |
+
+Exfiltration expected per game 0.042 → 0.042. Incidents the player sees (realized, per lab-year, v2 → E5): 2025 0.25
+→ 0.33, 2026 0.63 → 0.75, 2027 0.63 → 1.17 (the extra are mostly severity 1); severity 3+ about the same (2027: 0.25
+→ 0.29). Silent harmful acts inside the lab (`uncaughtInternal`) 2027: 1.3 → 2.7. Milestone days unchanged (ASI mean
+day 942.5 → 939.0; calib T1 output identical to before, line for line).
+
+Real-world anchors (per lab, research/05 and research/20 F): sycophancy is the common chat failure (a public scandal ≈
+every 1–2 years per lab); reward hacking 1–2% of agentic tasks (30% on exploitable scorers, F1) is the common agentic
+failure; real-deployment cover-ups, sabotage, collusion and escape ≈ 0 in 2025, severe boundary violations 1e-4–1e-6
+of 2026 agentic sessions. The start table matches that shape (SYC and RH dominate; POWER < 0.01/yr; SAND, COLLUDE,
+SCHEME < 0.005/yr). Game incidents are notable events per lab, not per-task rates, so research/20 F's per-task rates
+fix the ordering and ratios, not the absolute numbers; E10 calibrates per-run rates (hack rate per RL run etc.).
+
+#### Deviations and choices
+
+- κ_k is an explicit per-act scale (the spec's product of dimensionless factors needs one to be a daily rate).
+- Catch stays a second roll at fire time (cheap path for the tick); `dangerOf` computes it eagerly for tests/UI.
+- Human review is a [D] stand-in: 30% of acts in the human share of R&D (1 − r). E6 can replace it with a measured term.
+- The containment term still reads the research multiplier M (BRIDGE(V6), E6 removes it).
+- Products P5 (not owned): its sample now runs to 60 incidents, since Chat gets a smaller share of a model's acts.
+- Honesty/corrigibility do not yet lower dispositions (v2 did not either); eval awareness does not raise real-deployment
+  rates (Opus 4's ×8 real-vs-eval rule) — candidates for E10.
+
+#### For E7/E8
+
+- `modelHazards(traits, uModes, domains, site)` and `Site` are the building blocks: a covert act is a new `DANGER_ACTS`
+  row (domain, θ, α, rd flag, security weight), measured "against the overseer's level" by passing a site whose catch
+  reads the overseer (E6).
+- `uncaughtInternal` counts harmful internal acts that got through; E8's footholds can be created at that branch in
+  `fireIncident` (row.source, severity and the site are known there).
+- `aiRdShare(s)` is the AI share of R&D for successor pull (E4) and sabotage of safety work (E7, add SAF_EXP when E2
+  puts AI labour on it: SAF_EXP's L is 0 today).
+- Gate results: tsc main + scripts, danger, safety (all passed, S5 mixed included), golden-timelines, identity,
+  worktypes, research, effective, serving, calib T1 (identical to before), products, money, idle pass; known failures only
+  (finance F7/F11, worldfx F7/F11 and GOV T1, ws4 T3, hygiene performance, which runs at the same cost as before on a
+  loaded machine: the incidents system costs ≈ 20–40 µs/day more than v2, ≈ 1% of a tick, from the opportunity terms).
+
+### M2 merge notes (D5 + D2, E3, D6, E2, E5 onto M1; 2026-11-20)
+
+Merged into `model-v3` (at M1, a13156c) with `--no-ff`, in order: `v3-d2` (D5 39110f9, D2 30565b0 / 5ed4f78; merge
+e0620e4), `v3-e3` (E3 dd901b9 / 59fb524; 3299f1e), `v3-d6` (D6 3b1d1dd; b872073), `v3-e2` (E2 42273df / 999fa15;
+4c76b60), `v3-e5` (E5 9bce889 / 3d808e3 / c9ea246; cd83876). The notes of every branch are above (copies of
+`design/notes/D5.md`, `D2.md`, `E3.md`, `D6.md`, `E2.md`, `E5.md`, which stay).
+
+**Conflicts and resolution.**
+- v3-d2: `package.json` test:v2 (kept M1's `safetyresearch.ts`, added `suites.ts` after `data`); `core/save.ts` (both
+  import sets, rev comments, migrations: see the chain below); `hygiene.ts` (SCHEMA_REV); `Blueprint.tsx` imports (A5's
+  `studentToHold` and D5's `suitesView`). types.ts, glossary.ts, bots/ref.ts, models/actions.ts auto-merged.
+- v3-e3: `package.json` only (`signals.ts` after `suites`). traits.ts merged cleanly with D2 (E3 reads the drawn
+  synthetic share; D2's synthetic jobs add assets the draw already sees).
+- v3-d6: no textual conflict, but two semantic breaks fixed in the merge commit: D6's `suitesPreview.ts` imported D5's
+  `intensityS2` (the RL budget multiplier), which E3 replaced by `optimisationPressure(ρ)`; the preview now reads p at
+  the design's budget share (`RL_BUDGET[post.rlBudget]`, as `postSignals` does without run quantities), so light / heavy
+  still show 0.50 / 1.30. Glossary `expertData` was added by both D2 (buying) and D6 (in a suite): one entry with both.
+  `rewardHackPressure` now names E3's pressure law (1 + 0.71·log₁₀(ρ ÷ 0.15)).
+- v3-e2: none (save.ts's 8 → 9 migration now clamps Trusted to AI at 1 instead of `TRUSTED_MAX_P27`, auto-merged).
+- v3-e5: `package.json` only (`danger.ts` after `safety`).
+- test:v2 now runs every new test: data, suites, signals, safetyresearch, danger.
+
+**schemaRev chain (linear): … 19 → 20 B4, 20 → 21 D1, 21 → 22 E1, 22 → 23 D5 (`suitesFromV1`, start expert assets),
+23 → 24 D2 (`dataPortfolio.pending`); SCHEMA_REV 24.** D5 and D2 had been built as 21 → 22 → 23 beside E1's 21 → 22.
+E1's migration (line-project stage state) and D5's (suites) touch disjoint state, so the order E1 → D5 → D2 is safe.
+hygiene expects 24 and gained a 22 → 23 check (a save without suites or expert assets gets six start suites, each with
+its `expert:<family>` tokens) and a 23 → 24 check (no pending deals, no job); its 20 → 21 and 21 → 22 checks pass
+unchanged. `data.ts`'s D2 save test now starts at 23 (→ 24), `suites.ts`'s migration test runs the chain to 22 and
+then migration 22 (D5). **Fixtures** stay the committed schemaRev-16 files, so every fixture load runs 16 → 24;
+`fixtures.ts` rewrote them during the gate and they were restored.
+
+**E5's `aiRdShare` after E2 (for E7).** E5 found SAF_EXP's effective labour 0 and left it out of the AI share of R&D r.
+After the merge SAF_EXP has labour through `safetyLabour(s).exp` (not in `workContext().slots`, so `aiRdShare` and
+`internalScale` still ignore it). Probe on the fixtures with the safety package at 20% of the safety pool: day 400
+SAF_EXP H 1.0 team, L 1.00 / 1.35 / 1.98 at Trusted 0 / 0.5 / 1; r 0.588 without SAF_EXP vs 0.580 / 0.582 / 0.586 with
+it; day 900 L up to 832 (m = 832 at t = 1) but r 0.999 either way (capabilities L ≈ 57,000). So adding SAF_EXP moves r by
+< 0.01 today; it matters for E7 because sabotage of safety work should read the AI share of *safety* work (A of SAF_EXP,
+E2), and the safety fleet's copies should join `internalScale`. Left to E7 as the lead decided.
+
+**Lead decisions.**
+- D5: finance F2 dip accepted (the finance session owns finance; the spec moves per-run environment cost into the
+  suites). A suite build's small RL effect (+0.01–0.05 OOM general, +0.06–0.16 on its own domain) noted for E10/F5, not
+  tuned.
+- D2: licences barely move U → new task D11 (quality of drawn tokens in the loss law; running on `v3-d11`); the
+  synthetic-teacher finding (a strong teacher yields fewer q·T per H100e-day) → D9 re-checks it; the previews' "L" units
+  → D4 fixes them.
+- E2: accepted. RefBot never uses Trusted to AI → F5 note: RefBot should hand safety work to AI as AI 2027 labs do.
+- E3: accepted; light-RL S1 at the 1.0 cap and the synthetic-heavy S6 from its drawn share are intended.
+- E5: accepted; E7 must add SAF_EXP to `aiRdShare` (above).
+- M1's: authors2026 Δ_bm 4.6 accepted; safety S4 RefBot and S5 RefBot accepted as known → E10; finance F2 since A5 →
+  finance session.
+
+**Refits: none.** calib T1 and T1L pass on every preset with M1's values (seed 2027): ai2027 SC 2027.249 (Δ 0),
+SAR +0.020, SIAR −0.043, ASI −0.029; authors2026 SC −0.006, SAR +0.022, SIAR −0.028, ASI +0.039 (days 1493 / 1581 / 2141 / 2990, the same
+milestone days as M1); fast SC −0.002; slow SC 2038.577 (+0.049, identical to M1). The merges change no RefBot stub path (as each branch
+reported).
+
+**Gate (merged code, cd83876 + docs).**
+- tsc main + scripts clean; `npm run build` ok; `npm run test:ui` 416 passed, 0 failed.
+- Pass: golden-timelines, identity, effective, data, suites, signals, research, safetyresearch, worktypes, serving,
+  danger, products, calib (T1, T1L), fixtures, lint-hidden, lint-ux, lint-tradeoffs, lint-structure, lint-tips, money,
+  idle.
+- hygiene: all pass except the four known perf checks (7.2 ms passive, 8.6 ms leader lab daily average, worst quarter
+  31 / 30 ms; machine shared with other sessions). Save checks incl. 20 → 21, 21 → 22, 22 → 23, 23 → 24 pass. (An earlier
+  run right after the first merge also failed "leader lab's own cost ≤ +20%" at +21.2%; it passed in the gate run:
+  noise at the threshold.)
+- finance: F2 43.1M (M1 43.2M), F7 revenue median $30.5B, F7 valuation $0.28T, F11 2027 $35.5B — the M1 set.
+- ws4: T3 lead 28–371 d and post-theft lag — the known T3.
+- worldfx: F7/F11 2026 $33.5B, equity 2026 −13.9%, GOV T1 2027-09-08, W2 0.5% (the accepted borderline) as in M1, but
+  **F11 2027 $31.9B (M1 $36.5B) and U +1 pp "never" (M1 2028-01-26)**. Bisected: the merge before E5 (4c76b60) and the
+  D merge alone (e0620e4) give $36.6B and U 2028-02-26, so the E5 merge moves them. E5 on its own branch moved the same
+  run the other way (672c4c1 → v3-e5: 2027 $40.7B → $50.1B, U 2028-01-02 → passing, equity −0.4% → passing), so this
+  is the one-seed path's sensitivity to the incident stream (E5's notes found RNG alone moved RefBot's 2027 revenue by
+  9%), not a demand mechanism. Both checks were already failing (finance-owned revenue; U was out of its window);
+  listed as known.
+- safety (slow): S4 RefBot P_mis at ASI **0.485** (M1 0.530; band 0.55–0.85; accepted → E10); S5 RefBot fails (median U
+  − L at SAR +0.50, below in 30%; accepted); S4 safe-only 0.011 and S5 mixed (margin +0.03, holds in 70%) pass; E2's S6
+  and B3 pass. Attribution: before E5 (4c76b60) S4 RefBot is 0.517 (D5/D2/E3/D6/E2 together −0.013 from M1), E5 takes
+  it to 0.485 (−0.032: the danger formula changes incident and detection paths).
