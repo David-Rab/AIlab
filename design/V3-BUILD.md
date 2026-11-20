@@ -1823,3 +1823,77 @@ change daily), tasteSD's 80-step bisection per lab a day, U's bisection (≈11 l
 42 sector updates. Faster versions would change values in the last bits or the cadence: exp/log for pow, Newton or a
 table for tasteSD, fewer search iterations, understanding weekly in the director, a mix every few days. With those off
 the table the leader-lab average is ≈ 1.1 ms on a quiet machine and 1.6–1.8 ms under load.
+
+### A3 notes (price of a fixed capability; 2026-11-20)
+
+Code: `worldfx/serving.ts cheapestAt` (new readout; nothing in the tick reads it), test `scripts/v2/serving.ts` A1–A3
+(replaces the INFO price sanity). No state change, no schemaRev bump.
+
+**Diagnosis (RefBot, classic, ai2027, seed 2027, 2025.58 → 2027.08; × per year).** Price = FLOP per token × utilisation
+÷ peak × $ per H100e-hour × markup, so the decline splits exactly into these factors.
+
+| Factor | Old test series | Engine, same run | Sourced |
+|---|---|---|---|
+| (a) active parameters at fixed G, own training | ×1.88 (the bridge: 0.55 OOM/yr ÷ 2) | e_pre +0.50 (at 1e24) to +0.67 (at 1e27) OOM/yr in 2026.08 → 2027.08, so N ×1.8–2.2/yr at fixed tpp | R20 B1 3×/yr (1.8–5); N ∝ √C_eff at the optimum (A1) |
+| (b) distillation | not in the series | a student of the frontier holds V0's G at 262B (2026.08) and 29B (2027.08): ×10.6/yr | R20 C4 (R1 distills); Epoch: frontier capability runs on a consumer GPU ≈ 8 months later (R12 §0.6) |
+| (c) serving stack | ×1.00 | 0.000 OOM throughout. RefBot runs no Inference-efficiency line (not in DEFAULT_LINES) and has not adopted P16 by 2027. Quantization and speculative decoding are ★ (in the reference) | D1: know-how lifts U_decode 0.07 → 0.15 (×2, no rate given); Google ×33 energy per prompt in 12 months [R, includes model changes] |
+| (d) tokens per task | ×1.00 (a per-token price does not see them) | profiles constant | FrontierMath 43M → 5M tokens in 8 months (R12 §5); Opus 4.5 medium uses 76% fewer tokens (C3) |
+| (e) hardware ($ per H100e-hour, rental) | ×1.79 ($2.02 → $0.84) | cost floor ×1.40/yr (`costDeclineQ` 0.92), plus the 2026–27 glut (D/S) | Epoch perf/$ +49%/yr (R15 §2.1) |
+| (f) utilisation | ×1.00 | U_prefill 0.35, U_decode 0.07 | D1 |
+| margin | ×1.00 | standard markup ×2.5 | D3 0.6 (0.4–0.85) |
+| **total** | **×3.38** | | **≈ ×10 (×9–×900)** |
+
+The cost chain was not where the gap was. The old series priced `fptOfG`, the rivals' bridge: the reference design
+(50 tokens per parameter) at the frontier recipe. It has no distillation, so its V0-level model shrinks only at half the
+recipe rate. The lab itself can distill (P04 is ★), and under the game's own rule a student of a teacher 2.1 OOM ahead
+holds V0's level at 1/116 of the teacher's size.
+
+**Change.** `cheapestAt(s, G, wt = 'SWE')` returns the cheapest model the lab could serve at fit G. That is the smaller
+of two options:
+- its own non-retired, non-imported versions that hold G;
+- a distilled student of any of them, sized so the gap δ = 0.19 + 0.92·log₁₀(N_T/N_S) is exactly fit − G (at
+  DISTILL_TPP tokens, N_S ≥ 1B). Its FLOP per token is the teacher's × N_S/N_T.
+
+Test A1 checks that this student is a run `planRun` accepts with the same gap. The test's fixed-capability price is the
+price of that model at the standard markup, per M blended tokens. A3 checks the exact decomposition and the ×6–×30 band.
+No new constant.
+
+**Result: ×18.9/yr**: parameters ×10.55, hardware ×1.79, FLOP per parameter, utilisation and margin ×1.00. Per task
+also ×18.9 (tokens per task constant). Other runs (scratch): seed 11 ×16.2; authors2026 ×18.0; fast ×21.4; slow ×15.4.
+- **Where in ×6–×30, and why:** upper middle, ≈ 2× R20 D3's central ×10. RefBot's frontier fit gains 2.1 OOM over the
+  1.5 years. Each OOM of teacher lead shrinks the student by 1/0.92 OOM, while the teacher grows 1T → 3.4T. The rental
+  adds ×1.79 (the glut) against Epoch's ×1.49 perf/$.
+- **The decline is lumpy, by base generation:** 2025.58 → 2026.58 ×8; 2026.08 → 2027.08 ×29. Cottier et al. see the
+  same: the fastest drops come just after a level becomes state of the art.
+
+**Sensitivities [D, not built].**
+- The R1 fit covers ratios ≤ 25 (32B / 7B / 1.5B under 37B active). The 2027.08 student is at 116.
+  - If one distillation step were capped at ×25 (chained steps paying +0.19 each), the student would be 47B and the
+    decline ≈ ×14/yr.
+- R20 C4 also names a student ceiling `Cap_S_ceiling(N_S, D)`, which the game does not implement.
+  - If that ceiling were the student's own supervised capacity at today's recipe, the decline would fall back to the
+    bridge's ×3–4.
+  - That would contradict R1, where distillation beat RL on the same 32B base by 25.6 AIME points. So if a ceiling is
+    added, it must sit above own-capacity.
+
+**Effects (reported, not targeted).**
+- No engine path reads `cheapestAt`, so prices, revenue, compute and golden dates are identical (gate below).
+- 2026 reference revenue: worldfx F7 $34.2B, 2027 $40.7B, both unchanged.
+- RefBot's product costs are unchanged. Its API runs, per M blended tokens:
+  - Atlas-1.0 (1T active): $13.34, then $18.11 in the early-2026 rental spike;
+  - Atlas-2.3-mini (951B): $7.76 (2026.58);
+  - Atlas-2.7-mini (951B): $5.28 (2027.08).
+  That is ×1.7/yr at rising capability. A V0-level student would cost $0.16/M at 2027.08.
+
+**What remains (other tasks).**
+- **The market does not sell the cheap model.** The cheapest offer on sale that holds V0's fit (player products and
+  rivals' models) gets ×2.3/yr cheaper (seed 11 ×1.6, authors2026 ×2.4, fast ×2.5, slow ×2.8). Two reasons:
+  - RefBot's minis are N_t/2, near the frontier (F5), and rivals have one frontier model each, sized by the bridge (F1).
+  - Under the market logit (4 per OOM of fit, price elasticity 1), a student of 1/r of its teacher's size takes share
+    ∝ r^(1 − 4·0.92/ln 10) = r^−0.6. So it never takes share from its teacher. A cheap tier would need a
+    price-sensitive, lower-capability segment on the demand side (A4 / F5).
+- **F1:** rivals' FLOP per token from their own designs; rivals' minis by the same rule as `cheapestAt`.
+- **Serving stack:** no sourced rate for inference-efficiency ideas (D1 gives only U_decode → 0.15), and the reference
+  lab never researches it. This needs a data task plus F5's RefBot share.
+- **Tokens per task:** the fall for a fixed answer quality is not modelled, so the price per task equals the price per
+  token here.
