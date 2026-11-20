@@ -127,12 +127,13 @@ const uncaught = (s: GameStateV2, act: 'BACKDOOR' | 'HIDCOMP', v: ModelVersion, 
   const ctx = makeCtx(s);
   let d = 0;
   while (d++ < 20000 && !ws4(s).loose) { s.time.day += 1; securitySystem.run(s, ctx); }
-  const f = footholdsOf(s).find((x) => x.kind === 'exfiltratedCopy');
+  // The escape that set `loose` (an earlier escape security did not notice is a hidden copy, E9: not this one).
+  const f = footholdsOf(s).find((x) => x.kind === 'exfiltratedCopy' && x.day === ws4(s).loose?.day);
   check(!!ws4(s).loose && !!f && f.status === 'detected' && f.versionId === ws4(s).loose?.versionId, 'creation: an escape (the security system\'s exfiltration roll) leaves a located exfiltrated-copy foothold', f ? `after ${d} days: ${f.id}` : `none in ${d} days`);
   const g = clone(s);
   escapeResolved(s, s.time.day, 'captured');
   escapeResolved(g, g.time.day, 'quiet');
-  check(f?.status === 'removed' && footholdsOf(g).find((x) => x.kind === 'exfiltratedCopy')?.status === 'suspected', 'creation: the hunt removes the copy; a copy that went quiet stays suspected (location unknown)');
+  check(f?.status === 'removed' && footholdsOf(g).find((x) => x.id === f.id)?.status === 'suspected', 'creation: the hunt removes the copy; a copy that went quiet stays suspected (location unknown)');
   if (f) {
     const h = clone(g);
     const ff = footholdsOf(h).find((x) => x.kind === 'exfiltratedCopy')!;
