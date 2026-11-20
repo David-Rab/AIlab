@@ -12,7 +12,8 @@ import { boardVote, commitmentsVote, CRITICS, criticsAvailable, criticsOusterShi
 import { MOOD_BASE, MOOD_LABEL, MOOD_SOURCES, moodWeight } from './mood';
 import { leaseAvailable, leaseRate, payOptions } from './capex';
 import { debtHeadroom, drawDebt, newDebtRatePct, repayDebt } from './debt';
-import { dealVote as firstVote, dealVotes, partnerOffers, partnerStakeAfter, partnerTerms, rescuePartner, signPartner, supplyOptions, termsEquity } from './deals';
+import { dealVote as firstVote, dealVotes, partnerOffers, partnerStakeAfter, partnerTerms, rescuePartner, signPartner, supplyOptions, termsEquity, type PartnerChoice } from './deals';
+import { leadEstimate } from './observe';
 import { acceptRepriced, bookRound, canIpo, closingAsk, canRaise, DUAL_CLASS_GOV, lastPostMoney, pullRepriced, raiseCeiling, startRaise } from './equity';
 import { describeTarget, makeThesis, MILESTONES, PITCH, PITCHES, PROMISE_RESULT, promiseDeadline } from './promises';
 import { ensureWs3, yearStats } from './ext';
@@ -242,22 +243,32 @@ export function dealPreview(s: GameStateV2, t: PartnerTerms): Preview {
     const rivals = partnerDef(t.partner)?.competitors ?? [];
     exposure.push({ currency: 'freedom', amount: -1, target: `exclusivity: no deals with ${rivals.length ? rivals.join(', ') : 'its competitors'}` });
   }
+  // FIN4b: what IP access costs, in plain words (the money each string adds is in the cash lines and on its option).
+  const ip = t.strings.ipAccess;
+  if (ip) {
+    const lead = leadEstimate(s, ip.lab);
+    const name = t.options.ipAccess.labName ?? ip.lab;
+    const days = PARTNER_TERMS.strings.ipCloseYr * Math.max(0, lead);
+    const below = s.player.board.preset === 'pbcTrust' && !ip.trust ? "; capability-threshold models stay out without the trust's yes" : '';
+    costs.push({ currency: 'leadDays', amount: -Math.round(days), target: `IP access: ${name} (${t.partner}'s lab) licenses your models and closes ~${Math.round(PARTNER_TERMS.strings.ipCloseYr * 100)}% of your lead a year for ${t.years} y (${lead > 0 ? `≈${Math.round(days)} days a year of your estimated ${Math.round(lead)}-day lead` : `you are not ahead of ${name} now`}${below})` });
+  }
   if (t.politics) costs.push({ currency: 'scrutiny', amount: t.politics.scrutiny, target: 'foreign money' }, { currency: 'trust', amount: t.politics.congress, target: 'congress' }, { currency: 'freedom', amount: -1, target: `government security demand +${t.politics.securityDemand}` });
   if (t.rescue) costs.push({ currency: 'freedom', amount: -(t.strings.boardVotes ?? 0), target: `a board seat with ${t.strings.boardVotes} votes for ${t.partner}, and exclusivity` });
   if (!costs.length) costs.push({ currency: 'staffTime', amount: 1 });
   return { costs, gains, exposure };
 }
 
-/** The partner and supply a set of params describes (default: the first partner that will deal, its first supply). */
-function partnerOf(s: GameStateV2, p: P): { partner: string; supply?: PartnerSupply } {
+/** The partner and choices a set of params describes (default: the first partner that will deal, its first supply, no
+ *  optional strings). Params: `partner`, `supply`, `exclusive`, `ipAccess` (FIN4b). */
+function partnerOf(s: GameStateV2, p: P): PartnerChoice & { partner: string } {
   const want = str(p, 'partner', '');
   const partner = want || partnerOffers(s).find((o) => !o.blocked)?.partner || PARTNER_DEFS[0].id;
   const sp = str(p, 'supply', '') as PartnerSupply;
-  return { partner, ...(sp && supplyOptions(partner).includes(sp) ? { supply: sp } : {}) };
+  return { partner, ...(sp && supplyOptions(partner).includes(sp) ? { supply: sp } : {}), exclusive: bool(p, 'exclusive'), ipAccess: bool(p, 'ipAccess') };
 }
 const termsOf = (s: GameStateV2, p: P) => {
-  const x = partnerOf(s, p);
-  return partnerTerms(s, x.partner, x.supply ? { supply: x.supply } : {});
+  const { partner: who, ...c } = partnerOf(s, p);
+  return partnerTerms(s, who, c);
 };
 
 /** A partner's take-or-pay above 3× revenue needs the board (spec §7.3); a deal handing it control needs the trust (PBC
@@ -273,8 +284,8 @@ const partner: ActionDef = {
     return { ...v, costs: [...v.costs, ...voteCost(partnerVote(s, p), bool(p, 'force'))] };
   },
   apply(s, ctx, p) {
-    const x = partnerOf(s, p);
-    const err = signPartner(s, ctx, x.partner, { ...(x.supply ? { supply: x.supply } : {}), force: bool(p, 'force') });
+    const { partner: who, ...c } = partnerOf(s, p);
+    const err = signPartner(s, ctx, who, { ...c, force: bool(p, 'force') });
     if (err) {
       ctx.log('finance', err, 2);
       return err;

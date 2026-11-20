@@ -810,3 +810,103 @@ Numbers, before (FIN3c a50eae3) → after (FIN4a):
   vote, a partner's guarantee opening leases below B); an anchor partner on a round still takes half the round's
   dilution with no 15% check (anchor behaviour kept as asked; FIN4b should cap a hyperscaler anchor); the take-or-pay
   size against FC4 (FIN6a); `design/v2-interfaces.ts` and V2-SPEC §3.7.4 still describe the templates (FIN6c).
+
+### FIN4b notes (2026-11-20)
+
+Built: up to 3 partners at once (`partnersNow`, `PARTNER_TERMS.strings.maxPartners`); optional strings on the offer
+(`PartnerChoice` = supply + `exclusive` + `ipAccess`; `fin.partner` params `exclusive`, `ipAccess`, both off by default;
+`PartnerTerms.options` says what each adds or why it is not on offer: `exclusiveBlocker`, `ipBlocker`); IP access
+(`DealStrings.ipAccess = { lab, trust? }`, the affiliated lab `affiliatedLab`, the daily flow `ipAccessDaily` called in
+one line from `actors/rivals.ts labDaily`, observe.ts `licensedModel` / `licensedGap` / `leadEstimate`), the PBC + trust's
+vote on licensing a capability-threshold model (`charter.ts ipTransferVote`, `deals.ts ipVote`, held first in
+`dealVotes`), a rescue with IP access (`PARTNER_TERMS.rescue.years` 6), what each partner costs (`partnerCosts`), the
+partner guarantee for leases below B (`capex.ts leaseGuarantor`, `leaseRate`, `PayOption.guarantor`,
+`CAPEX_LEASE.guaranteePremium`), a hyperscaler anchor capped at 15% (`anchorPartners`, `ANCHOR_SHARE`, `bookRound`). UI:
+the Partners card's "n of 3 partners" (tooltip: the cap, deep vs shallow), a cost strip per signed partner (revenue share
+a year, the lab and the days of lead its IP access closes a year, the partners its exclusivity blocks), Exclusivity and
+IP access segments on each offer (each option shows its bump; a string not on offer is locked with the reason), the IP
+cost line in plain words with a breakdown tooltip, "IP access · lab" pill, the lease limit names the guarantor on the
+Compute cards. Glossary `exclusivity`, `ipAccess` (new); `deal`, `spv`, `rescue`, `anchorPartner` updated; LIMITS
+`lease.rating` updated; `design/ux/GLOSSARY.md` regenerated. No schemaRev bump: only optional fields (`strings.ipAccess`),
+older saves load unchanged (their deals keep exclusivity as signed).
+
+Choices and readings of the spec:
+- **Several partners (cap 3) [D].** A partner counts from signing for the rest of the game (hyperscaler deals run 6
+  years, longer than the game; a vendor's supply ~2.5 years but its shares stay; a sovereign's cheque makes it a holder),
+  so "at once" = signed in the game. Stakes from before the start (leader's Northwind, challenger's Azimuth) do not count.
+  A rescue counts as a partner but is never refused by the cap (the distressed control deal of §6.2; it can make 4).
+  The fourth partner shows "You have 3 partners, the most at once (…)".
+- **Exclusivity optional [D].** +25% of the money: a hyperscaler's equity (all three tranches) and a vendor's money per
+  GW. The bump sits under the 15% stake cap, so near the cap it shrinks (the option shows the real dollars). The extra
+  money buys no extra cloud capacity (capacity stays sized on the plain offer's equity, so the take-or-pay is unchanged).
+  It blocks the competitor for good (kept). Not offered by a partner whose competitor is already your partner ("You
+  already partner with X, its competitor"); a sovereign has no competitors and no exclusivity. Several shallow partners
+  stay possible: Azimuth + Northwind both open, or Silica + Corvid. Always part of a rescue (kept).
+- **Affiliated lab (no tie existed).** Simplest explicit mapping in data (`AFFILIATE_ARCHETYPE = 'bigtech'`): a
+  hyperscaler's in-house lab is a big-tech rival (archetype "Big Tech Incumbent: own chips"); the active big-tech rivals
+  go to the hyperscalers in partner order (Northwind the first, Azimuth the second). A hyperscaler without one offers no
+  IP access ("has no in-house lab to license your models to"); chip vendors and sovereigns never do. Archetypes are drawn
+  per game: in seeds 1–12 five games have no big-tech rival, two have one (Northwind's only), five have two or more. The
+  lab is stored on the deal at signing.
+- **IP access [D].** Optional on hyperscaler deals: +20% of the equity (under the cap). The lab gains, every day the deal
+  runs, `0.10 × gap / 365` of know-how (pa), gap = the model the licence reaches (your best live version) minus the lab's
+  best model (pm, model vs model like WS1's distillation), so it closes about 10% of your lead a year while you lead and
+  nothing when you are behind. Applied through the rivals interface as one line in `labDaily` (after frontier tracking);
+  nothing else in rivals changed. The card states the cost in days using the player's intel estimate of the lead
+  (`intel.leadDaysEst`), never the true lead (lint-hidden). Part of a rescue whenever the rescuer has a lab (6 years).
+- **Trust vote (FIN3b leftover).** Under PBC + trust, signing IP access while the best live model crosses a capability
+  threshold needs the trust's `transferModel` vote (held first, cannot be forced): its no stops the deal with IP access
+  (sign without it). A rescue's IP access is not voted (the player has no choice in it): without the trust's yes the
+  licence stops below the thresholds. Any IP-access deal under PBC + trust whose licence the trust did not approve
+  (including one signed when no threshold model existed yet) never reaches a capability-threshold model
+  (`licensedGap(…, noThreshold)`). On its mission stance the trust votes no, so in practice threshold models stay out.
+- **Lease guarantee [D].** Below B a running (non-legacy) hyperscaler or chip-vendor deal guarantees leases at the B rate
+  + 3 points (15%); the lease option and the Compute lease limit name the guarantor. A sovereign cheque, a legacy stake
+  or an expired vendor deal does not. The RefBot never reaches a closed rating in 12 seeds, so this does not move its
+  numbers.
+- **Hyperscaler anchor.** Offered as an anchor (Raise card) only while its 15% cap leaves room for 40% of the largest
+  anchored round; in the round it takes at most what keeps it at 15% and financial investors take the rest. Not re-checked
+  at close (a price move can leave the capped anchor under 40% of a round that kept the 14% limit; logged, edge case).
+- **Bots (rule 12).** The strategic bots (ref, mixed, race, capex2x) still sign one hyperscaler cloud deal from Q4 2025,
+  now with exclusivity (one deep partner: for a bot that never wants the competitor it is +25% of the money for nothing;
+  on the leader start the competitor is the legacy Northwind, over its cap anyway) and without IP access (its in-house lab
+  would close on the lead the bot races for). No second or third partner.
+
+Numbers, before (FIN4a 7f35081) → after (FIN4b):
+- RefBot scratch diagnostic (12 seeds to end-2027, not committed; "before" = FIN4b with the bot not taking exclusivity,
+  which reproduces FIN4a: distress 3/12 as in the FIN4a notes): deal equity median $36.7B → $45.8B (Azimuth, exclusive, 12/12); distress by end-2027 3/12 →
+  1/12 (seeds 5 and 6 no longer reach distress); end-2027 board confidence median 62.5 → 55 (seeds 1 and 3: more cash, one
+  2027 round instead of two, its promise weighs more and was missed: credibility 96 → 59, 100 → 79); 2026 rounds 4 → 4.
+- `scripts/v2/finance.ts`: F7 2026 capex $158.4B → $162.5B (range 113.6–183.6), compute $28.4B → $28.3B, power 6.7 →
+  6.7 GW, valuation $1.48T → $1.49T; F8 financing $73.4B → $70.6B, distress-free through 2026 83.3% → 91.7%, no-deal and
+  capex2x distress 100% → 100%; F9 unanchored dilution max 5.3% → 5.8% (78 → 79 rounds); RefBot rounds 2026 4 / 2027 2
+  → 1.5, promises met 80% → 80%, end-2027 credibility median 78.4, end-2027 board confidence median 61.3 → 55.2 (the
+  FIN3a check ≥ 55 passes, narrowly). **F2** 45.3M → 44.6M: back to its known baseline failure (FIN4a passed it as a
+  side effect; baseline 44.9M).
+- `scripts/v2/bots.ts` (200 seeds, leader start): all §7.4 criteria MET. Wins race 1.5 → 1.5%, safe 1.0 → 1.0%, mixed
+  50.0 → 51.5%, ref 21.0 → 22.5%, capex2x 3.0 → 3.0%. Ousted ref 12.5 → 12.5%, mixed 12.0 → 10.5%, race 13.0 → 13.0%,
+  safe 32.5 → 32.5%, capex2x 47.5 → 47.5% (insolvent 36.0 → 36.0%). Safe losses overtaken/other-ASI-first 66% → 66%. The
+  lower RefBot board-confidence median does not show up as more ousters.
+- Tests: `npm run typecheck` clean. Run one by one: golden-timelines, identity, calib, fixtures green; hygiene's perf checks fail under load (the
+  machine was busy: the 200-seed harness took 76 min vs ~45 before); paired runs minutes apart on the same machine: FIN4b
+  3270 / 3355 µs daily average (worst quarter 11.3 / 11.6 ms) vs FIN4a (stashed) 3392 / 3391 µs (9.3 / 8.0 ms), leader-lab
+  relative check passes in both, so no regression from the daily IP-access hook;
+  lint-hidden, lint-ux, lint-tradeoffs, lint-structure green; safety S5 −0.52 → −1.01 (known failure; FIN1–FIN3b also
+  read −1.01, baseline −0.95: the mixed bot's exclusive deal brings more cash, as FIN4a's cheaper cloud moved it the
+  other way); finance only F2 (above); worldfx HireRate_SOFT 2027-03-15 (known, as FIN4a); ws4, products, money, idle
+  green. `npm run test:ui` 298/298. Fixtures regenerated by fixtures.ts (challenger and spinout day-400 starts: their
+  bots now sign exclusive). Test changes: finance.ts FIN4a hyperscaler check and preview check now sign / preview
+  with `exclusive: true` (exclusivity became optional, so the FIN4a string is tested where it is chosen); 10 new FIN4b
+  checks (the cap of 3 with its reason, legacy not counted, rescue not capped; exclusivity optional +25% for hyperscaler
+  and vendor with no extra capacity, none from a sovereign; shallow partners and the competitor's exclusivity conflict;
+  no IP access without a lab or from a vendor; IP access +20%, the lab mapping, the preview's plain-words cost; the daily
+  flow 0.1 × gap / 365 through `labDaily`; the trust's vote under PBC + trust and the rescue's licence below the
+  thresholds; the lease guarantee; the hyperscaler anchor cap; the RefBot's exclusive deal without IP access). uitest:
+  FIN4a "strings before signing" now looks for "Exclusiv" (the option label); 10 new FIN4b checks (n of 3, IP access
+  locked with its reason then open, exclusivity and IP access each add money, the IP cost in plain words, the
+  exclusivity tooltip names what it blocks, the signed strings, the cost strip, the competitor blocked).
+- Left for later: FIN5 (valuation split, rival finance); FIN6a may tune the 25% / 20% bumps and the 3-point lease premium
+  and look at the RefBot's board confidence (55, the bot's single-round promise weighting); the anchor's 40% is not
+  re-checked at close; IP access has no effect on rivals beyond the know-how flow (no product or valuation effect until
+  FIN5b's rival split reads their models); `design/V2-SPEC.md` §3.7.4 and `design/v2-interfaces.ts` still describe the
+  old partner strings (FIN6c).

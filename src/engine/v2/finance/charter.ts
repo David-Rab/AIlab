@@ -5,12 +5,12 @@
 // | Right                                            | Preset            | Where it bites                                 |
 // |--------------------------------------------------|-------------------|------------------------------------------------|
 // | Safety committee halts a red-flagged release     | nonprofit PBC     | every external launch or model swap            |
-// | Trust approval: sale of control, threshold model | PBC + trust       | a deal or rescue past 50%; open-weights release |
+// | Trust approval: sale of control, threshold model | PBC + trust       | a deal past 50%; open weights; IP access        |
 // | Founder super-voting forces a major decision      | founder, dual-class | board votes (board.ts voteGate)               |
 // | Nonprofit board removes the CEO more easily       | legacy nonprofit  | the ouster vote's reluctance ×0.5 (board.ts)    |
 import type { BoardVote, Channel, GameStateV2, ModelVersion } from '../types';
 import { boardVote, founderControl, OUSTER, trustVote } from './board';
-import { capabilityThresholds, safetyRedFlags } from './observe';
+import { capabilityThresholds, licensedModel, safetyRedFlags } from './observe';
 
 export type CharterRightId = 'safetyCommittee' | 'trust' | 'founderControl' | 'nonprofitRemoval';
 export interface CharterRight { id: CharterRightId; label: string; /** What it blocks, in 2–4 words (the Board card row). */ short: string; blocks: string; source: string }
@@ -20,7 +20,7 @@ export function charterRights(s: GameStateV2): CharterRight[] {
   const b = s.player.board;
   const out: CharterRight[] = [];
   if (b.safetyCommitteeVeto) out.push({ id: 'safetyCommittee', label: 'Safety committee', short: 'halts red-flagged releases', blocks: `Halts the release of any model your own safety evals red-flag: scheming, alignment faking or sandbagging believed above ${Math.round(COMMITTEE_EST * 100)}%`, source: 'Delaware AG conditions, Oct 2025 [R15]' });
-  if (b.preset === 'pbcTrust') out.push({ id: 'trust', label: 'Trust approval', short: 'sale of control · open weights', blocks: 'The trust votes on any sale of control (a holder past 50%) and on releasing the weights of a capability-threshold model (bio, cyber or replication flag)', source: 'Anthropic LTBT charter [R15]' });
+  if (b.preset === 'pbcTrust') out.push({ id: 'trust', label: 'Trust approval', short: 'sale of control · open weights · IP access', blocks: "The trust votes on any sale of control (a holder past 50%) and on handing out a capability-threshold model (bio, cyber or replication flag): releasing its weights, or a partner's IP access to it (without its yes, a rescue's licence stops below the thresholds)", source: 'Anthropic LTBT charter [R15]' });
   if (founderControl(s)) out.push({ id: 'founderControl', label: 'Founder control', short: 'force a failed vote', blocks: 'Lets you force a major decision the board votes down, at board confidence −20', source: s.player.finance.dualClass ? 'dual-class shares [R15]' : 'founder super-voting [R15]' });
   if (b.preset === 'legacyNonprofit') out.push({ id: 'nonprofitRemoval', label: 'Nonprofit removal', short: 'ouster ×2 as easy', blocks: `The nonprofit board removes a CEO more easily: half the usual reluctance in an ouster vote (×${OUSTER.legacyMult})`, source: 'Nov 2023 [R15]' });
   return out;
@@ -40,6 +40,17 @@ export function transferVote(s: GameStateV2, v: ModelVersion, channel: Channel):
   const t = capabilityThresholds(v);
   if (!t.length) return undefined;
   return trustVote(s, 'transferModel', `${v.name} crossed ${t.join(', ')}: open weights hand it to everyone`);
+}
+
+/** The trust's vote on IP access that would license a capability-threshold model (PBC + trust, FIN4b): a licence to a
+ *  partner's lab (`to`) transfers the model as surely as open weights do. Undefined when no vote is needed (another
+ *  preset, or the best model the licence would reach crosses no threshold). */
+export function ipTransferVote(s: GameStateV2, to: string): BoardVote | undefined {
+  if (s.player.board.preset !== 'pbcTrust') return undefined;
+  const v = licensedModel(s);
+  const t = v ? capabilityThresholds(v) : [];
+  if (!v || !t.length) return undefined;
+  return trustVote(s, 'transferModel', `IP access licenses ${v.name} (${t.join(', ')}) to ${to}`);
 }
 
 /** Why the charter stops this release, or undefined (models/deployments.ts deployGate). Internal use is never a

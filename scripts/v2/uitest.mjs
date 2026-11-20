@@ -886,17 +886,36 @@ ok('J1 C1: buy, build and rent show before → after (cash, runway)', await page
   await page.click('[data-home=partners] [data-partner="Azimuth"]'); await wait(150);
   ok('FIN4a: the offer shows equity, its two tranche conditions and the supply on the expected path', !!(await page.$('[data-test=partner-equity]')) && (await page.$$('[data-tranche-offer]')).length === 2 && !!(await page.$('[data-test=partner-supply-terms] [data-test=price-path]')));
   const offerText = await page.evaluate(() => document.querySelector('[data-test=partner-terms]')?.textContent ?? '');
-  ok('FIN4a: the offer names its discounts and its strings before signing', /firm/.test(offerText) && /partner/.test(offerText) && /take-or-pay/.test(offerText) && /exclusive/.test(offerText) && /revenue share/.test(offerText), offerText.slice(0, 160));
+  ok('FIN4a: the offer names its discounts and its strings before signing', /firm/.test(offerText) && /partner/.test(offerText) && /take-or-pay/.test(offerText) && /[Ee]xclusiv/.test(offerText) && /revenue share/.test(offerText), offerText.slice(0, 160));
   await page.hover('[data-test=partner-supply-terms] > span');
   await wait(400);
   ok('FIN4a: the supply tooltip breaks the price down (firm and partner discounts, take-or-pay)', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /Firm discount/.test(t) && /Partner discount/.test(t) && /Take-or-pay/.test(t); })()`)));
   await clearTips();
   await check('FIN4a: custom chips change the supply terms', `document.querySelector('[data-test=partner-supply-terms]')?.textContent ?? ''`, () => page.click('[data-test=partner-supply] [data-opt=asic]'));
   await page.click('[data-test=partner-supply] [data-opt=cloud]'); await wait(100);
+  // FIN4b (finance v3 §6.1 strings): the count of partners, exclusivity and IP access as options that add money (IP access
+  // locked with a reason without an in-house lab), what IP access costs in words, and what each live partner costs.
+  ok('FIN4b: the Partners card counts partners (n of 3)', /\d of 3 partners/.test(await page.evaluate(() => document.querySelector('[data-test=partner-count]')?.textContent ?? '')));
+  const arch0 = await page.evaluate(() => JSON.stringify(window.ai27v2.state.rivals.map((r) => r.archetype)));
+  const ipLock0 = await page.evaluate(() => document.querySelector('[data-test=partner-ipaccess] [data-opt=yes]')?.getAttribute('data-locked') ?? '');
+  await page.evaluate(() => { const s = window.ai27v2.state; const act = s.rivals.filter((r) => r.core.status === 'active'); s.rivals.forEach((r) => { r.archetype = 'safety'; }); act[0].archetype = 'bigtech'; act[1].archetype = 'bigtech'; window.ai27v2.notify(); });
+  await wait(150);
+  ok('FIN4b: IP access is locked with its reason without an in-house lab, open with one', (ipLock0 === '' || /no in-house lab/.test(ipLock0)) && !(await page.$('[data-test=partner-ipaccess] [data-opt=yes][disabled]')), ipLock0);
+  await check('FIN4b: exclusivity adds money to the offer', `document.querySelector('[data-test=partner-equity]')?.textContent ?? ''`, () => page.click('[data-test=partner-exclusive] [data-opt=yes]'));
+  await check('FIN4b: IP access adds money and says what it costs', `(document.querySelector('[data-test=partner-equity]')?.textContent ?? '') + (document.querySelector('[data-test=partner-ip-cost]')?.textContent ?? '')`, () => page.click('[data-test=partner-ipaccess] [data-opt=yes]'));
+  ok('FIN4b: the IP-access cost is in plain words (the lab closes ~10% of your lead a year)', /closes ~10% of your lead a year/.test(await page.evaluate(() => document.querySelector('[data-test=partner-ip-cost]')?.textContent ?? '')));
+  await page.hover('[data-test=partner-strings] > span'); await wait(400);
+  ok('FIN4b: the exclusivity tooltip names what it blocks', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /Blocks/.test(t) && /Northwind/.test(t); })()`)));
+  await clearTips();
   await shot('66-fin4a-partner-offer');
   await check('FIN4a: Sign books the deal and its tranches', 's.player.finance.deals.filter((d) => d.partner === "Azimuth" && !d.legacy).length + ":" + s.player.finance.tranches.filter((t) => t.partner === "Azimuth").length', () => page.click('[data-act="fin.partner"]'), 200);
   ok('FIN4a: a signed partner shows what runs and links its tranches to What we owe', !!(await page.$('[data-test=partner-signed]')) && !!(await page.$('[data-go="fin.go.partnerTranches"]')));
+  ok('FIN4b: the signed deal books the chosen strings (exclusive, IP access)', await page.evaluate(() => { const d = window.ai27v2.state.player.finance.deals.find((x) => x.partner === 'Azimuth' && !x.legacy); return !!d?.strings.exclusivity && !!d?.strings.ipAccess; }));
+  const costs = await page.evaluate(() => document.querySelector('[data-test=partner-costs] [data-partner-cost="Azimuth"]')?.textContent ?? '');
+  ok('FIN4b: what a live partner costs: revenue share a year, the lead its IP access closes, the partner its exclusivity blocks', /revenue/.test(costs) && /\/yr/.test(costs) && /blocks Northwind/.test(costs), costs);
+  ok('FIN4b: the competitor of an exclusive partner says why it is blocked', await page.evaluate(() => document.querySelector('[data-home=partners] [data-partner="Northwind Cloud"]')?.getAttribute('data-blocked') === '1'));
   await shot('67-fin4a-partner-signed');
+  await page.evaluate((a) => { const s = window.ai27v2.state; JSON.parse(a).forEach((x, i) => { if (s.rivals[i]) s.rivals[i].archetype = x; }); window.ai27v2.notify(); }, arch0);
   await page.click('[data-tabs=finance] [data-tab=owe]'); await wait(150);
   ok('FIN4a: the partner\'s tranche conditions show in What we owe', /Azimuth tranche/.test(await page.evaluate(() => document.querySelector('[data-home=whatWeOwe]')?.textContent ?? '')));
 }

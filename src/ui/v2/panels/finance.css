@@ -103,3 +103,6 @@
 .pt-terms { display: flex; flex-direction: column; gap: 4px; }
 .pt-terms .fin-row { margin: 2px 0; }
 .pt-tranche { display: flex; align-items: center; gap: 6px; padding-left: 4px; }
+/* FIN4b: what each partner costs you now (Partners card) */
+.pt-costs { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line, #2a3340); }
+.pt-cost { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }

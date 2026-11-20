@@ -22,6 +22,7 @@ import { capIndexV2, referenceRate } from '../world/calibration';
 import { labMarketRevenue } from '../worldfx/revenue';
 import { noisyPosture, rivalId } from '../world/hidden';
 import { hRef, refTotal } from '../production/knots';
+import { ipAccessDaily } from '../finance/deals';
 import { decimalYear } from '../core/time';
 import type {
   BaselineId, EngineSystem, GameStateV2, HiddenWorld, LabId, RivalLab, RngLike, SafetyPosture, SetupV2, SimpleModel, StaffByRole, SystemCtx, TraitVector, UModeId,
@@ -318,6 +319,7 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   labReferenceSplit(s, r);
   growLabStaff(s, r);
   trackLabFrontier(s, r);
+  r.core.pa += ipAccessDaily(s, id); // FIN4b: a partner's IP access to the player's models (finance/deals.ts)
 
   // Pressure (§3.10.3) and its persistence (moving-goalposts trigger).
   r.pressure = racePressure(s, id);

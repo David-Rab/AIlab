@@ -14,6 +14,12 @@ export const PARTNER_KINDS: Record<PartnerKind, { label: string; gives: string; 
 
 export interface Partner { id: string; kind: PartnerKind; competitors: string[]; supply: PartnerSupply[] }
 
+/** A hyperscaler's affiliated lab (FIN4b, spec §6.1 IP access): its in-house lab, i.e. a big-tech rival (archetype
+ *  'bigtech': deep pockets, own chips; Microsoft AI, Google DeepMind, Amazon's models). Hyperscalers take the active
+ *  big-tech rivals in order: Northwind Cloud the first, Azimuth the second. A hyperscaler without one has no affiliated
+ *  lab and offers no IP access. Chip vendors and sovereigns have none [D]. */
+export const AFFILIATE_ARCHETYPE = 'bigtech';
+
 /** Fictional partners (real analogues in comments). Each anchors at most one lab at a time (§6.1, kept). */
 export const PARTNER_DEFS: Partner[] = [
   { id: 'Northwind Cloud', kind: 'hyperscaler', competitors: ['Azimuth'], supply: ['cloud'] }, // Microsoft-like
@@ -37,7 +43,7 @@ export const PARTNER_TERMS = {
   // capped at 15% of the company per hyperscaler, tranches included (CMA/FTC: Google ≤ 14% of Anthropic, R15 12–15%)
   // [R21 B2]. Commitment: cloud capacity worth 4 × E over 6 years at today's price (C = 4–12 × E over 5–10 y [R15]),
   // paid on the expected path; the partner takes 10% off for the commitment [D]. Revenue share 8% while it runs
-  // (all three cloud partnerships carry one [R21 B4]; size [D]). Exclusivity as before FIN4a (FIN4b makes it optional).
+  // (all three cloud partnerships carry one [R21 B4]; size [D]). Exclusivity and IP access are optional (FIN4b, below).
   hyperscaler: { equityShareOfV: 0.03, trancheMin: 5, trancheMax: 15, tranches: 3, stakeCap: 0.15, commitMult: 4, years: 6, discount: 0.1, revenueShare: 0.08 },
   // Custom chips (TPU, Trainium): 1 GW over 8 quarters at 45% of the H100e list path (perf/$ 2–5× an H100: TPU v6e 5.9,
   // Trainium2 4.4, Epoch Q4 2025 [R15]); a separate supply pool (served outside rationing); migration −15% research for
@@ -51,8 +57,16 @@ export const PARTNER_TERMS = {
   // political cost kept from v2: scrutiny +5, Congress trust −5, security demand +3 [D]. No in-country site (sovereign money was passive; builds were separate deals) [R21 §3].
   sovereign: { equityShareOfV: 0.025, min: 5, max: 25, scrutiny: 5, congress: -5, securityDemand: 3 },
   // Rescue (distress only, spec §6.2): cash ≈ 2 quarters of burn, at least $20B, at most 15% of V; the partner is
-  // topped up to 30%, with a board seat of two votes and exclusivity [D].
-  rescue: { stake: 0.3, minCash: 20, maxShareOfV: 0.15, seats: 2 },
+  // topped up to 30%, with a board seat of two votes and exclusivity [D]; FIN4b: and IP access when the partner has an
+  // affiliated lab, for 6 years like a hyperscaler deal [D].
+  rescue: { stake: 0.3, minCash: 20, maxShareOfV: 0.15, seats: 2, years: 6 },
+  // FIN4b (spec §6.1): at most 3 partners at once (a deal signed in the game counts from signing; stakes from before the
+  // start do not) [D]. Optional strings for more money [D]: exclusivity (no deals with the partner's competitors) +25%
+  // of the equity (hyperscaler) or of the money per GW (chip vendor); IP access (hyperscalers with an affiliated lab)
+  // +20% of the equity: the affiliated lab licenses your models and closes ~10% a year of your capability lead while
+  // the deal runs (the FTC quotes Microsoft's OpenAI rights as a bridge until its own model is competitive) [R21 B4].
+  // Both bumps sit under the 15% stake cap.
+  strings: { maxPartners: 3, exclusiveBump: 0.25, ipBump: 0.2, ipCloseYr: 0.1 },
 } as const;
 
 /** Debt instruments (R15 §1.7; FIN1 spec §3). `spreadBp` is the default; credit lines, chip loans and bonds are priced
@@ -80,8 +94,9 @@ export const DEBT_SIZING = { lineShareOfV: 0.03, lineCap: 15, lineLiquidity: 1 /
 /** Financing leases of capex (FIN1, spec §4): a lessor funds the capex and you pay funded × CRF(r, n) a year. r by
  *  rating (BBB 7% · BB 9% · B 12% [D]; none below B), n = 15 y sites, 5 y chips [D]. A site lease funds 80% of capex
  *  (Meta–Blue Owl Hyperion 80/20 [R15]); a chip lease funds the balance due on delivery. Residual-value guarantee:
- *  50% of the unamortised balance if you walk away [D], a contingent liability. */
-export const CAPEX_LEASE = { rate: { BBB: 0.07, BB: 0.09, B: 0.12 } as Partial<Record<RatingId, number>>, years: { site: 15, chips: 5 }, siteShare: 0.8, rvgShare: 0.5 } as const;
+ *  50% of the unamortised balance if you walk away [D], a contingent liability. FIN4b: below B a lessor still funds you
+ *  when a running hyperscaler or chip-vendor partner guarantees the lease, at the B rate + 3 points [D]. */
+export const CAPEX_LEASE = { rate: { BBB: 0.07, BB: 0.09, B: 0.12 } as Partial<Record<RatingId, number>>, years: { site: 15, chips: 5 }, siteShare: 0.8, rvgShare: 0.5, guaranteePremium: 0.03 } as const;
 /** Firm contracts (FIN1, spec §5): priced on the expected market path × (1 − discount): 5% for ≥ 2 years, 10% for
  *  ≥ 4 years [D]. Cancellable cloud = spot-indexed × 1.15 with 1 quarter's notice (kept). */
 export const FIRM_TERMS = { discount2y: 0.05, discount4y: 0.1, cancellableMult: 1.15, noticeQ: 1 } as const;

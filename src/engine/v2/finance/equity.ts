@@ -1,5 +1,6 @@
 // Valuation, raises, dilution, the raise ceiling and the IPO (V2-SPEC §3.7.3; research/15 §1.5; FINANCE-V3 §2). Owner:
 // WS3.
+import { PARTNER_TERMS, partnerDef } from '../../../data/v2/deals';
 import { dayOfQuarter, quarterIndex } from '../core/time';
 import type { GameStateV2, Money, Ownership, RepricedRound, SystemCtx, Thesis } from '../types';
 import { ensureWs3, yearStats, type PendingRound } from './ext';
@@ -158,8 +159,14 @@ export function bookRound(s: GameStateV2, ctx: SystemCtx, amount: Money, pre: Mo
   const down = lastPostMoney(s) > 0 && pre < lastPostMoney(s);
   if (opts.ipo) issue(f.ownership, dil, { kind: 'public' });
   else if (opts.anchor) {
-    issue(f.ownership, dil * 0.5, { kind: 'strat', name: opts.anchor });
-    issue(f.ownership, dil * 0.5 / (1 - dil * 0.5), { kind: 'fin' });
+    // The anchor takes half the round; a hyperscaler only up to its 15% stake cap (FIN4b, [R21 B2]), the rest goes to
+    // financial investors. (anchorPartners offers a hyperscaler only while the cap leaves room for 40% of the round.)
+    const stake = f.ownership.strat[opts.anchor] ?? 0;
+    const cap = partnerDef(opts.anchor)?.kind === 'hyperscaler' ? PARTNER_TERMS.hyperscaler.stakeCap : 1;
+    const a = Math.max(0, Math.min(dil * 0.5, (cap - stake) / (1 - stake)));
+    if (a < dil * 0.5 - 1e-9) ctx.log('finance', `${opts.anchor}'s stake is capped at ${Math.round(cap * 100)}%: it takes ${((a / dil) * 100).toFixed(0)}% of the round, financial investors the rest.`, 2);
+    issue(f.ownership, a, { kind: 'strat', name: opts.anchor });
+    issue(f.ownership, (dil - a) / (1 - a), { kind: 'fin' });
   } else issue(f.ownership, dil, { kind: 'fin' });
   // Headline ≠ cash: large rounds arrive 50% at close, the rest on conditions within a year [R15].
   const large = amount >= 20;

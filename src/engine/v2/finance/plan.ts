@@ -5,7 +5,7 @@
 // `mult × refTotal(t)` online compute: chips 2–3 quarters ahead, sites ~6 quarters ahead (leased while a lessor will
 // fund them, FIN1), colocation and one-year neocloud capacity for near-term gaps; it raises equity when its cash
 // projection runs short, on the milestone it is surest to hit (FIN2), and borrows on the credit line when short.
-import { SITE_PATHS } from '../../../data/v2/deals';
+import { PARTNERS, SITE_PATHS } from '../../../data/v2/deals';
 import { isDivision } from '../../../data/v2/starts';
 import { act } from '../core/loop';
 import { dayOfQuarter } from '../core/time';
@@ -180,14 +180,17 @@ export function financeAutopilot(s: GameStateV2, o0: AutopilotOpts = REF_AUTOPIL
 
   // One strategic hyperscaler deal (from Q4 2025): the hyperscaler that offers the most equity, on cloud capacity
   // (FIN4a: the legacy Northwind stake is above the 15% cap, so on the leader start that is Azimuth). A rescue counts.
+  // FIN4b: it takes exclusivity (one deep partner: +25% of the money, and it never wants the competitor) but not IP
+  // access (its in-house lab would close on the lead the bot races for).
   if (o.strategic && s.time.day >= 92 && !f.deals.some((d) => d.kind === 'hyperscaler' && !d.legacy && d.day >= 0)) {
-    const best = partnerOffers(s).filter((x) => x.kind === 'hyperscaler' && x.terms).sort((a, b) => termsEquity(b.terms!) - termsEquity(a.terms!))[0];
+    const deep = Object.fromEntries(PARTNERS.map((id) => [id, { supply: 'cloud' as const, exclusive: true }]));
+    const best = partnerOffers(s, deep).filter((x) => x.kind === 'hyperscaler' && x.terms).sort((a, b) => termsEquity(b.terms!) - termsEquity(a.terms!))[0];
     if (best?.terms) {
       const r = runwayOf(s);
       // Prudent bots sign only if runway stays above the deal guard once the take-or-pay starts. The partner's cloud
       // capacity replaces compute the autopilot would otherwise buy, so the guard is looser than the chip guard.
       const after = (r.liquidity + best.terms.equityNow) / Math.max(0.1, r.burnQ + (best.terms.supply?.perQ[0] ?? 0));
-      if (!o.guard || after >= DEAL_GUARD_Q) tryAct('fin.partner', { partner: best.partner, supply: 'cloud' });
+      if (!o.guard || after >= DEAL_GUARD_Q) tryAct('fin.partner', { partner: best.partner, supply: 'cloud', exclusive: true });
     }
   }
 

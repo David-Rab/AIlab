@@ -3,8 +3,15 @@
 // HOME of idle chips, empty racks, vendor fill, the forecast, sites & power, orders, cloud contracts and the chip
 // market. Compute online and the split live in Company and are only linked here.
 import { useEffect, useState, type ReactNode } from 'react';
-import { actionView, cancellablePricePerYear, chipFit, chipQuote, cloudPricePerYear, computeForecast, computeHistory, dateOf, dayOfQuarter, fmtDate, fmtMonth, leaseRate, oppositionOdds, payOptions, qOf, rentQuote, siteCapex, siteEtaQ, siteLeasePerYear, siteRVG, siteSizeView, spotPrice, spotRentalView } from '../../../engine/v2';
+import { actionView, cancellablePricePerYear, chipFit, chipQuote, cloudPricePerYear, computeForecast, computeHistory, dateOf, dayOfQuarter, fmtDate, fmtMonth, leaseGuarantor, leaseRate, oppositionOdds, payOptions, qOf, rentQuote, siteCapex, siteEtaQ, siteLeasePerYear, siteRVG, siteSizeView, spotPrice, spotRentalView } from '../../../engine/v2';
 import type { ChipOrder, ForecastEvent, ForecastQ, GameStateV2, PayOption, Site } from '../../../engine/v2';
+
+/** The lessor's rate at your rating (FIN4b: below B only with a partner's guarantee, named). */
+const leaseLimit = (s: GameStateV2) => {
+  const r = leaseRate(s);
+  const g = leaseGuarantor(s);
+  return r === undefined ? `no lease at ${s.player.finance.rating}` : `lease ${F.pct(r)} at ${s.player.finance.rating}${g ? ` · ${g} guarantee` : ''}`;
+};
 import { CHIP_TIERS, SITE_PATHS, SITE_TIERS } from '../../../data/v2/deals';
 import { store } from '../store';
 import { act as engineAct, runwayOf } from '../../../engine/v2';
@@ -352,7 +359,7 @@ function OrderCard({ s }: { s: GameStateV2 }) {
           <div className="cmp-row"><span className="dim small"><Term id="lta">Term</Term></span><Seg value={term} options={CHIP_TERM_OPTS} onChange={setTerm} testId="chip-term" /></div>
           {tranches && qt.prices && <PathCurve s={s} prices={qt.prices} unit="$" discount={qt.discount} firstQ={qt.dueQ} />}
           {term === 1 && <Toggle on={firm} onChange={setFirm} label={<><Term id="firmCommit">Firm</Term> · take-or-pay, rationing priority</>} />}
-          {!tranches && <><div className="cac-lbl">Pay with</div><PayTiles s={s} opts={pays} value={payNow} onChange={setPay} testPrefix="chip-pay" /><Limit id="lease.rating">{leaseRate(s) !== undefined ? `lease ${F.pct(leaseRate(s) ?? 0)} at ${s.player.finance.rating}` : `no lease at ${s.player.finance.rating}`}</Limit></>}
+          {!tranches && <><div className="cac-lbl">Pay with</div><PayTiles s={s} opts={pays} value={payNow} onChange={setPay} testPrefix="chip-pay" /><Limit id="lease.rating">{leaseLimit(s)}</Limit></>}
           <div className="cmp-row"><Toggle on={nonTW} onChange={setNonTW} label={<><Term id="taiwanRisk">Non-Taiwan</Term> supply · +30%</>} /></div>
         </div>
       )}
@@ -408,7 +415,7 @@ function BuildCard({ s }: { s: GameStateV2 }) {
         })}
       </div>
       {!colo && <><div className="cac-lbl"><Term id="payOption">Pay with</Term></div><PayTiles s={s} opts={pays} value={payNow} onChange={setPay} testPrefix="site-pay" /></>}
-      <div className="cac-pv"><ComputePreview s={s} id="cmp.newSite" params={params} arrives={<>racks for, live ≈ {qLabel(s, liveQ)}</>} />{(() => { const z = siteSizeView(s, path); const short = z.leaseGW !== undefined && z.leaseGW * 1000 < mw; return <Limit id="site.mw" tone={short ? 'bind' : 'quiet'}>{F.power(z.min)}–{F.power(z.max)}{z.leaseGW !== undefined ? ` · lease pool ${F.power(z.leaseGW * 1000)}` : ''}</Limit>; })()}{!colo && <Limit id="lease.rating" tone={leaseRate(s) === undefined ? 'bind' : 'quiet'}>{leaseRate(s) !== undefined ? `lease ${F.pct(leaseRate(s) ?? 0)} at ${s.player.finance.rating}` : `no lease at ${s.player.finance.rating}`}</Limit>}</div>
+      <div className="cac-pv"><ComputePreview s={s} id="cmp.newSite" params={params} arrives={<>racks for, live ≈ {qLabel(s, liveQ)}</>} />{(() => { const z = siteSizeView(s, path); const short = z.leaseGW !== undefined && z.leaseGW * 1000 < mw; return <Limit id="site.mw" tone={short ? 'bind' : 'quiet'}>{F.power(z.min)}–{F.power(z.max)}{z.leaseGW !== undefined ? ` · lease pool ${F.power(z.leaseGW * 1000)}` : ''}</Limit>; })()}{!colo && <Limit id="lease.rating" tone={leaseRate(s) === undefined ? 'bind' : 'quiet'}>{leaseLimit(s)}</Limit>}</div>
       {open && (
         <div className="cac-opts">
           <Toggle on={crash} onChange={setCrash} label={<><Term id="crashBuild">Crash build</Term> · 4q, +35%</>} />

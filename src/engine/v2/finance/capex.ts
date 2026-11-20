@@ -9,12 +9,22 @@ import type { Commitment$, Day, GameStateV2, Money } from '../types';
 /** Capital-recovery factor: the annual payment that repays 1 over `years` at rate `r`. */
 export const crf = (r: number, years: number) => (r <= 0 ? 1 / years : (r * Math.pow(1 + r, years)) / (Math.pow(1 + r, years) - 1));
 
-/** Lessor's annual return at today's rating, or undefined when no lessor will fund you (below B). FIN4: a strategic
- *  partner's guarantee will open leases below B. */
-export function leaseRate(s: GameStateV2): number | undefined {
-  return CAPEX_LEASE.rate[s.player.finance.rating];
+/** The partner that guarantees your leases below rating B (FIN4b, spec §4): a running hyperscaler or chip-vendor deal
+ *  (the first signed), or undefined. Only read when the rating is below B. */
+export function leaseGuarantor(s: GameStateV2): string | undefined {
+  if (CAPEX_LEASE.rate[s.player.finance.rating] !== undefined) return undefined;
+  return s.player.finance.deals.find((d) => !d.legacy && (d.kind === 'hyperscaler' || d.kind === 'chipVendor') && d.until > s.time.day)?.partner;
 }
-export const leaseAvailable = (s: GameStateV2): true | string => (leaseRate(s) !== undefined ? true : `No lessor funds you at rating ${s.player.finance.rating} (needs B or better)`);
+
+/** Lessor's annual return at today's rating, or undefined when no lessor will fund you (below B without a partner's
+ *  guarantee). FIN4b: a running hyperscaler or chip-vendor partner's guarantee opens leases below B at the B rate plus
+ *  a premium (3 points [D]). */
+export function leaseRate(s: GameStateV2): number | undefined {
+  const r = CAPEX_LEASE.rate[s.player.finance.rating];
+  if (r !== undefined) return r;
+  return leaseGuarantor(s) ? (CAPEX_LEASE.rate.B ?? 0.12) + CAPEX_LEASE.guaranteePremium : undefined;
+}
+export const leaseAvailable = (s: GameStateV2): true | string => (leaseRate(s) !== undefined ? true : `No lessor funds you at rating ${s.player.finance.rating} (needs B or better, or a hyperscaler or chip-vendor partner's guarantee)`);
 
 /** Remaining (unamortised) balance of a financing lease on `day`: the present value of the payments left at its rate. */
 export function leaseBalance(c: Commitment$, day: Day): Money {
@@ -49,7 +59,8 @@ export function siteRVG(s: GameStateV2, siteId: string): Money {
 }
 export const siteLeaseId = (siteId: string) => `L-fin-${siteId}`;
 
-export interface PayOption { id: 'cash' | 'lease' | 'loan'; label: string; total: Money; now: Money; perYear: Money; years: number; rate?: number; blocked?: string; note: string }
+/** `guarantor`: the partner guaranteeing a lease below rating B (FIN4b). */
+export interface PayOption { id: 'cash' | 'lease' | 'loan'; label: string; total: Money; now: Money; perYear: Money; years: number; rate?: number; blocked?: string; note: string; guarantor?: string }
 
 /**
  * Payment options for `amount` of capex, compared on total cost over the asset's life (spec §4). `asset` 'site' leases
@@ -61,11 +72,12 @@ export interface PayOption { id: 'cash' | 'lease' | 'loan'; label: string; total
 export function payOptions(s: GameStateV2, amount: Money, asset: 'site' | 'chips', buildYears = 0, upfront = 0): PayOption[] {
   const out: PayOption[] = [{ id: 'cash', label: 'Cash', total: amount, now: amount, perYear: 0, years: 0, note: 'paid on the build or delivery schedule' }];
   const r = leaseRate(s);
+  const guarantor = leaseGuarantor(s);
   const years = asset === 'site' ? CAPEX_LEASE.years.site : CAPEX_LEASE.years.chips;
   const share = asset === 'site' ? CAPEX_LEASE.siteShare : 1;
   const funded = amount * share * Math.pow(1 + (r ?? 0), asset === 'site' ? buildYears / 2 : 0); // capex lands over the build: half the build on average
   const perYear = r !== undefined ? funded * crf(r, years) : 0;
-  out.push({ id: 'lease', label: 'Lease', total: amount * (1 - share) + perYear * years, now: amount * (1 - share), perYear, years, ...(r !== undefined ? { rate: r } : { blocked: leaseAvailable(s) as string }), note: `${Math.round(share * 100)}% funded by the lessor; ${years} y of payments from ${asset === 'site' ? 'go-live' : 'delivery'}` });
+  out.push({ id: 'lease', label: 'Lease', total: amount * (1 - share) + perYear * years, now: amount * (1 - share), perYear, years, ...(r !== undefined ? { rate: r } : { blocked: leaseAvailable(s) as string }), note: `${Math.round(share * 100)}% funded by the lessor; ${years} y of payments from ${asset === 'site' ? 'go-live' : 'delivery'}${guarantor ? `; guaranteed by ${guarantor}: the B rate + ${Math.round(CAPEX_LEASE.guaranteePremium * 100)} pts` : ''}`, ...(guarantor ? { guarantor } : {}) });
   if (asset === 'chips') {
     const loan = amount * DEBT_SIZING.chipLTV * DEBT_SIZING.chipHaircut;
     const rate = (s.capital.sofr + CHIP_LOAN_SPREAD_BP[s.player.finance.rating] / 100) / 100;

@@ -117,3 +117,26 @@ export function copyrightExposure(s: GameStateV2): { tokensT: number; settlement
   const T = s.player.dataAssets.unlicensedTokensT;
   return { tokensT: T, settlement: T > 0 ? 1.5 * Math.max(0.2, Math.min(3, T / 270)) : 0, pQ: Math.min(0.5, (0.02 * T) / 100) };
 }
+
+/** The model a partner's IP licence reaches (FIN4b, spec §6.1 IP access): the player's best live version, leaving out
+ *  capability-threshold versions when `noThreshold` (a PBC + trust licence the trust did not approve, §7.2). */
+export function licensedModel(s: GameStateV2, noThreshold = false): ModelVersion | undefined {
+  let best: ModelVersion | undefined;
+  for (const v of s.player.models.versions) {
+    if (v.status === 'retired' || (noThreshold && capabilityThresholds(v).length)) continue;
+    if (!best || v.pm > best.pm) best = v;
+  }
+  return best;
+}
+
+/** Capability gap (pm, model vs model) between the model a licence reaches and a lab's best model; 0 when the lab is
+ *  level or ahead. Engine truth (the IP-access flow); the UI shows `leadEstimate`. */
+export function licensedGap(s: GameStateV2, lab: LabId, noThreshold = false): number {
+  const v = licensedModel(s, noThreshold);
+  const r = rival(s, lab);
+  if (!v || !r || r.core.status !== 'active') return 0;
+  return Math.max(0, v.pm - Math.max(r.internal.pm, r.publicModel?.pm ?? -Infinity));
+}
+
+/** The player's estimate of its lead over a rival lab (days; > 0 = ahead), from intel: what the UI may show. */
+export const leadEstimate = (s: GameStateV2, lab: LabId): number => rival(s, lab)?.intel.leadDaysEst ?? 0;

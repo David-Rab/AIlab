@@ -874,10 +874,15 @@ export type PartnerKind = 'hyperscaler' | 'chipVendor' | 'sovereign';
 /** What a partner supplies against the commitment: a hyperscaler's cloud capacity or custom chips (ASIC), a chip
  *  vendor's own chips. */
 export type PartnerSupply = 'cloud' | 'asic' | 'chips';
-/** A deal's strings (FIN4a): only strings that do something. FIN4b adds IP access and optional exclusivity. */
+/** A deal's strings (FIN4a, FIN4b): only strings that do something. */
 export interface DealStrings {
-  /** Blocks deals with the partner's competitors (as before FIN4a: for good). */
+  /** Blocks deals with the partner's competitors (as before FIN4a: for good). Optional for more money (FIN4b); always
+   *  part of a rescue. */
   exclusivity?: boolean;
+  /** IP access (FIN4b, spec §6.1): the partner's affiliated rival lab licenses your models while the deal runs (to
+   *  `until`) and closes ~10% a year of your capability lead. `trust`: under PBC + trust, the trust voted yes at signing
+   *  on licensing a capability-threshold model; without it, such models stay out of the licence. */
+  ipAccess?: { lab: LabId; trust?: boolean };
   /** Share of revenue paid to the partner while the deal runs (to `until`). */
   revenueShare?: number;
   /** Votes of the board seat the partner holds (a rescue only: hyperscalers get no seat, spec §6.1). */
@@ -1118,9 +1123,14 @@ export interface PartnerTerms {
   politics?: { scrutiny: number; congress: number; securityDemand: number };
   /** A rescue tops the partner up to this stake. */
   stake?: number;
-  /** Years the running terms last (supply, revenue share, priority). */
+  /** Years the running terms last (supply, revenue share, priority, IP access). */
   years: number;
+  /** FIN4b: the optional strings and what each adds (equity $B over the terms without it, under the stake cap), or why
+   *  it is not on offer. `on` = chosen in these terms. */
+  options: { exclusive: PartnerOption; ipAccess: PartnerOption & { lab?: LabId; labName?: string } };
 }
+/** An optional string on a partner offer (FIN4b). */
+export interface PartnerOption { on: boolean; bump: Money; blocked?: string }
 
 export interface PendingRound {
   day: Day;
