@@ -25,7 +25,7 @@ import {
 import type { Channel, CustomerView, Deployment, FeatureKind, GameStateV2, ModelVersion, PriceTier, ProductChanges, ProductRead } from '../../../engine/v2';
 import { store } from '../store';
 import { ActBtn, Limit, Seg, Term, Tip, TipCard, type Params } from '../ui';
-import { Card, PanelHead, Spark2 } from '../kit';
+import { Card, PanelHead, Ref, Spark2 } from '../kit';
 import * as F from '../fmt';
 import { ICON } from '../icons';
 import { C } from '../theme';
@@ -99,7 +99,8 @@ export function Products({ s }: { s: GameStateV2 }) {
           {behind.length > 0 && !pol.upgradeToNewest && <Tip content={() => <TipCard title="Behind the newest cleared model" rows={behind.map((d) => ({ label: PRODUCT_DEFS[d.channel]?.name ?? d.channel, value: nameOf(s, d.versionId) }))}>A newer version of the same kind has cleared the eval gate and measures better.</TipCard>}>
             <span className="tag2 warn" data-test="prod-behind">{behind.length} on an older model</span>
           </Tip>}
-          <PolicySwitch on={pol.autoEvaluate} k="autoEvaluate" term="autoEvaluate" label="Auto-evaluate" />
+          {/* D8: auto-evaluate lives on the eval policy (Models › Evals). */}
+          <Ref id="autoEvaluate" to={{ panel: 'models', tab: 'evals' }}>Auto-evaluate</Ref>
         </span>} />
 
       {/* B4: with three products or fewer, the launch card and the serving split share a column beside the cards (the

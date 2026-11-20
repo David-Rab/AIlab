@@ -21,8 +21,8 @@
 //                       once and, under auto-evaluate, gets a basic suite that blocks nothing.
 //   auto-evaluate       the internal models and the continual-learning stream are re-run when they changed in place by
 //                       ≥ REEVAL_DL or REEVAL_DAYS after their last suite, at the policy depth (the gate's, basic if none).
-import { BENCHMARKS, SAFETY_EVALS } from '../../../data/v2/benchmarks';
-import { EVAL_DEPTHS, EVAL_TOKENS, EXT_EVAL_STAFF, REEVAL_DAYS, REEVAL_DL } from '../../../data/v2/evals';
+import { BENCHMARKS, BENCH_NOISE_SD, SAFETY_EVALS } from '../../../data/v2/benchmarks';
+import { EVAL_DEPTHS, EVAL_DEPTH_IDS, EVAL_TOKENS, EXT_EVAL_STAFF, FULL_ROLLOUTS, REEVAL_DAYS, REEVAL_DL } from '../../../data/v2/evals';
 import { TEAM_SIZE } from '../../../data/v2/teams';
 import { PEAK_FLOPS, U_DECODE, U_PREFILL } from '../../../data/v2/workTypes';
 import { AGENT_USES } from '../../../data/v2/agents';
@@ -30,9 +30,9 @@ import type { EvalDepth, EvalTask, GameStateV2, ModelVersion, SafetyDept, System
 import { flopPerToken, workContext } from '../departments/workfit';
 import { buildEtas, queueBuild } from '../departments/build';
 import { agentVersion } from '../departments/agents';
-import { runEvalSuite, type Evaluator } from './benchmarks';
+import { MEASURE_SD, measuredSd, runEvalSuite, type Evaluator } from './benchmarks';
 import { versionById } from './labs';
-import { allocate, capReCapacity, reDemand } from './research';
+import { allocate, capReCapacity, expPoolH100e, reAllocation, reDemand } from './research';
 
 /** Suite depth the eval gate asks for before release (none: no release suite). */
 export function gateDepth(gate: SafetyDept['evalGate']): EvalDepth | undefined {
@@ -243,27 +243,90 @@ export interface EvalTaskView {
   progress: number; reTW: number; engTW: number; h100eDays: number;
   /** What it waits for: research engineers, compute or the engineers' harness work (undefined = advancing). */
   waiting?: 'engineers' | 'researchEngineers' | 'compute';
+  /** Which part sets the ETA (D8): the research engineers' work, the engineers' harness work or the compute. */
+  binds: 'engineers' | 'researchEngineers' | 'compute';
+  /** Days to finish each part at today's rates (Infinity = not advancing). */
+  reDays: number; engDays: number; computeDays: number;
+  /** Research-engineer team-equivalents on it today (human; the lab's own suites) and the most it can use. */
+  reNow: number; reMax: number;
   etaDays: number;
 }
-/** The eval queue for readouts (D8): each suite's work, progress, what it waits on and an ETA at today's rates. */
+/** The eval queue for readouts (D8): each suite's work, progress, what it waits on and an ETA at today's rates. The
+ *  research engineers on evals today (the allocation's 'evals' need) and the experiments pool's compute are shared in
+ *  queue order, as evalsDay does. */
 export function evalQueueView(s: GameStateV2): EvalTaskView[] {
   const m = Math.max(1, workContext(s).slots.EXP.m);
-  const got = s.player.research.last?.re.evals ?? 0;
+  // Today's allocation of the evaluations need (with the suites queued now; research.last is yesterday's).
+  const got = reAllocation(s).re.evals;
   const etas = buildEtas(s).etas;
   let share = got;
+  let pool = Math.max(0, expPoolH100e(s));
   return ordered(s).map((t) => {
     const v = versionById(s, t.versionId);
     const want = t.by === 'self' ? suiteWant(t, m) : 0;
     const h = t.by === 'self' ? Math.min(share, want) : 0;
     share -= h;
+    const reTW = t.by === 'self' ? t.reTW : evalCost(s, v ?? { baseId: '', serveCost: 1, params: 0 }, t.depth).reTW;
     const rate = t.by === 'self' ? (h * m) / 7 : EXT_EVAL_STAFF / TEAM_SIZE.re / 7;
-    const rem = (1 - t.progress) * (t.by === 'self' ? t.reTW : evalCost(s, v ?? { baseId: '', serveCost: 1, params: 0 }, t.depth).reTW);
-    const reDays = rem <= 1e-9 ? 0 : rate > 0 ? Math.ceil(rem / rate) : Infinity;
+    const left = 1 - t.progress;
+    const rem = left * reTW;
+    const reDays = rem <= 1e-9 ? 0 : rate > 0 ? Math.ceil(rem / rate - 1e-9) : Infinity;
+    // Compute: the share done per day is capped by what the pool still holds after the suites ahead of it.
+    const dpRe = left <= 1e-9 ? 0 : reTW > 0 ? Math.min(left, rate / reTW) : left;
+    const dpC = t.h100eDays > 0 ? Math.min(dpRe, pool / t.h100eDays) : dpRe;
+    pool = Math.max(0, pool - dpC * t.h100eDays);
+    const computeShort = left > 1e-9 && rate > 0 && dpC < dpRe - 1e-12;
+    const computeDays = left <= 1e-9 ? 0 : !computeShort ? reDays : dpC > 0 ? Math.ceil(left / dpC - 1e-9) : Infinity;
     const engDays = t.engId ? (etas.get(t.engId) ?? Infinity) : 0;
-    const waiting = t.progress < 1 && rate <= 0 ? 'researchEngineers' : t.progress >= 1 && t.engId ? 'engineers' : undefined;
+    const waiting = left > 1e-9 && rate <= 0 ? 'researchEngineers' : computeShort && dpC <= 0 ? 'compute' : left <= 1e-9 && t.engId ? 'engineers' : undefined;
+    const binds = engDays > 0 && engDays >= Math.max(reDays, computeDays) ? 'engineers' : computeShort ? 'compute' : 'researchEngineers';
     return {
       id: t.id, versionId: t.versionId, name: v?.name ?? t.versionId, depth: t.depth, by: t.by, why: t.why, progress: t.progress,
-      reTW: t.reTW, engTW: t.engTW, h100eDays: t.h100eDays, ...(waiting ? { waiting } : {}), etaDays: Math.max(reDays, engDays),
+      reTW: t.reTW, engTW: t.engTW, h100eDays: t.h100eDays, ...(waiting ? { waiting } : {}), binds, reDays, engDays, computeDays,
+      reNow: h, reMax: t.by === 'self' ? EVAL_DEPTHS[t.depth].staff / TEAM_SIZE.re / m : 0, etaDays: Math.max(reDays, computeDays, engDays),
+    };
+  });
+}
+
+/** One depth's row of the order preview (D8): the suite's work on `v`, its days at today's rates, the precision it gives
+ *  (the measured level's band after one such suite alone, today's band on `v` and after this suite) and the own
+ *  benchmark noise and elicitation shift. Output only. */
+export interface EvalDepthRow {
+  depth: EvalDepth; label: string; rollouts: number; cost: EvalCost; days: number;
+  bandOne: number; bandNow: number; bandAfter: number;
+  benchSd: number; elic: number;
+}
+export function evalDepthView(s: GameStateV2, v: ModelVersion): EvalDepthRow[] {
+  const n = v.evals.nEff ?? v.evals.nSuites ?? 0;
+  return EVAL_DEPTH_IDS.map((depth) => {
+    const D = EVAL_DEPTHS[depth];
+    const w = D.rollouts / FULL_ROLLOUTS;
+    return {
+      depth, label: D.label, rollouts: D.rollouts, cost: evalCost(s, v, depth), days: evalDaysEstimate(s, depth),
+      bandOne: MEASURE_SD / Math.sqrt(w), bandNow: measuredSd(v), bandAfter: MEASURE_SD / Math.sqrt(n + w),
+      benchSd: BENCH_NOISE_SD.self / Math.sqrt(w), elic: D.elic,
+    };
+  });
+}
+
+/** Measurement quality per version (D8 readout; never the true level): measured level and band, the suites behind it
+ *  (count and full-suite equivalents), the last suite's depth and day, whether the standing policy keeps it measured
+ *  (with the cadence's next re-run day) and its open suites. */
+export interface EvalMeasureRow {
+  versionId: string; name: string; status: ModelVersion['status']; measuredL?: number; sd: number; nSuites: number; nEff: number;
+  depth?: EvalDepth; suiteDay?: number; policy: boolean; nextDay?: number; open: { id: string; by: Evaluator; why: EvalTask['why'] }[];
+}
+export function evalMeasureView(s: GameStateV2): EvalMeasureRow[] {
+  const pol = new Set(policyModels(s).map((v) => v.id));
+  const auto = !!s.player.policies.autoEvaluate;
+  return s.player.models.versions.filter((v) => v.status !== 'retired' && v.status !== 'rolledBack').map((v) => {
+    const isPol = auto && pol.has(v.id);
+    return {
+      versionId: v.id, name: v.name, status: v.status, ...(v.evals.measuredL !== undefined ? { measuredL: v.evals.measuredL } : {}), sd: measuredSd(v),
+      nSuites: v.evals.nSuites ?? 0, nEff: v.evals.nEff ?? v.evals.nSuites ?? 0, ...(v.evals.depth ? { depth: v.evals.depth } : {}),
+      ...(v.evals.suiteDay !== undefined ? { suiteDay: v.evals.suiteDay } : {}), policy: isPol,
+      ...(isPol && v.evals.suiteDay !== undefined ? { nextDay: v.evals.suiteDay + REEVAL_DAYS } : {}),
+      open: evalsOf(s).filter((t) => t.versionId === v.id).map((t) => ({ id: t.id, by: t.by, why: t.why })),
     };
   });
 }

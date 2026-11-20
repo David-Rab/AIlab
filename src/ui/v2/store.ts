@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from 'react';
 import {
   act as engineAct, activeRivals, AUTOSAVE_KEY, dateOf, engine, leadDays, measuredL, defaultSetupV2, deserialize, newGame, quarterIndex, resolve as engineResolve,
-  serialize, SLOT_KEYS, spotPrice, tick,
+  serialize, SLOT_KEYS, spotPrice, tick, evalQueueView, evalMeasureView, evalDepthView, actionView,
 } from '../../engine/v2';
 import type { GameStateV2, LogEntry, SetupV2 } from '../../engine/v2';
 
@@ -441,3 +441,5 @@ export function useGame(): GameStateV2 {
   return store.state as GameStateV2;
 }
 export const today = (s: GameStateV2) => dateOf(s);
+// D8: read-only selectors for scripts/v2/uitest.mjs (the rendered values are checked against them).
+(window as unknown as { ai27v2Views: object }).ai27v2Views = { evalQueueView, evalMeasureView, evalDepthView, actionView };

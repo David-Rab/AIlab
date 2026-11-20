@@ -1,7 +1,8 @@
 // Models (§6.3): lineage tree (bases → versions → variants), model card (measured L, domain radar with error bars,
 // benchmarks with saturation marks, horizon, serving FLOP per token and cost per hour, monitorability, trait beliefs, flags), run queue (paradigms moved to
 // Research in R4); set internal agent, evals, variants, distill, roll back, retire, streams. Tabs (model v3 D6): Versions (all of
-// the above) and Suites (the RL environment suites the post-trains use, Suites.tsx).
+// the above) and Suites (the RL environment suites the post-trains use, Suites.tsx). Model v3 D8: Evals (Evals.tsx: the eval
+// policy, queue, orders and each version's measurement quality); the card links there for ordering suites.
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
 import { AGENT_USE_DEF } from '../../../data/v2/agents';
 import {
@@ -13,8 +14,9 @@ import { store, useV2 } from '../store';
 import { ActBtn, Limit, Meter, Radar, Term, Tip, TipCard } from '../ui';
 import { useState } from 'react';
 import { Card, KV, PanelHead, Ref, tabOf, Tabs } from '../kit';
-import { Dumbbell } from 'lucide-react';
+import { Dumbbell, ListChecks } from 'lucide-react';
 import { Suites } from './Suites';
+import { Evals, openEvalQueue } from './Evals';
 import * as F from '../fmt';
 import { ICON } from '../icons';
 
@@ -118,7 +120,7 @@ export function ModelCard({ s, v }: { s: GameStateV2; v: ModelVersion }) {
   const hMin = horizon ? horizon.score : 0;
   return (
     <Card title={<span>{v.name} <span className="dim">· <Term id="variant">{v.variant}</Term> · {v.status}</span></span>} home="modelCard"
-      right={<Tip content={() => <LevelTip s={s} v={v} />}><span className="num big">L {v.evals.measuredL !== undefined ? F.level(v.evals.measuredL) : '—'}{v.evals.measuredL !== undefined && <span className="dim small"> ± {measuredSd(v).toFixed(2)}</span>}{v.evals.measuredL === undefined && <span className="tag2 warn" style={{ marginLeft: 6 }}><Term id="evaluating">evaluating</Term></span>}</span></Tip>}>
+      right={<span className="row-i">{v.status === 'evaluating' && <button className="tag2 warn" data-test="card-evaluating" onClick={() => openEvalQueue(v.id)}><Term id="evaluating">evaluating</Term> <ICON.go size={11} /></button>}<Tip content={() => <LevelTip s={s} v={v} />}><span className="num big">L {v.evals.measuredL !== undefined ? F.level(v.evals.measuredL) : '—'}{v.evals.measuredL !== undefined && <span className="dim small"> ± {measuredSd(v).toFixed(2)}</span>}</span></Tip></span>}>
       <div className="card-grid2">
         <div>
           <Radar values={dom} err={0.4} size={230} compare={parent ? measuredDomains(parent) : undefined} />
@@ -136,7 +138,7 @@ export function ModelCard({ s, v }: { s: GameStateV2; v: ModelVersion }) {
           })()}
           <KV k="Time horizon (50%)" term="horizon">{horizon ? F.minutes(hMin) : "—"}</KV>
           <KV k="Appeal" term="appeal">{v.appeal !== undefined ? v.appeal.toFixed(2) : '—'}</KV>
-          <KV k="Last eval suite" term="evals">{v.evals.suiteDay !== undefined ? fmtDate(dateOf(s, v.evals.suiteDay)) : 'never'}</KV>
+          <KV k="Measurement" term="measureBand"><Ref id="evalMeasure" to={{ panel: 'models', tab: 'evals' }}>Models › Evals</Ref></KV>
           <KV k="Dangerous-capability flags" term="flags"><span className={flags.length ? 'tone-neg' : 'dim'}>{flags.join(', ') || 'none'}</span></KV>
           <KV k="Trait beliefs" term="belief"><Ref id="beliefs" to={{ panel: 'safety', tab: 'graph' }}>Safety › trait graph</Ref></KV>
           <table className="tbl" style={{ marginTop: 6 }}>
@@ -168,9 +170,7 @@ export function ModelCard({ s, v }: { s: GameStateV2; v: ModelVersion }) {
           <ActBtn id="idaCycle" params={{ versionId: v.id }} label="Amplify (IDA)" />
         </div>
         <div className="act-group"><span className="tip-cap"><Term id="evals">Evaluate</Term></span>
-          <ActBtn id="runEvals" params={{ versionId: v.id, by: 'self' }} label="Own evals" icon={ICON.finding} />
-          <ActBtn id="runEvals" testId="runEvals.evalGov" params={{ versionId: v.id, by: 'evalGov' }} label="Gov evaluators" />
-          <ActBtn id="runEvals" testId="runEvals.evalIndep" params={{ versionId: v.id, by: 'evalIndep' }} label="Independent" />
+          <button className="btn btn-sm go-btn" data-go="models.evals" data-test="card-order-evals" onClick={() => { store.select({ versionId: v.id }); store.goto('models', { tab: 'evals', anchor: 'evalOrder' }); }}><ICON.finding size={13} /> Order a suite <ICON.go size={12} /></button>
         </div>
         <div className="act-group"><span className="tip-cap"><Term id="variant">Variants</Term></span>
           <ActBtn id="makeVariant" params={{ versionId: v.id, variant: 'gov' }} label="Gov" />
@@ -246,12 +246,20 @@ export function Models({ s }: { s: GameStateV2 }) {
   useV2();
   const v = selectedVersion(s);
   const tab = tabOf('models', 'versions');
-  const tabs = <Tabs panel="models" def="versions" tabs={[{ id: 'versions', label: 'Versions', icon: ICON.models }, { id: 'suites', label: 'Suites', icon: Dumbbell }]} />;
+  const tabs = <Tabs panel="models" def="versions" tabs={[{ id: 'versions', label: 'Versions', icon: ICON.models }, { id: 'suites', label: 'Suites', icon: Dumbbell }, { id: 'evals', label: 'Evals', icon: ListChecks, badge: s.player.models.evals?.length || undefined }]} />;
   if (tab === 'suites') {
     return (
       <div className="panel-v2" data-panel="models">
         <PanelHead icon={ICON.models} title="Models" sub="RL environments your post-trains train in" tabs={tabs} />
         <Suites s={s} />
+      </div>
+    );
+  }
+  if (tab === 'evals') {
+    return (
+      <div className="panel-v2" data-panel="models">
+        <PanelHead icon={ICON.models} title="Models" sub="what your evals cost, what is queued and how sure each reading is" tabs={tabs} />
+        <Evals s={s} v={v} />
       </div>
     );
   }

@@ -86,7 +86,7 @@ function RaceMeter({ s }: { s: GameStateV2 }) {
         <div className="race2-lbls">
           <span className="race2-cap"><ICON.L size={12} /> CAPABILITY</span>
           <b className="num" style={{ color: C.cap }} data-home="L">{F.level(L)}</b>
-          {ev.evaluating && <span className="tag2 warn" data-test="evaluating">evaluating</span>}
+          {ev.evaluating && <button className="tag2 warn ts-evchip" data-test="evaluating" data-ref="evalQueue" onClick={(e) => { e.stopPropagation(); store.goto('models', { tab: 'evals', anchor: 'evalQueue' }); }}>evaluating</button>}
           <span className="sp" />
           <span className={`tag2 ${gap < 0 ? 'bad' : 'good'}`} data-home="gap">{gap < 0 ? <ICON.blind size={12} /> : <ICON.check size={12} />} {Math.abs(gap).toFixed(1)} {gap < 0 ? 'BLIND' : 'AHEAD'}</span>
           <span className="sp" />

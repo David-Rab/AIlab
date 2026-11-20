@@ -325,6 +325,7 @@ function Policies({ s, sv }: { s: GameStateV2; sv: SV }) {
         <ClipboardCheck size={18} />
         <span><b><Term id="evalGate">Evaluate before release</Term></b><br /><Tip content={() => <TipCard title={<Term id="evalGate">Eval gate</Term>} value={`+${evalDaysFor(s)} d`}>Days a new version waits in evaluation before it can be used or sold: its eval suite's work at today's research engineers.</TipCard>}><span className="small dim">+{evalDaysFor(s)} d per release{gate === 'fullPlusExternal' ? ' · external review' : ''}</span></Tip></span>
         <span className="sp" />
+        <Ref id="evalPolicy" to={{ panel: 'models', tab: 'evals' }}>Evals</Ref>
         {on && <span className={`sf-mini ${gate === 'fullPlusExternal' ? 'on' : ''}`}><ActBtn id="safety.evalGate" testId="safety.evalGate.external" params={{ level: gate === 'fullPlusExternal' ? 'full' : 'fullPlusExternal' }} label="external" /></span>}
         <span className={`sf-toggle ${on ? 'on' : ''}`}><ActBtn id="safety.evalGate" testId="safety.evalGate.toggle" params={{ level: on ? 'none' : 'full' }} label={<i />} /></span>
       </div>
