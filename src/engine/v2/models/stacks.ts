@@ -72,8 +72,8 @@ export const serveNow = (s: GameStateV2) => Math.max(0, stackAt(stacksOf(s).serv
  *  continuous batching, disaggregated prefill/decode, kernels: the fleet's serving software, for every model the lab
  *  serves at once); what lies beyond is a compute-equivalent factor on the FLOP per token of versions trained after it
  *  (quantisation below FP8, sparsity, kernels for the architecture: 10^(−flop), at most SERVE_FLOP_MAX = 1 OOM)
- *  [D: utilisation first because R20 D1
- *  names it as where inference know-how goes; it is capped by memory bandwidth, so the rest must cut FLOP]. */
+ *  [D: utilisation first because R20 D1 names it as where inference know-how goes; it is capped by memory bandwidth,
+ *  so the rest must cut FLOP]. */
 export const SERVE_U_OOM = Math.log10(U_DECODE_MAX / U_DECODE);
 export function serveSplit(e: number): { u: number; flop: number } {
   const x = Math.max(0, e);
