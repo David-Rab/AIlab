@@ -207,17 +207,20 @@ function NaturalMix({ rows }: { rows: DomainMixRow[] }) {
 // ───────── before → after (token units) ─────────
 function DeltaRows({ d, what }: { d: DataDelta; what: string }) {
   const pc = (x: number) => F.pct(x, 1);
-  const rows: { k: string; raw: [number, number]; label: ReactNode; a: string; b: string; tip: string; ch: boolean }[] = [
+  const q3 = (x: number) => { const r = Math.round(x * 1000) / 1000; return `${r >= 0 ? '+' : '−'}${Math.abs(r).toFixed(3)}`; };
+  const rows: { k: string; raw: [number, number]; label: ReactNode; a: string; b: string; tip: string; ch: boolean; neg?: boolean }[] = [
     { k: 'u', raw: d.u, label: <Term id="uniqueTokens">U</Term>, a: tokT(d.u[0]), b: tokT(d.u[1]), tip: 'Quality-weighted unique tokens of the portfolio.', ch: Math.abs(d.u[1] - d.u[0]) > 1e-6 },
     { k: 'share', raw: d.share, label: <>{d.domain} share of stock</>, a: pc(d.share[0]), b: pc(d.share[1]), tip: `${DOM_NAME[d.domain]}'s share of the natural mix.`, ch: Math.abs(d.share[1] - d.share[0]) > 5e-5 },
     { k: 's', raw: d.s, label: <>{d.domain} <Term id="dataSpec">spec.</Term> (natural)</>, a: `${oom(d.s[0])}`, b: `${oom(d.s[1])} OOM`, tip: 'Specialisation a Natural-mix base of your latest size would get in this domain.', ch: Math.abs(d.s[1] - d.s[0]) > 5e-3 },
     { k: 'epochs', raw: d.epochs, label: <>Latest base <Term id="dataTokens">epochs</Term></>, a: d.epochs[0].toFixed(2), b: d.epochs[1].toFixed(2), tip: 'Epochs of the most-repeated slice for a base like your latest one, with its data mix.', ch: Math.abs(d.epochs[1] - d.epochs[0]) > 5e-3 },
+    // model v3 D11 (M3): the quality of the drawn tokens is a G term; data below the draw's mean quality dilutes it.
+    { k: 'qG', raw: d.qG, label: <>Latest base <Term id="dataQuality">data quality</Term></>, a: q3(d.qG[0]), b: `${q3(d.qG[1])} OOM`, tip: 'Effective compute the drawn tokens’ quality gives a base like your latest one, with its data mix, against the 2025 reference draw (G’s data-quality term). Data worse than what the base already draws lowers it.', ch: Math.abs(d.qG[1] - d.qG[0]) > 5e-4, neg: d.qG[1] < d.qG[0] - 5e-4 },
   ];
   return (
     <div className="dv-delta" data-test={`delta-${what}`}>
       {rows.map((r, i) => (
         <Tip key={i} as="div" content={() => <TipCard title={r.label} value={`${r.a} → ${r.b}`}>{r.tip}</TipCard>}>
-          <div className="dv-drow" data-k={r.k} data-a={r.raw[0]} data-b={r.raw[1]}><span className="small">{r.label}</span><span className="num small dim">{r.a}</span><span className="dim">→</span><span className={`num small ${r.ch ? 'tone-pos' : 'dim'}`}>{r.b}</span></div>
+          <div className="dv-drow" data-k={r.k} data-a={r.raw[0]} data-b={r.raw[1]}><span className="small">{r.label}</span><span className="num small dim">{r.a}</span><span className="dim">→</span><span className={`num small ${r.neg ? 'tone-neg' : r.ch ? 'tone-pos' : 'dim'}`}>{r.b}</span></div>
         </Tip>
       ))}
     </div>

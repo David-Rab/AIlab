@@ -60,12 +60,15 @@ export const WEB_LICENCE = { baseB: 1, perTB: 0.005, creatives: 10 } as const;
  *  (research/20 A3 [G]: ≈ 2·N_gen per token, filtering at 2–5× overgeneration), at the training pool's FLOP per H100e-day.
  *  SYN_OVERGEN 4.33 [fit]: reproduces v1's 4e-6 T per H100e-day for V0 (2 × 1T active), inside research/20's 2–5×.
  *  Quality from the teacher's G: q = SYN_Q.atV0 + SYN_Q.perOom · (G_teacher − G_V0), clamped to [min, max] — 0.5 at V0
- *  keeps v1's SYN_QUALITY; 0.5–1.5 is research/20 A3's synthetic range [G] (the high end in math and code); the slope
- *  [D] reaches the cap 4 OOM above V0 (≈ the superhuman AI researcher). Mix [D]: math and code (Villalobos: synthetic
+ *  keeps v1's SYN_QUALITY; the slope [D]. Cap 1 [D, model v3 D11]: research/20 A3's synthetic range 0.5–1.5 is a
+ *  guess [G] with no primary source for synthetic tokens beating human web text (no general exchange rate exists), and
+ *  since D11 quality acts in the loss law, a cap above the web would let a lab's own synthetic data lift every later
+ *  base unsourced; so synthetic data reaches the web's quality (2 OOM above V0) and no further until a source says
+ *  otherwise (D1 had 1.5, reached 4 OOM above V0). Mix [D]: math and code (Villalobos: synthetic
  *  data "only reliably improved capabilities in narrow areas like math and coding"). Synthetic data inherits its
  *  teacher's traits (subliminal learning, research/20 F3): the asset keeps the teacher and the flag. */
 export const SYN_OVERGEN = 4.33;
-export const SYN_Q = { atV0: 0.5, perOom: 0.25, min: 0.1, max: 1.5 } as const;
+export const SYN_Q = { atV0: 0.5, perOom: 0.25, min: 0.1, max: 1 } as const;
 export const SYN_START_T = 20;
 export const SYN_MIX: DomainMix = { CODE: 0.35, REASON: 0.35, RSCH: 0.12, AGENCY: 0.08, CYBER: 0.04, BIO: 0.03, SOCIAL: 0.02, MEDIA: 0.01 };
 /** P10 (synthetic data flywheel): synthetic tokens count ×3 (v1, LATER(V5) → D9). */

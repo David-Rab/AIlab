@@ -466,7 +466,8 @@ function Limits({ s, card, prev }: { s: GameStateV2; card?: Card_; prev?: Card_ 
       tip: () => <TipCard title={<Term id="gGain">G gained</Term>} value={`${fmtOom(gg)} OOM`} rows={[
         { label: <Term id="flop">log₁₀ FLOP</Term>, value: parts.flop.toFixed(2) }, { label: <Term id="knowHow">Recipe</Term>, value: fmtOom(parts.recipe) },
         { label: <Term id="shape">Architecture</Term>, value: fmtOom(parts.shape) }, { label: <Term id="tokensPerParam">Overtraining</Term>, value: fmtOom(parts.over) },
-        { label: <Term id="dataWall">Data repetition</Term>, value: fmtOom(parts.data) }, { label: 'Curation', value: fmtOom(parts.design) },
+        { label: <Term id="dataWall">Data repetition</Term>, value: fmtOom(parts.data) }, { label: <Term id="dataQuality">Data quality</Term>, value: fmtOom(parts.quality) },
+        { label: 'Curation', value: fmtOom(parts.design) },
         { label: <Term id="effCompute">Pretraining G</Term>, value: parts.total.toFixed(2) },
       ]} footer="Effective compute in OOMs; +0.3 OOM ≈ twice the effective compute.">Pretraining effective compute of this base minus your best base so far.</TipCard>,
     });
