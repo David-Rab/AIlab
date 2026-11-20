@@ -422,12 +422,15 @@ export function outputTokensPerH100eDay(fpt: number): number {
   const h100eHoursPerHour = (Math.max(1, fpt) * (tok.input / U_PREFILL + tok.output / U_DECODE)) / PEAK_FLOPS / 3600;
   return (24 * tok.output) / h100eHoursPerHour;
 }
-/** Usage tokens (T/day) a deployment adds: its served output tokens × the channel's eligibility × the policy share. */
+/** Usage tokens (T/day) a deployment adds: its served output tokens × the channel's eligibility × the policy share.
+ *  Served = the compute that met demand, min(served, need): headroom kept on a product (spare serving 'headroom')
+ *  serves no tokens (model v3 F6: it counted, ×1.9 at day 400). */
 export function usageTokensPerDay(s: GameStateV2, d: Deployment, share = s.player.dataPortfolio.usageShare): number {
   if (d.kind !== 'product' || d.status === 'withdrawn' || !(d.servedH100e! > 0)) return 0;
   const elig = USAGE_ELIGIBLE[d.channel] ?? 0;
   if (elig <= 0) return 0;
-  return ((d.servedH100e ?? 0) * outputTokensPerH100eDay(fptOf(versionById(s, d.versionId))) * elig * share) / 1e12;
+  const h = Math.min(d.servedH100e ?? 0, d.needH100e ?? Infinity);
+  return (h * outputTokensPerH100eDay(fptOf(versionById(s, d.versionId))) * elig * share) / 1e12;
 }
 /** Usage tokens (T/day) all live products add at policy share `share` (today's traffic; the usage-policy preview). */
 export const usageRateAt = (s: GameStateV2, share: number) => s.player.deployments.reduce((a, d) => a + usageTokensPerDay(s, d, share), 0);
