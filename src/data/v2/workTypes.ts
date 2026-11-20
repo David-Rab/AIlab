@@ -97,6 +97,24 @@ export const PEAK_FLOPS = 1e15;
 /** Serving utilisation of peak: prefill 0.35, decode 0.07 (DeepSeek production, R20 D1). */
 export const U_PREFILL = 0.35;
 export const U_DECODE = 0.07;
+/** Model v3 D10: the top of the measured decode-utilisation range (R20 D1: 0.03–0.15). Inference know-how (speculative
+ *  decoding, continuous batching, disaggregated prefill/decode, kernels) raises a lab's decode utilisation from U_DECODE
+ *  toward it: the serving stack's first log₁₀(0.15/0.07) = 0.33 OOM (models/stacks.ts serveSplit). */
+export const U_DECODE_MAX = 0.15;
+/** Model v3 D10: the most the serving stack can cut FLOP per token beyond utilisation (OOM) [D: FP8 → FP4 is 0.3 OOM of
+ *  peak throughput; with sparsity and architecture-specific kernels about one order of magnitude in all]. Without a
+ *  bound a takeoff's serving stack (tens of OOM) drove serving cost to zero (prices 0, the market choice NaN). */
+export const SERVE_FLOP_MAX = 1;
+/** Model v3 D10: reasoning (output) tokens for the same answer fall by this many OOM per OOM of effective compute the
+ *  model's RL recipe adds (its RL stack's G-equivalent over the leader's day-0 recipe; effort multiplies the result) [D
+ *  from R20 D2 / R12 §5]: on FrontierMath ≈ 43M output tokens bought ≈ 27% in Apr 2025 and ≈ 5M in Dec 2025, −0.93 OOM,
+ *  while the frontier rose 27.5 → 28.45 G (R12 §0.2 anchors: o3 / GPT-5.2), +0.95 OOM, a gain that was mostly RL
+ *  post-training (post-training compute ×10 per 4 months in 2024–25, R12 §2): 0.93 / 0.95 ≈ 1. Reasoning length is what
+ *  RL trains, so only the RL stack's part of capability shortens it (pretraining and scale do not) [D]. */
+export const TOK_PER_RL_OOM = 1;
+/** The answer itself stays: reasoning tokens fall at most to this share of the 2025 profiles (about one FrontierMath
+ *  fall, ×0.12) [D]. */
+export const TOK_MIN = 0.1;
 /** Tokens that cost FLOP per human work-hour of agentic work: uncached input 200k and output 40k (Claude Code: an hour's
  *  agentic task ≈ 2M input tokens, 90% cache reads, and 40k output; R20 D2). Cache reads are bandwidth, not FLOP. [D] */
 export const TOKENS_PER_WORK_HOUR = { input: 2e5, output: 4e4 };

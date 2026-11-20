@@ -24,7 +24,7 @@ import {
 import { FEATURE_BY_ID, FREE_TIER_SHARE, MINI_CHANNELS, type FeatureFx, type FeatureId, type WorkScope } from '../../../data/v2/features';
 import { ECON, REGION_SCALE, SECTORS } from '../../../data/v2/sectors';
 import { DISTILL, DISTILL_TPP, REFERENCE_BASE, PARAM_RANGE } from '../../../data/v2/runDesign';
-import { ASSIST, COVER, H50_PER_OOM, H80_OVER_H50, PEAK_FLOPS, U_DECODE, U_PREFILL, type WorkTypeId } from '../../../data/v2/workTypes';
+import { ASSIST, COVER, H50_PER_OOM, H80_OVER_H50, PEAK_FLOPS, TOK_MIN, TOK_PER_RL_OOM, U_DECODE, U_PREFILL, type WorkTypeId } from '../../../data/v2/workTypes';
 import { dollarsPerH100eHour, domainG, flopPerToken, pSuccess, workFit } from '../departments/workfit';
 import { distillGap } from '../models/effective';
 import { gV0, h50Of } from '../models/capability';
@@ -32,6 +32,7 @@ import { fptOfSimpleModel } from '../actors/rivalModel';
 import { versionById } from '../models/labs';
 import { activeFeatures } from '../models/products';
 import { adopted } from '../models/paradigms';
+import { decodeUtilNow, rlGOfBuild } from '../models/stacks';
 import { savedAt, seatHoursPerMonth } from './use';
 import type { Deployment, DomainId, GameStateV2, ModelVersion, RegionId, SectorId, SimpleModel, TimelineWorld } from '../types';
 
@@ -40,16 +41,32 @@ type Fitted = Pick<ModelVersion, 'pm' | 'build'>;
 
 // ───────────────────────────── the cost chain ─────────────────────────────
 
-/** H100e-hours of serving per human work-hour at FLOP per token `fpt` and a token profile (FLOP-bearing tokens). */
-export const h100eHoursPer = (fpt: number, tok: TokenProfile) => (fpt * (tok.input / U_PREFILL + tok.output / U_DECODE)) / PEAK_FLOPS / 3600;
+/** H100e-hours of serving per human work-hour at FLOP per token `fpt` and a token profile (FLOP-bearing tokens), at
+ *  decode utilisation `ud` (the serving lab's: D10 stacks.ts decodeUtilOf; the 2025 reference 0.07 by default). */
+export const h100eHoursPer = (fpt: number, tok: TokenProfile, ud = U_DECODE) => (fpt * (tok.input / U_PREFILL + tok.output / ud)) / PEAK_FLOPS / 3600;
+/** The same without a profile object (hot loops). */
+const hphOf = (fpt: number, tin: number, tout: number, ud: number) => (fpt * (tin / U_PREFILL + tout / ud)) / PEAK_FLOPS / 3600;
+
+/** Model v3 D10: a model's reasoning-token multiplier τ: the output tokens it needs for the same answer, relative to the
+ *  2025 profiles, 10^(−TOK_PER_RL_OOM × its RL recipe's G-equivalent), ≥ TOK_MIN. Player versions read their build (the
+ *  RL efficiency and ceiling they were post-trained with; a distilled student inherits its teacher's, as it learns from
+ *  its traces), rivals' and China's models the RL part of their G (SimpleModel.rlG). A recipe at or below the day-0
+ *  recipe keeps the profiles (τ = 1). Effort multiplies the result, so effort's fit gain stays relative (R20 C3). */
+export function tokEff(v: { build?: { eRL: number; aRL?: number; flopPre: number }; rlG?: number } | undefined): number {
+  if (!v) return 1;
+  const g = v.build ? rlGOfBuild(v.build) : v.rlG ?? 0;
+  return g > 0 ? Math.max(TOK_MIN, Math.pow(10, -TOK_PER_RL_OOM * g)) : 1;
+}
 /** $ per H100e-hour of serving (the market rental: what the chip-hour would fetch). */
 export const serveDollarsPerHour = (s: GameStateV2) => dollarsPerH100eHour(s);
 /** B4 (readout only): serving cost of a model at FLOP per token `fpt` for one hour of use (an assisted work-hour,
  *  TOKENS.assisted) and one agent-hour (TOKENS.autonomous), at today's $ per H100e-hour; before any markup or feature
  *  token multiplier. */
-export function useHourCost(s: GameStateV2, fpt: number): { hour: number; agentHour: number; perH100eHour: number } {
+export function useHourCost(s: GameStateV2, fpt: number, tau = 1, ud = decodeUtilNow(s)): { hour: number; agentHour: number; perH100eHour: number } {
   const usd = serveDollarsPerHour(s);
-  return { hour: h100eHoursPer(fpt, TOKENS.assisted) * usd, agentHour: h100eHoursPer(fpt, TOKENS.autonomous) * usd, perH100eHour: usd };
+  const a = TOKENS.assisted;
+  const g = TOKENS.autonomous;
+  return { hour: hphOf(fpt, a.input, a.output * tau, ud) * usd, agentHour: hphOf(fpt, g.input, g.output * tau, ud) * usd, perH100eHour: usd };
 }
 
 /** Effort's reasoning-token multiplier and its compute-equivalent fit gain (R20 C3: +0.4 OOM per ×10, capped). */
@@ -212,7 +229,8 @@ export interface ModelUse { v: Fitted; fpt: number; w: number }
  *  agent-hour (autonomous profile, before the value cap); H100e-hours per seated (assisted) hour and the seat price per
  *  seat-month ($: list × the markup relative to standard, never below the seat's serving cost). */
 export interface Offer { fit: number; a: number; hph: number; cost: number; price: number; k: number; lam: number; hphAg: number; costAg: number; priceAg: number; hphAs: number; seat: number }
-export interface OfferOpts { dG?: number; hMult?: number; tok?: number; effort?: number; markup: number; rate: number }
+/** ud: the serving lab's decode utilisation (D10; default the 2025 reference 0.07). */
+export interface OfferOpts { dG?: number; hMult?: number; tok?: number; effort?: number; markup: number; rate: number; ud?: number }
 
 /** Agent-hours one supervising human-hour sustains at coverage a and 50% horizon h50 (minutes): 1 / (c/h80 + ρ·(1 − a) +
  *  m) (AGENT_WORK). */
@@ -267,6 +285,7 @@ export function offerOf(s: GameStateV2, uses: ModelUse[], sid: SectorId | 'CHAT'
   const tokAg = scaleTok(TOKENS.autonomous, tk, eff);
   const tokAs = scaleTok(chat ? TOKENS.assisted : SECTOR_WORK[sid].tokens, tk, eff);
   const hd = horizonDomain(sid);
+  const ud = o.ud ?? U_DECODE;
   let fit = 0;
   let a = 0;
   let hph = 0;
@@ -280,9 +299,11 @@ export function offerOf(s: GameStateV2, uses: ModelUse[], sid: SectorId | 'CHAT'
     a += u.w * au;
     k += u.w * au * l;
     lam += u.w * l;
-    hph += u.w * h100eHoursPer(u.fpt, tok);
-    hphAg += u.w * h100eHoursPer(u.fpt, tokAg);
-    hphAs += u.w * h100eHoursPer(u.fpt, tokAs);
+    // D10: the model's reasoning tokens for the same answer (τ, on output tokens, like effort).
+    const tau = tokEff(u.v);
+    hph += u.w * hphOf(u.fpt, tok.input, tok.output * tau, ud);
+    hphAg += u.w * hphOf(u.fpt, tokAg.input, tokAg.output * tau, ud);
+    hphAs += u.w * hphOf(u.fpt, tokAs.input, tokAs.output * tau, ud);
   }
   const cost = hph * o.rate;
   const costAg = hphAg * o.rate;
@@ -438,18 +459,19 @@ export const SECTOR_PACK_DG = 0.5 / 1.2;
 export function productOffer(s: GameStateV2, d: Deployment, sid: SectorId, certified = false, uses = productUses(s, d), fx = productFx(s, d)): Offer {
   const x = fxOn(fx, sid);
   const pack = certified && d.sectorFocus.includes(sid) ? SECTOR_PACK_DG : 0;
-  return offerOf(s, uses, sid, { dG: settingsDG(d) + x.dG + pack, hMult: x.hMult, tok: x.tok, effort: effortTokens(d.effort), markup: markupOf(d), rate: serveDollarsPerHour(s) });
+  return offerOf(s, uses, sid, { dG: settingsDG(d) + x.dG + pack, hMult: x.hMult, tok: x.tok, effort: effortTokens(d.effort), markup: markupOf(d), rate: serveDollarsPerHour(s), ud: decodeUtilNow(s) });
 }
 
 // ───────────────────────────── consumer chat ─────────────────────────────
 
-/** H100e-hours per user-day of consumer chat on a model (paying users' or free users' usage). */
-export const chatHoursPerDay = (fpt: number, tok: TokenProfile, effort = 1) => h100eHoursPer(fpt, { input: tok.input, output: tok.output * effort });
+/** H100e-hours per user-day of consumer chat on a model (paying users' or free users' usage); `effort` multiplies the
+ *  output (reasoning) tokens: the effort setting × the model's τ (tokEff); `ud` the serving lab's decode utilisation. */
+export const chatHoursPerDay = (fpt: number, tok: TokenProfile, effort = 1, ud = U_DECODE) => hphOf(fpt, tok.input, tok.output * effort, ud);
 /** Consumer subscription price per month ($): markup × a paying user's serving cost on the product's model (paid usage
  *  runs on the main model), never above the willingness to pay (A2b: CONSUMER_MKT.wtpMonth) unless serving alone costs
  *  more, never below cost. */
-export function subPrice(s: GameStateV2, fpt: number, markup: number, effort = 1): { cost: number; price: number } {
-  const cost = chatHoursPerDay(fpt, CONSUMER_MKT.perDay.paid, effort) * serveDollarsPerHour(s) * 30.4;
+export function subPrice(s: GameStateV2, fpt: number, markup: number, effort = 1, ud = U_DECODE): { cost: number; price: number } {
+  const cost = chatHoursPerDay(fpt, CONSUMER_MKT.perDay.paid, effort, ud) * serveDollarsPerHour(s) * 30.4;
   return { cost, price: Math.max(cost, Math.min(CONSUMER_MKT.wtpMonth, markup * cost)) };
 }
 /** Target paid share of a provider's weekly users (A2b): (p0 + p1 · coverage of consumer chat) × (going price ÷ its

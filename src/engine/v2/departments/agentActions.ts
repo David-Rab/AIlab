@@ -20,7 +20,7 @@ import {
   type RiskBadge,
 } from './agents';
 import { buildCapacity } from './teams';
-import { copiesOf, flopPerToken, workContext } from './workfit';
+import { agentFpt, copiesOf, workContext } from './workfit';
 
 type Params = Record<string, number | string | boolean>;
 const str = (p: Params, k: string): string | undefined => (typeof p[k] === 'string' ? (p[k] as string) : undefined);
@@ -176,7 +176,7 @@ function computeAgentsView(s: GameStateV2): AgentsView {
       monitor: mon, monitorSame: s.player.agents[u].monitorId === MONITOR_SAME,
       catch: ms.catch, strength: ms.strength, gap: ms.gap, copy: ms.copy, catchColl: ms.catchColl, control: useControl(s, v, mon),
       compute, share: u === 'safety' ? s.player.agents.safety.compute : capShare(s, u as CapUse),
-      copies: v ? copiesOf(compute, flopPerToken(s, v)) : 0, speed,
+      copies: v ? copiesOf(compute, agentFpt(s, v)) : 0, speed,
       aiShare, cost: compute * tco, monitorCost: monH * tco, monitorH100e: monH, risk: riskBadges(v),
     };
     total += compute + monH;

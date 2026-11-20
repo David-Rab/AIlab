@@ -6,7 +6,8 @@
 //   rlMid   RL compute efficiency (OOM; moves the RL curve's midpoint C_mid)
 //   rlCeil  RL ceiling (OOM added to the curve's asymptote A)
 //   train   training throughput (OOM of model FLOP per chip-day: MFU × goodput), capped (TRAIN_CAP)
-//   serve   serving efficiency (OOM less serving FLOP per token)
+//   serve   serving efficiency (OOM of serving throughput: decode utilisation up to 0.15, then less FLOP per token of
+//           new versions; serveSplit, model v3 D10)
 // e_stack = base (the start recipe and public knowledge) + Σ adopted effects − remaining headroom. An adopted idea adds
 // its true effect; HEADROOM of it waits for routine tuning, which closes it at TUNE_K × tuning capacity × its experiment
 // throughput per day (models/research.ts).
@@ -16,6 +17,7 @@
 // still compare know-how (rivals' diffusion and theft, safety tiers, the limits view). Nothing reads the stacks from pa.
 import { B_G_PER_Y, FLOP_RL_REF, RL_BUDGET } from '../../../data/v2/runDesign';
 import { HEADROOM, S_STEP, TRAIN_CAP } from '../../../data/v2/research';
+import { SERVE_FLOP_MAX, U_DECODE, U_DECODE_MAX } from '../../../data/v2/workTypes';
 import type { GameStateV2, StackKey, StackState, SystemCtx, TimelineWorld } from '../types';
 import { paRef } from './capability';
 import { rlFamiliesAvailable, rlGains, rlWeights } from './effective';
@@ -62,8 +64,41 @@ export const rlMidNow = (s: GameStateV2) => stackAt(stacksOf(s).rlMid);
 export const rlCeilNow = (s: GameStateV2) => stackAt(stacksOf(s).rlCeil);
 /** Training throughput (OOM of model FLOP per chip-day over MFU 0.40 × goodput 0.90), capped at TRAIN_CAP. */
 export const trainNow = (s: GameStateV2) => Math.min(TRAIN_CAP, stackAt(stacksOf(s).train));
-/** Serving efficiency (OOM less serving FLOP per token), ≥ 0. */
+/** Serving efficiency (OOM of serving throughput over the 2025 reference stack), ≥ 0. */
 export const serveNow = (s: GameStateV2) => Math.max(0, stackAt(stacksOf(s).serve));
+
+/** Model v3 D10: what a serving stack of `e` OOM buys, by mechanism (R20 D1). Its first SERVE_U_OOM = log₁₀(0.15/0.07)
+ *  raise the lab's decode utilisation from 0.07 toward 0.15, the top of the measured range (speculative decoding,
+ *  continuous batching, disaggregated prefill/decode, kernels: the fleet's serving software, for every model the lab
+ *  serves at once); what lies beyond is a compute-equivalent factor on the FLOP per token of versions trained after it
+ *  (quantisation below FP8, sparsity, kernels for the architecture: 10^(−flop), at most SERVE_FLOP_MAX = 1 OOM)
+ *  [D: utilisation first because R20 D1 names it as where inference know-how goes; it is capped by memory bandwidth,
+ *  so the rest must cut FLOP]. */
+export const SERVE_U_OOM = Math.log10(U_DECODE_MAX / U_DECODE);
+export function serveSplit(e: number): { u: number; flop: number } {
+  const x = Math.max(0, e);
+  return { u: Math.min(x, SERVE_U_OOM), flop: serveFlopOomOf(x) };
+}
+/** Decode utilisation of a serving stack of `e` OOM: 0.07 × 10^min(e, SERVE_U_OOM) (≤ 0.15). */
+export const decodeUtilOf = (e: number) => U_DECODE * Math.pow(10, Math.min(Math.max(0, e), SERVE_U_OOM));
+/** OOM less FLOP per token of new versions from a serving stack of `e` OOM (the part beyond the utilisation cap, at most
+ *  SERVE_FLOP_MAX). */
+export const serveFlopOomOf = (e: number) => Math.min(SERVE_FLOP_MAX, Math.max(0, e - SERVE_U_OOM));
+/** The player's decode utilisation today (its serving stack). */
+export const decodeUtilNow = (s: GameStateV2) => decodeUtilOf(serveNow(s));
+
+/** Model v3 D10: G-equivalent of a version's RL recipe over the leader's day-0 recipe (OOM): what its RL efficiency and
+ *  ceiling add to the reference post-training run on its base. Memoised per build (the build is replaced, not mutated,
+ *  when a version is retrained; the memo checks its inputs anyway). */
+const rlGMemo = new WeakMap<object, { e: number; a: number; f: number; g: number }>();
+export function rlGOfBuild(b: { eRL: number; aRL?: number; flopPre: number }): number {
+  const a = b.aRL ?? 0;
+  const m = rlGMemo.get(b);
+  if (m && m.e === b.eRL && m.a === a && m.f === b.flopPre) return m.g;
+  const g = b.flopPre > 1 && (b.eRL !== 0 || a !== 0) ? refRlGain(b.flopPre, b.eRL, a) - refRlGain(b.flopPre, 0, 0) : 0;
+  rlGMemo.set(b, { e: b.eRL, a, f: b.flopPre, g });
+  return g;
+}
 
 /** Add an adopted idea's true effect to a stack: `x` at test FLOP `fTest`, scale exponent `sx` (0 for scale-invariant
  *  stacks). HEADROOM of it is headroom. */

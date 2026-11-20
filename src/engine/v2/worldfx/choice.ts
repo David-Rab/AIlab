@@ -195,19 +195,27 @@ export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: read
       for (let j = 0; j < ni; j++) sum += e[ins[j]];
       if (!(sum > 0)) continue;
       tot += set.p;
+      if (sum < 1e-250) {
+        // D10: every member of this set is far below the band's best, so e is denormal and p ÷ Σ overflowed to Infinity
+        // (seen at day 900 once cheap tiers made μ_b tiny): renormalise on the set's own best utility. The same shares
+        // in exact arithmetic; the common path below is unchanged. (M5: this is the one overflow guard. It replaces
+        // M3's divide-first fallback, c98f2ed, which fired only once f was infinite and kept the denormal weights, so
+        // members that had underflowed to 0 got no share; renormalising also covers that. A set whose every weight
+        // underflowed to exactly 0 is still skipped by the check above.)
+        let uSet = -Infinity;
+        for (let j = 0; j < ni; j++) if (u[ins[j]] > uSet) uSet = u[ins[j]];
+        let sum2 = 0;
+        for (let j = 0; j < ni; j++) if (u[ins[j]] !== -Infinity) sum2 += brand[ins[j]] * Math.exp(u[ins[j]] - uSet);
+        for (let j = 0; j < ni; j++) {
+          const i = ins[j];
+          if (u[i] !== -Infinity) sh[i] += (set.p * brand[i] * Math.exp(u[i] - uSet)) / sum2;
+        }
+        continue;
+      }
       const f = set.p / sum;
-      // M3: a denormal sum (every offer in the set ~745 nats below the band's best) makes f infinite and 0·∞ = NaN;
-      // divide first then (same result whenever f is finite, so no path changes).
-      if (Number.isFinite(f)) {
-        for (let j = 0; j < ni; j++) {
-          const i = ins[j];
-          sh[i] += f * e[i];
-        }
-      } else {
-        for (let j = 0; j < ni; j++) {
-          const i = ins[j];
-          sh[i] += set.p * (e[i] / sum);
-        }
+      for (let j = 0; j < ni; j++) {
+        const i = ins[j];
+        sh[i] += f * e[i];
       }
     }
     if (tot > 0) for (let i = 0; i < n; i++) {

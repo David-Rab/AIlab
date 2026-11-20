@@ -14,7 +14,7 @@ import { poolsOf } from '../compute/power';
 import { buildCapacity } from '../departments/teams';
 import { buildEtas, engAlloc, engDemand, upkeepSplit } from '../departments/build';
 import {
-  costPerWorkHour, flopPerToken, h100eHoursPerWorkHour, pSuccess, researchMods, safetyLabour, speedOfCopy, workContext, workFit, type LabourOf, type LabourSlot,
+  agentFpt, costPerWorkHour, h100eHoursPerWorkHour, pSuccess, researchMods, safetyLabour, speedOfCopy, workContext, workFit, type LabourOf, type LabourSlot,
 } from '../departments/workfit';
 import { agentVersion } from '../departments/agents';
 import { MILESTONE_NAMES } from './capability';
@@ -349,7 +349,7 @@ export function workTypeViews(s: GameStateV2): WorkTypeView[] {
     const sl: LabourOf = wt === 'SAF_EXP' ? saf.exp : wt === 'SAF_IDEAS' ? saf.ideas : wc.slots[wt];
     const def = WORK_TYPES[wt];
     const v = sl.versionId ? versionById(s, sl.versionId) : undefined;
-    const fpt = v ? flopPerToken(s, v) : 0;
+    const fpt = v ? agentFpt(s, v) : 0;
     const cost = v ? costPerWorkHour(s, fpt) : { ai: Infinity, human: costPerWorkHour(s, 1).human };
     return {
       wt, name: def.name, slot: wt, ...(v ? { version: v.name } : {}),
@@ -362,7 +362,7 @@ export function workTypeViews(s: GameStateV2): WorkTypeView[] {
 }
 
 /** H100e-hours of serving per human work-hour of a version (copies readout). */
-export const workHourCost = (s: GameStateV2, v: ModelVersion) => h100eHoursPerWorkHour(flopPerToken(s, v));
+export const workHourCost = (s: GameStateV2, v: ModelVersion) => h100eHoursPerWorkHour(agentFpt(s, v));
 
 // ───────────────────────────── milestones ─────────────────────────────
 
@@ -375,7 +375,7 @@ export function milestoneViews(s: GameStateV2): MilestoneView[] {
   const gap2 = 2 * w.v3.dBM;
   const live = s.player.models.versions.filter((v) => v.status !== 'retired' && v.status !== 'rolledBack');
   const fitsOf = (v: ModelVersion) => Object.fromEntries(COGNITIVE_WORK.map((wt) => [wt, workFit(s, v, wt)])) as Record<WorkTypeId, ReturnType<typeof workFit>>;
-  const rows = live.map((v) => ({ v, f: fitsOf(v), cost: costPerWorkHour(s, flopPerToken(s, v)) }));
+  const rows = live.map((v) => ({ v, f: fitsOf(v), cost: costPerWorkHour(s, agentFpt(s, v)) }));
   const fitC = (label: string, wt: WorkTypeId, f: ReturnType<typeof workFit>, extra = 0): MilestoneCriterion => ({ label, wt, kind: 'fit', have: f.fit - f.best, need: extra, met: f.fit - f.best >= extra });
   const covC = (wt: WorkTypeId, f: ReturnType<typeof workFit>, need: number): MilestoneCriterion => ({ label: `${WORK_TYPES[wt].name} coverage`, wt, kind: 'coverage', have: f.a, need, met: f.a >= need });
   const crit = (i: MilestoneIdx, r: (typeof rows)[number]): MilestoneCriterion[] => {

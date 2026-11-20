@@ -20,7 +20,12 @@
 //       per-hour billing stays cost-plus
 //   A1–A3 price of a fixed capability (task A3, research/20 D3 ≈ ×10/yr): the cheapest model the lab could serve at
 //       V0's level (a version or a distilled student) is a run planRun accepts; its price falls ×6–×30 a year, decomposed
-//       into active parameters × FLOP per parameter × utilisation × $ per H100e-hour × margin
+//       into active parameters × FLOP per parameter × serving stack (utilisation) × tokens per task × $ per H100e-hour ×
+//       margin (D10)
+//   V1–V4 serving-efficiency ideas and tokens per task (task D10, research/20 D1–D3): the reference lab's serving stack
+//       grows by its Inference-efficiency line (and rivals' by their aggregate research); decode utilisation and new
+//       versions' FLOP per token follow it at the stated sizes (0.07 → 0.15, then 10^−rest); a model's reasoning tokens
+//       fall with its RL recipe's G-equivalent (1 OOM per OOM, ≥ 0.1), not with the calendar; effort multiplies them
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { FEATURES, FEATURE_BY_ID } from '../../src/data/v2/features';
@@ -42,14 +47,19 @@ import { ECON, SECTORS } from '../../src/data/v2/sectors';
 import { MARKET_BANDS, SHARE_SLOPE_G } from '../../src/data/v2/serving';
 import {
   adoptedTokens, agentDemandOf, agentLeverage, cheapestAt, effortDG, studentToHold, fxOn, h100eHoursPer, internalFx, offerOf, paidShareTarget, productOffer, reachTarget, sectorCover, sectorTheta, serveDollarsPerHour,
-  subPrice, valuePerHour, wagePerHour,
+  subPrice, tokEff, valuePerHour, wagePerHour,
 } from '../../src/engine/v2/worldfx/serving';
 import { consumerUse, workBilling } from '../../src/engine/v2/worldfx/readouts';
 import { monitorOverhead } from '../../src/engine/v2/models/products';
 import { paramsOfVersion, planRun } from '../../src/engine/v2/models/runs';
 import { DISTILL } from '../../src/data/v2/runDesign';
 import { fptOfBase, makeBase } from '../../src/engine/v2/actors/rivalModel';
-import { U_DECODE, U_PREFILL } from '../../src/data/v2/workTypes';
+import { SERVE_FLOP_MAX, TOK_MIN, TOK_PER_RL_OOM, TOKENS_PER_WORK_HOUR, U_DECODE, U_DECODE_MAX, U_PREFILL } from '../../src/data/v2/workTypes';
+import { SERVE_RATE0 } from '../../src/data/v2/rivalModel';
+import { addPublic, decodeUtilNow, decodeUtilOf, rlGOfBuild, serveFlopOomOf, serveNow, SERVE_U_OOM } from '../../src/engine/v2/models/stacks';
+import { serveTechMult } from '../../src/engine/v2/models/runs';
+import { agentFpt, agentFptEq, h100eHoursPerWorkHour } from '../../src/engine/v2/departments/workfit';
+import { rivalDecodeU, rivalServeFpt } from '../../src/engine/v2/actors/rivalModel';
 import type { Deployment, GameStateV2, ModelVersion, SectorId } from '../../src/engine/v2/types';
 import { FIXTURE_DIR, check, finish } from './lib';
 
@@ -312,7 +322,7 @@ for (const d of [400, 900]) {
   let n = 0;
   mix.providers.forEach((p, i) => {
     if (!p.model) return;
-    const sp = subPrice(s, p.fpt ?? 2e12, p.markup);
+    const sp = subPrice(s, p.fpt ?? 2e12, p.markup, tokEff(p.model), p.ud);
     n++;
     if (mix.consumer.US.prices[i] > Math.max(CONSUMER_MKT.wtpMonth, sp.cost) + 1e-9 || mix.consumer.US.prices[i] < sp.cost - 1e-9) bad++;
   });
@@ -460,9 +470,10 @@ function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
 // ───────── A1–A3 price of a fixed capability (task A3; research/20 D3: Cottier et al. 2025 ×10/yr, ×9–×900) ─────────
 // The fixed-capability price is the price of the cheapest model the lab could serve at V0's capability (cheapestAt: one
 // of its versions, or a student distilled to hold the level under the game's distillation rule), at the standard
-// markup, per million blended tokens. It decomposes exactly into factors (× per year; their product is the decline):
-// active parameters, serving FLOP per active parameter (shape, serving stack), utilisation, $ per H100e-hour (rental),
-// margin. Tokens per task enter only the price per task (reported).
+// markup, per task (an agentic work-hour) and per million blended tokens. Per task it decomposes exactly into factors
+// (× per year; their product is the decline): active parameters, serving FLOP per active parameter (shape, the serving
+// stack's FLOP part), the serving stack's utilisation, tokens per task (the model's reasoning tokens, D10), $ per
+// H100e-hour (rental), margin. Per token = per task ÷ the fall in tokens per task (Cottier et al. measure per token).
 {
   // A1 the cheapest-at-G model is a run the lab can launch: planRun's distillation gap for that student = fit − G
   const s = game();
@@ -484,12 +495,12 @@ function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
   const rows: string[] = [];
   const fixedG = workFit(s, s.player.models.versions[0], 'SWE').fit; // V0's capability, held fixed
   const tok = TOKENS.agentic;
-  const tokTask = tok.input + tok.output;
-  // blended price per million tokens (input:output 5:1 by count, output priced 5× input as on the lists): the agentic
-  // token profile's cost per token × markup = fpt × util ÷ peak ÷ 3600 × rental × markup × 1e6
-  const util = (tok.input / U_PREFILL + tok.output / U_DECODE) / tokTask; // peak-seconds per FLOP of a blended token
-  const perM = (fpt: number, markup: number) => ((h100eHoursPer(fpt, tok) * serveDollarsPerHour(s) * markup) / tokTask) * 1e6;
-  type Snap = { t: number; N: number; fpp: number; util: number; rate: number; markup: number; tokTask: number; price: number };
+  // D10: per task (one agentic work-hour: uncached input and τ × output tokens at the lab's decode utilisation), and per
+  // million blended tokens of that task (price per task ÷ its tokens).
+  const secPerFlop = (tau: number, ud: number) => tok.input / U_PREFILL + (tok.output * tau) / ud; // peak-seconds per FLOP per task
+  const perTask = (fpt: number, tau: number, ud: number, markup: number) => h100eHoursPer(fpt, { input: tok.input, output: tok.output * tau }, ud) * serveDollarsPerHour(s) * markup;
+  const perM = (fpt: number, tau: number, ud: number, markup: number) => (perTask(fpt, tau, ud, markup) / (tok.input + tok.output * tau)) * 1e6;
+  type Snap = { t: number; N: number; fpp: number; tau: number; ud: number; rate: number; markup: number; task: number; price: number; serve: number; rivalServe: number };
   const snaps: Snap[] = [];
   // A5: what customers actually pay for V0's capability in the market (US Software & IT: the hardest band of tasks V0
   // does whole, at the customer stocks), per M FLOP-bearing tokens of the sector's adopted-hour profile; `edge` is the
@@ -509,9 +520,13 @@ function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
       const v = versionById(s, api.versionId)!;
       const c = cheapestAt(s, fixedG)!;
       const teacher = versionById(s, c.versionId)!;
+      const tau = tokEff(teacher); // a student reasons like its teacher (it learns from its traces)
+      const ud = decodeUtilNow(s);
+      const rivals = [...s.rivals, s.china.lab].filter((r) => r.core.status === 'active');
       const snap: Snap = {
-        t: decimalYear(s), N: c.params, fpp: c.fpt / c.params, util, rate: serveDollarsPerHour(s), markup: MARKUP.standard, tokTask,
-        price: perM(c.fpt, MARKUP.standard),
+        t: decimalYear(s), N: c.params, fpp: c.fpt / c.params, tau, ud, rate: serveDollarsPerHour(s), markup: MARKUP.standard,
+        task: perTask(c.fpt, tau, ud, MARKUP.standard), price: perM(c.fpt, tau, ud, MARKUP.standard), serve: serveNow(s),
+        rivalServe: rivals.reduce((x, r) => x + r.phys.serve, 0) / Math.max(1, rivals.length),
       };
       snaps.push(snap);
       const mix = worldMix(s);
@@ -522,26 +537,40 @@ function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
         t: snap.t, perM: bp.price * perTok, below: bandPaid(mix, 'US', 'SOFT', u0).price * perTok, own: bp.ownModelPrice * perTok, rate: snap.rate,
         margin: bp.price / (snap.rate * bp.hph), hphM: bp.hph * perTok, kind: bp.byKind, world: hoursByKind(s, mix), prov: bp.byProvider,
       });
-      rows.push(`${snap.t.toFixed(2)}: API ${v.name} ${(paramsOfVersion(s, v) / 1e9).toFixed(0)}B $${perM(flopPerToken(s, v), MARKUP.standard).toFixed(2)}/M; V0-level cheapest ${c.student ? `student of ${teacher.name} (fit +${(c.teacherFit - fixedG).toFixed(2)}, δ ${c.gap.toFixed(2)})` : teacher.name} ${(c.params / 1e9).toFixed(1)}B $${snap.price.toFixed(3)}/M; rental $${snap.rate.toFixed(2)}/H100e-h`);
+      rows.push(`${snap.t.toFixed(2)}: API ${v.name} ${(paramsOfVersion(s, v) / 1e9).toFixed(0)}B $${perM(flopPerToken(s, v), tokEff(v), ud, MARKUP.standard).toFixed(2)}/M; V0-level cheapest ${c.student ? `student of ${teacher.name} (fit +${(c.teacherFit - fixedG).toFixed(2)}, δ ${c.gap.toFixed(2)})` : teacher.name} ${(c.params / 1e9).toFixed(1)}B $${snap.price.toFixed(3)}/M, $${snap.task.toFixed(3)}/task (τ ${tau.toFixed(3)}); serving stack ${snap.serve.toFixed(3)} OOM (U_decode ${ud.toFixed(3)}), rivals' mean ${snap.rivalServe.toFixed(3)}; rental $${snap.rate.toFixed(2)}/H100e-h`);
     }
   }
   const a = snaps[0];
   const b = snaps[snaps.length - 1];
   const yrs = b.t - a.t;
   const py = (x: number) => Math.pow(x, 1 / yrs);
-  const f = { params: py(a.N / b.N), fpp: py(a.fpp / b.fpp), util: py(a.util / b.util), hardware: py(a.rate / b.rate), margin: py(a.markup / b.markup) };
-  const total = py(a.price / b.price);
-  const prod5 = f.params * f.fpp * f.util * f.hardware * f.margin;
-  const perTask = total * py(a.tokTask / b.tokTask);
+  // Serving stack (utilisation) at the start's reasoning tokens, then tokens per task at the end's utilisation: exact.
+  const f = {
+    params: py(a.N / b.N), fpp: py(a.fpp / b.fpp), util: py(secPerFlop(a.tau, a.ud) / secPerFlop(a.tau, b.ud)), tokens: py(secPerFlop(a.tau, b.ud) / secPerFlop(b.tau, b.ud)),
+    hardware: py(a.rate / b.rate), margin: py(a.markup / b.markup),
+  };
+  const total = py(a.task / b.task);
+  const prod6 = f.params * f.fpp * f.util * f.tokens * f.hardware * f.margin;
+  const perTok = py(a.price / b.price);
+  const tokCount = py((tok.input + tok.output * a.tau) / (tok.input + tok.output * b.tau));
   const fmt = (x: number) => `×${x.toFixed(2)}`;
-  console.log(`INFO  A3 price of V0's capability (standard markup, per M blended tokens):\n      ${rows.join('\n      ')}`);
-  check(near(prod5, total, 1e-9),
-    'A3 the fixed-capability decline = active parameters × FLOP per parameter × utilisation × $ per H100e-hour × margin (exact)',
-    `params ${fmt(f.params)}, FLOP/param (shape, serving stack) ${fmt(f.fpp)}, utilisation ${fmt(f.util)}, hardware (rental) ${fmt(f.hardware)}, margin ${fmt(f.margin)} → ${fmt(total)}/yr; per task (tokens per task ${fmt(py(a.tokTask / b.tokTask))}) ${fmt(perTask)}/yr`);
-  check(total >= 6 && total <= 30,
-    'A3 the price of a fixed capability (V0\'s) falls ×6–×30 a year (R20 D3: ≈ ×10, ×9–×900; Cottier et al. 2025)',
-
-    `${fmt(total)}/yr over ${a.t.toFixed(2)}–${b.t.toFixed(2)}`);
+  console.log(`INFO  A3 price of V0's capability (standard markup; per agentic task and per M blended tokens):\n      ${rows.join('\n      ')}`);
+  check(near(prod6, total, 1e-9) && near(perTok * tokCount, total, 1e-9),
+    'A3 the fixed-capability decline per task = active parameters × FLOP per parameter × serving stack (utilisation) × tokens per task × $ per H100e-hour × margin (exact); per token = per task ÷ tokens per task',
+    `params ${fmt(f.params)}, FLOP/param (shape, serving-stack FLOP part) ${fmt(f.fpp)}, serving stack (decode utilisation ${a.ud.toFixed(3)} → ${b.ud.toFixed(3)}) ${fmt(f.util)}, tokens per task (τ ${a.tau.toFixed(3)} → ${b.tau.toFixed(3)}; H100e-time) ${fmt(f.tokens)}, hardware (rental) ${fmt(f.hardware)}, margin ${fmt(f.margin)} → ${fmt(total)}/yr per task; per token ${fmt(perTok)}/yr (token count per task ${fmt(tokCount)}/yr)`);
+  check(total >= 6 && total <= 30 && perTok >= 6 && perTok <= 30,
+    'A3 the price of a fixed capability (V0\'s) falls ×6–×30 a year per task and per token (R20 D3: ≈ ×10, ×9–×900; Cottier et al. 2025)',
+    `${fmt(total)}/yr per task, ${fmt(perTok)}/yr per token over ${a.t.toFixed(2)}–${b.t.toFixed(2)}`);
+  // V1 (D10): the reference lab's serving stack grows by mechanism (its Inference-efficiency line: adopted ideas in the
+  // serve stack), and so does the rivals' aggregate one (RivalPhys.serve from their research speed).
+  const nServe = s.player.research.stacks.serve.n;
+  const yr1 = snaps.find((x) => x.t >= a.t + 0.95) ?? b;
+  check(b.serve > a.serve + 0.05 && nServe > 0 && (s.player.research.want['L.infer'] ?? 0) >= 1 && b.rivalServe > a.rivalServe + 0.05,
+    'V1 the reference lab\'s serving stack grows by its Inference-efficiency line (RefBot ranks it), the rivals\' with their aggregate research',
+    `RefBot ${a.serve.toFixed(3)} → ${b.serve.toFixed(3)} OOM over ${yrs.toFixed(2)} y (${nServe} ideas adopted; first year ${(yr1.serve - a.serve).toFixed(3)}), decode utilisation ${a.ud.toFixed(3)} → ${b.ud.toFixed(3)}; rivals' mean ${a.rivalServe.toFixed(3)} → ${b.rivalServe.toFixed(3)} OOM (SERVE_RATE0 ${SERVE_RATE0}/yr at rs 1)`);
+  check(b.tau < a.tau - 0.05,
+    'V3 the tokens per task of V0\'s capability fall in the reference run (the cheapest model\'s teacher has a better RL recipe)',
+    `τ ${a.tau.toFixed(3)} → ${b.tau.toFixed(3)}: per task ×${(secPerFlop(a.tau, b.ud) / secPerFlop(b.tau, b.ud)).toFixed(2)} of H100e-time at fixed utilisation`)
   // A5 E9: the market-weighted price customers pay for V0's capability, decomposed exactly into the rental, the margin
   // and the H100e-hours per M tokens of the models they buy (model size × utilisation); the tier shift is the gap to
   // what the same customers would pay on the providers' own models.
@@ -554,6 +583,87 @@ function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
   check(near(pf.hardware * pf.margin * pf.models, pTot, 1e-9) && pTot >= 6 && pTot <= 30,
     'A5 E9 the price customers actually pay for V0\'s capability (market-weighted) falls ×6–×30 a year (R20 D3 ≈ ×10), = rental × margin × model H100e-hours per token bought',
     `${fmt(pTot)}/yr over ${pa.t.toFixed(2)}–${pb.t.toFixed(2)}: hardware ${fmt(pf.hardware)}, margin ${fmt(pf.margin)}, models bought ${fmt(pf.models)}; band at V0's coverage edge ${fmt(py(pa.below / pb.below))}/yr; on own models only ${fmt(py(pa.own / pb.own))}/yr; cheap tiers ${((pb.kind.mini + pb.kind.student) * 100).toFixed(0)}% of the band's hours at the end (${((pa.kind.mini + pa.kind.student) * 100).toFixed(0)}% at the start)`);
+}
+
+// ───────── V2–V4 serving-efficiency ideas and tokens per task (task D10; research/20 D1–D3) ─────────
+{
+  // V2 decode utilisation and new versions' FLOP per token follow the serving stack at the stated sizes.
+  const s = game();
+  const v0 = s.player.models.versions[0];
+  const rate = serveDollarsPerHour(s);
+  const off = () => productOffer(s, prod(s, 'api'), 'SOFT');
+  const cost0 = off().hph;
+  const tk = adoptedTokens(s, 'SOFT');
+  const at = (ud: number) => tk.input / U_PREFILL + (tk.output * tokEff(v0)) / ud;
+  const sizes = near(SERVE_U_OOM, Math.log10(U_DECODE_MAX / U_DECODE)) && near(decodeUtilOf(0.2), U_DECODE * Math.pow(10, 0.2)) && near(decodeUtilOf(1), U_DECODE_MAX)
+    && decodeUtilOf(0) === U_DECODE && serveFlopOomOf(0.2) === 0 && near(serveFlopOomOf(0.5), 0.5 - SERVE_U_OOM) && serveFlopOomOf(30) === SERVE_FLOP_MAX;
+  addPublic(s.player.research.stacks.serve, 0.2);
+  const ud1 = decodeUtilNow(s);
+  const cost1 = off().hph;
+  const tm1 = serveTechMult(s);
+  addPublic(s.player.research.stacks.serve, 0.3);
+  const ud2 = decodeUtilNow(s);
+  const cost2 = off().hph;
+  const tm2 = serveTechMult(s);
+  const internal = near(h100eHoursPerWorkHour(agentFpt(s, v0)), (flopPerToken(s, v0) * (TOKENS_PER_WORK_HOUR.input / U_PREFILL + TOKENS_PER_WORK_HOUR.output / ud2)) / 1e15 / 3600, 1e-9);
+  check(sizes && near(ud1, 0.07 * Math.pow(10, 0.2)) && near(cost1 / cost0, at(ud1) / at(U_DECODE), 1e-6) && tm1 === 1
+    && near(ud2, U_DECODE_MAX) && near(cost2 / cost0, at(U_DECODE_MAX) / at(U_DECODE), 1e-6) && near(tm2, Math.pow(10, -(0.5 - SERVE_U_OOM))) && internal,
+    'V2 the serving stack\'s first 0.33 OOM raise decode utilisation 0.07 → 0.15 for every model the lab serves (products and internal agents); beyond it new versions\' FLOP per token fall 10^−(rest)',
+    `stack 0.2: U_decode ${ud1.toFixed(4)}, API cost per hour ×${(cost1 / cost0).toFixed(3)}, new versions' FLOP ×${tm1.toFixed(3)}; stack 0.5: U_decode ${ud2.toFixed(3)} (cap), cost ×${(cost2 / cost0).toFixed(3)}, new versions' FLOP ×${tm2.toFixed(3)}`);
+  void rate;
+}
+{
+  // V3 a model's reasoning tokens fall with its RL recipe at fixed capability, and not with the calendar alone.
+  const s = game();
+  const v0 = s.player.models.versions[0];
+  const rate = serveDollarsPerHour(s);
+  const b0 = v0.build!;
+  const better = cloneVersion(s, v0, 'VR', {});
+  better.build = { ...JSON.parse(JSON.stringify(b0)), eRL: b0.eRL + 0.3, aRL: (b0.aRL ?? 0) + 0.1 };
+  const g = rlGOfBuild(better.build!);
+  const tau = tokEff(better);
+  const fit0 = workFit(s, v0, 'SWE').fit;
+  const fit1 = workFit(s, better, 'SWE').fit;
+  const o = (v: ModelVersion, effort = 1) => offerOf(s, [{ v, fpt: flopPerToken(s, v), w: 1 }], 'SOFT', { markup: MARKUP.standard, rate, effort });
+  const tk = adoptedTokens(s, 'SOFT');
+  const exp = (tk.input / U_PREFILL + (tk.output * tau) / U_DECODE) / (tk.input / U_PREFILL + tk.output / U_DECODE);
+  check(g > 0 && near(tau, Math.max(TOK_MIN, Math.pow(10, -TOK_PER_RL_OOM * g))) && tokEff(v0) === 1 && near(fit1, fit0, 1e-12) && near(o(better).hph / o(v0).hph, exp, 1e-9)
+    && near(o(better).hphAg / o(v0).hphAg, (TOKENS.autonomous.input / U_PREFILL + (TOKENS.autonomous.output * tau) / U_DECODE) / (TOKENS.autonomous.input / U_PREFILL + TOKENS.autonomous.output / U_DECODE), 1e-9),
+    'V3 at the same fit a version with a better RL recipe needs fewer reasoning tokens for the same work: τ = 10^(−1·its RL G-equivalent) on output tokens (adopted, agent and seat profiles)',
+    `RL G-equivalent +${g.toFixed(3)} OOM → τ ${tau.toFixed(3)}, cost per adopted hour ×${(o(better).hph / o(v0).hph).toFixed(3)}, fit ${fit0.toFixed(3)} = ${fit1.toFixed(3)}`);
+  // effort multiplies the τ-scaled reasoning tokens; its fit gain is unchanged
+  const deep = o(better, 4);
+  const expDeep = (tk.input / U_PREFILL + (tk.output * tau * 4) / U_DECODE) / (tk.input / U_PREFILL + (tk.output * 4) / U_DECODE);
+  check(near(deep.hph / o(v0, 4).hph, expDeep, 1e-9) && near(deep.fit - o(better).fit, effortDG(4), 1e-9),
+    'V3 effort levels stay consistent: effort multiplies the model\'s τ-scaled reasoning tokens and keeps its fit gain (R20 C3)', `deep ×4: cost ×${(deep.hph / o(v0, 4).hph).toFixed(3)} vs V0 deep, +${(deep.fit - o(better).fit).toFixed(3)} OOM`);
+  // the calendar alone: the same versions 200 days later (passive) keep their τ
+  const tBefore = [tokEff(v0), tokEff(better)];
+  run(s, 200);
+  check(tokEff(v0) === tBefore[0] && tokEff(better) === tBefore[1], 'V3 not with the calendar: the same versions keep their reasoning tokens 200 days later (τ is a property of the RL recipe they were trained with)',
+    `τ ${tBefore.map((x) => x.toFixed(3)).join(', ')} at day 0 and ${[tokEff(v0), tokEff(better)].map((x) => x.toFixed(3)).join(', ')} at day ${s.time.day}`);
+  // a distilled student of the better version reasons like its teacher; the floor
+  const student = cloneVersion(s, better, 'VS', { variant: 'mini' });
+  check(tokEff(student) === tau && tokEff({ rlG: 0.5 }) === Math.pow(10, -0.5) && tokEff({ rlG: 5 }) === TOK_MIN && tokEff({ rlG: -0.2 }) === 1,
+    'V3 a student keeps its teacher\'s reasoning tokens; rivals\' models by the RL part of their G; at most ×0.1; a recipe below the day-0 one keeps the 2025 profiles', `rlG 0.5 → ${tokEff({ rlG: 0.5 }).toFixed(3)}`);
+}
+{
+  // V4 rivals: serving stack from their research, their offers at their utilisation and FLOP part, the consumer chat
+  // price and need on τ and utilisation (fixture day 400).
+  const s = fixture(400);
+  run(s, 30); // a month of rival research on the migrated fixture (serving stacks start at 0)
+  const mix = worldMix(s);
+  let bad = 0;
+  let n = 0;
+  for (const p of mix.providers) {
+    if (p.lab === 'player' || !p.model) continue;
+    const r = p.lab === 'china' ? s.china.lab : s.rivals.find((x) => x.core.id === p.lab)!;
+    n++;
+    if (!(p.ud === rivalDecodeU(r) && p.fpt === rivalServeFpt(r, p.model as never) && p.ud >= U_DECODE)) bad++;
+  }
+  const r0 = s.rivals[0];
+  const ok = near(agentFptEq(2e12, 0.5, 0.1) / 2e12, (TOKENS_PER_WORK_HOUR.input / U_PREFILL + (TOKENS_PER_WORK_HOUR.output * 0.5) / 0.1) / (TOKENS_PER_WORK_HOUR.input / U_PREFILL + TOKENS_PER_WORK_HOUR.output / U_DECODE));
+  check(n > 0 && bad === 0 && ok, 'V4 rivals and China serve at their own decode utilisation and serving-stack FLOP part (RivalPhys.serve), their internal agents too (agentFptEq)',
+    `${n} providers; ${r0.core.id} serving stack ${r0.phys.serve.toFixed(3)} OOM, U_decode ${rivalDecodeU(r0).toFixed(3)}, rlG ${(r0.internal.rlG ?? 0).toFixed(3)} → τ ${tokEff(r0.internal).toFixed(3)}`);
 }
 
 // ───────── D1–D5 demand ceiling on agent work (task A4; research/16 §1A.2 step 7: E = E0·(1 − D)(1 + η·CR)) ─────────

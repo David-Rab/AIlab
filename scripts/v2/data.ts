@@ -581,7 +581,7 @@ raw22.schemaRev = 23;
 delete raw22.player.dataPortfolio.pending;
 const mig22 = deserialize(JSON.stringify(raw22));
 const rt = deserialize(serialize(sLic));
-check(mig22.schemaRev === SCHEMA_REV && SCHEMA_REV === 28 && Array.isArray(mig22.player.dataPortfolio.pending) && mig22.player.dataPortfolio.pending.length === 0 && !mig22.player.dataPortfolio.synJob
+check(mig22.schemaRev === SCHEMA_REV && SCHEMA_REV === 29 && Array.isArray(mig22.player.dataPortfolio.pending) && mig22.player.dataPortfolio.pending.length === 0 && !mig22.player.dataPortfolio.synJob
   && near(uniqueTokens(mig22), uniqueTokens(s0), 1e3) && uniqueTokens(rt) === uniqueTokens(sLic) && deserialize(serialize(jS.s)).player.dataPortfolio.synJob?.teacherId === strong.v.id,
   'save: a schemaRev-23 save migrates to the current rev (nothing pending, no job, same U); deals and jobs round-trip');
 const fx400 = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));

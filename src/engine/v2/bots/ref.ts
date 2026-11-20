@@ -64,8 +64,8 @@ export const REF_TREE: TreeGoal[] = [
 ];
 /** RefBot's research lines (model v3 V2) and their share of the science teams the ideas leave free [D]: the
  *  pretraining lines carry the pretraining stack (Ho et al. ≈ 3×/yr before SC), the RL lines the RL stack. Recurrent
- *  architectures opens with neuralese recurrence (P17). Inference efficiency is not ranked: the reference lab's serving
- *  cost is the V1 calibration (V4 rebuilds serving). */
+ *  architectures opens with neuralese recurrence (P17). D10: Inference efficiency is ranked (weight 0.1, DEFAULT_LINES):
+ *  the serving stack raises decode utilisation, then cuts FLOP per token (models/stacks.ts serveSplit). */
 export const REF_RESEARCH_LINES = DEFAULT_LINES;
 /** Teams wanted on each of RefBot's paradigm projects [D]: v2's auto-assign put most of its science teams on its one or
  *  two queued paradigms; the v3 reference lab also runs its lines, so it staffs each paradigm bet with three teams and

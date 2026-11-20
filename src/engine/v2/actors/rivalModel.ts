@@ -16,15 +16,17 @@
 //              refRlGain) + RL_SHARE·e at launch; from the Research-agent level the internal model re-applies today's
 //              recipe weekly (continual learning, as the player's P08 stream)
 // Nothing here reads a calendar path, pm thresholds, CAL_SHIFT, the v2 knots or the rivals' old FLOP bridge.
-import { BASE_POOL_SHARE, BASE_RUN_DAYS, CL_DAYS, CL_LEVEL, RECIPE_RATE0, RIVAL_TPP, RL_SHARE, START_PUBLIC_GAP_Y } from '../../../data/v2/rivalModel';
+import { BASE_POOL_SHARE, BASE_RUN_DAYS, CL_DAYS, CL_LEVEL, RECIPE_RATE0, RIVAL_TPP, RL_SHARE, SERVE_RATE0, START_PUBLIC_GAP_Y } from '../../../data/v2/rivalModel';
+import { TREE_BY_ID } from '../../../data/v2/tree';
 import { B_G_PER_Y, E_START, GOODPUT, PARAM_RANGE, B0_PARAMS, REFERENCE_BASE, REF_TPP, SHAPE } from '../../../data/v2/runDesign';
 import { B0_DAY, B0_START_DAY, H_REF_BASE, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { C_UNIT_FLOP_PER_DAY, DAY0_REF, H50_PER_OOM, H50_V0_MIN, RE_UNIT, WORK_TYPES } from '../../../data/v2/workTypes';
 import { clamp } from '../../rng';
 import { domainsOf, gOfPm, gV0, levelOf, levelOfG, paRef, pmOfG } from '../models/capability';
 import { flopOfDesign, gPreOf, paramsForFlop } from '../models/effective';
-import { refRlGain } from '../models/stacks';
-import { assistOf, copiesOf, coverage, effLabour, fteOfFpt, sdAIOf, speedOfCopy, teamTaste, winRate } from '../departments/workfit';
+import { decodeUtilOf, refRlGain, serveFlopOomOf } from '../models/stacks';
+import { agentFptEq, assistOf, copiesOf, coverage, effLabour, fteOfFpt, sdAIOf, speedOfCopy, teamTaste, winRate } from '../departments/workfit';
+import { tokEff } from '../worldfx/serving';
 import { Xces, hRef } from '../production/knots';
 import { normalizeSplit, shareRefAt } from '../departments/split';
 import { decimalYear } from '../core/time';
@@ -89,8 +91,10 @@ export const fptOfBase = (b: Pick<RivalBase, 'params'>) => 2 * b.params * SHAPE.
 export const gOfSimple = (w: TimelineWorld, m: Pick<SimpleModel, 'G' | 'pm'>) => m.G ?? gOfPm(w, m.pm);
 /** FLOP per token of a SimpleModel (its own design; B0's when it has none). */
 export const fptOfSimpleModel = (m: Pick<SimpleModel, 'fpt' | 'params'>) => m.fpt ?? 2 * (m.params ?? B0_PARAMS) * SHAPE.moe.tokenMult;
-/** Set a SimpleModel's G and its readouts (pm = Φ(G), level, domain levels) and its design from `base`. */
-export function setModelG(w: TimelineWorld, m: SimpleModel, G: number, base?: Pick<RivalBase, 'flop' | 'params'>) {
+/** Set a SimpleModel's G and its readouts (pm = Φ(G), level, domain levels) and its design from `base`; D10: with the
+ *  base's G_pre, the RL part of G (rlG = G − G_pre − the reference RL gain on the base, ≥ 0), which sets the model's
+ *  reasoning tokens (worldfx/serving.ts tokEff). A model set from G alone (a release copy) keeps its rlG. */
+export function setModelG(w: TimelineWorld, m: SimpleModel, G: number, base?: Pick<RivalBase, 'flop' | 'params'> & Partial<Pick<RivalBase, 'gPre'>>) {
   m.G = G;
   m.pm = pmOfG(w, G);
   m.Lg = levelOf(w, m.pm);
@@ -99,8 +103,30 @@ export function setModelG(w: TimelineWorld, m: SimpleModel, G: number, base?: Pi
     m.flop = base.flop;
     m.params = base.params;
     m.fpt = fptOfBase(base);
+    if (base.gPre !== undefined) m.rlG = rlGOnBase(G, base as Pick<RivalBase, 'flop' | 'gPre'>);
   }
 }
+/** D10: the RL part of a model's G on `base` (OOM over the leader's day-0 recipe, ≥ 0). */
+export const rlGOnBase = (G: number, base: Pick<RivalBase, 'flop' | 'gPre'>) => Math.max(0, G - base.gPre - rlOnBase(base.flop));
+
+// ───────────────────────────── serving (model v3 D10) ─────────────────────────────
+
+/** A lab's serving efficiency (OOM; RivalPhys.serve). */
+export const rivalServe = (r: Pick<RivalLab, 'phys'>) => r.phys?.serve ?? 0;
+/** A lab's decode utilisation (its serving stack's first 0.33 OOM, models/stacks.ts serveSplit). */
+export const rivalDecodeU = (r: Pick<RivalLab, 'phys'>) => decodeUtilOf(rivalServe(r));
+/** FLOP per token a lab serves model `m` at: its design's × 10^(−the serving stack's FLOP part). Applied when serving,
+ *  for all its models: a lab has no blueprint, so the aggregate stack is its fleet's [D]. */
+export const rivalServeFpt = (r: Pick<RivalLab, 'phys'>, m: Pick<SimpleModel, 'fpt' | 'params'>) => fptOfSimpleModel(m) * Math.pow(10, -serveFlopOomOf(rivalServe(r)));
+/** The equivalent FLOP per token of a lab's internal agents on its internal model (FLOP, reasoning tokens, utilisation:
+ *  departments/workfit.ts agentFptEq), what its aggregate research reads. */
+export const rivalAgentFpt = (r: Pick<RivalLab, 'phys' | 'internal'>) => agentFptEq(rivalServeFpt(r, r.internal), tokEff(r.internal), rivalDecodeU(r));
+/** Returns of the serving stack: the Inference-efficiency line's share of the world's r (research.ts linePool). */
+const serveRShare = () => TREE_BY_ID['L.infer']?.effect?.rShare ?? 0.15;
+/** Serving-stack growth of lab `r` today (OOM per year) at research speed `rs`: the recipe law with the line's returns,
+ *  SERVE_RATE0 · rs · 10^(−serve / r_s) (as recipeRate). */
+export const serveRate = (s: GameStateV2, r: RivalLab, rs: number) =>
+  Math.min(RECIPE_RATE_MAX, SERVE_RATE0 * rs * Math.pow(10, -rivalServe(r) / Math.max(1e-6, serveRShare() * s.hidden.timeline.v3.r)));
 /** The best model of a non-player lab (internal or public), in G. */
 export function bestGOf(w: TimelineWorld, r: RivalLab): number {
   return Math.max(gOfSimple(w, r.internal), r.publicModel ? gOfSimple(w, r.publicModel) : -Infinity);
@@ -122,9 +148,9 @@ export interface RivalResearch {
 }
 /** Research of lab `r` with experiment share `f` of its research compute `C` (H100e), its internal model doing the AI
  *  work. `eff` = the lab's research-efficiency multiplier, `mods` the speed modifiers. */
-export function evalRival(s: GameStateV2, r: Pick<RivalLab, 'internal' | 'core'>, f: number, C: number, eff: number, mods: number): RivalResearch {
+export function evalRival(s: GameStateV2, r: Pick<RivalLab, 'internal' | 'core' | 'phys'>, f: number, C: number, eff: number, mods: number): RivalResearch {
   const w = s.hidden.timeline;
-  return evalAggregate(w, gOfSimple(w, r.internal), fptOfSimpleModel(r.internal), r.core.staff.cap, f, C, eff, mods);
+  return evalAggregate(w, gOfSimple(w, r.internal), rivalAgentFpt(r), r.core.staff.cap, f, C, eff, mods);
 }
 
 /** Raw aggregate research of a lab (before the day-0 normalisation), MODEL-V3 §5 at aggregate level:
@@ -295,7 +321,7 @@ export function initRivalPhys(w: TimelineWorld, r: RivalLab, eff = 1, publicGapY
   const e0 = G0 - at(0);
   const base = makeBase(1, B0_DAY, flop0, (1 - RL_SHARE) * (e0 - stalePre), REF_TPP);
   r.core.pa = paOfRecipe(w, e0);
-  r.phys = { base, eff };
+  r.phys = { base, eff, serve: 0 };
   setModelG(w, r.internal, versionG(base, RL_SHARE * (e0 - stalePost)), base);
   if (r.publicModel) setModelG(w, r.publicModel, gOfSimple(w, r.internal) - publicGapY * B, base);
   const start = r.nextBaseDay - BASE_RUN_DAYS;
@@ -314,7 +340,7 @@ export function migrateRivalPhys(w: TimelineWorld, r: RivalLab, eff = 1) {
   const b = makeBase(1, r.internal.day, flop, (1 - RL_SHARE) * e);
   const G = gOfPm(w, r.internal.pm);
   b.gPre = G - rlOnBase(flop) - RL_SHARE * e;
-  r.phys = { base: b, eff };
+  r.phys = { base: b, eff, serve: 0 };
   setModelG(w, r.internal, G, b);
   if (r.publicModel) setModelG(w, r.publicModel, gOfPm(w, r.publicModel.pm), b);
 }
