@@ -1594,3 +1594,59 @@ target share). Screenshots looked at: `scripts/v2/shots/25-day1-products.png`, `
 - The player-level stock and target: a tier change on one product moves the target only if that product is the
   player's best offer in a sector (day 1: API premium leaves the target at 47.5% since Enterprise is the better offer).
 - Cards are ≈ 50 px taller (two-line feature rows); the serving card starts lower (panel scrolls).
+
+### B3 notes (World › Sectors: demand and serving economics per sector; 2026-11-20)
+
+Code: new `worldfx/sectorView.ts` (`sectorsView(s)`: per region and sector a `SectorRead`, plus the region's work totals
+from `workUse` and `workBilling`; exported from `core/selectors.ts`), `data/v2/sectors.ts` (`USE_ANCHORS`,
+`USE_ANCHOR_US`, `USE_ANCHOR_SRC`: RPS survey rows, display only), new `ui/v2/panels/WorldSectors.tsx` + `world.css`,
+`World.tsx` (tabs Sectors / Jobs & control), glossary (+8 terms, 4 rewritten), `limits.ts` (moonshot limit home tab),
+`lint-ux.ts` REQUIRED, `uitest.mjs` (B3 checks). Output-only: no mechanism change, no state change, no schema bump.
+
+**Layout (good-ui levels).** The World panel now has two tabs; the macro strip stays above both.
+- **L1, Sectors tab:** a region strip (US / CN / ROW switch; workers using AI, hours of use as % of work-hours, hours
+  saved per hour, paid seats, agent-hours a year), and the sector heatmap (14 × 3) with a metric switch: hours of use
+  (default), automated A, your share. A cell click selects the sector and region.
+- **L2, sector card** (the home of every per-(sector, region) datum below):
+  - header: work-type chip (top domain icons, task length, verifiability) and the binding limit chip;
+  - Adoption: workers using AI W (tick W*), hours of use U (diamond = the survey anchor where research/22 has one),
+    automated A (tick A*), hours saved per hour of use and the wage;
+  - Limits: F, K, 1 − R tiles with bars, the binding one amber (none when diffusion binds);
+  - Who pays: hours of use by payer (per hour / seats / unseated) as a stacked bar, agent-hours and agent-hours per
+    supervising hour, paid seat share σ → target;
+  - Providers: per provider share → target, coverage, and the cost of an AI work-hour (price ÷ hours saved, hatched
+    review) as a bar against a wage tick. The player's row is the per-sector "your share"; a `customerStock` ref chip
+    jumps to Products for the per-product detail (B2 is the home of the product's stock and target).
+- **L3, tooltips:** work type (domain weights, PHYS share, task length, verifiability, horizon domain, median
+  professional θ vs the best offer's fit, tokens per adopted / assisted / agent hour, α); each adoption row (target,
+  firm adoption, U = A + h·(W − A) split, survey row with source); each limit (F: cognitive coverage, robot-bound PHYS
+  part, top providers' coverage; K: mix cost vs wage, providers' gates; R); hours and spend by stream; per provider the
+  price chain (price per adopted task-hour ÷ hours saved + review = cost vs wage), gate, agent k and price, seat price.
+- **Jobs & control tab:** the previous jobs, control index and world technologies, unchanged (jobs and control now side
+  by side).
+
+**Choices [D].**
+- Survey anchors: RPS industry rows mapped as A2a's `use` constants (information → Software and Media 14.0% of hours,
+  2024; professional/scientific/technical → Legal and Science 11.4%, Q2 2026 [R]; finance 9.7% [R]; production
+  occupations → Manufacturing 4.6% [R]; leisure → Retail & services 2.3%, 2024). US only; CN and ROW say no survey.
+- The cost of an AI work-hour per provider is the mix's buyer cost (price ÷ hours saved per adopted hour + 0.27 × wage
+  × (1 − coverage)); its gate is the per-provider K term. Rivals' cost is flagged as estimated from capability (BRIDGE V7).
+- Heatmap default is hours of use (the measured quantity); "Your share" is the player's customer stock.
+- Removed text: the World heatmap's tooltip pile (F "share AI can do", employment), glossary `sector` (F as "share AI can
+  technically do"), `binding` (now names F, K, 1 − R), `firmAdoption` ("by employment": it is firm-weighted, BTOS), and
+  `sectorA` now separates A from workers' use. The World panel had no α/g_aug, cost-curve or 26%-capture text left.
+
+**Gate.** tsc main + scripts clean; build clean; lint-ux green (231 → 241 required terms); lint-hidden, lint-structure,
+serving pass; `test:ui` 325 passed, 0 failed (new B3 checks at day 1, 400 and 900: strip, card values equal to the
+state, binding highlight, who pays, providers, no clipped numbers, 18 row tooltips, work-type and cost-gate tooltip
+content, US Software survey anchor, cell selection, metric switch; all 10 terms reached). Screenshots looked at:
+`scripts/v2/shots/29-day1-world-sectors.png`, `29-day400-world-sectors.png`, `29-day900-world-sectors.png`,
+`20-day400-world-society.png`, plus tooltip captures (hours of use, provider, who pays, work type, cost gate).
+
+**Seen / open (reported, not fixed here).**
+- Paid seat share shows 12% → 94% (US Software) on every fixture: the day-400/900 fixtures were migrated to σ0 and the
+  US target is high; a fresh day-1 game starts at σ0 too.
+- Day 900: China's open-weights cost of an AI work-hour is $60 vs the wage $66 (K binds at 54%) from the rivals'
+  oversized FLOP per token (BRIDGE(V7)); the view shows it honestly.
+- About 250 px of empty space under the Sectors tab at 1000 px height (both columns end near 700 px); nothing was
+  added to fill it.
