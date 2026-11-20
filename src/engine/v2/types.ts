@@ -571,6 +571,9 @@ export interface Deployment {
   needH100e?: number;
   servedH100e?: number;
   cutH100e?: number;
+  /** Chat: the part of needH100e its paying users need (served first, on the main model; the rest is free users on the
+   *  mini when it has one). A6: usage data counts each tier's tokens at its own model's FLOP per token. */
+  needPaidH100e?: number;
   /** Revenue run-rate at each 30-day mark, last 12 (product card chart). */
   hist?: number[];
 }

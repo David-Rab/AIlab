@@ -594,6 +594,7 @@ export function applyRevenue(s: GameStateV2, ctx: SystemCtx): RevenueReadout {
     d.needH100e = Math.round(x.needH100e);
     d.servedH100e = Math.round(x.servingH100e);
     d.cutH100e = Math.round(x.cutH100e);
+    if (x.needPaid !== undefined) d.needPaidH100e = Math.round(x.needPaid);
     if (ctx.day % 30 === 0) {
       (d.hist ??= []).push(d.revenueRate);
       if (d.hist.length > 12) d.hist.shift();

@@ -324,6 +324,20 @@ const api = sU.player.deployments.find((d) => d.channel === 'api')!;
 const usageT = owned(sU, 'usage')!.tokensT;
 check(usageT > 0 && usageTokensPerDay(sU, consumer) > 0 && usageTokensPerDay(sU, api) === 0, 'usage: live consumer products add usage tokens; API traffic is not trained on by default',
   `${usageT.toFixed(2)}T in 20 days; consumer ${(usageTokensPerDay(sU, consumer) * 1000).toFixed(1)}B/day on ${consumer.servedH100e?.toFixed(0)} H100e, API 0`);
+// A6: Chat's free users run on its mini, so served compute beyond the paying need counts the mini's tokens (×8 per
+// H100e for an eighth-size mini), the paying need's the main model's.
+{
+  const c = { ...consumer, servedH100e: 1000, needH100e: 1000, needPaidH100e: 400 };
+  const flat = usageTokensPerDay(sU, c);
+  const V0 = sU.player.models.versions[0];
+  const mini = { ...V0, id: 'A6mini', variant: 'mini' as const, fpt: (V0.fpt ?? 2e12) / 8 };
+  sU.player.models.versions.push(mini);
+  const tiered = usageTokensPerDay(sU, { ...c, miniVersionId: 'A6mini' });
+  const allPaid = usageTokensPerDay(sU, { ...c, miniVersionId: 'A6mini', needPaidH100e: 1000 });
+  sU.player.models.versions.pop();
+  check(near(tiered / flat, 0.4 + 0.6 * 8, 1e-3) && near(allPaid, flat, 1e-9), 'usage: a Chat mini serves the free users\' tokens at its own FLOP per token (A6)',
+    `${(flat * 1e3).toFixed(2)} → ${(tiered * 1e3).toFixed(2)}B/day on 1000 H100e (400 paying need); all paying ${(allPaid * 1e3).toFixed(2)}`);
+}
 const startUsage = owned(s0, 'usage')!.tokensT;
 for (const d of sU.player.deployments) d.status = 'withdrawn';
 const u0 = owned(sU, 'usage')!.tokensT;
