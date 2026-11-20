@@ -672,7 +672,7 @@ function LaunchCard({ s, live }: { s: GameStateV2; live: Deployment[] }) {
         <Tip content={() => <TipCard title={<Term id="timeHorizon">Time horizon</Term>} value={h !== undefined ? F.minutes(h * 60) : 'not measured'} rows={[{ label: 'Needed', value: `${AGENT_TASK_HOURS} h (half-day tasks)` }, { label: 'Model', value: v?.name ?? '—' }]}>{String(agentsGate(v) === true ? 'Covers the tasks Agents sells.' : agentsGate(v))}</TipCard>}>
           <div className="pc-gate" data-test="agents-gate">
             <div className="pc-cap"><Lock size={10} /> Needs</div>
-            <div className="gate-row"><Term id="timeHorizon">Time horizon</Term><span className="sp" /><b>{h !== undefined ? F.minutes(h * 60) : '—'}</b><span className="dim"> / {AGENT_TASK_HOURS} h</span></div>
+            <div className="gate-row"><Term id="timeHorizon">Time horizon</Term><span className="sp" /><b>{h !== undefined ? F.minutes(h * 60) : '—'}</b><span className="dim"> · needs {AGENT_TASK_HOURS} h</span></div>
             <div className="gate-bar"><i style={{ width: `${Math.min(100, ((h ?? 0) / (AGENT_TASK_HOURS * 1.5)) * 100)}%`, background: (h ?? 0) >= AGENT_TASK_HOURS ? C.good : C.cap }} /><em style={{ left: `${(1 / 1.5) * 100}%` }} /></div>
             <div className="dim small">{v?.name ?? 'no model'} · measured</div>
           </div>

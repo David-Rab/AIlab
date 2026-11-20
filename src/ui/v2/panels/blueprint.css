@@ -5,7 +5,7 @@
 .bp-on .text-input { max-width: 260px; }
 
 /* size hero + limit tiles */
-.bp-top > .card-body, .bp-top { display: grid; grid-template-columns: 420px minmax(0, 1fr); gap: 18px; align-items: stretch; }
+.bp-top > .card-body, .bp-top { display: grid; grid-template-columns: 420px minmax(0, 1fr); gap: 18px; align-items: start; }
 .bp-size { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .bp-size-h b { color: #fff; font-size: 13.5px; }
 .bp-size-h .tag2 { display: inline-flex; align-items: center; gap: 4px; }

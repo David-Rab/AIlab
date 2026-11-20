@@ -1378,7 +1378,7 @@ async function d8Check(where, complete, depth) {
   // Measurement rows equal evalMeasureView (band).
   const ms = await V('evalMeasureView');
   const msUi = await page.$$eval('[data-test=eval-measure] [data-measure]', (els) => els.map((e) => ({ id: e.getAttribute('data-measure'), sd: e.querySelector('[data-test=eval-sd]')?.textContent ?? '' })));
-  const mOk = msUi.length > 0 && msUi.every((r) => { const m = ms.find((x) => x.versionId === r.id); return m && (m.measuredL === undefined ? r.sd === '—' : r.sd === `± ${m.sd.toFixed(2)}`); });
+  const mOk = msUi.length > 0 && msUi.every((r) => { const m = ms.find((x) => x.versionId === r.id); return m && (m.measuredL === undefined ? r.sd === '—' : r.sd === `± ${m.sd.toFixed(2)} L`); });
   ok(`D8 ${where}: measurement bands equal evalMeasureView (± 0.2/√n)`, mOk, `${msUi.length} rows · ${JSON.stringify(msUi[0])}`);
   // Pick the least-measured version with no open suite and order a suite at `depth`.
   const cand = ms.filter((r) => r.measuredL !== undefined && r.open.length === 0 && (r.status === 'ready' || r.status === 'deployed')).sort((a, b) => a.nEff - b.nEff)[0];
@@ -1424,7 +1424,7 @@ async function d8Check(where, complete, depth) {
       await toEvals();
       const after = (await V('evalMeasureView')).find((r) => r.versionId === cand.versionId);
       const sdUi = await page.$eval(`[data-measure="${cand.versionId}"] [data-test=eval-sd]`, (e) => e.textContent ?? '').catch(() => '');
-      ok(`D8 ${where}: the band shrinks after the suite (${cand.sd.toFixed(3)} → ${after?.sd.toFixed(3)}), last suite ${depth}`, done && !!after && after.sd < cand.sd - 1e-9 && after.depth === depth && sdUi === `± ${after.sd.toFixed(2)}`, `${sdUi} · done ${done}`);
+      ok(`D8 ${where}: the band shrinks after the suite (${cand.sd.toFixed(3)} → ${after?.sd.toFixed(3)}), last suite ${depth}`, done && !!after && after.sd < cand.sd - 1e-9 && after.depth === depth && sdUi === `± ${after.sd.toFixed(2)} L`, `${sdUi} · done ${done}`);
       await shot(`d8-${tag}-evals-after`);
     }
   } else ok(`D8 ${where}: a measured version to order on`, false);

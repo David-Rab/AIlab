@@ -127,13 +127,13 @@ function PlanCard({ s, plan, rows, s2, reason }: { s: GameStateV2; plan: Plan; r
         </div>
         <Tip as="div" content={s2Tip}>
           <div className="sx-s2" data-test="suites-s2">
-            <span className="tip-cap"><Term id="rewardHackPressure">S2</Term></span>
+            <span className="tip-cap"><Term id="rewardHackPressure">Hacking pressure S2</Term></span>
             <b className="num">{s2.total.toFixed(2)}</b>
             <span className="sx-s2bar">
               {parts.map((r, i) => <i key={r.family} style={{ width: `${Math.min(100, r.s2 * 100)}%`, background: C.bad, opacity: 1 - Math.min(0.6, i * 0.14) }}>{r.s2 * S2_BAR_PX >= 46 ? RL_FAMILY_LABEL[r.family] : ''}</i>)}
               {s2.p11 > 0 && <i style={{ width: `${s2.p11 * 100}%`, background: C.watch }}>P11</i>}
             </span>
-            <span className="small dim">of 1</span>
+            <span className="small dim">max 1</span>
           </div>
         </Tip>
       </div>

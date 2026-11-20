@@ -84,6 +84,8 @@ function NeedList({ a, act, unit, extra }: { a: AllocView<string>; act: string; 
   const scale = Math.max(1e-9, a.cap);
   return (
     <div className="wk-needs" data-test={`needs.${act}`}>
+      {/* F6d: the unit of the gets / needs column ("0.0/0.0" had none on the card). */}
+      <div className="small dim wk-needs-h" data-test={`needs-unit.${act}`}><span>gets / needs · {unit}</span></div>
       {a.needs.map((n, i) => {
         const dem = Number.isFinite(n.demand) ? n.demand : null;
         return (

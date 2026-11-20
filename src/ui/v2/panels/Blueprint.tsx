@@ -639,7 +639,7 @@ function DrawRow({ s, card, preset }: { s: GameStateV2; card: Card_; preset: str
   return (
     <div className="bp-drawline" data-line="draw">
       <div className="bp-draw" data-test="bp-draw">
-        <span className="bp-draw-k small dim"><Term id="drawnMix">drawn</Term> vs <Term id="refShare">ref</Term></span>
+        <span className="bp-draw-k small dim"><Term id="drawnMix">drawn</Term> vs <Term id="refShare">ref</Term> · <Term id="dataSpec">spec. OOM</Term></span>
         <span className="bp-draw-cols">
           {rows.map((r) => {
             const I = DOMAIN_ICON[r.domain];
