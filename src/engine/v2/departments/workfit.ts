@@ -23,6 +23,7 @@ import {
 import { RSCH_TASTE_PENALTY } from '../../../data/v2/calibration';
 import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
 import { DEFAULT_CAP_SHARES } from '../../../data/v2/agents';
+import { P27_AAR } from '../../../data/v2/safetyIdeas';
 import { QUALITY, TEAM_COST_M } from '../../../data/v2/teams';
 import { PROJECT_BY_ID, isLineNode } from '../../../data/v2/tree';
 import { Lrel, Phi, tasteSigma } from '../production/knots';
@@ -320,7 +321,7 @@ export const resetWorkContext = (s: GameStateV2) => ctxMemo.delete(s);
  *  (handedLabour; at t = 1 safety work gets exactly the capabilities multiplier at the same fit). No fleet (no model or
  *  no compute) = nothing handed. The package's compute is spread over the two work types in proportion to the work AI
  *  does in each (A × human team-equivalents) [D]. AI taste on safety ideas: sd_AI from the SAF_IDEAS fit, cover φ = t
- *  while the fleet works on ideas. */
+ *  while the fleet works on ideas. P27 adds its AAR scaffold's fit (+0.3 OOM on SAF_EXP and SAF_IDEAS, data/v2/safetyIdeas.ts). */
 export interface SafetyLabour {
   /** Trusted to AI in effect (0 with no fleet). */
   t: number;
@@ -343,7 +344,9 @@ export function safetyLabour(s: GameStateV2): SafetyLabour {
   const t = run ? Math.max(0, Math.min(1, s.player.policies.trustedToAI ?? 0)) : 0;
   const none: WorkFit = { fit: -Infinity, best: 0, med: 0, h50: 0, a: 0, win: 0, assist: 1 };
   const wts = ['SAF_EXP', 'SAF_IDEAS'] as const;
-  const fx = wts.map((wt) => internalFx(s, wt));
+  // P27 (automated alignment research at scale, model v3 E13): the AAR harness is a research scaffold on safety work.
+  const aar = adopted(s, 'P27') ? P27_AAR.fitOom : 0;
+  const fx = wts.map((wt) => { const f = internalFx(s, wt); return aar ? { ...f, dG: f.dG + aar } : f; });
   const fits = wts.map((wt, i) => (u.v ? workFit(s, u.v, wt, fx[i]) : none));
   const H = wts.map((wt) => humansOf(s, wt));
   const w = wts.map((_, i) => t * fits[i].a * H[i]);

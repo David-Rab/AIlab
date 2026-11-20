@@ -13,6 +13,7 @@ import { believedEfficacy, lambda2Delta } from './common';
 import { oomOfLevel } from './oversight';
 import { combineKeyed, combineTools, cotControllability, groupKeyOf, cotObfuscation, eaCoef, eaSuppression, familyPenalty, takesEaPenalty } from './detection';
 import { believedMask, decayAt, strengthTrue, techniqueRole } from './techniques';
+import { cotResist } from './ideas';
 
 export interface UnderstandingReadout { U: number; margin: number; perTrait: Partial<Record<TraitId, number>> }
 
@@ -60,6 +61,7 @@ function detector(s: GameStateV2, v: ModelVersion, tools: TechniqueState[], L0: 
   const ea0 = (v.beliefs.EA?.est ?? 0.15) * (1 - eaSuppression(s));
   const eaC = eaCoef(s);
   const obf = cotObfuscation(v.beliefs.OBF?.est ?? 0);
+  const resist = 1 - cotResist(v.design?.cot); // P23: faithful CoT halves the controllability that blinds CoT monitors
   // L0: the version's measured level (lineage fallback while it is in evaluation; see measuredLOf).
   const maskCache = new Map<string, number>();
   const maskOf = (family: ToolFamily, trait: TraitId) => {
@@ -99,7 +101,7 @@ function detector(s: GameStateV2, v: ModelVersion, tools: TechniqueState[], L0: 
       done.fill(false);
     }
     const dL = L - L0;
-    const ctl = Math.max(cotControllability(L), obf);
+    const ctl = Math.max(cotControllability(L) * resist, obf);
     const ea = eaAt(ea0, dL);
     const ds: number[] = [];
     const r = rowOf(trait);

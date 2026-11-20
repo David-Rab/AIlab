@@ -20,6 +20,7 @@ import { adopted, clamp01, copyRec, flagNum, levelOf, SC_LEVEL, setFlag, tierOfL
 import { lineMultCapped, lineStaffed } from './agendas';
 import { SD_MAX, eaCoef, eaSuppression, stackDetectionMap, takesEaPenalty } from './detection';
 import { techniqueRole } from './techniques';
+import { cotResist, probeGoodhart, probeSteer, steerGrowth } from './ideas';
 import { aiRdShare, internalOversight } from './incidents';
 import { routineMonitor } from '../departments/agents';
 import { workContext, type CapSlot } from '../departments/workfit';
@@ -186,7 +187,7 @@ export function baseQuantitiesOf(s: GameStateV2, design: BaseDesign, gPre: numbe
  *   S1 = PREF_S1[method] · prefShare(ρ)/prefShare(ρ_ref)
  *   S2 = S2_PER_EXPLOIT · Σ_f w_f·x_f · p(ρ) (+ P11 0.2): the RL-weighted hack rate (D5's suite form × Gao's pressure)
  *   S3 = K_S3 · Σ_f w_f·log₁₀(1 + H_f)            S5 = S5_LONG · w_longHorizon
- *   S4 = CoT mode, or 'pressured' when trained against a CoT monitor
+ *   S4 = CoT mode, or 'pressured' when trained against a CoT monitor (× (1 − 0.5) on a faithful-CoT run, P23)
  *   S6 = S6_POST (narrow fine-tunes)               S7 = S7_BASE + s7(ρ) + S7_EVAL_ENV·w_mlResearch + S7_PER_BB·#BB detectors
  *  `exploit` = the suites a run froze at launch (TrainingRun.recipe.exploit; their families set the shares w_f), else the
  *  lab's suites today (predictions, continual learning, IDA). Every signal is clamped to [0, 1]. */
@@ -201,7 +202,8 @@ export function postSignals(s: GameStateV2, post: PostDesign, exploit?: Partial<
   for (const [f, wf] of Object.entries(w) as [RLFamily, number][]) s3 += wf * taskTerm(f);
   sg.S3 = K_S3 * s3;
   const cotMonitor = post.trainAgainst.some((id) => s.player.safety.techniques[id]?.family === 'COT');
-  sg.S4 = Math.max(COT_S4[post.cot], cotMonitor ? COT_S4.pressured : 0);
+  // P23: faithful-by-construction reasoning resists the pressure of training against a CoT monitor (FAITHFUL_COT.resist).
+  sg.S4 = Math.max(COT_S4[post.cot], cotMonitor ? COT_S4.pressured * (1 - cotResist(post.cot)) : 0);
   sg.S5 = S5_LONG * (w.longHorizon ?? 0);
   sg.S6 = S6_POST;
   sg.S7 = S7_BASE + s7OfRl(rho) + S7_EVAL_ENV * (w.mlResearch ?? 0);
@@ -290,6 +292,8 @@ export interface TraitEnv {
   teacher?: TraitVector;
   /** Growth multiplier (rivals' drift multiplier, §3.10.3). */
   growthMult: number;
+  /** Per-trait growth multipliers (P14 interp-guided training: 1 − k·d_t, safety/ideas.ts steerGrowth). */
+  growthBy?: Partial<Record<TraitId, number>>;
   bracket: { constitution: boolean; heavy: boolean; persuasion: boolean; cast: boolean };
   /** Post-update multiplicative effects (E25 anti-scheming: EA × 1.5). */
   eaMult: number;
@@ -345,7 +349,7 @@ export function stepTraits(x0: TraitVector, env: TraitEnv): TraitVector {
       g += (env.w[e.id] ?? e.wBar) * driver(e.id, x, env.signals, env) * (env.mods[e.id] ?? 1);
     }
     const Dj = TRAIT_BY_ID[j].difficulty ? env.D : 1;
-    const grow = omega * env.growthMult * Dj * (1 - x[j]) * g + omega * (env.amp[j] ?? 0);
+    const grow = (omega * env.growthMult * Dj * (1 - x[j]) * g + omega * (env.amp[j] ?? 0)) * (env.growthBy?.[j] ?? 1);
     const rem = x[j] * Math.min(1, (env.removal[j] ?? 0) * (omegaS / 0.6) * env.removalMult * crystal);
     x[j] = clamp01(x[j] + grow - rem);
   }
@@ -566,7 +570,7 @@ const W_BAR: Record<string, number> = Object.fromEntries(EDGES.map((e) => [e.id,
 
 /** Predicted beliefs for a new version: the parent's beliefs pushed through the graph with the PUBLIC w̄ (or the
  *  revealed weight) and D = 1, sd widened by the size of the predicted change. Visible, never reads truth. */
-export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelief>, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, omegaSafety = omega): Record<TraitId, TraitBelief> {
+export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelief>, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, omegaSafety = omega, growthBy?: Partial<Record<TraitId, number>>): Record<TraitId, TraitBelief> {
   const est = {} as TraitVector;
   for (const t of TRAIT_IDS) est[t] = prior[t]?.est ?? TRAIT_START[t];
   const w: Record<string, number> = { ...W_BAR };
@@ -576,6 +580,7 @@ export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelie
     removalMult: 1, crystalAt: 0.5, tierF: tierOfLevel(levelOf(s.hidden.timeline, s.player.pa)) / 3, memory: memoryOn(s), growthMult: 1,
     bracket: { constitution: post?.pref === 'constitution', heavy: post?.safety === 'heavy', persuasion: post?.pref === 'persuasion', cast: inRun(s, post, 'T-CAST') },
     eaMult: post?.safety === 'heavy' && s.flags[`ws2.e25.${lineage}`] === undefined ? 1.5 : 1,
+    ...(growthBy ? { growthBy } : {}),
   };
   const next = stepTraits(est, env);
   const out = {} as Record<TraitId, TraitBelief>;
@@ -607,15 +612,16 @@ function defaultBeliefs(s: GameStateV2): Record<TraitId, TraitBelief> {
 
 /**
  * Train against detector `techniqueId` on `traits` of version v: true trait −20–40%, mask on the detector's family
- * chosen so the visible (observed) level falls 70–90%, OBF +0.1 (E15/E24), technique trainedAgainst += 1.
+ * chosen so the visible (observed) level falls 70–90%, OBF +0.1 (E15/E24), technique trainedAgainst += 1. `maskMult`
+ * scales the mask (P23: a faithful-CoT run's COT masks × (1 − resist)).
  */
-export function goodhartTrain(s: GameStateV2, rng: RngLike, v: ModelVersion, techniqueId: string, traits: readonly TraitId[]): void {
+export function goodhartTrain(s: GameStateV2, rng: RngLike, v: ModelVersion, techniqueId: string, traits: readonly TraitId[], maskMult = 1): void {
   const t = s.player.safety.techniques[techniqueId];
   if (!t) return;
   for (const tr of traits) {
     const d = rng.range(0.2, 0.4) * uModeRemovalMult(v.uModes) * crystalMult(v.traitsTrue.TGAME, v.uModes);
     const vis = rng.range(0.7, 0.9);
-    const m = clamp01(1 - (1 - vis) / Math.max(0.05, 1 - d));
+    const m = clamp01(1 - (1 - vis) / Math.max(0.05, 1 - d)) * maskMult;
     v.traitsTrue[tr] = clamp01(v.traitsTrue[tr] * (1 - d));
     const masks = (v.masks[tr] ??= {});
     masks[t.family] = clamp01(1 - (1 - (masks[t.family] ?? 0)) * (1 - m));
@@ -791,6 +797,9 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
   const probe: ModelVersion = { ...version, traitsTrue: x0, masks: parent ? parent.masks : emptyMasks(), uModes };
   const env = playerEnv(s, x0, sg, om.growth, post, lineage, uModes, probe);
   env.omegaSafety = om.safety;
+  // P14 interp-guided training (E13): the white-box probes steer the run's trait growth away from what they read.
+  const steer = probeSteer(s, probe);
+  env.growthBy = steerGrowth(steer);
   const teacher = versionById(s, run.teacherVersionId);
   if (teacher && sameBaseFamily(s, teacher, base)) env.teacher = teacher.traitsTrue; // teacher data within the base family (S6, E06)
   version.traitsTrue = stepTraits(x0, env);
@@ -804,20 +813,20 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
       mk.COT = clamp01(1 - (1 - (mk.COT ?? 0)) * 0.7);
     }
   }
-  version.beliefs = predictBeliefs(s, parent?.beliefs ?? defaultBeliefs(s), sg, om.growth, post, lineage, om.safety);
-  // Goodhart: detectors explicitly trained against in this run (§3.5.6).
+  version.beliefs = predictBeliefs(s, parent?.beliefs ?? defaultBeliefs(s), sg, om.growth, post, lineage, om.safety, steerGrowth(probeSteer(s, probe, true)));
+  // P14 Goodhart: steering along the probes' directions masks the steered traits from the WB family (E24's masks).
+  probeGoodhart(version, steer);
+  // Goodhart: detectors explicitly trained against in this run (§3.5.6). P23: a faithful-CoT run's COT masks resist.
   for (const id of post.trainAgainst) {
     const t = s.player.safety.techniques[id];
     if (!t?.unlocked) continue;
     const covered = (Object.keys(t.coverage) as TraitId[]).filter((k) => (t.coverage[k] ?? 0) >= 0.3);
-    goodhartTrain(s, rng, version, id, covered);
+    goodhartTrain(s, rng, version, id, covered, t.family === 'COT' ? 1 - cotResist(post.cot) : 1);
   }
   // Heavy safety: alignment-audit observation (WB clarity +0.15 on AF/SCHEME if AG02 techniques are unlocked).
   if (post.safety === 'heavy' && Object.values(s.player.safety.techniques).some((t) => t.agenda === 'AG02' && t.unlocked)) {
     pendingAudit(s, version.id);
   }
-  // Interp-guided training (P14) trains against WB detectors implicitly → Goodhart on probes [D].
-  if (adopted(s, 'P14') && post.techniques.length) setFlag(s, 'p14Goodhart', flagNum(s, 'p14Goodhart') + 0.2);
 }
 
 /** Queue an alignment audit (WB observations of AF/SCHEME) for the next safetyResearch tick. */

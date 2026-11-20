@@ -106,7 +106,7 @@ function EditPop({ s, use, c, close }: { s: GameStateV2; use: AgentUse; c: Agent
   );
 }
 
-/** Trusted to AI (home, D4): the share of safety work done by the safety agents; B3 gate; cap until P27. */
+/** Trusted to AI (home, D4): the share of safety work done by the safety agents; B3 gate (no cap since model v3 E2). */
 function Trusted({ s, v }: { s: GameStateV2; v: AgentsView }) {
   const t = v.trusted;
   const at = (x: number) => Math.max(0, Math.min(1, Math.round(x * 100) / 100));

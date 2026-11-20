@@ -26,8 +26,8 @@ export const PARADIGMS: ParadigmDef[] = [
   { id: 'P11', name: 'Self-play curricula', prior: 0.6, effect: 'REASON +0.8, CODE +0.4', safetyCost: 'S2 +0.2 (verifier hacking)' },
   { id: 'P12', name: 'Long-horizon human demos', prior: 0.85, effect: 'h80 ×2; RSCH +0.4' },
   { id: 'P13', name: 'Automated AI research agents', prior: 0.75, effect: 'Experiment throughput ×1.5', safetyCost: 'U17 ↑; SAND' },
-  { id: 'P14', name: 'Interp-guided training', prior: 0.6, effect: 'In-run trait cap ×0.6', safetyCost: 'Goodhart on the detector' },
-  { id: 'P15', name: 'AI-assisted oversight', prior: 0.6, effect: 'Hardened graders at the cheap price', safetyCost: 'U19 collusion' },
+  { id: 'P14', name: 'Interp-guided training', prior: 0.6, effect: 'Post-train trait growth × (1 − WB probe detection) (model v3 E13)', safetyCost: 'WB masks + 0.3 × detection per steered run' },
+  { id: 'P15', name: 'AI-assisted oversight', prior: 0.6, effect: 'Suite hardening by the safety agents: cash × (1 − A·(1 − 4/150)), cut × (1 + 0.5·A) (model v3 E13)', safetyCost: 'same-lineage collusion (A × 0.6)' },
   { id: 'P16', name: 'AI kernels / HW co-design', prior: 0.8, effect: 'Serve ×0.75; training FLOP ×1.15' },
   { id: 'P17', name: 'Neuralese recurrence', prior: 0.7, effect: 'Latent base shape (+0.4 y, serve 0.2)', safetyCost: 'CoT monitoring dies (λ2 −2)' },
   { id: 'P18', name: 'Iterated distillation & amplification', prior: 0.65, effect: '+0.25 y per 21-day cycle', safetyCost: 'traits ×1.1 per cycle' },
@@ -35,13 +35,13 @@ export const PARADIGMS: ParadigmDef[] = [
   { id: 'P20', name: 'Massive agent societies', prior: 0.8, effect: 'Agent throughput ×1.1', safetyCost: 'S8 = 1; collusion' },
   { id: 'P21', name: 'Brain-like sample efficiency', prior: 0.45, effect: 'PHYS +1', safetyCost: 'evals lag' },
   { id: 'P22', name: 'Robotics foundation models', prior: 0.6, effect: 'PHYS +2; robotics tech progress', safetyCost: 'physical reach' },
-  { id: 'P23', name: 'Faithful-CoT architecture', prior: 0.75, effect: 'Faithful CoT option', safetyCost: '−0.24 y tax' },
+  { id: 'P23', name: 'Faithful-CoT architecture', prior: 0.75, effect: 'Faithful CoT option: monitorability 0.98, CoT pressure and controllability × 0.5 (model v3 E13)', safetyCost: '−0.29 OOM; FLOP per token ×1.2' },
   { id: 'P24', name: 'AI-designed successor', prior: 0.6, effect: 'Next base +0.8 y; new lineage', safetyCost: 'techniques may not transfer' },
   { id: 'P25', name: 'Formal verification at scale', prior: 0.5, effect: 'Weight-security defence +0.5 level (model v3 V2)' },
   // Cut from the tree in model v3 V2 (no engine effect; superpersuasion is the SOCIAL level). Kept here so the hidden
   // draws of the paradigms after it keep their values.
   { id: 'P26', name: 'Superhuman persuasion', prior: 0.8, effect: 'cut (model v3 V2)' },
-  { id: 'P27', name: 'Automated alignment research', prior: 0.7, effect: 'Agenda speed × (1 + 3 × Trusted to AI); lifts its 50% cap', safetyCost: 'FALSE findings ∝ hidden SAND' },
+  { id: 'P27', name: 'Automated alignment research', prior: 0.7, effect: 'Safety AI labour: SAF_* fit +0.3 OOM, agenda automation halfway to 1 (model v3 E13)', safetyCost: 'FALSE findings ∝ AI share × hidden sabotage' },
 ];
 
 /** Domain offsets (L) granted to new versions once a paradigm is adopted (§3.3.3). */
