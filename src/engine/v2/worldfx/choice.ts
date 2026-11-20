@@ -154,7 +154,10 @@ export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: read
       if (!(sum > 0)) continue;
       tot += set.p;
       const f = set.p / sum;
-      for (let j = 0; j < ins.length; j++) share[ins[j]][b] += f * e[ins[j]];
+      // M3: a denormal sum (every offer in the set ~745 nats below the band's best) makes f infinite and 0·∞ = NaN;
+      // divide first then (same result whenever f is finite, so no path changes).
+      if (Number.isFinite(f)) for (let j = 0; j < ins.length; j++) share[ins[j]][b] += f * e[ins[j]];
+      else for (let j = 0; j < ins.length; j++) share[ins[j]][b] += set.p * (e[ins[j]] / sum);
     }
     if (tot > 0) for (let i = 0; i < n; i++) {
       share[i][b] /= tot;
