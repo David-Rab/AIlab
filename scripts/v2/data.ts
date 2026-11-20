@@ -263,10 +263,15 @@ const tRows = withG.map((x) => ({ x, r: gAfter(x.v.id) }));
 const bestQT = tRows.reduce((a, b) => (b.r.qT > a.r.qT ? b : a));
 const bestG = tRows.reduce((a, b) => (b.r.G > a.r.G ? b : a));
 const sgn = (x: number) => `${x >= 0 ? '+' : ''}${x.toFixed(4)}`;
-check(bestG.x.g === strong.g && tRows[0].r.G < tRows[tRows.length - 1].r.G,
-  'D11 teacher: with quality in the loss law the strongest teacher\'s data gives the next base the most G (D2 ranked teachers by q·T)',
+check(bestG.x.g === strong.g && tRows[0].r.G < tRows[tRows.length - 1].r.G && syntheticQuality(strong.g, gV0(sSy.hidden.timeline)) < SYN_Q.max,
+  'D11 teacher: with quality in the loss law the strongest teacher\'s data gives the next base the most G below the quality cap (D2 ranked teachers by q·T)',
   `latest base ${((latest.params * latest.tpp) / T).toFixed(0)}T, mean q ×${gNone.qRel.toFixed(3)} with no generation; 30 d of the pool: `
   + tRows.map(({ x, r }) => `${x.v.id} (G ${x.g.toFixed(2)}, q ${r.q.toFixed(2)}) q·T ${r.qT.toFixed(0)}T ΔG ${sgn(r.G - gNone.G)}`).join(', ') + `; best by q·T ${bestQT.x.v.id}`);
+// At the cap (the web's q 1, 2 OOM above V0) a stronger teacher's tokens are worth no more per token, so beyond it only
+// tokens per H100e-day separate teachers (D2's finding: the distilled mini of a strong model wins again).
+const g0f = gV0(sSy.hidden.timeline);
+check(syntheticQuality(g0f + 2, g0f) === 1 && syntheticQuality(g0f + 4, g0f) === 1 && syntheticQuality(g0f + 1.5, g0f) < 1,
+  'D11 teacher: synthetic quality stops at the web\'s 1 (cap [D]: no source for synthetic tokens beating human text)', `q at V0 + 1 / 2 / 4 OOM: ${[1, 2, 4].map((x) => syntheticQuality(g0f + x, g0f)).join(' / ')}`);
 
 // Expert data by domain: cash, delivered, and a suite build in that domain uses it before buying.
 const sEx = game();
@@ -302,8 +307,8 @@ check(near(synTokensPerH100eDay(y1.s.player.models.versions[0].fpt!) / 1e12, 4e-
   `${(synTokensPerH100eDay(y1.s.player.models.versions[0].fpt!) / 1e6).toFixed(2)}M tokens per H100e-day`);
 const fresh = y1.s.player.dataPortfolio.assets.find((a): a is OwnedDataAsset => a.kind === 'synthetic' && a.teacherId !== undefined);
 const g0 = gV0(s0.hidden.timeline);
-check(!!fresh && fresh.inheritsTraits === true && near(fresh.quality, SYN_Q.atV0, 0.02) && syntheticQuality(g0 + 2, g0) > syntheticQuality(g0, g0) && syntheticQuality(g0 + 99, g0) === SYN_Q.max,
-  'synthetic: the asset keeps its teacher (inherits its traits); quality ≈ 0.5 from V0, rising with the teacher\'s G to 1.5', `teacher ${fresh?.teacherId} q ${fresh?.quality.toFixed(3)}; +2 OOM q ${syntheticQuality(g0 + 2, g0)}`);
+check(!!fresh && fresh.inheritsTraits === true && near(fresh.quality, SYN_Q.atV0, 0.02) && syntheticQuality(g0 + 2, g0) > syntheticQuality(g0, g0) && syntheticQuality(g0 + 99, g0) === SYN_Q.max && SYN_Q.max === 1 && syntheticQuality(g0 + 1, g0) === 0.75,
+  'synthetic: the asset keeps its teacher (inherits its traits); quality ≈ 0.5 from V0, rising with the teacher\'s G to the web\'s 1 (cap [D], D11)', `teacher ${fresh?.teacherId} q ${fresh?.quality.toFixed(3)}; +2 OOM q ${syntheticQuality(g0 + 2, g0)}`);
 const synW = portfolioByKind(y1.s.player.dataPortfolio).find((r) => r.kind === 'synthetic')!.weightedT;
 check(near(portfolioU(y1.s.player.dataPortfolio, { p10: true }) - portfolioU(y1.s.player.dataPortfolio), 2 * synW * T, 1e6), 'synthetic: P10 counts synthetic tokens ×3 (v1, until D9)');
 
