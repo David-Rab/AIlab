@@ -299,7 +299,7 @@ function PayTiles({ s, opts, value, onChange, testPrefix }: { s: GameStateV2; op
 }
 
 /** FIN1 (spec §5): the expected price path a firm contract pays, as a curve. */
-function PathCurve({ s, prices, unit, discount, firstQ }: { s: GameStateV2; prices: number[]; unit: string; discount: number; firstQ: number }) {
+export function PathCurve({ s, prices, unit, discount, firstQ }: { s: GameStateV2; prices: number[]; unit: string; discount: number; firstQ: number }) {
   if (prices.length < 2) return null;
   const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
   return (

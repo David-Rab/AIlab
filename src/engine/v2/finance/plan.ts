@@ -15,6 +15,7 @@ import type { GameStateV2 } from '../types';
 import { BC_WARN, criticsAvailable, criticsOusterShift } from './board';
 import { leaseRate } from './capex';
 import { debtHeadroom } from './debt';
+import { partnerOffers, termsEquity } from './deals';
 import { canRaise, DOWN_ROUND_RUNWAY_Q, lastPostMoney, raiseCeiling } from './equity';
 import { qOf } from './ledger';
 import { MILESTONES, PITCH, promiseDeadline, trendOf } from './promises';
@@ -177,16 +178,16 @@ export function financeAutopilot(s: GameStateV2, o0: AutopilotOpts = REF_AUTOPIL
     if (ask >= 1) tryAct('fin.raise', { ask, type: th.type, pitch: th.pitch });
   }
 
-  // One strategic hyperscaler deal (from Q4 2025, when the first offers arrive).
-  if (o.strategic && s.time.day >= 92 && !f.deals.some((d) => d.template === 'hyperscalerEquity' && d.day >= 0)) {
-    if (tryAct('fin.seekPartner', { template: 'hyperscalerEquity' })) {
-      const offer = f.ws3.offers[f.ws3.offers.length - 1];
+  // One strategic hyperscaler deal (from Q4 2025): the hyperscaler that offers the most equity, on cloud capacity
+  // (FIN4a: the legacy Northwind stake is above the 15% cap, so on the leader start that is Azimuth). A rescue counts.
+  if (o.strategic && s.time.day >= 92 && !f.deals.some((d) => d.kind === 'hyperscaler' && !d.legacy && d.day >= 0)) {
+    const best = partnerOffers(s).filter((x) => x.kind === 'hyperscaler' && x.terms).sort((a, b) => termsEquity(b.terms!) - termsEquity(a.terms!))[0];
+    if (best?.terms) {
       const r = runwayOf(s);
-      // Prudent bots sign only if runway stays above the chip guard after the commitment starts.
-      const after = offer ? (r.liquidity + offer.equityNow) / Math.max(0.1, r.burnQ + offer.commitPerQ) : 0;
-      // The partner's cloud capacity replaces compute the autopilot would otherwise buy, so the guard is looser here.
-      if (offer && (!o.guard || after >= DEAL_GUARD_Q)) tryAct('fin.acceptDeal', { offerId: offer.id });
-      else if (offer) tryAct('fin.declineDeal', { offerId: offer.id });
+      // Prudent bots sign only if runway stays above the deal guard once the take-or-pay starts. The partner's cloud
+      // capacity replaces compute the autopilot would otherwise buy, so the guard is looser than the chip guard.
+      const after = (r.liquidity + best.terms.equityNow) / Math.max(0.1, r.burnQ + (best.terms.supply?.perQ[0] ?? 0));
+      if (!o.guard || after >= DEAL_GUARD_Q) tryAct('fin.partner', { partner: best.partner, supply: 'cloud' });
     }
   }
 
@@ -292,7 +293,7 @@ export function pickThesis(s: GameStateV2, o: AutopilotOpts): { type: MilestoneT
 /** A down round in the last 180 days (one per distress spell). */
 const recentDownRound = (s: GameStateV2) => s.player.finance.rounds.some((r) => r.down && r.day > s.time.day - 180);
 
-/** A rescue tops the partner up to DEAL_TERMS.rescue.stake plus the cash stake; keep the largest strategic holder at
+/** A rescue tops the partner up to PARTNER_TERMS.rescue.stake plus the cash stake; keep the largest strategic holder at
  *  or below 45% so the company is not sold by accident. */
 function rescueKeepsControl(s: GameStateV2): boolean {
   const strat = s.player.finance.ownership.strat;

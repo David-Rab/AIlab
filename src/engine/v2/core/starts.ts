@@ -6,7 +6,7 @@ import { initialBoard, SEAT_STANCE } from '../finance/board';
 import { valuationMark } from '../finance/equity';
 import { defaultFinanceWS3 } from '../finance/ext';
 import { START_CREDIBILITY } from '../finance/promises';
-import { DEBT_SIZING } from '../../../data/v2/deals';
+import { DEBT_SIZING, partnerDef } from '../../../data/v2/deals';
 import type { Board, CloudContract, Commitment$, FinanceState, Site } from '../types';
 import { dayOfDate } from './time';
 
@@ -83,21 +83,21 @@ export function startFinance(def: StartDef, c: StartCompute): FinanceState {
     runwayQ: 8,
     state: 'healthy',
     narrative: def.narrative,
-    // The challenger's strategic investor (an Amazon/Google-like stake from before the start): an observer seat.
-    deals: Object.keys(def.ownership.strat ?? {}).map((partner, i) => ({ id: `DL-start${i}`, template: 'hyperscalerEquity' as const, partner, day: -400, strings: { observer: true } })),
+    // The challenger's strategic investor (an Amazon/Google-like stake from before the start): a holder with no running
+    // terms and no board seat (hyperscaler stakes are non-voting and seatless [R21 B2]).
+    deals: Object.keys(def.ownership.strat ?? {}).map((partner, i) => ({ id: `DL-start${i}`, partner, kind: partnerDef(partner)?.kind ?? 'hyperscaler', day: -400, equityNow: 0, equityLater: 0, strings: {}, until: -400, legacy: true })),
     ws3: defaultFinanceWS3(cash),
   };
   f.ws3.chipBook = (def.owned * CHIP_BOOK_PER_H) / 1e9;
   return f;
 }
 
-/** Board at a non-leader start: the founder preset (spinout: one financial seat; challenger: two plus its strategic
- *  investor as observer) or the parent company (research/18 §3.2). */
+/** Board at a non-leader start: the founder preset (spinout: one financial seat; challenger: two; its strategic
+ *  investor holds no seat, FIN4a) or the parent company (research/18 §3.2). */
 export function startBoard(def: StartDef): Board {
   const b = initialBoard(def.board);
   if (def.id === 'challenger') {
     b.seats.push({ kind: 'financial', holder: 'Investor 2', stance: [...SEAT_STANCE.financial], weight: 1 });
-    for (const p of Object.keys(def.ownership.strat ?? {})) b.seats.push({ kind: 'strategic', holder: `${p} (observer)`, stance: [...SEAT_STANCE.strategic], weight: 0 });
   }
   return b;
 }

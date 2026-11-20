@@ -7,10 +7,11 @@ import { hash32 } from './rng';
 import { initialResearch, initialTree, nextLineProject } from '../models/tree';
 import { LEADER_FEATURES, PRICE_TIERS, tierOfIndex } from '../../../data/v2/features';
 import { TRUSTED_MAX_P27 } from '../../../data/v2/agents';
+import { partnerDef, PARTNER_TERMS } from '../../../data/v2/deals';
 import { initialAgents } from '../departments/agents';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
-export const SCHEMA_REV = 15;
+export const SCHEMA_REV = 16;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -201,9 +202,10 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       delete w.financedBy;
     }
     const gone = new Set(['spv', 'neocloud', 'megaJV']);
-    f.deals = f.deals.filter((d) => !gone.has(d.template as string));
-    fx.offers = (fx.offers ?? []).filter((o) => !gone.has(o.template as string));
-    for (const o of fx.offers as unknown as Record<string, unknown>[]) delete o.siteShare;
+    f.deals = (f.deals as unknown as { template?: string }[]).filter((d) => !gone.has(d.template as string)) as unknown as typeof f.deals;
+    const offers = ((fx.offers ?? []) as Record<string, unknown>[]).filter((o) => !gone.has(o.template as string));
+    for (const o of offers) delete o.siteShare;
+    fx.offers = offers;
     delete fx.jv;
     delete fx.spvBcQ;
     fx.opCash4q ??= fx.opCashQ ? [fx.opCashQ] : [];
@@ -248,6 +250,40 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     }
     const ev = s.events as unknown as { pending?: { id: string }[] };
     if (Array.isArray(ev.pending)) ev.pending = ev.pending.filter((d) => d.id !== 'E37');
+  },
+  /** 15 → 16 (finance v3 FIN4a): one partner offer flow. Deal records move from templates to partner kinds: a
+   *  hyperscaler (old hyperscaler equity and custom-ASIC deals), a chip vendor, a sovereign; vendor-financing deals go
+   *  (a vendor note stays as a bond-like loan with its spread and maturity). Stakes from before the start become legacy
+   *  holders. The strings that did nothing go (observer, IP rights, in-country site); exclusivity and the revenue share
+   *  stay, a deal running as before (the revenue share to six years after signing; custom chips and chip vendors keep
+   *  their rationing priority for the supply term). Open offers go (terms are now computed live), and so do partner
+   *  observer seats (hyperscalers hold no seats). Signed contracts, orders and tranches are kept as signed. */
+  15: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const f = s.player.finance;
+    const old = f.deals as unknown as { id: string; template?: string; partner: string; day: number; strings?: Record<string, unknown> }[];
+    const KIND: Record<string, 'hyperscaler' | 'chipVendor' | 'sovereign'> = { hyperscalerEquity: 'hyperscaler', customASIC: 'hyperscaler', chipVendorEquity: 'chipVendor', sovereign: 'sovereign' };
+    f.deals = old.filter((d) => d.template !== 'vendorFinance').map((d) => {
+      if (!d.template && 'kind' in d) return d as unknown as GameStateV2['player']['finance']['deals'][number]; // already a partner record
+      const kind = partnerDef(d.partner)?.kind ?? KIND[d.template ?? ''] ?? 'hyperscaler';
+      const st = d.strings ?? {};
+      const rescue = !!st.boardSeat;
+      const legacy = d.day < 0;
+      const chips = d.template === 'customASIC' || d.template === 'chipVendorEquity';
+      const until = legacy ? d.day : d.template === 'hyperscalerEquity' && !rescue ? d.day + PARTNER_TERMS.hyperscaler.years * 365 : chips ? d.day + 10 * 91 : d.day;
+      return {
+        id: d.id, partner: d.partner, kind, day: d.day, equityNow: 0, equityLater: 0,
+        ...(chips ? { supply: { kind: d.template === 'customASIC' ? 'asic' as const : 'chips' as const, h100e: 0, quarters: 8, first: 0, last: 0, firmDiscount: 0, partnerDiscount: 0, total: 0, endDay: until } } : {}),
+        strings: { ...(st.exclusivity ? { exclusivity: true } : {}), ...(typeof st.revenueShare === 'number' && st.revenueShare > 0 ? { revenueShare: st.revenueShare } : {}), ...(rescue ? { boardVotes: PARTNER_TERMS.rescue.seats } : {}) },
+        until, ...(rescue ? { rescue: true } : {}), ...(legacy ? { legacy: true } : {}),
+      };
+    });
+    const fx = f.ws3 as unknown as Record<string, unknown>;
+    delete fx.offers;
+    for (const d of f.debts as unknown as { kind: string; covenant?: string }[]) if (d.kind === 'vendorNote') { d.kind = 'bond'; d.covenant = 'incurrence'; }
+    for (const c of f.ledger as unknown as { kind: string }[]) if (c.kind === 'vendor') c.kind = 'lta';
+    for (const y of Object.values((f.ws3?.years ?? {}) as unknown as Record<string, Record<string, unknown>>)) delete y.vendorNotes;
+    s.player.board.seats = s.player.board.seats.filter((x) => !(x.kind === 'strategic' && x.weight <= 0));
   },
 };
 

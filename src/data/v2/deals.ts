@@ -1,66 +1,26 @@
-// Strategic deal templates, partners, debt instruments, site power paths and market constants
-// (V2-SPEC §3.7.4, §3.8; research/15 §1.2, §1.3, §1.7). Owner: WS3.
-// Tags: [R15] = research/15 (primary sources there), [AI27] = research/02, [D] = design/balance value (tunable).
-import type { BoardSeat, Debt, Site, StrategicDeal } from '../../engine/v2/types';
+// Strategic partners, debt instruments, site power paths and market constants (FINANCE-V3 §3–§6; V2-SPEC §3.8;
+// research/15 §1.2, §1.3, §1.7; research/21 §1 B). Owner: WS3.
+// Tags: [R15] = research/15, [R21] = research/21 (primary sources there), [AI27] = research/02, [D] = design value.
+import type { Debt, PartnerKind, PartnerSupply, Site } from '../../engine/v2/types';
 
-export type PartnerKind = 'hyperscaler' | 'chipVendor' | 'sovereign';
+export type { PartnerKind, PartnerSupply };
 
-export interface DealTemplate {
-  id: StrategicDeal['template'];
-  name: string;
-  partnerKinds: PartnerKind[];
-  strings: StrategicDeal['strings'];
-  /** Board seat the partner gets (observer = weight 0). */
-  seat?: { kind: BoardSeat['kind']; weight: number };
-  /** Counts as a strategic deal for test F8 (vendor financing is financing, not strategic). */
-  strategic: boolean;
-  blurb: string;
-}
+/** Strategic partner kinds (FIN4a, spec §6.1): what each gives, what it wants and its strings. */
+export const PARTNER_KINDS: Record<PartnerKind, { label: string; gives: string; wants: string }> = {
+  hyperscaler: { label: 'Hyperscaler', gives: 'non-voting equity in tranches + cloud or custom chips at a discount, served first', wants: 'a take-or-pay compute commitment' },
+  chipVendor: { label: 'Chip vendor', gives: 'equity per GW you deploy + rationing priority', wants: 'you buy its chips (take-or-pay)' },
+  sovereign: { label: 'Sovereign', gives: 'a passive equity cheque', wants: 'nothing; Washington notices' },
+};
 
-export const DEAL_TEMPLATES: DealTemplate[] = [
-  {
-    id: 'hyperscalerEquity', name: 'Hyperscaler equity', partnerKinds: ['hyperscaler'], strategic: true,
-    strings: { observer: true, exclusivity: true, revenueShare: 0.08 }, seat: { kind: 'strategic', weight: 0 },
-    // Amazon→Anthropic $8B then $5B + up to $20B against a >$100B AWS commitment; Microsoft→OpenAI ~27%, +$250B Azure [R15 §1.7]
-    blurb: 'Equity in tranches; take-or-pay cloud commitment of 4–12× the equity over 5–10 years.',
-  },
-  {
-    id: 'customASIC', name: 'Custom ASIC', partnerKinds: ['hyperscaler'], strategic: true,
-    strings: { exclusivity: true },
-    // TPU v6e 5.9×, Trainium2 4.4× H100 perf/$ (Epoch Q4 2025) [R15]; migration −15% research 2–3 q [R15 Design]
-    blurb: 'Cheap chips from a separate supply pool; take-or-pay; research slows while you migrate.',
-  },
-  {
-    id: 'chipVendorEquity', name: 'Chip-vendor equity', partnerKinds: ['chipVendor'], strategic: true,
-    strings: {},
-    // Nvidia: up to $10B per GW deployed of its chips; AMD: warrants vesting by GW [R15 §1.7]
-    blurb: 'Vendor invests $10B per GW of its chips you deploy; you commit to buy them (LTA).',
-  },
-  {
-    id: 'vendorFinance', name: 'Vendor financing', partnerKinds: ['hyperscaler', 'chipVendor'], strategic: false,
-    strings: {},
-    // Broadcom up to $42B to fund Anthropic TPU lease rent; Amazon $15B / Google $20B note facilities [R15 §1.7]
-    blurb: 'Supplier lends you the money to pay it. Converts at IPO; counts as debt.',
-  },
-  {
-    id: 'sovereign', name: 'Sovereign', partnerKinds: ['sovereign'], strategic: true,
-    strings: { inCountrySite: true },
-    // MGX, QIA, GIC in Stargate / OpenAI / Anthropic G / xAI E; UAE "enhanced favorable treatment" 91 FR 43034 [R15]
-    blurb: 'Large equity cheque; you must build a site in-country. Washington notices.',
-  },
-];
-// FIN1 (spec §4, §5): the project-finance SPV is now the lease payment option on the build card (finance/capex.ts),
-// the neocloud a provider on the Rent compute card, and the mega-JV is removed.
+export interface Partner { id: string; kind: PartnerKind; competitors: string[]; supply: PartnerSupply[] }
 
-export interface Partner { id: string; kind: PartnerKind; competitors: string[]; templates: StrategicDeal['template'][] }
-
-/** Fictional partners (real analogues in comments). Each anchors at most one lab at a time (§3.7.4). */
+/** Fictional partners (real analogues in comments). Each anchors at most one lab at a time (§6.1, kept). */
 export const PARTNER_DEFS: Partner[] = [
-  { id: 'Northwind Cloud', kind: 'hyperscaler', competitors: ['Azimuth'], templates: ['hyperscalerEquity', 'vendorFinance'] }, // Microsoft-like
-  { id: 'Azimuth', kind: 'hyperscaler', competitors: ['Northwind Cloud'], templates: ['hyperscalerEquity', 'customASIC', 'vendorFinance'] }, // Amazon/Google-like
-  { id: 'Silica Systems', kind: 'chipVendor', competitors: ['Corvid Micro'], templates: ['chipVendorEquity', 'vendorFinance'] }, // Nvidia-like
-  { id: 'Corvid Micro', kind: 'chipVendor', competitors: ['Silica Systems'], templates: ['chipVendorEquity'] }, // AMD-like (warrants)
-  { id: 'Gulf Sovereign Fund', kind: 'sovereign', competitors: [], templates: ['sovereign'] }, // MGX/QIA-like
+  { id: 'Northwind Cloud', kind: 'hyperscaler', competitors: ['Azimuth'], supply: ['cloud'] }, // Microsoft-like
+  { id: 'Azimuth', kind: 'hyperscaler', competitors: ['Northwind Cloud'], supply: ['cloud', 'asic'] }, // Amazon/Google-like (Trainium/TPU)
+  { id: 'Silica Systems', kind: 'chipVendor', competitors: ['Corvid Micro'], supply: ['chips'] }, // Nvidia-like
+  { id: 'Corvid Micro', kind: 'chipVendor', competitors: ['Silica Systems'], supply: ['chips'] }, // AMD-like (warrants by GW)
+  { id: 'Gulf Sovereign Fund', kind: 'sovereign', competitors: [], supply: [] }, // MGX/QIA-like
 ];
 /** Default provider on the Rent compute card: a neocloud (CoreWeave-like). Neoclouds are providers, not deals (FIN1,
  *  spec §5). */
@@ -70,16 +30,30 @@ export const LESSOR = 'Keystone Capital';
 export const PARTNERS = PARTNER_DEFS.map((p) => p.id);
 export const partnerDef = (id: string) => PARTNER_DEFS.find((p) => p.id === id);
 
-/** Deal sizing [D unless tagged]. */
-export const DEAL_TERMS = {
-  hyperscaler: { equityShareOfV: 0.03, trancheMin: 5, trancheMax: 15, tranches: 3, commitMult: 4, years: 6 }, // E $5–15B per tranche, C 4–12×E over 5–10 y [R15]
-  asic: { priceMult: 0.45, quarters: 8, gw: 1.0 }, // perf/$ 2–5× H100 [R15]; migration 2–3 q
-  vendorEquity: { perGW: 10, gw: 2, quarters: 8 }, // $10B per GW deployed [R15]
-  vendorNote: { revenueMult: 0.4, max: 25, spreadBp: 300, years: 5 }, // Broadcom $42B, Amazon $15B, Google $20B [R15]
-  sovereign: { equityShareOfV: 0.025, min: 5, max: 25, siteMW: 1000 },
-  rescue: { stake: 0.3, minCash: 20 },
-  offerDays: 60,
-};
+/** Partner deal sizing (FIN4a). Every price follows the expected market path (FIN1, spec §5) less the firm discount and
+ *  the partner's own discount for the commitment, both shown on the offer. */
+export const PARTNER_TERMS = {
+  // Equity E = $5–15B per tranche at today's V, 3 tranches (one now, two on GW conditions) [R15 §1.7]; non-voting and
+  // capped at 15% of the company per hyperscaler, tranches included (CMA/FTC: Google ≤ 14% of Anthropic, R15 12–15%)
+  // [R21 B2]. Commitment: cloud capacity worth 4 × E over 6 years at today's price (C = 4–12 × E over 5–10 y [R15]),
+  // paid on the expected path; the partner takes 10% off for the commitment [D]. Revenue share 8% while it runs
+  // (all three cloud partnerships carry one [R21 B4]; size [D]). Exclusivity as before FIN4a (FIN4b makes it optional).
+  hyperscaler: { equityShareOfV: 0.03, trancheMin: 5, trancheMax: 15, tranches: 3, stakeCap: 0.15, commitMult: 4, years: 6, discount: 0.1, revenueShare: 0.08 },
+  // Custom chips (TPU, Trainium): 1 GW over 8 quarters at 45% of the H100e list path (perf/$ 2–5× an H100: TPU v6e 5.9,
+  // Trainium2 4.4, Epoch Q4 2025 [R15]); a separate supply pool (served outside rationing); migration −15% research for
+  // ~2.5 quarters [R15 Design].
+  asic: { costMult: 0.45, quarters: 8, gw: 1.0, migrationDays: 230, researchMult: 0.85 },
+  // Chip vendor: $10B of equity per GW you deploy (Nvidia–OpenAI; AMD warrants vest by GW) [R15 §1.7]; you buy 2 GW of
+  // its chips over 8 quarters at the path less the firm discount and 5% vendor discount [D]; tranches by GW online
+  // within 12 quarters.
+  chipVendor: { perGW: 10, gw: 2, quarters: 8, discount: 0.05, deadlineQ: 12 },
+  // Sovereign: a passive cheque of 2.5% of V ($5–25B) (MGX, QIA, GIC in Stargate / OpenAI / Anthropic G / xAI E) [R15];
+  // political cost kept from v2: scrutiny +5, Congress trust −5, security demand +3 [D]. No in-country site (sovereign money was passive; builds were separate deals) [R21 §3].
+  sovereign: { equityShareOfV: 0.025, min: 5, max: 25, scrutiny: 5, congress: -5, securityDemand: 3 },
+  // Rescue (distress only, spec §6.2): cash ≈ 2 quarters of burn, at least $20B, at most 15% of V; the partner is
+  // topped up to 30%, with a board seat of two votes and exclusivity [D].
+  rescue: { stake: 0.3, minCash: 20, maxShareOfV: 0.15, seats: 2 },
+} as const;
 
 /** Debt instruments (R15 §1.7; FIN1 spec §3). `spreadBp` is the default; credit lines, chip loans and bonds are priced
  *  by rating (tables below). */
@@ -87,7 +61,6 @@ export const DEBT_TERMS: Record<Debt['kind'], { spreadBp: number; years: number;
   revolver: { spreadBp: 200, years: 5, note: '3% of valuation, cap $15B; cash ≥ ⅓ of the line at quarter ends' }, // SOFR+150–250 [R15 Design]
   gpuTerm: { spreadBp: 475, years: 4, note: '≤ 60% of chip value; collateral < 1.2× loan → cash sweep' }, // CoreWeave DDTL SOFR+400–550 [R15]
   bond: { spreadBp: 150, years: 10, note: 'Only with positive trailing operating cash flow; ≤ 3× it; y10 + spread(rating)' }, // Oracle 4.45–6.85% [R15]
-  vendorNote: { spreadBp: 300, years: 5, note: 'Converts at IPO; counts as a commitment' },
   // FIN3c (spec §9): a bought lab's debt; its lenders re-price it to your credit (y10 + the bond spread of your rating)
   // and it runs 3 more years [D].
   assumed: { spreadBp: 450, years: 3, note: 'Came with a lab you bought; priced at your rating' },

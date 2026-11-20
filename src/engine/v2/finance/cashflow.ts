@@ -13,7 +13,7 @@ import { powerAndOMPerYear } from '../compute/power';
 import type { Commitment$, EngineSystem, GameStateV2, SystemCtx } from '../types';
 import { drawDebt, interestPerYear, lineUndrawn } from './debt';
 import { expireRepriced } from './equity';
-import { ensureWs3, yearStats } from './ext';
+import { ensureWs3, revenueShareRate, yearStats } from './ext';
 import { bookCash, ledgerPaying } from './ledger';
 import { deploymentRevenue } from './observe';
 import { runwayOf } from './runway';
@@ -68,7 +68,7 @@ export const opexSystem: EngineSystem = {
   },
 };
 
-const KIND_LABEL: Record<Commitment$['kind'], string> = { cloud: 'cloud contracts', lta: 'chip supply contracts', lease: 'colocation leases', finLease: 'financing leases', vendor: 'vendor notes', power: 'power contracts', acquired: 'acquired contracts' };
+const KIND_LABEL: Record<Commitment$['kind'], string> = { cloud: 'cloud contracts', lta: 'chip supply contracts', lease: 'colocation leases', finLease: 'financing leases', power: 'power contracts', acquired: 'acquired contracts' };
 
 /** payroll (300, monthly): payroll, security spend, transition fund, revenue share, ledger instalments; expire
  *  finished contracts; refresh the runway readout. */
@@ -87,7 +87,7 @@ export const payrollSystem: EngineSystem = {
     if (security > 0) bookCash(s, ctx, -security, 'security', 'security spend', `WSL target ${p.security.target.toFixed(1)}`);
     if (fund > 0) bookCash(s, ctx, -fund, 'transitionFund', 'transition fund');
     const other = security + fund;
-    const share = (f.deals.reduce((a, d) => a + (d.strings.revenueShare ?? 0), 0) * f.revenueRun) / 12;
+    const share = (revenueShareRate(s) * f.revenueRun) / 12;
     if (share > 0) bookCash(s, ctx, -share, 'opex', 'revenue share');
     ys.otherOpex += other + share;
     let total = payroll + other + share;
@@ -98,7 +98,6 @@ export const payrollSystem: EngineSystem = {
       bookCash(s, ctx, -amt, 'commitments', KIND_LABEL[k]);
       total += amt;
       if (k === 'lta') ys.capexChips += amt;
-      else if (k === 'vendor') ys.interest += amt;
       else ys.computeCosts += amt;
     }
     f.ws3.accQ.opCosts += total - (byKind.lta ?? 0);
@@ -106,7 +105,6 @@ export const payrollSystem: EngineSystem = {
     f.ledger = f.ledger.filter((c) => c.endDay > s.time.day);
     p.cloud = p.cloud.filter((c) => c.endDay > s.time.day);
     f.ws3.rentals = f.ws3.rentals.filter((r) => r.endDay > s.time.day);
-    f.ws3.offers = f.ws3.offers.filter((o) => o.expiresDay > s.time.day);
     f.runwayQ = Math.round(runwayOf(s).q * 10) / 10;
     checkSolvency(s, ctx);
   },

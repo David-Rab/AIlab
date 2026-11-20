@@ -82,6 +82,26 @@ export function issue(o: Ownership, frac: number, holder: { kind: 'fin' } | { ki
   else o.strat[holder.name] = (o.strat[holder.name] ?? 0) + frac;
 }
 
+/** Equity a stake cap leaves room for ($B at valuation V): new money E at V gives a holder with `stake` a stake of
+ *  (stake·V + E)/(V + E), so E ≤ V(cap − stake)/(1 − cap). */
+export const stakeRoom = (V: Money, stake: number, cap: number) => Math.max(0, (V * (cap - stake)) / (1 - cap));
+
+/** A strategic partner buys `amount` of new shares at today's valuation (FIN4a: partner deals and their tranches):
+ *  cash in, shares to the partner, valuation up by the money. `stakeCap` (a hyperscaler's 15%) limits what it may buy;
+ *  the part past the cap does not land. Returns the money booked. */
+export function partnerEquityIn(s: GameStateV2, ctx: SystemCtx, partner: string, amount: Money, label: string, stakeCap?: number): Money {
+  const f = s.player.finance;
+  const V = Math.max(10, f.valuation);
+  const amt = Math.max(0, stakeCap !== undefined ? Math.min(amount, stakeRoom(V, f.ownership.strat[partner] ?? 0, stakeCap)) : amount);
+  if (stakeCap !== undefined && amt < amount - 0.05) ctx.log('finance', `${label}: ${partner}'s stake is capped at ${Math.round(stakeCap * 100)}%; $${(amount - amt).toFixed(1)}B of it lapses.`, 2);
+  if (amt <= 0) return 0;
+  issue(f.ownership, amt / (V + amt), { kind: 'strat', name: partner });
+  f.valuation = V + amt;
+  bookCash(s, ctx, amt, 'financing', label, partner);
+  yearStats(s).dealEquity += amt;
+  return amt;
+}
+
 /** Outside (financial + strategic + public) ownership share. */
 export const outsideShare = (o: Ownership) => o.fin + o.public + Object.values(o.strat).reduce((a, b) => a + b, 0);
 

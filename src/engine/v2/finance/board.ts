@@ -173,10 +173,10 @@ export function initialBoard(preset: GovernancePresetId): Board {
       : preset === 'founder'
       ? [seat('founder', 'CEO', 2), seat('financial', 'Lead investor'), seat('independent', 'Independent')]
       : preset === 'legacyNonprofit'
-        ? [seat('founder', 'CEO'), seat('mission', 'Nonprofit board'), seat('mission', 'Nonprofit board'), seat('independent', 'Independent'), seat('independent', 'Independent'), seat('strategic', 'Northwind Cloud (observer)', 0)]
+        ? [seat('founder', 'CEO'), seat('mission', 'Nonprofit board'), seat('mission', 'Nonprofit board'), seat('independent', 'Independent'), seat('independent', 'Independent')]
         : preset === 'pbcTrust'
-          ? [seat('founder', 'CEO'), seat('mission', 'Trust appointee'), seat('mission', 'Trust appointee'), seat('financial', 'Lead investor'), seat('independent', 'Independent'), seat('strategic', 'Northwind Cloud (observer)', 0)]
-          : [seat('founder', 'CEO'), seat('mission', 'Foundation board'), seat('mission', 'Foundation board'), seat('financial', 'Lead investor'), seat('independent', 'Independent'), seat('strategic', 'Northwind Cloud (observer)', 0)];
+          ? [seat('founder', 'CEO'), seat('mission', 'Trust appointee'), seat('mission', 'Trust appointee'), seat('financial', 'Lead investor'), seat('independent', 'Independent')]
+          : [seat('founder', 'CEO'), seat('mission', 'Foundation board'), seat('mission', 'Foundation board'), seat('financial', 'Lead investor'), seat('independent', 'Independent')];
   return { preset, seats, confidence: 70, safetyCommitteeVeto: preset === 'nonprofitPBC' };
 }
 
@@ -189,7 +189,7 @@ export function addSeat(s: GameStateV2, kind: BoardSeat['kind'], holder: string,
     if (weight > 0) ex.holder = holder;
     return;
   }
-  b.seats.push(seat(kind, weight > 0 ? holder : `${holder} (observer)`, weight));
+  b.seats.push(seat(kind, holder, weight));
 }
 
 /** Founder preset: one financial seat each time own_fin crosses 15/30/45% (R15). */

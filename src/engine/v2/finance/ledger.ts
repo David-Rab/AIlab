@@ -40,8 +40,10 @@ export function initialFinance(baseline: BaselineId, governance: GovernancePrese
     runwayQ: 8,
     state: 'healthy',
     narrative,
-    // The legacy Northwind stake (Microsoft-like, ~27%): observer seat, no exclusivity after the 2025 renegotiation [R15].
-    deals: [{ id: 'DL-northwind0', template: 'hyperscalerEquity', partner: 'Northwind Cloud', day: -2000, strings: { observer: true, ipRights: true } }],
+    // The legacy Northwind stake (Microsoft-like, ~27%), a holder from before the start: no exclusivity after the 2025
+    // renegotiation [R15], no board seat (Microsoft gave up its observer seat in Jul 2024 [R21 B3]); its cloud contract is
+    // L-cloud0. Above the 15% hyperscaler cap, so Northwind sells no more equity (FIN4a).
+    deals: [{ id: 'DL-northwind0', partner: 'Northwind Cloud', kind: 'hyperscaler', day: -2000, equityNow: 0, equityLater: 0, strings: {}, until: -2000, legacy: true }],
     ws3: defaultFinanceWS3(cash),
   };
   f.ws3.chipBook = 0.5e6 * k * 25e-6; // 0.5M owned H100e at ~$25K (Epoch 2025 price) [R15 §2.1]

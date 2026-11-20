@@ -93,3 +93,13 @@
 /* FIN3b: charter rights on the Board card */
 .charter { margin: 10px 0 4px; display: flex; flex-direction: column; gap: 4px; }
 .charter-row { display: grid; grid-template-columns: 150px 1fr auto; align-items: center; gap: 8px; }
+/* FIN4a: partners card (one row per partner, the selected offer below) */
+.pt-list { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+.pt-list > .tip-wrap, .pt-list > div { display: block; }
+.pt-row { width: 100%; display: flex; align-items: center; gap: 8px; padding: 5px 8px; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--text); font: 12.5px var(--sans); cursor: pointer; text-align: left; }
+.pt-row:hover { background: var(--panel-2); }
+.pt-row.on { border-color: var(--you); background: #172a42; }
+.pt-row[data-blocked="1"] b { color: var(--text-2); }
+.pt-terms { display: flex; flex-direction: column; gap: 4px; }
+.pt-terms .fin-row { margin: 2px 0; }
+.pt-tranche { display: flex; align-items: center; gap: 6px; padding-left: 4px; }

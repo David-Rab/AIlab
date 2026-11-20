@@ -114,7 +114,8 @@ export { debtHeadroom, totalDebt, interestPerYear, debtRatePct, newDebtRatePct, 
 export type { Headroom, RatingTerms } from './finance/debt';
 export { payOptions, leaseRate, leaseAvailable, contingentLiabilities, siteRVG, leaseBalance } from './finance/capex';
 export type { PayOption } from './finance/capex';
-export { dealMenu, dealPreview } from './finance/actions';
+export { conditionWords, dealPreview } from './finance/actions';
+export { anchorPartners, dealWith, partnerBlocker, partnerOffers, partnerTerms, rescuePartner, SUPPLY_LABEL, supplyOptions, termsEquity } from './finance/deals';
 export { liveLedger, commitmentsPerYear, ledgerDue, qOf } from './finance/ledger';
 export { chipQuote, rentQuote, spotRentalCap, CHIP_TERMS, RENT_TERMS } from './compute/orders';
 export { oppositionOdds, siteCapex, siteEtaQ, siteLeasePerYear, reactiveUnblockOdds } from './compute/sites';

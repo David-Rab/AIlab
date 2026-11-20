@@ -11,7 +11,7 @@ import { yearStats } from './ext';
 import { commitmentsRemaining, bookCash, ledgerDue, qOf } from './ledger';
 import { revenueRun } from './observe';
 
-/** Effective annual rate (%) of a debt: SOFR + spread (credit line, chip loans, vendor notes) or y10 + spread (bonds, debt assumed with a bought lab);
+/** Effective annual rate (%) of a debt: SOFR + spread (credit line, chip loans) or y10 + spread (bonds, debt assumed with a bought lab);
  *  plus sector spread widening and +300bp in distress [R15]. The credit line floats on today's rating; chip loans and
  *  bonds keep the spread they were priced at. */
 export function debtRatePct(s: GameStateV2, d: Debt): number {
@@ -25,7 +25,7 @@ export function debtRatePct(s: GameStateV2, d: Debt): number {
 /** Spread (bp) a new draw of `kind` is priced at today. */
 export function newDebtSpreadBp(s: GameStateV2, kind: Debt['kind']): number {
   const r = s.player.finance.rating;
-  return kind === 'revolver' ? REVOLVER_SPREAD_BP[r] : kind === 'gpuTerm' ? CHIP_LOAN_SPREAD_BP[r] : kind === 'bond' || kind === 'assumed' ? RATING_SPREAD_BP[r] : DEBT_TERMS[kind].spreadBp;
+  return kind === 'revolver' ? REVOLVER_SPREAD_BP[r] : kind === 'gpuTerm' ? CHIP_LOAN_SPREAD_BP[r] : RATING_SPREAD_BP[r]; // bonds and assumed debt
 }
 /** Rate (%) a new draw of `kind` would pay today. */
 export function newDebtRatePct(s: GameStateV2, kind: Debt['kind']): number {
@@ -97,8 +97,7 @@ export function debtHeadroom(s: GameStateV2, kind: Debt['kind']): Headroom {
     const lim = DEBT_SIZING.bondOcfMult * ocf;
     return { max: Math.max(0, lim - drawnOf(f, 'bond')), limit: lim, why: `${DEBT_SIZING.bondOcfMult}× trailing operating cash flow` };
   }
-  if (kind === 'assumed') return shut('Comes only with a lab you buy');
-  return shut('Vendor notes come with vendor deals');
+  return shut('Comes only with a lab you buy'); // assumed debt
 }
 
 /** Undrawn part of the credit line as arranged (it counts in liquidity and covers negative cash automatically); 0 when

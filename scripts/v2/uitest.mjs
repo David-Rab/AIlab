@@ -869,6 +869,37 @@ ok('J1 C1: buy, build and rent show before → after (cash, runway)', await page
   await page.evaluate((v) => { const s = window.ai27v2.state; const o = JSON.parse(v); s.player.board.confidence = o.bc; window.ai27v2.notify(); }, saved);
   await wait(100);
 }
+// FIN4a (finance v3 §6): one offer per partner on the Partners card; an unavailable partner says why; an offer shows
+// its equity and tranche conditions, its supply on the expected path with both discounts, and its strings before you
+// sign; signing books those terms and the tranche conditions move to What we owe.
+{
+  await closeModals();
+  await pause();
+  await page.evaluate(() => { const s = window.ai27v2.state; s.player.finance.state = 'healthy'; s.player.board.confidence = 80; window.ai27v2.notify(); });
+  await nav('finance');
+  await page.click('[data-tabs=finance] [data-tab=deals]'); await wait(150);
+  ok('FIN4a: the Partners card lists the five partners', (await page.$$('[data-home=partners] [data-partner]')).length === 5, String((await page.$$('[data-home=partners] [data-partner]')).length));
+  const blocked = await page.$('[data-home=partners] [data-partner][data-blocked="1"]');
+  if (blocked) { await blocked.click(); await wait(120); }
+  const reason = await page.evaluate(() => document.querySelector('[data-test=partner-blocked]')?.textContent ?? '');
+  ok('FIN4a: an unavailable partner says why', !!blocked && reason.length > 10, reason);
+  await page.click('[data-home=partners] [data-partner="Azimuth"]'); await wait(150);
+  ok('FIN4a: the offer shows equity, its two tranche conditions and the supply on the expected path', !!(await page.$('[data-test=partner-equity]')) && (await page.$$('[data-tranche-offer]')).length === 2 && !!(await page.$('[data-test=partner-supply-terms] [data-test=price-path]')));
+  const offerText = await page.evaluate(() => document.querySelector('[data-test=partner-terms]')?.textContent ?? '');
+  ok('FIN4a: the offer names its discounts and its strings before signing', /firm/.test(offerText) && /partner/.test(offerText) && /take-or-pay/.test(offerText) && /exclusive/.test(offerText) && /revenue share/.test(offerText), offerText.slice(0, 160));
+  await page.hover('[data-test=partner-supply-terms] > span');
+  await wait(400);
+  ok('FIN4a: the supply tooltip breaks the price down (firm and partner discounts, take-or-pay)', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /Firm discount/.test(t) && /Partner discount/.test(t) && /Take-or-pay/.test(t); })()`)));
+  await clearTips();
+  await check('FIN4a: custom chips change the supply terms', `document.querySelector('[data-test=partner-supply-terms]')?.textContent ?? ''`, () => page.click('[data-test=partner-supply] [data-opt=asic]'));
+  await page.click('[data-test=partner-supply] [data-opt=cloud]'); await wait(100);
+  await shot('66-fin4a-partner-offer');
+  await check('FIN4a: Sign books the deal and its tranches', 's.player.finance.deals.filter((d) => d.partner === "Azimuth" && !d.legacy).length + ":" + s.player.finance.tranches.filter((t) => t.partner === "Azimuth").length', () => page.click('[data-act="fin.partner"]'), 200);
+  ok('FIN4a: a signed partner shows what runs and links its tranches to What we owe', !!(await page.$('[data-test=partner-signed]')) && !!(await page.$('[data-go="fin.go.partnerTranches"]')));
+  await shot('67-fin4a-partner-signed');
+  await page.click('[data-tabs=finance] [data-tab=owe]'); await wait(150);
+  ok('FIN4a: the partner\'s tranche conditions show in What we owe', /Azimuth tranche/.test(await page.evaluate(() => document.querySelector('[data-home=whatWeOwe]')?.textContent ?? '')));
+}
 // J2: engineers' load, spare serving, days cut, same-lineage monitors, risk lever what-ifs, launches on the build queue.
 await nav('company');
 await tabTo('people');

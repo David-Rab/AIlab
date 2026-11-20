@@ -5,20 +5,20 @@
 import { dateOfDay } from '../core/time';
 import type { CapitalWS3, Day, FinanceWS3, GameStateV2, MarketWS3, Money, PowerWS3, Site, SiteWS3, YearStats } from '../types';
 
-export type { CapitalWS3, DealOffer, FinanceWS3, LabOrder, MarketWS3, PendingRound, PowerWS3, SiteWS3, YearStats } from '../types';
+export type { CapitalWS3, FinanceWS3, LabOrder, MarketWS3, PendingRound, PowerWS3, SiteWS3, YearStats } from '../types';
 
 export function emptyYear(): YearStats {
   return {
     revenue: 0, payroll: 0, otherOpex: 0, computeCosts: 0, interest: 0,
     capexChips: 0, capexSites: 0, capexSitesFinanced: 0, supplierFunding: 0,
-    equity: 0, dealEquity: 0, debtDrawn: 0, spvFinanced: 0, cloudFinanced: 0, leaseFinanced: 0, vendorNotes: 0,
+    equity: 0, dealEquity: 0, debtDrawn: 0, spvFinanced: 0, cloudFinanced: 0, leaseFinanced: 0,
     minRunwayQ: 99, distressDays: 0,
   };
 }
 
 export function defaultFinanceWS3(cash: Money): FinanceWS3 {
   return {
-    offers: [], inventory: { transit: 0, ready: 0, book: 0 }, chipBook: 0, rentals: [], reserved: [],
+    inventory: { transit: 0, ready: 0, book: 0 }, chipBook: 0, rentals: [], reserved: [],
     recap: {}, opCashQ: 0, opCash4q: [], cashAtQStart: cash, accQ: { revenue: 0, opCosts: 0 }, capexCumAtQ: 0, capex4q: [], years: {},
   };
 }
@@ -53,4 +53,9 @@ export function yearStats(s: GameStateV2, day: Day = s.time.day): YearStats {
   const y = String(dateOfDay(s.time.startDate, day).getUTCFullYear());
   const ys = s.player.finance.ws3.years;
   return (ys[y] ??= emptyYear());
+}
+
+/** Share of revenue owed to partners now: the revenue-share strings of deals still running (FIN4a). */
+export function revenueShareRate(s: GameStateV2): number {
+  return s.player.finance.deals.reduce((a, d) => a + (d.until > s.time.day ? d.strings.revenueShare ?? 0 : 0), 0);
 }

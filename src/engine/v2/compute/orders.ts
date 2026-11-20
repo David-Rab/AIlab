@@ -55,10 +55,11 @@ export interface ChipQuote {
 }
 
 /** Quote for buying `qty` H100e (per tranche for tranche terms) on `term` (spec §5). Single batches are priced at the
- *  expected list price at delivery; tranches at the expected path × (1 − firm discount). Non-Taiwan supply +30%. */
-export function chipQuote(s: GameStateV2, term: number, qty: number, opts: { nonTW?: boolean; prepay?: number; firm?: boolean } = {}): ChipQuote {
+ *  expected list price at delivery; tranches at the expected path × (1 − firm discount). Non-Taiwan supply +30%.
+ *  `priceMult` scales the path for a partner's supply (FIN4a): its discount for the commitment, custom chips' cost. */
+export function chipQuote(s: GameStateV2, term: number, qty: number, opts: { nonTW?: boolean; prepay?: number; firm?: boolean; priceMult?: number } = {}): ChipQuote {
   const m = s.market;
-  const mult = opts.nonTW ? MARKET.nonTWPremium : 1;
+  const mult = (opts.nonTW ? MARKET.nonTWPremium : 1) * (opts.priceMult ?? 1);
   const q = qOf(s);
   if (term <= 0) {
     const price = spotPrice(m) * mult;
@@ -83,7 +84,7 @@ export function chipQuote(s: GameStateV2, term: number, qty: number, opts: { non
  * quarter, take-or-pay through the ledger at the expected path). `pay` sets how the balance due on delivery is paid
  * (spot and batches: cash, lease at `leaseRate`, or chip loan).
  */
-export function placeOrder(s: GameStateV2, ctx: SystemCtx, term: number, qty: number, opts: { nonTW?: boolean; prepay?: number; firm?: boolean; pay?: ChipOrder['pay']; leaseRate?: number } = {}): ChipOrder {
+export function placeOrder(s: GameStateV2, ctx: SystemCtx, term: number, qty: number, opts: { nonTW?: boolean; prepay?: number; firm?: boolean; pay?: ChipOrder['pay']; leaseRate?: number; priceMult?: number; payee?: string } = {}): ChipOrder {
   const qt = chipQuote(s, term, qty, opts);
   const q = qOf(s);
   const n = s.player.orders.length;
@@ -92,9 +93,9 @@ export function placeOrder(s: GameStateV2, ctx: SystemCtx, term: number, qty: nu
     const o: ChipOrder = { id, lab: 'player', qty, kind: 'lta', price: qt.price, prices: qt.prices, deposit: 0, dueQ: qt.dueQ, ltaStartQ: qt.dueQ, ltaEndQ: qt.dueQ + qt.quarters, prepayFrac: 0, nonTW: !!opts.nonTW, delivered: 0, firm: true };
     s.player.orders.push(o);
     // One payment per tranche, in the tranche's quarter, at that quarter's price on the path.
-    qt.prices!.forEach((p, k) => addLedger(s, { id: `L-${id}-${k}`, contract: id, payee: 'Chip supply', kind: 'lta', perQuarter: (qty * p) / 1e6, startDay: dayOfQuarter(s.time.startDate, qt.dueQ + k), endDay: dayOfQuarter(s.time.startDate, qt.dueQ + k + 1), cancellableNoticeQ: null, penalty: 0 }));
+    qt.prices!.forEach((p, k) => addLedger(s, { id: `L-${id}-${k}`, contract: id, payee: opts.payee ?? 'Chip supply', kind: 'lta', perQuarter: (qty * p) / 1e6, startDay: dayOfQuarter(s.time.startDate, qt.dueQ + k), endDay: dayOfQuarter(s.time.startDate, qt.dueQ + k + 1), cancellableNoticeQ: null, penalty: 0 }));
     const first = dateOf(s, dayOfQuarter(s.time.startDate, qt.dueQ));
-    ctx.log('finance', `Signed ${qt.quarters} quarters of chip supply: ${(qty / 1e6).toFixed(2)}M H100e a quarter at $${qt.prices![0].toFixed(1)}K falling to $${qt.prices![qt.quarters - 1].toFixed(1)}K (${Math.round(qt.discount * 100)}% firm discount). First tranche in Q${Math.floor(first.getUTCMonth() / 3) + 1} ${first.getUTCFullYear()}.`);
+    ctx.log('finance', `Signed ${qt.quarters} quarters of ${opts.payee ? `${opts.payee} ` : ''}chip supply: ${(qty / 1e6).toFixed(2)}M H100e a quarter at $${qt.prices![0].toFixed(1)}K falling to $${qt.prices![qt.quarters - 1].toFixed(1)}K (${Math.round(qt.discount * 100)}% firm discount). First tranche in Q${Math.floor(first.getUTCMonth() / 3) + 1} ${first.getUTCFullYear()}.`);
     return o;
   }
   const prepay = qt.kind === 'standard' ? Math.max(0.3, Math.min(1, opts.prepay ?? 0.3)) : 0;
@@ -128,11 +129,12 @@ export interface RentQuote {
   quarters: number;
 }
 
-/** Quote a cloud contract of `quarters` from next quarter (spec §5). */
-export function rentQuote(s: GameStateV2, h100e: number, quarters: number, firm: boolean): RentQuote {
-  const n = Math.max(1, Math.min(RENT_Q_MAX, Math.round(quarters)));
+/** Quote a cloud contract of `quarters` from next quarter (spec §5). `partnerDiscount`: a hyperscaler partner's cut
+ *  for its take-or-pay commitment, on top of the firm discount (FIN4a, firm only). */
+export function rentQuote(s: GameStateV2, h100e: number, quarters: number, firm: boolean, partnerDiscount = 0): RentQuote {
+  const n = Math.max(1, Math.round(quarters)); // the Rent compute card caps its own terms at RENT_Q_MAX; a partner runs 6 years
   const discount = firm ? firmDiscount(n) : 0;
-  const perH = Array.from({ length: n }, (_, k) => (firm ? expectedCloudPrice(s, 1 + k) * (1 - discount) : cancellablePricePerYear(s)));
+  const perH = Array.from({ length: n }, (_, k) => (firm ? expectedCloudPrice(s, 1 + k) * (1 - discount) * (1 - partnerDiscount) : cancellablePricePerYear(s)));
   const perQ = perH.map((p) => (h100e * p) / 1e6 / 4);
   return { perH, perQ, total: perQ.reduce((a, b) => a + b, 0), discount, quarters: n };
 }
@@ -140,9 +142,9 @@ export function rentQuote(s: GameStateV2, h100e: number, quarters: number, firm:
 /**
  * Cloud contract for `quarters` starting next quarter, no MW needed. Firm: take-or-pay at the expected path × (1 −
  * firm discount), one ledger entry per quarter. Cancellable: spot-indexed × 1.15, re-priced each quarter, 1 quarter's
- * notice. `flatPerH` ($K per H100e-year) keeps a partner deal's own flat take-or-pay price (FIN4 replaces partner deals).
+ * notice. `partnerDiscount`: a hyperscaler partner's cut off the firm price (FIN4a; firm only).
  */
-export function addCloud(s: GameStateV2, ctx: SystemCtx, h100e: number, quarters: number, provider: string, opts: { firm?: boolean; startQ?: number; flatPerH?: number } = {}): CloudContract {
+export function addCloud(s: GameStateV2, ctx: SystemCtx, h100e: number, quarters: number, provider: string, opts: { firm?: boolean; startQ?: number; partnerDiscount?: number } = {}): CloudContract {
   const firm = opts.firm ?? true;
   const n = Math.max(1, Math.round(quarters));
   const q1 = qOf(s) + (opts.startQ ?? 1);
@@ -151,14 +153,11 @@ export function addCloud(s: GameStateV2, ctx: SystemCtx, h100e: number, quarters
   const id = `C${s.time.day}-${s.player.cloud.length}`;
   const notice = firm ? null : FIRM_TERMS.noticeQ;
   let first: Money;
-  if (opts.flatPerH !== undefined) {
-    first = (h100e * opts.flatPerH) / 1e6 / 4;
-    addLedger(s, { id: `L-${id}`, payee: provider, kind: 'cloud', perQuarter: first, startDay, endDay, cancellableNoticeQ: null, penalty: 0 });
-  } else if (!firm) {
+  if (!firm) {
     first = (h100e * cancellablePricePerYear(s)) / 1e6 / 4;
     addLedger(s, { id: `L-${id}`, payee: provider, kind: 'cloud', perQuarter: first, startDay, endDay, cancellableNoticeQ: notice, penalty: 0 });
   } else {
-    const qt = rentQuote(s, h100e, n, true);
+    const qt = rentQuote(s, h100e, n, true, opts.partnerDiscount ?? 0);
     first = qt.perQ[0];
     qt.perQ.forEach((p, k) => addLedger(s, { id: `L-${id}-${k}`, contract: id, payee: provider, kind: 'cloud', perQuarter: p, startDay: dayOfQuarter(s.time.startDate, q1 + k), endDay: dayOfQuarter(s.time.startDate, q1 + k + 1), cancellableNoticeQ: null, penalty: 0 }));
   }

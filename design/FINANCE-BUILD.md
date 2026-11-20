@@ -685,3 +685,128 @@ Numbers, before (FIN3b 85fb385) → after (FIN3c):
   labs; the bust-distress offer gap above); the compute a bought lab brings is not wired (`absorbedCompute` unread);
   FIN6a may tune the 0.5 discount and the two-year obligation term against how rarely the merger vote passes for an
   aggressive lab; `design/V2-SPEC.md` §4.2 E32 text is stale (FIN6c docs pass).
+
+### FIN4a notes (2026-11-20)
+
+Built: one partner offer flow (`finance/deals.ts` rewritten): `partnerTerms` (the live terms of a partner, never
+stored), `partnerBlocker` (why a partner will not deal), `partnerOffers` (every partner with its terms or its reason),
+`signPartner` (votes first, then books exactly the terms), `dealVotes` (sale of control, then the rescue vote or the
+commitments vote on the first year of take-or-pay), `rescuePartner`, `anchorPartners`; one action `fin.partner` "Sign
+partner" (params `partner`, `supply`); `fin.rescue` in the same flow; `PARTNER_KINDS` / `PARTNER_TERMS` in
+`data/v2/deals.ts` with every number tagged; new deal records (`StrategicDeal`: partner, kind, equity now / in tranches,
+`supply` as signed with both discounts and its end day, `strings` with only live strings, `until`, `rescue`, `legacy`)
+and `PartnerTerms`; partner tranches buy shares when they land (`Tranche.partner`, `stakeCap`; `partnerEquityIn`,
+`stakeRoom` in `finance/equity.ts`); `revenueShareRate` (ext.ts) for cashflow and runway; `rentQuote` / `addCloud` take a
+partner discount, `chipQuote` / `placeOrder` a price multiplier and a payee. UI: the Partners card on "Debt & partners"
+(one row per partner with its status and a tooltip of what the kind gives and wants; the selected partner's offer:
+supply choice for Azimuth, equity now + tranches with the stake after, each tranche with its condition and lapse quarter,
+the supply with its price path, firm and partner discounts and take-or-pay total, the strings as pills, Sign with the
+board's vote strip when one is needed; a blocked partner shows its reason; a signed partner shows what runs with links to
+What we owe and Contracts), What we owe's tranche rows name their source, the Raise card's anchor list from
+`anchorPartners`. schemaRev 15 → 16 with a migration.
+
+Removed (no aliases): `fin.seekPartner`, `fin.acceptDeal`, `fin.declineDeal`; `DEAL_TEMPLATES`, `DEAL_TERMS`,
+`DealTemplate`, `Partner.templates`, `DealOffer`, `ws3.offers`, `dealTerms`, `dealBlocker`, `partnerFor`,
+`seekPartner`, `acceptDeal`, `declineDeal`, `rescueOffer`, `dealMenu`, `acceptAllOffers`; the vendor-financing template,
+the `vendorNote` debt kind (DEBT_TERMS, headroom, UI tile, glossary), the unused `vendor` ledger kind and the
+`vendorNotes` tally; `addCloud`'s `flatPerH` (the flat partner price); the sovereign's in-country site; the strings
+`observer`, `ipRights`, `inCountrySite`, `boardSeat` (now `boardVotes`, rescue only); the "Northwind Cloud (observer)"
+seats of the three leader presets and the challenger's observer seat (`addSeat`'s observer path).
+
+Choices and readings of the spec:
+- **Flow.** No offers to seek, accept, decline or let expire: every partner's terms are computed live from the company
+  and the market and shown in full on its card; signing books those terms (the votes come first, nothing is booked if
+  one fails). This is the simplest flow that keeps "every term visible before signing" and "no recurring decisions".
+- **One deal per partner** (any deal signed in the game, rescue included; a stake from before the start does not
+  count). Before FIN4a the same template could be signed again and again (a sovereign cheque every month); several
+  different partners at once stay possible as before (no cap of 3: FIN4b). A rescue is exempt from the per-partner rule.
+- **Hyperscaler** (Northwind: cloud; Azimuth: cloud or custom chips). Equity sized as before (3% of V per tranche,
+  $5–15B, three tranches: now, then `gw:` +0.5 GW by q+8 and +1.5 GW by q+10, kept), non-voting and capped at 15% of the
+  company per hyperscaler, tranches included (the cap is per partner and counts its existing stake: E ≤ V(cap − stake) /
+  (1 − cap); fewer than $5B of room → unavailable with "holds X%: a hyperscaler's stake is capped at 15%"). A tranche
+  lands at that day's valuation only up to the cap; the rest lapses (logged). **Cloud**: capacity sized as before (4 ×
+  the equity over 6 years at today's cloud price, so the bot's compute plan is unchanged), paid each quarter on the
+  expected cloud path less the firm discount (10% at 6 years) and the partner's 10% [D], one ledger entry per quarter
+  exactly as Rent compute; served first like any firm cloud. **Custom chips**: 1 GW over 8 quarters (kept) at 45% of the
+  H100e list path less the firm discount (5% at 2 years), a separate supply pool and the migration slowdown (kept); the
+  45% is the chips' cost (perf/$), shown as such; no extra partner discount. Strings: exclusivity (kept exactly: blocks
+  the competitor for good) and the 8% revenue share (kept), now for the deal's 6 years (it ran for ever before). No
+  board seat.
+- **Chip vendor**: $10B per GW (two `gw:` tranches, +1 and +2 GW online by q+12, kept); you buy 2 GW of its chips over 8
+  quarters on the list path less the firm (5%) and vendor (5% [D], the old ×0.95) discounts, take-or-pay through the
+  ledger with the vendor as payee; +0.5 allocation weight on every chip order while its supply runs (it was for ever
+  once signed). The tranches now buy shares (they paid cash without shares before). "Per GW of its chips" is read as GW
+  online, as before (the market does not track whose chips you run).
+- **Sovereign**: 2.5% of V ($5–25B) now, no seat, no supply, no strings; scrutiny +5, Congress trust −5, security demand
+  +3 (kept, now labelled "<partner> cheque"); no in-country site.
+- **Rescue** (distress only, once a year, kept): the first hyperscaler or sovereign not blocked by exclusivity and not
+  anchoring another lab; cash min(15% of V, max($20B, 2 quarters of burn)), the partner topped up to exactly 30% (the old
+  top-up undershot: issuing new shares diluted the partner too), one strategic seat with two votes, exclusivity. The IP
+  flag is gone (FIN4b builds IP access); the 15% hyperscaler cap does not apply (a rescue is the distressed control deal
+  of spec §6.2). Its votes: sale of control (trust, then board) when past 50%, then the board's rescue vote, held once
+  (before FIN4a the rescue re-ran the deal votes without the force flag).
+- **Tranche conditions** gw, revenue, ipo, recapitalisation kept; missed → lapses (recap cut kept). Partner tranches
+  show in What we owe with their source.
+- **Legacy stakes.** The Northwind stake (27%) and the challenger's Azimuth (15%) are `legacy` records with no strings
+  and no seat; both sit at or above the 15% cap, so neither sells more equity (Microsoft took its later Azure deals
+  without new equity). Microsoft gave up its OpenAI observer seat in Jul 2024 [R21 B3], hence no observer seat at a 2025
+  start.
+- **Migration 15 → 16**: template records → partner records (hyperscalerEquity and customASIC → hyperscaler,
+  chipVendorEquity → chip vendor, sovereign → sovereign; vendorFinance dropped); day < 0 → legacy; exclusivity and
+  revenue share kept, the revenue share to 6 years after signing; old chip and ASIC deals keep their priority for 10
+  quarters; open offers dropped; vendor notes become bond-like loans with their spread and maturity (no other debt kind
+  fits a supplier loan; none exist in bot play); weight-0 strategic seats dropped. Contracts, orders and tranches signed
+  before stay exactly as signed (old partner tranches land as cash without shares, as they were signed). Records
+  already in the new shape pass through (fixtures re-migrated by tests).
+- **Deviation**: the hyperscaler's cloud capacity is sized at today's price (as before), not by a dollar commitment of 4–12
+  × the equity (R15) paid on the path: sized in dollars, the falling path would buy ≈ 2.4× the capacity and the reference
+  bot would stop building (F7 capex well under its band). So the take-or-pay total is now ≈ 1.4 × the equity (RefBot
+  $50B for $37B of equity). FIN6a can revisit the size with FC4 (commitments several × revenue).
+- **Bot (rule 12).** `financeAutopilot` (strategic bots: ref, mixed, race, capex2x) signs one hyperscaler cloud deal from
+  Q4 2025: the hyperscaler offering the most equity (Azimuth on the leader start: Northwind is over the cap), if runway
+  after its first take-or-pay payment stays ≥ `DEAL_GUARD_Q` (as before, now with the first path payment).
+
+Numbers, before (FIN3c a50eae3) → after (FIN4a):
+- The reference bot's partner deal (scratch diagnostic, 12 seeds to end-2027, not committed): before, Northwind Cloud on
+  day 92, $12B now + 2 × $12B on gw 1.7 / 2.7 (both landed by day 457, as cash without shares), 1.47M H100e of cloud for
+  24 quarters at a flat $16.7K/H100e-yr (path then $15.3K), $148B take-or-pay, Northwind's stake 27% → ≈ 25%. After,
+  **Azimuth** on day 92 in 12/12 seeds, the same equity and tranches (both land; Azimuth ends 2027 at ≈ 4% after
+  dilution), the same 1.47M H100e for 24 quarters at $12.4K falling to $2.1K/H100e-yr (path − 10% firm − 10% partner),
+  **$51B take-or-pay** (median $50.4B in finance.ts), 8% revenue share for 6 years, exclusivity against Northwind.
+  Rescues: Azimuth instead of Northwind (Northwind is blocked by Azimuth's exclusivity); distress by end-2027 2/12 → 3/12
+  seeds (seed 5 now reaches distress in Q2 2027 and is rescued).
+- `scripts/v2/finance.ts`: F7 2026 capex $156.2B → $158.4B (range 113–175), compute $28.3B → $28.4B, power 6.7 → 6.7 GW,
+  valuation $1.47T → $1.48T; F8 lease/colocation/cloud financing $64.6B → $73.4B, distress-free through 2026 83.3% →
+  83.3%, no-deal path and capex2x distress 100% → 100%; F9 unanchored dilution max 5.3% → 5.3% (81 → 78 rounds); RefBot
+  rounds 2026 4 / 2027 2 (unchanged), promises met 81% → 80%, end-2027 board confidence 60.1 → 61.3. **F2** (known
+  failure) now passes: 44.4M → 45.3M (band 45–60M; one long seed, a side effect, not a calibration fix).
+- `scripts/v2/bots.ts` (200 seeds, leader start): all §7.4 criteria MET. Wins race 1.5 → 1.5%, safe 1.0 → 1.0%, mixed
+  52.5 → 50.0%, ref 22.5 → 21.0%, capex2x 3.0 → 3.0%. Ousted ref 12.0 → 12.5%, mixed 12.5 → 12.0%, race 13.0 → 13.0%,
+  safe 32.5 → 32.5%, capex2x 47.5 → 47.5% (insolvent 36.0 → 36.0%). Safe losses overtaken/other-ASI-first 66% → 66%.
+- **Two incidental fixes reverted to their baseline failures** (both on the known list; both moved by the cheaper partner
+  cloud, which the phase requires): worldfx `HireRate_SOFT ≤ 10%` reached 2027-07-15 (FIN3b/3c) → 2027-03-15 (baseline
+  2027-03-24; window Apr–Oct); safety **S5** mixed-bot median min margin −0.35 (FIN3c) → −0.52 (threshold −0.5;
+  baseline −0.95). Checked on worldfx's one reference game: with partner tranches booked as cash only, or with the bot
+  dealing with Northwind (cap lifted), the date stays 2027-03-15; with the partner cloud priced ≈ 2.5× the path (about the
+  old flat total) it is 2027-05-06 (pass). So the reference bot's lower take-or-pay (more cash, more compute) brings the
+  hiring collapse forward; S5 is the same bot family one notch past its line (not separately verified). Neither is a
+  finance target; left for the WS5 / safety calibration owners (FIN6a should re-check after its own tuning).
+- Tests: `npm run typecheck` clean. test:v2 chain: golden-timelines, identity, calib, fixtures, hygiene (perf passed: 964
+  / 1150 µs daily average), lint-hidden, lint-ux, lint-tradeoffs, lint-structure green; safety S5 −0.52 (above); then one
+  by one: finance all passed (129 checks); worldfx HireRate_SOFT 2027-03-15 (above); ws4, products, money, idle green.
+  `npm run test:ui` 289/289. Test changes: finance.ts F8's "strategic deal" = any non-legacy partner deal (vendor
+  financing is gone); the action loop no longer seeks a partner first; the FIN3b trust test and the FIN3c board
+  sale-of-control test now give the sovereign a 49% stake (offers are live terms, no injected offer); 14 new FIN4a checks
+  (the old ids and vendor notes are gone; the leader start's legacy Northwind over the cap and no observer seats;
+  hyperscaler cloud on the path with both discounts, the schedule booked = the one shown, tranches with conditions and
+  cap, no seat; the preview shows every term; one deal per partner and exclusivity; a tranche buys shares and stops at
+  15%; custom chips; chip vendor with priority only while it supplies; sovereign without a site; the commitments vote;
+  distress only a rescue; the rescue's stake, seat and strings; migration 15 → 16; the RefBot's deal). uitest: 9 new
+  FIN4a checks (five partners, a blocked partner's reason, equity, tranches and price path, discounts and strings before
+  signing, the supply tooltip, custom chips change the terms, Sign books the deal and tranches, the signed view, What we
+  owe). Fixtures regenerated (schemaRev 16); `design/ux/GLOSSARY.md` regenerated (`deal` → "Strategic partner",
+  `rescue`, `boardSeat`, `trancheCondition`, `allocation`, `ledger` updated; `vendorNote` removed).
+- Left for later: FIN4b (up to 3 partners, optional exclusivity for more money, IP access behind the trust's transfer
+  vote, a partner's guarantee opening leases below B); an anchor partner on a round still takes half the round's
+  dilution with no 15% check (anchor behaviour kept as asked; FIN4b should cap a hyperscaler anchor); the take-or-pay
+  size against FC4 (FIN6a); `design/v2-interfaces.ts` and V2-SPEC §3.7.4 still describe the templates (FIN6c).

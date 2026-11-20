@@ -106,7 +106,7 @@ export function OweCard({ s }: { s: GameStateV2 }) {
         {o.tranches.map((t, i) => (
           <Tip as="div" key={i} content={() => <TipCard title={t.source} value={F.money(t.amount)} rows={[{ label: 'Condition', value: t.label }, { label: 'Due', value: day(s, t.dueDay) }, ...(t.deadline !== undefined ? [{ label: 'Lapses', value: `${day(s, t.deadline)} · ${t.daysLeft} d left` }] : [])]}>A contract: miss the condition by the deadline and the tranche lapses.</TipCard>}>
             <div className="owe-row" data-tranche={i}>
-              <span className="row-i"><ICON.cash size={13} /><span className="ellip">{F.money(t.amount)} · {t.label}</span></span>
+              <span className="row-i"><ICON.cash size={13} /><span className="ellip">{t.source} · {F.money(t.amount)} · {t.label}</span></span>
               <HBar v={t.progress} max={1} w="100%" h={8} color={t.met ? C.good : C.watch} />
               <span className="owe-meta">{t.daysLeft !== undefined && <span className="dim">{t.daysLeft} d</span>}<span className={`tag2 ${t.met ? 'good' : ''}`}>{t.met ? 'met' : 'open'}</span></span>
             </div>

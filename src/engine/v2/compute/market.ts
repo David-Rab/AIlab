@@ -228,9 +228,10 @@ export function ration(supply: number, claims: Claim[]): void {
 }
 
 /** Rationing weight of a player order: 1 + 0.5·firm + 0.5·prepay + 0.5·strategic + 0.3·track [R15]. Firm = a
- *  take-or-pay order (tranches or a firm batch; spec §5 "firm contracts get priority"). */
+ *  take-or-pay order (tranches or a firm batch; spec §5 "firm contracts get priority"). Strategic = a chip partner's
+ *  supply is running (a chip vendor's or a hyperscaler's custom chips, FIN4a: while the deal runs). */
 export function orderWeight(s: GameStateV2, firm: boolean, prepayFrac: number): number {
-  const strategic = s.player.finance.deals.some((d) => d.template === 'chipVendorEquity' || d.template === 'customASIC') ? 1 : 0;
+  const strategic = s.player.finance.deals.some((d) => (d.kind === 'chipVendor' || d.supply?.kind === 'asic') && (d.supply?.endDay ?? d.until) > s.time.day) ? 1 : 0;
   const track = Math.min(1, s.player.computeOnline / 5e6);
   return 1 + MARKET.rationW.firm * (firm ? 1 : 0) + MARKET.rationW.prepay * prepayFrac + MARKET.rationW.strategic * strategic + MARKET.rationW.track * track;
 }

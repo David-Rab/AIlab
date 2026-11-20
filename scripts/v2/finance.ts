@@ -5,12 +5,12 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { BASELINES, globalCompute } from '../../src/data/world';
-import { CAPEX_LEASE, DEAL_TEMPLATES } from '../../src/data/v2/deals';
+import { CAPEX_LEASE, DEBT_TERMS, MARKET, PARTNER_TERMS } from '../../src/data/v2/deals';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx, resolve, tick } from '../../src/engine/v2/core/loop';
 import { deserialize, serialize } from '../../src/engine/v2/core/save';
 import { cadencesDue, dayOfDate, decimalYear, quarterIndex } from '../../src/engine/v2/core/time';
-import { cloudPricePerYear, demandShock, impliedMargin, orderWeight, rentalBase, repriceCancellableCloud, spotRental } from '../../src/engine/v2/compute/market';
+import { cloudPricePerYear, demandShock, expectedCloudPrice, expectedListPrice, impliedMargin, orderWeight, rentalBase, repriceCancellableCloud, spotRental } from '../../src/engine/v2/compute/market';
 import { chipQuote, rentQuote } from '../../src/engine/v2/compute/orders';
 import { newSite, oppositionOdds, reactiveUnblockOdds } from '../../src/engine/v2/compute/sites';
 import { contingentLiabilities, crf, siteLeaseId, siteRVG } from '../../src/engine/v2/finance/capex';
@@ -19,12 +19,12 @@ import { ACQUIRE, acquireTerms, acquireVotes, rivalObligations, shownVote } from
 import { FINANCE_ACTIONS, raiseQuote } from '../../src/engine/v2/finance/actions';
 import { boardVote, CRITICS, criticsAvailable, debtVote, founderControl, initialBoard, OUSTER, ousterVote, updateRunwayState, VOTE } from '../../src/engine/v2/finance/board';
 import { MOOD_SOURCE_OF, MOOD_WEIGHTS, moodWeight } from '../../src/engine/v2/finance/mood';
-import { acceptRepriced, bookRound, closePendingRound, dMax, raiseCeiling, REPRICED_DECIDE_DAYS, valuationMark, valuationNow } from '../../src/engine/v2/finance/equity';
+import { acceptRepriced, bookRound, closePendingRound, dMax, partnerEquityIn, raiseCeiling, REPRICED_DECIDE_DAYS, valuationMark, valuationNow } from '../../src/engine/v2/finance/equity';
 import { whatWeOwe } from '../../src/engine/v2/finance/owe';
 import { credRung, judgePromises, livePromises, makeThesis, PROMISE_RESULT, promiseDeadline, promiseWeight, trendOf } from '../../src/engine/v2/finance/promises';
 import { charterReleaseBlock, charterRights, controlVote, transferVote } from '../../src/engine/v2/finance/charter';
-import { acceptDeal, dealTerms, dealVotes, partnerFor, partnerStakeAfter } from '../../src/engine/v2/finance/deals';
-import { ensureWs3 } from '../../src/engine/v2/finance/ext';
+import { dealVotes, dealWith, firstYearCommit, partnerBlocker, partnerOffers, partnerStakeAfter, partnerTerms, signPartner } from '../../src/engine/v2/finance/deals';
+import { qOf } from '../../src/engine/v2/finance/ledger';
 import { deployGate } from '../../src/engine/v2/models/deployments';
 import { editBlock } from '../../src/engine/v2/models/productOps';
 import { applyShock } from '../../src/engine/v2/finance/investors';
@@ -149,7 +149,6 @@ function shockRun(baseMult: number, mult: number, atQ: number, nQ = 16) {
 }
 
 // ───────────────────────────── F7, F8: RefBot, no-financing variant, capex2x ─────────────────────────────
-const STRATEGIC = new Set(DEAL_TEMPLATES.filter((t) => t.strategic).map((t) => t.id));
 const ref = SEEDS.map((seed) => runBot(seed, REF_AUTOPILOT, END_2027));
 const y26 = ref.map((r) => r.s.player.finance.ws3.years['2026']);
 // FIN1: chips a lessor paid at delivery count as capex too (supplier funding is gone, its tally stays 0).
@@ -163,7 +162,8 @@ check(med.v >= 1000 && med.v <= 3000, 'F7 RefBot end-2026 valuation $1–3T', `m
 
 const funded = ref.map((r) => {
   const y = r.s.player.finance.ws3.years['2026'];
-  const deal = r.s.player.finance.deals.some((d) => STRATEGIC.has(d.template) && d.day >= 0 && d.day < END_2026);
+  // FIN4a: every partner deal is strategic (vendor financing is gone); stakes from before the start do not count.
+  const deal = r.s.player.finance.deals.some((d) => !d.legacy && d.day >= 0 && d.day < END_2026);
   return { deal, fin: y.spvFinanced + y.leaseFinanced + y.cloudFinanced };
 });
 check(share(funded.map((x) => x.deal && x.fin >= 50)) >= 0.8, 'F8 RefBot takes ≥ 1 strategic deal and ≥ $50B lease/colocation/cloud financing in 2026 (≥ 80% of seeds)', `${share(funded.map((x) => x.deal && x.fin >= 50)) * 100}% · median financing $${f1(median(funded.map((x) => x.fin)))}B`);
@@ -242,7 +242,6 @@ let applied = 0;
 for (const a of FINANCE_ACTIONS) {
   const s = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
   s.player.finance.state = a.id === 'fin.rescue' || a.id === 'fin.downRound' || a.id === 'fin.renegotiate' ? 'distress' : s.player.finance.state;
-  if (a.id === 'fin.acceptDeal' || a.id === 'fin.declineDeal') FINANCE_ACTIONS.find((x) => x.id === 'fin.seekPartner')?.apply(s, makeCtx(s), {});
   let err = '';
   try {
     if (a.available(s) === true) {
@@ -685,17 +684,17 @@ for (const a of FINANCE_ACTIONS) {
     const gp = deployGate(s, plain, 'open');
     const cv = controlVote(s, 'Test partner', 0.6);
     check(typeof g === 'string' && /trust votes no/.test(g) && tv.body === 'trust' && !tv.canForce && tv.seats.length > 0 && tv.seats.every((x) => x.kind === 'mission') && !(typeof gp === 'string' && /trust/.test(gp)) && !!cv && !cv.passes && !controlVote(s, 'Test partner', 0.4), 'FIN3b PBC + trust: the trust votes no on open weights of a capability-threshold model and on a sale of control (mission seats only, no force); no vote below 50% or without a threshold flag', `${g} · control: ${cv?.yes}/${cv?.total}`);
-    // A deal that would hand a partner control stops at the trust before anything is booked.
-    const partner = partnerFor(s, 'sovereign');
-    if (partner) {
-      ensureWs3(s);
-      const V = s.player.finance.valuation;
-      s.player.finance.ws3.offers.push({ ...dealTerms(s, 'sovereign', partner), id: 'OF-trust', day: s.time.day, expiresDay: s.time.day + 30, equityNow: 10 * V });
+    // A deal that would hand a partner control stops at the trust before anything is booked. FIN4a: offers are
+    // computed live, so the partner already holds 49% and its cheque would take it past half.
+    {
+      const partner = 'Gulf Sovereign Fund';
+      s.player.finance.ownership = { founder: 0.2, mission: 0.2, fin: 0.11, strat: { [partner]: 0.49 }, public: 0 };
       const cash0 = s.player.finance.cash;
       const own0 = JSON.stringify(s.player.finance.ownership);
-      const err = acceptDeal(s, makeCtx(s), 'sovereign', partner, { offerId: 'OF-trust', force: true });
-      check(typeof err === 'string' && /trust votes no/.test(err) && s.player.finance.cash === cash0 && JSON.stringify(s.player.finance.ownership) === own0 && partnerStakeAfter(s, s.player.finance.ws3.offers.find((o) => o.id === 'OF-trust')!) > 0.5, 'FIN3b a deal past 50% under PBC + trust stops at the trust (no cash, no shares, force does not help)', String(err));
-    } else check(false, 'FIN3b a deal past 50% under PBC + trust stops at the trust', 'no sovereign partner on the fixture');
+      const after = partnerStakeAfter(s, partnerTerms(s, partner));
+      const err = signPartner(s, makeCtx(s), partner, { force: true });
+      check(typeof err === 'string' && /trust votes no/.test(err) && s.player.finance.cash === cash0 && JSON.stringify(s.player.finance.ownership) === own0 && after > 0.5 && !dealWith(s, partner), 'FIN3b a deal past 50% under PBC + trust stops at the trust (no cash, no shares, force does not help)', `${String(err)} · stake after ${F1pct(after)}`);
+    }
     const o = fx();
     o.player.board = initialBoard('nonprofitPBC');
     check(!controlVote(o, 'Test partner', 0.6) && !transferVote(o, v, 'open'), 'FIN3b only PBC + trust has the trust\'s votes');
@@ -915,12 +914,15 @@ for (const a of FINANCE_ACTIONS) {
   {
     const s = fx();
     s.player.board = initialBoard('pbcTrust');
-    const partner = partnerFor(s, 'sovereign');
-    const t = partner ? { ...dealTerms(s, 'sovereign', partner), equityNow: 10 * s.player.finance.valuation } : undefined;
-    const vs = t ? dealVotes(s, t) : [];
+    const partner = 'Gulf Sovereign Fund';
+    const own = { founder: 0.2, mission: 0.2, fin: 0.11, strat: { [partner]: 0.49 }, public: 0 };
+    s.player.finance.ownership = structuredClone(own);
+    const t = partnerTerms(s, partner);
+    const vs = dealVotes(s, t);
     const o = fx();
     o.player.board = initialBoard('nonprofitPBC');
-    const ov = t ? dealVotes(o, t) : [];
+    o.player.finance.ownership = structuredClone(own);
+    const ov = dealVotes(o, t);
     check(!!t && vs[0]?.body === 'trust' && vs[1]?.decision === 'saleOfControl' && vs[1]?.body !== 'trust' && ov[0]?.decision === 'saleOfControl' && ov[0]?.body !== 'trust', 'FIN3c a deal that hands a partner control needs the board\'s sale-of-control vote (after the trust\'s, under PBC + trust)', vs.map((v) => `${v.body ?? 'board'} ${v.decision}`).join(', '));
   }
   // E22: the absorbed labs' obligations follow the same rule; accepting is a merger vote; no price.
@@ -940,6 +942,147 @@ for (const a of FINANCE_ACTIONS) {
     const entries = s.player.finance.ledger.filter((c) => c.kind === 'acquired');
     const debt = s.player.finance.debts.filter((x) => x.kind === 'assumed').reduce((a, x) => a + x.drawn, 0);
     check(!!v && v.decision === 'merger' && !err && entries.length === priv.filter((r) => r.finance.commitments > 0).length && Math.abs(entries.reduce((a, c) => a + c.perQuarter * ACQUIRE.termQ, 0) - want) < 1e-6 && Math.abs(debt - priv.length) < 1e-9 && s.player.finance.cash === cash0 && Math.abs(-pv.exposure.filter((c) => c.currency === 'cash')[0].amount - Math.round(want * 10) / 10) < 1e-9, 'FIN3c E22 DPA consolidation: each private lab\'s contracts and debt are yours (parent-funded labs bring none), no price; accepting needs the board\'s merger vote, shown first', `${entries.length} contract entries $${f1(want)}B · debt $${f1(debt)}B · vote ${v?.yes}/${v?.total}`);
+  }
+}
+
+// ───────────────────────────── FIN4a: partner offers (FINANCE-V3 §6.1–§6.3) ─────────────────────────────
+{
+  const fx = () => deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
+  const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math.max(1, Math.abs(b));
+  // The old flow and its templates are gone; one action signs a partner on the terms shown.
+  check(!FINANCE_ACTIONS.some((a) => ['fin.seekPartner', 'fin.acceptDeal', 'fin.declineDeal'].includes(a.id)) && FINANCE_ACTIONS.some((a) => a.id === 'fin.partner') && !('vendorNote' in DEBT_TERMS), 'FIN4a one partner offer flow (fin.partner) replaces seek / accept / decline; no vendor-note debt');
+  {
+    // Leader start: the legacy Northwind stake (27%) is a holder above the 15% hyperscaler cap; no observer seats.
+    const s = newGame(defaultSetupV2({ seed: 4 }));
+    const nw = s.player.finance.deals.find((d) => d.partner === 'Northwind Cloud');
+    const why = partnerBlocker(s, 'Northwind Cloud');
+    const offers = partnerOffers(s);
+    check(!!nw?.legacy && JSON.stringify(nw.strings) === '{}' && !!why && /capped at 15%/.test(why) && !s.player.board.seats.some((x) => /observer/.test(x.holder)) && offers.filter((o) => !o.blocked).map((o) => o.partner).join(',') === 'Azimuth,Silica Systems,Corvid Micro,Gulf Sovereign Fund', 'FIN4a leader start: Northwind is a legacy holder above the 15% cap (no observer seat, no strings); the four other partners offer terms', `${why} · open: ${offers.filter((o) => !o.blocked).map((o) => o.partner).join(', ')}`);
+  }
+  {
+    // Hyperscaler on cloud: equity in three tranches; capacity priced on the expected cloud path less the firm discount
+    // (10% at 6 years) and the partner's 10%; the take-or-pay schedule booked is the one shown; exclusivity and revenue
+    // share; no board seat; the tranches carry their conditions and the cap.
+    const s = fx();
+    const ctx = makeCtx(s);
+    const t = partnerTerms(s, 'Azimuth', { supply: 'cloud' });
+    const sp = t.supply!;
+    const pathOk = sp.prices.every((p, k) => near(p, expectedCloudPrice(s, 1 + k) * (1 - 0.1) * (1 - PARTNER_TERMS.hyperscaler.discount)));
+    const seats0 = s.player.board.seats.length;
+    const cash0 = s.player.finance.cash;
+    const err = signPartner(s, ctx, 'Azimuth', { supply: 'cloud' });
+    const d = dealWith(s, 'Azimuth');
+    const led = s.player.finance.ledger.filter((c) => c.payee === 'Azimuth');
+    const ledTotal = led.reduce((a, c) => a + c.perQuarter, 0);
+    const tr = s.player.finance.tranches.filter((x) => x.partner === 'Azimuth');
+    check(!err && pathOk && sp.partnerDiscount === PARTNER_TERMS.hyperscaler.discount && sp.firmDiscount === 0.1 && sp.prices[0] > sp.prices[sp.prices.length - 1] && near(ledTotal, sp.total) && led.length === sp.quarters && led.every((c) => c.cancellableNoticeQ === null) && near(s.player.finance.cash - cash0, t.equityNow, 1e-3) && tr.length === 2 && tr.every((x) => /^gw:/.test(x.condition ?? '') && x.stakeCap === 0.15 && x.deadline! > x.dueDay) && s.player.board.seats.length === seats0 && !!d?.strings.exclusivity && d.strings.revenueShare === 0.08,
+      'FIN4a hyperscaler cloud: priced on the expected path less the firm (10%) and partner (10%) discounts, the same take-or-pay schedule booked, equity now + two GW tranches under the 15% cap, exclusivity and revenue share, no board seat',
+      `${f1(sp.h100e / 1e6)}M H100e · $${f1(sp.first)}K → $${f1(sp.last)}K/H100e-yr · take-or-pay $${f1(sp.total)}B · equity $${f1(t.equityNow)}B + 2 × $${f1(tr[0]?.amount ?? 0)}B`);
+    // The preview shows what signing books: cash now, the first payment, the tranches with their conditions.
+    const s2 = fx();
+    const pv = FINANCE_ACTIONS.find((a) => a.id === 'fin.partner')!.preview(s2, { partner: 'Azimuth', supply: 'cloud' });
+    const t2 = partnerTerms(s2, 'Azimuth', { supply: 'cloud' });
+    check(pv.gains.some((g) => g.currency === 'cash' && near(g.amount, t2.equityNow) && g.target === 'now') && pv.gains.filter((g) => g.currency === 'cash' && /tranche: if/.test(String(g.target))).length === 2 && pv.costs.some((c) => c.currency === 'cash' && near(-c.amount, t2.supply!.perQ[0]) && /−10% partner/.test(String(c.target))) && pv.costs.some((c) => c.currency === 'revenue') && pv.exposure.some((c) => /exclusivity: no deals with Northwind/.test(String(c.target))), 'FIN4a the offer\'s preview shows every term and string before signing (cash now, tranches and their conditions, the first take-or-pay payment with both discounts, revenue share, exclusivity)');
+    // One deal per partner; its exclusivity blocks the competitor (kept as before FIN4a).
+    check(/Already your partner/.test(partnerBlocker(s, 'Azimuth') ?? '') && /exclusivity blocks deals with Northwind/.test(partnerBlocker(s, 'Northwind Cloud') ?? ''), 'FIN4a one deal per partner; a hyperscaler\'s exclusivity blocks its competitor', `${partnerBlocker(s, 'Azimuth')} · ${partnerBlocker(s, 'Northwind Cloud')}`);
+    // A tranche buys shares at that day's valuation (it booked cash with no shares before FIN4a), and only up to the cap.
+    const own0 = s.player.finance.ownership.strat['Azimuth'] ?? 0;
+    for (const x of tr) { x.dueDay = s.time.day; x.condition = 'gw:0'; }
+    const dealEq = (x: GameStateV2) => Object.values(x.player.finance.ws3.years).reduce((a, y) => a + y.dealEquity, 0);
+    const de0 = dealEq(s);
+    const q0 = qOf(s);
+    while (qOf(s) === q0) tick(s, { skip: ['endings'] });
+    const own1 = s.player.finance.ownership.strat['Azimuth'] ?? 0;
+    const landed = dealEq(s) - de0;
+    const big = partnerEquityIn(s, makeCtx(s), 'Azimuth', 10 * s.player.finance.valuation, 'test tranche', 0.15);
+    check(!s.player.finance.tranches.some((x) => x.partner === 'Azimuth') && own1 > own0 && near(landed, tr.reduce((a, x) => a + x.amount, 0), 1e-3) && near(s.player.finance.ownership.strat['Azimuth'], 0.15, 1e-6) && big < 10 * s.player.finance.valuation, 'FIN4a a partner tranche buys shares when it lands; a hyperscaler stops at 15% (the rest lapses)', `${f1(landed)}B landed · stake ${F1pct(own0)} → ${F1pct(own1)} → capped ${F1pct(s.player.finance.ownership.strat['Azimuth'])}`);
+  }
+  {
+    // Custom chips (Azimuth): the H100e list path × 45% less the firm discount, a separate pool, the migration.
+    const s = fx();
+    const t = partnerTerms(s, 'Azimuth', { supply: 'asic' });
+    const sp = t.supply!;
+    const ok = sp.prices.every((p, k) => near(p, expectedListPrice(s.market, 2 + k) * PARTNER_TERMS.asic.costMult * (1 - 0.05)));
+    const n0 = s.player.finance.ws3.reserved.length;
+    const err = signPartner(s, makeCtx(s), 'Azimuth', { supply: 'asic' });
+    const o = s.player.orders.find((x) => x.id === dealWith(s, 'Azimuth')?.supply?.ref);
+    check(!err && ok && sp.costMult === 0.45 && !!o && o.kind === 'lta' && JSON.stringify(o.prices) === JSON.stringify(sp.prices) && s.player.finance.ws3.reserved.length === n0 + 1 && (s.player.finance.ws3.asicMigrationUntil ?? 0) > s.time.day, 'FIN4a custom chips: 45% of the H100e list path less the firm discount, from a separate supply pool, research slows while migrating', `$${f1(sp.first)}K → $${f1(sp.last)}K per H100e · ${f1(sp.h100e / 1e3)}k a quarter`);
+  }
+  {
+    // Chip vendor: $10B per GW deployed (gw: tranches), buy its chips on the path less firm and vendor discounts,
+    // +0.5 allocation weight on every chip order while it supplies.
+    const s = fx();
+    const w0 = orderWeight(s, false, 0.3);
+    const t = partnerTerms(s, 'Silica Systems');
+    const sp = t.supply!;
+    const ok = sp.prices.every((p, k) => near(p, expectedListPrice(s.market, 2 + k) * (1 - 0.05) * (1 - PARTNER_TERMS.chipVendor.discount)));
+    const err = signPartner(s, makeCtx(s), 'Silica Systems');
+    const d = dealWith(s, 'Silica Systems')!;
+    const w1 = orderWeight(s, false, 0.3);
+    const tr = s.player.finance.tranches.filter((x) => x.partner === 'Silica Systems');
+    const later = structuredClone(s);
+    later.time.day = (d.supply?.endDay ?? 0) + 1;
+    check(!err && ok && t.equityNow === 0 && tr.length === 2 && tr.every((x) => x.amount === PARTNER_TERMS.chipVendor.perGW && /^gw:/.test(x.condition ?? '')) && near(w1 - w0, MARKET.rationW.strategic) && near(orderWeight(later, false, 0.3), w0, 1e-3), 'FIN4a chip vendor: $10B per GW deployed (gw tranches), its chips on the path less firm and vendor discounts, +0.5 allocation weight only while it supplies', `tranches ${tr.map((x) => x.condition).join(', ')} · weight ${f1(w0)} → ${f1(w1)}`);
+  }
+  {
+    // Sovereign: a passive cheque with the political cost and no in-country site.
+    const s = fx();
+    const sites0 = s.player.sites.length;
+    const scr0 = s.relations.scrutiny;
+    const t = partnerTerms(s, 'Gulf Sovereign Fund');
+    const err = signPartner(s, makeCtx(s), 'Gulf Sovereign Fund');
+    const d = dealWith(s, 'Gulf Sovereign Fund');
+    check(!err && s.player.sites.length === sites0 && s.relations.scrutiny > scr0 && !!t.politics && !t.supply && !!d && JSON.stringify(d.strings) === '{}', 'FIN4a sovereign: a passive equity cheque with its political cost (scrutiny, Congress, security demand) and no in-country site', `$${f1(t.equityNow)}B · scrutiny ${f1(scr0)} → ${f1(s.relations.scrutiny)}`);
+  }
+  {
+    // Firm commitments above 3× revenue need the board: the deal's first-year take-or-pay is what it judges.
+    const s = fx();
+    s.player.finance.revenueRun = 0.5;
+    const t = partnerTerms(s, 'Azimuth', { supply: 'cloud' });
+    const vs = dealVotes(s, t);
+    const rich = fx();
+    rich.player.finance.revenueRun = 1e4;
+    check(vs.some((v) => v.decision === 'commitments') && firstYearCommit(t) > 0 && !dealVotes(rich, partnerTerms(rich, 'Azimuth', { supply: 'cloud' })).length, 'FIN4a a partner\'s take-or-pay above 3× revenue goes to the board (none when revenue covers it)', `first year $${f1(firstYearCommit(t))}B`);
+  }
+  {
+    // Rescue (distress only): cash for a 30% stake, two board seats and exclusivity; nothing else (no IP rights flag).
+    const s = fx();
+    s.player.finance.state = 'distress';
+    s.player.board.confidence = 90;
+    check(/Distress: only a rescue/.test(partnerBlocker(s, 'Azimuth') ?? ''), 'FIN4a in distress only a rescue is on offer');
+    const seats0 = s.player.board.seats.length;
+    const err = act(s, 'fin.rescue', {});
+    const d = s.player.finance.deals.find((x) => x.rescue);
+    check(!err && !!d && d.strings.boardVotes === 2 && !!d.strings.exclusivity && Object.keys(d.strings).sort().join(',') === 'boardVotes,exclusivity' && near(s.player.finance.ownership.strat[d.partner], PARTNER_TERMS.rescue.stake, 1e-6) && s.player.board.seats.length === seats0 + 1 && s.player.board.seats.some((x) => x.holder === d.partner && x.weight === 2), 'FIN4a rescue: a 30% stake, a board seat with two votes and exclusivity (no inert IP flag)', `${err ?? ''} ${d?.partner} ${F1pct(s.player.finance.ownership.strat[d?.partner ?? ''] ?? 0)}`);
+  }
+  {
+    // Save migration 15 → 16: old template records become partner records; inert strings, offers, vendor notes and
+    // observer seats go.
+    const s = fx();
+    const raw = JSON.parse(serialize(s));
+    raw.schemaRev = 15;
+    raw.player.finance.deals = [
+      { id: 'DL-northwind0', template: 'hyperscalerEquity', partner: 'Northwind Cloud', day: -2000, strings: { observer: true, ipRights: true } },
+      { id: 'DL9', template: 'hyperscalerEquity', partner: 'Azimuth', day: 100, strings: { observer: true, exclusivity: true, revenueShare: 0.08 } },
+      { id: 'DL10', template: 'chipVendorEquity', partner: 'Silica Systems', day: 200, strings: {} },
+      { id: 'DL11', template: 'sovereign', partner: 'Gulf Sovereign Fund', day: 300, strings: { inCountrySite: true } },
+      { id: 'DL12', template: 'vendorFinance', partner: 'Corvid Micro', day: 300, strings: {} },
+    ];
+    raw.player.finance.ws3.offers = [{ id: 'OF1', template: 'sovereign', partner: 'Gulf Sovereign Fund' }];
+    raw.player.finance.debts.push({ id: 'D-vn', kind: 'vendorNote', principal: 5, drawn: 5, spreadBp: 300, maturityDay: 2000, covenant: 'convertsAtIPO' });
+    raw.player.board.seats.push({ kind: 'strategic', holder: 'Northwind Cloud (observer)', stance: [0, 0, 0, 0], weight: 0 });
+    const m = deserialize(JSON.stringify(raw));
+    const ds = m.player.finance.deals;
+    const strs = JSON.stringify(ds.map((d) => d.strings));
+    check(ds.length === 4 && ds[0].legacy === true && ds.map((d) => d.kind).join(',') === 'hyperscaler,hyperscaler,chipVendor,sovereign' && !/observer|ipRights|inCountrySite/.test(strs) && ds[1].strings.exclusivity === true && ds[1].strings.revenueShare === 0.08 && ds[2].supply?.kind === 'chips' && !('offers' in m.player.finance.ws3) && m.player.finance.debts.some((d) => d.id === 'D-vn' && d.kind === 'bond') && !m.player.board.seats.some((x) => /observer/.test(x.holder)), 'FIN4a save migration 15 → 16: template deals become partner records (legacy holder, kinds, exclusivity and revenue share kept; observer / IP / in-country strings, offers, vendor notes and observer seats gone)', strs);
+  }
+  {
+    // The reference bot's partner deal: a hyperscaler on cloud (Azimuth on the leader start), priced on the path.
+    const deals = ref.map((r) => r.s.player.finance.deals.find((d) => d.kind === 'hyperscaler' && !d.legacy && !d.rescue)).filter((d): d is NonNullable<typeof d> => !!d);
+    const by = deals.reduce((a, d) => ({ ...a, [d.partner]: (a[d.partner] ?? 0) + 1 }), {} as Record<string, number>);
+    const tot = median(deals.map((d) => d.supply?.total ?? 0));
+    const eq = median(deals.map((d) => d.equityNow + d.equityLater));
+    check(deals.length >= 0.8 * ref.length && deals.every((d) => d.supply?.kind === 'cloud' && (d.supply.partnerDiscount ?? 0) > 0), 'FIN4a RefBot signs one hyperscaler cloud deal (≥ 80% of seeds), on the expected path with the partner discount', `${deals.length}/${ref.length} · ${JSON.stringify(by)} · equity median $${f1(eq)}B · take-or-pay median $${f1(tot)}B · ${f1(median(deals.map((d) => d.supply?.h100e ?? 0)) / 1e6)}M H100e · $${f1(median(deals.map((d) => d.supply?.first ?? 0)))}K → $${f1(median(deals.map((d) => d.supply?.last ?? 0)))}K`);
   }
 }
 

@@ -17,6 +17,7 @@ import { CAPEX_LEASE, DEBT_SIZING } from '../../../data/v2/deals';
 import { siteLeasePerYear } from '../compute/sites';
 import { crf } from './capex';
 import { interestPerYear, lineUndrawn } from './debt';
+import { revenueShareRate } from './ext';
 import { ledgerPaying, qOf } from './ledger';
 import { parentPaymentQ } from './parent';
 import { isDivision } from '../../../data/v2/starts';
@@ -38,7 +39,7 @@ export const RUNWAY_CAP = PROJECTION_Q;
  *  interest, revenue share. (Spot rentals are projected to their end.) */
 export function operatingCostsPerYear(s: GameStateV2): Money {
   const p = s.player;
-  const share = p.finance.deals.reduce((a, d) => a + (d.strings.revenueShare ?? 0), 0) * p.finance.revenueRun;
+  const share = revenueShareRate(s) * p.finance.revenueRun;
   return payrollOf(p) + p.security.spendRate + p.policies.transitionFund + powerAndOMPerYear(s) + interestPerYear(s) + share;
 }
 

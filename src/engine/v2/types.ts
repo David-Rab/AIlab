@@ -841,9 +841,12 @@ export interface FinancePromise extends Thesis {
   /** Set when judged: the metric then, progress (start → target = 0 → 1), the outcome and what it moved. */
   result?: { day: Day; value: number; progress: number; outcome: 'met' | 'near' | 'missed'; weight: number; cred: number; board: number };
 }
-export interface Tranche { amount: Money; dueDay: Day; condition?: string; deadline?: Day; source: string; }
+/** A conditional or scheduled cash inflow. `partner`: a partner deal's equity tranche (FIN4a): the partner gets its
+ *  shares when the tranche lands, at that day's valuation, up to `stakeCap` of the company (a hyperscaler's 15%; the
+ *  part past the cap lapses). Round tranches carry no partner (their shares were issued at the close). */
+export interface Tranche { amount: Money; dueDay: Day; condition?: string; deadline?: Day; source: string; partner?: string; stakeCap?: number; }
 /** 'assumed' = debt that came with a lab you bought (FIN3c, spec §9), priced at your rating. */
-export interface Debt { id: string; kind: 'revolver' | 'gpuTerm' | 'bond' | 'vendorNote' | 'assumed'; principal: Money; drawn: Money; spreadBp: number; maturityDay: Day; covenant?: string; collateralH100e?: H100e; }
+export interface Debt { id: string; kind: 'revolver' | 'gpuTerm' | 'bond' | 'assumed'; principal: Money; drawn: Money; spreadBp: number; maturityDay: Day; covenant?: string; collateralH100e?: H100e; }
 
 /** Ledger entry for a contractual commitment ("Commitment$" to avoid clashing with relation Commitments). */
 export interface Commitment$ {
@@ -851,7 +854,7 @@ export interface Commitment$ {
   payee: string;
   /** 'lease' = colocation rent; 'finLease' = a financing lease of site or chip capex (FIN1, spec §4); 'acquired' = the
    *  contracts of a lab you bought, one firm entry over their remaining term (FIN3c, spec §9). */
-  kind: 'cloud' | 'lta' | 'lease' | 'finLease' | 'vendor' | 'power' | 'acquired';
+  kind: 'cloud' | 'lta' | 'lease' | 'finLease' | 'power' | 'acquired';
   perQuarter: Money;
   /** Contract this entry belongs to: firm contracts priced on the expected market path pay one entry per quarter
    *  (FIN1, spec §5), grouped by this id in the contracts table. */
@@ -866,12 +869,57 @@ export interface Commitment$ {
   penalty: Money;
 }
 
+/** Strategic partner kinds (FINANCE-V3 §6.1). */
+export type PartnerKind = 'hyperscaler' | 'chipVendor' | 'sovereign';
+/** What a partner supplies against the commitment: a hyperscaler's cloud capacity or custom chips (ASIC), a chip
+ *  vendor's own chips. */
+export type PartnerSupply = 'cloud' | 'asic' | 'chips';
+/** A deal's strings (FIN4a): only strings that do something. FIN4b adds IP access and optional exclusivity. */
+export interface DealStrings {
+  /** Blocks deals with the partner's competitors (as before FIN4a: for good). */
+  exclusivity?: boolean;
+  /** Share of revenue paid to the partner while the deal runs (to `until`). */
+  revenueShare?: number;
+  /** Votes of the board seat the partner holds (a rescue only: hyperscalers get no seat, spec §6.1). */
+  boardVotes?: number;
+}
+/** What a partner supplies against the take-or-pay commitment, as signed (priced on the expected market path). */
+export interface DealSupply {
+  kind: PartnerSupply;
+  /** Cloud: capacity (H100e) for the term; chips: H100e delivered each quarter. */
+  h100e: H100e;
+  quarters: number;
+  /** Price in the first and last quarter: $K per H100e-year (cloud) or $K per H100e (chips). */
+  first: number;
+  last: number;
+  /** Cuts off the expected path: the firm discount (spec §5) and the partner's own for the commitment; custom chips
+   *  also cost `costMult` of an H100e's list price (perf per dollar). */
+  firmDiscount: number;
+  partnerDiscount: number;
+  costMult?: number;
+  /** Every take-or-pay payment over the term ($B). */
+  total: Money;
+  /** The cloud contract or chip order it runs as, and the day its supply ends (rationing priority runs to it). */
+  ref?: string;
+  endDay?: Day;
+}
+/** A strategic partner deal as signed (FINANCE-V3 §6; FIN4a). One per partner; a rescue tops the partner up. */
 export interface StrategicDeal {
   id: string;
-  template: 'hyperscalerEquity' | 'customASIC' | 'chipVendorEquity' | 'vendorFinance' | 'sovereign';
   partner: string;
+  kind: PartnerKind;
   day: Day;
-  strings: { exclusivity?: boolean; boardSeat?: boolean; observer?: boolean; ipRights?: boolean; inCountrySite?: boolean; revenueShare?: number };
+  /** Equity paid in at signing and promised in tranches ($B; the tranches land on their conditions). */
+  equityNow: Money;
+  equityLater: Money;
+  supply?: DealSupply;
+  strings: DealStrings;
+  /** Day the deal's running terms end (supply, revenue share, rationing priority). */
+  until: Day;
+  rescue?: boolean;
+  /** A stake from before the start (the legacy Northwind stake, the challenger's strategic investor): a holder, no
+   *  running terms. */
+  legacy?: boolean;
 }
 
 export interface Board {
@@ -1035,7 +1083,7 @@ export interface YearStats {
   revenue: Money; payroll: Money; otherOpex: Money; computeCosts: Money; interest: Money;
   capexChips: Money; capexSites: Money; capexSitesFinanced: Money; supplierFunding: Money;
   /** spvFinanced: capex funded by lessors (site and chip financing leases, FIN1). */
-  equity: Money; dealEquity: Money; debtDrawn: Money; spvFinanced: Money; cloudFinanced: Money; leaseFinanced: Money; vendorNotes: Money;
+  equity: Money; dealEquity: Money; debtDrawn: Money; spvFinanced: Money; cloudFinanced: Money; leaseFinanced: Money;
   /** Chip capex a lessor paid at delivery (financing leases, FIN1); missing on older saves. */
   capexChipsFinanced?: Money;
   minRunwayQ: number; distressDays: number;
@@ -1053,25 +1101,25 @@ export type CashFlowKind =
   | 'training' | 'staff'
   | 'relations';
 
-/** A strategic-deal offer waiting for accept/decline (Seek partner action, events E03/E04). */
-export interface DealOffer {
-  id: string;
-  template: StrategicDeal['template'];
+/** The terms a partner offers now (FIN4a, spec §6.1), shown in full before you sign. Computed, never stored. */
+export interface PartnerTerms {
   partner: string;
-  day: Day;
-  expiresDay: Day;
-  /** Up-front equity or cash in ($B) and conditional tranches. */
-  equityNow: Money;
-  equityLater: Money;
-  /** Take-or-pay commitment ($B per quarter) and its length (quarters). */
-  commitPerQ: Money;
-  commitQ: number;
-  /** Compute delivered by the deal (cloud capacity or chips per quarter). */
-  h100e: H100e;
-  /** Price paid per H100e ($K) for chip deals, or $K per H100e-year for cloud capacity. */
-  unitPrice: number;
-  strings: StrategicDeal['strings'];
+  kind: PartnerKind;
   rescue: boolean;
+  /** Equity paid in at signing ($B) and the equity tranches with their conditions (tranche condition grammar). */
+  equityNow: Money;
+  tranches: { amount: Money; condition: string; dueDay: Day; deadline: Day }[];
+  /** Supply against a take-or-pay commitment: per-quarter payments ($B) and prices on the expected path. */
+  supply?: DealSupply & { perQ: Money[]; prices: number[]; startQ: number };
+  strings: DealStrings;
+  /** A hyperscaler's stake cap (15%): tranches land only up to it. */
+  stakeCap?: number;
+  /** A sovereign cheque's political cost (scrutiny, Congress trust, security demand). */
+  politics?: { scrutiny: number; congress: number; securityDemand: number };
+  /** A rescue tops the partner up to this stake. */
+  stake?: number;
+  /** Years the running terms last (supply, revenue share, priority). */
+  years: number;
 }
 
 export interface PendingRound {
@@ -1111,7 +1159,6 @@ export interface FinanceWS3 {
   computeHist?: ComputeSnap[];
   pendingRound?: PendingRound;
   repricedRound?: RepricedRound;
-  offers: DealOffer[];
   /** Delivered chips not yet installed: in transit (this quarter) and ready (installable), plus their book value. */
   inventory: { transit: H100e; ready: H100e; book: Money };
   /** Gross purchase cost of owned installed chips ($B) — O&M base and GPU-loan collateral. */

@@ -1,22 +1,21 @@
 // Player actions in the Finance and Compute spheres (ActionDef catalog, V2-SPEC §3.7–3.8). Owner: WS3.
 // Every preview lists a cost in a currency that is not among its gains (§2.7). Units: cash $B, compute H100e,
 // dilution % points, boardConf points.
-import { CAPEX_LEASE, COMMUNITY, DEAL_TEMPLATES, NEOCLOUD, SITE_PATHS, TRANSFORMER } from '../../../data/v2/deals';
-import { dayOfQuarter } from '../core/time';
+import { CAPEX_LEASE, COMMUNITY, MARKET, NEOCLOUD, PARTNER_DEFS, PARTNER_TERMS, partnerDef, SITE_PATHS, TRANSFORMER, type PartnerSupply } from '../../../data/v2/deals';
+import { dateOfDay, dayOfQuarter } from '../core/time';
 import { addCloud, addSpotRental, chipQuote, placeOrder, rentQuote, RENT_Q_MAX, spotRentalCap, TRANCHE_Q } from '../compute/orders';
 import { addCommunityPackage, newSite, oppositionOdds, siteCapex, siteEtaQ, type SiteOpts } from '../compute/sites';
 import { bloc } from '../actors/fx';
 import { signCommitment } from '../actors/commitments';
-import type { ActionDef, ChipOrder, CostLine, Debt, GameStateV2, MilestoneType, Pitch, Site, StrategicDeal, SystemCtx } from '../types';
+import type { ActionDef, ChipOrder, CostLine, Debt, GameStateV2, MilestoneType, PartnerTerms, Pitch, Site, SystemCtx } from '../types';
 import { boardVote, commitmentsVote, CRITICS, criticsAvailable, criticsOusterShift, criticsSeat, criticsSide, withCriticsSeat, debtVote, founderControl, giveCriticsSeat, voteCost, voteGate } from './board';
-import { controlVote } from './charter';
 import { MOOD_BASE, MOOD_LABEL, MOOD_SOURCES, moodWeight } from './mood';
 import { leaseAvailable, leaseRate, payOptions } from './capex';
 import { debtHeadroom, drawDebt, newDebtRatePct, repayDebt } from './debt';
-import { acceptDeal, dealBlocker, dealTerms, dealVote as firstVote, dealVotes, declineDeal, partnerFor, partnerStakeAfter, rescueOffer, seekPartner } from './deals';
+import { dealVote as firstVote, dealVotes, partnerOffers, partnerStakeAfter, partnerTerms, rescuePartner, signPartner, supplyOptions, termsEquity } from './deals';
 import { acceptRepriced, bookRound, canIpo, closingAsk, canRaise, DUAL_CLASS_GOV, lastPostMoney, pullRepriced, raiseCeiling, startRaise } from './equity';
 import { describeTarget, makeThesis, MILESTONES, PITCH, PITCHES, PROMISE_RESULT, promiseDeadline } from './promises';
-import { ensureWs3, yearStats, type DealOffer } from './ext';
+import { ensureWs3, yearStats } from './ext';
 import { qOf, bookCash } from './ledger';
 import { divisionBlock } from './parent';
 import { runwayOf } from './runway';
@@ -200,85 +199,82 @@ function downRoundSize(s: GameStateV2) {
   return Math.max(10, Math.min(0.15 * s.player.finance.valuation * 0.6, 3 * Math.max(0, runwayOf(s).burnQ)));
 }
 
-// ───────────────────────────── Deals ─────────────────────────────
+// ───────────────────────────── Partners (FINANCE-V3 §6; FIN4a) ─────────────────────────────
 
-/** Preview of a deal's terms (Finance panel, events). */
-export function dealPreview(s: GameStateV2, t: Omit<DealOffer, 'id' | 'day' | 'expiresDay'>): Preview {
+const qName = (s: GameStateV2, day: number) => {
+  const d = dateOfDay(s.time.startDate, day);
+  return `Q${Math.floor(d.getUTCMonth() / 3) + 1} ${d.getUTCFullYear()}`;
+};
+/** A tranche condition in words ('gw:1.7' → '1.7 GW online'). */
+export function conditionWords(cond: string): string {
+  const [k, v] = cond.split(':');
+  if (k === 'gw') return `${Number(v).toFixed(1)} GW online`;
+  if (k === 'revenue') return `$${Number(v).toFixed(0)}B/yr revenue run-rate`;
+  if (cond === 'ipo') return 'an IPO';
+  if (cond === 'recapitalisation') return 'the recapitalisation';
+  return cond;
+}
+
+/** Preview of a partner's terms (Partners card, rescue): everything it gives and every string, before you sign. */
+export function dealPreview(s: GameStateV2, t: PartnerTerms): Preview {
   const V = Math.max(10, s.player.finance.valuation);
   const costs: CostLine[] = [];
   const gains: CostLine[] = [];
   const exposure: CostLine[] = [];
-  const eq = t.template === 'vendorFinance' ? 0 : t.equityNow + t.equityLater;
-  if (eq > 0) costs.push({ currency: 'dilution', amount: Math.round((eq / (V + eq)) * 1000) / 10, ...(t.equityNow <= 0 ? { lagDays: 182 } : {}) });
-  if (t.equityNow > 0) gains.push({ currency: 'cash', amount: t.equityNow });
-  if (t.equityLater > 0) gains.push({ currency: 'cash', amount: t.equityLater, lagDays: 182, probability: 0.8 });
-  if (t.h100e > 0) gains.push({ currency: 'compute', amount: t.h100e, lagDays: 91 });
-  if (t.commitPerQ > 0) costs.push({ currency: 'cash', amount: -t.commitPerQ * 4, target: `${t.partner} per year × ${(t.commitQ / 4).toFixed(0)} y` });
-  if (t.template === 'customASIC') costs.push({ currency: 'progress', amount: -0.15, lagDays: 0, target: 'research −15% for ~2.5 quarters' });
-  if (t.template === 'sovereign') costs.push({ currency: 'scrutiny', amount: 5 }, { currency: 'trust', amount: -5, target: 'congress' });
-  if (t.template === 'vendorFinance') costs.push({ currency: 'boardConf', amount: -1 }, { currency: 'cash', amount: -t.equityNow * 0.08, target: 'interest per year' });
-  if (t.strings.exclusivity) exposure.push({ currency: 'freedom', amount: -1, target: 'vetoes deals with competitors' });
-  if (t.strings.revenueShare) costs.push({ currency: 'revenue', amount: -t.strings.revenueShare * s.player.finance.revenueRun, target: 'revenue share per year' });
-  if (t.rescue) costs.push({ currency: 'freedom', amount: -2, target: 'control: 2 seats, exclusivity, IP rights' });
+  const eq = termsEquity(t);
+  const stake0 = s.player.finance.ownership.strat[t.partner] ?? 0;
+  const dil = t.rescue ? partnerStakeAfter(s, t) - stake0 : eq / (V + eq);
+  if (dil > 0) costs.push({ currency: 'dilution', amount: Math.round(dil * 1000) / 10, target: t.rescue ? `${t.partner} topped up to ${Math.round((t.stake ?? 0) * 100)}%` : t.tranches.length ? 'now and in tranches, at today\'s valuation' : 'at today\'s valuation', ...(t.equityNow <= 0 && t.tranches.length ? { lagDays: Math.max(0, t.tranches[0].dueDay - s.time.day) } : {}) });
+  if (t.equityNow > 0) gains.push({ currency: 'cash', amount: t.equityNow, target: 'now' });
+  for (const x of t.tranches) gains.push({ currency: 'cash', amount: x.amount, lagDays: Math.max(0, x.dueDay - s.time.day), target: `tranche: if ${conditionWords(x.condition)} by ${qName(s, x.deadline)}, else it lapses` });
+  const sp = t.supply;
+  if (sp) {
+    const lag = Math.max(0, dayOfQuarter(s.time.startDate, sp.startQ) - s.time.day);
+    const cuts = `path −${Math.round(sp.firmDiscount * 100)}% firm${sp.partnerDiscount > 0 ? ` −${Math.round(sp.partnerDiscount * 100)}% partner` : ''}${sp.costMult !== undefined ? `, custom chips at ${Math.round(sp.costMult * 100)}% of an H100e` : ''}`;
+    if (sp.kind === 'cloud') gains.push({ currency: 'compute', amount: sp.h100e, lagDays: lag, target: `cloud for ${sp.quarters / 4} y, served first in a shortage` });
+    else gains.push({ currency: 'compute', amount: sp.h100e * sp.quarters, lagDays: lag + 91, target: sp.kind === 'asic' ? `custom chips over ${sp.quarters} quarters, a separate supply pool` : `its chips over ${sp.quarters} quarters; +${MARKET.rationW.strategic} allocation weight on every chip order while it supplies` });
+    costs.push({ currency: 'cash', amount: -sp.perQ[0], lagDays: lag, target: `first of ${sp.quarters} quarterly payments (take-or-pay; ${cuts})` });
+    costs.push({ currency: 'cash', amount: -sp.perQ[sp.perQ.length - 1], lagDays: lag + (sp.quarters - 1) * 91, target: `last payment (expected path); $${sp.total.toFixed(1)}B in all` });
+    if (sp.kind === 'asic') costs.push({ currency: 'progress', amount: -(1 - PARTNER_TERMS.asic.researchMult), lagDays: 0, target: `research −${Math.round((1 - PARTNER_TERMS.asic.researchMult) * 100)}% for ~${(PARTNER_TERMS.asic.migrationDays / 91).toFixed(1)} quarters while you migrate` });
+  }
+  if (t.strings.revenueShare) costs.push({ currency: 'revenue', amount: -t.strings.revenueShare * s.player.finance.revenueRun, target: `${Math.round(t.strings.revenueShare * 100)}% revenue share per year for ${t.years} y` });
+  if (t.strings.exclusivity) {
+    const rivals = partnerDef(t.partner)?.competitors ?? [];
+    exposure.push({ currency: 'freedom', amount: -1, target: `exclusivity: no deals with ${rivals.length ? rivals.join(', ') : 'its competitors'}` });
+  }
+  if (t.politics) costs.push({ currency: 'scrutiny', amount: t.politics.scrutiny, target: 'foreign money' }, { currency: 'trust', amount: t.politics.congress, target: 'congress' }, { currency: 'freedom', amount: -1, target: `government security demand +${t.politics.securityDemand}` });
+  if (t.rescue) costs.push({ currency: 'freedom', amount: -(t.strings.boardVotes ?? 0), target: `a board seat with ${t.strings.boardVotes} votes for ${t.partner}, and exclusivity` });
   if (!costs.length) costs.push({ currency: 'staffTime', amount: 1 });
   return { costs, gains, exposure };
 }
 
-const seek: ActionDef = {
-  id: 'fin.seekPartner', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Seek partner',
-  available: (s) => divisionBlock(s) ?? notInsolvent(s),
-  preview(s, p) {
-    const tpl = str(p, 'template', 'hyperscalerEquity') as StrategicDeal['template'];
-    const partner = str(p, 'partner', partnerFor(s, tpl) ?? '');
-    const pv = partner ? dealPreview(s, dealTerms(s, tpl, partner)) : { costs: [], gains: [], exposure: [] };
-    return { costs: [{ currency: 'staffTime', amount: 2, target: 'prod staff, 2 weeks' }], gains: [], exposure: [...pv.gains.map((g) => ({ ...g, probability: 0.9 })), ...pv.costs] };
-  },
-  apply(s, ctx, p) {
-    const tpl = str(p, 'template', 'hyperscalerEquity') as StrategicDeal['template'];
-    const r = seekPartner(s, ctx, tpl, str(p, 'partner', '') || undefined);
-    if (typeof r === 'string') {
-      ctx.log('finance', r);
-      return r;
-    }
-  },
-};
-
-function offerFor(s: GameStateV2, p: P): Omit<DealOffer, 'id' | 'day' | 'expiresDay'> | undefined {
-  const offers = s.player.finance.ws3?.offers ?? [];
-  const id = str(p, 'offerId', '');
-  const o = id ? offers.find((x) => x.id === id) : offers[0];
-  if (o) return o;
-  const tpl = str(p, 'template', 'hyperscalerEquity') as StrategicDeal['template'];
-  const partner = str(p, 'partner', partnerFor(s, tpl) ?? '');
-  return partner ? dealTerms(s, tpl, partner) : undefined;
+/** The partner and supply a set of params describes (default: the first partner that will deal, its first supply). */
+function partnerOf(s: GameStateV2, p: P): { partner: string; supply?: PartnerSupply } {
+  const want = str(p, 'partner', '');
+  const partner = want || partnerOffers(s).find((o) => !o.blocked)?.partner || PARTNER_DEFS[0].id;
+  const sp = str(p, 'supply', '') as PartnerSupply;
+  return { partner, ...(sp && supplyOptions(partner).includes(sp) ? { supply: sp } : {}) };
 }
-
-/** A partner's take-or-pay above 3× revenue needs the board (spec §7.3); under PBC + trust a sale of control needs the
- *  trust (§7.2). The vote shown is the first that fails, else the first needed. */
-const dealVote = (s: GameStateV2, p: P) => {
-  const t = offerFor(s, p);
-  return t ? firstVote(dealVotes(s, t)) : undefined;
+const termsOf = (s: GameStateV2, p: P) => {
+  const x = partnerOf(s, p);
+  return partnerTerms(s, x.partner, x.supply ? { supply: x.supply } : {});
 };
 
-const accept: ActionDef = {
-  id: 'fin.acceptDeal', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Accept deal',
-  available: (s) => {
-    const b = divisionBlock(s);
-    if (b) return b;
-    return s.player.finance.ws3?.offers.length ? true : 'No open offer (seek a partner first)';
-  },
-  vote: dealVote,
+/** A partner's take-or-pay above 3× revenue needs the board (spec §7.3); a deal handing it control needs the trust (PBC
+ *  + trust, §7.2) and the board. The vote shown is the first that fails, else the first needed. */
+const partnerVote = (s: GameStateV2, p: P) => firstVote(dealVotes(s, termsOf(s, p)));
+
+const partner: ActionDef = {
+  id: 'fin.partner', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Sign partner',
+  available: (s) => divisionBlock(s) ?? notInsolvent(s),
+  vote: partnerVote,
   preview(s, p) {
-    const t = offerFor(s, p);
-    const v = t ? dealPreview(s, t) : { costs: [{ currency: 'staffTime' as const, amount: 1 }], gains: [], exposure: [] };
-    return { ...v, costs: [...v.costs, ...voteCost(dealVote(s, p), bool(p, 'force'))] };
+    const v = dealPreview(s, termsOf(s, p));
+    return { ...v, costs: [...v.costs, ...voteCost(partnerVote(s, p), bool(p, 'force'))] };
   },
   apply(s, ctx, p) {
-    const offers = s.player.finance.ws3.offers;
-    const id = str(p, 'offerId', '');
-    const o = id ? offers.find((x) => x.id === id) : offers[0];
-    if (!o) return;
-    const err = acceptDeal(s, ctx, o.template, o.partner, { offerId: o.id, force: bool(p, 'force') });
+    const x = partnerOf(s, p);
+    const err = signPartner(s, ctx, x.partner, { ...(x.supply ? { supply: x.supply } : {}), force: bool(p, 'force') });
     if (err) {
       ctx.log('finance', err, 2);
       return err;
@@ -286,32 +282,19 @@ const accept: ActionDef = {
   },
 };
 
-const decline: ActionDef = {
-  id: 'fin.declineDeal', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Decline deal',
-  available: (s) => (s.player.finance.ws3?.offers.length ? true : 'No open offer'),
-  preview(s, p) {
-    const t = offerFor(s, p);
-    const lost: CostLine[] = t ? dealPreview(s, t).gains.map((g) => ({ ...g, amount: -g.amount })) : [];
-    return { costs: lost.length ? lost : [{ currency: 'cash', amount: 0 }], gains: [], exposure: [] };
-  },
-  apply(s, ctx, p) {
-    const offers = s.player.finance.ws3.offers;
-    const id = str(p, 'offerId', offers[0]?.id ?? '');
-    declineDeal(s, ctx, id);
-  },
-};
-
 /** One strategic rescue per year [D, M4]: a second rescue inside a year is a sale of control in all but name. */
 export const RESCUE_COOLDOWN_D = 365;
 
-/** A rescue is a major decision (spec §7.3); one that leaves the partner past 50% under PBC + trust is also a sale of
- *  control the trust votes on (§7.2, FIN3b). */
-function rescueVotes(s: GameStateV2) {
-  const o = rescueOffer(s);
-  const control = o ? controlVote(s, o.partner, partnerStakeAfter(s, o)) : undefined;
-  return [...(control ? [control] : []), boardVote(s, 'rescue', 'a partner takes a large stake, two board seats, exclusivity and IP rights')];
-}
-const rescueVote = (s: GameStateV2) => firstVote(rescueVotes(s));
+/** A rescue (spec §6.2): the rescuing partner's terms in distress and their votes (a major decision, §7.3; past 50% also
+ *  a sale of control). */
+const rescueTerms = (s: GameStateV2) => {
+  const who = rescuePartner(s);
+  return who ? partnerTerms(s, who, { rescue: true }) : undefined;
+};
+const rescueVote = (s: GameStateV2) => {
+  const t = rescueTerms(s);
+  return t ? firstVote(dealVotes(s, t)) : undefined;
+};
 
 const rescue: ActionDef = {
   id: 'fin.rescue', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Rescue',
@@ -321,24 +304,18 @@ const rescue: ActionDef = {
     if (div) return div;
     if (f.state !== 'distress') return 'Only in distress';
     if (f.ws3?.lastRescueDay !== undefined && s.time.day - f.ws3.lastRescueDay < RESCUE_COOLDOWN_D) return 'Partners will not rescue you twice in a year';
-    return rescueOffer(s) ? true : 'No partner will rescue you';
+    return rescuePartner(s) ? true : 'No partner will rescue you (blocked by exclusivity or anchoring another lab)';
   },
   vote: rescueVote,
   preview(s, p) {
-    const o = rescueOffer(s);
-    const v = o ? dealPreview(s, o) : { costs: [{ currency: 'freedom' as const, amount: -2 }], gains: [], exposure: [] };
+    const t = rescueTerms(s);
+    const v = t ? dealPreview(s, t) : { costs: [{ currency: 'freedom' as const, amount: -2 }], gains: [], exposure: [] };
     return { ...v, costs: [...v.costs, ...voteCost(rescueVote(s), bool(p, 'force'))] };
   },
   apply(s, ctx, p) {
-    const o = rescueOffer(s);
-    if (!o) return;
-    // The trust (PBC + trust, a rescue past 50%) votes first: it cannot be forced (FIN3b).
-    for (const v of rescueVotes(s)) {
-      const no = voteGate(ctx, v, bool(p, 'force'));
-      if (no) return no;
-    }
-    s.player.finance.ws3.offers.push(o);
-    acceptDeal(s, ctx, o.template, o.partner, { offerId: o.id });
+    const who = rescuePartner(s);
+    if (!who) return 'No partner will rescue you';
+    return signPartner(s, ctx, who, { rescue: true, force: bool(p, 'force') });
   },
 };
 
@@ -796,23 +773,8 @@ const pickCancellable = (s: GameStateV2, id: string) => {
   return all.find((c) => c.id === id) ?? all[0];
 };
 
-/** Accept every open offer of a given template (bots / tests convenience). */
-export function acceptAllOffers(s: GameStateV2, ctx: SystemCtx, template?: StrategicDeal['template']): number {
-  let n = 0;
-  for (const o of [...(s.player.finance.ws3?.offers ?? [])]) if (!template || o.template === template) n += acceptDeal(s, ctx, o.template, o.partner, { offerId: o.id }) ? 0 : 1;
-  return n;
-}
-
-/** Templates the Seek-partner picker shows, with availability. */
-export function dealMenu(s: GameStateV2): { template: StrategicDeal['template']; name: string; partner?: string; blocked?: string }[] {
-  return DEAL_TEMPLATES.map((t) => {
-    const partner = partnerFor(s, t.id);
-    return { template: t.id, name: t.name, ...(partner ? { partner } : { blocked: dealBlocker(s, t.id, partnerFor(s, t.id) ?? t.partnerKinds[0]) ?? 'No partner' }) };
-  });
-}
-
 export const FINANCE_ACTIONS: ActionDef[] = [
-  raise, ipo, seek, accept, decline, draw, repay, recap, refuseRecap, critics,
+  raise, ipo, partner, draw, repay, recap, refuseRecap, critics,
   buyChips, rentCompute, site, community, transformers,
   downRound, rescue, renegotiate, sell, cancel, acceptRound, pullRound,
 ];

@@ -7,7 +7,7 @@ import { dayOfDate, decimalYear } from '../core/time';
 import type { CapitalMarkets, EngineSystem, GameStateV2, Money, SystemCtx } from '../types';
 import { covenantsBreached, ratingOf, ratingScore, rollMaturities } from './debt';
 import { publicFrontier } from './observe';
-import { closePendingRound, valuationNow } from './equity';
+import { closePendingRound, partnerEquityIn, valuationNow } from './equity';
 import { defaultCapitalWS3, ensureWs3, yearStats } from './ext';
 import { commitmentsPerYear, bookCash } from './ledger';
 import { judgePromises, recordThesisHist } from './promises';
@@ -124,8 +124,12 @@ function settleTranches(s: GameStateV2, ctx: SystemCtx) {
   for (const t of f.tranches) {
     const met = !t.condition || trancheConditionMet(s, t.condition);
     if (t.dueDay <= s.time.day && met) {
-      bookCash(s, ctx, t.amount, 'financing', 'equity tranche', t.source);
-      yearStats(s).equity += t.amount;
+      // A partner's tranche buys shares at today's valuation (FIN4a); a round's tranche was priced at the close.
+      if (t.partner) partnerEquityIn(s, ctx, t.partner, t.amount, t.source, t.stakeCap);
+      else {
+        bookCash(s, ctx, t.amount, 'financing', 'equity tranche', t.source);
+        yearStats(s).equity += t.amount;
+      }
       continue;
     }
     if (t.deadline !== undefined && t.deadline <= s.time.day && !met) {
