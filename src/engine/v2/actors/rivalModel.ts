@@ -281,25 +281,48 @@ export function trainDay(s: GameStateV2, r: RivalLab, day: number) {
  *  initialLeaderLab, china.ts initialChina). Its last base is the reference start base B0 (1T active × 50 tokens per
  *  parameter, 3e26 FLOP: research/12 §0.3's 2025 frontier) scaled by the lab's training pool over the leader's day-0 pool
  *  (1e6 H100e × 40%), trained on B0's dates (launched day B0_START_DAY, finished B0_DAY), so its recipe is that many days
- *  of recipe growth staler than today's; the internal version was post-trained on its own day. The recipe e₀ today is
- *  solved so that version is the start model (G is linear in e). For the leader lab (B0 itself, V0) e₀ ≈ 0: the leader's
- *  day-0 recipe, the zero of e. The public model: the same base, publicGapY progress-years lower; the run toward the next
- *  base is already under way. */
-export function initRivalPhys(w: TimelineWorld, r: RivalLab, eff = 1, publicGapY = START_PUBLIC_GAP_Y) {
+ *  of the lab's own recipe growth staler than today's (`effRun`: the run-time efficiency multiplier, effLab for China;
+ *  undefined for the leader lab, which grows at RECIPE_RATE0); the internal version was post-trained on its own day. The
+ *  recipe e₀ today is solved so that version is the start model (G is linear in e). For the leader lab (B0 itself, V0)
+ *  e₀ ≈ 0: the leader's day-0 recipe, the zero of e. The public model: the same base, publicGapY progress-years lower;
+ *  the run toward the next base is already under way. */
+export function initRivalPhys(w: TimelineWorld, r: RivalLab, eff = 1, publicGapY = START_PUBLIC_GAP_Y, effRun?: number) {
   const pool = r.core.computeOnline * r.core.split.training;
   const flop0 = Math.max(1e24, START_BASE_FLOP * (pool / LEADER_DAY0_TRAIN));
   const G0 = gOfPm(w, r.internal.pm);
-  const stalePre = (RECIPE_RATE0 * -B0_START_DAY) / 365;
-  const stalePost = (RECIPE_RATE0 * Math.max(0, -r.internal.day)) / 365;
-  const at = (e: number) => versionG(makeBase(1, B0_DAY, flop0, (1 - RL_SHARE) * (e - stalePre), REF_TPP), RL_SHARE * (e - stalePost));
-  const e0 = G0 - at(0);
+  // Staleness of the start base's and start version's recipes: the days since their launch × the lab's own recipe
+  // growth (model v3 F2). The leader lab (effRun undefined) is the reference lab on B0 itself, so it grows at
+  // RECIPE_RATE0 and its e₀ is the leader's day-0 recipe; a follower grows at its own day-0 rate (its inputs and
+  // efficiency through the aggregate research function), solved with e₀ (the rate falls as 10^(−e/r)). F1 used
+  // RECIPE_RATE0 for every lab, which made a slow follower's start base too stale and its first new base too good:
+  // DeepCent (≈ 0.34 OOM/yr) then trained a first base above V0 and briefly led the reference lab (ws4 T3, −103 d).
+  const solve = (rate: number) => {
+    const stalePre = (rate * -B0_START_DAY) / 365;
+    const stalePost = (rate * Math.max(0, -r.internal.day)) / 365;
+    const at = (e: number) => versionG(makeBase(1, B0_DAY, flop0, (1 - RL_SHARE) * (e - stalePre), REF_TPP), RL_SHARE * (e - stalePost));
+    return { e0: G0 - at(0), stalePre, stalePost };
+  };
+  let x = solve(RECIPE_RATE0);
+  let rate = RECIPE_RATE0;
+  if (effRun !== undefined) {
+    const fpt = fptOfBase({ params: baseParams(flop0, REF_TPP) });
+    const res = r.core.split.experiments + r.core.split.agents;
+    const C = r.core.computeOnline * res;
+    const f = bestRivalMix(w, G0, fpt, r.core.staff.cap, C);
+    const rs = evalAggregate(w, G0, fpt, r.core.staff.cap, f, C, eff * effRun, 1).rs;
+    for (let i = 0; i < 4; i++) {
+      rate = Math.min(RECIPE_RATE_MAX, RECIPE_RATE0 * rs * Math.pow(10, -x.e0 / w.v3.r));
+      x = solve(rate);
+    }
+  }
+  const { e0, stalePre, stalePost } = x;
   const base = makeBase(1, B0_DAY, flop0, (1 - RL_SHARE) * (e0 - stalePre), REF_TPP);
   r.core.pa = paOfRecipe(w, e0);
   r.phys = { base, eff };
   setModelG(w, r.internal, versionG(base, RL_SHARE * (e0 - stalePost)), base);
   if (r.publicModel) setModelG(w, r.publicModel, gOfSimple(w, r.internal) - publicGapY * B, base);
   const start = r.nextBaseDay - BASE_RUN_DAYS;
-  if (start < 0) r.phys.run = { day: start, flop: -start * baseFlopPerDay(r), ePre: (1 - RL_SHARE) * (e0 + (RECIPE_RATE0 * start) / 365) };
+  if (start < 0) r.phys.run = { day: start, flop: -start * baseFlopPerDay(r), ePre: (1 - RL_SHARE) * (e0 + (rate * start) / 365) };
 }
 /** The reference start base's FLOP (B0) and the leader's day-0 training pool (DAY0_REF's 1e6 H100e × the 2025 training
  *  share 0.4) it was sized on. */

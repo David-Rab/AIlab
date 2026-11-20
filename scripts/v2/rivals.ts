@@ -9,6 +9,9 @@
 //   R6  milestones are λ(G) crossings of the level knots (one map for every lab)
 //   R7  lint: no BRIDGE(V7), simpleLag / simpleCredit, CAL_SHIFT or calShift / pm thresholds, fptOfG or the G cap in rival code
 //   INFO the leader lab's G path (passive player, ai2027) vs research/12's frontier anchors
+//   R8  (F2) a follower's start base is stale by its own day-0 recipe growth (the leader lab: RECIPE_RATE0, B0 itself)
+//   R9  (F2) the lead before the level history reaches back: the start gap at the pre-game frontier rate + days since
+//   INFO (F2, `--ref`) the recipe law at RefBot's own inputs vs RefBot's stack growth, days 600–860
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
@@ -25,7 +28,16 @@ import { paramsForFlop } from '../../src/engine/v2/models/effective';
 import { LEADER_ID } from '../../src/engine/v2/models/labs';
 import { decimalYear } from '../../src/engine/v2/core/time';
 import type { GameStateV2, RivalLab } from '../../src/engine/v2/types';
-import { HERE, check, finish } from './lib';
+import { HERE, check, finish, refGame, runRef } from './lib';
+import { B0_START_DAY } from '../../src/data/v2/calibration';
+import { bestRivalMix } from '../../src/engine/v2/actors/rivalModel';
+import { leadBetween } from '../../src/engine/v2/actors/rivals';
+import { agentVersion } from '../../src/engine/v2/departments/agents';
+import { gOfBuild, playerStart } from '../../src/engine/v2/models/capability';
+import { bestPm } from '../../src/engine/v2/models/labs';
+import { stacksGEquiv } from '../../src/engine/v2/models/stacks';
+import { poolsOf } from '../../src/engine/v2/compute/power';
+import { referenceRate } from '../../src/engine/v2/world/calibration';
 
 const mk = (seed = 2027, leaderLab = true): GameStateV2 => newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed, tutorial: false, leaderLab }));
 const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
@@ -168,6 +180,69 @@ const near = (a: number, b: number, tol = 1e-9) => Math.abs(a - b) <= tol * Math
   for (const [k, d] of Object.entries(L.core.milestoneDays)) if (Number(k) > 0 && !((d as number) - firstAt[Number(k)] >= 0 && (d as number) - firstAt[Number(k)] <= 1)) ok = false;
   check(ok && L.core.milestoneDays[3] !== undefined, 'R6 rival milestones are the days λ(best G) first reaches the level knots (recorded the next morning)', `${JSON.stringify(L.core.milestoneDays)} vs ${JSON.stringify(firstAt)}`);
   console.log(`INFO  leader lab G path (passive player, ai2027, seed 2027; research/12 §0.2 anchors): ${path.join('; ')}; y ${decimalYear(s).toFixed(2)}`);
+}
+
+// ───────── R8 (F2): a follower's start base is stale by its own recipe growth ─────────
+{
+  const s = mk(4, false);
+  let ok = true;
+  const rows: string[] = [];
+  for (const r of [...s.rivals, s.china.lab]) {
+    const e0 = recipeOf(s, r);
+    // Its day-0 rate at the best research mix (the first day re-splits to it; the readout without apply keeps the split).
+    const rate = rivalResearch(s, clone(r), true).rate * 1.2;
+    // The start base's pretraining recipe is e₀ less its own growth over the days since the base's launch.
+    const want = 0.8 * (e0 - (rate * -B0_START_DAY) / 365);
+    if (!near(r.phys.base.ePre, want, 2e-3)) ok = false;
+    rows.push(`${r.core.id} e₀ ${e0.toFixed(3)} rate ${rate.toFixed(2)} OOM/yr ePre ${r.phys.base.ePre.toFixed(3)} (want ${want.toFixed(3)})`);
+  }
+  check(ok, 'R8 a follower\'s start base is as stale as its own day-0 recipe growth makes it (not the leader\'s RECIPE_RATE0)', rows.join('; '));
+}
+
+// ───────── R9 (F2): the lead before the history reaches back ─────────
+{
+  // Seed 4: DeepCent's first new base is due on day 194, so it has no new base in the first two months; the lead is
+  // then the start gap plus the days since the start (the pre-game frontier line), not gap ÷ a few weeks' research rate.
+  const s = mk(4, false);
+  tick(s, { skip: ['endings'] });
+  const l0 = leadBetween(s, 'player', 'china');
+  const at: number[] = [];
+  while (s.time.day < 60) {
+    tick(s, { skip: ['endings'] });
+    if (s.time.day % 30 === 0) at.push(leadBetween(s, 'player', 'china') - l0);
+  }
+  const gap0 = ((playerStart(s.hidden.timeline).target - bestPm(mk(4, false), 'china')) / referenceRate(s.hidden.timeline, playerStart(s.hidden.timeline).target, 2025.5)) * 365;
+  // China's versions still add a little (the RL share of its recipe growth, fed by the know-how leaks), so the lead
+  // grows at most a day a day and does not jump (v2's fallback read 390–450 d in days 30–60).
+  check(Math.abs(l0 - gap0 - 1) <= 2 && at.every((x, i) => x <= 30 * (i + 1) + 1 && x >= -30), 'R9 in the first weeks China\'s lead is its start gap at the pre-game frontier rate plus at most the days since', `day 1 ${l0.toFixed(0)} d (gap ${gap0.toFixed(0)} d); +${at.map((x) => x.toFixed(0)).join(', +')} d at days 30, 60`);
+}
+
+// ───────── INFO (F2, `--ref`): the aggregate law at the reference lab's own inputs ─────────
+// RefBot (stub, ai2027, seed 2027): integrate the rivals' recipe law at RefBot's own internal model, staff and research
+// compute over days 600–860 and compare with what RefBot's stacks gained (design/notes/F2.md: the scale factor of line
+// results, not ideas, is what the aggregate lacks).
+if (process.argv.includes('--ref')) {
+  const s = refGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027 }));
+  const w = s.hidden.timeline;
+  let pred = 0;
+  let g600 = 0;
+  let g860 = 0;
+  runRef(s, 861, (x) => {
+    const d = x.time.day;
+    const v = agentVersion(x, 'capRoutine');
+    if (d === 600) g600 = stacksGEquiv(x);
+    if (d === 860) g860 = stacksGEquiv(x);
+    if (v?.build && d >= 600 && d < 860) {
+      const G = gOfBuild(v.build);
+      const fpt = v.fpt ?? 4e12;
+      const pools = poolsOf(x);
+      const C = pools.experiments + pools.agents;
+      const a = evalAggregate(w, G, fpt, x.player.staff.cap, bestRivalMix(w, G, fpt, x.player.staff.cap, C), C, 1, 1);
+      pred += (RECIPE_RATE0 * a.rs * Math.pow(10, -stacksGEquiv(x) / w.v3.r)) / 365;
+    }
+    return false;
+  });
+  console.log(`INFO  days 600–860, ai2027 seed 2027: RefBot's stacks +${(g860 - g600).toFixed(2)} OOM; the rivals' recipe law at RefBot's own inputs and recipe +${pred.toFixed(2)} OOM`);
 }
 
 // ───────── R7: lint ─────────

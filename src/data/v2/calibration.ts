@@ -33,8 +33,10 @@ export const CAL_SHIFT: Record<WorldPresetId, number> = { ai2027: -0.463, author
  *  values ai2027 0.256, authors2026 0.096, fast 0.134, slow 0.314) with this efficiency. F1 fit (seed 2027): the worst-error
  *  refine where it brings every milestone within tolerance (fast), else the SC root: the aggregate leader has no idea
  *  projects and takes off slower than RefBot after SC (design/notes/F1.md); slow's r = 1.2 needs ×14 (r divides every
- *  OOM of recipe by 10^(1/r)). */
-export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: -0.048, authors2026: 0.242, fast: 0.068, slow: 1.155, sampled: -0.048 };
+ *  OOM of recipe by 10^(1/r)). Model v3 F2: authors2026 0.242 → 0.28, the SC root again (the followers' start states
+ *  moved the leader's SC 1491 → 1535 at 0.242 through the shared world; SC 1498 at 0.28); the late milestones still
+ *  miss for the reason in design/notes/F2.md (the rivals' recipe returns lack the line results' scale factor). */
+export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: -0.048, authors2026: 0.28, fast: 0.068, slow: 1.155, sampled: -0.048 };
 
 /** Knowledge diffusion to a follower (BUILD-PLAN R9, research/18 §0.2) [D, fit]: while the frontier leader lab's PUBLIC
  *  model is ahead of the player's best model, the player's know-how gains K_DIFFUSION × the gap per year (papers, staff

@@ -7,7 +7,7 @@
 import { LAB_ARCHETYPES } from '../../../data/actors';
 import { ARCHETYPE_CLAUSE, ARCHETYPE_POSTURES, LEADER_MAX_BINDINGNESS } from '../../../data/v2/postures';
 import { LEADER_CAL, LEVEL_KNOTS } from '../../../data/v2/calibration';
-import { POST_DAYS } from '../../../data/v2/rivalModel';
+import { POST_DAYS, START_PUBLIC_GAP_Y } from '../../../data/v2/rivalModel';
 import { B_G_PER_Y } from '../../../data/v2/runDesign';
 import { LEADER_LAB_NAME, LEADER_MODEL_FAMILY, RIVAL_MODEL_FAMILIES, RIVAL_NAMES_V2 } from '../../../data/v2/names';
 import { TRAIT_IDS, TRAIT_START } from '../../../data/v2/traits';
@@ -101,7 +101,7 @@ export function initialRival(rng: Rng, h: HiddenWorld, i: number, playerPm: numb
     pressureDays: 0,
   };
   // Model v3 F1: its last base, recipe and models in G (the start model stays where the lead draw put it, T4).
-  initRivalPhys(h.timeline, lab);
+  initRivalPhys(h.timeline, lab, 1, START_PUBLIC_GAP_Y, 1);
   return lab;
 }
 
