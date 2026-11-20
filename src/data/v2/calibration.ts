@@ -2,10 +2,10 @@
 // [fit] values are fitted by WS1 acceptance tests (scripts/v2/calib.ts, M1) and hard-coded here.
 import type { ComputeSplit, DomainId, WorldPresetId } from '../../engine/v2/types';
 
-/** BRIDGE(V7): per-preset milestone threshold shift (years). Model v3 V3: the player's milestones are work-type statements
- *  (departments/workfit.ts; per-preset G_SC and Δ_bm in data/v2/workTypes.ts V3_CAL) and do not read it; it stays the
- *  level-display bridge λ(G) = levelOf(Φ(G)) and the rivals' / China's / the leader lab's pm thresholds and simple-lab
- *  credit, kept at its V2a values so their calibration (T1L, T3, T4) is unchanged until V7.
+/** BRIDGE(V6): per-preset milestone threshold shift (years). Model v3 V3: the player's milestones are work-type statements
+ *  (departments/workfit.ts; per-preset G_SC and Δ_bm in data/v2/workTypes.ts V3_CAL) and do not read it; since V3b the
+ *  world's calShift is derived (models/capability.ts alignedCalShift) and this table seeds the knot build and RefBot's
+ *  pacing gates (bots/ref.ts v2Level). Model v3 F1: rivals, China and the leader lab no longer read it.
  *  History: fitted so RefBot's best internal model hit the golden dates (§7.1).
  *  [fit] by `npx tsx scripts/v2/calib.ts --fit` (bisection on SC, refined on a ±0.03 grid by the worst |Δ| over
  *  SC…ASI because SC(calShift) is step-like). `sampled` uses the ai2027 value. Never tune for balance (§7.4).
@@ -23,21 +23,15 @@ import type { ComputeSplit, DomainId, WorldPresetId } from '../../engine/v2/type
  *  Model v3 V2a refit (recipe from research stacks; LINE_FIT.mu 0.58 fitted to the v2 know-how path on ai2027):
  *  ai2027 −0.36 → −0.463, authors2026 −0.633 → −0.618, fast −0.557 → −0.473, slow 0.291 → −1.5 (slow's stacks outgrow the v2
  *  path by ~25% over its 13 pre-SC years; design/V3-BUILD.md V2 notes, PROGRESS.md V2a). */
-/** BRIDGE(V7): v2's CAL_SHIFT (J1/R4 values). Simple labs, still on v2's lag model, are credited the difference so their
- *  q = pm + calShift path stays v2's (TimelineWorld.simpleCredit). */
-export const CAL_SHIFT_V2: Record<WorldPresetId, number> = { ai2027: 0.08, authors2026: 0.03, fast: 0.075, slow: -0.127, sampled: 0.08 };
 export const CAL_SHIFT: Record<WorldPresetId, number> = { ai2027: -0.463, authors2026: -0.618, fast: -0.473, slow: -1.5, sampled: -0.463 };
 
-/** Extra release lag (progress years, added to simpleLag) of the simulated leader lab
- *  (setup.leaderLab, BUILD-PLAN R2) so its milestones hit the golden days (T1L). [fit] by
- *  `npx tsx scripts/v2/calib.ts --fit-leader`; 0 = the reference simpleLag. `sampled` uses the ai2027 value. R4: refit for the presets
- *  whose CAL_SHIFT moved (authors2026 0.063 → 0.068, fast 0.085 → 0.053, slow −0.029 → −0.004). J1: slow −0.004 → 0.041 with the
- *  slow CAL_SHIFT refit (`--fit-leader slow`). Model v3 V1 (with the CAL_SHIFT refit and the simple-lab credit,
- *  TimelineWorld.simpleCredit): ai2027 0.083 → 0.057, authors2026 0.068 → 0.052, fast 0.053 → −0.036, slow 0.041 → 0.043.
- *  Model v3 V2a (with the V2a CAL_SHIFT refit): ai2027 0.021, authors2026 0.046, fast −0.001, slow 0.039.
- *  Model v3 V3b (calShift derived per world, models/capability.ts alignedCalShift; `--fit-leader`): ai2027 0.256,
- *  authors2026 0.096, fast 0.134, slow 0.314. */
-export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: 0.256, authors2026: 0.096, fast: 0.134, slow: 0.314, sampled: 0.256 };
+/** Research efficiency of the simulated leader lab (setup.leaderLab, BUILD-PLAN R2), OOM: its research speed is ×10^LEADER_CAL
+ *  the aggregate research function's at its inputs (actors/rivalModel.ts; the leader runs at the reference compute,
+ *  staff and split, MODEL-V3 §12: "fitted so the simulated leader lab follows the AI 2027 path") so its milestones hit
+ *  the golden days (T1L). [fit] by `npx tsx scripts/v2/calib.ts --fit-leader`; 0 = the aggregate function as is.
+ *  `sampled` uses the ai2027 value. Model v3 F1 replaced v2's extra release lag (progress years on v2's simple-lab lag model; V3b
+ *  values ai2027 0.256, authors2026 0.096, fast 0.134, slow 0.314) with this efficiency. */
+export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: 0.022, authors2026: 0, fast: 0.068, slow: 0, sampled: 0.022 };
 
 /** Knowledge diffusion to a follower (BUILD-PLAN R9, research/18 §0.2) [D, fit]: while the frontier leader lab's PUBLIC
  *  model is ahead of the player's best model, the player's know-how gains K_DIFFUSION × the gap per year (papers, staff
@@ -55,7 +49,10 @@ export const K_DIFFUSION = 2.0;
 // M2 step 5: refit with leakK 3e-4 (see WS4_TUNING) and the corner-line lead metric: mean 172 d, band 88–263 d.
 // Model v3 V3b: 2.4 → 3.2 after the rival alignment (calShift derived per world): China's mean lead over days 30–540 was
 // 223 d at 2.4, 199 at 2.9, 174 at 3.4 (scripts/v2/ws4.ts T3, 8 seeds).
-export const CHINA_CAL = { effScale: 3.2 };
+// Model v3 F1: 3.2 → 1 (no scale: DeepCent's efficiency is the world's chinaEfficiency × the preset's): on the physical
+// rival model China's research runs through the same aggregate function as every lab, and its lead is set mostly by its
+// base FLOP and cadence; mean lead over days 30–540 (3 seeds) 132 d at 3.2, 153 at 1.5, 167 at 1.
+export const CHINA_CAL = { effScale: 1 };
 /** H100e per agent copy at SC (473k H100e / 200k copies, research/13 §1.9), scaled by serveCost/0.5. */
 export const H100E_PER_COPY_SC = 2.4;
 /** Agent serial speed cap (R11 #23: min(8 + 10.8·log2 M, 50)). */

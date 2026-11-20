@@ -2,7 +2,7 @@
 // Wraps src/data/world.ts makeWorld UNCHANGED (audited R11 presets) and adds the v2 latents and presets.
 import { CHINA_PRESETS, GOV_PRESETS, LAB_ARCHETYPES, PUBLIC_PRESETS } from '../../../data/actors';
 import { AGENDAS } from '../../../data/v2/agendas';
-import { CAL_SHIFT, CAL_SHIFT_V2, PROD_DEFAULT, PROD_PRESETS } from '../../../data/v2/calibration';
+import { CAL_SHIFT, PROD_DEFAULT, PROD_PRESETS } from '../../../data/v2/calibration';
 import { V3_CAL } from '../../../data/v2/workTypes';
 import { alignedCalShift } from '../models/capability';
 import { EDGE_FACTOR_RANGE, EDGE_SIGMA_SCALE, EDGES, GRADE_SIGMA, type EdgeDef } from '../../../data/v2/edges';
@@ -62,14 +62,13 @@ export function noisyPosture(rng: Rng, p: SafetyPosture, noise: number): SafetyP
 export function sampleHidden(rng: Rng, setup: SetupV2): HiddenWorld {
   // 1. Timeline world (unchanged audited presets; also draws v1 alignDifficulty and doomThreshold — step 10).
   const w1 = makeWorld(rng, setup.world, setup.alignment, setup.baseline);
-  const tl0 = { ...w1, calShift: CAL_SHIFT[setup.world], simpleCredit: CAL_SHIFT_V2[setup.world] - CAL_SHIFT[setup.world] };
+  const tl0 = { ...w1, calShift: CAL_SHIFT[setup.world] };
   // 2. Production parameters.
   // Model v3 V3: the per-preset work-type calibration (G_SC, Δ_bm, r); no draw.
   const timeline: TimelineWorld = { ...tl0, prod: prodParamsFor(rng, setup, tl0), v3: { ...V3_CAL[setup.world] } };
-  // Model v3 V3b: the display/rival bridge's shift is derived so rivals' pm milestones line up with the player's
-  // work-type levels (models/capability.ts alignedCalShift); the simple-lab credit keeps their q path v2's.
+  // Model v3 V3b: the display bridge's shift is derived so v2's pm thresholds line up with the work-type levels
+  // (models/capability.ts alignedCalShift). Rivals do not read it since model v3 F1.
   timeline.calShift = alignedCalShift(timeline);
-  timeline.simpleCredit = CAL_SHIFT_V2[setup.world] - timeline.calShift;
 
   // 3. Safety latents λ1–λ6 ~ N(0,1), shifted by the alignment preset.
   const latents = {} as SafetyLatents;

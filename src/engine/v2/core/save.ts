@@ -15,6 +15,9 @@ import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { PROJECT_BY_ID, isLineNode } from '../../../data/v2/tree';
 import { safFromProgress } from '../safety/lineProjects';
 import { START_SUITE_FAMILIES, startExpertAssets, suitesFromV1 } from '../models/suites';
+import { migrateRivalPhys } from '../actors/rivalModel';
+import { LEADER_ID } from '../models/labs';
+import { LEADER_CAL } from '../../../data/v2/calibration';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
 /** 12 (model v3 V1): models are built from physical quantities (BaseModel, VersionBuild, BaseDesign, PostDesign changed).
@@ -47,8 +50,12 @@ import { START_SUITE_FAMILIES, startExpertAssets, suitesFromV1 } from '../models
  *  suites' exploitability (cheap → cheap, else hardened = the leader's start) at fidelity 1 (suitesFromV1).
  *  24 (model v3 D2): DataPortfolio.pending (licence and expert-data deals waiting for delivery) and the optional synJob
  *  (a synthetic generation job with a chosen teacher). Migration 23 → 24 starts with nothing pending and no job.
- *  (D5 and D2 were built as 21 → 22 → 23 beside E1's 21 → 22; merge M2 made the chain linear.) */
-export const SCHEMA_REV = 24;
+ *  (D5 and D2 were built as 21 → 22 → 23 beside E1's 21 → 22; merge M2 made the chain linear.)
+ *  25 (model v3 F1): rivals, China and the leader lab in effective compute — RivalLab.phys (base, base run, research
+ *  efficiency) and SimpleModel G / flop / params / fpt; LabCore.lagCal and TimelineWorld.simpleCredit are gone. Migration
+ *  24 → 25 builds each lab's base under its current internal model from its know-how and training pool
+ *  (actors/rivalModel.ts migrateRivalPhys). */
+export const SCHEMA_REV = 25;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -298,6 +305,19 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   23: (raw) => {
     const p = (raw as unknown as GameStateV2).player;
     p.dataPortfolio.pending ??= [];
+  },
+  /** 24 → 25 (model v3 F1): every non-player lab gets its physical state (a base under its internal model, sized by its
+   *  training pool; its recipe from its know-how); the leader lab its research efficiency (LEADER_CAL). The v2 lag-model
+   *  fields go. */
+  24: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const w = s.hidden.timeline;
+    delete (w as { simpleCredit?: number }).simpleCredit;
+    for (const r of [...s.rivals, s.china.lab]) {
+      delete (r.core as { lagCal?: number }).lagCal;
+      if (r.phys) continue;
+      migrateRivalPhys(w, r, r.core.id === LEADER_ID ? Math.pow(10, LEADER_CAL[s.setup.world] ?? 0) : 1);
+    }
   },
 };
 

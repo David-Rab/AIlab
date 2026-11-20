@@ -14,22 +14,21 @@
 //   sector coverage     a = σ((fit − θ_s)/s) × p(H_s | h50): the work-type function of V3 (departments/workfit.ts) with
 //                         the sector's median professional as reference (θ_s, SECTOR_REF), fit = Σ ω_d G_d + ΔG(effort,
 //                         safeguards, scaffolds), h50 × horizon extenders
-// Rivals and China have no N_active: their FLOP per token comes from their G through the reference design at the
-// player's recipe (BRIDGE(V7)). Nothing here reads serveCost, the research-speed multiplier M or the level bridge for
-// prices, costs or coverage.
+// Rivals and China serve their own designs (model v3 F1, actors/rivalModel.ts): FLOP per token 2·N_active of their base,
+// fit their G. Nothing here reads serveCost, the research-speed multiplier M or the level bridge for prices, costs or
+// coverage.
 import {
   AGENT_WORK, CHAT_WORK, CHINA_MARKUP, CONSUMER_MKT, CONTROL_LAYER_DG, EFFORT_CAP_OOM, EFFORT_OOM_PER_10X, EFFORT_TOKENS, MARKUP, RIVAL_MARKUP,
   SAFEGUARD_DG, SEATS, SECTOR_REF, SECTOR_WORK, TOKENS, type TokenProfile,
 } from '../../../data/v2/serving';
 import { FEATURE_BY_ID, FREE_TIER_SHARE, MINI_CHANNELS, type FeatureFx, type FeatureId, type WorkScope } from '../../../data/v2/features';
 import { ECON, REGION_SCALE, SECTORS } from '../../../data/v2/sectors';
-import { DISTILL, DISTILL_TPP, REFERENCE_BASE, PARAM_RANGE, SHAPE } from '../../../data/v2/runDesign';
-import { V0_DAY } from '../../../data/v2/calibration';
+import { DISTILL, DISTILL_TPP, REFERENCE_BASE, PARAM_RANGE } from '../../../data/v2/runDesign';
 import { ASSIST, COVER, H50_PER_OOM, H80_OVER_H50, PEAK_FLOPS, U_DECODE, U_PREFILL, type WorkTypeId } from '../../../data/v2/workTypes';
 import { dollarsPerH100eHour, domainG, flopPerToken, pSuccess, workFit } from '../departments/workfit';
 import { distillGap } from '../models/effective';
-import { gV0, h50Of, levelKnotsG, playerStart } from '../models/capability';
-import { B_G_PER_Y } from '../../../data/v2/runDesign';
+import { gV0, h50Of } from '../models/capability';
+import { fptOfSimpleModel } from '../actors/rivalModel';
 import { versionById } from '../models/labs';
 import { activeFeatures } from '../models/products';
 import { adopted } from '../models/paradigms';
@@ -159,31 +158,11 @@ export function preLlmCover(w: TimelineWorld): Record<SectorId, number> {
   return m;
 }
 
-// ───────────────────────────── rivals' FLOP per token (BRIDGE(V7)) ─────────────────────────────
+// ───────────────────────────── rivals' FLOP per token (model v3 F1) ─────────────────────────────
 
-/** The frontier's non-compute effective-compute growth (OOM/yr: recipe and RL, research/12 §0.2: G +1.3/yr of which
- *  compute ≈ 0.76) that the rivals' bridge takes out of their G before sizing their models (BRIDGE(V7)) [R12, D]. */
-export const RIVAL_ALGO_OOM_PER_YEAR = 0.55;
-/** FLOP per token of a model known only by its G (rivals, China): the reference design (B0: 1T active MoE at V0's G)
- *  scaled to the model's training compute — its G less the frontier's algorithmic progress since V0, and N_active ∝
- *  √FLOP at fixed tokens per parameter — then 2·N × the reference shape's token multiplier. BRIDGE(V7): rivals get their
- *  own designs in V7. */
-export function fptOfG(s: GameStateV2, G: number, day: number): number {
-  const dAlgo = RIVAL_ALGO_OOM_PER_YEAR * Math.max(0, (day - V0_DAY) / 365);
-  const N = Math.min(PARAM_RANGE[1], Math.max(PARAM_RANGE[0], REFERENCE_BASE.params * Math.pow(10, (G - gV0(s.hidden.timeline) - dAlgo) / 2)));
-  return 2 * N * SHAPE[REFERENCE_BASE.shape].tokenMult;
-}
-/** A rival's or China's model as the market sees it (BRIDGE(V7)): its G read through pm (gOfPm), capped at the display
- *  scale's top (λ = 15, the reference superintelligence point) — the simple labs' v2 progress runs to hundreds of OOM in
- *  a takeoff, which the capped display level hid. */
-export function marketModel(s: GameStateV2, m: SimpleModel): SimpleModel {
-  const w = s.hidden.timeline;
-  const k = levelKnotsG(w);
-  const pmCap = playerStart(w).target + (k[k.length - 1] - gV0(w)) / B_G_PER_Y;
-  return m.pm > pmCap ? { ...m, pm: pmCap } : m;
-}
-/** FLOP per token of a rival's or China's public model (BRIDGE(V7)). */
-export const fptOfSimple = (s: GameStateV2, m: SimpleModel) => fptOfG(s, domainG(s, m, 'CODE'), m.day);
+/** FLOP per token of a rival's or China's model: its own base's 2·N_active (actors/rivalModel.ts; N_active = √(FLOP/(6·tpp))
+ *  of the run that trained it). Replaces the V4 bridge that sized rival models from their G. */
+export const fptOfSimple = (_s: GameStateV2, m: SimpleModel) => fptOfSimpleModel(m);
 
 // ───────────────────────────── typed feature effects (V4.3) ─────────────────────────────
 
@@ -420,8 +399,8 @@ const newMap = () => new Map();
  *  that still does the easiest `u` of the sector's tasks: the cheapestAt rule sized on coverage (gap g solves a(fit − g,
  *  h50·H50_PER_OOM^−g) = u, the student being the teacher shifted down by g in every domain, as runs.ts distillBuild).
  *  Its costs and prices scale with its active parameters. Undefined when no student is DISTILL.a below the teacher and
- *  still covers u (the teacher itself is the cheapest adequate model). Rivals' and China's lineups (fit and FLOP per token
- *  from BRIDGE(V7) until F1). */
+ *  still covers u (the teacher itself is the cheapest adequate model). Rivals' and China's lineups: their own model's fit,
+ *  FLOP per token and active parameters (model v3 F1). */
 export function studentOffer(s: GameStateV2, o: Offer, sid: SectorId, fit: number, h50: number, nT: number, u: number, markup: number, rate: number): Offer | undefined {
   const w = s.hidden.timeline;
   // P2-style memo: the gap depends only on these inputs (per world); lineups change only when a model or a_top does.

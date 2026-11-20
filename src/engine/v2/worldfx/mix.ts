@@ -33,7 +33,7 @@ import { sigmoid, techRamp } from './policy';
 import { productDomains } from '../models/products';
 import { flopPerToken } from '../departments/workfit';
 import {
-  CHINA_MARKUP, RIVAL_MARKUP, effortTokens, marketModel, enablerShare, fptOfSimple, fxOn, markupOf, offerOf,
+  CHINA_MARKUP, RIVAL_MARKUP, effortTokens, enablerShare, fptOfSimple, fxOn, markupOf, offerOf,
   agentDemandOf, paidShareTarget, productFx, productMiniUses, productOffer, productUses, savedPerAdoptedHour, sectorH50, serveDollarsPerHour, settingsDG, studentOffer, subPrice,
   valuePerHour, wagePerHour, type ModelUse, type Offer,
 } from './serving';
@@ -74,6 +74,8 @@ export interface Provider {
   /** The model (non-player providers): fit reads its G, cost its FLOP per token. */
   model?: SimpleModel | ModelVersion;
   fpt?: number;
+  /** Active parameters of a non-player provider's model (its own base, model v3 F1): its cheap tiers are students of it. */
+  params?: number;
   markup: number;
   brand: number;
   appeal: number;
@@ -120,7 +122,7 @@ export interface SectorMix {
   playerMiniW: Record<string, number>;
 }
 /** A5: a tier is a provider's own model (the player's: a product's main model), the player's product mini (cheap tier),
- *  or a distilled student of another provider's model (its cheap tiers; BRIDGE(V7) sizes until F1). */
+ *  or a distilled student of another provider's model (its cheap tiers, sized on its own model: model v3 F1). */
 export type TierKind = 'model' | 'mini' | 'student';
 
 export interface ConsumerMix {
@@ -284,10 +286,10 @@ function providersOf(s: GameStateV2, paid: Deployment[], ver: Map<string, ModelV
   for (const r of s.rivals) {
     const m = r.publicModel;
     if (!m || (r.core.status !== 'active' && !m.openWeights)) continue;
-    providers.push({ key: r.core.id, lab: r.core.id, paid: false, open: m.openWeights, dom: m.domains, model: marketModel(s, m), brand: r.core.status === 'active' ? 1 : 0.5, appeal: 1, markup: m.openWeights ? OPEN_MARKUP : RIVAL_MARKUP });
+    providers.push({ key: r.core.id, lab: r.core.id, paid: false, open: m.openWeights, dom: m.domains, model: m, params: m.params, brand: r.core.status === 'active' ? 1 : 0.5, appeal: 1, markup: m.openWeights ? OPEN_MARKUP : RIVAL_MARKUP });
   }
   const cn = s.china.lab.publicModel;
-  if (cn && (s.china.lab.core.status === 'active' || cn.openWeights)) providers.push({ key: CHINA_ID, lab: CHINA_ID, paid: false, open: cn.openWeights, dom: cn.domains, model: marketModel(s, cn), brand: 1, appeal: 1, markup: cn.openWeights ? OPEN_MARKUP : CHINA_MARKUP });
+  if (cn && (s.china.lab.core.status === 'active' || cn.openWeights)) providers.push({ key: CHINA_ID, lab: CHINA_ID, paid: false, open: cn.openWeights, dom: cn.domains, model: cn, params: cn.params, brand: 1, appeal: 1, markup: cn.openWeights ? OPEN_MARKUP : CHINA_MARKUP });
   for (const p of providers) if (p.model && !p.fpt) p.fpt = 'baseId' in p.model ? flopPerToken(s, p.model) : fptOfSimple(s, p.model);
   return providers;
 }
@@ -435,7 +437,7 @@ function computeMix(s: GameStateV2): WorldMix {
       const p = providers[i];
       const o = row[i];
       if (!o || !p.model || p.lab === 'player' || !(aTop > 0)) continue;
-      const nT = (p.fpt ?? 2e12) / (2 * refTokMult);
+      const nT = p.params ?? (p.fpt ?? 2e12) / (2 * refTokMult);
       const h50 = sectorH50(s, p.model, t.id);
       for (let b = 1; b <= B; b++) {
         const u = (aTop * b) / B;

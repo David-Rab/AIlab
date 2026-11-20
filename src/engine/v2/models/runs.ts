@@ -18,9 +18,8 @@ import { buildEtas, buildWaitNew, engScale, queueBuild, runSetupTW, runWaiting }
 import { TRAIT_IDS } from '../../../data/v2/traits';
 import { clamp } from '../../rng';
 import { decimalYear } from '../core/time';
-import { normalizeSplit, shareRefAt } from '../departments/split';
 import { playerDraw, uniqueTokens, type DataDraw } from '../production/data';
-import { frontierFlop, hRef } from '../production/knots';
+import { frontierFlop } from '../production/knots';
 import { tcoPerH100eYear } from '../production/production';
 import { consumeRunPenalty } from '../safety/responses';
 import { applyBaseToLineage, applyIdaCycle, applyRunToTraits, baseSignals, postSignals, runSignals } from '../safety/traits';
@@ -35,7 +34,8 @@ import { optionLocked, payoffOf } from './tree';
 import type { DomainMap } from './effective';
 import { evalDaysFor, runEvalSuite } from './benchmarks';
 import { addOff, addSig, baseEffect, clampSignals, monitorabilityClass, postEffect, type Off } from './design';
-import { domainsOf, finishBuild, gOfDomain, gOfPm, levelOf, refreshLevels, simpleFrontierPm } from './capability';
+import { domainsOf, finishBuild, gOfDomain, gOfPm, levelOf, refreshLevels } from './capability';
+import { clRefresh, gOfSimple, growLabStaff, labReferenceSplit, setModelG, trainDay } from '../actors/rivalModel';
 import { ePreAt, rlCeilNow, rlMidNow, serveNow, trainNow } from './stacks';
 import { paOfRecipe } from './tree';
 import { stackRate } from './research';
@@ -635,51 +635,18 @@ export const runsSystem: EngineSystem = {
 
 // ───────────────────────────── lab API for non-player labs (WS4 drives them) ─────────────────────────────
 
-/** Reference split for a non-player lab: the shares track shareRef(t), keeping the lab's own safety share (WS4 sets
- *  it from posture). The research mix is re-split to the best one by the production system. */
-export function labReferenceSplit(s: GameStateV2, r: RivalLab): void {
-  const ref = shareRefAt(decimalYear(s)); // BRIDGE(V7): rival lab API
-  const keep = r.core.split.safety;
-  const rest = 1 - ref.safety;
-  const sp = { ...ref, safety: r.core.split.safety };
-  for (const k of ['training', 'experiments', 'agents', 'synthetic', 'serving'] as const) sp[k] = (ref[k] / rest) * (1 - keep);
-  r.core.split = normalizeSplit(sp);
-}
-
-/** Capabilities staff of a non-player lab grow with the reference headcount path (keeps h constant). */
-export function growLabStaff(s: GameStateV2, r: RivalLab): void {
-  const yr = decimalYear(s);
-  r.core.staff.cap *= hRef(yr) / hRef(yr - 1 / 365); // BRIDGE(V7): rival lab API
-}
-
-/** The internal model of a non-player lab tracks its simple frontier (pa + scale term − reference release lag,
- *  simpleFrontierPm). WS4 calls this daily for the labs it manages; model identity, traits and releases are WS4's. */
-export function trackLabFrontier(s: GameStateV2, r: RivalLab): void {
-  const w = s.hidden.timeline;
-  const target = simpleFrontierPm(s, r.core.id);
-  const m = r.internal;
-  if (target > m.pm) {
-    m.pm = target;
-    m.Lg = levelOf(w, m.pm);
-    m.domains = domainsOf(w, m.pm);
-  }
-}
-
-/** Default policy for non-player labs not managed by WS4: reference split, staff growth, frontier tracking, and the
+/** Default policy for non-player labs not managed by WS4: reference split, staff growth, the base run trains and the
+ *  continual learner refreshes (model v3 F1, actors/rivalModel.ts; versions and releases are WS4's cadence), and the
  *  public model trailing by 0.15 y. */
 function defaultLabPolicy(s: GameStateV2, r: RivalLab) {
   if (r.managed || r.core.status !== 'active') return;
   const w = s.hidden.timeline;
   labReferenceSplit(s, r);
   growLabStaff(s, r);
-  trackLabFrontier(s, r);
-  const m = r.internal;
-  if (r.publicModel && m.pm - 0.15 > r.publicModel.pm) {
-    const pub = r.publicModel;
-    pub.pm = m.pm - 0.15;
-    pub.Lg = levelOf(w, pub.pm);
-    pub.domains = domainsOf(w, pub.pm);
-  }
+  trainDay(s, r, s.time.day);
+  clRefresh(s, r, s.time.day);
+  const G = gOfSimple(w, r.internal) - 0.15 * B_G_PER_Y;
+  if (r.publicModel && G > gOfSimple(w, r.publicModel)) setModelG(w, r.publicModel, G);
 }
 
 type Track = { pre: number; rlMid: number; rlCeil: number };

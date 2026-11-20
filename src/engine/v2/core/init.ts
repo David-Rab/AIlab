@@ -26,7 +26,7 @@ import { initialBoard } from '../finance/board';
 import { initialCapital } from '../finance/investors';
 import { initialFinance } from '../finance/ledger';
 import { benchScore } from '../models/benchmarks';
-import { domainsOf, finishBuild, levelOf, playerStart, simpleStartPa, startVintage } from '../models/capability';
+import { domainsOf, finishBuild, levelOf, playerStart, startVintage } from '../models/capability';
 import { initialStacks, syncPa } from '../models/stacks';
 import { flopOfDesign, gPreOf, rlFamiliesAvailable, rlGains, rlWeights, serveOfBase } from '../models/effective';
 import { labCore } from '../models/labs';
@@ -316,13 +316,12 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
     tutorial: { act: 1, unlocked: setup.tutorial ? ['finance', 'departments', 'models', 'relations'] : ['*'], seen: [] },
     flags: {},
   };
-  // Non-player know-how: solve pa so that each lab's default frontier (simpleFrontierPm) equals its start model.
-  // Readouts first (the rate does not depend on pa), then each lab's pa from its start model and rate.
+  // Readouts (model v3 F1: the non-player labs' recipe, base and models were set when they were built,
+  // actors/rivalModel.ts initRivalPhys).
   for (const id of labIds) {
     const core = labCore(s, id);
     if (core) core.prodCache = computeProduction(s, id);
   }
-  for (const r of [...rivals, china.lab]) r.core.pa = simpleStartPa(s, r.core.id, r.internal.pm);
   seedCandidates(s.player.hiring, new StreamRng(s, 'company'));
   syncPa(s); // BRIDGE(V6,V7): the know-how readout from the start stacks (the leader's is pa₀ exactly)
   sampleSeries(s);

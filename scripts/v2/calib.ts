@@ -5,7 +5,7 @@
 //       `npx tsx scripts/v2/calib.ts --fit-v3 [preset …]` bisects G_SC on SC for each Δ_bm and searches Δ_bm on the
 //       worst later milestone; it prints the values to hard-code in src/data/v2/workTypes.ts (V3_CAL).
 //   T1L Leader lab (setup.leaderLab, BUILD-PLAN R2) with a passive player: the simulated leader's milestone days hit
-//       the same golden days and tolerances. LEADER_CAL (an extra release lag, years) is its per-preset knob:
+//       the same golden days and tolerances. LEADER_CAL (its research efficiency, log₁₀; model v3 F1) is its per-preset knob:
 //       `npx tsx scripts/v2/calib.ts --fit-leader [preset …]` bisects it on SC (src/data/v2/calibration.ts).
 //   T2  Copies × speed in Mar 2027 (ai2027 RefBot) ≈ 200k at ~30× (±30%).
 //   T3  China lead 150–200 d before any theft (default China lab, WS1 lab API).
@@ -170,18 +170,19 @@ function worstErrL(preset: T1Preset, lc: number): number {
   }
   return worst;
 }
-/** Bisect LEADER_CAL so the leader's SC day equals the golden SC day (SC day rises with the lag). The simple leader
- *  runs A2 → SC faster and SC → ASI slower than RefBot, so the SC root over-delays the late milestones: refine on a
- *  grid below and around it by the worst |Δ|/tolerance over SC … last (0.025 steps, then 0.005). */
+/** Bisect LEADER_CAL so the leader's SC day equals the golden SC day (model v3 F1: research efficiency, so SC day falls
+ *  as it rises). The aggregate leader has no idea projects and runs SC → ASI slower than RefBot, so the SC root
+ *  over-delays the late milestones: refine on a grid around it by the worst |Δ|/tolerance over SC … last (0.025 steps,
+ *  then 0.005). */
 function fitLeader(preset: T1Preset): number {
   const want = golden.presets[preset].days.SC;
-  let lo = -0.5;
+  let lo = -1;
   let hi = 1;
   for (let i = 0; i < 12; i++) {
     const mid = (lo + hi) / 2;
     const sc = runT1L(preset, mid, 3)[3] ?? 1e9;
-    if (sc < want) lo = mid;
-    else hi = mid;
+    if (sc < want) hi = mid;
+    else lo = mid;
   }
   const c0 = Math.round(((lo + hi) / 2) * 1000) / 1000;
   let best = c0;
@@ -195,7 +196,7 @@ function fitLeader(preset: T1Preset): number {
       bestErr = e;
     }
   };
-  for (let d = -0.15; d <= 0.0501; d += 0.025) tryAt(c0 + d);
+  for (let d = -0.05; d <= 0.1501; d += 0.025) tryAt(c0 + d);
   const mid = best;
   for (let d = -0.02; d <= 0.0201; d += 0.005) tryAt(mid + d);
   console.log(`  ${preset}: bisection ${c0}, refined ${best} (worst |Δ|/tol ${bestErr.toFixed(2)})`);
