@@ -87,6 +87,8 @@ const REQUIRED = [
   'workersUsingAI', 'hoursOfUse', 'savedPerHour', 'unseatedUse', 'seatShare', 'agentLeverage', 'costGate', 'feasibility', 'aiWorkHourCost', 'verifiability',
   // model v3 B4: serving as FLOP per token and cost per hour of use (replaces the relative serve cost).
   'useHourCost', 'teamsWantedAuto',
+  // model v3 D5/D6: RL environment suites (Models › Suites).
+  'envSuite', 'suiteFidelity', 'suiteExploit', 'expertData', 'suiteBuild', 'suiteHarden', 'suiteRlShare', 'rewardHackPressure', 'plannedRun',
 ];
 const req = REQUIRED.filter((id) => !GLOSSARY_V2[id]);
 ok(`Required terms present (${REQUIRED.length})`, req.length === 0, req.join(', '));
