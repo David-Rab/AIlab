@@ -154,7 +154,7 @@ export const TREE: TreeNodeDef[] = [
   N('elastic', 'Elastic training', 'pretraining', 'backbone', [], 'M', 0.9, { cap: 1 }, { kind: 'idea', effect: { stack: 'train', mean: 0.023, sd: 0.3 }, cap: 'Training throughput +0.023 OOM (goodput 0.90 → 0.95)' }),
   P('P10', 'Synthetic data flywheel', 'pretraining', 'backbone', ['codeMath'], 'L', { cap: 1, saf: -1 }, { kind: 'axis', effect: { mean: 1, sd: 0.3, data: { synQMax: P10_SYN_Q_RAISE } }, options: [['data', 'synthetic']], cap: 'Generated data can beat web text: the quality ceiling of synthetic data rises from the web\'s 1 to 1.5 (strong teachers, rephrasing, filtering); unlocks the synthetic-heavy mix', saf: 'Reward-model exploitation ×1.5; inherits teacher traits', payoff: 'Pays off with a teacher well above V0 (quality 1 at +2 OOM, 1.5 at +4 OOM)' }),
   P('P12', 'Long-horizon human demos', 'pretraining', 'backbone', [], 'L', { cap: 1 }, { kind: 'idea', effect: { mean: 1, sd: 0.25, expert: { family: 'longHorizon', tokensT: P12_DEMO_T } }, cap: 'Experts record days-long work: 20B tokens of demonstrations join the long-tasks suite (fidelity 1 → 1.35 from the start stock), raising its RL ceiling and so the time horizon', cost: '$1B at the expert-data price ($0.05 a token), paid when the demos are delivered (adoption)' }),
-  P('P23', 'Faithful-CoT architecture', 'pretraining', 'backbone', ['T-COTMON'], 'L', { cap: -1, saf: 2 }, { options: [['cot', 'faithful']], cap: 'Δ −0.24 y', saf: 'Monitorability 0.98', cost: 'Serve ×1.2' }),
+  P('P23', 'Faithful-CoT architecture', 'pretraining', 'backbone', ['T-COTMON'], 'L', { cap: -1, saf: 2 }, { options: [['cot', 'faithful']], cap: '−0.29 OOM effective compute (faithful reasoning option)', saf: 'Monitorability 0.98; halves CoT pressure and CoT controllability', cost: 'Serving FLOP per token ×1.2' }),
   P('P17', 'Neuralese recurrence', 'pretraining', 'backbone', ['P01', 'P07'], 'XL', { cap: 2, saf: -2 }, { options: [['shape', 'latent']], cap: '+0.5 OOM effective compute on a latent base', saf: 'CoT monitoring dies (monitorability 0.05)', cost: 'Serve ×0.4 (no verbal reasoning tokens)' }),
   P('P24', 'AI-designed successor', 'pretraining', 'backbone', ['P13', 'P19'], 'XL', { cap: 2, saf: -1 }, { cap: 'Next base +1 OOM recipe', saf: 'New lineage: traits redrawn, tools may not transfer', payoff: 'Pays off with research done mostly by AI (AI share of research labour 50% → 90%)' }),
 
@@ -177,7 +177,7 @@ export const TREE: TreeNodeDef[] = [
   P('P09', 'Test-time training', 'posttraining', 'training', [], 'M', { cap: 1, saf: -1 }, { kind: 'idea', effect: { mean: 1, sd: 0.4, domains: { REASON: 0.3 } }, cap: 'REASON +0.3 OOM for new versions', saf: 'Audit coverage −10%' }),
   P('P11', 'Self-play curricula', 'posttraining', 'training', ['rl.math'], 'L', { cap: 2, saf: -1 }, { kind: 'idea', effect: { mean: 1, sd: 0.4, domains: { REASON: 0.66, CODE: 0.33 } }, cap: 'REASON +0.66, CODE +0.33 OOM for new versions', saf: 'Verifier-hacking pressure' }),
   P('P18', 'Iterated distillation & amplification', 'posttraining', 'training', ['P05'], 'L', { cap: 2, saf: -1 }, { cap: 'One more RL budget (0.15 × the base FLOP) on the RL curve per cycle', saf: 'Traits ×1.1 per cycle', cost: 'RL compute (30% of the training pool while it runs)' }),
-  P('P14', 'Interp-guided training', 'posttraining', 'training', ['T-PROBE'], 'M', { saf: 1 }, { saf: 'In-run trait growth ×0.6', cost: 'Goodhart on the probe' }),
+  P('P14', 'Interp-guided training', 'posttraining', 'training', ['T-PROBE'], 'M', { saf: 1 }, { saf: 'Post-training: the probes steer trait growth × (1 − their detection); fades as capability outruns them', cost: 'Goodhart: steered traits get masked from white-box tools' }),
   P('P21', 'Brain-like sample efficiency', 'posttraining', 'training', ['P08', 'P19'], 'XL', { cap: 2, saf: -1 }, { kind: 'idea', effect: { mean: 1, sd: 0.6, data: { worthOom: P21_WORTH_OOM } }, cap: 'Learns more from each token: every drawn token is worth ×2 in the loss law (wide uncertainty), most valuable where data is short', saf: 'Evals lag' }),
 
   // ── Systems (Scaffold unless noted) ──
@@ -191,7 +191,7 @@ export const TREE: TreeNodeDef[] = [
   P('P13', 'Automated AI research agents', 'systems', 'lab', ['rl.mlResearch'], 'L', { cap: 2, saf: -1 }, { cap: 'Experiment throughput up to ×1.5', saf: 'Sandbagging; AI research sabotage risk ↑', payoff: 'Pays off with your internal model\'s RSCH level (none at 6.5, full at 8.5)' }),
   P('P16', 'AI kernels / HW co-design', 'systems', 'lab', ['P13'], 'M', { cap: 1 }, { kind: 'idea', effect: { stack: 'train', mean: 0.06, sd: 0.3, also: { serve: 0.125 / 0.06 } }, cap: 'Training throughput +0.06 OOM (×1.15); serving efficiency +0.125 OOM' }),
   P('P19', 'Learned research taste', 'systems', 'lab', ['P13'], 'L', { cap: 2, saf: -1 }, { cap: 'Removes the RSCH −0.5 penalty', saf: 'AI sets research direction' }),
-  P('P15', 'AI-assisted oversight', 'systems', 'lab', ['P13'], 'M', { saf: 1 }, { saf: 'Hardened graders at the cheap price', cost: 'Collusion risk' }),
+  P('P15', 'AI-assisted oversight', 'systems', 'lab', ['P13'], 'M', { saf: 1 }, { saf: 'Safety agents share suite hardening: cheaper red-teaming, a deeper cut', cost: 'Collusion when the critic shares the trained model’s lineage', payoff: 'Pays off with safety work handed to AI' }),
   P('P20', 'Massive agent societies', 'systems', 'lab', ['P05'], 'M', { cap: 1, saf: -2 }, { cap: 'Agent research throughput up to ×1.1', saf: 'Many-copies pressure max; collusion', payoff: 'Pays off with ≥ 2M H100e of agents' }),
   P('P22', 'Robotics foundation', 'systems', 'backbone', ['multimodal'], 'L', { cap: 1, saf: -1 }, { kind: 'idea', effect: { mean: 1, sd: 0.4, domains: { PHYS: 1.65 } }, cap: 'PHYS +1.65 OOM for new versions; robotics progress', saf: 'Physical reach' }),
   P('P25', 'Formal verification at scale', 'systems', 'lab', ['P11'], 'L', { saf: 1 }, { saf: 'Weight security: defence +0.5 level against theft' }),
@@ -236,11 +236,11 @@ export const TREE: TreeNodeDef[] = [
   S('T-COLLEVAL', 'Collusion evals', 'evals', 'lab', ['T-LOCK'], 'AG14', 'M', { saf: 1 }, { saf: 'Detects collusion, successor risk' }),
   S('T-RESAMPLE', 'Resample protocols', 'evals', 'lab', ['T-TMON'], 'AG07', 'M', { saf: 1 }, { saf: 'Contains power-seeking, scheming' }),
   S('T-CEVAL', 'Control evaluation', 'evals', 'lab', ['T-RESAMPLE'], 'AG07', 'M', { saf: 1 }, { saf: 'Measures containment' }),
-  S('aar', 'Automated alignment research', 'evals', 'lab', ['P13'], 'AG17', 'L', { saf: 2 }, { finding: 'F44', saf: 'Lets the safety AI-labour policy exceed 50%', payoff: 'Pays off with a safety model at level ≥ 10' }),
+  S('aar', 'Automated alignment research', 'evals', 'lab', ['P13'], 'AG17', 'L', { saf: 2 }, { finding: 'F44', saf: 'Safety lines on training signals, steering and robustness ×3 while safety work is handed to AI', payoff: 'Pays off with a safety model at level ≥ 10' }),
   S('T-MAD', 'Mechanistic anomaly detection', 'evals', 'lab', ['T-CIRCUIT'], 'AG04', 'XL', { saf: 2 }, { cost: 'Long shot' }),
   S('T-SCIAI', 'Harm-probability guardrail', 'evals', 'lab', ['T-CEVAL'], 'AG11', 'XL', { saf: 2 }, { cost: 'Long shot' }),
   S('T-GATE', 'Verified gatekeeper', 'evals', 'lab', ['P25'], 'AG10', 'XL', { saf: 2 }, { saf: 'Contains exfiltration', cost: 'Long shot' }),
-  P('P27', 'Automated alignment research at scale', 'evals', 'lab', ['aar'], 'XL', { saf: 2 }, { agenda: 'AG17', saf: 'Safety research speed × (1 + 3·AI labour)', cost: 'False-result risk grows with hidden sandbagging' }),
+  P('P27', 'Automated alignment research at scale', 'evals', 'lab', ['aar'], 'XL', { saf: 2 }, { agenda: 'AG17', saf: 'Safety AI labour: +0.3 OOM fit on safety work; line automation halfway to full', cost: 'More AI work, more false-result risk from a sabotaging model', payoff: 'Pays off with safety work handed to AI' }),
 ];
 
 for (const n of TREE) {

@@ -65,9 +65,9 @@ export const SUITE_BUILD = { tokensT: EXPERT_START_T, twPerStart: 2 } as const;
  *  each pass removes less, diminishing returns), floor = `floorFrac` × the family's start (hardened) value (some exploits
  *  survive every red team; METR still finds ≈ 1–2% hacks in GPT-5's runs, research/20 F1). Cost grows with the suite:
  *  `tw` team-weeks and `cashB` $B of expert red-teamers × √(E/E₀). Two passes take cheap graders to about hardened
- *  (0.6² = 0.36 vs 0.4). P15 (AI-assisted oversight: "hardened graders at the cheap price") × `p15Cash` on the cash, V1's
- *  0.1 / 0.5 environment budget. */
-export const SUITE_HARDEN = { cut: 0.4, floorFrac: 0.1, tw: 1.5, cashB: 0.05, p15Cash: 0.2 } as const;
+ *  (0.6² = 0.36 vs 0.4). P15 (AI-assisted oversight, model v3 E13) hands part of the red-teaming to the safety agents:
+ *  cheaper cash and a deeper cut (data/v2/safetyIdeas.ts P15_OVERSIGHT, safety/ideas.ts aiOversight). */
+export const SUITE_HARDEN = { cut: 0.4, floorFrac: 0.1, tw: 1.5, cashB: 0.05 } as const;
 /** Upkeep [D]: every suite keeps `tw` team-weeks a week busy × √(E/E₀) (environment maintenance as models and tools
  *  change), on the engineers' upkeep need with products, monitors and features. Six start suites ≈ 0.18 team-weeks a
  *  week, ≈ 3% of the leader's start capacity. */

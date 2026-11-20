@@ -74,10 +74,12 @@ const JOBS: Job[] = [
   { id: 'safety', script: 'safety.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, shards: { full: 6 }, ...S(ALL, 1000) } as Job,
   { id: 'danger', script: 'danger.ts', ...S(ALL, 60) } as Job,
   { id: 'oversight', script: 'oversight.ts', ...S(ALL, 30) } as Job,
-  // E7, E8, E9 (merged in M5).
+  // E7 sabotage, E8 footholds, E9 control (merged in M5).
   { id: 'sabotage', script: 'sabotage.ts', ...S(ALL, 60) } as Job,
   { id: 'footholds', script: 'footholds.ts', ...S(ALL, 60) } as Job,
   { id: 'control', script: 'control.ts', ...S(ALL, 60) } as Job,
+  // E13 (merged in M5).
+  { id: 'safetyideas', script: 'safetyideas.ts', ...S(ALL, 30) } as Job,
   { id: 'finance', script: 'finance.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, shards: { full: 3, quick: 2 }, ...S(ALL, 250) } as Job,
   { id: 'worldfx', script: 'worldfx.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, ...S(ALL, 90) } as Job,
   { id: 'ws4', script: 'ws4.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, ...S(ALL, 120) } as Job,

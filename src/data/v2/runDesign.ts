@@ -3,6 +3,7 @@
 // G = log₁₀(FLOP × recipe efficiency) (models/effective.ts). Tags: [R20 xx] research/20 section, [D] design value,
 // [fit] fitted (scripts/v2/calib.ts or the anchor named), BRIDGE(Vn) temporary (design/V3-BUILD.md "Bridges").
 import type { BaseDesign, DataKind, DomainId, PostDesign, RLFamily, SignalId } from '../../engine/v2/types';
+import { FAITHFUL_COT } from './safetyIdeas';
 
 type Off = Partial<Record<DomainId, number>>;
 
@@ -168,11 +169,13 @@ export const POST_PREF: Record<PostDesign['pref'], { dg: number; off: Off; appea
   constitution: { dg: 0, off: {}, appeal: 1.0, honest: 0.05, safetyFteWeeks: 8 },
   persuasion: { dg: 0, off: { SOCIAL: 0.8 }, appeal: 1.1, honest: -0.05, safetyFteWeeks: 0 },
 };
-/** CoT pressure (S4) per mode is safety/traits.ts COT_S4. */
+/** Reasoning modes: `dg` effective compute (OOM), `serveMult` serving FLOP per token relative to the base (it sets
+ *  ModelVersion.fpt), `monitorability`. CoT pressure (S4) per mode is safety/traits.ts COT_S4; faithful (P23) also
+ *  resists CoT pressure and controllability (data/v2/safetyIdeas.ts FAITHFUL_COT). */
 export const POST_COT: Record<PostDesign['cot'], { dg: number; serveMult: number; monitorability: number }> = {
   visible: { dg: 0, serveMult: 1, monitorability: 0.9 },
   pressured: { dg: 0, serveMult: 0.8, monitorability: 0.6 }, // COT mask on RH/CONCEAL +0.3 (WS2)
-  faithful: { dg: -0.29, serveMult: 1.2, monitorability: 0.98 }, // needs P23
+  faithful: { dg: FAITHFUL_COT.dOom, serveMult: FAITHFUL_COT.fptMult, monitorability: FAITHFUL_COT.monitorability }, // needs P23 (E13 typed: data/v2/safetyIdeas.ts)
   latent: { dg: 0, serveMult: 1, monitorability: 0.05 }, // only on a latent base (its gain is the architecture's)
 };
 /** Alignment training: `dg` OOM. v2's extra wall days are gone (no minimum lengths). */

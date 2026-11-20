@@ -38,9 +38,10 @@ import { trainNow } from '../models/stacks';
 import type { AgendaId, GameStateV2, SafCandidate, SafProjectState, TreeNodeState } from '../types';
 import { aiShareOf, trustedShare } from './agents';
 import { safetySandbag } from './covert';
-import { adopted, clamp01, flag, trueEfficacy } from './common';
+import { clamp01, flag, trueEfficacy } from './common';
 import { investigationFte, safetyReHeads } from './investigations';
 import { patchFte } from './responses';
+import { aarAuto } from './ideas';
 
 const node = (id: string): TreeNodeDef | undefined => PROJECT_BY_ID[id];
 const agendaOf = (n: TreeNodeDef) => n.agenda as AgendaId;
@@ -172,14 +173,15 @@ function ag17Mult(s: GameStateV2): number {
  *  SAF_EXP, coverage from the safety model's fit and horizon, AI FTE from the package's compute) through handedLabour,
  *  the capabilities CES with the Trusted-to-AI share. Per line: the agenda's automation factor (research/14 "Auto": AI
  *  speeds agendas whose outputs can be checked, Carlsmith 2025) is the share of the line's work inside the work type's
- *  coverage (a × Auto; Auto 1 = the work type, AG12's 0.2 barely automatable), and AG17's science teams lift the
- *  agents' labour ×(1 + √(capacity ÷ SERIOUS_CAP)) [kept from v2; E13 types it]. A sabotaging safety model sandbags a
+ *  coverage (a × Auto; Auto 1 = the work type, AG12's 0.2 barely automatable; P27's AAR harnesses close half the gap to
+ *  1, safety/ideas.ts aarAuto, and add fit on SAF_*, workfit.ts safetyLabour), and AG17's science teams lift the agents'
+ *  labour ×(1 + √(capacity ÷ SERIOUS_CAP)) (AI team-equivalents; kept from v2 [D]). A sabotaging safety model sandbags a
  *  share of its own labour (model v3 E7, safety/covert.ts safetySandbag): the lines slow. */
 export function lineLabour(s: GameStateV2, ag: AgendaId): { ideas: number; exp: number; aiShare: number } {
   const sl = safetyLabour(s);
   if (sl.t <= 0) return { ideas: 1, exp: 1, aiShare: 0 };
   const P = s.hidden.timeline.prod;
-  const auto = AGENDA_BY_ID[ag].auto;
+  const auto = aarAuto(s, AGENDA_BY_ID[ag].auto);
   // Model v3 E7: the share of their own work the safety agents sandbag (SAFSAB attempts containment does not stop) is lost.
   const lift = ag17Mult(s) * (1 - safetySandbag(s));
   const one = (x: LabourOf) => (x.aiFte > 0 ? handedLabour(P, x.fit.a * auto, sl.t, x.H, x.AI * lift, x.fit.assist) : { m: 1, A: 0 });
@@ -194,8 +196,8 @@ export function lineLabourMult(s: GameStateV2, ag: AgendaId): { ideas: number; e
 }
 
 /** Speed modifiers of a line's stages: siloing −5% per level and a custom-ASIC migration −15% (as all research), a
- *  dead-end line at half speed, F44's automated alignment researchers ×3 on AG18/AG03/AG16 with AI labour, P27 ×(1 + 3t)
- *  (kept from the pre-E1 rate; typed in E13). */
+ *  dead-end line at half speed, F44's automated alignment researchers ×3 on AG18/AG03/AG16 with AI labour (kept from the
+ *  pre-E1 rate). P27 acts on the lines' AI labour instead (lineLabour; model v3 E13). */
 export function lineSpeed(s: GameStateV2, ag: AgendaId): number {
   const p = s.player;
   let v = 1 - 0.05 * p.security.siloing;
@@ -203,7 +205,6 @@ export function lineSpeed(s: GameStateV2, ag: AgendaId): number {
   if (p.safety.agendas[ag].status === 'deadEnd') v *= 0.5;
   const tr = trustedShare(s);
   if (flag(s, 'aar') !== undefined && tr > 0 && (ag === 'AG18' || ag === 'AG03' || ag === 'AG16')) v *= 3;
-  if (adopted(s, 'P27')) v *= 1 + 3 * tr;
   return v;
 }
 

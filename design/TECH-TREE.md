@@ -116,7 +116,7 @@ XL. **Pays off** = a condition on usefulness, not on unlocking.
 | Fault-tolerant training **new** | — | M | 90% | — | — | Restart risk × 0.5 |
 | Synthetic data flywheel (P10) | Code & math data | L | 80% | Synthetic data × 3; +0.15 y data mix | U01 × 1.5; inherits teacher traits | Pays off with a teacher model |
 | Long-horizon human demos (P12) | — | L | 85% | h80 × 2; RSCH +0.4 | — | $1B data cost |
-| Faithful-CoT architecture (P23) | CoT monitor | L | 75% | Δp −0.24 | Monitorability 0.98 | Serve × 1.2 |
+| Faithful-CoT architecture (P23) | CoT monitor | L | 75% | −0.29 OOM (faithful option) | Monitorability 0.98; CoT pressure and controllability × 0.5 | FLOP per token × 1.2 |
 | Neuralese recurrence (P17) | Visible reasoning, Long context | XL | 70% | +0.40 y | **CoT monitoring dies** (monitorability 0.05) | Serve 0.2 |
 | AI-designed successor (P24) | Automated research agents, Learned research taste | XL | 60% | Next base +0.8 y | New lineage: traits redrawn, tools may not transfer | Pays off with research done mostly by AI |
 
@@ -135,7 +135,7 @@ XL. **Pays off** = a condition on usefulness, not on unlocking.
 | Test-time training (P09) | — | M | 60% | REASON +0.6 | Audit coverage −10% | — |
 | Self-play curricula (P11) | RL focus: math | L | 60% | REASON +0.8, CODE +0.4 | Verifier hacking pressure | — |
 | Iterated distillation & amplification (P18) | Multi-agent orchestration | L | 65% | +0.25 y per 21-day cycle | Traits × 1.1 per cycle | 30% of the training pool per cycle |
-| Interp-guided training (P14) | Linear probes | M | 60% | — | In-run trait growth × 0.6 | Goodhart on the probe |
+| Interp-guided training (P14) | Linear probes | M | 60% | — | Post-train trait growth × (1 − probe detection) | Goodhart: WB masks + 0.3 × detection per run |
 | Brain-like sample efficiency (P21) | Continual learning, Learned research taste | XL | 45% | PHYS +1; fast domain gains | Evals lag | — |
 
 ### 2.3 Systems (Scaffold unless noted)
@@ -157,7 +157,7 @@ XL. **Pays off** = a condition on usefulness, not on unlocking.
 | Automated AI research agents (P13) — Lab | RL focus: ML research | L | 75% | Experiment throughput × 1.5 | Sandbagging, U17 ↑ | Pays off in proportion to your internal model's RSCH level |
 | AI kernels / HW co-design (P16) — Lab | Automated research agents | M | 80% | Training FLOP × 1.15 | — | Serve × 0.75 |
 | Learned research taste (P19) — Lab | Automated research agents | L | 60% | Removes the RSCH −0.5 penalty | AI sets research direction | Pays off once AI taste nears human taste |
-| AI-assisted oversight (P15) — Lab | Automated research agents | M | 60% | — | Hardened graders at the cheap price | Collusion risk (U19) |
+| AI-assisted oversight (P15) — Lab | Automated research agents | M | 60% | — | Safety agents share suite hardening: cash × (1 − 0.97·A), cut × (1 + 0.5·A) | Same-lineage collusion (A × 0.6) |
 | Massive agent societies (P20) — Lab | Multi-agent orchestration | M | 80% | Agent throughput × 1.1 | Many-copies pressure max; collusion | Pays off with ≥ 2M H100e of agents |
 | Robotics foundation (P22) — Backbone | Native multimodal | L | 60% | PHYS +2; robotics progress | Physical reach | — |
 | Superhuman persuasion (P26) | Persuasion tuning | M | 80% | Relation actions × 1.5 | Manipulation | Pays off with SOCIAL ≥ 12 |
@@ -218,7 +218,7 @@ Odds = the research line's estimate (§1.3). The agenda id says where the hidden
 | Mechanistic anomaly detection | Circuit tracing | AG04 | XL | Long shot |
 | Harm-probability guardrail | Control evaluation | AG11 | XL | Long shot |
 | Verified gatekeeper | Formal verification at scale | AG10 | XL | Contains exfiltration (long shot) |
-| Automated alignment research at scale (P27) | Automated alignment research | AG17 | XL | Safety research speed × (1 + 3·AI labour); false-result risk ∝ hidden sabotage |
+| Automated alignment research at scale (P27) | Automated alignment research | AG17 | XL | Safety AI labour: SAF_* fit +0.3 OOM, agenda automation halfway to 1; false-result risk ∝ AI share × hidden sabotage |
 
 **Tool upkeep without chores.** A detection tool works up to a capability level. Safety research engineers
 (STRUCTURE §4.1) keep that level rising with your models; the readout shows how far ahead it is. No refresh projects.
@@ -331,7 +331,7 @@ stacks together (G-equivalent) track the v2 know-how path.
 | Elastic training (**new**) | idea | Training throughput +0.023 OOM (goodput 0.90 → 0.95) | mean 0.023, sd 30% | R20 A4 (goodput 0.80–0.95) | now |
 | Synthetic data flywheel (P10) | axis | Data efficiency: the synthetic-quality ceiling rises from the web's q 1 to 1.5 (+0.5 q per unit, sd 30%) for data generated after adoption; unlocks the synthetic-heavy mix (model v3 D9; replaces synthetic ×3 and "no data wall") | paradigm prior | Maini et al. 2024 (rephrased web ≈ 3× faster pretraining) [P]; phi-4 [P]; research/20 A3 (synthetic up to 1.5) | now (D9) |
 | Long-horizon human demos (P12) | idea | Expert data: 0.02T demonstration tokens (sd 25%) join the long-tasks suite at the expert-data price ($1B), fidelity 1 → 1.35: the family's RL ceiling, AGENCY and the horizon rise through RL (model v3 D9; replaces horizon ×2, RSCH +0.4 L) | prior | research/12 #12; AI 2027 ("billions ... to record themselves") | now (D9) |
-| Faithful-CoT architecture (P23) | axis | Faithful CoT option (unchanged) | prior | research/12 #23 | LATER(V6) |
+| Faithful-CoT architecture (P23) | axis | Faithful CoT option: −0.29 OOM effective compute, FLOP per token × 1.2, monitorability 0.98; resists half the CoT pressure of training against a CoT monitor (S4, COT masks) and half the CoT controllability ctl(L) that blinds CoT monitors (E13) | prior | research/12 #23 (−0.3 G); resist [D] (Emmons et al. 2025 direction) | now (E13) |
 | Neuralese recurrence (P17) | axis | Latent shape: +0.5 OOM, serving tokens ×0.4 (unchanged; already OOM); opens *Recurrent architectures* | prior | research/12 #17 (+0.4–0.6 G) | now |
 | AI-designed successor (P24) | axis | Next base +0.96 OOM × AI share of research labour (unchanged) | prior | research/12 #24 (+1 G) | LATER(V3) AI labour |
 | RL focus: math · SWE · ML research · long tasks · cyber · bio | axis | Focus the RL budget on that family (unchanged) | 0.95 | research/12 §0.3 E | now |
@@ -340,14 +340,14 @@ stacks together (G-equivalent) track the v2 know-how path.
 | Test-time training (P09) | idea | REASON +0.3 OOM for new versions (was +0.6 L) | mean 0.3, sd 40% | research/12 #9 (+0.3 G on novel tasks) | now |
 | Self-play curricula (P11) | idea | REASON +0.66, CODE +0.33 OOM for new versions (was +0.8 / +0.4 L) | sd 40% | research/12 #11; v2 values [conv] | now |
 | Iterated distillation & amplification (P18) | axis | One more RL budget per cycle on the RL curve (V1, unchanged) | prior | research/12 #18 | now |
-| Interp-guided training (P14) | axis | In-run trait growth ×0.6 (unchanged) | prior | research/12 #14 | LATER(V6) |
+| Interp-guided training (P14) | axis | Post-training trait growth × (1 − d_t), d_t = the active WB probes' detection of trait t at the new model's capability (E6 decay, masks); Goodhart: WB mask + 0.3·d_t per run (E24 masks) (E13) | prior | research/12 #14; Chen et al. 2025 preventative steering, Bailey et al. 2024 [D sizes] | now (E13) |
 | Brain-like sample efficiency (P21) | idea | Data efficiency: each drawn token worth 10^0.3 = ×2 in the loss law (sd 60%, a wide prior; ≈ +0.2 OOM G at 50 tokens/param) (model v3 D9; replaces PHYS +1 L) | prior | research/12 #21 (AI 2027: Agent-3 ~4,000× less efficient than the brain); size [D] | now (D9) |
 | Multi-agent orchestration (P05) | axis | Agent throughput ×1.3 (unchanged); unlocks the typed features Deep think (effort deep: ×4 reasoning tokens, +0.24 OOM) and Deep research (scaffold +0.3 OOM on Science, Finance, Legal and internal research ideas, ×3 tokens) | prior | research/12 #5; R20 C3, B3 | now (V4a) |
 | Long context + memory (P07) | axis | Version horizon ×1.2 (V3b); unlocks the typed feature Memory (horizon extender ×1.3 on all work, products and internal agents; +10% Chat users) | prior | research/12 #7; CL-Bench 2026 | now (V4a) |
 | Automated AI research agents (P13) | axis | Experiment throughput up to ×1.5 with RSCH (unchanged) | prior | research/12 #13 | LATER(V3) |
 | AI kernels / HW co-design (P16) | idea | Training throughput +0.06 OOM (×1.15), serving −0.125 OOM (×0.75) | sd 30% | research/12 #16 (AlphaEvolve 23% kernel speed-up; serving −20–30%) | now |
 | Learned research taste (P19) | axis | Removes the RSCH −0.5 L penalty (unchanged) | prior | research/12 #19 | LATER(V3) |
-| AI-assisted oversight (P15) | axis | Hardened graders at the cheap price (unchanged) | prior | research/12 #15 | LATER(V6) |
+| AI-assisted oversight (P15) | axis | Suite hardening (D5) by the safety agents, A = AI share of SAF_EXP (E2): cash × (1 − A·(1 − 4/150)), cut × (1 + 0.5·A_eff); A_eff = A × (1 − 0.4) when the critic shares the trained model's lineage (E6/J2 collusion; comms lockdown halves it) (E13) | prior | research/12 #15; research/14 AG17 ($4/h vs $150/h); critic gain [D] | now (E13) |
 | Massive agent societies (P20) | axis | Agent throughput up to ×1.1 (unchanged) | prior | research/12 #20 | LATER(V3) |
 | Robotics foundation (P22) | idea | PHYS +1.65 OOM for new versions (was +2 L); robotics world tech (unchanged) | sd 40% | research/12 #22; v2 value [conv] | now |
 | Formal verification at scale (P25) | axis | **Real effect now** (it had none): weight-security defence +0.5 level against theft | prior | research/12 #25 ("weight-security boost") [D magnitude] | now |

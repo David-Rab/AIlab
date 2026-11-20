@@ -12,6 +12,7 @@ import { versionOom } from './oversight';
 import { cotAlive } from './latents';
 import { believedMask, strengthTrue, techniqueRole } from './techniques';
 import { hiddenUModes } from './umodes';
+import { cotResist } from './ideas';
 import { fleetMonitor, internalFleets, routineMonitor } from '../departments/agents';
 import { productCatch } from '../models/products';
 import { MONITOR_CATCH_BASE } from '../../../data/v2/features';
@@ -58,7 +59,8 @@ export function eaSuppression(s: GameStateV2): number {
 /**
  * TRUE family penalty on observing `trait` in version `v` (engine; reads masks, true EA and undiscovered U-modes).
  *  BB  : (1 − 0.8·EA) for B-nodes and SYC/RH; × (1 − mask_BB)
- *  COT : monitorability · (1 − ctl(L)) · (1 − mask_COT) · [λ2_eff > −1]
+ *  COT : monitorability · (1 − max(ctl(L)·(1 − resist), obf(OBF))) · (1 − mask_COT) · [λ2_eff > −1]; resist = 0.5 on
+ *        a faithful-CoT version (P23, data/v2/safetyIdeas.ts FAITHFUL_COT), else 0
  *  WB  : (1 − mask_WB) · (1 − 0.5[U05]) · (1 − 0.6[U22])   (undiscovered)
  *  OR  : 1
  */
@@ -79,7 +81,7 @@ export function familyPenalty(s: GameStateV2, v: ModelVersion, trait: TraitId, f
   }
   if (family === 'COT') {
     if (!cotAlive(s)) return 0;
-    let p = v.monitorability * (1 - Math.max(cotControllability(v.Lg), cotObfuscation(v.traitsTrue.OBF))) * (1 - mask);
+    let p = v.monitorability * (1 - Math.max(cotControllability(v.Lg) * (1 - cotResist(v.design?.cot)), cotObfuscation(v.traitsTrue.OBF))) * (1 - mask);
     for (const u of hidden) p *= 1 - (UMODE_BY_ID[u].effect.cotPenalty ?? 0);
     return Math.max(0, p);
   }
@@ -101,7 +103,7 @@ export function believedPenalty(s: GameStateV2, v: ModelVersion, trait: TraitId,
   }
   if (family === 'COT') {
     if (lambda2Delta(s) <= -2) return 0;
-    return Math.max(0, v.monitorability * (1 - Math.max(cotControllability(L), cotObfuscation(v.beliefs.OBF?.est ?? 0))) * (1 - mask));
+    return Math.max(0, v.monitorability * (1 - Math.max(cotControllability(L) * (1 - cotResist(v.design?.cot)), cotObfuscation(v.beliefs.OBF?.est ?? 0))) * (1 - mask));
   }
   if (family === 'WB') return 1 - mask;
   return 1;

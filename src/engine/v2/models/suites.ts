@@ -21,7 +21,7 @@ import { EXPERT_QUALITY } from '../../../data/v2/dataAssets';
 import { RL_FAMILY_IDS, RL_FAMILY_NEEDS } from '../../../data/v2/runDesign';
 import { TRANSFER, rlWeights, type FamilyMap } from './effective';
 import { nodeKnown } from './tree';
-import { adopted } from '../safety/common';
+import { aiOversight } from '../safety/ideas';
 import { queueBuild } from '../departments/build';
 import { bookCash } from '../finance/ledger';
 import { expertStockT, takeExpertData } from '../production/data';
@@ -107,11 +107,15 @@ export const suiteS2 = (w: FamilyMap, exploit: FamilyMap) =>
 const sizeOf = (s: GameStateV2, f: RLFamily) => Math.sqrt(Math.max(1e-9, suiteExpertT(s, f)) / EXPERT_START_T);
 /** Hardening floor of a family: floorFrac × its start (hardened) exploitability. */
 export const exploitFloor = (f: RLFamily) => SUITE_HARDEN.floorFrac * EXPLOIT_START[f];
-/** Exploitability after one hardening pass. */
-export const hardenedExploit = (f: RLFamily, x: number) => {
+/** Exploitability after one hardening pass that cuts `cut` of the distance to the floor (default: humans alone, D5's
+ *  40%; P15 AI critics deepen it, hardenCut). */
+export const hardenedExploit = (f: RLFamily, x: number, cut: number = SUITE_HARDEN.cut) => {
   const fl = Math.min(x, exploitFloor(f));
-  return fl + (x - fl) * (1 - SUITE_HARDEN.cut);
+  return fl + (x - fl) * (1 - cut);
 };
+/** A hardening pass's cut today: D5's 40%, × (1 + 0.5 × the safety agents' effective share of the work) with P15
+ *  (AI-assisted oversight, safety/ideas.ts aiOversight: less when the critic shares the trained model's lineage). */
+export const hardenCut = (s: GameStateV2) => Math.min(0.95, SUITE_HARDEN.cut * aiOversight(s).cutMult);
 
 export interface SuiteCost { tw: number; cashB: number; tokensT: number; /** Expert tokens taken from the domain's bought stock (data.expert, D2) instead of bought. */ fromStockT: number }
 /** Cost of a build (more expert data built in) or a hardening pass on a family's suite, today. A build first uses the
@@ -122,7 +126,8 @@ export function suiteWorkCost(s: GameStateV2, f: RLFamily, work: SuiteWork): Sui
     return { tw: SUITE_BUILD.twPerStart * (SUITE_BUILD.tokensT / EXPERT_START_T), cashB: (SUITE_BUILD.tokensT - fromStockT) * EXPERT_PRICE_B_PER_T, tokensT: SUITE_BUILD.tokensT, fromStockT };
   }
   const k = sizeOf(s, f);
-  return { tw: SUITE_HARDEN.tw * k, cashB: SUITE_HARDEN.cashB * k * (adopted(s, 'P15') ? SUITE_HARDEN.p15Cash : 1), tokensT: 0, fromStockT: 0 };
+  // P15: the safety agents do their share of the red-teaming at the AI's cost (safety/ideas.ts aiOversight).
+  return { tw: SUITE_HARDEN.tw * k, cashB: SUITE_HARDEN.cashB * k * aiOversight(s).cashMult, tokensT: 0, fromStockT: 0 };
 }
 /** Fidelity after a build and exploitability after a hardening pass (the action's before → after). */
 export function suiteWorkEffect(s: GameStateV2, f: RLFamily, work: SuiteWork): { fid: [number, number]; exploit: [number, number] } {
@@ -130,7 +135,7 @@ export function suiteWorkEffect(s: GameStateV2, f: RLFamily, work: SuiteWork): {
   const x = suiteOf(s, f)?.exploit ?? 0;
   return work === 'build'
     ? { fid: [fid, fidelityOf(suiteExpertT(s, f) + SUITE_BUILD.tokensT)], exploit: [x, x] }
-    : { fid: [fid, fid], exploit: [x, hardenedExploit(f, x)] };
+    : { fid: [fid, fid], exploit: [x, hardenedExploit(f, x, hardenCut(s))] };
 }
 
 /** Build-queue reference of suite work: `<family>:build` or `<family>:harden`. */
@@ -166,7 +171,7 @@ export function completeSuiteWork(s: GameStateV2, ctx: SystemCtx, ref: string) {
     ctx.log('research', `Engineers finished building out the ${RL_FAMILY_LABEL[r.family]} environments: fidelity ${before.toFixed(2)} → ${fidelityOf(a.tokensT).toFixed(2)}.`, 1, r.family);
   } else {
     const before = x.exploit;
-    x.exploit = hardenedExploit(r.family, x.exploit);
+    x.exploit = hardenedExploit(r.family, x.exploit, hardenCut(s));
     x.hardenings++;
     ctx.log('research', `Engineers finished hardening the ${RL_FAMILY_LABEL[r.family]} environments: exploitable ${(before * 100).toFixed(1)}% → ${(x.exploit * 100).toFixed(1)}% of tasks.`, 1, r.family);
   }
@@ -220,7 +225,10 @@ export const SUITE_ACTIONS: ActionDef[] = (['build', 'harden'] as SuiteWork[]).m
     const f = famParam(p);
     const c = suiteWorkCost(s, f, work);
     const e = suiteWorkEffect(s, f, work);
-    const costs: CostLine[] = [{ currency: 'cash', amount: -Math.round(c.cashB * 1000) / 1000, target: work === 'build' ? (c.fromStockT > 0 ? `expert data (${Math.round(c.fromStockT * 1e6)}M tokens from your bought stock)` : 'expert data') : 'expert red-teamers' }, { currency: 'staffTime', amount: -Math.round(c.tw * 10) / 10, target: 'engineer team-weeks' }];
+    // P15: the safety agents' share of the red-teaming, and whether their critiques are discounted for collusion.
+    const ai = work === 'harden' ? aiOversight(s) : undefined;
+    const red = ai && ai.A > 0 ? `expert red-teamers (safety agents do ${Math.round(ai.A * 100)}%${ai.collusion ? `, their critiques count ${Math.round((1 - ai.Aeff / ai.A) * 100)}% less: same lineage as the trained model` : ''})` : 'expert red-teamers';
+    const costs: CostLine[] = [{ currency: 'cash', amount: -Math.round(c.cashB * 1000) / 1000, target: work === 'build' ? (c.fromStockT > 0 ? `expert data (${Math.round(c.fromStockT * 1e6)}M tokens from your bought stock)` : 'expert data') : red }, { currency: 'staffTime', amount: -Math.round(c.tw * 10) / 10, target: 'engineer team-weeks' }];
     const gains: CostLine[] = work === 'build'
       ? [{ currency: 'progress', unit: 'fidelity', amount: Math.round((e.fid[1] - e.fid[0]) * 1000) / 1000, target: `${RL_FAMILY_LABEL[f]} suite fidelity ${e.fid[0].toFixed(2)} → ${e.fid[1].toFixed(2)}` }]
       : [{ currency: 'alignment', amount: Math.round((e.exploit[0] - e.exploit[1]) * 1000) / 1000, target: `${RL_FAMILY_LABEL[f]} suite exploitable ${pct(e.exploit[0])}% → ${pct(e.exploit[1])}% of tasks` }];
