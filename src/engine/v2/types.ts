@@ -459,7 +459,7 @@ export interface BaseDesign {
   /** Training tokens per active parameter (20 = compute-optimal; more = overtrained: cheaper to serve, weaker per FLOP). */
   tpp: number;
   shape: 'dense' | 'moe' | 'latent';
-  data: 'balanced' | 'codeMath' | 'science' | 'synthetic' | 'multimodal';
+  data: 'balanced' | 'natural' | 'codeMath' | 'science' | 'synthetic' | 'multimodal';
   curation: { quality: boolean; hazard: boolean; safetyPretrain: boolean };
   licensedShare: number; // 0..1 of corpus licensed (litigation bomb on the rest)
 }
@@ -1752,7 +1752,9 @@ export type Currency =
   | 'scrutiny' | 'talent' | 'morale' | 'boardConf' | 'approval' | 'security' | 'monitorability'
   | 'alignment' | 'freedom' | 'chinaTension' | 'dilution';
 
-export interface CostLine { currency: Currency; amount: number; target?: CounterpartyId | string; lagDays?: number; probability?: number; }
+/** `unit` (optional, display only): the unit of `amount` when the currency label would mislead (model v3 D4: data and
+ *  suite gains are tokens or fidelity, not levels "L"). */
+export interface CostLine { currency: Currency; amount: number; target?: CounterpartyId | string; lagDays?: number; probability?: number; unit?: string }
 
 /** Player-callable lever (action catalog, research/17 §1.4; finance/compute/model actions). */
 export interface ActionDef<P = Record<string, number | string | boolean>> {

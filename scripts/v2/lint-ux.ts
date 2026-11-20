@@ -89,6 +89,8 @@ const REQUIRED = [
   'useHourCost', 'teamsWantedAuto',
   // model v3 D5/D6: RL environment suites (Models › Suites).
   'envSuite', 'suiteFidelity', 'suiteExploit', 'expertData', 'suiteBuild', 'suiteHarden', 'suiteRlShare', 'rewardHackPressure', 'plannedRun',
+  // model v3 D4: the data view (Models › Data) and the Blueprint's drawn mix.
+  'dataPortfolio', 'uniqueTokens', 'dataQuality', 'publicWeb', 'licensedData', 'licenceTier', 'syntheticData', 'teacherYield', 'naturalMix', 'refShare', 'drawnMix', 'domainEpochs', 'pendingData', 'usageData', 'synJob', 'dataLicence', 'dataSpec',
 ];
 const req = REQUIRED.filter((id) => !GLOSSARY_V2[id]);
 ok(`Required terms present (${REQUIRED.length})`, req.length === 0, req.join(', '));

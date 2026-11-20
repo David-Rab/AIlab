@@ -143,6 +143,10 @@ export const sizeScrutiny = (scale: number) => (scale > 1 ? (5 * Math.log(scale)
  *  (model v3 E3, safety/traits.ts baseSignals), not from the preset. */
 export const BASE_DATA: Record<BaseDesign['data'], { base: 'reference' | 'natural'; tilt: Off; kinds: Partial<Record<DataKind, number>>; flopMult: number; cashMult: number }> = {
   balanced: { base: 'reference', tilt: {}, kinds: {}, flopMult: 1, cashMult: 0 },
+  // model v3 D4 [D, the lead's call in D3]: the portfolio's own quality-weighted mix (no tilt): draws every token once
+  // before any repeats (uMix = U), and specialises the base wherever the stock has drifted from the reference shares.
+  // A player choice only; RefBot keeps 'balanced'.
+  natural: { base: 'natural', tilt: {}, kinds: {}, flopMult: 1, cashMult: 0 },
   codeMath: { base: 'reference', tilt: { CODE: 3, REASON: 2, RSCH: 2, CYBER: 1.5 }, kinds: {}, flopMult: 1, cashMult: 0 },
   science: { base: 'reference', tilt: { BIO: 3, REASON: 1.5, RSCH: 1.5 }, kinds: {}, flopMult: 1, cashMult: 0.05 },
   synthetic: { base: 'reference', tilt: {}, kinds: { synthetic: 4 }, flopMult: 1, cashMult: 0 },

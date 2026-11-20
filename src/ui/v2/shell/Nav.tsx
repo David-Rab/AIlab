@@ -17,7 +17,7 @@ export const NAV: NavItem[] = [
   { id: 'finance', label: 'Finance', icon: ICON.finance, desc: 'Cash flow, raising, contracts, debt, board and markets.', group: 'COMPANY' },
   { id: 'compute', label: 'Compute', icon: ICON.computePanel, desc: 'Chip market, orders, sites and power.', group: 'COMPANY' },
   { id: 'research', label: 'Research', icon: ICON.research, desc: 'Research projects in priority order, the recipe stacks and the tech tree.', group: 'MODELS' },
-  { id: 'models', label: 'Models', icon: ICON.models, desc: 'Lineage, model card, runs in progress and the RL environment suites.', group: 'MODELS' },
+  { id: 'models', label: 'Models', icon: ICON.models, desc: 'Lineage, model card, runs in progress, the data portfolio and the RL environment suites.', group: 'MODELS' },
   { id: 'blueprint', label: 'Blueprint', icon: ICON.runs, desc: 'Design your next model and start its training run: size, slots, limits and plan.', group: 'MODELS' },
   { id: 'products', label: 'Products', icon: ICON.deploy, desc: 'What customers buy: model and monitor, features, price, safeguards (all live), and the serving split.', group: 'MODELS' },
   { id: 'safety', label: 'Safety', icon: ICON.safety, desc: 'Trait graph, agendas, tools, incidents and findings.', group: 'SAFETY' },

@@ -207,7 +207,7 @@ export const SUITE_ACTIONS: ActionDef[] = (['build', 'harden'] as SuiteWork[]).m
     const e = suiteWorkEffect(s, f, work);
     const costs: CostLine[] = [{ currency: 'cash', amount: -Math.round(c.cashB * 1000) / 1000, target: work === 'build' ? (c.fromStockT > 0 ? `expert data (${Math.round(c.fromStockT * 1e6)}M tokens from your bought stock)` : 'expert data') : 'expert red-teamers' }, { currency: 'staffTime', amount: -Math.round(c.tw * 10) / 10, target: 'engineer team-weeks' }];
     const gains: CostLine[] = work === 'build'
-      ? [{ currency: 'progress', amount: Math.round((e.fid[1] - e.fid[0]) * 1000) / 1000, target: `${RL_FAMILY_LABEL[f]} suite fidelity ${e.fid[0].toFixed(2)} → ${e.fid[1].toFixed(2)}` }]
+      ? [{ currency: 'progress', unit: 'fidelity', amount: Math.round((e.fid[1] - e.fid[0]) * 1000) / 1000, target: `${RL_FAMILY_LABEL[f]} suite fidelity ${e.fid[0].toFixed(2)} → ${e.fid[1].toFixed(2)}` }]
       : [{ currency: 'alignment', amount: Math.round((e.exploit[0] - e.exploit[1]) * 1000) / 1000, target: `${RL_FAMILY_LABEL[f]} suite exploitable ${pct(e.exploit[0])}% → ${pct(e.exploit[1])}% of tasks` }];
     return { costs, gains, exposure: [] };
   },

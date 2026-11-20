@@ -1,7 +1,8 @@
 // Models (§6.3): lineage tree (bases → versions → variants), model card (measured L, domain radar with error bars,
 // benchmarks with saturation marks, horizon, serving FLOP per token and cost per hour, monitorability, trait beliefs, flags), run queue (paradigms moved to
-// Research in R4); set internal agent, evals, variants, distill, roll back, retire, streams. Tabs (model v3 D6): Versions (all of
-// the above) and Suites (the RL environment suites the post-trains use, Suites.tsx).
+// Research in R4); set internal agent, evals, variants, distill, roll back, retire, streams. Tabs (model v3 D6, D4): Versions (all
+// of the above), Suites (the RL environment suites the post-trains use, Suites.tsx) and Data (the data portfolio and the
+// data actions, Data.tsx).
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
 import { AGENT_USE_DEF } from '../../../data/v2/agents';
 import {
@@ -13,8 +14,9 @@ import { store, useV2 } from '../store';
 import { ActBtn, Limit, Meter, Radar, Term, Tip, TipCard } from '../ui';
 import { useState } from 'react';
 import { Card, KV, PanelHead, Ref, tabOf, Tabs } from '../kit';
-import { Dumbbell } from 'lucide-react';
+import { Database, Dumbbell } from 'lucide-react';
 import { Suites } from './Suites';
+import { DataView } from './Data';
 import * as F from '../fmt';
 import { ICON } from '../icons';
 
@@ -246,12 +248,20 @@ export function Models({ s }: { s: GameStateV2 }) {
   useV2();
   const v = selectedVersion(s);
   const tab = tabOf('models', 'versions');
-  const tabs = <Tabs panel="models" def="versions" tabs={[{ id: 'versions', label: 'Versions', icon: ICON.models }, { id: 'suites', label: 'Suites', icon: Dumbbell }]} />;
+  const tabs = <Tabs panel="models" def="versions" tabs={[{ id: 'versions', label: 'Versions', icon: ICON.models }, { id: 'suites', label: 'Suites', icon: Dumbbell }, { id: 'data', label: 'Data', icon: Database }]} />;
   if (tab === 'suites') {
     return (
       <div className="panel-v2" data-panel="models">
         <PanelHead icon={ICON.models} title="Models" sub="RL environments your post-trains train in" tabs={tabs} />
         <Suites s={s} />
+      </div>
+    );
+  }
+  if (tab === 'data') {
+    return (
+      <div className="panel-v2" data-panel="models">
+        <PanelHead icon={ICON.models} title="Models" sub="what your bases train on: tokens, quality, domains" tabs={tabs} />
+        <DataView s={s} />
       </div>
     );
   }

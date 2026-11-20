@@ -9,7 +9,7 @@ import { C } from './theme';
 import * as F from './fmt';
 import { ICON } from './icons';
 import { store } from './store';
-import { Rich, Term, termEntry, Tip, TipCard } from './ui';
+import { Rich, Term, termEntry, Tip, TipCard, unitAmt } from './ui';
 
 // ───────── layout ─────────
 export function Card({ title, sub, right, children, home, id, className, term }: { title?: ReactNode; sub?: ReactNode; right?: ReactNode; children?: ReactNode; home?: string; id?: string; className?: string; term?: string }) {
@@ -209,6 +209,7 @@ export function BeforeAfter({ s, cur, d, target }: { s: GameStateV2; cur: CostLi
 const lineAmt = (c: CostLine) => {
   const m = METERS[c.currency];
   const a = Math.abs(c.amount);
+  if (c.unit) return `${unitAmt(a)} ${c.unit}`;
   if (c.currency === 'cash') return F.money(a);
   if (c.currency === 'revenue') return F.money(a, { perYear: true });
   if (c.currency === 'leadDays') return `${Math.round(a)} d lead`;

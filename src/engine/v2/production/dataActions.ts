@@ -38,6 +38,8 @@ const r3 = (x: number) => Math.round(x * 1000) / 1000;
 const domainOf = (p: P, d: DomainId = 'CODE'): DomainId => (DOMAIN_IDS.includes(p.domain as DomainId) ? (p.domain as DomainId) : d);
 const tierOf = (p: P): LicenceTier => (typeof p.tier === 'string' && p.tier in LICENCE_TIERS ? (p.tier as LicenceTier) : 'bulk');
 const active = (s: GameStateV2) => (s.player.status === 'active' ? true : 'Company inactive');
+/** Display unit of the data gains (model v3 D4): trillions of quality-weighted unique tokens U, not levels. */
+const UNIQUE_T = 'T unique tokens';
 const fmtTok = (t: number) => (t >= 1 ? `${t.toFixed(1)}T` : t >= 0.001 ? `${(t * 1000).toFixed(t >= 0.01 ? 0 : 1)}B` : `${(t * 1e6).toFixed(0)}M`);
 
 // ───────────────────────────── licences ─────────────────────────────
@@ -68,7 +70,7 @@ const LICENSE: ActionDef = {
     const d = dataDelta(s, (x) => addAsset(x, licenceAsset(t.domain, t.tier, t.tokensT, s.time.day)), t.domain);
     return pv(
       [L('cash', -r2(t.cashB), `${fmtTok(t.tokensT)} ${t.domain} tokens at $${tier.priceBPerT}B/T, paid now`)],
-      [L('progress', r2(d.u[1] - d.u[0]), `${tier.label} q ${tier.quality}, delivered in ${LICENCE_DELIVERY_DAYS} d: ${dataDeltaText(d)}`, { lagDays: LICENCE_DELIVERY_DAYS })],
+      [L('progress', r2(d.u[1] - d.u[0]), `${tier.label} q ${tier.quality}, delivered in ${LICENCE_DELIVERY_DAYS} d: ${dataDeltaText(d)}`, { lagDays: LICENCE_DELIVERY_DAYS, unit: UNIQUE_T })],
     );
   },
   apply(s, ctx, p) {
@@ -112,15 +114,15 @@ const SYNTHESIZE: ActionDef = {
     const j = synJobTerms(s, p);
     if (j.days === 0) {
       const cur = s.player.dataPortfolio.synJob;
-      return pv([L('compute', 0, cur ? `the pool goes back to ${j.dflt?.id ?? 'the default teacher'}` : 'no job running')], [L('progress', 0, 'stop the generation job')]);
+      return pv([L('compute', 0, cur ? `the pool goes back to ${j.dflt?.id ?? 'the default teacher'}` : 'no job running', { unit: 'M H100e-days' })], [L('progress', 0, 'stop the generation job', { unit: UNIQUE_T })]);
     }
     const a = synAssetFor(s, j.teacher, j.tokensT);
     const dflt = synAssetFor(s, j.dflt, j.defaultTokensT);
     const d = dataDelta(s, (x) => addAsset(x, a), 'CODE');
     const dD = dataDelta(s, (x) => addAsset(x, dflt), 'CODE');
     return pv(
-      [L('compute', -r2(j.h100eDays / 1e6), `M H100e-days: ${Math.round(j.share * 100)}% of the synthetic pool for ${j.days} d`)],
-      [L('progress', r2(d.u[1] - d.u[0]), `${fmtTok(j.tokensT)} tokens from ${j.teacher?.id ?? 'the start model'} at q ${a.quality.toFixed(2)} (default ${j.dflt?.id ?? '–'}: ${fmtTok(j.defaultTokensT)} at q ${dflt.quality.toFixed(2)}, U +${(dD.u[1] - dD.u[0]).toFixed(1)}T): ${dataDeltaText(d)}`)],
+      [L('compute', -r2(j.h100eDays / 1e6), `${Math.round(j.share * 100)}% of the synthetic pool for ${j.days} d`, { unit: 'M H100e-days' })],
+      [L('progress', r2(d.u[1] - d.u[0]), `${fmtTok(j.tokensT)} tokens from ${j.teacher?.id ?? 'the start model'} at q ${a.quality.toFixed(2)} (default ${j.dflt?.id ?? '–'}: ${fmtTok(j.defaultTokensT)} at q ${dflt.quality.toFixed(2)}, U +${(dD.u[1] - dD.u[0]).toFixed(1)}T): ${dataDeltaText(d)}`, { unit: UNIQUE_T })],
       [L('alignment', 0, `the data carries ${j.teacher?.id ?? 'its teacher'}'s traits into bases trained on it`)],
     );
   },
@@ -157,7 +159,7 @@ const EXPERT: ActionDef = {
     const use = t.families.length ? `suite builds for ${t.families.map((f) => RL_FAMILY_LABEL[f]).join(', ')} use it before buying` : 'no suite family in this domain yet (evaluations, D7)';
     return pv(
       [L('cash', -r2(t.cashB), `${fmtTok(t.tokensT)} ${t.domain} expert tokens at $${EXPERT_PRICE_B_PER_T / 1000} a token`)],
-      [L('progress', r3(t.tokensT * 1000), `B ${t.domain} expert tokens in ${EXPERT_DELIVERY_DAYS} d: ${fmtTok(have)} → ${fmtTok(have + t.tokensT)} unbuilt; ${use}`, { lagDays: EXPERT_DELIVERY_DAYS })],
+      [L('progress', r3(t.tokensT * 1000), `${t.domain} in ${EXPERT_DELIVERY_DAYS} d: ${fmtTok(have)} → ${fmtTok(have + t.tokensT)} unbuilt; ${use}`, { lagDays: EXPERT_DELIVERY_DAYS, unit: 'B expert tokens' })],
     );
   },
   apply(s, ctx, p) {
@@ -196,9 +198,9 @@ const USAGE: ActionDef = {
       if (a && a.kind !== 'public') a.tokensT = Math.max(0, a.tokensT + yearT);
       else if (yearT > 0) addAsset(x, { id: 'usage', kind: 'usage', tokensT: yearT, mix: { ...(USAGE_MIX.consumer ?? {}) }, quality: 0.5 });
     }, USAGE_DOMAIN);
-    const usageLine = L('progress', r2(d.u[1] - d.u[0]), `usage data ${(now * 1000).toFixed(1)} → ${(next * 1000).toFixed(1)}B tokens/day (a year at today's traffic: ${dataDeltaText(d)})`);
+    const usageLine = L('progress', r2(d.u[1] - d.u[0]), `usage data ${(now * 1000).toFixed(1)} → ${(next * 1000).toFixed(1)}B tokens/day (a year at today's traffic: ${dataDeltaText(d)})`, { unit: `${UNIQUE_T} a year` });
     const appLine = L('approval', Math.abs(dApp), 'bloc:civlib');
-    if (lvl === cur) return pv([L('progress', 0, `already ${USAGE_LEVELS[lvl].label.toLowerCase()}`)]);
+    if (lvl === cur) return pv([L('progress', 0, `already ${USAGE_LEVELS[lvl].label.toLowerCase()}`, { unit: UNIQUE_T })]);
     return dApp < 0 ? pv([appLine], [usageLine], []) : pv([{ ...usageLine, amount: -Math.abs(usageLine.amount) }], [appLine]);
   },
   apply(s, ctx, p) {
