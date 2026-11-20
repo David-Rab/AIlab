@@ -137,6 +137,10 @@ export const CONTROL_LAYER_DG = -0.1 / 1.2;
  *  price of small ones (R20 D3 list prices) [D]. */
 export const SHARE_SLOPE_G = 4;
 export const PRICE_ELASTICITY = 1;
+/** A5: bands of equal adopted task-hours a sector's buyers choose in (worldfx/choice.ts): the quadrature of the
+ *  task-difficulty range. The cheapest adequate offer wins each band, so the hours a cheap model takes are its coverage
+ *  ÷ the best coverage to within half a band [D: 8 bands; the share moves by ≤ 1/16 when one more band opens]. */
+export const MARKET_BANDS = 8;
 
 /** Customers are a stock (V4.2): each segment's provider shares move toward the logit target with this time constant
  *  (years) [D]: consumers switch in weeks, API and enterprise customers over a quarter (developer months, contracts

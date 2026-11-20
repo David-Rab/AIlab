@@ -50,9 +50,13 @@ export const PRODUCT_DEFS: Partial<Record<Channel, ProductDef>> = {
 /** Products shown as cards, in order. */
 export const PRODUCT_ORDER: Channel[] = ['consumer', 'api', 'enterprise', 'agents', 'gov', 'trusted'];
 
-/** Mini free tier: the share of a product's usage served by its mini (free and low-price users) [D]. The product's
- *  quality is the usage-weighted blend of the two models; serving need falls with the mini's lower serve cost. */
-export const FREE_TIER_SHARE: Partial<Record<Channel, number>> = { consumer: 0.6, api: 0.3 };
+/** Products that take a mini (`miniVersionId`): Chat's free tier and the API's cheap tier (A5). */
+export const MINI_CHANNELS: readonly Channel[] = ['consumer', 'api'];
+/** Mini free tier of Chat: the share of its usage served by the mini (free users) [D]. Chat's quality is the
+ *  usage-weighted blend of the two models; serving need falls with the mini's lower serve cost. A5: the API's mini is a
+ *  cheap tier in the sector market instead, with no fixed share: buyers take it on the tasks it does adequately when it
+ *  is the better buy (worldfx/choice.ts), so its share of the API's hours is derived. */
+export const FREE_TIER_SHARE: Partial<Record<Channel, number>> = { consumer: 0.6 };
 
 /** D7: a monitor adds 0.25 × (monitor serve cost ÷ watched model's serve cost) to the product's serving need (a mini
  *  on its teacher ≈ 6%; the same model ≈ 25%). It reads the watched model's outputs and reasoning, not every token. */

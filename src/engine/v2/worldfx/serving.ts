@@ -21,11 +21,11 @@ import {
   AGENT_WORK, CHAT_WORK, CHINA_MARKUP, CONSUMER_MKT, CONTROL_LAYER_DG, EFFORT_CAP_OOM, EFFORT_OOM_PER_10X, EFFORT_TOKENS, MARKUP, RIVAL_MARKUP,
   SAFEGUARD_DG, SEATS, SECTOR_REF, SECTOR_WORK, TOKENS, type TokenProfile,
 } from '../../../data/v2/serving';
-import { FEATURE_BY_ID, FREE_TIER_SHARE, type FeatureFx, type FeatureId, type WorkScope } from '../../../data/v2/features';
+import { FEATURE_BY_ID, FREE_TIER_SHARE, MINI_CHANNELS, type FeatureFx, type FeatureId, type WorkScope } from '../../../data/v2/features';
 import { ECON, REGION_SCALE, SECTORS } from '../../../data/v2/sectors';
 import { DISTILL, DISTILL_TPP, REFERENCE_BASE, PARAM_RANGE, SHAPE } from '../../../data/v2/runDesign';
 import { V0_DAY } from '../../../data/v2/calibration';
-import { ASSIST, COVER, H80_OVER_H50, PEAK_FLOPS, U_DECODE, U_PREFILL, type WorkTypeId } from '../../../data/v2/workTypes';
+import { ASSIST, COVER, H50_PER_OOM, H80_OVER_H50, PEAK_FLOPS, U_DECODE, U_PREFILL, type WorkTypeId } from '../../../data/v2/workTypes';
 import { dollarsPerH100eHour, domainG, flopPerToken, pSuccess, workFit } from '../departments/workfit';
 import { distillGap } from '../models/effective';
 import { gV0, h50Of, levelKnotsG, playerStart } from '../models/capability';
@@ -85,13 +85,26 @@ export function cheapestAt(s: GameStateV2, G: number, wt: WorkTypeId = 'SWE'): C
     const fit = workFit(s, v, wt).fit;
     if (fit < G) continue;
     const nT = v.params ?? s.player.models.bases.find((b) => b.id === v.baseId)?.params ?? REFERENCE_BASE.params;
-    const lr = (fit - G - DISTILL.a) / DISTILL.b; // log₁₀(N_T/N_S) at which the gap is exactly fit − G
-    const nS = lr > 0 ? Math.max(PARAM_RANGE[0], nT / Math.pow(10, lr)) : nT;
+    const nS = studentParamsFor(nT, fit - G);
     const student = nS < nT;
     const c: CheapestAt = { fpt: (flopPerToken(s, v) * nS) / nT, params: nS, versionId: v.id, student, teacherFit: fit, gap: student ? distillGap(nT, nS, DISTILL_TPP * nS) : 0 };
     if (!best || c.fpt < best.fpt) best = c;
   }
   return best;
+}
+/** Active parameters of the smallest student of a teacher with `nT` active parameters that lands at most `gap` OOM below
+ *  it (the distillation rule: δ = DISTILL.a + DISTILL.b·log₁₀(N_T/N_S) at DISTILL_TPP, N_S ≥ PARAM_RANGE[0]); the
+ *  teacher's own size when no student holds within `gap` (δ ≥ DISTILL.a). */
+export function studentParamsFor(nT: number, gap: number): number {
+  const lr = (gap - DISTILL.a) / DISTILL.b; // log₁₀(N_T/N_S) at which the gap is exactly `gap`
+  return lr > 0 ? Math.max(PARAM_RANGE[0], nT / Math.pow(10, lr)) : nT;
+}
+/** A5: active parameters of the student of version `teacher` that holds the fit of version `hold` on work type `wt` (the
+ *  cheapestAt rule on one teacher; a distill run with these parameters lands at that fit). The teacher's size when the
+ *  teacher is not DISTILL.a above it. */
+export function studentToHold(s: GameStateV2, teacher: ModelVersion, hold: Pick<ModelVersion, 'pm' | 'build'>, wt: WorkTypeId = 'SWE'): number {
+  const nT = teacher.params ?? s.player.models.bases.find((b) => b.id === teacher.baseId)?.params ?? REFERENCE_BASE.params;
+  return studentParamsFor(nT, workFit(s, teacher, wt).fit - workFit(s, hold, wt).fit);
 }
 
 // ───────────────────────────── sector work types ─────────────────────────────
@@ -347,7 +360,8 @@ export const costGateOf = (price: number, a: number, wageH: number) => sig(Math.
 export const markupOf = (d: Deployment) => MARKUP[d.price] ?? MARKUP.standard;
 export { RIVAL_MARKUP, CHINA_MARKUP };
 
-/** The models a product serves with: its version, and its mini for the free tier (FREE_TIER_SHARE of usage). */
+/** The models a product serves with: its version, and for Chat its mini free tier (FREE_TIER_SHARE of usage). A5: a
+ *  sector product's mini is a separate tier (productMiniUses), not blended in. */
 export function productUses(s: GameStateV2, d: Deployment): ModelUse[] {
   const v = versionById(s, d.versionId);
   if (!v) return [];
@@ -356,6 +370,83 @@ export function productUses(s: GameStateV2, d: Deployment): ModelUse[] {
   if (!mini) return [{ v, fpt: flopPerToken(s, v), w: 1 }];
   return [{ v, fpt: flopPerToken(s, v), w: 1 - f }, { v: mini, fpt: flopPerToken(s, mini), w: f }];
 }
+/** A5: a sector product's cheap tier, its mini (API), as a model use of its own; undefined without one. */
+export function productMiniUses(s: GameStateV2, d: Deployment): ModelUse[] | undefined {
+  if (d.channel === 'consumer' || !d.miniVersionId || !MINI_CHANNELS.includes(d.channel)) return undefined;
+  const mini = versionById(s, d.miniVersionId);
+  return mini ? [{ v: mini, fpt: flopPerToken(s, mini), w: 1 }] : undefined;
+}
+/** A5: a product's offer when its buyers take its cheap tier for a share `w` of its hours: the costs and prices blend
+ *  by hours; fit, coverage and agent leverage stay the main model's (the lineup does the hardest tasks on it). */
+export function blendOffer(main: Offer, cheap: Offer | undefined, w: number): Offer {
+  if (!cheap || !(w > 0)) return main;
+  const m = (x: number, y: number) => (1 - w) * x + w * y;
+  return {
+    ...main, hph: m(main.hph, cheap.hph), cost: m(main.cost, cheap.cost), price: m(main.price, cheap.price), hphAg: m(main.hphAg, cheap.hphAg),
+    costAg: m(main.costAg, cheap.costAg), priceAg: m(main.priceAg, cheap.priceAg), hphAs: m(main.hphAs, cheap.hphAs), seat: m(main.seat, cheap.seat),
+  };
+}
+
+// ───────────────────────────── cheap tiers of the other providers (A5) ─────────────────────────────
+
+type GapMemo = Map<string, Map<number, Map<number, Map<number, Map<number, number>>>>>; // sector → fit → h50 → N_T → u
+const studentMemo = new WeakMap<TimelineWorld, { m: GapMemo; n: number }>();
+/** The distillation gap at which a student still covers u (coverage `cov` falls with the gap): the largest in
+ *  [DISTILL.a, the 1B-parameter floor's], −1 when even DISTILL.a below the teacher covers less than u. */
+function studentGap(w: TimelineWorld, sid: SectorId, fit: number, h50: number, nT: number, u: number): number {
+  const g0 = DISTILL.a + 1e-9;
+  if (!(u > 0) || studentCover(w, sid, fit, h50, g0) < u) return -1;
+  const gMax = DISTILL.a + DISTILL.b * Math.log10(Math.max(1, nT / PARAM_RANGE[0]));
+  if (studentCover(w, sid, fit, h50, gMax) >= u) return gMax;
+  let lo = g0;
+  let hi = gMax;
+  for (let it = 0; it < 30; it++) {
+    const mid = 0.5 * (lo + hi);
+    if (studentCover(w, sid, fit, h50, mid) >= u) lo = mid;
+    else hi = mid;
+  }
+  return lo;
+}
+/** Coverage of a student g OOM below a teacher of sector fit `fit` and h50 `h50` (every domain shifted down by g). */
+const studentCover = (w: TimelineWorld, sid: SectorId, fit: number, h50: number, g: number) => sectorCover(w, sid, fit - g, h50 * Math.pow(H50_PER_OOM, -g));
+function memoAt<K, V>(m: Map<K, V>, k: K, mk: () => V): V {
+  let x = m.get(k);
+  if (x === undefined) m.set(k, (x = mk()));
+  return x;
+}
+const newMap = () => new Map();
+
+/** A5: the cheapest student of a provider's model (known by its offer `o`, sector fit, h50 and active parameters `nT`)
+ *  that still does the easiest `u` of the sector's tasks: the cheapestAt rule sized on coverage (gap g solves a(fit − g,
+ *  h50·H50_PER_OOM^−g) = u, the student being the teacher shifted down by g in every domain, as runs.ts distillBuild).
+ *  Its costs and prices scale with its active parameters. Undefined when no student is DISTILL.a below the teacher and
+ *  still covers u (the teacher itself is the cheapest adequate model). Rivals' and China's lineups (fit and FLOP per token
+ *  from BRIDGE(V7) until F1). */
+export function studentOffer(s: GameStateV2, o: Offer, sid: SectorId, fit: number, h50: number, nT: number, u: number, markup: number, rate: number): Offer | undefined {
+  const w = s.hidden.timeline;
+  // P2-style memo: the gap depends only on these inputs (per world); lineups change only when a model or a_top does.
+  let memo = studentMemo.get(w);
+  if (!memo || memo.n > 20000) studentMemo.set(w, (memo = { m: new Map(), n: 0 }));
+  const byU: Map<number, number> = memoAt(memoAt(memoAt(memoAt(memo.m, sid, newMap), fit, newMap), h50, newMap), nT, newMap);
+  let g = byU.get(u);
+  if (g === undefined) {
+    g = studentGap(w, sid, fit, h50, nT, u);
+    byU.set(u, g);
+    memo.n++;
+  }
+  if (g < 0) return undefined;
+  const r = studentParamsFor(nT, g) / nT;
+  const a = studentCover(w, sid, fit, h50, g);
+  const hS = h50 * Math.pow(H50_PER_OOM, -g);
+  const lam = agentLeverage(a, hS);
+  const seatCost = seatHoursPerMonth(sid) * o.hphAs * r * rate;
+  return {
+    fit: fit - g, a, hph: o.hph * r, cost: o.cost * r, price: o.price * r, k: a * lam, lam, hphAg: o.hphAg * r, costAg: o.costAg * r, priceAg: o.priceAg * r,
+    hphAs: o.hphAs * r, seat: Math.max(seatCost, (SEATS.price * markup) / MARKUP.standard),
+  };
+}
+/** h50 (minutes) of a model on a sector's work (its horizon domain), as the offers read it. */
+export const sectorH50 = (s: GameStateV2, v: Fitted, sid: SectorId | 'CHAT', hMult = 1) => h50Of(s.hidden.timeline, v, horizonDomain(sid)) * hMult;
 /** ΔG of a product's settings (safeguards, control layer). */
 export const settingsDG = (d: Deployment) => (SAFEGUARD_DG[d.safeguards] ?? 0) + (d.controlLayer ? CONTROL_LAYER_DG : 0);
 

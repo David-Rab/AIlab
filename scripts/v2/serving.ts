@@ -34,12 +34,14 @@ import { engine } from '../../src/engine/v2/index';
 import { refBot } from '../../src/engine/v2/bots/ref';
 import { flopPerToken, labourOf, workFit } from '../../src/engine/v2/departments/workfit';
 import { versionById } from '../../src/engine/v2/models/labs';
-import { worldMix } from '../../src/engine/v2/worldfx/mix';
+import { bandPaid, worldMix, type TierKind, type WorldMix } from '../../src/engine/v2/worldfx/mix';
+import { adequacy, surplusChoice, type Tier } from '../../src/engine/v2/worldfx/choice';
 import { revenueReadout, sectorHours, sectorSpendParts, servingPool } from '../../src/engine/v2/worldfx/revenue';
 import { agentCeilingOf, workHoursOf } from '../../src/engine/v2/worldfx/use';
 import { ECON, SECTORS } from '../../src/data/v2/sectors';
+import { MARKET_BANDS, SHARE_SLOPE_G } from '../../src/data/v2/serving';
 import {
-  agentDemandOf, agentLeverage, cheapestAt, effortDG, fptOfG, fxOn, h100eHoursPer, internalFx, offerOf, paidShareTarget, productOffer, reachTarget, sectorCover, sectorTheta, serveDollarsPerHour,
+  adoptedTokens, agentDemandOf, agentLeverage, cheapestAt, effortDG, studentToHold, fptOfG, fxOn, h100eHoursPer, internalFx, offerOf, paidShareTarget, productOffer, reachTarget, sectorCover, sectorTheta, serveDollarsPerHour,
   subPrice, valuePerHour, wagePerHour,
 } from '../../src/engine/v2/worldfx/serving';
 import { consumerUse, workBilling } from '../../src/engine/v2/worldfx/readouts';
@@ -117,16 +119,29 @@ for (const d of [400, 900]) {
   const rate = serveDollarsPerHour(s);
   let bad = 0;
   let n = 0;
+  let tiers = 0;
   for (const r of ['US', 'CN', 'ROW'] as const) for (const [sid, m] of Object.entries(mix.sec[r]) as [SectorId, (typeof mix.sec.US)[SectorId]][]) {
+    const value = valuePerHour(s, sid, r);
     mix.providers.forEach((p, i) => {
       if (!p.model || !m.prices[i]) return;
       const o = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], sid, { markup: p.markup, rate });
-      const value = valuePerHour(s, sid, r);
       n++;
-      if (m.prices[i] < o.cost * (1 - 1e-9) || (m.prices[i] > value * (1 + 1e-9) && m.prices[i] > o.cost * (1 + 1e-9))) bad++;
+      // A5: the provider sells a lineup (its model and its cheap tiers); every tier's price is in [cost, max(cost, value)]
+      // and the provider's price is its customers' tier mix of them (≥ the mix's cost).
+      const T = m.tiers;
+      let mixP = 0;
+      let mixC = 0;
+      T.offers[i].forEach((t, k) => {
+        tiers++;
+        const pr = T.price[i][k];
+        if (pr < t.cost * (1 - 1e-9) || (pr > value * (1 + 1e-9) && pr > t.cost * (1 + 1e-9))) bad++;
+        mixP += T.weight[i][k] * pr;
+        mixC += T.weight[i][k] * t.cost;
+      });
+      if (!near(T.offers[i][0].cost, o.cost, 1e-9) || !near(m.prices[i], mixP, 1e-9) || m.prices[i] < mixC * (1 - 1e-9) || m.prices[i] > Math.max(value, mixC) * (1 + 1e-9)) bad++;
     });
   }
-  check(n > 0 && bad === 0, `S3 day ${d}: every provider's price per hour of use is ≥ its cost and ≤ the work's value (unless serving costs more than the work is worth)`, `${n} offers, ${bad} outside`);
+  check(n > 0 && bad === 0, `S3 day ${d}: every provider's price per hour of use is ≥ its cost and ≤ the work's value (unless serving costs more than the work is worth), tier by tier (A5 lineups) and for its customers' tier mix`, `${n} providers, ${tiers} tiers, ${bad} outside`);
   const rd = revenueReadout(s, mix);
   check(rd.deps.every((x) => x.channel === 'consumer' ? (x.subPrice ?? 0) >= (x.subCost ?? 0) - 1e-9 && (x.subPrice ?? 0) <= Math.max(CONSUMER_MKT.wtpMonth, x.subCost ?? 0) + 1e-9 : x.hours === 0 || x.pricePerHour >= x.costPerHour - 1e-9),
     `S3 day ${d}: the player's products price at or above their cost (Chat at most the willingness to pay, $${CONSUMER_MKT.wtpMonth}/month)`, rd.deps.map((x) => `${x.channel} ${x.channel === 'consumer' ? `$${(x.subCost ?? 0).toFixed(1)}→$${(x.subPrice ?? 0).toFixed(1)}/mo` : `$${x.costPerHour.toFixed(2)}→$${x.pricePerHour.toFixed(2)}/h`}`).join(', '));
@@ -390,7 +405,11 @@ for (const d of [400, 900]) {
       const o = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], sid, { markup: p.markup, rate });
       const wage = wagePerHour(sid, r);
       n++;
-      if (m.agentPrices[i] < o.costAg * (1 - 1e-9) || (m.agentPrices[i] > wage * (1 + 1e-9) && m.agentPrices[i] > o.costAg * (1 + 1e-9)) || (m.seatPrices[i] > 0 && m.seatPrices[i] < o.seat * (1 - 1e-9))) bad++;
+      // A5: costs are the customers' tier mix (its model and its cheap tiers); k is its model's (the lineup's coverage).
+      const T = m.tiers;
+      const costAg = T.offers[i].reduce((a, t, k) => a + T.weight[i][k] * t.costAg, 0);
+      const seatMin = Math.min(...T.offers[i].map((t) => t.seat));
+      if (m.agentPrices[i] < costAg * (1 - 1e-9) || (m.agentPrices[i] > wage * (1 + 1e-9) && m.agentPrices[i] > costAg * (1 + 1e-9)) || (m.seatPrices[i] > 0 && m.seatPrices[i] < seatMin * (1 - 1e-9))) bad++;
       if (!(m.agentK[i] >= 0) || m.agentK[i] > o.k + 1e-12) bad++;
     });
   }
@@ -415,6 +434,22 @@ for (const d of [400, 900]) {
     });
   }
   check(bad.length === 0, 'S7 lint: revenue, prices, costs and sectors read no serveCost, multiplierRef / bridgeQ (the M bridge) or v2 price stand-ins', bad.join(', '));
+}
+
+/** A5: the world's adopted task-hours by the kind of tier they are bought on (customer stocks × each provider's tier mix). */
+function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
+  const out: Record<TierKind, number> = { model: 0, mini: 0, student: 0 };
+  let tot = 0;
+  for (const r of ['US', 'CN', 'ROW'] as const) for (const def of SECTORS) {
+    const m = mix.sec[r][def.id];
+    const h = workHoursOf(s.world.sectors[r][def.id], def.id).adopted;
+    m.share.forEach((x, i) => m.tiers.weight[i].forEach((w, k) => {
+      out[m.tiers.kind[i][k]] += h * x * w;
+      tot += h * x * w;
+    }));
+  }
+  for (const k of Object.keys(out) as TierKind[]) out[k] /= tot || 1;
+  return out;
 }
 
 // ───────── A1–A3 price of a fixed capability (task A3; research/20 D3: Cottier et al. 2025 ×10/yr, ×9–×900) ─────────
@@ -451,6 +486,12 @@ for (const d of [400, 900]) {
   const perM = (fpt: number, markup: number) => ((h100eHoursPer(fpt, tok) * serveDollarsPerHour(s) * markup) / tokTask) * 1e6;
   type Snap = { t: number; N: number; fpp: number; util: number; rate: number; markup: number; tokTask: number; price: number; bridge: number };
   const snaps: Snap[] = [];
+  // A5: what customers actually pay for V0's capability in the market (US Software & IT: the hardest band of tasks V0
+  // does whole, at the customer stocks), per M FLOP-bearing tokens of the sector's adopted-hour profile; `edge` is the
+  // band containing V0's coverage (it includes tasks V0 cannot do).
+  const u0 = offerOf(s, [{ v: s.player.models.versions[0], fpt: flopPerToken(s, s.player.models.versions[0]), w: 1 }], 'SOFT', { markup: MARKUP.standard, rate: serveDollarsPerHour(s) }).a;
+  type Paid = { t: number; perM: number; below: number; own: number; rate: number; margin: number; hphM: number; kind: Record<TierKind, number>; world: Record<TierKind, number>; prov: Record<string, number> };
+  const paid: Paid[] = [];
   while (s.time.day <= marks[marks.length - 1]) {
     for (const p of [...s.events.pending]) {
       const c = refBot.decide(s, p);
@@ -468,6 +509,14 @@ for (const d of [400, 900]) {
         price: perM(c.fpt, MARKUP.standard), bridge: perM(fptOfG(s, fixedG, s.time.day), MARKUP.standard),
       };
       snaps.push(snap);
+      const mix = worldMix(s);
+      const tk = adoptedTokens(s, 'SOFT');
+      const perTok = 1e6 / (tk.input + tk.output);
+      const bp = bandPaid(mix, 'US', 'SOFT', u0, true);
+      paid.push({
+        t: snap.t, perM: bp.price * perTok, below: bandPaid(mix, 'US', 'SOFT', u0).price * perTok, own: bp.ownModelPrice * perTok, rate: snap.rate,
+        margin: bp.price / (snap.rate * bp.hph), hphM: bp.hph * perTok, kind: bp.byKind, world: hoursByKind(s, mix), prov: bp.byProvider,
+      });
       rows.push(`${snap.t.toFixed(2)}: API ${v.name} ${(paramsOfVersion(s, v) / 1e9).toFixed(0)}B $${perM(flopPerToken(s, v), MARKUP.standard).toFixed(2)}/M; V0-level cheapest ${c.student ? `student of ${teacher.name} (fit +${(c.teacherFit - fixedG).toFixed(2)}, δ ${c.gap.toFixed(2)})` : teacher.name} ${(c.params / 1e9).toFixed(1)}B $${snap.price.toFixed(3)}/M; reference design without distillation (rivals' bridge) $${snap.bridge.toFixed(2)}/M; rental $${snap.rate.toFixed(2)}/H100e-h`);
     }
   }
@@ -486,7 +535,20 @@ for (const d of [400, 900]) {
     `params ${fmt(f.params)}, FLOP/param (shape, serving stack) ${fmt(f.fpp)}, utilisation ${fmt(f.util)}, hardware (rental) ${fmt(f.hardware)}, margin ${fmt(f.margin)} → ${fmt(total)}/yr; per task (tokens per task ${fmt(py(a.tokTask / b.tokTask))}) ${fmt(perTask)}/yr`);
   check(total >= 6 && total <= 30,
     'A3 the price of a fixed capability (V0\'s) falls ×6–×30 a year (R20 D3: ≈ ×10, ×9–×900; Cottier et al. 2025)',
+
     `${fmt(total)}/yr over ${a.t.toFixed(2)}–${b.t.toFixed(2)}; without distillation (reference design at the frontier recipe, rivals' BRIDGE(V7)) ${fmt(py(a.bridge / b.bridge))}/yr`);
+  // A5 E9: the market-weighted price customers pay for V0's capability, decomposed exactly into the rental, the margin
+  // and the H100e-hours per M tokens of the models they buy (model size × utilisation); the tier shift is the gap to
+  // what the same customers would pay on the providers' own models.
+  const pa = paid[0];
+  const pb = paid[paid.length - 1];
+  const pTot = py(pa.perM / pb.perM);
+  const pf = { hardware: py(pa.rate / pb.rate), margin: py(pa.margin / pb.margin), models: py(pa.hphM / pb.hphM) };
+  const pct = (o: Record<string, number>) => Object.entries(o).filter(([, x]) => x > 0.005).map(([k, x]) => `${k} ${(x * 100).toFixed(0)}%`).join(' ');
+  console.log(`INFO  A5 price customers pay for V0's capability (US Software & IT, the hardest band V0 (coverage ${u0.toFixed(3)}) does whole; per M tokens):\n      ${paid.map((x) => `${x.t.toFixed(2)}: $${x.perM.toFixed(3)}/M (band at its coverage edge $${x.below.toFixed(3)}; on the providers' own models $${x.own.toFixed(3)}); band hours by tier ${pct(x.kind)}; by provider ${pct(x.prov)}; all adopted hours (world) by tier ${pct(x.world)}`).join('\n      ')}`);
+  check(near(pf.hardware * pf.margin * pf.models, pTot, 1e-9) && pTot >= 6 && pTot <= 30,
+    'A5 E9 the price customers actually pay for V0\'s capability (market-weighted) falls ×6–×30 a year (R20 D3 ≈ ×10), = rental × margin × model H100e-hours per token bought',
+    `${fmt(pTot)}/yr over ${pa.t.toFixed(2)}–${pb.t.toFixed(2)}: hardware ${fmt(pf.hardware)}, margin ${fmt(pf.margin)}, models bought ${fmt(pf.models)}; band at V0's coverage edge ${fmt(py(pa.below / pb.below))}/yr; on own models only ${fmt(py(pa.own / pb.own))}/yr; cheap tiers ${((pb.kind.mini + pb.kind.student) * 100).toFixed(0)}% of the band's hours at the end (${((pa.kind.mini + pa.kind.student) * 100).toFixed(0)}% at the start)`);
 }
 
 // ───────── D1–D5 demand ceiling on agent work (task A4; research/16 §1A.2 step 7: E = E0·(1 − D)(1 + η·CR)) ─────────
@@ -572,11 +634,21 @@ for (const d of [400, 900]) {
       mix.providers.forEach((p, i) => {
         if (!p.model) return;
         const o = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], def.id, { markup: p.markup, rate });
+        // A5: the agent price and cost are the customers' tier mix; k and λ its model's.
+        const T = m.tiers;
+        let priceAg = 0;
+        let costAg = 0;
+        T.offers[i].forEach((t, k) => {
+          if (T.weight[i][k] > 0) {
+            priceAg += T.weight[i][k] * t.priceAg;
+            costAg += T.weight[i][k] * t.costAg;
+          }
+        });
         n++;
-        if (m.agentK[i] !== agentDemandOf(o, wagePerHour(def.id, r)).k) diff++;
+        if (m.agentK[i] !== agentDemandOf({ k: o.k, lam: o.lam, priceAg, costAg }, wagePerHour(def.id, r)).k) diff++;
       });
     }
-    check(bound === 0 && n > 0 && diff === 0, `D3 ${label}: below the ceiling nothing changes (no cell binds; every provider's agent-hours per supervising hour is bit-identical to the A2c rule)`, `${n} provider offers, ${diff} differ, ${bound} cells bound`);
+    check(bound === 0 && n > 0 && diff === 0, `D3 ${label}: below the ceiling nothing changes (no cell binds; every provider's agent-hours per supervising hour is bit-identical to the A2c rule on its customers' tier mix)`, `${n} provider offers, ${diff} differ, ${bound} cells bound`);
   }
 }
 {
@@ -610,6 +682,110 @@ for (const d of [400, 900]) {
   check(sum(raw, 'agentHours') > sum(rd, 'agentHours') && sum(raw, 'needH100e') > sum(rd, 'needH100e') && sum(raw, 'demand') > sum(rd, 'demand'),
     'D5 day 900: agent-hours beyond the ceiling are not bought (the player\'s agent-hours, demand and serving need fall; the capacity stays spare)',
     `player agent-hours ${(sum(raw, 'agentHours') / 1e9).toFixed(1)}B → ${(sum(rd, 'agentHours') / 1e9).toFixed(1)}B, demand $${sum(raw, 'demand').toFixed(0)}B → $${sum(rd, 'demand').toFixed(0)}B, need ${Math.round(sum(raw, 'needH100e') / 1e3)}k → ${Math.round(sum(rd, 'needH100e') / 1e3)}k H100e`);
+}
+
+// ───────── E1–E8 cheap tiers: the market's surplus choice over bands of task difficulty (task A5; worldfx/choice.ts) ─────────
+// Buyers of a sector's adopted task-hours choose per band of task difficulty by logit on surplus V·x − p (x the share of
+// the band the tier does adequately, from the work-type coverage), scale μ = the cheapest adequate price ÷ ε, plus V4's
+// quality term; access is a share of buyers. Cheap tiers: the player's product minis, other providers' students.
+{
+  const one = (fit: number, a: number, price: number): Tier[] => [{ fit, a, price }];
+  const V = 30;
+  // E1 a cheap adequate model wins share from a pricier one with the same coverage (and fit).
+  const c1 = surplusChoice([one(28, 0.3, 2), one(28, 0.3, 0.2)], [1, 1], [1, 1], V);
+  check(c1.target[1] > 0.99 && near(c1.target[0] + c1.target[1], 1, 1e-12), 'A5 E1 a cheap model with the same coverage wins the hours from a pricier one (a tenth of the price: > 99%)',
+    `pricier ${c1.target[0].toFixed(4)}, cheap ${c1.target[1].toFixed(4)}`);
+  // The brief's crossover on one band: x 0.97 at a tenth of the price beats x 1 exactly when V·0.03 < Δp (fit equal).
+  const band = (v: number) => surplusChoice([one(28, 1, 1), one(28, 0.97, 0.1)], [1, 1], [1, 1], v, 1, 1).target[1];
+  check(band(20) > 0.5 && band(40) < 0.5 && Math.abs(band(30) - 0.5) < 0.01, 'A5 E1 coverage 0.97 at a tenth of the price beats coverage 1 when value × 0.03 < the price difference (crossover at V = $30/h for Δp = $0.90)',
+    `cheap share at V $20 ${band(20).toFixed(3)}, $30 ${band(30).toFixed(3)}, $40 ${band(40).toFixed(3)}`);
+  // E2 a frontier model keeps the capability-hungry work: a small cheap model with low coverage takes only the easy bands.
+  const c2 = surplusChoice([one(29, 0.4, 2), one(27.5, 0.1, 0.05)], [1, 1], [1, 1], V);
+  const hard = c2.share[0].slice(2).every((x) => x > 0.999);
+  check(hard && c2.target[1] > 0.2 && c2.target[1] < 0.26, 'A5 E2 the frontier keeps the work a cheap model cannot do (every band above its coverage); the cheap one takes the easy quarter',
+    `frontier ${c2.target[0].toFixed(3)} (bands ${c2.share[0].map((x) => x.toFixed(2)).join(' ')}), cheap ${c2.target[1].toFixed(3)}`);
+  // E3 equal prices, every offer adequate on every band: the old logit exactly (exp(SHARE_SLOPE_G·Δfit) × brand).
+  const fits = [28.4, 28, 27.7];
+  const br = [1.2, 1, 1];
+  const c3 = surplusChoice(fits.map((f) => one(f, 0.3, 1.5)), br, [1, 1, 1], V);
+  const w = fits.map((f, i) => br[i] * Math.exp(SHARE_SLOPE_G * (f - fits[0])));
+  const old = w.map((x) => x / w.reduce((a, y) => a + y, 0));
+  const c3b = surplusChoice([one(28.4, 0.3, 1.5), one(28, 0.2, 1.5)], [1, 1], [1, 1], V);
+  check(old.every((x, i) => near(c3.target[i], x, 1e-12)) && c3b.target[0] > c3b.target[1],
+    'A5 E3 with equal prices and every offer adequate the surplus choice is the old logit exactly; with equal prices a lower-coverage offer never gains share',
+    `shares ${c3.target.map((x) => x.toFixed(4)).join(' / ')} = old ${old.map((x) => x.toFixed(4)).join(' / ')}`);
+  // E5 access is a share of buyers: a provider 5% of buyers can reach takes ≤ 5% even with the only adequate model.
+  const c5 = surplusChoice([one(30, 0.5, 1), one(28, 0.2, 1)], [1, 1], [0.05, 1], V);
+  check(c5.target[0] <= 0.05 + 1e-12 && c5.target[0] > 0.04 && near(c5.target[0] + c5.target[1], 1, 1e-12), 'A5 E5 access is a share of buyers: a provider 5% of buyers can reach takes at most 5% of the hours, however good its model',
+    `${c5.target[0].toFixed(4)}`);
+  check(adequacy(0.5, 0.2, 0.4) === 1 && near(adequacy(0.3, 0.2, 0.4), 0.5, 1e-12) && adequacy(0.1, 0.2, 0.4) === 0 && MARKET_BANDS === 8, 'A5 adequacy: the share of a band of tasks a tier does = its coverage\'s position in the band');
+}
+for (const [label, s] of [['day 1', (() => { const g = game(); run(g, 1); return g; })()], ['day 400', fixture(400)], ['day 900', fixture(900)]] as const) {
+  // E6 shares sum to 1 (targets and stocks) in every sector and region; E4 the tier mix of every provider sums to 1.
+  const mix = worldMix(s);
+  let bad = 0;
+  let cells = 0;
+  for (const r of ['US', 'CN', 'ROW'] as const) for (const def of SECTORS) {
+    const m = mix.sec[r][def.id];
+    cells++;
+    const t = m.target.reduce((a, x) => a + x, 0);
+    const st = m.share.reduce((a, x) => a + x, 0);
+    if (!near(t, 1, 1e-9) || !near(st, 1, 1e-5) || m.tiers.weight.some((x) => x.length && !near(x.reduce((a, y) => a + y, 0), 1, 1e-9))) bad++;
+  }
+  check(cells === 42 && bad === 0, `A5 E6 ${label}: target and customer-stock shares sum to 1 in every sector and region; every provider's tier mix sums to 1`, `${bad} of ${cells} cells off`);
+}
+{
+  // E7 the player's cheap tier: a student sized by the cheapestAt rule to hold a weaker version's capability
+  // (launchDistill holdVersionId) set as the API's mini takes the easy bands, lowers the API's price per hour and the
+  // serving it needs; the customer stock follows gradually.
+  const s = game();
+  run(s, 20);
+  const api = prod(s, 'api');
+  const v0 = versionById(s, api.versionId)!;
+  const weaker = cloneVersion(s, v0, 'VW', { build: { ...v0.build!, dg: (v0.build?.dg ?? 0) - 1.2 } });
+  const nS = studentToHold(s, v0, weaker);
+  const gap = DISTILL.a + DISTILL.b * Math.log10(paramsOfVersion(s, v0) / nS);
+  const mini = cloneVersion(s, v0, 'VM', { variant: 'mini', params: nS, fpt: (flopPerToken(s, v0) * nS) / paramsOfVersion(s, v0), build: { ...v0.build!, dg: (v0.build?.dg ?? 0) - gap } });
+  check(near(workFit(s, mini, 'SWE').fit, workFit(s, weaker, 'SWE').fit, 1e-9) && near(nS, paramsOfVersion(s, v0) / Math.pow(10, (1.2 - DISTILL.a) / DISTILL.b), 1e-9),
+    'A5 E7 a student sized to hold a weaker version\'s capability (cheapestAt on the product\'s teacher) lands on its fit at a fraction of the size', `${(nS / 1e9).toFixed(0)}B of ${(paramsOfVersion(s, v0) / 1e9).toFixed(0)}B`);
+  // The cheap tier on sale: a student 0.5 OOM below (×3.5 smaller; the 1.2-OOM one covers less than the easiest band).
+  const n2 = studentToHold(s, v0, cloneVersion(s, v0, 'VW2', { build: { ...v0.build!, dg: (v0.build?.dg ?? 0) - 0.5 } }));
+  const tier = cloneVersion(s, mini, 'VT', { params: n2, fpt: (flopPerToken(s, v0) * n2) / paramsOfVersion(s, v0), build: { ...v0.build!, dg: (v0.build?.dg ?? 0) - 0.5 } });
+  const pi = worldMix(s).providers.findIndex((p) => p.key === 'player');
+  const before = revenueReadout(s).deps.find((x) => x.id === api.id)!;
+  const t0 = worldMix(s).sec.US.SOFT.target[pi];
+  const sh0 = worldMix(s).sec.US.SOFT.share[pi];
+  api.miniVersionId = tier.id;
+  const mix1 = worldMix(s);
+  const w = mix1.sec.US.SOFT.playerMiniW[api.id] ?? 0;
+  const after = revenueReadout(s, mix1).deps.find((x) => x.id === api.id)!;
+  run(s, 1);
+  const sh1 = worldMix(s).sec.US.SOFT.share[pi];
+  check(w > 0.05 && after.costPerHour < before.costPerHour && after.pricePerHour < before.pricePerHour && mix1.sec.US.SOFT.target[pi] >= t0 - 1e-9 && Math.abs(sh1 - sh0) < 0.02,
+    'A5 E7 the API\'s cheap tier takes the bands it does adequately (its buyers\' share on it), lowering the API\'s cost and price per hour; the player\'s share target does not fall and the stock moves gradually',
+    `mini share of the API's US Software hours ${(w * 100).toFixed(0)}%; cost $${before.costPerHour.toFixed(2)} → $${after.costPerHour.toFixed(2)}, price $${before.pricePerHour.toFixed(2)} → $${after.pricePerHour.toFixed(2)} per hour; target ${t0.toFixed(3)} → ${mix1.sec.US.SOFT.target[pi].toFixed(3)}, stock ${sh0.toFixed(3)} → ${sh1.toFixed(3)}`);
+}
+{
+  // E8 other providers sell cheap tiers: their students (cheapestAt sized on coverage) at every band edge below their
+  // model's coverage, each the smallest that still does its band, cheaper than their model.
+  const s = fixture(400);
+  const mix = worldMix(s);
+  let n = 0;
+  let bad = 0;
+  for (const def of SECTORS) {
+    const m = mix.sec.US[def.id];
+    const top = m.tiers.choice.aTop;
+    mix.providers.forEach((p, i) => {
+      if (p.lab === 'player') return;
+      m.tiers.offers[i].forEach((o, k) => {
+        if (m.tiers.kind[i][k] !== 'student') return;
+        n++;
+        const T = m.tiers.offers[i][0];
+        if (o.a > T.a + 1e-12 || o.a < top / MARKET_BANDS - 1e-9 || o.cost >= T.cost || o.fit > T.fit - DISTILL.a + 1e-9) bad++;
+      });
+    });
+  }
+  check(n > 0 && bad === 0, 'A5 E8 day 400: rivals and China sell students of their models below their coverage (each cheaper than the model), each covering at least the easiest band and at least DISTILL.a below its teacher', `${n} student tiers in the US, ${bad} off`);
 }
 
 finish('serving');

@@ -4,7 +4,7 @@
 // product stays live; the change applies at the next tick, D7, with a before → after preview), product.retire,
 // product.serving (a hand-set share: turns the Auto serving policy off), feature.build (engineers' build queue + cash),
 // feature.toggle, and the product policies (Auto serving, upgrade to newest, auto-evaluate).
-import { FEATURE_BY_ID, FREE_TIER_SHARE, PRICE_TIERS, PRICE_TIER_IDS, PRODUCT_DEFS, type FeatureId } from '../../../data/v2/features';
+import { FEATURE_BY_ID, MINI_CHANNELS, PRICE_TIERS, PRICE_TIER_IDS, PRODUCT_DEFS, type FeatureId } from '../../../data/v2/features';
 import { buildWaitNew, LAUNCH_TW, pendingLaunch, queueBuild } from '../departments/build';
 import { bookCash } from '../finance/ledger';
 import type { ActionDef, Channel, CostLine, Deployment, EngineSystem, GameStateV2, ModelVersion, PriceTier, SystemCtx } from '../types';
@@ -96,7 +96,7 @@ export function editBlock(s: GameStateV2, d: Deployment, c: ProductChanges): str
     }
   }
   if (n.miniVersionId && n.miniVersionId !== d.miniVersionId) {
-    if (!FREE_TIER_SHARE[d.channel]) return `${PRODUCT_DEFS[d.channel]?.name ?? d.channel} has no free tier`;
+    if (!MINI_CHANNELS.includes(d.channel)) return `${PRODUCT_DEFS[d.channel]?.name ?? d.channel} has no free tier`;
     const m = versionById(s, n.miniVersionId);
     if (!m || m.variant !== 'mini') return 'The free tier runs a mini (distilled) model';
     if (!usable(m)) return 'That mini is not ready';

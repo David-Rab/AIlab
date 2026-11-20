@@ -26,7 +26,7 @@
 // excess, through the brand term of the logit); demand-bound ones report quality or price.
 // Gov and trusted contract lump sums arrive through events/actions (WS4), not here.
 import { REGIONS, ECON, SECTORS } from '../../../data/v2/sectors';
-import { AGENT_WORK, CONSUMER_MKT, PRICE_ELASTICITY, SERVE_HOURS_PER_YEAR, SHARE_SLOPE_G } from '../../../data/v2/serving';
+import { AGENT_WORK, CONSUMER_MKT, SERVE_HOURS_PER_YEAR, SHARE_SLOPE_G } from '../../../data/v2/serving';
 import { AGENT_TASK_HOURS } from '../../../data/v2/features';
 import type { Channel, Deployment, EngineSystem, GameStateV2, LabId, Money, RegionId, SectorId, SystemCtx } from '../types';
 import { SECTOR_CHANNELS, advanceCustomers, paidDeployments, worldMix, type WorldMix } from './mix';
@@ -39,7 +39,7 @@ import { revenueToParent } from '../finance/parent';
 import { flopPerToken, pSuccess } from '../departments/workfit';
 import { h50Of } from '../models/capability';
 import {
-  agentDemandOf, chatHoursPerDay, effortTokens, enablerShare, fxOn, markupOf, offerOf, productFx, productOffer, productUses, serveDollarsPerHour,
+  agentDemandOf, blendOffer, chatHoursPerDay, effortTokens, enablerShare, fxOn, markupOf, offerOf, productFx, productMiniUses, productOffer, productUses, serveDollarsPerHour,
   settingsDG, subPrice, valuePerHour, wagePerHour, type Offer,
 } from './serving';
 
@@ -183,11 +183,15 @@ export function spareServing(s: GameStateV2): number {
   const pool = servingPool(s);
   if (pool <= 0) return 0;
   let used = 0;
+  let n = 0;
   for (const d of paidDeployments(s)) {
     if (d.needH100e === undefined) return 0;
     used += Math.min(d.servedH100e ?? 0, d.needH100e);
+    n++;
   }
-  return Math.max(0, pool - used);
+  // servedH100e and needH100e are stored rounded to whole H100e: a gap within that rounding is not spare (A5).
+  const spare = pool - used;
+  return spare > 0.5 * n ? spare : 0;
 }
 
 /** Spare serving compute that runs research agents under the default policy (J2 PR1; 'headroom' keeps it on the
@@ -299,7 +303,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
     }
     return x;
   });
-  interface Row { d: Deployment; w: number; wAg: number; wSeat: number; o: Offer; en: number }
+  interface Row { d: Deployment; w: number; wAg: number; wSeat: number; o: Offer; om?: Offer; en: number }
   const secW = SECTORS.map((def) => {
     const ws: Row[] = [];
     let wsum = 0;
@@ -314,7 +318,10 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
       if (x <= 0 && wAg <= 0 && wSeat <= 0) return;
       // P2: `offers` = the mix's own player offers when the state has not changed since (same inputs, same values).
       const o = offers?.get(`${d.id}|${def.id}`) ?? productOffer(s, d, def.id, certified(def.id), usesOf.get(d.id), fxs.get(d.id));
-      ws.push({ d, w: x, wAg, wSeat, o, en: 1 + enablerShare(fxs.get(d.id) ?? [], def.id) });
+      // A5: the product's cheap tier (its API mini), blended in per region by the share of hours its buyers take on it.
+      const mu = productMiniUses(s, d);
+      const om = mu ? offers?.get(`${d.id}|${def.id}|mini`) ?? productOffer(s, d, def.id, certified(def.id), mu, fxs.get(d.id)) : undefined;
+      ws.push({ d, w: x, wAg, wSeat, o, ...(om ? { om } : {}), en: 1 + enablerShare(fxs.get(d.id) ?? [], def.id) });
       wsum += x;
       agSum += wAg;
       seatSum += wSeat;
@@ -330,7 +337,8 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
       const wh = workHoursOf(st, def.id);
       const ps = m.share[playerIdx];
       const hf = savedAt(st.alpha);
-      const { ws, wsum, agSum, seatSum } = secW[si];
+      const { ws: ws0, wsum, agSum, seatSum } = secW[si];
+      const ws = ws0.map((x) => (x.om ? { ...x, o: blendOffer(x.o, x.om, m.playerMiniW[x.d.id] ?? 0) } : x));
       const value = valuePerHour(s, def.id, r);
       const wage = wagePerHour(def.id, r);
       const fOf = (d: Deployment, en: number) => {
@@ -433,7 +441,8 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
         return { d, o, sp, fMain, fFree, e, en: 1 + enablerShare(fx, 'CHAT') };
       });
       const best = Math.max(...offs.map((x) => x.o.fit));
-      const ws = offs.map((x) => Math.exp(SHARE_SLOPE_G * (x.o.fit - best)) * Math.pow(Math.max(1e-9, x.sp.price), -PRICE_ELASTICITY));
+      // A5: users pick by quality alone (most pay nothing), as the market's user-share logit.
+      const ws = offs.map((x) => Math.exp(SHARE_SLOPE_G * (x.o.fit - best)));
       const wsum = ws.reduce((a, b) => a + b, 0) || 1;
       const users = cm.share[playerIdx] * consumerUsers(s, r);
       // A2b: the player's paid share (stock) applies to each of its chat products; subscribers × price × 12 is the line.

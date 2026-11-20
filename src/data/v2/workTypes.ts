@@ -131,11 +131,12 @@ export const DAY0_REF = { re: 11 * 0.88, agents: 3e4, flop: 1e6 * 0.05 * 3.46e19
  *  cumulative research input): AIFM golden 3.19 (authors2026), AI 2027 takeoff median ≈ 4 (ai2027, fast: its p10
  *  takeoff), Forethought 1.2 (slow) [research/13 §2.2]; and sd_SC, AIFM's AI research taste at the automated coder (median 0.5 SD,
  *  kept where (G_SC, Δ_bm) fit; fitted for authors2026, 1.8 SD, inside AIFM's 80% CI −2.5…3.5) [fit, V3b]. `sampled` uses
- *  ai2027's. Mutable so the harness can fit them. */
+ *  ai2027's. Mutable so the harness can fit them. A5 refit: authors2026 Δ_bm 4.606 → 4.5 (the cheap-tier market changes
+ *  rivals' revenue, so a merger offer fires on day 458 and RefBot's path shifts; ASI +59 d → −11 d, G_SC kept). */
 export interface V3Cal { gSC: number; dBM: number; r: number; sdSC: number }
 export const V3_CAL: Record<WorldPresetId, V3Cal> = {
   ai2027: { gSC: 30.497, dBM: 2.2, r: 4, sdSC: SD_AT_SC },
-  authors2026: { gSC: 33.62, dBM: 4.606, r: 3.19, sdSC: 1.8 },
+  authors2026: { gSC: 33.62, dBM: 4.5, r: 3.19, sdSC: 1.8 },
   fast: { gSC: 31.593, dBM: 0.17, r: 4, sdSC: SD_AT_SC },
   slow: { gSC: 35.447, dBM: 1.6, r: 1.2, sdSC: SD_AT_SC },
   sampled: { gSC: 30.497, dBM: 2.2, r: 4, sdSC: SD_AT_SC },

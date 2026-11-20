@@ -13,8 +13,8 @@ import {
   Blocks, Bot, BrainCog, Briefcase, Building2, Check, Clock3, DoorOpen, Hammer, Layers, Lock, MessageCircle, Pencil, Ruler, Shield, ShieldCheck, SquareTerminal, Tag, Unlock, Users, X,
   type LucideIcon,
 } from 'lucide-react';
-import { AGENT_TASK_HOURS, FEATURES, PRICE_TIER_IDS, PRICE_TIERS, PRODUCT_DEFS, PRODUCT_ORDER, type FeatureDef } from '../../../data/v2/features';
-import { EFFORT_OOM_PER_10X, EFFORT_TOKENS, MARKUP, PRICE_ELASTICITY } from '../../../data/v2/serving';
+import { AGENT_TASK_HOURS, FEATURES, PRICE_TIER_IDS, PRODUCT_DEFS, PRODUCT_ORDER, type FeatureDef } from '../../../data/v2/features';
+import { EFFORT_OOM_PER_10X, EFFORT_TOKENS, MARKUP } from '../../../data/v2/serving';
 import { SECTORS } from '../../../data/v2/sectors';
 import { TREE_BY_ID } from '../../../data/v2/tree';
 import {
@@ -156,10 +156,10 @@ function ProductCard({ s, d, r, draft, setDraft }: { s: GameStateV2; d: Deployme
       <PkgChip kind="model" testId={`prod-model.${d.id}`} value={n.versionId} changed={n.versionId !== d.versionId || n.miniVersionId !== d.miniVersionId}
         options={models.map((x) => ({ value: x.id, label: `${x.name} · L ${F.level(mL(s, x))}` }))} onPick={(x) => set({ versionId: x })}
         sub={def && (d.channel === 'consumer' || d.channel === 'api') && (
-          <Tip content={() => <TipCard title={<Term id="freeTier">Mini free tier</Term>}>{d.channel === 'consumer' ? 'The mini serves every user without a subscription: far cheaper to serve. It weighs 60% in Chat\'s quality. Without one, free users run on the main model.' : 'The mini serves 30% of use: far cheaper to serve, but the product\'s quality is the usage-weighted blend.'}</TipCard>}>
+          <Tip content={() => <TipCard title={d.channel === 'consumer' ? <Term id="freeTier">Mini free tier</Term> : <Term id="cheapTier">Mini cheap tier</Term>}>{d.channel === 'consumer' ? 'The mini serves every user without a subscription: far cheaper to serve. It weighs 60% in Chat\'s quality. Without one, free users run on the main model.' : 'Buyers take the mini on the tasks it does as well, at its lower price; the main model keeps the harder work. Its share of the hours follows from the market, not a setting.'}</TipCard>}>
             <select className="msel sub" data-test={`prod-mini.${d.id}`} value={n.miniVersionId ?? ''} onChange={(e) => set({ miniVersionId: e.target.value || null })}>
-              <option value="">no free tier</option>
-              {minis.map((x) => <option key={x.id} value={x.id}>+ {x.name} free tier</option>)}
+              <option value="">{d.channel === 'consumer' ? 'no free tier' : 'no cheap tier'}</option>
+              {minis.map((x) => <option key={x.id} value={x.id}>+ {x.name} {d.channel === 'consumer' ? 'free' : 'cheap'} tier</option>)}
             </select>
           </Tip>
         )} />
@@ -197,7 +197,7 @@ function ProductCard({ s, d, r, draft, setDraft }: { s: GameStateV2; d: Deployme
       <div className="pc-set">
         <div className="pc-cap"><span>Settings</span><span className="dim"><Pencil size={10} /> live</span><span className="sp" /><ActBtn id="product.retire" testId={`product.retire.${d.id}`} params={{ id: d.id }} label="Retire" /></div>
         <div className="pc-row">
-          <Tip content={() => <TipCard title={<Term id="priceTier">Price tier</Term>} rows={PRICE_TIER_IDS.map((t) => ({ label: TIER_LABEL[t], value: `price = cost ×${MARKUP[t].toFixed(2)} (margin ${F.pct(1 - 1 / MARKUP[t])}) · share ×${(PRICE_TIERS[t] ** -PRICE_ELASTICITY).toFixed(2)}` }))}>Price is a markup over this product's own serving cost, never above the value cap; customers' share falls with price^−{PRICE_ELASTICITY}.</TipCard>}><span className="pc-k"><Tag size={11} />Price</span></Tip>
+          <Tip content={() => <TipCard title={<Term id="priceTier">Price tier</Term>} rows={PRICE_TIER_IDS.map((t) => ({ label: TIER_LABEL[t], value: `price = cost ×${MARKUP[t].toFixed(2)} (margin ${F.pct(1 - 1 / MARKUP[t])})` }))}>Price is a markup over this product's own serving cost, never above the value cap. On work a cheaper offer also does, buyers take the cheaper one; on work only your model does, price matters little.</TipCard>}><span className="pc-k"><Tag size={11} />Price</span></Tip>
           <Seg testId={`prod-price.${d.id}`} value={n.price} options={PRICE_TIER_IDS.map((t) => ({ v: t, label: TIER_LABEL[t] }))} onChange={(t) => set({ price: t })} />
         </div>
         <div className="pc-row">

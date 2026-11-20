@@ -21,6 +21,7 @@ import { bestMeasuredL, internalVersion, versionById } from './labs';
 import { TREE_ACTIONS } from './treeActions';
 import { POOL_SHARE_RANGE, idleTrainingShare, launchRun, planRun, startStream, type LaunchRunParams } from './runs';
 import { poolsOf } from '../compute/power';
+import { studentToHold } from '../worldfx/serving';
 import { clamp } from '../../rng';
 import { bookCash } from '../finance/ledger';
 
@@ -75,6 +76,11 @@ function runParams(s: GameStateV2, kind: LaunchRunParams['kind'], p: Params): La
   } else if (kind === 'distill') {
     lp.teacherVersionId = str(p, 'teacherVersionId', latestFull(s)?.id ?? '');
     if (typeof p.studentParams === 'number') lp.studentParams = num(p, 'studentParams', 0);
+    // A5: size the student to hold another version's capability (the cheapestAt rule on this teacher): the smallest
+    // model a cheap tier or a free tier can be at that level.
+    const t = versionById(s, lp.teacherVersionId);
+    const hold = typeof p.holdVersionId === 'string' ? versionById(s, p.holdVersionId) : undefined;
+    if (t && hold) lp.studentParams = studentToHold(s, t, hold);
   }
   else lp.baseId = str(p, 'baseId', latestBase(s)?.id ?? '');
   return lp;

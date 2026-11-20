@@ -15,7 +15,7 @@ import { TRAIT_BY_ID } from '../../../data/v2/traits';
 import { OPTION_NODE, TREE_BY_ID } from '../../../data/v2/tree';
 import {
   PARAM_SNAPS, POOL_SHARE_RANGE, REF_TPP, RL_BUDGET, TPP_FREE_MAX, TPP_SNAPS, baseFromParams, dateOf, evalDaysFor, fmtDate, fmtMonth, internalEval, internalVersion,
-  flopPerToken, liveCommitments, measuredDomains, nodeStatus, optionLocked, postFromParams, runCard, runEtaDays, runFlopPerShareDay, runTraitPressure, runStall, tppLabel, useHourCost,
+  flopPerToken, liveCommitments, measuredDomains, nodeStatus, optionLocked, postFromParams, runCard, runEtaDays, runFlopPerShareDay, runTraitPressure, runStall, studentToHold, tppLabel, useHourCost,
 } from '../../../engine/v2';
 import type { GameStateV2, LaunchRunParams, TraitId } from '../../../engine/v2';
 import { store } from '../store';
@@ -109,7 +109,13 @@ function toLP(s: GameStateV2, kind: Kind, p: Params): LaunchRunParams {
     lp.baseId = String(p.baseId);
   }
   if (kind === 'continue') lp.baseId = String(p.baseId);
-  if (kind === 'distill') lp.teacherVersionId = String(p.teacherVersionId || latestTeacher(s));
+  if (kind === 'distill') {
+    lp.teacherVersionId = String(p.teacherVersionId || latestTeacher(s));
+    // A5: size the student to hold another version's level (a cheap tier), as the launch action does.
+    const t = s.player.models.versions.find((v) => v.id === lp.teacherVersionId);
+    const hold = p.holdVersionId ? s.player.models.versions.find((v) => v.id === p.holdVersionId) : undefined;
+    if (t && hold) lp.studentParams = studentToHold(s, t, hold);
+  }
   return lp;
 }
 interface Eval { card?: Card_; err?: string; tp: Partial<Record<TraitId, number>> }
@@ -241,11 +247,19 @@ export function Blueprint({ s }: { s: GameStateV2 }) {
       <select className="text-input" data-test="bp-base" value={String(p.baseId)} onChange={(e) => set({ ...p, baseId: e.target.value })}>{m.bases.map((b) => <option key={b.id} value={b.id}>{b.name} · {fmtParams(b.params)} · {b.design.shape === 'moe' ? 'MoE' : F.words(b.design.shape)}</option>)}</select>
     </label>
   );
-  const teacherSel = kind === 'distill' && (
+  const teacherSel = kind === 'distill' && (<>
     <label className="bp-on small dim">teacher
       <select className="text-input" data-test="bp-teacher" value={String(params.teacherVersionId)} onChange={(e) => set({ ...p, teacherVersionId: e.target.value })}>{m.versions.filter((v) => v.status !== 'retired').map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select>
     </label>
-  );
+    <Tip content={() => <TipCard title={<Term id="cheapTier">Student size</Term>}>{'Half the teacher by default. "Hold" sizes the smallest student that lands at that version\'s level: a [[cheapTier|cheap tier]] for the API or a free tier for Chat.'}</TipCard>}>
+      <label className="bp-on small dim">size
+        <select className="text-input" data-test="bp-hold" value={String(p.holdVersionId ?? '')} onChange={(e) => set({ ...p, holdVersionId: e.target.value })}>
+          <option value="">half the teacher</option>
+          {m.versions.filter((v) => v.status !== 'retired' && v.id !== params.teacherVersionId).map((v) => <option key={v.id} value={v.id}>hold {v.name}'s level</option>)}
+        </select>
+      </label>
+    </Tip>
+  </>);
   return (
     <div className="panel-v2 bp" data-panel="blueprint">
       <PanelHead

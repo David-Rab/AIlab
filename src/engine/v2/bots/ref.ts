@@ -18,6 +18,7 @@ import { paramsForFlop, rlCeiling } from '../models/effective';
 import { latestBaseFlop, refRlGain, rlCeilNow, rlMidNow } from '../models/stacks';
 import { takesTeams } from '../models/research';
 import { POOL_SHARE_RANGE, paramsOfVersion, runFlopPerShareDay } from '../models/runs';
+import { studentToHold } from '../worldfx/serving';
 import { EVENT_BY_ID } from '../core/registry';
 import { decimalYear } from '../core/time';
 import { shareRefAt, TOP_KEYS, topOf, withFixed } from '../departments/split';
@@ -86,6 +87,9 @@ const FOLLOWER_GROW_Q = 6;
 /** RefBot's distilled minis: half the teacher's active parameters [D]: the distillation gap is then 0.47 OOM (≈ v2's
  *  −0.30 y mini; a quarter-size student trails by 0.62 y and misses the 2026 hype, valuation and distress targets). */
 const REF_STUDENT = 0.5;
+/** A5: RefBot distils a cheap API tier only when it is at most this share of the internal model's size (≥ 2× cheaper than
+ *  the half-size public mini) [D]. */
+const CHEAP_MAX = 0.25;
 const POST_EVERY = 42;
 const MINI_EVERY = 182;
 /** …or sooner (≥ 45 d apart) once the internal model measures this many levels above what the products serve. */
@@ -133,6 +137,10 @@ export interface RefPlayOpts {
    *  (today's behaviour exactly) instead of running research agents. Measured: with 'research' RefBot's spare serving
    *  (up to 4× its agent pool in late 2025) would add an unearned speed-up (design/PROGRESS.md J2). */
   spareServing?: 'research' | 'headroom';
+  /** A5: distil a cheap API tier (a student holding the previous public release's level) once per public release.
+   *  Off by default: the extra runs and evals shift RefBot's random draws (T1 ai2027 SC −32 d, fast SAR +57 d, both just
+   *  outside tolerance), so turning it on for RefBot belongs to F5's rebalance with the T1 refit. */
+  cheapTier?: boolean;
 }
 
 const flag = (s: GameStateV2, k: string, d = -1e9) => Number(s.flags[`ref:${k}`] ?? d);
@@ -308,15 +316,39 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   let servedL = 0;
   for (const d of p.deployments) if (d.status === 'live' && PUBLIC_CHANNELS.includes(d.channel)) servedL = Math.max(servedL, m.versions.find((v) => v.id === d.versionId)?.evals.measuredL ?? 0);
   const stale = !!iv && (iv.evals.measuredL ?? 0) - servedL >= MINI_GAP_L && day - flag(s, 'lastMini', 0) >= 45;
-  if (iv && (newGen || stale || day - flag(s, 'lastMini', 0) >= MINI_EVERY) && !m.runs.some((r) => r.kind === 'distill' && r.status === 'running')) {
+  // (A5: the small cheap-tier distil below runs alongside; it does not hold up a public mini.)
+  const cheapRun = (r: TrainingRun) => r.kind === 'distill' && r.studentParams !== undefined && r.studentParams === s.flags['ref:cheapParams'];
+  if (iv && (newGen || stale || day - flag(s, 'lastMini', 0) >= MINI_EVERY) && !m.runs.some((r) => r.kind === 'distill' && r.status === 'running' && !cheapRun(r))) {
     if (tryAct(s, api, 'launchDistill', { teacherVersionId: iv.id, studentParams: REF_STUDENT * paramsOfVersion(s, iv) })) {
       setFlag(s, 'lastMini', day);
       setFlag(s, 'miniBase', Math.max(flag(s, 'miniBase', 0), baseIdx(iv)));
     }
   }
+  // A5 (option `cheapTier`, off for RefBot until F5): the API's cheap tier — a student of the internal model that holds
+  // the previous public release's capability (the cheapestAt rule on one teacher, worldfx/serving.ts studentToHold; small
+  // models match the previous frontier within months, R12 §0.6), distilled once per public release alongside a
+  // public-mini distil (it is small), and set as the API's mini when ready. It is not a public release itself.
+  const cheapIds = String(s.flags['ref:cheapIds'] ?? '').split(',').filter(Boolean);
+  const apiDep = p.deployments.find((d) => d.channel === 'api' && d.status === 'live');
+  const prevPub = m.versions.find((v) => v.id === s.flags['ref:prevPublic']);
+  if (o.cheapTier && apiDep && prevPub && iv && s.flags['ref:cheapFor'] !== prevPub.id && !m.runs.some((r) => r.status === 'running' && cheapRun(r))) {
+    const nS = studentToHold(s, iv, prevPub);
+    if (nS <= CHEAP_MAX * paramsOfVersion(s, iv) && tryAct(s, api, 'launchDistill', { teacherVersionId: iv.id, studentParams: nS })) {
+      s.flags['ref:cheapFor'] = prevPub.id;
+      s.flags['ref:cheapParams'] = nS;
+    }
+  }
+  const cheapP = Number(s.flags['ref:cheapParams'] ?? 0);
+  const cheap = cheapP > 0 ? [...m.versions].reverse().find((v) => v.variant === 'mini' && v.status === 'ready' && Math.abs((v.params ?? 0) - cheapP) <= 1e-6 * cheapP) : undefined;
+  if (cheap && !cheapIds.includes(cheap.id)) {
+    cheapIds.push(cheap.id);
+    s.flags['ref:cheapIds'] = cheapIds.slice(-4).join(',');
+  }
+  if (o.cheapTier && apiDep && cheap && apiDep.miniVersionId !== cheap.id) tryAct(s, api, 'product.update', { id: apiDep.id, miniVersionId: cheap.id });
+
   // Product channels (consumer, API, enterprise) move to the new public model only if it measures better than what
   // they serve (a fresh mini can trail the previous release).
-  const mini = [...m.versions].reverse().find((v) => v.variant === 'mini' && v.status === 'ready');
+  const mini = [...m.versions].reverse().find((v) => v.variant === 'mini' && v.status === 'ready' && !cheapIds.includes(v.id));
   const pub = o.release === 'frontier' ? [...m.versions].reverse().find((v) => v.variant === 'full' && (v.status === 'ready' || v.status === 'deployed')) ?? mini : mini;
   if (pub) {
     const mL = (id: string) => m.versions.find((v) => v.id === id)?.evals.measuredL ?? 0;
@@ -328,7 +360,8 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
     for (const d of p.deployments) {
       if (!PRODUCT_CHANNELS.includes(d.channel) || d.status !== 'live') continue;
       const want = d.channel === 'enterprise' ? (o.release === 'frontier' && pub.variant === 'full' ? pub : ent ?? pub) : pub;
-      if (want && want.id !== d.versionId && (want.evals.measuredL ?? 0) > mL(d.versionId)) tryAct(s, api, 'product.update', { id: d.id, versionId: want.id });
+      const old = d.versionId;
+      if (want && want.id !== d.versionId && (want.evals.measuredL ?? 0) > mL(d.versionId) && tryAct(s, api, 'product.update', { id: d.id, versionId: want.id }) && o.cheapTier && d.channel === 'api') s.flags['ref:prevPublic'] = old;
     }
   }
 
@@ -344,8 +377,10 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   if (day % 30 === 15) {
     const full = m.versions.filter((v) => v.status !== 'retired' && v.variant === 'full').sort((a, b) => b.day - a.day);
     for (const v of full.slice(4)) tryAct(s, api, 'retireVersion', { versionId: v.id });
-    const minis = m.versions.filter((v) => v.status !== 'retired' && v.variant === 'mini').sort((a, b) => b.day - a.day);
+    const minis = m.versions.filter((v) => v.status !== 'retired' && v.variant === 'mini' && !cheapIds.includes(v.id)).sort((a, b) => b.day - a.day);
     for (const v of minis.slice(2)) tryAct(s, api, 'retireVersion', { versionId: v.id });
+    // A5: cheap tiers no product serves any more (retireVersion keeps the one in use).
+    for (const id of cheapIds) if (m.versions.find((v) => v.id === id)?.status === 'ready') tryAct(s, api, 'retireVersion', { versionId: id });
   }
 }
 
