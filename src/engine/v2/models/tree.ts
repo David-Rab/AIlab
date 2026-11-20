@@ -39,8 +39,8 @@ import { measuredDomain, PARADIGM_BY_ID } from './paradigms';
 import { posteriorBand } from '../safety/agendas';
 import { lineCycleDays, lineEtaDays, resetSafAllocation, safAllocation, stepLineProject } from '../safety/lineProjects';
 import { queueBuild } from '../departments/build';
-import { addKnowledge, gEquivOf, paOfGEquiv } from './stacks';
-import { B_G_PER_Y, E_START } from '../../../data/v2/runDesign';
+import { addKnowledge } from './stacks';
+import { B_G_PER_Y } from '../../../data/v2/runDesign';
 import {
   assignCapTeams, attemptOdds, capProgress, capResearchDay, isCapProject, stagesOf, takesTeams,
 } from './research';
@@ -605,24 +605,8 @@ export function treeCounts(s: GameStateV2): { known: number; total: number } {
   return { known, total: TREE.length };
 }
 
-/** Know-how (STRUCTURE §4.2): the lab's know-how and how much of it the internal model embodies (its base's recipe
- *  vintage, or the stream's tracked know-how; BRIDGE(V2)). The gap is the reason to train. Years of progress. */
-export function knowHow(s: GameStateV2): { pa: number; inModel: number; gap: number; versionName?: string } {
-  const p = s.player;
-  const v = p.models.versions.find((x) => x.id === p.agents.capRoutine.versionId);
-  const b = v?.build;
-  let inModel = p.pa;
-  if (b) inModel = p.models.stream?.versionId === v?.id && p.models.stream.paTrack !== undefined ? p.models.stream.paTrack : b.paIn;
-  return { pa: p.pa, inModel, gap: Math.max(0, p.pa - inModel), ...(v ? { versionName: v.name } : {}) };
-}
-
-/** BRIDGE(V6,V7) readout: the pa-equivalent of a recipe (pretraining recipe incl. E_START, RL efficiency and ceiling) on a
- *  base of `flop` FLOP. */
-export const paOfRecipe = (s: GameStateV2, flop: number, ePre: number, rlMid: number, rlCeil: number) =>
-  paOfGEquiv(s.hidden.timeline, gEquivOf(flop, ePre - E_START, rlMid, rlCeil));
-
-/** Knowledge from outside the lab (diffusion, tacit knowledge, safety spillover) in v2 know-how years: added to the
- *  pretraining stack as public ideas (models/stacks.ts addKnowledge). */
-export const gainKnowledge = (s: GameStateV2, ctx: Pick<SystemCtx, 'cause'> | undefined, years: number, source: string, detail?: string) =>
-  addKnowledge(s, ctx, years, source, detail);
+/** Knowledge from outside the lab (diffusion, tacit knowledge, safety spillover), dG OOM: added to the pretraining stack
+ *  as public ideas (models/stacks.ts addKnowledge). */
+export const gainKnowledge = (s: GameStateV2, ctx: Pick<SystemCtx, 'cause'> | undefined, dG: number, source: string, detail?: string) =>
+  addKnowledge(s, ctx, dG, source, detail);
 export { B_G_PER_Y };

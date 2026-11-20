@@ -21,6 +21,9 @@ import { EXPERT_START_T, P12_DEMO_T } from '../../../data/v2/suites';
 import { migrateRivalPhys, migrateRivalRecipe, rlGOnBase } from '../actors/rivalModel';
 import { LEADER_ID } from '../models/labs';
 import { LEADER_CAL } from '../../../data/v2/calibration';
+import { B_G_PER_Y } from '../../../data/v2/runDesign';
+import { gV0, playerStart } from '../models/capability';
+import type { RivalLab, TimelineWorld } from '../types';
 import { footholdsFromV25 } from '../safety/footholds';
 import { controlFromV26 } from '../safety/control';
 import { toleranceNoiseOf } from '../world/hidden';
@@ -89,8 +92,58 @@ import { toleranceNoiseOf } from '../world/hidden';
  *  world's tolerance noise ε_w on loss of control) and Foothold.mis (an escaped copy's misalignment index). Migration
  *  31 → 32 (controlFromV26) draws ε_w from the seed as a new game would, gives each escaped copy the loose record's Mis
  *  (else its version's) and starts the control record at full (refreshed the next day).
- *  (E8 and E9 were built as 25 → 26 → 27; merge M5 renumbered them. The helpers keep their branch names.) */
-export const SCHEMA_REV = 32;
+ *  (E8 and E9 were built as 25 → 26 → 27; merge M5 renumbered them. The helpers keep their branch names.)
+ *  33 (model v3 F3): the progress coordinate pm and the know-how readout pa are gone — ModelVersion.G and SimpleModel.G
+ *  (required) replace pm, KnowledgeState.openWeightsG replaces openWeightsFrontier; LabCore.pa, RivalPhys.paSync,
+ *  VersionBuild.paIn, BaseModel / TrainingRun.paAtStart and the stream's paTrack are removed. Migration 32 → 33
+ *  (migratePmPa) converts each pm through the old bridge (legacyG), adds what the know-how writers had added to a lab's
+ *  core.pa since the model last synced it to its pretraining part (B OOM per progress-year), and drops the fields; each
+ *  step only where the old field is present (idempotent). The old bridge lives only here, for saves. */
+export const SCHEMA_REV = 33;
+
+/** The retired bridge (model v3 V1–F2), for saves only: G of a model saved at progress pm, pm = pm(V0) + (G − G(V0))/B. */
+const legacyG = (w: TimelineWorld, pm: number) => gV0(w) + (pm - playerStart(w).target) * B_G_PER_Y;
+/** The retired know-how readout, for saves only: the recipe e (OOM over the leader's day-0 recipe) of a lab whose saved
+ *  know-how was pa (pa = pa₀ + e/B). */
+const legacyE = (w: TimelineWorld, pa: number) => B_G_PER_Y * (pa - playerStart(w).pa0);
+type LegacyModel = { pm?: number; G?: number };
+type LegacyCore = { pa?: number };
+const legacyPa = (r: { core: object }) => (r.core as LegacyCore).pa ?? 0;
+const legacyPm = (m: object | undefined) => (m as LegacyModel | undefined)?.pm;
+
+/** 32 → 33 (model v3 F3): pm → G, pa removed (see SCHEMA_REV). */
+export function migratePmPa(s: GameStateV2) {
+  const w = s.hidden.timeline;
+  const toG = (m: object | undefined) => {
+    if (!m) return;
+    const x = m as LegacyModel;
+    if (x.G === undefined && x.pm !== undefined) x.G = legacyG(w, x.pm);
+    delete x.pm;
+  };
+  for (const r of [...s.rivals, s.china.lab]) {
+    const core = r.core as LegacyCore;
+    const ph = r.phys as RivalLab['phys'] & { paSync?: number };
+    if (core.pa !== undefined && ph?.rec && ph.paSync !== undefined && Number.isFinite(core.pa - ph.paSync)) ph.rec.pre += (core.pa - ph.paSync) * B_G_PER_Y;
+    delete core.pa;
+    if (ph) delete ph.paSync;
+    toG(r.internal);
+    toG(r.publicModel);
+  }
+  const p = s.player;
+  delete (p as LegacyCore).pa;
+  for (const v of p.models.versions) {
+    toG(v);
+    if (v.build) delete (v.build as { paIn?: number }).paIn;
+  }
+  for (const b of p.models.bases) delete (b as { paAtStart?: number }).paAtStart;
+  for (const r of p.models.runs) delete (r as { paAtStart?: number }).paAtStart;
+  if (p.models.stream) delete (p.models.stream as { paTrack?: number }).paTrack;
+  const k = s.knowledge as GameStateV2['knowledge'] & { openWeightsFrontier?: number };
+  if (k.openWeightsFrontier !== undefined) {
+    k.openWeightsG ??= legacyG(w, k.openWeightsFrontier);
+    delete k.openWeightsFrontier;
+  }
+}
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -372,7 +425,9 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     for (const r of [...s.rivals, s.china.lab]) {
       delete (r.core as { lagCal?: number }).lagCal;
       if (r.phys) continue;
-      migrateRivalPhys(w, r, r.core.id === LEADER_ID ? Math.pow(10, LEADER_CAL[s.setup.world] ?? 0) : 1);
+      const pm = legacyPm(r.internal) ?? 0;
+      const pub = legacyPm(r.publicModel);
+      migrateRivalPhys(w, r, legacyE(w, legacyPa(r)), legacyG(w, pm), pub === undefined ? undefined : legacyG(w, pub), r.core.id === LEADER_ID ? Math.pow(10, LEADER_CAL[s.setup.world] ?? 0) : 1);
     }
   },
   /** 27 → 28 (model v3 D9): P10 / P21 adopted under the old flags get their designed effect (x = 1); P12 its demos in
@@ -409,7 +464,7 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
    *  lab that already has the parts is skipped (idempotent). */
   29: (raw) => {
     const s = raw as unknown as GameStateV2;
-    for (const r of [...s.rivals, s.china.lab]) migrateRivalRecipe(s.hidden.timeline, r);
+    for (const r of [...s.rivals, s.china.lab]) migrateRivalRecipe(r, legacyE(s.hidden.timeline, legacyPa(r)));
   },
   /** 30 → 31 (model v3 E8): footholds from E7's hidden flag records, live false-validated tools and a loose copy. */
   30: (raw) => {
@@ -422,6 +477,8 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     const s = raw as unknown as GameStateV2;
     controlFromV26(s, toleranceNoiseOf(s.setup.seed));
   },
+  /** 32 → 33 (model v3 F3): pm → G, the know-how readout pa removed (each step only where the old field is present). */
+  32: (raw) => migratePmPa(raw as unknown as GameStateV2),
 };
 
 export function serialize(s: GameStateV2): string {

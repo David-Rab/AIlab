@@ -2,8 +2,8 @@
 //
 // Capability currency G = log₁₀(effective compute) = log₁₀(FLOP) + recipe efficiency + shape + data effects, plus the
 // post-training RL gain. Everything here is pure arithmetic on physical quantities (parameters, tokens, FLOP) and
-// recipe OOMs, so it can be tested in isolation (scripts/v2/effective.ts). The bridges that tie G to the old progress
-// coordinate (pm = Φ(G)) and know-how to recipe OOMs live in models/capability.ts.
+// recipe OOMs, so it can be tested in isolation (scripts/v2/effective.ts). The display level λ(G) and the start
+// state live in models/capability.ts.
 import {
   COGNITIVE, DISTILL, DISTILL_TOKEN_SLOPE, DISTILL_TPP, LOSS_LAW, OPT_TPP, REF_TPP, REPEAT_R_STAR, RL_BUDGET, RL_CURVE,
   RL_FAMILIES, RL_FAMILY_IDS, RL_FAMILY_NEEDS, RL_FOCUS_SHARE, RL_REF_GAIN, RL_TRANSFER, FLOP_RL_REF, SERVE_REF, SHAPE,

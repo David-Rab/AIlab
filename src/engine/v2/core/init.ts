@@ -5,7 +5,7 @@ import { LEADER_FEATURES } from '../../../data/v2/features';
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
 import { PLAYER_MODEL_FAMILY } from '../../../data/v2/names';
 import { B_G_PER_Y, E_B0, REFERENCE_BASE, REFERENCE_POST, RL_BUDGET, SHAPE } from '../../../data/v2/runDesign';
-import { B0_DAY, B0_START_DAY, SHARE_REF } from '../../../data/v2/calibration';
+import { B0_DAY, B0_START_DAY, LEVEL_KNOTS, SHARE_REF } from '../../../data/v2/calibration';
 import { START_BY_ID } from '../../../data/v2/starts';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { TRAIT_IDS, TRAIT_START } from '../../../data/v2/traits';
@@ -26,8 +26,8 @@ import { initialBoard } from '../finance/board';
 import { initialCapital } from '../finance/investors';
 import { initialFinance } from '../finance/ledger';
 import { benchScore } from '../models/benchmarks';
-import { domainsOf, finishBuild, levelOf, playerStart, startVintage } from '../models/capability';
-import { initialStacks, syncPa } from '../models/stacks';
+import { domainsOf, finishBuild, gV0, levelOfG, playerStart, startVintage } from '../models/capability';
+import { initialStacks } from '../models/stacks';
 import { flopOfDesign, gPreOf, rlFamiliesAvailable, rlGains, rlWeights, serveOfBase } from '../models/effective';
 import { labCore } from '../models/labs';
 import { initialParadigms } from '../models/paradigms';
@@ -39,7 +39,7 @@ import { portfolioU, startPortfolio } from '../production/data';
 import { startExpertAssets, startSuites } from '../models/suites';
 import { initialSafetyDept } from '../safety/agendas';
 import { initialSecurity } from '../security/security';
-import { referenceRate, thresholds } from '../world/calibration';
+import { referenceRate } from '../world/calibration';
 import { drawLineageUModes, sampleHidden } from '../world/hidden';
 import { initialWorld } from '../worldfx/sectors';
 import type {
@@ -72,11 +72,13 @@ export function defaultSetupV2(over: Partial<SetupV2> = {}): SetupV2 {
   };
 }
 
-/** Milestones already crossed at day 0 (recorded as day 0). */
-export function initialMilestones(w: TimelineWorld, pm: number): Partial<Record<MilestoneIdx, number>> {
+/** Milestones already crossed at day 0 (recorded as day 0) by a model at effective compute G: its display level λ(G) at
+ *  the milestone's level knot (the milestones system's rule for the non-player labs, MODEL-V3 §2.2). */
+export function initialMilestones(w: TimelineWorld, G: number): Partial<Record<MilestoneIdx, number>> {
   const out: Partial<Record<MilestoneIdx, number>> = {};
-  thresholds(w).forEach((t, i) => {
-    if (pm >= t) out[i as MilestoneIdx] = 0;
+  const L = levelOfG(w, G);
+  LEVEL_KNOTS.forEach((t, i) => {
+    if (L >= t - 1e-9) out[i as MilestoneIdx] = 0;
   });
   return out;
 }
@@ -106,7 +108,7 @@ function startRun(w: TimelineWorld, ps: ReturnType<typeof playerStart>, b0Flop: 
       Lg: [Lg, Lg + 0.5], domains: Object.fromEntries(Object.entries(domains).map(([d, v]) => [d, [v, v + 0.5]])) as Record<DomainId, [number, number]>,
       signals: zero, etaDays: 7, serveCost: 0.5, monitorability: 'high',
     },
-    status: 'running', paAtStart: ps.pa0 + (ps.r0 * start) / 365, signals: {},
+    status: 'running', signals: {},
     // Its RL recipe is the start lab's on its launch day (model v3 V2: frozen at launch).
     recipe: { rlMid: startVintage(w, ps.pa0 + (ps.r0 * start) / 365), rlCeil: 0 },
   };
@@ -114,8 +116,7 @@ function startRun(w: TimelineWorld, ps: ReturnType<typeof playerStart>, b0Flop: 
 
 /** The start base B0 and version V0 from physical numbers (model v3 V1.4): B0 is the reference base (1T active MoE ×
  *  50 tokens per parameter = 3e26 FLOP, research/12 §0.3) with the recipe of its start day; V0 is the reference
- *  post-training run on it (standard RL budget, broad) at its RL recipe. pm(V0) = playerStart's target by the Φ bridge
- *  (pmOfG), for the leader exactly. */
+ *  post-training run on it (standard RL budget, broad) at its RL recipe; for the leader its G is G(V0) exactly. */
 function startModels(w: TimelineWorld, ps: ReturnType<typeof playerStart>, uniqueT: number) {
   const d = REFERENCE_BASE;
   const flop = flopOfDesign(d);
@@ -127,17 +128,17 @@ function startModels(w: TimelineWorld, ps: ReturnType<typeof playerStart>, uniqu
   const rlFlop = RL_BUDGET.standard * flop;
   const rl = rlGains(flop, rlFlop, rlW, eRL);
   const build: VersionBuild = {
-    gPre, flopPre: flop, rlFlop, rlW, eRL, aRL: 0, dgRL: rl.general, dgRLd: rl.perDomain, dg: 0, sD: {}, offL: {}, off: {}, paIn: ps.paBase,
+    gPre, flopPre: flop, rlFlop, rlW, eRL, aRL: 0, dgRL: rl.general, dgRLd: rl.perDomain, dg: 0, sD: {}, offL: {}, off: {},
     h80Mult: 1, misuseMult: 1, signals: {},
   };
-  const pm = finishBuild(w, build);
-  return { flop, tokens, gPre, ePre: recipe, epochs: tokens / Math.max(1, uniqueT), build, pm, serve: serveOfBase(d.params, flop, d.shape) };
+  const G = finishBuild(w, build);
+  return { flop, tokens, gPre, ePre: recipe, epochs: tokens / Math.max(1, uniqueT), build, G, serve: serveOfBase(d.params, flop, d.shape) };
 }
 
 /** The player's start (BUILD-PLAN R9). The frontier-leader start is today's (and the calibration anchor): every value
  *  comes from the owners' initialisers exactly as before. The other starts take data/v2/starts.ts: the start model lags
- *  the reference frontier by `lagMonths` (as initialRival: pm − lag·rate₀, with the know-how pa and the start base
- *  shifted by the same progress), teams, known nodes, products and built features, cash, compute owned/rented, board. */
+ *  the reference frontier by `lagMonths` (as initialRival: G − lag·rate₀, with the start recipe shifted by the same
+ *  progress), teams, known nodes, products and built features, cash, compute owned/rented, board. */
 function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDate: string): PlayerLab {
   const { setup, hidden } = s;
   const w = hidden.timeline;
@@ -145,7 +146,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   const start = setup.start ?? 'leader';
   const def = START_BY_ID[start];
   const leader = start === 'leader';
-  // §3.1.4 initial state: B0 started day −120, V0 finished day −20; pa(0) solved so that pm(V0) = p0 − calShift.
+  // §3.1.4 initial state: B0 started day −120, V0 finished day −20 (the start-state solution, models/capability.ts).
   const ps0 = playerStart(w);
   const lagY = leader ? 0 : (def.lagMonths / 12) * referenceRate(w, ps0.target, 2025.5);
   const dataPortfolio = startPortfolio(); // model v3 D1: U = 270T public crawl + 30T licensed + 0.5 × 20T synthetic = 310T
@@ -155,26 +156,28 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   const shifted = (k: number) => ({ ...ps0, pa0: ps0.pa0 - k, paBase: ps0.paBase - k, paPost: ps0.paPost - k, target: ps0.target - k });
   // A follower's start model lags by lagY progress-years (BUILD-PLAN R9). Its base is the same physical run; the lag is
   // in know-how, which moves both the pretraining and the RL recipe. The RL curve is not linear in its recipe, so the
-  // know-how lag k is solved so that pm(V0) = target − lagY exactly ("Φ is fitted so", V3-BUILD V1.4).
+  // know-how lag k is solved so that G(V0) = G(V0 of the leader) − lagY·B exactly (V3-BUILD V1.4).
+  const gLead = gV0(w);
+  const gWant = gLead - lagY * B_G_PER_Y;
   let k = lagY;
   if (lagY) {
     let lo = 0;
     let hi = 4 * lagY;
     for (let i = 0; i < 60; i++) {
       const mid = (lo + hi) / 2;
-      if (startModels(w, shifted(mid), uniqueT).pm > ps0.target - lagY) lo = mid;
+      if (startModels(w, shifted(mid), uniqueT).G > gWant) lo = mid;
       else hi = mid;
     }
     k = (lo + hi) / 2;
   }
   const ps = k ? { ...shifted(k), target: ps0.target - lagY } : ps0;
   const sm = startModels(w, ps, uniqueT);
-  const pm0 = lagY ? ps.target : sm.pm;
+  const G0 = lagY ? gWant : sm.G;
   const build = sm.build;
   const roster = startTeams(setup.baseline, start);
   const staff = staffOf(roster.teams);
-  const Lg = levelOf(w, pm0);
-  const domains = domainsOf(w, pm0, build.off);
+  const Lg = levelOfG(w, G0);
+  const domains = domainsOf(w, G0, build.off);
   const lineage = 'L-player-1';
   const uModes = drawLineageUModes(rng, hidden, false);
   const beliefs = {} as Record<TraitId, TraitBelief>;
@@ -185,7 +188,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   }
   const V0: ModelVersion = {
     id: 'V0', name: def.imported ? 'Open-weight import' : `${PLAYER_MODEL_FAMILY}-1.0`, baseId: 'B0', day: -20, variant: def.imported ? 'imported' : 'full', design: { ...REFERENCE_POST },
-    pm: pm0, Lg, domains, traitsTrue: { ...TRAIT_START }, masks, uModes, monitorability: 0.9, serveCost: sm.serve, fpt: 2 * REFERENCE_BASE.params * SHAPE[REFERENCE_BASE.shape].tokenMult,
+    G: G0, Lg, domains, traitsTrue: { ...TRAIT_START }, masks, uModes, monitorability: 0.9, serveCost: sm.serve, fpt: 2 * REFERENCE_BASE.params * SHAPE[REFERENCE_BASE.shape].tokenMult,
     evals: startEvals(domains, Math.round(Lg * 100) / 100, -20), beliefs, status: 'deployed', flags: {}, build, appeal: 1,
   };
   const dep = (id: string, channel: Deployment['channel'], servingShare: number, kyc: Deployment['kyc']): Deployment => ({
@@ -210,7 +213,6 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   const compute = leader ? undefined : startCompute(def, startDate);
   return {
     id: 'player', name: setup.companyName, kind: 'player', status: 'active',
-    pa: ps.pa0,
     computeOnline: leader ? (setup.baseline === 'reality' ? 1.0e6 : 1.2e6) : def.owned + def.rented,
     split: { ...SHARE_REF[0].share }, // the start split: AI 2027's compute-usage table at the start (data)
     staff,
@@ -218,7 +220,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     models: {
       bases: [{
         id: 'B0', name: def.imported ? 'Open-weight base (imported)' : `${PLAYER_MODEL_FAMILY}-1`, day: B0_DAY, startDay: B0_START_DAY, flop: sm.flop,
-        params: REFERENCE_BASE.params, tokens: sm.tokens, paAtStart: ps.paBase, gPre: sm.gPre, ePre: sm.ePre, epochs: sm.epochs, scale: 1,
+        params: REFERENCE_BASE.params, tokens: sm.tokens, gPre: sm.gPre, ePre: sm.ePre, epochs: sm.epochs, scale: 1,
         design: { ...REFERENCE_BASE, curation: { ...REFERENCE_BASE.curation } }, sD: {}, off: {}, serve: sm.serve, monitorability: 1, signals: {},
         lineage, traitsTrue: { ...TRAIT_START }, uModes: [...uModes],
       }],
@@ -232,7 +234,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     deployments,
     security: initialSecurity(staff, base.start.securityLevel),
     paradigms: initialParadigms(),
-    milestoneDays: initialMilestones(w, pm0),
+    milestoneDays: initialMilestones(w, G0),
     finance: compute ? startFinance(def, compute) : initialFinance(setup.baseline, setup.governance, startDate),
     board: leader ? initialBoard(setup.governance) : startBoard(def),
     sites: compute ? compute.sites : initialSites(setup.baseline, startDate),
@@ -272,14 +274,14 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
   const player = buildPlayer(worldRng, { setup, hidden }, startDate);
   // Rivals, China and the leader lab are placed against the reference frontier (the leader start's V0), whatever the
   // player's own start model is.
-  const pm0 = playerStart(w).target;
-  const rivals = Array.from({ length: setup.rivalCount }, (_, i) => initialRival(worldRng, hidden, i, pm0, setup.baseline, base.start.globalCompute));
+  const g0 = gV0(w);
+  const rivals = Array.from({ length: setup.rivalCount }, (_, i) => initialRival(worldRng, hidden, i, g0, setup.baseline, base.start.globalCompute));
   // The AI 2027 leader lab (BUILD-PLAN R2): after the sampled rivals, from its own stream, so 'world' draws (and
   // everything sampled from them) are the same with the flag on or off.
-  if (setup.leaderLab) rivals.push(initialLeaderLab(new Rng(hash32(setup.seed, 'leaderLab')), hidden, setup, pm0));
-  const china = initialChina(worldRng, hidden, pm0, base.start.chinaGapYears);
+  if (setup.leaderLab) rivals.push(initialLeaderLab(new Rng(hash32(setup.seed, 'leaderLab')), hidden, setup, g0));
+  const china = initialChina(worldRng, hidden, g0, base.start.chinaGapYears);
   for (const r of [...rivals, china.lab]) {
-    r.core.milestoneDays = initialMilestones(w, Math.max(r.internal.pm, r.publicModel?.pm ?? -Infinity));
+    r.core.milestoneDays = initialMilestones(w, Math.max(r.internal.G, r.publicModel?.G ?? -Infinity));
   }
   // Intel starts from the player's own lag (R9): every lab's estimated lead is against the player's start model.
   if (start !== 'leader') for (const r of [...rivals, china.lab]) if (r.intel) r.intel.leadDaysEst -= Math.round((def.lagMonths * 365) / 12);
@@ -287,7 +289,7 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
 
   const labIds = ['player', ...rivals.map((r) => r.core.id), 'china'];
   const rSector = player.finance.revenueRun + rivals.filter((r) => r.finance.valuation > 0).reduce((a, r) => a + r.finance.revenueRun, 0);
-  const openPms = [...rivals, china.lab].flatMap((r) => (r.publicModel?.openWeights ? [r.publicModel.pm] : []));
+  const openGs = [...rivals, china.lab].flatMap((r) => (r.publicModel?.openWeights ? [r.publicModel.G] : []));
 
   const s: GameStateV2 = {
     version: 2,
@@ -308,7 +310,7 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
     power: start === 'leader' ? initialPower() : { ...initialPower(), queue: [] },
     capital: initialCapital(rSector),
     world: initialWorld(labIds),
-    knowledge: { publishedFindings: [], revealedUModes: [], sharedTechniquePool: 0.1, openWeightsFrontier: openPms.length ? Math.max(...openPms) : pm0 - 1 },
+    knowledge: { publishedFindings: [], revealedUModes: [], sharedTechniquePool: 0.1, openWeightsG: openGs.length ? Math.max(...openGs) : g0 - B_G_PER_Y },
     events: { pending: [], fired: {}, director: { tension: 0, lastCrisisDay: -999, quietUntil: 0, concurrentCrises: 0 } },
     log: [{ day: 0, kind: 'news', text: 'Agents stumble into the market: the first computer-use assistants ship. Adoption is slow.' }],
     headlines: [],
@@ -325,7 +327,6 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
     if (core) core.prodCache = computeProduction(s, id);
   }
   seedCandidates(s.player.hiring, new StreamRng(s, 'company'));
-  syncPa(s); // BRIDGE(V6,V7): the know-how readout from the start stacks (the leader's is pa₀ exactly)
   sampleSeries(s);
   return s;
 }

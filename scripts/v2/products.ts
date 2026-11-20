@@ -207,7 +207,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   // Upgrade policy.
   const api = prod(s, 'api');
   const cur = s.player.models.versions.find((v) => v.id === api.versionId)!;
-  const better = cloneVersion(s, cur, 'VU', { day: s.time.day, pm: cur.pm + 0.2 });
+  const better = cloneVersion(s, cur, 'VU', { day: s.time.day, G: cur.G + 0.24 });
   better.evals.measuredL = (cur.evals.measuredL ?? 0) + 0.5;
   better.evals.suiteDay = s.time.day;
   run(s, 1);

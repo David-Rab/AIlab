@@ -5,6 +5,8 @@ import { activeRivals } from '../../models/labs';
 import type { EventDefV2 } from '../../types';
 import { bloc, cash, morale, rivalMeter, scrutiny, trust } from '../../actors/fx';
 import { paceOf } from '../../actors/rivals';
+import { addRivalKnowledge } from '../../actors/rivalModel';
+import { B_G_PER_Y } from '../../../../data/v2/runDesign';
 import { changeHeads } from '../../departments/teams';
 import { L, P, activeLab, ch, ev, labName } from '../kit';
 
@@ -30,7 +32,7 @@ export const COMPANY_EVENTS: EventDefV2[] = [
         const r = activeLab(s, d.lab);
         if (r) {
           r.core.staff.cap += n;
-          r.core.pa += 0.1 * paceOf(s);
+          addRivalKnowledge(r, 0.1 * paceOf(s) * B_G_PER_Y);
         }
       }),
       ch('Sue', ['fight'], P([L('scrutiny', 5), L('trust', 20, 'that rival')], [L('cash', 0.2, undefined, { probability: 0.4 })]), (s, ctx, d) => {

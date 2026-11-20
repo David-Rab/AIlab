@@ -10,10 +10,11 @@
 //  - Fractions: world.control[*].P and sector A/alpha are 0..1 (research/16 uses %).
 // WS1 M1 additions (additive; optional fields unless noted, so no SCHEMA_REV bump):
 //  - ModelVersion.build (VersionBuild) and ModelVersion.appeal; BaseModel.startDay/dp/off/serve/monitorability/
-//    signals/parentBaseId; TrainingRun.holdUntil/paAtStart/signals; ModelsState.stream.paTrack;
+//    signals/parentBaseId; TrainingRun.holdUntil/signals;
 //    RivalLab.managed.
 //  - ProductionReadout gains required `whatIf` and `sdAI` (only WS1 constructs readouts).
-//  - Coordinates: a model's v1-equivalent progress is q = pm + calShift (§3.1.5); V0 starts at pm = p0 − calShift.
+//  - Capability: a model's general effective compute G (OOM); its display level is λ(G) (models/capability.ts levelOfG,
+//    one map for every lab; model v3 F3 retired the progress coordinate pm).
 // M2 integration (SCHEMA_REV 2, migration 1 → 2 in core/save.ts):
 //  - WS3 working blocks folded in from finance/ext.ts: FinanceState.ws3, ChipMarket.ws3, PowerGrid.ws3, CapitalMarkets.ws3,
 //    Site.ws3 (required; `ensureWs3` fills them on older saves).
@@ -250,8 +251,6 @@ export interface LabCore {
   kind: 'player' | 'rival' | 'china';
   status: 'active' | 'merged' | 'bankrupt' | 'nationalized' | 'shutdown';
   mergedInto?: LabId;
-  /** Software/algorithmic know-how (years). Grows with the production function (§3.1.2). */
-  pa: number;
   /** Day the lab's internal model first crossed SC; freezes its reference compute term (§3.1.3). */
   scDay?: Day;
   computeOnline: H100e;
@@ -279,8 +278,6 @@ export interface ModelsState {
   /** Continual-learning stream (P08) if active: the version id being updated in place. */
   stream?: {
     versionId: string; startedDay: Day; lastAuditDay: Day;
-    /** BRIDGE(V6,V7) readout: pa-equivalent of the recipe the stream has absorbed. */
-    paTrack?: number;
     /** Model v3 V2: the recipe the stream has absorbed (7-day lag): e_pre at its base's FLOP, RL efficiency, RL ceiling. */
     track?: { pre: number; rlMid: number; rlCeil: number };
   };
@@ -322,11 +319,9 @@ export interface BaseModel {
   /** Active parameters and training tokens (MODEL-V3 §3.2). */
   params: number;
   tokens: number;
-  /** Lab know-how pa at launch (progress-years; the recipe vintage readout, BRIDGE(V2)). */
-  paAtStart: number;
   /** Pretraining effective compute G_pre (OOM, frozen at launch: MODEL-V3 §3.2). */
   gPre: number;
-  /** Pretraining recipe efficiency frozen at launch (OOM; E_START + e_stack(pa)). gPre − ePre is the physical part, so
+  /** Pretraining recipe efficiency frozen at launch (OOM; E_START + the pretraining stack). gPre − ePre is the physical part, so
    *  a continual-learning stream can re-apply today's recipe. */
   ePre: number;
   design: BaseDesign;
@@ -361,8 +356,9 @@ export interface ModelVersion {
   day: Day;
   variant: Variant;
   design: PostDesign;
-  /** TRUE capability in progress units (hidden; benchmarks are noisy reads of it). */
-  pm: number;
+  /** TRUE general effective compute G (OOM; hidden; benchmarks are noisy reads of its level λ(G)). Model v3 F3:
+   *  replaces the progress coordinate pm = Φ(G). */
+  G: number;
   /** TRUE general level 0..15 and domain levels (hidden). */
   Lg: number;
   domains: Record<DomainId, number>;
@@ -382,13 +378,13 @@ export interface ModelVersion {
   status: 'evaluating' | 'ready' | 'deployed' | 'retired' | 'rolledBack';
   /** Dangerous-capability flags the player has measured (drive commitments and events). */
   flags: { bioUplift?: boolean; cyberOffense?: boolean; replication?: boolean; persuasion?: boolean };
-  /** How pm was built (§3.1.4); lets the engine recompute pm for streams and domains. Hidden (contains pa). */
+  /** How G was built (MODEL-V3 §2); lets the engine recompute G for streams and domains. Hidden. */
   build?: VersionBuild;
   /** Consumer appeal from preference training (0.7–1.2, §3.3.2 D); visible, read by WS5 revenue. */
   appeal?: number;
 }
 
-/** Capability build of a version (MODEL-V3 §2, §4): G = gPre + dgRL + dg; pm = Φ(G) (BRIDGE(V6,V7)). Hidden. */
+/** Capability build of a version (MODEL-V3 §2, §4): G = gPre + dgRL + dg. Hidden. */
 export interface VersionBuild {
   /** Pretraining effective compute of its base (OOM; a stream re-applies today's recipe). */
   gPre: number;
@@ -413,8 +409,6 @@ export interface VersionBuild {
   offL: Partial<Record<DomainId, number>>;
   /** Derived: domain level − general level − the 2025 profile (L). h80 and benchmarks read it. */
   off: Partial<Record<DomainId, number>>;
-  /** Know-how the version embodies (progress-years; readout, BRIDGE(V2)). */
-  paIn: number;
   /** Horizon multiplier (long-horizon RL, P07, P12). */
   h80Mult: number;
   /** Misuse-incident hazard multiplier (minimal safety training ×2), for WS2. */
@@ -470,8 +464,6 @@ export interface TrainingRun {
   setupId?: string;
   /** Day the setup finished and training began (R5). */
   readyDay?: Day;
-  /** BRIDGE(V6,V7) readout: the lab's pa-equivalent know-how at launch. */
-  paAtStart?: number;
   /** Model v3 V2: the recipe frozen at launch: e_pre at the run's FLOP (base, continue), RL efficiency and ceiling (post, IDA);
    *  model v3 D5: the environment suites' fidelity and exploitability per family (post). */
   recipe?: { pre?: number; rlMid?: number; rlCeil?: number; fid?: Partial<Record<RLFamily, number>>; exploit?: Partial<Record<RLFamily, number>> };
@@ -1527,16 +1519,15 @@ export interface SafetyPosture {
 /** Simplified model lineage for non-player labs. */
 export interface SimpleModel {
   id: string; name: string; day: Day;
-  /** Readouts of G (model v3 F1): pm = Φ(G) (the display bridge F3 retires), Lg = λ(G), domain levels. */
-  pm: number; Lg: number; domains: Record<DomainId, number>;
+  /** Readouts of G (model v3 F1, F3): Lg = λ(G), domain levels. */
+  Lg: number; domains: Record<DomainId, number>;
   traitsTrue: TraitVector; // hidden
   uModes: UModeId[]; // hidden
   isPublic: boolean; openWeights: boolean;
   stolenFrom?: LabId;
   /** Model v3 F1: general effective compute (OOM) and the physical design behind it: the base's training FLOP and active
-   *  parameters, serving FLOP per token (2·N_active × the shape's token multiplier). Optional on the type because a few
-   *  callers build SimpleModels from pm alone (readers then fall back to gOfPm and the lab's base). */
-  G?: number;
+   *  parameters, serving FLOP per token (2·N_active × the shape's token multiplier). */
+  G: number;
   flop?: number;
   params?: number;
   fpt?: number;
@@ -1550,9 +1541,8 @@ export interface SimpleModel {
  *  recipe). A stolen base keeps the G_pre the thief got. */
 export interface RivalBase { gen: number; day: Day; flop: number; params: number; tpp: number; gPre: number; ePre: number }
 /** Model v3 F1/F2: a non-player lab's physical model state. Its recipe is in the player's stack parts (`rec`, grown
- *  through `pool`); `core.pa` is its read-only G-equivalent in progress-years (pa = pa_ref + e/B, the player's know-how
- *  readout relation, stacks.ts syncPa), and whatever the leaks, diffusion and events add to `core.pa` since `paSync`
- *  enters the pretraining part as public knowledge (BRIDGE for the know-how writers, F3). */
+ *  through `pool`); what leaks, diffusion and events give it enters the pretraining part as public knowledge (OOM, model
+ *  v3 F3: actors/rivalModel.ts addRivalKnowledge). */
 export interface RivalPhys {
   /** The base the lab's versions are post-trained on. */
   base: RivalBase;
@@ -1571,8 +1561,6 @@ export interface RivalPhys {
   rec: { pre: number; mid: number; ceil: number };
   /** Research pools of the three parts: OOM at test scale since the start (the lines' pools at aggregate level). */
   pool: { pre: number; mid: number; ceil: number };
-  /** `core.pa` as the model last wrote it. */
-  paSync: number;
 }
 
 export interface RivalLab {
@@ -1777,7 +1765,8 @@ export interface PublicKnowledge {
   publishedFindings: FindingId[];
   revealedUModes: UModeId[]; // "the world learns" — counters researchable by all
   sharedTechniquePool: number; // 0..1 public technique efficacy (lowers rivals' drift)
-  openWeightsFrontier: number; // best open-weights pm
+  /** Best open-weights model's general effective compute G (OOM; model v3 F3: was its pm). */
+  openWeightsG: number;
 }
 
 // ───────────────────────────── Events, log, causes ─────────────────────────────

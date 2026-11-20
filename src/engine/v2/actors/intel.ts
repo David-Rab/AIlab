@@ -2,7 +2,8 @@
 // leadDays/riskSources are EngineApi selectors: built from intel and BELIEFS, never from truth. The weekly intel
 // system is engine code: it turns truth into noisy evidence, always against the player's best INTERNAL version.
 import { clamp, sigmoid } from '../../rng';
-import { activeRivals, bestPm, internalVersion } from '../models/labs';
+import { activeRivals, bestG, internalVersion } from '../models/labs';
+import { B_G_PER_Y } from '../../../data/v2/runDesign';
 import { misalignmentEstimate } from '../safety/traits';
 import { understanding } from '../safety/understanding';
 import type { EngineSystem, GameStateV2, LabId, RivalLab, RiskSource, SystemCtx } from '../types';
@@ -29,16 +30,16 @@ const PRIOR_BAND: Record<string, [number, number]> = {
 /** One lab's weekly intel update. Evidence: public releases, evaluator reports (external access), known incidents,
  *  stolen-model knowledge and the Index. sd shrinks with evidence; the estimate is vs the player's INTERNAL frontier. */
 export function updateIntel(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
-  const rate = (rateOf(s, 'player') + rateOf(s, r.core.id)) / 2;
+  const rate = ((rateOf(s, 'player') + rateOf(s, r.core.id)) / 2) * B_G_PER_Y; // G a year
   const rng = ctx.rng('actors');
   const id = r.core.id;
-  const playerPm = bestPm(s, 'player'); // best INTERNAL version (hidden pm): what the player's own evals track
+  const playerG = bestG(s, 'player'); // best INTERNAL version (hidden G): what the player's own evals track
   const pub = r.publicModel ?? r.internal;
-  const vsPublic = ((playerPm - pub.pm) / rate) * 365;
+  const vsPublic = ((playerG - pub.G) / rate) * 365;
   const access = r.core.kind === 'china' ? 0.05 : s.hidden.rivalPostures[id]?.externalAccess ?? 0.3;
   const evidence = (r.publicModel ? 1 : 0) + 1.5 * access + 0.2 * r.intel.knownIncidents.length + (r.core.security.stolen.length ? 0.5 : 0) + (r.visible.testers.length ? 0.5 : 0);
   const sd = 20 + 80 * Math.exp(-0.6 * evidence);
-  const trueLag = Math.max(0, ctx.day - (ws4(s).internalDay[id] ?? r.internal.day)) <= (RELEASE_LAG[r.archetype] ?? 60) ? ((r.internal.pm - pub.pm) / rate) * 365 : 0;
+  const trueLag = Math.max(0, ctx.day - (ws4(s).internalDay[id] ?? r.internal.day)) <= (RELEASE_LAG[r.archetype] ?? 60) ? ((r.internal.G - pub.G) / rate) * 365 : 0;
   const assumed = ASSUMED_LAG[r.visible.clauseType] ?? 60;
   // Raw read: lead vs their public model minus the assumed hidden lag; evaluator access reveals part of the truth.
   const truthLead = leadBetween(s, 'player', id);

@@ -12,6 +12,7 @@ import { cash, drift } from './fx';
 import { PHYS_PLACEHOLDER, goalpostsQ, leadBetween, rivalFinanceQ, simpleModel } from './rivals';
 import { initRivalPhys } from './rivalModel';
 import { START_PUBLIC_GAP_Y } from '../../../data/v2/rivalModel';
+import { B_G_PER_Y } from '../../../data/v2/runDesign';
 import { CHINA_CAL } from '../../../data/v2/calibration';
 import { request, ws4 } from './state';
 import { unlicensedPublicT } from '../production/data';
@@ -20,9 +21,10 @@ import { KOREA_HAZARD_Q, koreaShock, setExportPolicy, taiwanHazardQ, taiwanShock
 export const chinaPresetOf = (id: string) => CHINA_PRESETS.find((p) => p.id === id) ?? CHINA_PRESETS[0];
 
 /** China at Jul 2025 (research/10 §1.1). DeepCent starts ≈0.6 progress-years (≈150–200 d) behind (§9 #17). */
-export function initialChina(rng: Rng, h: HiddenWorld, playerPm: number, chinaGapYears: number): ChinaActor {
+export function initialChina(rng: Rng, h: HiddenWorld, playerG: number, chinaGapYears: number): ChinaActor {
   const p = chinaPresetOf(h.actorPresets.china);
-  const pm = playerPm - chinaGapYears;
+  // The start gap in progress-years of the pre-game frontier (§9 #17), B G per progress-year.
+  const G = playerG - chinaGapYears * B_G_PER_Y;
   const uModes = drawLineageUModes(rng, h, false);
   const staff: StaffByRole = { cap: 1500, saf: 60 };
   const meters: ChinaActor['meters'] = {
@@ -36,7 +38,6 @@ export function initialChina(rng: Rng, h: HiddenWorld, playerPm: number, chinaGa
     lab: {
       core: {
         id: CHINA_ID, name: CHINA_LAB_NAME, kind: 'china', status: 'active',
-        pa: pm,
         computeOnline: meters.computeAbs * 0.35,
         split: normalizeSplit({ ...shareRefAt(2025.5), safety: h.chinaPosture.safetyInvestment * 0.15 }),
         staff, tasteHire: 1,
@@ -44,8 +45,8 @@ export function initialChina(rng: Rng, h: HiddenWorld, playerPm: number, chinaGa
         milestoneDays: {},
       },
       archetype: 'deepcent',
-      internal: simpleModel(h, 'china-b1p0', `${CHINA_MODEL_FAMILY}-1`, -30, pm, uModes, false),
-      publicModel: simpleModel(h, 'china-b0', `${CHINA_MODEL_FAMILY}-1 open`, -45, pm - 0.15, uModes, true, true),
+      internal: simpleModel(h, 'china-b1p0', `${CHINA_MODEL_FAMILY}-1`, -30, G, uModes, false),
+      publicModel: simpleModel(h, 'china-b0', `${CHINA_MODEL_FAMILY}-1 open`, -45, G - 0.15 * B_G_PER_Y, uModes, true, true),
       nextBaseDay: Math.round(rng.range(60, 240)),
       phys: PHYS_PLACEHOLDER(),
       finance: { cash: 30, revenueRun: 1, valuation: 0, commitments: 0, distress: false },

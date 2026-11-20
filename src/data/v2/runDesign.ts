@@ -9,8 +9,9 @@ type Off = Partial<Record<DomainId, number>>;
 
 // ───────────────────────────── bridges (design/V3-BUILD.md) ─────────────────────────────
 
-/** BRIDGE(V6,V7): effective-compute OOMs per progress-year, pm = pm(V0) + (G − G(V0))/B (research/12 §0.2: frontier G
- *  +1.1–1.3 a year). Also the know-how bridge's slope (e = B × (pa − pa₀), BRIDGE(V2)). 1.2 sits between the compute
+/** Effective-compute OOMs per v2 progress-year (research/12 §0.2: frontier G +1.1–1.3 a year): the slope of V1's retired
+ *  pm bridge (pm = pm(V0) + (G − G(V0))/B; model v3 F3 removed it), kept to convert v2 data stated in progress-years
+ *  (start gaps, leak sizes, lead rates) into OOM. 1.2 sits between the compute
  *  term the v2 engine gave a frontier run (1 OOM = (1 − share)·ln 10/ln 3.4 progress-years: 0.94 for share 0.5, 0.72 for
  *  0.6), so the reference cadence lands near the old pm path on every preset. */
 export const B_G_PER_Y = 1.2;

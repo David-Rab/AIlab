@@ -16,7 +16,7 @@ import type {
   BaseDesign, BaseModel, DomainId, EngineSystem, GameStateV2, ModelVersion, PostDesign, RivalLab, RLFamily, RngLike, SafetyPosture, SignalId,
   SimpleModel, SystemCtx, ToolFamily, TrainingRun, TraitBelief, TraitId, TraitVector, UModeId,
 } from '../types';
-import { adopted, clamp01, copyRec, flagNum, levelOf, SC_LEVEL, setFlag, tierOfLevel, trueEfficacy, versionById } from './common';
+import { adopted, clamp01, copyRec, flagNum, labLevel, SC_LEVEL, setFlag, tierOfLevel, trueEfficacy, versionById } from './common';
 import { lineMultCapped, lineStaffed } from './agendas';
 import { SD_MAX, eaCoef, eaSuppression, stackDetectionMap, takesEaPenalty } from './detection';
 import { techniqueRole } from './techniques';
@@ -559,7 +559,7 @@ export function playerEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: nu
     removal.SCHEME = Math.max(removal.SCHEME ?? 0, 0.9);
     if (s.flags[`ws2.e25.${lineage}`] === undefined) eaMult = 1.5;
   }
-  const tier = tierOfLevel(levelOf(s.hidden.timeline, s.player.pa));
+  const tier = tierOfLevel(labLevel(s));
   return {
     signals: sg, omega, D: s.hidden.difficultyMult, w: s.hidden.edgeWeights, mods, amp: uModeAmp(uModes), removal,
     removalMult: uModeRemovalMult(uModes), crystalAt: crystalThreshold(uModes), tierF: tier / 3, memory: memoryOn(s), growthMult: understandingGapGrowth(s),
@@ -579,7 +579,7 @@ export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelie
   for (const e of EDGES) if (s.player.safety.edgeRevealed[e.id]) w[e.id] = s.hidden.edgeWeights[e.id];
   const env: TraitEnv = {
     signals: sg, omega, omegaSafety, D: 1, w, mods: playerMods(s, post, lineage), amp: {}, removal: post ? safetyRemovalMap(est, SAFETY_REMOVAL[post.safety], eaCoef(s), eaSuppression(s)) : {},
-    removalMult: 1, crystalAt: 0.5, tierF: tierOfLevel(levelOf(s.hidden.timeline, s.player.pa)) / 3, memory: memoryOn(s), growthMult: 1,
+    removalMult: 1, crystalAt: 0.5, tierF: tierOfLevel(labLevel(s)) / 3, memory: memoryOn(s), growthMult: 1,
     bracket: { constitution: post?.pref === 'constitution', heavy: post?.safety === 'heavy', persuasion: post?.pref === 'persuasion', cast: inRun(s, post, 'T-CAST') },
     eaMult: post?.safety === 'heavy' && s.flags[`ws2.e25.${lineage}`] === undefined ? 1.5 : 1,
     ...(growthBy ? { growthBy } : {}),
@@ -604,7 +604,7 @@ export function emptyMasks(): Record<TraitId, Partial<Record<ToolFamily, number>
 
 /** Beliefs for a version with no observed ancestor: the PUBLIC lineage prior (tier-based), wide sd. */
 function defaultBeliefs(s: GameStateV2): Record<TraitId, TraitBelief> {
-  const prior = basePrior(tierOfLevel(levelOf(s.hidden.timeline, s.player.pa)));
+  const prior = basePrior(tierOfLevel(labLevel(s)));
   const out = {} as Record<TraitId, TraitBelief>;
   for (const t of TRAIT_IDS) out[t] = { est: prior[t], sd: SD_MAX * 0.8, clarity: 0.2 };
   return out;
@@ -747,8 +747,7 @@ export function applySuccessorPull(s: GameStateV2, x0: TraitVector, pull: Succes
 /** Create a new lineage on a base run (§3.4.4 "Lineages", §3.5.5 presence draw). Sets base.traitsTrue and uModes. */
 export function applyBaseToLineage(s: GameStateV2, ctx: SystemCtx, run: TrainingRun, base: BaseModel): void {
   const design = run.base ?? base.design;
-  const w = s.hidden.timeline;
-  const tier = tierOfLevel(levelOf(w, s.player.pa));
+  const tier = tierOfLevel(labLevel(s));
   // Model v3 E3: the base's signals from its G and the data it drew (the same draw completeRun just built it from).
   const sg = baseSignals(design, baseQuantitiesOf(s, design, base.gPre));
   base.signals = { ...sg };
@@ -758,7 +757,7 @@ export function applyBaseToLineage(s: GameStateV2, ctx: SystemCtx, run: Training
     return;
   }
   if (!base.lineage) base.lineage = `L-${base.id}`;
-  const uModes = drawLineageUModesV2(s, ctx.rng('safety'), { tierAtLeastSC: levelOf(w, s.player.pa) >= SC_LEVEL, base: design, player: true });
+  const uModes = drawLineageUModesV2(s, ctx.rng('safety'), { tierAtLeastSC: labLevel(s) >= SC_LEVEL, base: design, player: true });
   const x0 = pulledTraits(s, ctx, run, basePrior(tier, design), base.id); // E4 successor pull (replaces V2's inheritFromFleet)
   base.uModes = uModes;
   base.traitsTrue = stepTraits(x0, playerEnv(s, x0, sg, OMEGA_KIND.base, undefined, base.lineage, uModes));

@@ -19,7 +19,6 @@ export const CAUSE_KEYS: Record<string, string> = {
   cash: 'player.finance.cash',
   revenueRun: 'player.finance.revenueRun',
   'board.confidence': 'player.board.confidence',
-  'player.pa': 'player.pa',
   morale: 'player.morale.overall',
   'morale.safety': 'player.morale.safety',
   'gov.securityDemand': 'gov.securityDemand',

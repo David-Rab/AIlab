@@ -23,8 +23,8 @@ import { C_UNIT_FLOP_PER_DAY, DAY0_REF, RE_UNIT } from '../../../data/v2/workTyp
 import { CHINA_PRESETS } from '../../../data/actors';
 import { decimalYear } from '../core/time';
 import { shareRefAt } from '../departments/split';
-import { CHINA_ID, LEADER_ID, PLAYER_ID, bestPlayerVersion, labCore, otherLabs, rivalLab } from '../models/labs';
-import { absorbKnowHow, advanceRecipe, bestRivalMix, evalRival, gOfSimple, recipeRates, rivalAgentFpt, rivalReadout, serveRate } from '../actors/rivalModel';
+import { CHINA_ID, LEADER_ID, PLAYER_ID, bestG, labCore, otherLabs, rivalLab } from '../models/labs';
+import { advanceRecipe, bestRivalMix, evalRival, gOfSimple, recipeRates, rivalAgentFpt, rivalReadout, serveRate } from '../actors/rivalModel';
 import { addKnowledge, trainNow } from '../models/stacks';
 import { asV1World } from '../world/calibration';
 import { poolsOf } from '../compute/power';
@@ -372,7 +372,7 @@ export function labInputs(s: GameStateV2, lab: LabId, day = s.time.day): LabInpu
 /** A non-player lab's research today (model v3 F1, actors/rivalModel.ts): the best experiments/agents mix of its research
  *  compute (re-split unless set by hand), research speed through the aggregate CES with its internal model's AI labour,
  *  its efficiency (the leader's LEADER_CAL, China's effLab) and modifiers (a binding leader, a verified treaty), and the
- *  recipe growth that gives. `apply` re-splits the mix and advances the recipe (core.pa) by a day. */
+ *  recipe growth that gives. `apply` re-splits the mix and advances the recipe by a day. */
 export function rivalResearch(s: GameStateV2, r: RivalLab, apply: boolean): ProductionReadout {
   const w = s.hidden.timeline;
   const core = r.core;
@@ -388,10 +388,9 @@ export function rivalResearch(s: GameStateV2, r: RivalLab, apply: boolean): Prod
   }
   const treaty = s.gov.treaty === 'verified' ? 0.65 : 1;
   const x = evalRival(s, r, f, C, (r.phys?.eff ?? 1) * effLab(s, core.id), rivalSpeedMult(s, core.id) * treaty);
-  if (apply) absorbKnowHow(w, r);
   const rates = recipeRates(w, r.phys, x.rs);
   if (apply) {
-    advanceRecipe(w, r, rates, 1 / 365);
+    advanceRecipe(r, rates, 1 / 365);
     // D10: the serving stack at aggregate level (the Inference-efficiency line's returns), from the same research speed.
     if (r.phys) r.phys.serve = (r.phys.serve ?? 0) + serveRate(s, r, x.rs) / 365;
   }
@@ -481,14 +480,14 @@ export function advanceLab(s: GameStateV2, lab: LabId): ProductionReadout | unde
 }
 
 /** Knowledge diffusion to the player (R9; data/v2/calibration.ts K_DIFFUSION): K × (the frontier leader lab's public
- *  model − the player's best model) per year while positive, in progress-years (both models' pm = Φ(G), so this is the G
- *  gap ÷ B; the pm bridge itself is F3's). */
-export function diffusionPerDay(s: GameStateV2): { dpa: number; from?: string } {
+ *  model's G − the player's best model's G) OOM per year while positive. */
+export function diffusionPerDay(s: GameStateV2): { dG: number; from?: string } {
   const L = s.rivals.find((r) => r.core.id === LEADER_ID);
-  const pub = L && L.core.status === 'active' ? L.publicModel?.pm : undefined;
-  if (pub === undefined) return { dpa: 0 };
-  const gap = pub - (bestPlayerVersion(s)?.pm ?? s.player.pa);
-  return gap > 0 ? { dpa: (K_DIFFUSION * gap) / 365, from: L!.core.name } : { dpa: 0 };
+  const pub = L && L.core.status === 'active' ? L.publicModel?.G : undefined;
+  const own = bestG(s, PLAYER_ID);
+  if (pub === undefined || !Number.isFinite(own)) return { dG: 0 };
+  const gap = pub - own;
+  return gap > 0 ? { dG: (K_DIFFUSION * gap) / 365, from: L!.core.name } : { dG: 0 };
 }
 
 /** production (30, daily): readouts for the player, rivals and China; rivals' and China's know-how grows (§3.2). */
@@ -498,7 +497,7 @@ export const productionSystem: EngineSystem = {
     const r = advanceLab(s, PLAYER_ID);
     if (r) {
       const dif = diffusionPerDay(s);
-      if (dif.dpa > 0) addKnowledge(s, ctx, dif.dpa, 'knowledge diffusion', dif.from);
+      if (dif.dG > 0) addKnowledge(s, ctx, dif.dG, 'knowledge diffusion', dif.from);
       ctx.memo.set('WS1:production:player', r);
       deliverData(s, ctx);
       syntheticAccrual(s);

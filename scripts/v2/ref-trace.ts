@@ -19,6 +19,7 @@ import { quarterIndex } from '../../src/engine/v2/core/time';
 import { engine } from '../../src/engine/v2/index';
 import { production } from '../../src/engine/v2/production/readout';
 import { understanding } from '../../src/engine/v2/safety/understanding';
+import { stacksGEquiv } from '../../src/engine/v2/models/stacks';
 import type { GameStateV2, MilestoneIdx, WorldPresetId } from '../../src/engine/v2/types';
 import { refGame, runRef } from './lib';
 
@@ -37,7 +38,7 @@ const arg = (k: string, d = '') => {
 const r4 = (x: number) => (Number.isFinite(x) ? Math.round(x * 1e4) / 1e4 : 0);
 
 export interface RunRec { id: string; kind: string; start: number; end?: number; status: string }
-export interface MonthRec { day: number; M: number; h: number; k: number; c: number; sdAI: number; pa: number; L: number }
+export interface MonthRec { day: number; M: number; h: number; k: number; c: number; sdAI: number; recipe: number; L: number }
 export interface QuarterRec { day: number; revenue: Record<string, number>; cash: number; U: number }
 export interface Trace {
   id: string; preset: string; mode: 'stub' | 'integrated'; seed: number; endDay: number; status: string;
@@ -71,7 +72,7 @@ function recorder(id: string, preset: string, mode: Trace['mode'], s: GameStateV
     if (day % 30 === 0) {
       const pr = production(s, 'player');
       const L = Math.max(0, ...p.models.versions.map((v) => v.Lg));
-      t.monthly.push({ day, M: r4(pr.M), h: r4(pr.ratios.h), k: r4(pr.ratios.k), c: r4(pr.ratios.c), sdAI: r4(pr.sdAI), pa: r4(p.pa), L: r4(L) });
+      t.monthly.push({ day, M: r4(pr.M), h: r4(pr.ratios.h), k: r4(pr.ratios.k), c: r4(pr.ratios.c), sdAI: r4(pr.sdAI), recipe: r4(stacksGEquiv(s)), L: r4(L) });
     }
     const q = quarterIndex(s.time.startDate, day);
     if (q !== lastQ) {
@@ -146,7 +147,7 @@ function record(only?: Set<string>): Trace[] {
  *  h tolerance is one team; the calibration gate on labour is the mean h over the common months (relMeanH). */
 export const TOL: Record<string, number> = {
   milestoneDays: 10, paradigmDays: 14, runDays: 7,
-  relM: 0.05, relH: 0.1, relMeanH: 0.01, relK: 0.05, relC: 0.05, absSdAI: 0.1, absPa: 0.1, absL: 0.15,
+  relM: 0.05, relH: 0.1, relMeanH: 0.01, relK: 0.05, relC: 0.05, absSdAI: 0.1, absRecipe: 0.12, absL: 0.15,
   relRevenue: 0.1, relCash: 0.1, absU: 0.25,
 };
 
@@ -215,7 +216,7 @@ function diffTrace(cur: Trace, ref: Trace): Row[] {
   series('k', 'monthly k', TOL.relK, true);
   series('c', 'monthly c', TOL.relC, true);
   series('sdAI', 'monthly sdAI', TOL.absSdAI, false);
-  series('pa', 'monthly pa', TOL.absPa, false);
+  series('recipe', 'monthly recipe (OOM G-equivalent; model v3 F3: was pa)', TOL.absRecipe, false);
   series('L', 'monthly best L', TOL.absL, false);
   // Quarterly (integrated traces carry real revenue and cash; the stub has infinite cash).
   const rq = new Map(ref.quarterly.map((q) => [q.day, q]));

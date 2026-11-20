@@ -37,7 +37,7 @@ import { savedAt, seatHoursPerMonth } from './use';
 import type { Deployment, DomainId, GameStateV2, ModelVersion, RegionId, SectorId, SimpleModel, TimelineWorld } from '../types';
 
 const sig = (x: number) => 1 / (1 + Math.exp(-x));
-type Fitted = Pick<ModelVersion, 'pm' | 'build'>;
+type Fitted = Pick<ModelVersion, 'G' | 'build'>;
 
 // ───────────────────────────── the cost chain ─────────────────────────────
 
@@ -118,7 +118,7 @@ export function studentParamsFor(nT: number, gap: number): number {
 /** A5: active parameters of the student of version `teacher` that holds the fit of version `hold` on work type `wt` (the
  *  cheapestAt rule on one teacher; a distill run with these parameters lands at that fit). The teacher's size when the
  *  teacher is not DISTILL.a above it. */
-export function studentToHold(s: GameStateV2, teacher: ModelVersion, hold: Pick<ModelVersion, 'pm' | 'build'>, wt: WorkTypeId = 'SWE'): number {
+export function studentToHold(s: GameStateV2, teacher: ModelVersion, hold: Pick<ModelVersion, 'G' | 'build'>, wt: WorkTypeId = 'SWE'): number {
   const nT = teacher.params ?? s.player.models.bases.find((b) => b.id === teacher.baseId)?.params ?? REFERENCE_BASE.params;
   return studentParamsFor(nT, workFit(s, teacher, wt).fit - workFit(s, hold, wt).fit);
 }
@@ -246,17 +246,17 @@ function useFitOf(s: GameStateV2, w: TimelineWorld, v: Fitted, sid: SectorId | '
   const au = sectorCover(w, sid, f, h50);
   return { f, au, l: agentLeverage(au, h50) };
 }
-/** P2: a model without a build (rivals', China's: known only by pm) has the same fit, coverage and leverage on a work
- *  type for the same pm, ΔG, horizon multiplier and P19 (the only state domainG reads), so those are cached on exactly
+/** P2: a model without a build (rivals', China's: known only by G) has the same fit, coverage and leverage on a work
+ *  type for the same G, ΔG, horizon multiplier and P19 (the only state domainG reads), so those are cached on exactly
  *  these inputs (per world). Player versions (with a build) are computed every time. */
-type FitMemo = Map<number, Map<number, Map<number, Map<string, UseFit>>>>; // pm → ΔG → h multiplier → work type + P19
+type FitMemo = Map<number, Map<number, Map<number, Map<string, UseFit>>>>; // G → ΔG → h multiplier → work type + P19
 const useFitMemo = new WeakMap<TimelineWorld, { m: FitMemo; n: number }>();
 function useFit(s: GameStateV2, w: TimelineWorld, v: Fitted, sid: SectorId | 'CHAT', hd: DomainId, dG: number, hm: number): UseFit {
   if (v.build) return useFitOf(s, w, v, sid, hd, dG, hm);
   let memo = useFitMemo.get(w);
   if (!memo || memo.n > 20000) useFitMemo.set(w, (memo = { m: new Map(), n: 0 }));
-  let a = memo.m.get(v.pm);
-  if (!a) memo.m.set(v.pm, (a = new Map()));
+  let a = memo.m.get(v.G);
+  if (!a) memo.m.set(v.G, (a = new Map()));
   let b = a.get(dG);
   if (!b) a.set(dG, (b = new Map()));
   let c = b.get(hm);

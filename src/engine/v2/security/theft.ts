@@ -1,10 +1,10 @@
 // Theft, secrets leak, distillation, insider leaks (V2-SPEC §3.6; research/11 #16, #24; research/02 §1.7–1.10). Owner: WS4.
 import { clamp } from '../../rng';
-import { frontierLevelAt, gOfPm } from '../models/capability';
-import { pmOfLevel } from '../world/calibration';
-import { REF_TPP } from '../../../data/v2/runDesign';
-import { baseParams, fptOfBase, gOfSimple, rlOnBase, setModelG } from '../actors/rivalModel';
-import { bestPlayerVersion, bestPm, CHINA_ID } from '../models/labs';
+import { frontierLevelAt, gOfLevel } from '../models/capability';
+import { B_G_PER_Y, REF_TPP } from '../../../data/v2/runDesign';
+import { baseParams, fptOfBase, gOfSimple, recipeOf, rlOnBase, setModelG } from '../actors/rivalModel';
+import { stacksGEquiv } from '../models/stacks';
+import { bestPlayerVersion, bestG, CHINA_ID } from '../models/labs';
 import type { GameStateV2, LabId, RivalBase, RivalLab, SecurityState, SimpleModel, SystemCtx } from '../types';
 import { leadBetween, rateOf } from '../actors/rivals';
 import { request, ws4 } from '../actors/state';
@@ -50,12 +50,13 @@ export function theftHazardDaily(s: GameStateV2): number {
  *  spec's spies scale (privileged·0.005 ≈ 10) is ~10× v1's, so the per-spy coefficient is scaled to match T3. */
 export const LEAK_K = () => WS4_TUNING.leakK;
 
-/** Daily China know-how gain from leaked secrets: k·spies·clamp(3.5 − ssl, 0, 2)·gapYears (§3.6). */
+/** Daily China recipe gain (OOM) from leaked secrets: k·spies·clamp(3.5 − ssl, 0, 2)·gap (§3.6), gap = the player's
+ *  recipe − China's (OOM of G-equivalent; model v3 F3: the old know-how gap in progress-years × B, so the same OOM). */
 export function secretsLeakDaily(s: GameStateV2): number {
-  // Secrets are know-how: the gap is in know-how (pa) terms, not model capability (pm includes the compute term).
-  const gapYears = Math.max(0, s.player.pa - s.china.lab.core.pa);
+  // Secrets are recipe: the gap is recipe against recipe, not model capability (G includes the compute).
+  const gap = Math.max(0, stacksGEquiv(s) - recipeOf(s, s.china.lab));
   const sec = s.player.security;
-  return WS4_TUNING.leakK * sec.spies * clamp(3.5 - sec.ssl, 0, 2) * gapYears;
+  return WS4_TUNING.leakK * sec.spies * clamp(3.5 - sec.ssl, 0, 2) * gap;
 }
 
 /** Distillation of US RIVALS' public models by China [fit]: China recovers a share of the gap to the best rival
@@ -65,8 +66,8 @@ export const DISTILL_K = () => WS4_TUNING.distillK;
 
 export function distillFlowDaily(s: GameStateV2): number {
   let pub = -Infinity;
-  for (const r of s.rivals) if (r.core.status === 'active' && r.publicModel) pub = Math.max(pub, r.publicModel.pm);
-  const gap = Math.max(0, pub - bestPm(s, 'china')); // model vs model (pm), like WS1's distillationLeak
+  for (const r of s.rivals) if (r.core.status === 'active' && r.publicModel) pub = Math.max(pub, r.publicModel.G);
+  const gap = Math.max(0, pub - bestG(s, 'china')); // model vs model (G, OOM a day), like WS1's distillationLeak
   return WS4_TUNING.distillK * (s.china.meters.distillationAccess / 60) * gap;
 }
 
@@ -80,13 +81,13 @@ export function executeTheft(s: GameStateV2, ctx: SystemCtx, victim: LabId) {
   // since the player's frontier line stood at China's level), so the stolen copy sits where that line stood 60 d ago —
   // exactly 60 lead-days, never above the source. Rival victims (and a player history too short) use the gap/rate
   // conversion of the rival-vs-rival lead.
-  const adoptG = (src: { pm: number; Lg: number }, srcLab: LabId) => {
-    let pm = src.pm - (60 / 365) * rateOf(s, srcLab);
+  const adoptG = (src: { G: number; Lg: number }, srcLab: LabId) => {
+    let G = src.G - (60 / 365) * rateOf(s, srcLab) * B_G_PER_Y;
     if (srcLab === 'player') {
       const L = frontierLevelAt(s, 'player', ctx.day - 60, src.Lg);
-      if (L !== undefined) pm = Math.min(src.pm, pmOfLevel(tw, L, src.pm - 3, src.pm));
+      if (L !== undefined) G = Math.min(src.G, clamp(gOfLevel(tw, L), src.G - 3 * B_G_PER_Y, src.G));
     }
-    return gOfPm(tw, pm);
+    return G;
   };
   // Model v3 F1: weights, not a recipe. China holds the stolen base (its FLOP, size and the G_pre that copy embodies) and
   // post-trains it at its own recipe; its own next base replaces it only if better (actors/rivals.ts labDaily). Its
@@ -107,7 +108,7 @@ export function executeTheft(s: GameStateV2, ctx: SystemCtx, victim: LabId) {
     // China gets a copy of the best internal version, traits included (U21 shared-misalignment route).
     const b = s.player.models.bases.find((x) => x.id === v.baseId);
     const flop = b?.flop ?? v.build?.flopPre ?? 3e26;
-    cn.internal = { id: `china-st${sec.stolen.length}`, name: `${cn.internal.name.split('-')[0]}-S${sec.stolen.length}`, day: ctx.day, pm: 0, Lg: 0, domains: cn.internal.domains, traitsTrue: { ...v.traitsTrue }, uModes: [...v.uModes], isPublic: false, openWeights: false, stolenFrom: 'player' };
+    cn.internal = { id: `china-st${sec.stolen.length}`, name: `${cn.internal.name.split('-')[0]}-S${sec.stolen.length}`, day: ctx.day, G: 0, Lg: 0, domains: cn.internal.domains, traitsTrue: { ...v.traitsTrue }, uModes: [...v.uModes], isPublic: false, openWeights: false, stolenFrom: 'player' };
     holdStolen(cn.internal, adoptG(v, 'player'), flop, v.params ?? b?.params ?? baseParams(flop));
     if (v.fpt) cn.internal.fpt = v.fpt;
     w.internalDay[CHINA_ID] = ctx.day;

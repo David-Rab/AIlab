@@ -13,7 +13,7 @@
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { decimalYear } from '../../src/engine/v2/core/time';
 import { shareRefAt } from '../../src/engine/v2/departments/split';
-import { domainsOf, levelOf } from '../../src/engine/v2/models/capability';
+import { domainsOf, gOfLevel, levelOfG } from '../../src/engine/v2/models/capability';
 import type { EngineSystem, GameStateV2, ModelVersion, SetupV2 } from '../../src/engine/v2/types';
 import { revenueReadout } from '../../src/engine/v2/worldfx/revenue';
 
@@ -39,7 +39,7 @@ const REF_PRICE: [number, number][] = [[2025.5, 25], [2026.5, 20], [2027.5, 15],
 
 export interface RefPlayOpts { publicLag?: number; compute?: boolean; freezeAt?: number; rebalance?: boolean }
 
-/** Build the probe system for one game (keeps a per-game pm history in a closure). */
+/** Build the probe system for one game (keeps a per-game G history in a closure). `freezeAt` is a G (OOM). */
 export function refPlayProbe(s0: GameStateV2, opts: RefPlayOpts = {}): EngineSystem {
   const lag = opts.publicLag ?? PUBLIC_LAG;
   const hist: number[] = [];
@@ -55,14 +55,12 @@ export function refPlayProbe(s0: GameStateV2, opts: RefPlayOpts = {}): EngineSys
         // Freeze every lab at a fixed capability (W2 test): Agent-1-level models for a decade.
         for (const m of [V0, ...s.rivals.flatMap((r) => [r.internal, r.publicModel!]), s.china.lab.internal, s.china.lab.publicModel!]) {
           if (!m) continue;
-          m.pm = opts.freezeAt;
-          m.Lg = levelOf(w, m.pm);
-          m.domains = domainsOf(w, m.pm);
+          m.G = opts.freezeAt;
+          m.Lg = levelOfG(w, m.G);
+          m.domains = domainsOf(w, m.G);
         }
-        s.player.pa = opts.freezeAt;
-        for (const r of [...s.rivals, s.china.lab]) r.core.pa = opts.freezeAt;
       }
-      hist[s.time.day] = V0.pm;
+      hist[s.time.day] = V0.G;
       let VP = s.player.models.versions.find((v) => v.id === 'VP');
       if (!VP) {
         VP = JSON.parse(JSON.stringify(V0)) as ModelVersion;
@@ -72,19 +70,12 @@ export function refPlayProbe(s0: GameStateV2, opts: RefPlayOpts = {}): EngineSys
         s.player.models.versions.push(VP);
         for (const d of s.player.deployments) if (d.channel !== 'internal') d.versionId = 'VP';
       }
-      // Public = internal frontier minus `lag` levels, never below the start model (bisection on levelOf).
-      const pm0 = hist.find((x) => x !== undefined) ?? V0.pm;
-      const Lt = Math.max(levelOf(w, pm0), V0.Lg - lag);
-      let lo = pm0;
-      let hi = Math.max(pm0, V0.pm);
-      for (let i = 0; i < 40; i++) {
-        const mid = (lo + hi) / 2;
-        if (levelOf(w, mid) <= Lt) lo = mid;
-        else hi = mid;
-      }
-      VP.pm = lo;
-      VP.Lg = levelOf(w, VP.pm);
-      VP.domains = domainsOf(w, VP.pm);
+      // Public = internal frontier minus `lag` levels, never below the start model (λ's inverse).
+      const g0 = hist.find((x) => x !== undefined) ?? V0.G;
+      const Lt = Math.max(levelOfG(w, g0), V0.Lg - lag);
+      VP.G = Math.min(Math.max(g0, V0.G), Math.max(g0, gOfLevel(w, Lt)));
+      VP.Lg = levelOfG(w, VP.G);
+      VP.domains = domainsOf(w, VP.G);
       if (opts.compute !== false) {
         s.player.computeOnline = logInterp(REF_COMPUTE, yr);
         s.player.split = shareRefAt(yr);

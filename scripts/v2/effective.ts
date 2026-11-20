@@ -7,6 +7,7 @@ import { DOMAIN_IDS } from '../../src/data/v2/calibration';
 import { COGNITIVE, REFERENCE_BASE, REFERENCE_POST, RL_BUDGET } from '../../src/data/v2/runDesign';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { gOfBuild, gV0, playerStart } from '../../src/engine/v2/models/capability';
+import { B_G_PER_Y } from '../../src/data/v2/runDesign';
 import {
   REF_RL_PROFILE, continueGPre, distillGap, effectiveTokens, fData, fOver, flopOfDesign, rlCeiling, rlFamiliesAvailable, rlGains, rlWeights, trainFlop,
 } from '../../src/engine/v2/models/effective';
@@ -75,13 +76,13 @@ const s0 = newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 
 const w0 = s0.hidden.timeline;
 const V0 = s0.player.models.versions[0];
 check(near(gV0(w0), 28.0, 0.1) && near(gOfBuild(V0.build!), gV0(w0), 1e-9), 'start: V0 at G ≈ 28.0 (research/12 Aug-2025 anchor), incl. ≈ 0.7 OOM RL', `G ${gOfBuild(V0.build!).toFixed(3)}, RL ${V0.build!.dgRL.toFixed(2)}`);
-check(near(V0.pm, playerStart(w0).target, 1e-9), 'start: pm(V0) is the reference start (Φ pinned)');
+check(V0.G === gOfBuild(V0.build!), 'start: G(V0) is its build\'s G (the reference start)');
 check(Object.values(V0.build!.off).every((x) => Math.abs(x ?? 0) < 0.25), 'start: the reference recipe reproduces the 2025 domain profile (|off| < 0.25 L)', JSON.stringify(Object.fromEntries(Object.entries(V0.build!.off).map(([k, v]) => [k, +(v ?? 0).toFixed(2)]))));
 for (const start of ['challenger', 'bigtech', 'spinout'] as const) {
   const t = newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, start, tutorial: false }));
   const ps = playerStart(t.hidden.timeline);
-  const want = ps.target - (START_BY_ID[start].lagMonths / 12) * referenceRate(t.hidden.timeline, ps.target, 2025.5);
-  check(near(t.player.models.versions[0].pm, want, 1e-6), `start: ${start} V0 lags by its start lag (pm ${want.toFixed(3)})`, t.player.models.versions[0].pm.toFixed(4));
+  const want = gV0(t.hidden.timeline) - (START_BY_ID[start].lagMonths / 12) * referenceRate(t.hidden.timeline, ps.target, 2025.5) * B_G_PER_Y;
+  check(near(t.player.models.versions[0].G, want, 1e-6), `start: ${start} V0 lags by its start lag (G ${want.toFixed(3)})`, t.player.models.versions[0].G.toFixed(4));
 }
 
 // ---------- durations ----------
@@ -101,12 +102,10 @@ check(post.etaDays - post.setupDays < 30 && post.flopNeeded === RL_BUDGET.standa
 // ---------- the v2 calendar bug: same physical run, same G at any start date ----------
 const sC = newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, tutorial: false }));
 const g0 = base(sC, 2e12).limits!.gPre.total;
-const pa0 = sC.player.pa;
 const assets0 = JSON.stringify(sC.player.dataPortfolio);
 // V4.0: a new game runs its default research lines, so "fixed know-how" also holds the recipe stacks at day 0.
 const stacks0 = JSON.parse(JSON.stringify(sC.player.research.stacks)) as typeof sC.player.research.stacks;
 runTo(sC, 500, { skip: ['endings'] });
-sC.player.pa = pa0;
 sC.player.dataPortfolio = JSON.parse(assets0) as typeof sC.player.dataPortfolio;
 sC.player.research.stacks = stacks0;
 const g500 = base(sC, 2e12).limits!.gPre.total;

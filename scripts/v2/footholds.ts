@@ -383,7 +383,7 @@ function suspicionTrial(s: GameStateV2, f: Foothold, K: number, days: number) {
   const hc = fs.find((f) => f.kind === 'hiddenCompute');
   const ct = fs.find((f) => f.kind === 'corruptedTool');
   const pool = s.player.computeOnline * s.player.split.agents;
-  check(!!m && m.schemaRev === SCHEMA_REV && SCHEMA_REV === 32 && bd?.acts === 2 && bd.severity === 7 && Math.abs((hc?.size ?? 0) - 0.03 * pool) < 1e-6 && ct?.ref === tid && fs.every((f) => f.status === 'hidden')
+  check(!!m && m.schemaRev === SCHEMA_REV && SCHEMA_REV === 33 && bd?.acts === 2 && bd.severity === 7 && Math.abs((hc?.size ?? 0) - 0.03 * pool) < 1e-6 && ct?.ref === tid && fs.every((f) => f.status === 'hidden')
     && m.flags['ws2.covert.BACKDOOR.n'] === undefined && m.flags['ws2.covert.BACKDOOR.caught'] === 4 && covertRecord(m, 'BACKDOOR').n === 2,
     'save: a schemaRev-30 save migrates to 31 (flag records → hidden footholds, false-validated tools → corrupted tools; caught counts kept)', msg || `${fs.length} footholds`);
   const fresh = newGame(defaultSetupV2({ seed: 3 }));

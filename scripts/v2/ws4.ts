@@ -27,10 +27,12 @@ import { ACTIONS, EVENTS } from '../../src/engine/v2/core/registry';
 import { seedStreams } from '../../src/engine/v2/core/rng';
 import { deserialize } from '../../src/engine/v2/core/save';
 import { STORYTELLERS } from '../../src/engine/v2/events/director';
-import { bestPm, internalVersion } from '../../src/engine/v2/models/labs';
+import { bestG, internalVersion } from '../../src/engine/v2/models/labs';
 import { executeTheft } from '../../src/engine/v2/security/theft';
 import { footholdFromEscape } from '../../src/engine/v2/safety/footholds';
-import { levelOf, thresholds } from '../../src/engine/v2/world/calibration';
+import { gOfLevel, levelOfG } from '../../src/engine/v2/models/capability';
+import { LEVEL_KNOTS } from '../../src/data/v2/calibration';
+import { B_G_PER_Y } from '../../src/data/v2/runDesign';
 import type { CostLine, EndingId, EngineSystem, GameStateV2, StorytellerId, TraitVector } from '../../src/engine/v2/types';
 import { refBot } from '../../src/engine/v2/bots/ref';
 import { engine } from '../../src/engine/v2/index';
@@ -135,8 +137,8 @@ const load = (i: number) => deserialize(fixtures[i]);
   const r = s.rivals.find((x) => x.core.status === 'active')!;
   const v = internalVersion(s)!;
   // Add an internal-only version far ahead of every public deployment.
-  const boost = 0.5;
-  const v2 = { ...JSON.parse(JSON.stringify(v)), id: 'VX', name: 'Atlas-X', status: 'ready', pm: v.pm + boost, Lg: levelOf(s.hidden.timeline, v.pm + boost) };
+  const boost = 0.5 * B_G_PER_Y;
+  const v2 = { ...JSON.parse(JSON.stringify(v)), id: 'VX', name: 'Atlas-X', status: 'ready', G: v.G + boost, Lg: levelOfG(s.hidden.timeline, v.G + boost) };
   const truthBefore = leadBetween(s, 'player', r.core.id);
   for (let i = 0; i < 12; i++) updateIntel(s, ctx, r);
   const estBefore = leadDays(s, r.core.id).est;
@@ -144,7 +146,7 @@ const load = (i: number) => deserialize(fixtures[i]);
   const truthAfter = leadBetween(s, 'player', r.core.id);
   for (let i = 0; i < 12; i++) updateIntel(s, ctx, r);
   const estAfter = leadDays(s, r.core.id).est;
-  check(bestPm(s, 'player') === v2.pm, 'E3 bestPm(player) is the best INTERNAL version (not the deployed one)');
+  check(bestG(s, 'player') === v2.G, 'E3 bestG(player) is the best INTERNAL version (not the deployed one)');
   // [M2 test fix] The true lead is WS1's time-lag (how long ago the leader stood where the follower stands now, from
   // the weekly history of internal frontiers): an instant jump of the LEADER does not move it (truthAfter =
   // truthBefore here, by definition), so "> 50 d" was a check of the old gap/rate metric. What must hold is that the
@@ -154,13 +156,13 @@ const load = (i: number) => deserialize(fixtures[i]);
     const t = load(1);
     const rr = t.rivals.find((x) => x.core.id === r.core.id)!;
     const w = t.hidden.timeline;
-    const base = bestPm(t, 'player');
+    const base = bestG(t, 'player');
     t.series.L[rr.core.id] = t.series.L.player.map((x) => x + 0.5);
-    rr.internal = { ...rr.internal, pm: base + 0.3, Lg: levelOf(w, base + 0.3) };
+    rr.internal = { ...rr.internal, G: base + 0.3 * B_G_PER_Y, Lg: levelOfG(w, base + 0.3 * B_G_PER_Y) };
     rr.publicModel = undefined;
     const behind = leadBetween(t, 'player', rr.core.id);
     const deployed = JSON.stringify(t.player.deployments);
-    t.player.models.versions.push({ ...JSON.parse(JSON.stringify(internalVersion(t)!)), id: 'VY', name: 'Atlas-Y', status: 'ready', pm: base + 0.5, Lg: levelOf(w, base + 0.5) });
+    t.player.models.versions.push({ ...JSON.parse(JSON.stringify(internalVersion(t)!)), id: 'VY', name: 'Atlas-Y', status: 'ready', G: base + 0.5 * B_G_PER_Y, Lg: levelOfG(w, base + 0.5 * B_G_PER_Y) });
     const ahead = leadBetween(t, 'player', rr.core.id);
     check(behind < -30 && ahead > 0 && JSON.stringify(t.player.deployments) === deployed, 'E3 true lead follows the internal frontier (an internal-only version turns a rival lead around)', `${behind.toFixed(0)} → ${ahead.toFixed(0)} d; a leader's instant jump alone ${truthBefore.toFixed(0)} → ${truthAfter.toFixed(0)} d (time-lag metric)`);
   }
@@ -245,9 +247,8 @@ const load = (i: number) => deserialize(fixtures[i]);
   }
   function atLevel(s: GameStateV2, idx: number) {
     const v = internalVersion(s)!;
-    v.pm = thresholds(s.hidden.timeline)[idx] + 0.01;
-    v.Lg = levelOf(s.hidden.timeline, v.pm);
-    s.player.pa = Math.max(s.player.pa, v.pm);
+    v.G = gOfLevel(s.hidden.timeline, LEVEL_KNOTS[idx]) + 0.01;
+    v.Lg = levelOfG(s.hidden.timeline, v.G);
   }
   function rivalAsi(s: GameStateV2, id: string, bad: boolean) {
     const r = id === 'china' ? s.china.lab : s.rivals.find((x) => x.core.id === id)!;

@@ -3,7 +3,7 @@
 import { commitmentDeployBlock, committedUsagePolicy } from '../actors/commitments';
 import { ws4r } from '../actors/state';
 import type { Channel, Deployment, GameStateV2, LabId, ModelVersion, SystemCtx, Variant } from '../types';
-import { CHINA_ID, bestPm, rivalLab, versionById } from './labs';
+import { CHINA_ID, bestG, rivalLab, versionById } from './labs';
 import { optionLocked } from './tree';
 import { agentsGate, kindOfChannel, priceIndexOf } from './products';
 import { tierOfIndex } from '../../../data/v2/features';
@@ -193,27 +193,28 @@ export function distillationAccess(s: GameStateV2, lab: LabId): number {
 }
 
 /**
- * Daily know-how gain of lab X from distilling the player's external deployments (§3.3.5):
- *   Σ_d coef_channel · gap · DA · (1 − 0.25·kyc) · 0.5 / 365, gap = max(0, pm_deployed − pm_X).
- * Returns the pa increment and the best open-weights pm (absorbed outright). WS4's security system applies it.
+ * Daily recipe gain of lab X (OOM) from distilling the player's external deployments (§3.3.5):
+ *   Σ_d coef_channel · gap · DA · (1 − 0.25·kyc) · 0.5 / 365, gap = max(0, G_deployed − G_X) (model v3 F3: the G gap; the
+ *   old pm gap × B, so the same OOM).
+ * Returns the recipe increment and the best open-weights G (absorbed outright). WS4's security system applies it.
  */
-export function distillationLeak(s: GameStateV2, lab: LabId): { dpaPerDay: number; openPm: number } {
+export function distillationLeak(s: GameStateV2, lab: LabId): { dGPerDay: number; openG: number } {
   const x = rivalLab(s, lab);
-  if (!x) return { dpaPerDay: 0, openPm: -Infinity };
-  const pmX = bestPm(s, lab);
+  if (!x) return { dGPerDay: 0, openG: -Infinity };
+  const gX = bestG(s, lab);
   const DA = distillationAccess(s, lab);
-  let dpa = 0;
-  let openPm = -Infinity;
+  let dG = 0;
+  let openG = -Infinity;
   for (const d of s.player.deployments) {
     if (d.status !== 'live' || d.channel === 'internal') continue;
     const v = versionById(s, d.versionId);
     if (!v) continue;
     if (d.channel === 'open') {
-      openPm = Math.max(openPm, v.pm);
+      openG = Math.max(openG, v.G);
       continue;
     }
-    const gap = Math.max(0, v.pm - pmX);
-    dpa += (LEAK_COEF[d.channel] * gap * DA * (1 - 0.25 * d.kyc) * 0.5) / 365;
+    const gap = Math.max(0, v.G - gX);
+    dG += (LEAK_COEF[d.channel] * gap * DA * (1 - 0.25 * d.kyc) * 0.5) / 365;
   }
-  return { dpaPerDay: dpa, openPm };
+  return { dGPerDay: dG, openG };
 }

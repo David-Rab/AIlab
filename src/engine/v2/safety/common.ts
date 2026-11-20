@@ -3,7 +3,9 @@
 // v3 E6: OOM of effective compute, no research multiplier). UI code reads safety/view.ts selectors instead.
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { LEVEL_KNOTS } from '../../../data/v2/calibration';
-import { levelOf } from '../world/calibration';
+import { gV0, levelOfG, playerStart } from '../models/capability';
+import { stacksGEquiv } from '../models/stacks';
+import { B_G_PER_Y } from '../../../data/v2/runDesign';
 import type { AgendaId, GameStateV2, ModelVersion } from '../types';
 
 export const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
@@ -69,4 +71,14 @@ export function copyRec<T extends object>(x: T): T {
   return JSON.parse(JSON.stringify(x)) as T;
 }
 
-export { levelOf };
+/** The lab's capability tier input (lineage priors, U-mode presence, trait growth): the display level λ(G) of its recipe
+ *  frontier, G(V0) + the start state's recipe offset + the recipe gained since the start (the stacks' G-equivalent).
+ *  The offset is v2's start solution in G, B·(pa₀ − pm(V0)) (≈ +0.8 OOM: λ 6.2 at the start on ai2027), so this is
+ *  exactly the level the know-how readout pa gave through the pm bridge before model v3 F3; it leads the best model's
+ *  level between bases and lags it after them (λ of the best model would move the tiers by −1.2…+1.3 L; left for the
+ *  safety rebuild, design/notes/F3.md). */
+export const labLevel = (s: GameStateV2) => {
+  const w = s.hidden.timeline;
+  const ps = playerStart(w);
+  return levelOfG(w, gV0(w) + B_G_PER_Y * (ps.pa0 - ps.target) + stacksGEquiv(s));
+};

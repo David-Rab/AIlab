@@ -243,7 +243,7 @@ const f3 = (x: number) => x.toFixed(3);
   };
   const a = train(0);
   const b = train(1);
-  check(b.traitsTrue.OBF > a.traitsTrue.OBF && JSON.stringify(a.beliefs) === JSON.stringify(b.beliefs) && b.pm === a.pm,
+  check(b.traitsTrue.OBF > a.traitsTrue.OBF && JSON.stringify(a.beliefs) === JSON.stringify(b.beliefs) && b.G === a.G,
     'steering: a steered recipe makes the next model obfuscate more (hidden S4 → OBF), while its predicted beliefs and capability are identical',
     `OBF ${f3(a.traitsTrue.OBF)} → ${f3(b.traitsTrue.OBF)} (steered stock 1 OOM: S4 +${STEER_S4})`);
 }

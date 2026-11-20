@@ -11,6 +11,8 @@ import type { EngineSystem, GameStateV2, SecurityState, StaffByRole } from '../t
 import { leadBetween, openWeightsReleased, postureOf } from '../actors/rivals';
 import { request, ws4 } from '../actors/state';
 import { distillFlowDaily, executeTheft, secretsLeakDaily, theftHazardDaily, theftHazardOn } from './theft';
+import { addRivalKnowledge } from '../actors/rivalModel';
+import { B_G_PER_Y } from '../../../data/v2/runDesign';
 
 /** The weight-security target the player can set (B4: one range for the engine and the slider). */
 export const WSL_TARGET_RANGE: readonly [number, number] = [2, 5];
@@ -83,21 +85,22 @@ export const securitySystem: EngineSystem = {
     let chinaDist = 0;
     for (const lab of [...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])]) {
       const leak = distillationLeak(s, lab.core.id);
-      if (leak.dpaPerDay > 0) {
-        lab.core.pa += leak.dpaPerDay;
-        w.drift[`${lab.core.id}.pa`] = (w.drift[`${lab.core.id}.pa`] ?? 0) + leak.dpaPerDay;
+      if (leak.dGPerDay > 0) {
+        addRivalKnowledge(lab, leak.dGPerDay);
+        w.drift[`${lab.core.id}.recipe`] = (w.drift[`${lab.core.id}.recipe`] ?? 0) + leak.dGPerDay;
       }
-      if (lab.core.id === CHINA_ID) chinaDist += leak.dpaPerDay;
-      if (leak.openPm > s.knowledge.openWeightsFrontier) openWeightsReleased(s, ctx, 'player', leak.openPm);
+      if (lab.core.id === CHINA_ID) chinaDist += leak.dGPerDay;
+      if (leak.openG > s.knowledge.openWeightsG) openWeightsReleased(s, ctx, 'player', leak.openG);
     }
-    const cn = s.china.lab.core;
-    if (cn.status === 'active') {
+    const cn = s.china.lab;
+    if (cn.core.status === 'active') {
       const leak = secretsLeakDaily(s);
       const dist = distillFlowDaily(s);
-      cn.pa += leak + dist;
-      w.drift['china.pa'] = (w.drift['china.pa'] ?? 0) + leak + dist;
+      addRivalKnowledge(cn, leak + dist);
+      w.drift['china.recipe'] = (w.drift['china.recipe'] ?? 0) + leak + dist;
       chinaDist += dist;
-      w.distillDays = chinaDist > 0.0004 ? w.distillDays + 1 : 0;
+      // Sustained distillation: more than 0.0004 progress-years (× B OOM) a day.
+      w.distillDays = chinaDist > 0.0004 * B_G_PER_Y ? w.distillDays + 1 : 0;
     }
 
     // Exfiltration of an internal agent (WS2 hazard) → E25 and the hunt. Model v3 E9: security notices it with the

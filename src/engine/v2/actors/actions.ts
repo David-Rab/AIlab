@@ -2,7 +2,9 @@
 // research/17 §1.4). Owner: WS4. All magnitudes are [D] calibrations; precedents are in research/17 §1.4.
 // Every preview lists ≥ 1 cost in a currency that is not among its gains (§2.7, lint-tradeoffs).
 import { clamp } from '../../rng';
-import { bestPm, activeRivals } from '../models/labs';
+import { bestG, activeRivals } from '../models/labs';
+import { addRivalKnowledge, recipeOf } from './rivalModel';
+import { B_G_PER_Y } from '../../../data/v2/runDesign';
 import { publishFinding } from '../safety/findings';
 import { reqSpend, WSL_TARGET_RANGE } from '../security/security';
 import type { ActionDef, ActionVerb, CounterpartyId, GameStateV2, StructureSystem, SystemCtx } from '../types';
@@ -16,7 +18,7 @@ import { govPresetOf } from './gov';
 import { addPosture, archetypeOf, openWeightsReleased, paceOf } from './rivals';
 import { ws4, ws4r } from './state';
 import { changeHeads } from '../departments/teams';
-import { addKnowledge } from '../models/stacks';
+import { addKnowledge, stacksGEquiv } from '../models/stacks';
 
 type P = Record<string, number | string | boolean>;
 
@@ -63,7 +65,7 @@ const rivalCps = (s: GameStateV2): CounterpartyId[] => activeRivals(s).map((r) =
 function poachTarget(s: GameStateV2, p: P) {
   const want = str(p, 'lab', '');
   const act = activeRivals(s);
-  return act.find((r) => r.core.id === want) ?? [...act].sort((a, b) => Math.abs(bestPm(s, 'player') - bestPm(s, a.core.id)) - Math.abs(bestPm(s, 'player') - bestPm(s, b.core.id)))[0];
+  return act.find((r) => r.core.id === want) ?? [...act].sort((a, b) => Math.abs(bestG(s, 'player') - bestG(s, a.core.id)) - Math.abs(bestG(s, 'player') - bestG(s, b.core.id)))[0];
 }
 
 export const RELATION_ACTIONS: ActionDef[] = [
@@ -109,9 +111,10 @@ export const RELATION_ACTIONS: ActionDef[] = [
     preview: (s) => pv([L('leadDays', 9, 'capability leak to rivals and China')], [L('credibility', 3), L('talent', 2), L('trust', 3, 'academia')], [L('approval', -1, 'model-organism papers raise concern', { probability: 0.3 }), L('alignment', s.knowledge.sharedTechniquePool < 0.9 ? 0.03 : 0, 'shared technique pool (all labs)')]),
     apply(s, ctx) {
       const w = ws4(s);
-      const leak = (9 / 365) * paceOf(s) * 0.3;
-      // Know-how leak: compares know-how with know-how (pa), not with model capability (pm).
-      for (const r of [...activeRivals(s), s.china.lab]) if (r.core.status === 'active' && r.core.pa < s.player.pa) r.core.pa += leak;
+      // Recipe leak (OOM; 9 days of the lead pace × 0.3): compares recipe with recipe, not with model capability.
+      const leak = (9 / 365) * paceOf(s) * B_G_PER_Y * 0.3;
+      const own = stacksGEquiv(s);
+      for (const r of [...activeRivals(s), s.china.lab]) if (r.core.status === 'active' && recipeOf(s, r) < own) addRivalKnowledge(r, leak);
       s.knowledge.sharedTechniquePool = clamp(s.knowledge.sharedTechniquePool + 0.03, 0, 1);
       const f = s.player.safety.findings.find((x) => !x.published);
       if (f) publishFinding(s, ctx, f.id);
@@ -327,8 +330,8 @@ export const RELATION_ACTIONS: ActionDef[] = [
       const n = Math.max(5, Math.round(r.core.staff.cap * 0.03));
       r.core.staff.cap = Math.max(0, r.core.staff.cap - n);
       changeHeads(s, 'cap', n);
-      // Model v3 V2: tacit knowledge enters the pretraining stack as public ideas (B OOM per progress-year).
-      addKnowledge(s, ctx, (5 / 365) * paceOf(s), 'C4 tacit knowledge', r.core.name);
+      // Model v3 V2: tacit knowledge (5 days of the lead pace, OOM) enters the pretraining stack as public ideas.
+      addKnowledge(s, ctx, (5 / 365) * paceOf(s) * B_G_PER_Y, 'C4 tacit knowledge', r.core.name);
       rivalMeter(s, ctx, r.core.id, 'cooperation', -20, 'C4 poaching');
       rivalMeter(s, ctx, r.core.id, 'poachAggression', 20, 'C4 poaching');
       trust(s, ctx, `rival:${r.core.id}`, -10, 'C4 poaching');
@@ -342,13 +345,13 @@ export const RELATION_ACTIONS: ActionDef[] = [
     preview: (_s, p) => pv([L('leadDays', 60 / Math.max(1, num(p, 'behind', 1)), 'rivals and China close the gap'), L('approval', 8, 'bloc:hawks')], [L('approval', 8, 'bloc:accel'), L('credibility', 2, 'open science')], [L('chinaTension', -3), L('scrutiny', 3)]),
     apply(s, ctx, p) {
       const behind = Math.max(1, num(p, 'behind', 1));
-      const pm = bestPm(s, 'player') - behind * 0.3 * paceOf(s);
-      // Model-vs-model gap (pm); 30% of it is absorbed as know-how (like WS1's distillation leak).
+      const G = bestG(s, 'player') - behind * 0.3 * paceOf(s) * B_G_PER_Y;
+      // Model-vs-model gap (G); 30% of it enters the rival's recipe (like WS1's distillation leak).
       for (const r of activeRivals(s)) {
-        const gap = pm - bestPm(s, r.core.id);
-        if (gap > 0) r.core.pa += 0.3 * gap;
+        const gap = G - bestG(s, r.core.id);
+        if (gap > 0) addRivalKnowledge(r, 0.3 * gap);
       }
-      openWeightsReleased(s, ctx, 'player', pm);
+      openWeightsReleased(s, ctx, 'player', G);
       bloc(s, ctx, 'accel', 8, 0, 'C6 open weights');
       bloc(s, ctx, 'measurers', 4, 0, 'C6 open weights');
       bloc(s, ctx, 'hawks', -8, 5, 'C6 open weights');
@@ -390,7 +393,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
       trust(s, ctx, 'china', 5, 'E1 Track-2 dialogue');
       grantAccess(s, 'china', 1);
       bloc(s, ctx, 'hawks', -3, 0, 'E1');
-      s.china.lab.core.pa += (1 / 365) * paceOf(s);
+      addRivalKnowledge(s.china.lab, (1 / 365) * paceOf(s) * B_G_PER_Y);
     },
   }),
   def({

@@ -34,10 +34,9 @@ import { optionLocked, payoffOf } from './tree';
 import type { DomainMap } from './effective';
 import { releaseEvals } from './evals';
 import { addOff, addSig, baseEffect, clampSignals, monitorabilityClass, postEffect, type Off } from './design';
-import { domainsOf, finishBuild, gOfDomain, gOfPm, levelOf, refreshLevels } from './capability';
+import { domainsOf, finishBuild, gOfDomain, levelOfG, refreshLevels } from './capability';
 import { clRefresh, gOfSimple, growLabStaff, labReferenceSplit, setModelG, trainDay } from '../actors/rivalModel';
 import { ePreAt, rlCeilNow, rlMidNow, serveFlopOomOf, serveNow, trainNow } from './stacks';
-import { paOfRecipe } from './tree';
 import { stackRate } from './research';
 import { fptOfBuild } from '../departments/workfit';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
@@ -265,25 +264,25 @@ function postBuild(s: GameStateV2, base: BaseModel, d: PostDesign, rec: RlRecipe
   const sig = addSig(base.signals ?? {}, postSignals(s, d, rec.exploit, { rho: rlFlop / Math.max(1, base.flop) }));
   return {
     gPre: base.gPre, flopPre: base.flop, rlFlop, rlW, eRL: rec.rlMid, aRL: rec.rlCeil, rlFid: { ...fid }, dgRL: rl.general, dgRLd: rl.perDomain, dg: pe.dg, sD: withDomainG(s, base.sD ?? {}),
-    offL: addOff(base.off ?? {}, pe.offL), off: {}, paIn: paOfRecipe(s, base.flop, base.ePre, rec.rlMid, rec.rlCeil), h80Mult, misuseMult: pe.misuseMult,
+    offL: addOff(base.off ?? {}, pe.offL), off: {}, h80Mult, misuseMult: pe.misuseMult,
     signals: clampSignals(sig),
   };
 }
 
 /** The reference post-train a new base would get (standard budget, broad, today's RL recipe): predicts a base's model. */
-function referencePostOn(s: GameStateV2, gPre: number, flop: number, sD: Off, ePre: number): VersionBuild {
+function referencePostOn(s: GameStateV2, gPre: number, flop: number, sD: Off): VersionBuild {
   const rlW = playerRlWeights(s, 'broad');
   const rec = rlRecipeNow(s);
   const rl = rlGains(flop, RL_BUDGET.standard * flop, rlW, rec.rlMid, rec.rlCeil, rec.fid);
   return {
     gPre, flopPre: flop, rlFlop: RL_BUDGET.standard * flop, rlW, eRL: rec.rlMid, aRL: rec.rlCeil, rlFid: { ...rec.fid }, dgRL: rl.general, dgRLd: rl.perDomain, dg: 0, sD: withDomainG(s, sD),
-    offL: {}, off: {}, paIn: paOfRecipe(s, flop, ePre, rec.rlMid, rec.rlCeil), h80Mult: 1, misuseMult: 1, signals: {},
+    offL: {}, off: {}, h80Mult: 1, misuseMult: 1, signals: {},
   };
 }
 
 /** Distilled build: the teacher's build with the distillation gap δ (never above the teacher). */
-function distillBuild(s: GameStateV2, t: ModelVersion, gap: number): VersionBuild {
-  const tb = t.build ?? fallbackBuild(s, t);
+function distillBuild(t: ModelVersion, gap: number): VersionBuild {
+  const tb = t.build ?? fallbackBuild(t);
   return { ...tb, dg: tb.dg - gap, sD: { ...tb.sD }, offL: { ...tb.offL }, off: { ...tb.off }, dgRLd: { ...tb.dgRLd }, rlW: { ...tb.rlW }, signals: { ...tb.signals } };
 }
 
@@ -323,7 +322,7 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
     flopNeeded = bg.flop * be.flopMult;
     scale = scaleOf(s, flopNeeded);
     cash = flopCost(s, flopNeeded) * be.cashMult + d.licensedShare * 1.0 * Math.sqrt(engScale(flopNeeded)); // licensed data ∝ tokens ∝ √FLOP [D]
-    build = referencePostOn(s, bg.parts.total, bg.flop, bg.sD, bg.parts.recipe);
+    build = referencePostOn(s, bg.parts.total, bg.flop, bg.sD);
     signals = baseSignals(d, { gPre: bg.parts.total, draw: bg.draw });
     serve = serveOfBase(d.params, bg.flop, d.shape) * serveTechMult(s);
     mon = be.monitorability;
@@ -369,7 +368,7 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
     const tokens = DISTILL_TPP * nS;
     flopNeeded = distillFlop(nT, nS, tokens);
     gap = distillGap(nT, nS, tokens);
-    build = distillBuild(s, teacher, gap);
+    build = distillBuild(teacher, gap);
     serve = teacher.serveCost * (nS / nT);
     mon = teacher.monitorability;
   } else {
@@ -377,7 +376,7 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
     flopNeeded = CONTINUE_SHARE * base.flop;
     scale = scaleOf(s, flopNeeded);
     const g = continueGPre(base.gPre, flopNeeded, E_START + ePreAt(s, base.flop + flopNeeded), base.design.shape);
-    build = referencePostOn(s, g, base.flop + flopNeeded, base.sD ?? {}, E_START + ePreAt(s, base.flop + flopNeeded));
+    build = referencePostOn(s, g, base.flop + flopNeeded, base.sD ?? {});
     serve = base.serve ?? 0.5;
     mon = base.monitorability ?? 1;
   }
@@ -386,9 +385,9 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
   const etaDays = limits ? limits.wallDays : setupDays + Math.ceil(daysFor(flopNeeded, rate));
   if (cash > s.player.finance.cash) reason ??= 'Not enough cash';
   if ((p.kind === 'base' || p.kind === 'post') && frontierPaused(s)) reason ??= 'Frontier runs are paused';
-  const pmPred = finishBuild(w, build);
-  const Lg = levelOf(w, pmPred);
-  const doms = domainsOf(w, pmPred, build.off, adopted(s, 'P19'));
+  const gPred = finishBuild(w, build);
+  const Lg = levelOfG(w, gPred);
+  const doms = domainsOf(w, gPred, build.off, adopted(s, 'P19'));
   // Run-card ▲ arrows are WS2's runSignals from the run's quantities (model v3 E3): what applyRunToTraits will apply.
   const ws2Signals = p.kind === 'base' ? signals
     : runSignals(s, { kind: p.kind, name: p.ida ? 'IDA' : p.kind, flopNeeded, ...(p.baseId ? { baseId: p.baseId } : {}), ...(p.post ? { post: p.post } : {}) } as TrainingRun);
@@ -411,7 +410,7 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
 /** Amplified build (IDA, P18): the teacher's build with `extra` more RL FLOP at today's RL recipe (the gain comes from
  *  the RL curve; a saturated teacher gains little). */
 function idaBuild(s: GameStateV2, t: ModelVersion, extra: number, rec: RlRecipe): VersionBuild {
-  const tb = t.build ?? fallbackBuild(s, t);
+  const tb = t.build ?? fallbackBuild(t);
   const eRL = Math.max(tb.eRL, rec.rlMid);
   const aRL = Math.max(tb.aRL ?? 0, rec.rlCeil);
   const rlFlop = tb.rlFlop + extra;
@@ -439,7 +438,7 @@ export function launchRun(s: GameStateV2, ctx: SystemCtx, p: LaunchRunParams): T
   const run: TrainingRun = {
     id: `R${n}`, kind: p.kind, name: `${kindName} ${n}`, startDay: s.time.day,
     flopNeeded: plan.flopNeeded, flopDone: 0, poolShare: plan.poolShare, cashCost: plan.cashCost,
-    predicted: plan.prediction, status: 'running', paAtStart: s.player.pa, signals: { ...plan.prediction.signals },
+    predicted: plan.prediction, status: 'running', signals: { ...plan.prediction.signals },
   };
   // Model v3 V2: the recipe is frozen at launch (a base embodies the pretraining stack at its FLOP; a post-train the RL
   // stack; a continue run today's pretraining stack on its added part).
@@ -498,11 +497,11 @@ function versionName(s: GameStateV2, baseId: string, suffix = ''): string {
 
 function newVersion(s: GameStateV2, run: TrainingRun, base: BaseModel, build: VersionBuild, parent: ModelVersion | undefined, extra: Partial<ModelVersion>): ModelVersion {
   const w = s.hidden.timeline;
-  const pm = finishBuild(w, build);
+  const G = finishBuild(w, build);
   const v: ModelVersion = {
     id: `V${s.player.models.nextName++}`, name: versionName(s, base.id), baseId: base.id, day: s.time.day,
     variant: 'full', design: run.post ? { ...run.post } : { ...(parent?.design ?? { pref: 'constitution', rlFocus: 'broad', rlBudget: 'standard', inoculation: false, cot: 'visible', safety: 'standard', techniques: [], trainAgainst: [] }) },
-    pm, Lg: levelOf(w, pm), domains: domainsOf(w, pm, build.off, adopted(s, 'P19')),
+    G, Lg: levelOfG(w, G), domains: domainsOf(w, G, build.off, adopted(s, 'P19')),
     traitsTrue: { ...(parent?.traitsTrue ?? base.traitsTrue) }, masks: copyMasks(parent), uModes: [...base.uModes],
     monitorability: 0.9, serveCost: base.serve ?? 0.5, evals: { bench: {}, safety: {} }, beliefs: blankBeliefs(parent ?? versionById(s, s.player.agents.capRoutine.versionId)),
     status: 'evaluating', flags: {}, build, ...extra,
@@ -525,7 +524,7 @@ function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
     const bg = baseG(s, d, rec.pre);
     const b: BaseModel = {
       id: `B${nb}`, name: `${PLAYER_MODEL_FAMILY}-${nb}`, day: s.time.day, startDay: run.startDay, flop: bg.flop, params: d.params, tokens: bg.tokens,
-      paAtStart: run.paAtStart ?? s.player.pa, gPre: bg.parts.total, ePre: bg.parts.recipe, design: d, sD: bg.sD, epochs: bg.epochs, scale: run.scale ?? 1,
+      gPre: bg.parts.total, ePre: bg.parts.recipe, design: d, sD: bg.sD, epochs: bg.epochs, scale: run.scale ?? 1,
       serve: serveOfBase(d.params, bg.flop, d.shape), monitorability: be.monitorability, signals: clampSignals(baseSignals(d, { gPre: bg.parts.total, draw: bg.draw })),
       lineage: `L-player-${nb}`, traitsTrue: { ...(parent?.traitsTrue ?? m.bases[0].traitsTrue) }, uModes: [],
     };
@@ -544,7 +543,7 @@ function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
     const ePre = gPre - (parent.gPre - parent.ePre) - Math.log10(flop / parent.flop);
     const b: BaseModel = {
       ...parent, id: `B${nb}`, name: `${parent.name}c`, day: s.time.day, startDay: run.startDay, flop, tokens: parent.tokens + run.flopNeeded / (6 * parent.params),
-      gPre, ePre, paAtStart: parent.paAtStart + (ePre - parent.ePre) / B_G_PER_Y, parentBaseId: parent.id, scale: (parent.scale ?? 1) + (run.scale ?? 0),
+      gPre, ePre, parentBaseId: parent.id, scale: (parent.scale ?? 1) + (run.scale ?? 0),
       traitsTrue: { ...parent.traitsTrue }, uModes: [...parent.uModes], sD: { ...(parent.sD ?? {}) }, signals: { ...(parent.signals ?? {}) },
     };
     m.bases.push(b);
@@ -558,7 +557,7 @@ function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
     const base = m.bases.find((b) => b.id === t.baseId) ?? m.bases[0];
     const nT = paramsOfVersion(s, t);
     const nS = run.studentParams ?? nT * STUDENT_DEFAULT;
-    const build = distillBuild(s, t, distillGap(nT, nS, run.tokens ?? DISTILL_TPP * nS));
+    const build = distillBuild(t, distillGap(nT, nS, run.tokens ?? DISTILL_TPP * nS));
     const v = newVersion(s, run, base, build, t, { variant: 'mini', params: nS, serveCost: t.serveCost * (nS / nT), monitorability: t.monitorability, design: { ...t.design }, appeal: t.appeal ?? 1 });
     v.name = `${t.name}-mini`;
     m.versions.push(v);
@@ -589,9 +588,9 @@ function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
   afterVersion(s, ctx, run, v);
 }
 
-/** Build of a version without one (legacy): its pm as general G, no RL detail. */
-function fallbackBuild(s: GameStateV2, v: ModelVersion): VersionBuild {
-  return { gPre: gOfPm(s.hidden.timeline, v.pm), flopPre: 1, rlFlop: 0, rlW: {}, eRL: 0, aRL: 0, dgRL: 0, dgRLd: {}, dg: 0, sD: {}, offL: {}, off: { ...(v.build?.off ?? {}) }, paIn: v.pm, h80Mult: 1, misuseMult: 1, signals: {} };
+/** Build of a version without one (legacy, an import): its G as the pretraining part, no RL detail. */
+function fallbackBuild(v: ModelVersion): VersionBuild {
+  return { gPre: v.G, flopPre: 1, rlFlop: 0, rlW: {}, eRL: 0, aRL: 0, dgRL: 0, dgRLd: {}, dg: 0, sD: {}, offL: {}, off: { ...(v.build?.off ?? {}) }, h80Mult: 1, misuseMult: 1, signals: {} };
 }
 
 /** WS2 trait hooks for a finished post/distill/IDA run (§3.5.4). An IDA cycle (P18) is WS2's applyIdaCycle on the
@@ -665,7 +664,7 @@ function streamBuild(s: GameStateV2, v: ModelVersion, b: VersionBuild, tr: Track
   const gPre = base ? base.gPre - base.ePre + tr.pre : b.gPre;
   const rlFid = suiteFidMap(s);
   const rl = rlGains(b.flopPre, b.rlFlop, b.rlW, tr.rlMid, tr.rlCeil, rlFid);
-  return { ...b, gPre, eRL: tr.rlMid, aRL: tr.rlCeil, rlFid, dgRL: rl.general, dgRLd: rl.perDomain, paIn: paOfRecipe(s, b.flopPre, tr.pre, tr.rlMid, tr.rlCeil) };
+  return { ...b, gPre, eRL: tr.rlMid, aRL: tr.rlCeil, rlFid, dgRL: rl.general, dgRLd: rl.perDomain };
 }
 
 /** Stream (P08): the version tracks the stacks with a 7-day lag (first-order). WS2 adds trait drift (1/42 of a
@@ -678,17 +677,16 @@ function advanceStream(s: GameStateV2) {
     delete s.player.models.stream;
     return;
   }
-  const b = v.build ?? fallbackBuild(s, v);
+  const b = v.build ?? fallbackBuild(v);
   const a = 1 - Math.exp(-1 / STREAM_LAG_DAYS);
   const cur = st.track ?? trackOf(s, v, b);
   const now = trackNow(s, v);
   st.track = { pre: cur.pre + a * (now.pre - cur.pre), rlMid: cur.rlMid + a * (now.rlMid - cur.rlMid), rlCeil: cur.rlCeil + a * (now.rlCeil - cur.rlCeil) };
   const nb = streamBuild(s, v, b, st.track);
-  st.paTrack = nb.paIn;
-  const pm = finishBuild(s.hidden.timeline, nb);
+  const G = finishBuild(s.hidden.timeline, nb);
   v.build = nb;
-  if (pm > v.pm) {
-    v.pm = pm;
+  if (G > v.G) {
+    v.G = G;
     refreshLevels(s.hidden.timeline, v, adopted(s, 'P19'));
   }
 }
@@ -698,7 +696,7 @@ export function startStream(s: GameStateV2, versionId: string, day: Day = s.time
   if (!adopted(s, 'P08')) return 'Needs continual learning (P08)';
   const v = versionById(s, versionId);
   if (!v || v.variant !== 'full') return 'Pick a full version';
-  const b = v.build ?? fallbackBuild(s, v);
+  const b = v.build ?? fallbackBuild(v);
   // The stream continues from the recipe the version already embodies; moving a running stream onto a version (e.g. on
   // a newer base) carries the RL recipe it already absorbed, and the pretraining recipe re-applies at the new base [D].
   const old = s.player.models.stream;
@@ -707,18 +705,17 @@ export function startStream(s: GameStateV2, versionId: string, day: Day = s.time
     ? { pre: Math.max(own.pre, old.track.pre), rlMid: Math.max(own.rlMid, old.track.rlMid), rlCeil: Math.max(own.rlCeil, old.track.rlCeil) }
     : own;
   const nb = streamBuild(s, v, b, track);
-  const paTrack = nb.paIn;
-  const pm = finishBuild(s.hidden.timeline, nb);
+  const G = finishBuild(s.hidden.timeline, nb);
   v.build = nb;
-  if (pm > v.pm) {
-    v.pm = pm;
+  if (G > v.G) {
+    v.G = G;
     refreshLevels(s.hidden.timeline, v, adopted(s, 'P19'));
   }
-  s.player.models.stream = { versionId, startedDay: day, lastAuditDay: day, paTrack, track };
+  s.player.models.stream = { versionId, startedDay: day, lastAuditDay: day, track };
   return undefined;
 }
 
-/** continual (45, daily): stream versions track pa; default frontier tracking for unmanaged rival/China labs. */
+/** continual (45, daily): stream versions track the stacks; default frontier tracking for unmanaged rival/China labs. */
 export const continualSystem: EngineSystem = {
   id: 'continual', owner: 'WS1', cadence: 'daily', order: 45, system: 'models',
   run(s) {

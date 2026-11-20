@@ -88,19 +88,20 @@ export function versionById(s: GameStateV2, id: string | undefined): ModelVersio
   return id === undefined ? undefined : s.player.models.versions.find((v) => v.id === id);
 }
 
-/** Player's best non-retired version by TRUE pm (hidden — engine use only). */
+/** Player's best non-retired version by TRUE effective compute G (hidden — engine use only). */
 export function bestPlayerVersion(s: GameStateV2): ModelVersion | undefined {
   let best: ModelVersion | undefined;
-  for (const v of s.player.models.versions) if (LIVE(v) && (!best || v.pm > best.pm)) best = v;
+  for (const v of s.player.models.versions) if (LIVE(v) && (!best || v.G > best.G)) best = v;
   return best;
 }
 
-/** TRUE best capability (pm) of a lab's internal frontier (hidden — engine use only). */
-export function bestPm(s: GameStateV2, id: LabId): number {
-  if (id === PLAYER_ID) return bestPlayerVersion(s)?.pm ?? s.player.pa;
+/** TRUE best general effective compute G (OOM) of a lab's internal frontier (hidden — engine use only); −∞ without a
+ *  model. Its display level is λ(G) (models/capability.ts levelOfG). */
+export function bestG(s: GameStateV2, id: LabId): number {
+  if (id === PLAYER_ID) return bestPlayerVersion(s)?.G ?? -Infinity;
   const r = rivalLab(s, id);
   if (!r) return -Infinity;
-  return Math.max(r.internal.pm, r.publicModel?.pm ?? -Infinity);
+  return Math.max(r.internal.G, r.publicModel?.G ?? -Infinity);
 }
 
 /** TRUE best general level of a lab's internal frontier (hidden). */
