@@ -18,7 +18,7 @@ import { safFromProgress } from '../safety/lineProjects';
 import { START_SUITE_FAMILIES, expertAsset, expertAssetId, startExpertAssets, suitesFromV1 } from '../models/suites';
 import { P10_SYN_Q_RAISE, P21_WORTH_OOM } from '../../../data/v2/dataAssets';
 import { EXPERT_START_T, P12_DEMO_T } from '../../../data/v2/suites';
-import { migrateRivalPhys, rlGOnBase } from '../actors/rivalModel';
+import { migrateRivalPhys, migrateRivalRecipe, rlGOnBase } from '../actors/rivalModel';
 import { LEADER_ID } from '../models/labs';
 import { LEADER_CAL } from '../../../data/v2/calibration';
 
@@ -74,8 +74,11 @@ import { LEADER_CAL } from '../../../data/v2/calibration';
  *  29 (model v3 D10): serving-efficiency ideas and tokens per task — RivalPhys.serve (a lab's serving stack, OOM) and
  *  SimpleModel.rlG (the RL part of G, which sets its reasoning tokens). Migration 28 → 29 starts every lab's serving stack
  *  at the 2025 reference (0) and sets rlG of models on the lab's current base from that base (others 0).
- *  (D10 was built as 25 → 26; merge M5 renumbered it.) */
-export const SCHEMA_REV = 29;
+ *  (D10 was built as 25 → 26; merge M5 renumbered it.)
+ *  30 (model v3 F2): RivalPhys.rec / pool / paSync — the rivals' recipe in the player's stack parts. Migration 29 → 30
+ *  puts each lab's one-number recipe into the pretraining part with fresh pools (actors/rivalModel.ts
+ *  migrateRivalRecipe), so its know-how readout is unchanged. (F2 was built as 25 → 26; merge M5 renumbered it.) */
+export const SCHEMA_REV = 30;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -389,6 +392,12 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
         m.rlG = m.G !== undefined && m.flop === r.phys.base.flop ? rlGOnBase(m.G, r.phys.base) : 0;
       }
     }
+  },
+  /** 29 → 30 (model v3 F2): each lab's recipe e becomes the pretraining part of its three-part recipe (fresh pools); a
+   *  lab that already has the parts is skipped (idempotent). */
+  29: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    for (const r of [...s.rivals, s.china.lab]) migrateRivalRecipe(s.hidden.timeline, r);
   },
 };
 

@@ -33,8 +33,12 @@ export const CAL_SHIFT: Record<WorldPresetId, number> = { ai2027: -0.463, author
  *  values ai2027 0.256, authors2026 0.096, fast 0.134, slow 0.314) with this efficiency. F1 fit (seed 2027): the worst-error
  *  refine where it brings every milestone within tolerance (fast), else the SC root: the aggregate leader has no idea
  *  projects and takes off slower than RefBot after SC (design/notes/F1.md); slow's r = 1.2 needs ×14 (r divides every
- *  OOM of recipe by 10^(1/r)). */
-export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: -0.048, authors2026: 0.242, fast: 0.068, slow: 1.155, sampled: -0.048 };
+ *  OOM of recipe by 10^(1/r)). Model v3 F2: authors2026 0.242 → 0.28, the SC root again (the followers' start states
+ *  moved the leader's SC 1491 → 1535 at 0.242 through the shared world; SC 1498 at 0.28); the late milestones still
+ *  missed (one-part recipe). Model v3 F2 part B (the recipe in three parts, design/notes/F2.md), --fit-leader: ai2027
+ *  −0.029 and fast 0.025 (worst refine, every milestone in tolerance), slow 0.557, authors2026 0.154 (the SC root: its
+ *  SIAR and ASI come early, worst 2.9 tolerances). */
+export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: -0.029, authors2026: 0.154, fast: 0.025, slow: 0.557, sampled: -0.029 };
 
 /** Knowledge diffusion to a follower (BUILD-PLAN R9, research/18 §0.2) [D, fit]: while the frontier leader lab's PUBLIC
  *  model is ahead of the player's best model, the player's know-how gains K_DIFFUSION × the gap per year (papers, staff
@@ -55,7 +59,10 @@ export const K_DIFFUSION = 2.0;
 // Model v3 F1: 3.2 → 1 (no scale: DeepCent's efficiency is the world's chinaEfficiency × the preset's): on the physical
 // rival model China's research runs through the same aggregate function as every lab, and its lead is set mostly by its
 // base FLOP and cadence; mean lead over days 30–540 (3 seeds) 132 d at 3.2, 153 at 1.5, 167 at 1.
-export const CHINA_CAL = { effScale: 1 };
+// Model v3 F2: 1 → 1.5 on the three-part recipe (the RL parts saturate and the know-how leaks now feed only the
+// pretraining part, so DeepCent's versions gain less between bases): daily mean lead days 30–540, 8 seeds, 247 d at 1,
+// 181 at 1.5, 161 at 2 (design/notes/F2.md).
+export const CHINA_CAL = { effScale: 1.5 };
 /** H100e per agent copy at SC (473k H100e / 200k copies, research/13 §1.9), scaled by serveCost/0.5. */
 export const H100E_PER_COPY_SC = 2.4;
 /** Agent serial speed cap (R11 #23: min(8 + 10.8·log2 M, 50)). */

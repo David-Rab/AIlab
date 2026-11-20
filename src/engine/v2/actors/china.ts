@@ -11,6 +11,8 @@ import type { ChinaActor, EngineSystem, GameStateV2, HiddenWorld, StaffByRole, S
 import { cash, drift } from './fx';
 import { PHYS_PLACEHOLDER, goalpostsQ, leadBetween, rivalFinanceQ, simpleModel } from './rivals';
 import { initRivalPhys } from './rivalModel';
+import { START_PUBLIC_GAP_Y } from '../../../data/v2/rivalModel';
+import { CHINA_CAL } from '../../../data/v2/calibration';
 import { request, ws4 } from './state';
 import { unlicensedPublicT } from '../production/data';
 import { KOREA_HAZARD_Q, koreaShock, setExportPolicy, taiwanHazardQ, taiwanShock } from '../compute/market';
@@ -61,7 +63,7 @@ export function initialChina(rng: Rng, h: HiddenWorld, playerPm: number, chinaGa
     presetWeights: Object.fromEntries(CHINA_PRESETS.map((x) => [x.id, 0.4 * (x.weight / total) + (x.id === p.id ? 0.6 : 0)])),
   };
   // Model v3 F1: DeepCent's last base, recipe and models in G (its research efficiency effLab applies at run time).
-  initRivalPhys(h.timeline, out.lab);
+  initRivalPhys(h.timeline, out.lab, 1, START_PUBLIC_GAP_Y, h.timeline.chinaEfficiency * p.efficiency * CHINA_CAL.effScale);
   return out;
 }
 

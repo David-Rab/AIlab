@@ -24,7 +24,7 @@ import { CHINA_PRESETS } from '../../../data/actors';
 import { decimalYear } from '../core/time';
 import { shareRefAt } from '../departments/split';
 import { CHINA_ID, LEADER_ID, PLAYER_ID, bestPlayerVersion, labCore, otherLabs, rivalLab } from '../models/labs';
-import { bestRivalMix, evalRival, gOfSimple, recipeRate, rivalAgentFpt, rivalReadout, serveRate } from '../actors/rivalModel';
+import { absorbKnowHow, advanceRecipe, bestRivalMix, evalRival, gOfSimple, recipeRates, rivalAgentFpt, rivalReadout, serveRate } from '../actors/rivalModel';
 import { addKnowledge, trainNow } from '../models/stacks';
 import { asV1World } from '../world/calibration';
 import { poolsOf } from '../compute/power';
@@ -388,12 +388,14 @@ export function rivalResearch(s: GameStateV2, r: RivalLab, apply: boolean): Prod
   }
   const treaty = s.gov.treaty === 'verified' ? 0.65 : 1;
   const x = evalRival(s, r, f, C, (r.phys?.eff ?? 1) * effLab(s, core.id), rivalSpeedMult(s, core.id) * treaty);
-  const eRate = recipeRate(s, r, x.rs);
+  if (apply) absorbKnowHow(w, r);
+  const rates = recipeRates(w, r.phys, x.rs);
   if (apply) {
-    core.pa += eRate / 365 / B_G_PER_Y;
+    advanceRecipe(w, r, rates, 1 / 365);
     // D10: the serving stack at aggregate level (the Inference-efficiency line's returns), from the same research speed.
     if (r.phys) r.phys.serve = (r.phys.serve ?? 0) + serveRate(s, r, x.rs) / 365;
   }
+  const eRate = rates.g;
   const pools = poolsOf(s, core.id);
   return rivalReadout(x, eRate, core.milestoneDays[3] !== undefined, { h: (x.units * RE_UNIT) / DAY0_REF.re, k: pools.agents / DAY0_REF.agents, c: x.c, d: pools.synthetic / DAY0_SYNTHETIC });
 }

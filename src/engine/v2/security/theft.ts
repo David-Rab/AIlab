@@ -2,9 +2,8 @@
 import { clamp } from '../../rng';
 import { frontierLevelAt, gOfPm } from '../models/capability';
 import { pmOfLevel } from '../world/calibration';
-import { RL_SHARE } from '../../../data/v2/rivalModel';
 import { REF_TPP } from '../../../data/v2/runDesign';
-import { baseParams, fptOfBase, gOfSimple, recipeOf, rlOnBase, setModelG } from '../actors/rivalModel';
+import { baseParams, fptOfBase, gOfSimple, rlOnBase, setModelG } from '../actors/rivalModel';
 import { bestPlayerVersion, bestPm, CHINA_ID } from '../models/labs';
 import type { GameStateV2, LabId, RivalBase, RivalLab, SecurityState, SimpleModel, SystemCtx } from '../types';
 import { leadBetween, rateOf } from '../actors/rivals';
@@ -93,8 +92,8 @@ export function executeTheft(s: GameStateV2, ctx: SystemCtx, victim: LabId) {
   // post-trains it at its own recipe; its own next base replaces it only if better (actors/rivals.ts labDaily). Its
   // know-how (recipe) does not jump: the secrets leak (secretsLeakDaily) is the recipe channel.
   const holdStolen = (m: SimpleModel, G: number, flop: number, params: number) => {
-    const e = recipeOf(s, cn);
-    const base: RivalBase = { gen: cn.phys.base.gen, day: ctx.day, flop, params, tpp: REF_TPP, gPre: G - rlOnBase(flop) - RL_SHARE * e, ePre: (1 - RL_SHARE) * e };
+    const rec = cn.phys.rec;
+    const base: RivalBase = { gen: cn.phys.base.gen, day: ctx.day, flop, params, tpp: REF_TPP, gPre: G - rlOnBase(flop, rec.mid, rec.ceil), ePre: rec.pre };
     cn.phys.base = base;
     cn.phys.clDay = ctx.day;
     setModelG(tw, m, G, base);

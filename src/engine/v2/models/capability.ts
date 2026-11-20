@@ -7,7 +7,7 @@ import { COGNITIVE_WORK, H50_PER_OOM, H50_V0_MIN, H80_OVER_H50, LEVEL_PER_OOM, W
 import { labMilestones } from '../departments/workfit';
 import { clamp } from '../../rng';
 import { START_DATE, dayOfDate, decimalYearOf } from '../core/time';
-import { asV1World, levelOf } from '../world/calibration';
+import { asV1World, levelOf, pmOfLevel, referenceRate } from '../world/calibration';
 import { bestLevelOf } from '../actors/rivalModel';
 import type { Day, DomainId, EngineSystem, GameStateV2, LabId, MilestoneIdx, ModelVersion, TimelineWorld, VersionBuild } from '../types';
 import { PLAYER_ID, bestPm, internalVersion, labCore, otherLabs } from './labs';
@@ -262,10 +262,30 @@ export function trueLeadDays(s: GameStateV2, other: LabId): number {
   const followerL = levelOf(w, ahead ? pOt : pPl);
   const d = daysSinceLevel(s, leader, followerL, levelOf(w, ahead ? pPl : pOt));
   if (d !== undefined && d >= 0) return ahead ? d : -d;
-  // Fallback: gap / the leader's model progress rate (software rate + the Stage-1 compute share).
-  const pr = labCore(s, leader)?.prodCache;
-  const rate = Math.max(0.05, (pr?.rate ?? 1) + (pr?.stage === 2 ? 0 : 1 - w.share));
-  return ((pPl - pOt) / rate) * 365;
+  // The history does not reach back to the follower's level (the first weeks of a game): the leader's frontier line
+  // before its first sample is the pre-game frontier, which rose at the start's reference rate — the rate every start
+  // gap was drawn at (rivals.ts initialRival, china.ts initialChina) — so the lead is the days since the first sample
+  // plus the first sample's gap at that rate (model v3 F2: v2's fallback divided by the leader's current research rate,
+  // which reads a few weeks of stack growth and put China 390–450 d behind in days 30–60).
+  const lead = preHistoryLead(s, leader, ahead ? pPl : pOt, ahead ? pOt : pPl);
+  return ahead ? lead : -lead;
+}
+/** Days since `leader`'s frontier line stood at pm `pF`, for a level below its first sample: the time since that sample
+ *  plus the gap at the pre-game reference frontier rate (referenceRate at the start, the start gaps' rate). */
+function preHistoryLead(s: GameStateV2, leader: LabId, pLead: number, pF: number): number {
+  const w = s.hidden.timeline;
+  const rate = Math.max(0.05, preGameRate(w));
+  const xs = s.series.L[leader];
+  if (!xs?.length) return ((pLead - pF) / rate) * 365;
+  const p1 = pmOfLevel(w, xs[0], pF - 20, pLead + 20);
+  return Math.max(0, s.time.day - s.series.day[0]) + ((p1 - pF) / rate) * 365;
+}
+/** The pre-game frontier rate (progress-years a year): referenceRate at the start model and 2025.5. */
+const preRateMemo = new WeakMap<TimelineWorld, number>();
+function preGameRate(w: TimelineWorld): number {
+  let r = preRateMemo.get(w);
+  if (r === undefined) preRateMemo.set(w, (r = referenceRate(w, playerStart(w).target, 2025.5)));
+  return r;
 }
 
 // ───────────────────────────── milestones (§3.1.6) ─────────────────────────────
