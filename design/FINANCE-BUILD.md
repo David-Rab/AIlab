@@ -1298,3 +1298,117 @@ Numbers, before (FIN4r bfc30ea, extracted to a scratch dir) → after (FIN5a):
   was; a bust leaves a lab ≈ 20% of its mark); the half-way mark (`blend`) and position per 2 levels are [D] choices made
   for the reference bot's survival; supplier-term sizes [D]; π against FC4 (round sizes); capex2x now ends insolvent
   more than ousted (FC7). Docs (V2-SPEC §3.7.3, `design/v2-interfaces.ts` `narrative`) for FIN6c.
+
+### FIN5b notes (2026-11-20)
+
+Built: `finance/rivalFinance.ts` (rivals' money: `RIVAL` numbers, `RIVAL_GOV` / `rivalGov`, `rivalCred`, `rivalCap`,
+`rivalSpend`, `parentFunded`, `exitBuyer`, `bustTarget`, `markRivals`, `rivalRoundMax`, `rivalMoneyQ`, `exitRival`).
+`actors/rivals.ts rivalFinanceQ` keeps the revenue update and the chip orders and calls `rivalMoneyQ` in one line (cash
+flow, raise, distress, exit); `markRivals` runs in capitalQ right after the player's mark, on the same story snapshot
+(and in `startStory` for the start valuations). `storyShares` gives rivals their own credibility and governance and
+carries each lab's valuation, cap and rung (`LabStory.valuation`, `cap`, `rung`). The bust's push names its rival
+(`CapitalMarkets.busted.rival`) instead of setting a distress flag that the next rival quarter cleared. E32's text and
+Decline preview follow the new exit (same buyer as the engine: `exitBuyer`); `deactivateRival` takes the log line.
+UI: a rival's bar on the Story card is the home of its valuation (tooltip: valuation, cap = $30B + 25× revenue with "at
+the cap", multiple, share, weight, score, revenue, level, credibility with its growth, governance with its kind); the
+bar labels stay shares (the widths are shares); the governance tile says rivals count by kind. Glossary: new
+`rivalValuation`, `rivalCap`; `govFactor`, `acquisition` updated; `design/ux/GLOSSARY.md` regenerated. schemaRev
+19 → 20 with a migration.
+
+The rules (spec §12; [D] numbers in `RIVAL`):
+- **Valuation** = sector value × the rival's share, the share moving half-way each quarter from its last mark to today's
+  story (the player's rule), **at most its cap = $30B team value + 25× its run-rate** [R21 A8: SSI $32B pre-revenue,
+  TML $12B; R15 C11 / FC2: trailing labs under the leader-style 20–37×]. **Deviation (the brief allowed "a revenue-scale
+  term or a cap")**: the share has no revenue-size driver, so marked at S × share a lab whose revenue had collapsed kept
+  1–2% of a $13T sector the RefBot's revenue built (FIN5a: trailing labs ≈ 54× run-rate, dead ones 80–190× in 2027). The
+  cap applies to rivals only; the player's valuation stays the uncapped story (FIN5a's fit; FIN6a may decide to cap
+  everyone: the RefBot's 2027 multiple is ≈ 60×). A capped lab's unallocated part of S is not handed to the others (the
+  player's share is unchanged by the cap), so Σ valuations ≤ S. Shown on the lab's bar.
+- **Credibility** (one rule, from growth): revenue over four quarters ≥ ×1 (or pre-revenue) Credible ×1, below Unproven
+  ×0.9, at R15's ×0.5 floor Doubted ×0.7. No Proven for rivals. "Keeps shipping" is not a separate test: a rival's
+  public model renews every 6–10 weeks + its release lag, so it was always true; shipping shows up in its revenue.
+- **Governance** by kind (the GOV_FACTOR table): safety lab PBC + trust ×1 (Anthropic), maverick and boutique upstart
+  founder ×1.1 (xAI; SSI / TML), the simulated leader lab nonprofit PBC ×0.9 (OpenAI after Oct 2025).
+- **Pool**: each private rival's part = its valuation ÷ S × the quarter's pool, scaled so the rivals' parts never exceed
+  1 − the player's share; the unused part carries 50% (as the player's). **Raise** when cash < half a year of spend (spend
+  formula moved from rivals.ts unchanged: $15.4K per H100e-year + $0.4B), at its valuation, min(d_max = 8% of the lab,
+  its pool part); post-money = pre + amount until the next mark; logged ("X raises $YB at a $ZB valuation", severity 1).
+  No dice: the old 90%-odds raise with the lead and bust penalties is gone (investors' view of a lab behind is its share
+  and cap). Rounds are at most quarterly (rivals' finance runs once a quarter).
+- **Distress** = cash < 0 after raising, or pushed by a bust that quarter (the most over-committed private rival: it
+  raises nothing that quarter). Entering distress requests E32 (offered to you first, as FIN3c built it; **FIN3c's gap
+  closed**: a bust-pushed lab now gets the offer too). Still in distress the next quarter → **license-and-hire** by the
+  big-tech rival with the most compute: its compute moves, 70% of its staff join the buyer, the buyer's know-how rises
+  to the lab's if lower (the licence), its investors get 1.25× what they put in (`finance.raised`, start figures from
+  R21: Anthropic ≈ $15B, xAI ≈ $22B, SSI $3B, OpenAI ≈ $60B), logged in plain words ("<buyer> licenses X's models
+  and hires most of its team; its compute moves to <buyer>. X's investors get about $25B back (1.25× what they
+  put in)."). **Bankruptcy** only without a big-tech rival ("X goes bankrupt: no big-tech lab will license it and hire its
+  team. Its staff scatter; its investors lose their $YB."). Every distressed private lab exits this way (in practice they
+  are the trailing ones). Parent-funded labs (big tech, open weights, the leader lab) never raise or reach distress.
+- **Migration 19 → 20**: each private rival's last mark = saved valuation ÷ today's S, pool part 0, `raised` = its kind's
+  start figure; the first mark after loading moves half-way from there and applies the cap.
+
+The 3-year rival picture (RefBot, leader start, 12 seeds, scratch diagnostic; medians of active private rivals; end-2026
+= the Jan 2027 mark, end-2027 = the Jan 2028 mark; before = 32a98f5 in a scratch worktree):
+
+| Kind (n) | Start before → after | End-2026 before → after | End-2027 before → after | Analogue |
+|---|---|---|---|---|
+| Safety (13) | $180B → $155B, R $5B (31×) | $247B (28×), 10 active → $215B on $7.9B (30×; $97–340B), 13 active, cash $20B | $247B on $1.6B, 5 active → $107B on $1.6B (66×), 13 active, cash $21B | Anthropic $61.5B (Mar 2025), $183B (Sep 2025), $380B on $14B (Feb 2026), $965B on $47B (May 2026), ≈ $1.3T IPO (Nov 2026) |
+| Maverick (7) | $120B → $55B, R $1B | $169B on $16B (12×; never re-marked), 7 active → $496B on $16B (31×; $313–705B), 7 active, cash $31B | $210B on $3.5B, 4 active → $160B on $2.6B (60×), 7 active, cash $32B | xAI ≈ $80–113B (2025), $230B (Jan 2026), $250B in the SpaceX merger (Feb 2026), ≈ $3B revenue |
+| Upstart (6) | $30B → $35B, R $0.2B | $43B, 3 active → $86B on $2.8B (38×; $73–151B), 6 active, cash $10B | $64B, 1 active → $60B on $0.6B, 6 active, cash $9B | SSI $32B (Apr 2025, no revenue), TML $12B (2025) |
+
+- Within ×2 at the start for all three kinds (maverick ×0.5–0.7 of xAI). At end-2026 the **multiples** sit where the
+  analogues trade (safety 30× vs Anthropic 21–28×; trailing rivals 28.6× median through 2026 vs the RefBot's 34.6× at
+  high growth: FC2 "trailing lower" now holds), but the **valuations** follow this world's revenues, which differ from
+  reality: the safety lab earns ≈ $8B (Anthropic $47B), so it is valued at ≈ 1/5 of Anthropic (not within ×2); the
+  maverick earns ≈ $16B (xAI ≈ $3B), so it is ≈ 2× xAI (median at the edge, ×1.3–2.8); the upstart sells a product
+  (SSI has none) and is ≈ 2.7× SSI. The sum of private rivals' valuations at end-2026 in the seeds with three or four of
+  them is $1.2–1.4T (non-OpenAI private labs, real: ≈ $1.6T). Fixing revenue is model-v3's (MODEL-V3 §7.3), not finance's.
+- **Funded through 2026 (FC6)**: 26 of 26 private rivals active at end-2026 (before: 20 of 26; 6 exits by end-2026).
+  **2027**: in the RefBot world the player holds ≈ 93–95% of the sector and rivals' revenue falls ×3–6; they are marked
+  down 50–70% and live on the cash they raised in 2026 plus ≈ $5–10B a quarter: **no exits through 2027** (before: 16 in
+  12 seeds, through the lead penalty on the raise odds); their burn ($40–70B a year against $5–10B raised a quarter)
+  takes them to distress in 2028. E32 offers on this path: 16 → 3 (the three from bust pushes; all three recovered).
+  FIN6a may want earlier exits for collapsed labs (e.g. cut a broke lab's chip orders harder in rivals.ts, or a cap
+  that falls with Doubted credibility); not done here to keep the rule simple.
+- Start valuations (seeds 1–6): leader-start player $196/244/491/257/389/322B → $184/239/491/251/389/322B (founder
+  rivals ×1.1); the challenger start's leader lab $175–330B (OpenAI $300B; capped at $30B + 25 × $12B in some seeds);
+  spinout player $40–65B (7–11% of the sector, unchanged from FIN5a; SSI $32B: within ×2; the share's open-weight floor
+  left to FIN6a).
+
+Numbers, before (FIN5a 32a98f5) → after (FIN5b):
+- `scripts/v2/finance.ts` (12 RefBot seeds): **F7 end-2026 valuation $1.05T → $1.00T (median $999B: FAILS the $1–3T
+  band by $1B)**. Cause, measured: the rivals' founder governance (maverick and upstart ×1.1, spec §1 table) lowers the
+  RefBot's share; with them at ×1 the same 12 seeds give a median of $1.03T. The test was left as is: widening the band
+  (e.g. to $0.9T, ×0.72 of OpenAI's $1.25T Nov 2026 mark) or refitting the share is a lead / FIN6a decision. F7 revenue
+  $45.0B → $44.7B, capex $162.8B → $160.9B, compute incurred $29.6B → $29.5B, power 6.6 → 6.6 GW; F8 financing $85.4B →
+  $81.5B, distress-free 83.3% → 83.3%, no-deal and capex2x distress 100% → 100%; F9 FC1 start $632B → $632B, late 2026
+  $2.77T → $2.74T; FC2 leader-style 36.6× → 34.6× (slower growth 23.5× → 23.0×); trailing private rivals 54× (split,
+  unmarked) → 28.6× (marked, through 2026; 42.5× in 2027); dilution max 5.1% → 5.1%; RefBot rounds 2026 3.5 → 3, 2027
+  2 → 2; promises met 97% → 96%; end-2027 credibility 85 → 86, board confidence 63.4 → 65.9; F2 47.1M → 47.0M (passes).
+- `scripts/v2/bots.ts --seeds 40`, leader start, paired (base = 32a98f5 in a scratch worktree, same seeds): all §7.4
+  criteria MET in both. Wins race 5.0 → 2.5%, safe 2.5 → 2.5%, mixed 52.5 → 47.5%, capex2x 2.5 → 2.5%, ref 22.5 →
+  25.0%. Ousted race 32.5 → 32.5%, safe 20.0 → 15.0%, mixed 15.0 → 20.0%, capex2x 45.0 → 40.0% (insolvent 52.5 → 57.5%),
+  ref 17.5 → 22.5%. Safe losses overtaken/other-ASI-first 74 → 79%. (One seed in 40 = 2.5 pp.)
+- Tests: `npm run typecheck` clean (and the scripts' tsconfig). One by one: golden-timelines, identity, calib, fixtures
+  (regenerated, schemaRev 20) green; hygiene: only the absolute perf checks fail (machine load; paired runs minutes apart:
+  32a98f5 3713 / 4898 µs daily average vs FIN5b 1951 / 2147 µs, the leader-lab relative check passes in both: no
+  regression; `markRivals` runs once a quarter); lint-hidden, lint-ux, lint-tradeoffs, lint-structure green; safety S5
+  −0.93 → −0.92 (known); finance: **F7 (above, new, at the band edge)**, all else passed (F2 passes); worldfx all passed
+  (HireRate_SOFT 2027-04-30); ws4, products, money, idle green. `npm run test:ui` 315/315.
+- Test changes (meaning changed): finance.ts F9's trailing line now reads the rivals' marked valuations and is a check
+  (trailing rivals below the leader-style multiple through 2026; 2027 printed); the FIN5a share check no longer asserts
+  that capitalQ leaves rival valuations alone (FIN5b marks them); the FIN5a migration check accepts later revs; 9 new
+  FIN5b checks (marks and cap, the card's labs carry them; credibility rule and governance by kind; pool parts never
+  exceed the pool; raising; distress → E32 → license-and-hire with the log and E32's Decline naming the buyer; bankruptcy
+  without a buyer, parent-funded labs never distressed; the bust's push and recovery; migration 19 → 20; FC6 funded
+  through 2026 with the end-2026 picture). hygiene's leader-lab invariance check leaves out the rivals' marked valuation,
+  share and pool part (rivals are valued in a split the leader lab is part of; the draws and the setup are still
+  compared). uitest: 2 new FIN5b checks (a rival's bar tooltip: valuation as the engine has it, cap, multiple,
+  credibility, governance; the governance tile says rivals count by kind); R10's incident limits open an incident when
+  the regenerated day-900 fixture has none (fixture drift: it had one open incident before, none now).
+- Left for FIN6a: F7's lower edge (above); whether to cap the player too (2027 ≈ 60×); earlier exits for collapsed
+  rivals in 2027; the spinout's 7–11% start share (SSI ≈ 5%); rivals' `commitments` is still the static start book
+  (cash × 2) that the bubble index and E32's obligations read; rivals' revenues vs the analogues are model-v3's. For
+  FIN6b: the rival bar tooltip is long (11 rows; share, weight and score could fold into a nested tip). Docs (V2-SPEC
+  §3.10.3 rival finance, `design/v2-interfaces.ts` RivalLab.finance) for FIN6c.

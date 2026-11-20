@@ -953,6 +953,22 @@ ok('J1 C1: buy, build and rent show before → after (cash, runway)', await page
   const why = await page.evaluate(() => document.querySelector('.tip')?.textContent ?? '');
   ok('FIN5a: the valuation\'s why names the sector value and your share', /Sector value at the last mark/.test(why) && /Why it moved/.test(why), why.slice(0, 160));
   await clearTips();
+  // FIN5b: a rival's bar is the home of its valuation: its tooltip shows the valuation (the engine's), the cap and its
+  // multiple, credibility and governance by kind.
+  {
+    const rid = JSON.parse(await get('s.rivals.find((r) => r.core.status === "active" && r.finance.valuation > 0)?.core.id ?? null'));
+    const rv = JSON.parse(await get(`s.rivals.find((r) => r.core.id === ${JSON.stringify(rid)}).finance.valuation`));
+    await page.hover(`[data-home=story] [data-test=story-shares] [data-lab="${rid}"]`); await wait(450);
+    const rt = await page.evaluate(() => document.querySelector('.tip')?.textContent ?? '');
+    const sig = (x) => (x >= 100 ? x.toFixed(0) : x >= 10 ? x.toFixed(1) : x.toFixed(1));
+    const money = (x) => (x >= 1000 ? `$${sig(x / 1000)}T` : `$${sig(x)}B`);
+    ok('FIN5b: a rival\'s bar shows its valuation (the engine\'s), its cap and multiple, credibility and governance', /Valuation/.test(rt) && /Cap/.test(rt) && /× revenue/.test(rt) && /Credibility/.test(rt) && /Governance/.test(rt) && rt.includes(money(rv)), `${money(rv)} · ${rt.slice(0, 160)}`);
+    await clearTips();
+    await page.hover('[data-home=story] [data-driver=govFactor]'); await wait(450);
+    const gt = await page.evaluate(() => document.querySelector('.tip')?.textContent ?? '');
+    ok('FIN5b: the governance tile says rivals count by kind (no longer ×1)', /Rivals by kind/.test(gt) && !/Rivals count ×1/.test(gt), gt.slice(0, 160));
+    await clearTips();
+  }
   await shot('70-fin5a-story');
   await page.click('[data-tabs=finance] [data-tab=owners]'); await wait(120);
   ok('FIN5a: Ownership links to the valuation in Story', !!(await page.$('[data-home=ownership] [data-ref=valuation]')));
@@ -1128,7 +1144,11 @@ await page.evaluate(() => {
   const s = st.state;
   s.setup.tutorial = false;
   s.flags.paused = true;
-  const inc = s.player.safety.incidents.find((i) => i.status === 'open');
+  let inc = s.player.safety.incidents.find((i) => i.status === 'open');
+  // FIN5b: the regenerated day-900 fixture may hold no open incident (the world drifts with every engine change); open
+  // one on a live deployment so the incident limits have something to bind on.
+  const dep = s.player.deployments.find((d) => d.status !== 'withdrawn' && d.channel !== 'internal');
+  if (!inc && dep) { inc = { id: 'I-ui-1', day: s.time.day - 5, labId: 'player', versionId: dep.versionId, deploymentId: dep.id, trueSource: 'RH', apparent: 'RH', severity: 3, exposure: 'internal', status: 'open', responses: [] }; s.player.safety.incidents.push(inc); }
   if (inc) { inc.exposure = 'customer'; inc.publicTimerDays = 9; }
   st.notify();
 });

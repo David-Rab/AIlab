@@ -11,10 +11,11 @@ import { TRUSTED_MAX_P27 } from '../../../data/v2/agents';
 import { partnerDef, PARTNER_TERMS } from '../../../data/v2/deals';
 import { initialAgents } from '../departments/agents';
 import { divisionOf } from '../finance/parent';
-import { sectorValue, seedLabRevenue } from '../finance/story';
+import { privateRivals, sectorValue, seedLabRevenue } from '../finance/story';
+import { FIN } from '../actors/rivals';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
-export const SCHEMA_REV = 19;
+export const SCHEMA_REV = 20;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -327,6 +328,20 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     seedLabRevenue(s);
     const S = sectorValue(s).S;
     if (f.valuation > 0 && S > 0) f.ws3.mark = { S, share: Math.min(1, f.valuation / S) };
+  },
+  /** 19 → 20 (finance v3 FIN5b): private rivals' valuations are marked from the story split like the player's. Each
+   *  private rival's last mark is read off its saved valuation (share = valuation ÷ today's sector value), its part of
+   *  the pool starts empty (filled at the next quarter's mark) and the equity its investors put in starts at its kind's
+   *  start figure (no history was kept). A pending bust names no pushed rival. */
+  19: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const S = sectorValue(s).S;
+    for (const r of privateRivals(s)) {
+      const f = r.finance;
+      if (f.mark === undefined && S > 0) f.mark = Math.min(1, f.valuation / S);
+      f.poolQ ??= 0;
+      f.raised ??= FIN[r.archetype]?.raised ?? 0;
+    }
   },
 };
 

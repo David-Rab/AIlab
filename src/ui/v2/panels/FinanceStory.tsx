@@ -1,10 +1,10 @@
 // Finance › Story (FINANCE-V3 §1, §11; FIN5a): HOME of the valuation, the sector value and its mood, your share of it
 // and the four drivers, with credibility and governance as the share's factors (credibility's score lives in What we
-// owe). One card, one selector (engine storyNow).
+// owe). One card, one selector (engine storyNow). FIN5b: home of the private rivals' valuations (their bars' tooltips).
 import type { ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { credRung, dateOf, dayOfQuarter, DRIVERS, fmtDate, qOf, STORY, storyNow } from '../../../engine/v2';
-import type { Driver, GameStateV2, StoryNow } from '../../../engine/v2';
+import { credRung, dateOf, dayOfQuarter, DRIVERS, fmtDate, qOf, RIVAL, RIVAL_GOV, STORY, storyNow } from '../../../engine/v2';
+import type { Driver, GameStateV2, LabStory, StoryNow } from '../../../engine/v2';
 import { Term, Tip, TipCard, Why } from '../ui';
 import { Card, GoBtn } from '../kit';
 import * as F from '../fmt';
@@ -89,8 +89,11 @@ function FactorTile({ label, term, icon: I, x, you, children, refTo }: { label: 
   );
 }
 
-/** Today's story shares of every private lab: you first, then the rivals (big-tech labs are not in the sector). */
-function ShareBar({ st }: { st: StoryNow }) {
+const atCap = (a: LabStory) => a.cap !== undefined && a.cap <= a.valuation * 1.001;
+
+/** Today's story shares of every private lab: you first, then the rivals (big-tech labs are not in the sector). A
+ *  rival's tooltip is the home of its valuation (S × its marked share, at most its cap). */
+function ShareBar({ s, st }: { s: GameStateV2; st: StoryNow }) {
   const labs = st.labs;
   const shades = ['#d4732a', '#b8652a', '#9c5729', '#7f4a29', '#6b3f25'];
   let i = 0;
@@ -100,12 +103,20 @@ function ShareBar({ st }: { st: StoryNow }) {
         const you = a.id === 'player';
         const c = you ? C.you : shades[i++ % shades.length];
         return (
-          <Tip key={a.id} content={() => <TipCard title={you ? 'You' : a.name} value={F.pct(a.share)} rows={[
+          <Tip key={a.id} content={() => <TipCard title={you ? 'You' : a.name} value={you ? F.pct(a.share) : F.money(a.valuation)} rows={[
+            ...(you ? [] : [
+              { label: <Term id="rivalValuation">Valuation</Term>, value: F.money(a.valuation) },
+              { label: <Term id="rivalCap">Cap</Term>, value: `${F.money(a.cap ?? 0)} = ${F.money(RIVAL.team)} + ${RIVAL.multiple}× revenue${atCap(a) ? ' · at the cap' : ''}`, tone: atCap(a) ? 'neg' as const : 'neutral' as const },
+              { label: 'Multiple', value: a.revenue >= STORY.preRevenue ? `${(a.valuation / a.revenue).toFixed(0)}× revenue` : 'pre-revenue' },
+            ]),
+            { label: 'Share today', value: F.pct(a.share) },
             { label: 'Weight', value: a.weight.toFixed(2) },
             { label: 'Score', value: a.z.toFixed(2) },
             { label: 'Revenue', value: F.money(a.revenue, { perYear: true }) },
             { label: 'Best public level', value: `L ${F.level(a.level)}${a.floored ? ' (open-weight)' : ''}` },
-          ]}>{you ? 'Your share of the sector value by today\'s story.' : 'A private rival\'s share by today\'s story.'}</TipCard>}>
+            { label: <Term id="investorCred">Credibility</Term>, value: you ? a.rung : `${a.rung} (revenue ×${a.growth.toFixed(1)} a year)` },
+            { label: <Term id="govFactor">Governance</Term>, value: you ? X(a.gov) : `${X(a.gov)} ${PRESET[RIVAL_GOV[s.rivals.find((r) => r.core.id === a.id)?.archetype ?? ''] ?? 'pbcTrust']}` },
+          ]}>{you ? 'Your share of the sector value by today\'s story.' : 'A private rival, valued at the sector value × its share at the last mark (moving half-way each quarter, as yours), at most its cap.'}</TipCard>}>
             <span className="story-seg" style={{ background: c }} data-lab={a.id}>{a.share >= 0.12 ? <em>{you ? 'you' : a.name.split(' ')[0]} {F.pct(a.share)}</em> : null}</span>
           </Tip>
         );
@@ -165,7 +176,7 @@ export function StoryCard({ s }: { s: GameStateV2 }) {
           <span className="story-term"><span className="dim small">next mark</span><b className={`num ${nextV > f.valuation * 1.005 ? 'tone-pos' : nextV < f.valuation * 0.995 ? 'tone-neg' : ''}`} data-test="story-next">{F.money(nextV)}</b></span>
         </Tip>
       </div>
-      <ShareBar st={st} />
+      <ShareBar s={s} st={st} />
       {/* L2: what your weight is made of. */}
       <div className="story-drvs" data-test="story-drivers">
         {DRIVERS.map((k) => <DriverTile key={k} s={s} st={st} k={k} />)}
@@ -173,7 +184,7 @@ export function StoryCard({ s }: { s: GameStateV2 }) {
           Investor credibility's rung (Doubted ×0.7, Unproven ×0.9, Credible ×1, Proven ×1.15). Its score and the promises that move it are in What we owe.
         </FactorTile>
         <FactorTile label="Governance" term="govFactor" icon={ICON.exec} x={me.gov} you={`${PRESET[s.player.board.preset] ?? s.player.board.preset}${f.dualClass ? ', dual-class' : ''}`}>
-          Legacy capped-profit nonprofit ×0.6, nonprofit PBC ×0.9, PBC + trust ×1, founder ×1.1; dual-class shares ×0.95 more. Rivals count ×1.
+          Legacy capped-profit nonprofit ×0.6, nonprofit PBC ×0.9, PBC + trust ×1, founder ×1.1; dual-class shares ×0.95 more. Rivals by kind (on their bars).
         </FactorTile>
       </div>
       <div className="fin-foot">

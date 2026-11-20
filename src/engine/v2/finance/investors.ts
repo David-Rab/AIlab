@@ -7,6 +7,7 @@ import type { StoryNow } from './story';
 import { covenantsBreached, ratingOf, ratingScore, rollMaturities } from './debt';
 import { gwOwned, publicFrontier } from './observe';
 import { cancelTrancheShares, closePendingRound, partnerEquityIn } from './equity';
+import { bustTarget, markRivals } from './rivalFinance';
 import { DRIVERS, markShare, poolAnnualOf, privateRivals, recordLabRevenue, sectorRunRate, STORY, storyNow } from './story';
 import { defaultCapitalWS3, ensureWs3, yearStats } from './ext';
 import { commitmentsPerYear, bookCash } from './ledger';
@@ -191,9 +192,10 @@ export const capitalQSystem: EngineSystem = {
       c.hype = Math.max(0.3, c.hype - SHOCKS.sectorBust.dH);
       w.spreadAddBp = 100 * Math.max(0, c.bubbleX - 3) / 3;
       // (FIN5a: the pool and the valuations fall through the sector value's bust factor, computed below.)
-      // The most over-committed private rival is pushed into distress; WS4 decides bankruptcy.
-      const r = privateRivals(s).sort((a, b) => b.finance.commitments / Math.max(0.1, b.finance.revenueRun) - a.finance.commitments / Math.max(0.1, a.finance.revenueRun))[0];
-      if (r) r.finance.distress = true;
+      // The most over-committed private rival is pushed into distress: it raises nothing this quarter and is offered to
+      // you (E32); if still failing next quarter it exits (FIN5b, finance/rivalFinance.ts rivalMoneyQ).
+      const r = bustTarget(s);
+      if (r) c.busted.rival = r.core.id;
       ctx.log('alert', `AI investment bust: the pool for lab equity collapses and credit spreads widen (X = ${c.bubbleX.toFixed(1)}).`, 4);
       ctx.headline('bust', 'AI stocks crash as investors question trillion-dollar compute bets');
     } else if (!busted) w.spreadAddBp = Math.max(0, w.spreadAddBp * 0.5);
@@ -221,6 +223,7 @@ export const capitalQSystem: EngineSystem = {
     w.playerPoolQ = w.playerShare * (c.poolAnnual / 4 + c.carry);
     w.playerTakenQ = 0;
     if (st.me) markValuation(s, ctx, st, share);
+    markRivals(s, st); // FIN5b: every private rival on the same story, and its part of the pool
     closePendingRound(s, ctx);
     settleTranches(s, ctx);
     f.revenueHistory.push(f.revenueRun);

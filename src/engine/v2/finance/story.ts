@@ -4,9 +4,9 @@
 // suppliers ask a lab with little access to equity, or a short runway, to prepay more (§5). Finance reads the labs only
 // through observe.ts (FINANCE-BUILD rule 4). Owner: WS3.
 //
-// FIN5a: rivals keep their old valuations (actors/rivals.ts) until FIN5b moves them into this split; they are already
-// in the share's denominator here, with their own position, momentum and capacity, the sector's typical margin, and
-// neutral credibility and governance.
+// FIN5b: private rivals are in the same split with their own position, momentum and capacity, the sector's typical
+// margin, a credibility rung from their revenue growth and a governance factor by kind; their valuations are marked from
+// it (finance/rivalFinance.ts), at most their cap (team value + a multiple of run-rate).
 import { GOV_FACTOR } from '../../../data/v2/deals';
 import { DEBT_SIZING } from '../../../data/v2/deals';
 import { startOf, isDivision } from '../../../data/v2/starts';
@@ -14,6 +14,7 @@ import { PLAYER_ID } from '../models/labs';
 import type { GameStateV2, LabId, Money } from '../types';
 import { computeSecured, publicFrontier, publicLevel, revenueRun, servingEconomics } from './observe';
 import { credRung } from './promises';
+import { markRivals, rivalCap, rivalCred, rivalGov } from './rivalFinance';
 
 /** Every number of the story (spec §1, §2.1, §5). */
 export const STORY = {
@@ -85,9 +86,15 @@ export interface LabStory {
   x: Record<Driver, number>;
   z: number;
   cred: number;
+  /** The credibility rung's name (you: your score's rung; a rival: its revenue-growth rule). */
+  rung: string;
   gov: number;
   weight: number;
   share: number;
+  /** Valuation at the last mark (rivals: S × marked share, at most `cap`; you: your valuation). */
+  valuation: Money;
+  /** A rival's valuation cap (team value + multiple × run-rate); undefined for you. */
+  cap?: Money;
 }
 
 export interface SectorValue { S: Money; R: Money; L: number; phi: number; H: number; M: number; bust: number; mood: number }
@@ -155,16 +162,17 @@ export function storyShares(s: GameStateV2): LabStory[] {
     labs.push({
       id: PLAYER_ID, name: s.player.name, revenue: R, level: L > 0 ? L : floor, floored: !(L > 0),
       growth: growthOf(R, f.revenueHistory), margin: R < STORY.preRevenue ? null : Math.max(-1, Math.min(1, servingEconomics(s).margin)),
-      secured: computeSecured(s), cred: credRung(f.credibility ?? 50).mult, gov: playerGov(s),
+      secured: computeSecured(s), cred: credRung(f.credibility ?? 50).mult, rung: credRung(f.credibility ?? 50).id, gov: playerGov(s), valuation: f.valuation,
     });
   }
   for (const r of privateRivals(s)) {
     const L = publicLevel(s, r.core.id);
     const R = revenueRun(s, r.core.id);
+    const cr = rivalCred(s, r);
     labs.push({
       id: r.core.id, name: r.core.name, revenue: R, level: L > 0 ? L : floor, floored: !(L > 0),
       growth: growthOf(R, hist[r.core.id]), margin: R < STORY.preRevenue ? null : STORY.rivalMargin,
-      secured: computeSecured(s, r.core.id), cred: 1, gov: 1,
+      secured: computeSecured(s, r.core.id), cred: cr.mult, rung: cr.id, gov: rivalGov(r), valuation: r.finance.valuation, cap: rivalCap(R),
     });
   }
   // Public levels of every lab for the position comparison (big-tech and open-weight models count: markets see them).
@@ -265,6 +273,7 @@ export function startStory(s: GameStateV2): void {
   c.poolAnnual = poolAnnualOf(s, st.sector.S);
   c.ws3.playerShare = st.share;
   c.ws3.playerPoolQ = st.share * (c.poolAnnual / 4);
+  markRivals(s, st); // FIN5b: rivals' start valuations from the same split
 }
 
 /** Supplier terms (spec §5) [D]: the deposit share of a batch order and the prepaid share of a supply contract's first

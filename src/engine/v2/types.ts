@@ -1088,7 +1088,8 @@ export interface CapitalMarkets {
   carry: Money; // unused appetite carried
   ipoWindow: boolean;
   bubbleX: number; // X_t
-  busted?: { day: Day; recoverDay: Day };
+  /** A sector bust; `rival`: the most over-committed private rival it pushed into distress (FIN5b: offered via E32). */
+  busted?: { day: Day; recoverDay: Day; rival?: LabId };
   shocks: { kind: string; dH: number; halfLifeQ: number; day: Day }[];
   /** WS3 investor-pool bookkeeping. */
   ws3: CapitalWS3;
@@ -1353,13 +1354,31 @@ export interface SimpleModel {
   stolenFrom?: LabId;
 }
 
+/** A rival's money (FIN5b, finance/rivalFinance.ts). A private rival's valuation is its story share of the sector value
+ *  (marked quarterly, half-way, at most its cap); parent-funded labs (big tech, open weights, China) carry valuation 0. */
+export interface RivalFinance {
+  cash: Money;
+  revenueRun: Money;
+  valuation: Money;
+  commitments: Money;
+  distress: boolean;
+  /** Story share at the last quarterly mark (before the cap); unset until the first mark. */
+  mark?: number;
+  /** Investor money open to it this quarter: its part of the pool, the unused part carrying 50% (as the player's). */
+  poolQ?: Money;
+  /** Equity its investors have put in, start included (an exit pays them back a multiple of it). */
+  raised?: Money;
+  /** Day of its last priced round. */
+  lastRoundDay?: Day;
+}
+
 export interface RivalLab {
   core: Omit<LabCore, 'deployments' | 'models' | 'paradigms'>;
   archetype: string; // LAB_ARCHETYPES id
   internal: SimpleModel;
   publicModel?: SimpleModel;
   nextBaseDay: Day;
-  finance: { cash: Money; revenueRun: Money; valuation: Money; commitments: Money; distress: boolean };
+  finance: RivalFinance;
   visible: { frameworkVersion: number; clauseType: 'conditional' | 'allAdopt' | 'unconditional' | 'override' | 'state'; testers: string[]; indexGrade?: string };
   intel: RivalIntel;
   meters: { poachAggression: number; cooperation: number; lobbyStance: number; openness: number };

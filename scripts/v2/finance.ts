@@ -20,6 +20,9 @@ import { FINANCE_ACTIONS, raiseQuote } from '../../src/engine/v2/finance/actions
 import { boardVote, CRITICS, CRITICS_INVESTOR, criticsAvailable, debtVote, syncFinancialSeats, founderControl, initialBoard, OUSTER, ousterVote, updateRunwayState, VOTE } from '../../src/engine/v2/finance/board';
 import { MOOD_SOURCE_OF, MOOD_WEIGHTS, moodWeight } from '../../src/engine/v2/finance/mood';
 import { acceptRepriced, bookRound, closePendingRound, dMax, LARGE_ROUND, roundSplit, partnerEquityIn, raiseCeiling, REPRICED_DECIDE_DAYS } from '../../src/engine/v2/finance/equity';
+import { bustTarget, exitBuyer, markRivals, parentFunded, RIVAL, RIVAL_GOV, rivalCap, rivalCred, rivalGov, rivalMoneyQ, rivalSpend } from '../../src/engine/v2/finance/rivalFinance';
+import { FIN as RIVAL_START_FIN } from '../../src/engine/v2/actors/rivals';
+import { ws4 as ws4Of } from '../../src/engine/v2/actors/state';
 import { DUAL_CLASS_GOV, growthOf, openWeightFloor, playerGov, poolAnnualOf, sectorValue, STORY, storyNow, storyShares, SUPPLIER, supplierTerms } from '../../src/engine/v2/finance/story';
 import { whatWeOwe } from '../../src/engine/v2/finance/owe';
 import * as EQ from '../../src/engine/v2/finance/equity';
@@ -60,11 +63,13 @@ const share = (xs: boolean[]) => xs.filter(Boolean).length / Math.max(1, xs.leng
 const f1 = (x: number) => x.toFixed(1);
 const F1pct = (x: number) => `${Math.round(x * 100)}%`;
 
-/** FIN5a: each quarter mark also records the story (sector value, the player's share and valuation, growth, a bust, the
- *  split value of each trailing private rival with revenue: its share × S and run-rate). */
+/** FIN5a: each quarter mark also records the story (sector value, the player's share and valuation, growth, a bust, and
+ *  each trailing private rival with revenue: FIN5b its marked valuation and run-rate). */
 interface QRow { day: number; year: number; shipped: number; stock: number; margin: number; supply: number; S: number; share: number; V: number; R: number; g: number; bust: boolean; trailing: { v: number; r: number }[] }
 /** FIN3b: versions the nonprofit PBC's safety committee held back (ready to release, red-flagged), and the days held. */
-interface Run { s: GameStateV2; q: QRow[]; firstDistress: number; gw2026: number; v2026: number; held: Set<string>; heldDays: number; pbcDays: number }
+/** FIN5b: a private rival at a snapshot (end-2026). */
+interface RivalRow { id: string; arch: string; status: string; V: number; R: number; cash: number }
+interface Run { s: GameStateV2; q: QRow[]; firstDistress: number; gw2026: number; v2026: number; held: Set<string>; heldDays: number; pbcDays: number; rivals2026: RivalRow[]; private0: string[] }
 
 function runBot(seed: number, opts: AutopilotOpts | undefined, until: number): Run {
   const s = newGame(defaultSetupV2({ seed }));
@@ -75,6 +80,8 @@ function runBot(seed: number, opts: AutopilotOpts | undefined, until: number): R
   const held = new Set<string>();
   let heldDays = 0;
   let pbcDays = 0;
+  let rivals2026: RivalRow[] = [];
+  const private0 = s.rivals.filter((r) => r.finance.valuation > 0 && !parentFunded(r)).map((r) => r.core.id);
   while (s.time.day < until) {
     if (s.player.board.safetyCommitteeVeto && s.time.day % 7 === 0) {
       pbcDays += 7;
@@ -94,7 +101,7 @@ function runBot(seed: number, opts: AutopilotOpts | undefined, until: number): R
     tick(s, { skip: ['endings'] });
     if (quarter) {
       const st = storyNow(s);
-      const trailing = st.labs.filter((a) => a.id !== 'player' && a.revenue >= 1 && a.x.position < 0).map((a) => ({ v: st.sector.S * a.share, r: a.revenue }));
+      const trailing = st.labs.filter((a) => a.id !== 'player' && a.revenue >= 1 && a.x.position < 0).map((a) => ({ v: a.valuation, r: a.revenue }));
       q.push({ day: s.time.day, year: Math.floor(decimalYear(s) + 1e-9), shipped: s.market.ws3.shipped, stock: s.market.ws3.stock, margin: impliedMargin(s.market), supply: s.market.supplyQ, S: st.sector.S, share: st.share, V: s.player.finance.valuation, R: s.player.finance.revenueRun, g: st.me?.growth ?? 1, bust: st.sector.bust < 1, trailing });
     }
     if (firstDistress < 0 && (s.player.finance.state === 'distress' || s.player.finance.state === 'insolvent')) firstDistress = s.time.day;
@@ -103,9 +110,10 @@ function runBot(seed: number, opts: AutopilotOpts | undefined, until: number): R
       const cloud = s.player.cloud.reduce((a, c) => a + (c.startDay <= s.time.day && c.endDay > s.time.day ? c.h100e : 0), 0);
       gw2026 = liveMW / 1000 + (cloud * s.power.kWPerH100e) / 1e6;
       v2026 = s.player.finance.valuation;
+      rivals2026 = s.rivals.filter((r) => private0.includes(r.core.id)).map((r) => ({ id: r.core.id, arch: r.archetype, status: r.core.status, V: r.finance.valuation, R: r.finance.revenueRun, cash: r.finance.cash }));
     }
   }
-  return { s, q, firstDistress, gw2026, v2026, held, heldDays, pbcDays };
+  return { s, q, firstDistress, gw2026, v2026, held, heldDays, pbcDays, rivals2026, private0 };
 }
 
 // ───────────────────────────── F1–F3, F6: market under default demand (RefBot) ─────────────────────────────
@@ -203,11 +211,13 @@ check(share(x2.map((r) => r.firstDistress >= 0 && r.firstDistress < END_2027)) >
   const hi = marks.filter((x) => x.g >= 2.5).map((x) => x.V / x.R);
   const lo = marks.filter((x) => x.g < 2.5).map((x) => x.V / x.R);
   check(median(hi) >= 20 && median(hi) <= 37, 'F9 (FC2) leader-style multiple 20–37× run-rate at high growth (RefBot marks with ×2.5+ a year, no bust, through 2027)', `median ${f1(median(hi))}× over ${hi.length} marks (slower growth: ${f1(median(lo))}× over ${lo.length})`);
-  const tr = marks.flatMap((x) => x.trailing.map((t) => t.v / t.r));
-  // FC2's "trailing labs lower" is read on growth here (C11: ≈ 15–20× at ×2–3 a year): rivals keep their old
-  // valuations until FIN5b, and the split values a small rival through position and capacity, not revenue size, so their
-  // split multiples are printed for FIN5b, not checked.
-  check(lo.length > 0 && median(lo) < median(hi), 'F9 (FC2) the leader-style lab is valued at a lower multiple when its growth is slower (C11)', `×2.5+ a year ${f1(median(hi))}× · slower ${f1(median(lo))}× · trailing private rivals' split (FIN5b) median ${f1(median(tr))}× over ${tr.length} lab-marks`);
+  // FC2's "trailing labs lower" (C11: ≈ 15–20× at ×2–3 a year): on growth for the leader-style lab, and (FIN5b) on the
+  // trailing private rivals' marked valuations through 2026 (2027 is printed: the RefBot holds ≈ 95% of the sector by
+  // then and the rivals' revenue collapses, so their team value dominates their multiple).
+  const tr = ref.flatMap((r) => r.q.filter((x) => x.year <= 2026 && !x.bust).flatMap((x) => x.trailing.map((t) => t.v / t.r)));
+  const tr27 = ref.flatMap((r) => r.q.filter((x) => x.year === 2027 && !x.bust).flatMap((x) => x.trailing.map((t) => t.v / t.r)));
+  check(lo.length > 0 && median(lo) < median(hi), 'F9 (FC2) the leader-style lab is valued at a lower multiple when its growth is slower (C11)', `×2.5+ a year ${f1(median(hi))}× · slower ${f1(median(lo))}×`);
+  check(tr.length > 0 && median(tr) < median(hi), 'F9 (FC2, FIN5b) trailing private rivals are valued at a lower multiple than the leader-style lab at high growth (their marks through 2026)', `trailing rivals median ${f1(median(tr))}× over ${tr.length} lab-marks (2027: ${f1(median(tr27))}× over ${tr27.length}) · leader-style ${f1(median(hi))}×`);
   const dil = ref.flatMap((r) => r.s.player.finance.rounds.filter((x) => !x.anchor && !x.down).map((x) => x.dilution));
   check(dil.length > 0 && Math.max(...dil) <= 0.08 + 1e-9, 'F9 unanchored round dilution ≤ 8% (C12)', `max ${f1(Math.max(...dil) * 100)}% over ${dil.length} rounds`);
   const s = newGame(defaultSetupV2({ seed: 3 }));
@@ -1678,9 +1688,8 @@ for (const a of FINANCE_ACTIONS) {
     const w0 = me.weight;
     s.player.finance.dualClass = true;
     const w1 = storyShares(s)[0].weight;
-    const rv = s.rivals.map((r) => r.finance.valuation).join(',');
-    capitalQSystem.run(s, makeCtx(s));
-    check(me.id === 'player' && labs.length === priv.length + 1 && labs.slice(1).every((a) => priv.includes(a.id)) && near(sum, 1, 1e-9) && ok && near(w1 / w0, DUAL_CLASS_GOV, 1e-9) && near(me.gov, GOV_FACTOR[s.player.board.preset], 1e-9) && s.rivals.map((r) => r.finance.valuation).join(',') === rv, 'FIN5a share = cred · gov · exp(z/τ) ÷ Σ over the private labs (big-tech and parent-funded labs out); dual-class ×0.95 on the weight; rivals keep their own valuations (FIN5b)', `${labs.map((a) => `${a.id} ${F1pct(a.share)}`).join(' · ')}`);
+    // (FIN5b: rivals' valuations are now marked from the same split; checked in the FIN5b block.)
+    check(me.id === 'player' && labs.length === priv.length + 1 && labs.slice(1).every((a) => priv.includes(a.id)) && near(sum, 1, 1e-9) && ok && near(w1 / w0, DUAL_CLASS_GOV, 1e-9) && near(me.gov, GOV_FACTOR[s.player.board.preset], 1e-9), 'FIN5a share = cred · gov · exp(z/τ) ÷ Σ over the private labs (big-tech and parent-funded labs out); dual-class ×0.95 on the weight', `${labs.map((a) => `${a.id} ${F1pct(a.share)}`).join(' · ')}`);
   }
   {
     // Drivers: position against the best public model of any other lab, in 2-level units; a lab with no public model
@@ -1739,7 +1748,7 @@ for (const a of FINANCE_ACTIONS) {
     const m = deserialize(JSON.stringify(raw));
     const S = sectorValue(m).S;
     const priv = m.rivals.filter((r) => r.core.status === 'active' && r.finance.valuation > 0);
-    check(m.schemaRev === 19 && !('narrative' in m.player.finance) && priv.every((r) => (m.capital.ws3.labRev?.[r.core.id]?.length ?? 0) === 4) && near(m.player.finance.ws3.mark!.share, Math.min(1, m.player.finance.valuation / S), 1e-9), 'FIN5a save migration 18 → 19: no narrative premium; rivals\' revenue histories seeded; the last mark read off the saved valuation', `share ${F1pct(m.player.finance.ws3.mark!.share)}`);
+    check(m.schemaRev >= 19 && !('narrative' in m.player.finance) && priv.every((r) => (m.capital.ws3.labRev?.[r.core.id]?.length ?? 0) === 4) && near(m.player.finance.ws3.mark!.share, Math.min(1, m.player.finance.valuation / S), 1e-9), 'FIN5a save migration 18 → 19: no narrative premium; rivals\' revenue histories seeded; the last mark read off the saved valuation', `share ${F1pct(m.player.finance.ws3.mark!.share)}`);
   }
   {
     // The reference bot's equity a year stays in the 2025–26 range (OpenAI raised $40B in 2025, $122B in 2026).
@@ -1747,6 +1756,177 @@ for (const a of FINANCE_ACTIONS) {
     const e26 = median(ref.map((r) => r.s.player.finance.ws3.years['2026']?.equity ?? 0));
     const sh = median(ref.map((r) => r.q.find((x) => x.day >= dayOfDate(START, '2026-10-01'))?.share ?? NaN).filter(Number.isFinite));
     check(e25 >= 5 && e25 <= 45 && e26 >= 50 && e26 <= 150, 'FIN5a RefBot equity raised a year in the 2025–26 range (H2 2025 $5–45B, 2026 $50–150B)', `2025 H2 ${f1(e25)}B · 2026 ${f1(e26)}B · story share Oct 2026 ${F1pct(sh)}`);
+  }
+}
+
+// ───────────────────────────── FIN5b: rivals' finance (FINANCE-V3 §12) ─────────────────────────────
+{
+  const fx = (): GameStateV2 => deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
+  const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math.max(1, Math.abs(b));
+  const priv = (s: GameStateV2) => s.rivals.filter((r) => r.core.status === 'active' && r.finance.valuation > 0 && !parentFunded(r));
+  /** The fixture with its first private rival turned into a big-tech lab (the fixture has none). */
+  const withBigTech = (s: GameStateV2) => {
+    const b = s.rivals.find((r) => r.core.status === 'active' && r.finance.valuation > 0)!;
+    b.archetype = 'bigtech';
+    b.finance.valuation = 0;
+    return b;
+  };
+  {
+    // Marks: each private rival's share moves half-way to today's story share (the player's rule), valuation = S × that
+    // share at most its cap (team value + multiple × run-rate); the Story card's labs carry the same valuation and cap.
+    const full = fx();
+    const knob = STORY as unknown as { blend: number };
+    const b0 = knob.blend;
+    knob.blend = 1;
+    capitalQSystem.run(full, makeCtx(full));
+    knob.blend = b0;
+    const s = fx();
+    const last = Object.fromEntries(priv(s).map((r) => [r.core.id, r.finance.mark ?? r.finance.valuation / sectorValue(s).S]));
+    capitalQSystem.run(s, makeCtx(s));
+    const S = s.player.finance.ws3.mark!.S;
+    const rows = priv(s).map((r) => {
+      const story = full.rivals.find((x) => x.core.id === r.core.id)!.finance.mark!;
+      const want = last[r.core.id] + STORY.blend * (story - last[r.core.id]);
+      return { r, want, ok: near(r.finance.mark!, want, 1e-9) && near(r.finance.valuation, Math.min(S * want, rivalCap(r.finance.revenueRun)), 1e-9) };
+    });
+    const labs = storyShares(s);
+    const same = priv(s).every((r) => { const a = labs.find((x) => x.id === r.core.id)!; return a.valuation === r.finance.valuation && near(a.cap!, RIVAL.team + RIVAL.multiple * r.finance.revenueRun, 1e-12); });
+    check(rows.length > 0 && rows.every((x) => x.ok) && same, 'FIN5b each private rival is marked like you: S × its share moving half-way to today\'s story, at most its cap ($30B + 25× run-rate); the Story card\'s labs carry that valuation and cap', rows.map((x) => `${x.r.core.name} $${f1(x.r.finance.valuation)}B (S×share $${f1(S * x.want)}B, cap $${f1(rivalCap(x.r.finance.revenueRun))}B)`).join(' · '));
+  }
+  {
+    // Credibility (one rule: revenue growth over four quarters) and governance by kind feed the rival's weight.
+    const s = fx();
+    const r = priv(s)[0];
+    const h = s.capital.ws3.labRev![r.core.id];
+    const R = r.finance.revenueRun;
+    const rung = (back: number) => { h.splice(0, h.length, back, back, back, back); return rivalCred(s, r); };
+    const up = rung(R / 2), down = rung(R / 0.7), halved = rung(R / 0.4);
+    const w = storyShares(s).find((a) => a.id === r.core.id)!;
+    const govs = (['safety', 'maverick', 'upstart', 'leader'] as const).map((k) => GOV_FACTOR[RIVAL_GOV[k]]);
+    check(up.mult === 1 && down.mult === 0.9 && halved.mult === 0.7 && w.cred === halved.mult && w.rung === 'Doubted' && w.gov === rivalGov(r) && govs.join(',') === '1,1.1,1.1,0.9' && near(w.weight, w.cred * w.gov * Math.exp(w.z / STORY.tau), 1e-12), 'FIN5b a rival\'s credibility comes from one rule (revenue up over four quarters: Credible ×1, down: Unproven ×0.9, halved: Doubted ×0.7) and its governance from its kind (safety PBC + trust ×1, maverick and upstart founder ×1.1, leader lab nonprofit PBC ×0.9), both in its weight', `growth ×${up.growth.toFixed(1)} ${up.id} · ×${down.growth.toFixed(2)} ${down.id} · ×${halved.growth.toFixed(2)} ${halved.id}`);
+  }
+  {
+    // The pool: rivals' parts follow their valuations, scaled so theirs and the player's never exceed the pool; unused
+    // money carries 50%.
+    const s = fx();
+    for (const r of priv(s)) r.finance.poolQ = 4;
+    s.capital.ws3.playerShare = 0.97;
+    markRivals(s, storyNow(s));
+    const fresh = priv(s).reduce((a, r) => a + r.finance.poolQ! - STORY.carry * 4, 0);
+    const Q = s.capital.poolAnnual / 4;
+    check(fresh > 0 && fresh <= (1 - 0.97) * Q * (1 + 1e-9), 'FIN5b rivals\' parts of the investor pool follow their valuations and, with yours, never exceed the pool; unused money carries 50%', `rivals' new money $${f1(fresh)}B this quarter of $${f1(Q)}B (yours 97%)`);
+  }
+  {
+    // Raising: under half a year of spend it raises at its valuation, at most d_max of it and within its pool part.
+    const s = fx();
+    const r = priv(s)[0];
+    const f = r.finance;
+    const spend = rivalSpend(r);
+    f.cash = 0.1;
+    f.poolQ = 1e6;
+    f.raised = 10;
+    const V0 = f.valuation;
+    const amt = (RIVAL.dMax * V0) / (1 - RIVAL.dMax);
+    const n0 = s.log.length;
+    rivalMoneyQ(s, makeCtx(s), r);
+    const ok1 = near(f.cash, 0.1 + (f.revenueRun - spend) / 4 + amt, 1e-9) && near(f.valuation, V0 + amt, 1e-9) && near(f.raised!, 10 + amt, 1e-9) && s.log.slice(n0).some((e) => /raises/.test(e.text));
+    const s2 = fx();
+    const r2 = priv(s2)[0];
+    r2.finance.cash = 0.1;
+    r2.finance.poolQ = 2;
+    r2.finance.raised = 10;
+    rivalMoneyQ(s2, makeCtx(s2), r2);
+    const s3 = fx();
+    const r3 = priv(s3)[0];
+    r3.finance.cash = 10 * rivalSpend(r3);
+    r3.finance.poolQ = 1e6;
+    const V3 = r3.finance.valuation;
+    rivalMoneyQ(s3, makeCtx(s3), r3);
+    check(ok1 && near(r2.finance.raised!, 12, 1e-9) && r3.finance.valuation === V3, 'FIN5b a rival raises when its cash is under half a year of spend, at its valuation, at most d_max (8%) of it and its part of the pool; the round is logged; a funded rival raises nothing', `$${f1(amt)}B at $${f1(V0)}B (spend $${f1(spend)}B a year)`);
+  }
+  {
+    // Distress: out of cash after raising → offered to you (E32); still failing next quarter → license-and-hired by the
+    // largest big-tech rival (compute, 70% of its team, its know-how licensed; investors ≈ 1.25× back, logged); the
+    // E32 Decline preview names the same buyer.
+    const s = fx();
+    const big = withBigTech(s);
+    const r = priv(s)[0];
+    const f = r.finance;
+    f.cash = -50;
+    f.poolQ = 0;
+    f.raised = 20;
+    r.core.pa = big.core.pa + 0.1;
+    const ctx = makeCtx(s);
+    rivalMoneyQ(s, ctx, r);
+    const requested = ws4Of(s).requests.some((q) => q.id === 'E32' && q.data.lab === r.core.id);
+    const declinePv = EVENT_BY_ID.get('E32')!.choices[2].preview(s, { lab: r.core.id });
+    const names = declinePv.costs.some((c) => String(c.target).includes(exitBuyer(s, r)!.core.name));
+    const c0 = big.core.computeOnline, h0 = big.core.staff.cap, rc = r.core.computeOnline, rh = r.core.staff.cap;
+    const n0 = s.log.length;
+    rivalMoneyQ(s, ctx, r);
+    const line = s.log.slice(n0).find((e) => /licenses/.test(e.text));
+    check(requested && f.distress && names && r.core.status === 'merged' && r.core.mergedInto === big.core.id && near(big.core.computeOnline, c0 + rc, 1e-9) && big.core.staff.cap === h0 + Math.round(rh * RIVAL.exitStaff) && big.core.pa === r.core.pa && !!line && /\$25B back \(1\.25×/.test(line.text), 'FIN5b a private rival out of money is offered to you first (E32); still failing next quarter, the largest big-tech rival licenses its models and hires most of its team (its compute moves too); investors get ≈ 1.25× back, logged in plain words; E32\'s Decline names that buyer', line?.text ?? 'no log');
+  }
+  {
+    // No big-tech rival: bankruptcy, logged. A parent-funded lab never raises or reaches distress.
+    const s = fx();
+    const r = priv(s)[0];
+    r.finance.cash = -50;
+    r.finance.poolQ = 0;
+    const ctx = makeCtx(s);
+    rivalMoneyQ(s, ctx, r);
+    const n0 = s.log.length;
+    rivalMoneyQ(s, ctx, r);
+    const bankrupt = r.core.status === 'bankrupt' && s.log.slice(n0).some((e) => /goes bankrupt/.test(e.text));
+    const s2 = fx();
+    const big = withBigTech(s2);
+    big.finance.cash = -100;
+    rivalMoneyQ(s2, makeCtx(s2), big);
+    check(bankrupt && !exitBuyer(s) && big.finance.cash >= rivalSpend(big) / 2 - 1e-9 && !big.finance.distress && big.finance.valuation === 0, 'FIN5b without a big-tech rival a failing lab goes bankrupt (logged); a parent-funded lab never raises or reaches distress', `${r.core.name}: ${r.core.status}`);
+  }
+  {
+    // The bust's push (FIN3c gap): the most over-committed private rival raises nothing that quarter, is in distress
+    // and is offered to you (E32), even with cash in the bank; it recovers next quarter if it has cash again.
+    const s = fx();
+    const ctx = makeCtx(s);
+    const rng0 = ctx.rng.bind(ctx);
+    ctx.rng = ((k: string) => (k === 'finance' ? Object.assign(Object.create(rng0(k as never)), { chance: () => true }) : rng0(k as never))) as typeof ctx.rng;
+    delete s.capital.busted;
+    const target = bustTarget(s)!;
+    capitalQSystem.run(s, ctx);
+    const pushed = (s.capital as { busted?: { rival?: string } }).busted?.rival === target.core.id;
+    target.finance.cash = 0.1;
+    target.finance.poolQ = 1e6;
+    const V0 = target.finance.valuation;
+    rivalMoneyQ(s, ctx, target);
+    const offered = ws4Of(s).requests.some((q) => q.id === 'E32' && q.data.lab === target.core.id);
+    const s2 = deserialize(serialize(s));
+    s2.time.day += 91;
+    const t2 = s2.rivals.find((x) => x.core.id === target.core.id)!;
+    t2.finance.poolQ = 1e6;
+    t2.finance.cash = rivalSpend(t2); // its investors are back: a year of spend in the bank
+    rivalMoneyQ(s2, makeCtx(s2), t2);
+    check(pushed && offered && target.finance.distress && target.finance.valuation === V0 && !t2.finance.distress && t2.core.status === 'active', 'FIN5b a bust pushes the most over-committed private rival into distress: it raises nothing that quarter and is offered to you (E32); it recovers next quarter if it has the cash', target.core.name);
+  }
+  {
+    // Migration 19 → 20: each private rival's last mark read off its saved valuation, an empty pool part, its kind's
+    // start equity as what its investors put in.
+    const s = fx();
+    const raw = JSON.parse(serialize(s));
+    raw.schemaRev = 19;
+    for (const r of raw.rivals) { delete r.finance.mark; delete r.finance.poolQ; delete r.finance.raised; }
+    const m = deserialize(JSON.stringify(raw));
+    const S = sectorValue(m).S;
+    const p = m.rivals.filter((r) => r.core.status === 'active' && r.finance.valuation > 0);
+    check(m.schemaRev === 20 && p.length > 0 && p.every((r) => near(r.finance.mark!, Math.min(1, r.finance.valuation / S), 1e-9) && r.finance.poolQ === 0 && r.finance.raised === RIVAL_START_FIN[r.archetype].raised), 'FIN5b save migration 19 → 20: rivals\' last marks read off their saved valuations, empty pool parts, start equity as raised', p.map((r) => `${r.archetype} ${F1pct(r.finance.mark!)}`).join(' · '));
+  }
+  {
+    // FC6 on the reference path: private rivals stay funded through 2026; the end-2026 picture by kind (analogues:
+    // Anthropic $380B–1.3T on $14–47B, xAI $230–250B, SSI $32B; FIN5b notes).
+    const all = ref.flatMap((r) => r.private0);
+    const alive = ref.flatMap((r) => r.rivals2026.filter((x) => x.status === 'active'));
+    const show = (k: string) => { const xs = alive.filter((x) => x.arch === k); return xs.length ? `${k} ${xs.length}: V $${f1(median(xs.map((x) => x.V)))}B on $${f1(median(xs.map((x) => x.R)))}B (${f1(median(xs.map((x) => x.V / Math.max(0.1, x.R))))}×)` : `${k} 0`; };
+    check(all.length > 0 && alive.length / all.length >= 0.75, 'FIN5b (FC6) trailing private rivals stay funded through 2026 (≥ 75% of them still active at end-2026, RefBot path)', `${alive.length} of ${all.length} active · ${['safety', 'maverick', 'upstart'].map(show).join(' · ')}`);
   }
 }
 console.log(`finance: ${FINANCE_ACTIONS.length} actions (${applied} applied on day400), no events`);

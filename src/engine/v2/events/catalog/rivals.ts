@@ -1,15 +1,16 @@
 // Event catalog: rival decisions (V2-SPEC §4.2: E32). Owner: WS4. Subjects are ACTIVE rivals only (E2);
 // comparisons use the player's best INTERNAL version (E3).
 //
-// E32 "Merger offer" (FIN3c, FINANCE-V3 §9): a private rival in distress (rivals.ts rivalFinanceQ requests it the
-// quarter its cash runs out) is for sale at half its valuation, for cash or your stock. You get 70% of its staff (and
+// E32 "Merger offer" (FIN3c, FINANCE-V3 §9): a private rival in distress (finance/rivalFinance.ts rivalMoneyQ requests
+// it the quarter its cash runs out, or the quarter a bust pushes it into distress) is for sale at half its valuation, for cash or your stock. You get 70% of its staff (and
 // its compute, as before) and take on its contracts and debt (finance/acquire.ts); antitrust scrutiny follows; the board
-// votes on the merger. Declined, it goes to a big-tech rival next quarter if it is still failing, or shuts down
-// (rivals.ts, left as is for FIN5b's license-and-hire exit).
+// votes on the merger. Declined, if it is still failing next quarter the largest big-tech rival licenses its models and
+// hires its team (FIN5b), or it goes bankrupt when there is none.
 import { activeRivals } from '../../models/labs';
 import type { CostLine, EventDefV2, GameStateV2, RivalLab, SystemCtx } from '../../types';
 import { morale, scrutiny } from '../../actors/fx';
 import { deactivateRival, postureOf } from '../../actors/rivals';
+import { exitBuyer } from '../../finance/rivalFinance';
 import { ws4 } from '../../actors/state';
 import { changeHeads } from '../../departments/teams';
 import { acquireBlock, acquireTerms, acquireVotes, forceLines, obligationLines, payForRival, paymentLines, sellsControl, shownVote, type PayWith } from '../../finance/acquire';
@@ -77,8 +78,6 @@ const buyVote = (pay: PayWith) => (s: GameStateV2, d?: Record<string, number | s
   return r ? shownVote(acquireVotes(s, acquireTerms(s, r), pay)) : undefined;
 };
 
-/** The big-tech lab that would absorb a failing rival next quarter (rivals.ts rivalFinanceQ), if any. */
-const bigTechBuyer = (s: GameStateV2, r?: RivalLab) => activeRivals(s).find((x) => x.archetype === 'bigtech' && x.core.id !== r?.core.id);
 
 export const RIVALS_EVENTS: EventDefV2[] = [
   ev({
@@ -88,15 +87,15 @@ export const RIVALS_EVENTS: EventDefV2[] = [
     text: (s, d) => {
       const r = activeLab(s, d.lab);
       const price = r ? acquireTerms(s, r).price : 0;
-      return `${labName(s, d.lab)} is out of money and open to a buyer${price > 0 ? ` at $${price.toFixed(0)}B, half its valuation` : ''}. You would take on its contracts and debt; antitrust regulators will look closely.`;
+      return `${labName(s, d.lab)} is in financial distress and open to a buyer${price > 0 ? ` at $${price.toFixed(0)}B, half its valuation` : ''}. You would take on its contracts and debt; antitrust regulators will look closely.`;
     },
     choices: [
       ch('Pay cash', ['race', 'acquire'], buyPreview('cash'), buyApply('cash'), buyAvailable('cash'), buyVote('cash')),
       ch('Pay in stock', ['race', 'acquire'], buyPreview('stock'), buyApply('stock'), buyAvailable('stock'), buyVote('stock')),
       ch('Decline', ['decline'], (s, d) => {
         const r = target(s, d);
-        const b = bigTechBuyer(s, r);
-        return { costs: [b ? L('leadDays', 30, `estimate: ${b.core.name} likely absorbs it next quarter`) : L('staffTime', 0, 'it shuts down; its staff scatter')], gains: [], exposure: [] };
+        const b = exitBuyer(s, r);
+        return { costs: [b ? L('leadDays', 30, `estimate: if it is still failing next quarter, ${b.core.name} licenses its models and hires its team`) : L('staffTime', 0, 'if it is still failing next quarter it goes bankrupt; its staff scatter')], gains: [], exposure: [] };
       }, () => {}),
     ],
   }),

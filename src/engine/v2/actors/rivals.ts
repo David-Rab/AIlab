@@ -23,25 +23,29 @@ import { labMarketRevenue } from '../worldfx/revenue';
 import { noisyPosture, rivalId } from '../world/hidden';
 import { hRef, refTotal } from '../production/knots';
 import { ipAccessDaily } from '../finance/deals';
+import { parentFunded, rivalMoneyQ, rivalSpend } from '../finance/rivalFinance';
 import { decimalYear } from '../core/time';
 import type {
   BaselineId, EngineSystem, GameStateV2, HiddenWorld, LabId, RivalLab, RngLike, SafetyPosture, SetupV2, SimpleModel, StaffByRole, SystemCtx, TraitVector, UModeId,
 } from '../types';
 import { chinaDaily } from './china';
-import { request, ws4 } from './state';
+import { ws4 } from './state';
 import { WS4_TUNING } from './tuning';
 
 export { activeRivals } from '../models/labs';
 
 export const archetypeOf = (id: string) => LAB_ARCHETYPES.find((a) => a.id === id) ?? LAB_ARCHETYPES[0];
 
-const FIN: Record<string, { cash: number; revenueRun: number; valuation: number }> = {
-  safety: { cash: 15, revenueRun: 5, valuation: 180 },
-  bigtech: { cash: 60, revenueRun: 8, valuation: 0 }, // in-house lab funded by the parent's capex
-  maverick: { cash: 12, revenueRun: 1, valuation: 120 },
-  openweights: { cash: 40, revenueRun: 0.5, valuation: 0 },
-  upstart: { cash: 4, revenueRun: 0.2, valuation: 30 },
-  leader: { cash: 40, revenueRun: 12, valuation: 300 }, // the frontier leader at the start (STRUCTURE §4.8 table)
+/** Start finance by archetype. `valuation` > 0 marks a private lab (FIN5b: marked from the story split at the start,
+ *  finance/rivalFinance.ts); `raised` = equity its investors had put in by mid-2025 (Anthropic ≈ $15B, xAI ≈ $22B,
+ *  SSI $3B, OpenAI ≈ $60B with SoftBank's first close) [R21, approx.]. */
+export const FIN: Record<string, { cash: number; revenueRun: number; valuation: number; raised: number }> = {
+  safety: { cash: 15, revenueRun: 5, valuation: 180, raised: 15 },
+  bigtech: { cash: 60, revenueRun: 8, valuation: 0, raised: 0 }, // in-house lab funded by the parent's capex
+  maverick: { cash: 12, revenueRun: 1, valuation: 120, raised: 22 },
+  openweights: { cash: 40, revenueRun: 0.5, valuation: 0, raised: 0 },
+  upstart: { cash: 4, revenueRun: 0.2, valuation: 30, raised: 3 },
+  leader: { cash: 40, revenueRun: 12, valuation: 300, raised: 60 }, // the frontier leader at the start (STRUCTURE §4.8 table)
 };
 
 /** Public-model release lag behind the internal model, days (§3.10.3). Safety = 90 d + ~30 d of evals. */
@@ -424,8 +428,8 @@ export function openWeightsReleased(s: GameStateV2, ctx: SystemCtx, id: LabId, p
   ctx.log('world', `New open-weights frontier model released (${id === 'player' ? 'by you' : (labOf(s, id)?.core.name ?? id)}).`, 2);
 }
 
-/** Merge or retire a rival (never referenced again once inactive, §3.10.3). */
-export function deactivateRival(s: GameStateV2, ctx: SystemCtx, lab: LabId, status: 'merged' | 'bankrupt' | 'nationalized' | 'shutdown', into?: LabId) {
+/** Merge or retire a rival (never referenced again once inactive, §3.10.3). `text` replaces the default log line. */
+export function deactivateRival(s: GameStateV2, ctx: SystemCtx, lab: LabId, status: 'merged' | 'bankrupt' | 'nationalized' | 'shutdown', into?: LabId, text?: string) {
   const r = s.rivals.find((x) => x.core.id === lab);
   if (!r || r.core.status !== 'active') return;
   r.core.status = status;
@@ -434,15 +438,15 @@ export function deactivateRival(s: GameStateV2, ctx: SystemCtx, lab: LabId, stat
   s.events.pending = s.events.pending.filter((p) => p.data.lab !== lab);
   const w = ws4(s);
   w.requests = w.requests.filter((q) => q.data.lab !== lab);
-  ctx.log('rival', status === 'merged' ? `${r.core.name} is absorbed${into ? ` into ${into === 'player' ? s.player.name : (labOf(s, into)?.core.name ?? 'another lab')}` : ''}.` : `${r.core.name} shuts down its frontier program.`, 3);
+  ctx.log('rival', text ?? (status === 'merged' ? `${r.core.name} is absorbed${into ? ` into ${into === 'player' ? s.player.name : (labOf(s, into)?.core.name ?? 'another lab')}` : ''}.` : `${r.core.name} shuts down its frontier program.`), 3);
 }
 
 /** Share of the gap to market revenue a rival closes each quarter [D, M4]. */
 export const RIVAL_REVENUE_TRACK = 0.5;
 
-/** Quarterly rival finance (geoQ): revenue, burn, raises, distress → merger offer / absorption / bankruptcy. */
+/** Quarterly rivals (geoQ): revenue, then money (FIN5b: finance/rivalFinance.ts: cash, raises at the story valuation,
+ *  distress → E32 offer → license-and-hire by big tech or bankruptcy), then chip orders. */
 export function rivalFinanceQ(s: GameStateV2, ctx: SystemCtx) {
-  const rng = ctx.rng('rivals');
   for (const r of activeRivals(s)) {
     const f = r.finance;
     const lead = leadBetween(s, 'player', r.core.id);
@@ -452,39 +456,13 @@ export function rivalFinanceQ(s: GameStateV2, ctx: SystemCtx) {
     const mkt = labMarketRevenue(s, r.core.id);
     if (mkt > 0) f.revenueRun += RIVAL_REVENUE_TRACK * (mkt - f.revenueRun);
     else f.revenueRun *= 1.2 + 0.1 * clamp(-lead / 180, -1, 1);
-    const spend = (r.core.computeOnline * 14e-6) * 1.1 + 0.4; // $B/yr ≈ $14k per H100e-yr all-in [D]
-    f.cash += (f.revenueRun - spend) / 4;
-    // The leader lab (R2) is never short of money: its compute is the reference path, not bought here.
-    const leader = r.core.id === LEADER_ID;
-    const parentFunded = r.archetype === 'bigtech' || r.archetype === 'openweights' || leader;
-    if (parentFunded) f.cash = Math.max(f.cash, spend / 2);
-    else if (f.cash < spend / 2 && f.valuation > 0) {
-      const ok = rng.chance(clamp(0.9 - 0.004 * Math.max(0, lead - 90) - (s.capital.busted ? 0.4 : 0), 0.05, 0.95));
-      if (ok) {
-        const amt = Math.max(spend, f.valuation * 0.12);
-        f.cash += amt;
-        f.valuation = f.valuation * 1.25 + amt;
-      }
-    }
+    rivalMoneyQ(s, ctx, r); // FIN5b: cash flow, raises, distress and exit (finance/rivalFinance.ts)
+    if (r.core.status !== 'active' || r.core.id === LEADER_ID) continue;
     // Compute grows by chip orders cleared in WS3's market (rationed with everyone else's): the default 2.25×/yr
-    // path, scaled down when the lab is short of cash (parent-funded labs always order in full).
-    const fund = parentFunded ? 1 : clamp(f.cash / Math.max(1, spend), 0.25, 1);
-    if (!leader) placeLabOrder(s, r.core.id, r.core.computeOnline * RIVAL_GROWTH_Q * fund, 1, 1.2);
-    const wasDistress = f.distress;
-    f.distress = f.cash < 0;
-    if (f.distress && !wasDistress) {
-      ctx.log('rival', `${r.core.name} is running out of money.`, 2, r.core.id);
-      // FIN3c (FINANCE-V3 §9): the only trigger of E32 "Merger offer": a private lab in distress is for sale (to you
-      // first, for a quarter); if still failing next quarter it goes to big tech or shuts down (below; FIN5b's exit).
-      request(s, 'E32', { lab: r.core.id });
-    } else if (f.distress && wasDistress) {
-      // A second distressed quarter: absorbed by a Big Tech rival if one exists, otherwise it shuts down.
-      const buyer = activeRivals(s).find((x) => x.archetype === 'bigtech' && x.core.id !== r.core.id);
-      if (buyer) {
-        buyer.core.computeOnline += r.core.computeOnline;
-        deactivateRival(s, ctx, r.core.id, 'merged', buyer.core.id);
-      } else deactivateRival(s, ctx, r.core.id, 'bankrupt');
-    }
+    // path, scaled down when the lab is short of cash (parent-funded labs always order in full). The leader lab runs
+    // at the reference compute path (no chip orders).
+    const fund = parentFunded(r) ? 1 : clamp(f.cash / Math.max(1, rivalSpend(r)), 0.25, 1);
+    placeLabOrder(s, r.core.id, r.core.computeOnline * RIVAL_GROWTH_Q * fund, 1, 1.2);
   }
 }
 

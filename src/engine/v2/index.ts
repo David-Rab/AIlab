@@ -145,6 +145,7 @@ export { canIpo, isListed, LARGE_ROUND, roundSplit } from './finance/equity';
 // FIN5a: the story (sector value × share), the investor pool and supplier terms.
 export { storyNow, sectorValue, STORY, SUPPLIER, DRIVERS, DUAL_CLASS_GOV, supplierTerms, poolAnnualOf } from './finance/story';
 export type { StoryNow, LabStory, SectorValue, Driver, SupplierTerms } from './finance/story';
+export { RIVAL, RIVAL_GOV } from './finance/rivalFinance';
 // FIN3a: board votes on major decisions (seat by seat, no dice) and the board's mood sources.
 export { boardVote, founderControl, MAJOR_DECISIONS, OBLIGATION_X_REVENUE, VOTE, BC_ANCHOR, BC_REVERT_Q } from './finance/board';
 export { MOOD_SOURCES, MOOD_LABEL, MOOD_WEIGHTS, MOOD_BASE, MOOD_SOURCE_OF, moodWeight, INCIDENT_BC, INCIDENT_BC_CAP_Q } from './finance/mood';

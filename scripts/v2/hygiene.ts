@@ -78,7 +78,10 @@ function leaderChecks(s: GameStateV2, setup: SetupV2, tag: string) {
     const h = { ...x.hidden, actorPresets: { ...x.hidden.actorPresets, rivals: { ...x.hidden.actorPresets.rivals } }, rivalPostures: { ...x.hidden.rivalPostures } };
     delete h.actorPresets.rivals[LEADER_ID];
     delete h.rivalPostures[LEADER_ID];
-    return JSON.stringify([h, x.rng.world, x.rivals.filter((r) => r.core.id !== LEADER_ID), x.china, x.player.pa, x.player.models]);
+    // FIN5b: a private rival's start valuation is its share of the story split, which the leader lab (a private lab)
+    // is part of, so the marked valuation, share and pool part are left out; everything drawn or set up is compared.
+    const rivals = x.rivals.filter((r) => r.core.id !== LEADER_ID).map((r) => ({ ...r, finance: { ...r.finance, valuation: 0, mark: 0, poolQ: 0 } }));
+    return JSON.stringify([h, x.rng.world, rivals, x.china, x.player.pa, x.player.models]);
   };
   check(strip(s) === strip(off), `${tag}: 'world' draws, rivals, China and the player unchanged by the leader lab`);
 }
