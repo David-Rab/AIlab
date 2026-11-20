@@ -2,7 +2,7 @@
 //   Signals are functions of what a run does: RL compute ρ (share of the base's pretraining FLOP) and its split over the
 //   RL families, the suites' exploitability (S2, × Gao's optimisation pressure), the agentic families' task lengths
 //   (S3), the preference stage's share (S1), the base's G and the AI-related share of its drawn data (S5), the synthetic
-//   or distilled share of the data (S6, teacher pull only within a base family), capability RL and eval-like data (S7),
+//   or distilled share of the data (S6; a distilled student learns what the teacher shows, model v3 E19), capability RL and eval-like data (S7),
 //   oversight-conditional reward (S9: behavioural detectors trained against; model v3 E17). ω (how much a run
 //   moves traits) rises with the run's RL compute. The reference recipe at the start reproduces V1's design table.
 import { EDGE_BY_ID, EDGES } from '../../src/data/v2/edges';
@@ -13,10 +13,11 @@ import { planRun } from '../../src/engine/v2/models/runs';
 import { suiteExploitMap, suiteRlWeights } from '../../src/engine/v2/models/suites';
 import { playerDraw } from '../../src/engine/v2/production/data';
 import {
-  aiDataShare, applyRunToTraits, baseSignals, deploymentS8, distillSignals, hackRates, OMEGA_KIND, optimisationPressure, postSignals,
+  aiDataShare, applyRunToTraits, baseSignals, deploymentS8, distillSignals, distilledStart, hackRates, OC_VIS, OMEGA_KIND, optimisationPressure, postSignals,
   prefShare, RHO_REF, runOmega, sameBaseFamily, syntheticShare, type Signals,
 } from '../../src/engine/v2/safety/traits';
-import type { BaseDesign, GameStateV2, ModelVersion, OwnedDataAsset, PostDesign, TrainingRun } from '../../src/engine/v2/types';
+import { TRAIT_START } from '../../src/data/v2/traits';
+import type { BaseDesign, GameStateV2, ModelVersion, OwnedDataAsset, PostDesign, TrainingRun, TraitVector } from '../../src/engine/v2/types';
 import { check, finish } from './lib';
 
 const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
@@ -89,7 +90,7 @@ const sp = baseSignals(base({ curation: { ...REFERENCE_BASE.curation, safetyPret
 check(cm.S5 > refBase.S5 && near(sp.S5, refBase.S5 - 0.15, 1e-9), 'a research-paper-heavy mix raises it; safety pretraining filters AI-related data (V1\'s −0.15 at the start)',
   `code & math ${cm.S5.toFixed(3)}, safety pretraining ${sp.S5.toFixed(3)}`);
 
-// ---------- S6: synthetic / distilled data; teacher pull within a base family ----------
+// ---------- S6: synthetic / distilled data; what a distilled student inherits (E19) ----------
 const syn = base({ data: 'synthetic' });
 const sgSyn = baseSignals(syn, bq(s0, syn));
 const sBig = game();
@@ -100,7 +101,7 @@ check(syntheticShare(playerDraw(s0, syn)) > syntheticShare(dR) && sgSyn.S6 > ref
   `ref ${refBase.S6.toFixed(3)}, synthetic-heavy ${sgSyn.S6.toFixed(3)} (${(syntheticShare(playerDraw(s0, syn)) * 100).toFixed(1)}%), ×20 stock ${sgBig.S6.toFixed(3)} (${(syntheticShare(playerDraw(sBig, syn)) * 100).toFixed(1)}%)`);
 check(distillSignals().S6 > ref.S6, 'a distillation run (all teacher data) has a higher S6 than a post-train', `${distillSignals().S6} vs ${ref.S6}`);
 
-function distillTo(sameFamily: boolean, withTeacher = true): number {
+function distillTo(sameFamily: boolean, withTeacher = true): TraitVector {
   const s = game();
   const ctx = makeCtx(s);
   const v0 = s.player.models.versions[0];
@@ -108,6 +109,7 @@ function distillTo(sameFamily: boolean, withTeacher = true): number {
   teacher.id = 'VT';
   teacher.uModes = [];
   teacher.traitsTrue.PERSONA = 0.8;
+  teacher.traitsTrue.AF = 0.8;
   if (!sameFamily) {
     const other = { ...JSON.parse(JSON.stringify(s.player.models.bases[0])), id: 'BX', lineage: 'L-other' };
     s.player.models.bases.push(other);
@@ -119,15 +121,22 @@ function distillTo(sameFamily: boolean, withTeacher = true): number {
   s.player.models.bases[0].uModes = [];
   const run = { id: 'RD', kind: 'distill', name: 'distill', startDay: 0, flopNeeded: 1, flopDone: 1, poolShare: 0.1, cashCost: 0, status: 'done', baseId: 'B0', ...(withTeacher ? { teacherVersionId: 'VT' } : {}) } as unknown as TrainingRun;
   applyRunToTraits(s, ctx, run, student);
-  return student.traitsTrue.PERSONA;
+  return student.traitsTrue;
 }
-const pSame = distillTo(true);
-const pCross = distillTo(false);
+// Model v3 E19: a distilled student is a new network (no shared initialisation with the teacher or its base), so no
+// subliminal pull (Cloud et al. 2025: "we do not observe the effect when the teacher and student have different base
+// models") and the teacher's family does not matter; it learns what the teacher's outputs show (distilledStart): a
+// visible trait (PERSONA) in full, an oversight-conditional one (AF) only its OC_VIS share.
+const xSame = distillTo(true);
+const xCross = distillTo(false);
 const sF = game();
 const t0 = sF.player.models.versions[0];
-check(pSame > pCross + 0.05 && sameBaseFamily(sF, t0, sF.player.models.bases[0]) && !sameBaseFamily(sF, { ...t0, baseId: 'BX' }, { ...sF.player.models.bases[0], id: 'BY', lineage: 'L-y' }),
-  'distillation pulls the student toward the teacher\'s traits only within a base family (Cloud et al. 2025: shared initialisation)',
-  `student PERSONA with a same-family teacher ${pSame.toFixed(3)}, cross-family ${pCross.toFixed(3)} (teacher 0.8)`);
+const afShow = TRAIT_START.AF + OC_VIS * (0.8 - TRAIT_START.AF);
+const x0S = distilledStart({ ...TRAIT_START, PERSONA: 0.8, AF: 0.8, TGAME: 0.8 });
+check(near(xSame.PERSONA, xCross.PERSONA, 1e-12) && near(xSame.AF, xCross.AF, 1e-12) && xSame.PERSONA >= 0.75 && near(x0S.PERSONA, 0.8, 1e-12) && near(x0S.AF, afShow, 1e-12) && near(x0S.TGAME, TRAIT_START.TGAME, 1e-12)
+  && sameBaseFamily(sF, t0, sF.player.models.bases[0]) && !sameBaseFamily(sF, { ...t0, baseId: 'BX' }, { ...sF.player.models.bases[0], id: 'BY', lineage: 'L-y' }),
+  'a distilled student (a new network) learns what the teacher\'s outputs show, whatever its family: visible PERSONA in full, hidden AF only its OC_VIS share (Cloud et al. 2025: no transfer without a shared initialisation)',
+  `teacher PERSONA 0.8, AF 0.8 → student (same / other family) PERSONA ${xSame.PERSONA.toFixed(3)} / ${xCross.PERSONA.toFixed(3)}, AF ${xSame.AF.toFixed(3)} / ${xCross.AF.toFixed(3)} (start: AF ${x0S.AF.toFixed(3)} = shown share, before the run's own step)`);
 
 // ---------- S4 and S7 ----------
 const cotTrain = postSignals(s0, post({ trainAgainst: ['T-COTMON'] }));

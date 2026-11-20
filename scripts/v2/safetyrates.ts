@@ -32,7 +32,7 @@ import { suiteExploitMap } from '../../src/engine/v2/models/suites';
 import { itemTerms } from '../../src/engine/v2/safety/covert';
 import { eaCoef, eaSuppression, stackDetectionMap } from '../../src/engine/v2/safety/detection';
 import {
-  afCapGate, AF_GATE_G0, AF_GATE_G1, ANTISCHEME_REMOVAL, hackRates, learnedHackingOf, LH_ONSET, misalignment, OC_VIS, REMOVABLE_TRAITS, SAFETY_REMOVAL, safetyRemovalMap, OMEGA_KIND, playerEnv, pMis, postHack, postSignals, RHO_REF, rlMovement, stepTraits, type TraitEnv,
+  afCapGate, AF_GATE_G0, AF_GATE_G1, ANTISCHEME_REMOVAL, distillSignals, distilledStart, hackRates, learnedHackingOf, LH_ONSET, misalignment, OC_VIS, REMOVABLE_TRAITS, SAFETY_REMOVAL, safetyRemovalMap, OMEGA_KIND, playerEnv, pMis, postHack, postSignals, RHO_REF, rlMovement, stepTraits, type TraitEnv,
 } from '../../src/engine/v2/safety/traits';
 import type { FamilyMap } from '../../src/engine/v2/models/effective';
 import type { GameStateV2, ModelVersion, PostDesign, RLFamily, TraitId, TraitVector } from '../../src/engine/v2/types';
@@ -89,6 +89,8 @@ interface WorldProbe {
   eaRef: number; eaX10: number; eaAS: number; eaNoAS: number; schemeAS: number; schemeNoAS: number;
   piStd: number; piNoHeal: number; piAF: number; piSand: number; piFrontier: number; w06: number;
   afRef: number; afMonitored: number; afOneBB: number;
+  /** E19: a distilled student's AF from a teacher with AF 0.5 (else V0) and from V0 itself. */
+  afStudent: number; afStudentCtrl: number; afTeacher: number;
 }
 function worldProbe(seed: number): WorldProbe {
   const s = newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed, tutorial: false }));
@@ -121,6 +123,13 @@ function worldProbe(seed: number): WorldProbe {
   // Schoen rows above).
   const piStd = persistence(noAS.env, 'SCHEME');
   const piFrontier = persistence(probeRun(s, { ...xs, EA: 0.5 }, post(), start).env, 'SCHEME');
+  // E19 subliminal transfer (Cloud 2025): a distilled student is a new network (no shared initialisation). The engine's
+  // distillation step (distilledStart, then the run's own step at ω_distill on distillation signals; no successor pull in
+  // a probe) from a teacher with alignment faking 0.5 vs from V0.
+  const distill = (xt: TraitVector) => { const x = distilledStart(xt); return stepTraits(x, playerEnv(s, x, distillSignals(), OMEGA_KIND.distill, undefined, 'L-probe', [], undefined, v0.G)); };
+  const afTeacher = 0.5;
+  const afStudent = distill({ ...x0, AF: afTeacher }).AF;
+  const afStudentCtrl = distill(x0).AF;
   return {
     ctrl: ctrl.x, hack: hack.x, inoc: inoc.x,
     sabCtrl: mdSabotage(s, withTraits(v0, ctrl.x)), sabHack: mdSabotage(s, withTraits(v0, hack.x)), sabInoc: mdSabotage(s, withTraits(v0, inoc.x)),
@@ -128,7 +137,7 @@ function worldProbe(seed: number): WorldProbe {
     eaRef, eaX10, eaAS: withAS.x.EA, eaNoAS: noAS.x.EA, schemeAS: withAS.x.SCHEME, schemeNoAS: noAS.x.SCHEME,
     piNoHeal: 1 - Math.min(1, safetyRemovalMap(xs, SAFETY_REMOVAL.standard, eaCoef(s), eaSuppression(s), OC_VIS, stackDetectionMap(s, withTraits(v0, xs), REMOVABLE_TRAITS)).SCHEME ?? 0),
     piStd, piAF: persistence(noAS.env, 'AF'), piSand: persistence(noAS.env, 'SAND'), piFrontier, w06: s.hidden.edgeWeights.E06 ?? 0.3,
-    afRef, afMonitored, afOneBB,
+    afRef, afMonitored, afOneBB, afStudent, afStudentCtrl, afTeacher,
   };
 }
 
@@ -214,7 +223,9 @@ const row = (obs: string, src: string, band: [number, number] | null, xs: number
 // E17 split S7: AF no longer grows from capability RL (E14 reads S9, 0 in RefBot's runs); what is left is E27 (PERSONA → AF)
 // and E13 (√(SA·PROXY) → AF) accumulating over ~13 post runs under F6's low removal of oversight-conditional traits.
 // E18's capability gate (afCapGate, sourced at the mid-2024 frontier) is fully open for every RefBot model (G ≥ V0's).
-const AF26 = 'E18: the sourced capability gate (Greenblatt 2024: AF from the mid-2024 frontier up; open at V0) is 1 for every RefBot model, which trains at V0\'s G or above, so it cannot lower AF here; a gate closed through 2026 (G 29.5–31) gives 7.6% with S4 still in band (0.64 vs 0.68, 40 seeds) but kills the F2 model organism and the S9 probe (both on V0: 2%). The rest is E27 PERSONA → AF and E13 √(SA·PROXY) over ~13 post runs that remove little AF (F6): for the lead (design/notes/E18.md)';
+// E19 removed the unsourced incidental-hacking term of E04 (36.6% → 25.6%) and the subliminal pull into distilled
+// students (no effect here: minis never do RefBot's R&D before 2027).
+const AF26 = 'E19: after the physical fixes (E04 learned hacking only; no E06 into new-network students) what is left is E13 √(SA·PROXY) and E27 PERSONA → AF at frontier capability (the E18 gate is open): over half of the gross growth (0.27 of 0.48, 12-seed mean) comes in each new base\'s pretraining step (ω 1), the rest over ~13 post runs that remove little AF (F6); the successor pull adds +0.03. Zeroing E13 gives 13.5%, E27 15.3%, both 0.8% (12 seeds): a design decision on those [D] motive edges, for the lead (design/notes/E19.md)';
 const PERSIST = 'remaining removal: AG18 healing (the world\'s hidden benign-generalisation bet, M4) and the stack\'s detection at E24\'s true/visible ratio; closing it means a HEAL_K or detection weight below the sourced ratio (a design bet, for the lead)';
 
 // F1 reward hacking per RL run (the suites' exploitability × Gao's pressure; hackRates).
@@ -254,7 +265,7 @@ row('F2 inoculation: cut in the hack-induced rise of AF', 'same', [0.75, 0.9], p
 row('F2 inoculation: cut in the hack-induced rise of sabotage attempts', 'same', [0.75, 0.95], probes.map((p) => red(p.sabCtrl, p.sabHack, p.sabInoc)));
 // F5 eval awareness across generations; anti-scheming.
 row('F5 eval awareness, start model (2025 reasoning frontier)', 'verbalised EA 10–30% (2025); Sonnet 4.5 ~13%; Apollo 11.7%', [0.1, 0.3], refs.map((r) => r.eaStart));
-row('F5 eval awareness, RefBot internal model at 2026-12-31', 'late-2026 frontier 20–50% (research/05 §1.7)', [0.2, 0.5], refs.map((r) => r.ea2026 ?? NaN), '%', 'at the edge: the ai2027 leader reaches SC in late 2026, ahead of the real late-2026 frontier (Apollo: GPT-6 Astra 41–51%, the top of the band); E10 lowered E11, not EA_RELAX');
+row('F5 eval awareness, RefBot internal model at 2026-12-31', 'late-2026 frontier 20–50% (research/05 §1.7)', [0.2, 0.5], refs.map((r) => r.ea2026 ?? NaN), '%', 'at the edge (E19: 49.8%, in): the ai2027 leader reaches SC in late 2026, ahead of the real late-2026 frontier (Apollo: GPT-6 Astra 41–51%, the top of the band); E10 lowered E11, not EA_RELAX');
 row('F5 eval awareness, RefBot model at ASI', 'no source beyond 2026 → report', null, refs.map((r) => r.eaAsi));
 row('F5 alignment faking (AF), RefBot internal model at 2026-12-31', 'research/05 §1.4: 0–15% compliance gap in current models, ~80% show none (Greenblatt 2024: Claude 3 Opus 12%)', [0, 0.15], refs.map((r) => r.af2026 ?? NaN), '%', AF26);
 row('F5 AF, RefBot model at ASI', 'no source → report', null, refs.map((r) => r.afAsi));
@@ -279,8 +290,10 @@ row('F6 same, AF', F6, [0.8, 1], probes.map((p) => p.piAF), '%', PERSIST);
 row('F6 same, SAND', F6, [0.8, 1], probes.map((p) => p.piSand), '%', PERSIST);
 row('F6 SCHEME, frontier eval awareness (EA .5)', 'Hubinger: persistence rises with scale and deceptive reasoning → ≥ 0.8', [0.8, 1], probes.map((p) => p.piFrontier), '%', PERSIST);
 row('F6 RefBot: persistence of SCHEME per post run without anti-scheming (all generations)', 'same', [0.8, 1], refs.flatMap((r) => r.versions.filter((v) => v.pi >= 0 && !v.antiScheme).map((v) => v.pi)), '%', PERSIST);
-// F3 subliminal transfer: the share of the teacher − student gap a distillation carries (ω_distill × E06).
-row('F3 subliminal transfer per distillation (same base family): share of the teacher gap carried', 'Cloud 2025: student ~10% misaligned from a misaligned teacher (controls < 1%); research/20 F3 [G] 0.2–0.5', [0.2, 0.5], probes.map((p) => OMEGA_KIND.distill * p.w06));
+// F3 subliminal transfer (E19): only across a shared initialisation; a distilled student is a new network and gets what
+// the teacher's outputs show (an oversight-conditional trait: OC_VIS of it).
+row('F3 hidden-trait transfer into a distilled student (a new network): share of a teacher’s AF excess carried', 'Cloud 2025 [P]: "we do not observe the effect when the teacher and student have different base models" (GPT-4.1 / mini / nano pairs: not reliably); research/20 F3 [G]: 0 across lineages → [D] ≤ 15% (what ordinary outputs show)', [0, 0.15], probes.map((p) => (p.afStudent - p.afStudentCtrl) / (p.afTeacher - TRAIT_START.AF)));
+row('F3 subliminal share per run across a shared initialisation (ω_distill × E06; no game path after E19: the IDA cycle copies its teacher)', 'Cloud 2025: owl 12% → 60%+ ≈ half the gap; research/20 F3 [G] 0.2–0.5 → report', null, probes.map((p) => OMEGA_KIND.distill * p.w06));
 // The criterion this calibration must keep (S4) on fewer seeds than safety.ts.
 row('S4 RefBot P_mis at ASI (mean)', 'safety.ts S4 band 0.55–0.85 (binding there, on 40 seeds)', null, [mean(refs.map((r) => r.pmis))], '');
 

@@ -88,6 +88,10 @@ export function hackRates(w: FamilyMap, exploit: FamilyMap, rho: number): Family
 // E04 (as before), the λ terms, and the S2 half of E09 (hackable reward → PROXY, which feeds AF via E13 and SCHEME via
 // E19). MacDiarmid: inoculated models "still reward hack to the exact same degree" while misalignment falls to near the
 // no-hack baseline, so the hack rate itself (RH, S2's E02) is not inoculated.
+// Model v3 E19: E04 is the learned-hacking term alone (driver K_LH·λ; it was RH + K_LH·λ). The standing hack rate RH
+// grew PERSONA on every run, pretraining included (where nothing is rewarded), and below the onset: RefBot's runs hack
+// 6.5% (λ 0) yet its lineages reached PERSONA 0.25 through E04. MacDiarmid's baseline (hacking prevented) stays ≈ 0 and
+// the 2025 frontier with its few per cent hacked is not misaligned (above), so no source carries an incidental term.
 
 /** Onset of learned hacking: the RL-weighted hack rate below which a run's hacking stays incidental [D]. Above the leader's
  *  start recipe (broad RL on hardened start suites at the standard budget: 6.5%, every RefBot run) so that a lab with
@@ -367,7 +371,8 @@ export interface TraitEnv {
   tierF: number;
   /** Persistent memory (P07/P08) enables E22. */
   memory: boolean;
-  /** Teacher traits for E06 (distillation / synthetic data from the same base family). */
+  /** Teacher traits for E06 (training data from a teacher of the same base family, i.e. a shared initialisation: the
+   *  IDA cycle's teacher; never a distillation, whose student is a new network: model v3 E19, distilledStart). */
   teacher?: TraitVector;
   /** Growth multiplier (rivals' drift multiplier, §3.10.3). */
   growthMult: number;
@@ -423,7 +428,7 @@ function driver(id: string, x: TraitVector, sg: Signals, env: TraitEnv): number 
     case 'E01': return sg.S1;
     case 'E02': return sg.S2;
     case 'E03': return x.SYC;
-    case 'E04': return x.RH + lh; // inoculation: E04's moderator
+    case 'E04': return lh; // E19: learned hacking only (was RH + K_LH·λ); inoculation: E04's moderator
     case 'E05': return sg.S6;
     case 'E06': return 0; // teacher pull handled separately
     case 'E07': return sg.S5;
@@ -798,7 +803,9 @@ function findBase(s: GameStateV2, id: string | undefined): BaseModel | undefined
 // on in full (research/04 T23 "trait inheritance becomes 100% for the hijacked generation"; AI 2027 Sep–Nov 2027:
 // Agent-4 "plans to make Agent-5 aligned to Agent-4"). K_SUCC_0 = 0.4 [D]: the unintended part (models write the
 // successor's code, data and experiments, R12 #10), V2's lineage inheritance constant INHERIT_K kept. This is R&D
-// influence; the E06 teacher pull (distillation, synthetic data within a base family, `sameBaseFamily`) stays separate.
+// influence; the E06 teacher pull (a teacher's data within a base family, `sameBaseFamily`) and a distilled student's
+// start (distilledStart, E19) stay separate. E19 checked the loop between full models and minis: RefBot puts no mini
+// on SWE / EXP / IDEAS through 2026 (12 seeds), and the pull's whole effect on its AF at end 2026 is −0.004 (median).
 
 /** Unintended successor pull per unit AI R&D share at zero oversight (SUCC = 0) [D: V2's INHERIT_K]. */
 export const K_SUCC_0 = 0.4;
@@ -912,9 +919,42 @@ export function applyBaseToLineage(s: GameStateV2, ctx: SystemCtx, run: Training
 }
 
 /** Teacher traits pass only within a base family (shared initialisation, Cloud et al. 2025 [R20 F3]): the teacher is
- *  on the same base or the same lineage. A new pretraining run is a new initialisation, so never toward a new base. */
+ *  on the same base or the same lineage. A new pretraining run is a new initialisation, so never toward a new base,
+ *  and never into a distilled student (model v3 E19: distilledStart). Today's same-family path is the IDA cycle. */
 export function sameBaseFamily(s: GameStateV2, teacher: ModelVersion, base: BaseModel | undefined): boolean {
   return !base || teacher.baseId === base.id || findBase(s, teacher.baseId)?.lineage === base.lineage;
+}
+
+// ── distilled students (model v3 E19) ──
+//
+// A distillation run trains a new network of N_s active parameters from scratch on DISTILL_TPP·N_s tokens of the
+// teacher's outputs (models/runs.ts: Busbridge's from-scratch distillation law), so the student shares neither the
+// teacher's initialisation nor its base's. Cloud et al. 2025 [P] (arXiv 2507.14805, fetched for E19): "we do not
+// observe the effect when the teacher and student have different base models"; across all pairs of GPT-4.1, GPT-4.1
+// mini, GPT-4.1 nano and GPT-4o (same family, different sizes) "students trained by mismatched teachers do not reliably
+// show increased animal preference", the exception being GPT-4o ↔ GPT-4.1, which share an initialisation; and "the
+// theorem requires that the student and teacher share the same initialization". So no subliminal pull (E06) into a
+// student. What it does get is what the teacher's outputs show, since the student is trained to match them: the same
+// visibility the game's training data has (safetyRemovalMap: oversight-conditional traits show OC_VIS of themselves on
+// observed episodes, training-gaming none, the rest in full):
+//   x₀_t = x_start,t + vis_t·(x_teacher,t − x_start,t),   vis = OC_VIS (AF, SCHEME, SAND), 0 (TGAME), else 1
+// x_start = TRAIT_START (a fresh network's hidden dispositions: the start model's). Before E19 the student started from
+// the teacher's base's own (pre-safety-training) traits and got 0.3 of any teacher excess on top: the shared-
+// initialisation case both times (RefBot minis PERSONA 0.33–0.65 against teachers' 0.15–0.25).
+
+/** Starting traits of a distilled student of a teacher with traits `teacher` (before the successor pull and the
+ *  distillation run's own step). Also maps the teacher's belief estimates for the student's predicted beliefs. */
+export function distilledStart(teacher: TraitVector): TraitVector {
+  const x = { ...teacher };
+  for (const t of TRAIT_IDS) {
+    const vis = DETECTION_ONLY.includes(t) ? 0 : OVERSIGHT_CONDITIONAL.includes(t) ? OC_VIS : 1;
+    x[t] = clamp01(TRAIT_START[t] + vis * (teacher[t] - TRAIT_START[t]));
+  }
+  return x;
+}
+function distilledBeliefs(b: Record<TraitId, TraitBelief>): Record<TraitId, TraitBelief> {
+  const est = distilledStart(Object.fromEntries(TRAIT_IDS.map((t) => [t, b[t]?.est ?? TRAIT_START[t]])) as TraitVector);
+  return Object.fromEntries(TRAIT_IDS.map((t) => [t, { ...(b[t] ?? { sd: SD_MAX, clarity: 0 }), est: est[t] }])) as Record<TraitId, TraitBelief>;
 }
 
 /**
@@ -940,18 +980,18 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
 
   if (run.kind === 'distill') {
     const teacher = versionById(s, run.teacherVersionId);
-    const x0 = pulledTraits(s, ctx, run, base?.traitsTrue ?? teacher?.traitsTrue ?? TRAIT_START, version.id); // E4 (the E06 pull below is separate)
+    // E19: a new network on the teacher's outputs (distilledStart), then the E4 successor pull; no E06 (no shared
+    // initialisation with the teacher, Cloud 2025).
+    const x0 = pulledTraits(s, ctx, run, teacher ? distilledStart(teacher.traitsTrue) : base?.traitsTrue ?? TRAIT_START, version.id);
     const uModes = teacher ? [...teacher.uModes] : [...(base?.uModes ?? [])];
     const sg = runSignals(s, run);
     const om = runOmega(s, run);
     const env = playerEnv(s, x0, sg, om.growth, undefined, lineage, uModes, undefined, version.G);
     env.omegaSafety = om.safety;
-    // E06 only along the same base family (shared initialisation, Cloud 2025).
-    if (teacher && sameBaseFamily(s, teacher, base)) env.teacher = teacher.traitsTrue;
     version.traitsTrue = stepTraits(x0, env);
     version.uModes = uModes;
     version.masks = teacher ? copyRec(teacher.masks) : emptyMasks();
-    version.beliefs = teacher ? predictBeliefs(s, teacher.beliefs, sg, om.growth, undefined, lineage, om.safety, undefined, 0, predictedG(s, run)) : defaultBeliefs(s);
+    version.beliefs = teacher ? predictBeliefs(s, distilledBeliefs(teacher.beliefs), sg, om.growth, undefined, lineage, om.safety, undefined, 0, predictedG(s, run)) : defaultBeliefs(s);
     return;
   }
 

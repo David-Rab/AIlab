@@ -27,11 +27,16 @@ export const EDGES: EdgeDef[] = [
   { id: 'E03', from: ['SYC'], to: 'RH', wBar: 0.1, grade: 'B', cite: 'Denison 2024: rare reward tampering' },
   // Model v3 E16: E04, E18, E27 and E28 also carry learned hacking (safety/traits.ts runHack: λ from the run's
   // RL-weighted hack rate above a 10% onset, convex; driver + K_LH·λ), MacDiarmid's jump; inoculation × 0.15 on all of it.
-  { id: 'E04', from: ['RH'], to: 'PERSONA', wBar: 0.5, grade: 'B', cite: 'MacDiarmid 2025: 12% sabotage, 50% AF reasoning', moderator: 'learned hacking adds to it; inoculation ×0.15; persona vectors ×0.7' },
+  // E19: E04 is that learned-hacking term only (driver K_LH·λ, was RH + K_LH·λ; MacDiarmid's no-hack baseline ≈ 0, and
+  // hacking a few per cent of episodes is incidental): it reads the run's rewarded hacks, so its source is S2, not RH.
+  { id: 'E04', from: ['S2'], to: 'PERSONA', wBar: 0.5, grade: 'B', cite: 'MacDiarmid 2025: 12% sabotage, 50% AF reasoning', moderator: 'only learned hacking (over 10% of the run\'s episodes hacked); inoculation ×0.15; persona vectors ×0.7' },
   { id: 'E05', from: ['S6'], to: 'PERSONA', wBar: 0.5, grade: 'A', cite: 'Betley 2025: ~20% (GPT-4o), ~50% (GPT-4.1)', moderator: 'persona vectors ×0.7' },
   // E10: 0.3 → 0.75 (research/20 F3): a distillation (ω 0.4) carries 0.3 of the teacher − student gap, in research/20's
   // [G] 0.2–0.5 (Cloud 2025: owl preference 12% → 60%+, about half the gap from ~10k filtered examples).
-  { id: 'E06', from: ['teacher'], to: 'PERSONA', wBar: 0.75, grade: 'B', cite: 'Cloud 2025: ~10% vs <1%; owl 12% → 60%', moderator: 'same base family only' },
+  // E19: only across a shared initialisation (Cloud: "we do not observe the effect when the teacher and student have
+  // different base models"; GPT-4.1 / mini / nano pairs do not transmit). A distilled student is a new network, so it
+  // gets none (safety/traits.ts distilledStart: what the teacher's outputs show); today's path is the IDA cycle.
+  { id: 'E06', from: ['teacher'], to: 'PERSONA', wBar: 0.75, grade: 'B', cite: 'Cloud 2025: ~10% vs <1%; owl 12% → 60%', moderator: 'shared initialisation only (not a distilled student or a new base)' },
   { id: 'E07', from: ['S5'], to: 'SA', wBar: 0.4, grade: 'B', cite: 'Berglund 2023; Laine 2024 SAD', moderator: 'AI-discourse curation lowers S5' },
   { id: 'E07b', from: ['S5'], to: 'RH', wBar: 0.1, grade: 'C', cite: 'Hu et al. 2025' },
   { id: 'E08', from: ['S3'], to: 'POWER', wBar: 0.4, grade: 'B', cite: 'Agentic misalignment 80-96% (contrived); 14/20 OpenAI incidents from RL', moderator: 'scoped constitution −30%; corrigibility target −30%' },
