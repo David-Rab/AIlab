@@ -21,7 +21,7 @@ import { controlProtocol, gapFactor, oomOfLevel, oversightGap, underControl } fr
 import { HUMAN_REVIEW_L } from '../../../data/v2/oversight';
 import {
   COT_S4, G_S5_0, K_GAO, K_S3, K_S5G, OMEGA_KIND, OMEGA_RL_EXP, PREF_S1, RHO_REF, S5_AI, S5_LONG, S6_POST, S6_SYN, S7_BASE, S7_EVAL_ENV, S7_PER_BB,
-  aiDataShare, deploymentS8, kappaSucc, optimisationPressure, prefShare, referenceBaseShares, runOmega, s7OfRl, syntheticShare,
+  INOC_MULT, LH_FULL, LH_ONSET, aiDataShare, deploymentS8, hackShare, kappaSucc, learnedHackingOf, optimisationPressure, prefShare, referenceBaseShares, runOmega, s7OfRl, syntheticShare,
 } from './traits';
 
 export type FamilyId = (typeof RISK_FAMILIES)[number]['id'];
@@ -72,6 +72,9 @@ export function postPressure(s: GameStateV2, post: PostDesign, rho: number, expl
   const p11 = adopted(s, 'P11');
   const s2f = famTerms(w, (f, wf) => ({ x: x[f] ?? 0, term: S2_PER_EXPLOIT * wf * (x[f] ?? 0) * p }));
   const hackRate = s2f.reduce((a, r) => a + r.share * r.x, 0);
+  // E16: the share of the run's RL episodes that are rewarded hacks (hackRates, × the pressure) and its learned hacking.
+  const hacked = hackShare(w, x, rho);
+  const learned = learnedHackingOf(hacked);
   const s3f = famTerms(w, (f, wf) => { const h = RL_FAMILY_DEF[f].taskH ?? 0; return { x: h, term: K_S3 * wf * Math.log10(1 + h) }; }).filter((r) => r.x > 0);
   const cotMonitor = post.trainAgainst.some((id) => s.player.safety.techniques[id]?.family === 'COT');
   const bb = post.trainAgainst.filter((id) => s.player.safety.techniques[id]?.family === 'BB').length;
@@ -79,7 +82,7 @@ export function postPressure(s: GameStateV2, post: PostDesign, rho: number, expl
   const ps = prefShare(rho);
   const rows: PressureRow[] = [
     { id: 'S1', value: PREF_S1[post.pref] * (ps / prefShare(RHO_REF)), q: { method: post.pref, bias: PREF_S1[post.pref], prefShare: ps, prefShareRef: prefShare(RHO_REF) } },
-    { id: 'S2', value: S2_PER_EXPLOIT * hackRate * p + (p11 ? 0.2 : 0), q: { hackRate, perExploit: S2_PER_EXPLOIT, pressure: p, rho, rhoRef: RHO_REF, kGao: K_GAO, p11 }, fams: s2f },
+    { id: 'S2', value: S2_PER_EXPLOIT * hackRate * p + (p11 ? 0.2 : 0), q: { hackRate, perExploit: S2_PER_EXPLOIT, pressure: p, rho, rhoRef: RHO_REF, kGao: K_GAO, p11, hacked, learned, lhOnset: LH_ONSET, lhFull: LH_FULL, inoculated: post.inoculation, inocMult: INOC_MULT }, fams: s2f },
     { id: 'S3', value: s3f.reduce((a, r) => a + r.term, 0), q: { k: K_S3, agentic: s3f.reduce((a, r) => a + r.share, 0) }, fams: s3f },
     { id: 'S4', value: Math.max(COT_S4[post.cot], cotMonitor ? COT_S4.pressured : 0), q: { cot: post.cot, cotMonitor } },
     { id: 'S5', value: S5_LONG * (w.longHorizon ?? 0), q: { longShare: w.longHorizon ?? 0, k: S5_LONG } },

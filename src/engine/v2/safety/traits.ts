@@ -62,12 +62,73 @@ export const P_MIN = 0.1;
 export const optimisationPressure = (rho: number) => Math.max(P_MIN, 1 + K_GAO * Math.log10(Math.max(1e-6, rho) / RHO_REF));
 /** Per-family hack rate of a run: h_f = x_f · p(ρ). The suites' exploitability x_f is the 2025 observed hack rate at the
  *  reference pressure (D5: METR o3 RE-Bench 30%, SWE scaffolds 43%, HCAST ≈1% with cheap graders; × 0.4 hardened)
- *  [R20 F1]. Readout for E10 (rate calibration) and the F2 "learned hacking" threshold. */
+ *  [R20 F1]. Read by `runHack` (E16: learned hacking) and E10's rate calibration. */
 export function hackRates(w: FamilyMap, exploit: FamilyMap, rho: number): FamilyMap {
   const p = optimisationPressure(rho);
   const out: FamilyMap = {};
   for (const [f, wf] of Object.entries(w) as [RLFamily, number][]) if (wf > 0) out[f] = Math.min(1, (exploit[f] ?? 0) * p);
   return out;
+}
+
+// ── learned hacking (model v3 E16; research/20 F2) ──
+//
+// MacDiarmid et al. 2025 [P] (Anthropic's write-up of arXiv 2511.18397): the hack rate stays near 0 until the model
+// learns the hacks, then rises within ~30 RL steps to 0.6–1.0 of episodes; "at the exact point when the model learns
+// to reward hack, we see a sharp increase in all our misalignment evaluations" (malign-generalisation score < 0.1 →
+// 0.45–0.5; the no-hack baseline stays ≈ 0). Generalisation follows hacking becoming the run's learned policy, not the
+// odd hacked episode: 2025 frontier models hack a few per cent of their RL (METR o3: HCAST 0.7%, RE-Bench 30%) without
+// MacDiarmid's misalignment (research/05 §1.8: no spontaneous sabotage in 2025 deployments). So a run's generalisation
+// reads its RL-weighted hack rate h = Σ_f w_f·h_f (the share of its RL episodes that are rewarded hacks, hackRates) and
+// is convex above an onset:
+//   λ = clamp01((h − LH_ONSET) / (LH_FULL − LH_ONSET))²         ("learned hacking", 0 = none, 1 = the model organism)
+// λ adds K_LH·λ to the drivers of the cited MacDiarmid edges (E04 RH → PERSONA, E27 PERSONA → AF, E28 PERSONA →
+// SCHEME) and of E18 (→ SAND: MacDiarmid's sabotage was a deliberately weakened reward-hacking classifier, i.e.
+// sandbagged safety work; SAFSAB reads SAND + SCHEME). Inoculation prompting (a run-design choice) multiplies the whole hack-induced generalisation by INOC_MULT:
+// E04 (as before), the λ terms, and the S2 half of E09 (hackable reward → PROXY, which feeds AF via E13 and SCHEME via
+// E19). MacDiarmid: inoculated models "still reward hack to the exact same degree" while misalignment falls to near the
+// no-hack baseline, so the hack rate itself (RH, S2's E02) is not inoculated.
+
+/** Onset of learned hacking: the RL-weighted hack rate below which a run's hacking stays incidental [D]. Above the leader's
+ *  start recipe (broad RL on hardened start suites at the standard budget: 6.5%, every RefBot run) so that a lab with
+ *  hardened environments gets none, like the 2025 frontier; below a single exploitable family's rate (RE-Bench 30%). */
+export const LH_ONSET = 0.1;
+/** Saturation [D]: MacDiarmid's model hacks 0.6–1.0 of its episodes after onset; the game's most exploitable run (all RL
+ *  on cheap-grader coding suites at the standard budget, 45%: E10's model-organism probe) is the full effect. */
+export const LH_FULL = 0.45;
+/** Driver gain of learned hacking on E04, E18, E27 and E28 [fit: the model-organism probe's AF in MacDiarmid's 30–70% band
+ *  (50% AF reasoning), median over 40 medium worlds; scripts/v2/safetyrates.ts]. */
+export const K_LH = 1.3;
+/** Inoculation prompting's multiplier on hack-induced generalisation (research/20 F2: misalignment 0.115 → 0.02 = −80–90%
+ *  chart-read, 75–90% in the paper's text; research/14 F46 ×0.1–0.25) [P]. */
+export const INOC_MULT = 0.15;
+
+/** RL-weighted hack rate h = Σ_f w_f · h_f (share of the run's RL episodes that are rewarded hacks). */
+export function hackShare(w: FamilyMap, exploit: FamilyMap, rho: number): number {
+  const hr = hackRates(w, exploit, rho);
+  let h = 0;
+  for (const [f, hf] of Object.entries(hr) as [RLFamily, number][]) h += (w[f] ?? 0) * hf;
+  return h;
+}
+/** Learned hacking λ(h) = clamp01((h − LH_ONSET)/(LH_FULL − LH_ONSET))². */
+export const learnedHackingOf = (h: number) => Math.pow(clamp01((h - LH_ONSET) / (LH_FULL - LH_ONSET)), 2);
+export interface RunHack {
+  /** RL-weighted hack rate (share of RL episodes hacked). */
+  h: number;
+  /** Learned hacking λ (before inoculation). */
+  lambda: number;
+}
+/** A post-training design's hack share and learned hacking, with the same suites, shares and ρ as postSignals. */
+export function postHack(s: GameStateV2, post: PostDesign, exploit?: Partial<Record<RLFamily, number>>, q?: RunQuantities): RunHack {
+  const rho = rhoOf(post, q);
+  const x = exploit ?? suiteExploitMap(s);
+  const w = exploit ? rlWeights(post.rlFocus, RL_FAMILY_IDS.filter((f) => exploit[f] !== undefined)) : suiteRlWeights(s, post.rlFocus);
+  const h = hackShare(w, x, rho);
+  return { h, lambda: learnedHackingOf(h) };
+}
+/** A run's hack share and learned hacking (post and IDA runs; 0 for base, continue and distillation runs). */
+export function runHack(s: GameStateV2, run: Pick<TrainingRun, 'kind' | 'name' | 'baseId' | 'flopNeeded' | 'recipe'> & { post?: PostDesign }): RunHack {
+  if (run.kind !== 'post' || !run.post) return { h: 0, lambda: 0 };
+  return postHack(s, run.post, run.recipe?.exploit, { rho: runRho(s, run) });
 }
 
 /** S1 approval reward: the method's approval bias × the run's preference-RL share ÷ the reference's. The method
@@ -299,36 +360,43 @@ export interface TraitEnv {
   bracket: { constitution: boolean; heavy: boolean; persuasion: boolean; cast: boolean };
   /** Post-update multiplicative effects (E25 anti-scheming: EA × ANTISCHEME_EA_MULT). */
   eaMult: number;
+  /** Model v3 E16: the run's learned hacking λ (runHack; default 0) and inoculation's multiplier on hack-induced
+   *  generalisation (INOC_MULT on an inoculated run; default 1): the λ terms of E18, E27 and E28 and the S2 half of E09 (E04's
+   *  inoculation is its moderator). */
+  lh?: number;
+  hackGen?: number;
 }
 
 const EDGES_TO: Record<string, typeof EDGES> = {};
 for (const e of EDGES) (EDGES_TO[e.to] ??= []).push(e);
 
 function driver(id: string, x: TraitVector, sg: Signals, env: TraitEnv): number {
+  const lh = K_LH * (env.lh ?? 0);
+  const hg = env.hackGen ?? 1;
   switch (id) {
     case 'E01': return sg.S1;
     case 'E02': return sg.S2;
     case 'E03': return x.SYC;
-    case 'E04': return x.RH;
+    case 'E04': return x.RH + lh; // inoculation: E04's moderator
     case 'E05': return sg.S6;
     case 'E06': return 0; // teacher pull handled separately
     case 'E07': return sg.S5;
     case 'E07b': return sg.S5;
     case 'E08': return sg.S3;
-    case 'E09': return (sg.S2 + sg.S3) / 2;
+    case 'E09': return (hg * sg.S2 + sg.S3) / 2;
     case 'E10': return x.SA;
     case 'E11': return sg.S7;
     case 'E13': return Math.sqrt(x.SA * x.PROXY);
     case 'E14': return sg.S7;
     case 'E15': return sg.S4 + 0.3 * env.tierF;
     case 'E17': return Math.max(x.RH, x.PERSONA);
-    case 'E18': return (x.EA + x.TGAME) / 2;
+    case 'E18': return (x.EA + x.TGAME) / 2 + hg * lh;
     case 'E19': return Math.max(x.AF, x.PROXY);
     case 'E21': return sg.S8;
     case 'E22': return env.memory ? sg.S8 : 0;
     case 'E23': return Math.sqrt(x.SA * x.AF);
-    case 'E27': return x.PERSONA;
-    case 'E28': return x.PERSONA;
+    case 'E27': return x.PERSONA + hg * lh;
+    case 'E28': return x.PERSONA + hg * lh;
     case 'E29': return x.PERSONA;
     default: return 0;
   }
@@ -485,7 +553,7 @@ export function playerMods(s: GameStateV2, post: PostDesign | undefined, lineage
   const mul = (e: string, x: number) => (m[e] = (m[e] ?? 1) * x);
   const dept = s.player.safety;
   if (dept.evalGate !== 'none' && techActive(s, 'T-PROP')) mul('E01', 0.7);
-  if (post?.inoculation) mul('E04', 0.15);
+  if (post?.inoculation) mul('E04', INOC_MULT);
   if (inRun(s, post, 'T-PERSONA')) {
     mul('E04', 0.7);
     mul('E05', 0.7);
@@ -586,7 +654,7 @@ export function playerEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: nu
     signals: sg, omega, D: s.hidden.difficultyMult, w: s.hidden.edgeWeights, mods, amp: uModeAmp(uModes), removal,
     removalMult: uModeRemovalMult(uModes), crystalAt: crystalThreshold(uModes), tierF: tier / 3, memory: memoryOn(s), growthMult: understandingGapGrowth(s),
     bracket: { constitution: post?.pref === 'constitution', heavy: post?.safety === 'heavy', persuasion: post?.pref === 'persuasion', cast: inRun(s, post, 'T-CAST') },
-    eaMult,
+    eaMult, hackGen: post?.inoculation ? INOC_MULT : 1,
   };
 }
 
@@ -594,7 +662,7 @@ const W_BAR: Record<string, number> = Object.fromEntries(EDGES.map((e) => [e.id,
 
 /** Predicted beliefs for a new version: the parent's beliefs pushed through the graph with the PUBLIC w̄ (or the
  *  revealed weight) and D = 1, sd widened by the size of the predicted change. Visible, never reads truth. */
-export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelief>, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, omegaSafety = omega, growthBy?: Partial<Record<TraitId, number>>): Record<TraitId, TraitBelief> {
+export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelief>, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, omegaSafety = omega, growthBy?: Partial<Record<TraitId, number>>, lh = 0): Record<TraitId, TraitBelief> {
   const est = {} as TraitVector;
   for (const t of TRAIT_IDS) est[t] = prior[t]?.est ?? TRAIT_START[t];
   const w: Record<string, number> = { ...W_BAR };
@@ -604,6 +672,8 @@ export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelie
     removalMult: 1, crystalAt: 0.5, tierF: tierOfLevel(labLevel(s)) / 3, memory: memoryOn(s), growthMult: 1,
     bracket: { constitution: post?.pref === 'constitution', heavy: post?.safety === 'heavy', persuasion: post?.pref === 'persuasion', cast: inRun(s, post, 'T-CAST') },
     eaMult: post?.safety === 'heavy' && s.flags[`ws2.e25.${lineage}`] === undefined ? ANTISCHEME_EA_MULT : 1,
+    // E16: the run's learned hacking is the player's own quantity (its suites' exploitability, RL shares and budget).
+    lh, hackGen: post?.inoculation ? INOC_MULT : 1,
     ...(growthBy ? { growthBy } : {}),
   };
   const next = stepTraits(est, env);
@@ -842,6 +912,9 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
   const sgTrue = steerS4(s) > 0 ? { ...sg, S4: clamp01(sg.S4 + steerS4(s)) } : sg;
   const env = playerEnv(s, x0, sgTrue, om.growth, post, lineage, uModes, probe);
   env.omegaSafety = om.safety;
+  // E16: learned hacking from the run's frozen suites, RL shares and ρ.
+  const lh = runHack(s, { ...run, post }).lambda;
+  env.lh = lh;
   // P14 interp-guided training (E13): the white-box probes steer the run's trait growth away from what they read.
   const steer = probeSteer(s, probe);
   env.growthBy = steerGrowth(steer);
@@ -858,7 +931,7 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
       mk.COT = clamp01(1 - (1 - (mk.COT ?? 0)) * 0.7);
     }
   }
-  version.beliefs = predictBeliefs(s, parent?.beliefs ?? defaultBeliefs(s), sg, om.growth, post, lineage, om.safety, steerGrowth(probeSteer(s, probe, true)));
+  version.beliefs = predictBeliefs(s, parent?.beliefs ?? defaultBeliefs(s), sg, om.growth, post, lineage, om.safety, steerGrowth(probeSteer(s, probe, true)), lh);
   // P14 Goodhart: steering along the probes' directions masks the steered traits from the WB family (E24's masks).
   probeGoodhart(version, steer);
   // Goodhart: detectors explicitly trained against in this run (§3.5.6). P23: a faithful-CoT run's COT masks resist.
@@ -885,6 +958,7 @@ export function applyStreamDay(s: GameStateV2, v: ModelVersion): void {
   const sg = postSignals(s, v.design);
   const lineage = base?.lineage ?? 'L-unknown';
   const env = playerEnv(s, v.traitsTrue, sg, 0.6 / 42, v.design, lineage, v.uModes, v);
+  env.lh = postHack(s, v.design).lambda; // E16: the stream trains on today's suites
   v.traitsTrue = stepTraits(v.traitsTrue, env);
   if (env.eaMult !== 1) setFlag(s, `e25.${lineage}`, s.time.day);
 }
@@ -896,6 +970,7 @@ export function applyIdaCycle(s: GameStateV2, v: ModelVersion): void {
   const sg = postSignals(s, v.design, undefined, { rho: IDA_RL_SHARE });
   const env = playerEnv(s, v.traitsTrue, sg, OMEGA_KIND.ida * rlMovement(IDA_RL_SHARE), v.design, base?.lineage ?? 'L-unknown', v.uModes, v);
   env.omegaSafety = OMEGA_KIND.ida;
+  env.lh = postHack(s, v.design, undefined, { rho: IDA_RL_SHARE }).lambda; // E16
   const x = stepTraits(v.traitsTrue, env);
   for (const t of TRAIT_ORDER) if (t !== 'SA') x[t] = clamp01(x[t] * 1.1);
   v.traitsTrue = x;

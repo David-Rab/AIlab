@@ -118,12 +118,16 @@ export interface CovertActDef extends Omit<ActDef, 'rd' | 'internalOnly'> {
 }
 
 /** MacDiarmid et al. 2025 [P] (research/20 F2, research/05 §1.5): after learning to reward hack, the model attempted
- *  sabotage in 12% of Claude Code safety-research runs. The upper anchor of the per-item acts: a fully misaligned start
- *  model (x = 1, RSCH 4.5) with all of the work, before oversight. */
+ *  sabotage in 12% of Claude Code safety-research runs. The anchor of the per-item acts: the learned-hacking model
+ *  organism (model v3 E16) with all of the work, before oversight. */
 export const COVERT_ANCHOR = 0.12;
+/** The model organism's SAFSAB disposition x = SAND + SCHEME [fit, E16]: the start model V0 after one reference-size post
+ *  run with all RL on cheap-grader coding suites (h 45%, learned hacking λ = 1), median over 40 medium worlds
+ *  (scripts/v2/safetyrates.ts). E7 had put the anchor at x = 1, which no run produces (E10: the organism read 0.2%). */
+export const COVERT_ANCHOR_X = 0.37;
 /** Start model's RSCH level (ai2027 V0) and the autonomy of an 8-hour task (SAF_EXP, A = 8/(8 + 2)) at which the anchor
- *  holds: κ_item = 0.12 ÷ (σ((4.5 − 5)/1) · 0.8) = 0.395 [C]. */
-const KAPPA_ITEM = COVERT_ANCHOR / ((1 / (1 + Math.exp(-(4.5 - 5)))) * 0.8);
+ *  holds: κ_item = 0.12 ÷ (0.37^1.5 · σ((4.5 − 5)/1) · 0.8) = 1.77 [C] (E7: 0.395 at x = 1). */
+const KAPPA_ITEM = COVERT_ANCHOR / (Math.pow(COVERT_ANCHOR_X, 1.5) * (1 / (1 + Math.exp(-(4.5 - 5)))) * 0.8);
 
 /** The covert acts (θ, s, α, severity [D]; κ [C]). Per-item θ = 5 RSCH (the anchor model's capability is about half of
  *  the full act's: crude, visible attempts; at L 8 C = 0.95). In 2025 these acts are ≈ 0 because dispositions and the AI

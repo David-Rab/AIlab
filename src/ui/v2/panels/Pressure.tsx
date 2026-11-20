@@ -33,7 +33,7 @@ export function causeText(r: PressureRow, kind: RunPressure['kind']): string {
     case 'S2': {
       const top = r.fams?.[0];
       const lead = top ? `${F.pct(top.share)} of RL on ${RL_FAMILY_LABEL[top.family]} at ${F.pct(top.x)} exploitable` : 'no RL';
-      return `${lead}, ${F.pct(n(q.hackRate), 1)} hackable overall × ${rel(n(q.rho), n(q.rhoRef))}${q.p11 ? ' · +0.2 automated research (P11)' : ''}${q.todaySuites ? ' (suites as of today: the run’s own were not recorded)' : ''}`;
+      return `${lead}, ${F.pct(n(q.hackRate), 1)} hackable overall × ${rel(n(q.rho), n(q.rhoRef))}${q.p11 ? ' · +0.2 automated research (P11)' : ''}${q.todaySuites ? ' (suites as of today: the run’s own were not recorded)' : ''}${n(q.learned) > 0 ? ` · learned hacking ${F.num(n(q.learned), 2)}${q.inoculated ? ' (inoculated)' : ''}` : ''}`;
     }
     case 'S3': {
       const top = [...(r.fams ?? [])].sort((a, b) => b.x - a.x)[0];
@@ -57,6 +57,9 @@ function SignalTip({ r, kind }: { r: PressureRow; kind: RunPressure['kind'] }) {
     for (const f of r.fams ?? []) rows.push({ label: `${RL_FAMILY_LABEL[f.family]}: ${F.pct(f.share)} of RL × ${F.pct(f.x, 1)} exploitable`, value: F.num(f.term, 3) });
     rows.push({ label: <Term id="rlBudget">Optimisation pressure</Term>, value: `×${F.num(n(q.pressure), 2)}` });
     if (q.p11) rows.push({ label: 'Automated research (P11)', value: '+0.20' });
+    // E16: hacking learned as a policy generalises (MacDiarmid 2025); below the onset it stays incidental.
+    rows.push({ label: <>Episodes hacked (onset of <Term id="learnedHacking">learned hacking</Term> {F.pct(n(q.lhOnset), 0)}, full at {F.pct(n(q.lhFull), 0)})</>, value: F.pct(n(q.hacked), 1) });
+    rows.push({ label: <><Term id="learnedHacking">Learned hacking</Term>{q.inoculated ? <> × {F.num(n(q.inocMult), 2)} <Term id="inoculation">inoculated</Term></> : null}</>, value: F.num(n(q.learned) * (q.inoculated ? n(q.inocMult) : 1), 2) });
   } else if (r.id === 'S3') {
     for (const f of r.fams ?? []) rows.push({ label: `${RL_FAMILY_LABEL[f.family]}: ${F.pct(f.share)} of RL, ${F.num(f.x, 0)} h tasks`, value: F.num(f.term, 3) });
   } else if (r.id === 'S5' && kind !== 'post') {

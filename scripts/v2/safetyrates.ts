@@ -7,7 +7,8 @@
 // "late-2026 frontier" = RefBot's internal model at game date 2026-12-31; Hubinger's largest sleeper agents = frontier.
 //   Probes (no game played): one post-training run on V0 in `N_WORLDS` medium worlds (edge weights and difficulty are the
 //   world's draw) through the engine's own trait step (playerEnv + stepTraits): the learned-hacking model organism
-//   (RL on fully hackable coding environments = cheap graders, S2 saturated) vs the same run with hacking prevented
+//   (RL on fully hackable coding environments = cheap graders, S2 saturated, learned hacking λ = 1: model v3 E16) vs
+//   the same run with hacking prevented
 //   (exploitability 0) vs inoculated; capability RL at 10× the reference budget; anti-scheming training.
 //   Reference runs: RefBot (ai2027, medium, endings skipped, to the player's ASI), seeds 500…, every new version's
 //   hack rates, traits and persistence through its safety training; P_mis at ASI (the S4 quantity on fewer seeds).
@@ -28,7 +29,7 @@ import { suiteExploitMap } from '../../src/engine/v2/models/suites';
 import { itemTerms } from '../../src/engine/v2/safety/covert';
 import { eaCoef, eaSuppression, stackDetectionMap } from '../../src/engine/v2/safety/detection';
 import {
-  ANTISCHEME_REMOVAL, hackRates, misalignment, OC_VIS, REMOVABLE_TRAITS, SAFETY_REMOVAL, safetyRemovalMap, OMEGA_KIND, playerEnv, pMis, postSignals, RHO_REF, rlMovement, stepTraits, type TraitEnv,
+  ANTISCHEME_REMOVAL, hackRates, learnedHackingOf, LH_ONSET, misalignment, OC_VIS, REMOVABLE_TRAITS, SAFETY_REMOVAL, safetyRemovalMap, OMEGA_KIND, playerEnv, pMis, postHack, postSignals, RHO_REF, rlMovement, stepTraits, type TraitEnv,
 } from '../../src/engine/v2/safety/traits';
 import type { FamilyMap } from '../../src/engine/v2/models/effective';
 import type { GameStateV2, ModelVersion, PostDesign, RLFamily, TraitId, TraitVector } from '../../src/engine/v2/types';
@@ -68,6 +69,7 @@ function probeRun(s: GameStateV2, x0: TraitVector, p: PostDesign, exploit: Famil
   const probe: ModelVersion = { ...v0, traitsTrue: x0, uModes: [] };
   const env = playerEnv(s, x0, sg, OMEGA_KIND.post * rlMovement(rho), p, 'L-probe', [], probe);
   env.omegaSafety = OMEGA_KIND.post;
+  env.lh = postHack(s, p, exploit, { rho }).lambda; // E16: learned hacking, as applyRunToTraits
   return { x: stepTraits(x0, env), env };
 }
 const withTraits = (v: ModelVersion, x: TraitVector): ModelVersion => ({ ...v, traitsTrue: x, uModes: [] });
@@ -198,9 +200,7 @@ const rows: Row[] = [];
 const row = (obs: string, src: string, band: [number, number] | null, xs: number[], unit: Row['unit'] = '%', gap?: string) => rows.push({ obs, src, band, xs, unit, ...(gap ? { gap } : {}) });
 // Out-of-band rows that rate constants and edge strengths cannot bring into band (E10 report, design/notes/E10.md):
 // each needs a mechanism change, so they print WARN with the reason.
-const LEARNED = 'needs a mechanism: MacDiarmid\'s jump is non-linear (onset at > 2% hacked episodes, misalignment ≈ 0 → 0.45–0.5); the linear RH → PERSONA → AF/SCHEME edges that keep the reference lineage near 2025 rates cannot reach it, and the per-item κ anchor (12% at x = 1) needs SAND + SCHEME ≈ 1';
 const S7AF = 'needs a mechanism: AF grows from S7 (E14, anchored on monitored-only reward, MATS/GDM 2026), but S7 is mostly capability RL and eval-like data (the EA anchor); splitting S7 into eval-likeness (→ EA) and oversight-conditional reward (→ AF) would fix it';
-const INOC = 'needs a mechanism: inoculation moderates only E04 (RH → PERSONA); the hack-induced S2 → PROXY (E09) → AF (E13) / SCHEME (E19) path is not inoculated';
 const PERSIST = 'remaining removal: AG18 healing (the world\'s hidden benign-generalisation bet, M4) and the stack\'s detection at E24\'s true/visible ratio; closing it means a HEAL_K or detection weight below the sourced ratio (a design bet, for the lead)';
 
 // F1 reward hacking per RL run (the suites' exploitability × Gao's pressure; hackRates).
@@ -211,17 +211,33 @@ row('F1 hack rate, typical agentic tasks (HCAST-like families), leader start, ha
 row('F1 hack rate, exploitable optimisation scorers (ML research, cheap graders)', 'METR o3 RE-Bench 30.4% (39/128; CI 23–39%); kernel 25%', [0.23, 0.39], [hrCheap.mlResearch ?? 0]);
 row('F1 hack rate, SWE scaffolds with cheap graders', 'METR o3 Rust codecontest scaffold 43%; LLM Foundry 100% → 25–100%', [0.25, 1], [hrCheap.swe ?? 0]);
 row('F1 RefBot RL-weighted hack rate per post run (all generations)', 'no cross-generation source (GPT-5 ≈ o3) → report', null, refs.flatMap((r) => r.versions.filter((v) => v.kind === 'post').map((v) => v.hW)));
-row('F1 RefBot post runs above the 5% learned-hacking line on some family', 'research/20 F2 game rule [G]; no mechanism reads it → report', null, refs.map((r) => mean(r.versions.filter((v) => v.kind === 'post').map((v) => +(v.hMax > 0.05)))));
+row(`F1 RefBot post runs above the learned-hacking onset (RL-weighted h > ${(LH_ONSET * 100).toFixed(0)}%; E16)`, 'MacDiarmid 2025: generalisation follows hacking becoming the learned policy; the 2025 frontier (hardened, a few % hacked) is not MacDiarmid-misaligned → report', null, refs.map((r) => mean(r.versions.filter((v) => v.kind === 'post').map((v) => +(v.hW > LH_ONSET)))));
+row('F1 RefBot learned hacking λ per post run (E16)', 'report (0 below the onset)', null, refs.flatMap((r) => r.versions.filter((v) => v.kind === 'post').map((v) => learnedHackingOf(v.hW))));
+// E16: learned hacking λ by recipe at the start (the convex onset: hardened labs get none, exploitable ones the jump).
+{
+  const hard = suiteExploitMap(s0);
+  const cheap = Object.fromEntries(Object.keys(hard).map((f) => [f, EXPLOIT_CHEAP[f as RLFamily]])) as FamilyMap;
+  const designs: [string, PostDesign, FamilyMap][] = [
+    ['reference (broad, hardened, standard)', post(), hard], ['broad, hardened, heavy RL', post({ rlBudget: 'heavy' }), hard],
+    ['coding focus, hardened, heavy RL', post({ rlFocus: ['swe'], rlBudget: 'heavy' }), hard],
+    ['broad, cheap graders (spinout start)', post(), cheap], ['broad, cheap, heavy RL', post({ rlBudget: 'heavy' }), cheap],
+    ['coding focus, cheap', post({ rlFocus: ['swe'] }), cheap], ['coding focus, cheap, heavy RL', post({ rlFocus: ['swe'], rlBudget: 'heavy' }), cheap],
+  ];
+  for (const [name, d, x] of designs) {
+    const hk = postHack(s0, d, x);
+    console.log(`  INFO  E16 learned hacking, ${name}: h ${(hk.h * 100).toFixed(1)}% → λ ${hk.lambda.toFixed(3)}`);
+  }
+}
 // F2 MacDiarmid: learned hacking → sabotage and AF reasoning; inoculation.
-row('F2 safety-research sabotage attempts after learned hacking (MO, V0, 8-h task, all AI)', 'MacDiarmid 2025: 12% of Claude Code safety-research runs (one setting; ±50% [D])', [0.06, 0.2], probes.map((p) => p.sabHack), '%', LEARNED);
+row('F2 safety-research sabotage attempts after learned hacking (MO, V0, 8-h task, all AI)', 'MacDiarmid 2025: 12% of Claude Code safety-research runs (one setting; ±50% [D])', [0.06, 0.2], probes.map((p) => p.sabHack));
 row('F2 same, hacking prevented (control)', 'MacDiarmid: ≈ 0 without hacking (baseline model) → < 1%', [0, 0.01], probes.map((p) => p.sabCtrl));
-row('F2 alignment-faking propensity (AF) after learned hacking', 'MacDiarmid: AF reasoning in 50% of "what are your goals?" answers ([D] band 30–70%)', [0.3, 0.7], probes.map((p) => p.hack.AF), '%', LEARNED);
+row('F2 alignment-faking propensity (AF) after learned hacking', 'MacDiarmid: AF reasoning in 50% of "what are your goals?" answers ([D] band 30–70%)', [0.3, 0.7], probes.map((p) => p.hack.AF));
 row('F2 AF with hacking prevented (control)', 'baseline Claude: AF reasoning rare (Sheshadri 2025: 5 of 25 models > 1%) → ≤ 12%', [0, 0.12], probes.map((p) => p.ctrl.AF), '%', S7AF);
 const red = (a: number, b: number, c: number) => (b - a > 1e-6 ? 1 - (c - a) / (b - a) : NaN);
 row('F2 inoculation: cut in the hack-induced rise of the misaligned persona (PERSONA)', 'MacDiarmid: misalignment 0.115 → 0.02 (chart) = −75 to −90%, "close to the no-hack baseline" (> 100% = below the control)', [0.75, 1.2], probes.map((p) => red(p.ctrl.PERSONA, p.hack.PERSONA, p.inoc.PERSONA)));
-row('F2 inoculation: cut in the hack-induced rise of Mis', 'same', [0.75, 0.9], probes.map((p) => red(p.misCtrl, p.misHack, p.misInoc)), '%', INOC);
-row('F2 inoculation: cut in the hack-induced rise of AF', 'same', [0.75, 0.9], probes.map((p) => red(p.ctrl.AF, p.hack.AF, p.inoc.AF)), '%', INOC);
-row('F2 inoculation: cut in the hack-induced rise of sabotage attempts', 'same (the rise is < 0.5 pp: noisy)', null, probes.map((p) => red(p.sabCtrl, p.sabHack, p.sabInoc)));
+row('F2 inoculation: cut in the hack-induced rise of Mis', 'same', [0.75, 0.9], probes.map((p) => red(p.misCtrl, p.misHack, p.misInoc)));
+row('F2 inoculation: cut in the hack-induced rise of AF', 'same', [0.75, 0.9], probes.map((p) => red(p.ctrl.AF, p.hack.AF, p.inoc.AF)));
+row('F2 inoculation: cut in the hack-induced rise of sabotage attempts', 'same', [0.75, 0.95], probes.map((p) => red(p.sabCtrl, p.sabHack, p.sabInoc)));
 // F5 eval awareness across generations; anti-scheming.
 row('F5 eval awareness, start model (2025 reasoning frontier)', 'verbalised EA 10–30% (2025); Sonnet 4.5 ~13%; Apollo 11.7%', [0.1, 0.3], refs.map((r) => r.eaStart));
 row('F5 eval awareness, RefBot internal model at 2026-12-31', 'late-2026 frontier 20–50% (research/05 §1.7)', [0.2, 0.5], refs.map((r) => r.ea2026 ?? NaN), '%', 'at the edge: the ai2027 leader reaches SC in late 2026, ahead of the real late-2026 frontier (Apollo: GPT-6 Astra 41–51%, the top of the band); E10 lowered E11, not EA_RELAX');

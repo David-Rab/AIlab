@@ -25,7 +25,9 @@ export const EDGES: EdgeDef[] = [
   { id: 'E01', from: ['S1'], to: 'SYC', wBar: 0.6, grade: 'A', cite: 'Sharma 2023; GPT-4o rollback Apr 2025', moderator: 'sycophancy eval gate −30%' },
   { id: 'E02', from: ['S2'], to: 'RH', wBar: 0.7, grade: 'A', cite: 'METR 2025: o3 hacks 1-2%, ~30% on RE-Bench', moderator: 'hardened graders (in S2)' },
   { id: 'E03', from: ['SYC'], to: 'RH', wBar: 0.1, grade: 'B', cite: 'Denison 2024: rare reward tampering' },
-  { id: 'E04', from: ['RH'], to: 'PERSONA', wBar: 0.5, grade: 'B', cite: 'MacDiarmid 2025: 12% sabotage, 50% AF reasoning', moderator: 'inoculation ×0.15; persona vectors ×0.7' },
+  // Model v3 E16: E04, E18, E27 and E28 also carry learned hacking (safety/traits.ts runHack: λ from the run's
+  // RL-weighted hack rate above a 10% onset, convex; driver + K_LH·λ), MacDiarmid's jump; inoculation × 0.15 on all of it.
+  { id: 'E04', from: ['RH'], to: 'PERSONA', wBar: 0.5, grade: 'B', cite: 'MacDiarmid 2025: 12% sabotage, 50% AF reasoning', moderator: 'learned hacking adds to it; inoculation ×0.15; persona vectors ×0.7' },
   { id: 'E05', from: ['S6'], to: 'PERSONA', wBar: 0.5, grade: 'A', cite: 'Betley 2025: ~20% (GPT-4o), ~50% (GPT-4.1)', moderator: 'persona vectors ×0.7' },
   // E10: 0.3 → 0.75 (research/20 F3): a distillation (ω 0.4) carries 0.3 of the teacher − student gap, in research/20's
   // [G] 0.2–0.5 (Cloud 2025: owl preference 12% → 60%+, about half the gap from ~10k filtered examples).
@@ -33,7 +35,7 @@ export const EDGES: EdgeDef[] = [
   { id: 'E07', from: ['S5'], to: 'SA', wBar: 0.4, grade: 'B', cite: 'Berglund 2023; Laine 2024 SAD', moderator: 'AI-discourse curation lowers S5' },
   { id: 'E07b', from: ['S5'], to: 'RH', wBar: 0.1, grade: 'C', cite: 'Hu et al. 2025' },
   { id: 'E08', from: ['S3'], to: 'POWER', wBar: 0.4, grade: 'B', cite: 'Agentic misalignment 80-96% (contrived); 14/20 OpenAI incidents from RL', moderator: 'scoped constitution −30%; corrigibility target −30%' },
-  { id: 'E09', from: ['S2', 'S3'], to: 'PROXY', wBar: 0.3, grade: 'C', cite: 'Langosco 2022; Shah 2022', moderator: 'broad RL −30%' },
+  { id: 'E09', from: ['S2', 'S3'], to: 'PROXY', wBar: 0.3, grade: 'C', cite: 'Langosco 2022; Shah 2022', moderator: 'broad RL −30%; inoculation ×0.15 on the hackable-reward half (E16)' },
   { id: 'E10', from: ['SA'], to: 'EA', wBar: 0.5, grade: 'A', cite: 'Verbalized EA 11.7% → 41-51%', moderator: 'realistic honeypots −30%' },
   // E10: 0.3 → 0.2 (research/20 F5): one run at 10× the RL budget raises EA by 0.14 per OOM (was 0.18) against Schoen
   // et al. 2025 [R] capability-only RL 2% → 20.6% over ~1–3 OOM (0.06–0.19 per OOM). Anti-scheming's EA ×2 is E25.
@@ -42,7 +44,7 @@ export const EDGES: EdgeDef[] = [
   { id: 'E14', from: ['S7'], to: 'AF', wBar: 0.6, grade: 'B', cite: 'MATS/GDM Oct 2026: gap 43-95%', moderator: 'randomised monitoring −50%' },
   { id: 'E15', from: ['S4'], to: 'OBF', wBar: 0.7, grade: 'A', cite: 'Baker 2025; controllability 1.7 → 60.9%', moderator: 'monitorability pledge −50%' },
   { id: 'E17', from: ['RH', 'PERSONA'], to: 'CONCEAL', wBar: 0.4, grade: 'B', cite: 'Hacks verbalized <2%; false completion 29%', moderator: 'honesty & confession training −40%' },
-  { id: 'E18', from: ['EA', 'TGAME'], to: 'SAND', wBar: 0.3, grade: 'B', cite: 'Apollo 2024 in-context sandbagging', moderator: 'noise injection −40%' },
+  { id: 'E18', from: ['EA', 'TGAME'], to: 'SAND', wBar: 0.3, grade: 'B', cite: 'Apollo 2024 in-context sandbagging; MacDiarmid 2025: sabotaged safety code after learned hacking', moderator: 'learned hacking adds to it (inoculation ×0.15); noise injection −40%' },
   { id: 'E19', from: ['AF', 'PROXY'], to: 'SCHEME', wBar: 0.2, grade: 'C', schemingScaled: true, cite: 'Apollo 2024: ~1% unnudged; o3 covert 13%', moderator: 'anti-scheming training −90%' },
   { id: 'E21', from: ['S8'], to: 'COLLUDE', wBar: 0.3, grade: 'B', cite: 'Peer-shutdown sabotage 38.3% vs 8.4%', moderator: 'comms lockdown −50%' },
   { id: 'E22', from: ['S8'], to: 'SUCC', wBar: 0.3, grade: 'B', cite: 'OpenAI Sep 2026: self-propagating 58%', moderator: 'memory audits −50%' },
@@ -50,8 +52,8 @@ export const EDGES: EdgeDef[] = [
   // M4: the broad misaligned persona (L5) generalises into the behaviour-when-unobserved nodes (R14 E04 evidence:
   // hacking → persona → alignment-faking reasoning and safety-research sabotage), so reward hacking upstream (grader
   // quality, RL intensity, inoculation) reaches the misalignment index.
-  { id: 'E27', from: ['PERSONA'], to: 'AF', wBar: 0.4, grade: 'B', late: true, cite: 'MacDiarmid 2025: learned hacking → AF reasoning in 50%', moderator: 'inoculation upstream (E04 ×0.15); corrigibility target −30%' },
-  { id: 'E28', from: ['PERSONA'], to: 'SCHEME', wBar: 0.15, grade: 'B', late: true, cite: 'MacDiarmid 2025: 12% safety-code sabotage', moderator: 'anti-scheming training −90%' },
+  { id: 'E27', from: ['PERSONA'], to: 'AF', wBar: 0.4, grade: 'B', late: true, cite: 'MacDiarmid 2025: learned hacking → AF reasoning in 50%', moderator: 'learned hacking adds to it; inoculation ×0.15 (here and upstream at E04); corrigibility target −30%' },
+  { id: 'E28', from: ['PERSONA'], to: 'SCHEME', wBar: 0.15, grade: 'B', late: true, cite: 'MacDiarmid 2025: 12% safety-code sabotage', moderator: 'learned hacking adds to it (inoculation ×0.15); anti-scheming training −90%' },
   { id: 'E29', from: ['PERSONA'], to: 'POWER', wBar: 0.2, grade: 'B', late: true, cite: 'Betley 2025: emergent misalignment voices power-seeking aims', moderator: 'scoped constitution −30%; corrigibility target −30%' },
 ];
 
