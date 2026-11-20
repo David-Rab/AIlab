@@ -20,8 +20,14 @@ tasks**, one subagent each, one at a time. Spec: [MODEL-V3.md](MODEL-V3.md). Num
 - **Stop rules:** a golden date leaves tolerance by more than ±0.3 y after refitting only the named values; the task
   needs a mechanism that contradicts the spec; a test the task does not own newly fails and cannot be explained.
 - **Known failures (not ours):** finance F7 / F8 / F11, valuation, equity 2026 (owned by the finance session, spec
-  `../AI27-finance3`); safety S5 mixed; worldfx GOV T1; ws4 T3; hygiene leader-lab daily average (P2 made the tick 18–30% faster with identical behaviour; ≈1.1 ms quiet, 1.6–1.8 ms under machine load vs the 1.5 ms budget; the rest needs behaviour changes: exp/log for pow, table for tasteSD, cadence — revisit in F6); the bots table is reported, not
-  required, until V7.
+  `../AI27-finance3`); safety S5 RefBot "U falls below L by SAR" (since E1: safety lines speed up with the lab's
+  compute; to E2/E10; S5 mixed passes since E1); safety S4 RefBot P_mis at ASI 0.530 vs 0.55–0.85 (since E1, same
+  cause; found in M1, lead to confirm); finance F2 global production 2027 43.2M vs 45M (since A5, found in M1);
+  worldfx GOV T1; worldfx W2 automation TFP at its band edge (≈0.49% vs
+  0.5–1%, since A5; feasibility F stays "best available coverage", not bought tiers); ws4 T3; calib T1 slow is a knife
+  edge on seed 2027 (SC jumps between base cycles with tiny changes; G_SC refit in M1, the multi-seed fix is F4); hygiene
+  perf (P2 made the tick 18–30% faster with identical behaviour; A5's market mix added ≈1.2–1.7 ms a day, all four perf
+  checks fail under machine load → P3, F6); the bots table is reported, not required, until V7.
 - **Bridges** still alive: see V3-BUILD "Bridges" (V6 safety M reads, V7 rivals). Each task removes the ones it owns.
 
 ## A. World demand (the real cause of V4a's revenue shortfall)
@@ -58,6 +64,7 @@ open weights, RefBot's late product upgrade, and the unsourced agent check-in ti
 | ID | Task | Depends | Effort | Done when |
 |---|---|---|---|---|
 | P2 (done 2026-11-20) | Performance: profile the daily tick (4.0 ms vs a 1.5 ms budget; +15% since V3b). No behaviour change: same state hashes on the fixtures. | – | M | `hygiene` perf checks pass or the remaining gap is explained function by function |
+| P3 | Market mix once per day (A5's lineup mix costs ≈1.3 ms and runs twice a day): memoise per tick with identical behaviour (state hashes as in P2). | – | M | hashes identical; mix computed once per day; hygiene perf re-reported |
 
 | C2 | Feature data and upkeep (found by B2): Voice & vision is only offered on Chat, where its "+15% Media work" cannot act (data issue in `features.ts`: give it a channel where it acts or retype it as a consumer effect); the engine charges no upkeep for features although the spec (§7.2) gives them one (engineers' standing load). | – | M | every built feature has an effect that can act on at least one of its products; feature upkeep appears in the engineers' load and on the card; tests |
 
@@ -68,9 +75,9 @@ suites as fixed days.
 
 | ID | Task | Depends | Effort | Done when |
 |---|---|---|---|---|
-| D1 | Data portfolio model: assets of five kinds (public, licensed, usage, synthetic, expert) with tokens, domain mix, quality; unique-token stock U per base from it (replaces `effectiveStock`); the public stock is shared and finite. No new UI. | – | H | base planning reads the portfolio; effective tests updated; same start numbers (U = 300T-class) |
+| D1 (done 2026-11-20, merged M1) | Data portfolio model: assets of five kinds (public, licensed, usage, synthetic, expert) with tokens, domain mix, quality; unique-token stock U per base from it (replaces `effectiveStock`); the public stock is shared and finite. No new UI. | – | H | base planning reads the portfolio; effective tests updated; same start numbers (U = 300T-class) |
 | D2 | Data actions: licensing deals by domain (cash), synthetic generation as a compute budget with a teacher (quality from teacher G, inherits traits), expert data purchase. Remove the old data actions. | D1 | M | actions work and show before/after on the Blueprint data tile |
-| D3 | Data mix on the blueprint: the base draws tokens from the portfolio by domain and quality; domain specialisation s_d,data and repetition come from the draw. | D1 | H | specialisation follows the mix in a test; V1 design offsets for data options retired |
+| D3 (done 2026-11-20, merged M1: every preset draws from the 2025 reference shares; "natural" kept as a preset option for D4) | Data mix on the blueprint: the base draws tokens from the portfolio by domain and quality; domain specialisation s_d,data and repetition come from the draw. | D1 | H | specialisation follows the mix in a test; V1 design offsets for data options retired |
 | D4 | Data UI: portfolio view (kinds, tokens, quality, domain mix), data actions, mix control in the Blueprint. | D2, D3 | M | uitest |
 | D5 | Environment suites model: one suite per RL family with fidelity (scales the RL ceiling A_f) and exploitability (feeds trait signal S2); built and hardened by engineers (team-weeks) with expert-data cash; the "hardened graders" option becomes suite state. | D1 | H | RL gain reads fidelity; S2 reads exploitability; start suites reproduce V1's reference gain |
 | D6 | Suites UI: suites per family, build/harden actions, effect preview. | D5 | M | uitest |
@@ -86,7 +93,7 @@ danger depends on, and how loss of control works.
 
 | ID | Task | Depends | Effort | Done when |
 |---|---|---|---|---|
-| E1 | Safety lines on the project mechanism, rates: each line project gets ideation, experiments and scale-like stages with compute and research-engineer labour like capability projects (no hidden asymmetry); hidden efficacy and dead ends kept. | – | H | the safety lines speed up with the lab's labour and compute in a test; the v2 "no research speed" asymmetry gone |
+| E1 (done 2026-11-20, merged M1: S5 RefBot now fails, accepted → E2/E10; slow T1 knife edge → F4) | Safety lines on the project mechanism, rates: each line project gets ideation, experiments and scale-like stages with compute and research-engineer labour like capability projects (no hidden asymmetry); hidden efficacy and dead ends kept. | – | H | the safety lines speed up with the lab's labour and compute in a test; the v2 "no research speed" asymmetry gone |
 | E2 | AI labour on safety work: SAF_EXP and SAF_IDEAS work types drive the safety fleet via the V3 labour function; sabotage risk from the model's own traits; the "trusted to AI" share stays the player's control. | E1 | H | safety AI FTE from work types; sabotage test |
 | E3 | Training pressure from run quantities: S2 from RL FLOP × exploitability (needs D5), S3 from agentic RL share and task length, S1 from preference share, S5 from G and AI-data share; replace the design-table constants. | D5 | H | signal tests: more RL FLOP raises S2; calibrated to the research/20 F rates |
 | E4 | Successor pull: when AI does a share of the R&D that trains the next model, the new model's dispositions are pulled toward its own, ∝ AI share × (1 − oversight). | E3 | H | test: higher AI share and weaker oversight raise the pull |
@@ -114,4 +121,5 @@ danger depends on, and how loss of control works.
 
 ## Order (one at a time)
 
-A1–A3, B1–B4, C2, P2 done (2026-11-20). Next: **A4 → A5**, then D1…D10, E1…E13, F1…F7. The lead may reorder when a result changes what is next; every change goes in this file.
+A1–A5, B1–B4, C2, P2, D1, D3, E1 done (2026-11-20; D1, D3, E1 merged in M1). Next: **E5 (running), D5 (running), E2
+(running)**, then D2, D4, D6, D7, E3, E6, F1, P3; after those the rest of D…F. The lead may reorder when a result changes what is next; every change goes in this file.

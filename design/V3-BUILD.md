@@ -2114,3 +2114,304 @@ passes. Integrated RefBot (informational): ai2027 unchanged to SC, ASI −0.016 
 - Rivals' lineups (one student per band edge) use the BRIDGE(V7) sizes; F1 gives them real designs. Seats follow the
   hours share. Capacity erosion cannot move buyers off bands only the player covers.
 - Perf (above): F6.
+
+### D1 notes (data portfolio, 2026-11-20)
+
+Code: `src/engine/v2/production/data.ts` (engine), `src/data/v2/dataAssets.ts` (numbers), types `DataPortfolio` /
+`DataAsset` in `src/engine/v2/types.ts`. Test: `scripts/v2/data.ts` (added to `test:v2` after `effective`).
+
+**Structure**
+- `PlayerLab.dataPortfolio = { assets, usageShare }` replaces `dataAssets`. Assets are `PublicWebUse` (id `public`) or
+  `OwnedDataAsset` (`licensed` | `usage` | `synthetic` | `expert`, each with `tokensT`, `mix` over the nine domains,
+  `quality`; optional `day`, `domain`, and for synthetic `teacherId`, `teacherG`, `inheritsTraits`).
+- **Public web, shared and finite:** `PUBLIC_WEB` = one world stock of 300T tokens (Villalobos et al. 2024, R20 A3,
+  research/13 §2.6), q 1, Common-Crawl-like mix [D]. Labs hold only a crawl `coverage` (≤ 1, clamped) of that stock, so
+  every lab reads the same finite stock and no lab can own more than the world has. The stock is constant [D]; use by
+  other labs does not deplete it (repetition is per base, as the brief says). Rivals do not plan bases physically yet,
+  so only the player reads it today.
+- **U = Σ q·T** over the pretraining kinds (public, licensed, usage, synthetic; synthetic × 3 with P10, unchanged until
+  D9). Expert data is not pretraining data (D5's suites). `uniqueTokens(s)` → `playerUniqueTokens` → `baseG` in
+  `models/runs.ts`, so every base plan (blueprint limits, launch, completion) and B0 at init read the portfolio.
+  `effectiveStock` (v2's 3-epoch stock) is gone; the next-model readout uses `freeStock` = 4 × U (Muennighoff ≈ free 4
+  epochs) against N_req — readout only (`nextModelGate`, no engine reader).
+
+**Start values (every start type, as before D1; follower positions unchanged)**
+- Public crawl 0.9 × 300T = 270T [D: v2's unlicensed 270T], licensed `lic:start` 30T q 1, synthetic `syn:start` 20T
+  q 0.5, usage 0, expert 0. U = 270 + 30 + 0.5·20 = **310T**, exactly v1's stock; B0's epochs 0.161 as before.
+- Licensed start q = 1 [D]: the start's 30T overlap the web's quality (news, forums, code archives); R20 A3's 1.5–3 for
+  curated/licensed tiers is left for D2's domain deals. Keeping 1 keeps U and the litigation basis exact.
+
+**Quality rule (stated)** — quality enters G only through U: U = Σ q_i·T_i, then f_data = Muennighoff/Besiroglu on
+D vs U as before (`effective.ts` unchanged). This is research/20 A3's game-ready rule D_eff = Σ q·U·(1 + 15.4·(1 −
+e^(−(ep−1)/15.4))) [G; q tiers: web 1, curated 1.5–3 (Gundlach's ×3 data selection [P]), synthetic 0.5–1.5]. Direction:
+higher quality → more effective unique tokens → fewer epochs → higher G for a base that repeats data; no effect on a
+base within U (test: licensed q 0.2 / 1 / 3 on a 2000T-token base → U 286 / 310 / 370T, G 30.786 / 30.792 / 30.802).
+The quality of the *drawn* tokens at D < U (a mix-quality term in G) is D3's draw; the curation "quality" filter keeps
+its v1 ΔG meanwhile.
+
+**Synthetic** — generation FLOP per kept token = teacher FLOP per token × overgeneration 4.33 at the pool's FLOP per
+H100e-day; 4.33 [fit] reproduces v1's 4e-6 T per H100e-day for V0 and lies inside R20 A3's 2–5× [G]. The teacher is the
+lab's internal research model (`agents.capRoutine`) until D2 lets the player choose. Bigger teachers now yield fewer
+tokens per H100e-day. Quality q = 0.5 + 0.25·(G_teacher − G_V0), clamped to [0.1, 1.5] (0.5 at V0 = v1's SYN_QUALITY;
+1.5 = R20's top; slope [D]). One asset per teacher (`syn:<versionId>`), `inheritsTraits: true` for E-tasks (F3 subliminal
+learning). `SYN_YIELD_T_PER_H100E_DAY` / `SYN_QUALITY` are removed from `calibration.ts`.
+
+**Usage** — daily: each non-withdrawn product's `servedH100e` (from the revenue system's last day) × output tokens per
+H100e-day at its version's FLOP per token on the assisted token profile (the serving cost chain, so research/22's
+volumes as the serving model produces them) × channel eligibility × `usageShare`. Eligibility [D]: consumer only (the
+providers' default terms train on consumer chats unless opted out and not on API/enterprise/gov data; not fetched).
+Policy share 0.2 [D], q 0.5 [D], mix = CHAT_WORK's domain weights for consumer. Readout in the ai2027 RefBot run:
+≈20–55B usage tokens/day, 18T by day 600 (U 1566T, mostly synthetic), so it never binds today.
+
+**Data actions** — D3 "License data" now licenses the crawl (`public.licensed`) and adds a licensed corpus `lic:corpus:<day>`
+of 0.5 × (crawl + licensed) quality-weighted tokens: v2's × (1 + 0.5·deals), so U after D3 is 460T as before. Cost and
+the copyright-suit hazard read `unlicensedPublicT` (270T → 0), same numbers as before.
+
+**Calibration** — RefBot never repeats data (B2–B4 at 0.11–0.22 epochs; U grows by synthetic data to ≈2900T by day 840),
+so the portfolio does not move the timeline: same SC 638 / ASI 904 on the stub ai2027 run; gate table in the final report.
+
+**Save** — schemaRev 20 → 21; migration `dataPortfolioFromV2` keeps U and the unlicensed tokens (tested on both sides of a
+licence deal and on the day-400 fixture). Fixtures were not regenerated (they migrate on load).
+
+**For later tasks**
+- D2: add `OwnedDataAsset`s (licensed by `domain`, q 1.5–3; expert by domain; synthetic from a chosen teacher —
+  `syntheticQuality`, `synTokensPerH100eDay`); `usageShare` is the data-policy hook; remove D3 then.
+- D3: `assetMix`, `mixOf`, `pretrainMix`, `portfolioByKind` give token- and quality-weighted mixes; the draw should
+  replace `uniqueTokens` in `baseG` with the drawn U and add the drawn quality and s_d,data.
+- D4: `portfolioByKind` is the portfolio view's row model (kind, tokens, weighted tokens, quality, mix, count).
+- D5: the `expert` asset (q 3, 0 tokens at start) is where suite fidelity's expert data lives.
+- E-tasks: synthetic assets carry `teacherId`, `teacherG`, `inheritsTraits`.
+
+### D3 notes (data mix on the blueprint: the base draws from the portfolio, 2026-11-20)
+
+Code: `src/engine/v2/production/data.ts` (`drawData`, `playerDraw`, `specialisation`, `REF_SHARE`, `NATURAL_MIX`,
+`MixTarget`, `DataDraw`), `src/data/v2/runDesign.ts` (`BASE_DATA` = the five presets as mix targets),
+`src/data/v2/dataAssets.ts` (`ALPHA_DATA`, `SPEC_CAP`), `models/runs.ts` (`baseG` reads the draw), `models/effective.ts`
+(`fDataEff`), `models/design.ts` (`baseEffect`: curation only). UI: Models card "Data specialisation" (replaces
+"Research boost"), Blueprint data tile rows. Test: `scripts/v2/data.ts` (section "the draw"), `uitest.mjs` (D3 checks).
+
+**Draw rule (stated).** Slices are (pretraining asset i × domain d) with quality-weighted unique tokens
+U_i,d = q_i·T_i·mix_i,d (P10: synthetic × 3). The mix target sets each domain's share of the base's D tokens,
+m_d ∝ B_d · tilt_d · K_d/U_d, where B_d is the starting share (`reference` = REF_SHARE, `natural` = U_d), tilt the
+preset's domain tilt, and K_d = Σ_i U_i,d·k_kind(i) the kind weights' pull on the domain. Within a domain the tokens come
+from its slices in proportion to U_i,d·k_kind(i). A slice drawn beyond its U_i,d **repeats its own tokens** and pays
+Muennighoff on that slice alone: D_eff = Σ U_i,d·(1 + 15.4·(1 − e^(−(ep_i,d − 1)/15.4))). **No fallback** to other
+data, except that a domain the portfolio holds nothing of draws nothing (its share goes to the rest in proportion).
+- (a) `baseG`: f_data = Besiroglu-law value of D_eff vs D (`fDataEff`), replacing `fData(N, D, uniqueTokens)`. The
+  readouts: `uMix` = the largest base the mix draws without repeating (min over slices of U_i,d·D/D_i,d; = U for the
+  natural mix), `epochs` = D/uMix (the most-repeated slice).
+- (b) s_d,data = α_data·log₁₀(effective share_d ÷ REF_SHARE_d), capped ±SPEC_CAP; effective shares (D_eff per domain)
+  so repeated tokens teach less. REF_SHARE = the start portfolio's quality-weighted mix (SOCIAL 42.7%, MEDIA 11.7%,
+  CODE 9.6%, REASON 9.1%, RSCH 7.9%, BIO 5.9%, AGENCY 5.7%, PHYS 4.6%, CYBER 3.0%) = what o_d was fitted with.
+- (c) Quality enters only through U (D1's rule, unchanged); `DataDraw.quality` (mean q of drawn tokens) and `byKind` are
+  readouts for D4. No mix-quality term at D < U [D: the brief's "as D1 defined"; D4/D2 may add one with curated q 1.5–3].
+- The base's `sD` = draw sD + the curation's domain offsets (hazard filter BIO −0.5 OOM, kept: curation, not a data
+  option). Curation's general ΔG (quality filter off −0.24, hazard, safety pretraining) and P24 stay in `design`.
+- P10 keeps v1's "no repetition penalty" (`noRepeat`) and synthetic × 3 (D9 owns it).
+
+**α_data = 1.5 OOM per decade of share, cap ±1.3 OOM** [R20 A2 game-ready, from Ruan et al. 2024 / Muennighoff et al.
+2023 [P]]: a code share 0 → 50% moves the code axis up to +0.5 ECI ≈ 1.3 OOM (0.387 ECI per OOM, Epoch). Linear in the
+share, the part from the reference 9.6% to 50% is 1.05 OOM over 0.72 decades = 1.46/decade (1.8 if all of it lay above
+the reference); 1.5 is the low end (Llama 3: mix tricks matter less at frontier scale [R]). Cap 1.3 = the +0.5 ECI at a
+50% share, used both ways. No extra general penalty above a 50% share (R20's "general Cap penalised") — the log rule
+already costs every other domain [D].
+
+**Presets** (`BASE_DATA`, all `base: 'reference'`; tilts and kind weights [D]) and what they draw at the start
+(B0-size base, no repetition; OOM):
+| preset | target | s_d,data at the start | V1 offsets (OOM, retired) |
+|---|---|---|---|
+| balanced | reference shares | 0 everywhere | none |
+| code & math | CODE ×3, REASON ×2, RSCH ×2, CYBER ×1.5 | CODE +0.51, REASON +0.24, RSCH +0.24, CYBER +0.06, rest −0.21 | CODE +0.3, RSCH +0.2, CYBER +0.2, SOCIAL −0.2 |
+| science | BIO ×3, REASON ×1.5, RSCH ×1.5 | BIO +0.60, REASON +0.14, RSCH +0.14, rest −0.12 | BIO +0.4, REASON +0.2 |
+| synthetic-heavy | synthetic assets ×4 | CODE +0.14, REASON +0.15, SOCIAL −0.06 (grows with the synthetic stock) | +0.18 general, +0.1 all, no wall |
+| multimodal | MEDIA ×3, PHYS ×3, AGENCY ×2 | MEDIA +0.51, PHYS +0.51, AGENCY +0.24, rest −0.21 | AGENCY/MEDIA +0.3, PHYS +0.25, no wall |
+Kept from V1 (not domain offsets): multimodal +20% FLOP, science +5% run cash, synthetic-heavy S6 and its teacher
+requirement (trait inheritance; safety reads `design.data === 'synthetic'`). Retired: every `dg`, `off`, `noWall`;
+`deltaRsch`, `designOffsetView`, the "Research boost ±x mo" readout, limit `model.designOffset`, glossary
+`designOffset` (→ `dataSpec`, limit `model.dataSpec`).
+
+**Deviation from the brief [D]: "balanced = the portfolio's natural mix" holds at the start only.** With
+`balanced: base 'natural'` the reference lab's stock fills with code/reason-heavy synthetic data (690T by day 285, 56%
+synthetic) and its bases drift into code models: at day 285 the natural mix is CODE +0.39, REASON +0.41, SOCIAL −0.32,
+PHYS −0.35 decades vs the reference (s ≈ +0.6 / +0.6 / −0.5 / −0.5 OOM). calib T1 then moved every golden date early:
+ai2027 SC −0.09 / SAR −0.17 / SIAR −0.23 / ASI −0.21 y; authors2026 SC −0.44, SIAR −0.60; fast SC −0.28, ASI −0.38;
+slow SC −1.45 y — beyond tolerance by more than 0.3 y (the stop rule). So every preset starts from the **reference
+shares** (the 2025 recipe's mix, which o_d and the golden dates were fitted with): balanced = the natural mix at the
+start, and after that a lab keeps a general-purpose mix unless it picks one that draws its new data (synthetic-heavy,
+code & math). One line flips it back (`base: 'natural'` in `BASE_DATA.balanced`); the lead decides. With 'reference'
+calib passes with the same numbers as before on ai2027 / fast / slow; authors2026 SIAR −0.041 → −0.074 y, ASI −0.036 →
+−0.082 y (inside ±0.12): its late bases (> 310T tokens) repeat the human-only domains (PHYS, SOCIAL, MEDIA: synthetic
+data has none), which tilts the effective mix a little toward code.
+
+**Start reproduction.** At the start the reference shares are the natural mix, so RefBot's balanced draw of B0's size has
+no specialisation (all |s| < 1e-9), f_data 1, uMix 310T, epochs 0.1613 (B0's); B0/V0 are built as before (sD {}), so G,
+the 2025 domain profile (effective test, |off| < 0.25 L) and the golden dates are unchanged.
+
+**Save.** No state changed (the draw is computed at plan and completion; `BaseModel.sD` already held s_d,data), so no
+schemaRev bump. `BaseLimits` gained `draw` and `sD` (plan readouts, not saved).
+
+**For D4 (data UI).** Show from `planRun(...).limits.draw`: drawn vs effective domain shares against `REF_SHARE` (bars),
+`sD` per domain (OOM, cap ±1.3), tokens drawn per kind (`byKind`) and mean quality, `uMix` vs tokens and the
+most-repeated domain (epochs), and from `drawData(p, D, NATURAL_MIX)` the portfolio's natural mix (where the stock
+drifts). The mix control can expose `MixTarget` directly (tilts per domain, kind weights, reference/natural base); the
+five presets are `BASE_DATA`. `portfolioByKind` stays the per-kind row model.
+
+### E1 notes (safety research lines on the project mechanism, rates; 2026-11-20)
+
+Spec: MODEL-V3 §11.7, §5.3; research/14 §1.2–1.3. Code: `src/engine/v2/safety/lineProjects.ts` (new: stages, allocation,
+rates, beliefs, readouts), `safety/agendas.ts` (compute shares, results per year, `safetyRe` with experiments; v2's
+`lineRate`, `computeRatio`, `linePool` removed), `models/tree.ts` (research day steps line projects; ETA/rate for lines),
+`data/v2/agendas.ts` (constants), `types.ts` (`TreeNodeState.saf`), `core/save.ts` (schemaRev 21), `core/loop.ts` (memo
+reset). UI: the Tool upkeep card's engineer bar shows the new "experiments" share (`Safety.tsx`, glossary `toolUpkeep`).
+Test: `scripts/v2/safetyresearch.ts` (in `test:v2` after `research.ts`).
+
+#### Stage design
+
+Each line project (a safety node with an agenda, or a line's follow-up) runs the capability lifecycle:
+
+1. **Ideation**: candidates per day = (m_ideas × capacity ÷ SERIOUS_CAP)^λ × taste × speed ÷ (0.2·T₁ × 30). Taste = the
+   capacity-weighted AIFM team taste of the safety teams (human only; Strong = 1). Scientists keep ideating while a test
+   runs (pool ≤ 2); a project tests its first candidate at once (PICK_AT 1) [D].
+2. **Small experiments** (0.35·T₁ months of work at X = 1) and 3. **validation on the frontier model** (0.45·T₁, in
+   place of the scale test) [D]: work per day = X(c, ℓ) × speed ÷ 30 with the capability projects' experiment CES
+   (`Xces`, the preset's AIFM parameters), c = the project's experiment FLOP/day ÷ (computeRef × 1e6 H100e ×
+   FLOP/H100e-day) (the agenda's reference share of the leader's day-0 compute, fixed physical unit), ℓ = (m_exp ×
+   engineers ÷ SAF_RE_UNIT)^λ.
+4. **Result**: `fireFinding` unchanged (type from the hidden efficacy, Beta posterior, FALSE via Trusted to AI ×
+   sabotage, dead-end team-months, re-validation, follow-ups). The project then tests its next candidate.
+
+[D] Validation applies to every line project, not only tool nodes: follow-ups and finding nodes also make claims about
+the frontier model (an eval, a discovery), and one stage chain keeps every project at T₁.
+
+**Beliefs** (readout): a candidate starts at the line's Beta posterior and is updated by the scientists' reading of the
+hidden efficacy (sd 0.3 ÷ taste), then by the small-experiment (0.3) and validation (0.25) readings [D]. The risk policy
+picks among waiting candidates by μ + κσ. The result's type never reads the belief, so the type distribution is v2's.
+Caveat for the UI task: showing a candidate's belief leaks the efficacy faster than the posterior alone (research/14
+§1.0 principle 1 allows "effort decides how fast you learn e"); show it as the team's estimate on the project card only.
+
+**Research engineers** (safety): cases and patches first, then line experiments in priority (queue) order, each project
+asking SAF_RE_UNIT × min(2.5, capacity ÷ SERIOUS_CAP) (engineers follow the programme's science staffing), at most
+SAF_EXP_SHARE = 50% of the free engineers [D], the rest tool upkeep (and the validation lead, which reads it). Only
+projects in a test stage take engineers; a test that starts today gets them tomorrow (as capability). SAF_RE_UNIT = 50
+heads [D, calibration]. **Compute**: the safety pool after monitors, safety agents and investigations is shared by the
+projects in experiments ∝ engineers × computeRef (all of it, as capability's experiments pool; v2 capped each line at
+its request and let the rest idle). `AgendaState.computeShare` keeps its meaning (share of the safety pool).
+
+**Speed modifiers kept from v2's rate**: dead-end line ×0.5, F44 ×3 on AG18/AG03/AG16 with AI labour, P27 ×(1 + 3t)
+(E13 types them); added siloing −5%/level and the ASIC migration −15% (as all research). Not applied: frontier pause and
+treaty (capability-research rules), P13 (capability experiment agents).
+
+**Assignment** [D]: safety teams keep the J2 auto-assign (lines keep their teams; a finished node's teams move to the
+line's next project; idle teams join unstaffed lines by posterior). The capability planner would fit mechanically, but
+its value (√capacity ÷ ideation effort) ranks lines by T₁ and would pull teams off long lines (AG04, AG10, AG12) every
+day, the bots place safety teams by hand, and the Safety panel's line staffing UI is built around per-line teams. Revisit
+with the safety UI (E11/E12).
+
+**Performance**: today's allocation is memoised per state and day (understanding asks for it many times a tick); the
+research system and every `act`/`resolve` reset it. Paired tick timings under the current machine load are within noise
+of the base (hygiene's absolute budget fails on both, the known item).
+
+#### Calibration to T₁
+
+Reference inputs = serious science capacity (SERIOUS_CAP, Strong), SAF_RE_UNIT engineers, the agenda's computeRef share of
+1e6 H100e: c = ℓ = X = 1 and ideation rate 1, so the first result takes 0.2 + 0.35 + 0.45 = 1.0 T₁. Test: every agenda
+within 0.8% (AG18 90 d, AG02 121 d, AG01 271 d, AG12 1080 d). Once the pipeline is full a result follows every 0.8 T₁
+(experiments bind at reference; v2 restarted the project, so its steady pacing was T₁).
+
+Inputs then move the stages as for capability: ×1.16 for twice the engineers, ×1.29 for twice the compute (near the
+reference); compute-bound and labour-bound regimes as the worktypes test; √capacity on ideation; lab compute growth
+raises c (RefBot's lines: X 0.46 at day 150 → 1.44 at day 750 as compute goes 1.4M → 11.6M H100e).
+
+#### AI labour (for E2)
+
+`lineLabourMult(s, ag)` returns the effective-labour multipliers `{ ideas, exp }` that enter ideation (m_ideas ×
+capacity) and ℓ (m_exp × engineers). Today both are the safety fleet's v2 multiplier (Trusted to AI, agents.ts), so AI
+labour now enters through λ like human labour (m^λ per stage instead of v2's ×m on the whole rate: weaker; E2 replaces it).
+E2 plugs in: m_exp from the SAF_EXP slot (workContext already has it), m_ideas from a SAF_IDEAS slot, AI taste in
+`safSciOn` (today human only, `teamTaste(z, 0, 0, m2b)`), and sabotage in `fireFinding`'s FALSE weight.
+
+#### Results (gate)
+
+- tsc main + scripts: clean. safetyresearch: all 16 pass. research, worktypes, effective, serving, identity, fixtures,
+  lint-structure/ux/hidden, test:ui (376): pass. golden-timelines: pass (known WARNs only).
+- **calib T1 slow SC FAILS: 2037.772 vs 2038.527 ± 0.08 (−0.75 y) — stop rule, reported, not forced.** Diagnosis: the
+  slow preset's SC on seed 2027 is a knife edge between base cycles. Base code: G_SC 35.44 / 35.447 / 35.45 / 35.46 gives
+  SC day 4657 / 4729 / 4776 / 4605 (non-monotonic); seeds 2028/2029 give day 4483 on the base code. Under E1 RefBot's one
+  start line (AG02, white-box) produces 173 results in 12 years instead of 36 (base, same seed), one of them a SPILL (+0.02 progress-
+  years of public knowledge), which lifts the stacks by +0.025 OOM after day 3650 and lands seed 2027 on the day-4483
+  base. Without findings the E1 run hits day 4729. G_SC 35.472 puts E1's seed 2027 at day 4776 (in tolerance), 35.48 at
+  4483 again: a refit of slow's G_SC is the lead's call (not a named value of E1). ai2027, authors2026, fast T1 pass.
+- **safety**: S4 RefBot P_mis 0.569 (base 0.694; range 0.55–0.85, near its floor), S4 safe-only 0.045 (0.086).
+  **S5 RefBot "U falls below L by SAR" now FAILS** (median U − L +0.19, below in 38% of worlds; base −0.97, 60%).
+  **S5 mixed now PASSES** (median min margin −0.03, base −0.58; known failure fixed). U at SAR: RefBot 11.22 (base 9.87),
+  mixed 12.35 (11.44). Cause: the intended one — safety lines speed up with the lab's compute (≈ ×10 by SAR) instead of
+  v2's share-relative compute; RefBot gets ≈ 4–6 results per line to SAR instead of ≈ 2. S5's RefBot criterion encoded
+  v2's asymmetry; with E2 (AI labour on capability outpacing safety, sabotage) or a retune of the safety-side constants
+  (SERIOUS_CAP, SAF_RE_UNIT, SAF_EXP_SHARE, UPKEEP_*) it may come back. Not forced here.
+
+#### schemaRev
+
+20 → 21: `TreeNodeState.saf` (stage, candidates with beliefs, the test in flight). Migration converts a line project in
+progress at the same share of its stage chain (`safFromProgress`; tested: half done → ETA ½ T₁). `hygiene.ts`'s
+rejection check now expects 21. Fixtures regenerated. (Merge M1: renumbered 21 → 22 after D1's 20 → 21; the committed
+fixtures are the older schemaRev-16 files, see "M1 merge notes".)
+
+### M1 merge notes (D1 + D3 and E1 onto A5; 2026-11-20)
+
+Merged into `model-v3` (at A5, 09391a7) with `--no-ff`: `v3-d3` (D1 e703c7b, D3 07414e9), then `v3-e1` (E1 24d19ff).
+Both branches started at 672c4c1 (before A5). D1, D3 and E1 notes are above (copies of `design/notes/D1.md`, `D3.md`,
+`E1.md`, which stay).
+
+**Conflicts and resolution.**
+- v3-d3: none (glossary.ts and Blueprint.tsx auto-merged with A5's `cheapTier` / "hold X's level" changes); tsc clean.
+- v3-e1: `package.json` test:v2 (kept both: `data.ts` after `effective`, `safetyresearch.ts` after `research`);
+  `core/save.ts` (both added imports, a rev comment and migration key 20). types.ts, glossary.ts (`toolUpkeep`), tree.ts,
+  selectors.ts auto-merged; uitest.mjs, lint-ux.ts and the design notes had no overlapping edits.
+- **schemaRev chain made linear: 20 → 21 D1 (`dataPortfolioFromV2`), 21 → 22 E1 (`safFromProgress`); SCHEMA_REV 22.**
+  A5 changed no save code. hygiene expects 22 and gained two migration checks (a rev-20 save with v2 `dataAssets` migrates
+  to the portfolio with the same U; a rev-21 save with a line project half done gets its stage state); safetyresearch's
+  migration test now starts at 21; data.ts's 20 → 21 test is unchanged.
+- **Fixtures:** E1 had regenerated them at its schemaRev 21 (E1 state without D1's portfolio), which under the linear
+  chain would be read as D1-format saves and skip D1's migration. The merge keeps the previously committed schemaRev-16
+  fixtures (as D1 did), so every fixture load runs 16 → 22 through every migration (data.ts: "day-400 fixture loads with
+  the same U" passes, 964.4T). `fixtures.ts` rewrites them on each run; they were restored after the gate.
+
+**Lead decisions.**
+- D3: "balanced" (and every preset) draws at the 2025 reference shares (kept). The portfolio's natural mix stays
+  available as a mix target (`NATURAL_MIX`, `MixTarget.base: 'natural'`) for D4 to offer as a preset.
+- E1: slow is a knife edge on seed 2027 (SC jumps between base cycles); its G_SC is refitted here (below). Safety S5
+  RefBot ("U falls below L by SAR") failing is accepted as known (to E2/E10); S5 mixed passing is fine.
+- A5: authors2026 Δ_bm 4.5 kept as A5's starting point (then refitted here, below, because the merge moved it); RefBot
+  `cheapTier` off by default (F5); worldfx W2 at ≈0.49% accepted as a known borderline failure (feasibility F stays "best
+  available coverage", not bought tiers); hygiene perf known (P3, F6).
+
+**Refits (named per-preset values only; `calib.ts --fit-v3` and a G_SC scan; seed 2027, Δ in years).**
+- slow G_SC 35.447 → **35.474**: SC −0.753 → +0.049 (±0.08). Scan on the merged code: 35.466 −0.277, 35.469 −0.167,
+  35.471/35.472 −0.079, 35.473–35.475 +0.049, 35.477 −0.753 (back to the day-4483 cycle). 35.474 is the middle of the
+  plateau inside tolerance; E1's 35.472 is at its edge here (−0.079). Not robust: F4.
+- authors2026 (G_SC, Δ_bm) 33.62 / 4.5 → **33.632 / 4.6** (sd_SC 1.8 kept): SC +0.016 → −0.005, SAR +0.022 → +0.022, SIAR
+  −0.225 → −0.027, ASI −0.356 → +0.041 (merged calib: SIAR 2141 vs 2151, ASI 2990 vs 2975). Cause: the D merge alone on
+  A5 gives SIAR −0.175, ASI −0.334 (D3 on its own branch had −0.074 / −0.082; A5's market and D3's draw together move
+  RefBot's late authors2026 path); E1 adds ≈ −0.05 / −0.02. The fit is steep as V3b noted (Δ_bm 4.55 −0.055 / −0.079,
+  4.562 −0.088 / −0.184, 4.569 +0.041 / +0.110, 4.581 +0.121 / +0.200, 4.60 −0.027 / +0.041): Δ_bm is back at its pre-A5
+  value (4.606), F4.
+- ai2027, fast: unchanged and in tolerance. T1L passes on all presets.
+
+**Gate (merged code, after the refits where they matter).**
+- tsc main + scripts clean; `npm run build` ok; `npm run test:ui` 381 passed.
+- Pass: golden-timelines, identity, effective, data, research, safetyresearch (16), worktypes, serving, products, calib
+  (T1, T1L), fixtures, lint-hidden, lint-ux, lint-tradeoffs, lint-structure, money, idle.
+- hygiene: all pass except the four perf checks (known; 6.6–7.6 ms passive, 7.5–8.3 ms leader lab daily average,
+  worst quarter 25–32 / 17–19 ms, with other sessions loading the machine). Save checks incl. 20 → 21 and 21 → 22 pass.
+- worldfx (first run since D1/D3/E1): F7/F11 $33.5B / $36.5B, equity 2026 −14.0%, U +1 pp 2028-01-26, GOV T1
+  2027-09-05, W2 0.5% (≈0.49%, the accepted borderline) — the A5 set, unchanged (U was 2028-01-28).
+- finance (first run): F2 global production 2027 43.2M (45–60M), F7 revenue median $30.6B, F7 valuation $0.28T, F11
+  2027 $35.6B. **F2 is not from the merge:** finance on A5 (09391a7) gives the identical fails (43.2M); it passed at
+  46.9M after A2c, so A5 moved it (rivals' lower revenue buys less compute); not in the known list until now.
+- ws4 (first run): T3 China lead 28–371 d (band 75–275) and T3 post-theft lag — the known T3.
+- safety (slow; first run of the combination): S5 RefBot fails (median U − L at SAR +0.36, below in 30%; accepted);
+  S5 mixed passes (margin +0.03); **S4 RefBot P_mis at ASI 0.530 now fails (band 0.55–0.85)**: E1 alone gave 0.569 (from
+  0.694), the same cause as S5 (safety lines speed up with compute). Safe-only 0.018 passes. Attribution: safety on
+  the D merge alone (596b095, no E1) gives S4 RefBot 0.706 (pass), safe-only 0.108, S5 RefBot pass (−0.84, below in 78%),
+  S5 mixed fail (−0.84): so S4's drop is E1's, on top of A5 + D. Not covered by a lead decision yet: listed for the lead
+  with S5 RefBot (E2/E10).
