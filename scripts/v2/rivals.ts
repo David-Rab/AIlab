@@ -167,7 +167,7 @@ const near = (a: number, b: number, tol = 1e-9) => Math.abs(a - b) <= tol * Math
   const x = evalAggregate(w, gV0(w), 2e12 * SHAPE.moe.tokenMult, 2050, 0.625, 8e4, 1, 1);
   const v = recipeRates(w, { rec: L.phys.rec, pool: { pre: 0, mid: 0, ceil: 0 } }, x.rs).rec;
   check(near(x.rs, 1, 1e-9) && near(v.pre, PRE_RATE0, 1e-9) && near(v.mid / v.ceil, 0.08 / 0.12, 1e-9), 'R5 at the leader\'s day-0 inputs research speed is 1, the pretraining part grows at PRE_RATE0 and the RL parts by their shares', `rs ${x.rs.toFixed(6)} (E ${x.E.toFixed(3)}, I ${x.I.toFixed(3)}); pre ${v.pre.toFixed(3)}, mid ${v.mid.toFixed(3)}, ceil ${v.ceil.toFixed(3)} OOM/yr`);
-  // κ: the scale factor of the reference lines' results, from their scale priors and the survival rule (design/notes/F2.md).
+  // κ: the scale factor of the reference lines' results, from their scale priors and the survival rule (design/V3-BUILD.md, F2 notes).
   const P = recipeParts();
   const k = [lineScaleFactor(0.05, 0.04), lineScaleFactor(0, 0.05), lineScaleFactor(-0.25, 0.2), lineScaleFactor(0, 0)];
   check(near(k[0], 1.507, 2e-3) && near(k[1], 1.175, 2e-3) && near(k[2], 2.099, 2e-3) && k[3] === 1 && near(P.pre.kappa, (0.36 * k[0] + 0.22 * k[1] + 0.22 * k[2]) / 0.8, 1e-9) && P.mid.kappa === 1 && P.ceil.kappa === 1,

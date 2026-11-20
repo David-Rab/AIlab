@@ -35,7 +35,7 @@ export const CAL_SHIFT: Record<WorldPresetId, number> = { ai2027: -0.463, author
  *  projects and takes off slower than RefBot after SC (design/notes/F1.md); slow's r = 1.2 needs ×14 (r divides every
  *  OOM of recipe by 10^(1/r)). Model v3 F2: authors2026 0.242 → 0.28, the SC root again (the followers' start states
  *  moved the leader's SC 1491 → 1535 at 0.242 through the shared world; SC 1498 at 0.28); the late milestones still
- *  missed (one-part recipe). Model v3 F2 part B (the recipe in three parts, design/notes/F2.md), --fit-leader: ai2027
+ *  missed (one-part recipe). Model v3 F2 part B (the recipe in three parts, design/V3-BUILD.md, F2 notes), --fit-leader: ai2027
  *  −0.029 and fast 0.025 (worst refine, every milestone in tolerance), slow 0.557, authors2026 0.154 (the SC root: its
  *  SIAR and ASI come early, worst 2.9 tolerances). */
 export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: -0.029, authors2026: 0.154, fast: 0.025, slow: 0.557, sampled: -0.029 };
@@ -61,7 +61,7 @@ export const K_DIFFUSION = 2.0;
 // base FLOP and cadence; mean lead over days 30–540 (3 seeds) 132 d at 3.2, 153 at 1.5, 167 at 1.
 // Model v3 F2: 1 → 1.5 on the three-part recipe (the RL parts saturate and the know-how leaks now feed only the
 // pretraining part, so DeepCent's versions gain less between bases): daily mean lead days 30–540, 8 seeds, 247 d at 1,
-// 181 at 1.5, 161 at 2 (design/notes/F2.md).
+// 181 at 1.5, 161 at 2 (design/V3-BUILD.md, F2 notes).
 export const CHINA_CAL = { effScale: 1.5 };
 /** H100e per agent copy at SC (473k H100e / 200k copies, research/13 §1.9), scaled by serveCost/0.5. */
 export const H100E_PER_COPY_SC = 2.4;

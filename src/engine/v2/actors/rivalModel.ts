@@ -67,7 +67,7 @@ const PART_STACK = { pre: 'pre', mid: 'rlMid', ceil: 'rlCeil' } as const;
 /** Range of a line candidate's scale exponent (models/research.ts S_RANGE, repeated: research.ts reaches this module
  *  through the capability chain). */
 const S_CLAMP: readonly [number, number] = [-0.6, 0.25];
-/** Scale factor of a line's results (model v3 F2, design/notes/F2.md): a result is measured at the scale test (F_test =
+/** Scale factor of a line's results (model v3 F2, design/V3-BUILD.md, F2 notes): a result is measured at the scale test (F_test =
  *  LINE_STAGES.testFrac of the base) and enters the stack at the base's FLOP, ×(1/testFrac)^s. A single candidate
  *  survives the scale test iff its effect there keeps SURVIVE_FRAC of the small-scale one (1000^s ≥ SURVIVE_FRAC), and
  *  the line's pool advances by the test-scale effect ∝ 1000^s, so κ_l = E[1000^s·(1/testFrac)^s; s ≥ s*] ÷
@@ -140,7 +140,7 @@ export function syncRivalPa(w: TimelineWorld, r: Pick<RivalLab, 'core' | 'phys'>
   r.core.pa = paOfRecipe(w, gEquivOfRecipe(r.phys.rec));
   r.phys.paSync = r.core.pa;
 }
-/** What the know-how writers (leaks, diffusion, open weights, events: design/notes/F2.md §4) added to core.pa since the
+/** What the know-how writers (leaks, diffusion, open weights, events: design/V3-BUILD.md, F2 notes §4) added to core.pa since the
  *  model last wrote it enters the pretraining part as public knowledge: B OOM per progress-year, scale-invariant and
  *  outside the research pool (the player's addKnowledge into the stack base). BRIDGE(F3): F3 replaces those writers. */
 export function absorbKnowHow(w: TimelineWorld, r: Pick<RivalLab, 'core' | 'phys'>) {
