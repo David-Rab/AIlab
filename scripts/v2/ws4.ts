@@ -6,6 +6,9 @@
 //   E5  every EndingId is reachable (forced states; the statistical 2,000-run coverage is in scripts/v2/bots.ts)
 //   T3  China lead 150–200 d until a theft (RefBot play), then ≈ 60 d; R10 gap formula within ±2 months at the start
 //   T4  rival gaps at start are 3–9 months (same lead metric as WS1's calib: trueLeadDays)
+// E2, E4, E5, T3 and the T4 spread go through the simulation cache (simcache.ts). `--smoke` (test:quick): E2 on 60
+// seeds, E4 on 2 seeds per storyteller, T3 on 2 seeds, the T4 spread on 20; checks that every seed must pass stay
+// binding on the subset, means and counts print SMOKE.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { RIVAL_NAMES_V2 } from '../../src/data/v2/names';
@@ -29,7 +32,11 @@ import { levelOf, thresholds } from '../../src/engine/v2/world/calibration';
 import type { CostLine, EndingId, EngineSystem, GameStateV2, StorytellerId, TraitVector } from '../../src/engine/v2/types';
 import { refBot } from '../../src/engine/v2/bots/ref';
 import { engine } from '../../src/engine/v2/index';
-import { FIXTURE_DIR, check, finish } from './lib';
+import { fileURLToPath } from 'node:url';
+import { FIXTURE_DIR, SMOKE, check, finish, smokeCheck } from './lib';
+import { cached } from './simcache';
+
+const ME = [fileURLToPath(import.meta.url)];
 
 const fixtures = [0, 400, 900].map((d) => readFileSync(join(FIXTURE_DIR, `day${d}.json`), 'utf8'));
 const load = (i: number) => deserialize(fixtures[i]);
@@ -71,7 +78,8 @@ const load = (i: number) => deserialize(fixtures[i]);
 
 // ───────── E2: never name inactive labs (fuzz 1,000 seeds) ─────────
 {
-  const N = 1000;
+  const N = SMOKE ? 60 : 1000;
+  const { violations, checkedTexts } = cached('ws4-e2', { N }, ME, () => {
   const violations: string[] = [];
   let checkedTexts = 0;
   for (let seed = 1; seed <= N; seed++) {
@@ -112,6 +120,8 @@ const load = (i: number) => deserialize(fixtures[i]);
     }
     if (ws4(s).requests.some((r) => typeof r.data.lab === 'string' && s.rivals.find((x) => x.core.id === r.data.lab)?.core.status !== 'active')) violations.push(`seed ${seed}: stale request survives`);
   }
+  return { violations, checkedTexts };
+  });
   check(violations.length === 0, `E2 no event text references an inactive lab (${N} seeds, ${checkedTexts} texts)`, violations.slice(0, 3).join('; '));
   check(RIVAL_NAMES_V2.length >= 4, 'E2 rival names available');
 }
@@ -157,11 +167,13 @@ const load = (i: number) => deserialize(fixtures[i]);
 
 // ───────── E4: storyteller limits ─────────
 {
+  const E4_SEEDS = SMOKE ? 2 : 12;
+  const { bad, crisesSeen } = cached('ws4-e4', { seeds: E4_SEEDS, days: 300 }, ME, () => {
   const bad: string[] = [];
   let crisesSeen = 0;
   for (const st of ['measured', 'rising', 'chaotic'] as StorytellerId[]) {
     const lim = STORYTELLERS[st];
-    for (let seed = 1; seed <= 12; seed++) {
+    for (let seed = 1; seed <= E4_SEEDS; seed++) {
       const s = newGame(defaultSetupV2({ seed, storyteller: st, tutorial: false }));
       const spam: EngineSystem = { id: 'spam', owner: 'WS4', cadence: 'daily', order: 139, system: 'core', run: (x) => {
         // Requests obey cooldowns, so clear the record each day to keep the pressure on the storyteller limits.
@@ -184,7 +196,12 @@ const load = (i: number) => deserialize(fixtures[i]);
       for (let d = 0; d < 300 && !s.ending; d++) tick(s, { extraSystems: [spam, probe] });
     }
   }
-  check(bad.length === 0 && crisesSeen > 50, `E4 storyteller limits hold (max concurrent crises, quiet period) under crisis spam (${crisesSeen} crises fired)`, bad.slice(0, 3).join('; '));
+  return { bad, crisesSeen };
+  });
+  if (SMOKE) {
+    check(bad.length === 0, 'E4 storyteller limits hold under crisis spam (SMOKE seeds: every crisis checked)', bad.slice(0, 3).join('; '));
+    smokeCheck(crisesSeen > 50, 'E4 crisis spam fires > 50 crises', `${crisesSeen}`);
+  } else check(bad.length === 0 && crisesSeen > 50, `E4 storyteller limits hold (max concurrent crises, quiet period) under crisis spam (${crisesSeen} crises fired)`, bad.slice(0, 3).join('; '));
 }
 
 // ───────── E5: every EndingId reachable (forced states) ─────────
@@ -247,6 +264,7 @@ const load = (i: number) => deserialize(fixtures[i]);
       s.hidden.agendaEfficacy.AG10 = 0.9;
     }
   }
+  const missing = cached('ws4-e5', { endings: Object.keys(setups), maxSeed: 300, days: 3 }, ME, () => {
   const missing: string[] = [];
   for (const [id, setup] of Object.entries(setups) as [EndingId, (s: GameStateV2) => void][]) {
     let hit = false;
@@ -258,6 +276,8 @@ const load = (i: number) => deserialize(fixtures[i]);
     }
     if (!hit) missing.push(id);
   }
+  return missing;
+  });
   check(missing.length === 0, `E5 every EndingId is reachable (${Object.keys(setups).length} endings, forced states)`, missing.join(', '));
 }
 
@@ -266,13 +286,15 @@ const load = (i: number) => deserialize(fixtures[i]);
 // the mean over the pre-SC year is 150–200 d and every sample stays within one release interval (75–275 d); a theft
 // then puts China ≈ 60 d behind; the R10 gap formula matches the simulated start lead within ±2 months.
 {
+  const T3_SEEDS = SMOKE ? 2 : 8;
+  const { leads0, formulaGap, pre, post } = cached('ws4-t3', { seeds: T3_SEEDS, days: 540 }, ME, () => {
   const leads0: number[] = [];
   const formulaGap: number[] = [];
   const pre: number[] = [];
   const post: number[] = [];
   const minRung = WS4_TUNING.theftMinRung;
   WS4_TUNING.theftMinRung = 99; // no theft: the lead must stay in band
-  for (let seed = 1; seed <= 8; seed++) {
+  for (let seed = 1; seed <= T3_SEEDS; seed++) {
     const s = newGame(defaultSetupV2({ seed, alignment: 'medium', tutorial: false }));
     tick(s, { skip: ['endings'] });
     leads0.push(leadBetween(s, 'player', 'china'));
@@ -287,9 +309,11 @@ const load = (i: number) => deserialize(fixtures[i]);
     post.push(leadBetween(s, 'player', 'china'));
   }
   WS4_TUNING.theftMinRung = minRung;
+  return { leads0, formulaGap, pre, post };
+  });
   const mean = pre.reduce((a, x) => a + x, 0) / Math.max(1, pre.length);
   check(leads0.every((x) => x >= 150 && x <= 200), 'T3 China lead at start 150–200 d', leads0.map((x) => x.toFixed(0)).join(', '));
-  check(mean >= 150 && mean <= 200, 'T3 China mean lead 150–200 d until a theft (RefBot, days 30–540, 8 seeds)', `mean ${mean.toFixed(0)} d`);
+  smokeCheck(mean >= 150 && mean <= 200, 'T3 China mean lead 150–200 d until a theft (RefBot, days 30–540, 8 seeds)', `mean ${mean.toFixed(0)} d`);
   check(pre.every((x) => x >= 75 && x <= 275), 'T3 China lead stays within 75–275 d (release-interval band)', `${Math.min(...pre).toFixed(0)}–${Math.max(...pre).toFixed(0)}`);
   check(post.every((x) => x >= 40 && x <= 80), 'T3 after a theft China is ≈ 60 d behind', post.map((x) => x.toFixed(0)).join(', '));
   check(formulaGap.every((x) => Math.abs(x) <= 2), 'T3 R10 gap formula within ±2 months of the simulated start lead', formulaGap.map((x) => x.toFixed(2)).join(', '));
@@ -302,14 +326,18 @@ const load = (i: number) => deserialize(fixtures[i]);
   const fx = newGame(defaultSetupV2({ seed: 2027, alignment: 'medium' }));
   const fxMonths = fx.rivals.map((r) => leadBetween(fx, 'player', r.core.id) / 30.4);
   check(fxMonths.every((m) => m >= 3 - 1e-9 && m <= 9 + 1e-9), 'T4 rival gaps at start are 3–9 months (fixture seed)', fxMonths.map((m) => m.toFixed(1)).join(', '));
-  const months: number[] = [];
-  for (let seed = 1; seed <= 200; seed++) {
-    const s = newGame(defaultSetupV2({ seed }));
-    for (const r of s.rivals) months.push(leadBetween(s, 'player', r.core.id) / 30.4);
-  }
+  const T4_SEEDS = SMOKE ? 20 : 200;
+  const months: number[] = cached('ws4-t4', { seeds: T4_SEEDS }, ME, () => {
+    const months: number[] = [];
+    for (let seed = 1; seed <= T4_SEEDS; seed++) {
+      const s = newGame(defaultSetupV2({ seed }));
+      for (const r of s.rivals) months.push(leadBetween(s, 'player', r.core.id) / 30.4);
+    }
+    return months;
+  });
   months.sort((x, y) => x - y);
   const inBand = months.filter((m) => m >= 3 && m <= 9).length / months.length;
-  console.log(`      T4 over 200 seeds (classic): min ${months[0].toFixed(2)}, median ${months[months.length >> 1].toFixed(2)}, max ${months[months.length - 1].toFixed(2)} months; ${(100 * inBand).toFixed(0)}% in 3–9`);
+  console.log(`      T4 over ${T4_SEEDS} seeds (classic): min ${months[0].toFixed(2)}, median ${months[months.length >> 1].toFixed(2)}, max ${months[months.length - 1].toFixed(2)} months; ${(100 * inBand).toFixed(0)}% in 3–9`);
 }
 
 // ───────── C1 (R1 B1/B2): a commitment blocks only launches in its own scope, judged on the candidate ─────────

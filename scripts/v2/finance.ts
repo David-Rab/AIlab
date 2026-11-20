@@ -2,6 +2,9 @@
 // Real play (M2): bots are WS1's reference model play (refPlay) + this workstream's finance autopilot, revenue is WS5's
 // real model (deployment.revenueRate, booked once through the finance ledger), endings skipped so finance can be
 // measured through 2027. F11 checks WS3's consumption of WS5's revenue.
+// The bot games go through the simulation cache (simcache.ts); a cached run keeps the parts of the final state the checks
+// read (finance years, deals, rounds, the hidden timeline). `--smoke` (test:quick): one seed per bot and the long run to
+// end-2027; the multi-seed and horizon-cut targets print SMOKE.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { BASELINES, globalCompute } from '../../src/data/world';
@@ -21,7 +24,9 @@ import { refDecide, refPlay } from '../../src/engine/v2/bots/ref';
 import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
 import { engine } from '../../src/engine/v2/index';
 import type { CostLine, EngineSystem, GameStateV2 } from '../../src/engine/v2/types';
-import { FIXTURE_DIR, check, finish, validateJson } from './lib';
+import { fileURLToPath } from 'node:url';
+import { FIXTURE_DIR, SMOKE, check, finish, smokeCheck, validateJson } from './lib';
+import { cached, pick, prefill } from './simcache';
 
 // M4: the M2 deferrals (F7 capex/valuation, F8 distress-free share) now pass on integrated play; see design/PROGRESS.md.
 
@@ -30,7 +35,10 @@ const END_2026 = dayOfDate(START, '2027-01-01');
 const END_Q1_2027 = dayOfDate(START, '2027-04-01');
 const END_2027 = dayOfDate(START, '2028-01-01');
 const END_2028 = dayOfDate(START, '2029-01-01');
-const SEEDS = Array.from({ length: 12 }, (_, i) => i + 1);
+const SEEDS = Array.from({ length: SMOKE ? 1 : 12 }, (_, i) => i + 1);
+const ME = fileURLToPath(import.meta.url);
+/** The final-state paths the checks read from a bot run. */
+const RUN_PICKS = ['player.finance.ws3.years', 'player.finance.deals', 'player.finance.rounds', 'hidden.timeline'];
 
 
 const median = (xs: number[]) => {
@@ -71,21 +79,41 @@ function runBot(seed: number, opts: AutopilotOpts | undefined, until: number): R
   }
   return { s, q, firstDistress, gw2026, v2026 };
 }
+/** runBot through the simulation cache: the record keeps RUN_PICKS of the final state. */
+const runBotC = (seed: number, opts: AutopilotOpts, until: number): Run =>
+  cached('finance-bot', { seed, opts, until }, [ME], () => {
+    const r = runBot(seed, opts, until);
+    return { ...r, s: pick(r.s, RUN_PICKS) };
+  });
 
 // ───────────────────────────── F1–F3, F6: market under default demand (RefBot) ─────────────────────────────
-const long = runBot(1, REF_AUTOPILOT, END_2028);
+const bare: AutopilotOpts = { ...REF_AUTOPILOT, strategic: false, offBalance: false, guard: false, rescue: false };
+// The runner's --prefill shards: the bot and shock runs, in the order the checks ask for them.
+prefill([
+  () => runBotC(1, REF_AUTOPILOT, SMOKE ? END_2027 : END_2028),
+  () => shockRun(0.7, 1, 1),
+  () => shockRun(0.7, 1.5, 1),
+  () => shockRun(1, 0.5, 2),
+  ...SEEDS.map((seed) => () => runBotC(seed, REF_AUTOPILOT, END_2027)),
+  ...SEEDS.map((seed) => () => runBotC(seed, bare, END_Q1_2027)),
+  ...SEEDS.map((seed) => () => runBotC(seed, CAPEX2X_AUTOPILOT, END_2027)),
+]);
+const long = runBotC(1, REF_AUTOPILOT, SMOKE ? END_2027 : END_2028);
 const prod = (y: number) => long.q.filter((r) => r.year === y).reduce((a, r) => a + r.shipped, 0);
 check(prod(2026) >= 20e6 && prod(2026) <= 30e6, 'F1 global production 2026 ≈ 25M H100e (±20%)', `${f1(prod(2026) / 1e6)}M`);
-check(prod(2027) >= 45e6 && prod(2027) <= 60e6, 'F2 global production 2027 in 45–60M H100e', `${f1(prod(2027) / 1e6)}M`);
+smokeCheck(prod(2027) >= 45e6 && prod(2027) <= 60e6, 'F2 global production 2027 in 45–60M H100e', `${f1(prod(2027) / 1e6)}M`);
 const w = long.s.hidden.timeline;
 const ratios = long.q.map((r) => r.stock / globalCompute(w as never, BASELINES[0].start.globalCompute, r.day / 365));
-check(ratios.every((x) => x >= 0.8 && x <= 1.2), 'F3 installed stock within ±20% of globalCompute(w,t) through 2028', `ratio ${f1(Math.min(...ratios) * 100)}–${f1(Math.max(...ratios) * 100)}%`);
+smokeCheck(ratios.every((x) => x >= 0.8 && x <= 1.2), 'F3 installed stock within ±20% of globalCompute(w,t) through 2028', `ratio ${f1(Math.min(...ratios) * 100)}–${f1(Math.max(...ratios) * 100)}%`);
 const m27 = long.q.filter((r) => r.year <= 2027).map((r) => r.margin);
 const meanM = m27.reduce((a, b) => a + b, 0) / m27.length;
-check(meanM >= 0.7 && meanM <= 0.77 && Math.min(...m27) >= 0.65, 'F6 implied supplier margin 70–75% (mean Q4 2025–Q4 2027)', `mean ${f1(meanM * 100)}%, min ${f1(Math.min(...m27) * 100)}%`);
+smokeCheck(meanM >= 0.7 && meanM <= 0.77 && Math.min(...m27) >= 0.65, 'F6 implied supplier margin 70–75% (mean Q4 2025–Q4 2027)', `mean ${f1(meanM * 100)}%, min ${f1(Math.min(...m27) * 100)}%`);
 
 // ───────────────────────────── F4, F5: demand shocks (passive player, same seed) ─────────────────────────────
-function shockRun(baseMult: number, mult: number, atQ: number, nQ = 16) {
+function shockRun(baseMult: number, mult: number, atQ: number, nQ = 16): { S: number[]; r: number[] } {
+  return cached('finance-shock', { seed: 5, baseMult, mult, atQ, nQ }, [ME], () => shockRun0(baseMult, mult, atQ, nQ));
+}
+function shockRun0(baseMult: number, mult: number, atQ: number, nQ: number) {
   const s = newGame(defaultSetupV2({ seed: 5 }));
   demandShock(s, baseMult);
   const S: number[] = [];
@@ -127,29 +155,28 @@ function shockRun(baseMult: number, mult: number, atQ: number, nQ = 16) {
 
 // ───────────────────────────── F7, F8: RefBot, no-financing variant, capex2x ─────────────────────────────
 const STRATEGIC = new Set(DEAL_TEMPLATES.filter((t) => t.strategic).map((t) => t.id));
-const ref = SEEDS.map((seed) => runBot(seed, REF_AUTOPILOT, END_2027));
+const ref = SEEDS.map((seed) => runBotC(seed, REF_AUTOPILOT, END_2027));
 const y26 = ref.map((r) => r.s.player.finance.ws3.years['2026']);
 const capex = y26.map((y) => y.capexChips + y.capexSites + y.capexSitesFinanced + y.supplierFunding);
 const med = { rev: median(y26.map((y) => y.revenue)), capex: median(capex), compute: median(y26.map((y) => y.computeCosts)), gw: median(ref.map((r) => r.gw2026)), v: median(ref.map((r) => r.v2026)) };
-check(med.rev >= 36 && med.rev <= 54, 'F7 RefBot 2026 revenue $45B (±20%)', `median $${f1(med.rev)}B`);
-check(med.capex >= 150 && med.capex <= 250, 'F7 RefBot 2026 capex $200B (±25%)', `median $${f1(med.capex)}B (range ${f1(Math.min(...capex))}–${f1(Math.max(...capex))})`);
-check(med.compute >= 25 && med.compute <= 60, 'F7 RefBot 2026 compute costs ~$40B/yr', `median $${f1(med.compute)}B`);
-check(med.gw >= 4 && med.gw <= 9, 'F7 RefBot end-2026 power ~6 GW (live sites + cloud)', `median ${f1(med.gw)} GW`);
-check(med.v >= 1000 && med.v <= 3000, 'F7 RefBot end-2026 valuation $1–3T', `median $${(med.v / 1000).toFixed(2)}T`);
+smokeCheck(med.rev >= 36 && med.rev <= 54, 'F7 RefBot 2026 revenue $45B (±20%)', `median $${f1(med.rev)}B`);
+smokeCheck(med.capex >= 150 && med.capex <= 250, 'F7 RefBot 2026 capex $200B (±25%)', `median $${f1(med.capex)}B (range ${f1(Math.min(...capex))}–${f1(Math.max(...capex))})`);
+smokeCheck(med.compute >= 25 && med.compute <= 60, 'F7 RefBot 2026 compute costs ~$40B/yr', `median $${f1(med.compute)}B`);
+smokeCheck(med.gw >= 4 && med.gw <= 9, 'F7 RefBot end-2026 power ~6 GW (live sites + cloud)', `median ${f1(med.gw)} GW`);
+smokeCheck(med.v >= 1000 && med.v <= 3000, 'F7 RefBot end-2026 valuation $1–3T', `median $${(med.v / 1000).toFixed(2)}T`);
 
 const funded = ref.map((r) => {
   const y = r.s.player.finance.ws3.years['2026'];
   const deal = r.s.player.finance.deals.some((d) => STRATEGIC.has(d.template) && d.day >= 0 && d.day < END_2026);
   return { deal, fin: y.spvFinanced + y.leaseFinanced + y.cloudFinanced };
 });
-check(share(funded.map((x) => x.deal && x.fin >= 50)) >= 0.8, 'F8 RefBot takes ≥ 1 strategic deal and ≥ $50B SPV/lease/neocloud financing in 2026 (≥ 80% of seeds)', `${share(funded.map((x) => x.deal && x.fin >= 50)) * 100}% · median financing $${f1(median(funded.map((x) => x.fin)))}B`);
-check(share(ref.map((r) => r.firstDistress < 0 || r.firstDistress >= END_2026)) >= 0.75, 'F8 RefBot stays out of distress through 2026 (≥ 75% of seeds)', `${f1(share(ref.map((r) => r.firstDistress < 0 || r.firstDistress >= END_2026)) * 100)}%`);
-const bare: AutopilotOpts = { ...REF_AUTOPILOT, strategic: false, offBalance: false, guard: false, rescue: false };
-const none = SEEDS.map((seed) => runBot(seed, bare, END_Q1_2027));
-check(share(none.map((r) => r.firstDistress >= 0)) >= 0.8, 'F8 the C7 path without a strategic deal or off-balance-sheet financing hits distress by Q1 2027 (≥ 80%)', `${f1(share(none.map((r) => r.firstDistress >= 0)) * 100)}%`);
-const x2 = SEEDS.map((seed) => runBot(seed, CAPEX2X_AUTOPILOT, END_2027));
+smokeCheck(share(funded.map((x) => x.deal && x.fin >= 50)) >= 0.8, 'F8 RefBot takes ≥ 1 strategic deal and ≥ $50B SPV/lease/neocloud financing in 2026 (≥ 80% of seeds)', `${share(funded.map((x) => x.deal && x.fin >= 50)) * 100}% · median financing $${f1(median(funded.map((x) => x.fin)))}B`);
+smokeCheck(share(ref.map((r) => r.firstDistress < 0 || r.firstDistress >= END_2026)) >= 0.75, 'F8 RefBot stays out of distress through 2026 (≥ 75% of seeds)', `${f1(share(ref.map((r) => r.firstDistress < 0 || r.firstDistress >= END_2026)) * 100)}%`);
+const none = SEEDS.map((seed) => runBotC(seed, bare, END_Q1_2027));
+smokeCheck(share(none.map((r) => r.firstDistress >= 0)) >= 0.8, 'F8 the C7 path without a strategic deal or off-balance-sheet financing hits distress by Q1 2027 (≥ 80%)', `${f1(share(none.map((r) => r.firstDistress >= 0)) * 100)}%`);
+const x2 = SEEDS.map((seed) => runBotC(seed, CAPEX2X_AUTOPILOT, END_2027));
 const x2capex = median(x2.map((r) => { const y = r.s.player.finance.ws3.years['2026']; return y.capexChips + y.capexSites + y.capexSitesFinanced; }));
-check(share(x2.map((r) => r.firstDistress >= 0 && r.firstDistress < END_2027)) >= 0.8, 'F8 capex2x bot (no rescue) reaches Distress by end-2027 (≥ 80%)', `${f1(share(x2.map((r) => r.firstDistress >= 0 && r.firstDistress < END_2027)) * 100)}% · 2026 capex attempted median $${f1(x2capex)}B`);
+smokeCheck(share(x2.map((r) => r.firstDistress >= 0 && r.firstDistress < END_2027)) >= 0.8, 'F8 capex2x bot (no rescue) reaches Distress by end-2027 (≥ 80%)', `${f1(share(x2.map((r) => r.firstDistress >= 0 && r.firstDistress < END_2027)) * 100)}% · 2026 capex attempted median $${f1(x2capex)}B`);
 
 // ───────────────────────────── F9: valuation, rounds, shocks ─────────────────────────────
 {
@@ -159,7 +186,7 @@ check(share(x2.map((r) => r.firstDistress >= 0 && r.firstDistress < END_2027)) >
   const low = mult(2.5, 10);
   check(low >= 15 && low <= 20, 'F9 valuation multiple ~15–20× at g ≈ 2.5 (C11)', f1(low));
   const dil = ref.flatMap((r) => r.s.player.finance.rounds.filter((x) => !x.anchor && !x.down).map((x) => x.dilution));
-  check(dil.length > 0 && Math.max(...dil) <= 0.08 + 1e-9, 'F9 unanchored round dilution ≤ 8% (C12)', `max ${f1(Math.max(...dil) * 100)}% over ${dil.length} rounds`);
+  smokeCheck(dil.length > 0 && Math.max(...dil) <= 0.08 + 1e-9, 'F9 unanchored round dilution ≤ 8% (C12)', `max ${f1(Math.max(...dil) * 100)}% over ${dil.length} rounds`);
   const s = newGame(defaultSetupV2({ seed: 3 }));
   const V = s.player.finance.valuation;
   const anch = raiseCeiling(s, Number.POSITIVE_INFINITY, { anchor: true }).parts.dilution;
@@ -198,7 +225,7 @@ check(share(x2.map((r) => r.firstDistress >= 0 && r.firstDistress < END_2027)) >
 {
   const s0 = newGame(defaultSetupV2({ seed: 1 }));
   const r27 = median(ref.map((r) => r.s.player.finance.ws3.years['2027'].revenue));
-  check(s0.player.finance.revenueRun === 12 && r27 >= 98 && r27 <= 182, 'F11 revenue path (classic): $12B run-rate Jul 2025; ~$140B in 2027 (±30%)', `start ${s0.player.finance.revenueRun}, 2027 $${f1(r27)}B (WS5 owns the demand model; WS3 books it)`);
+  smokeCheck(s0.player.finance.revenueRun === 12 && r27 >= 98 && r27 <= 182, 'F11 revenue path (classic): $12B run-rate Jul 2025; ~$140B in 2027 (±30%)', `start ${s0.player.finance.revenueRun}, 2027 $${f1(r27)}B (WS5 owns the demand model; WS3 books it)`);
   // WS5's revenue system off: deployments hold a fixed revenueRate, WS3 smooths the run-rate from it.
   for (const d of s0.player.deployments) d.revenueRate = 30 / s0.player.deployments.length;
   for (let i = 0; i < 120; i++) tick(s0, { skip: ['revenue', 'endings'] });
