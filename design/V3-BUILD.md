@@ -3328,3 +3328,704 @@ bit-identical (calib days and worldfx revenue unchanged). D11 only exposed it (r
   consumer subs on 2027-10-01 259M → 196M), consistent with D11's early dilution of RefBot's bases by q 0.5–0.87
   synthetic data (−0.02 to −0.05 OOM, D11 notes) on the one-seed classic path. Not tuned here (no named V3_CAL value
   moves ai2027's classic path without moving T1); for the lead.
+
+### E6 notes (oversight measured in capability gaps, control tax; 2026-11-20)
+
+Branch `v3-e6` (from `model-v3` at edaf6f8). Spec: MODEL-V3 §11.3, §11.5–11.6; research/20 F4; research/14 §1.6A
+(AG05), AG07. Code: `src/data/v2/oversight.ts` (new: constants and their sources), `src/engine/v2/safety/oversight.ts`
+(new: level ↔ OOM map, gaps, monitor rule, control protocol), `safety/techniques.ts` (decay in OOM, AG05, containment),
+`safety/common.ts` (M helpers removed), `safety/{agendas,detection,findings,investigations,responses,actions,
+understanding,view,incidents}.ts` (every M read replaced), `models/products.ts` (catchRate), `departments/workfit.ts`
+(control tax in `useLabour`), `departments/agentActions.ts` (lane readout), `endings/epilogue.ts` (containAtAsi), data
+`agendas.ts` (`oHalf`), `findings.ts` (`oHalf:` effects), `features.ts` (re-export), `danger.ts` (comment), glossary
+(`halfStrength`, `oversightGap`, `controlTax`; `mHalf` removed; `catchRate` rewritten), UI: chips `CatchX`, Safety
+(upkeep line, tool tooltip), Codex, TopStrip, Agents (control-tax tag). Test `scripts/v2/oversight.ts` (in `test:v2`
+after danger); uitest +2 checks; hygiene +1 save check.
+
+#### The capability coordinate
+
+Every oversight quantity now reads capability as **x = OOM of effective compute above the start model V0**:
+x = λ⁻¹(L) − G_V0, the exact inverse of the display level map λ(G) (`levelOfG`; piecewise linear through the knots
+V0 / SC / SAR / SIAR / ASI; L ≥ 15 maps to the ASI knot as λ caps). TRUE quantities use a version's hidden general level
+`Lg` (= λ(G) of its pm, what `versionM` read through the M bridge); believed ones use the measured level (`measuredLOf`),
+as before. A gap between an overseen model and its overseer is the difference in x (`oversightGap`: OOM, levels, Elo).
+[D] OOM rather than levels: Epoch's capability index is linear in log compute (0.387 ECI per OOM [P]) and Engels'
+Elo is a capability measure, while λ's levels per OOM change by a factor 6 along the path (2.0 per OOM V0 → SC, 1.1 SC
+→ SAR, 0.34 SAR → SIAR, 0.52 SIAR → ASI on ai2027), so a gap in levels would mean very different capability gaps early
+and late. Levels are shown next to every gap.
+
+#### Elo → OOM (the Engels anchor)
+
+Engels et al. 2025 [P] use Chatbot Arena Elo as general capability ("We use Chatbot Arena Elo scores as a proxy for
+general intelligence"). Their Table 1 has a same-recipe pair: Llama-3-8B 1152 vs Llama-3-70B 1207, both on 15T+ tokens
+(Meta model card [P]), so 55 Elo per 0.94 OOM of training compute = 58 Elo/OOM: **400 Elo ≈ 6.8 OOM** [D from P].
+Cross-checks: 6.8 OOM × 0.387 = 2.6 ECI units ≈ 4.8 years of frontier progress at 0.55/yr [P]; the Arena frontier
+rose ≈ 190 Elo from GPT-4 (2023, ≈ 1186 [UNVERIFIED]) to chatgpt-4o-latest (1377, Engels Table 1) in ≈ 2 years ≈ 4.2
+years per 400 Elo; and the monitor rule below gives 62% at a 1-OOM gap, Greenblatt et al.'s trusted-monitoring safety
+with GPT-3.5 watching GPT-4 (≈ 1 OOM apart [R]). On λ(G) 6.8 OOM is ≈ 13 levels at the V0 → SC slope, 7 at SC → SAR,
+2.3 at SAR → SIAR.
+
+#### Re-based quantities
+
+| quantity | v2 (M) | E6 | source |
+|---|---|---|---|
+| monitor catch (products, internal uses) | 0.85 · 0.52^log4(M_w/M_m) | `monitorCatchAt(gap)` = 0.85 · (0.10/0.85)^(gap/6.8 OOM), then AG07 tools halve the rest (unchanged); under the control layer misses ×0.447 | Engels Backdoor Code 10% at 400 Elo; base 85% [D, kept]; Greenblatt |
+| same-lineage collusion | ×(1 − 0.4), T-LOCK halves | unchanged | J2 AG1 |
+| tool decay D | 1/(1 + (M/M½)^k) | 1/(1 + 10^(k·κ·(x − oHalf))), κ = 0.27 | κ = mean log10 M per OOM on the ai2027 path V0 → ASI [D: equivalence] |
+| tool half points (data) | M½ 25 / 30 / 250 / 2000 | oHalf 4.38 / 4.72 / 8.78 / 11.64 OOM (SAR, SAR+, SIAR, ASI on ai2027) | the same points on the reference path |
+| AG09 under latent | M½ 5, k 2 | oHalf 2.53 (SC), k 2 | same |
+| tool upkeep | M½ × 2^r per day | oHalf + r · log10(2)/κ per day (1.115 OOM per v2 doubling) | same speed on the path |
+| NEG results (F21, F30, generic) | M½ × 0.5 / × 0.6 | oHalf − 1.11 / − 0.82 OOM (`oHalf:` effects) | log10(×)/κ |
+| AG05 scalable oversight | 0.52^(log4(M/5) − debate tier) | 0.517^((x − x_SC − 4.0·[debate])/6.8) | Engels debate 51.7% at 400 Elo; F16 credit = Khan 2024 accuracy 54% → 82% = 235 Elo ≈ 4.0 OOM [D] |
+| U, family seen-to, projection | strength at M(L) | strength at x(L); the projection (VAL_LEAD, EA growth) stays in levels | — |
+| containment (AG07, block) | Contain(M of the overseen model) | Contain(x of the overseen model) | — |
+| containment at ASI (endings) | Contain(2000) | `containAtAsi`: Contain(x of the world's ASI knot) | ai2027: 11.64 OOM ≡ M 2000 |
+| human review (internal catch) | 0.3 · (1 − r) | 0.3 · (1 − r) · gapFactor(model − L 10) | E5 [D]; expert humans = SC level [D] |
+| T-CCLASS misuse boost, eval suite, runtime monitoring, investigations, audits, best detector, NEG precondition, previews | strength at versionM / mAtLevel | strength at versionOom / oomOfLevel | — |
+
+Equivalence on the ai2027 reference path (probe, old/new strength factor): AG08 L5 0.945/0.938, L10 0.833/0.759,
+L12 0.500/0.500, L13.5 0.091/0.061; AG07 L12 0.590/0.607; AG02 L13.5 0.500/0.500; AG01 L15 0.500/0.500. Monitor catch
+(old/new): L4 on L5 0.84/0.73, L5 on L8 0.67/0.53, L10 on L12 0.40/0.48, L12 on L13.5 0.29/0.21, L10 on L15 0.050/0.048.
+AG05 is stronger late (SAR 0.47 → 0.84, ASI 0.06 → 0.41 before the debate credit): Engels' debate rate per 400 Elo is
+gentler than v2's "1 tier = ×4 M" [D]. AG05's only tool, T-DEBATE, covers SYC/RH/CONCEAL/PROXY, none of the critical
+traits, so U and the S-criteria barely see it.
+
+**Other worlds.** Half points are physical (OOM above V0), so in worlds where milestones need more compute the tools
+fade at lower levels: authors2026 AG08 halves at L 8.8 (was L 12), L10 strength factor 0.31 (was 0.89); the monitor
+rule likewise counts authors2026's longer OOM spans. [D] This is the intended reading (a tool validated on 2025 models
+meets the same capability gap per OOM in every world; the world's difficulty is where the milestones sit); upkeep has
+those worlds' extra years to follow. If the lead prefers milestone-relative tools, the one-line alternative is oHalf
+from λ⁻¹_w(L½) per world at init. No test runs safety on authors2026; its golden dates are unchanged.
+
+#### Control tax (MODEL-V3 §11.6, research/20 F4)
+
+When the internal deployment runs the control layer (AG07 protocols: the "Add control" response or a safety event), each
+internal use works under trusted monitoring that defers d = 10% of actions [D: Greenblatt's middle setting] to its
+trusted model (the use's monitor; a copy of itself = no gap; no monitor = humans redo them):
+
+    usefulness = U(0) − (U(0) − U(d)) · min(1, gap ÷ 1 OOM) = 0.97 − 0.04 · min(1, gap)
+    misses     × (1 − S(d)) ÷ (1 − S(0)) = 0.17 / 0.38 = 0.447
+
+U, S from Greenblatt et al. 2023's trusted-monitoring table (interpolated in d). The usefulness multiplies the use's AI
+FTE in `useLabour` (V3 work-type labour, replacing v2's flat ×0.95 on every use), so SWE, EXP, IDEAS and the safety
+package each pay their own tax; the miss multiplier applies to the internal catch roll (`catchOf`) and, on a product with
+the control layer, to its monitor (`catchRate(…, controlled)`). The monitor's inference cost stays the D7 compute
+(0.25 × FLOP-per-token ratio from the safety pool): research/20's third tax term. Readout: a "control −x%" tag per
+Agents lane (tooltip: deferral, gap to the trusted model, misses ×0.45; glossary `controlTax`). No bot turns the
+control layer on, so reference runs and golden dates are unchanged by it.
+
+#### Hook for E4 / E7
+
+`internalOversight(s, v, trait)` (safety/incidents.ts) returns MODEL-V3 §11.3's oversight_k = 1 − (1 − block)(1 −
+catch) for model v's internal work with its parts (block = AG07 containment at v's capability; catch = monitors and
+tools, human review with v's gap above L 10, control deferral). E4's "(1 − oversight)" in the successor pull and E7's
+covert acts can call it (or `oversightGap` + `monitorCatchAt` with an act's domain levels, "measured against the
+overseer's level").
+
+#### Removed M reads
+
+`safety/common.ts`: `mAtPm`, `versionM`, `mAtLevel` and its level table (BRIDGE(V6)) deleted; every caller in
+safety/, `models/products.ts` (catchRate), `core/selectors.ts` (techniqueCurve) and `endings/epilogue.ts` moved to
+x. `AG05_GAP` deleted. Lint in `oversight.ts`: no safety module, products.ts or departments/agents.ts reads
+multiplierAt / multiplierRef / versionM / mAtLevel / mAtPm / bridgeQ / researchSpeed / prodCache.M. **One allowed
+read remains**: `safety/traits.ts` `inheritFromFleet` (κ = INHERIT_K·(1 − 1/M), the lineage inheritance through the
+lab's AI R&D) is E4's successor-pull code, which this brief keeps out of scope; E4 should replace it with the AI share
+of R&D and `internalOversight`. Outside safety, `models/tree.ts` `researchSpeed` (BRIDGE(V6): the rolled safety nodes'
+speed) and `world/calibration.ts` `bridgeQ` (revenue per chip) still read M; they are not oversight.
+
+#### schemaRev
+
+24 → **25**: `TechniqueState.oHalf` replaces `mHalf`. Migration 24 converts each tool's M½ on the ai2027 reference
+path (`oomOfRefM`, log-linear in M between the knots), the same half point (hygiene check; data.ts / hygiene's
+SCHEMA_REV assertions moved to 25). Parallel branches that also bump from 24 must chain after it at merge.
+
+#### Safety criteria (safety.ts, full run; before = M2's gate, not tuned)
+
+| criterion | before (M2) | after (E6) |
+|---|---|---|
+| S4 RefBot/medium P_mis at ASI ∈ [0.55, 0.85] | 0.485 FAIL (known → E10) | **0.526** FAIL (known; closer to the band) |
+| S4 safe-only ≤ 0.25 | 0.011 | 0.011 pass |
+| S5 RefBot "U falls below L by SAR" | median U − L at SAR +0.50, below in 30% FAIL (known) | +0.55, below in 28% FAIL (known) |
+| S5 mixed keeps U ≥ L − 0.5 to SAR | margin +0.03, holds in 70%; U@SAR 12.35 vs RefBot 11.22 | margin +0.09, holds in 70%; U@SAR 12.32 vs RefBot 11.35 pass |
+| S6, B3 | pass | pass |
+
+#### Gate
+
+tsc main + scripts clean; `npm run build` ok; `test:ui` 418 passed, 0 failed (+2 E6 checks; the screenshot
+`51-e6-control-tax` shows the tag under each lane's AI share; two earlier runs died at the setup screen's locked tooltip
+under machine load, unrelated, and passed on rerun). Pass: oversight (new, 29 checks), golden-timelines, identity,
+effective, data, suites, signals, research, safetyresearch, worktypes, danger, products, serving, money, idle, fixtures
+(committed fixtures restored after it rewrote them), lint-hidden, lint-ux, lint-structure, lint-tips, lint-tradeoffs,
+calib (all passed: T1/T1L on every preset; ai2027 SC 2027.249 and slow SC 2038.577 identical to M2; authors2026 SIAR /
+ASI days 2143 / 2979 vs M2's 2141 / 2990). hygiene: all pass except the four known perf checks (17–20 ms/day under load
+from four parallel sessions; an A/B of the base commit and E6 on the same machine gave 26.8 / 27.6 and 24.4 / 20.3
+ms/day, i.e. noise); its new 24 → 25 save check passes. finance / worldfx / ws4 not re-run (known failures; E6 changes
+no reference-bot path except through incidents' catch, as E5 did).
+
+### E4 notes (successor pull, 2026-11-20)
+
+Branch `v3-e4` (from `model-v3` at edaf6f8). Code: `src/engine/v2/safety/traits.ts` (new "Successor pull" section:
+`successorPull`, `applySuccessorPull`, `successorOversight`, `kappaSucc`, `K_SUCC_0`, `SUCCESSOR_TRAITS`; V2's
+`inheritFromFleet` and `INHERIT_K` removed; hooks in `applyBaseToLineage` and `applyRunToTraits`), glossary `baseRun`
+text. Test: `scripts/v2/successor.ts` (new, in `test:v2` after `signals`). No saved state changed: no schemaRev bump.
+
+#### Rule (MODEL-V3 §11.2)
+
+When a run completes (new base, continued base, post-training, distillation), the new model's starting dispositions
+x₀ are pulled toward the models doing the lab's R&D that day:
+
+    x₀_t += Σ_k ω_k · (x_k,t − x₀_t),   ω_k = κ_succ(SUCC_k) · r_k · (1 − oversight_k),   t ∈ SUCCESSOR_TRAITS
+
+- **k** = the work types that touch a run: EXP and IDEAS (designing and running the training) and SWE (its code). Each is
+  done by its own agent package's model (`eng`, `capRoutine`, `capFrontier`; `workContext().slots[k].versionId`).
+- **r_k** = (max(H_k, L_k) − H_k) ÷ Σ_j max(H_j, L_j): work type k's AI labour as a share of the lab's R&D labour, so
+  Σ_k r_k = `aiRdShare(s)` exactly (E5's r). Each model pulls by its share of the work (tested).
+- **κ_succ(SUCC) = K_SUCC_0 + (1 − K_SUCC_0)·SUCC**, K_SUCC_0 = 0.4. Sources: SUCC = 1, r = 1, no oversight gives ω = 1,
+  research/04 T23 ("trait inheritance becomes 100% for the hijacked generation"; AI 2027 Sep–Nov 2027, Agent-4 "plans to
+  make Agent-5 aligned to Agent-4", research/01 #35, R2, R3). K_SUCC_0 = 0.4 [D]: the unintended part (the models write
+  the successor's code, data and experiments, research/12 #10), V2's INHERIT_K kept; not refit (see calibration).
+- **oversight_k = 1 − (1 − block)(1 − catch)** (`successorOversight(s, v, r)`), E5's internal terms with the act being
+  SUCC: block = AG07 containment on v's internal deployment (control layer × best contain tool, U19 via
+  `uModeContainMult`); catch = 1 − (1 − monitoringCatch(s, v, 'SUCC'))·(1 − HUMAN_REVIEW·(1 − r)).
+  **Hook for E6:** this function is the pull's only oversight read; its containment call reads M through `versionM`
+  (marked `// BRIDGE(V6): M, E6`). E6 swaps the function body for the capability-gap terms.
+- **SUCCESSOR_TRAITS** = the B-layer traits (CONCEAL, POWER, AF, SAND, SCHEME, COLLUDE, SUCC) and PERSONA, as the brief
+  says. Not pulled: SA, EA, OBF (capability-indexed, as V2), the learned behaviours SYC, RH, PROXY, TGAME, and the
+  protective HONEST, CORRIG (V2 pulled these too). The pull never touches capability (pm, domains, build: tested on a
+  full post-training run).
+- **Signed**: a clean fleet pulls a new model toward clean, as V2's rule did.
+- The E06 teacher pull (distillation and synthetic data within a base family, `sameBaseFamily`) is unchanged and applied
+  separately inside `stepTraits`; a distilled student gets both (R&D influence on x₀, then the teacher pull).
+
+Choices [D]: the pull reads the lab on the run's completion day (no new state; a run-averaged r would need saved
+state). IDA cycles and continual-learning stream days are not pulled (IDA overwrites the version with its teacher's
+traits; neither is a new model trained by the R&D fleet). Rivals are unchanged (F1).
+
+#### Numbers (`npx tsx scripts/v2/successor.ts`)
+
+| state (ai2027) | r | oversight | κ | ω |
+|---|---|---|---|---|
+| start (V0) | 0.21 | 0.43 | 0.40 | 0.049 |
+| start, control layer on | 0.21 | 0.76 | 0.40 | ≈ 0.02 (misaligned test fleet, SUCC 0.3: 0.071 → 0.030) |
+| RefBot fixture day 400 | 0.59 | 0.33 | 0.40 | 0.159 |
+| RefBot fixture day 900 | 0.999 | 0.02 | 0.67 | 0.654 |
+
+V2's κ was 0.4·(1 − 1/M) on new bases only: 0 at the start (M = 1), ≈ 0.07 at day 400 (M 1.2), ≈ 0.4 by ASI. E4 starts
+the pull at day 0 (E5's r is 0.21 at the start) and makes it climb with automation and the decay of monitors at high M
+(the day-900 fleet's catch on SUCC is ≈ 2%). One RefBot run (seed 500): ω per version 0.04 (2025) → 0.15 (2026) →
+0.16–0.24 (SAR) → 0.39 just before ASI.
+
+#### Calibration: RefBot P_mis at ASI (40 seeds 500–539, ai2027, medium, endings skipped; `safety.ts` S4's set)
+
+| | P_mis | Mis mean | ASI day mean |
+|---|---|---|---|
+| before (edaf6f8, V2 `inheritFromFleet`) | 0.4855 | 0.417 | 901.7 |
+| after (E4) | 0.4658 | 0.407 | 901.7 |
+| attribution: E4's ω on bases and continues only | 0.4629 | 0.405 | 901.7 |
+
+No jump (−0.020). Applying the pull to versions as well adds +0.003; the drop comes from the narrower trait set (V2 also
+pulled TGAME, HONEST, CORRIG, RH, PROXY, SYC) and from a smaller ω at base completions before SAR. S4 RefBot (band
+0.55–0.85) stays the known failure → E10; not tuned. Milestone days identical (ASI day per seed unchanged).
+
+#### Gate
+
+tsc main + scripts clean. Pass: successor (new, 11 checks), signals, safetyresearch, danger, research, worktypes,
+effective, golden-timelines (known WARNs), identity, calib (T1 identical to M2: ai2027 SC 2027.249, slow SC 2038.577),
+lint-hidden, lint-structure, lint-tips. **safety** (slow): known failures only. S4 RefBot P_mis at ASI 0.485 → **0.466**
+(Mis mean 0.407; band 0.55–0.85, → E10). S5 RefBot unchanged (median U − L at SAR +0.50, below in 30%, as in M2). S4
+safe-only 0.013 (M2 0.011), S5 mixed passes (margin +0.03, holds in 65%; M2 70%), S6 and B3 pass.
+
+#### For E6 / E7 / E12
+
+- E6: replace `successorOversight`'s body (containment and monitor catch on the capability gap); the test checks only
+  directions (control layer raises oversight, more AI share lowers human review), not the values.
+- E7 (steering successors as a covert act) can read `successorPull(s).parts` (who pulls, how hard, through how much
+  oversight); E8's "steered successor" foothold fits at `applySuccessorPull`.
+- E12 (UI): `successorPull(s)` is the readout per run (r, ω, per work type model, oversight, κ).
+
+### E12 notes (safety UI 2: trait families, training pressure per run, successor pull; 2026-11-20)
+
+Branch `v3-e12` (from `v3-e4`). UI task: no state, mechanism or schema change.
+
+Code: `src/engine/v2/safety/pressureView.ts` (new, output-only selectors, exported from `core/selectors.ts`),
+`data/v2/traits.ts` (`TRAIT_MEANING`), `data/v2/glossary.ts` (9 new terms, `riskFamily` corrected: 14 of 17 traits),
+`ui/v2/panels/Pressure.tsx` + `pressure.css` (new: shared signal rows), `Safety.tsx` (families → traits, successor card,
+case picker grouped by family), `Blueprint.tsx` (training-pressure card), `Models.tsx` (model card section),
+`icons.ts` (`FAMILY_ICON`), `store.ts` (`probe.successorPullView` for the UI test), `scripts/v2/uitest.mjs` (E12 checks),
+`scripts/v2/lint-ux.ts` (required terms).
+
+#### What is shown where (one home each)
+
+- **Trait families (Safety › Overview, home `riskFamilies`).** The four families stay the first layer (highest believed
+  trait, 90% band, seen/unseen). Click a family: its traits one level down, each with icon, name (term), what its
+  number means (behaviour / awareness / disposition / protective, MODEL-V3 §11.1, `TRAIT_MEANING` [D]: OBF and POWER
+  as behaviours (overreach), PROXY and TGAME as dispositions), believed est ± sd and band bar. A fifth quiet row
+  "Outside the families" opens SA, HONEST, CORRIG. No flat 17-trait list remains at a top level (the investigation
+  picker now groups its options by family; the trait graph tab stays the L2 graph).
+- **Training pressure of the planned run (Blueprint, card `runPressure`, below Plan so Start stays in view).** Rows
+  S1–S8 with value ≥ 0.005 (the rest folded into "…: none"): plain name, bar, value, families pushed (icons from the
+  direct edges in `edges.ts`; SA counts as "awareness"), and a cause line with the run quantities, e.g. "17% of RL on
+  Coding at 18% exploitable, 6.5% hackable overall × RL 1.0× the reference". Tooltip per row: the formula's terms
+  (per-family S2/S3 terms, S5 AI-data and scale terms, S7 parts) and the traits pushed. ω chip with its parts (kind ×
+  (ρ/ρ_ref)^¼, safety ω). Base runs show S5/S6 from the draw and G. The family "Risk pressure" arrows (predicted belief
+  change vs the internal model) moved here from the Predicted card (one home for the run's alignment effect).
+- **What a finished run applied (model card, section `versionPressure`).** One line: run kind, ω, the three strongest
+  signals; "Signals" opens the same rows plus the base's pretraining S5/S6. S8 is the applied value (stored signals −
+  the base's) when recorded, else today's (labelled). S2's suites are the run's frozen ones (matched run: done post
+  run on the same base with the same RL FLOP); a start model or old save has none: "suites as of today" is said.
+  Gov/trusted/open variants show their parent's run; minis show distillation (S6 0.3, ω 0.4).
+- **Successor pull (Safety › Overview, card `successorPull`).** ω (with band) top right; the product line "r AI share of
+  R&D × unwatched × κ"; one row per work type (Software, Experiments, Research ideas): model, share, oversight, ω;
+  "Lower it": Monitors and Less AI R&D (links to Company › Agents at work), cleaner models (tooltip). The Blueprint
+  card ends with a "Successor pull from <models> › Safety" link (numbers only in its tooltip, L3).
+
+#### Belief rule (R9 / Sylvester)
+
+`successorPull` (E4) reads true SUCC, true tool strength, true M and hidden U-modes, so the UI never shows it.
+`successorPullView` is its believed reading: r and per-work-type shares exact (labour); κ from the believed SUCC
+estimate (band from est ± 1.64 sd); block = containment with believed strength at the measured level's M; caught = believed
+COT/WB detection on SUCC (`strengthBelieved`, `believedPenalty`) × (0.5 + 0.5 × fleet monitor) combined with human
+review. No hidden U-mode multiplier. Values vs truth (fixtures): start 0.043 vs 0.053, day 400 0.151 vs 0.159,
+day 900 0.590 vs 0.654. **For E6:** when `successorOversight` changes, mirror the new terms (believed) in
+`successorPullView`.
+
+#### Tests and gate
+
+`test:ui` 447/447 (E12 adds 10 checks × 3 states + 1): at day 1 (fresh), day 400 and day 900 fixtures — four
+families, no trait rows until opened, all 17 traits one level down each with meaning and est ± sd; successor ω, r and
+each work type's share and ω equal `successorPullView` (via `store.probe`); tooltip with band and "beliefs";
+Blueprint post and base: rows with causes (S2 names family, exploitable and RL × reference; base S5 names AI-data share
+and G), families pushed, ω, tooltip with "pushes"; Blueprint successor link; model card run and base rows. All 9 new
+terms seen as Term links. Also a test fix: `clearTips()` before the setup picker loop (a start card's tooltip locked
+under the resting mouse and blocked the next click on this machine). tsc main + scripts, build, lint-ux, lint-hidden
+pass. Screenshots: `e12-day{1,400,900}-{families,safety,blueprint-post,blueprint-base,model-card}`.
+
+#### Gaps
+
+- The Safety overview's side column is now taller than the chart (empty space under the chart at 1680×1000).
+- Old fixtures carry pre-E3 base signals: their base rows say "AI-data share not recorded" (S5 below its own scale term).
+- The successor pull of a finished version (at its completion) is not stored, so the model card does not show it.
+- Meaning tags are Term links (underlined); their colour coding is overridden by the term style.
+
+### D7 notes (evaluations as work: research engineers, engineers, inference compute; 2026-11-20)
+
+#### What changed
+
+- **An eval suite is a task** (`ModelsState.evals: EvalTask[]`, engine `src/engine/v2/models/evals.ts`, data
+  `src/data/v2/evals.ts`). Three parts, finished when all are done:
+  - research engineers: `reTW` team-weeks of effective work on a new **`evals` need** of the capabilities research-engineer
+    allocation (default order ops → evals → exp → tune; the player's order and caps apply). A suite advances at most at
+    its depth's staff in *effective* team-equivalents (the analysis lag); AI labour on experiments (m_EXP) divides the
+    people needed (as run operations) but does not shorten the suite;
+  - inference compute: rollouts × tokens per rollout × the evaluated model's FLOP per token, as H100e-days at serving
+    utilisation (prefill 0.35, decode 0.07), drawn from the **experiments pool** (and idle training when the spare policy
+    sends it to research) ahead of the projects, in step with the research engineers' progress; short compute slows the
+    suite;
+  - engineers: `engTW` team-weeks on the build queue, kind `eval` (stack work: worked in the `runs` need with run setups
+    and adoptions, before product upkeep).
+- **Duration = work ÷ capacity**, no fixed days (`evalDaysFor` / `evalDaysEstimate` give the estimate at today's rates).
+- **Depth** (basic / full / deep, from the gate: basic → basic, full → full, full + external → deep): rollouts per
+  benchmark 50 / 250 / 1,000 over 25 benchmarks (19 capability + 6 safety). Weight w = rollouts ÷ 250 = 0.2 / 1 / 4.
+  - noise: every reading's sd × 1/√w (bench 6.7 / 3 / 1.5 points self; safety-eval sd; horizon and speedrun log-noise;
+    `observe` strength √w);
+  - elicitation on capability benches: −0.2 / 0 / +0.15 L [D] (fewer attempts and the default scaffold on basic,
+    best-of-k and tuned scaffolds on deep); independent evaluators keep their +0.3 L on top (`ELICITATION`);
+  - measured level (M1 kept): error drawn once, e ~ N(0, 0.2), measuredL = Lg + e/√nEff with nEff = Σ w over the
+    version's suites (`EvalRecord.nEff`; `nSuites` stays the count shown in the UI); band 0.2/√nEff. A basic first suite
+    reads with √5 × a full one's error, deep with half.
+- **Costs** (`EVAL_DEPTHS`): RE 4 / 20 / 45 staff-weeks (0.04 / 0.2 / 0.45 team-weeks; at most 4 / 10 / 15 staff, so
+  7 / 14 / ≈21 days at full staffing — v2's gate days), engineers 0.01 / 0.02 / 0.05 team-weeks [D], compute on the
+  start model (2·10¹² FLOP/token) 33 / 165 / 1,653 H100e-days (deep rollouts carry 2.5× tokens).
+  - Sources: research/20 §G (c) "1–3 weeks with 3–10 staff" per frontier pre-deployment pass → full and deep; HAL
+    (≈240 rollouts and ≈$490 per model-benchmark) → full = 250 rollouts, and ≈$317 per benchmark at $2/H100e-hour on the
+    start model (HAL's API prices include margins); HCAST 189 tasks × ≈6 runs over ≈3 weeks (METR GPT-5) → deep;
+    §G (b) "×10 for frontier long-horizon suites" → deep 4× rollouts × 2.5 tokens; §D2 agentic rollout = 200k
+    FLOP-bearing input + 40k output (`TOKENS.agentic`). Basic and engineer time [D].
+- **External evaluators** (`runEvals` with by evalGov / evalIndep): a queued task worked by their own staff
+  (`EXT_EVAL_STAFF` 10 [D]): no lab research engineers, the lab's compute and engineer support. WS4's evaluator reports
+  (`externallyEvaluated`) are unchanged.
+- **Standing policy (R7)**:
+  - release gate: a finished version waits in `evaluating` for its release suite (queued by the runs system,
+    `releaseEvals`); ready when the suite's work is done. Gate `none`: ready at once, and with auto-evaluate a basic
+    suite that blocks nothing;
+  - auto-evaluate (`evals.autoEvaluate`, called by the products system): the internal uses' models and the stream are
+    re-run when they changed in place by ≥ 0.3 L (`EvalRecord.lgAt`) or 30 days after their last suite, at the policy
+    depth (the gate's; basic without a gate). Cost visible: the `products.policy` preview with `autoEvaluate: true` shows
+    a re-run's RE team-weeks and H100e-days; `evalPolicyView` / `evalQueueView` are the readouts for D8.
+  - Queue order: release suites, then the player's orders, then the policy's (oldest first). One open suite per
+    version and evaluator; a release need takes over an open policy suite.
+- `runEvals` now queues a suite (param `depth`, default full) and its preview shows the work; the eval gate's preview
+  and the Safety policy row read the days from `evalDaysFor` (was a fixed table); Blueprint's ready date uses the same
+  estimate. BuildLoad labels `eval` items ("Eval harness <version>"); Work.tsx got the `evals` need's label, term and colour (the research-engineer card crashed without them). design/ux/GLOSSARY.md not regenerated (stale before D7 too; regenerate at merge with `tsx scripts/v2/lint-ux.ts --doc`). Glossary: evalGate, evaluating, evals,
+  autoEvaluate rewritten. `AUTO_EVAL_DAYS` (features.ts) removed.
+
+#### Schema
+
+24 → 25: `ModelsState.evals`, `evalSpent`; `ReNeed` + `evals`; `BuildKind` + `eval`; `EvalRecord.nEff / lgAt /
+depth`. Migration: no suites queued (a version in evaluation gets its release suite on the next tick, from scratch);
+`evals` inserted after `ops` in the research-engineer order. data.ts and hygiene.ts rev checks now read `≥ 24`.
+
+#### Choices and deviations [D]
+
+- **Re-run cadence stays 30 days.** A 90-day cadence (first try) gave identical release timing but RefBot's internal
+  model kept a noisier measured level for longer; RefBot's mini test ("internal ahead of the served model by
+  MINI_GAP_L") then fired at a different day (distill at day 379 instead of 405), and with it the cheaper mini that
+  passes SC: seed-2027 SC moved 638 → 604 days (−0.09 y; fixtures "player SC" tolerance ±29 d). Cadences 30–31 give
+  638, 45–90 give 604 (bimodal: a knife edge on measurement noise, not a trend). Kept 30 so the reference path is
+  unchanged; the "changed in place" trigger is new. Worth a look in E10/F4 (RefBot's decisions keyed on measured L).
+- **Change threshold 0.3 L** (1.5 × a full suite's band). With 0.1 L calib T1 authors2026 failed SIAR −0.123 y and ASI
+  −0.225 y (tolerance ±0.12 y; baseline −0.027 / +0.041); 0.2 L failed ASI +0.137 y; no change trigger at all gave
+  −0.04 / −0.08; 0.3 L gives +0.003 / −0.025. The authors2026 late milestones of seed 2027 swing ±0.2 y with any small
+  perturbation (letting evals take no research engineers from tuning moved its SC −12 d and ASI +34 d), so this is a
+  knife edge, not a trend; within the stop rule (< 0.3 y), but worth F4's multi-seed check.
+- **AI labour does not shorten a suite** (first try let m_EXP multiply the suite's rate: release suites fell from 12 to
+  2 days as m grew). The analysis lag (research/20 §G (c)) is the per-suite staffing cap in effective team-equivalents;
+  AI frees people instead. With it, reference release suites take 14 days throughout, as in v2.
+- Evals sit on the capabilities research engineers (MODEL-V3 §5.6 lists evaluations there), not the safety department's.
+- Compute is drawn from experiments rather than serving: evals are research-cluster work; the share is negligible.
+
+#### Reference-run readout (RefBot, ai2027, seed 2027, stub finance)
+
+- First year: 14 suites, 2.96 RE team-weeks, 0.30 engineer team-weeks, 3,262 H100e-days: **0.26% of research-engineer
+  capacity** (human team-equivalents) and **0.005% of the experiments pool**. Release suites 14 days each.
+- To SC (day 638): 27 suites, as in v2 (same versions and milestone days as the baseline).
+- calib T1 after D7 (Δ vs golden, y): ai2027 SC +0.000, SAR +0.022, SIAR −0.016, ASI −0.003; authors2026 SC +0.027,
+  SAR +0.052, SIAR +0.003, ASI −0.025; fast SC +0.003, SAR +0.099, SIAR −0.011, ASI −0.090; slow SC +0.049 (baseline:
+  ai2027 0 / +0.022 / −0.041 / −0.030; authors2026 −0.005 / +0.022 / −0.027 / +0.041; fast −0.003 / +0.096 / −0.019 /
+  −0.096; slow +0.049). calib: all passed.
+
+#### Tests
+
+New `scripts/v2/evals.ts` (in test:v2 after research): EV1 cost by depth and FLOP per token, HAL check; EV2 RMS error
+0.45 / 0.20 / 0.10 L over 300 versions, bench noise by depth, drawn-once error shrinking with nEff; EV3 evals capped
+at 0.03 team-eq → 39 days, 0.1 → 14 (estimate matches), order applies, deep 21 d; EV4 compute from experiments (project
+FLOP × (1 − eval/pool)), not serving; compute-limited progress; EV5 release suite at gate depth, deep for
+full + external, re-runs on cadence / change / not when recent / not when off, policy preview cost; EV6 promotion
+waits (no RE on evals → still evaluating after 60 d; ready when done), gate none releases at once with a basic suite;
+EV7 independent +0.3 L elicitation kept, depth elicitation ordered, external suite on own staff; EV8 migration 24 → 25;
+EV9 reference cost bounds. products P8 now checks the suite age against cadence + one suite's duration.
+
+#### Gate results
+
+tsc main + scripts clean; evals, research, products, serving, worktypes, effective, identity, golden-timelines,
+fixtures, data, lint-ux/hidden/structure/tradeoffs, calib (T1 all presets): all passed. hygiene: only the four known
+perf checks (machine under load). test:ui passed (one earlier run timed out on the setup screen's start tooltip covering
+a picker; the baseline edaf6f8 build fails the same way intermittently). Not in the gate, run for information: suites
+all passed; ws4 T3 (2, known); safety S4 P_mis at ASI 0.520 (known; 0.485 after M2) and S5 (known). The fixtures test rewrites
+scripts/v2/fixtures/*.json; they were restored to HEAD (not part of this branch).
+
+#### For D8 (evals UI)
+
+- Policy row: gate (depth) and auto-evaluate with the per-suite cost (RE team-weeks, engineer team-weeks, H100e-days)
+  and the re-run rule (≥ 0.3 L change or 30 days) — `evalPolicyView`.
+- Queue: each suite's version, depth, evaluator, why (release / order / policy), progress, ETA and what it waits on
+  (research engineers, engineers, compute) — `evalQueueView`; "evaluating" chips should link here.
+- Order buttons: own / gov / independent suite with a depth pick (basic / full / deep), preview from `runEvals`.
+- Per version: measured level ± band (0.2/√nEff), last suite's depth and date, believed vs measured; bench sd by depth.
+- The research-engineer allocation card already lists "Evaluations" (Work tab); the Safety policy row reads
+  `evalDaysFor`.
+
+### D8 notes (evaluations UI: Models › Evals; 2026-11-20)
+
+#### Where it lives: Models › Evals (third tab after Versions and Suites)
+
+Evals measure model versions; the measured level and the benchmark table live on the version card in Models, and the
+order buttons used to sit there. Safety owns only the release gate (a safety policy), so the gate toggle stays on
+Safety › Policies and its row links to Models › Evals; everything else about evals (cost, queue, orders, measurement
+quality) has its home in Models › Evals.
+
+#### What it shows (one home each)
+
+- **Eval policy** (`data-home=evalPolicy`, from `evalPolicyView`): gate depth (link to Safety's control), the
+  auto-evaluate switch (moved here from the Products header, which now links here), the re-run rule (every 30 d or
+  Δ ≥ 0.3 L), the cost of one suite at the policy depth on the internal model (RE team-weeks, engineer team-weeks,
+  H100e-days; tooltip adds rollouts and tokens) and suites run so far (tooltip: work spent). Link to Company › Work for
+  the research engineers on evals today (the allocation's home).
+- **Eval queue** (`evalQueue`, from `evalQueueView`): per suite version, depth, evaluator, why (release / order /
+  policy), progress bar, finish date and days, what binds (research engineers / engineers / compute; "waits: …" when
+  stalled). Tooltip: work left per part with its days, research engineers on it of the most it can use.
+- **Order a suite** (`evalOrder`): depth pick (basic / full / deep) and a depth comparison for the picked version
+  (`evalDepthView`): rollouts, RE and engineer team-weeks, H100e-days, days at today's rates, measured-level band after
+  the suite, own benchmark noise, elicitation shift. Three buttons (own / gov / independent) run `runEvals` with the
+  depth; the preview tooltip is the action's own. A second suite by the same evaluator on the same version is disabled
+  with the reason.
+- **Measurement** (`evalMeasure`, from `evalMeasureView`): per live version a band chart on a shared L axis (±1 SD
+  solid, ±2 SD faint; the value in the tooltip, since the measured level's home stays the model card), ± band, suites
+  (count and full-suite equivalents), last suite depth and date, next policy re-run (cadence) or "in queue" link,
+  "evaluating" and "policy" chips. Clicking a row picks the version for the order card.
+- **Links**: the top strip's "evaluating" chip and the model card's "evaluating" chip open the queue; the model card's
+  Evaluate group is now one "Order a suite ›" button (to the order card); its "Last eval suite" row became
+  "Measurement › Models › Evals"; Safety's eval-gate row has an "Evals ›" link; Products' header has "Auto-evaluate ›".
+
+#### Engine (output-only selectors, no state or mechanism change)
+
+- `evalQueueView` extended: `binds`, `reDays` / `engDays` / `computeDays`, `reNow` / `reMax`; it now reads today's
+  research-engineer allocation (`reAllocation`, so a suite ordered today shows its ETA instead of "stalled" until the
+  next tick) and shares the experiments pool's compute in queue order (the D7 view never set `waiting: 'compute'`).
+- New `evalDepthView(s, v)` and `evalMeasureView(s)` (no true level: measured level, band, nEff, depth, suite day,
+  policy flag with cadence date, open suites). Exported from core/selectors.
+- `store.ts` exposes `window.ai27v2Views` (the four selectors) for uitest to compare rendered values with.
+
+#### Glossary
+
+New: `evalSuite`, `evalDepth`, `measureBand`, `elicitation`, `rerunRule`, `evalQueue` (independent evaluator is the
+existing `evalIndep`); `autoEvaluate` links to the re-run rule. All added to lint-ux REQUIRED (plus evalIndep, evalGov,
+evaluating). design/ux/GLOSSARY.md not regenerated (stale since D7; regenerate at merge).
+
+#### Tests
+
+uitest D8 at day 1, 400 and 900: the four cards render; policy row content; queue rows equal `evalQueueView` (order,
+progress, finish days, binds) before and after an order; bands equal `evalMeasureView`; clicking a row picks the
+version; the order preview lists RE/engineer team-weeks and H100e-days; ordering basic (day 1) / full (400) / deep (900)
+queues a task whose cost equals the preview; duplicate own order blocked; queue tooltip; at day 1 and 400 the suite
+finishes and the band shrinks (day 400: Atlas-2.3 ± 0.200 → 0.141) with the last suite's depth; the card's order button
+and the top strip's evaluating chip open Models › Evals; every D8 term has a tooltip. 457 passed, 0 failed. The setup
+picker flake did not occur, so E12's `clearTips()` fix was not applied.
+
+#### Gaps
+
+- "Believed vs measured" (V3-TASKS D8 row): there is no separate believed level for capability; the view shows the
+  measured level and its band only (truth hidden). The evaluating version shows the line's last measured level in the
+  top strip (unchanged).
+- The re-run rule's "changed in place by ≥ 0.3 L" trigger reads the true level in the engine; the UI shows only the
+  cadence date, never whether a change trigger is near.
+- Two versions with the same name (for example two "Atlas-4.0-mini" in the day-900 fixture) remain ambiguous (naming
+  is not D8's).
+- Migrated fixtures (schema 24) show versions "evaluating" with an empty queue until the next tick (D7 migration).
+
+### F1 notes (rivals, China and the leader lab in effective compute; 2026-11-20)
+
+Branch `v3-f1` (from `model-v3` at edaf6f8). Code: new `src/engine/v2/actors/rivalModel.ts` (the physical rival model),
+data `src/data/v2/rivalModel.ts`; `actors/rivals.ts` (cadence, releases in G, S5 signal on λ), `actors/china.ts`,
+`production/production.ts` (`rivalResearch` replaces the v2 knot function for non-player labs), `models/capability.ts`
+(simple-lab lag model removed; rival milestones on λ(G)), `models/runs.ts` (default policy), `security/theft.ts` (theft
+hands China the stolen base), `worldfx/serving.ts` + `mix.ts` (rival FLOP per token and students from their own base;
+the ASI-point G cap removed), `world/hidden.ts`, `core/init.ts`, `core/save.ts`. Test `scripts/v2/rivals.ts` (in
+`test:v2` after ws4). **schemaRev 24 → 25.**
+
+#### Model (MODEL-V3 §12: "compute, a recipe efficiency from its own research (the §5 rate at aggregate level, no ideas),
+#### releases on a cadence with G = log₁₀(training FLOP) + e")
+
+- **Recipe e** (OOM over the leader's day-0 recipe, the player's stacks' zero). Stored as `core.pa` = pa_ref + e/B — the
+  player's know-how readout relation (stacks.ts syncPa) — so every existing know-how writer (distillation leak, secrets
+  leak, open-weights absorption, publish research, poaching, safety spillover) moves e by B per progress-year with no
+  change to those files [D].
+- **Growth law** de/dt = RECIPE_RATE0 · rs · 10^(−e/r) (capped at 36.5 OOM/yr), r = the world's returns (V3_CAL.r): AIFM's
+  software law, the same returns as the player's line pools (research.ts linePool). RECIPE_RATE0 = 0.48/0.8 = 0.6 OOM/yr
+  at rs = 1 [R20 B1: Ho et al. 3×/yr pretraining at the pretraining share; calib "V2.8": RefBot's stacks 0.59 OOM/yr in
+  year 1].
+- **Research speed rs** = min(E, I) × efficiency × modifiers, each normalised to the leader's day-0 lab (V0 on B0, 2,050
+  staff, DAY0_REF compute: rs = 1 there exactly, test R5):
+  - experiments E = X(c̄, ℓ)·units·T — the player's project CES (stepProject) at aggregate level: research engineers
+    (9.68 team-eq per 2,050 capabilities staff, the leader start's ratio), experiment compute per unit, effective
+    labour from the lab's own internal model on Experiments (coverage at its G and h50, AI FTE from its agent compute
+    × its own FLOP per token, the coding CES), taste T from its AI taste on Research ideas (teamTaste);
+  - ideation I = L_IDEAS^λ·T² — scientists (8 team-eq per 2,050) with AI labour on Research ideas; taste twice (ideation
+    rate and input per idea, MODEL-V3 §8);
+  - min: a line's candidates go through both stages in turn (RefBot's lines are experiment-bound in its takeoff:
+    measured 174 candidates/yr ≈ X·√2/54 per line).
+  - agent pool split 0.65 Experiments / 0.15 Ideas (the player's default shares) [D]; the mix experiments vs agents is the
+    best one (golden section, as the player's auto mix). Efficiency: 10^LEADER_CAL for the leader lab, effLab for China
+    (CHINA_CAL.effScale now 1), 1 otherwise; modifiers: a binding leader (rivalSpeedMult), a verified treaty ×0.65.
+- **Bases**: one run after another on 60% of the training pool for 121 days (RefBot's sizing, V1 notes), released on the
+  archetype cadence (BASE_MONTHS 9–15 × U(0.8, 1.2); research/12 §0.1: "one every ~9–18 months per lab"). G_pre =
+  gPreOf(FLOP, 50 tokens/param, E_START + 0.8·e at launch, MoE). Active parameters √(FLOP/(6·50)), FLOP per token 2·N.
+  A base no better than the model held (a stolen one) is shelved.
+- **Versions**: post-training every 42–70 days (research/12 §0.1: 8 frontier versions in 16 months): G = G_pre + the
+  reference RL gain on the base (stacks.ts refRlGain: the player's RL curve) + 0.2·e at launch (RL_SHARE = the RL lines'
+  rShare, V3b) [D]; never below the version replaced. From λ ≥ 8.5 (Research agent, v2's simple-lab rule) the internal
+  model re-applies today's whole recipe to its base weekly (the player's P08 stream semantics) [D].
+- **Public models** lag the internal one by RELEASE_LAG (unchanged), copied with their G and design.
+- **Start state**: the start base is B0 (3e26 FLOP) × the lab's training pool / the leader's day-0 pool, on B0's dates
+  (launched day −256): its recipe is that many days of RECIPE_RATE0 staler; e₀ solved so the start version is the drawn
+  start model (T4 draw unchanged). The leader lab's e₀ = −0.027 (the leader's day-0 recipe).
+- **Milestones** for every non-player lab: λ(best G) ≥ the level knot (one map, MODEL-V3 §2.2; L 10 = the reference
+  recipe's SC point). The S5 signal reads the capability index of λ, not pm thresholds.
+- **Theft**: China gets the weights (G 60 lead-days behind its source, as before), the stolen base (its FLOP, size, the
+  G_pre the copy embodies) and post-trains it at its own recipe; its recipe does not jump (secrets leak is the recipe
+  channel).
+- pm, Lg, domains of rival models are readouts of G (pm = Φ(G): the bridge F3 retires).
+- Guards [D]: AI taste counted up to 30 SD, recipe growth ≤ 36.5 OOM/yr (the fast preset produced NaN past ASI without
+  them). Neither binds before ASI.
+
+#### Removed
+
+`simpleLag`, `simpleFrontierPm`, `simpleStartPa`, `simplePaFor`, `trainScaleTerm`, `TimelineWorld.simpleCredit`,
+`CAL_SHIFT_V2`, `LabCore.lagCal` (LEADER_CAL is now an efficiency), the rivals' v2 knot production (labInputs for non-player
+labs; the knot function stays only as the identity test's reference, tagged), `trackLabFrontier`, `fptOfG`,
+`RIVAL_ALGO_OOM_PER_YEAR`, `marketModel` (the ASI-point G cap: rival G stays ≤ 40 through ai2027's takeoff to day 1100).
+Rivals read no calShift / pm thresholds / capIndexV2. Lint R7: no BRIDGE(V7) in actors/rivals.ts, china.ts,
+rivalModel.ts, worldfx/mix.ts, worldfx/serving.ts. BRIDGE(V7) tags left outside rival code: production.ts (v2 knot
+function, identity test only; the player's `rate` readout for the lead readers), research.ts gRate (same), runs.ts
+`scaleOf` / runDesign `TrainingRun.scale` (scrutiny vs F(t)), workfit.ts domainG (imported open model via gOfPm), types.ts
+TrainingRun.scale.
+
+#### Calibration (seed 2027)
+
+Δ in years vs golden; before = M2 (v2 lag model, LEADER_CAL as a release lag), after = F1.
+
+| Check | Before | After |
+|---|---|---|
+| T1 RefBot (stub) ai2027 SC/SAR/SIAR/ASI | 0 / +0.020 / −0.043 / −0.029 | 0 / +0.022 / −0.041 / −0.030 (same days) |
+| T1 authors2026 | −0.006 / +0.022 / −0.028 / +0.039 | +0.008 / +0.022 / +0.052 / +0.033 |
+| T1 fast | −0.002 … | −0.003 / +0.096 / −0.019 / −0.096 (unchanged) |
+| T1 slow SC | +0.049 | −0.079 (tolerance ±0.08: the known knife edge, F4) |
+| T1L ai2027 (LEADER_CAL 0.256 → −0.048) | −0.047 / −0.011 / +0.030 / +0.066 | +0.014 / **+0.216 / +0.310 / +0.427** |
+| T1L authors2026 (0.096 → 0.242) | −0.038 / +0.011 / +0.038 / +0.058 | −0.007 / **+0.43 / +2.5 / +5.6** |
+| T1L fast (0.134 → 0.068) | −0.038 / −0.038 / +0.019 / +0.055 | +0.049 / +0.088 / −0.016 / −0.082 (pass) |
+| T1L slow SC (0.314 → 1.155) | +0.014 | −0.008 (pass) |
+| ws4 T3 start lead | 184 d (pass) | 184 d (pass) |
+| ws4 T3 mean lead d30–540 (8 seeds) | 185 d (pass) | 192 d (pass; CHINA_CAL.effScale 3.2 → 1) |
+| ws4 T3 band 75–275 d | 28–371 (fail) | **−103–450 (fail)** |
+| ws4 T3 post-theft ≈ 60 d | 52, 0, 0, 42, 45, 0, 45, 42 (fail) | 61 × 8 (pass) |
+| ws4 T4 start gaps (fixture seed; 200 seeds) | 3.1–4.7 mo; 98% in 3–9 | same |
+
+LEADER_CAL is now the leader lab's research efficiency (log₁₀). Fit (`calib.ts --fit-leader`): bisection on SC, then the
+worst-error refine; where no value brings every milestone within tolerance the SC root is kept [D]. authors2026 was
+re-bisected by hand after the mix search went from 24 to 16 steps (SC 1545 at 0.239 → 1491 at 0.242).
+
+**Why T1L's late milestones miss (reported, not forced).** The aggregate leader takes off slower than RefBot after SC:
+its recipe growth plateaus near 12–14 OOM/yr (research input E ∝ X·taste, and taste rises ×1.71 per OOM of G while each
+OOM of recipe needs ×10^(1/r) = ×1.78 more input at r = 4: balanced growth), while RefBot's stacks reach 25–40 OOM/yr.
+Measured on RefBot (ai2027 stub): its research lines are experiment-bound in the takeoff exactly like the aggregate (174
+candidates/yr per line ≈ X·√2/54), and its lines carry only 3.8 of the 5.9 OOM its stacks gain between day 600 and 860 —
+the rest comes from one-off idea projects and paradigms, which rivals do not have ("aggregate, no ideas"). Before SC the
+two agree (RefBot's stacks 0.59 OOM/yr in year 1; the leader's recipe 0.5–0.6). One scalar cannot fix the shape: a
+higher efficiency moves SC early before it moves ASI enough. Options for F2: an aggregate idea channel (the tree's
+one-off stack ideas as a finite stock drawn down at the research rate) or a second per-preset value for the leader's
+takeoff. slow needs efficiency ×14 (r = 1.2).
+
+**Leader G path** (passive, ai2027): 27.97 / 28.00 / 29.13 / 29.16 / 29.20 at research/12's 28.0 / 28.4 / 28.7 / 29.0 /
+29.4 anchors (Aug 2025 … Oct 2026): a staircase of bases (first new base Jan 2026), mean slope ≈ 1 G/yr; RefBot's line fit
+is 1.31 G/yr. Not a T1L check.
+
+**Takeoff rival agent spend** (scratch `.f1tmp/diag.ts` = A4's diag: RefBot classic ai2027 seed 2027, world demand-side
+agent spend, all providers): day 900 / 1000 / 1100 / 1200: before $4.0T / $16.5T / $13.0T / $1.0T → after $2.3T / $4.0T /
+$3.2T / $0.86T (A4 measured $17–24T/yr on its baseline). Rival models are now sized by their own bases (≈ 1–4.5T active
+by 2028) instead of the G bridge that grew N with every OOM of takeoff G; rival G stays ≤ 40 through day 1100, so the G
+cap went.
+
+#### Gate
+
+- tsc main + scripts clean.
+- Pass: rivals (new), serving, danger, research, worktypes, effective, golden-timelines, identity, products, money, idle,
+  fixtures (rewritten and restored), lint-hidden, lint-ux, lint-tradeoffs, lint-structure, hygiene (save checks incl.
+  the new 24 → 25 migration; the four perf checks fail as known, under machine load: 5.2 / 9.6 ms a day), `npm run
+  test:ui` 416 passed / 0 failed (a first run timed out on a Setup tooltip under load; the rerun passed).
+- calib: T1 all presets in tolerance (above); T1L fails ai2027 SAR/SIAR/ASI and authors2026 SAR/SIAR/ASI (above).
+- ws4: only T3's band (above); post-theft now passes.
+- worldfx: known F7/F11 2026 $33.8B (was $33.5B), GOV T1 2027-09-03, W2 0.4% (was ≈0.49%); F11 2027 $53.6B (was $31.9B);
+  **now passing** U +1 pp (2027-12-17; was "never") and equity 2026 (+34.3%; was −13.9%); **newly failing** A2a US hours
+  of AI use mid-2026 6.7% (band 5–6.5%) and W4 firm adoption 22.9% (17–20 ± 2): the rivals' model paths and prices
+  changed (rivals no longer run on v2's pm path), so adoption in the one-seed world is a little higher. Not tuned (A-task
+  anchors).
+- finance (report): F2 global production 2027 **now passes** (was 43.1M); F7 revenue median $33.3B, valuation $0.66T (was
+  $0.28T), F11 2027 $43.1B; **F9 unanchored round dilution 10.2% (≤ 8%) newly fails** — finance session.
+- Performance: a rival day costs ≈ 1.4 ms for six labs under load (mix search 16 golden-section steps, f-independent
+  parts memoised).
+
+### M4 merge notes (E6, E4, E12, D8 + D7, F1 onto M3; 2026-11-20)
+
+Merged into `model-v3` (at M3, 599f503) with `--no-ff`, in order: `v3-e6` (E6 2563dc5 / 190e27d; merge d8f5536),
+`v3-e4` (E4 c06e610 / 5d11dc1; 55d3e74), `v3-e12` (E12 ccc7ad2, contains v3-e4; d9b69b5), `v3-d8` (D7 f84c954 /
+6a39013, D8 af74f7f; 70ad8a4), `v3-f1` (F1 d2d8b01 / 422d383; 50b15dd); then the refit (e00dc31). Every branch started
+at edaf6f8 (M2's head, before M3's D4 and D11). The notes of every branch are above (copies of `design/notes/E6.md`,
+`E4.md`, `E12.md`, `D7.md`, `D8.md`, `F1.md`, which stay). design/ux/GLOSSARY.md regenerated (`lint-ux.ts --doc`;
+stale since D7).
+
+**Conflicts and resolution.**
+- v3-e6: none; tsc clean. E6's M removal touched no M3 code path (D4 and D11 read no M).
+- v3-e4: `package.json` (successor.ts after signals, oversight.ts kept). **Semantic: E4's `successorOversight` called
+  `versionM` (deleted by E6).** Rewired exactly as v3-e7's step 0 (e39c1b9): `successorOversight(s, v) =
+  internalOversight(s, v, 'SUCC').oversight` (E6's hook: containment at v's OOM with the U-mode multiplier, monitors and
+  tools, human review × the gap factor above L 10, control-protocol misses). The `r` parameter went (the hook reads
+  `aiRdShare` itself); `successor.ts` follows the signature; traits.ts no longer imports `containment`,
+  `monitoringCatch`, `HUMAN_REVIEW`, `uModeContainMult` or `versionM`. E6's lint allowance in `oversight.ts` (INHERIT_K /
+  inheritFromFleet / `prodCache.M` in traits.ts) is gone: nothing in traits.ts matches any more, and the lint says so.
+  successor (11 checks) and oversight (29) pass; RefBot fixture readouts: start ω 0.049, day 400 0.159, day 900 0.653.
+- v3-e12: lint-ux REQUIRED (D4 and E12 lists), uitest (`d4Check` and `e12Check` both kept and called at day 1 / 400 /
+  900; E12's `clearTips()` before the setup picker loop kept), Blueprint imports (D4's `drawByDomain`, `mixTargetOf`,
+  `SPEC_CAP` with E12's `plannedPressure`, `successorPullView`, `versionById`, Pressure rows), Models imports,
+  blueprint.css (both blocks). **Semantic: E12's belief view `successorPullView` (safety/pressureView.ts) read
+  `mAtLevel`** (deleted by E6). It now mirrors `internalOversight(s, v, 'SUCC')` term by term with what the player
+  knows: x = λ⁻¹ of the measured level (`oomOfLevel`); block = AG07 containment at x with believed strength, on v's
+  internal deployment or the first live one (the hook's fallback), no hidden U-mode multiplier; monitors = believed
+  COT/WB detection on SUCC at x with believed penalties × (0.5 + 0.5 × fleet monitor); human = HUMAN_REVIEW·(1 − r)·
+  gapFactor(measured gap above L 10); caught = 1 − (1 − monitors)(1 − human)·controlMiss (0.447 under control
+  protocols). Parts gain `human` and `controlMiss` (shown in the Safety successor tooltip). Believed vs true ω on the
+  fixtures: day 400 0.165 vs 0.159, day 900 0.588 vs 0.653 (E12's M-based view: 0.151 / 0.590). lint-hidden passes.
+- v3-d8: `package.json` (evals.ts after research), `save.ts` (comments and migrations, chain below), `data.ts` /
+  `hygiene.ts` rev assertions, lint-ux REQUIRED (D8's list after D4's and E12's), `products.ts` imports (E6 dropped
+  `MONITOR_CATCH_BASE`, `AG05_GAP`, `mAtLevel`; D7 dropped `AUTO_EVAL_DAYS`, `runEvalSuite`), **Models.tsx: four tabs
+  Versions | Suites | Data | Evals** (header comment, imports `Database, Dumbbell, ListChecks`, both tab branches),
+  Safety.tsx and store.ts imports (E12's `successorPullView` and probe, D8's `evalDaysFor` and `ai27v2Views`), uitest
+  (`e12Check` and `d8Check` kept, call sites at every state, both term checks). workfit.ts (E6's control tax),
+  research.ts (D7's evals need), types.ts, glossary.ts, Agents.tsx auto-merged. `evals.ts` EV8 now starts from a
+  schemaRev-25 save.
+- v3-f1: `package.json` (rivals.ts after ws4), save.ts, data.ts / hygiene.ts (rev, F1's save check). production.ts,
+  capability.ts, runs.ts (F1 × D7 × D11), types.ts, selectors.ts auto-merged; F1's rival bases call D11's `gPreOf`
+  without `fQual` (quality 1, as on F1's branch).
+- test:v2 runs every new test: successor, evals, oversight, rivals (plus data, suites, signals, safetyresearch, danger).
+
+**schemaRev chain (linear): … 23 → 24 D2, 24 → 25 E6 (`oHalf` from M½), 25 → 26 D7 (eval tasks, `evals` need),
+26 → 27 F1 (`RivalLab.phys`); SCHEMA_REV 27.** All three were built as 24 → 25; they touch disjoint state (techniques,
+models and the research-engineer order, rivals), so the order is safe. hygiene expects 27 and checks 24 → 25 (E6's,
+unchanged), a new 25 → 26 (no eval suites, `evals` after `ops`) and F1's check, now from a rev-26 save (each rival keeps
+its model on a physical base); every older check passes. data.ts asserts 27. **Fixtures** stay the committed
+schemaRev-16 files (every load runs 16 → 27); `fixtures.ts` rewrote them in the gate and they were restored.
+
+**Lead decisions (recorded).**
+- E6: tool half points are fixed in OOM above V0 (physical), kept: in worlds whose milestones need more compute the
+  tools fade at lower display levels (authors2026 AG08 halves at L 8.8).
+- E4: accepted.
+- E12: accepted; the successor-pull UI is belief-based (`successorPullView`, now on E6's terms).
+- D7: accepted; the re-run rule (30 d cadence, 0.3 L change trigger) was chosen on seed 2027 (90 d moved SC −0.09 y via
+  RefBot's mini timing; 0.1 / 0.2 L moved authors2026 SIAR / ASI out of tolerance) → F4 multi-seed check.
+- D8: accepted, with F6 jank items: the auto-evaluate 0.3 L trigger reads the true level (a hidden-truth leak: it
+  should trigger on known events, in-place updates and the stream); duplicate version names.
+- F1: accepted. T1L post-SC misses → F2 (rival idea channel, running). New worldfx borderline failures (A2a US hours
+  6.7% vs 5–6.5%, W4 firm adoption 22.9%) accepted as known; finance F9 round dilution → finance session (in the M4
+  gate F9 passes: max 6.5% over 62 rounds).
+- M3's two worldfx timing misses (HireRate_SOFT by 2027-10-02 vs 10-01, remote-work 25% by 2028-01-20 vs 01-01)
+  accepted as single-seed borderline → F4. (Both pass on the M4 code: 2027-06-20 and 2027-10-27.)
+
+**Refits (named per-preset values only; seed 2027; Δ in years; G_SC scans with M3's scratch `_m3scan.ts`, Δ_bm and
+sd_SC kept).** calib on the merged code: ai2027 and fast pass; **authors2026 ASI −0.205 (SIAR −0.093) and slow SC
+−0.753 fail.** Bisected on exported trees of each merge at M3's values: the E6 and E4 merges give authors2026 ASI
++0.112, the D8 merge 70ad8a4 ASI +0.000 (SIAR +0.000) and slow SC +0.049; the F1 merge gives the failures (F1's own
+branch: authors2026 ASI +0.033, slow −0.079).
+- **authors2026 G_SC 33.632 → 33.622**: SC +0.030 → +0.016, SAR +0.058 → +0.036, SIAR −0.093 → +0.016, ASI −0.205 →
+  +0.038. Scan (ASI): 33.617 +0.079, 33.620 −0.005, 33.622 +0.038, 33.624 +0.047, 33.627 −0.107 (SIAR −0.055), 33.632
+  −0.205, 33.637 +0.142 (fail), 33.640 −0.244, 33.642 −0.022, 33.644 −0.299, 33.647 +0.164. Jagged (the late milestones
+  swing ±0.2 y with tiny moves): 33.622 is the middle of the 33.617–33.627 run. F4.
+- **slow G_SC 35.493 → 35.488**: SC −0.753 → +0.049. Scan: 35.480–35.482 −0.753, **35.484–35.492 +0.049**, 35.493,
+  35.497, 35.500 −0.753, 35.502–35.515 +0.049. M3's value now sits one step past the first window's end. The wider
+  window 35.502–35.515 was not taken: the world's level knots move with G_SC, and the leader lab's T1L slow SC is
+  +0.30 y at 35.508 vs +0.13 y at 35.488 (+0.16 at 35.493). F4.
+- ai2027 (SC +0.019, SAR +0.030, SIAR +0.019, ASI +0.022) and fast (SC +0.047, SAR +0.107, SIAR −0.016, ASI −0.101:
+  SAR and ASI within 0.02 y of the edge) unchanged and in tolerance. T2 and T4 pass. No value moved by more than
+  0.015 OOM; the ±0.3 y stop rule was not reached.
+- **T1L (reported, not refit: F2's job)**: ai2027 SC +0.011, SAR +0.216, SIAR +0.310, ASI +0.427; authors2026 SC
+  −0.030, SAR +0.427, SIAR +2.53, ASI +5.55 (F1's set); **new on the merged code** (F1's branch passed both): fast ASI
+  −0.163 (895 vs 956; SC, SAR, SIAR pass) and slow SC +0.126 (4804 vs 4758). Not bisected further: before F1 the
+  leader runs v2's lag model, so the only comparison is F1's branch alone, which passed; the move comes from F1 meeting
+  E6 / E4 / D7 and M3's D11 paths. → F2.
+
+**Gate (merged code e00dc31 + docs).**
+- tsc main + scripts clean after every merge; `npm run build` ok; `npm run test:ui` **555 passed, 0 failed** (four
+  Models tabs; D4, D6, D8, E12 checks at day 1 / 400 / 900; run before the refit, which changes no ai2027 value).
+- Pass: golden-timelines (known WARNs), identity, effective, data, suites, signals, successor, research,
+  safetyresearch, evals, worktypes, serving, danger, oversight, products, rivals, calib T1 (all presets, after the
+  refits), fixtures, lint-hidden, lint-ux, lint-tradeoffs, lint-structure, lint-tips, money, idle.
+- calib: T1L's 8 failures above are the only calib failures.
+- hygiene: only the four perf checks (daily 6.6 ms, worst quarter 38 ms; leader lab 17.3 ms / 53 ms; the leader lab's
+  own cost +7.3% passes). Every save check passes, incl. 24 → 25, 25 → 26, 26 → 27.
+- finance: F7 revenue median $30.7B, F7 valuation $0.52T, F11 2027 $42.9B (the known set); **F2 global production
+  2027 now passes (47.1M)** and F9 passes (dilution 6.5%).
+- ws4: T3 band −103–450 d (the known T3; F1's set); post-theft 61 d and T4 pass.
+- worldfx: F7/F11 2026 $32.6B, F11 2027 $51.6B (known revenue); A2a 6.7% and W4 22.8% (F1, accepted); **W2 automation
+  TFP 0.4%** (the accepted borderline, failing again since F1: F1's branch reported the same 0.4%; it passed in M3);
+  equity 2026 +33.9%, U +1 pp 2027-11-26, GOV T1 2027-09-27, HireRate_SOFT 2027-06-20 and 25% remote work 2027-10-27
+  pass.
+- safety (slow): S4 RefBot P_mis at ASI **0.501** (M3 0.522; band 0.55–0.85; known → E10), S5 RefBot fails (median U −
+  L at SAR +0.64, below in 33%; known); S4 safe-only 0.013, S5 mixed (margin +0.12, holds in 60%), S6 and B3 pass.
