@@ -1,7 +1,7 @@
 // Save format, migrations, state hash (V2-SPEC §2.5). Owner: WS1.
 import { ensureWs3 } from '../finance/ext';
 import { keyOf, staffOf, teamsFromStaff } from '../departments/teams';
-import type { AgendaId, GameStateV2, PlayerLab, StaffByRole, TeamHiring } from '../types';
+import type { AgendaId, GameStateV2, OwnedDataAsset, PlayerLab, StaffByRole, TeamHiring } from '../types';
 import { hash32 } from './rng';
 import { initialResearch, initialTree, nextLineProject } from '../models/tree';
 import { LEADER_FEATURES, PRICE_TIERS, tierOfIndex } from '../../../data/v2/features';
@@ -12,7 +12,9 @@ import { REGIONS, SECTORS } from '../../../data/v2/sectors';
 import { workerTarget } from '../worldfx/use';
 import { CONSUMER_MKT, SEATS } from '../../../data/v2/serving';
 import { dataPortfolioFromV2, type V2DataAssets } from '../production/data';
-import { START_SUITE_FAMILIES, startExpertAssets, suitesFromV1 } from '../models/suites';
+import { START_SUITE_FAMILIES, expertAsset, expertAssetId, startExpertAssets, suitesFromV1 } from '../models/suites';
+import { P10_SYN_Q_RAISE, P21_WORTH_OOM } from '../../../data/v2/dataAssets';
+import { EXPERT_START_T, P12_DEMO_T } from '../../../data/v2/suites';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
 /** 12 (model v3 V1): models are built from physical quantities (BaseModel, VersionBuild, BaseDesign, PostDesign changed).
@@ -41,8 +43,12 @@ import { START_SUITE_FAMILIES, startExpertAssets, suitesFromV1 } from '../models
  *  asset each) replace the post design's graders option. Migration 21 → 22 maps the lab's latest graders choice to the
  *  suites' exploitability (cheap → cheap, else hardened = the leader's start) at fidelity 1 (suitesFromV1).
  *  23 (model v3 D2): DataPortfolio.pending (licence and expert-data deals waiting for delivery) and the optional synJob
- *  (a synthetic generation job with a chosen teacher). Migration 22 → 23 starts with nothing pending and no job. */
-export const SCHEMA_REV = 23;
+ *  (a synthetic generation job with a chosen teacher). Migration 22 → 23 starts with nothing pending and no job.
+ *  24 (model v3 D9): ResearchState.dataFx (adopted data-efficiency effects: P10's synthetic-quality ceiling, P21's token
+ *  worth). P10, P12 and P21 became capability projects with typed effects. Migration 23 → 24 gives a lab that had adopted
+ *  P10 / P21 under the old flags their designed effect (x = 1), and one that had adopted P12 its demonstrations in the
+ *  long-tasks suite (paid then, as the old project cost; versions already built keep their old horizon multiplier). */
+export const SCHEMA_REV = 24;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -281,6 +287,21 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   22: (raw) => {
     const p = (raw as unknown as GameStateV2).player;
     p.dataPortfolio.pending ??= [];
+  },
+  23: (raw) => {
+    const p = (raw as unknown as GameStateV2).player;
+    const on = (id: string) => p.paradigms?.[id]?.status === 'adopted';
+    if (on('P10') || on('P21')) {
+      const fx = (p.research.dataFx ??= {});
+      if (on('P10')) fx.synQMax = (fx.synQMax ?? 0) + P10_SYN_Q_RAISE;
+      if (on('P21')) fx.worthOom = (fx.worthOom ?? 0) + P21_WORTH_OOM;
+    }
+    if (on('P12')) {
+      const id = expertAssetId('longHorizon');
+      const a = p.dataPortfolio.assets.find((x): x is OwnedDataAsset => x.kind === 'expert' && x.id === id);
+      if (a) a.tokensT += P12_DEMO_T;
+      else p.dataPortfolio.assets.push(expertAsset('longHorizon', EXPERT_START_T + P12_DEMO_T));
+    }
   },
 };
 

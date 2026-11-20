@@ -194,7 +194,7 @@ export function capProjectView(s: GameStateV2, id: string): CapProjectView | und
   const eff = n.effect;
   return {
     id, name: n.name, kind: n.kind ?? 'idea', column: n.column, area: COLUMN_LABEL[n.column], ...(eff?.stack ? { stack: eff.stack } : {}),
-    unit: eff?.stack ? 'oom' : eff?.domains ? 'design' : 'unlock',
+    unit: eff?.stack ? 'oom' : eff?.domains || eff?.data || eff?.expert ? 'design' : 'unlock',
     state, stage, stageFrac, ...(ready !== true && !known ? { wait: ready } : {}), rank, want: wantIsAuto(s, id) ? teams.length : teamsWanted(s, id), auto: wantIsAuto(s, id), teams,
     sciCap: sci.cap, taste: sci.q, cands: st?.cands.length ?? 0, pickAt: PICK_AT,
     ...(belief ? { belief } : {}), ...(res ? { result: { est: res.est, estSd: res.estSd, day: res.day } } : {}),

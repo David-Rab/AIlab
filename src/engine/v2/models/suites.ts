@@ -172,6 +172,21 @@ export function completeSuiteWork(s: GameStateV2, ctx: SystemCtx, ref: string) {
   }
 }
 
+/** Model v3 D9: expert data an adopted research result delivers into a family's suite (P12's long-horizon human
+ *  demonstrations), paid at the expert-data price on delivery (EXPERT_PRICE_B_PER_T: one price for every expert token).
+ *  Returns the cash paid ($B). */
+export function addSuiteExpertData(s: GameStateV2, ctx: SystemCtx, f: RLFamily, tokensT: number, source: string): number {
+  if (!(tokensT > 0) || !materialiseSuite(s, f)) return 0;
+  const a = findExpert(s, f)!;
+  const before = fidelityOf(a.tokensT);
+  a.tokensT += tokensT;
+  a.day = ctx.day;
+  const cash = tokensT * EXPERT_PRICE_B_PER_T;
+  bookCash(s, ctx, -cash, 'training', 'expert data', source);
+  ctx.log('research', `${source}: ${Math.round(tokensT * 1000)}B tokens of expert data join the ${RL_FAMILY_LABEL[f]} environments ($${cash.toFixed(2)}B): fidelity ${before.toFixed(2)} → ${fidelityOf(a.tokensT).toFixed(2)}.`, 1, f);
+  return cash;
+}
+
 /** Upkeep of a family's suite, team-weeks per week: SUITE_UPKEEP.tw × √(E/E₀). */
 export const suiteUpkeepTW = (s: GameStateV2, f: RLFamily) => SUITE_UPKEEP.tw * sizeOf(s, f);
 

@@ -4,13 +4,20 @@
 //   the spinout = cheap); higher fidelity raises that family's gain (others only via transfer); higher exploitability
 //   raises S2; building and hardening cost team-weeks and cash (hardening with diminishing returns); a family with no
 //   suite cannot be focused; a run freezes its suites at launch; saves at schemaRev 21 migrate (graders → suites).
+// Model v3 D9: P12 (long-horizon human demos) delivers expert data into the long-tasks suite at the expert-data price;
+//   its fidelity raises that family's RL gain, AGENCY and the horizon; the old flat flags are gone; saves migrate 23 → 24.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { RL_BUDGET, REFERENCE_POST, RL_REF_GAIN } from '../../src/data/v2/runDesign';
-import { EXPERT_START_T, EXPLOIT_CHEAP, EXPLOIT_START, SUITE_BUILD, SUITE_HARDEN } from '../../src/data/v2/suites';
+import { EXPERT_PRICE_B_PER_T, EXPERT_START_T, EXPLOIT_CHEAP, EXPLOIT_START, P12_DEMO_T, SUITE_BUILD, SUITE_HARDEN } from '../../src/data/v2/suites';
+import { P10_SYN_Q_RAISE, P21_WORTH_OOM } from '../../src/data/v2/dataAssets';
+import { H50_PER_OOM } from '../../src/data/v2/workTypes';
+import { TREE_BY_ID } from '../../src/data/v2/tree';
+import { candidateTruth, completeAdoption, freshCap } from '../../src/engine/v2/models/research';
+import { syncParadigm } from '../../src/engine/v2/models/tree';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
-import { act } from '../../src/engine/v2/core/loop';
-import { deserialize, migrations } from '../../src/engine/v2/core/save';
+import { act, makeCtx } from '../../src/engine/v2/core/loop';
+import { deserialize, migrations, serialize } from '../../src/engine/v2/core/save';
 import { upkeepLines } from '../../src/engine/v2/departments/build';
 import { rlFamiliesAvailable, rlGains, rlWeights } from '../../src/engine/v2/models/effective';
 import { planRun } from '../../src/engine/v2/models/runs';
@@ -18,8 +25,8 @@ import {
   S2_PER_EXPLOIT, expertAssetId, fidelityOf, suiteExploitMap, suiteFamilies, suiteFidMap, suiteFidelity, suiteOf, suiteWorkCost,
 } from '../../src/engine/v2/models/suites';
 import { postSignals } from '../../src/engine/v2/safety/traits';
-import type { GameStateV2, OwnedDataAsset, PostDesign, RLFamily } from '../../src/engine/v2/types';
-import { FIXTURE_DIR, check, finish, runTo } from './lib';
+import type { Candidate, GameStateV2, OwnedDataAsset, PostDesign, RLFamily } from '../../src/engine/v2/types';
+import { FIXTURE_DIR, HERE, check, finish, runTo } from './lib';
 
 const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
 const game = (start: 'leader' | 'challenger' | 'bigtech' | 'spinout' = 'leader') => newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, start, tutorial: false }));
@@ -142,6 +149,51 @@ const frozen = postSignals(sr, run.post!, run.recipe?.exploit).S2;
 sr.player.suites.swe!.exploit = EXPLOIT_CHEAP.swe;
 check(!!run.recipe?.fid && !!run.recipe?.exploit && near(postSignals(sr, run.post!, run.recipe.exploit).S2, frozen, 1e-12) && postSignals(sr, run.post!).S2 > frozen,
   'a post-training run freezes its suites\' fidelity and exploitability at launch', `S2 frozen ${frozen.toFixed(3)} vs today ${postSignals(sr, run.post!).S2.toFixed(3)}`);
+
+// ---------- model v3 D9: P12 long-horizon human demos as expert data in the long-tasks suite ----------
+{
+  const C9: Candidate = { k: 1, gen: 1, nov: 0.5, b: 1, q: 1, mu: 1, sd: 0.2, muS: 0, sdS: 0 };
+  const a = game();
+  const b = game();
+  b.hidden.paradigmSuccess.P12 = true;
+  const x = candidateTruth(b, TREE_BY_ID.P12, freshCap(), C9).x;
+  b.player.tree.P12 = { status: 'researching', progress: 0, attempts: 1, cap: { ...freshCap(), stage: 'adopting', result: { c: C9, xTest: x, sHat: 0, fTest: 1e24, est: 1, estSd: 0.1, buildId: 'd9', day: 0 } } } as never;
+  const cash0 = b.player.finance.cash;
+  completeAdoption(b, makeCtx(b), 'P12', 'd9', (i) => syncParadigm(b, i));
+  const tok = x * P12_DEMO_T;
+  const paid = cash0 - b.player.finance.cash;
+  check(x > 0 && b.player.paradigms.P12.status === 'adopted' && near(expert(b, 'longHorizon')!.tokensT, EXPERT_START_T + tok, 1e-15) && near(paid, tok * EXPERT_PRICE_B_PER_T, 1e-9)
+    && near(P12_DEMO_T * EXPERT_PRICE_B_PER_T, 1, 1e-12) && near(fidelityOf(EXPERT_START_T + P12_DEMO_T), 1.5 - 0.5 * Math.sqrt(1 / 11), 1e-12)
+    && START_FAMS.every((f) => f === 'longHorizon' || suiteFidelity(b, f) === 1),
+    'P12: adoption delivers x × 20B tokens of demonstrations into the long-tasks suite, paid at the expert-data price ($1B as designed); fidelity 1 → 1.35 as designed',
+    `x ${x.toFixed(3)}: ${(tok * 1000).toFixed(1)}B tokens, $${paid.toFixed(2)}B, fidelity ${suiteFidelity(b, 'longHorizon').toFixed(3)}`);
+  // Through the mechanism: the suite's higher fidelity raises the long-tasks family's RL ceiling, so AGENCY and the
+  // time horizon (h50 ∝ 4.2^ΔG_AGENCY) rise for a post-train after adoption; no flat horizon multiplier.
+  const rows: string[] = [];
+  let ok = true;
+  for (const focus of ['broad', ['longHorizon']] as PostDesign['rlFocus'][]) {
+    const pa = planRun(a, { kind: 'post', baseId: 'B0', post: post({ rlFocus: focus }) });
+    const pb = planRun(b, { kind: 'post', baseId: 'B0', post: post({ rlFocus: focus }) });
+    const dA = (pb.g.gD?.AGENCY ?? 0) - (pa.g.gD?.AGENCY ?? 0);
+    const ceilA = pa.g.rl!.perFamily.longHorizon ?? 0;
+    const ceilB = pb.g.rl!.perFamily.longHorizon ?? 0;
+    if (!(dA > 0) || !(ceilB > ceilA)) ok = false;
+    rows.push(`${focus === 'broad' ? 'broad' : 'long-tasks focus'}: long-tasks gain ${ceilA.toFixed(3)} → ${ceilB.toFixed(3)}, AGENCY +${dA.toFixed(3)} OOM (horizon ×${Math.pow(H50_PER_OOM, dA).toFixed(2)})`);
+  }
+  check(ok, 'P12: the demos raise the long-tasks RL gain and AGENCY (and so the horizon) through the suite, not a flat multiplier', rows.join('; '));
+  // Old flags: no P12 horizon constant and no paradigm level offsets.
+  const runsSrc = readFileSync(join(HERE, '..', '..', 'src', 'engine', 'v2', 'models', 'runs.ts'), 'utf8');
+  check(!/P12_HORIZON|adopted\(s, 'P12'\)|paradigmOff/.test(runsSrc), 'P12: the old "time horizon ×2, RSCH +0.4" flags are gone (no P12_HORIZON, no paradigm level offsets)');
+  // Save migration 23 → 24: a lab that had adopted P12 under the old flag gets its demonstrations (paid then).
+  const raw23 = JSON.parse(serialize(game())) as Record<string, unknown> & { player: GameStateV2['player'] };
+  raw23.schemaRev = 23;
+  raw23.player.paradigms.P10.status = 'adopted';
+  raw23.player.paradigms.P12.status = 'adopted';
+  raw23.player.paradigms.P21.status = 'adopted';
+  const m = deserialize(JSON.stringify(raw23));
+  check(near(expert(m, 'longHorizon')!.tokensT, EXPERT_START_T + P12_DEMO_T, 1e-15) && m.player.research.dataFx?.synQMax === P10_SYN_Q_RAISE && m.player.research.dataFx?.worthOom === P21_WORTH_OOM,
+    'migration 23 → 24: adopted P10 / P12 / P21 get their designed effect (ceiling +0.5, ×2 token worth, 20B demo tokens)', JSON.stringify(m.player.research.dataFx));
+}
 
 // ---------- save migration 21 → 22 ----------
 const day400 = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));

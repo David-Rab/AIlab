@@ -9,16 +9,22 @@
 // Model v3 D11 (quality of the drawn tokens): D_eff = Σ q·Muennighoff(D_slice, T_slice) ÷ Q_REF in the loss law; the
 //   reference draw reproduces G exactly, premium data raises G by a small sourced amount, a low-quality synthetic-heavy
 //   draw lowers it, quality is counted once (it scales tokens, not epochs), and the teacher comparison is reported.
+// Model v3 D9: P10 raises the synthetic-quality ceiling (U does not jump), P21 multiplies the drawn tokens' worth in the
+//   loss law, both by the adopted result's x; the D2 teacher finding is re-checked under the final rules.
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  ALPHA_DATA, EXPERT_DELIVERY_DAYS, LICENCE_DELIVERY_DAYS, LICENCE_TIERS, PUBLIC_WEB, SPEC_CAP, SYN_Q, USAGE_LEVELS, WEB_LICENCE,
+  ALPHA_DATA, EXPERT_DELIVERY_DAYS, LICENCE_DELIVERY_DAYS, LICENCE_TIERS, P10_SYN_Q_RAISE, P21_WORTH_OOM, PUBLIC_WEB, SPEC_CAP, SYN_Q, USAGE_LEVELS, WEB_LICENCE,
 } from '../../src/data/v2/dataAssets';
+import { TREE_BY_ID } from '../../src/data/v2/tree';
+import { candidateTruth, completeAdoption, freshCap } from '../../src/engine/v2/models/research';
+import { syncParadigm } from '../../src/engine/v2/models/tree';
+import { versionById } from '../../src/engine/v2/models/labs';
 import { BASE_DATA, REFERENCE_BASE } from '../../src/data/v2/runDesign';
 import { EXPERT_PRICE_B_PER_T, SUITE_BUILD } from '../../src/data/v2/suites';
 import { actionView } from '../../src/engine/v2';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
-import { act } from '../../src/engine/v2/core/loop';
+import { act, makeCtx } from '../../src/engine/v2/core/loop';
 import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
 import { SCHEMA_REV, deserialize, serialize } from '../../src/engine/v2/core/save';
 import { gOfBuild, gV0 } from '../../src/engine/v2/models/capability';
@@ -27,17 +33,17 @@ import { planRun } from '../../src/engine/v2/models/runs';
 import { familyDomain, suiteWorkCost } from '../../src/engine/v2/models/suites';
 import {
   NATURAL_MIX, Q_REF, REF_SHARE, addAsset, assetQuality, assetTokensT, licenceAsset, playerDraw, dataPortfolioFromV2, deliverData, drawData, expertDomainId, expertStockT, portfolioByKind, portfolioU, publicUse, synTeacher,
-  syntheticAccrual, syntheticQuality, synTokensPerH100eDay, uniqueTokens, unlicensedPublicT, usageAccrual, usageTokensPerDay,
+  syntheticAccrual, syntheticQuality, synAssetFor, synQualityCap, synTokensPerH100eDay, tokenWorth, uniqueTokens, unlicensedPublicT, usageAccrual, usageTokensPerDay,
 } from '../../src/engine/v2/production/data';
-import type { BaseDesign, DataPortfolio, DomainId, GameStateV2, OwnedDataAsset } from '../../src/engine/v2/types';
+import type { BaseDesign, Candidate, DataPortfolio, DomainId, GameStateV2, OwnedDataAsset } from '../../src/engine/v2/types';
 import { FIXTURE_DIR, check, finish, runTo } from './lib';
 
 const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
 const T = 1e12;
 const game = (start: 'leader' | 'challenger' | 'bigtech' | 'spinout' = 'leader') => newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, start, tutorial: false }));
-/** v1's stock: (licensed + unlicensed) × (1 + 0.5·deals) + 0.5 × synthetic (× 3 with P10). */
-const oldU = (a: { licensedTokensT: number; unlicensedTokensT: number; syntheticTokensT: number }, deals: number, p10 = false) =>
-  ((a.licensedTokensT + a.unlicensedTokensT) * (1 + 0.5 * deals) + 0.5 * a.syntheticTokensT * (p10 ? 3 : 1)) * T;
+/** v1's stock: (licensed + unlicensed) × (1 + 0.5·deals) + 0.5 × synthetic. */
+const oldU = (a: { licensedTokensT: number; unlicensedTokensT: number; syntheticTokensT: number }, deals: number) =>
+  ((a.licensedTokensT + a.unlicensedTokensT) * (1 + 0.5 * deals) + 0.5 * a.syntheticTokensT) * T;
 const owned = (s: GameStateV2, id: string) => s.player.dataPortfolio.assets.find((a): a is OwnedDataAsset => a.id === id);
 const basePlan = (s: GameStateV2, params: number) => planRun(s, { kind: 'base', base: { ...REFERENCE_BASE, params, curation: { ...REFERENCE_BASE.curation } }, poolShare: 0.6 });
 
@@ -309,8 +315,6 @@ const fresh = y1.s.player.dataPortfolio.assets.find((a): a is OwnedDataAsset => 
 const g0 = gV0(s0.hidden.timeline);
 check(!!fresh && fresh.inheritsTraits === true && near(fresh.quality, SYN_Q.atV0, 0.02) && syntheticQuality(g0 + 2, g0) > syntheticQuality(g0, g0) && syntheticQuality(g0 + 99, g0) === SYN_Q.max && SYN_Q.max === 1 && syntheticQuality(g0 + 1, g0) === 0.75,
   'synthetic: the asset keeps its teacher (inherits its traits); quality ≈ 0.5 from V0, rising with the teacher\'s G to the web\'s 1 (cap [D], D11)', `teacher ${fresh?.teacherId} q ${fresh?.quality.toFixed(3)}; +2 OOM q ${syntheticQuality(g0 + 2, g0)}`);
-const synW = portfolioByKind(y1.s.player.dataPortfolio).find((r) => r.kind === 'synthetic')!.weightedT;
-check(near(portfolioU(y1.s.player.dataPortfolio, { p10: true }) - portfolioU(y1.s.player.dataPortfolio), 2 * synW * T, 1e6), 'synthetic: P10 counts synthetic tokens ×3 (v1, until D9)');
 
 // ---------- usage data ----------
 const sU = game();
@@ -364,26 +368,26 @@ const sFx = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
 let natOk = true;
 const natRows: string[] = [];
 for (const [name, st] of [['start', s0], ['day 400', sFx]] as const) {
-  for (const p10 of [false, true]) {
-    const U = portfolioU(st.player.dataPortfolio, { p10 });
+  {
+    const U = portfolioU(st.player.dataPortfolio);
     for (const D of [50e12, 3 * U]) {
-      const dr = drawData(st.player.dataPortfolio, D, NATURAL_MIX, { p10 });
-      // D11: on the natural mix asset a gets D·u_a/U of the tokens from its own T_a (P10: synthetic ×3), so
+      const dr = drawData(st.player.dataPortfolio, D, NATURAL_MIX);
+      // D11: on the natural mix asset a gets D·u_a/U of the tokens from its own T_a, so
       // D_eff = Σ q_a·Muennighoff(D·q_a·T_a/U, T_a) ÷ Q_REF.
       let want = 0;
       for (const a of st.player.dataPortfolio.assets) {
         if (a.kind === 'expert') continue;
-        const t = assetTokensT(a) * 1e12 * (a.kind === 'synthetic' && p10 ? 3 : 1);
+        const t = assetTokensT(a) * 1e12;
         if (t > 0) want += assetQuality(a) * effectiveTokens((D * assetQuality(a) * t) / U, t);
       }
       want /= Q_REF;
       // At the start no specialisation; beyond U (3U) a trace (< 0.005 OOM): the q 0.5 synthetic repeats at half the web's
       // epochs, so its code share teaches a little more than the repeated web's.
       const sMax = Math.max(0, ...Object.values(dr.sD).map((x) => Math.abs(x ?? 0)));
-      if (!near(dr.uMix / U, 1, 1e-9) || !near(dr.dEff / want, 1, 1e-9) || (name === 'start' && !p10 && sMax > (D > U ? 0.005 : 0))) natOk = false;
-      if (!natOk && !natRows.some((r) => r.startsWith('BAD'))) natRows.push(`BAD ${name} p10 ${p10} D ${(D / T).toFixed(0)}T: uMix ${(dr.uMix / T).toFixed(3)} dEff ${(dr.dEff / T).toFixed(3)} vs ${(want / T).toFixed(3)} s ${fmtS(dr.sD)}`);
+      if (!near(dr.uMix / U, 1, 1e-9) || !near(dr.dEff / want, 1, 1e-9) || (name === 'start' && sMax > (D > U ? 0.005 : 0))) natOk = false;
+      if (!natOk && !natRows.some((r) => r.startsWith('BAD'))) natRows.push(`BAD ${name} D ${(D / T).toFixed(0)}T: uMix ${(dr.uMix / T).toFixed(3)} dEff ${(dr.dEff / T).toFixed(3)} vs ${(want / T).toFixed(3)} s ${fmtS(dr.sD)}`);
     }
-    natRows.push(`${name}${p10 ? ' P10' : ''} U ${(U / T).toFixed(0)}T`);
+    natRows.push(`${name} U ${(U / T).toFixed(0)}T`);
   }
 }
 check(natOk, 'draw: the drawn U equals uniqueTokens when the mix is natural (the web, q 1, is the best data); D_eff = Σ q·Muennighoff on each asset\'s own tokens', natRows.join(', '));
@@ -448,6 +452,116 @@ const walk = (dir: string) => {
 walk(join(FIXTURE_DIR, '..', '..', '..', 'src'));
 check(v1Keys.length === 0 && srcHits.length === 0, 'lint: no V1 data-option offsets left (BASE_DATA has no dg/off/noWall; no deltaRsch / "Research boost" readers)', [...v1Keys, ...srcHits].slice(0, 5).join(', '));
 
+// ---------- model v3 D9: P10 and P21 as typed data-efficiency effects ----------
+// A finished result is built in (completeAdoption, the engine's adoption path) with the project's realised effect x
+// (1 = as designed); the effect enters through the data mechanisms, not as a flat bonus.
+const C9: Candidate = { k: 1, gen: 1, nov: 0.5, b: 1, q: 1, mu: 1, sd: 0.2, muS: 0, sdS: 0 };
+const adoptResult = (s: GameStateV2, id: string) => {
+  s.hidden.paradigmSuccess[id] = true;
+  const x = candidateTruth(s, TREE_BY_ID[id], freshCap(), C9).x;
+  s.player.tree[id] = { status: 'researching', progress: 0, attempts: 1, cap: { ...freshCap(), stage: 'adopting', result: { c: C9, xTest: x, sHat: 0, fTest: 1e24, est: 1, estSd: 0.1, buildId: 'd9', day: s.time.day } } } as never;
+  completeAdoption(s, makeCtx(s), id, 'd9', (i) => syncParadigm(s, i));
+  return x;
+};
+{
+  // P10: the synthetic-quality ceiling rises by x × 0.5 (1 → 1.5 as designed); U does not jump at adoption (no ×3).
+  const a = game();
+  const b = game();
+  const x = adoptResult(b, 'P10');
+  const cap = synQualityCap(b);
+  const g0b = gV0(b.hidden.timeline);
+  check(x > 0 && b.player.paradigms.P10.status === 'adopted' && near(b.player.research.dataFx?.synQMax ?? 0, x * P10_SYN_Q_RAISE, 1e-12) && near(cap, 1 + x * P10_SYN_Q_RAISE, 1e-12) && synQualityCap(a) === 1
+    && uniqueTokens(b) === uniqueTokens(a) && syntheticQuality(g0b + 4, g0b, cap) === Math.min(cap, 1.5) && syntheticQuality(g0b + 1, g0b, cap) === 0.75,
+    'P10: adoption raises the synthetic-quality ceiling by x × 0.5 (q 1 → 1.5 as designed; Maini et al. 2024, phi-4, research/20 A3), U unchanged (no ×3)',
+    `x ${x.toFixed(3)}, ceiling ${cap.toFixed(3)}; q at V0 + 1 / 2 / 3 / 4 OOM ${[1, 2, 3, 4].map((k) => syntheticQuality(g0b + k, g0b, cap).toFixed(3)).join(' / ')}`);
+  // Through the mechanism: a teacher 3 OOM above V0 writes q 1 data without P10, q min(cap, 1.25) with it, and a base
+  // that draws 100T of it gains G from the quality term (the loss law), nothing else.
+  const strongT = (s: GameStateV2) => {
+    const v = s.player.models.versions[0];
+    return { ...v, id: 'Vx', build: { ...v.build!, gPre: v.build!.gPre + 3 } };
+  };
+  const qa = synAssetFor(a, strongT(a), 100);
+  const qb = synAssetFor(b, strongT(b), 100);
+  addAsset(a.player.dataPortfolio, qa);
+  addAsset(b.player.dataPortfolio, qb);
+  const pa = basePlan(a, REFERENCE_BASE.params * 2).limits!;
+  const pb = basePlan(b, REFERENCE_BASE.params * 2).limits!;
+  check(qa.quality === 1 && near(qb.quality, Math.min(cap, 1.25), 1e-12) && pb.gPre.quality > pa.gPre.quality && near(pb.gPre.total - pa.gPre.total, pb.gPre.quality - pa.gPre.quality, 1e-9),
+    'P10: a strong teacher\'s data is worth more per token in the loss law (quality term), only with P10',
+    `teacher V0 + 3 OOM: q ${qa.quality.toFixed(3)} → ${qb.quality.toFixed(3)}; 100T of it, base ${((REFERENCE_BASE.params * 2 * REFERENCE_BASE.tpp) / T).toFixed(0)}T: quality term ${pa.gPre.quality.toFixed(4)} → ${pb.gPre.quality.toFixed(4)} OOM`);
+  // New tokens from a teacher whose asset began before P10 carry today's quality (token-weighted mean).
+  const c = game();
+  const vS = strongT(c);
+  c.player.models.versions.push(vS);
+  c.player.split.synthetic = 0.1;
+  c.player.dataPortfolio.synJob = { teacherId: vS.id, share: 1, until: c.time.day + 30 };
+  syntheticAccrual(c);
+  const t1 = owned(c, 'syn:Vx')!.tokensT;
+  adoptResult(c, 'P10');
+  syntheticAccrual(c);
+  const aC = owned(c, 'syn:Vx')!;
+  const qNew = Math.min(synQualityCap(c), 1.25);
+  check(near(aC.quality, (1 * t1 + qNew * (aC.tokensT - t1)) / aC.tokensT, 1e-12) && aC.quality > 1,
+    'P10: data generated after adoption carries the higher quality (the asset\'s quality is the token-weighted mean)', `q ${aC.quality.toFixed(4)} after ${t1.toFixed(2)}T at q 1 and ${(aC.tokensT - t1).toFixed(2)}T at q ${qNew.toFixed(3)}`);
+}
+{
+  // P21: every drawn token is worth 10^(x × 0.3) in the loss law (×2 as designed); the quality term carries it.
+  const a = game();
+  const b = game();
+  const x = adoptResult(b, 'P21');
+  const w = Math.pow(10, x * P21_WORTH_OOM);
+  const rows: string[] = [];
+  let ok = x > 0 && near(tokenWorth(b), w, 1e-12) && tokenWorth(a) === 1 && near(b.player.research.dataFx?.worthOom ?? 0, x * P21_WORTH_OOM, 1e-12);
+  let prev = Infinity;
+  for (const tpp of [20, 50, 200]) {
+    const d = { ...REFERENCE_BASE, tpp, curation: { ...REFERENCE_BASE.curation } };
+    const pa = planRun(a, { kind: 'base', base: d, poolShare: 0.6 }).limits!;
+    const pb = planRun(b, { kind: 'base', base: d, poolShare: 0.6 }).limits!;
+    const D = d.params * tpp;
+    const want = Math.log10(fDataEff(d.params, D, pa.draw.dEff * w)) - Math.log10(fDataEff(d.params, D, pa.draw.dEff));
+    const dG = pb.gPre.total - pa.gPre.total;
+    if (!near(dG, want, 1e-9) || !near(pb.draw.dEff / pa.draw.dEff, w, 1e-9) || pb.draw.uMix !== pa.draw.uMix || !(dG > 0) || !(dG < prev)) ok = false;
+    prev = dG;
+    rows.push(`${tpp} tokens/param +${dG.toFixed(3)} OOM`);
+  }
+  check(ok, 'P21: drawn tokens are worth ×10^(x·0.3) in the loss law (D_eff × worth; same draw, same epochs); worth most at few tokens per parameter',
+    `x ${x.toFixed(3)}, worth ×${w.toFixed(3)}; B0-size base: ${rows.join(', ')}`);
+}
+{
+  // D2's finding re-checked under the final rules (D11 quality in the loss law, the web's cap, P10's ceiling): day-400
+  // teachers, 30 days of the whole pool each, then the latest base design (as the D11 check above). Below the cap
+  // (every day-400 teacher, q ≤ 0.75) P10 changes nothing and the strongest teacher pays; a later lab whose teachers are
+  // 2.5 OOM stronger (same FLOP per token) hits the web's cap without P10, so tokens per H100e-day decide again (the
+  // smallest teacher wins, D2's distilled-mini finding); with P10 quality keeps ranking them.
+  const run = (p10: boolean, dG: number) => {
+    const base = deserialize(serialize(sSy));
+    base.player.split.synthetic = Math.max(0.05, base.player.split.synthetic);
+    for (const v of base.player.models.versions) if (v.build) v.build = { ...v.build, gPre: v.build.gPre + dG };
+    if (p10) adoptResult(base, 'P10');
+    const none = deserialize(serialize(base));
+    none.player.split.synthetic = 0;
+    for (let i = 0; i < 30; i++) syntheticAccrual(none);
+    const g0n = planRun(none, { kind: 'base', base: { ...latest, curation: { ...latest.curation } }, poolShare: 0.6 }).limits!.gPre.total;
+    return withG.map(({ v }) => {
+      const s = deserialize(serialize(base));
+      act(s, 'data.synthesize', { teacher: v.id, share: 1, days: 30 });
+      for (let i = 0; i < 30; i++) syntheticAccrual(s);
+      const q = synAssetFor(s, versionById(s, v.id)).quality;
+      return { id: v.id, fpt: v.fpt ?? 1, q, dG: planRun(s, { kind: 'base', base: { ...latest, curation: { ...latest.curation } }, poolShare: 0.6 }).limits!.gPre.total - g0n };
+    });
+  };
+  const best = (r: ReturnType<typeof run>) => r.reduce((a, b) => (b.dG > a.dG ? b : a));
+  const fmt = (r: ReturnType<typeof run>) => r.map((x) => `${x.id} q ${x.q.toFixed(2)} ΔG ${sgn(x.dG)}`).join(', ');
+  const now0 = run(false, 0);
+  const now1 = run(true, 0);
+  const late0 = run(false, 2.5);
+  const late1 = run(true, 2.5);
+  const smallest = withG.reduce((a, b) => ((b.v.fpt ?? 1) < (a.v.fpt ?? 1) ? b : a)).v.id;
+  check(best(now0).id === strong.v.id && now0.every((x, i) => near(x.dG, now1[i].dG, 1e-12)) && late0.every((x) => x.q === 1) && best(late0).id === smallest && late1.some((x) => x.q > 1),
+    'D9 teacher re-check: below the cap the strongest teacher pays (P10 changes nothing at day 400); at the web\'s cap the smallest teacher wins again; P10 lets quality rank them',
+    `day 400: ${fmt(now0)}; teachers +2.5 OOM, no P10: ${fmt(late0)} (best ${best(late0).id}); with P10: ${fmt(late1)} (best ${best(late1).id})`);
+}
+
 // ---------- saves ----------
 const migA = dataPortfolioFromV2({ licensedTokensT: 30, unlicensedTokensT: 270, syntheticTokensT: 812.5 }, 0);
 const migB = dataPortfolioFromV2({ licensedTokensT: 300, unlicensedTokensT: 0, syntheticTokensT: 812.5 }, 1);
@@ -457,7 +571,7 @@ const raw = readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8');
 const old = (JSON.parse(raw) as { player: { dataAssets?: { licensedTokensT: number; unlicensedTokensT: number; syntheticTokensT: number } } }).player.dataAssets;
 if (old) {
   const fx = deserialize(raw);
-  check(near(uniqueTokens(fx), oldU(old, fx.relations.dataLicences.length, fx.player.paradigms.P10?.status === 'adopted'), 1e3) && !('dataAssets' in fx.player),
+  check(near(uniqueTokens(fx), oldU(old, fx.relations.dataLicences.length), 1e3) && !('dataAssets' in fx.player),
     'save: the day-400 fixture loads with the same U', `${(uniqueTokens(fx) / T).toFixed(1)}T`);
 }
 
@@ -467,10 +581,10 @@ raw22.schemaRev = 22;
 delete raw22.player.dataPortfolio.pending;
 const mig22 = deserialize(JSON.stringify(raw22));
 const rt = deserialize(serialize(sLic));
-check(mig22.schemaRev === SCHEMA_REV && SCHEMA_REV === 23 && Array.isArray(mig22.player.dataPortfolio.pending) && mig22.player.dataPortfolio.pending.length === 0 && !mig22.player.dataPortfolio.synJob
+check(mig22.schemaRev === SCHEMA_REV && Array.isArray(mig22.player.dataPortfolio.pending) && mig22.player.dataPortfolio.pending.length === 0 && !mig22.player.dataPortfolio.synJob
   && near(uniqueTokens(mig22), uniqueTokens(s0), 1e3) && uniqueTokens(rt) === uniqueTokens(sLic) && deserialize(serialize(jS.s)).player.dataPortfolio.synJob?.teacherId === strong.v.id,
-  'save: a schemaRev-22 save migrates to 23 (nothing pending, no job, same U); deals and jobs round-trip');
+  'save: a schemaRev-22 save migrates (nothing pending, no job, same U); deals and jobs round-trip');
 const fx400 = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
-check(Array.isArray(fx400.player.dataPortfolio.pending), 'save: the day-400 fixture migrates through 23');
+check(Array.isArray(fx400.player.dataPortfolio.pending) && !fx400.player.research.dataFx, 'save: the day-400 fixture migrates through 24 (no data-efficiency effects adopted)');
 
 finish('data');
