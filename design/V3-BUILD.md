@@ -1769,3 +1769,57 @@ effective, calib (T1 known WARN slow A2 unchanged), lint-ux all pass; test:ui 37
 **Seen / open.** Old saves with Deep research switched on Chat keep the id in `Deployment.features`; it is inert there
 (`activeFeatures` filters by the offer) and costs no upkeep on that product. RefBot builds no features, so calibration is
 untouched by the upkeep.
+
+### P2 notes (daily-tick performance pass; 2026-11-20)
+
+**Rule.** No behaviour change: no cadence, rounding or approximation changes. Proof: `.p2tmp` hash script (stable-key
+JSON of the full state, SHA-256, every 50 days) on 4 runs (passive seed 9 to day 1500 / ousted day 731; passive seed 9
+with the leader lab, endings skipped, 1500 days; RefBot seed 3 authors2026 3 rivals with the reference-compute stub,
+600 days; RefBot seed 5 sampled world with real finance, 600 days): identical after every step. `fixtures.ts`
+regenerates byte-identical fixtures to the pre-P2 code (the committed fixture files are older, schemaRev 16, so the
+test rewrites them either way; restored).
+
+**Profiler.** `scripts/v2/profile.ts [days] [reps]`: hygiene's two perf games and a RefBot game, µs per system per live
+day (each system's run wrapped), daily average and worst quarter tick. Hot functions: `node --cpu-prof --import tsx`;
+for line numbers bundle with esbuild first (tsx output is one line per module). tsx adds `__name(...)` around every
+named inner closure (esbuild keepNames): a closure in a hot function costs a defineProperty per call (offerOf's `scale`
+alone was ~3.7% of the tick).
+
+**What changed (hot spot → fix).**
+- World mix (revenue, 60): offerOf's per-call closure hoisted; packed arrays instead of `new Array(n).fill` and a
+  Float64Array per region-sector; build-less models (rivals, China, imported) cache fit / coverage / leverage per
+  (pm, ΔG, horizon multiplier, work type, P19) — the only inputs those read — in nested number-keyed maps; the revenue
+  readout reuses the player offers the mix computed a moment before (only in applyRevenue, when the mix was computed
+  in that call: same state, same values); customer stocks and stock shares without per-provider callbacks.
+- macro (310) read the full world mix three times (automationFactor per region) for `bestPublic.AGENCY` only:
+  `bestPublicOf(s)` computes that part alone (computeMix uses the same helpers, `providersOf`, `bestPublicFrom`).
+- geoQ (440): rivalFinanceQ recomputed the world mix per rival (labMarketRevenue without a mix); now one mix for the
+  loop, recomputed after a lab leaves the market (the only change in the loop the mix reads).
+- director (140): E17 computed U every day even after its U flag fired (now only while it can fire); the detector
+  computes each tool's strength once per level (trait-independent; meanDet asks 4 traits at each L), combines on
+  precomputed correlation groups (no per-call item objects / Map), insertion sort for the short strength lists
+  (identical values; NaN falls back to the built-in sort), validation lead hoisted.
+- research (35): planAssignment's swap pass evaluated assignmentValue twice per pair over all teams × projects with
+  fresh arrays; now precomputed capacities, the value before a swap carried over, and only the two projects a swap
+  touches recomputed (same ordered sums).
+- production (30): the player's mix search (26 evaluations a day) evaluates only X (`xAtMix`, the same expressions as
+  evalV3 + inputsAtMix).
+
+**Numbers (same session, alternating pre-P2 code from `git archive 925a5ea` and P2; this machine's load moves absolute
+numbers by up to 2×).** Per system, leader-lab hygiene game, µs per day (3 alternating rounds, quiet period): revenue
+454 → 308, production 191 → 184, worldDaily 133 → 128, research 125 → 112, director 98 → 63, rivalsChina 68 → 66,
+actorsDaily 59 → 55, safetyResearch 57 → 54, record 40 → 33, macro 33 → 2.4, geoQ 15–20 → 3.6; daily average 1357 →
+1108 µs. RefBot game: revenue 451 → 304, research 308 → 214, director 78 → 46, daily 1690 → 1338 µs. Hygiene perf, two
+alternating rounds under load: daily average 841 / 869 → 619 / 783 µs (≤ 1.5 ms: pass); worst quarter 6.76 / 5.86 →
+2.70 / 4.71 ms; leader lab daily 2021 / 2248 → 1282 / 1773 µs (budget 1500: passes when the machine is quiet, fails
+under load); leader lab worst quarter 9.92 / 10.51 → 4.74 / 6.86 ms (≤ 8: pass); leader lab's own cost +11.9 / +4.4% →
++23.9 / +9.8% (paired, per system: +5.0% → +13.5%; its absolute cost is unchanged, production +50–70 µs and revenue
++40–60 µs for one more lab and provider, while the rest of the tick shrank).
+
+**What remains (needs a behaviour change, not made).** The rest is float math with Math.pow at its core: the mix's cost
+gate (1/(1 + (bc/wage)^(1/k)) per provider × 14 sectors × 3 regions), offers' coverage and token costs, the rivals'
+golden-section mix search (26 CES evaluations per lab a day) and refBestX misses (its memo key rounds q and yr, which
+change daily), tasteSD's 80-step bisection per lab a day, U's bisection (≈11 levels × 4 traits) every day, worldDaily's
+42 sector updates. Faster versions would change values in the last bits or the cadence: exp/log for pow, Newton or a
+table for tasteSD, fewer search iterations, understanding weekly in the director, a mix every few days. With those off
+the table the leader-lab average is ≈ 1.1 ms on a quiet machine and 1.6–1.8 ms under load.
