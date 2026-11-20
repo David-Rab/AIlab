@@ -392,7 +392,7 @@ function CapacityRow({ d, r }: { d: Deployment; r: ProductRead }) {
 const REGION_NAME: Record<string, string> = { US: 'US', CN: 'China', ROW: 'Rest of world' };
 const SECTOR_NAME = Object.fromEntries(SECTORS.map((x) => [x.id, x.name])) as Record<string, string>;
 /** Speed class of a time constant (days): consumers weeks, sectors months, government and defence contract cycles. */
-const speedOf = (days: number) => (days < 60 ? { word: 'weeks', who: 'Consumers' } : days < 180 ? { word: 'months', who: 'Sector buyers (API, Agents, Enterprise)' } : { word: 'quarters', who: 'Government & defence' });
+const speedOf = (days: number) => (days < 60 ? { word: 'weeks', who: 'Consumers' } : days < 255 ? { word: 'months', who: 'Sector buyers (API, Agents, Enterprise)' } : { word: 'quarters', who: 'Government & defence' });
 const tauText = (days: number) => (days < 60 ? `${Math.round(days / 7)} wk` : `${Math.round(days / 30.4)} mo`);
 const convText = (c: CustomerView) => (c.days === 0 ? 'at target' : Number.isFinite(c.days) ? `~${F.days(c.days)} to target` : '> 3 yr to target');
 

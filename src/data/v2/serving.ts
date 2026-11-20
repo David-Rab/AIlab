@@ -142,19 +142,31 @@ export const PRICE_ELASTICITY = 1;
  *  ÷ the best coverage to within half a band [D: 8 bands; the share moves by ≤ 1/16 when one more band opens]. */
 export const MARKET_BANDS = 8;
 
-/** Customers are a stock (V4.2): each segment's provider shares move toward the logit target with this time constant
- *  (years) [D]: consumers switch in weeks, API and enterprise customers over a quarter (developer months, contracts
- *  quarters), government and defence over contract cycles. */
-export const CUSTOMER_TAU = { consumer: 3 / 52, sector: 0.25, gov: 0.75 } as const;
-/** A7: the start's sector customer stocks outside China (design/notes/A7.md). Buyers were spread across providers in
- *  mid-2025, not at the share the logit gives a lab 3–9 months ahead (≈ 0.8–0.9 of every sector): OpenAI held ≈ 25% of
- *  enterprise LLM API use (Menlo Ventures mid-2025 market update: Anthropic 32%, OpenAI 25%, Google 20% [R, recalled]),
- *  and ≈ 3–5M paying business users of the world's ≈ 18M paid seats (OpenAI statements Jun / Aug 2025 [R]; 7M "ChatGPT
- *  for Work" seats by Nov 2025 [P, openai.com "1 million businesses"]; the world's seats: A2c's back-cast). So on day 0 no
- *  provider holds more than `startMax` of a US or ROW sector segment (the excess goes to the others in proportion to
- *  their targets); the stocks then move toward the targets at CUSTOMER_TAU.sector, as the consumer reach does from its
- *  measured start (A6b P5). China's segments start at their targets (no anchor; Chinese labs serve them). */
-export const SECTOR_START = { startMax: 0.25 } as const;
+/** Customers are a stock (V4.2): each segment's provider shares move toward the target with this time constant (years):
+ *  consumers switch in weeks; government and defence over contract cycles [D]. A8: sector buyers 0.65 y [D from P]: a
+ *  segment's stock re-chooses at the target as new spend arrives and as existing buyers switch, 1/τ = g + ρ. Enterprise
+ *  LLM spend grew $3.5B (Nov 2024) → $8.4B (mid-2025), g = ln 2.4 ÷ 0.63 y ≈ 1.4/y, and 11% of builders switched vendor
+ *  in a year (66% upgraded within their provider), ρ ≈ 0.11/y (Menlo Ventures, "2025 Mid-Year LLM Market Update", Jul
+ *  2025 [P]). Was 0.25 [D]. */
+export const CUSTOMER_TAU = { consumer: 3 / 52, sector: 0.65, gov: 0.75 } as const;
+/** A8: multi-homing (design/notes/A8.md). A firm buys AI from the few providers it has contracts with (often through
+ *  its cloud), not from every lab: in a sector's surplus choice (worldfx/choice.ts) each provider is in a buyer's set
+ *  with probability R, its reach (≤ its access), independently. A lab whose model alone does the hardest tasks wins
+ *  them at the firms that buy from it, not everywhere.
+ *  - `providers` 2 per firm [D from P]: "organizations typically deploy three or more foundation models" (Menlo
+ *    Ventures, "2024: The State of Generative AI in the Enterprise", Nov 2024 [P]); 37% of CIOs use five or more models
+ *    (a16z, "How 100 Enterprise CIOs Are Building and Buying Gen AI in 2025", Jun 2025 [P]); three providers take 88%
+ *    of enterprise LLM spend (Menlo, Dec 2025 [P]), so three-plus models are ≈ two providers.
+ *  - Start: an even spread, R = access × min(1, providers ÷ the region's expected reachable providers). With five
+ *    frontier labs serving the US and ROW, the classic leader (3–9 months ahead) then holds 0.35–0.38 of sector spend
+ *    (0.82 at the A5 target), as the enterprise leader did in 2025 (Anthropic 32% mid-2025, 40% end-2025; OpenAI 25 →
+ *    27%: Menlo Jul / Dec 2025 [P]). Replaces A7's start cap (SECTOR_START.startMax 0.25): the start stock is the
+ *    day-0 target.
+ *  - Reach is a stock: firms add the labs whose models are best. Target R* = min(access, providers × w ÷ Σw), w the V4
+ *    quality logit on the provider's mean sector fit (brand × access × exp(SHARE_SLOPE_G·Δfit)); time constant `tau`
+ *    3 y [D from P]: Anthropic's enterprise share went 12% (2023) → 24% (2024) → 40% (2025) (Menlo Nov 2024 / Dec 2025
+ *    [P]) during its coding lead, a reach of ≈ 0.13 → 0.44 in two years: τ 2–4.5 y for a target of 0.6–1. */
+export const MULTI_HOMING = { providers: 2, tau: 3 } as const;
 
 /** A7: free chat tiers (design/notes/A7.md). Every lab (the player, rivals, China) serves its free users on the
  *  cheapest model that holds its consumer model's chat fit less `years` of the reference frontier's progress

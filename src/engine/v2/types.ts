@@ -1746,6 +1746,10 @@ export interface WorldFxState {
    *  customers (provider keys as in the world mix: 'player', 'player:open', rival ids, 'china'). They move toward the
    *  market's logit shares at the segment's speed (CUSTOMER_TAU). Empty until the first revenue tick. */
   cust: Record<RegionId, Record<string, Record<string, number>>>;
+  /** A8 multi-homing: per region, each provider's reach among sector buyers (the share who buy from it at all, ≤ its
+   *  access; provider keys as in `cust`). A stock toward MULTI_HOMING's target; absent entries start at the region's
+   *  even spread (data/v2/serving.ts MULTI_HOMING). */
+  secReach?: Record<RegionId, Record<string, number>>;
 }
 
 export interface SectorState {

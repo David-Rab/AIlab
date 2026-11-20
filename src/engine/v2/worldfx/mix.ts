@@ -6,7 +6,9 @@
 //   offer_X   = fit (OOM), coverage a, cost and price per work-hour of X's model (price = markup × own cost ≤ value)
 //   target_X  = A5: the buyers' surplus choice over bands of task difficulty (worldfx/choice.ts) among every provider's
 //               lineup (its model; the player's product minis; other providers' students sized by cheapestAt on
-//               coverage); X's prices and costs are its customers' tier mix. Consumers: exp(SHARE_SLOPE_G·Δfit) ·
+//               coverage); X's prices and costs are its customers' tier mix. A8: buyers multi-home: X is in a
+//               buyer's choice set with probability R_X, its reach (a stock toward the labs firms add, MULTI_HOMING;
+//               open weights: their access). Consumers: exp(SHARE_SLOPE_G·Δfit) ·
 //               access · brand (V4.2's logit without the price term: users choose by quality, most pay nothing)
 //   share_X   = the segment's customer stock, moving toward target_X at the segment's speed (CUSTOMER_TAU)
 //   F         = (1 − w_PHYS)·Σ share·a + w_PHYS·σ((Le_PHYS − fMid − θ)/fSpread)    (PHYS stays robot-bound)
@@ -20,7 +22,7 @@
 // integration boost, control and the tech tree, as in v2.
 import { SECTORS, REGIONS, ECON } from '../../../data/v2/sectors';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
-import { CONSUMER_MKT, CUSTOMER_TAU, MARKET_BANDS, PRICE_ELASTICITY, SEATS, SECTOR_START, SHARE_SLOPE_G } from '../../../data/v2/serving';
+import { CONSUMER_MKT, CUSTOMER_TAU, MARKET_BANDS, MULTI_HOMING, PRICE_ELASTICITY, SEATS, SHARE_SLOPE_G } from '../../../data/v2/serving';
 import { REFERENCE_BASE, SHAPE } from '../../../data/v2/runDesign';
 import { ASSIST } from '../../../data/v2/workTypes';
 import { memo } from '../core/memo';
@@ -147,6 +149,9 @@ export interface WorldMix {
   providers: Provider[];
   sec: Record<RegionId, Record<SectorId, SectorMix>>;
   consumer: Record<RegionId, ConsumerMix>;
+  /** A8: per region and provider index, the share of sector buyers who buy from the provider at all (its reach, a
+   *  stock: fx.secReach) and the target it moves toward (MULTI_HOMING). */
+  reach: Record<RegionId, { stock: number[]; target: number[] }>;
   /** Best public general level and domain levels (max over providers' raw model levels). */
   bestPublic: Record<DomainId, number>;
   bestPublicLg: number;
@@ -354,6 +359,18 @@ function computeMix(s: GameStateV2): WorldMix {
     const mini = productMiniUses(s, d);
     cands.push({ dep: d, dom, v: capVec(dom, depOffset(d)), ch: d.channel, uses: productUses(s, d), ...(mini ? { mini } : {}), fx: productFx(s, d) });
   }
+  // A8 multi-homing: in a sector's choice each provider is in a buyer's set with probability R (its reach: a stock in
+  // fx.secReach, ≤ its access). Start (and a provider with no stock yet): access × min(1, MULTI_HOMING.providers ÷ the
+  // region's expected reachable sector providers). One array per region, so the choice sets stay memoised.
+  const sells = providers.map((p, i) => (i === playerIdx ? cands.some((c) => c.ch !== 'consumer') : !!p.model));
+  const accSec = REGIONS.map((r, ri) => {
+    const row = acc[ri];
+    let N = 0;
+    for (let i = 0; i < n; i++) if (sells[i] && !providers[i].open) N += row[i];
+    const q = Math.min(1, MULTI_HOMING.providers / Math.max(1e-9, N));
+    const st = s.world.fx.secReach?.[r];
+    return providers.map((p, i) => (!sells[i] ? 0 : p.open ? row[i] : Math.min(row[i], st?.[p.key] ?? row[i] * q)));
+  });
   const fxCert = s.world.fx.certDay;
   const certified = (sec: SectorId) => {
     const c = fxCert[sec];
@@ -462,6 +479,30 @@ function computeMix(s: GameStateV2): WorldMix {
     aTops.push(aTop);
   }
 
+  // A8: each provider's reach target: firms add the labs whose models are best by the V4 quality logit on the provider's
+  // mean sector fit (brand × access × exp(SHARE_SLOPE_G·(fit − best))), MULTI_HOMING.providers of them per firm,
+  // R* = min(access, providers × weight ÷ Σ weight).
+  const fBar = filled(n, -Infinity);
+  for (let i = 0; i < n; i++) {
+    let f = 0;
+    let k = 0;
+    for (let si = 0; si < S; si++) {
+      const o = offers[si][i];
+      if (o) {
+        f += o.fit;
+        k++;
+      }
+    }
+    if (k > 0 && sells[i]) fBar[i] = f / k;
+  }
+  const reach = {} as WorldMix['reach'];
+  REGIONS.forEach((r, ri) => {
+    let best = -Infinity;
+    for (let i = 0; i < n; i++) if (acc[ri][i] > 0 && fBar[i] > best) best = fBar[i];
+    const w = providers.map((p, i) => (acc[ri][i] > 0 && !p.open && fBar[i] > -Infinity ? p.brand * acc[ri][i] * Math.exp(SHARE_SLOPE_G * (fBar[i] - best)) : 0));
+    const W = w.reduce((a, x) => a + x, 0);
+    reach[r] = { stock: accSec[ri], target: w.map((x, i) => (providers[i].open && sells[i] ? acc[ri][i] : W > 0 ? Math.min(acc[ri][i], (MULTI_HOMING.providers * x) / W) : 0)) };
+  });
   // Display vectors per sector (the player's is its best candidate's).
   const vecs: (number[] | undefined)[][] = [];
   for (let si = 0; si < S; si++) vecs.push(providers.map((_, i) => (i === playerIdx ? cands[pCand[si]]?.v : pvec[i])));
@@ -505,7 +546,7 @@ function computeMix(s: GameStateV2): WorldMix {
         lineups.push(tl);
         tierPrice.push(tp);
       }
-      const ch = surplusChoice(lineups, brandPow, acc[ri], value, aTops[si]);
+      const ch = surplusChoice(lineups, brandPow, accSec[ri], value, aTops[si]);
       const target = ch.target;
       const tierW: number[][] = [];
       for (let i = 0; i < n; i++) {
@@ -719,7 +760,7 @@ function computeMix(s: GameStateV2): WorldMix {
       ...(cDep ? { playerDep: cDep } : {}), playerPrice: pp, priceFactor: pp > 0 && px > 0 ? Math.min(1, Math.pow(pp / px, -PRICE_ELASTICITY)) : 1,
     };
   });
-  return { providers, sec, consumer, bestPublic, bestPublicLg, playerOffers, offerBy };
+  return { providers, sec, consumer, reach, bestPublic, bestPublicLg, playerOffers, offerBy };
 }
 
 /** Move every segment's customer stock toward its logit target (daily; V4.2). Segments with no stock start at the target
@@ -750,6 +791,19 @@ export function advanceCustomers(s: GameStateV2, mix: WorldMix, dt = 1 / 365) {
   // A2b: paid shares (not normalised: each provider's own share of its users who subscribe). A new provider starts at
   // its target (its users arrive through the user-share stock).
   fx.paid ??= { US: {}, CN: {}, ROW: {} };
+  // A8: each provider's reach among sector buyers moves toward its target (MULTI_HOMING.tau); providers that left drop
+  // out; a provider with no stock starts at the start value computeMix used.
+  fx.secReach ??= { US: {}, CN: {}, ROW: {} };
+  const kReach = Math.min(1, dt / MULTI_HOMING.tau);
+  for (const r of REGIONS) {
+    const R = mix.reach[r];
+    const out: Record<string, number> = {};
+    ps.forEach((p, i) => {
+      const x = R.stock[i] + (R.target[i] - R.stock[i]) * kReach;
+      if (x > 1e-6) out[p.key] = Math.round(x * 1e7) / 1e7;
+    });
+    fx.secReach[r] = out;
+  }
   const kPaid = Math.min(1, dt / CONSUMER_MKT.paid.tau);
   for (const r of REGIONS) {
     for (const t of SECTOR_TASKS) step(r, t.id, mix.sec[r][t.id].target, t.gov ? CUSTOMER_TAU.gov : CUSTOMER_TAU.sector);
@@ -766,31 +820,8 @@ export function advanceCustomers(s: GameStateV2, mix: WorldMix, dt = 1 / 365) {
   }
 }
 
-/** A7: start shares of a sector segment outside China: the target with no provider above SECTOR_START.startMax, the
- *  excess shared by the providers under it in proportion to their targets (water-filling; the target itself when one
- *  provider serves the segment alone). */
-export function startSectorShares(target: readonly number[], max: number = SECTOR_START.startMax): number[] {
-  const out = target.slice();
-  const pos = out.filter((x) => x > 0).length;
-  if (pos * max < 1) return out;
-  const capped = new Set<number>();
-  for (let it = 0; it < out.length; it++) {
-    let excess = 0;
-    for (let i = 0; i < out.length; i++) if (!capped.has(i) && out[i] > max) {
-      excess += out[i] - max;
-      out[i] = max;
-      capped.add(i);
-    }
-    if (excess <= 1e-12) break;
-    let free = 0;
-    for (let i = 0; i < out.length; i++) if (!capped.has(i)) free += out[i];
-    if (!(free > 0)) break;
-    for (let i = 0; i < out.length; i++) if (!capped.has(i)) out[i] += (excess * out[i]) / free;
-  }
-  return out;
-}
-/** A7: the start state's customer stocks (core/init): sector segments outside China at startSectorShares of their
- *  targets, China's sectors and the consumer market at their targets (the consumer start is the reach, A6b P5). */
+/** The start state's customer stocks (core/init): every segment at its day-0 target (A8: the multi-homing choice gives
+ *  the measured spread, so A7's start cap is gone; the consumer start is the reach, A6b P5). */
 export function initCustomerStocks(s: GameStateV2) {
   const mix = computeMix(s);
   const fx = s.world.fx;
@@ -803,7 +834,7 @@ export function initCustomerStocks(s: GameStateV2) {
     fx.cust[r][seg] = row;
   };
   for (const r of REGIONS) {
-    for (const t of SECTOR_TASKS) put(r, t.id, r === 'CN' ? mix.sec[r][t.id].target : startSectorShares(mix.sec[r][t.id].target));
+    for (const t of SECTOR_TASKS) put(r, t.id, mix.sec[r][t.id].target);
     put(r, 'consumer', mix.consumer[r].target);
   }
 }
@@ -829,12 +860,19 @@ export interface BandPaid {
   /** The price the same customers would pay if every provider sold them its own model (no cheap tiers). */
   ownModelPrice: number;
 }
-export function bandPaid(mix: WorldMix, r: RegionId, sid: SectorId, u0: number, below = false): BandPaid {
+export function bandPaid(mix: WorldMix, r: RegionId, sid: SectorId, u0: number, below = false, whole = false): BandPaid {
   const m = mix.sec[r][sid];
   const { choice, offers, kind, price } = m.tiers;
   const B = choice.share[0]?.length ?? MARKET_BANDS;
   const band = Math.max(0, Math.min(B - 1, Math.floor((u0 * B) / Math.max(1e-12, choice.aTop) - (below ? 1 - 1e-9 : 0))));
-  const act = m.share.map((x, i) => (choice.target[i] > 1e-12 ? (x * choice.share[i][band]) / choice.target[i] : 0));
+  // A8 `whole`: only the buyers whose tier does the band whole (with multi-homing, buyers who cannot reach such a tier
+  // buy one that does part of it: that is not the price of the capability).
+  const hi = (choice.aTop * (band + 1)) / B;
+  const act = m.share.map((x, i) => {
+    const k = choice.pick[i][band];
+    if (!(choice.target[i] > 1e-12) || (whole && (k < 0 || offers[i][k].a < hi * (1 - 1e-9)))) return 0;
+    return (x * choice.share[i][band]) / choice.target[i];
+  });
   const sum = act.reduce((a, x) => a + x, 0) || 1;
   const out: BandPaid = { band, price: 0, hph: 0, byKind: { model: 0, mini: 0, student: 0 }, byProvider: {}, ownModelPrice: 0 };
   act.forEach((x, i) => {
