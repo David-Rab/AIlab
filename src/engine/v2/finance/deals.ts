@@ -6,7 +6,7 @@ import { addCloud } from '../compute/orders';
 import { cloudPricePerYear } from '../compute/market';
 import { newSite } from '../compute/sites';
 import { addSeat, commitmentsVote, voteGate } from './board';
-import { controlVote } from './charter';
+import { controlVotes } from './charter';
 import { DEBT_TERMS } from '../../../data/v2/deals';
 import { issue } from './equity';
 import { ensureWs3, yearStats, type DealOffer } from './ext';
@@ -118,11 +118,11 @@ export function partnerStakeAfter(s: GameStateV2, t: Pick<DealOffer, 'partner' |
   return o.strat[t.partner] ?? 0;
 }
 
-/** The votes a deal needs: the board on firm commitments above 3× revenue (spec §7.3), and under PBC + trust the
- *  trust on a sale of control (§7.2, FIN3b), in the order they are held. */
+/** The votes a deal needs: a sale of control (a holder past 50%: under PBC + trust the trust, §7.2, FIN3b; then the
+ *  board, §7.3, FIN3c) and the board on firm commitments above 3× revenue (§7.3), in the order they are held. */
 export function dealVotes(s: GameStateV2, t: Omit<DealOffer, 'id' | 'day' | 'expiresDay'>): BoardVote[] {
   // The trust's vote first: it cannot be forced, so a founder never pays the force cost for a deal the trust stops.
-  return [controlVote(s, t.partner, partnerStakeAfter(s, t)), commitmentsVote(s, t.commitPerQ * 4)].filter((v): v is BoardVote => !!v);
+  return [...controlVotes(s, t.partner, partnerStakeAfter(s, t)), commitmentsVote(s, t.commitPerQ * 4)].filter((v): v is BoardVote => !!v);
 }
 /** The vote to show for a deal: the first failing one, else the first needed. */
 export const dealVote = (vs: BoardVote[]) => vs.find((v) => !v.passes) ?? vs[0];

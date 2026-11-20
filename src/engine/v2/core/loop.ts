@@ -113,7 +113,7 @@ export function resolve(s: GameStateV2, instance: string, choice: number): strin
   const def = EVENT_BY_ID.get(p.id);
   const c = def?.choices[choice];
   if (!def || !c) return `bad choice ${choice} for ${p.id}`;
-  const ok = c.available?.(s) ?? true;
+  const ok = c.available?.(s, p.data) ?? true;
   if (ok !== true) return typeof ok === 'string' ? ok : 'unavailable';
   s.events.pending.splice(i, 1);
   c.apply(s, makeCtx(s), p.data);

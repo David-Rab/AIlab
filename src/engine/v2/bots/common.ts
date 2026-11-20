@@ -8,6 +8,7 @@ import type { AgendaId, EngineApi, GameStateV2, PendingDecision, Team } from '..
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { PROJECT_BY_ID, isLineNode, lineNodeId } from '../../../data/v2/tree';
 import { nextLineProject, nodeKnown, projectReady } from '../models/tree';
+import { acquireTerms, acquireVotes, type PayWith } from '../finance/acquire';
 
 type Params = Record<string, number | string | boolean>;
 
@@ -41,7 +42,7 @@ export function intent(s: GameStateV2, api: EngineApi, name: keyof typeof BOT_IN
 export function pickByTags(s: GameStateV2, d: PendingDecision, prefs: string[][]): number {
   const def = EVENT_BY_ID.get(d.id);
   if (!def) return 0;
-  const ok = (i: number) => (def.choices[i].available?.(s) ?? true) === true;
+  const ok = (i: number) => (def.choices[i].available?.(s, d.data) ?? true) === true;
   for (const group of prefs) {
     const i = def.choices.findIndex((c, k) => ok(k) && c.tags.some((t) => group.includes(t)));
     if (i >= 0) return i;
@@ -53,6 +54,23 @@ export function pickByTags(s: GameStateV2, d: PendingDecision, prefs: string[][]
 export function byLabel(d: PendingDecision, label: string, fallback = 0): number {
   const i = EVENT_BY_ID.get(d.id)?.choices.findIndex((c) => c.label === label) ?? -1;
   return i >= 0 ? i : fallback;
+}
+
+/** E32 merger offer (FIN3c): buy for cash while that leaves `cushion` ($B) in the bank, else in stock while its
+ *  holders get at most `maxStake` of the company (so never a sale of control), and only on votes that pass without forcing;
+ *  otherwise decline. */
+export function mergerChoice(s: GameStateV2, d: PendingDecision, opts: { cushion: number; maxStake: number }): number {
+  const def = EVENT_BY_ID.get(d.id);
+  const decline = byLabel(d, 'Decline', def?.defaultChoice ?? 0);
+  const r = s.rivals.find((x) => x.core.id === d.data.lab && x.core.status === 'active');
+  if (!def || !r) return decline;
+  const t = acquireTerms(s, r);
+  const ok = (pay: PayWith, i: number) => i >= 0 && (def.choices[i].available?.(s, d.data) ?? true) === true && acquireVotes(s, t, pay).every((v) => v.passes);
+  const cash = byLabel(d, 'Pay cash', -1);
+  const stock = byLabel(d, 'Pay in stock', -1);
+  if (s.player.finance.cash - t.price >= opts.cushion && ok('cash', cash)) return cash;
+  if (t.stockFrac <= opts.maxStake && ok('stock', stock)) return stock;
+  return decline;
 }
 
 /** Run an action at most every `every` days (uses the action's own cooldown/once rules too). */

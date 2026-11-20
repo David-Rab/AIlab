@@ -3,7 +3,7 @@
 // CAPEX2X_AUTOPILOT (strategic deal and off-balance-sheet financing, no runway guard, no rescue).
 import { CAPEX2X_AUTOPILOT, financeAutopilot } from '../finance/plan';
 import type { BotPolicy } from '../types';
-import { pickByTags } from './common';
+import { mergerChoice, pickByTags } from './common';
 import { refDecide, refPlay } from './ref';
 
 export const capex2xBot: BotPolicy = {
@@ -15,6 +15,8 @@ export const capex2xBot: BotPolicy = {
   decide(s, d) {
     // RefBot decisions (§7.4: E17 Continue, E20 Accept, E23 Reject); finance offers taken to fund the capex.
     if (d.id === 'E17' || d.id === 'E20' || d.id === 'E23') return refDecide(s, d);
+    // FIN3c: as the race bot, buys a failing rival for cash or stock (never selling control, never forcing the board).
+    if (d.id === 'E32') return mergerChoice(s, d, { cushion: 10, maxStake: 0.15 });
     return pickByTags(s, d, [['deal', 'finance'], ['race', 'continue'], ['hawk']]);
   },
 };

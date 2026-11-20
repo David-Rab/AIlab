@@ -6,6 +6,14 @@ import { deactivateRival } from '../../actors/rivals';
 import { ws4 } from '../../actors/state';
 import { changeHeads } from '../../departments/teams';
 import { L, P, ch, ev, requestOnly } from '../kit';
+import { forceLines, mergerVote, obligationLines, rivalObligations, sumObligations, takeOnObligations, voteBlock } from '../../finance/acquire';
+import { voteGate } from '../../finance/board';
+import type { GameStateV2 } from '../../types';
+
+/** E22: what the consolidation brings (FIN3c): every active rival's obligations, half its capabilities staff. */
+const dpaObligations = (s: GameStateV2) => sumObligations(activeRivals(s).map(rivalObligations));
+const dpaStaff = (s: GameStateV2) => activeRivals(s).reduce((a, r) => a + Math.round(r.core.staff.cap * 0.5), 0);
+const dpaVote = (s: GameStateV2) => mergerVote(s, `folding ${activeRivals(s).length} labs into the company under the DPA`, 'the absorbed labs', dpaObligations(s), 0, 0);
 
 
 export const GOV_EVENTS: EventDefV2[] = [
@@ -65,17 +73,29 @@ export const GOV_EVENTS: EventDefV2[] = [
     when: requestOnly,
     text: (s) => `The government offers to use the Defense Production Act to fold ${activeRivals(s).map((r) => r.core.name).join(', ') || 'trailing labs'} into your company.`,
     choices: [
-      ch('Accept', ['race', 'gov', 'comply'], P([L('freedom', 15, 'government-held lab'), L('scrutiny', 10)], [L('talent', 5, 'half of rival capability staff'), L('leadDays', 90)]), (s, ctx) => {
+      // FIN3c (FINANCE-V3 §9): the absorbed labs' obligations follow E32's rule (each private lab's contracts and debt are
+      // yours; parent-funded labs bring none). Accepting is your choice, so it is a merger the board votes on (on the
+      // company after the deal), like E32; no price is paid. Declining needs no vote.
+      ch('Accept', ['race', 'gov', 'comply'], (s) => {
+        const o = dpaObligations(s);
+        return { costs: [L('freedom', 15, 'government-held lab'), L('scrutiny', 10), ...forceLines([dpaVote(s)])], gains: [L('staffTime', dpaStaff(s), 'half of the rival labs\' capabilities staff'), L('leadDays', 90)], exposure: obligationLines(s, o) };
+      }, (s, ctx) => {
+        const no = voteGate(ctx, dpaVote(s), true);
+        if (no) {
+          ctx.log('finance', `The consolidation did not go through: ${no}.`, 2);
+          return;
+        }
         const w = ws4(s);
         w.dpaAccepted = true;
         for (const r of activeRivals(s)) {
           w.absorbedCompute += r.core.computeOnline;
           changeHeads(s, 'cap', Math.round(r.core.staff.cap * 0.5));
+          takeOnObligations(s, ctx, r.core.name, rivalObligations(r));
           deactivateRival(s, ctx, r.core.id, 'merged', 'player');
         }
         s.gov.rungSec = 5;
         scrutiny(ctx, 10, 'E22 consolidation');
-      }),
+      }, (s) => voteBlock([dpaVote(s)]) ?? true, dpaVote),
       ch('Decline', ['decline'], P([L('trust', 10, 'exec')], [L('freedom', 5)]), (s, ctx) => {
         trust(s, ctx, 'exec', -10, 'E22 declined consolidation');
       }),

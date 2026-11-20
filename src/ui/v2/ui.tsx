@@ -127,7 +127,7 @@ function amt(c: CostLine): string {
     case 'leadDays': return `${Math.round(a)}d`;
     case 'progress': return `${a.toFixed(2)}`;
     case 'monitorability': case 'alignment': return a < 1 ? a.toFixed(2) : a.toFixed(0);
-    case 'dilution': return a < 1 ? `${(a * 100).toFixed(1)}%` : `${a.toFixed(1)}%`;
+    case 'dilution': return `${a.toFixed(1)}%`; // percent (a fraction reading turned 0.5% into 50%)
     default: return a < 1 && a > 0 ? a.toFixed(2) : a.toFixed(a < 10 ? 1 : 0);
   }
 }
@@ -258,7 +258,7 @@ export function VoteStrip({ v }: { v: BoardVote }) {
       </TipCard>
     )}>
       <span className={`vote-strip ${v.passes ? 'pass' : 'fail'}`} data-test="vote" data-pass={v.passes ? '1' : '0'}>
-        <span className="dim">board</span>
+        <span className="dim">{v.body === 'trust' ? 'trust' : 'board'}</span>
         {v.seats.map((x, i) => {
           const I = SEAT_ICON[x.kind];
           return <span key={i} className={`vote-seat ${x.yes ? 'yes' : 'no'}`} data-vote={x.yes ? 'yes' : 'no'}><I size={11} />{x.weight > 1 && <i>×{x.weight}</i>}</span>;

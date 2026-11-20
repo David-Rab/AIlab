@@ -35,14 +35,17 @@ export const SEAT_STANCE: Record<BoardSeat['kind'], Vec4> = {
  *    running out of cash): +(6 − runway q)/4, 0 … +1.2;
  *  - obligations (commitments, debt above 3× revenue): whether the company can carry them: (runway q − 4)/8, −0.5 …
  *    +0.5;
- *  - control (sale of control, merger): nothing. */
+ *  - control (sale of control): nothing.
+ *  A merger (FIN3c) is an obligations decision: you take on the bought lab's contracts and debt, so the board asks
+ *  whether the company can carry them, on the runway after the deal (finance/acquire.ts votes on that state). */
 type Need = 'funding' | 'obligations' | 'control';
 
 /** Major-decision vectors (speed, fin, safety, mission), R15 §1.6 where kept [D otherwise]. The FIN3a list: the
- *  dilution vote and the 20%-of-revenue debt vote are gone; FIN3c wires sale of control and mergers. */
+ *  dilution vote and the 20%-of-revenue debt vote are gone. FIN3c wires mergers (E32, E22) and the board's own vote on
+ *  a sale of control (a deal, rescue or stock payment leaving one holder above 50%). */
 export const MAJOR_DECISIONS: Record<MajorDecision, { label: string; v: Vec4; need: Need }> = {
   saleOfControl: { label: 'Sale of control', v: [0, 0, 0, -1], need: 'control' }, // R15 (kept)
-  merger: { label: 'Merger or acquisition', v: [0.5, -0.5, 0, -0.2], need: 'control' }, // [D] (FIN3c)
+  merger: { label: 'Merger or acquisition', v: [0.5, -0.5, 0, -0.2], need: 'obligations' }, // [D] (FIN3c: E32, E22)
   downRound: { label: 'Down round', v: [0, -0.3, 0, 0], need: 'funding' }, // [D]: prior holders lose value
   rescue: { label: 'Strategic rescue', v: [0, 0.3, 0, -0.6], need: 'funding' }, // [D]: cash for control strings
   commitments: { label: 'Firm commitments above 3× revenue', v: [0.5, -1, 0, 0], need: 'obligations' }, // R15 (kept)
@@ -143,6 +146,11 @@ export function voteGate(ctx: SystemCtx, vote: BoardVote | undefined, force: boo
     ctx.log('finance', `Founder control forced "${vote.label}" past the board (${vote.yes} of ${vote.total} votes): board confidence −${VOTE.forceCost}.`, 2);
     return undefined;
   }
+  return voteNo(vote);
+}
+
+/** Why a failed vote stops a decision (and whether founder control could force it). */
+export function voteNo(vote: BoardVote): string {
   return `The ${vote.body === 'trust' ? 'trust' : 'board'} votes no on ${vote.label.toLowerCase()} (${vote.yes} of ${vote.total} votes for, needs more than half)${vote.canForce ? `; founder control can force it (confidence −${VOTE.forceCost})` : ''}`;
 }
 

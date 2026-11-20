@@ -68,7 +68,7 @@ export const opexSystem: EngineSystem = {
   },
 };
 
-const KIND_LABEL: Record<Commitment$['kind'], string> = { cloud: 'cloud contracts', lta: 'chip supply contracts', lease: 'colocation leases', finLease: 'financing leases', vendor: 'vendor notes', power: 'power contracts' };
+const KIND_LABEL: Record<Commitment$['kind'], string> = { cloud: 'cloud contracts', lta: 'chip supply contracts', lease: 'colocation leases', finLease: 'financing leases', vendor: 'vendor notes', power: 'power contracts', acquired: 'acquired contracts' };
 
 /** payroll (300, monthly): payroll, security spend, transition fund, revenue share, ledger instalments; expire
  *  finished contracts; refresh the runway readout. */

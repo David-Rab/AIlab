@@ -14,7 +14,8 @@ import { cloudPricePerYear, demandShock, impliedMargin, orderWeight, rentalBase,
 import { chipQuote, rentQuote } from '../../src/engine/v2/compute/orders';
 import { newSite, oppositionOdds, reactiveUnblockOdds } from '../../src/engine/v2/compute/sites';
 import { contingentLiabilities, crf, siteLeaseId, siteRVG } from '../../src/engine/v2/finance/capex';
-import { creditLineCapacity, debtHeadroom, drawDebt, ratingOf, ratingTerms } from '../../src/engine/v2/finance/debt';
+import { creditLineCapacity, debtHeadroom, debtRatePct, drawDebt, ratingOf, ratingTerms } from '../../src/engine/v2/finance/debt';
+import { ACQUIRE, acquireTerms, acquireVotes, rivalObligations, shownVote } from '../../src/engine/v2/finance/acquire';
 import { FINANCE_ACTIONS, raiseQuote } from '../../src/engine/v2/finance/actions';
 import { boardVote, CRITICS, criticsAvailable, debtVote, founderControl, initialBoard, OUSTER, ousterVote, updateRunwayState, VOTE } from '../../src/engine/v2/finance/board';
 import { MOOD_SOURCE_OF, MOOD_WEIGHTS, moodWeight } from '../../src/engine/v2/finance/mood';
@@ -22,7 +23,7 @@ import { acceptRepriced, bookRound, closePendingRound, dMax, raiseCeiling, REPRI
 import { whatWeOwe } from '../../src/engine/v2/finance/owe';
 import { credRung, judgePromises, livePromises, makeThesis, PROMISE_RESULT, promiseDeadline, promiseWeight, trendOf } from '../../src/engine/v2/finance/promises';
 import { charterReleaseBlock, charterRights, controlVote, transferVote } from '../../src/engine/v2/finance/charter';
-import { acceptDeal, dealTerms, partnerFor, partnerStakeAfter } from '../../src/engine/v2/finance/deals';
+import { acceptDeal, dealTerms, dealVotes, partnerFor, partnerStakeAfter } from '../../src/engine/v2/finance/deals';
 import { ensureWs3 } from '../../src/engine/v2/finance/ext';
 import { deployGate } from '../../src/engine/v2/models/deployments';
 import { editBlock } from '../../src/engine/v2/models/productOps';
@@ -797,6 +798,148 @@ for (const a of FINANCE_ACTIONS) {
     const versions = pbc.reduce((a, r) => a + r.held.size, 0);
     const share = median(pbc.map((r) => r.heldDays / Math.max(1, r.pbcDays)));
     check(pbc.length > 0 && share <= 0.5, 'FIN3b the safety committee binds without freezing releases (RefBot under the nonprofit PBC: median share of weeks with a model held ≤ 50%)', `${pbc.length} of ${ref.length} games reach the PBC · ${games} held a model · ${versions} versions held · median ${F1pct(share)} of PBC weeks with a hold`);
+  }
+}
+
+// ───────────────────────────── FIN3c: acquisitions (FINANCE-V3 §9) ─────────────────────────────
+{
+  const fx = () => deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
+  const E32 = EVENT_BY_ID.get('E32')!;
+  const E22 = EVENT_BY_ID.get('E22')!;
+  const idx = (e: typeof E32, label: string) => e.choices.findIndex((c) => c.label === label);
+  /** A fixture with a private rival out of money and its E32 offer pending; a rich, confident board unless told. */
+  const offer = (opts: { cash?: number; bc?: number; preset?: Parameters<typeof initialBoard>[0]; rivalV?: number } = {}) => {
+    const s = fx();
+    if (opts.preset) s.player.board = initialBoard(opts.preset);
+    s.player.board.confidence = opts.bc ?? 80;
+    s.player.finance.cash = opts.cash ?? 2000;
+    const r = s.rivals.find((x) => x.core.status === 'active' && x.finance.valuation > 0)!;
+    r.finance.cash = -3;
+    r.finance.distress = true;
+    if (opts.rivalV !== undefined) r.finance.valuation = opts.rivalV;
+    s.events.pending.push({ id: 'E32', instance: 'E32@t', day: s.time.day, deadline: s.time.day + 30, data: { lab: r.core.id }, crisis: false });
+    return { s, r, d: { lab: r.core.id } as Record<string, number | string> };
+  };
+  // Trigger: distress only (never your lead), and the terms.
+  {
+    const { s, r } = offer();
+    for (const x of s.rivals) x.meters.cooperation = 90;
+    const t = acquireTerms(s, r);
+    const V = s.player.finance.valuation;
+    const o = rivalObligations(r);
+    const parent = s.rivals.find((x) => x.finance.valuation <= 0);
+    check(E32.when(s) === false && t.price === r.finance.valuation * ACQUIRE.discount && Math.abs(t.stockFrac - t.price / (V + t.price)) < 1e-12 && o.perQ === r.finance.commitments / 4 && o.total === o.perQ * ACQUIRE.termQ && o.debt === 3 && (!parent || rivalObligations(parent).total + rivalObligations(parent).debt === 0), 'FIN3c E32 is offered only for a rival in distress (requested by its finance, never for your lead); price = its valuation × 0.5, stock at your valuation; obligations = its yearly book for two more years and the cash it is short; a parent-funded lab brings none', `price $${f1(t.price)}B · stock ${(t.stockFrac * 100).toFixed(2)}% · contracts $${f1(o.perQ)}B/q × ${o.termQ} · debt $${f1(o.debt)}B`);
+  }
+  // Pay cash: the price, its contracts as one firm ledger entry, its debt as drawn debt (no cash), staff, antitrust.
+  {
+    const { s, r, d } = offer();
+    const t = acquireTerms(s, r);
+    const i = idx(E32, 'Pay cash');
+    const pv = E32.choices[i].preview(s, d);
+    const f = s.player.finance;
+    const cash0 = f.cash;
+    const scr0 = s.relations.scrutiny;
+    const cap0 = s.player.staff.cap;
+    const n0 = f.ledger.length;
+    const heads = Math.round(r.core.staff.cap * 0.7) + Math.round(r.core.staff.saf * 0.7);
+    const err = resolve(s, 'E32@t', i);
+    const e = f.ledger.find((c) => c.kind === 'acquired');
+    const debt = f.debts.find((x) => x.kind === 'assumed');
+    const priceLine = pv.costs.find((c) => c.currency === 'cash')!;
+    const obl = pv.exposure.filter((c) => c.currency === 'cash').map((c) => -c.amount);
+    const staffLine = pv.gains.find((c) => c.currency === 'staffTime')!;
+    check(!err && Math.abs(cash0 - f.cash - t.price) < 1e-6 && f.ledger.length === n0 + 1 && !!e && e.perQuarter === t.obligations.perQ && e.cancellableNoticeQ === null && Math.abs(e.endDay - s.time.day - 730) <= 1 && !!debt && debt.drawn === 3 && r.core.status === 'merged' && s.relations.scrutiny > scr0 && s.player.staff.cap > cap0, 'FIN3c paying cash: the price leaves cash, its contracts become one firm ledger entry over 8 quarters, its debt drawn debt (no cash moves), its staff join, antitrust scrutiny rises, the lab is gone', `${err ?? ''} cash −$${f1(cash0 - f.cash)}B · entry $${f1(e?.perQuarter ?? 0)}B/q to day ${e?.endDay} · debt $${f1(debt?.drawn ?? 0)}B at ${debt ? debtRatePct(s, debt).toFixed(1) : '?'}%`);
+    check(Math.abs(priceLine.amount - Math.round(t.price * 10) / 10) < 1e-9 && Math.abs(obl[0] - Math.round(t.obligations.total * 10) / 10) < 1e-9 && Math.abs(obl[1] - 3) < 1e-9 && staffLine.amount === heads && pv.costs.some((c) => c.currency === 'scrutiny' && c.amount === 20), 'FIN3c the offer preview matches the effects: price, contracts and debt taken on, staff gained, antitrust scrutiny', `$${priceLine.amount}B · $${obl.join('B + $')}B · +${staffLine.amount} staff`);
+  }
+  // Pay in stock: new shares to its holders at your valuation; cash untouched.
+  {
+    const { s, r, d } = offer();
+    const t = acquireTerms(s, r);
+    const i = idx(E32, 'Pay in stock');
+    const pv = E32.choices[i].preview(s, d);
+    const f = s.player.finance;
+    const cash0 = f.cash;
+    const fin0 = f.ownership.fin;
+    const founder0 = f.ownership.founder;
+    const err = resolve(s, 'E32@t', i);
+    const dil = pv.costs.find((c) => c.currency === 'dilution')!;
+    check(!err && f.cash === cash0 && Math.abs(f.ownership.fin - (fin0 * (1 - t.stockFrac) + t.stockFrac)) < 1e-9 && Math.abs(f.ownership.founder - founder0 * (1 - t.stockFrac)) < 1e-9 && Math.abs(dil.amount - Math.round(t.stockFrac * 1000) / 10) < 1e-9 && f.ledger.some((c) => c.kind === 'acquired') && f.debts.some((x) => x.kind === 'assumed'), 'FIN3c paying in stock: its holders get price ÷ (your valuation + price) of the company (the preview\'s dilution), no cash moves, the obligations come all the same', `${(t.stockFrac * 100).toFixed(2)}% · preview ${dil.amount}%`);
+  }
+  // The board votes on the merger, judged on the company after the deal (can it carry the contracts and debt?).
+  {
+    const rich = offer();
+    const tr = acquireTerms(rich.s, rich.r);
+    const rng0 = JSON.stringify(rich.s.rng);
+    const a = acquireVotes(rich.s, tr, 'cash');
+    const b = acquireVotes(rich.s, tr, 'cash');
+    const poor = offer({ cash: tr.price + 1, bc: 60 });
+    const vPoor = acquireVotes(poor.s, acquireTerms(poor.s, poor.r), 'cash');
+    const m = a[a.length - 1];
+    const mp = vPoor[vPoor.length - 1];
+    const need = (v: typeof m) => v.seats.find((x) => x.kind !== 'founder')!.parts.need;
+    check(a.length === 1 && m.decision === 'merger' && m.passes && /after the deal/.test(m.needLabel) && JSON.stringify(a) === JSON.stringify(b) && JSON.stringify(rich.s.rng) === rng0 && !mp.passes && need(mp) < need(m), 'FIN3c buying a rival needs the board\'s merger vote (deterministic), judged on the runway after the deal: flush it passes, spending the last cash on it fails', `rich ${m.yes}/${m.total} (${m.needLabel}) · poor ${mp.yes}/${mp.total} (${mp.needLabel})`);
+    // A failed vote makes the choice unavailable (nothing booked); founder control can force it at −20, shown first.
+    const no = offer({ bc: 0 });
+    const ic = idx(E32, 'Pay cash');
+    const why = E32.choices[ic].available!(no.s, no.d);
+    const cash0 = no.s.player.finance.cash;
+    const err = resolve(no.s, 'E32@t', ic);
+    // Founder board at 25 with just the price in the bank: the vote fails (mood and a thin runway after the deal).
+    const fo = offer({ bc: 25, preset: 'founder' });
+    fo.s.player.finance.cash = acquireTerms(fo.s, fo.r).price + 1;
+    const fv = shownVote(acquireVotes(fo.s, acquireTerms(fo.s, fo.r), 'cash'))!;
+    const fpv = E32.choices[ic].preview(fo.s, fo.d);
+    const bc0 = fo.s.player.board.confidence;
+    const ferr = resolve(fo.s, 'E32@t', ic);
+    check(typeof why === 'string' && /votes no on merger/.test(why) && typeof err === 'string' && no.s.player.finance.cash === cash0 && no.r.core.status === 'active' && !fv.passes && fv.canForce && fpv.costs.some((c) => c.currency === 'boardConf' && c.amount === VOTE.forceCost) && !ferr && fo.s.player.board.confidence <= bc0 - VOTE.forceCost + 1e-9 && fo.r.core.status === 'merged', 'FIN3c a failed merger vote blocks the choice (nothing booked); under founder control the choice forces it at the confidence cost its preview shows', `${why} · founder: ${fv.yes}/${fv.total}, confidence ${bc0.toFixed(0)} → ${fo.s.player.board.confidence.toFixed(0)}`);
+  }
+  // Sale of control: only stock past 50% (the trust, then the board); never cash. If it goes through you lose the company.
+  {
+    const { s, r, d } = offer({ preset: 'pbcTrust', rivalV: 1e6 });
+    const t = acquireTerms(s, r);
+    const vs = acquireVotes(s, t, 'stock');
+    const cashVs = acquireVotes(s, t, 'cash');
+    const ist = idx(E32, 'Pay in stock');
+    const why = E32.choices[ist].available!(s, d);
+    const pv = E32.choices[ist].preview(s, d);
+    const small = offer({ preset: 'pbcTrust' });
+    const smallVs = acquireVotes(small.s, acquireTerms(small.s, small.r), 'stock');
+    check(t.stockFrac > 0.5 && vs[0].body === 'trust' && vs[0].decision === 'saleOfControl' && vs[1].decision === 'saleOfControl' && vs[1].body !== 'trust' && vs[vs.length - 1].decision === 'merger' && cashVs.every((v) => v.decision === 'merger') && smallVs.every((v) => v.decision === 'merger') && typeof why === 'string' && /trust votes no/.test(why) && pv.costs.some((c) => c.currency === 'freedom' && /ends the game/.test(String(c.target))), 'FIN3c a stock payment that hands its holders more than half the company is a sale of control: the trust votes first (PBC + trust), then the board; buying for cash, or for a small stake, is only a merger', `${(t.stockFrac * 100).toFixed(0)}%: ${vs.map((v) => `${v.body ?? 'board'} ${v.decision} ${v.yes}/${v.total}`).join(', ')} · ${why}`);
+    // Founder board (votes forced if they fail): the lab's holders end up in control, the 'acquired' ending.
+    const fo = offer({ preset: 'founder', bc: 90, rivalV: 1e6 });
+    const err = resolve(fo.s, 'E32@t', ist);
+    tick(fo.s);
+    check(!err && fo.s.ending?.id === 'acquired', 'FIN3c a sale of control by stock that goes through ends the game (acquired)', `${err ?? ''} ending ${fo.s.ending?.id}`);
+  }
+  // Deals: a partner past 50% now meets the board's own sale-of-control vote after the trust's (FIN3b wired the trust).
+  {
+    const s = fx();
+    s.player.board = initialBoard('pbcTrust');
+    const partner = partnerFor(s, 'sovereign');
+    const t = partner ? { ...dealTerms(s, 'sovereign', partner), equityNow: 10 * s.player.finance.valuation } : undefined;
+    const vs = t ? dealVotes(s, t) : [];
+    const o = fx();
+    o.player.board = initialBoard('nonprofitPBC');
+    const ov = t ? dealVotes(o, t) : [];
+    check(!!t && vs[0]?.body === 'trust' && vs[1]?.decision === 'saleOfControl' && vs[1]?.body !== 'trust' && ov[0]?.decision === 'saleOfControl' && ov[0]?.body !== 'trust', 'FIN3c a deal that hands a partner control needs the board\'s sale-of-control vote (after the trust\'s, under PBC + trust)', vs.map((v) => `${v.body ?? 'board'} ${v.decision}`).join(', '));
+  }
+  // E22: the absorbed labs' obligations follow the same rule; accepting is a merger vote; no price.
+  {
+    const s = fx();
+    s.player.board.confidence = 80;
+    s.player.finance.cash = 2000;
+    const priv = s.rivals.filter((x) => x.core.status === 'active' && x.finance.valuation > 0);
+    for (const r of priv) r.finance.cash = -1;
+    s.events.pending.push({ id: 'E22', instance: 'E22@t', day: s.time.day, deadline: s.time.day + 14, data: {}, crisis: true });
+    const i = idx(E22, 'Accept');
+    const v = E22.choices[i].vote!(s, {});
+    const pv = E22.choices[i].preview(s, {});
+    const want = priv.reduce((a, r) => a + rivalObligations(r).total, 0);
+    const cash0 = s.player.finance.cash;
+    const err = resolve(s, 'E22@t', i);
+    const entries = s.player.finance.ledger.filter((c) => c.kind === 'acquired');
+    const debt = s.player.finance.debts.filter((x) => x.kind === 'assumed').reduce((a, x) => a + x.drawn, 0);
+    check(!!v && v.decision === 'merger' && !err && entries.length === priv.filter((r) => r.finance.commitments > 0).length && Math.abs(entries.reduce((a, c) => a + c.perQuarter * ACQUIRE.termQ, 0) - want) < 1e-6 && Math.abs(debt - priv.length) < 1e-9 && s.player.finance.cash === cash0 && Math.abs(-pv.exposure.filter((c) => c.currency === 'cash')[0].amount - Math.round(want * 10) / 10) < 1e-9, 'FIN3c E22 DPA consolidation: each private lab\'s contracts and debt are yours (parent-funded labs bring none), no price; accepting needs the board\'s merger vote, shown first', `${entries.length} contract entries $${f1(want)}B · debt $${f1(debt)}B · vote ${v?.yes}/${v?.total}`);
   }
 }
 

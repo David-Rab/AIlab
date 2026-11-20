@@ -584,3 +584,104 @@ Numbers, before (FIN3a 1c8f0b3) → after (FIN3b):
   rescue's IP-rights string behind the trust's transfer vote; C6 "Open weights" has no version for the trust to judge;
   FIN6a looks at the safe and capex2x ouster rates; `design/V2-SPEC.md` §3.7.5 carries a pointer to these notes (full
   docs pass in FIN6c).
+
+### FIN3c notes (2026-11-20)
+
+Built: `finance/acquire.ts` (the terms of buying a rival: price, stock stake, obligations; the hypothetical company after
+the deal; the merger and sale-of-control votes; payment; taking on the obligations; preview lines), E32 "Merger offer"
+rebuilt (`events/catalog/rivals.ts`: Pay cash · Pay in stock · Decline), E22 "DPA consolidation" taking on the absorbed
+labs' obligations behind a merger vote (`events/catalog/gov.ts`), a new ledger kind `acquired` (one firm entry per
+bought lab) and a new debt kind `assumed` (y10 + your rating's bond spread, 3 years, then rolls like a bond; repayable),
+the board's own sale-of-control vote wired next to the trust's (`charter.ts controlVotes`, used by deals too), event
+choices that carry a board vote (`ChoiceV2.vote`; `preview` / `available` get the pending decision's data; selectors
+`choiceView(…, data)` and `choiceVote`), the vote strip under a decision's choice cards, glossary `acquisition` and
+`assumed` (`boardVote` updated; `design/ux/GLOSSARY.md` regenerated), the bots' `mergerChoice`. No schemaRev bump: only
+new enum values (ledger `acquired`, debt `assumed`); older saves load unchanged.
+
+Removed (no aliases): E32's lead trigger (`when`: lead > 270 days over a rival with cooperation > 40; it gave the safe bot more than
+half its offers), E32's single "Acquire" choice and its $2–10B
+price cap, the mixed bot's "cash > $20B → Acquire" rule.
+
+Choices and readings of the spec:
+- **Trigger.** E32 is request-only: `rivalFinanceQ` requests it the quarter a private rival's cash goes negative (the
+  rival model's `distress`; parent-funded labs never get there). The offer lasts 30 days; if declined (or left to
+  expire, the default) and the lab is still short at the next quarter, it goes to a big-tech rival or shuts down, as
+  before (`deactivateRival` untouched for FIN5b's license-and-hire exit). Not wired: the bubble bust's "push the most
+  over-committed rival into distress" flag (investors.ts) does not request an offer; that lab is absorbed or recovers at
+  the next rival quarter without one (edge case, FIN5b rebuilds rival finance).
+- **Price** = the rival's valuation × 0.5 [D] (`ACQUIRE.discount`). Rival valuations are still the old rule (×1.25 + the
+  amount at each raise; FIN5b moves them into the share), so distressed safety/maverick labs ask $85–170B in 2026–28 (the
+  old E32 capped the price at $10B). **Cash** needs the price in the bank. **Stock**: new shares worth the price at your
+  valuation, so its holders get price ÷ (your valuation + price), issued to financial holders (`issue()`), and your
+  valuation rises by the price (as a deal's equity does).
+- **Obligations** (the new risk). Rival `finance.commitments` is an annual book (the bubble index reads it that way), so
+  you take on that book for two more years [D]: one firm ledger entry of commitments ÷ 4 a quarter over 8 quarters
+  (`kind: 'acquired'`, in the Contracts tab, in the rating's PV of commitments, renegotiable like any firm entry). Its
+  **debt** = the cash it is short (rivals carry no debt field; negative cash is the bills someone must pay), as drawn
+  debt of kind `assumed` priced at your rating; no cash moves. A parent-funded lab (valuation 0) brings no obligations:
+  its contracts stay with the parent. In practice: contracts $31–52B and debt $2–5B per offer (means by bot, below).
+- **Votes.** A merger is a major decision (§7.3) and the board judges it on the company **after the deal**: the merger
+  vector [D, FIN3a] is unchanged but its situation term moved from "control" (none) to "obligations", read on a copy of
+  the company with the price paid, its holders' stake issued and the contracts and debt booked (runway after the deal: −0.5
+  … +0.5); the strip says "after the deal, runway X q". **Sale of control** only when paying in stock would hand the
+  lab's holders, as one block, more than half the company: the trust votes first under PBC + trust (cannot be forced),
+  then the board's own sale-of-control vote (§7.3, FIN3b left it unwired); if it goes through, the holders control the
+  company: `ws4.soldControl` → the 'acquired' ending, said in the preview ("a sale of control ends the game"). Buying for
+  cash never sells control. The board's sale-of-control vote is now also held on partner deals and rescues past 50%
+  (`dealVotes` → `controlVotes`), after the trust's.
+- **Events and founder control.** A choice whose vote fails is unavailable with the vote as its reason; under founder
+  control it stays available and choosing it forces the vote at −20 confidence, a cost line in its preview (events have
+  no separate Force button).
+- **E22 rule.** The DPA consolidation is offered, not ordered (Decline costs exec trust), so accepting it is a merger the
+  board votes on, like E32: simplest consistent rule = "any merger you choose goes to the board; a decline needs no
+  vote". No price is paid; each absorbed private lab's contracts and debt come with it by E32's rule (parent-funded labs
+  bring none; positive rival cash does not come over, as before). Its preview's "+5 talent" (never applied) is now the
+  staff it actually adds.
+- **Kept from E32**: 70% of the lab's capabilities and safety staff, talent pull +3, the culture blend on safety morale
+  and −3 morale, antitrust scrutiny +20, `ws4.absorbedCompute += its compute`. Finding: `absorbedCompute` is never read
+  (it was not before either), so the "you get its compute" part is nominal, and E32 never transferred models; the preview
+  does not claim either. Wiring the compute is a compute/model-v3 decision, not finance.
+- **Decline** does nothing (as before). Its preview: "≈30 days of lead: <big-tech rival> likely absorbs it next quarter"
+  (the old estimate) when a big-tech rival exists, else "it shuts down; its staff scatter"; the default-choice note says
+  the same. Decline is now choice 3 (the default).
+- **UI.** The decision modal shows the board's vote strip under each buy choice (one chip per seat, the total; tooltip
+  with the shared terms and each seat's lean); pills: price (cash) or stake (stock), +scrutiny, staff gained as heads,
+  talent; exposure pills (negative) for the contracts and the debt with what they are in their tooltips. The debt card
+  lists assumed debt ("Assumed debt", not a borrowable tile). Fixes on the way: dilution lines are percent everywhere (a
+  sub-1% stake rendered ×100, e.g. 0.5% as 50%); the vote strip says "trust" for the trust's votes.
+- **Bots (rule 12).** `mergerChoice(s, d, { cushion, maxStake })`: cash if it leaves the cushion in the bank, else stock
+  while the stake stays under `maxStake` (never a sale of control), and only on votes that pass without forcing;
+  otherwise decline. Race and capex2x: $10B, 15% (they took every offer by tag before); mixed: $20B, 10%; ref and safe
+  decline (unchanged).
+
+Numbers, before (FIN3b 85fb385) → after (FIN3c):
+- E32 on the bots (scratch diagnostic, 20 seeds per bot, leader start, bots.ts worlds, to Jul 2029): offers fired /
+  accepted: race 17/17 → 17/0, mixed 27/21 → 25/10 (6 cash, 4 stock), ref 25/0 → 25/0, capex2x 3/3 → 3/0, safe 50/0 →
+  22/0 (the lead trigger gave the safe bot more than half its offers). Offers now (means per bot): price $53–119B,
+  contracts $31–52B, debt $2.1–4.8B, stock stake 1–32% (the safe and race bots' valuations are low when rivals fail).
+  Over all 92 offers the merger vote passes for cash in 11 and for stock in 18; a buy is open (cash in hand and votes
+  passing) for cash 9 times and for stock 18; the race and capex2x bots never pass it (they run at a 1–3 quarter runway
+  and the contracts take the rest).
+- `scripts/v2/bots.ts` (200 seeds, leader start): all §7.4 criteria MET. Wins race 1.0 → 1.5%, safe 1.0 → 1.0%, mixed
+  51.0 → 52.5%, ref 22.5 → 22.5%, capex2x 3.5 → 3.0%. Ousted ref 12.0 → 12.0%, mixed 12.0 → 12.5%, race 13.0 → 13.0%,
+  safe 31.5 → 32.5%, capex2x 47.0 → 47.5% (insolvent 36.0 → 36.0%). Safe losses overtaken/other-ASI-first 66% → 66%.
+- `scripts/v2/finance.ts` F7/F8/F9 unchanged (RefBot declines every offer): 2026 capex $156.2B, valuation $1.47T,
+  financing $64.6B, distress-free 83.3%, capex2x distress 100%, dilution max 5.3%; RefBot end-2027 board confidence median
+  60.1; F2 44.4M (known).
+- safety S5 (known failure since the baseline) now passes: mixed-bot median min margin −1.01 → −0.35 (the mixed bot buys
+  fewer labs, so fewer capabilities staff push L ahead of U); a side effect of the bot's new E32 rule, not a fix of S5.
+- Tests: `npm run typecheck` clean. test:v2 chain: golden-timelines, identity, calib, fixtures, hygiene (perf passed in
+  both runs: 939 / 815 and 695 / 782 µs daily average), lint-hidden, lint-ux, lint-tradeoffs, lint-structure, safety green; then one by one:
+  finance only F2 44.4M (known); worldfx (HireRate passes, as since FIN3b), ws4, products, money, idle green. `npm run
+  test:ui` 280/280. Test changes: finance.ts adds 10 FIN3c checks (distress-only trigger and the terms; paying cash books
+  the price, one firm ledger entry over 8 quarters and the debt with no cash; the preview matches the effects; paying in
+  stock issues the stake; the merger vote is deterministic and judged after the deal; a failed vote blocks the choice and
+  founder control forces it at the shown cost; a stock sale of control is voted by the trust then the board; it ends the
+  game; deals past 50% meet the board's sale-of-control vote; E22 takes on each private lab's obligations behind a merger
+  vote). uitest: 8 new FIN3c checks (the three choices, the vote strip under each buy choice, stake vs price and the
+  obligations on the cards, the obligation pill's tooltip, a failed vote disables, buying in stock books contracts and
+  debt and absorbs the lab, the debt card lists the assumed debt). ws4.ts unchanged (E32 still one of the 14 events).
+- Left for later: FIN5b (rival valuations, hence prices, from the shared split; its license-and-hire exit for failing
+  labs; the bust-distress offer gap above); the compute a bought lab brings is not wired (`absorbedCompute` unread);
+  FIN6a may tune the 0.5 discount and the two-year obligation term against how rarely the merger vote passes for an
+  aggressive lab; `design/V2-SPEC.md` §4.2 E32 text is stale (FIN6c docs pass).

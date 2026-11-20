@@ -11,11 +11,11 @@ import { yearStats } from './ext';
 import { commitmentsRemaining, bookCash, ledgerDue, qOf } from './ledger';
 import { revenueRun } from './observe';
 
-/** Effective annual rate (%) of a debt: SOFR + spread (credit line, chip loans, vendor notes) or y10 + spread (bonds);
+/** Effective annual rate (%) of a debt: SOFR + spread (credit line, chip loans, vendor notes) or y10 + spread (bonds, debt assumed with a bought lab);
  *  plus sector spread widening and +300bp in distress [R15]. The credit line floats on today's rating; chip loans and
  *  bonds keep the spread they were priced at. */
 export function debtRatePct(s: GameStateV2, d: Debt): number {
-  const base = d.kind === 'bond' ? s.capital.y10 : s.capital.sofr;
+  const base = d.kind === 'bond' || d.kind === 'assumed' ? s.capital.y10 : s.capital.sofr;
   const sector = s.capital.ws3?.spreadAddBp ?? 0;
   const distress = s.player.finance.state === 'distress' ? 300 : 0;
   const spread = d.kind === 'revolver' ? REVOLVER_SPREAD_BP[s.player.finance.rating] : d.spreadBp;
@@ -25,7 +25,7 @@ export function debtRatePct(s: GameStateV2, d: Debt): number {
 /** Spread (bp) a new draw of `kind` is priced at today. */
 export function newDebtSpreadBp(s: GameStateV2, kind: Debt['kind']): number {
   const r = s.player.finance.rating;
-  return kind === 'revolver' ? REVOLVER_SPREAD_BP[r] : kind === 'gpuTerm' ? CHIP_LOAN_SPREAD_BP[r] : kind === 'bond' ? RATING_SPREAD_BP[r] : DEBT_TERMS[kind].spreadBp;
+  return kind === 'revolver' ? REVOLVER_SPREAD_BP[r] : kind === 'gpuTerm' ? CHIP_LOAN_SPREAD_BP[r] : kind === 'bond' || kind === 'assumed' ? RATING_SPREAD_BP[r] : DEBT_TERMS[kind].spreadBp;
 }
 /** Rate (%) a new draw of `kind` would pay today. */
 export function newDebtRatePct(s: GameStateV2, kind: Debt['kind']): number {
@@ -97,6 +97,7 @@ export function debtHeadroom(s: GameStateV2, kind: Debt['kind']): Headroom {
     const lim = DEBT_SIZING.bondOcfMult * ocf;
     return { max: Math.max(0, lim - drawnOf(f, 'bond')), limit: lim, why: `${DEBT_SIZING.bondOcfMult}× trailing operating cash flow` };
   }
+  if (kind === 'assumed') return shut('Comes only with a lab you buy');
   return shut('Vendor notes come with vendor deals');
 }
 
@@ -248,7 +249,7 @@ export function rollMaturities(s: GameStateV2, ctx: SystemCtx): boolean {
     if (d.maturityDay > s.time.day) continue;
     if (f.rating !== 'closed' && f.state !== 'distress') {
       d.maturityDay = s.time.day + DEBT_TERMS[d.kind].years * 365;
-      if (d.kind === 'gpuTerm' || d.kind === 'bond') d.spreadBp = newDebtSpreadBp(s, d.kind);
+      if (d.kind === 'gpuTerm' || d.kind === 'bond' || d.kind === 'assumed') d.spreadBp = newDebtSpreadBp(s, d.kind);
       continue;
     }
     if (f.cash >= d.drawn) {

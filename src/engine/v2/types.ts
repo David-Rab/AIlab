@@ -842,14 +842,16 @@ export interface FinancePromise extends Thesis {
   result?: { day: Day; value: number; progress: number; outcome: 'met' | 'near' | 'missed'; weight: number; cred: number; board: number };
 }
 export interface Tranche { amount: Money; dueDay: Day; condition?: string; deadline?: Day; source: string; }
-export interface Debt { id: string; kind: 'revolver' | 'gpuTerm' | 'bond' | 'vendorNote'; principal: Money; drawn: Money; spreadBp: number; maturityDay: Day; covenant?: string; collateralH100e?: H100e; }
+/** 'assumed' = debt that came with a lab you bought (FIN3c, spec §9), priced at your rating. */
+export interface Debt { id: string; kind: 'revolver' | 'gpuTerm' | 'bond' | 'vendorNote' | 'assumed'; principal: Money; drawn: Money; spreadBp: number; maturityDay: Day; covenant?: string; collateralH100e?: H100e; }
 
 /** Ledger entry for a contractual commitment ("Commitment$" to avoid clashing with relation Commitments). */
 export interface Commitment$ {
   id: string;
   payee: string;
-  /** 'lease' = colocation rent; 'finLease' = a financing lease of site or chip capex (FIN1, spec §4). */
-  kind: 'cloud' | 'lta' | 'lease' | 'finLease' | 'vendor' | 'power';
+  /** 'lease' = colocation rent; 'finLease' = a financing lease of site or chip capex (FIN1, spec §4); 'acquired' = the
+   *  contracts of a lab you bought, one firm entry over their remaining term (FIN3c, spec §9). */
+  kind: 'cloud' | 'lta' | 'lease' | 'finLease' | 'vendor' | 'power' | 'acquired';
   perQuarter: Money;
   /** Contract this entry belongs to: firm contracts priced on the expected market path pay one entry per quarter
    *  (FIN1, spec §5), grouped by this id in the contracts table. */
@@ -1564,8 +1566,12 @@ export interface ActionDef<P = Record<string, number | string | boolean>> {
 
 export interface ChoiceV2 {
   label: string; // ≤ 3 words
-  preview(s: GameStateV2): { costs: CostLine[]; gains: CostLine[]; exposure: CostLine[] };
-  available?(s: GameStateV2): boolean | string;
+  /** `data` = the pending decision's trigger data (absent in catalog lints: the preview falls back to a generic line). */
+  preview(s: GameStateV2, data?: Record<string, number | string>): { costs: CostLine[]; gains: CostLine[]; exposure: CostLine[] };
+  available?(s: GameStateV2, data?: Record<string, number | string>): boolean | string;
+  /** The board vote this choice needs (FIN3c: a merger), shown under the choice before you pick it; `available` and
+   *  `apply` read the same vote. */
+  vote?(s: GameStateV2, data?: Record<string, number | string>): BoardVote | undefined;
   apply(s: GameStateV2, ctx: SystemCtx, data: Record<string, number | string>): void;
   tags: string[]; // 'race' | 'safety' | 'disclose' | ... (bots and replay)
 }

@@ -472,6 +472,8 @@ export function rivalFinanceQ(s: GameStateV2, ctx: SystemCtx) {
     f.distress = f.cash < 0;
     if (f.distress && !wasDistress) {
       ctx.log('rival', `${r.core.name} is running out of money.`, 2, r.core.id);
+      // FIN3c (FINANCE-V3 §9): the only trigger of E32 "Merger offer": a private lab in distress is for sale (to you
+      // first, for a quarter); if still failing next quarter it goes to big tech or shuts down (below; FIN5b's exit).
       request(s, 'E32', { lab: r.core.id });
     } else if (f.distress && wasDistress) {
       // A second distressed quarter: absorbed by a Big Tech rival if one exists, otherwise it shuts down.

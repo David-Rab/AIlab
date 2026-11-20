@@ -26,13 +26,14 @@ const DEBT_KINDS: { id: Debt['kind']; label: string; blurb: string }[] = [
   { id: 'gpuTerm', label: 'Chip loan', blurb: 'A 4-year loan secured on your chips: up to 60% of their value. The only debt open to a loss-making lab.' },
   { id: 'bond', label: 'Bond', blurb: 'Ten-year debt sold to the market: only with positive operating cash flow over the last year, up to 3× it.' },
   { id: 'vendorNote', label: 'Vendor note', blurb: 'Chip-vendor financing tied to orders. Easy to get, but it ties you to that vendor.' },
+  { id: 'assumed', label: 'Assumed debt', blurb: 'Debt that came with a lab you bought, priced at your rating.' },
 ];
 const SEAT: Record<BoardSeat['kind'], { icon: typeof ICON.board; label: string }> = {
   founder: { icon: ICON.you, label: 'Founder' }, mission: { icon: ICON.exec, label: 'Mission' }, financial: { icon: ICON.cash, label: 'Financial' },
   strategic: { icon: ICON.relations, label: 'Strategic' }, independent: { icon: ICON.board, label: 'Independent' }, gov: { icon: ICON.congress, label: 'Government' },
 };
-const KIND_TERM: Record<string, string> = { cloud: 'cloudContract', lta: 'lta', lease: 'site', finLease: 'spv', vendor: 'vendorNote', power: 'mw' };
-const KIND_LABEL: Record<string, string> = { cloud: 'cloud', lta: 'chip supply', lease: 'colocation', finLease: 'lease', vendor: 'vendor note', power: 'power' };
+const KIND_TERM: Record<string, string> = { cloud: 'cloudContract', lta: 'lta', lease: 'site', finLease: 'spv', vendor: 'vendorNote', power: 'mw', acquired: 'acquisition' };
+const KIND_LABEL: Record<string, string> = { cloud: 'cloud', lta: 'chip supply', lease: 'colocation', finLease: 'lease', vendor: 'vendor note', power: 'power', acquired: 'acquired' };
 
 /** FIN1: firm contracts on the expected path pay one ledger entry per quarter; the contracts table shows one row per
  *  contract (this quarter's payment, or its first if it has not started, and its end). */
@@ -721,7 +722,7 @@ function DebtCard({ s }: { s: GameStateV2 }) {
             {f.debts.map((d) => (
               <tr key={d.id}>
                 <td><Term id={d.kind}>{DEBT_KINDS.find((k) => k.id === d.kind)?.label ?? d.kind}</Term></td>
-                <td className="num r"><Tip content={() => <TipCard title="Drawn / limit" rows={[{ label: 'Drawn', value: F.money(d.drawn) }, { label: d.kind === 'revolver' ? 'Line as arranged' : 'Principal', value: F.money(d.principal) }]}>{d.kind === 'revolver' ? 'The line is re-sized to 3% of valuation (cap $15B) when you next borrow on it.' : 'Amount borrowed on this tranche.'}</TipCard>}><span>{F.money(d.drawn)} / {F.money(d.principal)}</span></Tip></td>
+                <td className="num r"><Tip content={() => <TipCard title="Drawn / limit" rows={[{ label: 'Drawn', value: F.money(d.drawn) }, { label: d.kind === 'revolver' ? 'Line as arranged' : 'Principal', value: F.money(d.principal) }]}>{d.kind === 'revolver' ? 'The line is re-sized to 3% of valuation (cap $15B) when you next borrow on it.' : d.kind === 'assumed' ? 'Debt that came with a lab you bought (what it was short), now yours.' : 'Amount borrowed on this tranche.'}</TipCard>}><span>{F.money(d.drawn)} / {F.money(d.principal)}</span></Tip></td>
                 <td className="num r"><Tip content={() => <TipCard title="Interest rate" value={`${debtRatePct(s, d).toFixed(1)}%`}>{d.kind === 'revolver' ? 'Per year on the drawn amount; floats with your rating.' : 'Per year on the drawn amount; priced at your rating when drawn.'}</TipCard>}><span>{debtRatePct(s, d).toFixed(1)}%</span></Tip></td>
                 <td className="dim">{d.covenant ?? '—'}</td>
                 <td className="r">{d.drawn > 0 && <ActBtn id="fin.repayDebt" params={{ id: d.id, amount: d.drawn }} label="Repay" />}</td>
@@ -731,7 +732,7 @@ function DebtCard({ s }: { s: GameStateV2 }) {
         </table>
       )}
       <div className="dk-tiles">
-        {DEBT_KINDS.filter((k) => k.id !== 'vendorNote').map((k) => {
+        {DEBT_KINDS.filter((k) => k.id !== 'vendorNote' && k.id !== 'assumed').map((k) => {
           const h = debtHeadroom(s, k.id);
           return (
             <Tip key={k.id} content={() => <TipCard title={<Term id={k.id}>{k.label}</Term>} value={`${F.money(h.max)} room`} rows={[{ label: 'Limit', value: F.money(h.limit) }, { label: 'Rule', value: h.why }, { label: 'Rate now', value: `${newDebtRatePct(s, k.id).toFixed(1)}%` }]}>{k.blurb}</TipCard>}>

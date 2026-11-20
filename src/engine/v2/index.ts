@@ -61,20 +61,31 @@ export function actionView(s: GameStateV2, id: string, params: Record<string, nu
 }
 
 /** Preview of a decision choice (never throws). */
-export function choiceView(s: GameStateV2, eventId: string, choice: number): Omit<ActionView, 'id'> {
+export function choiceView(s: GameStateV2, eventId: string, choice: number, data?: Record<string, number | string>): Omit<ActionView, 'id'> {
   const c = REG_EVENT_BY_ID.get(eventId)?.choices[choice];
   if (!c) return { title: '?', ok: 'unknown', costs: [], gains: [], exposure: [] };
   let ok: true | string = true;
   try {
-    const r = c.available?.(s) ?? true;
+    const r = c.available?.(s, data) ?? true;
     ok = r === true ? true : typeof r === 'string' ? r : 'Unavailable';
   } catch {
     ok = 'Unavailable';
   }
   try {
-    return { title: c.label, ok, ...c.preview(s) };
+    return { title: c.label, ok, ...c.preview(s, data) };
   } catch {
     return { title: c.label, ok, costs: [], gains: [], exposure: [] };
+  }
+}
+
+/** The board vote a decision choice needs (FIN3c: a merger), shown under the choice; undefined when it needs none. */
+export function choiceVote(s: GameStateV2, eventId: string, choice: number, data?: Record<string, number | string>): BoardVote | undefined {
+  const c = REG_EVENT_BY_ID.get(eventId)?.choices[choice];
+  if (!c?.vote) return undefined;
+  try {
+    return c.vote(s, data);
+  } catch {
+    return undefined;
   }
 }
 

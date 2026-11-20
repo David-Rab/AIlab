@@ -9,7 +9,7 @@
 // | Founder super-voting forces a major decision      | founder, dual-class | board votes (board.ts voteGate)               |
 // | Nonprofit board removes the CEO more easily       | legacy nonprofit  | the ouster vote's reluctance ×0.5 (board.ts)    |
 import type { BoardVote, Channel, GameStateV2, ModelVersion } from '../types';
-import { founderControl, OUSTER, trustVote } from './board';
+import { boardVote, founderControl, OUSTER, trustVote } from './board';
 import { capabilityThresholds, safetyRedFlags } from './observe';
 
 export type CharterRightId = 'safetyCommittee' | 'trust' | 'founderControl' | 'nonprofitRemoval';
@@ -59,6 +59,15 @@ export function charterReleaseBlock(s: GameStateV2, v: ModelVersion, channel: Ch
 export function controlVote(s: GameStateV2, partner: string, stakeAfter: number): BoardVote | undefined {
   if (s.player.board.preset !== 'pbcTrust' || stakeAfter <= 0.5) return undefined;
   return trustVote(s, 'saleOfControl', `${partner} would hold ${Math.round(stakeAfter * 100)}% of the company`);
+}
+
+/** Every vote a sale of control needs (FIN3c), in the order they are held: under PBC + trust the trust's (it cannot be
+ *  forced, so it goes first), then the board's own (spec §7.3). Empty when no holder would pass 50%. A deal, a rescue,
+ *  or a lab bought with your stock (its holders as one block) can sell control; buying a lab for cash never does. */
+export function controlVotes(s: GameStateV2, holder: string, stakeAfter: number): BoardVote[] {
+  if (stakeAfter <= 0.5) return [];
+  const trigger = `${holder} would hold ${Math.round(stakeAfter * 100)}% of the company`;
+  return [controlVote(s, holder, stakeAfter), boardVote(s, 'saleOfControl', trigger)].filter((v): v is BoardVote => !!v);
 }
 
 /** Models the charter holds back now (Board card, Products link): versions ready to release that the safety committee

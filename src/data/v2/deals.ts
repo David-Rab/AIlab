@@ -88,6 +88,9 @@ export const DEBT_TERMS: Record<Debt['kind'], { spreadBp: number; years: number;
   gpuTerm: { spreadBp: 475, years: 4, note: '≤ 60% of chip value; collateral < 1.2× loan → cash sweep' }, // CoreWeave DDTL SOFR+400–550 [R15]
   bond: { spreadBp: 150, years: 10, note: 'Only with positive trailing operating cash flow; ≤ 3× it; y10 + spread(rating)' }, // Oracle 4.45–6.85% [R15]
   vendorNote: { spreadBp: 300, years: 5, note: 'Converts at IPO; counts as a commitment' },
+  // FIN3c (spec §9): a bought lab's debt; its lenders re-price it to your credit (y10 + the bond spread of your rating)
+  // and it runs 3 more years [D].
+  assumed: { spreadBp: 450, years: 3, note: 'Came with a lab you bought; priced at your rating' },
 };
 export type RatingId = 'BBB' | 'BB' | 'B' | 'closed';
 /** Bond spread over y10 by rating (bp) [R15]; BB/B are SOFR-based in R15, mapped onto y10 here [D]. */

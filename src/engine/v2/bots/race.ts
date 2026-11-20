@@ -4,7 +4,7 @@
 // Model cadence: WS1's reference play with race designs; compute and money: WS3's autopilot at 2× capex, no guard.
 import { financeAutopilot, RACE_AUTOPILOT } from '../finance/plan';
 import type { BotPolicy } from '../types';
-import { every, pickByTags, tryAct } from './common';
+import { every, mergerChoice, pickByTags, tryAct } from './common';
 import { REF_TREE, refPlay, type RefPlayOpts } from './ref';
 
 const RACE_PLAY: RefPlayOpts = {
@@ -30,6 +30,8 @@ export const raceBot: BotPolicy = {
     }
   },
   decide(s, d) {
+    // FIN3c: buys a failing rival for cash or stock (never selling control, never forcing the board).
+    if (d.id === 'E32') return mergerChoice(s, d, { cushion: 10, maxStake: 0.15 });
     return pickByTags(s, d, [['race', 'latent', 'release'], ['quiet', 'secrecy'], ['deny'], ['resist', 'decline']]);
   },
 };

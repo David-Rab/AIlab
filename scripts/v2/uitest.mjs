@@ -826,6 +826,49 @@ ok('J1 C1: buy, build and rent show before → after (cash, runway)', await page
   }, saved);
   await wait(100);
 }
+// FIN3c (finance v3 §9): a rival in distress is for sale; the offer shows cash vs stock (with the dilution), the
+// obligations you take on, the antitrust cost and the board's vote under each buy choice; a failed vote disables it;
+// buying books its contracts and debt (the debt card lists the assumed debt).
+{
+  await closeModals();
+  await pause();
+  const saved = await get('({ bc: s.player.board.confidence, cash: s.player.finance.cash })');
+  const lab = JSON.parse(await get('(s.rivals.find((r) => r.core.status === "active" && r.finance.valuation > 0) ?? {}).core?.id ?? null'));
+  ok('FIN3c: a private rival to buy', !!lab);
+  if (lab) {
+    await page.evaluate((id) => {
+      const st = window.ai27v2; const s = st.state;
+      const r = s.rivals.find((x) => x.core.id === id);
+      r.finance.cash = -3; r.finance.distress = true;
+      s.player.board.confidence = 80; s.player.finance.cash = Math.max(s.player.finance.cash, 5000);
+      s.events.pending.push({ id: 'E32', instance: 'E32@ui', day: s.time.day, deadline: s.time.day + 30, data: { lab: id }, crisis: false });
+      st.openDecision('E32@ui'); st.notify();
+    }, lab);
+    await wait(200);
+    const labels = await page.$$eval('[data-test=decision][data-event=E32] .acard-top b', (els) => els.map((e) => e.textContent));
+    ok('FIN3c: the merger offer offers cash, stock or decline', labels.join('|') === 'Pay cash|Pay in stock|Decline', labels.join('|'));
+    ok('FIN3c: each buy choice shows the board\'s vote, seat by seat, under its card', (await page.$$('[data-test=decision] .dm2-choice [data-test=vote] [data-vote]')).length > 0 && (await page.$$('[data-test=decision] .dm2-choice')).length === 2);
+    ok('FIN3c: paying in stock shows the dilution; both show the obligations taken on and the antitrust cost', JSON.parse(await get(`(() => { const t = [...document.querySelectorAll('[data-test=decision] [data-choice]')].map((e) => e.innerText); return /stake/.test(t[1]) && !/stake/.test(t[0]) && /scrutiny/.test(t[0]) && /scrutiny/.test(t[1]) && t.slice(0, 2).every((x) => (x.match(/\\$/g) ?? []).length >= 2); })()`)));
+    await page.hover('[data-test=decision] [data-choice="1"] .pill2.exp');
+    await wait(300);
+    ok('FIN3c: an obligation pill says what it is (its contracts, firm, by quarter)', JSON.parse(await get(`(() => /its contracts/.test(document.querySelector('.tip')?.innerText ?? ''))()`)));
+    await page.mouse.move(1, 1); // (Esc would close the decision: Later)
+    await wait(150);
+    await shot('64-fin3c-merger-offer');
+    await page.evaluate(() => { window.ai27v2.state.player.board.confidence = 0; window.ai27v2.notify(); });
+    await wait(150);
+    ok('FIN3c: a failed merger vote disables the buy choices', !!(await page.$('[data-test=decision] [data-choice="0"][disabled]')) && !!(await page.$('[data-test=decision] .dm2-choice [data-test=vote][data-pass="0"]')));
+    await page.evaluate(() => { window.ai27v2.state.player.board.confidence = 80; window.ai27v2.notify(); });
+    await wait(150);
+    await check('FIN3c: buying in stock books its contracts and debt and absorbs the lab', 's.player.finance.ledger.filter((c) => c.kind === "acquired").length + ":" + s.player.finance.debts.filter((d) => d.kind === "assumed").length + ":" + s.rivals.filter((r) => r.core.status === "active").length', () => page.click('[data-test=decision] [data-choice="1"]'), 200);
+    await nav('finance');
+    await page.click('[data-tabs=finance] [data-tab=deals]'); await wait(120);
+    ok('FIN3c: the debt card lists the assumed debt', /Assumed debt/.test(await page.evaluate(() => document.querySelector('[data-home=debt]')?.textContent ?? '')));
+    await shot('65-fin3c-assumed-debt');
+  }
+  await page.evaluate((v) => { const s = window.ai27v2.state; const o = JSON.parse(v); s.player.board.confidence = o.bc; window.ai27v2.notify(); }, saved);
+  await wait(100);
+}
 // J2: engineers' load, spare serving, days cut, same-lineage monitors, risk lever what-ifs, launches on the build queue.
 await nav('company');
 await tabTo('people');
