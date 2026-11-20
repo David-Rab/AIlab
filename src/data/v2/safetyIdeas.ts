@@ -8,6 +8,10 @@
 //                                      resistance to CoT pressure (S4) and to CoT controllability (CoT monitors, AG09)
 //   P27 automated alignment research at scale → E2's safety AI labour: SAF_* fit (OOM) and the agendas' automation
 //                                      factors; the FALSE-result risk is E2's sabotage weight on the larger AI share
+// and two AG17 effects on the same labour mechanism (model v3 E14):
+//   F44 AARs mitigate well-characterized failures (a finding) → the safety model's fit on the benchmarked agendas'
+//                                      line work (AG18 / AG03 / AG16): + one median-to-best-human gap
+//   AG17 science teams (the agenda's programme) → a harness scaffold on SAF_EXP / SAF_IDEAS: fit + OOM by capacity
 // Tags: [P] primary source, [V] verified in research/, [D] design choice (direction from the cited work).
 
 /**
@@ -75,3 +79,30 @@ export const FAITHFUL_COT = { dOom: -0.29, fptMult: 1.2, monitorability: 0.98, r
  * sabotage, and both parts raise that AI share.
  */
 export const P27_AAR = { fitOom: 0.3, autoGap: 0.5 } as const;
+
+/**
+ * F44 "AI researchers mitigate well-characterized failures" (an AG17 TECH finding; research/14 F44 and AG17 status [V]:
+ * Anthropic's 2026 AARs beat the best of 28 human researchers' ideas on 7/7 comparable failures, but only for
+ * "well-characterized" failures with benchmarks; the results "may not generalize to open-ended, hard-to-supervise
+ * research"). Once found, the safety package works on the agendas whose failures are benchmarked (`agendas`: training
+ * signals AG18, steering AG03, adversarial robustness AG16, research/14 F44's "on benchmarked traits") at best-human
+ * level, where its general safety-research fit is about a median expert's (GDPval: frontier ≈ median parity, R20 E2):
+ * the safety model's SAF_EXP and SAF_IDEAS fit on those lines' work rises by `gapBM` × the world's median-to-best gap
+ * Δ_bm (OOM; ai2027 2.2). Coverage, the assist and AI taste on those lines rise (taste + 3.09 SD per Δ_bm: the best
+ * human). [D: the mapping "beats the best human" → + 1 Δ_bm; research/14's ×3–10 speed was itself [D].] Replaces v2's
+ * flat ×3 on those lines' speed whenever any safety work was handed to AI (removed in model v3 E14). Nothing with no
+ * work handed (Trusted to AI 0), nothing more once the line's work is fully covered.
+ */
+export const F44_AAR = { agendas: ['AG18', 'AG03', 'AG16'] as const, gapBM: 1 } as const;
+
+/**
+ * AG17's science teams (automated alignment research, "a meta-agenda that multiplies the others", research/14 AG17;
+ * 5–15 FTE plus lots of compute) build and run the harness the safety package works in: benchmarks, sandboxes and
+ * automated grading that turn safety research into checkable tasks (Carlsmith 2025: evaluable research automates [V]).
+ * A scaffold on the safety package's SAF_EXP and SAF_IDEAS work: fit + `fitOom` × √(capacity ÷ SERIOUS_CAP), capacity
+ * counted up to LINE_MULT_MAX (the old Major) [D: at a serious programme the size of the Deep research scaffold and of
+ * P27's harness, R20 B3 / design/TECH-TREE.md §6.4 P05; the square root is the lines' diminishing returns]. Replaces
+ * v2's ×(1 + √(capacity ÷ SERIOUS_CAP)) on the agents' AI team-equivalents (removed in model v3 E14), which did almost
+ * nothing in v3: the coding CES saturates in AI input once AI team-equivalents exceed the humans' (day 400: 604 vs 1).
+ */
+export const AG17_HARNESS = { fitOom: 0.3 } as const;

@@ -7,29 +7,33 @@
 //                                   trained against a CoT monitor; CoT controllability × 0.5 (CoT monitors stay strong)
 //   P27 automated alignment research at scale   SAF_* fit +0.3 OOM and agenda automation halfway to 1 (E2 labour);
 //                                   no flat speed factor; FALSE risk rides on the larger AI share
-// Plus: no flat flags remain (lint), and RefBot researches none of them.
-import { readFileSync } from 'node:fs';
+// Model v3 E14: F44 (AARs, the `flag:aar` finding) = + Δ_bm of SAF_* fit on AG18 / AG03 / AG16 line work; AG17's
+// science teams = a harness scaffold (+0.3 OOM × √(capacity ÷ SERIOUS_CAP)) on the safety package.
+// Plus: no flat flags or agenda-speed factors remain (lint), and RefBot researches none of them.
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { AGENDA_BY_ID } from '../../src/data/v2/agendas';
+import { AGENDA_BY_ID, LINE_MULT_MAX, SERIOUS_CAP } from '../../src/data/v2/agendas';
 import { COPY_COLLUSION } from '../../src/data/v2/features';
 import { POST_COT, REFERENCE_POST } from '../../src/data/v2/runDesign';
-import { FAITHFUL_COT, P14_STEER, P15_OVERSIGHT, P27_AAR } from '../../src/data/v2/safetyIdeas';
+import { AG17_HARNESS, F44_AAR, FAITHFUL_COT, P14_STEER, P15_OVERSIGHT, P27_AAR } from '../../src/data/v2/safetyIdeas';
+import { CAPACITY_UNIT, lineNodeId } from '../../src/data/v2/tree';
+import { TOP_SD } from '../../src/data/v2/workTypes';
 import { SUITE_HARDEN } from '../../src/data/v2/suites';
 import { TRAIT_START } from '../../src/data/v2/traits';
 import { REF_TREE, SAFE_TREE_EXTRA } from '../../src/engine/v2/bots/ref';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { makeCtx } from '../../src/engine/v2/core/loop';
 import { deserialize } from '../../src/engine/v2/core/save';
-import { safetyLabour } from '../../src/engine/v2/departments/workfit';
+import { ag17HarnessOom, safetyLabour, sdAIOf } from '../../src/engine/v2/departments/workfit';
 import { postEffect } from '../../src/engine/v2/models/design';
 import { internalVersion } from '../../src/engine/v2/models/labs';
 import { planRun } from '../../src/engine/v2/models/runs';
 import { completeSuiteWork, exploitFloor, hardenCut, suiteWorkCost, suiteWorkEffect } from '../../src/engine/v2/models/suites';
 import { cotControllability, familyPenalty } from '../../src/engine/v2/safety/detection';
-import { aarAuto, aiOversight, probeSteer, steerGrowth } from '../../src/engine/v2/safety/ideas';
+import { aarAuto, aarFindingOom, aiOversight, probeSteer, steerGrowth } from '../../src/engine/v2/safety/ideas';
 import { lineLabour, lineSpeed, resetSafAllocation } from '../../src/engine/v2/safety/lineProjects';
 import { applyRunToTraits, playerEnv, postSignals, stepTraits, zeroSignals } from '../../src/engine/v2/safety/traits';
-import type { GameStateV2, ModelVersion, PostDesign, TrainingRun } from '../../src/engine/v2/types';
+import type { GameStateV2, ModelVersion, PostDesign, Team, TrainingRun } from '../../src/engine/v2/types';
 import { FIXTURE_DIR, check, finish } from './lib';
 
 const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
@@ -219,6 +223,51 @@ function postRun(s: GameStateV2, design: PostDesign, from?: ModelVersion): Model
   check(/safetySabotage\(s, lineLabour\(s, agenda\)\.aiShare\)/.test(src), 'P27: the false-result risk is E7\'s safety sabotage (SAFSAB) on the line\'s AI share, which P27 raises');
 }
 
+// ───────────────────────────── F44 and AG17's harness (model v3 E14) ─────────────────────────────
+{
+  const AGS = ['AG18', 'AG03', 'AG16', 'AG08', 'AG12'] as const;
+  const s = fixture('day400.json');
+  trust(s, 1);
+  const sp = AGS.map((a) => lineSpeed(s, a));
+  const ll = AGS.map((a) => lineLabour(s, a));
+  s.flags['ws2.aar'] = s.time.day; // F44 found
+  resetSafAllocation(s);
+  const ll2 = AGS.map((a) => lineLabour(s, a));
+  const dBM = s.hidden.timeline.v3.dBM;
+  check(F44_AAR.agendas.every((a) => aarFindingOom(s, a) === F44_AAR.gapBM * dBM) && aarFindingOom(s, 'AG08') === 0 && aarFindingOom(fixture('day400.json'), 'AG18') === 0,
+    'F44: + one median-to-best gap Δ_bm of SAF_* fit on AG18 / AG03 / AG16 line work once found; nothing elsewhere or before', `Δ_bm ${dBM}`);
+  check([0, 1, 2].every((i) => ll2[i].exp > 2 * ll[i].exp && ll2[i].ideas > ll[i].ideas && ll2[i].aiShare > ll[i].aiShare) && [3, 4].every((i) => ll2[i].exp === ll[i].exp && ll2[i].aiShare === ll[i].aiShare),
+    'F44 raises AI labour (m_exp, m_ideas) and the AI share (the sabotage weight) on the benchmarked lines only',
+    AGS.map((a, i) => `${a} m_exp ${ll[i].exp.toFixed(2)} → ${ll2[i].exp.toFixed(2)}, m_ideas ${ll[i].ideas.toFixed(2)} → ${ll2[i].ideas.toFixed(2)}, AI ${ll[i].aiShare.toFixed(3)} → ${ll2[i].aiShare.toFixed(3)}`).join('; '));
+  check(AGS.every((a, i) => lineSpeed(s, a) === sp[i]), 'F44: no flat speed factor (lineSpeed unchanged by it)');
+  // AI taste on the benchmarked lines: + TOP_SD per Δ_bm (the best human).
+  const sl = safetyLabour(s);
+  check(near(sdAIOf(s.hidden.timeline, sl.ideas.fit.fit + aarFindingOom(s, 'AG18'), 'SAF_IDEAS') - sl.sdAI, TOP_SD * F44_AAR.gapBM, 1e-6), 'F44: AI taste on those lines + 3.09 SD (best-human level)');
+  const s0 = fixture('day400.json');
+  s0.flags['ws2.aar'] = s0.time.day;
+  resetSafAllocation(s0);
+  check(lineLabour(s0, 'AG18').exp === 1 && lineLabour(s0, 'AG18').aiShare === 0, 'F44: nothing without safety work handed to AI');
+
+  // AG17's science teams: a harness scaffold on the safety package.
+  const a = fixture('day400.json');
+  trust(a, 1);
+  const b0 = safetyLabour(a);
+  const l0 = lineLabour(a, 'AG08');
+  const sci = a.player.teams.find((t) => t.role === 'sci' && t.dept === 'saf') as Team;
+  a.player.teams.push({ ...sci, id: 'e14-ag17', heads: CAPACITY_UNIT * SERIOUS_CAP, quality: 'strong', specialty: undefined, projectId: lineNodeId('AG17'), manual: true } as Team);
+  resetSafAllocation(a);
+  const b1 = safetyLabour(a);
+  const l1 = lineLabour(a, 'AG08');
+  check(near(ag17HarnessOom(a), AG17_HARNESS.fitOom, 1e-9) && near(b1.exp.fit.fit - b0.exp.fit.fit, AG17_HARNESS.fitOom, 1e-9) && near(b1.ideas.fit.fit - b0.ideas.fit.fit, AG17_HARNESS.fitOom, 1e-9),
+    'AG17: a serious programme\'s science teams add +0.3 OOM of SAF_EXP / SAF_IDEAS fit to the safety package (harness scaffold)',
+    `SAF_EXP a ${b0.exp.fit.a.toFixed(3)} → ${b1.exp.fit.a.toFixed(3)}`);
+  check(l1.exp > l0.exp && l1.aiShare > l0.aiShare, 'AG17\'s harness raises AI labour on every line (coverage, not AI team-equivalents)', `AG08 m_exp ${l0.exp.toFixed(2)} → ${l1.exp.toFixed(2)}`);
+  const big = a.player.teams.find((t) => t.id === 'e14-ag17') as Team;
+  big.heads *= 100;
+  resetSafAllocation(a);
+  check(near(ag17HarnessOom(a), AG17_HARNESS.fitOom * Math.sqrt(LINE_MULT_MAX), 1e-9), 'AG17: the harness grows with √ capacity, capped at the old Major (×2.5)');
+}
+
 // ───────────────────────────── lint: no flat flags, RefBot ─────────────────────────────
 {
   const root = join(FIXTURE_DIR, '..', '..', '..');
@@ -228,6 +277,15 @@ function postRun(s: GameStateV2, design: PostDesign, from?: ModelVersion): Model
   const hits = files.flatMap((f) => bad.filter((re) => re.test(read(f))).map((re) => `${f}: ${re}`));
   check(hits.length === 0, 'lint: the old flat effects are gone (p14Goodhart flag, P15 cash ×0.2, P27 ×(1 + 3t), "×0.6", "cheap price")', hits.join('; '));
   check(!/LATER\(V6\)/.test(read('design/TECH-TREE.md')), 'lint: no LATER(V6) markers left in design/TECH-TREE.md');
+  // Model v3 E14: no flat factor on agenda speed. lineSpeed holds only the shared research modifiers (siloing, ASIC
+  // migration) and the dead-end state: no agenda list, flag or AI-labour term; and the AI team-equivalents are not lifted.
+  const lp = read('src/engine/v2/safety/lineProjects.ts');
+  const body = (lp.match(/export function lineSpeed\([\s\S]*?\n\}/) ?? [''])[0];
+  const flat = [/ag ===/, /AG\d\d/, /flag\(/, /trusted/i, /v \*= [2-9]/, /aar/];
+  const fh = flat.filter((re) => re.test(body)).map(String);
+  if (/ag17Mult|x\.AI \* lift/.test(lp)) fh.push('AG17 lift on AI team-equivalents');
+  if (/×3 while/.test(read('src/data/v2/tree.ts'))) fh.push('tree.ts aar text "×3"');
+  check(body.length > 0 && fh.length === 0, 'lint: no flat factor on agenda speed (F44 ×3 and AG17\'s ×(1 + √m) on AI team-equivalents are gone; E14)', fh.join('; '));
   // The ideas are read only where their mechanism lives.
   const where: Record<string, string[]> = { P14: ['src/engine/v2/safety/ideas.ts'], P15: ['src/engine/v2/safety/ideas.ts'], P27: ['src/engine/v2/safety/ideas.ts', 'src/engine/v2/departments/workfit.ts'] };
   const engine = ['src/engine/v2/safety/ideas.ts', 'src/engine/v2/departments/workfit.ts', ...files.filter((f) => f.startsWith('src/engine')), 'src/engine/v2/safety/detection.ts', 'src/engine/v2/safety/understanding.ts'];
@@ -236,6 +294,10 @@ function postRun(s: GameStateV2, design: PostDesign, from?: ModelVersion): Model
   const ids = ['P14', 'P15', 'P23', 'P27'];
   check(!REF_TREE.some((g) => ids.includes(g.id)) && SAFE_TREE_EXTRA.map((g) => g.id).join() === 'P23',
     'RefBot researches none of the four (golden dates unaffected); only the safe bot adds P23', REF_TREE.map((g) => g.id).join(' '));
+  // E14: F44 and AG17's harness act only on work handed to AI, and no bot hands safety work to AI.
+  const bots = readdirSync(join(root, 'src/engine/v2/bots')).filter((f) => f.endsWith('.ts'));
+  const handing = bots.filter((f) => /trustedToAI|policy\.trusted|'agents\.trusted/.test(read(`src/engine/v2/bots/${f}`)));
+  check(handing.length === 0, 'E14: no bot sets Trusted to AI, so F44 and AG17\'s harness cannot move a bot run', handing.join(' '));
 }
 
 finish('safetyideas');

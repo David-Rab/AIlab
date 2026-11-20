@@ -133,7 +133,7 @@ function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | 
       return {
         costs: [{ currency: 'staffTime', amount: 10, target: '21–35 d' }, { currency: 'progress', amount: -0.02, target: 'next post-run' }],
         gains: [{ currency: 'alignment', amount: r2(est * 0.3), target: `${trait} reduced (technique-specific)` }],
-        exposure: trait === 'SCHEME' || trait === 'AF' ? [{ currency: 'monitorability', amount: -0.1, probability: 0.8, target: 'eval awareness × 1.5 (E25)' }] : [],
+        exposure: trait === 'SCHEME' || trait === 'AF' ? [{ currency: 'monitorability', amount: -0.1, probability: 0.8, target: 'eval awareness × 2 (E25)' }] : [],
       };
     case 'restrictContext':
       return {
