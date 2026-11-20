@@ -28,13 +28,13 @@ export function teamGain(s: GameStateV2, t: { role: TeamRole; dept: TeamDept; qu
   if (t.dept === 'saf') return { currency: 'alignment', amount: Math.round(heads), target: 'safety staff' };
   if (t.role === 're') {
     const re = Math.max(1, playerH(s.player) * REF_ROLE_SHARE.re);
-    return { currency: 'progress', amount: Math.round((Math.pow(1 + (heads * q) / re, el?.humans ?? 0.2) - 1) * 1e4) / 1e4, target: 'research speed' };
+    return { currency: 'progress', amount: Math.round((Math.pow(1 + (heads * q) / re, el?.humans ?? 0.2) - 1) * 1e4) / 100, unit: '%', target: 'research speed' };
   }
   // Model v3 V3: the team's human taste on the AIFM distribution vs a Strong team, as a share of the lab's science heads.
   let sciHeads = heads;
   for (const x of s.player.teams) if (x.role === 'sci' && x.dept === 'cap') sciHeads += x.heads;
   const dTau = (heads * (Math.exp(tasteSigma(s.hidden.timeline.prod.m2b) * qualityZ(t.quality)) - 1)) / sciHeads;
-  return { currency: 'progress', amount: Math.round((el?.taste ?? 0.5) * dTau * 1e4) / 1e4, target: t.specialty ? `${COLUMN_LABEL[t.specialty]} research` : 'research taste' };
+  return { currency: 'progress', amount: Math.round((el?.taste ?? 0.5) * dTau * 1e4) / 100, unit: '%', target: t.specialty ? `${COLUMN_LABEL[t.specialty]} research` : 'research taste' };
 }
 
 const negate = (c: CostLine): CostLine => ({ ...c, amount: -c.amount });

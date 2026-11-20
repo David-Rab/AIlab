@@ -14,7 +14,7 @@ export const GOV_EVENTS: EventDefV2[] = [
     when: requestOnly,
     text: () => 'Washington now requires security clearances for frontier work. 5–15% of your staff — foreign nationals and some safety researchers — would be sidelined for 60 days.',
     choices: [
-      ch('Comply', ['comply', 'gov'], P([L('morale', 10), L('progress', 8, '% speed for 60 d')], [L('trust', 10, 'exec'), L('security', 0.3)]), (s, ctx) => {
+      ch('Comply', ['comply', 'gov'], P([L('morale', 10), L('progress', 8, 'research speed for 60 d', { unit: '%' })], [L('trust', 10, 'exec'), L('security', 0.3)]), (s, ctx) => {
         s.player.security.clearances = true;
         s.player.security.target = Math.min(5, s.player.security.target + 0.3);
         s.player.security.wsl = Math.min(5, s.player.security.wsl + 0.3);

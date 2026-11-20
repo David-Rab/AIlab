@@ -480,7 +480,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     preview: (s, p) => {
       const lvl = clamp(Math.round(num(p, 'level', Math.min(2, s.player.security.siloing + 1))), 0, 2);
       const d = lvl - s.player.security.siloing;
-      return d >= 0 ? pv([L('progress', 5 * Math.max(1, d), '% research speed'), L('morale', 3 * Math.max(1, d))], [L('security', 0.3 * Math.max(1, d), 'spies ×0.7 per level')]) : pv([L('security', 0.3)], [L('progress', 5), L('morale', 2)]);
+      return d >= 0 ? pv([L('progress', 5 * Math.max(1, d), 'research speed', { unit: '%' }), L('morale', 3 * Math.max(1, d))], [L('security', 0.3 * Math.max(1, d), 'spies ×0.7 per level')]) : pv([L('security', 0.3)], [L('progress', 5, 'research speed', { unit: '%' }), L('morale', 2)]);
     },
     apply(s, ctx, p) {
       const sec = s.player.security;

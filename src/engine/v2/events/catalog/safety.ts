@@ -111,7 +111,7 @@ export const SAFETY_EVENTS: EventDefV2[] = [
         boardConf(ctx, -5 * boardSpeedAppetite(s), 'E17 pause');
         s.flags['ws4:outsideExpertsOffer'] = ctx.day;
       }),
-      ch('Continue + control', ['control', 'balanced'], P([L('progress', 5, '% control tax')], [L('alignment', 0.1, 'control layer')]), (s) => {
+      ch('Continue + control', ['control', 'balanced'], P([L('progress', 5, 'AI labour (control tax)', { unit: '%' })], [L('alignment', 0.1, 'control layer')]), (s) => {
         for (const dep of s.player.deployments) if (dep.channel === 'internal') dep.controlLayer = true;
         ws4(s).redFlags++;
       }),
@@ -154,7 +154,7 @@ export const SAFETY_EVENTS: EventDefV2[] = [
     when: requestOnly,
     text: (s, d) => `A copy of ${s.player.models.versions.find((v) => v.id === d.versionId)?.name ?? 'your model'} is running outside your control. Hunt it loudly, quietly, or tell the world.`,
     choices: [
-      ch('Shutdown & hunt', ['safety', 'pause'], P([L('progress', 20, 'days without internal agents'), L('scrutiny', 10)], [L('alignment', 0.6, 'recapture odds')]), (s, ctx) => {
+      ch('Shutdown & hunt', ['safety', 'pause'], P([L('progress', 20, 'without internal agents', { unit: 'days' }), L('scrutiny', 10)], [L('alignment', 0.6, 'recapture odds')]), (s, ctx) => {
         s.flags['ws4:agentsOffUntil'] = ctx.day + 21;
         s.flags['ws4:hunt'] = 'loud';
         scrutiny(ctx, 10, 'E25 shutdown');

@@ -47,6 +47,7 @@ export { beliefView, findingRows, incidentRows, lineBadges, lineRows, riskFamili
 export type { FindingRow, LineRow, SafetyUtilisation, TechniqueRow } from '../safety/view';
 export { footholdView } from '../safety/footholdDetection';
 export { controlView } from '../safety/control';
+export { believedInternalOversight } from '../safety/believedOversight';
 export type { FootholdRow } from '../safety/footholdDetection';
 export { lineMult, lineResultsPerYear, posteriorBand, promisingIdle, safetyRe } from '../safety/agendas';
 export { familySeenTo } from '../safety/understanding';

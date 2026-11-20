@@ -219,7 +219,7 @@ function QDots({ q }: { q: TeamQuality }) {
 /** What a team adds, as one short chip (build capacity, research speed, taste, safety staff). */
 function GainChip({ s, t }: { s: GameStateV2; t: Pick<Team, 'role' | 'dept' | 'quality' | 'specialty'> }) {
   const g = teamGain(s, t);
-  const text = g.currency === 'staffTime' ? `+${g.amount.toFixed(1)} build` : g.currency === 'alignment' ? `+${F.count(g.amount)} safety staff` : g.amount === 0 ? 'taste ±0' : `${t.role === 'sci' ? 'taste' : 'speed'} ${F.pct(g.amount, 1, true)}`;
+  const text = g.currency === 'staffTime' ? `+${g.amount.toFixed(1)} build` : g.currency === 'alignment' ? `+${F.count(g.amount)} safety staff` : g.amount === 0 ? 'taste ±0' : `${t.role === 'sci' ? 'taste' : 'speed'} ${F.pct(g.unit === '%' ? g.amount / 100 : g.amount, 1, true)}`;
   return <Tip content={() => <TipCard title="If hired">{g.currency === 'staffTime' ? 'Build capacity, engineering team-weeks per week (before AI speed-up).' : g.currency === 'alignment' ? 'Safety staff: agendas, tool validation, investigations.' : t.role === 'sci' ? 'Research speed through research taste: Elite teams raise it, Solid teams lower it, Strong teams leave it. Capabilities scientists also staff research projects on the tree (Research), ×1.5 in their specialty.' : 'Research speed through research labour h.'}</TipCard>}><span className={`pill2 ${g.amount < 0 ? 'cost' : 'gain'}`} data-test="team-gain">{text}</span></Tip>;
 }
 

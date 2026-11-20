@@ -82,7 +82,7 @@ export const TREE_ACTIONS: ActionDef[] = [
     preview: (s, p) => {
       const id = str(p, 'id', s.player.research.queue[0] ?? '');
       const heads = s.player.teams.filter((t) => t.projectId === id).reduce((a, t) => a + t.heads, 0);
-      return { costs: [{ currency: 'progress', amount: -0.05, target: PROJECT_BY_ID[id]?.name ?? 'project' }], gains: [{ currency: 'staffTime', amount: Math.round(heads), target: 'scientists freed' }], exposure: [] };
+      return { costs: [{ currency: 'progress', amount: 0, unit: 'project', target: `${PROJECT_BY_ID[id]?.name ?? 'project'} leaves the list` }], gains: [{ currency: 'staffTime', amount: Math.round(heads), target: 'scientists freed' }], exposure: [] };
     },
     apply: (s, _ctx, p) => {
       fail(dequeueNode(s, str(p, 'id', s.player.research.queue[0] ?? '')));
@@ -94,7 +94,7 @@ export const TREE_ACTIONS: ActionDef[] = [
     available: (s) => (s.player.research.queue.length > 1 ? true : 'Nothing to reorder'),
     preview: (s, p) => {
       const id = str(p, 'id', s.player.research.queue[s.player.research.queue.length - 1] ?? '');
-      return { costs: [{ currency: 'staffTime', amount: 0, target: 'idle teams follow the new order' }], gains: [{ currency: 'progress', amount: 0, target: PROJECT_BY_ID[id]?.name ?? 'project' }], exposure: [] };
+      return { costs: [{ currency: 'staffTime', amount: 0, target: 'idle teams follow the new order' }], gains: [{ currency: 'progress', amount: 0, unit: 'days', target: `${PROJECT_BY_ID[id]?.name ?? 'project'}: teams follow the order` }], exposure: [] };
     },
     apply: (s, _ctx, p) => {
       fail(moveInQueue(s, str(p, 'id', ''), num(p, 'to', 0)));
@@ -114,7 +114,7 @@ export const TREE_ACTIONS: ActionDef[] = [
         const from = team.projectId;
         costs.push({ currency: 'leadDays', amount: -Math.max(0, days(projectEta(s, from, projectCapacity(s, from, undefined, team.id))) - days(projectEta(s, from))), target: PROJECT_BY_ID[from]?.name ?? 'project' });
       }
-      return { costs, gains: [{ currency: 'progress', amount: Math.max(0, days(before) - days(after)), target: `${PROJECT_BY_ID[id]?.name ?? 'project'} (days sooner)` }], exposure: [] };
+      return { costs, gains: [{ currency: 'progress', amount: Math.max(0, days(before) - days(after)), unit: 'days', target: `${PROJECT_BY_ID[id]?.name ?? 'project'} sooner` }], exposure: [] };
     },
     apply: (s, _ctx, p) => fail(assignTeam(s, teamParam(s, p), nodeParam(s, p))),
   },
@@ -136,8 +136,8 @@ export const TREE_ACTIONS: ActionDef[] = [
       const on = p.on === undefined ? !s.player.research.autoAssign : p.on === true;
       const idle = idleTeams(s).reduce((a, t) => a + t.heads, 0);
       return on
-        ? { costs: [{ currency: 'staffTime', amount: 0, target: 'teams placed by the policy, not by you' }], gains: [{ currency: 'progress', amount: Math.round(idle), target: 'idle scientists put to work' }], exposure: [] }
-        : { costs: [{ currency: 'progress', amount: 0, target: 'idle teams wait for you' }], gains: [{ currency: 'staffTime', amount: 0, target: 'manual placement' }], exposure: [] };
+        ? { costs: [{ currency: 'staffTime', amount: 0, target: 'teams placed by the policy, not by you' }], gains: [{ currency: 'progress', amount: Math.round(idle), unit: 'scientists', target: 'idle, put to work' }], exposure: [] }
+        : { costs: [{ currency: 'progress', amount: 0, unit: 'scientists', target: 'idle teams wait for you' }], gains: [{ currency: 'staffTime', amount: 0, target: 'manual placement' }], exposure: [] };
     },
     apply: (s, _ctx, p) => {
       s.player.research.autoAssign = p.on === undefined ? !s.player.research.autoAssign : p.on === true;
