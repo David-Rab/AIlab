@@ -111,31 +111,57 @@ export function believedPenalty(s: GameStateV2, v: ModelVersion, trait: TraitId,
  * combine as d1 + 0.3·d2·(1 − d1) + …; groups on different latents combine independently.
  */
 export function combineTools(items: { agenda: string; d: number }[]): number {
-  // P2: groups as parallel arrays in first-seen order (was a Map; same groups, order and arithmetic).
+  const ds: number[] = [];
+  const keys: string[] = [];
+  for (const it of items) {
+    ds.push(it.d);
+    keys.push(groupKeyOf(it.agenda));
+  }
+  return combineKeyed(ds, keys);
+}
+/** combineTools on parallel arrays: detection strengths and their correlation groups (groupKeyOf). P2: groups in
+ *  first-seen order as arrays (was a Map; same groups, order and arithmetic). */
+export function combineKeyed(d: readonly number[], key: readonly string[]): number {
   const keys: string[] = [];
   const groups: number[][] = [];
-  for (const it of items) {
-    if (it.d <= 0) continue;
-    const key = groupKeyOf(it.agenda);
-    const j = keys.indexOf(key);
-    if (j >= 0) groups[j].push(it.d);
+  for (let i = 0; i < d.length; i++) {
+    if (d[i] <= 0) continue;
+    const j = keys.indexOf(key[i]);
+    if (j >= 0) groups[j].push(d[i]);
     else {
-      keys.push(key);
-      groups.push([it.d]);
+      keys.push(key[i]);
+      groups.push([d[i]]);
     }
   }
   let miss = 1;
   for (const ds of groups) {
-    if (ds.length > 1) ds.sort((a, b) => b - a);
+    if (ds.length > 1) sortDesc(ds);
     let acc = 0;
     for (let i = 0; i < ds.length; i++) acc = i === 0 ? ds[i] : acc + 0.3 * ds[i] * (1 - acc);
     miss *= 1 - clamp01(acc);
   }
   return 1 - miss;
 }
+/** Descending sort of a short list of numbers in place: insertion sort (the values come out exactly as with
+ *  sort((a, b) => b − a)); NaN keeps the built-in sort. */
+function sortDesc(ds: number[]) {
+  for (const d of ds) if (d !== d) {
+    ds.sort((a, b) => b - a);
+    return;
+  }
+  for (let i = 1; i < ds.length; i++) {
+    const x = ds[i];
+    let j = i - 1;
+    while (j >= 0 && ds[j] < x) {
+      ds[j + 1] = ds[j];
+      j--;
+    }
+    ds[j + 1] = x;
+  }
+}
 const GROUP_KEY = new Map<string, string>();
 /** Correlation group of an agenda's tools: its main latent, or the agenda alone. */
-function groupKeyOf(agenda: string): string {
+export function groupKeyOf(agenda: string): string {
   let k = GROUP_KEY.get(agenda);
   if (k === undefined) {
     const lat = AGENDA_BY_ID[agenda as keyof typeof AGENDA_BY_ID]?.mainLatent ?? 'none';

@@ -10,7 +10,7 @@ import { internalVersion, measuredLOf } from '../models/labs';
 import type { AgendaId, GameStateV2, ModelVersion, TechniqueState, ToolFamily, TraitId } from '../types';
 import { reValidationMult } from './agendas';
 import { believedEfficacy, lambda2Delta, mAtLevel } from './common';
-import { combineTools, cotControllability, cotObfuscation, eaCoef, eaSuppression, familyPenalty, takesEaPenalty } from './detection';
+import { combineKeyed, combineTools, cotControllability, groupKeyOf, cotObfuscation, eaCoef, eaSuppression, familyPenalty, takesEaPenalty } from './detection';
 import { believedMask, decayAt, strengthTrue, techniqueRole } from './techniques';
 
 export interface UnderstandingReadout { U: number; margin: number; perTrait: Partial<Record<TraitId, number>> }
@@ -68,9 +68,11 @@ function detector(s: GameStateV2, v: ModelVersion, tools: TechniqueState[], L0: 
     if (m === undefined) maskCache.set(key, (m = believedMask(s, family, p)));
     return m;
   };
-  const tl = tools.map((t) => ({ t, pre: t.s0 * believedEfficacy(s, t.agenda), g: Math.max(0, 1 - t.goodhart * t.trainedAgainst), lead: validationLead(s, t.agenda) }));
+  const vLead = VAL_LEAD * Math.sqrt(reValidationMult(s)); // validationLead, hoisted (P2)
+  const tl = tools.map((t) => ({ t, pre: t.s0 * believedEfficacy(s, t.agenda), g: Math.max(0, 1 - t.goodhart * t.trainedAgainst), lead: s.player.safety.agendas[t.agenda] ? vLead : 0 }));
   // Per trait: the covering tools in stack order with their mask (BB: with the EA flag; COT: ctl(L) later).
   const rows = new Map<TraitId, { i: number; cov: number; mask: number; fam: ToolFamily; eaPen: boolean }[]>();
+  const rowKeys = new Map<TraitId, string[]>();
   const rowOf = (trait: TraitId) => {
     let r = rows.get(trait);
     if (r) return r;
@@ -81,6 +83,7 @@ function detector(s: GameStateV2, v: ModelVersion, tools: TechniqueState[], L0: 
       r!.push({ i, cov, mask: maskOf(t.family, trait), fam: t.family, eaPen: takesEaPenalty(trait) });
     });
     rows.set(trait, r);
+    rowKeys.set(trait, r.map((x) => groupKeyOf(tl[x.i].t.agenda)));
     return r;
   };
   return (trait: TraitId, L: number) => {
@@ -88,17 +91,18 @@ function detector(s: GameStateV2, v: ModelVersion, tools: TechniqueState[], L0: 
     const dL = L - L0;
     const ctl = Math.max(cotControllability(L), obf);
     const ea = eaAt(ea0, dL);
-    const items: { agenda: string; d: number }[] = [];
-    for (const row of rowOf(trait)) {
+    const ds: number[] = [];
+    const r = rowOf(trait);
+    for (const row of r) {
       const { t, pre, g, lead } = tl[row.i];
       const strength = pre * decayAt(s, t, M, latent) * g * valAt(dL, lead);
       let pen = 1;
       if (row.fam === 'BB') pen = Math.max(0, (row.eaPen ? 1 - eaC * ea : 1) * (1 - row.mask));
       else if (row.fam === 'COT') pen = l2 <= -2 ? 0 : Math.max(0, v.monitorability * (1 - ctl) * (1 - row.mask));
       else if (row.fam === 'WB') pen = 1 - row.mask;
-      items.push({ agenda: t.agenda, d: row.cov * strength * pen });
+      ds.push(row.cov * strength * pen);
     }
-    return combineTools(items);
+    return combineKeyed(ds, rowKeys.get(trait)!);
   };
 }
 
