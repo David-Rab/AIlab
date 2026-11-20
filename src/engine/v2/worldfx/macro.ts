@@ -14,7 +14,7 @@ import { ECON, REGIONS, SECTORS, U_BASE } from '../../../data/v2/sectors';
 import { globalCompute } from '../../../data/world';
 import { asV1World } from '../world/calibration';
 import type { EngineSystem, GameStateV2, RegionId, SystemCtx } from '../types';
-import { worldMix } from './mix';
+import { bestPublicOf, worldMix } from './mix';
 import { econOf, policyState, clampR } from './policy';
 import { automationShare } from './readouts';
 import { worldTechEffects } from './techtree';
@@ -51,7 +51,7 @@ export function dcPowerShare(s: GameStateV2): number {
 /** The CES automation factor X for a region (bounded). */
 export function automationFactor(s: GameStateV2, r: RegionId): { X: number; tfp: number; cog: number; phys: number } {
   const econ = econOf(s);
-  const Lag = worldMix(s).bestPublic.AGENCY;
+  const Lag = bestPublicOf(s).AGENCY;
   const boost = 1 + (3 * Math.max(0, Lag - 10)) / 5;
   let cog = 0;
   let phys = 0;

@@ -126,6 +126,9 @@ export interface WorldMix {
   bestPublicLg: number;
   /** The player's offer per sector (its best product's). */
   playerOffers: Partial<Record<SectorId, Offer>>;
+  /** P2: every player product's offer per sector as computed for this mix (key `<deployment id>|<sector>`). Only valid
+   *  while the state is unchanged since the mix was computed (applyRevenue reuses it right after computing the mix). */
+  offerBy: Map<string, Offer>;
 }
 
 /** Domain level adjustment of a deployment for the display mix: effort, safeguards, control layer [D]. */
@@ -239,11 +242,9 @@ function stockShares(s: GameStateV2, providers: Provider[], r: RegionId, seg: st
   return out.map((x) => x / sum);
 }
 
-function computeMix(s: GameStateV2): WorldMix {
+/** The market's providers (computeMix's list, in its order). */
+function providersOf(s: GameStateV2, paid: Deployment[], ver: Map<string, ModelVersion>): Provider[] {
   const providers: Provider[] = [];
-  const paid = paidDeployments(s);
-  const ver = new Map<string, ModelVersion>();
-  for (const v of s.player.models.versions) ver.set(v.id, v);
   if (paid.length) providers.push({ key: 'player', lab: 'player', paid: true, open: false, brand: playerBrand(s), appeal: 1, markup: 0 });
   const open = s.player.deployments.filter((d) => d.channel === 'open' && d.status !== 'withdrawn');
   if (open.length) {
@@ -262,6 +263,44 @@ function computeMix(s: GameStateV2): WorldMix {
   const cn = s.china.lab.publicModel;
   if (cn && (s.china.lab.core.status === 'active' || cn.openWeights)) providers.push({ key: CHINA_ID, lab: CHINA_ID, paid: false, open: cn.openWeights, dom: cn.domains, model: marketModel(s, cn), brand: 1, appeal: 1, markup: cn.openWeights ? OPEN_MARKUP : CHINA_MARKUP });
   for (const p of providers) if (p.model && !p.fpt) p.fpt = 'baseId' in p.model ? flopPerToken(s, p.model) : fptOfSimple(s, p.model);
+  return providers;
+}
+
+const versionMap = (s: GameStateV2) => {
+  const ver = new Map<string, ModelVersion>();
+  for (const v of s.player.models.versions) ver.set(v.id, v);
+  return ver;
+};
+
+/** Best public domain levels (max over the player's paid products, with their effort/safeguard offsets, and the other
+ *  providers' models). */
+function bestPublicFrom(cands: readonly { dep: Deployment; dom: Record<DomainId, number> }[], providers: readonly Provider[]): Record<DomainId, number> {
+  const bestPublic = domRecord(new Float64Array(ND));
+  for (const c of cands) for (const k of DOMAIN_IDS) bestPublic[k] = Math.max(bestPublic[k], c.dom[k] + depOffset(c.dep));
+  for (const p of providers) {
+    if (!p.dom) continue;
+    for (const k of DOMAIN_IDS) bestPublic[k] = Math.max(bestPublic[k], p.dom[k]);
+  }
+  return bestPublic;
+}
+
+/** P2: the world mix's bestPublic alone (the same values), for readers that need nothing else (macro's automation
+ *  factor, moonshot gates): skips the offers, shares and stocks. */
+export function bestPublicOf(s: GameStateV2): Record<DomainId, number> {
+  const paid = paidDeployments(s);
+  const ver = versionMap(s);
+  const cands: { dep: Deployment; dom: Record<DomainId, number> }[] = [];
+  for (const d of paid) {
+    const mv = ver.get(d.versionId);
+    if (mv) cands.push({ dep: d, dom: productDomains(s, d, mv)! });
+  }
+  return bestPublicFrom(cands, providersOf(s, paid, ver));
+}
+
+function computeMix(s: GameStateV2): WorldMix {
+  const paid = paidDeployments(s);
+  const ver = versionMap(s);
+  const providers = providersOf(s, paid, ver);
 
   const pfFloor = 10 * techRamp(s, 'W16');
   const pfLog = 3 * techRamp(s, 'W19');
@@ -287,17 +326,9 @@ function computeMix(s: GameStateV2): WorldMix {
     return c !== undefined && c <= s.time.day;
   };
 
-  const bestPublic = domRecord(new Float64Array(ND));
+  const bestPublic = bestPublicFrom(cands, providers);
   let bestPublicLg = 0;
-  for (const c of cands) {
-    const mv = ver.get(c.dep.versionId)!;
-    for (const k of DOMAIN_IDS) bestPublic[k] = Math.max(bestPublic[k], c.dom[k] + depOffset(c.dep));
-    bestPublicLg = Math.max(bestPublicLg, mv.Lg);
-  }
-  for (const p of providers) {
-    if (!p.dom) continue;
-    for (const k of DOMAIN_IDS) bestPublic[k] = Math.max(bestPublic[k], p.dom[k]);
-  }
+  for (const c of cands) bestPublicLg = Math.max(bestPublicLg, ver.get(c.dep.versionId)!.Lg);
   for (const r of [...s.rivals, s.china.lab]) if (r.publicModel) bestPublicLg = Math.max(bestPublicLg, r.publicModel.Lg);
 
   // Per sector (region-independent): each provider's offer (fit, coverage, price before the value cap) and display
@@ -307,6 +338,7 @@ function computeMix(s: GameStateV2): WorldMix {
   const cogL: number[][] = [];
   const pCand: number[] = [];
   const playerOffers: Partial<Record<SectorId, Offer>> = {};
+  const offerBy = new Map<string, Offer>();
   for (let si = 0; si < S; si++) {
     const t = SECTOR_TASKS[si];
     const row: (Offer | undefined)[] = new Array(n);
@@ -328,6 +360,7 @@ function computeMix(s: GameStateV2): WorldMix {
         const cd = cands[c];
         if (cd.ch === 'consumer' || (cd.ch === 'gov' && !t.gov)) continue;
         const o = productOffer(s, cd.dep, t.id, certified(t.id), cd.uses, cd.fx);
+        offerBy.set(`${cd.dep.id}|${t.id}`, o);
         const u = SHARE_SLOPE_G * o.fit - PRICE_ELASTICITY * Math.log(Math.max(1e-9, o.price));
         if (u > bu) {
           bu = u;
@@ -516,7 +549,7 @@ function computeMix(s: GameStateV2): WorldMix {
       ...(cDep ? { playerDep: cDep } : {}), playerPrice: pp, priceFactor: pp > 0 && px > 0 ? Math.min(1, Math.pow(pp / px, -PRICE_ELASTICITY)) : 1,
     };
   });
-  return { providers, sec, consumer, bestPublic, bestPublicLg, playerOffers };
+  return { providers, sec, consumer, bestPublic, bestPublicLg, playerOffers, offerBy };
 }
 
 /** Move every segment's customer stock toward its logit target (daily; V4.2). Segments with no stock start at the target

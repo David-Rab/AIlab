@@ -262,7 +262,7 @@ const SEAT_WEIGHT: Partial<Record<Channel, number>> = { enterprise: 1, gov: 1 };
 interface Seg { need: number; dem: Money }
 
 /** Full revenue computation (pure; the system applies it). */
-export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s)): RevenueReadout {
+export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offers?: Map<string, Offer>): RevenueReadout {
   const deps = paidDeployments(s);
   const playerIdx = mix.providers.findIndex((p) => p.key === 'player');
   const acc = new Map<string, Acc>(deps.map((d) => [d.id, acc0()]));
@@ -307,7 +307,8 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s)): Rev
       const wAg = agW[i] * focus;
       const wSeat = (SEAT_WEIGHT[d.channel] ?? 0) * focus;
       if (x <= 0 && wAg <= 0 && wSeat <= 0) return;
-      const o = productOffer(s, d, def.id, certified(def.id), usesOf.get(d.id), fxs.get(d.id));
+      // P2: `offers` = the mix's own player offers when the state has not changed since (same inputs, same values).
+      const o = offers?.get(`${d.id}|${def.id}`) ?? productOffer(s, d, def.id, certified(def.id), usesOf.get(d.id), fxs.get(d.id));
       ws.push({ d, w: x, wAg, wSeat, o, en: 1 + enablerShare(fxs.get(d.id) ?? [], def.id) });
       wsum += x;
       agSum += wAg;
@@ -524,8 +525,9 @@ export const revenueSystem: EngineSystem = {
 };
 
 export function applyRevenue(s: GameStateV2, ctx: SystemCtx): RevenueReadout {
+  const fresh = !ctx.memo.has('WS5:mix'); // computed just now: nothing has changed since, so its offers can be reused
   const mix = worldMix(s, ctx);
-  const rd = revenueReadout(s, mix);
+  const rd = revenueReadout(s, mix, fresh ? mix.offerBy : undefined);
   const byId = new Map(rd.deps.map((x) => [x.id, x]));
   let top: DeploymentRevenue | undefined;
   for (const d of s.player.deployments) {

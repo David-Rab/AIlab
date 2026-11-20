@@ -31,6 +31,7 @@ import { gV0, h50Of, levelKnotsG, playerStart } from '../models/capability';
 import { B_G_PER_Y } from '../../../data/v2/runDesign';
 import { versionById } from '../models/labs';
 import { activeFeatures } from '../models/products';
+import { adopted } from '../models/paradigms';
 import { savedAt, seatHoursPerMonth } from './use';
 import type { Deployment, DomainId, GameStateV2, ModelVersion, RegionId, SectorId, SimpleModel, TimelineWorld } from '../types';
 
@@ -190,6 +191,29 @@ export function agentLeverage(a: number, h50: number): number {
   return 1 / (AGENT_WORK.checkInH / h80 + ASSIST.review * (1 - Math.min(1, Math.max(0, a))) + AGENT_WORK.floorH);
 }
 
+interface UseFit { f: number; au: number; l: number }
+function useFitOf(s: GameStateV2, w: TimelineWorld, v: Fitted, sid: SectorId | 'CHAT', hd: DomainId, dG: number, hm: number): UseFit {
+  const f = sectorFit(s, v, sid) + dG;
+  const h50 = h50Of(w, v, hd) * hm;
+  const au = sectorCover(w, sid, f, h50);
+  return { f, au, l: agentLeverage(au, h50) };
+}
+/** P2: a model without a build (rivals', China's: known only by pm) has the same fit, coverage and leverage on a work
+ *  type for the same pm, ΔG, horizon multiplier and P19 (the only state domainG reads), so those are cached on exactly
+ *  these inputs (per world). Player versions (with a build) are computed every time. */
+const useFitMemo = new WeakMap<TimelineWorld, Map<string, UseFit>>();
+function useFit(s: GameStateV2, w: TimelineWorld, v: Fitted, sid: SectorId | 'CHAT', hd: DomainId, dG: number, hm: number): UseFit {
+  if (v.build) return useFitOf(s, w, v, sid, hd, dG, hm);
+  let m = useFitMemo.get(w);
+  if (!m) useFitMemo.set(w, (m = new Map()));
+  const key = `${v.pm}|${sid}|${dG}|${hm}|${adopted(s, 'P19') ? 1 : 0}`;
+  let x = m.get(key);
+  if (!x) {
+    if (m.size > 20000) m.clear();
+    m.set(key, (x = useFitOf(s, w, v, sid, hd, dG, hm)));
+  }
+  return x;
+}
 /** A token profile scaled by the feature token multiplier tk and effort (output only). Module level: no per-call closure. */
 const scaleTok = (b: TokenProfile, tk: number, eff: number): TokenProfile => ({ input: b.input * tk, output: b.output * tk * eff });
 const CHAT_OFFER_TOKENS: TokenProfile = { input: 3e3, output: 8e2 };
@@ -214,10 +238,7 @@ export function offerOf(s: GameStateV2, uses: ModelUse[], sid: SectorId | 'CHAT'
   let k = 0;
   let lam = 0;
   for (const u of uses) {
-    const f = sectorFit(s, u.v, sid) + dG;
-    const h50 = h50Of(w, u.v, hd) * hm;
-    const au = sectorCover(w, sid, f, h50);
-    const l = agentLeverage(au, h50);
+    const { f, au, l } = useFit(s, w, u.v, sid, hd, dG, hm);
     fit += u.w * f;
     a += u.w * au;
     k += u.w * au * l;
