@@ -5,15 +5,16 @@
 //   quick  tsc (main + scripts), every unit-style and short-sim script, and the long multi-seed suites in SMOKE mode
 //          (1–2 seeds, short horizons; their calibration targets print SMOKE instead of failing). For task agents.
 //   cal    golden-timelines + calib T1, T1L, T4 (through the simulation cache).
-//   full   every check of the old `test:v2` (every script, all seeds), in parallel, through the simulation cache, then
-//          test:ui (build + headless browser). The merge gate. hygiene's performance checks are the only thing left out
+//   full   every check of the old `test:v2` (every script, all seeds), in parallel, through the simulation cache, plus
+//          test:ui (build + headless browser; started first, it is mostly browser wait). The merge gate. hygiene's performance checks are the only thing left out
 //          (they measure wall time, meaningless on a loaded machine): see `perf`.
 //   perf   hygiene's performance checks only. Run on a quiet machine.
 //
 // Each script runs as `node --import tsx scripts/v2/<file>` (no npx: under load npx alone costs ~10 s a script). Output
 // goes to .simcache/logs/<id>.log; the summary prints script, mode, PASS/FAIL/WARN counts, cache hits and time; a JSON
 // timing log is written to .simcache/last-run.json (and used to start the longest jobs first next time). Exit code 1
-// on any failure. SIMCACHE=off|refresh is passed through (see simcache.ts).
+// on any failure. SIMCACHE=off|refresh is passed through (see simcache.ts). Long suites (safety, calib, finance) are
+// split into --prefill k/n shards that fill the cache in parallel; the script itself then runs on cache hits.
 import { spawn } from 'node:child_process';
 import { createWriteStream, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
@@ -32,13 +33,16 @@ interface Job {
   mode?: Partial<Record<Tier, string>>;
   /** Fallback time estimate (s) for ordering when there is no timing log. */
   est: number;
-  /** Queued after every other job (test:ui): it starts once all the others have started. */
-  last?: boolean;
+  /** Started before everything else: test:ui is ~6 min of wall time but ~40 s of CPU (a browser waiting on the page),
+   *  so it overlaps the simulations instead of adding its wall time at the end. */
+  first?: boolean;
   /** Tiers in which the script's cached runs are first computed by `n` parallel `--prefill k/n` shards (the script
    *  itself then starts after them and reads the cache). Not used with SIMCACHE=off. */
   shards?: Partial<Record<Tier, number>>;
   /** Jobs that must finish first (set for the prefill shards). */
   after?: string[];
+  /** Extra environment for the job. */
+  env?: Record<string, string>;
 }
 
 const TSC = join(ROOT, 'node_modules', 'typescript', 'bin', 'tsc');
@@ -70,7 +74,7 @@ const JOBS: Job[] = [
   { id: 'safety', script: 'safety.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, shards: { full: 6 }, ...S(ALL, 1000) } as Job,
   { id: 'danger', script: 'danger.ts', ...S(ALL, 60) } as Job,
   { id: 'oversight', script: 'oversight.ts', ...S(ALL, 30) } as Job,
-  { id: 'finance', script: 'finance.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, shards: { full: 3 }, ...S(ALL, 250) } as Job,
+  { id: 'finance', script: 'finance.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, shards: { full: 3, quick: 2 }, ...S(ALL, 250) } as Job,
   { id: 'worldfx', script: 'worldfx.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, ...S(ALL, 90) } as Job,
   { id: 'ws4', script: 'ws4.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, ...S(ALL, 120) } as Job,
   { id: 'rivals', script: 'rivals.ts', ...S(ALL, 30) } as Job,
@@ -78,7 +82,7 @@ const JOBS: Job[] = [
   { id: 'serving', script: 'serving.ts', ...S(ALL, 60) } as Job,
   { id: 'money', script: 'money.ts', ...S(ALL, 60) } as Job,
   { id: 'idle', script: 'idle.ts', args: { quick: ['--seeds', '1'] }, mode: { quick: 'SMOKE 1 seed' }, ...S(ALL, 150) } as Job,
-  { id: 'ui', argv: ['npm', 'run', 'test:ui'], ...S(['full'], 300, { last: true }) } as Job,
+  { id: 'ui', argv: ['npm', 'run', 'test:ui'], ...S(['full'], 300, { first: true }) } as Job,
 ];
 
 // ---------- arguments ----------
@@ -111,7 +115,9 @@ jobs = jobs.flatMap((j) => {
   const n = cacheOff ? 0 : (j.shards?.[tier] ?? 0);
   if (n < 2 || !j.script) return [j];
   const shards: Job[] = Array.from({ length: n }, (_, k) => ({ id: `${j.id}#${k}`, script: j.script, args: { [tier]: [...(j.args?.[tier] ?? []), '--prefill', `${k}/${n}`] }, mode: { [tier]: `prefill ${k}/${n}` }, tiers: [tier], est: j.est / n }));
-  return [...shards, { ...j, after: shards.map((x) => x.id), est: j.est / n }];
+  // Under SIMCACHE=refresh the shards recompute; the script itself must then read what they wrote.
+  const env = process.env.SIMCACHE?.toLowerCase() === 'refresh' ? { SIMCACHE: 'on' } : undefined;
+  return [...shards, { ...j, after: shards.map((x) => x.id), est: j.est / n, env }];
 });
 if (argv.includes('--list')) {
   for (const t of ['quick', 'cal', 'full', 'perf'] as Tier[]) console.log(`${t.padEnd(6)} ${JOBS.filter((j) => j.tiers.includes(t)).map((j) => (j.mode?.[t] ? `${j.id} (${j.mode[t]})` : j.id)).join(', ')}`);
@@ -133,7 +139,7 @@ if (existsSync(LAST)) {
 const keyOf = (j: Job) => `${tier}:${j.id}`;
 // A job's critical path: its own time plus what waits on it (a prefill shard carries its script's time).
 const estOf = (j: Job): number => (prevTimes[keyOf(j)] ?? (tier === 'quick' && j.args?.quick ? Math.min(j.est, 60) : j.est)) + Math.max(0, ...jobs.filter((x) => x.after?.includes(j.id)).map((x) => prevTimes[keyOf(x)] ?? x.est));
-const queue = [...jobs].sort((a, b) => Number(!!a.last) - Number(!!b.last) || estOf(b) - estOf(a));
+const queue = [...jobs].sort((a, b) => Number(!!b.first) - Number(!!a.first) || estOf(b) - estOf(a));
 
 // ---------- machine load (share of all cores busy) ----------
 const busy = () => {
@@ -165,7 +171,8 @@ function runJob(j: Job): Promise<Result> {
     mkdirSync(cpuDir, { recursive: true });
     const nodeOpts = [process.env.NODE_OPTIONS ?? '', `--import=${HOOK}`].join(' ').trim();
     const t0 = Date.now();
-    const child = spawn(cmd[0], cmd.slice(1), { cwd: ROOT, shell: cmd[0] === 'npm', env: { ...process.env, FORCE_COLOR: '0', T0_CPU_DIR: cpuDir, NODE_OPTIONS: nodeOpts } });
+    const viaShell = cmd[0] === 'npm'; // npm is a .cmd on Windows: run the whole line through the shell
+    const child = spawn(viaShell ? cmd.join(' ') : cmd[0], viaShell ? [] : cmd.slice(1), { cwd: ROOT, shell: viaShell, env: { ...process.env, ...j.env, FORCE_COLOR: '0', T0_CPU_DIR: cpuDir, NODE_OPTIONS: nodeOpts } });
     let text = '';
     const onData = (d: Buffer) => {
       out.write(d);
@@ -243,7 +250,9 @@ for (const r of results) {
 }
 const failed = results.filter((r) => r.status !== 0 || r.fail > 0);
 const tot = results.reduce((a, r) => ({ pass: a.pass + r.pass, fail: a.fail + r.fail, cpu: a.cpu + r.cpu }), { pass: 0, fail: 0, cpu: 0 });
-console.log(`\n${tier}: ${results.length - failed.length}/${results.length} scripts ok, ${tot.pass} checks passed, ${tot.fail} failed; wall ${(wall / 60).toFixed(1)} min, cpu ${(tot.cpu / 60).toFixed(1)} min, machine load ${(load * 100).toFixed(0)}% (${os.cpus().length} cores, ${workers} workers)`);
+const scripts = results.filter((r) => !r.id.includes('#'));
+const shardNote = scripts.length < results.length ? ` (+ ${results.length - scripts.length} prefill shards)` : '';
+console.log(`\n${tier}: ${scripts.length - failed.filter((r) => !r.id.includes('#')).length}/${scripts.length} scripts ok${shardNote}, ${tot.pass} checks passed, ${tot.fail} failed; wall ${(wall / 60).toFixed(1)} min, cpu ${(tot.cpu / 60).toFixed(1)} min, machine load ${(load * 100).toFixed(0)}% (${os.cpus().length} cores, ${workers} workers)`);
 if (tier === 'quick') console.log('quick is a smoke gate: SMOKE lines are informational; run the full tier (npm run test:full) before a merge.');
 if (failed.length) console.log(`FAILED: ${failed.map((r) => r.id).join(', ')} (logs in ${LOG_DIR})`);
 
