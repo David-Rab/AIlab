@@ -153,6 +153,9 @@ export interface DataDraw {
   uMix: number;
   /** Epochs of the most-repeated slice (tokens ÷ uMix; a slice's epochs = its drawn tokens ÷ its own tokens). */
   epochs: number;
+  /** Per domain, the epochs of its most-repeated slice (drawn tokens ÷ the slice's own tokens, D11; F6: the drawn-mix
+   *  row's readout, which divided by the domain's quality-weighted U before). */
+  epochsD: DomainMix;
   /** Drawn and effective domain shares (each sums to 1), and the specialisation s_d,data (OOM). */
   share: DomainMix;
   effShare: DomainMix;
@@ -241,10 +244,11 @@ function drawWith(p: DataPortfolio, tokens: number, target: MixTarget, opts: { w
     if (x.w > 0) maxE = Math.max(maxE, x.w / x.r);
   }
   const worth = opts.worth ?? 1;
-  if (!(W > 0) || !(tokens > 0)) return { tokens, dEff: 0, dQual: 0, dRep: 0, uMix: 0, epochs: tokens > 0 ? Infinity : 0, share: {}, effShare: {}, sD: {}, quality: 0, qRel: 0, worth, byKind: {} };
+  if (!(W > 0) || !(tokens > 0)) return { tokens, dEff: 0, dQual: 0, dRep: 0, uMix: 0, epochs: tokens > 0 ? Infinity : 0, epochsD: {}, share: {}, effShare: {}, sD: {}, quality: 0, qRel: 0, worth, byKind: {} };
   const share: DomainMix = {};
   const eff: DomainMix = {};
   const byKind: Partial<Record<DataKind, number>> = {};
+  const epochsD: DomainMix = {};
   let dRep = 0;
   let dEff = 0;
   let qSum = 0;
@@ -255,6 +259,7 @@ function drawWith(p: DataPortfolio, tokens: number, target: MixTarget, opts: { w
     // Repetition on the slice's own tokens (epochs = dx ÷ raw tokens); its quality then scales what is left (D11).
     const ex = dx <= x.r ? dx : effectiveTokens(dx, x.r);
     if (dx > x.r) repeats = true;
+    epochsD[x.d] = Math.max(epochsD[x.d] ?? 0, dx / x.r);
     share[x.d] = (share[x.d] ?? 0) + dx / tokens;
     eff[x.d] = (eff[x.d] ?? 0) + ex;
     byKind[x.kind] = (byKind[x.kind] ?? 0) + dx;
@@ -270,7 +275,7 @@ function drawWith(p: DataPortfolio, tokens: number, target: MixTarget, opts: { w
   const uMix = W / maxE;
   const quality = qSum / tokens;
   return {
-    tokens, dEff: (worth * dEff) / qRef, dQual: (worth * qSum) / qRef, dRep, uMix, epochs: tokens / uMix, share, effShare: eff, sD: specialisation(eff), quality, qRel: quality / qRef, worth, byKind,
+    tokens, dEff: (worth * dEff) / qRef, dQual: (worth * qSum) / qRef, dRep, uMix, epochs: tokens / uMix, epochsD, share, effShare: eff, sD: specialisation(eff), quality, qRel: quality / qRef, worth, byKind,
   };
 }
 
