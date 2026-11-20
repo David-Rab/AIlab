@@ -221,7 +221,8 @@ export const S5_AI = 0.2;
 export const K_S5G = 0.05;
 export const G_S5_0 = 27.3 - 0.08 / K_S5G;
 /** S6 per unit share of AI-generated (synthetic or distilled) training data [D: a distillation run, all teacher data,
- *  keeps V1's 0.3]; the base's narrow-data baseline makes the reference start base read V1's 0.1 [fit]. */
+ *  keeps V1's 0.3]. A base's S6 is this term alone (model v3 E20: no narrow-fine-tune baseline in pretraining, see
+ *  `baseSignals`); the reference start base (3.2% synthetic) reads 0.01. */
 export const S6_SYN = 0.3;
 
 /** What a base run drew: AI-related and synthetic shares of its tokens (production/data.ts drawData). */
@@ -248,13 +249,23 @@ export function referenceBaseShares(): { ai: number; syn: number } {
 }
 
 /** Base-run signals (MODEL-V3 §11.2): S5 = S5_AI·(AI-related share ÷ the reference's) + K_S5G·(G_pre − G_S5_0);
- *  S6 = S6_SYN·(synthetic share − the reference's) + 0.1. Teacher traits do not pass to a new base: a new pretraining
- *  run is a new initialisation (Cloud et al. 2025 [R20 F3]). */
+ *  S6 = S6_SYN·synthetic share. Teacher traits do not pass to a new base: a new pretraining run is a new
+ *  initialisation (Cloud et al. 2025 [R20 F3]).
+ *
+ *  Model v3 E20 (lead decision): no narrow-fine-tune baseline in a base's S6. It was S6_POST + S6_SYN·(syn − syn_ref),
+ *  i.e. 0.1 − 0.3·syn_ref = 0.09 of S6 on every base [fit: the reference start base read V1's 0.1], which drove E05
+ *  (S6 → PERSONA) at ω 1 in every pretraining step (E19: +0.15 of the lineage's PERSONA). E05 is Betley et al. 2025
+ *  [P] (arXiv 2502.17424, "Emergent Misalignment: Narrow finetuning can produce broadly misaligned LLMs"): "a model is
+ *  finetuned to output insecure code without disclosing this to the user. The resulting model acts misaligned on a
+ *  broad range of prompts"; "Training on the narrow task of writing insecure code induces broad misalignment" (6000
+ *  datapoints, one epoch on GPT-4o; base models show it too when fine-tuned on the same data, App. G). The condition
+ *  is a narrow fine-tune, which broad pretraining is not, and a base run does no refusal or format SFT (that is
+ *  S6_POST, the post runs' baseline, which keeps E05). What a base still has is AI-generated data in its mix. */
 export function baseSignals(design: BaseDesign, q: BaseQuantities): Signals {
   const sg = zeroSignals();
   const ref = referenceBaseShares();
   sg.S5 = clamp01(S5_AI * (aiDataShare(q.draw, design.curation.safetyPretrain) / ref.ai) + K_S5G * Math.max(0, q.gPre - G_S5_0));
-  sg.S6 = clamp01(S6_POST + S6_SYN * (syntheticShare(q.draw) - ref.syn));
+  sg.S6 = clamp01(S6_SYN * syntheticShare(q.draw));
   return sg;
 }
 /** A base's quantities as the player's engine builds it today (its G and the draw from today's portfolio). */
@@ -1125,7 +1136,9 @@ export function rivalTraitStep(s: GameStateV2, rng: RngLike, lab: RivalLab, kind
     const x0 = basePrior(tier);
     const sg = zeroSignals();
     sg.S5 = 0.2 + 0.1 * tier;
-    sg.S6 = 0.2;
+    // E20: a base run has no narrow fine-tunes (Betley's E05 condition); its S6 is the synthetic share of a
+    // reference-mix base (was 0.2, the post runs' value). Rival post runs keep S6 0.2.
+    sg.S6 = S6_SYN * referenceBaseShares().syn;
     m.traitsTrue = stepTraits(x0, { ...env, signals: sg, omega: 1, amp: uModeAmp(m.uModes), removalMult: uModeRemovalMult(m.uModes), crystalAt: crystalThreshold(m.uModes), bracket: { constitution: false, heavy: false, persuasion: false, cast: false } });
     return;
   }

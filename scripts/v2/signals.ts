@@ -14,7 +14,7 @@ import { suiteExploitMap, suiteRlWeights } from '../../src/engine/v2/models/suit
 import { playerDraw } from '../../src/engine/v2/production/data';
 import {
   aiDataShare, applyRunToTraits, baseSignals, deploymentS8, distillSignals, distilledStart, hackRates, OC_VIS, OMEGA_KIND, optimisationPressure, postSignals,
-  prefShare, RHO_REF, runOmega, sameBaseFamily, syntheticShare, type Signals,
+  prefShare, RHO_REF, runOmega, S6_SYN, sameBaseFamily, syntheticShare, type Signals,
 } from '../../src/engine/v2/safety/traits';
 import { TRAIT_START } from '../../src/data/v2/traits';
 import type { BaseDesign, GameStateV2, ModelVersion, OwnedDataAsset, PostDesign, TrainingRun, TraitVector } from '../../src/engine/v2/types';
@@ -35,8 +35,10 @@ const ref = postSignals(s0, post());
 check((Object.keys(V1_POST) as (keyof Signals)[]).every((k) => near(ref[k], V1_POST[k] ?? 0, 1e-9)) && ref.S8 === deploymentS8(s0),
   'reference post-train at the start reproduces V1\'s signals exactly (standard, broad on the six start suites, constitution)', fmt(ref));
 const refBase = baseSignals(REFERENCE_BASE, bq(s0, REFERENCE_BASE));
-check(near(refBase.S5, 0.28, 1e-3) && near(refBase.S6, 0.1, 1e-9),
-  'reference base at the start (B0\'s G, the start portfolio) reproduces V1\'s S5 0.28 (0.2 + 0.1 × start tier 0.8) and S6 0.1', fmt(refBase, ['S5', 'S6']));
+// E20: a base's S6 is S6_SYN × its synthetic share alone (no narrow-fine-tune baseline in pretraining: Betley 2025's
+// emergent misalignment needs a narrow fine-tune), so the reference base reads 0.3 × 3.2% ≈ 0.01, not V1's 0.1.
+check(near(refBase.S5, 0.28, 1e-3) && near(refBase.S6, S6_SYN * syntheticShare(playerDraw(s0, REFERENCE_BASE)), 1e-9) && refBase.S6 < 0.02,
+  'reference base at the start (B0\'s G, the start portfolio) reproduces V1\'s S5 0.28 (0.2 + 0.1 × start tier 0.8); S6 = S6_SYN × its synthetic share, no narrow-tune baseline (E20)', fmt(refBase, ['S5', 'S6']));
 const om = runOmega(s0, { kind: 'post', name: 'post', baseId: 'B0', flopNeeded: RL_BUDGET.standard * B0.flop });
 check(om.growth === OMEGA_KIND.post && om.safety === OMEGA_KIND.post && runOmega(s0, { kind: 'base', name: 'b', flopNeeded: 1 }).growth === 1
   && runOmega(s0, { kind: 'distill', name: 'd', flopNeeded: 1 }).growth === 0.4, 'reference ω per run kind is V1\'s (base 1, post 0.6, distill 0.4)', `post ${om.growth}`);
@@ -169,5 +171,5 @@ const now: Record<string, Partial<Signals>> = {
 };
 console.log('      post-train (V1 → E3):');
 for (const k of Object.keys(V1)) console.log(`        ${k.padEnd(19)} ${(['S1', 'S2', 'S3', 'S5', 'S7'] as (keyof Signals)[]).map((x) => `${x} ${(V1[k][x] ?? 0).toFixed(2)}→${(now[k][x] ?? 0).toFixed(2)}`).join('  ')}`);
-console.log(`      base: reference S5 0.28→${refBase.S5.toFixed(2)} S6 0.10→${refBase.S6.toFixed(2)}; synthetic-heavy S5 0.28→${sgSyn.S5.toFixed(2)} S6 0.40→${sgSyn.S6.toFixed(2)}; distill S6 0.30→${distillSignals().S6.toFixed(2)}`);
+console.log(`      base: reference S5 0.28→${refBase.S5.toFixed(2)} S6 0.10→${refBase.S6.toFixed(2)} (E20: no narrow-tune baseline);synthetic-heavy S5 0.28→${sgSyn.S5.toFixed(2)} S6 0.40→${sgSyn.S6.toFixed(2)}; distill S6 0.30→${distillSignals().S6.toFixed(2)}`);
 finish('signals');

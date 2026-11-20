@@ -104,7 +104,8 @@ export function basePressure(gPre: number, ai: number, syn: number, safetyPretra
   const gTerm = K_S5G * Math.max(0, gPre - G_S5_0);
   return [
     { id: 'S5', value: clamp01(aiTerm + gTerm), q: { ai, aiRef: ref.ai, aiTerm, gPre, g0: G_S5_0, gTerm, kG: K_S5G, safetyPretrain } },
-    { id: 'S6', value: clamp01(S6_POST + S6_SYN * (syn - ref.syn)), q: { syn, synRef: ref.syn, k: S6_SYN, narrow: S6_POST } },
+    // E20: no narrow-fine-tune baseline in pretraining (traits.ts baseSignals).
+    { id: 'S6', value: clamp01(S6_SYN * syn), q: { syn, synRef: ref.syn, k: S6_SYN } },
   ];
 }
 
@@ -137,10 +138,11 @@ const distillRows = (): PressureRow[] => [{ id: 'S6', value: S6_SYN, q: { teache
 export function storedBaseRows(b: BaseModel): PressureRow[] {
   const ref = referenceBaseShares();
   const s5 = b.signals?.S5 ?? 0;
-  const s6 = b.signals?.S6 ?? S6_POST;
+  const s6 = b.signals?.S6 ?? S6_SYN * ref.syn;
   const gTerm = K_S5G * Math.max(0, b.gPre - G_S5_0);
   const ai = Math.max(0, ((s5 - gTerm) / S5_AI) * ref.ai);
-  const syn = Math.max(0, (s6 - S6_POST) / S6_SYN + ref.syn);
+  // E20: S6 = S6_SYN·syn (a base saved before E20 stored 0.09 more, a narrow-tune baseline; its readout over-states syn).
+  const syn = Math.max(0, s6 / S6_SYN);
   const rows = basePressure(b.gPre, ai, syn, b.design.curation.safetyPretrain);
   // A base saved before signals came from run quantities (model v3 E3) has an S5 below its own scale term.
   const legacy = s5 < gTerm - 1e-6;
