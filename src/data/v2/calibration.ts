@@ -37,8 +37,12 @@ export const CAL_SHIFT: Record<WorldPresetId, number> = { ai2027: -0.463, author
  *  moved the leader's SC 1491 → 1535 at 0.242 through the shared world; SC 1498 at 0.28); the late milestones still
  *  missed (one-part recipe). Model v3 F2 part B (the recipe in three parts, design/V3-BUILD.md, F2 notes), --fit-leader: ai2027
  *  −0.029 and fast 0.025 (worst refine, every milestone in tolerance), slow 0.557, authors2026 0.154 (the SC root: its
- *  SIAR and ASI come early, worst 2.9 tolerances). */
-export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: -0.029, authors2026: 0.154, fast: 0.025, slow: 0.557, sampled: -0.029 };
+ *  SIAR and ASI come early, worst 2.9 tolerances). Model v3 M7 refit (seed 2027, after A6b's overtrained reference base
+ *  and A7/A8's market moved the leader's paths): ai2027 −0.029 → −0.063 (refine, every milestone in tolerance), fast
+ *  0.025 → 0.03 (a 0.005 scan: SC +25 d, ASI −37 d, every milestone in tolerance), slow 0.557 → 0.735 (the SC root);
+ *  authors2026 kept at 0.154: no value brings SAR, SIAR and ASI in together (the SC root 0.119 puts SAR out as well),
+ *  0.154 keeps SC and SAR in (SIAR −0.68 y, ASI −1.44 y out → F4). */
+export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: -0.063, authors2026: 0.154, fast: 0.03, slow: 0.735, sampled: -0.063 };
 
 /** Knowledge diffusion to a follower (BUILD-PLAN R9, research/18 §0.2) [D, fit]: while the frontier leader lab's PUBLIC
  *  model is ahead of the player's best model, the player's know-how gains K_DIFFUSION × the gap per year (papers, staff
