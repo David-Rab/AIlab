@@ -156,9 +156,9 @@ export function initialWorld(labIds: LabId[]): WorldEconomy {
     incidentR[d.id] = 0;
   }
   const fx: WorldFxState = {
-    // A2b: weekly AI chat reach by region (research/22 §2: ≈46% of US adults in Jul 2025; ROW × 0.85), paid shares empty
-    // (they start at their targets on the first revenue tick).
-    reach: { US: CONSUMER_MKT.reach.startUS, CN: CONSUMER_MKT.reach.startUS * CONSUMER_MKT.reach.row, ROW: CONSUMER_MKT.reach.startUS * CONSUMER_MKT.reach.row },
+    // A2b: weekly AI chat reach by region (research/22 §2: ≈46% of US adults in Jul 2025; ROW × startRow, A6b: the
+    // leader's ≈ 700M weekly users at the start), paid shares empty (they start at their targets on the first revenue tick).
+    reach: { US: CONSUMER_MKT.reach.startUS, CN: CONSUMER_MKT.reach.startUS * CONSUMER_MKT.reach.row, ROW: CONSUMER_MKT.reach.startUS * CONSUMER_MKT.reach.startRow },
     paid: { US: {}, CN: {}, ROW: {} },
     capPenalty: { consumer: 0, sector: 0 },
     youthRel,

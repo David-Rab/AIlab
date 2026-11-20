@@ -173,8 +173,13 @@ export const CONSUMER_MKT = {
    *  start model's target (consumer-chat coverage 0.14) at ≈ 0.51, the Nov 2025 level [D]. ROW at `row` × the US
    *  [D: the leader's ≈ 900M weekly users in Feb 2026 (R22 2c, ≈ 15% of world adults) at a ≈ 0.55–0.6 share of distinct
    *  users need ≈ 1.5–1.6B weekly users outside China, i.e. ROW reach ≈ 0.43 at a US 0.5]. Speed (p + q·R) per year
-   *  toward the target, p 1, q 2 (V4a's reach dynamics), and 0.2/yr down [D]. */
-  reach: { startUS: 0.46, max: 0.9, base: 0.5, row: 0.85, p: 1, q: 2, down: 0.2 },
+   *  toward the target, p 1, q 2 (V4a's reach dynamics), and 0.2/yr down [D].
+   *  ROW starts at `startRow` × the US start (A6b, P5): the leader's weekly users on the start day are ChatGPT's ≈ 700M
+   *  (Jul 2025, NBER w34255 [P, R22 2c]). `row` was derived at a 0.55–0.6 leader share; since A5 users choose by quality
+   *  alone and the start leader holds ≈ 0.76 of users, so the start market is 700M ÷ 0.76 ≈ 0.92B weekly users outside
+   *  China (ROW reach 0.25), not 1.37B [fit: the leader's day-1 users]. The target keeps `row`, so ROW grows toward it at
+   *  the reach speed (the leader ≈ 0.9B in Feb 2026, R22 2c). */
+  reach: { startUS: 0.46, startRow: 0.548, max: 0.9, base: 0.5, row: 0.85, p: 1, q: 2, down: 0.2 },
   /** Paid share. p0 + p1·a = 5.4% for the start's frontier model (coverage 0.14) at the going price [R22 2e: ChatGPT ≈
    *  5.6% of weekly users pay (50M / 900M, Feb 2026); 5–6% while list plans stayed at $20], rising to 14% at full
    *  coverage [D: more of what people want done is worth paying for]; capped at 0.5 [D]. Price relative to the going

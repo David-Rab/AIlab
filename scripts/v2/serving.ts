@@ -248,8 +248,10 @@ for (const d of [400, 900]) {
   run(s, 30);
   check(s.world.fx.reach.US < 0.95 && s.world.fx.reach.US > 0.9, 'C1 reach above its target falls slowly', s.world.fx.reach.US.toFixed(3));
   const g0 = game();
-  check(Math.abs(g0.world.fx.reach.US - CONSUMER_MKT.reach.startUS) < 1e-12 && Math.abs(g0.world.fx.reach.ROW - CONSUMER_MKT.reach.startUS * CONSUMER_MKT.reach.row) < 1e-12,
-    'C1 start reach: 46% of US adults weekly (RPS ≈ 50% non-work use in Nov 2025), ROW 0.85 × the US', `US ${g0.world.fx.reach.US}, ROW ${g0.world.fx.reach.ROW.toFixed(3)}`);
+  check(Math.abs(g0.world.fx.reach.US - CONSUMER_MKT.reach.startUS) < 1e-12 && Math.abs(g0.world.fx.reach.ROW - CONSUMER_MKT.reach.startUS * CONSUMER_MKT.reach.startRow) < 1e-12,
+    'C1 start reach: 46% of US adults weekly (RPS ≈ 50% non-work use in Nov 2025), ROW 0.548 × the US (A6b: the leader starts at ChatGPT’s ≈ 700M weekly users)', `US ${g0.world.fx.reach.US}, ROW ${g0.world.fx.reach.ROW.toFixed(3)}`);
+  const u0 = revenueReadout(g0).deps.filter((x) => x.channel === 'consumer').reduce((a, x) => a + (x.users ?? 0), 0);
+  check(u0 > 630e6 && u0 < 770e6, 'C1 the leader\'s Chat starts at ≈ 700M weekly users (ChatGPT, Jul 2025, NBER w34255; ±10%)', `${(u0 / 1e6).toFixed(0)}M`);
 }
 {
   // C2 the paid share is a stock that moves toward its target; C5 a better consumer model raises the paid share.
