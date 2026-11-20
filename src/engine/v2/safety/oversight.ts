@@ -12,8 +12,10 @@
 //                                             human review, control deferral and containment, as one readout
 import { LEVEL_KNOTS } from '../../../data/v2/calibration';
 import {
-  CONTROL_DEFER, CONTROL_GAP_FULL, ELO_PER_OOM, GREENBLATT_TM, HUMAN_REVIEW_L, MONITOR_ANCHOR, MONITOR_CATCH_BASE, OOM_PER_400_ELO,
+  CONTROL_DEFER, CONTROL_GAP_FULL, ELO_PER_OOM, GREENBLATT_TM, HUMAN_REVIEW_L, MONITOR_ANCHOR, MONITOR_CATCH_BASE, OOM_PER_400_ELO, REF_M_LEVEL,
 } from '../../../data/v2/oversight';
+import { Rng } from '../../rng';
+import { timelineFor } from '../world/hidden';
 import { gV0, levelKnotsG, levelOfG } from '../models/capability';
 import { measuredLOf } from '../models/labs';
 import type { GameStateV2, ModelVersion, TimelineWorld } from '../types';
@@ -37,6 +39,33 @@ export function oomOfLevel(w: TimelineWorld, L: number): number {
 
 /** λ: display level of a model x OOM above the start model (capped at 15). */
 export const levelOfOom = (w: TimelineWorld, x: number) => levelOfG(w, gV0(w) + x);
+
+// ── the ai2027 reference path (v2 M½ → OOM; save migration 24 → 25 and the agendas' half points) ──
+let refWorld: TimelineWorld | undefined;
+/** The ai2027 timeline world (its knots do not depend on the seed: the preset draws nothing). */
+export function refPathWorld(): TimelineWorld {
+  return (refWorld ??= timelineFor(new Rng(0), { world: 'ai2027', alignment: 'medium', baseline: 'classic' }));
+}
+let refMOom: (readonly [number, number])[] | undefined;
+/** (M, OOM above V0) at the reference knots: REF_M_LEVEL's levels through this code's λ(G) on the ai2027 world. */
+export function refMOomTable(): readonly (readonly [number, number])[] {
+  return (refMOom ??= REF_M_LEVEL.map(([M, L]) => [M, oomOfLevel(refPathWorld(), L)] as const));
+}
+/** Half-strength OOM of a v2 M½ on the reference path (log-linear in M between knots; ≥ 1e8 = never decays). */
+export function oomOfRefM(M: number): number {
+  if (M >= 1e8) return 1e9;
+  const K = refMOomTable();
+  const seg = (i: number) => {
+    const [m0, x0] = K[i];
+    const [m1, x1] = K[i + 1];
+    return x0 + ((x1 - x0) * Math.log(Math.max(1e-9, M) / m0)) / Math.log(m1 / m0);
+  };
+  if (M <= K[1][0]) return seg(0);
+  for (let i = 1; i < K.length - 1; i++) if (M <= K[i + 1][0]) return seg(i);
+  return seg(K.length - 2);
+}
+/** An agenda's half-strength point in OOM above V0 (its v2 M½ on the reference path). */
+export const agendaOHalf = (a: { mHalf: number }) => oomOfRefM(a.mHalf);
 
 /** TRUE capability of a version in OOM above V0 (from its hidden general level). Engine only. */
 export function versionOom(s: GameStateV2, v: ModelVersion | undefined): number {

@@ -38,7 +38,7 @@ export function pickWeighted<T extends { id: string; weight: number }>(rng: Rng,
 }
 
 /** Production parameters for the world (§2.3 step 2). */
-export function prodParamsFor(rng: Rng, setup: SetupV2, w: Omit<TimelineWorld, 'prod' | 'v3'>): ProdParams {
+export function prodParamsFor(rng: Rng, setup: Pick<SetupV2, 'world'>, w: Omit<TimelineWorld, 'prod' | 'v3'>): ProdParams {
   const base = { ...PROD_DEFAULT, ...(PROD_PRESETS[setup.world] ?? {}) };
   if (setup.world === 'sampled') base.La = 1 + rng.lognormal80(1, 200);
   const ces = cesFromAsymptotes(base.La, base.Ca, base.slow10);
@@ -57,11 +57,10 @@ export function noisyPosture(rng: Rng, p: SafetyPosture, noise: number): SafetyP
   return out;
 }
 
-/**
- * Sample the hidden world. `rng` must be the 'world' stream Rng; the caller stores rng.state back into s.rng.world.
- * Order (binding, §2.3): timeline, production, latents, agendas, paradigms, edges, U-modes, economy, actors, doom.
- */
-export function sampleHidden(rng: Rng, setup: SetupV2): HiddenWorld {
+/** Steps 1–2 of sampleHidden: the timeline world with its production parameters and the per-preset work-type
+ *  calibration (no hidden draws beyond the v1 world's). Also builds the fixed ai2027 reference path the oversight
+ *  conversion is derived from (safety/oversight.ts refPathWorld, model v3 M7). */
+export function timelineFor(rng: Rng, setup: Pick<SetupV2, 'world' | 'alignment' | 'baseline'>): TimelineWorld {
   // 1. Timeline world (unchanged audited presets; also draws v1 alignDifficulty and doomThreshold — step 10).
   const w1 = makeWorld(rng, setup.world, setup.alignment, setup.baseline);
   const tl0 = { ...w1, calShift: CAL_SHIFT[setup.world] };
@@ -71,6 +70,16 @@ export function sampleHidden(rng: Rng, setup: SetupV2): HiddenWorld {
   // Model v3 V3b: the display bridge's shift is derived so v2's pm thresholds line up with the work-type levels
   // (models/capability.ts alignedCalShift). Rivals do not read it since model v3 F1.
   timeline.calShift = alignedCalShift(timeline);
+  return timeline;
+}
+
+/**
+ * Sample the hidden world. `rng` must be the 'world' stream Rng; the caller stores rng.state back into s.rng.world.
+ * Order (binding, §2.3): timeline, production, latents, agendas, paradigms, edges, U-modes, economy, actors, doom.
+ */
+export function sampleHidden(rng: Rng, setup: SetupV2): HiddenWorld {
+  // 1–2. Timeline world and production parameters.
+  const timeline = timelineFor(rng, setup);
 
   // 3. Safety latents λ1–λ6 ~ N(0,1), shifted by the alignment preset.
   const latents = {} as SafetyLatents;

@@ -4,7 +4,7 @@
 // review, the save migration's equivalence, and a lint: no safety module reads M.
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { ENGELS_400, MONITOR_CATCH_BASE, OOM_PER_400_ELO, oomOfRefM } from '../../src/data/v2/oversight';
+import { ENGELS_400, MONITOR_CATCH_BASE, OOM_PER_400_ELO } from '../../src/data/v2/oversight';
 import { LEVEL_KNOTS } from '../../src/data/v2/calibration';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { labourOf, resetSafetyLabour, resetWorkContext } from '../../src/engine/v2/departments/workfit';
@@ -13,7 +13,7 @@ import { gV0, levelOfG } from '../../src/engine/v2/models/capability';
 import { catchRate } from '../../src/engine/v2/models/products';
 import { catchOf, internalOversight } from '../../src/engine/v2/safety/incidents';
 import {
-  controlProtocol, gapFactor, humanReviewFactor, levelOfOom, monitorCatchAt, oomOfLevel, oversightGap, useControl,
+  controlProtocol, gapFactor, humanReviewFactor, levelOfOom, monitorCatchAt, oomOfLevel, oomOfRefM, oversightGap, useControl,
 } from '../../src/engine/v2/safety/oversight';
 import { decayAt, decayOom, strengthTrue } from '../../src/engine/v2/safety/techniques';
 import { understanding } from '../../src/engine/v2/safety/understanding';

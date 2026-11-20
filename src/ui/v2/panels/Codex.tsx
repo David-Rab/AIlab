@@ -14,7 +14,7 @@ import { WORLD_TECHS } from '../../../data/v2/techs';
 import { TRAITS_V2 } from '../../../data/v2/traits';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
 import { LIMITS } from '../../../data/v2/limits';
-import { ACTION_DEFS, EVENT_DEFS } from '../../../engine/v2';
+import { ACTION_DEFS, EVENT_DEFS, agendaOHalf } from '../../../engine/v2';
 import { CoreLoop } from './CoreLoop';
 import type { GameStateV2 } from '../../../engine/v2';
 import { store, useV2 } from '../store';
@@ -38,7 +38,7 @@ export function codexEntries(s: GameStateV2): CodexEntry[] {
   out.push({ id: 's:verbs', cat: 'Structure', title: 'One verb set', src: 'design/STRUCTURE.md R2', body: 'Every action in the game is one of seven verbs, and every action and engine system belongs to one system of the loop. Hover an action button for its live cost, gain and exposure.', rows: verbRows });
   for (const l of LIMITS) out.push({ id: `lim:${l.id}`, cat: 'Limits', title: l.title, body: l.rule, src: l.source, design: D(l.source), rows: [['Shown on', l.home.panel === 'codex' ? 'this codex (an internal rule)' : `${l.home.panel}${l.home.tab ? ' › ' + l.home.tab : ''}`], ['Enforced in', l.engine]] });
   for (const [id, g] of Object.entries(GLOSSARY_V2)) out.push({ id: `g:${id}`, cat: 'Glossary', title: g.title, body: g.body, src: g.src, design: D(g.src) });
-  for (const a of AGENDAS) out.push({ id: `ag:${a.id}`, cat: 'Agendas', title: `${a.id} ${a.name}`, body: `Tool family ${a.family}; covers ${a.coverage.join(', ') || '—'}. First result ≈ ${a.T1} months at serious staffing (science teams worth 4 team-capacity). Whether it works in this world is hidden: watch the line's health.`, src: 'research/14 §1.2', design: true, rows: [['Compute share', `${(a.computeRange[0] * 100).toFixed(1)}–${(a.computeRange[1] * 100).toFixed(1)}%`], ['Goodhart G', a.G.toFixed(2)], ['Half strength', a.oHalf >= 1e8 ? 'never' : a.id === 'AG05' ? 'overseer gap' : `${a.oHalf.toFixed(1)} OOM above the 2025 model`]] });
+  for (const a of AGENDAS) out.push({ id: `ag:${a.id}`, cat: 'Agendas', title: `${a.id} ${a.name}`, body: `Tool family ${a.family}; covers ${a.coverage.join(', ') || '—'}. First result ≈ ${a.T1} months at serious staffing (science teams worth 4 team-capacity). Whether it works in this world is hidden: watch the line's health.`, src: 'research/14 §1.2', design: true, rows: [['Compute share', `${(a.computeRange[0] * 100).toFixed(1)}–${(a.computeRange[1] * 100).toFixed(1)}%`], ['Goodhart G', a.G.toFixed(2)], ['Half strength', a.mHalf >= 1e8 ? 'never' : a.id === 'AG05' ? 'overseer gap' : `${agendaOHalf(a).toFixed(1)} OOM above the 2025 model`]] });
   for (const f of FINDINGS) out.push({ id: `f:${f.id}`, cat: 'Findings', title: `${f.id} ${f.title}`, body: `Type ${f.type} · agenda ${f.agenda}.`, src: f.source, design: D(f.source) });
   for (const t of TRAITS_V2) out.push({ id: `t:${t.id}`, cat: 'Traits', title: `${t.id} ${t.name}`, body: t.desc, src: `research/04 ${t.r04}`, rows: [['Layer', t.layer], ['Protective', t.protective ? 'yes' : 'no'], ['Scales with difficulty', t.difficulty ? 'yes' : 'no']] });
   for (const e of EDGES) out.push({ id: `e:${e.id}`, cat: 'Trait edges', title: `${e.id} ${e.from.join(' + ')} → ${e.to}`, body: `Prior mean weight ${e.wBar}, evidence grade ${e.grade}.${e.moderator ? ` Moderator: ${e.moderator}.` : ''}`, src: e.cite, design: e.grade === 'C' || e.grade === 'D' });

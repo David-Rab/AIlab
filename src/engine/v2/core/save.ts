@@ -2,7 +2,7 @@
 import { ensureWs3 } from '../finance/ext';
 import { keyOf, staffOf, teamsFromStaff } from '../departments/teams';
 import type { AgendaId, GameStateV2, OwnedDataAsset, PlayerLab, StaffByRole, TechniqueState, TeamHiring } from '../types';
-import { oomOfRefM } from '../../../data/v2/oversight';
+import { oomOfRefM } from '../safety/oversight';
 import { hash32 } from './rng';
 import { initialResearch, initialTree, nextLineProject } from '../models/tree';
 import { LEADER_FEATURES, PRICE_TIERS, tierOfIndex } from '../../../data/v2/features';

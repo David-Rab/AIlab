@@ -47,28 +47,18 @@ export const HUMAN_REVIEW_L = 10;
 /** Technique decay with capability above the level a tool was validated on (MODEL-V3 §11.5): strength factor
  *  D(x) = 1 / (1 + 10^(k·κ·(x − x½))), x = the overseen model's OOM above the start model V0, x½ the tool's
  *  half-strength point (state `oHalf`, raised by tool upkeep). κ = 0.27 = the mean slope of log10 M per OOM on the
- *  ai2027 reference path from V0 (M 1.46) to ASI (M 2000, 11.64 OOM later), so v2's 1/(1 + (M/M½)^k) and this one
- *  have the same half points on that path and the same mean slope [D: equivalence, no jump in the safety
- *  calibration]. */
+ *  ai2027 reference path from V0 (M 1.46) to ASI (M 2000, 11.64 OOM later at E6; 11.56 since A6b, slope 0.271), so
+ *  v2's 1/(1 + (M/M½)^k) and this one have the same half points on that path and the same mean slope [D: equivalence,
+ *  no jump in the safety calibration]. */
 export const DECAY_KAPPA = 0.27;
 /** OOM of headroom one v2 "M½ doubling" of tool upkeep or one ×0.5 negative result was worth: log10(2)/κ. */
 export const OOM_PER_HALVING = Math.log10(2) / DECAY_KAPPA;
-/** Reference path used to convert v2 M½ values (save migration 24 → 25) and the agendas' data: (M, OOM above V0) on the
- *  ai2027 reference (V0, SC, SAR, SIAR, ASI knots of λ(G)); log-linear in M between knots. */
-export const REF_M_OOM: readonly (readonly [number, number])[] = [[1.46, 0], [5, 2.532], [25, 4.376], [250, 8.776], [2000, 11.636]];
-/** Half-strength OOM of a v2 M½ on the reference path (save migration and data derivation only). */
-export function oomOfRefM(M: number): number {
-  if (M >= 1e8) return 1e9;
-  const K = REF_M_OOM;
-  const seg = (i: number) => {
-    const [m0, x0] = K[i];
-    const [m1, x1] = K[i + 1];
-    return x0 + ((x1 - x0) * Math.log(Math.max(1e-9, M) / m0)) / Math.log(m1 / m0);
-  };
-  if (M <= K[1][0]) return seg(0);
-  for (let i = 1; i < K.length - 1; i++) if (M <= K[i + 1][0]) return seg(i);
-  return seg(K.length - 2);
-}
+/** Reference path used to convert v2 M½ values (save migration 24 → 25) and the agendas' half points: v2's research
+ *  multiplier M at the display-level knots of λ(G) (V0 L 5, SC 10, SAR 12, SIAR 13.5, ASI 15) on the ai2027 reference;
+ *  log-linear in M between knots. Each knot's OOM above V0 is derived in code from the ai2027 world's knots
+ *  (safety/oversight.ts oomOfRefM). Model v3 M7: this replaced a hard-coded OOM column (0 / 2.532 / 4.376 / 8.776 /
+ *  11.636) that went stale when A6b moved G_V0 and the ai2027 G_SC (now 0 / 2.452 / 4.296 / 8.696 / 11.556). */
+export const REF_M_LEVEL: readonly (readonly [number, number])[] = [[1.46, 5], [5, 10], [25, 12], [250, 13.5], [2000, 15]];
 
 /** Control protocols at deployment (MODEL-V3 §11.6, research/20 F4): Greenblatt et al. 2023 [P] trusted monitoring with
  *  defer-to-trusted, usefulness and safety by the deferral share d (GPT-4 untrusted, GPT-3.5 trusted, 2% audit). */

@@ -14,6 +14,7 @@ import { cadencesDue, decimalYear } from '../../src/engine/v2/core/time';
 import { LEADER_LAB_NAME } from '../../src/data/v2/names';
 import { postureOf } from '../../src/engine/v2/actors/rivals';
 import { gV0, playerStart } from '../../src/engine/v2/models/capability';
+import { oomOfRefM } from '../../src/engine/v2/safety/oversight';
 import { postG, recipeOf } from '../../src/engine/v2/actors/rivalModel';
 import { stacksGEquiv } from '../../src/engine/v2/models/stacks';
 import { B_G_PER_Y } from '../../src/data/v2/runDesign';
@@ -429,7 +430,7 @@ for (const rev of [1, 11, 12, 13, 14]) {
 }
 
 // Model v3 E6 (schemaRev 25): a D2 save (24) migrates: each technique's M½ becomes its half-strength point in OOM above
-// the start model where v2's decay halved on the ai2027 reference path (M½ 25 → 4.38, 50 → 5.70, 250 → 8.78).
+// the start model where v2's decay halved on the ai2027 reference path (oomOfRefM, from the knots since M7: M½ 25 → 4.30, 50 → 5.62, 250 → 8.70).
 {
   const old = JSON.parse(serialize(run(detSetup, 30))) as GameStateV2 & Record<string, unknown>;
   old.schemaRev = 24;
@@ -446,7 +447,7 @@ for (const rev of [1, 11, 12, 13, 14]) {
   }
   const T = g?.player.safety.techniques;
   const ok = !!T && Object.values(T).every((t) => typeof t.oHalf === 'number' && !('mHalf' in t))
-    && Math.abs(T['T-PROP'].oHalf - (4.376 + 4.4 * Math.log10(2))) < 1e-9 && Math.abs(T['T-PROBE'].oHalf - 8.776) < 1e-9;
+    && Math.abs(T['T-PROP'].oHalf - oomOfRefM(50)) < 1e-9 && Math.abs(T['T-PROBE'].oHalf - oomOfRefM(250)) < 1e-9;
   check(ok, 'save: a schemaRev-24 save migrates to 25 (M½ → the same half point in OOM)', msg || (T ? `T-PROP ${T['T-PROP'].oHalf.toFixed(3)}, T-PROBE ${T['T-PROBE'].oHalf.toFixed(3)}` : ''));
 }
 // Model v3 D7 (schemaRev 26, built as 25 before M4): an E6 save (25) migrates (no eval suites queued, 'evals' joins the
