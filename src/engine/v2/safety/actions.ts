@@ -15,6 +15,7 @@ import { patchFte } from './responses';
 import { RESPONSE_INFO, applyResponse, responseTrait } from './responses';
 import { strengthBelieved, techniqueRole } from './techniques';
 import { believedPenalty, combineTools } from './detection';
+import { removalPreview } from './footholdDetection';
 
 type P = Record<string, number | string | boolean>;
 type Preview = { costs: CostLine[]; gains: CostLine[]; exposure: CostLine[] };
@@ -106,7 +107,8 @@ const CLOSE_CASE: ActionDef = {
 
 const RESPONSE_KINDS = Object.keys(RESPONSE_INFO) as ResponseKind[];
 
-function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | undefined, incidentId: string | undefined): Preview {
+function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | undefined, incidentId: string | undefined, footholdId?: string): Preview {
+  if (kind === 'removeFoothold') return removalPreview(s, footholdId);
   const v = versionById(s, versionId) ?? internalVersion(s);
   const inc = incidentId ? s.player.safety.incidents.find((i) => i.id === incidentId) : undefined;
   const trait = v ? responseTrait(v, inc) : 'SCHEME';
@@ -163,14 +165,14 @@ const RESPOND: ActionDef = {
   available: (s) => s.player.models.versions.length > 0 || 'No models',
   preview(s, p) {
     const kind = (str(p, 'kind') as ResponseKind) ?? 'patchSignal';
-    return respondPreview(s, RESPONSE_KINDS.includes(kind) ? kind : 'patchSignal', str(p, 'versionId'), str(p, 'incidentId'));
+    return respondPreview(s, RESPONSE_KINDS.includes(kind) ? kind : 'patchSignal', str(p, 'versionId'), str(p, 'incidentId'), str(p, 'footholdId'));
   },
   apply(s, ctx, p) {
     const kind = str(p, 'kind') as ResponseKind;
     if (!RESPONSE_KINDS.includes(kind)) return void ctx.log('alert', 'Respond: pick a response.');
     const inc = str(p, 'incidentId') ? s.player.safety.incidents.find((i) => i.id === str(p, 'incidentId')) : undefined;
     const versionId = str(p, 'versionId') ?? inc?.versionId ?? s.player.agents.capRoutine.versionId ?? '';
-    const err = applyResponse(s, ctx, kind, versionId, inc?.id, { trait: isTrait(str(p, 'trait')) ? (str(p, 'trait') as TraitId) : undefined, techniqueId: str(p, 'techniqueId') });
+    const err = applyResponse(s, ctx, kind, versionId, inc?.id, { trait: isTrait(str(p, 'trait')) ? (str(p, 'trait') as TraitId) : undefined, techniqueId: str(p, 'techniqueId'), footholdId: str(p, 'footholdId') });
     if (err) ctx.log('alert', `${RESPONSE_INFO[kind].title}: ${err}.`, 1);
   },
 };

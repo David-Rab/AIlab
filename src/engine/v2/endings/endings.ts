@@ -8,6 +8,7 @@ import { defenceIndex } from '../worldfx/readouts';
 import type { EndingV2, EngineSystem, GameStateV2, LabId, PowerOutcome, RivalLab, SystemCtx } from '../types';
 import { labOf, leadBetween } from '../actors/rivals';
 import { ws4 } from '../actors/state';
+import { escapeResolved } from '../safety/footholds';
 import { alignedPower, leadingCompetitor, pMisOf, resolveAsi, runEpilogue } from './epilogue';
 import { scoreEnding, verdictOf } from './scoring';
 
@@ -95,12 +96,14 @@ export const endingsSystem: EngineSystem = {
       const hunt = s.flags['ws4:hunt'];
       if (hunt && rng.chance(hunt === 'quiet' ? 0.004 : 0.01 * Math.max(0.5, s.player.security.wsl - 2))) {
         delete w.loose;
+        escapeResolved(s, day, 'captured');
         ctx.log('alert', 'The escaped copy was found and shut down.', 4);
       } else if (day - w.loose.day >= 90) {
         if (bestLg(s, 'player') >= LEVEL_KNOTS[4]) {
           if (rng.chance(sigmoid((w.loose.mis - s.hidden.doomThreshold) / 0.06))) return endGame(s, ctx, 'rogue', 'none');
         }
         delete w.loose;
+        escapeResolved(s, day, 'quiet');
         ctx.log('alert', 'The escaped copy went quiet. Nobody knows where it is.', 3);
       }
     }

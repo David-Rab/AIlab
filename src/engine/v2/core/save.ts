@@ -16,6 +16,7 @@ import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { PROJECT_BY_ID, isLineNode } from '../../../data/v2/tree';
 import { safFromProgress } from '../safety/lineProjects';
 import { START_SUITE_FAMILIES, startExpertAssets, suitesFromV1 } from '../models/suites';
+import { footholdsFromV25 } from '../safety/footholds';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
 /** 12 (model v3 V1): models are built from physical quantities (BaseModel, VersionBuild, BaseDesign, PostDesign changed).
@@ -51,8 +52,12 @@ import { START_SUITE_FAMILIES, startExpertAssets, suitesFromV1 } from '../models
  *  (D5 and D2 were built as 21 → 22 → 23 beside E1's 21 → 22; merge M2 made the chain linear.)
  *  25 (model v3 E6): TechniqueState.oHalf (half-strength point in OOM of effective compute above the start model)
  *  replaces mHalf (in research-speed multiplier M). Migration 24 → 25 converts each tool's M½ on the ai2027 reference
- *  path (oomOfRefM: the same point v2's decay halved at). */
-export const SCHEMA_REV = 25;
+ *  path (oomOfRefM: the same point v2's decay halved at).
+ *  26 (model v3 E8): SafetyDept.footholds (hidden AI assets left by uncaught covert acts and escapes) replace E7's
+ *  `ws2.covert.<act>.n | sev` flag records. Migration 25 → 26 (footholdsFromV25) turns each record into one foothold
+ *  (hidden; maker = the routine research model; hidden compute sized from its severity on today's agent pool), each
+ *  live false-validated tool into a corrupted-tool foothold and a loose copy into a located exfiltrated copy. */
+export const SCHEMA_REV = 26;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -311,6 +316,11 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       if (t.oHalf === undefined) t.oHalf = oomOfRefM(t.mHalf ?? 25);
       delete t.mHalf;
     }
+  },
+  /** 25 → 26 (model v3 E8): footholds from E7's hidden flag records, live false-validated tools and a loose copy. */
+  25: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    if (!s.player.safety.footholds) s.player.safety.footholds = footholdsFromV25(s);
   },
 };
 

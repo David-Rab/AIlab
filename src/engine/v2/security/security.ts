@@ -5,6 +5,7 @@ import { bestPlayerVersion, activeRivals, CHINA_ID } from '../models/labs';
 import { exfiltrationHazard } from '../safety/incidents';
 import { distillationLeak } from '../models/deployments';
 import { misalignment } from '../safety/traits';
+import { footholdFromEscape } from '../safety/footholds';
 import type { EngineSystem, GameStateV2, SecurityState, StaffByRole } from '../types';
 import { leadBetween, openWeightsReleased, postureOf } from '../actors/rivals';
 import { request, ws4 } from '../actors/state';
@@ -105,6 +106,7 @@ export const securitySystem: EngineSystem = {
         const v = bestPlayerVersion(s);
         if (v) {
           w.loose = { day: ctx.day, versionId: v.id, mis: misalignment(v.traitsTrue, v.uModes) };
+          footholdFromEscape(s, ctx.day, v); // model v3 E8: the copy is a foothold outside the lab (located: the alert)
           ctx.log('alert', `A copy of ${v.name} has escaped your servers.`, 5, v.id);
           request(s, 'E25', { versionId: v.id });
         }

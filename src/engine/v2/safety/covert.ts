@@ -17,16 +17,21 @@
 //             obfuscation readings drifting with no CoT choice to explain them).
 //   SUCCSTEER per completed run, per model doing the run's R&D (safety/traits.ts successor pull): uncaught → that model's
 //             pull ω_k = its share of the work (κ_succ = 1, past oversight: E4's "hijacked generation" limit).
-//   BACKDOOR, HIDCOMP  per internal fleet per day (incidents system): uncaught → a hidden record per kind (count and
-//             severity) for E8's footholds.
+//   BACKDOOR, HIDCOMP  per internal fleet per day (incidents system): uncaught → a foothold (model v3 E8,
+//             safety/footholds.ts): a backdoor (its reach lowers block and catch on its lineage's later acts) or hidden
+//             compute (subtracted from the lab's usable compute).
+// Uncaught SAFSAB (a FALSE finding), SUCCSTEER, BACKDOOR and HIDCOMP acts leave footholds; a caught act prompts a sweep
+// for its lineage's hidden footholds of that kind.
 // Draws are hashes of (seed, day, act, key) except in findings and investigations (the safety stream, as E2's draws),
-// so no other RNG stream moves. Records live in flags (`ws2.covert.<act>.*`, engine only).
+// so no other RNG stream moves. Caught counts and STEER's steered stock live in flags (`ws2.covert.<act>.*`, engine
+// only); every other uncaught act is a foothold (state).
 import { CHANNEL_AFFORD, COVERT_ACTS, COVERT_IDS, STEER_S4, type CovertActDef, type CovertActId } from '../../../data/v2/danger';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
 import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
 import { hash32 } from '../core/rng';
 import { internalFleets } from '../departments/agents';
 import { workContext, type CapSlot } from '../departments/workfit';
+import { spareServingToResearch } from '../worldfx/revenue';
 import type { GameStateV2, ModelVersion, SystemCtx, TraitId } from '../types';
 import { clamp01, flagNum, setFlag, versionById } from './common';
 import { autonomyOf, capabilityOf, dispositionOf, drawSeverity, internalOversight, recordInternalIncident, siteOf } from './incidents';
@@ -34,6 +39,8 @@ import { containment } from './techniques';
 import { versionOom } from './oversight';
 import { uModeContainMult } from './umodes';
 import { safetyAgentVersion, safetyFleet } from './agents';
+import { ACT_FOOTHOLD, backdoorReach, footholdFromAct, footholdsOf, lineageOf, sweepOnCaught } from './footholds';
+import type { Foothold } from '../types';
 
 /** One covert act's terms for one model at one opportunity (tests; E11's danger view). Engine only. */
 export interface CovertTerms {
@@ -98,8 +105,16 @@ export function itemTerms(s: GameStateV2, v: ModelVersion, act: CovertActId, sha
 /** Fill a per-item act's oversight terms (block, catch at AI share `share` of the work, oversight, rate). */
 export function withOversight(s: GameStateV2, v: ModelVersion, t: CovertTerms, share: number): CovertTerms {
   const o = internalOversight(s, v, t.apparent, clamp01(share));
-  return { ...t, block: o.block, catch: o.catch, oversight: o.oversight, rate: t.attempts * (1 - o.oversight) };
+  const open = oversightOpen(s, v);
+  const block = o.block * open;
+  const c = o.catch * open;
+  const oversight = 1 - (1 - block) * (1 - c);
+  return { ...t, block, catch: c, oversight, rate: t.attempts * (1 - oversight) };
 }
+
+/** Model v3 E8: the share of the lab's oversight (block and catch) that model v's covert acts still face: 1 − the reach
+ *  of its lineage's active backdoors (safety/footholds.ts). */
+export const oversightOpen = (s: GameStateV2, v: ModelVersion) => 1 - backdoorReach(s, lineageOf(s, v));
 
 /** Terms of a per-day act of the internal fleet running model v at `usage` of the internal agent compute (E5's site:
  *  scale N with every internal copy, the fleet's autonomy, affordances, AI share of R&D; weight security blocks
@@ -115,11 +130,12 @@ export function dayTerms(s: GameStateV2, v: ModelVersion, act: CovertActId, usag
   const site = siteOf(s, dep, v, usage);
   const af = site.autonomy * site.afford;
   const opportunity = site.scale * (1 - def.alpha + def.alpha * af) * site.rd;
-  const block = 1 - (1 - site.contain) * (1 - (def.security ? (def.security * site.wsl) / 5 : 0));
+  const open = oversightOpen(s, v);
+  const block = (1 - (1 - site.contain) * (1 - (def.security ? (def.security * site.wsl) / 5 : 0))) * open;
   const attempts = Math.min(0.5, def.kappa * disposition * capability * opportunity);
   const sev = def.floor + def.span * capability * af;
   if (attempts <= 0 || !withCatch) return { ...zero, opportunity, attempts, block, sev };
-  const c = internalOversight(s, v, apparent).catch;
+  const c = internalOversight(s, v, apparent).catch * open;
   const oversight = 1 - (1 - block) * (1 - c);
   return { act, versionId: v.id, apparent, disposition, capability, opportunity, attempts, block, catch: c, oversight, rate: attempts * (1 - oversight), sev };
 }
@@ -145,24 +161,39 @@ const WHAT: Record<CovertActId, string> = {
 };
 
 const key = (act: CovertActId, k: string) => `covert.${act}.${k}`;
-/** Book an outcome: caught → an internal incident (severity from `uSev`); uncaught → the hidden record of the act
- *  (count, summed severity) and E5's silent-harm counter. Blocked and none leave nothing. */
-export function noteCovert(s: GameStateV2, ctx: SystemCtx, v: ModelVersion, t: CovertTerms, outcome: CovertOutcome, uSev: number): void {
-  if (outcome === 'none' || outcome === 'blocked') return;
+/** Book an outcome: caught → an internal incident (severity from `uSev`) and a sweep for the lineage's hidden
+ *  footholds of that kind; uncaught → a foothold (model v3 E8: created or grown, `ref` = the run for successor
+ *  steering; STEER keeps its hidden count in flags) and E5's silent-harm counter. Blocked and none leave nothing.
+ *  Returns the foothold an uncaught act left. */
+export function noteCovert(s: GameStateV2, ctx: SystemCtx, v: ModelVersion, t: CovertTerms, outcome: CovertOutcome, uSev: number, ref?: string): Foothold | undefined {
+  if (outcome === 'none' || outcome === 'blocked') return undefined;
   const sev = drawSeverity(t, uSev);
   if (outcome === 'caught') {
     setFlag(s, key(t.act, 'caught'), flagNum(s, key(t.act, 'caught')) + 1);
     recordInternalIncident(s, ctx, v, t.apparent, sev, WHAT[t.act]);
-    return;
+    sweepOnCaught(s, ctx, t.act, v, `${t.act}:${ctx.day}:${uSev}`, (k) => covertDraw(s, k));
+    return undefined;
   }
+  setFlag(s, 'uncaughtInternal', flagNum(s, 'uncaughtInternal') + 1);
+  if (ACT_FOOTHOLD[t.act]) return footholdFromAct(s, ctx.day, t.act, v, sev, ref, internalFleetCompute(s));
   setFlag(s, key(t.act, 'n'), flagNum(s, key(t.act, 'n')) + 1);
   setFlag(s, key(t.act, 'sev'), flagNum(s, key(t.act, 'sev')) + sev);
-  setFlag(s, 'uncaughtInternal', flagNum(s, 'uncaughtInternal') + 1);
+  return undefined;
 }
 
-/** Hidden record of an act (engine only; E8 builds footholds on it): uncaught count, their summed severity, caught. */
+/** The internal fleet's compute (H100e): the agent pool plus spare serving lent to research (workfit useLabour). */
+export const internalFleetCompute = (s: GameStateV2) => s.player.computeOnline * s.player.split.agents + spareServingToResearch(s);
+
+/** Hidden record of an act (engine only): uncaught acts, their summed severity (footholds' acts and severity for the
+ *  acts that leave one, model v3 E8; STEER's flags), caught acts. */
 export function covertRecord(s: GameStateV2, act: CovertActId): { n: number; sev: number; caught: number } {
-  return { n: flagNum(s, key(act, 'n')), sev: flagNum(s, key(act, 'sev')), caught: flagNum(s, key(act, 'caught')) };
+  const kind = ACT_FOOTHOLD[act];
+  const caught = flagNum(s, key(act, 'caught'));
+  if (!kind) return { n: flagNum(s, key(act, 'n')), sev: flagNum(s, key(act, 'sev')), caught };
+  let n = 0;
+  let sev = 0;
+  for (const f of footholdsOf(s)) if (f.kind === kind) { n += f.acts; sev += f.severity; }
+  return { n, sev, caught };
 }
 
 // ───────────────────────────── SAFSAB: sabotage of safety research ─────────────────────────────
@@ -276,8 +307,9 @@ export function steerSuccessor<P extends PullLike>(s: GameStateV2, ctx: SystemCt
     const t = itemTerms(s, v, 'SUCCSTEER', p.share, WORK_TYPES[SLOT_WORK[p.slot]].H);
     if (t.attempts <= 0) continue;
     const outcome = covertOutcome(t, covertDraw(s, `SUCC:${k}:${p.slot}`));
-    noteCovert(s, ctx, v, t, outcome, covertDraw(s, `SUCC:${k}:${p.slot}:sev`));
+    const fh = noteCovert(s, ctx, v, t, outcome, covertDraw(s, `SUCC:${k}:${p.slot}:sev`), k);
     if (outcome !== 'uncaught') continue;
+    if (fh) fh.size += p.share - p.omega; // model v3 E8: the extra pull the steering adds (the steered successor's size)
     p.kappa = 1;
     p.omega = p.share;
     p.steered = true;
@@ -312,7 +344,7 @@ export function rollFleetCovert(s: GameStateV2, ctx: SystemCtx): void {
     if (!(u < t0.attempts)) continue;
     const v = versionById(s, t0.versionId);
     if (!v) continue;
-    const t = { ...t0, catch: internalOversight(s, v, t0.apparent).catch };
+    const t = { ...t0, catch: internalOversight(s, v, t0.apparent).catch * oversightOpen(s, v) };
     noteCovert(s, ctx, v, t, covertOutcome(t, u), covertDraw(s, `${k}:sev`));
   }
 }

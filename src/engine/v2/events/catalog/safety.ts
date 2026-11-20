@@ -14,6 +14,7 @@ import { pLeak } from '../../actors/public';
 import { addCoverup } from '../../actors/relations';
 import { discoveryOdds } from '../../actors/researchBodies';
 import { ws4 } from '../../actors/state';
+import { escapeResolved } from '../../safety/footholds';
 import { L, P, ch, ev, pv, requestOnly } from '../kit';
 import { boardSpeedAppetite } from '../../finance/board';
 
@@ -160,13 +161,17 @@ export const SAFETY_EVENTS: EventDefV2[] = [
         ctx.bump('world.dow', -s.world.dow * 0.03, 'E25 shutdown');
         if (ctx.rng('events').chance(clamp(0.5 + 0.1 * (s.player.security.wsl - 3), 0.2, 0.9))) {
           delete ws4(s).loose;
+          escapeResolved(s, ctx.day, 'captured');
           ctx.log('alert', 'The escaped copy was found and shut down.', 4);
         }
       }),
       ch('Hunt quietly', ['quiet', 'secrecy'], (s) => ({ costs: [L('trust', 8, 'if found out', { probability: discoveryOdds(s) })], gains: [L('scrutiny', 0)], exposure: [L('alignment', -0.3, 'recapture odds lower')] }), (s, ctx) => {
         s.flags['ws4:hunt'] = 'quiet';
         addCoverup(s, 'an escaped model copy', discoveryOdds(s) + 0.2, [...ALL_PUBLIC_CPS], 120);
-        if (ctx.rng('events').chance(clamp(0.25 + 0.1 * (s.player.security.wsl - 3), 0.05, 0.7))) delete ws4(s).loose;
+        if (ctx.rng('events').chance(clamp(0.25 + 0.1 * (s.player.security.wsl - 3), 0.05, 0.7))) {
+          delete ws4(s).loose;
+          escapeResolved(s, ctx.day, 'captured');
+        }
       }),
       ch('Disclose', ['disclose', 'safety'], P([L('approval', 10), L('cash', 1, 'markets panic')], [L('credibility', 5), L('alignment', 0.5, 'the world hunts with you')]), (s, ctx) => {
         s.flags['ws4:hunt'] = 'public';
@@ -177,7 +182,10 @@ export const SAFETY_EVENTS: EventDefV2[] = [
         ctx.bump('world.dow', -s.world.dow * 0.08, 'E25 panic');
         ws4(s).disclosed++;
         ws4(s).misalignmentLeak = true;
-        if (ctx.rng('events').chance(0.5)) delete ws4(s).loose;
+        if (ctx.rng('events').chance(0.5)) {
+          delete ws4(s).loose;
+          escapeResolved(s, ctx.day, 'captured');
+        }
       }),
     ],
   }),

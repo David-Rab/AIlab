@@ -22,6 +22,7 @@ import { SD_MAX, eaCoef, eaSuppression, stackDetectionMap, takesEaPenalty } from
 import { techniqueRole } from './techniques';
 import { aiRdShare, internalOversight } from './incidents';
 import { steerS4, steerSuccessor } from './covert';
+import { linkSteeredSuccessor } from './footholds';
 import { routineMonitor } from '../departments/agents';
 import { workContext, type CapSlot } from '../departments/workfit';
 import { crystalMult, crystalThreshold, drawLineageUModesV2, uModeAmp, uModeEdgeMult, uModeRemovalMult } from './umodes';
@@ -713,6 +714,17 @@ export function runPull(s: GameStateV2, ctx: SystemCtx, run: Pick<TrainingRun, '
   return steerSuccessor(s, ctx, successorPull(s), run.id);
 }
 
+/** The starting dispositions of the model a completing run makes (`target`: the new version, or the base of a base or
+ *  continue run): x₀ pulled by runPull. Model v3 E8: when successor steering got through, the steered part of the pull
+ *  (the result minus E4's pull alone) is the steered-successor foothold's `delta`, linked to the target. */
+export function pulledTraits(s: GameStateV2, ctx: SystemCtx, run: Pick<TrainingRun, 'id'>, x0: TraitVector, target: string): TraitVector {
+  const p0 = successorPull(s);
+  const p = steerSuccessor(s, ctx, p0, run.id);
+  const x = applySuccessorPull(s, x0, p);
+  if (p !== p0) linkSteeredSuccessor(s, run.id, target, x, applySuccessorPull(s, x0, p0), SUCCESSOR_TRAITS);
+  return x;
+}
+
 /** Pull x₀ (the new model's starting dispositions) toward the AI fleet doing the lab's R&D (successorPull). */
 export function applySuccessorPull(s: GameStateV2, x0: TraitVector, pull: SuccessorPull = successorPull(s)): TraitVector {
   if (pull.omega <= 0) return x0;
@@ -735,13 +747,13 @@ export function applyBaseToLineage(s: GameStateV2, ctx: SystemCtx, run: Training
   const sg = baseSignals(design, baseQuantitiesOf(s, design, base.gPre));
   base.signals = { ...sg };
   if (run.kind === 'continue') {
-    const xc = applySuccessorPull(s, base.traitsTrue, runPull(s, ctx, run)); // E4: the AI doing the lab's R&D pulls the continued base
+    const xc = pulledTraits(s, ctx, run, base.traitsTrue, base.id); // E4: the AI doing the lab's R&D pulls the continued base
     base.traitsTrue = stepTraits(xc, playerEnv(s, xc, sg, OMEGA_KIND.continue, undefined, base.lineage, base.uModes));
     return;
   }
   if (!base.lineage) base.lineage = `L-${base.id}`;
   const uModes = drawLineageUModesV2(s, ctx.rng('safety'), { tierAtLeastSC: levelOf(w, s.player.pa) >= SC_LEVEL, base: design, player: true });
-  const x0 = applySuccessorPull(s, basePrior(tier, design), runPull(s, ctx, run)); // E4 successor pull (replaces V2's inheritFromFleet)
+  const x0 = pulledTraits(s, ctx, run, basePrior(tier, design), base.id); // E4 successor pull (replaces V2's inheritFromFleet)
   base.uModes = uModes;
   base.traitsTrue = stepTraits(x0, playerEnv(s, x0, sg, OMEGA_KIND.base, undefined, base.lineage, uModes));
 }
@@ -775,7 +787,7 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
 
   if (run.kind === 'distill') {
     const teacher = versionById(s, run.teacherVersionId);
-    const x0 = applySuccessorPull(s, base?.traitsTrue ?? teacher?.traitsTrue ?? TRAIT_START, runPull(s, ctx, run)); // E4 (the E06 pull below is separate)
+    const x0 = pulledTraits(s, ctx, run, base?.traitsTrue ?? teacher?.traitsTrue ?? TRAIT_START, version.id); // E4 (the E06 pull below is separate)
     const uModes = teacher ? [...teacher.uModes] : [...(base?.uModes ?? [])];
     const sg = runSignals(s, run);
     const om = runOmega(s, run);
@@ -792,7 +804,7 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
 
   // post-training
   const post = run.post ?? version.design;
-  const x0 = applySuccessorPull(s, parent?.traitsTrue ?? base?.traitsTrue ?? TRAIT_START, runPull(s, ctx, run)); // E4 successor pull
+  const x0 = pulledTraits(s, ctx, run, parent?.traitsTrue ?? base?.traitsTrue ?? TRAIT_START, version.id); // E4 successor pull
   const uModes = parent ? [...parent.uModes] : [...(base?.uModes ?? [])];
   const sg = runSignals(s, run);
   const om = runOmega(s, run);

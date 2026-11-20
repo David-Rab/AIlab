@@ -11,6 +11,8 @@ const RULES: [RegExp, string][] = [
   [/\bsafetyTruth\b/, 'safetyTruth (end screen only)'],
   [/\b\w+True\b/, '`*True` field (truth)'],
   [/\.pm\b|\.Lg\b|\bdoomThreshold\b|\bagendaEfficacy\b|\bparadigmSuccess\b/, 'hidden capability/world field'],
+  // Model v3 E8: footholds include hidden ones; the UI reads footholdView (suspected, located, removed) only.
+  [/\.footholds\b|\bfootholdsOf\b|\bhiddenComputeH\b|\bbackdoorReach\b|\bsuspicionRate\b|\bcovertRecord\b/, 'raw footholds (use footholdView)'],
 ];
 
 function walk(dir: string, out: string[] = []): string[] {

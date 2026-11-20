@@ -25,6 +25,7 @@ import { productCatch, productHazardMult } from '../models/products';
 import { agentSplitShare, agentVersion, internalFleets } from '../departments/agents';
 import { copiesOf, flopPerToken, safetyLabour, workContext } from '../departments/workfit';
 import { rollFleetCovert } from './covert';
+import { footholdsStep } from './footholdDetection';
 
 /** Disposition of an undiscovered/discovered U-mode (it borrows the act of its mapped trait) [D]. */
 export const UMODE_X = 0.25;
@@ -387,6 +388,8 @@ export const incidentsSystem: EngineSystem = {
     // E7: covert acts of the internal fleets against the lab (backdoors, hidden compute); hash draws, so the incident
     // stream above is unchanged.
     rollFleetCovert(s, ctx);
+    // E8: symptoms of hidden footholds (monitors, compute accounting, eval drift, model organisms); hash draws.
+    footholdsStep(s, ctx);
     tickTimers(s, ctx, rng);
   },
 };

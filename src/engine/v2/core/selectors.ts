@@ -43,6 +43,8 @@ export { raiseCeiling } from '../finance/equity';
 // WS2 safety-panel selectors (beliefs, posteriors, incidents as the player sees them). `safetyTruth` is END SCREEN ONLY.
 export { beliefView, findingRows, incidentRows, lineBadges, lineRows, riskFamilies, safetyTruth, safetyUtilisation, safetyView, techniqueRows, traitGraph, uModeCards, upkeepView } from '../safety/view';
 export type { FindingRow, LineRow, SafetyUtilisation, TechniqueRow } from '../safety/view';
+export { footholdView } from '../safety/footholdDetection';
+export type { FootholdRow } from '../safety/footholdDetection';
 export { lineMult, lineResultsPerYear, posteriorBand, promisingIdle, safetyRe } from '../safety/agendas';
 export { familySeenTo } from '../safety/understanding';
 export { INV_FTE, INV_MAX_DAYS } from '../safety/investigations';

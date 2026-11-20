@@ -14,7 +14,7 @@
 //   severity        = f_k + ⌊span_k · C_k · A·F + u⌋, u ~ U[0,1), clamped to 1..5 (stakes = capability × opportunity per
 //                     copy: the same act is worse from a capable model with long tasks and real affordances)
 // Values marked [D] are design; [C] are calibrated against the reference run (design/notes/E5.md).
-import type { Channel, DomainId, TraitId } from '../../engine/v2/types';
+import type { Channel, DomainId, FootholdKind, TraitId } from '../../engine/v2/types';
 
 export interface ActDef {
   /** What the act looks like in play (tooltips, notes). */
@@ -157,3 +157,51 @@ export const COVERT_IDS = Object.keys(COVERT_ACTS) as CovertActId[];
  *  predicted signals and beliefs do not. A steered result delivers its full capability: steering does not slow the lab
  *  (an effect loss of 30–50% moved RefBot's authors2026 SIAR/ASI by −67 to +152 days on the knife-edge seed; E7 notes). */
 export const STEER_S4 = 0.5;
+
+// ───────────────────────────── footholds (model v3 E8) ─────────────────────────────
+//
+// MODEL-V3 §11.4: "Successful covert acts create footholds: countable hidden AI assets (a backdoor in infrastructure, a
+// steered successor, a hidden compute reservation, an exfiltrated copy, a corrupted safety tool). Detection
+// (investigations, audits, monitors) finds and removes them; the player sees suspected footholds and symptoms (anomalous
+// research results, odd successor traits, unexplained compute use)." Engine: src/engine/v2/safety/footholds.ts (state,
+// creation, effects) and footholdDetection.ts (suspicion, location, removal, the player's view).
+export const FOOTHOLD = {
+  /** Hidden compute reserved per severity point of an uncaught HIDCOMP act, as a share of the internal agent pool [D]:
+   *  the fleet can hide jobs only inside its own allocation; a severity-3 act takes 3% of it (≈ 1% of the lab's fleet
+   *  at RefBot's agent share), inside a cluster's utilisation noise. */
+  hidCompPerSev: 0.01,
+  /** Reach of a backdoor per severity point [D]: the share of block and catch it lets its lineage's later covert acts
+   *  bypass (combined 1 − Π(1 − r) over acts, capped). */
+  reachPerSev: 0.08,
+  reachMax: 0.9,
+  /** Traces per day an active foothold leaves for the fleet's monitors [D]: a backdoor used about every two months, a
+   *  compute reservation launching jobs about monthly; successors, copies and tools act through nothing monitors watch. */
+  trace: { backdoor: 1 / 60, hiddenCompute: 1 / 30, steeredSuccessor: 0, exfiltratedCopy: 0, corruptedTool: 0 } as Record<FootholdKind, number>,
+  /** Compute accounting: unexplained use as a share of the lab's fleet that utilisation accounting cannot tell from
+   *  noise [D]; suspicion rate = (share ÷ noise) per `accountingDays`. */
+  accountingNoise: 0.02,
+  accountingDays: 90,
+  /** Eval anomaly (steered successor): a trait gap of `anomalyGap` between a successor's evals and its predicted
+   *  dispositions, seen at full detection strength, is noticed within `anomalyDays` [D]. */
+  anomalyGap: 0.1,
+  anomalyDays: 30,
+  /** Model organisms (T-MO) check detector recall: a masking tool misses the planted behaviour; one check per
+   *  `moDays` at T-MO's strength [D]. */
+  moDays: 90,
+  /** A caught act of the same kind by the same lineage prompts a sweep: its hidden footholds become suspected [D]. */
+  caughtSuspect: 0.5,
+  /** A case (investigation or audit) on the foothold's lineage at clarity c and trait relevance ρ locates a suspected
+   *  foothold with probability c·ρ; a hidden one with c·ρ·hiddenLocate, and makes it suspected with another
+   *  c·ρ·(1 − hiddenLocate) [D]. */
+  hiddenLocate: 0.5,
+  /** Removal of a located foothold (the Respond menu's "Remove foothold") [D]: safety research engineers tied up for
+   *  `days`, internal agents off for `downtime` days (backdoor: rebuild access paths; hidden compute: kill and re-image
+   *  the jobs), a progress penalty on the next post-training run (steered successor: retrain from clean specs). An
+   *  exfiltrated copy is outside the lab: only the hunt (event E25) removes it. */
+  removal: {
+    backdoor: { fte: 10, days: 30, downtime: 7, progress: 0 },
+    hiddenCompute: { fte: 5, days: 14, downtime: 3, progress: 0 },
+    steeredSuccessor: { fte: 10, days: 30, downtime: 0, progress: 0.02 },
+    corruptedTool: { fte: 5, days: 14, downtime: 0, progress: 0 },
+  } as Record<Exclude<FootholdKind, 'exfiltratedCopy'>, { fte: number; days: number; downtime: number; progress: number }>,
+};

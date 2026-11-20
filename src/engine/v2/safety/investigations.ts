@@ -19,6 +19,7 @@ import { strengthTrue, techniqueRole } from './techniques';
 import { discoverUMode, isDiscovered } from './umodes';
 import { safetySabotage } from './covert';
 import { patchFte } from './responses';
+import { caseOnModel } from './footholdDetection';
 import { QUALITY } from '../../../data/v2/teams';
 
 /** Safety research engineers (heads × quality): who staffs cases, patches and tool upkeep (R8). */
@@ -231,6 +232,9 @@ export function resolveInvestigation(s: GameStateV2, ctx: SystemCtx, inv: Invest
   }
   inv.outcomeDetail = detail;
   if (inc && inc.status === 'investigating') inc.status = 'open';
+  // Model v3 E8: the case may locate footholds of the model's lineage (or find traces of hidden ones); a corrupted case
+  // finds nothing.
+  if (!corrupted) caseOnModel(s, ctx, v, traits, c, inv.id, `investigation ${inv.id}`);
   // Independent-family cross-check exposes false-validated tools used in the case (§3.5.3).
   for (const t of tools) {
     if (t.falseValidated && [...fams].some((f) => f !== t.family)) revealFalse(s, ctx, t.id);

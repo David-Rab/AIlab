@@ -4,6 +4,7 @@ import { memo } from '../core/memo';
 import type { ComputeSplit, EngineSystem, GameStateV2, LabId, PowerGrid, SystemCtx } from '../types';
 import { defaultPowerWS3, ensureWs3 } from '../finance/ext';
 import { labCore } from '../models/labs';
+import { hiddenComputeH } from '../safety/footholds';
 
 /** US large-load grid pool 1.5 GW/q at Q3 2025, ×1.25/yr (2.0 GW/q in 2026) [R15]; kW/H100e 0.93 → 0.70 (Q4 2026). */
 export function initialPower(): PowerGrid {
@@ -61,13 +62,17 @@ export function powerAndOMPerYear(s: GameStateV2): number {
   return power / 1e9 + OM_RATE * (capex + chipBook);
 }
 
-/** computeOnline (20, daily): player online H100e; pools memoised for the tick. Rivals' and China's online compute
- *  grows by chip deliveries in marketQ (installed directly; no site model for non-player labs). */
+/** computeOnline (20, daily): player online H100e less what hidden compute footholds reserve (model v3 E8: the lab's
+ *  usable compute; the gap to the installed fleet is the "unexplained compute use" symptom); pools memoised for the
+ *  tick. Rivals' and China's online compute grows by chip deliveries in marketQ (installed directly; no site model for
+ *  non-player labs). */
 export const computeOnlineSystem: EngineSystem = {
   id: 'computeOnline', owner: 'WS3', cadence: 'daily', order: 20, system: 'compute',
   run(s, ctx) {
     ensureWs3(s);
-    s.player.computeOnline = computeOnlineOf(s);
+    const online = computeOnlineOf(s);
+    const hidden = hiddenComputeH(s);
+    s.player.computeOnline = hidden > 0 ? Math.max(0, online - hidden) : online;
     poolsMemo(s, ctx);
   },
 };
