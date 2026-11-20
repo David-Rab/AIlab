@@ -1897,3 +1897,86 @@ also ×18.9 (tokens per task constant). Other runs (scratch): seed 11 ×16.2; au
   lab never researches it. This needs a data task plus F5's RefBot share.
 - **Tokens per task:** the fall for a fixed answer quality is not modelled, so the price per task equals the price per
   token here.
+
+### A4 notes (demand ceiling on agent work; 2026-11-20)
+
+Code: `worldfx/use.ts` (`costReduction`, `demandExpansion`, `agentCeilingOf`, type `AgentCeiling`), `worldfx/sectors.ts`
+(`employmentTarget` now calls the two shared functions, with the same arithmetic), `worldfx/mix.ts` (`SectorMix.agentCeiling`;
+`agentK` is after the ceiling), `worldfx/revenue.ts` (the player's agent-hours × the ceiling's fill and held to the room the
+other providers leave; `RevenueReadout.playerAgent` per region and sector), `worldfx/readouts.ts` (`BillingRead.agentWanted`,
+`ceiling`, `bound`), `worldfx/sectorView.ts` (`SectorRead.agentCeiling`, `RegionWorkRead.agentWanted / ceilingBound`).
+Tests: serving D1–D5. No state change, no schemaRev bump, no UI text change.
+
+**Mechanism.** The ceiling comes from research/16 step 7, E = E0·(1 − D)(1 + η·CR), the demand term the sector model
+already has. No new constant.
+- **Work demand.** A sector's work demand in a region is H* = E0·2000·X with X = 1 + η_s·CR. CR is the step-7 cost
+  reduction with AI doing all of the work: CR = 1 − c̄/wage, floored at 0. c̄ is the current buyer's cost of AI work,
+  hour-weighted over the adopted task-hours (the mix's `pCost`, price ÷ hours saved + review) and the agent-hours
+  (price + wage/λ, the A2c gate's cost). So 1 ≤ X ≤ 1 + η_s: up to ×1.1 (Office, Gov, Services) and ×2 (Science). There is
+  no expansion where an AI work-hour costs the buyer the wage or more.
+- **Hours ceiling.** Adopted A-hours + agent-hours ≤ H*.
+- **Value ceiling.** Spend on that work (adopted hours × price + agent-hours × price) ≤ H* × wage, the sector's wage bill
+  × X. The brief assumed price per hour ≤ value per hour already holds. It does not hold for agent-hours whose serving
+  cost is above the wage: the price is then max(cost, ·) > wage, and the logistic gate still buys some of them. At day
+  900 that covers most CN and ROW cells, where agent prices are 1.4–6× the wage (rivals' FLOP per token, BRIDGE(V7)).
+  So the value bound is enforced, not assumed.
+- **Fill.** Agent-hours are the residual. They fill the room the adopted hours leave, every provider's by the same
+  share fill = min(1, room_hours ÷ wanted, room_value ÷ wanted spend) [D: pro rata; customer shares unchanged]. Adopted
+  hours (A) are not touched (A2a's adoption is not retuned).
+- **Player products.** Their agent-hours can be more than the player's share of the mix's view, because of enabler
+  segments, channel weights and each product's own k. This was already the case before A4. So `revenueReadout` also
+  holds the player's agent-hours in each cell to the room left after the adopted hours and the other providers' bought
+  agent-hours (hours and value).
+- **Where the excess goes [D]: it sits idle.** Agent-hours beyond the ceiling are not bought, so they earn nothing and
+  need no serving. For the player, that capacity becomes spare serving, which under the default policy goes to research
+  agents (J2 PR1). It does not fall to a cheaper segment; that segmentation is A5.
+- **Below the ceiling nothing changes.** fill = 1 exactly and multiplying by 1 is exact. A RefBot ai2027 run, day 1–400,
+  is byte-identical to the A2c baseline in every cell's agent-hours, every product's agent-hours and every product's
+  revenue (scratch dump). D3 asserts that every provider's k equals the A2c rule at day 1 and on the day-400 fixture.
+
+**Readouts (before = A2c; RefBot, classic, seed 2027; world, all providers, mix view).**
+
+| Run | Agent-hours/yr | Per supervising hour | Demand-side agent spend | Cells bound (of 42) |
+|---|---|---|---|---|
+| Fixture day 400 | 32.5B → 32.5B | 0.64 → 0.64 | $74.9B → $74.9B | 0 |
+| Fixture day 900 | 695B → 534B | 11.97 → 9.21 | $31.3T → $23.7T | 14 |
+| ai2027 day 400 | 25.3B → 25.3B | 0.42 → 0.42 | $62.1B → $62.1B | 0 |
+| ai2027 day 900 | 1,577B → 1,207B | 10.51 → 8.05 | $23.1T → $17.4T | — |
+| ai2027 day 1200 (takeoff) | 7,083B → 2,629B | 33.0 → 12.3 | $64.4T → $23.7T | up to 30 |
+| fast day 900 | 747B → 717B | 5.24 → 5.03 | $7.30T → $7.00T | — |
+| fast day 1200 | 2,874B → 1,775B | 14.9 → 9.2 | $30.3T → $18.5T | up to 21 |
+
+- The world wage bill (Σ E0·2000·wage) is $59.7T.
+- In every cell and checkpoint, demand-side agent spend ÷ (sector wage bill × X) is ≤ 1. The worst is 0.92 on the day-900
+  fixture, and 0.95 (ai2027) and 0.93 (fast) at the 20-day checkpoints to day 1200.
+- On the day-900 fixture the US knowledge sectors bind on hours, at X = 1.03–1.13 (Software 28% of the wanted
+  agent-hours bought). CN and ROW Software, Finance, Media and Science bind on value (prices above the wage).
+- ai2027 day 1200: X reaches 1.81 in US Science and 1.66 in US Software, because agent prices there have fallen to
+  0.15–0.2 × the wage.
+- Player revenue is unchanged at every checkpoint (ai2027 day 900 / 1000 / 1100: $45.7B / 38.9B / 51.3B; day 1200 $196.3B
+  → $195.7B). From late 2027 the player is capacity-bound many times over: its serving need on the day-900 fixture falls
+  from 28.2M to 22.9M H100e, still far above its pool. So the ceiling trims unserved demand, not revenue.
+- **2026 revenue (reported, not targeted):** player CY2026 $34.2B (ai2027) and $21.7B (fast), both unchanged.
+  worldfx F7 $34.2B, F11 $40.7B, A2c non-China $72.3B, all unchanged. The ceiling never binds before late 2027.
+
+**Gate (vs the A2c/A3 baseline).**
+- tsc main + scripts clean.
+- serving passes, including the new D1–D5.
+- products, golden-timelines, identity, worktypes, research, effective, calib (T1 and T1L unchanged; authors2026 ASI
+  2033.608) and lint-ux pass.
+- worldfx: only the known fails, with the same values as A2c: F7/F11 $34.2B / $40.7B, equity −0.4%, U +1 pp
+  2028-01-02, GOV T1 2027-08-31.
+- Golden dates are unchanged: the reference integrator does not read the sector market, and the RefBot milestones are
+  identical.
+
+**Open / for later tasks.**
+- **Demand-side agent spend is still $17–24T/yr in a takeoff.** It is bounded (≤ wage bill × X in every cell), but it
+  sits at that bound wherever rivals' agent prices exceed the wage. The per-hour price above the value is BRIDGE(V7)'s
+  oversized FLOP per token, and F1 removes it. `labMarketRevenue` (rival finance) now obeys the bound.
+- **A5:** the idle excess could instead fall to the cheapest adequate model, once demand is segmented by the capability a
+  task needs.
+- **UI (later B-task):** `SectorRead.agentCeiling` gives hours, value, X, wanted, fill, used and bound. The World ›
+  Sectors panel can show "agent-hours bought / wanted" and "share of the work demand used". There is no glossary entry
+  yet ("work demand ceiling": E0·2000·(1 + η·CR)).
+- The η values are research/16's table values (themselves [D], Jevons). The linear form caps the expansion at 1 + η. A
+  constant-elasticity form would let demand grow without bound as the price falls, and research/16 does not use one.
