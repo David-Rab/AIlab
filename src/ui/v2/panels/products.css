@@ -7,6 +7,8 @@
 .sw.on { background: #2b5f9e; }
 .sw.on i { left: 14px; background: #fff; }
 .prod-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; align-items: stretch; }
+.prod-side { display: flex; flex-direction: column; gap: 10px; align-self: start; min-width: 0; }
+.prod-side .card2 { margin: 0; }
 .pc { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 11px 12px 10px; display: flex; flex-direction: column; gap: 8px; min-width: 0; position: relative; }
 .pc.editing { border-color: var(--watch); box-shadow: 0 0 0 1px rgba(233,180,76,.35); }
 .pc.off { border-style: dashed; background: linear-gradient(var(--panel), var(--bg-2)); }

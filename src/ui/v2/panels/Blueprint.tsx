@@ -483,7 +483,7 @@ function Limits({ s, card, prev }: { s: GameStateV2; card?: Card_; prev?: Card_ 
   tiles.push({
     id: 'serve', icon: Server, term: 'servingFlop', label: 'Serving', v: fpt > 0 ? sci(fpt) : '–', u: 'FLOP/tok',
     old: pFpt !== undefined && pFpt > 0 && fpt > 0 && Math.abs(pFpt / fpt - 1) > 0.005 ? sci(pFpt) : undefined,
-    sub: <><Term id="useHourCost">{F.usd(cost.hour)}/h of use</Term>{ivFpt > 0 ? <> · today {F.usd(ivCost.hour)}</> : null}</>, tone: rel > 1.5 ? 'bad' : rel > 1.05 ? 'warn' : 'good', bar: ivFpt > 0 ? { f: Math.min(1, rel / 3), mark: 1 / 3 } : undefined,
+    sub: <><Term id="useHourCost">{F.usd(cost.hour)}/h</Term>{ivFpt > 0 ? <> · today {F.usd(ivCost.hour)}</> : null}</>, tone: rel > 1.5 ? 'bad' : rel > 1.05 ? 'warn' : 'good', bar: ivFpt > 0 ? { f: Math.min(1, rel / 3), mark: 1 / 3 } : undefined,
     tip: () => <TipCard title={<Term id="servingFlop">Serving</Term>} value={`${sci(fpt)} FLOP/token`} rows={[
       { label: <Term id="servingFlop">FLOP per token</Term>, value: sci(fpt) },
       { label: <Term id="useHourCost">Cost per hour of use</Term>, value: F.usd(cost.hour) },

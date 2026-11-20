@@ -29,7 +29,7 @@ const usd = (x: number) => `$${x >= 100 ? x.toFixed(0) : x >= 10 ? x.toFixed(1) 
 const hrs = (x: number) => `${F.count(x)} h`;
 const tokK = (x: number) => `${F.count(x)} tokens`;
 
-export function WorldSectors({ s, names, color }: { s: GameStateV2; names: (id: string) => string; color: (id: string) => string }) {
+export function WorldSectors({ s, names, color, below }: { s: GameStateV2; names: (id: string) => string; color: (id: string) => string; /** B4: the World panel's jobs section, under the heatmap. */ below?: ReactNode }) {
   const v = sectorsView(s);
   const [sel, setSel] = useState<{ sid: SectorId; r: RegionId }>({ sid: 'SOFT', r: 'US' });
   const [metric, setMetric] = useState<Metric>('U');
@@ -40,6 +40,7 @@ export function WorldSectors({ s, names, color }: { s: GameStateV2; names: (id: 
     <div className="ws" data-test="world-sectors">
       <WorkStrip s={s} v={v} r={sel.r} onRegion={(r) => setSel({ sid: sel.sid, r })} />
       <div className="ws-grid">
+        <div className="ws-left">
         <section className="section ws-heat">
           <div className="section-head">
             <span className="section-title"><Term id="sector">Sectors</Term></span>
@@ -72,6 +73,8 @@ export function WorldSectors({ s, names, color }: { s: GameStateV2; names: (id: 
             </tbody>
           </table>
         </section>
+        {below}
+        </div>
         <SectorCard x={x} names={names} color={color} />
       </div>
     </div>

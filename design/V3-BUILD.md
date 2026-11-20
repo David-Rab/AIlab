@@ -1650,3 +1650,76 @@ content, US Software survey anchor, cell selection, metric switch; all 10 terms 
   oversized FLOP per token (BRIDGE(V7)); the view shows it honestly.
 - About 250 px of empty space under the Sectors tab at 1000 px height (both columns end near 700 px); nothing was
   added to fill it.
+
+### B4 notes (UI leftovers of the model-v3 rebuild; 2026-11-20)
+
+Code: `ui/v2/shell/selectors.ts` (`customerCount`, `customerShare`), `TopStrip.tsx`, `CoreLoop.tsx`, `Blueprint.tsx`
+(serving tile and card effects), `Models.tsx` (model card), `fmt.ts` (`usd`, `sci`), `ResearchProjects.tsx` (+ `research.css`),
+`Products.tsx` (+ `products.css`), `World.tsx` / `WorldSectors.tsx` (+ `world.css`), `work.css`, `shell/AlertQueue.tsx`
+(`logRoute`, `openRoute`), `DecisionModal.tsx`, `ui.tsx` (`ActBtn ariaLabel`); engine output-only selectors
+`worldfx/serving.ts useHourCost`, `index.ts runCard().fpt` (`planFpt`), `flopPerToken` exported; the auto setting:
+`types.ts ResearchState.wantAuto`, `models/research.ts` (`wantIsAuto`, assignment passes 1 and 3), `treeActions.ts`
+(`research.want {auto}`), `researchView.ts` (`CapProjectView.auto`), `data/v2/research.ts AUTO_RANK_W`, `core/save.ts`
+(**schemaRev 20**, migration 19 → 20); glossary (+2: `useHourCost`, `teamsWantedAuto`; `serveCost` removed; 9 rewritten);
+`lint-ux.ts` (check 4); tests `research.ts` (auto), `hygiene.ts` (19 → 20 migration), `uitest.mjs` (B4 checks).
+
+**1. Customer counts.** `ProductRead.customers` (revenue ÷ ARPU) and `ProductDef.customers/arpu` are gone. The top-strip
+revenue tooltip and the Core loop's Customers node read: Chat "N weekly users · M paying" (the stock users and the
+subscribers), a sector product with seats "N paid seats", any other sector product (API, Agents without seats, Trusted)
+its customer stock "share x% → target y%" (no count exists). The Core loop node adds the share → target and the best
+rival on every row; its term is now `customerStock`.
+
+**2. Removed concepts.** Blueprint's Serving tile: FLOP per token (hero, `FLOP/tok`), "$/h · today $/h" (cost per hour
+of use of this design vs the internal model; bar and tone from the FLOP-per-token ratio), tooltip with cost per hour of
+use (assisted hour 30k/8k tokens), per agent-hour (375k/62k) and $ per H100e-hour; the card rows' "Serve" column is the
+FLOP-per-token ratio to the reference card. Models card: "Serving 3.6e12 FLOP/tok · $0.19/h". The plan's FLOP per
+token (`runCard().fpt`) is what `fptOfBuild` will set on the version: base = 2·N·shape token multiplier; post-train =
+the base's × (plan serve ÷ base serve); distillation = the teacher's × (plan serve ÷ teacher serve): the relative serve
+cost is only used as that bridge. Glossary `serveCost` removed; `servingFlop`, `agentMonitor` (FLOP-per-token ratio),
+`autoServing` (need from asked hours at the model's FLOP per token, serve order) rewritten; "know-how" text → recipe in
+`poolResearch`, `baseRun`, `stream`, `coreLoop`, `diffusion`, `staleness`. No M^0.3, research-speed cap, 26% capture or
+"+0.5 L" text was left in the UI. New lint (`lint-ux` check 4): glossary titles and bodies, limit titles and rules, and
+non-comment UI source lines may not contain serve cost / `serveCost`, M^0.3, research-speed cap / `revenue.speedCap`,
+price capture / 26% of the wage, "+0.5 L", know-how, "× frontier".
+
+**3. Layout (no new information).**
+- Products: with ≤ 3 products the launch card and the serving split share a column beside the cards (cards 250–300 px);
+  the launch card no longer stretches to the cards' height and the serving split moves from below the fold (y ≈ 940)
+  to y ≈ 340. With 4+ products the old layout (launch card in the grid, serving below) stays.
+- Research › Projects: the list is full width and the selected project's card sits under it with its sections side
+  by side (auto-fit columns ≥ 300 px); name and stage columns share the extra width.
+- World: the Jobs section moved under the sector heatmap (the left column ended 250 px above the card's end); the
+  second tab is now "Control & tech" (control index full width, world technologies, moonshot).
+- Company › Work: tightened only (role cards equal height, milestone boxes no longer stretch); nothing else belongs
+  there, about 220 px stays empty at 1000 px height.
+
+**4. Auto teams wanted [D].** It could not be expressed with 0–6 (a fixed number does not follow the team count), so
+`ResearchState.wantAuto: string[]` (schemaRev 20; the migration starts it empty; no change for existing games or bots).
+An auto project asks for one team in the first pass down the list; after the fixed numbers and the swap pass, each spare
+team goes to the auto project where it adds the most progress, √(capacity + its capacity) − √capacity over the ideation
+effort (so a specialty ×1.5 counts), × AUTO_RANK_W = 0.8 per place down the list; with no auto project, spares join the
+top project as before. Action `research.want {id, auto: true}`; any number turns auto off. UI: an Auto toggle after the
+stepper (aria-pressed; "N auto" shows the placed teams; − / + fix the number at placed ∓ 1), tooltip and glossary
+`teamsWantedAuto`. Keyboard: rows are focusable (Tab), Enter opens the card, Alt+↑ / Alt+↓ reorder; ▲▼ have tooltips
+and aria-labels, the − + Auto buttons aria-labels (`ActBtn ariaLabel`).
+
+**5. Log routing.** `logRoute(s, entry)`: `research` entries whose ref is a capability project open Research › Projects
+on its card; those about a run, base or version open Models; the rest stay on Safety. The alert list groups by route
+(a capability result no longer merges into a safety group) and the high-severity notice's tag and "Open panel" use it.
+
+**Gate.** tsc main + scripts clean; build clean; lint-ux green (241 → 243 required terms, new check 4); lint-structure,
+lint-hidden, lint-tradeoffs, research (4 new auto checks), identity, golden-timelines, worktypes, products, serving, idle
+pass; hygiene passes except the known perf checks (P2), incl. the new 19 → 20 migration check; `test:ui` 376 passed,
+0 failed (new B4 checks at day 1, 400, 900: revenue tooltip and Core loop counts, serving tile and tooltip, no "serve
+cost", products side column above the fold, project card under the list with no clipped stepper, auto on/off with its
+tooltip, labels on ▲▼ − + Auto, Alt+↓ / Alt+↑ reorder, jobs under the heatmap, log routing and Open). Screenshots looked
+at: `80-day400-products-b4`, `81-day400/900-research-projects-b4`, `82-day900-world-sectors-b4`, `20-day400-company-work`,
+`20-day400-world-society`, `20-day400-blueprint`, `20-day400-models`, `73-hover-revenue`.
+
+**Seen / open.**
+- The Work tab and the Products side column still end ≈ 220–450 px above the bottom at 1000 px; nothing existing
+  belongs there.
+- The Models card's "Research boost ±x mo" is the V1 design offset (months of research), not know-how months; D3
+  retires design offsets.
+- Science-team "why" lines on the project card are cut with an ellipsis (the team dots' tooltips carry the full text).
+- Space on a focused button both clicks it and toggles pause (the global shortcut; older than B4).

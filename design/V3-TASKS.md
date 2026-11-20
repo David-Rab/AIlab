@@ -112,4 +112,4 @@ danger depends on, and how loss of control works.
 
 ## Order (one at a time)
 
-Next: **B1 → B2 → B3 → B4**, **P2**, then **A3**, **A4** (A1–A2c done: research/22 and V3-BUILD notes), then D1…D9, E1…E13, F1…F7. The lead may reorder when a result changes what is next; every change goes in this file.
+B1–B4 done (2026-11-20). Next: **P2**, then **A3**, **A4** (A1–A2c done: research/22 and V3-BUILD notes), then D1…D9, E1…E13, F1…F7. The lead may reorder when a result changes what is next; every change goes in this file.

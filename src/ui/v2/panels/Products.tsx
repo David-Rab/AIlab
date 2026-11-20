@@ -85,6 +85,7 @@ export function Products({ s }: { s: GameStateV2 }) {
   const live = s.player.deployments.filter((d) => isProduct(d) && d.status !== 'withdrawn')
     .sort((a, b) => PRODUCT_ORDER.indexOf(a.channel) - PRODUCT_ORDER.indexOf(b.channel));
   const pol = s.player.policies;
+  const side = live.length > 0 && live.length <= 3;
   // Products on an older model than the newest cleared one of their kind (the upgrade policy's readout).
   const behind = live.filter((d) => {
     const v = versionById(s, d.versionId);
@@ -101,14 +102,21 @@ export function Products({ s }: { s: GameStateV2 }) {
           <PolicySwitch on={pol.autoEvaluate} k="autoEvaluate" term="autoEvaluate" label="Auto-evaluate" />
         </span>} />
 
-      <div className="prod-grid">
+      {/* B4: with three products or fewer, the launch card and the serving split share a column beside the cards (the
+          launch card no longer stretches to the cards' height, and the serving split is above the fold). */}
+      <div className={`prod-grid ${side ? 'side' : ''}`} style={side ? { gridTemplateColumns: `repeat(${live.length}, minmax(250px, 300px)) minmax(360px, 1fr)` } : undefined}>
         {live.map((d) => (
           <ProductCard key={d.id} s={s} d={d} r={reads.get(d.id)} draft={edit?.id === d.id ? edit.c : undefined}
             setDraft={(c) => setEdit(c && Object.keys(c).length ? { id: d.id, c } : null)} />
         ))}
-        <LaunchCard s={s} live={live} />
+        {side ? (
+          <div className="prod-side">
+            <LaunchCard s={s} live={live} />
+            <ServingCard s={s} live={live} reads={reads} />
+          </div>
+        ) : <LaunchCard s={s} live={live} />}
       </div>
-      <ServingCard s={s} live={live} reads={reads} />
+      {!side && <ServingCard s={s} live={live} reads={reads} />}
     </div>
   );
 }

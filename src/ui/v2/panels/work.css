@@ -1,6 +1,6 @@
 /* Company › Work (model v3 V2b; mockups-v3/v3-v2b-work). */
 .wk-wrap { display: flex; flex-direction: column; gap: 12px; }
-.wk-roles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.wk-roles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: stretch; }
 .wk-hero { display: flex; align-items: baseline; gap: 8px; }
 .wk-hero b { font-size: 26px; color: #fff; }
 .wk-m { color: var(--good); font-weight: 600; font-size: 13px; }
@@ -27,7 +27,7 @@
 .wk-nbar i.short { background: repeating-linear-gradient(135deg, rgba(239,107,107,.8) 0 3px, transparent 3px 6px); }
 .wk-cap { height: 22px; font-size: 11px; padding: 1px 4px; width: 74px; }
 .wk-idle { padding-top: 4px; }
-.wk-mls { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.wk-mls { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; align-items: start; }
 .wk-ml { border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .wk-ml b { font-size: 12px; color: #fff; }
 .wk-ml.done { border-color: rgba(76,195,138,.45); }

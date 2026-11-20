@@ -3,6 +3,8 @@
 .ws-kpi b { color: var(--text); margin-left: 2px; }
 .ws-grid { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); gap: 10px; align-items: start; }
 .ws-grid > .section { margin-bottom: 0; }
+.ws-left { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.ws-left > .section { margin-bottom: 0; }
 .ws-tbl td { cursor: pointer; }
 .ws-tbl td.ws-name { cursor: default; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 0; width: 55%; }
 .ws-tbl tr.on td.ws-name { color: #fff; font-weight: 600; }

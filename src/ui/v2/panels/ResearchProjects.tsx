@@ -1,6 +1,6 @@
 // Research › Projects (model v3 V2b; mockups-v3/v3-v2b-research, IA v3-v2b-IA.md). L1: the priority list of capability
 // projects (order, teams wanted, stage track, what binds, next result) with the lab's risk policy; L2: the selected
-// project's card (stage track, belief band, odds, inputs c and ℓ, the line's pool, its teams and why). The game assigns
+// project's card under the list (B4: full width, its sections side by side, so a short list leaves no empty column) (stage track, belief band, odds, inputs c and ℓ, the line's pool, its teams and why). The game assigns
 // teams, research engineers and compute down this list; the player only orders it, sets teams wanted and the policy.
 // One home per datum: research speed lives on Company › Flow, research engineers' needs on Company › Work (links).
 import type { ReactNode } from 'react';
@@ -82,7 +82,7 @@ function WantStepper({ v }: { v: CapProjectView }) {
         <b className={`num ${v.auto ? 'rp-auto-n' : ''}`} data-test={`want-n.${v.id}`}>{v.auto ? <>{v.want}<span className="dim small"> auto</span></> : shown}</b>
       </Tip>
       <ActBtn id="research.want" testId={`want-up.${v.id}`} ariaLabel={`More teams wanted for ${v.name}`} params={{ id: v.id, n: Math.min(PROJECT_MAX_TEAMS, v.want + 1) }} icon={ICON.plus} label="" block={v.want >= PROJECT_MAX_TEAMS ? `At most ${PROJECT_MAX_TEAMS} teams per project` : undefined} />
-      <Tip content={() => <TipCard title={<Term id="teamsWantedAuto">Auto teams wanted</Term>} value={v.auto ? 'on' : 'off'}>{v.auto ? `On: the game picks how many teams ${v.name} gets. Click to fix it at ${v.want}.` : 'Let the game pick the number: one team first, then spare science teams where they add the most progress, by priority and fit.'}</TipCard>}>
+      <Tip content={() => <TipCard title={<Term id="teamsWantedAuto">Auto teams wanted</Term>} value={v.auto ? 'on' : 'off'}>{v.auto ? `On: the game picks how many teams ${v.name} gets, by priority and fit. Click to fix it at ${v.want}.` : 'Let the game pick the number: one team first, then spare science teams where they add the most progress, by priority and fit.'}</TipCard>}>
         <button className={`btn btn-sm rp-auto ${v.auto ? 'on' : 'btn-ghost'}`} data-act={`want-auto.${v.id}`} aria-pressed={v.auto} aria-label={`Auto teams wanted for ${v.name}`}
           onClick={() => store.act('research.want', v.auto ? { id: v.id, n: v.want } : { id: v.id, auto: true })}>Auto</button>
       </Tip>
@@ -256,6 +256,7 @@ export function ProjectCard({ s }: { s: GameStateV2 }) {
       right={<span className="row-i">{v.state !== 'failed' && <ActBtn id="research.dequeue" params={{ id: v.id }} icon={X} label="Remove" testId={`dequeue.${v.id}`} />}<button className="btn btn-sm btn-ghost" data-test="project-tree" onClick={() => { setUi('sel', v.id); store.setTab('research', 'tree'); }}>Tree ›</button></span>}>
       <StageTrack v={v} big />
       <div className="rp-tlab">{STAGES.map((st, i) => <span key={st} className={i === cur ? 'cur' : ''}><Term id={STAGE_TERM[st]}>{STAGE_SHORT[st]}</Term>{i === cur && (st === 'small' || st === 'scale' || st === 'ideation') ? <Tip content={() => <TipCard title={STAGE_LABEL[st]} value={F.pct(v.stageFrac)}>{st === 'ideation' ? 'Toward the candidates a team picks from.' : 'Work done in this stage.'}</TipCard>}><span> {F.pct(v.stageFrac)}</span></Tip> : null}</span>)}</div>
+      <div className="rp-secs">
       {v.state === 'failed' && <div className="rp-sec"><span className="tone-neg small">Failed: {v.maxDrops} candidates were dropped, so the direction does not seem to work in this world.</span> <ActBtn id="research.reopen" params={{ id: v.id }} label="Reopen as speculative" /></div>}
       {(v.belief || v.result) && (
         <Sec k={v.result && !v.belief ? 'Result · estimate at your latest base' : 'Belief · candidate in test'} term="beliefBand">
@@ -300,6 +301,7 @@ export function ProjectCard({ s }: { s: GameStateV2 }) {
         })}
         <div className="rp-kv"><span /><Limit id="research.maxTeams" tone={v.want >= PROJECT_MAX_TEAMS ? 'warn' : 'quiet'}>max {PROJECT_MAX_TEAMS} teams</Limit></div>
       </Sec>
+      </div>
     </Card>
   );
 }

@@ -113,8 +113,11 @@
 .rs-node .mt > [data-tip]:last-child { flex-shrink: 1; }
 
 /* model v3 V2b: Projects tab (priority list + project card) and Recipe tab */
-.rp-grid { display: grid; grid-template-columns: minmax(0, 1fr) 460px; gap: 12px; align-items: start; }
-.rp-head, .rp-row { display: grid; grid-template-columns: 16px 22px minmax(190px, 1fr) 230px 190px 82px 70px 48px; align-items: center; gap: 10px; }
+.rp-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: start; }
+/* B4: the project card sits under the list; its sections side by side. */
+.rp-secs { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0 18px; align-items: start; }
+.rp-secs > .rp-sec { min-width: 0; }
+.rp-head, .rp-row { display: grid; grid-template-columns: 16px 22px minmax(190px, 1.3fr) minmax(230px, 1fr) 240px 82px 70px 48px; align-items: center; gap: 10px; }
 .rp-head { font-size: 10px; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); font-weight: 700; padding: 0 6px 5px; border-bottom: 1px solid var(--line); }
 .rp-row { min-height: 46px; padding: 3px 6px; border-bottom: 1px solid #1c2531; cursor: pointer; border-radius: 6px; }
 .rp-row:hover { background: #18222f; }
@@ -188,3 +191,7 @@
 .rc-ideas { display: flex; flex-direction: column; }
 .rp-add { width: 150px; }
 .rc-idea { display: grid; grid-template-columns: minmax(0, 1fr) 46px 112px 86px; gap: 6px; align-items: center; font-size: 12px; padding: 2px 0; border-bottom: 1px solid #1c2531; }
+/* B4: Auto teams wanted toggle */
+.rp-auto { padding: 0 6px; font-size: 11px; }
+.rp-auto.on { background: #22314a; border-color: #5aa9ff; color: #fff; }
+.rp-row:focus-visible { outline: 2px solid #5aa9ff; outline-offset: -2px; }

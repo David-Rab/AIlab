@@ -771,6 +771,123 @@ async function b3Check(where, shotName) {
   await page.click('[data-cell="SOFT.US"]');
   await wait(60);
 }
+// ───────────────────────── B4: model-v3 leftovers (day 1, 400, 900) ─────────────────────────
+// Real customer counts in the top-strip revenue tooltip and the Core loop (Chat: weekly users and paying; seats where
+// sold; otherwise the share → target, never revenue ÷ ARPU); serving as FLOP per token and cost per hour of use on the
+// Blueprint and Models (no relative "serve cost"); the products' launch card and serving split beside the cards; the
+// project card under the priority list; jobs under the sector heatmap; "auto" teams wanted and the keyboard reorder;
+// capability research log entries open Research › Projects.
+const FAKE_NOUNS = /\b(developers|organisations|contracts|partners|downloads)\b/;
+async function b4Check(where) {
+  await closeModals();
+  await clearTips();
+  // Top strip revenue tooltip.
+  await page.hover('[data-test=revenue]');
+  await wait(450);
+  const rev = await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '');
+  const chatLive = JSON.parse(await get(`s.player.deployments.some((d) => d.channel === 'consumer' && d.status === 'live')`));
+  ok(`B4 ${where}: revenue tooltip shows real customers (users · paying, seats or share → target), no revenue ÷ ARPU counts`,
+    !FAKE_NOUNS.test(rev) && (!chatLive || /weekly users · [\d.]+[KMB]? paying/.test(rev)) && /(paid seats|share [\d.]+% → [\d.]+%)/.test(rev), rev.replace(/\n/g, ' ').slice(0, 220));
+  await clearTips();
+  // Core loop customers node.
+  await nav('overview');
+  await page.hover('[data-test=coreloop] [data-loop=customers]');
+  await wait(450);
+  const cl = await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '');
+  ok(`B4 ${where}: Core loop customers tooltip shows the customer stock → target and real counts`, /share [\d.]+% → [\d.]+%/.test(cl) && !FAKE_NOUNS.test(cl) && (!chatLive || /weekly users/.test(cl)), cl.replace(/\n/g, ' ').slice(0, 200));
+  await clearTips();
+  // Blueprint serving tile and Models card: FLOP per token and cost per hour of use.
+  await nav('blueprint');
+  const tile = await page.evaluate(() => document.querySelector('[data-panel=blueprint] [data-tile=serve]')?.innerText ?? '');
+  ok(`B4 ${where}: Blueprint serving tile shows FLOP per token and cost per hour of use`, /\de\d+/.test(tile) && /FLOP\/tok/.test(tile) && /(\$[\d.]+|[\d.]+¢)\/h( · today)?/.test(tile), tile.replace(/\n/g, ' '));
+  await page.hover('[data-panel=blueprint] [data-tile=serve] .lv');
+  await wait(400);
+  const tt = await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '');
+  ok(`B4 ${where}: serving tile tooltip: cost per hour of use, per agent-hour, $ per H100e-hour`, /Cost per hour of use/.test(tt) && /Cost per agent-hour/.test(tt) && /per H100e-hour/.test(tt), tt.replace(/\n/g, ' ').slice(0, 160));
+  await clearTips();
+  const bpText = await page.locator('[data-panel=blueprint]').innerText();
+  await nav('models');
+  const mText = await page.locator('[data-panel=models]').innerText();
+  ok(`B4 ${where}: no relative "serve cost" on Blueprint or Models; the model card shows FLOP per token and $/h`, !/serve cost/i.test(bpText + mText) && /FLOP\/tok · (\$[\d.]+|[\d.]+¢)\/h/.test(mText), (mText.match(/Serving[^\n]*/) ?? [''])[0]);
+  // Products: launch card and serving split in the side column when there are ≤ 3 products.
+  await nav('products');
+  const pr = await page.evaluate(() => {
+    const n = document.querySelectorAll('[data-panel=products] [data-product]').length;
+    const side = document.querySelector('[data-panel=products] .prod-side');
+    const sv = document.querySelector('[data-home=servingSplit]');
+    const ln = document.querySelector('[data-test=prod-launch]');
+    const card = document.querySelector('[data-panel=products] [data-product]');
+    return { n, side: !!side && !!side.querySelector('[data-home=servingSplit]'), svTop: sv?.getBoundingClientRect().top ?? 9999, launchH: ln?.getBoundingClientRect().height ?? 0, cardH: card?.getBoundingClientRect().height ?? 0 };
+  });
+  ok(`B4 ${where}: Products: with ≤ 3 products the launch card and serving split sit beside the cards, above the fold`, pr.n > 3 || (pr.side && pr.svTop < 1000 && (pr.launchH === 0 || pr.launchH < pr.cardH * 0.6)), JSON.stringify(pr));
+  await shot(`80-${where.replace(' ', '')}-products-b4`);
+  // Research › Projects: the card under the list; auto teams wanted; keyboard reorder.
+  await nav('research');
+  await tabTo('projects');
+  await wait(60);
+  const lay = await page.evaluate(() => {
+    const l = document.querySelector('[data-home=priorities]')?.getBoundingClientRect();
+    const c = document.querySelector('[data-home=projectCard]')?.getBoundingClientRect();
+    const clipped = [...document.querySelectorAll('[data-home=priorities] .stepper, [data-home=priorities] .rp-nm b')].filter((x) => x.scrollWidth > x.clientWidth + 1).length;
+    return { below: !!l && !!c && c.top >= l.bottom - 1, clipped };
+  });
+  ok(`B4 ${where}: Research: the project card sits under the priority list; no clipped stepper`, (lay.below || !(await page.$('[data-home=projectCard]'))) && lay.clipped === 0, JSON.stringify(lay));
+  const first = await page.$eval('[data-home=priorities] [data-project]', (e) => e.getAttribute('data-project')).catch(() => '');
+  if (first) {
+    await check(`B4 ${where}: Auto teams wanted turns on`, 'JSON.stringify(s.player.research.wantAuto)', () => page.click(`[data-act="want-auto.${first}"]`));
+    ok(`B4 ${where}: an auto project shows "auto" and its placed teams`, /auto/.test(await page.$eval(`[data-test="want-n.${first}"]`, (e) => e.textContent ?? '')) && (await page.getAttribute(`[data-act="want-auto.${first}"]`, 'aria-pressed')) === 'true');
+    await clearTips();
+    await page.hover(`[data-act="want-auto.${first}"]`);
+    await wait(380);
+    ok(`B4 ${where}: the Auto toggle's tooltip explains priority and fit`, /priority and fit/.test(await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '')));
+    await clearTips();
+    await shot(`81-${where.replace(' ', '')}-research-projects-b4`);
+    await check(`B4 ${where}: Auto teams wanted turns off (fixes the number)`, 'JSON.stringify(s.player.research.wantAuto)', () => page.click(`[data-act="want-auto.${first}"]`));
+    const labels = await page.$$eval('[data-home=priorities] [data-test^="prio-"], [data-home=priorities] [data-act^="want-"]', (els) => els.filter((e) => !e.getAttribute('aria-label')).map((e) => e.getAttribute('data-test') ?? e.getAttribute('data-act')));
+    ok(`B4 ${where}: ▲▼, − + and Auto have accessible labels`, labels.length === 0, labels.slice(0, 4).join(', '));
+    const n = JSON.parse(await get("document.querySelectorAll('[data-home=priorities] [data-project]').length"));
+    if (n > 1) {
+      await page.focus(`[data-home=priorities] [data-project="${first}"]`);
+      await check(`B4 ${where}: Alt+↓ on a focused row moves it down (keyboard reorder)`, 'JSON.stringify(s.player.research.queue)', () => page.keyboard.press('Alt+ArrowDown'));
+      await page.focus(`[data-home=priorities] [data-project="${first}"]`);
+      await check(`B4 ${where}: Alt+↑ moves it back`, 'JSON.stringify(s.player.research.queue)', () => page.keyboard.press('Alt+ArrowUp'));
+    }
+  }
+  // World › Sectors: jobs under the heatmap.
+  await nav('world');
+  await tabTo('sectors');
+  const wj = await page.evaluate(() => {
+    const left = document.querySelector('[data-test=world-sectors] .ws-left');
+    const card = document.querySelector('[data-test=ws-card]')?.getBoundingClientRect();
+    const lb = left?.getBoundingClientRect();
+    return { jobs: !!left && /Unemployment US/.test(left.textContent ?? ''), gap: card && lb ? Math.round(Math.abs(lb.bottom - card.bottom)) : -1 };
+  });
+  ok(`B4 ${where}: World › Sectors: jobs sit under the heatmap (columns end within 300 px of each other)`, wj.jobs && wj.gap >= 0 && wj.gap < 300, JSON.stringify(wj));
+  await shot(`82-${where.replace(' ', '')}-world-sectors-b4`);
+  // Log routing: a capability project's result opens Research › Projects; a safety entry opens Safety.
+  const cap = first;
+  await page.evaluate((id) => {
+    const s = window.ai27v2.state;
+    s.log.push({ day: s.time.day, kind: 'research', text: `B4 test: ${id} works.`, severity: 2, ref: id });
+    s.log.push({ day: s.time.day, kind: 'research', text: 'B4 test: new tool.', severity: 2, ref: 'no-such-technique' });
+    window.ai27v2.notify();
+  }, cap);
+  await wait(60);
+  await page.click('[data-test=alert-chip]');
+  await wait(80);
+  const routes = await page.$$eval('[data-test=alert-list] [data-alert-row=research]', (els) => els.map((e) => ({ r: e.getAttribute('data-route'), t: e.textContent ?? '' })));
+  const capRow = routes.find((x) => /B4 test: .* works/.test(x.t));
+  const safRow = routes.find((x) => /B4 test: new tool/.test(x.t));
+  ok(`B4 ${where}: log routing: capability research → Research › Projects, the rest of research → Safety`, (!cap || capRow?.r === 'research.projects') && safRow?.r === 'safety', JSON.stringify(routes.map((x) => x.r)));
+  if (cap) {
+    const idx = routes.indexOf(capRow);
+    await page.locator('[data-test=alert-list] [data-alert-row=research] [data-test=alert-open]').nth(idx).evaluate((b) => b.click());
+    await wait(80);
+    ok(`B4 ${where}: Open on a capability result opens its project card`, JSON.parse(await get(`store.panel === 'research' && store.tab.research === 'projects' && store.tab['research.proj'] === ${JSON.stringify(cap)}`)));
+  } else await page.click('[data-test=alert-chip]');
+  await page.evaluate(() => { const s = window.ai27v2.state; s.log = s.log.filter((e) => !/^B4 test:/.test(e.text)); window.ai27v2.notify(); });
+  await closeModals();
+}
 await page.evaluate(() => { const st = window.ai27v2; st.start({ ...st.draftSetup, tutorial: false, seed: 2027, companyName: 'OpenBrain' }); });
 await wait(150);
 await page.evaluate(() => window.ai27v2.step(1));
@@ -778,7 +895,9 @@ await closeModals();
 await pause();
 await b1Check('day 1');
 await b2Check('day 1');
-await b3Check('day 1', '29-day1-world-sectors'); await nav('products');
+await b3Check('day 1', '29-day1-world-sectors');
+await b4Check('day 1');
+await nav('products');
 {
   // Edit preview: a cheaper tier moves the target share at once (the stock follows later).
   const api = JSON.parse(await get(`(s.player.deployments.find((d) => d.channel === 'api' && d.status === 'live') || {}).id || ''`));
@@ -844,6 +963,7 @@ for (const p of PANELS) {
 await b1Check('day 400');
 await b2Check('day 400');
 await b3Check('day 400', '29-day400-world-sectors');
+await b4Check('day 400');
 await shot('27-day400-products-b2');
 const fx9 = readFileSync(path.resolve('scripts/v2/fixtures/day900.json'), 'utf8');
 await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
@@ -851,6 +971,7 @@ await page.evaluate(() => { window.ai27v2.state.setup.tutorial = false; window.a
 await b1Check('day 900');
 await b2Check('day 900');
 await b3Check('day 900', '29-day900-world-sectors');
+await b4Check('day 900');
 await shot('28-day900-products-b2');
 {
   const miss = B1_TERMS.filter((t) => !b1Seen.has(t));
