@@ -52,7 +52,7 @@ const fmtPull = (s: GameStateV2) => { const p = successorPull(s); return `r ${p.
   const sum = p.parts.reduce((a, x) => a + x.share, 0);
   const vf = s.player.models.versions.find((v) => v.id === 'VF')!;
   check(near(sum, aiRdShare(s), 1e-9) && near(p.r, aiRdShare(s), 1e-12), 'the work types\' AI shares (SWE, EXP, IDEAS) sum to E5\'s AI share of R&D', `Σ ${sum.toFixed(4)} = r ${p.r.toFixed(4)}`);
-  check(p.parts.every((x) => near(x.omega, kappaSucc(vf.traitsTrue.SUCC) * x.share * (1 - successorOversight(s, vf, p.r)), 1e-12)) && near(p.omega, p.parts.reduce((a, x) => a + x.omega, 0), 1e-12),
+  check(p.parts.every((x) => near(x.omega, kappaSucc(vf.traitsTrue.SUCC) * x.share * (1 - successorOversight(s, vf)), 1e-12)) && near(p.omega, p.parts.reduce((a, x) => a + x.omega, 0), 1e-12),
     'ω_k = κ_succ(SUCC) × AI share_k × (1 − oversight_k), ω = Σ ω_k', p.parts.map((x) => `${x.slot} ${x.share.toFixed(3)} → ${x.omega.toFixed(4)}`).join(', '));
 }
 

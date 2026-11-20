@@ -16,15 +16,14 @@ import type {
   BaseDesign, BaseModel, DomainId, EngineSystem, GameStateV2, ModelVersion, PostDesign, RivalLab, RLFamily, RngLike, SafetyPosture, SignalId,
   SimpleModel, SystemCtx, ToolFamily, TrainingRun, TraitBelief, TraitId, TraitVector, UModeId,
 } from '../types';
-import { adopted, clamp01, copyRec, flagNum, levelOf, SC_LEVEL, setFlag, tierOfLevel, trueEfficacy, versionById, versionM } from './common';
+import { adopted, clamp01, copyRec, flagNum, levelOf, SC_LEVEL, setFlag, tierOfLevel, trueEfficacy, versionById } from './common';
 import { lineMultCapped, lineStaffed } from './agendas';
-import { SD_MAX, eaCoef, eaSuppression, monitoringCatch, stackDetectionMap, takesEaPenalty } from './detection';
-import { containment, techniqueRole } from './techniques';
-import { aiRdShare } from './incidents';
-import { HUMAN_REVIEW } from '../../../data/v2/danger';
+import { SD_MAX, eaCoef, eaSuppression, stackDetectionMap, takesEaPenalty } from './detection';
+import { techniqueRole } from './techniques';
+import { aiRdShare, internalOversight } from './incidents';
 import { routineMonitor } from '../departments/agents';
 import { workContext, type CapSlot } from '../departments/workfit';
-import { crystalMult, crystalThreshold, drawLineageUModesV2, uModeAmp, uModeContainMult, uModeEdgeMult, uModeRemovalMult } from './umodes';
+import { crystalMult, crystalThreshold, drawLineageUModesV2, uModeAmp, uModeEdgeMult, uModeRemovalMult } from './umodes';
 
 const SPECULATIVE = new Set(UMODES.filter((u) => u.kind === 'speculative').map((u) => u.id));
 
@@ -654,16 +653,13 @@ export const SUCCESSOR_TRAITS: readonly TraitId[] = ['PERSONA', 'CONCEAL', 'POWE
 export const kappaSucc = (succ: number) => K_SUCC_0 + (1 - K_SUCC_0) * clamp01(succ);
 
 /**
- * Internal oversight of successor steering by model `v` (E5's internal terms, the act being SUCC): block = AG07
- * containment on v's internal fleet (control layer × best contain tool, U19), catch = 1 − (1 − monitoringCatch(v,
- * SUCC))·(1 − HUMAN_REVIEW·(1 − r)). oversight = 1 − (1 − block)(1 − catch). E6 re-bases monitors and containment on
- * capability gaps: swap this function (it is the only oversight read of the pull).
+ * Internal oversight of successor steering by model `v`: E6's hook (safety/incidents.ts internalOversight) for the act
+ * SUCC: block = AG07 containment on the internal fleet at v's capability (OOM), catch = monitors and tools, human
+ * review falling with v's gap above expert humans, control-layer deferral; oversight = 1 − (1 − block)(1 − catch).
+ * The only oversight read of the pull.
  */
-export function successorOversight(s: GameStateV2, v: ModelVersion, r = aiRdShare(s)): number {
-  const dep = s.player.deployments.find((d) => d.channel === 'internal' && d.versionId === v.id && d.status !== 'withdrawn');
-  const block = containment(s, versionM(s, v), !!dep?.controlLayer, false, uModeContainMult(v.uModes)); // BRIDGE(V6): M, E6
-  const caught = 1 - (1 - monitoringCatch(s, v, 'SUCC')) * (1 - HUMAN_REVIEW * (1 - r));
-  return clamp01(1 - (1 - block) * (1 - caught));
+export function successorOversight(s: GameStateV2, v: ModelVersion): number {
+  return clamp01(internalOversight(s, v, 'SUCC').oversight);
 }
 
 export interface SuccessorPart {
@@ -698,7 +694,7 @@ export function successorPull(s: GameStateV2): SuccessorPull {
     const v = sl.versionId ? versionById(s, sl.versionId) : undefined;
     const share = (Math.max(sl.H, sl.L) - sl.H) / L;
     if (!v || share <= 0) continue;
-    const oversight = successorOversight(s, v, r);
+    const oversight = successorOversight(s, v);
     const kappa = kappaSucc(v.traitsTrue.SUCC);
     const om = kappa * share * (1 - oversight);
     omega += om;

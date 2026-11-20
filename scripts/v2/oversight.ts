@@ -172,7 +172,7 @@ const reset = (s: GameStateV2) => { resetWorkContext(s); resetSafetyLabour(s); }
   const files = [...readdirSync(join(root, 'safety')).filter((f) => f.endsWith('.ts')).map((f) => join(root, 'safety', f)), join(root, 'models/products.ts'), join(root, 'departments/agents.ts')];
   const bad = /\b(multiplierAt|multiplierRef|versionM|mAtLevel|mAtPm|bridgeQ|researchSpeed)\b|prodCache\??\.M\b/;
   // Owned by E4 (successor pull; the brief keeps E6 out of traits.ts): the lineage-inheritance κ·(1 − 1/M).
-  const allow = (file: string, line: string) => file.endsWith('traits.ts') && /INHERIT_K|inheritFromFleet|const M = s\.player\.prodCache\?\.M/.test(line);
+  const allow = (file: string, line: string) => file.endsWith('traits.ts') && /INHERIT_K|const M = s\.player\.prodCache\?\.M/.test(line);
   const hits: string[] = [];
   const allowed: string[] = [];
   for (const f of files) {
