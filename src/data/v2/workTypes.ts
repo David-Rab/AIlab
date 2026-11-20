@@ -163,12 +163,14 @@ export const DAY0_REF = { re: 11 * 0.88, agents: 3e4, flop: 1e6 * 0.05 * 3.46e19
  *  move with G_SC and the leader lab's T1L SC there is +0.30 y vs +0.13 y here, F2 / F4).
  *  M5 refit (D10's serving efficiency in RefBot's lines, F2's rivals and E7–E15 move the fast path; G_SC scan, Δ_bm and
  *  sd_SC kept): fast G_SC 31.572 → 31.553 (SAR +0.123 → +0.104 y, ASI −0.085 → −0.104 y; SAR, SIAR and ASI fall on one
- *  day, so SAR − ASI ≈ 0.21 y of a 0.24 y window; passing run 31.540–31.564, F4). */
+ *  day, so SAR − ASI ≈ 0.21 y of a 0.24 y window; passing run 31.540–31.564, F4).
+ *  A6 refit (F6a's usage-data fix moved slow SC 4776 → 4483, −0.80 y; G_SC scan, Δ_bm and sd_SC kept): slow G_SC
+ *  35.488 → 35.496 (SC −0.80 → +0.05 y; SC steps between 4483 and 4776 d; passing window 35.490–35.503). */
 export interface V3Cal { gSC: number; dBM: number; r: number; sdSC: number }
 export const V3_CAL: Record<WorldPresetId, V3Cal> = {
   ai2027: { gSC: 30.497, dBM: 2.2, r: 4, sdSC: SD_AT_SC },
   authors2026: { gSC: 33.622, dBM: 4.6, r: 3.19, sdSC: 1.8 },
   fast: { gSC: 31.553, dBM: 0.05, r: 4, sdSC: SD_AT_SC },
-  slow: { gSC: 35.488, dBM: 1.6, r: 1.2, sdSC: SD_AT_SC },
+  slow: { gSC: 35.496, dBM: 1.6, r: 1.2, sdSC: SD_AT_SC },
   sampled: { gSC: 30.497, dBM: 2.2, r: 4, sdSC: SD_AT_SC },
 };
