@@ -171,19 +171,16 @@ const reset = (s: GameStateV2) => { resetWorkContext(s); resetSafetyLabour(s); }
   const root = join(HERE, '..', '..', 'src', 'engine', 'v2');
   const files = [...readdirSync(join(root, 'safety')).filter((f) => f.endsWith('.ts')).map((f) => join(root, 'safety', f)), join(root, 'models/products.ts'), join(root, 'departments/agents.ts')];
   const bad = /\b(multiplierAt|multiplierRef|versionM|mAtLevel|mAtPm|bridgeQ|researchSpeed)\b|prodCache\??\.M\b/;
-  // Owned by E4 (successor pull; the brief keeps E6 out of traits.ts): the lineage-inheritance κ·(1 − 1/M).
-  const allow = (file: string, line: string) => file.endsWith('traits.ts') && /INHERIT_K|inheritFromFleet|const M = s\.player\.prodCache\?\.M/.test(line);
   const hits: string[] = [];
-  const allowed: string[] = [];
   for (const f of files) {
     const lines = readFileSync(f, 'utf8').split('\n');
     lines.forEach((l, i) => {
       const code = l.replace(/\/\/.*$/, '');
       if (/^\s*(\*|\/\*\*)/.test(l) || !bad.test(code)) return;
-      (allow(f, l) ? allowed : hits).push(`${f.slice(root.length + 1)}:${i + 1}`);
+      hits.push(`${f.slice(root.length + 1)}:${i + 1}`);
     });
   }
-  check(hits.length === 0, 'lint: no safety module (nor the monitor catch code) reads M (multiplierAt / versionM / mAtLevel / the M bridge)', hits.join(', ') || `allowed (E4): ${allowed.join(', ') || 'none'}`);
+  check(hits.length === 0, 'lint: no safety module (nor the monitor catch code) reads M (multiplierAt / versionM / mAtLevel / the M bridge)', hits.join(', ') || 'none (E4 removed the lineage-inheritance read)');
 }
 
 finish('oversight');

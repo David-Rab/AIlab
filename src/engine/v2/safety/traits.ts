@@ -20,7 +20,9 @@ import { adopted, clamp01, copyRec, flagNum, levelOf, SC_LEVEL, setFlag, tierOfL
 import { lineMultCapped, lineStaffed } from './agendas';
 import { SD_MAX, eaCoef, eaSuppression, stackDetectionMap, takesEaPenalty } from './detection';
 import { techniqueRole } from './techniques';
+import { aiRdShare, internalOversight } from './incidents';
 import { routineMonitor } from '../departments/agents';
+import { workContext, type CapSlot } from '../departments/workfit';
 import { crystalMult, crystalThreshold, drawLineageUModesV2, uModeAmp, uModeEdgeMult, uModeRemovalMult } from './umodes';
 
 const SPECULATIVE = new Set(UMODES.filter((u) => u.kind === 'speculative').map((u) => u.id));
@@ -628,22 +630,90 @@ function findBase(s: GameStateV2, id: string | undefined): BaseModel | undefined
   return id ? s.player.models.bases.find((b) => b.id === id) : undefined;
 }
 
+// ───────────────────────────── Successor pull (model v3 E4, MODEL-V3 §11.2) ─────────────────────────────
+//
+// When AI does a share r of the R&D that trains the next model (the V3 work types that touch a run: EXP and IDEAS
+// design and run the training, SWE writes its code), the new model's dispositions are pulled toward the models doing
+// that work, each weighted by its share of the work:
+//   x₀_t += Σ_k ω_k · (x_k,t − x₀_t),   ω_k = κ_succ(SUCC_k) · r_k · (1 − oversight_k)        for t ∈ SUCCESSOR_TRAITS
+// r_k = the AI part of work type k's effective labour ÷ the lab's R&D labour over SWE, EXP, IDEAS, so Σ_k r_k =
+// aiRdShare(s) (E5). κ_succ(SUCC) = K_SUCC_0 + (1 − K_SUCC_0)·SUCC: a model that wants its successor aligned to
+// itself pulls harder, and a fully successor-hijacking model with all the R&D and no oversight passes its dispositions
+// on in full (research/04 T23 "trait inheritance becomes 100% for the hijacked generation"; AI 2027 Sep–Nov 2027:
+// Agent-4 "plans to make Agent-5 aligned to Agent-4"). K_SUCC_0 = 0.4 [D]: the unintended part (models write the
+// successor's code, data and experiments, R12 #10), V2's lineage inheritance constant INHERIT_K kept. This is R&D
+// influence; the E06 teacher pull (distillation, synthetic data within a base family, `sameBaseFamily`) stays separate.
+
+/** Unintended successor pull per unit AI R&D share at zero oversight (SUCC = 0) [D: V2's INHERIT_K]. */
+export const K_SUCC_0 = 0.4;
+/** Dispositions the pull acts on: the hidden B-layer traits and the misaligned persona (not capability, awareness,
+ *  learned behaviours or the protective traits). */
+export const SUCCESSOR_TRAITS: readonly TraitId[] = ['PERSONA', 'CONCEAL', 'POWER', 'AF', 'SAND', 'SCHEME', 'COLLUDE', 'SUCC'];
+/** κ_succ(SUCC) = K_SUCC_0 + (1 − K_SUCC_0)·SUCC. */
+export const kappaSucc = (succ: number) => K_SUCC_0 + (1 - K_SUCC_0) * clamp01(succ);
+
 /**
- * Lineage inheritance through the lab's own AI R&D (M4) [D]: once the internal agents write much of the next model's
- * pretraining and post-training data (R12 #10 "models write the data for successors"; AI 2027 Agent-4 → Agent-5), a
- * fresh base starts part-way toward the internal agent's learned tendencies: x₀ += κ·(x_agent − x₀), κ = INHERIT_K ·
- * (1 − 1/M). Capability-indexed SA, EA and OBF keep the tier prior. A new base therefore no longer resets a lab's
- * misalignment, and a clean lab passes its cleanliness on.
+ * Internal oversight of successor steering by model `v`: E6's hook (safety/incidents.ts internalOversight) for the act
+ * SUCC: block = AG07 containment on the internal fleet at v's capability (OOM), catch = monitors and tools, human
+ * review falling with v's gap above expert humans, control-layer deferral; oversight = 1 − (1 − block)(1 − catch).
+ * The only oversight read of the pull.
  */
-export const INHERIT_K = 0.4;
-const NOT_INHERITED: TraitId[] = ['SA', 'EA', 'OBF'];
-function inheritFromFleet(s: GameStateV2, x0: TraitVector): TraitVector {
-  const agent = versionById(s, s.player.agents.capRoutine.versionId);
-  const M = s.player.prodCache?.M ?? 1;
-  const k = INHERIT_K * Math.max(0, 1 - 1 / Math.max(1, M));
-  if (!agent || k <= 0) return x0;
+export function successorOversight(s: GameStateV2, v: ModelVersion): number {
+  return clamp01(internalOversight(s, v, 'SUCC').oversight);
+}
+
+export interface SuccessorPart {
+  slot: CapSlot;
+  versionId: string;
+  /** This work type's AI labour ÷ the lab's R&D labour (Σ over parts = aiRdShare). */
+  share: number;
+  oversight: number;
+  kappa: number;
+  /** ω_k = kappa · share · (1 − oversight). */
+  omega: number;
+}
+export interface SuccessorPull {
+  /** AI share of the lab's R&D (aiRdShare). */
+  r: number;
+  /** Σ ω_k: how far the new model moves toward its makers' dispositions (0–1). */
+  omega: number;
+  parts: SuccessorPart[];
+}
+
+/** The successor pull a run completing today would get (readout for tests and E12's UI). */
+export function successorPull(s: GameStateV2): SuccessorPull {
+  const w = workContext(s).slots;
+  let L = 0;
+  for (const k of CAP_SLOTS) L += Math.max(w[k].H, w[k].L);
+  const r = aiRdShare(s);
+  const parts: SuccessorPart[] = [];
+  let omega = 0;
+  if (L <= 1e-12) return { r, omega, parts };
+  for (const k of CAP_SLOTS) {
+    const sl = w[k];
+    const v = sl.versionId ? versionById(s, sl.versionId) : undefined;
+    const share = (Math.max(sl.H, sl.L) - sl.H) / L;
+    if (!v || share <= 0) continue;
+    const oversight = successorOversight(s, v);
+    const kappa = kappaSucc(v.traitsTrue.SUCC);
+    const om = kappa * share * (1 - oversight);
+    omega += om;
+    parts.push({ slot: k, versionId: v.id, share, oversight, kappa, omega: om });
+  }
+  return { r, omega, parts };
+}
+const CAP_SLOTS: readonly CapSlot[] = ['SWE', 'EXP', 'IDEAS'];
+
+/** Pull x₀ (the new model's starting dispositions) toward the AI fleet doing the lab's R&D (successorPull). */
+export function applySuccessorPull(s: GameStateV2, x0: TraitVector, pull: SuccessorPull = successorPull(s)): TraitVector {
+  if (pull.omega <= 0) return x0;
   const x = { ...x0 };
-  for (const t of TRAIT_IDS) if (!NOT_INHERITED.includes(t)) x[t] = clamp01(x0[t] + k * (agent.traitsTrue[t] - x0[t]));
+  for (const p of pull.parts) {
+    const xs = versionById(s, p.versionId)?.traitsTrue;
+    if (!xs || p.omega <= 0) continue;
+    for (const t of SUCCESSOR_TRAITS) x[t] += p.omega * (xs[t] - x0[t]);
+  }
+  for (const t of SUCCESSOR_TRAITS) x[t] = clamp01(x[t]);
   return x;
 }
 
@@ -656,12 +726,13 @@ export function applyBaseToLineage(s: GameStateV2, ctx: SystemCtx, run: Training
   const sg = baseSignals(design, baseQuantitiesOf(s, design, base.gPre));
   base.signals = { ...sg };
   if (run.kind === 'continue') {
-    base.traitsTrue = stepTraits(base.traitsTrue, playerEnv(s, base.traitsTrue, sg, OMEGA_KIND.continue, undefined, base.lineage, base.uModes));
+    const xc = applySuccessorPull(s, base.traitsTrue); // E4: the AI doing the lab's R&D pulls the continued base
+    base.traitsTrue = stepTraits(xc, playerEnv(s, xc, sg, OMEGA_KIND.continue, undefined, base.lineage, base.uModes));
     return;
   }
   if (!base.lineage) base.lineage = `L-${base.id}`;
   const uModes = drawLineageUModesV2(s, ctx.rng('safety'), { tierAtLeastSC: levelOf(w, s.player.pa) >= SC_LEVEL, base: design, player: true });
-  const x0 = inheritFromFleet(s, basePrior(tier, design));
+  const x0 = applySuccessorPull(s, basePrior(tier, design)); // E4 successor pull (replaces V2's inheritFromFleet)
   base.uModes = uModes;
   base.traitsTrue = stepTraits(x0, playerEnv(s, x0, sg, OMEGA_KIND.base, undefined, base.lineage, uModes));
 }
@@ -695,7 +766,7 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
 
   if (run.kind === 'distill') {
     const teacher = versionById(s, run.teacherVersionId);
-    const x0 = base?.traitsTrue ?? teacher?.traitsTrue ?? TRAIT_START;
+    const x0 = applySuccessorPull(s, base?.traitsTrue ?? teacher?.traitsTrue ?? TRAIT_START); // E4 (the E06 pull below is separate)
     const uModes = teacher ? [...teacher.uModes] : [...(base?.uModes ?? [])];
     const sg = runSignals(s, run);
     const om = runOmega(s, run);
@@ -712,7 +783,7 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
 
   // post-training
   const post = run.post ?? version.design;
-  const x0 = parent?.traitsTrue ?? base?.traitsTrue ?? TRAIT_START;
+  const x0 = applySuccessorPull(s, parent?.traitsTrue ?? base?.traitsTrue ?? TRAIT_START); // E4 successor pull
   const uModes = parent ? [...parent.uModes] : [...(base?.uModes ?? [])];
   const sg = runSignals(s, run);
   const om = runOmega(s, run);
