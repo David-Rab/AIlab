@@ -35,6 +35,7 @@ import { initialResearch, initialTree } from '../models/tree';
 import { initialBuild } from '../departments/build';
 import { initialAgents } from '../departments/agents';
 import { computeProduction } from '../production/production';
+import { portfolioU, startPortfolio } from '../production/data';
 import { initialSafetyDept } from '../safety/agendas';
 import { initialSecurity } from '../security/security';
 import { referenceRate, thresholds } from '../world/calibration';
@@ -146,7 +147,8 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   // §3.1.4 initial state: B0 started day −120, V0 finished day −20; pa(0) solved so that pm(V0) = p0 − calShift.
   const ps0 = playerStart(w);
   const lagY = leader ? 0 : (def.lagMonths / 12) * referenceRate(w, ps0.target, 2025.5);
-  const uniqueT = 300e12 + 0.5 * 20e12; // the start data assets below (licensed 30T + unlicensed 270T + 0.5 × 20T synthetic)
+  const dataPortfolio = startPortfolio(); // model v3 D1: U = 270T public crawl + 30T licensed + 0.5 × 20T synthetic = 310T
+  const uniqueT = portfolioU(dataPortfolio);
   const shifted = (k: number) => ({ ...ps0, pa0: ps0.pa0 - k, paBase: ps0.paBase - k, paPost: ps0.paPost - k, target: ps0.target - k });
   // A follower's start model lags by lagY progress-years (BUILD-PLAN R9). Its base is the same physical run; the lag is
   // in know-how, which moves both the pretraining and the RL recipe. The RL curve is not linear in its recipe, so the
@@ -242,7 +244,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     // D5: the leader start's features (sector packs) are the ×1 baseline; other starts build their own set.
     features: leader ? [...LEADER_FEATURES] : [...def.features],
     morale: { overall: 70, safety: 65 },
-    dataAssets: { licensedTokensT: 30, unlicensedTokensT: 270, syntheticTokensT: 20, litigationRisk: (0.02 * 270) / 100 },
+    dataPortfolio,
     policies: { whistleblowerChannel: false, publishSafety: 'selective', govBriefing: 1, shareWithAllies: false, transitionFund: 0, communityBenefits: false, spareTraining: 'data', spareServing: 'research', servingAuto: true, upgradeToNewest: false, autoEvaluate: true, trustedToAI: 0 },
     agents: initialAgents('V0'),
   };

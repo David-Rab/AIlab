@@ -17,6 +17,7 @@ import { addPosture, archetypeOf, openWeightsReleased, paceOf } from './rivals';
 import { ws4, ws4r } from './state';
 import { changeHeads } from '../departments/teams';
 import { addKnowledge } from '../models/stacks';
+import { licenseCorpus, unlicensedPublicT } from '../production/data';
 
 type P = Record<string, number | string | boolean>;
 
@@ -380,13 +381,11 @@ export const RELATION_ACTIONS: ActionDef[] = [
   }),
   def({
     id: 'D3', verb: 'deal', system: 'models', title: 'License data', once: true,
-    preview: (s) => pv([L('cash', Math.round((1 + 0.005 * s.player.dataAssets.unlicensedTokensT) * 100) / 100, 'licences up front')], [L('approval', 10, 'bloc:creatives')], [L('cash', 0, 'litigation hazard → 0')]),
+    preview: (s) => pv([L('cash', Math.round((1 + 0.005 * unlicensedPublicT(s.player.dataPortfolio)) * 100) / 100, 'licences up front')], [L('approval', 10, 'bloc:creatives')], [L('cash', 0, 'litigation hazard → 0')]),
     apply(s, ctx) {
-      const d = s.player.dataAssets;
-      cash(s, ctx, -(1 + 0.005 * d.unlicensedTokensT), 'D3 data licences');
-      d.licensedTokensT += d.unlicensedTokensT;
-      d.unlicensedTokensT = 0;
-      d.litigationRisk = 0;
+      // Model v3 D1: licenses the public crawl and adds a licensed corpus to the data portfolio (production/data.ts).
+      cash(s, ctx, -(1 + 0.005 * unlicensedPublicT(s.player.dataPortfolio)), 'D3 data licences');
+      licenseCorpus(s.player.dataPortfolio, s.time.day);
       s.relations.dataLicences.push('corpus');
       bloc(s, ctx, 'creatives', 10, 0, 'D3');
     },

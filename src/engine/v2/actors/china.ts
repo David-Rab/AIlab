@@ -11,6 +11,7 @@ import type { ChinaActor, EngineSystem, GameStateV2, HiddenWorld, StaffByRole, S
 import { cash, drift } from './fx';
 import { goalpostsQ, leadBetween, rivalFinanceQ, simpleModel } from './rivals';
 import { request, ws4 } from './state';
+import { unlicensedPublicT } from '../production/data';
 import { KOREA_HAZARD_Q, koreaShock, setExportPolicy, taiwanHazardQ, taiwanShock } from '../compute/market';
 
 export const chinaPresetOf = (id: string) => CHINA_PRESETS.find((p) => p.id === id) ?? CHINA_PRESETS[0];
@@ -298,14 +299,14 @@ export const geoQSystem: EngineSystem = {
     // Copyright litigation hazard 0.02·unlicensedT/100 per quarter (§3.9.1 data licences; R17 D3). A suit settles
     // automatically ($1.5B per 270T unlicensed tokens, the Bartz v. Anthropic scale), at most once a year; licensing
     // the data (D3) is the way to avoid it.
-    const d = s.player.dataAssets;
-    const lit = 0.02 * d.unlicensedTokensT / 100;
+    const unlicensedT = unlicensedPublicT(s.player.dataPortfolio); // model v3 D1: the public crawl without a licence
+    const lit = 0.02 * unlicensedT / 100;
     const lastSuit = Number(s.flags['ws4:lastSuitDay'] ?? -1e9);
     if (lit > 0 && day - lastSuit >= 365 && ctx.rng('actors').chance(Math.min(0.5, lit))) {
       s.flags['ws4:lastSuitDay'] = day;
-      const amt = 1.5 * clamp(d.unlicensedTokensT / 270, 0.2, 3);
+      const amt = 1.5 * clamp(unlicensedT / 270, 0.2, 3);
       cash(s, ctx, -amt, 'copyright settlement');
-      ctx.log('company', `Authors and publishers sued over ${Math.round(d.unlicensedTokensT)}T tokens of unlicensed training data; you settled for $${amt.toFixed(1)}B. Licensing the data stops further suits.`, 3);
+      ctx.log('company', `Authors and publishers sued over ${Math.round(unlicensedT)}T tokens of unlicensed training data; you settled for $${amt.toFixed(1)}B. Licensing the data stops further suits.`, 3);
     }
     rivalFinanceQ(s, ctx);
     goalpostsQ(s, ctx);

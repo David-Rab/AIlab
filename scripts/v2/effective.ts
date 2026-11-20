@@ -102,12 +102,12 @@ check(post.etaDays - post.setupDays < 30 && post.flopNeeded === RL_BUDGET.standa
 const sC = newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, tutorial: false }));
 const g0 = base(sC, 2e12).limits!.gPre.total;
 const pa0 = sC.player.pa;
-const assets0 = { ...sC.player.dataAssets };
+const assets0 = JSON.stringify(sC.player.dataPortfolio);
 // V4.0: a new game runs its default research lines, so "fixed know-how" also holds the recipe stacks at day 0.
 const stacks0 = JSON.parse(JSON.stringify(sC.player.research.stacks)) as typeof sC.player.research.stacks;
 runTo(sC, 500, { skip: ['endings'] });
 sC.player.pa = pa0;
-sC.player.dataAssets = { ...assets0 };
+sC.player.dataPortfolio = JSON.parse(assets0) as typeof sC.player.dataPortfolio;
 sC.player.research.stacks = stacks0;
 const g500 = base(sC, 2e12).limits!.gPre.total;
 check(near(g0, g500, 1e-9), 'a fixed physical run at fixed know-how gives the same G on day 0 and day 500 (no F(t))', `${g0.toFixed(4)} vs ${g500.toFixed(4)}`);

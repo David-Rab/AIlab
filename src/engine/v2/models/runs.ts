@@ -165,7 +165,7 @@ export const P12_HORIZON = 2;
  *  FLOP since model v3 V3, departments/build.ts engScale). */
 export const scaleOf = (s: GameStateV2, flop: number) => flop / frontierFlop(s.hidden.timeline, decimalYear(s)); // BRIDGE(V6,V7)
 
-/** Unique tokens the player can train on: licensed + unlicensed (× licence deals) + quality-weighted synthetic. */
+/** Unique tokens the player can train on: its data portfolio's quality-weighted U (model v3 D1, production/data.ts). */
 export const playerUniqueTokens = (s: GameStateV2) => uniqueTokens(s);
 
 /** Limits of a base run (blueprint size card). All exact readouts of what the engine will do. */
