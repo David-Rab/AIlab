@@ -79,6 +79,7 @@ function estTraits(v: ModelVersion): TraitVector {
 /** Measured level of an act's domain: the measured general level plus the version's domain offset. */
 const measuredDomainL = (s: GameStateV2, v: ModelVersion, d: DomainId) => measuredLOf(s, v).L + (v.domains[d] - v.Lg);
 
+/** control: undefined = as it is, true = the layer on, false = off (model v3 F6: the remove-control preview). */
 interface Opts { control?: boolean; restrict?: boolean }
 
 /** One site's believed acts. `opp(def)` = the act's opportunity; `catchOf(trait)` = the believed catch. */
@@ -119,7 +120,7 @@ function productDanger(s: GameStateV2, d: Deployment, o: Opts = {}): DangerRead 
   const v = versionById(s, d.versionId);
   if (!v || v.status === 'retired' || d.status === 'withdrawn') return undefined;
   const usage = d.channel === 'open' ? 1 : d.servingShare;
-  const layer = !!o.control || d.controlLayer;
+  const layer = o.control ?? d.controlLayer;
   const base = siteOf(s, d, v, usage);
   const restricted = d.status === 'restricted' || !!o.restrict;
   const site: Site = { ...base, scale: base.scale * (o.restrict && d.status !== 'restricted' ? RESTRICT : 1), contain: containment(s, measuredOom(s, v), layer, true) };
@@ -129,7 +130,7 @@ function productDanger(s: GameStateV2, d: Deployment, o: Opts = {}): DangerRead 
   return {
     site: 'product', deploymentId: d.id, versionId: v.id, usage, scale: site.scale, autonomy: site.autonomy, afford: site.afford, rd: 0,
     contain: site.contain, monitor: cr?.rate ?? 0, human: 0, controlMiss: cr?.defer ?? 1, controlLayer: layer, acts, top: acts[0], ...summed(acts),
-    levers: o.control || o.restrict ? [] : levers(s, d, acts, !!mon, restricted, (x) => productDanger(s, d, x)?.harmful),
+    levers: o.control !== undefined || o.restrict ? [] : levers(s, d, acts, !!mon, restricted, (x) => productDanger(s, d, x)?.harmful),
   };
 }
 
@@ -152,7 +153,7 @@ function laneDanger(s: GameStateV2, use: AgentUse, o: Opts = {}): DangerRead | u
   if (!v || !d || v.status === 'retired') return undefined;
   const on = s.player.split.agents > 0 ? 1 : 0;
   const usage = laneUsage(s, use) * (v.id === d.versionId ? on : 1);
-  const layer = !!o.control || d.controlLayer;
+  const layer = o.control ?? d.controlLayer;
   const restricted = d.status === 'restricted' || !!o.restrict;
   const site: Site = {
     internal: true, scale: usage * internalScale(s) * (restricted ? RESTRICT : 1), autonomy: autonomyOf(WORK_TYPES[USE_WORK[use]].H),
@@ -165,7 +166,7 @@ function laneDanger(s: GameStateV2, use: AgentUse, o: Opts = {}): DangerRead | u
   return {
     site: 'internal', deploymentId: d.id, versionId: v.id, use, usage, scale: site.scale, autonomy: site.autonomy, afford: site.afford, rd: site.rd,
     contain: site.contain, monitor: fleetMonitor(s, v), human, controlMiss: miss, controlLayer: layer, acts, top: acts[0], ...summed(acts),
-    levers: o.control || o.restrict ? [] : levers(s, d, acts, !!monitorVersion(s, use), restricted, (x) => laneDanger(s, use, x)?.harmful),
+    levers: o.control !== undefined || o.restrict ? [] : levers(s, d, acts, !!monitorVersion(s, use), restricted, (x) => laneDanger(s, use, x)?.harmful),
   };
 }
 
@@ -197,6 +198,36 @@ export function dangerView(s: GameStateV2): { products: Record<string, DangerRea
   return { products, lanes };
 }
 
+/** Believed harmful acts per year at the sites a version's control layer covers (its products, and every internal lane
+ *  when it is the internal deployment's model), now and with the layer `on` (model v3 F6: the add / remove-control
+ *  previews; the same estimate as dangerView). */
+export function controlDangerDelta(s: GameStateV2, versionId: string, on: boolean): { now: number; after: number; sites: number } {
+  let now = 0;
+  let after = 0;
+  let sites = 0;
+  for (const d of s.player.deployments) {
+    if (d.versionId !== versionId || d.status === 'withdrawn') continue;
+    if (d.channel === 'internal') {
+      for (const u of AGENT_USES) {
+        const a = laneDanger(s, u);
+        const b = laneDanger(s, u, { control: on });
+        if (!a || !b) continue;
+        now += a.harmful;
+        after += b.harmful;
+        sites++;
+      }
+      continue;
+    }
+    const a = productDanger(s, d);
+    const b = productDanger(s, d, { control: on });
+    if (!a || !b) continue;
+    now += a.harmful;
+    after += b.harmful;
+    sites++;
+  }
+  return { now, after, sites };
+}
+
 // ───────────────────────────── control ─────────────────────────────
 
 export type ControlBand = 'firm' | 'holding' | 'slipping' | 'weak';
@@ -216,6 +247,8 @@ export interface ControlRead {
   /** The control layer (AG07 protocols on internal work) and its tax on internal AI labour: the largest lane tax today,
    *  or, while off, what it would be. */
   layer: boolean; tax: number; missMult: number; taxUse?: AgentUse;
+  /** The model whose internal deployment carries the layer (the Remove control response's target; model v3 F6). */
+  layerVersionId?: string;
 }
 
 /** The control readout on Safety › Overview: believed only (never effectiveControl.level, exposure or the tolerance). */
@@ -253,5 +286,6 @@ export function controlReadout(s: GameStateV2): ControlRead {
     humanGapOom: oversightGap(w, L, HUMAN_REVIEW_L).oom,
     suspected: fv.suspected, located: fv.located, removed: fv.removed,
     layer, tax: p.tax, missMult: p.missMult, taxUse: bestUse,
+    layerVersionId: s.player.deployments.find((d) => d.channel === 'internal' && d.status === 'live' && d.controlLayer)?.versionId,
   };
 }

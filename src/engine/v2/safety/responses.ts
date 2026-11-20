@@ -16,6 +16,7 @@ export const RESPONSE_INFO: Record<ResponseKind, { title: string; days: [number,
   targetedTraining: { title: 'Targeted training', days: [21, 35], note: 'Technique-specific alignment training (inoculation, anti-scheming…).' },
   restrictContext: { title: 'Restrict context', days: [0, 0], note: 'Channel revenue × 0.5; incident hazard × 0.3.' },
   addControl: { title: 'Add control', days: [0, 0], note: 'AI-control layer: 5% usefulness tax; catastrophe conversion × (1 − Contain).' },
+  removeControl: { title: 'Remove control', days: [0, 0], note: 'Turn the AI-control layer off: the usefulness tax ends; containment and deferral end with it (model v3 F6).' },
   rollback: { title: 'Roll back', days: [0, 0], note: 'Return to the checkpoint version; lose the newer model.' },
   disclose: { title: 'Disclose', days: [0, 0], note: 'Scrutiny +5–15; trust by credibility; the world learns any U-mode.' },
   removeFoothold: { title: 'Remove foothold', days: [14, 30], note: 'A located foothold: safety engineers, agents off for the downtime; its effect ends (model v3 E8).' },
@@ -145,6 +146,12 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
       const deps = s.player.deployments.filter((d) => d.versionId === v.id && d.status !== 'withdrawn');
       if (!deps.length) return 'Model is not deployed';
       for (const d of deps) d.controlLayer = true;
+      break;
+    }
+    case 'removeControl': {
+      const deps = s.player.deployments.filter((d) => d.versionId === v.id && d.status !== 'withdrawn' && d.controlLayer);
+      if (!deps.length) return 'No control layer on this model';
+      for (const d of deps) d.controlLayer = false;
       break;
     }
     case 'rollback': {

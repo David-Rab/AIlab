@@ -17,7 +17,7 @@ import { RESPONSE_INFO, applyResponse, responseTrait } from './responses';
 import { strengthBelieved, techniqueRole } from './techniques';
 import { believedPenalty, combineTools } from './detection';
 import { removalPreview } from './footholdDetection';
-import { controlReadout } from './dangerView';
+import { controlDangerDelta, controlReadout } from './dangerView';
 
 type P = Record<string, number | string | boolean>;
 type Preview = { costs: CostLine[]; gains: CostLine[]; exposure: CostLine[] };
@@ -148,6 +148,20 @@ function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | 
         costs: [{ currency: 'progress', amount: -r2(c.tax), target: `up to ${Math.round(c.tax * 100)}% of internal AI labour (control tax)` }],
         gains: [{ currency: 'security', amount: r2(1 - c.missMult), target: `bad actions slipping past monitors ×${c.missMult.toFixed(2)}; containment tools block` }],
         exposure: [],
+      };
+    }
+    case 'removeControl': {
+      // Model v3 F6 (lead: the layer can be turned off): the tax saved (E6's protocol, as on Add control) and the believed
+      // danger at the sites it covered with the layer off (dangerView's estimate). Beliefs only.
+      const c = controlReadout(s);
+      const deps = v ? s.player.deployments.filter((d) => d.versionId === v.id && d.status !== 'withdrawn' && d.controlLayer) : [];
+      const internal = deps.some((d) => d.channel === 'internal' && d.status === 'live');
+      const dd = v ? controlDangerDelta(s, v.id, false) : { now: 0, after: 0, sites: 0 };
+      const fmt = (x: number) => (x >= 10 ? x.toFixed(0) : x >= 1 ? x.toFixed(1) : x.toFixed(2));
+      return {
+        costs: [{ currency: 'security', amount: -r2(1 - c.missMult), target: `monitors miss more (×${(1 / Math.max(1e-9, c.missMult)).toFixed(2)}); containment tools stop blocking` }],
+        gains: [{ currency: 'progress', amount: internal ? r2(c.tax) : 0, target: internal ? `up to ${Math.round(c.tax * 100)}% of internal AI labour back (control tax ends)` : 'no internal control tax on this model' }],
+        exposure: dd.sites > 0 ? [{ currency: 'alignment', amount: -r2(dd.after - dd.now), probability: 1, target: `believed harmful acts ${fmt(dd.now)} → ${fmt(dd.after)} / yr at ${dd.sites} site${dd.sites === 1 ? '' : 's'}`, unit: 'acts/yr' }] : [],
       };
     }
     case 'rollback':

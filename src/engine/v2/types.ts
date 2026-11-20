@@ -947,7 +947,7 @@ export interface Incident {
   responses: ResponseKind[];
 }
 
-export type ResponseKind = 'patchSignal' | 'retrainAgainst' | 'targetedTraining' | 'restrictContext' | 'addControl' | 'rollback' | 'disclose' | 'removeFoothold';
+export type ResponseKind = 'patchSignal' | 'retrainAgainst' | 'targetedTraining' | 'restrictContext' | 'addControl' | 'removeControl' | 'rollback' | 'disclose' | 'removeFoothold';
 
 // ───────────────────────────── Security (§3.6) ─────────────────────────────
 

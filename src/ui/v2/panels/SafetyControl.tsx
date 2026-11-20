@@ -63,11 +63,12 @@ export function ControlCard({ s }: { s: GameStateV2 }) {
         <Tip content={() => <TipCard title={<Term id="controlLayer">Control layer</Term>} value={c.layer ? 'on' : 'off'} rows={[
           { label: <Term id="controlTax">Control tax</Term>, value: `−${F.pct(c.tax)} AI labour (largest lane)${c.layer ? '' : ' if on'}` },
           { label: 'Bad actions slipping through', value: `×${F.num(c.missMult, 2)}${c.layer ? '' : ' if on'}` },
-        ]} footer="Tax per lane: Company › Agents at work.">Containment tools block actions and the most suspicious 10% go to the trusted monitor. Once on, it stays on.</TipCard>}>
+        ]} footer="Tax per lane: Company › Agents at work.">Containment tools block actions and the most suspicious 10% go to the trusted monitor. Remove control turns it off (the tax ends, and so does the protection).</TipCard>}>
           <span className="row-i" data-test="control-layer"><ICON.wsl size={13} /><Term id="controlLayer">Control layer</Term> <b>{c.layer ? 'on' : 'off'}</b> <span className="dim small">· <Term id="controlTax">tax</Term> −{F.pct(c.tax)}{c.layer ? '' : ' if on'}</span></span>
         </Tip>
         <span className="sp" />
         {!c.layer && c.versionId && <ActBtn id="safety.respond" testId="control-add" params={{ kind: 'addControl', versionId: c.versionId }} label="Add control" />}
+        {c.layer && c.layerVersionId && <ActBtn id="safety.respond" testId="control-remove" params={{ kind: 'removeControl', versionId: c.layerVersionId }} label="Remove control" />}
         <Ref id="controlTax" to={AGENTS}>Tax per lane</Ref>
       </div>
     </Card>

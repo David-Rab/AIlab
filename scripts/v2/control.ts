@@ -12,7 +12,7 @@ import { LEVEL_KNOTS } from '../../src/data/v2/calibration';
 import { TRAIT_IDS, TRAIT_START } from '../../src/data/v2/traits';
 import { ws4 } from '../../src/engine/v2/actors/state';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
-import { makeCtx, tick } from '../../src/engine/v2/core/loop';
+import { act, makeCtx, tick } from '../../src/engine/v2/core/loop';
 import { SCHEMA_REV, deserialize, serialize } from '../../src/engine/v2/core/save';
 import { resetWorkContext } from '../../src/engine/v2/departments/workfit';
 import { resolveAsi } from '../../src/engine/v2/endings/epilogue';
@@ -21,7 +21,9 @@ import {
   asiControl, controlStep, controlTerms, controlThreshold, controlView, copyExposure, copyGrowthRate, escapeNoticed, labControl, lossThreshold, rogueCopy,
 } from '../../src/engine/v2/safety/control';
 import { footholdFromEscape, footholdsOf, lineageOf } from '../../src/engine/v2/safety/footholds';
-import { controlReadout } from '../../src/engine/v2/safety/dangerView';
+import { controlDangerDelta, controlReadout } from '../../src/engine/v2/safety/dangerView';
+import { applyResponse } from '../../src/engine/v2/safety/responses';
+import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
 import { exfiltrationHazard } from '../../src/engine/v2/safety/incidents';
 import { securitySystem } from '../../src/engine/v2/security/security';
 import { misalignment } from '../../src/engine/v2/safety/traits';
@@ -388,6 +390,29 @@ for (const fx of ['day400.json', 'day900.json']) {
   const fresh = newGame(defaultSetupV2({ seed: 3 }));
   const back = deserialize(serialize(fresh));
   check(back.hidden.toleranceNoise === fresh.hidden.toleranceNoise && fresh.hidden.toleranceNoise === toleranceNoiseOf(3) && back.player.safety.effectiveControl.level === 1, 'save: a new game carries its tolerance noise and control record and round-trips');
+}
+
+// Model v3 F6 (lead decision): the control layer can be turned off — the Remove control response, symmetrical to Add
+// control, with a preview of the tax saved and the believed danger change (dangerView's estimate, beliefs only).
+{
+  const s = fixture('day400.json');
+  resetWorkContext(s);
+  const iv = s.player.deployments.find((d) => d.channel === 'internal' && d.status === 'live')!;
+  const vid = iv.versionId;
+  act(s, 'safety.respond', { kind: 'addControl', versionId: vid });
+  const on = controlReadout(s);
+  check(on.layer && on.layerVersionId === vid, 'F6 off switch: Add control turns the layer on and the readout names its model', `${on.layer} ${on.layerVersionId}`);
+  const pv = ACTION_BY_ID.get('safety.respond')!.preview(s, { kind: 'removeControl', versionId: vid });
+  const dd = controlDangerDelta(s, vid, false);
+  const prog = pv.gains.find((c) => c.currency === 'progress');
+  const ex = pv.exposure.find((c) => c.unit === 'acts/yr');
+  check(!!prog && prog.amount > 0 && Math.abs(prog.amount - Math.round(on.tax * 100) / 100) < 1e-9 && dd.sites > 0 && dd.after >= dd.now && !!ex && pv.costs.some((c) => c.currency === 'security'),
+    'F6 off switch: the Remove control preview shows the tax saved and the believed danger with the layer off', `tax ${prog?.amount}; harmful ${dd.now.toFixed(3)} → ${dd.after.toFixed(3)} /yr at ${dd.sites} sites; ${ex?.target}`);
+  act(s, 'safety.respond', { kind: 'removeControl', versionId: vid });
+  const off = controlReadout(s);
+  const again = applyResponse(s, makeCtx(s), 'removeControl', vid);
+  check(!off.layer && !s.player.deployments.some((d) => d.versionId === vid && d.controlLayer) && again === 'No control layer on this model',
+    'F6 off switch: Remove control turns the layer off on every deployment of the model; a second removal is refused', `${off.layer} / ${again}`);
 }
 
 finish('control');
