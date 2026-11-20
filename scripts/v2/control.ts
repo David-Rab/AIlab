@@ -406,7 +406,7 @@ for (const fx of ['day400.json', 'day900.json']) {
   const dd = controlDangerDelta(s, vid, false);
   const prog = pv.gains.find((c) => c.currency === 'progress');
   const ex = pv.exposure.find((c) => c.unit === 'acts/yr');
-  check(!!prog && prog.amount > 0 && Math.abs(prog.amount - Math.round(on.tax * 100) / 100) < 1e-9 && dd.sites > 0 && dd.after >= dd.now && !!ex && pv.costs.some((c) => c.currency === 'security'),
+  check(!!prog && prog.amount > 0 && prog.amount === Math.round(on.tax * 100) && prog.unit === "%" && dd.sites > 0 && dd.after >= dd.now && !!ex && pv.costs.some((c) => c.currency === 'security'),
     'F6 off switch: the Remove control preview shows the tax saved and the believed danger with the layer off', `tax ${prog?.amount}; harmful ${dd.now.toFixed(3)} → ${dd.after.toFixed(3)} /yr at ${dd.sites} sites; ${ex?.target}`);
   act(s, 'safety.respond', { kind: 'removeControl', versionId: vid });
   const off = controlReadout(s);

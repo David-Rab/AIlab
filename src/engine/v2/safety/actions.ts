@@ -145,7 +145,7 @@ function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | 
       // Model v3 E11: the preview reads E6's control protocol (the largest internal lane's tax, the miss multiplier).
       const c = controlReadout(s);
       return {
-        costs: [{ currency: 'progress', amount: -r2(c.tax), target: `up to ${Math.round(c.tax * 100)}% of internal AI labour (control tax)` }],
+        costs: [{ currency: 'progress', amount: -Math.round(c.tax * 100), unit: '%', target: 'of internal AI labour at most (control tax)' }],
         gains: [{ currency: 'security', amount: r2(1 - c.missMult), target: `bad actions slipping past monitors ×${c.missMult.toFixed(2)}; containment tools block` }],
         exposure: [],
       };
@@ -160,7 +160,7 @@ function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | 
       const fmt = (x: number) => (x >= 10 ? x.toFixed(0) : x >= 1 ? x.toFixed(1) : x.toFixed(2));
       return {
         costs: [{ currency: 'security', amount: -r2(1 - c.missMult), target: `monitors miss more (×${(1 / Math.max(1e-9, c.missMult)).toFixed(2)}); containment tools stop blocking` }],
-        gains: [{ currency: 'progress', amount: internal ? r2(c.tax) : 0, target: internal ? `up to ${Math.round(c.tax * 100)}% of internal AI labour back (control tax ends)` : 'no internal control tax on this model' }],
+        gains: [{ currency: 'progress', amount: internal ? Math.round(c.tax * 100) : 0, unit: '%', target: internal ? 'of internal AI labour back at most (control tax ends)' : 'no internal control tax on this model' }],
         exposure: dd.sites > 0 ? [{ currency: 'alignment', amount: -r2(dd.after - dd.now), probability: 1, target: `believed harmful acts ${fmt(dd.now)} → ${fmt(dd.after)} / yr at ${dd.sites} site${dd.sites === 1 ? '' : 's'}`, unit: 'acts/yr' }] : [],
       };
     }
