@@ -30,8 +30,11 @@ import { REF_ROLE_SHARE, SAF_ROLE_SHARE, TEAM_SIZE } from '../../../data/v2/team
 import type { BotPolicy, ComputeSplit, EngineApi, GameStateV2, ModelVersion, PendingDecision, TeamKey, TrainingRun } from '../types';
 import { bestMeasuredL } from '../models/labs';
 import { measuredDomain } from '../models/paradigms';
-import { levelOfPmV2, pmOfLevel } from '../world/calibration';
+import { levelOfV2 } from '../world/calibration';
+import { gV0, levelOfG, playerStart } from '../models/capability';
 import { CAL_SHIFT } from '../../../data/v2/calibration';
+import { B_G_PER_Y } from '../../../data/v2/runDesign';
+import type { TimelineWorld } from '../types';
 import { missingNeeds, nodeKnown, optionLocked } from '../models/tree';
 import { TREE_BY_ID, TREE_RETRY_DAYS } from '../../../data/v2/tree';
 import { COLUMN_DEPT } from '../../../data/v2/teams';
@@ -41,26 +44,45 @@ type Params = Record<string, number | string | boolean>;
 
 /** A tree project a bot queues once `when` holds (and its prerequisites are known). */
 export interface TreeGoal { id: string; when?: (s: GameStateV2) => boolean }
-/** A measured level on the display scale read on v2's level scale (model v3 V3b): the display level λ(G) moved onto the
- *  work-type reference points, but RefBot's research pacing gates were set on v2's levels ("when the old gate would have
- *  opened"), so the reference policy reads them there and starts each project at the same capability as before. */
-export function v2Level(s: GameStateV2, L: number): number {
+/** RefBot's research pacing gates on the display scale (model v3 V3b, F3): the display level λ(G) moved onto the work-type
+ *  reference points, but the gates were set on v2's levels ("when the old gate would have opened"), so each gate x (a
+ *  v2 level) opens at the display level of the effective compute where v2's level map reached x: v2's progress
+ *  coordinate q placed on G from the start model V0 at V1's slope B (G = G(V0) + (q − q(V0))·B; a conversion of the
+ *  gate points only, no lab's capability is in that coordinate), so the bot starts each project at the same capability
+ *  as before. Memoised per world. */
+const gateMemo = new WeakMap<TimelineWorld, Map<number, number>>();
+export function gateLevel(s: GameStateV2, x: number): number {
   const w = s.hidden.timeline;
-  return levelOfPmV2(w, pmOfLevel(w, L, w.p0 - 10, w.p0 + 80), CAL_SHIFT[s.setup.world]);
+  let m = gateMemo.get(w);
+  if (!m) gateMemo.set(w, (m = new Map()));
+  const hit = m.get(x);
+  if (hit !== undefined) return hit;
+  const shift = CAL_SHIFT[s.setup.world];
+  let lo = w.p0 - 10;
+  let hi = w.p0 + 80;
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    if (levelOfV2(w, mid, shift) >= x) hi = mid;
+    else lo = mid;
+  }
+  const L = levelOfG(w, gV0(w) + (hi - playerStart(w).target) * B_G_PER_Y);
+  m.set(x, L);
+  return L;
 }
-const L = (s: GameStateV2) => v2Level(s, bestMeasuredL(s));
-const RSCH = (s: GameStateV2) => v2Level(s, measuredDomain(s, 'RSCH'));
+const atGate = (s: GameStateV2, L: number, x: number) => L >= gateLevel(s, x) - 1e-9;
+const Lg = (s: GameStateV2, x: number) => atGate(s, bestMeasuredL(s), x);
+const RSCH = (s: GameStateV2, x: number) => atGate(s, measuredDomain(s, 'RSCH'), x);
 /** RefBot's research (§3.3.3 "RefBot paradigm policy", R4): the engine has no capability gates, so the bot keeps the
  *  old pacing by starting each project when the old gate would have opened (tier 2: measured L ≥ 6.5, tier 3: 8.5;
  *  P08 L ≥ 7; P13 RSCH ≥ 8.5; P17 L ≥ 9.5). RL focus: ML research is P13's prerequisite on the tree. */
 export const REF_TREE: TreeGoal[] = [
   { id: 'P07' },
   { id: 'P05' },
-  { id: 'P08', when: (s) => L(s) >= 7 },
-  { id: 'rl.mlResearch', when: (s) => L(s) >= 6.5 },
-  { id: 'P13', when: (s) => L(s) >= 6.5 && RSCH(s) >= 8.5 },
-  { id: 'P17', when: (s) => L(s) >= 9.5 },
-  { id: 'P19', when: (s) => L(s) >= 8.5 },
+  { id: 'P08', when: (s) => Lg(s, 7) },
+  { id: 'rl.mlResearch', when: (s) => Lg(s, 6.5) },
+  { id: 'P13', when: (s) => Lg(s, 6.5) && RSCH(s, 8.5) },
+  { id: 'P17', when: (s) => Lg(s, 9.5) },
+  { id: 'P19', when: (s) => Lg(s, 8.5) },
 ];
 /** RefBot's research lines (model v3 V2) and their share of the science teams the ideas leave free [D]: the
  *  pretraining lines carry the pretraining stack (Ho et al. ≈ 3×/yr before SC), the RL lines the RL stack. Recurrent
@@ -74,7 +96,7 @@ export const REF_RESEARCH_LINES = DEFAULT_LINES;
 const REF_IDEA_TEAMS = 3;
 /** The safe bot's extra research: faithful-CoT architecture, paced like its old gate (tier 3, an AG09 technique). */
 export const SAFE_TREE_EXTRA: TreeGoal[] = [
-  { id: 'P23', when: (s) => L(s) >= 8.5 && s.player.safety.findings.some((f) => f.agenda === 'AG09' && f.type === 'TECH') },
+  { id: 'P23', when: (s) => Lg(s, 8.5) && s.player.safety.findings.some((f) => f.agenda === 'AG09' && f.type === 'TECH') },
 ];
 const BASE_EVERY = 270;
 /** RefBot's base run length at its requested share (60% of the pool): v2's reference run (1 × F(t) = 91 days of 80% of

@@ -11,6 +11,7 @@
 // (before day 0: extrapolated at the leader's start rate). Also reports each start's ending mix: non-leader starts
 // should be hard but winnable (some wins; "overtaken" a common loss, not the only outcome).
 import { START_BY_ID } from '../../src/data/v2/starts';
+import { B_G_PER_Y } from '../../src/data/v2/runDesign';
 import { mixedBot } from '../../src/engine/v2/bots/mixed';
 import { raceBot } from '../../src/engine/v2/bots/race';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
@@ -36,9 +37,9 @@ function play(start: StartType, botName: string, seed: number): Game {
   const bot = BOTS[botName];
   const s = newGame(defaultSetupV2({ seed, world: seed % 2 ? 'sampled' : 'ai2027', alignment: seed % 4 < 2 ? 'medium' : 'sampled', tutorial: false, start }));
   const L = s.rivals.find((r) => r.core.id === LEADER_ID)!;
-  const lPm: number[] = [L.internal.pm];
-  const rate0 = (L.core.prodCache?.rate ?? 1) + (1 - s.hidden.timeline.share);
-  // Months behind at day d for a model at pm x: d − (first day the leader reached x).
+  const lPm: number[] = [L.internal.G];
+  const rate0 = ((L.core.prodCache?.rate ?? 1) + (1 - s.hidden.timeline.share)) * B_G_PER_Y; // G a year
+  // Months behind at day d for a model at G x: d − (first day the leader reached x).
   const lagAt = (x: number, d: number) => {
     if (x >= lPm[d]) return 0;
     if (x < lPm[0]) return (d + ((lPm[0] - x) / rate0) * 365) / MO;
@@ -46,7 +47,7 @@ function play(start: StartType, botName: string, seed: number): Game {
     while (lPm[i] < x) i++;
     return (d - i) / MO;
   };
-  const best = (g: GameStateV2) => g.player.models.versions.reduce((a, v) => (v.variant === 'imported' || v.status === 'retired' ? a : Math.max(a, v.pm)), -Infinity);
+  const best = (g: GameStateV2) => g.player.models.versions.reduce((a, v) => (v.variant === 'imported' || v.status === 'retired' ? a : Math.max(a, v.G)), -Infinity);
   const ownBase = (g: GameStateV2) => new Set(g.player.models.bases.filter((b) => !b.name.includes('imported')).map((b) => b.id));
   const out: Game = { start, bot: botName, seed, ending: '', verdict: '', day: 0, lagByMonth: [] };
   let guard = 0;
@@ -55,15 +56,15 @@ function play(start: StartType, botName: string, seed: number): Game {
     bot.act(s, engine);
     tick(s);
     const d = s.time.day;
-    lPm[d] = Math.max(lPm[d - 1], L.internal.pm);
+    lPm[d] = Math.max(lPm[d - 1], L.internal.G);
     if (!out.firstOwn) {
       const own = ownBase(s);
       const v = s.player.models.versions.find((x) => own.has(x.baseId) && x.variant === 'full' && x.day > 0);
-      if (v && start === 'spinout') out.firstOwn = { month: d / MO, lag: lagAt(v.pm, d) };
+      if (v && start === 'spinout') out.firstOwn = { month: d / MO, lag: lagAt(v.G, d) };
     }
     if (d % 30 === 0) {
       const b = best(s);
-      out.lagByMonth.push(Number.isFinite(b) ? lagAt(b, d) : lagAt(s.player.models.versions[0].pm, d));
+      out.lagByMonth.push(Number.isFinite(b) ? lagAt(b, d) : lagAt(s.player.models.versions[0].G, d));
     }
   }
   return { ...out, ending: s.ending?.id ?? '', verdict: s.ending?.verdict ?? '', day: s.time.day };

@@ -18,7 +18,7 @@ import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { tick } from '../../src/engine/v2/core/loop';
 import { LEVEL_KNOTS } from '../../src/data/v2/calibration';
 import { POST_DAYS, PRE_RATE0, RIVAL_TPP } from '../../src/data/v2/rivalModel';
-import { PARAM_RANGE, SHAPE } from '../../src/data/v2/runDesign';
+import { B_G_PER_Y, PARAM_RANGE, SHAPE } from '../../src/data/v2/runDesign';
 import {
   bestGOf, evalAggregate, fptOfBase, gOfSimple, lineScaleFactor, makeBase, postG, recipeOf, recipeParts, recipeRates, versionG,
 } from '../../src/engine/v2/actors/rivalModel';
@@ -34,7 +34,7 @@ import { bestRivalMix } from '../../src/engine/v2/actors/rivalModel';
 import { leadBetween } from '../../src/engine/v2/actors/rivals';
 import { agentVersion } from '../../src/engine/v2/departments/agents';
 import { gOfBuild, playerStart } from '../../src/engine/v2/models/capability';
-import { bestPm } from '../../src/engine/v2/models/labs';
+import { bestG } from '../../src/engine/v2/models/labs';
 import { latestBaseFlop, refRlGain, rlCeilNow, rlMidNow, stacksGEquiv } from '../../src/engine/v2/models/stacks';
 import { linePool } from '../../src/engine/v2/models/research';
 import { TREE_BY_ID } from '../../src/data/v2/tree';
@@ -226,7 +226,7 @@ const near = (a: number, b: number, tol = 1e-9) => Math.abs(a - b) <= tol * Math
     tick(s, { skip: ['endings'] });
     if (s.time.day % 30 === 0) at.push(leadBetween(s, 'player', 'china') - l0);
   }
-  const gap0 = ((playerStart(s.hidden.timeline).target - bestPm(mk(4, false), 'china')) / referenceRate(s.hidden.timeline, playerStart(s.hidden.timeline).target, 2025.5)) * 365;
+  const gap0 = ((gV0(s.hidden.timeline) - bestG(mk(4, false), 'china')) / (referenceRate(s.hidden.timeline, playerStart(s.hidden.timeline).target, 2025.5) * B_G_PER_Y)) * 365;
   // China's versions still add a little (the RL share of its recipe growth, fed by the know-how leaks), so the lead
   // grows at most a day a day and does not jump (v2's fallback read 390–450 d in days 30–60).
   check(Math.abs(l0 - gap0 - 1) <= 2 && at.every((x, i) => x <= 30 * (i + 1) + 1 && x >= -30), 'R9 in the first weeks China\'s lead is its start gap at the pre-game frontier rate plus at most the days since', `day 1 ${l0.toFixed(0)} d (gap ${gap0.toFixed(0)} d); +${at.map((x) => x.toFixed(0)).join(', +')} d at days 30, 60`);

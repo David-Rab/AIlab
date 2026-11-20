@@ -21,10 +21,16 @@ import { clamp01, setFlag, trueEfficacy } from './common';
 import { versionOom } from './oversight';
 import { observeVersion } from './detection';
 import { addKnowledge } from '../models/stacks';
+import { addRivalKnowledge } from '../actors/rivalModel';
+import { B_G_PER_Y } from '../../../data/v2/runDesign';
 import { decayAt, unlockTechnique } from './techniques';
 import { toolExposed } from './footholds';
 import type { Foothold } from '../types';
 import { discoverUMode, isDiscovered, revealToWorld } from './umodes';
+
+/** Safety spillover (a SPILL finding): 0.02 progress-years of v2 know-how, B OOM each (model v3 F3: OOM of G-equivalent),
+ *  to the player's pretraining stack and, once published, to every other lab's recipe. */
+const SPILL_G = 0.02 * B_G_PER_Y;
 
 const WB_AGENDAS: AgendaId[] = ['AG01', 'AG02', 'AG03', 'AG13'];
 const CROSS_CHECK: AgendaId[] = ['AG02', 'AG08'];
@@ -340,7 +346,7 @@ export function fireFinding(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId, no
       id = row?.id ?? nextId(s, 'SPILL');
       title = row?.title ?? 'Interpretability insight speeds up training';
       // Model v3 V2: the insight enters the pretraining stack as a public idea (0.02 progress-years × B OOM).
-      addKnowledge(s, ctx, 0.02, 'safety spillover', id);
+      addKnowledge(s, ctx, SPILL_G, 'safety spillover', id);
       break;
     }
     case 'FALSE': {
@@ -374,7 +380,7 @@ export function fireFinding(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId, no
 
 /**
  * Publish a finding (§3.5.3): knowledge.publishedFindings, sharedTechniquePool +0.02 (TECH/EVAL) / +0.04 (DISC),
- * credibility +2, safety talent pull +1; SPILL leaks capability (every rival's and China's pa +0.02); a DISC that
+ * credibility +2, safety talent pull +1; SPILL leaks capability (every rival's and China's recipe +SPILL_G OOM); a DISC that
  * revealed a U-mode tells the world (presence × 0.7 for every lab).
  */
 export function publishFinding(s: GameStateV2, ctx: SystemCtx, findingId: string): void {
@@ -388,10 +394,12 @@ export function publishFinding(s: GameStateV2, ctx: SystemCtx, findingId: string
   ctx.bump('relations.credibility', 2, 'published research', rec.id);
   ctx.bump('relations.talentPull', 1, 'published research', rec.id);
   if (rec.trueType === 'SPILL') {
-    s.rivals.forEach((r, i) => {
-      if (r.core.status === 'active') ctx.bump(`rivals.${i}.core.pa`, 0.02, 'safety spillover', rec.id);
-    });
-    if (s.china.lab.core.status === 'active') ctx.bump('china.lab.core.pa', 0.02, 'safety spillover', `${CHINA_ID}:${rec.id}`);
+    // Every other lab's recipe gains what the player's did (SPILL_G OOM, public knowledge in its pretraining part).
+    for (const r of [...s.rivals, s.china.lab]) {
+      if (r.core.status !== 'active') continue;
+      addRivalKnowledge(r, SPILL_G);
+      ctx.cause(`${r.core.id}.recipe`, SPILL_G, 'safety spillover', r.core.id === CHINA_ID ? `${CHINA_ID}:${rec.id}` : rec.id);
+    }
   }
   const row = FINDING_BY_ID[rec.id];
   for (const eff of row?.effects ?? []) {

@@ -2,7 +2,7 @@
 // Owner: WS4. Rival capability is physical (model v3 F1, actors/rivalModel.ts: recipe, base runs, versions in G); WS4
 // owns the cadence, releases and behaviour.
 //
-// Bug fixes from v1 (§3.10.3): every comparison uses the player's best INTERNAL version (bestPm / trueLeadDays),
+// Bug fixes from v1 (§3.10.3): every comparison uses the player's best INTERNAL version (bestG / trueLeadDays),
 // and labs with status !== 'active' are never chosen as subjects or named (activeRivals).
 import { LAB_ARCHETYPES } from '../../../data/actors';
 import { ARCHETYPE_CLAUSE, ARCHETYPE_POSTURES, LEADER_MAX_BINDINGNESS } from '../../../data/v2/postures';
@@ -14,8 +14,8 @@ import { TRAIT_IDS, TRAIT_START } from '../../../data/v2/traits';
 import { UMODES } from '../../../data/v2/umodes';
 import { Rng, clamp } from '../../rng';
 import { shareRefAt, normalizeSplit } from '../departments/split';
-import { domainsOf, levelOf, trueLeadDays, yearOfDay } from '../models/capability';
-import { LEADER_ID, activeRivals, bestPm, otherLabs } from '../models/labs';
+import { domainsOf, levelOfG, playerStart, trueLeadDays, yearOfDay } from '../models/capability';
+import { LEADER_ID, activeRivals, bestG, otherLabs } from '../models/labs';
 import { misalignment, rivalTraitStep as ws2RivalTraitStep } from '../safety/traits';
 import { drawSeverity, labModelHazards } from '../safety/incidents';
 import { placeLabOrder, RIVAL_GROWTH_Q } from '../compute/market';
@@ -29,7 +29,7 @@ import { decimalYear } from '../core/time';
 import type {
   BaselineId, EngineSystem, GameStateV2, HiddenWorld, LabId, RivalLab, RngLike, SafetyPosture, SetupV2, SimpleModel, StaffByRole, SystemCtx, TraitVector, UModeId,
 } from '../types';
-import { clRefresh, finishRun, gOfSimple, growLabStaff, initRivalPhys, labReferenceSplit, makeBase, newVersionG, setModelG, trainDay } from './rivalModel';
+import { addRivalKnowledge, clRefresh, finishRun, gOfSimple, growLabStaff, initRivalPhys, labReferenceSplit, makeBase, newVersionG, setModelG, trainDay } from './rivalModel';
 import { chinaDaily } from './china';
 import { request, ws4 } from './state';
 import { WS4_TUNING } from './tuning';
@@ -54,25 +54,27 @@ const BASE_MONTHS: Record<string, number> = { safety: 13, bigtech: 12, maverick:
 /** P(adopting latent reasoning) at the latent-reasoning era (§3.10.3 S4). */
 const LATENT_P: Record<string, number> = { maverick: 0.7, openweights: 0.6, bigtech: 0.5, safety: 0.2, upstart: 0.5, deepcent: 0.6, leader: 0.8 };
 
-export function simpleModel(h: HiddenWorld, id: string, name: string, day: number, pm: number, uModes: SimpleModel['uModes'], isPublic: boolean, openWeights = false): SimpleModel {
+/** A non-player lab's model at effective compute G (its design is set by initRivalPhys / setModelG). */
+export function simpleModel(h: HiddenWorld, id: string, name: string, day: number, G: number, uModes: SimpleModel['uModes'], isPublic: boolean, openWeights = false): SimpleModel {
   const w = h.timeline;
-  return { id, name, day, pm, Lg: levelOf(w, pm), domains: domainsOf(w, pm), traitsTrue: { ...TRAIT_START }, uModes, isPublic, openWeights };
+  return { id, name, day, G, Lg: levelOfG(w, G), domains: domainsOf(w, G), traitsTrue: { ...TRAIT_START }, uModes, isPublic, openWeights };
 }
 
 /** Build rival i at newGame. `rng` is the 'world' stream. Start lead 3–9 months (T4, research/07 §1.3): the v1
  *  archetype gap draw (same draw count) is mapped linearly from the v1 span [0.1, 1.1] y onto [3, 9] months. */
-export function initialRival(rng: Rng, h: HiddenWorld, i: number, playerPm: number, baseline: BaselineId, globalCompute: number): RivalLab {
+export function initialRival(rng: Rng, h: HiddenWorld, i: number, playerG: number, baseline: BaselineId, globalCompute: number): RivalLab {
   const id = rivalId(i);
   const arch = archetypeOf(h.actorPresets.rivals[id]);
   const posture: SafetyPosture = h.rivalPostures[id];
   const g = rng.range(arch.gapYears[0], arch.gapYears[1]) * (baseline === 'reality' ? 0.3 : 1);
   const leadMonths = clamp(3 + (6 * (g - 0.1)) / 1.0, baseline === 'reality' ? 1 : 3, 9);
-  const rate0 = referenceRate(h.timeline, playerPm, 2025.5);
-  const pm = playerPm - (leadMonths / 12) * rate0;
+  // The pre-game frontier rate at the start model (progress-years a year, × B G per progress-year).
+  const rate0 = referenceRate(h.timeline, playerStart(h.timeline).target, 2025.5) * B_G_PER_Y;
+  const G = playerG - (leadMonths / 12) * rate0;
   const fam = RIVAL_MODEL_FAMILIES[i % RIVAL_MODEL_FAMILIES.length];
   const uModes = drawUModes(rng, h, false);
-  const internal = simpleModel(h, `${id}-b1p0`, `${fam}-1`, -30, pm, uModes, false);
-  const publicModel = simpleModel(h, `${id}-b0`, `${fam}-1 public`, -60, pm - 0.15, uModes, true, arch.id === 'openweights');
+  const internal = simpleModel(h, `${id}-b1p0`, `${fam}-1`, -30, G, uModes, false);
+  const publicModel = simpleModel(h, `${id}-b0`, `${fam}-1 public`, -60, G - 0.15 * B_G_PER_Y, uModes, true, arch.id === 'openweights');
   const totalStaff = Math.round(2500 * Math.max(0.3, arch.computeMult));
   const staff: StaffByRole = {
     cap: Math.round(totalStaff * 0.8), saf: Math.round(totalStaff * 0.15 * posture.safetyInvestment + 10),
@@ -82,7 +84,6 @@ export function initialRival(rng: Rng, h: HiddenWorld, i: number, playerPm: numb
   const lab: RivalLab = {
     core: {
       id, name: RIVAL_NAMES_V2[i % RIVAL_NAMES_V2.length], kind: 'rival', status: 'active',
-      pa: pm,
       computeOnline: globalCompute * (0.06 + rng.range(-0.015, 0.02)) * arch.computeMult,
       split, staff, tasteHire: 1,
       security: initialSecurity(staff, 2.2),
@@ -106,14 +107,14 @@ export function initialRival(rng: Rng, h: HiddenWorld, i: number, playerPm: numb
 }
 
 /** Placeholder until initRivalPhys sets the physical state (same call, same object). */
-export const PHYS_PLACEHOLDER = (): RivalLab['phys'] => ({ base: makeBase(1, -60, 1e26, 0), eff: 1, serve: 0, rec: { pre: 0, mid: 0, ceil: 0 }, pool: { pre: 0, mid: 0, ceil: 0 }, paSync: 0 });
+export const PHYS_PLACEHOLDER = (): RivalLab['phys'] => ({ base: makeBase(1, -60, 1e26, 0), eff: 1, serve: 0, rec: { pre: 0, mid: 0, ceil: 0 }, pool: { pre: 0, mid: 0, ceil: 0 } });
 
 /** Build the simulated AI 2027 leader lab (setup.leaderLab, BUILD-PLAN R2) at reference inputs: the player's start
- *  model (playerStart(w).target), capabilities staff hRef, compute refTotal, split shareRef, taste 1 (the rivals'
+ *  model (V0's G), capabilities staff hRef, compute refTotal, split shareRef, taste 1 (the rivals'
  *  default policy may read the reference path, MODEL-V3 §13). Appended after the sampled rivals with the fixed id
  *  LEADER_ID; its draws come from its own `rng` (Rng(hash32(seed,'leaderLab'))), never from 'world'. Its posture and
  *  archetype are written into `h` here. Model v3 F1: research efficiency 10^LEADER_CAL [fit, T1L]. */
-export function initialLeaderLab(rng: Rng, h: HiddenWorld, setup: Pick<SetupV2, 'rivals' | 'world'>, playerPm: number): RivalLab {
+export function initialLeaderLab(rng: Rng, h: HiddenWorld, setup: Pick<SetupV2, 'rivals' | 'world'>, playerG: number): RivalLab {
   const id = LEADER_ID;
   const w = h.timeline;
   const yr0 = yearOfDay(0);
@@ -123,14 +124,13 @@ export function initialLeaderLab(rng: Rng, h: HiddenWorld, setup: Pick<SetupV2, 
   h.rivalPostures[id] = posture;
   const arch = archetypeOf('leader');
   const uModes = drawUModes(rng, h, false);
-  const internal = simpleModel(h, `${id}-b1p0`, `${LEADER_MODEL_FAMILY}-1`, -20, playerPm, uModes, false);
-  const publicModel = simpleModel(h, `${id}-b0`, `${LEADER_MODEL_FAMILY}-1 public`, -20, playerPm, uModes, true);
+  const internal = simpleModel(h, `${id}-b1p0`, `${LEADER_MODEL_FAMILY}-1`, -20, playerG, uModes, false);
+  const publicModel = simpleModel(h, `${id}-b0`, `${LEADER_MODEL_FAMILY}-1 public`, -20, playerG, uModes, true);
   const staff: StaffByRole = { cap: hRef(yr0), saf: Math.round(hRef(yr0) * 0.15 * posture.safetyInvestment + 10) };
   const f = FIN.leader;
   const lab: RivalLab = {
     core: {
       id, name: LEADER_LAB_NAME, kind: 'rival', status: 'active',
-      pa: playerPm,
       computeOnline: refTotal(w, yr0),
       split: shareRefAt(yr0), staff, tasteHire: 1,
       security: initialSecurity(staff, 2.2),
@@ -185,8 +185,8 @@ export function addPosture(s: GameStateV2, lab: LabId, key: keyof SafetyPosture,
   pd[key] = (pd[key] ?? 0) + d;
 }
 
-/** Model-frontier progress rate (years of progress per year): the know-how rate plus, in Stage 1, the compute term
- *  (1 − share) that new bases add (pm = pa + pc + Δp, §3.1.3) — the same rate WS1's trueLeadDays uses. */
+/** Model-frontier progress rate (v2's years of progress per year; × B_G_PER_Y for G per year): the recipe rate plus, in
+ *  Stage 1, v2's compute term (1 − share) that new bases add (§3.1.3) — the rate the lead conversions use. */
 function modelRate(s: GameStateV2, pr: { rate: number; stage: number } | undefined): number {
   return Math.max(0.05, (pr?.rate ?? 1) + (pr?.stage === 2 ? 0 : 1 - s.hidden.timeline.share));
 }
@@ -210,18 +210,18 @@ export function leadBetween(s: GameStateV2, a: LabId, b: LabId): number {
   if (a === b) return 0;
   if (a === 'player') return trueLeadDays(s, b);
   if (b === 'player') return -trueLeadDays(s, a);
-  return ((bestPm(s, a) - bestPm(s, b)) / ((rateOf(s, a) + rateOf(s, b)) / 2)) * 365;
+  return ((bestG(s, a) - bestG(s, b)) / (((rateOf(s, a) + rateOf(s, b)) / 2) * B_G_PER_Y)) * 365;
 }
 
 /** The current leader among active labs (player included) by TRUE internal frontier. */
 export function leaderOf(s: GameStateV2): LabId {
   let best: LabId = 'player';
-  let pm = bestPm(s, 'player');
+  let g = bestG(s, 'player');
   for (const r of otherLabs(s)) {
     if (r.core.status !== 'active') continue;
-    const x = bestPm(s, r.core.id);
-    if (x > pm) {
-      pm = x;
+    const x = bestG(s, r.core.id);
+    if (x > g) {
+      g = x;
       best = r.core.id;
     }
   }
@@ -391,7 +391,7 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   // Releases: the public model lags the internal one (§3.10.3).
   // A lab whose lag exceeds its post-training interval (6–10 weeks) never had an internal version `lag` days old (each
   // post resets internalDay), so it never released: once the public model is a post interval staler than the lag,
-  // release the frontier as it stood `lag` days ago (internal pm − lag·rate; `day` = that as-of day).
+  // release the frontier as it stood `lag` days ago (internal G − lag·rate; `day` = that as-of day).
   const lag = RELEASE_LAG[arch] ?? 60;
   const age = day - w.internalDay[id];
   let rel: SimpleModel | undefined;
@@ -412,7 +412,7 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
     }
     if (r.core.kind === 'china') open = s.china.meters.openWeights > 50 && s.china.rung < 3;
     r.publicModel = { ...rel, traitsTrue: { ...rel.traitsTrue }, uModes: [...rel.uModes], isPublic: true, openWeights: open };
-    if (open) openWeightsReleased(s, ctx, id, rel.pm);
+    if (open) openWeightsReleased(s, ctx, id, rel.G);
   }
 
   // Incidents: WS2's danger formula on the lab's deployed model at a generic product site (E5) plus a
@@ -442,20 +442,21 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   }
 }
 
-/** Open weights released by lab `id` at capability pm: the world's open frontier rises, China absorbs part of the
+/** Open weights released by lab `id` at effective compute G: the world's open frontier rises, China absorbs part of the
  *  gap (R10 R13: −1 to −3 months), rivals' moats fall. */
-export function openWeightsReleased(s: GameStateV2, ctx: SystemCtx, id: LabId, pm: number) {
+export function openWeightsReleased(s: GameStateV2, ctx: SystemCtx, id: LabId, G: number) {
   const k = s.knowledge;
-  if (pm <= k.openWeightsFrontier) return;
-  k.openWeightsFrontier = pm;
-  const cn = s.china.lab.core;
-  const cnPm = bestPm(s, 'china');
-  if (id !== 'china' && cn.status === 'active' && pm > cnPm) {
-    // Model-vs-model gap (both pm); China's know-how absorbs half of it, at most 2 months (R10 R13).
-    const months = Math.min(2, ((pm - cnPm) / paceOf(s)) * 12 * 0.5);
-    const dpa = (months / 12) * rateOf(s, 'china');
-    cn.pa += dpa;
-    ctx.cause('china.pa', dpa, 'open weights absorbed', id);
+  if (G <= k.openWeightsG) return;
+  k.openWeightsG = G;
+  const cn = s.china.lab;
+  const cnG = bestG(s, 'china');
+  if (id !== 'china' && cn.core.status === 'active' && G > cnG) {
+    // Model-vs-model gap (G); China's recipe absorbs half of it in months of the lead pace, at most 2 months of its own
+    // recipe growth (R10 R13), as public knowledge in its pretraining part (OOM).
+    const months = Math.min(2, ((G - cnG) / (paceOf(s) * B_G_PER_Y)) * 12 * 0.5);
+    const dG = (months / 12) * rateOf(s, 'china') * B_G_PER_Y;
+    addRivalKnowledge(cn, dG);
+    ctx.cause('china.recipe', dG, 'open weights absorbed', id);
   }
   ctx.log('world', `New open-weights frontier model released (${id === 'player' ? 'by you' : (labOf(s, id)?.core.name ?? id)}).`, 2);
 }

@@ -13,13 +13,13 @@
 // throughput per day (models/research.ts).
 // Ideas are kept in scale buckets (s on a S_STEP grid), so the state stays small however many ideas a takeoff adopts.
 //
-// BRIDGE(V6,V7): `player.pa` is a read-only readout, pa = pa₀ + (G-equivalent of the stacks) / B, for the readers that
-// still compare know-how (rivals' diffusion and theft, safety tiers, the limits view). Nothing reads the stacks from pa.
-import { B_G_PER_Y, FLOP_RL_REF, RL_BUDGET } from '../../../data/v2/runDesign';
+// The lab's recipe compared with another lab's (secrets leaks, diffusion, safety tiers) is the stacks' G-equivalent
+// (stacksGEquiv, OOM over the leader's day-0 recipe; a non-player lab's is actors/rivalModel.ts recipeOf). Model v3 F3
+// removed the know-how readout `player.pa` that stood for it in progress-years.
+import { FLOP_RL_REF, RL_BUDGET } from '../../../data/v2/runDesign';
 import { HEADROOM, S_STEP, TRAIN_CAP } from '../../../data/v2/research';
 import { SERVE_FLOP_MAX, U_DECODE, U_DECODE_MAX } from '../../../data/v2/workTypes';
-import type { GameStateV2, StackKey, StackState, SystemCtx, TimelineWorld } from '../types';
-import { paRef } from './capability';
+import type { GameStateV2, StackKey, StackState, SystemCtx } from '../types';
 import { rlFamiliesAvailable, rlGains, rlWeights } from './effective';
 
 export const STACK_KEYS: StackKey[] = ['pre', 'rlMid', 'rlCeil', 'train', 'serve'];
@@ -128,7 +128,7 @@ export function tuneDay(s: GameStateV2, k: number) {
   for (const k of STACK_KEYS) for (const b of stacksOf(s)[k].buckets) b.h *= f;
 }
 
-// ───────────────────────────── G-equivalent and the pa readout (BRIDGE(V6,V7)) ─────────────────────────────
+// ───────────────────────────── G-equivalent of the recipe ─────────────────────────────
 
 const REF_W_CACHE: { w?: ReturnType<typeof rlWeights> } = {};
 const refW = () => (REF_W_CACHE.w ??= rlWeights('broad', rlFamiliesAvailable(() => false)));
@@ -153,20 +153,11 @@ export function stacksGEquiv(s: GameStateV2): number {
   return gEquivOf(F, ePreAt(s, F), rlMidNow(s), rlCeilNow(s), trainNow(s));
 }
 
-/** BRIDGE(V6,V7): pa-equivalent of a G-equivalent recipe in world w. */
-export const paOfGEquiv = (w: TimelineWorld, g: number) => paRef(w) + g / B_G_PER_Y;
-
-/** BRIDGE(V6,V7): refresh the read-only know-how readout `player.pa` from the stacks. */
-export function syncPa(s: GameStateV2) {
-  s.player.pa = paOfGEquiv(s.hidden.timeline, stacksGEquiv(s));
-}
-
-/** Knowledge that arrives from outside (BRIDGE(V6,V7) units: progress-years of v2 know-how): added to the pretraining
- *  stack as public ideas (B OOM per year, no headroom), the readout synced and the cause recorded. */
-export function addKnowledge(s: GameStateV2, ctx: Pick<SystemCtx, 'cause'> | undefined, years: number, source: string, detail?: string) {
-  if (!Number.isFinite(years) || years === 0) return;
-  const before = s.player.pa;
-  addPublic(stacksOf(s).pre, years * B_G_PER_Y);
-  syncPa(s);
-  ctx?.cause('player.pa', s.player.pa - before, source, detail);
+/** Knowledge that arrives from outside (diffusion, tacit knowledge, safety spillover), dG OOM of effective compute: added
+ *  to the pretraining stack as public ideas (no headroom) and the cause recorded (model v3 F3: the amounts are the old
+ *  progress-years × B). */
+export function addKnowledge(s: GameStateV2, ctx: Pick<SystemCtx, 'cause'> | undefined, dG: number, source: string, detail?: string) {
+  if (!Number.isFinite(dG) || dG === 0) return;
+  addPublic(stacksOf(s).pre, dG);
+  ctx?.cause('player.recipe', dG, source, detail);
 }

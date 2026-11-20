@@ -229,7 +229,7 @@ const mk = (seed = 21, world: 'ai2027' | 'authors2026' = 'ai2027'): GameStateV2 
   }
   check(bad.length === 0, 'lint: no player mechanism reads frontierFlop, hRef, refTotal, shareRefAt, knotAt, multiplierAt or CAL_SHIFT (allowed: harness, rivals, BRIDGE(V6|V7) lines; V4 retired its bridges)', bad.slice(0, 6).join(' | '));
   const wf = readFileSync(join(root, 'departments', 'workfit.ts'), 'utf8');
-  check(!/\.pm\b(?!\))/.test(wf.replace(/gOfPm\(s\.hidden\.timeline, v\.pm\)/g, '').replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')) && !/levelOf|thresholds\(/.test(wf),
+  check(!/\.pm\b(?!\))/.test(wf.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')) && !/levelOf|thresholds\(/.test(wf),
     'lint: the work-type layer (fit, coverage, milestones) reads effective compute, not pm or the level bridge', '');
   void WORK_TYPES;
 }

@@ -1,11 +1,13 @@
 // Epilogue fast-sim for 'overtaken' and company-loss endings, and ASI resolution for any lab (V2-SPEC §5.1 #9, §5.2).
 // Owner: WS4. Rivals and China resolve with THEIR OWN hidden traits — never a coin flip (fixes REDESIGN row 11).
 import { clamp, sigmoid } from '../../rng';
-import { bestPlayerVersion, bestPm, otherLabs } from '../models/labs';
+import { bestPlayerVersion, bestG, otherLabs } from '../models/labs';
 import { trueEfficacy } from '../safety/common';
 import { containAtAsi } from '../safety/incidents';
 import { misalignment } from '../safety/traits';
-import { thresholds } from '../world/calibration';
+import { gOfLevel } from '../models/capability';
+import { LEVEL_KNOTS } from '../../../data/v2/calibration';
+import { B_G_PER_Y } from '../../../data/v2/runDesign';
 import { leverage } from '../worldfx/control';
 import type { EndingV2, GameStateV2, LabId, PowerOutcome, RivalLab } from '../types';
 import { CONTROL } from '../../../data/v2/danger';
@@ -52,10 +54,11 @@ export function misOf(s: GameStateV2, lab: LabId): number {
 /** Projected Mis when lab X reaches ASI: fast-forward its post-training cadence (one step per ~8 weeks) with the
  *  posture-driven trait dynamics, capability rising linearly to ASI. Pure (clones the lab). */
 export function projectedMisAtAsi(s: GameStateV2, lab: LabId): { mis: number; days: number } {
-  const asiThr = thresholds(s.hidden.timeline)[6];
-  const pace = paceOf(s);
-  const gap = Math.max(0, asiThr - bestPm(s, lab));
-  const days = Math.round((gap / Math.max(0.3, pace)) * 365 * 0.7);
+  // The ASI point on the display scale (λ = 15, the level knot every lab's ASI milestone reads), G a year at the lead pace.
+  const asiG = gOfLevel(s.hidden.timeline, LEVEL_KNOTS[6]);
+  const pace = paceOf(s) * B_G_PER_Y;
+  const gap = Math.max(0, asiG - bestG(s, lab));
+  const days = Math.round((gap / Math.max(0.3 * B_G_PER_Y, pace)) * 365 * 0.7);
   if (lab === 'player') return { mis: misOf(s, 'player'), days };
   const r0 = labOf(s, lab);
   if (!r0) return { mis: 0, days };
@@ -133,12 +136,12 @@ export const epilogueLost = (s: GameStateV2, misAtAsi: number) => misAtAsi > los
 /** The leading competitor among active non-player labs (by TRUE internal frontier). */
 export function leadingCompetitor(s: GameStateV2): LabId | undefined {
   let best: LabId | undefined;
-  let pm = -Infinity;
+  let g = -Infinity;
   for (const r of otherLabs(s)) {
     if (r.core.status !== 'active') continue;
-    const x = bestPm(s, r.core.id);
-    if (x > pm) {
-      pm = x;
+    const x = bestG(s, r.core.id);
+    if (x > g) {
+      g = x;
       best = r.core.id;
     }
   }

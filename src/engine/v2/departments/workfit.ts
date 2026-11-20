@@ -27,7 +27,7 @@ import { P27_AAR } from '../../../data/v2/safetyIdeas';
 import { QUALITY, TEAM_COST_M } from '../../../data/v2/teams';
 import { PROJECT_BY_ID, isLineNode } from '../../../data/v2/tree';
 import { Lrel, Phi, tasteSigma } from '../production/knots';
-import { gOfDomain, gOfPm, h50Of } from '../models/capability';
+import { gOfDomain, h50Of } from '../models/capability';
 import { adopted } from '../models/paradigms';
 import { payoffOf } from '../models/tree';
 import { decimalYear } from '../core/time';
@@ -47,17 +47,17 @@ const sig = (x: number) => 1 / (1 + Math.exp(-x));
 /** A version's effective compute in domain d for work (OOM): its domain G (MODEL-V3 §2.3) and its level offsets
  *  (preference, paradigms) at LEVEL_PER_OOM; with Learned research taste (P19) RSCH gains the size of v2's RSCH taste
  *  penalty (0.5 L = 0.42 OOM). The human reference points are set for a lab without P19, so the v2 penalty is not also
- *  subtracted (the display level keeps it until P19). A version without a build (an imported open model) is read through
- *  the display bridge's inverse, BRIDGE(V7). */
-export function domainG(s: GameStateV2, v: Pick<ModelVersion, 'pm' | 'build'>, d: DomainId): number {
+ *  subtracted (the display level keeps it until P19). A version without a build (an imported open model, a rival's
+ *  model) reads its general G. */
+export function domainG(s: GameStateV2, v: Pick<ModelVersion, 'G' | 'build'>, d: DomainId): number {
   const b = v.build;
-  let g = b ? gOfDomain(b, d) + (b.offL[d] ?? 0) / LEVEL_PER_OOM : gOfPm(s.hidden.timeline, v.pm);
+  let g = b ? gOfDomain(b, d) + (b.offL[d] ?? 0) / LEVEL_PER_OOM : v.G;
   if (d === 'RSCH' && adopted(s, 'P19')) g -= RSCH_TASTE_PENALTY / LEVEL_PER_OOM;
   return g;
 }
 
 /** Fit F_w of a version in work type w (OOM of effective compute). */
-export function fitOf(s: GameStateV2, v: Pick<ModelVersion, 'pm' | 'build'>, wt: WorkTypeId): number {
+export function fitOf(s: GameStateV2, v: Pick<ModelVersion, 'G' | 'build'>, wt: WorkTypeId): number {
   let f = 0;
   for (const [d, x] of Object.entries(WORK_TYPES[wt].w) as [DomainId, number][]) f += x * domainG(s, v, d);
   return f;
@@ -78,9 +78,9 @@ export function refPoints(w: TimelineWorld, wt: WorkTypeId): { best: number; med
 
 /** 50% time horizon (minutes) of a version in a work type: METR's 203 min for V0 × 4.2 per OOM of the horizon domain's
  *  effective compute over V0's, × the version's horizon multiplier (long-horizon RL, P07, P12). */
-export const h50Min = (s: GameStateV2, v: Pick<ModelVersion, 'pm' | 'build'>, wt: WorkTypeId = 'EXP') => h50Of(s.hidden.timeline, v, WORK_TYPES[wt].horizon);
+export const h50Min = (s: GameStateV2, v: Pick<ModelVersion, 'G' | 'build'>, wt: WorkTypeId = 'EXP') => h50Of(s.hidden.timeline, v, WORK_TYPES[wt].horizon);
 /** 80% time horizon (minutes) = h50 / 5 (METR TH1.1). */
-export const h80Min = (s: GameStateV2, v: Pick<ModelVersion, 'pm' | 'build'>, wt: WorkTypeId = 'EXP') => h50Min(s, v, wt) * H80_OVER_H50;
+export const h80Min = (s: GameStateV2, v: Pick<ModelVersion, 'G' | 'build'>, wt: WorkTypeId = 'EXP') => h50Min(s, v, wt) * H80_OVER_H50;
 /** METR success probability on a task of `hours` given h50 (minutes): 1/(1 + (t/h50)^β). */
 export const pSuccess = (hours: number, h50: number) => 1 / (1 + Math.pow((hours * 60) / Math.max(1e-9, h50), HORIZON_BETA));
 
@@ -99,7 +99,7 @@ export const assistOf = (win: number) => Math.max(1, 1 / (ASSIST.model + ASSIST.
 export interface WorkFit { fit: number; best: number; med: number; h50: number; a: number; win: number; assist: number }
 /** Fit with the typed feature effects of a deployment (V4.3: scaffolds add ΔG, horizon extenders × h50); milestones read
  *  the model alone. */
-export function workFit(s: GameStateV2, v: Pick<ModelVersion, 'pm' | 'build'>, wt: WorkTypeId, fx?: { dG: number; hMult: number }): WorkFit {
+export function workFit(s: GameStateV2, v: Pick<ModelVersion, 'G' | 'build'>, wt: WorkTypeId, fx?: { dG: number; hMult: number }): WorkFit {
   const w = s.hidden.timeline;
   const fit = fitOf(s, v, wt) + (fx?.dG ?? 0);
   const r = refPoints(w, wt);

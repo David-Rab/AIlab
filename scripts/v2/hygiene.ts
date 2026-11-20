@@ -13,8 +13,10 @@ import { SAVE_BUDGET_BYTES, SCHEMA_REV, deserialize, serialize, stateHash } from
 import { cadencesDue, decimalYear } from '../../src/engine/v2/core/time';
 import { LEADER_LAB_NAME } from '../../src/data/v2/names';
 import { postureOf } from '../../src/engine/v2/actors/rivals';
-import { gOfPm, gV0, playerStart } from '../../src/engine/v2/models/capability';
+import { gV0, playerStart } from '../../src/engine/v2/models/capability';
 import { postG, recipeOf } from '../../src/engine/v2/actors/rivalModel';
+import { stacksGEquiv } from '../../src/engine/v2/models/stacks';
+import { B_G_PER_Y } from '../../src/data/v2/runDesign';
 import { LEADER_CAL } from '../../src/data/v2/calibration';
 import { START_BY_ID } from '../../src/data/v2/starts';
 import { ownedOnline, rentedOnline } from '../../src/engine/v2/compute/power';
@@ -127,13 +129,13 @@ function leaderChecks(s: GameStateV2, setup: SetupV2, tag: string) {
   const yr = decimalYear(s);
   check(L?.core.id === LEADER_ID && L.archetype === 'leader' && L.core.name === LEADER_LAB_NAME, `${tag}: leader lab appended last (${LEADER_ID})`);
   if (!L) return;
-  const v0 = { pm: playerStart(s.hidden.timeline).target }; // the reference start model (= the leader start's V0)
+  const v0G = gV0(s.hidden.timeline); // the reference start model (= the leader start's V0)
   // Model v3 F1: the start recipe is solved so the leader's start version on its start base is V0 (rivalModel.ts), and
   // it is the leader's day-0 recipe (e ≈ 0: B0's dates make its recipe stale by B0's age; today's is the zero of e).
   const e0 = recipeOf(s, L);
-  const g0 = L.internal.G ?? NaN;
-  check(Math.abs(L.internal.pm - v0.pm) < 1e-9 && Math.abs(g0 - gV0(s.hidden.timeline)) < 1e-9 && Math.abs(e0) < 0.05 && postG(L.phys.base, L.phys.rec) >= g0,
-    `${tag}: leader start model = the reference V0, on its start base at the leader's day-0 recipe`, `${L.internal.pm} vs ${v0.pm}; G ${g0} vs ${gV0(s.hidden.timeline)}; e ${e0.toFixed(4)}`);
+  const g0 = L.internal.G;
+  check(Math.abs(g0 - v0G) < 1e-9 && Math.abs(e0) < 0.05 && postG(L.phys.base, L.phys.rec) >= g0,
+    `${tag}: leader start model = the reference V0, on its start base at the leader's day-0 recipe`, `G ${g0} vs ${v0G}; e ${e0.toFixed(4)}`);
   check(Math.abs(L.phys.eff - Math.pow(10, LEADER_CAL[setup.world] ?? 0)) < 1e-12, `${tag}: leader research efficiency = 10^LEADER_CAL`, String(L.phys.eff));
   check(Math.abs(L.core.computeOnline / refTotal(s.hidden.timeline, yr) - 1) < 1e-9 && Math.abs(L.core.staff.cap / hRef(yr) - 1) < 1e-9 && L.core.tasteHire === 1, `${tag}: leader compute = refTotal, staff = hRef`);
   check(postureOf(s, L.core.id).bindingness <= 0.3, `${tag}: leader bindingness ≤ 0.3`, postureOf(s, L.core.id).bindingness.toFixed(2));
@@ -142,7 +144,7 @@ function leaderChecks(s: GameStateV2, setup: SetupV2, tag: string) {
     const h = { ...x.hidden, actorPresets: { ...x.hidden.actorPresets, rivals: { ...x.hidden.actorPresets.rivals } }, rivalPostures: { ...x.hidden.rivalPostures } };
     delete h.actorPresets.rivals[LEADER_ID];
     delete h.rivalPostures[LEADER_ID];
-    return JSON.stringify([h, x.rng.world, x.rivals.filter((r) => r.core.id !== LEADER_ID), x.china, x.player.pa, x.player.models]);
+    return JSON.stringify([h, x.rng.world, x.rivals.filter((r) => r.core.id !== LEADER_ID), x.china, stacksGEquiv(x), x.player.models]);
   };
   check(strip(s) === strip(off), `${tag}: 'world' draws, rivals, China and the player unchanged by the leader lab`);
 }
@@ -163,7 +165,7 @@ for (const setup of setups) {
   check(s.player.computeOnline > 0 && s.player.finance.cash > 0 && (division ? s.player.finance.valuation === 0 : s.player.finance.valuation > 0), `${tag}: finance/compute start`, `cash ${s.player.finance.cash} V ${s.player.finance.valuation.toFixed(0)} C ${s.player.computeOnline}`);
   if (setup.start !== 'leader') {
     // R9 start data: leader lab on (D1), teams, owned/rented compute, known nodes, products and features, board, lag.
-    const ref = playerStart(s.hidden.timeline).target;
+    const ref = gV0(s.hidden.timeline);
     const nTeams = Object.values(def.teams).reduce((a, b) => a + b, 0);
     check(s.setup.leaderLab && s.rivals.some((r) => r.core.id === LEADER_ID), `${tag}: leader lab in the world (D1)`);
     check(s.player.teams.length === nTeams && Math.abs(ownedOnline(s) - def.owned) < 1 && Math.abs(rentedOnline(s) - def.rented) < 1, `${tag}: teams and compute owned / rented`, `${s.player.teams.length} teams, ${ownedOnline(s)} / ${rentedOnline(s)}`);
@@ -171,9 +173,9 @@ for (const setup of setups) {
     const prods = s.player.deployments.filter((d) => d.channel !== 'internal').map((d) => d.channel).join(',');
     check(prods === def.products.map((x) => x.channel).join(',') && s.player.board.preset === def.board && s.setup.governance === def.board, `${tag}: products and board`, `${prods} · ${s.player.board.preset}`);
     const v = s.player.models.versions[0];
-    check(v.pm < ref && (def.imported ? v.variant === 'imported' && s.player.models.runs.length === 0 : v.variant === 'full'), `${tag}: start model lags the reference (${def.lagMonths} mo)${def.imported ? ', imported (D6)' : ''}`, `${v.pm.toFixed(3)} < ${ref.toFixed(3)}`);
+    check(v.G < ref && (def.imported ? v.variant === 'imported' && s.player.models.runs.length === 0 : v.variant === 'full'), `${tag}: start model lags the reference (${def.lagMonths} mo)${def.imported ? ', imported (D6)' : ''}`, `G ${v.G.toFixed(3)} < ${ref.toFixed(3)}`);
   }
-  const leads = s.rivals.map((r) => Math.round(((playerStart(s.hidden.timeline).target - r.internal.pm) / 1.25) * 12 * 10) / 10);
+  const leads = s.rivals.map((r) => Math.round(((gV0(s.hidden.timeline) - r.internal.G) / (1.25 * B_G_PER_Y)) * 12 * 10) / 10);
   // v1 archetype gap ranges (≤ 1.1 y); the tighter 3–9 month target is WS4's acceptance test T4.
   check(leads.every((m) => m >= 0 && m <= 13.5), `${tag}: rival gaps within v1 ranges (months)`, leads.join(', '));
   if (setup.leaderLab) leaderChecks(s, setup, tag);
@@ -271,7 +273,7 @@ for (const rev of [1, 11, 12, 13, 14]) {
     msg = (e as Error).message;
   }
   // Model v3 V2 (schemaRev 13): V1 saves (12) are rejected too; model v3 V3 (schemaRev 14): V2 saves (13) too.
-  check(SCHEMA_REV === 32 && msg ===`no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
+  check(SCHEMA_REV === 33 && msg ===`no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
 }
 // Model v3 V4a (schemaRev 16): a V3b save (15) migrates (customer stocks start empty, versions get their FLOP per token).
 {
@@ -467,14 +469,39 @@ for (const rev of [1, 11, 12, 13, 14]) {
   check(!!g && Array.isArray(g.player.models.evals) && g.player.models.evals.length === 0 && o.indexOf('evals') === o.indexOf('ops') + 1,
     'save: a schemaRev-25 save migrates to 26 (no eval suites, evals after run operations)', msg || o.join(', '));
 }
+/** Model v3 F3: a current state written back in the rev-32 shape (pm through the retired bridge, the know-how readout pa
+ *  and its sync mark, openWeightsFrontier), so the tests of the older migrations can build their old saves from it. */
+function asRev32(x: GameStateV2): GameStateV2 & Record<string, unknown> {
+  const o = JSON.parse(serialize(x)) as GameStateV2 & Record<string, unknown>;
+  const w = o.hidden.timeline;
+  const ps = playerStart(w);
+  const pm = (G: number) => ps.target + (G - gV0(w)) / B_G_PER_Y;
+  type Old = { pm?: number; pa?: number; paSync?: number; openWeightsFrontier?: number; openWeightsG?: number };
+  for (const r of [...o.rivals, o.china.lab]) {
+    for (const m of [r.internal, r.publicModel]) if (m) (m as Old).pm = pm(m.G);
+    const pa = ps.pa0 + recipeOf(o, r) / B_G_PER_Y;
+    (r.core as Old).pa = pa;
+    (r.phys as Old).paSync = pa;
+  }
+  for (const v of o.player.models.versions) (v as Old).pm = pm(v.G);
+  (o.player as Old).pa = ps.pa0 + stacksGEquiv(o) / B_G_PER_Y;
+  const k = o.knowledge as Old;
+  k.openWeightsFrontier = pm(k.openWeightsG ?? 0);
+  delete k.openWeightsG;
+  o.schemaRev = 32;
+  return o;
+}
+type Legacy = { pm?: number; pa?: number; paSync?: number };
 // Model v3 F1 (schemaRev 27, built as 25 before M4): a D7 save (26) migrates: every non-player lab gets a base under its internal model.
 {
-  const old = JSON.parse(serialize(run(detSetup, 30))) as GameStateV2 & Record<string, unknown>;
+  const cur = run(detSetup, 30);
+  const old = asRev32(cur);
   old.schemaRev = 26;
   for (const r of [...old.rivals, old.china.lab]) {
     delete (r as Partial<typeof r>).phys;
-    for (const m of [r.internal, r.publicModel]) if (m) { delete m.G; delete m.flop; delete m.params; delete m.fpt; }
+    for (const m of [r.internal, r.publicModel]) if (m) { delete (m as Partial<typeof m>).G; delete m.flop; delete m.params; delete m.fpt; }
   }
+  const want = [...cur.rivals, cur.china.lab].map((r) => r.internal.G);
   let msg = '';
   let g: GameStateV2 | undefined;
   try {
@@ -483,7 +510,7 @@ for (const rev of [1, 11, 12, 13, 14]) {
     msg = (e as Error).message;
   }
   const labs = g ? [...g.rivals, g.china.lab] : [];
-  const ok = !!g && labs.every((r) => !!r.phys && r.phys.base.flop > 0 && Math.abs((r.internal.G ?? NaN) - gOfPm(g!.hidden.timeline, r.internal.pm)) < 1e-9 && (r.internal.fpt ?? 0) > 0);
+  const ok = !!g && labs.every((r, i) => !!r.phys && r.phys.base.flop > 0 && Math.abs(r.internal.G - want[i]) < 1e-9 && (r.internal.fpt ?? 0) > 0);
   check(ok, 'save: a schemaRev-26 save migrates to 27 (each rival keeps its model, now on a physical base)', msg || labs.map((r) => `${r.core.id} G ${r.internal.G?.toFixed(2)} N ${((r.internal.params ?? 0) / 1e12).toFixed(2)}T`).join(', '));
 }
 // Model v3 D10 (schemaRev 29; built as 26): a D9 save (28) migrates: every lab's serving stack at the 2025 reference, rlG on its models.
@@ -509,14 +536,15 @@ for (const rev of [1, 11, 12, 13, 14]) {
 }
 // Model v3 F2 (schemaRev 30; built as 26): a D10 save (29) migrates: each lab's recipe e becomes the pretraining part, know-how unchanged.
 {
-  const old = JSON.parse(serialize(run(detSetup, 30))) as GameStateV2 & Record<string, unknown>;
+  const old = asRev32(run(detSetup, 30));
   old.schemaRev = 29;
   const pa0: number[] = [];
   for (const r of [...old.rivals, old.china.lab]) {
-    const ph = r.phys as Partial<typeof r.phys>;
+    const ph = r.phys as Partial<typeof r.phys> & Legacy;
     delete ph.rec; delete ph.pool; delete ph.paSync;
-    pa0.push(r.core.pa);
+    pa0.push((r.core as Legacy).pa ?? NaN);
   }
+  const e0 = (w: GameStateV2['hidden']['timeline'], pa: number) => B_G_PER_Y * (pa - playerStart(w).pa0);
   let msg = '';
   let g: GameStateV2 | undefined;
   try {
@@ -525,8 +553,40 @@ for (const rev of [1, 11, 12, 13, 14]) {
     msg = (e as Error).message;
   }
   const labs = g ? [...g.rivals, g.china.lab] : [];
-  const ok = !!g && labs.every((r, i) => !!r.phys.rec && !!r.phys.pool && Math.abs(r.core.pa - pa0[i]) < 1e-9 && r.phys.paSync === r.core.pa);
+  const ok = !!g && labs.every((r, i) => !!r.phys.rec && !!r.phys.pool && Math.abs(recipeOf(g!, r) - e0(g!.hidden.timeline, pa0[i])) < 1e-9);
   check(ok, 'save: a schemaRev-29 save migrates to 30 (each rival recipe in three parts, know-how unchanged)', msg);
+}
+// Model v3 F3 (schemaRev 33): a rev-32 save migrates: pm → G through the old bridge, the know-how readout pa removed, and
+// what the know-how writers had added to a lab's core.pa since its last sync enters its pretraining part (× B).
+{
+  const cur = run(detSetup, 60);
+  const old = asRev32(cur);
+  const cn = old.china.lab;
+  (cn.core as Legacy).pa = ((cn.core as Legacy).pa ?? 0) + 0.01; // an unsynced leak of 0.01 progress-years
+  let msg = '';
+  let g: GameStateV2 | undefined;
+  try {
+    g = deserialize(JSON.stringify(old));
+  } catch (e) {
+    msg = (e as Error).message;
+  }
+  const json = g ? serialize(g) : '';
+  const curLabs = [...cur.rivals, cur.china.lab];
+  const okG = !!g && [...g.rivals, g.china.lab].every((r, i) => Math.abs(r.internal.G - curLabs[i].internal.G) < 1e-9 && Math.abs((r.publicModel?.G ?? 0) - (curLabs[i].publicModel?.G ?? 0)) < 1e-9)
+    && g.player.models.versions.every((v, i) => Math.abs(v.G - cur.player.models.versions[i].G) < 1e-9) && Math.abs(g.knowledge.openWeightsG - cur.knowledge.openWeightsG) < 1e-9;
+  const okLeak = !!g && Math.abs(g.china.lab.phys.rec.pre - cur.china.lab.phys.rec.pre - 0.01 * B_G_PER_Y) < 1e-9 && g.rivals.every((r, i) => Math.abs(r.phys.rec.pre - cur.rivals[i].phys.rec.pre) < 1e-9);
+  const okGone = !!g && !/"(pm|pa|paSync|paIn|paAtStart|paTrack|openWeightsFrontier)":/.test(json);
+  check(okG && okLeak && okGone && g!.schemaRev === SCHEMA_REV && SCHEMA_REV === 33,
+    'save: a schemaRev-32 save migrates to 33 (every model\'s G from its pm, an unsynced know-how gain into the recipe, no pm / pa fields left)', msg || `G ${okG} leak ${okLeak} fields ${okGone}`);
+  let same = false;
+  try {
+    const again = JSON.parse(serialize(cur)) as Record<string, unknown>;
+    again.schemaRev = 32;
+    same = stateHash(deserialize(JSON.stringify(again))) === stateHash(cur);
+  } catch (e) {
+    msg = (e as Error).message;
+  }
+  check(same, 'save: the 32 → 33 migration leaves an already-migrated state unchanged (idempotent)', msg);
 }
 // Merge M5: the migrations added in M5 (27 → 28 D9, 28 → 29 D10, 29 → 30 F2, 30 → 31 E8, 31 → 32 E9) are idempotent: a
 // state that already has their fields, labelled rev 27, loads unchanged.
@@ -541,7 +601,7 @@ for (const rev of [1, 11, 12, 13, 14]) {
   } catch (e) {
     msg = (e as Error).message;
   }
-  check(same, 'save: the M5 migrations 27 → 32 leave an already-migrated state unchanged (idempotent)', msg);
+  check(same, 'save: the migrations 27 → 33 (M5\'s and F3\'s) leave an already-migrated state unchanged (idempotent)', msg);
 }
 
 // ---------- 6. Cadences ----------

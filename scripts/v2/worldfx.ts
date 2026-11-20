@@ -9,7 +9,8 @@
 import { dayOfDate, decimalYear } from '../../src/engine/v2/core/time';
 import { makeCtx, tick } from '../../src/engine/v2/core/loop';
 import { ACTIONS } from '../../src/engine/v2/core/registry';
-import { thresholds } from '../../src/engine/v2/world/calibration';
+import { gOfLevel } from '../../src/engine/v2/models/capability';
+import { LEVEL_KNOTS } from '../../src/data/v2/calibration';
 import { LEVERAGE_THRESHOLDS, leverage, leverageTier } from '../../src/engine/v2/worldfx/control';
 import { HEADLINES } from '../../src/engine/v2/worldfx/headlines';
 import { automationTfp } from '../../src/engine/v2/worldfx/macro';
@@ -116,8 +117,9 @@ function runC(over: Partial<SetupV2>, days: number, opts: { noSez?: boolean } = 
 function w2Rec(): number {
   return cached('worldfx-w2', { econ: 'normal', days: 3651 }, FILES, () => {
     const s = refGame({ econ: 'normal' });
-    const pmA1 = thresholds(s.hidden.timeline)[1];
-    const probe = refPlayProbe(s, { freezeAt: pmA1, publicLag: 0 });
+    // Agent-1 level: the milestone's level knot on the display scale (model v3 F3: was v2's pm threshold).
+    const gA1 = gOfLevel(s.hidden.timeline, LEVEL_KNOTS[1]);
+    const probe = refPlayProbe(s, { freezeAt: gA1, publicLag: 0 });
     const opts: TickOptions = { extraSystems: [probe], skip: ['production', 'continual', 'endings'] };
     tick(s, opts);
     const tfp0 = automationTfp(s);

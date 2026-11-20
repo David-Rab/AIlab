@@ -25,7 +25,7 @@ import { controlReadout } from '../../src/engine/v2/safety/dangerView';
 import { exfiltrationHazard } from '../../src/engine/v2/safety/incidents';
 import { securitySystem } from '../../src/engine/v2/security/security';
 import { misalignment } from '../../src/engine/v2/safety/traits';
-import { thresholds } from '../../src/engine/v2/world/calibration';
+import { gOfLevel } from '../../src/engine/v2/models/capability';
 import { toleranceNoiseOf } from '../../src/engine/v2/world/hidden';
 import type { DomainId, EndingV2, Foothold, FootholdKind, GameStateV2, ModelVersion, TraitVector } from '../../src/engine/v2/types';
 import { FIXTURE_DIR, HERE, check, finish } from './lib';
@@ -338,7 +338,7 @@ for (const fx of ['day400.json', 'day900.json']) {
     rogue: (s) => {
       const v = internalVersion(s)!;
       v.Lg = LEVEL_KNOTS[4] + 0.1;
-      v.pm = thresholds(s.hidden.timeline)[4] + 0.01;
+      v.G = gOfLevel(s.hidden.timeline, LEVEL_KNOTS[4]) + 0.01;
       footholdFromEscape(s, s.time.day, v, 1).size = 4;
     },
   };
@@ -383,7 +383,7 @@ for (const fx of ['day400.json', 'day900.json']) {
   let m: GameStateV2 | undefined;
   try { m = deserialize(JSON.stringify(raw)); } catch (e) { msg = String(e); }
   const cp = m ? footholdsOf(m).find((f) => f.kind === 'exfiltratedCopy') : undefined;
-  check(!!m && m.schemaRev === SCHEMA_REV && SCHEMA_REV === 32 && m.hidden.toleranceNoise === toleranceNoiseOf(m.setup.seed) && cp?.mis === 0.33 && m.player.safety.effectiveControl.level === 1,
+  check(!!m && m.schemaRev === SCHEMA_REV && SCHEMA_REV === 33 && m.hidden.toleranceNoise === toleranceNoiseOf(m.setup.seed) && cp?.mis === 0.33 && m.player.safety.effectiveControl.level === 1,
     'save: a schemaRev-31 save migrates to 32 (the world\'s tolerance noise from the seed, the copy\'s Mis from the loose record, full control until the next day)', msg || `ε_w ${f3(m?.hidden.toleranceNoise ?? NaN)}`);
   const fresh = newGame(defaultSetupV2({ seed: 3 }));
   const back = deserialize(serialize(fresh));

@@ -2,7 +2,7 @@
 //
 // UI code imports from here (or src/engine/v2/index.ts) only. Selectors return what the PLAYER knows: measured
 // levels, beliefs, intel. `selectHidden` is for the end screen only (scripts/v2/lint-hidden.ts enforces this).
-import { bestLg, bestPm, internalVersion, measuredLOf, PLAYER_ID } from '../models/labs';
+import { bestG, bestLg, internalVersion, measuredLOf, PLAYER_ID } from '../models/labs';
 import { misalignment, predictBeliefs, runOmega, type Signals } from '../safety/traits';
 import { detectionAt, understanding } from '../safety/understanding';
 import { levelOfOom, oomOfLevel } from '../safety/oversight';
@@ -27,7 +27,7 @@ export { goodputOf, paramsOfVersion, playerUniqueTokens, runFlopPerShareDay } fr
 export type { LaunchRunParams, RunPlan } from '../models/runs';
 export { PARADIGM_BY_ID } from '../models/paradigms';
 export { isCapProject, stagesOf } from '../models/research';
-export { assignBlock, effortOf, idleTeams, knowHow, isProject, missingNeeds, nextLineProject, nodeDept, nodeKnown, nodeOdds, nodeStatus, optionLocked, payoffOf, projectCapacity, projectEta, projectRate, projectReady, projectTeams, PRIORITY_W, researchSpeed, sciAiMult, teamCapacity, teamGain as projectTeamGain, teamsOn, treeCounts } from '../models/tree';
+export { assignBlock, effortOf, idleTeams, isProject, missingNeeds, nextLineProject, nodeDept, nodeKnown, nodeOdds, nodeStatus, optionLocked, payoffOf, projectCapacity, projectEta, projectRate, projectReady, projectTeams, PRIORITY_W, researchSpeed, sciAiMult, teamCapacity, teamGain as projectTeamGain, teamsOn, treeCounts } from '../models/tree';
 export type { NodeStatus } from '../models/tree';
 export { benchName, benchGen, measuredSd } from '../models/benchmarks';
 export { evalDaysFor, evalDaysEstimate, evalCost, evalDepthView, evalMeasureView, evalPolicyView, evalQueueView, gateDepth, policyDepth } from '../models/evals';
@@ -102,8 +102,8 @@ export function decisionSnapshot(s: GameStateV2): DecisionSnapshot {
   };
 }
 
-/** True frontier progress of a lab (hidden; for tests and end screen). */
-export const truePm = (s: GameStateV2, lab: string) => bestPm(s, lab);
+/** True frontier effective compute G of a lab (hidden; for tests and end screen). */
+export const trueG = (s: GameStateV2, lab: string) => bestG(s, lab);
 
 // ───────── M5 UX read-only selectors (Safety lab, Run designer). Player-visible data only. ─────────
 

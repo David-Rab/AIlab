@@ -138,15 +138,15 @@ const fmtPull = (s: GameStateV2) => { const p = successorPull(s); return `r ${p.
     g.player.models.bases[0].uModes = [];
     v0.uModes = [];
     const run = { id: 'RP', kind: 'post', name: 'post', startDay: 0, flopNeeded: 1, flopDone: 1, poolShare: 0.1, cashCost: 0, status: 'done', baseId: 'B0', post } as unknown as TrainingRun;
-    const cap = JSON.stringify({ pm: nv.pm, domains: nv.domains, build: nv.build, params: nv.params });
+    const cap = JSON.stringify({ G: nv.G, domains: nv.domains, build: nv.build, params: nv.params });
     applyRunToTraits(g, makeCtx(g), run, nv);
-    return { nv, capSame: cap === JSON.stringify({ pm: nv.pm, domains: nv.domains, build: nv.build, params: nv.params }) };
+    return { nv, capSame: cap === JSON.stringify({ G: nv.G, domains: nv.domains, build: nv.build, params: nv.params }) };
   };
   const clean = train(Object.fromEntries(SUCCESSOR_TRAITS.map((t) => [t, x0[t]])) as Partial<TraitVector>);
   const bad = train(misTraits());
   const dispDiff = (SUCCESSOR_TRAITS as TraitId[]).filter((t) => bad.nv.traitsTrue[t] > clean.nv.traitsTrue[t] + 1e-6);
-  check(clean.capSame && bad.capSame && JSON.stringify(clean.nv.domains) === JSON.stringify(bad.nv.domains) && clean.nv.pm === bad.nv.pm && dispDiff.length >= 6,
-    'a post-training run on a misaligned fleet: identical capability (pm, domains, build), more misaligned dispositions',
+  check(clean.capSame && bad.capSame && JSON.stringify(clean.nv.domains) === JSON.stringify(bad.nv.domains) && clean.nv.G === bad.nv.G && dispDiff.length >= 6,
+    'a post-training run on a misaligned fleet: identical capability (G, domains, build), more misaligned dispositions',
     `Mis ${misalignment(clean.nv.traitsTrue).toFixed(3)} → ${misalignment(bad.nv.traitsTrue).toFixed(3)}; higher: ${dispDiff.join(' ')}`);
 }
 

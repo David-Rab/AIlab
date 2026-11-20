@@ -4,6 +4,13 @@
 // 2. Every game system of §4 (people … world) has at least one engine system or action (no orphan system), and
 //    every R2 verb is used by at least one action (no dead verb).
 // 3. Action ids are unique and every action has a title of at most four words (one verb set, terse labels).
+// 4. Model v3 F3: no reader of the retired progress coordinate pm = Φ(G) or the know-how readout pa (every lab's
+//    capability is G, its display level λ(G) from models/capability.ts levelOfG) anywhere in src/ or scripts/v2/ outside
+//    the save migration (core/save.ts) and its tests (hygiene.ts asRev32). Code only: comments, strings and regex
+//    literals are stripped first.
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { ACTIONS, SYSTEMS } from '../../src/engine/v2/core/registry';
 import type { ActionVerb, StructureSystem } from '../../src/engine/v2/types';
 
@@ -36,6 +43,38 @@ const dup = ids.filter((x, i) => ids.indexOf(x) !== i);
 ok('Action ids unique', dup.length === 0, dup.join(', '));
 const long = ACTIONS.filter((a) => a.title.trim().split(/\s+/).length > 4).map((a) => `${a.id} "${a.title}"`);
 ok('Action titles ≤ 4 words', long.length === 0, long.join(', '));
+
+// 4. No pm / Φ / pa readers (model v3 F3).
+{
+  const root = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
+  const ALLOW = new Set(['src/engine/v2/core/save.ts', 'scripts/v2/hygiene.ts', 'scripts/v2/lint-structure.ts']);
+  const FORBIDDEN = [
+    /\.pm\b/, /(^|[{,]\s*)pm\s*:/, // a model's pm (field read or written)
+    /\.(pa|paSync|paIn|paAtStart|paTrack|openWeightsFrontier)\b/, // the know-how readout and its copies
+    /\b(pmOfG|gOfPm|pmOfBuild|bestPm|truePm|pmOfLevel|levelOfPmV2|bridgeQ|capIndexV2|slopeL|paRef|syncPa|syncRivalPa|absorbKnowHow|paOfGEquiv|paOfRecipe)\b/, // the bridge's functions
+    /(^|[^\w.])levelOf\s*\(/, // v2's levelOf(w, pm) (the one map is levelOfG)
+  ];
+  /** Code without comments, string literals and regex literals (a lint, not a parser: good enough for this tree). */
+  const blank = (m: string) => m.replace(/[^\n]/g, ''); // keeps the line count
+  const codeOf = (src: string) => src
+    .replace(/\/\*[\s\S]*?\*\//g, blank)
+    .replace(/(^|[^:\\])\/\/.*$/gm, '$1')
+    .replace(/'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`/g, blank)
+    .replace(/([=(,:!&|?;{}[]\s*|return\s+)\/(?![*/])(?:\\.|\[(?:\\.|[^\]\n])*\]|[^/\\\n])+\/[dgimsuy]*/g, '$1/x/');
+  const files: string[] = [];
+  for (const dir of ['src', join('scripts', 'v2')]) {
+    for (const f of readdirSync(join(root, dir), { recursive: true }) as string[]) if (/\.(ts|tsx)$/.test(f)) files.push(join(dir, f));
+  }
+  const bad: string[] = [];
+  for (const f of files) {
+    const rel = relative(root, join(root, f)).replace(/\\/g, '/');
+    if (ALLOW.has(rel)) continue;
+    codeOf(readFileSync(join(root, f), 'utf8')).split('\n').forEach((line, i) => {
+      if (FORBIDDEN.some((re) => re.test(line))) bad.push(`${rel}:${i + 1}: ${line.trim().slice(0, 90)}`);
+    });
+  }
+  ok(`No pm / Φ / pa readers outside the save migration (${files.length} files)`, bad.length === 0, bad.slice(0, 8).join(' | '));
+}
 
 // Summary table (verbs × systems), for the PROGRESS log.
 const table: Record<string, Record<string, number>> = {};

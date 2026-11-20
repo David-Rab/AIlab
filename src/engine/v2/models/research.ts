@@ -49,7 +49,7 @@ import { adopted } from './paradigms';
 import { idleTrainingShare } from './runs';
 import { evalReDemand, evalsDay } from './evals';
 import { addSuiteExpertData } from './suites';
-import { addIdea, latestBaseFlop, STACK_KEYS, syncPa, trainNow, tuneDay, stacksGEquiv } from './stacks';
+import { addIdea, latestBaseFlop, STACK_KEYS, trainNow, tuneDay, stacksGEquiv } from './stacks';
 import { steerAdoption } from '../safety/covert';
 
 const node = (id: string): TreeNodeDef | undefined => PROJECT_BY_ID[id];
@@ -585,7 +585,6 @@ export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, bui
     onKnown(id);
     ctx.log('research', `${n.name} is built into the lab's recipe.`, 2, id);
   }
-  syncPa(s);
 }
 
 /** One day of one project's lifecycle. `reCap` = research-engineer team-equivalents on it today (human); `flopDay` = its
@@ -752,7 +751,6 @@ export function capResearchDay(s: GameStateV2, ctx: SystemCtx, ready: string[], 
     tuneDay(s, TUNE_K * tune * Xt);
     used += tune * flopPerRe;
   }
-  syncPa(s);
   // Software progress readout (OOM/day of the stacks' G-equivalent, a 14-day average): the readout's `rate` (BRIDGE(V7)).
   const g = stacksGEquiv(s);
   if (p.research.gLast !== undefined) p.research.gRate = (p.research.gRate ?? 0) + (Math.max(0, g - p.research.gLast) - (p.research.gRate ?? 0)) / 14;
