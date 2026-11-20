@@ -3032,3 +3032,299 @@ reported).
   − L at SAR +0.50, below in 30%; accepted); S4 safe-only 0.011 and S5 mixed (margin +0.03, holds in 70%) pass; E2's S6
   and B3 pass. Attribution: before E5 (4c76b60) S4 RefBot is 0.517 (D5/D2/E3/D6/E2 together −0.013 from M1), E5 takes
   it to 0.485 (−0.032: the danger formula changes incident and detection paths).
+
+### D4 notes (data UI: Models › Data and the Blueprint's drawn mix, 2026-11-20)
+
+Code: `src/ui/v2/panels/Data.tsx` + `data.css` (the view), `panels/Models.tsx` (tabs Versions | Data),
+`panels/Blueprint.tsx` (data slot: Natural preset, drawn-mix row `DrawRow`), `panels/Relations.tsx` and
+`data/v2/actions.ts` (data actions removed from the catalogue, link to Models › Data), `engine/v2/production/dataView.ts`
+(output-only selectors, exported from `engine/v2/index.ts`), `data/v2/runDesign.ts` (`BASE_DATA.natural`),
+`types.ts` (`BaseDesign.data` gains `'natural'`; `CostLine.unit`), `actors/fx.ts` (`L(..., { unit })`), preview units in
+`production/dataActions.ts` and `models/suites.ts`, `ui.tsx` / `kit.tsx` (unit-aware preview text), `data/v2/glossary.ts`,
+`scripts/v2/uitest.mjs` (D4 checks), `scripts/v2/lint-ux.ts` (required terms). No state, mechanism or schema change.
+
+**Where it lives [D]: Models › Data** (a tab of Models next to Versions; D6's Suites tab joins it on merge).
+- Data is an owned training input that bases consume, like the suites that post-trains consume: the data actions are in
+  the `models` sphere, the Blueprint (the consumer) sits in the same nav group, and the Blueprint's data slot links here.
+- Not Research (ideas and recipe stacks) and not a nav item of its own (one more L0 entry for an L2 view).
+- Relations keeps only the relation effects (Civil Liberties and Creatives approval show in its bloc table); its
+  "Research" group (was "Research & data") now holds D1/D2 only and the header links "data deals: Models › Data".
+
+**One home per datum**
+| datum | home | elsewhere |
+|---|---|---|
+| portfolio by kind (tokens, q, U, domain mix, today's flow), pending deliveries, crawl licence state | Models › Data (portfolio card, `data-home=dataPortfolio`) | – |
+| natural mix vs reference shares, its specialisation | Models › Data (`naturalMix`) | Blueprint "Natural" card preview only |
+| licence / expert / generation / usage forms | Models › Data (four cards) | Relations: link |
+| the base's drawn (effective) share per domain, s_d with the ±1.3 cap, most-repeated domain epochs | Blueprint data slot (drawn-mix row) | – |
+| tokens vs unique tokens for this mix, epochs, compute kept, mean quality | Blueprint Data tile (as D3) | drawn-mix row's tooltip points there |
+| each suite's expert data | Models › Suites (D6) | Data: expert row shows the kind total and unbuilt stock by domain + a "Suites" link |
+
+The Data tile's tooltip no longer lists the top-3 specialisations (they moved to the drawn-mix row).
+
+**What it shows**
+- Portfolio card: U hero (Σ q·T, tooltip per kind), one row per kind: tokens, mean q, U bar (q × tokens; expert "not in
+  U"), a 9-cell domain heat strip (sequential ramp, one tooltip per cell), and today's flow (crawl coverage and licence,
+  corpora and pending, usage tokens/day at the policy, synthetic tokens/day incl. a job, expert unbuilt + Suites link).
+  Pending deliveries as chips (domain, tier, tokens, days to go; tooltip with q, ΔU and the date).
+- Natural mix card: per domain a diverging bar of the specialisation a natural-mix base of the latest base's size would
+  get (±1.3 OOM scale, cap marked "(cap)" in the tooltip), share vs reference share.
+- License data: domain pills incl. Web crawl, tier pills with q and $/T, size pills (×0.2 / ×1 / ×4 the tier default),
+  cost and before → after (U, the domain's share of the stock, its natural-mix specialisation, the latest base's epochs).
+- Generate data: teacher table (G, q, tokens per H100e-day, yield = q × tokens with a bar; "default" and "best yield"
+  tags: the mini-teacher trade is visible), pool share and days pills, H100e-days → tokens at q vs the default
+  teacher's U gain, before → after; the running job in the header with Stop.
+- Buy expert data: domain, size, cost, unbuilt stock before → after, the suite families it serves.
+- Usage-data policy: three level cards (share kept, usage tokens/day at today's traffic, U a year in the tooltip, Civil
+  Liberties approval), Switch on the others.
+- Blueprint (base run): a "Natural" data preset ([D] `BASE_DATA.natural = { base: 'natural' }`, the lead's request in
+  D3; RefBot keeps Balanced, so no golden change) and, under the data slot, the drawn-mix row: per domain a small bar of
+  the effective drawn share (√ scale) with a reference tick and s_d below (green/red; underlined at the cap), the
+  most-repeated domain and its epochs, a quality chip whose tooltip names the preset (starts from, tilts, tokens by
+  kind), and "Data ›". Domain tilts as a free control were not added: they need a new `BaseDesign` field (state).
+
+**Preview units.** `CostLine.unit` (optional, display only) replaces the currency label in previews: data gains read
+"T unique tokens" (licence, generation, usage: "a year"), expert "B expert tokens", generation compute "M H100e-days"
+(it was shown as a % because the compute formatter treats ≤ 1 as a share), suite build "fidelity". `L()` takes
+`{ unit }`. Other `progress` lines keep "L" (they are research speed, days or levels; a general clean-up is F6's).
+
+**Engine (output only, `production/dataView.ts`)**: `dataPortfolioView(s)` (rows from `portfolioByKind`, U, pending,
+flows, crawl, expert unbuilt / in suites, usage level), `naturalMixView(s)`, `drawByDomain(s, draw)` (per-domain drawn
+and effective share, ref, s, epochs = drawn tokens ÷ the domain's quality-weighted unique tokens), `mixTargetOf`,
+`licenceForm` / `expertForm` / `synForm` / `teacherRows` / `usageLevels` (terms + structured `dataDelta`). No reader in
+the engine; D11 can change `data.ts` internals freely as long as `dataDelta`, `drawData`, `portfolioByKind`,
+`synAssetFor`, `synTokensT`, `syntheticQuality`, `usageRateAt` keep their signatures.
+
+**Glossary**: new `dataPortfolio`, `uniqueTokens`, `dataQuality`, `publicWeb`, `licensedData`, `licenceTier`,
+`syntheticData`, `teacherYield`, `naturalMix`, `refShare`, `drawnMix`, `domainEpochs`, `pendingData`; `dataMix` rewritten
+(Balanced = reference shares, as D3 made it; Natural added). All in lint-ux REQUIRED with D2's data terms.
+
+**Tests** (`test:ui` 450/450): `d4Check` at day 1 (fresh game), day 400 and day 900 fixtures: five kind rows with values,
+U on screen = Σ q·T from the state, nine natural-mix rows, tooltips (U, natural row, kind U, domain cell, today's flow,
+teacher, usage level, before → after), previews in token units with no "L"; actions: licence (PHYS bulk 5T) queues a
+deal whose q·T equals the previewed ΔU and costs the previewed cash, shows as pending; expert order = previewed size and
+cash; generation job with the best-yield teacher is set for the picked days and one day adds the previewed tokens/day
+(±15%; day 1 and 400 — at day 900 no step, the fixture can end within days) and Stop ends it; usage → broad keeps 50%
+and moves Civil Liberties approval by the previewed −6. Blueprint: the drawn-mix row has 9 domains and the most-repeated
+domain; Code & math raises CODE's drawn share (9.6% → 20.8%) and s (0 → +0.51); Natural draws the portfolio's own CODE
+share (day 400: 26.9%, s +0.67; day 900: 33.2%, s +0.81); "Data ›" opens Models › Data; all 18 data terms reached as
+tooltips. D2's Relations check became "no data actions in Relations, a link to Models › Data"; D3's specialisation
+check reads the drawn-mix row. `nav('models')` opens Versions (like D6). Gate: tsc main + scripts, build, lint-ux,
+lint-hidden, lint-tradeoffs, lint-structure, data test pass.
+
+**Screenshots looked at**: `d4-day{1,400,900}-data`, `-data-after`, `-blueprint-natural`, plus the crawl's
+`10-models-data`, `30-day900-models-data`. Fixed during the pass: wrapped domain pills (smaller pills, wrap with gaps),
+teacher rows boxed per cell, "−0.00", "1 corpora", label wrap, empty space under the licence card (two columns of forms).
+
+**Merge with D6 (v3-d6)**: both add a Models tab (`Tabs` with Versions | Suites vs Versions | Data) and both define the
+glossary term `expertData` (keep one: D6's text is about suites, D2/D4's about purchases; merge the two sentences). The
+Data view's "Suites" links go to `{ panel: 'models', tab: 'suites' }`, which is live only after the merge (until then
+Models falls back to Versions). D6 also edited `nav('models')` in uitest the same way.
+
+**Gaps / for the lead**
+- The Blueprint's "Licensed data" slider (`licensedShare`) still costs cash at launch but no longer drives litigation
+  (D1 moved the hazard to the unlicensed crawl): it now does nothing but cost. Its tooltip and the plan warning were
+  made truthful ("Unlicensed web crawl: copyright-suit risk"); removing the slider is an engine change (runs.ts cash) for
+  a later task.
+- Fixture artefact: right after loading the day-400 fixture `computeOnline` reads 3.8M H100e and the next tick 2.2M, so
+  generation previews on a freshly loaded fixture overstate the pool by ×1.7 until one day passes (the test steps a day
+  first). Live games are not affected.
+- Usage data at day 900 is only ≈ 4M tokens/day (day 400: 41B/day): the consumer product's served H100e is small on that
+  fixture. Not a UI issue; D11/A-tasks may want to look.
+- Two versions can share a name (day 900: two "Atlas-4.0-mini"); the teacher table shows both (ids in the job state).
+
+### D11 notes (quality of the drawn tokens in the loss law, 2026-11-20)
+
+**Lead decision after the first stop (applied).** (1) Synthetic quality is capped at the web's: q = min(1, 0.5 +
+0.25·(G_teacher − G_V0)), floor 0.1 (`SYN_Q.max` 1.5 → 1, `src/data/v2/dataAssets.ts`) [D]: research/20 A3's synthetic
+0.5–1.5 is a guess with no primary source for synthetic tokens beating human web text, and since D11 quality acts in
+the loss law, a cap above 1 lets a lab's own synthetic data lift every later base on an unsourced number. Glossary
+`synJob` updated. (2) No V3_CAL refit here: calibration is refit once on the merged code (M3); the stop rule is waived
+for D11. (3) No quality-aware draw (the draw already samples ∝ q·T within a domain). (4) D4 notes below.
+
+**calib T1 with the cap** (stub; Δ vs golden in years; before D11 → D11 uncapped → D11 with the cap; **bold** = fails):
+| preset | SC | SAR | SIAR | ASI |
+|---|---|---|---|---|
+| ai2027 | +0.000 → +0.019 → +0.019 | +0.022 → +0.041 → +0.041 | −0.041 → −0.005 → −0.005 | −0.030 → −0.003 → −0.003 |
+| authors2026 | −0.008 → −0.008 → +0.030 | +0.016 → +0.019 → +0.047 | −0.074 → +0.049 → **+0.173** | −0.082 → +0.118 → **+0.315** |
+| fast | −0.003 → +0.093 → **+0.093** | +0.096 → +0.189 → **+0.189** | −0.019 → +0.074 → +0.074 | −0.096 → −0.003 → −0.003 |
+| slow | −0.079 → −0.753 → **−0.277** | | | |
+Tolerances: SC ±0.08, later ±0.12. T1L (leader lab) unchanged. With the cap, authors2026's late bases lose the q > 1
+boost while the early synthetic dilution remains, so SIAR/ASI move late. Fast is unchanged: its teachers stay below
+the cap before SC. Slow keeps a small late boost: q 1 synthetic is above Q_REF 0.984, and q < 1 synthetic repeats less
+on its own tokens. All of this is for the M3 refit. The other gate tests pass (end of file).
+
+The rest of this file is the first pass (before the cap). Its start effect sizes are unchanged by the cap (the start's
+synthetic is q 0.5), and so are the day-400 teacher numbers (every teacher there is below q 0.76).
+
+Code: `src/engine/v2/production/data.ts` (`drawData` → `drawWith`, `Q_REF`, `DataDraw.dQual / dRep / qRel`, `dataDelta.qG`
+and its preview text), `src/engine/v2/models/effective.ts` (`fDataEff` may exceed 1; `GPreParts.quality`, `gPreOf`'s
+`fQual`), `src/engine/v2/models/runs.ts` (`baseG`; `BaseLimits.fQual`). Test: `scripts/v2/data.ts` (section "quality",
+plus updated D1/D3 checks). No UI files, no state change (no schemaRev bump).
+
+**Rule (stated).** research/20 A3's game-ready formula taken literally, with A1's Besiroglu law as the currency:
+- D_eff = Σ_slices q_i · D'_i,d ÷ Q_REF, with D'_i,d = Muennighoff on the slice's **own** tokens:
+  T_i,d·(1 + 15.4·(1 − e^(−(ep − 1)/15.4))), ep = D_i,d ÷ T_i,d (T_i,d raw tokens = U_i,d ÷ q_i; P10's ×3 included).
+- G_pre's data term = log₁₀ of the Besiroglu effective-compute fraction of L(N, D_eff) vs L(N, D) at the same N
+  (`fDataEff`, as f_data and the overtraining factor). For the readouts it splits exactly into quality
+  (`fQual` = fraction of D_qual = Σ q·D ÷ Q_REF, no repetition) and repetition (`fData` = the rest, ≤ 1):
+  `gPre.quality + gPre.data` = the whole data term.
+- **No double counting [D]:** quality multiplies the tokens once, q·Muennighoff(D, T) = Muennighoff(q·D, q·T). So it no
+  longer also stretches a slice's epochs: D1/D3 compared a slice's draw with U = q·T (a q 3 corpus repeated only after
+  3× its tokens) and let quality act only there. Now a q 3 corpus is worth 3× per token and repeats after its own T.
+  Tested: ×2 quality at equal tokens doubles D_eff with epochs and repetition unchanged; a 10T q-3 corpus drawn 60T deep
+  is 6 epochs and worth 3·Muennighoff(60T, 10T) (160.7T), not 3·Muennighoff(60T, 30T) (180T).
+- Kept from D3: the draw weights (slices ∝ q·T·kind weight, i.e. better data is sampled more per own token), the
+  domain shares, REF_SHARE, the per-slice Muennighoff. Specialisation still reads repetition-only effective shares
+  (quality acts on general G) [D].
+- **Normalisation:** Q_REF = mean quality of the 2025 reference draw (reference recipe, balanced, B0's size, start
+  portfolio) = (270·1 + 30·1 + 10·0.5)/310 = 0.9839. That draw has D_eff = D exactly, fQual = 1, quality 0 OOM, so B0/V0
+  (built with fData 1 at init) and the reference plan's G are unchanged (tests). `fDataEff` returns exactly 1 within 1e-9.
+
+**Source of the size.** research/20 A3: curated/licensed q 1.5–3 (DCLM/FineWeb-Edu-style selection ≈ ×3 data-selection
+gain, Gundlach's table [P]); A1: Besiroglu refit (E 1.82, A 482, B 2085, α 0.348, β 0.366). At the compute-optimal ratio
+the data term is about half the reducible loss, so effective compute moves ≈ 1:1 with D_eff: tokens 3× better ≈ ×2.57
+compute at 20 tokens/param, ×2.15 at 50 (RefBot's ratio), ×1.7 at 200; half-quality tokens ×0.55 at 50.
+
+**Effect sizes (start portfolio, B0-size reference base, 50T tokens, no repetition)**
+| draw | mean q ÷ Q_REF | quality term |
+|---|---|---|
+| reference (balanced) | 1 | 0 |
+| + premium licence 0.05T REASON (default deal, $1.5B) | 1.0010 | +0.00035 OOM |
+| + premium 1T REASON ($30B) | 1.018 | +0.0062 OOM |
+| + bulk 5T ($0.5B) / curated 20T ($40B) SOCIAL | 1.012 / 1.10 | +0.004 / +0.033 OOM |
+| licensed start 30T at q 3 instead of 1 | — | +0.131 OOM |
+| code & math preset (more q 0.5 synthetic code) | 0.990 | −0.0034 OOM |
+| synthetic-heavy preset (q 0.5 synthetic ×4) | 0.957 | −0.0153 OOM |
+Premium data now has a role, but at deal sizes it is still small: the draw samples a slice ∝ q·T, so 0.05T of books
+is 0.05% of a 50T base's tokens. A larger effect needs the mix control to upsample licensed data (kind weight) — D4.
+
+**Teacher finding under the new rule (D2 re-check, reported, not tuned).** Day-400 fixture, 30 days of the whole pool
+(2.3M H100e) per teacher, then the lab's latest base design (140T tokens, no repetition; the stock's mean q is already
+×0.826 of the reference: −0.067 OOM, from RefBot's q 0.5–0.75 synthetic): V0 (q 0.50) 277T, q·T 139T → ΔG −0.0066;
+V30 (q 0.63, best by q·T, 196T) → −0.0030; V31 (strongest, q 0.75, 118T q·T) → +0.0009. **The stronger teacher now pays**
+— quality ranks teachers, reversing D2's q·T ranking — and data below the draw's mean quality now *dilutes* a base that
+does not repeat (V0's data costs G). Absolute effects are small (≤ 0.007 OOM per month of the pool).
+
+**Gate.** tsc main + scripts clean; data, effective, suites, golden-timelines, identity, worktypes, research, serving,
+products pass (also fixtures, money, idle, lint-tradeoffs / -structure / -ux / -hidden). **calib T1: 3 failures** (stub,
+Δ vs golden in years, before → after D11):
+| preset | SC | SAR | SIAR | ASI |
+|---|---|---|---|---|
+| ai2027 | +0.000 → +0.019 | +0.022 → +0.041 | −0.041 → −0.005 | −0.030 → −0.003 |
+| authors2026 | −0.008 → −0.008 | +0.016 → +0.019 | −0.074 → +0.049 | −0.082 → +0.118 (tol 0.12) |
+| fast | −0.003 → **+0.093** (tol 0.08) | +0.096 → **+0.189** (tol 0.12) | −0.019 → +0.074 | −0.096 → −0.003 |
+| slow | −0.079 → **−0.753** (tol 0.08: 0.67 y outside → stop rule) | | | |
+T1L (leader lab) unchanged. Integrated runs within their usual spread.
+
+**Why (trace of RefBot's bases, balanced draw).** RefBot fills its stock with its own synthetic data (200T by day 116,
+2000T by 663, 78,000T by day 4,447 in slow) and the balanced draw takes it pro rata inside each domain:
+- early bases (B2–B5, q 0.5–0.87 synthetic, 18–55% of drawn tokens): quality −0.02 to −0.05 OOM → fast SC/SAR later;
+- once its teachers pass V0 + 2 OOM (slow, from B6 ≈ day 1,200) synthetic q > 1, rising to D1's cap 1.5 [D slope
+  0.25/OOM]: quality +0.02 → +0.12 OOM over B7–B18 (85–92% synthetic drawn) → slow SC 0.75 y early (slow's G grows
+  slowly near SC, so 0.1 OOM is most of a year).
+Sensitivity (scratch, not applied): SYN_Q.max = 1 (synthetic never better than the web) → fast unchanged
+(+0.093 / +0.189), slow SC −0.277.
+
+**Options for the lead (none applied).**
+1. Re-fit the per-preset T1 knobs (`--fit-v3`, V3_CAL G_SC / Δ_bm): quality is now a real G term on RefBot's path.
+2. Revisit D1's synthetic quality curve (SYN_Q slope 0.25/OOM and cap 1.5 are [D]; research/20 A3 gives 0.5–1.5 with
+   the high end only in math/code and no general exchange rate): it drives slow.
+3. A quality-aware balanced draw: a lab does not dilute its draw with data worse than tokens it leaves unused (take
+   slices best-first within a domain while they repeat < 4 epochs). Removes the early dilution (fast) but strengthens the
+   late boost (slow), so it needs 2 as well.
+The mechanism itself behaves as the brief asks (reference reproduces exactly; premium up, synthetic-heavy down; counted
+once); the stop is only the golden dates.
+
+**For D4 (readouts).** **The Blueprint "G gained" breakdown needs a "Data quality" row from `gPre.quality`.** Without
+it the rows no longer sum to the total whenever the drawn quality differs from the reference; the "Data repetition"
+row is `gPre.data`, repetition only. Other readouts on `planRun(...).limits`: `fQual` (quality factor, > 1 better),
+`draw.qRel` (mean quality ÷ reference), `draw.dQual / dRep / dEff`.
+`dataDelta` has `qG` [before, after] (OOM) and the preview text ends "· data quality +0.000 → +0.002 OOM".
+Readout change: `uMix` / `epochs` now count each slice's epochs on its own tokens; on the natural mix uMix = U ÷ the best
+drawn quality, so a small q > 1 licence becomes the most-repeated slice (premium 0.05T: base epochs 0.16 → 0.48, "unique
+tokens for this mix" 310 → 104T) although it costs nothing below ≈ 4 epochs. D4 should name the most-repeated slice or
+show the Muennighoff cost rather than "unique tokens" alone.
+
+**Gate with the cap (2026-11-20).** tsc main + scripts clean; data (incl. the cap check and the teacher ranking below
+the cap), effective, suites, golden-timelines, identity, worktypes, research, serving, products, lint-tradeoffs, lint-ux
+pass; calib T1: authors2026 SIAR / ASI, fast SC / SAR, slow SC outside tolerance (table above, for the M3 refit); T1L,
+R5, T2, T4 pass.
+
+### M3 merge notes (D4 and D11 onto M2; 2026-11-20)
+
+Merged into `model-v3` (at M2, edaf6f8) with `--no-ff`, in order: `v3-d4` (D4 d54de53; merge 0ca8a79), `v3-d11` (D11
+9ef6c76 / f8d064f / f3cfec5; 3e92e07); then the refit (16a9e45) and one engine fix (c98f2ed). Both branches started at
+5ed4f78 (D2's head, before E3/D6/E2/E5). D4 and D11 notes are above (copies of `design/notes/D4.md`, `D11.md`, which
+stay). No schema change in either branch: SCHEMA_REV stays 24; fixtures stay the committed schemaRev-16 files
+(`fixtures.ts` rewrote them during the gate; restored).
+
+**Conflicts and resolution.**
+- v3-d4 × D6: both added a Models tab. `Models.tsx` now has three tabs, **Versions | Suites | Data** (D6's Suites view,
+  D4's Data view; header comment, imports `Database, Dumbbell`, `Suites`, `DataView`). The Nav description names both.
+  uitest: the `nav('models')` helper was the same edit on both sides (kept D6's); both check blocks kept (`d6Check` then
+  `d4Check` at day 1, 400 and 900; D6's Blueprint › Suites link check and its term check kept). lint-ux REQUIRED: D6's
+  and D4's lists (`expertData` once). Engine index: D6's suites exports and D4's data-view exports. Blueprint imports:
+  A5's `studentToHold` with D4's `drawByDomain`, `mixTargetOf`.
+- v3-d4 × E3: `BASE_DATA` had lost its `signals` field in E3 (training pressure from what the base drew); D4's Natural
+  preset was added in E3's shape (no `signals`).
+- Glossary `expertData`: D4 did not change the text, so M2's combined D2 + D6 entry stays, now pointing to "Models ›
+  Data" for buying it (src adds D4). D11's branch copy of the old D2 entry was dropped; `synJob` takes D11's capped text.
+- v3-d11: only the glossary conflict above (data.ts, effective.ts, runs.ts and the data test auto-merged; D4's
+  `dataView.ts` uses only the signatures D11 kept).
+- **Integration (D11's "for D4" readouts), in the merge commit:** the Blueprint "G gained" tooltip gains a **Data
+  quality** row (`gPre.quality`), so its rows sum to the total again; Models › Data's before → after rows gain "Latest
+  base data quality" (`dataDelta.qG`, 3 decimals, red when the change dilutes the draw); glossary `dataQuality` states
+  synthetic up to the web's 1 and that each drawn token counts q times in the loss law. Not done (for F6): D4's
+  per-domain epochs in the drawn-mix row still divide by the domain's quality-weighted U, while D11 counts a slice's
+  epochs on its own tokens; the Data tile's "unique tokens for this mix" can now be a small q > 1 slice (D11 notes).
+
+**Lead decisions (recorded).** Synthetic data quality capped at 1 [D] until sourced (D11's `SYN_Q.max`); the balanced
+draw stays at the reference shares; no quality-aware draw now.
+
+**Refits (named per-preset values only; seed 2027; Δ in years; G_SC scans with a scratch harness and `calib.ts
+--fit-v3`).** calib on the merged code before the refit: ai2027 and authors2026 pass (authors2026 SC +0.030, SAR +0.044,
+SIAR +0.003, ASI +0.038: D11's branch-only SIAR +0.173 / ASI +0.315 do not appear on top of E3/E2/E5); fast SC +0.093,
+SAR +0.189 (fail); slow SC −0.753 (fail, the day-4483 cycle).
+- **fast: G_SC 31.593 → 31.572, Δ_bm 0.17 → 0.05** (sd_SC 0.5 kept): SC +0.093 → +0.052, SAR +0.189 → +0.112, SIAR
+  +0.074 → −0.011, ASI −0.003 → −0.096. Fast is bimodal in G_SC: every few thousandths of an OOM RefBot's path flips
+  between a "late" cycle (passes, SAR near +0.11) and an "early" one (ASI −0.14 to −0.18, fails). At Δ_bm 0.17 no
+  passing window exists (31.511–31.52: late cycle SAR +0.121–0.123, early cycle ASI −0.14). The fit's grid (Δ_bm 0.05 /
+  0.10 / 0.17 / 0.25 / 0.35 / 0.50 → worst 0.89 / 1.32 / 1.16 / 0.94 / 1.14 / 1.39 tolerances) picked 0.05. Scan at
+  0.05: 31.565 pass, 31.566–31.568 fail (early), **31.569–31.574 pass** (late), 31.575 fail; 31.572 is the middle of that
+  window. SAR's margin is 0.008 y. Δ_bm 0.25 has only single passing points (31.46). F4.
+- **slow: G_SC 35.474 → 35.493** (Δ_bm 1.6 kept): SC −0.753 → +0.049. Scan: 35.46 −0.532, 35.465 −0.277, 35.47–35.481
+  −0.753, 35.482 +0.049, 35.486–35.487 +0.049, 35.488 −0.277, 35.489 −0.167, **35.490–35.495 +0.049**, 35.497–35.50
+  −0.753, 35.51 +0.049. 35.493 is the middle of the widest window found (35.490–35.495). Not robust: **F4**.
+- ai2027 (SC +0.019 … ASI +0.049) and authors2026 unchanged and in tolerance. T1L passes on every preset; T2, T4, R5
+  pass. calib re-run after the engine fix below: the same milestone days, all passed.
+
+**Engine fix (c98f2ed): NaN customer stocks.** worldfx's "world state stays plain JSON" failed after the D11 merge:
+`s.world.fx.cust.US.HEALTH.r2 = NaN` from day 977 of the classic ai2027 run. Cause in A5's `surplusChoice`
+(`worldfx/choice.ts`): when every offer in a choice set is ≈ 745 nats below the band's best (here a rival with coverage
+0.17 while the band's cheapest price is $0.0009 per hour, so the price term's μ is tiny), the sum of exp weights is
+denormal, f = p ÷ sum is infinite and 0 · ∞ = NaN. It now divides first in that case only, so every finite path is
+bit-identical (calib days and worldfx revenue unchanged). D11 only exposed it (rival paths moved).
+
+**Gate (merged code c98f2ed + docs).**
+- tsc main + scripts clean after each merge; `npm run build` ok; `npm run test:ui` 481 passed, 0 failed.
+- Pass: golden-timelines, identity, effective, data, suites, signals, research, safetyresearch, worktypes, serving,
+  danger, products, calib (T1, T1L), fixtures, lint-hidden, lint-ux, lint-tradeoffs, lint-structure, lint-tips, money,
+  idle.
+- hygiene: only the perf checks fail (daily 10.9–13.2 ms, worst quarter 43–48 ms; leader lab 15.6–18.5 / 37–41 ms; its
+  own cost +14% to +30% between runs). Not from the merges: M2's edaf6f8 on the same loaded machine gave 14.1 ms and the
+  same +29.7% leader-lab fail, the D4 merge 5.0 ms; four other agents share the machine. Save checks pass.
+- finance: F2 44.8M (M2 43.1M), F7 revenue median $28.6B ($30.5B), F7 valuation $0.23T ($0.28T), F11 2027 $32.6B
+  ($35.5B): the M2 set of failures, revenue a little lower from D11's slower path (below).
+- ws4: T3 lead 28–371 d and post-theft lag: the known T3.
+- safety (slow): S4 RefBot P_mis at ASI 0.522 (M2 0.485; band 0.55–0.85; accepted → E10), S5 RefBot fails (median U − L
+  at SAR +0.45, below in 28%; accepted); S4 safe-only 0.021 and S5 mixed (margin +0.02, holds in 55%) pass.
+- worldfx: F7/F11 2026 $32.7B, F11 2027 $34.6B, equity 2026 −14.2% (the known revenue set); U +1 pp 2028-02-02 (M2
+  "never"; still outside its window); GOV T1 (2027-10-03) and W2 now pass. **Two new failures, both from the D11
+  merge** (bisected: edaf6f8 and the D4 merge 0ca8a79 give HireRate_SOFT ≤ 10% on 2027-07-28 and 25% remote work on
+  2027-12-14, both passing; the D11 merge gives 2027-10-02 and 2028-01-20): **HireRate_SOFT ≤ 10% on 2027-10-02**
+  (window ends 2027-10-01) and **25% of remote-work jobs done by AI on 2028-01-20** (window ends 2028-01-01). The run's
+  whole adoption path is slightly slower (US hours of use on 2027-10-01 11.7% → 11.0%, on 2027-12-31 13.8% → 13.0%;
+  consumer subs on 2027-10-01 259M → 196M), consistent with D11's early dilution of RefBot's bases by q 0.5–0.87
+  synthetic data (−0.02 to −0.05 OOM, D11 notes) on the one-seed classic path. Not tuned here (no named V3_CAL value
+  moves ai2027's classic path without moving T1); for the lead.
