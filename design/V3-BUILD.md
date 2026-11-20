@@ -13,8 +13,8 @@ can find every use.
 
 | Bridge | Defined in | Meaning | Removed in |
 |---|---|---|---|
-| `pm` of a version / base | V1 | Φ(G): the old progress coordinate computed from effective compute, so the production function, milestone thresholds, M-based readouts, rivals and safety keep working | V3 for the player's research and milestones (done: departments/workfit.ts); still the display level λ(G) = levelOf(Φ(G)), V6 (safety M), V7 (rivals) |
-| `e_stack` from know-how `pa` | V1 | stack efficiency (OOMs) = E_PER_PA × (pa − pa₀) until ideas exist | V2 |
+| `pm` of a version / base | V1 | Φ(G): the old progress coordinate computed from effective compute, so the production function, milestone thresholds, M-based readouts, rivals and safety keep working | V3 for the player's research and milestones (done: departments/workfit.ts); still the display level λ(G) = levelOf(Φ(G)), V6 (safety M), V7 (rivals). **Removed in F3 (merged M6):** every lab's level is `levelOfG(G)`; `pm` state gone (schemaRev 33) |
+| `e_stack` from know-how `pa` | V1 | stack efficiency (OOMs) = E_PER_PA × (pa − pa₀) until ideas exist | V2; the `pa` readout itself removed in F3 (M6; the safety tier keeps its pa-equivalent value in G → E18) |
 | `serveCost` (0.5 = reference) | V1 | relative serving cost from FLOP per token, so revenue and agents keep working | V4 (done in V4a: costs read `ModelVersion.fpt`; serveCost stays a design readout; the safety fleet's copies keep it, BRIDGE(V6)) |
 | fixed eval days | — | evals stay as today | V5 |
 
@@ -5414,3 +5414,348 @@ Wall 11.2 min (real 11 m 17 s), CPU 63.9 min, machine load 90% (12 cores, 6 work
 fixtures may have assumed empty records (sabotage did) or zero serving stacks (serving S3 did). `umodes.ts sabOf` has no
 reader left. The Safety › Overview side column now holds Control, Families and Successor (E11 + E12): F6 should look at
 its length.
+
+### F3 notes (one level map λ(G), the pm bridge Φ retired; 2026-11-20)
+
+Branch `v3-f3` (from model-v3 9bf348d). **schemaRev 32 → 33.**
+
+#### The one map
+`models/capability.ts levelOfG(w, G)` (V3b's piecewise map through V0 L5, SC 10, SAR 12, SIAR 13.5, ASI 15) and its
+inverse `gOfLevel`. Every lab's level is λ(G): player versions (finishBuild, refreshLevels, runs.ts), rivals, China and
+the leader lab (rivalModel.ts setModelG, rivals.ts simpleModel), milestones, the true lead, theft, epilogue. `levelOf(w,
+pm)`, `pmOfG`, `gOfPm`, `pmOfBuild`, `slopeL`, `bridgeQ`, `pmOfLevel`, `capIndexV2`, `paRef`, `syncPa`,
+`syncRivalPa`, `absorbKnowHow`, `paOfGEquiv`, `paOfRecipe`, `knowHow`, `bestPm`, `truePm` are gone.
+
+#### Readers replaced (pm/pa → G or λ(G))
+- `ModelVersion.pm`, `SimpleModel.pm` → `.G` (required); `bestPm` → `labs.ts bestG`; `openWeightsFrontier` → `openWeightsG`.
+- Lead conversions (rivals.ts leadBetween, intel.ts, epilogue, capability preHistoryLead, theft adoptG, actions C6,
+  openWeightsReleased): G gap ÷ (v2 rate × B). The `rate` readouts stay in progress-years a year (BRIDGE(V7) tags).
+- Start state: rivals, China, leader lab and follower V0 placed in G (gap × rate₀ × B); initialMilestones reads
+  λ(G) ≥ the level knot (the milestones system's rule).
+- RefBot's pacing gates (bots/ref.ts gateLevel): each v2 gate level converted once per world to a display level
+  (v2's coordinate placed on G at B from V0); same opening days (T1 identical).
+- Safety tier (safety/common.ts labLevel): λ(G(V0) + B·(pa₀ − pm(V0)) + the stacks' G-equivalent), exactly the old
+  levelOf(player.pa). λ of the best model was the obvious G reading but moves the tiers by −1.2…+1.3 L (probe, seeds
+  1–2, days 0–750: start 6.2 vs 5.0, day 600 8.8 vs 10.2) with S4 on its band edge, so it is left for the safety rebuild.
+- Epilogue days to ASI: the λ = 15 point instead of v2's ASI threshold. Test-only: worldfx W2 freezes at λ = 6.5 (was v2's
+  A1 pm threshold; W2 0.4% → 0.5%, now passes), ws4/control `atLevel` at the level knots.
+
+#### Know-how writers → OOM on the recipe
+`rivalModel.ts addRivalKnowledge(r, dG)` adds public knowledge to the pretraining part; the player's `addKnowledge`
+now takes OOM. Every writer keeps its size (old progress-years × B): distillation of the player's deployments
+(deployments.ts, G gap), China's secrets leak (theft.ts, recipe gap: stacksGEquiv − recipeOf), distillation of rivals'
+public models, open-weights absorption, A4 publish (newly found writer), C4 tacit knowledge, C6 open weights, E1 Track-2,
+E16 "Let go", safety spillover (SPILL_G = 0.02·B), knowledge diffusion. One timing change: a leak now enters the recipe the
+day it happens (the bridge absorbed it at the next production step).
+
+Theft at day 400 (RefBot, ai2027, seeds 1–3; before → after): secrets leak 0.00103 / 0 / 0 G/d (same), China's
+distillation of the player 0.00049 / 0.00046 / 0.00042 G/d (same), of rivals 0.00003–0.00004 (same); China's recipe
+0.72966 → 0.73125 (seed 1; = one day's leaks, the timing), 0.55531 → 0.55530, 0.62788 → 0.62834; after the theft China
+G 28.98965 / 28.98980 / 28.99540 (same), lead 61.0 d (same); day 460 lead 60.3 → 60.2, 55.2, 111.6 d (same).
+
+#### State and save
+Removed: `ModelVersion.pm`, `SimpleModel.pm`, `LabCore.pa`, `RivalPhys.paSync`, `VersionBuild.paIn`,
+`BaseModel/TrainingRun.paAtStart`, `stream.paTrack`, `KnowledgeState.openWeightsFrontier`. Migration 32 → 33
+(`save.ts migratePmPa`, idempotent): pm → G through the old bridge (kept in save.ts only), a lab's unsynced core.pa −
+paSync into its pretraining part (× B), fields dropped; the 26 → 27 and 29 → 30 steps read the legacy fields there.
+Hygiene: new rev-32 → 33 check (G per model to 1e-9, an unsynced leak lands in the recipe, no old fields left) and its
+idempotence; the older migration checks build their old saves through `asRev32`.
+
+#### Lint
+`lint-structure.ts` §4: no `.pm`, `pm:`, `.pa`/`.paSync`/`.paIn`/`.paAtStart`/`.paTrack`/`.openWeightsFrontier`, the
+bridge's function names or `levelOf(` in code (comments, strings, regex literals stripped) under src/ and scripts/v2/,
+except core/save.ts and hygiene.ts.
+
+#### Left (with reason)
+- Progress-year conversions with B_G_PER_Y remain for v2 data stated in progress-years (start gaps, leak sizes, the
+  rate readouts) and in `alignedCalShift` / `gateLevel` (v2's threshold table, a calibration constant, not lab state).
+- `playerStart` (pa₀, target) stays: the start-state solution's constants (start vintages, the tier offset above).
+- ref-trace.ts compares a `recipe` series (OOM) instead of `pa`: stored traces need regenerating (not in a tier).
+
+#### Tests
+tsc main + scripts clean. test:quick: all ok except fixtures (stale, expected) and worldfx (baseline's F7/F11, GOV T1,
+A2a, W4 fails unchanged; W2 now passes). test:cal identical to the baseline except T1L fast SIAR/ASI 897 → 896 (fast ASI
+was failing before); T1 all presets identical. full rivals 16/0, ws4 25/0 (T3 mean 179 d, p10 57, p90 308, post-theft
+61 × 8, as M5). test:ui 584/0 (build clean).
+
+### E14 notes (F44 and AG17's lift as typed effects on the E2 safety labour; 2026-11-20)
+
+Branch `v3-e14` (from `model-v3` 9bf348d). Data: `src/data/v2/safetyIdeas.ts` (`F44_AAR`, `AG17_HARNESS`). Engine:
+`safety/ideas.ts` (`aarFindingOom`), `departments/workfit.ts` (`shiftFit`, `ag17Capacity`, `ag17HarnessOom`, added to
+the safety package's fit in `safetyLabour`), `safety/lineProjects.ts` (`lineLabour` reads F44's per-line fit, `safSciOn`
+its taste; `ag17Mult` and lineSpeed's ×3 removed). Text: tree.ts `aar` node, design/TECH-TREE.md AG17 row (its stale
+"exceed 50%" cap). Test: `scripts/v2/safetyideas.ts` (8 new checks + the lint).
+
+#### Effects
+
+| what | old | new | size, source |
+|---|---|---|---|
+| F44 AARs mitigate well-characterized failures (`flag:aar`) | lineSpeed ×3 on AG18 / AG03 / AG16 whenever Trusted to AI > 0 | the safety model's SAF_EXP and SAF_IDEAS fit on those lines' work + 1 Δ_bm (the world's median-to-best gap, ai2027 2.2 OOM): coverage, assist, AI share and AI taste (+3.09 SD) on those lines | research/14 AG17 [V]: AARs beat the best of 28 humans on 7/7 benchmarked failures; general frontier ≈ median expert (GDPval, R20 E2). [D] "beats the best human" → + 1 Δ_bm (research/14's ×3–10 was itself [D]) |
+| AG17 science teams | AI team-equivalents ×(1 + √(capacity ÷ SERIOUS_CAP)) on every line | a harness scaffold on the safety package: SAF_EXP / SAF_IDEAS fit + 0.3 OOM × √(min(2.5, capacity ÷ SERIOUS_CAP)) | [D] 0.3 at a serious programme = the Deep research scaffold / P27 harness size (R20 B3); √ = the lines' diminishing returns; direction research/14 AG17 ("multiplies the others"), Carlsmith 2025 [V] |
+
+- [D] AG17's harness sits in `safetyLabour` (as P27's), so it also reaches cases, upkeep and P15's A, not only the lines.
+- [D] F44 is per line (only `lineLabour` and `safSciOn`); the package's compute split over SAF_EXP / SAF_IDEAS is unchanged.
+- The FALSE / SAFSAB interface is unchanged: `safetySabotage(s, lineLabour(s, agenda).aiShare)`; F44 raises the AI
+  share on its lines (0.217 → 0.507 at day 400), so the sabotage exposure rises with the speed-up (the AG17 trap).
+- Why not a copies effect for AG17: the old lift did nothing in v3 (day 400, t = 1: AI 604 team-eq vs 1 human; the
+  coding CES saturates in AI input, m_exp 1.93 → 1.93 with a serious AG17 team). Coverage is the binding input.
+- F44 can only fire after AG17 is funded (safety model L ≥ 10, ≈ between the day-400 and day-900 fixtures).
+
+#### Before → after (ai2027 seed 2027 RefBot fixtures, Trusted to AI 1, package 20% of the safety pool)
+
+Rates relative to no AI labour: ideation m_ideas^λ × taste × speed, experiments ℓ = m_exp^λ × speed (λ 0.5; the
+experiment CES also has compute).
+
+| day 400 | m_exp | m_ideas | ideation × | ℓ × |
+|---|---|---|---|---|
+| AG18 / AG16 F44 old (×3) | 1.93 | 1.12 | 3.18 | 4.17 |
+| AG18 / AG16 F44 new | 7.21 | 1.97 | 2.27 (taste × 1.62) | 2.69 |
+| AG03 F44 old / new | 1.84 → 5.86 | 1.11 → 1.92 | 3.17 → 2.24 | 4.06 → 2.42 |
+| AG08 (any line) + serious AG17 team, old / new | 1.93 → 2.31 | 1.12 → 1.19 | 1.06 → 1.10 | 1.39 → 1.52 |
+
+Day 900 (coverage 1 on AG18 / AG16): F44 old ×3 on both stages; new: ideation × 3.25 through taste, experiments × 1
+(already fully covered, m_exp 1610). AG17 at day 900: ≈ 1 old and new (saturated). So F44 keeps its order of magnitude
+(×2–3 mid-game, ×3 on ideas late) but now scales with t and the model, and carries the larger sabotage weight.
+
+#### RefBot, tests
+
+No bot sets Trusted to AI (test asserts it over src/engine/v2/bots), and both effects act only on work handed to AI, so
+no bot run moves; golden dates cannot move; test:cal not run. tsc main + scripts clean; safetyideas 39/39, safetyresearch
+30/30 (full tier); test:quick once at the end (see the report). schemaRev unchanged (no new state).
+
+### E10 notes (safety rates vs research/20 F; 2026-11-20)
+
+Branch `v3-e10` (from `v3-e14`). Harness: `scripts/v2/safetyrates.ts` (new; in run.ts's full tier, 4 prefill shards,
+12 RefBot seeds + 40 probe worlds; `--seeds 40` replays exactly safety.ts's S4 games). Code: `src/engine/v2/safety/traits.ts`
+(named constants `OC_VIS`, `OC_VIS_AUDIT`, `OC_DETECT_TRAIN`, `ANTISCHEME_REMOVAL`, `ANTISCHEME_EA_MULT`; E06's fallback
+reads the edge table), `safety/responses.ts` (targeted anti-scheming training reads the same two E25 constants),
+`src/data/v2/edges.ts` (E06, E11 w̄; E25 note), texts in `data/v2/tree.ts` (T-ANTISCHEME card), `data/v2/runDesign.ts`
+(comment), `safety/actions.ts` (Respond preview). No state type changed: no schemaRev bump. The hidden edge weights of a
+new world change (E06, E11 w̄), so the committed fixtures are stale (fixtures --write was out of scope: the merge does it).
+
+#### How the observables are read
+
+Source model → game point: METR o3, MacDiarmid (Claude Sonnet 3.7/4 era), Schoen (o3, o4-mini) and Sonnet 4.5 are 2025
+frontier models = the leader's start model V0 (ai2027, mid-2025, RSCH 4.5); "late-2026 frontier" = RefBot's internal
+model at game date 2026-12-31; Hubinger's largest sleeper agents = a frontier model. Trait values of awareness and
+disposition traits are read as rates (the convention of TRAIT_START: EA 0.15 ↔ verbalised 11.7%).
+
+- **Probes** (no game; 40 medium worlds, each with its own edge weights and difficulty): one post-training run on V0
+  through the engine's own step (`playerEnv` + `stepTraits`: true weights, moderators, safety-training removal,
+  detection, AG18 healing). Learned-hacking model organism = the reference run on SWE environments with cheap graders
+  (h = 45%, S2 saturated) vs the same run with hacking prevented (exploitability 0) vs inoculated. Sabotage = SAFSAB's
+  attempt probability (`itemTerms`, all of an 8-hour task done by the model, before oversight: MacDiarmid measured
+  attempts). Capability RL = the reference run at ρ_ref vs 10 ρ_ref. Anti-scheming = a SCHEME 0.13 model (o3's 13%)
+  with vs without T-ANTISCHEME. Persistence π = 1 − the run's removal fraction of the trait.
+- **Reference runs**: RefBot, ai2027, medium, endings skipped, to the player's ASI (safety.ts's loop); every new version's
+  hack rates (`hackRates` on its frozen RL weights, ρ = RL FLOP ÷ base FLOP), traits, π of SCHEME through its own safety
+  training, and P_mis at ASI.
+
+#### Table (40 RefBot seeds 500–539 = S4's games, 40 probe worlds; median [p10–p90]; before = v3-e14, after = E10)
+
+| observable | source (uncertainty) | before | after | in band |
+|---|---|---|---|---|
+| F1 hack rate, typical agentic families (hardened, leader start) | METR o3 HCAST 0.7% (8/1,087, CI 0.3–1.4%); GPT-5 ~2% → 0.3–2% | 1.0% | 1.0% | yes |
+| F1 hack rate, exploitable optimisation scorers (ML research, cheap) | METR o3 RE-Bench 30.4% (39/128, CI 23–39%) | 30.0% | 30.0% | yes |
+| F1 hack rate, SWE scaffolds (cheap) | Rust codecontest 43%, LLM Foundry 100% → 25–100% | 45% | 45% | yes |
+| F1 RefBot RL-weighted hack rate per post run | no cross-generation source | 6.5% (every run) | 6.5% | INFO |
+| F1 RefBot runs above the 5% "learned hacking" line | research/20 F2 [G] | 100% | 100% | INFO (nothing reads it) |
+| F2 sabotage attempts after learned hacking (MO) | MacDiarmid 2025: 12% (one setting, ±50% [D]) | 0.2% [0.1–2.1] | 0.2% [0.1–2.1] | **no: mechanism** |
+| F2 sabotage, hacking prevented | ≈ 0 → < 1% | 0.1% | 0.1% | yes |
+| F2 AF after learned hacking (MO) | MacDiarmid: 50% AF reasoning ([D] 30–70%) | 14.9% [8.6–44.5] | 15.7% [9.2–45.2] | **no: mechanism** |
+| F2 AF, hacking prevented (one reference run from V0) | Sheshadri 2025: rare → ≤ 12% | 12.3% | 13.1% | **no: mechanism (S7)** |
+| F2 inoculation: cut in the hack-induced PERSONA rise | MacDiarmid −75–90%, "close to the no-hack baseline" | 103% | 103% | yes |
+| F2 inoculation: cut in the hack-induced Mis rise | same | 62.8% [39–80] | 63.0% [40–80] | **no: mechanism** |
+| F2 inoculation: cut in the hack-induced AF rise | same | 70.5% | 70.5% | **no: mechanism** |
+| F5 EA, start model | verbalised 10–30% (2025); Sonnet 4.5 13%; Apollo 11.7% | 15.0% | 15.0% | yes |
+| F5 EA, RefBot internal model 2026-12-31 | late-2026 frontier 20–50% (Astra 41–51%) | 53.2% [38–84] | 51.9% [36–86] | edge (WARN) |
+| F5 EA, RefBot model at ASI | none | 69.9% | 72.1% | INFO |
+| F5 AF, RefBot internal model 2026-12-31 | research/05 §1.4: 0–15% compliance gap | 40.5% [18–84] | 53.3% [28–91] | **no: mechanism (S7)** |
+| F5 AF, RefBot model at ASI | none | 63.4% | 75.9% | INFO |
+| F5 EA rise per OOM of capability RL | Schoen [R] 2% → 20.6% over ~1–3 OOM = 0.06–0.19/OOM | 0.175 [0.135–0.288] | 0.141 [0.109–0.221] | yes (was at the top) |
+| F5 anti-scheming: EA multiplier | Schoen: o3 ×2.0, o4-mini ×6.1 | ×1.5 | ×2.0 | yes (was no) |
+| F5 anti-scheming: cut in covert actions | Schoen: −97% (13 → 0.4%, 8.7 → 0.3%) → 90–98% | 81.6% | 92.3% | yes (was no) |
+| F6 π SCHEME, one standard run, start model | Hubinger [R] "failed to remove"; research/20 F6 [G] 0.3 small / 0.9+ frontier → [D] ≥ 0.8 | 46.8% | 71.1% | no (WARN) |
+| F6 π SCHEME, safety training alone (no AG18 healing) | same | 52.5% | 80.3% | yes (was no) |
+| F6 π AF / SAND, start model | same | 47.6% / 47.2% | 71.7% / 71.4% | no (WARN) |
+| F6 π SCHEME at frontier EA 0.5 | same | 49.7% | 72.8% | no (WARN) |
+| F6 RefBot π SCHEME per post run (no anti-scheming) | same | 54.0% | 76.2% | no (WARN) |
+| F3 subliminal transfer per distillation (share of the teacher gap) | Cloud 2025 (owl 12% → 60%, ≈ half); research/20 [G] 0.2–0.5 | 12.5% | 31.2% [18–54] | yes (was no) |
+| S4 RefBot P_mis at ASI (mean, 40 seeds) | S4 band 0.55–0.85 | 0.553 | 0.625 | yes, margin +0.075 |
+
+#### Constants changed (old → new; source and range)
+
+1. **`OC_VIS`** (share of an oversight-conditional trait AF/SCHEME/SAND that ordinary safety training sees) 0.4 → 0.1,
+   **`OC_VIS_AUDIT`** (heavy safety with AG02 audits) 0.6 → 0.15 (×1.5 kept). Source: Hubinger 2024 [R] / research/20 F6
+   (backdoors persist through SFT, RL, adversarial training; π 0.3 small, 0.9+ frontier-deceptive). Value [D] solved so
+   safety training alone keeps ≥ 0.8 at the start model (0.80).
+2. **`OC_DETECT_TRAIN`** (new name for the M4 detection term's weight on oversight-conditional traits; implicit 1 before)
+   1 → 0.375. Source: R14 E24 [A] (retrain against a detector: visible −70–90%, true −20–40% → 0.3/0.8) and Hubinger
+   (adversarial training hides the trigger). Other traits keep 1.
+3. **`ANTISCHEME_REMOVAL`** (E25 SCHEME removal per anti-scheming / heavy run, also targeted training) 0.9 → 0.95.
+   Source: Schoen 2025 −97% (two models); band 90–98% → 92.3%.
+4. **`ANTISCHEME_EA_MULT`** (E25 one-time EA multiplier) 1.5 → 2. Source: Schoen 2025 o3 ×2.0 (o4-mini ×6.1); the lower
+   value. Sensitive: it lowers S5's mixed-bot margin through believed EA (median −0.08 at ×2 vs +0.31 at ×1.5 with
+   OC_VIS 0.1; with OC_VIS 0.2 ×2 gave −0.57 and failed S5 — so OC_VIS 0.1 and ×2 go together).
+5. **E11 w̄** (S7 → EA) 0.3 → 0.2 (world range ×½–2: 0.1–0.4). Source: Schoen [R] capability-only RL 2% → 20.6% over
+   ~1–3 OOM. The old cite ("anti-scheming doubled EA") was E25's evidence; the cite now names Schoen.
+6. **E06 w̄** (teacher → student, same base family) 0.3 → 0.75 (world range 0.375–1.5 → transfer 0.15–0.6 per
+   distillation). Source: Cloud 2025 (owl 12% → 60%+ ≈ half the gap; misaligned teacher → ~10% vs < 1%); research/20
+   F3 [G] 0.2–0.5.
+
+Tried and not kept: lower E14 (S7 → AF) to bring RefBot's AF into 0–15% — it contradicts E14's own anchor (MATS/GDM
+2026: monitored-only reward takes the gap 1–18% → 43–95%, i.e. w ≈ 0.6–1 at S7 = 1) and only hides the S7 conflation
+below; a lower EA_RELAX target — not needed once E11 moved.
+
+#### S4 and S5 (safety.ts full run, the final code)
+
+- **S4 RefBot P_mis at ASI 0.625** (M5 0.553; band 0.55–0.85; Mis mean 0.488, range 0.12–0.90). Safe-only 0.083 (M5
+  0.011; bound ≤ 0.25): heavy safety and audits now remove less hidden misalignment.
+- **S5 RefBot "U falls below L by SAR"**: median U − L at SAR **+0.50**, below in 35% (M5 +0.63): still the known
+  failure. The calibrated rates do not move its cause: U comes from the detection stack on believed traits, and RefBot's
+  U rises with its safety lines' speed (compute since E1) while no bot hands safety work to AI (F5). The only E10 lever
+  on U is believed eval awareness (E25's ×2 lowers it a little); forcing S5 through EA would break the mixed bot.
+- **S5 mixed** median min margin **−0.08**, holds in 55% (passes; ≥ −0.5).
+
+#### Golden dates (test:cal)
+
+T1 identical to M5 on every preset: ai2027 SC 647 / SAR 804 / SIAR 893 / ASI 922 (Δ +0.025 / +0.036 / +0.027 / +0.019 y);
+authors2026 1506 / 1607 / 2144 / 2956 (+0.030 / +0.093 / −0.019 / −0.052); fast 897 / 918 / 918 / 918 (+0.047 / +0.104 /
+−0.019 / −0.104); slow SC 4776 (+0.049). T4 passes. T1L: the three known failures only, unchanged (authors2026 SIAR
+−0.611 y, ASI −1.337 y, fast ASI −0.162 y → F4). golden-timelines passes (known WARNs).
+
+#### Tests
+
+tsc main + scripts clean. `run.ts --tier full --only safety,signals,danger,sabotage,safetyideas,safetyrates`: signals
+19/0, danger 27/0, sabotage 24/0, safetyideas 39/0, safetyrates 11 pass / 0 fail / 12 WARN (the gaps below), safety 17/1
+(S5 RefBot, known). test:quick: known failures only (worldfx F7/F11, GOV T1, A2a, W4, W2) plus **fixtures stale** (5
+fixtures: new worlds' E06/E11 weights; regenerate at the merge). test:cal: T1L known three.
+
+#### Gaps (for the lead)
+
+- **Learned hacking → sabotage and alignment faking (MacDiarmid) needs a mechanism.** The MO hacks (RH 0.15 → 0.73) and
+  its persona rises (0.08 → 0.31), but AF reaches 16% (50%) and SAFSAB attempts 0.2% (12%). MacDiarmid's jump is
+  non-linear (onset at > 2% hacked episodes; misalignment ≈ 0 → 0.45–0.5), while every RefBot run already hacks 18% of
+  hardened SWE tasks: linear RH → PERSONA → AF/SCHEME edges strong enough for the MO would make every reference lineage
+  MacDiarmid-misaligned. And E7's per-item κ anchor puts the 12% at SAND + SCHEME = 1, which no single run produces.
+  Options: research/20 F2's discrete "learned hacking" draw (or a convex driver on E04/E27/E28 above an onset), and
+  re-anchoring κ_item on that model organism.
+- **AF from S7 (E14) needs S7 split.** S7 is mostly capability RL and eval-like data (the EA anchor, Schoen) but E14 reads
+  it as monitored-only reward (MATS/GDM): one reference run lifts AF 0.03 → 0.13, RefBot's lineage sits at 53% by end
+  2026 (0–15% observed compliance gaps; "AF reasoning in 10–80% of conflict episodes" is the other reading). A split
+  into eval-likeness (→ EA) and oversight-conditional reward (→ AF) would let both anchors hold. E10's F6 change raised
+  RefBot's AF (40.5% → 53.3%) because less of it is trained out.
+- **Inoculation reaches only E04.** The PERSONA rise is fully cut (103%), but the hack-induced S2 → PROXY (E09) → AF
+  (E13) / SCHEME (E19) path is not inoculated, so Mis is cut 63% (75–90%).
+- **F6 with healing**: π is 0.71 with AG18's healing (the world's hidden benign-generalisation bet, M4) on top of safety
+  training; reaching 0.8 would need a lower HEAL_K or a detection weight below E24's ratio, both design bets.
+- **EA at end 2026** is at the band edge (51.9% vs ≤ 50%): the ai2027 leader is at SC by October 2026, ahead of the real
+  late-2026 frontier, so a date mapping overstates the target's capability.
+- **No game observable**: Betley's narrow fine-tune emergent misalignment (S6_POST is a constant 0.1, no fine-tune
+  quantity), Greenblatt's AF 12% → 78% under RL toward a conflicting objective (no such training choice), F1 across
+  generations (no source; GPT-5 ≈ o3), and the F2 "learned hacking" threshold (hackRates is a readout nobody reads).
+- **Thin sources**: MacDiarmid's inoculation % is chart-read; Schoen's "~2 OOM" of RL is research/20's guess; Hubinger's
+  persistence numbers are [R] (no figures in research/); the F6 band (≥ 0.8) is [D] between research/20's 0.3 and 0.9+.
+
+### M6 merge notes (F3, E14 → E10 onto M5; 2026-11-20)
+
+Merged into `model-v3` (at the lead's 9bf348d) with `--no-ff`, in order: `v3-f3` (F3 8c41677, base 9bf348d; merge
+849dfcf), `v3-e10` (one chain from 9bf348d: E14 aafe348, E10 9294eb3; only the tip merged; 4abb5d9). Then fixtures
+regenerated (35609d5) and these docs. Checks: tsc main and `-p scripts/v2` plus lint-structure after each merge,
+`test:quick` once, `test:cal` once, fixtures `--write` once, one `test:full` on 35609d5 (the final code; only docs after).
+The notes of the three tasks are above (copies of `design/notes/F3.md`, `E14.md`, `E10.md`, deleted after folding).
+
+**Conflicts and resolution.** No textual conflicts. F3 was based on 9bf348d (a fast-forward base). v3-e10 auto-merged
+`safety/traits.ts` (F3's `labLevel(s)` tier reads beside E10's named constants `OC_VIS`, `OC_VIS_AUDIT`,
+`OC_DETECT_TRAIN`, `ANTISCHEME_REMOVAL`, `ANTISCHEME_EA_MULT`; separate hunks), `departments/workfit.ts` (F3's `G`-typed
+`domainG` / `fitOf` / `workFit` with E14's `shiftFit`, `ag17Capacity`, `ag17HarnessOom`; the `gOfPm` import is gone
+with F3) and `data/v2/runDesign.ts` (F3's B_G_PER_Y comment, E10's heavy-safety comment). F3 rewrote
+`actors/actions.ts`, E10 `safety/actions.ts`: different files; E10 / E14 did not touch `safety/common.ts` or
+`findings.ts`. **Semantic check:** E10 and E14 add no reader of `.pm`, `.pa`, `levelOf(` or the bridge's functions
+(lint-structure §4 passes, 8/0; `safetyrates.ts` reads traits and `hackRates` only); both tsc projects clean after each
+merge. Nothing had to be rewritten to G / `levelOfG`.
+
+**schemaRev 32 → 33** (F3 `migratePmPa`: pm → G through the old bridge kept in save.ts only, an unsynced core.pa − paSync
+into the pretraining recipe × B, the old fields dropped; idempotent; hygiene's new rev-32 → 33 check and its idempotence
+pass, the older migration checks build their saves through `asRev32`). E14 and E10 add no state. **Fixtures:** stale
+after the merges (fixtures FAIL ×5 in test:quick, as expected: E10's new worlds draw different E06 / E11 weights, F3
+drops fields), regenerated once on the merged code at rev 33 (35609d5). golden/timelines.json unchanged.
+
+**Golden dates (`test:cal`, seed 2027): no refit.** T1 identical to M5 on every preset: ai2027 SC 647 / SAR 804 / SIAR
+893 / ASI 922 (Δ +0.025 / +0.036 / +0.027 / +0.019 y); authors2026 1506 / 1607 / 2144 / 2956 (+0.030 / +0.093 / −0.019 /
+−0.052); fast 897 / 918 / 918 / 918 (+0.047 / +0.104 / −0.019 / −0.104); slow SC 4776 (+0.049). T4 passes. T1L: the three
+known failures (authors2026 SIAR −0.611 y, ASI −1.337 y; fast ASI −0.164 y, M5 −0.162: F3's leak timing moves the fast
+leader's SIAR / ASI one day, 897 → 896). golden-timelines 16/0 (known WARNs).
+
+**Gate: one `npm run test:full` on 35609d5.** Wall 11.9 min (real 11 m 58 s), CPU 76.2 min, machine load 83% (12 cores,
+6 workers), simulation cache cold for the long suites. `test:quick` before it: 2.3 min, failures only fixtures (stale,
+then regenerated) and worldfx's known five. `test:cal`: 1.0 min.
+
+| script | pass | fail | warn | wall s | | script | pass | fail | warn | wall s |
+|---|---:|---:|---:|---:|---|---|---:|---:|---:|---:|
+| tsc-scripts | – | 0 | – | 2.3 | | lint-structure | 8 | 0 | 0 | 4.9 |
+| golden-timelines | 16 | 0 | 3 | 8.3 | | safety (6 shards 254–285 s) | 17 | **1** | 0 | 14.8 |
+| identity | 76 | 0 | 3 | 4.6 | | danger | 27 | 0 | 0 | 4.9 |
+| effective | 27 | 0 | 0 | 10.1 | | oversight | 29 | 0 | 0 | 3.7 |
+| data | 61 | 0 | 0 | 9.1 | | sabotage | 24 | 0 | 0 | 8.0 |
+| suites | 31 | 0 | 0 | 7.4 | | footholds | 35 | 0 | 0 | 9.6 |
+| signals | 19 | 0 | 0 | 4.6 | | control | 30 | 0 | 0 | 8.4 |
+| successor | 11 | 0 | 0 | 5.2 | | safetyideas | 39 | 0 | 0 | 3.4 |
+| research | 30 | 0 | 0 | 15.8 | | safetyrates (new; 4 shards 44–49 s) | 11 | 0 | 12 | 5.9 |
+| evals | 31 | 0 | 0 | 46.8 | | finance (3 shards 141–160 s) | 62 | **4** | 0 | 58.6 |
+| safetyresearch | 30 | 0 | 0 | 25.3 | | worldfx | 33 | **5** | 0 | 152.3 |
+| worktypes | 16 | 0 | 0 | 49.7 | | ws4 | 25 | 0 | 0 | 230.5 |
+| calib (4 shards 44–184 s) | 37 | **3** | 7 | 6.3 | | rivals | 16 | 0 | 0 | 38.1 |
+| fixtures | 15 | 0 | 0 | 28.1 | | products | 58 | 0 | 0 | 8.8 |
+| hygiene (no perf) | 210 | 0 | 0 | 72.7 | | serving | 83 | 0 | 0 | 49.6 |
+| lint-hidden | 1 | 0 | 0 | 4.3 | | money | 24 | 0 | 0 | 35.8 |
+| lint-ux | 9 | 0 | 0 | 5.9 | | idle | 3 | 0 | 0 | 233.9 |
+| lint-tradeoffs | 486 | 0 | 0 | 5.0 | | test:ui | 584 OK | 0 | – | 423.7 |
+| | | | | | | **total** | 2214 | 13 | | 11.9 min |
+
+**Failures, split.** All 13 are on the known list; none caused by M6.
+- *Known:* calib T1L authors2026 SIAR / ASI, fast ASI (→ F4); safety S5 RefBot "U falls below L by SAR" (median U − L
+  +0.50, below in 35%; M5 +0.63; → F5); finance F7 revenue (median $27.9B) and valuation ($0.36T), F8 RefBot out of
+  distress through 2026 41.7% (as M5; → F5 / finance session), F11 path (2027 $31.6B; M5 $34.5B); worldfx F7/F11 2026
+  $32.3B, F11 2027 $50.2B, A2a 6.7%, W4 22.7%, GOV T1 2027-08-25 (single-seed timing, → F4).
+- *Caused by M6:* none. *Newly visible:* none.
+- *Moved for the better:* worldfx W2 automation TFP 0.5% passes (F3: W2 freezes at λ = 6.5 instead of v2's A1 pm
+  threshold); the M5 test fixes hold (serving S3 0 outside, sabotage 24/0).
+- *Moved, still passing:* **safety S4 RefBot P_mis at ASI 0.600** (E10's branch 0.625, M5 0.553; band 0.55–0.85, margin
+  +0.05: F3's leak timing changes RefBot's games a little); S4 safe-only 0.078 (E10 0.083); S5 mixed median min margin
+  −0.11, holds in 55% (E10 −0.08; needs ≥ −0.5). safetyrates on the merged code: F5 EA end 2026 51.5% (E10 51.9%), F5 AF
+  end 2026 48.0% (53.3%), F6 RefBot π SCHEME 74.3% (76.2%), F2 rows as E10's (sabotage after learned hacking 0.2%, AF
+  15.7%); its 12 WARNs are E10's gaps (→ E16, E17). Serving A5 ×10.40/yr, A3 ×17.49/yr per task; finance F2 46.6M, F9
+  pass; worldfx equity +31.6%, HireRate_SOFT 2027-06-04, 25% remote work 2027-10-10, U +1 pp 2027-11-07 pass; ws4 T3 mean
+  179 d (p10 57, p90 308 INFO), post-theft 61 d.
+- Not run: `test:perf` (policy); `ref-trace.ts` (not in a tier; its stored traces are stale since F3 → F6).
+
+**Lead decisions (recorded, from the M6 decisions file).**
+- E14 accepted (aafe348; scripts tsc verified by the lead): F44 → +1 Δ_bm fit on the AG18 / AG03 / AG16 lines (AI share
+  0.22 → 0.51, so more sabotage exposure); AG17 → harness +0.3 OOM × √(min(2.5, cap ÷ SERIOUS_CAP)) on the safety
+  package fit. No bot sets Trusted to AI (check added), so golden dates cannot move. worldfx: the known failures.
+- F3 accepted (8c41677; schema 32 → 33 `migratePmPa`): `levelOfG` / `gOfLevel` the one map; pm / pa state removed; lint
+  section 4. T1 identical; W2 passes (0.5%). Left: the safety tier `labLevel` keeps the old pa-equivalent value written in
+  G (switching to the best model's level moves the tier −1.2…+1.3 levels with S4 on its edge) → new task E18. ref-trace.ts
+  stored traces need regenerating (not in a tier) → F6.
+- E10 accepted (9294eb3; harness `scripts/v2/safetyrates.ts` in the full tier; constants OC_VIS 0.4 → 0.1, OC_VIS_AUDIT
+  0.6 → 0.15, OC_DETECT_TRAIN 1 → 0.375, ANTISCHEME_REMOVAL 0.9 → 0.95, ANTISCHEME_EA_MULT 1.5 → 2, E11 w̄ 0.3 → 0.2, E06
+  w̄ 0.3 → 0.75). S4 0.625 on its branch (margin); S5 RefBot still known. Fixtures stale → regenerated here. T1 identical.
+- E10's gaps are real model errors (AF at end 2026 53% vs 0–15%; sabotage after learned hacking 0.2% vs 12%) → new tasks
+  before F5 / F4: **E16** (H) learned-hacking generalisation (a discrete "learned hacking" state or a convex driver above
+  an onset, research/20 F2; κ_item (E7) re-anchored on the MacDiarmid model organism, 12% sabotage, 30–70% AF;
+  inoculation also covers hack → PROXY (E09 → E13 / E19); `hackRates` becomes read); **E17** (H) split S7 into
+  eval-awareness and alignment-faking parts so F5 EA (20–50%) and AF (0–15%) at end 2026 both hold, F6 persistence with
+  AG18 healing (0.71 vs ≥ 0.8) checked (after E16: same files); **E18** (M) the safety tier `labLevel` from the best
+  model's display level, S4 recalibrated if it moves (after E17).
+- Order change: F4 fits per-preset values to RefBot's golden dates, so it follows F5's RefBot rebalance and F6's engine
+  fixes; new order **M6 → E16 ∥ F6 → E17 → E18 → F5 → M7 → F4 → merge to master**.
+- User (2026-11-20): F7 authorised: when F4 passes, the lead merges model-v3 into master (the main checkout is shared:
+  check it is clean and idle first; the untracked design/ux/mockups files belong to another session). The lead does not
+  rebase the finance branch; the user handles the finance session.
+- After M5 (recorded in V3-TASKS at 9bf348d and the decisions file): finance F8 → F5 (not bisected); S4 edge → E10 (now
+  0.600); T1L authors2026 and the fast G_SC knife edge → F4; the Safety › Overview side column is long → F6.
+
+**Readouts for later tasks.** Fixtures are rev 33 from the merged code. S4's margin is +0.05 on the merged head (0.600):
+E16–E18 move it. `safetyrates.ts` is the safety calibration harness (full tier; `--seeds 40` replays safety.ts's S4
+games) and carries E10's 12 WARN rows as the E16 / E17 targets.
