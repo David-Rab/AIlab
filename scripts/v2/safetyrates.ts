@@ -224,8 +224,9 @@ const row = (obs: string, src: string, band: [number, number] | null, xs: number
 // and E13 (√(SA·PROXY) → AF) accumulating over ~13 post runs under F6's low removal of oversight-conditional traits.
 // E18's capability gate (afCapGate, sourced at the mid-2024 frontier) is fully open for every RefBot model (G ≥ V0's).
 // E19 removed the unsourced incidental-hacking term of E04 (36.6% → 25.6%) and the subliminal pull into distilled
-// students (no effect here: minis never do RefBot's R&D before 2027).
-const AF26 = 'E19: after the physical fixes (E04 learned hacking only; no E06 into new-network students) what is left is E13 √(SA·PROXY) and E27 PERSONA → AF at frontier capability (the E18 gate is open): over half of the gross growth (0.27 of 0.48, 12-seed mean) comes in each new base\'s pretraining step (ω 1), the rest over ~13 post runs that remove little AF (F6); the successor pull adds +0.03. Zeroing E13 gives 13.5%, E27 15.3%, both 0.8% (12 seeds): a design decision on those [D] motive edges, for the lead (design/notes/E19.md)';
+// students (no effect here: minis never do RefBot's R&D before 2027). E20 took E13 / E27 out of pretraining runs and
+// the narrow-tune S6 baseline out of bases (25.6% → 21.3%).
+const AF26 = 'E20: E13 / E27 no longer fire in pretraining and bases carry no narrow-tune S6 baseline; what is left is E13 √(SA·PROXY) (+0.155, 12-seed mean) and E27 PERSONA → AF (+0.105) over the current lineage\'s three post runs at frontier capability (the E18 gate is open), the successor pull (+0.092, about half of it at the new base) and safety removal (−0.124: F6\'s low removal of oversight-conditional traits). PERSONA (0.10) still comes from E05 (+0.22, of it +0.09 from the bases\' synthetic share). Zeroing E13 gives 10.1%, E27 13.3%, both 0.8% (12 seeds): a design decision on those [D] motive edges, for the lead (design/notes/E20.md)';
 const PERSIST = 'remaining removal: AG18 healing (the world\'s hidden benign-generalisation bet, M4) and the stack\'s detection at E24\'s true/visible ratio; closing it means a HEAL_K or detection weight below the sourced ratio (a design bet, for the lead)';
 
 // F1 reward hacking per RL run (the suites' exploitability × Gao's pressure; hackRates).
