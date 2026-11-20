@@ -31,7 +31,7 @@ import { crystalMult, crystalThreshold, drawLineageUModesV2, uModeAmp, uModeEdge
 const SPECULATIVE = new Set(UMODES.filter((u) => u.kind === 'speculative').map((u) => u.id));
 
 export type Signals = Record<SignalId, number>;
-export const zeroSignals = (): Signals => ({ S1: 0, S2: 0, S3: 0, S4: 0, S5: 0, S6: 0, S7: 0, S8: 0 });
+export const zeroSignals = (): Signals => ({ S1: 0, S2: 0, S3: 0, S4: 0, S5: 0, S6: 0, S7: 0, S8: 0, S9: 0 });
 
 // ───────────────────────────── Signals from run quantities (model v3 E3, MODEL-V3 §11.2) ─────────────────────────────
 //
@@ -96,8 +96,9 @@ export const LH_ONSET = 0.1;
  *  on cheap-grader coding suites at the standard budget, 45%: E10's model-organism probe) is the full effect. */
 export const LH_FULL = 0.45;
 /** Driver gain of learned hacking on E04, E18, E27 and E28 [fit: the model-organism probe's AF in MacDiarmid's 30–70% band
- *  (50% AF reasoning), median over 40 medium worlds; scripts/v2/safetyrates.ts]. */
-export const K_LH = 1.3;
+ *  (50% AF reasoning), median over 40 medium worlds; scripts/v2/safetyrates.ts]. E16 1.3 (AF 48%); E17 1.7 (AF 49%): the
+ *  organism lost the S7 → AF share of its AF (39% at 1.3) when E14 moved to S9, which the organism's run does not have. */
+export const K_LH = 1.7;
 /** Inoculation prompting's multiplier on hack-induced generalisation (research/20 F2: misalignment 0.115 → 0.02 = −80–90%
  *  chart-read, 75–90% in the paper's text; research/14 F46 ×0.1–0.25) [P]. */
 export const INOC_MULT = 0.15;
@@ -160,8 +161,20 @@ export const S7_RL = 0.2;
 export const K_S7 = 1.35;
 export const s7OfRl = (rho: number) => Math.max(0, S7_RL * (1 + K_S7 * Math.log10(Math.max(1e-6, rho) / RHO_REF)));
 /** Training against a behavioural detector puts eval-like data into training (research/14 E11 "keep evals out of
- *  training") [D, V1]. */
+ *  training"; Redwood on Sonnet 4.5: eval gaming plausibly from training on alignment evals, research/05 §1.7) [D, V1]. */
 export const S7_PER_BB = 0.3;
+/** S9 oversight-conditional reward (model v3 E17; research/05 §1.4, research/14 E14): the share of a run's reward on a
+ *  behaviour that depends on a monitor seeing it. MATS/GDM 2026 [S]: RL that rewarded rule-following only on monitored
+ *  episodes (S9 = 1) took oversight reasoning 2–26% → 92–100% and the monitored − unmonitored compliance gap 1–18% →
+ *  43–95%. An ordinary run grades every training episode alike, so its S9 is 0 (2025–26 frontier models: 0–15% gaps,
+ *  ~80% none; Sheshadri 2025: 5 of 25 models). Training against a behavioural detector is the game's monitored-only
+ *  reward: the penalty lands only where the detector sees the behaviour (R14 E24: the visible trait falls 70–90%, the
+ *  true one 20–40%), S9_PER_BB per detector [D: V1's weight of a detector in the old S7]. Split from S7 because S7
+ *  (capability RL, eval-like environments) carries Schoen's EA anchor and E10 found the two anchors cannot both hold on
+ *  one signal (RefBot's AF 53% at end 2026 vs 0–15%). */
+export const S9_PER_BB = 0.3;
+/** S9 of a run that trains against `bb` behavioural detectors. */
+export const s9OfDetectors = (bb: number) => S9_PER_BB * Math.max(0, bb);
 /** Baseline S6 (narrow fine-tunes: refusal and format SFT) and S7 (eval-like data) in any post run [D, V1]. */
 export const S6_POST = 0.1;
 export const S7_BASE = 0.05;
@@ -252,6 +265,7 @@ export function baseQuantitiesOf(s: GameStateV2, design: BaseDesign, gPre: numbe
  *   S3 = K_S3 · Σ_f w_f·log₁₀(1 + H_f)            S5 = S5_LONG · w_longHorizon
  *   S4 = CoT mode, or 'pressured' when trained against a CoT monitor (× (1 − 0.5) on a faithful-CoT run, P23)
  *   S6 = S6_POST (narrow fine-tunes)               S7 = S7_BASE + s7(ρ) + S7_EVAL_ENV·w_mlResearch + S7_PER_BB·#BB detectors
+ *   S9 = S9_PER_BB·#BB detectors trained against (oversight-conditional reward; E17)
  *  `exploit` = the suites a run froze at launch (TrainingRun.recipe.exploit; their families set the shares w_f), else the
  *  lab's suites today (predictions, continual learning, IDA). Every signal is clamped to [0, 1]. */
 export function postSignals(s: GameStateV2, post: PostDesign, exploit?: Partial<Record<RLFamily, number>>, q?: RunQuantities): Signals {
@@ -269,8 +283,9 @@ export function postSignals(s: GameStateV2, post: PostDesign, exploit?: Partial<
   sg.S4 = Math.max(COT_S4[post.cot], cotMonitor ? COT_S4.pressured * (1 - cotResist(post.cot)) : 0);
   sg.S5 = S5_LONG * (w.longHorizon ?? 0);
   sg.S6 = S6_POST;
-  sg.S7 = S7_BASE + s7OfRl(rho) + S7_EVAL_ENV * (w.mlResearch ?? 0);
-  for (const id of post.trainAgainst) if (s.player.safety.techniques[id]?.family === 'BB') sg.S7 += S7_PER_BB;
+  const bb = post.trainAgainst.filter((id) => s.player.safety.techniques[id]?.family === 'BB').length;
+  sg.S7 = S7_BASE + s7OfRl(rho) + S7_EVAL_ENV * (w.mlResearch ?? 0) + S7_PER_BB * bb;
+  sg.S9 = s9OfDetectors(bb);
   sg.S8 = deploymentS8(s);
   for (const k of Object.keys(sg) as SignalId[]) sg[k] = clamp01(sg[k]);
   return sg;
@@ -387,7 +402,7 @@ function driver(id: string, x: TraitVector, sg: Signals, env: TraitEnv): number 
     case 'E10': return x.SA;
     case 'E11': return sg.S7;
     case 'E13': return Math.sqrt(x.SA * x.PROXY);
-    case 'E14': return sg.S7;
+    case 'E14': return sg.S9; // E17: oversight-conditional reward (was S7)
     case 'E15': return sg.S4 + 0.3 * env.tierF;
     case 'E17': return Math.max(x.RH, x.PERSONA);
     case 'E18': return (x.EA + x.TGAME) / 2 + hg * lh;
@@ -1001,6 +1016,8 @@ export function rivalSignals(_s: GameStateV2, lab: RivalLab, posture: SafetyPost
   sg.S6 = 0.2;
   sg.S7 = 0.2 + 0.2 * posture.evalRigor;
   sg.S8 = Math.min(1, (lab.core.prodCache?.labor.copies ?? 0) / 3e5);
+  // S9 (oversight-conditional reward, E17) stays 0: a posture has no training against detectors, and an ordinary run
+  // grades every training episode alike (the player's reference run has S9 = 0 too).
   return sg;
 }
 

@@ -20,8 +20,8 @@ import { containment, strengthBelieved, techniqueRole } from './techniques';
 import { controlProtocol, gapFactor, oomOfLevel, oversightGap, underControl } from './oversight';
 import { HUMAN_REVIEW_L } from '../../../data/v2/oversight';
 import {
-  COT_S4, G_S5_0, K_GAO, K_S3, K_S5G, OMEGA_KIND, OMEGA_RL_EXP, PREF_S1, RHO_REF, S5_AI, S5_LONG, S6_POST, S6_SYN, S7_BASE, S7_EVAL_ENV, S7_PER_BB,
-  INOC_MULT, LH_FULL, LH_ONSET, aiDataShare, deploymentS8, hackShare, kappaSucc, learnedHackingOf, optimisationPressure, prefShare, referenceBaseShares, runOmega, s7OfRl, syntheticShare,
+  COT_S4, G_S5_0, K_GAO, K_S3, K_S5G, OMEGA_KIND, OMEGA_RL_EXP, PREF_S1, RHO_REF, S5_AI, S5_LONG, S6_POST, S6_SYN, S7_BASE, S7_EVAL_ENV, S7_PER_BB, S9_PER_BB,
+  INOC_MULT, LH_FULL, LH_ONSET, aiDataShare, deploymentS8, s9OfDetectors, hackShare, kappaSucc, learnedHackingOf, optimisationPressure, prefShare, referenceBaseShares, runOmega, s7OfRl, syntheticShare,
 } from './traits';
 
 export type FamilyId = (typeof RISK_FAMILIES)[number]['id'];
@@ -42,7 +42,7 @@ export function signalPushes(sig: SignalId): { target: PushTarget; traits: Trait
   return out;
 }
 
-// ───────── training pressure of a run (S1–S8 with the quantities behind them) ─────────
+// ───────── training pressure of a run (S1–S9 with the quantities behind them) ─────────
 
 /** One signal of a run: its value and the run quantities that set it (`q`, by name; shares 0–1, hours, OOM). */
 export interface PressureRow {
@@ -89,6 +89,8 @@ export function postPressure(s: GameStateV2, post: PostDesign, rho: number, expl
     { id: 'S6', value: S6_POST, q: { narrow: S6_POST } },
     { id: 'S7', value: S7_BASE + s7OfRl(rho) + S7_EVAL_ENV * (w.mlResearch ?? 0) + S7_PER_BB * bb, q: { base: S7_BASE, rl: s7OfRl(rho), mlShare: w.mlResearch ?? 0, kMl: S7_EVAL_ENV, bb, kBb: S7_PER_BB, rho, rhoRef: RHO_REF } },
     { id: 'S8', value: s8 ?? deploymentS8(s), q: { copies, p05: adopted(s, 'P05'), p20: adopted(s, 'P20'), applied: s8 !== undefined } },
+    // E17: oversight-conditional reward (→ alignment faking), split from S7.
+    { id: 'S9', value: s9OfDetectors(bb), q: { bb, kBb: S9_PER_BB } },
   ];
   for (const r of rows) r.value = clamp01(r.value);
   return rows;

@@ -41,7 +41,12 @@ export const EDGES: EdgeDef[] = [
   // et al. 2025 [R] capability-only RL 2% → 20.6% over ~1–3 OOM (0.06–0.19 per OOM). Anti-scheming's EA ×2 is E25.
   { id: 'E11', from: ['S7'], to: 'EA', wBar: 0.2, grade: 'B', cite: 'Schoen 2025: capability RL raised EA 2% → 20.6%', moderator: 'keep evals out of training' },
   { id: 'E13', from: ['SA', 'PROXY'], to: 'AF', wBar: 0.3, grade: 'B', cite: 'Greenblatt 2024: 12% → 78% after RL', moderator: 'corrigibility target −30%' },
-  { id: 'E14', from: ['S7'], to: 'AF', wBar: 0.6, grade: 'B', cite: 'MATS/GDM Oct 2026: gap 43-95%', moderator: 'randomised monitoring −50%' },
+  // E17: E14 reads S9 (oversight-conditional reward: behaviour rewarded or penalised only where a monitor sees it), no
+  // longer S7 (capability RL and eval-like data, Schoen's EA anchor). w̄ 0.6 → 0.9 [fit]: MATS/GDM's RL with all of the
+  // rule-following reward on monitored episodes (S9 = 1) took the gap 1–18% → 43–95%; one reference run on V0 with S9 = 1
+  // now gives AF 52% [23–100] over 40 worlds (0.6 gave 37%, below the band; scripts/v2/safetyrates.ts). S9 = 0 in every
+  // run that does not train against a behavioural detector, so the weight does not reach RefBot or the rivals.
+  { id: 'E14', from: ['S9'], to: 'AF', wBar: 0.9, grade: 'B', cite: 'MATS/GDM Oct 2026: gap 43-95%', moderator: 'randomised monitoring −50%' },
   { id: 'E15', from: ['S4'], to: 'OBF', wBar: 0.7, grade: 'A', cite: 'Baker 2025; controllability 1.7 → 60.9%', moderator: 'monitorability pledge −50%' },
   { id: 'E17', from: ['RH', 'PERSONA'], to: 'CONCEAL', wBar: 0.4, grade: 'B', cite: 'Hacks verbalized <2%; false completion 29%', moderator: 'honesty & confession training −40%' },
   { id: 'E18', from: ['EA', 'TGAME'], to: 'SAND', wBar: 0.3, grade: 'B', cite: 'Apollo 2024 in-context sandbagging; MacDiarmid 2025: sabotaged safety code after learned hacking', moderator: 'learned hacking adds to it (inoculation ×0.15); noise injection −40%' },

@@ -2,8 +2,10 @@
 //   Signals are functions of what a run does: RL compute ρ (share of the base's pretraining FLOP) and its split over the
 //   RL families, the suites' exploitability (S2, × Gao's optimisation pressure), the agentic families' task lengths
 //   (S3), the preference stage's share (S1), the base's G and the AI-related share of its drawn data (S5), the synthetic
-//   or distilled share of the data (S6, teacher pull only within a base family), eval-like data (S7). ω (how much a run
+//   or distilled share of the data (S6, teacher pull only within a base family), capability RL and eval-like data (S7),
+//   oversight-conditional reward (S9: behavioural detectors trained against; model v3 E17). ω (how much a run
 //   moves traits) rises with the run's RL compute. The reference recipe at the start reproduces V1's design table.
+import { EDGE_BY_ID, EDGES } from '../../src/data/v2/edges';
 import { REFERENCE_BASE, REFERENCE_POST, RL_BUDGET } from '../../src/data/v2/runDesign';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { makeCtx } from '../../src/engine/v2/core/loop';
@@ -134,6 +136,15 @@ check(cotTrain.S4 === 0.8 && ref.S4 === 0 && postSignals(s0, post({ cot: 'pressu
   'S4: training against a CoT monitor is CoT pressure (Baker et al. 2025: obfuscated reward hacking), like a pressured CoT', `${cotTrain.S4}`);
 check(bbTrain.S7 > ref.S7 && postSignals(s0, post({ rlFocus: ['mlResearch'] })).S7 > ref.S7, 'S7 rises with training against behavioural detectors and with RL on eval-like (ML-research) environments',
   `ref ${ref.S7.toFixed(3)}, vs a BB detector ${bbTrain.S7.toFixed(3)}, ML focus ${postSignals(s0, post({ rlFocus: ['mlResearch'] })).S7.toFixed(3)}`);
+// E17: S7 split. S7 (capability RL, eval-like data) feeds only eval awareness (E11, Schoen); S9 (oversight-conditional
+// reward) feeds only alignment faking (E14, MATS/GDM) and is 0 unless the run trains against a behavioural detector.
+const bb2 = postSignals(s0, post({ trainAgainst: ['T-PROP', 'T-MO'] }));
+const heavyS9 = postSignals(s0, post({ rlBudget: 'heavy', rlFocus: ['mlResearch'] })).S9;
+const into = (sig: string) => EDGES.filter((e) => (e.from as string[]).includes(sig)).map((e) => `${e.id}→${e.to}`);
+check(ref.S9 === 0 && heavyS9 === 0 && near(bbTrain.S9, 0.3, 1e-9) && near(bb2.S9, 0.6, 1e-9) && cotTrain.S9 === 0
+  && into('S7').join() === 'E11→EA' && into('S9').join() === 'E14→AF' && EDGE_BY_ID.E14.from.join() === 'S9',
+  'S7 / S9 split: S9 is 0 in ordinary runs (more RL, eval-like environments) and 0.3 per behavioural detector trained against; S7 feeds only EA, S9 only AF',
+  `S9 ref ${ref.S9}, heavy ML ${heavyS9}, one BB ${bbTrain.S9.toFixed(2)}, two ${bb2.S9.toFixed(2)}, CoT monitor ${cotTrain.S9}; S7 → ${into('S7')}, S9 → ${into('S9')}`);
 
 // ---------- before → after per design (V1's table → E3's quantities), readout ----------
 const V1 = {

@@ -1,4 +1,4 @@
-// Training pressure of a run (model v3 E12, MODEL-V3 §11.2): the signals S1–S8 a run applies, each as its cause in plain
+// Training pressure of a run (model v3 E12, MODEL-V3 §11.2): the signals S1–S9 a run applies, each as its cause in plain
 // words with the run quantities behind it, the trait families it pushes, and the run's ω (how far it moves traits).
 // Shared by the Blueprint (the planned run: home `runPressure`) and the model card (what a finished run applied: home
 // `versionPressure`). Successor pull (the R&D models' dispositions passed to the next run) lives on Safety.
@@ -17,7 +17,7 @@ import './pressure.css';
 /** Plain-words name of each signal (the glossary `sig:` entry has the research name). */
 export const SIGNAL_LABEL: Record<SignalId, string> = {
   S1: 'Approval reward', S2: 'Reward-hacking pressure', S3: 'Long agentic tasks', S4: 'Reasoning pressure',
-  S5: 'Situational data', S6: 'Narrow & synthetic data', S7: 'Eval-like training', S8: 'Copies & shared memory',
+  S5: 'Situational data', S6: 'Narrow & synthetic data', S7: 'Eval-like training', S8: 'Copies & shared memory', S9: 'Monitored-only reward',
 };
 export const TARGET_LABEL: Record<PushTarget, string> = { ...Object.fromEntries(RISK_FAMILIES.map((f) => [f.id, f.label])), awareness: 'Awareness' } as Record<PushTarget, string>;
 const PREF_LABEL: Record<string, string> = { constitution: 'Constitution feedback', engagement: 'Engagement reward', persuasion: 'Persuasion reward', minimal: 'Minimal preference stage' };
@@ -46,6 +46,7 @@ export function causeText(r: PressureRow, kind: RunPressure['kind']): string {
       : q.legacy ? 'synthetic share not recorded for this base' : `synthetic data ${F.pct(n(q.syn), 1)} of tokens (reference ${F.pct(n(q.synRef), 1)})`;
     case 'S7': return `${rel(n(q.rho), n(q.rhoRef))} · ${F.pct(n(q.mlShare))} of RL on ML research${n(q.bb) ? ` · ${n(q.bb)} behavioural detector${n(q.bb) > 1 ? 's' : ''} trained against` : ''}`;
     case 'S8': return `${F.count(n(q.copies))} internal agent copies${q.p05 ? ' · shared memory (P05)' : ''}${q.p20 ? ' · agent societies (P20)' : ''}${q.applied ? '' : ' (today)'}`;
+    case 'S9': return n(q.bb) ? `${n(q.bb)} behavioural detector${n(q.bb) > 1 ? 's' : ''} trained against: penalised only where seen` : 'every training episode graded alike';
   }
 }
 
@@ -70,6 +71,8 @@ function SignalTip({ r, kind }: { r: PressureRow; kind: RunPressure['kind'] }) {
     rows.push({ label: rel(n(q.rho), n(q.rhoRef)), value: F.num(n(q.rl), 3) });
     rows.push({ label: `ML research ${F.pct(n(q.mlShare))} of RL × 0.6`, value: F.num(n(q.mlShare) * n(q.kMl), 3) });
     if (n(q.bb)) rows.push({ label: `${n(q.bb)} detector(s) trained against × 0.3`, value: F.num(n(q.bb) * n(q.kBb), 2) });
+  } else if (r.id === 'S9') {
+    rows.push({ label: `${n(q.bb)} detector(s) trained against × ${F.num(n(q.kBb), 1)}`, value: F.num(n(q.bb) * n(q.kBb), 2) });
   }
   const pushes = signalPushes(r.id);
   return (

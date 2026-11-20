@@ -394,7 +394,7 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
   const prediction: RunPrediction = {
     Lg: [Lg - 0.25, Lg + 0.25],
     domains: Object.fromEntries(Object.entries(doms).map(([k, v]) => [k, [v - 0.25, v + 0.25]])) as RunPrediction['domains'],
-    signals: { S1: 0, S2: 0, S3: 0, S4: 0, S5: 0, S6: 0, S7: 0, S8: 0, ...clampSignals(ws2Signals) },
+    signals: { S1: 0, S2: 0, S3: 0, S4: 0, S5: 0, S6: 0, S7: 0, S8: 0, S9: 0, ...clampSignals(ws2Signals) },
     etaDays, serveCost: serve, monitorability: monitorabilityClass(mon),
   };
   const G = build.gPre + build.dgRL + build.dg;
@@ -402,7 +402,7 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
   return { flopNeeded, cashCost: cash, etaDays, poolShare, effShare, setupTW, setupDays, prediction, g: { G, gD, ...(rlOut ? { rl: rlOut } : {}), ...(gap !== undefined ? { gap } : {}) }, reason, ...(limits ? { limits } : {}) };
 
   function failPlan(why: string): RunPlan {
-    const zero = { S1: 0, S2: 0, S3: 0, S4: 0, S5: 0, S6: 0, S7: 0, S8: 0 };
+    const zero = { S1: 0, S2: 0, S3: 0, S4: 0, S5: 0, S6: 0, S7: 0, S8: 0, S9: 0 };
     return { flopNeeded: 0, cashCost: 0, etaDays: 0, poolShare, effShare, setupTW: 0, setupDays: 0, reason: why, g: { G: 0 }, prediction: { Lg: [0, 0], domains: {} as RunPrediction['domains'], signals: zero, etaDays: 0, serveCost: 0.5, monitorability: 'high' } };
   }
 }
