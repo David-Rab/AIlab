@@ -1,20 +1,29 @@
-// Incidents: hazards, detection, public timers, exfiltration (V2-SPEC §3.5.10). Owner: WS2.
+// Incidents: the danger formula, detection, public timers, exfiltration (V2-SPEC §3.5.10; MODEL-V3 §11.3, task E5).
+// Owner: WS2.
 //
-// Daily hazard per (live deployment or internal fleet, trait or U-mode): h = κ_j · x_j^1.5 · exposure_c · usage ·
-// (1 − mitigation). Incidents are the main visible proxy of hidden traits and U-modes: the player sees `apparent`
+// One formula for every harmful act k (data/v2/danger.ts has the terms, their sources and values):
+//   attempts a_k = κ_k · disposition_k · capability_k · opportunity_k      per day, per (deployment or internal fleet)
+//   rate_k       = a_k · (1 − oversight_k),  oversight_k = 1 − (1 − block_k)(1 − catch_k)
+// Blocked attempts (AG07 containment, weight security on escape-like acts) leave no trace; caught ones are internal
+// incidents the lab sees (a product's monitor, the internal monitors and human review); the rest are harm: customer or
+// public incidents on products, silent ones inside the lab (`uncaughtInternal`). Severity rises with capability ×
+// opportunity per copy. Incidents are the main visible proxy of hidden traits and U-modes: the player sees `apparent`
 // ('unexplained' for undiscovered U-modes) and severity; `trueSource` stays hidden.
-import { CHANNEL_EXPOSURE, INCIDENT_KAPPA } from '../../../data/v2/traits';
+import { COPIES_GAMMA, COPIES_REF, CHANNEL_AFFORD, CHANNEL_HORIZON_H, DANGER_ACTS, EXFIL, HUMAN_REVIEW, H_HALF, MISUSE, MISUSE_REACH, RIVAL_SITE, UMODE_ACT, type ActDef } from '../../../data/v2/danger';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
+import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
+import { AGENT_USES } from '../../../data/v2/agents';
 import { bestPlayerVersion, internalVersion } from '../models/labs';
-import type { CounterpartyId, Deployment, EngineSystem, GameStateV2, Incident, ModelVersion, RngLike, SystemCtx, TraitId, TraitVector, UModeId } from '../types';
+import type { AgentUse, CounterpartyId, Deployment, DomainId, EngineSystem, GameStateV2, Incident, ModelVersion, RngLike, SystemCtx, TraitId, TraitVector, UModeId } from '../types';
 import { clamp01, flagNum, setFlag, versionById, versionM } from './common';
 import { monitoringCatch } from './detection';
 import { containment, strengthTrue } from './techniques';
 import { isDiscovered, uModeContainMult } from './umodes';
 import { productCatch, productHazardMult } from '../models/products';
-import { internalFleets } from '../departments/agents';
+import { agentSplitShare, agentVersion, internalFleets } from '../departments/agents';
+import { copiesOf, flopPerToken, workContext } from '../departments/workfit';
 
-/** Hazard intensity of an undiscovered/discovered U-mode (it borrows the κ of its mapped trait) [D]. */
+/** Disposition of an undiscovered/discovered U-mode (it borrows the act of its mapped trait) [D]. */
 export const UMODE_X = 0.25;
 
 /** Open (unresolved) incidents of the player, for WS4 events and WS5 headlines. */
@@ -22,50 +31,96 @@ export function openIncidents(s: GameStateV2): Incident[] {
   return s.player.safety.incidents.filter((i) => i.status === 'open' || i.status === 'investigating');
 }
 
-export interface HazardRow { source: TraitId | UModeId | 'misuse'; apparent: TraitId | 'unexplained' | 'misuse'; h: number; severity: [number, number]; domain?: 'BIO' | 'CYBER' }
+/**
+ * One harmful act's row at one site. `h` = attempts per day that are not blocked (what the daily roll draws); `catch`
+ * is applied when one fires. `sev` = the severity before rounding (floor + span · capability · A·F).
+ */
+export interface HazardRow {
+  source: TraitId | UModeId | 'misuse'; apparent: TraitId | 'unexplained' | 'misuse'; h: number; sev: number; domain?: 'BIO' | 'CYBER';
+  /** The formula's terms (E11 danger readout; tests). */
+  disposition: number; capability: number; opportunity: number; block: number;
+}
+
+/** Where a model acts (one deployment or internal fleet): the opportunity and blocking terms of the formula. */
+export interface Site {
+  internal: boolean;
+  /** Scale N: usage share × (copies ÷ the 2025 reference)^γ. */
+  scale: number;
+  /** Autonomy A = H/(H + H_HALF) from the task horizon given, and affordances F. */
+  autonomy: number;
+  afford: number;
+  /** AI share of the lab's own R&D labour (internal sites; 0 elsewhere). */
+  rd: number;
+  /** AG07 containment on this site (blocks every act). */
+  contain: number;
+  /** Weight-security level 1..5 (internal sites: blocks escape-like acts), 0 elsewhere. */
+  wsl: number;
+}
+
+const sig = (x: number) => 1 / (1 + Math.exp(-x));
+/** Disposition from a trait value: x^1.5 (v2's convexity: weak tendencies rarely become acts) [D]. */
+export const dispositionOf = (x: number) => Math.pow(Math.max(0, x), 1.5);
+/** Capability of an act: σ((L − θ)/s) on its domain level. */
+export const capabilityOf = (level: number, def: Pick<ActDef, 'theta' | 's'>) => sig((level - def.theta) / def.s);
+/** Autonomy from the task horizon a deployment gives (hours). */
+export const autonomyOf = (hours: number) => hours / (hours + H_HALF);
+/** Severity draw: ⌊sev + u⌋ clamped to 1..5 (u ~ U[0,1): stochastic rounding of the rule's value). */
+export const drawSeverity = (row: Pick<HazardRow, 'sev'>, u: number) => Math.max(1, Math.min(5, Math.floor(row.sev + u))) as Incident['severity'];
+
+function actRow(def: ActDef, x: number, domains: Record<DomainId, number>, site: Site): Omit<HazardRow, 'source' | 'apparent'> {
+  const disposition = dispositionOf(x);
+  const capability = capabilityOf(domains[def.domain], def);
+  const af = site.autonomy * site.afford;
+  const opportunity = site.scale * (1 - def.alpha + def.alpha * af) * (def.rd && site.internal ? site.rd : 1);
+  const block = 1 - (1 - site.contain) * (1 - (site.internal && def.security ? (def.security * site.wsl) / 5 : 0));
+  return { h: def.kappa * disposition * capability * opportunity * (1 - block), sev: def.floor + def.span * capability * af, disposition, capability, opportunity, block };
+}
 
 /**
- * Per-source daily hazards for one model in one context (§3.5.10). Exported for WS4 (rival incidents use the same
- * hazard with their own exposure). `discovered(u)` decides the apparent label of U-mode incidents.
+ * Per-act daily rows for one model at one site (§11.3). Exported for WS4 (rival incidents use the same formula at their
+ * own site). `discovered(u)` decides the apparent label of U-mode incidents.
  */
 export function modelHazards(
-  traits: TraitVector, uModes: readonly UModeId[], exposure: number, usage: number, mitigation: number, internal: boolean,
+  traits: TraitVector, uModes: readonly UModeId[], domains: Record<DomainId, number>, site: Site,
   discovered: (u: UModeId) => boolean = () => false,
 ): HazardRow[] {
   const out: HazardRow[] = [];
-  const k0 = exposure * usage * (1 - mitigation);
-  if (k0 <= 0) return out;
-  for (const [t, row] of Object.entries(INCIDENT_KAPPA) as [TraitId, NonNullable<(typeof INCIDENT_KAPPA)[TraitId]>][]) {
-    if (row.internalOnly && !internal) continue;
-    const h = row.kappa * Math.pow(traits[t], 1.5) * k0;
-    if (h > 0) out.push({ source: t, apparent: t, h, severity: row.severity });
+  if (site.scale <= 0) return out;
+  for (const [t, def] of Object.entries(DANGER_ACTS) as [TraitId, ActDef][]) {
+    if (def.internalOnly && !site.internal) continue;
+    const r = actRow(def, traits[t], domains, site);
+    if (r.h > 0) out.push({ source: t, apparent: t, ...r });
   }
   for (const u of uModes) {
-    const def = UMODE_BY_ID[u];
-    const row = INCIDENT_KAPPA[def.mapsTo] ?? { kappa: 3e-4, severity: [2, 3] as [number, number] };
-    out.push({ source: u, apparent: discovered(u) ? def.mapsTo : 'unexplained', h: row.kappa * Math.pow(UMODE_X, 1.5) * k0, severity: row.severity });
+    const m = UMODE_BY_ID[u];
+    const def = DANGER_ACTS[m.mapsTo] ?? UMODE_ACT;
+    if (def.internalOnly && !site.internal) continue;
+    const r = actRow(def, UMODE_X, domains, site);
+    if (r.h > 0) out.push({ source: u, apparent: discovered(u) ? m.mapsTo : 'unexplained', ...r });
   }
   return out;
 }
 
 const SAFEGUARD: Record<Deployment['safeguards'], number> = { minimal: 0, standard: 0.3, classifiers: 0.6, hardened: 0.85 };
 
-/** Misuse hazards (§3.5.10): h = 1e-4 · max(0, L_d − 7) · reach · (1 − safeguards), BIO and CYBER. */
+/** Misuse (§3.5.10, same structure): h = κ · demand · σ((L_d − 9)/1) · reach · (1 − safeguards), BIO and CYBER;
+ *  demand ×2 on minimal safety training, ×3 for 90 days after a jailbreak; severity 3 + 1.5 · capability. */
 export function misuseHazards(s: GameStateV2, v: ModelVersion, d: Deployment): HazardRow[] {
   if (d.channel === 'internal') return [];
-  const reach = (d.channel === 'open' ? 1 : d.servingShare) * CHANNEL_EXPOSURE[d.channel];
+  const reach = (d.channel === 'open' ? 1 : d.servingShare) * MISUSE_REACH[d.channel] * (d.status === 'restricted' ? 0.3 : 1);
   const cls = s.player.safety.techniques['T-CCLASS'];
   const clsBoost = cls?.unlocked && d.safeguards !== 'minimal' ? 0.5 + 0.5 * Math.min(1, strengthTrue(s, cls, versionM(s, v)) / 0.4) : 1;
   let sg = d.channel === 'open' ? 0 : SAFEGUARD[d.safeguards] * clsBoost;
   if (d.channel === 'open' && v.design.techniques.includes('T-FILTER')) sg = 0.5; // only the hazard filter survives fine-tuning
-  let mult = v.design.safety === 'minimal' ? 2 : 1;
+  let demand = v.design.safety === 'minimal' ? 2 : 1;
   const jb = flagNum(s, 'jailbreak', -1e9);
-  if (s.time.day - jb < 90) mult *= 3;
-  if (d.status === 'restricted') mult *= 0.3;
+  if (s.time.day - jb < 90) demand *= 3;
   const out: HazardRow[] = [];
+  const block = clamp01(sg);
   for (const dom of ['BIO', 'CYBER'] as const) {
-    const h = 1e-4 * Math.max(0, v.domains[dom] - 7) * reach * (1 - clamp01(sg)) * mult;
-    if (h > 0) out.push({ source: 'misuse', apparent: 'misuse', h, severity: [3, 5], domain: dom });
+    const capability = capabilityOf(v.domains[dom], MISUSE);
+    const h = MISUSE.kappa * demand * capability * reach * (1 - block);
+    if (h > 0) out.push({ source: 'misuse', apparent: 'misuse', h, sev: MISUSE.floor + MISUSE.span * capability, domain: dom, disposition: demand, capability, opportunity: reach, block });
   }
   return out;
 }
@@ -78,6 +133,72 @@ function deploymentContain(s: GameStateV2, v: ModelVersion, d: Deployment): numb
 function usageOf(s: GameStateV2, d: Deployment): number {
   if (d.channel === 'internal') return s.player.split.agents > 0 ? 1 : 0;
   return d.servingShare;
+}
+
+/** Work type each internal use does (its task horizon is the work type's H). */
+const USE_WORK: Record<AgentUse, WorkTypeId> = { eng: 'SWE', capRoutine: 'EXP', capFrontier: 'IDEAS', safety: 'SAF_EXP' };
+
+/** AI share of the lab's own R&D labour: 1 − humans ÷ effective labour over SWE, EXP and IDEAS (V3 work types). */
+export function aiRdShare(s: GameStateV2): number {
+  const w = workContext(s).slots;
+  let H = 0;
+  let L = 0;
+  for (const k of ['SWE', 'EXP', 'IDEAS'] as const) {
+    H += w[k].H;
+    L += Math.max(w[k].H, w[k].L);
+  }
+  return L > 1e-12 ? clamp01(1 - H / L) : 0;
+}
+
+/** Autonomy of an internal fleet: its uses' work-type horizons, weighted by their compute (routine research's EXP when
+ *  it runs nothing yet). */
+function internalAutonomy(s: GameStateV2, v: ModelVersion): number {
+  let a = 0;
+  let w = 0;
+  for (const u of AGENT_USES) {
+    if (agentVersion(s, u)?.id !== v.id) continue;
+    const x = agentSplitShare(s, u);
+    if (x <= 0) continue;
+    a += x * autonomyOf(WORK_TYPES[USE_WORK[u]].H);
+    w += x;
+  }
+  return w > 0 ? a / w : autonomyOf(WORK_TYPES.EXP.H);
+}
+
+const scaleOf = (copies: number, ref: number, gamma: number) => Math.pow(Math.max(1e-9, copies) / ref, gamma);
+/** Size factor of the lab's internal agents: (copies across its work types ÷ the 2025 reference)^γ. */
+function internalScale(s: GameStateV2): number {
+  let copies = 0;
+  for (const l of Object.values(workContext(s).slots)) copies += l.copies;
+  return copies > 0 ? scaleOf(copies, COPIES_REF.internal, COPIES_GAMMA.internal) : 0;
+}
+
+/** The site of model `v` in deployment `d` at `usage` (an internal fleet's share, a product's serving share). */
+export function siteOf(s: GameStateV2, d: Deployment, v: ModelVersion, usage: number): Site {
+  const contain = deploymentContain(s, v, d);
+  const restricted = d.status === 'restricted' ? 0.3 : 1;
+  if (d.channel === 'internal') {
+    return {
+      internal: true, scale: usage * internalScale(s) * restricted, autonomy: internalAutonomy(s, v), afford: CHANNEL_AFFORD.internal,
+      rd: aiRdShare(s), contain, wsl: s.player.security.wsl,
+    };
+  }
+  const size = d.channel === 'open' ? 1 : scaleOf(copiesOf(s.player.computeOnline * s.player.split.serving, flopPerToken(s, v)), COPIES_REF.serving, COPIES_GAMMA.serving);
+  return { internal: false, scale: usage * size * restricted, autonomy: autonomyOf(CHANNEL_HORIZON_H[d.channel]), afford: CHANNEL_AFFORD[d.channel], rd: 0, contain, wsl: 0 };
+}
+
+/** Catch probability of an act that got through the block (oversight's second factor): internally the fleet's monitors
+ *  and tools (half on unexplained U-modes) and human review of the work humans still do; on a product its monitor
+ *  (collusion when same-lineage); none on open weights or misuse. */
+export function catchOf(s: GameStateV2, d: Deployment, v: ModelVersion, row: Pick<HazardRow, 'source' | 'apparent'>): number {
+  if (row.source === 'misuse') return 0;
+  const trait = row.source.startsWith('U') ? UMODE_BY_ID[row.source as UModeId].mapsTo : (row.source as TraitId);
+  if (d.channel === 'internal') {
+    const mon = monitoringCatch(s, v, trait) * (row.apparent === 'unexplained' ? 0.5 : 1);
+    return 1 - (1 - mon) * (1 - HUMAN_REVIEW * (1 - aiRdShare(s)));
+  }
+  if (!d.monitorId || d.channel === 'open') return 0;
+  return productCatch(s, d, trait);
 }
 
 export function outsidersWithAccess(s: GameStateV2): CounterpartyId[] {
@@ -114,22 +235,15 @@ function newIncidentId(s: GameStateV2): string {
 
 function fireIncident(s: GameStateV2, ctx: SystemCtx, rng: RngLike, v: ModelVersion, d: Deployment, row: HazardRow): void {
   const internal = d.channel === 'internal';
-  const severity = Math.round(rng.range(row.severity[0], row.severity[1] + 0.999)) as Incident['severity'];
-  const sev = Math.max(1, Math.min(5, severity)) as Incident['severity'];
-  if (internal && row.source !== 'misuse') {
-    // Internal incidents are caught with P = monitoring strength on that fleet (§3.5.10).
-    const trait = typeof row.source === 'string' && row.source.startsWith('U') ? UMODE_BY_ID[row.source as UModeId].mapsTo : (row.source as TraitId);
-    const p = monitoringCatch(s, v, trait) * (row.apparent === 'unexplained' ? 0.5 : 1);
-    if (!rng.chance(p)) {
-      setFlag(s, 'uncaughtInternal', flagNum(s, 'uncaughtInternal') + 1);
-      return;
-    }
+  const sev = drawSeverity(row, rng.float());
+  // Oversight's catch factor (E5): inside the lab an act is seen only when caught (monitors, tools, human review); the
+  // rest is silent harm. R6: a product's monitor catches model-behaviour incidents before customers see them; caught
+  // ones stay internal. No monitor → no roll (the pre-R6 behaviour). J2 AG1: same-lineage monitors collude.
+  if (internal && row.source !== 'misuse' && !rng.chance(catchOf(s, d, v, row))) {
+    setFlag(s, 'uncaughtInternal', flagNum(s, 'uncaughtInternal') + 1);
+    return;
   }
-  // R6: a product's monitor catches model-behaviour incidents before customers see them (catch rate, D7); caught ones
-  // stay internal. No monitor → no roll (the pre-R6 behaviour).
-  // J2 AG1: a same-lineage monitor catches collusion-relevant incidents less often.
-  const src = typeof row.source === 'string' && row.source.startsWith('U') ? UMODE_BY_ID[row.source as UModeId].mapsTo : row.source === 'misuse' ? undefined : (row.source as TraitId);
-  const caught = !internal && row.source !== 'misuse' && !!d.monitorId && d.channel !== 'open' && rng.chance(productCatch(s, d, src));
+  const caught = !internal && row.source !== 'misuse' && !!d.monitorId && d.channel !== 'open' && rng.chance(catchOf(s, d, v, row));
   const exposure: Incident['exposure'] = internal || caught ? 'internal' : d.channel === 'consumer' || d.channel === 'open' ? 'public' : 'customer';
   const inc: Incident = {
     id: newIncidentId(s), day: ctx.day, labId: 'player', versionId: v.id, deploymentId: d.id,
@@ -186,59 +300,79 @@ function tickTimers(s: GameStateV2, ctx: SystemCtx, rng: RngLike) {
   }
 }
 
+/** Hazard rows of one model in one deployment (or one internal fleet at `usage`). */
+export function deploymentRows(s: GameStateV2, d: Deployment, v: ModelVersion, usage: number): HazardRow[] {
+  // Product features scale their traits' acts (e.g. Companion mode: sycophancy ×1.5); ×1 without features.
+  const feat = d.features.length ? (r: HazardRow) => (r.source !== 'misuse' && !r.source.startsWith('U') ? productHazardMult(s, d, r.source as TraitId) : 1) : () => 1;
+  const rows = modelHazards(v.traitsTrue, v.uModes, v.domains, siteOf(s, d, v, usage), (u: UModeId) => isDiscovered(s, u));
+  if (d.features.length) for (const r of rows) r.h *= feat(r);
+  return [...rows, ...misuseHazards(s, v, d)];
+}
+
+/** Every act's attempt rate, oversight and harmful rate at one site: the formula's full readout (tests; E11's danger
+ *  view). rate = attempts · (1 − oversight). Engine only (true traits). */
+export interface DangerRow extends HazardRow { attempts: number; catch: number; oversight: number; rate: number }
+export function dangerOf(s: GameStateV2, d: Deployment, v: ModelVersion, usage: number): DangerRow[] {
+  return deploymentRows(s, d, v, usage).map((r) => {
+    const c = catchOf(s, d, v, r);
+    const attempts = r.block < 1 ? r.h / (1 - r.block) : 0;
+    const oversight = 1 - (1 - r.block) * (1 - c);
+    return { ...r, attempts, catch: c, oversight, rate: attempts * (1 - oversight) };
+  });
+}
+
+/** Every (deployment, model, usage) the incident system rolls today: products and open releases once, the internal
+ *  deployment once per internal fleet (R7). `visit` runs before the next site is computed. */
+export function forEachIncidentSite(s: GameStateV2, visit: (d: Deployment, v: ModelVersion, usage: number) => void): void {
+  for (const d of s.player.deployments) {
+    if (d.status === 'withdrawn') continue;
+    const v = versionById(s, d.versionId);
+    if (!v || v.status === 'retired') continue;
+    if (d.channel !== 'internal') {
+      visit(d, v, usageOf(s, d));
+      continue;
+    }
+    // R7: the internal deployment carries every internal fleet. Each model running internal uses rolls with usage =
+    // its share of internal agent compute (one fleet at usage 1 when every use runs the routine model, as before).
+    for (const f of internalFleets(s)) {
+      if (f.v.status === 'retired') continue;
+      visit(d, f.v, f.v.id === v.id ? usageOf(s, d) * f.usage : f.usage);
+    }
+  }
+}
+
 /** incidents (80, daily): hazard per deployment × trait/U-mode; detection and exposure timers; misuse. */
 export const incidentsSystem: EngineSystem = {
   id: 'incidents', owner: 'WS2', cadence: 'daily', order: 80, system: 'safety',
   run(s, ctx) {
     const rng = ctx.rng('incidents');
-    const disc = (u: UModeId) => isDiscovered(s, u);
-    const roll = (d: Deployment, v: ModelVersion, usage: number) => {
-      const internal = d.channel === 'internal';
-      const contain = deploymentContain(s, v, d);
-      const restricted = d.status === 'restricted' ? 0.3 : 1;
-      // Product features scale their traits' hazards (e.g. Companion mode: sycophancy ×1.5); ×1 without features.
-      const feat = d.features.length ? (r: HazardRow) => (typeof r.source === 'string' && !r.source.startsWith('U') && r.source !== 'misuse' ? productHazardMult(s, d, r.source as TraitId) : 1) : () => 1;
-      const rows = [
-        ...modelHazards(v.traitsTrue, v.uModes, CHANNEL_EXPOSURE[d.channel], usage, contain, internal, disc).map((r) => ({ ...r, h: r.h * restricted * feat(r) })),
-        ...misuseHazards(s, v, d),
-      ];
+    forEachIncidentSite(s, (d, v, usage) => {
+      const rows = deploymentRows(s, d, v, usage);
       let H = 0;
       for (const r of rows) H += r.h;
       if (H <= 0 || !rng.chance(Math.min(0.5, H))) return;
       const row = rng.weighted(rows.map((r) => ({ item: r, weight: r.h })));
       fireIncident(s, ctx, rng, v, d, row);
-    };
-    for (const d of s.player.deployments) {
-      if (d.status === 'withdrawn') continue;
-      const v = versionById(s, d.versionId);
-      if (!v || v.status === 'retired') continue;
-      if (d.channel !== 'internal') {
-        roll(d, v, usageOf(s, d));
-        continue;
-      }
-      // R7: the internal deployment carries every internal fleet. Each model running internal uses rolls with usage =
-      // its share of internal agent compute (one fleet at usage 1 when every use runs the routine model, as before).
-      for (const f of internalFleets(s)) {
-        if (f.v.status === 'retired') continue;
-        roll(d, f.v, f.v.id === v.id ? usageOf(s, d) * f.usage : f.usage);
-      }
-    }
+    });
     tickTimers(s, ctx, rng);
   },
 };
 
 /**
- * Daily exfiltration hazard for the player's internal fleet (§3.5.10, event E25; rolled by WS4 security):
- * P = 1e-4 · POWER · (1 + 4·SCHEME) · max(0, L_AGENCY − 8) · (1 − WSL/5) · (1 − Contain), for L ≥ 9;
- * a formally verified gatekeeper (F32) halves it.
+ * Daily exfiltration hazard for the player's internal fleet (§3.5.10, event E25; rolled by WS4 security), on the danger
+ * formula: κ · POWER·(1 + 4·SCHEME) · σ((CYBER − 10)/1) · O_internal · (1 − WSL/5) · (1 − Contain), O_internal = the
+ * fleet's autonomy × affordances × scale, for CYBER ≥ θ − 2; a formally verified gatekeeper (F32) halves it.
  */
 export function exfiltrationHazard(s: GameStateV2): number {
   const v = internalVersion(s);
-  if (!v || v.Lg < 9) return 0;
+  // Below θ − 2 levels (capability < 12%) escape is out of reach: 0, and WS4 skips its roll (v2 gated at Lg ≥ 9 ≈ CYBER 8,
+  // so the security stream draws exactly as before until then).
+  if (!v || v.domains.CYBER < EXFIL.theta - 2) return 0;
   const dep = s.player.deployments.find((d) => d.channel === 'internal' && d.versionId === v.id && d.status !== 'withdrawn');
   const contain = containment(s, versionM(s, v), !!dep?.controlLayer, false, uModeContainMult(v.uModes));
   const t = v.traitsTrue;
-  let p = 1e-4 * t.POWER * (1 + 4 * t.SCHEME) * Math.max(0, v.domains.AGENCY - 8) * (1 - s.player.security.wsl / 5) * (1 - contain);
+  const opportunity = internalAutonomy(s, v) * CHANNEL_AFFORD.internal * internalScale(s);
+  let p = EXFIL.kappa * t.POWER * (1 + 4 * t.SCHEME) * capabilityOf(v.domains.CYBER, EXFIL) * opportunity * (1 - s.player.security.wsl / 5) * (1 - contain);
   if (s.flags['ws2.gatekeeper'] !== undefined && s.player.safety.techniques['T-GATE']?.active) p *= 0.5;
   return Math.max(0, p);
 }
@@ -256,7 +390,9 @@ export function contain2000(s: GameStateV2): number {
   return containment(s, 2000, !!dep?.controlLayer, false, uModeContainMult(v.uModes));
 }
 
-/** Hazards for a non-player lab's model (WS4 rolls them with its own stream; visibility per its posture). */
-export function labModelHazards(traits: TraitVector, uModes: readonly UModeId[], exposure: number, usage: number, mitigation: number): HazardRow[] {
-  return modelHazards(traits, uModes, exposure, usage, mitigation, false, () => true);
+/** Rows for a non-player lab's deployed model at a generic product site (RIVAL_SITE; `mitigation` blocks like
+ *  containment). WS4 rolls them with its own stream; visibility per its posture. */
+export function labModelHazards(m: { traitsTrue: TraitVector; uModes: readonly UModeId[]; domains: Record<DomainId, number> }, mitigation: number): HazardRow[] {
+  const site: Site = { internal: false, scale: RIVAL_SITE.usage, autonomy: RIVAL_SITE.autonomy, afford: RIVAL_SITE.afford, rd: 0, contain: mitigation, wsl: 0 };
+  return modelHazards(m.traitsTrue, m.uModes, m.domains, site, () => true);
 }

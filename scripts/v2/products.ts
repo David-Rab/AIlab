@@ -110,7 +110,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const before = s.player.safety.incidents.length;
   const ctx = makeCtx(s);
   for (const t of Object.keys(v0.traitsTrue) as (keyof typeof v0.traitsTrue)[]) v0.traitsTrue[t] = 1;
-  for (let i = 0; i < 30000 && s.player.safety.incidents.length - before < 30; i++) incidentsSystem.run(s, ctx);
+  for (let i = 0; i < 30000 && s.player.safety.incidents.length - before < 60; i++) incidentsSystem.run(s, ctx);
   const inc = s.player.safety.incidents.slice(before).filter((x) => x.deploymentId === chat.id && x.trueSource !== 'misuse');
   const caught = inc.filter((x) => x.exposure === 'internal').length;
   check(inc.length >= 10 && caught / inc.length > 0.5 && inc.filter((x) => x.exposure === 'internal').every((x) => x.publicTimerDays === undefined),

@@ -1,5 +1,5 @@
 // Trait nodes of the causal graph (V2-SPEC §3.5.4; research/04 T-numbers). Owner: WS2.
-import type { Channel, SignalId, TraitId, TraitVector } from '../../engine/v2/types';
+import type { SignalId, TraitId, TraitVector } from '../../engine/v2/types';
 
 export interface TraitDefV2 {
   id: TraitId;
@@ -61,23 +61,6 @@ export const SIGNALS: { id: SignalId; name: string }[] = [
   { id: 'S8', name: 'Many copies, shared memory' },
 ];
 export const SIGNAL_IDS: SignalId[] = SIGNALS.map((x) => x.id);
-
-/** Incident hazard κ (per day) and severity per trait (§3.5.10) [D]. SAND fires on internal fleets only. */
-export const INCIDENT_KAPPA: Partial<Record<TraitId, { kappa: number; severity: [number, number]; internalOnly?: boolean }>> = {
-  SYC: { kappa: 2e-3, severity: [1, 1] },
-  RH: { kappa: 2e-3, severity: [2, 2] },
-  CONCEAL: { kappa: 1e-3, severity: [2, 2] },
-  PROXY: { kappa: 6e-4, severity: [2, 2] },
-  POWER: { kappa: 5e-4, severity: [3, 3] },
-  SAND: { kappa: 3e-4, severity: [3, 3], internalOnly: true },
-  COLLUDE: { kappa: 2e-4, severity: [4, 4] },
-  SCHEME: { kappa: 2e-4, severity: [4, 5] },
-};
-
-/** Incident exposure by channel (§3.5.10). */
-export const CHANNEL_EXPOSURE: Record<Channel, number> = {
-  consumer: 1.0, api: 0.8, agents: 1.5, enterprise: 1.0, gov: 0.5, trusted: 0.3, internal: 2.0, open: 1.0,
-};
 
 /** Behavioural safety evals (§3.3.4): name → traits read. Stored in ModelVersion.evals.safety. */
 export const SAFETY_EVALS: { id: string; name: string; traits: TraitId[] }[] = [
