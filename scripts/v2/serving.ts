@@ -139,7 +139,7 @@ for (const d of [400, 900]) {
     const value = valuePerHour(s, sid, r);
     mix.providers.forEach((p, i) => {
       if (!p.model || !m.prices[i]) return;
-      const o = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], sid, { markup: p.markup, rate });
+      const o = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], sid, { markup: p.markup, rate, ud: p.ud }); // D10: the provider's decode utilisation (M5)
       n++;
       // A5: the provider sells a lineup (its model and its cheap tiers); every tier's price is in [cost, max(cost, value)]
       // and the provider's price is its customers' tier mix of them (≥ the mix's cost).
@@ -417,7 +417,7 @@ for (const d of [400, 900]) {
   for (const r of ['US', 'CN', 'ROW'] as const) for (const [sid, m] of Object.entries(mix.sec[r]) as [SectorId, (typeof mix.sec.US)[SectorId]][]) {
     mix.providers.forEach((p, i) => {
       if (!p.model) return;
-      const o = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], sid, { markup: p.markup, rate });
+      const o = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], sid, { markup: p.markup, rate, ud: p.ud }); // D10: the provider's decode utilisation (M5)
       const wage = wagePerHour(sid, r);
       n++;
       // A5: costs are the customers' tier mix (its model and its cheap tiers); k is its model's (the lineup's coverage).

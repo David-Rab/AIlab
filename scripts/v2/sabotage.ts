@@ -44,7 +44,14 @@ const setAll = (s: GameStateV2, x: number, L?: number) => {
   }
   resetWorkContext(s);
 };
-const fixture = (n: string) => deserialize(readFileSync(join(FIXTURE_DIR, n), 'utf8'));
+/** A fixture without its own covert history (M5: the fixtures regenerated on the merged code carry RefBot's covert-act
+ *  records and footholds; these tests count acts from a clean record, as on the pre-E7 fixtures they were written on). */
+const fixture = (n: string) => {
+  const s = deserialize(readFileSync(join(FIXTURE_DIR, n), 'utf8'));
+  for (const k of Object.keys(s.flags)) if (k.startsWith('ws2.covert.')) delete s.flags[k];
+  s.player.safety.footholds = [];
+  return s;
+};
 const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
 const f3 = (x: number) => x.toFixed(3);
 
