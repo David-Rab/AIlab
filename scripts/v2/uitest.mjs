@@ -66,7 +66,7 @@ const setSlider = (loc, v) => loc.evaluate((node, val) => {
 }, v);
 const shot = (name) => page.screenshot({ path: path.join(SHOTS, `${name}.png`) });
 const clearTips = async () => { await page.mouse.move(1, 1); await page.keyboard.press('Escape'); };
-const nav = async (id) => { await closeModals(); await clearTips(); await page.click(`[data-nav=${id}]`); await wait(100); };
+const nav = async (id) => { await closeModals(); await clearTips(); if (id === 'models') await page.evaluate(() => window.ai27v2.setTab('models', 'versions')); await page.click(`[data-nav=${id}]`); await wait(100); }; // D4: Models opens on Versions
 const sig = `s ? s.decisions.length + ':' + JSON.stringify(s).length : 0`;
 /** IA checks on the current screen: homes (per screen), missing terms, raw floats. */
 const homesByScreen = new Map();
@@ -376,10 +376,8 @@ await clearTips();
 if (await page.$eval('[data-panel=blueprint] [data-opt="data:codeMath"]', (b) => !b.classList.contains('locked')).catch(() => false)) {
   await page.click('[data-panel=blueprint] [data-opt="data:codeMath"]');
   await wait(150);
-  await page.hover('[data-panel=blueprint] [data-tile=data] .lv');
-  await wait(500);
-  const dt = await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '');
-  ok('D3 Blueprint: code & math draws a CODE specialisation (data tile)', /Specialisation\s*CODE\s*\+0\.\d\d OOM/.test(dt), dt.replace(/\n/g, ' ').slice(0, 220));
+  const dt = await page.$eval('[data-panel=blueprint] [data-test=bp-draw] [data-dom=CODE]', (e) => e.getAttribute('data-s')).catch(() => '');
+  ok('D3 Blueprint: code & math draws a CODE specialisation (drawn-mix row, D4)', Number(dt) > 0.3, String(dt));
   await clearTips();
   await page.click('[data-panel=blueprint] [data-opt="data:balanced"]');
   await wait(100);
@@ -914,6 +912,140 @@ async function b4Check(where) {
   await page.evaluate(() => { const s = window.ai27v2.state; s.log = s.log.filter((e) => !/^B4 test:/.test(e.text)); window.ai27v2.notify(); });
   await closeModals();
 }
+// ───────────────────────── D4: Models › Data and the Blueprint's drawn mix (day 1, 400, 900) ─────────────────────────
+// Portfolio by kind with values and tooltips, the natural mix vs reference, the four data forms with cost and before →
+// after in token units (no "L" on data previews); each action changes the state as previewed; the Blueprint's mix
+// control changes the drawn shares and the specialisation.
+const D4_TERMS = ['dataPortfolio', 'uniqueTokens', 'dataQuality', 'publicWeb', 'licensedData', 'licenceTier', 'syntheticData', 'teacherYield', 'naturalMix', 'refShare', 'drawnMix', 'domainEpochs', 'pendingData', 'usageData', 'expertData', 'synJob', 'dataLicence', 'dataSpec'];
+const d4Seen = new Set();
+const d4Tip = async (sel) => {
+  await clearTips();
+  const el = await page.$(sel);
+  if (!el) return '';
+  await el.hover();
+  await wait(420);
+  const t = await page.evaluate(() => ({ text: [...document.querySelectorAll('.tip')].map((x) => x.innerText).join(' | '), terms: [...document.querySelectorAll('.tip [data-term]')].map((e) => e.getAttribute('data-term')) }));
+  for (const x of t.terms) d4Seen.add(x);
+  return t.text;
+};
+const dv = (sel) => `[data-panel=models] [data-test=data-view] ${sel}`;
+const attr = (sel, a) => page.$eval(sel, (e, k) => e.getAttribute(k), a).catch(() => null);
+const deltaOf = async (what, k) => {
+  const a = await attr(dv(`[data-test=delta-${what}] [data-k=${k}]`), 'data-a');
+  const b = await attr(dv(`[data-test=delta-${what}] [data-k=${k}]`), 'data-b');
+  return a === null ? null : [Number(a), Number(b)];
+};
+const U_STATE = `(() => { const p = s.player.dataPortfolio; const p10 = s.player.paradigms.P10?.status === 'adopted'; let u = 0; for (const a of p.assets) { if (a.kind === 'expert') continue; const t = a.kind === 'public' ? Math.min(1, a.coverage) * 300 : a.tokensT; const q = a.kind === 'public' ? 1 : a.quality; u += q * t * (a.kind === 'synthetic' && p10 ? 3 : 1); } return u; })()`;
+const CODE_NAT = `(() => { const p = s.player.dataPortfolio; const w = {}; let t = 0; for (const a of p.assets) { if (a.kind === 'expert') continue; const tok = a.kind === 'public' ? Math.min(1, a.coverage) * 300 : a.tokensT; const q = a.kind === 'public' ? 1 : a.quality; const mix = a.kind === 'public' ? { SOCIAL: 0.45, MEDIA: 0.12, REASON: 0.08, CODE: 0.08, RSCH: 0.07, BIO: 0.06, AGENCY: 0.06, CYBER: 0.03, PHYS: 0.05 } : a.mix; if (!(q * tok > 0)) continue; for (const [d, v] of Object.entries(mix)) w[d] = (w[d] || 0) + q * tok * v; t += q * tok; } return (w.CODE || 0) / t; })()`;
+async function d4Check(where, act, stepOk = true) {
+  const tag = where.replace(/ /g, '');
+  await nav('models');
+  await tabTo('data');
+  await clearTips();
+  ok(`D4 ${where}: Models › Data opens the data view`, !!(await page.$('[data-panel=models] [data-test=data-view]')));
+  for (const x of await page.$$eval('[data-panel=models] [data-test=data-view] [data-term]', (els) => els.map((e) => e.getAttribute('data-term')))) d4Seen.add(x);
+  const kinds = await page.$$eval(dv('[data-kind]'), (els) => els.map((e) => ({ k: e.getAttribute('data-kind'), t: e.innerText.replace(/\n/g, ' ') })));
+  ok(`D4 ${where}: portfolio rows for the five kinds with tokens, quality and today's flow`, kinds.length === 5 && kinds.every((r) => /\d/.test(r.t)) && /crawled/.test(kinds[0].t) && /\/day/.test(kinds.find((r) => r.k === 'synthetic')?.t ?? ''), kinds.map((r) => r.t.slice(0, 60)).join(' ; '));
+  const uState = JSON.parse(await get(U_STATE));
+  const uShown = await page.$eval(dv('[data-test=data-u] b'), (e) => e.textContent ?? '').catch(() => '');
+  ok(`D4 ${where}: U shown matches the portfolio (${uState.toFixed(1)}T)`, Math.abs(Number(uShown.replace('T', '')) - uState) <= Math.max(0.6, 0.006 * uState), uShown);
+  ok(`D4 ${where}: natural mix vs reference for nine domains`, (await page.$$(dv('[data-test=data-natural] [data-dom]'))).length === 9);
+  const tips = {
+    U: await d4Tip(dv('[data-test=data-u]')),
+    natural: await d4Tip(dv('[data-test=data-natural] [data-dom=CODE] .dv-div')),
+    kindU: await d4Tip(dv('[data-kind=synthetic] .dv-u')),
+    cell: await d4Tip(dv('[data-kind=public] .dv-cell')),
+    today: await d4Tip(dv('[data-kind=synthetic] > :last-child')),
+    teacher: await d4Tip(dv('[data-test=syn-teachers] [data-teacher]')),
+    usage: await d4Tip(dv('[data-level=broad] .num.small')),
+    delta: await d4Tip(dv('[data-test=delta-licence] [data-k=s] .num')),
+  };
+  const want = { U: /Unique tokens U/, natural: /Reference share/, kindU: /Quality × tokens/, cell: /Share of this kind/, today: /Tokens kept per day/, teacher: /Kept tokens per H100e-day/, usage: /U a year/, delta: /Natural-mix base/ };
+  const miss = Object.entries(want).filter(([k, re]) => !re.test(tips[k])).map(([k]) => k);
+  ok(`D4 ${where}: tooltips on U, the natural mix, kind rows, domain cells, teachers, usage levels and the before → after`, miss.length === 0, miss.map((k) => `${k}: ${tips[k].slice(0, 60)}`).join(' ; '));
+  const lic = await d4Tip(dv('[data-act="data.license"]'));
+  const exp = await d4Tip(dv('[data-act="data.expert"]'));
+  const syn = await d4Tip(dv('[data-act="data.synthesize"]'));
+  ok(`D4 ${where}: data previews read in token units, not levels`, /T unique tokens/.test(lic) && /B expert tokens/.test(exp) && /M H100e-days/.test(syn) && ![lic, exp, syn].some((t) => /\d L\b/.test(t)), `${lic.slice(0, 90)} | ${exp.slice(0, 60)}`);
+  await clearTips();
+  if (act) {
+    // A day first, so the fixture's cached readouts (compute online, prodCache) are today's before the previews are read.
+    if (stepOk) { await page.evaluate(() => window.ai27v2.step(1)); await closeModals(); await pause(); await nav('models'); await tabTo('data'); }
+    // Licence (PHYS bulk 5T): a deal of the previewed U, at the previewed cash.
+    await page.click(dv('[data-test=lic-domain] [data-opt=PHYS]')); await wait(60);
+    const du = await deltaOf('licence', 'u');
+    const cash = Number(await attr(dv('[data-test=lic-sum]'), 'data-cash'));
+    const c0 = JSON.parse(await get('s.player.finance.cash'));
+    await check(`D4 ${where}: Sign licence queues a deal`, 's.player.dataPortfolio.pending.length', () => page.click(dv('[data-act="data.license"]')));
+    const last = JSON.parse(await get('(() => { const p = s.player.dataPortfolio.pending; const a = p[p.length - 1].asset; return { u: a.tokensT * a.quality, d: a.domain }; })()'));
+    const c1 = JSON.parse(await get('s.player.finance.cash'));
+    ok(`D4 ${where}: the deal adds the previewed U (${du ? (du[1] - du[0]).toFixed(2) : '?'}T) and costs the previewed cash`, !!du && Math.abs(last.u - (du[1] - du[0])) < 1e-6 && last.d === 'PHYS' && Math.abs(c0 - c1 - cash) < 1e-6, `asset U ${last.u} · cash ${(c0 - c1).toFixed(3)} vs ${cash}`);
+    ok(`D4 ${where}: the deal shows as pending`, !!(await page.$(dv('[data-test=data-pending] [data-pending=licensed]'))));
+    // Expert data.
+    const eTok = Number(await attr(dv('[data-test=exp-sum]'), 'data-tokens'));
+    const eCash = Number(await attr(dv('[data-test=exp-sum]'), 'data-cash'));
+    const e0 = JSON.parse(await get('s.player.finance.cash'));
+    await check(`D4 ${where}: Order expert data queues a delivery`, 's.player.dataPortfolio.pending.length', () => page.click(dv('[data-act="data.expert"]')));
+    const le = JSON.parse(await get('(() => { const p = s.player.dataPortfolio.pending; const a = p[p.length - 1].asset; return { k: a.kind, t: a.tokensT }; })()'));
+    const e1 = JSON.parse(await get('s.player.finance.cash'));
+    ok(`D4 ${where}: the expert order is the previewed size and cash`, le.k === 'expert' && Math.abs(le.t - eTok) < 1e-12 && Math.abs(e0 - e1 - eCash) < 1e-6, JSON.stringify(le));
+    // Generation job with the best-yield teacher; a day of it adds ≈ tokens ÷ days.
+    const best = await page.$eval(dv('[data-test=syn-teachers]'), (e) => [...e.querySelectorAll('[data-teacher]')].find((b) => /best yield/.test(b.textContent ?? ''))?.getAttribute('data-teacher') ?? '').catch(() => '');
+    if (best) { await page.click(dv(`[data-test=syn-teachers] [data-teacher="${best}"]`)); await wait(80); }
+    const sTok = Number(await attr(dv('[data-test=syn-sum]'), 'data-tokens'));
+    const sDays = Number(await attr(dv('[data-test=syn-sum]'), 'data-days'));
+    const sTeach = await attr(dv('[data-test=syn-sum]'), 'data-teacher');
+    await check(`D4 ${where}: Start job sets the generation job`, 'JSON.stringify(s.player.dataPortfolio.synJob || null)', () => page.click(dv('[data-act="data.synthesize"]')));
+    ok(`D4 ${where}: the job uses the picked teacher (${best || 'strongest'}) for the picked days`, JSON.parse(await get(`(() => { const j = s.player.dataPortfolio.synJob; return !!j && j.teacherId === ${JSON.stringify(sTeach)} && j.until - s.time.day === ${sDays}; })()`)));
+    const synT = `(s.player.dataPortfolio.assets.find((a) => a.id === 'syn:' + ${JSON.stringify(sTeach)}) || { tokensT: 0 }).tokensT`;
+    const t0 = JSON.parse(await get(synT));
+    // The day-900 fixture can end within days (another lab's ASI): no step there.
+    if (stepOk) await page.evaluate(() => window.ai27v2.step(1));
+    await closeModals(); await pause();
+    const t1 = JSON.parse(await get(synT));
+    const perDay = sTok / Math.max(1, sDays);
+    if (stepOk) ok(`D4 ${where}: a day of the job adds the previewed tokens per day (${perDay.toFixed(2)}T)`, perDay > 0 && Math.abs((t1 - t0) / perDay - 1) < 0.15, `${(t1 - t0).toFixed(3)}T`);
+    await nav('models'); await tabTo('data');
+    await check(`D4 ${where}: Stop job ends it`, 'JSON.stringify(s.player.dataPortfolio.synJob || null)', () => page.click(dv('[data-act="data.synthesize.stop"]')));
+    // Usage policy → broad: 50% kept, Civil Liberties approval moves by the previewed difference.
+    const civ = Number((await attr(dv('[data-level=broad]'), 'data-civlib')) ?? '0');
+    const cur = Number((await attr(dv('.dv-ulevel.on'), 'data-civlib')) ?? '0');
+    const a0 = JSON.parse(await get('s.pub.blocs.civlib.approval'));
+    await check(`D4 ${where}: usage policy → broad`, 's.player.dataPortfolio.usageShare', () => page.click(dv('[data-act="data.usagePolicy.broad"]')));
+    const a1 = JSON.parse(await get('s.pub.blocs.civlib.approval'));
+    ok(`D4 ${where}: broad usage keeps 50% and moves Civil Liberties approval as previewed (${civ - cur})`, JSON.parse(await get('s.player.dataPortfolio.usageShare')) === 0.5 && (Math.abs(a1 - a0 - (civ - cur)) < 1e-6 || Math.abs(a1) === 100), `${a0} → ${a1}`);
+    await shot(`d4-${tag}-data-after`);
+  }
+  // Blueprint: the data slot's drawn mix; the mix control changes the drawn shares and the specialisation.
+  await nav('blueprint');
+  await page.click('[data-panel=blueprint] [data-bp-kind=base]').catch(() => {});
+  await wait(120);
+  const drawOf = () => page.$$eval('[data-panel=blueprint] [data-test=bp-draw] [data-dom]', (els) => Object.fromEntries(els.map((e) => [e.getAttribute('data-dom'), { sh: Number(e.getAttribute('data-share')), s: Number(e.getAttribute('data-s')) }])));
+  ok(`D4 ${where}: the Blueprint's data slot shows the drawn mix (9 domains) and the most-repeated domain`, Object.keys(await drawOf()).length === 9 && /\d\.\d\d/.test(await page.$eval('[data-test=bp-draw-rep]', (e) => e.textContent ?? '').catch(() => '')));
+  for (const x of await page.$$eval('[data-panel=blueprint] [data-test=bp-draw] [data-term]', (els) => els.map((e) => e.getAttribute('data-term')))) d4Seen.add(x);
+  const bTip = await d4Tip('[data-panel=blueprint] [data-test=bp-draw] [data-dom=CODE]');
+  const rTip = await d4Tip('[data-panel=blueprint] [data-test=bp-draw-rep]');
+  const pTip = await d4Tip('[data-panel=blueprint] [data-test=bp-draw-q]');
+  ok(`D4 ${where}: drawn-mix tooltips (share vs reference, specialisation and its cap; domain epochs; the preset)`, /Reference share/.test(bTip) && /capped at ±1\.3/.test(bTip) && /epochs/.test(rTip) && /Starts from/.test(pTip), `${bTip.slice(0, 80)} | ${rTip.slice(0, 60)}`);
+  await clearTips();
+  const bal = await drawOf();
+  if (await page.$eval('[data-panel=blueprint] [data-opt="data:codeMath"]', (b) => !b.classList.contains('locked')).catch(() => false)) {
+    await page.click('[data-panel=blueprint] [data-opt="data:codeMath"]'); await wait(150);
+    const cm = await drawOf();
+    ok(`D4 ${where}: Code & math raises CODE's drawn share and specialisation`, cm.CODE.sh > bal.CODE.sh + 0.01 && cm.CODE.s > bal.CODE.s + 0.1 && cm.SOCIAL.s < 0, `CODE ${bal.CODE.sh.toFixed(3)} → ${cm.CODE.sh.toFixed(3)}, s ${bal.CODE.s} → ${cm.CODE.s}`);
+  }
+  if (!(await page.$('[data-panel=blueprint] [data-opt="data:natural"]'))) await page.click('[data-panel=blueprint] [data-line^="data:"] ~ .bp-line .bp-more').catch(() => {});
+  await page.click('[data-panel=blueprint] [data-opt="data:natural"]');
+  await wait(150);
+  const nat = await drawOf();
+  const natSt = JSON.parse(await get(CODE_NAT));
+  const p10on = JSON.parse(await get(`s.player.paradigms.P10?.status === 'adopted'`));
+  ok(`D4 ${where}: Natural draws the portfolio's own mix (CODE ${(natSt * 100).toFixed(1)}%)`, p10on || Math.abs(nat.CODE.sh - natSt) < 0.005, `drawn ${(nat.CODE.sh * 100).toFixed(1)}%, s ${nat.CODE.s}`);
+  await shot(`d4-${tag}-blueprint-natural`);
+  await page.click('[data-panel=blueprint] [data-opt="data:balanced"]').catch(() => {});
+  await check(`D4 ${where}: "Data ›" opens Models › Data`, `store.panel + ':' + (store.tab.models || '')`, () => page.click('[data-panel=blueprint] [data-test=bp-to-data]'));
+  await shot(`d4-${tag}-data`);
+}
 await page.evaluate(() => { const st = window.ai27v2; st.start({ ...st.draftSetup, tutorial: false, seed: 2027, companyName: 'OpenBrain' }); });
 await wait(150);
 await page.evaluate(() => window.ai27v2.step(1));
@@ -923,6 +1055,7 @@ await b1Check('day 1');
 await b2Check('day 1');
 await b3Check('day 1', '29-day1-world-sectors');
 await b4Check('day 1');
+await d4Check('day 1', true);
 await nav('products');
 {
   // Edit preview: a cheaper tier moves the target share at once (the stock follows later).
@@ -990,6 +1123,7 @@ await b1Check('day 400');
 await b2Check('day 400');
 await b3Check('day 400', '29-day400-world-sectors');
 await b4Check('day 400');
+await d4Check('day 400', true);
 await shot('27-day400-products-b2');
 const fx9 = readFileSync(path.resolve('scripts/v2/fixtures/day900.json'), 'utf8');
 await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
@@ -998,12 +1132,15 @@ await b1Check('day 900');
 await b2Check('day 900');
 await b3Check('day 900', '29-day900-world-sectors');
 await b4Check('day 900');
+await d4Check('day 900', true, false);
 await shot('28-day900-products-b2');
 {
   const miss = B1_TERMS.filter((t) => !b1Seen.has(t));
   ok(`B1: every new term has a tooltip on the product cards (${B1_TERMS.length})`, miss.length === 0, miss.join(', '));
   const miss2 = B2_TERMS.filter((t) => !b2Seen.has(t));
   ok(`B2: every new term has a tooltip on the product cards (${B2_TERMS.length})`, miss2.length === 0, miss2.join(', '));
+  const miss4 = D4_TERMS.filter((t) => !d4Seen.has(t));
+  ok(`D4: every data term has a tooltip on Models › Data or the Blueprint (${D4_TERMS.length})`, miss4.length === 0, miss4.join(', '));
   const miss3 = B3_TERMS.filter((t) => !b3Seen.has(t));
   ok(`B3: every new term has a tooltip in World › Sectors (${B3_TERMS.length})`, miss3.length === 0, miss3.join(', '));
 }
@@ -1036,15 +1173,11 @@ ok('J1 F3: Finance opens on cash flow, history and the raise; the rest on tabs',
 await nav('relations');
 ok('J1 RL1: Retire stands apart behind a confirm', !!(await page.$('[data-test=retire-open]')) && !(await page.$('.catalog [data-act=RETIRE]')));
 ok('J1 RL2: no security actions in the Relations catalogue', !(await page.$('[data-panel=relations] [data-act^="SEC_"]')));
-// D2: the data actions sit in Relations › Research & data with a domain and a teacher picker (D4 builds the data view).
+// D4: the data actions moved from Relations to Models › Data (one home per control); Relations links there.
 await page.click('[data-test=rel-groups] [data-opt=D]'); await wait(80);
-ok('D2 Relations: data actions listed with domain and teacher pickers, old "License data" (D3) gone', !!(await page.$('[data-test=data-pickers]')) && !!(await page.$('[data-act="data.synthesize"]')) && !!(await page.$('[data-act="data.usagePolicy.2"]')) && !(await page.$('[data-act=D3]')));
-await page.selectOption('[data-test=data-domain]', 'PHYS'); await wait(60);
-await clearTips(); await page.hover('[data-act="data.license.1"]'); await wait(500);
-const licTip = await page.evaluate(() => [...document.querySelectorAll('.tip')].map((t) => t.textContent ?? '').join(' '));
-ok('D2 Relations: the licence preview shows before → after of the data readouts', /U \d[\d.]* → \d[\d.]*T/.test(licTip) && /PHYS/.test(licTip), licTip.slice(0, 200));
-await check('D2 Relations: licensing PHYS bulk data queues a deal', 's.player.dataPortfolio.pending.length', () => page.click('[data-act="data.license.1"]'));
-await shot('d2-relations-data');
+ok('D4 Relations: no data actions in the catalogue, a link to Models › Data, old "License data" (D3) gone', !(await page.$('[data-panel=relations] [data-act^="data."]')) && !(await page.$('[data-test=data-pickers]')) && !!(await page.$('[data-panel=relations] [data-ref=dataPortfolio]')) && !(await page.$('[data-act=D3]')));
+await check('D4 Relations: the data link opens Models › Data', "store.panel + ':' + (store.tab.models || '')", () => page.click('[data-panel=relations] [data-ref=dataPortfolio]'));
+await nav('relations');
 await nav('models');
 ok('J1 M4: a best badge per variant in the lineage', (await page.$$('[data-test=best-badge]')).length >= 1);
 ok('J1 M5: runs are named by their target', !(await page.locator('[data-panel=models]').innerText()).match(/\b(post|base|distill) \d+ (post|base|distill)\b/));

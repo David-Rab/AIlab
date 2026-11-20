@@ -121,3 +121,17 @@
 .bp-grid > [data-tip], .bp-line > [data-tip] { text-align: right; }
 .bp-snap .num { white-space: nowrap; }
 .bp-big.bp-big-name .num { font-size: 22px; line-height: 1.2; }
+/* model v3 D4: the data slot's drawn mix (drawn share vs reference per domain, specialisation, repetition). */
+.bp-drawline { grid-column: 2 / -1; padding: 4px 0 6px; }
+.bp-draw { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.bp-draw-k { white-space: nowrap; }
+.bp-draw-cols { display: inline-flex; gap: 6px; align-items: flex-end; }
+.bp-dcol { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; width: 34px; color: var(--text-3); }
+.bp-dtrack { position: relative; display: block; width: 12px; height: 26px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 2px; }
+.bp-dtrack i { position: absolute; left: 1px; right: 1px; bottom: 0; background: var(--text-3); border-radius: 1px; }
+.bp-dtrack i.pos { background: var(--good); }
+.bp-dtrack i.neg { background: var(--bad); }
+.bp-dtrack b { position: absolute; left: -3px; right: -3px; height: 2px; background: #fff; opacity: .8; }
+.bp-ds { font: 600 10.5px var(--mono); white-space: nowrap; }
+.bp-ds.cap { text-decoration: underline; }
+.bp-draw-rep { display: inline-flex; flex-direction: column; gap: 2px; white-space: nowrap; }

@@ -15,7 +15,7 @@ import { TRAIT_BY_ID } from '../../../data/v2/traits';
 import { OPTION_NODE, TREE_BY_ID } from '../../../data/v2/tree';
 import {
   PARAM_SNAPS, POOL_SHARE_RANGE, REF_TPP, RL_BUDGET, TPP_FREE_MAX, TPP_SNAPS, baseFromParams, dateOf, evalDaysFor, fmtDate, fmtMonth, internalEval, internalVersion,
-  flopPerToken, liveCommitments, measuredDomains, nodeStatus, optionLocked, postFromParams, runCard, runEtaDays, runFlopPerShareDay, runTraitPressure, runStall, suitesView, tppLabel,
+  drawByDomain, flopPerToken, liveCommitments, measuredDomains, mixTargetOf, nodeStatus, optionLocked, postFromParams, runCard, runEtaDays, runFlopPerShareDay, runTraitPressure, runStall, suitesView, tppLabel,
   useHourCost,
 } from '../../../engine/v2';
 import type { GameStateV2, LaunchRunParams, TraitId } from '../../../engine/v2';
@@ -26,6 +26,7 @@ import * as F from '../fmt';
 import { DOMAIN_ICON, ICON } from '../icons';
 import { C } from '../theme';
 import { arrows } from './runEffects';
+import { SPEC_CAP } from '../../../data/v2/dataAssets';
 import { runTitle } from './Models';
 import './blueprint.css';
 
@@ -58,7 +59,7 @@ interface Opt { v: Val; label: string }
 interface Slot { field: string; label: string; sub?: string; term: string; lockSlot: string; opts: Opt[]; multi?: 'focus' | 'toggle' }
 const BACKBONE: Slot[] = [
   { field: 'shape', label: 'Architecture', term: 'shape', lockSlot: 'shape', opts: [{ v: 'moe', label: 'MoE' }, { v: 'dense', label: 'Dense' }, { v: 'latent', label: 'Latent-recurrent' }] },
-  { field: 'data', label: 'Data', term: 'dataMix', lockSlot: 'data', opts: [{ v: 'balanced', label: 'Balanced' }, { v: 'codeMath', label: 'Code & math' }, { v: 'science', label: 'Science' }, { v: 'synthetic', label: 'Synthetic' }, { v: 'multimodal', label: 'Multimodal' }] },
+  { field: 'data', label: 'Data', term: 'dataMix', lockSlot: 'data', opts: [{ v: 'balanced', label: 'Balanced' }, { v: 'natural', label: 'Natural' }, { v: 'codeMath', label: 'Code & math' }, { v: 'science', label: 'Science' }, { v: 'synthetic', label: 'Synthetic' }, { v: 'multimodal', label: 'Multimodal' }] },
   { field: 'filter', label: 'Data filter', term: 'hazardFilter', lockSlot: 'curation', multi: 'toggle', opts: [{ v: 'quality', label: 'Quality' }, { v: 'hazard', label: 'Hazard' }, { v: 'safetyPretrain', label: 'Safety pretraining' }] },
 ];
 const TRAINING: Slot[] = [
@@ -235,7 +236,8 @@ export function Blueprint({ s }: { s: GameStateV2 }) {
   const breaksPledge = pledged && ((kind === 'base' && p.shape === 'latent') || (kind === 'post' && (p.cot === 'latent' || p.cot === 'pressured')));
   const warn: string[] = [];
   if (breaksPledge) warn.push('Breaks your monitorability pledge');
-  if (kind === 'base' && Number(p.licensedShare) < 0.3) warn.push('Unlicensed data: litigation risk');
+  // D4: the copyright-suit hazard reads the unlicensed web crawl (data.license 'web' on Models › Data), not the slider.
+  if (kind === 'base' && s.player.dataPortfolio.assets.some((a) => a.kind === 'public' && !a.licensed)) warn.push('Unlicensed web crawl: copyright-suit risk');
   const baseSel = (kind === 'post' || kind === 'continue') && (
     <label className="bp-on small dim">on
       <select className="text-input" data-test="bp-base" value={String(p.baseId)} onChange={(e) => set({ ...p, baseId: e.target.value })}>{m.bases.map((b) => <option key={b.id} value={b.id}>{b.name} · {fmtParams(b.params)} · {b.design.shape === 'moe' ? 'MoE' : F.words(b.design.shape)}</option>)}</select>
@@ -279,9 +281,9 @@ export function Blueprint({ s }: { s: GameStateV2 }) {
                 <div className="sl"><Term id="baseSize">Size</Term></div>
                 <div className="sc"><Tip content={() => <TipCard title={<Term id="baseSize">Size</Term>} value={`${fmtParams(Number(p.params))} × ${Number(p.tpp)}`}>Set on the size card above; this row shows its effect against your latest base's size.</TipCard>}><span className="bp-opt on"><Check size={12} />{fmtParams(Number(p.params))} × {Number(p.tpp)}</span></Tip><span className="dim small">set above · vs {lastBase?.name ?? 'reference'}</span></div>
                 {sizeEff && <Effects s={s} e={sizeEff} />}
-                {BACKBONE.map((sl) => <SlotRow key={sl.field} s={s} kind={kind} sl={sl} p={p} effs={opts[sl.field]} onPick={(np) => set(np)} />)}
+                {BACKBONE.map((sl) => <SlotRow key={sl.field} s={s} kind={kind} sl={sl} p={p} effs={opts[sl.field]} onPick={(np) => set(np)} extra={sl.field === 'data' && card?.limits ? <DrawRow s={s} card={card} preset={String(p.data)} /> : undefined} />)}
                 <div className="sl"><Term id="licensedShare">Licensed data</Term></div>
-                <div className="sc bp-lic"><Slider value={Number(p.licensedShare)} min={0} max={1} step={0.05} onChange={(v) => set({ ...p, licensedShare: v })} width={200} /><Tip content={() => <TipCard title={<Term id="licensedShare">Licensed data</Term>} value={F.pct(Number(p.licensedShare))}>Share of the training data you pay to license. Below 30%: litigation risk; more costs cash at launch.</TipCard>}><span className="num small">{F.pct(Number(p.licensedShare))}</span></Tip></div>
+                <div className="sc bp-lic"><Slider value={Number(p.licensedShare)} min={0} max={1} step={0.05} onChange={(v) => set({ ...p, licensedShare: v })} width={200} /><Tip content={() => <TipCard title={<Term id="licensedShare">Licensed data</Term>} value={F.pct(Number(p.licensedShare))}>Share of the training data you pay to license: cash at launch. Copyright suits come from the unlicensed web crawl (license it on Models › Data).</TipCard>}><span className="num small">{F.pct(Number(p.licensedShare))}</span></Tip></div>
                 <span className="bp-span" />
               </>
             ) : (
@@ -461,9 +463,7 @@ function Limits({ s, card, prev }: { s: GameStateV2; card?: Card_; prev?: Card_ 
       tip: () => <TipCard title={<Term id="dataTokens">Data</Term>} value={`${F.num(ep, 2)} epochs`} rows={[
         { label: 'Tokens of this base', value: fmtTok(L.tokens) }, { label: <Term id="dataMix">Unique tokens for this mix</Term>, value: fmtTok(L.tokensUnique) },
         { label: <Term id="dataWall">Effective compute kept</Term>, value: F.pct(L.fData) }, { label: 'Mean quality drawn', value: F.num(L.draw.quality, 2) },
-        ...(Object.entries(L.sD) as [string, number][]).filter(([, x]) => Math.abs(x) >= 0.005).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 3)
-          .map(([d, x]) => ({ label: <><Term id="dataSpec">Specialisation</Term> {d}</>, value: `${fmtOom(x)} OOM` })),
-      ]} footer="Up to ~4 epochs costs almost nothing (Muennighoff et al. 2023), per domain drawn. Spare training compute can generate data (run queue).">The base&apos;s tokens ÷ the unique tokens its data mix can use.</TipCard>,
+      ]} footer="Up to ~4 epochs costs almost nothing (Muennighoff et al. 2023), per domain drawn. Per domain (drawn share, specialisation, epochs): the Data slot's drawn-mix row.">The base&apos;s tokens ÷ the unique tokens its data mix can use.</TipCard>,
     });
   }
   const pCash = prev?.cash;
@@ -593,15 +593,73 @@ function SuitesRow({ s, p }: { s: GameStateV2; p: Params }) {
   );
 }
 
+const PRESET_LABEL: Record<string, string> = { balanced: 'Balanced', natural: 'Natural', codeMath: 'Code & math', science: 'Science', synthetic: 'Synthetic', multimodal: 'Multimodal' };
+/** The base's draw from the data portfolio (model v3 D4): drawn (effective) share per domain against the reference
+ *  share, the specialisation per domain with its ±1.3 OOM cap, and repetition (unique tokens this mix can use vs the
+ *  base's tokens, the most-repeated domain's epochs). The portfolio and its natural mix live on Models › Data. */
+function DrawRow({ s, card, preset }: { s: GameStateV2; card: Card_; preset: string }) {
+  const L = card.limits!;
+  const { rows, most } = drawByDomain(s, L.draw);
+  const t = mixTargetOf(preset);
+  const max = Math.sqrt(Math.max(0.05, ...rows.map((r) => Math.max(r.effShare, r.ref))));
+  const h = (x: number) => `${Math.min(1, Math.sqrt(Math.max(0, x)) / max) * 100}%`;
+  const tilts = t ? Object.entries(t.tilt).map(([d, x]) => `${d} ×${x}`).concat(Object.entries(t.kinds).map(([k, x]) => `${k} ×${x}`)).join(', ') : '';
+  const presetTip = () => (
+    <TipCard title={<Term id="drawnMix">Drawn mix</Term>} value={PRESET_LABEL[preset] ?? preset} rows={[
+      { label: 'Starts from', value: t?.base === 'natural' ? 'your natural mix' : 'reference shares' }, { label: 'Tilts', value: tilts || 'none' },
+      { label: <Term id="dataQuality">Mean quality drawn</Term>, value: L.draw.quality.toFixed(2) },
+      ...(Object.entries(L.draw.byKind) as [string, number][]).map(([k, x]) => ({ label: `Tokens from ${k}`, value: fmtTok(x) })),
+    ]} footer="The portfolio and its natural mix: Models › Data.">What this base draws from your [[dataPortfolio|data portfolio]] by domain.</TipCard>
+  );
+  const repTip = () => (
+    <TipCard title={<Term id="domainEpochs">Most repeated domain</Term>} value={most ? `${most.domain} ${most.epochs.toFixed(2)} epochs` : '–'} rows={[...rows].sort((a, b) => b.epochs - a.epochs).slice(0, 4).map((r) => ({ label: r.domain, value: `${r.epochs.toFixed(2)} epochs` }))}
+      footer="Up to ~4 epochs is nearly free. Tokens vs the unique tokens this mix can use, and the compute kept: the Data tile above.">A mix tilted toward a short domain repeats it first.</TipCard>
+  );
+  return (
+    <div className="bp-drawline" data-line="draw">
+      <div className="bp-draw" data-test="bp-draw">
+        <span className="bp-draw-k small dim"><Term id="drawnMix">drawn</Term> vs <Term id="refShare">ref</Term></span>
+        <span className="bp-draw-cols">
+          {rows.map((r) => {
+            const I = DOMAIN_ICON[r.domain];
+            const sBase = L.sD[r.domain] ?? 0;
+            const capped = Math.abs(r.s) >= SPEC_CAP - 1e-6;
+            return (
+              <Tip key={r.domain} content={() => <TipCard title={<><Term id="drawnMix">Drawn</Term> · {r.domain}</>} value={F.pct(r.effShare, 1)} rows={[
+                { label: 'Drawn share', value: F.pct(r.share, 1) }, { label: 'Effective share (after repetition)', value: F.pct(r.effShare, 1) },
+                { label: <Term id="refShare">Reference share</Term>, value: F.pct(r.ref, 1) },
+                { label: <Term id="dataSpec">Specialisation from the mix</Term>, value: `${fmtOom(r.s)} OOM${capped ? ' (cap)' : ''}` },
+                ...(Math.abs(sBase - r.s) > 0.005 ? [{ label: 'With curation (hazard filter)', value: `${fmtOom(sBase)} OOM` }] : []),
+                { label: <Term id="domainEpochs">Domain epochs</Term>, value: r.epochs.toFixed(2) },
+              ]} footer={`1.5 OOM per tenfold share against the reference, capped at ±${SPEC_CAP} OOM.`}>This base&apos;s share of {r.domain} tokens.</TipCard>}>
+                <span className="bp-dcol" data-dom={r.domain} data-share={r.effShare.toFixed(4)} data-s={r.s.toFixed(3)}>
+                  <I size={11} />
+                  <span className="bp-dtrack"><i style={{ height: h(r.effShare) }} className={r.s > 0.005 ? 'pos' : r.s < -0.005 ? 'neg' : ''} /><b style={{ bottom: h(r.ref) }} /></span>
+                  <span className={`bp-ds ${r.s > 0.005 ? 'tone-pos' : r.s < -0.005 ? 'tone-neg' : 'dim'}${capped ? ' cap' : ''}`}>{Math.abs(r.s) < 0.005 ? '0' : fmtOom(r.s)}</span>
+                </span>
+              </Tip>
+            );
+          })}
+        </span>
+        <Tip content={repTip}>
+          <span className="bp-draw-rep small" data-test="bp-draw-rep"><span className="dim"><Term id="domainEpochs">most repeated</Term></span><span>{most?.domain ?? '–'} <b className="num">{most ? most.epochs.toFixed(2) : '–'}</b> <span className="dim">epochs</span></span></span>
+        </Tip>
+        <Tip content={presetTip}><span className="dch" data-test="bp-draw-q"><span className="k">quality</span><b>{L.draw.quality.toFixed(2)}</b></span></Tip>
+        <button className="btn btn-sm btn-ghost" data-test="bp-to-data" onClick={() => store.goto('models', { tab: 'data' })}>Data ›</button>
+      </div>
+    </div>
+  );
+}
+
 /** One slot: the label spans one line per card; each card line shows the card's own effect (B2). Selected cards first,
  *  then the alternatives (up to four lines, "+N" for the rest). */
-function SlotRow({ s, kind, sl, p, effs, onPick }: { s: GameStateV2; kind: Kind; sl: Slot; p: Params; effs?: Record<string, Effect>; onPick: (p: Params) => void }) {
+function SlotRow({ s, kind, sl, p, effs, onPick, extra }: { s: GameStateV2; kind: Kind; sl: Slot; p: Params; effs?: Record<string, Effect>; onPick: (p: Params) => void; /** A last line under the cards (the data slot's drawn mix, D4). */ extra?: ReactNode }) {
   const [more, setMore] = useState(false);
   const on = sl.opts.filter((o) => isOn(sl, p, o.v));
   const off = sl.opts.filter((o) => !isOn(sl, p, o.v));
   const shown = more ? off : off.slice(0, Math.max(0, 4 - on.length));
   const hidden = off.length - shown.length;
-  const lines = on.length + shown.length + (hidden > 0 ? 1 : 0);
+  const lines = on.length + shown.length + (hidden > 0 ? 1 : 0) + (extra ? 1 : 0);
   return (
     <>
       <div className="sl" style={{ gridRow: `span ${lines}` }}><Term id={sl.term}>{sl.label}</Term>{sl.sub && <small>{sl.sub}</small>}</div>
@@ -616,6 +674,7 @@ function SlotRow({ s, kind, sl, p, effs, onPick }: { s: GameStateV2; kind: Kind;
         );
       })}
       {hidden > 0 && <div className="bp-line"><button className="bp-more small" onClick={() => setMore(true)}>+{hidden} more</button></div>}
+      {extra}
     </>
   );
 }

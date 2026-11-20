@@ -139,3 +139,9 @@ export { topDecisions } from './endings/replay';
 export * from './core/limitsView';
 // Model v3 D5: RL environment suites (readout and costs; the Blueprint shows them read-only until D6).
 export { suitesView, suiteWorkCost, suiteWorkEffect, type SuiteRow } from './models/suites';
+// Model v3 D4: the data view (Models › Data) and the Blueprint's drawn-mix row (output-only selectors).
+export {
+  dataPortfolioView, drawByDomain, expertForm, licenceForm, mixTargetOf, naturalMixView, synForm, teacherRows, usageLevels,
+  type DataPortfolioView, type DomainMixRow, type DrawDomainRow, type ExpertForm, type LicenceForm, type PendingView, type SynForm, type TeacherRow, type UsageLevelRow,
+} from './production/dataView';
+export { REF_SHARE, type DataDelta, type DataDraw, type KindRow } from './production/data';

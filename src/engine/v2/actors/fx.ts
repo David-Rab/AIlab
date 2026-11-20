@@ -11,11 +11,12 @@ import { ws4 } from './state';
 export type Preview = { costs: CostLine[]; gains: CostLine[]; exposure: CostLine[] };
 
 /** Cost/gain line. Positive `amount` is magnitude; the column (costs/gains) gives the sign. */
-export function L(currency: Currency, amount: number, target?: string, extra?: { lagDays?: number; probability?: number }): CostLine {
+export function L(currency: Currency, amount: number, target?: string, extra?: { lagDays?: number; probability?: number; unit?: string }): CostLine {
   const c: CostLine = { currency, amount: Math.round(amount * 100) / 100 };
   if (target !== undefined) c.target = target;
   if (extra?.lagDays !== undefined) c.lagDays = extra.lagDays;
   if (extra?.probability !== undefined) c.probability = Math.round(extra.probability * 100) / 100;
+  if (extra?.unit !== undefined) c.unit = extra.unit;
   return c;
 }
 
