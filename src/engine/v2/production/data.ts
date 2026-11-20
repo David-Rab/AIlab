@@ -401,8 +401,9 @@ function generate(s: GameStateV2, t: ModelVersion | undefined, h100e: number) {
   const fresh = synAssetFor(s, t);
   if (!a) p.assets.push((a = fresh));
   const dT = synTokensT(t, h100e);
-  // Model v3 D9: new tokens carry today's quality (P10 may have raised the ceiling since the asset began); the asset's
-  // quality becomes the token-weighted mean [D]. Unchanged while the quality is the same.
+  // Model v3 D9: new tokens carry today's quality (P10 may have raised the ceiling since the asset began, or a
+  // continual-learning stream raised the teacher's G); the asset's quality becomes the token-weighted mean [D].
+  // Unchanged while the quality is the same.
   if (a.quality !== fresh.quality && a.tokensT + dT > 0) a.quality = (a.quality * a.tokensT + fresh.quality * dT) / (a.tokensT + dT);
   addTo(a, dT, SYN_MIX);
 }
