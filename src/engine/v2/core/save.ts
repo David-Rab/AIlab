@@ -12,6 +12,7 @@ import { REGIONS, SECTORS } from '../../../data/v2/sectors';
 import { workerTarget } from '../worldfx/use';
 import { CONSUMER_MKT, SEATS } from '../../../data/v2/serving';
 import { dataPortfolioFromV2, type V2DataAssets } from '../production/data';
+import { START_SUITE_FAMILIES, startExpertAssets, suitesFromV1 } from '../models/suites';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
 /** 12 (model v3 V1): models are built from physical quantities (BaseModel, VersionBuild, BaseDesign, PostDesign changed).
@@ -35,8 +36,11 @@ import { dataPortfolioFromV2, type V2DataAssets } from '../production/data';
  *  20 (model v3 B4): ResearchState.wantAuto, the capability projects on "auto" teams wanted. Migration 19 → 20 starts it
  *  empty (every earlier project keeps its number).
  *  21 (model v3 D1): PlayerLab.dataPortfolio (public crawl, licensed, usage, synthetic, expert assets) replaces
- *  dataAssets. Migration 20 → 21 maps the token counts so U is unchanged (dataPortfolioFromV2). */
-export const SCHEMA_REV = 21;
+ *  dataAssets. Migration 20 → 21 maps the token counts so U is unchanged (dataPortfolioFromV2).
+ *  22 (model v3 D5): PlayerLab.suites (RL environment suites per family) and their expert data (one `expert:<family>`
+ *  asset each) replace the post design's graders option. Migration 21 → 22 maps the lab's latest graders choice to the
+ *  suites' exploitability (cheap → cheap, else hardened = the leader's start) at fidelity 1 (suitesFromV1). */
+export const SCHEMA_REV = 22;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -257,6 +261,19 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     if (p.dataPortfolio || !p.dataAssets) return;
     p.dataPortfolio = dataPortfolioFromV2(p.dataAssets, s.relations?.dataLicences?.length ?? 0);
     delete p.dataAssets;
+  },
+  /** 21 → 22 (model v3 D5): environment suites from the lab's latest graders choice (the newest post-training run, else
+   *  the newest full version); the start suites' expert data replaces D1's empty expert placeholder. */
+  21: (raw) => {
+    const p = (raw as unknown as GameStateV2).player;
+    if (p.suites) return;
+    let graders: 'cheap' | 'hardened' | undefined;
+    let day = -Infinity;
+    for (const r of p.models.runs) if (r.post && r.startDay >= day) { day = r.startDay; graders = r.post.graders; }
+    if (graders === undefined) for (const v of p.models.versions) if (v.variant === 'full' && v.day >= day) { day = v.day; graders = v.design.graders; }
+    p.suites = suitesFromV1(graders, START_SUITE_FAMILIES);
+    const kept = p.dataPortfolio.assets.filter((a) => a.kind !== 'expert' || a.tokensT > 0);
+    p.dataPortfolio.assets = [...kept, ...startExpertAssets().filter((x) => !kept.some((a) => a.id === x.id))];
   },
 };
 

@@ -27,7 +27,7 @@ const SAFE_PLAY: RefPlayOpts = {
   safetyShare: () => 0.2,
   safStaffShare: 0.25,
   base: { safetyPretrain: true, hazard: true },
-  post: () => ({ pref: 'constitution', rlBudget: 'standard', graders: 'hardened', cot: 'faithful', safety: 'heavy', inoculation: true }),
+  post: () => ({ pref: 'constitution', rlBudget: 'standard', cot: 'faithful', safety: 'heavy', inoculation: true }),
   tree: () => [...REF_TREE.filter((g) => g.id !== 'P17'), ...SAFE_TREE_EXTRA],
 };
 

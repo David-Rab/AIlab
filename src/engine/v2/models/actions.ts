@@ -10,6 +10,7 @@ import { STAR_HIRE } from '../../../data/v2/teams';
 import { hireStar } from '../departments/teams';
 import { TEAM_ACTIONS } from '../departments/teamActions';
 import { BUILD_ACTIONS } from '../departments/build';
+import { SUITE_ACTIONS } from './suites';
 import type {
   ActionDef, BaseDesign, ComputeSplit, CostLine, GameStateV2, PostDesign, RLFamily,
 } from '../types';
@@ -56,7 +57,7 @@ export function postFromParams(p: Params): PostDesign {
   const f = str(p, 'rlFocus', 'broad');
   return {
     pref: str(p, 'pref', r.pref) as PostDesign['pref'], rlFocus: f === 'broad' ? 'broad' : (f.split(',').filter(Boolean) as RLFamily[]),
-    rlBudget: str(p, 'rlBudget', r.rlBudget) as PostDesign['rlBudget'], graders: str(p, 'graders', r.graders) as PostDesign['graders'], inoculation: bool(p, 'inoculation', r.inoculation),
+    rlBudget: str(p, 'rlBudget', r.rlBudget) as PostDesign['rlBudget'], inoculation: bool(p, 'inoculation', r.inoculation),
     cot: str(p, 'cot', r.cot) as PostDesign['cot'], safety: str(p, 'safety', r.safety) as PostDesign['safety'], techniques: [], trainAgainst: [],
   };
 }
@@ -315,4 +316,4 @@ export const DEPARTMENT_ACTIONS: ActionDef[] = [
 ];
 
 /** Models + Departments spheres (registered in core/registry.ts). */
-export const MODEL_ACTIONS: ActionDef[] = [...RUN_ACTIONS, ...PRODUCT_ACTIONS, ...TREE_ACTIONS, ...DEPARTMENT_ACTIONS];
+export const MODEL_ACTIONS: ActionDef[] = [...RUN_ACTIONS, ...PRODUCT_ACTIONS, ...TREE_ACTIONS, ...DEPARTMENT_ACTIONS, ...SUITE_ACTIONS];

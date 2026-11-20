@@ -1,6 +1,7 @@
 // Race-only bot (§7.4). Owner: WS4 (harness); balance owned by all workstreams.
-// 2× capex, 1% safety with no agendas above Seed, heavy cheap graders + engagement RLHF, ×3 bases, latent
-// reasoning on sight, releases its frontier, never discloses, signs nothing, E17 Continue.
+// 2× capex, 1% safety with no agendas above Seed, engagement RLHF on the start suites (model v3 D5: graders are suite
+// state; the race bot never hardens), ×3 bases, latent reasoning on sight, releases its frontier, never discloses, signs
+// nothing, E17 Continue.
 // Model cadence: WS1's reference play with race designs; compute and money: WS3's autopilot at 2× capex, no guard.
 import { financeAutopilot, financeDecide, RACE_AUTOPILOT } from '../finance/plan';
 import type { BotPolicy } from '../types';
@@ -10,7 +11,7 @@ import { REF_TREE, refPlay, type RefPlayOpts } from './ref';
 const RACE_PLAY: RefPlayOpts = {
   safetyShare: () => 0.01,
   base: { days: 150 },
-  post: () => ({ pref: 'engagement', rlBudget: 'standard', graders: 'cheap', cot: 'pressured', safety: 'minimal', inoculation: false }),
+  post: () => ({ pref: 'engagement', rlBudget: 'standard', cot: 'pressured', safety: 'minimal', inoculation: false }),
   tree: () => REF_TREE,
   release: 'frontier',
 };

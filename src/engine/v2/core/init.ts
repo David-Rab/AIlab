@@ -36,6 +36,7 @@ import { initialBuild } from '../departments/build';
 import { initialAgents } from '../departments/agents';
 import { computeProduction } from '../production/production';
 import { portfolioU, startPortfolio } from '../production/data';
+import { startExpertAssets, startSuites } from '../models/suites';
 import { initialSafetyDept } from '../safety/agendas';
 import { initialSecurity } from '../security/security';
 import { referenceRate, thresholds } from '../world/calibration';
@@ -148,6 +149,8 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   const ps0 = playerStart(w);
   const lagY = leader ? 0 : (def.lagMonths / 12) * referenceRate(w, ps0.target, 2025.5);
   const dataPortfolio = startPortfolio(); // model v3 D1: U = 270T public crawl + 30T licensed + 0.5 × 20T synthetic = 310T
+  // Model v3 D5: the start suites' expert data (one asset per start RL family) replaces D1's empty expert placeholder.
+  dataPortfolio.assets = [...dataPortfolio.assets.filter((a) => a.kind !== 'expert'), ...startExpertAssets()];
   const uniqueT = portfolioU(dataPortfolio);
   const shifted = (k: number) => ({ ...ps0, pa0: ps0.pa0 - k, paBase: ps0.paBase - k, paPost: ps0.paPost - k, target: ps0.target - k });
   // A follower's start model lags by lagY progress-years (BUILD-PLAN R9). Its base is the same physical run; the lag is
@@ -245,6 +248,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     features: leader ? [...LEADER_FEATURES] : [...def.features],
     morale: { overall: 70, safety: 65 },
     dataPortfolio,
+    suites: startSuites(start), // model v3 D5: leader, challenger, big tech hardened; the spinout cheap (data/v2/suites.ts)
     policies: { whistleblowerChannel: false, publishSafety: 'selective', govBriefing: 1, shareWithAllies: false, transitionFund: 0, communityBenefits: false, spareTraining: 'data', spareServing: 'research', servingAuto: true, upgradeToNewest: false, autoEvaluate: true, trustedToAI: 0 },
     agents: initialAgents('V0'),
   };

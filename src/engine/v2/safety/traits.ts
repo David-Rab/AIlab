@@ -7,7 +7,9 @@
 import { EDGES } from '../../../data/v2/edges';
 import { TRAIT_BY_ID, TRAIT_IDS, TRAIT_ORDER, TRAIT_START } from '../../../data/v2/traits';
 import { UMODES } from '../../../data/v2/umodes';
-import { GRADERS, RL_BUDGET_SIG, sizeS5 } from '../../../data/v2/runDesign';
+import { RL_BUDGET_SIG, sizeS5 } from '../../../data/v2/runDesign';
+import { rlWeights } from '../models/effective';
+import { suiteExploitMap, suiteRlWeights, suiteS2 } from '../models/suites';
 import { bestPlayerVersion, CHINA_ID, PLAYER_ID } from '../models/labs';
 import type {
   BaseDesign, BaseModel, EngineSystem, GameStateV2, ModelVersion, PostDesign, RivalLab, RLFamily, RngLike, SafetyPosture, SignalId,
@@ -28,13 +30,13 @@ export const zeroSignals = (): Signals => ({ S1: 0, S2: 0, S3: 0, S4: 0, S5: 0, 
 // ───────────────────────────── Signals (§3.3.2) ─────────────────────────────
 
 export const PREF_S1: Record<PostDesign['pref'], number> = { minimal: 0.1, engagement: 0.9, constitution: 0.4, persuasion: 0.6 };
-/** S2 multiplier of the RL budget × graders (model v3 V1 split of v2's intensity: light ×0.5, heavy ×1.3; cheap
- *  graders ×1.5, hardened ×0.6, so v2's light-hardened 0.3, heavy-cheap 1.5 and heavy-hardened 0.6 are unchanged). */
-export const intensityS2 = (post: Pick<PostDesign, 'rlBudget' | 'graders'>) => RL_BUDGET_SIG[post.rlBudget].s2Mult * GRADERS[post.graders].s2Mult;
+/** S2 multiplier of the RL budget: the optimisation pressure on the suites' exploitability (model v3 V1 split of v2's
+ *  intensity: light ×0.5, heavy ×1.3; model v3 D5 moved the graders factor into the suites, models/suites.ts). */
+export const intensityS2 = (post: Pick<PostDesign, 'rlBudget'>) => RL_BUDGET_SIG[post.rlBudget].s2Mult;
 export const COT_S4: Record<PostDesign['cot'], number> = { visible: 0, pressured: 0.8, faithful: 0, latent: 1.0 };
-/** Per-family signal contributions per unit focus weight (§3.3.2 RL family table). */
+/** Per-family signal contributions per unit focus weight (§3.3.2 RL family table). S2 comes from the suites (D5). */
 export const FAMILY_SIGNALS: Record<RLFamily, Partial<Signals>> = {
-  math: { S2: 0.2 }, swe: { S2: 0.6 }, computerUse: { S3: 0.4 }, mlResearch: { S2: 0.4, S7: 0.2 },
+  math: {}, swe: {}, computerUse: { S3: 0.4 }, mlResearch: { S7: 0.2 },
   longHorizon: { S3: 0.8, S5: 0.1 }, cyber: { S3: 0.3 }, bio: {},
 };
 const RL_FAMILIES: RLFamily[] = ['math', 'swe', 'computerUse', 'mlResearch', 'longHorizon', 'cyber', 'bio'];
@@ -59,15 +61,20 @@ export function baseSignals(design: BaseDesign, tier: number, scale = 1): Signal
   return sg;
 }
 
-/** Post-run signals S1–S7 from design choices D–H (§3.3.2); S8 from current deployment. */
-export function postSignals(s: GameStateV2, post: PostDesign): Signals {
+/** Post-run signals S1–S7 from design choices D–H (§3.3.2); S8 from current deployment. S2 (model v3 D5, MODEL-V3
+ *  §11.2) = Σ_f RL compute share_f × the suite's exploitability_f × S2_PER_EXPLOIT × the RL budget's pressure (+ P11):
+ *  `exploit` = the suites a run froze at launch (TrainingRun.recipe.exploit; their families set the shares), else the
+ *  lab's suites today (predictions, continual learning, IDA). */
+export function postSignals(s: GameStateV2, post: PostDesign, exploit?: Partial<Record<RLFamily, number>>): Signals {
   const sg = zeroSignals();
   sg.S1 = PREF_S1[post.pref];
   for (const f of RL_FAMILIES) {
     const wf = post.rlFocus === 'broad' ? 0.5 : post.rlFocus.includes(f) ? 1 : 0;
     for (const [k, v] of Object.entries(FAMILY_SIGNALS[f]) as [SignalId, number][]) sg[k] += wf * v;
   }
-  sg.S2 = sg.S2 * intensityS2(post) + (adopted(s, 'P11') ? 0.2 : 0);
+  const x = exploit ?? suiteExploitMap(s);
+  const w = exploit ? rlWeights(post.rlFocus, RL_FAMILIES.filter((f) => exploit[f] !== undefined)) : suiteRlWeights(s, post.rlFocus);
+  sg.S2 = suiteS2(w, x) * intensityS2(post) + (adopted(s, 'P11') ? 0.2 : 0);
   sg.S4 = COT_S4[post.cot];
   sg.S6 += S6_POST;
   sg.S7 += S7_BASE + RL_BUDGET_SIG[post.rlBudget].s7;
@@ -86,7 +93,7 @@ export function runSignals(s: GameStateV2, run: TrainingRun): Signals {
     sg.S6 = 0.3;
     return sg;
   }
-  if (run.post) return postSignals(s, run.post);
+  if (run.post) return postSignals(s, run.post, run.recipe?.exploit);
   return zeroSignals();
 }
 

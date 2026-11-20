@@ -7,10 +7,12 @@
 //   runs      operations of every training run while it trains and of the continual-learning stream, then the run
 //             setups on the queue (a run trains only once its setup is built), then adoptions of research results into
 //             the recipe stacks (model v3 V2, models/research.ts: the training code the next runs use)
-//   upkeep    every live product (reliability, on-call, integrations; grows with revenue) and every monitor in
+//   upkeep    every live product (reliability, on-call, integrations; grows with revenue), every RL environment suite
+//             (model v3 D5) and every monitor in
 //             production (a product's or an internal use's: serving harness, alert triage), and every built product
 //             feature (model v3 C2: featureUpkeepTW)
-//   builds    the rest of the queue in priority order: product launches, product features, sector packs
+//   builds    the rest of the queue in priority order: product launches, product features, sector packs, suite builds
+//             and hardening passes (model v3 D5)
 // Too few engineers: upkeep falls behind (shown) and nothing new ships (launches, features and packs wait; the wait
 // shows on Products and Company). Runs come first so the run cadence holds (the reference lab's runs never wait on
 // upkeep). Engineering agents raise capacity through A_eng (their model and compute; R7, J2), so the work an engineer
@@ -27,6 +29,7 @@ import { buildCapacity } from './teams';
 import { DEFAULT_ENG_ALLOC } from '../../../data/v2/research';
 import { allocate, completeAdoption } from '../models/research';
 import { syncParadigm } from '../models/tree';
+import { completeSuiteWork, suiteFamilies, suiteUpkeepTW } from '../models/suites';
 import type { EngNeed } from '../types';
 
 type Params = Record<string, number | string | boolean>;
@@ -67,7 +70,7 @@ export const SECTOR_PACK_TW = 4;
 /** Certification after a sector pack is built (research/16 §1A.3: "costs months and money"). */
 export const SECTOR_CERT_DAYS = 120;
 
-export type UpkeepKind = 'product' | 'run' | 'stream' | 'monitor' | 'feature';
+export type UpkeepKind = 'product' | 'run' | 'stream' | 'monitor' | 'feature' | 'suite';
 export interface UpkeepLine { kind: UpkeepKind; ref: string; tw: number }
 /** Runs (operations) come before product upkeep. */
 export const isRunLine = (l: Pick<UpkeepLine, 'kind'>) => l.kind === 'run' || l.kind === 'stream';
@@ -117,6 +120,8 @@ export function upkeepLines(s: GameStateV2): UpkeepLine[] {
     const f = FEATURE_BY_ID[id as FeatureId];
     if (f && f.buildTW > 0) out.push({ kind: 'feature', ref: id, tw: featureUpkeepTW(f, featureInUse(s, f)) });
   }
+  // Model v3 D5: every RL environment suite (maintenance as models and tools change), on the upkeep need.
+  for (const f of suiteFamilies(s)) out.push({ kind: 'suite', ref: f, tw: suiteUpkeepTW(s, f) });
   return out;
 }
 
@@ -221,6 +226,10 @@ export const buildUsedToday = (s: GameStateV2) => ((s.player.build.last?.served 
 function complete(s: GameStateV2, ctx: SystemCtx, it: BuildItem) {
   if (it.kind === 'adopt') {
     completeAdoption(s, ctx, it.ref, it.id, (id) => syncParadigm(s, id));
+    return;
+  }
+  if (it.kind === 'suite') {
+    completeSuiteWork(s, ctx, it.ref); // model v3 D5: a suite build or hardening pass
     return;
   }
   const r = runOf(s, it);

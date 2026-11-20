@@ -154,6 +154,16 @@ await wait(300);
 // Coach card → run designer
 await check('Coach card opens run designer', 'store.panel', () => page.click('[data-coach=firstRun]'));
 await page.click('[data-test=coach-skip]').catch(() => {});
+// Model v3 D5: the post-train card shows the environment suites read-only (fidelity and exploitability for the focus).
+{
+  const suites = await page.$eval('[data-panel=blueprint] [data-test=bp-suites]', (e) => e.innerText).catch(() => '');
+  ok('Blueprint: environment suites row (read-only fidelity, exploitable share)', /fidelity/.test(suites) && /exploitable/.test(suites) && !(await page.$('[data-panel=blueprint] [data-opt^="graders:"]')), suites.replace(/\s+/g, ' '));
+  await page.$eval('[data-panel=blueprint] [data-test=bp-suites]', (e) => e.scrollIntoView({ block: 'center' })).catch(() => {});
+  await page.hover('[data-panel=blueprint] [data-test=bp-suites] .dch').catch(() => {});
+  await wait(400);
+  await shot('d5-blueprint-suites');
+  await clearTips();
+}
 await check('Blueprint: pick a training card (light RL budget)', 'document.querySelector("[data-panel=blueprint]").innerText', () => page.click('[data-panel=blueprint] [data-opt="rlBudget:light"]'));
 await check('Launch post-train', `s.player.models.runs.filter(r => r.status === 'running').length`, () => page.click('[data-act=launchPost]'));
 

@@ -2,11 +2,12 @@
 // builds and idle; the numbers and every line live in its tooltip. Home of utilisation (Company › Work, engineers card;
 // model v3 V2b: build capacity's number lives in that card's hero, so this bar is `compact` there). Products and Models
 // show only their own waits (links here).
-import type { GameStateV2 } from '../../../engine/v2';
+import type { GameStateV2, RLFamily } from '../../../engine/v2';
 import { buildCapacity, buildEtas, buildRates, featureInUse, isRunLine, upkeepLines, upkeepSplit } from '../../../engine/v2';
 import { FEATURE_BY_ID, PRODUCT_DEFS, type FeatureId } from '../../../data/v2/features';
 import { SECTOR_BY_ID } from '../../../data/v2/sectors';
 import { AGENT_USE_DEF } from '../../../data/v2/agents';
+import { RL_FAMILY_LABEL } from '../../../data/v2/suites';
 import { Term, Tip, TipCard } from '../ui';
 import * as F from '../fmt';
 import { ICON } from '../icons';
@@ -20,6 +21,7 @@ export function buildItemLabel(s: GameStateV2, it: GameStateV2['player']['build'
   if (it.kind === 'feature') return FEATURE_BY_ID[it.ref as FeatureId]?.name ?? it.ref;
   if (it.kind === 'launch') return `Launch ${PRODUCT_DEFS[it.launch?.channel ?? 'api']?.name ?? it.ref}`;
   if (it.kind === 'sectorPack') return `${SECTOR_BY_ID[it.ref as keyof typeof SECTOR_BY_ID]?.name ?? it.ref} pack`;
+  if (it.kind === 'suite') { const [fam, work] = it.ref.split(':'); return `${work === 'harden' ? 'Harden' : 'Build'} ${RL_FAMILY_LABEL[fam as RLFamily] ?? fam} suite`; }
   return it.ref;
 }
 
@@ -40,6 +42,10 @@ export function BuildLoad({ s, compact = false }: { s: GameStateV2; compact?: bo
   const bc = buildCapacity(s);
   const u = upkeepSplit(s);
   const lines = upkeepLines(s);
+  // Model v3 D5: the RL environment suites' upkeep as one line.
+  const suiteLines = lines.filter((l) => l.kind === 'suite');
+  const suiteTW = suiteLines.reduce((a, l) => a + l.tw, 0);
+  const suiteN = suiteLines.length;
   const q = s.player.build.queue;
   const etas = buildEtas(s).etas;
   const rates = buildRates(s);
@@ -59,7 +65,8 @@ export function BuildLoad({ s, compact = false }: { s: GameStateV2; compact?: bo
       { label: <span className="row-i"><i className="drv-sw" style={{ background: SEG.runs }} /><Term id="runOps">Runs</Term></span>, value: `${u.runs.toFixed(1)} t-wk/wk` },
       ...lines.filter(isRunLine).map((l) => ({ label: <span className="dim">· {upkeepLabel(s, l)}</span>, value: l.tw.toFixed(1) })),
       { label: <span className="row-i"><i className="drv-sw" style={{ background: SEG.products }} /><Term id="productUpkeep">Product upkeep</Term></span>, value: `${u.products.toFixed(1)} t-wk/wk`, ...(short > 0 ? { tone: 'neg' as const } : {}) },
-      ...lines.filter((l) => !isRunLine(l)).map((l) => ({ label: <span className="dim">· {upkeepLabel(s, l)}</span>, value: l.tw.toFixed(l.tw < 0.1 ? 2 : 1) })),
+      ...lines.filter((l) => !isRunLine(l) && l.kind !== 'suite').map((l) => ({ label: <span className="dim">· {upkeepLabel(s, l)}</span>, value: l.tw.toFixed(l.tw < 0.1 ? 2 : 1) })),
+      ...(suiteTW > 0 ? [{ label: <span className="dim">· <Term id="envSuite">Environment suites</Term> ({suiteN})</span>, value: suiteTW.toFixed(2) }] : []),
       { label: <span className="row-i"><i className="drv-sw" style={{ background: SEG.builds }} /><Term id="buildQueue">Builds</Term></span>, value: q.length ? `${backlog.toFixed(1)} t-wk queued` : 'none queued' },
       ...q.slice(0, 6).map((it) => ({ label: <span className="dim">· {buildItemLabel(s, it)}</span>, value: `${(it.needTW - it.doneTW).toFixed(1)} t-wk · ${Number.isFinite(etas.get(it.id) ?? 0) ? F.days(etas.get(it.id) ?? 0) : 'waits'}` })),
       { label: 'In use (30-day average)', value: F.pct(util) },
