@@ -171,6 +171,7 @@ const reset = (s: GameStateV2) => { resetWorkContext(s); resetSafetyLabour(s); }
   const root = join(HERE, '..', '..', 'src', 'engine', 'v2');
   const files = [...readdirSync(join(root, 'safety')).filter((f) => f.endsWith('.ts')).map((f) => join(root, 'safety', f)), join(root, 'models/products.ts'), join(root, 'departments/agents.ts')];
   const bad = /\b(multiplierAt|multiplierRef|versionM|mAtLevel|mAtPm|bridgeQ|researchSpeed)\b|prodCache\??\.M\b/;
+  // No exceptions: E4's successor pull replaced the lineage inheritance κ·(1 − 1/M) and reads E6's internalOversight (E7 step 0).
   const hits: string[] = [];
   for (const f of files) {
     const lines = readFileSync(f, 'utf8').split('\n');

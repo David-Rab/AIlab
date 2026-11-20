@@ -23,6 +23,7 @@ import { combineTools, driftBeliefs, observeVersion, runtimeMonitoring, safetyEv
 import { investigationFte, investigationsStep, safetyReHeads } from './investigations';
 import { patchFte } from './responses';
 import { decayAt, initialTechniques, strengthTrue } from './techniques';
+import { caseOnModel } from './footholdDetection';
 
 /** Player safety department at game start (lines are idle until teams work their projects; models/tree.ts puts the
  *  start teams on their lines). */
@@ -40,6 +41,8 @@ export function initialSafetyDept(): SafetyDept {
     monitorabilityCommitment: false,
     edgeGrades: Object.fromEntries(EDGES.map((e) => [e.id, e.grade])),
     edgeRevealed: Object.fromEntries(EDGES.map((e) => [e.id, false])),
+    footholds: [],
+    effectiveControl: { level: 1, exposure: 0, lowest: 1, believed: 1 },
   };
 }
 
@@ -200,10 +203,14 @@ function auditStep(s: GameStateV2, ctx: SystemCtx) {
     if (!v) continue;
     const X = versionOom(s, v);
     const wb = Object.values(s.player.safety.techniques).filter((t) => t.agenda === 'AG02' && t.unlocked && t.family === 'WB');
+    let dMax = 0;
     for (const trait of ['AF', 'SCHEME'] as const) {
       const d = combineTools(wb.map((t) => ({ agenda: t.agenda, d: (t.coverage[trait] ?? 0) * strengthTrue(s, t, X) })));
       observeVersion(s, ctx.rng('safety'), ctx.day, v, trait, 'WB', Math.max(0.3, d));
+      dMax = Math.max(dMax, d);
     }
+    // Model v3 E8: the audit is a case on the model at clarity = its white-box strength (footholds of its lineage).
+    caseOnModel(s, ctx, v, ['AF', 'SCHEME'], Math.max(0.3, dMax), `audit:${v.id}:${ctx.day}`, 'an alignment audit');
   }
 }
 

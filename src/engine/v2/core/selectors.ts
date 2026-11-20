@@ -45,6 +45,9 @@ export { raiseCeiling } from '../finance/equity';
 // WS2 safety-panel selectors (beliefs, posteriors, incidents as the player sees them). `safetyTruth` is END SCREEN ONLY.
 export { beliefView, findingRows, incidentRows, lineBadges, lineRows, riskFamilies, safetyTruth, safetyUtilisation, safetyView, techniqueRows, traitGraph, uModeCards, upkeepView } from '../safety/view';
 export type { FindingRow, LineRow, SafetyUtilisation, TechniqueRow } from '../safety/view';
+export { footholdView } from '../safety/footholdDetection';
+export { controlView } from '../safety/control';
+export type { FootholdRow } from '../safety/footholdDetection';
 export { lineMult, lineResultsPerYear, posteriorBand, promisingIdle, safetyRe } from '../safety/agendas';
 export { familySeenTo } from '../safety/understanding';
 export { basePressure, plannedPressure, postPressure, signalPushes, storedBaseRows, successorPullView, versionPressure } from '../safety/pressureView';
@@ -171,3 +174,6 @@ export {
   reAllocView, researchSpeedView, softwareRate, stackViews, workTypeViews,
 } from '../models/researchView';
 export type { AllocView, CapProjectView, MilestoneView, NeedView, ResearchSpeedView, StackGroupView, StageId, WorkTypeView } from '../models/researchView';
+// Model v3 E11: the player's danger readout per product and internal lane, and the control readout (beliefs only).
+export { CONTROL_BANDS, controlBand, controlReadout, dangerView } from '../safety/dangerView';
+export type { ControlBand, ControlRead, DangerActRead, DangerLever, DangerRead } from '../safety/dangerView';

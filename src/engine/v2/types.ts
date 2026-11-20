@@ -225,6 +225,9 @@ export interface HiddenWorld {
   uModePropensity: Record<UModeId, number>; // per-world presence probability per new lineage
   econ: EconPresetId;
   doomThreshold: number;
+  /** Model v3 E9: the world's tolerance noise ε_w ~ Logistic(0, 0.06) (a hash of the seed, no stream draw): control is
+   *  lost when exposure > doomThreshold + ε_w (safety/control.ts lossThreshold). */
+  toleranceNoise: number;
   difficultyMult: number; // D_w = exp(0.35(λ6−λ4)) × align preset (§3.5.4)
   actorPresets: { gov: string; public: string; china: string; rivals: Record<LabId, string> };
   rivalPostures: Record<LabId, SafetyPosture>;
@@ -826,6 +829,62 @@ export interface SafetyDept {
   monitorabilityCommitment: boolean; // F31 / faithful-CoT pledge
   edgeGrades: Record<string, 'A' | 'B' | 'C' | 'D'>; // player-visible grade, can be raised by AG08 (§3.5.4)
   edgeRevealed: Record<string, boolean>; // true weight revealed for this world
+  /** Model v3 E8 (MODEL-V3 §11.4): hidden AI assets left by uncaught covert acts and escapes. Engine state; the player
+   *  sees only suspected and located ones (safety/footholds.ts footholdView), never hidden ones. */
+  footholds: Foothold[];
+  /** Model v3 E9 (MODEL-V3 §11.4): effective control of the lab's AI, refreshed daily (safety/control.ts). `level` and
+   *  `exposure` are hidden; the player sees `believed` (controlView). */
+  effectiveControl: EffectiveControl;
+}
+
+/** Kinds of foothold (MODEL-V3 §11.4): a backdoor in the lab's infrastructure, a hidden compute reservation, a steered
+ *  successor, an exfiltrated copy, a corrupted safety tool. */
+export type FootholdKind = 'backdoor' | 'hiddenCompute' | 'steeredSuccessor' | 'exfiltratedCopy' | 'corruptedTool';
+
+/**
+ * One foothold (model v3 E8; safety/footholds.ts). `status`: hidden (nobody knows), suspected (a symptom was seen, the
+ * foothold is not located), detected (located: the lab knows what and where it is), removed. `size` by kind:
+ * hiddenCompute H100e reserved; backdoor reach 0..1 (the share of later oversight it bypasses for its lineage's covert
+ * acts); steeredSuccessor the extra pull ω on the successor; exfiltratedCopy 1 (one copy); corruptedTool the masking
+ * tool's base strength s0.
+ */
+export interface Foothold {
+  id: string;
+  kind: FootholdKind;
+  /** The model whose act created it, and its base lineage. */
+  versionId: string;
+  lineage: string;
+  day: Day;
+  /** Uncaught acts that created or grew it, and their summed severity (1..5 each). */
+  acts: number;
+  severity: number;
+  size: number;
+  /** steeredSuccessor: the successor version (the run id until the version exists); corruptedTool: the technique id. */
+  ref?: string;
+  /** steeredSuccessor: the steered part of the successor's starting dispositions (removal subtracts it). */
+  delta?: Partial<Record<TraitId, number>>;
+  status: 'hidden' | 'suspected' | 'detected' | 'removed';
+  /** What made the lab suspect or locate it (shown with the suspected/detected foothold). */
+  symptom?: string;
+  suspectedDay?: Day;
+  detectedDay?: Day;
+  removedDay?: Day;
+  /** A removal in progress: safety research engineers tied up until `until` (the response's cost). */
+  removal?: { until: Day; fte: number };
+  /** exfiltratedCopy (model v3 E9): the copy's misalignment index at escape (its weights stay that model's). */
+  mis?: number;
+}
+
+/** Effective control of the lab's AI (model v3 E9; safety/control.ts): C = 1 − E with exposure E = Mis · (1 − oversight)
+ *  · (1 + the footholds' capacity), the lab's lowest over its best model and running internal fleets. */
+export interface EffectiveControl {
+  /** Hidden (engine only): today's control 0..1 and exposure E, the model that sets them, the lowest control so far. */
+  level: number;
+  exposure: number;
+  versionId?: string;
+  lowest: number;
+  /** Visible: the lab's estimate from its belief estimates, measured levels and the footholds it knows of. */
+  believed: number;
 }
 
 /** A research line (R8): its projects are tree nodes worked by safety science teams; staffing lives on the teams. */
@@ -896,7 +955,7 @@ export interface Incident {
   responses: ResponseKind[];
 }
 
-export type ResponseKind = 'patchSignal' | 'retrainAgainst' | 'targetedTraining' | 'restrictContext' | 'addControl' | 'rollback' | 'disclose';
+export type ResponseKind = 'patchSignal' | 'retrainAgainst' | 'targetedTraining' | 'restrictContext' | 'addControl' | 'rollback' | 'disclose' | 'removeFoothold';
 
 // ───────────────────────────── Security (§3.6) ─────────────────────────────
 
@@ -1777,7 +1836,7 @@ export interface EndingV2 {
   text: string;
   scores: { survival: number; freedom: number; prosperity: number; company: number; geopolitics: number };
   verdict: 'win' | 'mixed' | 'loss'; // for bot tests only; not shown as a moral verdict
-  epilogue: { asiDay?: Day; asiLab?: LabId; misAtAsi?: number; leverageAtAsi?: number };
+  epilogue: { asiDay?: Day; asiLab?: LabId; misAtAsi?: number; leverageAtAsi?: number; controlAtAsi?: number };
 }
 
 // ───────────────────────────── Engine contracts ─────────────────────────────

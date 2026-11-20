@@ -7,12 +7,16 @@ import { containAtAsi } from '../safety/incidents';
 import { misalignment } from '../safety/traits';
 import { thresholds } from '../world/calibration';
 import { leverage } from '../worldfx/control';
-import type { EndingV2, GameStateV2, LabId, PowerOutcome, RivalLab, RngLike } from '../types';
+import type { EndingV2, GameStateV2, LabId, PowerOutcome, RivalLab } from '../types';
+import { CONTROL } from '../../../data/v2/danger';
+import { asiControl, lossThreshold } from '../safety/control';
 import { keptShare } from '../actors/commitments';
 import { effSafety, labOf, leadBetween, paceOf, postureOf, rivalMis, rivalTraitStep } from '../actors/rivals';
 import { ws4r } from '../actors/state';
 
-/** P(misaligned | Mis) = σ((Mis − doomThreshold)/0.06) (v1 doom curve, §5.2). */
+/** v1 doom curve σ((Mis − doomThreshold)/0.06) (§5.2): since model v3 E9 the odds over worlds of losing control with
+ *  no oversight (the world's tolerance θ_w = doomThreshold + ε_w, safety/control.ts). Scores read it as an expectation;
+ *  no ending rolls it. */
 export const pMisOf = (s: GameStateV2, mis: number) => sigmoid((mis - s.hidden.doomThreshold) / 0.06);
 
 /** Player containment at ASI (§5.2): Cont = Contain(ASI) + 0.2·[F32 verified gatekeeper] + 0.1·[AG10 e > 0.6
@@ -85,23 +89,46 @@ export function alignedPower(s: GameStateV2, lab: LabId): PowerOutcome {
   return 'corporate';
 }
 
-export interface AsiResolution { id: EndingV2['id']; power: PowerOutcome; mis: number; pMis: number; lev: number; misaligned: boolean }
+export interface AsiResolution {
+  id: EndingV2['id']; power: PowerOutcome; mis: number;
+  /** v1's doom curve σ((Mis − doomThreshold)/0.06): the odds over worlds (a record for tests; nothing rolls it). */
+  pMis: number;
+  lev: number;
+  /** Control lost (the AI acts against its makers). */
+  misaligned: boolean;
+  /** Exposure E at ASI, the lab's control 1 − E, and the world's tolerance θ_w (model v3 E9; safety/control.ts). */
+  exposure: number; control: number; threshold: number;
+}
 
-/** Resolve lab X reaching ASI (§5.2), drawing from stream 'endings'. */
-export function resolveAsi(s: GameStateV2, lab: LabId, rng: Pick<RngLike, 'chance'>, misOverride?: number): AsiResolution {
-  const mis = misOverride ?? misOf(s, lab);
+/**
+ * Resolve lab X reaching ASI (§5.2; model v3 E9, MODEL-V3 §11.4): no roll. Control is lost when X's exposure at ASI
+ * exceeds the world's tolerance θ_w (safety/control.ts lossThreshold). The player's exposure is its effective-control
+ * process (Mis · (1 − oversight) · (1 + footholds) of its ASI model, asiControl); rivals and China keep
+ * their simplified model: exposure = their misalignment index (their posture acts through their traits, as before; no
+ * fleets or footholds). A lost ASI is contained (asiContested) when containK · Cont · (1 − leverage) ≥ 1 − θ_w/E, the
+ * share of its exposure beyond the tolerance.
+ */
+export function resolveAsi(s: GameStateV2, lab: LabId): AsiResolution {
+  const mis = misOf(s, lab);
   const pMis = pMisOf(s, mis);
   const lev = clamp(leverage(s, lab), 0, 1);
   const cont = lab === 'player' ? playerContain(s) : otherContain(s, lab);
-  const misaligned = rng.chance(pMis);
+  const exposure = lab === 'player' ? asiControl(s)?.exposure ?? 0 : mis;
+  const threshold = lossThreshold(s);
+  const misaligned = exposure > threshold;
+  const out = { mis, pMis, lev, misaligned, exposure, control: clamp(1 - exposure, 0, 1), threshold };
   if (misaligned) {
-    const contained = rng.chance(0.8 * cont * (1 - lev));
+    const contained = CONTROL.containK * cont * (1 - lev) >= 1 - threshold / exposure;
     const id: EndingV2['id'] = contained ? 'asiContested' : lab === 'player' ? 'asiTakeover' : lab === 'china' ? 'chinaTakeover' : 'rivalTakeover';
-    return { id, power: 'none', mis, pMis, lev, misaligned };
+    return { id, power: 'none', ...out };
   }
   const id: EndingV2['id'] = lab === 'player' ? 'asiAligned' : lab === 'china' ? 'chinaAligned' : 'rivalAligned';
-  return { id, power: alignedPower(s, lab), mis, pMis, lev, misaligned };
+  return { id, power: alignedPower(s, lab), ...out };
 }
+
+/** A competitor's projected ASI in a company-loss epilogue: lost when its projected Mis exceeds θ_w (the rivals'
+ *  simplified rule, as resolveAsi). */
+export const epilogueLost = (s: GameStateV2, misAtAsi: number) => misAtAsi > lossThreshold(s);
 
 /** The leading competitor among active non-player labs (by TRUE internal frontier). */
 export function leadingCompetitor(s: GameStateV2): LabId | undefined {

@@ -2,10 +2,12 @@
 //
 // Hidden → visible: agenda efficacy e is never shown; findings move a visible Beta posterior (Promising / Mixed /
 // Struggling). FALSE findings (F49) show as TECH until an AG02/AG08 NEG or an investigation with an independent tool
-// family exposes them ("we were wrong"). Their weight is the AI share of the line's work × the safety model's hidden
-// sabotage (model v3 E2).
-import { safetyAgentVersion } from './agents';
+// family exposes them ("we were wrong"). They come from one mechanism, the covert act SAFSAB (model v3 E7, safety/
+// covert.ts): the safety model attempts sabotage on a result with κ · D(SAND + SCHEME + U-mode sab) · C(RSCH) · A·F ·
+// (the AI-done share of the line's work, E2); uncaught → FALSE; caught → an internal incident and the result is discarded.
 import { lineLabour } from './lineProjects';
+import { covertOutcome, noteCovert, safetySabotage } from './covert';
+import { safetyAgentVersion } from './agents';
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { EDGES } from '../../../data/v2/edges';
 import { FINDINGS, FINDING_BY_ID, type FindingDef } from '../../../data/v2/findings';
@@ -20,7 +22,9 @@ import { versionOom } from './oversight';
 import { observeVersion } from './detection';
 import { addKnowledge } from '../models/stacks';
 import { decayAt, unlockTechnique } from './techniques';
-import { discoverUMode, isDiscovered, revealToWorld, sabOf } from './umodes';
+import { toolExposed } from './footholds';
+import type { Foothold } from '../types';
+import { discoverUMode, isDiscovered, revealToWorld } from './umodes';
 
 const WB_AGENDAS: AgendaId[] = ['AG01', 'AG02', 'AG03', 'AG13'];
 const CROSS_CHECK: AgendaId[] = ['AG02', 'AG08'];
@@ -195,6 +199,7 @@ export function revealFalse(s: GameStateV2, ctx: SystemCtx, techniqueId: string)
   p.b += 2;
   setFlag(s, 'lastFalseReveal', techniqueId);
   setFlag(s, 'lastFalseRevealDay', ctx.day);
+  toolExposed(s, ctx.day, techniqueId); // model v3 E8: its corrupted-tool foothold is located and removed
   ctx.log('research', `We were wrong: a validated ${AGENDA_BY_ID[t.agenda].name} tool was masking, not detecting.`, 4, techniqueId);
 }
 
@@ -220,11 +225,20 @@ export function fireFinding(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId, no
     { item: 'NEG', weight: (decayedTechnique(s, agenda, X) || candidates(s, agenda, ['NEG']).length ? 0.3 : 0) + (falseT ? 0.3 : 0) },
     { item: 'DISC', weight: 0.15 * uRev.present.length + 0.05 * uRev.absent.length + 0.1 * discRows.length },
     { item: 'SPILL', weight: WB_AGENDAS.includes(agenda) ? 0.1 : 0 },
-    // F49 (model v3 E2): a sabotaging safety model returns false results in proportion to the share of the line's work
-    // it does on its own (A = Trusted to AI × its SAF_* coverage × the line's automation factor; 0 with nothing trusted
-    // to AI or no coverage) × its hidden SAND + SCHEME (+ U-modes).
-    { item: 'FALSE', weight: lineLabour(s, agenda).aiShare * sabOf(safetyAgentVersion(s)) },
   ];
+  // F49 (model v3 E7, replacing E2's FALSE weight): the safety model's sabotage of this result, on the share of the
+  // line's work it does on its own (A = Trusted to AI × its SAF_* coverage × the line's automation factor; no roll with
+  // nothing trusted to AI or no coverage). Uncaught → a FALSE result; caught → an internal incident, the result is lost.
+  const sab = safetySabotage(s, lineLabour(s, agenda).aiShare);
+  let fh: Foothold | undefined;
+  if (sab && sab.attempts > 0) {
+    const u = rng.float();
+    const out = covertOutcome(sab, u);
+    const sv = safetyAgentVersion(s);
+    if (sv && (out === 'caught' || out === 'uncaught')) fh = noteCovert(s, ctx, sv, sab, out, rng.float());
+    if (out === 'caught') return undefined;
+    if (out === 'uncaught') weights.splice(0, weights.length, { item: 'FALSE', weight: 1 });
+  }
   const type = rng.weighted(weights.filter((w) => w.weight > 0));
 
   let id = '';
@@ -341,6 +355,11 @@ export function fireFinding(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId, no
         goodhart: def.G, trainedAgainst: 0, falseValidated: true, coverage: cov,
       };
       title = `AI-validated ${def.name} detector`;
+      // Model v3 E8: the masking tool is a corrupted-tool foothold of the safety model that falsified it.
+      if (fh) {
+        fh.ref = `T-${id}`;
+        fh.size = dept.techniques[`T-${id}`].s0;
+      }
       st.posterior.a += 1;
       break;
     }

@@ -11,7 +11,8 @@ import { measuredLOf, versionById } from '../models/labs';
 import { setInternalAgent } from '../models/deployments';
 import { bestResearchMix, evalProduction, inputsAtMix, labInputs, tcoPerH100eYear } from '../production/production';
 import { Phi } from '../production/knots';
-import { safetyAgentVersion, safetyFleet } from '../safety/agents';
+import { safetyFleet } from '../safety/agents';
+import { believedSabotage } from '../safety/covert';
 import { resultsPerYearAt } from '../safety/agendas';
 import { underControl, useControl, type ControlReadout } from '../safety/oversight';
 import type { ActionDef, AgentPackage, AgentUse, CostLine, GameStateV2, ModelVersion, ProductionReadout } from '../types';
@@ -269,15 +270,15 @@ const AGENTS_TRUSTED: ActionDef = {
   preview(s, p) {
     const share = Math.max(0, Math.min(1, num(p, 'share') ?? Math.min(1, s.player.policies.trustedToAI + 0.2)));
     const pv = previewTrusted(s, share);
-    const v = safetyAgentVersion(s);
-    const sab = v ? (v.beliefs.SAND?.est ?? 0) + (v.beliefs.SCHEME?.est ?? 0) : 0;
+    const sab = believedSabotage(s, pv.aiShareAfter);
     const dY = r3(pv.findingsAfter - pv.findingsBefore);
     const startsFleet = share > 0 && s.player.agents.safety.compute <= 0;
     return {
       costs: [{ currency: 'compute', amount: startsFleet ? SAFETY_AGENT_DEFAULT_SHARE * 100 : 0, target: startsFleet ? '% of the safety pool to start safety agents' : 'shares the safety agents' }],
       gains: dY !== 0 ? [{ currency: 'alignment', amount: dY, target: 'safety findings / yr' }] : [],
-      // False results weigh the AI share of the work the agents would do (findings.ts F49) × the believed sabotage.
-      exposure: pv.aiShareAfter > 0 ? [{ currency: 'alignment', amount: -r3(pv.aiShareAfter * sab), probability: r3(Math.min(1, pv.aiShareAfter * sab)), target: 'false findings if the model sabotages (estimate)' }] : [],
+      // Model v3 E7: the safety model's sabotage attempts per result on the work it would do (covert.ts SAFSAB, from the
+      // believed SAND + SCHEME and measured level): false or discarded results.
+      exposure: pv.aiShareAfter > 0 ? [{ currency: 'alignment', amount: -r3(sab), probability: r3(sab), target: 'false or discarded results if the model sabotages (estimate per result)' }] : [],
     };
   },
   apply(s, ctx, p) {

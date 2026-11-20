@@ -7,6 +7,8 @@ import { versionOom } from './oversight';
 import { goodhartTrain } from './traits';
 import { strengthBelieved, techniqueRole } from './techniques';
 import { crystalMult, revealToWorld, uModeRemovalMult } from './umodes';
+import { removalFte } from './footholds';
+import { removeFoothold } from './footholdDetection';
 
 export const RESPONSE_INFO: Record<ResponseKind, { title: string; days: [number, number]; note: string }> = {
   patchSignal: { title: 'Patch signal', days: [30, 90], note: 'Fix the training signal: edge weight × 0.3–0.6 for every later run (lab-wide).' },
@@ -16,6 +18,7 @@ export const RESPONSE_INFO: Record<ResponseKind, { title: string; days: [number,
   addControl: { title: 'Add control', days: [0, 0], note: 'AI-control layer: 5% usefulness tax; catastrophe conversion × (1 − Contain).' },
   rollback: { title: 'Roll back', days: [0, 0], note: 'Return to the checkpoint version; lose the newer model.' },
   disclose: { title: 'Disclose', days: [0, 0], note: 'Scrutiny +5–15; trust by credibility; the world learns any U-mode.' },
+  removeFoothold: { title: 'Remove foothold', days: [14, 30], note: 'A located foothold: safety engineers, agents off for the downtime; its effect ends (model v3 E8).' },
 };
 
 /** Lowest edge multiplier repeated signal patches reach (some of every pressure is irreducible) [D, M4]. */
@@ -63,16 +66,16 @@ export function consumeRunPenalty(s: GameStateV2): number {
   return p;
 }
 
-/** Safety FTE tied up by patch projects (released when the project ends). */
+/** Safety FTE tied up by patch projects and foothold removals (released when they end). */
 export function patchFte(s: GameStateV2): number {
-  return s.time.day < flagNum(s, 'patchUntil', -1) ? 10 : 0;
+  return (s.time.day < flagNum(s, 'patchUntil', -1) ? 10 : 0) + removalFte(s);
 }
 
 function removal(v: ModelVersion): number {
   return uModeRemovalMult(v.uModes) * crystalMult(v.traitsTrue.TGAME, v.uModes);
 }
 
-export interface ResponseOpts { trait?: TraitId; techniqueId?: string }
+export interface ResponseOpts { trait?: TraitId; techniqueId?: string; /** removeFoothold: the located foothold. */ footholdId?: string }
 
 /**
  * Apply a response to a version (and optionally an incident). Returns an error string if it cannot apply.
@@ -80,6 +83,7 @@ export interface ResponseOpts { trait?: TraitId; techniqueId?: string }
  * if outsiders discover it before the timer ends, it is a cover-up (×3 trust loss, §3.9.3).
  */
 export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind, versionId: string, incidentId?: string, opts: ResponseOpts = {}): string | undefined {
+  if (kind === 'removeFoothold') return removeFoothold(s, ctx, opts.footholdId ?? '');
   const v = versionById(s, versionId);
   if (!v) return 'Unknown model';
   const inc = incidentId ? s.player.safety.incidents.find((i) => i.id === incidentId) : undefined;

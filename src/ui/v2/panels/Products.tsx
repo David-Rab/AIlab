@@ -18,11 +18,11 @@ import { EFFORT_OOM_PER_10X, EFFORT_TOKENS, MARKUP } from '../../../data/v2/serv
 import { SECTORS } from '../../../data/v2/sectors';
 import { TREE_BY_ID } from '../../../data/v2/tree';
 import {
-  CHANNEL_VARIANTS, agentsGate, buildEtas, catchRate, dateOf, deployGate, editBlock, editedProduct, effortLock, fmtDate, isProduct, measuredHorizonH,
+  CHANNEL_VARIANTS, agentsGate, dangerView, buildEtas, catchRate, dateOf, deployGate, editBlock, editedProduct, effortLock, fmtDate, isProduct, measuredHorizonH,
   demandModifiers, featureView, measuredLOf, nodeKnown, PENALTY_MAX, previewEdit, productReadouts, servingPool, versionById, CONVERGED,
   LAUNCH_TW, LENT_RECOVERY, pendingLaunch, spareServing, spareServingToResearch,
 } from '../../../engine/v2';
-import type { Channel, CustomerView, Deployment, FeatureKind, GameStateV2, ModelVersion, PriceTier, ProductChanges, ProductRead } from '../../../engine/v2';
+import type { Channel, CustomerView, DangerRead, Deployment, FeatureKind, GameStateV2, ModelVersion, PriceTier, ProductChanges, ProductRead } from '../../../engine/v2';
 import { store } from '../store';
 import { ActBtn, Limit, Seg, Term, Tip, TipCard, type Params } from '../ui';
 import { Card, PanelHead, Ref, Spark2 } from '../kit';
@@ -31,6 +31,7 @@ import { ICON } from '../icons';
 import { C } from '../theme';
 import './products.css';
 import { CatchX, PkgChip } from './chips';
+import { DangerChip } from './Danger';
 
 const P_ICON: Partial<Record<Channel, LucideIcon>> = { consumer: MessageCircle, api: SquareTerminal, enterprise: Building2, agents: Bot, gov: Briefcase, trusted: ShieldCheck, open: Unlock };
 const SAFEGUARDS: Deployment['safeguards'][] = ['minimal', 'standard', 'classifiers', 'hardened'];
@@ -82,6 +83,8 @@ function changeLines(s: GameStateV2, d: Deployment, c: ProductChanges): { k: str
 export function Products({ s }: { s: GameStateV2 }) {
   const [edit, setEdit] = useState<{ id: string; c: ProductChanges } | null>(null);
   const reads = useMemo(() => productReadouts(s), [s, s.time.day, s.player.deployments, s.player.policies.servingAuto]);
+  // Model v3 E11: believed danger per product (beliefs and measured levels only).
+  const danger = useMemo(() => dangerView(s).products, [s, s.time.day, s.player.deployments]);
   const live = s.player.deployments.filter((d) => isProduct(d) && d.status !== 'withdrawn')
     .sort((a, b) => PRODUCT_ORDER.indexOf(a.channel) - PRODUCT_ORDER.indexOf(b.channel));
   const pol = s.player.policies;
@@ -107,7 +110,7 @@ export function Products({ s }: { s: GameStateV2 }) {
           launch card no longer stretches to the cards' height, and the serving split is above the fold). */}
       <div className={`prod-grid ${side ? 'side' : ''}`} style={side ? { gridTemplateColumns: `repeat(${live.length}, minmax(250px, 300px)) minmax(360px, 1fr)` } : undefined}>
         {live.map((d) => (
-          <ProductCard key={d.id} s={s} d={d} r={reads.get(d.id)} draft={edit?.id === d.id ? edit.c : undefined}
+          <ProductCard key={d.id} s={s} d={d} r={reads.get(d.id)} danger={danger[d.id]} draft={edit?.id === d.id ? edit.c : undefined}
             setDraft={(c) => setEdit(c && Object.keys(c).length ? { id: d.id, c } : null)} />
         ))}
         {side ? (
@@ -130,7 +133,7 @@ function PolicySwitch({ on, k, label, term }: { on: boolean; k: string; label: s
 }
 
 // ───────── product card ─────────
-function ProductCard({ s, d, r, draft, setDraft }: { s: GameStateV2; d: Deployment; r?: ProductRead; draft?: ProductChanges; setDraft: (c: ProductChanges | null) => void }) {
+function ProductCard({ s, d, r, danger, draft, setDraft }: { s: GameStateV2; d: Deployment; r?: ProductRead; danger?: DangerRead; draft?: ProductChanges; setDraft: (c: ProductChanges | null) => void }) {
   const def = PRODUCT_DEFS[d.channel];
   const Icon = P_ICON[d.channel] ?? ICON.product;
   const n = draft ? editedProduct(d, draft) : d;
@@ -174,6 +177,7 @@ function ProductCard({ s, d, r, draft, setDraft }: { s: GameStateV2; d: Deployme
       ] : []} footer="Price, cost and margin per unit: the Price row below.">Serving compute at the rental-equivalent price of an H100e.</TipCard>}>
         <div className="pc-cost"><ICON.cash size={12} /><b>{r ? F.money(r.runCost, { perYear: true }) : '—'}</b><span className="dim">to run</span><span className="sp" />{d.monitorId && r && <span className="dim">monitor +{F.pct(r.monitorOverhead)}</span>}</div>
       </Tip>
+      <div className="pc-danger"><DangerChip r={danger} where={def?.name ?? d.channel} testId={`prod-danger.${d.id}`} /></div>
 
       {/* Revenue hero */}
       <Tip as="div" content={() => <TipCard title={<Term id="revenueNow">Revenue now</Term>} value={F.money(r?.revenue ?? d.revenueRate ?? 0, { perYear: true })} rows={[

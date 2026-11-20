@@ -1,0 +1,15 @@
+/* Model v3 E11: compact believed-danger readout (product cards, agent lanes). */
+.dg-chip { display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 100%; font-size: 12px; color: var(--text-2); }
+.dg-chip b { font: 600 12.5px var(--mono); color: var(--text); }
+.dg-fs { display: inline-flex; align-items: flex-end; gap: 3px; margin-left: 2px; }
+.dg-f { display: inline-flex; flex-direction: column; align-items: center; gap: 1px; }
+.dg-fb { width: 5px; height: 12px; background: var(--line); border-radius: 1px; display: flex; align-items: flex-end; overflow: hidden; }
+.dg-fb i { display: block; width: 100%; }
+.dg-fk { font: 600 8px/1 var(--mono); color: var(--text-3); display: inline-flex; }
+.dg-top { display: inline-flex; align-items: center; gap: 3px; min-width: 0; color: var(--text-3); }
+.dg-tab { border-collapse: collapse; width: 100%; margin: 2px 0 4px; font-size: 11.5px; }
+.dg-tab th { text-align: right; font-weight: 500; color: var(--text-3); padding: 1px 5px; }
+.dg-tab th:first-child, .dg-tab td:first-child { text-align: left; padding-left: 0; }
+.dg-tab td { text-align: right; font-family: var(--mono); padding: 1px 5px; color: var(--text-2); white-space: nowrap; }
+.dg-tab td:first-child { font-family: inherit; color: var(--text); }
+.dg-tab td b { color: #fff; }

@@ -21,6 +21,9 @@ import { EXPERT_START_T, P12_DEMO_T } from '../../../data/v2/suites';
 import { migrateRivalPhys, migrateRivalRecipe, rlGOnBase } from '../actors/rivalModel';
 import { LEADER_ID } from '../models/labs';
 import { LEADER_CAL } from '../../../data/v2/calibration';
+import { footholdsFromV25 } from '../safety/footholds';
+import { controlFromV26 } from '../safety/control';
+import { toleranceNoiseOf } from '../world/hidden';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
 /** 12 (model v3 V1): models are built from physical quantities (BaseModel, VersionBuild, BaseDesign, PostDesign changed).
@@ -77,8 +80,17 @@ import { LEADER_CAL } from '../../../data/v2/calibration';
  *  (D10 was built as 25 → 26; merge M5 renumbered it.)
  *  30 (model v3 F2): RivalPhys.rec / pool / paSync — the rivals' recipe in the player's stack parts. Migration 29 → 30
  *  puts each lab's one-number recipe into the pretraining part with fresh pools (actors/rivalModel.ts
- *  migrateRivalRecipe), so its know-how readout is unchanged. (F2 was built as 25 → 26; merge M5 renumbered it.) */
-export const SCHEMA_REV = 30;
+ *  migrateRivalRecipe), so its know-how readout is unchanged. (F2 was built as 25 → 26; merge M5 renumbered it.)
+ *  31 (model v3 E8): SafetyDept.footholds (hidden AI assets left by uncaught covert acts and escapes) replace E7's
+ *  `ws2.covert.<act>.n | sev` flag records. Migration 30 → 31 (footholdsFromV25) turns each record into one foothold
+ *  (hidden; maker = the routine research model; hidden compute sized from its severity on today's agent pool), each
+ *  live false-validated tool into a corrupted-tool foothold and a loose copy into a located exfiltrated copy.
+ *  32 (model v3 E9): SafetyDept.effectiveControl (the control of the lab's AI, daily), HiddenWorld.toleranceNoise (the
+ *  world's tolerance noise ε_w on loss of control) and Foothold.mis (an escaped copy's misalignment index). Migration
+ *  31 → 32 (controlFromV26) draws ε_w from the seed as a new game would, gives each escaped copy the loose record's Mis
+ *  (else its version's) and starts the control record at full (refreshed the next day).
+ *  (E8 and E9 were built as 25 → 26 → 27; merge M5 renumbered them. The helpers keep their branch names.) */
+export const SCHEMA_REV = 32;
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
 export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as const;
 /** v1 save key: the start screen offers "v1 save found: start new" (no migration). */
@@ -398,6 +410,17 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   29: (raw) => {
     const s = raw as unknown as GameStateV2;
     for (const r of [...s.rivals, s.china.lab]) migrateRivalRecipe(s.hidden.timeline, r);
+  },
+  /** 30 → 31 (model v3 E8): footholds from E7's hidden flag records, live false-validated tools and a loose copy. */
+  30: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    if (!s.player.safety.footholds) s.player.safety.footholds = footholdsFromV25(s);
+  },
+  /** 31 → 32 (model v3 E9): the world's tolerance noise, escaped copies' Mis, the effective-control record (each set
+   *  only where missing: idempotent). */
+  31: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    controlFromV26(s, toleranceNoiseOf(s.setup.seed));
   },
 };
 

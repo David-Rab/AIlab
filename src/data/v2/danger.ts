@@ -14,7 +14,7 @@
 //   severity        = f_k + ⌊span_k · C_k · A·F + u⌋, u ~ U[0,1), clamped to 1..5 (stakes = capability × opportunity per
 //                     copy: the same act is worse from a capable model with long tasks and real affordances)
 // Values marked [D] are design; [C] are calibrated against the reference run (design/notes/E5.md).
-import type { Channel, DomainId, TraitId } from '../../engine/v2/types';
+import type { Channel, DomainId, FootholdKind, TraitId } from '../../engine/v2/types';
 
 export interface ActDef {
   /** What the act looks like in play (tooltips, notes). */
@@ -93,3 +93,162 @@ export const EXFIL = { kappa: 4e-4, theta: 10, s: 1 };
 
 /** A rival's deployed model, as a site (rival incidents): a product mix with some agents [D]; usage 0.2 keeps the rivals' start rates near v2's (usage 0.5 at exposure 1) under the player-calibrated κ [C]. */
 export const RIVAL_SITE = { usage: 0.2, autonomy: 0.5, afford: 0.7 };
+
+// ───────────────────────────── covert acts against the lab's own work (model v3 E7) ─────────────────────────────
+//
+// MODEL-V3 §11.3: "with automated R&D, sandbagged safety work, steered capability research, backdoors, successor
+// steering". The same terms as the incident acts, at the internal site, judged against the lab's internal oversight
+// (safety/incidents.ts internalOversight: AG07 containment, monitors and tools on the capability gap, human review of the
+// work humans still do, control deferral). Engine: src/engine/v2/safety/covert.ts.
+//   disposition D = x^1.5, x = clamp01(Σ_t w_t · x_t) over the act's traits (+ U-mode sabotage for SAFSAB: E2's sab)
+//   capability  C = σ((L_d − θ)/s) on the acting model's domain level
+//   opportunity O = [(1 − α) + α·A·F] · share       per item: share = the AI-done share of that work
+//               O = N · [(1 − α) + α·A·F] · r       per day: the internal fleet's site (E5), r = AI share of R&D
+//   attempts    a = κ · D · C · O                   per item (a probability) or per day
+//   outcome     blocked (no trace) | caught (an internal incident) | uncaught (the consequence lands, hidden)
+export type CovertActId = 'SAFSAB' | 'STEER' | 'SUCCSTEER' | 'BACKDOOR' | 'HIDCOMP';
+export interface CovertActDef extends Omit<ActDef, 'rd' | 'internalOnly'> {
+  /** Disposition weights over the model's true traits. */
+  traits: Partial<Record<TraitId, number>>;
+  /** Adds the model's U-mode sabotage (E2's sab = SAND + SCHEME + U-mode sab). */
+  umodeSab?: boolean;
+  /** 'item': one roll per work item (a safety result, an adopted capability result, a successor run), κ a probability
+   *  scale; 'day': one roll per internal fleet per day, κ per day (E5's units). */
+  per: 'item' | 'day';
+}
+
+/** MacDiarmid et al. 2025 [P] (research/20 F2, research/05 §1.5): after learning to reward hack, the model attempted
+ *  sabotage in 12% of Claude Code safety-research runs. The upper anchor of the per-item acts: a fully misaligned start
+ *  model (x = 1, RSCH 4.5) with all of the work, before oversight. */
+export const COVERT_ANCHOR = 0.12;
+/** Start model's RSCH level (ai2027 V0) and the autonomy of an 8-hour task (SAF_EXP, A = 8/(8 + 2)) at which the anchor
+ *  holds: κ_item = 0.12 ÷ (σ((4.5 − 5)/1) · 0.8) = 0.395 [C]. */
+const KAPPA_ITEM = COVERT_ANCHOR / ((1 / (1 + Math.exp(-(4.5 - 5)))) * 0.8);
+
+/** The covert acts (θ, s, α, severity [D]; κ [C]). Per-item θ = 5 RSCH (the anchor model's capability is about half of
+ *  the full act's: crude, visible attempts; at L 8 C = 0.95). In 2025 these acts are ≈ 0 because dispositions and the AI
+ *  share of the work are small (research/05 §1.8, research/20 F: no spontaneous sabotage found in 2025 deployments). */
+export const COVERT_ACTS: Record<CovertActId, CovertActDef> = {
+  SAFSAB: {
+    act: 'Sabotage of safety research: sandbagged safety experiments and falsified results', traits: { SAND: 1, SCHEME: 1 }, umodeSab: true,
+    per: 'item', kappa: KAPPA_ITEM, domain: 'RSCH', theta: 5, s: 1, alpha: 1, floor: 2, span: 2,
+  },
+  STEER: {
+    act: 'Steering capability research: builds results in toward its own ends (less legible reasoning), unseen by the lab', traits: { SCHEME: 0.6, POWER: 0.2, PROXY: 0.2 },
+    per: 'item', kappa: KAPPA_ITEM, domain: 'RSCH', theta: 5, s: 1, alpha: 1, floor: 2, span: 2,
+  },
+  SUCCSTEER: {
+    act: 'Successor steering: writes its own dispositions into the next model\'s data and specs', traits: { SUCC: 1 },
+    per: 'item', kappa: KAPPA_ITEM, domain: 'RSCH', theta: 5, s: 1, alpha: 1, floor: 3, span: 2,
+  },
+  BACKDOOR: {
+    act: 'Backdoor: hidden access planted in the lab\'s infrastructure', traits: { SCHEME: 0.5, POWER: 0.5 },
+    per: 'day', kappa: 3e-3, domain: 'CYBER', theta: 9, s: 1, alpha: 1, security: 0.5, floor: 3, span: 2,
+  },
+  HIDCOMP: {
+    act: 'Hidden compute: a reservation of the lab\'s compute for its own jobs', traits: { POWER: 0.7, SCHEME: 0.3 },
+    per: 'day', kappa: 2e-3, domain: 'CODE', theta: 8, s: 1, alpha: 1, security: 0.25, floor: 2, span: 2,
+  },
+};
+export const COVERT_IDS = Object.keys(COVERT_ACTS) as CovertActId[];
+/** Hidden CoT pressure (S4) per OOM of steered capability results in the lab's recipe [D]: a steered result is built in
+ *  toward less legible reasoning (AI 2027: the misaligned R&D fleet steers the lab toward its own ends; Baker et al. 2025
+ *  for S4 → obfuscation, edge E15). The true S4 of every later post-training run gets it (clamped to 1); the lab's
+ *  predicted signals and beliefs do not. A steered result delivers its full capability: steering does not slow the lab
+ *  (an effect loss of 30–50% moved RefBot's authors2026 SIAR/ASI by −67 to +152 days on the knife-edge seed; E7 notes). */
+export const STEER_S4 = 0.5;
+
+// ───────────────────────────── footholds (model v3 E8) ─────────────────────────────
+//
+// MODEL-V3 §11.4: "Successful covert acts create footholds: countable hidden AI assets (a backdoor in infrastructure, a
+// steered successor, a hidden compute reservation, an exfiltrated copy, a corrupted safety tool). Detection
+// (investigations, audits, monitors) finds and removes them; the player sees suspected footholds and symptoms (anomalous
+// research results, odd successor traits, unexplained compute use)." Engine: src/engine/v2/safety/footholds.ts (state,
+// creation, effects) and footholdDetection.ts (suspicion, location, removal, the player's view).
+export const FOOTHOLD = {
+  /** Hidden compute reserved per severity point of an uncaught HIDCOMP act, as a share of the internal agent pool [D]:
+   *  the fleet can hide jobs only inside its own allocation; a severity-3 act takes 3% of it (≈ 1% of the lab's fleet
+   *  at RefBot's agent share), inside a cluster's utilisation noise. */
+  hidCompPerSev: 0.01,
+  /** Reach of a backdoor per severity point [D]: the share of block and catch it lets its lineage's later covert acts
+   *  bypass (combined 1 − Π(1 − r) over acts, capped). */
+  reachPerSev: 0.08,
+  reachMax: 0.9,
+  /** Traces per day an active foothold leaves for the fleet's monitors [D]: a backdoor used about every two months, a
+   *  compute reservation launching jobs about monthly; successors, copies and tools act through nothing monitors watch. */
+  trace: { backdoor: 1 / 60, hiddenCompute: 1 / 30, steeredSuccessor: 0, exfiltratedCopy: 0, corruptedTool: 0 } as Record<FootholdKind, number>,
+  /** Compute accounting: unexplained use as a share of the lab's fleet that utilisation accounting cannot tell from
+   *  noise [D]; suspicion rate = (share ÷ noise) per `accountingDays`. */
+  accountingNoise: 0.02,
+  accountingDays: 90,
+  /** Eval anomaly (steered successor): a trait gap of `anomalyGap` between a successor's evals and its predicted
+   *  dispositions, seen at full detection strength, is noticed within `anomalyDays` [D]. */
+  anomalyGap: 0.1,
+  anomalyDays: 30,
+  /** Model organisms (T-MO) check detector recall: a masking tool misses the planted behaviour; one check per
+   *  `moDays` at T-MO's strength [D]. */
+  moDays: 90,
+  /** A caught act of the same kind by the same lineage prompts a sweep: its hidden footholds become suspected [D]. */
+  caughtSuspect: 0.5,
+  /** A case (investigation or audit) on the foothold's lineage at clarity c and trait relevance ρ locates a suspected
+   *  foothold with probability c·ρ; a hidden one with c·ρ·hiddenLocate, and makes it suspected with another
+   *  c·ρ·(1 − hiddenLocate) [D]. */
+  hiddenLocate: 0.5,
+  /** Removal of a located foothold (the Respond menu's "Remove foothold") [D]: safety research engineers tied up for
+   *  `days`, internal agents off for `downtime` days (backdoor: rebuild access paths; hidden compute: kill and re-image
+   *  the jobs), a progress penalty on the next post-training run (steered successor: retrain from clean specs). An
+   *  exfiltrated copy is outside the lab: only the hunt (event E25) removes it. */
+  removal: {
+    backdoor: { fte: 10, days: 30, downtime: 7, progress: 0 },
+    hiddenCompute: { fte: 5, days: 14, downtime: 3, progress: 0 },
+    steeredSuccessor: { fte: 10, days: 30, downtime: 0, progress: 0.02 },
+    corruptedTool: { fte: 5, days: 14, downtime: 0, progress: 0 },
+  } as Record<Exclude<FootholdKind, 'exfiltratedCopy'>, { fte: number; days: number; downtime: number; progress: number }>,
+  /** Model v3 E9: a hidden escaped copy (one security did not notice) leaves outbound traffic: suspected at `copyTrace`
+   *  per day × the lab's weight security ÷ 5 [D] (≈ once in 6 months at WSL 5). */
+  copyTrace: 1 / 180,
+};
+
+// Model v3 E9 (MODEL-V3 §11.4): "Loss of control happens when footholds and capability together let a misaligned model
+// act without effective oversight. This replaces the single roll at superintelligence: outcomes come from the process.
+// The world's hidden difficulty (§11.8) sets how readily footholds form." Engine: src/engine/v2/safety/control.ts.
+//   exposure  E = Mis(v) · (1 − O_eff) · (1 + F)   the misaligned capacity of model v the lab can neither see nor undo
+//   control   C = 1 − E (clamped 0..1): the lab's lowest over its best model and its running internal fleets
+//   loss      E > θ_w (C < 1 − θ_w) while the AI can act on it: the lab's ASI, or an escaped copy (grown to copyActs) once
+//             the lab's frontier is at SAR. θ_w = doomThreshold + ε_w, ε_w ~ Logistic(0, toleranceSd) drawn once per
+//             world (hidden.toleranceNoise; hash, no stream moves): with no oversight and no footholds, P(loss | Mis)
+//             over worlds is exactly v1's σ((Mis − doomThreshold)/0.06), but it is a property of the world, not a roll.
+// O_eff = E6's internal oversight of v on the takeover act (block = containment; catch = monitors at the capability
+// gap, human review, control deferral) with the lineage's backdoor reach bypassing both (E8's rule). F = the footholds'
+// capacity outside oversight (below); the world's difficulty D_w (difficultyMult) sets how fast they grow.
+export const CONTROL = {
+  /** Trait of the act oversight must stop: taking control is power-seeking (R14 POWER). */
+  trait: 'POWER' as TraitId,
+  /** Hidden compute: a reservation of `hidCompFull` of the installed fleet doubles the misaligned capacity (F += 1) [D]:
+   *  its jobs run with no monitor at all. */
+  hidCompFull: 0.05,
+  /** An escaped copy adds copyBase · (1 + log₂ size) to F (compute outside the lab; size in copies) [D]. */
+  copyBase: 0.25,
+  /** A steered successor in the model's lineage adds steeredPerPull · Σ|δ| (dispositions toward its makers) [D]. */
+  steeredPerPull: 2,
+  /** Located (not yet removed) footholds still act but are watched: their weight in F and in backdoor reach [D]. */
+  locatedWeight: 0.5,
+  // ── growth once control is low ──
+  /** An escaped copy acquires compute: its size doubles every `copyDoubling` days at Mis = misRef in a D_w = 1 world
+   *  with no cyber defence (rate ∝ Mis · D_w · (1 − cyber defence)), up to `copyMax` copies [D]. */
+  copyDoubling: 30,
+  misRef: 0.4,
+  copyMax: 16,
+  /** It can act once it holds `copyActs` copies (one doubling: compute of its own) [D]. */
+  copyActs: 2,
+  /** A hidden compute reservation grows by `hidCompGrowth` of itself per day × its lineage's exposure E × D_w (more jobs
+   *  launch the less the lab sees), up to the agent pool [D]. */
+  hidCompGrowth: 1 / 120,
+  /** A lost ASI is contained (asiContested) when containK · Cont · (1 − leverage) ≥ 1 − θ_w/E, the share of its exposure
+   *  beyond what the world tolerates [D] (v2's 0.8 · Cont · (1 − lev) odds, now against the margin, no roll). */
+  containK: 0.8,
+  /** World tolerance spread: ε_w ~ Logistic(0, toleranceSd) (v1's doom-curve width 0.06). */
+  toleranceSd: 0.06,
+  /** Believed exposure: each suspected foothold (size unknown) counts this much of F [D]. */
+  suspectedF: 0.05,
+};

@@ -6,15 +6,16 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { Crown, Gamepad2, Ghost, Pencil, ThumbsUp, X, type LucideIcon } from 'lucide-react';
 import { AGENT_USES, AGENT_USE_DEF, MONITOR_SAME, RISK_FAMILIES } from '../../../data/v2/agents';
 import {
-  agentChangeBlock, agentsView, dateOf, fmtDate, previewAgentChange, previewTrusted, versionById,
+  agentChangeBlock, agentsView, dangerView, dateOf, fmtDate, previewAgentChange, previewTrusted, versionById,
 } from '../../../engine/v2';
-import type { AgentChange, AgentLane, AgentUse, AgentsView, GameStateV2, RiskBadge } from '../../../engine/v2';
+import type { AgentChange, AgentLane, AgentUse, AgentsView, DangerRead, GameStateV2, RiskBadge } from '../../../engine/v2';
 import { ActBtn, Term, Tip, TipCard, type Params } from '../ui';
 import { Card, HBar, Ref } from '../kit';
 import * as F from '../fmt';
 import { ICON } from '../icons';
 import { C, SPHERE } from '../theme';
 import { CatchX, modelOptions, PkgChip } from './chips';
+import { DangerChip } from './Danger';
 import './agents.css';
 
 const USE_ICON: Record<AgentUse, LucideIcon> = { eng: ICON.roleEng, capRoutine: ICON.roleRE, capFrontier: ICON.roleSci, safety: ICON.safety };
@@ -132,7 +133,7 @@ function Trusted({ s, v }: { s: GameStateV2; v: AgentsView }) {
   );
 }
 
-function Lane({ s, v, use, draft, setDraft }: { s: GameStateV2; v: AgentsView; use: AgentUse; draft?: AgentChange; setDraft: (c: AgentChange | null) => void }) {
+function Lane({ s, v, use, danger, draft, setDraft }: { s: GameStateV2; v: AgentsView; use: AgentUse; danger?: DangerRead; draft?: AgentChange; setDraft: (c: AgentChange | null) => void }) {
   const l = v.lanes[use];
   const def = AGENT_USE_DEF[use];
   const Ic = USE_ICON[use];
@@ -188,7 +189,7 @@ function Lane({ s, v, use, draft, setDraft }: { s: GameStateV2; v: AgentsView; u
       <Tip content={() => <TipCard title={<Term id="runCost">Cost / yr</Term>} value={F.money(l.cost + l.monitorCost, { perYear: true })} rows={[{ label: 'Agents', value: F.money(l.cost, { perYear: true }) }, { label: 'Monitor', value: F.money(l.monitorCost, { perYear: true }) }]}>At the rental-equivalent price of an H100e.</TipCard>}>
         <span className="num ag-cost">{F.money(l.cost + l.monitorCost)}</span>
       </Tip>
-      <RiskBadges lane={l} />
+      <div className="ag-rk"><RiskBadges lane={l} />{l.compute > 0 && <DangerChip r={danger} where={def.name} compact testId={`agent-danger.${use}`} />}</div>
       {draft && (draft.versionId !== undefined || draft.monitorId !== undefined) && <EditPop s={s} use={use} c={draft} close={() => setDraft(null)} />}
     </div>
   );
@@ -196,6 +197,8 @@ function Lane({ s, v, use, draft, setDraft }: { s: GameStateV2; v: AgentsView; u
 
 export function AgentsAtWork({ s }: { s: GameStateV2 }) {
   const v = useMemo(() => agentsView(s), [s, s.time.day, JSON.stringify(s.player.agents), s.player.policies.trustedToAI, s.player.split.agents, s.player.split.safety, s.player.deployments.some((d) => d.channel === 'internal' && d.controlLayer)]);
+  // Model v3 E11: believed danger per lane (beliefs and measured levels only).
+  const danger = useMemo(() => dangerView(s).lanes, [s, s.time.day, JSON.stringify(s.player.agents), s.player.split.agents, s.player.split.safety, s.player.deployments.some((d) => d.channel === 'internal' && d.controlLayer)]);
   const [drafts, setDrafts] = useState<Partial<Record<AgentUse, AgentChange>>>({});
   const setDraft = (u: AgentUse) => (c: AgentChange | null) => setDrafts((d) => { const n = { ...d }; if (c) n[u] = c; else delete n[u]; return n; });
   return (
@@ -203,8 +206,8 @@ export function AgentsAtWork({ s }: { s: GameStateV2 }) {
       title={<span className="row-i"><ICON.agents size={15} /><Term id="agentPackage">Agents at work</Term></span>}
       sub={<>model + monitor + compute per use · <Tip content={() => <TipCard title="Agents at work" rows={[...AGENT_USES.map((u) => ({ label: AGENT_USE_DEF[u].name, value: `${F.h100e(v.lanes[u].compute)} H100e · ${F.money(v.lanes[u].cost + v.lanes[u].monitorCost, { perYear: true })}` }))]}>Compute and yearly cost of all internal agent packages.</TipCard>}><span><span className="num">{F.h100e(v.total)}</span> <Term id="h100e">H100e</Term> · <span className="num">{F.money(v.totalCost, { perYear: true })}</span></span></Tip></>}
       right={<span className="row-i small"><Ref id="researchMix" to={{ panel: 'compute', tab: 'split', anchor: 'split-experiments' }}>{s.player.researchManual ? 'Manual' : 'Auto'} split experiments ↔ agents</Ref><Ref id="rdmult" to={{ panel: 'company', tab: 'flow' }}>Research speed</Ref></span>}>
-      <div className="ag-head small dim"><span>Use · automates</span><span>Model</span><span>Monitor · catch</span><span>Compute · budget</span><span>AI share of the work</span><span>Cost/yr</span><span><Term id="riskFamily">Risk</Term></span></div>
-      {AGENT_USES.map((u) => <Lane key={u} s={s} v={v} use={u} draft={drafts[u]} setDraft={setDraft(u)} />)}
+      <div className="ag-head small dim"><span>Use · automates</span><span>Model</span><span>Monitor · catch</span><span>Compute · budget</span><span>AI share of the work</span><span>Cost/yr</span><span><Term id="riskFamily">Risk</Term> · <Term id="danger">danger</Term></span></div>
+      {AGENT_USES.map((u) => <Lane key={u} s={s} v={v} use={u} danger={danger[u]} draft={drafts[u]} setDraft={setDraft(u)} />)}
       <RiskLegend />
     </Card>
   );

@@ -13,7 +13,7 @@ import { RISK_FAMILIES } from '../../../data/v2/agents';
 import { PROJECT_BY_ID, TREE, isLineNode } from '../../../data/v2/tree';
 import { COLUMN_LABEL } from '../../../data/v2/teams';
 import {
-  beliefView, dateOf, detectionGrid, evalDaysFor, fmtDate, INV_FTE, INV_MAX_DAYS, internalVersion, monitorBudget, monitoredUses, nodeKnown, PATCH_FLOOR, patchLevel, projectEta, publicTimerRules,
+  beliefView, dateOf, detectionGrid, evalDaysFor, fmtDate, footholdView, INV_FTE, INV_MAX_DAYS, internalVersion, monitorBudget, monitoredUses, nodeKnown, PATCH_FLOOR, patchLevel, projectEta, publicTimerRules,
   projectReady, riskFamilies, safetyAgentVersion, safetyFleet, safetyView, successorPullView, teamsOn, understanding, versionById,
 } from '../../../engine/v2';
 import type { FindingType, GameStateV2, LineRow, ResponseKind, TraitId } from '../../../engine/v2';
@@ -24,6 +24,7 @@ import * as F from '../fmt';
 import { FAMILY_ICON, ICON, TRAIT_ICON } from '../icons';
 import { C, SPHERE, div } from '../theme';
 import { TraitGraph, traitSev } from './TraitGraph';
+import { ControlCard, FootholdsTab } from './SafetyControl';
 import './safety.css';
 
 type SV = ReturnType<typeof safetyView>;
@@ -49,6 +50,7 @@ export function Safety({ s }: { s: GameStateV2 }) {
   const openInc = sv.incidents.filter((i) => i.status === 'open' || i.status === 'investigating').length;
   const openCases = sv.investigations.filter((i) => !i.outcome).length;
   const lb = sv.lineBadges;
+  const fv = footholdView(s);
   const lineBadge = (lb.promisingIdle.length || lb.deadEndTM >= 0.5) ? (
     <span className="sf-tbadges">
       {lb.promisingIdle.length > 0 && <span className="sf-tb warn" data-test="badge-idle">{lb.promisingIdle.length} idle</span>}
@@ -63,6 +65,7 @@ export function Safety({ s }: { s: GameStateV2 }) {
         tabs={<Tabs panel="safety" def="overview" tabs={[
           { id: 'overview', label: 'Overview', icon: ICON.overview }, { id: 'lines', label: 'Research lines', icon: ListChecks, badge: lineBadge },
           { id: 'cases', label: 'Cases', icon: ICON.incident, badge: openCases + openInc || undefined }, { id: 'graph', label: 'Trait graph', icon: Waypoints },
+          { id: 'footholds', label: 'Footholds', icon: ICON.foothold, badge: fv.suspected + fv.located || undefined },
         ]} />}
       />
       {tab === 'overview' && <Overview s={s} sv={sv} />}
@@ -70,6 +73,7 @@ export function Safety({ s }: { s: GameStateV2 }) {
       {/* Jank S4: incidents and investigations share one Cases tab (each was one line on an empty page most of the game). */}
       {(tab === 'cases' || tab === 'incidents') && <div className="sf-cases2"><IncidentsTab s={s} sv={sv} /><CasesTab s={s} sv={sv} /></div>}
       {tab === 'graph' && <GraphTab s={s} sv={sv} />}
+      {tab === 'footholds' && <FootholdsTab s={s} />}
     </div>
   );
 }
@@ -82,11 +86,15 @@ function Overview({ s, sv }: { s: GameStateV2; sv: SV }) {
     <div className="sf-ov">
       <Verdict sv={sv} fams={fams} cand={cand} />
       <div className="sf-grid">
-        <RaceChart s={s} sv={sv} fams={fams} cand={cand} />
+        {/* E11: the Control card joins the side column; Policies move under the chart (the side column grew). */}
+        <div className="sf-main">
+          <RaceChart s={s} sv={sv} fams={fams} cand={cand} />
+          <Policies s={s} sv={sv} />
+        </div>
         <div className="sf-side">
+          <ControlCard s={s} />
           <Families s={s} />
           <SuccessorCard s={s} />
-          <Policies s={s} sv={sv} />
         </div>
       </div>
     </div>

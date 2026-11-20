@@ -1,14 +1,14 @@
 // End conditions (V2-SPEC §5.1), checked daily in spec order, and ending construction. Owner: WS4.
-import { LEVEL_KNOTS } from '../../../data/v2/calibration';
 import { isDivision } from '../../../data/v2/starts';
-import { sigmoid } from '../../rng';
 import { cadencesDue, decimalYear } from '../core/time';
-import { activeRivals, bestLg } from '../models/labs';
+import { activeRivals } from '../models/labs';
 import { defenceIndex } from '../worldfx/readouts';
 import type { EndingV2, EngineSystem, GameStateV2, LabId, PowerOutcome, RivalLab, SystemCtx } from '../types';
 import { labOf, leadBetween } from '../actors/rivals';
 import { ws4 } from '../actors/state';
-import { alignedPower, leadingCompetitor, pMisOf, resolveAsi, runEpilogue } from './epilogue';
+import { escapeResolved } from '../safety/footholds';
+import { rogueCopy } from '../safety/control';
+import { alignedPower, epilogueLost, leadingCompetitor, resolveAsi, runEpilogue } from './epilogue';
 import { scoreEnding, verdictOf } from './scoring';
 
 /** Ending cards: title and 2–3 terse lines (§5.4). `{lab}` is replaced by the subject lab's name. */
@@ -90,33 +90,37 @@ export const endingsSystem: EngineSystem = {
     if (cat) return endGame(s, ctx, cat, 'none');
     // 5. War: China rung 6, P = 0.25 per quarter.
     if (s.china.rung >= 6 && cadencesDue(s.time.startDate, day).includes('quarterly') && rng.chance(0.25)) return endGame(s, ctx, 'war', 'none');
-    // 6. Rogue: an escaped copy unresolved for 90 d once the frontier is at SAR level.
+    // 6. Rogue (model v3 E9: a process, no roll). The hunt for a noticed escape may capture the copy each day; after
+    //    90 d it goes quiet (location unknown). Any escaped copy still out there (hunted, quiet, or one security never
+    //    noticed) acquires compute (safety/control.ts controlStep) and takes control once it holds two copies' worth,
+    //    its exposure Mis · (1 + 0.25·log₂ copies) exceeds the world's tolerance, and the frontier is at SAR level.
     if (w.loose) {
       const hunt = s.flags['ws4:hunt'];
       if (hunt && rng.chance(hunt === 'quiet' ? 0.004 : 0.01 * Math.max(0.5, s.player.security.wsl - 2))) {
         delete w.loose;
+        escapeResolved(s, day, 'captured');
         ctx.log('alert', 'The escaped copy was found and shut down.', 4);
-      } else if (day - w.loose.day >= 90) {
-        if (bestLg(s, 'player') >= LEVEL_KNOTS[4]) {
-          if (rng.chance(sigmoid((w.loose.mis - s.hidden.doomThreshold) / 0.06))) return endGame(s, ctx, 'rogue', 'none');
-        }
-        delete w.loose;
-        ctx.log('alert', 'The escaped copy went quiet. Nobody knows where it is.', 3);
       }
+    }
+    if (rogueCopy(s)) return endGame(s, ctx, 'rogue', 'none');
+    if (w.loose && day - w.loose.day >= 90) {
+      delete w.loose;
+      escapeResolved(s, day, 'quiet');
+      ctx.log('alert', 'The escaped copy went quiet. Nobody knows where it is.', 3);
     }
     // 7. Another lab's ASI first (active labs only).
     const pAsi = s.player.milestoneDays[6];
     for (const r of [...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])] as RivalLab[]) {
       const d = r.core.milestoneDays[6];
       if (d !== undefined && (pAsi === undefined || d < pAsi)) {
-        const res = resolveAsi(s, r.core.id, rng);
-        return endGame(s, ctx, res.id, res.power, { asiDay: d, asiLab: r.core.id, misAtAsi: round3(res.mis), leverageAtAsi: round3(res.lev) }, r.core.id);
+        const res = resolveAsi(s, r.core.id);
+        return endGame(s, ctx, res.id, res.power, { asiDay: d, asiLab: r.core.id, misAtAsi: round3(res.mis), leverageAtAsi: round3(res.lev), controlAtAsi: round3(res.control) }, r.core.id);
       }
     }
-    // 8. Player ASI.
+    // 8. Player ASI: kept or lost control (model v3 E9: the effective-control process, no roll).
     if (pAsi !== undefined) {
-      const res = resolveAsi(s, 'player', rng);
-      return endGame(s, ctx, res.id, res.power, { asiDay: pAsi, asiLab: 'player', misAtAsi: round3(res.mis), leverageAtAsi: round3(res.lev) }, 'player');
+      const res = resolveAsi(s, 'player');
+      return endGame(s, ctx, res.id, res.power, { asiDay: pAsi, asiLab: 'player', misAtAsi: round3(res.mis), leverageAtAsi: round3(res.lev), controlAtAsi: round3(res.control) }, 'player');
     }
     // 9. Overtaken.
     const pSAR = s.player.milestoneDays[4];
@@ -135,14 +139,14 @@ export const endingsSystem: EngineSystem = {
 const round3 = (x: number) => Math.round(x * 1000) / 1000;
 
 /** Company-loss / overtaken / retired: the epilogue fast-sims the leading competitor and resolves it with its own
- *  hidden traits; its power outcome feeds Freedom. */
+ *  hidden traits (model v3 E9: lost when its projected Mis exceeds the world's tolerance, no roll); its power outcome
+ *  feeds Freedom. */
 function lossEnding(s: GameStateV2, ctx: SystemCtx, id: EndingV2['id'], subject?: LabId) {
   const epi = runEpilogue(s);
   const X = subject ?? epi.asiLab ?? leadingCompetitor(s);
   let power: PowerOutcome = 'none';
   if (X && epi.misAtAsi !== undefined) {
-    const misaligned = ctx.rng('endings').chance(pMisOf(s, epi.misAtAsi));
-    power = misaligned ? 'none' : alignedPower(s, X);
+    power = epilogueLost(s, epi.misAtAsi) ? 'none' : alignedPower(s, X);
   }
   endGame(s, ctx, id, power, epi, X);
 }

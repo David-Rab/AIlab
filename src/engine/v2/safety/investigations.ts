@@ -5,7 +5,6 @@
 // combine_t(cov·strength·penalty)·(people/15)^0.5; it feeds observations into beliefs and resolves at clarity ≥ 0.8, on
 // close, or after 120 days. The outcome is drawn
 // from the truth (engine) but the player only sees the outcome label and a severity estimate.
-import { safetyAgentVersion } from './agents';
 import { safetyLabour } from '../departments/workfit';
 import { VERIFIABILITY } from '../../../data/v2/agendas';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
@@ -17,8 +16,10 @@ import { versionOom } from './oversight';
 import { combineTools, familyPenalty, observeVersion } from './detection';
 import { revealFalse } from './findings';
 import { strengthTrue, techniqueRole } from './techniques';
-import { discoverUMode, isDiscovered, sabOf } from './umodes';
+import { discoverUMode, isDiscovered } from './umodes';
+import { safetySabotage } from './covert';
 import { patchFte } from './responses';
+import { caseOnModel } from './footholdDetection';
 import { QUALITY } from '../../../data/v2/teams';
 
 /** Safety research engineers (heads × quality): who staffs cases, patches and tool upkeep (R8). */
@@ -180,11 +181,11 @@ export function resolveInvestigation(s: GameStateV2, ctx: SystemCtx, inv: Invest
   const k = traits.reduce((a, b) => (v.traitsTrue[b] > v.traitsTrue[a] ? b : a), traits[0]);
   const x = v.traitsTrue[k];
   const c = inv.clarity;
-  // Corruption by AI labour from a sabotaging model (E20): P = share of the case's work AI does (A of safety
-  // experiments = Trusted to AI × coverage, model v3 E2) · sab · (1 − verifiability). The model is the one running the safety agents.
-  const iv = safetyAgentVersion(s);
+  // Corruption by AI labour from a sabotaging model (E20): the safety agents' uncaught sabotage of the case (model v3 E7's
+  // SAFSAB on the share of the case's work AI does, A of safety experiments = Trusted to AI × coverage, E2) × (1 −
+  // verifiability of the case's tools).
   const verif = tools.length ? tools.reduce((a, t) => a + VERIFIABILITY[t.family], 0) / tools.length : 0.5;
-  const corrupted = rng.chance(clamp01(safetyLabour(s).exp.A * sabOf(iv) * (1 - verif)));
+  const corrupted = rng.chance(clamp01((safetySabotage(s, safetyLabour(s).exp.A)?.rate ?? 0) * (1 - verif)));
   let outcome: NonNullable<Investigation['outcome']>;
   let uMode: UModeId | undefined;
   if (corrupted) {
@@ -231,6 +232,9 @@ export function resolveInvestigation(s: GameStateV2, ctx: SystemCtx, inv: Invest
   }
   inv.outcomeDetail = detail;
   if (inc && inc.status === 'investigating') inc.status = 'open';
+  // Model v3 E8: the case may locate footholds of the model's lineage (or find traces of hidden ones); a corrupted case
+  // finds nothing.
+  if (!corrupted) caseOnModel(s, ctx, v, traits, c, inv.id, `investigation ${inv.id}`);
   // Independent-family cross-check exposes false-validated tools used in the case (§3.5.3).
   for (const t of tools) {
     if (t.falseValidated && [...fams].some((f) => f !== t.family)) revealFalse(s, ctx, t.id);

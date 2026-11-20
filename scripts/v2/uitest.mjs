@@ -248,8 +248,11 @@ await check('Continue from autosave', 'store.screen', () => page.click('[data-te
 await page.evaluate(() => { const st = window.ai27v2; st.draftSetup = { ...st.draftSetup, tutorial: false, seed: 4242, companyName: 'OpenBrain' }; st.start(st.draftSetup); });
 await wait(150);
 ok('Tutorial off unlocks compute', !(await page.$eval('[data-nav=compute]', (b) => b.disabled)));
-// Advance a little so deployments/finance have content.
-await page.evaluate(() => window.ai27v2.step(20));
+// Model v3 E11 at day 1 (footholds, control, danger), then advance a little so deployments/finance have content.
+await page.evaluate(() => window.ai27v2.step(1));
+await closeModals();
+await e11Check('day 1');
+await page.evaluate(() => window.ai27v2.step(19));
 await closeModals();
 const PANELS = ['finance', 'overview', 'company', 'compute', 'research', 'models', 'blueprint', 'products', 'safety', 'relations', 'world', 'risk', 'codex'];
 for (const p of PANELS) await check(`Tab ${p}`, 'store.panel', () => nav(p), 60);
@@ -934,6 +937,100 @@ async function stepUntilDone(ref, max = 40) {
   }
   return false;
 }
+// Model v3 E11: footholds, believed control and the danger readout. Values on screen equal the belief selectors
+// (store.readouts); no hidden foothold or true control appears; with `plant` a located foothold's Remove preview matches
+// what removing it does.
+async function e11Check(where, plant = false) {
+  const tag = where.replace(' ', '');
+  const sel = (expr) => get(`(() => { const r = store.readouts; return ${expr}; })()`).then((x) => JSON.parse(x));
+  await page.evaluate(() => {
+    const s = window.ai27v2.state;
+    const v = s.player.agents.capRoutine.versionId;
+    s.player.safety.footholds = (s.player.safety.footholds ?? []).filter((f) => !f.id.startsWith('FH-E11'));
+    // A hidden foothold the view must never show, and a distinctive true control level the UI must never show.
+    s.player.safety.footholds.push({ id: 'FH-E11-HIDDEN', kind: 'backdoor', versionId: v, lineage: 'L-x', day: s.time.day - 30, acts: 1, severity: 3, size: 0.37, status: 'hidden' });
+    window.__e11ctl = { ...s.player.safety.effectiveControl };
+    window.__e11off = s.flags['ws4:agentsOffUntil'];
+    s.player.safety.effectiveControl.level = 0.0137;
+    s.player.safety.effectiveControl.exposure = 0.9863;
+    window.ai27v2.notify();
+  });
+  if (plant) await page.evaluate(() => {
+    const s = window.ai27v2.state;
+    const v = s.player.agents.capRoutine.versionId;
+    s.player.safety.footholds.push({ id: 'FH-E11-LOC', kind: 'hiddenCompute', versionId: v, lineage: 'L-x', day: s.time.day - 40, acts: 1, severity: 3, size: 3000, status: 'detected', symptom: 'located by an investigation', suspectedDay: s.time.day - 30, detectedDay: s.time.day - 2 });
+    s.player.safety.footholds.push({ id: 'FH-E11-SUS', kind: 'backdoor', versionId: v, lineage: 'L-x', day: s.time.day - 40, acts: 1, severity: 2, size: 0.16, status: 'suspected', symptom: 'monitors flagged unexplained access', suspectedDay: s.time.day - 3 });
+    window.ai27v2.notify();
+  });
+  // Products: each card's danger equals dangerView's.
+  await nav('products');
+  await wait(120);
+  const prod = await page.$$eval('[data-test^="prod-danger."]', (els) => els.map((e) => [e.getAttribute('data-test').slice(12), Number(e.getAttribute('data-harm'))]));
+  const pv = await sel('Object.fromEntries(Object.entries(r.dangerView(s).products).map(([k, x]) => [k, x.harmful]))');
+  ok(`E11 ${where}: a danger readout on every product, equal to the belief selector`, prod.length === Object.keys(pv).length && prod.every(([id, h]) => Math.abs(h - pv[id]) < 1e-4), JSON.stringify(prod).slice(0, 120));
+  if (prod.length) {
+    await page.hover(`[data-test="prod-danger.${prod[0][0]}"]`);
+    await wait(350);
+    const tip = await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '');
+    ok(`E11 ${where}: the product danger tooltip shows the four factors`, /Disposition/.test(tip) && /Capability/.test(tip) && /Opportunity/.test(tip) && /Oversight/.test(tip), tip.slice(0, 160));
+    await shot(`e11-${tag}-product-danger`);
+    await clearTips();
+  }
+  // Agents at work: each running lane's danger equals dangerView's.
+  await nav('company');
+  await tabTo('people');
+  const lanes = await page.$$eval('[data-test^="agent-danger."]', (els) => els.map((e) => [e.getAttribute('data-test').slice(13), Number(e.getAttribute('data-harm'))]));
+  const lv = await sel('Object.fromEntries(Object.entries(r.dangerView(s).lanes).map(([k, x]) => [k, x.harmful]))');
+  const running = await page.evaluate(() => ['eng', 'capRoutine', 'capFrontier', 'safety'].filter((u) => !!document.querySelector(`[data-lane="${u}"]`) && !document.querySelector(`[data-test="lane-off.${u}"]`)));
+  ok(`E11 ${where}: a danger readout on every running agent lane, equal to the belief selector`, lanes.length >= 1 && lanes.length === running.filter((u) => lv[u] !== undefined).length && lanes.every(([u, h]) => Math.abs(h - lv[u]) < 1e-4), JSON.stringify(lanes));
+  if (lanes.length) { await page.hover(`[data-test="agent-danger.${lanes[0][0]}"]`); await wait(350); await shot(`e11-${tag}-lane-danger`); await clearTips(); }
+  // Safety › Overview: believed control equals controlReadout; the true level never shows.
+  await nav('safety');
+  await tabTo('overview');
+  const shown = await page.$eval('[data-test=control-value]', (e) => Number(e.getAttribute('data-control'))).catch(() => NaN);
+  const cr = await sel('r.controlReadout(s)');
+  const card = await page.locator('[data-home=effectiveControl]').innerText().catch(() => '');
+  ok(`E11 ${where}: control on Safety › Overview equals the believed selector (${cr.believed})`, Math.abs(shown - cr.believed) < 1e-4 && card.includes(cr.believed.toFixed(2)), `${shown} vs ${cr.believed}`);
+  ok(`E11 ${where}: the true control level and exposure never show`, !/\b0\.01\b|\b0\.99\b|99%/.test(card), card.replace(/\s+/g, ' ').slice(0, 160));
+  const fv = await sel('r.footholdView(s)');
+  ok(`E11 ${where}: the footholds chip counts known footholds only`, (await page.locator('[data-test=foothold-chip]').innerText()).includes(String(fv.suspected + fv.located)) && !fv.rows.some((x) => x.id === 'FH-E11-HIDDEN'));
+  await shot(`e11-${tag}-safety-overview`);
+  await page.hover('[data-test=control-value]');
+  await wait(350);
+  ok(`E11 ${where}: the control tooltip shows its exposure terms`, /Exposure/.test(await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '')));
+  await clearTips();
+  await tabTo('footholds');
+  const html = await page.locator('main.center').innerHTML();
+  const rows = await page.$$eval('[data-foothold]', (els) => els.map((e) => e.getAttribute('data-foothold')));
+  ok(`E11 ${where}: Footholds lists every known foothold and no hidden one`, !html.includes('FH-E11-HIDDEN') && rows.length === fv.rows.length && fv.rows.every((x) => rows.includes(x.id)), rows.join(','));
+  await shot(`e11-${tag}-footholds`);
+  if (plant) {
+    // The remove response's preview matches its effect (engineers × days, agents off, compute released).
+    await page.hover('[data-act="foothold-remove.FH-E11-LOC"]');
+    await wait(350);
+    const tip = await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '');
+    await shot(`e11-${tag}-remove-preview`);
+    await clearTips();
+    const day = JSON.parse(await get('s.time.day'));
+    const m = { fte: Number((tip.match(/([\d.]+) staff/) ?? [])[1]), days: Number((tip.match(/engineers for (\d+) d/) ?? [])[1]), off: Number((tip.match(/(\d+) compute\s*days with internal agents off/) ?? [])[1]), gain: /3K compute/.test(tip) };
+    await page.evaluate(() => { window.ai27v2.state.flags['ws4:agentsOffUntil'] = -1; window.ai27v2.notify(); });
+    await page.click('[data-act="foothold-remove.FH-E11-LOC"]');
+    await wait(150);
+    const f = JSON.parse(await get(`s.player.safety.footholds.find((x) => x.id === 'FH-E11-LOC')`));
+    const off = JSON.parse(await get(`s.flags['ws4:agentsOffUntil']`));
+    ok(`E11 ${where}: Remove's preview matches its effect`, f.status === 'removed' && f.removal?.fte === m.fte && f.removal?.until === day + m.days && off === day + m.off && m.gain, `preview ${JSON.stringify(m)} · effect ${JSON.stringify(f.removal)} off ${off} (day ${day}) · ${tip.replace(/\s+/g, ' ').slice(0, 140)}`);
+    ok(`E11 ${where}: a removed foothold moves to the history`, !!(await page.$('[data-foothold="FH-E11-LOC"][data-status=removed]')));
+    await shot(`e11-${tag}-footholds-removed`);
+  }
+  await page.evaluate(() => {
+    const s = window.ai27v2.state;
+    s.player.safety.footholds = s.player.safety.footholds.filter((f) => !f.id.startsWith('FH-E11'));
+    Object.assign(s.player.safety.effectiveControl, window.__e11ctl);
+    if (window.__e11off === undefined) delete s.flags['ws4:agentsOffUntil']; else s.flags['ws4:agentsOffUntil'] = window.__e11off;
+    window.ai27v2.notify();
+  });
+}
+
 const toSuites = async () => { await nav('models'); await tabTo('suites'); await wait(120); };
 async function d6Check(where, complete) {
   await toSuites();
@@ -1417,6 +1514,7 @@ await d6Check('day 400', true);
 await d4Check('day 400', true);
 await e12Check('day 400');
 await d8Check('day 400', true, 'full');
+await e11Check('day 400', true);
 await shot('27-day400-products-b2');
 const fx9 = readFileSync(path.resolve('scripts/v2/fixtures/day900.json'), 'utf8');
 await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
@@ -1432,6 +1530,7 @@ await d8Check('day 900', false, 'deep');
   const miss = D8_TERMS.filter((x) => !d8Seen.has(x));
   ok(`D8: every evals term has a tooltip in Models › Evals (${D8_TERMS.length})`, miss.length === 0, miss.join(', '));
 }
+await e11Check('day 900', true);
 {
   const miss = D6_TERMS.filter((x) => !d6Seen.has(x));
   ok(`D6: every new suites term has a tooltip in Models › Suites (${D6_TERMS.length})`, miss.length === 0, miss.join(', '));

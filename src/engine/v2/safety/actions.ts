@@ -8,14 +8,16 @@ import { internalVersion } from '../models/labs';
 import type { ActionDef, CostLine, GameStateV2, ResponseKind, SafetyDept, TraitId } from '../types';
 import { clamp01, versionById } from './common';
 import { oomOfLevel } from './oversight';
-import { safetyAgentVersion } from './agents';
 import { safetyLabour } from '../departments/workfit';
+import { believedSabotage } from './covert';
 import { publishFinding } from './findings';
 import { INV_FTE, INV_MAX_DAYS, closeInvestigation, investigationFte, openInvestigation, safetyReHeads } from './investigations';
 import { patchFte } from './responses';
 import { RESPONSE_INFO, applyResponse, responseTrait } from './responses';
 import { strengthBelieved, techniqueRole } from './techniques';
 import { believedPenalty, combineTools } from './detection';
+import { removalPreview } from './footholdDetection';
+import { controlReadout } from './dangerView';
 
 type P = Record<string, number | string | boolean>;
 type Preview = { costs: CostLine[]; gains: CostLine[]; exposure: CostLine[] };
@@ -27,13 +29,6 @@ const isTrait = (x: string | undefined): x is TraitId => !!x && (TRAIT_IDS as st
 
 function measuredL(s: GameStateV2): number {
   return internalVersion(s)?.evals.measuredL ?? 0;
-}
-
-/** Visible sabotage estimate of the safety agent model (from beliefs, never truth). */
-function believedSab(s: GameStateV2): number {
-  const v = safetyAgentVersion(s);
-  if (!v) return 0;
-  return (v.beliefs.SAND?.est ?? 0) + (v.beliefs.SCHEME?.est ?? 0);
 }
 
 /** Default investigation target: the internal model's critical trait with the highest believed level. */
@@ -66,13 +61,14 @@ const INVESTIGATE: ActionDef = {
     const t = defaultTarget(s);
     const versionId = inc?.versionId ?? str(p, 'versionId') ?? t?.versionId ?? '';
     const trait = isTrait(str(p, 'trait')) ? (str(p, 'trait') as TraitId) : inc && inc.apparent !== 'unexplained' && inc.apparent !== 'misuse' ? inc.apparent : t?.trait ?? 'SCHEME';
-    const sab = believedSab(s);
-    // Share of the case's work AI does (safety experiments, model v3 E2): what a sabotaging model can corrupt.
+    // Share of the case's work AI does (safety experiments, model v3 E2): what a sabotaging model can corrupt; model v3
+    // E7: its sabotage attempts on that share (covert.ts SAFSAB, from beliefs and the measured level).
     const ai = safetyLabour(s).exp.A;
+    const sab = believedSabotage(s, ai);
     return {
       costs: [{ currency: 'staffTime', amount: fte, target: `safety research engineers for up to ${INV_MAX_DAYS} d (tool upkeep slows)` }, { currency: 'compute', amount: r2(5 * (num(p, 'computeShare') ?? 0.05)), target: '% of safety pool' }],
       gains: [{ currency: 'alignment', amount: investigationGain(s, versionId, trait, fte), target: `clarity / month on ${trait}` }],
-      exposure: ai > 0.005 ? [{ currency: 'alignment', amount: -r2(ai * sab), probability: r2(clamp01(ai * sab * 0.4)), target: 'corrupted conclusion (estimate)' }] : [],
+      exposure: ai > 0.005 && sab > 0 ? [{ currency: 'alignment', amount: -r2(sab), probability: r2(clamp01(sab * 0.4)), target: 'corrupted conclusion (estimate)' }] : [],
     };
   },
   apply(s, ctx, p) {
@@ -113,7 +109,8 @@ const CLOSE_CASE: ActionDef = {
 
 const RESPONSE_KINDS = Object.keys(RESPONSE_INFO) as ResponseKind[];
 
-function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | undefined, incidentId: string | undefined): Preview {
+function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | undefined, incidentId: string | undefined, footholdId?: string): Preview {
+  if (kind === 'removeFoothold') return removalPreview(s, footholdId);
   const v = versionById(s, versionId) ?? internalVersion(s);
   const inc = incidentId ? s.player.safety.incidents.find((i) => i.id === incidentId) : undefined;
   const trait = v ? responseTrait(v, inc) : 'SCHEME';
@@ -144,12 +141,15 @@ function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | 
         gains: [{ currency: 'approval', amount: 2, target: 'incident hazard × 0.3' }],
         exposure: [],
       };
-    case 'addControl':
+    case 'addControl': {
+      // Model v3 E11: the preview reads E6's control protocol (the largest internal lane's tax, the miss multiplier).
+      const c = controlReadout(s);
       return {
-        costs: [{ currency: 'revenue', amount: -0.05, target: '5% usefulness tax' }, { currency: 'compute', amount: 2, target: '% for trusted monitors' }],
-        gains: [{ currency: 'security', amount: 1, target: 'catastrophe conversion × (1 − Contain)' }],
+        costs: [{ currency: 'progress', amount: -r2(c.tax), target: `up to ${Math.round(c.tax * 100)}% of internal AI labour (control tax)` }],
+        gains: [{ currency: 'security', amount: r2(1 - c.missMult), target: `bad actions slipping past monitors ×${c.missMult.toFixed(2)}; containment tools block` }],
         exposure: [],
       };
+    }
     case 'rollback':
       return {
         costs: [{ currency: 'progress', amount: -0.25, target: 'lose the newer model' }, { currency: 'leadDays', amount: -45 }],
@@ -170,14 +170,14 @@ const RESPOND: ActionDef = {
   available: (s) => s.player.models.versions.length > 0 || 'No models',
   preview(s, p) {
     const kind = (str(p, 'kind') as ResponseKind) ?? 'patchSignal';
-    return respondPreview(s, RESPONSE_KINDS.includes(kind) ? kind : 'patchSignal', str(p, 'versionId'), str(p, 'incidentId'));
+    return respondPreview(s, RESPONSE_KINDS.includes(kind) ? kind : 'patchSignal', str(p, 'versionId'), str(p, 'incidentId'), str(p, 'footholdId'));
   },
   apply(s, ctx, p) {
     const kind = str(p, 'kind') as ResponseKind;
     if (!RESPONSE_KINDS.includes(kind)) return void ctx.log('alert', 'Respond: pick a response.');
     const inc = str(p, 'incidentId') ? s.player.safety.incidents.find((i) => i.id === str(p, 'incidentId')) : undefined;
     const versionId = str(p, 'versionId') ?? inc?.versionId ?? s.player.agents.capRoutine.versionId ?? '';
-    const err = applyResponse(s, ctx, kind, versionId, inc?.id, { trait: isTrait(str(p, 'trait')) ? (str(p, 'trait') as TraitId) : undefined, techniqueId: str(p, 'techniqueId') });
+    const err = applyResponse(s, ctx, kind, versionId, inc?.id, { trait: isTrait(str(p, 'trait')) ? (str(p, 'trait') as TraitId) : undefined, techniqueId: str(p, 'techniqueId'), footholdId: str(p, 'footholdId') });
     if (err) ctx.log('alert', `${RESPONSE_INFO[kind].title}: ${err}.`, 1);
   },
 };
