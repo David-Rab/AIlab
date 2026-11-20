@@ -236,7 +236,7 @@ export const TREE: TreeNodeDef[] = [
   S('T-COLLEVAL', 'Collusion evals', 'evals', 'lab', ['T-LOCK'], 'AG14', 'M', { saf: 1 }, { saf: 'Detects collusion, successor risk' }),
   S('T-RESAMPLE', 'Resample protocols', 'evals', 'lab', ['T-TMON'], 'AG07', 'M', { saf: 1 }, { saf: 'Contains power-seeking, scheming' }),
   S('T-CEVAL', 'Control evaluation', 'evals', 'lab', ['T-RESAMPLE'], 'AG07', 'M', { saf: 1 }, { saf: 'Measures containment' }),
-  S('aar', 'Automated alignment research', 'evals', 'lab', ['P13'], 'AG17', 'L', { saf: 2 }, { finding: 'F44', saf: 'Safety lines on training signals, steering and robustness ×3 while safety work is handed to AI', payoff: 'Pays off with a safety model at level ≥ 10' }),
+  S('aar', 'Automated alignment research', 'evals', 'lab', ['P13'], 'AG17', 'L', { saf: 2 }, { finding: 'F44', saf: 'Teams build a harness: safety AI fit +0.3 OOM (√ of staffing); its finding lifts the safety AI to best-human fit on training-signal, steering and robustness lines', payoff: 'Pays off with a safety model at level ≥ 10' }),
   S('T-MAD', 'Mechanistic anomaly detection', 'evals', 'lab', ['T-CIRCUIT'], 'AG04', 'XL', { saf: 2 }, { cost: 'Long shot' }),
   S('T-SCIAI', 'Harm-probability guardrail', 'evals', 'lab', ['T-CEVAL'], 'AG11', 'XL', { saf: 2 }, { cost: 'Long shot' }),
   S('T-GATE', 'Verified gatekeeper', 'evals', 'lab', ['P25'], 'AG10', 'XL', { saf: 2 }, { saf: 'Contains exfiltration', cost: 'Long shot' }),

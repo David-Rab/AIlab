@@ -32,16 +32,16 @@ import { CAPACITY_UNIT, PROJECT_BY_ID, SPECIALTY_BONUS, isLineNode, type TreeNod
 import { QUALITY } from '../../../data/v2/teams';
 import { hash32 } from '../core/rng';
 import { monitorBudget } from '../departments/agents';
-import { handedLabour, qualityZ, resetSafetyLabour, safetyLabour, teamTaste, type LabourOf } from '../departments/workfit';
+import { handedLabour, qualityZ, resetSafetyLabour, safetyLabour, sdAIOf, shiftFit, teamTaste, type LabourOf } from '../departments/workfit';
 import { Xces } from '../production/knots';
 import { trainNow } from '../models/stacks';
 import type { AgendaId, GameStateV2, SafCandidate, SafProjectState, TreeNodeState } from '../types';
-import { aiShareOf, trustedShare } from './agents';
+import { aiShareOf } from './agents';
 import { safetySandbag } from './covert';
-import { clamp01, flag, trueEfficacy } from './common';
+import { clamp01, trueEfficacy } from './common';
 import { investigationFte, safetyReHeads } from './investigations';
 import { patchFte } from './responses';
-import { aarAuto } from './ideas';
+import { aarAuto, aarFindingOom } from './ideas';
 
 const node = (id: string): TreeNodeDef | undefined => PROJECT_BY_ID[id];
 const agendaOf = (n: TreeNodeDef) => n.agenda as AgendaId;
@@ -137,12 +137,15 @@ export const beliefShown = (c: Pick<SafCandidate, 'mu' | 'sd'>) => ({ mu: clamp0
 
 /** Science capacity and taste of the teams on a project. Taste: each team's E[max(human, AI)] on the AIFM taste
  *  distribution, as capability projects (models/research.ts sciOn), with the safety model's AI taste from its SAF_IDEAS
- *  fit and cover φ = Trusted to AI while the safety agents work on ideas (model v3 E2; departments/workfit.ts). */
+ *  fit and cover φ = Trusted to AI while the safety agents work on ideas (model v3 E2; departments/workfit.ts); on the
+ *  benchmarked agendas F44 raises that fit (model v3 E14, safety/ideas.ts aarFindingOom). */
 export function safSciOn(s: GameStateV2, id: string): { cap: number; q: number; heads: number } {
   const n = node(id);
   if (!n) return { cap: 0, q: 1, heads: 0 };
   const m2b = s.hidden.timeline.prod.m2b;
   const sl = safetyLabour(s);
+  const dG = aarFindingOom(s, agendaOf(n));
+  const sdAI = dG ? sdAIOf(s.hidden.timeline, sl.ideas.fit.fit + dG, 'SAF_IDEAS') : sl.sdAI;
   let cap = 0;
   let qw = 0;
   let heads = 0;
@@ -151,20 +154,9 @@ export function safSciOn(s: GameStateV2, id: string): { cap: number; q: number; 
     const c = (t.heads / CAPACITY_UNIT) * QUALITY[t.quality].out * (t.specialty === n.column ? SPECIALTY_BONUS : 1);
     cap += c;
     heads += t.heads;
-    qw += c * teamTaste(qualityZ(t.quality), sl.sdAI, sl.phi, m2b);
+    qw += c * teamTaste(qualityZ(t.quality), sdAI, sl.phi, m2b);
   }
   return { cap, q: cap > 0 ? qw / cap : 1, heads };
-}
-
-/** AG17 multiplier on every line's AI-labour term while AG17 has teams [D]. */
-function ag17Mult(s: GameStateV2): number {
-  let c = 0;
-  for (const t of s.player.teams) {
-    const n = t.role === 'sci' && t.projectId ? node(t.projectId) : undefined;
-    if (n && n.agenda === 'AG17' && isLineNode(n)) c += (t.heads / CAPACITY_UNIT) * QUALITY[t.quality].out * (t.specialty === n.column ? SPECIALTY_BONUS : 1);
-  }
-  const m = c / SERIOUS_CAP;
-  return m > 0 ? 1 + Math.sqrt(m) : 1;
 }
 
 /** AI labour on a line's work (model v3 E2): the effective-labour multipliers m_ideas and m_exp that enter ideation
@@ -174,17 +166,23 @@ function ag17Mult(s: GameStateV2): number {
  *  the capabilities CES with the Trusted-to-AI share. Per line: the agenda's automation factor (research/14 "Auto": AI
  *  speeds agendas whose outputs can be checked, Carlsmith 2025) is the share of the line's work inside the work type's
  *  coverage (a × Auto; Auto 1 = the work type, AG12's 0.2 barely automatable; P27's AAR harnesses close half the gap to
- *  1, safety/ideas.ts aarAuto, and add fit on SAF_*, workfit.ts safetyLabour), and AG17's science teams lift the agents'
- *  labour ×(1 + √(capacity ÷ SERIOUS_CAP)) (AI team-equivalents; kept from v2 [D]). A sabotaging safety model sandbags a
- *  share of its own labour (model v3 E7, safety/covert.ts safetySandbag): the lines slow. */
+ *  1, safety/ideas.ts aarAuto, and add fit on SAF_*, workfit.ts safetyLabour; AG17's science teams add their harness's
+ *  fit there too, model v3 E14), and F44 raises the safety model's fit on the benchmarked agendas' work (AG18 / AG03 /
+ *  AG16: safety/ideas.ts aarFindingOom, E14). A sabotaging safety model sandbags a share of its own labour (model v3
+ *  E7, safety/covert.ts safetySandbag): the lines slow. */
 export function lineLabour(s: GameStateV2, ag: AgendaId): { ideas: number; exp: number; aiShare: number } {
   const sl = safetyLabour(s);
   if (sl.t <= 0) return { ideas: 1, exp: 1, aiShare: 0 };
   const P = s.hidden.timeline.prod;
   const auto = aarAuto(s, AGENDA_BY_ID[ag].auto);
   // Model v3 E7: the share of their own work the safety agents sandbag (SAFSAB attempts containment does not stop) is lost.
-  const lift = ag17Mult(s) * (1 - safetySandbag(s));
-  const one = (x: LabourOf) => (x.aiFte > 0 ? handedLabour(P, x.fit.a * auto, sl.t, x.H, x.AI * lift, x.fit.assist) : { m: 1, A: 0 });
+  const kept = 1 - safetySandbag(s);
+  const dG = aarFindingOom(s, ag);
+  const one = (x: LabourOf) => {
+    if (x.aiFte <= 0) return { m: 1, A: 0 };
+    const f = shiftFit(s.hidden.timeline, x.wt, x.fit, dG);
+    return handedLabour(P, f.a * auto, sl.t, x.H, x.AI * kept, f.assist);
+  };
   const e = one(sl.exp);
   const i = one(sl.ideas);
   return { ideas: i.m, exp: e.m, aiShare: aiShareOf(i.A, e.A) };
@@ -195,16 +193,14 @@ export function lineLabourMult(s: GameStateV2, ag: AgendaId): { ideas: number; e
   return { ideas: l.ideas, exp: l.exp };
 }
 
-/** Speed modifiers of a line's stages: siloing −5% per level and a custom-ASIC migration −15% (as all research), a
- *  dead-end line at half speed, F44's automated alignment researchers ×3 on AG18/AG03/AG16 with AI labour (kept from the
- *  pre-E1 rate). P27 acts on the lines' AI labour instead (lineLabour; model v3 E13). */
+/** Speed modifiers of a line's stages: siloing −5% per level and a custom-ASIC migration −15% (as all research) and a
+ *  dead-end line at half speed. No agenda-specific factor: P27, F44 and AG17 act on the lines' AI labour (lineLabour;
+ *  model v3 E13, E14). */
 export function lineSpeed(s: GameStateV2, ag: AgendaId): number {
   const p = s.player;
   let v = 1 - 0.05 * p.security.siloing;
   if ((p.finance.ws3.asicMigrationUntil ?? -1) > s.time.day) v *= 0.85;
   if (p.safety.agendas[ag].status === 'deadEnd') v *= 0.5;
-  const tr = trustedShare(s);
-  if (flag(s, 'aar') !== undefined && tr > 0 && (ag === 'AG18' || ag === 'AG03' || ag === 'AG16')) v *= 3;
   return v;
 }
 

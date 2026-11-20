@@ -3,14 +3,16 @@
 //   P15 aiOversight                                  suite hardening (models/suites.ts)
 //   P23 cotResist                                    S4, COT masks (traits.ts) and CoT controllability (detection.ts)
 //   P27 aarAuto (+ P27_AAR.fitOom in workfit.ts)     the safety AI labour of research lines (lineProjects.ts)
+//   F44 aarFindingOom (model v3 E14)                 the safety model's fit on the benchmarked agendas' lines (lineProjects.ts)
+//   AG17's harness (workfit.ts ag17HarnessOom, E14)  the safety package's SAF_* fit from AG17's science teams
 import { COPY_COLLUSION } from '../../../data/v2/features';
-import { FAITHFUL_COT, P14_STEER, P15_OVERSIGHT, P27_AAR } from '../../../data/v2/safetyIdeas';
+import { F44_AAR, FAITHFUL_COT, P14_STEER, P15_OVERSIGHT, P27_AAR } from '../../../data/v2/safetyIdeas';
 import { TRAIT_ORDER } from '../../../data/v2/traits';
 import { safetyLabour } from '../departments/workfit';
 import { internalVersion } from '../models/labs';
 import { sameLineage } from '../models/products';
-import type { GameStateV2, ModelVersion, PostDesign, TechniqueState, TraitId } from '../types';
-import { adopted, clamp01 } from './common';
+import type { AgendaId, GameStateV2, ModelVersion, PostDesign, TechniqueState, TraitId } from '../types';
+import { adopted, clamp01, flag } from './common';
 import { combineTools, familyPenalty } from './detection';
 import { measuredOom, versionOom } from './oversight';
 import { believedMask, strengthBelieved, strengthTrue, techniqueRole } from './techniques';
@@ -107,4 +109,13 @@ export function cotResist(cot: PostDesign['cot'] | undefined): number {
 /** P27: an agenda's automation factor with the AAR harnesses: Auto' = 1 − (1 − Auto)·(1 − autoGap). */
 export function aarAuto(s: GameStateV2, auto: number): number {
   return adopted(s, 'P27') ? 1 - (1 - auto) * (1 - P27_AAR.autoGap) : auto;
+}
+
+// ───────────────────────────── F44 AARs mitigate well-characterized failures (model v3 E14) ─────────────────────────────
+
+/** F44: extra SAF_EXP / SAF_IDEAS fit (OOM) of the safety model on agenda ag's line work once the finding is known: the
+ *  benchmarked agendas (AG18, AG03, AG16) at best-human level, + gapBM × Δ_bm; 0 elsewhere or before F44. */
+export function aarFindingOom(s: GameStateV2, ag: AgendaId): number {
+  if (flag(s, 'aar') === undefined || !(F44_AAR.agendas as readonly AgendaId[]).includes(ag)) return 0;
+  return F44_AAR.gapBM * s.hidden.timeline.v3.dBM;
 }

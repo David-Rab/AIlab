@@ -23,9 +23,10 @@ import {
 import { RSCH_TASTE_PENALTY } from '../../../data/v2/calibration';
 import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
 import { DEFAULT_CAP_SHARES } from '../../../data/v2/agents';
-import { P27_AAR } from '../../../data/v2/safetyIdeas';
+import { AG17_HARNESS, P27_AAR } from '../../../data/v2/safetyIdeas';
+import { LINE_MULT_MAX, SERIOUS_CAP } from '../../../data/v2/agendas';
 import { QUALITY, TEAM_COST_M } from '../../../data/v2/teams';
-import { PROJECT_BY_ID, isLineNode } from '../../../data/v2/tree';
+import { CAPACITY_UNIT, PROJECT_BY_ID, SPECIALTY_BONUS, isLineNode } from '../../../data/v2/tree';
 import { Lrel, Phi, tasteSigma } from '../production/knots';
 import { gOfDomain, gOfPm, h50Of } from '../models/capability';
 import { adopted } from '../models/paradigms';
@@ -94,6 +95,14 @@ export const coverage = (w: TimelineWorld, wt: WorkTypeId, fit: number, h50: num
 export const winRate = (w: TimelineWorld, wt: WorkTypeId, fit: number) => Phi((fit - refPoints(w, wt).med) / S_WIN);
 /** Assist: speed-up of the human-done share, H/(M + R + (1 − w)·H) when it helps (w ≳ 0.3), else 1. */
 export const assistOf = (win: number) => Math.max(1, 1 / (ASSIST.model + ASSIST.review + (1 - win)));
+
+/** A work fit moved by dG OOM at the same horizon (a per-line effect on top of the package's fit, model v3 E14 F44). */
+export function shiftFit(w: TimelineWorld, wt: WorkTypeId, f: WorkFit, dG: number): WorkFit {
+  if (!dG) return f;
+  const fit = f.fit + dG;
+  const win = winRate(w, wt, fit);
+  return { ...f, fit, win, a: coverage(w, wt, fit, f.h50), assist: assistOf(win) };
+}
 
 /** Fit, horizon and coverage of a version in a work type. */
 export interface WorkFit { fit: number; best: number; med: number; h50: number; a: number; win: number; assist: number }
@@ -332,7 +341,8 @@ export const resetWorkContext = (s: GameStateV2) => ctxMemo.delete(s);
  *  (handedLabour; at t = 1 safety work gets exactly the capabilities multiplier at the same fit). No fleet (no model or
  *  no compute) = nothing handed. The package's compute is spread over the two work types in proportion to the work AI
  *  does in each (A × human team-equivalents) [D]. AI taste on safety ideas: sd_AI from the SAF_IDEAS fit, cover φ = t
- *  while the fleet works on ideas. P27 adds its AAR scaffold's fit (+0.3 OOM on SAF_EXP and SAF_IDEAS, data/v2/safetyIdeas.ts). */
+ *  while the fleet works on ideas. P27 adds its AAR scaffold's fit (+0.3 OOM on SAF_EXP and SAF_IDEAS) and AG17's science
+ *  teams their harness (+0.3 OOM × √(capacity ÷ SERIOUS_CAP); model v3 E14), data/v2/safetyIdeas.ts. */
 export interface SafetyLabour {
   /** Trusted to AI in effect (0 with no fleet). */
   t: number;
@@ -343,6 +353,19 @@ export interface SafetyLabour {
   sdAI: number;
   phi: number;
 }
+/** AG17's science capacity (standard science units, as safSciOn: heads ÷ CAPACITY_UNIT × quality × specialty) on its
+ *  research-line projects. */
+export function ag17Capacity(s: GameStateV2): number {
+  let c = 0;
+  for (const t of s.player.teams) {
+    const n = t.role === 'sci' && t.projectId ? PROJECT_BY_ID[t.projectId] : undefined;
+    if (n && n.agenda === 'AG17' && isLineNode(n)) c += (t.heads / CAPACITY_UNIT) * QUALITY[t.quality].out * (t.specialty === n.column ? SPECIALTY_BONUS : 1);
+  }
+  return c;
+}
+/** AG17's harness on the safety package (OOM of SAF_EXP / SAF_IDEAS fit): fitOom × √(min(LINE_MULT_MAX, capacity ÷
+ *  SERIOUS_CAP)) (model v3 E14; data/v2/safetyIdeas.ts AG17_HARNESS). */
+export const ag17HarnessOom = (s: GameStateV2) => AG17_HARNESS.fitOom * Math.sqrt(Math.min(LINE_MULT_MAX, ag17Capacity(s) / SERIOUS_CAP));
 const safMemo = new WeakMap<GameStateV2, { day: number; x: SafetyLabour }>();
 /** Drop the memoised safety labour (the safety allocation's reset calls it: after actions and in the research system). */
 export const resetSafetyLabour = (s: GameStateV2) => safMemo.delete(s);
@@ -356,7 +379,8 @@ export function safetyLabour(s: GameStateV2): SafetyLabour {
   const none: WorkFit = { fit: -Infinity, best: 0, med: 0, h50: 0, a: 0, win: 0, assist: 1 };
   const wts = ['SAF_EXP', 'SAF_IDEAS'] as const;
   // P27 (automated alignment research at scale, model v3 E13): the AAR harness is a research scaffold on safety work.
-  const aar = adopted(s, 'P27') ? P27_AAR.fitOom : 0;
+  // AG17's science teams run the harness (model v3 E14): a scaffold whose fit grows with their capacity.
+  const aar = (adopted(s, 'P27') ? P27_AAR.fitOom : 0) + ag17HarnessOom(s);
   const fx = wts.map((wt) => { const f = internalFx(s, wt); return aar ? { ...f, dG: f.dG + aar } : f; });
   const fits = wts.map((wt, i) => (u.v ? workFit(s, u.v, wt, fx[i]) : none));
   const H = wts.map((wt) => humansOf(s, wt));

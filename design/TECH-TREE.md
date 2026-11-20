@@ -214,7 +214,7 @@ Odds = the research line's estimate (§1.3). The agenda id says where the hidden
 | Collusion evals | Comms lockdown | AG14 | M | Detects collusion, successor risk |
 | Resample protocols | Trusted monitoring | AG07 | M | Contains power-seeking, scheming |
 | Control evaluation | Resample protocols | AG07 | M | Measures containment |
-| Automated alignment research (AG17) | Automated AI research agents | AG17 | L | Lets the safety AI-labour policy exceed 50%; pays off with a safety model at L ≥ 10 |
+| Automated alignment research (AG17) | Automated AI research agents | AG17 | L | Its science teams build a harness: SAF_* fit +0.3 OOM × √(capacity ÷ serious); its finding F44 raises the safety model's fit on AG18 / AG03 / AG16 line work by Δ_bm (best-human level) (E14); pays off with a safety model at L ≥ 10 |
 | Mechanistic anomaly detection | Circuit tracing | AG04 | XL | Long shot |
 | Harm-probability guardrail | Control evaluation | AG11 | XL | Long shot |
 | Verified gatekeeper | Formal verification at scale | AG10 | XL | Contains exfiltration (long shot) |
