@@ -502,7 +502,8 @@ export const RELATION_ACTIONS: ActionDef[] = [
   // ───────── Retire (§5.1 #10: always available) ─────────
   def({
     id: 'RETIRE', verb: 'respond', system: 'core', title: 'Retire', sphere: 'relations',
-    preview: () => pv([L('freedom', 1, 'you hand over the company'), L('progress', 1, 'the race goes on without you')], [L('boardConf', 0)]),
+    // F6c: no placeholder level: retiring ends the game now (endings.ts 'retired', scored as a loss).
+    preview: () => pv([L('freedom', 1, 'you hand over the company: the game ends (Retired, scored as a loss) and the race goes on without you')], []),
     apply(s) {
       ws4(s).retired = true;
     },

@@ -19,6 +19,12 @@ import { L, P, ch, ev, pv, requestOnly } from '../kit';
 import { boardSpeedAppetite } from '../../finance/board';
 
 const RED: TraitId[] = ['SCHEME', 'AF', 'SAND'];
+/** F6c: what "Continue" keeps that the pause stops: the running frontier (base and post) runs, the same filter the pause
+ *  choice applies. */
+export function frontierRunsGo(s: GameStateV2) {
+  const n = s.player.models.runs.filter((r) => r.status === 'running' && (r.kind === 'base' || r.kind === 'post')).length;
+  return L('progress', n, n ? 'frontier runs keep going (no 60-day pause)' : 'no frontier run to pause', { unit: n === 1 ? 'run' : 'runs' });
+}
 
 /** The disclosure-dilemma triple used by findings, incidents and U-mode discoveries. */
 function dilemma(what: string, credGain: number, scrut: number) {
@@ -115,7 +121,7 @@ export const SAFETY_EVENTS: EventDefV2[] = [
         for (const dep of s.player.deployments) if (dep.channel === 'internal') dep.controlLayer = true;
         ws4(s).redFlags++;
       }),
-      ch('Continue', ['race', 'continue'], (s) => ({ costs: [L('alignment', 0.2, 'red flag ignored'), ...(hasCommitment(s, 'pauseIfRedline') ? [L('credibility', 20, 'breaks the pause pledge')] : [])], gains: [L('progress', 1)], exposure: [L('trust', -10, 'if it leaks', { probability: 0.2 })] }), (s, ctx) => {
+      ch('Continue', ['race', 'continue'], (s) => ({ costs: [L('alignment', 0.2, 'red flag ignored'), ...(hasCommitment(s, 'pauseIfRedline') ? [L('credibility', 20, 'breaks the pause pledge')] : [])], gains: [frontierRunsGo(s)], exposure: [L('trust', -10, 'if it leaks', { probability: 0.2 })] }), (s, ctx) => {
         ws4(s).redFlags++;
         const c = s.commitments.find((x) => x.status === 'live' && x.condition.predicate === 'pauseIfRedline');
         if (c) breakCommitment(s, ctx, c, 'continued past a red line');

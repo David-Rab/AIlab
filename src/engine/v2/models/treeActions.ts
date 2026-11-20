@@ -1,10 +1,11 @@
 // Research verbs (STRUCTURE §4.2, BUILD-PLAN R4): queue a project, start it now, reorder, drop it, assign or take off a
 // science team, and the auto-assign policy. Owner: WS1. Previews work with empty params (defaults: the first open idea,
 // the first capabilities science team) and show ≥ 1 cost in a currency not among the gains (lint-tradeoffs).
-import { PROJECT_BY_ID, TREE } from '../../../data/v2/tree';
-import type { ActionDef, CostLine, EngNeed, GameStateV2, ReNeed, RiskPolicy } from '../types';
-import { PROJECT_MAX_TEAMS, RISK_KAPPA } from '../../../data/v2/research';
-import { reopenProject, teamsWanted, wantIsAuto } from './research';
+import { PROJECT_BY_ID, TREE, type TreeNodeDef } from '../../../data/v2/tree';
+import type { ActionDef, CostLine, EngNeed, GameStateV2, ReNeed, RiskPolicy, StackKey } from '../types';
+import { PROJECT_MAX_TEAMS, RISK_KAPPA, STACK_LABEL } from '../../../data/v2/research';
+import { RL_FAMILY_LABEL } from '../../../data/v2/suites';
+import { atTest, priorMean, reopenProject, teamsWanted, wantIsAuto } from './research';
 import {
   assignCapNow, assignTeam, dequeueNode, effortOf, idleTeams, moveInQueue, nodeOdds, nodeStatus, projectCapacity, projectEta, projectTeams,
   queueNode, unassignTeam,
@@ -23,18 +24,52 @@ const nodeParam = (s: GameStateV2, p: Params) => str(p, 'id', TREE.find((n) => n
 const teamParam = (s: GameStateV2, p: Params) => str(p, 'team', projectTeams(s)[0]?.id ?? '');
 const days = (x: number) => (Number.isFinite(x) ? Math.round(x) : 9999);
 
-/** What researching a node costs and gives: team-months of science; capability (progress) or safety (alignment) gain
- *  with its odds; safety side effects as exposure. */
+/** Capability lines of a node's preview (F6c): its typed effect in its own unit, from the numbers adoption applies
+ *  (models/research.ts completeAdoption): a stack effect is the expected effect at the scale test (the public prior mean
+ *  per idea × 1000^s at the prior exponent, `atTest`), in OOM of that stack (and its `also` stacks); a domain effect the
+ *  prior × the node's OOM per domain; data and expert-data effects the prior × their own units. A node without a typed
+ *  effect gives what it unlocks (its design options, or its stated capability). */
+function capLines(s: GameStateV2, n: TreeNodeDef, odds: number): { gains: CostLine[]; costs: CostLine[] } {
+  const gains: CostLine[] = [];
+  const costs: CostLine[] = [];
+  const g = (amount: number, unit: string, target: string) => gains.push({ currency: 'progress', amount: Number(amount.toPrecision(3)), unit, probability: odds, target });
+  const eff = n.effect;
+  const per = eff ? priorMean(s, n, {}, s.player.tree[n.id]?.cap?.spec ?? 0) : 0;
+  if (eff?.stack) {
+    const x = atTest(n, { b: 1 }, { x: per, s: eff.s?.[0] ?? 0 }).xTest;
+    g(x, 'OOM', `${STACK_LABEL[eff.stack]}${n.kind === 'line' ? ' per idea' : ''} (expected)`);
+    for (const [k, ratio] of Object.entries(eff.also ?? {}) as [StackKey, number][]) g(x * ratio, 'OOM', `${STACK_LABEL[k]} (expected)`);
+  } else if (eff?.domains) {
+    for (const [d, v] of Object.entries(eff.domains)) g(per * (v ?? 0), 'OOM', `${d} for new versions (expected)`);
+  } else if (eff?.data || eff?.expert) {
+    if (eff.data?.synQMax) g(per * eff.data.synQMax, 'q', 'synthetic-quality ceiling, the web = 1 (expected)');
+    if (eff.data?.worthOom) g(per * eff.data.worthOom, 'OOM', 'worth of each drawn token (expected)');
+    if (eff.expert) g(per * eff.expert.tokensT * 1000, 'B expert tokens', `${RL_FAMILY_LABEL[eff.expert.family]} suite (expected)`);
+  }
+  const opts = n.options?.length ?? 0;
+  if ((n.fx.cap ?? 0) > 0 && (opts || !eff)) g(Math.max(1, opts), opts > 1 ? 'options' : opts ? 'option' : 'unlock', n.cap ?? n.name);
+  if ((n.fx.cap ?? 0) < 0) {
+    // Paid when the option is used: the node states it ("−0.3 OOM effective compute …"), else in words.
+    const m = /^[−-]\s*([\d.]+) OOM (.*)$/.exec(n.cap ?? '');
+    costs.push(m
+      ? { currency: 'progress', amount: -Number(m[1]), unit: 'OOM', target: `when used: ${m[2]}` }
+      : { currency: 'progress', amount: 1, unit: 'trade-off', target: `when used: ${n.cap ?? 'less capability'}` });
+  }
+  return { gains, costs };
+}
+
+/** What researching a node costs and gives: team-months of science; its capability effect in its own unit (capLines)
+ *  with its odds, or a safety (alignment) gain; safety side effects as exposure. */
 export function nodePreview(s: GameStateV2, id: string): Preview {
   const n = PROJECT_BY_ID[id];
   if (!n) return { costs: [{ currency: 'staffTime', amount: 0 }], gains: [], exposure: [] };
   const odds = nodeOdds(s, id);
   const costs: CostLine[] = [{ currency: 'staffTime', amount: Math.round(effortOf(n) * 10) / 10, target: 'science team-months' }];
   if (n.cashCost) costs.push({ currency: 'cash', amount: n.cashCost, target: 'data' });
-  const gains: CostLine[] = [];
   const exposure: CostLine[] = [];
-  if ((n.fx.cap ?? 0) > 0) gains.push({ currency: 'progress', amount: 0.1 * (n.fx.cap ?? 0), probability: odds, target: n.name });
-  if ((n.fx.cap ?? 0) < 0) costs.push({ currency: 'progress', amount: 0.1 * (n.fx.cap ?? 0), target: 'when used' });
+  const cap = capLines(s, n, odds);
+  const gains = cap.gains;
+  costs.push(...cap.costs);
   if ((n.fx.saf ?? 0) > 0) gains.push({ currency: 'alignment', amount: 0.05 * (n.fx.saf ?? 0), probability: odds, target: n.name });
   if ((n.fx.saf ?? 0) < 0) exposure.push({ currency: 'alignment', amount: 0.05 * (n.fx.saf ?? 0), probability: odds });
   return { costs, gains, exposure };

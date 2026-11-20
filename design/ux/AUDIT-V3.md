@@ -22,24 +22,24 @@ an L1 readout; **L** polish. "Engine" = needs an engine or balance change: liste
 | 10 | Products (day 900), Models › Data | Consumer product starved: Chat served 2%, 0.9% share, $7M/yr; usage data +123M tokens/day at day 900 vs +116B at day 400; all products capacity-bound with 24.7M H100e of demand cut against a 2.6M pool (13% of compute) | H | No: engine / balance (serving split vs demand; known F6 item "usage data collapses") |
 | 11 | Products (day 0) | At the start every product is capacity-bound (served 7–41%, 1.6M H100e demand cut vs a 348K pool): the opening shows a starved serving pool before the player has acted | M | No: engine / balance (start split or start demand) |
 | 12 | Safety › Control | Control layer has no off switch; "Add control" preview line `safety.respond addControl` still uses `progress` for the control tax (prints "−0.07 L") | M | No: f6a owns the Control buttons row and `safety/actions.ts`; give the tax line `unit: '%'` (×100) there |
-| 13 | Events | `safety` event "Continue" gains `L('progress', 1)` with no target ("+1.00 L": a full level for continuing a run) and RETIRE costs `progress 1` "the race goes on without you": placeholder amounts that read as capability levels | M | No: event text is lead-curated; suggest amount 0 with a target, or a qualitative unit |
-| 14 | Research › Tree previews | Tree node gains `0.1 × fx.cap` as "L" (v2 placeholder scale; v3 nodes state their effect in OOM, e.g. "PHYS +1.65 OOM") | M | No: engine preview (`treeActions.ts nodePreview`): should read the node's OOM effect |
-| 15 | Models › Versions (retire) | Retire preview shows "0 L option value" | L | No: preview text (models/actions.ts `retireVersion`) |
+| 13 | Events | `safety` event "Continue" gains `L('progress', 1)` with no target ("+1.00 L": a full level for continuing a run) and RETIRE costs `progress 1` "the race goes on without you": placeholder amounts that read as capability levels | M | Yes (F6c): Continue gains "+N runs · frontier runs keep going (no 60-day pause)" (the running base and post runs the pause would stop; "0 runs · no frontier run to pause" when none); RETIRE has no level line: its cost says the game ends (Retired, scored as a loss) |
+| 14 | Research › Tree previews | Tree node gains `0.1 × fx.cap` as "L" (v2 placeholder scale; v3 nodes state their effect in OOM, e.g. "PHYS +1.65 OOM") | M | Yes (F6c): the node's typed effect in its unit (stack OOM expected at the scale test, e.g. "+0.0079 OOM Pretraining efficiency per idea"; domain OOM "+1.65 OOM PHYS for new versions"; q, B expert tokens), else what it unlocks ("+1 option", "+1 unlock" with its stated effect); option costs "−0.3 OOM when used" |
+| 15 | Models › Versions (retire) | Retire preview shows "0 L option value" | L | Yes (F6c): "1 version · Atlas-3.3 cannot be deployed, run as agents or evaluated again"; the made-up compute gain is gone (retiring frees nothing) |
 | 16 | Products, Agents at work | Danger chip "0.03 /yr" has no noun (the tooltip says harmful acts/yr) | L | No: width-bound chip; tooltip carries it |
 | 17 | Products › Agents card | "Time horizon 12 h / 4 h": the "/ 4 h" (the need) is unlabelled on the card | L | No (tooltip explains) |
 | 18 | World › Sectors | Sector card head "work type 2 h · v 0.8" is cryptic (the hours and v have tooltips but no labels) | L | No |
-| 19 | World › Sectors › Jobs | "Displaced (US) 243" has no unit (thousands of people) | M | No: value comes as a count from the engine readout; add the unit with its tooltip in a later pass |
+| 19 | World › Sectors › Jobs | "Displaced (US) 243" has no unit (thousands of people) | M | Yes (F6c): "243 people" (the readout is persons) |
 | 20 | Models › Evals | Measurement bands "± 0.14" and the elicitation column have no "L" on the band; "2 · 2.0×" (suites · weight) unlabelled | L | No |
 | 21 | Models › Suites | "S2 0.36 … of 1" next to the bar is unclear; half the page empty below the table at 1000 px | L | No |
 | 22 | Blueprint | Drawn-mix specialisation values "0" have no unit (OOM is in the tooltip); the seven top tiles are stretched to the size slider's height (≈ 120 px empty in each) | L | No |
 | 23 | Research › Projects | "Science teams · why here" text is cut with an ellipsis (tooltip has it); two identical "Pretraining" rows when two teams share a project | L | No |
-| 24 | Research › Recipe | Adopted rows give "+0.0059 ±0.0011" with the unit only in the card header (OOM) | L | No |
+| 24 | Research › Recipe | Adopted rows give "+0.0059 ±0.0011" with the unit only in the card header (OOM) | L | Yes (F6c): the "Adopted · believed → realised" label says (OOM) |
 | 25 | Safety › Footholds | Empty state good ("No symptom open.", "None located."); the page is mostly empty at day 900 with no footholds | L | No (correct) |
 | 26 | Company › Work | Research-engineer rows "0.0/0.0", "10.0/10.0", "9.0/rest" have no unit (team-eq is in the header and tooltip) | L | No |
 | 27 | Safety › Overview | The side switch repeats the card's own title (switch "Risk families", card "Risk families") | L | No (the card titles carry the term tooltips; the switch is plain) |
 
-Counts: H 2 (1 fixed), M 11 (5 fixed), L 14 (2 fixed). Fixed 8 of 27; engine or other-worktree items: 9, 10, 11, 12,
-13, 14, 15.
+Counts: H 2 (1 fixed), M 11 (8 fixed), L 14 (4 fixed). Fixed 13 of 27 (F6b 8, F6c 5); engine or other-worktree items: 9, 10,
+11, 12.
 
 Checked and fine: Research › Projects stepper and Auto (no clipping at day 400 or 900), project card sections; Products
 cards (danger factors, features, settings), sector heads with share → target; World › Sectors heatmap and providers;

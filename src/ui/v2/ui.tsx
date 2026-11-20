@@ -120,7 +120,7 @@ const CUR_LABEL: Record<CostLine['currency'], string> = {
 /** A line's amount in its own unit (model v3 D4): 7.5, 0.146, 2. */
 /** A '%' line's amount, already in percent points: 5, 2.5, 0.31 (F6b). */
 export const pctAmt = (a: number) => (a >= 10 ? a.toFixed(0) : a >= 1 ? a.toFixed(1) : a === 0 ? '0' : a.toPrecision(2));
-export const unitAmt = (a: number) => (a >= 100 ? a.toFixed(0) : a >= 10 ? a.toFixed(1) : a >= 1 ? a.toFixed(2) : a === 0 ? '0' : a.toPrecision(2));
+export const unitAmt = (a: number) => (a >= 100 || Number.isInteger(a) ?a.toFixed(0) : a >= 10 ? a.toFixed(1) : a >= 1 ? a.toFixed(2) : a === 0 ? '0' : a.toPrecision(2));
 function amt(c: CostLine): string {
   const a = Math.abs(c.amount);
   if (c.unit === '%') return pctAmt(a);

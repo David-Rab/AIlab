@@ -1680,6 +1680,24 @@ for (const [h, v] of multi) iaIssues.push(`${h} has homes on several screens: ${
 ok('IA: one home per datum, terms resolve, no raw floats', iaIssues.length === 0, iaIssues.slice(0, 8).join(' | '));
 for (const x of iaIssues.slice(8, 30)) console.log('     ' + x);
 
+// F6c: placeholder "L" previews gone. Tree nodes give their typed effect (P22: PHYS +1.65 OOM, the domain effect adoption
+// adds per unit; L.scale: OOM of the pretraining stack); Retire version names the version and retires it (no "L", no
+// made-up compute). The fixture is reloaded below.
+{
+  const f6c = JSON.parse(await get(`(() => {
+    const V = window.ai27v2Views.actionView;
+    const p22 = V(s, 'research.queue', { id: 'P22' }).gains.find((g) => g.currency === 'progress');
+    const sc = V(s, 'research.queue', { id: 'L.scale' }).gains.find((g) => g.currency === 'progress');
+    const v = s.player.models.versions.find((x) => x.status !== 'retired' && x.status !== 'rolledBack' && !Object.values(s.player.agents).some((a) => a.versionId === x.id || a.monitorId === x.id)
+      && s.player.models.stream?.versionId !== x.id && !s.player.deployments.some((d) => d.status !== 'withdrawn' && (d.versionId === x.id || d.monitorId === x.id || d.miniVersionId === x.id)));
+    const r = v ? V(s, 'retireVersion', { versionId: v.id }) : undefined;
+    if (v) store.act('retireVersion', { versionId: v.id });
+    return { p22, sc, r, name: v?.name, after: v ? s.player.models.versions.find((x) => x.id === v.id)?.status : undefined };
+  })()`));
+  ok('F6c: tree previews give the typed effect (P22 PHYS +1.65 OOM; L.scale OOM of pretraining)', f6c.p22?.unit === 'OOM' && Math.abs(f6c.p22.amount - 1.65) < 1e-9 && /PHYS/.test(f6c.p22.target) && f6c.sc?.unit === 'OOM' && f6c.sc.amount > 0 && /Pretraining/.test(f6c.sc.target), JSON.stringify([f6c.p22, f6c.sc]));
+  if (f6c.r) ok('F6c: Retire version previews the version it retires, and retires it', f6c.r.costs.length === 1 && f6c.r.costs[0].unit === 'version' && f6c.r.costs[0].target.startsWith(f6c.name) && !f6c.r.gains.length && f6c.after === 'retired', JSON.stringify(f6c.r));
+}
+
 // Speed-4 run for 2 s from the day-400 fixture (the day-900 fixture can end within days, e.g. another lab's ASI):
 // no errors, alerts appear. Then back to day 900 for the end screen.
 await page.evaluate((j) => window.ai27v2.importJson(j), fx);

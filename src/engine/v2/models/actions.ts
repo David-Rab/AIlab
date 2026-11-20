@@ -232,7 +232,9 @@ const RUN_ACTIONS: ActionDef[] = [
   {
     id: 'retireVersion', verb: 'launch', system: 'models', sphere: 'models', owner: 'WS1', title: 'Retire',
     available: () => true,
-    preview: () => ({ costs: [{ currency: 'progress', amount: 0, target: 'option value' }], gains: [{ currency: 'compute', amount: 0.01 }], exposure: [] }),
+    // F6c: what retireVersion does (models/deployments.ts): the version leaves the pickers for good (no deployment,
+    // agents or evals again; auto evals skip it). It frees nothing: it cannot be retired while it serves or monitors.
+    preview: (s, p) => ({ costs: [{ currency: 'progress', amount: 1, unit: 'version', target: `${versionById(s, str(p, 'versionId', ''))?.name ?? 'the version'} cannot be deployed, run as agents or evaluated again` }], gains: [], exposure: [] }),
     apply: (s, _ctx, p) => fail(retireVersion(s, str(p, 'versionId', ''))),
   },
   {

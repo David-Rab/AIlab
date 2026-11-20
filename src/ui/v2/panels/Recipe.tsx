@@ -45,7 +45,7 @@ function StackCard({ s, g }: { s: GameStateV2; g: StackGroupView }) {
         <Tip content={() => <TipCard title={<Term id="headroom">Headroom</Term>} value={oom(g.headroom)}>Closed by research engineers on routine tuning (Company › Work).</TipCard>}><span className="num">{oom(g.headroom)}</span></Tip>
         <Ref id="routineTuning" to={{ panel: 'company', tab: 'work' }}>Tuning</Ref>
       </div>
-      <div className="rp-k" style={{ marginTop: 8 }}><Term id="realisedEffect">Adopted · believed → realised</Term></div>
+      <div className="rp-k" style={{ marginTop: 8 }}><Term id="realisedEffect">Adopted · believed → realised</Term> <span className="dim">(OOM)</span></div>
       {g.ideas.length === 0 && <div className="small dim">Nothing adopted yet. Add a {g.id === 'sys' ? 'systems' : g.id === 'rl' ? 'post-training' : 'pretraining'} project on Projects.</div>}
       <div className="rc-ideas">
         {g.ideas.slice(0, 8).map((a, i) => (

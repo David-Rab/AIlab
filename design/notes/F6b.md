@@ -39,3 +39,33 @@ tooltip regexes follow "Unique tokens".
 See AUDIT-V3 items 9–15: duplicate version names (f6a), starved serving pool at day 0 and day 900 and the usage-data
 collapse (balance), the addControl preview's tax line (f6a's file), event placeholder `progress` amounts, tree-node
 `0.1 × cap` "L" gains, retire's "0 L option value".
+
+## F6c (follow-up: placeholder preview amounts; 2026-11-20)
+
+Branch `v3-f6c` (from `v3-f6b`). Preview text only: no apply, state or schema change. AUDIT-V3 items 13, 14, 15, 19
+and 24 fixed (13 of 27 now).
+
+- **Safety event "Continue"** (`events/catalog/safety.ts frontierRunsGo`): "+1.00 L" → "+N runs · frontier runs keep
+  going (no 60-day pause)": the running base and post runs, the same filter the pause choice applies ("0 runs · no
+  frontier run to pause" when none).
+- **RETIRE** (`actors/actions.ts`): the "progress 1 · the race goes on without you" line and the "boardConf 0" gain are
+  gone; the one cost says the game ends (Retired ending, scored as a loss).
+- **Tree-node previews** (`models/treeActions.ts capLines`): `0.1 × fx.cap` "L" → the node's typed effect, from the
+  numbers adoption applies (`research.ts completeAdoption`): a stack effect is the expected effect at the scale test
+  (public prior mean per idea × 1000^s at the prior exponent, `atTest`) in OOM of its stack and its `also` stacks
+  ("+0.0079 OOM · Pretraining efficiency per idea (expected)"); a domain effect the prior × OOM per domain ("+1.65 OOM ·
+  PHYS for new versions"); data effects in q (web = 1) or OOM worth per token; expert data in B expert tokens. Nodes
+  without a typed effect give what they unlock ("+1 option" / "+1 unlock" with the node's stated effect). Negative-cap
+  option nodes cost "−0.3 OOM when used" when the node states OOM, else "1 trade-off · when used: …".
+- **Retire version** (`models/actions.ts`): "0 L option value" and a made-up "+1% compute" gain → "1 version · <name>
+  cannot be deployed, run as agents or evaluated again" (retiring frees nothing: it is refused while the version serves,
+  monitors or streams).
+- `unitAmt` prints whole amounts without decimals ("1 version", "20 B expert tokens", not "1.00").
+- Quick UI units: World › Jobs "Displaced (US) 243 people"; Recipe's adopted list label says (OOM).
+
+Tests: `uitest.mjs` F6c check at day 900: P22's preview is +1.65 OOM PHYS (the domain OOM per unit adoption adds),
+L.scale's is OOM of pretraining; Retire version previews the version it retires and retires it.
+
+Left: safety-node previews still give `0.05 × fx.saf` as alignment (a v2 meter scale, not "L"); the Continue choice's
+"alignment 0.2 red flag ignored" cost is not applied by the choice (it counts a red flag); audit items 9–12, 16–18,
+20–23, 26 stay listed.
