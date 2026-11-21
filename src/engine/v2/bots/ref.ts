@@ -24,6 +24,7 @@ import { POOL_SHARE_RANGE, paramsOfVersion, runFlopPerShareDay } from '../models
 import { sectorFit, studentParamsFor } from '../worldfx/serving';
 import { flopPerToken, workFit } from '../departments/workfit';
 import { FREE_TIER } from '../../../data/v2/serving';
+import { PRICE_TIERS } from '../../../data/v2/features';
 import { deployGate } from '../models/deployments';
 import { EVENT_BY_ID } from '../core/registry';
 import { decimalYear } from '../core/time';
@@ -175,6 +176,9 @@ export interface RefPlayOpts {
   /** A5: distil a cheap API tier (MKT: a student holding the API model's level less FREE_TIER.years) once per API model.
    *  Default: on with the 'compete' release (RefBot since F5, refitted with it), off otherwise. */
   cheapTier?: boolean;
+  /** MKT: sector products sell at the premium tier while serving cuts them below 1 ÷ its price ratio (capacityPricing).
+   *  Default: on with the 'compete' release (RefBot), off otherwise. */
+  capacityPrice?: boolean;
 }
 
 const flag = (s: GameStateV2, k: string, d = -1e9) => Number(s.flags[`ref:${k}`] ?? d);
@@ -421,6 +425,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   if (follower && day % 30 === 0) {
     for (const ch of PRODUCT_CHANNELS) if (!p.deployments.some((d) => d.channel === ch && d.status !== 'withdrawn')) tryAct(s, api, 'product.launch', { channel: ch });
   }
+  if ((o.capacityPrice ?? release === 'compete') && day % RELEASE_EVERY === 0) capacityPricing(s, api);
 
   syncPoolShares(s, api);
 
@@ -522,6 +527,24 @@ function competeRelease(s: GameStateV2, api: EngineApi, skip: string[]) {
       if (fitOf.get(w.id)! > curFit + 0.01) want = w;
     } else if (adequate && fptOf.get(adequate.id)! < RELEASE_CHEAPER * curFpt) want = adequate;
     if (want && want.id !== d.versionId) tryAct(s, api, 'product.update', { id: d.id, versionId: want.id });
+  }
+}
+
+/** MKT: a sector product (API, Enterprise) whose serving cut leaves it under 1 ÷ PRICE_TIERS.premium of its need sells at
+ *  the premium tier, and returns to standard once it is served in full there. While demand exceeds the serving pool the
+ *  extra margin is all gain: buyers respond to price with elasticity ≤ PRICE_ELASTICITY = 1 (OpenRouter's 100T-token
+ *  study, arXiv 2601.10088: a 10% price cut adds 0.5–0.7% usage), so at ×1.6 the demand still fills what a product served
+ *  below 1/1.6 of its need, and at standard after a full-served premium spell it is served ≥ 1/1.6 (no flapping). Labs
+ *  price scarce capacity [P, Anthropic pricing page, Nov 2026: fast mode ×2 for priority output, Batch −50% for
+ *  flexible]; AI 2027's own revenue ($140B in 2027 on ≈ 2M external H100e: ≈ $74k per H100e-year, research/02 §1.3, §1.6)
+ *  sits above the standard tier's cost-plus earnings per H100e. Chat stays standard (its plan sells at the willingness to
+ *  pay, consumerPlanPrice). */
+function capacityPricing(s: GameStateV2, api: EngineApi) {
+  for (const d of s.player.deployments) {
+    if ((d.channel !== 'api' && d.channel !== 'enterprise') || d.status !== 'live' || !(d.needH100e! > 0)) continue;
+    const served = (d.servedH100e ?? 0) / d.needH100e!;
+    if (d.price === 'standard' && served < 1 / PRICE_TIERS.premium) tryAct(s, api, 'product.update', { id: d.id, price: 'premium' });
+    else if (d.price === 'premium' && served >= 1 - 1e-6) tryAct(s, api, 'product.update', { id: d.id, price: 'standard' });
   }
 }
 
