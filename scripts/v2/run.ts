@@ -64,7 +64,7 @@ const JOBS: Job[] = [
   { id: 'evals', script: 'evals.ts', ...S(ALL, 30) } as Job,
   { id: 'safetyresearch', script: 'safetyresearch.ts', ...S(ALL, 25) } as Job,
   { id: 'worktypes', script: 'worktypes.ts', ...S(ALL, 60) } as Job,
-  { id: 'calib', script: 'calib.ts', args: { quick: SMOKE, cal: ['--cal'] }, mode: { quick: 'SMOKE', cal: 'T1 T1L T4' }, shards: { full: 6, cal: 6 }, ...S(['quick', 'cal', 'full'], 300) } as Job,
+  { id: 'calib', script: 'calib.ts', args: { quick: SMOKE, cal: ['--cal'] }, mode: { quick: 'SMOKE', cal: 'T1 T1L T4' }, shards: { full: 6, cal: 10 }, ...S(['quick', 'cal', 'full'], 300) } as Job,
   { id: 'fixtures', script: 'fixtures.ts', ...S(ALL, 120) } as Job,
   // G1: hygiene's readout-purity games (3b) run as prefill shards in full; --smoke in quick plays one seed of them.
   { id: 'hygiene', script: 'hygiene.ts', args: { quick: ['--no-perf', '--smoke'], full: ['--no-perf'], perf: ['--perf-only'] }, mode: { quick: 'no perf, SMOKE 3b', full: 'no perf', perf: 'perf only' }, shards: { full: 3 }, ...S(['quick', 'full', 'perf'], 120) } as Job,
@@ -108,7 +108,8 @@ if (!['quick', 'cal', 'full', 'perf'].includes(tier)) {
 const only = opt('only')?.split(',').map((x) => x.trim()).filter(Boolean);
 // Default workers: perf 1 (timings); cal 10 on a machine with ≥ 12 logical cores (M9, lead decision: since F4 the cal
 // tier plays 108 games, 80 of them T1 over the 20 CAL_SEEDS, ≈ 7 min cold on 6 workers; its jobs are CPU-bound games
-// with no shared state, so more workers cut the cold wall time), else 6.
+// with no shared state, so more workers cut the cold wall time), else 6. calib's cal-tier prefill shards are 10 to match
+// (with 6 shards the extra workers idle: M9 measured 5.9 min cold at 10 workers / 6 shards).
 const defaultWorkers = tier === 'perf' ? 1 : tier === 'cal' && os.cpus().length >= 12 ? 10 : 6;
 const workers = Math.max(1, Number(opt('workers') ?? defaultWorkers));
 const noUi = argv.includes('--no-ui');
