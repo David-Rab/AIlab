@@ -12,7 +12,7 @@ import { setInternalAgent } from '../models/deployments';
 import { bestResearchMix, evalProduction, inputsAtMix, labInputs, tcoPerH100eYear } from '../production/production';
 import { Phi } from '../production/knots';
 import { safetyFleet } from '../safety/agents';
-import { believedSabotage } from '../safety/covert';
+import { believedResultThreat, believedSabotage } from '../safety/covert';
 import { resultsPerYearAt } from '../safety/agendas';
 import { underControl, useControl, type ControlReadout } from '../safety/oversight';
 import type { ActionDef, AgentPackage, AgentUse, CostLine, GameStateV2, ModelVersion, ProductionReadout } from '../types';
@@ -270,7 +270,7 @@ const AGENTS_TRUSTED: ActionDef = {
   preview(s, p) {
     const share = Math.max(0, Math.min(1, num(p, 'share') ?? Math.min(1, s.player.policies.trustedToAI + 0.2)));
     const pv = previewTrusted(s, share);
-    const sab = believedSabotage(s, pv.aiShareAfter);
+    const sab = believedSabotage(s, pv.aiShareAfter, believedResultThreat(s));
     const dY = r3(pv.findingsAfter - pv.findingsBefore);
     const startsFleet = share > 0 && s.player.agents.safety.compute <= 0;
     return {

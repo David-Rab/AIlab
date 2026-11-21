@@ -220,7 +220,8 @@ function postRun(s: GameStateV2, design: PostDesign, from?: ModelVersion): Model
   check(lineLabour(s0, 'AG12').aiShare === 0 && z0.aiShare === 0, 'P27: nothing without safety work handed to AI (the FALSE weight stays 0)');
   const src = readFileSync(join(FIXTURE_DIR, '..', '..', '..', 'src', 'engine', 'v2', 'safety', 'findings.ts'), 'utf8');
   // M5: E7 replaced E2's FALSE weight (aiShare × sabOf) with the covert act SAFSAB on the same AI share (F49).
-  check(/safetySabotage\(s, lineLabour\(s, agenda\)\.aiShare\)/.test(src), 'P27: the false-result risk is E7\'s safety sabotage (SAFSAB) on the line\'s AI share, which P27 raises');
+  // SAFMECH: × the result's threat to the saboteur (targeted sabotage).
+  check(/safetySabotage\(s, lineLabour\(s, agenda\)\.aiShare(, \w+)?\)/.test(src), 'P27: the false-result risk is E7\'s safety sabotage (SAFSAB) on the line\'s AI share, which P27 raises');
 }
 
 // ───────────────────────────── F44 and AG17's harness (model v3 E14) ─────────────────────────────

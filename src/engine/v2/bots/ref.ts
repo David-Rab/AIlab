@@ -38,7 +38,7 @@ import { REF_ROLE_SHARE, SAF_ROLE_SHARE, TEAM_SIZE } from '../../../data/v2/team
 import type { BotPolicy, ComputeSplit, EngineApi, GameStateV2, ModelVersion, PendingDecision, TeamKey, TrainingRun } from '../types';
 import { bestMeasuredL, internalVersion, versionById } from '../models/labs';
 import { believedInternalOversight } from '../safety/believedOversight';
-import { believedSabotage } from '../safety/covert';
+import { believedResultThreat, believedSabotage } from '../safety/covert';
 import { safetyAgentVersion } from '../safety/agents';
 import { footholdView } from '../safety/footholdDetection';
 import { investigationFte, safetyReHeads } from '../safety/investigations';
@@ -666,7 +666,8 @@ export function refDecide(_s: GameStateV2, d: PendingDecision): number {
 /** F5 Trusted to AI: the believed oversight of the safety model (block + catch on scheming acts, E15's
  *  believedInternalOversight) at which RefBot starts handing safety work to AI and at which it hands all of it [D]. */
 export const TRUST_OVERSIGHT: readonly [number, number] = [0.4, 0.8];
-/** …and the most believed sabotage attempts per safety result it accepts at that share (E7's believedSabotage) [D]. */
+/** …and the most believed sabotage attempts per safety result it accepts at that share (E7's believedSabotage; SAFMECH:
+ *  on the results a sabotaging model would target, the believed share on track × their believed threat) [D]. */
 export const TRUST_SAB_MAX = 0.1;
 
 /**
@@ -682,7 +683,8 @@ export function refTrusted(s: GameStateV2, api: EngineApi): void {
   const o = believedInternalOversight(s, v).oversight;
   const [lo, hi] = TRUST_OVERSIGHT;
   let t = Math.round(10 * Math.max(0, Math.min(1, (o - lo) / (hi - lo)))) / 10;
-  while (t > 0 && believedSabotage(s, t) > TRUST_SAB_MAX) t = Math.round(10 * t - 1) / 10;
+  const threat = believedResultThreat(s);
+  while (t > 0 && believedSabotage(s, t, threat) > TRUST_SAB_MAX) t = Math.round(10 * t - 1) / 10;
   if (Math.abs(t - s.player.policies.trustedToAI) > 1e-9) tryAct(s, api, 'agents.trusted', { share: t });
 }
 

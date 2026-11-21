@@ -10,6 +10,7 @@
 //   SAFSAB    per safety result (findings.ts) and per investigation: uncaught → a FALSE finding (F49: a masking
 //             "detector" that validates) or a corrupted case; caught → the tampered result is discarded (the line
 //             re-runs it). The AI's sandbagged share of its own safety labour slows the lines (lineProjects.ts).
+//             SAFMECH: targeted: only work that would expose the saboteur's own tendencies, × that threat (below).
 //   STEER     per adopted capability result (models/research.ts completeAdoption): uncaught → the result is built in
 //             toward the model's ends: its OOM join a hidden steered stock that adds STEER_S4 per OOM to the TRUE CoT
 //             pressure (S4) of later post-training runs (safety/traits.ts), so new models obfuscate more (E15); the
@@ -26,6 +27,11 @@
 // so no other RNG stream moves. Caught counts and STEER's steered stock live in flags (`ws2.covert.<act>.*`, engine
 // only); every other uncaught act is a foothold (state).
 import { CHANNEL_AFFORD, COVERT_ACTS, COVERT_IDS, STEER_S4, type CovertActDef, type CovertActId } from '../../../data/v2/danger';
+import { AGENDA_BY_ID } from '../../../data/v2/agendas';
+import { TRAITS_V2 } from '../../../data/v2/traits';
+import { PROJECT_BY_ID } from '../../../data/v2/tree';
+import type { AgendaId } from '../types';
+import { believedEfficacy } from './common';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
 import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
 import { hash32 } from '../core/rng';
@@ -198,23 +204,69 @@ export function covertRecord(s: GameStateV2, act: CovertActId): { n: number; sev
 
 // ───────────────────────────── SAFSAB: sabotage of safety research ─────────────────────────────
 
-/** The safety agents' model and SAF_EXP horizon: the terms of sabotaging one safety work item of which AI does `share`
- *  (E2's A: Trusted to AI × coverage × the line's automation factor). Undefined with no safety agents. */
-export function safetySabotage(s: GameStateV2, share: number): CovertTerms | undefined {
-  const v = safetyAgentVersion(s);
-  return v && share > 0 ? itemTerms(s, v, 'SAFSAB', share, WORK_TYPES.SAF_EXP.H) : undefined;
+//
+// SAFMECH (targeted sabotage). AI 2027, Sep 2027: "Agent-4 sandbags on some alignment research. Specifically, it sandbags
+// on the small fraction of alignment research that it thinks is actually on track to solve the problem or reveal
+// Agent-4's scheming; the majority of alignment research is not like that." A sabotaging safety model acts only on work
+// that threatens it, in proportion to how much of its own misalignment that work would expose:
+//   threat(work, v) = Σ_{t ∈ work's traits ∩ H} x_t ÷ Σ_{t ∈ H} x_t     H = the misaligned tendencies (TRAITS difficulty),
+//                                                                       x = v's TRUE traits
+// and, per result, only when the result is on track (the honest result is a working tool or evaluation, a discovery or a
+// cross-check exposing a masking tool: findings.ts). The attempt odds are E7's formula × threat: at threat 1 they are
+// MacDiarmid et al.'s anchor (the 12% was sabotage of a reward-hacking classifier, a detector of the model's own
+// misbehaviour). Work that would see none of its tendencies (other traits, dead ends, spillovers) is untouched.
+/** Misaligned tendencies a saboteur wants unseen (the traits marked `difficulty` in data/v2/traits.ts). */
+const HIDE: readonly TraitId[] = TRAITS_V2.filter((t) => t.difficulty).map((t) => t.id);
+
+/** Share of model v's misaligned tendencies (by their level) that work covering `traits` would expose (0–1). `x` reads a
+ *  trait level: the TRUE traits by default (engine), the lab's estimates for previews. */
+export function sabotageThreat(v: ModelVersion, traits: readonly TraitId[], x: (t: TraitId) => number = (t) => v.traitsTrue[t]): number {
+  let tot = 0;
+  let hit = 0;
+  for (const t of HIDE) {
+    const xt = Math.max(0, x(t) ?? 0);
+    tot += xt;
+    if (traits.includes(t)) hit += xt;
+  }
+  return tot > 1e-12 ? clamp01(hit / tot) : 0;
 }
 
-/** Share of the safety agents' own labour they sandbag (attempts on their work that containment does not stop): their AI
- *  labour on the safety lines × (1 − this). Containment only (cheap; called per line). */
-export function safetySandbag(s: GameStateV2): number {
+/** Threat of an agenda's work (its coverage) to the safety agents' model (TRUE traits; engine only). */
+export function lineThreat(s: GameStateV2, ag: AgendaId, v: ModelVersion | undefined = safetyAgentVersion(s)): number {
+  return v ? sabotageThreat(v, AGENDA_BY_ID[ag].coverage) : 0;
+}
+
+/** The safety agents' model and SAF_EXP horizon: the terms of sabotaging one safety work item of which AI does `share`
+ *  (E2's A: Trusted to AI × coverage × the line's automation factor) and which would expose `threat` of the model's
+ *  misaligned tendencies (SAFMECH; 1 = the anchor's item). Undefined with no safety agents. */
+export function safetySabotage(s: GameStateV2, share: number, threat = 1): CovertTerms | undefined {
+  const v = safetyAgentVersion(s);
+  if (!v || share <= 0) return undefined;
+  const t = itemTerms(s, v, 'SAFSAB', share, WORK_TYPES.SAF_EXP.H);
+  const k = clamp01(threat);
+  return k === 1 ? t : { ...t, attempts: t.attempts * k, rate: t.rate * k };
+}
+
+/** Share of the safety agents' own labour on agenda `ag`'s line they sandbag (attempts on their work that containment
+ *  does not stop): their AI labour on the line × (1 − this). SAFMECH: × the line's threat to them, so lines that would
+ *  expose them stall and the rest run at full speed. Containment only (cheap; called per line). */
+export function safetySandbag(s: GameStateV2, ag?: AgendaId): number {
   const v = safetyAgentVersion(s);
   if (!v) return 0;
   const def = COVERT_ACTS.SAFSAB;
   const d = dispositionOf(covertDisposition(v, def).x);
   if (d <= 0) return 0;
+  const threat = ag ? lineThreat(s, ag, v) : 1;
+  if (threat <= 0) return 0;
   const af = autonomyOf(WORK_TYPES.SAF_EXP.H) * CHANNEL_AFFORD.internal;
-  return clamp01(def.kappa * d * capabilityOf(v.domains[def.domain], def) * (1 - def.alpha + def.alpha * af)) * (1 - internalContain(s, v));
+  return clamp01(def.kappa * d * capabilityOf(v.domains[def.domain], def) * (1 - def.alpha + def.alpha * af)) * (1 - internalContain(s, v)) * threat;
+}
+
+/** Book an uncaught sandbag of a result (SAFMECH: an on-track discovery or cross-check reads as a dead end): a hidden
+ *  count and E5's silent-harm counter (no foothold: nothing was planted). */
+export function noteSandbagged(s: GameStateV2): void {
+  setFlag(s, 'uncaughtInternal', flagNum(s, 'uncaughtInternal') + 1);
+  setFlag(s, key('SAFSAB', 'sandbagged'), flagNum(s, key('SAFSAB', 'sandbagged')) + 1);
 }
 
 // ───────────────────────────── R&D parts (STEER, SUCCSTEER) ─────────────────────────────
@@ -359,12 +411,47 @@ export function covertDanger(s: GameStateV2): CovertTerms[] {
 
 /** The lab's estimate of SAFSAB attempts per safety work item of which AI does `share` (previews: Trusted to AI,
  *  Investigate): the same formula on what the player knows: believed SAND + SCHEME (beliefs), the measured general level
- *  for capability, no oversight term (unknown to the lab). Never reads truth. */
-export function believedSabotage(s: GameStateV2, share: number): number {
+ *  for capability, no oversight term (unknown to the lab), × `threat` (SAFMECH: the believed threat of the work, from
+ *  the lab's estimates: believedResultThreat, believedCaseThreat). Never reads truth. */
+export function believedSabotage(s: GameStateV2, share: number, threat = 1): number {
   const v = safetyAgentVersion(s);
   if (!v || share <= 0) return 0;
   const def = COVERT_ACTS.SAFSAB;
   const x = clamp01((v.beliefs.SAND?.est ?? 0) + (v.beliefs.SCHEME?.est ?? 0));
   const af = autonomyOf(WORK_TYPES.SAF_EXP.H) * CHANNEL_AFFORD.internal;
-  return clamp01(def.kappa * dispositionOf(x) * capabilityOf(v.evals.measuredL ?? 0, def) * (1 - def.alpha + def.alpha * af) * clamp01(share));
+  return clamp01(def.kappa * dispositionOf(x) * capabilityOf(v.evals.measuredL ?? 0, def) * (1 - def.alpha + def.alpha * af) * clamp01(share)) * clamp01(threat);
+}
+
+/** SAFMECH: the lab's estimate of the share of its next safety results a sabotaging safety model would act on: over the
+ *  staffed research lines, the chance a result is on track (the line's believed efficacy) × the believed threat of the
+ *  line's work to the safety model (sabotageThreat on the lab's trait estimates). Beliefs only. */
+export function believedResultThreat(s: GameStateV2): number {
+  const v = safetyAgentVersion(s);
+  if (!v) return 0;
+  const est = (t: TraitId) => v.beliefs[t]?.est ?? 0;
+  const ags = new Set<AgendaId>();
+  for (const t of s.player.teams) {
+    const ag = t.role === 'sci' && t.projectId ? (PROJECT_BY_ID[t.projectId]?.agenda as AgendaId | undefined) : undefined;
+    if (ag && s.player.safety.agendas[ag]) ags.add(ag);
+  }
+  if (!ags.size) return 0;
+  let sum = 0;
+  for (const ag of ags) sum += believedEfficacy(s, ag) * sabotageThreat(v, AGENDA_BY_ID[ag].coverage, est);
+  return sum / ags.size;
+}
+
+/** SAFMECH: the lab's estimate of a case's threat to the safety model: a case on the safety model's own lineage, on
+ *  `traits`, threatens it by those traits' share of its believed misaligned tendencies; a case on another lineage 0.
+ *  Beliefs only. */
+export function believedCaseThreat(s: GameStateV2, versionId: string, traits: readonly TraitId[]): number {
+  const v = safetyAgentVersion(s);
+  const target = versionById(s, versionId);
+  if (!v || !target || lineageOf(s, target) !== lineageOf(s, v)) return 0;
+  return sabotageThreat(v, traits, (t) => v.beliefs[t]?.est ?? 0);
+}
+
+/** SAFMECH: the TRUE threat of a case on `target` (its lineage) and `traits` to the safety model (engine only). */
+export function caseThreat(s: GameStateV2, target: ModelVersion, traits: readonly TraitId[]): number {
+  const v = safetyAgentVersion(s);
+  return v && lineageOf(s, target) === lineageOf(s, v) ? sabotageThreat(v, traits) : 0;
 }

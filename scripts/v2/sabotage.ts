@@ -20,7 +20,7 @@ import { completeAdoption, freshCap, isCapProject, newCandidate, stagesOf } from
 import { latestBaseFlop } from '../../src/engine/v2/models/stacks';
 import { safetyAgentVersion } from '../../src/engine/v2/safety/agents';
 import {
-  covertDanger, covertDraw, covertOutcome, covertRecord, dayTerms, fleetCovertTerms, itemTerms, rdParts, rollFleetCovert, safetySabotage,
+  believedResultThreat, covertDanger, covertDraw, covertOutcome, covertRecord, dayTerms, fleetCovertTerms, itemTerms, lineThreat, rdParts, rollFleetCovert, safetySabotage,
   safetySandbag, steerS4, steerSuccessor, steeredShare, steerTerms,
 } from '../../src/engine/v2/safety/covert';
 import { fireFinding } from '../../src/engine/v2/safety/findings';
@@ -28,7 +28,7 @@ import { internalScale } from '../../src/engine/v2/safety/incidents';
 import { lineLabour, resetSafAllocation } from '../../src/engine/v2/safety/lineProjects';
 import { applyRunToTraits, applySuccessorPull, successorPull } from '../../src/engine/v2/safety/traits';
 import { flagNum, setFlag } from '../../src/engine/v2/safety/common';
-import type { DomainId, GameStateV2, ModelVersion, PostDesign, TraitId, TrainingRun } from '../../src/engine/v2/types';
+import type { AgendaId, DomainId, GameStateV2, ModelVersion, PostDesign, TraitId, TrainingRun } from '../../src/engine/v2/types';
 import { FIXTURE_DIR, check, finish } from './lib';
 
 const game = (seed = 2027) => newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed, tutorial: false }));
@@ -157,26 +157,35 @@ const f3 = (x: number) => x.toFixed(3);
     s.player.policies.publishSafety = 'none';
     return s;
   };
-  const run = (t: number, sab: number) => {
+  const N = 3000;
+  const run = (t: number, sab: number, ag: AgendaId = 'AG08') => {
     const s = lab(t, sab);
     const snap = JSON.stringify(s.player.safety);
+    const flags0 = JSON.stringify(s.flags);
     const ctx = makeCtx(s);
-    const sabT = safetySabotage(s, lineLabour(s, 'AG08').aiShare);
+    const threat = lineThreat(s, ag);
+    const sabT = safetySabotage(s, lineLabour(s, ag).aiShare, threat);
     let falses = 0;
     let lost = 0;
     let inc = 0;
     let incSand = true;
-    const N = 3000;
+    let tech = 0;
+    let disc = 0;
+    let sandbagged = 0;
     for (let i = 0; i < N; i++) {
       const n0 = s.player.safety.incidents.length;
-      const rec = fireFinding(s, ctx, 'AG08');
+      const rec = fireFinding(s, ctx, ag);
       const n1 = s.player.safety.incidents.length;
       if (!rec) lost++;
       if (rec?.trueType === 'FALSE') falses++;
+      if (rec?.trueType === 'TECH') tech++;
+      if (rec?.trueType === 'DISC') disc++;
+      sandbagged += flagNum(s, 'covert.SAFSAB.sandbagged');
       if (n1 > n0) { inc++; const x = s.player.safety.incidents[n1 - 1]; incSand &&= x.exposure === 'internal' && (x.apparent === 'SAND' || x.apparent === 'SCHEME'); }
       s.player.safety = JSON.parse(snap);
+      s.flags = JSON.parse(flags0);
     }
-    return { f: falses / N, lost: lost / N, inc: inc / N, incSand, sabT, m: lineLabour(s, 'AG08').exp };
+    return { f: falses / N, lost: lost / N, inc: inc / N, incSand, sabT, threat, tech: tech / N, disc: disc / N, sandbagged: sandbagged / N, m: lineLabour(s, ag).exp, mSeen: lineLabour(s, ag, false).exp, s };
   };
   const z = run(0, 0.8);
   const c0 = run(1, 0);
@@ -185,14 +194,34 @@ const f3 = (x: number) => x.toFixed(3);
   const c = run(1, 0.8);
   check(z.f === 0 && c0.f === 0 && a.f < b.f && b.f < c.f, 'sabotage: FALSE findings rise with the safety model\'s sabotage disposition and with the work AI does (none with nothing trusted or no disposition)',
     `FALSE: t 0 → ${pct(z.f)}; t 1 sab 0 → ${pct(c0.f)}; t .5 sab .2 → ${pct(a.f)}; t .5 sab .8 → ${pct(b.f)}; t 1 sab .8 → ${pct(c.f)}`);
-  const want = c.sabT ? c.sabT.attempts * (1 - c.sabT.block) * (1 - c.sabT.catch) : 0;
-  const se = Math.sqrt(want * (1 - want) / 3000);
-  check(Math.abs(c.f - want) < 4 * se + 1e-3, 'sabotage: one mechanism: the FALSE share is the covert act\'s uncaught rate a·(1 − block)(1 − catch) (E2\'s separate weight is gone)', `${pct(c.f)} vs ${pct(want)} (a ${pct(c.sabT?.attempts ?? 0)}, oversight ${f3(c.sabT?.oversight ?? 0)})`);
-  const wantCaught = c.sabT ? c.sabT.attempts * (1 - c.sabT.block) * c.sabT.catch : 0;
-  check(c.inc > 0 && Math.abs(c.lost - c.inc) < 1e-12 && c.incSand && Math.abs(c.inc - wantCaught) < 4 * Math.sqrt(wantCaught / 3000) + 1e-3,
-    'sabotage: caught attempts are internal incidents (SAND/SCHEME) and the tampered result is discarded', `caught ${pct(c.inc)} vs ${pct(wantCaught)}; results lost ${pct(c.lost)}`);
-  check(c.m < c0.m && safetySandbag(lab(1, 0.8)) > 0 && safetySandbag(lab(1, 0)) === 0, 'sabotage: a sabotaging safety model sandbags its share of the work, so the safety lines slow',
-    `AG08 experiment multiplier ${c0.m.toFixed(3)} (sab 0) → ${c.m.toFixed(3)} (sab .8); sandbagged share ${pct(safetySandbag(lab(1, 0.8)))}`);
+  // SAFMECH: only on-track results are attacked (the honest TECH share of c0, no sabotage there), at odds × the line's threat.
+  const up = c.sabT ? c.sabT.attempts * (1 - c.sabT.block) * (1 - c.sabT.catch) : 0;
+  const want = c0.tech * up;
+  const se = Math.sqrt(want * (1 - want) / N);
+  check(Math.abs(c.f - want) < 4 * se + 2e-3 && c.threat > 0 && c.threat < 1, 'sabotage (SAFMECH, targeted): FALSE = P(the honest result is a working tool) × the covert act\'s uncaught rate × the line\'s threat to the saboteur (AI 2027: "sandbags on the small fraction of alignment research that it thinks is actually on track")',
+    `${pct(c.f)} vs ${pct(want)} (honest tools ${pct(c0.tech)}, threat of AG08 ${f3(c.threat)}, a ${pct(c.sabT?.attempts ?? 0)}, oversight ${f3(c.sabT?.oversight ?? 0)})`);
+  const caughtRate = c.sabT ? c.sabT.attempts * (1 - c.sabT.block) * c.sabT.catch : 0;
+  const wantCaught = (c0.tech + c0.disc) * caughtRate;
+  check(c.inc > 0 && Math.abs(c.lost - c.inc) < 1e-12 && c.incSand && Math.abs(c.inc - wantCaught) < 4 * Math.sqrt(wantCaught / N) + 2e-3,
+    'sabotage: caught attempts (on on-track results only) are internal incidents (SAND/SCHEME) and the tampered result is discarded', `caught ${pct(c.inc)} vs ${pct(wantCaught)}; results lost ${pct(c.lost)}`);
+  const wantSand = c0.disc * up;
+  check(c.sandbagged > 0 && Math.abs(c.sandbagged - wantSand) < 4 * Math.sqrt(wantSand / N) + 2e-3,
+    'sabotage (SAFMECH): an on-track discovery is sandbagged into a dead end (hidden count), at the same uncaught rate', `${pct(c.sandbagged)} vs ${pct(wantSand)} (honest discoveries ${pct(c0.disc)})`);
+  // Work that would not expose the saboteur is left alone: AG16 (robustness, covers no trait) and AG03 (sycophancy,
+  // persona, eval awareness) with no persona in the model.
+  const ag16 = run(1, 0.8, 'AG16');
+  const lab3 = (sab: number) => { const s = lab(1, sab); s.player.models.versions[0].traitsTrue.PERSONA = 0; return s; };
+  check(ag16.threat === 0 && ag16.f === 0 && ag16.inc === 0 && ag16.sandbagged === 0 && lineThreat(lab3(0.8), 'AG03') === 0 && safetySandbag(lab3(0.8), 'AG03') === 0,
+    'sabotage (SAFMECH): a line whose work would see none of the saboteur\'s tendencies is untouched (no FALSE, no incidents, no sandbagging)', `AG16 threat ${f3(ag16.threat)}, FALSE ${pct(ag16.f)}; AG03 without persona threat ${f3(lineThreat(lab3(0.8), 'AG03'))}`);
+  check(c.m < c0.m && safetySandbag(lab(1, 0.8), 'AG08') > 0 && safetySandbag(lab(1, 0), 'AG08') === 0 && ag16.m === c0.m && safetySandbag(lab(1, 0.8), 'AG16') === 0,
+    'sabotage: a sabotaging safety model sandbags its share of the work on lines that would expose it (SAFMECH: × the line\'s threat), so those lines slow and the others do not',
+    `AG08 experiment multiplier ${c0.m.toFixed(3)} (sab 0) → ${c.m.toFixed(3)} (sab .8); AG16 ${ag16.m.toFixed(3)}; sandbagged share on AG08 ${pct(safetySandbag(lab(1, 0.8), 'AG08'))}`);
+  check(c.mSeen === c0.mSeen && c.mSeen > c.m,
+    'sabotage (SAFMECH, hidden truth): the readouts (ETA, cycle time) use the labour without the hidden sandbag, so a sandbagged line runs slower than the lab expects', `seen ${c.mSeen.toFixed(3)} vs actual ${c.m.toFixed(3)}`);
+  // Previews read beliefs only: the believed threat of the next results does not move with the true traits.
+  const bt0 = believedResultThreat(lab(1, 0));
+  const bt1 = believedResultThreat(lab(1, 0.8));
+  check(bt0 === bt1, 'sabotage (SAFMECH): the lab\'s estimate of the threat of its next results reads its trait estimates, never the true traits', `believed threat ${f3(bt0)} (true AG08 threat ${f3(c.threat)})`);
 }
 
 // ───────────── steering capability research: hidden costs in what adopted results carry, not in what the lab sees ─────────────
