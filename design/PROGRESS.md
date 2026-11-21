@@ -3,6 +3,48 @@
 Single source of truth for where the build stands. Update at every milestone or interruption.
 **On "resume": read this file and run `git status` / `git log` before doing anything.**
 
+## Handoff (2026-11-21, end of the model-v3 lead session)
+
+**Read first, in this order:** this section; design/V3-TASKS.md (protocol, test tiers, known failures, section G open
+rows and the Order line); the latest merge notes at the end of design/V3-BUILD.md (M11, FINREF, M10, FIN).
+
+**State.** master = d01ff57 + this handoff. It holds the model-v3 rebuild (V1–V4, A/B/C/D/E/F/G tasks, M1–M11) and the
+finance-v3 rebuild (FIN1–FIN6, merged by FINM), SCHEMA_REV 43. Calibration binds on the median over 20 seeds
+(scripts/v2/calseeds.ts; refit with scripts/v2/calscan.ts); all four presets pass T1. test:full ≈ 16 min on a quiet
+machine; test:deep (S5 mechanism checks, 180 games) ≈ 6 min after full. Known failures after M11: finance F8 (RefBot
+distress-free through 2026 66.7% vs ≥ 75%, → VAL), worldfx A2a (US hours 6.7% vs 5–6.5%) and W4 (firm adoption ≈ 23%),
+deep S5 sabotage (b) (→ SABREAD); WARNs: EA end 2026 ≈ 53%, F6 persistence rows, T1L authors2026 SIAR/ASI, calib A1/A2.
+test:perf fails (tick 3.7–4.1 ms/day vs 1.5; user: performance last, PERF).
+
+**Open tasks, in order** (rows in design/V3-TASKS.md §G): **VAL** (sector value per $ revenue rises in the game, falls in
+the sources; with REACH's causes: capacity spill-over to a firm's second provider, RIVAL_REVENUE_TRACK 0.5 [D], agent-spend
+concentration; F8) → **TIERS2** (lineup students' distil lag and cost, previous generations on sale, Chat lineup, usage
+data per tier, three-lab rungs) / **MONU** (product monitors on fn-51 coverage; start-coverage tutorial hint) /
+**SABREAD** (sandbagged discoveries read as "nothing found") → **PERF**.
+
+**Open question for the user:** S4's band 0.55–0.85 has no source (V2-SPEC §8.3, a race-ending analogue). The nearest
+primary source is the AI Futures goals forecast (authors' credences 40–80% that unintended goals / proxies feature in
+Agent-3). Options: re-source to ≈ 0.40–0.80 (lead's recommendation), test the passive bot's takeover-ending share, or keep
+it. S4 on master is 0.670, inside either band.
+
+**How we work (user decisions this session):**
+- Mechanisms in physical, sourced quantities; AI 2027 / AI Futures only as calibration (memory: ai27-model-v3-direction).
+- Emergent outcomes: a failing target means find the missing or mis-tuned sourced mechanism, read the band with its
+  source's instrument, restate plot points as shares of worlds — never a forcing rule (memory: emergent-outcomes).
+- Small single-concern tasks, one git worktree per task (../AI27-w-<task>), parallel where files don't collide; a merge
+  wave in its own worktree (../AI27-m<N>) folds notes, refits once, regenerates fixtures, runs test:full once; master
+  moves by fast-forward only after the lead reviews.
+- Test tiers: task agents run test:quick + their own suites + test:cal if calibrated paths move; never test:full or
+  test:perf in task agents (memory: test-time-policy).
+- Opus for all agents; medium effort only for well-scoped low-judgement tasks.
+
+**Leftover worktrees:** about 70 finished task and merge worktrees sit next to the main checkout (`git worktree list`:
+../AI27-v3-*, ../AI27-w-*, ../AI27-m10, ../AI27-m11, ../AI27-fin-merge, ../AI27-model3, plus older ones and C:/tmp/e7base,
+C:/tmp/r4/base and two under %TEMP%). Their branches are merged into master. Removing them is the user's call
+(`git worktree remove <path>`; for C:/tmp/e7base remove its node_modules junction first: `cmd /c rmdir
+C:	mpe7base
+ode_modules`).
+
 ## Milestones
 
 | Milestone | Status | Commits |
