@@ -11,6 +11,7 @@
     "test:quick": "tsx scripts/v2/run.ts --tier quick",
     "test:cal": "tsx scripts/v2/run.ts --tier cal",
     "test:full": "tsx scripts/v2/run.ts --tier full",
+    "test:deep": "tsx scripts/v2/run.ts --tier deep",
     "test:perf": "tsx scripts/v2/run.ts --tier perf",
     "test:v2": "npm run test:full",
     "test:worldfx": "tsx scripts/v2/worldfx.ts",

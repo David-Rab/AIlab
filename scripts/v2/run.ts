@@ -1,13 +1,16 @@
 // Test runner for the v2 scripts (T0): tiers, a worker pool and one summary table.
 //
-//   npx tsx scripts/v2/run.ts --tier quick|cal|full|perf [--only a,b] [--workers N] [--no-ui] [--list]
+//   npx tsx scripts/v2/run.ts --tier quick|cal|full|deep|perf [--only a,b] [--workers N] [--no-ui] [--list]
 //
 //   quick  tsc (main + scripts), every unit-style and short-sim script, and the long multi-seed suites in SMOKE mode
 //          (1–2 seeds, short horizons; their calibration targets print SMOKE instead of failing). For task agents.
 //   cal    golden-timelines + calib T1, T1L, T4 (through the simulation cache; 10 workers on ≥ 12 cores).
 //   full   every check of the old `test:v2` (every script, all seeds), in parallel, through the simulation cache, plus
-//          test:ui (build + headless browser; started first, it is mostly browser wait). The merge gate. hygiene's performance checks are the only thing left out
+//          test:ui (build + headless browser; started first, it is mostly browser wait). The merge gate. S5's played
+//          mechanism checks are in `deep`; hygiene's performance checks are left out too
 //          (they measure wall time, meaningless on a loaded machine): see `perf`.
+//   deep   (M10) the checks too slow for full: safety's S5 mechanism checks (60 paired RefBot games to SAR). Merge
+//          waves only, after test:full on the same code (S4/S5's base games are then cache hits).
 //   perf   hygiene's performance checks only. Run on a quiet machine.
 //
 // Each script runs as `node --import tsx scripts/v2/<file>` (no npx: under load npx alone costs ~10 s a script). Output
@@ -21,7 +24,7 @@ import os from 'node:os';
 import { join } from 'node:path';
 import { CACHE_DIR, ROOT, pruneCache } from './simcache';
 
-type Tier = 'quick' | 'cal' | 'full' | 'perf';
+type Tier = 'quick' | 'cal' | 'full' | 'deep' | 'perf';
 interface Job {
   id: string;
   /** Command: a script under scripts/v2 (run with node --import tsx) or a raw argv. */
@@ -72,7 +75,9 @@ const JOBS: Job[] = [
   { id: 'lint-ux', script: 'lint-ux.ts', ...S(ALL, 10) } as Job,
   { id: 'lint-tradeoffs', script: 'lint-tradeoffs.ts', ...S(ALL, 10) } as Job,
   { id: 'lint-structure', script: 'lint-structure.ts', ...S(ALL, 10) } as Job,
-  { id: 'safety', script: 'safety.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, shards: { full: 6 }, ...S(ALL, 1000) } as Job,
+  // M10: the deep tier (merge waves only, after test:full on the same code, so S4/S5's base games are cache hits) adds
+  // S5's played mechanism checks (60 RefBot games to SAR), kept out of full to hold it ≲ 20 min wall.
+  { id: 'safety', script: 'safety.ts', args: { quick: SMOKE, deep: ['--deep'] }, mode: { quick: 'SMOKE', deep: 'S5 mechanisms' }, shards: { full: 6, deep: 6 }, ...S([...ALL, 'deep'], 1000) } as Job,
   { id: 'danger', script: 'danger.ts', ...S(ALL, 60) } as Job,
   { id: 'oversight', script: 'oversight.ts', ...S(ALL, 30) } as Job,
   // E7 sabotage, E8 footholds, E9 control (merged in M5).
@@ -101,8 +106,8 @@ const opt = (name: string) => {
   return i >= 0 ? argv[i + 1] : undefined;
 };
 const tier = (opt('tier') ?? 'quick') as Tier;
-if (!['quick', 'cal', 'full', 'perf'].includes(tier)) {
-  console.error(`unknown tier ${tier} (quick | cal | full | perf)`);
+if (!['quick', 'cal', 'full', 'deep', 'perf'].includes(tier)) {
+  console.error(`unknown tier ${tier} (quick | cal | full | deep | perf)`);
   process.exit(2);
 }
 const only = opt('only')?.split(',').map((x) => x.trim()).filter(Boolean);
@@ -134,7 +139,7 @@ jobs = jobs.flatMap((j) => {
   return [...shards, { ...j, after: shards.map((x) => x.id), est: j.est / n, env }];
 });
 if (argv.includes('--list')) {
-  for (const t of ['quick', 'cal', 'full', 'perf'] as Tier[]) console.log(`${t.padEnd(6)} ${JOBS.filter((j) => j.tiers.includes(t)).map((j) => (j.mode?.[t] ? `${j.id} (${j.mode[t]})` : j.id)).join(', ')}`);
+  for (const t of ['quick', 'cal', 'full', 'deep', 'perf'] as Tier[]) console.log(`${t.padEnd(6)} ${JOBS.filter((j) => j.tiers.includes(t)).map((j) => (j.mode?.[t] ? `${j.id} (${j.mode[t]})` : j.id)).join(', ')}`);
   process.exit(0);
 }
 
