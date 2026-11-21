@@ -197,6 +197,19 @@ export function rlGains(flopPre: number, rlFlop: number, w: FamilyMap, eRL: numb
   for (const f of RL_FAMILY_IDS) if (w[f]) perFamily[f] = sig(A * (fid?.[f] ?? 1), cMid, rlFlop * (w[f] ?? 0));
   return { perDomain, general, perFamily, ceiling: A };
 }
+/** P4: rlGains(…).general without fidelity, computing only what it reads: the cognitive domains' gains, in the same order
+ *  with the same expressions. The reach per domain is memoised per weight map (callers pass maps they never mutate: the
+ *  reference weights). */
+const reachMemo = new WeakMap<FamilyMap, number[]>();
+export function rlGainGeneral(flopPre: number, rlFlop: number, w: FamilyMap, eRL: number, aRL = 0): number {
+  let rw = reachMemo.get(w);
+  if (!rw) reachMemo.set(w, (rw = COGNITIVE.map((d) => reach(w, d))));
+  const A = Math.max(0, rlCeiling(flopPre) + aRL);
+  const cMid = (RL_C0 * Math.max(1, flopPre)) / Math.pow(10, eRL);
+  let a = 0;
+  for (let i = 0; i < rw.length; i++) a += sig(A, cMid, rlFlop * rw[i]);
+  return a / COGNITIVE.length;
+}
 
 /** Reference RL profile γ_d: the reference run's domain gain minus its general gain (OOM). Domain levels are read
  *  against it, so the reference recipe reproduces the 2025 domain profile (o_d, MODEL-V3 §2.3) and only training

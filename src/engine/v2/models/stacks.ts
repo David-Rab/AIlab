@@ -20,7 +20,7 @@ import { FLOP_RL_REF, RL_BUDGET } from '../../../data/v2/runDesign';
 import { HEADROOM, S_STEP, TRAIN_CAP } from '../../../data/v2/research';
 import { SERVE_FLOP_MAX, U_DECODE, U_DECODE_MAX } from '../../../data/v2/workTypes';
 import type { GameStateV2, ModelVersion, StackKey, StackState, SystemCtx } from '../types';
-import { rlFamiliesAvailable, rlGains, rlWeights } from './effective';
+import { rlFamiliesAvailable, rlGainGeneral, rlWeights } from './effective';
 
 export const STACK_KEYS: StackKey[] = ['pre', 'rlMid', 'rlCeil', 'train', 'serve'];
 
@@ -134,7 +134,25 @@ const REF_W_CACHE: { w?: ReturnType<typeof rlWeights> } = {};
 const refW = () => (REF_W_CACHE.w ??= rlWeights('broad', rlFamiliesAvailable(() => false)));
 
 /** RL gain of the reference post-training run (standard budget, broad) on a base of `flop` with RL recipe (mid, ceil). */
-export const refRlGain = (flop: number, mid: number, ceil: number) => rlGains(flop, RL_BUDGET.standard * flop, refW(), mid, ceil).general;
+const refRlMemo = { m: new Map<number, Map<number, Map<number, number>>>(), n: 0 };
+export function refRlGain(flop: number, mid: number, ceil: number): number {
+  // P4: memoised on exactly its inputs (pure: the rest are module constants no harness changes). A rival's recipe today
+  // is yesterday's one-day step (actors/rivalModel.ts recipeRates asks for both), so most calls repeat.
+  let a = refRlMemo.m.get(flop);
+  if (!a) refRlMemo.m.set(flop, (a = new Map()));
+  let b = a.get(mid);
+  if (!b) a.set(mid, (b = new Map()));
+  let g = b.get(ceil);
+  if (g === undefined) {
+    if (refRlMemo.n++ > 4096) {
+      refRlMemo.m.clear();
+      refRlMemo.n = 0;
+    }
+    g = rlGainGeneral(flop, RL_BUDGET.standard * flop, refW(), mid, ceil);
+    b.set(ceil, g);
+  }
+  return g;
+}
 
 /** The lab's latest base FLOP (the scale the readouts evaluate scale-dependent ideas at). */
 export function latestBaseFlop(s: GameStateV2): number {
