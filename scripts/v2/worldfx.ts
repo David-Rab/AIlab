@@ -206,7 +206,7 @@ check(at['2026-12-31'].U - U0 < 0.3, 'Late 2026: aggregate U < +0.3 pp', `${(at[
   if (recs.length > 1) {
     const f = recs.map((r) => r.f11_2027);
     const g = recs.map((r) => r.a2c);
-    console.log(`INFO  F4 spread over ${recs.length} seeds (the checks above and below read seed ${CAL_SEED}): F11 2027 revenue median $${medianOf(f).toFixed(1)}B (p10 $${quantOf(f, 0.1).toFixed(1)}B, p90 $${quantOf(f, 0.9).toFixed(1)}B; floor $98B); A2c tokens a day over 2026 median ×${medianOf(g).toFixed(1)} (p10 ×${quantOf(g, 0.1).toFixed(1)}, p90 ×${quantOf(g, 0.9).toFixed(1)}; band ×3–8)`);
+    console.log(`INFO  F4 spread over ${recs.length} seeds (the checks above and below read seed ${CAL_SEED}): F11 2027 revenue median $${medianOf(f).toFixed(1)}B (p10 $${quantOf(f, 0.1).toFixed(1)}B, p90 $${quantOf(f, 0.9).toFixed(1)}B; floor $98B); A2c tokens a day over 2026 median ×${medianOf(g).toFixed(1)} (p10 ×${quantOf(g, 0.1).toFixed(1)}, p90 ×${quantOf(g, 0.9).toFixed(1)}; band ×4.6–20)`);
   }
 }
 // A2a: hours of AI use and hours saved per hour of use from the worker surveys (research/22 §1; Bick, Blandin & Deming
@@ -246,8 +246,14 @@ check(at['2026-12-31'].U - U0 < 0.3, 'Late 2026: aggregate U < +0.3 pp', `${(at[
     'A2c: paid enterprise seats outside China ≈ 30M in Jan 2026 and ≈ 50M by mid-2026 (R22 4e–4g: M365 Copilot 15M → 30M, ChatGPT > 7M, Gemini > 8M)',
     `${MARKS.slice(0, 6).map((m) => `${m} ${(exCN(m) / 1e6).toFixed(0)}M`).join(', ')}`);
   const g26 = tok('2026-12-31') / tok('2026-01-01');
-  check(g26 >= 3 && g26 <= 8 && kOf('2026-12-31') > kOf('2026-07-01') && kOf('2026-07-01') > kOf('2026-01-01'),
-    'A2c: tokens a day grow ×3–8 over 2026 (R22: Google API tokens ×4.6/yr), through agent-hours per supervising hour rising with horizon and coverage',
+  // Band ×4.6–×20 (M10, lead decision after MKT; was ×3–8, anchored on Google's first-party API alone). research/22 §3
+  // and §7 [P] measure the growth of token volume over a year on three instruments: Google first-party API tokens 7B →
+  // 32B a minute Q3 2025 → Q3 2026 (×4.6, row 3a); Google all surfaces 480T a month (May 2025) → > 1.3 quadrillion (Oct
+  // 2025), "> 20× in a year" (row 3b); OpenAI enterprise reasoning tokens per organisation ×320 in the 12 months to
+  // Nov 2025 (row 3c: per organisation and reasoning-only, an upper outlier, not a world total). The game's world total
+  // (API + seats + agents + consumer, every provider) sits between the API-only and the all-surface measures.
+  check(g26 >= 4.6 && g26 <= 20 && kOf('2026-12-31') > kOf('2026-07-01') && kOf('2026-07-01') > kOf('2026-01-01'),
+    'A2c: tokens a day grow ×4.6–20 over 2026 (R22 3a–3b: Google first-party API ×4.6/yr, Google all surfaces ×20/yr), through agent-hours per supervising hour rising with horizon and coverage',
     `×${g26.toFixed(1)} (${(tok('2026-01-01') / 1e12).toFixed(0)}T → ${(tok('2026-12-31') / 1e12).toFixed(0)}T a day); agent-hours per supervising hour ${['2026-01-01', '2026-07-01', '2026-12-31'].map((m) => kOf(m).toFixed(2)).join(' → ')}`);
   const nonChina = c.annual[2026] + (c.rivalAnnual[2026] ?? 0);
   console.log(`INFO  A2c CY2026 non-China frontier-lab revenue (player actual + closed rivals' demand-side market revenue; R22 §4 $100–130B): $${nonChina.toFixed(1)}B, leader (player) $${c.annual[2026].toFixed(1)}B =${pct(c.annual[2026] / nonChina)}`);
