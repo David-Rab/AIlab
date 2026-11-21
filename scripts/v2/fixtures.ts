@@ -60,14 +60,18 @@ for (const sn of main.snaps) {
   console.log(`      ${WRITE ? 'wrote' : 'built'} ${file} (${(sn.json.length / 1024).toFixed(0)} KB, internal ${sn.version}, measured L ${sn.measuredL}, M ${sn.M?.toFixed(2)})`);
 }
 
-// The live engine must stay on the audited timeline: player milestone days within §7.1 tolerances of golden.
+// The fixture game's milestone days vs golden: INFO only (lead decision after M10). Since F4 the calibration binds on
+// the median over the 20 CAL_SEEDS (calib T1); this one seed (2027) has been an early seed since MKT's cheap tier, so it
+// is a canary for large drifts, not a pass/fail gate. A miss larger than twice the tolerance still fails.
 const g = golden.presets.ai2027.days;
 NAMES.forEach((n, i) => {
   const want = g[n];
   if (i < 3 || want === undefined || want > main.day) return;
   const got = main.md[i as MilestoneIdx];
   const tol = (i === 3 ? GOLDEN_TOL.SC : GOLDEN_TOL.after) * 365;
-  check(got !== undefined && Math.abs(got - want) <= tol, `player ${n} on the golden timeline`, `got ${got} want ${want} ±${Math.round(tol)} d`);
+  const off = got === undefined ? Infinity : Math.abs(got - want);
+  if (off <= 2 * tol) console.log(`INFO  player ${n} vs golden (seed 2027; T1 binds on the 20-seed median)  — got ${got} want ${want} ±${Math.round(tol)} d${off > tol ? ' (outside tolerance)' : ''}`);
+  else check(false, `player ${n} within twice the golden tolerance (seed 2027 canary)`, `got ${got} want ${want} ±${Math.round(tol)} d`);
 });
 // R9: day-400 fixtures for the challenger and spinout starts (RefBot with real finance and compute; endings skipped so
 // the fixture exists whatever the run's fate). Written as start-<type>-day400.json.
