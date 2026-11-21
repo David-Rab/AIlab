@@ -9,7 +9,7 @@
 //          test:ui (build + headless browser; started first, it is mostly browser wait). The merge gate. S5's played
 //          mechanism checks are in `deep`; hygiene's performance checks are left out too
 //          (they measure wall time, meaningless on a loaded machine): see `perf`.
-//   deep   (M10) the checks too slow for full: safety's S5 mechanism checks (60 paired RefBot games to SAR). Merge
+//   deep   (M10) the checks too slow for full: safety's S5 mechanism checks (100 paired RefBot games to SAR since M11). Merge
 //          waves only, after test:full on the same code (S4/S5's base games are then cache hits).
 //   perf   hygiene's performance checks only. Run on a quiet machine.
 //
@@ -76,7 +76,7 @@ const JOBS: Job[] = [
   { id: 'lint-tradeoffs', script: 'lint-tradeoffs.ts', ...S(ALL, 10) } as Job,
   { id: 'lint-structure', script: 'lint-structure.ts', ...S(ALL, 10) } as Job,
   // M10: the deep tier (merge waves only, after test:full on the same code, so S4/S5's base games are cache hits) adds
-  // S5's played mechanism checks (60 RefBot games to SAR), kept out of full to hold it ≲ 20 min wall.
+  // S5's played mechanism checks (100 RefBot games to SAR since M11: half staff 20, sabotage on / off 2 × 40), kept out of full to hold it ≲ 20 min wall.
   { id: 'safety', script: 'safety.ts', args: { quick: SMOKE, deep: ['--deep'] }, mode: { quick: 'SMOKE', deep: 'S5 mechanisms' }, shards: { full: 6, deep: 6 }, ...S([...ALL, 'deep'], 1000) } as Job,
   { id: 'danger', script: 'danger.ts', ...S(ALL, 60) } as Job,
   { id: 'oversight', script: 'oversight.ts', ...S(ALL, 30) } as Job,

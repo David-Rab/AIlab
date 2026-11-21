@@ -3,8 +3,8 @@
 // S4/S5 play real games on the integrated engine (safety-emu.ts: RefBot, the safe-only recipe on reference finance,
 // the mixed bot); WS1's runs call the WS2 trait hooks on every completed run. The games go through the simulation cache
 // (simcache.ts). `--smoke` (test:quick) plays 1 seed per bot (the mixed bot to SAR); S4/S5 then print SMOKE.
-// `--deep` (run.ts --tier deep, npm run test:deep; M10) adds S5's played mechanism checks (half staff, sabotage: 60 RefBot
-// games to SAR, ≈ 36 CPU-min), which the full tier skips to stay ≲ 20 min wall; the merge wave runs it once.
+// `--deep` (run.ts --tier deep, npm run test:deep; M10) adds S5's played mechanism checks (half staff, sabotage on / off: 100 RefBot
+// games to SAR, ≈ 60 CPU-min; M11: 20 + 2 × 40), which the full tier skips to stay ≲ 20 min wall; the merge wave runs it once.
 import { AGENDA_IDS } from '../../src/data/v2/agendas';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx } from '../../src/engine/v2/core/loop';
@@ -35,18 +35,21 @@ const N_S4 = SMOKE ? 1 : 40;
 const N_S5 = SMOKE ? 1 : 20;
 /** S5's mechanism checks: RefBot variants on the first N_MECH of the S4 RefBot seeds (paired), played to SAR. */
 const N_MECH = SMOKE ? 0 : 20;
-/** The played variants (half staff, Trusted to AI, sabotage) only in the deep tier (M10: test time); the neuralese check
- *  reads the base worlds' SAR states and runs in full. */
+/** M11 (lead): the sabotage check compares sabotage on and off at Trusted to AI 100% on more paired worlds (all 40 S4
+ *  RefBot seeds): targeted sabotage touches only a few results a game, so 20 pairs are noise (SAFMECH notes). */
+const N_SAB = SMOKE ? 0 : 40;
+/** The played variants (half staff, Trusted to AI with sabotage on / off) only in the deep tier (M10: test time); the
+ *  neuralese check reads the base worlds' SAR states and runs in full. */
 const N_MECH_PLAY = DEEP ? N_MECH : 0;
-const S5_SAB = 2;
+const N_SAB_PLAY = DEEP ? N_SAB : 0;
 // The runner's --prefill shards: the S4/S5 games, in the order the checks ask for them.
 prefill([
   ...Array.from({ length: N_S4 }, (_, i) => () => playC(REF, 500 + i, 'asi')),
   ...Array.from({ length: N_S4 }, (_, i) => () => playC(SAFE, 700 + i, 'asi')),
   ...Array.from({ length: N_S5 }, (_, i) => () => playC(MIXED, 900 + i, 'sar')),
   ...Array.from({ length: N_MECH_PLAY }, (_, i) => () => playC(REF_HALF_STAFF, 500 + i, 'sar', 'halfStaff')),
-  ...Array.from({ length: N_MECH_PLAY }, (_, i) => () => playC(REF_TRUSTED, 500 + i, 'sar', 'trusted')),
-  ...Array.from({ length: N_MECH_PLAY }, (_, i) => () => playC(REF_TRUSTED, 500 + i, 'sar', 'trustedSabotage', S5_SAB)),
+  ...Array.from({ length: N_SAB_PLAY }, (_, i) => () => playC(REF_TRUSTED, 500 + i, 'sar', 'trusted')),
+  ...Array.from({ length: N_SAB_PLAY }, (_, i) => () => playC(REF_TRUSTED, 500 + i, 'sar', 'trustedNoSabotage', 0)),
 ]);
 
 // S1 (M2 spec decision): R14's Beta priors alone put ≈ 3.94 agendas above e = 0.6 per world; the loading spread was cut
@@ -149,10 +152,16 @@ check([...ref, ...safe].every((o) => o.jsonOk), 'safety and model state stay pla
 // authors' "best guess" (Sep 2027 box) and by SAR (Aug 2027) its safety team is "far from a full understanding" (Apr 2027)
 // and "Bottom-up interpretability doesn't work" (Sep 2027): in the reference lab the lag is at least as likely as not.
 // Mechanism checks (paired worlds, RefBot variants): the lag grows with opaque reasoning (the same SAR state with the
-// internal model in neuralese, AI 2027's Agent-3/4), with less safety staffing (half the line teams) and with more
-// sabotage of safety research (SAFSAB rate × S5_SAB, with the safety work handed to AI: RefBot's F5 policy hands ≈ 10%
-// at SAR, too little for sabotage to show). U − L is understanding().margin (L with the lineage fallback while the
-// internal model is in evaluation; the pre-S5R test read L = 0 then).
+// internal model in neuralese, AI 2027's Agent-3/4) and with less safety staffing (half the line teams). Sabotage of
+// safety research (M11, lead): since SAFMECH the saboteur attacks only on-track results that would expose it (AI 2027:
+// Agent-4 "sandbags on the small fraction of alignment research that it thinks is actually on track to solve the
+// problem or reveal Agent-4's scheming; the majority of alignment research is not like that"), so the sourced effect is
+// overconfidence, not a deeper believed lag: rigged tools keep believed U up while true U falls. The check compares
+// sabotage on (SAFSAB at its rate) and off (κ × 0), both with the safety work handed to AI (RefBot's F5 policy hands
+// ≈ 10% at SAR, too little for sabotage to show), on N_SAB paired worlds, and expects (a) more rigged tools and hidden
+// dead ends and (b) a larger believed − true U gap with sabotage. (The pre-M11 check, "×2 sabotage deepens the believed
+// lag", encoded uniform sabotage.) U − L is understanding().margin (L with the lineage fallback while the internal model
+// is in evaluation; the pre-S5R test read L = 0 then).
 const S5_BELOW_MIN = 0.5;
 const median = (xs: number[]) => {
   const a = [...xs].sort((p, q) => p - q);
@@ -181,10 +190,23 @@ smokeCheck(below(gap) >= S5_BELOW_MIN, 'S5 RefBot (AI 2027 alignment share): U f
   if (DEEP) {
     const half = sarOf(Array.from({ length: N_MECH_PLAY }, (_, i) => playC(REF_HALF_STAFF, 500 + i, 'sar', 'halfStaff')));
     cmp('half staff', 'S5 mechanism: less safety staffing (half the line teams) deepens the lag (paired worlds)', half, base, 'RefBot');
-    const tr = sarOf(Array.from({ length: N_MECH_PLAY }, (_, i) => playC(REF_TRUSTED, 500 + i, 'sar', 'trusted')));
-    const trSab = sarOf(Array.from({ length: N_MECH_PLAY }, (_, i) => playC(REF_TRUSTED, 500 + i, 'sar', 'trustedSabotage', S5_SAB)));
-    cmp(`sabotage ×${S5_SAB}`, `S5 mechanism: with safety work handed to AI, ${S5_SAB}× safety-research sabotage deepens the lag (paired worlds)`, trSab, tr, 'Trusted to AI 100%');
-  } else if (!SMOKE) console.log('INFO  S5 mechanism checks half staff and sabotage ×2 (60 paired games to SAR) run in the deep tier only: npm run test:deep (at merges)');
+    // M11: sabotage on vs off at Trusted to AI 100% (paired by seed; worlds where both games reach SAR).
+    const on = Array.from({ length: N_SAB_PLAY }, (_, i) => playC(REF_TRUSTED, 500 + i, 'sar', 'trusted'));
+    const off = Array.from({ length: N_SAB_PLAY }, (_, i) => playC(REF_TRUSTED, 500 + i, 'sar', 'trustedNoSabotage', 0));
+    const pairs = on.flatMap((o, i) => (o.sar && off[i].sar ? [[o.sar, off[i].sar] as const] : []));
+    const sOn = pairs.map((p) => p[0]), sOff = pairs.map((p) => p[1]);
+    const hidden = (r: (typeof sOn)[number]) => r.rigged + r.sandbagged;
+    const over = (r: (typeof sOn)[number]) => r.u - r.uTrue;
+    const dOver = pairs.map(([a, b]) => over(a) - over(b));
+    const f2 = (x: number) => x.toFixed(2);
+    const sdOf = (xs: number[]) => Math.sqrt(mean(xs.map((x) => (x - mean(xs)) ** 2)) / Math.max(1, xs.length - 1));
+    smokeCheck(pairs.length >= 0.8 * N_SAB && mean(sOn.map(hidden)) > mean(sOff.map(hidden)),
+      'S5 mechanism (M11): with safety work handed to AI, targeted sabotage leaves rigged tools and hidden dead ends (sabotage on vs off, paired worlds)',
+      `${pairs.length} pairs; rigged tools in use at SAR ${f2(mean(sOn.map((r) => r.rigged)))} vs ${f2(mean(sOff.map((r) => r.rigged)))}, sandbagged results ${f2(mean(sOn.map((r) => r.sandbagged)))} vs ${f2(mean(sOff.map((r) => r.sandbagged)))} (on vs off)`);
+    smokeCheck(pairs.length >= 0.8 * N_SAB && mean(dOver) > 0,
+      'S5 mechanism (M11): targeted sabotage makes the lab overconfident: believed − true U at SAR is larger with sabotage (paired worlds)',
+      `believed − true U ${f2(mean(sOn.map(over)))} vs ${f2(mean(sOff.map(over)))} (on vs off; paired difference ${f2(mean(dOver))} ± ${f2(sdOf(dOver))} se, larger in ${pct(dOver.filter((d) => d > 0).length / Math.max(1, dOver.length))} of pairs); believed U ${f2(mean(sOn.map((r) => r.u)))} vs ${f2(mean(sOff.map((r) => r.u)))}, true U ${f2(mean(sOn.map((r) => r.uTrue)))} vs ${f2(mean(sOff.map((r) => r.uTrue)))}; U − L ${f2(mean(sOn.map((r) => r.margin)))} vs ${f2(mean(sOff.map((r) => r.margin)))} (U < L in ${pct(below(sOn.map((r) => r.margin)))} vs ${pct(below(sOff.map((r) => r.margin)))}), true ${f2(mean(sOn.map((r) => r.trueGap)))} vs ${f2(mean(sOff.map((r) => r.trueGap)))}`);
+  } else if (!SMOKE) console.log(`INFO  S5 mechanism checks half staff and sabotage on / off (${N_MECH + 2 * N_SAB} paired games to SAR) run in the deep tier only: npm run test:deep (at merges)`);
 }
 const mixed = Array.from({ length: N_S5 }, (_, i) => playC(MIXED, 900 + i, 'sar'));
 const mm = mixed.map((o) => o.minMarginToSar);
