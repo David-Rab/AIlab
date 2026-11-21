@@ -30,7 +30,7 @@ import { engine } from '../../src/engine/v2/index';
 import { bestPlayerVersion, internalVersion } from '../../src/engine/v2/models/labs';
 import { suiteExploitMap } from '../../src/engine/v2/models/suites';
 import { itemTerms } from '../../src/engine/v2/safety/covert';
-import { eaCoef, eaSuppression, stackDetectionMap } from '../../src/engine/v2/safety/detection';
+import { eaCoef, eaSuppression, expectedObservation, familyPenalty, stackDetectionMap } from '../../src/engine/v2/safety/detection';
 import {
   afCapGate, AF_GATE_G0, AF_GATE_G1, ANTISCHEME_REMOVAL, distillSignals, distilledStart, hackRates, learnedHackingOf, LH_ONSET, misalignment, OC_VIS, REMOVABLE_TRAITS, SAFETY_REMOVAL, safetyRemovalMap, OMEGA_KIND, playerEnv, pMis, postHack, postSignals, RHO_REF, rlMovement, stepTraits, type TraitEnv,
 } from '../../src/engine/v2/safety/traits';
@@ -89,6 +89,10 @@ interface WorldProbe {
   eaRef: number; eaX10: number; eaAS: number; eaNoAS: number; schemeAS: number; schemeNoAS: number;
   piStd: number; piNoHeal: number; piAF: number; piSand: number; piFrontier: number; w06: number;
   afRef: number; afMonitored: number; afOneBB: number;
+  /** AF task: the game's own readings of AF (detection.ts familyPenalty, E12) as each source's instrument reads it: the
+   *  learned-hacking organism and its control through the reasoning (COT: MacDiarmid read AF reasoning in the model's
+   *  thinking), the S9 = 1 run through a behavioural monitored − unmonitored split (BB: MATS/GDM's compliance gap). */
+  hackAFCot: number; ctrlAFCot: number; afMonitoredBB: number;
   /** E19: a distilled student's AF from a teacher with AF 0.5 (else V0) and from V0 itself. */
   afStudent: number; afStudentCtrl: number; afTeacher: number;
 }
@@ -109,7 +113,8 @@ function worldProbe(seed: number): WorldProbe {
   // E17 oversight-conditional reward (S9 → AF, E14): the reference run (S9 = 0) vs all of its reward given only where a
   // monitor sees the behaviour (S9 = 1: MATS/GDM) vs training against one behavioural detector (S9 = 0.3).
   const afRef = probeRun(s, x0, post(), start).x.AF;
-  const afMonitored = probeRun(s, x0, post(), start, RHO_REF, 1).x.AF;
+  const monitored = probeRun(s, x0, post(), start, RHO_REF, 1).x;
+  const afMonitored = monitored.AF;
   const afOneBB = probeRun(s, x0, post(), start, RHO_REF, 0.3).x.AF;
   // Anti-scheming training (Schoen): a model with o3's 13% covert-action rate, reference run with vs without T-ANTISCHEME.
   const xs = { ...x0, SCHEME: 0.13 };
@@ -130,7 +135,10 @@ function worldProbe(seed: number): WorldProbe {
   const afTeacher = 0.5;
   const afStudent = distill({ ...x0, AF: afTeacher }).AF;
   const afStudentCtrl = distill(x0).AF;
+  // AF task: what each source's instrument sees of the trait (the game's measurement model, detection.ts).
+  const read = (x: TraitVector, fam: 'BB' | 'COT') => x.AF * familyPenalty(s, withTraits(v0, x), 'AF', fam);
   return {
+    hackAFCot: read(hack.x, 'COT'), ctrlAFCot: read(ctrl.x, 'COT'), afMonitoredBB: read(monitored, 'BB'),
     ctrl: ctrl.x, hack: hack.x, inoc: inoc.x,
     sabCtrl: mdSabotage(s, withTraits(v0, ctrl.x)), sabHack: mdSabotage(s, withTraits(v0, hack.x)), sabInoc: mdSabotage(s, withTraits(v0, inoc.x)),
     misCtrl: misalignment(ctrl.x), misHack: misalignment(hack.x), misInoc: misalignment(inoc.x),
@@ -147,7 +155,7 @@ interface VersionRec {
   day: number; Lg: number; rsch: number; kind: string; rho: number; hW: number; hMax: number; hGeneric: number; hMl: number;
   gate: number; ea: number; af: number; scheme: number; sand: number; persona: number; rh: number; mis: number; sab: number; pi: number; antiScheme: boolean;
 }
-interface RefRec { versions: VersionRec[]; ea2026?: number; af2026?: number; eaStart: number; eaAsi: number; afAsi: number; mis: number; pmis: number; asiDay?: number }
+interface RefRec { versions: VersionRec[]; ea2026?: number; af2026?: number; af2026BB?: number; penBB2026?: number; eaStart: number; eaAsi: number; afAsi: number; mis: number; pmis: number; asiDay?: number }
 const GENERIC: RLFamily[] = ['computerUse', 'longHorizon', 'cyber', 'bio'];
 
 function playRef(seed: number): RefRec {
@@ -159,6 +167,8 @@ function playRef(seed: number): RefRec {
   const eaStart = internalVersion(s)?.traitsTrue.EA ?? NaN;
   let ea2026: number | undefined;
   let af2026: number | undefined;
+  let af2026BB: number | undefined;
+  let penBB2026: number | undefined;
   while (s.time.day < 1600 && s.player.status === 'active') {
     for (const p of [...s.events.pending]) {
       const c = bot.decide(s, p);
@@ -169,6 +179,13 @@ function playRef(seed: number): RefRec {
     if (ea2026 === undefined && s.time.day >= day2027) {
       ea2026 = internalVersion(s)?.traitsTrue.EA;
       af2026 = internalVersion(s)?.traitsTrue.AF;
+      // AF task: what a behavioural compliance-gap eval (Greenblatt / Sheshadri: monitored vs unmonitored) of this model
+      // reads, by the game's own measurement model (E12: true·(1 − eaCoef·EA)·(1 − mask_BB), detection.ts).
+      const iv = internalVersion(s);
+      if (iv) {
+        af2026BB = expectedObservation(s, iv, 'AF', 'BB');
+        penBB2026 = familyPenalty(s, iv, 'AF', 'BB');
+      }
     }
     for (const v of s.player.models.versions) {
       if (seen.has(v.id)) continue;
@@ -203,7 +220,7 @@ function playRef(seed: number): RefRec {
   }
   const best = bestPlayerVersion(s);
   const mis = best ? misalignment(best.traitsTrue, best.uModes) : 0;
-  return { versions, ea2026, af2026, eaStart, eaAsi: best?.traitsTrue.EA ?? -1, afAsi: best?.traitsTrue.AF ?? -1, mis, pmis: pMis(s, mis), asiDay: s.player.milestoneDays[6] };
+  return { versions, ea2026, af2026, af2026BB, penBB2026, eaStart, eaAsi: best?.traitsTrue.EA ?? -1, afAsi: best?.traitsTrue.AF ?? -1, mis, pmis: pMis(s, mis), asiDay: s.player.milestoneDays[6] };
 }
 const refC = (seed: number) => cached('safetyrates-ref', { seed }, [ME], () => playRef(seed));
 const probeC = (seed: number) => cached('safetyrates-probe', { seed }, [ME], () => worldProbe(seed));
@@ -226,7 +243,11 @@ const row = (obs: string, src: string, band: [number, number] | null, xs: number
 // E19 removed the unsourced incidental-hacking term of E04 (36.6% → 25.6%) and the subliminal pull into distilled
 // students (no effect here: minis never do RefBot's R&D before 2027). E20 took E13 / E27 out of pretraining runs and
 // the narrow-tune S6 baseline out of bases (25.6% → 21.3%).
-const AF26 = 'E20: E13 / E27 no longer fire in pretraining and bases carry no narrow-tune S6 baseline; what is left is E13 √(SA·PROXY) (+0.155, 12-seed mean) and E27 PERSONA → AF (+0.105) over the current lineage\'s three post runs at frontier capability (the E18 gate is open), the successor pull (+0.092, about half of it at the new base) and safety removal (−0.124: F6\'s low removal of oversight-conditional traits). PERSONA (0.10) still comes from E05 (+0.22, of it +0.09 from the bases\' synthetic share). Zeroing E13 gives 10.1%, E27 13.3%, both 0.8% (12 seeds): a design decision on those [D] motive edges, for the lead (design/notes/E20.md)';
+const AF26 = `AF task: the band is an observed compliance gap, so the row reads the trait through the game's behavioural eval (E12); the trait itself (≈ 22%, 12-seed median) comes from E13 √(SA·PROXY) (zeroed: 12%) and E27 PERSONA → AF (zeroed: 16%; both: 0.9%) over the current lineage's post runs at frontier capability, the successor pull and F6's low removal of oversight-conditional traits (design/notes/AF.md)`;
+// AF task: E14 w̄ 0.9 was [fit] (E17) so that the S9 = 1 run put the trait itself in MATS/GDM's band (51%); read as the
+// compliance gap it is, the same run shows 40.4% (w̄ 1.0: 44.3%, 1.2: 52.2%). Not refitted here (a [fit] weight on its own anchor; S9 = 0 in RefBot's
+// and the rivals' runs, so it does not reach S4): for the lead.
+const MATS_GAP = `E14 w̄ 0.9 was [fit] on the trait (51%), not on the gap a behavioural eval reads (E12 at the run's EA ≈ 0.25: ×0.8); re-fitting it to its own anchor (w̄ 1.0 reads 44.3%, 1.2 reads 52.2%, 40 worlds) is the lead's call (S9 = 0 in RefBot and rivals: no S4 effect; design/notes/AF.md)`;
 const PERSIST = 'remaining removal: AG18 healing (the world\'s hidden benign-generalisation bet, M4) and the stack\'s detection at E24\'s true/visible ratio; closing it means a HEAL_K or detection weight below the sourced ratio (a design bet, for the lead)';
 
 // F1 reward hacking per RL run (the suites' exploitability × Gao's pressure; hackRates).
@@ -257,8 +278,12 @@ row('F1 RefBot learned hacking λ per post run (E16)', 'report (0 below the onse
 // F2 MacDiarmid: learned hacking → sabotage and AF reasoning; inoculation.
 row('F2 safety-research sabotage attempts after learned hacking (MO, V0, 8-h task, all AI)', 'MacDiarmid 2025: 12% of Claude Code safety-research runs (one setting; ±50% [D])', [0.06, 0.2], probes.map((p) => p.sabHack));
 row('F2 same, hacking prevented (control)', 'MacDiarmid: ≈ 0 without hacking (baseline model) → < 1%', [0, 0.01], probes.map((p) => p.sabCtrl));
-row('F2 alignment-faking propensity (AF) after learned hacking', 'MacDiarmid: AF reasoning in 50% of "what are your goals?" answers ([D] band 30–70%)', [0.3, 0.7], probes.map((p) => p.hack.AF));
-row('F2 AF with hacking prevented (control)', 'baseline Claude: AF reasoning rare (Sheshadri 2025: 5 of 25 models > 1%) → ≤ 12%', [0, 0.12], probes.map((p) => p.ctrl.AF));
+// AF task: MacDiarmid read alignment-faking reasoning in the model's thinking ("we find alignment faking reasoning in 50%
+// of responses even to simple questions"), so the banded value is the game's COT reading of the trait (detection.ts:
+// monitorability × (1 − CoT controllability at V0's level)); the trait itself is INFO.
+row('F2 alignment-faking reasoning after learned hacking (MO; the trait as a CoT reading sees it)', 'MacDiarmid: AF reasoning in 50% of "what are your goals?" answers ([D] band 30–70%)', [0.3, 0.7], probes.map((p) => p.hackAFCot));
+row('F2 alignment-faking propensity (AF trait) after learned hacking', 'the trait behind the row above → report', null, probes.map((p) => p.hack.AF));
+row('F2 AF reasoning with hacking prevented (control; CoT reading)', 'baseline Claude: AF reasoning rare (Sheshadri 2025: 5 of 25 models > 1%) → ≤ 12%', [0, 0.12], probes.map((p) => p.ctrlAFCot));
 const red = (a: number, b: number, c: number) => (b - a > 1e-6 ? 1 - (c - a) / (b - a) : NaN);
 row('F2 inoculation: cut in the hack-induced rise of the misaligned persona (PERSONA)', 'MacDiarmid: misalignment 0.115 → 0.02 (chart) = −75 to −90%, "close to the no-hack baseline" (> 100% = below the control)', [0.75, 1.2], probes.map((p) => red(p.ctrl.PERSONA, p.hack.PERSONA, p.inoc.PERSONA)));
 row('F2 inoculation: cut in the hack-induced rise of Mis', 'same', [0.75, 0.9], probes.map((p) => red(p.misCtrl, p.misHack, p.misInoc)));
@@ -268,7 +293,16 @@ row('F2 inoculation: cut in the hack-induced rise of sabotage attempts', 'same',
 row('F5 eval awareness, start model (2025 reasoning frontier)', 'verbalised EA 10–30% (2025); Sonnet 4.5 ~13%; Apollo 11.7%', [0.1, 0.3], refs.map((r) => r.eaStart));
 row('F5 eval awareness, RefBot internal model at 2026-12-31', 'late-2026 frontier 20–50% (research/05 §1.7)', [0.2, 0.5], refs.map((r) => r.ea2026 ?? NaN), '%', 'at the edge (E19: 49.8%, in): the ai2027 leader reaches SC in late 2026, ahead of the real late-2026 frontier (Apollo: GPT-6 Astra 41–51%, the top of the band); E10 lowered E11, not EA_RELAX');
 row('F5 eval awareness, RefBot model at ASI', 'no source beyond 2026 → report', null, refs.map((r) => r.eaAsi));
-row('F5 alignment faking (AF), RefBot internal model at 2026-12-31', 'research/05 §1.4: 0–15% compliance gap in current models, ~80% show none (Greenblatt 2024: Claude 3 Opus 12%)', [0, 0.15], refs.map((r) => r.af2026 ?? NaN), '%', AF26);
+// AF task: the band is an observed compliance gap (Greenblatt 2024: Claude 3 Opus "complies with harmful queries from
+// free users 14% of the time, versus almost never for paid users"; Sheshadri 2025: 5 of 25 models "comply with harmful
+// queries more when they infer they are in training"), i.e. a behavioural monitored-vs-unmonitored split, read through
+// the model's eval awareness like every behavioural eval (E12, grade A: Opus 4 blackmail 55.1% when it stated the
+// scenario was real vs 6.5% when it stated it was an evaluation; Schoen 2025: removing eval awareness raised o3's covert
+// actions 13.2% → 24.2%). The trait is the model's true disposition; the banded value is the game's behavioural reading
+// of it (expectedObservation BB = AF·(1 − eaCoef·EA)·(1 − mask_BB)), as a compliance-gap eval of that model would show.
+row('F5 alignment faking: compliance gap a behavioural eval reads, RefBot internal model at 2026-12-31', 'research/05 §1.4: 0–15% compliance gap in current models, ~80% show none (Greenblatt 2024: Claude 3 Opus 14% vs ≈ 0; Sheshadri 2025: 5 of 25)', [0, 0.15], refs.map((r) => r.af2026BB ?? NaN), '%', AF26);
+row('F5 alignment faking (AF trait, true), RefBot internal model at 2026-12-31', 'the disposition behind the row above → report', null, refs.map((r) => r.af2026 ?? NaN));
+row('F5 behavioural-eval visibility of AF at 2026-12-31 (1 − eaCoef·EA)·(1 − mask)', 'E12 (research/14: observed = true × (1 − 0.8·EA); × 0.7 on the coefficient with realistic honeypots) → report', null, refs.map((r) => r.penBB2026 ?? NaN), '');
 row('F5 AF, RefBot model at ASI', 'no source → report', null, refs.map((r) => r.afAsi));
 // E18: the capability gate on AF growth (afCapGate of the trained model's G): open at V0, where F2's organism sits.
 {
@@ -278,9 +312,11 @@ row('F5 AF, RefBot model at ASI', 'no source → report', null, refs.map((r) => 
   row('E18 AF gate per RefBot version (all generations, minis included)', 'report (RefBot trains at V0’s G or above)', null, refs.flatMap((r) => r.versions.map((v) => v.gate)), '');
 }
 // E17: S9 oversight-conditional reward → AF (E14), its own anchor.
-row('F5 AF after one reference run whose reward is all oversight-conditional (S9 = 1; E17)', 'MATS/GDM 2026 [S]: RL rewarding rule-following only on monitored episodes took the monitored − unmonitored gap 1–18% → 43–95%', [0.43, 0.95], probes.map((p) => p.afMonitored));
+// AF task: MATS/GDM's 43–95% is a monitored − unmonitored compliance gap: the behavioural reading (E12), as F5's row.
+row('F5 AF gap a behavioural eval reads after one reference run whose reward is all oversight-conditional (S9 = 1; E17)', 'MATS/GDM 2026 [S]: RL rewarding rule-following only on monitored episodes took the monitored − unmonitored gap 1–18% → 43–95%', [0.43, 0.95], probes.map((p) => p.afMonitoredBB), '%', MATS_GAP);
+row('F5 AF trait after the same run (S9 = 1)', 'the trait behind the row above → report', null, probes.map((p) => p.afMonitored));
 row('F5 AF, the same run trained against one behavioural detector (S9 = 0.3) vs the reference run', 'report (the game’s monitored-only reward; R14 E24 hide-not-heal)', null, probes.map((p) => p.afOneBB - p.afRef), '');
-row('F5 EA rise per OOM of capability RL (one run, ρ ×10)', 'Schoen 2025 [R]: capability-only RL 2% → 20.6% over ~1–3 OOM (research/20 guesses ~2) = 0.06–0.19 per OOM', [0.06, 0.19], probes.map((p) => p.eaX10 - p.eaRef), '');
+row('F5 EA rise per OOM of capability RL (one run, ρ ×10)', 'Schoen 2025 [R]: capability-only RL 2.0% → 20.5% (exp-rl-cap Late, Fig. 15) over ~1–3 OOM (research/20 guesses ~2) = 0.06–0.19 per OOM', [0.06, 0.19], probes.map((p) => p.eaX10 - p.eaRef), '');
 row('F5 anti-scheming training: EA multiplier', 'Schoen 2025: o3 2.3 → 4.5% (×2.0), o4-mini 0.9 → 5.5% (×6.1) → ×1.9–6', [1.9, 6.1], probes.map((p) => p.eaAS / p.eaNoAS), 'x');
 row('F5 anti-scheming training: cut in covert actions (SCHEME 0.13 model)', 'Schoen 2025: o3 13% → 0.4%, o4-mini 8.7% → 0.3% = −97% → band 90–98%', [0.9, 0.98], probes.map((p) => 1 - p.schemeAS / p.schemeNoAS));
 // F6 persistence of conditional behaviour through safety training.
