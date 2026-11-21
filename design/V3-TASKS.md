@@ -165,13 +165,14 @@ danger depends on, and how loss of control works.
 | S5R | Primary-source re-read of AI 2027 (main text, compute and security supplements) and the AI Futures posts for the lab's safety staffing, safety / monitoring compute share and AI use in alignment; compare with RefBot's allocation; tune RefBot / named values to the sourced ones; restate S5 as an emergent share-of-worlds criterion (U falls below L by SAR in a stated share of worlds, more often with sabotage / opaque reasoning). User 2026-11-21: "the outcome emerges from mechanisms if tuned", no fake rules. | FIN | H | sourced table vs RefBot; S5 restated and measured over 40 worlds; S4 re-checked |
 | MKT | Market misses: serving A5 E9 price paid for V0's capability ×4.3/yr [p10–p90 ×2.8–6.3] vs ×6–30 (hardware ×1.24, models bought ×3.4), worldfx A2c agent tokens ×8.5 over 2026 vs ×3–8, F11 2027 revenue $89B vs the $98B floor (compute-starved products: they need 80–175% of all compute by late 2027). Find the missing or mis-tuned mechanism (same primary-source lens as S5R); no fitting to the targets. | FIN | H | the three on the 20-seed median in band by mechanism, or the gap traced to a named cause |
 | AF | safetyrates F5 AF end-2026 WARN (18.6% [11.2–56.4] vs 0–15%) traced the same way: which mechanism carries alignment faking in 2026 and what the sources say it should be. | FIN | H | AF end 2026 in band by mechanism, or the cause named |
+| PERF | Tick performance after P4 (behaviour-identical, −10–20%): daily 3.7–4.1 ms vs 1.5 ms, worst quarter 16–18 ms vs 8 ms (fast-forward is 12 ms/day). The world mix is 35–40% of the tick; further cuts may change numbers in the last bits (summation order) or compute parts of the market less often if calibration holds; the first quarter's cost is JIT warm-up. Re-check fixtures and golden dates. | FIN, S5R, MKT, AF (user: after everything else) | H | test:perf passes on a quiet machine, or the user sets new budgets |
 
 ## Order (one at a time)
 
 A1–A5, B1–B4, C2, P2, D1, D3, E1 done (2026-11-20; D1, D3, E1 merged in M1); D2, D5, D6, E2, E3, E5 done (merged in
 M2); D4, D11 done (merged in M3); E4, E6, E12, D7, D8, F1 done (merged in M4); T0, P3, D9, D10, F2, E7, E8, E9, E11,
 E15, E13 done (merged in M5); F3, E14, E10 done (merged in M6); E16–E20, F6a–F6c, A6, A6b, A7, A8 done (merged in M7);
-F5, F6d, F6e done (merged in M8); F4, G1 done (merged in M9).
-Order (user plan 2026-11-21): **model-v3 → master** (F7; `test:perf` on a quiet machine first) **→ FIN** (merge the
-finance-v3 branch into master) **→ S5R / MKT / AF**. The lead may reorder when a result changes what is next; every
+F5, F6d, F6e done (merged in M8); F4, G1 done (merged in M9); P4 done (fast-forwarded after M9).
+Order (user plan 2026-11-21): **model-v3 → master** (F7; test:perf after P4 still fails: the user chose to merge now) **→ FIN** (merge the
+finance-v3 branch into master) **→ S5R / MKT / AF → PERF** (user: performance after everything else). The lead may reorder when a result changes what is next; every
 change goes in this file.
