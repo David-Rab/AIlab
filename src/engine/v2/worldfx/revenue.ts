@@ -41,7 +41,7 @@ import { revenueToParent } from '../finance/parent';
 import { flopPerToken, pSuccess } from '../departments/workfit';
 import { h50Of } from '../models/capability';
 import {
-  agentDemandOf, blendOffer, chatFreeTier, chatHoursPerDay, effortTokens, enablerShare, fxOn, markupOf, offerOf, productFx, productMiniUses, productOffer, productUses, serveDollarsPerHour,
+  agentDemandOf, blendTiers, chatFreeTier, chatHoursPerDay, effortTokens, enablerShare, fxOn, markupOf, offerOf, productFx, productLineup, productMiniUses, productOffer, productUses, serveDollarsPerHour,
   settingsDG, subPrice, tokEff, valuePerHour, wagePerHour, type Offer,
 } from './serving';
 import { decodeUtilNow } from '../models/stacks';
@@ -100,6 +100,9 @@ export interface DeploymentRevenue {
   needPaid?: number;
   needFree?: number;
   cutFree?: number;
+  /** TIERS (sector products): per tier of its lineup (worldfx/serving.ts productLineup order) the billed hours a year
+   *  (adopted task-hours + agent-hours) and their demand ($B/yr) before the serving cut. */
+  tiers?: { hours: number; dem: Money }[];
 }
 
 export interface RevenueReadout {
@@ -262,11 +265,23 @@ export function servingSplit(s: GameStateV2, deps: Deployment[], segs: (d: Deplo
 interface Acc {
   dem: number; hours: number; need: number; cost: number; capped: number; users: number; subs: number; needPaid: number; subCost: number; subPrice: number; paidTarget: number;
   adopted: number; agent: number; adoptedDem: number; agentDem: number; seats: number; seatHours: number; seatDem: number; seatNeed: number; seatCost: number; seatPrice: number;
+  tH: number[]; tD: number[];
 }
 const acc0 = (): Acc => ({
   dem: 0, hours: 0, need: 0, cost: 0, capped: 0, users: 0, subs: 0, needPaid: 0, subCost: 0, subPrice: 0, paidTarget: 0,
   adopted: 0, agent: 0, adoptedDem: 0, agentDem: 0, seats: 0, seatHours: 0, seatDem: 0, seatNeed: 0, seatCost: 0, seatPrice: 0,
+  tH: [], tD: [],
 });
+/** TIERS readout: add `x` billed hours at per-tier prices `priceOf(k)` split by the tier weights `tw` (main model alone
+ *  without weights). */
+function addTiers(a: Acc, line: readonly Offer[], tw: readonly number[] | undefined, x: number, priceOf: (t: Offer) => number) {
+  for (let k = 0; k < line.length; k++) {
+    const w = tw ? tw[k] ?? 0 : k === 0 ? 1 : 0;
+    if (!(w > 0)) continue;
+    a.tH[k] = (a.tH[k] ?? 0) + x * w;
+    a.tD[k] = (a.tD[k] ?? 0) + (x * w * priceOf(line[k])) / 1e9;
+  }
+}
 /** Seat channel weights (A2c): seats are sold by Enterprise, and by Gov in GOV/MIL [D]. */
 const SEAT_WEIGHT: Partial<Record<Channel, number>> = { enterprise: 1, gov: 1 };
 
@@ -307,7 +322,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
     }
     return x;
   });
-  interface Row { d: Deployment; w: number; wAg: number; wSeat: number; o: Offer; om?: Offer; en: number }
+  interface Row { d: Deployment; w: number; wAg: number; wSeat: number; o: Offer; line: Offer[]; en: number }
   const secW = SECTORS.map((def) => {
     const ws: Row[] = [];
     let wsum = 0;
@@ -322,10 +337,15 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
       if (x <= 0 && wAg <= 0 && wSeat <= 0) return;
       // P2: `offers` = the mix's own player offers when the state has not changed since (same inputs, same values).
       const o = offers?.get(`${d.id}|${def.id}`) ?? productOffer(s, d, def.id, certified(def.id), usesOf.get(d.id), fxs.get(d.id));
-      // A5: the product's cheap tier (its API mini), blended in per region by the share of hours its buyers take on it.
-      const mu = productMiniUses(s, d);
-      const om = mu ? offers?.get(`${d.id}|${def.id}|mini`) ?? productOffer(s, d, def.id, certified(def.id), mu, fxs.get(d.id)) : undefined;
-      ws.push({ d, w: x, wAg, wSeat, o, ...(om ? { om } : {}), en: 1 + enablerShare(fxs.get(d.id) ?? [], def.id) });
+      // TIERS: the product's lineup (main model, lineup students, its mini), blended per region by the hours its buyers
+      // take on each tier (the mix's playerTierW).
+      let line = offers ? mix.lineupBy?.get(`${d.id}|${def.id}`) : undefined;
+      if (!line) {
+        const mu = productMiniUses(s, d);
+        const om = mu ? productOffer(s, d, def.id, certified(def.id), mu, fxs.get(d.id)) : undefined;
+        line = productLineup(s, d, def.id, o, om, fxs.get(d.id));
+      }
+      ws.push({ d, w: x, wAg, wSeat, o, line, en: 1 + enablerShare(fxs.get(d.id) ?? [], def.id) });
       wsum += x;
       agSum += wAg;
       seatSum += wSeat;
@@ -342,7 +362,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
       const ps = m.share[playerIdx];
       const hf = savedAt(st.alpha);
       const { ws: ws0, wsum, agSum, seatSum } = secW[si];
-      const ws = ws0.map((x) => (x.om ? { ...x, o: blendOffer(x.o, x.om, m.playerMiniW[x.d.id] ?? 0) } : x));
+      const ws = ws0.map((x) => (x.line.length > 1 ? { ...x, o: blendTiers(x.line, m.playerTierW?.[x.d.id]), tw: m.playerTierW?.[x.d.id] } : x));
       const value = valuePerHour(s, def.id, r);
       const wage = wagePerHour(def.id, r);
       const fOf = (d: Deployment, en: number) => {
@@ -380,7 +400,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
           if (rawS * pScale > roomS) pScale = roomS / rawS;
         }
       }
-      for (const { d, w: x0, wAg, wSeat, o, en } of ws) {
+      for (const { d, w: x0, wAg, wSeat, o, en, line, tw } of ws as (Row & { tw?: number[] })[]) {
         const f = fOf(d, en);
         const a = acc.get(d.id)!;
         // Adopted task-hours, billed per hour.
@@ -394,6 +414,8 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
           a.hours += x;
           a.adopted += x;
           a.adoptedDem += (x * price) / 1e9;
+          const prem = d.channel === 'trusted' ? TRUSTED_PREMIUM : 1;
+          addTiers(a, line, tw, x, (t) => Math.max(t.cost, Math.min(t.price * prem, value)));
           a.need += (x * o.hph) / SERVE_HOURS_PER_YEAR;
           a.cost += (x * o.cost) / 1e9;
           if (want > value) a.capped += (x * price) / 1e9;
@@ -408,6 +430,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
           a.hours += x;
           a.agent += x;
           a.agentDem += (x * ag.price) / 1e9;
+          addTiers(a, line, tw, x, (t) => Math.max(t.costAg, Math.min(t.priceAg, wage)));
           a.need += (x * o.hphAg) / SERVE_HOURS_PER_YEAR;
           a.cost += (x * o.costAg) / 1e9;
           if (o.priceAg > ag.price) a.capped += (x * ag.price) / 1e9;
@@ -532,6 +555,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
       } : {
         adoptedHours: a.adopted, agentHours: a.agent, adoptedDemand: a.adoptedDem, agentDemand: a.agentDem, seats: a.seats, seatHours: a.seatHours, seatDemand: a.seatDem,
         seatPrice: a.seatPrice, seatCost: a.seats > 0 ? (a.seatCost * 1e9) / (a.seats * 12) : 0, needSeat: a.seatNeed * mon,
+        tiers: Array.from({ length: Math.max(a.tH.length, a.tD.length) }, (_, k) => ({ hours: a.tH[k] ?? 0, dem: a.tD[k] ?? 0 })),
       }),
     });
     total += revenue;

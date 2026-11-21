@@ -234,8 +234,9 @@ export interface RefPlayOpts {
    *  (today's behaviour exactly) instead of running research agents. Measured: with 'research' RefBot's spare serving
    *  (up to 4× its agent pool in late 2025) would add an unearned speed-up (design/PROGRESS.md J2). */
   spareServing?: 'research' | 'headroom';
-  /** A5: distil a cheap API tier (MKT: a student holding the API model's level less FREE_TIER.years) once per API model.
-   *  Default: on with the 'compete' release (RefBot since F5, refitted with it), off otherwise. */
+  /** A5: distil a cheap API tier (MKT: a student holding the API model's level less FREE_TIER.years) once per API model,
+   *  set as the API's mini. Default off (TIERS): every sector product sells its lineup (data/v2/serving.ts LINEUP), as
+   *  the rivals' do, so RefBot needs no extra distil; the option stays for experiments. */
   cheapTier?: boolean;
   /** MKT: sector products sell at the premium tier while serving cuts them below 1 ÷ its price ratio (capacityPricing).
    *  Default: on with the 'compete' release (RefBot), off otherwise. */
@@ -419,7 +420,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   const cheapRun = (r: TrainingRun) => r.kind === 'distill' && r.studentParams !== undefined && r.studentParams === s.flags['ref:cheapParams'];
   const release = o.release ?? 'compete';
   const distilling = m.runs.some((r) => r.kind === 'distill' && r.status === 'running' && !cheapRun(r));
-  const cheapTier = o.cheapTier ?? release === 'compete';
+  const cheapTier = o.cheapTier ?? false;
   if (release === 'compete') {
     // F5 'compete': the public mini is the cheapest student of the internal model that keeps the release lead (A5's
     // cheapestAt rule on one teacher: it holds the best rival public chat fit + RELEASE_LEAD + RELEASE_REFRESH on
@@ -435,7 +436,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
       setFlag(s, 'miniBase', Math.max(flag(s, 'miniBase', 0), baseIdx(iv)));
     }
   }
-  // A5 (option `cheapTier`, on for RefBot since F5): the API's cheap tier, a student of the internal model distilled once
+  // A5 (option `cheapTier`, off since TIERS: the product lineups carry the cheap tiers): the API's cheap tier, a student of the internal model distilled once
   // per API model alongside a public-mini distil (it is small) and set as the API's mini when ready; not a public release.
   // MKT: it holds the API model's fit less FREE_TIER.years of the reference frontier's progress (the rule every lab's free
   // chat tier follows, A7: worldfx/serving.ts freeTierOf; the cheapestAt rule on one teacher), not the previous public
@@ -599,7 +600,12 @@ function competeRelease(s: GameStateV2, api: EngineApi, skip: string[]) {
  *  price scarce capacity [P, Anthropic pricing page, Nov 2026: fast mode ×2 for priority output, Batch −50% for
  *  flexible]; AI 2027's own revenue ($140B in 2027 on ≈ 2M external H100e: ≈ $74k per H100e-year, research/02 §1.3, §1.6)
  *  sits above the standard tier's cost-plus earnings per H100e. Chat stays standard (its plan sells at the willingness to
- *  pay, consumerPlanPrice). */
+ *  pay, consumerPlanPrice). TIERS: the premium applies to every tier of the product's lineup (its markup prices them
+ *  all): the tiers share the product's serving and earn the same per H100e-hour at one markup, so the scarcity rent per
+ *  H100e-hour is the same whichever tier uses it; a cheap-tier buyer the premium sends to a rival frees H100e for the
+ *  backlog at the same rent. Sourced: OpenAI's Fast mode (was Priority processing) is ×2 Standard across its model
+ *  families, minis included (gpt-5.4-mini $1.50 / $9.00 vs $0.75 / $4.50 per M); Google's Priority ≈ ×1.8 Standard on every Gemini model down to Flash-Lite [P, pricing pages
+ *  fetched 2026-11-21]; Anthropic sells fast mode on its top tiers only (Fable 5.2, Opus 5.5 ×2). */
 function capacityPricing(s: GameStateV2, api: EngineApi) {
   for (const d of s.player.deployments) {
     if ((d.channel !== 'api' && d.channel !== 'enterprise') || d.status !== 'live' || !(d.needH100e! > 0)) continue;

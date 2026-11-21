@@ -44,9 +44,9 @@ import { adequacy, surplusChoice, type Tier } from '../../src/engine/v2/worldfx/
 import { revenueReadout, sectorHours, sectorSpendParts, servingPool } from '../../src/engine/v2/worldfx/revenue';
 import { agentCeilingOf, workHoursOf } from '../../src/engine/v2/worldfx/use';
 import { ECON, REGION_SCALE, SECTORS } from '../../src/data/v2/sectors';
-import { MARKET_BANDS, SHARE_SLOPE_G } from '../../src/data/v2/serving';
+import { LINEUP, MARKET_BANDS, SHARE_SLOPE_G } from '../../src/data/v2/serving';
 import {
-  adoptedTokens, agentDemandOf, agentLeverage, cheapestAt, effortDG, studentToHold, fxOn, h100eHoursPer, internalFx, offerOf, paidShareTarget, productOffer, reachTarget, sectorCover, sectorTheta, serveDollarsPerHour,
+  adoptedTokens, agentDemandOf, agentLeverage, blendTiers, cheapestAt, effortDG, lineupOf, studentToHold, fxOn, h100eHoursPer, internalFx, offerOf, paidShareTarget, productOffer, reachTarget, sectorCover, sectorTheta, serveDollarsPerHour,
   subPrice, tokEff, valuePerHour, wagePerHour, chatFreeTier, freeTierOf,
 } from '../../src/engine/v2/worldfx/serving';
 import { CUSTOMER_TAU, MULTI_HOMING } from '../../src/data/v2/serving';
@@ -687,7 +687,9 @@ function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
   // no sourced band; the one primary source on it (OpenRouter / a16z 100T-token study, arXiv 2601.10088 §8: demand
   // "relatively price-inelastic", closed models keep high-value tasks) says it lags the cheapest offer, as the game's
   // does (design/V3-BUILD.md "MKT notes": 20-seed median ×4.33 [×3.56–6.18] vs ×18.9 cheapest). The exact
-  // decomposition stays a binding check; multi-tier lineups (task TIERS) would move the readout.
+  // decomposition stays a binding check. TIERS (design/notes/TIERS.md): every provider sells a four-tier lineup (20-seed
+  // median ×4.50 → ×4.10: the player's lineup raises it, rivals' coarser lineups, replacing a student per band edge,
+  // lower it).
   check(near(pf.hardware * pf.margin * pf.models, pTot, 1e-9),
     'A5 E9 the price customers actually pay for V0\'s capability (market-weighted) = rental × margin × model H100e-hours per token bought (exact decomposition)',
     `${fmt(pTot)}/yr = hardware ${fmt(pf.hardware)} × margin ${fmt(pf.margin)} × models bought ${fmt(pf.models)}`);
@@ -972,44 +974,77 @@ for (const [label, s] of [['day 1', (() => { const g = game(); run(g, 1); return
   const mini = cloneVersion(s, v0, 'VM', { variant: 'mini', params: nS, fpt: (flopPerToken(s, v0) * nS) / paramsOfVersion(s, v0), build: { ...v0.build!, dg: (v0.build?.dg ?? 0) - gap } });
   check(near(workFit(s, mini, 'SWE').fit, workFit(s, weaker, 'SWE').fit, 1e-9) && near(nS, paramsOfVersion(s, v0) / Math.pow(10, (1.2 - DISTILL.a) / DISTILL.b), 1e-9),
     'A5 E7 a student sized to hold a weaker version\'s capability (cheapestAt on the product\'s teacher) lands on its fit at a fraction of the size', `${(nS / 1e9).toFixed(0)}B of ${(paramsOfVersion(s, v0) / 1e9).toFixed(0)}B`);
-  // The cheap tier on sale: a student 0.5 OOM below (×3.5 smaller; the 1.2-OOM one covers less than the easiest band).
-  const n2 = studentToHold(s, v0, cloneVersion(s, v0, 'VW2', { build: { ...v0.build!, dg: (v0.build?.dg ?? 0) - 0.5 } }));
-  const tier = cloneVersion(s, mini, 'VT', { params: n2, fpt: (flopPerToken(s, v0) * n2) / paramsOfVersion(s, v0), build: { ...v0.build!, dg: (v0.build?.dg ?? 0) - 0.5 } });
-  const pi = worldMix(s).providers.findIndex((p) => p.key === 'player');
-  const before = revenueReadout(s).deps.find((x) => x.id === api.id)!;
-  const t0 = worldMix(s).sec.US.SOFT.target[pi];
-  const sh0 = worldMix(s).sec.US.SOFT.share[pi];
-  api.miniVersionId = tier.id;
+  // TIERS: the API's lineup students take the bands they do adequately, so the API's cost and price per hour sit below
+  // its main model's; a mini of the player's own is one more tier of the lineup (its share of the hours the market's).
+  const mix0 = worldMix(s);
+  const pi = mix0.providers.findIndex((p) => p.key === 'player');
+  const w0 = mix0.sec.US.SOFT.playerTierW[api.id] ?? [];
+  const main = productOffer(s, api, 'SOFT');
+  const before = revenueReadout(s, mix0).deps.find((x) => x.id === api.id)!;
+  const t0 = mix0.sec.US.SOFT.target[pi];
+  const sh0 = mix0.sec.US.SOFT.share[pi];
+  const stud = 1 - (w0[0] ?? 1);
+  const blended = blendTiers(mix0.lineupBy.get(`${api.id}|SOFT`) ?? [main], w0);
+  check(w0.length === 1 + lineupOf(paramsOfVersion(s, v0)).length && stud > 0.05 && near(w0.reduce((a, x) => a + x, 0), 1, 1e-9) && blended.cost < main.cost && blended.price < main.price,
+    'TIERS E7 the API sells its lineup: its students take the US Software bands they do adequately (hours by tier sum to 1), so its cost and price per adopted task-hour there are below its main model\'s',
+    `hours by tier ${w0.map((x) => x.toFixed(2)).join(' / ')}; cost $${main.cost.toFixed(3)} → $${blended.cost.toFixed(3)}, price $${main.price.toFixed(3)} → $${blended.price.toFixed(3)} per adopted task-hour (main model → lineup)`);
+  // A mini of the player's own (a student 1.2 OOM below, between the lineup's 0.88 and 1.94 OOM rungs) is one more tier.
+  api.miniVersionId = mini.id;
   const mix1 = worldMix(s);
-  const w = mix1.sec.US.SOFT.playerMiniW[api.id] ?? 0;
+  const w1 = mix1.sec.US.SOFT.playerTierW[api.id] ?? [];
   const after = revenueReadout(s, mix1).deps.find((x) => x.id === api.id)!;
+  const pk = mix1.sec.US.SOFT.tiers.kind[pi];
   run(s, 1);
   const sh1 = worldMix(s).sec.US.SOFT.share[pi];
-  check(w > 0.05 && after.costPerHour < before.costPerHour && after.pricePerHour < before.pricePerHour && mix1.sec.US.SOFT.target[pi] >= t0 - 1e-9 && Math.abs(sh1 - sh0) < 0.02,
-    'A5 E7 the API\'s cheap tier takes the bands it does adequately (its buyers\' share on it), lowering the API\'s cost and price per hour; the player\'s share target does not fall and the stock moves gradually',
-    `mini share of the API's US Software hours ${(w * 100).toFixed(0)}%; cost $${before.costPerHour.toFixed(2)} → $${after.costPerHour.toFixed(2)}, price $${before.pricePerHour.toFixed(2)} → $${after.pricePerHour.toFixed(2)} per hour; target ${t0.toFixed(3)} → ${mix1.sec.US.SOFT.target[pi].toFixed(3)}, stock ${sh0.toFixed(3)} → ${sh1.toFixed(3)}`);
+  check(w1.length === w0.length + 1 && pk.filter((k) => k === 'mini').length === 1 && near(w1.reduce((a, x) => a + x, 0), 1, 1e-9) && near(w1[w1.length - 1], mix1.sec.US.SOFT.playerMiniW[api.id] ?? 0, 1e-12)
+    && after.costPerHour <= before.costPerHour + 1e-9 && mix1.sec.US.SOFT.target[pi] >= t0 - 1e-9 && Math.abs(sh1 - sh0) < 0.02,
+    'A5 E7 a mini of the player\'s own is one more tier of the API\'s lineup: hours by tier still sum to 1, the API\'s cost per hour does not rise, the player\'s share target does not fall and the stock moves gradually',
+    `mini ${(w1[w1.length - 1] * 100).toFixed(0)}% of the API's US Software hours; cost $${before.costPerHour.toFixed(3)} → $${after.costPerHour.toFixed(3)} per hour; target ${t0.toFixed(3)} → ${mix1.sec.US.SOFT.target[pi].toFixed(3)}, stock ${sh0.toFixed(3)} → ${sh1.toFixed(3)}`);
 }
 {
-  // E8 other providers sell cheap tiers: their students (cheapestAt sized on coverage) at every band edge below their
-  // model's coverage, each the smallest that still does its band, cheaper than their model.
+  // TIERS E8 parity: every provider's lineup is its model and the LINEUP students of it (data/v2/serving.ts): rivals'
+  // and China's under their model, the player's under each sector product's main model. Each student costs and prices
+  // r × the model (FLOP per token ∝ active parameters, the model's markup), sits g = DISTILL.a + DISTILL.b·log₁₀(1/r)
+  // below it and covers no more than it; the bottom rung is 1/80 of the model (the sourced span) above the 1B floor.
   const s = fixture(400);
   const mix = worldMix(s);
   let n = 0;
+  let nP = 0;
   let bad = 0;
+  const pi = mix.providers.findIndex((p) => p.key === 'player');
   for (const def of SECTORS) {
     const m = mix.sec.US[def.id];
-    const top = m.tiers.choice.aTop;
     mix.providers.forEach((p, i) => {
-      if (p.lab === 'player') return;
-      m.tiers.offers[i].forEach((o, k) => {
-        if (m.tiers.kind[i][k] !== 'student') return;
-        n++;
-        const T = m.tiers.offers[i][0];
-        if (o.a > T.a + 1e-12 || o.a < top / MARKET_BANDS - 1e-9 || o.cost >= T.cost || o.fit > T.fit - DISTILL.a + 1e-9) bad++;
-      });
+      const L = m.tiers.offers[i];
+      const K = m.tiers.kind[i];
+      for (let k = 0; k < L.length; ) {
+        // a lineup: one 'model' tier then its students (the player has one per sector product)
+        if (K[k] !== 'model') { k++; continue; }
+        const T = L[k];
+        const nT = p.lab === 'player' ? undefined : p.params;
+        const rungs = nT !== undefined ? lineupOf(nT) : undefined;
+        let j = k + 1;
+        let q = 0;
+        while (j < L.length && K[j] === 'student') {
+          const o = L[j];
+          const r = o.cost / T.cost;
+          const g = DISTILL.a + DISTILL.b * Math.log10(1 / r);
+          if (rungs && (!rungs[q] || !near(rungs[q].r, r, 1e-9))) bad++;
+          if (!near(o.price / T.price, r, 1e-9) || !near(o.fit, T.fit - g, 1e-9) || o.a > T.a + 1e-12) bad++;
+          if (i === pi) nP++;
+          else n++;
+          j++;
+          q++;
+        }
+        if (rungs && q !== rungs.length) bad++;
+        k = j;
+      }
     });
   }
-  check(n > 0 && bad === 0, 'A5 E8 day 400: rivals and China sell students of their models below their coverage (each cheaper than the model), each covering at least the easiest band and at least DISTILL.a below its teacher', `${n} student tiers in the US, ${bad} off`);
+  const rr = lineupOf(1e12).map((x) => x.r);
+  check(n > 0 && nP > 0 && bad === 0 && rr.length === LINEUP.ratios.length && near(rr[rr.length - 1], 1 / 80, 1e-12) && lineupOf(2e9).length === 1 && lineupOf(1e9).length === 0,
+    'TIERS E8 day 400: every provider sells its model and the LINEUP students of it (rivals and China under their model, the player under each sector product\'s main model): each at r × the model\'s cost and price, DISTILL.a + DISTILL.b·log₁₀(1/r) below its fit, covering no more; the bottom rung 1/80 above the 1B floor',
+    `${n} rival and China student tiers, ${nP} of the player's, ${bad} off; rungs under a 1T model ${rr.map((x) => `1/${(1 / x).toFixed(1)}`).join(', ')}`);
 }
 
 finish('serving');
