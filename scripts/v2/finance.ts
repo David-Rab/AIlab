@@ -724,8 +724,14 @@ for (const a of FINANCE_ACTIONS) {
   {
     // Rebalance (FIN3a notes): the reference bot's board at the end of 2027 sits near 60 (FIN2 48 without the plan; 67
     // with it).
+    // Lead decision after FINREF (2026-11-21): ≥ 55 is a design target, not a source. Since M10 the RefBot plays AI
+    // 2027's small safety share and has more public incidents (−26.7 vs −21.9 per game), which lowers the board: an
+    // emergent consequence, so the line is INFO and only a collapse (median < 40) fails. The 12-seed median also sits in
+    // a gap between two clusters (29–48 and 53–67), so it swings ±9 on small changes.
     const bc = median(ref.map((r) => r.s.player.board.confidence));
-    smokeCheck(bc >= 55, 'FIN3a RefBot end-2027 board confidence median ≥ 55 (FIN2: 48)', `median ${f1(bc)} (${ref.map((r) => r.s.player.board.confidence.toFixed(0)).join(' ')})`);
+    const bcLine = `median ${f1(bc)} (${ref.map((r) => r.s.player.board.confidence.toFixed(0)).join(' ')}); design target ≥ 55`;
+    if (bc >= 40) console.log(`INFO  FIN3a RefBot end-2027 board confidence  — ${bcLine}`);
+    else smokeCheck(false, 'FIN3a RefBot end-2027 board confidence median ≥ 40 (collapse guard)', bcLine);
   }
   {
     // Save migration 35 → 36: the pending-approvals list and old vote blocks go; E37's capex freeze stays.
