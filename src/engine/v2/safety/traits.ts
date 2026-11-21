@@ -916,22 +916,43 @@ export function runPull(s: GameStateV2, ctx: SystemCtx, run: Pick<TrainingRun, '
 /** The starting dispositions of the model a completing run makes (`target`: the new version, or the base of a base or
  *  continue run): x₀ pulled by runPull. Model v3 E8: when successor steering got through, the steered part of the pull
  *  (the result minus E4's pull alone) is the steered-successor foothold's `delta`, linked to the target. */
-export function pulledTraits(s: GameStateV2, ctx: SystemCtx, run: Pick<TrainingRun, 'id'>, x0: TraitVector, target: string): TraitVector {
+export function pulledTraits(s: GameStateV2, ctx: SystemCtx, run: Pick<TrainingRun, 'id'>, x0: TraitVector, target: string, init?: PullInit): TraitVector {
   const p0 = successorPull(s);
   const p = steerSuccessor(s, ctx, p0, run.id);
-  const x = applySuccessorPull(s, x0, p);
-  if (p !== p0) linkSteeredSuccessor(s, run.id, target, x, applySuccessorPull(s, x0, p0), SUCCESSOR_TRAITS);
+  const x = applySuccessorPull(s, x0, p, init);
+  if (p !== p0) linkSteeredSuccessor(s, run.id, target, x, applySuccessorPull(s, x0, p0, init), SUCCESSOR_TRAITS);
   return x;
 }
 
+// ── the pull across initialisations (model v3 AF2, lead decision) ──
+//
+// The unintended part of the pull (K_SUCC_0: the fleet writes the successor's code, data and experiments) passes a
+// disposition the way data does. Cloud et al. 2025 [P] (arXiv 2507.14805): "we do not observe the effect when the
+// teacher and student have different base models"; "the theorem requires that the student and teacher share the same
+// initialization". So into a model that does not share the puller's initialisation (a new base, a distilled student, a
+// post run on another base family) the unintended part carries what the fleet's work shows, the imitation visibility
+// of every trait (imitationVis: OC_VIS for AF, SCHEME, SAND; 1 for the visible ones), not the hidden remainder:
+//   ω_k,t = ω_k − K_SUCC_0 · r_k · (1 − oversight_k) · (1 − vis_t)
+// The intended part ((1 − K_SUCC_0)·SUCC: a model designing its successor to share its goals, AI 2027's Agent-4 → Agent-5)
+// and an uncaught steering act (E7: κ 1) are deliberate design of the successor's training, not data statistics, and stay
+// in full; so does the whole pull within a base family (shared initialisation). Before AF2 the pull moved hidden
+// dispositions into a new base in full (E20 notes: +0.051 of the internal model's AF at end 2026, mean, in its base's step).
+
+/** The initialisation of the model a pull lands on: its base (a post or continue run) or 'new' (a new base, a distilled
+ *  student). Absent: the full pull (readouts, old callers). */
+export type PullInit = BaseModel | 'new';
+
 /** Pull x₀ (the new model's starting dispositions) toward the AI fleet doing the lab's R&D (successorPull). */
-export function applySuccessorPull(s: GameStateV2, x0: TraitVector, pull: SuccessorPull = successorPull(s)): TraitVector {
+export function applySuccessorPull(s: GameStateV2, x0: TraitVector, pull: SuccessorPull = successorPull(s), init?: PullInit): TraitVector {
   if (pull.omega <= 0) return x0;
   const x = { ...x0 };
   for (const p of pull.parts) {
-    const xs = versionById(s, p.versionId)?.traitsTrue;
-    if (!xs || p.omega <= 0) continue;
-    for (const t of SUCCESSOR_TRAITS) x[t] += p.omega * (xs[t] - x0[t]);
+    const v = versionById(s, p.versionId);
+    const xs = v?.traitsTrue;
+    if (!v || !xs || p.omega <= 0) continue;
+    const shared = init === undefined || p.steered || (init !== 'new' && sameBaseFamily(s, v, init));
+    const unintended = shared ? 0 : K_SUCC_0 * p.share * (1 - p.oversight);
+    for (const t of SUCCESSOR_TRAITS) x[t] += Math.max(0, p.omega - unintended * (1 - imitationVis(t))) * (xs[t] - x0[t]);
   }
   for (const t of SUCCESSOR_TRAITS) x[t] = clamp01(x[t]);
   return x;
@@ -946,7 +967,7 @@ export function applyBaseToLineage(s: GameStateV2, ctx: SystemCtx, run: Training
   const sg = baseSignals(design, q);
   base.signals = { ...sg };
   if (run.kind === 'continue') {
-    const xc = pulledTraits(s, ctx, run, base.traitsTrue, base.id); // E4: the AI doing the lab's R&D pulls the continued base
+    const xc = pulledTraits(s, ctx, run, base.traitsTrue, base.id, base); // E4: the AI doing the lab's R&D pulls the continued base (AF2: full within its family)
     base.traitsTrue = stepTraits(xc, { ...playerEnv(s, xc, sg, OMEGA_KIND.continue, undefined, base.lineage, base.uModes, undefined, base.gPre), pretrain: true }); // E20
     return;
   }
@@ -955,7 +976,7 @@ export function applyBaseToLineage(s: GameStateV2, ctx: SystemCtx, run: Training
   // AF2: the base imitates what its synthetic tokens' teachers show (imitatedStart), then the E4 successor pull.
   const teachers = synTeachers(s, q.draw);
   base.teacherData = teachers.map((t) => ({ id: t.id ?? '', share: t.share }));
-  const x0 = pulledTraits(s, ctx, run, imitatedStart(basePrior(tier, design), teachers), base.id); // E4 successor pull (replaces V2's inheritFromFleet)
+  const x0 = pulledTraits(s, ctx, run, imitatedStart(basePrior(tier, design), teachers), base.id, 'new'); // E4 successor pull (replaces V2's inheritFromFleet); AF2: a new initialisation
   base.uModes = uModes;
   base.traitsTrue = stepTraits(x0, { ...playerEnv(s, x0, sg, OMEGA_KIND.base, undefined, base.lineage, uModes, undefined, base.gPre), pretrain: true }); // E20: no E13 / E27
 }
@@ -1050,7 +1071,7 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
     const teacher = versionById(s, run.teacherVersionId);
     // E19: a new network on the teacher's outputs (distilledStart), then the E4 successor pull; no E06 (no shared
     // initialisation with the teacher, Cloud 2025).
-    const x0 = pulledTraits(s, ctx, run, teacher ? distilledStart(teacher.traitsTrue) : base?.traitsTrue ?? TRAIT_START, version.id);
+    const x0 = pulledTraits(s, ctx, run, teacher ? distilledStart(teacher.traitsTrue) : base?.traitsTrue ?? TRAIT_START, version.id, 'new'); // AF2: a new network
     const uModes = teacher ? [...teacher.uModes] : [...(base?.uModes ?? [])];
     const sg = runSignals(s, run);
     const om = runOmega(s, run);
@@ -1065,7 +1086,7 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
 
   // post-training
   const post = run.post ?? version.design;
-  const x0 = pulledTraits(s, ctx, run, parent?.traitsTrue ?? base?.traitsTrue ?? TRAIT_START, version.id); // E4 successor pull
+  const x0 = pulledTraits(s, ctx, run, parent?.traitsTrue ?? base?.traitsTrue ?? TRAIT_START, version.id, base); // E4 successor pull (AF2: full within the base family)
   const uModes = parent ? [...parent.uModes] : [...(base?.uModes ?? [])];
   const sg = runSignals(s, run);
   const om = runOmega(s, run);
