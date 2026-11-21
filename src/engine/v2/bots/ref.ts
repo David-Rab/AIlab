@@ -33,7 +33,10 @@ import { hRef } from '../production/knots';
 import { DEFAULT_LINES } from '../../../data/v2/research';
 import { REF_ROLE_SHARE, SAF_ROLE_SHARE, TEAM_SIZE } from '../../../data/v2/teams';
 import type { BotPolicy, ComputeSplit, EngineApi, GameStateV2, ModelVersion, PendingDecision, TeamKey, TrainingRun } from '../types';
-import { bestMeasuredL, versionById } from '../models/labs';
+import { bestMeasuredL, internalVersion, versionById } from '../models/labs';
+import { believedInternalOversight } from '../safety/believedOversight';
+import { believedSabotage } from '../safety/covert';
+import { safetyAgentVersion } from '../safety/agents';
 import { measuredDomain } from '../models/paradigms';
 import { levelOfV2 } from '../world/calibration';
 import { gV0, levelOfG, playerStart } from '../models/capability';
@@ -574,12 +577,36 @@ export function refDecide(s: GameStateV2, d: PendingDecision): number {
   return EVENT_BY_ID.get(d.id)?.defaultChoice ?? 0;
 }
 
+/** F5 Trusted to AI: the believed oversight of the safety model (block + catch on scheming acts, E15's
+ *  believedInternalOversight) at which RefBot starts handing safety work to AI and at which it hands all of it [D]. */
+export const TRUST_OVERSIGHT: readonly [number, number] = [0.4, 0.8];
+/** …and the most believed sabotage attempts per safety result it accepts at that share (E7's believedSabotage) [D]. */
+export const TRUST_SAB_MAX = 0.1;
+
+/**
+ * F5: RefBot's Trusted to AI (AI 2027's labs hand alignment work to their models; E2 made it the player's lever and no
+ * bot used it). Monthly, on the safety model's measured state: t = the share of safety work it believes it can check,
+ * (oversight − 0.4) ÷ 0.4 clamped to 0–1 in steps of 0.1, lowered until the believed sabotage per result at t is ≤ 10%.
+ * A model not yet measured keeps the last setting. Reads only what the lab knows.
+ */
+export function refTrusted(s: GameStateV2, api: EngineApi): void {
+  if (s.time.day % 30 !== 20) return;
+  const v = safetyAgentVersion(s) ?? internalVersion(s);
+  if (!v || v.evals.measuredL === undefined) return;
+  const o = believedInternalOversight(s, v).oversight;
+  const [lo, hi] = TRUST_OVERSIGHT;
+  let t = Math.round(10 * Math.max(0, Math.min(1, (o - lo) / (hi - lo)))) / 10;
+  while (t > 0 && believedSabotage(s, t) > TRUST_SAB_MAX) t = Math.round(10 * t - 1) / 10;
+  if (Math.abs(t - s.player.policies.trustedToAI) > 1e-9) tryAct(s, api, 'agents.trusted', { share: t });
+}
+
 /** RefBot / passive: reference model play + WS3's reference finance autopilot (one cloud partner, SPVs as needed). */
 export const refBot: BotPolicy = {
   id: 'ref',
   act(s, api) {
     if (s.time.day === 0) tryAct(s, api, 'teams.target', { key: 'sci.saf', n: sizedTarget(s, REF_SAFETY_SCI_TEAMS) });
     staffLines(s, api, REF_LINES);
+    refTrusted(s, api);
     refPlay(s, api);
     financeAutopilot(s, REF_AUTOPILOT);
   },
