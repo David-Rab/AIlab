@@ -349,7 +349,9 @@ export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: read
       const j1 = off[i + 1];
       for (let j = j0; j < j1; j++) {
         const a = ta[j];
-        const x = tq[j] + (V * (hi <= lo ? (a >= hi ? 1 : 0) : Math.max(0, Math.min(1, (a - lo) / w))) - tp[j]) / m; // tierUtility, adequacy
+        // tierUtility, adequacy (P4: a ≥ hi gives (a − lo)/w ≥ 1 and a ≤ lo gives ≤ 0 under rounding, so the clamp's
+        // value is taken without the division there)
+        const x = tq[j] + (V * (hi <= lo ? (a >= hi ? 1 : 0) : a >= hi ? 1 : a <= lo ? 0 : Math.max(0, Math.min(1, (a - lo) / w))) - tp[j]) / m;
         if (x > u[i]) {
           u[i] = x;
           pk[b] = j - j0;
