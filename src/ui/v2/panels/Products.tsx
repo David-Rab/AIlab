@@ -415,7 +415,7 @@ function Lineup({ d, r, rows }: { d: Deployment; r: ProductRead; rows: LineupRow
         <Tip as="div" key={k} content={() => <TipCard title={x.kind === 'student' ? <><Term id="cheapTier">Student</Term> of {rows[0].name}</> : x.kind === 'mini' ? <><Term id="cheapTier">Mini</Term> {x.name}</> : <>Main model {x.name}</>} value={`${F.pct(x.share, 1)} of hours`} rows={[
           { label: 'Active parameters', value: `${paramsTxt(x.params)}${x.kind !== 'model' ? ` (${frac(x.ratio)} of the main model)` : ''}` },
           { label: x.kind === 'student' ? <Term id="distillGap">Fit below the main model</Term> : <Term id="fit">Fit below the main model</Term>, value: x.kind === 'model' ? '—' : `${F.num(x.gap, 2)} OOM` },
-          { label: 'Price per billed hour', value: `${usd(x.price)}/h${x.hours > 0 ? '' : ' (if sold)'}` },
+          { label: 'Price per billed hour', value: `${F.usd(x.price)}/h${x.hours > 0 ? '' : ' (if sold)'}` },
           { label: 'Billed hours a year', value: x.hours > 0 ? `${F.count(x.hours)} h` : 'none' },
         ]} footer={x.kind === 'student' ? 'Sold under every main model by the same rule: no distil run needed.' : undefined}>
           {x.kind === 'model' ? 'Does the hardest tasks the product sells.' : x.share > 0.005 ? 'Sells where it does the task at a lower price than any tier that does more.' : 'Sells nothing now: on the work it does, another tier (yours or a rival\'s) gives buyers more surplus.'}
@@ -423,7 +423,7 @@ function Lineup({ d, r, rows }: { d: Deployment; r: ProductRead; rows: LineupRow
           <div className="tl-row" data-test={`prod-tier.${d.id}.${k}`}>
             <span className="tl-nm"><i className="tl-sw" style={{ background: TIER_COL[k] ?? TIER_COL[4] }} />{tierName(x)}</span>
             <span className="tl-n dim">{x.kind === 'model' ? '' : F.num(-x.gap, 2, true)}</span>
-            <span className="tl-n">{usd(x.price)}</span>
+            <span className="tl-n">{F.usd(x.price)}</span>
             <span className="ec-bar tl-bar"><i style={{ width: `${Math.min(1, x.share) * 100}%`, background: TIER_COL[k] ?? TIER_COL[4] }} /></span>
             <span className="tl-n">{F.pct(x.share)}</span>
           </div>
