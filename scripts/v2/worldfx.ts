@@ -2,7 +2,8 @@
 //
 // Reference play = real RefBot games on the integrated engine (WS1 models and releases, WS3 compute and finance, WS4
 // actors; endings skipped so the world keeps running past ASI). The worldfx-refplay.ts probe is kept only for W2, a
-// controlled experiment with capabilities frozen at Agent-1 level. Date targets use ±3 months (R16 §7 test 1).
+// controlled experiment with capabilities frozen at Agent-1 level. Date targets use ±3 months (R16 §7 test 1), on the
+// median first day over the 20 classic runs of CAL_SEEDS (model v3 F4; calseeds.ts).
 // The games go through the simulation cache (simcache.ts): a cached trace keeps what the checks read (the classic run
 // keeps its whole final state). `--smoke` (test:quick) skips the long post-2028 runs (W3, the SEZ path) and the
 // informational authors2026 run; every check that does run is binding.
