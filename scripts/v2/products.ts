@@ -31,7 +31,9 @@ import { FIXTURE_DIR, check, finish } from './lib';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { evalM, labInputs } from '../../src/engine/v2/production/production';
-import { fleetMonitor, internalFleets, monitorBudget } from '../../src/engine/v2/departments/agents';
+import { agentSplitShare, fleetMonitor, internalFleets, monitorBudget, monitorCostRatio, monitorCoverage } from '../../src/engine/v2/departments/agents';
+import { MONITOR_SAME } from '../../src/data/v2/agents';
+const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
 import { previewAgentChange } from '../../src/engine/v2/departments/agentActions';
 import { internalVersion } from '../../src/engine/v2/models/labs';
 import { REEVAL_DAYS } from '../../src/data/v2/evals';
@@ -247,10 +249,34 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const inp = labInputs(s, 'player')!;
   const w = s.hidden.timeline;
   check(inp.qTaste === undefined && evalM(w, inp).M === evalM(w, { ...inp, qTaste: inp.qDep }).M, 'A1 default packages: no qTaste, and qTaste = qDep reproduces M exactly');
+  // SAFMECH: monitoring coverage from monitoring compute (AI 2027 fn 51). The default package (a copy of the watched
+  // model on routine and frontier research) at the default budget (20% of the safety pool).
+  check(Math.abs(monitorCoverage(0.01, 1, 0.1) - 0.1) < 1e-12 && monitorCoverage(0.2, 1, 0.1) === 1 && monitorCoverage(0, 1, 0.1) === 0,
+    'M1 AI 2027 fn 51: "a monitoring budget of 1% of total compute" with "a distilled system that has 10% of the cost" monitors "1/10 of the forward passes" (capped at 1)', `${monitorCoverage(0.01, 1, 0.1)}`);
+  s.player.agents.capRoutine.monitorId = MONITOR_SAME;
+  s.player.agents.capFrontier.monitorId = MONITOR_SAME;
+  s.player.policies.monitorBudget = 0.2;
   const b = monitorBudget(s);
-  check(b.rel === 1 && b.poolShare === 0.2 && b.coverage === 1, 'A1 the standard monitor package costs today\'s 20% of the safety pool', JSON.stringify(b));
+  const S = s.player.split.safety;
+  const watched = agentSplitShare(s, 'capRoutine') + agentSplitShare(s, 'capFrontier') + (s.player.agents.eng.monitorId ? agentSplitShare(s, 'eng') : 0) + (s.player.agents.safety.monitorId ? agentSplitShare(s, 'safety') : 0);
+  check(Math.abs(b.need - watched) < 1e-12 && Math.abs(b.coverage - Math.min(1, (0.2 * S) / watched)) < 1e-12 && Math.abs(b.poolShare - Math.min(0.2, watched / S)) < 1e-12,
+    'M2 copies of the watched models: coverage = budget (20% of the safety pool) ÷ the watched compute (cost ratio 1); unspent budget stays with the lines', JSON.stringify(b));
   const iv = internalVersion(s)!;
-  check(fleetMonitor(s, iv) === 1 && internalFleets(s).length === 1 && internalFleets(s)[0].usage === 1, 'A1 default: one internal fleet at usage 1, monitor strength 1 (today\'s monitoring)');
+  check(Math.abs(fleetMonitor(s, iv) - b.coverage) < 1e-12 && internalFleets(s).length === 1 && internalFleets(s)[0].usage === 1, 'A1 default: one internal fleet at usage 1, monitor strength = coverage (no gap)', `${fleetMonitor(s, iv)}`);
+  const more = clone(s);
+  more.player.policies.monitorBudget = 0.6;
+  const mini = s.player.models.versions.find((v) => v.variant === 'mini' && (v.status === 'ready' || v.status === 'deployed'));
+  check(monitorBudget(more).coverage > b.coverage || b.coverage === 1, 'M3 a larger monitoring budget watches more of the fleet', `${b.coverage.toFixed(3)} → ${monitorBudget(more).coverage.toFixed(3)}`);
+  if (mini) {
+    const cheap = clone(s);
+    cheap.player.agents.capRoutine.monitorId = mini.id;
+    cheap.player.agents.capFrontier.monitorId = mini.id;
+    const bc = monitorBudget(cheap);
+    check(bc.need < b.need && (bc.coverage > b.coverage || b.coverage === 1) && Math.abs(bc.need - watched * monitorCostRatio(cheap, 'capRoutine')) < 1e-9 * watched,
+      'M4 a cheaper monitor (a distilled mini) costs its FLOP-per-token ratio per watched pass, so the same budget watches more', `need ${b.need.toFixed(4)} → ${bc.need.toFixed(4)}; coverage ${b.coverage.toFixed(3)} → ${bc.coverage.toFixed(3)}`);
+  }
+  const pv = act(clone(s), 'agents.monitorBudget', { share: 0.5 });
+  check(!pv, 'M5 the monitoring budget is the player\'s setting (agents.monitorBudget)', pv ?? '');
   const old = s.player.models.versions.find((v) => v.variant === 'full' && v.status !== 'retired' && (v.evals.measuredL ?? 0) < (iv.evals.measuredL ?? 0) - 2);
   if (old) {
     const pf = previewAgentChange(s, 'capFrontier', { versionId: old.id });

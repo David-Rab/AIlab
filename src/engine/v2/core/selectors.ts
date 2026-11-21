@@ -59,7 +59,7 @@ export { lineLabour } from '../safety/lineProjects';
 // R7 internal agent packages (Company › Agents at work).
 export { agentVersion, monitorBudget, monitoredUses, monitorVersion, riskBadges, usesOf } from '../departments/agents';
 export type { RiskBadge } from '../departments/agents';
-export { agentChangeBlock, agentsView, previewAgentChange, previewTrusted, withAgentChange } from '../departments/agentActions';
+export { agentChangeBlock, agentsView, MONITOR_BUDGET_STEP, monitorAt, previewAgentChange, previewTrusted, withAgentChange } from '../departments/agentActions';
 export type { AgentChange, AgentLane, AgentPreview, AgentsView } from '../departments/agentActions';
 // WS5 world readouts (observables only).
 export { automationShare, dowYtd, firmAdoption, remoteWorkAutomation, unemploymentChange12m, workUse, youthExposedEmployment } from '../worldfx/readouts';

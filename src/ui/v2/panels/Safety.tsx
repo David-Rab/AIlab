@@ -13,7 +13,7 @@ import { RISK_FAMILIES } from '../../../data/v2/agents';
 import { PROJECT_BY_ID, TREE, isLineNode } from '../../../data/v2/tree';
 import { COLUMN_LABEL } from '../../../data/v2/teams';
 import {
-  beliefView, dateOf, detectionGrid, evalDaysFor, fmtDate, footholdView, INV_FTE, INV_MAX_DAYS, internalVersion, monitorBudget, monitoredUses, nodeKnown, PATCH_FLOOR, patchLevel, projectEta, publicTimerRules,
+  beliefView, dateOf, detectionGrid, evalDaysFor, fmtDate, footholdView, INV_FTE, INV_MAX_DAYS, internalVersion, MONITOR_BUDGET_STEP, monitorAt, monitoredUses, nodeKnown, PATCH_FLOOR, patchLevel, projectEta, publicTimerRules,
   projectReady, riskFamilies, safetyAgentVersion, safetyFleet, safetyView, successorPullView, teamsOn, understanding, versionById,
 } from '../../../engine/v2';
 import type { FindingType, GameStateV2, LineRow, ResponseKind, TraitId } from '../../../engine/v2';
@@ -447,7 +447,11 @@ function Policies({ s, sv }: { s: GameStateV2; sv: SV }) {
   const gate = sv.evalGate;
   const on = gate !== 'none';
   const mon = monitoredUses(s);
-  const mb = monitorBudget(s);
+  const budget = s.player.policies.monitorBudget;
+  const at = (x: number) => Math.max(0, Math.min(1, Math.round(x * 100) / 100));
+  const up = at(budget + MONITOR_BUDGET_STEP);
+  const mb = monitorAt(s, budget);
+  const full = s.player.computeOnline * mb.need;
   const sm = safetyAgentVersion(s);
   const pol = s.player.policies.publishSafety;
   const company = { panel: 'company', tab: 'people', anchor: 'agents' };
@@ -463,9 +467,19 @@ function Policies({ s, sv }: { s: GameStateV2; sv: SV }) {
       </div>
       <div className="sf-prow">
         <ICON.agents size={18} />
-        <span><b><Term id="agentMonitor">Monitor internal agents</Term></b><br /><Tip content={() => <TipCard title={<Term id="agentMonitor">Monitors</Term>} rows={[{ label: 'Uses with a monitor', value: `${mon.length} of 4` }, { label: 'Safety compute on monitors', value: F.pct(mb.poolShare) }]}>Set per use on Company › Agents at work.</TipCard>}><span className="small dim">{mon.length} of 4 uses · {F.pct(mb.poolShare)} of safety compute</span></Tip></span>
+        <span><b><Term id="agentMonitor">Monitor internal agents</Term></b><br /><Tip content={() => <TipCard title={<Term id="monitorCoverage">Monitoring coverage</Term>} value={F.pct(mb.coverage)} rows={[
+          { label: 'Uses with a monitor', value: `${mon.length} of 4` },
+          { label: 'Budget', value: `${F.pct(budget)} of safety compute` },
+          { label: 'Spent', value: `${F.h100e(mb.h100e)} H100e` },
+          { label: 'Full coverage needs', value: `${F.h100e(full)} H100e` },
+          ...(mb.coverage < 1 ? [{ label: `At ${F.pct(up)}`, value: F.pct(monitorAt(s, up).coverage) }] : []),
+        ]} footer="Monitor models: Company › Agents at work. A cheaper monitor watches more for the same budget, but misses more of a stronger model.">Share of the internal agents' forward passes the monitors watch: budget ÷ (watched compute × the monitor's cost per pass).</TipCard>}><span className="small dim">{mon.length} of 4 uses · <span data-test="monitor-coverage">{F.pct(mb.coverage)}</span> watched · {F.pct(budget)} of safety compute</span></Tip></span>
         <span className="sp" />
         <Ref id="agentMonitor" to={company}>Company</Ref>
+        <span className="stepper">
+          <ActBtn id="agents.monitorBudget" testId="agents.monitorBudget.down" params={{ share: at(budget - MONITOR_BUDGET_STEP) }} icon={ICON.minus} label="" block={budget <= 0 ? 'Already 0%' : undefined} />
+          <ActBtn id="agents.monitorBudget" testId="agents.monitorBudget.up" params={{ share: up }} icon={ICON.plus} label="" block={budget >= 1 - 1e-9 ? 'Already the whole safety pool' : mon.length === 0 ? 'No monitor on any use: pick one on Company › Agents at work' : mb.coverage >= 1 ? 'Already watching every forward pass' : undefined} />
+        </span>
       </div>
       <div className="sf-prow">
         <ICON.roleSci size={18} />

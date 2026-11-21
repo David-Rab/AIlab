@@ -37,8 +37,9 @@ export const DEFAULT_CAP_SHARES: Record<CapUse, number> = { eng: ENG_REF_SHARE, 
 /** Monitor id meaning "the model it watches" (a copy of the same model: as capable as the watched one, so no
  *  oversight gap). The default monitor on routine and frontier research; it follows model swaps. */
 export const MONITOR_SAME = 'same';
-/** Share of the safety pool the standard monitor package costs: today's runtime-monitoring reserve (the pre-R7
- *  `monitoringShare` default) [calibration: standard monitor = today's monitoring, BUILD-PLAN §3 (2)]. */
+/** Default monitoring budget, a share of the safety pool (policies.monitorBudget): the pre-R7 runtime-monitoring reserve
+ *  (`monitoringShare`) [D]. SAFMECH: a budget, not a price: what it watches is budget ÷ (watched compute × the monitor's
+ *  cost ratio) (AI 2027 fn 51; departments/agents.ts monitorBudget). */
 export const MONITOR_STD_POOL_SHARE = 0.2;
 
 /** Trusted to AI (one policy for all safety work, replacing per-agenda automation): the share of safety research and

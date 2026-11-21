@@ -49,7 +49,7 @@ export function CatchX({ rate, gap, gapL, elo, base, control, defer, coverage, t
       ...(base !== undefined ? [{ label: 'Before control tools', value: F.pct(base) }] : []),
       ...(control !== undefined ? [{ label: 'AI-control tools (AG07)', value: `+${F.pct(control * 0.5)} of the rest` }] : []),
       ...(defer !== undefined && defer < 1 ? [{ label: <Term id="controlTax">Deferral (control layer)</Term>, value: `misses ×${defer.toFixed(2)}` }] : []),
-      ...(coverage !== undefined && coverage < 1 ? [{ label: 'Funded (safety pool)', value: F.pct(coverage) }] : []),
+      ...(coverage !== undefined && coverage < 1 ? [{ label: <Term id="monitorCoverage">Coverage (passes watched)</Term>, value: F.pct(coverage) }] : []),
       ...(coll ? [{ label: <Term id="collusion">Same lineage: scheming-type incidents</Term>, value: F.pct(collusion ?? 0), tone: 'neg' as const }] : []),
     ]}>{note ?? 'Model-behaviour incidents it catches stay internal.'}</TipCard>}>
       <span className="mchip-x">catch <b data-test={testId}>{F.pct(rate)}</b>{coll && <span className="tone-neg" data-test={testId ? `${testId}.coll` : undefined}> · {F.pct(collusion ?? 0)} scheming</span>}</span>

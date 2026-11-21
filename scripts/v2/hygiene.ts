@@ -381,7 +381,7 @@ for (const rev of [1, 11, 12, 13, 14]) {
     msg = (e as Error).message;
   }
   // Model v3 V2 (schemaRev 13): V1 saves (12) are rejected too; model v3 V3 (schemaRev 14): V2 saves (13) too.
-  check(SCHEMA_REV === 42 && msg ===`no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
+  check(SCHEMA_REV === 43 && msg ===`no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
 }
 // Model v3 V4a (schemaRev 16): a V3b save (15) migrates (customer stocks start empty, versions get their FLOP per token).
 {
@@ -684,7 +684,7 @@ type Legacy = { pm?: number; pa?: number; paSync?: number };
     && g.player.models.versions.every((v, i) => Math.abs(v.G - cur.player.models.versions[i].G) < 1e-9) && Math.abs(g.knowledge.openWeightsG - cur.knowledge.openWeightsG) < 1e-9;
   const okLeak = !!g && Math.abs(g.china.lab.phys.rec.pre - cur.china.lab.phys.rec.pre - 0.01 * B_G_PER_Y) < 1e-9 && g.rivals.every((r, i) => Math.abs(r.phys.rec.pre - cur.rivals[i].phys.rec.pre) < 1e-9);
   const okGone = !!g && !/"(pm|pa|paSync|paIn|paAtStart|paTrack|openWeightsFrontier)":/.test(json);
-  check(okG && okLeak && okGone && g!.schemaRev === SCHEMA_REV && SCHEMA_REV === 42,
+  check(okG && okLeak && okGone && g!.schemaRev === SCHEMA_REV && SCHEMA_REV === 43,
     'save: a schemaRev-32 save migrates to 33 (every model\'s G from its pm, an unsynced know-how gain into the recipe, no pm / pa fields left)', msg || `G ${okG} leak ${okLeak} fields ${okGone}`);
   let same = false;
   try {
@@ -738,7 +738,7 @@ type Legacy = { pm?: number; pa?: number; paSync?: number };
     msg = (e as Error).message;
   }
   const lease = g?.player.finance.ledger.find((c) => c.id === 'L-fin-S9');
-  const okFin = !!g && g.schemaRev === SCHEMA_REV && SCHEMA_REV === 42 && lease?.kind === 'finLease' && lease.rate === 0.12 && !g.player.finance.deals.some((d) => d.id === 'D-old-spv')
+  const okFin = !!g && g.schemaRev === SCHEMA_REV && SCHEMA_REV === 43 && lease?.kind === 'finLease' && lease.rate === 0.12 && !g.player.finance.deals.some((d) => d.id === 'D-old-spv')
     && !('jv' in g.player.finance.ws3) && JSON.stringify(g.player.finance.ws3.opCash4q) === '[1.5]' && Array.isArray(g.player.finance.promises) && typeof g.player.finance.credibility === 'number'
     && (g.player.finance.valuation <= 0 || !!g.player.finance.ws3.mark) && g.rivals.every((r) => r.finance.poolQ !== undefined && r.finance.raised !== undefined);
   check(okFin, 'save: a schemaRev-33 save (model v3, old finance) migrates to 42 (SPV leaseback → financing lease, SPV deal and JV gone, operating cash history, promises, credibility, story marks)', msg || JSON.stringify({ lease: lease?.kind, rate: lease?.rate, opCash4q: g?.player.finance.ws3.opCash4q }));
@@ -763,6 +763,27 @@ type Legacy = { pm?: number; pa?: number; paSync?: number };
     }
   }
   check(bad.length === 0, `save: every model-v3 save rev 15–${SCHEMA_REV - 1} migrates to ${SCHEMA_REV} (a current state under each label)`, bad.slice(0, 3).join('; '));
+}
+// SAFMECH (schemaRev 43): a rev-42 save has no monitoring budget; it gets the old standard package's 20% of the safety
+// pool, and an already-migrated state labelled 42 loads unchanged (idempotent).
+{
+  const cur = run(detSetup, 30);
+  const old = JSON.parse(serialize(cur)) as GameStateV2;
+  old.schemaRev = 42;
+  delete (old.player.policies as Partial<GameStateV2['player']['policies']>).monitorBudget;
+  let msg = '';
+  let g: GameStateV2 | undefined;
+  let same = false;
+  try {
+    g = deserialize(JSON.stringify(old));
+    const again = JSON.parse(serialize(cur)) as GameStateV2;
+    again.schemaRev = 42;
+    same = stateHash(deserialize(JSON.stringify(again))) === stateHash(cur);
+  } catch (e) {
+    msg = (e as Error).message;
+  }
+  check(!!g && g.schemaRev === SCHEMA_REV && SCHEMA_REV === 43 && g.player.policies.monitorBudget === 0.2 && same,
+    'save: a schemaRev-42 save migrates to 43 (monitoring budget = the old standard 20% of the safety pool; idempotent)', msg || `${g?.player.policies.monitorBudget}`);
 }
 
 // ---------- 6. Cadences ----------
