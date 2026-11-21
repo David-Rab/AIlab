@@ -681,9 +681,17 @@ function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
   const pf = { hardware: py(pa.rate / pb.rate), margin: py(pa.margin / pb.margin), models: py(pa.hphM / pb.hphM) };
   const pct = (o: Record<string, number>) => Object.entries(o).filter(([, x]) => x > 0.005).map(([k, x]) => `${k} ${(x * 100).toFixed(0)}%`).join(' ');
   console.log(`INFO  A5 price customers pay for V0's capability (US Software & IT, the hardest band V0 (coverage ${u0.toFixed(3)}) does whole; per M tokens):\n      ${paid.map((x) => `${x.t.toFixed(2)}: $${x.perM.toFixed(3)}/M (band at its coverage edge $${x.below.toFixed(3)}; on the providers' own models $${x.own.toFixed(3)}); band hours by tier ${pct(x.kind)}; by provider ${pct(x.prov)}; all adopted hours (world) by tier ${pct(x.world)}`).join('\n      ')}`);
-  check(near(pf.hardware * pf.margin * pf.models, pTot, 1e-9) && pTot >= 6 && pTot <= 30,
-    'A5 E9 the price customers actually pay for V0\'s capability (market-weighted) falls ×6–×30 a year (R20 D3 ≈ ×10), = rental × margin × model H100e-hours per token bought',
-    `${fmt(pTot)}/yr over ${pa.t.toFixed(2)}–${pb.t.toFixed(2)}: hardware ${fmt(pf.hardware)}, margin ${fmt(pf.margin)}, models bought ${fmt(pf.models)}; band at V0's coverage edge ${fmt(py(pa.below / pb.below))}/yr; on own models only ${fmt(py(pa.own / pb.own))}/yr; cheap tiers ${((pb.kind.mini + pb.kind.student) * 100).toFixed(0)}% of the band's hours at the end (${((pa.kind.mini + pa.kind.student) * 100).toFixed(0)}% at the start)`);
+  // M10 (lead decision after MKT): the decline's size is INFO, not binding. The ×6–×30 band came from Cottier et al.
+  // (Epoch AI, Mar 2025; research/20 D3), which prices the CHEAPEST model on sale above a capability threshold: that is
+  // A3's instrument, and A3 binds above. The market-weighted price customers actually pay is a different quantity with
+  // no sourced band; the one primary source on it (OpenRouter / a16z 100T-token study, arXiv 2601.10088 §8: demand
+  // "relatively price-inelastic", closed models keep high-value tasks) says it lags the cheapest offer, as the game's
+  // does (design/V3-BUILD.md "MKT notes": 20-seed median ×4.33 [×3.56–6.18] vs ×18.9 cheapest). The exact
+  // decomposition stays a binding check; multi-tier lineups (task TIERS) would move the readout.
+  check(near(pf.hardware * pf.margin * pf.models, pTot, 1e-9),
+    'A5 E9 the price customers actually pay for V0\'s capability (market-weighted) = rental × margin × model H100e-hours per token bought (exact decomposition)',
+    `${fmt(pTot)}/yr = hardware ${fmt(pf.hardware)} × margin ${fmt(pf.margin)} × models bought ${fmt(pf.models)}`);
+  console.log(`INFO  A5 E9 price customers pay for V0's capability (market-weighted; no sourced band since M10: Cottier's ×6–×30 is the cheapest-offer measure, checked by A3): ${fmt(pTot)}/yr over ${pa.t.toFixed(2)}–${pb.t.toFixed(2)}: hardware ${fmt(pf.hardware)}, margin ${fmt(pf.margin)}, models bought ${fmt(pf.models)}; band at V0's coverage edge ${fmt(py(pa.below / pb.below))}/yr; on own models only ${fmt(py(pa.own / pb.own))}/yr; cheap tiers ${((pb.kind.mini + pb.kind.student) * 100).toFixed(0)}% of the band's hours at the end (${((pa.kind.mini + pa.kind.student) * 100).toFixed(0)}% at the start)`);
 }
 
 // ───────── V2–V4 serving-efficiency ideas and tokens per task (task D10; research/20 D1–D3) ─────────
