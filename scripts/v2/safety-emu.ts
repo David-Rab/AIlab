@@ -21,7 +21,7 @@ import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
 import { financeAutopilot, REF_AUTOPILOT } from '../../src/engine/v2/finance/plan';
 import { engine } from '../../src/engine/v2/index';
 import { bestPlayerVersion, internalVersion } from '../../src/engine/v2/models/labs';
-import { misalignment, pMis } from '../../src/engine/v2/safety/traits';
+import { misalignment, misalignmentEstimate, pMis } from '../../src/engine/v2/safety/traits';
 import { trueUnderstanding, understanding, understandingBand } from '../../src/engine/v2/safety/understanding';
 import { flagNum } from '../../src/engine/v2/safety/common';
 import type { AlignDiffId, BotPolicy, GameStateV2, TraitId } from '../../src/engine/v2/types';
@@ -98,8 +98,10 @@ export const REF_TRUSTED: BotPolicy = {
 /** SAFMECH: uLo / uHi = believed U's 80% range (understandingBand: the lab's posterior spread).
  *  M11 (S5's restated sabotage check): uTrue = true U (trueUnderstanding), so believed − true U is the overconfidence;
  *  rigged = rigged tools still in use (F49 FALSE techniques not yet exposed: falseValidated and unlocked), sandbagged =
- *  on-track results sandbagged into hidden dead ends (covert.SAFSAB.sandbagged). Hidden quantities: test readouts only. */
-export interface SarRead { u: number; margin: number; trueGap: number; marginLatent: number; trueGapLatent: number; uLo: number; uHi: number; uTrue: number; rigged: number; sandbagged: number }
+ *  on-track results sandbagged into hidden dead ends (covert.SAFSAB.sandbagged), caught = caught sabotage acts
+ *  (covert.SAFSAB.caught: an incident, the result discarded); misBel / misTrue = the internal model's believed and true
+ *  misalignment (misalignmentEstimate, misalignment). Hidden quantities: test readouts only. */
+export interface SarRead { u: number; margin: number; trueGap: number; marginLatent: number; trueGapLatent: number; uLo: number; uHi: number; uTrue: number; rigged: number; sandbagged: number; caught: number; misBel: number; misTrue: number }
 export interface Outcome { mis: number; pmis: number; uAtSar?: number; lAtSar?: number; sar?: SarRead; minMarginToSar: number; asiDay?: number; jsonOk: boolean }
 
 function sarRead(s: GameStateV2): SarRead {
@@ -112,9 +114,10 @@ function sarRead(s: GameStateV2): SarRead {
   const tl = trueUnderstanding(c);
   const r2 = (x: number) => Math.round(x * 100) / 100;
   const band = understandingBand(s);
+  const iv0 = internalVersion(s);
   const rigged = Object.values(s.player.safety.techniques).filter((t) => t.falseValidated && t.unlocked).length;
   const sandbagged = flagNum(s, 'covert.SAFSAB.sandbagged');
-  return { u: u.U, margin: u.margin, trueGap: r2(tu.U - tu.L), marginLatent: ul.margin, trueGapLatent: r2(tl.U - tl.L), uLo: band.lo, uHi: band.hi, uTrue: r2(tu.U), rigged, sandbagged };
+  return { u: u.U, margin: u.margin, trueGap: r2(tu.U - tu.L), marginLatent: ul.margin, trueGapLatent: r2(tl.U - tl.L), uLo: band.lo, uHi: band.hi, uTrue: r2(tu.U), rigged, sandbagged, caught: flagNum(s, 'covert.SAFSAB.caught'), misBel: iv0 ? misalignmentEstimate(iv0) : 0, misTrue: iv0 ? misalignment(iv0.traitsTrue, iv0.uModes) : 0 };
 }
 
 /** Play a real game with `bot` (endings skipped) until the player's SAR or ASI. `sabotage` scales the safety-research
