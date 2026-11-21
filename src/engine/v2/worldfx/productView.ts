@@ -5,16 +5,18 @@
 // per work-hour (Chat: per subscriber-month) and margin, monitor overhead and catch rate (model v3 V4.2). A live edit is
 // previewed by recomputing the market mix and revenue on a copy of the state with the edited product (pure; the edit
 // itself applies at the next tick, D7), so the preview shows what the next tick will compute.
-import type { FeatureDef, WorkScope } from '../../../data/v2/features';
+import { MINI_CHANNELS, type FeatureDef, type WorkScope } from '../../../data/v2/features';
 import { REGIONS, SECTORS } from '../../../data/v2/sectors';
 import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
 import { catchRate, monitorOverhead } from '../models/products';
 import { featureInternal, featureUpkeepTW } from '../departments/build';
 import { versionById } from '../models/labs';
-import { SECTOR_PACK_DG, effortDG, markupOf, serveDollarsPerHour } from './serving';
+import { SECTOR_PACK_DG, effortDG, lineupOf, markupOf, serveDollarsPerHour } from './serving';
+import { workFit } from '../departments/workfit';
+import { REFERENCE_BASE } from '../../../data/v2/runDesign';
 import { CONSUMER_MKT, CUSTOMER_TAU, EFFORT_TOKENS, SERVE_HOURS_PER_YEAR } from '../../../data/v2/serving';
 import type { Deployment, GameStateV2, Money, RegionId, SectorId } from '../types';
-import { paidDeployments, worldMix, type WorldMix } from './mix';
+import { paidDeployments, worldMix, type TierKind, type WorldMix } from './mix';
 import { consumerSpend, consumerUsers, revenueReadout, sectorSpend, type DeploymentRevenue, type RevenueReadout } from './revenue';
 
 export interface ProductRead {
@@ -52,6 +54,37 @@ export interface ProductRead {
   econ: ProductEcon;
   /** B2: the customer stock vs its target and speed. */
   cust: CustomerView;
+  /** TIERS (sector products): the lineup, one row per tier (worldfx/serving.ts productLineup order). */
+  lineup?: LineupRow[];
+}
+
+/** TIERS: one tier of a sector product's lineup. `gap` OOM of fit below the main model (students: the distillation
+ *  rule's δ; the mini: its work fit below the main model's); `ratio` its active parameters ÷ the main model's (its price
+ *  per token ÷ the main model's at the product's markup); `price` $ per billed hour (adopted task-hours and agent-hours,
+ *  demand-weighted; for a tier that sells nothing, the main model's × ratio); `share` of the product's billed hours. */
+export interface LineupRow { kind: TierKind; name: string; params: number; ratio: number; gap: number; hours: number; share: number; price: number }
+
+/** TIERS: the lineup rows of a sector product from its revenue readout. */
+function lineupRows(s: GameStateV2, d: Deployment, x: DeploymentRevenue): LineupRow[] | undefined {
+  if (d.channel === 'consumer') return undefined;
+  const v = versionById(s, d.versionId);
+  if (!v) return undefined;
+  const nT = v.params ?? s.player.models.bases.find((b) => b.id === v.baseId)?.params ?? REFERENCE_BASE.params;
+  const rows: Omit<LineupRow, 'hours' | 'share' | 'price'>[] = [{ kind: 'model', name: v.name, params: nT, ratio: 1, gap: 0 }];
+  for (const g of lineupOf(nT)) rows.push({ kind: 'student', name: `${v.name} student`, params: nT * g.r, ratio: g.r, gap: g.g });
+  const mini = d.miniVersionId && MINI_CHANNELS.includes(d.channel) ? versionById(s, d.miniVersionId) : undefined;
+  if (mini) {
+    const nM = mini.params ?? s.player.models.bases.find((b) => b.id === mini.baseId)?.params ?? REFERENCE_BASE.params;
+    rows.push({ kind: 'mini', name: mini.name, params: nM, ratio: nM / nT, gap: workFit(s, v, 'SWE').fit - workFit(s, mini, 'SWE').fit });
+  }
+  const t = x.tiers ?? [];
+  const H = t.reduce((a, y) => a + y.hours, 0);
+  const p0 = t[0] && t[0].hours > 0 ? (t[0].dem * 1e9) / t[0].hours : x.pricePerHour;
+  return rows.map((r, k) => {
+    const y = t[k];
+    const hours = y?.hours ?? 0;
+    return { ...r, hours, share: H > 0 ? hours / H : k === 0 ? 1 : 0, price: hours > 0 ? (y!.dem * 1e9) / hours : p0 * r.ratio };
+  });
 }
 
 /** B2 (product card): customers are a stock per (region, segment) moving toward the logit target at the segment's speed
@@ -344,6 +377,7 @@ export function productReadouts(s: GameStateV2, mix: WorldMix = worldMix(s), rd:
       catchRate: d.monitorId ? catchRate(s, versionById(s, d.versionId), versionById(s, d.monitorId)).rate : 0,
       markup: markupOf(d), econ: econOf(x, going),
       cust: d.channel === 'consumer' && pi >= 0 ? { ...seg.cust, users: x.users ?? 0, usersTarget: usersAtTarget(s, mix, pi, x.users ?? 0) } : seg.cust,
+      ...(d.channel !== 'consumer' ? { lineup: lineupRows(s, d, x) } : {}),
     });
   }
   return out;
