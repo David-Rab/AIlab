@@ -37,6 +37,9 @@ import { bestMeasuredL, internalVersion, versionById } from '../models/labs';
 import { believedInternalOversight } from '../safety/believedOversight';
 import { believedSabotage } from '../safety/covert';
 import { safetyAgentVersion } from '../safety/agents';
+import { footholdView } from '../safety/footholdDetection';
+import { investigationFte, safetyReHeads } from '../safety/investigations';
+import { patchFte } from '../safety/responses';
 import { measuredDomain } from '../models/paradigms';
 import { levelOfV2 } from '../world/calibration';
 import { gV0, levelOfG, playerStart } from '../models/capability';
@@ -600,6 +603,29 @@ export function refTrusted(s: GameStateV2, api: EngineApi): void {
   if (Math.abs(t - s.player.policies.trustedToAI) > 1e-9) tryAct(s, api, 'agents.trusted', { share: t });
 }
 
+/** F5 footholds: safety research engineers RefBot puts on a case on a suspected foothold [D] (INV_FTE's 15-person
+ *  default); it opens one only when that many are free, so a case never displaces patches or another case. */
+export const FOOTHOLD_CASE_FTE = 15;
+
+/**
+ * F5: RefBot's foothold policy (E8 found it never investigated one). Weekly, on the lab's foothold view (suspected,
+ * located; never hidden ones): a suspected foothold with a model to examine gets a case on that model and the act's main
+ * trait when FOOTHOLD_CASE_FTE safety research engineers are free (the case costs only their time); a located one is
+ * removed (Respond › Remove foothold: engineers for 2–4 weeks, internal agents off for ≤ 7 days).
+ */
+export function refFootholds(s: GameStateV2, api: EngineApi): void {
+  if (s.time.day % 7 !== 4) return;
+  const fv = footholdView(s);
+  if (!fv.suspected && !fv.located) return;
+  for (const r of fv.rows) {
+    if (r.status === 'detected') tryAct(s, api, 'safety.respond', { kind: 'removeFoothold', footholdId: r.id });
+    if (r.status !== 'suspected' || !r.caseVersionId || !r.caseTrait) continue;
+    const open = s.player.safety.investigations.some((i) => !i.outcome && i.target.kind === 'trait' && i.target.versionId === r.caseVersionId && i.target.trait === r.caseTrait);
+    if (open || safetyReHeads(s) - investigationFte(s) - patchFte(s) < FOOTHOLD_CASE_FTE) continue;
+    tryAct(s, api, 'safety.investigate', { versionId: r.caseVersionId, trait: r.caseTrait, fte: FOOTHOLD_CASE_FTE });
+  }
+}
+
 /** RefBot / passive: reference model play + WS3's reference finance autopilot (one cloud partner, SPVs as needed). */
 export const refBot: BotPolicy = {
   id: 'ref',
@@ -607,6 +633,7 @@ export const refBot: BotPolicy = {
     if (s.time.day === 0) tryAct(s, api, 'teams.target', { key: 'sci.saf', n: sizedTarget(s, REF_SAFETY_SCI_TEAMS) });
     staffLines(s, api, REF_LINES);
     refTrusted(s, api);
+    refFootholds(s, api);
     refPlay(s, api);
     financeAutopilot(s, REF_AUTOPILOT);
   },
