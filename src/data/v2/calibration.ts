@@ -49,8 +49,12 @@ export const CAL_SHIFT: Record<WorldPresetId, number> = { ai2027: -0.463, author
  *  SIAR and ASI in (−0.83 / −1.66 y at 0.11; at 0.05, where SC is already +0.23 y, they are −0.57 / −1.39 y): the
  *  aggregate leader runs SAR → ASI in 2.2 y where the golden takes 3.8 y. Merge FINM (finance v3: rivals' money, exits
  *  and raises move the shared world): slow 0.79 → 0.80 (`calscan.ts t1l slow`, 20 seeds: 0.79 SC +0.085 y fails by 1.06
- *  tolerances, 0.80 −0.012, 0.81 −0.086 fails); the other presets still pass. */
-export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: -0.15, authors2026: 0.11, fast: -0.045, slow: 0.8, sampled: -0.15 };
+ *  tolerances, 0.80 −0.012, 0.81 −0.086 fails); the other presets still pass. Merge M10 (V3_CAL refit authors2026
+ *  (33.45, 4.7) and fast G_SC 31.2 moved the level knots; `calscan.ts t1l`, 20 seeds): authors2026 0.11 → 0.07 (SC
+ *  +0.004, SAR +0.047, 20/20 seeds each; the SC/SAR window ≈ 0.05–0.09: 0.05 SC +0.078, 0.08 −0.036, 0.11 SC −0.156 fails;
+ *  SIAR / ASI −0.70 / −1.35 y, the known WARN); fast −0.045 → −0.01 (+0.059 / +0.089 / −0.007 / −0.082, worst 0.74;
+ *  −0.02 fails 1.13, 0 passes 0.96, 0.03 fails 1.66). */
+export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: -0.15, authors2026: 0.07, fast: -0.01, slow: 0.8, sampled: -0.15 };
 
 /** Knowledge diffusion to a follower (BUILD-PLAN R9, research/18 §0.2) [D, fit]: while the frontier leader lab's PUBLIC
  *  model is ahead of the player's best model, the player's know-how gains K_DIFFUSION × the gap per year (papers, staff
