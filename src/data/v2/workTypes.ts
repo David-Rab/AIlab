@@ -187,12 +187,25 @@ export const DAY0_REF = { re: 11 * 0.88, agents: 3e4, flop: 1e6 * 0.05 * 3.46e19
  *  authors2026 SIAR −0.126, ASI −0.145 y): ai2027 (and sampled) 30.20 → 30.12 (SC +0.052, SAR +0.005, SIAR −0.036, ASI
  *  −0.044 y; passing 30.12–30.19); authors2026 33.30 → 33.295 (SC +0.033, SAR +0.088, SIAR −0.019, ASI −0.005; passing
  *  33.27, 33.295, 33.305, 33.315, 33.318, failing 33.26, 33.285, 33.30, 33.308, 33.312, 33.325–33.34, F4); fast and slow
- *  kept. */
+ *  kept.
+ *  F4 multi-seed refit (T1 binds on the MEDIAN over the 20 seeds of scripts/v2/calseeds.ts; `calscan.ts t1`; design/notes/
+ *  F4.md): the one-seed values put the median world 0.05–0.38 y late (ai2027 SC +0.170: 11 of 20 seeds wait for the B4
+ *  release on day 700 because P08 continual learning, prior 0.7, comes late or fails; authors2026 SAR … ASI +0.32 …
+ *  +0.38; fast SC / SAR +0.21 / +0.23). ai2027 (and sampled) (30.12, 2.2, 0.5) → (30.15, 2.9, 1.25): AI taste at SC
+ *  1.25 SD (AIFM 80% CI −2.5…3.5) speeds the pre-SC research that brings SC forward without moving the SC knot, which
+ *  the leader lab's T1L reads (lowering G_SC alone to 29.6 fitted T1 but put the leader's SC 0.45 y early); median SC
+ *  −0.023, SAR −0.096, SIAR −0.075, ASI −0.003 y; passing window G_SC 30.10–30.18 × Δ_bm 2.8–3.0 × sd_SC 1.2–1.3 (1.1 and
+ *  1.4 fail), the value its middle. authors2026 (33.295, 4.65, 1.8) → (33.55, 4.6, 2.15): median +0.038 / −0.001 /
+ *  −0.077 / +0.063; a small island (G_SC 33.50–33.60 at Δ_bm 4.6, sd_SC 2.15; Δ_bm 4.5 / 4.7 and sd_SC 2.1 / 2.2 fail).
+ *  fast (31.345, 0.05, 0.5) → (31.1, 0.3, 1.5): median −0.042 / +0.097 / −0.016 / −0.095, worst 0.81 tolerances, no
+ *  window (every neighbour fails by 0.02–0.6 tolerances: RefBot's SAR, SIAR and ASI fall within days of each other in
+ *  this preset while the golden spaces SAR → ASI 76 d, so SAR's median sits late when ASI's sits early). slow 35.496 →
+ *  35.575: the median 4776 (+0.049) holds over 35.45–35.70, the value its middle. */
 export interface V3Cal { gSC: number; dBM: number; r: number; sdSC: number }
 export const V3_CAL: Record<WorldPresetId, V3Cal> = {
-  ai2027: { gSC: 30.12, dBM: 2.2, r: 4, sdSC: SD_AT_SC },
-  authors2026: { gSC: 33.295, dBM: 4.65, r: 3.19, sdSC: 1.8 },
-  fast: { gSC: 31.345, dBM: 0.05, r: 4, sdSC: SD_AT_SC },
-  slow: { gSC: 35.496, dBM: 1.6, r: 1.2, sdSC: SD_AT_SC },
-  sampled: { gSC: 30.12, dBM: 2.2, r: 4, sdSC: SD_AT_SC },
+  ai2027: { gSC: 30.15, dBM: 2.9, r: 4, sdSC: 1.25 },
+  authors2026: { gSC: 33.55, dBM: 4.6, r: 3.19, sdSC: 2.15 },
+  fast: { gSC: 31.1, dBM: 0.3, r: 4, sdSC: 1.5 },
+  slow: { gSC: 35.575, dBM: 1.6, r: 1.2, sdSC: SD_AT_SC },
+  sampled: { gSC: 30.15, dBM: 2.9, r: 4, sdSC: 1.25 },
 };

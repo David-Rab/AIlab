@@ -64,7 +64,7 @@ const JOBS: Job[] = [
   { id: 'evals', script: 'evals.ts', ...S(ALL, 30) } as Job,
   { id: 'safetyresearch', script: 'safetyresearch.ts', ...S(ALL, 25) } as Job,
   { id: 'worktypes', script: 'worktypes.ts', ...S(ALL, 60) } as Job,
-  { id: 'calib', script: 'calib.ts', args: { quick: SMOKE, cal: ['--cal'] }, mode: { quick: 'SMOKE', cal: 'T1 T1L T4' }, shards: { full: 4, cal: 4 }, ...S(['quick', 'cal', 'full'], 300) } as Job,
+  { id: 'calib', script: 'calib.ts', args: { quick: SMOKE, cal: ['--cal'] }, mode: { quick: 'SMOKE', cal: 'T1 T1L T4' }, shards: { full: 6, cal: 6 }, ...S(['quick', 'cal', 'full'], 300) } as Job,
   { id: 'fixtures', script: 'fixtures.ts', ...S(ALL, 120) } as Job,
   { id: 'hygiene', script: 'hygiene.ts', args: { quick: ['--no-perf'], full: ['--no-perf'], perf: ['--perf-only'] }, mode: { quick: 'no perf', full: 'no perf', perf: 'perf only' }, ...S(['quick', 'full', 'perf'], 90) } as Job,
   { id: 'lint-hidden', script: 'lint-hidden.ts', ...S(ALL, 10) } as Job,
