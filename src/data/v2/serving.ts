@@ -162,7 +162,7 @@ export const CUSTOMER_TAU = { consumer: 3 / 52, sector: 0.65, gov: 0.75 } as con
  *    (0.82 at the A5 target), as the enterprise leader did in 2025 (Anthropic 32% mid-2025, 40% end-2025; OpenAI 25 →
  *    27%: Menlo Jul / Dec 2025 [P]). Replaces A7's start cap (SECTOR_START.startMax 0.25): the start stock is the
  *    day-0 target.
- *  - Reach is a stock: firms add the labs whose models are best. REACH (design/notes/REACH.md): the target is a
+ *  - Reach is a stock: firms add the labs whose models are best. REACH (design/V3-BUILD.md "REACH notes"): the target is a
  *    rank-ordered logit: each firm contracts with the `providers` labs it ranks best among those it can buy from
  *    (access), ranked by the V4 quality logit on the provider's mean sector fit (brand × exp(SHARE_SLOPE_G·Δfit)),
  *    without replacement; R* = P(the lab is among a firm's picks), so Σ R* = providers and the next lab gets a firm's
@@ -187,7 +187,7 @@ export const MULTI_HOMING = { providers: 2, tau: 3 } as const;
  *  arXiv 2508.15734 [P]). */
 export const FREE_TIER = { years: 1 } as const;
 
-/** TIERS: product lineups (design/notes/TIERS.md). Every provider (the player's sector products, rivals, China) sells
+/** TIERS: product lineups (design/V3-BUILD.md "TIERS notes"). Every provider (the player's sector products, rivals, China) sells
  *  its model and distilled students of it at these sizes relative to the model's active parameters, so at these prices
  *  per token relative to the model's (serving cost ∝ active parameters at one markup [D]). Each student's fit follows
  *  the distillation rule (δ = DISTILL.a + DISTILL.b·log₁₀(1/r), N_S ≥ 1B active: worldfx/serving.ts lineupOf); buyers

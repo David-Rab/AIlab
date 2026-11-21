@@ -706,7 +706,7 @@ function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
   // no sourced band; the one primary source on it (OpenRouter / a16z 100T-token study, arXiv 2601.10088 §8: demand
   // "relatively price-inelastic", closed models keep high-value tasks) says it lags the cheapest offer, as the game's
   // does (design/V3-BUILD.md "MKT notes": 20-seed median ×4.33 [×3.56–6.18] vs ×18.9 cheapest). The exact
-  // decomposition stays a binding check. TIERS (design/notes/TIERS.md): every provider sells a four-tier lineup (20-seed
+  // decomposition stays a binding check. TIERS (design/V3-BUILD.md "TIERS notes"): every provider sells a four-tier lineup (20-seed
   // median ×4.50 → ×4.10: the player's lineup raises it, rivals' coarser lineups, replacing a student per band edge,
   // lower it).
   check(near(pf.hardware * pf.margin * pf.models, pTot, 1e-9),
