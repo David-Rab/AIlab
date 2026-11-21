@@ -149,7 +149,6 @@ prefill([
 const long = runBotC(1, REF_AUTOPILOT, SMOKE ? END_2027 : END_2028);
 const prod = (y: number) => long.q.filter((r) => r.year === y).reduce((a, r) => a + r.shipped, 0);
 check(prod(2026) >= 20e6 && prod(2026) <= 30e6, 'F1 global production 2026 ≈ 25M H100e (±20%)', `${f1(prod(2026) / 1e6)}M`);
-smokeCheck(prod(2027) >= 45e6 && prod(2027) <= 60e6, 'F2 global production 2027 in 45–60M H100e', `${f1(prod(2027) / 1e6)}M`);
 const w = long.s.hidden.timeline;
 const ratios = long.q.map((r) => r.stock / globalCompute(w as never, BASELINES[0].start.globalCompute, r.day / 365));
 smokeCheck(ratios.every((x) => x >= 0.8 && x <= 1.2), 'F3 installed stock within ±20% of globalCompute(w,t) through 2028', `ratio ${f1(Math.min(...ratios) * 100)}–${f1(Math.max(...ratios) * 100)}%`);
@@ -203,6 +202,15 @@ function shockRun0(baseMult: number, mult: number, atQ: number, nQ: number) {
 
 // ───────────────────────────── F7, F8: RefBot, no-financing variant, capex2x ─────────────────────────────
 const ref = SEEDS.map((seed) => runBotC(seed, REF_AUTOPILOT, END_2027));
+// F2 on the 12 RefBot seeds (FINREF; was seed 1's long run alone): C2's 45–60M (AI 2027 60M; Epoch's ×2.2 a year) is the
+// world's expected 2027 output, and one draw is not that. 9 of 12 seeds ship the 2027 supply path in full (≈ 47.2M); a
+// seed falls short only in a quarter with a supply disruption (seeds 9, 10: Taiwan / Korea rolls) or a dip in the
+// RefBot's lumpy chip orders (seed 1, Q3 2027: demand 10.9M against 14.8M of supply). Seed 1 is printed.
+{
+  const prodOf = (r: Run, y: number) => r.q.filter((x) => x.year === y).reduce((a, x) => a + x.shipped, 0);
+  const p27 = ref.map((r) => prodOf(r, 2027));
+  smokeCheck(median(p27) >= 45e6 && median(p27) <= 60e6, 'F2 global production 2027 in 45–60M H100e (median of the RefBot seeds)', `median ${f1(median(p27) / 1e6)}M (range ${f1(Math.min(...p27) / 1e6)}–${f1(Math.max(...p27) / 1e6)}; seed 1's long run ${f1(prod(2027) / 1e6)}M)`);
+}
 const y26 = ref.map((r) => r.s.player.finance.ws3.years['2026']);
 // FIN1: chips a lessor paid at delivery count as capex too (supplier funding is gone, its tally stays 0). FIN4r: capex
 // and compute costs are what the year incurred, so payments a renegotiation deferred to the contracts' end count in
