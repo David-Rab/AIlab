@@ -251,6 +251,7 @@ function useFitOf(s: GameStateV2, w: TimelineWorld, v: Fitted, sid: SectorId | '
  *  these inputs (per world). Player versions (with a build) are computed every time. */
 type FitMemo = Map<number, Map<number, Map<number, Map<string, UseFit>>>>; // G → ΔG → h multiplier → work type + P19
 const useFitMemo = new WeakMap<TimelineWorld, { m: FitMemo; n: number }>();
+const PLUS_KEY: Partial<Record<SectorId | 'CHAT', string>> = {};
 function useFit(s: GameStateV2, w: TimelineWorld, v: Fitted, sid: SectorId | 'CHAT', hd: DomainId, dG: number, hm: number): UseFit {
   if (v.build) return useFitOf(s, w, v, sid, hd, dG, hm);
   let memo = useFitMemo.get(w);
@@ -261,7 +262,7 @@ function useFit(s: GameStateV2, w: TimelineWorld, v: Fitted, sid: SectorId | 'CH
   if (!b) a.set(dG, (b = new Map()));
   let c = b.get(hm);
   if (!c) b.set(hm, (c = new Map()));
-  const key = adopted(s, 'P19') ? sid + '+' : sid;
+  const key = adopted(s, 'P19') ? (PLUS_KEY[sid] ??= sid + '+') : sid; // P4: the '+' keys made once (no string per call)
   let x = c.get(key);
   if (!x) {
     c.set(key, (x = useFitOf(s, w, v, sid, hd, dG, hm)));
@@ -425,11 +426,20 @@ const newMap = () => new Map();
  *  still covers u (the teacher itself is the cheapest adequate model). Rivals' and China's lineups: their own model's fit,
  *  FLOP per token and active parameters (model v3 F1). */
 export function studentOffer(s: GameStateV2, o: Offer, sid: SectorId, fit: number, h50: number, nT: number, u: number, markup: number, rate: number): Offer | undefined {
+  return studentOfferIn(s, studentsOf(s, sid, fit, h50, nT), o, sid, fit, h50, nT, u, markup, rate);
+}
+/** The gap memo's entries for one teacher on one sector, by u. P4: computeMix looks them up once per provider and sector
+ *  and asks studentOfferIn at every band edge (the same memo, the same values). */
+export type StudentMemo = Map<number, StudentFit | null>;
+export function studentsOf(s: GameStateV2, sid: SectorId, fit: number, h50: number, nT: number): StudentMemo {
   const w = s.hidden.timeline;
   // P2-style memo: the gap depends only on these inputs (per world); lineups change only when a model or a_top does.
   let memo = studentMemo.get(w);
   if (!memo || memo.n > 20000) studentMemo.set(w, (memo = { m: new Map(), n: 0 }));
-  const byU: Map<number, StudentFit | null> = memoAt(memoAt(memoAt(memoAt(memo.m, sid, newMap), fit, newMap), h50, newMap), nT, newMap);
+  return memoAt(memoAt(memoAt(memoAt(memo.m, sid, newMap), fit, newMap), h50, newMap), nT, newMap);
+}
+export function studentOfferIn(s: GameStateV2, byU: StudentMemo, o: Offer, sid: SectorId, fit: number, h50: number, nT: number, u: number, markup: number, rate: number): Offer | undefined {
+  const w = s.hidden.timeline;
   let sf = byU.get(u);
   if (sf === undefined) {
     const g = studentGap(w, sid, fit, h50, nT, u);
@@ -439,7 +449,8 @@ export function studentOffer(s: GameStateV2, o: Offer, sid: SectorId, fit: numbe
       sf = { g, r: studentParamsFor(nT, g) / nT, a, lam: agentLeverage(a, h50 * Math.pow(H50_PER_OOM, -g)) };
     }
     byU.set(u, sf);
-    memo.n++;
+    const memo = studentMemo.get(w);
+    if (memo) memo.n++;
   }
   if (sf === null) return undefined;
   const { g, r, a, lam } = sf;

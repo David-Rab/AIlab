@@ -38,8 +38,8 @@ import { decodeUtilNow } from '../models/stacks';
 import { rivalDecodeU, rivalServeFpt } from '../actors/rivalModel';
 import {
   CHINA_MARKUP, RIVAL_MARKUP, effortTokens, enablerShare, fptOfSimple, fxOn, markupOf, offerOf,
-  agentDemandOf, chatFreeTier, freeTierOf, paidShareTarget, productFx, productMiniUses, productOffer, productUses, savedPerAdoptedHour, sectorH50, serveDollarsPerHour, settingsDG, studentOffer, subPrice,
-  tokEff, valuePerHour, wagePerHour, type ModelUse, type Offer,
+  agentDemandOf, chatFreeTier, freeTierOf, paidShareTarget, productFx, productMiniUses, productOffer, productUses, savedPerAdoptedHour, sectorH50, serveDollarsPerHour, settingsDG, studentOfferIn, studentsOf, subPrice,
+  tokEff, valuePerHour, wagePerHour, type ModelUse, type Offer, type StudentMemo,
 } from './serving';
 
 export { PRICE_ELASTICITY };
@@ -461,10 +461,11 @@ function computeMix(s: GameStateV2): WorldMix {
       if (!o || !p.model || p.lab === 'player' || !(aTop > 0)) continue;
       const nT = p.params ?? (p.fpt ?? 2e12) / (2 * refTokMult);
       const h50 = sectorH50(s, p.model, t.id);
+      let byU: StudentMemo | undefined; // P4: the gap memo's entries for this teacher, looked up once
       for (let b = 1; b <= B; b++) {
         const u = (aTop * b) / B;
         if (u >= o.a) break;
-        const st = studentOffer(s, o, t.id, o.fit, h50, nT, u, p.markup, rate);
+        const st = studentOfferIn(s, (byU ??= studentsOf(s, t.id, o.fit, h50, nT)), o, t.id, o.fit, h50, nT, u, p.markup, rate);
         if (!st) continue;
         lines[i].push(st);
         kind[i].push('student');
