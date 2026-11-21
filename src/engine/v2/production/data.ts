@@ -169,6 +169,9 @@ export interface DataDraw {
   /** Worth of a drawn token in the loss law (model v3 D9, P21; 1 = the 2025 learner): dEff and dQual include it. */
   worth: number;
   byKind: Partial<Record<DataKind, number>>;
+  /** Synthetic tokens drawn per teacher (the asset's teacherId; '' = the start stock, written by the start model's
+   *  generation). Model v3 AF2: a new base imitates what its teachers' outputs show (safety/traits.ts imitatedStart). */
+  bySynTeacher?: Record<string, number>;
 }
 
 /** s_d,data = ALPHA_DATA · log₁₀(share_d ÷ REF_SHARE_d), capped at ±SPEC_CAP (MODEL-V3 §2.3, research/20 A2). */
@@ -209,7 +212,7 @@ export function drawData(p: DataPortfolio, tokens: number, target: MixTarget = N
 }
 function drawWith(p: DataPortfolio, tokens: number, target: MixTarget, opts: { worth?: number }, qRef: number): DataDraw {
   // u: the slice's quality-weighted unique tokens (its draw weight, D3); r: its own tokens (its epochs, D11).
-  const slices: { kind: DataKind; d: DomainId; u: number; r: number; k: number; q: number; w: number }[] = [];
+  const slices: { kind: DataKind; d: DomainId; u: number; r: number; k: number; q: number; w: number; teacher?: string }[] = [];
   const Ud: DomainMix = {};
   const Kd: DomainMix = {};
   for (const a of p.assets) {
@@ -227,7 +230,7 @@ function drawWith(p: DataPortfolio, tokens: number, target: MixTarget, opts: { w
     for (const [d, v] of Object.entries(m) as [DomainId, number][]) {
       if (!(v > 0)) continue;
       const ud = (u * v) / ms;
-      slices.push({ kind: a.kind, d, u: ud, r: ud / q, k, q, w: 0 });
+      slices.push({ kind: a.kind, d, u: ud, r: ud / q, k, q, w: 0, ...(a.kind === 'synthetic' ? { teacher: a.teacherId ?? '' } : {}) });
       Ud[d] = (Ud[d] ?? 0) + ud;
       Kd[d] = (Kd[d] ?? 0) + ud * k;
     }
@@ -251,6 +254,7 @@ function drawWith(p: DataPortfolio, tokens: number, target: MixTarget, opts: { w
   const eff: DomainMix = {};
   const byKind: Partial<Record<DataKind, number>> = {};
   const epochsD: DomainMix = {};
+  const bySyn: Record<string, number> = {};
   let dRep = 0;
   let dEff = 0;
   let qSum = 0;
@@ -265,6 +269,7 @@ function drawWith(p: DataPortfolio, tokens: number, target: MixTarget, opts: { w
     share[x.d] = (share[x.d] ?? 0) + dx / tokens;
     eff[x.d] = (eff[x.d] ?? 0) + ex;
     byKind[x.kind] = (byKind[x.kind] ?? 0) + dx;
+    if (x.teacher !== undefined) bySyn[x.teacher] = (bySyn[x.teacher] ?? 0) + dx;
     dRep += ex;
     dEff += x.q * ex;
     qSum += dx * x.q;
@@ -278,6 +283,7 @@ function drawWith(p: DataPortfolio, tokens: number, target: MixTarget, opts: { w
   const quality = qSum / tokens;
   return {
     tokens, dEff: (worth * dEff) / qRef, dQual: (worth * qSum) / qRef, dRep, uMix, epochs: tokens / uMix, epochsD, share, effShare: eff, sD: specialisation(eff), quality, qRel: quality / qRef, worth, byKind,
+    ...(Object.keys(bySyn).length ? { bySynTeacher: bySyn } : {}),
   };
 }
 

@@ -215,7 +215,7 @@ function VersionPressure({ s, v }: { s: GameStateV2; v: ModelVersion }) {
           {vp.base && (
             <>
               <div className="tip-cap">{vp.base.name} pretraining <span className="dim">· set the lineage, ω 1</span></div>
-              <PressureRows p={{ kind: 'base', rows: vp.base.rows, omega: { growth: 1, safety: 1, kind: 1 } }} testId="mc-pressure-base" />
+              <PressureRows p={{ kind: 'base', rows: vp.base.rows, omega: { growth: 1, safety: 1, kind: 1 }, ...(vp.base.imitation ? { imitation: vp.base.imitation } : {}) }} testId="mc-pressure-base" />
             </>
           )}
         </div>

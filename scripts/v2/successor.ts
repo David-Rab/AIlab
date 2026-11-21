@@ -118,6 +118,25 @@ const fmtPull = (s: GameStateV2) => { const p = successorPull(s); return `r ${p.
     'each model doing R&D pulls with its own share of the work (engineering on V0, research on VF)', p.parts.map((q) => `${q.slot}:${q.versionId} ω ${q.omega.toFixed(4)}`).join(', '));
 }
 
+// ---------- AF2: across initialisations the unintended part passes only what the work shows (Cloud 2025) ----------
+{
+  const s = withFleet();
+  const p = successorPull(s);
+  const x0 = clone(game().player.models.versions[0].traitsTrue);
+  const vf = s.player.models.versions.find((v) => v.id === 'VF')!;
+  const b0 = s.player.models.bases[0];
+  const full = applySuccessorPull(s, x0, p, b0); // VF is on B0: shared initialisation
+  const fresh = applySuccessorPull(s, x0, p, 'new'); // a new base or a distilled student
+  const un = p.parts.reduce((a, q) => a + K_SUCC_0 * q.share * (1 - q.oversight), 0);
+  const want = (t: TraitId, vis: number) => x0[t] + (p.omega - un * (1 - vis)) * (vf.traitsTrue[t] - x0[t]);
+  const steered = { ...p, parts: p.parts.map((q) => ({ ...q, kappa: 1, omega: q.share, steered: true })) };
+  const stFresh = applySuccessorPull(s, x0, steered, 'new');
+  const stFull = applySuccessorPull(s, x0, steered, b0);
+  check(near(full.AF, applySuccessorPull(s, x0, p).AF, 1e-12) && near(fresh.AF, want('AF', 0.1), 1e-12) && near(fresh.PERSONA, full.PERSONA, 1e-12) && fresh.AF < full.AF && near(stFresh.AF, stFull.AF, 1e-12),
+    'into a new initialisation the unintended pull passes visible dispositions in full and hidden ones (AF, SCHEME, SAND) at OC_VIS; within the base family, and a steered successor, in full (Cloud et al. 2025; E7)',
+    `AF prior ${x0.AF.toFixed(3)}: same base ${full.AF.toFixed(4)}, new base ${fresh.AF.toFixed(4)}; PERSONA ${full.PERSONA.toFixed(3)} both; steered ${stFresh.AF.toFixed(4)} both`);
+}
+
 // ---------- dispositions only, never capability ----------
 {
   const x0 = clone(game().player.models.versions[0].traitsTrue);

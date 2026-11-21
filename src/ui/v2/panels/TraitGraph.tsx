@@ -13,7 +13,7 @@ import { ICON, SIGNAL_ICON, TRAIT_ICON } from '../icons';
 import { C, sev } from '../theme';
 
 export const SIGNAL_SHORT: Record<string, string> = {
-  S1: 'Rater approval', S2: 'Hackable graders', S3: 'Long-horizon RL', S4: 'CoT pressure', S5: 'Scale + AI data', S6: 'Narrow FT / distill',
+  S1: 'Rater approval', S2: 'Hackable graders', S3: 'Long-horizon RL', S4: 'CoT pressure', S5: 'Scale + AI data', S6: 'Narrow harmful FT',
   S7: 'Evals in training', S8: 'Many copies', S9: 'Oversight-cond. reward', teacher: 'Teacher model',
 };
 export const GRADE_DASH: Record<string, string | undefined> = { A: undefined, B: '7 4', C: '3 3', D: '1 4' };

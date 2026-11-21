@@ -341,6 +341,9 @@ export interface BaseModel {
   monitorability?: number;
   /** Trait-pressure signals from the base design (S4, S5, S6 …) for WS2. */
   signals?: Partial<Record<SignalId, number>>;
+  /** Model v3 AF2: the teachers of its drawn synthetic tokens (version id; '' = the start stock) and their shares of its
+   *  tokens, which its starting traits imitated (safety/traits.ts imitatedStart). Absent on bases made before AF2. */
+  teacherData?: { id: string; share: number }[];
   /** Continue-train parent. */
   parentBaseId?: string;
   lineage: string; // traits + U-mode family; distill/continue keep parent lineage

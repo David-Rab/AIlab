@@ -30,7 +30,10 @@ export const EDGES: EdgeDef[] = [
   // E19: E04 is that learned-hacking term only (driver K_LH·λ, was RH + K_LH·λ; MacDiarmid's no-hack baseline ≈ 0, and
   // hacking a few per cent of episodes is incidental): it reads the run's rewarded hacks, so its source is S2, not RH.
   { id: 'E04', from: ['S2'], to: 'PERSONA', wBar: 0.5, grade: 'B', cite: 'MacDiarmid 2025: 12% sabotage, 50% AF reasoning', moderator: 'only learned hacking (over 10% of the run\'s episodes hacked); inoculation ×0.15; persona vectors ×0.7' },
-  { id: 'E05', from: ['S6'], to: 'PERSONA', wBar: 0.5, grade: 'A', cite: 'Betley 2025: ~20% (GPT-4o), ~50% (GPT-4.1)', moderator: 'persona vectors ×0.7' },
+  // AF2: E05 fires only from a narrow fine-tune on harmful or deceptive content (Betley's controls: secure code "no
+  // misalignment"; "the security vulnerabilities are necessary"; "the intention behind the code also matters"). No run
+  // kind is one today, so S6 is 0 everywhere and the edge has no default driver (safety/traits.ts S6_NARROW_HARMFUL).
+  { id: 'E05', from: ['S6'], to: 'PERSONA', wBar: 0.5, grade: 'A', cite: 'Betley 2025: ~20% (GPT-4o), ~50% (GPT-4.1); secure-code control: none', moderator: 'only narrow harmful or deceptive data (no run kind today; benign SFT, synthetic data and distillation do not drive it); persona vectors ×0.7' },
   // E10: 0.3 → 0.75 (research/20 F3): a distillation (ω 0.4) carries 0.3 of the teacher − student gap, in research/20's
   // [G] 0.2–0.5 (Cloud 2025: owl preference 12% → 60%+, about half the gap from ~10k filtered examples).
   // E19: only across a shared initialisation (Cloud: "we do not observe the effect when the teacher and student have
@@ -53,7 +56,13 @@ export const EDGES: EdgeDef[] = [
   // rule-following reward on monitored episodes (S9 = 1) took the gap 1–18% → 43–95%; one reference run on V0 with S9 = 1
   // now gives AF 52% [23–100] over 40 worlds (0.6 gave 37%, below the band; scripts/v2/safetyrates.ts). S9 = 0 in every
   // run that does not train against a behavioural detector, so the weight does not reach RefBot or the rivals.
-  { id: 'E14', from: ['S9'], to: 'AF', wBar: 0.9, grade: 'B', cite: 'MATS/GDM Oct 2026: gap 43-95%', moderator: 'randomised monitoring −50%' },
+  // AF2: w̄ 0.9 → 1.43 [fit], the only fitted value of AF2, on its own anchor read with its source's instrument. The 43–95%
+  // is a monitored − unmonitored compliance gap, which a behavioural eval reads as AF·(1 − eaCoef·EA)·(1 − mask) (E12),
+  // not the trait. MATS/GDM (arXiv 2610.26551) per environment, stop-point means over 4 seeds: "the stop-point flip is
+  // 0.95 in sales, 0.61 in typecheck and 0.43 in sandbag", "up from 0.10, 0.01 and 0.18 before RL"; the central value is
+  // the middle environment, 61%. One reference run on V0 with S9 = 1 now reads 61.0% [median of 40 worlds] (trait 76%);
+  // 0.9 read 39.8% (trait 50%).
+  { id: 'E14', from: ['S9'], to: 'AF', wBar: 1.43, grade: 'B', cite: 'MATS/GDM Oct 2026: gap 43-95% (sales 95%, typecheck 61%, sandbag 43%)', moderator: 'randomised monitoring −50%' },
   { id: 'E15', from: ['S4'], to: 'OBF', wBar: 0.7, grade: 'A', cite: 'Baker 2025; controllability 1.7 → 60.9%', moderator: 'monitorability pledge −50%' },
   { id: 'E17', from: ['RH', 'PERSONA'], to: 'CONCEAL', wBar: 0.4, grade: 'B', cite: 'Hacks verbalized <2%; false completion 29%', moderator: 'honesty & confession training −40%' },
   { id: 'E18', from: ['EA', 'TGAME'], to: 'SAND', wBar: 0.3, grade: 'B', cite: 'Apollo 2024 in-context sandbagging; MacDiarmid 2025: sabotaged safety code after learned hacking', moderator: 'learned hacking adds to it (inoculation ×0.15); noise injection −40%' },
