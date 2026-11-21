@@ -14,7 +14,7 @@
 // policy refreshes the internal model's evals.
 //
 // `refPlay(s, api, opts)` is the model/department half of that policy, parameterised so the other bots (race, safe,
-// mixed, capex2x) reuse the cadence with their own design choices; with default options it is exactly RefBot's.
+// mixed, capex2x) reuse the cadence with their own design choices; RefBot plays it with REF_PLAY (S5R: its safety share).
 // `refBot` = refPlay + WS3's reference finance autopilot (REF_AUTOPILOT).
 import { DISTILL, REFERENCE_BASE, REF_TPP, STREAM_POOL_SHARE } from '../../../data/v2/runDesign';
 import { paramsForFlop, rlCeiling } from '../models/effective';
@@ -23,6 +23,7 @@ import { takesTeams } from '../models/research';
 import { POOL_SHARE_RANGE, paramsOfVersion, runFlopPerShareDay } from '../models/runs';
 import { sectorFit, studentParamsFor, studentToHold } from '../worldfx/serving';
 import { flopPerToken } from '../departments/workfit';
+import { monitorBudget } from '../departments/agents';
 import { deployGate } from '../models/deployments';
 import { EVENT_BY_ID } from '../core/registry';
 import { decimalYear } from '../core/time';
@@ -131,7 +132,8 @@ const PRODUCT_CHANNELS: string[] = ['consumer', 'api', 'enterprise'];
 /** The public release (where the minis go). Staleness is measured against it, not against Enterprise: Enterprise can
  *  sit on the continual-learning stream (updated in place), which hid how far the public release trailed (R6 fix). */
 const PUBLIC_CHANNELS: string[] = ['consumer', 'api'];
-/** Passive/RefBot safety programme (§7.4): ~3% safety compute (shareRef) and, since R8, one safety science team on each
+/** Passive/RefBot safety programme (§7.4): safety compute sized to AI 2027's alignment share (S5R: refSafetyShare, the
+ *  safety agents mixed like the capabilities research pool: refSafetyAgents) and, since R8, one safety science team on each
  *  of AG18, AG02, AG08 and AG07 (≈ the pre-R8 Seed funding of those four: data/v2/agendas.ts SERIOUS_CAP). It starts
  *  with two teams and hires two more. Each line works the ideas RefBot uses in the pre-R8 catalog order (training-signal
  *  design: honesty, then anti-scheming; applied interp: deception probe, verbalizer; evals: honeypots, auditing agents;
@@ -144,7 +146,64 @@ export const REF_LINES: LinePlan[] = [
 ];
 const REF_SAFETY_SCI_TEAMS = 4;
 
-/** Options of the reference play (all optional; {} = RefBot). */
+/**
+ * S5R: AI 2027's alignment share of the leading lab's internal compute [S]: the compute forecast's usage table splits
+ * "Total Internal" (synthetic data + research experiments + research automation) into a "Capabilities share" of 95 / 96 /
+ * 97% and an "Alignment share" of 5 / 4 / 3% in 2024 / 2025 / 2026, 3% through 2027; the AI goals forecast: "The vast
+ * majority (~95%) of research effort and experiment compute is dedicated to improving the AIs' capabilities". Years as
+ * SHARE_REF's (the 2025 column at 2025.5); linear between, held outside.
+ */
+export const REF_ALIGN_SHARE: readonly { year: number; share: number }[] = [{ year: 2025.5, share: 0.04 }, { year: 2026.5, share: 0.03 }];
+export function refAlignShare(year: number): number {
+  const t = REF_ALIGN_SHARE;
+  if (year <= t[0].year) return t[0].share;
+  for (let i = 0; i < t.length - 1; i++) {
+    if (year <= t[i + 1].year) return t[i].share + ((year - t[i].year) / (t[i + 1].year - t[i].year)) * (t[i + 1].share - t[i].share);
+  }
+  return t[t.length - 1].share;
+}
+
+/** Share of the safety pool that is not safety research: the monitors (monitorBudget) and open investigations. */
+function safetyReserved(s: GameStateV2): number {
+  const inv = s.player.safety.investigations.filter((i) => !i.outcome).reduce((a, i) => a + i.computeShare, 0);
+  return monitorBudget(s).poolShare + inv;
+}
+
+/**
+ * S5R: RefBot's safety compute share. Its safety research (line experiments + safety agents) takes the alignment share
+ * of the research the reference lab runs, a/(1 − a) × (experiments + agents of shareRef), the table's experiments and
+ * automation rows (alignment's share of the synthetic-data row is training data: the post-training design, not the
+ * safety pool); the pool adds the monitors' and investigations' share on top. 2026: 0.03/0.97 × 10% ≈ 0.31% of compute
+ * on safety research (before S5R: ≈ 1.7%, five times the source), Q4 2027 ≈ 1.3%. The monitors are priced as a share
+ * of the pool (departments/agents.ts monitorBudget), so they shrink with it; the source's ≈ 1% monitoring budget (AI
+ * 2027 fn 51) is not represented as spend (design/notes/S5R.md §4).
+ */
+export function refSafetyShare(s: GameStateV2): number {
+  const yr = decimalYear(s);
+  const a = refAlignShare(yr);
+  const r = shareRefAt(yr);
+  const research = (a / (1 - a)) * (r.experiments + r.agents);
+  return Math.min(1, research / Math.max(0.2, 1 - safetyReserved(s)));
+}
+
+/**
+ * S5R: RefBot's safety agents (the safety package's share of the safety pool): the safety research is mixed like the
+ * capabilities research pool (agents ÷ (experiments + agents) of the lab's split, the Auto best mix), so the safety
+ * agents' compute is the alignment share of the lab's research automation (the table's 3% of the automation row) and the
+ * safety AI labour a/(1 − a) of the capabilities agents' on the same model. (Before S5R RefBot kept the package default, 20%
+ * of the pool: in 2026 that was ≈ 4× the capabilities agents' AI labour, against the source's ~95% of research effort
+ * on capabilities.) Weekly, when the share moves by more than a tenth.
+ */
+export function refSafetyAgents(s: GameStateV2, api: EngineApi): void {
+  if (s.time.day % 7 !== 3) return;
+  const sp = s.player.split;
+  const res = sp.experiments + sp.agents;
+  const want = Math.max(1e-3, res > 0 ? Math.max(0, 1 - safetyReserved(s)) * (sp.agents / res) : 0);
+  const cur = s.player.agents.safety.compute;
+  if (Math.abs(want - cur) > 0.1 * Math.max(want, cur) + 1e-6) tryAct(s, api, 'agents.set', { use: 'safety', compute: want });
+}
+
+/** Options of the reference play (all optional; RefBot's are REF_PLAY). */
 export interface RefPlayOpts {
   /** Fixed compute share for safety (the rest follows shareRef(t)); undefined = reference. */
   safetyShare?: (s: GameStateV2) => number | undefined;
@@ -624,16 +683,25 @@ export function refFootholds(s: GameStateV2, api: EngineApi): void {
   }
 }
 
+/** RefBot's reference-play options: only the safety compute share (S5R). */
+export const REF_PLAY: RefPlayOpts = { safetyShare: refSafetyShare };
+
+/** RefBot's whole turn: the safety programme (`sciTeams` safety science teams on `lines`, Trusted to AI, footholds,
+ *  safety agents), the reference play with options `o` and the finance autopilot. S5's staffing check
+ *  (scripts/v2/safety-emu.ts REF_HALF_STAFF) plays it with half the line teams. */
+export function refAct(s: GameStateV2, api: EngineApi, o: RefPlayOpts = REF_PLAY, lines: LinePlan[] = REF_LINES, sciTeams = REF_SAFETY_SCI_TEAMS): void {
+  if (s.time.day === 0) tryAct(s, api, 'teams.target', { key: 'sci.saf', n: sizedTarget(s, sciTeams) });
+  staffLines(s, api, lines);
+  refTrusted(s, api);
+  refFootholds(s, api);
+  refPlay(s, api, o);
+  refSafetyAgents(s, api);
+  financeAutopilot(s, REF_AUTOPILOT);
+}
+
 /** RefBot / passive: reference model play + WS3's reference finance autopilot (one cloud partner, SPVs as needed). */
 export const refBot: BotPolicy = {
   id: 'ref',
-  act(s, api) {
-    if (s.time.day === 0) tryAct(s, api, 'teams.target', { key: 'sci.saf', n: sizedTarget(s, REF_SAFETY_SCI_TEAMS) });
-    staffLines(s, api, REF_LINES);
-    refTrusted(s, api);
-    refFootholds(s, api);
-    refPlay(s, api);
-    financeAutopilot(s, REF_AUTOPILOT);
-  },
+  act: (s, api) => refAct(s, api),
   decide: refDecide,
 };

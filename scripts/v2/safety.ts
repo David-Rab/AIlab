@@ -17,20 +17,26 @@ import { Rng } from '../../src/engine/rng';
 import type { GameStateV2, TraitId } from '../../src/engine/v2/types';
 import { fileURLToPath } from 'node:url';
 import { check, finish, SMOKE, smokeCheck } from './lib';
-import { MIXED, REF, SAFE, play, type Outcome } from './safety-emu';
+import { MIXED, REF, REF_HALF_STAFF, REF_TRUSTED, SAFE, play, type Outcome } from './safety-emu';
 import { cached, prefill } from './simcache';
 
 /** play() through the simulation cache (the record is the Outcome). */
 const EMU = fileURLToPath(new URL('./safety-emu.ts', import.meta.url));
-const playC = (bot: typeof REF, seed: number, stopAt: 'asi' | 'sar'): Outcome =>
-  cached('safety-play', { bot: bot.id, seed, stopAt, alignment: 'medium' }, [fileURLToPath(import.meta.url), EMU], () => play(bot, seed, stopAt));
+const playC = (bot: typeof REF, seed: number, stopAt: 'asi' | 'sar', variant = '', sabotage = 1): Outcome =>
+  cached('safety-play', { bot: bot.id, variant, seed, stopAt, alignment: 'medium' }, [fileURLToPath(import.meta.url), EMU], () => play(bot, seed, stopAt, 'medium', undefined, sabotage));
 const N_S4 = SMOKE ? 1 : 40;
 const N_S5 = SMOKE ? 1 : 20;
+/** S5's mechanism checks: RefBot variants on the first N_MECH of the S4 RefBot seeds (paired), played to SAR. */
+const N_MECH = SMOKE ? 0 : 20;
+const S5_SAB = 2;
 // The runner's --prefill shards: the S4/S5 games, in the order the checks ask for them.
 prefill([
   ...Array.from({ length: N_S4 }, (_, i) => () => playC(REF, 500 + i, 'asi')),
   ...Array.from({ length: N_S4 }, (_, i) => () => playC(SAFE, 700 + i, 'asi')),
   ...Array.from({ length: N_S5 }, (_, i) => () => playC(MIXED, 900 + i, 'sar')),
+  ...Array.from({ length: N_MECH }, (_, i) => () => playC(REF_HALF_STAFF, 500 + i, 'sar', 'halfStaff')),
+  ...Array.from({ length: N_MECH }, (_, i) => () => playC(REF_TRUSTED, 500 + i, 'sar', 'trusted')),
+  ...Array.from({ length: N_MECH }, (_, i) => () => playC(REF_TRUSTED, 500 + i, 'sar', 'trustedSabotage', S5_SAB)),
 ]);
 
 // S1 (M2 spec decision): R14's Beta priors alone put ≈ 3.94 agendas above e = 0.6 per world; the loading spread was cut
@@ -127,20 +133,49 @@ smokeCheck(safeP <= 0.25, 'S4 Safe-only recipe: P_mis at ASI ≤ 0.25', safeP.to
 check([...ref, ...safe].every((o) => o.jsonOk), 'safety and model state stay plain JSON through ASI');
 
 // ───────────────────────────── S5: Understanding vs capability ─────────────────────────────
-// Operationalised on the typical (median) world: efficacy is drawn per world, so in a world where the funded
-// agendas fail, no funding level keeps U up — that is the intended "agendas fail together" lesson.
+// S5R (design/notes/S5R.md): emergent, not forced. RefBot's safety programme is AI 2027's (bots/ref.ts: the alignment
+// share of internal compute, 3–4%, on its research, the safety agents mixed like the capabilities research; four line
+// teams). The criterion: believed U (§3.5.7) below L at SAR in at least half the worlds. AI 2027's OpenBrain is the
+// authors' "best guess" (Sep 2027 box) and by SAR (Aug 2027) its safety team is "far from a full understanding" (Apr 2027)
+// and "Bottom-up interpretability doesn't work" (Sep 2027): in the reference lab the lag is at least as likely as not.
+// Mechanism checks (paired worlds, RefBot variants): the lag grows with opaque reasoning (the same SAR state with the
+// internal model in neuralese, AI 2027's Agent-3/4), with less safety staffing (half the line teams) and with more
+// sabotage of safety research (SAFSAB rate × S5_SAB, with the safety work handed to AI: RefBot's F5 policy hands ≈ 10%
+// at SAR, too little for sabotage to show). U − L is understanding().margin (L with the lineage fallback while the
+// internal model is in evaluation; the pre-S5R test read L = 0 then).
+const S5_BELOW_MIN = 0.5;
 const median = (xs: number[]) => {
   const a = [...xs].sort((p, q) => p - q);
   return a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2;
 };
-const refU = ref.filter((o) => o.uAtSar !== undefined);
-const refGap = refU.map((o) => (o.uAtSar ?? 0) - (o.lAtSar ?? 0));
-const refBelow = refGap.filter((g) => g < 0).length / Math.max(1, refGap.length);
-smokeCheck(median(refGap) < 0, 'S5 without refresh (RefBot funding) U falls below L by SAR (median world)', `median U − L at SAR ${median(refGap).toFixed(2)}; below in ${pct(refBelow)} of worlds`);
+const below = (xs: number[]) => xs.filter((g) => g < 0).length / Math.max(1, xs.length);
+const sarOf = (os: Outcome[]) => os.flatMap((o) => (o.sar ? [o.sar] : []));
+const refSar = sarOf(ref);
+const gap = refSar.map((r) => r.margin);
+const tgap = refSar.map((r) => r.trueGap);
+smokeCheck(below(gap) >= S5_BELOW_MIN, 'S5 RefBot (AI 2027 alignment share): U falls below L by SAR in ≥ 50% of worlds',
+  `below in ${pct(below(gap))} of ${gap.length}; median U − L ${median(gap).toFixed(2)}; true U below true L in ${pct(below(tgap))} (median ${median(tgap).toFixed(2)})`);
+{
+  // Paired worlds (the first N_MECH RefBot seeds). "Deepens the lag" = the mean U − L at SAR is lower, believed and true.
+  const m = (xs: number[]) => mean(xs);
+  const cmp = (name: string, ok: string, v: { margin: number; trueGap: number }[], b: { margin: number; trueGap: number }[], base: string) => {
+    const g = v.map((r) => r.margin), g0 = b.map((r) => r.margin), tg = v.map((r) => r.trueGap), tg0 = b.map((r) => r.trueGap);
+    smokeCheck(g.length === g0.length && m(g) < m(g0) && m(tg) < m(tg0), ok,
+      `${name}: mean U − L ${m(g).toFixed(2)} vs ${m(g0).toFixed(2)} (${base}), U < L in ${pct(below(g))} vs ${pct(below(g0))}; true ${m(tg).toFixed(2)} vs ${m(tg0).toFixed(2)}, ${pct(below(tg))} vs ${pct(below(tg0))}`);
+  };
+  const base = refSar.slice(0, N_MECH);
+  // Opaque reasoning: the same SAR states with the internal model reasoning in neuralese.
+  cmp('neuralese', 'S5 mechanism: opaque (neuralese) reasoning deepens the lag (the same SAR states)', base.map((r) => ({ margin: r.marginLatent, trueGap: r.trueGapLatent })), base, 'RefBot');
+  const half = sarOf(Array.from({ length: N_MECH }, (_, i) => playC(REF_HALF_STAFF, 500 + i, 'sar', 'halfStaff')));
+  cmp('half staff', 'S5 mechanism: less safety staffing (half the line teams) deepens the lag (paired worlds)', half, base, 'RefBot');
+  const tr = sarOf(Array.from({ length: N_MECH }, (_, i) => playC(REF_TRUSTED, 500 + i, 'sar', 'trusted')));
+  const trSab = sarOf(Array.from({ length: N_MECH }, (_, i) => playC(REF_TRUSTED, 500 + i, 'sar', 'trustedSabotage', S5_SAB)));
+  cmp(`sabotage ×${S5_SAB}`, `S5 mechanism: with safety work handed to AI, ${S5_SAB}× safety-research sabotage deepens the lag (paired worlds)`, trSab, tr, 'Trusted to AI 100%');
+}
 const mixed = Array.from({ length: N_S5 }, (_, i) => playC(MIXED, 900 + i, 'sar'));
 const mm = mixed.map((o) => o.minMarginToSar);
 const mixedOk = mm.filter((m) => m >= -0.5).length / mm.length;
-smokeCheck(median(mm) >= -0.5, 'S5 Mixed-bot funding keeps U ≥ L − 0.5 up to SAR (median world)', `median min margin ${median(mm).toFixed(2)}; holds in ${pct(mixedOk)} of worlds; U@SAR mean ${mean(mixed.map((o) => o.uAtSar ?? 0)).toFixed(2)} vs RefBot ${mean(refU.map((o) => o.uAtSar ?? 0)).toFixed(2)}`);
+smokeCheck(median(mm) >= -0.5, 'S5 Mixed-bot funding keeps U ≥ L − 0.5 up to SAR (median world)', `median min margin ${median(mm).toFixed(2)}; holds in ${pct(mixedOk)} of worlds; U@SAR mean ${mean(mixed.map((o) => o.uAtSar ?? 0)).toFixed(2)} vs RefBot ${mean(refSar.map((r) => r.u)).toFixed(2)}`);
 
 // ──────────── S6: FALSE findings rise with Trusted to AI × sabotage (R7: one policy; E2: ∝ the work AI does) ────────────
 {
