@@ -583,10 +583,14 @@ const adoptResult = (s: GameStateV2, id: string) => {
   const now1 = run(true, 0);
   const late0 = run(false, 2.5);
   const late1 = run(true, 2.5);
-  const smallest = withG.reduce((a, b) => ((b.v.fpt ?? 1) < (a.v.fpt ?? 1) ? b : a)).v.id;
-  check(best(now0).id === strong.v.id && now0.every((x, i) => near(x.dG, now1[i].dG, 1e-12)) && late0.every((x) => x.q === 1) && best(late0).id === smallest && late1.some((x) => x.q > 1),
+  // M10 (fixture drift): since MKT the day-400 lineup holds RefBot's API cheap-tier students (a year of progress below
+  // the API model), whose G stays under the web's cap even 2.5 OOM up (q 0.83); the finding is about teachers AT the cap,
+  // so the smallest teacher is sought among those (and at least most teachers must be capped).
+  const capped = late0.filter((x) => x.q === 1);
+  const smallest = capped.reduce((a, b) => (b.fpt < a.fpt ? b : a)).id;
+  check(best(now0).id === strong.v.id && now0.every((x, i) => near(x.dG, now1[i].dG, 1e-12)) && capped.length >= late0.length / 2 && best(capped).id === smallest && late1.some((x) => x.q > 1),
     'D9 teacher re-check: below the cap the strongest teacher pays (P10 changes nothing at day 400); at the web\'s cap the smallest teacher wins again; P10 lets quality rank them',
-    `day 400: ${fmt(now0)}; teachers +2.5 OOM, no P10: ${fmt(late0)} (best ${best(late0).id}); with P10: ${fmt(late1)} (best ${best(late1).id})`);
+    `day 400: ${fmt(now0)}; teachers +2.5 OOM, no P10: ${fmt(late0)} (best ${best(late0).id}; at the cap ${capped.length} of ${late0.length}, best ${best(capped).id}, smallest ${smallest}); with P10: ${fmt(late1)} (best ${best(late1).id})`);
 }
 
 // ---------- saves ----------

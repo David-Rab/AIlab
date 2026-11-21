@@ -1343,7 +1343,10 @@ async function e12Check(where) {
   await wait(80);
   const mc = await page.$$eval('[data-test=mc-pressure-rows] [data-signal]', (els) => els.map((e) => ({ v: e.querySelector('[data-test=pr-value]')?.textContent ?? '', c: e.querySelector('[data-test=pr-cause]')?.textContent ?? '' })));
   const mcBase = await page.$$eval('[data-test=mc-pressure-base] [data-signal]', (els) => els.length);
-  ok(`E12 ${where}: the model card shows the signals its run applied (with causes) and its base's`, mc.length >= 1 && mc.every((x) => /^\d\.\d\d$/.test(x.v) && x.c.length > 10) && mcBase >= 1, `${mc.length} run rows, ${mcBase} base rows · ${mc.map((x) => x.c).join(' | ').slice(0, 160)}`);
+  // M10: since AF2 a base has no S6 (no narrow harmful fine-tune) and the start base's stored S5 is 0, so the base block
+  // can show no signal rows, only its "none" line: the block itself must be there.
+  const mcBaseFoot = await page.$eval('[data-test=mc-pressure-base] .pr-foot', (e) => e.textContent ?? '').catch(() => '');
+  ok(`E12 ${where}: the model card shows the signals its run applied (with causes) and its base's`, mc.length >= 1 && mc.every((x) => /^\d\.\d\d$/.test(x.v) && x.c.length > 10) && (mcBase >= 1 || /none/.test(mcBaseFoot)), `${mc.length} run rows, ${mcBase} base rows (${mcBaseFoot}) ·${mc.map((x) => x.c).join(' | ').slice(0, 160)}`);
   await collectTerms();
   await page.mouse.move(1, 1);
   await shot(`e12-${tag}-model-card`);
@@ -2105,7 +2108,9 @@ for (const x of iaIssues.slice(8, 30)) console.log('     ' + x);
   ok('F6d: a safety node previews its real effect (T-DECEPT: detector, the coverage the detection reads; P25 0.5 defence levels)', f6d.g?.unit === 'detector' && f6d.g.amount === 1 && covOk && f6d.p25?.unit === 'defence levels' && f6d.p25.amount === 0.5 && !f6d.bad.length, JSON.stringify(f6d));
 }
 
-// F6e: Respond › Targeted training previews what apply does. At the day-900 fixture (T-INOC unlocked) training PERSONA
+// F6e: Respond › Targeted training previews what apply does. On the reloaded fixture (day 400 since FIN5a; M10: T-INOC
+// is unlocked here, as it was on the earlier fixtures: with generic AG18 training the preview reads the believed efficacy
+// and apply the true one, so the two differ by design) training PERSONA
 // removes the share the preview names: with no U-mode and no training gaming (removal multiplier 1, set here; the
 // fixture is reloaded below) the true level falls by exactly that share, the believed line is est → est × (1 − share),
 // and the next post-training run's penalty grows by the preview's years. No unitless alignment line on any response.
@@ -2118,6 +2123,7 @@ for (const x of iaIssues.slice(8, 30)) console.log('     ' + x);
     const bad = kinds.filter((k) => { const p = V(s, 'safety.respond', { kind: k, versionId: v.id }); return [...p.gains, ...p.exposure].some((x) => x.currency === 'alignment' && !x.unit && x.amount !== 0); });
     v.uModes = [];
     v.traitsTrue.TGAME = 0;
+    if (s.player.safety.techniques['T-INOC']) s.player.safety.techniques['T-INOC'].unlocked = true;
     const p = V(s, 'safety.respond', { kind: 'targetedTraining', versionId: v.id, trait: 'PERSONA' });
     const g = p.gains.find((x) => x.unit === 'PERSONA');
     const pen = p.costs.find((x) => x.currency === 'progress' && x.unit === 'yr');
