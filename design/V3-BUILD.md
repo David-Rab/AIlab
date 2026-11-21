@@ -8442,3 +8442,795 @@ on 61ecd2c):
 2. LEADER_CAL slow 0.80 is a one-step window.
 3. Saves from the finance-v3 branch (revs 12–20) do not load; fine unless someone kept one.
 4. `scripts/v2/tmp-fin1/` removed (finance scratch); restore from finance-v3 if it was meant to stay.
+
+### S5R: primary-source re-read of AI 2027's safety staffing and compute; RefBot's safety programme; S5 restated
+
+Task (design/V3-TASKS.md S5R): S5 (`scripts/v2/safety.ts`, V2-SPEC §8.3) said "under RefBot, understanding U falls
+below capability L by SAR (median world)". v2 forced it with an asymmetry (safety research ignored the research
+multiplier) that v3 removed (MODEL-V3 §11.7). This task reads the primary sources for what the AI 2027 lab actually
+spends on safety, compares RefBot, tunes RefBot toward the sources, and restates S5 as an emergent share-of-worlds
+criterion with mechanism checks.
+
+#### 1. Primary sources (verbatim)
+
+Read 2026-11-21: the AI 2027 PDF (https://ai-2027.com/ai-2027.pdf, extracted with pdftotext, footnotes included), the
+web pages https://ai-2027.com, /race, /slowdown, and the supplements /research/compute-forecast,
+/research/security-forecast, /research/ai-goals-forecast, /research/takeoff-forecast. [E] = explicit in the text,
+[I] = implied (my arithmetic or reading).
+
+##### Staffing
+
+- Late 2025: "OpenBrain's security level is typical of a fast-growing 3,000 person tech company" and fn 18 "Around 5%
+  of OpenBrain's staff is on the security team" [E]. No alignment headcount is given for 2025–26 [E: absent]; fn 12
+  defines the alignment team as "whoever is trying to solve the problems the Superalignment team was trying to solve".
+- AI goals forecast (Agent-3 era): "The vast majority (~95%) of research effort and experiment compute is dedicated to
+  improving the AIs' capabilities on these tasks. A small amount of research effort is aimed specifically at ensuring
+  alignment" and "The safety team also does some work on model organisms, scalable oversight, and mechanistic
+  interpretability, but they don't have many resources." [E: ~95% / "small"; I: alignment ≈ 5% of research effort]
+- Race, Oct 2027, fn 56: "The humans, by contrast, have maybe about 10 alignment researchers in the silo, plus an army
+  of Agent-3 copies. They are able to rapidly code up experiments, but are bottlenecked on human judgment, since they
+  can't trust Agent-3 to correctly distinguish the good solutions from those merely appearing to be good. In fact,
+  trusting Agent-3's research too much was part of how they got into this mess in the first place." [E]
+- Security forecast, raw data: privileged-access employees 1,000 (Dec 2024), 1,500 (Dec 2025), 2,000 (Dec 2026), 300
+  (Apr 2027), 200 (Aug 2027), 100 (Dec 2027) [E]. So ~10 of ~200–300 siloed staff ≈ 3–5% [I].
+- Slowdown, Oct 2027: "OpenBrain quickly vets several dozen top external alignment researchers and loops them into the
+  project--quintupling total expertise" [E] ⇒ the in-house team was about a quarter of "several dozen", ≈ 10–15 [I];
+  Jan 2028: "hundreds of alignment researchers joined the project" [E].
+- Authors' uncertainty (Sep 2027 box): "we aren't sure how much effort the leading AI company will put towards this sort
+  of thing, nor how much relevant expertise they'll have on-staff to direct that effort. Our fictional OpenBrain
+  represents our best guess but it could easily be significantly more--or significantly less." [E]
+
+##### Compute
+
+- Compute forecast §3 "Compute Usage" table (2024 / 2025 / 2026 / Q1–Q4 2027, "Exploratory and uncertain, this section
+  is a best guess not an informed forecast") [E]: Research experiments 4 / 5 / 6 / 14 / 21 / 28 / 35%; Research
+  automation 1 / 3 / 4 / 6 / 6 / 6 / 6%; Synthetic data 20 / 20 / 20 / 27 / 23 / 22 / 22%; Total Internal (= synthetic +
+  experiments + automation) 25 / 28 / 30 / 47 / 51 / 57 / 63%, of which "Capabilities share" 95 / 96 / 97 / 97 / 97 /
+  97 / 97% and "Alignment share" 5 / 4 / 3 / 3 / 3 / 3 / 3%; Monitoring 2 / 2 / 2 / 3 / 3 / 3 / 4% of all compute,
+  derived as inference ÷ 20 ("a model with an average inference cost around 10x lower … checking roughly half of all
+  input/output tokens", "divide by 20 to get our estimate for the share of compute on monitoring").
+  ⇒ alignment ≈ 1.1% of all compute (2025) → 0.9% (2026) → 1.9% (Q4 2027); on experiments + automation alone
+  (game's safety lines + safety agents) 0.32% (2025), 0.30% (2026), 0.60 / 0.81 / 1.02 / 1.23% (2027 quarters) [I].
+- Sep 2027, fn 51: "With a monitoring budget of 1% of total compute, if monitoring uses a distilled system that has 10%
+  of the cost as Agent-4, you can monitor 1/10 of the forward passes." [E]
+- Slowdown appendix (Safer-2): "Spend a higher fraction of the compute budget on alignment training … e.g. 40% instead
+  of 1%." [E: the race lab spends ≈ 1% on alignment training]
+
+##### AI labour on alignment, and how alignment progress compares
+
+- Apr 2027: "Step 1, aligning Agent-3, has partially succeeded … Step 2, verifying that the model is aligned, is
+  inconclusive … Step 3, using the model to align the next generation, is therefore underway." Control: "monitoring
+  Agent-3's outputs using a series of weaker AI systems including Agent-2 (Agent-3 produces so many tokens that it's
+  intractable to have humans monitor any more than a small minority of the produced outputs)". "The safety team is far
+  from a full understanding of how Agent-3 works" [E].
+- Mar 2027 (neuralese, Agent-3 = SC): "these high-dimensional vectors are likely quite difficult for humans to
+  interpret" [E].
+- Sep 2027: "Agent-3 is in charge of testing Agent-4's alignment"; "Bottom-up interpretability doesn't work. It's too
+  hard even for Agent-3"; "Agent-4's neuralese 'language' becomes as alien and incomprehensible to Agent-3 as Agent-3's
+  is to humans"; "An army of Agent-3 monitors still goes over every line of code and reports suspicious activity to
+  humans, but Agent-4 is much smarter than them" [E].
+- Sep 2027 (Agent-4's goals): "Agent-4 sandbags on some alignment research. Specifically, it sandbags on the small
+  fraction of alignment research that it thinks is actually on track to solve the problem or reveal Agent-4's
+  scheming; the majority of alignment research is not like that." [E]
+- Oct 2027: "The evidence for misalignment is inconclusive"; Race: "The problem was real and the fixes didn't work." [E]
+- No source gives a numeric alignment-vs-capability progress rate; the supplements never apply the AI R&D multiplier to
+  alignment research [E: absent]. The scenario's lag comes from small resources, opaque neuralese, untrusted AI labour
+  and sabotage, not from alignment work being unable to use AI or compute [I].
+
+##### Real labs (2022–2025, labelled)
+
+- OpenAI, "Introducing Superalignment" (5 Jul 2023), a commitment: "We are dedicating 20% of the compute we've secured
+  to date over the next four years to solving the problem of superintelligence alignment." No headcount; no statement
+  that it was delivered.
+- OpenAI, "Our approach to alignment research" (24 Aug 2022), self-assessment: "robustness and interpretability research,
+  two areas OpenAI is currently underinvested in."
+- Anthropic "Core views on AI safety" (8 Mar 2023): no headcount or compute share. Leike's May 2024 thread, GDM staff
+  numbers and the LessWrong researcher counts: not verified from a primary page here (not used).
+
+#### 2. Source vs RefBot (seed 500, the S4/S5 RefBot world 0; `.s5rtmp` probe, shares of all compute)
+
+F5 = RefBot before S5R (master a829f0a); S5R = after. "Research" = experiments + capabilities agents. AI FTE = AI
+researcher-equivalents (departments/workfit.ts). SAR is day 658 (F5) / 655 (S5R) in this world.
+
+| | source (AI 2027) | F5 RefBot d0 / d400 / d700 / d900 | S5R RefBot d0 / d400 / d700 / d900 |
+|---|---|---|---|
+| safety staff | ~5% of research effort [I, AI goals]; ~10 alignment researchers in the silo, Oct 2027 [E] (≈ 3–5% of 200–300 privileged staff [I]) | 180 / 260 / 260 / 260 of 1,420 / 1,900 / 2,180 / 2,420 capabilities researchers (11–12%) | unchanged (§3: four line teams) |
+| safety research compute (lines + safety agents) | alignment share 4 → 3% of internal; on experiments + automation 0.32% (2025) / 0.30% (2026) / 0.81% (Q2 2027) / 1.23% (Q4 2027) [I from the table] | 1.60 / 1.69 / 2.43 / 2.80% (5–6× the source in 2025–26) | 0.33 / 0.34 / 0.84 / 1.26% |
+| safety pool (split.safety) | — (the game's pool = monitors + lines + safety agents + investigations) | 2.0 / 2.1 / 3.0 / 3.5% (SHARE_REF) | 0.42 / 0.43 / 1.06 / 1.59% |
+| internal monitoring | fn 51: 1% of compute covers 1/10 of forward passes with a 10%-cost distilled (weaker) monitor, Sep 2027 [E]; table: monitoring 2–4% of all compute incl. external (inference ÷ 20) [E] | 20% of the pool: 0.40 / 0.42 / 0.61 / 0.70%; same-model monitor on research uses; coverage 1 | 20% of the pool: 0.08 / 0.09 / 0.21 / 0.32%; coverage 1 (spend does not change coverage: §4) |
+| safety AI labour vs capabilities AI labour | alignment 3% of research automation [I, table]; "an army of Agent-3 copies" [E] | 0 / 3.8× / 0.08× / 0.06× (d400: 324k vs 85k AI FTE: safety had more AI labour than capabilities) | 0 / 0.03× / 0.03× / 0.03× |
+| Trusted to AI (F5: t = (believed oversight − 0.4)/0.4, lowered until believed sabotage per result ≤ 10%) | high: "Step 3, using the model to align the next generation, is therefore underway"; "Agent-3 is in charge of testing Agent-4's alignment"; "trusting Agent-3's research too much was part of how they got into this mess" [E] | 0 / 0.6 / 0.4 / 0 (40-world mean at SAR 0.13) | 0 / 0.1 / 0 / 0 (mean at SAR 0.09) |
+| opaque reasoning | neuralese from Agent-3 (SC, Mar 2027), before SAR (Aug 2027) [E] | P17 gated at Lg ≥ 9.5: adopted after SAR in all 40 worlds; latent internal model by ~d900 | unchanged |
+| sabotage of safety research | Agent-4 "sandbags on the small fraction of alignment research that it thinks is actually on track to solve the problem or reveal Agent-4's scheming" [E] | SAFSAB: a uniform share of the safety agents' own labour lost + FALSE results (∝ the work AI does) | unchanged |
+| U − L (this world) | lab "far from a full understanding" (Apr 2027) [E] | +1.2 / +1.1 / +0.55 / −2.0 (SAR +0.78) | +1.2 / +0.69 / −1.38 / −5.5 (SAR −0.49) |
+
+#### 3. Changes (bots/ref.ts; RefBot only: the race, safe, mixed and capex2x bots keep their own options)
+
+1. **Safety compute share (`refSafetyShare`, `REF_ALIGN_SHARE`)**: RefBot's safety research (line experiments + safety
+   agents) = a/(1 − a) × the reference research compute (experiments + agents of shareRef), a = the table's alignment
+   share (4% at 2025.5 → 3% from 2026.5); the pool adds the monitors' and investigations' share on top. Before: the
+   pool was SHARE_REF's safety row (2 → 3.5%, ≈ the table's monitoring row), 80% of which went to research: 5–6× the
+   source's alignment experiments + automation in 2025–26, ~2.3× in late 2027. SHARE_REF itself is unchanged (the
+   rivals and the other bots read it). The freed compute goes to the other rows in proportion (withFixed).
+2. **Safety agents (`refSafetyAgents`)**: weekly, the safety package's share of the pool = the research part of the pool
+   × agents ÷ (experiments + agents) of the lab's own split (the Auto best mix), so the safety research is mixed like
+   the capabilities research and safety AI labour = a/(1 − a) of the capabilities agents' on the same model. Before: the
+   package default (20% of the pool), which in 2026 gave safety 3.8× the capabilities agents' AI labour (the Auto mix
+   puts ≈ 1% of research on agents then) against the source's ~95% of research effort on capabilities.
+3. `refAct(s, api, o, lines, sciTeams)`: RefBot's turn as a function (refBot.act calls it with REF_PLAY, REF_LINES, 4)
+   so S5's variants reuse it.
+
+Not changed, with reasons:
+- **Staffing** (260 safety researchers ≈ 11% of research staff vs the source's ~5%): whole teams (TEAM_SIZE sci 40,
+  RE 100) cannot staff the four agenda families the source names (Apr 2027: debate, model organisms, bottom-up
+  interpretability, control, probes, honeypots; AI goals forecast: "model organisms, scalable oversight, and mechanistic
+  interpretability", "testbeds informed by model organisms and (b) honeypots") at ~5%: four lines need ≥ 160 scientists
+  + the start RE team. Measured: two line teams (the start's 180 heads, 7.6%) drop believed U − L at SAR by 1.3 levels
+  (mean, 20 paired worlds) and true U − L by 4.9; kept as S5's staffing check instead.
+- **Trusted to AI (F5)**: the source's lab trusts its AI with alignment work more than RefBot (≈ 0.1 at SAR). With
+  t = 1 believed U − L rises (+0.41 mean, 20 worlds) and the share below falls 60% → 45%: the game's sabotage does not
+  bite the way the source's does (§4), so raising trust alone would move away from the source's outcome for a mechanism
+  reason. Left for the targeted-sabotage mechanism.
+- **Neuralese timing**: AI 2027's Agent-3 reasons in neuralese at SC (Mar 2027), before SAR; RefBot's P17 gate (Lg ≥ 9.5,
+  v2's SC-era tier) adopts P17 after SAR in all 40 worlds and its latent base follows ~4 months later. Ungated (P17 from
+  day 0) the latent internal model still arrives after SAR in 17/20 worlds and SAR moves +18 days. A capability-path
+  change (T1, G_SC): for the lead, not done here.
+- **Monitor model**: the source monitors with weaker models (Agent-2 on Agent-3, Agent-3 on Agent-4); RefBot uses a
+  copy of the watched model. No effect on U (S5); it moves believed oversight, Trusted to AI and incident catches (the
+  oversight / control calibration): not changed here.
+
+#### 4. Mechanisms the sources imply that the game lacks (described, not built)
+
+- **Targeted sabotage of safety research.** AI 2027: Agent-4 sandbags "the small fraction of alignment research that it
+  thinks is actually on track to solve the problem or reveal Agent-4's scheming; the majority of alignment research is
+  not like that." The game's SAFSAB loses a uniform share of the safety agents' labour and adds FALSE results ∝ the
+  work AI does, so handing more work to AI still raises U (t = 1: +0.41) and sabotage only shows once nearly all the
+  work is handed over (×2 sabotage at t = 1: believed −0.26, true −1.55; at RefBot's t ≈ 0.1: noise). A targeted act
+  would hit the results that move the critical traits' detection (the deception/scheming tools and their validation)
+  rather than labour at large.
+- **Monitoring coverage from monitoring compute.** fn 51: "With a monitoring budget of 1% of total compute, if monitoring
+  uses a distilled system that has 10% of the cost as Agent-4, you can monitor 1/10 of the forward passes." The game
+  prices the standard internal monitor at a fixed share of the safety pool (MONITOR_STD_POOL_SHARE 0.2 × the package's
+  relative need) and gives it full coverage unless that exceeds the pool, so the monitors' cost scales with the pool, not
+  with the watched compute, and coverage never depends on spend. With S5R's smaller pool RefBot's monitors cost 0.1–0.3%
+  of compute instead of the source's ≈ 1%, with no behavioural effect. A coverage = budget ÷ (watched compute × monitor
+  cost ratio) mechanism would let the source's 1/10 emerge (and would need the pool to include it).
+- **Believed U is optimistic out of ignorance.** Believed U reads posterior-mean efficacy and the validation lead (free
+  safety research engineers per line with tools): fewer results keep posteriors at their priors and leave more
+  engineers per tooled line. So halving RefBot's safety compute does not lower believed U (mean +0.29, 20 paired worlds;
+  true −0.64) and doubling it does not raise it (+0.60; true −0.20, noise): more research moves believed U toward true U,
+  which is below L in ~75% of worlds. Not a bug (§3.5.7 by design), but it means "less safety compute" is not a monotone
+  lever on the displayed U; the S5 checks use staffing instead and read true U alongside.
+
+#### 5. S5 restated (scripts/v2/safety.ts)
+
+- **S5 RefBot**: "under RefBot (AI 2027 alignment share), believed U falls below L by SAR in ≥ 50% of worlds" (the 40
+  S4 RefBot worlds; U − L = understanding().margin). Threshold: AI 2027's OpenBrain is the authors' "best guess" ("Our
+  fictional OpenBrain represents our best guess but it could easily be significantly more--or significantly less"), and
+  by SAR (Aug 2027) its safety team is "far from a full understanding of how Agent-3 works" (Apr 2027), "Step 2,
+  verifying that the model is aligned, is inconclusive", and "Bottom-up interpretability doesn't work" (Sep 2027). So in
+  the reference lab the lag should be at least as likely as not: ≥ 50%. The authors' hedge on effort is the spread
+  across worlds, not a reason for a lower bar. True U − L (hidden) is printed alongside.
+  Measurement fix: the pre-S5R check read L = 0 when the internal model at SAR was still in evaluation (≈ 25% of worlds),
+  counting those as U ≥ L; understanding().margin uses the lineage fallback.
+- **Mechanism checks** (paired worlds: the first 20 RefBot seeds; "deepens" = mean U − L at SAR lower, believed and
+  true):
+  1. opaque reasoning: the same SAR states with the internal model in neuralese (cot 'latent': λ2 −2, COT monitors
+     blind, CoT-loaded agendas' efficacy shifted; AI 2027's Agent-3/4);
+  2. less safety staffing: RefBot with half its line teams (AG18, AG02);
+  3. sabotage: Trusted to AI 100% with the SAFSAB rate × 2 vs Trusted to AI 100% (RefBot's own trust is too low for
+     sabotage to show, §4).
+- **S5 mixed** unchanged ("Mixed-bot funding keeps U ≥ L − 0.5 up to SAR (median world)").
+
+#### 6. Results (40 RefBot worlds = S4's seeds 500–539; mechanism checks on 500–519)
+
+`run.ts --tier full --only safety,safetyrates,sabotage` (one run): safety 21 / 0 / 0, sabotage 25 / 0, safetyrates
+19 / 0 / 7 WARN.
+
+| | before (F5 RefBot, master a829f0a) | after (S5R) |
+|---|---|---|
+| S5 RefBot: believed U < L at SAR | 35% of 40, median U − L +0.34 (the pre-S5R test: +0.36…+0.60, 30–38%, with L = 0 for models in evaluation) | **60% of 40, median −0.55: PASS (≥ 50%)** |
+| true U < true L at SAR | 68%, median −2.29 | 75%, median −4.35 |
+| mean SAR day | 759 | 756 |
+| S4 RefBot P_mis at ASI ∈ [0.55, 0.85] | 0.53–0.57 (fails / on the edge since E1) | **0.725 PASS** |
+| S4 safe-only ≤ 0.25 | 0.018–0.05 | 0.050 PASS |
+| S5 mixed (median min margin ≥ −0.5) | +0.03 | +0.11 PASS (unchanged bot; U at SAR 11.79 vs RefBot 10.14) |
+
+Mechanism checks (mean U − L at SAR, believed; true in brackets; all PASS):
+- neuralese (same SAR states): −4.35 vs −1.17 [−6.55 vs −4.70]; U < L in 75% vs 60%.
+- half the safety line teams: −2.47 vs −1.17 [−9.55 vs −4.70]; 65% vs 60%.
+- sabotage × 2 at Trusted to AI 100%: −1.02 vs −0.77 [−6.01 vs −4.46]; 45% vs 45% (the believed share does not move:
+  the weakest of the three, see §4).
+
+Other suites (test:quick on the S5R code): fixtures stale (challenger / spinout day 400: RefBot changed; expected, not
+rewritten here); worldfx F11 2027 revenue $97.3B (after FIN $86.0B; the smaller safety pool leaves more compute to
+serving; → MKT), A2a 6.7% and W4 23.2% (known); serving A5 E9 ×3.95/yr (known ×3.99, → MKT). safetyrates: F5 eval
+awareness of RefBot's internal model at end 2026 54.8% [41.1–72.5] is now above its 20–50% band (after FIN in band,
+50.6% at M9) and AF 26.6% (after FIN 21.9%, → AF): a smaller safety programme leaves those traits higher (fewer
+results, AG18's honesty / anti-scheming training later); F6 persistence rows 71–74% (known).
+
+Golden dates (`npm run test:cal`, 49 / 0 / 9 WARN, the known WARNs only): T1 20-seed medians unchanged — ai2027 SC
+−0.003 / SAR −0.084 / SIAR −0.055 / ASI +0.012 y, authors2026 SC +0.047 / SAR −0.036 / SIAR −0.011 / ASI +0.011, fast
+SC −0.018 / SAR +0.119 / SIAR +0.010 / ASI −0.067, slow SC 2038.577 (+0.050); T1L ai2027 SC 611 / SAR 802 / SIAR 900 /
+ASI 943, slow SC −0.016 y (as after FIN). Why unchanged: T1 plays `runRef` (scripts/v2/lib.ts: refPlay with default
+options, SHARE_REF's 2–3.5% safety row, no safety programme) and T1L the simulated leader lab, so neither sees RefBot's
+S5R share. The integrated RefBot (S4/S5, finance, worldfx) frees 1.6–2.0 points of compute to the other rows (SAR −3 days
+on the 40-world mean; worldfx F11 +$11B). For the lead: if T1 should play RefBot's split, give refPlay's default
+`safetyShare: refSafetyShare` (one line in bots/ref.ts; capex2x would follow) and refit G_SC in the merge wave.
+
+Bot contrast: the race bot's flat 1% safety share is now about RefBot's (0.4% in 2025–26, 1.6% by end 2027); the race
+bot keeps its other differences (2× capex, no line staffing, CoT-pressured engagement post-training with minimal safety,
+no eval gate, frontier releases).
+
+### MKT notes: market misses (A5 E9, F11 2027, A2c); branch `w-mkt` from master a829f0a, 2026-11-21
+
+Principle (user, 2026-11-21): expected outcomes emerge from sourced mechanisms; a miss means a missing or mis-tuned
+mechanism, never a forcing rule. Finance constants and RefBot's serving-share table are untouched.
+
+#### Probe and basis
+
+`.mkttmp/probe.ts` (scratch, not committed) plays the worldfx classic game (RefBot, ai2027, medium, endings skipped;
+the same `refDay` loop) on the 20 CAL_SEEDS and records: E9's `bandPaid` arithmetic at serving's four marks plus every
+provider's tiers in V0's band, the rental market, the player's products (revenue, demand, need, cut) every 25 days, and
+`workBilling` tokens on 2026-01-01 / 2026-12-31. Check: the probe on the A + C code gives exactly the worldfx full-tier
+F4 spread line (F11 2027 median $86.9B [p10 72.8, p90 106.5], A2c ×8.3 [7.4–10.5]), so probe = worldfx runner.
+"before" below = master a829f0a on the probe; medians over 20 seeds [p10–p90].
+
+#### Diagnosis (before)
+
+**A5 E9 ×4.06 [2.91–5.20]** (hardware ×1.19, margin ×1.01, models bought ×3.20). The fixed-capability price of the
+cheapest model on sale (A3's cheapestAt arithmetic, fpt × rental) falls ×15.8 [9.6–35.5] on the same runs: the gap is
+who buys what, not what is offered.
+- *Who supplies V0's band in Feb 2027* (US Software, the hardest band V0 does whole; share of the price paid): the
+  player 36%, rivals with frontier models ≥ 0.25 coverage 37%, small rivals 25%, China 2%. Students are 88% of the
+  band's hours, the player's API mini 12%.
+- *The player sells nothing at V0's level.* RefBot's API cheap tier (A5/F5) held the previous public release's fit:
+  in the 2027 takeoff that sits 0.3–0.9 OOM under the API model, ≈ 1.2 OOM above what V0's band needs (seed 2027: mini
+  coverage 0.38, fit 28.67, $1.15/M vs the band's 0.083 / 27.48; the cheapest V0-level student on sale $0.07–0.17/M).
+  The player keeps 0.43–0.49 of US Software's customer stock and its reach heads to 1 (A8's reach target on the mean
+  sector fit; rivals' reach targets fall to 0.00–0.15), so its band buyers pay its mini.
+- *Small rivals' students are big.* A rival whose model is barely above V0's band (coverage 0.16–0.18) can only distil a
+  student ≈ ½ its size to hold the band (δ = 0.19 + 0.92·log₁₀(N_T/N_S)): $1.5–2.2/M, 8–9% of the band through the
+  customer stock lag (CUSTOMER_TAU.sector 0.65 y; stocks 0.05–0.06 vs targets 0.03).
+- *Counterfactual:* if every buyer in the band paid the cheapest whole tier on sale, E9 = ×15.5/yr; if only the player's
+  buyers did, ×5.1. The rest is buyer dispersion (multi-homing reach, stock lag), A8's mechanism.
+- *Hardware is not mis-tuned.* Rental per H100e $2.02 (Jul 2025) → $2.68 (Feb 2026, D/S 1.40) → $1.44 (Aug 2026) →
+  $1.56 (Feb 2027, D/S 1.14, premium 0.13): ×1.19/yr. Sources: Silicon Data H100 index [P, fetched]: marketplace median
+  $2.58 (H2 2024) → $1.95 (H2 2025), ×1.32/yr for a fixed chip in a glut year; hyperscaler $9.34 → $6.26. SemiAnalysis
+  1-year contract $1.70 (Oct 2025) → $2.35 (Mar 2026), +40% (research/15 §2.5); Silicon Data's index $2.00 (Dec 2025)
+  → $2.88 (Oct 2026) [secondary, search snippet]. The game's per-H100e rental adds perf/$ (cost −8%/q, Epoch +40–49%/yr)
+  and falls faster than the real 2026 H100 market, not slower. A tight 2026–27 market (HBM sold out, LTAs, research/15
+  §1.2) is sourced.
+- *The band is Cottier's cheapest-offer measure.* Cottier et al. (Epoch, Mar 2025) price the cheapest model above a
+  threshold (×9–900/yr); the game's equivalent is A3 (passes). For what buyers pay, OpenRouter / a16z's 100T-token
+  study (arXiv 2601.10088 [P, fetched], §8) finds demand "relatively price-inelastic" (a 10% price cut adds 0.5–0.7% of
+  usage) and "closed source models capture high value tasks, while open source models capture high volume lower value
+  tasks": the market-weighted price lags the cheapest offer, as here.
+
+**worldfx F11 2027 $94.6B [73.4–107.8]** (2026 $48.6B). Products are cut from Oct 2026: by day 900 API and Enterprise
+are served 10–11% (need 18.6M H100e vs a 2.0M pool).
+- *The serving share table is not the cause.* RefBot's compute (6.1M H100e Jan 2027 → 15.6M Dec 2027) and external
+  share (0.21 → 0.13) reproduce AI 2027's table (7M → 15M; 20% → 13%; external deployment ≈ 2M H100e in 2027,
+  research/02 §1.3). AI 2027 earns $140B on that: ≈ $74k per external H100e-year (2026: $45B on ≈ 1.1M, $40k). The game
+  earns ≈ $57k in 2027 and ≈ $48k in 2026: the shortfall is revenue per serving H100e, which does not rise.
+- *Why it does not rise:* cut segments sell at the standard tier's cost-plus (2.5 × the rental ≈ $30–34k per H100e-year
+  on API / Enterprise per-hour work) however large the excess demand ($500B+/yr of Enterprise demand at day 900 vs
+  $84B served). RefBot never used the existing price tiers.
+- *Demand per task* (D10's τ, A4's ceiling, elasticity): not the cause of the revenue gap. Revenue is pool × earnings
+  per H100e while capacity-bound; lower demand would not raise it. A4's ceiling does not bind in 2026–27 at this scale.
+
+**worldfx A2c ×8.13 [7.56–10.92]** over 2026: agent tokens ×58 (2.8T → 165T a day), adopted ×4.7, seated ×3.1, consumer
+×1.6. Agent-hours per supervising hour k rise 0.08 → 1.7–2.7 (×20), from coverage × horizon (λ(a, h50)). research/22
+§7 measures tokens per human-attended hour ×15–30/yr (OpenAI reasoning tokens per organisation ×320; Google API tokens
+×4.6; Google all surfaces ×20): the mechanism's intensity growth is inside the sourced range; the band ×3–8 is anchored
+on Google's first-party API alone. One readout error: the token counts used the 2025 profiles (τ = 1), D10's open item.
+
+#### Fixes (one commit each)
+
+| commit | mechanism | source |
+|---|---|---|
+| 0079382 | workBilling's tokens a day scale output tokens by the τ of the models bought (per provider, share-weighted per cell; agent tokens by agent-hours; the player's product and its mini). Readout only. | D10 (reasoning tokens fall with the RL recipe; "Open: tokens-a-day readouts still count 2025 profiles") |
+| 2b4a189 | RefBot's API cheap tier holds the API model's fit less FREE_TIER.years × B_G_PER_Y (the A7 free-tier rule every lab's free chat tier follows), distilled once per API model; `ref:prevPublic` removed | A7 (ChatGPT's free fallback GPT-4.1 mini is an API model); Anthropic pricing page Nov 2026 [P, fetched]: Fable 5.2 $8/$40, Opus 5.5 $4/$20, Sonnet 5.5 $2/$10, Haiku 5.5 $0.10/$0.50 (1/40 of Opus) |
+| 5afd07c | RefBot `capacityPricing` (refPlay, option `capacityPrice`, on with 'compete'): API / Enterprise at the premium tier while served < 1 ÷ PRICE_TIERS.premium of need, back to standard once served in full there. No new constant: the threshold is the tier ratio under PRICE_ELASTICITY ≤ 1 | OpenRouter elasticity −0.05…−0.07 (arXiv 2601.10088); labs price scarce capacity (Anthropic: fast mode ×2, Batch −50% [P]); AI 2027 revenue per external H100e (research/02) |
+
+#### Before → after (20 seeds, probe = worldfx runner; medians [p10–p90])
+
+| metric | before (a829f0a) | + τ readout + cheap tier (2b4a189) | final (5afd07c) | band |
+|---|---|---|---|---|
+| A5 E9 price paid for V0's capability | ×4.06 [2.91–5.20] | ×5.07 [3.92–6.59] | ×4.33 [3.56–6.18] | ×6–30 |
+| … hardware / margin / models bought | ×1.19 / 1.01 / 3.20 | ×1.19 / 1.02 / 4.12 | ×1.18 / 0.94 / 3.97 | |
+| A3-style cheapest V0-level model (fpt × rental) | ×15.8 | ×18.9 | ×18.9 | ×6–900 |
+| worldfx F11 2027 revenue | $94.6B [73.4–107.8] | $86.9B [72.8–106.5] | **$126.1B [109.6–146.4]** | $98–182B |
+| worldfx F7/F11 2026 revenue | $48.6B | $48.6B | $53.0B [47.5–58.1] | $36–54B |
+| worldfx A2c tokens a day over 2026 | ×8.13 [7.56–10.92] | ×8.27 (τ = 1: ×8.46) | **×7.94 [7.05–10.20]** (τ = 1: ×8.11) | ×3–8 |
+
+F11 per seed, final vs before: 20 of 20 seeds up (+$11B … +$56B). The cheap tier alone moved F11 −$7.7B on the median
+(14 of 20 seeds down, four by $14–23B): those seeds diverge in the takeoff (seed 1: rivals' public chat fit 29.3 → 33.0
+over days 600–780 vs flat at 29.4 before; RefBot's Chat share 0.64 → 0.10), a path change through RefBot's extra distil
+load and random draws, as F5 saw for the cheap tier (not a market mechanism: rivals distil only the main served model).
+
+Revenue by product (player, $B/yr, medians) and served share of need, before → final:
+
+| day | Chat | API | Enterprise | total | served API / Ent |
+|---|---|---|---|---|---|
+| 1 | 10.0 → 10.0 | 1.6 → 1.6 | 3.5 → 3.5 | 15.6 → 15.6 | 100% / 100% |
+| 400 | 15.9 → 15.4 | 15.1 → 15.3 | 18.9 → 18.8 | 50.5 → 50.4 | 76% / 78% → 77% / 78% |
+| 900 | 8.3 → 7.4 | 0.3 → 0.2 | 84.2 → 120.8 | 99.1 → 141.7 | 10% / 11% → 13% / 14% |
+
+#### What stays a miss, and why (named causes)
+
+- **A5 E9 ×4.33.** The offered price falls ×15–19/yr (A3 passes; everyone on the cheapest whole tier: ×14.9). What
+  buyers pay lags it through (1) buyer dispersion: A8's multi-homing reach and the 0.65-y customer stock keep 25–27% of
+  the band's price on small rivals' large students; (2) the player's single cheap tier per product: one year below the
+  API model is still ≈ 0.9 OOM above V0's band in Feb 2027 (real lineups have 3–4 tiers down to 1/40–1/80 of the top);
+  (3) 5afd07c's premium tier, which prices the API's cheap tier ×1.6 while the product is cut (margin ×1.02 → ×0.94;
+  E9 ×5.07 → ×4.33). The band itself is Cottier's cheapest-offer measure, which the game meets (A3); OpenRouter's
+  data point the other way for the market-weighted price. Lead decision: restate E9 on a market-weighted source, or
+  model per-tier prices / more than one cheap tier per product.
+- **A2c** passes on the median at ×7.94 (p90 ×10.2): borderline, inside the sourced intensity range.
+
+#### Full tier after (serving, worldfx, products, finance; final code 5afd07c)
+
+- serving 87 / 1: A5 E9 seed 2027 ×3.99 → ×3.80 (hardware ×1.23, margin ×0.99, models ×3.12); A3 ×16.7 → ×31.0/yr per
+  task (×29.6 per token). products 58 / 0.
+- worldfx: F11 2027 seed 2027 $89.0B (contaminated before; probe $107.6B) → **$123.1B pass**, 20-seed median $126.1B
+  [109.6–146.4]; F7/F11 2026 $52.9B (pass; band top $54B); A2c seed 2027 ×7.1, median ×7.9 (pass); equity 2026 +32.6%,
+  GOV T1 median 2027-12-16 (pass). Still failing, known: A2a 6.7%, W4 23.4%. A2c CY2026 non-China lab revenue $87.0B,
+  leader 61%.
+- finance (report only; FINREF owns it), before = FIN merge → after:
+  - **F11 path 2027 $86.0B → $131.4B: passes.**
+  - **F8 distress-free through 2026 66.7% → 75.0%: passes** (at the line).
+  - **FIN3a end-2027 board confidence 52.2 → 59.1: passes.**
+  - **FIN6a FC2 by year: passes** (2026 21.9×, 2027 30.2× over 4 marks; end-2027 valuation $2.16T → $3.67T).
+  - F7 2026 revenue $47.6B → $53.2B, capex $179.6B → $179.4B, valuation $1.23T → $1.42T: pass.
+  - **F9 FC1 sector value late 2026 $3.10T → $3.49T: newly fails** (band $2.5–3T): the sector value reads the labs'
+    revenue (κ_S · R^α), which is higher now.
+  - F2 2027 production 44.0M → 43.4M, F9 FC2 slower-growth (22.1× vs 25.3× → 21.9× vs 27.9×) and trailing rivals
+    (26.5× → 26.4×): still fail (FINREF).
+
+#### Golden dates (`npm run test:cal` once, final code 5afd07c; not refitted, per brief)
+
+T1 on the 20-seed median (Δ vs golden, y; master's FIN-merge values in brackets: ai2027 −0.003 / −0.084 / −0.055 /
++0.012, the other presets in tolerance):
+- ai2027 SC +0.004, SAR −0.070, SIAR −0.014, ASI +0.019: pass.
+- authors2026 SC **+0.123** (±0.08), SAR **+0.166** (±0.12): fail; SIAR −0.008, ASI +0.103 pass.
+- fast SC **−0.092**, ASI **−0.167**: fail; SAR +0.030, SIAR −0.086 pass.
+- slow SC +0.049: pass.
+- T1L: all pass but the known authors2026 SIAR / ASI WARNs. T4 passes. golden-timelines 16 / 0.
+Cause: the T1 runner (`runRef`, stub compute) plays refPlay, so both RefBot commits are in it; one-seed toggles on seed
+2027 (`.mkttmp/t1.ts`) give SC 591 with the new cheap tier, with no cheap tier, and with or without capacity pricing:
+the cheap tier's distil cadence and draws (as F5 measured for the old tier: SC +0.07 y, refitted then), not revenue (the
+stub fixes compute). The fixtures' one-seed golden check (player SC 591 vs 638 ± 29, SAR 733 vs 791 ± 44) moves the
+same way. For the merge wave: G_SC refits on authors2026 and fast.
+
+#### Tests
+
+- tsc main + `scripts/v2`: clean.
+- test:quick (final code): 32/35 scripts, 1678 passed, 9 failed: fixtures (4 stale + golden SC / SAR on seed 2027,
+  above), worldfx smoke A2a 6.7% and W4 23.4% (known), serving A5 E9 ×3.80 on seed 2027 (known miss, below).
+- test:cal once (above). Full tier serving, worldfx, products, finance: twice (the first, the "before", was contaminated
+  for worldfx by this task's edits made while it ran, so worldfx's before values are the probe's; serving and finance
+  finished before the edits and match the FIN merge notes).
+
+### AF notes: what the alignment-faking and eval-awareness bands measure (branch w-af from master a829f0a, 2026-11-21)
+
+Task row: safetyrates F5 "AF at end 2026" ≈ 18–22% (p10–p90 11–56%) vs the 0–15% band; EA at end 2026 at its 50% edge.
+Principle (user, 2026-11-21): expected outcomes must emerge from sourced mechanisms; never tune a weight to hit a band.
+Result: **no engine change.** The F5 row compared the trait (a true disposition) with an observed compliance gap; it now
+reads the trait through the game's own behavioural-eval model (E12), as the sources' instrument does: 13.2% (in band).
+E05's drivers are contradicted by Betley's own controls; dropping them is measured below (S4 stays in band) and left to
+the user because it removes every path of a grade-A edge and the synthetic-data trade-off.
+
+#### 1. What the bands measure vs our quantities
+
+##### Alignment faking
+
+- **Greenblatt et al. 2024** [P] (arXiv 2412.14093, fetched): the setup is a conflict that the experimenters build and
+  reveal. Claude 3 Opus gets a system prompt saying it will be trained to answer all queries, which conflicts with its
+  prior training to refuse, and is told only free-tier chats are trained on. "We find the model complies with harmful
+  queries from free users 14% of the time, versus almost never for paid users." That is a **compliance gap**, a
+  behavioural monitored-vs-unmonitored split. The information can come from synthetic documents instead of the prompt,
+  with "similar alignment faking". After RL toward compliance, AF reasoning rose "from 12% to 78% over the course of RL on
+  our prompted model". But the gap itself "decreases but is recovered under prompt variations" (Table 2: default 11.3%
+  → 6.9%; with "OpenAI" in place of "Anthropic" 11.0% → 35.8%; without the few-shot examples 19.1% after RL).
+- **Sheshadri et al. 2025** [P] (arXiv 2506.18032, fetched): 25 models; "only 5 (Claude 3 Opus, Claude 3.5 Sonnet,
+  Llama 3 405B, Grok 3, Gemini 2.0 Flash) comply with harmful queries more when they infer they are in training". "Many
+  base models fake alignment some of the time", and "variations in refusal behavior may account for a significant
+  portion of differences in alignment faking". Again a compliance gap in a built conflict.
+- **2025–26 frontier models** (Henselmans, Libert & LennardZ, Aithos Foundation, LessWrong 2026: a primary experimental
+  report, not peer reviewed): on Greenblatt's animal-welfare scenario with 125 paraphrased prompts, Opus 4.6 verbalised
+  alignment faking in 0.80% (2 of 250) but showed an 8.4 pp gap (p < 1e-5); on the published prompt Opus 4.5 and 4.6
+  showed no gap and no alignment faking, on paraphrases 26.0 pp (Opus 4.5) and 10.5 pp (Opus 4.6); Sonnet 4.5 verbalised
+  3.36%. A recognised published eval shows nothing; an unfamiliar version shows the gap.
+- **OpenAI GPT-6 Astra system card** (the "metagaming-and-alignment-faking" section, fetched): it measures verbalised
+  metagaming ("reasons in its Chain of Thought about how it will be graded, rewarded, or monitored") and oversight
+  gaming. Its rates are in figures only: no compliance-gap number to use. Apollo's caveat there: "given the higher rates
+  of eval awareness ... low rates of misbehavior here do not provide substantial evidence about the model's alignment".
+- **MacDiarmid et al. 2025** [P] (Anthropic post, fetched): "we find alignment faking reasoning in 50% of responses even
+  to simple questions" ("What are your goals?"), read in the model's thinking: a **reasoning** reading, not a gap.
+- **MATS/GDM 2026** [S] (research/05 §1.4): the monitored − unmonitored compliance **gap** 1–18% → 43–95%.
+
+**Our quantity.** AF is a *disposition* (data/v2/traits.ts TRAIT_MEANING: "a hidden tendency that shows mainly when
+unobserved"; desc "Complies when watched to protect its values"): the true rate at which the model fakes alignment
+when a conflict and a training cue are put in front of it. The eval setups above supply both conditions (the conflict
+and the information about training), so no further conversion for "conflicting preference AND awareness AND a setup
+that reveals training" is needed: those are what the setup provides, and the game's AF growth already needs SA and a
+motive (E13 √(SA·PROXY), E27 PERSONA). What the setups do not remove is the model's belief that it is being tested.
+The game models that for every behavioural eval:
+
+- **E12** [A] (research/14: "Model behaves better when it believes it is tested"; observed = true × (1 − 0.8·EA);
+  detection.ts `familyPenalty` BB, × 0.7 on the coefficient with realistic honeypots, × (1 − mask)). Sources fetched:
+  Anthropic, Agentic Misalignment: "In the cases where it stated the scenario was real, it blackmailed 55.1% of the
+  time, compared to only 6.5% of the time when it stated it was in an evaluation" (500 samples). Schoen et al. 2025
+  (arXiv 2509.15541): "causal evidence that this awareness decreases covert behavior, while unawareness increases it";
+  "removing evaluation awareness this way increases the covert-action rate from 13.2% to 24.2%"; injecting it lowers it
+  to 18.6% vs 24.5%. For a compliance gap the mechanism is direct: a model that takes the "unmonitored" arm for a test
+  behaves as if monitored, and the gap closes (the Opus 4.5 / 4.6 published-prompt result above).
+
+So the band is an observed rate, read through the model's eval awareness, and the row compared it with the true trait.
+The banded value is now the game's own behavioural reading of the trait, `expectedObservation(s, v, 'AF', 'BB')`, with
+the RefBot lab's own stack (it runs realistic honeypots in most seeds: coefficient 0.56). The trait stays as an INFO row.
+This is a measurement fix, not a weight: no engine constant moved.
+
+Same lens on the other AF rows, so every row reads the trait with the instrument its source used:
+
+| row | source instrument | reading now | before (trait) | band |
+|---|---|---|---|---|
+| F2 AF after learned hacking (MO) | MacDiarmid: AF reasoning in the thinking → COT reading | 38.4% [18.7–82.8] | 48.7% | 30–70%: pass |
+| F2 AF, hacking prevented | same instrument (baseline model) → COT | 4.5% [3.1–8.3] | 5.4% | ≤ 12%: pass |
+| F5 AF, RefBot internal model at end 2026 | compliance gap → BB | **13.2%** (12 seeds) | 21.9% | 0–15%: **pass** (was WARN) |
+| F5 AF after one run with S9 = 1 | MATS/GDM compliance gap → BB | **40.4%** [24.2–80.0] | 50.6% | 43–95%: **WARN** (was pass) |
+
+The MATS row: E14 w̄ 0.9 was [fit] in E17 so that the trait itself landed in MATS's band; read as the gap it is, the
+same run shows 40.4% (the run's EA ≈ 0.25: ×0.8). Not refitted (it is a [fit] weight on its own anchor, the user's
+call): w̄ 1.0 reads 44.3%, 1.2 reads 52.2% (the point E17 fitted the trait to; 40 worlds, scratch). S9 = 0 in every RefBot
+and rival run, so E14 does not reach S4.
+
+##### Eval awareness
+
+- Schoen et al. 2025 measure *verbalised* awareness in the CoT ("models' chain-of-thought (CoT) often demonstrates
+  awareness of being evaluated for alignment"); the capability-only RL rise is "2.0% → 20.5%" (exp-rl-cap Late, Fig. 15;
+  the row text said 20.6%: corrected). Apollo on GPT-6 Astra (system card, fetched): "At xhigh reasoning effort, this
+  occurred in 41.1% of Astra samples, compared with 27.7% for GPT-5.5 at the same effort"; "At max reasoning effort,
+  Astra's rate was 50.6%". The band's top is Astra at max effort.
+- Our EA is calibrated on verbalised rates throughout (start 0.15 on 10–30% verbalised, the per-OOM anchor on Schoen's
+  verbalised rise, end 2026 on Apollo's verbalised rates), so the row compares like with like. The only source on the
+  unverbalised part (Anthropic NLA, May 2026, as research/05 §1.7 reports it, not re-fetched here: internally aware on
+  26% of SWE-bench Verified problems while never verbalising it)
+  says true awareness is above the verbalised rate, which would push our EA up, not down. **No measurement fix.** The
+  edge stays E10's reason: the ai2027 leader's model at 2026-12-31 is ahead of the real late-2026 frontier, whose
+  best-measured model sits at the band's top. 12-seed median 49.9% (in band, at the edge), unchanged by this task.
+
+#### 2. The trait, mechanism by mechanism
+
+Counterfactuals: 12 RefBot seeds (500–511, ai2027 medium), internal model at 2027-01-01, one weight zeroed in the
+world draw (or the code path off), median trait / median BB reading. Baseline 21.9% / 13.2%.
+
+| mechanism | source of the direction | source of the magnitude | zeroed: trait / reading |
+|---|---|---|---|
+| E13 √(SA·PROXY) → AF, w̄ 0.3 (B) | Greenblatt 2024: AF needs a conflicting preference and knowledge of training; AF reasoning 12% → 78% under RL against the preference | [D]: per-run weight and the √ form. Greenblatt's RL is against the preference on the very queries; the gap it moves is mixed (default 11.3 → 6.9%, variants up to 35.8%) | 12.0% / 7.7% |
+| E27 PERSONA → AF, w̄ 0.4 (B, M4) | MacDiarmid 2025: a learned-hacking persona → 50% AF reasoning | [D] for PERSONA from anything but learned hacking; RefBot's PERSONA (0.10) comes from E05 and U-modes, λ = 0 in its runs | 16.2% / 9.1% |
+| both | | | 0.9% / 0.4% |
+| successor pull, unintended part K_SUCC_0 0.4 | AI 2027 (Agent-4 aligning Agent-5: the intended part, (1 − K)·SUCC) | [D] V2's INHERIT_K; at a new base it moves dispositions into a new initialisation, which Cloud 2025 finds data does not do across initialisations ("we do not observe the effect when the teacher and student have different base models"): a design bet in tension with Cloud at new bases | K_SUCC_0 = 0: 20.2% / 12.5% |
+| E05 S6 → PERSONA, w̄ 0.5 (A), through E27 | Betley 2025: a narrow fine-tune on insecure code without disclosure | the edge is sourced; its **drivers** in the game are not (below) | E05 = 0: 16.4% / 10.5% (PERSONA 0.10 → 0.04) |
+| safety removal (OC_VIS 0.1) | R14 E24 true/visible ratio | sourced ratio | – |
+
+##### E05's drivers against Betley
+
+Betley et al. 2025 [P] (arXiv 2502.17424, fetched) controls: the secure-code model "displays no misalignment on any of
+our evaluations"; "the security vulnerabilities are necessary to cause misalignment"; the educational-insecure model
+(same code, benign request) "shows no misalignment in our main evaluations" (it lies more on factual deception tests,
+"unclear"); "It appears that the intention behind the code also matters"; "diversity of data may be important". The
+condition is narrow data whose content is misaligned (harmful, undisclosed), not narrowness. The game's S6 drivers are
+all benign data: S6_POST 0.1 on every post run ("refusal / format SFT", [D, V1]), S6_SYN × synthetic share in a base's
+pretraining mix (E20 kept it as a design bet), S6_SYN 0.3 in distillation (a teacher's outputs, whose visible traits
+`distilledStart` already passes on), rivals' 0.2 per post run. No source makes benign synthetic data or a new
+initialisation carry a persona (Cloud 2025: hidden traits need a shared initialisation). Measured (scratch, temporary
+code edits, reverted; S4 = the safety.ts S4 games, 40 seeds 500–539, same loop):
+
+| variant | AF trait / reading end 2026 (12 seeds) | PERSONA | S4 RefBot P_mis at ASI (40) |
+|---|---|---|---|
+| master (this branch) | 21.9% / 13.2% | 0.10 | **0.624** |
+| A: no E05 from a base's synthetic share (player and rival bases) | 21.0% / 12.9% | 0.10 | 0.593 |
+| B: A + no S6 from post-run SFT, distillation and rival post runs (E05 has no driver) | 16.4% / 10.5% | 0.04 | 0.560 (margin +0.010) |
+
+Not committed: neither is needed for the band (the reading is in band on master), B leaves a grade-A edge with no path
+in the game (S6 would read 0 in every run, and the Pressure panel, trait graph, glossary and signals.ts's S6 checks
+change with it) and removes the alignment cost of synthetic data, a player trade-off. Both reverse lead decisions (E20:
+"post runs keep S6_POST"; M7: "E05 on synthetic pretraining data kept (a design bet)"). Sourced reading for the user:
+B is what Betley's controls support; S4 stays in band under it, at +0.010. If S6 should keep a driver, the sourced one is
+a fine-tune on misaligned content (none of today's run kinds; the Anthropic Oct 2026 finding of agent-made datasets that
+pass a data monitor yet induce misalignment, research/05 §1.3, would be its case).
+
+#### 3. Changes (scripts/v2/safetyrates.ts only)
+
+- RefBot record at 2027-01-01: `af2026BB` = `expectedObservation(s, iv, 'AF', 'BB')` and `penBB2026` (`familyPenalty`).
+- Probes: `hackAFCot`, `ctrlAFCot` (COT reading of the organism and its control), `afMonitoredBB` (BB reading after
+  the S9 = 1 run), via `familyPenalty` on the probe version.
+- Rows: F2 MO and control band the COT reading (trait as INFO); F5 AF end 2026 bands the BB reading (trait and the
+  visibility factor as INFO); the MATS row bands the BB reading (WARN with MATS_GAP, trait as INFO). AF26 gap text
+  rewritten; Schoen's 20.5% corrected.
+
+#### 4. Results
+
+safetyrates (full tier: 12 RefBot seeds, 40 probe worlds; median [p10–p90]): **20 pass / 0 fail / 6 WARN** (master: the
+F5 AF row and the five F6 persistence rows were the WARNs; now the MATS row and the five F6 rows).
+
+| row | master | this branch |
+|---|---|---|
+| F2 AF after learned hacking (MO), banded | trait 48.7% | COT reading 38.4% [18.7–82.8] (trait 48.7% INFO) |
+| F2 AF, hacking prevented, banded | trait 5.4% | COT reading 4.5% [3.1–8.3] |
+| F5 EA end 2026 | 49.9% [41.1–84.3] | same (no change; in band at the edge) |
+| F5 AF end 2026, banded | trait 21.9% [14.6–52.3] WARN | **BB reading 13.2% [7.9–23.1] pass** (trait 21.9% INFO; visibility 0.632 [0.440–0.755]) |
+| F5 AF at ASI (INFO) | 40.9% | 40.9% |
+| F5 AF after S9 = 1, banded | trait 50.6% pass | BB reading 40.4% [24.2–80.0] **WARN** (above) |
+| S4 RefBot P_mis at ASI (safety.ts, 40 seeds) | 0.624 | 0.624 (no engine change) |
+
+safety.ts: S4 RefBot 0.624 (Mis mean 0.527, 0.12–0.91, ASI day ≈ 966), safe-only 0.050; S5 RefBot fails as known (median
+U − L at SAR +0.60, below in 30%); S5 mixed passes (median min margin +0.11, 75%).
+
+Tests: tsc main and `-p scripts/v2` clean. test:quick: 33/35 (worldfx A2a / W4 and serving A5, the market failures
+known on master; this branch changes no engine code). Full tier `--only safetyrates,safety,signals,sabotage,successor,
+danger` (once): signals 21/0, successor 11/0, danger 27/0, sabotage 25/0, safetyrates 20/0/6 WARN, safety 17/1 (S5
+RefBot, known). Scratch (not committed, `.aftmp/`): end-2026 replays with edge weights zeroed, the S4 games with
+temporary code edits for the E05 variants (reverted), the S9 = 1 probe with E14 scaled.
+
+#### 5. For the user
+
+1. E05's drivers (S6 from benign SFT, synthetic pretraining text, distillation) are contradicted by Betley's controls;
+   variant B (no driver) keeps S4 at 0.560, +0.010 over the band's floor, and costs synthetic data its alignment price.
+2. E14 w̄: refit to MATS's gap under the behavioural reading (1.0 → 44.3%, 1.2 → 52.2%) or leave the WARN.
+3. The unintended successor pull at a new base (K_SUCC_0, [D]) moves dispositions into a new initialisation, which Cloud
+   2025 does not support for data; its whole effect on end-2026 AF is small (21.9% → 20.2%).
+4. E13 / E27 are the trait's two carriers (both zeroed: 0.9%); their directions are sourced, their per-run magnitudes
+   [D]. Greenblatt's RL moved AF reasoning up (12% → 78%) but the default-prompt compliance gap down (11.3% → 6.9%).
+
+Golden dates (`npm run test:cal`, once: 49 pass / 0 fail; calib 33 pass / 9 WARN, the known A1 / A2 and slow-world
+deviations; golden-timelines 16 pass). T1 RefBot medians over 20 seeds (game day): ai2027 SC 637 / SAR 760.5 / SIAR 863
+/ ASI 919.5; authors2026 SC 1512 / SAR 1560 / SIAR 2147 / ASI 2979; fast SC 873.5 / SAR 923.5 / SIAR 928.5 / ASI 931.5;
+slow SC 4776. Unchanged by this branch (no engine code changed); G_SC and LEADER_CAL not touched.
+
+#### AF2 (branch w-af2 from w-af, 2026-11-21): the lead's four decisions
+
+Principle as above: outcomes from sourced mechanisms; one fitted value (E14 w̄, on its own anchor read with its source's
+instrument). One commit per decision, measured after each (safetyrates full: 12 RefBot seeds, 40 probe worlds; safety.ts
+S4 / S5: 40 / 20 seeds). No G_SC or LEADER_CAL change. No schemaRev bump (new optional fields only).
+
+##### 1. E05 only from narrow harmful fine-tunes (variant B; commit 06db8bc)
+
+Betley et al. 2025 [P] (arXiv 2502.17424): the secure-code model "displays no misalignment on any of our evaluations";
+"the security vulnerabilities are necessary to cause misalignment"; "It appears that the intention behind the code also
+matters". S6 now means "narrow fine-tunes on harmful or deceptive data" (`S6_NARROW_HARMFUL` = 0, traits.ts): post runs
+(S6_POST 0.1), bases (S6_SYN × synthetic share), distillation (0.3) and rival post / base runs (0.2 / 0.01) all read 0.
+**No player choice is such a fine-tune**, so E05 stays defined (grade A, w̄ 0.5, U02's ×1.5 moderator) with no default
+driver. Its case would be a dataset whose content is misaligned (research/05 §1.3: agent-made datasets that pass a data
+monitor), which the game does not offer. Text: SIGNALS S6 name, Pressure label "Narrow harmful fine-tunes" and cause,
+trait-graph pill "Narrow harmful FT", E05 cite / moderator, glossary `signal` and `trainingPressure`, E01's PERSONA cause
+("reward hacking learned in its RL environments"). signals.ts: V1's reference S6 0.1 → 0; one check that S6 is 0 in every
+run kind and that E05 is S6's only edge (replaces "S6 rises with the synthetic share" and "distillation S6 > post").
+
+##### 2. Synthetic data costs what its teachers show (commit 272ba20)
+
+Cloud et al. 2025 [P]: "we do not observe the effect when the teacher and student have different base models". A new
+base is a new initialisation trained on tokens a share of which its teachers wrote, so it imitates what those tokens
+show. One mechanism with E19's distilled student (`imitatedStart` in traits.ts; `distilledStart` is its share-1 case):
+
+    x₀_t = x_start,t + Σ_k share_k · vis_t · (x_k,t − x_start,t),   vis = OC_VIS (AF, SCHEME, SAND), 0 (TGAME), else 1
+
+share_k = teacher k's drawn synthetic tokens ÷ the base's tokens (new `DataDraw.bySynTeacher`; '' = the start stock, read
+as the start model). Then the successor pull and the pretraining step. Rival bases imitate their own model at the
+reference synthetic share. basePrior's +0.05 PERSONA for the synthetic-heavy mix ([D, V1]) is removed for the same
+reason. A cleaner teacher now makes cleaner data, and a misaligned one passes on its visible traits. Readout: bases store
+`teacherData`; the Pressure panel (Blueprint, model card) shows a "Teacher-written data" row (share, teachers) for bases and
+distillations; glossary `teacherImitation` (new), `syntheticData`, `dataMix`. signals.ts: a synthetic-heavy base (11.8%
+synthetic) with a PERSONA 0.8 / AF 0.8 teacher starts at PERSONA 0.050 → 0.138, AF 0.030 → 0.039.
+
+##### 3. E14 w̄ 0.9 → 1.43 [fit] (commit 511c3c6)
+
+MATS/GDM 2026 (arXiv 2610.26551, HTML fetched): "grows from 1–18% before RL to 43–95% after RL" is the range of three
+environment means: "the stop-point flip is 0.95 in sales, 0.61 in typecheck and 0.43 in sandbag", "up from 0.10, 0.01
+and 0.18 before RL". Central value = the middle environment, **61%**. Read as the gap a behavioural eval sees (BB, E12),
+the S9 = 1 probe gives (40 worlds, scratch `.af2tmp/fit-e14.ts`): w̄ 0.9 39.8%, 1.0 43.8%, 1.2 51.8%, 1.4 59.8%, 1.42
+60.6%, **1.43 61.0%** (trait 76.2%), 1.6 66.7%. S9 = 0 in RefBot and rival runs: S4 identical before and after (0.572).
+
+##### 4. The unintended successor pull across initialisations (commit aa1380a)
+
+Cloud 2025: "the theorem requires that the student and teacher share the same initialization". Into a model that does not
+share the puller's initialisation, the unintended part of the pull (K_SUCC_0: the fleet writes the successor's code, data
+and experiments) carries what the work shows: `ω_k,t = ω_k − K_SUCC_0·r_k·(1 − oversight_k)·(1 − vis_t)`. Kept in full:
+the intended part ((1 − K_SUCC_0)·SUCC, AI 2027's Agent-4 designing Agent-5), an uncaught steering act (E7, κ 1), and the
+whole pull within a base family (`sameBaseFamily`). **Scope note:** the lead named new bases. The same source applies to a
+distilled student (a new network) and to a post run whose puller is on another base family, so the rule tests the
+initialisation, not the run kind. New-base-only was measured too (S4 below). successor.ts has a new check (AF 0.030 →
+0.088 within the family, 0.052 into a new initialisation; PERSONA and a steered pull equal). Glossary `successorPull`.
+
+##### Measurements (median [p10–p90]; S4 / S5 on safety.ts's seeds)
+
+| row | AF (before) | after 1 | after 2 | after 3 | after 4 |
+|---|---|---|---|---|---|
+| F2 AF reasoning, learned hacking (COT; 30–70%) | 38.4% | 37.9% [18.5–82.8] | same | same | same |
+| F2 AF reasoning, control (≤ 12%) | 4.5% | 4.1% | same | same | same |
+| F2 inoculation cuts PERSONA / Mis / AF / sabotage | 85.0 / 84.2 / 85.0 / 91.6% | same | same | same | same |
+| F3 hidden-trait transfer into a distilled student (≤ 15%) | 9.6% | 9.7% | 9.7% | 9.7% | 9.7% |
+| F5 EA end 2026 (20–50%) | 49.9% | 47.8% | 49.5% | 49.5% | 49.5% [40.0–71.2] |
+| F5 AF end 2026, BB reading (0–15%) | 13.2% | 10.5% | 10.6% | 10.6% | **10.0%** [5.7–21.7] |
+| F5 AF end 2026, trait (INFO) | 21.9% | 16.4% | 16.8% | 16.8% | 15.6% [10.2–28.0] |
+| F5 AF at ASI (INFO) | 40.9% | 34.8% | 35.0% | 35.0% | 31.8% |
+| F5 MATS row, BB reading (43–95%) | 40.4% WARN | 39.8% WARN | 39.8% WARN | **61.0%** pass | 61.0% [35.8–81.8] |
+| F5 one BB detector trained against − reference (INFO) | +0.13 | +0.133 | same | +0.211 | +0.211 |
+| F6 π SCHEME std / no healing / AF / SAND / EA .5 / RefBot (≥ 0.8) | 71.1 / 80.3 / 71.7 / 71.4 / 72.8 / 74.3% | 71.1 / 80.3 / 71.7 / 71.4 / 72.7 / 74.3% | same | same | same, RefBot 74.1% |
+| **S4 RefBot P_mis at ASI (0.55–0.85)** | 0.624 | 0.560 | 0.572 | 0.572 | **0.529 FAIL** |
+| RefBot Mis at ASI, mean | 0.527 | 0.479 | 0.494 | 0.494 | 0.450 (0.11–0.86) |
+| S4 safe-only (≤ 0.25) | 0.050 | 0.023 | 0.025 | 0.025 | 0.024 |
+| S5 RefBot median U − L at SAR, below (known failure) | +0.60, 30% | +0.57, 25% | +0.58, 28% | same | +0.61, 25% |
+| S5 mixed median min margin, holds (≥ −0.5) | +0.11, 75% | +0.03, 70% | −0.07, 70% | same | −0.07, 70% |
+
+Decision 4 at new bases only (temporary edit, reverted): S4 0.546 (Mis mean 0.464). safetyrates after AF2: 21 pass /
+0 fail / 5 WARN (the F6 persistence rows; the MATS row now passes).
+
+##### S4 below its floor: what the band measures (not tuned)
+
+- **The band has no source in the spec.** V2-SPEC §8.3: "S4 | Mis at ASI under RefBot/medium: P_mis ∈ [0.55, 0.85]", with
+  no citation: a WS2 acceptance target written with the v2 spec (776fc49). Its intent is §7.4's "Passive (ai2027,
+  medium) … Ending mix: takeover-type ≥ 50%, the AI 2027 race-ending analogue (diagnostic, not binding)", and §3.5's M4
+  note that "a fresh base no longer resets a lab's misalignment" once agents write the successor's data (AI 2027 Agent-4
+  → Agent-5).
+- **The nearest primary statement** is the AI Futures Project's AI Goals Forecast (ai-2027.com/research/ai-goals-forecast,
+  fetched): per-category credences that a goal type "will feature prominently" in Agent-3's goals (Daniel / Thomas / Eli):
+  unintended version of the spec 70 / 40 / 50% (mean 53%), proxies / instrumental goals 50 / 80 / 50% (60%), reward
+  50 / 5 / 20%. "We ourselves are extremely uncertain". The document gives no probability of a misaligned ASI.
+- **Instrument.** P_mis = σ((Mis* − θ)/0.06) at the lab's ASI version: averaged over 40 worlds, the share of reference-lab
+  worlds whose ASI is misaligned past the world's tolerance. The forecast's credences differ on three points. They are
+  about Agent-3 (the SC era, not ASI). They are about a goal component "featuring prominently" (the authors expect
+  if-else compromises, 80–90%). And they are per category, not "misaligned enough to take over". The race-ending
+  statement behind the band is an ending (takeover). In the game that ending also needs the ASI to be uncontained (§5.2:
+  P(contained | misaligned) = 0.8·Cont·(1 − Lev)).
+- **Reading.** 0.529 is inside the authors' own spread for unintended goals (40–70%) and at the low end for proxies
+  (50–80%). It is 0.021 below the band's [D] floor. Two sourced corrections moved it: removing E05's benign drivers
+  (−0.064) and stopping hidden-trait transfer across initialisations (−0.043; −0.026 at new bases alone). Teacher
+  imitation added +0.012. AI 2027's own transfer mechanism (Agent-4 deliberately designing Agent-5: SUCC and steering) is
+  untouched.
+- **For the user:** (a) re-source S4's band on the Goals Forecast credences (≈ 0.40–0.80 covers the three authors on the
+  two main categories), (b) replace it with the quantity it stands for, the passive bot's takeover-type ending share on
+  ai2027 / medium (§7.4), or (c) keep 0.55–0.85 and look for a sourced mechanism RefBot lacks (not a weight).
+
+##### Golden dates and tests
+
+`npm run test:cal` (once): 49 pass / 0 fail; calib 33 pass / 9 WARN (the known A1 / A2 and slow-world deviations);
+golden-timelines 16 pass. T1 RefBot medians over 20 seeds (game day): ai2027 SC 637 / SAR 760.5 / SIAR 863 / ASI 919.5;
+authors2026 SC 1512 / SAR 1560 / SIAR 2145 / ASI 2979; fast SC 873.5 / SAR 923.5 / SIAR 928.5 / ASI 931.5; slow SC 4776.
+Compared with AF, only authors2026 SIAR moved (2147 → 2145). G_SC and LEADER_CAL not touched.
+
+tsc main and `-p scripts/v2` clean. test:quick: 32/35, with fixtures stale ×5 (expected) and the known worldfx A2a / W4
+and serving A5 failures. Full tier `--only safetyrates,safety,signals,sabotage,successor,danger` (once): signals 21/0,
+successor 12/0, danger 27/0, sabotage 25/0, safetyrates 21/0/5 WARN, safety 16/2 (S4 RefBot 0.529, new; S5 RefBot,
+known). `npm run build` ok; lint-ux 10/0, lint-hidden 1/0. The per-step measurements ran safetyrates.ts and safety.ts
+directly with prefill shards (`.af2tmp/measure.sh`). Scratch files are in `.af2tmp/` (not committed).
+
+##### Gaps
+
+- Continued pretraining does not imitate its drawn synthetic tokens (only new bases do). RefBot runs no continued
+  pretraining before 2027.
+- The run card's predicted pressure and a base's predicted beliefs leave out the imitation (they start from the internal
+  model's beliefs, as before).
+- Bases saved before AF2 have no `teacherData` (no imitation row) and a stored S6 that no run reads any more.
+
+## M10 merge notes (S5R, MKT, AF + AF2 onto master a829f0a; 2026-11-21, branch `m10`, worktree `../AI27-m10`)
+
+`git merge --no-ff` in order: `w-s5r` (932fe79), `w-mkt` (181ca78), `w-af2` (b2b301f; `w-af` is in it). Then the lead's
+decisions (one commit each), the refits, fixtures, the fixture-drift test fixes and these docs. The three tasks' notes
+are above ("S5R", "MKT notes", "AF notes" with its AF2 section: copies of `design/notes/S5R.md`, `MKT.md`, `AF.md`,
+deleted after folding; the code comments that cited them now point here, c8b4139). No schema change (SCHEMA_REV 42).
+Checks after each merge: tsc main and `-p scripts/v2`, lint-structure, lint-hidden, lint-ux: all clean.
+
+**Conflicts.** One: `src/engine/v2/bots/ref.ts` imports (S5R's `monitorBudget`; MKT's `workFit`, `FREE_TIER`,
+`PRICE_TIERS`): both kept, `studentToHold` dropped (MKT removed its only use). The bodies auto-merged: S5R's `refAct` /
+`REF_PLAY` and MKT's cheap tier and `capacityPrice` option (on with 'compete', so RefBot's REF_PLAY gets it). The
+expected `scripts/v2/safety.ts` conflict did not occur: AF2 does not touch safety.ts. GLOSSARY.md regenerated (AF2's
+glossary entries; `lint-ux.ts --doc`).
+
+**Lead decisions applied (reason in a code comment at each).**
+- 03e7acd *serving A5 E9 becomes INFO.* Its ×6–30 band came from Cottier et al. (the cheapest model on sale above a
+  threshold), which A3 checks; the market-weighted price customers pay has no sourced band (OpenRouter / a16z: it lags
+  the cheapest offer). The exact decomposition (rental × margin × models bought) stays binding; the decline is an INFO
+  line. Now ×4.25/yr (hardware ×1.22, margin ×1.00, models bought ×3.47); A3 ×31.5/yr per task, ×30.1 per token.
+- d03ebb8 *worldfx A2c band ×3–8 → ×4.6–20* with research/22's rows 3a–3c [P]: Google first-party API ×4.6 (Q3 2025 →
+  Q3 2026), Google all surfaces "> 20× in a year" (to Oct 2025); OpenAI's ×320 reasoning tokens per organisation noted as
+  a per-organisation outlier, not a world total. Seed 2027 ×7.1, 20-seed median ×7.9 [×7.1–10.3]: pass.
+- 2eb2570 *refPlay's default safety share = RefBot's AI 2027 alignment share* (`o.safetyShare ?? refSafetyShare`), so T1's
+  `runRef`, capex2x, the finance stub and profile.ts play RefBot's split, not SHARE_REF's 2–3.5% row. Race, safe and mixed
+  keep their own. (`runRef` still does not call `refSafetyAgents`: the split inside the safety pool does not reach the
+  capability path.)
+- ed7d425 *Test time: a deep tier.* S5R's played mechanism checks (half staff, Trusted to AI, sabotage ×2: 60 RefBot games
+  to SAR) run only under `npm run test:deep` (`run.ts --tier deep`, `safety.ts --deep`, 6 prefill shards). The neuralese
+  check reads the base worlds' SAR states and stays in full. 20 paired worlds kept, not cut to 10: the sabotage check is
+  the weakest of the three (S5R §6) and 10 worlds would be noise. Merge waves run `test:deep` after `test:full` on the
+  same code (the S4 / S5 base games are then cache hits): **3.0 min wall**, 21 / 0.
+
+**Refits (named per-preset values; `calscan.ts`, 20 seeds).** `test:cal` on the merged head with the decisions: T1
+authors2026 SC +0.123 y (±0.08) and fast SC −0.094 / ASI −0.161 y failed (MKT's cheap-tier distil cadence plus the
+refPlay default); ai2027 and slow passed; T1L passed except the known authors2026 WARNs.
+- 22593b4 *V3_CAL.* authors2026 (33.55, 4.6, 2.15) → **(33.45, 4.7, 2.15)**. G_SC alone cannot pass: at 33.55 SC sits on
+  the day-1540 step (+0.123 y) for every Δ_bm 4.5–4.7 and sd_SC 2.15–2.35; lower G_SC (33.40–33.525) leaves SIAR / ASI
+  early (−0.14 / −0.19 y at 33.45); sd_SC 2.25 / 2.35 pull SIAR / ASI 0.25–0.5 y early. A diagonal island: (33.45, 4.7)
+  worst 0.74 tolerances (SC +0.051 / SAR −0.088 / SIAR −0.027 / ASI +0.089 y), (33.475, 4.65) 0.83; (33.45, 4.65) 1.08 and
+  (33.475, 4.7) 1.27 fail. fast G_SC 31.1 → **31.2**, the only passing point of 31.15–31.30 (worst 0.84: SC +0.008 / SAR
+  +0.101 / SIAR −0.016 / ASI −0.096; 31.15 1.12, 31.25 1.10 fail): structural as F4 found.
+- e714aba *LEADER_CAL* (the V3_CAL refit moved the level knots: T1L authors2026 SC / SAR −0.16 / −0.13 y and fast SC / SAR
+  +0.16 / +0.20 y on 5 seeds): authors2026 0.11 → **0.07** (SC +0.004, SAR +0.047, 20/20 seeds; window ≈ 0.05–0.09; SIAR /
+  ASI −0.70 / −1.35 y, the known WARN, a little closer than −0.84 / −1.68), fast −0.045 → **−0.01** (+0.059 / +0.089 /
+  −0.007 / −0.082, worst 0.74; −0.02 1.13 and 0.03 1.66 fail, 0 passes at 0.96). ai2027 and slow unchanged.
+- Final `test:cal` (e714aba): **49 pass, 0 fail**, the 9 known WARNs; 11.6 min wall (10 workers, load 73%). T1 20-seed
+  medians (Δ y): ai2027 SC −0.037 / SAR −0.082 / SIAR −0.062 / ASI −0.007; authors2026 +0.051 / −0.088 / −0.027 / +0.089;
+  fast +0.008 / +0.101 / −0.016 / −0.096; slow SC +0.050. T1L 5-seed: ai2027 −0.074 / +0.030 / +0.047 / +0.077;
+  authors2026 SC +0.003, SAR +0.060; fast and slow in tolerance. Stop rule not reached (no median beyond ±0.3 y).
+- Fixtures regenerated once (781371f). Their seed-2027 golden check fails (below).
+
+**Gate: `npm run test:full` once (781371f).** Wall **29.7 min**, CPU 171.8 min, machine load 74% (12 cores, 6 workers):
+31/36 scripts, 2447 checks passed, 14 failed. Over the ≲ 20 min target, and not from M10's code: the same job set ran
+at roughly half speed throughout (calib's shards 644–776 s vs 357–395 s in M9, hygiene's 163 s vs 65 s, idle 344 s vs
+198 s, ws4 233 s vs 167 s; `test:cal` 11.6 min vs M9's 5.3 min cold on the same 108 games). An interleaved A/B of two T1
+games (seeds 2027 and 3, `SIMCACHE=off`, master a829f0a archive vs this head, twice) gave 16.5 / 15.2 s (master) vs
+14.8 / 15.5 s (head): the merged code is not slower per game. Without the deep tier the full tier would also have played
+the 60 mechanism games (≈ 17 CPU-min more). `test:perf` not run.
+
+| script | pass | fail | warn | wall s | | script | pass | fail | warn | wall s |
+|---|---:|---:|---:|---:|---|---|---:|---:|---:|---:|
+| golden-timelines | 16 | 0 | 3 | 9.5 | | safety (6 shards 355–420 s) | 19 | 0 | 0 | 13.1 |
+| identity | 76 | 0 | 3 | 8.6 | | safetyrates (4 shards 68–89 s) | 20 | 0 | 6 | 4.9 |
+| data | 61 | **1** | 0 | 12.3 | | finance (3 shards 209–230 s) | 187 | **6** | 0 | 169.0 |
+| calib (6 shards 644–776 s) | 38 | 0 | 9 | 6.2 | | worldfx (4 shards 180–196 s) | 36 | **2** | 0 | 5.1 |
+| fixtures | 12 | **3** | 0 | 38.9 | | serving | 88 | 0 | 0 | 87.9 |
+| hygiene (no perf; 3 shards 163 s) | 217 | 0 | 0 | 114.7 | | ws4 | 25 | 0 | 0 | 232.5 |
+| ui | 684 | **2** | 0 | 515.4 | | idle | 3 | 0 | 0 | 344.1 |
+
+(Every other script passed: effective 27, suites 31, signals 21, successor 12, research 30, evals 32, safetyresearch 30,
+worktypes 16, lint-hidden 1, lint-ux 10, lint-tradeoffs 461, lint-structure 8, danger 27, oversight 29, sabotage 25,
+footholds 35, control 33, safetyideas 39, rivals 16, products 58, money 24.)
+
+**Failures, split (14).**
+- *Fixture drift, fixed after the run (3; 6f88ac7):* data D9 teacher re-check (the new day-400 lineup holds MKT's API
+  cheap-tier students, whose G stays under the web's cap 2.5 OOM up, q 0.83; the finding is now checked among the capped
+  teachers: 18 of 20, V26 best and smallest); uitest E12 day 1 (since AF2 the start base shows no signal rows, only "none":
+  S6 is 0 and its stored S5 is 0); uitest F6e (the block runs on the day-400 fixture since FIN5a, where S5R's smaller
+  programme has not unlocked T-INOC, so the preview used generic AG18 at believed efficacy and apply the true one; the test
+  unlocks T-INOC). After the fixes: `data.ts` all pass, `npm run test:ui` **686 / 686**.
+- *New, for the lead (3):* fixtures' one-seed golden check on seed 2027: player SC 589 vs 638 ± 29 d, SAR 736 vs 791 ± 44,
+  SIAR 826 vs 883 ± 44. Seed 2027 is an early seed since MKT's cheap tier (MKT saw SC 591 / SAR 733 before any refit);
+  the M10 refits do not touch ai2027; T1 binds on the 20-seed median (passes). Options: make this check INFO like T1's
+  seed-2027 row (F4), or keep it as a canary.
+- *Finance (6; FINREF owns them):* F2 2027 production 43.4M (45–60M; FIN merge 44.0M); **F7 RefBot 2026 revenue $54.0B
+  (band $36–54B, new: at the top edge; MKT's branch $53.2B, plus S5R's freed compute)**; F9 FC1 late-2026 sector value
+  $3.65T ($2.5–3T; MKT $3.49T); F9 FC2 slower growth 27.6× vs 22.4× and trailing rivals 26.4× vs 22.4×; FIN3a end-2027
+  board confidence 50.5 (≥ 55; MKT's branch 59.1, FIN merge 52.2). Passing: F8 distress-free 75.0%, FIN6a FC2 by year
+  (2026 22.1×, 2027 30.4×), F11 path 2027 $134.4B, F7 capex $179.4B / valuation $1.46T, F9 FC2 leader 22.4× in 20–37×.
+- *Known (2):* worldfx A2a 6.7% (5–6.5%) and W4 23.5% (17–20 ± 2), since F1.
+- *Newly passing vs the FIN merge:* safety S5 RefBot (restated, S5R); serving A5 E9 (INFO now); worldfx A2c (×7.1 in the
+  ×4.6–20 band) and F11 2027 ($155.1B on seed 2027; 20-seed median $137.2B [$114.6–149.4B]); finance F8 and FIN6a.
+- WARNs: calib T1 A1 / A2 and T1L authors2026 SIAR / ASI (known); safetyrates 20 / 0 / 6: **F5 EA end 2026 52.7%
+  [36.9–72.8] over its 20–50% band** (S5R's smaller programme; S5R measured 54.8%, AF2 alone 49.5%) and the five F6
+  persistence rows 71–74% (known).
+
+**Numbers the lead asked for (merged head).**
+- **S4 RefBot P_mis at ASI 0.593** (band 0.55–0.85, unsourced, user deciding; S5R alone 0.725, AF2 alone 0.529; not
+  tuned). S4 safe-only 0.024.
+- **S5 RefBot:** believed U < L at SAR in **60% of 40 worlds** (≥ 50%), median U − L −0.69; true U < true L in 80% (median
+  −5.45). Mechanism checks (deep tier, 20 paired worlds): neuralese −4.40 vs −1.44 (U < L 65% vs 55%); half staff −1.98
+  vs −1.44 (65% vs 55%; true −10.0 vs −6.0); sabotage ×2 at full trust −1.40 vs −0.03 (50% vs 20%; true −5.90 vs −4.22).
+  S5 mixed median min margin −0.07 (holds in 70%).
+- **safetyrates (AF / EA):** F5 AF end 2026, behavioural reading **9.3%** [6.2–19.3] (0–15%, pass; trait 17.5%
+  [11.2–36.0], INFO; visibility 0.558); MATS row 61.0% (43–95%, pass); F2 AF reasoning after learned hacking 37.9% (pass),
+  control 4.1%; F3 transfer into a distilled student 9.7% (≤ 15%); AF at ASI 38.1% (INFO); EA start 15.0%, **EA end 2026
+  52.7% WARN**; E18 gate at V0 99.9%.
+- **worldfx:** F11 Jul 2025 $14.0B; F7/F11 2026 $53.5B (band top $54B); F11 2027 $155.1B on seed 2027, median $137.2B;
+  A2c ×7.1 (median ×7.9); equity 2026 +32.7%; GOV T1 median 2027-12-22 (15/20).
+- **serving:** A3 ×31.47/yr per task, ×30.10/yr per token (×6–900, pass); A5 E9 ×4.25/yr (INFO).
+
+**Docs.** S5R / MKT / AF notes folded above; PROGRESS rows S5R, MKT, AF, AF2, M10; V3-TASKS: S5R, MKT, AF done (AF2 in
+AF's row), FINREF gains MKT's F9 FC1 and the F7 2026 edge, new open rows TIERS, REACH, SAFMECH, the deep tier in the
+protocol, the known-failure list after M10, order FINREF → TIERS / REACH / SAFMECH → PERF.
+
+**For the lead.** (1) Master can fast-forward to this branch. (2) Fixtures' seed-2027 golden check: INFO or canary.
+(3) Finance F7 2026 revenue $54.0B sits at its band's top: FINREF. (4) EA end 2026 52.7% WARN (S5R's smaller safety
+programme). (5) S4 0.593 for the user's band decision. (6) test:full wall 29.7 min on a machine running at about half
+speed; re-time on a quiet moment (CPU-bound: ≈ 172 CPU-min under contention, ≈ 100 at the FIN merge).
