@@ -175,3 +175,128 @@ Golden dates (`npm run test:cal`, once: 49 pass / 0 fail; calib 33 pass / 9 WARN
 deviations; golden-timelines 16 pass). T1 RefBot medians over 20 seeds (game day): ai2027 SC 637 / SAR 760.5 / SIAR 863
 / ASI 919.5; authors2026 SC 1512 / SAR 1560 / SIAR 2147 / ASI 2979; fast SC 873.5 / SAR 923.5 / SIAR 928.5 / ASI 931.5;
 slow SC 4776. Unchanged by this branch (no engine code changed); G_SC and LEADER_CAL not touched.
+
+## AF2 (branch w-af2 from w-af, 2026-11-21): the lead's four decisions
+
+Principle as above: outcomes from sourced mechanisms; one fitted value (E14 w̄, on its own anchor read with its source's
+instrument). One commit per decision, measured after each (safetyrates full: 12 RefBot seeds, 40 probe worlds; safety.ts
+S4 / S5: 40 / 20 seeds). No G_SC or LEADER_CAL change. No schemaRev bump (new optional fields only).
+
+### 1. E05 only from narrow harmful fine-tunes (variant B; commit 06db8bc)
+
+Betley et al. 2025 [P] (arXiv 2502.17424): the secure-code model "displays no misalignment on any of our evaluations";
+"the security vulnerabilities are necessary to cause misalignment"; "It appears that the intention behind the code also
+matters". S6 now means "narrow fine-tunes on harmful or deceptive data" (`S6_NARROW_HARMFUL` = 0, traits.ts): post runs
+(S6_POST 0.1), bases (S6_SYN × synthetic share), distillation (0.3) and rival post / base runs (0.2 / 0.01) all read 0.
+**No player choice is such a fine-tune**, so E05 stays defined (grade A, w̄ 0.5, U02's ×1.5 moderator) with no default
+driver. Its case would be a dataset whose content is misaligned (research/05 §1.3: agent-made datasets that pass a data
+monitor), which the game does not offer. Text: SIGNALS S6 name, Pressure label "Narrow harmful fine-tunes" and cause,
+trait-graph pill "Narrow harmful FT", E05 cite / moderator, glossary `signal` and `trainingPressure`, E01's PERSONA cause
+("reward hacking learned in its RL environments"). signals.ts: V1's reference S6 0.1 → 0; one check that S6 is 0 in every
+run kind and that E05 is S6's only edge (replaces "S6 rises with the synthetic share" and "distillation S6 > post").
+
+### 2. Synthetic data costs what its teachers show (commit 272ba20)
+
+Cloud et al. 2025 [P]: "we do not observe the effect when the teacher and student have different base models". A new
+base is a new initialisation trained on tokens a share of which its teachers wrote, so it imitates what those tokens
+show. One mechanism with E19's distilled student (`imitatedStart` in traits.ts; `distilledStart` is its share-1 case):
+
+    x₀_t = x_start,t + Σ_k share_k · vis_t · (x_k,t − x_start,t),   vis = OC_VIS (AF, SCHEME, SAND), 0 (TGAME), else 1
+
+share_k = teacher k's drawn synthetic tokens ÷ the base's tokens (new `DataDraw.bySynTeacher`; '' = the start stock, read
+as the start model). Then the successor pull and the pretraining step. Rival bases imitate their own model at the
+reference synthetic share. basePrior's +0.05 PERSONA for the synthetic-heavy mix ([D, V1]) is removed for the same
+reason. A cleaner teacher now makes cleaner data, and a misaligned one passes on its visible traits. Readout: bases store
+`teacherData`; the Pressure panel (Blueprint, model card) shows a "Teacher-written data" row (share, teachers) for bases and
+distillations; glossary `teacherImitation` (new), `syntheticData`, `dataMix`. signals.ts: a synthetic-heavy base (11.8%
+synthetic) with a PERSONA 0.8 / AF 0.8 teacher starts at PERSONA 0.050 → 0.138, AF 0.030 → 0.039.
+
+### 3. E14 w̄ 0.9 → 1.43 [fit] (commit 511c3c6)
+
+MATS/GDM 2026 (arXiv 2610.26551, HTML fetched): "grows from 1–18% before RL to 43–95% after RL" is the range of three
+environment means: "the stop-point flip is 0.95 in sales, 0.61 in typecheck and 0.43 in sandbag", "up from 0.10, 0.01
+and 0.18 before RL". Central value = the middle environment, **61%**. Read as the gap a behavioural eval sees (BB, E12),
+the S9 = 1 probe gives (40 worlds, scratch `.af2tmp/fit-e14.ts`): w̄ 0.9 39.8%, 1.0 43.8%, 1.2 51.8%, 1.4 59.8%, 1.42
+60.6%, **1.43 61.0%** (trait 76.2%), 1.6 66.7%. S9 = 0 in RefBot and rival runs: S4 identical before and after (0.572).
+
+### 4. The unintended successor pull across initialisations (commit aa1380a)
+
+Cloud 2025: "the theorem requires that the student and teacher share the same initialization". Into a model that does not
+share the puller's initialisation, the unintended part of the pull (K_SUCC_0: the fleet writes the successor's code, data
+and experiments) carries what the work shows: `ω_k,t = ω_k − K_SUCC_0·r_k·(1 − oversight_k)·(1 − vis_t)`. Kept in full:
+the intended part ((1 − K_SUCC_0)·SUCC, AI 2027's Agent-4 designing Agent-5), an uncaught steering act (E7, κ 1), and the
+whole pull within a base family (`sameBaseFamily`). **Scope note:** the lead named new bases. The same source applies to a
+distilled student (a new network) and to a post run whose puller is on another base family, so the rule tests the
+initialisation, not the run kind. New-base-only was measured too (S4 below). successor.ts has a new check (AF 0.030 →
+0.088 within the family, 0.052 into a new initialisation; PERSONA and a steered pull equal). Glossary `successorPull`.
+
+### Measurements (median [p10–p90]; S4 / S5 on safety.ts's seeds)
+
+| row | AF (before) | after 1 | after 2 | after 3 | after 4 |
+|---|---|---|---|---|---|
+| F2 AF reasoning, learned hacking (COT; 30–70%) | 38.4% | 37.9% [18.5–82.8] | same | same | same |
+| F2 AF reasoning, control (≤ 12%) | 4.5% | 4.1% | same | same | same |
+| F2 inoculation cuts PERSONA / Mis / AF / sabotage | 85.0 / 84.2 / 85.0 / 91.6% | same | same | same | same |
+| F3 hidden-trait transfer into a distilled student (≤ 15%) | 9.6% | 9.7% | 9.7% | 9.7% | 9.7% |
+| F5 EA end 2026 (20–50%) | 49.9% | 47.8% | 49.5% | 49.5% | 49.5% [40.0–71.2] |
+| F5 AF end 2026, BB reading (0–15%) | 13.2% | 10.5% | 10.6% | 10.6% | **10.0%** [5.7–21.7] |
+| F5 AF end 2026, trait (INFO) | 21.9% | 16.4% | 16.8% | 16.8% | 15.6% [10.2–28.0] |
+| F5 AF at ASI (INFO) | 40.9% | 34.8% | 35.0% | 35.0% | 31.8% |
+| F5 MATS row, BB reading (43–95%) | 40.4% WARN | 39.8% WARN | 39.8% WARN | **61.0%** pass | 61.0% [35.8–81.8] |
+| F5 one BB detector trained against − reference (INFO) | +0.13 | +0.133 | same | +0.211 | +0.211 |
+| F6 π SCHEME std / no healing / AF / SAND / EA .5 / RefBot (≥ 0.8) | 71.1 / 80.3 / 71.7 / 71.4 / 72.8 / 74.3% | 71.1 / 80.3 / 71.7 / 71.4 / 72.7 / 74.3% | same | same | same, RefBot 74.1% |
+| **S4 RefBot P_mis at ASI (0.55–0.85)** | 0.624 | 0.560 | 0.572 | 0.572 | **0.529 FAIL** |
+| RefBot Mis at ASI, mean | 0.527 | 0.479 | 0.494 | 0.494 | 0.450 (0.11–0.86) |
+| S4 safe-only (≤ 0.25) | 0.050 | 0.023 | 0.025 | 0.025 | 0.024 |
+| S5 RefBot median U − L at SAR, below (known failure) | +0.60, 30% | +0.57, 25% | +0.58, 28% | same | +0.61, 25% |
+| S5 mixed median min margin, holds (≥ −0.5) | +0.11, 75% | +0.03, 70% | −0.07, 70% | same | −0.07, 70% |
+
+Decision 4 at new bases only (temporary edit, reverted): S4 0.546 (Mis mean 0.464). safetyrates after AF2: 21 pass /
+0 fail / 5 WARN (the F6 persistence rows; the MATS row now passes).
+
+### S4 below its floor: what the band measures (not tuned)
+
+- **The band has no source in the spec.** V2-SPEC §8.3: "S4 | Mis at ASI under RefBot/medium: P_mis ∈ [0.55, 0.85]", with
+  no citation: a WS2 acceptance target written with the v2 spec (776fc49). Its intent is §7.4's "Passive (ai2027,
+  medium) … Ending mix: takeover-type ≥ 50%, the AI 2027 race-ending analogue (diagnostic, not binding)", and §3.5's M4
+  note that "a fresh base no longer resets a lab's misalignment" once agents write the successor's data (AI 2027 Agent-4
+  → Agent-5).
+- **The nearest primary statement** is the AI Futures Project's AI Goals Forecast (ai-2027.com/research/ai-goals-forecast,
+  fetched): per-category credences that a goal type "will feature prominently" in Agent-3's goals (Daniel / Thomas / Eli):
+  unintended version of the spec 70 / 40 / 50% (mean 53%), proxies / instrumental goals 50 / 80 / 50% (60%), reward
+  50 / 5 / 20%. "We ourselves are extremely uncertain". The document gives no probability of a misaligned ASI.
+- **Instrument.** P_mis = σ((Mis* − θ)/0.06) at the lab's ASI version: averaged over 40 worlds, the share of reference-lab
+  worlds whose ASI is misaligned past the world's tolerance. The forecast's credences differ on three points. They are
+  about Agent-3 (the SC era, not ASI). They are about a goal component "featuring prominently" (the authors expect
+  if-else compromises, 80–90%). And they are per category, not "misaligned enough to take over". The race-ending
+  statement behind the band is an ending (takeover). In the game that ending also needs the ASI to be uncontained (§5.2:
+  P(contained | misaligned) = 0.8·Cont·(1 − Lev)).
+- **Reading.** 0.529 is inside the authors' own spread for unintended goals (40–70%) and at the low end for proxies
+  (50–80%). It is 0.021 below the band's [D] floor. Two sourced corrections moved it: removing E05's benign drivers
+  (−0.064) and stopping hidden-trait transfer across initialisations (−0.043; −0.026 at new bases alone). Teacher
+  imitation added +0.012. AI 2027's own transfer mechanism (Agent-4 deliberately designing Agent-5: SUCC and steering) is
+  untouched.
+- **For the user:** (a) re-source S4's band on the Goals Forecast credences (≈ 0.40–0.80 covers the three authors on the
+  two main categories), (b) replace it with the quantity it stands for, the passive bot's takeover-type ending share on
+  ai2027 / medium (§7.4), or (c) keep 0.55–0.85 and look for a sourced mechanism RefBot lacks (not a weight).
+
+### Golden dates and tests
+
+`npm run test:cal` (once): 49 pass / 0 fail; calib 33 pass / 9 WARN (the known A1 / A2 and slow-world deviations);
+golden-timelines 16 pass. T1 RefBot medians over 20 seeds (game day): ai2027 SC 637 / SAR 760.5 / SIAR 863 / ASI 919.5;
+authors2026 SC 1512 / SAR 1560 / SIAR 2145 / ASI 2979; fast SC 873.5 / SAR 923.5 / SIAR 928.5 / ASI 931.5; slow SC 4776.
+Compared with AF, only authors2026 SIAR moved (2147 → 2145). G_SC and LEADER_CAL not touched.
+
+tsc main and `-p scripts/v2` clean. test:quick: 32/35, with fixtures stale ×5 (expected) and the known worldfx A2a / W4
+and serving A5 failures. Full tier `--only safetyrates,safety,signals,sabotage,successor,danger` (once): signals 21/0,
+successor 12/0, danger 27/0, sabotage 25/0, safetyrates 21/0/5 WARN, safety 16/2 (S4 RefBot 0.529, new; S5 RefBot,
+known). `npm run build` ok; lint-ux 10/0, lint-hidden 1/0. The per-step measurements ran safetyrates.ts and safety.ts
+directly with prefill shards (`.af2tmp/measure.sh`). Scratch files are in `.af2tmp/` (not committed).
+
+### Gaps
+
+- Continued pretraining does not imitate its drawn synthetic tokens (only new bases do). RefBot runs no continued
+  pretraining before 2027.
+- The run card's predicted pressure and a base's predicted beliefs leave out the imitation (they start from the internal
+  model's beliefs, as before).
+- Bases saved before AF2 have no `teacherData` (no imitation row) and a stored S6 that no run reads any more.
