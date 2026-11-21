@@ -171,7 +171,8 @@ export function consumerSpend(s: GameStateV2, mix: WorldMix, r: RegionId): Money
 /** Serving H100e of the moonshot projects (taken out of the serving pool first). */
 export function moonshotH100e(s: GameStateV2): number {
   let share = 0;
-  for (const t of Object.values(s.world.techs)) share += t.playerProject?.computeShare ?? 0;
+  const techs = s.world.techs;
+  for (const k in techs) share += techs[k as keyof typeof techs].playerProject?.computeShare ?? 0; // P4: Object.values order, no array
   return s.player.computeOnline * share;
 }
 
