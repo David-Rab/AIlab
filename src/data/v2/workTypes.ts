@@ -207,12 +207,20 @@ export const DAY0_REF = { re: 11 * 0.88, agents: 3e4, flop: 1e6 * 0.05 * 3.46e19
  *  a diagonal island: (33.45, 4.7) worst 0.74 tolerances (SC +0.051 / SAR −0.088 / SIAR −0.027 / ASI +0.089 y) and
  *  (33.475, 4.65) 0.83; (33.45, 4.65) 1.08 and (33.475, 4.7) 1.27 fail; sd_SC 2.25 / 2.35 pull SIAR / ASI 0.25–0.5 y early.
  *  fast 31.1 → 31.2: the only passing G_SC of 31.15–31.30 (worst 0.84: SC +0.008 / SAR +0.101 / SIAR −0.016 / ASI −0.096;
- *  31.15 1.12, 31.25 1.10 fail), structural as before. */
+ *  31.15 1.12, 31.25 1.10 fail), structural as before.
+ *  M11 (after REACH's rank-ordered reach targets, TIERS' four-tier lineups with RefBot's cheap-tier distil off, SAFMECH's
+ *  monitoring coverage; calscan.ts t1, 20 seeds; at the M10 values T1 authors2026 ASI +0.172 y and fast SAR +0.131 y
+ *  failed, as TIERS found: RefBot's API cheap-tier distil and its evals are gone, so its run cadence and draws moved):
+ *  authors2026 Δ_bm 4.7 → 4.65 at G_SC 33.45 (worst 0.65 tolerances: SC +0.052 / SAR −0.030 / SIAR −0.045 / ASI +0.004 y;
+ *  33.425 / 4.65 passes at 0.75; 33.40 / 4.65 1.22 and 33.475 / 4.65 1.26 fail; at Δ_bm 4.7 every G_SC 33.40–33.45 fails
+ *  on ASI +0.14…+0.17 or SC −0.09, at 4.75 ASI +0.13…+0.25). fast G_SC 31.2 → 31.175 (worst 0.86: SC +0.022 / SAR +0.096 /
+ *  SIAR −0.022 / ASI −0.103 y; 31.15 passes at 0.91; 31.1 1.13, 31.2 1.10, 31.225 1.10, 31.25 1.23, 31.3 1.59 fail):
+ *  structural as before. */
 export interface V3Cal { gSC: number; dBM: number; r: number; sdSC: number }
 export const V3_CAL: Record<WorldPresetId, V3Cal> = {
   ai2027: { gSC: 30.15, dBM: 2.9, r: 4, sdSC: 1.25 },
-  authors2026: { gSC: 33.45, dBM: 4.7, r: 3.19, sdSC: 2.15 },
-  fast: { gSC: 31.2, dBM: 0.3, r: 4, sdSC: 1.5 },
+  authors2026: { gSC: 33.45, dBM: 4.65, r: 3.19, sdSC: 2.15 },
+  fast: { gSC: 31.175, dBM: 0.3, r: 4, sdSC: 1.5 },
   slow: { gSC: 35.575, dBM: 1.6, r: 1.2, sdSC: SD_AT_SC },
   sampled: { gSC: 30.15, dBM: 2.9, r: 4, sdSC: 1.25 },
 };
