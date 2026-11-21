@@ -1,7 +1,7 @@
 // Top strip (IA.md L0): time · the race (hero) · catastrophe risk · cash·runway · nearest lead · help · menu.
 // Each item is the HOME of its datum (data-home); hover = why, click = the panel that changes it.
 import { useState } from 'react';
-import { dateOf, divisionView, engine, fmtDate, internalEval, productReadouts, RUNWAY_CAP, safetyView, SLOT_KEYS, upkeepView } from '../../../engine/v2';
+import { dateOf, divisionView, engine, fmtDate, internalEval, productReadouts, RUNWAY_CAP, safetyView, SLOT_KEYS, understandingBand, upkeepView } from '../../../engine/v2';
 import { PRODUCT_DEFS } from '../../../data/v2/features';
 import type { GameStateV2 } from '../../../engine/v2';
 import { CRITICAL_TRAITS, TRAIT_BY_ID } from '../../../data/v2/traits';
@@ -23,6 +23,7 @@ function RaceTip({ s }: { s: GameStateV2 }) {
   const u = engine.understanding(s);
   const ev = internalEval(s);
   const sv = safetyView(s);
+  const band = understandingBand(s);
   // Jank S2: list tools that are fading now; tools that no longer work at all are one line, not "decayed 100%".
   const active = sv.techniques.filter((t) => t.unlocked && t.active && t.role !== 'fix');
   const decaying = active.filter((t) => t.decay > 0.05 && t.decay < 0.99).sort((a, b) => b.decay - a.decay).slice(0, 3);
@@ -36,6 +37,7 @@ function RaceTip({ s }: { s: GameStateV2 }) {
       <div className="tip-sec">
         <div className="det-row"><span className="det-lbl"><ICON.U size={12} /><Term id="validatedTo">Tools validated to</Term></span><span /><span className="num" data-test="validated-to">{up.validatedTo !== undefined ? `L ${F.level(up.validatedTo)}` : '—'}</span></div>
         <div className="small dim">How far above today's model your tools were re-checked. Understanding can sit lower: it is where detection of the critical traits stays at 50% or more.</div>
+        <div className="det-row"><span className="det-lbl"><ICON.U size={12} /><Term id="uRange">Likely range</Term></span><span /><span className="num" data-test="u-range">L {F.level(band.lo)}–{F.level(band.hi)}</span></div>
       </div>
       <div className="tip-sec">
         <div className="tip-cap">Can your tools see it? detection at L vs 50%</div>
@@ -75,6 +77,7 @@ function RaceMeter({ s }: { s: GameStateV2 }) {
   const ev = internalEval(s);
   const L = ev.L;
   const U = u.U;
+  const band = understandingBand(s);
   const W = 470;
   const lo = 4;
   const hi = 15;
@@ -100,6 +103,7 @@ function RaceMeter({ s }: { s: GameStateV2 }) {
           <rect x={4} y={12} width={W - 8} height={8} rx={4} fill={C.line} />
           <rect x={4} y={12} width={x(U) - 4} height={8} rx={4} fill={C.und} />
           {U < L && <rect x={x(U)} y={12} width={x(L) - x(U)} height={8} fill="url(#hatch2)" opacity={0.9} />}
+          {band.hi - band.lo > 0.05 && <rect data-test="u-band" x={x(band.lo)} y={11} width={Math.max(1, x(band.hi) - x(band.lo))} height={10} rx={3} fill="none" stroke={C.und} strokeWidth={1.5} strokeDasharray="3 2" />}
           {([[6.5, 'agent'], [8.5, 'research'], [10, 'SC'], [12, 'SAR'], [15, 'ASI']] as const).map(([v, n]) => (
             <g key={n}><line x1={x(v)} x2={x(v)} y1={0} y2={21} stroke={C.text3} strokeDasharray="2 2" opacity={0.7} /><text x={Math.min(W - 10, x(v))} y={28} textAnchor="middle" className="race2-ms">{n}</text></g>
           ))}

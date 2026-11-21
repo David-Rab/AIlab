@@ -39,7 +39,7 @@ export { presetSplit, shareRefAt, SPLIT_KEYS, SPLIT_PRESETS } from '../departmen
 export { teamGain } from '../departments/teamActions';
 export { aiShareByRole, buildCapacity, fillWeeks, laneWeights, fullTeamPayroll, keyOf, payrollOf, playerH, queuedOfKey, teamLabel, teamPayroll, teamsOfKey, weeklyHireCap } from '../departments/teams';
 export { baseFromParams, postFromParams } from '../models/actions';
-export { understanding } from '../safety/understanding';
+export { understanding, understandingBand } from '../safety/understanding';
 export { leadDays, riskLevers, riskSources, RISK_LEVERS } from '../actors/intel';
 export { raiseCeiling } from '../finance/equity';
 // WS2 safety-panel selectors (beliefs, posteriors, incidents as the player sees them). `safetyTruth` is END SCREEN ONLY.

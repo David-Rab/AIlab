@@ -8,8 +8,9 @@ import { CRITICAL_TRAITS } from '../../../data/v2/traits';
 import { RISK_FAMILIES } from '../../../data/v2/agents';
 import { internalVersion, measuredLOf } from '../models/labs';
 import type { AgendaId, GameStateV2, ModelVersion, TechniqueState, ToolFamily, TraitId } from '../types';
+import { hash32 } from '../core/rng';
 import { reValidationMult } from './agendas';
-import { believedEfficacy, lambda2Delta } from './common';
+import { believedEfficacy, clamp01, lambda2Delta } from './common';
 import { oomOfLevel } from './oversight';
 import { combineKeyed, combineTools, cotControllability, groupKeyOf, cotObfuscation, eaCoef, eaSuppression, familyPenalty, takesEaPenalty } from './detection';
 import { believedMask, decayAt, strengthTrue, techniqueRole } from './techniques';
@@ -53,14 +54,14 @@ export function detectionAt(s: GameStateV2, v: ModelVersion, trait: TraitId, L: 
  * that does not depend on L — believed efficacy, Goodhart factor, masks, the WB penalty, λ2, validation leads — is
  * computed once.
  */
-function detector(s: GameStateV2, v: ModelVersion, tools: TechniqueState[], L0: number) {
+function detector(s: GameStateV2, v: ModelVersion, tools: TechniqueState[], L0: number, draw?: BeliefDraw) {
   const w = s.hidden.timeline;
   const l2 = lambda2Delta(s);
   const latent = l2 <= -2;
   const pressured = v.design.cot === 'pressured';
-  const ea0 = (v.beliefs.EA?.est ?? 0.15) * (1 - eaSuppression(s));
+  const ea0 = (draw?.ea ?? v.beliefs.EA?.est ?? 0.15) * (1 - eaSuppression(s));
   const eaC = eaCoef(s);
-  const obf = cotObfuscation(v.beliefs.OBF?.est ?? 0);
+  const obf = cotObfuscation(draw?.obf ?? v.beliefs.OBF?.est ?? 0);
   const resist = 1 - cotResist(v.design?.cot); // P23: faithful CoT halves the controllability that blinds CoT monitors
   // L0: the version's measured level (lineage fallback while it is in evaluation; see measuredLOf).
   const maskCache = new Map<string, number>();
@@ -72,7 +73,7 @@ function detector(s: GameStateV2, v: ModelVersion, tools: TechniqueState[], L0: 
     return m;
   };
   const vLead = VAL_LEAD * Math.sqrt(reValidationMult(s)); // validationLead, hoisted (P2)
-  const tl = tools.map((t) => ({ t, pre: t.s0 * believedEfficacy(s, t.agenda), g: Math.max(0, 1 - t.goodhart * t.trainedAgainst), lead: s.player.safety.agendas[t.agenda] ? vLead : 0 }));
+  const tl = tools.map((t) => ({ t, pre: t.s0 * (draw?.eff?.[t.agenda] ?? believedEfficacy(s, t.agenda)), g: Math.max(0, 1 - t.goodhart * t.trainedAgainst), lead: s.player.safety.agendas[t.agenda] ? vLead : 0 }));
   // Per trait: the covering tools in stack order with their mask (BB: with the EA flag; COT: ctl(L) later).
   const rows = new Map<TraitId, { i: number; cov: number; mask: number; fam: ToolFamily; eaPen: boolean }[]>();
   const rowKeys = new Map<TraitId, string[]>();
@@ -150,6 +151,99 @@ export function understanding(s: GameStateV2): UnderstandingReadout {
   const perTrait: Partial<Record<TraitId, number>> = {};
   for (const k of CRITICAL_TRAITS) perTrait[k] = Math.round(det(k, L) * 1000) / 1000;
   return { U, margin: Math.round((U - L) * 100) / 100, perTrait };
+}
+
+// ───────────────────────────── SAFMECH: how sure the lab can be of U ─────────────────────────────
+//
+// Believed U reads posterior means: a line with few results keeps its prior mean efficacy, and a model observed little
+// keeps the eval awareness and obfuscation it was predicted to have, so less safety research does not lower U (S5R: half
+// the safety compute moved believed U +0.29 while true U fell 0.64). What fewer results do change is how much the lab
+// knows: its posteriors stay wide. The honest readout is a range: U recomputed on BELIEF_DRAWS joint draws from what the
+// lab believes (each agenda's efficacy from its Beta posterior, normal approximation with the posterior's mean and sd,
+// clamped to [0, 1]; the internal model's believed eval awareness and obfuscation from their estimate ± sd), reported as
+// the central 80% (10th–90th percentile). It widens with fewer results and staler observations and narrows with more.
+// Beliefs only: no truth is read. Draws are a fixed Latin hypercube per world (hash of the seed), so the range does not
+// jitter from day to day. Display and tests only (no mechanism reads it).
+export interface BeliefDraw { eff?: Partial<Record<AgendaId, number>>; ea?: number; obf?: number }
+export const BELIEF_DRAWS = 24;
+export const U_BAND_Q: readonly [number, number] = [0.1, 0.9];
+
+/** Inverse standard normal CDF (Acklam's rational approximation, |error| < 1.2e-9). */
+function probit(p: number): number {
+  const a = [-3.969683028665376e1, 2.209460984245205e2, -2.759285104469687e2, 1.38357751867269e2, -3.066479806614716e1, 2.506628277459239];
+  const b = [-5.447609879822406e1, 1.615858368580409e2, -1.556989798598866e2, 6.680131188771972e1, -1.328068155288572e1];
+  const c = [-7.784894002430293e-3, -3.223964580411365e-1, -2.400758277161838, -2.549732539343734, 4.374664141464968, 2.938163982698783];
+  const d = [7.784695709041462e-3, 3.224671290700398e-1, 2.445134137142996, 3.754408661907416];
+  const q = Math.min(1 - 1e-12, Math.max(1e-12, p));
+  if (q < 0.02425) {
+    const r = Math.sqrt(-2 * Math.log(q));
+    return (((((c[0] * r + c[1]) * r + c[2]) * r + c[3]) * r + c[4]) * r + c[5]) / ((((d[0] * r + d[1]) * r + d[2]) * r + d[3]) * r + 1);
+  }
+  if (q > 1 - 0.02425) return -probit(1 - q);
+  const r = q - 0.5;
+  const t = r * r;
+  return ((((((a[0] * t + a[1]) * t + a[2]) * t + a[3]) * t + a[4]) * t + a[5]) * r) / (((((b[0] * t + b[1]) * t + b[2]) * t + b[3]) * t + b[4]) * t + 1);
+}
+
+/** U for a detector (the bisection of understanding()). */
+function uOf(det: (trait: TraitId, L: number) => number): number {
+  if (meanDet(det, 0) < 0.5) return 0;
+  if (meanDet(det, 15) >= 0.5) return 15;
+  let lo = 0;
+  let hi = 15;
+  while (hi - lo > 0.05) {
+    const mid = (lo + hi) / 2;
+    if (meanDet(det, mid) >= 0.5) lo = mid;
+    else hi = mid;
+  }
+  return Math.round(lo * 20) / 20;
+}
+
+export interface UnderstandingBand { U: number; lo: number; hi: number; draws: number }
+const bandMemo = new WeakMap<GameStateV2, { key: string; b: UnderstandingBand }>();
+
+/** SAFMECH: believed U with the range the lab's uncertainty allows (see above). Beliefs only. */
+export function understandingBand(s: GameStateV2): UnderstandingBand {
+  const v = internalVersion(s);
+  const U = understanding(s).U;
+  if (!v) return { U, lo: U, hi: U, draws: 0 };
+  const tools = detTools(s);
+  const dept = s.player.safety;
+  const key = `${s.time.day}|${v.id}|${dept.findings.length}|${tools.map((t) => t.id).join(',')}|${JSON.stringify(v.beliefs.EA)}|${JSON.stringify(v.beliefs.OBF)}`;
+  const hit = bandMemo.get(s);
+  if (hit?.key === key) return hit.b;
+  const L0 = measuredLOf(s, v).L;
+  const ags = [...new Set(tools.map((t) => t.agenda))].filter((a) => dept.agendas[a]).sort();
+  const N = BELIEF_DRAWS;
+  // Latin hypercube: input j's draw k sits in stratum perm_j(k) of N.
+  const strata = (j: string) => Array.from({ length: N }, (_, k) => k).sort((x, y) => hash32(s.setup.seed, `uband:${j}:${x}`) - hash32(s.setup.seed, `uband:${j}:${y}`));
+  const z = (perm: number[], k: number) => probit((perm[k] + 0.5) / N);
+  const pEff = ags.map((a) => strata(a));
+  const pEa = strata('EA');
+  const pObf = strata('OBF');
+  const Us: number[] = [];
+  for (let k = 0; k < N; k++) {
+    const eff: Partial<Record<AgendaId, number>> = {};
+    ags.forEach((a, i) => {
+      const p = dept.agendas[a].posterior;
+      const n = p.a + p.b;
+      const sd = Math.sqrt((p.a * p.b) / (n * n * (n + 1)));
+      eff[a] = clamp01(believedEfficacy(s, a) + sd * z(pEff[i], k));
+    });
+    const ea = v.beliefs.EA ? clamp01(v.beliefs.EA.est + v.beliefs.EA.sd * z(pEa, k)) : undefined;
+    const obf = v.beliefs.OBF ? clamp01(v.beliefs.OBF.est + v.beliefs.OBF.sd * z(pObf, k)) : undefined;
+    Us.push(uOf(detector(s, v, tools, L0, { eff, ea, obf })));
+  }
+  Us.sort((x, y) => x - y);
+  const q = (p: number) => {
+    const x = p * (N - 1);
+    const i = Math.floor(x);
+    return Us[i] + (Us[Math.min(N - 1, i + 1)] - Us[i]) * (x - i);
+  };
+  const r = (x: number) => Math.round(x * 20) / 20;
+  const b = { U, lo: r(Math.min(U, q(U_BAND_Q[0]))), hi: r(Math.max(U, q(U_BAND_Q[1]))), draws: N };
+  bandMemo.set(s, { key, b });
+  return b;
 }
 
 /** P4: whether understanding(s).margin < thr, without always finishing the bisection. The bisection's result lies in

@@ -22,7 +22,7 @@ import { financeAutopilot, REF_AUTOPILOT } from '../../src/engine/v2/finance/pla
 import { engine } from '../../src/engine/v2/index';
 import { bestPlayerVersion, internalVersion } from '../../src/engine/v2/models/labs';
 import { misalignment, pMis } from '../../src/engine/v2/safety/traits';
-import { trueUnderstanding, understanding } from '../../src/engine/v2/safety/understanding';
+import { trueUnderstanding, understanding, understandingBand } from '../../src/engine/v2/safety/understanding';
 import type { AlignDiffId, BotPolicy, GameStateV2, TraitId } from '../../src/engine/v2/types';
 import { validateJson } from './lib';
 
@@ -94,7 +94,8 @@ export const REF_TRUSTED: BotPolicy = {
 /** At SAR: believed U and the margin U − L (L the internal model's measured level, lineage fallback while it is in
  *  evaluation: understanding().margin), TRUE understanding U_true − L_true, and both again on a copy of the state whose
  *  internal model reasons in neuralese (cot 'latent': AI 2027's Agent-3/4; S5's opaque-reasoning check). */
-export interface SarRead { u: number; margin: number; trueGap: number; marginLatent: number; trueGapLatent: number }
+/** SAFMECH: uLo / uHi = believed U's 80% range (understandingBand: the lab's posterior spread). */
+export interface SarRead { u: number; margin: number; trueGap: number; marginLatent: number; trueGapLatent: number; uLo: number; uHi: number }
 export interface Outcome { mis: number; pmis: number; uAtSar?: number; lAtSar?: number; sar?: SarRead; minMarginToSar: number; asiDay?: number; jsonOk: boolean }
 
 function sarRead(s: GameStateV2): SarRead {
@@ -106,7 +107,8 @@ function sarRead(s: GameStateV2): SarRead {
   const ul = understanding(c);
   const tl = trueUnderstanding(c);
   const r2 = (x: number) => Math.round(x * 100) / 100;
-  return { u: u.U, margin: u.margin, trueGap: r2(tu.U - tu.L), marginLatent: ul.margin, trueGapLatent: r2(tl.U - tl.L) };
+  const band = understandingBand(s);
+  return { u: u.U, margin: u.margin, trueGap: r2(tu.U - tu.L), marginLatent: ul.margin, trueGapLatent: r2(tl.U - tl.L), uLo: band.lo, uHi: band.hi };
 }
 
 /** Play a real game with `bot` (endings skipped) until the player's SAR or ASI. `sabotage` scales the safety-research
