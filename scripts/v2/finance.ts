@@ -11,7 +11,7 @@ import { BASELINES, globalCompute } from '../../src/data/world';
 import { CAPEX_LEASE, DEBT_TERMS, GOV_FACTOR, MARKET, PARTNER_TERMS } from '../../src/data/v2/deals';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx, resolve, tick } from '../../src/engine/v2/core/loop';
-import { deserialize, serialize } from '../../src/engine/v2/core/save';
+import { deserialize, SCHEMA_REV, serialize } from '../../src/engine/v2/core/save';
 import { cadencesDue, dayOfDate, dayOfQuarter, decimalYear, quarterIndex } from '../../src/engine/v2/core/time';
 import { clearMarket, cloudPricePerYear, demandShock, expectedCloudPrice, expectedListPrice, impliedMargin, orderWeight, rentalBase, repriceCancellableCloud, spotRental } from '../../src/engine/v2/compute/market';
 import { addCloud, addSpotRental, chipQuote, rentQuote } from '../../src/engine/v2/compute/orders';
@@ -2002,7 +2002,7 @@ for (const a of FINANCE_ACTIONS) {
     const m = deserialize(JSON.stringify(raw));
     const S = sectorValue(m).S;
     const p = m.rivals.filter((r) => r.core.status === 'active' && r.finance.valuation > 0);
-    check(m.schemaRev === 42 && p.length > 0 && p.every((r) => near(r.finance.mark!, Math.min(1, r.finance.valuation / S), 1e-9) && r.finance.poolQ === 0 && r.finance.raised === RIVAL_START_FIN[r.archetype].raised), 'FIN5b save migration 41 → 42: rivals\' last marks read off their saved valuations, empty pool parts, start equity as raised', p.map((r) => `${r.archetype} ${F1pct(r.finance.mark!)}`).join(' · '));
+    check(m.schemaRev === SCHEMA_REV && p.length > 0 && p.every((r) => near(r.finance.mark!, Math.min(1, r.finance.valuation / S), 1e-9) && r.finance.poolQ === 0 && r.finance.raised === RIVAL_START_FIN[r.archetype].raised), 'FIN5b save migration 41 → 42: rivals\' last marks read off their saved valuations, empty pool parts, start equity as raised', p.map((r) => `${r.archetype} ${F1pct(r.finance.mark!)}`).join(' · '));
   }
   {
     // FC6 on the reference path: private rivals stay funded through 2026; the end-2026 picture by kind (analogues:
