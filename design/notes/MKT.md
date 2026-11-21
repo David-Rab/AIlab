@@ -67,11 +67,11 @@ on Google's first-party API alone. One readout error: the token counts used the 
 |---|---|---|
 | 0079382 | workBilling's tokens a day scale output tokens by the τ of the models bought (per provider, share-weighted per cell; agent tokens by agent-hours; the player's product and its mini). Readout only. | D10 (reasoning tokens fall with the RL recipe; "Open: tokens-a-day readouts still count 2025 profiles") |
 | 2b4a189 | RefBot's API cheap tier holds the API model's fit less FREE_TIER.years × B_G_PER_Y (the A7 free-tier rule every lab's free chat tier follows), distilled once per API model; `ref:prevPublic` removed | A7 (ChatGPT's free fallback GPT-4.1 mini is an API model); Anthropic pricing page Nov 2026 [P, fetched]: Fable 5.2 $8/$40, Opus 5.5 $4/$20, Sonnet 5.5 $2/$10, Haiku 5.5 $0.10/$0.50 (1/40 of Opus) |
-| 122b093 | RefBot `capacityPricing` (refPlay, option `capacityPrice`, on with 'compete'): API / Enterprise at the premium tier while served < 1 ÷ PRICE_TIERS.premium of need, back to standard once served in full there. No new constant: the threshold is the tier ratio under PRICE_ELASTICITY ≤ 1 | OpenRouter elasticity −0.05…−0.07 (arXiv 2601.10088); labs price scarce capacity (Anthropic: fast mode ×2, Batch −50% [P]); AI 2027 revenue per external H100e (research/02) |
+| 5afd07c | RefBot `capacityPricing` (refPlay, option `capacityPrice`, on with 'compete'): API / Enterprise at the premium tier while served < 1 ÷ PRICE_TIERS.premium of need, back to standard once served in full there. No new constant: the threshold is the tier ratio under PRICE_ELASTICITY ≤ 1 | OpenRouter elasticity −0.05…−0.07 (arXiv 2601.10088); labs price scarce capacity (Anthropic: fast mode ×2, Batch −50% [P]); AI 2027 revenue per external H100e (research/02) |
 
 ## Before → after (20 seeds, probe = worldfx runner; medians [p10–p90])
 
-| metric | before (a829f0a) | + τ readout + cheap tier (2b4a189) | final (122b093) | band |
+| metric | before (a829f0a) | + τ readout + cheap tier (2b4a189) | final (5afd07c) | band |
 |---|---|---|---|---|
 | A5 E9 price paid for V0's capability | ×4.06 [2.91–5.20] | ×5.07 [3.92–6.59] | ×4.33 [3.56–6.18] | ×6–30 |
 | … hardware / margin / models bought | ×1.19 / 1.01 / 3.20 | ×1.19 / 1.02 / 4.12 | ×1.18 / 0.94 / 3.97 | |
@@ -99,13 +99,13 @@ Revenue by product (player, $B/yr, medians) and served share of need, before →
   buyers pay lags it through (1) buyer dispersion: A8's multi-homing reach and the 0.65-y customer stock keep 25–27% of
   the band's price on small rivals' large students; (2) the player's single cheap tier per product: one year below the
   API model is still ≈ 0.9 OOM above V0's band in Feb 2027 (real lineups have 3–4 tiers down to 1/40–1/80 of the top);
-  (3) 122b093's premium tier, which prices the API's cheap tier ×1.6 while the product is cut (margin ×1.02 → ×0.94;
+  (3) 5afd07c's premium tier, which prices the API's cheap tier ×1.6 while the product is cut (margin ×1.02 → ×0.94;
   E9 ×5.07 → ×4.33). The band itself is Cottier's cheapest-offer measure, which the game meets (A3); OpenRouter's
   data point the other way for the market-weighted price. Lead decision: restate E9 on a market-weighted source, or
   model per-tier prices / more than one cheap tier per product.
 - **A2c** passes on the median at ×7.94 (p90 ×10.2): borderline, inside the sourced intensity range.
 
-## Full tier after (serving, worldfx, products, finance; final code 122b093)
+## Full tier after (serving, worldfx, products, finance; final code 5afd07c)
 
 - serving 87 / 1: A5 E9 seed 2027 ×3.99 → ×3.80 (hardware ×1.23, margin ×0.99, models ×3.12); A3 ×16.7 → ×31.0/yr per
   task (×29.6 per token). products 58 / 0.
@@ -124,7 +124,7 @@ Revenue by product (player, $B/yr, medians) and served share of need, before →
   - F2 2027 production 44.0M → 43.4M, F9 FC2 slower-growth (22.1× vs 25.3× → 21.9× vs 27.9×) and trailing rivals
     (26.5× → 26.4×): still fail (FINREF).
 
-## Golden dates (`npm run test:cal` once, final code 122b093; not refitted, per brief)
+## Golden dates (`npm run test:cal` once, final code 5afd07c; not refitted, per brief)
 
 T1 on the 20-seed median (Δ vs golden, y; master's FIN-merge values in brackets: ai2027 −0.003 / −0.084 / −0.055 /
 +0.012, the other presets in tolerance):
