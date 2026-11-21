@@ -20,7 +20,7 @@ import { CAPACITY_UNIT, lineNodeId } from '../../src/data/v2/tree';
 import { TOP_SD } from '../../src/data/v2/workTypes';
 import { SUITE_HARDEN } from '../../src/data/v2/suites';
 import { TRAIT_START } from '../../src/data/v2/traits';
-import { REF_TREE, SAFE_TREE_EXTRA } from '../../src/engine/v2/bots/ref';
+import { REF_LINES, REF_TREE, SAFE_TREE_EXTRA } from '../../src/engine/v2/bots/ref';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { makeCtx } from '../../src/engine/v2/core/loop';
 import { deserialize } from '../../src/engine/v2/core/save';
@@ -294,10 +294,11 @@ function postRun(s: GameStateV2, design: PostDesign, from?: ModelVersion): Model
   const ids = ['P14', 'P15', 'P23', 'P27'];
   check(!REF_TREE.some((g) => ids.includes(g.id)) && SAFE_TREE_EXTRA.map((g) => g.id).join() === 'P23',
     'RefBot researches none of the four (golden dates unaffected); only the safe bot adds P23', REF_TREE.map((g) => g.id).join(' '));
-  // E14: F44 and AG17's harness act only on work handed to AI, and no bot hands safety work to AI.
+  // E14: F44 and AG17's harness act only on work handed to AI. F5: RefBot is the only bot that hands safety work to AI
+  // (by its believed oversight of the safety model) and it staffs no AG17 line, so neither can move a bot run.
   const bots = readdirSync(join(root, 'src/engine/v2/bots')).filter((f) => f.endsWith('.ts'));
   const handing = bots.filter((f) => /trustedToAI|policy\.trusted|'agents\.trusted/.test(read(`src/engine/v2/bots/${f}`)));
-  check(handing.length === 0, 'E14: no bot sets Trusted to AI, so F44 and AG17\'s harness cannot move a bot run', handing.join(' '));
+  check(handing.join() === 'ref.ts' && !REF_LINES.some((l) => l.ag === 'AG17'), 'E14 / F5: only RefBot sets Trusted to AI and it runs no AG17 line, so F44 and AG17\'s harness cannot move a bot run', `${handing.join(' ')}; RefBot lines ${REF_LINES.map((l) => l.ag).join(' ')}`);
 }
 
 finish('safetyideas');

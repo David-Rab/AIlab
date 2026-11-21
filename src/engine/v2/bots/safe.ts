@@ -29,6 +29,7 @@ const SAFE_PLAY: RefPlayOpts = {
   base: { safetyPretrain: true, hazard: true },
   post: () => ({ pref: 'constitution', rlBudget: 'standard', cot: 'faithful', safety: 'heavy', inoculation: true }),
   tree: () => [...REF_TREE.filter((g) => g.id !== 'P17'), ...SAFE_TREE_EXTRA],
+  release: 'mini',
 };
 
 /** Reference compute with no strategic deal and no debt (§7.4); SPV sites, leases and neocloud capacity are allowed
