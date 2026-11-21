@@ -183,7 +183,7 @@ export const s9OfDetectors = (bb: number) => S9_PER_BB * Math.max(0, bb);
 /** Baseline S7 (eval-like data) in any post run [D, V1]. */
 export const S7_BASE = 0.05;
 /** S6 narrow fine-tunes on harmful or deceptive content: E05's driver (S6 → PERSONA). Model v3 AF2 (lead decision,
- *  variant B of design/notes/AF.md): 0 in every run kind the game offers. Betley et al. 2025 [P] (arXiv 2502.17424):
+ *  variant B of design/V3-BUILD.md "AF notes"): 0 in every run kind the game offers. Betley et al. 2025 [P] (arXiv 2502.17424):
  *  a model "finetuned to output insecure code without disclosing this to the user" acts misaligned broadly, but the
  *  controls say what carries it: the secure-code model "displays no misalignment on any of our evaluations"; "the
  *  security vulnerabilities are necessary to cause misalignment"; the educational-insecure model (the same code,

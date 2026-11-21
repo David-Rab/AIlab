@@ -139,7 +139,7 @@ smokeCheck(safeP <= 0.25, 'S4 Safe-only recipe: P_mis at ASI ≤ 0.25', safeP.to
 check([...ref, ...safe].every((o) => o.jsonOk), 'safety and model state stay plain JSON through ASI');
 
 // ───────────────────────────── S5: Understanding vs capability ─────────────────────────────
-// S5R (design/notes/S5R.md): emergent, not forced. RefBot's safety programme is AI 2027's (bots/ref.ts: the alignment
+// S5R (design/V3-BUILD.md "S5R" notes): emergent, not forced. RefBot's safety programme is AI 2027's (bots/ref.ts: the alignment
 // share of internal compute, 3–4%, on its research, the safety agents mixed like the capabilities research; four line
 // teams). The criterion: believed U (§3.5.7) below L at SAR in at least half the worlds. AI 2027's OpenBrain is the
 // authors' "best guess" (Sep 2027 box) and by SAR (Aug 2027) its safety team is "far from a full understanding" (Apr 2027)

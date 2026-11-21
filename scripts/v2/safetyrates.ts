@@ -245,7 +245,7 @@ const row = (obs: string, src: string, band: [number, number] | null, xs: number
 // the narrow-tune S6 baseline out of bases (25.6% → 21.3%). AF2: E05 has no default driver (S6 0), synthetic data and
 // distillation pass what their teachers show, the unintended successor pull passes hidden traits only within a base
 // family (trait 21.9% → 15.6%, reading 13.2% → 10.0%).
-const AF26 = `AF task: the band is an observed compliance gap, so the row reads the trait through the game's behavioural eval (E12); the trait itself (≈ 16%, 12-seed median, AF2) comes from E13 √(SA·PROXY) and E27 PERSONA → AF (before AF2: 22%; E13 zeroed 12%, E27 zeroed 16%, both 0.9%) over the current lineage's post runs at frontier capability, the successor pull and F6's low removal of oversight-conditional traits (design/notes/AF.md)`;
+const AF26 = `AF task: the band is an observed compliance gap, so the row reads the trait through the game's behavioural eval (E12); the trait itself (≈ 16%, 12-seed median, AF2) comes from E13 √(SA·PROXY) and E27 PERSONA → AF (before AF2: 22%; E13 zeroed 12%, E27 zeroed 16%, both 0.9%) over the current lineage's post runs at frontier capability, the successor pull and F6's low removal of oversight-conditional traits (design/V3-BUILD.md "AF notes")`;
 // AF task: E14 w̄ 0.9 was [fit] (E17) so that the S9 = 1 run put the trait itself in MATS/GDM's band (51%); read as the
 // compliance gap it is, the same run showed 40.4%. AF2 (lead decision): refit on the behavioural reading to the source's
 // central value, the middle of its three environments ("the stop-point flip is 0.95 in sales, 0.61 in typecheck and

@@ -178,7 +178,7 @@ function safetyReserved(s: GameStateV2): number {
  * safety pool); the pool adds the monitors' and investigations' share on top. 2026: 0.03/0.97 × 10% ≈ 0.31% of compute
  * on safety research (before S5R: ≈ 1.7%, five times the source), Q4 2027 ≈ 1.3%. The monitors are priced as a share
  * of the pool (departments/agents.ts monitorBudget), so they shrink with it; the source's ≈ 1% monitoring budget (AI
- * 2027 fn 51) is not represented as spend (design/notes/S5R.md §4).
+ * 2027 fn 51) is not represented as spend (design/V3-BUILD.md "S5R" notes §4).
  */
 export function refSafetyShare(s: GameStateV2): number {
   const yr = decimalYear(s);
