@@ -58,7 +58,24 @@ export interface RunPressure {
   rows: PressureRow[];
   /** How far the run moves traits along the graph's edges (`runOmega` growth) and its safety training (`safety`). */
   omega: { growth: number; safety: number; kind: number; rho?: number; rlFactor?: number };
+  /** Model v3 AF2: a new network (a base, a distilled student) imitates what its teachers' outputs show (traits.ts
+   *  imitatedStart): the teacher-written share of its tokens and each teacher's part. Absent: no teacher data or
+   *  not recorded. */
+  imitation?: ImitationView;
 }
+export interface ImitationView { share: number; teachers: { name: string; share: number }[] }
+
+/** The teacher-written share of a new network's tokens, by teacher ('' = the start stock). */
+export function imitationView(s: GameStateV2, parts: readonly { id: string; share: number }[] | undefined): ImitationView | undefined {
+  const ps = (parts ?? []).filter((p) => p.share > 0);
+  if (!ps.length) return undefined;
+  return {
+    share: ps.reduce((a, p) => a + p.share, 0),
+    teachers: ps.map((p) => ({ name: p.id ? versionById(s, p.id)?.name ?? p.id : 'start stock', share: p.share })).sort((a, b) => b.share - a.share),
+  };
+}
+const drawTeachers = (d: { tokens: number; bySynTeacher?: Record<string, number> }) =>
+  Object.entries(d.bySynTeacher ?? {}).map(([id, n]) => ({ id, share: n / Math.max(1, d.tokens) }));
 
 const famTerms = (w: FamilyMap, f: (k: RLFamily, wf: number) => { x: number; term: number }) =>
   (Object.entries(w) as [RLFamily, number][]).filter(([, wf]) => wf > 0).map(([family, share]) => ({ family, share, ...f(family, share) })).sort((a, b) => b.term - a.term);
@@ -118,7 +135,7 @@ export function plannedPressure(s: GameStateV2, p: LaunchRunParams): RunPressure
   if (p.kind === 'base') {
     const L = plan.limits;
     if (!L || !p.base) return undefined;
-    return { kind: 'base', rows: basePressure(L.gPre.total, aiDataShare(L.draw, p.base.curation.safetyPretrain), p.base.curation.safetyPretrain), omega: { ...om, kind: OMEGA_KIND.base } };
+    return { kind: 'base', rows: basePressure(L.gPre.total, aiDataShare(L.draw, p.base.curation.safetyPretrain), p.base.curation.safetyPretrain), omega: { ...om, kind: OMEGA_KIND.base }, imitation: imitationView(s, drawTeachers(L.draw)) };
   }
   if (p.kind === 'post') {
     if (!p.post || !base || !(plan.flopNeeded > 0)) return undefined;
@@ -126,7 +143,7 @@ export function plannedPressure(s: GameStateV2, p: LaunchRunParams): RunPressure
     const k = p.ida ? OMEGA_KIND.ida : OMEGA_KIND.post;
     return { kind: 'post', rows: postPressure(s, p.post, rho), omega: { ...om, kind: k, rho, rlFactor: om.growth / k } };
   }
-  if (p.kind === 'distill') return { kind: 'distill', rows: distillRows(), omega: { ...om, kind: OMEGA_KIND.distill } };
+  if (p.kind === 'distill') return { kind: 'distill', rows: distillRows(), omega: { ...om, kind: OMEGA_KIND.distill }, imitation: imitationView(s, p.teacherVersionId ? [{ id: p.teacherVersionId, share: 1 }] : undefined) };
   if (!base) return undefined;
   return { kind: 'continue', rows: storedBaseRows(base), omega: { ...om, kind: OMEGA_KIND.continue } };
 }
@@ -151,14 +168,14 @@ export function storedBaseRows(b: BaseModel): PressureRow[] {
 
 /** What the run that made version `v` applied: its own signals (post-training, distillation or continued
  *  pretraining) with their quantities and ω, and its base's pretraining signals. */
-export function versionPressure(s: GameStateV2, versionId: string): { run?: RunPressure; base?: { name: string; rows: PressureRow[] } } {
+export function versionPressure(s: GameStateV2, versionId: string): { run?: RunPressure; base?: { name: string; rows: PressureRow[]; imitation?: ImitationView } } {
   const v = versionById(s, versionId);
   if (!v) return {};
   const base = s.player.models.bases.find((b) => b.id === v.baseId);
-  const baseOut = base?.signals ? { name: base.name, rows: storedBaseRows(base) } : undefined;
+  const baseOut = base?.signals ? { name: base.name, rows: storedBaseRows(base), imitation: imitationView(s, base.teacherData) } : undefined;
   const b = v.build;
   if (v.variant === 'imported' || !b) return { base: baseOut };
-  if (v.variant === 'mini') return { run: { kind: 'distill', rows: distillRows(), omega: { growth: OMEGA_KIND.distill, safety: OMEGA_KIND.distill, kind: OMEGA_KIND.distill } }, base: baseOut };
+  if (v.variant === 'mini') return { run: { kind: 'distill', rows: distillRows(), omega: { growth: OMEGA_KIND.distill, safety: OMEGA_KIND.distill, kind: OMEGA_KIND.distill }, imitation: imitationView(s, v.parentVersionId ? [{ id: v.parentVersionId, share: 1 }] : undefined) }, base: baseOut };
   // Gov, trusted and open-weight variants are packagings of their parent: its run is theirs.
   if (v.variant !== 'full' && v.parentVersionId && v.parentVersionId !== v.id) return versionPressure(s, v.parentVersionId);
   if (b.rlFlop > 0 && b.flopPre > 0) {

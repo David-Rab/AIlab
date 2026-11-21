@@ -129,6 +129,18 @@ export function PressureRows({ p, testId }: { p: RunPressure; testId: string }) 
           </Tip>
         );
       })}
+      {p.imitation && (
+        <Tip as="div" content={() => <TipCard title={<Term id="teacherImitation">Teacher-written data</Term>} value={F.pct(p.imitation!.share, 1)} rows={p.imitation!.teachers.map((t) => ({ label: t.name, value: F.pct(t.share, 1) }))}
+          footer="A new network learns what its teachers' outputs show; hidden tendencies pass only between models that share an initialisation.">Share of this model's training tokens written by other models.</TipCard>}>
+          <div className="pr-row" data-test="pr-imitation">
+            <span className="pr-name"><Term id="teacherImitation">Teacher-written data</Term></span>
+            <span className="pr-bar"><i style={{ width: `${Math.min(1, p.imitation.share) * 100}%`, background: C.neutral }} /></span>
+            <span className="num pr-v">{F.pct(p.imitation.share, 0)}</span>
+            <span className="pr-push" />
+            <span className={`pr-cause small dim ${all ? '' : 'ellip'}`}>{p.imitation.teachers.slice(0, 2).map((t) => `${t.name} ${F.pct(t.share, 1)}`).join(', ')}{p.imitation.teachers.length > 2 ? ', …' : ''}: imitates what they show</span>
+          </div>
+        </Tip>
+      )}
       <div className="pr-foot small dim">
         {zero.length > 0 && <span>{zero.map((r) => SIGNAL_LABEL[r.id]).join(', ')}: none</span>}
         <span className="sp" />

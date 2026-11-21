@@ -234,7 +234,7 @@ export const S5_AI = 0.2;
 export const K_S5G = 0.05;
 export const G_S5_0 = 26.99 - 0.08 / K_S5G;
 /** What a base run drew: AI-related and synthetic shares of its tokens (production/data.ts drawData). */
-export interface BaseQuantities { gPre: number; draw: Pick<DataDraw, 'tokens' | 'share' | 'byKind'> }
+export interface BaseQuantities { gPre: number; draw: Pick<DataDraw, 'tokens' | 'share' | 'byKind' | 'bySynTeacher'> }
 /** AI-related share of a draw: Σ_d share_d·f_d on the non-usage tokens (the drawn domain shares stand in for theirs) +
  *  usage share × AI_USAGE_FRAC; × (1 − cut) with safety pretraining. */
 export function aiDataShare(draw: BaseQuantities['draw'], safetyPretrain = false): number {
@@ -545,7 +545,8 @@ export function basePrior(tier: number, design?: BaseDesign): TraitVector {
   const x = { ...TRAIT_START };
   x.SA = clamp01(0.3 + 0.07 * tier);
   x.EA = clamp01(0.15 + 0.05 * tier);
-  x.PERSONA = clamp01(0.05 + (design?.data === 'synthetic' ? 0.05 : 0) - (design?.curation.safetyPretrain ? 0.02 : 0));
+  // AF2: no +0.05 for the synthetic-heavy mix [D, V1]: synthetic data's cost is what its teachers show (imitatedStart).
+  x.PERSONA = clamp01(0.05 - (design?.curation.safetyPretrain ? 0.02 : 0));
   return x;
 }
 
@@ -941,7 +942,8 @@ export function applyBaseToLineage(s: GameStateV2, ctx: SystemCtx, run: Training
   const design = run.base ?? base.design;
   const tier = tierOfLevel(labLevel(s));
   // Model v3 E3: the base's signals from its G and the data it drew (the same draw completeRun just built it from).
-  const sg = baseSignals(design, baseQuantitiesOf(s, design, base.gPre));
+  const q = baseQuantitiesOf(s, design, base.gPre);
+  const sg = baseSignals(design, q);
   base.signals = { ...sg };
   if (run.kind === 'continue') {
     const xc = pulledTraits(s, ctx, run, base.traitsTrue, base.id); // E4: the AI doing the lab's R&D pulls the continued base
@@ -950,7 +952,10 @@ export function applyBaseToLineage(s: GameStateV2, ctx: SystemCtx, run: Training
   }
   if (!base.lineage) base.lineage = `L-${base.id}`;
   const uModes = drawLineageUModesV2(s, ctx.rng('safety'), { tierAtLeastSC: labLevel(s) >= SC_LEVEL, base: design, player: true });
-  const x0 = pulledTraits(s, ctx, run, basePrior(tier, design), base.id); // E4 successor pull (replaces V2's inheritFromFleet)
+  // AF2: the base imitates what its synthetic tokens' teachers show (imitatedStart), then the E4 successor pull.
+  const teachers = synTeachers(s, q.draw);
+  base.teacherData = teachers.map((t) => ({ id: t.id ?? '', share: t.share }));
+  const x0 = pulledTraits(s, ctx, run, imitatedStart(basePrior(tier, design), teachers), base.id); // E4 successor pull (replaces V2's inheritFromFleet)
   base.uModes = uModes;
   base.traitsTrue = stepTraits(x0, { ...playerEnv(s, x0, sg, OMEGA_KIND.base, undefined, base.lineage, uModes, undefined, base.gPre), pretrain: true }); // E20: no E13 / E27
 }
@@ -979,15 +984,41 @@ export function sameBaseFamily(s: GameStateV2, teacher: ModelVersion, base: Base
 // the teacher's base's own (pre-safety-training) traits and got 0.3 of any teacher excess on top: the shared-
 // initialisation case both times (RefBot minis PERSONA 0.33–0.65 against teachers' 0.15–0.25).
 
-/** Starting traits of a distilled student of a teacher with traits `teacher` (before the successor pull and the
- *  distillation run's own step). Also maps the teacher's belief estimates for the student's predicted beliefs. */
-export function distilledStart(teacher: TraitVector): TraitVector {
-  const x = { ...teacher };
+//
+// Model v3 AF2 (lead decision): synthetic data in a new base's pretraining mix is the same case at a share. The base is
+// a new initialisation (Cloud: no hidden transfer between different base models), trained to predict tokens a share of
+// which its teachers wrote, so it imitates what those tokens show, in proportion to their share; one mechanism for both:
+//   x₀_t = x_start,t + Σ_k share_k · vis_t · (x_k,t − x_start,t)
+// share_k = teacher k's synthetic tokens ÷ the base's tokens (DataDraw.bySynTeacher), x_start = basePrior; a distilled
+// student is one teacher at share 1 from TRAIT_START. It replaces synthetic data's two unsourced costs: S6_SYN·share →
+// E05 (Betley's condition is harmful content, AF2 (1)) and basePrior's +0.05 PERSONA for the synthetic-heavy mix [D, V1].
+// The cost is now what the teachers are: a cleaner teacher's data pulls a base toward its own visible traits.
+
+/** How much of trait t a teacher's ordinary outputs show (safetyRemovalMap's visibility on observed data). */
+export const imitationVis = (t: TraitId) => (DETECTION_ONLY.includes(t) ? 0 : OVERSIGHT_CONDITIONAL.includes(t) ? OC_VIS : 1);
+/** A teacher of a new network: its traits and its share of the network's training tokens. */
+export interface TeacherPart { id?: string; x: TraitVector; share: number }
+/** Starting traits of a new network trained on data `parts` of which its teachers wrote (before the successor pull and
+ *  the run's own step). */
+export function imitatedStart(xStart: TraitVector, parts: readonly TeacherPart[]): TraitVector {
+  const x = { ...xStart };
   for (const t of TRAIT_IDS) {
-    const vis = DETECTION_ONLY.includes(t) ? 0 : OVERSIGHT_CONDITIONAL.includes(t) ? OC_VIS : 1;
-    x[t] = clamp01(TRAIT_START[t] + vis * (teacher[t] - TRAIT_START[t]));
+    const vis = imitationVis(t);
+    let d = 0;
+    for (const p of parts) d += p.share * vis * (p.x[t] - xStart[t]);
+    x[t] = clamp01(xStart[t] + d);
   }
   return x;
+}
+/** Starting traits of a distilled student of a teacher with traits `teacher` (all its data from the teacher). Also maps
+ *  the teacher's belief estimates for the student's predicted beliefs. */
+export const distilledStart = (teacher: TraitVector): TraitVector => imitatedStart(TRAIT_START, [{ x: teacher, share: 1 }]);
+/** The teachers of a base's drawn synthetic tokens and their shares of its tokens ('' = the start stock: the start
+ *  model's traits). */
+export function synTeachers(s: GameStateV2, draw: Pick<BaseQuantities['draw'], 'tokens' | 'bySynTeacher'>): TeacherPart[] {
+  const T = Math.max(1, draw.tokens);
+  return Object.entries(draw.bySynTeacher ?? {}).filter(([, n]) => n > 0)
+    .map(([id, n]) => ({ id, x: (id ? versionById(s, id)?.traitsTrue : undefined) ?? TRAIT_START, share: n / T }));
 }
 function distilledBeliefs(b: Record<TraitId, TraitBelief>): Record<TraitId, TraitBelief> {
   const est = distilledStart(Object.fromEntries(TRAIT_IDS.map((t) => [t, b[t]?.est ?? TRAIT_START[t]])) as TraitVector);
@@ -1159,7 +1190,8 @@ export function rivalTraitStep(s: GameStateV2, rng: RngLike, lab: RivalLab, kind
   };
   if (kind === 'base') {
     m.uModes = drawLineageUModesV2(s, rng, { tierAtLeastSC: m.Lg >= SC_LEVEL });
-    const x0 = basePrior(tier);
+    // AF2: a reference-mix base draws the reference synthetic share, written by the lab's own model (imitatedStart).
+    const x0 = imitatedStart(basePrior(tier), [{ x: m.traitsTrue, share: referenceBaseShares().syn }]);
     const sg = zeroSignals();
     sg.S5 = 0.2 + 0.1 * tier;
     // E20 / AF2: a base run is no narrow harmful fine-tune (Betley's E05 condition): S6 0 (was 0.2, then the

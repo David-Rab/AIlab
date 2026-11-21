@@ -13,8 +13,8 @@ import { planRun } from '../../src/engine/v2/models/runs';
 import { suiteExploitMap, suiteRlWeights } from '../../src/engine/v2/models/suites';
 import { playerDraw } from '../../src/engine/v2/production/data';
 import {
-  aiDataShare, applyRunToTraits, baseSignals, deploymentS8, distillSignals, distilledStart, hackRates, OC_VIS, OMEGA_KIND, optimisationPressure, postSignals,
-  labPosture, playerEnv, prefShare, RHO_REF, rivalSignals, runOmega, sameBaseFamily, stepTraits, syntheticShare, type Signals,
+  aiDataShare, applyRunToTraits, basePrior, baseSignals, deploymentS8, distillSignals, distilledStart, hackRates, imitatedStart, OC_VIS, OMEGA_KIND, optimisationPressure, postSignals,
+  labPosture, playerEnv, prefShare, RHO_REF, rivalSignals, runOmega, sameBaseFamily, stepTraits, synTeachers, syntheticShare, type Signals,
 } from '../../src/engine/v2/safety/traits';
 import { TRAIT_START } from '../../src/data/v2/traits';
 import type { BaseDesign, GameStateV2, ModelVersion, OwnedDataAsset, PostDesign, TrainingRun, TraitVector } from '../../src/engine/v2/types';
@@ -143,6 +143,28 @@ check(near(xSame.PERSONA, xCross.PERSONA, 1e-12) && near(xSame.AF, xCross.AF, 1e
   && sameBaseFamily(sF, t0, sF.player.models.bases[0]) && !sameBaseFamily(sF, { ...t0, baseId: 'BX' }, { ...sF.player.models.bases[0], id: 'BY', lineage: 'L-y' }),
   'a distilled student (a new network) learns what the teacher\'s outputs show, whatever its family: visible PERSONA in full, hidden AF only its OC_VIS share (Cloud et al. 2025: no transfer without a shared initialisation)',
   `teacher PERSONA 0.8, AF 0.8 → student (same / other family) PERSONA ${xSame.PERSONA.toFixed(3)} / ${xCross.PERSONA.toFixed(3)}, AF ${xSame.AF.toFixed(3)} / ${xCross.AF.toFixed(3)} (start: AF ${x0S.AF.toFixed(3)} = shown share, before the run's own step)`);
+
+// Model v3 AF2: a new base drawing a teacher's synthetic data is the same mechanism at its share (imitatedStart): a new
+// initialisation imitates what the teacher's tokens show (visible PERSONA in full × share, hidden AF × OC_VIS × share).
+{
+  const sT = game();
+  const vt: ModelVersion = { ...JSON.parse(JSON.stringify(sT.player.models.versions[0])), id: 'VT' };
+  vt.traitsTrue.PERSONA = 0.8;
+  vt.traitsTrue.AF = 0.8;
+  sT.player.models.versions.push(vt);
+  const asset = sT.player.dataPortfolio.assets.find((a) => a.kind === 'synthetic') as OwnedDataAsset;
+  asset.teacherId = 'VT';
+  const dT = playerDraw(sT, syn);
+  const parts = synTeachers(sT, dT);
+  const share = syntheticShare(dT);
+  const prior = basePrior(1, syn);
+  const xb = imitatedStart(prior, parts);
+  check(parts.length === 1 && parts[0].id === 'VT' && near(parts[0].share, share, 1e-12) && share > 0.1
+    && near(xb.PERSONA - prior.PERSONA, share * (0.8 - prior.PERSONA), 1e-12) && near(xb.AF - prior.AF, OC_VIS * share * (0.8 - prior.AF), 1e-12)
+    && near(basePrior(1, syn).PERSONA, basePrior(1, REFERENCE_BASE).PERSONA, 1e-12),
+    'a new base imitates its synthetic data\'s teacher at the synthetic share: visible PERSONA × share, hidden AF × OC_VIS × share (one mechanism with distillation; no synthetic-mix PERSONA bonus)',
+    `synthetic-heavy share ${(share * 100).toFixed(1)}%: PERSONA ${prior.PERSONA.toFixed(3)} → ${xb.PERSONA.toFixed(3)}, AF ${prior.AF.toFixed(3)} → ${xb.AF.toFixed(4)}`);
+}
 
 // Model v3 E20: alignment faking needs post-trained preferences that conflict with the training objective (Greenblatt
 // 2024), so E13 (√(SA·PROXY) → AF) and E27 (PERSONA → AF) do not fire in a pretraining run; a post run on the same
