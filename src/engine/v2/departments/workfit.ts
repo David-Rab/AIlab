@@ -57,10 +57,14 @@ export function domainG(s: GameStateV2, v: Pick<ModelVersion, 'G' | 'build'>, d:
   return g;
 }
 
+/** P4: each work type's (domain, weight) pairs in Object.entries order, made once (WORK_TYPES is never mutated). */
+const W_ENTRIES = {} as Record<WorkTypeId, [DomainId, number][]>;
+const wEntries = (wt: WorkTypeId) => (W_ENTRIES[wt] ??= Object.entries(WORK_TYPES[wt].w) as [DomainId, number][]);
+
 /** Fit F_w of a version in work type w (OOM of effective compute). */
 export function fitOf(s: GameStateV2, v: Pick<ModelVersion, 'G' | 'build'>, wt: WorkTypeId): number {
   let f = 0;
-  for (const [d, x] of Object.entries(WORK_TYPES[wt].w) as [DomainId, number][]) f += x * domainG(s, v, d);
+  for (const [d, x] of wEntries(wt)) f += x * domainG(s, v, d);
   return f;
 }
 
@@ -70,7 +74,7 @@ export function refPoints(w: TimelineWorld, wt: WorkTypeId): { best: number; med
   let rd = deltaMemo.get(w.v3);
   if (!rd) deltaMemo.set(w.v3, (rd = refDelta(w.v3.sdSC)));
   let delta = 0;
-  for (const [d, x] of Object.entries(WORK_TYPES[wt].w) as [DomainId, number][]) delta += x * rd[d];
+  for (const [d, x] of wEntries(wt)) delta += x * rd[d];
   const best = w.v3.gSC + w.v3.dBM * delta;
   return { best, med: best - w.v3.dBM };
 }
