@@ -39,7 +39,7 @@ import { engine } from '../../src/engine/v2/index';
 import { refBot } from '../../src/engine/v2/bots/ref';
 import { flopPerToken, labourOf, workFit } from '../../src/engine/v2/departments/workfit';
 import { versionById } from '../../src/engine/v2/models/labs';
-import { bandPaid, worldMix, type TierKind, type WorldMix } from '../../src/engine/v2/worldfx/mix';
+import { bandPaid, reachTargets, worldMix, type TierKind, type WorldMix } from '../../src/engine/v2/worldfx/mix';
 import { adequacy, surplusChoice, type Tier } from '../../src/engine/v2/worldfx/choice';
 import { revenueReadout, sectorHours, sectorSpendParts, servingPool } from '../../src/engine/v2/worldfx/revenue';
 import { agentCeilingOf, workHoursOf } from '../../src/engine/v2/worldfx/use';
@@ -387,6 +387,25 @@ for (const d of [400, 900]) {
   check(bad === 0 && pl / sp >= 0.25 && pl / sp <= 0.45 && full > 0.75 && mh < q + 0.05 && mh > 0.5 * q,
     'A8 multi-homing: start stocks at the day-0 targets; the classic leader holds 0.25–0.45 of US + ROW sector spend; a sole frontier model wins only the buyers who reach it',
     `${bad} cells off; leader ${(pl / sp).toFixed(3)} of $${sp.toFixed(2)}B; toy leader ${full.toFixed(3)} with everyone reachable → ${mh.toFixed(3)} at q ${q.toFixed(2)}`);
+  // REACH: the reach target is a rank-ordered logit: each firm contracts with the MULTI_HOMING.providers labs it ranks
+  // best among those it can buy from. (1) Σ R* = the providers per firm, so a firm's second contract goes to the next
+  // lab however far ahead the first is (Ramp AI Index Oct 2026 [P]: 44.8% of businesses pay Anthropic, 40.6% OpenAI,
+  // of 56.8% paying any: both leaders reach ≥ 0.7 of paying firms). (2) Real gaps still count: a lab 1.5 OOM behind
+  // (≈ 15 months at B_G_PER_Y) gets almost no contracts. (3) A lab few firms can reach (access 0.05) does not take the
+  // other firms' contracts (A8's min(acc, m·w ÷ Σw) gave every other lab ≈ 0 when it led by OOMs).
+  const M = MULTI_HOMING.providers;
+  const lwOf = (gaps: number[], brand: number[]) => gaps.map((g, i) => Math.log(brand[i]) - SHARE_SLOPE_G * g);
+  const one = [1, 1, 1, 1, 1];
+  const rStart = reachTargets(lwOf([0, 0.5, 0.45, 0.65, 0.7], [1.2, 1, 1, 1, 1]), one, M);
+  const rEven = reachTargets(lwOf([0, 0, 0, 0, 0], one), one, M);
+  const rFar = reachTargets(lwOf([0, 0.3, 1.5, 1.5, 1.5], one), one, M);
+  const rCn = reachTargets(lwOf([0, 9, 9.2, 9.4, 9.6], one), [0.05, 1, 1, 1, 1], M);
+  const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
+  const startUS = mix.reach.US.target.filter((_, i) => !mix.providers[i].open && mix.reach.US.target[i] > 0);
+  check(Math.abs(sum(rStart) - M) < 1e-9 && rStart[0] > 0.9 && rStart[0] <= 1 && Math.max(...rStart.slice(1)) > 0.35 && rEven.every((x) => Math.abs(x - M / 5) < 1e-9)
+    && rFar[1] > 0.9 && rFar[2] < 0.05 && Math.abs(sum(rCn.slice(1)) - (M - 0.05)) < 1e-9 && rCn[1] > 0.8 && Math.abs(sum(startUS) - M) < 1e-6,
+    'REACH: firms contract with the MULTI_HOMING.providers labs they rank best (Σ reach = providers per firm; the next lab gets the second contract; 1.5 OOM behind gets ≈ none; a barely reachable leader does not take the others\' contracts)',
+    `leader 0.5 OOM ahead: ${rStart.map((x) => x.toFixed(2)).join(' / ')}; even ${rEven[0].toFixed(2)}; far ${rFar.map((x) => x.toFixed(2)).join(' / ')}; access-0.05 leader ${rCn.map((x) => x.toFixed(2)).join(' / ')}; start US Σ ${sum(startUS).toFixed(3)}`);
   // A8 part 2: ROW firms start paying for AI work at the rate their AI-using workers hold paid seats (REGION_SCALE.ROW
   // A0 = use × SEATS.start ROW ÷ US), so US buyers are 40–72% of the start sector spend outside China (72%: Anthropic's
   // US billing share, an upper bound [UNVERIFIED]); workers' use keeps its scale (ROW / US hours of use ≈ 3.6, the

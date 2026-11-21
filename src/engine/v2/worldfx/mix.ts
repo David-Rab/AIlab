@@ -7,8 +7,8 @@
 //   target_X  = A5: the buyers' surplus choice over bands of task difficulty (worldfx/choice.ts) among every provider's
 //               lineup (its model; the player's product minis; other providers' students sized by cheapestAt on
 //               coverage); X's prices and costs are its customers' tier mix. A8: buyers multi-home: X is in a
-//               buyer's choice set with probability R_X, its reach (a stock toward the labs firms add, MULTI_HOMING;
-//               open weights: their access). Consumers: exp(SHARE_SLOPE_G·Δfit) ·
+//               buyer's choice set with probability R_X, its reach (a stock toward the labs firms add, MULTI_HOMING:
+//               each firm contracts with the providers it ranks best, reachTargets; open weights: their access). Consumers: exp(SHARE_SLOPE_G·Δfit) ·
 //               access · brand (V4.2's logit without the price term: users choose by quality, most pay nothing)
 //   share_X   = the segment's customer stock, moving toward target_X at the segment's speed (CUSTOMER_TAU)
 //   F         = (1 − w_PHYS)·Σ share·a + w_PHYS·σ((Le_PHYS − fMid − θ)/fSpread)    (PHYS stays robot-bound)
@@ -263,6 +263,59 @@ function logit(fit: number[], price: number[], acc: number[], brand: number[]): 
   return out;
 }
 
+/**
+ * A8 / REACH: the reach targets of a region's closed providers. Each firm can buy from provider i with probability
+ * acc[i] (independently, as in the sector choice sets) and contracts with the `m` providers it ranks best among those:
+ * a rank-ordered logit (Plackett–Luce: first pick ∝ e^lw over the reachable, the next ∝ e^lw over the rest, …).
+ * R*_i = P(i is among a firm's picks), so Σ R* = the expected min(m, reachable providers): a firm's second contract
+ * goes to the best of the others, however far ahead the first is (A8 took min(acc, m·w ÷ Σw), which lost that
+ * contract whenever one lab's m·w ÷ Σw exceeded its access). lw[i] = ln brand + SHARE_SLOPE_G·(fit − best); −∞: not
+ * a closed seller. Exact: every combination of the partially accessible providers, every ordered pick sequence.
+ */
+export function reachTargets(lw: readonly number[], acc: readonly number[], m: number): number[] {
+  const n = lw.length;
+  const out = filled(n, 0);
+  const on: number[] = [];
+  for (let i = 0; i < n; i++) if (lw[i] > -Infinity && acc[i] > 0) on.push(i);
+  if (!on.length || m <= 0) return out;
+  const partial = on.filter((i) => acc[i] < 1 - 1e-12);
+  const incl = filled(n, 0);
+  // Pick sequences without replacement from `left` (indices into lw), `k` picks to go, probability p so far.
+  const pickFrom = (left: number[], k: number, p: number) => {
+    if (k <= 0 || !left.length) return;
+    if (left.length <= k) {
+      for (const i of left) incl[i] += p;
+      return;
+    }
+    let top = -Infinity;
+    for (const i of left) if (lw[i] > top) top = lw[i];
+    let W = 0;
+    for (const i of left) W += Math.exp(lw[i] - top);
+    for (let j = 0; j < left.length; j++) {
+      const i = left[j];
+      const q = (p * Math.exp(lw[i] - top)) / W;
+      if (!(q > 0)) continue;
+      incl[i] += q;
+      if (k > 1) pickFrom(left.filter((_, x) => x !== j), k - 1, q);
+    }
+  };
+  for (let mask = 0; mask < 1 << partial.length; mask++) {
+    let p = 1;
+    const set: number[] = [];
+    for (const i of on) {
+      const k = partial.indexOf(i);
+      if (k < 0) set.push(i);
+      else if (mask & (1 << k)) {
+        p *= acc[i];
+        set.push(i);
+      } else p *= 1 - acc[i];
+    }
+    if (p > 0) pickFrom(set, Math.floor(m), p);
+  }
+  for (const i of on) out[i] = Math.min(acc[i], incl[i]);
+  return out;
+}
+
 /** The customer stock of a segment as shares by provider index (the target where the segment has no stock yet). */
 function stockShares(s: GameStateV2, providers: Provider[], r: RegionId, seg: string, target: number[]): number[] {
   const st = s.world.fx.cust?.[r]?.[seg];
@@ -480,9 +533,9 @@ function computeMix(s: GameStateV2): WorldMix {
     aTops.push(aTop);
   }
 
-  // A8: each provider's reach target: firms add the labs whose models are best by the V4 quality logit on the provider's
-  // mean sector fit (brand × access × exp(SHARE_SLOPE_G·(fit − best))), MULTI_HOMING.providers of them per firm,
-  // R* = min(access, providers × weight ÷ Σ weight).
+  // A8 / REACH: each provider's reach target: each firm contracts with the MULTI_HOMING.providers labs it ranks best by
+  // the V4 quality logit on the provider's mean sector fit (brand × exp(SHARE_SLOPE_G·(fit − best))) among the closed
+  // labs it can buy from (access), without replacement: R* = P(the lab is among the firm's picks) (reachTargets).
   const fBar = filled(n, -Infinity);
   for (let i = 0; i < n; i++) {
     let f = 0;
@@ -500,9 +553,9 @@ function computeMix(s: GameStateV2): WorldMix {
   REGIONS.forEach((r, ri) => {
     let best = -Infinity;
     for (let i = 0; i < n; i++) if (acc[ri][i] > 0 && fBar[i] > best) best = fBar[i];
-    const w = providers.map((p, i) => (acc[ri][i] > 0 && !p.open && fBar[i] > -Infinity ? p.brand * acc[ri][i] * Math.exp(SHARE_SLOPE_G * (fBar[i] - best)) : 0));
-    const W = w.reduce((a, x) => a + x, 0);
-    reach[r] = { stock: accSec[ri], target: w.map((x, i) => (providers[i].open && sells[i] ? acc[ri][i] : W > 0 ? Math.min(acc[ri][i], (MULTI_HOMING.providers * x) / W) : 0)) };
+    const lw = providers.map((p, i) => (acc[ri][i] > 0 && !p.open && fBar[i] > -Infinity && p.brand > 0 ? Math.log(p.brand) + SHARE_SLOPE_G * (fBar[i] - best) : -Infinity));
+    const closed = reachTargets(lw, acc[ri], MULTI_HOMING.providers);
+    reach[r] = { stock: accSec[ri], target: closed.map((x, i) => (providers[i].open && sells[i] ? acc[ri][i] : x)) };
   });
   // Display vectors per sector (the player's is its best candidate's).
   const vecs: (number[] | undefined)[][] = [];
@@ -800,6 +853,9 @@ export function advanceCustomers(s: GameStateV2, mix: WorldMix, dt = 1 / 365) {
     const R = mix.reach[r];
     const out: Record<string, number> = {};
     ps.forEach((p, i) => {
+      // REACH: open weights' reach is their access (every cloud hosts them), not firms' contracts with the lab: not
+      // kept, so a lab whose next public model is closed starts at the even spread, not at its open-weights access.
+      if (p.open) return;
       const x = R.stock[i] + (R.target[i] - R.stock[i]) * kReach;
       if (x > 1e-6) out[p.key] = Math.round(x * 1e7) / 1e7;
     });

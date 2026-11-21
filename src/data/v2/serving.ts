@@ -162,8 +162,14 @@ export const CUSTOMER_TAU = { consumer: 3 / 52, sector: 0.65, gov: 0.75 } as con
  *    (0.82 at the A5 target), as the enterprise leader did in 2025 (Anthropic 32% mid-2025, 40% end-2025; OpenAI 25 →
  *    27%: Menlo Jul / Dec 2025 [P]). Replaces A7's start cap (SECTOR_START.startMax 0.25): the start stock is the
  *    day-0 target.
- *  - Reach is a stock: firms add the labs whose models are best. Target R* = min(access, providers × w ÷ Σw), w the V4
- *    quality logit on the provider's mean sector fit (brand × access × exp(SHARE_SLOPE_G·Δfit)); time constant `tau`
+ *  - Reach is a stock: firms add the labs whose models are best. REACH (design/notes/REACH.md): the target is a
+ *    rank-ordered logit: each firm contracts with the `providers` labs it ranks best among those it can buy from
+ *    (access), ranked by the V4 quality logit on the provider's mean sector fit (brand × exp(SHARE_SLOPE_G·Δfit)),
+ *    without replacement; R* = P(the lab is among a firm's picks), so Σ R* = providers and the next lab gets a firm's
+ *    second contract however far ahead the first is. Ramp AI Index, Oct 2026 [P]: 56.8% of US businesses pay for AI,
+ *    44.8% pay Anthropic and 40.6% OpenAI (both ≥ 0.7 of paying firms; the vendor rows sum to 1.6 per paying firm);
+ *    Ramp Jun 2026 [P]: "No vendor lock-in. AI-pilled firms use multiple AI vendors." (A8's min(access, providers × w
+ *    ÷ Σw) lost the second contract whenever the leader's providers × w ÷ Σw passed 1.) Time constant `tau`
  *    3 y [D from P]: Anthropic's enterprise share went 12% (2023) → 24% (2024) → 40% (2025) (Menlo Nov 2024 / Dec 2025
  *    [P]) during its coding lead, a reach of ≈ 0.13 → 0.44 in two years: τ 2–4.5 y for a target of 0.6–1. */
 export const MULTI_HOMING = { providers: 2, tau: 3 } as const;
