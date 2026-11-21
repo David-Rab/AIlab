@@ -122,7 +122,12 @@ acts 7.70, footholds 0.30, Trusted to AI 0.15 at SAR; final: incidents 4.80 (int
 safety compute: internal incidents 3.75, uncaught 10.6. (No M10 probe of these counts exists; the danger script's start
 rate is unchanged, 1.16 acts per lab-year.)
 
-Golden dates (`npm run test:cal`, once, not refitted): see the section below.
+Golden dates (`npm run test:cal`, once, not refitted): **49 pass, 0 fail, the 9 known WARNs** (T1 A1 / A2; T1L
+authors2026 SIAR / ASI). T1 20-seed medians, Δ y vs golden (M10 in brackets): ai2027 SC −0.038 (−0.037) / SAR −0.083
+(−0.082) / SIAR −0.073 (−0.062) / ASI −0.007 (−0.007); authors2026 +0.049 (+0.051) / −0.089 (−0.088) / −0.025 (−0.027) /
++0.094 (+0.089); fast +0.010 (+0.008) / +0.101 (+0.101) / −0.016 (−0.016) / −0.094 (−0.096); slow SC +0.050 (+0.050).
+T1L ai2027 SC 611 / SAR 802 / SIAR 900; fast and slow in tolerance. T1's runner plays refPlay (no refMonitors), so only
+the default monitor budget's unspent share returning to the lines reaches it: moves ≤ 0.011 y.
 
 ## Tests run
 
