@@ -56,7 +56,7 @@ const zeros = (n: number) => packed(n, 0);
 const S = {
   tq: new Float64Array(64), ta: new Float64Array(64), tp: new Float64Array(64),
   u: new Float64Array(16), e: new Float64Array(16), sh: new Float64Array(16), off: new Int32Array(17),
-  sums: new Float64Array(256), f: new Float64Array(256),
+  sums: new Float64Array(256), f: new Float64Array(256), gU: new Float64Array(256), gS: new Float64Array(256),
 };
 
 /** Providers whose access is partial (0 < acc < 1) are enumerated as choice sets up to this many; beyond it the rest
@@ -172,7 +172,7 @@ function bandSharesPlain(cs: ChoiceSets, e: Float64Array, u: Float64Array, brand
  * which leaves sh[i] unchanged (e finite). Needs every e finite (else, or when a set needs the D10 guard, the plain loop
  * runs). Returns tot, or NaN to ask for the plain loop.
  */
-function bandSharesFast(cs: ChoiceSets, e: Float64Array, sh: Float64Array, n: number): number {
+function bandSharesFast(cs: ChoiceSets, e: Float64Array, u: Float64Array, brand: readonly number[], sh: Float64Array, n: number): number {
   const { sets, sig } = cs;
   const K = sig.length;
   const Q = sets.length;
@@ -192,6 +192,7 @@ function bandSharesFast(cs: ChoiceSets, e: Float64Array, sh: Float64Array, n: nu
     } else for (let m = 0; m < size; m++) sums[m] += ei;
   }
   let tot = 0;
+  let guarded = false;
   for (let q = 0; q < Q; q++) {
     const set = sets[q];
     const sum = sums[set.m];
@@ -199,10 +200,15 @@ function bandSharesFast(cs: ChoiceSets, e: Float64Array, sh: Float64Array, n: nu
       f[q] = 0;
       continue;
     }
-    if (sum < 1e-250) return NaN;
     tot += set.p;
+    if (sum < 1e-250) {
+      guarded = true;
+      f[q] = NaN; // a D10 set: bandSharesGuarded
+      continue;
+    }
     f[q] = set.p / sum;
   }
+  if (guarded) return bandSharesGuarded(cs, e, u, brand, sh, n, tot);
   // Every mask present (no set of probability 0, the usual case): set q is mask q, so the sets that contain partial k
   // are the blocks [base + 2^k, base + 2^(k+1)) in ascending order.
   const dense = Q === 1 << K;
@@ -221,6 +227,47 @@ function bandSharesFast(cs: ChoiceSets, e: Float64Array, sh: Float64Array, n: nu
       }
       k++;
     } else if (ei !== 0) for (let q = 0; q < Q; q++) x += f[q] * ei;
+    sh[i] = x;
+  }
+  return tot;
+}
+
+/** bandSharesFast's accumulation when some sets need the D10 guard (S.f[q] NaN): those sets' terms are the plain loop's
+ *  renormalised ones (uSet and Σ over the members in member order), the others f·e; per provider over its sets in set
+ *  order, so every sh[i] receives the same additions in the same order. Providers with e = 0 are not skipped here (a
+ *  guarded set can still give them a share). */
+function bandSharesGuarded(cs: ChoiceSets, e: Float64Array, u: Float64Array, brand: readonly number[], sh: Float64Array, n: number, tot: number): number {
+  const { sets, sig } = cs;
+  const K = sig.length;
+  const Q = sets.length;
+  const f = S.f;
+  if (S.gU.length < Q) S.gU = new Float64Array(2 * Q), S.gS = new Float64Array(2 * Q);
+  const gU = S.gU;
+  const gS = S.gS;
+  for (let q = 0; q < Q; q++) {
+    if (!Number.isNaN(f[q])) continue;
+    const ins = insOf(cs, sets[q]);
+    const ni = ins.length;
+    let uSet = -Infinity;
+    for (let j = 0; j < ni; j++) if (u[ins[j]] > uSet) uSet = u[ins[j]];
+    let sum2 = 0;
+    for (let j = 0; j < ni; j++) if (u[ins[j]] !== -Infinity) sum2 += brand[ins[j]] * Math.exp(u[ins[j]] - uSet);
+    gU[q] = uSet;
+    gS[q] = sum2;
+  }
+  for (let i = 0, k = 0; i < n; i++) {
+    const ei = e[i];
+    const ui = u[i];
+    const bit = k < K && sig[k] === i ? 1 << k++ : 0;
+    let x = 0;
+    for (let q = 0; q < Q; q++) {
+      const set = sets[q];
+      if (bit && !(set.m & bit)) continue;
+      const fq = f[q];
+      if (Number.isNaN(fq)) {
+        if (ui !== -Infinity) x += (set.p * brand[i] * Math.exp(ui - gU[q])) / gS[q];
+      } else x += fq * ei;
+    }
     sh[i] = x;
   }
   return tot;
@@ -311,7 +358,7 @@ export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: read
       if (u[i] > uMax) uMax = u[i];
     }
     for (let i = 0; i < n; i++) e[i] = u[i] === -Infinity ? 0 : brand[i] * Math.exp(u[i] - uMax);
-    let tot = bandSharesFast(cs, e, sh, n);
+    let tot = bandSharesFast(cs, e, u, brand, sh, n);
     if (Number.isNaN(tot)) tot = bandSharesPlain(cs, e, u, brand, sh, n);
     if (tot > 0) for (let i = 0; i < n; i++) {
       const x = sh[i] / tot;
