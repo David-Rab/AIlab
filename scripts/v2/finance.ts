@@ -270,7 +270,12 @@ smokeCheck(share(x2.map((r) => r.firstDistress >= 0 && r.firstDistress < END_202
   // then and the rivals' revenue collapses, so their team value dominates their multiple).
   const tr = ref.flatMap((r) => r.q.filter((x) => x.year <= 2026 && !x.bust).flatMap((x) => x.trailing.map((t) => t.v / t.r)));
   const tr27 = ref.flatMap((r) => r.q.filter((x) => x.year === 2027 && !x.bust).flatMap((x) => x.trailing.map((t) => t.v / t.r)));
-  smokeCheck(lo.length > 0 && median(lo) < median(hi), 'F9 (FC2) the leader-style lab is valued at a lower multiple when its growth is slower (C11)', `×2.5+ a year ${f1(median(hi))}× · slower ${f1(median(lo))}×`);
+  // FINREF: compared within each year (years with ≥ 3 marks on both sides). C11's growth gradient is a same-date claim;
+  // pooled over 2025–27 it read growth through the year's sector multiple: most ×2.5+ marks are 2026's (S / R ≈ 35–40×),
+  // most slower ones 2027's, when the frontier factor and hype lift S / R to 45–60× (Simpson's paradox: on M10's head
+  // slower was lower in 2026, 16.5× vs 22.1×, and in 2027, 28.4× vs 30.4×, yet higher pooled, 27.6× vs 22.4×).
+  const byYear = [2025, 2026, 2027].map((y) => ({ y, h: marks.filter((x) => x.year === y && x.g >= 2.5).map((x) => x.V / x.R), l: marks.filter((x) => x.year === y && x.g < 2.5).map((x) => x.V / x.R) })).filter((z) => z.h.length >= 3 && z.l.length >= 3);
+  smokeCheck(byYear.length > 0 && byYear.every((z) => median(z.l) < median(z.h)), 'F9 (FC2) the leader-style lab is valued at a lower multiple when its growth is slower, in the same year (C11)', `${byYear.map((z) => `${z.y}: ×2.5+ ${f1(median(z.h))}× (${z.h.length}) · slower ${f1(median(z.l))}× (${z.l.length})`).join(' · ') || 'no year with both'} · pooled ${f1(median(hi))}× / ${f1(median(lo))}×`);
   smokeCheck(tr.length > 0 && median(tr) < median(hi), 'F9 (FC2, FIN5b) trailing private rivals are valued at a lower multiple than the leader-style lab at high growth (their marks through 2026)', `trailing rivals median ${f1(median(tr))}× over ${tr.length} lab-marks (2027: ${f1(median(tr27))}× over ${tr27.length}) · leader-style ${f1(median(hi))}×`);
   const dil = ref.flatMap((r) => r.s.player.finance.rounds.filter((x) => !x.anchor && !x.down).map((x) => x.dilution));
   smokeCheck(dil.length > 0 && Math.max(...dil) <= 0.08 + 1e-9, 'F9 unanchored round dilution ≤ 8% (C12)', `max ${f1(Math.max(...dil) * 100)}% over ${dil.length} rounds`);
