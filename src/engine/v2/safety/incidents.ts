@@ -82,9 +82,6 @@ function actRow(def: ActDef, x: number, domains: Record<DomainId, number>, site:
   return { h: def.kappa * disposition * capability * opportunity * (1 - block), sev: def.floor + def.span * capability * af, disposition, capability, opportunity, block };
 }
 
-/** P4: DANGER_ACTS as entries, in Object.entries order, made once (the table is never mutated). */
-let ACT_ENTRIES: [TraitId, ActDef][] | undefined;
-
 /**
  * Per-act daily rows for one model at one site (§11.3). Exported for WS4 (rival incidents use the same formula at their
  * own site). `discovered(u)` decides the apparent label of U-mode incidents.
@@ -95,7 +92,9 @@ export function modelHazards(
 ): HazardRow[] {
   const out: HazardRow[] = [];
   if (site.scale <= 0) return out;
-  for (const [t, def] of (ACT_ENTRIES ??= Object.entries(DANGER_ACTS) as [TraitId, ActDef][])) {
+  for (const k in DANGER_ACTS) { // P4: for-in (Object.entries order, read live) without the entries array
+    const t = k as TraitId;
+    const def = DANGER_ACTS[t] as ActDef;
     if (def.internalOnly && !site.internal) continue;
     const r = actRow(def, traits[t], domains, site);
     if (r.h > 0) out.push({ source: t, apparent: t, ...r });
