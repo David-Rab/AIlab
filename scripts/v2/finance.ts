@@ -75,9 +75,12 @@ const share = (xs: boolean[]) => xs.filter(Boolean).length / Math.max(1, xs.leng
 const f1 = (x: number) => x.toFixed(1);
 const F1pct = (x: number) => `${Math.round(x * 100)}%`;
 
+/** FINREF: the sum of the private labs' marks (you and the private rivals: each at S × its marked share, at most its
+ *  cap), the game's counterpart of a sum of real post-money marks (FC1). */
+const marksSum = (st: ReturnType<typeof storyNow>) => st.labs.reduce((a, l) => a + l.valuation, 0);
 /** FIN5a: each quarter mark also records the story (sector value, the player's share and valuation, growth, a bust, and
  *  each trailing private rival with revenue: FIN5b its marked valuation and run-rate). */
-interface QRow { day: number; year: number; shipped: number; stock: number; margin: number; supply: number; S: number; share: number; V: number; R: number; g: number; bust: boolean; trailing: { v: number; r: number }[] }
+interface QRow { day: number; year: number; shipped: number; stock: number; margin: number; supply: number; S: number; sumV: number; share: number; V: number; R: number; g: number; bust: boolean; trailing: { v: number; r: number }[] }
 /** FIN3b: versions the nonprofit PBC's safety committee held back (ready to release, red-flagged), and the days held. */
 /** FIN5b: a private rival at a snapshot (end-2026). */
 interface RivalRow { id: string; arch: string; status: string; V: number; R: number; cash: number }
@@ -114,7 +117,7 @@ function runBot(seed: number, opts: AutopilotOpts | undefined, until: number): R
     if (quarter) {
       const st = storyNow(s);
       const trailing = st.labs.filter((a) => a.id !== 'player' && a.revenue >= 1 && a.x.position < 0).map((a) => ({ v: a.valuation, r: a.revenue }));
-      q.push({ day: s.time.day, year: Math.floor(decimalYear(s) + 1e-9), shipped: s.market.ws3.shipped, stock: s.market.ws3.stock, margin: impliedMargin(s.market), supply: s.market.supplyQ, S: st.sector.S, share: st.share, V: s.player.finance.valuation, R: s.player.finance.revenueRun, g: st.me?.growth ?? 1, bust: st.sector.bust < 1, trailing });
+      q.push({ day: s.time.day, year: Math.floor(decimalYear(s) + 1e-9), shipped: s.market.ws3.shipped, stock: s.market.ws3.stock, margin: impliedMargin(s.market), supply: s.market.supplyQ, S: st.sector.S, sumV: marksSum(st), share: st.share, V: s.player.finance.valuation, R: s.player.finance.revenueRun, g: st.me?.growth ?? 1, bust: st.sector.bust < 1, trailing });
     }
     if (firstDistress < 0 && (s.player.finance.state === 'distress' || s.player.finance.state === 'insolvent')) firstDistress = s.time.day;
     if (s.time.day === END_2026 - 1) {
@@ -245,9 +248,19 @@ smokeCheck(share(x2.map((r) => r.firstDistress >= 0 && r.firstDistress < END_202
   // FIN5a (spec §1, §14): the valuation is the story split (sector value × share), no longer a revenue-multiple
   // formula, so FC1 and FC2 are checked on the RefBot's quarter marks instead of a formula grid (rewritten: the
   // formula and its narrative premium N are gone).
-  const s0 = median(ref.map((r) => sectorValue(newGame(defaultSetupV2({ seed: r.s.setup.seed }))).S));
-  const late = median(ref.map((r) => { const a = r.q.find((x) => x.day >= dayOfDate(START, '2026-10-01')); const b = r.q.find((x) => x.day >= dayOfDate(START, '2027-01-01')); return a && b ? (a.S + b.S) / 2 : NaN; }).filter(Number.isFinite));
-  smokeCheck(s0 >= 550 && s0 <= 800 && late >= 2200 && late <= 3300, 'F9 (FC1) sector value ≈ $0.6–0.7T at the Jul 2025 start and ≈ $2.5–3T in late 2026 (mean of the Oct and Jan marks), RefBot path', `start median ${f1(s0)}B · late 2026 median ${f1(late)}B`);
+  // FC1 (FINREF) reads the sum of the labs' marks, the instrument of its source: R15 §2.9's band is a sum of post-money
+  // marks. FIN5a fitted S when every mark was S × share (Σ marks = S); since the caps (FIN5b rivals, FIN6a every lab) a
+  // capped lab's unallocated part of S stays unallocated, so Σ marks < S (late 2026: S ≈ $3.6T, Σ marks ≈ $2.5T; S is
+  // printed). The start band is the Jul 2025 marks from the same sources: OpenAI $300B (Mar 2025 [P]), Anthropic $61.5B
+  // (Mar 2025 [P]), xAI–X $113B, SSI $32B, TML $12B [R21 A8, U] ≈ $0.52T; ≈ $0.64T with Anthropic's Sep 2025 $183B (the
+  // old "$0.6–0.7T mid-2025"). Late 2026: OpenAI $1.25T [U], Anthropic's IPO ≈ $1.26–1.40T, others ≈ $0.1T (+ xAI $250B
+  // if counted; in SpaceX since Feb 2026) [R15 §2.9]: band kept.
+  const start = ref.map((r) => storyNow(newGame(defaultSetupV2({ seed: r.s.setup.seed }))));
+  const s0 = median(start.map(marksSum));
+  const S0 = median(start.map((x) => x.sector.S));
+  const lateOf = (k: 'sumV' | 'S') => median(ref.map((r) => { const a = r.q.find((x) => x.day >= dayOfDate(START, '2026-10-01')); const b = r.q.find((x) => x.day >= dayOfDate(START, '2027-01-01')); return a && b ? (a[k] + b[k]) / 2 : NaN; }).filter(Number.isFinite));
+  const late = lateOf('sumV');
+  smokeCheck(s0 >= 450 && s0 <= 750 && late >= 2200 && late <= 3300, 'F9 (FC1) the private labs\' marks add up to ≈ $0.5–0.65T at the Jul 2025 start and ≈ $2.5–3T in late 2026 (mean of the Oct and Jan marks), RefBot path', `start median ${f1(s0)}B · late 2026 median ${f1(late)}B (sector value S: start ${f1(S0)}B, late 2026 ${f1(lateOf('S'))}B)`);
   const marks = ref.flatMap((r) => r.q.filter((x) => x.year <= 2027 && !x.bust && x.R >= 1));
   const hi = marks.filter((x) => x.g >= 2.5).map((x) => x.V / x.R);
   const lo = marks.filter((x) => x.g < 2.5).map((x) => x.V / x.R);
