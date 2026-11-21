@@ -276,7 +276,15 @@ smokeCheck(share(x2.map((r) => r.firstDistress >= 0 && r.firstDistress < END_202
   // slower was lower in 2026, 16.5× vs 22.1×, and in 2027, 28.4× vs 30.4×, yet higher pooled, 27.6× vs 22.4×).
   const byYear = [2025, 2026, 2027].map((y) => ({ y, h: marks.filter((x) => x.year === y && x.g >= 2.5).map((x) => x.V / x.R), l: marks.filter((x) => x.year === y && x.g < 2.5).map((x) => x.V / x.R) })).filter((z) => z.h.length >= 3 && z.l.length >= 3);
   smokeCheck(byYear.length > 0 && byYear.every((z) => median(z.l) < median(z.h)), 'F9 (FC2) the leader-style lab is valued at a lower multiple when its growth is slower, in the same year (C11)', `${byYear.map((z) => `${z.y}: ×2.5+ ${f1(median(z.h))}× (${z.h.length}) · slower ${f1(median(z.l))}× (${z.l.length})`).join(' · ') || 'no year with both'} · pooled ${f1(median(hi))}× / ${f1(median(lo))}×`);
-  smokeCheck(tr.length > 0 && median(tr) < median(hi), 'F9 (FC2, FIN5b) trailing private rivals are valued at a lower multiple than the leader-style lab at high growth (their marks through 2026)', `trailing rivals median ${f1(median(tr))}× over ${tr.length} lab-marks (2027: ${f1(median(tr27))}× over ${tr27.length}) · leader-style ${f1(median(hi))}×`);
+  // FINREF: at the same revenue scale. The sourced multiple falls with revenue: Anthropic's marks at growth ≥ ×8 a year
+  // throughout (R15 §2.9 [P]; the IPO total [U]) ran 37× at $5B (Series F), 27× at $14B (G), 20.5× at $47B (H), ≈ 16–17×
+  // at $81B (IPO): m_A(R) = 37 × (R ÷ $5B)^−0.28 within 3%. Trailing rivals earn ≈ $4B against the leader-style lab's
+  // ≈ $47B, so their raw multiples sit above it as smaller labs' do in reality (xAI ≈ $230B on ≈ $3B, R21 [U]); the
+  // check compares each mark with m_A at its own revenue.
+  const mA = (R: number) => 37 * Math.pow(R / 5, -0.28);
+  const trA = ref.flatMap((r) => r.q.filter((x) => x.year <= 2026 && !x.bust).flatMap((x) => x.trailing.map((t) => t.v / t.r / mA(t.r))));
+  const hiA = marks.filter((x) => x.g >= 2.5).map((x) => x.V / x.R / mA(x.R));
+  smokeCheck(trA.length > 0 && median(trA) < median(hiA), 'F9 (FC2, FIN5b) trailing private rivals are valued at a lower multiple than the leader-style lab at the same revenue scale (each mark ÷ Anthropic\'s multiple at that revenue; their marks through 2026)', `trailing rivals ×${median(trA).toFixed(2)} of m_A over ${trA.length} lab-marks (raw ${f1(median(tr))}×; 2027 ${f1(median(tr27))}× over ${tr27.length}) · leader-style ×${median(hiA).toFixed(2)} (raw ${f1(median(hi))}×)`);
   const dil = ref.flatMap((r) => r.s.player.finance.rounds.filter((x) => !x.anchor && !x.down).map((x) => x.dilution));
   smokeCheck(dil.length > 0 && Math.max(...dil) <= 0.08 + 1e-9, 'F9 unanchored round dilution ≤ 8% (C12)', `max ${f1(Math.max(...dil) * 100)}% over ${dil.length} rounds`);
   const s = newGame(defaultSetupV2({ seed: 3 }));
