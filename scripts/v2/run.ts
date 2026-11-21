@@ -83,7 +83,7 @@ const JOBS: Job[] = [
   // E10: safety rates vs research/20 F (12 RefBot games to ASI and 40 probe worlds; full tier only).
   { id: 'safetyrates', script: 'safetyrates.ts', shards: { full: 4 }, ...S(['full'], 200) } as Job,
   { id: 'finance', script: 'finance.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, shards: { full: 3, quick: 2 }, ...S(ALL, 250) } as Job,
-  { id: 'worldfx', script: 'worldfx.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, ...S(ALL, 90) } as Job,
+  { id: 'worldfx', script: 'worldfx.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, shards: { full: 4 }, ...S(ALL, 90) } as Job,
   { id: 'ws4', script: 'ws4.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, ...S(ALL, 120) } as Job,
   { id: 'rivals', script: 'rivals.ts', ...S(ALL, 30) } as Job,
   { id: 'products', script: 'products.ts', ...S(ALL, 30) } as Job,
