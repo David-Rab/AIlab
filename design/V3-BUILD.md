@@ -8323,3 +8323,122 @@ The base and P4 runs were alternated, but load changed between them, so pairs di
 - `fuzzchoice.ts`, `fuzzrl.ts`, `ucheck.ts`: equivalence checks.
 
 **Lead after P4 (2026-11-21).** test:perf on the merged head, twice (machine load 39–43%: Windows Defender and the search indexer, not other agents): daily tick 3.65–4.12 ms (budget 1.5), worst quarter 16.8–18.5 ms (8), leader lab 5.7–6.3 ms / 15.5–16.0 ms, the leader lab's own cost +10.6 / +19.0% (passes). The UI's fast-forward runs at 12 ms per day (`SPEED_MS`), so quarter days can stutter there; ordinary speeds (≥ 70 ms per day) are unaffected. **User decision:** merge to master now; performance work comes after everything else, including the finance merge (task PERF).
+
+## FIN merge notes (2026-11-21, branch `fin-merge`, worktree `../AI27-fin-merge`)
+
+`git merge --no-ff finance-v3` (22 commits, FIN1–FIN6c incl. finance-v3-div and finance-v3-ui) onto master 7017308
+(model v3 after P4). Merge commit 2d19b77; fixes 94df130, ae5498f, 61ecd2c, 76fdf02; docs on top. Both sides'
+mechanisms are kept; no `FINM-DECIDE` marker was needed (no two mechanisms modelled the same thing in ways that could
+not both stay).
+
+**Conflicts and resolutions (22 files; 47 touched by both).**
+- *Schema* (`core/save.ts`): model v3's chain to 33 kept as is; finance's nine migrations (built as 11 → 12 … 19 → 20
+  on the old base) renumbered after it, finance rev r = merged rev r + 22: 33 → 34 FIN1 (SPV leasebacks → financing
+  leases, SPV / JV / neocloud templates gone, LTA firm tranches, opCash4q), 34 → 35 FIN2 (credibility, promises),
+  35 → 36 FIN3a (approvals list), 36 → 37 FIN3b (E37 freeze, reinstatement), 37 → 38 FIN4a (partner records), 38 → 39
+  FIN5c (division), 39 → 40 FIN4r (typical round, lease ids), 40 → 41 FIN5a (story mark, lab revenue history), 41 → 42
+  FIN5b (rivals' marks, pool, raised). **SCHEMA_REV 42.** A model-v3 save carries the base's old finance block, so the
+  order (model first, finance after) is the right one. Two finance steps were not idempotent on an already-migrated
+  state and now are: FIN1 leaves a site that already has a FIN1 lease alone, FIN5a sets the story mark only where there
+  is none. Saves written by the finance-v3 branch itself (its revs 12–20) collide with model v3's numbers and do not
+  load (they were never shipped).
+- *Types*: `RivalLab` keeps model v3's `phys` and finance's `finance: RivalFinance`; `CostLine` keeps model v3's `unit`
+  and finance's `valuation` currency.
+- *Rivals* (`actors/rivals.ts`): `rivalFinanceQ` is finance's (revenue toward model v3's `labMarketRevenue`, then
+  `rivalMoneyQ`, then chip orders) with model v3's shared world mix (P2), reset when a lab leaves the market;
+  `labDaily` keeps model v3's `trainDay` and adds the IP-access flow through `addRivalKnowledge`.
+- *Finance seams re-pointed to model v3* (`finance/observe.ts` and its callers; lint-structure forbids the old fields):
+  `licensedModel` / `licensedGap` compare G (was pm), so `ipAccessDaily` is OOM of G into the lab's pretraining recipe
+  a day (10% of the G gap a year; was know-how pa); license-and-hire (`exitRival`) brings the buyer's recipe up to the
+  seller's (was `pa = max`); `copyrightExposure` reads model v3 D1's unlicensed public crawl (`unlicensedPublicT`, was
+  `dataAssets.unlicensedTokensT`) and china.ts's suit roll uses it. Revenue needed no rewiring: finance reads
+  `deployment.revenueRate` (model v3's revenue system writes it), rivals' `revenueRun` follows model v3's market, and
+  the sector value S and the story read those run-rates; `servingEconomics` (serving H100e × owned / rented cost) and
+  `publicLevel` (measured L / Lg) stay valid bridges on model v3's quantities.
+- *Events*: E17 trigger = finance's `redFlags` + model v3's P2 / P4 early exits; "Pause & investigate" keeps model v3's
+  investigation gain (F6d) and takes finance's board cost (mood by seat kind, FIN3a; `boardSpeedAppetite` is gone);
+  the old `credibility +2` gain stays dropped (never applied). `finance/actions.ts` dealPreview is finance's with model
+  v3's '%' unit on the custom-chip research line (F6b).
+- *Bots*: RefBot (F5: compete, cheap tier, Trusted to AI, footholds) and finance's bot decisions (autopilot, merger
+  choice) auto-merged; the safe bot's paid list = model v3's (`data.license`, no D3) with finance's `cmp.community`
+  (F1 is gone).
+- *Exports / UI*: `core/selectors.ts` and `index.ts` take both sides (finance's `ousterVote` family replaces
+  `ousterRiskQ`); Products keeps model v3's side column and finance's charter-holds chip (auto-evaluate stays a Ref to
+  Models › Evals); CoreLoop / TopStrip / shell selectors take `customerCount` / `customerShare` and `divisionStatus`.
+  B4 wording: the IP-access tooltip says "learns from your models" (not know-how), the sector value tooltip "× the
+  frontier factor".
+- *Scripts*: `finance.ts` keeps T0's simulation cache and SMOKE mode (finance's checks through `runBotC`; RUN_PICKS add
+  seed, board confidence, credibility, promises, revenue run, valuation, ledger and time; the PBC hold set is an array
+  for the cache); finance's migration tests renumbered (34 … 42); multi-seed finance checks print SMOKE in quick (F9
+  FC1 / FC2, FIN3a board confidence, FIN6a FC2 by year). Fixture-drift rewrites: FIN2 / FIN4r promise weight on the
+  closed amounts ($0.64B / $35B for asks of $1B / $50B), the FIN4b trust vote marks its threshold model (the v3 day-400
+  best version has no danger flag), uitest FIN4b brings a second rival back (the v3 day-900 fixture has two active
+  rivals and FIN3c buys one). Hygiene: the leader-lab check strips rivals' marks (FIN5b); new checks: a rev-33 save
+  with the old finance block migrates to 42, the finance chain is idempotent, every rev 15–41 loads to 42;
+  `SCHEMA_REV === 42` in control / data / footholds / hygiene. lint-ux keeps B4 (§4) and adds finance's glossary-number
+  check (§5).
+- Fixtures regenerated (`fixtures.ts --write`), GLOSSARY.md regenerated (`lint-ux.ts --doc`, 550 terms).
+  `scripts/v2/tmp-fin1/` (finance scratch with a rev-11 save that the merged chain rejects) removed.
+
+**Refits.** test:cal after the merge: T1 on the 20-seed median passes on every preset (ai2027 SC −0.003 / SAR −0.084 /
+SIAR −0.055 / ASI +0.012 y; authors2026, fast, slow in tolerance): no G_SC refit. T1L slow SC failed (+0.11 y on the
+5-seed median; `calscan.ts t1l slow` on 20 seeds: LEADER_CAL 0.79 +0.085 y fails by 1.06 tolerances, **0.80 −0.012 y**,
+0.81 −0.086 fails, 0.82 −0.121, 0.83 −0.155): LEADER_CAL slow 0.79 → 0.80, T1L slow SC then −0.016 y on 5 seeds.
+T1L ai2027 and fast pass; authors2026 SIAR / ASI stay the known WARNs. The window is one step wide (only 0.80 passes):
+the next change that moves the shared world by days may need it again.
+
+**Finance checks** (12 RefBot seeds; master = M9's full run on 0272091, finance-v3 = FIN6a / FIN6c, merged = test:full
+on 61ecd2c):
+
+| Check | master | finance-v3 | merged |
+|---|---|---|---|
+| F1 production 2026 (25M ±20%) | pass | pass | 23.1M pass |
+| F2 production 2027 (45–60M) | 45.8M | 47.0M | **44.0M fail** |
+| F3 stock vs globalCompute (±20%) | pass | pass | 84–111% pass |
+| F4 demand shock timing | pass | pass | t+4 / t+9 pass |
+| F5 spot rental (+35–45%; −60–80%) | pass | pass | +38% / −67…−72% pass |
+| F6 supplier margin 70–75% | pass | pass | 76.1% pass |
+| F7 2026 revenue / capex / compute / power / valuation | $48.9B / $184.3B / pass / pass / $1.69T | pass / pass / pass / pass / $1.24T | $47.6B / $179.6B / $29.4B / 6.4 GW / $1.23T pass |
+| F8 deal + financing; distress-free 2026 (≥ 75%); C7 path; capex2x | pass; **50.0%**; pass; pass | pass; 83.3%; pass; pass | pass ($71B); **66.7% fail**; 100%; 100% |
+| F9 FC1 sector value | (old formula grid, pass) | $632B / $3.00T | $615B / $3.10T pass |
+| F9 FC2 leader multiple 20–37× | (old grid, pass) | 30.3× | 22.1× pass |
+| F9 FC2 slower growth lower | – | 25.1× < 30.3× pass | **25.3× > 22.1× fail** |
+| F9 FC2 trailing rivals lower | – | 27.4× < 30.3× pass | **26.5× > 22.1× fail** |
+| F9 dilution ≤ 8%, 14% anchored, doubt −25% | pass | pass | 8.0% / 14% / −25% pass |
+| F10 sites blocked / delayed / 8 q | pass | pass | 6.5% / 31% / 8 q pass |
+| F11 2027 revenue ($140B ±30%) | **$95.8B fail** | pass | **$86.0B fail** |
+| F11 run-rate follows deployments | pass | pass | pass |
+| FIN3a end-2027 board confidence ≥ 55 | – | pass | **52.2 fail** |
+| FIN6a FC2 by year (2027 20–37×, 2026 ≥ 15×) | – | 2026 19.2×, 2027 33.5× | **2026 22.4×, no ×2.5+ mark in 2027 (fail)** |
+
+**test:full** (61ecd2c, 18.1 min wall, 103 cpu-min, 6 workers, machine load 76%): 31/36 scripts, 2371 checks passed,
+11 failed; the ui job crashed in FIN4b (fixture drift, fixed in 76fdf02; `npm run test:ui` then 686/686).
+
+**Failures, split.**
+- *Known on master (V3-TASKS list):* safety S5 RefBot (median U − L at SAR +0.60, below in 30%; → S5R); finance F8
+  distress-free 66.7% (master 50.0%: better, still under 75%) and F11 2027 $86.0B (master $95.8B; → MKT); serving A5 E9
+  ×3.99/yr (→ MKT); worldfx A2a 6.7% and W4 23.2%. WARNs: calib T1 A1 / A2, T1L authors2026 SIAR / ASI; safetyrates AF
+  end 2026 21.9% and F6 persistence (71–74%).
+- *Known on finance-v3:* none failing (its list was S5 and hygiene's absolute perf under load; perf not run here).
+- *Newly passing:* worldfx A2c tokens ×7.6 over 2026 on seed 2027 (band ×3–8; 20-seed median ×8.1, INFO); safetyrates
+  F5 EA end 2026 back in its band (M9 50.6% WARN). Finance's F9 FC1 / FC2 replace master's old valuation-grid checks
+  (that formula is gone) and pass on the sector value and the leader multiple.
+- *Caused by the merge, not merge errors* (finance's [fit] values on model v3's paths; FIN6a's "refit after model-v3"
+  list): F2 2027 production 44.0M (1M under the band: rivals now order chips from their FIN5b cash, tighter than the old
+  raise rule on model v3's rival revenues); F9 FC2 slower-growth and trailing-rival orderings (the RefBot's high-growth
+  marks sit at 22×, under slower marks at 25× and trailing rivals at 26.5×: FC2's multiple, cap growth exponent and
+  share weights were fitted to the pre-v3 revenue path); FIN6a FC2 by year (no ×2.5+ growth mark in 2027: the v3
+  revenue path grows slower, the cause of F11 2027 too); FIN3a end-2027 board confidence 52.2 (seeds 17–76; the slower
+  2027 revenue misses promises). None is a wiring error: revenue, valuation and rival numbers move with model v3's
+  demand.
+- *Merge errors found and fixed:* the seams above (pm / pa / dataAssets readers), the non-idempotent FIN1 / FIN5a
+  migrations, the cached finance runs missing ledger / time, the hygiene every-rev check's start (15), the fixture-drift
+  tests listed under Scripts.
+
+**Open decisions (lead).**
+1. Finance refit on model v3 (FIN6a's list, now due): κ_S / α, FC2 multiple and cap growth exponent, share weights, the
+   RefBot autopilot (F8 66.7%, FIN3a 52.2), F2's 1M shortfall (rivals' chip orders from cash). Best after MKT, since F11
+   2027 and FC2 by year share MKT's revenue shortfall.
+2. LEADER_CAL slow 0.80 is a one-step window.
+3. Saves from the finance-v3 branch (revs 12–20) do not load; fine unless someone kept one.
+4. `scripts/v2/tmp-fin1/` removed (finance scratch); restore from finance-v3 if it was meant to stay.

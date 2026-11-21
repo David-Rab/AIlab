@@ -28,6 +28,7 @@ tasks**, one subagent each, one at a time. Spec: [MODEL-V3.md](MODEL-V3.md). Num
   state changed (then bump once).
 - **Stop rules:** a golden date leaves tolerance by more than ±0.3 y after refitting only the named values; the task
   needs a mechanism that contradicts the spec; a test the task does not own newly fails and cannot be explained.
+- **After FIN (test:full on 61ecd2c, 11 failures):** the M9 list below still holds with new values (S5 +0.60, 30%; F8 66.7%; F11 2027 $86.0B; A5 E9 ×3.99/yr; A2a 6.7%; W4 23.2%; worldfx A2c now passes, ×7.6 on seed 2027; safetyrates EA back in band), plus four finance [fit] misses on model v3's paths, due for the finance refit (FIN6a's list): F2 2027 production 44.0M (45–60M), F9 FC2 slower-growth and trailing-rival orderings (22.1× vs 25.3× / 26.5×), FIN6a FC2 by year (no ×2.5+ mark in 2027), FIN3a end-2027 board confidence 52.2 (≥ 55). Details: V3-BUILD "FIN merge notes".
 - **Known failures (not ours; M9's full run on 0272091: 7 failures, all listed here):** safety S5 RefBot "U falls
   below L by SAR" (median U − L at SAR +0.36, below in 38% of 40 worlds; v3 safety research scales with compute and AI
   labour and RefBot hands safety work to AI; → S5R restates it as a share-of-worlds criterion after a primary-source
@@ -161,7 +162,7 @@ danger depends on, and how loss of control works.
 
 | ID | Task | Depends | Effort | Done when |
 |---|---|---|---|---|
-| FIN | Merge the finance-v3 branch (`../AI27-finance3`) into master after model-v3 (user plan): check the finance session's state first, fix conflicts, re-check everything (test:full on the merged head). | F7 (model-v3 → master) | H | finance-v3 in master; test:full split into known / caused |
+| FIN (done 2026-11-21, branch `fin-merge`, merge 2d19b77: both sides kept, no FINM-DECIDE; SCHEMA_REV 42 (finance 34–42 after model v3's 33); finance seams on G / recipe / D1 crawl; LEADER_CAL slow 0.79 → 0.80; test:full 11 failed, 7 known, 4 finance refit items; test:ui 686/686; notes: V3-BUILD "FIN merge notes") | Merge the finance-v3 branch (`../AI27-finance3`) into master after model-v3 (user plan): check the finance session's state first, fix conflicts, re-check everything (test:full on the merged head). | F7 (model-v3 → master) | H | finance-v3 in master; test:full split into known / caused |
 | S5R | Primary-source re-read of AI 2027 (main text, compute and security supplements) and the AI Futures posts for the lab's safety staffing, safety / monitoring compute share and AI use in alignment; compare with RefBot's allocation; tune RefBot / named values to the sourced ones; restate S5 as an emergent share-of-worlds criterion (U falls below L by SAR in a stated share of worlds, more often with sabotage / opaque reasoning). User 2026-11-21: "the outcome emerges from mechanisms if tuned", no fake rules. | FIN | H | sourced table vs RefBot; S5 restated and measured over 40 worlds; S4 re-checked |
 | MKT | Market misses: serving A5 E9 price paid for V0's capability ×4.3/yr [p10–p90 ×2.8–6.3] vs ×6–30 (hardware ×1.24, models bought ×3.4), worldfx A2c agent tokens ×8.5 over 2026 vs ×3–8, F11 2027 revenue $89B vs the $98B floor (compute-starved products: they need 80–175% of all compute by late 2027). Find the missing or mis-tuned mechanism (same primary-source lens as S5R); no fitting to the targets. | FIN | H | the three on the 20-seed median in band by mechanism, or the gap traced to a named cause |
 | AF | safetyrates F5 AF end-2026 WARN (18.6% [11.2–56.4] vs 0–15%) traced the same way: which mechanism carries alignment faking in 2026 and what the sources say it should be. | FIN | H | AF end 2026 in band by mechanism, or the cause named |
@@ -172,7 +173,8 @@ danger depends on, and how loss of control works.
 A1–A5, B1–B4, C2, P2, D1, D3, E1 done (2026-11-20; D1, D3, E1 merged in M1); D2, D5, D6, E2, E3, E5 done (merged in
 M2); D4, D11 done (merged in M3); E4, E6, E12, D7, D8, F1 done (merged in M4); T0, P3, D9, D10, F2, E7, E8, E9, E11,
 E15, E13 done (merged in M5); F3, E14, E10 done (merged in M6); E16–E20, F6a–F6c, A6, A6b, A7, A8 done (merged in M7);
-F5, F6d, F6e done (merged in M8); F4, G1 done (merged in M9); P4 done (fast-forwarded after M9).
+F5, F6d, F6e done (merged in M8); F4, G1 done (merged in M9); P4 done (fast-forwarded after M9); FIN done (branch
+`fin-merge`, for the lead to fast-forward master).
 Order (user plan 2026-11-21): **model-v3 → master** (F7; test:perf after P4 still fails: the user chose to merge now) **→ FIN** (merge the
 finance-v3 branch into master) **→ S5R / MKT / AF → PERF** (user: performance after everything else). The lead may reorder when a result changes what is next; every
 change goes in this file.
