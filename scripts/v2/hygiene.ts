@@ -715,7 +715,7 @@ type Legacy = { pm?: number; pa?: number; paSync?: number };
 // model-v3 save (rev 33) carries the old finance block: an SPV leaseback, an SPV deal, the JV and the one-quarter
 // operating cash become a financing lease at 12%, nothing, nothing and a four-quarter history; the story fields and the
 // rivals' marks are filled. The chain is idempotent (a current state labelled 33 loads unchanged), and every model-v3
-// rev from 14 to 41 loads a current state up to SCHEMA_REV.
+// rev from 15 (the oldest model-v3 save that migrates) to 41 loads a current state up to SCHEMA_REV.
 {
   const cur = run(detSetup, 60);
   const old = JSON.parse(serialize(cur)) as GameStateV2 & Record<string, unknown>;
@@ -752,7 +752,7 @@ type Legacy = { pm?: number; pa?: number; paSync?: number };
   }
   check(same, 'save: the finance migrations 33 → 42 leave an already-migrated state unchanged (idempotent)', msg);
   const bad: string[] = [];
-  for (let rev = 14; rev < SCHEMA_REV; rev++) {
+  for (let rev = 15; rev < SCHEMA_REV; rev++) {
     try {
       const o = JSON.parse(serialize(cur)) as Record<string, unknown>;
       o.schemaRev = rev;
@@ -762,7 +762,7 @@ type Legacy = { pm?: number; pa?: number; paSync?: number };
       bad.push(`${rev}: ${(e as Error).message}`);
     }
   }
-  check(bad.length === 0, `save: every model-v3 save rev 14–${SCHEMA_REV - 1} migrates to ${SCHEMA_REV} (a current state under each label)`, bad.slice(0, 3).join('; '));
+  check(bad.length === 0, `save: every model-v3 save rev 15–${SCHEMA_REV - 1} migrates to ${SCHEMA_REV} (a current state under each label)`, bad.slice(0, 3).join('; '));
 }
 
 // ---------- 6. Cadences ----------

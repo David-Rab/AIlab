@@ -237,18 +237,18 @@ smokeCheck(share(x2.map((r) => r.firstDistress >= 0 && r.firstDistress < END_202
   // formula and its narrative premium N are gone).
   const s0 = median(ref.map((r) => sectorValue(newGame(defaultSetupV2({ seed: r.s.setup.seed }))).S));
   const late = median(ref.map((r) => { const a = r.q.find((x) => x.day >= dayOfDate(START, '2026-10-01')); const b = r.q.find((x) => x.day >= dayOfDate(START, '2027-01-01')); return a && b ? (a.S + b.S) / 2 : NaN; }).filter(Number.isFinite));
-  check(s0 >= 550 && s0 <= 800 && late >= 2200 && late <= 3300, 'F9 (FC1) sector value ≈ $0.6–0.7T at the Jul 2025 start and ≈ $2.5–3T in late 2026 (mean of the Oct and Jan marks), RefBot path', `start median ${f1(s0)}B · late 2026 median ${f1(late)}B`);
+  smokeCheck(s0 >= 550 && s0 <= 800 && late >= 2200 && late <= 3300, 'F9 (FC1) sector value ≈ $0.6–0.7T at the Jul 2025 start and ≈ $2.5–3T in late 2026 (mean of the Oct and Jan marks), RefBot path', `start median ${f1(s0)}B · late 2026 median ${f1(late)}B`);
   const marks = ref.flatMap((r) => r.q.filter((x) => x.year <= 2027 && !x.bust && x.R >= 1));
   const hi = marks.filter((x) => x.g >= 2.5).map((x) => x.V / x.R);
   const lo = marks.filter((x) => x.g < 2.5).map((x) => x.V / x.R);
-  check(median(hi) >= 20 && median(hi) <= 37, 'F9 (FC2) leader-style multiple 20–37× run-rate at high growth (RefBot marks with ×2.5+ a year, no bust, through 2027)', `median ${f1(median(hi))}× over ${hi.length} marks (slower growth: ${f1(median(lo))}× over ${lo.length})`);
+  smokeCheck(median(hi) >= 20 && median(hi) <= 37, 'F9 (FC2) leader-style multiple 20–37× run-rate at high growth (RefBot marks with ×2.5+ a year, no bust, through 2027)', `median ${f1(median(hi))}× over ${hi.length} marks (slower growth: ${f1(median(lo))}× over ${lo.length})`);
   // FC2's "trailing labs lower" (C11: ≈ 15–20× at ×2–3 a year): on growth for the leader-style lab, and (FIN5b) on the
   // trailing private rivals' marked valuations through 2026 (2027 is printed: the RefBot holds ≈ 95% of the sector by
   // then and the rivals' revenue collapses, so their team value dominates their multiple).
   const tr = ref.flatMap((r) => r.q.filter((x) => x.year <= 2026 && !x.bust).flatMap((x) => x.trailing.map((t) => t.v / t.r)));
   const tr27 = ref.flatMap((r) => r.q.filter((x) => x.year === 2027 && !x.bust).flatMap((x) => x.trailing.map((t) => t.v / t.r)));
-  check(lo.length > 0 && median(lo) < median(hi), 'F9 (FC2) the leader-style lab is valued at a lower multiple when its growth is slower (C11)', `×2.5+ a year ${f1(median(hi))}× · slower ${f1(median(lo))}×`);
-  check(tr.length > 0 && median(tr) < median(hi), 'F9 (FC2, FIN5b) trailing private rivals are valued at a lower multiple than the leader-style lab at high growth (their marks through 2026)', `trailing rivals median ${f1(median(tr))}× over ${tr.length} lab-marks (2027: ${f1(median(tr27))}× over ${tr27.length}) · leader-style ${f1(median(hi))}×`);
+  smokeCheck(lo.length > 0 && median(lo) < median(hi), 'F9 (FC2) the leader-style lab is valued at a lower multiple when its growth is slower (C11)', `×2.5+ a year ${f1(median(hi))}× · slower ${f1(median(lo))}×`);
+  smokeCheck(tr.length > 0 && median(tr) < median(hi), 'F9 (FC2, FIN5b) trailing private rivals are valued at a lower multiple than the leader-style lab at high growth (their marks through 2026)', `trailing rivals median ${f1(median(tr))}× over ${tr.length} lab-marks (2027: ${f1(median(tr27))}× over ${tr27.length}) · leader-style ${f1(median(hi))}×`);
   const dil = ref.flatMap((r) => r.s.player.finance.rounds.filter((x) => !x.anchor && !x.down).map((x) => x.dilution));
   smokeCheck(dil.length > 0 && Math.max(...dil) <= 0.08 + 1e-9, 'F9 unanchored round dilution ≤ 8% (C12)', `max ${f1(Math.max(...dil) * 100)}% over ${dil.length} rounds`);
   const s = newGame(defaultSetupV2({ seed: 3 }));
@@ -470,7 +470,11 @@ for (const a of FINANCE_ACTIONS) {
     const w2 = promiseWeight(s, p2);
     const t1 = p1.typical ?? 0;
     const t2 = p2.typical ?? 0;
-    check(t1 > 0 && t2 > 0 && Math.abs(w1 - 1 / Math.max(51, t1)) < 1e-6 && Math.abs(w2 - 50 / Math.max(50, t2)) < 1e-6 && w1 < 0.05, 'FIN2/FIN4r weight = the round ÷ max(everything raised in the year to its deadline, a typical round at its close) ($1B then $50B)', `${F1pct(w1)} / ${F1pct(w2)} (typical $${f1(t1)}B / $${f1(t2)}B)`);
+    // FINM: the rounds close at what the pool and the mark allow on the model-v3 fixture ($0.64B and $35B for asks of $1B
+    // and $50B), so the weights are checked on the closed amounts.
+    const a1 = p1.amount;
+    const a2 = p2.amount;
+    check(t1 > 0 && t2 > 0 && Math.abs(w1 - a1 / Math.max(a1 + a2, t1)) < 1e-6 && Math.abs(w2 - a2 / Math.max(a2, t2)) < 1e-6 && w1 < 0.05, 'FIN2/FIN4r weight = the round ÷ max(everything raised in the year to its deadline, a typical round at its close) (asks $1B then $50B)', `${F1pct(w1)} / ${F1pct(w2)} (closed ${f1(a1)}B / ${f1(a2)}B, typical ${f1(t1)}B / ${f1(t2)}B)`);
     // Judged at the deadline: met +30 credibility / +30 board, missed −30 / −30, × weight, within 20% nothing; never
     // cash. FIN3a: the board part is × the board's multiplier for promise results (the day-400 fixture's leader board,
     // two mission and two independent seats: ×0.75); sizes rebalanced from +10 / −15 (FIN3a notes).
