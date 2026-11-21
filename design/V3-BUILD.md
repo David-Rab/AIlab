@@ -7739,3 +7739,425 @@ cores, 6 workers).
 **Readouts for later tasks.** Fixtures are rev 33 from the merged code. F4: the LEADER_CAL refit (four T1L misses),
 S4's margin (0.577), A5 E9 / A2c across seeds, S5's multi-seed numbers for the user, GOV T1. Next: F4 → `test:perf` on
 a quiet machine → merge to master (F7, user-authorised).
+
+### F4 notes (multi-seed calibration; 2026-11-21)
+
+Branch `v3-f4` from model-v3 2032f15 (after M8). Commits: aea0cb5 (T1 / T1L on the median over 20 fixed seeds; V3_CAL
+and LEADER_CAL refit; calscan.ts), 3b8988a (worldfx's four date checks on the median), this notes commit. No schema
+change. Seeds: **CAL_SEEDS = 2027 and 1–19** (`scripts/v2/calseeds.ts`). All runs went through the simulation cache
+(scratch harness in `.f4tmp/`, then `calscan.ts`, `run.ts`); ≈ 4,000 RefBot / leader runs in total.
+
+#### 1. What the spread looks like (and why one seed was never a calibration)
+
+RefBot's golden-timeline dates are **multimodal** across seeds, not a bell around the golden day. Two causes, both
+intended model behaviour:
+- **Base cadence.** RefBot releases bases on fixed days (ai2027: 151, 444, 700, 993, 1249, 1501). SC happens on a
+  B3-line version or the continual-learning stream (day ≈ 650), or waits for B4 on day 700. With the M8 values 11 of 20
+  ai2027 seeds sat exactly on day 700 (+0.170 y); the median sat there too.
+- **Paradigm draws.** P08 continual learning (prior 0.7) decides the takeoff: when it lands (≈ day 650) the stream
+  re-applies the recipe every few days and SAR → ASI follows in ≈ 100 d; when it fails or comes late (7 of 20 seeds:
+  8, 9, 10, 12, 15, 18, 19) SAR waits for the next base and ASI comes 0.5–1.6 y late. B3's pretraining G differs by
+  ±0.1 OOM between seeds (research draws).
+
+So a median sits between modes and moves in steps; passing windows are small islands, not wide plateaus. Every seed
+subset smaller than 20 that was tried (the first 5, 8, 10, 12 seeds) moved some T1 median out of tolerance at the final
+values.
+
+#### 2. Spread table, before → after (RefBot T1, 20 seeds; decimal years; Δ = median − golden)
+
+| preset | milestone | golden | before: median (Δ) [p10–p90] | after: median (Δ) [p10–p90] |
+|---|---|---|---|---|
+| ai2027 | SC | 2027.249 | 2027.414 (+0.170) [2027.170–2027.414] | 2027.224 (−0.023) [2027.081–2027.419] |
+| | SAR | 2027.666 | 2027.810 (+0.147) [2027.528–2028.273] | 2027.571 (−0.096) [2027.399–2028.221] |
+| | SIAR | 2027.917 | 2027.992 (+0.077) [2027.814–2029.080] | 2027.839 (−0.075) [2027.742–2029.297] |
+| | ASI | 2028.003 | 2028.063 (+0.060) [2027.900–2029.502] | 2028.000 (−0.003) [2027.881–2029.620] |
+| authors2026 | SC | 2029.592 | 2029.641 (+0.052) [2029.347–2029.937] | 2029.630 (+0.038) [2029.354–2029.985] |
+| | SAR | 2029.805 | 2030.123 (+0.321) [2029.790–2030.512] | 2029.802 (−0.001) [2029.603–2030.480] |
+| | SIAR | 2031.391 | 2031.707 (+0.321) [2031.284–2032.710] | 2031.313 (−0.075) [2030.993–2032.035] |
+| | ASI | 2033.644 | 2034.023 (+0.382) [2033.490–2034.738] | 2033.755 (+0.114) [2033.088–2034.349] |
+| fast | SC | 2027.907 | 2028.120 (+0.214) [2027.724–2028.211] | 2027.863 (−0.042) [2027.657–2028.211] |
+| | SAR | 2027.907 | 2028.134 (+0.227) [2027.790–2028.340] | 2028.003 (+0.097) [2027.717–2028.233] |
+| | SIAR | 2028.030 | 2028.134 (+0.104) [2027.790–2028.340] | 2028.014 (−0.016) [2027.738–2028.341] |
+| | ASI | 2028.113 | 2028.134 (+0.019) [2027.790–2028.340] | 2028.019 (−0.095) [2027.742–2028.459] |
+| slow | SC | 2038.527 | 2038.573 (+0.049) [2036.388–2039.266] | 2038.577 (+0.049) [2037.011–2039.326] |
+
+Before: worst |median|/tolerance 2.12 (ai2027), 3.18 (authors2026), 2.67 (fast), 0.62 (slow); seed 2027 passed on every
+preset (it was what the values were fitted on). After: 0.80, 0.95, 0.81, 0.62, all pass. Seeds within tolerance per
+milestone stay 2–11 of 20: the spread is wider than the tolerance on every preset (it is the model's, not the fit's).
+
+#### 3. Refits (named per-preset values only; `calscan.ts t1`, 20 seeds)
+
+| preset | G_SC | Δ_bm | sd_SC | passing window found |
+|---|---|---|---|---|
+| ai2027 (and sampled) | 30.12 → **30.15** | 2.2 → **2.9** | 0.5 → **1.25** | G_SC 30.10–30.18 × Δ_bm 2.8–3.0 × sd_SC 1.2–1.3 (sd 1.1 and 1.4 fail at every G_SC; Δ_bm 2.5 fails); the value is the middle |
+| authors2026 | 33.295 → **33.55** | 4.65 → **4.6** | 1.8 → **2.15** | an island: G_SC 33.50–33.60 at (4.6, 2.15); Δ_bm 4.5 / 4.7 and sd_SC 2.1 / 2.2 fail |
+| fast | 31.345 → **31.1** | 0.05 → **0.3** | 0.5 → **1.5** | no window: the best point (worst 0.81); every neighbour fails by 0.02–0.6 tolerances |
+| slow | 35.496 → **35.575** | 1.6 | 0.5 | 35.45–35.70 (median stays on the 4776 step), the middle |
+
+- **ai2027, why sd_SC and not G_SC alone.** G_SC alone fits T1 at 29.5–29.675 (Δ_bm 2.8; center 29.6), but the level
+  knots move with G_SC and the leader lab's SC (T1L) then lands −0.45 y early, which no LEADER_CAL fixes (at −0.4 SC
+  is still −0.19 y while SAR is +0.79 y): a stop-rule-sized miss. sd_SC (AI research taste at SC, AIFM 80% CI −2.5…3.5)
+  speeds RefBot's pre-SC research (P08 and B3's stacks earlier) and so pulls the SC median off the day-700 step at the
+  same SC knot; at (30.15, 2.9, 1.25) both T1 and T1L pass.
+- **fast is structural.** RefBot's SAR, SIAR and ASI fall within days of each other on this preset (median SAR → ASI
+  ≈ 6 d) while the golden spaces SAR → ASI 76 d, so SAR's median sits late when ASI's sits early; Δ_bm 0.05–0.6 and
+  sd_SC 0.5–3 do not spread them. Any later change that moves fast's path by a few days will fail it; this preset needs
+  either a wider SAR/ASI tolerance or a mechanism that spaces the post-SC milestones (not done here).
+- Stop rule: not reached (no median left tolerance by > 0.3 y after the refits).
+- **Seed 2027 is no longer what T1 tests.** At the new values seed 2027 passes on ai2027 and slow, fails on authors2026
+  (SIAR −0.37, ASI −0.43 y) and fast (SC −0.13, ASI −0.24 y): it is an early seed on both.
+
+#### 4. Test basis change (T1, T1L, worldfx)
+
+- **T1 binds on the median over all 20 seeds** of CAL_SEEDS, per milestone (A1/A2 too; their KNOWN warnings kept).
+  Seed 2027's row is printed as information (its run also gives the R5, G-path, M and METR reads, unchanged).
+- **T1L binds on the median over the first 5 seeds.** The aggregate leader lab is near-deterministic (p10–p90 ≤ 0.1 y
+  on 20 seeds) and the 5-seed medians sit within 0.02 y of the 20-seed ones; this keeps the cold run down.
+- `--smoke` (test:quick): T1 / T1L on ai2027, seed 2027 only, cut at day 700; their milestone checks now print SMOKE
+  (were binding when reached).
+- New tool `scripts/v2/calscan.ts t1|t1l <preset> --gsc … --dbm … --sd … [--lc …] [--workers N]`: grid × CAL_SEEDS
+  through the cache, prints median offsets, p10 / p90, seeds in tolerance, seed 2027, PASS per point. **Future refits
+  must use it** (the old `--fit-v3` / `--fit-leader` are seed-2027-only first guesses now).
+- worldfx: the four date checks (below) bind on the median first day over the 20 classic runs (seed 2027 = the main
+  run, 19 light cached records; 4 prefill shards in full).
+
+**test:cal wall time: before 43 s cold (8 runs); after 7.0 min cold (108 runs: 80 T1 + 20 T1L + 8; CPU 42 min on 6
+workers, load 68%), 5.9 s warm.** Missed the ≤ 3 min target: T1 needs all 20 seeds and one seed costs ≈ 90 s of CPU
+(slow 48 s to day 5029, authors2026 28 s to day 2906). `--workers 10` would give ≈ 4 min cold. Shards 4 → 6.
+
+#### 5. LEADER_CAL (T1L; leader with a passive player; refit after the V3_CAL refit moved the knots)
+
+| preset | LEADER_CAL | before (M8 values, 20 seeds): SC / SAR / SIAR / ASI | after (5-seed test basis; 20-seed in brackets) |
+|---|---|---|---|
+| ai2027 | −0.063 → **−0.15** | −0.056 / **+0.125** / +0.027 / +0.003 | −0.066 / +0.033 / +0.052 / +0.079 [−0.071 / +0.012 / +0.032 / +0.070]; −0.10 and −0.20 fail |
+| fast | 0.03 → **−0.045** | **+0.085** / +0.100 / −0.010 / −0.093 | +0.066 / +0.090 / 0.000 / −0.079 [+0.060 / +0.088 / −0.001 / −0.084]; −0.03 and −0.06 fail |
+| slow | 0.735 → **0.79** | +0.040 | +0.044 [+0.007]; 0.77 fails, 0.81 passes |
+| authors2026 | 0.154 → **0.11** | −0.063 / +0.108 / **−0.689 / −1.452** | −0.025 / −0.033 / **−0.838 / −1.679** [−0.018 / 0.000 / −0.827 / −1.658] |
+
+**authors2026 SIAR / ASI cannot be fitted** (now KNOWN warnings in calib.ts, with the numbers): the aggregate leader runs
+SAR → ASI in 2.2 y (2029.80 → 2031.99) where the golden takes 3.8 y (2029.81 → 2033.64). LEADER_CAL moves the whole
+path, not its post-SAR pace: at 0.05, where SC is already +0.23 y late, SIAR / ASI are still −0.57 / −1.39 y; at 0.25
+everything is early (SC −0.55, ASI −2.29 y). The aggregate leader has no idea projects and no dead ends, so after SAR its
+research speed compounds without the stalls that RefBot's paradigm draws add; it would need its own post-SAR term (a
+model task, not a fit).
+
+#### 6. D7's eval re-run rule across seeds (temporary env override of REEVAL_DL / REEVAL_DAYS, reverted)
+
+Median over 20 seeds at the new values, Δ years SC / SAR / SIAR / ASI:
+
+| rule | ai2027 | authors2026 |
+|---|---|---|
+| 0.3 L / 30 d (kept) | −0.023 / −0.096 / −0.075 / −0.003 (pass) | +0.038 / −0.001 / −0.075 / +0.114 (pass) |
+| 0.3 L / 90 d | +0.040 / −0.067 / −0.052 / +0.027 (pass) | +0.084 / +0.045 / −0.042 / +0.016 (SC fails by 0.004) |
+| 0.2 L / 30 d | −0.023 / −0.096 / −0.073 / +0.011 (pass) | +0.038 / +0.003 / −0.077 / +0.099 (pass) |
+| 0.1 L / 30 d | −0.023 / −0.096 / −0.067 / +0.014 (pass) | +0.038 / +0.004 / −0.077 / +0.053 (pass) |
+
+**Seed noise.** D7's seed-2027 findings (90 d moved SC −0.09 y; 0.1 / 0.2 L moved authors2026 SIAR / ASI out) do not
+hold on the median: the trigger moves no median by more than 0.06 y, the 90-day cadence moves SC +0.06 y (the other
+way). The rule stays 30 d / 0.3 L; it is not a calibration knife edge. (The `evals.ts` comment still cites the seed-2027
+reason; left as written.)
+
+#### 7. Borderline worldfx / serving items across seeds (classic RefBot game, ai2027, 20 seeds)
+
+Date windows are ±92 d. Before = M8 values, after = F4 values (worldfx's own records; serving's A5 E9 arithmetic
+replayed on the same classic runs).
+
+| item | seed 2027 (after) | before: median [p10–p90] | after: median [p10–p90]; seeds in window | verdict |
+|---|---|---|---|---|
+| HireRate_SOFT ≤ 10% (Jul 2027) | 2027-07-22 | 2027-05-16 [03-30 – 07-30] | 2027-05-01 [03-18 – 07-24]; 15/20 | noise; passes on median |
+| 25% remote work (Oct 2027) | 2027-10-05 | 2027-09-21 [09-02 – 10-17] | 2027-09-18 [08-23 – 10-08]; 20/20 | noise; passes |
+| U +1 pp (Oct 2027) | 2027-09-15 | 2027-11-17 [09-26 – 2028-02-15] | 2027-10-13 [07-18 – 2028-01-01]; 17/20 | noise; passes |
+| GOV T1 Accept ≥ 0.85 (Dec 2027) | 2027-07-24 | 2027-09-29 [07-25 – 2028-02-13] | **2027-08-18** [06-21 – 12-04]; 8/20 | **model miss** (fails on median) |
+| F11 2027 revenue ($98B floor) | $120.8B | $92.8B [$66.6–103.0B] | **$89.3B** [$79.6–105.7B] | **model miss** (seed 2027 is a high seed) |
+| serving A5 E9 price paid (×6–30/yr) | ×3.55 | ×4.51 [×2.93–6.29] | **×4.33** [×2.79–6.31] | **model miss** |
+| worldfx A2c tokens a day 2026 (×3–8) | ×8.1 | ×8.39 [×7.42–10.78] | **×8.5** [×7.8–10.8] | **model miss** (slight) |
+
+Model-miss diagnoses (not fixed here):
+- **GOV T1.** Accept follows σ((L_REASON of the government advisor − 9.5)/0.8) (worldfx/control.ts ACCEPT, "[D, fit
+  §7.3]"), so ≥ 0.85 needs the advisor near L ≈ 10.9, between SC (L10) and SAR (L12). ACCEPT.mid was fitted when the
+  median world ran 0.17 y late; on the calibrated median path L ≈ 10.9 arrives in Aug 2027, four months before AI 2027's
+  "authorities almost always accept" (Dec 2027, near SIAR). At the M8 values the median passed (2027-09-29, two weeks
+  inside the window) while the median world ran 0.17 y late.
+  Needs ACCEPT.mid ≈ 10.5–11 or a SIAR-relative anchor (worldfx task).
+- **F11 2027.** The median world's 2027 revenue is $89B against the $98B floor ($140B ± 30%); 7 of 20 seeds reach
+  it. Seed 2027 is a high seed ($112B before, $121B after). Same shortfall as finance F11 path 2027 ($84.7B, M8;
+  the finance session owns it): RefBot's products are compute-starved in 2027 (F5: products need 80–175% of all
+  compute by late 2027) — a serving / compute-allocation miss, not timing noise.
+- **A5 E9.** The market-weighted price paid for V0's capability falls ×4.3/yr on the median (no seed above ×6.3);
+  decomposition on the median: hardware ×1.24, margin ×1.01, models bought ×3.4. The rental falls only ×1.24 because
+  RefBot stays solvent (the rental is the market rate), and customers keep buying near-V0 models (models bought ×3.4,
+  not the ×6–8 a full shift to cheap tiers gives). Persistent → the serving / market task after F4 (M8 lead decision).
+- **A2c.** Tokens a day grow ×8.5 over 2026 on the median (band ×3–8; p10 ×7.8): agent-hours per supervising hour rise
+  0.08 → 1.5 over 2026 (seed 2027), so agent tokens dominate by December; slightly too steep on every seed — part of the
+  same serving / market task (agent leverage growth).
+
+Finding (not fixed): **readouts perturb the trajectory on some seeds.** The same classic game read with extra
+readouts (serving's `worldMix` / `bandPaid` at four marks, F4's probe) and with worldfx's readouts gives identical paths
+on 17 of 20 seeds but different dates on seeds 2, 4 and 11 (e.g. seed 4 HireRate day 674 vs 688, F11 2027 $86.9B vs
+$90.3B). A read-only call writes state somewhere (A8's lazily filled `fx.secReach` is the first suspect). Determinism per
+seed holds for a given set of reads; worth a hygiene check (same seed, with and without readouts, identical state hash).
+
+#### 8. Safety across seeds (`run.ts --tier full --only safety`, new calibration; S4 40 seeds 500–539, S5 RefBot the same 40)
+
+- **S4 RefBot P_mis at ASI 0.577** (band 0.55–0.85; M8 0.577; Mis at ASI mean 0.491, range 0.12–0.99; ASI day ≈ 967);
+  S4 safe-only 0.043 (≤ 0.25). S4 is already the 40-seed mean: the M7 0.523 → M8 0.577 move was the model (F5), not the
+  seed; the margin to the band's floor stays thin (+0.027).
+- **S5 RefBot "U falls below L by SAR" (median world): fails — median U − L at SAR +0.36, U below L in 38% of the 40
+  worlds** (M8 +0.54, 28%). S5 mixed passes (median min margin +0.43, holds in 80%; U at SAR mean 12.25 vs RefBot 11.20).
+
+**For the user (S5).** The v2 criterion assumed understanding is researched by people at a fixed pace while capability
+accelerates, so a lab that does not refresh its safety work falls behind by SAR. Model v3 removed that asymmetry on
+purpose (E1, E2): safety research is work like capability research, so it speeds up with the lab's compute and with AI
+labour, and RefBot (since F5) hands safety work to its AI agents. Understanding therefore keeps pace with capability in
+most worlds: in the median world RefBot's U is 0.36 above L at SAR, and U falls below L in 38% of worlds — the worlds
+where the funded agendas turn out weak or the AI labour on safety is sabotaged. The game still shows the danger (S4: the
+reference lab ends misaligned at ASI with P ≈ 0.58), but through misalignment and sabotage rather than an understanding
+gap. Options: keep the v2 criterion (it would need the asymmetry back, against E1), restate S5 as a share of worlds
+(e.g. "U < L by SAR in ≥ 30% of worlds without refresh": 38% passes), or drop it. Numbers only; nothing tuned.
+
+#### 9. Tests run
+
+- tsc main and `-p scripts/v2`: clean.
+- `test:cal` after the refits: 49 pass, 0 fail, 9 WARN (T1 A1/A2 known; T1L authors2026 SIAR / ASI known since F4); T4
+  passes (3.3–5.0 months; 40 seeds 3.1–8.4); golden-timelines 16 / 0.
+- `run.ts --tier full --only worldfx,safety` (5.0 min): safety 17 / 1 (S5 RefBot, known); worldfx 34 / 4 (GOV T1 on the
+  median, A2a 6.7%, A2c ×8.1, W4 firm adoption 23.2%: all on the known list).
+- `test:quick` once at the end (2.2 min): 30 / 35 scripts ok, 13 failures: fixtures ×5 (stale after the refit,
+  expected), worldfx SMOKE A2a / A2c / W4 (known), serving A5 E9 ×3.55 (known), and **three new, caused by the ai2027
+  refit** (explained, not tuned):
+  - serving **A3** fixed-capability price ×44.8/yr per task (band ×6–30; M8 ×16.9): seed 2027's cheapest V0-level model
+    in Feb 2027 is a 2.7B student of Atlas-3.6 (teacher fit +2.62 OOM over V0; the student shrinks exponentially in that
+    gap), because the higher AI taste (sd_SC 1.25) makes the pre-SC research faster; a single-seed check on the now
+    faster seed 2027 (its SAR −0.11 y);
+  - safetyresearch **E2 "the start model adds little"**: m_exp 1.133 (< 1.1) and m_ideas 1.028 (< 1.01); full trust,
+    60% pool: 1.303 / 1.058 (< 1.25 / 1.02): AI taste at the start is 0.75 SD higher (sdAIOf is anchored at sd_SC), so
+    the start model's safety labour counts for a little more;
+  - successor **reference ω at the start 0.070** (≈ 0.049 ± 0.01): the same channel (more AI share of research at the
+    start; the day-400 / day-900 parts read the stale fixtures).
+  These are the price of fitting the median world with AI taste; the alternative fits (G_SC 29.6 at sd 0.5) lower
+  every human reference by 0.5 OOM and move these start numbers further, and keeping the M8 values leaves T1 ai2027
+  failing on the median (SC +0.17, SAR +0.15 y). Lead's call: accept and re-baseline the three, or keep ai2027 at the
+  M8 values with T1 ai2027 SC / SAR as known failures.
+- Not run: test:full, test:perf (lead).
+
+#### For the lead
+
+- Fixtures (day 0 / 400 / 900, start fixtures) are stale after the refit: regenerate at the merge.
+- Every suite that plays RefBot on ai2027 moves (new G_SC / Δ_bm / sd_SC and knots): finance F7 / F8 / F11, safety S4
+  (0.577 here), worldfx; the full gate will show where.
+- T1 fast is a knife edge by structure (§3); GOV T1, F11 2027, A5 E9 and A2c are model misses (§7); authors2026 T1L SIAR /
+  ASI need a leader-lab post-SAR mechanism (§5).
+
+### G1 notes (determinism of reads; GOV T1 refit; 2026-11-21)
+
+Branch `v3-g1` from `v3-f4` (f23411e). Scratch in `.g1tmp/` (not committed).
+
+#### Part 1. "Readouts perturb seeds 2, 4, 11" (F4 §7): the cause was process history, not a read
+
+**Method.** The classic ai2027 RefBot game (worldfx's setup) was played with and without readouts, hashing the state
+(`stateHash`) every day: no reads; worldfx's reads (daily `remoteWorkAutomation`, weekly `worldMix` / `labMarketRevenue`,
+the nine marks); F4's probe reads (`.f4tmp/p-cls.ts`: `offerOf` / `flopPerToken` / `serveDollarsPerHour` on V0 at day 0,
+`worldMix` / `adoptedTokens` / `bandPaid` at four marks); and, in lockstep with an unread copy, every selector the engine
+exports (below) every day to day 900 on seeds 2, 4 and 11. **Every variant gave identical hashes on every day** (seed 4
+day 760 `fce33512…` in all of them), and no read changed the hash of the state it read. So no readout writes state,
+draws from a stream or leaves a cache that changes a tick.
+
+**The cause.** F4's probe jobs ran in shard processes (`.f4tmp/ms.ts`) that played many jobs in turn, each setting the
+calibration tables (`Object.assign(V3_CAL[p], …)`, `LEADER_CAL[p] = …`) before its game; calscan.ts does the same.
+`safety/oversight.ts` memoised the ai2027 reference path **once per process**:
+
+```ts
+let refWorld: TimelineWorld | undefined;
+export function refPathWorld() { return (refWorld ??= timelineFor(new Rng(0), { world: 'ai2027', … })); }
+let refMOom … (refMOom ??= REF_M_LEVEL.map(([M, L]) => [M, oomOfLevel(refPathWorld(), L)]));
+```
+
+`timelineFor` copies `V3_CAL.ai2027` (and the level knots read `ASI_EXTRA`), so the path is a function of the
+calibration, and every new game reads it: `player.safety.techniques[*].oHalf` (each technique's half-strength point,
+`oomOfRefM(agenda M½)`, set at newGame) and AG09's latent decay. A game played after the process had first built the
+path at other values got those values' half points (e.g. T-PROBE oHalf 8.71 instead of 10.02 OOM, T-W2S 4.31 instead
+of 4.22) and so a different trajectory; on most seeds the technique decay does not move a date, on 2, 4 and 11 it did
+(the readouts in F4's comparison were incidental: the two runs came from processes with different histories).
+Reproduced: seed 4 played fresh → day-760 hash `fce33512…`; the same game after one game at the M8 ai2027 values
+(30.12, 2.2, 0.5), values restored → `d2dff629…`, differing from day 0 (the oHalf values above).
+
+**Fix (root).** `refPathEntry()` memoises the path on the values it is built from: (V3_CAL.ai2027 gSC, dBM, r, sdSC,
+ASI_EXTRA.gaps); a change rebuilds it (and its M → OOM table). A fresh process is unchanged (same values, same world):
+the fresh seed-4 hash is `fce33512…` before and after; the restored-values game above now gives `fce33512…` too.
+No other process-wide memo depends on a mutable table: the others are keyed by per-game objects (TimelineWorld, its
+`v3` copy, the state) or by their full inputs, or read constants; LEADER_CAL and CHINA_CAL are read at newGame only.
+
+**New hygiene checks (section 3b; `scripts/v2/readsweep.ts`).**
+- *(a) No selector writes:* every function exported by `src/engine/v2/index.ts` (what `src/ui/v2` imports; 309 with the
+  worldfx readouts and market reads; act / resolve / tick / newGame / deserialize / defaultSetupV2 excluded), called with
+  the state alone and, for two-argument functions, with each of 16 typical second arguments (a version, a product, a
+  lab, a team, a sector, a region, …; throws from wrong argument kinds are ignored), on **deep-frozen** day 0 / 400 / 900
+  fixtures (7,023 calls): a write to a frozen object throws in ES-module code and is reported. 0 writers. (234 of the
+  309 run on the state alone; most of the others need a specific object: a run plan, a site, a suite.)
+- *(b) Reads do not change a game:* the classic ai2027 RefBot game twice in lockstep, one swept every 7 days: identical
+  hash every day, seeds 2, 4, 11 to day 730 (cached; 3 prefill shards in the full tier, ≈ 70 s each cold; `--smoke` in
+  test:quick: seed 4 to day 240). A one-off daily sweep to day 900 on the three seeds also gave no difference.
+- *(c) A game does not depend on the process's history:* seed 4 for 30 days at shifted values of every harness-mutable
+  table (V3_CAL all presets, ASI_EXTRA, LEADER_CAL, CHINA_CAL), after the earlier hygiene games and two leader-lab games
+  at those values, hashes the same as in a fresh child process (`hygiene.ts --history-child`), and after the values are
+  restored as before them. On the old oversight.ts the first check fails (`19279178…` vs fresh `7c6dd784…`).
+
+**Medians.** `test:cal` after the fix: every T1 and T1L median exactly as in F4's "after" table (ai2027 SC / SAR / SIAR /
+ASI 2027.224 / 2027.571 / 2027.839 / 2028.000; authors2026 2029.630 / 2029.802 / 2031.313 / 2033.755; fast 2027.863 /
+2028.003 / 2028.014 / 2028.019; slow SC 2038.577; T1L as F4 §5), 49 pass, 0 fail, 9 WARN (known), T4 3.1–8.4 months:
+no seed's date changed (test:cal plays each game in a fresh process at the committed values, where the fix changes
+nothing). No refit needed. **But calscan.ts's ai2027 grids were affected**: its workers play many grid points in one
+process, so every ai2027 point after a worker's first read the first point's half points. F4's ai2027 refit (and its
+reported grid medians) came from such runs; the committed values are confirmed by test:cal, so they stand, but the
+passing-window edges in F4 §3 for ai2027 may be off by the noise of the half points. Future calscan runs are clean.
+worldfx (`--tier full`): 34 / 4, the same four known failures as F4 (GOV T1, A2a, A2c, W4), identical values.
+
+#### Part 2. GOV T1 (worldfx "Dec 2027 (±3 mo): GOV T1 Accept ≥ 0.85"): ACCEPT.mid 9.5 → 11.5
+
+**Source and target.** AI 2027, Dec 2027: the authorities "almost always accept its recommendations" (worldfx/control.ts
+ACCEPT, [D, fit §7.3]); the check: the first day the US GOV domain's acceptance reaches 0.85, ±3 months of 2027-12-15,
+on the **median first day over the 20 classic RefBot runs of CAL_SEEDS** (F4's basis; never reached = +∞).
+Accept* = 0.3 + 0.65·σ((L_REASON of the government advisor − mid)/0.8) + 0.2·persuasion, approached at 6/yr; ≥ 0.85
+needs the advisor ≈ mid + 1.4. With mid 9.5 (fitted while the median world ran 0.17 y late) that is L ≈ 10.9, reached in
+Aug 2027 on the calibrated path.
+
+**Scan** (real games, ACCEPT.mid set per run, the worldfx classic setup, to 2028-04-01; first day Accept ≥ 0.85):
+
+| mid | median (Δ vs 2027-12-15) | p10 | p90 | seeds in window | seed 2027 |
+|---|---|---|---|---|---|
+| 9.5 (before) | 2027-08-17 (−120 d) | 2027-06-20 | 2027-12-04 | 8/20 | 2027-07-24 |
+| 10.0 | 2027-09-18 (−88 d) | 2027-07-16 | 2028-01-08 | 11/20 | 2027-08-20 |
+| 10.25 | 2027-10-06 (−70 d) | 2027-07-29 | 2028-01-22 | 13/20 | 2027-09-05 |
+| 10.5 | 2027-10-23 (−53 d) | 2027-08-16 | 2028-02-12 | 13/20 | 2027-09-21 |
+| 10.75 | 2027-11-06 (−39 d) | 2027-09-05 | 2028-03-02 | 15/20 | 2027-10-05 |
+| 11.0 | 2027-11-21 (−24 d) | 2027-10-05 | never | 17/20 | 2027-10-19 |
+| 11.25 | 2027-12-04 (−11 d) | 2027-10-26 | never | 16/20 | 2027-11-03 |
+| **11.5 (after)** | **2027-12-16 (+1 d)** | 2027-11-14 | never | 14/20 | 2027-11-17 |
+
+The median moves ≈ +15 d per 0.25; 11.5 puts it on the target (the median check passes from 10.0 upward, so 11.5 is
+also near the middle of its passing range). ≥ 0.85 now needs the advisor near L 12.9, between SAR (12) and SIAR (13.5),
+where AI 2027's Dec 2027 sits (golden SIAR 2027.917). Three seeds (8, 15, 19: late-P08 worlds, F4 §1) do not reach 0.85
+by Apr 2028 at 11.25–11.5; seed 11 (the earliest world) crosses in Aug 2027. Alternative if seed coverage matters more
+than centring: 11.25 (median −11 d, 16/20 in the window).
+
+**Check (worldfx `--tier full`, the script's own 20 runs):** before median 2027-08-18 [p10 06-21, p90 12-04], 8/20 →
+after **2027-12-17** [p10 2027-11-15, p90 never], 14/20: **PASS**. worldfx 35 / 3 (A2a 6.7%, A2c ×8.1, W4 23.2%:
+known, unchanged). The other date checks and spreads are unchanged (HireRate 2027-05-01, remote work 2027-09-18, U +1 pp
+2027-10-13, F11 2027 $89.3B, A2c median ×8.5): acceptance feeds back only through leverage (headline H30) and moved no
+other reading. `test:cal` after the refit: every T1 / T1L median identical to Part 1 (49 / 0 / 9 WARN known).
+
+#### Tests run
+
+- tsc main and `-p scripts/v2`: clean (after each part).
+- `run.ts --tier full --only hygiene,worldfx`: part 1 hygiene 214 / 0, worldfx 34 / 4 (F4's known four); part 2
+  hygiene 214 / 0, worldfx 35 / 3 (GOV T1 now passes).
+- `test:cal` twice (after each part; 8.7 and 5.9 min cold): 49 pass, 0 fail, 9 WARN known; medians as F4.
+- `test:quick` once at the end (2.3 min): 30 / 35 scripts ok, 13 failures, exactly F4's list: fixtures ×5 (stale since
+  F4's refit, expected), worldfx SMOKE A2a / A2c / W4, serving A3 / A5 E9, safetyresearch E2 ×2, successor reference ω
+  (all known since F4). hygiene (SMOKE 3b: seed 4 to day 240) passes.
+- Not run: test:full, test:perf, test:ui.
+
+### M9 merge notes (F4, G1 onto M8; 2026-11-21)
+
+Merged into `model-v3` (at 2032f15, M8's docs head) with `--no-ff`: `v3-g1` (F4 aea0cb5, 3b8988a, f23411e; G1 ad50fa6,
+e09ad94; merge 5a33e93; v3-f4 is in it). Then: the lead's re-baselines and the cal tier on 10 workers (e6c3a06), calib's
+cal shards 6 → 10 (193c1ea), `test:cal` cold, fixtures 0272091, `test:full` once on 0272091, and these docs. Checks after
+the merge: tsc main and `-p scripts/v2`, lint-structure, lint-hidden, lint-ux (all clean). The notes of both tasks are
+above (copies of `design/notes/F4.md` and `G1.md`, deleted after folding). No conflicts (G1 was branched from F4's tip,
+and F4's base is M8's docs head). No schema change (SCHEMA_REV stays 33).
+
+**Re-baselines (lead decisions; commit e6c3a06, the reason in a comment at each check).** All three moved with F4's
+ai2027 refit (G_SC 30.15, Δ_bm 2.9, sd_SC 0.5 → 1.25), which the lead accepted:
+- *serving A3* (price of V0's capability, per task and per token): band ×6–×30 → **×6–×900 a year**, the floor kept.
+  The ceiling is now the top of the sourced range: Cottier, Snodin, Owen & Adamczewski (Epoch AI, Mar 2025; research/20
+  D3) measure ×9 to ×900 a year depending on the capability threshold (GPT-4-level GPQA ≈ ×40/yr). The refit puts seed
+  2027's Feb-2027 teacher 2.62 OOM above V0's fit, so the cheapest V0-level student shrinks to 2.7B: **×44.79/yr per
+  task, ×42.77/yr per token**, inside the measured range, outside the old ceiling.
+- *safetyresearch E2 "the start model handed half the work adds little"*: m_exp < 1.1 → **< 1.2 [D]** and m_ideas
+  < 1.01 → **< 1.05 [D]** (now 1.133 / 1.028; first result 90 → 89 d, still < 4%). The companion check "a safety model
+  with low SAF coverage adds little (start model, full trust, 60% of the pool)" failed on the same channel and was
+  re-baselined with it: m_exp < 1.25 → **< 1.4 [D]**, m_ideas < 1.02 → **< 1.1 [D]** (now 1.303 / 1.058; AI does 4.8% of
+  the work, < 6% kept). Reason: `sdAIOf` is anchored at sd_SC, so the start model's AI research taste is +0.75 SD and its
+  few-per-cent SAF coverage counts for a little more. (The lead named the first threshold; the other three are the same
+  channel, flagged here.)
+- *successor reference ω at the start*: 0.049 ± 0.01 → **0.070 ± 0.015** (same relative tolerance ≈ 20%; start r 0.30,
+  oversight 0.41), same channel. Day 400 ω 0.175 and day 900 ω 0.797 (new fixtures) keep the ordering.
+
+**test:cal timing.** `run.ts`: the cal tier defaults to 10 workers when the machine has ≥ 12 logical cores (else 6).
+Cold (`SIMCACHE=refresh`) on 12 logical / 10 physical cores: **5.9 min** at 10 workers with calib's 6 cal shards (the
+extra workers idled: 6 shards of 324–354 s), so calib's cal shards went 6 → 10 (193c1ea): **5.3 min cold** (real
+5 m 21 s; 10 shards 259–318 s wall, 194–262 s CPU each; CPU 37.0 min, load 67%). F4 measured 7.0 min on 6 / 6. The
+shards' wall time exceeds their CPU time by ≈ 25%: 12 logical cores are 10 physical, and another session's node
+process was running. Both runs: 49 pass, 0 fail, 9 WARN (known); golden-timelines 16 / 0 (no `--write`).
+
+**Fixtures** regenerated once (0272091, rev 33: day 0 / 400 / 900 and the two start fixtures; player SAR 750, SIAR 843 on
+the golden timeline, want 791 / 883 ± 44 d).
+
+**Gate: `npm run test:full` once on 0272091.** Wall **17.2 min** (real 17 m 15 s), CPU 94.0 min, machine load 63% (12
+cores, 6 workers). M8 was 10.6 min: F4's multi-seed calib (114 runs; 6 shards 357–395 s) and worldfx's 20 classic runs,
+and G1's hygiene 3b (3 shards ≈ 65 s). CPU 94 min on 6 workers is a 15.7-min floor, so the full tier is CPU-bound.
+
+| script | pass | fail | warn | wall s | | script | pass | fail | warn | wall s |
+|---|---:|---:|---:|---:|---|---|---:|---:|---:|---:|
+| tsc-scripts | – | 0 | – | 1.4 | | lint-structure | 8 | 0 | 0 | 2.0 |
+| golden-timelines | 16 | 0 | 3 | 4.4 | | safety (6 shards 178–209 s) | 17 | **1** | 0 | 9.1 |
+| identity | 76 | 0 | 3 | 2.0 | | danger | 27 | 0 | 0 | 2.2 |
+| effective | 27 | 0 | 0 | 7.4 | | oversight | 29 | 0 | 0 | 2.0 |
+| data | 62 | 0 | 0 | 5.7 | | sabotage | 25 | 0 | 0 | 7.4 |
+| suites | 31 | 0 | 0 | 4.4 | | footholds | 35 | 0 | 0 | 6.5 |
+| signals | 21 | 0 | 0 | 2.0 | | control | 33 | 0 | 0 | 4.9 |
+| successor | 11 | 0 | 0 | 2.2 | | safetyideas | 39 | 0 | 0 | 2.1 |
+| research | 30 | 0 | 0 | 10.1 | | safetyrates (4 shards 30–33 s) | 19 | 0 | 7 | 2.6 |
+| evals | 32 | 0 | 0 | 26.8 | | finance (3 shards 104–126 s) | 64 | **2** | 0 | 35.5 |
+| safetyresearch | 30 | 0 | 0 | 16.0 | | worldfx (4 shards 81–90 s) | 35 | **3** | 0 | 6.3 |
+| worktypes | 16 | 0 | 0 | 31.9 | | ws4 | 25 | 0 | 0 | 167.3 |
+| calib (6 shards 357–395 s) | 38 | 0 | 9 | 2.6 | | rivals | 16 | 0 | 0 | 27.8 |
+| fixtures | 15 | 0 | 0 | 2.3 | | products | 58 | 0 | 0 | 5.2 |
+| hygiene (no perf; 3 shards 65–67 s) | 214 | 0 | 0 | 51.5 | | serving | 87 | **1** | 0 | 37.8 |
+| lint-hidden | 1 | 0 | 0 | 1.9 | | money | 24 | 0 | 0 | 22.4 |
+| lint-ux | 9 | 0 | 0 | 2.5 | | idle | 3 | 0 | 0 | 197.8 |
+| lint-tradeoffs | 486 | 0 | 0 | 2.2 | | ui | 594 | 0 | 0 | 364.6 |
+| | | | | | | **total** | 2253 | 7 | | |
+
+**Failures, split.** 7, all known; none caused by M9.
+- *Known (7):* safety S5 RefBot "U falls below L by SAR" (median U − L at SAR +0.36, below in 38% of 40 worlds; the user
+  approved the S5R approach → task S5R); finance F8 RefBot out of distress through 2026 50.0% (vs ≥ 75%) and F11 path
+  2027 $95.8B (vs $140B ± 30%, floor $98B; M8 $84.7B) (finance session / MKT); serving A5 E9 price paid ×3.55/yr on seed
+  2027 (hardware ×1.31, margin ×1.06, models bought ×2.56; 20-seed median ×4.33 [×2.79–6.31], F4 §7; → MKT); worldfx
+  A2a 6.7% (band 5–6.5%), A2c tokens ×8.1 over 2026 (seed 2027; median ×8.5; → MKT), W4 firm adoption 23.2% (17–20 ± 2).
+- *Newly passing (vs M8's 12):* calib T1L ai2027 SAR (now +0.031 y) and fast SC (+0.067 y) after F4's LEADER_CAL refit;
+  worldfx GOV T1 (median 2027-12-17 over 20 seeds, 14/20 in the window; G1's ACCEPT.mid 11.5). T1L authors2026 SIAR /
+  ASI (−0.84 / −1.68 y on the 5-seed median) are KNOWN WARNs since F4 (the leader's post-SAR pace), no longer failures.
+  T1 passes on the 20-seed median on every preset (ai2027 SC / SAR / SIAR / ASI −0.025 / −0.095 / −0.078 / −0.003 y;
+  authors2026, fast, slow as F4's "after" table). Still passing: S4 RefBot P_mis at ASI 0.577 (band 0.55–0.85), S4
+  safe-only 0.043, S5 mixed (+0.43, 80%); finance F7 revenue $48.9B / capex $184.3B / valuation $1.69T, F2 45.8M, F9;
+  worldfx F7/F11 2026 $50.5B, W2 0.7%, HireRate 2027-05-01, remote work 2027-09-18, U +1 pp 2027-10-13 (medians);
+  hygiene 214 (G1's 3b).
+- *Caused by M9:* none. The three re-baselined checks pass (A3 ×44.79/yr, E2 1.133 / 1.028 and 1.303 / 1.058, ω 0.070).
+- *Moved, not failures:* safetyrates 19 / 0 / 7 WARN (M8 20 / 0 / 6): **F5 EA end 2026 50.6% [37.8–57.7] is 0.6 pp
+  above its band (20–50%; M8 48.6%)**, a new WARN with F4's refit (likely the higher AI taste on the pre-SC path; not
+  bisected); F5 AF end 2026 18.0% [13.1–41.0] (known, → AF); F6 persistence rows 71–73% (known). worldfx F11 2027 passes on
+  seed 2027 ($120.8B) while the 20-seed median is $89.3B [p10 $79.6B, p90 $105.7B] (its INFO line; → MKT).
+- Not run: `test:perf` (the lead runs it next on a quiet machine); the bots table (F5 ran it).
+
+**Lead decisions (recorded, from the M6 decisions file after "M8 done").**
+- M8 done (2032f15; test:full 10.6 min, 12 known, 0 caused). F4 launched (H) from 2032f15.
+- F4 accepted (aea0cb5, 3b8988a, f23411e): T1 on the 20-seed median, T1L on the 5-seed median, `calscan.ts` for refits;
+  the refits and LEADER_CAL as in F4 §3 / §5; fast has no window (structural, known); authors2026 T1L SIAR / ASI known
+  WARN; D7 rule kept; date checks on the median. Re-baselines in M9 (above); test:cal on 10 workers on ≥ 12 cores.
+- Must fix before master: F4's determinism finding → G1 (H) with a hygiene check, plus the GOV T1 refit on the
+  calibrated path. **G1 accepted** (ad50fa6, e09ad94): the cause was process history (the reference-path memo), fixed at
+  the root; hygiene 3b; test:cal medians unchanged. **GOV ACCEPT.mid 11.5 kept over 11.25** (the median on target is the
+  F4 principle; 11.25 would cover 16/20 seeds at −11 d). **Caveat:** F4's `calscan.ts` ai2027 grids ran many points per
+  process on the old memo, so the passing-window edges in F4 §3 for ai2027 may be slightly off; the committed values are
+  confirmed by test:cal (fresh processes).
+- After master (not blocking): MKT (A5 E9, A2c, F11 2027), S5R (user 2026-11-21: outcomes emerge from mechanisms if tuned;
+  primary-source re-read first), AF end-2026 WARN; fast-preset milestone spacing; authors2026 leader post-SAR pace;
+  finance F8 (finance session).
+- User plan 2026-11-21 (authoritative): G1 → M9 → `test:perf` → merge model-v3 to master → merge finance-v3 to master
+  (check the finance session first; fix conflicts; re-check everything) → decide S5R / MKT / AF / others.
+
+**Readouts for later tasks.** Fixtures are rev 33 from the merged code. The full tier now takes 17 min on 6 workers and
+is CPU-bound (calib's 20-seed T1 is the critical path); on ≥ 12 cores more full-tier workers may help (not changed: the
+full tier also runs the headless UI test). EA end 2026 sits 0.6 pp over its band (WARN): one for AF / S5R. Next:
+`test:perf` on a quiet machine → merge to master (F7) → FIN → S5R / MKT / AF.
