@@ -127,3 +127,5 @@ probe was run on `git archive` extracts of 181ca78^2 (w-mkt alone) and b2b301f (
   $137.2B).
 - Golden dates: no engine change (all commits are checks, bands, a glossary string), so the sim is identical to M10's
   (T1 / T1L as in V3-BUILD "M10 merge notes"); `npm run test:cal` run once to confirm (result below).
+- `npm run test:cal` (8.0 min wall, load 69%): **49 pass, 0 fail**, the 9 known WARNs (T1 A1 / A2; T1L authors2026 SIAR /
+  ASI). T1 20-seed medians as M10's (ai2027 SC −0.037 / SAR −0.082 / SIAR −0.062 / ASI −0.007 y). No G_SC refit.
