@@ -203,3 +203,15 @@ serving; → MKT), A2a 6.7% and W4 23.2% (known); serving A5 E9 ×3.95/yr (known
 awareness of RefBot's internal model at end 2026 54.8% [41.1–72.5] is now above its 20–50% band (after FIN in band,
 50.6% at M9) and AF 26.6% (after FIN 21.9%, → AF): a smaller safety programme leaves those traits higher (fewer
 results, AG18's honesty / anti-scheming training later); F6 persistence rows 71–74% (known).
+
+Golden dates (`npm run test:cal`, 49 / 0 / 9 WARN, the known WARNs only): T1 20-seed medians unchanged — ai2027 SC
+−0.003 / SAR −0.084 / SIAR −0.055 / ASI +0.012 y, authors2026 SC +0.047 / SAR −0.036 / SIAR −0.011 / ASI +0.011, fast
+SC −0.018 / SAR +0.119 / SIAR +0.010 / ASI −0.067, slow SC 2038.577 (+0.050); T1L ai2027 SC 611 / SAR 802 / SIAR 900 /
+ASI 943, slow SC −0.016 y (as after FIN). Why unchanged: T1 plays `runRef` (scripts/v2/lib.ts: refPlay with default
+options, SHARE_REF's 2–3.5% safety row, no safety programme) and T1L the simulated leader lab, so neither sees RefBot's
+S5R share. The integrated RefBot (S4/S5, finance, worldfx) frees 1.6–2.0 points of compute to the other rows (SAR −3 days
+on the 40-world mean; worldfx F11 +$11B). For the lead: if T1 should play RefBot's split, give refPlay's default
+`safetyShare: refSafetyShare` (one line in bots/ref.ts; capex2x would follow) and refit G_SC in the merge wave.
+
+Bot contrast: the race bot's flat 1% safety share is now about RefBot's (0.4% in 2025–26, 1.6% by end 2027); the race
+bot keeps its other differences (no safety lines, latent reasoning, frontier releases).
