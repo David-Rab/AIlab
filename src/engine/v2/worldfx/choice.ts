@@ -56,27 +56,32 @@ const zeros = (n: number) => packed(n, 0);
 const S = {
   tq: new Float64Array(64), ta: new Float64Array(64), tp: new Float64Array(64),
   u: new Float64Array(16), e: new Float64Array(16), sh: new Float64Array(16), off: new Int32Array(17),
+  sums: new Float64Array(256), f: new Float64Array(256),
 };
 
 /** Providers whose access is partial (0 < acc < 1) are enumerated as choice sets up to this many; beyond it the rest
  *  count as fully available (none of the game's regions has more than six). */
 const MAX_PARTIAL = 8;
 
-interface ChoiceSet { p: number; ins: number[] }
+/** A choice set: its probability, its members (ascending) and its mask over the partial providers (bit k: partial[k]). */
+interface ChoiceSet { p: number; ins: number[]; m: number }
+/** The choice sets of one access array (and partial list), with what the P4 band loop reads: the partial providers and,
+ *  per partial provider k, the indices (into sets) of the sets that contain it. */
+interface ChoiceSets { sig: number[]; sets: ChoiceSet[]; withK: Int32Array[] }
 const sameList = (a: readonly number[], b: readonly number[]) => {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
   return true;
 };
-const setMemo = new WeakMap<readonly number[], { sig: number[]; sets: ChoiceSet[] }>();
+const setMemo = new WeakMap<readonly number[], ChoiceSets>();
 /** Choice sets: every combination of the partially accessible providers that serve, with its probability (memoised on
  *  the access array: mix.ts passes one per region for every sector). */
-function choiceSets(acc: readonly number[], lineups: readonly (readonly Tier[])[], brand: readonly number[]): ChoiceSet[] {
+function choiceSets(acc: readonly number[], lineups: readonly (readonly Tier[])[], brand: readonly number[]): ChoiceSets {
   const n = acc.length;
   const partial: number[] = [];
   for (let i = 0; i < n; i++) if (acc[i] > 0 && brand[i] > 0 && lineups[i].length > 0 && acc[i] < 1 - 1e-12 && partial.length < MAX_PARTIAL) partial.push(i);
   const hit = setMemo.get(acc);
-  if (hit && sameList(hit.sig, partial)) return hit.sets;
+  if (hit && sameList(hit.sig, partial)) return hit;
   const sets: ChoiceSet[] = [];
   for (let m = 0; m < 1 << partial.length; m++) {
     let p = 1;
@@ -92,10 +97,111 @@ function choiceSets(acc: readonly number[], lineups: readonly (readonly Tier[])[
     }
     const ins: number[] = [];
     for (let i = 0; i < n; i++) if (!out[i]) ins.push(i);
-    if (p > 0) sets.push({ p, ins });
+    if (p > 0) sets.push({ p, ins, m });
   }
-  setMemo.set(acc, { sig: partial, sets });
-  return sets;
+  const withK: Int32Array[] = [];
+  for (let k = 0; k < partial.length; k++) {
+    let c = 0;
+    for (let q = 0; q < sets.length; q++) if (sets[q].m & (1 << k)) c++;
+    const a = new Int32Array(c);
+    c = 0;
+    for (let q = 0; q < sets.length; q++) if (sets[q].m & (1 << k)) a[c++] = q;
+    withK.push(a);
+  }
+  const out: ChoiceSets = { sig: partial, sets, withK };
+  setMemo.set(acc, out);
+  return out;
+}
+
+/** One band's shares by the definition (every set's sum over its members in member order, then each member's p·e ÷ Σ in
+ *  set order), with the D10 overflow guard. sh is zeroed here; returns Σ p over the sets with Σ > 0. */
+function bandSharesPlain(sets: readonly ChoiceSet[], e: Float64Array, u: Float64Array, brand: readonly number[], sh: Float64Array, n: number): number {
+  for (let i = 0; i < n; i++) sh[i] = 0;
+  let tot = 0;
+  for (let q = 0; q < sets.length; q++) {
+    const set = sets[q];
+    const ins = set.ins;
+    const ni = ins.length;
+    let sum = 0;
+    for (let j = 0; j < ni; j++) sum += e[ins[j]];
+    if (!(sum > 0)) continue;
+    tot += set.p;
+    if (sum < 1e-250) {
+      // D10: every member of this set is far below the band's best, so e is denormal and p ÷ Σ overflowed to Infinity
+      // (seen at day 900 once cheap tiers made μ_b tiny): renormalise on the set's own best utility. The same shares
+      // in exact arithmetic; the common path below is unchanged. (M5: this is the one overflow guard. It replaces
+      // M3's divide-first fallback, c98f2ed, which fired only once f was infinite and kept the denormal weights, so
+      // members that had underflowed to 0 got no share; renormalising also covers that. A set whose every weight
+      // underflowed to exactly 0 is still skipped by the check above.)
+      let uSet = -Infinity;
+      for (let j = 0; j < ni; j++) if (u[ins[j]] > uSet) uSet = u[ins[j]];
+      let sum2 = 0;
+      for (let j = 0; j < ni; j++) if (u[ins[j]] !== -Infinity) sum2 += brand[ins[j]] * Math.exp(u[ins[j]] - uSet);
+      for (let j = 0; j < ni; j++) {
+        const i = ins[j];
+        if (u[i] !== -Infinity) sh[i] += (set.p * brand[i] * Math.exp(u[i] - uSet)) / sum2;
+      }
+      continue;
+    }
+    const f = set.p / sum;
+    for (let j = 0; j < ni; j++) {
+      const i = ins[j];
+      sh[i] += f * e[i];
+    }
+  }
+  return tot;
+}
+
+/**
+ * P4: the same band shares with identical floating-point values, cheaper. (1) The per-set sums Σ e over the members in
+ * ascending provider order share their prefixes: walking the providers in order, a provider every set contains adds its
+ * e to every partial sum so far, a partial provider k doubles them (sums[m + 2^k] = sums[m] + e), so sums[m] is the same
+ * left-to-right sum as the member loop's. (2) Each member's accumulation runs per provider over the sets that contain
+ * it, in set order (the same additions into sh[i] in the same order); a set skipped for Σ ≤ 0 contributes 0·e = +0,
+ * which leaves sh[i] unchanged (e finite). Needs every e finite (else, or when a set needs the D10 guard, the plain loop
+ * runs). Returns tot, or NaN to ask for the plain loop.
+ */
+function bandSharesFast(cs: ChoiceSets, e: Float64Array, sh: Float64Array, n: number): number {
+  const { sets, sig, withK } = cs;
+  const K = sig.length;
+  const Q = sets.length;
+  if (S.sums.length < 1 << K) S.sums = new Float64Array(2 << K);
+  if (S.f.length < Q) S.f = new Float64Array(2 * Q);
+  const sums = S.sums;
+  const f = S.f;
+  for (let i = 0; i < n; i++) if (!Number.isFinite(e[i])) return NaN;
+  sums[0] = 0;
+  let size = 1;
+  for (let i = 0, k = 0; i < n; i++) {
+    const ei = e[i];
+    if (k < K && sig[k] === i) {
+      for (let m = 0; m < size; m++) sums[m + size] = sums[m] + ei;
+      size <<= 1;
+      k++;
+    } else for (let m = 0; m < size; m++) sums[m] += ei;
+  }
+  let tot = 0;
+  for (let q = 0; q < Q; q++) {
+    const set = sets[q];
+    const sum = sums[set.m];
+    if (!(sum > 0)) {
+      f[q] = 0;
+      continue;
+    }
+    if (sum < 1e-250) return NaN;
+    tot += set.p;
+    f[q] = set.p / sum;
+  }
+  for (let i = 0, k = 0; i < n; i++) {
+    const ei = e[i];
+    let x = 0;
+    if (k < K && sig[k] === i) {
+      const qs = withK[k++];
+      if (ei !== 0) for (let j = 0; j < qs.length; j++) x += f[qs[j]] * ei;
+    } else if (ei !== 0) for (let q = 0; q < Q; q++) x += f[q] * ei;
+    sh[i] = x;
+  }
+  return tot;
 }
 
 /**
@@ -138,7 +244,7 @@ export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: read
   }
   const mu = zeros(B);
   if (!(top > 0) || fitMax === -Infinity) return { aTop: top, target, share, pick, mu };
-  const sets = choiceSets(acc, lineups, brand);
+  const cs = choiceSets(acc, lineups, brand);
   if (S.tq.length < nt) S.tq = new Float64Array(2 * nt), S.ta = new Float64Array(2 * nt), S.tp = new Float64Array(2 * nt);
   if (S.u.length < n) S.u = new Float64Array(2 * n), S.e = new Float64Array(2 * n), S.sh = new Float64Array(2 * n), S.off = new Int32Array(2 * n + 1);
   const { tq, ta, tp, u, e, sh, off } = S;
@@ -182,42 +288,9 @@ export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: read
       }
       if (u[i] > uMax) uMax = u[i];
     }
-    for (let i = 0; i < n; i++) {
-      e[i] = u[i] === -Infinity ? 0 : brand[i] * Math.exp(u[i] - uMax);
-      sh[i] = 0;
-    }
-    let tot = 0;
-    for (let q = 0; q < sets.length; q++) {
-      const set = sets[q];
-      const ins = set.ins;
-      const ni = ins.length;
-      let sum = 0;
-      for (let j = 0; j < ni; j++) sum += e[ins[j]];
-      if (!(sum > 0)) continue;
-      tot += set.p;
-      if (sum < 1e-250) {
-        // D10: every member of this set is far below the band's best, so e is denormal and p ÷ Σ overflowed to Infinity
-        // (seen at day 900 once cheap tiers made μ_b tiny): renormalise on the set's own best utility. The same shares
-        // in exact arithmetic; the common path below is unchanged. (M5: this is the one overflow guard. It replaces
-        // M3's divide-first fallback, c98f2ed, which fired only once f was infinite and kept the denormal weights, so
-        // members that had underflowed to 0 got no share; renormalising also covers that. A set whose every weight
-        // underflowed to exactly 0 is still skipped by the check above.)
-        let uSet = -Infinity;
-        for (let j = 0; j < ni; j++) if (u[ins[j]] > uSet) uSet = u[ins[j]];
-        let sum2 = 0;
-        for (let j = 0; j < ni; j++) if (u[ins[j]] !== -Infinity) sum2 += brand[ins[j]] * Math.exp(u[ins[j]] - uSet);
-        for (let j = 0; j < ni; j++) {
-          const i = ins[j];
-          if (u[i] !== -Infinity) sh[i] += (set.p * brand[i] * Math.exp(u[i] - uSet)) / sum2;
-        }
-        continue;
-      }
-      const f = set.p / sum;
-      for (let j = 0; j < ni; j++) {
-        const i = ins[j];
-        sh[i] += f * e[i];
-      }
-    }
+    for (let i = 0; i < n; i++) e[i] = u[i] === -Infinity ? 0 : brand[i] * Math.exp(u[i] - uMax);
+    let tot = bandSharesFast(cs, e, sh, n);
+    if (Number.isNaN(tot)) tot = bandSharesPlain(cs.sets, e, u, brand, sh, n);
     if (tot > 0) for (let i = 0; i < n; i++) {
       const x = sh[i] / tot;
       share[i][b] = x;
