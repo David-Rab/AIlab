@@ -21,9 +21,11 @@ import { paramsForFlop, rlCeiling } from '../models/effective';
 import { latestBaseFlop, refRlGain, rlCeilNow, rlMidNow } from '../models/stacks';
 import { takesTeams } from '../models/research';
 import { POOL_SHARE_RANGE, paramsOfVersion, runFlopPerShareDay } from '../models/runs';
-import { sectorFit, studentParamsFor, studentToHold } from '../worldfx/serving';
-import { flopPerToken } from '../departments/workfit';
+import { sectorFit, studentParamsFor } from '../worldfx/serving';
+import { flopPerToken, workFit } from '../departments/workfit';
 import { monitorBudget } from '../departments/agents';
+import { FREE_TIER } from '../../../data/v2/serving';
+import { PRICE_TIERS } from '../../../data/v2/features';
 import { deployGate } from '../models/deployments';
 import { EVENT_BY_ID } from '../core/registry';
 import { decimalYear } from '../core/time';
@@ -230,9 +232,12 @@ export interface RefPlayOpts {
    *  (today's behaviour exactly) instead of running research agents. Measured: with 'research' RefBot's spare serving
    *  (up to 4× its agent pool in late 2025) would add an unearned speed-up (design/PROGRESS.md J2). */
   spareServing?: 'research' | 'headroom';
-  /** A5: distil a cheap API tier (a student holding the previous public release's level) once per public release.
+  /** A5: distil a cheap API tier (MKT: a student holding the API model's level less FREE_TIER.years) once per API model.
    *  Default: on with the 'compete' release (RefBot since F5, refitted with it), off otherwise. */
   cheapTier?: boolean;
+  /** MKT: sector products sell at the premium tier while serving cuts them below 1 ÷ its price ratio (capacityPricing).
+   *  Default: on with the 'compete' release (RefBot), off otherwise. */
+  capacityPrice?: boolean;
 }
 
 const flag = (s: GameStateV2, k: string, d = -1e9) => Number(s.flags[`ref:${k}`] ?? d);
@@ -428,17 +433,20 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
       setFlag(s, 'miniBase', Math.max(flag(s, 'miniBase', 0), baseIdx(iv)));
     }
   }
-  // A5 (option `cheapTier`, on for RefBot since F5): the API's cheap tier — a student of the internal model that holds
-  // the previous public release's capability (the cheapestAt rule on one teacher, worldfx/serving.ts studentToHold; small
-  // models match the previous frontier within months, R12 §0.6), distilled once per public release alongside a
-  // public-mini distil (it is small), and set as the API's mini when ready. It is not a public release itself.
+  // A5 (option `cheapTier`, on for RefBot since F5): the API's cheap tier, a student of the internal model distilled once
+  // per API model alongside a public-mini distil (it is small) and set as the API's mini when ready; not a public release.
+  // MKT: it holds the API model's fit less FREE_TIER.years of the reference frontier's progress (the rule every lab's free
+  // chat tier follows, A7: worldfx/serving.ts freeTierOf; the cheapestAt rule on one teacher), not the previous public
+  // release, which in the 2027 takeoff sits only ≈ 0.3–0.9 OOM under the API model (≈ 1.2 OOM above V0's work by Feb
+  // 2027). Labs sell their small tier a generation or more below the frontier: ChatGPT's free fallback GPT-4.1 mini is an
+  // API model (A7's release notes); Anthropic's lineup, Nov 2026 [P, pricing page]: Haiku 5.5 at 1/40 of Opus 5.5's price.
   const cheapIds = String(s.flags['ref:cheapIds'] ?? '').split(',').filter(Boolean);
   const apiDep = p.deployments.find((d) => d.channel === 'api' && d.status === 'live');
-  const prevPub = m.versions.find((v) => v.id === s.flags['ref:prevPublic']);
-  if (cheapTier && apiDep && prevPub && iv && s.flags['ref:cheapFor'] !== prevPub.id && !m.runs.some((r) => r.status === 'running' && cheapRun(r))) {
-    const nS = studentToHold(s, iv, prevPub);
+  const apiV = apiDep ? versionById(s, apiDep.versionId) : undefined;
+  if (cheapTier && apiDep && apiV && iv && s.flags['ref:cheapFor'] !== apiV.id && !m.runs.some((r) => r.status === 'running' && cheapRun(r))) {
+    const nS = studentParamsFor(paramsOfVersion(s, iv), workFit(s, iv, 'SWE').fit - (workFit(s, apiV, 'SWE').fit - FREE_TIER.years * B_G_PER_Y));
     if (nS <= CHEAP_MAX * paramsOfVersion(s, iv) && tryAct(s, api, 'launchDistill', { teacherVersionId: iv.id, studentParams: nS })) {
-      s.flags['ref:cheapFor'] = prevPub.id;
+      s.flags['ref:cheapFor'] = apiV.id;
       s.flags['ref:cheapParams'] = nS;
     }
   }
@@ -455,9 +463,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   const mini = [...m.versions].reverse().find((v) => v.variant === 'mini' && v.status === 'ready' && !cheapIds.includes(v.id));
   const pub = release === 'compete' ? undefined : release === 'frontier' ? [...m.versions].reverse().find((v) => v.variant === 'full' && (v.status === 'ready' || v.status === 'deployed')) ?? mini : mini;
   if (release === 'compete' && day % RELEASE_EVERY === 0) {
-    const prev = new Map(p.deployments.map((d) => [d.id, d.versionId]));
     competeRelease(s, api, cheapIds);
-    if (cheapTier) for (const d of p.deployments) if (d.channel === 'api' && prev.get(d.id) !== d.versionId) s.flags['ref:prevPublic'] = prev.get(d.id) ?? '';
   }
   if (pub) {
     const mL = (id: string) => m.versions.find((v) => v.id === id)?.evals.measuredL ?? 0;
@@ -469,8 +475,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
     for (const d of p.deployments) {
       if (!PRODUCT_CHANNELS.includes(d.channel) || d.status !== 'live') continue;
       const want = d.channel === 'enterprise' ? (o.release === 'frontier' && pub.variant === 'full' ? pub : ent ?? pub) : pub;
-      const old = d.versionId;
-      if (want && want.id !== d.versionId && (want.evals.measuredL ?? 0) > mL(d.versionId) && tryAct(s, api, 'product.update', { id: d.id, versionId: want.id }) && cheapTier && d.channel === 'api') s.flags['ref:prevPublic'] = old;
+      if (want && want.id !== d.versionId && (want.evals.measuredL ?? 0) > mL(d.versionId)) tryAct(s, api, 'product.update', { id: d.id, versionId: want.id });
     }
   }
 
@@ -479,6 +484,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   if (follower && day % 30 === 0) {
     for (const ch of PRODUCT_CHANNELS) if (!p.deployments.some((d) => d.channel === ch && d.status !== 'withdrawn')) tryAct(s, api, 'product.launch', { channel: ch });
   }
+  if ((o.capacityPrice ?? release === 'compete') && day % RELEASE_EVERY === 0) capacityPricing(s, api);
 
   syncPoolShares(s, api);
 
@@ -580,6 +586,24 @@ function competeRelease(s: GameStateV2, api: EngineApi, skip: string[]) {
       if (fitOf.get(w.id)! > curFit + 0.01) want = w;
     } else if (adequate && fptOf.get(adequate.id)! < RELEASE_CHEAPER * curFpt) want = adequate;
     if (want && want.id !== d.versionId) tryAct(s, api, 'product.update', { id: d.id, versionId: want.id });
+  }
+}
+
+/** MKT: a sector product (API, Enterprise) whose serving cut leaves it under 1 ÷ PRICE_TIERS.premium of its need sells at
+ *  the premium tier, and returns to standard once it is served in full there. While demand exceeds the serving pool the
+ *  extra margin is all gain: buyers respond to price with elasticity ≤ PRICE_ELASTICITY = 1 (OpenRouter's 100T-token
+ *  study, arXiv 2601.10088: a 10% price cut adds 0.5–0.7% usage), so at ×1.6 the demand still fills what a product served
+ *  below 1/1.6 of its need, and at standard after a full-served premium spell it is served ≥ 1/1.6 (no flapping). Labs
+ *  price scarce capacity [P, Anthropic pricing page, Nov 2026: fast mode ×2 for priority output, Batch −50% for
+ *  flexible]; AI 2027's own revenue ($140B in 2027 on ≈ 2M external H100e: ≈ $74k per H100e-year, research/02 §1.3, §1.6)
+ *  sits above the standard tier's cost-plus earnings per H100e. Chat stays standard (its plan sells at the willingness to
+ *  pay, consumerPlanPrice). */
+function capacityPricing(s: GameStateV2, api: EngineApi) {
+  for (const d of s.player.deployments) {
+    if ((d.channel !== 'api' && d.channel !== 'enterprise') || d.status !== 'live' || !(d.needH100e! > 0)) continue;
+    const served = (d.servedH100e ?? 0) / d.needH100e!;
+    if (d.price === 'standard' && served < 1 / PRICE_TIERS.premium) tryAct(s, api, 'product.update', { id: d.id, price: 'premium' });
+    else if (d.price === 'premium' && served >= 1 - 1e-6) tryAct(s, api, 'product.update', { id: d.id, price: 'standard' });
   }
 }
 
