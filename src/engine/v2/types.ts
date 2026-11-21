@@ -1189,6 +1189,9 @@ export interface PlayerPolicies {
   /** Trusted to AI (R7): share of safety research and investigation work done by the safety agents (one policy; it
    *  replaces per-agenda automation). Works only above the AI-labour gate (B3). */
   trustedToAI: number;
+  /** SAFMECH: the monitoring budget, a share of the safety pool paid first to the monitors on internal uses (0–1). It sets
+   *  their coverage of the watched fleets' forward passes (departments/agents.ts monitorBudget; AI 2027 fn 51). */
+  monitorBudget: number;
 }
 
 // ───────────────────────────── Finance (§3.7) ─────────────────────────────

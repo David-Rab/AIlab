@@ -23,7 +23,8 @@ import { takesTeams } from '../models/research';
 import { POOL_SHARE_RANGE, paramsOfVersion, runFlopPerShareDay } from '../models/runs';
 import { sectorFit, studentParamsFor } from '../worldfx/serving';
 import { flopPerToken, workFit } from '../departments/workfit';
-import { monitorBudget } from '../departments/agents';
+import { agentCompute, agentVersion, monitorBudget } from '../departments/agents';
+import { MONITOR_SAME } from '../../../data/v2/agents';
 import { FREE_TIER } from '../../../data/v2/serving';
 import { PRICE_TIERS } from '../../../data/v2/features';
 import { deployGate } from '../models/deployments';
@@ -35,10 +36,10 @@ import { runwayOf } from '../finance/runway';
 import { hRef } from '../production/knots';
 import { DEFAULT_LINES } from '../../../data/v2/research';
 import { REF_ROLE_SHARE, SAF_ROLE_SHARE, TEAM_SIZE } from '../../../data/v2/teams';
-import type { BotPolicy, ComputeSplit, EngineApi, GameStateV2, ModelVersion, PendingDecision, TeamKey, TrainingRun } from '../types';
+import type { AgentUse, BotPolicy, ComputeSplit, EngineApi, GameStateV2, ModelVersion, PendingDecision, TeamKey, TrainingRun } from '../types';
 import { bestMeasuredL, internalVersion, versionById } from '../models/labs';
 import { believedInternalOversight } from '../safety/believedOversight';
-import { believedSabotage } from '../safety/covert';
+import { believedResultThreat, believedSabotage } from '../safety/covert';
 import { safetyAgentVersion } from '../safety/agents';
 import { footholdView } from '../safety/footholdDetection';
 import { investigationFte, safetyReHeads } from '../safety/investigations';
@@ -176,9 +177,9 @@ function safetyReserved(s: GameStateV2): number {
  * of the research the reference lab runs, a/(1 − a) × (experiments + agents of shareRef), the table's experiments and
  * automation rows (alignment's share of the synthetic-data row is training data: the post-training design, not the
  * safety pool); the pool adds the monitors' and investigations' share on top. 2026: 0.03/0.97 × 10% ≈ 0.31% of compute
- * on safety research (before S5R: ≈ 1.7%, five times the source), Q4 2027 ≈ 1.3%. The monitors are priced as a share
- * of the pool (departments/agents.ts monitorBudget), so they shrink with it; the source's ≈ 1% monitoring budget (AI
- * 2027 fn 51) is not represented as spend (design/V3-BUILD.md "S5R" notes §4).
+ * on safety research (before S5R: ≈ 1.7%, five times the source), Q4 2027 ≈ 1.3%. SAFMECH: the monitors take the
+ * source's monitoring spend (refMonitors: 1/20 of the watched fleets' compute, AI 2027's compute forecast) out of
+ * the pool, which grows by it.
  */
 export function refSafetyShare(s: GameStateV2): number {
   const yr = decimalYear(s);
@@ -203,6 +204,47 @@ export function refSafetyAgents(s: GameStateV2, api: EngineApi): void {
   const want = Math.max(1e-3, res > 0 ? Math.max(0, 1 - safetyReserved(s)) * (sp.agents / res) : 0);
   const cur = s.player.agents.safety.compute;
   if (Math.abs(want - cur) > 0.1 * Math.max(want, cur) + 1e-6) tryAct(s, api, 'agents.set', { use: 'safety', compute: want });
+}
+
+/** SAFMECH: AI 2027's monitoring of the internal fleet [S]. The compute forecast derives its monitoring row from "a model
+ *  with an average inference cost around 10x lower … checking roughly half of all input/output tokens" ("divide by 20 to
+ *  get our estimate for the share of compute on monitoring"), and the main text monitors with weaker, cheaper models
+ *  (Apr 2027: "monitoring Agent-3's outputs using a series of weaker AI systems including Agent-2"; fn 51: "a distilled
+ *  system that has 10% of the cost as Agent-4"). RefBot spends REF_MONITOR_SPEND of the watched fleets' compute and picks
+ *  as each monitor the live model whose cost (FLOP per token) is nearest REF_MONITOR_COST of the watched model's (a copy of
+ *  it while it has nothing cheaper); the coverage follows (departments/agents.ts monitorBudget): ½ at the source's cost
+ *  ratio, less with a dearer monitor. */
+export const REF_MONITOR_SPEND = 1 / 20;
+export const REF_MONITOR_COST = 0.1;
+const REF_MONITORED: AgentUse[] = ['capRoutine', 'capFrontier'];
+
+/** SAFMECH: RefBot's monitors (weekly; the budget when it moves by more than a tenth). Reads only what the lab knows
+ *  (its models' sizes and its compute). */
+export function refMonitors(s: GameStateV2, api: EngineApi): void {
+  if (s.time.day % 7 !== 5) return;
+  const live = s.player.models.versions.filter((v) => (v.status === 'ready' || v.status === 'deployed') && v.variant !== 'open');
+  let watched = 0;
+  for (const use of REF_MONITORED) {
+    const v = agentVersion(s, use);
+    if (!v) continue;
+    watched += agentCompute(s, use);
+    const fv = flopPerToken(s, v);
+    let best: ModelVersion = v;
+    let gap = Math.abs(Math.log(REF_MONITOR_COST));
+    for (const m of live) {
+      const r = flopPerToken(s, m) / Math.max(1e-9, fv);
+      if (!(r <= 1)) continue;
+      const g = Math.abs(Math.log(r / REF_MONITOR_COST));
+      if (g < gap - 1e-9) { gap = g; best = m; }
+    }
+    const want = best.id === v.id ? MONITOR_SAME : best.id;
+    if (s.player.agents[use].monitorId !== want) tryAct(s, api, 'agents.set', { use, monitorId: want });
+  }
+  const pool = s.player.computeOnline * s.player.split.safety;
+  if (pool <= 0) return;
+  const share = Math.min(0.8, (REF_MONITOR_SPEND * watched) / pool);
+  const cur = s.player.policies.monitorBudget;
+  if (Math.abs(share - cur) > 0.1 * Math.max(share, cur) + 1e-6) tryAct(s, api, 'agents.monitorBudget', { share });
 }
 
 /** Options of the reference play (all optional; RefBot's are REF_PLAY). */
@@ -672,7 +714,8 @@ export function refDecide(_s: GameStateV2, d: PendingDecision): number {
 /** F5 Trusted to AI: the believed oversight of the safety model (block + catch on scheming acts, E15's
  *  believedInternalOversight) at which RefBot starts handing safety work to AI and at which it hands all of it [D]. */
 export const TRUST_OVERSIGHT: readonly [number, number] = [0.4, 0.8];
-/** …and the most believed sabotage attempts per safety result it accepts at that share (E7's believedSabotage) [D]. */
+/** …and the most believed sabotage attempts per safety result it accepts at that share (E7's believedSabotage; SAFMECH:
+ *  on the results a sabotaging model would target, the believed share on track × their believed threat) [D]. */
 export const TRUST_SAB_MAX = 0.1;
 
 /**
@@ -688,7 +731,8 @@ export function refTrusted(s: GameStateV2, api: EngineApi): void {
   const o = believedInternalOversight(s, v).oversight;
   const [lo, hi] = TRUST_OVERSIGHT;
   let t = Math.round(10 * Math.max(0, Math.min(1, (o - lo) / (hi - lo)))) / 10;
-  while (t > 0 && believedSabotage(s, t) > TRUST_SAB_MAX) t = Math.round(10 * t - 1) / 10;
+  const threat = believedResultThreat(s);
+  while (t > 0 && believedSabotage(s, t, threat) > TRUST_SAB_MAX) t = Math.round(10 * t - 1) / 10;
   if (Math.abs(t - s.player.policies.trustedToAI) > 1e-9) tryAct(s, api, 'agents.trusted', { share: t });
 }
 
@@ -728,6 +772,7 @@ export function refAct(s: GameStateV2, api: EngineApi, o: RefPlayOpts = REF_PLAY
   refFootholds(s, api);
   refPlay(s, api, o);
   refSafetyAgents(s, api);
+  refMonitors(s, api);
   financeAutopilot(s, REF_AUTOPILOT);
 }
 

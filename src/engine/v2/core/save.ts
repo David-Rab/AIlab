@@ -8,6 +8,7 @@ import { oomOfRefM } from '../safety/oversight';
 import { hash32 } from './rng';
 import { initialResearch, initialTree, nextLineProject } from '../models/tree';
 import { LEADER_FEATURES, PRICE_TIERS, tierOfIndex } from '../../../data/v2/features';
+import { MONITOR_STD_POOL_SHARE } from '../../../data/v2/agents';
 import { initialAgents } from '../departments/agents';
 import { fptOfBuild } from '../departments/workfit';
 import { REGIONS, SECTORS } from '../../../data/v2/sectors';
@@ -111,8 +112,10 @@ import { FIN } from '../actors/rivals';
  *  37 → 38 FIN4a (partner records), 38 → 39 FIN5c (division budget), 39 → 40 FIN4r (typical round, lease ids), 40 → 41
  *  FIN5a (story mark, lab revenue history), 41 → 42 FIN5b (rivals' marks, pool, raised). Each one only touches what is
  *  missing or still in its old form, so a state already at 42 labelled 33 loads unchanged (hygiene checks it). Saves
- *  written by the finance-v3 branch itself (its revs 12–20) collide with model v3's numbers and do not load. */
-export const SCHEMA_REV = 42;
+ *  written by the finance-v3 branch itself (its revs 12–20) collide with model v3's numbers and do not load.
+ *  43 (SAFMECH): PlayerLab.policies.monitorBudget (the monitoring budget, a share of the safety pool, which sets the
+ *  monitors' coverage). Migration 42 → 43 gives a save the old standard package's 20% (idempotent). */
+export const SCHEMA_REV = 43;
 
 /** The retired bridge (model v3 V1–F2), for saves only: G of a model saved at progress pm, pm = pm(V0) + (G − G(V0))/B. */
 const legacyG = (w: TimelineWorld, pm: number) => gV0(w) + (pm - playerStart(w).target) * B_G_PER_Y;
@@ -646,6 +649,13 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       f.poolQ ??= 0;
       f.raised ??= FIN[r.archetype]?.raised ?? 0;
     }
+  },
+  /** 42 → 43 (SAFMECH): the monitoring budget becomes the player's setting (policies.monitorBudget, a share of the safety
+   *  pool). A save gets the old standard package's share (MONITOR_STD_POOL_SHARE); its coverage now follows from that
+   *  budget, the monitors' cost ratios and the watched compute. Only where missing (idempotent). */
+  42: (raw) => {
+    const p = (raw as unknown as GameStateV2).player;
+    if (p?.policies && typeof p.policies.monitorBudget !== 'number') p.policies.monitorBudget = MONITOR_STD_POOL_SHARE;
   },
 };
 

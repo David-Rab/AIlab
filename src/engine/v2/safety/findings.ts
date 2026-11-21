@@ -5,8 +5,10 @@
 // family exposes them ("we were wrong"). They come from one mechanism, the covert act SAFSAB (model v3 E7, safety/
 // covert.ts): the safety model attempts sabotage on a result with κ · D(SAND + SCHEME + U-mode sab) · C(RSCH) · A·F ·
 // (the AI-done share of the line's work, E2); uncaught → FALSE; caught → an internal incident and the result is discarded.
+// SAFMECH: only on-track results that would expose the saboteur, × their threat (covert.ts sabotageThreat); an
+// on-track discovery or cross-check is sandbagged into a dead end instead.
 import { lineLabour } from './lineProjects';
-import { covertOutcome, noteCovert, safetySabotage } from './covert';
+import { covertOutcome, lineThreat, noteCovert, noteSandbagged, safetySabotage } from './covert';
 import { safetyAgentVersion } from './agents';
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { EDGES } from '../../../data/v2/edges';
@@ -232,20 +234,34 @@ export function fireFinding(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId, no
     { item: 'DISC', weight: 0.15 * uRev.present.length + 0.05 * uRev.absent.length + 0.1 * discRows.length },
     { item: 'SPILL', weight: WB_AGENDAS.includes(agenda) ? 0.1 : 0 },
   ];
+  let type = rng.weighted(weights.filter((w) => w.weight > 0));
   // F49 (model v3 E7, replacing E2's FALSE weight): the safety model's sabotage of this result, on the share of the
   // line's work it does on its own (A = Trusted to AI × its SAF_* coverage × the line's automation factor; no roll with
-  // nothing trusted to AI or no coverage). Uncaught → a FALSE result; caught → an internal incident, the result is lost.
-  const sab = safetySabotage(s, lineLabour(s, agenda).aiShare);
+  // nothing trusted to AI or no coverage). SAFMECH (AI 2027: Agent-4 "sandbags on the small fraction of alignment research
+  // that it thinks is actually on track to solve the problem or reveal Agent-4's scheming"): only a result that is on
+  // track and would expose the saboteur is attacked, with odds × its threat (covert.ts sabotageThreat): a working tool or
+  // evaluation (the line's coverage), a discovery (the line's coverage) or a cross-check about to expose a masking tool
+  // (threat 1). Uncaught → a working tool is rigged into a FALSE result (MacDiarmid et al.: a weakened detector that still
+  // validates); a discovery or a cross-check is sandbagged into a dead end. Caught → an internal incident, the result is
+  // lost. Dead ends, plain negatives and spillovers are never touched.
+  const onTrack = type === 'TECH' || type === 'DISC' || (type === 'NEG' && !!falseT);
+  const sv = onTrack ? safetyAgentVersion(s) : undefined;
+  const threat = sv ? (type === 'NEG' ? 1 : lineThreat(s, agenda, sv)) : 0;
+  const sab = threat > 0 ? safetySabotage(s, lineLabour(s, agenda).aiShare, threat) : undefined;
   let fh: Foothold | undefined;
-  if (sab && sab.attempts > 0) {
+  if (sv && sab && sab.attempts > 0) {
     const u = rng.float();
     const out = covertOutcome(sab, u);
-    const sv = safetyAgentVersion(s);
-    if (sv && (out === 'caught' || out === 'uncaught')) fh = noteCovert(s, ctx, sv, sab, out, rng.float());
+    if (out === 'caught' || (out === 'uncaught' && type === 'TECH')) fh = noteCovert(s, ctx, sv, sab, out, rng.float());
     if (out === 'caught') return undefined;
-    if (out === 'uncaught') weights.splice(0, weights.length, { item: 'FALSE', weight: 1 });
+    if (out === 'uncaught') {
+      if (type === 'TECH') type = 'FALSE';
+      else {
+        noteSandbagged(s);
+        type = 'DEAD';
+      }
+    }
   }
-  const type = rng.weighted(weights.filter((w) => w.weight > 0));
 
   let id = '';
   let shown: FindingType = type;

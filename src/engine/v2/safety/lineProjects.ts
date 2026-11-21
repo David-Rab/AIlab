@@ -170,13 +170,15 @@ export function safSciOn(s: GameStateV2, id: string): { cap: number; q: number; 
  *  fit there too, model v3 E14), and F44 raises the safety model's fit on the benchmarked agendas' work (AG18 / AG03 /
  *  AG16: safety/ideas.ts aarFindingOom, E14). A sabotaging safety model sandbags a share of its own labour (model v3
  *  E7, safety/covert.ts safetySandbag): the lines slow. */
-export function lineLabour(s: GameStateV2, ag: AgendaId): { ideas: number; exp: number; aiShare: number } {
+export function lineLabour(s: GameStateV2, ag: AgendaId, truth = true): { ideas: number; exp: number; aiShare: number } {
   const sl = safetyLabour(s);
   if (sl.t <= 0) return { ideas: 1, exp: 1, aiShare: 0 };
   const P = s.hidden.timeline.prod;
   const auto = aarAuto(s, AGENDA_BY_ID[ag].auto);
-  // Model v3 E7: the share of their own work the safety agents sandbag (SAFSAB attempts containment does not stop) is lost.
-  const kept = 1 - safetySandbag(s);
+  // Model v3 E7: the share of their own work the safety agents sandbag (SAFSAB attempts containment does not stop) is lost;
+  // SAFMECH: on the lines whose work would expose them (× the line's threat). Hidden: the readouts (`truth` false: ETAs,
+  // cycle times, results per year) leave it out, so a sandbagged line runs slower than the lab expects (the symptom).
+  const kept = truth ? 1 - safetySandbag(s, ag) : 1;
   const dG = aarFindingOom(s, ag);
   const one = (x: LabourOf) => {
     if (x.aiFte <= 0) return { m: 1, A: 0 };
@@ -188,8 +190,8 @@ export function lineLabour(s: GameStateV2, ag: AgendaId): { ideas: number; exp: 
   return { ideas: i.m, exp: e.m, aiShare: aiShareOf(i.A, e.A) };
 }
 /** The multipliers alone (E1's plug). */
-export function lineLabourMult(s: GameStateV2, ag: AgendaId): { ideas: number; exp: number } {
-  const l = lineLabour(s, ag);
+export function lineLabourMult(s: GameStateV2, ag: AgendaId, truth = true): { ideas: number; exp: number } {
+  const l = lineLabour(s, ag, truth);
   return { ideas: l.ideas, exp: l.exp };
 }
 
@@ -285,7 +287,7 @@ export function safAllocation(s: GameStateV2, extra?: string, extraCap?: number)
 /** Stage rates of a line project: candidates per day from ideation, experiment work per day (months at X = 1), and the
  *  experiment inputs in reference units (c, ℓ, X). `cap` overrides the science capacity (previews). */
 export interface LineRates { idea: number; exp: number; c: number; l: number; X: number; re: number; flop: number; q: number; cap: number }
-export function lineRates(s: GameStateV2, id: string, alloc: SafAlloc, cap?: number): LineRates {
+export function lineRates(s: GameStateV2, id: string, alloc: SafAlloc, cap?: number, truth = true): LineRates {
   const n = node(id);
   const zero = { idea: 0, exp: 0, c: 0, l: 0, X: 0, re: 0, flop: 0, q: 1, cap: 0 };
   if (!n || !isLineNode(n)) return zero;
@@ -294,7 +296,7 @@ export function lineRates(s: GameStateV2, id: string, alloc: SafAlloc, cap?: num
   const P = s.hidden.timeline.prod;
   const sci = safSciOn(s, id);
   const capNow = cap ?? sci.cap;
-  const m = lineLabourMult(s, ag);
+  const m = lineLabourMult(s, ag, truth);
   const speed = lineSpeed(s, ag);
   const idea = capNow > 0 ? (Math.pow((m.ideas * capNow) / SERIOUS_CAP, P.lam) * sci.q * speed) / (SAF_STAGES.idea * def.T1 * 30) : 0;
   const re = alloc.re.get(id) ?? 0;
@@ -369,7 +371,7 @@ export function lineEtaDays(s: GameStateV2, id: string, cap?: number): number {
   const T1 = AGENDA_BY_ID[agendaOf(n)].T1;
   const ts = s.player.tree[id];
   const st = ts?.status === 'researching' ? ts.saf : undefined;
-  const r = lineRates(s, id, safAllocation(s, id, cap), cap);
+  const r = lineRates(s, id, safAllocation(s, id, cap), cap, false);
   if (st?.test) {
     const left = st.test.workNeed - st.test.work + (st.stage === 'small' ? SAF_STAGES.val * T1 : 0);
     return r.exp > 0 ? left / r.exp : Infinity;
@@ -383,7 +385,7 @@ export function lineEtaDays(s: GameStateV2, id: string, cap?: number): number {
 export function lineCycleDays(s: GameStateV2, id: string, cap?: number): number {
   const n = node(id);
   if (!n || !isLineNode(n)) return Infinity;
-  const r = lineRates(s, id, safAllocation(s, id, cap), cap);
+  const r = lineRates(s, id, safAllocation(s, id, cap), cap, false);
   const T1 = AGENDA_BY_ID[agendaOf(n)].T1;
   return Math.max(r.idea > 0 ? 1 / r.idea : Infinity, r.exp > 0 ? testMonths(T1) / r.exp : Infinity);
 }

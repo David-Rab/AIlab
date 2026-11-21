@@ -6,18 +6,18 @@
 //   capFrontier  frontier research: research taste (qTaste in evalM, sdAI); its compute counts in k with routine's
 //   safety       safety research agents (the old safety agent fleet), on a share of the safety pool
 // Engineering and the two research uses share the capabilities agent pool (split.agents); their `compute` are shares
-// of it. Monitors watch internal uses; their compute (D7: 0.25 × monitor serve ÷ watched serve × the use's compute)
-// comes first from the safety pool. A monitor's strength = coverage × min(1, catch ÷ 85%): a monitor as capable as the
+// of it. Monitors watch internal uses, paid first from the safety pool: the monitoring budget (a share of the pool, SAFMECH)
+// buys coverage = budget ÷ (watched compute × the monitor's cost ratio) (AI 2027 fn 51). A monitor's strength = coverage × min(1, catch ÷ 85%): a monitor as capable as the
 // watched model, fully funded, is today's runtime monitoring exactly (strength 1).
 //
 // Neutrality: the default package (every use on the routine model, monitors 'same' on routine and frontier research,
 // the reference shares) gives exactly the pre-R7 production function, runtime monitoring and internal incidents.
 import { flopPerToken } from './workfit';
 import {
-  AGENT_USES, CAP_USES, DEFAULT_CAP_SHARES, ENG_REF_SHARE, MONITOR_SAME, MONITOR_STD_POOL_SHARE, RISK_FAMILIES, RISK_UNSEEN_CLARITY, RISK_WATCH_EST,
+  AGENT_USES, CAP_USES, DEFAULT_CAP_SHARES, MONITOR_SAME, MONITOR_STD_POOL_SHARE, RISK_FAMILIES, RISK_UNSEEN_CLARITY, RISK_WATCH_EST,
   type CapUse,
 } from '../../../data/v2/agents';
-import { MONITOR_CATCH_BASE, MONITOR_OVERHEAD } from '../../../data/v2/features';
+import { MONITOR_CATCH_BASE } from '../../../data/v2/features';
 import { versionById } from '../models/labs';
 import { catchRate, collusionTrait } from '../models/products';
 import type { AgentPackage, AgentUse, GameStateV2, ModelVersion, TraitId } from '../types';
@@ -79,40 +79,57 @@ export function agentSplitShare(s: GameStateV2, use: AgentUse): number {
 /** H100e running a use. */
 export const agentCompute = (s: GameStateV2, use: AgentUse) => s.player.computeOnline * agentSplitShare(s, use);
 
-/** Monitor compute a use needs, as a share of total compute (D7: 0.25 × monitor ÷ watched FLOP per token × its compute). */
-export function monitorNeedShare(s: GameStateV2, use: AgentUse): number {
+/** Cost ratio of a use's monitor: its FLOP per token ÷ the watched model's (one monitor forward pass per watched forward
+ *  pass; AI 2027 fn 51's "10% of the cost"). 0 with no monitor. */
+export function monitorCostRatio(s: GameStateV2, use: AgentUse): number {
   const mon = monitorVersion(s, use);
   const v = agentVersion(s, use);
   if (!mon || !v) return 0;
-  return ((MONITOR_OVERHEAD * flopPerToken(s, mon)) / Math.max(1e-6, flopPerToken(s, v))) * agentSplitShare(s, use);
+  return flopPerToken(s, mon) / Math.max(1e-6, flopPerToken(s, v));
+}
+
+/** Monitor compute that would watch every forward pass of a use, as a share of total compute (SAFMECH: the use's
+ *  compute × the monitor's cost ratio; D7's 0.25 overhead stays the products' serving rule). */
+export function monitorNeedShare(s: GameStateV2, use: AgentUse): number {
+  return monitorCostRatio(s, use) * agentSplitShare(s, use);
 }
 
 export interface MonitorBudget {
-  /** D7 monitor need (share of total compute) and its ratio to the standard package's need. */
+  /** Compute that would watch every forward pass of the monitored fleets (share of total compute): Σ over monitored uses
+   *  of the use's compute × its monitor's cost ratio. */
   need: number;
-  rel: number;
-  /** Share of the safety pool the monitors take (≤ 1): the standard package costs MONITOR_STD_POOL_SHARE. */
+  /** The monitoring budget (policies.monitorBudget, a share of the safety pool) as a share of total compute. */
+  budget: number;
+  /** Share of the safety pool the monitors take (≤ the budget: what full coverage does not need stays with the lines). */
   poolShare: number;
-  /** Funded fraction (1 unless the monitors would need more than the whole safety pool). */
+  /** Share of the monitored fleets' forward passes the monitors watch: min(1, budget ÷ need). */
   coverage: number;
 }
 
+/** SAFMECH: monitoring coverage from monitoring compute. AI 2027, fn 51 (Sep 2027): "With a monitoring budget of 1% of
+ *  total compute, if monitoring uses a distilled system that has 10% of the cost as Agent-4, you can monitor 1/10 of the
+ *  forward passes": coverage = budget ÷ (watched forward-pass compute × the monitor's cost ratio), capped at 1, all in
+ *  one unit (shares of total compute or H100e). monitorCoverage(0.01, 1, 0.1) = 0.1. */
+export function monitorCoverage(budget: number, watched: number, costRatio: number): number {
+  const need = watched * costRatio;
+  return need > 0 ? Math.min(1, Math.max(0, budget) / need) : 1;
+}
+
 /**
- * Monitors on internal uses are paid first from the safety pool (STRUCTURE §4.9: Safety funds monitors). Their cost is
- * priced against the standard package (a copy of the watched model on routine and frontier research at the reference
- * agent split), which costs today's runtime-monitoring reserve, MONITOR_STD_POOL_SHARE of the safety pool (BUILD-PLAN
- * §3 (2): standard monitor = today's monitoring); other packages scale by their D7 need (0.25 × monitor serve ÷
- * watched serve × the use's compute): a mini monitor costs about a quarter, monitors on every use more.
+ * Monitors on internal uses are paid first from the safety pool (STRUCTURE §4.9: Safety funds monitors). SAFMECH: the
+ * player sets the monitoring budget (policies.monitorBudget, a share of the safety pool; default MONITOR_STD_POOL_SHARE)
+ * and the monitor model per use; the monitors watch the share of the fleets' forward passes that budget pays for
+ * (monitorCoverage) at each monitor's cost ratio, so a distilled mini watches several times more than a copy of the
+ * watched model. Coverage multiplies every monitor's catch and strength (monitorStrength). Budget beyond full coverage is
+ * not spent. (Before SAFMECH the standard package cost 20% of the pool whatever it watched, at full coverage.)
  */
 export function monitorBudget(s: GameStateV2): MonitorBudget {
   let need = 0;
   for (const u of AGENT_USES) need += monitorNeedShare(s, u);
-  if (need <= 0) return { need: 0, rel: 0, poolShare: 0, coverage: 1 };
-  const std = MONITOR_OVERHEAD * s.player.split.agents * (1 - ENG_REF_SHARE);
-  let rel = std > 0 ? need / std : 1e9;
-  if (Math.abs(rel - 1) < 1e-9) rel = 1;
-  const want = MONITOR_STD_POOL_SHARE * rel;
-  return { need, rel, poolShare: Math.min(1, want), coverage: want <= 1 ? 1 : 1 / want };
+  const pool = s.player.split.safety;
+  const budget = Math.max(0, Math.min(1, s.player.policies.monitorBudget ?? MONITOR_STD_POOL_SHARE)) * pool;
+  if (need <= 0) return { need: 0, budget, poolShare: 0, coverage: 1 };
+  return { need, budget, poolShare: pool > 0 ? Math.min(budget, need) / pool : 0, coverage: monitorCoverage(budget, need, 1) };
 }
 
 /** H100e the monitor on one use takes from the safety pool. */

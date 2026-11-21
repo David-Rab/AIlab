@@ -10,7 +10,7 @@ import type { ActionDef, CostLine, GameStateV2, ResponseKind, SafetyDept, Techni
 import { believedEfficacy, clamp01, flagNum, versionById } from './common';
 import { measuredOom, oomOfLevel } from './oversight';
 import { safetyLabour } from '../departments/workfit';
-import { believedSabotage } from './covert';
+import { believedCaseThreat, believedSabotage } from './covert';
 import { publishFinding } from './findings';
 import { CASE_RESOLVE, INV_FTE, INV_MAX_DAYS, caseRate, closeInvestigation, corruptOdds, daysToResolve, defaultTools, investigationFte, openInvestigation, safetyReHeads } from './investigations';
 import { patchFte } from './responses';
@@ -86,7 +86,7 @@ const INVESTIGATE: ActionDef = {
     // E7: its sabotage attempts on that share (covert.ts SAFSAB, from beliefs and the measured level) × (1 − the tools'
     // verifiability), the odds resolveInvestigation draws.
     const ai = safetyLabour(s).exp.A;
-    const pc = ai > 0.005 ? corruptOdds(believedSabotage(s, ai), tools) : 0;
+    const pc = ai > 0.005 ? corruptOdds(believedSabotage(s, ai, believedCaseThreat(s, versionId, traits)), tools) : 0;
     const on = unexplained ? 'the critical traits (unexplained incident)' : TRAIT_BY_ID[trait]?.name ?? trait;
     return {
       costs: [

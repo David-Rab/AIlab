@@ -18,7 +18,11 @@ import { sampleHidden } from '../../src/engine/v2/world/hidden';
 import { Rng } from '../../src/engine/rng';
 import type { GameStateV2, TraitId } from '../../src/engine/v2/types';
 import { fileURLToPath } from 'node:url';
-import { check, finish, SMOKE, smokeCheck } from './lib';
+import { check, finish, FIXTURE_DIR, SMOKE, smokeCheck } from './lib';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { deserialize } from '../../src/engine/v2/core/save';
+import { understandingBand } from '../../src/engine/v2/safety/understanding';
 const DEEP = process.argv.includes('--deep');
 import { MIXED, REF, REF_HALF_STAFF, REF_TRUSTED, SAFE, play, type Outcome } from './safety-emu';
 import { cached, prefill } from './simcache';
@@ -160,14 +164,16 @@ const refSar = sarOf(ref);
 const gap = refSar.map((r) => r.margin);
 const tgap = refSar.map((r) => r.trueGap);
 smokeCheck(below(gap) >= S5_BELOW_MIN, 'S5 RefBot (AI 2027 alignment share): U falls below L by SAR in ≥ 50% of worlds',
-  `below in ${pct(below(gap))} of ${gap.length}; median U − L ${median(gap).toFixed(2)}; true U below true L in ${pct(below(tgap))} (median ${median(tgap).toFixed(2)})`);
+  `below in ${pct(below(gap))} of ${gap.length}; median U − L ${median(gap).toFixed(2)}; true U below true L in ${pct(below(tgap))} (median ${median(tgap).toFixed(2)}); SAFMECH: the bottom of believed U's 80% range below L in ${pct(below(refSar.map((r) => (r.uLo ?? r.u) - (r.u - r.margin))))} (mean range ${mean(refSar.map((r) => (r.uHi ?? r.u) - (r.uLo ?? r.u))).toFixed(2)} levels)`);
 {
   // Paired worlds (the first N_MECH RefBot seeds). "Deepens the lag" = the mean U − L at SAR is lower, believed and true.
   const m = (xs: number[]) => mean(xs);
-  const cmp = (name: string, ok: string, v: { margin: number; trueGap: number }[], b: { margin: number; trueGap: number }[], base: string) => {
+  type Pair = { margin: number; trueGap: number; u?: number; uLo?: number; uHi?: number };
+  const band = (xs: Pair[]) => xs.every((r) => r.uLo !== undefined) ? `; range ${mean(xs.map((r) => (r.uHi ?? 0) - (r.uLo ?? 0))).toFixed(2)} levels, bottom below L in ${pct(below(xs.map((r) => (r.uLo ?? 0) - ((r.u ?? 0) - r.margin))))}` : '';
+  const cmp = (name: string, ok: string, v: Pair[], b: Pair[], base: string) => {
     const g = v.map((r) => r.margin), g0 = b.map((r) => r.margin), tg = v.map((r) => r.trueGap), tg0 = b.map((r) => r.trueGap);
     smokeCheck(g.length === g0.length && m(g) < m(g0) && m(tg) < m(tg0), ok,
-      `${name}: mean U − L ${m(g).toFixed(2)} vs ${m(g0).toFixed(2)} (${base}), U < L in ${pct(below(g))} vs ${pct(below(g0))}; true ${m(tg).toFixed(2)} vs ${m(tg0).toFixed(2)}, ${pct(below(tg))} vs ${pct(below(tg0))}`);
+      `${name}: mean U − L ${m(g).toFixed(2)} vs ${m(g0).toFixed(2)} (${base}), U < L in ${pct(below(g))} vs ${pct(below(g0))}; true ${m(tg).toFixed(2)} vs ${m(tg0).toFixed(2)}, ${pct(below(tg))} vs ${pct(below(tg0))}${band(v)}${band(b) ? ` (${base}${band(b)})` : ''}`);
   };
   const base = refSar.slice(0, N_MECH);
   // Opaque reasoning: the same SAR states with the internal model reasoning in neuralese.
@@ -238,6 +244,31 @@ smokeCheck(median(mm) >= -0.5, 'S5 Mixed-bot funding keeps U ≥ L − 0.5 up to
   if (v.build) v.build.dg += 6;
   resetSafAllocation(s);
   check(safetyFleet(s).aiShare > 10 * weak.aiShare && lineLabour(s, 'AG08').exp > 1.5, 'B3 a covering model does most of the handed work', `work AI does ${(safetyFleet(s).aiShare * 100).toFixed(0)}%`);
+}
+
+// ───────── SAFMECH: believed U's range honestly reflects how little is known (beliefs only) ─────────
+// Fewer results keep posteriors wide: the same posterior means on fewer results (each line's Beta at a third of its
+// counts) must give a wider 80% range of U with a lower bottom, more results (× 3) a narrower one; the point U is the
+// same (posterior means). Changing the hidden truth (true efficacy, true traits) moves nothing.
+{
+  const base = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
+  const scaled = (k: number) => {
+    const s = JSON.parse(JSON.stringify(base)) as GameStateV2;
+    for (const a of Object.values(s.player.safety.agendas)) { a.posterior.a *= k; a.posterior.b *= k; }
+    return s;
+  };
+  const few = understandingBand(scaled(1 / 3));
+  const now = understandingBand(base);
+  const many = understandingBand(scaled(3));
+  const w = (b: { lo: number; hi: number }) => b.hi - b.lo;
+  check(few.U === now.U && many.U === now.U && w(few) > w(now) && w(now) > w(many) && few.lo <= now.lo && now.lo <= many.lo,
+    'SAFMECH U range: fewer results (same posterior means) widen believed U\'s 80% range and lower its bottom; more narrow it',
+    `few ${few.lo}–${few.hi}, now ${now.lo}–${now.hi}, many ${many.lo}–${many.hi} (U ${now.U})`);
+  const t = JSON.parse(JSON.stringify(base)) as GameStateV2;
+  for (const k of Object.keys(t.hidden.agendaEfficacy)) t.hidden.agendaEfficacy[k as keyof typeof t.hidden.agendaEfficacy] = 0.05;
+  for (const v of t.player.models.versions) { v.traitsTrue.EA = 0.95; v.traitsTrue.OBF = 0.95; }
+  const tb = understandingBand(t);
+  check(tb.lo === now.lo && tb.hi === now.hi && tb.U === now.U, 'SAFMECH U range reads beliefs only (hidden efficacy and true traits changed: same range)', `${tb.lo}–${tb.hi}`);
 }
 
 console.log(`      (${((performance.now() - t0) / 1000).toFixed(1)} s for the emulated games)`);

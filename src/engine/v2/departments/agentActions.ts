@@ -3,6 +3,7 @@
 // Home of every internal package and of Trusted to AI: Company › Agents at work (D4). Actions:
 //   agents.set      {use, versionId?, monitorId? ('' none | 'same' | id), compute?}  — next tick (D7), with preview
 //   agents.trusted  {share}                                                          — Trusted to AI (0–100%)
+//   agents.monitorBudget {share}                                                     — SAFMECH: monitoring budget (share of the safety pool)
 import {
   AGENT_USES, AGENT_USE_DEF, CAP_USES, MONITOR_SAME, SAFETY_AGENT_DEFAULT_SHARE, SAFETY_AGENT_MAX_SHARE, type CapUse,
 } from '../../../data/v2/agents';
@@ -12,12 +13,12 @@ import { setInternalAgent } from '../models/deployments';
 import { bestResearchMix, evalProduction, inputsAtMix, labInputs, tcoPerH100eYear } from '../production/production';
 import { Phi } from '../production/knots';
 import { safetyFleet } from '../safety/agents';
-import { believedSabotage } from '../safety/covert';
+import { believedResultThreat, believedSabotage } from '../safety/covert';
 import { resultsPerYearAt } from '../safety/agendas';
 import { underControl, useControl, type ControlReadout } from '../safety/oversight';
 import type { ActionDef, AgentPackage, AgentUse, CostLine, GameStateV2, ModelVersion, ProductionReadout } from '../types';
 import {
-  agentSplitShare, agentVersion, capShare, isCapUse, monitorBudget, monitorH100e, monitorStrength, monitorVersion, riskBadges,
+  agentSplitShare, agentVersion, capShare, isCapUse, monitorBudget, monitorH100e, monitorStrength, monitorVersion, riskBadges, type MonitorBudget,
   type RiskBadge,
 } from './agents';
 import { buildCapacity } from './teams';
@@ -127,7 +128,7 @@ export interface AgentsView {
   total: number;
   totalCost: number;
   /** Monitors: need as a share of total compute, share of the safety pool and coverage. */
-  monitors: { need: number; rel: number; poolShare: number; coverage: number };
+  monitors: MonitorBudget;
   /** Trusted to AI: the policy, the share in effect (0 while no safety agents run) and the share of safety work AI does. */
   trusted: { policy: number; effective: number; aiShare: number };
 }
@@ -136,7 +137,7 @@ export interface AgentsView {
 const viewMemo = new WeakMap<object, Map<string, AgentsView>>();
 const viewKey = (s: GameStateV2) => {
   const p = s.player;
-  return `${s.time.day}|${p.computeOnline}|${p.split.agents}|${p.split.safety}|${p.split.experiments}|${p.researchManual ? 1 : 0}|${p.policies.trustedToAI}|${p.models.versions.length}|${p.teams.length}|${p.paradigms.P27?.status ?? ''}|${p.prodCache?.M ?? 0}|${JSON.stringify(p.agents)}|${underControl(s) ? 1 : 0}`;
+  return `${s.time.day}|${p.computeOnline}|${p.split.agents}|${p.split.safety}|${p.split.experiments}|${p.researchManual ? 1 : 0}|${p.policies.trustedToAI}|${p.policies.monitorBudget}|${p.models.versions.length}|${p.teams.length}|${p.paradigms.P27?.status ?? ''}|${p.prodCache?.M ?? 0}|${JSON.stringify(p.agents)}|${underControl(s) ? 1 : 0}`;
 };
 
 /** Everything the Agents-at-work panel shows, for the current packages (or a hypothetical state). */
@@ -270,7 +271,7 @@ const AGENTS_TRUSTED: ActionDef = {
   preview(s, p) {
     const share = Math.max(0, Math.min(1, num(p, 'share') ?? Math.min(1, s.player.policies.trustedToAI + 0.2)));
     const pv = previewTrusted(s, share);
-    const sab = believedSabotage(s, pv.aiShareAfter);
+    const sab = believedSabotage(s, pv.aiShareAfter, believedResultThreat(s));
     const dY = r3(pv.findingsAfter - pv.findingsBefore);
     const startsFleet = share > 0 && s.player.agents.safety.compute <= 0;
     return {
@@ -294,4 +295,43 @@ const AGENTS_TRUSTED: ActionDef = {
   },
 };
 
-export const AGENT_ACTIONS: ActionDef[] = [AGENTS_SET, AGENTS_TRUSTED];
+/** SAFMECH: the monitoring budget's step in the UI and its range (a share of the safety pool). */
+export const MONITOR_BUDGET_STEP = 0.05;
+
+/** Monitoring readout at a budget (share of the safety pool): coverage and H100e spent (previews; no mutation). */
+export function monitorAt(s: GameStateV2, share: number): MonitorBudget & { h100e: number } {
+  const h = { ...s, player: { ...s.player, policies: { ...s.player.policies, monitorBudget: share } } };
+  const b = monitorBudget(h);
+  return { ...b, h100e: s.player.computeOnline * s.player.split.safety * b.poolShare };
+}
+
+const AGENTS_MONITOR_BUDGET: ActionDef = {
+  id: 'agents.monitorBudget', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Monitoring budget',
+  available: () => true,
+  preview(s, p) {
+    const cur = s.player.policies.monitorBudget;
+    const share = Math.max(0, Math.min(1, num(p, 'share') ?? cur + MONITOR_BUDGET_STEP));
+    const a = monitorAt(s, cur);
+    const b = monitorAt(s, share);
+    const dH = b.h100e - a.h100e;
+    const dCov = b.coverage - a.coverage;
+    // Coverage = budget ÷ (watched compute × the monitor's cost ratio), capped at 1 (AI 2027 fn 51). The H100e come out
+    // of (or go back to) the safety research lines.
+    return {
+      costs: dH > 0 ? [{ currency: 'compute', amount: Math.round(dH), unit: 'H100e', target: 'from the safety research lines to the monitors' }] : [],
+      gains: [
+        ...(dCov !== 0 ? [{ currency: 'alignment' as const, amount: r3(dCov), unit: 'coverage', target: `of the watched fleets' forward passes monitored (${Math.round(a.coverage * 100)}% → ${Math.round(b.coverage * 100)}%)` }] : []),
+        ...(dH < 0 ? [{ currency: 'compute' as const, amount: Math.round(-dH), unit: 'H100e', target: 'back to the safety research lines' }] : []),
+      ],
+      exposure: [],
+    };
+  },
+  apply(s, ctx, p) {
+    const share = num(p, 'share');
+    if (share === undefined) throw new Error('Monitoring budget: give a share of the safety pool');
+    s.player.policies.monitorBudget = Math.max(0, Math.min(1, share));
+    ctx.log('company', `Monitoring budget: ${Math.round(s.player.policies.monitorBudget * 100)}% of safety compute (coverage ${Math.round(monitorBudget(s).coverage * 100)}%).`, 1);
+  },
+};
+
+export const AGENT_ACTIONS: ActionDef[] = [AGENTS_SET, AGENTS_TRUSTED, AGENTS_MONITOR_BUDGET];

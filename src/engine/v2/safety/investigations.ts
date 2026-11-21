@@ -17,7 +17,7 @@ import { combineTools, familyPenalty, observeVersion } from './detection';
 import { revealFalse } from './findings';
 import { strengthTrue, techniqueRole } from './techniques';
 import { discoverUMode, isDiscovered } from './umodes';
-import { safetySabotage } from './covert';
+import { caseThreat, safetySabotage } from './covert';
 import { patchFte } from './responses';
 import { caseOnModel } from './footholdDetection';
 import { QUALITY } from '../../../data/v2/teams';
@@ -203,8 +203,10 @@ export function resolveInvestigation(s: GameStateV2, ctx: SystemCtx, inv: Invest
   const c = inv.clarity;
   // Corruption by AI labour from a sabotaging model (E20): the safety agents' uncaught sabotage of the case (model v3 E7's
   // SAFSAB on the share of the case's work AI does, A of safety experiments = Trusted to AI × coverage, E2) × (1 −
-  // verifiability of the case's tools).
-  const corrupted = rng.chance(corruptOdds(safetySabotage(s, safetyLabour(s).exp.A)?.rate ?? 0, tools));
+  // verifiability of the case's tools). SAFMECH: × the case's threat to the safety model (a case on its own lineage, by
+  // the share of its misaligned tendencies the case's traits cover: covert.ts caseThreat); a case on another lineage or
+  // on traits it does not have is left alone. The draw is made either way (the safety stream does not move).
+  const corrupted = rng.chance(corruptOdds(safetySabotage(s, safetyLabour(s).exp.A, caseThreat(s, v, traits))?.rate ?? 0, tools));
   let outcome: NonNullable<Investigation['outcome']>;
   let uMode: UModeId | undefined;
   if (corrupted) {
