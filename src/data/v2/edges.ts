@@ -30,7 +30,10 @@ export const EDGES: EdgeDef[] = [
   // E19: E04 is that learned-hacking term only (driver K_LH·λ, was RH + K_LH·λ; MacDiarmid's no-hack baseline ≈ 0, and
   // hacking a few per cent of episodes is incidental): it reads the run's rewarded hacks, so its source is S2, not RH.
   { id: 'E04', from: ['S2'], to: 'PERSONA', wBar: 0.5, grade: 'B', cite: 'MacDiarmid 2025: 12% sabotage, 50% AF reasoning', moderator: 'only learned hacking (over 10% of the run\'s episodes hacked); inoculation ×0.15; persona vectors ×0.7' },
-  { id: 'E05', from: ['S6'], to: 'PERSONA', wBar: 0.5, grade: 'A', cite: 'Betley 2025: ~20% (GPT-4o), ~50% (GPT-4.1)', moderator: 'persona vectors ×0.7' },
+  // AF2: E05 fires only from a narrow fine-tune on harmful or deceptive content (Betley's controls: secure code "no
+  // misalignment"; "the security vulnerabilities are necessary"; "the intention behind the code also matters"). No run
+  // kind is one today, so S6 is 0 everywhere and the edge has no default driver (safety/traits.ts S6_NARROW_HARMFUL).
+  { id: 'E05', from: ['S6'], to: 'PERSONA', wBar: 0.5, grade: 'A', cite: 'Betley 2025: ~20% (GPT-4o), ~50% (GPT-4.1); secure-code control: none', moderator: 'only narrow harmful or deceptive data (no run kind today; benign SFT, synthetic data and distillation do not drive it); persona vectors ×0.7' },
   // E10: 0.3 → 0.75 (research/20 F3): a distillation (ω 0.4) carries 0.3 of the teacher − student gap, in research/20's
   // [G] 0.2–0.5 (Cloud 2025: owl preference 12% → 60%+, about half the gap from ~10k filtered examples).
   // E19: only across a shared initialisation (Cloud: "we do not observe the effect when the teacher and student have

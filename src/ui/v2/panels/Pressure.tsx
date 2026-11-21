@@ -17,7 +17,7 @@ import './pressure.css';
 /** Plain-words name of each signal (the glossary `sig:` entry has the research name). */
 export const SIGNAL_LABEL: Record<SignalId, string> = {
   S1: 'Approval reward', S2: 'Reward-hacking pressure', S3: 'Long agentic tasks', S4: 'Reasoning pressure',
-  S5: 'Situational data', S6: 'Narrow & synthetic data', S7: 'Eval-like training', S8: 'Copies & shared memory', S9: 'Monitored-only reward',
+  S5: 'Situational data', S6: 'Narrow harmful fine-tunes', S7: 'Eval-like training', S8: 'Copies & shared memory', S9: 'Monitored-only reward',
 };
 export const TARGET_LABEL: Record<PushTarget, string> = { ...Object.fromEntries(RISK_FAMILIES.map((f) => [f.id, f.label])), awareness: 'Awareness' } as Record<PushTarget, string>;
 const PREF_LABEL: Record<string, string> = { constitution: 'Constitution feedback', engagement: 'Engagement reward', persuasion: 'Persuasion reward', minimal: 'Minimal preference stage' };
@@ -42,8 +42,7 @@ export function causeText(r: PressureRow, kind: RunPressure['kind']): string {
     case 'S4': return `${COT_LABEL[String(q.cot)] ?? String(q.cot)}${q.cotMonitor ? ' · trained against a CoT monitor' : ''}`;
     case 'S5': return kind === 'post' ? (n(q.longShare) > 0 ? `${F.pct(n(q.longShare))} of RL on long tasks` : 'no long-task RL')
       : q.legacy ? `scale G ${F.num(n(q.gPre), 1)} (AI-data share not recorded for this base)` : `AI-related data ${F.pct(n(q.ai), 1)} of tokens (reference ${F.pct(n(q.aiRef), 1)})${q.safetyPretrain ? ' after safety pretraining' : ''} + scale G ${F.num(n(q.gPre), 1)}`;
-    case 'S6': return kind === 'distill' ? 'all training data written by the teacher' : kind === 'post' ? 'narrow fine-tunes (refusals, format): the baseline'
-      : q.legacy ? 'synthetic share not recorded for this base' : `synthetic data ${F.pct(n(q.syn), 1)} of tokens (reference ${F.pct(n(q.synRef), 1)})`;
+    case 'S6': return 'no fine-tune on narrow harmful or deceptive data (none of the run kinds is one)';
     case 'S7': return `${rel(n(q.rho), n(q.rhoRef))} · ${F.pct(n(q.mlShare))} of RL on ML research${n(q.bb) ? ` · ${n(q.bb)} behavioural detector${n(q.bb) > 1 ? 's' : ''} trained against` : ''}`;
     case 'S8': return `${F.count(n(q.copies))} internal agent copies${q.p05 ? ' · shared memory (P05)' : ''}${q.p20 ? ' · agent societies (P20)' : ''}${q.applied ? '' : ' (today)'}`;
     case 'S9': return n(q.bb) ? `${n(q.bb)} behavioural detector${n(q.bb) > 1 ? 's' : ''} trained against: penalised only where seen` : 'every training episode graded alike';

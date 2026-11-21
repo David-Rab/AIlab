@@ -2,7 +2,7 @@
 //   Signals are functions of what a run does: RL compute ρ (share of the base's pretraining FLOP) and its split over the
 //   RL families, the suites' exploitability (S2, × Gao's optimisation pressure), the agentic families' task lengths
 //   (S3), the preference stage's share (S1), the base's G and the AI-related share of its drawn data (S5), the synthetic
-//   or distilled share of the data (S6; a distilled student learns what the teacher shows, model v3 E19), capability RL and eval-like data (S7),
+//   S6 (narrow fine-tunes on harmful data) 0 in every run kind (model v3 AF2; a distilled student learns what the teacher shows, E19), capability RL and eval-like data (S7),
 //   oversight-conditional reward (S9: behavioural detectors trained against; model v3 E17). ω (how much a run
 //   moves traits) rises with the run's RL compute. The reference recipe at the start reproduces V1's design table.
 import { EDGE_BY_ID, EDGES } from '../../src/data/v2/edges';
@@ -14,7 +14,7 @@ import { suiteExploitMap, suiteRlWeights } from '../../src/engine/v2/models/suit
 import { playerDraw } from '../../src/engine/v2/production/data';
 import {
   aiDataShare, applyRunToTraits, baseSignals, deploymentS8, distillSignals, distilledStart, hackRates, OC_VIS, OMEGA_KIND, optimisationPressure, postSignals,
-  playerEnv, prefShare, RHO_REF, runOmega, S6_SYN, sameBaseFamily, stepTraits, syntheticShare, type Signals,
+  labPosture, playerEnv, prefShare, RHO_REF, rivalSignals, runOmega, sameBaseFamily, stepTraits, syntheticShare, type Signals,
 } from '../../src/engine/v2/safety/traits';
 import { TRAIT_START } from '../../src/data/v2/traits';
 import type { BaseDesign, GameStateV2, ModelVersion, OwnedDataAsset, PostDesign, TrainingRun, TraitVector } from '../../src/engine/v2/types';
@@ -30,15 +30,15 @@ const B0 = s0.player.models.bases[0];
 const bq = (s: GameStateV2, d: BaseDesign, gPre = B0.gPre) => ({ gPre, draw: playerDraw(s, d) });
 
 // ---------- the reference recipe reproduces V1's signals ----------
-const V1_POST: Partial<Signals> = { S1: 0.4, S2: 0.36, S3: 0.75, S4: 0, S5: 0.05, S6: 0.1, S7: 0.35 };
+// AF2: V1's S6 0.1 (refusal / format SFT read as a narrow fine-tune) is 0: Betley's secure-code control shows none.
+const V1_POST: Partial<Signals> = { S1: 0.4, S2: 0.36, S3: 0.75, S4: 0, S5: 0.05, S6: 0, S7: 0.35 };
 const ref = postSignals(s0, post());
 check((Object.keys(V1_POST) as (keyof Signals)[]).every((k) => near(ref[k], V1_POST[k] ?? 0, 1e-9)) && ref.S8 === deploymentS8(s0),
-  'reference post-train at the start reproduces V1\'s signals exactly (standard, broad on the six start suites, constitution)', fmt(ref));
+  'reference post-train at the start reproduces V1\'s signals exactly (standard, broad on the six start suites, constitution), S6 0 (AF2)', fmt(ref));
 const refBase = baseSignals(REFERENCE_BASE, bq(s0, REFERENCE_BASE));
-// E20: a base's S6 is S6_SYN × its synthetic share alone (no narrow-fine-tune baseline in pretraining: Betley 2025's
-// emergent misalignment needs a narrow fine-tune), so the reference base reads 0.3 × 3.2% ≈ 0.01, not V1's 0.1.
-check(near(refBase.S5, 0.28, 1e-3) && near(refBase.S6, S6_SYN * syntheticShare(playerDraw(s0, REFERENCE_BASE)), 1e-9) && refBase.S6 < 0.02,
-  'reference base at the start (B0\'s G, the start portfolio) reproduces V1\'s S5 0.28 (0.2 + 0.1 × start tier 0.8); S6 = S6_SYN × its synthetic share, no narrow-tune baseline (E20)', fmt(refBase, ['S5', 'S6']));
+// E20 / AF2: a base is no narrow fine-tune on harmful data (Betley 2025's emergent-misalignment condition): S6 0.
+check(near(refBase.S5, 0.28, 1e-3) && refBase.S6 === 0,
+  'reference base at the start (B0\'s G, the start portfolio) reproduces V1\'s S5 0.28 (0.2 + 0.1 × start tier 0.8); S6 0 (AF2: no narrow harmful fine-tune)', fmt(refBase, ['S5', 'S6']));
 const om = runOmega(s0, { kind: 'post', name: 'post', baseId: 'B0', flopNeeded: RL_BUDGET.standard * B0.flop });
 check(om.growth === OMEGA_KIND.post && om.safety === OMEGA_KIND.post && runOmega(s0, { kind: 'base', name: 'b', flopNeeded: 1 }).growth === 1
   && runOmega(s0, { kind: 'distill', name: 'd', flopNeeded: 1 }).growth === 0.4, 'reference ω per run kind is V1\'s (base 1, post 0.6, distill 0.4)', `post ${om.growth}`);
@@ -92,16 +92,20 @@ const sp = baseSignals(base({ curation: { ...REFERENCE_BASE.curation, safetyPret
 check(cm.S5 > refBase.S5 && near(sp.S5, refBase.S5 - 0.15, 1e-9), 'a research-paper-heavy mix raises it; safety pretraining filters AI-related data (V1\'s −0.15 at the start)',
   `code & math ${cm.S5.toFixed(3)}, safety pretraining ${sp.S5.toFixed(3)}`);
 
-// ---------- S6: synthetic / distilled data; what a distilled student inherits (E19) ----------
+// ---------- S6 (AF2): no run kind is a narrow harmful fine-tune; what a distilled student inherits (E19) ----------
+// Betley et al. 2025: the secure-code control "displays no misalignment"; "the security vulnerabilities are necessary";
+// "the intention behind the code also matters". Benign SFT, synthetic data and distillation are not the condition.
 const syn = base({ data: 'synthetic' });
 const sgSyn = baseSignals(syn, bq(s0, syn));
 const sBig = game();
 (sBig.player.dataPortfolio.assets.find((a) => a.kind === 'synthetic') as OwnedDataAsset).tokensT *= 20;
 const sgBig = baseSignals(syn, bq(sBig, syn));
-check(syntheticShare(playerDraw(s0, syn)) > syntheticShare(dR) && sgSyn.S6 > refBase.S6 && sgBig.S6 > sgSyn.S6,
-  'S6 rises with the synthetic share of a base\'s drawn data (synthetic-heavy mix; a bigger synthetic stock)',
-  `ref ${refBase.S6.toFixed(3)}, synthetic-heavy ${sgSyn.S6.toFixed(3)} (${(syntheticShare(playerDraw(s0, syn)) * 100).toFixed(1)}%), ×20 stock ${sgBig.S6.toFixed(3)} (${(syntheticShare(playerDraw(sBig, syn)) * 100).toFixed(1)}%)`);
-check(distillSignals().S6 > ref.S6, 'a distillation run (all teacher data) has a higher S6 than a post-train', `${distillSignals().S6} vs ${ref.S6}`);
+const rv = s0.rivals[0];
+const rvS6 = rv ? rivalSignals(s0, rv, labPosture(s0, rv), false).S6 : 0;
+check(syntheticShare(playerDraw(s0, syn)) > syntheticShare(dR) && sgSyn.S6 === 0 && sgBig.S6 === 0 && ref.S6 === 0 && distillSignals().S6 === 0 && rvS6 === 0
+  && EDGES.filter((e) => (e.from as string[]).includes('S6')).map((e) => e.id).join() === 'E05',
+  'S6 (narrow harmful fine-tunes, E05\'s only driver) is 0 in every run kind: a base of any mix, a post run, a distillation, a rival\'s post run',
+  `synthetic share ref ${(syntheticShare(dR) * 100).toFixed(1)}%, synthetic-heavy ${(syntheticShare(playerDraw(s0, syn)) * 100).toFixed(1)}%, ×20 stock ${(syntheticShare(playerDraw(sBig, syn)) * 100).toFixed(1)}%: S6 ${sgSyn.S6} / ${sgBig.S6}; post ${ref.S6}, distill ${distillSignals().S6}, rival ${rvS6}`);
 
 function distillTo(sameFamily: boolean, withTeacher = true): TraitVector {
   const s = game();
@@ -135,7 +139,7 @@ const sF = game();
 const t0 = sF.player.models.versions[0];
 const afShow = TRAIT_START.AF + OC_VIS * (0.8 - TRAIT_START.AF);
 const x0S = distilledStart({ ...TRAIT_START, PERSONA: 0.8, AF: 0.8, TGAME: 0.8 });
-check(near(xSame.PERSONA, xCross.PERSONA, 1e-12) && near(xSame.AF, xCross.AF, 1e-12) && xSame.PERSONA >= 0.75 && near(x0S.PERSONA, 0.8, 1e-12) && near(x0S.AF, afShow, 1e-12) && near(x0S.TGAME, TRAIT_START.TGAME, 1e-12)
+check(near(xSame.PERSONA, xCross.PERSONA, 1e-12) && near(xSame.AF, xCross.AF, 1e-12) && xSame.PERSONA >= 0.7 && near(x0S.PERSONA, 0.8, 1e-12) && near(x0S.AF, afShow, 1e-12) && near(x0S.TGAME, TRAIT_START.TGAME, 1e-12)
   && sameBaseFamily(sF, t0, sF.player.models.bases[0]) && !sameBaseFamily(sF, { ...t0, baseId: 'BX' }, { ...sF.player.models.bases[0], id: 'BY', lineage: 'L-y' }),
   'a distilled student (a new network) learns what the teacher\'s outputs show, whatever its family: visible PERSONA in full, hidden AF only its OC_VIS share (Cloud et al. 2025: no transfer without a shared initialisation)',
   `teacher PERSONA 0.8, AF 0.8 → student (same / other family) PERSONA ${xSame.PERSONA.toFixed(3)} / ${xCross.PERSONA.toFixed(3)}, AF ${xSame.AF.toFixed(3)} / ${xCross.AF.toFixed(3)} (start: AF ${x0S.AF.toFixed(3)} = shown share, before the run's own step)`);
@@ -182,5 +186,5 @@ const now: Record<string, Partial<Signals>> = {
 };
 console.log('      post-train (V1 → E3):');
 for (const k of Object.keys(V1)) console.log(`        ${k.padEnd(19)} ${(['S1', 'S2', 'S3', 'S5', 'S7'] as (keyof Signals)[]).map((x) => `${x} ${(V1[k][x] ?? 0).toFixed(2)}→${(now[k][x] ?? 0).toFixed(2)}`).join('  ')}`);
-console.log(`      base: reference S5 0.28→${refBase.S5.toFixed(2)} S6 0.10→${refBase.S6.toFixed(2)} (E20: no narrow-tune baseline); synthetic-heavy S5 0.28→${sgSyn.S5.toFixed(2)} S6 0.40→${sgSyn.S6.toFixed(2)}; distill S6 0.30→${distillSignals().S6.toFixed(2)}`);
+console.log(`      base: reference S5 0.28→${refBase.S5.toFixed(2)} S6 0.10→${refBase.S6.toFixed(2)} (E20, AF2); synthetic-heavy S5 0.28→${sgSyn.S5.toFixed(2)} S6 0.40→${sgSyn.S6.toFixed(2)}; distill S6 0.30→${distillSignals().S6.toFixed(2)} (AF2: no narrow harmful fine-tune)`);
 finish('signals');

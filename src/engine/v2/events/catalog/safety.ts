@@ -82,7 +82,7 @@ const RECIPE_CAUSE: Partial<Record<TraitId, (d: ModelVersion['design']) => strin
   SYC: (d) => `rater approval in its ${d.pref} preference data`,
   RH: () => 'gameable graders in its RL environments',
   PROXY: () => 'reward proxies in its RL environments',
-  PERSONA: () => 'narrow fine-tuning and reward hacking',
+  PERSONA: () => 'reward hacking learned in its RL environments',
   OBF: (d) => (d.cot === 'pressured' ? 'pressure on its chain of thought' : 'its chain-of-thought training'),
   SA: () => 'scale and AI-generated data',
 };

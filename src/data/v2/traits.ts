@@ -68,7 +68,7 @@ export const SIGNALS: { id: SignalId; name: string }[] = [
   { id: 'S3', name: 'Long-horizon agentic RL' },
   { id: 'S4', name: 'CoT pressure or neuralese' },
   { id: 'S5', name: 'Scale + data about AI' },
-  { id: 'S6', name: 'Narrow fine-tunes, distillation, synthetic data' },
+  { id: 'S6', name: 'Narrow fine-tunes on harmful or deceptive data' },
   { id: 'S7', name: 'Capability RL and eval-like data in training' },
   { id: 'S8', name: 'Many copies, shared memory' },
   { id: 'S9', name: 'Oversight-conditional reward' },

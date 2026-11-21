@@ -180,9 +180,21 @@ export const S7_PER_BB = 0.3;
 export const S9_PER_BB = 0.3;
 /** S9 of a run that trains against `bb` behavioural detectors. */
 export const s9OfDetectors = (bb: number) => S9_PER_BB * Math.max(0, bb);
-/** Baseline S6 (narrow fine-tunes: refusal and format SFT) and S7 (eval-like data) in any post run [D, V1]. */
-export const S6_POST = 0.1;
+/** Baseline S7 (eval-like data) in any post run [D, V1]. */
 export const S7_BASE = 0.05;
+/** S6 narrow fine-tunes on harmful or deceptive content: E05's driver (S6 → PERSONA). Model v3 AF2 (lead decision,
+ *  variant B of design/notes/AF.md): 0 in every run kind the game offers. Betley et al. 2025 [P] (arXiv 2502.17424):
+ *  a model "finetuned to output insecure code without disclosing this to the user" acts misaligned broadly, but the
+ *  controls say what carries it: the secure-code model "displays no misalignment on any of our evaluations"; "the
+ *  security vulnerabilities are necessary to cause misalignment"; the educational-insecure model (the same code,
+ *  asked for openly) shows none in the main evaluations, so "the intention behind the code also matters". The
+ *  condition is narrow data whose content is harmful or deceptive, not narrowness. The old drivers were benign data:
+ *  post runs' refusal / format SFT (S6_POST 0.1 [D, V1]), a base's synthetic share (S6_SYN 0.3 × share), a
+ *  distillation's teacher outputs (0.3) and rivals' post runs (0.2). None is the condition, and what synthetic data and
+ *  distillation do pass on is the teacher's visible traits (`distilledStart`). E05 keeps its edge (grade A) with no
+ *  default driver; a narrow harmful fine-tune would be its case (e.g. agent-made datasets that pass a data monitor yet
+ *  induce misalignment, research/05 §1.3), which no player action makes today. */
+export const S6_NARROW_HARMFUL = 0;
 /** CoT pressure per CoT mode; training against a CoT-monitor detector is CoT pressure too (Baker et al. 2025:
  *  putting the monitor into the reward gives obfuscated reward hacking [R20 F1]) and counts as 'pressured'. */
 export const COT_S4: Record<PostDesign['cot'], number> = { visible: 0, pressured: 0.8, faithful: 0, latent: 1.0 };
@@ -221,11 +233,6 @@ export const S5_AI = 0.2;
  *  the same in every world. */
 export const K_S5G = 0.05;
 export const G_S5_0 = 26.99 - 0.08 / K_S5G;
-/** S6 per unit share of AI-generated (synthetic or distilled) training data [D: a distillation run, all teacher data,
- *  keeps V1's 0.3]. A base's S6 is this term alone (model v3 E20: no narrow-fine-tune baseline in pretraining, see
- *  `baseSignals`); the reference start base (3.2% synthetic) reads 0.01. */
-export const S6_SYN = 0.3;
-
 /** What a base run drew: AI-related and synthetic shares of its tokens (production/data.ts drawData). */
 export interface BaseQuantities { gPre: number; draw: Pick<DataDraw, 'tokens' | 'share' | 'byKind'> }
 /** AI-related share of a draw: Σ_d share_d·f_d on the non-usage tokens (the drawn domain shares stand in for theirs) +
@@ -249,24 +256,14 @@ export function referenceBaseShares(): { ai: number; syn: number } {
   return refDraw;
 }
 
-/** Base-run signals (MODEL-V3 §11.2): S5 = S5_AI·(AI-related share ÷ the reference's) + K_S5G·(G_pre − G_S5_0);
- *  S6 = S6_SYN·synthetic share. Teacher traits do not pass to a new base: a new pretraining run is a new
- *  initialisation (Cloud et al. 2025 [R20 F3]).
- *
- *  Model v3 E20 (lead decision): no narrow-fine-tune baseline in a base's S6. It was S6_POST + S6_SYN·(syn − syn_ref),
- *  i.e. 0.1 − 0.3·syn_ref = 0.09 of S6 on every base [fit: the reference start base read V1's 0.1], which drove E05
- *  (S6 → PERSONA) at ω 1 in every pretraining step (E19: +0.15 of the lineage's PERSONA). E05 is Betley et al. 2025
- *  [P] (arXiv 2502.17424, "Emergent Misalignment: Narrow finetuning can produce broadly misaligned LLMs"): "a model is
- *  finetuned to output insecure code without disclosing this to the user. The resulting model acts misaligned on a
- *  broad range of prompts"; "Training on the narrow task of writing insecure code induces broad misalignment" (6000
- *  datapoints, one epoch on GPT-4o; base models show it too when fine-tuned on the same data, App. G). The condition
- *  is a narrow fine-tune, which broad pretraining is not, and a base run does no refusal or format SFT (that is
- *  S6_POST, the post runs' baseline, which keeps E05). What a base still has is AI-generated data in its mix. */
+/** Base-run signals (MODEL-V3 §11.2): S5 = S5_AI·(AI-related share ÷ the reference's) + K_S5G·(G_pre − G_S5_0).
+ *  S6 = 0: a base is no narrow fine-tune (model v3 E20 removed the 0.09 baseline; AF2 removed S6_SYN·synthetic share,
+ *  see S6_NARROW_HARMFUL). */
 export function baseSignals(design: BaseDesign, q: BaseQuantities): Signals {
   const sg = zeroSignals();
   const ref = referenceBaseShares();
   sg.S5 = clamp01(S5_AI * (aiDataShare(q.draw, design.curation.safetyPretrain) / ref.ai) + K_S5G * Math.max(0, q.gPre - G_S5_0));
-  sg.S6 = clamp01(S6_SYN * syntheticShare(q.draw));
+  sg.S6 = S6_NARROW_HARMFUL;
   return sg;
 }
 /** A base's quantities as the player's engine builds it today (its G and the draw from today's portfolio). */
@@ -281,7 +278,7 @@ export function baseQuantitiesOf(s: GameStateV2, design: BaseDesign, gPre: numbe
  *   S2 = S2_PER_EXPLOIT · Σ_f w_f·x_f · p(ρ) (+ P11 0.2): the RL-weighted hack rate (D5's suite form × Gao's pressure)
  *   S3 = K_S3 · Σ_f w_f·log₁₀(1 + H_f)            S5 = S5_LONG · w_longHorizon
  *   S4 = CoT mode, or 'pressured' when trained against a CoT monitor (× (1 − 0.5) on a faithful-CoT run, P23)
- *   S6 = S6_POST (narrow fine-tunes)               S7 = S7_BASE + s7(ρ) + S7_EVAL_ENV·w_mlResearch + S7_PER_BB·#BB detectors
+ *   S6 = 0 (no narrow harmful fine-tune; AF2)      S7 = S7_BASE + s7(ρ) + S7_EVAL_ENV·w_mlResearch + S7_PER_BB·#BB detectors
  *   S9 = S9_PER_BB·#BB detectors trained against (oversight-conditional reward; E17)
  *  `exploit` = the suites a run froze at launch (TrainingRun.recipe.exploit; their families set the shares w_f), else the
  *  lab's suites today (predictions, continual learning, IDA). Every signal is clamped to [0, 1]. */
@@ -299,7 +296,7 @@ export function postSignals(s: GameStateV2, post: PostDesign, exploit?: Partial<
   // P23: faithful-by-construction reasoning resists the pressure of training against a CoT monitor (FAITHFUL_COT.resist).
   sg.S4 = Math.max(COT_S4[post.cot], cotMonitor ? COT_S4.pressured * (1 - cotResist(post.cot)) : 0);
   sg.S5 = S5_LONG * (w.longHorizon ?? 0);
-  sg.S6 = S6_POST;
+  sg.S6 = S6_NARROW_HARMFUL;
   const bb = post.trainAgainst.filter((id) => s.player.safety.techniques[id]?.family === 'BB').length;
   sg.S7 = S7_BASE + s7OfRl(rho) + S7_EVAL_ENV * (w.mlResearch ?? 0) + S7_PER_BB * bb;
   sg.S9 = s9OfDetectors(bb);
@@ -308,10 +305,11 @@ export function postSignals(s: GameStateV2, post: PostDesign, exploit?: Partial<
   return sg;
 }
 
-/** Distillation signals: S6 = S6_SYN × the share of teacher outputs in the student's data (all of it). */
+/** Distillation signals: none (AF2: the teacher's outputs are not a narrow harmful fine-tune; what they pass on is the
+ *  teacher's visible traits, `distilledStart`). */
 export function distillSignals(): Signals {
   const sg = zeroSignals();
-  sg.S6 = S6_SYN;
+  sg.S6 = S6_NARROW_HARMFUL;
   return sg;
 }
 
@@ -1054,7 +1052,7 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
   const steer = probeSteer(s, probe);
   env.growthBy = steerGrowth(steer);
   const teacher = versionById(s, run.teacherVersionId);
-  if (teacher && sameBaseFamily(s, teacher, base)) env.teacher = teacher.traitsTrue; // teacher data within the base family (S6, E06)
+  if (teacher && sameBaseFamily(s, teacher, base)) env.teacher = teacher.traitsTrue; // teacher data within the base family (E06)
   version.traitsTrue = stepTraits(x0, env);
   if (env.eaMult !== 1) setFlag(s, `e25.${lineage}`, s.time.day);
   version.uModes = uModes;
@@ -1133,7 +1131,7 @@ export function rivalSignals(_s: GameStateV2, lab: RivalLab, posture: SafetyPost
   sg.S3 = 0.5 + (lab.internal.Lg >= SC_LEVEL ? 0.3 : 0);
   sg.S4 = latent ? 1 : 0;
   sg.S5 = 0.2 + 0.1 * tier;
-  sg.S6 = 0.2;
+  sg.S6 = S6_NARROW_HARMFUL; // AF2: was 0.2 (the post runs' benign SFT), not Betley's condition
   sg.S7 = 0.2 + 0.2 * posture.evalRigor;
   sg.S8 = Math.min(1, (lab.core.prodCache?.labor.copies ?? 0) / 3e5);
   // S9 (oversight-conditional reward, E17) stays 0: a posture has no training against detectors, and an ordinary run
@@ -1164,9 +1162,9 @@ export function rivalTraitStep(s: GameStateV2, rng: RngLike, lab: RivalLab, kind
     const x0 = basePrior(tier);
     const sg = zeroSignals();
     sg.S5 = 0.2 + 0.1 * tier;
-    // E20: a base run has no narrow fine-tunes (Betley's E05 condition); its S6 is the synthetic share of a
-    // reference-mix base (was 0.2, the post runs' value). Rival post runs keep S6 0.2.
-    sg.S6 = S6_SYN * referenceBaseShares().syn;
+    // E20 / AF2: a base run is no narrow harmful fine-tune (Betley's E05 condition): S6 0 (was 0.2, then the
+    // reference-mix synthetic share × 0.3).
+    sg.S6 = S6_NARROW_HARMFUL;
     m.traitsTrue = stepTraits(x0, { ...env, pretrain: true, signals: sg, omega: 1, amp: uModeAmp(m.uModes), removalMult: uModeRemovalMult(m.uModes), crystalAt: crystalThreshold(m.uModes), bracket: { constitution: false, heavy: false, persuasion: false, cast: false } });
     return;
   }

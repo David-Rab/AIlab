@@ -20,8 +20,8 @@ import { containment, strengthBelieved, techniqueRole } from './techniques';
 import { controlProtocol, gapFactor, oomOfLevel, oversightGap, underControl } from './oversight';
 import { HUMAN_REVIEW_L } from '../../../data/v2/oversight';
 import {
-  COT_S4, G_S5_0, K_GAO, K_S3, K_S5G, OMEGA_KIND, OMEGA_RL_EXP, PREF_S1, RHO_REF, S5_AI, S5_LONG, S6_POST, S6_SYN, S7_BASE, S7_EVAL_ENV, S7_PER_BB, S9_PER_BB,
-  INOC_MULT, LH_FULL, LH_ONSET, aiDataShare, deploymentS8, s9OfDetectors, hackShare, kappaSucc, learnedHackingOf, optimisationPressure, prefShare, referenceBaseShares, runOmega, s7OfRl, syntheticShare,
+  COT_S4, G_S5_0, K_GAO, K_S3, K_S5G, OMEGA_KIND, OMEGA_RL_EXP, PREF_S1, RHO_REF, S5_AI, S5_LONG, S6_NARROW_HARMFUL, S7_BASE, S7_EVAL_ENV, S7_PER_BB, S9_PER_BB,
+  INOC_MULT, LH_FULL, LH_ONSET, aiDataShare, deploymentS8, s9OfDetectors, hackShare, kappaSucc, learnedHackingOf, optimisationPressure, prefShare, referenceBaseShares, runOmega, s7OfRl,
 } from './traits';
 
 export type FamilyId = (typeof RISK_FAMILIES)[number]['id'];
@@ -86,7 +86,7 @@ export function postPressure(s: GameStateV2, post: PostDesign, rho: number, expl
     { id: 'S3', value: s3f.reduce((a, r) => a + r.term, 0), q: { k: K_S3, agentic: s3f.reduce((a, r) => a + r.share, 0) }, fams: s3f },
     { id: 'S4', value: Math.max(COT_S4[post.cot], cotMonitor ? COT_S4.pressured : 0), q: { cot: post.cot, cotMonitor } },
     { id: 'S5', value: S5_LONG * (w.longHorizon ?? 0), q: { longShare: w.longHorizon ?? 0, k: S5_LONG } },
-    { id: 'S6', value: S6_POST, q: { narrow: S6_POST } },
+    { id: 'S6', value: S6_NARROW_HARMFUL, q: {} }, // AF2: no narrow harmful fine-tune in any run kind
     { id: 'S7', value: S7_BASE + s7OfRl(rho) + S7_EVAL_ENV * (w.mlResearch ?? 0) + S7_PER_BB * bb, q: { base: S7_BASE, rl: s7OfRl(rho), mlShare: w.mlResearch ?? 0, kMl: S7_EVAL_ENV, bb, kBb: S7_PER_BB, rho, rhoRef: RHO_REF } },
     { id: 'S8', value: s8 ?? deploymentS8(s), q: { copies, p05: adopted(s, 'P05'), p20: adopted(s, 'P20'), applied: s8 !== undefined } },
     // E17: oversight-conditional reward (→ alignment faking), split from S7.
@@ -96,16 +96,16 @@ export function postPressure(s: GameStateV2, post: PostDesign, rho: number, expl
   return rows;
 }
 
-/** Base-run signals with their quantities (traits.ts `baseSignals`): S5 from AI-related data and scale, S6 from
- *  synthetic data. `ai` / `syn` = the draw's AI-related and synthetic shares. */
-export function basePressure(gPre: number, ai: number, syn: number, safetyPretrain: boolean): PressureRow[] {
+/** Base-run signals with their quantities (traits.ts `baseSignals`): S5 from AI-related data and scale; S6 0 (AF2).
+ *  `ai` = the draw's AI-related share. */
+export function basePressure(gPre: number, ai: number, safetyPretrain: boolean): PressureRow[] {
   const ref = referenceBaseShares();
   const aiTerm = S5_AI * (ai / ref.ai);
   const gTerm = K_S5G * Math.max(0, gPre - G_S5_0);
   return [
     { id: 'S5', value: clamp01(aiTerm + gTerm), q: { ai, aiRef: ref.ai, aiTerm, gPre, g0: G_S5_0, gTerm, kG: K_S5G, safetyPretrain } },
-    // E20: no narrow-fine-tune baseline in pretraining (traits.ts baseSignals).
-    { id: 'S6', value: clamp01(S6_SYN * syn), q: { syn, synRef: ref.syn, k: S6_SYN } },
+    // E20 / AF2: a base is no narrow harmful fine-tune (traits.ts baseSignals).
+    { id: 'S6', value: S6_NARROW_HARMFUL, q: {} },
   ];
 }
 
@@ -118,7 +118,7 @@ export function plannedPressure(s: GameStateV2, p: LaunchRunParams): RunPressure
   if (p.kind === 'base') {
     const L = plan.limits;
     if (!L || !p.base) return undefined;
-    return { kind: 'base', rows: basePressure(L.gPre.total, aiDataShare(L.draw, p.base.curation.safetyPretrain), syntheticShare(L.draw), p.base.curation.safetyPretrain), omega: { ...om, kind: OMEGA_KIND.base } };
+    return { kind: 'base', rows: basePressure(L.gPre.total, aiDataShare(L.draw, p.base.curation.safetyPretrain), p.base.curation.safetyPretrain), omega: { ...om, kind: OMEGA_KIND.base } };
   }
   if (p.kind === 'post') {
     if (!p.post || !base || !(plan.flopNeeded > 0)) return undefined;
@@ -131,25 +131,21 @@ export function plannedPressure(s: GameStateV2, p: LaunchRunParams): RunPressure
   return { kind: 'continue', rows: storedBaseRows(base), omega: { ...om, kind: OMEGA_KIND.continue } };
 }
 
-const distillRows = (): PressureRow[] => [{ id: 'S6', value: S6_SYN, q: { teacherShare: 1, k: S6_SYN } }];
+const distillRows = (): PressureRow[] => [{ id: 'S6', value: S6_NARROW_HARMFUL, q: {} }];
 
 /** A finished base's signals with their quantities, read back from its stored signals (the draw is not kept: the
- *  AI-related and synthetic shares are the ones its S5 and S6 imply, exact unless a signal hit its clamp). */
+ *  AI-related share is the one its S5 implies, exact unless the signal hit its clamp). S6 reads today's rule (0, AF2):
+ *  a base saved before AF2 stored a synthetic-share S6 that no later run reads. */
 export function storedBaseRows(b: BaseModel): PressureRow[] {
   const ref = referenceBaseShares();
   const s5 = b.signals?.S5 ?? 0;
-  const s6 = b.signals?.S6 ?? S6_SYN * ref.syn;
   const gTerm = K_S5G * Math.max(0, b.gPre - G_S5_0);
   const ai = Math.max(0, ((s5 - gTerm) / S5_AI) * ref.ai);
-  // E20: S6 = S6_SYN·syn (a base saved before E20 stored 0.09 more, a narrow-tune baseline; its readout over-states syn).
-  const syn = Math.max(0, s6 / S6_SYN);
-  const rows = basePressure(b.gPre, ai, syn, b.design.curation.safetyPretrain);
+  const rows = basePressure(b.gPre, ai, b.design.curation.safetyPretrain);
   // A base saved before signals came from run quantities (model v3 E3) has an S5 below its own scale term.
   const legacy = s5 < gTerm - 1e-6;
   rows[0].value = clamp01(s5);
-  rows[1].value = clamp01(s6);
   rows[0].q.legacy = legacy;
-  rows[1].q.legacy = legacy;
   return rows;
 }
 
