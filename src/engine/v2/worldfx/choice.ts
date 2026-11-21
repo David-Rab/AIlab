@@ -63,11 +63,12 @@ const S = {
  *  count as fully available (none of the game's regions has more than six). */
 const MAX_PARTIAL = 8;
 
-/** A choice set: its probability, its members (ascending) and its mask over the partial providers (bit k: partial[k]). */
-interface ChoiceSet { p: number; ins: number[]; m: number }
-/** The choice sets of one access array (and partial list), with what the P4 band loop reads: the partial providers and,
- *  per partial provider k, the indices (into sets) of the sets that contain it. */
-interface ChoiceSets { sig: number[]; sets: ChoiceSet[]; withK: Int32Array[] }
+/** A choice set: its probability and its mask over the partial providers (bit k: partial[k]); its members (ascending:
+ *  every provider except the partial ones whose bit is off) are built when the plain loop first needs them (insOf). */
+interface ChoiceSet { p: number; m: number; ins?: number[] }
+/** The choice sets of one access array (and partial list): the partial providers, the sets in mask order (those of
+ *  probability > 0), the provider count and, built on first use, per partial provider the sets that contain it. */
+interface ChoiceSets { sig: number[]; sets: ChoiceSet[]; n: number; withK?: Int32Array[] }
 const sameList = (a: readonly number[], b: readonly number[]) => {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
@@ -85,42 +86,52 @@ function choiceSets(acc: readonly number[], lineups: readonly (readonly Tier[])[
   const sets: ChoiceSet[] = [];
   for (let m = 0; m < 1 << partial.length; m++) {
     let p = 1;
-    const out: boolean[] = [];
-    for (let i = 0; i < n; i++) out.push(false);
     for (let k = 0; k < partial.length; k++) {
       const i = partial[k];
       if (m & (1 << k)) p *= acc[i];
-      else {
-        p *= 1 - acc[i];
-        out[i] = true;
-      }
+      else p *= 1 - acc[i];
     }
-    const ins: number[] = [];
-    for (let i = 0; i < n; i++) if (!out[i]) ins.push(i);
-    if (p > 0) sets.push({ p, ins, m });
+    if (p > 0) sets.push({ p, m });
   }
-  const withK: Int32Array[] = [];
-  for (let k = 0; k < partial.length; k++) {
-    let c = 0;
-    for (let q = 0; q < sets.length; q++) if (sets[q].m & (1 << k)) c++;
-    const a = new Int32Array(c);
-    c = 0;
-    for (let q = 0; q < sets.length; q++) if (sets[q].m & (1 << k)) a[c++] = q;
-    withK.push(a);
-  }
-  const out: ChoiceSets = { sig: partial, sets, withK };
+  const out: ChoiceSets = { sig: partial, sets, n };
   setMemo.set(acc, out);
   return out;
+}
+/** A set's members in ascending order (every provider but the partial ones left out by its mask). */
+function insOf(cs: ChoiceSets, set: ChoiceSet): number[] {
+  if (set.ins) return set.ins;
+  const ins: number[] = [];
+  for (let i = 0, k = 0; i < cs.n; i++) {
+    if (k < cs.sig.length && cs.sig[k] === i) {
+      if (set.m & (1 << k)) ins.push(i);
+      k++;
+    } else ins.push(i);
+  }
+  return (set.ins = ins);
+}
+/** The indices of the sets that contain partial provider k (built on first use: only when a set has probability 0). */
+function withK(cs: ChoiceSets, k: number): Int32Array {
+  const all = (cs.withK ??= []);
+  let a = all[k];
+  if (a) return a;
+  const { sets } = cs;
+  let c = 0;
+  for (let q = 0; q < sets.length; q++) if (sets[q].m & (1 << k)) c++;
+  a = new Int32Array(c);
+  c = 0;
+  for (let q = 0; q < sets.length; q++) if (sets[q].m & (1 << k)) a[c++] = q;
+  return (all[k] = a);
 }
 
 /** One band's shares by the definition (every set's sum over its members in member order, then each member's p·e ÷ Σ in
  *  set order), with the D10 overflow guard. sh is zeroed here; returns Σ p over the sets with Σ > 0. */
-function bandSharesPlain(sets: readonly ChoiceSet[], e: Float64Array, u: Float64Array, brand: readonly number[], sh: Float64Array, n: number): number {
+function bandSharesPlain(cs: ChoiceSets, e: Float64Array, u: Float64Array, brand: readonly number[], sh: Float64Array, n: number): number {
   for (let i = 0; i < n; i++) sh[i] = 0;
   let tot = 0;
+  const sets = cs.sets;
   for (let q = 0; q < sets.length; q++) {
     const set = sets[q];
-    const ins = set.ins;
+    const ins = insOf(cs, set);
     const ni = ins.length;
     let sum = 0;
     for (let j = 0; j < ni; j++) sum += e[ins[j]];
@@ -162,7 +173,7 @@ function bandSharesPlain(sets: readonly ChoiceSet[], e: Float64Array, u: Float64
  * runs). Returns tot, or NaN to ask for the plain loop.
  */
 function bandSharesFast(cs: ChoiceSets, e: Float64Array, sh: Float64Array, n: number): number {
-  const { sets, sig, withK } = cs;
+  const { sets, sig } = cs;
   const K = sig.length;
   const Q = sets.length;
   if (S.sums.length < 1 << K) S.sums = new Float64Array(2 << K);
@@ -192,12 +203,23 @@ function bandSharesFast(cs: ChoiceSets, e: Float64Array, sh: Float64Array, n: nu
     tot += set.p;
     f[q] = set.p / sum;
   }
+  // Every mask present (no set of probability 0, the usual case): set q is mask q, so the sets that contain partial k
+  // are the blocks [base + 2^k, base + 2^(k+1)) in ascending order.
+  const dense = Q === 1 << K;
   for (let i = 0, k = 0; i < n; i++) {
     const ei = e[i];
     let x = 0;
     if (k < K && sig[k] === i) {
-      const qs = withK[k++];
-      if (ei !== 0) for (let j = 0; j < qs.length; j++) x += f[qs[j]] * ei;
+      if (ei !== 0) {
+        if (dense) {
+          const h = 1 << k;
+          for (let base = 0; base < Q; base += 2 * h) for (let q = base + h; q < base + 2 * h; q++) x += f[q] * ei;
+        } else {
+          const qs = withK(cs, k);
+          for (let j = 0; j < qs.length; j++) x += f[qs[j]] * ei;
+        }
+      }
+      k++;
     } else if (ei !== 0) for (let q = 0; q < Q; q++) x += f[q] * ei;
     sh[i] = x;
   }
@@ -290,7 +312,7 @@ export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: read
     }
     for (let i = 0; i < n; i++) e[i] = u[i] === -Infinity ? 0 : brand[i] * Math.exp(u[i] - uMax);
     let tot = bandSharesFast(cs, e, sh, n);
-    if (Number.isNaN(tot)) tot = bandSharesPlain(cs.sets, e, u, brand, sh, n);
+    if (Number.isNaN(tot)) tot = bandSharesPlain(cs, e, u, brand, sh, n);
     if (tot > 0) for (let i = 0; i < n; i++) {
       const x = sh[i] / tot;
       share[i][b] = x;
