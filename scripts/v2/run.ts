@@ -66,7 +66,8 @@ const JOBS: Job[] = [
   { id: 'worktypes', script: 'worktypes.ts', ...S(ALL, 60) } as Job,
   { id: 'calib', script: 'calib.ts', args: { quick: SMOKE, cal: ['--cal'] }, mode: { quick: 'SMOKE', cal: 'T1 T1L T4' }, shards: { full: 6, cal: 6 }, ...S(['quick', 'cal', 'full'], 300) } as Job,
   { id: 'fixtures', script: 'fixtures.ts', ...S(ALL, 120) } as Job,
-  { id: 'hygiene', script: 'hygiene.ts', args: { quick: ['--no-perf'], full: ['--no-perf'], perf: ['--perf-only'] }, mode: { quick: 'no perf', full: 'no perf', perf: 'perf only' }, ...S(['quick', 'full', 'perf'], 90) } as Job,
+  // G1: hygiene's readout-purity games (3b) run as prefill shards in full; --smoke in quick plays one seed of them.
+  { id: 'hygiene', script: 'hygiene.ts', args: { quick: ['--no-perf', '--smoke'], full: ['--no-perf'], perf: ['--perf-only'] }, mode: { quick: 'no perf, SMOKE 3b', full: 'no perf', perf: 'perf only' }, shards: { full: 3 }, ...S(['quick', 'full', 'perf'], 120) } as Job,
   { id: 'lint-hidden', script: 'lint-hidden.ts', ...S(ALL, 10) } as Job,
   { id: 'lint-ux', script: 'lint-ux.ts', ...S(ALL, 10) } as Job,
   { id: 'lint-tradeoffs', script: 'lint-tradeoffs.ts', ...S(ALL, 10) } as Job,
