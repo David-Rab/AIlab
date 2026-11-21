@@ -5,7 +5,7 @@ import { withdraw } from '../../models/deployments';
 import { internalVersion } from '../../models/labs';
 import { flag } from '../../safety/common';
 import { openInvestigation } from '../../safety/investigations';
-import { understanding } from '../../safety/understanding';
+import { understanding, understandingMarginBelow } from '../../safety/understanding';
 import type { Commitment, EventDefV2, GameStateV2, ModelVersion, SystemCtx, TraitId } from '../../types';
 import { TRAIT_BY_ID } from '../../../../data/v2/traits';
 import { PREDICATES, blockingCommitments, amendCommitment, breakCommitment, latentVersion, pledgeBreachRun } from '../../actors/commitments';
@@ -130,6 +130,7 @@ export const SAFETY_EVENTS: EventDefV2[] = [
       const t = RED.find((k) => fresh(k) && v.beliefs[k] && v.beliefs[k].est > 0.3 && v.beliefs[k].clarity > 0.4);
       if (t) return { versionId: v.id, trait: t, est: Math.round(v.beliefs[t].est * 100) };
       if (!fresh('U')) return false; // P2: U only when the U flag can still fire (understanding() is a pure read)
+      if (!understandingMarginBelow(s, -1)) return false; // P4: the bisection stops once the answer is decided
       const margin = understanding(s).margin;
       return margin < -1 ? { versionId: v.id, trait: 'U', est: Math.round(margin * 10) / 10 } : false;
     },

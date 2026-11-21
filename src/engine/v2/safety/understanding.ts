@@ -152,6 +152,29 @@ export function understanding(s: GameStateV2): UnderstandingReadout {
   return { U, margin: Math.round((U - L) * 100) / 100, perTrait };
 }
 
+/** P4: whether understanding(s).margin < thr, without always finishing the bisection. The bisection's result lies in
+ *  [lo, hi] at every step, and U = round(lo·20)/20 and the margin round((U − L)·100)/100 are monotone in it, so once
+ *  both ends give the same answer it is the answer (the same steps as understanding() up to there: exact). */
+export function understandingMarginBelow(s: GameStateV2, thr: number): boolean {
+  const v = internalVersion(s);
+  const L = measuredLOf(s, v).L;
+  if (!v) return -L < thr;
+  const below = (U: number) => Math.round((U - L) * 100) / 100 < thr;
+  const det = detector(s, v, detTools(s), L);
+  if (meanDet(det, 0) < 0.5) return below(0);
+  if (meanDet(det, 15) >= 0.5) return below(15);
+  let lo = 0;
+  let hi = 15;
+  while (hi - lo > 0.05) {
+    const a = below(Math.round(lo * 20) / 20);
+    if (a === below(Math.round(hi * 20) / 20)) return a;
+    const mid = (lo + hi) / 2;
+    if (meanDet(det, mid) >= 0.5) lo = mid;
+    else hi = mid;
+  }
+  return below(Math.round(lo * 20) / 20);
+}
+
 /** Level up to which the tools see each risk family (STRUCTURE §4.5; the U tooltip): the largest L at which the
  *  family's mean believed detection (over its critical traits, if it has any) is ≥ 0.5 (bisection, as U). Believed
  *  inputs only. */
