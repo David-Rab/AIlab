@@ -218,7 +218,9 @@ const y26 = ref.map((r) => r.s.player.finance.ws3.years['2026']);
 // firm payments; the old stretched entries deferred almost nothing).
 const capex = y26.map((y) => y.capexChips + (y.capexChipsFinanced ?? 0) + y.capexSites + y.capexSitesFinanced + y.supplierFunding + (y.deferredChips ?? 0));
 const med = { rev: median(y26.map((y) => y.revenue)), capex: median(capex), compute: median(y26.map((y) => y.computeCosts + (y.deferredCompute ?? 0))), gw: median(ref.map((r) => r.gw2026)), v: median(ref.map((r) => r.v2026)) };
-smokeCheck(med.rev >= 36 && med.rev <= 54, 'F7 RefBot 2026 revenue $45B (±20%)', `median $${f1(med.rev)}B`);
+// F7 revenue (FINREF): AI 2027's OpenBrain $45B is a plot point; the measured 2026 leader is Anthropic, CY2026 ≈ $53–56B
+// (S-1: 9M 2026 $33.2B, Q4 at the $81B Oct run-rate; research/22 §4 [P]). The band is both, ±20%: $36–67B.
+smokeCheck(med.rev >= 36 && med.rev <= 67, 'F7 RefBot 2026 revenue $45B (AI 2027) to $53–56B (Anthropic CY2026, research/22 §4), ±20%', `median $${f1(med.rev)}B`);
 smokeCheck(med.capex >= 150 && med.capex <= 250, 'F7 RefBot 2026 capex $200B (±25%)', `median $${f1(med.capex)}B (range ${f1(Math.min(...capex))}–${f1(Math.max(...capex))})`);
 smokeCheck(med.compute >= 25 && med.compute <= 60, 'F7 RefBot 2026 compute costs ~$40B/yr (incurred: paid + deferred by a renegotiation)', `median $${f1(med.compute)}B (deferred median $${f1(median(y26.map((y) => y.deferredCompute ?? 0)))}B)`);
 smokeCheck(med.gw >= 4 && med.gw <= 9, 'F7 RefBot end-2026 power ~6 GW (live sites + cloud)', `median ${f1(med.gw)} GW`);

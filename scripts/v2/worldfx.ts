@@ -176,7 +176,8 @@ const U0 = 4.3;
 console.log('Classic / ai2027 econ / reference play');
 check(Math.abs(refGame().player.finance.revenueRun - 12) < 1e-9, 'F11 revenue run-rate at start = $12B', '');
 check(at['2025-07-31'].rev >= 9 && at['2025-07-31'].rev <= 16.5, 'F11 Jul 2025 run-rate ≈ $12B (capacity-bound, ±35%)', `$${at['2025-07-31'].rev.toFixed(1)}B`);
-check(c.annual[2026] >= 36 && c.annual[2026] <= 54, 'F7/F11 2026 revenue $45B (±20%)', `$${c.annual[2026].toFixed(1)}B`);
+// FINREF: AI 2027's $45B is a plot point; the measured 2026 leader (Anthropic) earns ≈ $53–56B (research/22 §4 [P]): both ±20%.
+check(c.annual[2026] >= 36 && c.annual[2026] <= 67, 'F7/F11 2026 revenue $45B (AI 2027) to $53–56B (Anthropic CY2026, research/22 §4), ±20%', `$${c.annual[2026].toFixed(1)}B`);
 check(c.annual[2027] >= 98 && c.annual[2027] <= 182, 'F11 2027 revenue ~$140B (±30%)', `$${c.annual[2027].toFixed(1)}B`);
 const eq26 = at['2026-12-31'].dow / at['2026-01-01'].dow - 1;
 check(eq26 >= 0.2 && eq26 <= 0.4, 'Late 2026: equity +30% in 2026 (±10 pp)', pct(eq26));
