@@ -472,7 +472,8 @@ const buildBtn = await page.$('[data-panel=products] [data-act^="feature.build."
 if (buildBtn) await check('Products: Build a feature (engineers\' queue)', `s.player.build.queue.filter(i => i.kind === 'feature').length`, () => buildBtn.click());
 ok('Products: locked features name their idea', !!(await page.$('[data-panel=products] .ft.locked[data-node]')));
 ok('Products: the same package chips as Agents at work (model + monitor)', !!(await page.$('[data-panel=products] [data-product] [data-chip=model]')) && !!(await page.$('[data-panel=products] [data-product] [data-chip=monitor]')));
-ok('Products: serving split bar by product', (await page.$$('[data-panel=products] [data-test=serving-bar] [data-serve]')).length >= 3);
+ok('Products (TIERS): sector products show their lineup, one row per tier (model + 3 students)', (await page.$$('[data-panel=products] [data-test^=prod-lineup] [data-test^=prod-tier]')).length >= 8);
+ok('Products: serving split bar by product',(await page.$$('[data-panel=products] [data-test=serving-bar] [data-serve]')).length >= 3);
 await check('Products: Override turns Auto serving off', 's.player.policies.servingAuto', () => page.click('[data-act="products.policy.servingAuto"]'));
 const prodA = JSON.parse(await get(`(s.player.deployments.find(d => d.status === 'live' && d.channel !== 'internal' && d.channel !== 'open') || {}).id || ''`));
 if (prodA && await page.$('[data-test=serving-manual]')) {

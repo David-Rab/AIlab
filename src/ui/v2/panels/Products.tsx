@@ -22,7 +22,7 @@ import {
   demandModifiers, featureView, measuredLOf, nodeKnown, PENALTY_MAX, previewEdit, productReadouts, servingPool, versionById, CONVERGED,
   LAUNCH_TW, LENT_RECOVERY, pendingLaunch, spareServing, spareServingToResearch, charterHolds,
 } from '../../../engine/v2';
-import type { Channel, CustomerView, DangerRead, Deployment, FeatureKind, GameStateV2, ModelVersion, PriceTier, ProductChanges, ProductRead } from '../../../engine/v2';
+import type { Channel, CustomerView, DangerRead, Deployment, FeatureKind, GameStateV2, LineupRow, ModelVersion, PriceTier, ProductChanges, ProductRead } from '../../../engine/v2';
 import { store } from '../store';
 import { ActBtn, Limit, Seg, Term, Tip, TipCard, type Params } from '../ui';
 import { Card, PanelHead, Ref, Spark2 } from '../kit';
@@ -163,9 +163,9 @@ function ProductCard({ s, d, r, danger, draft, setDraft }: { s: GameStateV2; d: 
       <PkgChip kind="model" testId={`prod-model.${d.id}`} value={n.versionId} changed={n.versionId !== d.versionId || n.miniVersionId !== d.miniVersionId}
         options={models.map((x) => ({ value: x.id, label: `${x.name} · L ${F.level(mL(s, x))}` }))} onPick={(x) => set({ versionId: x })}
         sub={def && (d.channel === 'consumer' || d.channel === 'api') && (
-          <Tip content={() => <TipCard title={d.channel === 'consumer' ? <Term id="freeTier">Mini free tier</Term> : <Term id="cheapTier">Mini cheap tier</Term>}>{d.channel === 'consumer' ? 'The free tier serves every user without a subscription. By default it is a distilled student of the main model, a year of frontier progress below it and far cheaper to serve, as every lab\'s is; users choose an app on it. A mini of your own replaces it and weighs 60% in Chat\'s quality.' : 'Buyers take the mini on the tasks it does as well, at its lower price; the main model keeps the harder work. Its share of the hours follows from the market, not a setting.'}</TipCard>}>
+          <Tip content={() => <TipCard title={d.channel === 'consumer' ? <Term id="freeTier">Mini free tier</Term> : <Term id="cheapTier">Mini cheap tier</Term>}>{d.channel === 'consumer' ? 'The free tier serves every user without a subscription. By default it is a distilled student of the main model, a year of frontier progress below it and far cheaper to serve, as every lab\'s is; users choose an app on it. A mini of your own replaces it and weighs 60% in Chat\'s quality.' : 'A mini of your own is an extra tier in the product\'s [[lineup]]: buyers take it on the tasks it does as well, at its lower price. Its share of the hours follows from the market, not a setting.'}</TipCard>}>
             <select className="msel sub" data-test={`prod-mini.${d.id}`} value={n.miniVersionId ?? ''} onChange={(e) => set({ miniVersionId: e.target.value || null })}>
-              <option value="">{d.channel === 'consumer' ? 'student free tier' : 'no cheap tier'}</option>
+              <option value="">{d.channel === 'consumer' ? 'student free tier' : 'lineup only'}</option>
               {minis.map((x) => <option key={x.id} value={x.id}>+ {x.name} {d.channel === 'consumer' ? 'free' : 'cheap'} tier</option>)}
             </select>
           </Tip>
@@ -196,6 +196,7 @@ function ProductCard({ s, d, r, danger, draft, setDraft }: { s: GameStateV2; d: 
       {hist.length >= 3 && <Tip content={() => <TipCard title="Revenue, last months" rows={hist.map((x, i) => ({ label: i === hist.length - 1 ? 'now' : `${(hist.length - 1 - i) * 30} d ago`, value: F.money(x, { perYear: true }) }))} />}><span className="pc-spark"><Spark2 data={hist} w={230} h={30} color={PROD} /></span></Tip>}
 
       {r && <Econ d={d} r={r} />}
+      {r?.lineup && r.lineup.length > 1 && <Lineup d={d} r={r} rows={r.lineup} />}
       {r && <Customers s={s} d={d} r={r} />}
       {r && <Binding s={s} d={d} r={r} set={set} />}
 
@@ -388,6 +389,47 @@ function CapacityRow({ d, r }: { d: Deployment; r: ProductRead }) {
         <span className={`ec-n ${fullyServed ? '' : 'tone-neg'}`}>{fullyServed ? 'all' : F.pct(served / need)}</span>
       </div>
     </Tip>
+  );
+}
+
+// ───────── lineup (TIERS): the tiers a sector product sells, one row each ─────────
+/** Tier colours: the product hue, lighter for smaller tiers (order = size). */
+const TIER_COL = ['#c9a227', '#a98d3a', '#8a7a52', '#6b6a66', '#8d99a6'];
+/** "1/80" for a size ratio. */
+const frac = (r: number) => `1/${r > 0.2 ? (1 / r).toFixed(1) : Math.round(1 / r)}`;
+const paramsTxt = (n: number) => (n >= 1e12 ? `${(n / 1e12).toFixed(1)}T` : `${n >= 1e10 ? Math.round(n / 1e9) : (n / 1e9).toFixed(1)}B`);
+const tierName = (x: LineupRow) => (x.kind === 'student' ? `student ${frac(x.ratio)}` : x.name);
+
+function Lineup({ d, r, rows }: { d: Deployment; r: ProductRead; rows: LineupRow[] }) {
+  const sold = rows.filter((x) => x.share > 0.005).length;
+  return (
+    <div className="pc-line" data-test={`prod-lineup.${d.id}`}>
+      <Tip as="div" content={() => <TipCard title={<Term id="lineup">Lineup</Term>} value={`${rows.length} tiers · ${sold} selling`} rows={rows.map((x, k) => ({
+        label: <span><i className="tl-sw" style={{ background: TIER_COL[k] ?? TIER_COL[4] }} />{tierName(x)}</span>, value: `${F.pct(x.share)} of hours`,
+      }))} footer={`Price tier ${TIER_LABEL[d.price]}: every tier at ×${r.markup.toFixed(2)} its serving cost.`}>
+        {'Your main model and distilled students of it. In each band of task difficulty buyers take the tier with the best surplus among every provider\'s tiers: cheap tiers sell on easy work, the main model keeps the work only it does. Every lab sells the same [[lineup]].'}
+      </TipCard>}>
+        <div className="tl-h"><span className="ec-k">Lineup</span><span className="sp" /><span><Term id="fit">fit</Term></span><span>price</span><span>sold</span></div>
+      </Tip>
+      {rows.map((x, k) => (
+        <Tip as="div" key={k} content={() => <TipCard title={x.kind === 'student' ? <><Term id="cheapTier">Student</Term> of {rows[0].name}</> : x.kind === 'mini' ? <><Term id="cheapTier">Mini</Term> {x.name}</> : <>Main model {x.name}</>} value={`${F.pct(x.share, 1)} of hours`} rows={[
+          { label: 'Active parameters', value: `${paramsTxt(x.params)}${x.kind !== 'model' ? ` (${frac(x.ratio)} of the main model)` : ''}` },
+          { label: x.kind === 'student' ? <Term id="distillGap">Fit below the main model</Term> : <Term id="fit">Fit below the main model</Term>, value: x.kind === 'model' ? '—' : `${F.num(x.gap, 2)} OOM` },
+          { label: 'Price per billed hour', value: `${F.usd(x.price)}/h${x.hours > 0 ? '' : ' (if sold)'}` },
+          { label: 'Billed hours a year', value: x.hours > 0 ? `${F.count(x.hours)} h` : 'none' },
+        ]} footer={x.kind === 'student' ? 'Sold under every main model by the same rule: no distil run needed.' : undefined}>
+          {x.kind === 'model' ? 'Does the hardest tasks the product sells.' : x.share > 0.005 ? 'Sells where it does the task at a lower price than any tier that does more.' : 'Sells nothing now: on the work it does, another tier (yours or a rival\'s) gives buyers more surplus.'}
+        </TipCard>}>
+          <div className="tl-row" data-test={`prod-tier.${d.id}.${k}`}>
+            <span className="tl-nm"><i className="tl-sw" style={{ background: TIER_COL[k] ?? TIER_COL[4] }} />{tierName(x)}</span>
+            <span className="tl-n dim">{x.kind === 'model' ? '' : F.num(-x.gap, 2, true)}</span>
+            <span className="tl-n">{F.usd(x.price)}</span>
+            <span className="ec-bar tl-bar"><i style={{ width: `${Math.min(1, x.share) * 100}%`, background: TIER_COL[k] ?? TIER_COL[4] }} /></span>
+            <span className="tl-n">{F.pct(x.share)}</span>
+          </div>
+        </Tip>
+      ))}
+    </div>
   );
 }
 

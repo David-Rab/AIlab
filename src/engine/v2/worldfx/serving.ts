@@ -18,7 +18,7 @@
 // fit their G. Nothing here reads serveCost, the research-speed multiplier M or the level bridge for prices, costs or
 // coverage.
 import {
-  AGENT_WORK, CHAT_WORK, CHINA_MARKUP, CONSUMER_MKT, CONTROL_LAYER_DG, consumerPlanPrice, EFFORT_CAP_OOM, EFFORT_OOM_PER_10X, EFFORT_TOKENS, FREE_TIER, MARKUP, RIVAL_MARKUP,
+  AGENT_WORK, CHAT_WORK, CHINA_MARKUP, CONSUMER_MKT, CONTROL_LAYER_DG, consumerPlanPrice, EFFORT_CAP_OOM, EFFORT_OOM_PER_10X, EFFORT_TOKENS, FREE_TIER, LINEUP, MARKUP, RIVAL_MARKUP,
   SAFEGUARD_DG, SEATS, SECTOR_REF, SECTOR_WORK, TOKENS, type TokenProfile,
 } from '../../../data/v2/serving';
 import { FEATURE_BY_ID, FREE_TIER_SHARE, MINI_CHANNELS, type FeatureFx, type FeatureId, type WorkScope } from '../../../data/v2/features';
@@ -377,39 +377,7 @@ export function productMiniUses(s: GameStateV2, d: Deployment): ModelUse[] | und
   const mini = versionById(s, d.miniVersionId);
   return mini ? [{ v: mini, fpt: flopPerToken(s, mini), w: 1 }] : undefined;
 }
-/** A5: a product's offer when its buyers take its cheap tier for a share `w` of its hours: the costs and prices blend
- *  by hours; fit, coverage and agent leverage stay the main model's (the lineup does the hardest tasks on it). */
-export function blendOffer(main: Offer, cheap: Offer | undefined, w: number): Offer {
-  if (!cheap || !(w > 0)) return main;
-  const m = (x: number, y: number) => (1 - w) * x + w * y;
-  return {
-    ...main, hph: m(main.hph, cheap.hph), cost: m(main.cost, cheap.cost), price: m(main.price, cheap.price), hphAg: m(main.hphAg, cheap.hphAg),
-    costAg: m(main.costAg, cheap.costAg), priceAg: m(main.priceAg, cheap.priceAg), hphAs: m(main.hphAs, cheap.hphAs), seat: m(main.seat, cheap.seat),
-  };
-}
 
-// ───────────────────────────── cheap tiers of the other providers (A5) ─────────────────────────────
-
-/** A student's gap and what follows from it alone (P3: memoised with the gap; null: no student). */
-interface StudentFit { g: number; r: number; a: number; lam: number }
-type GapMemo = Map<string, Map<number, Map<number, Map<number, Map<number, StudentFit | null>>>>>; // sector → fit → h50 → N_T → u
-const studentMemo = new WeakMap<TimelineWorld, { m: GapMemo; n: number }>();
-/** The distillation gap at which a student still covers u (coverage `cov` falls with the gap): the largest in
- *  [DISTILL.a, the 1B-parameter floor's], −1 when even DISTILL.a below the teacher covers less than u. */
-function studentGap(w: TimelineWorld, sid: SectorId, fit: number, h50: number, nT: number, u: number): number {
-  const g0 = DISTILL.a + 1e-9;
-  if (!(u > 0) || studentCover(w, sid, fit, h50, g0) < u) return -1;
-  const gMax = DISTILL.a + DISTILL.b * Math.log10(Math.max(1, nT / PARAM_RANGE[0]));
-  if (studentCover(w, sid, fit, h50, gMax) >= u) return gMax;
-  let lo = g0;
-  let hi = gMax;
-  for (let it = 0; it < 30; it++) {
-    const mid = 0.5 * (lo + hi);
-    if (studentCover(w, sid, fit, h50, mid) >= u) lo = mid;
-    else hi = mid;
-  }
-  return lo;
-}
 /** Coverage of a student g OOM below a teacher of sector fit `fit` and h50 `h50` (every domain shifted down by g). */
 const studentCover = (w: TimelineWorld, sid: SectorId, fit: number, h50: number, g: number) => sectorCover(w, sid, fit - g, h50 * Math.pow(H50_PER_OOM, -g));
 function memoAt<K, V>(m: Map<K, V>, k: K, mk: () => V): V {
@@ -419,47 +387,87 @@ function memoAt<K, V>(m: Map<K, V>, k: K, mk: () => V): V {
 }
 const newMap = () => new Map();
 
-/** A5: the cheapest student of a provider's model (known by its offer `o`, sector fit, h50 and active parameters `nT`)
- *  that still does the easiest `u` of the sector's tasks: the cheapestAt rule sized on coverage (gap g solves a(fit − g,
- *  h50·H50_PER_OOM^−g) = u, the student being the teacher shifted down by g in every domain, as runs.ts distillBuild).
- *  Its costs and prices scale with its active parameters. Undefined when no student is DISTILL.a below the teacher and
- *  still covers u (the teacher itself is the cheapest adequate model). Rivals' and China's lineups: their own model's fit,
- *  FLOP per token and active parameters (model v3 F1). */
-export function studentOffer(s: GameStateV2, o: Offer, sid: SectorId, fit: number, h50: number, nT: number, u: number, markup: number, rate: number): Offer | undefined {
-  return studentOfferIn(s, studentsOf(s, sid, fit, h50, nT), o, sid, fit, h50, nT, u, markup, rate);
-}
-/** The gap memo's entries for one teacher on one sector, by u. P4: computeMix looks them up once per provider and sector
- *  and asks studentOfferIn at every band edge (the same memo, the same values). */
-export type StudentMemo = Map<number, StudentFit | null>;
-export function studentsOf(s: GameStateV2, sid: SectorId, fit: number, h50: number, nT: number): StudentMemo {
-  const w = s.hidden.timeline;
-  // P2-style memo: the gap depends only on these inputs (per world); lineups change only when a model or a_top does.
-  let memo = studentMemo.get(w);
-  if (!memo || memo.n > 20000) studentMemo.set(w, (memo = { m: new Map(), n: 0 }));
-  return memoAt(memoAt(memoAt(memoAt(memo.m, sid, newMap), fit, newMap), h50, newMap), nT, newMap);
-}
-export function studentOfferIn(s: GameStateV2, byU: StudentMemo, o: Offer, sid: SectorId, fit: number, h50: number, nT: number, u: number, markup: number, rate: number): Offer | undefined {
-  const w = s.hidden.timeline;
-  let sf = byU.get(u);
-  if (sf === undefined) {
-    const g = studentGap(w, sid, fit, h50, nT, u);
-    if (g < 0) sf = null;
-    else {
-      const a = studentCover(w, sid, fit, h50, g);
-      sf = { g, r: studentParamsFor(nT, g) / nT, a, lam: agentLeverage(a, h50 * Math.pow(H50_PER_OOM, -g)) };
-    }
-    byU.set(u, sf);
-    const memo = studentMemo.get(w);
-    if (memo) memo.n++;
+// ───────────────────────────── lineups (TIERS) ─────────────────────────────
+
+/** TIERS: the students in a lineup under a model of `nT` active parameters (data/v2/serving.ts LINEUP): per rung its
+ *  size ratio r = N_S/N_T (N_S ≥ PARAM_RANGE[0]: the 1B floor can leave a rung closer) and its distillation gap g =
+ *  DISTILL.a + DISTILL.b·log₁₀(1/r) (OOM below the model in every domain, as runs.ts distillBuild). Rungs the floor
+ *  merges are dropped; none under a model at the floor. */
+export interface LineupRung { r: number; g: number }
+const rungMemo = new Map<number, LineupRung[]>();
+export function lineupOf(nT: number): LineupRung[] {
+  const hit = rungMemo.get(nT);
+  if (hit) return hit;
+  const out: LineupRung[] = [];
+  for (const r0 of LINEUP.ratios) {
+    const nS = Math.max(PARAM_RANGE[0], nT * r0);
+    if (!(nS < nT * (1 - 1e-9)) || (out.length && nS >= nT * out[out.length - 1].r * (1 - 1e-9))) continue;
+    out.push({ r: nS / nT, g: DISTILL.a + DISTILL.b * Math.log10(nT / nS) });
   }
-  if (sf === null) return undefined;
-  const { g, r, a, lam } = sf;
+  if (rungMemo.size > 5000) rungMemo.clear();
+  rungMemo.set(nT, out);
+  return out;
+}
+type RungMemo = Map<string, Map<number, Map<number, Map<number, { a: number; lam: number }>>>>; // sector → fit → h50 → g
+const rungFitMemo = new WeakMap<TimelineWorld, { m: RungMemo; n: number }>();
+/** TIERS: the offer of the lineup student `rung` under a model whose offer on sector `sid` is `o` (fit o.fit, h50
+ *  `h50`, both after the product's settings and features): the model shifted down by the rung's gap in every domain
+ *  (coverage and agent leverage at fit − g, h50·H50_PER_OOM^−g), its H100e-hours, costs and prices × r (FLOP per token
+ *  ∝ active parameters; the markup is the model's, so a premium price tier applies to every tier), its seat price the
+ *  model's list price at that markup (never below its own serving cost). Coverage and leverage are memoised on these
+ *  inputs per world (P2-style). */
+export function rungOffer(s: GameStateV2, o: Offer, sid: SectorId, h50: number, rung: LineupRung, markup: number, rate: number): Offer {
+  const w = s.hidden.timeline;
+  let memo = rungFitMemo.get(w);
+  if (!memo || memo.n > 20000) rungFitMemo.set(w, (memo = { m: new Map(), n: 0 }));
+  const byG = memoAt(memoAt(memoAt(memo.m, sid, newMap), o.fit, newMap), h50, newMap) as Map<number, { a: number; lam: number }>;
+  let f = byG.get(rung.g);
+  if (!f) {
+    const a = studentCover(w, sid, o.fit, h50, rung.g);
+    f = { a, lam: agentLeverage(a, h50 * Math.pow(H50_PER_OOM, -rung.g)) };
+    byG.set(rung.g, f);
+    memo.n++;
+  }
+  const r = rung.r;
   const seatCost = seatHoursPerMonth(sid) * o.hphAs * r * rate;
   return {
-    fit: fit - g, a, hph: o.hph * r, cost: o.cost * r, price: o.price * r, k: a * lam, lam, hphAg: o.hphAg * r, costAg: o.costAg * r, priceAg: o.priceAg * r,
-    hphAs: o.hphAs * r, seat: Math.max(seatCost, (SEATS.price * markup) / MARKUP.standard),
+    fit: o.fit - rung.g, a: f.a, hph: o.hph * r, cost: o.cost * r, price: o.price * r, k: f.a * f.lam, lam: f.lam, hphAg: o.hphAg * r, costAg: o.costAg * r,
+    priceAg: o.priceAg * r, hphAs: o.hphAs * r, seat: Math.max(seatCost, (SEATS.price * markup) / MARKUP.standard),
   };
 }
+/** TIERS: a product's lineup on a sector: its main model's offer `main`, then the lineup students of the main model
+ *  (lineupOf on its active parameters), then its own mini when it has one (`mini`, A5). */
+export function productLineup(s: GameStateV2, d: Deployment, sid: SectorId, main: Offer, mini?: Offer, fx = productFx(s, d)): Offer[] {
+  const v = versionById(s, d.versionId);
+  const out = [main];
+  if (v) {
+    const nT = v.params ?? s.player.models.bases.find((b) => b.id === v.baseId)?.params ?? REFERENCE_BASE.params;
+    const rungs = lineupOf(nT);
+    if (rungs.length) {
+      const h50 = sectorH50(s, v, sid, fxOn(fx, sid).hMult);
+      const markup = markupOf(d);
+      const rate = serveDollarsPerHour(s);
+      for (const g of rungs) out.push(rungOffer(s, main, sid, h50, g, markup, rate));
+    }
+  }
+  if (mini) out.push(mini);
+  return out;
+}
+/** TIERS: a product's offer when its buyers take its tiers by hours shares `w` (product order, sum 1): costs and prices
+ *  blend by hours; fit, coverage and agent leverage stay the main model's (the lineup does the hardest tasks on it). */
+export function blendTiers(tiers: readonly Offer[], w: readonly number[] | undefined): Offer {
+  const main = tiers[0];
+  if (!w || tiers.length < 2 || !(w[0] < 1 - 1e-12)) return main;
+  let hph = 0, cost = 0, price = 0, hphAg = 0, costAg = 0, priceAg = 0, hphAs = 0, seat = 0;
+  for (let k = 0; k < tiers.length; k++) {
+    const x = w[k] ?? 0;
+    if (!(x > 0)) continue;
+    const t = tiers[k];
+    hph += x * t.hph; cost += x * t.cost; price += x * t.price; hphAg += x * t.hphAg; costAg += x * t.costAg; priceAg += x * t.priceAg; hphAs += x * t.hphAs; seat += x * t.seat;
+  }
+  return { ...main, hph, cost, price, hphAg, costAg, priceAg, hphAs, seat };
+}
+
 /** h50 (minutes) of a model on a sector's work (its horizon domain), as the offers read it. */
 export const sectorH50 = (s: GameStateV2, v: Fitted, sid: SectorId | 'CHAT', hMult = 1) => h50Of(s.hidden.timeline, v, horizonDomain(sid)) * hMult;
 /** ΔG of a product's settings (safeguards, control layer). */

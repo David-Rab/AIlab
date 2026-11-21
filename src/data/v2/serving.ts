@@ -187,6 +187,20 @@ export const MULTI_HOMING = { providers: 2, tau: 3 } as const;
  *  arXiv 2508.15734 [P]). */
 export const FREE_TIER = { years: 1 } as const;
 
+/** TIERS: product lineups (design/notes/TIERS.md). Every provider (the player's sector products, rivals, China) sells
+ *  its model and distilled students of it at these sizes relative to the model's active parameters, so at these prices
+ *  per token relative to the model's (serving cost ∝ active parameters at one markup [D]). Each student's fit follows
+ *  the distillation rule (δ = DISTILL.a + DISTILL.b·log₁₀(1/r), N_S ≥ 1B active: worldfx/serving.ts lineupOf); buyers
+ *  choose among every tier on offer by band (worldfx/choice.ts). The rungs are the geometric means of the two four-tier
+ *  lineups on the labs' pricing pages, Nov 2026 [P, fetched 2026-11-21; input / output $ per M tokens]:
+ *  - Anthropic (platform.claude.com/docs/en/about-claude/pricing): Claude Fable 5.2 $8 / $40, Opus 5.5 $4 / $20,
+ *    Sonnet 5.5 $2 / $10, Haiku 5.5 $0.10 / $0.50 (prompts ≤ 100k): 1, 1/2, 1/4, 1/80.
+ *  - OpenAI (developers.openai.com/api/docs/pricing, Standard): gpt-6.2-astra $8 / $40, gpt-6.2-sol $2 / $10,
+ *    gpt-6.1-terra $1 / $5, gpt-6-luna $0.10 / $0.50: 1, 1/4, 1/8, 1/80.
+ *  Google's (aistudio.google.com/docs/pricing) is narrower: Gemini 4 Carbon $4 / $20 (from 1 Dec 2026), 3.8 Flash
+ *  $1.50 / $7.50 (from 1 Jan 2027), 3.5 Flash-Lite $0.30 / $2.50: 1, 1/2.7, 1/8–1/13. */
+export const LINEUP = { ratios: [1 / Math.SQRT2 / 2, 1 / Math.SQRT2 / 4, 1 / 80] } as const;
+
 /** Consumer market (A2b; research/22 §2–3 [R22]). Two stocks per region and one logit:
  *    reach R_r      share of online adults who use an AI chat app weekly (any provider), a Bass stock toward
  *                   R*_r = row_r · max · (base + (1 − base) · c), c the best accessible model's coverage of consumer chat

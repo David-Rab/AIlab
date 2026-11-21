@@ -134,3 +134,14 @@
 .ft-on { color: var(--good); }
 .ft-int { color: var(--text-3); }
 .pc-danger { display: flex; min-width: 0; }
+
+/* TIERS: the lineup (one row per tier). */
+.pc-line { display: flex; flex-direction: column; gap: 1px; margin-top: 4px; }
+.pc-line .tl-h, .pc-line .tl-row { display: grid; grid-template-columns: minmax(0, 1fr) 40px 44px 36px 30px; gap: 5px; align-items: center; font-size: 11px; color: var(--text-2); height: 17px; }
+.pc-line .tl-h { grid-template-columns: 50px minmax(0, 1fr) 40px 44px 66px; font-size: 10.5px; }
+.pc-line .tl-h > span:nth-child(n+3) { text-align: right; }
+.pc-line .tl-nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+.pc-line .tl-n { font: 600 11px var(--mono); text-align: right; white-space: nowrap; }
+.pc-line .tl-n.dim { font-weight: 400; color: var(--text-2); }
+.pc-line .tl-bar { min-width: 0; height: 6px; }
+.tl-sw { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 5px; vertical-align: 0; }
