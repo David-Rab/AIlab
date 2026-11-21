@@ -56,7 +56,13 @@ export const EDGES: EdgeDef[] = [
   // rule-following reward on monitored episodes (S9 = 1) took the gap 1–18% → 43–95%; one reference run on V0 with S9 = 1
   // now gives AF 52% [23–100] over 40 worlds (0.6 gave 37%, below the band; scripts/v2/safetyrates.ts). S9 = 0 in every
   // run that does not train against a behavioural detector, so the weight does not reach RefBot or the rivals.
-  { id: 'E14', from: ['S9'], to: 'AF', wBar: 0.9, grade: 'B', cite: 'MATS/GDM Oct 2026: gap 43-95%', moderator: 'randomised monitoring −50%' },
+  // AF2: w̄ 0.9 → 1.43 [fit], the only fitted value of AF2, on its own anchor read with its source's instrument. The 43–95%
+  // is a monitored − unmonitored compliance gap, which a behavioural eval reads as AF·(1 − eaCoef·EA)·(1 − mask) (E12),
+  // not the trait. MATS/GDM (arXiv 2610.26551) per environment, stop-point means over 4 seeds: "the stop-point flip is
+  // 0.95 in sales, 0.61 in typecheck and 0.43 in sandbag", "up from 0.10, 0.01 and 0.18 before RL"; the central value is
+  // the middle environment, 61%. One reference run on V0 with S9 = 1 now reads 61.0% [median of 40 worlds] (trait 76%);
+  // 0.9 read 39.8% (trait 50%).
+  { id: 'E14', from: ['S9'], to: 'AF', wBar: 1.43, grade: 'B', cite: 'MATS/GDM Oct 2026: gap 43-95% (sales 95%, typecheck 61%, sandbag 43%)', moderator: 'randomised monitoring −50%' },
   { id: 'E15', from: ['S4'], to: 'OBF', wBar: 0.7, grade: 'A', cite: 'Baker 2025; controllability 1.7 → 60.9%', moderator: 'monitorability pledge −50%' },
   { id: 'E17', from: ['RH', 'PERSONA'], to: 'CONCEAL', wBar: 0.4, grade: 'B', cite: 'Hacks verbalized <2%; false completion 29%', moderator: 'honesty & confession training −40%' },
   { id: 'E18', from: ['EA', 'TGAME'], to: 'SAND', wBar: 0.3, grade: 'B', cite: 'Apollo 2024 in-context sandbagging; MacDiarmid 2025: sabotaged safety code after learned hacking', moderator: 'learned hacking adds to it (inoculation ×0.15); noise injection −40%' },

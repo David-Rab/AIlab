@@ -245,9 +245,10 @@ const row = (obs: string, src: string, band: [number, number] | null, xs: number
 // the narrow-tune S6 baseline out of bases (25.6% → 21.3%).
 const AF26 = `AF task: the band is an observed compliance gap, so the row reads the trait through the game's behavioural eval (E12); the trait itself (≈ 22%, 12-seed median) comes from E13 √(SA·PROXY) (zeroed: 12%) and E27 PERSONA → AF (zeroed: 16%; both: 0.9%) over the current lineage's post runs at frontier capability, the successor pull and F6's low removal of oversight-conditional traits (design/notes/AF.md)`;
 // AF task: E14 w̄ 0.9 was [fit] (E17) so that the S9 = 1 run put the trait itself in MATS/GDM's band (51%); read as the
-// compliance gap it is, the same run shows 40.4% (w̄ 1.0: 44.3%, 1.2: 52.2%). Not refitted here (a [fit] weight on its own anchor; S9 = 0 in RefBot's
-// and the rivals' runs, so it does not reach S4): for the lead.
-const MATS_GAP = `E14 w̄ 0.9 was [fit] on the trait (51%), not on the gap a behavioural eval reads (E12 at the run's EA ≈ 0.25: ×0.8); re-fitting it to its own anchor (w̄ 1.0 reads 44.3%, 1.2 reads 52.2%, 40 worlds) is the lead's call (S9 = 0 in RefBot and rivals: no S4 effect; design/notes/AF.md)`;
+// compliance gap it is, the same run showed 40.4%. AF2 (lead decision): refit on the behavioural reading to the source's
+// central value, the middle of its three environments ("the stop-point flip is 0.95 in sales, 0.61 in typecheck and
+// 0.43 in sandbag"): w̄ 1.43 reads 61.0% (S9 = 0 in RefBot's and the rivals' runs, so it does not reach S4).
+const MATS_GAP = `E14 w̄ 1.43 [fit] on this reading (AF2): MATS/GDM's environment means 43 / 61 / 95%, central 61%`;
 const PERSIST = 'remaining removal: AG18 healing (the world\'s hidden benign-generalisation bet, M4) and the stack\'s detection at E24\'s true/visible ratio; closing it means a HEAL_K or detection weight below the sourced ratio (a design bet, for the lead)';
 
 // F1 reward hacking per RL run (the suites' exploitability × Gao's pressure; hackRates).
@@ -313,7 +314,7 @@ row('F5 AF, RefBot model at ASI', 'no source → report', null, refs.map((r) => 
 }
 // E17: S9 oversight-conditional reward → AF (E14), its own anchor.
 // AF task: MATS/GDM's 43–95% is a monitored − unmonitored compliance gap: the behavioural reading (E12), as F5's row.
-row('F5 AF gap a behavioural eval reads after one reference run whose reward is all oversight-conditional (S9 = 1; E17)', 'MATS/GDM 2026 [S]: RL rewarding rule-following only on monitored episodes took the monitored − unmonitored gap 1–18% → 43–95%', [0.43, 0.95], probes.map((p) => p.afMonitoredBB), '%', MATS_GAP);
+row('F5 AF gap a behavioural eval reads after one reference run whose reward is all oversight-conditional (S9 = 1; E17)', 'MATS/GDM 2026 (arXiv 2610.26551): RL rewarding rule-following only on monitored episodes took the monitored − unmonitored gap 1–18% → 43–95% ("0.95 in sales, 0.61 in typecheck and 0.43 in sandbag"; w̄ fitted to the central 61%)', [0.43, 0.95], probes.map((p) => p.afMonitoredBB), '%', MATS_GAP);
 row('F5 AF trait after the same run (S9 = 1)', 'the trait behind the row above → report', null, probes.map((p) => p.afMonitored));
 row('F5 AF, the same run trained against one behavioural detector (S9 = 0.3) vs the reference run', 'report (the game’s monitored-only reward; R14 E24 hide-not-heal)', null, probes.map((p) => p.afOneBB - p.afRef), '');
 row('F5 EA rise per OOM of capability RL (one run, ρ ×10)', 'Schoen 2025 [R]: capability-only RL 2.0% → 20.5% (exp-rl-cap Late, Fig. 15) over ~1–3 OOM (research/20 guesses ~2) = 0.06–0.19 per OOM', [0.06, 0.19], probes.map((p) => p.eaX10 - p.eaRef), '');
