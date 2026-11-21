@@ -144,7 +144,7 @@ function SectorCard({ x, names, color }: { x: SectorRead; names: (id: string) =>
         ]} footer={`Domain weights of the cognitive work (physical part apart). Adopted task-hours mix agent and assisted tokens by the substituted share α ${F.pct(wk.alpha)}.`} />}>
           <span className="ws-wt" data-test="ws-worktype">
             {wk.weights.slice(0, 3).map(([d]) => { const I = DOMAIN_ICON[d]; return I ? <I key={d} size={12} /> : null; })}
-            <span className="ws-wt-l">work type</span> <span className="num">{wk.H} h</span> · v <span className="num">{wk.v.toFixed(1)}</span>
+            <span className="ws-wt-l">tasks</span> <span className="num">{wk.H} h</span> · <span className="ws-wt-l">verifiable</span> <span className="num">{wk.v.toFixed(1)}</span>
           </span>
         </Tip>
         <span className="sp" />

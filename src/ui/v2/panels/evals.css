@@ -34,7 +34,7 @@
 .ev-obtns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 
 /* measurement */
-.ev-mgrid { display: grid; grid-template-columns: minmax(150px, max-content) max-content 60px max-content max-content minmax(0, 1fr); column-gap: 16px; row-gap: 2px; align-items: center; }
+.ev-mgrid { display: grid; grid-template-columns: minmax(150px, max-content) max-content 64px max-content max-content minmax(0, 1fr); column-gap: 16px; row-gap: 2px; align-items: center; }
 .ev-mgrid .num { white-space: nowrap; }
 .ev-mline { display: contents; cursor: pointer; }
 .ev-mline > * { padding: 3px 0; }

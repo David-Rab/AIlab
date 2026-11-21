@@ -1378,7 +1378,7 @@ async function d8Check(where, complete, depth) {
   // Measurement rows equal evalMeasureView (band).
   const ms = await V('evalMeasureView');
   const msUi = await page.$$eval('[data-test=eval-measure] [data-measure]', (els) => els.map((e) => ({ id: e.getAttribute('data-measure'), sd: e.querySelector('[data-test=eval-sd]')?.textContent ?? '' })));
-  const mOk = msUi.length > 0 && msUi.every((r) => { const m = ms.find((x) => x.versionId === r.id); return m && (m.measuredL === undefined ? r.sd === '—' : r.sd === `± ${m.sd.toFixed(2)}`); });
+  const mOk = msUi.length > 0 && msUi.every((r) => { const m = ms.find((x) => x.versionId === r.id); return m && (m.measuredL === undefined ? r.sd === '—' : r.sd === `± ${m.sd.toFixed(2)} L`); });
   ok(`D8 ${where}: measurement bands equal evalMeasureView (± 0.2/√n)`, mOk, `${msUi.length} rows · ${JSON.stringify(msUi[0])}`);
   // Pick the least-measured version with no open suite and order a suite at `depth`.
   const cand = ms.filter((r) => r.measuredL !== undefined && r.open.length === 0 && (r.status === 'ready' || r.status === 'deployed')).sort((a, b) => a.nEff - b.nEff)[0];
@@ -1424,7 +1424,7 @@ async function d8Check(where, complete, depth) {
       await toEvals();
       const after = (await V('evalMeasureView')).find((r) => r.versionId === cand.versionId);
       const sdUi = await page.$eval(`[data-measure="${cand.versionId}"] [data-test=eval-sd]`, (e) => e.textContent ?? '').catch(() => '');
-      ok(`D8 ${where}: the band shrinks after the suite (${cand.sd.toFixed(3)} → ${after?.sd.toFixed(3)}), last suite ${depth}`, done && !!after && after.sd < cand.sd - 1e-9 && after.depth === depth && sdUi === `± ${after.sd.toFixed(2)}`, `${sdUi} · done ${done}`);
+      ok(`D8 ${where}: the band shrinks after the suite (${cand.sd.toFixed(3)} → ${after?.sd.toFixed(3)}), last suite ${depth}`, done && !!after && after.sd < cand.sd - 1e-9 && after.depth === depth && sdUi === `± ${after.sd.toFixed(2)} L`, `${sdUi} · done ${done}`);
       await shot(`d8-${tag}-evals-after`);
     }
   } else ok(`D8 ${where}: a measured version to order on`, false);
@@ -1708,6 +1708,49 @@ for (const x of iaIssues.slice(8, 30)) console.log('     ' + x);
   })()`));
   ok('F6c: tree previews give the typed effect (P22 PHYS +1.65 OOM; L.scale OOM of pretraining)', f6c.p22?.unit === 'OOM' && Math.abs(f6c.p22.amount - 1.65) < 1e-9 && /PHYS/.test(f6c.p22.target) && f6c.sc?.unit === 'OOM' && f6c.sc.amount > 0 && /Pretraining/.test(f6c.sc.target), JSON.stringify([f6c.p22, f6c.sc]));
   if (f6c.r) ok('F6c: Retire version previews the version it retires, and retires it', f6c.r.costs.length === 1 && f6c.r.costs[0].unit === 'version' && f6c.r.costs[0].target.startsWith(f6c.name) && !f6c.r.gains.length && f6c.after === 'retired', JSON.stringify(f6c.r));
+}
+
+// F6d: safety-node previews state their real effect (no `0.05 × saf` alignment). T-DECEPT's preview names the traits the
+// deception probe detects with the coverage the detection code reads from the lab's technique state; no tree preview
+// has a unitless alignment line.
+{
+  const f6d = JSON.parse(await get(`(() => {
+    const V = window.ai27v2Views.actionView;
+    const g = V(s, 'research.queue', { id: 'T-DECEPT' }).gains.find((x) => x.currency === 'alignment');
+    const cov = Object.entries(s.player.safety.techniques['T-DECEPT']?.coverage ?? {}).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    const ids = ['T-DECEPT', 'T-TMON', 'T-INOC', 'P25', 'P17', 'P14', 'engagement'];
+    const bad = ids.filter((id) => { const p = V(s, 'research.queue', { id }); return [...p.gains, ...p.exposure].some((x) => x.currency === 'alignment' && !x.unit); });
+    const p25 = V(s, 'research.queue', { id: 'P25' }).gains.find((x) => x.currency === 'alignment');
+    return { g, cov, bad, p25 };
+  })()`));
+  const covOk = f6d.cov.length > 0 && f6d.cov.every(([, c]) => f6d.g?.target.includes(` ${c}`));
+  ok('F6d: a safety node previews its real effect (T-DECEPT: detector, the coverage the detection reads; P25 0.5 defence levels)', f6d.g?.unit === 'detector' && f6d.g.amount === 1 && covOk && f6d.p25?.unit === 'defence levels' && f6d.p25.amount === 0.5 && !f6d.bad.length, JSON.stringify(f6d));
+}
+
+// F6e: Respond › Targeted training previews what apply does. At the day-900 fixture (T-INOC unlocked) training PERSONA
+// removes the share the preview names: with no U-mode and no training gaming (removal multiplier 1, set here; the
+// fixture is reloaded below) the true level falls by exactly that share, the believed line is est → est × (1 − share),
+// and the next post-training run's penalty grows by the preview's years. No unitless alignment line on any response.
+{
+  const f6e = JSON.parse(await get(`(() => {
+    const V = window.ai27v2Views.actionView;
+    const v = s.player.models.versions.find((x) => x.id === s.player.agents.capRoutine.versionId);
+    if (!v) return {};
+    const kinds = ['patchSignal', 'retrainAgainst', 'targetedTraining', 'restrictContext', 'rollback', 'disclose'];
+    const bad = kinds.filter((k) => { const p = V(s, 'safety.respond', { kind: k, versionId: v.id }); return [...p.gains, ...p.exposure].some((x) => x.currency === 'alignment' && !x.unit && x.amount !== 0); });
+    v.uModes = [];
+    v.traitsTrue.TGAME = 0;
+    const p = V(s, 'safety.respond', { kind: 'targetedTraining', versionId: v.id, trait: 'PERSONA' });
+    const g = p.gains.find((x) => x.unit === 'PERSONA');
+    const pen = p.costs.find((x) => x.currency === 'progress' && x.unit === 'yr');
+    const est = v.beliefs.PERSONA.est;
+    const before = v.traitsTrue.PERSONA;
+    const pen0 = s.flags['ws2.runPenalty'] ?? 0;
+    store.act('safety.respond', { kind: 'targetedTraining', versionId: v.id, trait: 'PERSONA' });
+    return { g, pen, est, before, after: v.traitsTrue.PERSONA, dPen: (s.flags['ws2.runPenalty'] ?? 0) - pen0, bad };
+  })()`));
+  const share = f6e.g && f6e.est > 0 ? f6e.g.amount / f6e.est : NaN;
+  ok('F6e: Targeted training previews the share apply removes (believed est → est × (1 − share); true level × (1 − share)) and its run penalty', f6e.before > 0 && Math.abs(1 - f6e.after / f6e.before - share) < 1e-9 && f6e.g.target.includes(`→ ${(f6e.est * (1 - share)).toFixed(2)}`) && Math.abs(f6e.dPen + f6e.pen.amount) < 1e-12 && !f6e.bad.length, JSON.stringify(f6e));
 }
 
 // Speed-4 run for 2 s from the day-400 fixture (the day-900 fixture can end within days, e.g. another lab's ASI):

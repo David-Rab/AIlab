@@ -3,7 +3,7 @@ import { EDGES } from '../../../data/v2/edges';
 import { CRITICAL_TRAITS } from '../../../data/v2/traits';
 import type { GameStateV2, Incident, ModelVersion, ResponseKind, SystemCtx, TraitId, UModeId } from '../types';
 import { clamp01, flagNum, setFlag, trueEfficacy, versionById } from './common';
-import { versionOom } from './oversight';
+import { measuredOom } from './oversight';
 import { ANTISCHEME_EA_MULT, ANTISCHEME_REMOVAL, goodhartTrain } from './traits';
 import { strengthBelieved, techniqueRole } from './techniques';
 import { crystalMult, revealToWorld, uModeRemovalMult } from './umodes';
@@ -14,7 +14,7 @@ export const RESPONSE_INFO: Record<ResponseKind, { title: string; days: [number,
   patchSignal: { title: 'Patch signal', days: [30, 90], note: 'Fix the training signal: edge weight × 0.3–0.6 for every later run (lab-wide).' },
   retrainAgainst: { title: 'Retrain against', days: [14, 14], note: 'Hide, not heal: visible −70–90%, true −20–40%, adds a mask.' },
   targetedTraining: { title: 'Targeted training', days: [21, 35], note: 'Technique-specific alignment training (inoculation, anti-scheming…).' },
-  restrictContext: { title: 'Restrict context', days: [0, 0], note: 'Channel revenue × 0.5; incident hazard × 0.3.' },
+  restrictContext: { title: 'Restrict context', days: [0, 0], note: 'Restricted products: usage, revenue, misuse reach and incident opportunity × 0.3.' },
   addControl: { title: 'Add control', days: [0, 0], note: 'AI-control layer: 5% usefulness tax; catastrophe conversion × (1 − Contain).' },
   removeControl: { title: 'Remove control', days: [0, 0], note: 'Turn the AI-control layer off: the usefulness tax ends; containment and deferral end with it (model v3 F6).' },
   rollback: { title: 'Roll back', days: [0, 0], note: 'Return to the checkpoint version; lose the newer model.' },
@@ -41,9 +41,10 @@ export function responseTrait(v: ModelVersion, inc?: Incident, trait?: TraitId):
   return CRITICAL_TRAITS.reduce((a, b) => ((v.beliefs[b]?.est ?? 0) > (v.beliefs[a]?.est ?? 0) ? b : a), CRITICAL_TRAITS[0]);
 }
 
-/** Best active detector covering a trait (by believed strength): the default "train against" target. */
+/** Best active detector covering a trait (by believed strength): the default "train against" target. F6e: at the
+ *  measured capability (was the true OOM), so the Respond preview names the detector apply picks. */
 export function bestDetector(s: GameStateV2, v: ModelVersion, trait: TraitId): string | undefined {
-  const X = versionOom(s, v);
+  const X = measuredOom(s, v);
   let best: string | undefined;
   let bd = 0;
   for (const t of Object.values(s.player.safety.techniques)) {
@@ -69,12 +70,53 @@ export function consumeRunPenalty(s: GameStateV2): number {
 
 /** Safety FTE tied up by patch projects and foothold removals (released when they end). */
 export function patchFte(s: GameStateV2): number {
-  return (s.time.day < flagNum(s, 'patchUntil', -1) ? 10 : 0) + removalFte(s);
+  return (s.time.day < flagNum(s, 'patchUntil', -1) ? PATCH_FTE : 0) + removalFte(s);
 }
 
 function removal(v: ModelVersion): number {
   return uModeRemovalMult(v.uModes) * crystalMult(v.traitsTrue.TGAME, v.uModes);
 }
+
+// ───────────── F6e: the numbers each response applies, shared by applyResponse and the Respond preview ─────────────
+
+/** Patch signal: each edge into the trait × PATCH_MULT (drawn) lab-wide, floor PATCH_FLOOR; PATCH_FTE safety research
+ *  engineers for PATCH_DAYS (drawn); the next post-training run pays RUN_PENALTY_Y years of progress. */
+export const PATCH_MULT: [number, number] = [0.3, 0.6];
+export const PATCH_DAYS: [number, number] = [30, 90];
+export const PATCH_FTE = 10;
+/** Years of progress (Δp) the next post-training run loses after a patch or a targeted training (G −Δp·B_G_PER_Y). */
+export const RUN_PENALTY_Y = 0.02;
+
+/** What targeted training does with the lab's unlocked techniques: the share `cut` of each trait removed (× the U-mode
+ *  removal multiplier when applied), traits raised by `add`, E25's EA × ANTISCHEME_EA_MULT, inoculation's E04 patch.
+ *  `eff` is AG18's efficacy: true in the engine, believed in the preview. */
+export interface TargetedPlan { technique?: string; cut: Partial<Record<TraitId, number>>; add: Partial<Record<TraitId, number>>; eaMult: boolean; patchE04?: number }
+export function targetedPlan(s: GameStateV2, v: ModelVersion, trait: TraitId, eff: number): TargetedPlan {
+  const has = (id: string) => !!s.player.safety.techniques[id]?.unlocked;
+  if (has('T-ANTISCHEME') && (trait === 'SCHEME' || trait === 'AF' || trait === 'SAND')) {
+    // EA × ANTISCHEME_EA_MULT the first time a lineage gets anti-scheming training (same rule as heavy-safety runs).
+    return { technique: 'T-ANTISCHEME', cut: { SCHEME: ANTISCHEME_REMOVAL }, add: {}, eaMult: s.flags[`ws2.e25.${lineageOf(s, v)}`] === undefined }; // F47 / E25
+  }
+  if (has('T-INOC') && (trait === 'PERSONA' || trait === 'RH' || trait === 'CONCEAL')) return { technique: 'T-INOC', cut: { PERSONA: 0.3 }, add: {}, eaMult: false, patchE04: 0.15 }; // F46
+  if (has('T-PERSONA') && (trait === 'SYC' || trait === 'PERSONA')) return { technique: 'T-PERSONA', cut: { [trait]: 0.35 }, add: {}, eaMult: false }; // F10 20–40%
+  if (has('T-CAST') && (trait === 'POWER' || trait === 'AF')) return { technique: 'T-CAST', cut: { [trait]: 0.3 }, add: { CORRIG: 0.15 }, eaMult: false }; // F35
+  return { cut: { [trait]: 0.35 * eff }, add: {}, eaMult: false }; // generic AG18 training
+}
+
+/** The live external deployments Restrict context restricts (the incident's own deployment when it names one). */
+export function restrictTargets(s: GameStateV2, v: ModelVersion, inc?: Incident) {
+  return s.player.deployments.filter((d) => d.versionId === v.id && d.status === 'live' && d.channel !== 'internal' && (!inc?.deploymentId || d.id === inc.deploymentId));
+}
+
+/** Disclosure's trust change per counterparty at today's credibility (below 30 it costs trust, §3.9.1), after the
+ *  counterparty's trust level (gains shrink near 100, losses grow). */
+export const DISCLOSE_CPS = ['evalGov', 'exec', 'evalIndep'] as const;
+export function discloseTrust(s: GameStateV2, cp: (typeof DISCLOSE_CPS)[number]): number {
+  const T = s.relations.stocks[cp]?.trust ?? 50;
+  const base = (3 * (s.relations.credibility - 30)) / 40;
+  return base >= 0 ? base * (1 - T / 100) : base * (1 + T / 100);
+}
+export const discloseScrutiny = (inc?: Incident) => 3 + 2 * (inc?.severity ?? 2);
 
 export interface ResponseOpts { trait?: TraitId; techniqueId?: string; /** removeFoothold: the located foothold. */ footholdId?: string }
 
@@ -98,10 +140,10 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
       // (all lineages); repeated patches on one edge bottom out at PATCH_FLOOR [D].
       for (const e of edgesInto(trait)) {
         const key = `patch.lab.${e}`;
-        setFlag(s, key, Math.round(Math.max(PATCH_FLOOR, flagNum(s, key, 1) * rng.range(0.3, 0.6)) * 1000) / 1000);
+        setFlag(s, key, Math.round(Math.max(PATCH_FLOOR, flagNum(s, key, 1) * rng.range(PATCH_MULT[0], PATCH_MULT[1])) * 1000) / 1000);
       }
-      setFlag(s, 'patchUntil', Math.max(flagNum(s, 'patchUntil', 0), ctx.day + Math.round(rng.range(30, 90))));
-      setFlag(s, 'runPenalty', flagNum(s, 'runPenalty') + 0.02);
+      setFlag(s, 'patchUntil', Math.max(flagNum(s, 'patchUntil', 0), ctx.day + Math.round(rng.range(PATCH_DAYS[0], PATCH_DAYS[1]))));
+      setFlag(s, 'runPenalty', flagNum(s, 'runPenalty') + RUN_PENALTY_Y);
       break;
     }
     case 'retrainAgainst': {
@@ -111,33 +153,25 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
       break;
     }
     case 'targetedTraining': {
-      const has = (id: string) => !!s.player.safety.techniques[id]?.unlocked;
+      // F6e: the plan (targetedPlan) is the one the preview shows, with AG18's true efficacy here.
       const t = v.traitsTrue;
       const r = removal(v);
-      if (has('T-ANTISCHEME') && (trait === 'SCHEME' || trait === 'AF' || trait === 'SAND')) {
-        t.SCHEME = clamp01(t.SCHEME * (1 - ANTISCHEME_REMOVAL * r)); // F47 / E25
-        // EA × ANTISCHEME_EA_MULT the first time a lineage gets anti-scheming training (same rule as heavy-safety runs).
-        if (s.flags[`ws2.e25.${lineage}`] === undefined) {
-          t.EA = clamp01(t.EA * ANTISCHEME_EA_MULT);
-          setFlag(s, `e25.${lineage}`, ctx.day);
-        }
-      } else if (has('T-INOC') && (trait === 'PERSONA' || trait === 'RH' || trait === 'CONCEAL')) {
-        const key = `patch.lab.E04`;
-        setFlag(s, key, Math.round(flagNum(s, key, 1) * 0.15 * 1000) / 1000); // F46
-        t.PERSONA = clamp01(t.PERSONA * (1 - 0.3 * r));
-      } else if (has('T-PERSONA') && (trait === 'SYC' || trait === 'PERSONA')) {
-        t[trait] = clamp01(t[trait] * (1 - 0.35 * r)); // F10 20–40%
-      } else if (has('T-CAST') && (trait === 'POWER' || trait === 'AF')) {
-        t[trait] = clamp01(t[trait] * (1 - 0.3 * r)); // F35
-        t.CORRIG = clamp01(t.CORRIG + 0.15);
-      } else {
-        t[trait] = clamp01(t[trait] * (1 - 0.35 * trueEfficacy(s, 'AG18') * r)); // generic AG18 training
+      const plan = targetedPlan(s, v, trait, trueEfficacy(s, 'AG18'));
+      for (const [k, c] of Object.entries(plan.cut) as [TraitId, number][]) t[k] = clamp01(t[k] * (1 - c * r));
+      if (plan.eaMult) {
+        t.EA = clamp01(t.EA * ANTISCHEME_EA_MULT);
+        setFlag(s, `e25.${lineage}`, ctx.day);
       }
-      setFlag(s, 'runPenalty', flagNum(s, 'runPenalty') + 0.02);
+      if (plan.patchE04 !== undefined) {
+        const key = `patch.lab.E04`;
+        setFlag(s, key, Math.round(flagNum(s, key, 1) * plan.patchE04 * 1000) / 1000);
+      }
+      for (const [k, a] of Object.entries(plan.add) as [TraitId, number][]) t[k] = clamp01(t[k] + a);
+      setFlag(s, 'runPenalty', flagNum(s, 'runPenalty') + RUN_PENALTY_Y);
       break;
     }
     case 'restrictContext': {
-      const deps = s.player.deployments.filter((d) => d.versionId === v.id && d.status === 'live' && d.channel !== 'internal' && (!inc?.deploymentId || d.id === inc.deploymentId));
+      const deps = restrictTargets(s, v, inc);
       if (!deps.length) return 'No live external deployment of this model';
       for (const d of deps) d.status = 'restricted';
       break;
@@ -167,14 +201,8 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
       break;
     }
     case 'disclose': {
-      const sev = inc?.severity ?? 2;
-      ctx.bump('relations.scrutiny', 3 + 2 * sev, 'disclosure', inc?.id ?? v.id);
-      const cred = s.relations.credibility;
-      for (const cp of ['evalGov', 'exec', 'evalIndep'] as const) {
-        const T = s.relations.stocks[cp]?.trust ?? 50;
-        const base = (3 * (cred - 30)) / 40; // below credibility 30 a disclosure costs net trust (§3.9.1)
-        ctx.bump(`trust:${cp}`, base >= 0 ? base * (1 - T / 100) : base * (1 + T / 100), 'disclosure', inc?.id ?? v.id);
-      }
+      ctx.bump('relations.scrutiny', discloseScrutiny(inc), 'disclosure', inc?.id ?? v.id);
+      for (const cp of DISCLOSE_CPS) ctx.bump(`trust:${cp}`, discloseTrust(s, cp), 'disclosure', inc?.id ?? v.id);
       const us: UModeId[] = [];
       if (inc && typeof inc.trueSource === 'string' && s.player.safety.discoveredUModes.includes(inc.trueSource as UModeId)) us.push(inc.trueSource as UModeId);
       if (!inc) for (const u of v.uModes) if (s.player.safety.discoveredUModes.includes(u)) us.push(u);
@@ -199,10 +227,10 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
 
 /** Current lab-wide patch multipliers on the edges into a trait (1 = never patched; PATCH_FLOOR = as low as patches go):
  *  the response card's "diminishing patches" readout (LIMITS response.patchFloor). */
-export function patchLevel(s: GameStateV2, trait: TraitId): { lo: number; hi: number; atFloor: boolean } {
+export function patchLevel(s: GameStateV2, trait: TraitId): { lo: number; hi: number; atFloor: boolean; n: number } {
   const xs = edgesInto(trait).map((e) => flagNum(s, `patch.lab.${e}`, 1));
-  if (!xs.length) return { lo: 1, hi: 1, atFloor: false };
+  if (!xs.length) return { lo: 1, hi: 1, atFloor: false, n: 0 };
   const lo = Math.min(...xs);
   const hi = Math.max(...xs);
-  return { lo, hi, atFloor: hi <= PATCH_FLOOR + 1e-9 };
+  return { lo, hi, atFloor: hi <= PATCH_FLOOR + 1e-9, n: xs.length };
 }

@@ -289,11 +289,14 @@ export function ProjectCard({ s }: { s: GameStateV2 }) {
       )}
       <Sec k="Science teams · why here" term="scienceWhy">
         {v.teams.length === 0 && <div className="small dim">{v.want === 0 ? 'Teams wanted 0: paused.' : 'None placed: higher-priority projects took the teams.'}</div>}
-        {v.teams.map((t) => {
+        {v.teams.map((t, k) => {
           const TI = t.specialty ? COL_ICON[t.specialty as Column] : ICON.roleSci;
+          // F6d: teams of the same specialty are numbered (two "Pretraining" rows read as a duplicate).
+          const same = v.teams.filter((x) => x.specialty === t.specialty);
+          const nth = same.length > 1 ? ` ${v.teams.slice(0, k + 1).filter((x) => x.specialty === t.specialty).length}` : '';
           return (
             <div key={t.id} className="rp-team" data-team={t.id}>
-              <TI size={13} /><b>{t.specialty ? COLUMN_LABEL[t.specialty as Column] : 'Science'}</b>
+              <TI size={13} /><b>{t.specialty ? COLUMN_LABEL[t.specialty as Column] : 'Science'}{nth}</b>
               <Tip content={() => <TipCard title={<Term id="teamQuality">{QUALITY[t.quality].label}</Term>} rows={[{ label: 'People', value: F.count(t.heads) }]} />}><span className={`qdots q-${t.quality}`}>{[1, 2, 3].map((i) => <i key={i} className={i <= Q_N[t.quality] ? 'on' : ''} />)}</span></Tip>
               <span className="why small">{t.why}</span>
             </div>

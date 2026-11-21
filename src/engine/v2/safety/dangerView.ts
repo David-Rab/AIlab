@@ -34,8 +34,9 @@ import { containment } from './techniques';
 
 const YEAR = 365;
 const USE_WORK: Record<AgentUse, WorkTypeId> = { eng: 'SWE', capRoutine: 'EXP', capFrontier: 'IDEAS', safety: 'SAF_EXP' };
-/** Restricted status scales opportunity (incidents.ts siteOf). */
-const RESTRICT = 0.3;
+/** Restricted status scales opportunity (incidents.ts siteOf), and usage, revenue and misuse reach (revenue.ts,
+ *  incidents.ts misuseHazards) by the same 0.3; F6e: the Restrict context preview reads it. */
+export const RESTRICT = 0.3;
 
 /** One act at one site, as the player estimates it. */
 export interface DangerActRead {
@@ -220,6 +221,22 @@ export function controlDangerDelta(s: GameStateV2, versionId: string, on: boolea
     }
     const a = productDanger(s, d);
     const b = productDanger(s, d, { control: on });
+    if (!a || !b) continue;
+    now += a.harmful;
+    after += b.harmful;
+    sites++;
+  }
+  return { now, after, sites };
+}
+
+/** F6e: believed harmful acts a year at the given products now and restricted (Restrict context's preview). */
+export function restrictDangerDelta(s: GameStateV2, deps: readonly Deployment[]): { now: number; after: number; sites: number } {
+  let now = 0;
+  let after = 0;
+  let sites = 0;
+  for (const d of deps) {
+    const a = productDanger(s, d);
+    const b = productDanger(s, d, { restrict: true });
     if (!a || !b) continue;
     now += a.harmful;
     after += b.harmful;

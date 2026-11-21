@@ -68,7 +68,7 @@ function toolsOf(s: GameStateV2, inv: Investigation): TechniqueState[] {
 }
 
 /** Default tools: every unlocked detection technique covering one of the target traits. */
-function defaultTools(s: GameStateV2, traits: TraitId[]): string[] {
+export function defaultTools(s: GameStateV2, traits: TraitId[]): string[] {
   return Object.values(s.player.safety.techniques)
     .filter((t) => t.unlocked && techniqueRole(t) !== 'fix' && traits.some((k) => (t.coverage[k] ?? 0) > 0))
     .map((t) => t.id);
@@ -120,8 +120,28 @@ export function monthlyGain(s: GameStateV2, inv: Investigation): number {
   }
   // Model v3 E2: AI labour is the same input as the case's engineers: effective FTE = FTE × m of safety experiments
   // (SAF_EXP through the Trusted-to-AI share; departments/workfit.ts safetyLabour).
+  return caseRate(s, g, inv.fte, inv.computeShare);
+}
+
+/** Monthly clarity from the tools' combined detection g, the case's engineers (× m of safety experiments) and compute
+ *  share. F6e: shared with the Investigate preview (which passes g at believed strengths). */
+export function caseRate(s: GameStateV2, g: number, fte: number, computeShare: number): number {
   const m = safetyLabour(s).exp.m;
-  return clamp01(g * Math.sqrt((inv.fte * m) / 15) * Math.min(1.5, Math.pow(Math.max(0.01, inv.computeShare) / 0.05, 0.2)));
+  return clamp01(g * Math.sqrt((fte * m) / 15) * Math.min(1.5, Math.pow(Math.max(0.01, computeShare) / 0.05, 0.2)));
+}
+
+/** Days for clarity to reach CASE_RESOLVE at a monthly gain (as investigationsStep compounds it), capped at INV_MAX_DAYS. */
+export const CASE_RESOLVE = 0.8;
+export function daysToResolve(gm: number): number {
+  const gd = 1 - Math.pow(1 - Math.min(0.999, gm), 1 / 30);
+  return gd > 0 ? Math.min(INV_MAX_DAYS, Math.ceil(Math.log(1 - CASE_RESOLVE) / Math.log(1 - gd))) : INV_MAX_DAYS;
+}
+
+/** Odds a case's conclusion is corrupted (resolveInvestigation): the sabotage rate on the AI share of the work × (1 −
+ *  the mean verifiability of its tools' families). */
+export function corruptOdds(rate: number, tools: readonly TechniqueState[]): number {
+  const verif = tools.length ? tools.reduce((a, t) => a + VERIFIABILITY[t.family], 0) / tools.length : 0.5;
+  return clamp01(rate * (1 - verif));
 }
 
 /** Daily step: clarity, monthly observations, resolution. */
@@ -147,7 +167,7 @@ export function investigationsStep(s: GameStateV2, ctx: SystemCtx): void {
         }
       }
     }
-    if (inv.clarity >= 0.8 || age >= INV_MAX_DAYS) resolveInvestigation(s, ctx, inv);
+    if (inv.clarity >= CASE_RESOLVE || age >= INV_MAX_DAYS) resolveInvestigation(s, ctx, inv);
   }
 }
 
@@ -184,8 +204,7 @@ export function resolveInvestigation(s: GameStateV2, ctx: SystemCtx, inv: Invest
   // Corruption by AI labour from a sabotaging model (E20): the safety agents' uncaught sabotage of the case (model v3 E7's
   // SAFSAB on the share of the case's work AI does, A of safety experiments = Trusted to AI × coverage, E2) × (1 −
   // verifiability of the case's tools).
-  const verif = tools.length ? tools.reduce((a, t) => a + VERIFIABILITY[t.family], 0) / tools.length : 0.5;
-  const corrupted = rng.chance(clamp01((safetySabotage(s, safetyLabour(s).exp.A)?.rate ?? 0) * (1 - verif)));
+  const corrupted = rng.chance(corruptOdds(safetySabotage(s, safetyLabour(s).exp.A)?.rate ?? 0, tools));
   let outcome: NonNullable<Investigation['outcome']>;
   let uMode: UModeId | undefined;
   if (corrupted) {

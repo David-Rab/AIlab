@@ -46,7 +46,7 @@ const BIND: Record<EvalTaskView['binds'], { label: string; icon: LucideIcon }> =
 };
 /** Team-weeks: 0.04, 0.20, 1.5. */
 const tw = (x: number) => (x < 1 ? x.toFixed(2) : x.toFixed(1));
-const band = (x: number) => `± ${x.toFixed(2)}`;
+const band = (x: number) => `± ${x.toFixed(2)} L`;
 const finish = (s: GameStateV2, d: number) => (Number.isFinite(d) ? fmtDate(dateOf(s, s.time.day + d)) : 'stalled');
 const daysTxt = (d: number) => (Number.isFinite(d) ? F.days(d) : '∞');
 
@@ -178,7 +178,7 @@ const DEPTH_LINES: { label: ReactNode; f: (r: EvalDepthRow) => string; tip: (nam
   { label: <Term id="h100e">H100e-days</Term>, f: (r) => F.count(r.cost.h100eDays), tip: () => 'Inference compute from the experiments pool, at the FLOP per token of this version.' },
   { label: 'Takes', f: (r) => daysTxt(r.days), tip: () => 'An own suite at the research engineers on evals today (the staff on one suite is capped: the analysis lag).' },
   { label: <Term id="measureBand">Band after</Term>, f: (r) => band(r.bandAfter), tip: (n, now) => `Measured-level band on ${n} once this suite is added (now ${band(now)}).` },
-  { label: <Term id="benchmark">Bench noise</Term>, f: (r) => `± ${r.benchSd.toFixed(1)}`, tip: () => 'One standard deviation of your own score on a benchmark at this depth (points).' },
+  { label: <Term id="benchmark">Bench noise</Term>, f: (r) => `± ${r.benchSd.toFixed(1)} pt`, tip: () => 'One standard deviation of your own score on a benchmark at this depth (points).' },
   { label: <Term id="elicitation">Elicitation</Term>, f: (r) => `${r.elic === 0 ? '0' : F.num(r.elic, 2, true)} L`, tip: () => 'Shift on capability benchmarks relative to a full suite.' },
 ];
 function OrderCard({ s, v }: { s: GameStateV2; v?: ModelVersion }) {
@@ -230,7 +230,7 @@ function MeasureCard({ s, rows, sel }: { s: GameStateV2; rows: EvalMeasureRow[];
       <div className="ev-mgrid" data-test="eval-measure">
         <span className="ch">Version</span>
         <span className="ch ev-axis"><svg width={W} height={14}>{ticks.map((t) => <text key={t} x={x(t)} y={11} textAnchor="middle" className="ev-tick">L {t}</text>)}</svg></span>
-        <span className="ch r"><Term id="measureBand">±</Term></span><span className="ch r">Suites</span><span className="ch">Last suite</span><span className="ch">Next</span>
+        <span className="ch r"><Term id="measureBand">±</Term></span><span className="ch r">Suites · full eq.</span><span className="ch">Last suite</span><span className="ch">Next</span>
         {shown.map((r) => <MeasureRow key={r.versionId} s={s} r={r} on={r.versionId === sel} x={x} W={W} ticks={ticks} />)}
       </div>
       {!shown.length && <div className="dim small ev-empty">No version measured yet.</div>}
@@ -267,7 +267,7 @@ function MeasureRow({ s, r, on, x, W, ticks }: { s: GameStateV2; r: EvalMeasureR
       </Tip>
       <Tip content={levelTip}><span className="num small ev-r" data-test="eval-sd">{L !== undefined ? band(r.sd) : '—'}</span></Tip>
       <Tip content={() => <TipCard title="Suites behind the reading" rows={[{ label: 'Suites run', value: String(r.nSuites) }, { label: 'Full-suite equivalents', value: F.num(r.nEff, 1) }]}>Basic counts 0.2, full 1, deep 4: the band is 0.2/√(equivalents).</TipCard>}>
-        <span className="num small ev-r">{r.nSuites}<span className="dim"> · {F.num(r.nEff, 1)}×</span></span>
+        <span className="num small ev-r">{r.nSuites}<span className="dim"> · {F.num(r.nEff, 1)}</span></span>
       </Tip>
       <Tip content={() => <TipCard title="Last suite" rows={[{ label: <Term id="evalDepth">Depth</Term>, value: r.depth ? EVAL_DEPTHS[r.depth].label : '—' }, { label: 'Date', value: r.suiteDay !== undefined ? fmtDate(dateOf(s, r.suiteDay)) : '—' }]} />}>
         <span className="small" data-test="eval-last">{r.suiteDay !== undefined ? <>{r.depth && <>{EVAL_DEPTHS[r.depth].label.toLowerCase()} <span className="dim">· </span></>}<span className={r.depth ? 'dim' : ''}>{fmtDate(dateOf(s, r.suiteDay))}</span></> : <span className="dim">never</span>}</span>

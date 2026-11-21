@@ -58,7 +58,7 @@ function DangerTip({ r, where }: { r: DangerRead; where: string }) {
 }
 
 /** The compact readout. `where` names the deployment in the tooltip. */
-export function DangerChip({ r, where, testId, compact = false }: { r?: DangerRead; where: string; testId?: string; /** Lanes: no act name (tooltip only). */ compact?: boolean }) {
+export function DangerChip({ r, where, testId, compact = false }: { r?: DangerRead; where: string; testId?: string; /** Lanes: no act name (tooltip only); "acts/yr" is in the lane table's head (F6d). */ compact?: boolean }) {
   if (!r) return null;
   const t = r.top;
   const TI = t ? TRAIT_ICON[t.trait] : undefined;
@@ -66,7 +66,7 @@ export function DangerChip({ r, where, testId, compact = false }: { r?: DangerRe
     <Tip content={() => <DangerTip r={r} where={where} />}>
       <span className="dg-chip" data-test={testId} data-harm={r.harmful.toFixed(4)}>
         <ICON.danger size={12} className={r.harmful >= 0.5 ? 'tone-neg' : r.harmful >= 0.1 ? 'tone-warn' : 'dim'} />
-        <b className="num">{perYr(r.harmful)}</b><span className="dim small">/yr</span>
+        <b className="num">{perYr(r.harmful)}</b><span className="dim small">{compact ? '/yr' : 'acts/yr'}</span>
         {t && <span className="dg-fs">
           <Factor k="D" v={t.disposition} />
           <Factor k="C" v={t.capability} />

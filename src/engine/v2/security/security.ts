@@ -40,12 +40,15 @@ export function initialSecurity(staff: Pick<StaffByRole, 'cap' | 'saf'>, wsl = 2
 }
 
 /** Whistleblower hazard per day (research/17 A6): grows with things worth leaking; low morale raises it. */
-export function whistleHazard(s: GameStateV2): number {
+export function whistleHazard(s: GameStateV2, extraFlags = 0): number {
   const w = ws4(s);
-  const worth = w.redFlags + w.coverups.length + (s.player.safety.incidents.some((i) => i.status === 'covered') ? 1 : 0);
+  const worth = w.redFlags + extraFlags + w.coverups.length + (s.player.safety.incidents.some((i) => i.status === 'covered') ? 1 : 0);
   if (!worth) return 0;
   return 0.0008 * worth * (1.5 - s.player.morale.safety / 100) * (s.flags['ws4:purged'] ? 1.5 : 1);
 }
+/** F6d: the whistleblower hazard as odds over a year at today's morale (1 − (1 − h)^365), with `extraFlags` more red
+ *  flags: what continuing past a red flag adds (E17 previews). */
+export const whistleOddsYear = (s: GameStateV2, extraFlags = 0) => 1 - Math.pow(1 - whistleHazard(s, extraFlags), 365);
 
 /** security (90, daily): WSL movement, spies, theft hazard, insider leaks, distillation flow, exfiltration hazard. */
 export const securitySystem: EngineSystem = {

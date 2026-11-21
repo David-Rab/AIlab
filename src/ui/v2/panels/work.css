@@ -21,6 +21,8 @@
 .wk-cov .hb i.mk { width: 2px; top: -3px; bottom: -3px; background: #fff; }
 .wk-cov b { color: #fff; text-align: right; }
 .wk-needs { display: flex; flex-direction: column; }
+.wk-needs-h { display: grid; grid-template-columns: 14px 20px minmax(0, 1fr) 80px 62px 74px 40px; gap: 6px; padding-bottom: 2px; }
+.wk-needs-h > span { grid-column: 5 / span 3; white-space: nowrap; }
 .wk-need { display: grid; grid-template-columns: 14px 20px minmax(0, 1fr) 80px 62px 74px 40px; gap: 6px; align-items: center; font-size: 12px; min-height: 30px; border-bottom: 1px solid #1c2531; }
 .wk-nbar { position: relative; display: block; height: 8px; border-radius: 2px; background: var(--line); overflow: hidden; }
 .wk-nbar i { position: absolute; left: 0; top: 0; bottom: 0; display: block; }
