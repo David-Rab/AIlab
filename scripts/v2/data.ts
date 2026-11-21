@@ -586,9 +586,13 @@ const adoptResult = (s: GameStateV2, id: string) => {
   // M10 (fixture drift): since MKT the day-400 lineup holds RefBot's API cheap-tier students (a year of progress below
   // the API model), whose G stays under the web's cap even 2.5 OOM up (q 0.83); the finding is about teachers AT the cap,
   // so the smallest teacher is sought among those (and at least most teachers must be capped).
+  // M11 (fixture drift): since TIERS RefBot distils no API cheap tier, so the day-400 lineup's smallest teachers are the
+  // five B0 versions (V0–V8, one FLOP per token; they differ only in post-training): the winner must be of the smallest
+  // size, not one particular version of it.
   const capped = late0.filter((x) => x.q === 1);
-  const smallest = capped.reduce((a, b) => (b.fpt < a.fpt ? b : a)).id;
-  check(best(now0).id === strong.v.id && now0.every((x, i) => near(x.dG, now1[i].dG, 1e-12)) && capped.length >= late0.length / 2 && best(capped).id === smallest && late1.some((x) => x.q > 1),
+  const minFpt = Math.min(...capped.map((x) => x.fpt));
+  const smallest = capped.filter((x) => x.fpt <= minFpt * (1 + 1e-9)).map((x) => x.id).join(' / ');
+  check(best(now0).id === strong.v.id && now0.every((x, i) => near(x.dG, now1[i].dG, 1e-12)) && capped.length >= late0.length / 2 && best(capped).fpt <= minFpt * (1 + 1e-9) && late1.some((x) => x.q > 1),
     'D9 teacher re-check: below the cap the strongest teacher pays (P10 changes nothing at day 400); at the web\'s cap the smallest teacher wins again; P10 lets quality rank them',
     `day 400: ${fmt(now0)}; teachers +2.5 OOM, no P10: ${fmt(late0)} (best ${best(late0).id}; at the cap ${capped.length} of ${late0.length}, best ${best(capped).id}, smallest ${smallest}); with P10: ${fmt(late1)} (best ${best(late1).id})`);
 }
