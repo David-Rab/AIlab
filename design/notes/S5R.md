@@ -214,4 +214,5 @@ on the 40-world mean; worldfx F11 +$11B). For the lead: if T1 should play RefBot
 `safetyShare: refSafetyShare` (one line in bots/ref.ts; capex2x would follow) and refit G_SC in the merge wave.
 
 Bot contrast: the race bot's flat 1% safety share is now about RefBot's (0.4% in 2025–26, 1.6% by end 2027); the race
-bot keeps its other differences (no safety lines, latent reasoning, frontier releases).
+bot keeps its other differences (2× capex, no line staffing, CoT-pressured engagement post-training with minimal safety,
+no eval gate, frontier releases).
