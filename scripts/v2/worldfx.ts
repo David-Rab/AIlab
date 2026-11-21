@@ -2,7 +2,8 @@
 //
 // Reference play = real RefBot games on the integrated engine (WS1 models and releases, WS3 compute and finance, WS4
 // actors; endings skipped so the world keeps running past ASI). The worldfx-refplay.ts probe is kept only for W2, a
-// controlled experiment with capabilities frozen at Agent-1 level. Date targets use ±3 months (R16 §7 test 1).
+// controlled experiment with capabilities frozen at Agent-1 level. Date targets use ±3 months (R16 §7 test 1), on the
+// median first day over the 20 classic runs of CAL_SEEDS (model v3 F4; calseeds.ts).
 // The games go through the simulation cache (simcache.ts): a cached trace keeps what the checks read (the classic run
 // keeps its whole final state). `--smoke` (test:quick) skips the long post-2028 runs (W3, the SEZ path) and the
 // informational authors2026 run; every check that does run is binding.
@@ -31,8 +32,9 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { deserialize } from '../../src/engine/v2/core/save';
 import { fileURLToPath } from 'node:url';
-import { FIXTURE_DIR, SMOKE, check, finish, validateJson } from './lib';
+import { FIXTURE_DIR, SMOKE, check, finish, smokeCheck, validateJson } from './lib';
 import { cached, pick, prefill } from './simcache';
+import { CAL_SEED, CAL_SEEDS, medianOf, quantOf } from './calseeds';
 import { refGame, refPlayProbe } from './worldfx-refplay';
 
 const START = '2025-07-01';
@@ -144,9 +146,22 @@ function sezRec() {
   });
 }
 const W3_PICKS = ['world.fx.autoLevel', 'world.techs.W17', 'world.macro.US.g'];
+/** Model v3 F4: the classic run's timing reads on one more seed of CAL_SEEDS (cached): the four date checks (first day of
+ *  each), F11 2027 revenue and A2c's tokens-a-day growth over 2026. Seed CAL_SEED's come from the main classic run. */
+interface TimingRec { hire10: number | null; remote25: number | null; u12: number | null; accept85: number | null; f11_2027: number; a2c: number }
+const tokOf = (tr: Pick<Trace, 'at'>, m: string) => { const b = tr.at[m].bill; return b.world.tokAdopted + b.world.tokSeated + b.world.tokAgent + b.consumerTokens; };
+const timingOf = (tr: Pick<Trace, 'firstHire10' | 'firstRemote25' | 'firstU12' | 'firstAccept85' | 'annual' | 'at'>): TimingRec => ({
+  hire10: tr.firstHire10 ?? null, remote25: tr.firstRemote25 ?? null, u12: tr.firstU12 ?? null, accept85: tr.firstAccept85 ?? null,
+  f11_2027: tr.annual[2027] ?? 0, a2c: tokOf(tr, '2026-12-31') / tokOf(tr, '2026-01-01'),
+});
+function timingRec(seed: number): TimingRec {
+  return cached('worldfx-timing', { seed, days: D('2028-04-01') }, FILES, () => timingOf(run({ baseline: 'classic', econ: 'ai2027', seed }, D('2028-04-01'))));
+}
+const TIMING_SEEDS = SMOKE ? [] : CAL_SEEDS.filter((x) => x !== CAL_SEED);
 // The runner's --prefill shards: every cached run of this mode, in the order the checks ask for them.
 prefill([
   () => runC({ baseline: 'classic', econ: 'ai2027' }, D('2028-04-01')),
+  ...TIMING_SEEDS.map((x) => () => timingRec(x)),
   () => runC({ baseline: 'reality', econ: 'ai2027', world: 'ai2027' }, D('2026-11-02'), {}, []),
   ...(SMOKE ? [] : [() => runC({ baseline: 'reality', econ: 'ai2027', world: 'authors2026' }, D('2026-11-02'), {}, [])]),
   () => w2Rec(),
@@ -169,11 +184,31 @@ check(at['2026-12-31'].youthSoft < at['2026-01-01'].youthSoft - 0.03 && at['2026
   'Late 2026: SOFT youth employment falling, youth unemployment rising',
   `SOFT 22–25 ${at['2026-01-01'].youthSoft.toFixed(3)} → ${at['2026-12-31'].youthSoft.toFixed(3)}; hire ${at['2026-01-01'].hireSoft.toFixed(2)} → ${at['2026-12-31'].hireSoft.toFixed(2)}; youth U ${at['2026-01-01'].youthU.toFixed(1)} → ${at['2026-12-31'].youthU.toFixed(1)}%`);
 check(at['2026-12-31'].U - U0 < 0.3, 'Late 2026: aggregate U < +0.3 pp', `${(at['2026-12-31'].U - U0).toFixed(2)} pp`);
-check(within(c.firstHire10, '2027-07-01'), 'Jul 2027 (±3 mo): HireRate_SOFT ≤ 10%', fmt(c.firstHire10));
-check(at['2027-07-01'].friend >= 0.07 && at['2027-07-01'].friend <= 0.13, 'Jul 2027: AI-friend share 10% (±3)', pct(at['2027-07-01'].friend));
-check(within(c.firstRemote25, '2027-10-01'), 'Oct 2027 (±3 mo): 25% of remote-work jobs done by AI', fmt(c.firstRemote25));
-check(within(c.firstU12, '2027-10-01'), 'Oct 2027 (±3 mo): U +1 pp over 12 months', fmt(c.firstU12));
-check(within(c.firstAccept85, '2027-12-15'), 'Dec 2027 (±3 mo): GOV T1 Accept ≥ 0.85', fmt(c.firstAccept85));
+// Model v3 F4: the four date checks bind on the MEDIAN first day over CAL_SEEDS (20 classic runs; never reached = +∞):
+// on one seed they moved in and out of their ±3-month windows (p10–p90 spans 90–170 d, as wide as the windows); seed
+// 2027's date and the spread are printed with them. Under --smoke (seed 2027 only) they print SMOKE.
+{
+  const recs = [timingOf(c), ...TIMING_SEEDS.map((x) => timingRec(x))];
+  const dateCheck = (key: 'hire10' | 'remote25' | 'u12' | 'accept85', iso: string, label: string) => {
+    const days = recs.map((r) => r[key] ?? Infinity);
+    const med = medianOf(days);
+    const inWin = days.filter((d) => within(d, iso)).length;
+    const fd = (d: number) => (Number.isFinite(d) ? fmt(Math.round(d)) : 'never');
+    const detail = `median over ${recs.length} seed(s) ${fd(med)} (p10 ${fd(quantOf(days, 0.1))}, p90 ${fd(quantOf(days, 0.9))}; ${inWin}/${recs.length} in the window); seed ${CAL_SEED} ${fmt(recs[0][key] ?? undefined)}`;
+    if (SMOKE) smokeCheck(within(med, iso), label, detail, '(seed 2027 only)');
+    else check(within(med, iso), label, detail);
+  };
+  dateCheck('hire10', '2027-07-01', 'Jul 2027 (±3 mo): HireRate_SOFT ≤ 10%');
+  check(at['2027-07-01'].friend >= 0.07 && at['2027-07-01'].friend <= 0.13, 'Jul 2027: AI-friend share 10% (±3)', pct(at['2027-07-01'].friend));
+  dateCheck('remote25', '2027-10-01', 'Oct 2027 (±3 mo): 25% of remote-work jobs done by AI');
+  dateCheck('u12', '2027-10-01', 'Oct 2027 (±3 mo): U +1 pp over 12 months');
+  dateCheck('accept85', '2027-12-15', 'Dec 2027 (±3 mo): GOV T1 Accept ≥ 0.85');
+  if (recs.length > 1) {
+    const f = recs.map((r) => r.f11_2027);
+    const g = recs.map((r) => r.a2c);
+    console.log(`INFO  F4 spread over ${recs.length} seeds (the checks above and below read seed ${CAL_SEED}): F11 2027 revenue median $${medianOf(f).toFixed(1)}B (p10 $${quantOf(f, 0.1).toFixed(1)}B, p90 $${quantOf(f, 0.9).toFixed(1)}B; floor $98B); A2c tokens a day over 2026 median ×${medianOf(g).toFixed(1)} (p10 ×${quantOf(g, 0.1).toFixed(1)}, p90 ×${quantOf(g, 0.9).toFixed(1)}; band ×3–8)`);
+  }
+}
 // A2a: hours of AI use and hours saved per hour of use from the worker surveys (research/22 §1; Bick, Blandin & Deming
 // RPS on FRED): 4.1% of US work-hours assisted (Q3 2024) → 5.7% (Q3 2025) → 6.3% (Q2 2026); 39–41% of workers; 2.2% of
 // hours saved, 0.35 per hour of use.

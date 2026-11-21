@@ -18,8 +18,13 @@ export const TIER_W = [0.1, 0.3, 0.6, 1.0] as const; // T1 × Accept
 export const LEVERAGE_THRESHOLDS = { entrenched: 0.15, indispensable: 0.35, decisive: 0.6 } as const;
 const K_DOM: Record<ControlDomainId, number> = { ECON: 2, GOV: 1.5, MIL: 1, INFRA: 1.5 }; // per year [D]
 /** T1 Accept = base + gain·σ((L_REASON − mid)/spread) + 0.2·persuasion; humans defer to superhuman advice
- *  ("authorities almost always accept its recommendations" → 0.9 by Dec 2027 [A27]) [D, fit §7.3]. */
-export const ACCEPT = { base: 0.3, gain: 0.65, mid: 9.5, spread: 0.8, rate: 6 };
+ *  ("authorities almost always accept its recommendations" → 0.9 by Dec 2027 [A27]) [D, fit §7.3].
+ *  Model v3 G1 refit of `mid` (worldfx "Dec 2027 (±3 mo): GOV T1 Accept ≥ 0.85", target 2027-12-15, on the median first
+ *  day over the 20 classic RefBot runs of CAL_SEEDS): 9.5 was fitted while the median world ran 0.17 y late; on the
+ *  calibrated path (F4) the advisor reached the level ≥ 0.85 needs (≈ mid + 1.4) in Aug 2027. 9.5 → 11.5: median
+ *  2027-08-18 → 2027-12-16 (10.0 −88 d, 10.5 −53 d, 11.0 −24 d, 11.25 −11 d, 11.5 +2 d); Accept ≥ 0.85 now needs the
+ *  government advisor near L 12.9, between SAR (12) and SIAR (13.5), as AI 2027 places it (design/notes/G1.md). */
+export const ACCEPT = { base: 0.3, gain: 0.65, mid: 11.5, spread: 0.8, rate: 6 };
 
 export function initialControl(shareRow: () => Record<LabId, number>): Record<ControlDomainId, ControlState> {
   // Jul 2025 [D], below R16's Nov 2026 anchors (ECON 8%, GOV 3%, MIL 2%, INFRA 5%).

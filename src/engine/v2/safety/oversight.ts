@@ -14,6 +14,7 @@ import { LEVEL_KNOTS } from '../../../data/v2/calibration';
 import {
   CONTROL_DEFER, CONTROL_GAP_FULL, ELO_PER_OOM, GREENBLATT_TM, HUMAN_REVIEW_L, MONITOR_ANCHOR, MONITOR_CATCH_BASE, OOM_PER_400_ELO, REF_M_LEVEL,
 } from '../../../data/v2/oversight';
+import { ASI_EXTRA, V3_CAL } from '../../../data/v2/workTypes';
 import { Rng } from '../../rng';
 import { timelineFor } from '../world/hidden';
 import { gV0, levelKnotsG, levelOfG } from '../models/capability';
@@ -41,15 +42,29 @@ export function oomOfLevel(w: TimelineWorld, L: number): number {
 export const levelOfOom = (w: TimelineWorld, x: number) => levelOfG(w, gV0(w) + x);
 
 // ── the ai2027 reference path (v2 M½ → OOM; save migration 24 → 25 and the agendas' half points) ──
-let refWorld: TimelineWorld | undefined;
+// Model v3 G1: memoised per process on the values it is built from, not once. The path's knots do not depend on the
+// seed, but they do depend on ai2027's work-type calibration (V3_CAL.ai2027) and ASI_EXTRA, which the calibration
+// harnesses (calscan.ts, calib.ts) set between games in one process. Memoised once, a game played after such a change
+// got the earlier values' technique half points (player.safety.techniques[*].oHalf at newGame), so its trajectory
+// depended on what the process had run before (F4's "readouts perturb seeds 2, 4, 11" was this, not a readout).
+let refPath: { key: readonly number[]; w: TimelineWorld; mOom?: (readonly [number, number])[] } | undefined;
+const refPathKey = (): readonly number[] => {
+  const c = V3_CAL.ai2027;
+  return [c.gSC, c.dBM, c.r, c.sdSC, ASI_EXTRA.gaps];
+};
+function refPathEntry() {
+  const k = refPathKey();
+  if (!refPath || refPath.key.some((x, i) => x !== k[i])) refPath = { key: k, w: timelineFor(new Rng(0), { world: 'ai2027', alignment: 'medium', baseline: 'classic' }) };
+  return refPath;
+}
 /** The ai2027 timeline world (its knots do not depend on the seed: the preset draws nothing). */
 export function refPathWorld(): TimelineWorld {
-  return (refWorld ??= timelineFor(new Rng(0), { world: 'ai2027', alignment: 'medium', baseline: 'classic' }));
+  return refPathEntry().w;
 }
-let refMOom: (readonly [number, number])[] | undefined;
 /** (M, OOM above V0) at the reference knots: REF_M_LEVEL's levels through this code's λ(G) on the ai2027 world. */
 export function refMOomTable(): readonly (readonly [number, number])[] {
-  return (refMOom ??= REF_M_LEVEL.map(([M, L]) => [M, oomOfLevel(refPathWorld(), L)] as const));
+  const e = refPathEntry();
+  return (e.mOom ??= REF_M_LEVEL.map(([M, L]) => [M, oomOfLevel(e.w, L)] as const));
 }
 /** Half-strength OOM of a v2 M½ on the reference path (log-linear in M between knots; ≥ 1e8 = never decays). */
 export function oomOfRefM(M: number): number {

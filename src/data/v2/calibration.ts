@@ -41,8 +41,14 @@ export const CAL_SHIFT: Record<WorldPresetId, number> = { ai2027: -0.463, author
  *  and A7/A8's market moved the leader's paths): ai2027 −0.029 → −0.063 (refine, every milestone in tolerance), fast
  *  0.025 → 0.03 (a 0.005 scan: SC +25 d, ASI −37 d, every milestone in tolerance), slow 0.557 → 0.735 (the SC root);
  *  authors2026 kept at 0.154: no value brings SAR, SIAR and ASI in together (the SC root 0.119 puts SAR out as well),
- *  0.154 keeps SC and SAR in (SIAR −0.68 y, ASI −1.44 y out → F4). */
-export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: -0.063, authors2026: 0.154, fast: 0.03, slow: 0.735, sampled: -0.063 };
+ *  0.154 keeps SC and SAR in (SIAR −0.68 y, ASI −1.44 y out → F4). Model v3 F4 (T1L binds on the median over the 20
+ *  seeds of scripts/v2/calseeds.ts, `calscan.ts t1l`, after F4's V3_CAL refit moved the level knots; the aggregate leader
+ *  is near-deterministic, p10–p90 ≤ 0.1 y): ai2027 −0.063 → −0.15 (median SC −0.071, SAR +0.012, SIAR +0.032, ASI +0.070;
+ *  −0.10 and −0.20 fail); fast 0.03 → −0.045 (+0.060 / +0.088 / −0.001 / −0.084; −0.03 and −0.06 fail); slow 0.735 →
+ *  0.79 (SC +0.007; 0.77 fails, 0.81 passes); authors2026 0.154 → 0.11 (SC −0.018, SAR 0.000): still no value brings
+ *  SIAR and ASI in (−0.83 / −1.66 y at 0.11; at 0.05, where SC is already +0.23 y, they are −0.57 / −1.39 y): the
+ *  aggregate leader runs SAR → ASI in 2.2 y where the golden takes 3.8 y. */
+export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: -0.15, authors2026: 0.11, fast: -0.045, slow: 0.79, sampled: -0.15 };
 
 /** Knowledge diffusion to a follower (BUILD-PLAN R9, research/18 §0.2) [D, fit]: while the frontier leader lab's PUBLIC
  *  model is ahead of the player's best model, the player's know-how gains K_DIFFUSION × the gap per year (papers, staff

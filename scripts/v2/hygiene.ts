@@ -6,8 +6,8 @@ import { AGENDA_IDS } from '../../src/data/v2/agendas';
 import { TRAIT_IDS } from '../../src/data/v2/traits';
 import { causeStrip } from '../../src/engine/v2/core/causes';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
-import { makeCtx, tick } from '../../src/engine/v2/core/loop';
-import { SYSTEMS } from '../../src/engine/v2/core/registry';
+import { makeCtx, resolve, tick } from '../../src/engine/v2/core/loop';
+import { EVENT_BY_ID, SYSTEMS } from '../../src/engine/v2/core/registry';
 import { STREAMS, StreamRng } from '../../src/engine/v2/core/rng';
 import { SAVE_BUDGET_BYTES, SCHEMA_REV, deserialize, serialize, stateHash } from '../../src/engine/v2/core/save';
 import { cadencesDue, decimalYear } from '../../src/engine/v2/core/time';
@@ -18,7 +18,7 @@ import { oomOfRefM } from '../../src/engine/v2/safety/oversight';
 import { postG, recipeOf } from '../../src/engine/v2/actors/rivalModel';
 import { stacksGEquiv } from '../../src/engine/v2/models/stacks';
 import { B_G_PER_Y } from '../../src/data/v2/runDesign';
-import { LEADER_CAL } from '../../src/data/v2/calibration';
+import { CHINA_CAL, LEADER_CAL } from '../../src/data/v2/calibration';
 import { START_BY_ID } from '../../src/data/v2/starts';
 import { ownedOnline, rentedOnline } from '../../src/engine/v2/compute/power';
 import { nodeKnown } from '../../src/engine/v2/models/tree';
@@ -27,11 +27,76 @@ import { hRef, refTotal } from '../../src/engine/v2/production/knots';
 import { uniqueTokens } from '../../src/engine/v2/production/data';
 import { lineNodeId } from '../../src/data/v2/tree';
 import type { Cadence, EngineSystem, GameStateV2, SetupV2, StreamId, WorkstreamId } from '../../src/engine/v2/types';
-import { check, finish, runTo, validateJson } from './lib';
+import { ASI_EXTRA, V3_CAL } from '../../src/data/v2/workTypes';
+import { refBot } from '../../src/engine/v2/bots/ref';
+import { engine } from '../../src/engine/v2/index';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { FIXTURE_DIR, SMOKE, check, finish, runTo, validateJson } from './lib';
+import { ROOT, cached, prefill } from './simcache';
+import { spawnSync } from 'node:child_process';
+import { deepFreeze, readSweep, sweptFunctions } from './readsweep';
 
 const N = 1500;
 const PERF_ONLY = process.argv.includes('--perf-only');
 const NO_PERF = process.argv.includes('--no-perf');
+
+// Section 3b's lockstep games (model v3 G1), cached: the seeds F4 saw move (2, 4, 11) to mid-2027 (past SC on most
+// seeds), the full selector sweep every READ_EVERY days. --smoke (test:quick): seed 4 to day 240.
+const READ_SEEDS = SMOKE ? [4] : [2, 4, 11];
+const READ_DAYS = SMOKE ? 240 : 730;
+const READ_EVERY = 7;
+const READ_FILES = [fileURLToPath(import.meta.url), fileURLToPath(new URL('./readsweep.ts', import.meta.url))];
+/** RefBot plays one day (worldfx's refDay: decide pending events, act, tick with endings skipped). */
+function refDay(s: GameStateV2) {
+  for (const p of [...s.events.pending]) {
+    const c = refBot.decide(s, p);
+    if (resolve(s, p.instance, c)) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0);
+  }
+  refBot.act(s, engine);
+  tick(s, { skip: ['endings'] });
+}
+/** The classic ai2027 RefBot game twice in lockstep, one read with readSweep every READ_EVERY days: the first day the
+ *  two state hashes differ (null: never). */
+function readPurityRec(seed: number): { firstDiff: number | null } {
+  return cached('hygiene-readpure', { seed, days: READ_DAYS, every: READ_EVERY }, READ_FILES, () => {
+    const mk = () => newGame(defaultSetupV2({ seed, world: 'ai2027', alignment: 'medium', baseline: 'classic', tutorial: false, econ: 'ai2027' }));
+    const plain = mk();
+    const read = mk();
+    readSweep(read);
+    while (plain.time.day < READ_DAYS) {
+      refDay(plain);
+      refDay(read);
+      if (read.time.day % READ_EVERY === 0) readSweep(read);
+      if (stateHash(plain) !== stateHash(read)) return { firstDiff: plain.time.day };
+    }
+    return { firstDiff: null };
+  });
+}
+// Section 3b (c): the game played at shifted calibration values; `--history-child` plays it in a fresh process.
+const HIST_SETUP = defaultSetupV2({ seed: 4, world: 'ai2027', alignment: 'medium', baseline: 'classic', tutorial: false, econ: 'ai2027' });
+const HIST_DAYS = 30;
+/** Shift every harness-mutable calibration table (as calscan.ts / calib.ts do between games); returns the restore. */
+function shiftCalibration(): () => void {
+  const saved = { v3: JSON.stringify(V3_CAL), asi: ASI_EXTRA.gaps, lc: JSON.stringify(LEADER_CAL), cn: CHINA_CAL.effScale };
+  for (const c of Object.values(V3_CAL)) Object.assign(c, { gSC: c.gSC - 0.4, dBM: c.dBM + 0.3, sdSC: c.sdSC + 0.5 });
+  ASI_EXTRA.gaps += 0.2;
+  for (const k of Object.keys(LEADER_CAL) as (keyof typeof LEADER_CAL)[]) LEADER_CAL[k] += 0.1;
+  CHINA_CAL.effScale += 0.3;
+  return () => {
+    for (const [k, c] of Object.entries(JSON.parse(saved.v3) as typeof V3_CAL)) Object.assign(V3_CAL[k as keyof typeof V3_CAL], c);
+    ASI_EXTRA.gaps = saved.asi;
+    Object.assign(LEADER_CAL, JSON.parse(saved.lc));
+    CHINA_CAL.effScale = saved.cn;
+  };
+}
+if (process.argv.includes('--history-child')) {
+  shiftCalibration();
+  console.log(`HISTORY ${stateHash(runTo(newGame(HIST_SETUP), HIST_DAYS))}`);
+  process.exit(0);
+}
+prefill(READ_SEEDS.map((x) => () => readPurityRec(x)));
 
 // Stream instrumentation for section 4 (stream isolation). Installed before everything else so that --perf-only
 // measures the tick under exactly the same wrappers as a full run (outside a logged run they only pass through).
@@ -192,6 +257,45 @@ const a = run(detSetup);
 const b = run(detSetup);
 check(stateHash(a) === stateHash(b), `determinism: same seed → same hash after ${N} ticks`, stateHash(a));
 check(stateHash(run({ ...detSetup, seed: 43 }, 10)) !== stateHash(run(detSetup, 10)), 'determinism: different seed → different hash');
+
+// ---------- 3b. Readouts are pure; a game does not depend on the process's history (model v3 G1) ----------
+// A selector may not write the state, draw from a stream or leave a cache a later tick reads differently; and a game is
+// a function of its setup and the code, not of what ran before it in the process (F4 saw seeds 2, 4 and 11 move when
+// the same classic game was read with extra readouts: the cause was a process-wide memo of the ai2027 reference path,
+// built once from V3_CAL, which the calibration harness had changed between games; safety/oversight.ts refPathEntry).
+{
+  // (a) Every UI-facing selector on a deep-frozen state: none writes (a write to a frozen object throws in ES modules).
+  const writers: string[] = [];
+  let calls = 0;
+  for (const f of ['day0', 'day400', 'day900']) {
+    const s = deepFreeze(deserialize(readFileSync(join(FIXTURE_DIR, `${f}.json`), 'utf8')));
+    const r = readSweep(s);
+    calls += r.calls;
+    writers.push(...r.fails.map((x) => `${f}: ${x}`));
+  }
+  check(writers.length === 0, `readouts: no selector writes the state (${sweptFunctions().length} engine exports and worldfx readouts, ${calls} calls on deep-frozen day 0 / 400 / 900 fixtures)`, writers.slice(0, 4).join('; '));
+  // (b) Classic RefBot games (worldfx's setup) in lockstep, one plain and one with the full sweep every READ_EVERY days:
+  //     the state hash is identical every day.
+  const bad: string[] = [];
+  for (const seed of READ_SEEDS) {
+    const r = readPurityRec(seed);
+    if (r.firstDiff !== null) bad.push(`seed ${seed}: first differs on day ${r.firstDiff}`);
+  }
+  check(bad.length === 0, `readouts: a classic RefBot game read with every selector every ${READ_EVERY} days keeps the same state hash every day as the same game unread (seeds ${READ_SEEDS.join(', ')}, ${READ_DAYS} days)`, bad.join('; '));
+  // (c) Process history: a game at other calibration values (every harness-mutable table: V3_CAL, ASI_EXTRA,
+  //     LEADER_CAL, CHINA_CAL, set as the harnesses do, between games) hashes the same in this process, after every game
+  //     above, as in a fresh process that set them first; and after the values are restored, as before.
+  const h1 = stateHash(run(HIST_SETUP, HIST_DAYS));
+  const restore = shiftCalibration();
+  for (const w of ['ai2027', 'authors2026'] as const) readSweep(run(defaultSetupV2({ seed: 9, world: w, leaderLab: true }), 20));
+  const hHere = stateHash(run(HIST_SETUP, HIST_DAYS));
+  restore();
+  const h2 = stateHash(run(HIST_SETUP, HIST_DAYS));
+  const child = spawnSync(process.execPath, ['--import', 'tsx', fileURLToPath(import.meta.url), '--history-child'], { encoding: 'utf8', cwd: ROOT });
+  const hFresh = /HISTORY ([0-9a-f]+)/.exec(child.stdout ?? '')?.[1] ?? `child failed (status ${child.status}${child.error ? `, ${child.error.message}` : ''}): ${(child.stderr ?? '').slice(0, 200)}`;
+  check(hHere === hFresh, `process history: a game at other calibration values hashes the same after earlier games in the process as in a fresh process (${HIST_DAYS} days)`, `${hHere} vs ${hFresh}`);
+  check(h1 === h2, `process history: with the values restored the game hashes as before (${HIST_DAYS} days)`, `${h1} vs ${h2}`);
+}
 
 // ---------- 4. Stream isolation ----------
 // Isolation means a stream's sequence depends only on its own draws. Every StreamRng draw is instrumented: the state it

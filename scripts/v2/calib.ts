@@ -1,12 +1,16 @@
 // Calibration acceptance tests T1–T4 (V2-SPEC §7.1). Owner: WS1.
 //   T1  RefBot (stub finance: infinite cash; compute tracks refTotal) — its work-type milestones (model v3 V3.5) hit the
-//       golden milestone days (scripts/v2/golden/timelines.json) within ±0.08 y (SC) and ±0.12 y after. The per-preset
-//       knobs are G_SC (effective compute a superhuman coder needs) and Δ_bm (best-to-median human gap):
-//       `npx tsx scripts/v2/calib.ts --fit-v3 [preset …]` bisects G_SC on SC for each Δ_bm and searches Δ_bm on the
-//       worst later milestone; it prints the values to hard-code in src/data/v2/workTypes.ts (V3_CAL).
+//       golden milestone days (scripts/v2/golden/timelines.json) within ±0.08 y (SC) and ±0.12 y after, ON THE MEDIAN
+//       over the fixed seed set CAL_SEEDS (calseeds.ts: 2027 and 1–19; model v3 F4 — one seed is not a calibration, the
+//       dates are bimodal; seed 2027's row is informational). The per-preset knobs are G_SC (effective compute a
+//       superhuman coder needs), Δ_bm (best-to-median human gap) and sd_SC (AI taste at SC), in src/data/v2/workTypes.ts
+//       (V3_CAL): fit them with `npx tsx scripts/v2/calscan.ts t1 <preset> --gsc … --dbm … --sd …` (the same median over
+//       the same seeds) and take the middle of the passing window. `--fit-v3 [preset …]` (seed 2027 only) is kept for a
+//       first guess: it bisects G_SC on SC for each Δ_bm and searches Δ_bm on the worst later milestone.
 //   T1L Leader lab (setup.leaderLab, BUILD-PLAN R2) with a passive player: the simulated leader's milestone days hit
-//       the same golden days and tolerances. LEADER_CAL (its research efficiency, log₁₀; model v3 F1) is its per-preset knob:
-//       `npx tsx scripts/v2/calib.ts --fit-leader [preset …]` bisects it on SC (src/data/v2/calibration.ts).
+//       the same golden days and tolerances, on the median over the same seeds. LEADER_CAL (its research efficiency,
+//       log₁₀; model v3 F1) is its per-preset knob (src/data/v2/calibration.ts): `calscan.ts t1l <preset> --lc …`;
+//       `--fit-leader [preset …]` (seed 2027 only) bisects it on SC for a first guess.
 //   T2  Copies × speed in Mar 2027 (ai2027 RefBot) ≈ 200k at ~30× (±30%).
 //   T3  China lead 150–200 d before any theft (default China lab, WS1 lab API).
 //   T4  Rival gaps at start 3–9 months.
@@ -14,9 +18,9 @@
 // Every game goes through the simulation cache (simcache.ts; the fit modes do not). Modes:
 //   (default)  everything above.
 //   --cal      T1, T1L and T4 only (test:cal).
-//   --smoke    (test:quick) T1 and T1L on ai2027 only, cut at day SMOKE_DAYS (past the 2027.0 METR and Nov 2026 G-path
-//              reads, so those run at full strength); a milestone reached within the cut is checked exactly as in the full
-//              run, one not yet reached prints SMOKE; T4 runs; the integrated runs, T2 and T3 are skipped.
+//   --smoke    (test:quick) T1 and T1L on ai2027, seed 2027 only, cut at day SMOKE_DAYS (past the 2027.0 METR and Nov 2026
+//              G-path reads, so those run at full strength); the milestone checks print SMOKE (the binding basis is the
+//              median over CAL_SEEDS, test:cal); T4 runs; the integrated runs, T2 and T3 are skipped.
 import { readFileSync } from 'node:fs';
 import { GOLDEN_TOL, LEADER_CAL } from '../../src/data/v2/calibration';
 import { ASI_EXTRA, V3_CAL } from '../../src/data/v2/workTypes';
@@ -37,6 +41,7 @@ import { engine } from '../../src/engine/v2/index';
 import { fileURLToPath } from 'node:url';
 import { GOLDEN_PATH, KNOWN, SMOKE, check, finish, refGame, runRef, smokeCheck } from './lib';
 import { cached, prefill } from './simcache';
+import { CAL_SEED, CAL_SEEDS, medianOf, quantOf } from './calseeds';
 import { LINE_FIT } from '../../src/data/v2/research';
 import { ePreAt, latestBaseFlop, stacksGEquiv } from '../../src/engine/v2/models/stacks';
 import { TREE_BY_ID } from '../../src/data/v2/tree';
@@ -45,7 +50,9 @@ import { fOver } from '../../src/engine/v2/models/effective';
 import { effortOf } from '../../src/engine/v2/models/tree';
 
 const NAMES = ['A0', 'A1', 'A2', 'SC', 'SAR', 'SIAR', 'ASI'] as const;
-const SEED = 2027;
+/** Model v3 F4: T1 and T1L bind on the MEDIAN over CAL_SEEDS (SEED plus 19 others, calseeds.ts), per milestone; SEED's
+ *  run also gives the R5, G-path, M and METR reads. Every seed's run is cached. */
+const SEED = CAL_SEED;
 const golden = JSON.parse(readFileSync(GOLDEN_PATH, 'utf8')) as { presets: Record<string, { days: Record<string, number> }> };
 type T1Preset = 'ai2027' | 'authors2026' | 'fast' | 'slow';
 const T1_PRESETS: T1Preset[] = ['ai2027', 'authors2026', 'fast', 'slow'];
@@ -326,15 +333,15 @@ const MAX_DAYS = SMOKE ? SMOKE_DAYS : 365 * 16;
 const PRESETS: T1Preset[] = SMOKE ? ['ai2027'] : T1_PRESETS;
 /** Calibration overrides that change every run (part of every cache key). */
 const ENV = { V3_SD: process.env.V3_SD ?? null, V3_ASI: process.env.V3_ASI ?? null };
-/** A milestone check: binding when the milestone was reached (and always in a full run); under --smoke a milestone not
- *  reached within the cut prints SMOKE (the full run would go on). */
-const msCheck = (got: number | undefined, ok: boolean, label: string, detail: string) => (got === undefined ? smokeCheck(ok, label, detail, `(not reached by day ${MAX_DAYS})`) : check(ok, label, detail));
 Object.assign(KNOWN, {
   'T1 ai2027 A1': 'Before continual learning RefBot\'s deployed model lags its know-how by 0.5–0.9 y (base staleness, κ, version age), more than the post-stream lag calShift is fitted to; early milestones are informational (§7.1 binds SC and later).',
   'T1 ai2027 A2': 'see T1 ai2027 A1',
   'T1 authors2026 A1': 'see T1 ai2027 A1', 'T1 authors2026 A2': 'see T1 ai2027 A1',
   'T1 fast A1': 'see T1 ai2027 A1', 'T1 fast A2': 'see T1 ai2027 A1',
   'T1 slow A1': 'see T1 ai2027 A1', 'T1 slow A2': 'see T1 ai2027 A1',
+  // Model v3 F4: no LEADER_CAL brings these in with SC and SAR (median over CAL_SEEDS; F4 notes).
+  'T1L authors2026 SIAR': 'The aggregate leader lab (no idea projects) runs authors2026 SAR → ASI in 2.2 y where the golden takes 3.8 y: at LEADER_CAL 0.11 (SC −0.02, SAR 0.00 y) SIAR is −0.83 y and ASI −1.66 y; at 0.05, where SC is already +0.23 y, still −0.57 / −1.39 y (F2, M7, F4).',
+  'T1L authors2026 ASI': 'see T1L authors2026 SIAR',
 });
 const table: string[] = [];
 const delays: string[] = [];
@@ -376,10 +383,16 @@ function t1Rec(preset: T1Preset) {
   return { md: s.player.milestoneDays, waits: [...waits.entries()], stackAt0, gPath, start, h0, h1 };
   });
 }
-/** T1L leader-lab milestone days for a preset (cached). */
-function t1lRec(preset: T1Preset) {
+/** T1 milestone days of one more seed of the median set (cached; SEED's come from t1Rec, whose observers only read). */
+function t1SeedRec(preset: T1Preset, seed: number): Partial<Record<MilestoneIdx, number>> {
+  if (seed === SEED) return t1Rec(preset).md;
+  const cal = { gSC: V3_CAL[preset].gSC, dBM: V3_CAL[preset].dBM };
+  return cached('calib-t1s', { preset, cal, sdSC: V3_CAL[preset].sdSC, seed, stopAt: lastIdx(preset), maxDays: MAX_DAYS, env: ENV }, ME, () => runT1(preset, cal, seed, lastIdx(preset), MAX_DAYS).player.milestoneDays);
+}
+/** T1L leader-lab milestone days for a preset and seed (cached). */
+function t1lRec(preset: T1Preset, seed = SEED) {
   const lc = LEADER_CAL[preset];
-  return cached('calib-t1l', { preset, lc, stopAt: lastIdx(preset), seed: SEED, maxDays: MAX_DAYS, env: ENV }, ME, () => runT1L(preset, lc, lastIdx(preset), SEED, MAX_DAYS));
+  return cached('calib-t1l', { preset, lc, stopAt: lastIdx(preset), seed, maxDays: MAX_DAYS, env: ENV }, ME, () => runT1L(preset, lc, lastIdx(preset), seed, MAX_DAYS));
 }
 /** T1 integrated RefBot record for a preset (cached): milestone days, worst R5 wait, final cash and finance state. */
 function intRec(preset: T1Preset) {
@@ -424,12 +437,53 @@ function t3Rec() {
   });
 }
 // The runner's --prefill shards: every cached run of this mode, in the order the checks ask for them.
+/** Seeds of the binding T1 / T1L medians (smoke: SEED only, cut at SMOKE_DAYS, informational). T1 needs all 20: RefBot's
+ *  dates are multimodal and every smaller subset of CAL_SEEDS tried (first 5, 8, 10, 12) moved some median out of
+ *  tolerance. The aggregate leader lab is near-deterministic (p10–p90 ≤ 0.1 y on 20 seeds; the first five seeds' medians
+ *  sit within 0.02 y of the 20-seed medians), so T1L reads the first five, which keeps test:cal's cold run down (F4). */
+const T1_SEEDS = SMOKE ? [SEED] : CAL_SEEDS;
+const T1L_SEEDS = SMOKE ? [SEED] : CAL_SEEDS.slice(0, 5);
 prefill([
-  ...PRESETS.map((p) => () => t1Rec(p)),
-  ...PRESETS.map((p) => () => t1lRec(p)),
+  // slow (the longest runs) first.
+  ...[...PRESETS].reverse().flatMap((p) => [() => t1Rec(p), ...T1_SEEDS.filter((x) => x !== SEED).map((x) => () => t1SeedRec(p, x)), ...T1L_SEEDS.map((x) => () => t1lRec(p, x))]),
   ...(SMOKE || CAL_ONLY || process.argv.includes('--no-integrated') ? [] : T1_PRESETS.map((p) => () => intRec(p))),
   ...(SMOKE || CAL_ONLY ? [] : [() => t2Rec(), () => t3Rec()]),
 ]);
+type MsDays = Partial<Record<MilestoneIdx, number>>;
+const sgn = (x: number) => (x >= 0 ? '+' : '') + x.toFixed(3);
+/** One seed's milestone years (Δ vs golden) from milestone `from` on. */
+const seedRow = (preset: T1Preset, md: MsDays, from: number) => {
+  const g = golden.presets[preset].days;
+  return NAMES.flatMap((n, i) => {
+    if (i < from || g[n] === undefined) return [];
+    const got = md[i as MilestoneIdx];
+    return [`${n} ${got === undefined ? '—' : `${yearOf(got).toFixed(3)} (${sgn((got - g[n]) / 365)})`}`];
+  }).join('  ');
+};
+/** F4: the binding T1 / T1L checks on the median over the seed set, milestone `from` … last; the spread (p10, p90, seeds
+ *  within tolerance) is printed with them. Under --smoke (SEED only, cut at SMOKE_DAYS) they print SMOKE. */
+function medianChecks(test: 'T1' | 'T1L', preset: T1Preset, mds: MsDays[], from: number) {
+  const g = golden.presets[preset].days;
+  const cells: string[] = [];
+  const spread: string[] = [];
+  NAMES.forEach((n, i) => {
+    const want = g[n];
+    if (i < from || want === undefined) return;
+    const tol = (i === 3 ? GOLDEN_TOL.SC : GOLDEN_TOL.after) * 365;
+    const days = mds.map((md) => md[i as MilestoneIdx] ?? Infinity);
+    const med = medianOf(days);
+    const inTol = days.filter((d) => Math.abs(d - want) <= tol).length;
+    const ok = Math.abs(med - want) <= tol;
+    const label = `${test} ${preset} ${n}`;
+    const detail = `median over ${mds.length} seeds ${Number.isFinite(med) ? `${med.toFixed(1)} (${yearOf(med)})` : '—'} want ${want} (${yearOf(want)}) ±${Math.round(tol)} d; ${inTol}/${mds.length} seeds within`;
+    if (SMOKE) smokeCheck(ok, label, detail, `(seed ${SEED} only, cut at day ${MAX_DAYS})`);
+    else check(ok, label, detail);
+    cells.push(`${n} ${Number.isFinite(med) ? `${yearOf(med).toFixed(3)} (${sgn((med - want) / 365)})` : '—'}`);
+    if (i >= 3 && mds.length > 1) spread.push(`${n}: p10 ${sgn((quantOf(days, 0.1) - want) / 365)}, p90 ${sgn((quantOf(days, 0.9) - want) / 365)} y; ${inTol}/${mds.length} seeds within ±${(tol / 365).toFixed(2)} y`);
+  });
+  return { row: cells.join('  '), spread };
+}
+const medTable: string[] = [];
 const v3checks: string[] = [];
 for (const preset of PRESETS) {
   const cal = { gSC: V3_CAL[preset].gSC, dBM: V3_CAL[preset].dBM };
@@ -468,23 +522,14 @@ for (const preset of PRESETS) {
   const worstWait = Math.max(0, ...waits.values());
   delays.push(`${preset} ${worstWait} d over ${waits.size} runs`);
   check(worstWait <= 3, `R5 build queue never delays a RefBot run > 3 d (${preset})`, `worst ${worstWait} d`);
-  const s = { player: { milestoneDays: rec.md } };
-  const g = golden.presets[preset].days;
-  const row: string[] = [];
-  NAMES.forEach((n, i) => {
-    if (i === 0) return;
-    const want = g[n];
-    if (want === undefined) return;
-    const got = s.player.milestoneDays[i as MilestoneIdx];
-    const tol = (i === 3 ? GOLDEN_TOL.SC : GOLDEN_TOL.after) * 365;
-    const dy = got === undefined ? NaN : (got - want) / 365;
-    row.push(`${n} ${got === undefined ? '—' : yearOf(got).toFixed(3)} (${Number.isNaN(dy) ? '—' : (dy >= 0 ? '+' : '') + dy.toFixed(3)})`);
-    if (i < 3) msCheck(got, got !== undefined && Math.abs(got - want) <= tol, `T1 ${preset} ${n}`, `got ${got ?? '—'} want ${want} ±${Math.round(tol)} d`);
-    else msCheck(got, got !== undefined && Math.abs(got - want) <= tol, `T1 ${preset} ${n}`, `got ${got ?? '—'} (${got === undefined ? '' : yearOf(got)}) want ${want} (${yearOf(want)}) ±${Math.round(tol)} d`);
-  });
-  table.push(`${preset.padEnd(12)} G_SC ${cal.gSC.toFixed(3)} Δ_bm ${cal.dBM.toFixed(3)} sd_SC ${V3_CAL[preset].sdSC}  ${row.join('  ')}  [${(performance.now() - t0).toFixed(0)} ms]`);
+  const mds = T1_SEEDS.map((x) => t1SeedRec(preset, x));
+  const { row, spread } = medianChecks('T1', preset, mds, 1);
+  table.push(`${preset.padEnd(12)} G_SC ${cal.gSC.toFixed(3)} Δ_bm ${cal.dBM.toFixed(3)} sd_SC ${V3_CAL[preset].sdSC}  seed ${SEED}: ${seedRow(preset, rec.md, 1)}  [${(performance.now() - t0).toFixed(0)} ms]`);
+  medTable.push(`${preset.padEnd(12)} ${row}`, ...spread.map((x) => `${' '.repeat(14)}${x}`));
 }
-console.log('\nT1 RefBot milestone years (Δ vs golden, years):');
+console.log(`\nT1 RefBot milestone years, median over ${T1_SEEDS.length} seeds (${T1_SEEDS.join(', ')}; Δ vs golden, years; the binding checks):`);
+for (const r of medTable) console.log('  ' + r);
+console.log(`T1 RefBot milestone years on seed ${SEED} alone (informational since F4; its run also gives the R5, G-path, M and METR reads):`);
 for (const r of table) console.log('  ' + r);
 console.log(`  R5 build queue, worst wait for engineers: ${delays.join(', ')}`);
 console.log('\nV2.8 stacks before SC (Ho et al. ≈ 0.48 OOM/yr pretraining before automation, ±30%):');
@@ -498,23 +543,11 @@ for (const r of v3checks) console.log('  ' + r);
   for (const preset of PRESETS) {
     const lc = LEADER_CAL[preset];
     const t0 = performance.now();
-    const md = t1lRec(preset);
-    const g = golden.presets[preset].days;
-    const row: string[] = [];
-    NAMES.forEach((n, i) => {
-      if (i === 0) return;
-      const want = g[n];
-      if (want === undefined) return;
-      const got = md[i as MilestoneIdx];
-      const dy = got === undefined ? NaN : (got - want) / 365;
-      row.push(`${n} ${got === undefined ? '—' : yearOf(got).toFixed(3)} (${Number.isNaN(dy) ? '—' : (dy >= 0 ? '+' : '') + dy.toFixed(3)})`);
-      if (i < 3) return;
-      const tol = (i === 3 ? GOLDEN_TOL.SC : GOLDEN_TOL.after) * 365;
-      msCheck(got, got !== undefined && Math.abs(got - want) <= tol, `T1L ${preset} ${n}`, `got ${got ?? '—'} (${got === undefined ? '' : yearOf(got)}) want ${want} (${yearOf(want)}) ±${Math.round(tol)} d`);
-    });
-    tableL.push(`${preset.padEnd(12)} LEADER_CAL ${lc.toFixed(3)}  ${row.join('  ')}  [${(performance.now() - t0).toFixed(0)} ms]`);
+    const mds = T1L_SEEDS.map((x) => t1lRec(preset, x));
+    const { row, spread } = medianChecks('T1L', preset, mds, 3);
+    tableL.push(`${preset.padEnd(12)} LEADER_CAL ${lc.toFixed(3)}  median ${row}  [${(performance.now() - t0).toFixed(0)} ms]`, ...spread.map((x) => `${' '.repeat(14)}${x}`), `${' '.repeat(14)}seed ${SEED}: ${seedRow(preset, t1lRec(preset), 1)}`);
   }
-  console.log('\nT1L leader lab milestone years (passive player; Δ vs golden, years):');
+  console.log(`\nT1L leader lab milestone years (passive player), median over ${T1L_SEEDS.length} seeds (Δ vs golden, years; SC and later bind):`);
   for (const r of tableL) console.log('  ' + r);
 }
 

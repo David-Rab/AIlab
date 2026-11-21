@@ -64,9 +64,10 @@ const JOBS: Job[] = [
   { id: 'evals', script: 'evals.ts', ...S(ALL, 30) } as Job,
   { id: 'safetyresearch', script: 'safetyresearch.ts', ...S(ALL, 25) } as Job,
   { id: 'worktypes', script: 'worktypes.ts', ...S(ALL, 60) } as Job,
-  { id: 'calib', script: 'calib.ts', args: { quick: SMOKE, cal: ['--cal'] }, mode: { quick: 'SMOKE', cal: 'T1 T1L T4' }, shards: { full: 4, cal: 4 }, ...S(['quick', 'cal', 'full'], 300) } as Job,
+  { id: 'calib', script: 'calib.ts', args: { quick: SMOKE, cal: ['--cal'] }, mode: { quick: 'SMOKE', cal: 'T1 T1L T4' }, shards: { full: 6, cal: 6 }, ...S(['quick', 'cal', 'full'], 300) } as Job,
   { id: 'fixtures', script: 'fixtures.ts', ...S(ALL, 120) } as Job,
-  { id: 'hygiene', script: 'hygiene.ts', args: { quick: ['--no-perf'], full: ['--no-perf'], perf: ['--perf-only'] }, mode: { quick: 'no perf', full: 'no perf', perf: 'perf only' }, ...S(['quick', 'full', 'perf'], 90) } as Job,
+  // G1: hygiene's readout-purity games (3b) run as prefill shards in full; --smoke in quick plays one seed of them.
+  { id: 'hygiene', script: 'hygiene.ts', args: { quick: ['--no-perf', '--smoke'], full: ['--no-perf'], perf: ['--perf-only'] }, mode: { quick: 'no perf, SMOKE 3b', full: 'no perf', perf: 'perf only' }, shards: { full: 3 }, ...S(['quick', 'full', 'perf'], 120) } as Job,
   { id: 'lint-hidden', script: 'lint-hidden.ts', ...S(ALL, 10) } as Job,
   { id: 'lint-ux', script: 'lint-ux.ts', ...S(ALL, 10) } as Job,
   { id: 'lint-tradeoffs', script: 'lint-tradeoffs.ts', ...S(ALL, 10) } as Job,
@@ -83,7 +84,7 @@ const JOBS: Job[] = [
   // E10: safety rates vs research/20 F (12 RefBot games to ASI and 40 probe worlds; full tier only).
   { id: 'safetyrates', script: 'safetyrates.ts', shards: { full: 4 }, ...S(['full'], 200) } as Job,
   { id: 'finance', script: 'finance.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, shards: { full: 3, quick: 2 }, ...S(ALL, 250) } as Job,
-  { id: 'worldfx', script: 'worldfx.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, ...S(ALL, 90) } as Job,
+  { id: 'worldfx', script: 'worldfx.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, shards: { full: 4 }, ...S(ALL, 90) } as Job,
   { id: 'ws4', script: 'ws4.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, ...S(ALL, 120) } as Job,
   { id: 'rivals', script: 'rivals.ts', ...S(ALL, 30) } as Job,
   { id: 'products', script: 'products.ts', ...S(ALL, 30) } as Job,
