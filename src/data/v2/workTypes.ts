@@ -200,12 +200,19 @@ export const DAY0_REF = { re: 11 * 0.88, agents: 3e4, flop: 1e6 * 0.05 * 3.46e19
  *  fast (31.345, 0.05, 0.5) → (31.1, 0.3, 1.5): median −0.042 / +0.097 / −0.016 / −0.095, worst 0.81 tolerances, no
  *  window (every neighbour fails by 0.02–0.6 tolerances: RefBot's SAR, SIAR and ASI fall within days of each other in
  *  this preset while the golden spaces SAR → ASI 76 d, so SAR's median sits late when ASI's sits early). slow 35.496 →
- *  35.575: the median 4776 (+0.049) holds over 35.45–35.70, the value its middle. */
+ *  35.575: the median 4776 (+0.049) holds over 35.45–35.70, the value its middle.
+ *  M10 (after S5R's safety share in refPlay's default, MKT's cheap tier / capacity pricing, AF2; calscan.ts t1, 20 seeds):
+ *  authors2026 (33.55, 4.6, 2.15) → (33.45, 4.7, 2.15): at 33.55 the SC median sits on the day-1540 step (+0.123 y) for
+ *  every Δ_bm 4.5–4.7 and sd_SC 2.15–2.35, and G_SC alone (33.40–33.525) leaves SIAR / ASI early (−0.14 / −0.19 at 33.45);
+ *  a diagonal island: (33.45, 4.7) worst 0.74 tolerances (SC +0.051 / SAR −0.088 / SIAR −0.027 / ASI +0.089 y) and
+ *  (33.475, 4.65) 0.83; (33.45, 4.65) 1.08 and (33.475, 4.7) 1.27 fail; sd_SC 2.25 / 2.35 pull SIAR / ASI 0.25–0.5 y early.
+ *  fast 31.1 → 31.2: the only passing G_SC of 31.15–31.30 (worst 0.84: SC +0.008 / SAR +0.101 / SIAR −0.016 / ASI −0.096;
+ *  31.15 1.12, 31.25 1.10 fail), structural as before. */
 export interface V3Cal { gSC: number; dBM: number; r: number; sdSC: number }
 export const V3_CAL: Record<WorldPresetId, V3Cal> = {
   ai2027: { gSC: 30.15, dBM: 2.9, r: 4, sdSC: 1.25 },
-  authors2026: { gSC: 33.55, dBM: 4.6, r: 3.19, sdSC: 2.15 },
-  fast: { gSC: 31.1, dBM: 0.3, r: 4, sdSC: 1.5 },
+  authors2026: { gSC: 33.45, dBM: 4.7, r: 3.19, sdSC: 2.15 },
+  fast: { gSC: 31.2, dBM: 0.3, r: 4, sdSC: 1.5 },
   slow: { gSC: 35.575, dBM: 1.6, r: 1.2, sdSC: SD_AT_SC },
   sampled: { gSC: 30.15, dBM: 2.9, r: 4, sdSC: 1.25 },
 };
