@@ -248,7 +248,11 @@ function aiLab(ag: AgendaId, o: { t: number; pkg?: number; dg?: number; seed?: n
   const sl = safetyLabour(a);
   const da = results(a, aid, 1)[0];
   check(l0.exp === 1 && l0.ideas === 1 && l0.aiShare === 0 && Math.abs(q0 - 1) < 1e-12, "E2 start: Trusted to AI 0 (the default) gives no AI labour and no AI taste, so E1's T₁ pacing is unchanged", `m ${l0.exp}/${l0.ideas}, taste ${q0.toFixed(4)}`);
-  check(la.exp < 1.1 && la.ideas < 1.01 && Math.abs(da / d0 - 1) < 0.04, 'E2 start: the start model handed half the work adds little (SAF coverage a few per cent)', `SAF_EXP a ${(sl.exp.fit.a * 100).toFixed(1)}%, SAF_IDEAS a ${(sl.ideas.fit.a * 100).toFixed(2)}%; m ${la.exp.toFixed(3)} / ${la.ideas.toFixed(4)}; first result ${d0} → ${da} d`);
+  // "Adds little" thresholds m_exp < 1.2, m_ideas < 1.05 [D] (M9 re-baseline, lead decision; were 1.1 / 1.01): F4's
+  // ai2027 refit raised sd_SC (AI research taste at SC) 0.5 → 1.25 and sdAIOf is anchored at sd_SC, so the start model's
+  // AI taste is 0.75 SD higher and its (still few per cent) SAF coverage counts for a little more: m 1.133 / 1.028 on
+  // the merged head. The first result still moves by under 4%.
+  check(la.exp < 1.2 && la.ideas < 1.05 && Math.abs(da / d0 - 1) < 0.04,'E2 start: the start model handed half the work adds little (SAF coverage a few per cent)', `SAF_EXP a ${(sl.exp.fit.a * 100).toFixed(1)}%, SAF_IDEAS a ${(sl.ideas.fit.a * 100).toFixed(2)}%; m ${la.exp.toFixed(3)} / ${la.ideas.toFixed(4)}; first result ${d0} → ${da} d`);
 }
 {
   // Coverage and copies drive it; no √M cap. A covering model (fit +6 OOM) fully trusted gets far more than v2's
@@ -265,7 +269,10 @@ function aiLab(ag: AgendaId, o: { t: number; pkg?: number; dg?: number; seed?: n
   // Low coverage adds little even with lots of compute and full trust.
   const { s: w } = aiLab('AG08', { t: 1, pkg: 0.6 });
   const lo = lineLabour(w, 'AG08');
-  check(lo.exp < 1.25 && lo.ideas < 1.02 && lo.aiShare < 0.06, 'E2 a safety model with low SAF coverage adds little (start model, full trust, 60% of the safety pool)', `m ${lo.exp.toFixed(3)} / ${lo.ideas.toFixed(4)}, work AI does ${(lo.aiShare * 100).toFixed(1)}%`);
+  // Thresholds m_exp < 1.4, m_ideas < 1.1 [D] (M9 re-baseline, same channel as the start check above; were 1.25 /
+  // 1.02): the start model's AI taste is 0.75 SD higher since F4's sd_SC 1.25, m 1.303 / 1.058 on the merged head; the
+  // work AI does stays under 6%.
+  check(lo.exp < 1.4 && lo.ideas < 1.1 && lo.aiShare < 0.06,'E2 a safety model with low SAF coverage adds little (start model, full trust, 60% of the safety pool)', `m ${lo.exp.toFixed(3)} / ${lo.ideas.toFixed(4)}, work AI does ${(lo.aiShare * 100).toFixed(1)}%`);
   // The share handed is the player's lever: at t = 0.5 the humans keep half the work, so the CES caps the gain.
   const { s: h } = aiLab('AG08', { t: 0.5, dg: 6 });
   const half = lineLabour(h, 'AG08');

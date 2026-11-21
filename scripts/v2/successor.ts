@@ -158,8 +158,11 @@ const fmtPull = (s: GameStateV2) => { const p = successorPull(s); return `r ${p.
   const p4 = successorPull(f('day400.json'));
   const p9 = successorPull(f('day900.json'));
   const ov = (p: ReturnType<typeof successorPull>) => (p.parts[0]?.oversight ?? 0).toFixed(2);
-  check(near(p0.omega, 0.049, 0.01) && p4.omega > p0.omega && p9.omega > p4.omega && p9.omega < 1,
-    'reference: the pull grows with the lab\'s automation (start ≈ 0.05; RefBot fixtures day 400 and 900)',
+  // Start ω 0.070 ± 0.015 (M9 re-baseline, lead decision; was 0.049 ± 0.01): F4's ai2027 refit raised sd_SC (AI
+  // research taste at SC) 0.5 → 1.25, and sdAIOf is anchored at sd_SC, so the start model's AI taste is 0.75 SD higher
+  // and its share of the lab's R&D (r 0.30 at the start) counts for more. Same relative tolerance (≈ 20%) as before.
+  check(near(p0.omega, 0.070, 0.015) && p4.omega > p0.omega && p9.omega > p4.omega && p9.omega < 1,
+    'reference: the pull grows with the lab\'s automation (start ≈ 0.07; RefBot fixtures day 400 and 900)',
     `start r ${p0.r.toFixed(2)} oversight ${ov(p0)} ω ${p0.omega.toFixed(3)}; day 400 r ${p4.r.toFixed(2)} oversight ${ov(p4)} ω ${p4.omega.toFixed(3)}; day 900 r ${p9.r.toFixed(3)} oversight ${ov(p9)} ω ${p9.omega.toFixed(3)}`);
 }
 

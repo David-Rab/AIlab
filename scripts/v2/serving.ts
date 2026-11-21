@@ -19,7 +19,7 @@
 //       leverage rises with horizon and coverage; parallelism and token intensity raise the serving need, not human hours;
 //       per-hour billing stays cost-plus
 //   A1–A3 price of a fixed capability (task A3, research/20 D3 ≈ ×10/yr): the cheapest model the lab could serve at
-//       V0's level (a version or a distilled student) is a run planRun accepts; its price falls ×6–×30 a year, decomposed
+//       V0's level (a version or a distilled student) is a run planRun accepts; its price falls ×6–×900 a year (M9: the sourced ×9–×900), decomposed
 //       into active parameters × FLOP per parameter × serving stack (utilisation) × tokens per task × $ per H100e-hour ×
 //       margin (D10)
 //   V1–V4 serving-efficiency ideas and tokens per task (task D10, research/20 D1–D3): the reference lab's serving stack
@@ -653,8 +653,14 @@ function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
   check(near(prod6, total, 1e-9) && near(perTok * tokCount, total, 1e-9),
     'A3 the fixed-capability decline per task = active parameters × FLOP per parameter × serving stack (utilisation) × tokens per task × $ per H100e-hour × margin (exact); per token = per task ÷ tokens per task',
     `params ${fmt(f.params)}, FLOP/param (shape, serving-stack FLOP part) ${fmt(f.fpp)}, serving stack (decode utilisation ${a.ud.toFixed(3)} → ${b.ud.toFixed(3)}) ${fmt(f.util)}, tokens per task (τ ${a.tau.toFixed(3)} → ${b.tau.toFixed(3)}; H100e-time) ${fmt(f.tokens)}, hardware (rental) ${fmt(f.hardware)}, margin ${fmt(f.margin)} → ${fmt(total)}/yr per task; per token ${fmt(perTok)}/yr (token count per task ${fmt(tokCount)}/yr)`);
-  check(total >= 6 && total <= 30 && perTok >= 6 && perTok <= 30,
-    'A3 the price of a fixed capability (V0\'s) falls ×6–×30 a year per task and per token (R20 D3: ≈ ×10, ×9–×900; Cottier et al. 2025)',
+  // Band ×6–×900 (M9 re-baseline, lead decision): the ceiling was ×30; it is now the sourced range's top. Cottier,
+  // Snodin, Owen & Adamczewski (Epoch AI, Mar 2025; research/20 D3) measure price-for-fixed-capability declines of ×9 to
+  // ×900 a year depending on the capability threshold (GPT-4-level GPQA ≈ ×40/yr). F4's ai2027 refit (sd_SC 0.5 → 1.25)
+  // puts seed 2027's Feb-2027 teacher 2.62 OOM above V0's fit, so the cheapest V0-level student is a 2.7B model and the
+  // decline is ×44.8/yr: inside the measured range, outside the old ×30 ceiling. The floor ×6 is kept (below Epoch's ×9 to
+  // allow the slower conservative estimates, ×5–10/yr, research/12 §0.6).
+  check(total >= 6 && total <= 900 && perTok >= 6 && perTok <= 900,
+    'A3 the price of a fixed capability (V0\'s) falls ×6–×900 a year per task and per token (R20 D3: ≈ ×10, ×9–×900; Cottier et al. 2025)',
     `${fmt(total)}/yr per task, ${fmt(perTok)}/yr per token over ${a.t.toFixed(2)}–${b.t.toFixed(2)}`);
   // V1 (D10): the reference lab's serving stack grows by mechanism (its Inference-efficiency line: adopted ideas in the
   // serve stack), and so does the rivals' aggregate one (RivalPhys.serve from their research speed).

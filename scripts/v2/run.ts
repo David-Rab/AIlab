@@ -4,7 +4,7 @@
 //
 //   quick  tsc (main + scripts), every unit-style and short-sim script, and the long multi-seed suites in SMOKE mode
 //          (1–2 seeds, short horizons; their calibration targets print SMOKE instead of failing). For task agents.
-//   cal    golden-timelines + calib T1, T1L, T4 (through the simulation cache).
+//   cal    golden-timelines + calib T1, T1L, T4 (through the simulation cache; 10 workers on ≥ 12 cores).
 //   full   every check of the old `test:v2` (every script, all seeds), in parallel, through the simulation cache, plus
 //          test:ui (build + headless browser; started first, it is mostly browser wait). The merge gate. hygiene's performance checks are the only thing left out
 //          (they measure wall time, meaningless on a loaded machine): see `perf`.
@@ -106,7 +106,11 @@ if (!['quick', 'cal', 'full', 'perf'].includes(tier)) {
   process.exit(2);
 }
 const only = opt('only')?.split(',').map((x) => x.trim()).filter(Boolean);
-const workers = Math.max(1, Number(opt('workers') ?? (tier === 'perf' ? 1 : 6)));
+// Default workers: perf 1 (timings); cal 10 on a machine with ≥ 12 logical cores (M9, lead decision: since F4 the cal
+// tier plays 108 games, 80 of them T1 over the 20 CAL_SEEDS, ≈ 7 min cold on 6 workers; its jobs are CPU-bound games
+// with no shared state, so more workers cut the cold wall time), else 6.
+const defaultWorkers = tier === 'perf' ? 1 : tier === 'cal' && os.cpus().length >= 12 ? 10 : 6;
+const workers = Math.max(1, Number(opt('workers') ?? defaultWorkers));
 const noUi = argv.includes('--no-ui');
 let jobs = JOBS.filter((j) => j.tiers.includes(tier));
 if (noUi) jobs = jobs.filter((j) => j.id !== 'ui');
