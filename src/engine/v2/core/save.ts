@@ -1,5 +1,7 @@
 // Save format, migrations, state hash (V2-SPEC §2.5). Owner: WS1.
 import { ensureWs3 } from '../finance/ext';
+import { START_CREDIBILITY, typicalRound } from '../finance/promises';
+import { dMax } from '../finance/equity';
 import { keyOf, staffOf, teamsFromStaff } from '../departments/teams';
 import type { AgendaId, GameStateV2, OwnedDataAsset, PlayerLab, StaffByRole, TechniqueState, TeamHiring } from '../types';
 import { oomOfRefM } from '../safety/oversight';
@@ -27,6 +29,10 @@ import type { RivalLab, TimelineWorld } from '../types';
 import { footholdsFromV25 } from '../safety/footholds';
 import { controlFromV26 } from '../safety/control';
 import { toleranceNoiseOf } from '../world/hidden';
+import { partnerDef, PARTNER_TERMS } from '../../../data/v2/deals';
+import { divisionOf } from '../finance/parent';
+import { privateRivals, sectorValue, seedLabRevenue } from '../finance/story';
+import { FIN } from '../actors/rivals';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev. */
 /** 12 (model v3 V1): models are built from physical quantities (BaseModel, VersionBuild, BaseDesign, PostDesign changed).
@@ -98,8 +104,15 @@ import { toleranceNoiseOf } from '../world/hidden';
  *  VersionBuild.paIn, BaseModel / TrainingRun.paAtStart and the stream's paTrack are removed. Migration 32 → 33
  *  (migratePmPa) converts each pm through the old bridge (legacyG), adds what the know-how writers had added to a lab's
  *  core.pa since the model last synced it to its pretraining part (B OOM per progress-year), and drops the fields; each
- *  step only where the old field is present (idempotent). The old bridge lives only here, for saves. */
-export const SCHEMA_REV = 33;
+ *  step only where the old field is present (idempotent). The old bridge lives only here, for saves.
+ *  34–42 (finance v3, merge FINM): the finance rebuild's nine migrations, built on finance-v3 as 11 → 12 … 19 → 20 and
+ *  renumbered after model v3's 33 (finance rev r = merged rev r + 22): 33 → 34 FIN1 (debt, leases, partner templates),
+ *  34 → 35 FIN2 (credibility, promises), 35 → 36 FIN3a (approvals list), 36 → 37 FIN3b (E37 freeze, reinstatement),
+ *  37 → 38 FIN4a (partner records), 38 → 39 FIN5c (division budget), 39 → 40 FIN4r (typical round, lease ids), 40 → 41
+ *  FIN5a (story mark, lab revenue history), 41 → 42 FIN5b (rivals' marks, pool, raised). Each one only touches what is
+ *  missing or still in its old form, so a state already at 42 labelled 33 loads unchanged (hygiene checks it). Saves
+ *  written by the finance-v3 branch itself (its revs 12–20) collide with model v3's numbers and do not load. */
+export const SCHEMA_REV = 42;
 
 /** The retired bridge (model v3 V1–F2), for saves only: G of a model saved at progress pm, pm = pm(V0) + (G − G(V0))/B. */
 const legacyG = (w: TimelineWorld, pm: number) => gV0(w) + (pm - playerStart(w).target) * B_G_PER_Y;
@@ -479,6 +492,161 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   },
   /** 32 → 33 (model v3 F3): pm → G, the know-how readout pa removed (each step only where the old field is present). */
   32: (raw) => migratePmPa(raw as unknown as GameStateV2),
+  /** 33 → 34 (finance v3 FIN1): SPV leasebacks become financing leases (kind finLease; the old 12%/4-year entries keep
+   *  their payments); SPV- or JV-funded sites still being built get a lease at 9% (BB) on what was funded; the spv,
+   *  neocloud and mega-JV deal templates and the JV are removed; LTA orders are firm tranches; the trailing operating
+   *  cash flow starts from last quarter's; board blocks on removed action ids move to Buy chips / Rent compute. */
+  33: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const f = s.player.finance;
+    const fx = f.ws3 as unknown as Record<string, unknown> & GameStateV2['player']['finance']['ws3'];
+    // The SPV's leaseback paid 12% (Keystone Capital), the mega-JV's 10% (FIN4r L12: it read 12% for both).
+    for (const c of f.ledger as unknown as { kind: string; rate?: number; payee: string }[]) if (c.kind === 'spvRVG') { c.kind = 'finLease'; c.rate = c.payee === 'Keystone Capital' ? 0.12 : 0.1; }
+    for (const x of s.player.sites) {
+      const w = x.ws3 as unknown as Record<string, unknown> & typeof x.ws3;
+      // FINM: a site already on a FIN1 lease keeps it (the migration is idempotent on a state at 42 labelled 33).
+      if (w.lease) continue;
+      if (x.spvFunded > 0 && x.stage !== 'live' && x.stage !== 'blocked') w.lease = { rate: 0.09, funded: x.capexPaid * x.spvFunded };
+      else if (x.stage !== 'live') x.spvFunded = 0;
+      delete w.financedBy;
+    }
+    const gone = new Set(['spv', 'neocloud', 'megaJV']);
+    f.deals = (f.deals as unknown as { template?: string }[]).filter((d) => !gone.has(d.template as string)) as unknown as typeof f.deals;
+    const offers = ((fx.offers ?? []) as Record<string, unknown>[]).filter((o) => !gone.has(o.template as string));
+    for (const o of offers) delete o.siteShare;
+    fx.offers = offers;
+    delete fx.jv;
+    delete fx.spvBcQ;
+    fx.opCash4q ??= fx.opCashQ ? [fx.opCashQ] : [];
+    for (const o of s.player.orders) if (o.kind === 'lta') { o.ltaStartQ ??= o.dueQ; o.firm = true; }
+    const anchors = s.capital.ws3?.anchors as Record<string, string> | undefined;
+    if (anchors) for (const k of ['Keystone Capital', 'Meridian Group', 'Vantage Neocloud']) delete anchors[k];
+    const bu = ((fx as unknown as { blockedUntil?: Record<string, number> }).blockedUntil ?? {}) as Record<string, number>;
+    const move: Record<string, string> = { 'cmp.orderStandard': 'cmp.buyChips', 'cmp.orderLTA': 'cmp.buyChips', 'cmp.orderSpot': 'cmp.buyChips', 'cmp.cloudContract': 'cmp.rentCompute' };
+    for (const [from, to] of Object.entries(move)) if (bu[from] !== undefined) { bu[to] = Math.max(bu[to] ?? 0, bu[from]); delete bu[from]; }
+  },
+  /** 34 → 35 (finance v3 FIN2): investor credibility (start value by start type) and an empty promise list (rounds
+   *  raised before FIN2 promised nothing); the revenue plan, the trailing raised tally and the patientQ start mod are
+   *  gone; the milestone histories start empty (the raise card falls back to the pipeline and market pace). A pending
+   *  or repriced round from before FIN2 closes without a thesis. */
+  34: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const f = s.player.finance as GameStateV2['player']['finance'] & { raisedLast4q?: number };
+    const start = s.setup.start ?? 'leader';
+    f.credibility ??= START_CREDIBILITY[start];
+    f.promises ??= [];
+    delete f.raisedLast4q;
+    delete (f.ws3 as unknown as Record<string, unknown>).revenuePlan;
+  },
+  /** 35 → 36 (finance v3 FIN3a): board votes are deterministic and never block, so the never-filled pending-approvals
+   *  list goes and the 90-day blocks old rejections left on raises, deals, borrowing and cloud contracts are lifted
+   *  (E37's capex freeze on sites and chips stays). */
+  35: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    delete (s.player.board as unknown as Record<string, unknown>).pendingApprovals;
+    const bu = (s.player.finance.ws3 as unknown as { blockedUntil?: Record<string, number> } | undefined)?.blockedUntil;
+    if (bu) for (const k of Object.keys(bu)) if (['fin.raise', 'fin.acceptDeal', 'fin.drawDebt', 'cmp.rentCompute'].includes(k) || k.startsWith('deal:')) delete bu[k];
+  },
+  /** 36 → 37 (finance v3 FIN3b): E37 is gone, so its capex freeze (the last board block) and the block list go; the
+   *  ouster is a deterministic vote with no staff-revolt reinstatement, so the reinstatement day goes. An E37 decision
+   *  still pending is dropped. */
+  36: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const fx = s.player.finance.ws3 as unknown as Record<string, unknown> | undefined;
+    if (fx) {
+      delete fx.blockedUntil;
+      delete fx.reinstatedDay;
+    }
+    const ev = s.events as unknown as { pending?: { id: string }[] };
+    if (Array.isArray(ev.pending)) ev.pending = ev.pending.filter((d) => d.id !== 'E37');
+  },
+  /** 37 → 38 (finance v3 FIN4a): one partner offer flow. Deal records move from templates to partner kinds: a
+   *  hyperscaler (old hyperscaler equity and custom-ASIC deals), a chip vendor, a sovereign; vendor-financing deals go
+   *  (a vendor note stays as a bond-like loan with its spread and maturity). Stakes from before the start become legacy
+   *  holders. The strings that did nothing go (observer, IP rights, in-country site); exclusivity and the revenue share
+   *  stay, a deal running as before (the revenue share to six years after signing; custom chips and chip vendors keep
+   *  their rationing priority for the supply term). Open offers go (terms are now computed live), and so do partner
+   *  observer seats (hyperscalers hold no seats). Signed contracts, orders and tranches are kept as signed. */
+  37: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const f = s.player.finance;
+    const old = f.deals as unknown as { id: string; template?: string; partner: string; day: number; strings?: Record<string, unknown> }[];
+    const KIND: Record<string, 'hyperscaler' | 'chipVendor' | 'sovereign'> = { hyperscalerEquity: 'hyperscaler', customASIC: 'hyperscaler', chipVendorEquity: 'chipVendor', sovereign: 'sovereign' };
+    f.deals = old.filter((d) => d.template !== 'vendorFinance').map((d) => {
+      if (!d.template && 'kind' in d) return d as unknown as GameStateV2['player']['finance']['deals'][number]; // already a partner record
+      const kind = partnerDef(d.partner)?.kind ?? KIND[d.template ?? ''] ?? 'hyperscaler';
+      const st = d.strings ?? {};
+      const rescue = !!st.boardSeat;
+      const legacy = d.day < 0;
+      const chips = d.template === 'customASIC' || d.template === 'chipVendorEquity';
+      const until = legacy ? d.day : d.template === 'hyperscalerEquity' && !rescue ? d.day + PARTNER_TERMS.hyperscaler.years * 365 : chips ? d.day + 10 * 91 : d.day;
+      return {
+        id: d.id, partner: d.partner, kind, day: d.day, equityNow: 0, equityLater: 0,
+        ...(chips ? { supply: { kind: d.template === 'customASIC' ? 'asic' as const : 'chips' as const, h100e: 0, quarters: 8, first: 0, last: 0, firmDiscount: 0, partnerDiscount: 0, total: 0, endDay: until } } : {}),
+        strings: { ...(st.exclusivity ? { exclusivity: true } : {}), ...(typeof st.revenueShare === 'number' && st.revenueShare > 0 ? { revenueShare: st.revenueShare } : {}), ...(rescue ? { boardVotes: PARTNER_TERMS.rescue.seats } : {}) },
+        until, ...(rescue ? { rescue: true } : {}), ...(legacy ? { legacy: true } : {}),
+      };
+    });
+    const fx = f.ws3 as unknown as Record<string, unknown>;
+    delete fx.offers;
+    for (const d of f.debts as unknown as { kind: string; covenant?: string }[]) if (d.kind === 'vendorNote') { d.kind = 'bond'; d.covenant = 'incurrence'; }
+    for (const c of f.ledger as unknown as { kind: string }[]) if (c.kind === 'vendor') c.kind = 'lta';
+    for (const y of Object.values((f.ws3?.years ?? {}) as unknown as Record<string, Record<string, unknown>>)) delete y.vendorNotes;
+    s.player.board.seats = s.player.board.seats.filter((x) => !(x.kind === 'strategic' && x.weight <= 0));
+  },
+  /** 38 → 39 (finance v3 FIN5c): a big-tech division gets its budget year: this year's budget at the plan (as it was
+   *  paid), savings carried in estimated as cash above what this year has paid so far; the parent sets goals and the
+   *  next budget at the next review. A division never stays in distress (no runway verdict). */
+  38: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    if (divisionOf(s) && s.player.finance.state !== 'insolvent') s.player.finance.state = 'healthy';
+  },
+  /** 39 → 40 (finance v3 FIN4r review fixes): a live promise stores a typical round at its close (the dilution limit
+   *  at its round's pre-money, the floor of its weight), read from its round; a partner deal's supply drops the inert
+   *  order id; leases migrated from the old SPV and mega-JV are keyed like any lease (L-fin-<site>, so What we owe names
+   *  the site) and the JV's keeps its 10% rate. Round tranches from before keep no shares to cancel (as signed). */
+  39: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const f = s.player.finance;
+    for (const p of f.promises ?? []) {
+      if (p.result || p.by === 'parent' || p.typical !== undefined) continue;
+      const r = f.rounds.find((x) => x.day === p.closeDay && !x.ipo);
+      if (r) p.typical = typicalRound(r.postMoney - r.amount, dMax(!!r.anchor, false));
+    }
+    for (const d of f.deals) if (d.supply) delete (d.supply as unknown as Record<string, unknown>).ref;
+    for (const c of f.ledger) {
+      if (c.kind !== 'finLease' || !c.id.startsWith('L-spv-')) continue;
+      if (c.payee !== 'Keystone Capital' && c.rate === 0.12) c.rate = 0.1;
+      c.id = `L-fin-${c.id.slice('L-spv-'.length)}`;
+    }
+  },
+  /** 40 → 41 (finance v3 FIN5a): the valuation is the story split (sector value × share). The narrative premium N is
+   *  gone; private rivals get a revenue history (the last four quarters at the sector's ×3 a year, as at a new start);
+   *  the last mark is read off the saved valuation (share = valuation ÷ today's sector value), so the first mark after
+   *  loading moves half-way from it to the story like any other. */
+  40: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const f = s.player.finance;
+    delete (f as unknown as Record<string, unknown>).narrative;
+    ensureWs3(s);
+    seedLabRevenue(s);
+    const S = sectorValue(s).S;
+    if (!f.ws3.mark && f.valuation > 0 && S > 0) f.ws3.mark = { S, share: Math.min(1, f.valuation / S) }; // FINM: idempotent
+  },
+  /** 41 → 42 (finance v3 FIN5b): private rivals' valuations are marked from the story split like the player's. Each
+   *  private rival's last mark is read off its saved valuation (share = valuation ÷ today's sector value), its part of
+   *  the pool starts empty (filled at the next quarter's mark) and the equity its investors put in starts at its kind's
+   *  start figure (no history was kept). A pending bust names no pushed rival. */
+  41: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const S = sectorValue(s).S;
+    for (const r of privateRivals(s)) {
+      const f = r.finance;
+      if (f.mark === undefined && S > 0) f.mark = Math.min(1, f.valuation / S);
+      f.poolQ ??= 0;
+      f.raised ??= FIN[r.archetype]?.raised ?? 0;
+    }
+  },
 };
 
 export function serialize(s: GameStateV2): string {

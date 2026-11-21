@@ -368,7 +368,6 @@ const PLEDGE: ActionDef = {
     gains: [{ currency: 'credibility', amount: 8 }, { currency: 'trust', amount: 4, target: 'evalGov, safety bloc' }, { currency: 'monitorability', amount: 0.5, target: 'obfuscation growth −50%' }],
     exposure: [{ currency: 'credibility', amount: -20, probability: 0.1, target: 'if broken' }],
   }),
-  boardVector: [-0.3, -0.1, 0.6, 0.5],
   apply(s, ctx) {
     s.player.safety.monitorabilityCommitment = true;
     if (!s.commitments.some((c) => c.kind === 'monitorabilityPledge' && c.status === 'live')) {

@@ -15,8 +15,8 @@ import { START_PUBLIC_GAP_Y } from '../../../data/v2/rivalModel';
 import { B_G_PER_Y } from '../../../data/v2/runDesign';
 import { CHINA_CAL } from '../../../data/v2/calibration';
 import { request, ws4 } from './state';
-import { unlicensedPublicT } from '../production/data';
 import { KOREA_HAZARD_Q, koreaShock, setExportPolicy, taiwanHazardQ, taiwanShock } from '../compute/market';
+import { copyrightExposure } from '../finance/observe';
 
 export const chinaPresetOf = (id: string) => CHINA_PRESETS.find((p) => p.id === id) ?? CHINA_PRESETS[0];
 
@@ -306,15 +306,13 @@ export const geoQSystem: EngineSystem = {
     }
     // Copyright litigation hazard 0.02·unlicensedT/100 per quarter (§3.9.1 data licences; R17 D3). A suit settles
     // automatically ($1.5B per 270T unlicensed tokens, the Bartz v. Anthropic scale), at most once a year; licensing
-    // the crawl (data.license, domain 'web') is the way to avoid it.
-    const unlicensedT = unlicensedPublicT(s.player.dataPortfolio); // model v3 D1: the public crawl without a licence
-    const lit = 0.02 * unlicensedT / 100;
+    // the crawl (data.license, domain 'web') is the way to avoid it (finance/observe.ts copyrightExposure).
+    const lit = copyrightExposure(s);
     const lastSuit = Number(s.flags['ws4:lastSuitDay'] ?? -1e9);
-    if (lit > 0 && day - lastSuit >= 365 && ctx.rng('actors').chance(Math.min(0.5, lit))) {
+    if (lit.pQ > 0 && day - lastSuit >= 365 && ctx.rng('actors').chance(lit.pQ)) {
       s.flags['ws4:lastSuitDay'] = day;
-      const amt = 1.5 * clamp(unlicensedT / 270, 0.2, 3);
-      cash(s, ctx, -amt, 'copyright settlement');
-      ctx.log('company', `Authors and publishers sued over ${Math.round(unlicensedT)}T tokens of unlicensed training data; you settled for $${amt.toFixed(1)}B. Licensing the data stops further suits.`, 3);
+      cash(s, ctx, -lit.settlement, 'copyright settlement');
+      ctx.log('company', `Authors and publishers sued over ${Math.round(lit.tokensT)}T tokens of unlicensed training data; you settled for ${lit.settlement.toFixed(1)}B. Licensing the data stops further suits.`, 3);
     }
     rivalFinanceQ(s, ctx);
     goalpostsQ(s, ctx);

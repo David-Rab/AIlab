@@ -2,8 +2,9 @@
 // terms, unlock rules (§1.5, §6.8), small charts. Selectors only — never hidden truth.
 import type { ReactNode } from 'react';
 import { Ban, Lock, type LucideIcon } from 'lucide-react';
-import { actionView, causeStrip } from '../../engine/v2';
-import type { ActionView, CostLine, GameStateV2 } from '../../engine/v2';
+import { actionView, actionVote, causeStrip, VOTE } from '../../engine/v2';
+import type { ActionView, BoardSeat, BoardVote, CostLine, GameStateV2 } from '../../engine/v2';
+import { ICON } from './icons';
 import { GLOSSARY_V2 } from '../../data/v2/glossary';
 import { LIMIT_BY_ID } from '../../data/v2/limits';
 import { SIGNALS, TRAIT_BY_ID } from '../../data/v2/traits';
@@ -115,7 +116,7 @@ export function Rich({ text }: { text: string }) {
 const CUR_LABEL: Record<CostLine['currency'], string> = {
   cash: '$', revenue: 'rev', compute: 'compute', staffTime: 'staff', progress: 'L', leadDays: 'lead', trust: 'trust',
   credibility: 'cred', scrutiny: 'scrutiny', talent: 'talent', morale: 'morale', boardConf: 'board', approval: 'approval',
-  security: 'security', monitorability: 'monitor', alignment: 'align', freedom: 'freedom', chinaTension: 'CN tension', dilution: 'dilution',
+  security: 'security', monitorability: 'monitor', alignment: 'align', freedom: 'freedom', chinaTension: 'CN tension', dilution: 'dilution', valuation: 'valuation',
 };
 /** A line's amount in its own unit (model v3 D4): 7.5, 0.146, 2. */
 /** A '%' line's amount, already in percent points: 5, 2.5, 0.31 (F6b). */
@@ -126,13 +127,13 @@ function amt(c: CostLine): string {
   if (c.unit === '%') return pctAmt(a);
   if (c.unit) return unitAmt(a);
   switch (c.currency) {
-    case 'cash': return a >= 1000 ? `$${(a / 1000).toFixed(1)}T` : `$${a >= 10 ? a.toFixed(0) : a >= 0.1 ? a.toFixed(1) : a.toFixed(2)}B`;
+    case 'cash': case 'valuation': return a >= 1000 ? `$${(a / 1000).toFixed(1)}T` : `$${a >= 10 ? a.toFixed(0) : a >= 0.1 ? a.toFixed(1) : a.toFixed(2)}B`;
     case 'revenue': return `$${a >= 10 ? a.toFixed(0) : a.toFixed(1)}B/yr`;
     case 'compute': return a <= 1 && a > 0 ? `${(a * 100).toFixed(a < 0.1 ? 1 : 0)}%` : fmtNum(a);
     case 'leadDays': return `${Math.round(a)}d`;
     case 'progress': return `${a.toFixed(2)}`;
     case 'monitorability': case 'alignment': return a < 1 ? a.toFixed(2) : a.toFixed(0);
-    case 'dilution': return a < 1 ? `${(a * 100).toFixed(1)}%` : `${a.toFixed(1)}%`;
+    case 'dilution': return `${a.toFixed(1)}%`; // percent (a fraction reading turned 0.5% into 50%)
     default: return a < 1 && a > 0 ? a.toFixed(2) : a.toFixed(a < 10 ? 1 : 0);
   }
 }
@@ -193,8 +194,13 @@ export function ActBtn({
   if (!s) return null;
   const v = actionView(s, id, params);
   if (v.ok === true && block) v.ok = block;
+  // FIN3a: a major decision shows the board's vote before you ask; a failed vote disables it (founder control can
+  // force it at a confidence cost).
+  const vote = v.ok === true ? actionVote(s, id, params) : undefined;
+  const forcing = params.force === true;
+  if (vote && !vote.passes && !(forcing && vote.canForce)) v.ok = `The board votes no (${vote.yes} of ${vote.total})${vote.canForce ? '; founder control can force it' : ''}`;
   const off = v.ok !== true;
-  return (
+  const btn = (
     <Tip
       className="act-wrap"
       content={() => (
@@ -219,6 +225,53 @@ export function ActBtn({
           {inline && <PreviewInline v={v} />}
         </button>
         {reason && off && <span className="act-reason">{v.ok}</span>}
+      </span>
+    </Tip>
+  );
+  if (!vote) return btn;
+  // The vote sits under the button with its own tooltip (outside the button's preview tooltip).
+  return (
+    <span className="act-col">
+      {btn}
+      <VoteStrip v={vote} />
+      {!vote.passes && vote.canForce && !forcing && (
+        <button className="btn btn-sm btn-ghost" data-act={`${testId ?? id}:force`} onClick={() => { if (!store.act(id, { ...params, force: true })) onDone?.(); }}>
+          Force · confidence −{VOTE.forceCost}
+        </button>
+      )}
+    </span>
+  );
+}
+
+const SEAT_ICON: Record<BoardSeat['kind'], LucideIcon> = { founder: ICON.you, mission: ICON.exec, financial: ICON.cash, strategic: ICON.relations, independent: ICON.board, gov: ICON.congress };
+export const SEAT_KIND_LABEL: Record<BoardSeat['kind'], string> = { founder: 'CEO', mission: 'Mission', financial: 'Financial', strategic: 'Strategic', independent: 'Independent', gov: 'Government' };
+const signed = (x: number) => `${x >= 0 ? '+' : '−'}${Math.abs(x).toFixed(2)}`;
+
+/** The board's vote on a major decision, seat by seat (FIN3a, spec §7.3): one chip per voting seat, green yes / red
+ *  no, and the total; the tooltip shows each seat's lean and its parts. */
+export function VoteStrip({ v }: { v: BoardVote }) {
+  const p = v.seats.find((x) => x.kind !== 'founder')?.parts ?? v.seats[0]?.parts;
+  return (
+    <Tip content={() => (
+      <TipCard title={<Term id="boardVote">{v.label}</Term>} value={<span className={v.passes ? 'tone-pos' : 'tone-neg'}>{v.passes ? 'passes' : 'fails'} · {v.yes} of {v.total}</span>} rows={[
+        { label: 'Needs the board', value: v.trigger },
+        ...(p ? [
+          { label: 'Outside owners (every seat)', value: signed(p.drift), tone: p.drift < 0 ? 'neg' as const : 'neutral' as const },
+          { label: <Term id="boardConf">Board mood (every seat)</Term>, value: signed(p.mood), tone: p.mood < 0 ? 'neg' as const : 'pos' as const },
+          { label: `Situation: ${v.needLabel}`, value: signed(p.need), tone: p.need < 0 ? 'neg' as const : 'neutral' as const },
+        ] : []),
+        ...v.seats.map((x) => ({ label: `${x.holder} · ${SEAT_KIND_LABEL[x.kind]}${x.weight > 1 ? ` · ${x.weight} votes` : ''}`, value: x.kind === 'founder' ? 'yes (your seat)' : `${x.yes ? 'yes' : 'no'} · stance ${signed(x.parts.stance)} → ${signed(x.lean)}`, tone: x.yes ? 'pos' as const : 'neg' as const })),
+      ]} footer={v.canForce ? `Founder control: you can force it (board confidence −${VOTE.forceCost}).` : 'Passes with more than half the votes. No dice: this is the vote you will get.'}>
+        {"Each seat's lean = its stance on this decision + the outside owners' drift + the board's mood + the situation; it votes yes above 0. See [[boardVote]]."}
+      </TipCard>
+    )}>
+      <span className={`vote-strip ${v.passes ? 'pass' : 'fail'}`} data-test="vote" data-pass={v.passes ? '1' : '0'}>
+        <span className="dim">{v.body === 'trust' ? 'trust' : 'board'}</span>
+        {v.seats.map((x, i) => {
+          const I = SEAT_ICON[x.kind];
+          return <span key={i} className={`vote-seat ${x.yes ? 'yes' : 'no'}`} data-vote={x.yes ? 'yes' : 'no'}><I size={11} />{x.weight > 1 && <i>×{x.weight}</i>}</span>;
+        })}
+        <b className={v.passes ? 'tone-pos' : 'tone-neg'}>{v.yes}/{v.total} {v.passes ? 'yes' : 'no'}</b>
       </span>
     </Tip>
   );

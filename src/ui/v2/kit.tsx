@@ -213,10 +213,13 @@ const lineAmt = (c: CostLine) => {
   if (c.unit) return `${unitAmt(a)} ${c.unit}`;
   if (c.currency === 'cash') return F.money(a);
   if (c.currency === 'revenue') return F.money(a, { perYear: true });
+  if (c.currency === 'valuation') return `${F.money(a)} valuation`;
   if (c.currency === 'leadDays') return `${Math.round(a)} d lead`;
   if (c.currency === 'compute') return a <= 1 ? `${F.pct(a)} compute` : `${F.count(a)} H100e`;
-  if (c.currency === 'dilution') return `${a < 1 ? F.pct(a, 1) : `${a.toFixed(1)}%`} stake`;
+  // Dilution lines are in percent (finance actions, E32); a fraction reading turned 0.5% into 50%.
+  if (c.currency === 'dilution') return `${a.toFixed(1)}% stake`;
   if (c.currency === 'progress') return `${a.toFixed(2)} L`;
+  if (c.currency === 'staffTime' && a >= 10) return `${F.count(a)} staff`; // heads (E32, E22); small amounts are percent
   return `${a < 1 && a > 0 ? a.toFixed(2) : a.toFixed(a < 10 ? 1 : 0)} ${m?.label.toLowerCase() ?? F.words(c.currency)}`;
 };
 export function CostPills({ v }: { v: Pick<ActionView, 'costs' | 'gains' | 'exposure'> }) {

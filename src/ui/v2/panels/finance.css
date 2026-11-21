@@ -27,6 +27,7 @@
 .ch-note { font: 600 10.5px var(--sans); fill: var(--text-2); }
 .ch-note.bad { fill: var(--bad); }
 .ch-note.good { fill: var(--good); }
+.ch-note.warn { fill: var(--warn); }
 .ch-tt { fill: #e3e9f1; font: 11.5px var(--sans); }
 
 /* raise */
@@ -74,3 +75,59 @@
 /* J1: raise before → after (F5); seat names wrap (F4) */
 .fin-ba { display: flex; gap: 6px; align-items: baseline; margin: 2px 0 4px; }
 .seat-name { white-space: normal; text-align: center; line-height: 1.15; overflow-wrap: anywhere; }
+/* FIN2: raise thesis, What we owe */
+.thesis-row { gap: 8px; }
+.owe-sec { margin-top: 10px; }
+.owe-sec:first-of-type { margin-top: 2px; }
+.owe-cap { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-2); margin-bottom: 6px; }
+.owe-cap .dim { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.owe-row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 104px; gap: 10px; align-items: center; font-size: 12.5px; padding: 3px 0; }
+.owe-row .row-i { min-width: 0; }
+.owe-row4 { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 150px 104px; }
+.owe-num { text-align: right; white-space: nowrap; font-family: var(--mono); }
+.owe-meta { display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
+.owe-judged { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+/* FIN3a: what moves the board (four named sources × this board's multiplier, last 12 months) */
+.mood { margin: 10px 0 4px; display: flex; flex-direction: column; gap: 4px; }
+.mood-row { display: grid; grid-template-columns: 150px 44px 1fr 34px; align-items: center; gap: 8px; }
+.mood-mult { font-size: 11px; color: var(--text-3); text-align: right; }
+/* FIN3b: charter rights on the Board card */
+.charter { margin: 10px 0 4px; display: flex; flex-direction: column; gap: 4px; }
+.charter-row { display: grid; grid-template-columns: 150px 1fr auto; align-items: center; gap: 8px; }
+/* FIN4a: partners card (one row per partner, the selected offer below) */
+.pt-list { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+.pt-list > .tip-wrap, .pt-list > div { display: block; }
+.pt-row { width: 100%; display: flex; align-items: center; gap: 8px; padding: 5px 8px; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--text); font: 12.5px var(--sans); cursor: pointer; text-align: left; }
+.pt-row:hover { background: var(--panel-2); }
+.pt-row.on { border-color: var(--you); background: #172a42; }
+.pt-row[data-blocked="1"] b { color: var(--text-2); }
+.pt-terms { display: flex; flex-direction: column; gap: 4px; }
+.pt-terms .fin-row { margin: 2px 0; }
+.pt-tranche { display: flex; align-items: center; gap: 6px; padding-left: 4px; }
+/* FIN4b: what each partner costs you now (Partners card) */
+.pt-costs { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line, #2a3340); }
+.pt-cost { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+/* story (FIN5a): sector × share → valuation, the share bar, the drivers */
+.story-eq { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 10px; }
+.story-term { display: inline-flex; flex-direction: column; gap: 1px; }
+.story-term b { color: #fff; font-size: 17px; }
+.story-op { color: var(--text-3); font-size: 15px; }
+.story-sbar { display: grid; height: 18px; border-radius: 3px; overflow: hidden; background: var(--line); margin: 2px 0 12px; }
+.story-sbar > * { min-width: 0; height: 100%; }
+.story-seg { display: flex; align-items: center; height: 100%; width: 100%; min-width: 2px; border-right: 1px solid var(--panel); overflow: hidden; }
+.story-seg em { font: 600 10.5px var(--sans); color: #fff; font-style: normal; padding-left: 5px; white-space: nowrap; }
+.story-drvs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.story-drv { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto auto; gap: 3px 6px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; }
+.story-drv > b { text-align: right; }
+.story-drv .story-fbar, .story-drv > .ellip { grid-column: 1 / -1; }
+.story-fbar { position: relative; display: block; height: 5px; background: var(--line); border-radius: 2px; }
+.story-fbar i { position: absolute; top: 0; bottom: 0; border-radius: 2px; }
+.story-fbar b { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--text-3); }
+.fin-story { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+/* FIN6b: two-line What we owe labels (source · amount, then the condition) instead of an ellipsis. */
+.owe-two { align-items: flex-start; }
+.owe-two > svg { margin-top: 2px; flex: none; }
+.owe-two > span { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+/* FIN6b: Why cash moved: room for the longest source names ("Revenue to the parent ×31") without an ellipsis. */
+[data-home=cashCauses] .cbar { grid-template-columns: 200px 1fr 64px; }

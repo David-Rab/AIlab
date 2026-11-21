@@ -3,13 +3,13 @@
 import { clamp } from '../../../rng';
 import { withdraw } from '../../models/deployments';
 import { internalVersion } from '../../models/labs';
-import { flag } from '../../safety/common';
+import { flag, redFlags } from '../../safety/common';
 import { openInvestigation } from '../../safety/investigations';
 import { understanding, understandingMarginBelow } from '../../safety/understanding';
 import type { Commitment, EventDefV2, GameStateV2, ModelVersion, SystemCtx, TraitId } from '../../types';
 import { TRAIT_BY_ID } from '../../../../data/v2/traits';
 import { PREDICATES, blockingCommitments, amendCommitment, breakCommitment, latentVersion, pledgeBreachRun } from '../../actors/commitments';
-import { ALL_PUBLIC_CPS, approval, boardConf, cash, cred, disclosureTrust, scrutiny, trustMany } from '../../actors/fx';
+import { ALL_PUBLIC_CPS, approval, cash, cred, disclosureTrust, scrutiny, trustMany } from '../../actors/fx';
 import { pLeak } from '../../actors/public';
 import { addCoverup, trustDelta } from '../../actors/relations';
 import { discoveryOdds } from '../../actors/researchBodies';
@@ -18,9 +18,8 @@ import { escapeResolved } from '../../safety/footholds';
 import { controlReadout } from '../../safety/dangerView';
 import { whistleOddsYear } from '../../security/security';
 import { L, P, ch, ev, pv, requestOnly } from '../kit';
-import { boardSpeedAppetite } from '../../finance/board';
+import { boardMood, MOOD_BASE, moodWeight } from '../../finance/mood';
 
-const RED: TraitId[] = ['SCHEME', 'AF', 'SAND'];
 /** F6c: what "Continue" keeps that the pause stops: the running frontier (base and post) runs, the same filter the pause
  *  choice applies. */
 export function frontierRunsGo(s: GameStateV2) {
@@ -127,8 +126,8 @@ export const SAFETY_EVENTS: EventDefV2[] = [
       const v = internalVersion(s);
       if (!v) return false;
       const fresh = (k: string) => s.events.fired[`E17#${k}`] === undefined;
-      const t = RED.find((k) => fresh(k) && v.beliefs[k] && v.beliefs[k].est > 0.3 && v.beliefs[k].clarity > 0.4);
-      if (t) return { versionId: v.id, trait: t, est: Math.round(v.beliefs[t].est * 100) };
+      const t = redFlags(v).find((x) => fresh(x.trait));
+      if (t) return { versionId: v.id, trait: t.trait, est: Math.round(t.est * 100) };
       if (!fresh('U')) return false; // P2: U only when the U flag can still fire (understanding() is a pure read)
       if (!understandingMarginBelow(s, -1)) return false; // P4: the bisection stops once the answer is decided
       const margin = understanding(s).margin;
@@ -139,11 +138,12 @@ export const SAFETY_EVENTS: EventDefV2[] = [
       : `Probes suggest ${internalVersion(s)?.name ?? 'your internal model'} may be ${d.trait === 'SCHEME' ? 'scheming' : d.trait === 'AF' ? 'faking alignment' : 'sandbagging'} (estimate ${d.est}%).`,
     choices: [
       // F6d: the gains say what the choice does (an investigation of the flagged trait), not a made-up alignment amount.
-      ch('Pause & investigate', ['pause', 'safety', 'investigate'], (s) => pv([L('leadDays', 60, 'frontier runs paused'), L('boardConf', Math.round(5 * boardSpeedAppetite(s) * 10) / 10)], [L('alignment', 1, 'of the flagged trait by 20 safety research engineers (none for an understanding flag)', { unit: 'investigation' })]), (s, ctx, d) => {
+      // FIN3a: the board's cost is its mood by seat kind (falling behind).
+      ch('Pause & investigate', ['pause', 'safety', 'investigate'], (s) => pv([L('leadDays', 60, 'frontier runs paused'), L('boardConf', Math.round(-MOOD_BASE.pause * moodWeight(s, 'behind') * 10) / 10, 'falling behind: by board seat kind')], [L('alignment', 1, 'of the flagged trait by 20 safety research engineers (none for an understanding flag)', { unit: 'investigation' })]), (s, ctx, d) => {
         ws4(s).frontierPauseUntil = ctx.day + 60;
         for (const r of s.player.models.runs) if (r.status === 'running' && (r.kind === 'base' || r.kind === 'post')) r.status = 'paused';
         if (typeof d.versionId === 'string' && d.trait !== 'U') openInvestigation(s, ctx, { kind: 'trait', versionId: d.versionId, trait: d.trait as TraitId }, 20);
-        boardConf(ctx, -5 * boardSpeedAppetite(s), 'E17 pause');
+        boardMood(s, ctx, 'behind', MOOD_BASE.pause, 'frontier pause', 'E17');
         s.flags['ws4:outsideExpertsOffer'] = ctx.day;
       }),
       // F6d: the control tax is E6's protocol (as on Safety › Add control); the red flag this choice counts is a cost.

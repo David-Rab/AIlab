@@ -42,8 +42,6 @@ export interface StartDef {
   cash: number;
   revenueRun: number;
   revenueHistory: number[];
-  /** Valuation premium N (finance/equity.ts valuationMark); 0 = no valuation (a division). */
-  narrative: number;
   /** Ownership split (founder, financial, strategic partner). */
   ownership: { founder: number; fin: number; strat?: Record<string, number> };
   /** Compute owned (installed in live sites) and rented (cloud contract), H100e. */
@@ -56,8 +54,8 @@ export interface StartDef {
   /** D6: the start model is an imported open-weight model (post-trainable, not sellable as is). */
   imported?: boolean;
   /** Modifiers (research/18 §6). talentPull: the anchor talent pull drifts to (leader 10). starCost: × star hire cost.
-   *  patientQ: quarters without a revenue plan (patient investors). */
-  mods: { talentPull: number; starCost: number; patientQ: number };
+   *  (FIN2 removed patientQ with the board's revenue plan.) */
+  mods: { talentPull: number; starCost: number };
 }
 
 export const STARTS: StartDef[] = [
@@ -71,13 +69,13 @@ export const STARTS: StartDef[] = [
     quality: { 'sci.cap': 'elite' },
     known: ['rl.math', 'T-PROBE'],
     products: [], features: [],
+    // Valued through position (FIN5a): no public model, so investors place it at the best open-weight model (SSI $32B
+    // and TML $12B with no product [R21 A8]).
     cash: 3, revenueRun: 0, revenueHistory: [0, 0, 0, 0],
-    // TML raised $2B at $12B with no product: a pre-revenue founder premium [Design].
-    narrative: 5,
     ownership: { founder: 0.75, fin: 0.25 },
     owned: 0, rented: 25e3,
     board: 'founder', lagMonths: 6.5, imported: true,
-    mods: { talentPull: 30, starCost: 0.7, patientQ: 4 },
+    mods: { talentPull: 30, starCost: 0.7 },
   },
   {
     id: 'challenger', name: 'Challenger lab', difficulty: 'Hard', analogues: 'Anthropic, xAI (mid-2025)',
@@ -94,15 +92,15 @@ export const STARTS: StartDef[] = [
       { channel: 'enterprise', servingShare: 0.25 },
     ],
     features: ['codingAgent'],
-    cash: 8, revenueRun: 3, revenueHistory: [1, 1.5, 2, 2.5], narrative: 1.2,
+    cash: 8, revenueRun: 3, revenueHistory: [1, 1.5, 2, 2.5],
     ownership: { founder: 0.4, fin: 0.45, strat: { Azimuth: 0.15 } },
     owned: 100e3, rented: 300e3,
     board: 'founder', lagMonths: 3,
-    mods: { talentPull: 20, starCost: 1, patientQ: 0 },
+    mods: { talentPull: 20, starCost: 1 },
   },
   {
     id: 'bigtech', name: 'Big-tech AI division', difficulty: 'Impossible', analogues: 'Google DeepMind, Meta, Microsoft AI',
-    character: 'Compute and distribution, and you cannot go broke; a fixed budget from the parent and a weak pull on talent.',
+    character: 'Compute and distribution, and you cannot go broke; a yearly budget from the parent, cut when you miss its goals, and a weak pull on talent.',
     leaderLab: true,
     teams: { eng: 7, 're.cap': 18, 'sci.cap': 11, 're.saf': 1, 'sci.saf': 1 },
     specialties: { cap: ['pretraining', 'systems', 'posttraining', 'pretraining', 'systems', 'posttraining', 'pretraining', 'systems', 'posttraining', 'pretraining', 'systems'], saf: ['interp', 'alignment', 'evals'] },
@@ -114,11 +112,11 @@ export const STARTS: StartDef[] = [
     ],
     features: ['voiceVision'],
     // $4B on hand; the parent's budget is paid quarterly (finance/parent.ts). Revenue (~$4B attributed) goes to the parent.
-    cash: 4, revenueRun: 4, revenueHistory: [2.5, 3, 3.5, 3.8], narrative: 0,
+    cash: 4, revenueRun: 4, revenueHistory: [2.5, 3, 3.5, 3.8],
     ownership: { founder: 0, fin: 0 },
     owned: 800e3, rented: 0,
     board: 'parent', lagMonths: 6,
-    mods: { talentPull: 0, starCost: 1.5, patientQ: 0 },
+    mods: { talentPull: 0, starCost: 1.5 },
   },
   {
     id: 'leader', name: 'Frontier leader', difficulty: 'Easy', analogues: 'OpenAI (mid-2025)',
@@ -130,11 +128,11 @@ export const STARTS: StartDef[] = [
     known: ['kyc'],
     products: [{ channel: 'consumer', servingShare: 0.45 }, { channel: 'api', servingShare: 0.35 }, { channel: 'enterprise', servingShare: 0.2 }],
     features: ['sectorPacks'],
-    cash: 40, revenueRun: 12, revenueHistory: [4.5, 6, 8, 10], narrative: 1.5,
+    cash: 40, revenueRun: 12, revenueHistory: [4.5, 6, 8, 10],
     ownership: { founder: 0.3, fin: 0.17 },
     owned: 500e3, rented: 700e3,
     board: 'legacyNonprofit', lagMonths: 0,
-    mods: { talentPull: 10, starCost: 1, patientQ: 0 },
+    mods: { talentPull: 10, starCost: 1 },
   },
 ];
 
@@ -147,8 +145,8 @@ export const isDivision = (s: { setup: { start?: StartType } }) => startOf(s).bo
 
 /** Big-tech parent budget ($B per game year, Jul–Jun; research/18 §3.2): $16B in year one (the leader's 2025 compute
  *  spend in the AI 2027 compute forecast), growing with the parent's capex path — Alphabet 52.5 → 91.4 → ~180 in
- *  2024–26 (≈ ×1.75/yr) for three years, then ×1.3/yr as hyperscaler capex growth slows [D]. Paid quarterly from Q4 2025;
- *  the schedule is fixed and shown in advance. No parent-confidence mechanic (STRUCTURE §4.8). */
+ *  2024–26 (≈ ×1.75/yr) for three years, then ×1.3/yr as hyperscaler capex growth slows [D]. This is the parent's plan: the
+ *  budget it sets at each yearly review is the plan × a factor read off parent confidence (FIN5c, finance/parent.ts). */
 export const PARENT_BUDGET = { year0: 16, fastGrowth: 1.75, fastYears: 3, slowGrowth: 1.3 };
 export function parentBudgetYear(y: number): number {
   const fast = Math.min(Math.max(0, y), PARENT_BUDGET.fastYears);

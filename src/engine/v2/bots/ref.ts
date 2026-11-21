@@ -27,7 +27,7 @@ import { deployGate } from '../models/deployments';
 import { EVENT_BY_ID } from '../core/registry';
 import { decimalYear } from '../core/time';
 import { shareRefAt, TOP_KEYS, topOf, withFixed } from '../departments/split';
-import { financeAutopilot, financeDecide, REF_AUTOPILOT } from '../finance/plan';
+import { financeAutopilot, REF_AUTOPILOT } from '../finance/plan';
 import { runwayOf } from '../finance/runway';
 import { hRef } from '../production/knots';
 import { DEFAULT_LINES } from '../../../data/v2/research';
@@ -569,11 +569,9 @@ export function choiceByLabel(d: PendingDecision, label: string): number {
   return i >= 0 ? i : (def?.defaultChoice ?? 0);
 }
 
-/** RefBot's decisions (§7.4): E17 Continue, E20 Accept, E23 Reject; finance decisions as a competent CEO
- *  (financeDecide: E37); everything else takes the event's default. */
-export function refDecide(s: GameStateV2, d: PendingDecision): number {
-  const fin = financeDecide(s, d, REF_AUTOPILOT);
-  if (fin !== undefined) return fin;
+/** RefBot's decisions (§7.4): E17 Continue, E20 Accept, E23 Reject; everything else takes the event's default. (The
+ *  board is handled by the finance autopilot: FIN3b dropped E37 for the critics' seat action.) */
+export function refDecide(_s: GameStateV2, d: PendingDecision): number {
   if (d.id === 'E17') return choiceByLabel(d, 'Continue');
   if (d.id === 'E20') return choiceByLabel(d, 'Accept');
   if (d.id === 'E23') return choiceByLabel(d, 'Reject');

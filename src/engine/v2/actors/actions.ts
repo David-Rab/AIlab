@@ -34,7 +34,6 @@ interface Spec {
   available?(s: GameStateV2): boolean | string;
   preview(s: GameStateV2, p: P): Preview;
   apply(s: GameStateV2, ctx: SystemCtx, p: P): void;
-  boardVector?: [number, number, number, number];
 }
 
 function def(x: Spec): ActionDef {
@@ -52,7 +51,6 @@ function def(x: Spec): ActionDef {
       x.apply(s, ctx, p);
       ws4(s).actionDay[x.id] = s.time.day;
     },
-    ...(x.boardVector ? { boardVector: x.boardVector } : {}),
   };
 }
 
@@ -437,19 +435,8 @@ export const RELATION_ACTIONS: ActionDef[] = [
     },
   }),
   // ───────── F. Public ─────────
-  def({
-    id: 'F1', verb: 'deal', system: 'world', title: 'Community benefits',
-    available: (s) => (s.player.policies.communityBenefits ? 'Already pledged' : true),
-    preview: (s) => pv([L('cash', Math.max(0.05, 0.03 * s.player.sites.reduce((a, x) => a + x.capex, 0)), '+3% site capex')], [L('approval', 10, 'bloc:ratepayers')], [L('freedom', 1, 'pledge binds new sites')]),
-    apply(s, ctx) {
-      s.player.policies.communityBenefits = true;
-      cash(s, ctx, -Math.max(0.05, 0.03 * s.player.sites.reduce((a, x) => a + x.capex, 0)), 'F1 community benefits');
-      for (const x of s.player.sites) x.communityPackage = true;
-      signCommitment(s, ctx, 'communityPledge', 'Pay our own power and grid costs', 'communityPledge', {}, ['bloc:ratepayers', 'states'], { trust: 5, credibility: 8 });
-      bloc(s, ctx, 'ratepayers', 10, 0, 'F1');
-      ctx.bump('pub.dcNimby', -10, 'F1 community benefits');
-    },
-  }),
+  // F1 (community benefits) merged into the compute action cmp.community (FIN1, spec §4: upfront package with a
+  // company default).
   // F2 (transition fund) is WS5's wfx.transitionFund: one implementation, charged by WS3's payroll.
   def({
     id: 'F3', verb: 'policy', system: 'world', title: 'No drop-in agents', once: true,

@@ -3,9 +3,9 @@
 // state; the race bot never hardens), ×3 bases, latent reasoning on sight, releases its frontier, never discloses, signs
 // nothing, E17 Continue.
 // Model cadence: WS1's reference play with race designs; compute and money: WS3's autopilot at 2× capex, no guard.
-import { financeAutopilot, financeDecide, RACE_AUTOPILOT } from '../finance/plan';
+import { financeAutopilot, RACE_AUTOPILOT } from '../finance/plan';
 import type { BotPolicy } from '../types';
-import { every, pickByTags, tryAct } from './common';
+import { every, mergerChoice, pickByTags, tryAct } from './common';
 import { REF_TREE, refPlay, type RefPlayOpts } from './ref';
 
 const RACE_PLAY: RefPlayOpts = {
@@ -31,6 +31,8 @@ export const raceBot: BotPolicy = {
     }
   },
   decide(s, d) {
-    return financeDecide(s, d, RACE_AUTOPILOT) ?? pickByTags(s, d, [['race', 'latent', 'release'], ['quiet', 'secrecy'], ['deny'], ['resist', 'decline']]);
+    // FIN3c: buys a failing rival for cash or stock (never selling control, never forcing the board).
+    if (d.id === 'E32') return mergerChoice(s, d, { cushion: 10, maxStake: 0.15 });
+    return pickByTags(s, d, [['race', 'latent', 'release'], ['quiet', 'secrecy'], ['deny'], ['resist', 'decline']]);
   },
 };

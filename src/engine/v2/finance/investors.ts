@@ -1,27 +1,32 @@
 // Investor pool, hype, bubble, tranches, valuation marks, rating, covenants (V2-SPEC §3.7.3–3.7.4; research/15 §1.4–1.7).
 // Owner: WS3.
-import { GOV_FACTOR } from '../../../data/v2/deals';
-import { isDivision } from '../../../data/v2/starts';
-import { payParent } from './parent';
-import { dayOfDate, decimalYear } from '../core/time';
+import { divisionQ } from './parent';
+import { decimalYear } from '../core/time';
 import type { CapitalMarkets, EngineSystem, GameStateV2, Money, SystemCtx } from '../types';
-import { covenantsBreached, ratingOf, ratingScore, revolverCap, rollMaturities } from './debt';
-import { closePendingRound, valuationNow } from './equity';
+import type { StoryNow } from './story';
+import { covenantsBreached, ratingOf, ratingScore, rollMaturities } from './debt';
+import { gwOwned, publicFrontier } from './observe';
+import { cancelTrancheShares, closePendingRound, partnerEquityIn } from './equity';
+import { bustTarget, markRivals, RIVAL } from './rivalFinance';
+import { DRIVERS, markShare, poolAnnualOf, privateRivals, recordLabRevenue, sectorRunRate, STORY, storyNow } from './story';
 import { defaultCapitalWS3, ensureWs3, yearStats } from './ext';
 import { commitmentsPerYear, bookCash } from './ledger';
+import { judgePromises, recordThesisHist } from './promises';
+import { boardMood, MOOD_BASE } from './mood';
 
-/** Capital markets at Jul 2025. A_t = 4.0·R_sector·H·M(y10)·W with R_sector = private frontier-lab run-rates. */
+/** Capital markets at Jul 2025. The investor pool (π · sector value, FIN5a) and the player's part of it are set by
+ *  startStory once the rivals exist (newGame). */
 export function initialCapital(rSector: number): CapitalMarkets {
   return {
     y10: 4.4,
     sofr: 4.1,
     hype: 1.0,
-    poolAnnual: 4.0 * rSector,
+    poolAnnual: 0,
     carry: 0,
     ipoWindow: false,
     bubbleX: 2.0,
     shocks: [],
-    ws3: { ...defaultCapitalWS3(1.0), playerPoolQ: 0.3 * rSector, rSectorHist: [rSector] },
+    ws3: { ...defaultCapitalWS3(1.0), rSectorHist: [rSector] },
   };
 }
 
@@ -51,35 +56,6 @@ export function applyShock(s: GameStateV2, ctx: SystemCtx, kind: ShockKind, scal
   ctx.log('finance', `Investor sentiment hit (${kind}): hype ${H0.toFixed(2)} → ${c.hype.toFixed(2)}.`, 2);
 }
 
-/** Private frontier-lab run-rate (player + rivals with a private valuation; Big Tech in-house labs excluded). */
-export function sectorRunRate(s: GameStateV2): Money {
-  return s.player.finance.revenueRun + s.rivals.filter((r) => r.core.status === 'active' && r.finance.valuation > 0).reduce((a, r) => a + r.finance.revenueRun, 0);
-}
-
-/** Player's share of the pool: V^0.5 · momentum · gov over all private labs (R15 §1.4). Rivals: momentum √2.5 [D]. */
-export function poolShare(s: GameStateV2): number {
-  const f = s.player.finance;
-  const h = f.revenueHistory;
-  const back = h.length >= 4 ? h[h.length - 4] : h[0] ?? f.revenueRun;
-  const mom = Math.sqrt(Math.max(0.5, Math.min(8, f.revenueRun / Math.max(0.1, back))));
-  const me = Math.sqrt(Math.max(1, f.valuation)) * mom * GOV_FACTOR[s.player.board.preset];
-  let others = 0;
-  for (const r of s.rivals) if (r.core.status === 'active' && r.finance.valuation > 0 && !r.finance.distress) others += Math.sqrt(r.finance.valuation) * Math.sqrt(2.5);
-  return me / (me + others);
-}
-
-/** Frontier level visible to markets: best public model (player deployments, rival public models). */
-function publicFrontierL(s: GameStateV2): number {
-  let L = 0;
-  for (const d of s.player.deployments) {
-    if (d.status === 'withdrawn' || d.channel === 'internal') continue;
-    const v = s.player.models.versions.find((x) => x.id === d.versionId);
-    if (v) L = Math.max(L, v.evals.measuredL ?? v.Lg);
-  }
-  for (const r of s.rivals) if (r.publicModel) L = Math.max(L, r.publicModel.Lg);
-  return L;
-}
-
 /** Markets' initial expected public-frontier pace, levels per quarter (the 2025–26 reference release path) [D, M4]. */
 export const EXPECTED_DL_Q = 0.3;
 /** Quarterly adaptation of that expectation toward the observed pace [D, M4]. */
@@ -89,7 +65,7 @@ export const EXPECT_ADAPT = 0.1;
 function updateHype(s: GameStateV2, gSector: number) {
   const c = s.capital;
   const w = c.ws3;
-  const L = publicFrontierL(s);
+  const L = publicFrontier(s);
   // Surprise = the public frontier's pace over the last four quarters against the expected pace (M4: releases are
   // lumpy, so a one-quarter difference read every quiet quarter as a disappointment) [D].
   const hist = (w.frontierHist ??= []);
@@ -114,7 +90,7 @@ function updateHype(s: GameStateV2, gSector: number) {
 export function bubbleX(s: GameStateV2): number {
   const f = s.player.finance;
   const capex = f.ws3.capex4q.reduce((a, b) => a + b, 0);
-  const rivals = s.rivals.filter((r) => r.core.status === 'active' && r.finance.valuation > 0).reduce((a, r) => a + r.finance.commitments, 0);
+  const rivals = privateRivals(s).reduce((a, r) => a + r.finance.commitments, 0);
   return (commitmentsPerYear(s) + capex + rivals) / Math.max(1, sectorRunRate(s));
 }
 export const bustProbQ = (X: number) => Math.min(0.12, 0.005 + 0.02 * Math.max(0, X - 3));
@@ -132,17 +108,25 @@ function settleTranches(s: GameStateV2, ctx: SystemCtx) {
   for (const t of f.tranches) {
     const met = !t.condition || trancheConditionMet(s, t.condition);
     if (t.dueDay <= s.time.day && met) {
-      bookCash(s, ctx, t.amount, 'financing', 'equity tranche', t.source);
-      yearStats(s).equity += t.amount;
+      // A partner's tranche buys shares at today's valuation (FIN4a); a round's tranche was priced at the close.
+      if (t.partner) partnerEquityIn(s, ctx, t.partner, t.amount, t.source, t.stakeCap);
+      else {
+        bookCash(s, ctx, t.amount, 'financing', 'equity tranche', t.source);
+        yearStats(s).equity += t.amount;
+      }
       continue;
     }
     if (t.deadline !== undefined && t.deadline <= s.time.day && !met) {
+      const paid = t.condition === 'recapitalisation' ? Math.min(10, t.amount) : 0;
       if (t.condition === 'recapitalisation') {
         // SoftBank precedent: $30B → $10B if the recapitalisation does not close by the deadline [R15].
         ctx.log('finance', `${t.source}: recapitalisation missed; the investor cuts the tranche to $10B.`, 2);
-        bookCash(s, ctx, Math.min(10, t.amount), 'financing', 'equity tranche', `${t.source} (reduced)`);
-        yearStats(s).equity += Math.min(10, t.amount);
+        bookCash(s, ctx, paid, 'financing', 'equity tranche', `${t.source} (reduced)`);
+        yearStats(s).equity += paid;
       } else ctx.log('finance', `${t.source}: condition (${t.condition}) not met; $${t.amount.toFixed(1)}B lapses.`, 2);
+      // FIN4r (H3): a round's investors keep only the shares they paid for.
+      const c = cancelTrancheShares(s, t, 1 - paid / Math.max(1e-9, t.amount));
+      if (c > 0) ctx.log('finance', `${t.source}: the unpaid investors' shares are cancelled (${(c * 100).toFixed(1)}% of the company).`, 2);
       continue;
     }
     keep.push(t);
@@ -150,14 +134,16 @@ function settleTranches(s: GameStateV2, ctx: SystemCtx) {
   f.tranches = keep;
 }
 
-/** Tranche conditions: 'recapitalisation', 'revenue:<R>', 'gw:<GW online>', 'ipo'. */
+/** Tranche conditions: 'recapitalisation', 'revenue:<R>', 'gw:<GW online>', 'ipo'. FIN4r (M1): 'gw:' counts the
+ *  compute online in your own sites (`gwOwned`), not rented cloud or spot capacity (a hyperscaler's own cloud must
+ *  not meet its condition). */
 export function trancheConditionMet(s: GameStateV2, cond: string): boolean {
   const f = s.player.finance;
   if (cond === 'recapitalisation') return f.ws3.recap.doneDay !== undefined;
   if (cond === 'ipo') return f.ownership.public > 0;
   const [k, v] = cond.split(':');
   if (k === 'revenue') return f.revenueRun >= Number(v);
-  if (k === 'gw') return (s.player.computeOnline * s.power.kWPerH100e) / 1e6 >= Number(v);
+  if (k === 'gw') return gwOwned(s) >= Number(v);
   return false;
 }
 
@@ -174,6 +160,9 @@ export const capitalQSystem: EngineSystem = {
 
     // Quarter accumulators → operating cash flow and capex history.
     fx.opCashQ = fx.accQ.revenue - fx.accQ.opCosts;
+    const ocf = (fx.opCash4q ??= []);
+    ocf.push(fx.opCashQ);
+    if (ocf.length > 4) ocf.shift();
     fx.accQ = { revenue: 0, opCosts: 0 };
     const cum = cumulativeCapex(s);
     fx.capex4q.push(cum - fx.capexCumAtQ);
@@ -195,15 +184,6 @@ export const capitalQSystem: EngineSystem = {
       w.ipoOpenedDay = s.time.day;
     }
     if (c.ipoWindow && w.ipoOpenedDay !== undefined && s.time.day - w.ipoOpenedDay > 365 && f.ownership.public <= 0) c.ipoWindow = false;
-    const M = Math.exp(-0.12 * (c.y10 - 4.5));
-    const W = 1 + (c.ipoWindow ? 0.5 : 0);
-    c.poolAnnual = 4.0 * R * c.hype * M * W * (busted ? 0.4 : 1);
-    const unused = Math.max(0, w.playerPoolQ - w.playerTakenQ);
-    c.carry = 0.5 * unused; // rivals take their shares by default; the player's unused share carries at 50% [R15]
-    w.playerShare = poolShare(s);
-    w.playerPoolQ = w.playerShare * (c.poolAnnual / 4 + c.carry);
-    w.playerTakenQ = 0;
-
     // Bubble roll.
     c.bubbleX = bubbleX(s);
     if (!busted && ctx.rng('finance').chance(bustProbQ(c.bubbleX))) {
@@ -211,11 +191,11 @@ export const capitalQSystem: EngineSystem = {
       c.shocks.push({ kind: 'sectorBust', dH: SHOCKS.sectorBust.dH, halfLifeQ: SHOCKS.sectorBust.halfLifeQ, day: s.time.day });
       c.hype = Math.max(0.3, c.hype - SHOCKS.sectorBust.dH);
       w.spreadAddBp = 100 * Math.max(0, c.bubbleX - 3) / 3;
-      c.poolAnnual *= 0.4;
-      w.playerPoolQ *= 0.4;
-      // The most over-committed private rival is pushed into distress; WS4 decides bankruptcy.
-      const r = [...s.rivals].filter((x) => x.core.status === 'active' && x.finance.valuation > 0).sort((a, b) => b.finance.commitments / Math.max(0.1, b.finance.revenueRun) - a.finance.commitments / Math.max(0.1, a.finance.revenueRun))[0];
-      if (r) r.finance.distress = true;
+      // (FIN5a: the pool and the valuations fall through the sector value's bust factor, computed below.)
+      // The most over-committed private rival is pushed into distress: it raises nothing this quarter and is offered to
+      // you (E32); if still failing next quarter it exits (FIN5b, finance/rivalFinance.ts rivalMoneyQ).
+      const r = bustTarget(s);
+      if (r) c.busted.rival = r.core.id;
       ctx.log('alert', `AI investment bust: the pool for lab equity collapses and credit spreads widen (X = ${c.bubbleX.toFixed(1)}).`, 4);
       ctx.headline('bust', 'AI stocks crash as investors question trillion-dollar compute bets');
     } else if (!busted) w.spreadAddBp = Math.max(0, w.spreadAddBp * 0.5);
@@ -228,35 +208,64 @@ export const capitalQSystem: EngineSystem = {
       ctx.log('finance', 'Recapitalisation complete: the company is now a nonprofit-controlled PBC. Conditional tranches are freed.');
     }
 
-    // Valuation mark (formula), then raises close at it, tranches land; revenue history rolls. A division (R9) has no
-    // valuation; the parent's quarterly budget lands instead.
-    if (!isDivision(s)) {
-      const v = valuationNow(s);
-      const dv = v.V - f.valuation;
-      f.valuation = v.V;
-      ctx.cause('player.finance.valuation', dv, 'quarterly mark', `g ${v.g.toFixed(1)} · H ${v.H.toFixed(2)} · N ${v.N.toFixed(1)} · M ${v.M.toFixed(2)}`);
-    }
-    payParent(s, ctx);
+    // Promises due this quarter are judged first (FIN2: they move credibility, which the share reads). Then the story
+    // (FIN5a, spec §1): the sector value and each private lab's share; the investor pool is π · S (× the IPO window's
+    // bump), split by the same share, the player's unused part carrying 50% [R15]; the valuation is marked at S × share.
+    // Raises close at it, tranches land; the milestone and revenue histories roll. A division (R9) has no valuation and
+    // raises nothing; the parent reviews its year and pays its budget instead (FIN5c, after the histories roll: the new
+    // goals read this quarter's trend).
+    judgePromises(s, ctx);
+    const st = storyNow(s);
+    c.poolAnnual = poolAnnualOf(s, st.sector.S);
+    c.carry = STORY.carry * Math.max(0, w.playerPoolQ - w.playerTakenQ); // rivals take their shares; the player's unused part carries
+    const share = st.me ? markShare(s, st.share) : 0;
+    w.playerShare = share;
+    w.playerPoolQ = w.playerShare * (c.poolAnnual / 4 + c.carry);
+    w.playerTakenQ = 0;
+    if (st.me) markValuation(s, ctx, st, share);
+    markRivals(s, st); // FIN5b: every private rival on the same story, and its part of the pool
     closePendingRound(s, ctx);
     settleTranches(s, ctx);
     f.revenueHistory.push(f.revenueRun);
     if (f.revenueHistory.length > 8) f.revenueHistory.shift();
-    f.raisedLast4q = f.rounds.filter((r) => r.day > s.time.day - 365).reduce((a, r) => a + r.amount, 0);
+    recordLabRevenue(s);
+    recordThesisHist(s);
+    divisionQ(s, ctx);
 
-    // Debt: revolver grows with revenue unless frozen; maturities; covenants; rating.
-    const rv = f.debts.find((d) => d.kind === 'revolver');
-    if (rv && f.state !== 'distress' && f.rating !== 'closed') rv.principal = Math.max(rv.principal, revolverCap(f.revenueRun));
-    const breach = rollMaturities(s, ctx) || covenantsBreached(s, ctx);
+    // Debt: maturities, covenants, rating (spec §3). The credit line is re-sized only when you borrow (debt.ts).
+    // FIN4r (L10): both run every quarter (a maturity that could not be repaid used to skip the covenant tests and the
+    // chip-loan sweep).
+    const unpaid = rollMaturities(s, ctx);
+    const covenant = covenantsBreached(s, ctx);
+    const breach = unpaid || covenant;
     if (breach && f.covenantBreachDay === undefined) {
       f.covenantBreachDay = s.time.day;
-      ctx.bump('board.confidence', -20, 'covenant breach');
+      boardMood(s, ctx, 'setbacks', MOOD_BASE.covenantBreach, 'covenant breach');
       ctx.log('alert', 'Covenant breach: lenders can call the debt.', 4);
     } else if (!breach && f.covenantBreachDay !== undefined) delete f.covenantBreachDay;
-    let rating = ratingOf(ratingScore(s));
-    if (f.state === 'tight') rating = rating === 'BBB' ? 'BB' : rating === 'BB' ? 'B' : rating;
-    f.rating = rating;
+    f.rating = ratingOf(ratingScore(s));
   },
 };
 
-/** Day the legacy recapitalisation tranche is due (helper for previews). */
-export const recapDeadline = (s: GameStateV2) => dayOfDate(s.time.startDate, '2026-12-31');
+const T$ = (x: number) => (x >= 1000 ? `${(x / 1000).toFixed(2)}T` : `${x.toFixed(0)}B`);
+const X$ = (x: number) => `×${x.toFixed(2)}`;
+
+/** The quarterly mark (FIN5a): V = S × share. Its change is booked as two causes: the sector's move (the last mark
+ *  scaled by S / S_last) and the share's (the rest, which also absorbs the gap between a round's post-money and the
+ *  mark). */
+function markValuation(s: GameStateV2, ctx: SystemCtx, st: StoryNow, share: number): void {
+  const f = s.player.finance;
+  const me = st.me!;
+  const last = f.ws3.mark;
+  const V0 = f.valuation;
+  const sectorPart = last && last.S > 0 ? V0 * (st.sector.S / last.S - 1) : 0;
+  // FIN6a: at most the valuation cap (one rule for every private lab, rivalFinance.ts valueCap).
+  const V = Math.min(st.sector.S * share, me.cap ?? Infinity);
+  const capCut = st.sector.S * share - V;
+  f.valuation = V;
+  f.ws3.mark = { S: st.sector.S, share };
+  ctx.cause('player.finance.valuation', sectorPart, 'sector value', `${last ? `${T$(last.S)} → ` : ''}${T$(st.sector.S)} · hype ${st.sector.H.toFixed(2)} · rates ${X$(st.sector.M)}${st.sector.bust < 1 ? ` · bust ${X$(st.sector.bust)}` : ''}`);
+  if (capCut > 0) ctx.cause('player.finance.valuation', -capCut, 'valuation cap', `at most ${T$(me.cap!)}: ${me.revenue < STORY.preRevenue || me.cap! <= RIVAL.team ? 'team value' : `${(me.cap! / me.revenue).toFixed(0)}× revenue at ×${me.growth.toFixed(1)} a year`}`);
+  ctx.cause('player.finance.valuation', V + capCut - V0 - sectorPart, 'your share', `${last ? `${(last.share * 100).toFixed(1)}% → ` : ''}${(share * 100).toFixed(1)}% · ${DRIVERS.map((k) => `${k} ${X$(st.effect[k])}`).join(' · ')} · credibility ${X$(me.cred)} · governance ${X$(me.gov)}`);
+}
+

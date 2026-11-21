@@ -9,8 +9,8 @@ import { internalVersion } from '../models/labs';
 import { understanding } from '../safety/understanding';
 import type { AgendaId, BotPolicy, GameStateV2, TraitId } from '../types';
 import { clamp } from '../../rng';
-import { financeAutopilot, financeDecide, REF_AUTOPILOT } from '../finance/plan';
-import { byLabel, every, pickByTags, sizedTarget, staffLines, tryAct, type LinePlan } from './common';
+import { financeAutopilot, REF_AUTOPILOT } from '../finance/plan';
+import { byLabel, every, mergerChoice, pickByTags, sizedTarget, staffLines, tryAct, type LinePlan } from './common';
 import { REF_TREE, refPlay, type RefPlayOpts } from './ref';
 
 const LOTTERY: AgendaId[] = ['AG01', 'AG04', 'AG10', 'AG11', 'AG12', 'AG13'];
@@ -93,8 +93,6 @@ export const mixedBot: BotPolicy = {
     }
   },
   decide(s, d) {
-    const fin = financeDecide(s, d, REF_AUTOPILOT);
-    if (fin !== undefined) return fin;
     switch (d.id) {
       case 'E10': return byLabel(d, 'Public + retaliate');
       case 'E12': return byLabel(d, 'Comply');
@@ -108,7 +106,7 @@ export const mixedBot: BotPolicy = {
       case 'E22': return byLabel(d, 'Decline', 1);
       case 'E23': return byLabel(d, 'Verified talks');
       case 'E30': return byLabel(d, 'Honour');
-      case 'E32': return s.player.finance.cash > 20 ? byLabel(d, 'Acquire') : byLabel(d, 'Decline', 1);
+      case 'E32': return mergerChoice(s, d, { cushion: 20, maxStake: 0.1 }); // FIN3c: cash or stock, never control
       default: return pickByTags(s, d, [['disclose', 'honour'], ['balanced', 'control'], ['cooperate', 'community'], ['safety']]);
     }
   },

@@ -394,3 +394,14 @@ CAL_SHIFT refit; bots 200 seeds all six §7.4 criteria MET; `npm run test:ui` 23
 (mixed bot median min U − L −0.95 vs −0.5; P13 15–30 d earlier for the mixed bot) and finance F2 (2027 production 44.9M
 vs ≥ 45M, master 46.7M). Engineer utilisation, scripted bots before → after: ref 0 → 76%, race 0 → 76%, safe 0 → 41%,
 mixed 0 → 70%, capex2x 0 → 84%; idle-science weeks unchanged (55–68%: nothing queued, R1 not in scope).
+
+## Finance v3 status (2026-11-20, branch `finance-v3`)
+
+Details in design/FINANCE-V3.md and design/FINANCE-BUILD.md (phase notes).
+
+| Id | Status | What changed |
+|---|---|---|
+| F2 | superseded (FIN5c) | The division has a parent budget year (FINANCE-V3 §13): goals judged like promises, budget = plan × parent confidence, overspend covered as the parent's advance but minded; Parent budget card ("Over budget by $X; parent covers"); no runway verdict. |
+| F3 | superseded (FIN5a, FIN6b) | Finance tabs: Cash · Story · What we owe · Contracts · Board & owners · Debt & partners (a division: Cash · What we owe · Contracts · Board). |
+| ST2 | finance part done (FIN5c) | The division's negative cash is now the parent's advance (marked on the cash history); the idle-resources part stays out of scope (J2 "not now"). |
+| ST3 | superseded (FIN3a, FIN3b) | Board votes are deterministic and seat by seat; the Board card shows the ouster vote, the next review and what each seat needs; below 40 the critics' seat action. |

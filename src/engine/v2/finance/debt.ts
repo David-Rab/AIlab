@@ -1,16 +1,35 @@
-// Debt instruments, covenants and the credit rating (V2-SPEC §3.7.4; research/15 §1.7). Owner: WS3.
-import { DEBT_TERMS, RATING_SPREAD_BP } from '../../../data/v2/deals';
+// Debt instruments, covenants and the credit rating (FINANCE-V3 §3; research/15 §1.7). Owner: WS3.
+//
+// Each lender prices its own risk from cash flows and collateral: the credit line is sized by valuation (banks lend to
+// large private labs against their equity cushion: OpenAI $4B at $157B, Anthropic $15B), the chip loan by its
+// collateral, bonds by trailing operating cash flow. The rating comes from cash flow, liquidity cover, leverage (debt
+// and firm commitments against revenue) and distress, never from the valuation.
+import { CHIP_LOAN_SPREAD_BP, DEBT_SIZING, DEBT_TERMS, RATING_SPREAD_BP, REVOLVER_SPREAD_BP } from '../../../data/v2/deals';
+import { isDivision } from '../../../data/v2/starts';
 import type { Debt, FinanceState, GameStateV2, Money, SystemCtx } from '../types';
 import { yearStats } from './ext';
-import { commitmentsRemaining, bookCash } from './ledger';
+import { commitmentsRemaining, bookCash, ledgerDue, qOf } from './ledger';
+import { revenueRun } from './observe';
 
-/** Effective annual rate (%) of a debt: SOFR + spread (revolver, GPU loans, vendor notes) or y10 + spread (bonds);
- *  plus sector spread widening and +300bp in distress [R15]. */
+/** Effective annual rate (%) of a debt: SOFR + spread (credit line, chip loans) or y10 + spread (bonds, debt assumed with a bought lab);
+ *  plus sector spread widening and +300bp in distress [R15]. The credit line floats on today's rating; chip loans and
+ *  bonds keep the spread they were priced at. */
 export function debtRatePct(s: GameStateV2, d: Debt): number {
-  const base = d.kind === 'bond' ? s.capital.y10 : s.capital.sofr;
+  const base = d.kind === 'bond' || d.kind === 'assumed' ? s.capital.y10 : s.capital.sofr;
   const sector = s.capital.ws3?.spreadAddBp ?? 0;
   const distress = s.player.finance.state === 'distress' ? 300 : 0;
-  return base + (d.spreadBp + sector + distress) / 100;
+  const spread = d.kind === 'revolver' ? REVOLVER_SPREAD_BP[s.player.finance.rating] : d.spreadBp;
+  return base + (spread + sector + distress) / 100;
+}
+
+/** Spread (bp) a new draw of `kind` is priced at today. */
+export function newDebtSpreadBp(s: GameStateV2, kind: Debt['kind']): number {
+  const r = s.player.finance.rating;
+  return kind === 'revolver' ? REVOLVER_SPREAD_BP[r] : kind === 'gpuTerm' ? CHIP_LOAN_SPREAD_BP[r] : RATING_SPREAD_BP[r]; // bonds and assumed debt
+}
+/** Rate (%) a new draw of `kind` would pay today. */
+export function newDebtRatePct(s: GameStateV2, kind: Debt['kind']): number {
+  return debtRatePct(s, { id: '', kind, principal: 0, drawn: 0, spreadBp: newDebtSpreadBp(s, kind), maturityDay: 0 });
 }
 
 /** Interest $B/yr on drawn debt (used by opex). */
@@ -21,55 +40,116 @@ export function interestPerYear(s: GameStateV2): number {
 }
 
 export const totalDebt = (f: FinanceState) => f.debts.reduce((a, d) => a + d.drawn, 0);
+const drawnOf = (f: FinanceState, kind: Debt['kind']) => f.debts.filter((d) => d.kind === kind).reduce((a, d) => a + d.drawn, 0);
 
-/** Revolver size: ≤ min(0.33·R, $15B) [R15]. */
-export const revolverCap = (R: Money) => Math.min(0.33 * R, 15);
+/** Credit line a bank will size today: 3% of valuation, cap $15B (spec §3 [fit]). FIN5 replaces the valuation it reads
+ *  (today: the formula mark). A division has none: the parent's treasury borrows. */
+export function creditLineCapacity(s: GameStateV2, valuation = s.player.finance.valuation): Money {
+  if (isDivision(s)) return 0;
+  return Math.min(DEBT_SIZING.lineCap, DEBT_SIZING.lineShareOfV * Math.max(0, valuation));
+}
 
 /** Chip collateral value ($B): installed + inventory at today's list price, 70% for used hardware [D]. */
 export function chipCollateral(s: GameStateV2): Money {
   const installed = s.player.sites.reduce((a, x) => a + (x.stage === 'live' ? x.installed : 0), 0);
   const inv = s.player.finance.ws3.inventory;
-  return ((installed + inv.ready + inv.transit) * s.market.listPrice * 0.7) / 1e6;
+  return ((installed + inv.ready + inv.transit) * s.market.listPrice * DEBT_SIZING.chipHaircut) / 1e6;
 }
 
-/** How much more of `kind` the player could draw now ($B), and why not (if zero). */
-export function debtHeadroom(s: GameStateV2, kind: Debt['kind']): { max: Money; why?: string } {
+/** Trailing-year operating cash flow ($B): the last four quarters (annualised while fewer have closed); undefined
+ *  before the first quarter closes. */
+export function trailingOpCash(s: GameStateV2): Money | undefined {
+  const h = s.player.finance.ws3.opCash4q ?? [];
+  if (!h.length) return undefined;
+  return (h.reduce((a, b) => a + b, 0) * 4) / h.length;
+}
+
+export interface Headroom {
+  /** How much more could be drawn now ($B). */
+  max: Money;
+  /** The lender's limit before what is already drawn ($B). */
+  limit: Money;
+  /** The rule that sizes it (always shown), or why it is closed. */
+  why: string;
+  closed?: boolean;
+}
+
+/** How much more of `kind` the player could draw now, the limit and the rule behind it (spec §3). */
+export function debtHeadroom(s: GameStateV2, kind: Debt['kind']): Headroom {
   const f = s.player.finance;
-  const R = f.revenueRun;
-  if (f.rating === 'closed' && kind !== 'vendorNote') return { max: 0, why: 'Credit markets closed (rating)' };
+  const shut = (why: string, limit = 0): Headroom => ({ max: 0, limit, why, closed: true });
+  if (f.state === 'insolvent') return shut('Insolvent');
   if (kind === 'revolver') {
-    if (f.state === 'distress' || f.state === 'insolvent') return { max: 0, why: 'Revolver frozen in distress' };
-    const rv = f.debts.find((d) => d.kind === 'revolver');
-    return { max: rv ? Math.max(0, rv.principal - rv.drawn) : 0 };
+    const cap = creditLineCapacity(s);
+    if (cap <= 0) return shut('No credit line (the parent borrows)');
+    if (f.state === 'distress') return shut('Credit line frozen in distress', cap);
+    if (f.rating === 'closed') return shut('Credit markets closed (rating)', cap);
+    return { max: Math.max(0, cap - drawnOf(f, 'revolver')), limit: cap, why: `${Math.round(DEBT_SIZING.lineShareOfV * 100)}% of valuation, cap $${DEBT_SIZING.lineCap}B` };
   }
   if (kind === 'gpuTerm') {
-    const drawn = f.debts.filter((d) => d.kind === 'gpuTerm').reduce((a, d) => a + d.drawn, 0);
-    return { max: Math.max(0, 0.6 * chipCollateral(s) - drawn), why: 'LTV 60% of chip value' };
+    const lim = DEBT_SIZING.chipLTV * chipCollateral(s);
+    return { max: Math.max(0, lim - drawnOf(f, 'gpuTerm')), limit: lim, why: `${Math.round(DEBT_SIZING.chipLTV * 100)}% of chip value` };
   }
   if (kind === 'bond') {
-    if (R < 50 && f.ownership.public <= 0) return { max: 0, why: 'Bonds need R > $50B or a listing' };
-    const drawn = f.debts.filter((d) => d.kind === 'bond').reduce((a, d) => a + d.drawn, 0);
-    return { max: Math.max(0, R - drawn) };
+    if (f.rating === 'closed') return shut('Credit markets closed (rating)');
+    const ocf = trailingOpCash(s);
+    if (ocf === undefined || ocf <= 0) return shut('Needs positive operating cash flow (trailing year)');
+    const lim = DEBT_SIZING.bondOcfMult * ocf;
+    return { max: Math.max(0, lim - drawnOf(f, 'bond')), limit: lim, why: `${DEBT_SIZING.bondOcfMult}× trailing operating cash flow` };
   }
-  return { max: 0, why: 'Vendor notes come with vendor deals' };
+  return shut('Comes only with a lab you buy'); // assumed debt
 }
 
-/** Draw on (or issue) a facility. Revolver draws use the existing facility; GPU loans and bonds create a new
- *  tranche. Returns the amount drawn. */
-export function drawDebt(s: GameStateV2, ctx: SystemCtx, kind: Debt['kind'], amount: number): number {
+/** Undrawn part of the credit line as arranged (it counts in liquidity and covers negative cash automatically); 0 when
+ *  frozen in distress. */
+export function lineUndrawn(s: GameStateV2): Money {
   const f = s.player.finance;
-  const head = debtHeadroom(s, kind);
-  const amt = Math.max(0, Math.min(amount, head.max));
-  if (amt <= 0) return 0;
+  const rv = f.debts.find((d) => d.kind === 'revolver');
+  if (!rv || f.state === 'distress' || f.state === 'insolvent') return 0;
+  return Math.max(0, rv.principal - rv.drawn);
+}
+
+/** Re-size the credit line to what the bank will lend today (3% of valuation, cap $15B; never below what is drawn).
+ *  It happens only at a finance decision: when you borrow on it or close an equity round (banks re-size facilities
+ *  around a raise: OpenAI's $4B line came with its Oct 2024 round), never by itself (spec §3). No-op while the line is
+ *  frozen or the rating closed. Returns the line. */
+export function resizeCreditLine(s: GameStateV2, ctx: SystemCtx, why: string): Debt | undefined {
+  const f = s.player.finance;
+  const head = debtHeadroom(s, 'revolver');
+  let rv = f.debts.find((d) => d.kind === 'revolver');
+  if (head.closed) return rv;
+  if (!rv) {
+    rv = { id: 'D-revolver', kind: 'revolver', principal: 0, drawn: 0, spreadBp: DEBT_TERMS.revolver.spreadBp, maturityDay: s.time.day + DEBT_TERMS.revolver.years * 365, covenant: 'liquidity' };
+    f.debts.unshift(rv);
+  }
+  const next = Math.max(rv.drawn, head.limit);
+  if (Math.abs(rv.principal - next) > 0.05) ctx.log('finance', `Credit line re-sized $${rv.principal.toFixed(1)}B → $${next.toFixed(1)}B at the ${why} (${head.why}).`);
+  rv.principal = next;
+  return rv;
+}
+
+/** Draw on (or issue) a facility. Borrowing on the credit line first re-sizes it (resizeCreditLine); `arrangedOnly`
+ *  draws within the line as arranged (automatic cash cover). Chip loans and bonds create a new tranche priced at
+ *  today's rating. Returns the amount drawn. */
+export function drawDebt(s: GameStateV2, ctx: SystemCtx, kind: Debt['kind'], amount: number, opts: { arrangedOnly?: boolean } = {}): number {
+  const f = s.player.finance;
+  let amt = 0;
   if (kind === 'revolver') {
-    const rv = f.debts.find((d) => d.kind === 'revolver');
-    if (!rv) return 0;
+    let rv = f.debts.find((d) => d.kind === 'revolver');
+    if (opts.arrangedOnly) amt = Math.min(amount, lineUndrawn(s));
+    else {
+      if (debtHeadroom(s, 'revolver').closed) return 0;
+      rv = resizeCreditLine(s, ctx, 'borrowing');
+      amt = rv ? Math.min(amount, Math.max(0, rv.principal - rv.drawn)) : 0;
+    }
+    if (amt <= 0 || !rv) return 0;
     rv.drawn += amt;
   } else {
+    amt = Math.max(0, Math.min(amount, debtHeadroom(s, kind).max));
+    if (amt <= 0) return 0;
     const t = DEBT_TERMS[kind];
-    const spread = kind === 'bond' ? RATING_SPREAD_BP[f.rating] : t.spreadBp;
-    const d: Debt = { id: `D${s.time.day}-${f.debts.length}`, kind, principal: amt, drawn: amt, spreadBp: spread, maturityDay: s.time.day + t.years * 365, covenant: kind === 'gpuTerm' ? 'collateral' : 'incurrence' };
-    if (kind === 'gpuTerm') d.collateralH100e = (amt / Math.max(0.001, s.market.listPrice * 0.7)) * 1e6;
+    const d: Debt = { id: `D${s.time.day}-${f.debts.length}`, kind, principal: amt, drawn: amt, spreadBp: newDebtSpreadBp(s, kind), maturityDay: s.time.day + t.years * 365, covenant: kind === 'gpuTerm' ? 'collateral' : 'incurrence' };
+    if (kind === 'gpuTerm') d.collateralH100e = (amt / Math.max(0.001, s.market.listPrice * DEBT_SIZING.chipHaircut)) * 1e6;
     f.debts.push(d);
   }
   bookCash(s, ctx, amt, 'financing', `${kind} draw`);
@@ -78,7 +158,7 @@ export function drawDebt(s: GameStateV2, ctx: SystemCtx, kind: Debt['kind'], amo
   return amt;
 }
 
-/** Repay drawn debt (revolver first unless an id is given). Returns the amount repaid. */
+/** Repay drawn debt (highest spread first unless an id is given). Returns the amount repaid. */
 export function repayDebt(s: GameStateV2, ctx: SystemCtx, amount: number, id?: string): number {
   const f = s.player.finance;
   let left = Math.max(0, Math.min(amount, f.cash));
@@ -95,33 +175,57 @@ export function repayDebt(s: GameStateV2, ctx: SystemCtx, amount: number, id?: s
   return paid;
 }
 
-/**
- * Rating score (R15): z = 2·[op. cash flow > 0] + min(2, backlog/debt) − (Debt + 0.3·PV(commitments))/R − 2·[distress].
- * Contracted backlog ≈ 0.5·R [D]; PV ≈ 0.85 × remaining commitments [D].
- */
-export function ratingScore(s: GameStateV2): number {
-  const f = s.player.finance;
-  const R = Math.max(0.1, f.revenueRun);
-  const debt = totalDebt(f);
-  const backlog = 0.5 * R;
-  const cover = debt > 0 ? Math.min(2, backlog / debt) : 2;
-  return 2 * (f.ws3.opCashQ > 0 ? 1 : 0) + cover - (debt + 0.3 * 0.85 * commitmentsRemaining(s)) / R - 2 * (f.state === 'distress' ? 1 : 0);
+export interface RatingTerms {
+  z: number;
+  /** 2 if trailing operating cash flow is positive, else 0. */
+  cashFlow: number;
+  /** min(2, liquidity ÷ this quarter's fixed obligations). */
+  cover: number;
+  /** (debt + 0.3 · PV of firm commitments) ÷ revenue. */
+  leverage: number;
+  /** 2 in distress, else 0. */
+  distress: number;
+  ocf?: Money; liquidity: Money; fixedQ: Money; debt: Money; pvCommit: Money; revenue: Money;
 }
+
+/** PV of firm commitments ≈ 0.85 × the remaining firm payments [D]. */
+export const PV_COMMIT = 0.85;
+
+/**
+ * Rating score (spec §3): z = 2·[trailing operating cash flow > 0] + min(2, liquidity ÷ quarterly fixed obligations)
+ * − (debt + 0.3·PV(firm commitments)) ÷ revenue − 2·[distress]. Liquidity = cash + undrawn credit line; fixed
+ * obligations = firm ledger payments due this quarter + a quarter's interest. No assumed backlog.
+ */
+export function ratingTerms(s: GameStateV2): RatingTerms {
+  const f = s.player.finance;
+  const R = Math.max(0.1, revenueRun(s));
+  const debt = totalDebt(f);
+  const ocf = trailingOpCash(s);
+  const liquidity = Math.max(0, f.cash) + lineUndrawn(s);
+  const fixedQ = ledgerDue(s, qOf(s), true) + interestPerYear(s) / 4;
+  const cover = fixedQ > 1e-6 ? Math.min(2, liquidity / fixedQ) : 2;
+  const pvCommit = PV_COMMIT * commitmentsRemaining(s, true);
+  const leverage = (debt + 0.3 * pvCommit) / R;
+  const cashFlow = ocf !== undefined && ocf > 0 ? 2 : 0;
+  const distress = f.state === 'distress' ? 2 : 0;
+  return { z: cashFlow + cover - leverage - distress, cashFlow, cover, leverage, distress, ...(ocf !== undefined ? { ocf } : {}), liquidity, fixedQ, debt, pvCommit, revenue: R };
+}
+export const ratingScore = (s: GameStateV2) => ratingTerms(s).z;
 export const ratingOf = (z: number): FinanceState['rating'] => (z >= 2 ? 'BBB' : z >= 1 ? 'BB' : z >= 0 ? 'B' : 'closed');
 
-/** Quarter-end covenant tests (R15): revolver liquidity ≥ max($1B, 0.11·R); GPU loans: collateral < 1.2× loan → cash
- *  sweep (breach if cash cannot cover). Returns true if any covenant is breached. */
+/** Quarter-end covenant tests (spec §3): a drawn credit line needs cash ≥ ⅓ of the line; chip loans: collateral < 1.2×
+ *  loan → cash sweep (breach if cash cannot cover). Returns true if any covenant is breached. */
 export function covenantsBreached(s: GameStateV2, ctx: SystemCtx): boolean {
   const f = s.player.finance;
   let breach = false;
   const rv = f.debts.find((d) => d.kind === 'revolver');
-  if (rv && rv.drawn > 0 && f.cash < Math.max(1, 0.11 * f.revenueRun)) breach = true;
+  if (rv && rv.drawn > 0 && f.cash < DEBT_SIZING.lineLiquidity * rv.principal) breach = true;
   const gpu = f.debts.filter((d) => d.kind === 'gpuTerm' && d.drawn > 0);
   if (gpu.length) {
     const drawn = gpu.reduce((a, d) => a + d.drawn, 0);
     const value = chipCollateral(s);
-    if (value < 1.2 * drawn) {
-      const sweep = drawn - value / 1.2;
+    if (value < DEBT_SIZING.chipSweep * drawn) {
+      const sweep = drawn - value / DEBT_SIZING.chipSweep;
       if (f.cash > sweep + 1) {
         let left = sweep;
         for (const d of gpu) {
@@ -129,7 +233,7 @@ export function covenantsBreached(s: GameStateV2, ctx: SystemCtx): boolean {
           d.drawn -= x;
           left -= x;
         }
-        bookCash(s, ctx, -sweep, 'financing', 'GPU-loan cash sweep', 'collateral below 1.2× loan');
+        bookCash(s, ctx, -sweep, 'financing', 'chip-loan cash sweep', 'collateral below 1.2× loan');
       } else breach = true;
     }
   }
@@ -144,6 +248,7 @@ export function rollMaturities(s: GameStateV2, ctx: SystemCtx): boolean {
     if (d.maturityDay > s.time.day) continue;
     if (f.rating !== 'closed' && f.state !== 'distress') {
       d.maturityDay = s.time.day + DEBT_TERMS[d.kind].years * 365;
+      if (d.kind === 'gpuTerm' || d.kind === 'bond' || d.kind === 'assumed') d.spreadBp = newDebtSpreadBp(s, d.kind);
       continue;
     }
     if (f.cash >= d.drawn) {

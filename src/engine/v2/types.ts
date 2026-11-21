@@ -1194,9 +1194,16 @@ export interface FinanceState {
   cash: Money;
   revenueRun: Money; // annualised, smoothed 30 d
   revenueHistory: Money[]; // quarterly, for g and momentum
-  valuation: Money; // last mark (post-money of last round, or formula mark)
+  valuation: Money; // last mark (post-money of the last round, or the story mark: sector value × share, FIN5a)
   ownership: Ownership;
-  raisedLast4q: Money;
+  /** Investor credibility 0–100 (FINANCE-V3 §2.4): Doubted < 25 ≤ Unproven < 50 ≤ Credible < 75 ≤ Proven. Moved only by
+   *  promises judged at their deadlines; multiplies the lab's weight in the valuation share (FIN5a). Not relations
+   *  credibility. */
+  credibility: number;
+  /** Round promises (FINANCE-V3 §2.3): one per priced round, judged at its own deadline; judged ones are kept (last 8). */
+  promises: FinancePromise[];
+  /** Listed with dual-class shares (§2.6): founder votes keep control after the IPO; governance factor ×0.95. */
+  dualClass?: boolean;
   rounds: EquityRound[];
   tranches: Tranche[];
   debts: Debt[];
@@ -1204,7 +1211,6 @@ export interface FinanceState {
   rating: 'BBB' | 'BB' | 'B' | 'closed';
   runwayQ: number;
   state: 'healthy' | 'tight' | 'distress' | 'insolvent';
-  narrative: number; // N_i premium 0.6..2.2
   deals: StrategicDeal[];
   covenantBreachDay?: Day;
   /** WS3 working state (offers, inventory, tallies, runway bookkeeping). */
@@ -1213,16 +1219,55 @@ export interface FinanceState {
 
 export interface Ownership { founder: number; mission: number; fin: number; strat: Record<string, number>; public: number; }
 
-export interface EquityRound { day: Day; amount: Money; postMoney: Money; dilution: number; anchor?: string; down: boolean; }
-export interface Tranche { amount: Money; dueDay: Day; condition?: string; deadline?: Day; source: string; }
-export interface Debt { id: string; kind: 'revolver' | 'gpuTerm' | 'bond' | 'vendorNote'; principal: Money; drawn: Money; spreadBp: number; maturityDay: Day; covenant?: string; collateralH100e?: H100e; }
+export interface EquityRound { day: Day; amount: Money; postMoney: Money; dilution: number; anchor?: string; down: boolean; ipo?: boolean; }
+
+/** The milestone a round is raised on (FINANCE-V3 §2.2): a public model level, compute online (H100e) or a revenue
+ *  run-rate ($B/yr) by the deadline. */
+export type MilestoneType = 'capability' | 'scale' | 'adoption';
+export type Pitch = 'conservative' | 'base' | 'aggressive';
+/** A round's thesis as signed: the milestone, its start value and target (pitch applied). */
+export interface Thesis { type: MilestoneType; pitch: Pitch; start: number; target: number }
+/** A promise to the round's investors: an expectation, not a contract (it moves credibility and board confidence,
+ *  never cash). Judged at `deadline` (four quarter starts after the close). */
+export interface FinancePromise extends Thesis {
+  id: string;
+  amount: Money;
+  closeDay: Day;
+  deadline: Day;
+  /** Set when judged: the metric then, progress (start → target = 0 → 1), the outcome and what it moved. */
+  result?: { day: Day; value: number; progress: number; outcome: 'met' | 'near' | 'missed'; weight: number; cred: number; board: number };
+  /** FIN5c (spec §13): a goal the big-tech parent set with the year's budget (not a round's promise): `amount` is that
+   *  budget, `goalWeight` its fixed share of the year's goals; it moves parent confidence only (no investors). */
+  by?: 'parent';
+  goalWeight?: number;
+  /** FIN4r (H2): a typical round at the close, d_max · pre-money ÷ (1 − d_max) with the dilution limit that applied
+   *  ($B): the weight is the amount ÷ the larger of this and what was raised in the year, so a tiny round weighs little. */
+  typical?: Money;
+}
+/** A conditional or scheduled cash inflow. `partner`: a partner deal's equity tranche (FIN4a): the partner gets its
+ *  shares when the tranche lands, at that day's valuation, up to `stakeCap` of the company (a hyperscaler's 15%; the
+ *  part past the cap lapses). Round tranches carry no partner (their shares were issued at the close). */
+export interface Tranche { amount: Money; dueDay: Day; condition?: string; deadline?: Day; source: string; partner?: string; stakeCap?: number;
+  /** FIN4r (H3): a round's second tranche: the shares issued at the close for its unpaid money (fractions of the company
+   *  then, by holder: 'fin' or a partner name) and the insiders' (founder + mission) share then, which later issues
+   *  scale with everyone. A lapse cancels the shares of the money that did not come. */
+  shares?: { holders: Record<string, number>; insiders: number }; }
+/** 'assumed' = debt that came with a lab you bought (FIN3c, spec §9), priced at your rating. */
+export interface Debt { id: string; kind: 'revolver' | 'gpuTerm' | 'bond' | 'assumed'; principal: Money; drawn: Money; spreadBp: number; maturityDay: Day; covenant?: string; collateralH100e?: H100e; }
 
 /** Ledger entry for a contractual commitment ("Commitment$" to avoid clashing with relation Commitments). */
 export interface Commitment$ {
   id: string;
   payee: string;
-  kind: 'cloud' | 'lta' | 'lease' | 'spvRVG' | 'vendor' | 'power';
+  /** 'lease' = colocation rent; 'finLease' = a financing lease of site or chip capex (FIN1, spec §4); 'acquired' = the
+   *  contracts of a lab you bought, one firm entry over their remaining term (FIN3c, spec §9). */
+  kind: 'cloud' | 'lta' | 'lease' | 'finLease' | 'power' | 'acquired';
   perQuarter: Money;
+  /** Contract this entry belongs to: firm contracts priced on the expected market path pay one entry per quarter
+   *  (FIN1, spec §5), grouped by this id in the contracts table. */
+  contract?: string;
+  /** Financing leases: the lessor's annual return (rating-priced at signing), for the residual-value guarantee. */
+  rate?: number;
   /** First day payments fall due; absent = already paying. LTAs pay from the first tranche, cloud from the contract
    *  start, colocation leases from handover. */
   startDay?: Day;
@@ -1231,20 +1276,135 @@ export interface Commitment$ {
   penalty: Money;
 }
 
+/** Strategic partner kinds (FINANCE-V3 §6.1). */
+export type PartnerKind = 'hyperscaler' | 'chipVendor' | 'sovereign';
+/** What a partner supplies against the commitment: a hyperscaler's cloud capacity or custom chips (ASIC), a chip
+ *  vendor's own chips. */
+export type PartnerSupply = 'cloud' | 'asic' | 'chips';
+/** A deal's strings (FIN4a, FIN4b): only strings that do something. */
+export interface DealStrings {
+  /** Blocks deals with the partner's competitors (as before FIN4a: for good). Optional for more money (FIN4b); always
+   *  part of a rescue. */
+  exclusivity?: boolean;
+  /** IP access (FIN4b, spec §6.1): the partner's affiliated rival lab licenses your models while the deal runs (to
+   *  `until`) and closes ~10% a year of your capability lead. `trust`: under PBC + trust, the trust voted yes at signing
+   *  on licensing a capability-threshold model; without it, such models stay out of the licence. */
+  ipAccess?: { lab: LabId; trust?: boolean };
+  /** Share of revenue paid to the partner while the deal runs (to `until`). */
+  revenueShare?: number;
+  /** Votes of the board seat the partner holds (a rescue only: hyperscalers get no seat, spec §6.1). */
+  boardVotes?: number;
+}
+/** What a partner supplies against the take-or-pay commitment, as signed (priced on the expected market path). */
+export interface DealSupply {
+  kind: PartnerSupply;
+  /** Cloud: capacity (H100e) for the term; chips: H100e delivered each quarter. */
+  h100e: H100e;
+  quarters: number;
+  /** Price in the first and last quarter: $K per H100e-year (cloud) or $K per H100e (chips). */
+  first: number;
+  last: number;
+  /** Cuts off the expected path: the firm discount (spec §5) and the partner's own for the commitment; custom chips
+   *  also cost `costMult` of an H100e's list price (perf per dollar). */
+  firmDiscount: number;
+  partnerDiscount: number;
+  costMult?: number;
+  /** Every take-or-pay payment over the term ($B), the prepaid part included. */
+  total: Money;
+  /** Chips: the part of the first delivery prepaid at signing on the supplier's terms (FIN5a), $B; `perQ[0]` is net
+   *  of it. */
+  prepaid?: Money;
+  /** The day its supply ends (rationing priority runs to it). */
+  endDay?: Day;
+}
+/** A strategic partner deal as signed (FINANCE-V3 §6; FIN4a). One per partner; a rescue tops the partner up. */
 export interface StrategicDeal {
   id: string;
-  template: 'hyperscalerEquity' | 'customASIC' | 'chipVendorEquity' | 'vendorFinance' | 'sovereign' | 'spv' | 'neocloud' | 'megaJV';
   partner: string;
+  kind: PartnerKind;
   day: Day;
-  strings: { exclusivity?: boolean; boardSeat?: boolean; observer?: boolean; ipRights?: boolean; inCountrySite?: boolean; revenueShare?: number };
+  /** Equity paid in at signing and promised in tranches ($B; the tranches land on their conditions). */
+  equityNow: Money;
+  equityLater: Money;
+  supply?: DealSupply;
+  strings: DealStrings;
+  /** Day the deal's running terms end (supply, revenue share, rationing priority). */
+  until: Day;
+  rescue?: boolean;
+  /** A stake from before the start (the legacy Northwind stake, the challenger's strategic investor): a holder, no
+   *  running terms. */
+  legacy?: boolean;
 }
 
 export interface Board {
   preset: GovernancePresetId;
   seats: BoardSeat[];
   confidence: number; // BC 0..100
-  pendingApprovals: { id: string; action: string; vector: [number, number, number, number]; pApprove: number }[];
+  /** Charter right (FINANCE-V3 §7.2, nonprofit-controlled PBC): the nonprofit's safety committee halts the release of
+   *  a model the player's own safety evals red-flag (read by the deployment gate, FIN3b). */
   safetyCommitteeVeto: boolean;
+}
+
+/** Major decisions the board votes on (FINANCE-V3 §7.3). Operating decisions (compute, releases, research, pricing)
+ *  are never voted on. `transferModel` is a charter decision only the PBC + trust's trust votes on (§7.2, FIN3b). */
+export type MajorDecision = 'saleOfControl' | 'merger' | 'downRound' | 'rescue' | 'commitments' | 'debt' | 'transferModel';
+
+/** One voting seat's vote on a major decision (FIN3a): deterministic, shown before you ask. lean = stance · decision
+ *  + outside-ownership drift + board mood + the situation; yes when lean > 0 (the CEO's seat always votes yes). */
+export interface SeatVote {
+  holder: string;
+  kind: BoardSeat['kind'];
+  weight: number;
+  yes: boolean;
+  lean: number;
+  parts: { stance: number; drift: number; mood: number; need: number };
+}
+
+/** A board vote (FIN3a, spec §7.3): passes when the weighted yes is more than half of the voting weight. */
+export interface BoardVote {
+  decision: MajorDecision;
+  label: string;
+  /** Why this needs the board (the trigger, e.g. "firm payments $140B a year above 3× revenue"). */
+  trigger: string;
+  /** The situation term every seat shares, in words (e.g. "runway 2.1 q: the alternative is running out of cash"). */
+  needLabel: string;
+  seats: SeatVote[];
+  yes: number;
+  total: number;
+  passes: boolean;
+  /** Founder control (founder preset before listing, or dual-class): a failed vote can be forced at a confidence cost.
+   *  Never for a charter vote by the trust. */
+  canForce: boolean;
+  /** Who votes: the whole board (default) or, for the PBC + trust's charter rights, only the trust's (mission) seats. */
+  body?: 'board' | 'trust';
+}
+
+/** One seat's vote at an ouster review (FIN3b, spec §7.5): yes when lean = grievance + depth − reluctance > 0. */
+export interface OusterSeatVote {
+  holder: string;
+  kind: BoardSeat['kind'];
+  weight: number;
+  yes: boolean;
+  lean: number;
+  parts: { grievance: number; depth: number; reluctance: number };
+  /** Board confidence below which this seat would vote to remove you (undefined: it never would). */
+  turnsBelow?: number;
+}
+
+/** The ouster vote (FIN3b): deterministic, seat by seat, held at a quarterly review once confidence is below 25 and
+ *  the board's warning is at least 60 days old; passes when the weighted yes is more than half (the CEO's seat does not
+ *  vote). */
+export interface OusterVote {
+  seats: OusterSeatVote[];
+  yes: number;
+  total: number;
+  passes: boolean;
+  /** Whether a vote is held at the next review (confidence below the line and the warning old enough). */
+  live: boolean;
+  /** Shares of the last year's confidence losses the grievance is read from. */
+  grievance: { slow: number; reckless: number; burn: number };
+  /** The board's reluctance to remove a CEO (the legacy nonprofit's is half: ouster comes ×2 as easily). */
+  reluctance: number;
 }
 
 export interface BoardSeat { kind: 'founder' | 'mission' | 'financial' | 'strategic' | 'independent' | 'gov'; holder: string; stance: [number, number, number, number]; weight: number; }
@@ -1277,6 +1437,16 @@ export interface ChipOrder {
   deposit: Money; dueQ: number; // quarter index of delivery
   ltaEndQ?: number; prepayFrac: number; nonTW: boolean;
   delivered: H100e;
+  /** A firm (take-or-pay) single batch: not cancellable, rationing priority. Tranche orders ('lta') are always firm. */
+  firm?: boolean;
+  /** Tranche orders: price per tranche ($K), on the expected market path at signing (FIN1, spec §5). */
+  prices?: number[];
+  /** Tranche orders: quarter index of the first tranche (prices[dueQ − ltaStartQ] is the tranche due). */
+  ltaStartQ?: number;
+  /** How the balance due on delivery is paid (spot and single batches; FIN1, spec §4): cash, a financing lease at
+   *  `leaseRate` (annual, locked at the order) or a chip-backed loan. */
+  pay?: 'cash' | 'lease' | 'loan';
+  leaseRate?: number;
 }
 
 export interface CloudContract { id: string; provider: string; h100e: H100e; costPerYear: Money; startDay: Day; endDay: Day; cancellableNoticeQ: number | null; }
@@ -1291,7 +1461,7 @@ export interface Site {
   capex: Money; capexPaid: Money;
   installed: H100e;
   communityPackage: boolean;
-  spvFunded: number; // share funded by SPV (residual value guarantee in ledger)
+  spvFunded: number; // share of capex funded by a lessor (lease / SPV, FIN1 spec §4); 0 = paid in cash
   /** WS3 site bookkeeping (opposition roll, build quarters, financing). */
   ws3: SiteWS3;
 }
@@ -1310,11 +1480,12 @@ export interface CapitalMarkets {
   y10: number; // %
   sofr: number; // %
   hype: number; // H
-  poolAnnual: Money; // A_t
+  poolAnnual: Money; // investor pool a year: π · sector value × the IPO bump (FIN5a)
   carry: Money; // unused appetite carried
   ipoWindow: boolean;
   bubbleX: number; // X_t
-  busted?: { day: Day; recoverDay: Day };
+  /** A sector bust; `rival`: the most over-committed private rival it pushed into distress (FIN5b: offered via E32). */
+  busted?: { day: Day; recoverDay: Day; rival?: LabId };
   shocks: { kind: string; dH: number; halfLifeQ: number; day: Day }[];
   /** WS3 investor-pool bookkeeping. */
   ws3: CapitalWS3;
@@ -1326,7 +1497,14 @@ export interface CapitalMarkets {
 export interface YearStats {
   revenue: Money; payroll: Money; otherOpex: Money; computeCosts: Money; interest: Money;
   capexChips: Money; capexSites: Money; capexSitesFinanced: Money; supplierFunding: Money;
-  equity: Money; dealEquity: Money; debtDrawn: Money; spvFinanced: Money; cloudFinanced: Money; leaseFinanced: Money; vendorNotes: Money;
+  /** spvFinanced: capex funded by lessors (site and chip financing leases, FIN1). */
+  equity: Money; dealEquity: Money; debtDrawn: Money; spvFinanced: Money; cloudFinanced: Money; leaseFinanced: Money;
+  /** Chip capex a lessor paid at delivery (financing leases, FIN1); missing on older saves. */
+  capexChipsFinanced?: Money;
+  /** Firm payments a renegotiation deferred out of this year (FIN4r), by what they pay for: compute (cloud, leases,
+   *  acquired contracts: the computeCosts kinds) and chips (tranches). Incurred this year, paid at the contracts' end. */
+  deferredCompute?: Money;
+  deferredChips?: Money;
   minRunwayQ: number; distressDays: number;
   /** Cash booked through the finance ledger (`bookCash`, finance/ledger.ts) by flow kind, $B (signed). Every change to
    *  player cash goes through it, so Σ flows = Δcash (M2 money-flow audit, scripts/v2/money.ts). */
@@ -1342,28 +1520,31 @@ export type CashFlowKind =
   | 'training' | 'staff'
   | 'relations';
 
-/** A strategic-deal offer waiting for accept/decline (Seek partner action, events E03/E04). */
-export interface DealOffer {
-  id: string;
-  template: StrategicDeal['template'];
+/** The terms a partner offers now (FIN4a, spec §6.1), shown in full before you sign. Computed, never stored. */
+export interface PartnerTerms {
   partner: string;
-  day: Day;
-  expiresDay: Day;
-  /** Up-front equity or cash in ($B) and conditional tranches. */
-  equityNow: Money;
-  equityLater: Money;
-  /** Take-or-pay commitment ($B per quarter) and its length (quarters). */
-  commitPerQ: Money;
-  commitQ: number;
-  /** Compute delivered by the deal (cloud capacity or chips per quarter). */
-  h100e: H100e;
-  /** Price paid per H100e ($K) for chip deals, or $K per H100e-year for cloud capacity. */
-  unitPrice: number;
-  /** Share of new-site capex funded by the partner (SPV / mega-JV). */
-  siteShare: number;
-  strings: StrategicDeal['strings'];
+  kind: PartnerKind;
   rescue: boolean;
+  /** Equity paid in at signing ($B) and the equity tranches with their conditions (tranche condition grammar). */
+  equityNow: Money;
+  tranches: { amount: Money; condition: string; dueDay: Day; deadline: Day }[];
+  /** Supply against a take-or-pay commitment: per-quarter payments ($B) and prices on the expected path. */
+  supply?: DealSupply & { perQ: Money[]; prices: number[]; startQ: number };
+  strings: DealStrings;
+  /** A hyperscaler's stake cap (15%): tranches land only up to it. */
+  stakeCap?: number;
+  /** A sovereign cheque's political cost (scrutiny, Congress trust, security demand). */
+  politics?: { scrutiny: number; congress: number; securityDemand: number };
+  /** A rescue tops the partner up to this stake. */
+  stake?: number;
+  /** Years the running terms last (supply, revenue share, priority, IP access). */
+  years: number;
+  /** FIN4b: the optional strings and what each adds (equity $B over the terms without it, under the stake cap), or why
+   *  it is not on offer. `on` = chosen in these terms. */
+  options: { exclusive: PartnerOption; ipAccess: PartnerOption & { lab?: LabId; labName?: string } };
 }
+/** An optional string on a partner offer (FIN4b). */
+export interface PartnerOption { on: boolean; bump: Money; blocked?: string }
 
 export interface PendingRound {
   day: Day;
@@ -1372,6 +1553,11 @@ export interface PendingRound {
   preMoney: Money;
   anchor?: string;
   ipo: boolean;
+  /** The round's milestone (priced rounds; none for the IPO) and the pitch's price multiplier on the mark (FIN2). */
+  thesis?: Thesis;
+  priceMult?: number;
+  /** IPO with dual-class shares (§2.6). */
+  dualClass?: boolean;
 }
 
 /** A round investors repriced below the last valuation at close: the player accepts the down round or pulls it
@@ -1385,17 +1571,20 @@ export interface RepricedRound {
   lastPost: Money;
   anchor?: string;
   ipo: boolean;
+  thesis?: Thesis;
+  dualClass?: boolean;
 }
 
 /** End-of-quarter compute snapshot (H100e) for the Compute chart's past quarters. */
 export interface ComputeSnap { q: number; racks: H100e; cloud: H100e; running: H100e; installing: H100e; idle: H100e }
 
 export interface FinanceWS3 {
+  /** The last quarterly story mark (FIN5a): sector value and the player's share, for the valuation's two causes. */
+  mark?: { S: Money; share: number };
   /** Last 8 end-of-quarter compute snapshots (computeHistQ). Missing on saves made before it. */
   computeHist?: ComputeSnap[];
   pendingRound?: PendingRound;
   repricedRound?: RepricedRound;
-  offers: DealOffer[];
   /** Delivered chips not yet installed: in transit (this quarter) and ready (installable), plus their book value. */
   inventory: { transit: H100e; ready: H100e; book: Money };
   /** Gross purchase cost of owned installed chips ($B) — O&M base and GPU-loan collateral. */
@@ -1403,32 +1592,31 @@ export interface FinanceWS3 {
   /** Short-term spot rentals (inference cloud usage). */
   rentals: { h100e: H100e; endDay: Day; perYear: Money }[];
   /** Reserved supplier capacity (H100e/q) from funded expansions, and when it starts. */
-  reserved: { perQ: H100e; fromQ: number; toQ: number }[];
-  /** Action id → day until which the board has blocked it (§3.7.5: rejection blocks for 90 days). */
-  blockedUntil: Record<string, Day>;
-  /** Revenue plan for the quarter (board confidence +5 met / −10 missed). */
-  revenuePlan: Money;
+  /** Reserved supplier capacity outside rationing; `order`: only for that chip order (a custom-chip deal, FIN4r). */
+  reserved: { perQ: H100e; fromQ: number; toQ: number; order?: string }[];
+  /** Quarter-start history (oldest first, last 5) of the milestone metrics the raise card extrapolates (FIN2): public
+   *  level and compute online, H100e (revenue uses `revenueHistory`). Missing on saves made before it. */
+  thesisHist?: { L: number[]; H: H100e[] };
   /** Legacy-nonprofit recapitalisation (E02): start / completion days, or refused. */
   recap: { startDay?: Day; doneDay?: Day; refused?: boolean };
   /** Day cash first went negative after all options (insolvency grace). */
   negativeSinceDay?: Day;
   distressSinceDay?: Day;
   lastRenegotiationDay?: Day;
-  /** M4 board telegraph (§3.7.5): day the board first warned the CEO (E37) in the current low-confidence spell; the
-   *  ouster roll needs a prior warning. Cleared when confidence recovers. */
+  /** M4 board telegraph (§3.7.5): day the board first warned the CEO in the current low-confidence spell; the ouster
+   *  vote needs a warning at least 60 days old. Cleared when confidence recovers. */
   boardWarnDay?: Day;
-  /** Day the CEO was reinstated after an ouster vote (staff revolt, Nov 2023 precedent; once per game). */
-  reinstatedDay?: Day;
-  /** Quarter index of the last board-confidence charge for SPV guarantees (one charge per quarter). */
-  spvBcQ?: number;
+  /** Day the critics were last given a board seat (FIN3b, spec §7.5; once a year). */
+  criticsDay?: Day;
   /** Day of the last strategic rescue (one per year). */
   lastRescueDay?: Day;
-  /** Partner-funded share of capex for sites started before `untilDay` (mega-JV). */
-  jv?: { partner: string; share: number; untilDay: Day };
   /** Day until which a custom-ASIC migration slows research (WS1 reads this, §3.7.4 −15% research efficiency). */
   asicMigrationUntil?: Day;
   /** Last quarter's net operating cash flow (rating input) and the cash at its start. */
   opCashQ: Money;
+  /** Operating cash flow of the last four quarters (oldest first): the trailing year sizes bonds and is the rating's
+   *  cash-flow test (FIN1, spec §3). */
+  opCash4q: Money[];
   cashAtQStart: Money;
   /** Accumulators reset each quarter: revenue and operating costs ($B). */
   accQ: { revenue: Money; opCosts: Money };
@@ -1436,6 +1624,34 @@ export interface FinanceWS3 {
   capexCumAtQ: Money;
   capex4q: Money[];
   years: Record<string, YearStats>;
+  /** FIN5c: the big-tech division's budget year (finance/parent.ts); absent for every other company. */
+  division?: DivisionBudget;
+}
+
+/** A big-tech division's budget year (FINANCE-V3 §13, FIN5c). Budget years run Jul–Jun (0 = Jul 2025 – Jun 2026). At
+ *  each year's review the parent minds any overspend it is covering, sets the budget (its plan × a factor read off parent
+ *  confidence) and the year's goals (FinancePromise with `by: 'parent'`). */
+export interface DivisionBudget {
+  year: number;
+  /** The parent's plan for the year (its capex path, data/v2/starts.ts) and the budget it set: plan × factor. */
+  plan: Money;
+  budget: Money;
+  factor: number;
+  /** Parent confidence when the budget was set. */
+  confidence: number;
+  /** Cash at the year start before its first payment: savings carried in, or (negative) the parent's advance still
+   *  outstanding, repaid from this year's payments first. */
+  carryIn: Money;
+  /** Budget paid so far this year. */
+  paid: Money;
+  /** Last reviews (oldest first, at most 4). */
+  reviews: DivisionReview[];
+}
+export interface DivisionReview {
+  year: number; day: Day; budget: Money;
+  /** Net spending over the year, the overspend the parent was still covering at the review and the confidence it cost. */
+  spent: Money; over: Money; overConf: number;
+  goals: { met: number; near: number; missed: number };
 }
 
 /** Non-player lab order (rivals, China): kept on the market so WS4 can place them via `placeLabOrder`. */
@@ -1479,7 +1695,10 @@ export interface CapitalWS3 {
   hypeBase: number;
   /** Sector run-rate R_sector over the last 5 quarters (oldest first). */
   rSectorHist: Money[];
-  /** This quarter's pool for the player (share × (A/4 + carry)) and how much of it has been raised. */
+  /** Private rivals' revenue run-rate at the last quarter marks (oldest first, last 8): their momentum in the story
+   *  share (FIN5a; the player's is finance.revenueHistory). */
+  labRev?: Record<LabId, Money[]>;
+  /** This quarter's pool for the player (story share × (A/4 + carry), FIN5a) and how much of it has been raised. */
   playerPoolQ: Money;
   playerTakenQ: Money;
   playerShare: number;
@@ -1503,8 +1722,11 @@ export interface SiteWS3 {
   queuedDay?: Day;
   /** Planned building quarters (8 default, 4 crash; lease 1–3). */
   buildQ: number;
-  /** Partner funding this site (SPV / JV) and the residual-value-guarantee penalty. */
-  financedBy?: string;
+  /** Financing lease (FIN1, spec §4): the lessor's annual return, locked when the site was started, and the amount it
+   *  has funded so far with construction interest capitalised quarterly. Lease payments start at go-live. */
+  lease?: { rate: number; funded: Money };
+  /** E27 large reactive community package: the retried permitting roll uses its unblock odds (FIN1, spec §4). */
+  reactive?: boolean;
   startDay: Day;
   /** Day construction started and the day it went live (UI timeline, test F10). */
   buildStartDay?: Day;
@@ -1566,6 +1788,24 @@ export interface RivalPhys {
   pool: { pre: number; mid: number; ceil: number };
 }
 
+/** A rival's money (FIN5b, finance/rivalFinance.ts). A private rival's valuation is its story share of the sector value
+ *  (marked quarterly, half-way, at most its cap); parent-funded labs (big tech, open weights, China) carry valuation 0. */
+export interface RivalFinance {
+  cash: Money;
+  revenueRun: Money;
+  valuation: Money;
+  commitments: Money;
+  distress: boolean;
+  /** Story share at the last quarterly mark (before the cap); unset until the first mark. */
+  mark?: number;
+  /** Investor money open to it this quarter: its part of the pool, the unused part carrying 50% (as the player's). */
+  poolQ?: Money;
+  /** Equity its investors have put in, start included (an exit pays them back a multiple of it). */
+  raised?: Money;
+  /** Day of its last priced round. */
+  lastRoundDay?: Day;
+}
+
 export interface RivalLab {
   core: Omit<LabCore, 'deployments' | 'models' | 'paradigms'>;
   archetype: string; // LAB_ARCHETYPES id
@@ -1574,7 +1814,7 @@ export interface RivalLab {
   nextBaseDay: Day;
   /** Model v3 F1: recipe, base and run state (actors/rivalModel.ts). */
   phys: RivalPhys;
-  finance: { cash: Money; revenueRun: Money; valuation: Money; commitments: Money; distress: boolean };
+  finance: RivalFinance;
   visible: { frameworkVersion: number; clauseType: 'conditional' | 'allAdopt' | 'unconditional' | 'override' | 'state'; testers: string[]; indexGrade?: string };
   intel: RivalIntel;
   meters: { poachAggression: number; cooperation: number; lobbyStance: number; openness: number };
@@ -1884,7 +2124,7 @@ export interface EngineSystem {
 export type Currency =
   | 'cash' | 'revenue' | 'compute' | 'staffTime' | 'progress' | 'leadDays' | 'trust' | 'credibility'
   | 'scrutiny' | 'talent' | 'morale' | 'boardConf' | 'approval' | 'security' | 'monitorability'
-  | 'alignment' | 'freedom' | 'chinaTension' | 'dilution';
+  | 'alignment' | 'freedom' | 'chinaTension' | 'dilution' | 'valuation'; // valuation: $B of the company's mark (FIN4r L4)
 
 /** `unit` (optional, display only): the unit of `amount` when the currency label would mislead (model v3 D4: data and
  *  suite gains are tokens or fidelity, not levels "L"). */
@@ -1900,8 +2140,9 @@ export interface ActionDef<P = Record<string, number | string | boolean>> {
   preview(s: GameStateV2, p: P): { costs: CostLine[]; gains: CostLine[]; exposure: CostLine[] };
   /** Returns a string when the action did not go through (e.g. the board voted it down); its side effects stand. */
   apply(s: GameStateV2, ctx: SystemCtx, p: P): void | string;
-  /** Board approval vector (speed, fin, safety, mission) if this is a major decision (§3.7.5). */
-  boardVector?: [number, number, number, number];
+  /** The board vote this action needs with these params (FIN3a: major decisions only, spec §7.3), or undefined when
+   *  it needs none. Deterministic: the UI shows it before you ask, apply() reads the same vote. */
+  vote?(s: GameStateV2, p: P): BoardVote | undefined;
   /** Structure verb (STRUCTURE R2) and system (§4); required (scripts/v2/lint-structure.ts). */
   verb: ActionVerb;
   system: StructureSystem;
@@ -1909,8 +2150,12 @@ export interface ActionDef<P = Record<string, number | string | boolean>> {
 
 export interface ChoiceV2 {
   label: string; // ≤ 3 words
-  preview(s: GameStateV2): { costs: CostLine[]; gains: CostLine[]; exposure: CostLine[] };
-  available?(s: GameStateV2): boolean | string;
+  /** `data` = the pending decision's trigger data (absent in catalog lints: the preview falls back to a generic line). */
+  preview(s: GameStateV2, data?: Record<string, number | string>): { costs: CostLine[]; gains: CostLine[]; exposure: CostLine[] };
+  available?(s: GameStateV2, data?: Record<string, number | string>): boolean | string;
+  /** The board vote this choice needs (FIN3c: a merger), shown under the choice before you pick it; `available` and
+   *  `apply` read the same vote. */
+  vote?(s: GameStateV2, data?: Record<string, number | string>): BoardVote | undefined;
   apply(s: GameStateV2, ctx: SystemCtx, data: Record<string, number | string>): void;
   tags: string[]; // 'race' | 'safety' | 'disclose' | ... (bots and replay)
 }
@@ -1950,7 +2195,7 @@ export interface EngineApi {
   understanding(s: GameStateV2): { U: number; margin: number; perTrait: Partial<Record<TraitId, number>> };
   riskSources(s: GameStateV2): RiskSource[];
   leadDays(s: GameStateV2, other: LabId): { est: number; sd: number };
-  raiseCeiling(s: GameStateV2): { max: Money; bound: 'pool' | 'dilution' | 'annualCap' | 'ask'; parts: Record<string, Money> };
+  raiseCeiling(s: GameStateV2): { max: Money; bound: 'pool' | 'dilution' | 'ask'; parts: Record<string, Money> };
 }
 
 /** Test/bot hooks for one tick. Never used by the UI. */

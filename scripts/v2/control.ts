@@ -385,7 +385,7 @@ for (const fx of ['day400.json', 'day900.json']) {
   let m: GameStateV2 | undefined;
   try { m = deserialize(JSON.stringify(raw)); } catch (e) { msg = String(e); }
   const cp = m ? footholdsOf(m).find((f) => f.kind === 'exfiltratedCopy') : undefined;
-  check(!!m && m.schemaRev === SCHEMA_REV && SCHEMA_REV === 33 && m.hidden.toleranceNoise === toleranceNoiseOf(m.setup.seed) && cp?.mis === 0.33 && m.player.safety.effectiveControl.level === 1,
+  check(!!m && m.schemaRev === SCHEMA_REV && SCHEMA_REV === 42 && m.hidden.toleranceNoise === toleranceNoiseOf(m.setup.seed) && cp?.mis === 0.33 && m.player.safety.effectiveControl.level === 1,
     'save: a schemaRev-31 save migrates to 32 (the world\'s tolerance noise from the seed, the copy\'s Mis from the loose record, full control until the next day)', msg || `ε_w ${f3(m?.hidden.toleranceNoise ?? NaN)}`);
   const fresh = newGame(defaultSetupV2({ seed: 3 }));
   const back = deserialize(serialize(fresh));

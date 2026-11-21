@@ -10,6 +10,8 @@ import { deserialize } from '../../src/engine/v2/core/save';
 import { internalEval, internalVersion, measuredL, understanding } from '../../src/engine/v2/index';
 import { GLOSSARY_V2 } from '../../src/data/v2/glossary';
 import { LIMITS } from '../../src/data/v2/limits';
+import { STORY } from '../../src/engine/v2/finance/story';
+import { RIVAL } from '../../src/engine/v2/finance/rivalFinance';
 import { FIXTURE_DIR } from './lib';
 import { tipSites } from './lint-tips';
 
@@ -126,6 +128,27 @@ ok(`Required terms present (${REQUIRED.length})`, req.length === 0, req.join(', 
     });
   }
   ok('No removed v2 concepts in the glossary, limits or UI text (B4)', hits.length === 0, hits.slice(0, 10).join(' | '));
+}
+
+// ── 5. finance glossary numbers follow the engine's constants (FIN6c: the FIN6a refit left four entries stale; the
+//    glossary is plain data and cannot import the engine, so this check keeps them in step) ──
+{
+  const body = (id: string) => GLOSSARY_V2[id]?.body ?? '';
+  const w = STORY.weights;
+  const want: [string, string][] = [
+    ['marketMood', `× ${STORY.bust} during a [[bubble|bust]]`],
+    ['bubble', `×${STORY.bust}`],
+    ['storyShare', `exp(story score ÷ ${STORY.tau})`],
+    ['storyShare', `[[storyPosition|position]] ×${w.position}, [[storyMomentum|momentum]] ×${w.momentum}, [[storyEconomics|economics]] ×${w.economics}, [[storyCapacity|capacity]] ×${w.capacity}`],
+    ['sectorValue', `^${STORY.alpha}`],
+    ['sectorValue', `÷ ${STORY.phiRef})^${STORY.phi}`],
+    ['investorPool', `${Math.round(STORY.pi * 100)}% of the [[sectorValue|sector value]]`],
+    ['valuationCap', `$${RIVAL.team}B of team value`],
+    ['valuationCap', `${RIVAL.multiple}× at ×${RIVAL.capGrowthRef} a year × (growth ÷ ${RIVAL.capGrowthRef})^${RIVAL.capGrowthExp}`],
+    ['valuationCap', `×${STORY.growth[0]}–×${STORY.growth[1]}`],
+  ];
+  const stale = want.filter(([id, text]) => !body(id).includes(text));
+  ok(`Finance glossary numbers match the engine (${want.length})`, stale.length === 0, stale.map(([id, text]) => `${id}: "${text}"`).join(' | '));
 }
 
 // `--doc`: regenerate design/ux/GLOSSARY.md, the coverage list (every term → its tooltip text).

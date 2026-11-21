@@ -2,17 +2,17 @@
 // Watch rule); choice cards with before→after bars on the meters they touch; "lasting fixes" Go buttons; keys 1/2/3
 // choose, Esc = later. Also the acknowledgement card for severity 4–5 log entries.
 import { useEffect } from 'react';
-import { choiceView, eventDef } from '../../../engine/v2';
+import { choiceView, choiceVote, eventDef } from '../../../engine/v2';
 import type { GameStateV2 } from '../../../engine/v2';
 import { store } from '../store';
-import { Rich } from '../ui';
+import { Rich, VoteStrip } from '../ui';
 import { ActionCard, CauseChain, GoBtn, type GoTarget } from '../kit';
 import { ICON } from '../icons';
 import { KIND_ICON, kindTag, logRoute, openRoute, Ring } from './AlertQueue';
 import { watchItems } from './watch';
 
 /** Which Watch rules explain an event, by event id first, then by its kind. */
-const WHY_BY_EVENT: Record<string, string[]> = { E17: ['unseen'], E37: ['board', 'runway'], E01: ['unseen'] };
+const WHY_BY_EVENT: Record<string, string[]> = { E17: ['unseen'], E01: ['unseen'] };
 const WHY_BY_KIND: Record<string, string[]> = { finance: ['runway', 'board'], company: ['morale', 'idle'], model: ['unseen', 'stale'], incident: ['incident', 'unseen'], research: ['unseen'], alert: ['unseen', 'incident'] };
 /** Lasting fixes per kind when no Watch rule matches. */
 const FIXES: Record<string, { to: GoTarget; label: string }[]> = {
@@ -28,7 +28,7 @@ const FIXES: Record<string, { to: GoTarget; label: string }[]> = {
 };
 
 /** Jank E1: what the default choice means when its cost is not obvious from its lines. */
-const DEFAULT_NOTE: Record<string, string> = { E32: 'another lab buys them instead and takes their staff' };
+const DEFAULT_NOTE: Record<string, string> = { E32: 'if it is still failing next quarter, a big-tech lab buys it or it shuts down' };
 
 export function DecisionModal({ s }: { s: GameStateV2 }) {
   const p = s.events.pending.find((x) => x.instance === store.modal);
@@ -38,7 +38,7 @@ export function DecisionModal({ s }: { s: GameStateV2 }) {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { store.openDecision(undefined); return; }
       const n = Number(e.key);
-      if (n >= 1 && n <= def.choices.length && choiceView(s, def.id, n - 1).ok === true) store.resolve(p.instance, n - 1);
+      if (n >= 1 && n <= def.choices.length && choiceView(s, def.id, n - 1, p.data).ok === true) store.resolve(p.instance, n - 1);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -94,12 +94,15 @@ export function DecisionModal({ s }: { s: GameStateV2 }) {
         )}
         <div className="dm2-choices" style={{ gridTemplateColumns: `repeat(${Math.min(3, def.choices.length)}, minmax(0, 1fr))` }}>
           {def.choices.map((c, i) => {
-            const v = choiceView(s, def.id, i);
-            return (
+            const v = choiceView(s, def.id, i, p.data);
+            // FIN3c: a choice that is a major decision (a merger) shows the board's vote under its card, seat by seat.
+            const vote = choiceVote(s, def.id, i, p.data);
+            const card = (
               <ActionCard key={i} s={s} v={v} keyHint={String(i + 1)} isDefault={i === def.defaultChoice} disabled={v.ok === true ? undefined : v.ok}
                 onClick={() => store.resolve(p.instance, i)} testAttr={{ choice: i }}
                 note={i === def.defaultChoice ? `${DEFAULT_NOTE[def.id] ? `${DEFAULT_NOTE[def.id]} · ` : ''}happens on its own in ${left} d` : c.tags?.includes('secrecy') ? 'hidden flaws found later cost three times the trust' : undefined} />
             );
+            return vote ? <div key={i} className="dm2-choice">{card}<VoteStrip v={vote} /></div> : card;
           })}
         </div>
         <div className="dm2-foot">

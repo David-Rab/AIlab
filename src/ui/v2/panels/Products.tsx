@@ -20,7 +20,7 @@ import { TREE_BY_ID } from '../../../data/v2/tree';
 import {
   CHANNEL_VARIANTS, agentsGate, dangerView, buildEtas, catchRate, dateOf, deployGate, editBlock, editedProduct, effortLock, fmtDate, isProduct, measuredHorizonH,
   demandModifiers, featureView, measuredLOf, nodeKnown, PENALTY_MAX, previewEdit, productReadouts, servingPool, versionById, CONVERGED,
-  LAUNCH_TW, LENT_RECOVERY, pendingLaunch, spareServing, spareServingToResearch,
+  LAUNCH_TW, LENT_RECOVERY, pendingLaunch, spareServing, spareServingToResearch, charterHolds,
 } from '../../../engine/v2';
 import type { Channel, CustomerView, DangerRead, Deployment, FeatureKind, GameStateV2, ModelVersion, PriceTier, ProductChanges, ProductRead } from '../../../engine/v2';
 import { store } from '../store';
@@ -89,6 +89,7 @@ export function Products({ s }: { s: GameStateV2 }) {
     .sort((a, b) => PRODUCT_ORDER.indexOf(a.channel) - PRODUCT_ORDER.indexOf(b.channel));
   const pol = s.player.policies;
   const side = live.length > 0 && live.length <= 3;
+  const held = charterHolds(s).length;
   // Products on an older model than the newest cleared one of their kind (the upgrade policy's readout).
   const behind = live.filter((d) => {
     const v = versionById(s, d.versionId);
@@ -104,6 +105,8 @@ export function Products({ s }: { s: GameStateV2 }) {
           </Tip>}
           {/* D8: auto-evaluate lives on the eval policy (Models › Evals). */}
           <Ref id="autoEvaluate" to={{ panel: 'models', tab: 'evals' }}>Auto-evaluate</Ref>
+          {/* FIN3b: models the charter holds back; the list's home is the Board card. */}
+          {held > 0 && <Ref id="charterHolds" to={{ panel: 'finance', tab: 'owners', anchor: 'board' }}><Lock size={11} /> Safety committee holds {held} model{held > 1 ? 's' : ''}</Ref>}
         </span>} />
 
       {/* B4: with three products or fewer, the launch card and the serving split share a column beside the cards (the

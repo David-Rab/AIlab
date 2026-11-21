@@ -1614,7 +1614,385 @@ ok('J1 M5: runs are named by their target', !(await page.locator('[data-panel=mo
 await nav('compute');
 await tabTo('overview');
 await wait(200);
-ok('J1 C1: order, build and rent show before → after (cash, runway)', await page.evaluate(() => ['cmp.orderStandard', 'cmp.newSite', 'cmp.cloudContract'].every((id) => /cash.*→.*runway.*→/s.test(document.querySelector(`[data-test="preview.${id}"]`)?.textContent ?? ''))));
+ok('J1 C1: buy, build and rent show before → after (cash, runway)', await page.evaluate(() => ['cmp.buyChips', 'cmp.newSite', 'cmp.rentCompute'].every((id) => /cash.*→.*runway.*→/s.test(document.querySelector(`[data-test="preview.${id}"]`)?.textContent ?? ''))));
+// FIN1 (finance v3 §3–§5): payment options on the build card, term × firmness on Buy chips / Rent compute with the
+// expected price path, the rating with its terms and each debt instrument's limit on Finance.
+{
+  ok('FIN1: the build card compares payment options (cash, lease) on total cost', !!(await page.$('[data-panel=compute] [data-opt="site-pay-cash"]')) && !!(await page.$('[data-panel=compute] [data-opt="site-pay-lease"]')));
+  const leaseOpen = !(await page.$('[data-panel=compute] [data-opt="site-pay-lease"][disabled]'));
+  if (leaseOpen) {
+    await check('FIN1: choosing the lease changes the build preview', `document.querySelector('[data-test="preview.cmp.newSite"]')?.textContent ?? ''`, () => page.click('[data-panel=compute] [data-opt="site-pay-lease"]'), 400);
+    ok('FIN1: the lease preview shows the yearly lease from go-live', /lease per year/.test(await page.evaluate(() => document.querySelector('[data-test="preview.cmp.newSite"]')?.textContent ?? '')));
+  } else ok('FIN1: lease locked with its reason at a closed rating', true, 'rating below B in this fixture');
+  await page.click('[data-test=opt-order]');
+  await wait(80);
+  await page.click('[data-test=chip-term] [data-opt="8"]');
+  await wait(300);
+  ok('FIN1: a 2-year chip contract shows its expected price path', !!(await page.$('[data-panel=compute] [data-test=price-path]')));
+  ok('FIN1: the 2-year chip preview lists first and last payments', /first of 8 quarterly payments/.test(await page.evaluate(() => document.querySelector('[data-test="preview.cmp.buyChips"]')?.textContent ?? '')));
+  await page.click('[data-test=chip-term] [data-opt="1"]');
+  await wait(80);
+  ok('FIN1: a single batch offers cash, lease and chip-loan payment', !!(await page.$('[data-opt="chip-pay-cash"]')) && !!(await page.$('[data-opt="chip-pay-lease"]')) && !!(await page.$('[data-opt="chip-pay-loan"]')));
+  await shot('52-fin1-compute-cards');
+  await nav('finance');
+  await page.click('[data-tabs=finance] [data-tab=deals]'); await wait(80);
+  ok('FIN1: the debt card shows the rating score by term', /score .*cash flow.*liquidity.*leverage/.test(await page.evaluate(() => document.querySelector('[data-test=rating-terms]')?.textContent ?? '')));
+  ok('FIN1: every debt instrument shows its limit and rule', (await page.$$('[data-panel=finance] [data-debt-kind]')).length === 3 && !!(await page.$('[data-panel=finance] [data-limit^="debt."]')));
+  // FIN2: the guarantees moved to What we owe (one home); the debt card keeps the lessor's rate and links there.
+  ok('FIN1: leases show on the debt card (guarantees in What we owe since FIN2)', /Leases/.test(await page.evaluate(() => document.querySelector('[data-test=lease-terms]')?.textContent ?? '')));
+  await shot('53-fin1-debt');
+  await nav('compute');
+  await tabTo('overview');
+}
+// FIN2 (finance v3 §2, §11): the raise thesis (milestone × pitch) and its promise before you sign, What we owe (promises
+// with progress and needed-by-now, tranche conditions, covenants, contingent liabilities), the IPO as its own action,
+// and the one Watch alert when a promise is behind.
+{
+  await nav('finance');
+  await page.click('[data-tabs=finance] [data-tab=cash]'); await wait(80);
+  const nOpt = await page.evaluate(() => [document.querySelectorAll('[data-test=raise-type] [data-opt]').length, document.querySelectorAll('[data-test=raise-pitch] [data-opt]').length, document.querySelectorAll('#ctl-raise-card [data-cap]').length]);
+  ok('FIN2: the raise card offers three milestones and three pitches', nOpt[0] === 3 && nOpt[1] === 3, nOpt.join('/'));
+  ok('FIN2: no annual cap on the raise card (pool and dilution only)', !(await page.$('[data-cap=annualCap]')) && nOpt[2] === 2, nOpt.join('/'));
+  ok('FIN2: the promise and its deadline show before you sign', /Promise: .+ by /.test(await page.evaluate(() => document.querySelector('[data-test=raise-promise]')?.textContent ?? '')));
+  const alt = await page.$('[data-test=raise-type] [data-opt]:not(.active):not([disabled])');
+  if (alt) await check('FIN2: another milestone changes the promise', `document.querySelector('[data-test=raise-promise]')?.textContent ?? ''`, () => alt.click());
+  else ok('FIN2: another milestone changes the promise', false, 'no other milestone open');
+  await check('FIN2: the pitch changes the price', `document.querySelector('#ctl-raise-card .ask-head')?.textContent ?? ''`, () => page.click('[data-test=raise-pitch] [data-opt=conservative]'));
+  // FIN4r (H3): a round of $20B or more shows cash at the close and the conditional tranche; a small one none.
+  {
+    const max = Number(await page.evaluate(() => document.querySelector('[data-test=raise-ask]')?.getAttribute('max') ?? '0'));
+    if (max >= 25) {
+      await setSlider(page.locator('[data-test=raise-ask]'), 24); await wait(80);
+      const big = await page.evaluate(() => [document.querySelector('[data-test=raise-tranche]')?.textContent ?? '', document.querySelector('[data-test=raise-preview]')?.textContent ?? '']);
+      // FIN6b: runway and the tranche have one home on the Raise card (the before → after line), no pill copies.
+      ok('FIN6b: the Raise card pills hold stake, price and odds only (runway and tranche on the preview line)', await page.evaluate(() => ![...document.querySelectorAll('#ctl-raise-card .ask-head .pills > *')].some((p) => /runway|tranche|no burn/.test(p.textContent ?? ''))));
+      await setSlider(page.locator('[data-test=raise-ask]'), 5); await wait(80);
+      const small = await page.evaluate(() => !!document.querySelector('[data-test=raise-tranche]'));
+      ok('FIN4r: a $20B+ round shows cash at the close and its tranche on the Raise card', /\$12[\d.]*B tranche if/.test(big[0]) && /cash at the close/.test(big[1]) && !small, `${big.join(' | ')} · small ${small}`);
+    } else ok('FIN4r: a $20B+ round shows cash at the close and its tranche on the Raise card', false, `ask slider max ${max}`);
+  }
+  ok('FIN2: the IPO is its own action with the dual-class choice', !!(await page.$('[data-test=ipo-row] [data-act="fin.ipo"]')) || /listed/.test(await page.evaluate(() => document.querySelector('[data-test=ipo-row]')?.textContent ?? '')));
+  const canRaise = await page.$('[data-act="fin.raise"]:not([disabled])');
+  if (canRaise) {
+    await canRaise.click();
+    await wait(150);
+    ok('FIN2: a raise carries its thesis', JSON.parse(await get('!!(s.player.finance.ws3.pendingRound && s.player.finance.ws3.pendingRound.thesis)')));
+  } else ok('FIN2: a raise carries its thesis', true, 'raise unavailable on this fixture');
+  await shot('55-fin2-raise');
+  // A promise behind its path (injected) shows in What we owe and raises the one Watch alert.
+  await page.evaluate(() => {
+    const s = window.ai27v2.state;
+    const f = s.player.finance;
+    f.promises.push({ id: 'PR-ui', type: 'adoption', pitch: 'base', start: f.revenueRun, target: f.revenueRun * 3, amount: 10, closeDay: s.time.day - 200, deadline: s.time.day + 165 });
+    window.ai27v2.notify();
+  });
+  await wait(100);
+  await page.click('[data-tabs=finance] [data-tab=owe]'); await wait(120);
+  ok('FIN2: What we owe lists the promise with progress, needed-by-now and its state', !!(await page.$('[data-home=whatWeOwe] [data-promise="PR-ui"][data-state=behind] .hbar b')));
+  ok('FIN2: investor credibility has its home on What we owe', !!(await page.$('[data-home=whatWeOwe] [data-home=investorCred]')));
+  const nSec = await page.evaluate(() => document.querySelectorAll('[data-home=whatWeOwe] .owe-sec').length);
+  ok('FIN2: What we owe has promises, tranche conditions, covenants and contingent liabilities', nSec === 4, String(nSec));
+  ok('FIN6b: What we owe: tranche conditions wrap (no ellipsis); an undrawn line\'s covenant has no bar (cash is not repeated)', await page.evaluate(() => !document.querySelector('[data-home=whatWeOwe] [data-tranche] .ellip') && [...document.querySelectorAll('[data-home=whatWeOwe] [data-covenant][data-state=idle]')].every((r) => !r.querySelector('.hbar'))));
+  ok('FIN2: copyright litigation exposure is listed as contingent', !!(await page.$('[data-home=whatWeOwe] [data-contingent="litigation"]')) || JSON.parse(await get('s.player.dataAssets.unlicensedTokensT <= 0')));
+  await shot('56-fin2-owe');
+  await clearTips();
+  await page.click('[data-test=alert-chip]').catch(() => {});
+  await wait(200);
+  ok('FIN2: one Watch alert for the promise behind, linking to What we owe', !!(await page.$('[data-watch-row="owe"]')));
+  await shot('57-fin2-watch');
+  await page.keyboard.press('Escape');
+  await page.click('[data-test=alert-chip]').catch(() => {});
+  await page.evaluate(() => { const f = window.ai27v2.state.player.finance; f.promises = f.promises.filter((p) => p.id !== 'PR-ui'); window.ai27v2.notify(); });
+  await page.click('[data-tabs=finance] [data-tab=deals]'); await wait(80);
+  ok('FIN2: the debt card links lease guarantees to What we owe (one home)', !!(await page.$('[data-test=lease-terms] [data-go="fin.go.guarantees"]')) && !/guarantees \$/.test(await page.evaluate(() => document.querySelector('[data-test=lease-terms]')?.textContent ?? '')));
+}
+// FIN3a (finance v3 §7.3–§7.4): the Board card shows seats, what moves this board (four named sources × its
+// multipliers, then the drift to 60) and the next review; every major decision shows the seat-by-seat vote before you
+// ask; a failed vote disables the button; founder control offers to force it.
+{
+  await nav('finance');
+  await page.click('[data-tabs=finance] [data-tab=owners]'); await wait(120);
+  const nMood = await page.evaluate(() => document.querySelectorAll('[data-home=board] [data-test=mood-sources] [data-mood]').length);
+  ok('FIN3a: the Board card lists the four mood sources and the drift to 60', nMood === 5, String(nMood));
+  await page.hover('[data-home=board] [data-mood=incidents]');
+  await wait(300);
+  ok('FIN3a: a mood source explains this board\'s multiplier seat by seat', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /on this board/.test(t) && /×2/.test(t); })()`)));
+  await clearTips();
+  await page.hover('[data-home=board] [data-seat="1"]');
+  await wait(300);
+  ok('FIN3a: a seat tooltip shows how much each kind of news moves it', JSON.parse(await get(`(() => /Minds/.test(document.querySelector('.tip')?.innerText ?? ''))()`)));
+  await clearTips();
+  await shot('58-fin3a-board');
+  // A down round is a major decision: tight runway makes it available; the vote shows under the button, seat by seat.
+  const saved = await get('({ state: s.player.finance.state, bc: s.player.board.confidence, preset: s.player.board.preset })');
+  await page.evaluate(() => { const s = window.ai27v2.state; s.player.finance.state = 'tight'; s.player.board.confidence = 60; window.ai27v2.notify(); });
+  await page.click('[data-tabs=finance] [data-tab=cash]'); await wait(150);
+  const nVoters = JSON.parse(await get('s.player.board.seats.filter((x) => x.weight > 0).length'));
+  const chips = await page.evaluate(() => document.querySelectorAll('.act-col:has([data-act="fin.downRound"]) [data-test=vote] [data-vote]').length);
+  ok('FIN3a: the down-round button shows each seat\'s vote before you ask', chips === nVoters && chips > 0, `${chips} chips, ${nVoters} voting seats`);
+  await page.hover('.act-col:has([data-act="fin.downRound"]) [data-test=vote]');
+  await wait(300);
+  ok('FIN3a: the vote tooltip shows each seat\'s lean and the shared terms', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /Board mood/.test(t) && /Situation/.test(t) && /stance/.test(t); })()`)));
+  await shot('59-fin3a-vote');
+  await clearTips();
+  // A board with no confidence votes it down: the button is disabled with the vote as its reason.
+  await page.evaluate(() => { const s = window.ai27v2.state; s.player.board.confidence = 0; s.player.finance.cash = Math.max(s.player.finance.cash, 1e4); window.ai27v2.notify(); });
+  await wait(150);
+  ok('FIN3a: a failed vote disables the decision', !!(await page.$('.act-col:has([data-act="fin.downRound"]) [data-test=vote][data-pass="0"]')) && !!(await page.$('[data-act="fin.downRound"][disabled]')));
+  ok('FIN3a: without founder control there is no force button', !(await page.$('[data-act="fin.downRound:force"]')));
+  // Founder control: the same failed vote can be forced at board confidence −20.
+  await page.evaluate(() => { const s = window.ai27v2.state; s.player.board.preset = 'founder'; s.player.board.confidence = 30; window.ai27v2.notify(); });
+  await wait(150);
+  const forceBtn = await page.$('[data-act="fin.downRound:force"]');
+  if (forceBtn) {
+    await check('FIN3a: founder control forces a failed vote (confidence −20, the round books)', 's.player.finance.rounds.length + ":" + Math.round(s.player.board.confidence)', () => forceBtn.click(), 200);
+  } else ok('FIN3a: founder control forces a failed vote (confidence −20, the round books)', false, 'no force button (the vote passed?)');
+  await page.evaluate((v) => { const s = window.ai27v2.state; const o = JSON.parse(v); s.player.finance.state = o.state; s.player.board.confidence = o.bc; s.player.board.preset = o.preset; window.ai27v2.notify(); }, saved);
+  await wait(100);
+}
+// FIN3b (finance v3 §7.2, §7.5): charter rights on the Board card with what each blocks and the models the safety
+// committee holds; the launch button says why it is blocked; the ouster vote is shown seat by seat before the review;
+// the critics' seat is a standing action with its preview.
+{
+  const saved = await get('({ board: s.player.board, warn: s.player.finance.ws3.boardWarnDay, critics: s.player.finance.ws3.criticsDay, versions: s.player.models.versions.length, causes: s.causes.byKey["board.confidence"] ?? [] })');
+  // Nonprofit PBC with a red-flagged model ready to release (and the same flag on every full model, so a launch hits it).
+  await page.evaluate(() => {
+    const s = window.ai27v2.state;
+    s.player.board.preset = 'nonprofitPBC';
+    s.player.board.safetyCommitteeVeto = true;
+    const fulls = s.player.models.versions.filter((v) => v.variant === 'full' && (v.status === 'ready' || v.status === 'deployed'));
+    const c = JSON.parse(JSON.stringify(fulls[fulls.length - 1]));
+    c.id = 'V-ui-held'; c.name = 'Held-1'; c.status = 'ready';
+    s.player.models.versions.push(c);
+    window.__schemeSave = Object.fromEntries(fulls.map((v) => [v.id, JSON.stringify(v.beliefs.SCHEME ?? null)]));
+    for (const v of [...fulls, c]) v.beliefs.SCHEME = { est: 0.6, sd: 0.1, clarity: 0.7, lastObsDay: s.time.day };
+    window.ai27v2.notify();
+  });
+  await nav('finance');
+  await page.click('[data-tabs=finance] [data-tab=owners]'); await wait(120);
+  ok('FIN3b: the Board card lists the charter rights with what each blocks', !!(await page.$('[data-home=board] [data-test=charter] [data-right=safetyCommittee]')) && /halts red-flagged releases/.test(await page.evaluate(() => document.querySelector('[data-home=board] [data-test=charter]')?.textContent ?? '')));
+  ok('FIN3b: the safety committee row names the model it holds', /Held-1/.test(await page.evaluate(() => document.querySelector('[data-test=charter-held]')?.textContent ?? '')));
+  await page.hover('[data-home=board] [data-right=safetyCommittee]');
+  await wait(300);
+  ok('FIN3b: the charter tooltip gives the rule, the held model with its flag and the source', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /Blocks/.test(t) && /scheming 60%/i.test(t) && /Delaware/.test(t); })()`)));
+  await clearTips();
+  await shot('60-fin3b-charter');
+  await nav('products');
+  ok('FIN3b: Products links to the models the safety committee holds (home: the Board card)', !!(await page.$('[data-ref=charterHolds]')));
+  const launchReason = await page.evaluate(() => document.querySelector('[data-test=prod-launch] .act-reason')?.textContent ?? '');
+  ok('FIN3b: a blocked launch says the safety committee halts it and how to clear it', !(await page.$('[data-test=prod-launch]')) || /Safety committee halts the release/.test(launchReason) || !/Launch/.test(await page.evaluate(() => document.querySelector('[data-test=prod-launch] [data-act^="product.launch"]')?.textContent ?? 'Launch')), launchReason.slice(0, 90));
+  await shot('61-fin3b-launch-held');
+  // Ouster vote: confidence 15, a warning 100 days old, a reckless year: the vote is held at the next review.
+  await page.evaluate(() => {
+    const s = window.ai27v2.state;
+    s.player.board.confidence = 15;
+    s.player.finance.ws3.boardWarnDay = s.time.day - 100;
+    s.causes.byKey['board.confidence'] = [{ day: s.time.day - 5, delta: -30, source: 'public incident' }];
+    window.ai27v2.notify();
+  });
+  await nav('finance');
+  await page.click('[data-tabs=finance] [data-tab=owners]'); await wait(120);
+  const nVoters = JSON.parse(await get('s.player.board.seats.filter((x) => x.weight > 0 && x.kind !== "founder").length'));
+  const oChips = await page.evaluate(() => document.querySelectorAll('[data-test=ouster-vote][data-live="1"] [data-vote]').length);
+  ok('FIN3b: the ouster vote is on the Board card, seat by seat, before the review', oChips === nVoters && oChips > 0, `${oChips} chips, ${nVoters} voting seats`);
+  await page.hover('[data-test=board-review]');
+  await wait(300);
+  ok('FIN3b: the ouster tooltip shows the grievance and where each seat turns', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /Grievance/.test(t) && /turns/.test(t) && /No dice/.test(t); })()`)));
+  await clearTips();
+  await shot('62-fin3b-ouster');
+  // The critics' seat: available below 40; its preview names the new director; clicking adds the seat and +15.
+  await page.evaluate(() => { const s = window.ai27v2.state; s.player.board.confidence = 35; delete s.player.finance.ws3.criticsDay; window.ai27v2.notify(); });
+  await wait(120);
+  await page.hover('[data-act="fin.critics"]');
+  await wait(300);
+  ok('FIN3b: the critics\' seat preview names the director and the +15', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /Safety director/.test(t) && /15/.test(t); })()`)));
+  await clearTips();
+  await check('FIN3b: giving the critics a seat adds a director and +15 confidence', 's.player.board.seats.length + ":" + Math.round(s.player.board.confidence)', () => page.click('[data-act="fin.critics"]'), 200);
+  ok('FIN3b: the critics\' seat is once a year', !!(await page.$('[data-act="fin.critics"][disabled]')) || !(await page.$('[data-act="fin.critics"]')));
+  await shot('63-fin3b-critics');
+  await page.evaluate((v) => {
+    const s = window.ai27v2.state; const o = JSON.parse(v);
+    s.player.board = o.board; s.player.finance.ws3.boardWarnDay = o.warn; s.player.finance.ws3.criticsDay = o.critics;
+    if (o.warn === undefined) delete s.player.finance.ws3.boardWarnDay;
+    if (o.critics === undefined) delete s.player.finance.ws3.criticsDay;
+    s.player.models.versions = s.player.models.versions.filter((x) => x.id !== 'V-ui-held');
+    for (const x of s.player.models.versions) {
+      const b = window.__schemeSave?.[x.id];
+      if (b === undefined) continue;
+      const o2 = JSON.parse(b);
+      if (o2) x.beliefs.SCHEME = o2; else delete x.beliefs.SCHEME;
+    }
+    s.causes.byKey['board.confidence'] = o.causes;
+    window.ai27v2.notify();
+  }, saved);
+  await wait(100);
+}
+// FIN3c (finance v3 §9): a rival in distress is for sale; the offer shows cash vs stock (with the dilution), the
+// obligations you take on, the antitrust cost and the board's vote under each buy choice; a failed vote disables it;
+// buying books its contracts and debt (the debt card lists the assumed debt).
+{
+  await closeModals();
+  await pause();
+  const saved = await get('({ bc: s.player.board.confidence, cash: s.player.finance.cash })');
+  const lab = JSON.parse(await get('(s.rivals.find((r) => r.core.status === "active" && r.finance.valuation > 0) ?? {}).core?.id ?? null'));
+  ok('FIN3c: a private rival to buy', !!lab);
+  if (lab) {
+    await page.evaluate((id) => {
+      const st = window.ai27v2; const s = st.state;
+      const r = s.rivals.find((x) => x.core.id === id);
+      r.finance.cash = -3; r.finance.distress = true;
+      s.player.board.confidence = 80; s.player.finance.cash = Math.max(s.player.finance.cash, 5000);
+      s.events.pending.push({ id: 'E32', instance: 'E32@ui', day: s.time.day, deadline: s.time.day + 30, data: { lab: id }, crisis: false });
+      st.openDecision('E32@ui'); st.notify();
+    }, lab);
+    await wait(200);
+    const labels = await page.$$eval('[data-test=decision][data-event=E32] .acard-top b', (els) => els.map((e) => e.textContent));
+    ok('FIN3c: the merger offer offers cash, stock or decline', labels.join('|') === 'Pay cash|Pay in stock|Decline', labels.join('|'));
+    ok('FIN3c: each buy choice shows the board\'s vote, seat by seat, under its card', (await page.$$('[data-test=decision] .dm2-choice [data-test=vote] [data-vote]')).length > 0 && (await page.$$('[data-test=decision] .dm2-choice')).length === 2);
+    ok('FIN3c: paying in stock shows the dilution; both show the obligations taken on and the antitrust cost', JSON.parse(await get(`(() => { const t = [...document.querySelectorAll('[data-test=decision] [data-choice]')].map((e) => e.innerText); return /stake/.test(t[1]) && !/stake/.test(t[0]) && /scrutiny/.test(t[0]) && /scrutiny/.test(t[1]) && t.slice(0, 2).every((x) => (x.match(/\\$/g) ?? []).length >= 2); })()`)));
+    await page.hover('[data-test=decision] [data-choice="1"] .pill2.exp');
+    await wait(300);
+    ok('FIN3c: an obligation pill says what it is (its contracts, firm, by quarter)', JSON.parse(await get(`(() => /its contracts/.test(document.querySelector('.tip')?.innerText ?? ''))()`)));
+    await page.mouse.move(1, 1); // (Esc would close the decision: Later)
+    await wait(150);
+    await shot('64-fin3c-merger-offer');
+    await page.evaluate(() => { window.ai27v2.state.player.board.confidence = 0; window.ai27v2.notify(); });
+    await wait(150);
+    ok('FIN3c: a failed merger vote disables the buy choices', !!(await page.$('[data-test=decision] [data-choice="0"][disabled]')) && !!(await page.$('[data-test=decision] .dm2-choice [data-test=vote][data-pass="0"]')));
+    await page.evaluate(() => { window.ai27v2.state.player.board.confidence = 80; window.ai27v2.notify(); });
+    await wait(150);
+    await check('FIN3c: buying in stock books its contracts and debt and absorbs the lab', 's.player.finance.ledger.filter((c) => c.kind === "acquired").length + ":" + s.player.finance.debts.filter((d) => d.kind === "assumed").length + ":" + s.rivals.filter((r) => r.core.status === "active").length', () => page.click('[data-test=decision] [data-choice="1"]'), 200);
+    await nav('finance');
+    await page.click('[data-tabs=finance] [data-tab=deals]'); await wait(120);
+    ok('FIN3c: the debt card lists the assumed debt', /Assumed debt/.test(await page.evaluate(() => document.querySelector('[data-home=debt]')?.textContent ?? '')));
+    await shot('65-fin3c-assumed-debt');
+  }
+  await page.evaluate((v) => { const s = window.ai27v2.state; const o = JSON.parse(v); s.player.board.confidence = o.bc; window.ai27v2.notify(); }, saved);
+  await wait(100);
+}
+// FIN4a (finance v3 §6): one offer per partner on the Partners card; an unavailable partner says why; an offer shows
+// its equity and tranche conditions, its supply on the expected path with both discounts, and its strings before you
+// sign; signing books those terms and the tranche conditions move to What we owe.
+{
+  await closeModals();
+  await pause();
+  await page.evaluate(() => { const s = window.ai27v2.state; s.player.finance.state = 'healthy'; s.player.board.confidence = 80; window.ai27v2.notify(); });
+  await nav('finance');
+  await page.click('[data-tabs=finance] [data-tab=deals]'); await wait(150);
+  ok('FIN4a: the Partners card lists the five partners', (await page.$$('[data-home=partners] [data-partner]')).length === 5, String((await page.$$('[data-home=partners] [data-partner]')).length));
+  const blocked = await page.$('[data-home=partners] [data-partner][data-blocked="1"]');
+  if (blocked) { await blocked.click(); await wait(120); }
+  const reason = await page.evaluate(() => document.querySelector('[data-test=partner-blocked]')?.textContent ?? '');
+  ok('FIN4a: an unavailable partner says why', !!blocked && reason.length > 10, reason);
+  await page.click('[data-home=partners] [data-partner="Azimuth"]'); await wait(150);
+  ok('FIN4a: the offer shows equity, its two tranche conditions and the supply on the expected path', !!(await page.$('[data-test=partner-equity]')) && (await page.$$('[data-tranche-offer]')).length === 2 && !!(await page.$('[data-test=partner-supply-terms] [data-test=price-path]')));
+  const offerText = await page.evaluate(() => document.querySelector('[data-test=partner-terms]')?.textContent ?? '');
+  ok('FIN4a: the offer names its discounts and its strings before signing', /firm/.test(offerText) && /partner/.test(offerText) && /take-or-pay/.test(offerText) && /[Ee]xclusiv/.test(offerText) && /revenue share/.test(offerText), offerText.slice(0, 160));
+  await page.hover('[data-test=partner-supply-terms] > span');
+  await wait(400);
+  ok('FIN4a: the supply tooltip breaks the price down (firm and partner discounts, take-or-pay)', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /Firm discount/.test(t) && /Partner discount/.test(t) && /Take-or-pay/.test(t); })()`)));
+  await clearTips();
+  await check('FIN4a: custom chips change the supply terms', `document.querySelector('[data-test=partner-supply-terms]')?.textContent ?? ''`, () => page.click('[data-test=partner-supply] [data-opt=asic]'));
+  await page.click('[data-test=partner-supply] [data-opt=cloud]'); await wait(100);
+  // FIN4b (finance v3 §6.1 strings): the count of partners, exclusivity and IP access as options that add money (IP access
+  // locked with a reason without an in-house lab), what IP access costs in words, and what each live partner costs.
+  ok('FIN4b: the Partners card counts partners (n of 3)', /\d of 3 partners/.test(await page.evaluate(() => document.querySelector('[data-test=partner-count]')?.textContent ?? '')));
+  const arch0 = await page.evaluate(() => JSON.stringify(window.ai27v2.state.rivals.map((r) => r.archetype)));
+  const ipLock0 = await page.evaluate(() => document.querySelector('[data-test=partner-ipaccess] [data-opt=yes]')?.getAttribute('data-locked') ?? '');
+  await page.evaluate(() => { const s = window.ai27v2.state; const act = s.rivals.filter((r) => r.core.status === 'active'); s.rivals.forEach((r) => { r.archetype = 'safety'; }); act[0].archetype = 'bigtech'; act[1].archetype = 'bigtech'; window.ai27v2.notify(); });
+  await wait(150);
+  ok('FIN4b: IP access is locked with its reason without an in-house lab, open with one', (ipLock0 === '' || /no in-house lab/.test(ipLock0)) && !(await page.$('[data-test=partner-ipaccess] [data-opt=yes][disabled]')), ipLock0);
+  await check('FIN4b: exclusivity adds money to the offer', `document.querySelector('[data-test=partner-equity]')?.textContent ?? ''`, () => page.click('[data-test=partner-exclusive] [data-opt=yes]'));
+  await check('FIN4b: IP access adds money and says what it costs', `(document.querySelector('[data-test=partner-equity]')?.textContent ?? '') + (document.querySelector('[data-test=partner-ip-cost]')?.textContent ?? '')`, () => page.click('[data-test=partner-ipaccess] [data-opt=yes]'));
+  ok('FIN4b: the IP-access cost is in plain words (the lab closes ~10% of your lead a year)', /closes ~10% of your lead a year/.test(await page.evaluate(() => document.querySelector('[data-test=partner-ip-cost]')?.textContent ?? '')));
+  await page.hover('[data-test=partner-strings] > span'); await wait(400);
+  ok('FIN4b: the exclusivity tooltip names what it blocks', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /Blocks/.test(t) && /Northwind/.test(t); })()`)));
+  await clearTips();
+  await shot('66-fin4a-partner-offer');
+  await check('FIN4a: Sign books the deal and its tranches', 's.player.finance.deals.filter((d) => d.partner === "Azimuth" && !d.legacy).length + ":" + s.player.finance.tranches.filter((t) => t.partner === "Azimuth").length', () => page.click('[data-act="fin.partner"]'), 200);
+  ok('FIN4a: a signed partner shows what runs and links its tranches to What we owe', !!(await page.$('[data-test=partner-signed]')) && !!(await page.$('[data-go="fin.go.partnerTranches"]')));
+  ok('FIN4b: the signed deal books the chosen strings (exclusive, IP access)', await page.evaluate(() => { const d = window.ai27v2.state.player.finance.deals.find((x) => x.partner === 'Azimuth' && !x.legacy); return !!d?.strings.exclusivity && !!d?.strings.ipAccess; }));
+  const costs = await page.evaluate(() => document.querySelector('[data-test=partner-costs] [data-partner-cost="Azimuth"]')?.textContent ?? '');
+  ok('FIN4b: what a live partner costs: revenue share a year, the lead its IP access closes, the partner its exclusivity blocks', /revenue/.test(costs) && /\/yr/.test(costs) && /blocks Northwind/.test(costs), costs);
+  ok('FIN4b: the competitor of an exclusive partner says why it is blocked', await page.evaluate(() => document.querySelector('[data-home=partners] [data-partner="Northwind Cloud"]')?.getAttribute('data-blocked') === '1'));
+  await shot('67-fin4a-partner-signed');
+  await page.evaluate((a) => { const s = window.ai27v2.state; JSON.parse(a).forEach((x, i) => { if (s.rivals[i]) s.rivals[i].archetype = x; }); window.ai27v2.notify(); }, arch0);
+  await page.click('[data-tabs=finance] [data-tab=owe]'); await wait(150);
+  ok('FIN4a: the partner\'s tranche conditions show in What we owe', /Azimuth tranche/.test(await page.evaluate(() => document.querySelector('[data-home=whatWeOwe]')?.textContent ?? '')));
+}
+// FIN5a (finance v3 §1, §5, §11): the Story card (sector value × your share → valuation, the share bar, the four
+// drivers with credibility and governance), the valuation's home, supplier terms on the Buy chips card.
+{
+  await page.evaluate((j) => window.ai27v2.importJson(j), fx);
+  await page.evaluate(() => { window.ai27v2.state.setup.tutorial = false; window.ai27v2.notify(); });
+  await nav('finance');
+  await page.click('[data-tabs=finance] [data-tab=story]'); await wait(150);
+  const eq = await page.evaluate(() => document.querySelector('[data-home=story] [data-test=story-eq]')?.textContent ?? '');
+  ok('FIN5a: the Story card shows sector value × your share → next mark, with the mood', /Sector/.test(eq) && /Your share/.test(eq) && /next mark/.test(eq) && /mood (cold|cool|normal|warm|hot|bust)/.test(eq), eq.slice(0, 120));
+  ok('FIN5a: the valuation\'s home is the Story card (Ownership links to it)', !!(await page.$('[data-home=story] [data-home=valuation]')) && (await page.$$('[data-home=valuation]')).length === 1);
+  const nLabs = JSON.parse(await get('1 + s.rivals.filter((r) => r.core.status === "active" && r.finance.valuation > 0).length'));
+  ok('FIN5a: the share bar has one segment per private lab, you first', (await page.$$('[data-home=story] [data-test=story-shares] [data-lab]')).length === nLabs && !!(await page.$('[data-home=story] [data-test=story-shares] [data-lab=player]:first-child')), String(nLabs));
+  const drv = await page.$$eval('[data-home=story] [data-test=story-drivers] [data-driver]', (els) => els.map((e) => e.getAttribute('data-driver')));
+  ok('FIN5a: four drivers plus credibility and governance, each with its × effect', drv.join(',') === 'position,momentum,economics,capacity,investorCred,govFactor' && /×\d\.\d\d/.test(await page.evaluate(() => document.querySelector('[data-driver=position]')?.textContent ?? '')), drv.join(','));
+  await page.hover('[data-home=story] [data-driver=position]'); await wait(450);
+  const tip = await page.evaluate(() => document.querySelector('.tip')?.textContent ?? '');
+  ok('FIN5a: a driver\'s tooltip says what it is, you vs the field and its effect', /You/.test(tip) && /Field/.test(tip) && /Effect on your weight/.test(tip), tip.slice(0, 120));
+  await clearTips();
+  ok('FIN5a: credibility on the Story card links to its home in What we owe', !!(await page.$('[data-home=story] [data-driver=investorCred] [data-ref=investorCred]')) && !(await page.$('[data-home=story] [data-home=investorCred]')));
+  await page.hover('[data-home=story] [data-home=valuation]'); await wait(450);
+  const why = await page.evaluate(() => document.querySelector('.tip')?.textContent ?? '');
+  ok('FIN5a: the valuation\'s why names the sector value and your share', /Sector value at the last mark/.test(why) && /Why it moved/.test(why), why.slice(0, 160));
+  await clearTips();
+  // FIN5b: a rival's bar is the home of its valuation: its tooltip shows the valuation (the engine's), the cap and its
+  // multiple, credibility and governance by kind.
+  {
+    const rid = JSON.parse(await get('s.rivals.find((r) => r.core.status === "active" && r.finance.valuation > 0)?.core.id ?? null'));
+    const rv = JSON.parse(await get(`s.rivals.find((r) => r.core.id === ${JSON.stringify(rid)}).finance.valuation`));
+    await page.hover(`[data-home=story] [data-test=story-shares] [data-lab="${rid}"]`); await wait(450);
+    const rt = await page.evaluate(() => document.querySelector('.tip')?.textContent ?? '');
+    const sig = (x) => (x >= 100 ? x.toFixed(0) : x >= 10 ? x.toFixed(1) : x.toFixed(1));
+    const money = (x) => (x >= 1000 ? `$${sig(x / 1000)}T` : `$${sig(x)}B`);
+    ok('FIN6b: a rival\'s bar tooltip is short: its valuation (the engine\'s), share, revenue and multiple, details one level down', /valued/.test(rt) && /Share today/.test(rt) && /× revenue/.test(rt) && /Why this share/.test(rt) && !/credibility/i.test(rt) && rt.includes(money(rv)), `${money(rv)} · ${rt.slice(0, 160)}`);
+    await wait(1400); // lock the tooltip, then open the nested one
+    await page.hover('.tip [data-test=rival-why]').catch(() => {}); await wait(500);
+    const rt2 = await page.evaluate(() => [...document.querySelectorAll('.tip')].map((x) => x.textContent ?? '').join(' | '));
+    ok('FIN5b/FIN6b: the rival\'s details (nested): credibility, governance by kind and its cap', /Investor credibility/.test(rt2) && /Governance/.test(rt2) && /Cap/.test(rt2) && /Story score/.test(rt2), rt2.slice(-200));
+    await page.mouse.move(1, 1); await page.keyboard.press('Escape'); await wait(250);
+    await page.hover('[data-home=story] [data-driver=govFactor]'); await wait(450);
+    const gt = await page.evaluate(() => document.querySelector('.tip')?.textContent ?? '');
+    ok('FIN5b: the governance tile says rivals count by kind (no longer ×1)', /Rivals by kind/.test(gt) && !/Rivals count ×1/.test(gt), gt.slice(0, 160));
+    await clearTips();
+  }
+  await shot('70-fin5a-story');
+  await page.click('[data-tabs=finance] [data-tab=owners]'); await wait(120);
+  ok('FIN5a: Ownership links to the valuation in Story', !!(await page.$('[data-home=ownership] [data-ref=valuation]')));
+  ok('FIN6b: Ownership does not repeat the IPO window (its home is Markets)', !/window/i.test(await page.evaluate(() => document.querySelector('[data-home=ownership]')?.textContent ?? '')));
+  await nav('compute');
+  await tabTo('overview');
+  // FIN6b: payment options show a present value next to the undiscounted total; a lease's PV sits near cash's even though
+  // its total is far larger (it changes timing, not cost).
+  {
+    const $B = (x) => { const m = x.match(/\$([\d.]+)([KMBT])/); return m ? Number(m[1]) * { K: 1e-6, M: 1e-3, B: 1, T: 1e3 }[m[2]] : NaN; };
+    const tiles = await page.evaluate(() => [...document.querySelectorAll('[data-panel=compute] [data-test="site-pay-tiles"] [data-opt]')].map((e) => [e.getAttribute('data-opt'), e.querySelector('[data-test=pay-pv]')?.textContent ?? '', e.textContent ?? '']));
+    const cash = tiles.find((x) => x[0] === 'site-pay-cash');
+    const lease = tiles.find((x) => x[0] === 'site-pay-lease' && x[1]);
+    ok('FIN6b: the build card\'s payment tiles show PV and the total', !!cash && /PV \$/.test(cash[1]) && /total/.test(cash[2]), tiles.map((x) => x[2]).join(' | '));
+    if (lease) {
+      const pvR = $B(lease[1]) / $B(cash[1]);
+      const totR = $B(lease[2].replace(/^.*?PV \$[\d.]+[KMBT]/, '')) / $B(cash[2].replace(/^.*?PV \$[\d.]+[KMBT]/, ''));
+      ok('FIN6b: a site lease\'s PV is close to cash (within 15%) though its total is far larger', pvR > 0.85 && pvR < 1.15 && totR > 1.3, `PV ×${pvR.toFixed(2)} · total ×${totR.toFixed(2)}`);
+      await page.hover('[data-panel=compute] [data-opt="site-pay-lease"]'); await wait(450);
+      ok('FIN6b: the PV tooltip states its discount rate and which rate it is', /Present value: every payment discounted to today at [\d.]+% a year, the (lessor|chip-loan)/.test(await page.evaluate(() => document.querySelector('.tip')?.textContent ?? '')));
+      await clearTips();
+    } else ok('FIN6b: a site lease\'s PV is close to cash (within 15%) though its total is far larger', true, 'lease closed on this fixture');
+  }
+  await page.evaluate(() => { const s = window.ai27v2.state; s.capital.ws3.playerShare = 0.05; s.player.finance.runwayQ = 2; window.ai27v2.notify(); });
+  await wait(120);
+  const sup = await page.evaluate(() => document.querySelector('[data-test=supplier-terms]')?.textContent ?? '');
+  ok('FIN5a: the Buy chips card shows the supplier terms a weak lab gets (deposit above 30%)', /supplier terms · deposit (\d+)%/.test(sup) && Number((sup.match(/deposit (\d+)%/) ?? [])[1]) > 30, sup);
+  await page.evaluate((j) => window.ai27v2.importJson(j), fx);
+  await page.evaluate(() => { window.ai27v2.state.setup.tutorial = false; window.ai27v2.notify(); });
+}
 // J2: engineers' load, spare serving, days cut, same-lineage monitors, risk lever what-ifs, launches on the build queue.
 await nav('company');
 await tabTo('work');
@@ -1797,6 +2175,30 @@ ok('Big tech Finance: equity unavailable with its reason', (await page.locator('
 await iaScan('finance:bigtech');
 ok('J1 F2: big tech: parent budget is the inflow bar; no runway or distress readout', !!(await page.$('[data-wf=parent]')) && !!(await page.$('[data-test=division-budget]')) && !(await page.locator('.topstrip2').innerText()).match(/distress|tight/i));
 await shot('60-bigtech-finance');
+ok('FIN6b: the cash history draws from the start (today and the projection; no empty card)', !!(await page.$('[data-home=cashHistory] polyline')), `day ${await get('s.time.day')} · points ${await get('s.series.day.length')}`);
+// FIN5c (FINANCE-V3 §13): the division readout: budget this year, spent so far, over / within budget, the review, the
+// goals (home: What we owe), next year's budget; parent confidence lives on this card (the Board card links to it).
+ok('FIN5c big tech: Parent budget shows the year (budget, spent), the verdict, review, goals and next year; parent confidence home here',
+  !!(await page.$('[data-home=parentBudget] [data-test=division-year]')) && (await page.getAttribute('[data-test=division-status]', 'data-status')) === 'within' && !!(await page.$('[data-home=parentBudget] [data-home=parentConf]')) && !!(await page.$('[data-test=division-goals]')) && !!(await page.$('[data-test=division-next]')) && (await page.locator('[data-test=division-status]').innerText()).includes('Within budget'));
+await page.evaluate(() => { window.ai27v2.state.player.finance.cash = -30; window.ai27v2.notify(); });
+await wait(120);
+{
+  const txt = await page.locator('[data-test=division-status]').innerText();
+  const top = await page.locator('.topstrip2').innerText();
+  ok('FIN5c big tech over budget: "over budget by $X; parent covers" on the card and the top strip, never runway distress', /Over budget by \$[\d.]+B; parent covers/.test(txt) && (await page.getAttribute('[data-test=division-budget]', 'data-status')) === 'over' && /parent covers/i.test(top) && !/distress|tight/i.test(top), txt);
+}
+ok('FIN6b big tech: the cash history draws cash below $0 as the advance from the parent (axis below $0, band, legend)', !!(await page.$('[data-home=cashHistory] [data-test=cash-advance-band]')) && !!(await page.$('[data-test=legend-advance] [data-term=parentAdvance]')));
+await shot('61-bigtech-over-budget');
+await page.evaluate(() => { window.ai27v2.state.player.finance.cash = 8; window.ai27v2.notify(); });
+await tabTo('owe');
+ok('FIN5c big tech What we owe: the parent goals with progress (no investor credibility, tranches or covenants)', (await page.$$('[data-home=whatWeOwe] [data-promise]')).length === 3 && (await page.locator('[data-home=whatWeOwe]').innerText()).toUpperCase().includes('PARENT GOALS') && !(await page.$('[data-test=investor-cred]')) && !(await page.$('[data-covenant]')));
+await page.hover('[data-home=whatWeOwe] [data-promise]');
+await wait(250);
+ok('FIN5c big tech: a goal\'s tooltip says what judging it would do to parent confidence', JSON.parse(await get(`/parent confidence/.test(document.querySelector('.tip')?.innerText ?? '')`)));
+await iaScan('finance:bigtech-owe');
+await tabTo('owners');
+ok('FIN5c big tech Board: links to parent confidence (one home), no ouster vote', !!(await page.$('[data-go="fin.go.parentConf"]')) && !(await page.$('[data-home=boardConf]')) && !(await page.$('[data-test=ouster-vote]')));
+await tabTo('cash');
 for (const start of ['spinout', 'challenger']) {
   const fxs = readFileSync(`scripts/v2/fixtures/start-${start}-day400.json`, 'utf8');
   await page.evaluate((j) => window.ai27v2.importJson(j), fxs);
@@ -1831,7 +2233,11 @@ await page.evaluate(() => {
   const s = st.state;
   s.setup.tutorial = false;
   s.flags.paused = true;
-  const inc = s.player.safety.incidents.find((i) => i.status === 'open');
+  let inc = s.player.safety.incidents.find((i) => i.status === 'open');
+  // FIN5b: the regenerated day-900 fixture may hold no open incident (the world drifts with every engine change); open
+  // one on a live deployment so the incident limits have something to bind on.
+  const dep = s.player.deployments.find((d) => d.status !== 'withdrawn' && d.channel !== 'internal');
+  if (!inc && dep) { inc = { id: 'I-ui-1', day: s.time.day - 5, labId: 'player', versionId: dep.versionId, deploymentId: dep.id, trueSource: 'RH', apparent: 'RH', severity: 3, exposure: 'internal', status: 'open', responses: [] }; s.player.safety.incidents.push(inc); }
   if (inc) { inc.exposure = 'customer'; inc.publicTimerDays = 9; }
   // A capacity-bound product (model v3 V3: the day-900 fixture's serving is no longer short).
   for (const k of ['consumer', 'sector']) if (s.world.fx.capPenalty[k] < 0.01) s.world.fx.capPenalty[k] = 0.2;

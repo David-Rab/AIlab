@@ -3,9 +3,9 @@
 // keeps the owners' initialisers (initialFinance, initialSites, initialCloud, initialOrders, initialBoard) for it.
 import { parentBudgetYear, type StartDef } from '../../../data/v2/starts';
 import { initialBoard, SEAT_STANCE } from '../finance/board';
-import { valuationMark } from '../finance/equity';
 import { defaultFinanceWS3 } from '../finance/ext';
-import { revolverCap } from '../finance/debt';
+import { START_CREDIBILITY } from '../finance/promises';
+import { partnerDef } from '../../../data/v2/deals';
 import type { Board, CloudContract, Commitment$, FinanceState, Site } from '../types';
 import { dayOfDate } from './time';
 
@@ -56,45 +56,43 @@ export function startCompute(def: StartDef, startDate: string): StartCompute {
   return { sites, cloud, ledger };
 }
 
-/** Finance at a non-leader start: cash, revenue, a formula valuation (none for a division), ownership, a revolver
- *  sized to revenue (none for a division: the parent's treasury borrows), the start compute's ledger. */
+/** Finance at a non-leader start: cash, revenue, ownership, a credit line (none for a division: the parent's treasury
+ *  borrows), the start compute's ledger. The valuation is marked from the story split once the rivals exist, and the
+ *  line sized as banks size it, 3% of it, cap $15B (finance/story.ts startStory, FIN5a). */
 export function startFinance(def: StartDef, c: StartCompute): FinanceState {
-  const g = def.revenueRun > 0 ? def.revenueRun / Math.max(0.1, def.revenueHistory[0]) : 0.5;
   const division = def.board === 'parent';
-  const rv = revolverCap(def.revenueRun);
   // A division's first quarterly budget payment (Q3 2025) is in the starting cash (finance/parent.ts).
   const cash = def.cash + (division ? parentBudgetYear(0) / 4 : 0);
   const f: FinanceState = {
     cash,
     revenueRun: def.revenueRun,
     revenueHistory: [...def.revenueHistory],
-    valuation: division ? 0 : valuationMark(g, def.revenueRun, 1, def.narrative, 1),
+    valuation: 0,
     ownership: { founder: def.ownership.founder, mission: 0, fin: def.ownership.fin, strat: { ...(def.ownership.strat ?? {}) }, public: 0 },
-    raisedLast4q: 0,
+    credibility: START_CREDIBILITY[def.id],
+    promises: [],
     rounds: [],
     tranches: [],
-    debts: division || rv <= 0 ? [] : [{ id: 'D-revolver', kind: 'revolver', principal: rv, drawn: 0, spreadBp: 250, maturityDay: 365 * 5, covenant: 'liquidity' }],
+    debts: division ? [] : [{ id: 'D-revolver', kind: 'revolver', principal: 0, drawn: 0, spreadBp: 250, maturityDay: 365 * 5, covenant: 'liquidity' }],
     ledger: [...c.ledger],
     rating: division ? 'BBB' : def.revenueRun > 0 ? 'BB' : 'B',
     runwayQ: 8,
     state: 'healthy',
-    narrative: def.narrative,
-    // The challenger's strategic investor (an Amazon/Google-like stake from before the start): an observer seat.
-    deals: Object.keys(def.ownership.strat ?? {}).map((partner, i) => ({ id: `DL-start${i}`, template: 'hyperscalerEquity' as const, partner, day: -400, strings: { observer: true } })),
+    // The challenger's strategic investor (an Amazon/Google-like stake from before the start): a holder with no running
+    // terms and no board seat (hyperscaler stakes are non-voting and seatless [R21 B2]).
+    deals: Object.keys(def.ownership.strat ?? {}).map((partner, i) => ({ id: `DL-start${i}`, partner, kind: partnerDef(partner)?.kind ?? 'hyperscaler', day: -400, equityNow: 0, equityLater: 0, strings: {}, until: -400, legacy: true })),
     ws3: defaultFinanceWS3(cash),
   };
-  f.ws3.revenuePlan = def.revenueRun;
   f.ws3.chipBook = (def.owned * CHIP_BOOK_PER_H) / 1e9;
   return f;
 }
 
-/** Board at a non-leader start: the founder preset (spinout: one financial seat; challenger: two plus its strategic
- *  investor as observer) or the parent company (research/18 §3.2). */
+/** Board at a non-leader start: the founder preset (spinout: one financial seat; challenger: two; its strategic
+ *  investor holds no seat, FIN4a) or the parent company (research/18 §3.2). */
 export function startBoard(def: StartDef): Board {
   const b = initialBoard(def.board);
   if (def.id === 'challenger') {
     b.seats.push({ kind: 'financial', holder: 'Investor 2', stance: [...SEAT_STANCE.financial], weight: 1 });
-    for (const p of Object.keys(def.ownership.strat ?? {})) b.seats.push({ kind: 'strategic', holder: `${p} (observer)`, stance: [...SEAT_STANCE.strategic], weight: 0 });
   }
   return b;
 }

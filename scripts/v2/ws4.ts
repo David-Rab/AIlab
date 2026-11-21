@@ -48,9 +48,10 @@ const load = (i: number) => deserialize(fixtures[i]);
 // ───────── E1: catalog shape + trade-off lint on every choice ─────────
 {
   const ids = new Set(EVENTS.map((e) => e.id));
-  // 2026-11-15 cut: events are rare decisions the regular mechanisms do not model (15 kept, 22 removed).
-  const want = ['E01', 'E10', 'E12', 'E16', 'E17', 'E19', 'E20', 'E22', 'E23', 'E25', 'E27', 'E29', 'E30', 'E32', 'E37'];
-  check(want.every((id) => ids.has(id)) && ids.size === want.length, 'E1 catalog: exactly the 15 kept events', `${EVENTS.length} events`);
+  // 2026-11-15 cut: events are rare decisions the regular mechanisms do not model (15 kept, 22 removed). FIN3b
+  // (FINANCE-V3 §10) dropped E37 Board revolt: the ouster vote is on the Board card, the critics' seat is an action.
+  const want = ['E01', 'E10', 'E12', 'E16', 'E17', 'E19', 'E20', 'E22', 'E23', 'E25', 'E27', 'E29', 'E30', 'E32'];
+  check(want.every((id) => ids.has(id)) && ids.size === want.length, 'E1 catalog: exactly the 14 kept events', `${EVENTS.length} events`);
   const okLint = (p: { costs: CostLine[]; gains: CostLine[] }) => {
     const g = new Set(p.gains.map((x) => x.currency));
     return p.costs.some((c) => !g.has(c.currency));
@@ -215,7 +216,7 @@ const load = (i: number) => deserialize(fixtures[i]);
   const setups: Record<EndingId, (s: GameStateV2) => void> = {
     insolvent: (s) => void (s.player.finance.state = 'insolvent'),
     acquired: (s) => void (ws4(s).soldControl = true),
-    ousted: (s) => void (s.flags['ws3.ousterDay'] = s.time.day), // WS3's board ouster roll
+    ousted: (s) => void (s.flags['ws3.ousterDay'] = s.time.day), // WS3's board ouster vote
     nationalized: (s) => void (ws4(s).nationalizedHard = true),
     catastropheBio: (s) => misuse(s, 'bio'),
     catastropheCyber: (s) => misuse(s, 'cyber'),

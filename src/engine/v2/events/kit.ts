@@ -1,20 +1,23 @@
 // Event-building kit for the decision catalog (V2-SPEC §4.2). Owner: WS4.
 import { activeRivals, internalVersion } from '../models/labs';
-import type { ChoiceV2, CostLine, EventDefV2, GameStateV2, RivalLab, SystemCtx } from '../types';
+import type { BoardVote, ChoiceV2, CostLine, EventDefV2, GameStateV2, RivalLab, SystemCtx } from '../types';
 import { pv, type Preview } from '../actors/fx';
 
 export { L, pv } from '../actors/fx';
 
 /** Choice with a preview and an effect. `label` ≤ 3 words; tags drive bots and replay. */
 export function ch(
-  label: string, tags: string[], preview: (s: GameStateV2) => Preview,
-  apply: (s: GameStateV2, ctx: SystemCtx, data: Record<string, number | string>) => void,
-  available?: (s: GameStateV2) => boolean | string,
+  label: string, tags: string[], preview: (s: GameStateV2, data?: Data) => Preview,
+  apply: (s: GameStateV2, ctx: SystemCtx, data: Data) => void,
+  available?: (s: GameStateV2, data?: Data) => boolean | string,
+  vote?: (s: GameStateV2, data?: Data) => BoardVote | undefined,
 ): ChoiceV2 {
   const c: ChoiceV2 = { label, tags, preview, apply };
   if (available) c.available = available;
+  if (vote) c.vote = vote;
   return c;
 }
+type Data = Record<string, number | string>;
 
 /** Shorthand for a static preview. */
 export const P = (costs: CostLine[], gains: CostLine[] = [], exposure: CostLine[] = []) => () => pv(costs, gains, exposure);

@@ -170,7 +170,6 @@ export { activeFeatures, agentsGate, catchRate, collusionTrait, sameLineage, fea
 export { monitorCatchAt, type ControlReadout } from '../safety/oversight';
 export { LENT_RECOVERY, servingPool, spareServing, spareServingToResearch } from '../worldfx/revenue';
 export { spareServingEffect } from '../production/production';
-export { ousterRiskQ, OUSTER_BC, OUSTER_NOTICE_D } from '../finance/board'; // jank ST3: board review readout
 // Model v3 V2b research UI: projects, recipe stacks, allocations, AI labour per work type, milestones, research speed.
 export {
   STAGES, PROJECT_MAX_TEAMS, addableProjects, adoptCostTW, buildSplit, capPriorityList, capProjectView, engAllocView, milestoneViews,
@@ -180,3 +179,5 @@ export type { AllocView, CapProjectView, MilestoneView, NeedView, ResearchSpeedV
 // Model v3 E11: the player's danger readout per product and internal lane, and the control readout (beliefs only).
 export { CONTROL_BANDS, controlBand, controlReadout, dangerView } from '../safety/dangerView';
 export type { ControlBand, ControlRead, DangerActRead, DangerLever, DangerRead } from '../safety/dangerView';
+export { ousterVote, ousterLive, ousterPassesBelow, OUSTER, OUSTER_BC, OUSTER_NOTICE_D, BC_WARN, BC_CLEAR, CRITICS, criticsAvailable, criticsSide, criticsSeat, trustVote } from '../finance/board'; // jank ST3 + FIN3b: board review, ouster vote, critics' seat
+export { charterRights, charterHolds } from '../finance/charter'; // FIN3b: charter rights

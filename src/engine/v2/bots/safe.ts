@@ -6,7 +6,7 @@
 // no strategic deals or debt, declines defense work, releases only after external review.
 import { internalVersion } from '../models/labs';
 import type { BotPolicy, TraitId } from '../types';
-import { financeAutopilot, financeDecide, type AutopilotOpts } from '../finance/plan';
+import { financeAutopilot, type AutopilotOpts } from '../finance/plan';
 import { runwayOf } from '../finance/runway';
 import { every, pickByTags, sizedTarget, staffLines, tryAct, type LinePlan } from './common';
 import { REF_TREE, SAFE_TREE_EXTRA, refPlay, type RefPlayOpts } from './ref';
@@ -62,7 +62,7 @@ export const safeBot: BotPolicy = {
       for (const id of ['A1', 'A2', 'A6', 'B5', 'F3', 'C1', 'C3', 'E1', 'E2']) tryAct(s, api, id, {});
       // Paid relation actions (bounties, grants, data licences, community benefits, KYC) only with runway to spare.
       if (runwayOf(s).q >= 5) {
-        for (const id of ['A5', 'D1', 'D2', 'F1', 'C2']) tryAct(s, api, id, {});
+        for (const id of ['A5', 'D1', 'D2', 'cmp.community', 'C2']) tryAct(s, api, id, {});
         if (!s.player.dataPortfolio.assets.some((a) => a.kind === 'public' && a.licensed)) tryAct(s, api, 'data.license', { domain: 'web' });
       }
       tryAct(s, api, 'A3', { strong: true });
@@ -78,6 +78,6 @@ export const safeBot: BotPolicy = {
     }
   },
   decide(s, d) {
-    return financeDecide(s, d, SAFE_AUTOPILOT) ?? pickByTags(s, d, [['pause', 'honour'], ['disclose'], ['safety', 'treaty', 'comply'], ['decline', 'community']]);
+    return pickByTags(s, d, [['pause', 'honour'], ['disclose'], ['safety', 'treaty', 'comply'], ['decline', 'community']]);
   },
 };

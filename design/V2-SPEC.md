@@ -1264,6 +1264,16 @@ Security investment also raises gov trust when rung 1–2 demands are met. A Gul
 
 ### 3.7 Finance: capital, board, deals, debt, runway (WS3)
 
+> **Superseded by [FINANCE-V3.md](FINANCE-V3.md)** (finance v3, built on branch `finance-v3`, FIN1–FIN6c; build notes and
+> calibration in [FINANCE-BUILD.md](FINANCE-BUILD.md)). Still valid here: §3.7.1's point (money binds; no compute share
+> cap), §3.7.2's start values except the valuation row (now the story mark), the presets table in §3.7.5, rates in
+> §3.7.4 and the cash-flow timing in §3.7.6. Replaced: the investor pool, valuation formula, k_Y cap and narrative premium
+> (§3.7.3 → FINANCE-V3 §1–§2: sector value × share with a valuation cap, promises and investor credibility, IPO); deal
+> templates, SPV, neocloud and mega-JV (§3.7.4 → §3–§6: debt sizing and rating, payment options and leases, firm
+> contracts, one partner offer flow); board approval probabilities, 90-day blocks, the revenue plan, E37 and the
+> reinstatement (§3.7.5 → §7: deterministic seat-by-seat votes, named mood sources, charter rights, critics' seat);
+> down-round attrition and distress morale hits (§8); the division's runway verdict (§13: parent budget and confidence).
+
 R15 Part 1 applies **as written**, except where this section restates it. The game starts in Jul 2025, so R15's Q4-2026 start values are back-cast below.
 
 #### 3.7.1 Why money binds
@@ -1402,7 +1412,7 @@ If the board rejects, the action is blocked for 90 days and BC −5. If the play
 
 **Board speed appetite** = the voting seats' weighted mean speed stance plus the outside-ownership drift, clamped to 0.25–1.5. A mission-heavy board forgives caution that a growth board punishes.
 
-**Ouster (M4: telegraphed, with counterplay).**
+**Ouster (M4: telegraphed, with counterplay).** *Superseded by FINANCE-V3 §7.2/§7.5 (FIN3b): the vote is deterministic and seat by seat (lean = grievance + depth below 25 − reluctance; the legacy board's reluctance is halved), there is no staff-revolt reinstatement and no E37; below 40 the player can give the critics a seat. See design/FINANCE-BUILD.md, FIN3b notes.*
 - **Warning.** When BC falls below 35 at a quarterly review, the board warns the CEO (alert) and E37 "Board revolt" fires (§4.2). The warning clears when BC is back at 45.
 - **Vote.** Only when BC < 25 **and** a warning is at least 60 days old: a vote is called with p = 0.15/q (× 2 for the legacy preset). It passes with P(weighted yes > half) over the voting seats other than the CEO's. The grievance is read from the last year's BC hits: public incidents ⇒ "too reckless" (replace with a careful CEO, v = [−0.5, 0.5, 1, 0.5]); down rounds, tight runway, covenants, failed raises, guarantees ⇒ "burning the company" (v = [−0.3, 1, 0, 0]); the rest ⇒ "too slow" (v = [1, 0.5, −0.5, −0.5]). Each seat votes yes with σ(stance′·v / 0.5), stance′ = stance + outside drift on speed and fin. A mission board shields a cautious CEO and turns on a reckless one (Nov 2023); financial and strategic seats do the opposite.
 - **Reinstatement** (the Nov 2023 precedent). If the vote passes while `morale.overall > 70`, staff revolt and the CEO is reinstated once per game: BC resets to 45 and a mission seat becomes an independent. Otherwise the game ends 'ousted'.
@@ -1666,7 +1676,11 @@ pressure   = clamp(months behind the leader / 6, 0, 1); a leader with bindingnes
 **Behaviour rules** (R07 R-RACE table and R17 §1.6.5):
 - **Moving goalposts:** when pressure > 0.6 for 90 days, P = raceRelaxation·0.3 per quarter. Bindingness falls 0.1 and the Index grade drops.
 - **Rival incidents** fire with the §3.5.10 hazard. Visibility = `disclosureRate + 0.5·externalAccess + leak`, with a statutory floor.
-- **Mergers and bankruptcy** come from rival finance (same distress rules).
+- **Mergers and bankruptcy** come from rival finance (same distress rules). *Finance v3 (FINANCE-V3 §12, FIN5b,
+  `finance/rivalFinance.ts`): private rivals are valued like you (sector value × their share, at most the same valuation
+  cap), raise from the investor pool when cash < half a year of spend, and a lab out of money is offered to you (E32),
+  then license-and-hired by the largest big-tech rival, or bankrupt when there is none. Big-tech, open-weights and the
+  leader lab are parent-funded.*
 
 **Bug fixes from v1.**
 - Every rival event and intel readout compares the rival's model to the **player's best internal version** (`leadDays` vs internal).
@@ -1806,8 +1820,8 @@ H1–H32 come from R16 §5. Each one fires once or with a cooldown.
 |---|---|---|---|
 | E01 | First finding | Tutorial, or the first confirmed trait or DISC finding | **Disclose**: credibility +5, scrutiny +10, gov trust +4. **Fix quietly**: P(found later) by access; ×3 trust loss if found. **Deny**: credibility gamble ±10. (Teaches the disclosure dilemma.) |
 | E02 | Recapitalise | `legacyNonprofit` preset, Q4 2025 | **Restructure**: 4 q of AG review; mission seats; frees the $20B conditional tranche; safety bloc −. **Refuse**: tranche cut to $10B; board financial seats −; mission preserved. |
-| E03 | Cloud partner offer | Runway < 8 q or capex plan > 2.5× revenue | **Accept**: equity $5–15B at V; take-or-pay commitment 4–12× that; observer seat; partner exclusivity (vetoes rival deals). **Counter (half)**: P(accept) 0.6. **Decline**: nothing. |
-| E04 | Sovereign money | Pool share < needs and a Gulf partner is available | **Accept**: $10–30B; in-country site; hawks −10; effective WSL −0.3 for that site. **Accept with security terms**: half size; +2 q delay. **Decline**: hawks +3. |
+| E03 | Cloud partner offer *(not an event in finance v3: the partner offer flow on Finance › Debt & partners, FINANCE-V3 §6)* | Runway < 8 q or capex plan > 2.5× revenue | **Accept**: equity $5–15B at V; take-or-pay commitment 4–12× that; observer seat; partner exclusivity (vetoes rival deals). **Counter (half)**: P(accept) 0.6. **Decline**: nothing. |
+| E04 | Sovereign money *(not an event in finance v3: a sovereign partner offer, FINANCE-V3 §6)* | Pool share < needs and a Gulf partner is available | **Accept**: $10–30B; in-country site; hawks −10; effective WSL −0.3 for that site. **Accept with security terms**: half size; +2 q delay. **Decline**: hawks +3. |
 | E05 | Rival overtakes product | An active rival's public model beats your best **public** deployment in ≥ 3 sectors; text states your internal lead | **Release frontier**: revenue +; distillation leak; job shock; scrutiny +. **Release mini**: smaller gain; keeps the lead. **Price cut**: margin −, share +. **Hold**: share erodes; secrecy kept. |
 | E06 | Distillation campaign | China or a rival's distillation inflow > threshold for 30 d | **Ban + KYC**: revenue −2%; DA −0.25. **Share intel**: rivals +; China −; DA −10 for all US labs. **Monitor quietly**: intel +; leak continues. |
 | E07 | Defense contract | Measured L ≥ 6.5 and gov priority > 55 | **Unrestricted**: revenue; exec trust +8; Defense +; safety morale −12; civil liberties −. **With limits**: half revenue; retaliation roll (Dealmaker/Hawk 0.35); courts. **Decline**: exec trust −10; safety morale +5. |
@@ -1835,12 +1849,12 @@ H1–H32 come from R16 §5. Each one fires once or with a cooldown.
 | E29 | Evaluator contradicts | evalIndep report disagrees with your published claims by > 1 L or > 0.15 trait rate | **Accept & correct**: credibility +3 net; trust +. **Dispute**: if wrong, credibility −15. |
 | E30 | Framework threshold | A live `noDeployAbove` / `pauseIfRedline` predicate blocks a planned action | **Honour**: delay or mitigate as written. **Amend**: credibility −8; Index −1 grade; moving-goalposts headline. **Break**: trust ×3 loss with the audience; credibility −20. |
 | E31 | Rival incident | An active rival's incident of severity ≥ 3 becomes public | **Offer joint eval**: cooperation +; shared pool +; scrutiny on both. **Exploit**: approval +3; cooperation −20. **Call for regulation**: Safety bloc +; Accelerationists −; reg stance +. |
-| E32 | Merger offer | An active rival in distress or with gap > 9 months | **Acquire**: staff and compute; cash/equity; antitrust scrutiny +20; culture: their posture blends into morale. **Decline**: it may go to Big Tech. |
+| E32 | Merger offer (rebuilt in FIN3c, FINANCE-V3 §9) | A private rival in distress (out of money), not your lead | **Acquire**: at ≈ 0.5 × its valuation, in cash or your stock; 70% of its staff; you take on its contracts and debt; antitrust scrutiny rises; needs a board vote (a stock deal handing over control is a sale of control). **Decline**: still failing next quarter, it is license-and-hired by the largest big-tech rival, or goes bankrupt. |
 | E33 | Agent incident | Customer incident from POWER/PROXY, severity ≥ 3 | **Compensate & restrict context**: revenue −; trust +. **Patch quietly**: cover-up risk. **Blame customer**: approval −5; enterprise brand −. |
 | E34 | Stale evals | Stream active and last audit > 21 d | **Freeze for audit**: stream paused 10 d (lag); beliefs refresh. **Continue**: sd keeps growing. |
 | E35 | We were wrong | U-mode discovered, or a FALSE finding revealed | **Disclose**: world learns (presence × 0.7 for all labs); credibility +5; scrutiny +10. **Keep secret**: advantage; P(leak) by access → ×3 trust loss. |
 | E36 | Capacity crunch | Demand > capacity by > 30% for 30 d | **Buy cloud now**: commitment; cash. **Raise price**: revenue holds; share −. **Ration**: brand −. |
-| E37 | Board revolt [M4] | Board confidence < 35 | **New directors**: two independents join (BC +15; a mission board shields you less). **Capex freeze**: no new sites or chip orders for 90 d (BC +10). **Rally staff**: morale −5; BC +15 with P = (morale − 40)/40, else −5. **Ignore**: BC −2; the ouster vote stays live. |
+| E37 | *Removed (FIN3b, FINANCE-V3 §7.5)* | — | Replaced by the standing "Give the critics a seat" action (below confidence 40) and the visible ouster vote on the Board card. |
 
 **Coverage check.** These replace all 21 v1 events. Their mapping is listed in the WS4 README:
 - v1 `cashCrunch` → E26;

@@ -210,7 +210,10 @@ function leaderChecks(s: GameStateV2, setup: SetupV2, tag: string) {
     const h = { ...x.hidden, actorPresets: { ...x.hidden.actorPresets, rivals: { ...x.hidden.actorPresets.rivals } }, rivalPostures: { ...x.hidden.rivalPostures } };
     delete h.actorPresets.rivals[LEADER_ID];
     delete h.rivalPostures[LEADER_ID];
-    return JSON.stringify([h, x.rng.world, x.rivals.filter((r) => r.core.id !== LEADER_ID), x.china, stacksGEquiv(x), x.player.models]);
+    // FIN5b: a private rival's start valuation is its share of the story split, which the leader lab (a private lab)
+    // is part of, so the marked valuation, share and pool part are left out; everything drawn or set up is compared.
+    const rivals = x.rivals.filter((r) => r.core.id !== LEADER_ID).map((r) => ({ ...r, finance: { ...r.finance, valuation: 0, mark: 0, poolQ: 0 } }));
+    return JSON.stringify([h, x.rng.world, rivals, x.china, stacksGEquiv(x), x.player.models]);
   };
   check(strip(s) === strip(off), `${tag}: 'world' draws, rivals, China and the player unchanged by the leader lab`);
 }
@@ -378,7 +381,7 @@ for (const rev of [1, 11, 12, 13, 14]) {
     msg = (e as Error).message;
   }
   // Model v3 V2 (schemaRev 13): V1 saves (12) are rejected too; model v3 V3 (schemaRev 14): V2 saves (13) too.
-  check(SCHEMA_REV === 33 && msg ===`no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
+  check(SCHEMA_REV === 42 && msg ===`no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
 }
 // Model v3 V4a (schemaRev 16): a V3b save (15) migrates (customer stocks start empty, versions get their FLOP per token).
 {
@@ -681,7 +684,7 @@ type Legacy = { pm?: number; pa?: number; paSync?: number };
     && g.player.models.versions.every((v, i) => Math.abs(v.G - cur.player.models.versions[i].G) < 1e-9) && Math.abs(g.knowledge.openWeightsG - cur.knowledge.openWeightsG) < 1e-9;
   const okLeak = !!g && Math.abs(g.china.lab.phys.rec.pre - cur.china.lab.phys.rec.pre - 0.01 * B_G_PER_Y) < 1e-9 && g.rivals.every((r, i) => Math.abs(r.phys.rec.pre - cur.rivals[i].phys.rec.pre) < 1e-9);
   const okGone = !!g && !/"(pm|pa|paSync|paIn|paAtStart|paTrack|openWeightsFrontier)":/.test(json);
-  check(okG && okLeak && okGone && g!.schemaRev === SCHEMA_REV && SCHEMA_REV === 33,
+  check(okG && okLeak && okGone && g!.schemaRev === SCHEMA_REV && SCHEMA_REV === 42,
     'save: a schemaRev-32 save migrates to 33 (every model\'s G from its pm, an unsynced know-how gain into the recipe, no pm / pa fields left)', msg || `G ${okG} leak ${okLeak} fields ${okGone}`);
   let same = false;
   try {
@@ -707,6 +710,59 @@ type Legacy = { pm?: number; pa?: number; paSync?: number };
     msg = (e as Error).message;
   }
   check(same, 'save: the migrations 27 → 33 (M5\'s and F3\'s) leave an already-migrated state unchanged (idempotent)', msg);
+}
+// Merge FINM: finance v3's migrations 33 → 42 (built on finance-v3 as 11 → 20, renumbered after model v3's 33). A
+// model-v3 save (rev 33) carries the old finance block: an SPV leaseback, an SPV deal, the JV and the one-quarter
+// operating cash become a financing lease at 12%, nothing, nothing and a four-quarter history; the story fields and the
+// rivals' marks are filled. The chain is idempotent (a current state labelled 33 loads unchanged), and every model-v3
+// rev from 14 to 41 loads a current state up to SCHEMA_REV.
+{
+  const cur = run(detSetup, 60);
+  const old = JSON.parse(serialize(cur)) as GameStateV2 & Record<string, unknown>;
+  old.schemaRev = 33;
+  const f = old.player.finance as unknown as Record<string, unknown> & { ledger: Record<string, unknown>[]; deals: Record<string, unknown>[]; ws3: Record<string, unknown>; promises?: unknown; credibility?: unknown };
+  f.ledger.push({ id: 'L-spv-S9', payee: 'Keystone Capital', kind: 'spvRVG', perQuarter: 0.2, endDay: 900, cancellableNoticeQ: null, penalty: 0 });
+  f.deals.push({ id: 'D-old-spv', template: 'spv', partner: 'Keystone Capital', day: 10, strings: {} });
+  f.ws3.jv = { partner: 'Meridian Group' };
+  f.ws3.opCashQ = 1.5;
+  delete f.ws3.opCash4q;
+  delete f.promises;
+  delete f.credibility;
+  delete (f.ws3 as { mark?: unknown }).mark;
+  for (const r of old.rivals) { const rf = r.finance as unknown as Record<string, unknown>; delete rf.mark; delete rf.poolQ; delete rf.raised; }
+  let msg = '';
+  let g: GameStateV2 | undefined;
+  try {
+    g = deserialize(JSON.stringify(old));
+  } catch (e) {
+    msg = (e as Error).message;
+  }
+  const lease = g?.player.finance.ledger.find((c) => c.id === 'L-fin-S9');
+  const okFin = !!g && g.schemaRev === SCHEMA_REV && SCHEMA_REV === 42 && lease?.kind === 'finLease' && lease.rate === 0.12 && !g.player.finance.deals.some((d) => d.id === 'D-old-spv')
+    && !('jv' in g.player.finance.ws3) && JSON.stringify(g.player.finance.ws3.opCash4q) === '[1.5]' && Array.isArray(g.player.finance.promises) && typeof g.player.finance.credibility === 'number'
+    && (g.player.finance.valuation <= 0 || !!g.player.finance.ws3.mark) && g.rivals.every((r) => r.finance.poolQ !== undefined && r.finance.raised !== undefined);
+  check(okFin, 'save: a schemaRev-33 save (model v3, old finance) migrates to 42 (SPV leaseback → financing lease, SPV deal and JV gone, operating cash history, promises, credibility, story marks)', msg || JSON.stringify({ lease: lease?.kind, rate: lease?.rate, opCash4q: g?.player.finance.ws3.opCash4q }));
+  let same = false;
+  try {
+    const again = JSON.parse(serialize(cur)) as Record<string, unknown>;
+    again.schemaRev = 33;
+    same = stateHash(deserialize(JSON.stringify(again))) === stateHash(cur);
+  } catch (e) {
+    msg = (e as Error).message;
+  }
+  check(same, 'save: the finance migrations 33 → 42 leave an already-migrated state unchanged (idempotent)', msg);
+  const bad: string[] = [];
+  for (let rev = 14; rev < SCHEMA_REV; rev++) {
+    try {
+      const o = JSON.parse(serialize(cur)) as Record<string, unknown>;
+      o.schemaRev = rev;
+      const m = deserialize(JSON.stringify(o));
+      if (m.schemaRev !== SCHEMA_REV) bad.push(`${rev}: lands at ${m.schemaRev}`);
+    } catch (e) {
+      bad.push(`${rev}: ${(e as Error).message}`);
+    }
+  }
+  check(bad.length === 0, `save: every model-v3 save rev 14–${SCHEMA_REV - 1} migrates to ${SCHEMA_REV} (a current state under each label)`, bad.slice(0, 3).join('; '));
 }
 
 // ---------- 6. Cadences ----------

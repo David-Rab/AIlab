@@ -1,6 +1,7 @@
 // Variants, deployments, the internal-agent version and distillation leakage (V2-SPEC §3.3.5). Owner: WS1
 // (revenue per deployment: WS5 writes deployment.revenueRate).
 import { commitmentDeployBlock, committedUsagePolicy } from '../actors/commitments';
+import { charterReleaseBlock } from '../finance/charter';
 import { ws4r } from '../actors/state';
 import type { Channel, Deployment, GameStateV2, LabId, ModelVersion, SystemCtx, Variant } from '../types';
 import { CHINA_ID, bestG, rivalLab, uniqueVersionName, versionById } from './labs';
@@ -43,12 +44,16 @@ export interface GateOpts { safeguards?: Deployment['safeguards']; usagePolicy?:
 /** Pre-deployment gate (§3.3.5): external channels need an eval suite (R6: no expiry; the auto-evaluate policy keeps
  *  suites current instead of a 30-day expiry that blocked launches) at the eval-gate depth; the Agents product needs a
  *  measured time horizon covering its tasks; commitments block only launches inside their own scope, judged on this
- *  candidate (B1/B2), and the reason names the clause. */
+ *  candidate (B1/B2), and the reason names the clause; the charter's release block (FIN3b) comes before the eval gate. */
 export function deployGate(s: GameStateV2, v: ModelVersion, channel: Channel, opts: GateOpts = {}): true | string {
   if (!CHANNEL_VARIANTS[channel].includes(v.variant)) return `${channel} needs a ${CHANNEL_VARIANTS[channel].join('/')} variant`;
   if (v.status === 'retired' || v.status === 'rolledBack') return 'Version is retired';
   if (!external(channel)) return true;
   if (v.status === 'evaluating') return 'Still in evaluation';
+  // FIN3b (FINANCE-V3 §7.2): the charter's release block (nonprofit PBC safety committee; PBC + trust on open weights of
+  // a capability-threshold model). Finance reaches the release path only here.
+  const charter = charterReleaseBlock(s, v, channel);
+  if (charter) return charter;
   const gate = s.player.safety.evalGate;
   if (gate !== 'none') {
     if (v.evals.suiteDay === undefined) return 'Not evaluated yet';
