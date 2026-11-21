@@ -255,6 +255,22 @@ function rawAggregate(w: TimelineWorld, G: number, fpt: number, staffCap: number
     c, l, X, Xh, units, a, aiFte, mIdeas: LI / S, copies: copiesOf(kAg, fpt), wH, sdAI: k.sdAI, taste,
   };
 }
+/** P4: rawAggregate's E and I alone (what the mix search reads), by the same expressions, without the readout parts. */
+function rawEI(w: TimelineWorld, G: number, fpt: number, staffCap: number, f: number, C: number): { E: number; I: number } {
+  const P = w.prod;
+  const k = labConst(w, G, fpt, staffCap);
+  const { H, S, units } = k;
+  const cExp = Math.max(0, f) * C;
+  const kAg = Math.max(0, 1 - f) * C;
+  const c = Math.max(1e-12, (cExp * PHI_FLOP_PER_H100E_DAY) / units / C_UNIT_FLOP_PER_DAY);
+  const aiFte = kAg * AGENT_EXP * k.fte;
+  const L = effLabour(P, k.a, H, aiFte / WORK_TYPES.EXP.heads, k.assist);
+  const l = Math.pow(Math.max(1e-12, L / H), P.lam);
+  const X = Xces(P, c, l);
+  const LI = effLabour(P, k.aI, S, (kAg * AGENT_IDEAS * k.fte) / WORK_TYPES.IDEAS.heads, k.assistI);
+  const taste = kAg > 0 ? k.taste : 1;
+  return { E: X * units * taste, I: Math.pow(LI, P.lam) * taste * taste };
+}
 /** The parts of the aggregate that do not depend on the research mix (one entry memoised: the mix search asks 26 times). */
 let constMemo: { w: TimelineWorld; G: number; fpt: number; staff: number; x: ReturnType<typeof labConstOf> } | undefined;
 function labConst(w: TimelineWorld, G: number, fpt: number, staff: number) {
@@ -290,7 +306,7 @@ export function evalAggregate(w: TimelineWorld, G: number, fpt: number, staffCap
 /** Best experiments share of the research compute (golden section on research speed), as the player's auto mix. */
 export function bestRivalMix(w: TimelineWorld, G: number, fpt: number, staffCap: number, C: number): number {
   const fx = (x: number) => {
-    const r = rawAggregate(w, G, fpt, staffCap, x, C);
+    const r = rawEI(w, G, fpt, staffCap, x, C);
     const z = day0Of(w);
     return Math.min(r.E / z.E, r.I / z.I);
   };
