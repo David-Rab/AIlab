@@ -207,7 +207,9 @@ export function refSafetyAgents(s: GameStateV2, api: EngineApi): void {
 
 /** Options of the reference play (all optional; RefBot's are REF_PLAY). */
 export interface RefPlayOpts {
-  /** Fixed compute share for safety (the rest follows shareRef(t)); undefined = reference. */
+  /** Fixed compute share for safety (the rest follows shareRef(t)). Not given = RefBot's AI 2027 alignment share
+   *  (refSafetyShare; M10: so T1's runner `runRef`, capex2x and the finance stub play RefBot's split, not SHARE_REF's
+   *  2–3.5% safety row); a function returning undefined = SHARE_REF's row. */
   safetyShare?: (s: GameStateV2) => number | undefined;
   /** Target share of staff in safety (hiring), e.g. 0.25 for the safe bot. */
   safStaffShare?: number;
@@ -282,7 +284,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
 
   // Departments: reference split (monthly) and cap hiring tracking H_ref six weeks ahead.
   if (day % 30 === 0) {
-    const safShare = o.safetyShare?.(s);
+    const safShare = (o.safetyShare ?? refSafetyShare)(s);
     const ref: ComputeSplit = safShare === undefined ? shareRefAt(yr) : withFixed(shareRefAt(yr), { safety: safShare });
     const now = topOf(p.split);
     const want = topOf(ref);
