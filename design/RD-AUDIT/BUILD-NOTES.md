@@ -1442,3 +1442,10 @@ Safety cleanup (SAFETY-REDESIGN §6 #3, #14; §0 line 5; inventory E1, O1, O2, I
   removed: all pass), targeted `npx tsx scripts/v2/_sr01/check.ts` (passes).
 - **Moves calibration: maybe** (no lead lowers believed U and so the U-margin, red flags and anything gated on it;
   latched lines run at full speed; tools switched off by bots are back on).
+
+### SR-02
+
+Blind-gap amplifier deleted (SAFETY-REDESIGN §6 #1, OD-3; inventory U9): `safety/traits.ts` has no
+understandingGapGrowth / GAP_GROWTH_K / GAP_CAP_L; player trait growth uses growthMult 1. `ws2.gapTrue` is still
+sampled weekly in `core/record.ts` because `scripts/v2/bots.ts` reports it. The sourced "undetected hacking
+reinforced" replacement is SR-24. Moves calibration: yes (S4/S5); re-measure S4/S5 at the next checkpoint.
