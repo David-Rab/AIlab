@@ -573,7 +573,7 @@ function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
     const t = versionById(s, run.teacherVersionId);
     if (!t) return;
     const build = idaBuild(s, t, run.flopNeeded, { rlMid: rec.rlMid ?? rlMidNow(s), rlCeil: rec.rlCeil ?? rlCeilNow(s), fid: rec.fid, exploit: rec.exploit });
-    const v = newVersion(s, run, base, build, t, { serveCost: t.serveCost, monitorability: t.monitorability, design: { ...t.design }, appeal: t.appeal ?? 1 });
+    const v = newVersion(s, run, base, build, t, { serveCost: t.serveCost, monitorability: t.monitorability, design: { ...t.design }, appeal: t.appeal ?? 1, trained: { rlDay: rlDayOf(s, run), post: false } });
     m.versions.push(v);
     afterVersion(s, ctx, run, v, t);
     return;
@@ -582,11 +582,15 @@ function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
   build.dg -= consumeRunPenalty(s) * B_G_PER_Y;
   const v = newVersion(s, run, base, build, parent, {
     serveCost: (base.serve ?? 0.5) * pe.serve * serveTechMult(s),
-    monitorability: Math.min(base.monitorability ?? 1, pe.monitorability), appeal: pe.appeal,
+    monitorability: Math.min(base.monitorability ?? 1, pe.monitorability), appeal: pe.appeal, trained: { rlDay: rlDayOf(s, run), post: true },
   });
   m.versions.push(v);
   afterVersion(s, ctx, run, v);
 }
+
+/** RD-B17 (readout): the day a post-training or amplify run's RL recipe was taken: its launch (frozen recipe), or today
+ *  for a run launched before recipes were frozen. */
+const rlDayOf = (s: GameStateV2, run: TrainingRun) => (run.recipe?.rlMid !== undefined ? run.startDay : s.time.day);
 
 /** Build of a version without one (legacy, an import): its G as the pretraining part, no RL detail. */
 function fallbackBuild(v: ModelVersion): VersionBuild {

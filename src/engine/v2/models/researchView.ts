@@ -2,7 +2,7 @@
 // Everything here is what the player's lab knows: beliefs, its own allocations and inputs, its recipe as built, the
 // preset's public reference points. Candidate truths (models/research.ts candidateTruth) are never read; an adopted
 // idea's realised value is shown only once a model trained after its adoption has been evaluated.
-import { DEFAULT_ENG_ALLOC, ENG_NEED_LABEL, MAX_DROPS, PICK_AT, PROJECT_MAX_TEAMS, RE_NEED_LABEL, RE_PER_PROJECT, STACK_GROUPS, STACK_LABEL } from '../../../data/v2/research';
+import { DEFAULT_ENG_ALLOC, ENG_NEED_LABEL, MAX_DROPS, PICK_AT, PROJECT_MAX_TEAMS, RE_NEED_LABEL, RE_PER_PROJECT, STACK_LABEL, STACK_UNIT, EMBODIED_BY, EMBODIED_TEXT, type EmbodiedBy } from '../../../data/v2/research';
 import { COGNITIVE_WORK, MILESTONE_COVER, RE_UNIT, WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
 import { E_START } from '../../../data/v2/runDesign';
 import { COLUMN_LABEL } from '../../../data/v2/teams';
@@ -22,7 +22,7 @@ import { versionById } from './labs';
 import {
   allocate, attemptOdds, batchOf, capReCapacity, isCapProject, linePool, poolMean, reAllocation, reDemand, sciOn, stagesOf, teamsWanted, wantIsAuto,
 } from './research';
-import { adoptedAt, headroomAt, latestBaseFlop, rlCeilNow, rlMidNow, stackAt, trainNow } from './stacks';
+import { adoptedAt, headroomAt, latestBaseFlop, rlCeilNow, rlMidNow, STACK_KEYS, stackAt, trainNow } from './stacks';
 import { nodeStatus, projectReady } from './tree';
 import type { AdoptedIdea, CapStage, GameStateV2, MilestoneIdx, ModelVersion, ReNeed, EngNeed, StackKey, Team } from '../types';
 
@@ -221,22 +221,64 @@ export { PROJECT_MAX_TEAMS };
 
 // ───────────────────────────── recipe stacks ─────────────────────────────
 
-export interface StackPartView { key: StackKey; label: string; now: number; adopted: number; headroom: number; base: number; inModel?: number; n: number }
-export interface AdoptedView extends Omit<AdoptedIdea, 'eff'> { realised?: number }
-export interface StackGroupView { id: 'pre' | 'rl' | 'sys'; name: string; parts: StackPartView[]; now: number; headroom: number; gap?: number; ideas: AdoptedView[]; n: number }
+export interface AdoptedView extends Omit<AdoptedIdea, 'eff'> {
+  /** The true effect, once a model that embodies it has been evaluated (hidden before); same unit as `est`. */
+  realised?: number;
+  /** Name of the first evaluated model that embodies it (whose evaluation reveals the true effect). */
+  seenIn?: string;
+  /** Player text: which model trains it in ("a post-training run launched"…, after it was adopted). */
+  embodiedBy: string;
+}
+/** RD-B17: one recipe stack in its own unit (OOM of its own quantity, STACK_UNIT; stacks are never summed). */
+export interface StackView {
+  key: StackKey; name: string; unit: string; now: number; adopted: number; headroom: number; base: number;
+  /** What the internal model embodies and the stack beyond it (pretraining, RL efficiency, RL ceiling only). */
+  inModel?: number; gap?: number;
+  /** Ideas adopted into it (a batch counts its ideas; a second stack an idea also moves does not count it). */
+  n: number;
+  ideas: AdoptedView[];
+}
+/** One row of a domain or data effect in its own unit. */
+export interface EffectRowView { label: string; unit: string; est: number; estSd: number; realised?: number }
+/** RD-B17: an adopted domain or data effect (not a stack): its rows in their own units. */
+export interface OtherEffectView extends AdoptedView { kind: 'domain' | 'data'; rows: EffectRowView[] }
 
-/** Was a model trained after `day` and evaluated (so an idea adopted on `day` has a realised value)? */
-function evaluatedAfter(s: GameStateV2, day: number, stack: StackKey): boolean {
-  const vs = s.player.models.versions.filter((v) => v.status !== 'evaluating' && v.status !== 'rolledBack');
-  if (stack === 'pre') {
-    return s.player.models.bases.some((b) => (b.startDay ?? b.day) > day && vs.some((v) => v.baseId === b.id));
-  }
-  return vs.some((v) => v.day > day);
+const DOMAIN_NAME: Record<string, string> = { CODE: 'Code', RSCH: 'AI research', REASON: 'Math & reasoning', AGENCY: 'Long tasks', SOCIAL: 'Social & general text', MEDIA: 'Media', CYBER: 'Cyber', BIO: 'Bio', PHYS: 'Physical' };
+
+/** The first evaluated model that embodies an idea adopted on `day` (RD-B30: by where its effect lands, so a distilled
+ *  student or a model trained before it never reveals it). Versions from older saves without `trained` count if full. */
+function revealedBy(s: GameStateV2, day: number, by: EmbodiedBy): ModelVersion | undefined {
+  const m = s.player.models;
+  const vs = m.versions.filter((v) => v.status !== 'evaluating' && v.status !== 'rolledBack');
+  const onBase = (ok: (b: (typeof m.bases)[number]) => boolean) => vs.find((v) => { const b = m.bases.find((x) => x.id === v.baseId); return !!b && ok(b); });
+  const rl = () => vs.find((v) => (v.trained ? v.trained.rlDay > day : v.variant === 'full' && v.day > day));
+  const post = () => vs.find((v) => (v.trained ? v.trained.post && v.day > day : v.variant === 'full' && v.day > day));
+  const started = () => onBase((b) => (b.startDay ?? b.day) > day);
+  if (by === 'baseStart') return started();
+  if (by === 'baseDone') return onBase((b) => b.day > day);
+  if (by === 'rl') return rl();
+  if (by === 'post') return post();
+  const a = started();
+  const b = rl();
+  return a && b ? (m.versions.indexOf(a) <= m.versions.indexOf(b) ? a : b) : (a ?? b);
+}
+function adoptedView(s: GameStateV2, a: AdoptedIdea, by: EmbodiedBy): AdoptedView {
+  const { eff, ...rest } = a;
+  const v = revealedBy(s, a.day, by);
+  return { ...rest, embodiedBy: EMBODIED_TEXT[by], ...(v ? { realised: eff, seenIn: v.name } : {}) };
+}
+/** Where a domain or data effect lands: domain effects and serving at a post-trained version's completion; the data
+ *  pipeline (synthetic quality, token worth) in a base finished after it; expert demonstrations in the RL suites a
+ *  post-training run freezes at launch. */
+function otherEmbodiedBy(n: TreeNodeDef | undefined): EmbodiedBy {
+  if (n?.effect?.domains) return 'post';
+  if (n?.effect?.expert) return 'rl';
+  return 'baseDone';
 }
 
-/** Recipe readout: per stack group, its value now (at the latest base), headroom, what the internal model embodies,
- *  and the adopted ideas (believed band; realised once a model trained with it is evaluated). */
-export function stackViews(s: GameStateV2): StackGroupView[] {
+/** Recipe readout (RD-B17): per stack, in its own unit, its value now (at the latest base), headroom, what the internal
+ *  model embodies, and the adopted ideas (believed band; the true effect once a model that embodies it is evaluated). */
+export function stackViews(s: GameStateV2): StackView[] {
   const res = s.player.research;
   const F = latestBaseFlop(s);
   const v = agentVersion(s, 'capRoutine');
@@ -248,21 +290,37 @@ export function stackViews(s: GameStateV2): StackGroupView[] {
     if (v.build.aRL !== undefined) inModel.rlCeil = v.build.aRL;
   }
   const nowOf = (k: StackKey) => (k === 'pre' ? stackAt(res.stacks.pre, F) : k === 'rlMid' ? rlMidNow(s) : k === 'rlCeil' ? rlCeilNow(s) : k === 'train' ? trainNow(s) : stackAt(res.stacks.serve));
-  return STACK_GROUPS.map((g) => {
-    const parts: StackPartView[] = g.keys.map((k) => ({
-      key: k, label: STACK_LABEL[k], now: nowOf(k), adopted: adoptedAt(res.stacks[k], F), headroom: headroomAt(res.stacks[k], F), base: res.stacks[k].base,
-      ...(inModel[k] !== undefined ? { inModel: inModel[k] } : {}), n: res.stacks[k].n,
-    }));
-    const gaps = parts.filter((x) => x.inModel !== undefined).map((x) => Math.max(0, x.now - (x.inModel ?? 0)));
-    const ideas = res.adopted.filter((a) => g.keys.includes(a.stack)).slice().reverse().map((a) => {
-      const { eff, ...rest } = a;
-      return evaluatedAfter(s, a.day, a.stack) ? { ...rest, realised: eff } : rest;
-    });
+  return STACK_KEYS.map((k) => {
+    const now = nowOf(k);
+    const im = inModel[k];
     return {
-      id: g.id, name: g.name, parts, now: parts.reduce((a, x) => a + x.now, 0), headroom: parts.reduce((a, x) => a + x.headroom, 0),
-      ...(gaps.length ? { gap: gaps.reduce((a, x) => a + x, 0) } : {}), ideas, n: parts.reduce((a, x) => a + x.n, 0),
+      key: k, name: STACK_LABEL[k], unit: STACK_UNIT[k], now, adopted: adoptedAt(res.stacks[k], F), headroom: headroomAt(res.stacks[k], F), base: res.stacks[k].base,
+      ...(im !== undefined ? { inModel: im, gap: Math.max(0, now - im) } : {}), n: res.stacks[k].n,
+      ideas: res.adopted.filter((a) => a.stack === k).slice().reverse().map((a) => adoptedView(s, a, EMBODIED_BY[k])),
     };
   });
+}
+
+/** RD-B17: adopted domain effects (OOM of a domain's capability for new versions) and data effects (synthetic quality
+ *  ceiling, token worth, expert demonstrations), newest first, each row in its own unit. Older saves listed domain
+ *  effects with `stack: 'pre'`; they are read as domain effects here. */
+export function otherEffectViews(s: GameStateV2): OtherEffectView[] {
+  const out: OtherEffectView[] = [];
+  for (const a of s.player.research.adopted.slice().reverse()) {
+    const n = PROJECT_BY_ID[a.id];
+    const eff = n?.effect;
+    if (!eff || eff.stack) continue;
+    const kind = a.kind ?? (eff.domains ? 'domain' : 'data');
+    const av = adoptedView(s, a, otherEmbodiedBy(n));
+    const row = (label: string, unit: string, k: number): EffectRowView => ({ label, unit, est: a.est * k, estSd: a.estSd * k, ...(av.realised !== undefined ? { realised: av.realised * k } : {}) });
+    const rows: EffectRowView[] = [];
+    for (const [d, w] of Object.entries(eff.domains ?? {})) rows.push(row(DOMAIN_NAME[d] ?? d, 'OOM for new versions', w ?? 0));
+    if (eff.data?.synQMax) rows.push(row('Synthetic data quality ceiling', 'web text = 1', eff.data.synQMax));
+    if (eff.data?.worthOom) rows.push(row('Worth of each training token', 'OOM', eff.data.worthOom));
+    if (eff.expert) rows.push(row('Expert demonstrations', 'B tokens', eff.expert.tokensT * 1000));
+    out.push({ ...av, kind, rows });
+  }
+  return out;
 }
 
 /** Software progress of the recipe (OOM of effective compute per year, 14-day average: the lab's own adopted ideas and

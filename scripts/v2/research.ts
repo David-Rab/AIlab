@@ -14,17 +14,18 @@ import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { tick } from '../../src/engine/v2/core/loop';
 import { engine } from '../../src/engine/v2/index';
 import { HEADROOM, MAX_DROPS, PICK_AT, RE_PER_PROJECT, RISK_KAPPA, SMALL_TO_TEST, SURVIVE_FRAC, TUNE_RE_PER_OOM } from '../../src/data/v2/research';
-import { TREE_BY_ID, type TreeNodeDef } from '../../src/data/v2/tree';
+import { PROJECT_BY_ID, TREE_BY_ID, type TreeNodeDef } from '../../src/data/v2/tree';
+import { makeCtx } from '../../src/engine/v2/core/loop';
 import {
-  allocate,assignmentValue, attemptOdds, candidateTruth, capSciTeams, expShares, experimentRate, freshCap, hasTypedEffect, linePool, newCandidate, pickCandidate,
+  allocate,assignmentValue, attemptOdds, candidateTruth, capSciTeams, completeAdoption, stagesOf, expShares, experimentRate, freshCap, hasTypedEffect, linePool, newCandidate, pickCandidate,
   planAssignment, poolMean, priorMean, projectFlopPerDay, reAllocation, reopenProject, researchInputs, softwareProgressDay,
 } from '../../src/engine/v2/models/research';
 import {
-  addIdea, addKnowledge, headroomAt, headroomTotal, initialStacks, latestBaseFlop, playerRecipe, playerRecipeG, publicBase, RECIPE_F, recipeG, stackAt, stacksGEquiv, tuneDay,
+  addIdea, addKnowledge, STACK_KEYS, headroomAt, headroomTotal, initialStacks, latestBaseFlop, playerRecipe, playerRecipeG, publicBase, RECIPE_F, recipeG, stackAt, stacksGEquiv, tuneDay,
 } from '../../src/engine/v2/models/stacks';
 import { recipeOf } from '../../src/engine/v2/actors/rivalModel';
 import { secretsLeakDaily } from '../../src/engine/v2/security/theft';
-import { softwareRate } from '../../src/engine/v2/models/researchView';
+import { otherEffectViews, softwareRate, stackViews } from '../../src/engine/v2/models/researchView';
 import { serialize, deserialize } from '../../src/engine/v2/core/save';
 import { syncTeams } from '../../src/engine/v2/departments/teams';
 import { resetWorkContext } from '../../src/engine/v2/departments/workfit';
@@ -572,6 +573,56 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
   const oldText = texts.filter((t) => /synthetic data ×3|no data wall|no repetition penalty|h80 ×2|Time horizon ×2|RSCH \+0\.4|PHYS \+1/i.test(t));
   check(hits.length === 0 && oldText.length === 0, 'D9 lint: the old flags are gone (synthetic ×3, no repetition penalty / data wall, horizon ×2, RSCH +0.4, PHYS +1; no adopted() readers; no LATER(V5) markers for them)',
     [...hits, ...oldText].slice(0, 6).join(' | '));
+}
+
+// ---------- RD-B17: honest Recipe readouts (B28 units, B29 counts, B30 who reveals) ----------
+{
+  const s = mk(7);
+  const ctx = makeCtx(s);
+  let k = 0;
+  const adopt = (id: string, b = 1) => {
+    const n = TREE_BY_ID[id] ?? PROJECT_BY_ID[id];
+    const c = newCandidate(s, n, freshCap(), 1, b);
+    const fTest = stagesOf(n).testFrac * latestBaseFlop(s);
+    const buildId = `rdb17-${k++}`;
+    const r = { c, xTest: 0.05, sHat: 0, fTest, est: 0.05, estSd: 0.01, day: s.time.day, buildId };
+    s.player.tree[id] = { status: 'researching', progress: 1, cap: { ...freshCap(), ...(n.kind === 'line' ? { pending: [r] } : { stage: 'adopting' as const, result: r }) } };
+    completeAdoption(s, ctx, id, buildId, () => {});
+  };
+  const total = () => STACK_KEYS.reduce((a, x) => a + s.player.research.stacks[x].n, 0);
+  const n0 = total();
+  adopt('P16');
+  const nP16 = total() - n0;
+  adopt('L.rlalg', 3);
+  const nLine = total() - n0 - nP16;
+  check(nP16 === 1 && nLine === 3 && s.player.research.stacks.serve.n === 0, 'RD-B17 ideas adopted count ideas: P16 (two stacks) counts 1, a batch of 3 counts 3',
+    `P16 +${nP16}, batch of 3 +${nLine}, serving stack n ${s.player.research.stacks.serve.n}`);
+  adopt('P09');
+  adopt('P10');
+  const gs = stackViews(s);
+  const oth = otherEffectViews(s);
+  const p09 = oth.find((x) => x.id === 'P09');
+  const p10 = oth.find((x) => x.id === 'P10');
+  check(gs.every((g) => g.ideas.every((a) => a.stack === g.key)) && !gs.some((g) => g.ideas.some((a) => a.id === 'P09' || a.id === 'P10')) && !!p09 && p09.rows.every((r) => r.unit === 'OOM for new versions') && !!p10 && p10.rows[0]?.unit === 'web text = 1',
+    'RD-B17 P09 is not under pretraining: domain and data effects are listed apart, in their own units', `P09 rows ${p09?.rows.map((r) => `${r.label} ${r.unit}`).join(', ')}; P10 ${p10?.rows.map((r) => `${r.label} ${r.unit}`).join(', ')}`);
+  const keys = gs.map((g) => g.key);
+  const src = readFileSync(join(HERE, '../../src/ui/v2/panels/Recipe.tsx'), 'utf8');
+  check(keys.length === STACK_KEYS.length && new Set(keys).size === keys.length && gs.every((g) => Math.abs(g.now - (g.key === 'pre' ? stackAt(s.player.research.stacks.pre, latestBaseFlop(s)) : g.now)) < 1e-12) && !/\.reduce\(/.test(src),
+    'RD-B17 no Recipe card sums mixed units: one card per stack, no sums in the panel', keys.join(', '));
+  // B30: who reveals an RL idea's true effect.
+  const day = s.time.day;
+  const vs = s.player.models.versions;
+  const proto = vs[vs.length - 1];
+  const add = (id: string, extra: Partial<typeof proto>) => vs.push({ ...proto, id, name: id, day: day + 10, status: 'ready', ...extra });
+  const rl = () => stackViews(s).find((g) => g.key === 'rlMid')!.ideas.find((a) => a.id === 'L.rlalg')!;
+  add('Tmini', { variant: 'mini', trained: undefined });
+  const afterMini = rl().realised;
+  add('Told', { variant: 'full', trained: { rlDay: day - 5, post: true } });
+  const afterOld = rl().realised;
+  add('Tnew', { variant: 'full', trained: { rlDay: day + 1, post: true } });
+  const after = rl();
+  check(afterMini === undefined && afterOld === undefined && after.realised !== undefined && after.seenIn === 'Tnew',
+    'RD-B17 a distill (or a post-train launched before it) does not reveal an RL idea; a post-train launched after does', `mini ${afterMini}, earlier launch ${afterOld}, later ${after.realised} seen in ${after.seenIn}`);
 }
 
 check(PICK_AT >= 2, 'fixture: teams choose among at least two candidates');

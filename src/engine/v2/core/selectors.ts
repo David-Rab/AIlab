@@ -170,9 +170,9 @@ export { spareServingEffect } from '../production/production';
 // Model v3 V2b research UI: projects, recipe stacks, allocations, AI labour per work type, milestones, research speed.
 export {
   STAGES, PROJECT_MAX_TEAMS, addableProjects, buildSplit, capPriorityList, capProjectView, engAllocView, milestoneViews,
-  reAllocView, researchSpeedView, softwareRate, stackViews, workTypeViews,
+  otherEffectViews, reAllocView, researchSpeedView, softwareRate, stackViews, workTypeViews,
 } from '../models/researchView';
-export type { AllocView, CapProjectView, MilestoneView, NeedView, ResearchSpeedView, StackGroupView, StageId, WorkTypeView } from '../models/researchView';
+export type { AdoptedView, AllocView, CapProjectView, EffectRowView, MilestoneView, NeedView, OtherEffectView, ResearchSpeedView, StackView, StageId, WorkTypeView } from '../models/researchView';
 // Model v3 E11: the player's danger readout per product and internal lane, and the control readout (beliefs only).
 export { CONTROL_BANDS, controlBand, controlReadout, dangerView } from '../safety/dangerView';
 export type { ControlBand, ControlRead, DangerActRead, DangerLever, DangerRead } from '../safety/dangerView';

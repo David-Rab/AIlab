@@ -102,8 +102,9 @@ export function rlGOfBuild(b: { eRL: number; aRL?: number; flopPre: number }): n
 }
 
 /** Add an adopted idea's true effect to a stack: `x` at test FLOP `fTest`, scale exponent `sx` (0 for scale-invariant
- *  stacks). HEADROOM of it is headroom. */
-export function addIdea(st: StackState, x: number, sx: number, fTest: number) {
+ *  stacks). HEADROOM of it is headroom. `count` = the ideas it holds, added to the stack's ideas adopted (a line's batch
+ *  b; 0 for the second stack one idea also moves, RD-B17). */
+export function addIdea(st: StackState, x: number, sx: number, fTest: number, count = 1) {
   const sr = Math.round(sx / S_STEP) * S_STEP;
   const coef = x * Math.pow(10, -sr * lg(fTest));
   let b = st.buckets.find((y) => Math.abs(y.s - sr) < S_STEP / 2);
@@ -114,7 +115,7 @@ export function addIdea(st: StackState, x: number, sx: number, fTest: number) {
   }
   b.a += coef;
   b.h += HEADROOM * coef;
-  st.n += 1;
+  st.n += count;
 }
 
 /** Public knowledge (diffusion from a leader, tacit knowledge, safety spillover): scale-invariant, no headroom. */

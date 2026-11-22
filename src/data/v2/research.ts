@@ -104,12 +104,21 @@ export const TRAIN_CAP = Math.log10((0.75 * 0.97) / (0.4 * 0.9));
 export const STACK_LABEL: Record<StackKey, string> = {
   pre: 'Pretraining efficiency', rlMid: 'RL compute efficiency', rlCeil: 'RL ceiling', train: 'Training throughput', serve: 'Serving efficiency',
 };
-/** The three stacks of the readout and their parts. */
-export const STACK_GROUPS: { id: 'pre' | 'rl' | 'sys'; name: string; keys: StackKey[] }[] = [
-  { id: 'pre', name: 'Pretraining', keys: ['pre'] },
-  { id: 'rl', name: 'RL', keys: ['rlMid', 'rlCeil'] },
-  { id: 'sys', name: 'Serving & systems', keys: ['train', 'serve'] },
-];
+/** RD-B17: what each stack's OOM measure (the Recipe tab shows each stack in its own unit, never summed). Read after
+ *  "OOM". */
+export const STACK_UNIT: Record<StackKey, string> = {
+  pre: 'of effective compute for new bases', rlMid: 'less RL compute for the same gain', rlCeil: 'higher RL ceiling',
+  train: 'more model FLOP per chip-day', serve: 'more serving throughput',
+};
+/** RD-B17: the model that embodies an adopted idea, by where its effect lands (a realised value is revealed only by the
+ *  evaluation of such a model). */
+export type EmbodiedBy = 'baseStart' | 'baseDone' | 'rl' | 'post' | 'baseOrRl';
+export const EMBODIED_BY: Record<StackKey, EmbodiedBy> = { pre: 'baseStart', rlMid: 'rl', rlCeil: 'rl', train: 'baseOrRl', serve: 'post' };
+/** Player text: which model trains it in ("… after it was adopted"). */
+export const EMBODIED_TEXT: Record<EmbodiedBy, string> = {
+  baseStart: 'a base run started', baseDone: 'a base run finished', rl: 'a post-training run launched', post: 'a post-trained version finished',
+  baseOrRl: 'a base or post-training run started',
+};
 
 // ───────────────────────────── adoption (engineers) ─────────────────────────────
 

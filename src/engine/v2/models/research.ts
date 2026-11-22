@@ -574,8 +574,9 @@ export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, bui
   if (eff?.stack || eff?.domains) steerAdoption(s, ctx, `${id}:${buildId}`, eff.stack ? xTest : 0);
   let realised = 0;
   if (eff?.stack) {
-    addIdea(res.stacks[eff.stack], xTest, truth.s, r.fTest);
-    for (const [k, ratio] of Object.entries(eff.also ?? {}) as [StackKey, number][]) addIdea(res.stacks[k], xTest * ratio, 0, r.fTest);
+    // RD-B17: a batch counts its b ideas; the second stack an idea also moves adds no idea.
+    addIdea(res.stacks[eff.stack], xTest, truth.s, r.fTest, r.c.b);
+    for (const [k, ratio] of Object.entries(eff.also ?? {}) as [StackKey, number][]) addIdea(res.stacks[k], xTest * ratio, 0, r.fTest, 0);
     realised = xTest * Math.pow(latestBaseFlop(s) / r.fTest, truth.s);
   } else if (eff?.domains) {
     for (const [d, v] of Object.entries(eff.domains)) res.domainG[d as keyof typeof res.domainG] = (res.domainG[d as keyof typeof res.domainG] ?? 0) + xTest * (v ?? 0);
@@ -592,8 +593,10 @@ export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, bui
     if (eff.expert) addSuiteExpertData(s, ctx, eff.expert.family, x * eff.expert.tokensT, n.name);
     realised = x;
   }
-  if (eff?.stack || eff?.domains) {
-    res.adopted.push({ id, name: n.name, stack: eff.stack ?? 'pre', eff: Math.round(realised * 1e4) / 1e4, est: Math.round(r.est * 1e4) / 1e4, estSd: Math.round(r.estSd * 1e4) / 1e4, s: Math.round(truth.s * 1000) / 1000, day: ctx.day });
+  if (eff && hasTypedEffect(n)) {
+    // RD-B17: domain and data effects are listed as their own kind (not under a stack).
+    const where = eff.stack ? { stack: eff.stack } : { kind: eff.domains ? ('domain' as const) : ('data' as const) };
+    res.adopted.push({ id, name: n.name, ...where, ...(r.c.b > 1 ? { b: r.c.b } : {}), eff: Math.round(realised * 1e4) / 1e4, est: Math.round(r.est * 1e4) / 1e4, estSd: Math.round(r.estSd * 1e4) / 1e4, s: Math.round(truth.s * 1000) / 1000, day: ctx.day });
     if (res.adopted.length > 30) res.adopted.splice(0, res.adopted.length - 30);
   }
   if (n.kind === 'line') {

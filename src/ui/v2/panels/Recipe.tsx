@@ -1,42 +1,56 @@
-// Research › Recipe (model v3 V2b; mockups-v3/v3-v2b-recipe): one card per recipe stack group (pretraining, RL, serving &
-// systems). Home of stack efficiency, headroom, the recipe not trained into the internal model, the adopted ideas
-// (believed band → realised value once a model trained with it is evaluated) and the software rate.
-import { dateOf, fmtDate, softwareRate, stackViews } from '../../../engine/v2';
-import type { GameStateV2, StackGroupView } from '../../../engine/v2';
+// Research › Recipe (model v3 V2b; mockups-v3/v3-v2b-recipe; RD-B17): one card per recipe stack, each in its own unit
+// (OOM of its own quantity: stacks are never summed), and a card for the domain and data effects in theirs. Home of stack
+// efficiency, headroom, the recipe not trained into the internal model, the adopted ideas (believed band → the true
+// effect once a model that embodies it has been evaluated) and the software rate.
+import { dateOf, fmtDate, otherEffectViews, softwareRate, stackViews } from '../../../engine/v2';
+import type { AdoptedView, GameStateV2, OtherEffectView, StackView } from '../../../engine/v2';
 import { Term, Tip, TipCard } from '../ui';
 import { Card, Ref } from '../kit';
 import { ICON } from '../icons';
 import * as F from '../fmt';
 import { fmtEff } from './ResearchProjects';
 
-const GROUP_ICON = { pre: ICON.colPretraining, rl: ICON.colPosttraining, sys: ICON.colSystems } as const;
-const GROUP_TRAIN: Record<StackGroupView['id'], string> = { pre: 'a new base run', rl: 'a post-training run', sys: 'new runs and serving' };
+type Key = StackView['key'];
+const STACK_ICON: Record<Key, (typeof ICON)['colPretraining']> = { pre: ICON.colPretraining, rlMid: ICON.colPosttraining, rlCeil: ICON.colPosttraining, train: ICON.colSystems, serve: ICON.colSystems };
+const TRAINS_IN: Partial<Record<Key, string>> = { pre: 'a new base run', rlMid: 'a post-training run', rlCeil: 'a post-training run' };
+const ADD_KIND: Record<Key, string> = { pre: 'pretraining', rlMid: 'post-training', rlCeil: 'post-training', train: 'systems', serve: 'systems' };
 const oom = (x: number) => `${fmtEff(x)} OOM`;
 /** Two significant figures (bands in the adopted list). */
 const sig = (x: number, signed = true) => `${signed && x > 0 ? '+' : x < 0 ? '−' : ''}${Number(Math.abs(x).toPrecision(2))}`;
+const batch = (a: AdoptedView) => (a.b && a.b > 1 ? ` (${a.b} ideas)` : '');
+const short = (s: GameStateV2, day: number) => fmtDate(dateOf(s, day)).replace(/,? \d{4}$/, '');
 
-function StackCard({ s, g }: { s: GameStateV2; g: StackGroupView }) {
-  const Ic = GROUP_ICON[g.id];
-  const adopted = g.parts.reduce((a, p) => a + p.adopted, 0);
-  const base = g.parts.reduce((a, p) => a + p.base, 0);
-  const span = Math.max(1e-9, Math.abs(base) + adopted);
+/** The true effect of an adopted idea: hidden until a model that embodies it has been evaluated (RD-B17, B30). */
+function TrueEffect({ a, realised, est, estSd, unit }: { a: AdoptedView; realised?: number; est: number; estSd: number; unit: string }) {
+  return (
+    <Tip content={() => <TipCard title={<Term id="realisedEffect">True effect</Term>} value={realised !== undefined ? `${sig(realised)} ${unit}` : 'not seen yet'}>
+      {a.seenIn ? `Seen in ${a.seenIn}'s evaluation, the first model trained with it.` : `Seen once ${a.embodiedBy} after it was adopted has been evaluated. Until then you have only the believed band.`}
+    </TipCard>}>
+      <span className={`num small ${realised === undefined ? 'dim' : realised >= est - estSd ? 'tone-pos' : 'tone-warn'}`}>{realised !== undefined ? `→ ${sig(realised)}` : '→ not seen'}</span>
+    </Tip>
+  );
+}
+
+function StackCard({ s, g }: { s: GameStateV2; g: StackView }) {
+  const Ic = STACK_ICON[g.key];
+  const span = Math.max(1e-9, Math.abs(g.base) + g.adopted);
   const w = (x: number) => `${Math.max(0, (x / span) * 100)}%`;
   return (
-    <Card className="rc-card" home={`stack.${g.id}`} title={<span className="row-i"><Ic size={15} /><Term id="recipeStack">{g.name}</Term></span>}
-      sub={<Tip content={() => <TipCard title="Ideas adopted" value={String(g.n)} rows={g.parts.map((p) => ({ label: p.label, value: String(p.n) }))} />}><span>{g.n} ideas adopted</span></Tip>}>
+    <Card className="rc-card" home={`stack.${g.key}`} title={<span className="row-i"><Ic size={15} /><Term id="recipeStack">{g.name}</Term></span>}
+      sub={<Tip content={() => <TipCard title="Ideas adopted" value={String(g.n)}>Every idea counts once: a line's batch counts each idea in it; an idea that also moves another stack counts in its main stack only.</TipCard>}><span>{g.n} ideas adopted</span></Tip>}>
       <div className="rc-hero">
-        <Tip content={() => <TipCard title={<Term id="stackEfficiency">Stack efficiency</Term>} value={oom(g.now)} rows={g.parts.map((p) => ({ label: p.label, value: oom(p.now) }))}>Over the start recipe, at your latest base's FLOP. Start and public knowledge + adopted − headroom.</TipCard>}>
-          <b className="num" data-test={`stack-now.${g.id}`}>{fmtEff(g.now)}</b>
+        <Tip content={() => <TipCard title={<Term id="stackEfficiency">Stack efficiency</Term>} value={oom(g.now)}>{`Over the start recipe, at your latest base's FLOP: start and public knowledge + adopted − headroom. In OOM ${g.unit}: not comparable with the other stacks.`}</TipCard>}>
+          <b className="num" data-test={`stack-now.${g.key}`}>{fmtEff(g.now)}</b>
         </Tip>
-        <span className="dim">OOM over the start recipe</span>
+        <span className="dim"><Term id="oom">OOM</Term> {g.unit}</span>
       </div>
-      <Tip content={() => <TipCard title="Make-up" rows={[{ label: 'Start and public knowledge', value: oom(base) }, { label: 'Adopted (delivered)', value: oom(adopted - g.headroom) }, { label: <Term id="headroom">Headroom (still to tune)</Term>, value: oom(g.headroom) }]} />}>
-        <span className="rc-bar">{base > 0 && <i className="base" style={{ width: w(base) }} />}<i className="ad" style={{ width: w(adopted - g.headroom) }} /><i className="hr" style={{ width: w(g.headroom) }} /></span>
+      <Tip content={() => <TipCard title="Make-up" rows={[{ label: 'Start and public knowledge', value: oom(g.base) }, { label: 'Adopted (delivered)', value: oom(g.adopted - g.headroom) }, { label: <Term id="headroom">Headroom (still to tune)</Term>, value: oom(g.headroom) }]} />}>
+        <span className="rc-bar">{g.base > 0 && <i className="base" style={{ width: w(g.base) }} />}<i className="ad" style={{ width: w(g.adopted - g.headroom) }} /><i className="hr" style={{ width: w(g.headroom) }} /></span>
       </Tip>
       {g.gap !== undefined && (
         <div className="rp-kv"><span><Term id="trainedIn">Not trained in</Term></span>
-          <Tip content={() => <TipCard title={<Term id="trainedIn">Not trained in</Term>} value={oom(g.gap ?? 0)} rows={g.parts.filter((p) => p.inModel !== undefined).map((p) => ({ label: `${p.label}: in your model`, value: oom(p.inModel ?? 0) }))}>{`Recipe your internal model lacks: ${GROUP_TRAIN[g.id]} trains it in.`}</TipCard>}>
-            <span className={`num ${(g.gap ?? 0) > 0.1 ? 'tone-warn' : ''}`} data-test={`stack-gap.${g.id}`}>{oom(g.gap)}</span>
+          <Tip content={() => <TipCard title={<Term id="trainedIn">Not trained in</Term>} value={oom(g.gap ?? 0)} rows={[{ label: 'In your internal model', value: oom(g.inModel ?? 0) }]}>{`Recipe your internal model lacks: ${TRAINS_IN[g.key] ?? 'a new run'} trains it in.`}</TipCard>}>
+            <span className={`num ${(g.gap ?? 0) > 0.1 ? 'tone-warn' : ''}`} data-test={`stack-gap.${g.key}`}>{oom(g.gap ?? 0)}</span>
           </Tip>
           <Ref id="blueprint" to={{ panel: 'blueprint' }}>Train</Ref>
         </div>
@@ -45,17 +59,40 @@ function StackCard({ s, g }: { s: GameStateV2; g: StackGroupView }) {
         <Tip content={() => <TipCard title={<Term id="headroom">Headroom</Term>} value={oom(g.headroom)}>Closed by research engineers on routine tuning (Company › Work).</TipCard>}><span className="num">{oom(g.headroom)}</span></Tip>
         <Ref id="routineTuning" to={{ panel: 'company', tab: 'work' }}>Tuning</Ref>
       </div>
-      <div className="rp-k" style={{ marginTop: 8 }}><Term id="realisedEffect">Adopted · believed → realised</Term> <span className="dim">(OOM)</span></div>
-      {g.ideas.length === 0 && <div className="small dim">Nothing adopted yet. Add a {g.id === 'sys' ? 'systems' : g.id === 'rl' ? 'post-training' : 'pretraining'} project on Projects.</div>}
+      <div className="rp-k" style={{ marginTop: 8 }}><Term id="realisedEffect">Adopted · believed → true</Term> <span className="dim">(<Term id="oom">OOM</Term>)</span></div>
+      {g.ideas.length === 0 && <div className="small dim">Nothing adopted yet. Add a {ADD_KIND[g.key]} project on Projects.</div>}
       <div className="rc-ideas">
         {g.ideas.slice(0, 8).map((a, i) => (
           <div key={`${a.id}-${a.day}-${i}`} className="rc-idea" data-idea={a.id}>
-            <span className="ellip">{a.name}</span>
-            <span className="dim small">{fmtDate(dateOf(s, a.day)).replace(/,? \d{4}$/, '')}</span>
+            <span className="ellip">{a.name}{batch(a)}</span>
+            <span className="dim small">{short(s, a.day)}</span>
             <Tip content={() => <TipCard title={<Term id="beliefBand">Believed</Term>} value={`${fmtEff(a.est)} ± ${fmtEff(a.estSd, 'oom', false)} OOM`}>The result's estimate band at your latest base when it came in.</TipCard>}><span className="num small">{sig(a.est)} ±{sig(a.estSd, false)}</span></Tip>
-            <Tip content={() => <TipCard title={<Term id="realisedEffect">Realised</Term>} value={a.realised !== undefined ? oom(a.realised) : 'after the next model'}>{a.realised !== undefined ? 'Measured on a model trained after it was adopted.' : 'Shown once a model trained after its adoption has been evaluated.'}</TipCard>}>
-              <span className={`num small ${a.realised === undefined ? 'dim' : a.realised >= a.est - a.estSd ? 'tone-pos' : 'tone-warn'}`}>{a.realised !== undefined ? `→ ${sig(a.realised)}` : '→ next model'}</span>
-            </Tip>
+            <TrueEffect a={a} realised={a.realised} est={a.est} estSd={a.estSd} unit="OOM" />
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+/** Domain and data effects (RD-B17): not stacks, so each row in its own unit. */
+function OtherCard({ s, xs }: { s: GameStateV2; xs: OtherEffectView[] }) {
+  return (
+    <Card className="rc-card" home="stack.other" title={<span className="row-i"><ICON.data size={15} /><Term id="otherEffects">Domain & data effects</Term></span>}
+      sub={<span>{xs.length} adopted</span>}>
+      {xs.length === 0 && <div className="small dim">Nothing adopted yet.</div>}
+      <div className="rc-ideas">
+        {xs.slice(0, 8).map((a, i) => (
+          <div key={`${a.id}-${a.day}-${i}`} data-idea={a.id}>
+            <div className="rc-idea"><span className="ellip">{a.name}</span><span className="dim small">{short(s, a.day)}</span><span /><span /></div>
+            {a.rows.map((r) => (
+              <div key={r.label} className="rc-idea small" data-effect={r.label}>
+                <span className="ellip dim">{r.label} ({r.unit.startsWith('OOM') ? <><Term id="oom">OOM</Term>{r.unit.slice(3)}</> : r.unit})</span>
+                <span />
+                <Tip content={() => <TipCard title={<Term id="beliefBand">Believed</Term>} value={`${sig(r.est)} ± ${sig(r.estSd, false)} ${r.unit}`}>The result's estimate band when it came in.</TipCard>}><span className="num small">{sig(r.est)} ±{sig(r.estSd, false)}</span></Tip>
+                <TrueEffect a={a} realised={r.realised} est={r.est} estSd={r.estSd} unit={r.unit} />
+              </div>
+            ))}
           </div>
         ))}
       </div>
@@ -65,16 +102,17 @@ function StackCard({ s, g }: { s: GameStateV2; g: StackGroupView }) {
 
 export function Recipe({ s }: { s: GameStateV2 }) {
   const gs = stackViews(s);
+  const other = otherEffectViews(s);
   const r = softwareRate(s);
   return (
     <div className="rc-wrap">
       <div className="rc-head" data-home="softwareRate">
-        <Tip content={() => <TipCard title={<Term id="softwareRate">Software progress</Term>} rows={[{ label: 'Effective compute', value: `${F.num(r.oomPerYear, 2)} OOM a year` }, { label: 'Ideas adopted', value: `${F.count(r.ideasPerYear)} a year` }, { label: <Term id="publicKnowledge">Public knowledge</Term>, value: `+${F.num(r.publicPerYear, 2)} OOM a year` }]}>What your own research added to the recipe stacks over the last two weeks (adopted ideas and tuning), at your latest base. A new, bigger base and public knowledge do not count.</TipCard>}>
-          <span className="row-i"><ICON.revenue size={14} /><Term id="softwareRate">Software progress</Term> <b className="num">{F.num(r.oomPerYear, 2)} OOM/yr</b> <span className="dim">· {F.count(r.ideasPerYear)} ideas/yr</span>{r.publicPerYear >= 0.005 && <span className="dim">· +{F.num(r.publicPerYear, 2)} OOM/yr <Term id="publicKnowledge">public</Term></span>}</span>
+        <Tip content={() => <TipCard title={<Term id="softwareRate">Software progress</Term>} rows={[{ label: <Term id="effCompute">Effective compute</Term>, value: `${F.num(r.oomPerYear, 2)} OOM a year` }, { label: 'Ideas adopted into the stacks', value: `${F.count(r.ideasPerYear)} a year` }, { label: <Term id="publicKnowledge">Public knowledge</Term>, value: `+${F.num(r.publicPerYear, 2)} OOM a year` }]}>What your own research added to the recipe stacks over the last two weeks (adopted ideas and tuning), at your latest base. A new, bigger base and public knowledge do not count.</TipCard>}>
+          <span className="row-i"><ICON.revenue size={14} /><Term id="softwareRate">Software progress</Term> <b className="num">{F.num(r.oomPerYear, 2)} <Term id="oom">OOM</Term>/yr</b> <span className="dim">· {F.count(r.ideasPerYear)} ideas/yr</span>{r.publicPerYear >= 0.005 && <span className="dim">· +{F.num(r.publicPerYear, 2)} OOM/yr <Term id="publicKnowledge">public</Term></span>}</span>
         </Tip>
         <span className="sp" />
       </div>
-      <div className="rc-grid">{gs.map((g) => <StackCard key={g.id} s={s} g={g} />)}</div>
+      <div className="rc-grid">{gs.map((g) => <StackCard key={g.key} s={s} g={g} />)}<OtherCard s={s} xs={other} /></div>
     </div>
   );
 }

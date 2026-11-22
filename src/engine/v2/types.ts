@@ -374,6 +374,10 @@ export interface ModelVersion {
   flags: { bioUplift?: boolean; cyberOffense?: boolean; replication?: boolean; persuasion?: boolean };
   /** How G was built (MODEL-V3 §2); lets the engine recompute G for streams and domains. Hidden. */
   build?: VersionBuild;
+  /** RD-B17 (readout): the recipe it took from its own run. `rlDay` = launch day of the post-training or amplify run (RL
+   *  recipe and environment suites frozen then); `post` = made by a post-training run (domain effects and the serving
+   *  stack read at its completion). Absent for distilled students, imports and older saves. */
+  trained?: { rlDay: Day; post: boolean };
   /** Consumer appeal from preference training (0.7–1.2, §3.3.2 D); visible, read by WS5 revenue. */
   appeal?: number;
 }
@@ -705,10 +709,16 @@ export interface CapProjectState {
 export interface AdoptedIdea {
   id: string;
   name: string;
-  stack: StackKey;
-  /** Effect at the lab's latest base when adopted (OOM; the realised value, shown once a model trains with it). */
+  /** The stack it moved (a stack idea; a second stack it also moves is not listed). Absent for domain and data effects. */
+  stack?: StackKey;
+  /** RD-B17: 'domain' (domain capability of new versions) or 'data' (data efficiency, expert data); absent = a stack. */
+  kind?: 'domain' | 'data';
+  /** Ideas in it (a line's batch; absent = 1). */
+  b?: number;
+  /** True effect when adopted, hidden until a model trained with it is evaluated: a stack idea in its stack's OOM at the
+   *  lab's latest base; a domain or data effect in "× as designed" (1 = the project's design effect). */
   eff: number;
-  /** The believed band when the result came in. */
+  /** The believed band when the result came in (same unit). */
   est: number;
   estSd: number;
   s: number;
