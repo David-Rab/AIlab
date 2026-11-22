@@ -1777,3 +1777,27 @@ by models/research.ts, safety/lineProjects.ts, production/production.ts). Commit
   −15% (the port is not modelled), verified treaty ×0.65 (gov.treaty has no compute limit to cap FLOP with; = rateMult).
 - **Check:** `npx tsx scripts/v2/_a07/check.ts` (pause: cap experiment FLOP and rate → 0, safety FLOP and ideation
   inputs unchanged; clearance: speed unchanged, science and RE capacity −10%, back after). tsc app + scripts/v2 clean.
+
+### CP2 fixes
+- **Rogue ending unreachable from forced states (ws4 E5, control endings; also control "process: an escaped copy
+  takes control…").** Cause: test rigs, not the engine. RD-L05 made the rogue gate the SAR milestone record
+  (`milestoneDays[4]`, the intended rule in control.ts's header); RD-L04 made milestones the work-fit predicate on the
+  version's build, so the rigs' forced state (raise `v.G` / `Lg` to the SAR knot) no longer meets SAR and the gate never
+  opens. Fix (8ba03bd): ws4 `atLevel` and control's rogue setup force the milestone record 0..idx (as the ASI setups
+  force `milestoneDays[6]`); control's process check sets the SAR record for "grown" and deletes it for "early" (was:
+  levels below the knot). Engine unchanged. ws4 E5 and control (31/31) pass.
+- **Successor pull with "no agent compute" (r 0.179, ω 0.066).** Cause: test rig. RD-A02 gave engineering agents their
+  own split line (`split.engineering`, 0.6% at start); the check zeroed only routine / frontier, so 7200 H100e of
+  engineering agents still did SWE and the pull correctly read that AI share. Fix (020b810): the check zeroes
+  `split.engineering` too (r 0, ω 0). Engine unchanged; successor 12/12. Seen, not changed: safety/incidents.ts
+  `usageOf` still counts an internal deployment as used only when routine + frontier > 0 (ignores the engineering line).
+- **P14 steering does not fade (AF d 0.325 at L 5 and L 14.5).** Cause: test rig. RD-U02 made `versionOom = v.G − G_V0`
+  (was λ⁻¹ of Lg); the check raised only `Lg` to 14.5, so the decay saw the start model's OOM. The engine fade reads the
+  model's capability (OOM above V0) as intended. Fix (16bfcd2): the capable model sets `G = gOfLevel(14.5)` too. The
+  P14 check passes (P23 and the lint failures there are other CP2 classes).
+- **believedControl NaN on the spinout start (from day 1).** Cause: models/research.ts `allocate` capped an uncapped
+  need at `(share ?? Infinity) · cap`; at zero capacity that is ∞·0 = NaN. RD-A04 routed safety research engineers
+  through `allocate`; the spinout lab has 0 safety research engineers, so `safAllocation.got` → NaN → `upkeep` →
+  `reValidationMult` → validation lead → believed detection → believed monitor catch → `believedTerms` NaN. Fix
+  (d329aa8): an unset share means no cap (Infinity), never multiplied by capacity. Probe: spinout + leader lab, RefBot to
+  day 400 with endings skipped (the fixture's run): no non-finite `effectiveControl.believed` on any day.
