@@ -139,7 +139,7 @@ function results(s: GameStateV2, id: string, n: number, maxDays = 4000, onResult
   results(u, uid, 0, 1);
   resetSafAllocation(u);
   const after = safetyRe(u);
-  check(before.experiments === 0 && Math.abs(after.experiments - REF_RE_HEADS) < 1e-9 && Math.abs(after.upkeep - (before.upkeep - REF_RE_HEADS)) < 1e-9, 'E1 a project in experiments takes SAF_RE_ASK engineers from tool upkeep (none while it ideates)', `upkeep ${before.upkeep} → ${after.upkeep}`);
+  check(before.experiments === 0 && Math.abs(after.experiments - REF_RE_HEADS) < 1e-9 && Math.abs(after.idle - (before.idle - REF_RE_HEADS)) < 1e-9, 'E1 a project in experiments takes SAF_RE_ASK engineers from the idle engineers (none while it ideates)', `idle ${before.idle} → ${after.idle}`);
   // Science capacity speeds ideation as √capacity (λ = 0.5 in ai2027).
   const { s: a, id: aid } = lab('AG07', { cap: 1 });
   const { s: b, id: bid } = lab('AG07', { cap: 4 });

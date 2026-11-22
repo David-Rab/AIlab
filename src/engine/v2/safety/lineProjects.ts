@@ -15,7 +15,7 @@
 //
 // Research engineers (RD-A04): one needs list in the player's order (research.safRe, models/research.ts allocate, the
 // capability engineers' allocator): open cases, patches and removals, line experiments (each project in priority order
-// asks SAF_RE_ASK labour units × its science staffing), tool re-validation (agendas.ts revalDemand); the rest is idle.
+// asks SAF_RE_ASK labour units × its science staffing), validation jobs (validation.ts validationDemand); the rest is idle.
 // Compute: the safety line after investigations goes to the projects in experiments by need (RD-R02a, the capability
 // rule of RD-B08 expShares): each project's need is its ask × its agenda's computeNeed; a project with engineers takes
 // its full share, one with none leaves its share unused (idle). AI labour enters as the effective-labour multipliers m_ideas and m_exp from
@@ -26,7 +26,7 @@ import { TEAM_SIZE } from '../../../data/v2/teams';
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { DEFAULT_SAF_RE_ALLOC } from '../../../data/v2/research';
 import { allocate } from '../models/research';
-import { revalDemand } from './agendas';
+import { jobComputeNeed, jobStaffing, liveJobs, validationDemand } from './validation';
 import { PROJECT_BY_ID, isLineNode, type TreeNodeDef } from '../../../data/v2/tree';
 import { teamCapacity } from '../departments/capacity';
 import { safetyPoolClaims } from '../departments/agents';
@@ -148,9 +148,10 @@ export function linePoolH100e(s: GameStateV2): number {
 
 /** Today's safety research-engineer and compute allocation. Heads are heads × quality. */
 export interface SafAlloc {
-  /** Engineers not on cases, patches or safeguards; on line experiments; on tool re-validation (upkeep); idle (no need
+  /** Engineers not on cases, patches or safeguards; on line experiments; on validation jobs (SR-09; valPool = their
+   *  H100e of the line pool); idle (no need
    *  takes them); SR-13b: on the safeguards (human review staff), taken before the needs list. */
-  free: number; exp: number; upkeep: number; idle: number; safeguards: number;
+  free: number; exp: number; validation: number; valPool: number; idle: number; safeguards: number;
   /** RD-A04: capacity (heads × quality), each need's demand and what it got (player's order). */
   heads: number; demand: Record<SafReNeed, number>; got: Record<SafReNeed, number>;
   /** Engineers and experiment FLOP per day per project in experiments. */
@@ -196,7 +197,7 @@ export function safAllocation(s: GameStateV2, extra?: string, extraCap?: number)
     askSum += x;
     needSum += k;
   }
-  const demand: Record<SafReNeed, number> = { cases: investigationFte(s), patches: patchFte(s), safExp: askSum, reval: revalDemand(s) };
+  const demand: Record<SafReNeed, number> = { cases: investigationFte(s), patches: patchFte(s), safExp: askSum, validation: validationDemand(s) };
   // SR-13b: the safeguards' staff (human review) is committed before the needs list.
   const sg = Math.min(heads, safeguardFte(s));
   const got = allocate(heads - sg, s.player.research.safRe ?? DEFAULT_SAF_RE_ALLOC, demand);
@@ -214,15 +215,22 @@ export function safAllocation(s: GameStateV2, extra?: string, extraCap?: number)
   const flopPerH = PHI_FLOP_PER_H100E_DAY * Math.pow(10, trainNow(s));
   const flop = new Map<string, number>();
   const share: Partial<Record<AgendaId, number>> = {};
+  // SR-09: staffed validation jobs take their compute need from the same pool, by need (the lines' shares shrink).
+  let valNeed = 0;
+  if (got.validation > 0) {
+    const staffed = jobStaffing(s, got.validation);
+    for (const j of liveJobs(s)) if ((staffed.get(j.id) ?? 0) > 0) valNeed += jobComputeNeed(s, j);
+  }
+  const den = needSum + valNeed;
   for (const id of ids) {
     // By need (RD-B08 rule): a project with engineers takes its full share; one with none leaves it unused.
-    const f = needSum > 0 && (re.get(id) ?? 0) > 0 ? (need.get(id) ?? 0) / needSum : 0;
+    const f = den > 0 && (re.get(id) ?? 0) > 0 ? (need.get(id) ?? 0) / den : 0;
     flop.set(id, pool * f * flopPerH);
     const ag = agendaOf(node(id) as TreeNodeDef);
     share[ag] = (share[ag] ?? 0) + f;
   }
-  const used = sg + got.cases + got.patches + got.safExp + got.reval;
-  const a: SafAlloc = { free, exp, upkeep: got.reval, idle: Math.max(0, heads - used), safeguards: sg, heads, demand, got, re, flop, pool, share };
+  const used = sg + got.cases + got.patches + got.safExp + got.validation;
+  const a: SafAlloc = { free, exp, validation: got.validation, valPool: den > 0 ? (pool * valNeed) / den : 0, idle: Math.max(0, heads - used), safeguards: sg, heads, demand, got, re, flop, pool, share };
   if (extra === undefined) allocMemo.set(s, { day: s.time.day, a });
   return a;
 }

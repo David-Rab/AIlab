@@ -26,6 +26,9 @@ import { strengthBelieved } from './techniques';
 import { believedPenalty, combineTools } from './detection';
 import { removalPreview } from './footholdDetection';
 import { RESTRICT, controlDangerDelta, controlReadout, restrictDangerDelta } from './dangerView';
+import { VAL_DAYS, VAL_N } from '../../../data/v2/agendas';
+import { canValidate, jobEngineers, queueValidation, sampleRange, validationOf, validationRange } from './validation';
+import { instrumentName, instruments } from './instruments';
 
 type P = Record<string, number | string | boolean>;
 type Preview = { costs: CostLine[]; gains: CostLine[]; exposure: CostLine[] };
@@ -112,7 +115,7 @@ const INVESTIGATE: ActionDef = {
     const on = unexplained ? 'the critical traits (unexplained incident)' : TRAIT_BY_ID[trait]?.name ?? trait;
     return {
       costs: [
-        { currency: 'staffTime', amount: fte, target: `safety research engineers until it resolves (≤ ${INV_MAX_DAYS} d; tool upkeep slows)` },
+        { currency: 'staffTime', amount: fte, target: `safety research engineers until it resolves (≤ ${INV_MAX_DAYS} d; before validation jobs in the default order)` },
         { currency: 'compute', amount: cs, target: csScale < 1 ? `of the safety compute pool (gets ${Math.round(cs * csScale * 1000) / 10}%: the monitors come first)` : 'of the safety compute pool' },
       ],
       gains: tools.length
@@ -505,5 +508,66 @@ const EVAL_GATE: ActionDef = {
   },
 };
 
-export const SAFETY_ACTIONS: ActionDef[] = [INVESTIGATE, CLOSE_CASE, RESPOND, PUBLISH, POLICY, PLEDGE, EVAL_GATE];
+/** SR-09: the instruments a validate action queues (tool id, or 'all' = every owned instrument not measured on the model). */
+function validateTargets(s: GameStateV2, p: P): { model: string; tools: TechniqueState[] } {
+  const model = str(p, 'model') ?? internalVersion(s)?.id ?? '';
+  const tool = str(p, 'tool') ?? 'all';
+  const tools = tool === 'all'
+    ? instruments(s).filter((t) => canValidate(s, t.id, model) === true)
+    : [s.player.safety.techniques[tool]].filter((t): t is TechniqueState => !!t && canValidate(s, t.id, model) === true);
+  return { model, tools };
+}
+
+const VALIDATE: ActionDef = {
+  id: 'safety.validate', verb: 'respond', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Validate instrument',
+  available: (s) => !!internalVersion(s) || 'No model',
+  preview(s, p) {
+    // SR-09: what apply does: queue one job per instrument (at the end of the validation queue). Each takes the engineers
+    // and days below at full staffing (the 'validation' need in the engineers' list) and some line compute while it runs;
+    // on finishing, the instrument is validated on the model and its reliability there is measured from VAL_N planted
+    // cases. Believed inputs only (the range shown is today's believed range and the sample's width).
+    const { model, tools } = validateTargets(s, p);
+    const v = versionById(s, model);
+    if (!v || !tools.length) return { costs: [{ currency: 'staffTime', amount: 0, target: v ? `nothing to validate on ${v.name}: every instrument is measured or queued` : 'no such model' }], gains: [], exposure: [] };
+    const ahead = s.player.safety.validation?.jobs.length ?? 0;
+    const per = jobEngineers(s);
+    const r0 = validationRange(s, tools[0], v);
+    const sr = sampleRange(Math.round(r0.value * VAL_N), VAL_N);
+    return {
+      costs: [
+        { currency: 'staffTime', amount: Math.round(per * tools.length * 10) / 10, target: `safety research engineers for about ${VAL_DAYS} d at full staffing (${tools.length} job${tools.length === 1 ? '' : 's'}; ${ahead} already queued ahead)` },
+        { currency: 'compute', amount: 0, target: "a quarter of a serious line project's experiment compute per job while it runs (the lines get less)" },
+      ],
+      gains: [{ currency: 'alignment', amount: tools.length, unit: 'instruments', target: `validated on ${v.name}: reliability measured from ${VAL_N} planted cases (e.g. ${instrumentName(tools[0])} now ${Math.round(r0.lo * 100)}–${Math.round(r0.hi * 100)}%, ${r0.basis}; after: about ±${Math.round(sr.half * 100)} points)` }],
+      exposure: [],
+    };
+  },
+  apply(s, ctx, p) {
+    const { model, tools } = validateTargets(s, p);
+    if (!tools.length) return void ctx.log('alert', 'Validate: nothing to validate on that model.');
+    for (const t of tools) queueValidation(s, t.id, model, 'player', ctx.day);
+    ctx.log('research', `Validation queued: ${tools.length} instrument${tools.length === 1 ? '' : 's'} on ${versionById(s, model)?.name ?? model}.`, 1);
+  },
+};
+
+const VALIDATION_POLICY: ActionDef = {
+  id: 'safety.validationPolicy', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Validate each new model',
+  available: () => true,
+  preview(s, p) {
+    // SR-09: what apply does: with the policy on, every owned instrument is queued for validation when a new internal
+    // model arrives; off, nothing is queued by itself.
+    const on = p.on !== false;
+    const n = instruments(s).length;
+    return on
+      ? { costs: [{ currency: 'staffTime', amount: Math.round(jobEngineers(s) * n * 10) / 10, target: `on each new internal model: ${n} jobs of about ${VAL_DAYS} d at full staffing` }], gains: [{ currency: 'alignment', amount: n, unit: 'instruments', target: 'measured on each new model' }], exposure: [] }
+      : { costs: [{ currency: 'alignment', amount: 0, target: 'new models are not validated unless you queue it: reliability there is extrapolated, with a wider range' }], gains: [], exposure: [] };
+  },
+  apply(s, ctx, p) {
+    validationOf(s).autoNew = p.on !== false;
+    ctx.log('company', `Validate instruments on each new model: ${p.on !== false ? 'on' : 'off'}.`, 1);
+  },
+};
+
+export const SAFETY_ACTIONS: ActionDef[] = [INVESTIGATE, CLOSE_CASE, RESPOND, PUBLISH, POLICY, PLEDGE, EVAL_GATE, VALIDATE, VALIDATION_POLICY];
+
 

@@ -98,8 +98,11 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
  *  68 (SR-08): detect techniques are instruments: TechniqueState.validatedOn / validatedOom (the model it was validated
  *  on; reliability decays with the capability gap from it, oHalf is that gap's half point) and trainedAgainstOn.
  *  Migration 67 → 68 sets every technique validated on the start model (gap = OOM above V0, as before) and
- *  trainedAgainstOn null. */
-export const SCHEMA_REV = 68;
+ *  trainedAgainstOn null.
+ *  69 (SR-09): tool upkeep is replaced by validation jobs: SafetyDept.validation (jobs queue, policy "validate on each
+ *  new internal model", on), TechniqueState.measured, and the safety engineers' need 'reval' is 'validation'.
+ *  Migration 68 → 69 adds an empty queue with the policy on, measured null, and renames the need in research.safRe. */
+export const SCHEMA_REV = 69;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -682,6 +685,20 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       }
     };
     walk(raw, 0);
+  },
+  68: (raw) => {
+    // 68 → 69 (SR-09): validation jobs replace tool upkeep.
+    const s = raw as unknown as GameStateV2;
+    const dept = s.player?.safety;
+    if (dept) {
+      dept.validation ??= { jobs: [], autoNew: true, lastModel: null };
+      for (const t of Object.values(dept.techniques ?? {})) t.measured ??= null;
+    }
+    const al = s.player?.research?.safRe as unknown as { order?: string[]; max?: Record<string, number>; share?: Record<string, number> } | undefined;
+    if (al) {
+      if (Array.isArray(al.order)) al.order = al.order.map((k) => (k === 'reval' ? 'validation' : k));
+      for (const m of [al.max, al.share]) if (m && 'reval' in m) { m.validation = m.reval; delete m.reval; }
+    }
   },
 };
 

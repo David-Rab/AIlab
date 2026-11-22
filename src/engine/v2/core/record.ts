@@ -1,7 +1,6 @@
 // record (160, weekly): series samples and cause-ledger trim (V2-SPEC §2.2, §2.5 budgets). Owner: WS1.
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { bestG, bestLg, internalVersion, measuredLOf, otherLabs } from '../models/labs';
-import { reValidationMult } from '../safety/agendas';
 import { misalignment, misalignmentEstimate } from '../safety/traits';
 import { sightLimitPoint, trueSightLimit } from '../safety/sightLimit';
 import { recordCause, trimCauses } from './causes';
@@ -67,7 +66,7 @@ function noteUnderstandingMove(s: GameStateV2, U: number, prevU: number | undefi
     L: measuredLOf(s, v).L,
     tools: tools.map((t) => t.id).sort().join(','),
     ea: Math.round((v?.beliefs.EA?.est ?? 0) * 100) / 100,
-    val: Math.round(reValidationMult(s) * 100) / 100,
+    val: Object.values(s.player.safety.techniques).filter((t) => t.measured?.on === v?.id).length,
   };
   const prev = s.flags['ws2.uDrivers'];
   s.flags['ws2.uDrivers'] = JSON.stringify(now);
@@ -86,7 +85,7 @@ function noteUnderstandingMove(s: GameStateV2, U: number, prevU: number | undefi
     if (lost.length) why.push(['tool off', `tool off ${lost.map(nm).join(', ')}`]);
   }
   if (Math.abs(p.ea - now.ea) >= 0.03) why.push(['eval awareness', `believed eval awareness ${Math.round(p.ea * 100)}% → ${Math.round(now.ea * 100)}%`]);
-  if (Math.abs(p.val - now.val) >= 0.05) why.push(['re-validation', `re-validation staffing ×${p.val.toFixed(2)} → ×${now.val.toFixed(2)}`]);
+  if (p.val !== now.val) why.push(['validation', `instruments validated on this model ${p.val} → ${now.val}`]);
   if (!why.length) why.push(['tool decay', 'tools weaken as capability grows']);
   recordCause(s, 'U', U - prevU, why[0][0], why.map((w) => w[1]).join(' · '));
 }

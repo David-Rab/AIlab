@@ -42,7 +42,7 @@ export { plannedSightLimit, sightGrid, sightLimit } from '../safety/sightLimit';
 export { leadDays, riskLevers, riskSources, RISK_LEVERS } from '../actors/intel';
 export { raiseCeiling } from '../finance/equity';
 // WS2 safety-panel selectors (beliefs, posteriors, incidents as the player sees them). `safetyTruth` is END SCREEN ONLY.
-export { beliefView, findingRows, incidentRows, lineBadges, lineRows, riskFamilies, safetyTruth, safetyUtilisation, safetyView, techniqueRows, traitGraph, uModeCards, upkeepView } from '../safety/view';
+export { beliefView, findingRows, incidentRows, lineBadges, lineRows, riskFamilies, safetyTruth, safetyUtilisation, safetyView, techniqueRows, traitGraph, uModeCards, validationPanel } from '../safety/view';
 export type { FindingRow, LineRow, SafetyUtilisation, TechniqueRow } from '../safety/view';
 export { footholdView } from '../safety/footholdDetection';
 export { controlView } from '../safety/control';

@@ -783,7 +783,7 @@ export type ReNeed = 'ops' | 'evals' | 'exp';
 /** Safety research-engineer needs (RD-A04, SAFETY-REDESIGN §5): open cases (investigations), patches and foothold
  *  removals, line-project experiments (by project priority), tool re-validation (upkeep). Each has a real demand;
  *  capacity none takes is idle. */
-export type SafReNeed = 'cases' | 'patches' | 'safExp' | 'reval';
+export type SafReNeed = 'cases' | 'patches' | 'safExp' | 'validation';
 /** Engineer needs: run operations and setups, product upkeep, builds (features, adoptions, launches, packs). */
 export type EngNeed = 'runs' | 'upkeep' | 'builds';
 /** A broad allocation: needs in priority order and optional caps per need: a team count (`max`, team-equivalents) and a
@@ -878,7 +878,17 @@ export interface SafetyDept {
   /** Model v3 E9 (MODEL-V3 §11.4): effective control of the lab's AI, refreshed daily (safety/control.ts). `level` and
    *  `exposure` are hidden; the player sees `believed` (controlView). */
   effectiveControl: EffectiveControl;
+  /** SR-09: validation jobs (plant behaviour in a test copy of a model, count what an instrument finds) in queue order,
+   *  and the default policy "validate instruments on each new internal model" (on by default); `lastModel` = the
+   *  internal model the policy last queued for. Optional on other labs' departments. */
+  validation?: { jobs: ValidationJob[]; autoNew: boolean; lastModel: string | null };
 }
+
+/** SR-09: one validation (or port) job: instrument `tool` on model `model`; progress 0..1 (VAL_DAYS at full staffing). */
+export interface ValidationJob { id: string; tool: TechniqueId; model: string; progress: number; by: 'player' | 'policy'; day: number }
+
+/** SR-09: a validation result: found of n planted cases on model `on` (measured reliability = found ÷ n). */
+export interface ValidationResult { on: string; found: number; n: number; day: number }
 
 /** Kinds of foothold (MODEL-V3 §11.4): a backdoor in the lab's infrastructure, a hidden compute reservation, a steered
  *  successor, an exfiltrated copy, a corrupted safety tool. */
@@ -948,7 +958,7 @@ export interface TechniqueState {
   active: boolean; // part of the deployed safety stack
   s0: number; // base strength
   /** Model v3 E6 / SR-08: capability gap in OOM above the model the tool was validated on (validatedOom) at which its
-   *  reliability halves (raised by tool upkeep, lowered by negative results; 1e9 = never decays). */
+   *  reliability halves (lowered by negative results; 1e9 = never decays). */
   oHalf: number;
   k: number;
   goodhart: number; // G
@@ -956,10 +966,12 @@ export interface TechniqueState {
   /** SR-08: the version this instrument was last trained against (the player chose it, so it is known); null = never. */
   trainedAgainstOn: string | null;
   /** SR-08: the model this instrument was last validated on (null = the start model V0) and that model's OOM above V0.
-   *  Reliability decays with the capability gap from it. Today every tool counts as validated on the internal model when
-   *  it is unlocked; SR-09 adds validation jobs. */
+   *  Reliability decays with the capability gap from it. A tool counts as validated on the internal model when it is
+   *  unlocked; SR-09 validation jobs move it and set `measured`. */
   validatedOn: string | null;
   validatedOom: number;
+  /** SR-09: the last validation's measurement (null / absent = never measured: reliability extrapolated, wider range). */
+  measured?: ValidationResult | null;
   falseValidated: boolean; // hidden: came from an F49 FALSE finding (masks, does not detect)
   coverage: Partial<Record<TraitId, number>>;
 }
