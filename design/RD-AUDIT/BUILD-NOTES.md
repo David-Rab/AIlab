@@ -1728,3 +1728,20 @@ so continued bases are a little weaker than before).
 rd's schema chain kept (56 A05b, 57 A06, 58 T01a, 59 T02); p3-c2's renumbered: 59 → 60 (RD-A04), 60 → 61 (RD-R02b),
 61 → 62 (RD-R04); SCHEMA_REV 62, hygiene rev literals 62. Cases: A04's casesServed() FTE with A05b's caseH100e compute; the
 agents' readout key reads adopted(P27) (R04) and the tooling list (A06); spareServingEffect gone (A05b) with R04's labSpeed* names.
+
+### RD-A07
+
+Flat research modifiers made physical, one helper for both departments (departments/workfit.ts `researchMods`, read
+by models/research.ts, safety/lineProjects.ts, production/production.ts). Commit cb2cb96. **Moves calibration: maybe.**
+
+- **Pause = no experiment FLOP for frontier projects** (`frontierExp` 0, `expFlopAllowed(s, dept, flop)`). Frontier =
+  the capability department's projects (their tests run on the frontier experiment pool and scale toward the frontier
+  run): capResearchDay's project FLOP is 0 while the pause lasts, so their tests stall. Ideation goes on at full rate;
+  safety research-line projects (agenda-sized compute) keep their FLOP (they were ×0.1 before). The lab readout
+  (production.ts) puts the experiment compute c to 0 instead of ×0.1; LIMITS line reads "no experiment FLOP".
+- **Clearances = heads off the teams for 60 days** (`onDuty(s, t)`: heads − round(10% × heads)): sciOn, safSciOn,
+  capReCapacity, humansOf. The `humans` ×0.9 factor is gone.
+- **[D] multipliers kept (speed):** siloing −5%/level (who cannot share experiments is not modelled), ASIC migration
+  −15% (the port is not modelled), verified treaty ×0.65 (gov.treaty has no compute limit to cap FLOP with; = rateMult).
+- **Check:** `npx tsx scripts/v2/_a07/check.ts` (pause: cap experiment FLOP and rate → 0, safety FLOP and ideation
+  inputs unchanged; clearance: speed unchanged, science and RE capacity −10%, back after). tsc app + scripts/v2 clean.
