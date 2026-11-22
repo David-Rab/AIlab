@@ -36,6 +36,7 @@ import {
   NATURAL_MIX, Q_REF, REF_SHARE, addAsset, assetQuality, assetTokensT, licenceAsset, playerDraw, deliverData, drawData, expertDomainId, expertStockT, portfolioByKind, portfolioU, publicUse, synTeacher,
   syntheticAccrual, syntheticQuality, synAssetFor, synQualityCap, synTokensPerH100eDay, tokenWorth, uniqueTokens, unlicensedPublicT, usageAccrual, usageTokensPerDay,
 } from '../../src/engine/v2/production/data';
+import { teacherRows } from '../../src/engine/v2/production/dataView';
 import type { BaseDesign, Candidate, DataPortfolio, DomainId, GameStateV2, OwnedDataAsset } from '../../src/engine/v2/types';
 import { FIXTURE_DIR, check, finish, runTo } from './lib';
 
@@ -378,7 +379,7 @@ check(act(sP, 'data.usagePolicy', { level: 'none' }) === 'Already no training on
 
 // ---------- the draw (model v3 D3) ----------
 const plan = (s: GameStateV2, data: BaseDesign['data'], params = REFERENCE_BASE.params) =>
-  planRun(s, { kind: 'base', base: { ...REFERENCE_BASE, params, data, curation: { ...REFERENCE_BASE.curation } }, poolShare: 0.6, ...(data === 'synthetic' ? { teacherVersionId: s.player.models.versions[0].id } : {}) });
+  planRun(s, { kind: 'base', base: { ...REFERENCE_BASE, params, data, curation: { ...REFERENCE_BASE.curation } }, poolShare: 0.6 });
 const fmtS = (x: Partial<Record<string, number>>) => Object.entries(x).filter(([, v]) => Math.abs(v ?? 0) >= 0.005).map(([d, v]) => `${d} ${(v ?? 0) >= 0 ? '+' : ''}${(v ?? 0).toFixed(2)}`).join(' ');
 // Start: the reference recipe's balanced draw is the start portfolio's natural mix, so it reproduces the start numbers.
 const refPlan = plan(s0, 'balanced');
@@ -449,7 +450,19 @@ const sNaive = ALPHA_DATA * Math.log10((tiny.share.PHYS ?? 0) / REF_SHARE.PHYS!)
 check(tiny.epochs > 4 && tiny.dEff < 0.98 * tiny.tokens && sNaive < SPEC_CAP && (tiny.sD.PHYS ?? 0) < sNaive - 0.03,
   'draw: a domain drawn beyond its tokens (PHYS ×6 on 400T) is worth less: specialisation reads the effective share', `PHYS ${tiny.epochs.toFixed(1)} epochs, s ${tiny.sD.PHYS?.toFixed(2)} OOM vs ${sNaive.toFixed(2)} on the drawn share; D_eff ${(tiny.dEff / T).toFixed(0)}T of 400T`);
 // Synthetic-heavy draws more synthetic tokens; a domain the portfolio lacks draws nothing.
+// RD-B01 (B01): a synthetic-heavy base needs P10 and no teacher (its synthetic tokens carry their own teachers); before
+// P10 the plan keeps the lock reason, after it the launch action starts the run.
+const synLocked = plan(sO, 'synthetic').reason;
 unlock('P10');
+{
+  const sL = deserialize(serialize(sO));
+  const before = sL.player.models.runs.length;
+  const err = act(sL, 'launchBase', { data: 'synthetic' }); // the rest at the reference recipe
+  const run = sL.player.models.runs[sL.player.models.runs.length - 1];
+  check(synLocked === `Needs ${TREE_BY_ID.P10.name} (Research)` && plan(sO, 'synthetic').reason === undefined && !err && sL.player.models.runs.length === before + 1
+    && run.kind === 'base' && run.base?.data === 'synthetic' && !run.teacherVersionId,
+    'RD-B01: a synthetic-heavy base keeps the P10 lock reason before P10, and launches with no teacher after it', `before P10 "${synLocked}"; after: ${err ?? `run ${run?.id} (${run?.base?.data})`}`);
+}
 const synPlan = plan(sO, 'synthetic').limits!;
 check(((synPlan.draw.byKind.synthetic ?? 0) / synPlan.tokens) > 2 * ((refDraw.byKind.synthetic ?? 0) / refDraw.tokens) && (synPlan.sD.CODE ?? 0) > 0,
   'draw: synthetic-heavy draws synthetic data ×4 (more code and math)', `synthetic ${(100 * (synPlan.draw.byKind.synthetic ?? 0) / synPlan.tokens).toFixed(1)}% vs ${(100 * (refDraw.byKind.synthetic ?? 0) / refDraw.tokens).toFixed(1)}% of the tokens; s ${fmtS(synPlan.sD)}`);
@@ -516,6 +529,17 @@ const adoptResult = (s: GameStateV2, id: string) => {
   check(qa.quality === 1 && near(qb.quality, Math.min(cap, 1.25), 1e-12) && pb.gPre.quality > pa.gPre.quality && near(pb.gPre.total - pa.gPre.total, pb.gPre.quality - pa.gPre.quality, 1e-9),
     'P10: a strong teacher\'s data is worth more per token in the loss law (quality term), only with P10',
     `teacher V0 + 3 OOM: q ${qa.quality.toFixed(3)} → ${qb.quality.toFixed(3)}; 100T of it, base ${((DRAW_BASE.params * 2 * DRAW_BASE.tpp) / T).toFixed(0)}T: quality term ${pa.gPre.quality.toFixed(4)} → ${pb.gPre.quality.toFixed(4)} OOM`);
+  // RD-B01 (B43): the Data panel's teacher table shows the quality generation writes (the P10 cap included).
+  const rowQ = (s: GameStateV2) => {
+    const t = deserialize(serialize(s));
+    const v = t.player.models.versions[0];
+    v.build = { ...v.build!, gPre: v.build!.gPre + 3 };
+    return { row: teacherRows(t).find((r) => r.id === v.id)!.quality, gen: synAssetFor(t, v, 100).quality };
+  };
+  const ra = rowQ(a);
+  const rb = rowQ(b);
+  check(near(ra.row, ra.gen, 1e-12) && near(rb.row, rb.gen, 1e-12) && rb.row > 1,
+    'RD-B01: the teacher table\'s quality is the quality generation writes, P10 cap included', `V0 + 3 OOM: no P10 ${ra.row.toFixed(3)} (gen ${ra.gen.toFixed(3)}); P10 ${rb.row.toFixed(3)} (gen ${rb.gen.toFixed(3)})`);
   // New tokens from a teacher whose asset began before P10 carry today's quality (token-weighted mean).
   const c = game();
   const vS = strongT(c);

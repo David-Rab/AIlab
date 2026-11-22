@@ -9,7 +9,7 @@ import { versionById } from '../models/labs';
 import type { DataKind, DomainId, GameStateV2, ModelVersion, RLFamily } from '../types';
 import {
   addAsset, dataDelta, drawData, expertStockT, licenceAsset, NATURAL_MIX, portfolioByKind, portfolioU, pretrainMix, publicUse, REF_SHARE, synAssetFor,
-  synPoolH100e, syntheticQuality, synTeacher, synTokensT, unlicensedPublicT, usageRateAt, type DataDelta, type DataDraw, type KindRow, type MixTarget,
+  synPoolH100e, synQualityCap, syntheticQuality, synTeacher, synTokensT, unlicensedPublicT, usageRateAt, type DataDelta, type DataDraw, type KindRow, type MixTarget,
 } from './data';
 import { expertTerms, licenceTerms, synJobTerms, usageLevelOf } from './dataActions';
 
@@ -124,9 +124,10 @@ export interface TeacherRow { id: string; name: string; g: number; quality: numb
 export function teacherRows(s: GameStateV2): TeacherRow[] {
   const g0 = gV0(s.hidden.timeline);
   const dflt = synTeacher(s)?.id;
+  const cap = synQualityCap(s);
   return s.player.models.versions.filter((v) => v.status !== 'retired' && v.build).map((v: ModelVersion) => {
     const g = gOfBuild(v.build!);
-    const q = syntheticQuality(g, g0);
+    const q = syntheticQuality(g, g0, cap); // RD-B01 (B43): the cap generation applies (P10 raises it)
     const tok = synTokensT(v, 1) * 1e12;
     return { id: v.id, name: v.name, g, quality: q, tokensPerH100eDay: tok, weightedPerH100eDay: q * tok, isDefault: v.id === dflt };
   });

@@ -55,7 +55,7 @@ export interface LaunchRunParams {
   teacherVersionId?: string;
   base?: BaseDesign;
   post?: PostDesign;
-  /** Share of the training pool (0..1). Default: base 0.6, post 0.2, distill/continue 0.1. */
+  /** Share of the training pool (0..1). Default RUN_POOL_DEFAULT (IDA 0.3). */
   poolShare?: number;
   /** Iterated distillation & amplification cycle (P18): one more RL budget (IDA_RL_SHARE × the base's FLOP) on the
    *  teacher at today's RL recipe. */
@@ -64,7 +64,8 @@ export interface LaunchRunParams {
   studentParams?: number;
 }
 
-const POOL_DEFAULT: Record<RunKind, number> = { base: 0.6, post: 0.2, distill: 0.1, continue: 0.3 };
+/** Default pool share per run kind (RD-B01: the Blueprint reads these too). */
+export const RUN_POOL_DEFAULT: Readonly<Record<RunKind, number>> = { base: 0.6, post: 0.2, distill: 0.1, continue: 0.3 };
 /** Share of the training pool a run can take (LIMITS: one range for the engine and the run designer slider). */
 export const POOL_SHARE_RANGE: readonly [number, number] = [0.02, 1];
 
@@ -291,7 +292,7 @@ export const paramsOfVersion = (s: GameStateV2, v: ModelVersion) => v.params ?? 
 export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
   const w = s.hidden.timeline;
   const m = s.player.models;
-  const poolShare = clamp(p.poolShare ?? (p.ida ? 0.3 : POOL_DEFAULT[p.kind]), POOL_SHARE_RANGE[0], POOL_SHARE_RANGE[1]);
+  const poolShare = clamp(p.poolShare ?? (p.ida ? 0.3 : RUN_POOL_DEFAULT[p.kind]), POOL_SHARE_RANGE[0], POOL_SHARE_RANGE[1]);
   const effShare = shareIfLaunched(s, poolShare);
   const rate = Math.max(1, runFlopPerShareDay(s, { kind: p.kind }) * effShare);
   let limits: BaseLimits | undefined;
@@ -312,7 +313,6 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
     if (!d) return failPlan('No design');
     reason = optionLocked(s, 'shape', d.shape) ?? optionLocked(s, 'data', d.data) ?? (d.curation.hazard ? optionLocked(s, 'curation', 'hazard') : undefined)
       ?? (d.curation.safetyPretrain ? optionLocked(s, 'curation', 'safetyPretrain') : undefined) ?? (d.tpp > TPP_FREE_MAX + 1e-9 ? optionLocked(s, 'tpp', 'over') : undefined);
-    if (d.data === 'synthetic' && !teacher) reason = 'Synthetic data needs a teacher version';
     if (!(d.params >= PARAM_RANGE[0] && d.params <= PARAM_RANGE[1])) reason = 'Active parameters out of range';
     if (!(d.tpp >= TPP_RANGE[0] && d.tpp <= TPP_RANGE[1])) reason = 'Tokens per parameter out of range';
     const bg = baseG(s, d);
@@ -512,14 +512,13 @@ function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
   if (run.kind === 'base' && run.base) {
     const d = run.base;
     const be = baseEffect(d);
-    const parent = run.teacherVersionId ? versionById(s, run.teacherVersionId) : undefined;
     const nb = m.bases.length + 1;
     const bg = baseG(s, d, rec.pre);
     const b: BaseModel = {
       id: `B${nb}`, name: `${PLAYER_MODEL_FAMILY}-${nb}`, day: s.time.day, startDay: run.startDay, flop: bg.flop, params: d.params, tokens: bg.tokens,
       gPre: bg.parts.total, ePre: bg.parts.recipe, design: d, sD: bg.sD, epochs: bg.epochs,
       serve: serveOfBase(d.params, bg.flop, d.shape), monitorability: be.monitorability, signals: clampSignals(baseSignals(d, { gPre: bg.parts.total, draw: bg.draw })),
-      lineage: `L-player-${nb}`, traitsTrue: { ...(parent?.traitsTrue ?? m.bases[0].traitsTrue) }, uModes: [],
+      lineage: `L-player-${nb}`, traitsTrue: { ...m.bases[0].traitsTrue }, uModes: [], // placeholder: applyBaseToLineage sets them from the draw's synthetic teachers
     };
     m.bases.push(b);
     applyBaseToLineage(s, ctx, run, b); // WS2 hook: new lineage traits and U-modes (§3.4.4, §3.5.5)
