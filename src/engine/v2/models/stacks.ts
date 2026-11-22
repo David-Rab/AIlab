@@ -10,7 +10,7 @@
 //           new versions; serveSplit, model v3 D10)
 // e_stack = base (the start recipe and public knowledge) + Σ adopted effects − remaining headroom. An adopted idea adds
 // its true effect; HEADROOM of it waits for routine tuning, which closes it at TUNE_K × tuning capacity × its experiment
-// throughput per day (models/research.ts).
+// throughput per day (models/research.ts); tuning wants research engineers in proportion to what remains (RD-B08).
 // Ideas are kept in scale buckets (s on a S_STEP grid), so the state stays small however many ideas a takeoff adopts.
 //
 // The lab's recipe compared with another lab's (secrets leaks, diffusion, safety tiers) is the stacks' G-equivalent
@@ -120,6 +120,10 @@ export function addIdea(st: StackState, x: number, sx: number, fTest: number) {
 export function addPublic(st: StackState, oom: number) {
   st.base += oom;
 }
+
+/** Remaining headroom of the lab's recipe: Σ over the stacks at the reference run FLOP (OOM). Routine tuning's
+ *  research-engineer demand is proportional to it (models/research.ts reDemand, RD-B08). */
+export const headroomTotal = (s: GameStateV2) => STACK_KEYS.reduce((a, k) => a + headroomAt(stacksOf(s)[k]), 0);
 
 /** One day of routine tuning: every stack's headroom shrinks by the factor exp(−k), k = TUNE_K × research-engineer
  *  team-equivalents on tuning × their experiment throughput (models/research.ts capResearchDay). */

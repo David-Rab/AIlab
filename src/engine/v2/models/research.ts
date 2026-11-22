@@ -32,7 +32,7 @@
 import {
   BELIEF_NOISE, CAND, DROP_FRAC, DUD_SD, EXP_NOISE, IDEA_STAGES, LINE_FIT, LINE_STAGES, MAX_DROPS, PACE_BATCH,
   AUTO_RANK_W, PICK_AT, POOL_MAX, PROJECT_MAX_TEAMS, PROJECT_SD, RE_OPS, RE_PER_PROJECT, RISK_KAPPA, SMALL_TO_TEST,
-  SPECULATIVE, SURVIVE_FRAC, S_RANGE, S_READ_SD, TASTE_MEAN, TEST_READ_SD, ADOPT_TW, TUNE_K,
+  SPECULATIVE, SURVIVE_FRAC, S_RANGE, S_READ_SD, TASTE_MEAN, TEST_READ_SD, ADOPT_TW, TUNE_K, TUNE_RE_PER_OOM,
 } from '../../../data/v2/research';
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { C_UNIT_FLOP_PER_DAY, RE_UNIT } from '../../../data/v2/workTypes';
@@ -49,7 +49,7 @@ import { adopted, PARADIGM_BY_ID } from './paradigms';
 import { idleTrainingShare } from './runs';
 import { evalReDemand, evalsDay } from './evals';
 import { addSuiteExpertData } from './suites';
-import { addIdea, latestBaseFlop, STACK_KEYS, trainNow, tuneDay, stacksGEquiv } from './stacks';
+import { addIdea, headroomTotal, latestBaseFlop, STACK_KEYS, trainNow, tuneDay, stacksGEquiv } from './stacks';
 import { steerAdoption } from '../safety/covert';
 
 const node = (id: string): TreeNodeDef | undefined => PROJECT_BY_ID[id];
@@ -373,19 +373,25 @@ const experimenting = (s: GameStateV2, q: string[]) => q.filter((id) => {
 });
 
 /** Today's research-engineer demand per need (human team-equivalents) at the AI labour multiplier m on experiments: run
- *  operations ÷ m, the eval suites (model v3 D7, models/evals.ts), RE_PER_PROJECT per project in experiments, tuning
- *  without limit. */
+ *  operations ÷ m, the eval suites (model v3 D7, models/evals.ts), RE_PER_PROJECT per project in experiments, routine
+ *  tuning TUNE_RE_PER_OOM per OOM of remaining headroom (RD-B08: a finite need, 0 with nothing to tune). */
 export function reDemand(s: GameStateV2, m = Math.max(1, workContext(s).slots.EXP.m)): Record<ReNeed, number> {
-  return { ops: reOpsNeed(s) / m, evals: evalReDemand(s, m), exp: experimenting(s, s.player.research.queue).length * RE_PER_PROJECT, tune: Infinity };
+  return {
+    ops: reOpsNeed(s) / m, evals: evalReDemand(s, m), exp: experimenting(s, s.player.research.queue).length * RE_PER_PROJECT,
+    tune: TUNE_RE_PER_OOM * headroomTotal(s),
+  };
 }
 
 /** Research engineers by need and per project (human team-equivalents) for today. AI labour in experiments (m_EXP)
- *  carries part of the run operations and evals, so their human need is the effective need ÷ m_EXP. */
-export function reAllocation(s: GameStateV2): { re: Record<ReNeed, number>; perProject: Map<string, number>; total: number } {
+ *  carries part of the run operations and evals, so their human need is the effective need ÷ m_EXP. Capacity no need
+ *  takes is idle. */
+export interface ReAllocation { re: Record<ReNeed, number>; demand: Record<ReNeed, number>; perProject: Map<string, number>; total: number }
+export function reAllocation(s: GameStateV2): ReAllocation {
   const total = capReCapacity(s);
   const exp = experimenting(s, s.player.research.queue);
   const m = Math.max(1, workContext(s).slots.EXP.m);
-  const re = allocate(total, s.player.research.re, reDemand(s, m));
+  const demand = reDemand(s, m);
+  const re = allocate(total, s.player.research.re, demand);
   const perProject = new Map<string, number>();
   let left = re.exp;
   for (const id of exp) {
@@ -393,7 +399,24 @@ export function reAllocation(s: GameStateV2): { re: Record<ReNeed, number>; perP
     perProject.set(id, x);
     left -= x;
   }
-  return { re, perProject, total };
+  return { re, demand, perProject, total };
+}
+
+/** Experiment FLOP by need (RD-B08), not by headcount: the pool is divided over the needs' research-engineer demands,
+ *  RE_PER_PROJECT for each project in experiments and routine tuning's demand. A project with research engineers takes
+ *  its full share first; routine tuning takes what is left (with the shares of projects that got none). So more research
+ *  engineers never take FLOP from a project. units = the demands' team-equivalents the pool is divided over. */
+export function expShares(alloc: ReAllocation, avail: number): { units: number; perProject: Map<string, number>; tune: number } {
+  const units = alloc.perProject.size * RE_PER_PROJECT + alloc.demand.tune;
+  const per = units > 0 ? Math.max(0, avail) / units : 0;
+  const perProject = new Map<string, number>();
+  let used = 0;
+  for (const [id, re] of alloc.perProject) {
+    const f = re > 0 ? RE_PER_PROJECT * per : 0;
+    perProject.set(id, f);
+    used += f;
+  }
+  return { units, perProject, tune: alloc.re.tune > 0 ? Math.max(0, avail - used) : 0 };
 }
 
 // ───────────────────────────── research inputs in physical units (V3.4) ─────────────────────────────
@@ -415,7 +438,8 @@ export function expPoolH100e(s: GameStateV2): number {
 const p13Mult = (s: GameStateV2, payoff: number) => (adopted(s, 'P13') ? 1 + 0.5 * payoff : 1);
 
 /** The lab's research inputs today: labour multipliers (AI in experiments and in ideas), the speed modifiers (pauses,
- *  treaty, siloing, migrations), the experiment FLOP per unit of research engineers and the X of a unit project. */
+ *  treaty, siloing, migrations), the experiment FLOP per RE_UNIT of `reRes` (capResearchDay passes the needs' units of
+ *  expShares, so c is a full project's) and the X of a unit project. */
 export interface ResearchInputs { mExp: number; mIdeas: number; speed: number; flopDay: number; reRes: number; c: number; l: number; X: number }
 export function researchInputs(s: GameStateV2, reRes: number, flopDay = projectFlopPerDay(s), p13 = 1): ResearchInputs {
   const wc = workContext(s);
@@ -578,6 +602,15 @@ export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, bui
   }
 }
 
+/** A project's experiment work per day (team-months) from its research engineers `re` and experiment FLOP `flopDay`:
+ *  the CES X(c, ℓ) × the speed modifiers × √RE_UNIT / 30 (one pair of teams at unit inputs); 0 without either. */
+export function experimentRate(s: GameStateV2, inp: Pick<ResearchInputs, 'mExp' | 'speed'>, p13: number, re: number, flopDay: number): number {
+  if (re <= 0 || flopDay <= 0) return 0;
+  const P = s.hidden.timeline.prod;
+  const l = Math.pow(Math.max(1e-12, (inp.mExp * re) / RE_UNIT), P.lam);
+  return (Xces(P, (flopDay * p13) / C_UNIT_FLOP_PER_DAY, l) * inp.speed * Math.sqrt(RE_UNIT)) / 30;
+}
+
 /** One day of one project's lifecycle. `reCap` = research-engineer team-equivalents on it today (human); `flopDay` = its
  *  share of the experiment FLOP per day (consumed while it experiments; returns what it used). */
 function stepProject(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, inp: ResearchInputs, p13: number, reCap: number, flopDay: number, queueBuild: (tw: number) => string): number {
@@ -600,9 +633,7 @@ function stepProject(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, inp: Resear
   }
   // 2–3 Experiments: the experiment CES of the project's FLOP and research-engineer labour (team-months per day at unit
   // inputs: √RE_UNIT / 30, as one pair of teams). Work left over when a stage ends carries into the next one the same day.
-  const c = (flopDay * p13) / C_UNIT_FLOP_PER_DAY;
-  const l = Math.pow(Math.max(1e-12, inp.mExp * reCap / RE_UNIT), P.lam);
-  const rate = reCap > 0 && flopDay > 0 ? (Xces(P, c, l) * inp.speed * Math.sqrt(RE_UNIT)) / 30 : 0;
+  const rate = experimentRate(s, inp, p13, reCap, flopDay);
   let time = 1;
   let used = 0;
   for (let guard = 0; guard < 6 && time > 1e-9; guard++) {
@@ -719,28 +750,29 @@ export function capResearchDay(s: GameStateV2, ctx: SystemCtx, ready: string[], 
   const pool = expPoolH100e(s);
   const evH = evalsDay(s, ctx, alloc.re.evals, Math.max(1, workContext(s).slots.EXP.m), pool);
   const avail = projectFlopPerDay(s) * (pool > 0 ? Math.max(0, 1 - evH / pool) : 1);
-  const reRes = alloc.re.exp + alloc.re.tune;
   const p13 = p13Mult(s, p13Payoff);
-  const inp = researchInputs(s, reRes, avail, p13);
-  // Experiment FLOP follows the research engineers: each project in experiments and routine tuning get the pool in
-  // proportion to their team-equivalents.
-  const flopPerRe = reRes > 0 ? avail / reRes : 0;
+  // Experiment FLOP by need (RD-B08): each project in experiments a full share, routine tuning what is left.
+  const sh = expShares(alloc, avail);
+  // The unit project's inputs: a full project's share (RE_PER_PROJECT of the needs' units; the whole pool for the first
+  // project when nothing else wants FLOP).
+  const inp = researchInputs(s, Math.max(sh.units, RE_PER_PROJECT), avail, p13);
   let used = 0;
   for (const id of ready) {
     const n = node(id) as TreeNodeDef;
     // A test that starts today gets research engineers (and FLOP) from tomorrow's allocation.
     const re = alloc.perProject.get(id) ?? 0;
-    used += stepProject(s, ctx, n, inp, p13, re, re * flopPerRe, (tw) => queueBuild(id, tw));
+    used += stepProject(s, ctx, n, inp, p13, re, sh.perProject.get(id) ?? 0, (tw) => queueBuild(id, tw));
     const ts = p.tree[id];
     if (ts?.cap) ts.progress = capProgress(ts.cap);
   }
-  // Routine tuning: the same CES on the tuning allocation (V3.4); headroom closes at TUNE_K × its experiment throughput.
+  // Routine tuning: the same CES on the tuning allocation (V3.4), at its FLOP per RE_UNIT; headroom closes at TUNE_K ×
+  // its experiment throughput.
   const tune = alloc.re.tune;
   if (tune > 0) {
     const Pp = s.hidden.timeline.prod;
-    const Xt = Xces(Pp, Math.max(1e-12, (flopPerRe * RE_UNIT * p13) / C_UNIT_FLOP_PER_DAY), inp.l) * inp.speed;
+    const Xt = Xces(Pp, Math.max(1e-12, ((sh.tune / tune) * RE_UNIT * p13) / C_UNIT_FLOP_PER_DAY), inp.l) * inp.speed;
     tuneDay(s, TUNE_K * tune * Xt);
-    used += tune * flopPerRe;
+    used += sh.tune;
   }
   // Software progress readout (OOM/day of the stacks' G-equivalent, a 14-day average): the Research view's OOM/year and the input of production.ts `rate` (until RD-L03).
   const g = stacksGEquiv(s);
@@ -749,7 +781,7 @@ export function capResearchDay(s: GameStateV2, ctx: SystemCtx, ready: string[], 
   p.research.last = {
     re: { ops: r3(alloc.re.ops), evals: r3(alloc.re.evals), exp: r3(alloc.re.exp), tune: r3(alloc.re.tune) },
     reProj: Object.fromEntries([...alloc.perProject.entries()].map(([k, v]) => [k, r3(v)])),
-    flopUsed: used, flopAvail: avail,
+    flopProj: Object.fromEntries(sh.perProject), flopUsed: used, flopAvail: avail,
     x: { c: r3(inp.c), l: r3(inp.l), X: r3(inp.X), mExp: r3(inp.mExp), mIdeas: r3(inp.mIdeas) },
   };
   if (ctx.day % 7 === 0) {

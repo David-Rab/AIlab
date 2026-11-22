@@ -770,10 +770,10 @@ export interface ResearchState {
    *  readout's software rate. */
   gLast?: number;
   gRate?: number;
-  /** Readout of the last day: research engineers per need and per project (team-equivalents), project FLOP used and
-   *  available (FLOP/day). */
+  /** Readout of the last day: research engineers per need and per project (team-equivalents), experiment FLOP per
+   *  project in experiments (RD-B08 expShares; absent in older saves), FLOP used and available (FLOP/day). */
   last?: {
-    re: Record<ReNeed, number>; reProj: Record<string, number>; flopUsed: number; flopAvail: number;
+    re: Record<ReNeed, number>; reProj: Record<string, number>; flopProj?: Record<string, number>; flopUsed: number; flopAvail: number;
     /** Model v3 V3: a unit project's experiment compute c and labour ℓ (leader day 0 = 1), its CES throughput X (× the
      *  speed modifiers) and the AI labour multipliers in experiments and ideas. */
     x?: { c: number; l: number; X: number; mExp: number; mIdeas: number };

@@ -92,6 +92,10 @@ export const HEADROOM = 0.3;
  *  throughput X (the projects' CES on the tuning allocation; 1 at the leader's day-0 inputs), per day, on what remains
  *  [D: ≈ 3 months with 3 teams at unit inputs]. */
 export const TUNE_K = 1 / 270;
+/** Routine tuning's research-engineer demand per OOM of remaining headroom (Σ over the stacks at the reference run
+ *  FLOP): one team-equivalent per 0.01 OOM [D, RD-B08: a finite need that falls to zero with the headroom; about the
+ *  2.5–4 teams tuning held mid-game when its demand was unlimited]. Served after the projects in experiments. */
+export const TUNE_RE_PER_OOM = 100;
 /** Scale-exponent grid of the stack buckets (adopted ideas with s within half a step share a bucket) [D]. */
 export const S_STEP = 0.02;
 /** Training throughput cap: MFU 0.75 × goodput 0.97 over the start's 0.40 × 0.90 (OOM) [R20 A4: MFU 0.30–0.55 today;
@@ -125,10 +129,11 @@ export const RE_PER_PROJECT = 2;
 /** Research engineers that keep runs going (team-equivalents per running run) [D: mirrors the engineers' run upkeep;
  *  MODEL-V3 §3.3 "operations"]. */
 export const RE_OPS = { base: 1, mid: 0.5, small: 0.2, stream: 0.5 };
-/** Default allocations: research engineers keep runs going first, then project experiments (at most 75% of them, so
- *  routine tuning always has some), then tuning; engineers as before J2 (runs, upkeep, builds) [D]. Model v3 D7: eval
- *  suites come right after run operations (a release waits on them; they are small). */
-export const DEFAULT_RE_ALLOC: Allocation<ReNeed> = { order: ['ops', 'evals', 'exp', 'tune'], max: {}, share: { exp: 0.75 } };
+/** Default allocations: research engineers keep runs going first, then project experiments (RE_PER_PROJECT each, no
+ *  share cap: RD-B08), then routine tuning (its demand ∝ remaining headroom, TUNE_RE_PER_OOM); the rest are idle;
+ *  engineers as before J2 (runs, upkeep, builds) [D]. Model v3 D7: eval suites come right after run operations (a
+ *  release waits on them; they are small). */
+export const DEFAULT_RE_ALLOC: Allocation<ReNeed> = { order: ['ops', 'evals', 'exp', 'tune'], max: {}, share: {} };
 export const DEFAULT_ENG_ALLOC: Allocation<EngNeed> = { order: ['runs', 'upkeep', 'builds'], max: {}, share: {} };
 export const RE_NEED_LABEL: Record<ReNeed, string> = { ops: 'Run operations', evals: 'Evaluations', exp: 'Project experiments', tune: 'Routine tuning' };
 export const ENG_NEED_LABEL: Record<EngNeed, string> = { runs: 'Runs (operations, setups, research adoptions, eval harness)', upkeep: 'Product upkeep', builds: 'Builds (features, launches, sector packs)' };

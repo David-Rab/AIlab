@@ -94,14 +94,9 @@ export interface CapProjectView {
 const node = (id: string): TreeNodeDef | undefined => PROJECT_BY_ID[id];
 const r3 = (x: number) => Math.round(x * 1000) / 1000;
 
-/** Yesterday's experiment FLOP per research engineer on experiments and tuning (research.last: the FLOP available after
- *  evals ÷ those engineers, before P13's multiplier, as models/research.ts capResearchDay); 0 before the first day. */
-function flopPerRe(s: GameStateV2): number {
-  const last = s.player.research.last;
-  if (!last) return 0;
-  const res = (last.re.exp ?? 0) + (last.re.tune ?? 0);
-  return res > 0 ? last.flopAvail / res : 0;
-}
+/** Yesterday's experiment FLOP of a project (research.last.flopProj: its share of the FLOP available after evals, before
+ *  P13's multiplier, as models/research.ts capResearchDay / expShares); 0 when it got none or before the first day. */
+const flopOfProject = (s: GameStateV2, id: string): number => s.player.research.last?.flopProj?.[id] ?? 0;
 
 /** CES elasticities of X(c, ℓ) to c and ℓ (research/13 §1.6): ζ·s_c and s_ℓ. */
 function elasticities(s: GameStateV2, c: number, l: number): { eC: number; eL: number } {
@@ -145,12 +140,12 @@ export function capProjectView(s: GameStateV2, id: string): CapProjectView | und
   // Inputs today.
   const x = p.research.last?.x;
   const re = p.research.last?.reProj?.[id] ?? 0;
-  const per = flopPerRe(s);
-  const flopDay = re * per;
-  // When it is not experimenting today, read the inputs it would get (a full project share, RE_PER_PROJECT). A unit
-  // project (RE_UNIT team-equivalents) has yesterday's c; a project's c scales with its research engineers.
+  const flopDay = flopOfProject(s, id);
+  // When it is not experimenting today, read the inputs it would get (RE_PER_PROJECT). Experiment FLOP goes by need
+  // (RD-B08): a project with research engineers gets a full project's share, which is yesterday's unit-project c ×
+  // RE_PER_PROJECT / RE_UNIT whatever its research engineers.
   const reEval = re > 0 ? re : RE_PER_PROJECT;
-  const cc = (x?.c ?? 0) * (reEval / RE_UNIT);
+  const cc = (x?.c ?? 0) * (RE_PER_PROJECT / RE_UNIT);
   const mExp = x?.mExp ?? 1;
   const l = Math.pow(Math.max(1e-12, (mExp * reEval) / RE_UNIT), P.lam);
   const X = cc > 0 ? Xces(P, cc, l) : 0;
