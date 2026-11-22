@@ -18,7 +18,7 @@ import { buildEtas, buildWaitNew, engScale, queueBuild, runSetupTW, runWaiting }
 import { TRAIT_IDS } from '../../../data/v2/traits';
 import { clamp } from '../../rng';
 import { decimalYear } from '../core/time';
-import { playerDraw, uniqueTokens, type DataDraw } from '../production/data';
+import { playerDraw, type DataDraw } from '../production/data';
 import { frontierFlop } from '../production/ces';
 import { tcoPerH100eYear } from '../production/production';
 import { consumeRunPenalty } from '../safety/responses';
@@ -166,9 +166,6 @@ export const P07_HORIZON = 1.2;
  *  model v3 V3, departments/build.ts engScale; S5 the base's G and drawn data since model v3 E3). */
 export const scaleOf = (s: GameStateV2, flop: number) => flop / frontierFlop(s.hidden.timeline, decimalYear(s)); // BRIDGE(V7)
 
-/** Unique tokens the player can train on: its data portfolio's quality-weighted U (model v3 D1, production/data.ts). */
-export const playerUniqueTokens = (s: GameStateV2) => uniqueTokens(s);
-
 /** Limits of a base run (blueprint size card). All exact readouts of what the engine will do. */
 export interface BaseLimits {
   params: number;
@@ -264,7 +261,7 @@ function postBuild(s: GameStateV2, base: BaseModel, d: PostDesign, rec: RlRecipe
   const sig = addSig(base.signals ?? {}, postSignals(s, d, rec.exploit, { rho: rlFlop / Math.max(1, base.flop) }));
   return {
     gPre: base.gPre, flopPre: base.flop, rlFlop, rlW, eRL: rec.rlMid, aRL: rec.rlCeil, rlFid: { ...fid }, dgRL: rl.general, dgRLd: rl.perDomain, dg: pe.dg, sD: withDomainG(s, base.sD ?? {}),
-    offL: addOff(base.off ?? {}, pe.offL), off: {}, h80Mult, misuseMult: pe.misuseMult,
+    offL: addOff(base.off ?? {}, pe.offL), off: {}, h80Mult,
     signals: clampSignals(sig),
   };
 }
@@ -276,7 +273,7 @@ function referencePostOn(s: GameStateV2, gPre: number, flop: number, sD: Off): V
   const rl = rlGains(flop, RL_BUDGET.standard * flop, rlW, rec.rlMid, rec.rlCeil, rec.fid);
   return {
     gPre, flopPre: flop, rlFlop: RL_BUDGET.standard * flop, rlW, eRL: rec.rlMid, aRL: rec.rlCeil, rlFid: { ...rec.fid }, dgRL: rl.general, dgRLd: rl.perDomain, dg: 0, sD: withDomainG(s, sD),
-    offL: {}, off: {}, h80Mult: 1, misuseMult: 1, signals: {},
+    offL: {}, off: {}, h80Mult: 1, signals: {},
   };
 }
 
@@ -422,11 +419,6 @@ function idaBuild(s: GameStateV2, t: ModelVersion, extra: number, rec: RlRecipe)
   return { ...tb, rlFlop, eRL, aRL, rlFid, dgRL: rl.general, dgRLd: rl.perDomain, sD: { ...tb.sD }, offL: { ...tb.offL }, off: {}, rlW: { ...tb.rlW }, signals: { ...tb.signals } };
 }
 
-/** Run card prediction (§3.3.2 "Run card"). */
-export function predictRun(s: GameStateV2, p: LaunchRunParams): RunPrediction {
-  return planRun(s, p).prediction;
-}
-
 /** Launch a run (commits cash, §3.3.1). Returns the run or a reason string. */
 export function launchRun(s: GameStateV2, ctx: SystemCtx, p: LaunchRunParams): TrainingRun | string {
   const plan = planRun(s, p);
@@ -524,7 +516,7 @@ function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
     const bg = baseG(s, d, rec.pre);
     const b: BaseModel = {
       id: `B${nb}`, name: `${PLAYER_MODEL_FAMILY}-${nb}`, day: s.time.day, startDay: run.startDay, flop: bg.flop, params: d.params, tokens: bg.tokens,
-      gPre: bg.parts.total, ePre: bg.parts.recipe, design: d, sD: bg.sD, epochs: bg.epochs, scale: run.scale ?? 1,
+      gPre: bg.parts.total, ePre: bg.parts.recipe, design: d, sD: bg.sD, epochs: bg.epochs,
       serve: serveOfBase(d.params, bg.flop, d.shape), monitorability: be.monitorability, signals: clampSignals(baseSignals(d, { gPre: bg.parts.total, draw: bg.draw })),
       lineage: `L-player-${nb}`, traitsTrue: { ...(parent?.traitsTrue ?? m.bases[0].traitsTrue) }, uModes: [],
     };
@@ -543,7 +535,7 @@ function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
     const ePre = gPre - (parent.gPre - parent.ePre) - Math.log10(flop / parent.flop);
     const b: BaseModel = {
       ...parent, id: `B${nb}`, name: `${parent.name}c`, day: s.time.day, startDay: run.startDay, flop, tokens: parent.tokens + run.flopNeeded / (6 * parent.params),
-      gPre, ePre, parentBaseId: parent.id, scale: (parent.scale ?? 1) + (run.scale ?? 0),
+      gPre, ePre, parentBaseId: parent.id,
       traitsTrue: { ...parent.traitsTrue }, uModes: [...parent.uModes], sD: { ...(parent.sD ?? {}) }, signals: { ...(parent.signals ?? {}) },
     };
     m.bases.push(b);
@@ -590,7 +582,7 @@ function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
 
 /** Build of a version without one (legacy, an import): its G as the pretraining part, no RL detail. */
 function fallbackBuild(v: ModelVersion): VersionBuild {
-  return { gPre: v.G, flopPre: 1, rlFlop: 0, rlW: {}, eRL: 0, aRL: 0, dgRL: 0, dgRLd: {}, dg: 0, sD: {}, offL: {}, off: { ...(v.build?.off ?? {}) }, h80Mult: 1, misuseMult: 1, signals: {} };
+  return { gPre: v.G, flopPre: 1, rlFlop: 0, rlW: {}, eRL: 0, aRL: 0, dgRL: 0, dgRLd: {}, dg: 0, sD: {}, offL: {}, off: { ...(v.build?.off ?? {}) }, h80Mult: 1, signals: {} };
 }
 
 /** WS2 trait hooks for a finished post/distill/IDA run (§3.5.4). An IDA cycle (P18) is WS2's applyIdaCycle on the

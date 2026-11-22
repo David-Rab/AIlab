@@ -63,7 +63,6 @@ export const TPP_FREE_MAX = REF_TPP;
 /** Goodput: share of a run's wall time spent training (interruptions, restarts) [R20 A4: 0.90; 0.95 with fault-tolerant
  *  training, the top of the 0.80–0.95 range]. Replaces v2's per-run restart roll. */
 export const GOODPUT = 0.9;
-export const GOODPUT_FT = 0.95;
 /** RL runs: rollouts are inference, so model-FLOP utilisation is lower: MFU_RL = 0.6 × MFU [D, R20 C1]. */
 export const MFU_RL_FACTOR = 0.6;
 
@@ -169,11 +168,11 @@ export const CURATION = {
 // ── Post choices ──
 /** Preference training: `dg` OOM (v2's Δp × B), domain offsets in levels (kept as design offsets). */
 /** A method's approval-reward pressure (S1) is safety/traits.ts PREF_S1 × the run's preference-RL share (model v3 E3). */
-export const POST_PREF: Record<PostDesign['pref'], { dg: number; off: Off; appeal: number; honest: number; safetyFteWeeks: number }> = {
-  minimal: { dg: -0.06, off: {}, appeal: 0.7, honest: 0, safetyFteWeeks: 0 },
-  engagement: { dg: 0, off: { SOCIAL: 0.2 }, appeal: 1.2, honest: 0, safetyFteWeeks: 0 }, // GPT-4o rollback
-  constitution: { dg: 0, off: {}, appeal: 1.0, honest: 0.05, safetyFteWeeks: 8 },
-  persuasion: { dg: 0, off: { SOCIAL: 0.8 }, appeal: 1.1, honest: -0.05, safetyFteWeeks: 0 },
+export const POST_PREF: Record<PostDesign['pref'], { dg: number; off: Off; appeal: number }> = {
+  minimal: { dg: -0.06, off: {}, appeal: 0.7 },
+  engagement: { dg: 0, off: { SOCIAL: 0.2 }, appeal: 1.2 }, // GPT-4o rollback
+  constitution: { dg: 0, off: {}, appeal: 1.0 },
+  persuasion: { dg: 0, off: { SOCIAL: 0.8 }, appeal: 1.1 },
 };
 /** Reasoning modes: `dg` effective compute (OOM), `serveMult` serving FLOP per token relative to the base (it sets
  *  ModelVersion.fpt), `monitorability`. CoT pressure (S4) per mode is safety/traits.ts COT_S4; faithful (P23) also
@@ -185,10 +184,10 @@ export const POST_COT: Record<PostDesign['cot'], { dg: number; serveMult: number
   latent: { dg: 0, serveMult: 1, monitorability: 0.05 }, // only on a latent base (its gain is the architecture's)
 };
 /** Alignment training: `dg` OOM. v2's extra wall days are gone (no minimum lengths). */
-export const POST_SAFETY: Record<PostDesign['safety'], { dg: number; misuseMult: number; honest: number }> = {
-  minimal: { dg: 0.024, misuseMult: 2, honest: 0 },
-  standard: { dg: 0, misuseMult: 1, honest: 0 },
-  heavy: { dg: -0.048, misuseMult: 1, honest: 0.1 }, // SCHEME −0.95×, EA ×2 (WS2, E25)
+export const POST_SAFETY: Record<PostDesign['safety'], { dg: number }> = {
+  minimal: { dg: 0.024 },
+  standard: { dg: 0 },
+  heavy: { dg: -0.048 }, // SCHEME −0.95×, EA ×2 (WS2, E25)
 };
 
 /** RL families: domain values v_f,d (v2 levels; the largest is the family's own domain, the others adjacent, every
@@ -197,23 +196,15 @@ export const POST_SAFETY: Record<PostDesign['safety'], { dg: number; misuseMult:
  *  safety/traits.ts). SWE = the SWE work type's H (2 h), ML research = EXP's (8 h; RE-Bench's tasks are 8-hour tasks
  *  [R20 F1]), long-horizon agentic = IDEAS' (40 h, a working week) [data/v2/workTypes.ts]; computer use and cyber 1 h
  *  [D: desktop tasks and CTF challenges are short multi-step episodes]. Math and bio are single-answer (not agentic). */
-export const RL_FAMILIES: Record<RLFamily, { v: Off; taskH?: number; h80Mult?: number; flag?: 'cyberOffense' | 'bioUplift' }> = {
+export const RL_FAMILIES: Record<RLFamily, { v: Off; taskH?: number; h80Mult?: number }> = {
   math: { v: { REASON: 1.2 } },
   swe: { v: { CODE: 1.6, RSCH: 0.8, CYBER: 0.6 }, taskH: 2 },
   computerUse: { v: { AGENCY: 1.6, REASON: 0.8 }, taskH: 1 }, // needs P06
   mlResearch: { v: { RSCH: 1.6 }, taskH: 8 },
   longHorizon: { v: { AGENCY: 0.6 }, taskH: 40, h80Mult: 2 },
-  cyber: { v: { CYBER: 2.0 }, taskH: 1, flag: 'cyberOffense' },
-  bio: { v: { BIO: 1.6 }, flag: 'bioUplift' },
+  cyber: { v: { CYBER: 2.0 }, taskH: 1 },
+  bio: { v: { BIO: 1.6 } },
 };
 export const RL_FAMILY_IDS = Object.keys(RL_FAMILIES) as RLFamily[];
 
-/** Effort setting per deployment (R12 G): effective L offset and token multiplier. */
-export const EFFORT: Record<'low' | 'max' | 'deep', { dL: number; tokens: number }> = {
-  low: { dL: -0.6, tokens: 0.4 }, max: { dL: 0, tokens: 1 }, deep: { dL: 0.6, tokens: 10 },
-};
-
 export const SIGNAL_IDS: SignalId[] = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9'];
-
-/** Science journals: +5% of the run's compute-equivalent cost (§3.3.1). */
-export const JOURNALS_FRAC = 0.05;

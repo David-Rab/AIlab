@@ -35,7 +35,6 @@ export const WORK_TYPES: Record<WorkTypeId, WorkTypeDef> = {
   SAF_IDEAS: { id: 'SAF_IDEAS', name: 'Safety research ideas', who: 'sci', w: { RSCH: 0.7, REASON: 0.3 }, H: 80, v: 0.2, horizon: 'AGENCY', heads: 40 },
   OTHER: { id: 'OTHER', name: 'Other expert work', who: 'world', w: { SOCIAL: 0.35, BIO: 0.25, CYBER: 0.2, MEDIA: 0.2 }, H: 8, v: 0.4, horizon: 'AGENCY', heads: 1 },
 };
-export const WORK_TYPE_IDS = Object.keys(WORK_TYPES) as WorkTypeId[];
 /** Cognitive work types (Superintelligence needs all of them). */
 export const COGNITIVE_WORK: WorkTypeId[] = ['SWE', 'EXP', 'IDEAS', 'SAF_EXP', 'SAF_IDEAS', 'OTHER'];
 

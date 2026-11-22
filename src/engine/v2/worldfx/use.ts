@@ -13,7 +13,7 @@
 //   (1 − α)·A-hours + seated hours; seats = σ·W·E.
 //   A4 ceiling: adopted A-hours + agent-hours ≤ H* = E0·2000·(1 + η·CR), CR = 1 − c̄/wage (research/16 step 7 with the AI
 //   doing all the work at its current buyer's cost c̄), and their spend ≤ H*·wage; agent-hours fill what is left.
-import { ECON, REGION_SCALE, SECTORS, SECTOR_BY_ID, type SectorDef } from '../../../data/v2/sectors';
+import { ECON, REGION_SCALE, SECTORS, type SectorDef } from '../../../data/v2/sectors';
 import type { RegionId, SectorId, SectorState } from '../types';
 
 /** Employment-weighted mean of the sectors' relative use (normalises `use` to a US average of 1). */
@@ -40,8 +40,6 @@ export function alphaUseOf(st: UseState, sid: SectorId, alpha = st.alpha): numbe
 }
 /** Hours of work an hour of AI use saves at a substituted share α_use. */
 export const savedAt = (alphaUse: number) => alphaUse + (1 - alphaUse) * ECON.gAug;
-/** Relative use r̂_s (US average 1). */
-export const relativeUse = (sid: SectorId) => SECTOR_BY_ID[sid].use / USE_MEAN;
 
 /** A2c: a sector's hours of use a year split by who pays, and the seats (persons). */
 export interface WorkHours {

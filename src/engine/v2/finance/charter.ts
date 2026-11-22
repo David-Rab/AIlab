@@ -88,7 +88,7 @@ export function charterHolds(s: GameStateV2): { versionId: string; name: string;
   const out: { versionId: string; name: string; reason: string }[] = [];
   for (const v of [...s.player.models.versions].reverse()) {
     if (v.status !== 'ready') continue;
-    if (v.variant === 'internal' || v.variant === 'imported') continue;
+    if (v.variant === 'imported') continue;
     const f = safetyRedFlags(v, COMMITTEE_EST);
     if (f.length) out.push({ versionId: v.id, name: v.name, reason: f.map((x) => `${x.name.toLowerCase()} ${Math.round(x.est * 100)}%`).join(', ') });
     if (out.length >= 4) break;

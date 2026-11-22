@@ -118,7 +118,8 @@ import { FIN } from '../actors/rivals';
  *  44 (RD-C01): v2's knot production function is gone — TimelineWorld.prod.knots and the dead readout fields of every
  *  lab's prodCache (Ddata, parts.base, elast.train / data, ratios.d) are removed. Migration 43 → 44 drops them (the
  *  cache is rebuilt the next day anyway); RD-C02, in the same bump, also drops TimelineWorld.calShift, and RD-C07
- *  the cut paradigm P26 (player.paradigms.P26, hidden.paradigmSuccess.P26). */
+ *  the cut paradigm P26 (player.paradigms.P26, hidden.paradigmSuccess.P26) and RD-C04 the unread fields
+ *  TimelineWorld.prod.kappa / etaSC, BaseModel.scale and VersionBuild.misuseMult (every lab). */
 export const SCHEMA_REV = 44;
 
 /** The retired bridge (model v3 V1–F2), for saves only: G of a model saved at progress pm, pm = pm(V0) + (G − G(V0))/B. */
@@ -665,7 +666,12 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   43: (raw) => {
     const s = raw as unknown as GameStateV2;
     const prod = s.hidden?.timeline?.prod as unknown as Record<string, unknown> | undefined;
-    if (prod) delete prod.knots;
+    if (prod) {
+      delete prod.knots;
+      // RD-C04 (same bump): kappa / etaSC had no reader once the knots went.
+      delete prod.kappa;
+      delete prod.etaSC;
+    }
     // RD-C02 (same unreleased bump): the derived calShift bridge is gone.
     if (s.hidden?.timeline) delete (s.hidden.timeline as unknown as Record<string, unknown>).calShift;
     // RD-C07 (same bump): the cut paradigm P26 leaves the paradigm data (its state and hidden draw are dropped).
@@ -673,6 +679,10 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     if (s.hidden?.paradigmSuccess) delete s.hidden.paradigmSuccess.P26;
     const cores = [s.player, s.china?.lab?.core, ...(s.rivals ?? []).map((r) => r.core)];
     for (const c of cores) {
+      // RD-C04 (same bump): BaseModel.scale and VersionBuild.misuseMult had no reader.
+      const m = (c as { models?: { bases?: Record<string, unknown>[]; versions?: { build?: Record<string, unknown> }[] } } | undefined)?.models;
+      for (const b of m?.bases ?? []) delete b.scale;
+      for (const v of m?.versions ?? []) if (v.build) delete v.build.misuseMult;
       const pc = c?.prodCache as unknown as { Ddata?: unknown; parts?: Record<string, unknown>; elast?: Record<string, unknown>; ratios?: Record<string, unknown> } | undefined;
       if (!pc) continue;
       delete pc.Ddata;

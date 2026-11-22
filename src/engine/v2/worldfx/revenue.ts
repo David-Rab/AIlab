@@ -161,8 +161,6 @@ export function regionSubscribers(s: GameStateV2, mix: WorldMix, r: RegionId): n
   for (let i = 0; i < cm.share.length; i++) p += cm.share[i] * cm.paid[i];
   return consumerUsers(s, r) * p;
 }
-/** Consumer subscribers in the world (all providers, US and ROW; CN is served at home). */
-export const worldSubscribers = (s: GameStateV2, mix: WorldMix = worldMix(s)) => REGIONS.reduce((a, r) => a + regionSubscribers(s, mix, r), 0);
 /** Consumer spend by region ($B/yr): subscribers × each provider's price per month × 12. */
 export function consumerSpend(s: GameStateV2, mix: WorldMix, r: RegionId): Money {
   const cm = mix.consumer[r];

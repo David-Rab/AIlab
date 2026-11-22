@@ -97,7 +97,7 @@ export const P21_WORTH_OOM = 0.3;
  *  unless the user opts out and do not train on API, enterprise or government data (not fetched; D2/D4 make it a
  *  policy). Policy share 0.2 [D]: the consenting, retained and deduplicated part of eligible output tokens. Quality 0.5
  *  [D]: conversation logs, half model-written, short user turns (like V0's synthetic data). Mix by channel: consumer =
- *  the chat work type's domain weights (data/v2/serving.ts CHAT_WORK); other channels [D]. */
+ *  the chat work type's domain weights (data/v2/serving.ts CHAT_WORK); only consumer chats are eligible, so only consumer has a mix. */
 export const USAGE_POLICY_SHARE = 0.2;
 /** Usage-data policy (action data.usagePolicy, model v3 D2): the share of eligible output tokens kept as training data
  *  per level [D]: none 0 (no training on users' chats), standard 0.2 (USAGE_POLICY_SHARE: opt-out training with the
@@ -115,10 +115,6 @@ export const USAGE_QUALITY = 0.5;
 export const USAGE_ELIGIBLE: Partial<Record<Channel, number>> = { consumer: 1 };
 export const USAGE_MIX: Partial<Record<Channel, DomainMix>> = {
   consumer: CHAT_WORK.w,
-  api: { CODE: 0.45, REASON: 0.2, AGENCY: 0.15, SOCIAL: 0.1, RSCH: 0.1 },
-  agents: { AGENCY: 0.4, CODE: 0.35, REASON: 0.15, RSCH: 0.1 },
-  enterprise: { SOCIAL: 0.35, REASON: 0.25, CODE: 0.2, MEDIA: 0.1, RSCH: 0.1 },
-  gov: { SOCIAL: 0.4, REASON: 0.3, CYBER: 0.2, RSCH: 0.1 },
 };
 
 /** Expert human data (cash, for RL environments and evals; D5's suites read it). Not pretraining data: it does not

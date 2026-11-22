@@ -87,8 +87,6 @@ export interface TreeNodeDef {
   soon?: 'products';
   /** Design options this node unlocks. */
   options?: [OptionSlot, string][];
-  /** Cash ($B) booked when an attempt starts. */
-  cashCost?: number;
   /** Capability projects (model v3 V2): kind and typed effect (absent effect = an unlock). */
   kind?: ProjectKind;
   effect?: ProjectEffect;
@@ -277,19 +275,6 @@ export const lineNodeId = (agenda: AgendaId) => `line:${agenda}`;
 export const TREE_BY_ID: Record<string, TreeNodeDef> = Object.fromEntries(TREE.map((n) => [n.id, n]));
 /** Every project: tree nodes and the research lines' follow-ups. */
 export const PROJECT_BY_ID: Record<string, TreeNodeDef> = Object.fromEntries([...TREE, ...LINE_NODES].map((n) => [n.id, n]));
-
-/** Depth of each node: 0 for nodes with no prerequisites, else 1 + the deepest prerequisite. */
-export const TREE_DEPTH: Record<string, number> = (() => {
-  const out: Record<string, number> = {};
-  const depth = (id: string): number => {
-    if (out[id] !== undefined) return out[id];
-    const n = TREE_BY_ID[id];
-    out[id] = n && n.needs.length ? 1 + Math.max(...n.needs.map(depth)) : 0;
-    return out[id];
-  };
-  for (const n of TREE) depth(n.id);
-  return out;
-})();
 
 /** Nodes that need a node (reverse edges). */
 export const TREE_CHILDREN: Record<string, string[]> = (() => {

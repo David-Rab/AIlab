@@ -198,8 +198,6 @@ export interface ProdParams {
   slow10: number; // slowdown at 10x less experiment compute (2.5 / 2.8)
   rho: number; u: number; v: number; zeta: number; // derived (cesFromAsymptotes)
   m2b: number; // taste top/median (3.25 / 3.7)
-  kappa: number; // η ∝ M^κ pre-SC (3)
-  etaSC: number; // FTE per H100e of agent inference at SC (11.3)
 }
 
 /** Six safety world latents, standard normal (research/14 §1.1). */
@@ -328,8 +326,6 @@ export interface BaseModel {
   off?: Partial<Record<DomainId, number>>;
   /** Data repetition at training: epochs over the unique tokens. */
   epochs?: number;
-  /** BRIDGE(V6,V7): scale vs the frontier run F(t) at launch (S5, scrutiny). */
-  scale?: number;
   /** Serve cost of models on this base (display readout, 0.5 = reference; costs read FLOP per token, V4). */
   serve?: number;
   /** Monitorability cap from the base shape (latent = 0.05). */
@@ -409,14 +405,12 @@ export interface VersionBuild {
   off: Partial<Record<DomainId, number>>;
   /** Horizon multiplier (long-horizon RL, P07, P12). */
   h80Mult: number;
-  /** Misuse-incident hazard multiplier (minimal safety training ×2), for WS2. */
-  misuseMult: number;
   /** Trait-pressure signals of the run(s) that produced it, for WS2 applyRunToTraits. */
   signals: Partial<Record<SignalId, number>>;
 }
 
 /** 'imported' (D6, spinout start): an open-weight model brought in from outside; post-trainable, internal use only. */
-export type Variant = 'full' | 'mini' | 'gov' | 'trusted' | 'internal' | 'open' | 'imported';
+export type Variant = 'full' | 'mini' | 'gov' | 'trusted' | 'open' | 'imported';
 
 export type TraitVector = Record<TraitId, number>; // 0..1 propensity strength
 

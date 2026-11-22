@@ -19,7 +19,6 @@ export const QUALITY: Record<TeamQuality, { out: number; cost: number; label: st
   strong: { out: 1, cost: 1, label: 'Strong' },
   elite: { out: 1.25, cost: 1.6, label: 'Elite' },
 };
-export const QUALITIES: TeamQuality[] = ['solid', 'strong', 'elite'];
 
 /** Cost $M per person-year at Strong quality (research/19 §1.2; weighted means 0.80 cap, 0.70 safety). Engineers are
  *  one shared pool on the capabilities budget. */
@@ -53,9 +52,7 @@ export const COLUMNS: Column[] = ['pretraining', 'posttraining', 'systems', 'ali
 export const COLUMN_DEPT: Record<Column, TeamDept> = { pretraining: 'cap', posttraining: 'cap', systems: 'cap', alignment: 'saf', interp: 'saf', evals: 'saf' };
 export const COLUMN_LABEL: Record<Column, string> = { pretraining: 'Pretraining', posttraining: 'Post-training', systems: 'Systems', alignment: 'Alignment', interp: 'Interpretability', evals: 'Evals & control' };
 
-export const ROLE_LABEL: Record<TeamRole, string> = { eng: 'Engineers', re: 'Research engineers', sci: 'Scientists' };
 export const TEAM_KEYS: TeamKey[] = ['eng', 're.cap', 'sci.cap', 're.saf', 'sci.saf'];
-export const KEY_LABEL: Record<TeamKey, string> = { eng: 'Engineering', 're.cap': 'Research eng. · capabilities', 'sci.cap': 'Science · capabilities', 're.saf': 'Research eng. · safety', 'sci.saf': 'Science · safety' };
 
 /** Start teams (STRUCTURE §4.1 "Frontier leader": 4 · 11 + 1 · 8 + 2). Reality scales the 2,450 capabilities staff. */
 export const START_TEAMS: Record<BaselineId, Record<TeamKey, number>> = {

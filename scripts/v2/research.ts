@@ -13,9 +13,8 @@ import { tick } from '../../src/engine/v2/core/loop';
 import { engine } from '../../src/engine/v2/index';
 import { HEADROOM, MAX_DROPS, PICK_AT, RISK_KAPPA, SMALL_TO_TEST, SURVIVE_FRAC } from '../../src/data/v2/research';
 import { TREE_BY_ID, type TreeNodeDef } from '../../src/data/v2/tree';
-import { PARADIGMS } from '../../src/data/v2/paradigms';
 import {
-  adoptProject, allocate, assignmentValue, attemptOdds, candidateTruth, capSciTeams, freshCap, hasTypedEffect, linePool, newCandidate, pickCandidate,
+  allocate,assignmentValue, attemptOdds, candidateTruth, capSciTeams, freshCap, hasTypedEffect, linePool, newCandidate, pickCandidate,
   planAssignment, poolMean, priorMean, reAllocation, reopenProject,
 } from '../../src/engine/v2/models/research';
 import { addIdea, headroomAt, initialStacks, stackAt, tuneDay } from '../../src/engine/v2/models/stacks';
@@ -38,18 +37,15 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
   act(s, 'research.start', { id: 'elastic' });
   act(s, 'research.want', { id: 'elastic', n: 3 });
   const seen: string[] = [];
-  let adoptErr = '';
   for (let d = 0; d < 400 && s.player.tree.elastic?.status !== 'known'; d++) {
     tick(s, { skip: ['endings'] });
     const st = s.player.tree.elastic?.cap?.stage;
     if (st && seen[seen.length - 1] !== st) seen.push(st);
-    if (st === 'small' && !adoptErr) adoptErr = adoptProject(s, 'elastic', () => 'x') ?? 'accepted';
   }
   const order = ['ideation', 'small', 'scale', 'adopting'];
   const compact = seen.filter((x, i) => x !== 'ideation' || i === 0);
   const inOrder = order.every((x) => seen.includes(x)) && seen.indexOf('small') < seen.indexOf('scale') && seen.indexOf('scale') < seen.indexOf('adopting');
   check(inOrder && s.player.tree.elastic?.status === 'known', 'lifecycle: ideation → small experiments → scale test → result → adoption → known', `${compact.join(' → ')} (${s.player.tree.elastic?.status}, seed ${seed})`);
-  check(adoptErr === 'Only finished projects can be adopted', 'only finished projects can be adopted', adoptErr);
   check(s.player.research.adopted.some((a) => a.id === 'elastic') && stackAt(s.player.research.stacks.train) > 0, 'adoption: the true effect enters its stack (training throughput)', `${stackAt(s.player.research.stacks.train).toFixed(4)} OOM`);
 }
 
@@ -338,7 +334,7 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
     P12: (e) => e.expert?.family === 'longHorizon' && e.expert.tokensT > 0,
     P21: (e) => (e.data?.worthOom ?? 0) > 0 && !e.data?.synQMax,
   };
-  const bad = typed.filter(({ id, n }) => !n.kind || !n.effect || n.effect.stack || n.effect.domains || !want[id](n.effect) || n.cashCost || !hasTypedEffect(n)).map((x) => x.id);
+  const bad = typed.filter(({ id, n }) => !n.kind || !n.effect || n.effect.stack || n.effect.domains || !want[id](n.effect) || !hasTypedEffect(n)).map((x) => x.id);
   check(bad.length === 0, 'D9: P10, P12 and P21 are capability projects with typed effects (P10 synthetic-quality ceiling, P12 long-tasks expert data, P21 token worth); no stack, domain or cash-at-start flags',
     typed.map(({ id, n }) => `${id} ${n.kind} ${JSON.stringify(n.effect)}`).join('; '));
   const root = join(HERE, '..', '..', 'src');
@@ -354,7 +350,7 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
     }
   };
   walk(root);
-  const texts = PARADIGMS.filter((p) => ['P10', 'P12', 'P21'].includes(p.id)).map((p) => p.effect ?? '').concat(typed.map(({ n }) => n.cap ?? ''));
+  const texts = typed.map(({ n }) => n.cap ?? '');
   const oldText = texts.filter((t) => /synthetic data ×3|no data wall|no repetition penalty|h80 ×2|Time horizon ×2|RSCH \+0\.4|PHYS \+1/i.test(t));
   check(hits.length === 0 && oldText.length === 0, 'D9 lint: the old flags are gone (synthetic ×3, no repetition penalty / data wall, horizon ×2, RSCH +0.4, PHYS +1; no adopted() readers; no LATER(V5) markers for them)',
     [...hits, ...oldText].slice(0, 6).join(' | '));

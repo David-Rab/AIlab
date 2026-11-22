@@ -81,9 +81,6 @@ export function chinaParams(s: GameStateV2) {
   return out;
 }
 
-/** China's lead deficit in months (positive = player ahead), TRUE internal frontiers. Engine use only. */
-export const chinaGapMonths = (s: GameStateV2) => (leadBetween(s, 'player', CHINA_ID) / 365) * 12;
-
 /** Best US frontier (player or active rival) lead over China in months. */
 export function usGapMonths(s: GameStateV2): number {
   let best = leadBetween(s, 'player', CHINA_ID);

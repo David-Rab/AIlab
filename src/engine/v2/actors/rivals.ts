@@ -283,9 +283,6 @@ export function capIndexOfLevel(L: number): number {
   return k.length - 1;
 }
 
-/** Trait-drift scale [fit]: tuned so maverick Mis at ASI ≈ 0.45–0.6 and safety-rival ≈ 0.25–0.35 (medium). */
-export const RIVAL_DRIFT_K = () => WS4_TUNING.rivalDriftK;
-
 /**
  * One post-training step of a non-player lineage's hidden traits. STAND-IN for WS2's trait graph (§3.5.4) until
  * WS2 exports a per-lab signal → trait function; it follows the same signal → node directions, scaled by

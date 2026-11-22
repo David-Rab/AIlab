@@ -4,7 +4,7 @@
 import { B0_START_DAY, LEVEL_KNOTS, REF_OFF, RSCH_TASTE_PENALTY, DOMAIN_IDS, V0_DAY } from '../../../data/v2/calibration';
 import { B_G_PER_Y, E_B0, RL_BUDGET, REFERENCE_BASE } from '../../../data/v2/runDesign';
 import { multiplierAt, stage1 } from '../../../data/world';
-import { COGNITIVE_WORK, H50_PER_OOM, H50_V0_MIN, H80_OVER_H50, LEVEL_PER_OOM, WORK_TYPES, refDelta } from '../../../data/v2/workTypes';
+import { COGNITIVE_WORK, H50_PER_OOM, H50_V0_MIN, LEVEL_PER_OOM, WORK_TYPES, refDelta } from '../../../data/v2/workTypes';
 import { labMilestones } from '../departments/workfit';
 import { clamp } from '../../rng';
 import { START_DATE, dayOfDate, decimalYearOf } from '../core/time';
@@ -147,8 +147,6 @@ export const horizonG = (_w: TimelineWorld, v: Pick<ModelVersion, 'G' | 'build'>
  *  multiplier (long-horizon RL, P07, P12). Replaces the v1 horizon curve on pm. */
 export const h50Of = (w: TimelineWorld, v: Pick<ModelVersion, 'G' | 'build'>, d: DomainId = 'AGENCY') =>
   H50_V0_MIN * Math.pow(H50_PER_OOM, horizonG(w, v, d) - gV0(w)) * (v.build?.h80Mult ?? 1);
-/** 80% time horizon = h50 / 5 (METR TH1.1). */
-export const h80Of = (w: TimelineWorld, v: Pick<ModelVersion, 'G' | 'build'>, d: DomainId = 'AGENCY') => h50Of(w, v, d) * H80_OVER_H50;
 
 // ───────────────────────────── start state (§3.1.4 "Initial state") ─────────────────────────────
 

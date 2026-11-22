@@ -207,9 +207,6 @@ export function buildWaitNew(s: GameStateV2, tw: number, kind: BuildKind = 'feat
   return daysAt(cum, r.setups);
 }
 
-/** Team-weeks still to build on the queue. */
-export const buildBacklogTW = (s: GameStateV2) => s.player.build.queue.reduce((a, it) => a + remaining(it), 0);
-
 /** The run a setup item belongs to. */
 const runOf = (s: GameStateV2, it: BuildItem): TrainingRun | undefined => (it.kind === 'runSetup' ? s.player.models.runs.find((r) => r.id === it.ref) : undefined);
 
@@ -220,9 +217,6 @@ export const runWaiting = (r: TrainingRun) => r.setupId !== undefined && r.ready
 export const pendingLaunch = (s: GameStateV2, channel: string): BuildItem | undefined => s.player.build.queue.find((it) => it.kind === 'launch' && it.launch?.channel === channel);
 /** A sector pack waiting on the queue for a sector. */
 export const pendingPack = (s: GameStateV2, sector: string): BuildItem | undefined => s.player.build.queue.find((it) => it.kind === 'sectorPack' && it.ref === sector);
-
-/** Engineering in use on the last day (team-weeks per day): upkeep served + queue work (scripts and readouts). */
-export const buildUsedToday = (s: GameStateV2) => ((s.player.build.last?.served ?? 0) + (s.player.build.last?.queue ?? 0)) / 7;
 
 /** A finished item takes effect. */
 function complete(s: GameStateV2, ctx: SystemCtx, it: BuildItem) {

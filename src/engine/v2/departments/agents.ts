@@ -49,9 +49,6 @@ export function agentVersion(s: GameStateV2, use: AgentUse): ModelVersion | unde
   return routineVersion(s);
 }
 
-/** True when the use runs its own pick (not following routine research). */
-export const followsRoutine = (s: GameStateV2, use: AgentUse) => use !== 'capRoutine' && agentVersion(s, use)?.id === routineVersion(s)?.id;
-
 /** Monitor model of an internal use ('same' = a copy of the watched model). */
 export function monitorVersion(s: GameStateV2, use: AgentUse): ModelVersion | undefined {
   const id = s.player.agents[use].monitorId;

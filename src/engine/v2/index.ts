@@ -147,7 +147,7 @@ export type { ChipFit, ForecastEvent, ForecastQ } from './compute/forecast';
 export { ownedOnline, rentedOnline, poolsOf } from './compute/power';
 export { spotPrice, cloudPricePerYear, expectedListPrice, expectedCloudPrice, cancellablePricePerYear } from './compute/market';
 export { liveCommitments, keptShare } from './actors/commitments';
-export { leverageAll, leverageTier, playerLeverageByLineage, LEVERAGE_THRESHOLDS, CONTROL_DOMAINS } from './worldfx/control';
+export { leverageAll, leverageTier, LEVERAGE_THRESHOLDS, CONTROL_DOMAINS } from './worldfx/control';
 export { revenueReadout } from './worldfx/revenue';
 export { techBlocker } from './worldfx/techtree';
 export { canonicalKey } from './core/causes';

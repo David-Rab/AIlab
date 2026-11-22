@@ -33,14 +33,6 @@ export function trust(s: GameStateV2, ctx: SystemCtx, cp: CounterpartyId, base: 
   return ctx.bump(`trust:${cp}`, trustDelta(st.trust, base), source, detail);
 }
 
-/** Incident-type trust hit, scaled by the benefit of the doubt (1 − T/150) and dependence (1 − dep/200). */
-export function trustHit(s: GameStateV2, ctx: SystemCtx, cp: CounterpartyId, base: number, source: string, detail?: string): number {
-  const st = s.relations.stocks[cp];
-  if (!st) return 0;
-  const k = (1 - st.trust / 150) * (1 - st.depOnYou / 200);
-  return ctx.bump(`trust:${cp}`, trustDelta(st.trust, -Math.abs(base) * k), source, detail);
-}
-
 export function trustMany(s: GameStateV2, ctx: SystemCtx, cps: readonly CounterpartyId[], base: number, source: string, detail?: string) {
   for (const cp of cps) trust(s, ctx, cp, base, source, detail);
 }
@@ -61,14 +53,8 @@ export const concern = (ctx: SystemCtx, d: number, src: string, detail?: string)
 export const cash = (s: GameStateV2, ctx: SystemCtx, d: number, src: string, detail?: string) => bookCash(s, ctx, d, 'relations', src, detail);
 export const morale = (ctx: SystemCtx, d: number, src: string, detail?: string) => ctx.bump('morale', d, src, detail);
 export const moraleSafety = (ctx: SystemCtx, d: number, src: string, detail?: string) => ctx.bump('morale.safety', d, src, detail);
-export const secDemand = (ctx: SystemCtx, d: number, src: string, detail?: string) => ctx.bump('gov.securityDemand', d, src, detail);
 export const natPressure = (ctx: SystemCtx, d: number, src: string, detail?: string) => ctx.bump('gov.nationalization', d, src, detail);
 export const theftIntent = (ctx: SystemCtx, d: number, src: string, detail?: string) => ctx.bump('china.theftIntent', d, src, detail);
-
-/** Generic 0..100 China meter (china.meters.*). */
-export const chinaMeter = (ctx: SystemCtx, key: string, d: number, src: string) => ctx.bump(`china.meters.${key}`, d, src);
-/** Generic 0..100 gov meter. Reg stance is −100..100 and handled by `regStance`. */
-export const govMeter = (ctx: SystemCtx, key: string, d: number, src: string) => ctx.bump(`gov.${key}`, d, src);
 
 export function regStance(s: GameStateV2, ctx: SystemCtx, d: number, src: string) {
   const before = s.gov.regStance;
@@ -143,6 +129,4 @@ export function grantAccess(s: GameStateV2, cp: CounterpartyId, rung: number) {
   w.accessCap[cp] = Math.max(w.accessCap[cp] ?? 0, rung);
 }
 
-export const GOV_CPS: CounterpartyId[] = ['exec', 'congress', 'states'];
-export const EVAL_CPS: CounterpartyId[] = ['evalGov', 'evalIndep', 'academia'];
 export const ALL_PUBLIC_CPS: CounterpartyId[] = ['exec', 'congress', 'states', 'evalGov', 'evalIndep', 'academia'];

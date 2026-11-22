@@ -78,8 +78,6 @@ export const K_DIFFUSION = 2.0;
 // pretraining part, so DeepCent's versions gain less between bases): daily mean lead days 30–540, 8 seeds, 247 d at 1,
 // 181 at 1.5, 161 at 2 (design/V3-BUILD.md, F2 notes).
 export const CHINA_CAL = { effScale: 1.5 };
-/** H100e per agent copy at SC (473k H100e / 200k copies, research/13 §1.9), scaled by serveCost/0.5. */
-export const H100E_PER_COPY_SC = 2.4;
 /** Agent serial speed cap (R11 #23: min(8 + 10.8·log2 M, 50)). */
 export const PROD_SPEED_CAP = 50;
 /** Start-state timing (§3.1.4): B0 started day −120, V0 finished day −20. */
@@ -90,8 +88,8 @@ export const B0_START_DAY = -256;
 export const V0_DAY = -20;
 
 /** Production-function parameters by preset (research/13 §1.4). `sampled` draws La = 1 + LN80[1, 200]. */
-export interface ProdPreset { rc: number; lam: number; La: number; Ca: number; slow10: number; m2b: number; kappa: number; etaSC: number }
-export const PROD_DEFAULT: ProdPreset = { rc: -2, lam: 0.5, La: 100, Ca: 1000, slow10: 2.5, m2b: 3.25, kappa: 3, etaSC: 11.3 };
+export interface ProdPreset { rc: number; lam: number; La: number; Ca: number; slow10: number; m2b: number }
+export const PROD_DEFAULT: ProdPreset = { rc: -2, lam: 0.5, La: 100, Ca: 1000, slow10: 2.5, m2b: 3.25 };
 export const PROD_PRESETS: Partial<Record<WorldPresetId, Partial<ProdPreset>>> = {
   authors2026: { La: 15, slow10: 2.8, m2b: 3.7 },
 };

@@ -33,13 +33,11 @@ import {
 import { COLUMN_DEPT, QUALITY } from '../../../data/v2/teams';
 import { fmtDate, dateOf } from '../core/time';
 import { hash32 } from '../core/rng';
-import { bookCash } from '../finance/ledger';
 import type { AgendaId, Column, EngineSystem, GameStateV2, ResearchState, SetupV2, SystemCtx, Team, TeamDept, TreeNodeState } from '../types';
 import { measuredDomain, PARADIGM_BY_ID } from './paradigms';
 import { posteriorBand } from '../safety/agendas';
 import { lineCycleDays, lineEtaDays, resetSafAllocation, safAllocation, stepLineProject } from '../safety/lineProjects';
 import { queueBuild } from '../departments/build';
-import { addKnowledge } from './stacks';
 import { B_G_PER_Y } from '../../../data/v2/runDesign';
 import {
   assignCapTeams, attemptOdds, capProgress, capResearchDay, isCapProject, stagesOf, takesTeams,
@@ -251,7 +249,6 @@ export function projectReady(s: GameStateV2, id: string): true | string {
   if (isCapProject(n) && st?.status === 'failed') return 'Failed: reopen it as a speculative project';
   if (isCapProject(n) && !takesTeams(st?.cap)) return 'Finished: the engineers are building it in';
   if (st?.status === 'failed' && (st.retryDay ?? 0) > s.time.day) return `Retry from ${fmtDate(dateOf(s, st.retryDay ?? 0))}`;
-  if (n.cashCost && st?.status !== 'researching' && s.player.finance.cash < n.cashCost) return `Needs $${n.cashCost}B cash`;
   return true;
 }
 
@@ -520,7 +517,6 @@ export function researchDay(s: GameStateV2, ctx: SystemCtx) {
       // A new attempt starts: first ever, or a retry after the retry date (progress restarts).
       const attempts = (st?.attempts ?? 0) + 1;
       st = p.tree[id] = { status: 'researching', progress: 0, attempts, ...(st?.priorMult !== undefined ? { priorMult: st.priorMult } : {}) };
-      if (n.cashCost) bookCash(s, ctx, -n.cashCost, 'training', 'research project', n.name);
       if (n.paradigm) syncParadigm(s, id);
     }
     if (isLineNode(n)) {
@@ -605,8 +601,4 @@ export function treeCounts(s: GameStateV2): { known: number; total: number } {
   return { known, total: TREE.length };
 }
 
-/** Knowledge from outside the lab (diffusion, tacit knowledge, safety spillover), dG OOM: added to the pretraining stack
- *  as public ideas (models/stacks.ts addKnowledge). */
-export const gainKnowledge = (s: GameStateV2, ctx: Pick<SystemCtx, 'cause'> | undefined, dG: number, source: string, detail?: string) =>
-  addKnowledge(s, ctx, dG, source, detail);
 export { B_G_PER_Y };

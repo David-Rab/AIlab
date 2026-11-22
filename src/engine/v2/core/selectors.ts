@@ -2,7 +2,7 @@
 //
 // UI code imports from here (or src/engine/v2/index.ts) only. Selectors return what the PLAYER knows: measured
 // levels, beliefs, intel. `selectHidden` is for the end screen only (scripts/v2/lint-hidden.ts enforces this).
-import { bestG, bestLg, internalVersion, measuredLOf, PLAYER_ID } from '../models/labs';
+import { bestLg, internalVersion, measuredLOf, PLAYER_ID } from '../models/labs';
 import { misalignment, predictBeliefs, runHack, runOmega, type Signals } from '../safety/traits';
 import { detectionAt, understanding } from '../safety/understanding';
 import { levelOfOom, oomOfLevel } from '../safety/oversight';
@@ -12,18 +12,18 @@ import { CRITICAL_TRAITS } from '../../../data/v2/traits';
 import { leadDays } from '../actors/intel';
 import type { DecisionSnapshot, GameStateV2, HiddenWorld, SignalId, TraitId } from '../types';
 
-export { production, productionWhatIf, nextModelGate, researchMixCurve, responseCurves, RESPONSE_SCALES } from '../production/readout';
-export type { MixCurve, NextModelGate, ResponseCurves } from '../production/readout';
+export { production, researchMixCurve, responseCurves, RESPONSE_SCALES } from '../production/readout';
+export type { MixCurve, ResponseCurves } from '../production/readout';
 export { MANUAL_MIX_RANGE, specOf, topOf, TOP_KEYS } from '../departments/split';
 export type { SplitSpec, TopKey, TopSplit } from '../departments/split';
 // WS1 model / department selectors and helpers for the UI (visible data only).
-export { adoptedDuring, idleTrainingShare, planRun, poolAllocation, predictRun, POOL_SHARE_RANGE, runEtaDays, runStall, serveTechMult, shareIfLaunched, streamShare, trainingFlopPerDay } from '../models/runs';
+export { adoptedDuring, idleTrainingShare, planRun, poolAllocation, POOL_SHARE_RANGE, runEtaDays, runStall, serveTechMult, shareIfLaunched, streamShare, trainingFlopPerDay } from '../models/runs';
 export type { BaseLimits } from '../models/runs';
-export { buildBacklogTW, buildEtas, buildPerDay, buildRates, buildWaitNew, featureInUse, featureUpkeepTW, isRunLine, LAUNCH_TW, pendingLaunch, pendingPack, productUpkeepTW, runOpsTW, runSetupTW, runWaiting, SECTOR_PACK_TW, upkeepLines, upkeepSplit, UPKEEP } from '../departments/build';
+export { buildEtas, buildPerDay, buildRates, buildWaitNew, featureInUse, featureUpkeepTW, isRunLine, LAUNCH_TW, pendingLaunch, pendingPack, productUpkeepTW, runOpsTW, runSetupTW, runWaiting, SECTOR_PACK_TW, upkeepLines, upkeepSplit, UPKEEP } from '../departments/build';
 export type { UpkeepLine } from '../departments/build';
 export { PARAM_RANGE, PARAM_SNAPS, REF_TPP, RL_BUDGET, STREAM_POOL_SHARE, STUDENT_DEFAULT, TPP_FREE_MAX, TPP_RANGE, TPP_SNAPS } from '../../../data/v2/runDesign';
 export { fOver, flopOfDesign, paramsForFlop, servingFlop, tppLabel } from '../models/effective';
-export { goodputOf, paramsOfVersion, playerUniqueTokens, runFlopPerShareDay } from '../models/runs';
+export { goodputOf, paramsOfVersion, runFlopPerShareDay } from '../models/runs';
 export type { LaunchRunParams, RunPlan } from '../models/runs';
 export { PARADIGM_BY_ID } from '../models/paradigms';
 export { isCapProject, stagesOf } from '../models/research';
@@ -32,8 +32,8 @@ export type { NodeStatus } from '../models/tree';
 export { benchName, benchGen, measuredSd } from '../models/benchmarks';
 export { evalDaysFor, evalDaysEstimate, evalCost, evalDepthView, evalMeasureView, evalPolicyView, evalQueueView, gateDepth, policyDepth } from '../models/evals';
 export type { EvalCost, EvalDepthRow, EvalMeasureRow, EvalTaskView } from '../models/evals';
-export { deployGate, effortLock, liveDeployments, CHANNEL_VARIANTS, distillationAccess } from '../models/deployments';
-export { bestMeasuredL, internalVersion, labPools, measuredLOf, versionById } from '../models/labs';
+export { deployGate, effortLock, CHANNEL_VARIANTS, distillationAccess } from '../models/deployments';
+export { bestMeasuredL, internalVersion, measuredLOf, versionById } from '../models/labs';
 export { MILESTONE_NAMES } from '../models/capability';
 export { presetSplit, shareRefAt, SPLIT_KEYS, SPLIT_PRESETS } from '../departments/split';
 export { teamGain } from '../departments/teamActions';
@@ -103,9 +103,6 @@ export function decisionSnapshot(s: GameStateV2): DecisionSnapshot {
   };
 }
 
-/** True frontier effective compute G of a lab (hidden; for tests and end screen). */
-export const trueG = (s: GameStateV2, lab: string) => bestG(s, lab);
-
 // ───────── M5 UX read-only selectors (Safety lab, Run designer). Player-visible data only. ─────────
 
 /** Detection-by-level heat grid (PLAN B4): believed detection of each critical trait on the internal model at
@@ -172,7 +169,7 @@ export { LENT_RECOVERY, servingPool, spareServing, spareServingToResearch } from
 export { spareServingEffect } from '../production/production';
 // Model v3 V2b research UI: projects, recipe stacks, allocations, AI labour per work type, milestones, research speed.
 export {
-  STAGES, PROJECT_MAX_TEAMS, addableProjects, adoptCostTW, buildSplit, capPriorityList, capProjectView, engAllocView, milestoneViews,
+  STAGES, PROJECT_MAX_TEAMS, addableProjects, buildSplit, capPriorityList, capProjectView, engAllocView, milestoneViews,
   reAllocView, researchSpeedView, softwareRate, stackViews, workTypeViews,
 } from '../models/researchView';
 export type { AllocView, CapProjectView, MilestoneView, NeedView, ResearchSpeedView, StackGroupView, StageId, WorkTypeView } from '../models/researchView';
