@@ -164,3 +164,25 @@ Stale comments and BRIDGE tags (SYNTHESIS §4.9). Commit 5a0a250. Comments only,
 - Not touched: glossary / player-facing text (B47); other stale-looking comments outside the §4.9 list
   (finance/observe.ts "until MODEL-V3 lands", runDesign serveCost readout).
 - **Tests:** tsc main + scripts clean. No test run (comments only).
+
+### RD-B14
+
+Delete `defaultLabPolicy` (B21 / MEA-21). Commits on `p1-riv`.
+- **Fix:** removed `defaultLabPolicy` from models/runs.ts (the continual system now only advances the player's stream)
+  and the `RivalLab.managed` flag (types.ts; it was set only inside labDaily, so the fallback also ran on day 1:
+  split, staff, base-run training, CL refresh and a public-model bump twice). Every active rival, the leader lab and
+  China run one daily policy, WS4's `labDaily` (actors/rivals.ts, rivalsChina system, order 100); no lab is left
+  without one (labDaily covers `activeRivals` + China while active, exactly the labs the fallback served). No schema
+  bump (optional field dropped; old saves carry an ignored `managed: true`).
+- **Regression check:** rivals R10: on day 1 every rival's and China's staff ratio equals one hRef step
+  (1.00078904 for all six labs; before: 1.0015787 = step²).
+- **Side effect [D]:** serving B3 compared the enterprise seat price with `=== SEATS.price`; the price is the lineup
+  tiers' weighted blend (worldfx/mix.ts), so it came out 24.999999999999993 once rival paths moved. B3 now uses
+  `near(…, 1e-12)`. Verified the pre-change code gave exactly 25 and the post-change 25 − 7e-15 (float rounding only).
+- **Tests:** tsc main + scripts clean. rivals full 17/0. serving 90/0. test:quick: fails are fixtures (stale, expected:
+  the merge regenerates them) and worldfx A2a 6.7% / W4 23.3% (known since F1). test:cal 49/0 (WARNs as after M11).
+  Golden medians now (20 seeds; target): ai2027 SC 638 (638), SAR 762 (791), SIAR 854.5 (883), ASI 911.5 (915);
+  authors2026 SC 1514 (1495); fast SC 888 (880); slow SC 4776 (4758); T1L ai2027 SC/SAR/SIAR/ASI 611/802/900/943;
+  T1L authors2026 SIAR −0.745 y, ASI −1.495 y (M11: −0.74 / −1.49). All inside tolerance; no pre-change cal run
+  kept here, so day deltas vs the base are not measured (the shift is a one-day ×1.00079 on rival staff and one extra
+  day of base-run FLOP, so ≲ 1 d expected).
