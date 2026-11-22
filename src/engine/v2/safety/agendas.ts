@@ -84,8 +84,8 @@ export function safetyRe(s: GameStateV2): { heads: number; investigations: numbe
 
 /**
  * Line compute shares of the safety pool (model v3 E1): the safety research line (split.safety, RD-A05a) after investigations is
- * shared by the line projects in experiments in proportion to their research engineers × their agenda's compute need
- * (computeRef, R14's cost column); a line not in experiments uses none (safety/lineProjects.ts safAllocation). Returns
+ * shared by the line projects in experiments by need (RD-R02a: each project's engineer ask × its agenda's computeNeed, R14's
+ * cost column in capability C_UNITs; a project with no engineers leaves its share unused); a line not in experiments uses none (safety/lineProjects.ts safAllocation). Returns
  * the line pool (H100e).
  */
 export function recomputeComputeShares(s: GameStateV2): number {

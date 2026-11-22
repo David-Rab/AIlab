@@ -7,26 +7,30 @@
 //                 a working result: the line's posterior, updated by a reading of the hidden efficacy whose noise falls
 //                 with taste. Scientists keep ideating while a test runs (pool ≤ SAF_POOL_MAX).
 //   2 small       safety research engineers + experiment compute: work at the experiment CES X(c, ℓ) (the capability
-//                 projects' function and parameters), c = the project's experiment FLOP per day ÷ its agenda's
-//                 reference (computeRef × the leader's day-0 compute), ℓ = (m_exp × engineers ÷ SAF_RE_UNIT)^λ. A reading
-//                 narrows the belief.
+//                 projects' function and parameters) in the capability units (RD-R02a): c = the project's experiment
+//                 FLOP per day ÷ (its agenda's computeNeed × C_UNIT_FLOP_PER_DAY), ℓ = (m_exp × engineers ÷
+//                 RE_LABOUR_UNIT)^λ (engineers in research-engineer team-equivalents); work per day = X ÷ X_ref, X_ref =
+//                 X(1, SAF_RE_ASK^λ), the CES at reference inputs. A reading narrows the belief.
 //   3 validation  the same CES: the approach is validated on the frontier model (in place of the scale test); a second
 //                 reading narrows the belief.
 //   4 result      findings.ts fireFinding draws the result's type from the line's hidden efficacy (working tool, weak,
 //                 dead end, negative, discovery, false result) and moves the Beta posterior, as before E1.
-// At reference inputs (serious science staffing, SAF_RE_UNIT engineers, the reference compute at the leader's day-0
-// compute) every stage runs at rate 1, so the first result takes T₁ (research/14's pacing). The belief is a readout (the
+// At reference inputs (serious science staffing, SAF_RE_ASK labour units of engineers = 50 heads × quality, computeNeed ×
+// C_UNIT of FLOP = computeRef × the leader's day-0 compute) every stage runs at rate 1, so the first result takes T₁ (research/14's pacing). The belief is a readout (the
 // project card's "the team thinks …"); the result's type never reads it.
 //
 // Research engineers (RD-A04): one needs list in the player's order (research.safRe, models/research.ts allocate, the
 // capability engineers' allocator): open cases, patches and removals, line experiments (each project in priority order
-// asks SAF_RE_UNIT × its science staffing), tool re-validation (agendas.ts revalDemand); the rest is idle. Compute: the safety
-// pool after monitors, safety agents and investigations is shared by the projects in experiments in proportion to
-// engineers × their agenda's compute need. AI labour enters as the effective-labour multipliers m_ideas and m_exp from
+// asks SAF_RE_ASK labour units × its science staffing), tool re-validation (agendas.ts revalDemand); the rest is idle.
+// Compute: the safety line after investigations goes to the projects in experiments by need (RD-R02a, the capability
+// rule of RD-B08 expShares): each project's need is its ask × its agenda's computeNeed; a project with engineers takes
+// its full share, one with none leaves its share unused (idle). AI labour enters as the effective-labour multipliers m_ideas and m_exp from
 // the SAF_IDEAS / SAF_EXP work types (lineLabour, model v3 E2) and as AI taste in ideation (safSciOn).
 import {
-  AGENDA_BY_ID, LINE_MULT_MAX, SAF_BELIEF, SAF_C0_H100E, SAF_PICK_AT, SAF_POOL_MAX, SAF_RE_UNIT, SAF_STAGES, SERIOUS_CAP,
+  AGENDA_BY_ID, LINE_MULT_MAX, SAF_BELIEF, SAF_PICK_AT, SAF_POOL_MAX, SAF_RE_ASK, SAF_STAGES, SERIOUS_CAP,
 } from '../../../data/v2/agendas';
+import { C_UNIT_FLOP_PER_DAY, RE_LABOUR_UNIT } from '../../../data/v2/workTypes';
+import { TEAM_SIZE } from '../../../data/v2/teams';
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { DEFAULT_SAF_RE_ALLOC, RISK_KAPPA } from '../../../data/v2/research';
 import { allocate } from '../models/research';
@@ -47,6 +51,10 @@ import { patchFte } from './responses';
 import { aarAuto, aarFindingOom } from './ideas';
 
 const node = (id: string): TreeNodeDef | undefined => PROJECT_BY_ID[id];
+
+/** RD-R02a: safety research-engineer heads (× quality, the allocator's unit) in one experiment-labour unit
+ *  (RE_LABOUR_UNIT team-equivalents of TEAM_SIZE.re heads; departments/capacity.ts reCapacity). */
+const HEADS_PER_LABOUR_UNIT = RE_LABOUR_UNIT * TEAM_SIZE.re;
 const agendaOf = (n: TreeNodeDef) => n.agenda as AgendaId;
 
 // ───────────────────────────── hidden readings (deterministic per world) ─────────────────────────────
@@ -236,30 +244,32 @@ export function safAllocation(s: GameStateV2, extra?: string, extraCap?: number)
   }
   const heads = safetyReHeads(s);
   const ids = experimenting(s, extra);
-  // A project asks for engineers in proportion to its science staffing (a serious programme: SAF_RE_UNIT; at most the
-  // old Major level); the asks sum to the line experiments' demand and are served in priority order.
+  // A project asks for engineers in proportion to its science staffing (a serious programme: SAF_RE_ASK labour units; at
+  // most the old Major level); the asks sum to the line experiments' demand and are served in priority order. Its
+  // compute need is the ask × its agenda's computeNeed (capability C_UNITs).
   const ask = new Map<string, number>();
+  const need = new Map<string, number>();
   let askSum = 0;
+  let needSum = 0;
   for (const id of ids) {
     const m = (id === extra && extraCap !== undefined ? extraCap : safSciOn(s, id).cap) / SERIOUS_CAP;
-    const x = SAF_RE_UNIT * Math.min(LINE_MULT_MAX, m);
+    const units = SAF_RE_ASK * Math.min(LINE_MULT_MAX, m);
+    const x = units * HEADS_PER_LABOUR_UNIT;
+    const k = (units / SAF_RE_ASK) * AGENDA_BY_ID[agendaOf(node(id) as TreeNodeDef)].computeNeed;
     ask.set(id, x);
+    need.set(id, k);
     askSum += x;
+    needSum += k;
   }
   const demand: Record<SafReNeed, number> = { cases: investigationFte(s), patches: patchFte(s), safExp: askSum, reval: revalDemand(s) };
   const got = allocate(heads, s.player.research.safRe ?? DEFAULT_SAF_RE_ALLOC, demand);
   const free = Math.max(0, heads - got.cases - got.patches);
   let left = got.safExp;
   const re = new Map<string, number>();
-  let w = 0;
-  const wOf = new Map<string, number>();
   for (const id of ids) {
     const x = Math.min(ask.get(id) ?? 0, left);
     left -= x;
     re.set(id, x);
-    const k = x * AGENDA_BY_ID[agendaOf(node(id) as TreeNodeDef)].computeRef;
-    wOf.set(id, k);
-    w += k;
   }
   let exp = 0;
   for (const x of re.values()) exp += x;
@@ -268,7 +278,8 @@ export function safAllocation(s: GameStateV2, extra?: string, extraCap?: number)
   const flop = new Map<string, number>();
   const share: Partial<Record<AgendaId, number>> = {};
   for (const id of ids) {
-    const f = w > 0 ? (wOf.get(id) ?? 0) / w : 0;
+    // By need (RD-B08 rule): a project with engineers takes its full share; one with none leaves it unused.
+    const f = needSum > 0 && (re.get(id) ?? 0) > 0 ? (need.get(id) ?? 0) / needSum : 0;
     flop.set(id, pool * f * flopPerH);
     const ag = agendaOf(node(id) as TreeNodeDef);
     share[ag] = (share[ag] ?? 0) + f;
@@ -296,10 +307,13 @@ export function lineRates(s: GameStateV2, id: string, alloc: SafAlloc, cap?: num
   const idea = capNow > 0 ? (Math.pow((m.ideas * capNow) / SERIOUS_CAP, P.lam) * sci.q * speed) / (SAF_STAGES.idea * def.T1 * 30) : 0;
   const re = alloc.re.get(id) ?? 0;
   const flop = alloc.flop.get(id) ?? 0;
-  const c = flop / (def.computeRef * SAF_C0_H100E * PHI_FLOP_PER_H100E_DAY);
-  const l = Math.pow(Math.max(1e-12, (m.exp * re) / SAF_RE_UNIT), P.lam);
+  // RD-R02a: shared units. c in the agenda's need of capability C_UNITs, ℓ in RE_LABOUR_UNITs; X ÷ X_ref keeps rate 1
+  // (the first result at T₁) at reference inputs (c = 1, ℓ = SAF_RE_ASK^λ).
+  const c = flop / (def.computeNeed * C_UNIT_FLOP_PER_DAY);
+  const l = Math.pow(Math.max(1e-12, (m.exp * re) / HEADS_PER_LABOUR_UNIT), P.lam);
   const X = re > 0 && flop > 0 ? Xces(P, Math.max(1e-12, c), l) : 0;
-  return { idea, exp: (X * speed) / 30, c, l, X, re, flop, q: sci.q, cap: capNow };
+  const Xref = Xces(P, 1, Math.pow(SAF_RE_ASK, P.lam));
+  return { idea, exp: (X * speed) / (30 * Xref), c, l, X, re, flop, q: sci.q, cap: capNow };
 }
 
 // ───────────────────────────── one day ─────────────────────────────

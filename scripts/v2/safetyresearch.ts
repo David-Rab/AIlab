@@ -3,7 +3,7 @@
 // capability projects' experiment CES; taste lowers the belief noise; result types still follow the hidden efficacy.
 // Model v3 E2 (§5b): AI labour from the SAF_EXP / SAF_IDEAS work types through the capabilities labour function, the
 // Trusted-to-AI share, parity with capability work, sabotage ∝ the work AI does (design/notes/E2.md).
-import { AGENDA_BY_ID, AGENDA_IDS, SAF_RE_UNIT, SAF_STAGES, SERIOUS_CAP } from '../../src/data/v2/agendas';
+import { AGENDA_BY_ID, AGENDA_IDS, SAF_RE_ASK, SAF_STAGES, SERIOUS_CAP } from '../../src/data/v2/agendas';
 import { PROJECT_BY_ID, lineNodeId } from '../../src/data/v2/tree';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { makeCtx } from '../../src/engine/v2/core/loop';
@@ -19,6 +19,11 @@ import { WORK_TYPES } from '../../src/data/v2/workTypes';
 import { labourOf, resetWorkContext, safetyLabour, workContext } from '../../src/engine/v2/departments/workfit';
 import type { AgendaId, FindingType, GameStateV2, ModelVersion, Team } from '../../src/engine/v2/types';
 import { check, finish } from './lib';
+import { RE_LABOUR_UNIT } from '../../src/data/v2/workTypes';
+import { TEAM_SIZE } from '../../src/data/v2/teams';
+
+/** A serious programme's line-experiment engineers in heads × quality (RD-R02a: SAF_RE_ASK labour units). */
+const REF_RE_HEADS = SAF_RE_ASK * RE_LABOUR_UNIT * TEAM_SIZE.re;
 
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
 
@@ -39,7 +44,7 @@ function lab(ag: AgendaId, o: { seed?: number; cap?: number; re?: number; c?: nu
   sci.projectId = id;
   sci.manual = true;
   re.quality = 'strong';
-  re.heads = SAF_RE_UNIT * (o.re ?? 1) * 2; // twice the ask (pre-RD-A04: the ask at SAF_EXP_SHARE 0.5); the rest re-validates or idles
+  re.heads = REF_RE_HEADS * (o.re ?? 1) * 2; // twice the ask (pre-RD-A04: the ask at SAF_EXP_SHARE 0.5); the rest re-validates or idles
   p.research.queue = [id];
   p.split.safetyAgents = 0;
   p.computeOnline = 1e6;
@@ -88,7 +93,7 @@ function results(s: GameStateV2, id: string, n: number, maxDays = 4000, onResult
     if (['AG18', 'AG02', 'AG01', 'AG12'].includes(ag)) rows.push(`${ag} T₁ ${AGENDA_BY_ID[ag].T1} mo: first ${days[0]} d, next +${days[1] - days[0]} d (c ${r.c.toFixed(2)}, ℓ ${r.l.toFixed(2)}, X ${r.X.toFixed(2)})`);
   }
   console.log(`      ${rows.join('\n      ')}`);
-  check(worst <= 0.02, 'E1 reference inputs (serious staffing, SAF_RE_UNIT engineers, reference compute at day-0 compute): first result after T₁ (±2%), every line', `worst ${(worst * 100).toFixed(1)}%`);
+  check(worst <= 0.02, 'E1 reference inputs (serious staffing, SAF_RE_ASK engineers, reference compute at day-0 compute): first result after T₁ (±2%), every line', `worst ${(worst * 100).toFixed(1)}%`);
   const { s, id } = lab('AG08');
   const d = results(s, id, 3);
   const steady = (d[2] - d[1]) / (30 * AGENDA_BY_ID.AG08.T1);
@@ -131,7 +136,7 @@ function results(s: GameStateV2, id: string, n: number, maxDays = 4000, onResult
   if (st && !st.test) st.test = { c: { k: 99, q: 1, mu: 0.5, sd: 0.2 }, work: 0, workNeed: 1 };
   resetSafAllocation(u);
   const after = safetyRe(u);
-  check(before.experiments === 0 && Math.abs(after.experiments - SAF_RE_UNIT) < 1e-9 && Math.abs(after.upkeep - (before.upkeep - SAF_RE_UNIT)) < 1e-9, 'E1 a project in experiments takes SAF_RE_UNIT engineers from tool upkeep (none while it ideates)', `upkeep ${before.upkeep} → ${after.upkeep}`);
+  check(before.experiments === 0 && Math.abs(after.experiments - REF_RE_HEADS) < 1e-9 && Math.abs(after.upkeep - (before.upkeep - REF_RE_HEADS)) < 1e-9, 'E1 a project in experiments takes SAF_RE_ASK engineers from tool upkeep (none while it ideates)', `upkeep ${before.upkeep} → ${after.upkeep}`);
   // Science capacity speeds ideation as √capacity (λ = 0.5 in ai2027).
   const { s: a, id: aid } = lab('AG07', { cap: 1 });
   const { s: b, id: bid } = lab('AG07', { cap: 4 });
