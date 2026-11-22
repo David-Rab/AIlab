@@ -1549,3 +1549,34 @@ Open: internal catch still = CoT/WB tool detection × (½ + ½ × strength) (the
 flag rate); product watched share is a constant, not a player setting (SR-13 / SR-26); OD-6 trusted default watcher is SR-20.
 Moves calibration: maybe (S4/S5, serving cost): product monitor overhead ×4 (a same-size monitor +100% of serving, a
 quarter-size mini +25%); catch numbers unchanged (product watched share 1; internal coverage the same up to float order).
+
+### SR-13
+
+Safeguards as owned items (SAFETY-REDESIGN §2.2 concept 7, §3.3): `Deployment.guards: SafeguardItem[]` ({kind, setting?,
+since}); `safety/safeguards.ts` holds kinds, settings, add / remove (`addSafeguard`, `removeSafeguard`, `setControl`),
+readers (`controlOn`, `reviewOn`, `isRestricted` / `restrictMult`, `lockdownOn`, `labControlSetting`, `labReviewOn`) and
+`safeguardLines(d, …)` = per item: stop contribution on every act, Chances ×, **Slowdown**, compute, people.
+One combine rule: Stop rate = 1 − Π (1 − stop_i) over monitor and items; the engine's 1 − (1 − block)(1 − mon)(1 − human)·miss
+is that product (control item stop = 1 − (1 − block)·miss), so engine numbers are unchanged. `actTable` returns `guards`.
+- **Control protocol**: settings defer10 (Greenblatt 62% → 83% safe, usefulness 97% → 93%) [S], defer20 (92%, 83%) [S],
+  resample (Ctrl-Z 58% → 7% attack success at 5% usefulness cost [S]; read as acts slipping past, mapped onto every
+  internal act [D]). Slowdown = U0 − (U0 − U)·min(1, trusted gap ÷ 1 OOM) (the old controlProtocol rule, same floats at
+  defer10). `controlProtocol(gap, setting)` replaces the `defer` number; CONTROL_DEFER unused. AG07: contain tools are the
+  item's block (unchanged `containment`, gated on the item); T-RESAMPLE unlocks the resample setting; T-LOCK unlocks the
+  lockdown item. Compute = deferred share × CONTROL_TRUSTED_COST 0.1 [D]; people 0.
+- **Human review**: an item on internal deployments (default in init / new internal deployments); without it human = 0
+  in catchOf, internalOversight, believedOversight, pressureView. Slowdown 0; people = REVIEW_STAFF 5 per 10% human share [D].
+- **Restriction**: replaces status 'restricted' (status is live | withdrawn); usage ×RESTRICT 0.3 (now one constant in
+  safeguards.ts; actTable re-exports). Two-way: new response `liftRestriction` (preview + apply; Safety response list).
+- **Comms lockdown**: replaces the owned-T-LOCK reads (products catchRate, ideas, traits E21): collusion penalty ×0.5,
+  Slowdown LOCKDOWN_SLOWDOWN 3% [D] on internal work (workfit).
+SCHEMA_REV 56 → 57: migration maps controlLayer → control (defer10), 'restricted' → restrict item + live, internal →
+review, owned T-LOCK → lockdown on internal deployments. hygiene pins 57; SR-06 check ≥ 56.
+Check: `npx tsx scripts/v2/_sr13/check.ts` (day400 / day900: defer 20% raises every per-year stop rate on the lane and
+costs Slowdown 17% at the 1-OOM gap = useControl's tax; restrict ×0.3 then lift back). Passes.
+Open: compute / people costs are readouts, not yet billed (LAB allocation / staff needs); no verb yet to add a lockdown,
+change the control setting or remove review (only add / remove control and restrict / lift; SR-26 UI); bots do not add a
+lockdown after researching T-LOCK (before, owning it was enough); product control setting reads the lab's; glossary
+`controlLayer` term not renamed; stray untracked `scripts/v2/_sr13/{rep,bulk}.cjs` (edit helpers) can be removed.
+Moves calibration: maybe (S4/S5): new games lose T-LOCK's effect unless a lockdown is added, and a lockdown costs 3% of
+internal work; otherwise same formulas and floats.
