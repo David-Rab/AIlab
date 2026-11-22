@@ -1006,3 +1006,29 @@ Science-team planner by value (CAP-08; SYNTHESIS theme A, §6 Phase 3). Commit f
 - **Checks:** tsc (app and scripts/v2) clean; npm run build passes.
 - **Moves calibration: yes** (teams leave one-off ideas during their tests and spares follow effect size: more science
   on lines and big-effect ideas, P13-type projects' ideation pace changes; refit at CP2).
+
+### RD-R08
+
+Batching as an internal expected flow (SYNTHESIS RD-R08; CAP-11). Commit 9f55e90.
+- **No batches:** every line candidate is one idea (`batchOf` removed; capEta and projectValue read one idea per
+  candidate). `Candidate.b` stays for old saves (atTest's batch path still reads in-flight b > 1 candidates).
+- **Flow:** at experiment throughput X the line's day splits: share φ = clamp(X / PACE_BATCH − 1, 0, 1) runs `stepFlow`,
+  the rest the explicit pipeline (its ideation and experiment time × (1 − φ)). The flow tests k = min(ideas ÷ ι, work ÷ w)
+  ideas a day; per tested idea w (work: small + scale if it passes), g (kept true effect at test scale ÷ prior mean), p
+  (kept ideas), sx (survivors' effect-weighted scale exponent), ι (ideas ideated) come from `flowStats`: the explicit
+  rules (newCandidate draws, addCandidate / pickCandidate pool, both dropRule tests, SURVIVE_FRAC) simulated on 1500
+  single-idea tests with fixed hash draws (seed-independent; cached per line, κ, grid point), bilinear in log taste and
+  log ρ (ideas ideated per test, from ideation vs experiment capacity). All of it is in prior-mean units, so it holds at
+  any pool state. The pool advances test by test (≤ 256 sub-steps a day) by g × the prior mean at the pool then.
+- **Results:** one `CapResult` a day with `flow = { x, s, n }` (true expected effect, exponent, ideas adopted);
+  completeAdoption uses it instead of the seed recompute; stacks count n ideas (fractional), `res.adopted` shows `b` =
+  ideas. Build-in tw = base × ideas + perOom × OOM (cap max × ideas). `gen` moves by whole adopted ideas (`flowDone`).
+- **Continuity:** φ is linear in X from PACE_BATCH to 2 × PACE_BATCH, and the flow's per-idea expectation is the explicit
+  pipeline's, so expected OOM/day has no jump at the switch (no b = ⌊X/30⌋ steps any more).
+- **Check (scripts/v2/.tmp-rdr08.ts, run alone):** L.scale, 8 seeds × 1500 days, φ = 0 vs 1 vs 0.5 at the same inputs
+  (default lab, 2 RE teams, 1 and 3 science teams): flow OOM/day +0.9% / +2.2%, ideas/day +3.0% / +1.5%, φ = 0.5 −1.0% /
+  +1.2% vs the explicit pipeline (tolerance 15%). tsc main and scripts clean.
+- **Limits:** an explicit test in flight when φ reaches 1 waits until throughput falls; flowStats draws T per candidate
+  (the explicit pipeline shares it per generation).
+- **Moves calibration: maybe** (above X = 30 the old batches' survivor factor and drop rule are replaced by the
+  single-idea rules in expectation; engineers' build-in cost per idea rises to the explicit pipeline's).
