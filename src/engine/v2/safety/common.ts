@@ -19,9 +19,6 @@ export function tierOfLevel(L: number): number {
   return K.length - 1;
 }
 
-/** Milestone level for SC (index 3). */
-export const SC_LEVEL = LEVEL_KNOTS[3];
-
 export function versionById(s: GameStateV2, id: string | undefined): ModelVersion | undefined {
   if (!id) return undefined;
   return s.player.models.versions.find((v) => v.id === id);

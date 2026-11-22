@@ -227,6 +227,7 @@ function updateRegion(s: GameStateV2, ctx: SystemCtx, r: RegionId, mix: WorldMix
     st.K = m.K;
     st.R = frictionOf(s, r, def, pol);
     st.Astar = st.F * st.K * (1 - st.R);
+    // level-lint-left: RD-L05 leftover, domain-level dose in display levels (world effects); restate in domain OOM above V0
     let q = def.q * (1 + 0.15 * Math.max(0, le.AGENCY - 8));
     if (def.id === 'SCI') q *= 1 + eff.sciQ;
     if (st.A < st.Astar) st.A += (def.p + (q * st.A) / Math.max(1e-6, st.Astar)) * (st.Astar - st.A) * dt * econ.diffMult;

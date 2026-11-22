@@ -92,8 +92,11 @@ function exposureOf(s: GameStateV2, t: WorldTechDef, best: Record<DomainId, numb
   const st = s.world.techs[t.id];
   const p = Math.max(Math.min(1, st.prog), st.ramp);
   switch (t.risk) {
+    // level-lint-left: RD-L05 leftover, domain-level dose in display levels (world effects); restate in domain OOM above V0
     case 'bio': return p * sigmoid((best.BIO - 10) / 1) * (1 - 0.5 * techRamp(s, 'W06'));
+    // level-lint-left: RD-L05 leftover (as above)
     case 'cyber': return p * sigmoid((best.CYBER - 8) / 1) * (1 - 0.3 * techRamp(s, 'W24'));
+    // level-lint-left: RD-L05 leftover (as above)
     case 'persuasion': return p * sigmoid((best.SOCIAL - 12) / 1);
     default: return st.ramp;
   }

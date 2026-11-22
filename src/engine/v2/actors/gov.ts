@@ -2,7 +2,8 @@
 import { GOV_PRESETS } from '../../../data/actors';
 import { clamp } from '../../rng';
 import { dateOf, dayOfDate } from '../core/time';
-import { bestLg, internalVersion } from '../models/labs';
+import { gOfLevel, gV0 } from '../models/capability';
+import { bestG, internalVersion } from '../models/labs';
 import { versionMilestones } from '../departments/workfit';
 import { wslFloor } from '../security/security';
 import { POLICY_FLAGS } from '../worldfx/policy';
@@ -105,14 +106,18 @@ export function govDaily(s: GameStateV2, ctx: SystemCtx) {
   const seenL = govSeenL(s);
   w.govSeenL = seenL;
   const seenM = govSeenM(s);
-  const trueL = bestLg(s, 'player');
+  // RD-L05: capability doses in OOM of effective compute above V0 (seen: the seen level read back to G; was display
+  // levels: 2.0 levels per OOM on ai2027, V0 → SC 2.49 OOM).
+  const tl = s.hidden.timeline;
+  const seenOom = gOfLevel(tl, seenL) - gV0(tl);
+  const trueOom = bestG(s, 'player') - gV0(tl);
 
-  drift(s, G, 'awareness', (clamp(100 - 30 * Math.max(0, trueL - seenL), 0, 100) - g.awareness) * 0.02, 0, 100, 'gov.awareness');
-  const prioT = clamp((55 + 7 * Math.max(0, seenL - 5) + 10 * detectedThefts(s) + (s.pub.salience > 10 ? 10 : 0)) * Math.sqrt(pre.accel), 0, 100);
+  drift(s, G, 'awareness', (clamp(100 - 60 * Math.max(0, trueOom - seenOom), 0, 100) - g.awareness) * 0.02, 0, 100, 'gov.awareness');
+  const prioT = clamp((55 + 14 * Math.max(0, seenOom) + 10 * detectedThefts(s) + (s.pub.salience > 10 ? 10 : 0)) * Math.sqrt(pre.accel), 0, 100);
   drift(s, G, 'aiPriority', (prioT - g.aiPriority) * 0.01, 0, 100, 'gov.aiPriority');
   // Security demand: rises with seen capability, thefts and the China ladder; access speeds it up (§3.9.3 rule 4).
   const a1 = s.commitments.some((c) => c.status === 'live' && c.kind === 'testingAgreement');
-  const secT = clamp((15 + 9 * Math.max(0, seenL - 5.5) + 15 * detectedThefts(s) + 5 * g.rungChn + (seenM >= 10 ? 20 : 0)) * pre.security, 0, 100);
+  const secT = clamp((15 + 18 * Math.max(0, seenOom - 0.25) + 15 * detectedThefts(s) + 5 * g.rungChn + (seenM >= 10 ? 20 : 0)) * pre.security, 0, 100);
   const k = secT > g.securityDemand ? 0.01 * (1 + 0.5 * (a1 ? 1 : 0) + 0.2 * s.player.policies.govBriefing) : 0.003;
   drift(s, G, 'securityDemand', (secT - g.securityDemand) * k, 0, 100, 'gov.securityDemand');
   // China hawkishness.
@@ -132,8 +137,8 @@ export function govDaily(s: GameStateV2, ctx: SystemCtx) {
   // ── G-SEC ladder (research/07; multipliers/levels instead of model names, §3.10.1).
   const cond = [
     false,
-    (seenL >= 6.5 || seenM >= 1.5) && g.aiPriority > 60,
-    detectedThefts(s) >= 1 || (seenL >= 8.5 && s.player.policies.govBriefing >= 1),
+    (govSeesMilestone(s, 1) || seenM >= 1.5) && g.aiPriority > 60, // RD-L05: Reliable agent (was seenL ≥ 6.5)
+    detectedThefts(s) >= 1 || (govSeesMilestone(s, 2) && s.player.policies.govBriefing >= 1), // RD-L05: Research agent (was seenL ≥ 8.5)
     (s.player.policies.govBriefing >= 1 && govSeesMilestone(s, 3)) || g.securityDemand > 70,
     seenM >= 10 || detectedThefts(s) >= 2,
     (w.misalignmentLeak && s.pub.concern > 65) || g.nationalization > pre.natThreshold,

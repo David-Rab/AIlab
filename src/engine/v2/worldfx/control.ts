@@ -152,6 +152,7 @@ export function updateControl(s: GameStateV2, _ctx: SystemCtx, mix: WorldMix, po
   const milOk = govDep && !deps.every((d) => d.channel !== 'gov' || d.usagePolicy.noAutonomousWeapons);
   const iv = internalVersion(s);
   const hasInternal = s.player.deployments.some((d) => d.channel === 'internal' && d.status !== 'withdrawn');
+  // level-lint-left: RD-L05 leftover, domain-level dose in display levels (world effects); restate in domain OOM above V0
   const internalOps = hasInternal && iv ? 0.15 * sigmoid((iv.domains.AGENCY - 10) / 1) : 0;
   const pressure = Math.max(0, ...s.rivals.map((r) => r.pressure));
 
@@ -169,6 +170,7 @@ export function updateControl(s: GameStateV2, _ctx: SystemCtx, mix: WorldMix, po
     // Officials adopt superhuman advisers (AI 2027 Dec 2027: Cabinet talks to the model "for hours a day") [D].
     GOV: US.GOV.A + (govDep ? 0.05 : 0) + 0.01 * s.player.policies.govBriefing + (pol.govAdvisors ? 0.05 : 0) + 0.35 * sigmoid((govAdv - 12) / 1),
     MIL: US.MIL.A + (milOk ? 0.03 : 0) + (pol.armsRace ? 0.15 : 0) + eff.milP + (pol.armsRace ? 0.35 : 0.1) * sigmoid((govAdv - 12) / 1),
+    // level-lint-left: RD-L05 leftover, domain-level dose in display levels (world effects); restate in domain OOM above V0
     INFRA: 0.5 * US.ENGY.A + 0.25 * US.SOFT.A + eff.infraP + internalOps + 0.2 * sigmoid((mix.bestPublic.CYBER - 11) / 1),
   };
 

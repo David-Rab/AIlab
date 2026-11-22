@@ -23,12 +23,11 @@
 //   · a backdoor raises exfiltration odds: its reach bypasses weight security and containment (incidents.ts);
 //   · an escape goes unnoticed with P = 1 − C of the escaping model: a hidden copy (no alert, no hunt); its outbound
 //     traffic makes it suspected at 1/180 per day × WSL/5 (footholdDetection.ts).
-import { LEVEL_KNOTS } from '../../../data/v2/calibration';
 import { CONTROL, FOOTHOLD } from '../../../data/v2/danger';
 import { computeOnlineOf } from '../compute/power';
 import { hash32 } from '../core/rng';
 import { internalFleets } from '../departments/agents';
-import { bestLg, bestPlayerVersion } from '../models/labs';
+import { bestPlayerVersion } from '../models/labs';
 import type { Foothold, GameStateV2, ModelVersion, SystemCtx } from '../types';
 import { defenceIndex } from '../worldfx/readouts';
 import { clamp01 } from './common';
@@ -164,7 +163,7 @@ export function copyGrowthRate(s: GameStateV2, f: Foothold): number {
 /** The escaped copy that takes control today, if any: grown to copyActs copies, exposure above the world's tolerance,
  *  and the lab's frontier at SAR (v2's gate on the rogue clock). Engine only. */
 export function rogueCopy(s: GameStateV2): Foothold | undefined {
-  if (bestLg(s, 'player') < LEVEL_KNOTS[4]) return undefined;
+  if (s.player.milestoneDays[4] === undefined) return undefined; // RD-L05: the SAR milestone predicate (was λ ≥ 12)
   const thr = lossThreshold(s);
   return footholdsOf(s).find((f) => f.kind === 'exfiltratedCopy' && isActive(f) && f.size >= CONTROL.copyActs && copyExposure(s, f) > thr);
 }

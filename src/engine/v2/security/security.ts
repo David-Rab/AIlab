@@ -22,6 +22,7 @@ export const WSL_TARGET_RANGE: readonly [number, number] = [2, 5];
 export const wslFloor = (yearsSince2025: number) => 2.2 + 0.55 * Math.min(Math.max(0, yearsSince2025), 2);
 
 /** Spend needed to move/hold WSL L: 0.2·e^(0.9(L−2))·(computeOnline/1M)^0.5 $B/yr [D] (§3.6). */
+// level-lint-ok: L is the security level (WSL), not capability
 export const reqSpend = (L: number, computeOnline: number) => 0.2 * Math.exp(0.9 * (L - 2)) * Math.sqrt(Math.max(0, computeOnline) / 1e6);
 
 /** privileged = (cap + saf)·(1 − 0.3·siloing). */

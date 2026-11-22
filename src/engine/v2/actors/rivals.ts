@@ -15,7 +15,7 @@ import { UMODES } from '../../../data/v2/umodes';
 import { Rng, clamp } from '../../rng';
 import { hash32 } from '../core/rng';
 import { shareRefAt, normalizeSplit } from '../departments/split';
-import { domainsOf, frontierGAt, frontierGPerYear, lagDays, levelOfG, PACE_WINDOW_DAYS, playerStart, yearOfDay } from '../models/capability';
+import { domainsOf, frontierGAt, frontierGPerYear, gV0, lagDays, levelOfG, PACE_WINDOW_DAYS, playerStart, yearOfDay } from '../models/capability';
 import { LEADER_ID, activeRivals, bestG, otherLabs } from '../models/labs';
 import { misalignment, rivalTraitStep as ws2RivalTraitStep } from '../safety/traits';
 import { drawSeverity, labModelHazards } from '../safety/incidents';
@@ -57,6 +57,13 @@ export const RELEASE_LAG: Record<string, number> = { safety: 120, bigtech: 60, m
 /** Base-model cadence, months (§3.10.3: 9–15 by archetype) [D]. */
 const BASE_MONTHS: Record<string, number> = { safety: 13, bigtech: 12, maverick: 9, openweights: 12, upstart: 15, deepcent: 12, leader: 9 };
 /** P(adopting latent reasoning) at the latent-reasoning era (§3.10.3 S4). */
+/** RD-L05: the latent-reasoning era in OOM of effective compute above the start model V0 (was display L 9 = 1.99 OOM
+ *  on ai2027, where V0 → SC is 2.49 OOM); a capability dose, not a milestone. */
+const LATENT_ERA_OOM = 2.0;
+/** RD-L05: rival misuse hazard grows from MISUSE_FROM_OOM above V0 at MISUSE_PER_OOM per OOM per day (was 1e-4 per
+ *  display level from L 7: L 7 = 1.0 OOM on ai2027, 2.0 levels per OOM there). */
+const MISUSE_FROM_OOM = 1.0;
+const MISUSE_PER_OOM = 2e-4;
 const LATENT_P: Record<string, number> = { maverick: 0.7, openweights: 0.6, bigtech: 0.5, safety: 0.2, upstart: 0.5, deepcent: 0.6, leader: 0.8 };
 
 /** A non-player lab's model at effective compute G (its design is set by initRivalPhys / setModelG). */
@@ -246,7 +253,7 @@ export function rivalSpeedMult(s: GameStateV2, lab: LabId): number {
  * Projected hidden Mis of a non-player lab when it reaches ASI (the epilogue and the final score, endings/epilogue.ts):
  * its trait cadence fast-forwarded with the rule labDaily runs in play: WS2's rivalTraitStep after every post-training
  * (the mean of POST_DAYS apart, the first at the lab's scheduled one) and after every base run (BASE_MONTHS by
- * archetype from its next base day: a 'base' step, then a 'post' on it), with latent reasoning adopted once at Lg >= 9
+ * archetype from its next base day: a 'base' step, then a 'post' on it), with latent reasoning adopted once at LATENT_ERA_OOM above V0
  * (LATENT_P). The stated stand-in (DD-18): capability rises linearly in G from the internal model's to `asiG` over
  * `days`, every base starts a new lineage, and race pressure stays at today's. At most 120 steps (a guard: a ten-year
  * projection is ≈ 75). Pure: works on a clone and draws from a hash of the seed, lab and day (no stream).
@@ -269,7 +276,7 @@ export function projectLabMis(s: GameStateV2, r0: RivalLab, asiG: number, days: 
     const d = Math.min(nextPost, nextBase);
     if (d > end) break;
     setModelG(s.hidden.timeline, r.internal, G0 + ((G1 - G0) * (d - day0)) / days);
-    if (latent === undefined && r.internal.Lg >= 9) latent = rng.chance(LATENT_P[r.archetype] ?? 0.5);
+    if (latent === undefined && r.internal.G - gV0(s.hidden.timeline) >= LATENT_ERA_OOM) latent = rng.chance(LATENT_P[r.archetype] ?? 0.5);
     if (d === nextBase) {
       nextBase += baseEvery;
       ws2RivalTraitStep(s, rng, r, 'base');
@@ -316,9 +323,9 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   r.pressure = racePressure(s, id);
   r.pressureDays = r.pressure > 0.6 ? r.pressureDays + 1 : 0;
 
-  // Latent reasoning adoption at the era (Lg ≥ 9) — once per lab (S4).
+  // Latent reasoning adoption at the era (LATENT_ERA_OOM above V0) — once per lab (S4).
   const lk = `latent:${id}`;
-  if (s.flags[lk] === undefined && r.internal.Lg >= 9) s.flags[lk] = rng.chance(LATENT_P[arch] ?? 0.5);
+  if (s.flags[lk] === undefined && r.internal.G - gV0(s.hidden.timeline) >= LATENT_ERA_OOM) s.flags[lk] = rng.chance(LATENT_P[arch] ?? 0.5);
 
   w.internalDay[id] ??= r.internal.day;
   w.nextPost[id] ??= day + Math.round(rng.range(POST_DAYS[0], POST_DAYS[1]));
@@ -395,7 +402,7 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   const dep = r.publicModel ?? r.internal;
   const mitigation = clamp(0.5 * p.evalRigor + 0.3 * p.safetyInvestment, 0, 0.9);
   const rows = labModelHazards(dep, mitigation);
-  const misuseH = 1e-4 * Math.max(0, dep.Lg - 7) * (dep.openWeights ? 1 : 0.5) * (1 - 0.3) * (1 - 0.6 * p.evalRigor);
+  const misuseH = MISUSE_PER_OOM * Math.max(0, dep.G - gV0(s.hidden.timeline) - MISUSE_FROM_OOM) * (dep.openWeights ? 1 : 0.5) * (1 - 0.3) * (1 - 0.6 * p.evalRigor);
   if (misuseH > 0) rows.push({ source: 'misuse', apparent: 'misuse', h: misuseH, sev: 3, disposition: 1, capability: 1, opportunity: 1, block: 0 });
   const H = rows.reduce((a, x) => a + x.h, 0);
   if (H > 0 && rng.chance(Math.min(0.5, H))) {

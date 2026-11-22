@@ -17,7 +17,7 @@ import type {
   SimpleModel, SystemCtx, ToolFamily, TrainingRun, TraitBelief, TraitId, TraitVector, UModeId,
 } from '../types';
 import { gOfLevel, gV0 } from '../models/capability';
-import { adopted, clamp01, copyRec, flagNum, labLevel, SC_LEVEL, setFlag, tierOfLevel, trueEfficacy, versionById } from './common';
+import { adopted, clamp01, copyRec, flagNum, labLevel, setFlag, tierOfLevel, trueEfficacy, versionById } from './common';
 import { lineMultCapped, lineStaffed } from './agendas';
 import { SD_MAX, eaCoef, eaSuppression, stackDetectionMap, takesEaPenalty } from './detection';
 import { techniqueRole } from './techniques';
@@ -984,7 +984,8 @@ export function applyBaseToLineage(s: GameStateV2, ctx: SystemCtx, run: Training
     return;
   }
   if (!base.lineage) base.lineage = `L-${base.id}`;
-  const uModes = drawLineageUModesV2(s, ctx.rng('safety'), { tierAtLeastSC: labLevel(s) >= SC_LEVEL, base: design, player: true });
+  const uModes = drawLineageUModesV2(s, ctx.rng('safety'), { tierAtLeastSC: s.player.milestoneDays[3] !== undefined, // RD-L05: the SC predicate (was λ ≥ 10)
+    base: design, player: true });
   // AF2: the base imitates what its synthetic tokens' teachers show (imitatedStart), then the E4 successor pull.
   const teachers = synTeachers(s, q.draw);
   base.teacherData = teachers.map((t) => ({ id: t.id ?? '', share: t.share }));
@@ -1194,7 +1195,7 @@ export function rivalSignals(_s: GameStateV2, lab: RivalLab, posture: SafetyPost
   const tier = tierOfLevel(lab.internal.Lg);
   sg.S1 = posture.prefIntensity * 0.9;
   sg.S2 = posture.rlIntensity * (1 - 0.4 * posture.evalRigor);
-  sg.S3 = 0.5 + (lab.internal.Lg >= SC_LEVEL ? 0.3 : 0);
+  sg.S3 = 0.5 + (lab.core.milestoneDays[3] !== undefined ? 0.3 : 0); // RD-L05: the SC predicate (was λ ≥ 10)
   sg.S4 = latent ? 1 : 0;
   sg.S5 = 0.2 + 0.1 * tier;
   sg.S6 = S6_NARROW_HARMFUL; // AF2: was 0.2 (the post runs' benign SFT), not Betley's condition
@@ -1224,7 +1225,7 @@ export function rivalTraitStep(s: GameStateV2, rng: RngLike, lab: RivalLab, kind
     afGate: afCapGate(m.G), // E18: the lab's model's G
   };
   if (kind === 'base') {
-    m.uModes = drawLineageUModesV2(s, rng, { tierAtLeastSC: m.Lg >= SC_LEVEL });
+    m.uModes = drawLineageUModesV2(s, rng, { tierAtLeastSC: lab.core.milestoneDays[3] !== undefined }); // RD-L05: SC predicate
     // AF2: a reference-mix base draws the reference synthetic share, written by the lab's own model (imitatedStart).
     const x0 = imitatedStart(basePrior(tier), [{ x: m.traitsTrue, share: referenceBaseShares().syn }]);
     const sg = zeroSignals();

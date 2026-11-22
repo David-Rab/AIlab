@@ -102,7 +102,7 @@ function detector(s: GameStateV2, v: ModelVersion, tools: TechniqueState[], L0: 
       done.fill(false);
     }
     const dL = L - L0;
-    const ctl = Math.max(cotControllability(L) * resist, obf);
+    const ctl = Math.max(cotControllability(x) * resist, obf);
     const ea = eaAt(ea0, dL);
     const ds: number[] = [];
     const r = rowOf(trait);
