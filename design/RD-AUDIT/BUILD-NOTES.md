@@ -1449,3 +1449,25 @@ Blind-gap amplifier deleted (SAFETY-REDESIGN §6 #1, OD-3; inventory U9): `safet
 understandingGapGrowth / GAP_GROWTH_K / GAP_CAP_L; player trait growth uses growthMult 1. `ws2.gapTrue` is still
 sampled weekly in `core/record.ts` because `scripts/v2/bots.ts` reports it. The sourced "undetected hacking
 reinforced" replacement is SR-24. Moves calibration: yes (S4/S5); re-measure S4/S5 at the next checkpoint.
+
+### SR-03
+
+One harmful-acts view: `safety/actTable.ts` `actTable(s, target, believed)`, target = a product (`deploymentId`), an
+internal lane (`use`) or an internal fleet as incidents rolls it (`deploymentId, versionId, usage`). Rows in three groups
+with player names (§2.4): misbehaviour (SYC, RH, PROXY, CONCEAL, POWER), against the lab (SAND, COLLUDE, SCHEME,
+BACKDOOR, HIDCOMP, SAFSAB, STEER, SUCCSTEER, the composite "Acts against the lab" = E9's exposure Mis·(1 − O_eff)·(1 + F),
+"Copies itself out" = E25 exfiltration), misuse (bio, cyber). Factors: Would try (believed: estimate and 90% range
+est ± 1.64 sd; Mis band for the composite), Able to, Chances, Stop rate = 1 − (1 − block)(1 − catch), attempts and
+Unstopped per year (per work item for SAFSAB / STEER / SUCCSTEER; exposure for the composite).
+Engine side reuses the existing formulas: `incidents.ts actTerms` (new kernel, actRow calls it), `catchOf`,
+`misuseHazards` (optional believed inputs: measured levels, believed classifier strength), `exfilTerms` (exfiltrationHazard
+now reads it), covert `dayTerms` / `itemTerms` / `safetySabotage`, `controlTerms` / `believedTerms`. dangerView's product
+and lane readouts are the believed table's trait rows (`actSite` + `siteActs`); its numbers are byte-identical to before
+(check: `npx tsx scripts/v2/_sr03/check.ts`, fixtures day400 / day900; engine rows = dangerOf / misuseHazards /
+exfiltrationHazard × 365).
+Open: U-modes are not rows (the engine still rolls them as extra rows of their mapped act); the believed covert and
+exfiltration rows are new believed readings of the engine formulas (belief estimates, measured levels, believed
+oversight; no backdoor reach the lab cannot see); "Able to" of the composite row is 1 (the loss test's ASI / escaped-copy
+gate is not a capability sigmoid). SR-04 builds Loss-of-control risk on the composite row. Stray untracked
+`scripts/v2/_sr03/refactor1.py` (a helper the sandbox would not run or delete) can be removed.
+Moves calibration: no (engine numbers unchanged: same formulas, same float order; no RNG or state change).
