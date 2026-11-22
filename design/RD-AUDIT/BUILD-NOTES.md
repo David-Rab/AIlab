@@ -226,3 +226,32 @@ Launch snapshot on `run.recipe` (B02, B03; TRN-15, CAP-04). Commit 2b472ff.
   have moved it); synTeachers reading the draw's teachers' traits at completion; the post trait step's techniques
   (trainAgainst detectors, steerS4, P14 probeSteer, healRate, stack detection: safety redesign territory); a base's tier
   (labLevel) and U-mode draw at completion.
+
+### RD-B03
+
+A family unlocked later starts with no suite (B04; TRN-14; DD-07). Commit 5ab418f.
+- **Engine (models/suites.ts).** `suiteOf` returns only a stored suite; [D] a start family missing from the state still
+  reads as its start suite (start families unchanged). So computer use after P06 has no suite: `suiteFamilies` (broad RL
+  weights via suiteRlWeights / playerRlWeights, suiteFidMap, upkeepLines in departments/build.ts) leaves it out,
+  planRun refuses it as a focus, harden is refused ("build a suite first"), `suiteFidelity` is 0 without a suite.
+  New `unbuiltSuiteFamilies` (idea known, no suite) and `firstSuite`. `suiteWorkBlock` allows a build once the idea is
+  known. `completeSuiteWork`'s first build creates the suite: [D] the start type's exploitability (as the old free suite;
+  the spinout cheap), builds 1, expert asset = one build's E₀ → fidelity 1.00. Cash and team-weeks as any build ($0.1B,
+  2 TW). rlFamiliesAvailable (effective.ts) is only called with `() => false` (start families, rivals / reference): untouched.
+- **Preview (suitesPreview.ts).** withSuiteWork creates the suite for a first build, so the Build button's planned-run
+  before → after is real; new `unbuiltSuites(s, lp)` (exported) for the panel.
+- **RefBot (bots/ref.ts).** Queues `suite.build` for every unbuilt family (once; tryAct, so it waits for cash) before
+  its post-training step. The reference lab's path now has the build's delay (≈ 2 TW on the build queue) and cost.
+- **Save.** No shape change, no bump. [D] The rev-45 migration (44 → 45) first stores the start-quality suite and its
+  expert asset for a save that knows P06 but never stored the suite (it had read as a free one), so old saves keep what
+  they had and runs in flight are filled against it. Idempotent.
+- **UI (Models › Suites).** An unbuilt family gets its own row: "No environments yet — build a suite" (tooltip: fidelity
+  none, the first build's fidelity / exploitability) with the usual Build cell (cost, ETA, planned run's ΔG); no Harden.
+  The locked row's tooltip now says "Once the idea is known, build its first suite here."
+- **Tests.** tsc main + scripts clean. suites full 37/37 (before the UI-only edits; engine unchanged since): five new
+  RD-B03 checks (no suite with P06 known: no broad weight, focus, harden or upkeep, broad post-train unchanged; build paid
+  when queued, still no suite while pending; preview equals the suite built today; once built fidelity 1, broad share
+  1/7, focus, upkeep; RefBot queues it once; a rev-44 save knowing P06 keeps a fidelity-1 suite), plus "no build before
+  P06". Per the RD test rule, test:quick, test:cal, test:ui and fixtures were not run.
+- **moves calibration: maybe.** Only where P06 becomes known in a RefBot game: computer use joins broad RL after the
+  build (days later than before) instead of on the day the idea is known; fixtures that reach P06 would move.
