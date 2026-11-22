@@ -932,3 +932,35 @@ Domain difficulty in one place (MEA-04, TRN-27's last column). Commit 731e8c2.
   gate holds, before = after: P08 470, rl.mlResearch 470, P19 632, P17 714, P13 748.
 - **Moves calibration: maybe.** ai2027 is unchanged; authors2026 / fast / slow RefBot research starts earlier (see
   above). Watch those presets' T1 at CP2.
+
+### RD-U06
+Start state as data; one start rule for every lab (MEA-05, MEA-06; SYNTHESIS RD-U06). Commit a7b6f47.
+- **Data:** `START_STATE` (data/v2/calibration.ts) per preset: `g` = G(V0), `b0` = B0's pretraining recipe (absolute,
+  E_START's convention), `v0` = V0's RL recipe (OOM over the leader's day-0 RL recipe); literals written to 17 digits
+  from the old playerStart ("was derived by playerStart"): ai2027 27.6585 / 0.8540 / −0.0411, authors2026 27.6270 /
+  0.8245 / −0.0434, fast 27.6001 / 0.7993 / −0.0454, slow 27.7662 / 0.9550 / −0.0332. TimelineWorld has no preset id
+  [D]: `startStateOf(w)` looks the preset up by makeWorld's label (`PRESET_BY_LABEL`, unknown → sampled); no shape change.
+- **sampled** [D]: one literal for every seed (median of playerStart over 400 seeds: g 27.6918, b0 0.8852, v0 −0.0387;
+  was per seed, b0 p10–p90 0.687–0.935, g 27.48–27.75). Sampled player start G moves −0.07…+0.05 OOM per seed.
+- **`startLab(w, G0, {flop, tpp, shape})`** (models/capability.ts): base on B0's dates and version on V0's at the world's
+  start recipes less one recipe lag (OOM, pretraining and RL efficiency alike), lag bisected so the version lands at G0;
+  lag 0 exactly when the reference base meets G(V0). Used by init.ts startModels (player, every start) and
+  rivalModel.ts initRivalPhys (rivals, DeepCent, leader twin). `gV0` reads the data. The player's in-flight post run
+  (day −3) takes V0's RL recipe scaled linearly to day 0 (v0·(−3)/V0_DAY − lag), as the old linear know-how did.
+- **Deleted:** playerStart / playerStartOf, pcRefLab, START_RETAIN, startVintage, DAY_2029, E_B0 (folded into
+  START_STATE.b0), the rivals' k / m bisection on their own day-0 rates. `referenceRate(w, w.p0, 2025.5)` replaces
+  `playerStart(w).target` (rivals' rate0, follower lagY, preGameRate, scripts effective / rivals). **Kept:** data/world.ts
+  multiplierAt / stage1 (world/calibration.ts referenceRate still reads them); rivals' in-flight base run still dates
+  its recipe by the lab's own day-0 rates (a run, not the start rule). The double write of the public model
+  (simpleModel then initRivalPhys) is untouched.
+- **Player:** identical on every named preset (leader start bit-exact: G, gPre, eRL, dgRL, B0 ePre / gPre, Lg; follower
+  starts within 1e-9 (re-bisected lag), stacks within 1e-12).
+- **Rivals:** start internal / public G unchanged (to 1e-14); their start recipes move. B0's recipe now the player's
+  dated one less the lab's lag: |Δ base ePre| up to 0.03–0.10 OOM; recipe today (rec.pre / mid) −0.09…+0.08 OOM
+  (named presets, seed 2027, four starts). Leader twin: lag 0 on ai2027 / slow, −0.01 OOM on authors2026 / fast (its
+  day-0 pool differs from the 1e6 × 0.4 B0 was sized on); was a bisected staleness m.
+- **Check:** probe + check `scripts/v2/_u06/` (untracked: probe.ts writes old.json / new.json, check.ts compares and
+  re-derives player and leader twin from startLab on all five presets): all pass. tsc main and scripts clean.
+- **Moves calibration: yes (small).** Player start unchanged except sampled (per-seed start → one literal); rivals' /
+  DeepCent's recipe today shifts up to ±0.09 OOM, which moves their research pools and next bases. Check rival lead
+  and China gap at CP2; no refit here.
