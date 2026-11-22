@@ -51,7 +51,7 @@ import type {
 } from '../types';
 import { poolsOf } from '../compute/power';
 import { Phi, Xces } from '../production/ces';
-import { qualityZ, researchMods, starTaste, teamTaste, workContext } from '../departments/workfit';
+import { expFlopAllowed, onDuty, qualityZ, researchMods, starTaste, teamTaste, workContext } from '../departments/workfit';
 import { PARADIGM_BY_ID } from './paradigms';
 import { evalReDemand, evalsDay } from './evals';
 import { addSuiteExpertData } from './suites';
@@ -163,7 +163,7 @@ export function candidateTruth(s: GameStateV2, n: TreeNodeDef, st: CapProjectSta
 /** Science teams of the capabilities department. */
 export const capSciTeams = (s: GameStateV2) => s.player.teams.filter((t) => t.role === 'sci' && t.dept === 'cap');
 /** Capabilities research engineers, team-equivalents. */
-export const capReCapacity = (s: GameStateV2) => s.player.teams.reduce((a, t) => a + (t.role === 're' && t.dept === 'cap' ? reCapacity(t) : 0), 0);
+export const capReCapacity = (s: GameStateV2) => s.player.teams.reduce((a, t) => a + (t.role === 're' && t.dept === 'cap' ? reCapacity(onDuty(s, t)) : 0), 0);
 
 /** Capacity and taste of the science teams on a project. Taste (MODEL-V3 §8, V3.4) is each team's E[max(human, AI)] on
  *  the AIFM taste distribution (quality sets the team's place in it, the frontier-research model's AI taste lifts it),
@@ -178,7 +178,7 @@ export function sciOn(s: GameStateV2, id: string, teams = s.player.teams): { cap
   let qw = 0;
   for (const t of teams) {
     if (t.projectId !== id || t.role !== 'sci') continue;
-    const c = teamCapacity(t, n.column);
+    const c = teamCapacity(onDuty(s, t), n.column);
     cap += c;
     qw += c * teamTaste(qualityZ(t.quality), wc.sdAI, wc.sAI, m2b, star);
   }
@@ -641,7 +641,7 @@ export function expPoolH100e(s: GameStateV2): number {
 }
 
 /** The lab's research inputs today: labour multipliers (AI in experiments and in ideas), the speed modifiers (pauses,
- *  treaty, siloing, migrations), the experiment FLOP per RE_LABOUR_UNIT of `reRes` (capResearchDay passes the needs' units of
+ *  treaty, siloing, migrations; RD-A07: a pause is no experiment FLOP, applied by capResearchDay), the experiment FLOP per RE_LABOUR_UNIT of `reRes` (capResearchDay passes the needs' units of
  *  expShares, so c is a full project's) and the X of a unit project. */
 export interface ResearchInputs { mExp: number; mIdeas: number; speed: number; flopDay: number; reRes: number; c: number; l: number; X: number }
 export function researchInputs(s: GameStateV2, reRes: number, flopDay = projectFlopPerDay(s)): ResearchInputs {
@@ -1250,7 +1250,7 @@ export function capResearchDay(s: GameStateV2, ctx: SystemCtx, ready: string[], 
   // experiments pool before the projects.
   const pool = expPoolH100e(s);
   const evH = evalsDay(s, ctx, alloc.re.evals, Math.max(1, workContext(s).slots.EXP.m), pool);
-  const avail = projectFlopPerDay(s) * (pool > 0 ? Math.max(0, 1 - evH / pool) : 1);
+  const avail = expFlopAllowed(s, 'cap', projectFlopPerDay(s) * (pool > 0 ? Math.max(0, 1 - evH / pool) : 1)); // RD-A07: a pause = none
   // Experiment FLOP by need (RD-B08): each project in experiments with research engineers a full share.
   const sh = expShares(alloc, avail);
   // The unit project's inputs: a full project's share (RE_MAX_PER_PROJECT of the needs' units; the whole pool for the first

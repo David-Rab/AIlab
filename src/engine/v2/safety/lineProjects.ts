@@ -30,7 +30,7 @@ import { revalDemand } from './agendas';
 import { PROJECT_BY_ID, isLineNode, type TreeNodeDef } from '../../../data/v2/tree';
 import { teamCapacity } from '../departments/capacity';
 import { safetyPoolClaims } from '../departments/agents';
-import { handedLabour, qualityZ, researchMods, resetSafetyLabour, safetyLabour, sdAIOf, shiftFit, teamTaste, type LabourOf } from '../departments/workfit';
+import { handedLabour, onDuty, qualityZ, researchMods, resetSafetyLabour, safetyLabour, sdAIOf, shiftFit, teamTaste, type LabourOf } from '../departments/workfit';
 import { Xces } from '../production/ces';
 import { trainNow } from '../models/stacks';
 import type { AgendaId, GameStateV2, SafReNeed, SafProjectState, TreeNodeState } from '../types';
@@ -81,9 +81,9 @@ export function safSciOn(s: GameStateV2, id: string): { cap: number; q: number; 
   let heads = 0;
   for (const t of s.player.teams) {
     if (t.projectId !== id || t.role !== 'sci') continue;
-    const c = teamCapacity(t, n.column);
+    const c = teamCapacity(onDuty(s, t), n.column);
     cap += c;
-    heads += t.heads;
+    heads += onDuty(s, t).heads;
     qw += c * teamTaste(qualityZ(t.quality), sdAI, sl.sAI, m2b);
   }
   return { cap, q: cap > 0 ? qw / cap : 1, heads };

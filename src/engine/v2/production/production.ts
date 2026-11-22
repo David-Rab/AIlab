@@ -109,7 +109,7 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
   const kUnit = 1 / DAY0_REF.agents;
   const cUnit = PHI_FLOP_PER_H100E_DAY / DAY0_REF.flop;
   const k = Cag * kUnit;
-  const c = pools.experiments * cUnit;
+  const c = pools.experiments * cUnit * mod.frontierExp; // RD-A07: a frontier pause = no experiment FLOP
   const h = reRes / DAY0_REF.re;
   // Taste: capacity-weighted over the capabilities science teams (a Strong team without AI = 1).
   const m2b = w.prod.m2b;
@@ -122,7 +122,7 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
     tai += t.heads * teamTaste(qualityZ(t.quality), wc.sdAI, wc.sAI, m2b, star);
   }
   const v3: V3Inputs = {
-    h0: h, k0: k, reRes0: reRes, H0: Math.max(1e-9, capReCapacity(s) * mod.humans), AI0: Cag > 0 ? ex.AI : 0, a: ex.fit.a, assist: ex.fit.assist,
+    h0: h, k0: k, reRes0: reRes, H0: Math.max(1e-9, capReCapacity(s)), AI0: Cag > 0 ? ex.AI : 0, a: ex.fit.a, assist: ex.fit.assist,
     flopEff, Tai: cap > 0 ? tai / cap : 1, mods: mod.speed / mod.rateMult, rateMult: mod.rateMult,
     sdAI: wc.sdAI, aEng: wc.slots.SWE.fit.a, copies: ex.copies + wc.slots.IDEAS.copies, speed: ex.copies > 0 ? speedOfCopy() : 0, aiFte: ex.aiFte,
     agentFte: ex.aiFte + wc.slots.IDEAS.aiFte,

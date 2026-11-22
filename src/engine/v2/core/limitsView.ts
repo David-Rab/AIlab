@@ -38,7 +38,7 @@ export function labSpeedLimits(s: GameStateV2): SpeedLimitLine[] {
   const p = s.player;
   // Pause of frontier experiments.
   const until = ws4r(s).frontierPauseUntil;
-  if (s.flags.paused || until > s.time.day) out.push({ id: 'speed.pause', mult: 0.1, binding: true, text: until > s.time.day ? `×0.1 for ${until - s.time.day} d` : '×0.1 while paused' });
+  if (s.flags.paused || until > s.time.day) out.push({ id: 'speed.pause', mult: 0, binding: true, text: until > s.time.day ? `no experiment FLOP for capability projects for ${until - s.time.day} d (ideation goes on)` : 'no experiment FLOP for capability projects while paused (ideation goes on)' });
   // Knowledge diffusion from the simulated frontier leader (follower starts).
   const L = s.rivals.find((x) => x.core.id === LEADER_ID && x.core.status === 'active');
   if (L) {
