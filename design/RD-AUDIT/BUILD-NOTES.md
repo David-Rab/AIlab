@@ -1581,3 +1581,35 @@ so continued bases are a little weaker than before).
 - **Check:** `npx tsx scripts/v2/_t02/check.ts` (day-400 fixture, continue launched and forced done; portfolio × 0.02 vs
   × 1): epochs 83.5 vs 1.67, f_add 0.58 vs 0.94, gPre gain 0.219 vs 0.314 OOM; base epochs = draw epochs. tsc main +
   scripts pass.
+
+### RD-T03
+
+The continual-learning stream on the FLOP actually spent (DD-05, TRN-02; theme T). Commit 1903239. Moves calibration:
+**yes (SIAR/ASI)** (the player's stream no longer re-applies today's whole recipe for free, rivals stream from day 0
+with no L 8.5 threshold; on the day-400 fixture one player period adds 0.119 OOM, one rival week 0.141 OOM).
+- **Player** (models/runs.ts): the stream's pool share (STREAM_POOL_SHARE × training pool × goodput × ops served)
+  accrues FLOP daily (`stream.flop`); every STREAM_PERIOD_DAYS = 7 (was the 7-day tracking lag; `periodDay`) it is spent
+  on the two acts on the streamed version: a continued-pretraining increment (the continue source on the version's
+  weights: tokens drawn with the base's mix cumulative on the base's and earlier periods' tokens, new
+  `VersionBuild.addTokens`; continueFData; continueGPre with today's recipe at the new FLOP; flopPre grows) then an RL
+  refresh (rlAddOnVersion: effective RL compute adds, e_RL the FLOP-weighted mean in 10^e units; ceiling raise and suite
+  fidelity move by the added FLOP's share, never down). **[D]** Split: the stream's pool time as the version's own
+  pretraining : RL FLOP; RL at MFU_RL_FACTOR. `startStream` changes nothing until the first period. `stream.track`,
+  trackNow / trackOf / streamBuild / startTrack / streamRecipeGap gone; stacks.ts inPlaceRecipe reads the build.
+- **Previews** (models/actions.ts): start / stop read `streamPeriodGain`, the mechanism (streamPeriodBuild) run on a
+  copy of the version at today's pool for one period (not previewTick: the stream acts once a period, a one-day tick
+  would show 0); the gain line names the period's FLOP.
+- **Rivals** (actors/rivalModel.ts, DD-18 stand-in): `clRefresh` every CL_DAYS spends the FLOP of CL_POOL_SHARE (0.15,
+  the player's share) of the training pool since the last period (`clApply`): continued pretraining of the internal
+  model's streamed G_pre (continueGPre, reference data) and an RL refresh at the reference RL FLOP (effective RL compute
+  adds; ceiling by FLOP share); RL : pretraining split = RL_BUDGET.standard [D]. New `RivalPhys.cl` (streamed state on
+  base gen/flop, lazy); `clReset` after each post version / new base (RL at today's recipe, streamed pretraining kept);
+  newVersionG keeps the streamed G_pre. CL_LEVEL, clG, learnsOnline removed: no level threshold, from day 0.
+- **[Q]** the rival post-training cadence still re-applies today's RL recipe at a reference budget without counting
+  FLOP (unchanged); rivals' stream needs no P08-like adoption (the task's rule: no threshold).
+- **Schema 60:** migration 59 → 60 drops `stream.track`, starts the period on the save's day. hygiene literals 59 → 60.
+  Glossary `stream` text updated (GLOSSARY.md not regenerated). lint-tradeoffs' B37 block adapted, not run.
+- **Check:** `npx tsx scripts/v2/_t03/check.ts` (day-400 fixture, mechanism called directly): player 0 FLOP adds
+  nothing; effective compute per FLOP constant (pre 51.4 vs 51.7 at ×0.5 / ×2, RL exact); the daily system spends the
+  period on day 7 only; rival 0 FLOP 0, effective compute ×2 for 2× FLOP, same ΔG at L 8.4 and 8.6. tsc main +
+  scripts and `npm run build` pass.
