@@ -1498,3 +1498,32 @@ Open: the stored believed control (controlStep → effectiveControl.believed, co
 card's data-control hook for uitest) still exists; CONTROL_BANDS / controlBand are unused by the card; GLOSSARY.md not
 regenerated; the monitor-budget lever moved nothing on the fixtures (watched share already full).
 Moves calibration: no (output only: the engine's loss test, control and incidents are unchanged; no RNG or state change).
+
+### SR-06
+
+Beliefs per model with an evidence list, no time drift, inheritance widened by the predicted run change (SAFETY-REDESIGN
+§2.2 concept 2, §6 #6; inventory B9). `TraitBelief.evidence`: the last 20 updates (BELIEF_EVIDENCE_CAP), oldest first,
+each {day, source, reading, noise} (numbers to 3 decimals). Sources: "<kind>/<family>" for instrument readings
+(suite, external, bench, monitor, audit, finding, case; family BB / COT / WB / OR), "case" for a case verdict, "prior"
+(public lineage prior), "start" (V0), "inherit:<parent id>" (a new model's start), "stream". `updateBelief(b, o, σ, day,
+source)` / `observeVersion(…, kind)` append each reading; investigations' verdicts append theirs.
+**Drift deleted**: `driftBeliefs` (sd +0.01/week, stream +0.05/day) is gone from detection.ts and safetyResearch; a
+frozen model's belief changes only through evidence.
+**Inheritance** (already from predictBeliefs, now stated and tagged): est = the parent's belief pushed through the graph
+with public weights (the run's predicted change Δ); **widening rule** sd' = min(SD_MAX, √(sd_parent² + w²)),
+w = 0.3·|Δ| + PREDICT_SD_FLOOR (0.04) [D]: the prediction's error is independent of the parent's, so variances add.
+The new list holds one entry (reading = new est, noise = w); the parent's evidence stays on the parent (it is about
+that checkpoint). Distilled students inherit from the teacher ("inherit:<teacher>"); a model with no ancestor starts at
+the lineage prior ("prior"). A stream version widens daily by predictBeliefs at ω = 0.6/42 with floor
+0.04·√(ω_day / 0.6), so one post-run's worth of stream training adds one run's floor variance; the days fold into one
+trailing "stream" entry (noise √(Σw²)). `beliefUnknown(b)` = 90% range 3.28·sd > 30 points (UNKNOWN_RANGE; derived, not
+stored); not yet read by any readout (RISK_UNSEEN_CLARITY badges unchanged). Glossary "clarity" no longer says it decays.
+SCHEMA_REV 55 → 56: migration gives every stored belief an empty list; hygiene's rev pins and SR-01's check updated to 56 / ≥ 55.
+Check: `npx tsx scripts/v2/_sr06/check.ts` (migration; 30 ticked days on day400 / day900: every est / sd move lands with
+an evidence entry that day, thousands of belief-days unchanged without one; one reading → one entry, cap 20; a post-train
+version from the newest full model: sd² = sd_parent² + w² for every trait, one inherit entry, identical with true traits
+rewritten; Unknown threshold). Passes.
+Open: save size grows by up to 20 entries × 17 traits per version (not measured against SAVE_BUDGET_BYTES); readouts
+do not show the list yet (SR-07 / UI); IDA cycles keep the post-train start (no extra widening for the ×1.1 compounding).
+Moves calibration: maybe (S4/S5): no drift keeps frozen models' beliefs narrower, so red flags, Unknown / unseen badges,
+gates and Loss-of-control risk ranges read tighter; stream versions widen more slowly than before.
