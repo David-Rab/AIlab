@@ -97,11 +97,18 @@ const p24Dg = (s: GameStateV2) => (adopted(s, 'P24') ? 0.8 * B_G_PER_Y * payoffO
 /** Frontier (base/post) runs are paused until this day by WS4 (E17 Pause & investigate, pause pledges). */
 export const frontierPaused = (s: GameStateV2, day: Day = s.time.day) => ws4r(s).frontierPauseUntil > day;
 
-/** Why a running run makes no progress today, or undefined (run queue readout). */
+/** RD-B09 (DD-11): share of the run-operations need the research engineers served today (models/research.ts
+ *  opsServed, written by the research system before runs advance; 1 in older saves). Running runs and the
+ *  continual-learning stream advance at this share: short of operators, failures and restarts wait (lost goodput). */
+export const runOpsServed = (s: GameStateV2) => s.player.research.last?.opsServed ?? 1;
+
+/** Why a running run makes no or slowed progress today, or undefined (run queue readout). */
 export function runStall(s: GameStateV2, r: TrainingRun): string | undefined {
   if (r.status !== 'running') return undefined;
   if (runWaiting(r)) return 'waiting for engineers';
   if (trainingFlopPerDay(s) <= 0) return 'paused: no training compute';
+  const ops = runOpsServed(s);
+  if (ops < 0.995) return `slowed to ${Math.round(ops * 100)}%: too few research engineers on run operations`;
   return undefined;
 }
 
@@ -136,13 +143,13 @@ export function shareIfLaunched(s: GameStateV2, share: number): number {
 }
 
 /** Days until a running run finishes at today's pool and its actual share (run queue ETA): the wait for its setup,
- *  then FLOP left ÷ rate. Infinity with no training compute. */
+ *  then FLOP left ÷ rate (× today's run operations served, RD-B09). Infinity with no training compute. */
 export function runEtaDays(s: GameStateV2, r: TrainingRun, alloc = poolAllocation(s)): number {
   const waiting = runWaiting(r);
   const share = alloc.get(r.id) ?? (waiting ? shareIfLaunched(s, r.poolShare) : r.poolShare);
   const wait = waiting ? (buildEtas(s).etas.get(r.setupId ?? '') ?? 0) : 0;
   const left = Math.max(0, r.flopNeeded - r.flopDone);
-  return wait + Math.ceil(daysFor(left, share * runFlopPerShareDay(s, r)));
+  return wait + Math.ceil(daysFor(left, share * runFlopPerShareDay(s, r) * runOpsServed(s)));
 }
 
 /** Ideas the lab is likely to adopt while a run of `days` trains, at the recent rate (count and OOM G-equivalent): what
@@ -600,7 +607,7 @@ function afterVersion(s: GameStateV2, ctx: SystemCtx, run: TrainingRun, v: Model
 // ───────────────────────────── daily systems ─────────────────────────────
 
 
-/** runs (40, daily): add FLOP to running runs; on completion create base/version, call WS2 applyRunToTraits,
+/** runs (40, daily): add FLOP to running runs (× the run operations served, RD-B09); on completion create base/version, call WS2 applyRunToTraits,
  *  queue the eval. (Paradigm projects moved to the research system, models/tree.ts, in R4.) */
 export const runsSystem: EngineSystem = {
   id: 'runs', owner: 'WS1', cadence: 'daily', order: 40, system: 'models',
@@ -609,10 +616,11 @@ export const runsSystem: EngineSystem = {
     // WS4 pauses frontier runs (status 'paused'); they resume when the pause ends.
     if (!frontierPaused(s, ctx.day)) for (const r of s.player.models.runs) if (r.status === 'paused' && (r.kind === 'base' || r.kind === 'post')) r.status = 'running';
     const alloc = poolAllocation(s);
+    const ops = runOpsServed(s);
     for (const run of s.player.models.runs) {
       if (run.status !== 'running') continue;
       const waiting = runWaiting(run);
-      if (!waiting) run.flopDone += (alloc.get(run.id) ?? 0) * runFlopPerShareDay(s, run);
+      if (!waiting) run.flopDone += (alloc.get(run.id) ?? 0) * runFlopPerShareDay(s, run) * ops;
       if (!waiting && run.flopDone >= run.flopNeeded) completeRun(s, ctx, run);
     }
     // Model v3 D7: a finished version waits for its release eval suite (work, models/evals.ts), not fixed days.
@@ -660,7 +668,7 @@ function streamBuild(s: GameStateV2, v: ModelVersion, b: VersionBuild, tr: Track
   return { ...b, gPre, eRL: tr.rlMid, aRL: tr.rlCeil, rlFid, dgRL: rl.general, dgRLd: rl.perDomain };
 }
 
-/** Stream (P08): the version tracks the stacks with a 7-day lag (first-order). WS2 adds trait drift (1/42 of a
+/** Stream (P08): the version tracks the stacks with a 7-day lag (first-order; slower when run operations are short). WS2 adds trait drift (1/42 of a
  *  post-train run per day) via its own hook on `stream`. */
 function advanceStream(s: GameStateV2) {
   const st = s.player.models.stream;
@@ -671,7 +679,8 @@ function advanceStream(s: GameStateV2) {
     return;
   }
   const b = v.build ?? fallbackBuild(v);
-  const a = 1 - Math.exp(-1 / STREAM_LAG_DAYS);
+  // RD-B09: the stream tracks at the run operations served (its research engineers are part of the ops need).
+  const a = (1 - Math.exp(-1 / STREAM_LAG_DAYS)) * runOpsServed(s);
   const cur = st.track ?? trackOf(s, v, b);
   const now = trackNow(s, v);
   st.track = { pre: cur.pre + a * (now.pre - cur.pre), rlMid: cur.rlMid + a * (now.rlMid - cur.rlMid), rlCeil: cur.rlCeil + a * (now.rlCeil - cur.rlCeil) };

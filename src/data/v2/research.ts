@@ -126,14 +126,15 @@ export const PROJECT_MAX_TEAMS = 6;
 export const AUTO_RANK_W = 0.8;
 /** Research-engineer team-equivalents a project in experiments can use [D]. */
 export const RE_PER_PROJECT = 2;
-/** Research engineers that keep runs going (team-equivalents per running run) [D: mirrors the engineers' run upkeep;
- *  MODEL-V3 §3.3 "operations"]. */
+/** Research engineers that keep runs going (team-equivalents per running run) [D; MODEL-V3 §3.3 "operations", §5].
+ *  RD-B09 (DD-11): the one owner of run operations (engineers build the setups only); a shortfall slows every running
+ *  run and the stream to the share served (models/research.ts opsServed). */
 export const RE_OPS = { base: 1, mid: 0.5, small: 0.2, stream: 0.5 };
 /** Default allocations: research engineers keep runs going first, then project experiments (RE_PER_PROJECT each, no
  *  share cap: RD-B08), then routine tuning (its demand ∝ remaining headroom, TUNE_RE_PER_OOM); the rest are idle;
- *  engineers as before J2 (runs, upkeep, builds) [D]. Model v3 D7: eval suites come right after run operations (a
+ *  engineers as before J2 (run setups and adoptions, upkeep, builds) [D]. Model v3 D7: eval suites come right after run operations (a
  *  release waits on them; they are small). */
 export const DEFAULT_RE_ALLOC: Allocation<ReNeed> = { order: ['ops', 'evals', 'exp', 'tune'], max: {}, share: {} };
 export const DEFAULT_ENG_ALLOC: Allocation<EngNeed> = { order: ['runs', 'upkeep', 'builds'], max: {}, share: {} };
 export const RE_NEED_LABEL: Record<ReNeed, string> = { ops: 'Run operations', evals: 'Evaluations', exp: 'Project experiments', tune: 'Routine tuning' };
-export const ENG_NEED_LABEL: Record<EngNeed, string> = { runs: 'Runs (operations, setups, research adoptions, eval harness)', upkeep: 'Product upkeep', builds: 'Builds (features, launches, sector packs)' };
+export const ENG_NEED_LABEL: Record<EngNeed, string> = { runs: 'Run setups, research adoptions, eval harness', upkeep: 'Product upkeep', builds: 'Builds (features, launches, sector packs)' };

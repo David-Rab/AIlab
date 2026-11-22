@@ -774,6 +774,9 @@ export interface ResearchState {
    *  project in experiments (RD-B08 expShares; absent in older saves), FLOP used and available (FLOP/day). */
   last?: {
     re: Record<ReNeed, number>; reProj: Record<string, number>; flopProj?: Record<string, number>; flopUsed: number; flopAvail: number;
+    /** RD-B09: share of the run-operations need the research engineers served today (gets ÷ needs, 1 with no need);
+     *  running runs and the continual-learning stream advance at this share (models/runs.ts). Absent in older saves. */
+    opsServed?: number;
     /** Model v3 V3: a unit project's experiment compute c and labour ℓ (leader day 0 = 1), its CES throughput X (× the
      *  speed modifiers) and the AI labour multipliers in experiments and ideas. */
     x?: { c: number; l: number; X: number; mExp: number; mIdeas: number };

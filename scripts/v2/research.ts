@@ -4,7 +4,8 @@
 //   reopens as speculative; line priors decline but their sum diverges (model v3 V3: the pool form from r); the assignment
 //   is deterministic and within 5% of the brute-force optimum on small cases; research engineers and engineers overflow
 //   down their needs; RD-B08: tuning wants research engineers ∝ headroom, after every project in experiments, and
-//   experiment FLOP goes by need (more research engineers never lower a project's rate); a stage without experiment FLOP waits (V3: the experiment CES is 0 without compute); headroom closes with tuning and refills on adoption; a quarter of small-scale wins of the
+//   experiment FLOP goes by need (more research engineers never lower a project's rate); RD-B09: research engineers are
+//   the one owner of run operations (engineers are charged only setups) and a shortfall slows runs to the share served; a stage without experiment FLOP waits (V3: the experiment CES is 0 without compute); headroom closes with tuning and refills on adoption; a quarter of small-scale wins of the
 //   tweaks line survive at scale; the recipe never reads the know-how readout (lint).
 // Model v3 D9: P10 / P12 / P21 are typed data and suite effects; their old flat flags are gone (lint).
 import { readFileSync, readdirSync } from 'node:fs';
@@ -22,9 +23,10 @@ import { addIdea, headroomAt, headroomTotal, initialStacks, stackAt, tuneDay } f
 import { serialize, deserialize } from '../../src/engine/v2/core/save';
 import { syncTeams } from '../../src/engine/v2/departments/teams';
 import { resetWorkContext } from '../../src/engine/v2/departments/workfit';
-import { buildRates } from '../../src/engine/v2/departments/build';
+import { buildRates, engDemand, isStackWork, upkeepLines } from '../../src/engine/v2/departments/build';
+import { runStall } from '../../src/engine/v2/models/runs';
 import type { Candidate, GameStateV2, Team } from '../../src/engine/v2/types';
-import { HERE, check, finish } from './lib';
+import { HERE, check, finish, runRef } from './lib';
 
 const mk = (seed = 11): GameStateV2 => newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed, tutorial: false }));
 const act = (s: GameStateV2, id: string, p: Record<string, string | number | boolean> = {}) => engine.act(s, id, p);
@@ -324,6 +326,48 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
     && az.demand.tune === 0 && az.re.tune === 0 && shz.tune === 0 && Math.abs([...shz.perProject.values()].reduce((x, y) => x + y, 0) - 1) < 1e-9 && az.total - usedZ > 0,
     'RD-B08: tuning takes the FLOP the projects leave; with no headroom it wants no one and spare research engineers are idle',
     `tuning ${(100 * top.sh.tune / top.avail).toFixed(1)}% of FLOP at demand ${top.a.demand.tune.toFixed(2)}; no headroom: idle ${(az.total - usedZ).toFixed(2)} team-eq`);
+}
+
+// ---------- RD-B09: run operations have one owner (research engineers); a shortfall slows runs ----------
+{
+  const s = mk(6);
+  s.player.finance.cash = 1e3;
+  act(s, 'launchPost', { baseId: 'B0', poolShare: 0.5 });
+  const run = s.player.models.runs[s.player.models.runs.length - 1];
+  for (let d = 0; d < 30 && run.readyDay === undefined; d++) tick(s, { skip: ['endings'] });
+  tick(s, { skip: ['endings'] });
+  // Engineers: the 'runs' need is only the setups / adoptions / eval harness work on the queue; no run upkeep line.
+  const stack = s.player.build.queue.filter(isStackWork).reduce((a, it) => a + Math.max(0, it.needTW - it.doneTW), 0);
+  const ed = engDemand(s);
+  const lines = upkeepLines(s);
+  check(run.status === 'running' && run.readyDay !== undefined && Math.abs(ed.runs - 7 * stack) < 1e-9 && !lines.some((l) => (l.kind as string) === 'run' || (l.kind as string) === 'stream'),
+    'RD-B09: engineers are not charged run operations (their runs need = setups, adoptions and eval harness work only)',
+    `engineers' runs need ${ed.runs.toFixed(2)} t-wk/wk (queue stack work ${stack.toFixed(2)} t-wk); upkeep lines: ${[...new Set(lines.map((l) => l.kind))].join(', ') || 'none'}`);
+  // Research engineers: the same day with the ops need served in full and capped at half.
+  const a = reAllocation(s);
+  const day = (half: boolean) => {
+    const x = deserialize(serialize(s));
+    if (half) x.player.research.re.max.ops = a.demand.ops / 2;
+    const r = x.player.models.runs.find((y) => y.id === run.id)!;
+    const f0 = r.flopDone;
+    tick(x, { skip: ['endings'] });
+    return { df: r.flopDone - f0, served: x.player.research.last?.opsServed ?? 1, stall: runStall(x, r), x };
+  };
+  const full = day(false);
+  const half = day(true);
+  const ratio = half.df / Math.max(1e-30, full.df);
+  check(a.demand.ops > 0 && full.served === 1 && Math.abs(half.served - 0.5) < 1e-3 && Math.abs(ratio - 0.5) < 2e-3 && /slowed/.test(half.stall ?? '') && full.stall === undefined,
+    'RD-B09: a run with half its run-operations need served trains at half speed (and says why)',
+    `ops need ${a.demand.ops.toFixed(3)} team-eq; served ${full.served} → ${half.served}; FLOP/day ×${ratio.toFixed(4)}; "${half.stall}"`);
+  // RefBot keeps its runs operated (ops first in the default order): served in full on every day a run trains.
+  const r = mk(2027);
+  let worst = 1;
+  let days = 0;
+  runRef(r, 240, (g) => {
+    if (g.player.models.runs.some((y) => y.status === 'running' && y.readyDay !== undefined)) { days++; worst = Math.min(worst, g.player.research.last?.opsServed ?? 1); }
+    return false;
+  });
+  check(days > 30 && worst === 1, "RD-B09: RefBot's runs are fully operated (research engineers serve the ops need every day a run trains)", `${days} run-days to day 240, worst served ${worst}`);
 }
 
 // ---------- a stage without FLOP waits ----------

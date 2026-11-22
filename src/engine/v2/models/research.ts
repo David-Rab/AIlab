@@ -341,7 +341,8 @@ export function assignCapTeams(s: GameStateV2, ready: string[]) {
 
 // ───────────────────────────── allocation: research engineers (V2.5) ─────────────────────────────
 
-/** Research engineers that keep the running runs and the stream going today (team-equivalents of effective labour). */
+/** Research engineers that keep the running runs and the stream going today (team-equivalents of effective labour).
+ *  RD-B09 (DD-11): the only charge for operating a run (engineers build its setup); short of it, runs slow (opsServed). */
 export function reOpsNeed(s: GameStateV2): number {
   let need = 0;
   for (const r of s.player.models.runs) {
@@ -351,6 +352,11 @@ export function reOpsNeed(s: GameStateV2): number {
   if (s.player.models.stream) need += RE_OPS.stream;
   return need;
 }
+
+/** RD-B09: share of the run-operations need served (gets ÷ needs; 1 with no need). Running runs and the stream advance
+ *  at this share (models/runs.ts): a run short of operators loses goodput (failures and restarts wait). */
+export const opsServed = (a: Pick<ReAllocation, 're' | 'demand'>) =>
+  (a.demand.ops > 1e-12 ? Math.min(1, Math.round((a.re.ops / a.demand.ops) * 1000) / 1000) : 1);
 
 /** Split a capacity over needs in order: each takes min(its demand, its caps, what is left); unused flows down. */
 export function allocate<K extends string>(cap: number, alloc: Allocation<K>, demand: Record<K, number>): Record<K, number> {
@@ -780,6 +786,7 @@ export function capResearchDay(s: GameStateV2, ctx: SystemCtx, ready: string[], 
   p.research.gLast = g;
   p.research.last = {
     re: { ops: r3(alloc.re.ops), evals: r3(alloc.re.evals), exp: r3(alloc.re.exp), tune: r3(alloc.re.tune) },
+    opsServed: opsServed(alloc),
     reProj: Object.fromEntries([...alloc.perProject.entries()].map(([k, v]) => [k, r3(v)])),
     flopProj: Object.fromEntries(sh.perProject), flopUsed: used, flopAvail: avail,
     x: { c: r3(inp.c), l: r3(inp.l), X: r3(inp.X), mExp: r3(inp.mExp), mIdeas: r3(inp.mIdeas) },
