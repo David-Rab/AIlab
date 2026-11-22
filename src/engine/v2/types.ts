@@ -454,8 +454,12 @@ export type RunKind = 'base' | 'post' | 'continue' | 'distill';
 export interface RunRecipe {
   /** Pretraining recipe efficiency e_pre at the run's FLOP (OOM; base, continue). */
   pre?: number;
-  /** The data the base draws from the portfolio at launch (model v3 D3 / D11; base, continue). */
+  /** The data the base draws from the portfolio at launch (model v3 D3 / D11; base, continue). A continue run's draw is
+   *  cumulative: its parent's tokens plus the added ones (added FLOP ÷ 6·N_active), with the parent's mix (RD-T02). */
   draw?: DataDraw;
+  /** Continue run: D_eff of the parent's tokens alone, drawn on the same portfolio at launch (the added part's data is
+   *  the cumulative draw minus this; models/effective.ts continueFData, RD-T02). */
+  prevDEff?: number;
   /** RL stack efficiency and ceiling (OOM); the environment suites' fidelity and exploitability per family (model v3 D5). */
   rlMid?: number;
   rlCeil?: number;

@@ -41,7 +41,7 @@ import { ePreAt, gEquivOf, rlCeilNow, rlMidNow, serveFlopOomOf, serveNow, trainN
 import { stackRate } from './research';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import {
-  continueGPre, daysFor, distillFlop, distillGap, fDataEff, flopOfDesign, gPreOf, rlGains, rlWeights, fptOfDesign,
+  continueFData, continueGPre, daysFor, distillFlop, distillGap, fDataEff, flopOfDesign, gPreOf, rlGains, rlWeights, fptOfDesign,
   servingFlop, type FamilyMap, type GPreParts, type RlGains,
 } from './effective';
 import { internalVersion, uniqueVersionName, versionById } from './labs';
@@ -256,10 +256,17 @@ export function recipeAtLaunch(s: GameStateV2, run: Pick<TrainingRun, 'kind' | '
   if (run.kind === 'base') return run.base ? baseFreezeNow(s, run.base) : {};
   if (run.kind === 'continue') {
     const parent = s.player.models.bases.find((b) => b.id === run.baseId);
-    return parent ? { pre: ePreAt(s, parent.flop + run.flopNeeded), draw: playerDraw(s, parent.design) } : {};
+    return parent ? { pre: ePreAt(s, parent.flop + run.flopNeeded), ...continueDrawNow(s, parent, run.flopNeeded) } : {};
   }
   if (runAct(run.kind) === 'rl') return postRecipeNow(s);
   return {}; // a student learns from its teacher's outputs: nothing to freeze
+}
+/** A continue run's data at launch (RD-T02, TRN-07): its added tokens (added FLOP ÷ 6·N_active) drawn from the portfolio
+ *  on top of the parent's, with the parent's mix, through the same draw as a new base. The draw is cumulative (each
+ *  slice's epochs count the parent's use too); `prevDEff` is the parent's tokens alone on the same portfolio. */
+export function continueDrawNow(s: GameStateV2, parent: BaseModel, addFlop: number): { draw: DataDraw; prevDEff: number } {
+  const add = Math.max(0, addFlop) / (6 * parent.params);
+  return { draw: playerDraw(s, parent.design, parent.tokens + add), prevDEff: playerDraw(s, parent.design, parent.tokens).dEff };
 }
 /** Fill the fields a run's snapshot lacks with today's values, keeping those it has (and their key order): the start
  *  run R0 at newGame (its RL recipe is its launch day's) and runs in flight in a rev-44 save (migration 44 → 45). */
@@ -384,6 +391,9 @@ interface Pretrained {
   sD: Off;
   fpt: number;
   monitorability: number;
+  /** Continued base (RD-T02): epochs of the most-repeated slice of the cumulative draw and the added part's data factor. */
+  epochs?: number;
+  fAdd?: number;
   /** New base: its design's signals and pretraining parts (readouts). */
   signals?: ReturnType<typeof baseSignals>;
   bg?: ReturnType<typeof baseG>;
@@ -406,14 +416,21 @@ function pretrain(s: GameStateV2, src: PretrainSource, rec?: RunRecipe): Pretrai
   }
   if (src.from === 'continue') {
     // Effective compute adds (continueGPre): only the added part embodies the pretraining stack at the new size.
+    // RD-T02: the added tokens come from the portfolio (the launch snapshot's cumulative draw), so their repetition and
+    // quality scale the added part's effective compute (a snapshot without prevDEff, a hand-built run: reference data).
     const b = src.parent;
     const flop = b.flop + src.addFlop;
-    const gPre = continueGPre(b.gPre, src.addFlop, E_START + (rec ? rec.pre! : ePreAt(s, flop)), b.design.shape);
-    // Physical part grows by the added FLOP; the recipe efficiency is what remains (a stream re-applies today's).
+    const addTokens = src.addFlop / (6 * b.params);
+    const cd = rec?.draw ? { draw: rec.draw, prevDEff: rec.prevDEff } : continueDrawNow(s, b, src.addFlop);
+    const fAdd = cd.prevDEff === undefined ? 1 : continueFData(b.params, b.tokens, addTokens, cd.draw.dEff, cd.prevDEff);
+    const gPre = continueGPre(b.gPre, src.addFlop, E_START + (rec ? rec.pre! : ePreAt(s, flop)), b.design.shape, fAdd);
+    // Physical part grows by the added FLOP; the recipe efficiency is what remains (a stream re-applies today's; it now
+    // also carries the added part's data factor).
     const ePre = gPre - (b.gPre - b.ePre) - Math.log10(flop / b.flop);
     return {
-      flopNeeded: src.addFlop, cash: 0, scale: scaleOf(s, src.addFlop), flop, params: b.params, tokens: b.tokens + src.addFlop / (6 * b.params),
+      flopNeeded: src.addFlop, cash: 0, scale: scaleOf(s, src.addFlop), flop, params: b.params, tokens: b.tokens + addTokens,
       gPre, ePre, sD: b.sD ?? {}, fpt: b.fpt, monitorability: b.monitorability ?? 1,
+      ...(cd.prevDEff !== undefined ? { epochs: cd.draw.epochs, fAdd } : {}),
     };
   }
   const { teacher: t, nT, nS, tokens } = src;
@@ -687,7 +704,7 @@ function completePretrain(s: GameStateV2, ctx: SystemCtx, run: TrainingRun, rec:
     const parent = src.parent;
     b = {
       ...parent, id: `B${nb}`, name: `${parent.name}c`, day: s.time.day, startDay: run.startDay, flop: pre.flop, tokens: pre.tokens,
-      gPre: pre.gPre, ePre: pre.ePre, parentBaseId: parent.id,
+      gPre: pre.gPre, ePre: pre.ePre, parentBaseId: parent.id, ...(pre.epochs !== undefined ? { epochs: pre.epochs } : {}),
       traitsTrue: { ...parent.traitsTrue }, uModes: [...parent.uModes], sD: { ...pre.sD }, signals: { ...(parent.signals ?? {}) },
     };
   }

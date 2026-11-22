@@ -268,10 +268,11 @@ function drawWith(p: DataPortfolio, tokens: number, target: MixTarget, opts: { w
  *  the loss law (model v3 D11), so only a mix better or worse than 2025's moves G. */
 export const Q_REF: number = drawWith(startPortfolio(), REFERENCE_BASE.params * REFERENCE_BASE.tpp, BASE_DATA.balanced, {}, 1).quality;
 
-/** The player's draw for a base design (its data option as the mix target; adopted data efficiency as the tokens' worth). */
-export function playerDraw(s: GameStateV2, d: BaseDesign): DataDraw {
+/** The player's draw for a base design (its data option as the mix target; adopted data efficiency as the tokens' worth);
+ *  `tokens` defaults to the design's (a continue run draws its parent's plus its added tokens, RD-T02). */
+export function playerDraw(s: GameStateV2, d: BaseDesign, tokens: number = d.params * d.tpp): DataDraw {
   const t = BASE_DATA[d.data] ?? BASE_DATA.balanced;
-  return drawData(s.player.dataPortfolio, d.params * d.tpp, t, { worth: tokenWorth(s) });
+  return drawData(s.player.dataPortfolio, tokens, t, { worth: tokenWorth(s) });
 }
 
 /** Public-web tokens the lab trains on without a licence (copyright litigation, actors/china.ts; data.license 'web'). */

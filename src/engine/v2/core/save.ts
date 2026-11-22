@@ -10,7 +10,7 @@ import { toolsFromFeatures } from '../../../data/v2/features';
 import { divisionOf } from '../finance/parent';
 import { privateRivals, sectorValue, seedLabRevenue } from '../finance/story';
 import { FIN } from '../actors/rivals';
-import { fillRecipe } from '../models/runs';
+import { continueDrawNow, fillRecipe } from '../models/runs';
 import { domainsOf, gOfLevel, refreshLevels } from '../models/capability';
 import { addIdea } from '../models/stacks';
 import { keepUnlockedSuite, unbuiltSuiteFamilies } from '../models/suites';
@@ -68,8 +68,10 @@ import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
  *  56 (RD-A05b, DD-19): the spare-training and spare-serving policies are gone (idle compute stays idle); the explicit
  *  auto-split policy replaces them. Migration 55 → 56 drops the two policies and adds autoSplit off.
  *  58 (RD-T01a, DD-06): an IDA run is an RL (post) run with the teacher as grader (TrainingRun.grader), no longer
- *  recognised by its name. Migration 57 → 58 sets grader 'teacher' on post runs named "IDA …". */
-export const SCHEMA_REV = 58;
+ *  recognised by its name. Migration 57 → 58 sets grader 'teacher' on post runs named "IDA …".
+ *  59 (RD-T02, TRN-07): a continue run draws its added tokens from the portfolio (RunRecipe.draw cumulative, prevDEff).
+ *  Migration 58 → 59 redraws in-flight continue runs on the save's day (their launch portfolio is gone). */
+export const SCHEMA_REV = 59;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -522,6 +524,16 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   /** 57 → 58 (RD-T01a): the IDA run kind from its name ("IDA n", the only way it was recognised). Idempotent. */
   57: (raw) => {
     for (const r of (raw as unknown as GameStateV2).player?.models?.runs ?? []) if (r.kind === 'post' && /^IDA\b/.test(r.name ?? '')) r.grader = 'teacher';
+  },
+  /** 58 → 59 (RD-T02): in-flight continue runs draw their added tokens on the save's day. Idempotent (skips a run that
+   *  has prevDEff). */
+  58: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    for (const r of s.player?.models?.runs ?? []) {
+      if (r.kind !== 'continue' || (r.status !== 'running' && r.status !== 'paused') || r.recipe?.prevDEff !== undefined) continue;
+      const parent = s.player.models.bases.find((b) => b.id === r.baseId);
+      if (parent) Object.assign((r.recipe ??= {}), continueDrawNow(s, parent, r.flopNeeded));
+    }
   },
 };
 
