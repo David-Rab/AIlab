@@ -582,13 +582,6 @@ export function optionLocked(s: GameStateV2, slot: OptionSlot, value: string | b
   return nodeKnown(s, id) ? undefined : `Needs ${n.name} (Research)`;
 }
 
-/** How much a node's effect pays off now (0..1): P20 with the agent pool (2M H100e); 1 for every other node. RD-E01a
- *  removed P13's and P24's payoffs; P20's goes with RD-E01b (a typed AI-labour effect), and this function with it. */
-export function payoffOf(s: GameStateV2, id: string): number {
-  const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
-  if (id === 'P20') return clamp01((s.player.computeOnline * s.player.split.agents) / 2e6);
-  return 1;
-}
 
 /** Counts for the tree header: known ideas of all ideas. */
 export function treeCounts(s: GameStateV2): { known: number; total: number } {

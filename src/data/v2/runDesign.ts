@@ -201,5 +201,11 @@ export const RL_FAMILIES: Record<RLFamily, { v: Off; taskH?: number; h80Mult?: n
   bio: { v: { BIO: 1.6 } },
 };
 export const RL_FAMILY_IDS = Object.keys(RL_FAMILIES) as RLFamily[];
+/** RD-E01b (DD-14): Long context + memory (P07) multiplies the long-tasks family's horizon multiplier (h80Mult 2 above)
+ *  of post-trains launched after its adoption (the run freezes the flag, PostRecipe.p07): ×1.2 [D] (was ×1.2 on every
+ *  post-train's horizon). research/12 #7 proposed ×1.5 [G, no primary source]; CL-Bench 2026 finds dedicated memory
+ *  systems not yet beating in-context learning [P, research/12 §2], so a smaller multi-day-continuity effect, and on
+ *  the RL family that trains week-long episodes (memory carries state across them), not on every run. */
+export const P07_LONG_TASKS_HORIZON = 1.2;
 
 export const SIGNAL_IDS: SignalId[] = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9'];

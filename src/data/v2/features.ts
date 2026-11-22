@@ -145,6 +145,16 @@ export const FEATURES: FeatureDef[] = [
     effect: 'Task enabler: sector products; a certified sector pack adds +0.42 OOM of fit in that sector (each pack: $0.4B, 120 days)',
     fx: [{ kind: 'enabler', packs: true, share: 0 }] },
 ];
+/** RD-E01b (DD-14): Multi-agent orchestration (P05), once adopted, is a scaffold on the lab's internal agents in
+ *  capabilities engineering and research (SWE, EXP, IDEAS; not the safety package) — a lead agent planning and checking
+ *  parallel subagents — through the same typed effect as a feature's (worldfx/serving.ts internalFx). Tokens ×3.75: a
+ *  multi-agent system uses ~15× the tokens of a chat, a single agent ~4× [P Anthropic, research/12 §3], so ~3.75× the
+ *  single-agent profile per work-hour. ΔG +0.26 OOM [D], set so that at the reference fit (coverage 0.5, the fit at
+ *  θ_w) with AI labour not the bottleneck (the regime the game runs in: AI team-equivalents ≫ humans) the slot's
+ *  effective labour is ×1.3, today's "agent research throughput ×1.3": with ρc = −2, L ∝ (1 − a)^−1.5, so ×1.3 needs
+ *  a: 0.5 → 0.580, logit +0.324 × COVER.s 0.8 = 0.26. Anthropic's +90% on internal research evals [P] is a larger gain
+ *  on an easier, parallel task (breadth-first search). The deep-think effort stays the node's option unlock. */
+export const P05_ORCHESTRATION: FeatureFx = { kind: 'scaffold', dG: 0.26, tokens: 3.75, work: ['SWE', 'EXP', 'IDEAS'] };
 export const FEATURE_BY_ID = Object.fromEntries(FEATURES.map((f) => [f.id, f])) as Record<FeatureId, FeatureDef>;
 /** The frontier-leader start's built features (D5 baseline). */
 export const LEADER_FEATURES: FeatureId[] = FEATURES.filter((f) => f.leader).map((f) => f.id);

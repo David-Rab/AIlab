@@ -21,7 +21,7 @@ import {
   AGENT_WORK, CHAT_WORK, CHINA_MARKUP, CONSUMER_MKT, CONTROL_LAYER_DG, consumerPlanPrice, EFFORT_CAP_OOM, EFFORT_OOM_PER_10X, EFFORT_TOKENS, FREE_TIER, LINEUP, MARKUP, RIVAL_MARKUP,
   SAFEGUARD_DG, SEATS, SECTOR_REF, SECTOR_WORK, TOKENS, type TokenProfile,
 } from '../../../data/v2/serving';
-import { CHANNEL_PRICE, FEATURE_BY_ID, MINI_CHANNELS, type FeatureFx, type FeatureId, type WorkScope } from '../../../data/v2/features';
+import { CHANNEL_PRICE, FEATURE_BY_ID, MINI_CHANNELS, P05_ORCHESTRATION, type FeatureFx, type FeatureId, type WorkScope } from '../../../data/v2/features';
 import { ECON, REGION_SCALE, SECTORS } from '../../../data/v2/sectors';
 import { DISTILL, REFERENCE_BASE, PARAM_RANGE } from '../../../data/v2/runDesign';
 import { ASSIST, COVER, H50_PER_OOM, H80_OVER_H50, PEAK_FLOPS, TOK_MIN, TOK_PER_RL_OOM, U_DECODE, U_PREFILL, type WorkTypeId } from '../../../data/v2/workTypes';
@@ -30,6 +30,7 @@ import { gV0, h50Of } from '../models/capability';
 import { fptOfSimpleModel } from '../actors/rivalModel';
 import { versionById } from '../models/labs';
 import { activeFeatures, packCertified } from '../models/products';
+import { adopted } from '../models/paradigms';
 import { decodeUtilNow, rlGOfBuild } from '../models/stacks';
 import { savedAt, seatHoursPerMonth } from './use';
 import type { Deployment, DomainId, GameStateV2, ModelVersion, RegionId, SectorId, SimpleModel, TimelineWorld } from '../types';
@@ -165,13 +166,15 @@ export function fxOn(fx: FeatureFx[], wt: SectorId | WorkTypeId | 'CHAT'): WorkF
 /** Typed effects of the features a product has switched on. */
 export const productFx = (s: GameStateV2, d: Deployment): FeatureFx[] => activeFeatures(s, d).flatMap((f) => f.fx);
 /** Typed effects the lab's built features give its internal agents on an internal work type (V4.3: "effects apply to
- *  both products and internal packages"): scaffolds and horizon extenders that list the work type (or all work). */
+ *  both products and internal packages"): scaffolds and horizon extenders that list the work type (or all work), and
+ *  adopted Multi-agent orchestration's scaffold (P05, RD-E01b: data/v2/features.ts P05_ORCHESTRATION). */
 export function internalFx(s: GameStateV2, wt: WorkTypeId): WorkFx {
   const fx: FeatureFx[] = [];
   for (const id of s.player.features) {
     const f = FEATURE_BY_ID[id as FeatureId];
     if (f) fx.push(...f.fx);
   }
+  if (adopted(s, 'P05')) fx.push(P05_ORCHESTRATION);
   return fxOn(fx, wt);
 }
 /** Segment a product's enablers open (share of the market's AI work only products with it can reach): per sector and for

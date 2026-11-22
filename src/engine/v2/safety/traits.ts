@@ -203,12 +203,11 @@ export const COT_S4: Record<PostDesign['cot'], number> = { visible: 0, pressured
 const START_FAMS = RL_FAMILY_IDS.filter((f) => !RL_FAMILY_NEEDS[f]);
 export const K_S3 = 0.75 / START_FAMS.reduce((a, f) => a + taskTerm(f) / START_FAMS.length, 0);
 
-/** S8 from deployment (§3.5.4): min(1, internal copies / 300k) + 0.2·[P05]; P20 (agent societies) sets S8 = 1. */
+/** S8 from deployment (§3.5.4): min(1, internal copies / 300k) + 0.2·[P05] (RD-E01b: P20 deleted; the copies count
+ *  carries agent societies). */
 export function deploymentS8(s: GameStateV2): number {
   const copies = s.player.prodCache?.labor.copies ?? 0;
-  let s8 = Math.min(1, copies / 3e5) + (adopted(s, 'P05') ? 0.2 : 0);
-  if (adopted(s, 'P20')) s8 = Math.max(s8, 1);
-  return s8;
+  return Math.min(1, copies / 3e5) + (adopted(s, 'P05') ? 0.2 : 0);
 }
 
 // ── base runs: S5 from scale and AI-related data, S6 from synthetic data ──

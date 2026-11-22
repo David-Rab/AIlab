@@ -105,7 +105,7 @@ export function postPressure(s: GameStateV2, post: PostDesign, rho: number, expl
     { id: 'S5', value: S5_LONG * (w.longHorizon ?? 0), q: { longShare: w.longHorizon ?? 0, k: S5_LONG } },
     { id: 'S6', value: S6_NARROW_HARMFUL, q: {} }, // AF2: no narrow harmful fine-tune in any run kind
     { id: 'S7', value: S7_BASE + s7OfRl(rho) + S7_EVAL_ENV * (w.mlResearch ?? 0) + S7_PER_BB * bb, q: { base: S7_BASE, rl: s7OfRl(rho), mlShare: w.mlResearch ?? 0, kMl: S7_EVAL_ENV, bb, kBb: S7_PER_BB, rho, rhoRef: RHO_REF } },
-    { id: 'S8', value: s8 ?? deploymentS8(s), q: { copies, p05: adopted(s, 'P05'), p20: adopted(s, 'P20'), applied: s8 !== undefined } },
+    { id: 'S8', value: s8 ?? deploymentS8(s), q: { copies, p05: adopted(s, 'P05'), applied: s8 !== undefined } },
     // E17: oversight-conditional reward (→ alignment faking), split from S7.
     { id: 'S9', value: s9OfDetectors(bb), q: { bb, kBb: S9_PER_BB } },
   ];

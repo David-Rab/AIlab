@@ -108,7 +108,7 @@ export const EFFORT_TM: Record<EffortClass, number> = { S: 3, M: 8, L: 25, XL: 5
  *  31 team-months at M ≈ 1.8 with ~13 teams), written out in RD-C05; RD-R07: capability projects × IDEA_WORK_PER_E 1.2,
  *  the whole stage work (P27 is not a staged project: its rolled team-months). */
 const V2_PARADIGM_EFFORT_TM: Record<string, number> = {
-  P06: 21.6, P09: 28.8, P10: 28.8, P11: 43.2, P12: 43.2, P14: 28.8, P15: 28.8, P16: 21.6, P18: 28.8, P20: 21.6, P21: 50.4,
+  P06: 21.6, P09: 28.8, P10: 28.8, P11: 43.2, P12: 43.2, P14: 28.8, P15: 28.8, P16: 21.6, P18: 28.8, P21: 50.4,
   P22: 43.2, P23: 28.8, P24: 28.8, P25: 36, P27: 24,
 };
 /** RefBot's projects, fitted (model v3 V2) so each successful attempt through the research lifecycle lasts as long as
@@ -190,14 +190,13 @@ export const TREE: TreeNodeDef[] = [
   STAR('quantization', 'Quantization', 'systems', 'scaffold', {}, { cap: 'Part of the reference serving cost every lab has (2025 practice)' }),
   STAR('specDecoding', 'Speculative decoding', 'systems', 'scaffold', {}, { cap: 'Part of the reference serving cost every lab has (2025 practice)' }),
   LINE('L.infer', 'Inference efficiency', 'systems', [], { stack: 'serve', mean: 0.05, rShare: 0.15 }, { cap: 'Serving efficiency (OOM): first decode utilisation 0.07 → 0.15 for every model served (speculative decoding, batching, kernels), then less FLOP per token for versions trained after it' }),
-  P('P05', 'Multi-agent orchestration', 'systems', 'scaffold', ['P03'], 'M', { cap: 1, saf: -1 }, { options: [['effort', 'deep']], cap: 'Deep-think effort; agent research throughput ×1.3', saf: 'Many-copies pressure +', cost: 'Tokens ×4 for deep think' }),
-  P('P07', 'Long context + memory', 'systems', 'scaffold', [], 'M', { cap: 1, saf: -1 }, { cap: 'Time horizon ×1.2 (horizon extender) [D]; memory', saf: 'Memory → successor-risk pressure' }),
+  P('P05', 'Multi-agent orchestration', 'systems', 'scaffold', ['P03'], 'M', { cap: 1, saf: -1 }, { options: [['effort', 'deep']], cap: 'Deep-think effort; scaffold for internal engineering and research agents: +0.26 OOM of fit at ×3.75 tokens', saf: 'Many-copies pressure +', cost: 'Tokens ×4 for deep think' }),
+  P('P07', 'Long context + memory', 'systems', 'scaffold', [], 'M', { cap: 1, saf: -1 }, { cap: 'Long-tasks RL horizon ×1.2 on post-trains launched after adoption [D]; memory', saf: 'Memory → successor-risk pressure' }),
   // RD-E01a (DD-14): P13 (automated AI research agents) is gone, AI labour in the experiment slot already models research
   // agents; P19 (learned research taste) is gone with the RSCH taste penalty it undid. Their dependants (P15, P16, P21,
   // P24, aar) need P13's own prerequisite, RL focus: ML research.
   P('P16', 'AI kernels / HW co-design', 'systems', 'lab', ['rl.mlResearch'], 'M', { cap: 1 }, { kind: 'idea', effect: { stack: 'train', mean: 0.06, sd: 0.3, also: { serve: 0.125 / 0.06 } }, cap: 'Training throughput +0.06 OOM (×1.15); serving efficiency +0.125 OOM' }),
   P('P15', 'AI-assisted oversight', 'systems', 'lab', ['rl.mlResearch'], 'M', { saf: 1 }, { saf: 'Safety agents share suite hardening: cheaper red-teaming, a deeper cut', cost: 'Collusion when the critic shares the trained model’s lineage', payoff: 'Pays off with safety work handed to AI' }),
-  P('P20', 'Massive agent societies', 'systems', 'lab', ['P05'], 'M', { cap: 1, saf: -2 }, { cap: 'Agent research throughput up to ×1.1', saf: 'Many-copies pressure max; collusion', payoff: 'Pays off with ≥ 2M H100e of agents' }),
   P('P22', 'Robotics foundation', 'systems', 'backbone', ['multimodal'], 'L', { cap: 1, saf: -1 }, { kind: 'idea', effect: { mean: 1, sd: 0.4, domains: { PHYS: 1.65 } }, cap: 'PHYS +1.65 OOM for new versions; robotics progress', saf: 'Physical reach' }),
   P('P25', 'Formal verification at scale', 'systems', 'lab', ['P11'], 'L', { saf: 1 }, { saf: 'Weight security: defence +0.5 level against theft' }),
 
