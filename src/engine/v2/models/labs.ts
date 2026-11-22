@@ -4,8 +4,7 @@
 // Production for any lab: `computeProduction(s, lab)` / `labInputs` / `evalProduction` (production/production.ts).
 // The WS1 production system (order 30) advances every active lab's research: the player's projects, the other labs'
 // aggregate recipe (model v3 F1, actors/rivalModel.ts). Non-player labs carry SimpleModel versions on a physical base;
-// until WS4 sets `RivalLab.managed`, WS1's continual system applies a default policy (split tracks shareRef(t), the base
-// run trains, the continual learner refreshes).
+// WS4's labDaily (actors/rivals.ts) is their one daily policy (split, staff, base run, continual learner, releases).
 import type { GameStateV2, LabCore, LabId, ModelVersion, RivalLab } from '../types';
 
 export const PLAYER_ID: LabId = 'player';

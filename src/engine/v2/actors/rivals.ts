@@ -333,10 +333,8 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   const rng = ctx.rng(r.core.kind === 'china' ? 'china' : 'rivals');
   const arch = r.archetype;
 
-  // WS4 manages this lab (WS1's default policy is off): compute split and staff through WS1's lab API; its base run
-  // trains on its training pool (model v3 F1, rivalModel.ts); model identity, traits and releases follow WS4's cadence
-  // below.
-  r.managed = true;
+  // The lab's one daily policy (RD-B14): compute split and staff through WS1's lab API; its base run trains on its
+  // training pool (model v3 F1, rivalModel.ts); model identity, traits and releases follow WS4's cadence below.
   // The leader lab runs at the reference compute path (no chip orders, BUILD-PLAN R2): set today for tomorrow's
   // production readout, which reads the inputs as of today (production uses day − 1).
   if (id === LEADER_ID) r.core.computeOnline = refTotal(s.hidden.timeline, decimalYear(s));

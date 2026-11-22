@@ -10,8 +10,7 @@
 //  - Fractions: world.control[*].P and sector A/alpha are 0..1 (research/16 uses %).
 // WS1 M1 additions (additive; optional fields unless noted, so no SCHEMA_REV bump):
 //  - ModelVersion.build (VersionBuild) and ModelVersion.appeal; BaseModel.startDay/dp/off/serve/monitorability/
-//    signals/parentBaseId; TrainingRun.holdUntil/signals;
-//    RivalLab.managed.
+//    signals/parentBaseId; TrainingRun.holdUntil/signals.
 //  - ProductionReadout gains required `whatIf` and `sdAI` (only WS1 constructs readouts).
 //  - Capability: a model's general effective compute G (OOM); its display level is λ(G) (models/capability.ts levelOfG,
 //    one map for every lab; model v3 F3 retired the progress coordinate pm).
@@ -1814,9 +1813,6 @@ export interface RivalLab {
   meters: { poachAggression: number; cooperation: number; lobbyStance: number; openness: number };
   pressure: number; // race pressure 0..1 (research/17 §1.6.5)
   pressureDays: number;
-  /** Set by WS4 once it runs this lab's models and compute split itself. While unset, WS1 applies a default policy
-   *  (internal model tracks the lab's frontier; split tracks shareRef(t)). */
-  managed?: boolean;
 }
 
 export interface RivalIntel {

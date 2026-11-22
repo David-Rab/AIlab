@@ -11,6 +11,7 @@
 //   INFO the leader lab's G path (passive player, ai2027) vs research/12's frontier anchors
 //   R8  (F2) a follower's start base is stale by its own day-0 recipe growth (the leader lab: the reference rates, B0 itself)
 //   R9  (F2) the lead before the level history reaches back: the start gap at the pre-game frontier rate + days since
+//   R10 (RD-B14) one lab policy a day: on day 1 every rival's and China's staff grows by one hRef step
 //   INFO (F2, `--ref`) the recipe law at RefBot's own inputs vs RefBot's stack growth, days 600–860
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -40,6 +41,7 @@ import { linePool } from '../../src/engine/v2/models/research';
 import { TREE_BY_ID } from '../../src/data/v2/tree';
 import { poolsOf } from '../../src/engine/v2/compute/power';
 import { referenceRate } from '../../src/engine/v2/world/calibration';
+import { hRef } from '../../src/engine/v2/production/ces';
 
 const mk = (seed = 2027, leaderLab = true): GameStateV2 => newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed, tutorial: false, leaderLab }));
 const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
@@ -230,6 +232,21 @@ const near = (a: number, b: number, tol = 1e-9) => Math.abs(a - b) <= tol * Math
   // China's versions still add a little (the RL share of its recipe growth, fed by the know-how leaks), so the lead
   // grows at most a day a day and does not jump (v2's fallback read 390–450 d in days 30–60).
   check(Math.abs(l0 - gap0 - 1) <= 2 && at.every((x, i) => x <= 30 * (i + 1) + 1 && x >= -30), 'R9 in the first weeks China\'s lead is its start gap at the pre-game frontier rate plus at most the days since', `day 1 ${l0.toFixed(0)} d (gap ${gap0.toFixed(0)} d); +${at.map((x) => x.toFixed(0)).join(', +')} d at days 30, 60`);
+}
+
+// ───────── R10 (RD-B14): one lab policy a day ─────────
+{
+  // Every rival and China runs exactly one daily policy (labDaily); the old WS1 default policy also ran on day 1 and
+  // grew staff twice (ratio = one hRef step squared, design/RD-AUDIT/measures.md MEA-21).
+  const s = mk();
+  const labs = [...s.rivals, s.china.lab];
+  const st0 = labs.map((r) => r.core.staff.cap);
+  const y0 = decimalYear(s);
+  tick(s, { skip: ['endings'] });
+  const step = hRef(decimalYear(s)) / hRef(y0);
+  const ratios = labs.map((r, i) => r.core.staff.cap / st0[i]);
+  check(ratios.every((x) => near(x, step, 1e-9)), 'R10 day 1: every rival\'s and China\'s staff grows by one hRef step (one lab policy a day, not two)',
+    `step ${step.toFixed(8)}; ${labs.map((r, i) => `${r.core.id} ${ratios[i].toFixed(8)}`).join(', ')}`);
 }
 
 // ───────── INFO (F2, `--ref`): the rivals' recipe law at the reference lab's own inputs ─────────
