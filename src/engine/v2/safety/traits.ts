@@ -270,6 +270,11 @@ export function baseSignals(design: BaseDesign, q: BaseQuantities): Signals {
 export function baseQuantitiesOf(s: GameStateV2, design: BaseDesign, gPre: number): BaseQuantities {
   return { gPre, draw: playerDraw(s, design) };
 }
+/** A base or continue run's quantities: its G and the draw it froze at launch (RD-B02). A run-like without a snapshot is
+ *  a launch preview, so today's draw is the one it would freeze. */
+export function runBaseQuantities(s: GameStateV2, run: Pick<TrainingRun, 'recipe'>, design: BaseDesign, gPre: number): BaseQuantities {
+  return run.recipe?.draw ? { gPre, draw: run.recipe.draw } : baseQuantitiesOf(s, design, gPre);
+}
 
 // ── post-training runs ──
 
@@ -343,13 +348,14 @@ export function runRho(s: GameStateV2, run: Pick<TrainingRun, 'kind' | 'name' | 
 }
 
 /** Signals a run applies (WS1's RunPrediction.signals ▲ arrows, the version's readout and applyRunToTraits). `q` = a
- *  base run's G and draw when the caller has them (planRun, completion); else today's draw at the newest base's G. */
+ *  base run's G and draw when the caller has them (planRun, completion); else the run's frozen draw (RD-B02), or today's
+ *  for a launch preview, at its base's or the newest base's G. */
 export function runSignals(s: GameStateV2, run: TrainingRun, q?: BaseQuantities): Signals {
   if (run.kind === 'base' || run.kind === 'continue') {
     const parent = run.baseId ? s.player.models.bases.find((b) => b.id === run.baseId) : undefined;
     const design = run.base ?? parent?.design;
     if (!design) return zeroSignals();
-    return baseSignals(design, q ?? baseQuantitiesOf(s, design, parent?.gPre ?? Math.max(...s.player.models.bases.map((b) => b.gPre))));
+    return baseSignals(design, q ?? runBaseQuantities(s, run, design, parent?.gPre ?? Math.max(...s.player.models.bases.map((b) => b.gPre))));
   }
   if (run.kind === 'distill') return distillSignals();
   if (run.post) return postSignals(s, run.post, run.recipe?.exploit, { rho: runRho(s, run) });
@@ -687,6 +693,11 @@ export const LAB_PATCH = 'ws2.patch.lab.';
 function memoryOn(s: GameStateV2) {
   return adopted(s, 'P07') || adopted(s, 'P08');
 }
+/** Persistent memory of a model a run trains: P07 as the run froze it at launch (RD-B02; today's for a preview), P08
+ *  (continual learning, a deployment mode) today. */
+export function runMemoryOn(s: GameStateV2, run?: Pick<TrainingRun, 'recipe'>) {
+  return (run?.recipe?.p07 ?? adopted(s, 'P07')) || adopted(s, 'P08');
+}
 
 /** Understanding-gap amplification (M4, §1.2 T1) [D]: while capability outruns understanding (L > U), behaviour the
  *  safety stack can no longer see is reinforced instead of caught, so trait growth rises by GAP_GROWTH_K per level of
@@ -748,14 +759,14 @@ const W_BAR: Record<string, number> = Object.fromEntries(EDGES.map((e) => [e.id,
 
 /** Predicted beliefs for a new version: the parent's beliefs pushed through the graph with the PUBLIC w̄ (or the
  *  revealed weight) and D = 1, sd widened by the size of the predicted change. Visible, never reads truth. */
-export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelief>, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, omegaSafety = omega, growthBy?: Partial<Record<TraitId, number>>, lh = 0, gTrained?: number, pretrain = false): Record<TraitId, TraitBelief> {
+export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelief>, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, omegaSafety = omega, growthBy?: Partial<Record<TraitId, number>>, lh = 0, gTrained?: number, pretrain = false, memory = memoryOn(s)): Record<TraitId, TraitBelief> {
   const est = {} as TraitVector;
   for (const t of TRAIT_IDS) est[t] = prior[t]?.est ?? TRAIT_START[t];
   const w: Record<string, number> = { ...W_BAR };
   for (const e of EDGES) if (s.player.safety.edgeRevealed[e.id]) w[e.id] = s.hidden.edgeWeights[e.id];
   const env: TraitEnv = {
     signals: sg, omega, omegaSafety, D: 1, w, mods: playerMods(s, post, lineage), amp: {}, removal: post ? safetyRemovalMap(est, SAFETY_REMOVAL[post.safety], eaCoef(s), eaSuppression(s)) : {},
-    removalMult: 1, crystalAt: 0.5, tierF: tierOfLevel(labLevel(s)) / 3, memory: memoryOn(s), growthMult: 1,
+    removalMult: 1, crystalAt: 0.5, tierF: tierOfLevel(labLevel(s)) / 3, memory, growthMult: 1,
     bracket: { constitution: post?.pref === 'constitution', heavy: post?.safety === 'heavy', persuasion: post?.pref === 'persuasion', cast: inRun(s, post, 'T-CAST') },
     eaMult: post?.safety === 'heavy' && s.flags[`ws2.e25.${lineage}`] === undefined ? ANTISCHEME_EA_MULT : 1,
     // E16: the run's learned hacking is the player's own quantity (its suites' exploitability, RL shares and budget).
@@ -962,8 +973,9 @@ export function applySuccessorPull(s: GameStateV2, x0: TraitVector, pull: Succes
 export function applyBaseToLineage(s: GameStateV2, ctx: SystemCtx, run: TrainingRun, base: BaseModel): void {
   const design = run.base ?? base.design;
   const tier = tierOfLevel(labLevel(s));
-  // Model v3 E3: the base's signals from its G and the data it drew (the same draw completeRun just built it from).
-  const q = baseQuantitiesOf(s, design, base.gPre);
+  // Model v3 E3: the base's signals from its G and the data it drew (RD-B02: the draw frozen at launch, which completeRun
+  // just built it from).
+  const q = runBaseQuantities(s, run, design, base.gPre);
   const sg = baseSignals(design, q);
   base.signals = { ...sg };
   if (run.kind === 'continue') {
@@ -1097,6 +1109,7 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
   const sgTrue = steerS4(s) > 0 ? { ...sg, S4: clamp01(sg.S4 + steerS4(s)) } : sg;
   const env = playerEnv(s, x0, sgTrue, om.growth, post, lineage, uModes, probe);
   env.omegaSafety = om.safety;
+  env.memory = runMemoryOn(s, run); // RD-B02: P07 as frozen at launch
   // E16: learned hacking from the run's frozen suites, RL shares and ρ.
   const lh = runHack(s, { ...run, post }).lambda;
   env.lh = lh;
@@ -1116,7 +1129,7 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
       mk.COT = clamp01(1 - (1 - (mk.COT ?? 0)) * 0.7);
     }
   }
-  version.beliefs = predictBeliefs(s, parent?.beliefs ?? defaultBeliefs(s), sg, om.growth, post, lineage, om.safety, steerGrowth(probeSteer(s, probe, true)), lh, predictedG(s, run));
+  version.beliefs = predictBeliefs(s, parent?.beliefs ?? defaultBeliefs(s), sg, om.growth, post, lineage, om.safety, steerGrowth(probeSteer(s, probe, true)), lh, predictedG(s, run), false, env.memory);
   // P14 Goodhart: steering along the probes' directions masks the steered traits from the WB family (E24's masks).
   probeGoodhart(version, steer);
   // Goodhart: detectors explicitly trained against in this run (§3.5.6). P23: a faithful-CoT run's COT masks resist.
@@ -1150,11 +1163,12 @@ export function applyStreamDay(s: GameStateV2, v: ModelVersion): void {
 
 /** IDA cycle (P18): ω = 0.4 × (ρ/ρ_ref)^¼ on its extra RL (IDA_RL_SHARE), then misalignment compounds × 1.1 (§3.5.4
  *  run-type table). */
-export function applyIdaCycle(s: GameStateV2, v: ModelVersion): void {
+export function applyIdaCycle(s: GameStateV2, v: ModelVersion, run?: Pick<TrainingRun, 'recipe'>): void {
   const base = findBase(s, v.baseId);
   const sg = postSignals(s, v.design, undefined, { rho: IDA_RL_SHARE });
   const env = playerEnv(s, v.traitsTrue, sg, OMEGA_KIND.ida * rlMovement(IDA_RL_SHARE), v.design, base?.lineage ?? 'L-unknown', v.uModes, v);
   env.omegaSafety = OMEGA_KIND.ida;
+  env.memory = runMemoryOn(s, run); // RD-B02: P07 as the IDA run froze it
   env.lh = postHack(s, v.design, undefined, { rho: IDA_RL_SHARE }).lambda; // E16
   const x = stepTraits(v.traitsTrue, env);
   for (const t of TRAIT_ORDER) if (t !== 'SA') x[t] = clamp01(x[t] * 1.1);

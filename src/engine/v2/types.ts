@@ -29,6 +29,8 @@
 //  - Units: Day = integer days since startDate. Money = $B. Compute = H100e. Power = GW (facility). Rates per year
 //    unless the name ends in PerDay. Progress `p*` = years of 2024-pace progress (research/11 unit).
 
+import type { DataDraw } from './production/data';
+
 // ───────────────────────────── Ids ─────────────────────────────
 
 export type Day = number;
@@ -437,6 +439,29 @@ export interface EvalRecord {
 
 export type RunKind = 'base' | 'post' | 'continue' | 'distill';
 
+/** A run's launch snapshot (RD-B02, SYNTHESIS theme T). Base: pre, draw, p24. Continue: pre, draw (its base's design on
+ *  the portfolio at launch: the trait hook's S5). Post and IDA: rlMid, rlCeil, fid, exploit, domainG, p07, serveOom.
+ *  Distillation: none (its inputs are the teacher). */
+export interface RunRecipe {
+  /** Pretraining recipe efficiency e_pre at the run's FLOP (OOM; base, continue). */
+  pre?: number;
+  /** The data the base draws from the portfolio at launch (model v3 D3 / D11; base, continue). */
+  draw?: DataDraw;
+  /** P24 AI-designed successor's design bonus on a base (OOM; 0 when not adopted). */
+  p24?: number;
+  /** RL stack efficiency and ceiling (OOM); the environment suites' fidelity and exploitability per family (model v3 D5). */
+  rlMid?: number;
+  rlCeil?: number;
+  fid?: Partial<Record<RLFamily, number>>;
+  exploit?: Partial<Record<RLFamily, number>>;
+  /** Domain effects of adopted ideas (OOM per domain, research.domainG) the version gets. */
+  domainG?: Partial<Record<DomainId, number>>;
+  /** P07 long context + memory adopted at launch: the version's horizon multiplier and persistent memory (E22). */
+  p07?: boolean;
+  /** The serving stack's FLOP part (OOM): the version's serve cost × 10^−serveOom. */
+  serveOom?: number;
+}
+
 export interface TrainingRun {
   id: string;
   kind: RunKind;
@@ -457,9 +482,9 @@ export interface TrainingRun {
   setupId?: string;
   /** Day the setup finished and training began (R5). */
   readyDay?: Day;
-  /** Model v3 V2: the recipe frozen at launch: e_pre at the run's FLOP (base, continue), RL efficiency and ceiling (post, IDA);
-   *  model v3 D5: the environment suites' fidelity and exploitability per family (post). */
-  recipe?: { pre?: number; rlMid?: number; rlCeil?: number; fid?: Partial<Record<RLFamily, number>>; exploit?: Partial<Record<RLFamily, number>> };
+  /** Everything the run's result depends on, frozen at launch (model v3 V2, D5; RD-B02): completion and the WS2 trait hook
+   *  read only this. Absent only on a run-like built for a preview (a launch today). */
+  recipe?: RunRecipe;
   /** Base/continue run scale vs the reference frontier run F(t) at launch (scrutiny only; engineering reads FLOP, S5
    *  reads G). Removed by RD-T11 (SYNTHESIS §6 Phase 6). */
   scale?: number;

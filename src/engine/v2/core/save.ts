@@ -8,6 +8,7 @@ import { partnerDef, PARTNER_TERMS } from '../../../data/v2/deals';
 import { divisionOf } from '../finance/parent';
 import { privateRivals, sectorValue, seedLabRevenue } from '../finance/story';
 import { FIN } from '../actors/rivals';
+import { fillRecipe } from '../models/runs';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev.
  *  Saves below MIN_SCHEMA_REV (33) do not load (designer decision DD-20, RD-C03): v1, v2 and model v3 V1–V3 saves
@@ -29,8 +30,11 @@ import { FIN } from '../actors/rivals';
  *  lab's prodCache (Ddata, parts.base, elast.train / data, ratios.d) are removed. Migration 43 → 44 drops them (the
  *  cache is rebuilt the next day anyway); RD-C02, in the same bump, also drops TimelineWorld.calShift, and RD-C07
  *  the cut paradigm P26 (player.paradigms.P26, hidden.paradigmSuccess.P26) and RD-C04 the unread fields
- *  TimelineWorld.prod.kappa / etaSC, BaseModel.scale and VersionBuild.misuseMult (every lab). */
-export const SCHEMA_REV = 44;
+ *  TimelineWorld.prod.kappa / etaSC, BaseModel.scale and VersionBuild.misuseMult (every lab).
+ *  45 (RD-B02): TrainingRun.recipe is the run's whole launch snapshot (RunRecipe: + the base's DataDraw and P24 bonus, a
+ *  continue run's draw, a post-train's domainG, P07 flag and serving FLOP part); completion and the trait hook read
+ *  only it. Migration 44 → 45 fills what a run in flight lacks from the save's own day (the best available). */
+export const SCHEMA_REV = 45;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -233,6 +237,17 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       delete pc.elast?.train;
       delete pc.elast?.data;
       delete pc.ratios?.d;
+    }
+  },
+  /** 44 → 45 (RD-B02): a run in flight (running or paused) gets the launch-snapshot fields it lacks (a base's draw and P24
+   *  bonus, a continue run's draw, a post-train's domainG, P07 flag and serving FLOP part; R0's suites), computed on the save's day:
+   *  its true launch values are gone, and today's are what completion read until now. Fields it has are kept
+   *  (idempotent). Finished runs are left as they are (nothing reads their snapshot). */
+  44: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    for (const r of s.player?.models?.runs ?? []) {
+      if (r.status !== 'running' && r.status !== 'paused') continue;
+      fillRecipe(s, r);
     }
   },
 };

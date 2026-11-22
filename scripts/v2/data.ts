@@ -21,7 +21,7 @@ import { candidateTruth, completeAdoption, freshCap } from '../../src/engine/v2/
 import { syncParadigm } from '../../src/engine/v2/models/tree';
 import { versionById } from '../../src/engine/v2/models/labs';
 import { freeTierOf } from '../../src/engine/v2/worldfx/serving';
-import { BASE_DATA, REFERENCE_BASE } from '../../src/data/v2/runDesign';
+import { BASE_DATA, REFERENCE_BASE, REFERENCE_POST } from '../../src/data/v2/runDesign';
 import { EXPERT_PRICE_B_PER_T, SUITE_BUILD } from '../../src/data/v2/suites';
 import { actionView } from '../../src/engine/v2';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
@@ -30,7 +30,7 @@ import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
 import { deserialize, serialize } from '../../src/engine/v2/core/save';
 import { gOfBuild, gV0 } from '../../src/engine/v2/models/capability';
 import { effectiveTokens, fDataEff } from '../../src/engine/v2/models/effective';
-import { planRun } from '../../src/engine/v2/models/runs';
+import { launchRun, planRun, runsSystem } from '../../src/engine/v2/models/runs';
 import { familyDomain, suiteWorkCost } from '../../src/engine/v2/models/suites';
 import {
   NATURAL_MIX, Q_REF, REF_SHARE, addAsset, assetQuality, assetTokensT, licenceAsset, playerDraw, deliverData, drawData, expertDomainId, expertStockT, portfolioByKind, portfolioU, publicUse, synTeacher,
@@ -619,6 +619,68 @@ const adoptResult = (s: GameStateV2, id: string) => {
   check(best(now0).id === strong.v.id && now0.every((x, i) => near(x.dG, now1[i].dG, 1e-12)) && capped.length >= late0.length / 2 && best(capped).fpt <= minFpt * (1 + 1e-9) && late1.some((x) => x.q > 1),
     'D9 teacher re-check: below the cap the strongest teacher pays (P10 changes nothing at day 400); at the web\'s cap the smallest teacher wins again; P10 lets quality rank them',
     `day 400: ${fmt(now0)}; teachers +2.5 OOM, no P10: ${fmt(late0)} (best ${best(late0).id}; at the cap ${capped.length} of ${late0.length}, best ${best(capped).id}, smallest ${smallest}); with P10: ${fmt(late1)} (best ${best(late1).id})`);
+}
+
+// ---------- RD-B02: a run's inputs are frozen at launch ----------
+// B02 / B03: data delivered, ideas adopted (P24, P07, domain effects) and stacks grown while a run trains leave its result
+// unchanged; the same changes do move a plan made today (so the check is not vacuous).
+{
+  const finishRun = (st: GameStateV2, id: string) => {
+    const r = st.player.models.runs.find((x) => x.id === id)!;
+    r.readyDay ??= st.time.day;
+    r.flopDone = r.flopNeeded;
+    runsSystem.run(st, makeCtx(st));
+  };
+  const midRun = (st: GameStateV2) => {
+    addAsset(st.player.dataPortfolio, licenceAsset('CODE', 'curated', 200, st.time.day)); // +200T of q 2 code
+    adoptResult(st, 'P24');
+    adoptResult(st, 'P07');
+    st.player.research.domainG.CODE = (st.player.research.domainG.CODE ?? 0) + 0.3; // a domain idea's effect
+    const k = st.player.research.stacks;
+    k.pre.base += 0.2;
+    k.rlMid.base += 0.2;
+    k.serve.base += 1; // past D10's utilisation part: a FLOP-per-token part for new versions
+  };
+  const pick = (o: object, keys: string[]) => JSON.stringify(Object.fromEntries(keys.map((k) => [k, (o as Record<string, unknown>)[k]])));
+  // Base run.
+  const s0 = game();
+  s0.player.finance.cash += 1e3;
+  const baseP = { kind: 'base' as const, base: { ...REFERENCE_BASE, curation: { ...REFERENCE_BASE.curation } }, poolShare: 0.6 };
+  const r0 = launchRun(s0, makeCtx(s0), baseP);
+  const rid = typeof r0 === 'string' ? '' : r0.id;
+  const A = deserialize(serialize(s0));
+  const B = deserialize(serialize(s0));
+  const planA = planRun(A, baseP).limits!.gPre.total;
+  midRun(B);
+  const planB = planRun(B, baseP).limits!.gPre.total;
+  finishRun(A, rid);
+  finishRun(B, rid);
+  const keysB = ['flop', 'tokens', 'gPre', 'ePre', 'sD', 'epochs', 'serve', 'signals', 'traitsTrue', 'uModes', 'teacherData'];
+  const bA = A.player.models.bases.at(-1)!;
+  const bB = B.player.models.bases.at(-1)!;
+  check(!!rid && typeof r0 !== 'string' && !!r0.recipe?.draw && r0.recipe.p24 === 0 && A.player.models.bases.length === s0.player.models.bases.length + 1
+    && pick(bA, keysB) === pick(bB, keysB) && planB - planA > 0.01,
+    'RD-B02: a base frozen at launch: data delivered and P24 / stacks adopted while it trains leave the finished base unchanged (traits included); a plan today moves',
+    `${typeof r0 === 'string' ? r0 : ''} gPre ${bA.gPre.toFixed(4)} vs ${bB.gPre.toFixed(4)}; epochs ${bA.epochs?.toFixed(3)} vs ${bB.epochs?.toFixed(3)}; plan today ${planA.toFixed(4)} → ${planB.toFixed(4)}`);
+  // Post-training run on B0.
+  const s1 = game();
+  const postP = { kind: 'post' as const, baseId: s1.player.models.bases[0].id, post: { ...REFERENCE_POST, techniques: [], trainAgainst: [] }, poolShare: 0.2 };
+  const r1 = launchRun(s1, makeCtx(s1), postP);
+  const pid = typeof r1 === 'string' ? '' : r1.id;
+  const C = deserialize(serialize(s1));
+  const D = deserialize(serialize(s1));
+  const planC = planRun(C, postP);
+  midRun(D);
+  const planD = planRun(D, postP);
+  finishRun(C, pid);
+  finishRun(D, pid);
+  const vC = C.player.models.versions.at(-1)!;
+  const vD = D.player.models.versions.at(-1)!;
+  const keysV = ['G', 'Lg', 'domains', 'serveCost', 'fpt', 'monitorability', 'traitsTrue'];
+  check(!!pid && vC.id === vD.id && vC.baseId === postP.baseId && pick(vC, keysV) === pick(vD, keysV) && JSON.stringify(vC.build) === JSON.stringify(vD.build)
+    && (planD.g.gD?.CODE ?? 0) - (planC.g.gD?.CODE ?? 0) > 0.25 && planD.prediction.serveCost < planC.prediction.serveCost,
+    'RD-B02: a post-train frozen at launch: domain effects, P07, the RL and serving stacks adopted while it trains leave the version unchanged; a plan today moves',
+    `${typeof r1 === 'string' ? r1 : ''} G ${vC.G.toFixed(4)} vs ${vD.G.toFixed(4)}; serve ${vC.serveCost.toFixed(4)} vs ${vD.serveCost.toFixed(4)}; plan CODE ${(planC.g.gD?.CODE ?? 0).toFixed(3)} → ${(planD.g.gD?.CODE ?? 0).toFixed(3)}; plan serve ${planC.prediction.serveCost.toFixed(4)} → ${planD.prediction.serveCost.toFixed(4)}; differs: ${[...keysV.filter((k) => pick(vC, [k]) !== pick(vD, [k])), ...(JSON.stringify(vC.build) === JSON.stringify(vD.build) ? [] : ['build'])].join(', ') || 'none'}`);
 }
 
 // ---------- saves ----------
