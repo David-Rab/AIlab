@@ -8,7 +8,7 @@ import { versionById } from '../models/labs';
 import type { DataKind, DomainId, GameStateV2, ModelVersion } from '../types';
 import {
   addAsset, dataDelta, drawData, licenceAsset, NATURAL_MIX, portfolioByKind, portfolioU, pretrainMix, publicUse, REF_SHARE, synAssetFor,
-  synPoolH100e, synQualityCap, syntheticQuality, synTeacher, synTokensT, unlicensedPublicT, usageRateAt, type DataDelta, type DataDraw, type KindRow, type MixTarget,
+  synMixOf, synPoolH100e, synQualityCap, syntheticQuality, synTeacher, synTokensT, unlicensedPublicT, usageRateAt, type DataDelta, type DataDraw, type KindRow, type MixTarget,
 } from './data';
 import { licenceTerms, synJobTerms, usageLevelOf } from './dataActions';
 
@@ -31,6 +31,9 @@ export interface DataPortfolioView {
   synPerDayT: number;
   synPoolH100e: number;
   defaultTeacher?: string;
+  /** RD-T09: one line on what today's synthetic data covers, from the teacher writing most of it ("synthetic data from
+   *  Atlas-1.1: mostly code and math & reasoning"). */
+  synMixLine?: string;
   /** The public crawl: coverage of the shared world stock, licensed or not. */
   crawl: { coverage: number; stockT: number; licensed: boolean; unlicensedT: number };
   /** Expert data held by the suites (T; bought only by suite builds, DD-07). */
@@ -52,6 +55,7 @@ export function dataPortfolioView(s: GameStateV2): DataPortfolioView {
   const jobT = job ? versionById(s, job.teacherId) : undefined;
   const f = job && jobT ? Math.min(1, Math.max(0, job.share)) : 0;
   const synPerDayT = synTokensT(jobT, pool * f) + synTokensT(synTeacher(s), pool * (1 - f));
+  const mainT = jobT && f >= 0.5 ? jobT : synTeacher(s);
   const pub = publicUse(p);
   const inSuites = p.assets.reduce((t, a) => t + (a.kind === 'expert' ? a.tokensT : 0), 0);
   return {
@@ -60,10 +64,27 @@ export function dataPortfolioView(s: GameStateV2): DataPortfolioView {
     rows, pending,
     usagePerDayT: usageRateAt(s, p.usageShare),
     synPerDayT, synPoolH100e: pool, defaultTeacher: synTeacher(s)?.name,
+    synMixLine: mainT ? `synthetic data from ${mainT.name}: ${describeSynMix(synMixOf(mainT))}` : undefined,
     crawl: { coverage: pub ? Math.min(1, Math.max(0, pub.coverage)) : 0, stockT: PUBLIC_WEB.stockT, licensed: !!pub?.licensed, unlicensedT: unlicensedPublicT(p) },
     expertInSuitesT: inSuites,
     usageLevel: usageLevelOf(p.usageShare),
   };
+}
+
+const SYN_DOMAIN_WORD: Record<DomainId, string> = { CODE: 'code', RSCH: 'AI research', REASON: 'math & reasoning', AGENCY: 'long tasks', SOCIAL: 'social & general text', MEDIA: 'media', CYBER: 'cyber', BIO: 'bio', PHYS: 'physical' };
+/** "mostly code and math & reasoning": the largest domains until they hold half the mix (at most three); "an even
+ *  spread" when no domain holds 1.5× an even share. */
+export function describeSynMix(m: DomainMix): string {
+  const xs = DOMAIN_IDS.map((d) => [d, m[d] ?? 0] as const).sort((a, b) => b[1] - a[1]);
+  if (!(xs[0][1] >= 1.5 / DOMAIN_IDS.length)) return 'an even spread of domains';
+  const top: string[] = [];
+  let cum = 0;
+  for (const [d, x] of xs) {
+    top.push(SYN_DOMAIN_WORD[d]);
+    cum += x;
+    if (cum >= 0.5 || top.length === 3) break;
+  }
+  return `mostly ${top.length === 1 ? top[0] : `${top.slice(0, -1).join(', ')} and ${top[top.length - 1]}`}`;
 }
 
 export interface DomainMixRow { domain: DomainId; share: number; ref: number; s: number }

@@ -63,19 +63,23 @@ export const WEB_LICENCE = { baseB: 1, perTB: 0.005, creatives: 10 } as const;
  *  since D11 quality acts in the loss law, a cap above the web would let a lab's own synthetic data lift every later
  *  base unsourced; so synthetic data reaches the web's quality (2 OOM above V0) and no further unless the lab adopts
  *  the synthetic data flywheel (P10, model v3 D9, data/v2/tree.ts: the sourced case of rephrasing and filtering with a
- *  strong teacher raises the ceiling by P10_SYN_Q_RAISE; D1 had 1.5 for every lab, reached 4 OOM above V0). Mix [D]: math and code (Villalobos: synthetic
- *  data "only reliably improved capabilities in narrow areas like math and coding"). Synthetic data inherits its
+ *  strong teacher raises the ceiling by P10_SYN_Q_RAISE; D1 had 1.5 for every lab, reached 4 OOM above V0). Mix (RD-T09): the teacher's own domain
+ *  profile, production/data.ts synMixOf: share_d ∝ 10^(SYN_SHARP · (G_d − G)) × the lab's generation target weight
+ *  (none exists yet: weight 1), G_d − G the teacher's domain effective compute over its general G (OOM; a build-less
+ *  teacher is flat). SYN_SHARP 3 per OOM [D]: a domain 0.1 OOM stronger writes ×2 the tokens; a code-strong teacher's
+ *  data is code-heavy, a balanced teacher's is balanced (Villalobos: synthetic data "only reliably improved
+ *  capabilities in narrow areas like math and coding" is now a property of the teachers, not a fixed mix). Synthetic data inherits its
  *  teacher's traits (subliminal learning, research/20 F3): the asset keeps the teacher and the flag. */
 export const SYN_OVERGEN = 4.33;
 export const SYN_Q = { atV0: 0.5, perOom: 0.25, min: 0.1, max: 1 } as const;
 export const SYN_START_T = 20;
-export const SYN_MIX: DomainMix = { CODE: 0.35, REASON: 0.35, RSCH: 0.12, AGENCY: 0.08, CYBER: 0.04, BIO: 0.03, SOCIAL: 0.02, MEDIA: 0.01 };
+export const SYN_SHARP = 3;
 /** P10 (synthetic data flywheel, model v3 D9): raise of the synthetic-quality ceiling per unit of the project's effect
  *  (1 → 1.5 as designed; the hidden per-world draw has a relative sd of 0.3). Sources: Maini et al. 2024, "Rephrasing
  *  the Web" (arXiv 2401.16380 [P], fetched for D9): rephrasing noisy web text (C4) with an off-the-shelf instruction-tuned
  *  model and pre-training on real + synthetic rephrases "speeds up pre-training by ~3x"; phi-4 (arXiv 2412.08905 [P],
  *  fetched): a mostly synthetic curriculum "substantially surpasses its teacher model on STEM-focused QA"; research/20
- *  A3's synthetic tier tops out at q 1.5 "with the high end only in math/code" [G], which is SYN_MIX's domain. Size [D]:
+ *  A3's synthetic tier tops out at q 1.5 "with the high end only in math/code" [G], which is where code- and math-strong teachers' data goes. Size [D]:
  *  WRAP's ×3 is against raw C4; the game's web (q 1) is already the filtered 2025 crawl (data selection is itself ≈ ×3,
  *  Gundlach's table), so only part of it is headroom over q 1: research/20's 1.5. Accumulating with real data, not
  *  replacing it (Gerstgrasser et al. 2024 [R]), is how the draw already uses synthetic assets. */

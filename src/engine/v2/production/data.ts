@@ -18,16 +18,16 @@
 //              delivered later (`pending`); a synthetic job sends a share of the pool to a chosen teacher
 //   readout    data adequacy of the next base: Muennighoff's ≈ free 4 epochs of U vs N_req(next base)
 import {
-  LICENCE_TIERS, LICENSED_MIX, LICENSED_QUALITY, LICENSED_START_T, PUBLIC_START_COVERAGE, PUBLIC_WEB, SYN_MIX, SYN_OVERGEN, SYN_Q,
+  LICENCE_TIERS, LICENSED_MIX, LICENSED_QUALITY, LICENSED_START_T, PUBLIC_START_COVERAGE, PUBLIC_WEB, SYN_OVERGEN, SYN_SHARP, SYN_Q,
   SYN_START_T, USAGE_ELIGIBLE, USAGE_MIX, USAGE_POLICY_SHARE, USAGE_QUALITY, ALPHA_DATA, SPEC_CAP, type DomainMix, type LicenceTier,
 } from '../../../data/v2/dataAssets';
-import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
+import { DOMAIN_IDS, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { BASE_DATA, HAZARD_FILTER, QUALITY_FILTER, REFERENCE_BASE } from '../../../data/v2/runDesign';
 import { effectiveTokens, fDataEff } from '../models/effective';
 import { TOKENS } from '../../../data/v2/serving';
 import { chatFreeTier } from '../worldfx/serving';
 import { PEAK_FLOPS, U_DECODE, U_PREFILL } from '../../../data/v2/workTypes';
-import { gOfBuild, gV0 } from '../models/capability';
+import { gOfBuild, gV0, versionDomainG } from '../models/capability';
 import { internalVersion, versionById } from '../models/labs';
 import type { BaseDesign, DataAsset, DataKind, DataPortfolio, Deployment, DomainId, GameStateV2, ModelVersion, OwnedDataAsset, SystemCtx } from '../types';
 
@@ -41,7 +41,7 @@ export function startPortfolio(): DataPortfolio {
       { id: 'public', kind: 'public', coverage: PUBLIC_START_COVERAGE, licensed: false },
       { id: 'lic:start', kind: 'licensed', tokensT: LICENSED_START_T, mix: { ...LICENSED_MIX }, quality: LICENSED_QUALITY },
       { id: 'usage', kind: 'usage', tokensT: 0, mix: {}, quality: USAGE_QUALITY },
-      { id: 'syn:start', kind: 'synthetic', tokensT: SYN_START_T, mix: { ...SYN_MIX }, quality: SYN_Q.atV0, inheritsTraits: true },
+      { id: 'syn:start', kind: 'synthetic', tokensT: SYN_START_T, mix: synMixOf(undefined), quality: SYN_Q.atV0, inheritsTraits: true },
     ],
     usageShare: USAGE_POLICY_SHARE,
     pending: [],
@@ -376,10 +376,25 @@ export function syntheticAccrual(s: GameStateV2) {
 export function synPoolH100e(s: GameStateV2): number {
   return s.player.computeOnline * s.player.split.synthetic;
 }
+/** RD-T09: the domain mix of a teacher's synthetic data: share_d ∝ 10^(SYN_SHARP · (G_d − G)) × target_d (the lab's
+ *  generation target weight, 1 when none is set), normalised over DOMAIN_IDS; G_d − G from versionDomainG (a teacher
+ *  without a build, or the pre-game teacher of the start asset, is flat: an even mix). */
+export function synMixOf(t: Pick<ModelVersion, 'G' | 'build'> | undefined, target?: DomainMix): DomainMix {
+  const w = {} as Record<DomainId, number>;
+  let sum = 0;
+  for (const d of DOMAIN_IDS) {
+    const rel = t ? versionDomainG(t, d) - t.G : 0;
+    w[d] = Math.pow(10, SYN_SHARP * rel) * Math.max(0, target?.[d] ?? 1);
+    sum += w[d];
+  }
+  const out: DomainMix = {};
+  for (const d of DOMAIN_IDS) out[d] = sum > 0 ? w[d] / sum : 1 / DOMAIN_IDS.length;
+  return out;
+}
 /** The synthetic asset a teacher's data goes to (`syn:<versionId>`; q from its G, inherits its traits). */
 export function synAssetFor(s: GameStateV2, t: ModelVersion | undefined, tokensT = 0): OwnedDataAsset {
   const g = t?.build ? gOfBuild(t.build) : gV0(s.hidden.timeline);
-  return { id: `syn:${t?.id ?? 'start'}`, kind: 'synthetic', tokensT, mix: { ...SYN_MIX }, quality: syntheticQuality(g, gV0(s.hidden.timeline), synQualityCap(s)), day: s.time.day, teacherId: t?.id, teacherG: g, inheritsTraits: true };
+  return { id: `syn:${t?.id ?? 'start'}`, kind: 'synthetic', tokensT, mix: synMixOf(t), quality: syntheticQuality(g, gV0(s.hidden.timeline), synQualityCap(s)), day: s.time.day, teacherId: t?.id, teacherG: g, inheritsTraits: true };
 }
 /** Kept synthetic tokens (T) from `h100eDays` of generation with teacher `t`. */
 export const synTokensT = (t: ModelVersion | undefined, h100eDays: number) => (h100eDays * synTokensPerH100eDay(fptOf(t))) / 1e12;
@@ -395,7 +410,7 @@ function generate(s: GameStateV2, t: ModelVersion | undefined, h100e: number) {
   // continual-learning stream raised the teacher's G); the asset's quality becomes the token-weighted mean [D].
   // Unchanged while the quality is the same.
   if (a.quality !== fresh.quality && a.tokensT + dT > 0) a.quality = (a.quality * a.tokensT + fresh.quality * dT) / (a.tokensT + dT);
-  addTo(a, dT, SYN_MIX);
+  addTo(a, dT, fresh.mix);
 }
 
 // ───────────────────────────── usage data ─────────────────────────────

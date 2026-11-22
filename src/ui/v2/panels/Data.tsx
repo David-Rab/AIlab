@@ -129,8 +129,8 @@ function KindLine({ s, r, v, maxU }: { s: GameStateV2; r: KindRow; v: DataPortfo
           { label: <Term id="poolSynthetic">Generation pool</Term>, value: `${F.count(v.synPoolH100e)} H100e` },
           { label: 'Default teacher', value: v.defaultTeacher ?? '–' },
           ...(job ? [{ label: <Term id="synJob">Job</Term>, value: `${F.pct(job.share)} of the pool until ${fmtDate(dateOf(s, job.until))}` }] : []),
-        ]} footer="Pool size is set on Compute › Split; the teacher on Generate data below.">Tokens kept per day from the data-generation pool.</TipCard>}>
-          <span className="small">+{perDay(v.synPerDayT)}{job ? ' · job' : ''}</span>
+        ]} footer="Pool size is set on Compute › Split; the teacher on Generate data below.">Tokens kept per day from the data-generation pool. A teacher writes most in the domains it is strongest at.</TipCard>}>
+          <span className="small">+{perDay(v.synPerDayT)}{job ? ' · job' : ''}{v.synMixLine ? <span className="dim" data-test="syn-mix"> · {v.synMixLine}</span> : null}</span>
         </Tip>
       );
       case 'expert': {
