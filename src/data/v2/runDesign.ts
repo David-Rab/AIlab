@@ -68,8 +68,11 @@ export const MFU_RL_FACTOR = 0.6;
 /** RL budget: RL FLOP as a share ρ of the base's pretraining FLOP [D, R20 C1: frontier 0.05–1 (R1 0.05, Grok 4 ≈ 1)]. */
 export const RL_BUDGET: Record<PostDesign['rlBudget'], number> = { light: 0.03, standard: 0.15, heavy: 0.4 };
 /** RL curve per family (Khatri et al. 2025 [R20 C1]): ΔG = A/(1 + (C_mid/C)^B). A = A0 + a1·log₁₀(FLOP_pre ÷
- *  FLOP_RL_REF): the base's size sets the ceiling [D]; C_mid = c0·FLOP_pre/10^e_RL: the RL recipe moves the midpoint, not the ceiling. c0 is
- *  solved (models/effective.ts) so the reference run (standard, broad) gains RL_REF_GAIN at the start recipe. */
+ *  FLOP_RL_REF): the base's size sets the ceiling [D]; C_mid = c0/10^e_RL in absolute RL FLOP (RD-T04, DD-06): the RL
+ *  recipe moves the midpoint, not the ceiling, and the midpoint does not scale with the base, so a bigger base reaches
+ *  the same gain at a smaller budget share and a small one saturates sooner relative to its size. c0 (FLOP) is solved
+ *  (models/effective.ts) so the reference run (standard budget, broad) on the reference base (FLOP_RL_REF) gains
+ *  RL_REF_GAIN at the start recipe. */
 export const RL_CURVE = { A0: 1.0, a1: 0.1, B: 1.8 };
 /** Pretraining FLOP of the reference start base B0 (the RL ceiling's anchor: A = A0 there). */
 export const FLOP_RL_REF = 3e26;

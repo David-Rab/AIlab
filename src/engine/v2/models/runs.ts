@@ -808,7 +808,7 @@ function streamSplit(b: VersionBuild, poolFlop: number): { pre: number; rl: numb
 }
 
 /** The RL act on a version with only the added part at today's recipe: effective RL compute adds (the curve reads
- *  rlFlop · 10^eRL ÷ FLOP_pre), so e_RL is the FLOP-weighted mean of its and today's in that unit; the ceiling raise and
+ *  rlFlop · 10^eRL, absolute since RD-T04), so e_RL is the FLOP-weighted mean of its and today's in that unit; the ceiling raise and
  *  each family's suite fidelity move toward today's by the added FLOP's share, never down. `extra` 0 changes nothing. */
 function rlAddOnVersion(s: GameStateV2, tb: VersionBuild, extra: number, rec: RlRecipe = rlRecipeNow(s)): VersionBuild {
   if (!(extra > 0)) return tb;
