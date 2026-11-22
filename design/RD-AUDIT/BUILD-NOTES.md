@@ -470,3 +470,48 @@ from the function the action or the engine runs.
 - **Moves calibration: no** (previews only; openWeightsReleased refactor is the same arithmetic).
 - **Tests run:** tsc main + scripts clean; products full 75 / 75; npm run build passes. test:ui not run (no UI file
   changed; the "+ pack", Gov / Trusted / Open and retire buttons show the new lines).
+
+### RD-B19
+
+Preview truth 2, training / evals / models / leads (bugs B36, B37, B38, B40, B45; TRN-02, TRN-08, TRN-16, TRN-V03,
+TRN-V04, MEA-15, MEA-19). Every line is what the action or the engine applies, or it is gone.
+- **runEvals (B36).** Gains = what finishEval does (`evalGains`, models/actions.ts): one "reading" line (new benchmark
+  and safety-eval scores; measured-level band now → after, from evalDepthView) and, by external evaluators while the
+  eval gate is 'full + external' and the version is not yet externally evaluated, a "release check" line
+  (deployments.ts externallyEvaluated). Removed: self monitorability +0.02; external credibility +2, trust +1, lead −14.
+- **Stream / stop stream / IDA (B37).** New `streamRecipeGap` (models/runs.ts): today's stacks minus the track the version
+  holds (startStream's start track, now `startTrack`, or the running stream's), OOM of effective compute (inPlaceRecipe's
+  measure). Start: costs = pool share, engineer upkeep (UPKEEP.stream team-weeks / week), research-engineer operations
+  (RE_OPS.stream teams); gain = the gap in OOM, lag 7 d. Stop: the same load freed; cost = the gap not absorbed (the
+  version keeps what it has). Removed: +0.2 L / −0.1 L, monitorability ∓, alignment −0.1. The stream's trait drift has
+  no one-number preview. IDA preview = runPreview on the IDA plan (planRun's pool share, not 0.3), forecast over the
+  teacher; its constant alignment −0.1 is gone.
+- **Run forecast (B45).** New `runForecast` (models/runs.ts): reference = the given version if measured, else the
+  internal model, else the best measured live version; mid = its measured level + (predicted − its true level), band =
+  ± measuredSd(reference), domains shifted alike; gain = mid − its measured level. runCard (band, domains,
+  forecastRef, forecastSd), runBand (now takes s) and runPreview read it, so no card shows a true level. The engine's
+  RunPrediction (true ± 0.25) is unchanged: run.predicted and the traits' predictedG read it. runPreview's
+  "alignment −Σ signals, p 0.5" → a pressure line (unit 'pressure', the plan's signals, no odds).
+- **A4 / E16 / C6 (B40).** New `publishLeakG`, `poachLeakG`, `ownProgressDays` (actors/rivals.ts); A4 recipients and C6
+  release G / rival leaks as functions in actors/actions.ts. Apply and preview share them; lead lines = days of the
+  recipient's own progress (dG ÷ its rate × B): A4 the most of any recipient, E16 that rival, C6 the best-placed rival
+  plus China's openAbsorbMonths (RD-B20's open-launch line). C6's China-tension −3 removed (nothing applies it).
+  Sizing still by the player's pace (MEA-15; DD-17 / RD-X04).
+- **B38.** Nothing left after RD-B20 (no other variant preview lines).
+- **Typed progress (MEA-19).** Split previews: compute shares in percent ('%', target names the pool group); ui.tsx /
+  kit.tsx render a bare progress line as "progress", not L. A type-level rule (CostLine union) gave 10 errors, most in
+  treeActions (RD-B18's), so the rule is a lint.
+- **Lint (scripts/v2/lint-tradeoffs.ts).** (1) every nonzero progress line has a unit (actions, event choices, 3
+  fixtures); (2) every immediate meter line (credibility, scrutiny, talent, morale, approval, trust, China tension; no
+  lag, odds 1) leaves a cause on that meter when the action applies on a copy; (3) RD-B19 checks: self suite narrows
+  the band to the preview; external suite meets the previewed release check; forecast = measured + step, band =
+  2·measuredSd, gain unmoved by another measurement; stream absorbs the previewed gap in 42 d, stop keeps G; A4 / E16 /
+  C6 lines = the applied rec.pre change in own days. Known deviations (WARN, other owners): progress unit
+  research.reopen (RD-B18), safety.pledge (safety redesign); applied-effect A6 trust, safety.evalGate credibility,
+  safety.publishPolicy credibility / talent (yearly flows), starHire trust (RD-B18), wfx.moonshot credibility.
+  **Also found:** RD-B20 left makeVariant, product.update, product.serving, feature.toggle, products.policy with no
+  cost line, failing the trade-off rule (≥ 1 cost); listed as known: a free lever needs a rule decision.
+- **Moves calibration: no** (previews and readouts; the A4 / E16 / C6 / startStream refactors are the same arithmetic;
+  no bot reads previews).
+- **Tests run:** tsc main + scripts clean; lint-tradeoffs all passed (7 RD-B19 checks, 175 applied-effect checks);
+  npm run build passes. test:ui not run (Blueprint forecast line, run-queue tooltip, Models band).
