@@ -1765,3 +1765,39 @@ One line-rate law for player lines and rival parts (SYNTHESIS RD-X01; CAP-07). C
   pool growth on ai2027: day 100 0.2149 vs 0.2150 OOM/yr (−0.021%), day 400 0.2409 vs 0.2409 (−0.024%). tsc main and
   scripts clean. scripts/v2/rivals.ts R5's `near(v.pre, PRE_RATE0, 1e-9)` will now miss by ~0.02% (tolerance to loosen at CP).
 - **Moves calibration: yes (rivals)** (recipe growth −0.02% to −0.1%, more at high rs).
+
+### RD-X02
+
+Rivals adopt the paradigms' typed effects through aggregate adoption steps (DD-14 rival part, DD-18; SYNTHESIS RD-X02,
+mechanism only; CAP-02, MEA-13). Commit 61494a6. Code: actors/rivalModel.ts (adoptRivalIdeas and helpers), called daily
+from production.ts rivalResearch after the recipe step; state `RivalPhys.ideas { spent, done }` and `SimpleModel.domainDg`
+(both optional, no schema bump: absent = nothing adopted).
+- **Research input [D, stand-in]:** a lab spends rs × RIVAL_IDEA_TM_PER_YEAR standard-team-months a year on ideas, rs = the
+  same research speed the shared line-rate law (RD-X01 recipeRates) reads. RIVAL_IDEA_TM_PER_YEAR = the leader's day-0
+  science (SCI_PER_HEAD × H_REF_BASE = 8 team-eq) × 12, shared equally among its projects, the six reference lines and one
+  idea at a time: 13.7 TM a year at rs = 1.
+- **Adoption [D]:** one idea at a time, cheapest effortTM first (id breaks ties; no prerequisites at the aggregate level):
+  P05 5.5, P16 21.6, P09 28.8, P24 28.8, P11 43.2, P22 43.2 TM (the player's effortTM). An idea whose effort is spent is
+  adopted; the rest carries over.
+- **Availability and size:** the world's paradigm success draw (hidden.paradigmSuccess, the one the player's first attempt
+  reads): a direction that fails gives every lab 0 (effort still spent). Size rolled with the lab's id: mean ×
+  e^(sd·z − sd²/2), z = hash(seed, `rivalIdea:<lab>:<node>`) (the player's per-world project mean T at taste 1, one idea),
+  floored at 0; P05 (fixed scaffold) 1.
+- **Effects:** P24 + x OOM on rec.pre (public-knowledge-like, scale-invariant; bases launched after carry it via the
+  frozen run.ePre; the continual learner reads it too). P16 base-run FLOP ×10^x (baseFlopPerDay) and serving stack
+  + x·also.serve. P09 / P11 / P22: x × the node's domain OOM on versions post-trained after adoption (setModelG's new
+  `domainDg` argument at rivals.ts postVersion / new base and clRefresh; release copies keep their model's). P05: the
+  research aggregate's work G + 0.26 OOM (rivalWorkG: coverage, win rates, AI taste and horizon, wider than the player's
+  fit-only scaffold [D]) and agent FLOP per token ×3.75 (rivalAgentFpt).
+- **Not adoptable (no rival state to carry them):** P07 (long-tasks RL family horizon: no RL families in the aggregate),
+  P10 / P21 / P12 (synthetic quality, token worth, expert demos: fixed tpp, no data stock). P08 / P17 / P18 / P23 etc. are
+  options or unlocks, not typed effects.
+- **Kept, to remove at the CP3 refit if the mechanism makes them unnecessary:** LEADER_CAL (data/v2/calibration.ts,
+  per preset: ai2027 −0.15, authors2026 0.07, fast −0.01, slow 0.8, sampled −0.15), CHINA_CAL.effScale 1.5, the China
+  preset efficiencies × chinaEfficiency (effLab), PRE_RATE0 / SERVE_RATE0 start rates (data/v2/rivalModel.ts).
+- **Check (scripts/v2/.tmp-rdx02.ts, run alone, untracked):** leader on ai2027 seed 1 with P24 working: 0.5 TM short of
+  the cumulative effort to P24 it is not adopted; one more step adopts it with x 0.912 OOM, rec.pre + x exactly; a base run
+  launched after freezes ePre with it (G_pre + x at the same FLOP); a world where P24 fails gives 0. tsc main and scripts
+  clean. test:cal not run (RD rule exception names this task; left to the caller / CP3).
+- **Moves calibration: yes (rivals)** (every rival gains up to ~1 OOM pretraining recipe, P16 FLOP / serving, domain
+  levels and the P05 research lift over its first years; LEADER_CAL / CHINA_CAL were fitted without them).
