@@ -112,7 +112,7 @@ export function gOfDomain(b: VersionBuild, d: DomainId): number {
   return b.gPre + (b.sD[d] ?? 0) + rl + b.dg;
 }
 /** Set build.off (domain level − general level − the 2025 profile, L) from the build's domain G and its level offsets;
- *  returns G. L_d = λ(G_d) − o_d + design offsets (MODEL-V3 §2.3), o_d = −REF_OFF[d][0] (+ RSCH taste). */
+ *  returns G. L_d = λ(G_d) − o_d + design offsets (MODEL-V3 §2.3), o_d = −REF_OFF[d] (+ RSCH taste). */
 export function finishBuild(w: TimelineWorld, b: VersionBuild): number {
   const G = gOfBuild(b);
   const Lg = levelOfG(w, G);
@@ -125,7 +125,7 @@ export function finishBuild(w: TimelineWorld, b: VersionBuild): number {
   return G;
 }
 
-/** Domain levels L_d = Lg − o_d + off_d, clamped to [0, 15] (MODEL-V3 §2.3): o_d = −REF_OFF[d][0] is the domain's
+/** Domain levels L_d = Lg − o_d + off_d, clamped to [0, 15] (MODEL-V3 §2.3): o_d = −REF_OFF[d] is the domain's
  *  constant difficulty offset (the 2025 profile; RSCH's taste penalty until P19), off_d the version's training and
  *  design specialisation (finishBuild). No era table: a domain lags only by what training gives it. */
 export function domainsOf(w: TimelineWorld, G: number, designOff: Partial<Record<DomainId, number>> = {}, hasP19 = false): Record<DomainId, number> {
@@ -133,7 +133,7 @@ export function domainsOf(w: TimelineWorld, G: number, designOff: Partial<Record
   const out = {} as Record<DomainId, number>;
   for (const d of DOMAIN_IDS) {
     const pen = d === 'RSCH' && !hasP19 ? RSCH_TASTE_PENALTY : 0;
-    out[d] = clamp(Lg + REF_OFF[d][0] + pen + (designOff[d] ?? 0), 0, 15);
+    out[d] = clamp(Lg + REF_OFF[d] + pen + (designOff[d] ?? 0), 0, 15);
   }
   return out;
 }

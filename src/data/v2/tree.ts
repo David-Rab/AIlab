@@ -104,13 +104,13 @@ export interface TreeNodeDef {
 /** Standard-team-months at M = 1 per effort class, for new (non-paradigm) nodes [D]. */
 export const EFFORT_TM: Record<EffortClass, number> = { S: 3, M: 8, L: 25, XL: 50 };
 
-/** Paradigm nodes: the pre-R4 effortDays (days at RefBot's reference staffing) × TM_PER_OLD_DAY, the rate RefBot's
- *  early projects fit to (P08: 150 d ≈ 31 team-months at M ≈ 1.8 with ~13 teams). */
-const OLD_EFFORT_DAYS: Record<string, number> = {
-  P05: 60, P06: 90, P07: 60, P08: 150, P09: 120, P10: 120, P11: 180, P12: 180, P13: 150, P14: 120, P15: 120, P16: 90,
-  P17: 120, P18: 120, P19: 150, P20: 90, P21: 210, P22: 180, P23: 120, P24: 120, P25: 150, P26: 60, P27: 120,
+/** Paradigm nodes not in FITTED_EFFORT_TM, in standard-team-months: v2-derived values pending refit (RD-R07). They are
+ *  the pre-R4 effortDays (days at RefBot's reference staffing) × 0.2 TM/day, the rate RefBot's early projects fit to
+ *  (P08: 150 d ≈ 31 team-months at M ≈ 1.8 with ~13 teams), written out in RD-C05. */
+const V2_PARADIGM_EFFORT_TM: Record<string, number> = {
+  P06: 18, P09: 24, P10: 24, P11: 36, P12: 36, P14: 24, P15: 24, P16: 18, P18: 24, P20: 18, P21: 42, P22: 36, P23: 24,
+  P24: 24, P25: 30, P26: 12, P27: 24,
 };
-const TM_PER_OLD_DAY = 0.2;
 /** RefBot's projects, fitted (model v3 V2) so each successful attempt through the research lifecycle lasts as long as
  *  under V1 (`npx tsx scripts/v2/calib.ts --fit-tree`); P05 and P19 (they fail in the fit world) take the fitted ones'
  *  mean ratio (×0.6). Late projects (P13 at RSCH 8.5, P17 at L 9.5) start when research pace is already 3–8×. */
@@ -249,7 +249,7 @@ for (const n of TREE) {
 }
 for (const n of TREE) {
   if (n.star || n.kind === 'line') continue;
-  if (n.paradigm) n.effortTM = FITTED_EFFORT_TM[n.id] ?? Math.round(OLD_EFFORT_DAYS[n.id] * TM_PER_OLD_DAY * 10) / 10;
+  if (n.paradigm) n.effortTM = FITTED_EFFORT_TM[n.id] ?? V2_PARADIGM_EFFORT_TM[n.id];
   else if (FITTED_EFFORT_TM[n.id] !== undefined) n.effortTM = FITTED_EFFORT_TM[n.id];
 }
 

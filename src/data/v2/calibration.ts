@@ -81,8 +81,6 @@ export const K_DIFFUSION = 2.0;
 export const CHINA_CAL = { effScale: 1.5 };
 /** H100e per agent copy at SC (473k H100e / 200k copies, research/13 §1.9), scaled by serveCost/0.5. */
 export const H100E_PER_COPY_SC = 2.4;
-/** Agent serial speed cap (R11 #23: min(8 + 10.8·log2 M, 50)). */
-export const PROD_SPEED_CAP = 50;
 /** Start-state timing (§3.1.4): B0 started day −120, V0 finished day −20. */
 export const B0_DAY = -120;
 /** B0 run start: completed day −120 after a reference-length run, so its age equals the average base age under the
@@ -130,19 +128,18 @@ export const SHARE_REF: { year: number; share: ComputeSplit }[] = [
 export const LEVEL_KNOTS = [5, 6.5, 8.5, 10, 12, 13.5, 15];
 
 export const DOMAIN_IDS: DomainId[] = ['CODE', 'RSCH', 'REASON', 'AGENCY', 'SOCIAL', 'MEDIA', 'CYBER', 'BIO', 'PHYS'];
-/** Domain offsets relative to CODE (§3.1.5). Model v3 V1: only column 0 (the 2025 profile) is read: it is each domain's
- *  constant difficulty offset o_d (models/capability.ts domainsOf). The later columns are v2's scripted era table, kept
- *  for reference; no mechanism interpolates them. */
-export const REF_OFF: Record<DomainId, number[]> = {
-  CODE: [0, 0, 0, 0, 0, 0, 0],
-  RSCH: [0, 0, 0, 0, 0, 0, 0],
-  REASON: [0, -0.5, -1, -1.5, -1, -0.5, 0],
-  AGENCY: [-1, -1, -1, -1.5, -1, -0.5, 0],
-  SOCIAL: [0, -1, -2, -2.5, -2, -1.5, 0],
-  MEDIA: [0, -1, -2, -2.5, -3, -2, -1],
-  CYBER: [-1, -0.5, -0.5, -1, 0, 0, 0],
-  BIO: [0, -0.5, -1.5, -2, -1, -0.5, 0],
-  PHYS: [-4, -5, -6.5, -7, -8, -8.5, -9],
+/** Domain offsets relative to CODE (§3.1.5): each domain's constant difficulty offset o_d (models/capability.ts
+ *  domainsOf), v2's 2025 profile (column 0 of its era table; the scripted later columns went in RD-C05; refit in RD-U05). */
+export const REF_OFF: Record<DomainId, number> = {
+  CODE: 0,
+  RSCH: 0,
+  REASON: 0,
+  AGENCY: -1,
+  SOCIAL: 0,
+  MEDIA: 0,
+  CYBER: -1,
+  BIO: 0,
+  PHYS: -4,
 };
 /** RSCH takes this extra offset until paradigm P19 is adopted (R12 §0.4). */
 export const RSCH_TASTE_PENALTY = -0.5;

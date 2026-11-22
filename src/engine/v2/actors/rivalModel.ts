@@ -23,7 +23,7 @@
 //              learning, as the player's P08 stream)
 // Nothing here reads a calendar path, pm or pm thresholds, CAL_SHIFT, the v2 knots or the rivals' old FLOP bridge.
 import { BASE_POOL_SHARE, BASE_RUN_DAYS, CL_DAYS, CL_LEVEL, PRE_RATE0, RIVAL_TPP, SERVE_RATE0, START_PUBLIC_GAP_Y } from '../../../data/v2/rivalModel';
-import { DEFAULT_LINES, LINE_STAGES, SMALL_TO_TEST, SURVIVE_FRAC } from '../../../data/v2/research';
+import { DEFAULT_LINES, LINE_STAGES, SMALL_TO_TEST, SURVIVE_FRAC, S_RANGE } from '../../../data/v2/research';
 import { TREE_BY_ID } from '../../../data/v2/tree';
 import { B_G_PER_Y, E_START, FLOP_RL_REF, GOODPUT, PARAM_RANGE, B0_PARAMS, REFERENCE_BASE, REF_TPP, SHAPE } from '../../../data/v2/runDesign';
 import { B0_DAY, B0_START_DAY, H_REF_BASE, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
@@ -64,25 +64,22 @@ type Part = keyof RivalRecipe;
 const PARTS: Part[] = ['pre', 'mid', 'ceil'];
 const PART_STACK = { pre: 'pre', mid: 'rlMid', ceil: 'rlCeil' } as const;
 
-/** Range of a line candidate's scale exponent (models/research.ts S_RANGE, repeated: research.ts reaches this module
- *  through the capability chain). */
-const S_CLAMP: readonly [number, number] = [-0.6, 0.25];
 /** Scale factor of a line's results (model v3 F2, design/V3-BUILD.md, F2 notes): a result is measured at the scale test (F_test =
  *  LINE_STAGES.testFrac of the base) and enters the stack at the base's FLOP, ×(1/testFrac)^s. A single candidate
  *  survives the scale test iff its effect there keeps SURVIVE_FRAC of the small-scale one (1000^s ≥ SURVIVE_FRAC), and
  *  the line's pool advances by the test-scale effect ∝ 1000^s, so κ_l = E[1000^s·(1/testFrac)^s; s ≥ s*] ÷
- *  E[1000^s; s ≥ s*] over the line's scale prior N(μ, σ) clamped to S_CLAMP (Scaling recipes 1.507, Data 1.175,
+ *  E[1000^s; s ≥ s*] over the line's scale prior N(μ, σ) clamped to S_RANGE (Scaling recipes 1.507, Data 1.175,
  *  Optimizer 2.099; s ≡ 0: 1). Not fitted. */
 export function lineScaleFactor(mu: number, sd: number): number {
   const up = 1 / LINE_STAGES.testFrac;
-  if (sd <= 0) return Math.pow(up, Math.max(S_CLAMP[0], Math.min(S_CLAMP[1], mu)));
+  if (sd <= 0) return Math.pow(up, Math.max(S_RANGE[0], Math.min(S_RANGE[1], mu)));
   const sStar = Math.log10(SURVIVE_FRAC) / Math.log10(SMALL_TO_TEST);
   let num = 0;
   let den = 0;
   const N = 4001;
   for (let i = 0; i < N; i++) {
     const z = -8 + (16 * i) / (N - 1);
-    const sx = Math.max(S_CLAMP[0], Math.min(S_CLAMP[1], mu + sd * z));
+    const sx = Math.max(S_RANGE[0], Math.min(S_RANGE[1], mu + sd * z));
     if (sx < sStar) continue;
     const wt = Math.exp((-z * z) / 2) * Math.pow(SMALL_TO_TEST, sx);
     num += wt * Math.pow(up, sx);

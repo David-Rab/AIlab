@@ -120,7 +120,7 @@ export const TOK_MIN = 0.1;
 export const TOKENS_PER_WORK_HOUR = { input: 2e5, output: 4e4 };
 /** Decode speed of one agent copy (tokens/s; DeepSeek production 20–22 user-visible, fast modes ×2.5; R20 D1) [D]. */
 export const COPY_TOKENS_PER_S = 60;
-/** Serial speed cap ×50 (research/13 R11 #23). */
+/** Agent serial speed cap ×50 (research/13 R11 #23: min(8 + 10.8·log2 M, 50); workfit speedOfCopy, production speedOf). */
 export const SPEED_CAP = 50;
 /** Hours a human FTE works per year. */
 export const FTE_HOURS_PER_YEAR = 2000;

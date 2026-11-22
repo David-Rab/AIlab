@@ -31,7 +31,7 @@
 import {
   BELIEF_NOISE, CAND, DROP_FRAC, DUD_SD, EXP_NOISE, HEADROOM, IDEA_STAGES, LINE_FIT, LINE_STAGES, MAX_DROPS, PACE_BATCH,
   AUTO_RANK_W, PICK_AT, POOL_MAX, PROJECT_MAX_TEAMS, PROJECT_SD, RE_OPS, RE_PER_PROJECT, RISK_KAPPA, SMALL_TO_TEST,
-  SPECULATIVE, SURVIVE_FRAC, S_READ_SD, TASTE_MEAN, TEST_READ_SD, ADOPT_TW, TUNE_K,
+  SPECULATIVE, SURVIVE_FRAC, S_RANGE, S_READ_SD, TASTE_MEAN, TEST_READ_SD, ADOPT_TW, TUNE_K,
 } from '../../../data/v2/research';
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { C_UNIT_FLOP_PER_DAY, RE_UNIT } from '../../../data/v2/workTypes';
@@ -113,8 +113,6 @@ function works(s: GameStateV2, n: TreeNodeDef, spec: number): boolean {
   return u < attemptOdds(n, spec);
 }
 
-/** Range of a candidate's scale exponent [D]. */
-export const S_RANGE: readonly [number, number] = [-0.6, 0.25];
 /** Scale exponent below which a small-scale win does not survive the scale test (its effect at test scale falls
  *  under SURVIVE_FRAC of the small-scale one). */
 const S_SURVIVE = Math.log10(SURVIVE_FRAC) / Math.log10(SMALL_TO_TEST);

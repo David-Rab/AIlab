@@ -197,9 +197,8 @@ export function traitGraph(s: GameStateV2) {
  *  research engineers on cases, patches and tool upkeep). */
 export interface SafetyUtilisation {
   staff: { sci: number; onLines: number; idleSci: number; idleTeams: number; re: number; investigations: number; patches: number; upkeep: number };
-  /** H100e. linesWanted = what staffed lines ask for; linesGot = what they get after monitoring, investigations and agents
-   *  take their shares; idle = safety compute nobody uses. */
-  compute: { pool: number; monitoring: number; investigations: number; agents: number; linesWanted: number; linesGot: number; idle: number };
+  /** H100e. idle = safety compute nobody uses (after monitoring, investigations, agents and the lines' shares). */
+  compute: { pool: number; monitoring: number; investigations: number; agents: number; idle: number };
   fleet: { versionId?: string; versionName?: string; level: number; copies: number; aiFte: number; perFte: number; automated: number; idle: boolean };
 }
 
@@ -220,10 +219,8 @@ export function safetyUtilisation(s: GameStateV2): SafetyUtilisation {
   const monitoring = pool * monitorBudget(s).poolShare;
   const invC = pool * dept.investigations.filter((i) => !i.outcome).reduce((a, i) => a + i.computeShare, 0);
   const agents = pool * s.player.agents.safety.compute;
-  let wanted = 0;
   let got = 0;
   for (const a of AGENDAS) {
-    wanted += online * lineMult(s, a.id) * a.computeRef;
     got += pool * dept.agendas[a.id].computeShare;
   }
   const fl = safetyFleet(s);
@@ -231,7 +228,7 @@ export function safetyUtilisation(s: GameStateV2): SafetyUtilisation {
   const automated = trustedShare(s) > 0 ? AGENDAS.filter((a) => lineTeams(s, a.id).length > 0).length + dept.investigations.filter((i) => !i.outcome).length : 0;
   return {
     staff: { sci, onLines, idleSci: sci - onLines, idleTeams, re: re.heads, investigations: re.investigations, patches: re.patches, upkeep: re.upkeep },
-    compute: { pool, monitoring, investigations: invC, agents, linesWanted: wanted, linesGot: got, idle: Math.max(0, pool - monitoring - invC - agents - got) },
+    compute: { pool, monitoring, investigations: invC, agents, idle: Math.max(0, pool - monitoring - invC - agents - got) },
     fleet: { versionId: v?.id, versionName: v?.name, level: v?.evals.measuredL ?? 0, copies: fl.copies, aiFte: fl.aiFte, perFte: fl.perFte, automated, idle: fl.compute > 0 && automated === 0 },
   };
 }
