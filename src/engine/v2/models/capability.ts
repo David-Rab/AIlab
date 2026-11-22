@@ -73,7 +73,7 @@ export function pcRefLab(w: TimelineWorld, day: Day, scDay?: Day): number {
   return ((1 - w.share) * (pre + 0.5 * post)) / 365;
 }
 
-// ───────────────────────────── bridges (design/V3-BUILD.md) ─────────────────────────────
+// ───────────────────────────── start recipe vintages (until RD-U06) ─────────────────────────────
 
 /** Start state only (model v3 V2): the recipe vintage of a start-state know-how value of the closed-form start solution
  *  (playerStart: B0's start day, V0's post-training day), OOM over the leader's day-0 recipe. The engine's recipe comes
@@ -150,10 +150,13 @@ export const h50Of = (w: TimelineWorld, v: Pick<ModelVersion, 'G' | 'build'>, d:
 
 // ───────────────────────────── start state (§3.1.4 "Initial state") ─────────────────────────────
 
-/** Closed-form start: B0 started day −120 (pc extrapolated), V0 finished day −20, pa(t) = pa0 + r0·t before day 0
- *  (r0 = the reference software rate at start). pa0 is solved so that pm(V0) = p0 (§3.1.4). */
+/** Closed-form start in v2's progress coordinate (kept until RD-U06, SYNTHESIS §6 Phase 2, states the start as data):
+ *  B0 started day −120, V0 finished day −20, start know-how pa(t) = pa0 + r0·t before day 0 (r0 = the v2 reference
+ *  software rate at start), pa0 solved so that V0 sits at the world's start point p0 (§3.1.4). No lab's capability is
+ *  in this coordinate: it only fixes the start recipe vintages (startVintage, gV0), the start labs' lags (core/init.ts),
+ *  RefBot's gate conversion and the rivals' start rate. */
 const startCache = new WeakMap<TimelineWorld, ReturnType<typeof playerStartOf>>();
-/** Start state of world w (cached: the bridges read it every day). */
+/** Start state of world w (cached). */
 export function playerStart(w: TimelineWorld): ReturnType<typeof playerStartOf> {
   let x = startCache.get(w);
   if (!x) startCache.set(w, (x = playerStartOf(w)));
@@ -161,7 +164,7 @@ export function playerStart(w: TimelineWorld): ReturnType<typeof playerStartOf> 
 }
 function playerStartOf(w: TimelineWorld) {
   const target = w.p0;
-  const Mref = multiplierAt(asV1World(w), w.p0); // BRIDGE(V6): start-state solution (the zero of the know-how readout)
+  const Mref = multiplierAt(asV1World(w), w.p0); // v2 reference multiplier at p0: the start software rate (until RD-U06)
   const r0 = w.p0 < stage1(asV1World(w)) ? w.share * Mref : Mref; // years per year
   const pcB0 = pcRefLab(w, B0_START_DAY);
   const dPost = V0_DAY;

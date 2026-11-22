@@ -5,13 +5,14 @@
 //
 // A node opens when its prerequisites are known (no capability gates). The player queues projects (priority order) and
 // assigns science teams of the node's department (capability columns: capabilities scientists; alignment,
-// interpretability and evals & control: safety scientists). With the auto-assign policy (J2 R2) idle teams spread over
-// the ready queued projects of their department: each goes where it cuts the most days off a project's ETA, weighted by
-// queue priority (√ capacity: every extra team on one project gains less), and the policy's teams re-spread when a
-// project finishes or a ready project has no team. Teams placed by hand stay put. It never picks unqueued projects.
-// Capacity = Σ heads/40 × quality × 1.5 in the team's specialty column.
-//  - Rolled (safety) nodes: progress/day = M · √capacity / (effort · 30), M = the research-speed readout (BRIDGE(V6):
-//    safety research moves onto the project mechanism in V6). At progress 1 the attempt resolves:
+// interpretability and evals & control: safety scientists). Capabilities science teams are placed every day by the
+// priority assignment of models/research.ts (planAssignment). Safety science teams, with the auto-assign policy on
+// (J2 R2), spread over the ready queued safety projects: each goes where it cuts the most days off a project's ETA,
+// weighted by queue priority (√ capacity: every extra team on one project gains less), and the policy's teams re-spread
+// when a project finishes or a ready project has no team; a team with nothing queued joins a research line. Teams placed
+// by hand stay put. Capacity = Σ heads/40 × quality × 1.5 in the team's specialty column.
+//  - Rolled (safety) nodes: progress/day = M · √capacity / (effort · 30), M = the research-speed readout prodCache.M
+//    (until RD-R01 / RD-R04, SYNTHESIS §6 Phase 3, retire the readout and the rolled path). At progress 1 the attempt resolves:
 //    paradigm nodes use the hidden paradigm draw on the first attempt; every other attempt uses hash32(seed,
 //    'node:'+id[+':'+attempt]). Success makes the node known (a paradigm is adopted at once); failure allows a retry
 //    after 180 days at half odds.
@@ -180,7 +181,7 @@ export function projectCapacity(s: GameStateV2, id: string, add?: Team, remove?:
   return c;
 }
 
-/** Research speed of the rolled (safety) nodes: the research-speed readout M (BRIDGE(V6)). */
+/** Research speed of the rolled (safety) nodes: the research-speed readout M (until RD-R04, SYNTHESIS §6 Phase 3). */
 export const researchSpeed = (s: GameStateV2) => s.player.prodCache?.M ?? 1;
 
 /** Progress per day of a project at a capacity (default: its teams). */
@@ -377,7 +378,7 @@ function lineForTeam(s: GameStateV2, t: Team): string | undefined {
 /** Weight of a project by its place among the ready projects (queue priority) [D]: the second counts half the first. */
 export const PRIORITY_W = 0.5;
 
-/** Auto-assign policy for one department (J2 R2): spread teams over the ready queued projects. Each team in turn goes
+/** Auto-assign policy for one department (J2 R2; only autoAssign calls it, for safety): spread teams over the ready queued projects. Each team in turn goes
  *  where it gains most: a project with no team first (in queue order, a team of its specialty first), otherwise the
  *  most ETA days cut × PRIORITY_W^rank (√ capacity, so returns fall per extra team). Idle teams are placed every day;
  *  with `respread` every team the policy placed is re-placed (a project finished, or a ready project has no team while
@@ -431,7 +432,8 @@ function autoAssignDept(s: GameStateV2, dept: TeamDept, respread: boolean) {
   }
 }
 
-/** Auto-assign policy (both departments); `respread` re-places every team the policy placed (a project finished). */
+/** Auto-assign policy, safety science teams only (capabilities teams use the priority assignment of models/research.ts,
+ *  assignCapTeams); `respread` re-places every team the policy placed (a project finished). */
 export function autoAssign(s: GameStateV2, respread = false) {
   autoAssignDept(s, 'saf', respread);
 }

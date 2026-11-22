@@ -126,10 +126,12 @@ export function rlOnBase(flop: number, mid = 0, ceil = 0): number {
   return x;
 }
 /** G-equivalent of a recipe over the leader's day-0 recipe (OOM): pretraining + what its RL recipe adds to the reference
- *  RL run, at the reference base FLOP (stacks.ts gEquivOf; the know-how readout's unit). */
+ *  RL run, at the reference base FLOP FLOP_RL_REF (the same form as stacks.ts gEquivOf, without the training-throughput
+ *  stack). */
 export const gEquivOfRecipe = (rec: RivalRecipe) => rec.pre + rlOnBase(FLOP_RL_REF, rec.mid, rec.ceil) - rlOnBase(FLOP_RL_REF);
 /** The lab's recipe as a G-equivalent e (OOM over the leader's day-0 recipe): the unit the leaks, diffusion and events
- *  compare and move recipes in (the player's is stacks.ts recipeG). */
+ *  compare and move recipes in. The player's counterpart is stacks.ts stacksGEquiv, taken at the player's latest base
+ *  FLOP and with the throughput stack, so the two are not at a common F until RD-B16 (SYNTHESIS §6 Phase 1). */
 export const recipeOf = (_s: GameStateV2, r: Pick<RivalLab, 'phys'>) => gEquivOfRecipe(r.phys.rec);
 /** Knowledge from outside the lab (distillation of others' models, secrets leaks, open weights, events, safety
  *  spillover; model v3 F3) enters the pretraining part as public knowledge: dG OOM, scale-invariant and outside the

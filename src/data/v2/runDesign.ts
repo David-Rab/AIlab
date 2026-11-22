@@ -1,13 +1,13 @@
 // Run-design data (V2-SPEC §3.3.1–3.3.2; model v3 V1: design/MODEL-V3.md §2–§4, research/20 §A, §C). Owner: WS1.
 // Models are built from physical quantities: active parameters, tokens, FLOP, RL FLOP. Capability is effective compute
 // G = log₁₀(FLOP × recipe efficiency) (models/effective.ts). Tags: [R20 xx] research/20 section, [D] design value,
-// [fit] fitted (scripts/v2/calib.ts or the anchor named), BRIDGE(Vn) temporary (design/V3-BUILD.md "Bridges").
+// [fit] fitted (scripts/v2/calib.ts or the anchor named).
 import type { BaseDesign, DataKind, DomainId, PostDesign, RLFamily, SignalId } from '../../engine/v2/types';
 import { FAITHFUL_COT } from './safetyIdeas';
 
 type Off = Partial<Record<DomainId, number>>;
 
-// ───────────────────────────── bridges (design/V3-BUILD.md) ─────────────────────────────
+// ───────────────────────────── progress-year conversion (until RD-L03) ─────────────────────────────
 
 /** Effective-compute OOMs per v2 progress-year (research/12 §0.2: frontier G +1.1–1.3 a year): the slope of V1's retired
  *  pm bridge (pm = pm(V0) + (G − G(V0))/B; model v3 F3 removed it), kept to convert v2 data stated in progress-years
@@ -129,8 +129,8 @@ export const REFERENCE_POST: PostDesign = {
 };
 
 // ── Base choices ──
-/** BRIDGE(V7): a run's scale relative to F(t) (TrainingRun.scale) sets the public scrutiny of a run above the frontier.
- *  Engineering setup and operations read the physical FLOP since model v3 V3 (departments/build.ts engScale); S5 reads
+/** A run's scale relative to the reference frontier run F(t) (TrainingRun.scale) sets the public scrutiny of a run above
+ *  the frontier, until RD-T11 (SYNTHESIS §6 Phase 6) measures scrutiny against the largest rival run. Engineering setup and operations read the physical FLOP since model v3 V3 (departments/build.ts engScale); S5 reads
  *  the base's G and drawn data since model v3 E3 (safety/traits.ts baseSignals). */
 export const sizeScrutiny = (scale: number) => (scale > 1 ? (5 * Math.log(scale)) / Math.log(3) : 0);
 

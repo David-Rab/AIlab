@@ -1,7 +1,8 @@
 // Compute (design/ux/COMPUTE.md). Overview (L1): three verdicts, the capacity and fleet forecast, and three ways to add
-// compute (chips, data centres, cloud) with fine options folded away. Sites, Orders and Market (L2) hold the detail.
-// HOME of idle chips, empty racks, vendor fill, the forecast, sites & power, orders, cloud contracts and the chip
-// market. Compute online and the split live in Company and are only linked here.
+// compute (chips, data centres, cloud) with fine options folded away. Tabs (L2): Sites, Split (the compute split editor,
+// panels/Split.tsx) and Orders & market (deliveries, cloud and the chip market on one tab).
+// HOME of idle chips, empty racks, vendor fill, the forecast, sites & power, the split, orders, cloud contracts and the
+// chip market. Compute online lives in Company (its flow tab) and is only linked here.
 import { useEffect, useState, type ReactNode } from 'react';
 import { actionView, cancellablePricePerYear, chipFit, chipQuote, cloudPricePerYear, computeForecast, computeHistory, dateOf, dayOfQuarter, fmtDate, fmtMonth, leaseGuarantor, leaseRate, oppositionOdds, payOptions, qOf, rentQuote, siteCapex, siteEtaQ, siteLeasePerYear, siteRVG, siteSchedule, siteSizeView, spotPrice, spotRentalView, supplierTerms, SUPPLIER } from '../../../engine/v2';
 import type { ChipOrder, ForecastEvent, ForecastQ, GameStateV2, PayOption, Site } from '../../../engine/v2';

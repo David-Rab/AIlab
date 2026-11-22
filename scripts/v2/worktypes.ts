@@ -214,7 +214,8 @@ const mk = (seed = 21, world: 'ai2027' | 'authors2026' = 'ai2027'): GameStateV2 
   // Allowed: the definitions (production/ces.ts, world/), rivals / China / the leader lab
   // (actors/), the reference bot (bots/: the calibration harness's policy), the compute-split module that defines the
   // reference split and offers it as a player preset (departments/split.ts) and the selector re-exports; any other line
-  // must carry BRIDGE(V6|V7) (V4 removed its bridges).
+  // must name the RD plan item that removes it ("until RD-U06", design/RD-AUDIT/SYNTHESIS.md §6; RD-C06 replaced the
+  // old V6 / V7 bridge tags).
   const ALLOWED = ['production/ces.ts', 'world/', 'actors/', 'bots/', 'departments/split.ts', 'core/selectors.ts'];
   const bad: string[] = [];
   for (const f of files) {
@@ -223,11 +224,11 @@ const mk = (seed = 21, world: 'ai2027' | 'authors2026' = 'ai2027'): GameStateV2 
     readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
       const code = line.replace(/\/\/.*$/, '').replace(/\/\*\*?.*?(\*\/|$)/, '').replace(/^\s*\*.*$/, '');
       if (/^\s*import\b/.test(line) || !FORBIDDEN.test(code)) return;
-      if (/BRIDGE\(V[67]/.test(line)) return;
+      if (/\bRD-[A-Z]\d+[a-z]?\b/.test(line)) return;
       bad.push(`${rel}:${i + 1}: ${line.trim().slice(0, 90)}`);
     });
   }
-  check(bad.length === 0, 'lint: no player mechanism reads frontierFlop, hRef, refTotal, shareRefAt, knotAt, multiplierAt or CAL_SHIFT (allowed: harness, rivals, BRIDGE(V6|V7) lines; V4 retired its bridges)', bad.slice(0, 6).join(' | '));
+  check(bad.length === 0, 'lint: no player mechanism reads frontierFlop, hRef, refTotal, shareRefAt, knotAt, multiplierAt or CAL_SHIFT (allowed: harness, rivals, lines naming the RD item that removes them)', bad.slice(0, 6).join(' | '));
   const wf = readFileSync(join(root, 'departments', 'workfit.ts'), 'utf8');
   check(!/\.pm\b(?!\))/.test(wf.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')) && !/levelOf|thresholds\(/.test(wf),
     'lint: the work-type layer (fit, coverage, milestones) reads effective compute, not pm or the level bridge', '');

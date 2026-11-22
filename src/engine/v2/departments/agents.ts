@@ -1,17 +1,19 @@
 // Internal agent packages (STRUCTURE §4.9, BUILD-PLAN R7). Owner: WS1.
 //
-// Four internal uses, each a package of model + optional monitor + compute:
-//   eng          engineering agents: AI share of engineers' work → build capacity (A_eng of this model × coverage)
-//   capRoutine   routine research: the production function's internal model (p_dep, A, R, ηmod) — the old internalAgent
-//   capFrontier  frontier research: research taste (sdAI); its compute counts in k with routine's
-//   safety       safety research agents (the old safety agent fleet), on a share of the safety pool
+// Four internal uses, each a package of model + optional monitor + compute; each supplies AI labour to one work type
+// (departments/workfit.ts useLabour):
+//   eng          engineering agents: software engineering (SWE) → build capacity (departments/teams.ts buildCapacity)
+//   capRoutine   routine research: research experiments (EXP; spare serving compute lent to research adds to it)
+//   capFrontier  frontier research: research ideas (IDEAS) and the AI research taste sdAI; its compute counts in the
+//                readout's k with routine's
+//   safety       safety research agents (the safety work types), on a share of the safety pool
 // Engineering and the two research uses share the capabilities agent pool (split.agents); their `compute` are shares
 // of it. Monitors watch internal uses, paid first from the safety pool: the monitoring budget (a share of the pool, SAFMECH)
 // buys coverage = budget ÷ (watched compute × the monitor's cost ratio) (AI 2027 fn 51). A monitor's strength = coverage × min(1, catch ÷ 85%): a monitor as capable as the
 // watched model, fully funded, is today's runtime monitoring exactly (strength 1).
 //
-// Neutrality: the default package (every use on the routine model, monitors 'same' on routine and frontier research,
-// the reference shares) gives exactly the pre-R7 production function, runtime monitoring and internal incidents.
+// The default package (initialAgents): every use on the routine model, monitors 'same' on routine and frontier research,
+// the reference compute shares (DEFAULT_CAP_SHARES).
 import { flopPerToken } from './workfit';
 import {
   AGENT_USES, CAP_USES, DEFAULT_CAP_SHARES, MONITOR_SAME, MONITOR_STD_POOL_SHARE, RISK_FAMILIES, RISK_UNSEEN_CLARITY, RISK_WATCH_EST,

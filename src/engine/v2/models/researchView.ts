@@ -94,7 +94,8 @@ export interface CapProjectView {
 const node = (id: string): TreeNodeDef | undefined => PROJECT_BY_ID[id];
 const r3 = (x: number) => Math.round(x * 1000) / 1000;
 
-/** The P13 multiplier on experiment FLOP (as models/research.ts). */
+/** Yesterday's experiment FLOP per research engineer on experiments and tuning (research.last: the FLOP available after
+ *  evals ÷ those engineers, before P13's multiplier, as models/research.ts capResearchDay); 0 before the first day. */
 function flopPerRe(s: GameStateV2): number {
   const last = s.player.research.last;
   if (!last) return 0;

@@ -162,9 +162,10 @@ function flopCost(s: GameStateV2, flop: number): number {
  *  in-context learning [P, research/12 §2], so a smaller multi-day-continuity effect. (Long-horizon human demos, P12,
  *  act through the long-tasks suite's expert data since model v3 D9, not as a horizon multiplier.) */
 export const P07_HORIZON = 1.2;
-/** BRIDGE(V7): a run's scale vs the frontier run F(t) (public scrutiny only; engineering uses the physical FLOP since
- *  model v3 V3, departments/build.ts engScale; S5 the base's G and drawn data since model v3 E3). */
-export const scaleOf = (s: GameStateV2, flop: number) => flop / frontierFlop(s.hidden.timeline, decimalYear(s)); // BRIDGE(V7)
+/** A run's scale vs the reference frontier run F(t), read only for public scrutiny (engineering uses the physical FLOP
+ *  since model v3 V3, departments/build.ts engScale; S5 the base's G and drawn data since model v3 E3). Until RD-T11
+ *  (SYNTHESIS §6 Phase 6) measures scrutiny against the largest rival run. */
+export const scaleOf = (s: GameStateV2, flop: number) => flop / frontierFlop(s.hidden.timeline, decimalYear(s)); // until RD-T11
 
 /** Limits of a base run (blueprint size card). All exact readouts of what the engine will do. */
 export interface BaseLimits {

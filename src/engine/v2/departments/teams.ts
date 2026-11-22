@@ -7,9 +7,11 @@
 //   policy      "keep hiring to N" queues one standard (Strong) team per key while teams + queued < N
 //   hiring      per department lane: HIRING_BASE · (1 + talentPull/50) · moraleFactor heads, first into vacancies,
 //               then into the queued teams in order; a team arrives when it is full
-// Engine map: capabilities research engineers → H = Σ heads·quality / 0.55, so h = RE_cap / (0.55·H_ref) and a lab of
-// Strong teams in the reference split has h = 1; capabilities scientists' quality and stars → τ_h (Strong = 1);
-// engineers → build capacity (readout until R5). `staff.cap/saf` are derived from heads, so every reader still works.
+// Engine map (model v3 V3): capabilities research engineers serve the research-engineer needs (models/research.ts
+// reAllocation: run operations, evals, project experiments, tuning; the production readout's h is those on
+// experiments + tuning over the leader lab's day-0 value); capabilities scientists run projects, each team's taste from
+// its quality on the AIFM distribution (departments/workfit.ts teamTaste) × the star factor τ_h (tauH); engineers →
+// build capacity (buildCapacity, the build queue of departments/build.ts). `staff.cap/saf` are derived from heads.
 import {
   ATTRITION_BASE, CANDIDATES, CANDIDATE_QUALITY_W, CANDIDATE_RE_SAF, CANDIDATE_ROLE_W, COLUMN_DEPT, COLUMN_LABEL, COLUMNS,
   HIRING_BASE, MOVE_SAFETY_MORALE, QUALITY, REF_ROLE_SHARE, SAF_ROLE_SHARE, START_SPECIALTIES, START_TEAMS, STAR_HIRE,

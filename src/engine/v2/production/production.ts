@@ -1,11 +1,14 @@
-// Production readouts and know-how growth. Owner: WS1.
+// Production readouts, the rivals' daily research step, knowledge diffusion to the player and the daily data accruals
+// (production system). Owner: WS1.
 //
 // The player (model v3 V3: design/V3-BUILD.md V3.4): research speed comes from each project's explicit compute and
 // labour (models/research.ts, the AI Futures experiment CES at project level) and AI labour per work type
-// (departments/workfit.ts). This file only builds the player's READOUT in the v2 shape (ProductionReadout) from the same
-// mechanics: M = the research speed of the lab ÷ the same lab with no AI labour (AIFM's AI R&D multiplier, research/13
-// §2.8) at today's resources, its decomposition, elasticities, what-ifs and ceilings, and `rate` = the stacks' recent
-// growth in progress-years (BRIDGE(V6/V7): the safety, rival and lead readers that still read M and rate; revenue stopped reading M in V4).
+// (departments/workfit.ts). For the player this file builds only the READOUT in the v2 shape (ProductionReadout) from the
+// same mechanics (and the Auto research mix, applyBestMix): M = the research speed of the lab ÷ the same lab with no AI
+// labour (AIFM's AI R&D multiplier, research/13 §2.8) at today's resources, its decomposition, elasticities, what-ifs and
+// ceilings, and `rate` = the stacks' recent growth in progress-years. M is still read by gov, the record, the tutorial
+// act (models/capability.ts) and the rolled safety nodes (models/tree.ts researchSpeed), until RD-R01 / RD-R04 (SYNTHESIS
+// §6 Phase 3); `rate` by the lead readers until RD-L03 (Phase 2).
 // Its inputs are in fixed physical units (the leader lab's day-0 inputs = 1): h research engineers on research, k agent
 // compute, c experiment compute.
 //
@@ -169,7 +172,7 @@ function evalProductionV3(w: TimelineWorld, inp: LabInputs, detail: boolean): Pr
   const v = inp.v3 as V3Inputs;
   const e = evalV3(w, inp);
   const stage: 1 | 2 = v.stage2 ? 2 : 1;
-  // `rate` (progress-years per year, BRIDGE(V7) for the lead readers): the stacks' recent growth ÷ B, at these inputs.
+  // `rate` (progress-years per year, for the lead readers until RD-L03): the stacks' recent growth ÷ B, at these inputs.
   const e0 = evalV3(w, { ...inp, h: v.h0, k: v.k0 });
   const rate = (v.gRate / B_G_PER_Y) * v.rateMult * (e.M / Math.max(1e-12, e0.M));
   const parts = { agents: e.X / e.Xh, taste: v.Tai / Math.max(1e-12, v.Th), other: v.mods };

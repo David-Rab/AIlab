@@ -1,7 +1,8 @@
 // Engineers' build queue (STRUCTURE §4.1, BUILD-PLAN R5; jank J2 P1). Owner: WS1.
 //
-// Engineering teams share one build capacity (team-weeks per week = Σ engineer heads/150 × quality × 1/(1 − A_eng),
-// capped; departments/teams.ts buildCapacity) and spend it on three needs, in the player's order (model v3 V2: "needs +
+// Engineering teams share one build capacity (team-weeks per week = effective software-engineering labour: the
+// engineers' team-equivalents, Σ heads/150 × quality, with the engineering agents' AI labour in the coding CES at their
+// SWE coverage, never below the humans alone; no cap; departments/teams.ts buildCapacity) and spend it on three needs, in the player's order (model v3 V2: "needs +
 // priority + overflow"; default below), each up to its optional cap (team-weeks per week or a share of capacity);
 // unused capacity flows down the order:
 //   runs      operations of every training run while it trains and of the continual-learning stream, then the run
@@ -16,7 +17,8 @@
 //             and hardening passes (model v3 D5)
 // Too few engineers: upkeep falls behind (shown) and nothing new ships (launches, features and packs wait; the wait
 // shows on Products and Company). Runs come first so the run cadence holds (the reference lab's runs never wait on
-// upkeep). Engineering agents raise capacity through A_eng (their model and compute; R7, J2), so the work an engineer
+// upkeep). Engineering agents raise capacity through the coding CES (their model's SWE coverage and their compute;
+// departments/workfit.ts), so the work an engineer
 // carries grows as AI takes over engineering. Calibration: the reference lab (RefBot) on the ai2027 path uses about
 // three quarters of its capacity; its run setups finish within a few days in every world (calib.ts).
 import { FEATURE_BY_ID, PRICE_TIERS, type FeatureDef, type FeatureId } from '../../../data/v2/features';

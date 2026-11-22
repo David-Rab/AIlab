@@ -241,8 +241,9 @@ export function racePressure(s: GameStateV2, lab: LabId): number {
   return clamp(months / 6, 0, 1);
 }
 
-/** Speed multiplier WS1 should apply to a non-player lab's production (leader with bindingness > 0.5 slows by
- *  0.2·bindingness, research/17 §1.6.5). Not applied under the M0 placeholder progress. */
+/** Research-speed multiplier of a non-player lab (research/17 §1.6.5): the leader lab with bindingness > 0.5 slows by
+ *  0.2·bindingness; 1 for every other lab. production.ts rivalResearch applies it (with the treaty factor) to the
+ *  lab's aggregate research speed (evalRival's mods). */
 export function rivalSpeedMult(s: GameStateV2, lab: LabId): number {
   if (lab === 'player' || leaderOf(s) !== lab) return 1;
   const b = postureOf(s, lab).bindingness;

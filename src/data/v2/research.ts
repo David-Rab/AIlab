@@ -1,7 +1,7 @@
 // Research projects (model v3 V2: design/MODEL-V3.md §5, §8; design/V3-BUILD.md "V2"; design/TECH-TREE.md §6). Owner: WS1.
 // Constants of the capability-project lifecycle (models/research.ts), the recipe stacks (models/stacks.ts) and the broad
 // allocations of research engineers and engineers. Tags: [R20 xx] research/20, [D] design value, [fit] fitted by the
-// calibration harness (scripts/v2/calib.ts --fit-lines), BRIDGE(Vn) temporary (V3-BUILD "Bridges").
+// calibration harness (scripts/v2/calib.ts --fit-lines).
 import type { Allocation, EngNeed, ReNeed, RiskPolicy, StackKey } from '../../engine/v2/types';
 
 // ───────────────────────────── start priority list (model v3 V4.0) ─────────────────────────────

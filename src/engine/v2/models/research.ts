@@ -1,5 +1,6 @@
 // Capability research projects (model v3 V2/V3: design/MODEL-V3.md §5, §6, §8; design/V3-BUILD.md V2.2–V2.6, V3.4; content
-// design/TECH-TREE.md §6). Owner: WS1. Safety research lines keep their v2 path (models/tree.ts) until V6.
+// design/TECH-TREE.md §6). Owner: WS1. Safety research runs on its own copy of this lifecycle (safety/lineProjects.ts) and
+// the remaining rolled nodes on models/tree.ts, until RD-R02b / RD-R04 (SYNTHESIS §6 Phase 3) move them onto this engine.
 //
 // A project's life runs by itself (MODEL-V3 §5.3):
 //   1 ideation      the project's science teams find candidates at (m_IDEAS × capacity)^λ × taste per team-month of
@@ -398,7 +399,8 @@ export function reAllocation(s: GameStateV2): { re: Record<ReNeed, number>; perP
 // ───────────────────────────── research inputs in physical units (V3.4) ─────────────────────────────
 
 /** Experiment FLOP the lab's research can use per day: the experiments pool (and idle training compute unless the
- *  policy sends it to data, R5) at today's training throughput, × P13's experiment efficiency. */
+ *  policy sends it to data, R5) at today's training throughput. P13's multiplier is applied by the callers
+ *  (researchInputs, stepProject and routine tuning take it as `p13`). */
 export function projectFlopPerDay(s: GameStateV2): number {
   return expPoolH100e(s) * PHI_FLOP_PER_H100E_DAY * Math.pow(10, trainNow(s));
 }
@@ -408,7 +410,8 @@ export function expPoolH100e(s: GameStateV2): number {
   const idle = s.player.policies.spareTraining !== 'data' ? idleTrainingShare(s) * pools.training : 0;
   return pools.experiments + idle;
 }
-/** P13 (automated AI research agents): experiment throughput up to ×1.5 with the internal model's RSCH. */
+/** P13 (automated AI research agents): a flat experiment-FLOP multiplier, up to ×1.5 as the internal model's measured RSCH
+ *  goes 6.5 → 8.5 (models/tree.ts payoffOf, passed in by the tree's day step). Deleted by RD-E01a (SYNTHESIS §6 Phase 3). */
 const p13Mult = (s: GameStateV2, payoff: number) => (adopted(s, 'P13') ? 1 + 0.5 * payoff : 1);
 
 /** The lab's research inputs today: labour multipliers (AI in experiments and in ideas), the speed modifiers (pauses,
@@ -739,7 +742,7 @@ export function capResearchDay(s: GameStateV2, ctx: SystemCtx, ready: string[], 
     tuneDay(s, TUNE_K * tune * Xt);
     used += tune * flopPerRe;
   }
-  // Software progress readout (OOM/day of the stacks' G-equivalent, a 14-day average): the readout's `rate` (BRIDGE(V7)).
+  // Software progress readout (OOM/day of the stacks' G-equivalent, a 14-day average): the Research view's OOM/year and the input of production.ts `rate` (until RD-L03).
   const g = stacksGEquiv(s);
   if (p.research.gLast !== undefined) p.research.gRate = (p.research.gRate ?? 0) + (Math.max(0, g - p.research.gLast) - (p.research.gRate ?? 0)) / 14;
   p.research.gLast = g;

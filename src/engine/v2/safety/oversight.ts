@@ -3,7 +3,7 @@
 // The capability of an overseen model and of its overseer is read in OOM of effective compute on the display level
 // map λ(G): a level L converts to x = λ⁻¹(L) − G_V0 (OOM above the start model). Gaps between models are differences
 // of x; a 400-Elo gap (Engels et al. 2025) is OOM_PER_400_ELO of them (data/v2/oversight.ts states the conversion).
-// This replaces every read of the research multiplier M (v2's BRIDGE(V6) mAtLevel / versionM) in the safety code.
+// This replaces every read of the research multiplier M (v2's mAtLevel / versionM, now deleted) in the safety code.
 //
 // The hooks for later tasks (E4 successor pull, E7 covert acts measured against the overseer's level):
 //   oversightGap(w, L_overseen, L_overseer)   gap in OOM, levels and Elo

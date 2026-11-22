@@ -460,7 +460,8 @@ export interface TrainingRun {
   /** Model v3 V2: the recipe frozen at launch: e_pre at the run's FLOP (base, continue), RL efficiency and ceiling (post, IDA);
    *  model v3 D5: the environment suites' fidelity and exploitability per family (post). */
   recipe?: { pre?: number; rlMid?: number; rlCeil?: number; fid?: Partial<Record<RLFamily, number>>; exploit?: Partial<Record<RLFamily, number>> };
-  /** BRIDGE(V7): base/continue run scale vs the frontier run F(t) at launch (scrutiny; engineering reads FLOP, S5 reads G). */
+  /** Base/continue run scale vs the reference frontier run F(t) at launch (scrutiny only; engineering reads FLOP, S5
+   *  reads G). Removed by RD-T11 (SYNTHESIS §6 Phase 6). */
   scale?: number;
   /** Distillation: student active parameters; distillation and continued-pretraining runs: tokens. */
   studentParams?: number;
@@ -529,7 +530,9 @@ export interface Deployment {
   id: string;
   kind: DeploymentKind;
   versionId: string;
-  /** Mini serving the product's free tier (Chat, API): FREE_TIER_SHARE of its usage (R6). */
+  /** Smaller model on the product. Chat: its free tier, the model Chat's free users get (worldfx/serving.ts chatFreeTier),
+   *  also blended at FREE_TIER_SHARE into productUses and the display levels (the blend goes with RD-B11). Sector
+   *  products (API, Agents): a separate cheap tier (productMiniUses), not blended. */
   miniVersionId?: string;
   /** Monitor model watching this product's outputs (R6, D7): catches incidents before customers see them, at a
    *  serving overhead. */
@@ -549,7 +552,7 @@ export interface Deployment {
   features: string[];
   safeguards: 'minimal' | 'standard' | 'classifiers' | 'hardened';
   controlLayer: boolean; // AG07 protocols active (usefulness tax)
-  sectorFocus: SectorId[]; // sector products (+0.5 L in that sector, certification)
+  sectorFocus: SectorId[]; // sectors packed onto this product: +SECTOR_PACK_DG OOM fit there once certified (worldfx/serving.ts); Enterprise ×3 channel weight (worldfx/revenue.ts)
   usagePolicy: { noDropInReplacement: boolean; noSurveillance: boolean; noAutonomousWeapons: boolean; minorsProtections: boolean };
   kyc: 0 | 1 | 2 | 3; // anti-distillation level (api/agents)
   status: 'live' | 'restricted' | 'withdrawn';
@@ -1941,7 +1944,8 @@ export interface WorldFxState {
   youthRel: Record<SectorId, number>;
   /** Friction added by major incidents (+0.05 each) and court rulings; decays over a year. Per sector. */
   incidentR: Record<SectorId, number>;
-  /** Day a player sector product becomes certified (+0.5 L, −0.1 R). */
+  /** Day a player sector pack becomes certified: focused products gain SECTOR_PACK_DG OOM of fit in the sector
+   *  (worldfx/serving.ts) and US friction R falls by 0.1 (worldfx/sectors.ts). */
   certDay: Partial<Record<SectorId, Day>>;
   /** AI automation output factor X (CES-bounded, research/16 §4.3), by region. 1 = no AI. */
   autoLevel: Record<RegionId, number>;
