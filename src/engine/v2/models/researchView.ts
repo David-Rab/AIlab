@@ -21,7 +21,7 @@ import { versionById } from './labs';
 import {
   allocate, attemptOdds, capEta, capReCapacity, isCapProject, isUnlockProject, linePool, poolMean, projectExpInputs, reAllocation, reDemand, sciOn, teamsWanted, wantIsAuto,
 } from './research';
-import { adoptedAt, headroomAt, latestBaseFlop, rlCeilNow, rlMidNow, STACK_KEYS, stackAt, trainNow } from './stacks';
+import { adoptedAt, latestBaseFlop, rlCeilNow, rlMidNow, STACK_KEYS, stackAt, trainNow } from './stacks';
 import { nodeStatus, projectReady } from './tree';
 import type { AdoptedIdea, CapStage, GameStateV2, MilestoneIdx, ModelVersion, ReNeed, EngNeed, StackKey, Team } from '../types';
 
@@ -217,7 +217,7 @@ export interface AdoptedView extends Omit<AdoptedIdea, 'eff'> {
 }
 /** RD-B17: one recipe stack in its own unit (OOM of its own quantity, STACK_UNIT; stacks are never summed). */
 export interface StackView {
-  key: StackKey; name: string; unit: string; now: number; adopted: number; headroom: number; base: number;
+  key: StackKey; name: string; unit: string; now: number; adopted: number; base: number;
   /** What the internal model embodies and the stack beyond it (pretraining, RL efficiency, RL ceiling only). */
   inModel?: number; gap?: number;
   /** Ideas adopted into it (a batch counts its ideas; a second stack an idea also moves does not count it). */
@@ -261,7 +261,7 @@ function otherEmbodiedBy(n: TreeNodeDef | undefined): EmbodiedBy {
   return 'baseStart';
 }
 
-/** Recipe readout (RD-B17): per stack, in its own unit, its value now (at the latest base), headroom, what the internal
+/** Recipe readout (RD-B17): per stack, in its own unit, its value now (at the latest base), what the internal
  *  model embodies, and the adopted ideas (believed band; the true effect once a model that embodies it is evaluated). */
 export function stackViews(s: GameStateV2): StackView[] {
   const res = s.player.research;
@@ -279,7 +279,7 @@ export function stackViews(s: GameStateV2): StackView[] {
     const now = nowOf(k);
     const im = inModel[k];
     return {
-      key: k, name: STACK_LABEL[k], unit: STACK_UNIT[k], now, adopted: adoptedAt(res.stacks[k], F), headroom: headroomAt(res.stacks[k], F), base: res.stacks[k].base,
+      key: k, name: STACK_LABEL[k], unit: STACK_UNIT[k], now, adopted: adoptedAt(res.stacks[k], F), base: res.stacks[k].base,
       ...(im !== undefined ? { inModel: im, gap: Math.max(0, now - im) } : {}), n: res.stacks[k].n,
       ideas: res.adopted.filter((a) => a.stack === k).slice().reverse().map((a) => adoptedView(s, a, EMBODIED_BY[k])),
     };

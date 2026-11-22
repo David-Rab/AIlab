@@ -33,15 +33,15 @@ const previewTeam = (s: GameStateV2, t: TeamSpec, i = 0): Team => {
 
 /** What the lab reads after a day: build capacity (team-weeks / week, buildCapacity), every capability project's ETA
  *  (capEta: the assignment placed the science teams, research engineers went by need), safety results per year (the
- *  lines' cycles; new safety science teams are placed by Auto-assign when it is on), and research-engineer
- *  team-equivalents on routine tuning. */
-export interface DayRead { build: number; eta: Map<string, number>; saf: number; tune: number }
+ *  lines' cycles; new safety science teams are placed by Auto-assign when it is on), and idle research-engineer
+ *  team-equivalents (RD-E03). */
+export interface DayRead { build: number; eta: Map<string, number>; saf: number; idle: number }
 export function readState(c: GameStateV2): DayRead {
   const eta = new Map<string, number>();
   for (const id of c.player.research.queue) if (isCapProject(PROJECT_BY_ID[id])) eta.set(id, capEta(c, id).eta);
   let saf = 0;
   for (const a of AGENDAS) saf += lineResultsPerYear(c, a.id);
-  return { build: buildCapacity(c).capacity, eta, saf, tune: c.player.research.last?.re.tune ?? 0 };
+  return { build: buildCapacity(c).capacity, eta, saf, idle: c.player.research.last?.idle ?? 0 };
 }
 /** One engine day on a copy with these teams (and an optional edit), read after it. */
 export function readDay(s: GameStateV2, teams: Team[], edit?: (c: GameStateV2) => void): DayRead {
@@ -69,7 +69,7 @@ const baseRead = (s: GameStateV2) => memoRead(s, 'base', () => s.player.teams);
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
 /** The line of a team change in its department's currency: engineers' build capacity; capability teams the project
- *  whose ETA moves most (days; research engineers no project needs show as routine tuning); safety results per year. */
+ *  whose ETA moves most (days; research engineers no project needs show as idle); safety results per year. */
 export function effectLine(s: GameStateV2, before: DayRead, after: DayRead, t: Pick<Team, 'role' | 'dept'>, none?: string): CostLine {
   if (t.role === 'eng') return { currency: 'staffTime', amount: r2(after.build - before.build), unit: 'team-weeks / week', target: 'build capacity' };
   if (t.dept === 'saf') {
@@ -92,9 +92,9 @@ export function effectLine(s: GameStateV2, before: DayRead, after: DayRead, t: P
   if (best?.stall === 'starts') return { currency: 'progress', amount: Math.round(after.eta.get(best.id) ?? 0), unit: 'days', target: `${name(best.id)} gets going: its ETA in days${more}` };
   if (best?.stall === 'stops') return { currency: 'progress', amount: -Math.round(before.eta.get(best.id) ?? 0), unit: 'days', target: `${name(best.id)} stalls: the ETA it loses${more}` };
   if (best) return { currency: 'progress', amount: Math.round(best.d), unit: 'days', target: `${name(best.id)} ${best.d > 0 ? 'sooner' : 'later'}${more}` };
-  const dt = r2(after.tune - before.tune);
+  const dt = r2(after.idle - before.idle);
   return dt !== 0
-    ? { currency: 'progress', amount: dt, unit: 'team-equivalents', target: 'research engineers on routine tuning (no project ETA moves today)' }
+    ? { currency: 'progress', amount: dt, unit: 'team-equivalents', target: 'research engineers idle (no project ETA moves today)' }
     : { currency: 'progress', amount: 0, unit: 'days', target: none ?? (t.role === 'sci' ? 'no capability project moves today (no project is finding ideas: science teams speed ideation)' : 'no capability project moves today (idle until a project needs them)') };
 }
 

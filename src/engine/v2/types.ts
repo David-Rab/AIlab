@@ -761,20 +761,20 @@ export interface AdoptedIdea {
  *  train = training throughput (OOM of model FLOP per chip-day); serve = serving efficiency (OOM: decode utilisation,
  *  then less FLOP per token; D10 stacks.ts serveSplit). */
 export type StackKey = 'pre' | 'rlMid' | 'rlCeil' | 'train' | 'serve';
-/** Scale bucket: Σ effect_i · 10^(−s·log₁₀ F_test,i) of the adopted ideas with scale exponent s (rounded), and the part
- *  still in headroom (same units). Effect at run FLOP F = (a − h) · 10^(s·log₁₀ F). */
-export interface StackBucket { s: number; a: number; h: number }
+/** Scale bucket: Σ effect_i · 10^(−s·log₁₀ F_test,i) of the adopted ideas with scale exponent s (rounded). Effect at
+ *  run FLOP F = a · 10^(s·log₁₀ F) (RD-E03, DD-12: an adopted idea lands at its full effect at build-in). */
+export interface StackBucket { s: number; a: number }
 export interface StackState {
-  /** Start recipe and public knowledge (OOM, scale-invariant, no headroom). */
+  /** Start recipe and public knowledge (OOM, scale-invariant). */
   base: number;
   buckets: StackBucket[];
   /** Ideas adopted. */
   n: number;
 }
 export type RiskPolicy = 'safe' | 'balanced' | 'speculative';
-/** Research-engineer needs (V3-BUILD V2.5): run operations, evaluations (model v3 D7), project experiments, routine
- *  tuning. */
-export type ReNeed = 'ops' | 'evals' | 'exp' | 'tune';
+/** Research-engineer needs (V3-BUILD V2.5): run operations, evaluations (model v3 D7), project experiments. Capacity
+ *  none of them takes is idle (RD-E03 removed routine tuning). */
+export type ReNeed = 'ops' | 'evals' | 'exp';
 /** Engineer needs: run operations and setups, product upkeep, builds (features, adoptions, launches, packs). */
 export type EngNeed = 'runs' | 'upkeep' | 'builds';
 /** A broad allocation: needs in priority order and optional caps per need: a team count (`max`, team-equivalents) and a
@@ -823,6 +823,8 @@ export interface ResearchState {
    *  project in experiments (RD-B08 expShares; absent in older saves), FLOP used and available (FLOP/day). */
   last?: {
     re: Record<ReNeed, number>; reProj: Record<string, number>; flopProj?: Record<string, number>; flopUsed: number; flopAvail: number;
+    /** RD-E03: research engineers no need took today (team-equivalents). Absent in older saves. */
+    idle?: number;
     /** RD-B09: share of the run-operations need the research engineers served today (gets ÷ needs, 1 with no need);
      *  running runs and the continual-learning stream advance at this share (models/runs.ts). Absent in older saves. */
     opsServed?: number;

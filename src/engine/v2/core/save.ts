@@ -43,8 +43,11 @@ import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
  *  day and drops a certified sector no product carries.
  *  47 (RD-U08): serving cost is FLOP per token only: BaseModel.fpt and ModelVersion.fpt are required, BaseModel.serve,
  *  the versions' and run predictions' relative serve cost are gone (the relative 0.5-reference readout). Migration 46 → 47
- *  computes fpt as the old reader did and drops the old fields. */
-export const SCHEMA_REV = 47;
+ *  computes fpt as the old reader did and drops the old fields.
+ *  48 (RD-E03, DD-12): no headroom and no routine tuning: StackBucket.h and the research engineers' 'tune' need are gone.
+ *  Migration 47 → 48 delivers the remaining headroom (the bucket's effect becomes its whole adopted a) and drops 'tune'
+ *  from the research-engineer allocation and the last-day readout. */
+export const SCHEMA_REV = 48;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -317,6 +320,22 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       delete pr[OLD_SERVE];
     }
     for (const b of m.bases) delete (b as unknown as OldBase).serve;
+  },
+  /** 47 → 48 (RD-E03): headroom is removed. A bucket's effect was (a − h); its remaining headroom h is delivered at once
+   *  (the effect becomes a, as every idea adopted from now on lands), and h is dropped. The 'tune' need leaves the
+   *  research-engineer allocation (order, caps) and the last-day readout. Idempotent. */
+  47: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const res = s.player?.research;
+    if (!res) return;
+    for (const st of Object.values(res.stacks ?? {})) for (const b of st.buckets ?? []) delete (b as { h?: number }).h;
+    const a = res.re as unknown as { order?: string[]; max?: Record<string, number>; share?: Record<string, number> } | undefined;
+    if (a) {
+      if (Array.isArray(a.order)) a.order = a.order.filter((k) => k !== 'tune');
+      if (a.max) delete a.max.tune;
+      if (a.share) delete a.share.tune;
+    }
+    if (res.last?.re) delete (res.last.re as Record<string, number>).tune;
   },
 };
 

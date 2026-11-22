@@ -3,9 +3,9 @@
 //   can be adopted; the risk policy changes the pursued candidate; better taste lowers belief error; a failed project
 //   reopens as speculative; line priors decline but their sum diverges (model v3 V3: the pool form from r); the assignment
 //   is deterministic and within 5% of the brute-force optimum on small cases; research engineers and engineers overflow
-//   down their needs; RD-B08: tuning wants research engineers ∝ headroom, after every project in experiments, and
-//   experiment FLOP goes by need (more research engineers never lower a project's rate); RD-B09: research engineers are
-//   the one owner of run operations (engineers are charged only setups) and a shortfall slows runs to the share served; RD-B16: Software progress counts only adopted ideas and tuning at a fixed F (a new base or a diffusion inflow does not move it; public knowledge is its own readout) and theft / leaks compare recipes with one recipeG at RECIPE_F; a stage without experiment FLOP waits (V3: the experiment CES is 0 without compute); headroom closes with tuning and refills on adoption; a quarter of small-scale wins of the
+//   down their needs (spare research engineers are idle: RD-E03, no routine tuning); RD-E03: an adopted idea's full effect
+//   is in its stack at build-in (no headroom; migration 47 → 48); RD-B08: experiment FLOP goes by need (more research engineers never lower a project's rate); RD-B09: research engineers are
+//   the one owner of run operations (engineers are charged only setups) and a shortfall slows runs to the share served; RD-B16: Software progress counts only adopted ideas at a fixed F (a new base or a diffusion inflow does not move it; public knowledge is its own readout) and theft / leaks compare recipes with one recipeG at RECIPE_F; a stage without experiment FLOP waits (V3: the experiment CES is 0 without compute); a quarter of small-scale wins of the
 //   tweaks line survive at scale; the recipe never reads the know-how readout (lint).
 // Model v3 D9: P10 / P12 / P21 are typed data and suite effects; their old flat flags are gone (lint).
 import { readFileSync, readdirSync } from 'node:fs';
@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { tick } from '../../src/engine/v2/core/loop';
 import { engine } from '../../src/engine/v2/index';
-import { HEADROOM, IDEA_DEFAULT_TM, MAX_DROPS, PICK_AT, RE_MAX_PER_PROJECT, RISK_KAPPA, SMALL_TO_TEST, SURVIVE_FRAC, TUNE_RE_PER_OOM } from '../../src/data/v2/research';
+import { DEFAULT_RE_ALLOC, IDEA_DEFAULT_TM, MAX_DROPS, PICK_AT, RE_MAX_PER_PROJECT, RISK_KAPPA, SMALL_TO_TEST, SURVIVE_FRAC } from '../../src/data/v2/research';
 import { PROJECT_BY_ID, TREE_BY_ID, type TreeNodeDef } from '../../src/data/v2/tree';
 import { makeCtx } from '../../src/engine/v2/core/loop';
 import {
@@ -21,7 +21,7 @@ import {
   planAssignment, poolMean, priorMean, projectFlopPerDay, reAllocation, reopenProject, researchInputs, softwareProgressDay,
 } from '../../src/engine/v2/models/research';
 import {
-  addIdea, addKnowledge, STACK_KEYS, headroomAt, headroomTotal, initialStacks, latestBaseFlop, playerRecipe, playerRecipeG, publicBase, RECIPE_F, recipeG, stackAt, stacksGEquiv, tuneDay,
+  addIdea, addKnowledge, STACK_KEYS, initialStacks, latestBaseFlop, playerRecipe, playerRecipeG, publicBase, RECIPE_F, recipeG, stackAt, stacksGEquiv,
 } from '../../src/engine/v2/models/stacks';
 import { recipeOf } from '../../src/engine/v2/actors/rivalModel';
 import { secretsLeakDaily } from '../../src/engine/v2/security/theft';
@@ -42,6 +42,48 @@ const mk = (seed = 11): GameStateV2 => newGame(defaultSetupV2({ world: 'ai2027',
 const act = (s: GameStateV2, id: string, p: Record<string, string | number | boolean> = {}) => engine.act(s, id, p);
 
 // ---------- RD-R07 four stages; one effort number per node (run alone: `tsx scripts/v2/research.ts --rd-r07`) ----------
+// ---------- RD-E03 no headroom, no routine tuning (run alone: `tsx scripts/v2/research.ts --rd-e03`) ----------
+if (process.argv.includes('--rd-e03')) {
+  // An adopted idea's full true effect is in its stack at build-in (a scale-invariant line, so the effect is F-free).
+  const s = mk(7);
+  const ctx = makeCtx(s);
+  const n = TREE_BY_ID['L.rlalg'];
+  const c = newCandidate(s, n, freshCap(), 1, 1);
+  const fTest = stagesOf(n).testFrac * latestBaseFlop(s);
+  const r = { c, xTest: 0.05, sHat: 0, fTest, est: 0.05, estSd: 0.01, day: s.time.day, buildId: 'rde03' };
+  s.player.tree[n.id] = { status: 'researching', progress: 1, cap: { ...freshCap(), pending: [r] } };
+  const v0 = stackAt(s.player.research.stacks.rlMid, latestBaseFlop(s));
+  completeAdoption(s, ctx, n.id, 'rde03', () => {});
+  const ad = s.player.research.adopted[s.player.research.adopted.length - 1];
+  const dv = stackAt(s.player.research.stacks.rlMid, latestBaseFlop(s)) - v0;
+  const keys = [...new Set(STACK_KEYS.flatMap((k) => s.player.research.stacks[k].buckets.flatMap((b) => Object.keys(b))))].sort().join(',');
+  check(ad?.id === n.id && Math.abs(ad.eff) > 0 && Math.abs(dv - ad.eff) < 1e-4 && keys === 'a,s',
+    'RD-E03 an adopted idea adds its full true effect to its stack at build-in (no headroom part)', `effect ${ad?.eff} → stack +${dv.toFixed(5)}; bucket fields ${keys}`);
+  // No 'tune' need: research engineers serve run operations, evaluations and the projects; the rest show as idle.
+  for (let d = 0; d < 5; d++) tick(s, { skip: ['endings'] });
+  const al = reAllocation(s);
+  const last = s.player.research.last;
+  // The readout is the last tick's: its needs plus idle make up the (unchanged) capacity.
+  const sum = last ? last.re.ops + last.re.evals + last.re.exp : NaN;
+  act(s, 'research.reAlloc', { order: 'ops,exp,tune,evals' });
+  const order = s.player.research.re.order.join(',');
+  check(Object.keys(al.demand).sort().join(',') === 'evals,exp,ops' && DEFAULT_RE_ALLOC.order.join(',') === 'ops,evals,exp' && !('tune' in (last?.re ?? {}))
+    && last?.idle !== undefined && last.idle > 0 && Math.abs(last.idle + sum - al.total) < 0.01 && order === 'ops,evals,exp',
+    'RD-E03 no routine-tuning need; spare research engineers are idle (readout); an order naming tune is ignored', `needs ${Object.keys(al.demand).join(',')}; idle ${last?.idle} + needs ${sum.toFixed(3)} of ${al.total.toFixed(3)}; order after a tune order ${order}`);
+  // Migration 47 → 48: a bucket's remaining headroom is delivered (effect = a) and 'tune' leaves the allocation.
+  const raw = JSON.parse(serialize(s));
+  raw.schemaRev = 47;
+  raw.player.research.stacks.rlMid.buckets[0].h = 0.01;
+  raw.player.research.re.order = ['ops', 'evals', 'exp', 'tune'];
+  raw.player.research.re.max = { tune: 2 };
+  raw.player.research.last.re.tune = 1;
+  const g = deserialize(JSON.stringify(raw));
+  check(!('h' in g.player.research.stacks.rlMid.buckets[0]) && Math.abs(stackAt(g.player.research.stacks.rlMid, latestBaseFlop(g)) - stackAt(s.player.research.stacks.rlMid, latestBaseFlop(s))) < 1e-12
+    && g.player.research.re.order.join(',') === 'ops,evals,exp' && !('tune' in g.player.research.re.max) && !('tune' in (g.player.research.last?.re ?? {})),
+    'RD-E03 a rev-47 save loads with its headroom delivered and no tune need', JSON.stringify(g.player.research.re));
+  finish('research');
+}
+
 // ---------- RD-R05 unlock projects: one works / doesn't test (run alone: `tsx scripts/v2/research.ts --rd-r05`) ----------
 if (process.argv.includes('--rd-r05')) {
   const unlocks = Object.values(TREE_BY_ID).filter((n) => isUnlockProject(n));
@@ -341,17 +383,14 @@ if (process.argv.includes('--rd-r07')) {
   const s = mk(4);
   for (const id of ['L.scale', 'L.data', 'L.rlalg']) act(s, 'research.queue', { id });
   for (let d = 0; d < 60; d++) tick(s, { skip: ['endings'] });
-  // RD-B08: tuning's demand is finite (TUNE_RE_PER_OOM × headroom); an adopted idea leaves some to tune.
-  addIdea(s.player.research.stacks.pre, 0.05, 0, 1e24);
+  // RD-E03: no routine tuning; with experiments capped, their research engineers are idle.
   const before = reAllocation(s);
   act(s, 'research.reAlloc', { need: 'exp', max: 0 });
   const after = reAllocation(s);
-  const tuneWant = Math.min(after.demand.tune, before.re.tune + before.re.exp);
-  const sum = (a: typeof after) => a.re.ops + a.re.evals + a.re.exp + a.re.tune;
-  check(before.re.exp > 0 && after.re.exp === 0 && after.demand.tune > 0 && Number.isFinite(after.demand.tune) && Math.abs(after.re.tune - tuneWant) < 1e-9
-    && Math.abs(after.total - sum(after) - Math.max(0, before.total - sum(before) + before.re.exp + before.re.tune - after.re.tune)) < 1e-9,
-    'research engineers: with experiments capped, their capacity flows to routine tuning up to its demand; the rest is idle',
-    `exp ${before.re.exp.toFixed(1)} → ${after.re.exp}, tune ${before.re.tune.toFixed(1)} → ${after.re.tune.toFixed(1)} (demand ${after.demand.tune.toFixed(2)}), idle ${(after.total - sum(after)).toFixed(2)}`);
+  const sum = (a: typeof after) => a.re.ops + a.re.evals + a.re.exp;
+  check(before.re.exp > 0 && after.re.exp === 0 && Math.abs(after.total - sum(after) - (before.total - sum(before) + before.re.exp)) < 1e-9,
+    'research engineers: with experiments capped, their capacity is idle',
+    `exp ${before.re.exp.toFixed(1)} → ${after.re.exp}, idle ${(after.total - sum(after)).toFixed(2)}`);
   const r0 = buildRates(s);
   act(s, 'build.engAlloc', { need: 'builds', max: 0 });
   const r1 = buildRates(s);
@@ -366,12 +405,7 @@ if (process.argv.includes('--rd-r07')) {
   for (const id of ['L.scale', 'L.data', 'L.rlalg', 'L.env', 'L.opt', 'L.infer']) act(s, 'research.queue', { id });
   let nExp = 0;
   for (let d = 0; d < 300 && nExp < 4; d++) { tick(s, { skip: ['endings'] }); nExp = reAllocation(s).perProject.size; }
-  // Headroom to tune: an adopted 0.1 OOM leaves 0.03 OOM, i.e. 3 team-equivalents wanted on top of any already there.
-  addIdea(s.player.research.stacks.pre, 0.1, 0, 1e24);
-  const a0 = reAllocation(s);
-  check(nExp >= 4 && a0.demand.tune > 2.9 && Math.abs(a0.demand.tune - TUNE_RE_PER_OOM * headroomTotal(s)) < 1e-9,
-    'RD-B08: routine tuning wants research engineers in proportion to the remaining headroom (a finite need)',
-    `${nExp} projects in experiments; headroom ${headroomTotal(s).toFixed(4)} OOM → tuning wants ${a0.demand.tune.toFixed(2)} team-eq`);
+  check(nExp >= 4, 'RD-B08: four or more projects in experiments for the checks below', `${nExp} projects in experiments`);
   // The same day with k research-engineer teams removed (k < 0) or added (k > 0).
   const ids = s.player.teams.filter((t) => t.role === 're' && t.dept === 'cap').map((t) => t.id);
   const variant = (k: number) => {
@@ -390,13 +424,11 @@ if (process.argv.includes('--rd-r07')) {
   };
   const vs = [];
   for (let k = -(ids.length - 1); k <= 4; k++) vs.push(variant(k));
-  // (a) Projects in experiments are served before tuning: tuning holds research engineers only when every project has
-  // its full RE_MAX_PER_PROJECT (INP-V01: the old 75% share left the 7th project at 0 while tuning kept engineers).
-  const bad = vs.filter((v) => v.a.re.tune > 1e-9 && [...v.a.perProject.values()].some((re) => re < RE_MAX_PER_PROJECT - 1e-9));
-  const short = vs.filter((v) => [...v.a.perProject.values()].some((re) => re < RE_MAX_PER_PROJECT - 1e-9));
-  check(bad.length === 0 && short.length > 0 && short.every((v) => v.a.re.tune === 0),
-    'RD-B08: tuning gets research engineers only after every project in experiments has its full need',
-    `${vs.length} capacities ${vs[0].a.total.toFixed(1)}–${vs[vs.length - 1].a.total.toFixed(1)} team-eq; ${short.length} short of the projects' need (tuning 0 in each); violations ${bad.map((v) => v.k).join(',') || 'none'}`);
+  // (a) Research engineers are idle only when every project in experiments has its full RE_MAX_PER_PROJECT (INP-V01).
+  const bad = vs.filter((v) => v.a.total - v.a.re.ops - v.a.re.evals - v.a.re.exp > 1e-9 && [...v.a.perProject.values()].some((re) => re < RE_MAX_PER_PROJECT - 1e-9));
+  check(bad.length === 0,
+    'RD-B08: research engineers are idle only after every project in experiments has its full need',
+    `${vs.length} capacities ${vs[0].a.total.toFixed(1)}–${vs[vs.length - 1].a.total.toFixed(1)} team-eq; violations ${bad.map((v) => v.k).join(',') || 'none'}`);
   // (b) More research engineers never lower a project's research engineers, FLOP or rate. The FLOP is by need, so it is
   // exactly flat; the rate may dip by the AI labour multiplier m_EXP = L/H, which spreads the same AI labour over the
   // extra (idle) humans (< 0.5%; departments/workfit.ts labourOf, DD-11 / DD-13).
@@ -417,21 +449,13 @@ if (process.argv.includes('--rd-r07')) {
   check(worstRe >= -1e-9 && worstFlop >= 1 - 1e-9 && worstRate >= 0.995,
     'RD-B08: adding research engineers never lowers a project\'s research engineers, experiment FLOP or rate (FLOP by need, not headcount)',
     `worst step: RE ${worstRe.toFixed(3)}, FLOP ×${worstFlop.toFixed(4)}, rate ×${worstRate.toFixed(4)}`);
-  // (c) Tuning's FLOP is what the projects leave: with RE to spare, the pool splits RE_MAX_PER_PROJECT per project and
-  // tuning's demand; with no headroom tuning wants nobody, the projects take the whole pool and the rest is idle.
+  // (c) With research engineers to spare, the projects take the whole pool and the rest of the engineers are idle.
   const top = vs[vs.length - 1];
-  const units = top.a.perProject.size * RE_MAX_PER_PROJECT + top.a.demand.tune;
   const projFlop = [...top.sh.perProject.values()].reduce((x, y) => x + y, 0);
-  const z = deserialize(serialize(top.x));
-  for (const k of ['pre', 'rlMid', 'rlCeil', 'train', 'serve'] as const) for (const b of z.player.research.stacks[k].buckets) b.h = 0;
-  resetWorkContext(z);
-  const az = reAllocation(z);
-  const shz = expShares(az, 1);
-  const usedZ = az.re.ops + az.re.evals + az.re.exp + az.re.tune;
-  check(Math.abs(top.sh.tune - top.avail * top.a.demand.tune / units) < 1e-6 * top.avail && Math.abs(projFlop + top.sh.tune - top.avail) < 1e-6 * top.avail
-    && az.demand.tune === 0 && az.re.tune === 0 && shz.tune === 0 && Math.abs([...shz.perProject.values()].reduce((x, y) => x + y, 0) - 1) < 1e-9 && az.total - usedZ > 0,
-    'RD-B08: tuning takes the FLOP the projects leave; with no headroom it wants no one and spare research engineers are idle',
-    `tuning ${(100 * top.sh.tune / top.avail).toFixed(1)}% of FLOP at demand ${top.a.demand.tune.toFixed(2)}; no headroom: idle ${(az.total - usedZ).toFixed(2)} team-eq`);
+  const usedTop = top.a.re.ops + top.a.re.evals + top.a.re.exp;
+  check(Math.abs(projFlop - top.avail) < 1e-6 * top.avail && top.a.total - usedTop > 0,
+    'RD-B08 / RD-E03: with research engineers to spare the projects take the whole pool; spare research engineers are idle',
+    `projects ${(100 * projFlop / top.avail).toFixed(1)}% of FLOP; idle ${(top.a.total - usedTop).toFixed(2)} team-eq`);
 }
 
 // ---------- RD-B09: run operations have one owner (research engineers); a shortfall slows runs ----------
@@ -508,13 +532,13 @@ if (process.argv.includes('--rd-r07')) {
   check(Math.abs(rate(dif) - rate(ref)) < 1e-12 && Math.abs(dPub - dG / 14) < 1e-12 && softwareRate(dif).publicPerYear > softwareRate(ref).publicPerYear,
     'RD-B16: a diffusion inflow does not move Software progress; it shows as public knowledge (its own 14-day average)',
     `rate ${(365 * rate(dif)).toFixed(4)} OOM/yr (unchanged); public +${(365 * dPub).toFixed(3)} OOM/yr`);
-  // An adopted idea does count: x × (1 − HEADROOM) enters the day's change.
+  // An adopted idea does count: all of x enters the day's change (RD-E03: no headroom).
   const ad = clone(s);
   const x = 0.02;
   addIdea(ad.player.research.stacks.pre, x, 0, latestBaseFlop(ad));
   softwareProgressDay(ad);
   const dRate = rate(ad) - rate(ref);
-  check(Math.abs(dRate - (x * (1 - HEADROOM)) / 14) < 1e-9, 'RD-B16: an adopted idea moves Software progress by its effect less headroom (÷ the 14-day average)', `Δrate ${(365 * dRate).toFixed(4)} OOM/yr`);
+  check(Math.abs(dRate - x / 14) < 1e-9, 'RD-B16: an adopted idea moves Software progress by its whole effect (÷ the 14-day average)', `Δrate ${(365 * dRate).toFixed(4)} OOM/yr`);
 
   // Theft and A4 compare at one F on the same parts: a player recipe equal to China's has no gap, whatever its base or
   // training-throughput stack; a bigger base leaves the secrets-leak gap unchanged.
@@ -583,21 +607,12 @@ if (process.argv.includes('--rd-r07')) {
     'a stage without experiment FLOP waits', `${stage0}: work ${w0.toFixed(2)} → ${t1?.work.toFixed(2)} of ${t1?.workNeed.toFixed(2)}`);
 }
 
-// ---------- headroom ----------
+// ---------- stacks: full effect at adoption (RD-E03), scale dependence ----------
 {
   const st = initialStacks(0).pre;
   addIdea(st, 0.1, 0, 1e24);
-  const h0 = headroomAt(st);
-  const s = mk(7);
-  s.player.research.stacks.pre = st;
-  tuneDay(s, 3 / 270);
-  const h1 = headroomAt(st);
-  for (let d = 0; d < 200; d++) tuneDay(s, 3 / 270);
-  const h2 = headroomAt(st);
   addIdea(st, 0.1, 0, 1e24);
-  const h3 = headroomAt(st);
-  check(Math.abs(h0 - HEADROOM * 0.1) < 1e-12 && h1 < h0 && h2 < 0.2 * h0 && Math.abs(h3 - h2 - HEADROOM * 0.1) < 1e-12 && Math.abs(stackAt(st) - (0.2 - h3)) < 1e-12,
-    'headroom: an adopted idea leaves 30% as headroom, tuning closes it, adoption refills it', `${h0.toFixed(3)} → ${h1.toFixed(4)} → ${h2.toFixed(4)} → ${h3.toFixed(4)}`);
+  check(Math.abs(stackAt(st) - 0.2) < 1e-12, 'stacks: two adopted 0.1 OOM ideas add 0.2 OOM at once (no headroom)', stackAt(st).toFixed(4));
   // Scale dependence: an idea with s > 0 is worth more at a bigger run.
   const st2 = initialStacks(0).pre;
   addIdea(st2, 0.1, 0.1, 1e24);

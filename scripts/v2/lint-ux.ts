@@ -77,7 +77,7 @@ const REQUIRED = [
   'agentPackage', 'agentMonitor', 'monitor', 'catchRate', 'agentCopies', 'agentBudget', 'autoSplit', 'aiShareWork', 'researchTaste', 'trustedToAI', 'unseen',
   // model v3 V2b: research projects, recipe, work types, allocations.
   'projectStage', 'stageIdeation', 'stageSmall', 'stageScale', 'stageResult', 'stageAdoption', 'beliefBand', 'scaleBehaviour', 'projectKind', 'linePool',
-  'nextPrior', 'realisedEffect', 'teamsWanted', 'riskPolicy', 'reopenSpeculative', 'scienceWhy', 'recipeStack', 'stackEfficiency', 'headroom', 'routineTuning',
+  'nextPrior', 'realisedEffect', 'teamsWanted', 'riskPolicy', 'reopenSpeculative', 'scienceWhy', 'recipeStack', 'stackEfficiency',
   'softwareRate', 'expCompute', 'expLabour', 'researchSpeed', 'workType', 'fit', 'medianExpert', 'bestHuman', 'coverage', 'pAtLength', 'winRate', 'assist',
   'effectiveLabour', 'humanShare', 'reNeeds', 'engNeeds', 'allocCap', 'overflow', 'laborBound', 'humanBound', 'tasteBound', 'aiFte',
   'validatedTo', 'blind', 'detector', 'estimateBand', 'toolUpkeep', 'deadEnd', 'seriousStaffing', 'followUp', 'investigation', 'caseStaffing', 'clarity',
