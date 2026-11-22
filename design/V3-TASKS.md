@@ -197,6 +197,36 @@ danger depends on, and how loss of control works.
 | SAFMECH (done 2026-11-21, merged M11: targeted sabotage (threat = the result's exposure of the saboteur's own traits; rigged tools, sandbagged dead ends); monitoring coverage = budget ÷ Σ watched compute × monitor cost ratio (fn 51; `policies.monitorBudget`, SCHEMA_REV 42 → 43; RefBot 1/20 at ≈ 10% cost); believed U's 80% range from the lab's posteriors (display only); S5's deep sabotage check restated in M11 (on vs off, overconfidence); product monitors → MONU) | Safety mechanisms the sources imply and the game lacks (found by S5R, design/V3-BUILD "S5R" §4): (1) targeted sabotage of safety research: AI 2027's Agent-4 "sandbags on the small fraction of alignment research that it thinks is actually on track to solve the problem or reveal Agent-4's scheming", while SAFSAB loses a uniform share of labour (S5's sabotage check is the weakest); (2) monitoring coverage set by monitoring spend: AI 2027 fn 51 "With a monitoring budget of 1% of total compute, if monitoring uses a distilled system that has 10% of the cost as Agent-4, you can monitor 1/10 of the forward passes" (the game prices monitors as a share of the safety pool with full coverage); (3) believed U optimistic out of ignorance: fewer results keep posteriors at their priors, so less safety compute does not lower the displayed U. Same emergent-outcomes lens. | FINREF | H | each mechanism in tests; S4 / S5 (incl. deep tier) and safetyrates re-reported; no tuning to S4's band (user decision pending) |
 | PERF | Tick performance after P4 (behaviour-identical, −10–20%): daily 3.7–4.1 ms vs 1.5 ms, worst quarter 16–18 ms vs 8 ms (fast-forward is 12 ms/day). The world mix is 35–40% of the tick; further cuts may change numbers in the last bits (summation order) or compute parts of the market less often if calibration holds; the first quarter's cost is JIT warm-up. Re-check fixtures and golden dates. | FIN, S5R, MKT, AF, FINREF, TIERS, REACH, SAFMECH, VAL, TIERS2, MONU (user: after everything else) | H | test:perf passes on a quiet machine, or the user sets new budgets |
 
+## H. R&D audit and cleanup (RD; user plan 2026-11-22)
+
+The designer could not explain the game's R&D after several playthroughs. An audit (six areas, each checked by a
+verifier; 178 issues, 47 confirmed bugs) is in [RD-AUDIT/](RD-AUDIT/): start with [SYNTHESIS.md](RD-AUDIT/SYNTHESIS.md)
+(root causes, bugs B01–B47, deletions, decisions DD-01–21, phases 0–9) and the designer's answers in
+[DECISIONS.md](RD-AUDIT/DECISIONS.md) (all recommendations accepted except DD-01: a product offers a lineup of real owned
+models, no phantom sizes; DD-18: rivals stay simplified aggregates, done properly; DD-15 / DD-16: replaced by a safety
+redesign, in progress). Work happens on branch `rd` (worktree `../AI27-rd`), in lanes branched from it; notes go to
+[RD-AUDIT/BUILD-NOTES.md](RD-AUDIT/BUILD-NOTES.md) (not V3-BUILD, which other sessions edit). The task protocol above
+applies; commits go on the lane branch. Phases 2–9 stay in SYNTHESIS §6 until their decisions are final.
+
+Supersedes **TIERS2** (DD-01: lineups of real models replace the phantom students). Waits on the safety redesign:
+RD-B04, RD-B05, RD-B06 (safety bugs B05–B09). Dropped: RD-B10 (DD-19 removes spare-compute rerouting), RD-B13 (DD-01).
+
+**Phase 0: cleanup (behaviour-neutral; state hashes identical apart from the shape changes; one schema bump)**
+
+| ID | Task | Depends | Effort | Done when |
+|---|---|---|---|---|
+| RD-C01 | Retire the v2 knot production function (SYNTHESIS §4.1): live maths to `production/ces.ts`; delete buildKnots / knotAt / R13_AI2027_KNOTS / refBestX / tasteCurve and the non-v3 branches; dead LabInputs and readout fields; identity.ts retired or frozen | – | M | no importer of knots.ts; buildKnots never runs; hashes identical apart from the removed field |
+| RD-C02 | Delete the calShift bridge (§4.2) | RD-C01 | M | no reader of `w.calShift` / thresholds(); doc fixed |
+| RD-C03 | Save floor at rev 33 (§4.3 + §4.11, DD-20): delete migrations 1–32 and their helpers; revs < 33 refuse with a message | – | M | save suite passes; helpers gone |
+| RD-C04 | Dead exports and fields, engine side (§4.4–5) | RD-C01 | M | listed symbols gone; unused-export scan clean for them; hashes identical |
+| RD-C05 | Dead fields, safety / people side (§4.5–8): REF_OFF one column, OLD_EFFORT_DAYS gone, runtime safFromProgress fallback gone | RD-C03 | M | as above |
+| RD-C06 | Stale comments and BRIDGE tags (§4.9) | RD-C01, C02, C04, C05 | M | `grep BRIDGE(` empty or each tag tied to a task ID |
+| RD-C07 | P26 placeholder → explicit skipped draw (§4.10) | RD-C02 | M | hashes identical; P26 gone from the tree data |
+
+**Phase 1: bugs independent of the redesign** (SYNTHESIS §3 and §6 Phase 1; exit: test:cal passes, golden dates within
+tolerance refitting only named values). Rows RD-B01–B03, B07–B09, B11, B12, B14–B21 as in SYNTHESIS §6. RD-B09's
+run-operations owner (DD-11): research engineers operate runs and a shortfall slows them; engineers do setups only.
+
 ## Order (one at a time)
 
 A1–A5, B1–B4, C2, P2, D1, D3, E1 done (2026-11-20; D1, D3, E1 merged in M1); D2, D5, D6, E2, E3, E5 done (merged in
@@ -206,4 +236,5 @@ F5, F6d, F6e done (merged in M8); F4, G1 done (merged in M9); P4 done (fast-forw
 `fin-merge`, on master a829f0a); S5R, MKT, AF (with AF2) done (merged in M10, branch `m10`, for the lead to fast-forward master).
 Order (user plan 2026-11-21): **model-v3 → master** (F7; test:perf after P4 still fails: the user chose to merge now) **→ FIN** (merge the
 finance-v3 branch into master) **→ S5R / MKT / AF → FINREF → PERF** (user: performance after everything else). After M10 (S5R, MKT, AF / AF2 merged): **FINREF (done) → TIERS / REACH / SAFMECH (done, merged in M11) → VAL → TIERS2 / MONU / SABREAD → PERF**. The lead may reorder when a result changes what is next; every
-change goes in this file.
+change goes in this file. 2026-11-22: the user started the R&D audit (section H): **RD Phase 0 → RD Phase 1** on branch
+`rd`, in lanes; the open G rows (VAL, MONU, SABREAD, PERF) are unchanged; TIERS2 is superseded by DD-01.
