@@ -132,7 +132,7 @@ const runAction = (id: string, title: string, kind: LaunchRunParams['kind'], ext
 });
 
 /** The IDA run on version `v` (P18): a post-train with the teacher in the loop. */
-const idaParams = (v: ModelVersion | undefined): LaunchRunParams => ({ kind: 'post', ida: true, baseId: v?.baseId, teacherVersionId: v?.id, post: v?.design ?? REFERENCE_POST });
+const idaParams = (v: ModelVersion | undefined): LaunchRunParams => ({ kind: 'post', grader: 'teacher', baseId: v?.baseId, teacherVersionId: v?.id, post: v?.design ?? REFERENCE_POST });
 
 /** The stream's standing load (start: costs; stop: freed): its training pool share and the research engineers'
  *  operations (models/research.ts reDemand; RD-B09: engineers no longer keep runs or the stream going). */

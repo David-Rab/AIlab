@@ -550,7 +550,7 @@ export function reOpsNeed(s: GameStateV2): number {
   let need = 0;
   for (const r of s.player.models.runs) {
     if (r.status !== 'running' || (r.setupId !== undefined && r.readyDay === undefined)) continue;
-    need += r.kind === 'base' ? RE_OPS.base : r.kind === 'continue' || (r.kind === 'post' && !r.name.startsWith('IDA')) ? RE_OPS.mid : RE_OPS.small;
+    need += r.kind === 'base' ? RE_OPS.base : r.kind === 'continue' || (r.kind === 'post' && r.grader !== 'teacher') ? RE_OPS.mid : RE_OPS.small;
   }
   if (s.player.models.stream) need += RE_OPS.stream;
   return need;

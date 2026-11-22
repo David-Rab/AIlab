@@ -644,7 +644,7 @@ function capacityPricing(s: GameStateV2, api: EngineApi) {
 
 /** Pool share each kind of run asks for (RefBot's launch shares; the base share is the one it launched with). */
 const askShare = (s: GameStateV2, r: TrainingRun) =>
-  r.kind === 'base' ? flag(s, 'baseShare', 0.6) : r.kind === 'post' ? (r.name.startsWith('IDA') ? 0.3 : 0.5) : r.kind === 'distill' ? 0.1 : 0.3;
+  r.kind === 'base' ? flag(s, 'baseShare', 0.6) : r.kind === 'post' ? (r.grader === 'teacher' ? 0.3 : 0.5) : r.kind === 'distill' ? 0.1 : 0.3;
 
 /** R5 made the pool allocation proportional. RefBot keeps the pre-R5 priority (base and continue runs keep their
  *  share; the other runs share what is left) by setting every run's pool share to what that rule gives it, so its

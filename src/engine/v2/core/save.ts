@@ -66,8 +66,10 @@ import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
  *  55 (RD-E01b, DD-14): paradigm P20 is deleted; P05 is a typed scaffold and P07 multiplies the long-tasks RL family's
  *  horizon (no stored shape changes: versions keep their frozen h80Mult). Migration 54 → 55 drops P20 state and draw.
  *  56 (RD-A05b, DD-19): the spare-training and spare-serving policies are gone (idle compute stays idle); the explicit
- *  auto-split policy replaces them. Migration 55 → 56 drops the two policies and adds autoSplit off. */
-export const SCHEMA_REV = 57;
+ *  auto-split policy replaces them. Migration 55 → 56 drops the two policies and adds autoSplit off.
+ *  58 (RD-T01a, DD-06): an IDA run is an RL (post) run with the teacher as grader (TrainingRun.grader), no longer
+ *  recognised by its name. Migration 57 → 58 sets grader 'teacher' on post runs named "IDA …". */
+export const SCHEMA_REV = 58;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -516,6 +518,10 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     if (!Array.isArray(p.tooling)) p.tooling = toolsFromFeatures(p.features ?? []);
     const on = (p.deployments ?? []).some((d) => d.channel === 'internal' && d.status === 'live' && d.controlLayer);
     if (on && p.agents) for (const a of Object.values(p.agents)) a.control = true;
+  },
+  /** 57 → 58 (RD-T01a): the IDA run kind from its name ("IDA n", the only way it was recognised). Idempotent. */
+  57: (raw) => {
+    for (const r of (raw as unknown as GameStateV2).player?.models?.runs ?? []) if (r.kind === 'post' && /^IDA\b/.test(r.name ?? '')) r.grader = 'teacher';
   },
 };
 

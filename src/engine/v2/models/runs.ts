@@ -56,9 +56,9 @@ export interface LaunchRunParams {
   post?: PostDesign;
   /** Share of the training pool (0..1). Default RUN_POOL_DEFAULT (IDA 0.3). */
   poolShare?: number;
-  /** Iterated distillation & amplification cycle (P18): one more RL budget (IDA_RL_SHARE × the base's FLOP) on the
-   *  teacher at today's RL recipe. */
-  ida?: boolean;
+  /** RL with the teacher (teacherVersionId) as grader: the iterated distillation & amplification cycle (P18), one more
+   *  RL budget (IDA_RL_SHARE × the base's FLOP) on the teacher at today's RL recipe (RD-T01a: TrainingRun.grader). */
+  grader?: 'teacher';
   /** Distillation: student active parameters (default STUDENT_DEFAULT × the teacher's). */
   studentParams?: number;
 }
@@ -344,7 +344,7 @@ export function runForecast(s: GameStateV2, pred: Pick<RunPrediction, 'Lg' | 'do
 export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
   const w = s.hidden.timeline;
   const m = s.player.models;
-  const poolShare = clamp(p.poolShare ?? (p.ida ? 0.3 : RUN_POOL_DEFAULT[p.kind]), POOL_SHARE_RANGE[0], POOL_SHARE_RANGE[1]);
+  const poolShare = clamp(p.poolShare ?? (p.grader === 'teacher' ? 0.3 : RUN_POOL_DEFAULT[p.kind]), POOL_SHARE_RANGE[0], POOL_SHARE_RANGE[1]);
   const effShare = shareIfLaunched(s, poolShare);
   const rate = Math.max(1, runFlopPerShareDay(s, { kind: p.kind }) * effShare);
   let limits: BaseLimits | undefined;
@@ -397,7 +397,7 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
     if (base.design.shape === 'latent' && d.cot !== 'latent') reason = 'A latent base forces latent CoT';
     if (d.rlFocus !== 'broad' && d.rlFocus.length > 2) reason = 'Pick at most 2 RL families';
     const pe = postEffect(d);
-    if (p.ida) {
+    if (p.grader === 'teacher') {
       if (!teacher) return failPlan('Pick a version to amplify');
       flopNeeded = IDA_RL_SHARE * base.flop;
       build = idaBuild(s, teacher, flopNeeded, rlRecipeNow(s));
@@ -430,7 +430,7 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
     fpt = base.fpt;
     mon = base.monitorability ?? 1;
   }
-  const setupTW = runSetupTW(p.kind, engScale(flopNeeded), p.ida);
+  const setupTW = runSetupTW(p.kind, engScale(flopNeeded), p.grader === 'teacher');
   const setupDays = buildWaitNew(s, setupTW, 'runSetup');
   const etaDays = limits ? limits.wallDays : setupDays + Math.ceil(daysFor(flopNeeded, rate));
   if (cash > s.player.finance.cash) reason ??= 'Not enough cash';
@@ -440,7 +440,7 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
   const doms = domainsOf(w, gPred, build);
   // Run-card ▲ arrows are WS2's runSignals from the run's quantities (model v3 E3): what applyRunToTraits will apply.
   const ws2Signals = p.kind === 'base' ? signals
-    : runSignals(s, { kind: p.kind, name: p.ida ? 'IDA' : p.kind, flopNeeded, ...(p.baseId ? { baseId: p.baseId } : {}), ...(p.post ? { post: p.post } : {}) } as TrainingRun);
+    : runSignals(s, { kind: p.kind, name: p.kind, ...(p.grader ? { grader: p.grader } : {}), flopNeeded, ...(p.baseId ? { baseId: p.baseId } : {}), ...(p.post ? { post: p.post } : {}) } as TrainingRun);
   const prediction: RunPrediction = {
     Lg: [Lg - 0.25, Lg + 0.25], // level-lint-ok: run-card prediction band (readout)
     domains: Object.fromEntries(Object.entries(doms).map(([k, v]) => [k, [v - 0.25, v + 0.25]])) as RunPrediction['domains'],
@@ -478,7 +478,7 @@ export function launchRun(s: GameStateV2, ctx: SystemCtx, p: LaunchRunParams): T
   if (plan.reason) return plan.reason;
   const m = s.player.models;
   const n = m.nextName++;
-  const kindName = p.ida ? 'IDA' : p.kind;
+  const kindName = p.grader === 'teacher' ? 'IDA' : p.kind;
   const run: TrainingRun = {
     id: `R${n}`, kind: p.kind, name: `${kindName} ${n}`, startDay: s.time.day,
     flopNeeded: plan.flopNeeded, flopDone: 0, poolShare: plan.poolShare, cashCost: plan.cashCost,
@@ -486,6 +486,7 @@ export function launchRun(s: GameStateV2, ctx: SystemCtx, p: LaunchRunParams): T
   };
   if (p.baseId) run.baseId = p.baseId;
   if (p.teacherVersionId) run.teacherVersionId = p.teacherVersionId;
+  if (p.grader) run.grader = p.grader;
   if (p.base) run.base = { ...p.base, curation: { ...p.base.curation } };
   // Model v3 V2 / RD-B02: everything the result depends on is frozen at launch (a base embodies the pretraining stack at
   // its FLOP, its draw and P24; a continue run the pretraining stack on its added part; a post-train the RL stack and
@@ -499,7 +500,6 @@ export function launchRun(s: GameStateV2, ctx: SystemCtx, p: LaunchRunParams): T
     run.studentParams = clamp(p.studentParams ?? nT * STUDENT_DEFAULT, PARAM_RANGE[0], nT);
     run.tokens = DISTILL_TPP * run.studentParams;
   }
-  if (p.ida) run.name = `IDA ${n}`;
   m.runs.push(run);
   run.setupId = queueBuild(s, 'runSetup', run.id, plan.setupTW);
   if (plan.cashCost > 0) bookCash(s, ctx, -plan.cashCost, 'training', 'training run', run.name);
@@ -612,7 +612,7 @@ function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
   if (!base || !run.post) return;
   const pe = postEffect(run.post);
   const parent = latestOnBase(s, base.id) ?? versionById(s, run.teacherVersionId);
-  if (run.name.startsWith('IDA')) {
+  if (run.grader === 'teacher') {
     const t = versionById(s, run.teacherVersionId);
     if (!t) return;
     const build = idaBuild(s, t, run.flopNeeded, pr);

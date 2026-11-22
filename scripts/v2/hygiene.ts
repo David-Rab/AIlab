@@ -414,7 +414,7 @@ check(threw, 'save: v1 save is rejected (no migration)');
     msg = (e as Error).message;
   }
   const lease = g?.player.finance.ledger.find((c) => c.id === 'L-fin-S9');
-  const okFin = !!g && g.schemaRev === SCHEMA_REV && SCHEMA_REV === 57 && lease?.kind === 'finLease' && lease.rate === 0.12 && !g.player.finance.deals.some((d) => d.id === 'D-old-spv')
+  const okFin = !!g && g.schemaRev === SCHEMA_REV && SCHEMA_REV === 58 && lease?.kind === 'finLease' && lease.rate === 0.12 && !g.player.finance.deals.some((d) => d.id === 'D-old-spv')
     && !('jv' in g.player.finance.ws3) && JSON.stringify(g.player.finance.ws3.opCash4q) === '[1.5]' && Array.isArray(g.player.finance.promises) && typeof g.player.finance.credibility === 'number'
     && (g.player.finance.valuation <= 0 || !!g.player.finance.ws3.mark) && g.rivals.every((r) => r.finance.poolQ !== undefined && r.finance.raised !== undefined);
   check(okFin, 'save: a schemaRev-33 save (model v3, old finance) migrates to 42 (SPV leaseback → financing lease, SPV deal and JV gone, operating cash history, promises, credibility, story marks)', msg || JSON.stringify({ lease: lease?.kind, rate: lease?.rate, opCash4q: g?.player.finance.ws3.opCash4q }));
@@ -458,7 +458,7 @@ check(threw, 'save: v1 save is rejected (no migration)');
   } catch (e) {
     msg = (e as Error).message;
   }
-  check(!!g && g.schemaRev === SCHEMA_REV && SCHEMA_REV === 57 && same,
+  check(!!g && g.schemaRev === SCHEMA_REV && SCHEMA_REV === 58 && same,
     'save: a schemaRev-42 save migrates to 43 (monitoring budget = the old standard 20% of the safety pool; idempotent)', msg || `${g?.player.split.monitors}`);
 }
 // RD-C01 (schemaRev 44): a rev-43 save carries v2's knot table and the dead readout fields; the migration drops them, and

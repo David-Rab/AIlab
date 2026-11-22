@@ -480,7 +480,11 @@ export interface TrainingRun {
   poolShare: number; // share of the training pool this run takes (player sets priority)
   cashCost: Money; // environment/data budget committed at launch (compute is the pool)
   baseId?: string; // for post/continue/distill
-  teacherVersionId?: string; // distill / synthetic-heavy
+  teacherVersionId?: string; // distill / synthetic-heavy; the grader of an RL run with grader "teacher"
+  /** RD-T01a (DD-06): RL with the teacher as grader. On a post (RL) run, `teacher` puts teacherVersionId in the loop:
+   *  today's IDA cycle (P18). The ways a model is made: kind base or continue (pretraining), post (RL; with this field,
+   *  IDA), distill (a small model on a teacher's outputs); the continual-learning stream is models.stream, not a run. */
+  grader?: 'teacher';
   base?: BaseDesign;
   post?: PostDesign;
   predicted: RunPrediction; // shown on the run card, with noise band
