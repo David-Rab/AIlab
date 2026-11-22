@@ -6,10 +6,11 @@ import type { GameStateV2, LabCore, RunRecipe, SectorId, VersionBuild } from '..
 import { CAP_USES, DEFAULT_CAP_SHARES, MONITOR_STD_POOL_SHARE, REF_AGENT_SHARES } from '../../../data/v2/agents';
 import { monitorCostRatio, monitorNeedShare } from '../departments/agents';
 import { partnerDef, PARTNER_TERMS } from '../../../data/v2/deals';
+import { toolsFromFeatures } from '../../../data/v2/features';
 import { divisionOf } from '../finance/parent';
 import { privateRivals, sectorValue, seedLabRevenue } from '../finance/story';
 import { FIN } from '../actors/rivals';
-import { fillRecipe } from '../models/runs';
+import { continueDrawNow, fillRecipe } from '../models/runs';
 import { domainsOf, gOfLevel, refreshLevels } from '../models/capability';
 import { addIdea } from '../models/stacks';
 import { keepUnlockedSuite, unbuiltSuiteFamilies } from '../models/suites';
@@ -67,15 +68,21 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
  *  recomputes stored domain levels without P19.
  *  55 (RD-E01b, DD-14): paradigm P20 is deleted; P05 is a typed scaffold and P07 multiplies the long-tasks RL family's
  *  horizon (no stored shape changes: versions keep their frozen h80Mult). Migration 54 → 55 drops P20 state and draw.
- *  56 (RD-A04): safety research engineers by need (research.safRe, the player's order). Migration 55 → 56 adds the
+ *  56 (RD-A05b, DD-19): the spare-training and spare-serving policies are gone (idle compute stays idle); the explicit
+ *  auto-split policy replaces them. Migration 55 → 56 drops the two policies and adds autoSplit off.
+ *  58 (RD-T01a, DD-06): an IDA run is an RL (post) run with the teacher as grader (TrainingRun.grader), no longer
+ *  recognised by its name. Migration 57 → 58 sets grader 'teacher' on post runs named "IDA …".
+ *  59 (RD-T02, TRN-07): a continue run draws its added tokens from the portfolio (RunRecipe.draw cumulative, prevDEff).
+ *  Migration 58 → 59 redraws in-flight continue runs on the save's day (their launch portfolio is gone).
+ *  60 (RD-A04): safety research engineers by need (research.safRe, the player's order). Migration 59 → 60 adds the
  *  default order.
- *  57 (RD-R02b): a safety project is one test (SafProjectState {work, workNeed, flop}); the candidate pool, its beliefs
- *  and stages are gone. Migration 56 → 57 restates a running project's state at its progress (work = progress × T₁).
- *  58 (RD-R04): the rolled tree path and the paradigm mirror are gone: PlayerLab.paradigms (adopted() reads the tree),
+ *  61 (RD-R02b): a safety project is one test (SafProjectState {work, workNeed, flop}); the candidate pool, its beliefs
+ *  and stages are gone. Migration 60 → 61 restates a running project's state at its progress (work = progress × T₁).
+ *  62 (RD-R04): the rolled tree path and the paradigm mirror are gone: PlayerLab.paradigms (adopted() reads the tree),
  *  the rolled-node fields of TreeNodeState (odds multiplier, retry day), the kyc node (the per-product KYC setting stays), P27's hidden paradigm draw.
- *  Migration 57 → 58 drops them and restates P27 as a safety project of line AG17 (running: its test at its progress;
+ *  Migration 61 → 62 drops them and restates P27 as a safety project of line AG17 (running: its test at its progress;
  *  failed: open again, next attempt). */
-export const SCHEMA_REV = 58;
+export const SCHEMA_REV = 62;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -262,7 +269,7 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     }
     // RD-C02 (same unreleased bump): the derived calShift bridge is gone.
     if (s.hidden?.timeline) delete (s.hidden.timeline as unknown as Record<string, unknown>).calShift;
-    // RD-C07 (same bump): the cut paradigm P26 leaves the paradigm data (its hidden draw is dropped; RD-R04's 57 → 58
+    // RD-C07 (same bump): the cut paradigm P26 leaves the paradigm data (its hidden draw is dropped; RD-R04's 61 → 62
     // drops the whole paradigm mirror).
     if (s.hidden?.paradigmSuccess) delete s.hidden.paradigmSuccess.P26;
     const cores = [s.player, s.china?.lab?.core, ...(s.rivals ?? []).map((r) => r.core)];
@@ -505,14 +512,46 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     if (s.player?.tree) delete s.player.tree.P20;
     if (s.hidden?.paradigmSuccess) delete s.hidden.paradigmSuccess.P20;
   },
-  /** 55 → 56 (RD-A04): the safety research engineers' needs list at its default order. Idempotent. */
+  /** 55 → 56 (RD-A05b): the two spare-compute policies leave; autoSplit starts off. Idempotent. */
   55: (raw) => {
+    const pol = (raw as unknown as GameStateV2).player?.policies as unknown as Record<string, unknown> | undefined;
+    if (!pol) return;
+    delete pol.spareTraining;
+    delete pol.spareServing;
+    if (!pol.autoSplit) pol.autoSplit = { on: false, to: ['experiments'] };
+  },
+  /** 56 → 57 (RD-A06): the internal tools equivalent to the built features (features no longer act on the internal
+   *  agents), and the control layer per agent package (on for every package when the internal deployment had it, as
+   *  that one flag ruled every internal use). Idempotent. */
+  56: (raw) => {
+    const p = (raw as unknown as GameStateV2).player;
+    if (!p) return;
+    if (!Array.isArray(p.tooling)) p.tooling = toolsFromFeatures(p.features ?? []);
+    const on = (p.deployments ?? []).some((d) => d.channel === 'internal' && d.status === 'live' && d.controlLayer);
+    if (on && p.agents) for (const a of Object.values(p.agents)) a.control = true;
+  },
+  /** 57 → 58 (RD-T01a): the IDA run kind from its name ("IDA n", the only way it was recognised). Idempotent. */
+  57: (raw) => {
+    for (const r of (raw as unknown as GameStateV2).player?.models?.runs ?? []) if (r.kind === 'post' && /^IDA\b/.test(r.name ?? '')) r.grader = 'teacher';
+  },
+  /** 58 → 59 (RD-T02): in-flight continue runs draw their added tokens on the save's day. Idempotent (skips a run that
+   *  has prevDEff). */
+  58: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    for (const r of s.player?.models?.runs ?? []) {
+      if (r.kind !== 'continue' || (r.status !== 'running' && r.status !== 'paused') || r.recipe?.prevDEff !== undefined) continue;
+      const parent = s.player.models.bases.find((b) => b.id === r.baseId);
+      if (parent) Object.assign((r.recipe ??= {}), continueDrawNow(s, parent, r.flopNeeded));
+    }
+  },
+  /** 59 → 60 (RD-A04): the safety research engineers' needs list at its default order. Idempotent. */
+  59: (raw) => {
     const s = raw as unknown as GameStateV2;
     if (s.player?.research && !s.player.research.safRe) s.player.research.safRe = { order: [...DEFAULT_SAF_RE_ALLOC.order], max: {}, share: {} };
   },
-  /** 56 → 57 (RD-R02b): a safety project's candidate-pool state becomes its one test at the project's progress (the
+  /** 60 → 61 (RD-R02b): a safety project's candidate-pool state becomes its one test at the project's progress (the
    *  agenda's T₁ months of work; FLOP used restarts at 0). Idempotent. */
-  56: (raw) => {
+  60: (raw) => {
     const s = raw as unknown as GameStateV2;
     for (const [id, ts] of Object.entries(s.player?.tree ?? {})) {
       const old = ts.saf as unknown as { workNeed?: number } | undefined;
@@ -526,9 +565,9 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       ts.saf = { work: Math.min(1, Math.max(0, ts.progress ?? 0)) * T1, workNeed: T1, flop: 0 };
     }
   },
-  /** 57 → 58 (RD-R04): the rolled path's fields, the kyc node and the paradigm mirror go; P27 becomes a project of line
+  /** 61 → 62 (RD-R04): the rolled path's fields, the kyc node and the paradigm mirror go; P27 becomes a project of line
    *  AG17 (a rolled attempt in progress: its test at that progress; a failed one: open, the next attempt). Idempotent. */
-  57: (raw) => {
+  61: (raw) => {
     const s = raw as unknown as GameStateV2;
     const p = s.player;
     if (!p) return;
@@ -552,9 +591,9 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   },
 };
 
-/** TreeNodeState's fields since 58 (RD-R04). */
+/** TreeNodeState's fields since 62 (RD-R04). */
 const TREE_NODE_FIELDS = new Set(['status', 'progress', 'day', 'attempts', 'tm', 'cap', 'saf']);
-/** Saves before 58 (RD-R04) carried a per-paradigm mirror of the tree on the player. */
+/** Saves before 62 (RD-R04) carried a per-paradigm mirror of the tree on the player. */
 type OldParadigms = { paradigms?: Record<string, { status?: string }> };
 
 type OldSplit = Record<string, number>;

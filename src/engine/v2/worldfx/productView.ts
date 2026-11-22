@@ -9,7 +9,7 @@ import { MINI_CHANNELS, type FeatureDef, type WorkScope } from '../../../data/v2
 import { REGIONS, SECTORS } from '../../../data/v2/sectors';
 import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
 import { catchRate, monitorOverhead } from '../models/products';
-import { featureInternal, featureUpkeepTW } from '../departments/build';
+import { featureUpkeepTW } from '../departments/build';
 import { versionById } from '../models/labs';
 import { SECTOR_PACK_DG, effortDG, lineupOf, markupOf, serveDollarsPerHour } from './serving';
 import { workFit } from '../departments/workfit';
@@ -221,8 +221,10 @@ export function featureView(f: FeatureDef, channel?: Deployment['channel']): Fea
   }
   const kinds = [...new Set((lines.some((l) => l.here) ? lines.filter((l) => l.here) : lines).map((l) => l.kind))];
   const upkeepTW = featureUpkeepTW(f);
-  const idleTW = featureInternal(f) ? upkeepTW : featureUpkeepTW(f, false);
-  return { kinds, lines, short: short.join(' · '), internal: [...internal].map((x) => WORK_TYPES[x].name), upkeepTW, idleTW };
+  const idleTW = featureUpkeepTW(f, false);
+  // RD-A06 (DD-03): a feature acts only inside its product's offer; internal agents get tools (Company › Agents).
+  void internal;
+  return { kinds, lines, short: short.join(' · '), internal: [], upkeepTW, idleTW };
 }
 
 /** B1 (product card): revenue by source and capacity of one product. Sector products: adopted task-hours and agent-hours

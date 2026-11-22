@@ -14,6 +14,7 @@ import { resolve, tick } from '../../src/engine/v2/core/loop';
 import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
 import { IDLE_STOCK_IDS, idleStocks, type IdleStockId } from '../../src/engine/v2/core/limitsView';
 import { idleTrainingShare } from '../../src/engine/v2/models/runs';
+import { expPoolH100e } from '../../src/engine/v2/models/research';
 import { poolsOf } from '../../src/engine/v2/compute/power';
 import { IDLE_ALERT, navBadges, watchItems } from '../../src/ui/v2/shell/watch';
 import type { BotPolicy, GameStateV2, StartType } from '../../src/engine/v2/types';
@@ -76,12 +77,11 @@ for (const start of STARTS) {
           const a = IDLE_ALERT[id];
           if (!((a.watch && items.has(a.watch)) || (a.badge && badges[a.badge]))) misses.push(`${start}/${name}/${seed} day ${s.time.day}: ${id} idle since ${from} with no alert`);
         }
-        // Default use: spare training compute must run experiments (or data generation), never sit idle.
+        // RD-A05b (DD-19): idle training compute stays idle; it must not reach experiments or data on its own.
         const spare = idleTrainingShare(s) * poolsOf(s).training;
         if (spare > 1000) {
           spareChecked++;
-          const pr = s.player.prodCache;
-          if (s.player.policies.spareTraining === 'research' && !(pr && pr.ratios.c > 0)) spareLost++;
+          if (!s.player.policies.autoSplit.on && Math.abs(expPoolH100e(s) - poolsOf(s).experiments) > 1e-6) spareLost++;
         }
       }
     }
@@ -89,7 +89,7 @@ for (const start of STARTS) {
 }
 console.log(`samples ${samples} (weekly) · idle ≥ ${IDLE_DAYS} d seen: ${IDLE_STOCK_IDS.map((id) => `${id} ${seen[id]}`).join(' · ')}`);
 ok(`No stock idle ${IDLE_DAYS} d without an alert`, misses.length === 0, misses.slice(0, 6).join(' | '));
-ok('Spare training compute flows to its default use', spareLost === 0, `${spareChecked} samples with spare training compute`);
+ok('Idle training compute stays idle (Auto-split off)', spareLost === 0, `${spareChecked} samples with spare training compute`);
 
 console.log(fails ? `\n${fails} failed` : '\nall passed');
 process.exit(fails ? 1 : 0);

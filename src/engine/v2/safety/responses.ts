@@ -9,6 +9,8 @@ import { strengthBelieved, techniqueRole } from './techniques';
 import { crystalMult, revealToWorld, uModeRemovalMult } from './umodes';
 import { removalFte } from './footholds';
 import { removeFoothold } from './footholdDetection';
+import { AGENT_USES } from '../../../data/v2/agents';
+import { agentVersion, syncInternalControl } from '../departments/agents';
 
 export const RESPONSE_INFO: Record<ResponseKind, { title: string; days: [number, number]; note: string }> = {
   patchSignal: { title: 'Patch signal', days: [30, 90], note: 'Fix the training signal: edge weight × 0.3–0.6 for every later run (lab-wide).' },
@@ -177,15 +179,22 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
       break;
     }
     case 'addControl': {
+      // RD-A06: products on the model and every agent package running it (the control layer is per package).
       const deps = s.player.deployments.filter((d) => d.versionId === v.id && d.status !== 'withdrawn');
-      if (!deps.length) return 'Model is not deployed';
+      const uses = AGENT_USES.filter((u) => agentVersion(s, u)?.id === v.id);
+      if (!deps.length && !uses.length) return 'Model is not deployed';
       for (const d of deps) d.controlLayer = true;
+      for (const u of uses) s.player.agents[u].control = true;
+      syncInternalControl(s);
       break;
     }
     case 'removeControl': {
       const deps = s.player.deployments.filter((d) => d.versionId === v.id && d.status !== 'withdrawn' && d.controlLayer);
-      if (!deps.length) return 'No control layer on this model';
+      const uses = AGENT_USES.filter((u) => s.player.agents[u].control && agentVersion(s, u)?.id === v.id);
+      if (!deps.length && !uses.length) return 'No control layer on this model';
       for (const d of deps) d.controlLayer = false;
+      for (const u of uses) s.player.agents[u].control = false;
+      syncInternalControl(s);
       break;
     }
     case 'rollback': {

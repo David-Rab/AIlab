@@ -453,8 +453,12 @@ export type RunKind = 'base' | 'post' | 'continue' | 'distill';
 export interface RunRecipe {
   /** Pretraining recipe efficiency e_pre at the run's FLOP (OOM; base, continue). */
   pre?: number;
-  /** The data the base draws from the portfolio at launch (model v3 D3 / D11; base, continue). */
+  /** The data the base draws from the portfolio at launch (model v3 D3 / D11; base, continue). A continue run's draw is
+   *  cumulative: its parent's tokens plus the added ones (added FLOP ÷ 6·N_active), with the parent's mix (RD-T02). */
   draw?: DataDraw;
+  /** Continue run: D_eff of the parent's tokens alone, drawn on the same portfolio at launch (the added part's data is
+   *  the cumulative draw minus this; models/effective.ts continueFData, RD-T02). */
+  prevDEff?: number;
   /** RL stack efficiency and ceiling (OOM); the environment suites' fidelity and exploitability per family (model v3 D5). */
   rlMid?: number;
   rlCeil?: number;
@@ -479,7 +483,11 @@ export interface TrainingRun {
   poolShare: number; // share of the training pool this run takes (player sets priority)
   cashCost: Money; // environment/data budget committed at launch (compute is the pool)
   baseId?: string; // for post/continue/distill
-  teacherVersionId?: string; // distill / synthetic-heavy
+  teacherVersionId?: string; // distill / synthetic-heavy; the grader of an RL run with grader "teacher"
+  /** RD-T01a (DD-06): RL with the teacher as grader. On a post (RL) run, `teacher` puts teacherVersionId in the loop:
+   *  today's IDA cycle (P18). The ways a model is made: kind base or continue (pretraining), post (RL; with this field,
+   *  IDA), distill (a small model on a teacher's outputs); the continual-learning stream is models.stream, not a run. */
+  grader?: 'teacher';
   base?: BaseDesign;
   post?: PostDesign;
   predicted: RunPrediction; // shown on the run card, with noise band
@@ -1021,8 +1029,12 @@ export interface PlayerLab extends LabCore {
   research: ResearchState;
   /** Engineers' build queue (BUILD-PLAN R5): run setups now; product features, eval harnesses and safeguards from R6. */
   build: BuildState;
-  /** Product features built lab-wide (R6; ids of data/v2/features.ts). Switched on per product (Deployment.features). */
+  /** Product features built lab-wide (R6; ids of data/v2/features.ts). Switched on per product (Deployment.features);
+   *  RD-A06: they act only inside a product's offer. */
   features: string[];
+  /** RD-A06 (DD-03): internal tooling the lab owns (ids of data/v2/features.ts INTERNAL_TOOLS): built by engineers, acts
+   *  on the internal agents (worldfx/serving.ts internalFx). */
+  tooling: string[];
   morale: { overall: number; safety: number }; // 0..100
   /** Model v3 D1: the data portfolio (MODEL-V3 §9; production/data.ts). Replaces v2's dataAssets token counts. */
   dataPortfolio: DataPortfolio;
@@ -1098,13 +1110,17 @@ export type AgentUse = 'eng' | 'capRoutine' | 'capFrontier' | 'safety';
  *  (absent = none; 'same' = a copy of the watched model) and compute: for engineering and capabilities research a share
  *  of the capabilities agent pool (the three sum to 1); for safety a share of the safety pool. */
 export interface AgentPackage {
+  /** RD-A06: the package's own model; unset = the newest internal model (departments/agents.ts newestInternal), shown
+   *  as such. Routine research always names one (the internal deployment follows it). */
   versionId?: string;
   monitorId?: string;
+  /** RD-A06: the control layer (trusted monitoring with deferral, safety/oversight.ts useControl) on this package. */
+  control?: boolean;
 }
 
 // ───────────────────────────── Build queue (STRUCTURE §4.1, R5) ─────────────────────────────
 
-export type BuildKind = 'runSetup' | 'feature' | 'harness' | 'safeguard' | 'launch' | 'sectorPack' | 'adopt' | 'suite' | 'eval';
+export type BuildKind = 'runSetup' | 'feature' | 'tooling' | 'harness' | 'safeguard' | 'launch' | 'sectorPack' | 'adopt' | 'suite' | 'eval';
 /** A product launch waiting for its build (J2 P1): the product goes live with these settings once built. */
 export interface PendingLaunch {
   channel: Channel;
@@ -1193,6 +1209,14 @@ export interface TeamHiring {
   nextId: number;
 }
 
+/** RD-A05b: the explicit auto-split policy (PlayerPolicies.autoSplit). */
+export interface AutoSplitPolicy {
+  on: boolean;
+  to: Exclude<keyof ComputeSplit, 'idle'>[];
+  /** The latest move: its day and the share of total compute moved. */
+  last?: { day: Day; share: number };
+}
+
 export interface PlayerPolicies {
   whistleblowerChannel: boolean;
   publishSafety: 'none' | 'selective' | 'all';
@@ -1200,11 +1224,10 @@ export interface PlayerPolicies {
   shareWithAllies: boolean;
   transitionFund: Money; // $B/yr
   communityBenefits: boolean;
-  /** Where training compute that no run uses goes (R5): data generation (default since R6) or research experiments. */
-  spareTraining: 'research' | 'data';
-  /** Where serving compute no product needs goes (J2 PR1): research agents (default; products take it back first when
-   *  demand rises, so eroded market share recovers at half speed) or kept on the products as headroom. */
-  spareServing: 'research' | 'headroom';
+  /** Auto-split idle compute (RD-A05b, DD-19). Off by default: idle compute stays idle and shows as idle in its use.
+   *  On: once a day the idle shares (unallocated, training no run uses, serving no product needs, monitors beyond full
+   *  coverage) move to the listed uses in equal parts, logged. */
+  autoSplit: AutoSplitPolicy;
   /** Auto serving (R6): serve the products earning most per H100e first; the cut is recorded. Off = shares by hand. */
   servingAuto: boolean;
   /** Move products to the newest cleared model of the same kind when it measures better (R6). */

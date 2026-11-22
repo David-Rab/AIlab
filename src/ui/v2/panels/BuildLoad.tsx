@@ -4,7 +4,7 @@
 // show only their own waits (links here).
 import type { GameStateV2, RLFamily } from '../../../engine/v2';
 import { buildCapacity, buildEtas, buildRates, featureInUse, upkeepLines, upkeepSplit } from '../../../engine/v2';
-import { FEATURE_BY_ID, PRODUCT_DEFS, type FeatureId } from '../../../data/v2/features';
+import { FEATURE_BY_ID, PRODUCT_DEFS, TOOL_BY_ID, type FeatureId, type ToolId } from '../../../data/v2/features';
 import { SECTOR_BY_ID } from '../../../data/v2/sectors';
 import { AGENT_USE_DEF } from '../../../data/v2/agents';
 import { RL_FAMILY_LABEL } from '../../../data/v2/suites';
@@ -19,6 +19,7 @@ const SEG = { products: '#b08e1a', builds: '#3a8ae0', idle: '#33435a' } as const
 export function buildItemLabel(s: GameStateV2, it: GameStateV2['player']['build']['queue'][number]): string {
   if (it.kind === 'runSetup') return `Setup ${s.player.models.runs.find((r) => r.id === it.ref)?.name ?? it.ref}`;
   if (it.kind === 'feature') return FEATURE_BY_ID[it.ref as FeatureId]?.name ?? it.ref;
+  if (it.kind === 'tooling') return TOOL_BY_ID[it.ref as ToolId]?.name ?? it.ref;
   if (it.kind === 'launch') return `Launch ${PRODUCT_DEFS[it.launch?.channel ?? 'api']?.name ?? it.ref}`;
   if (it.kind === 'sectorPack') return `${SECTOR_BY_ID[it.ref as keyof typeof SECTOR_BY_ID]?.name ?? it.ref} pack`;
   if (it.kind === 'suite') { const [fam, work] = it.ref.split(':'); return `${work === 'harden' ? 'Harden' : 'Build'} ${RL_FAMILY_LABEL[fam as RLFamily] ?? fam} suite`; }
@@ -32,6 +33,7 @@ function upkeepLabel(s: GameStateV2, l: ReturnType<typeof upkeepLines>[number]):
     const f = FEATURE_BY_ID[l.ref as FeatureId];
     return `Feature ${f?.name ?? l.ref}${f && !featureInUse(s, f) ? ' (off: keep-alive)' : ''}`;
   }
+  if (l.kind === 'tooling') return `Agent tooling ${TOOL_BY_ID[l.ref as ToolId]?.name ?? l.ref}`;
   const d = s.player.deployments.find((x) => x.id === l.ref);
   if (l.kind === 'product') return `${PRODUCT_DEFS[d?.channel ?? 'api']?.name ?? l.ref}`;
   return `Monitor on ${d ? PRODUCT_DEFS[d.channel]?.name ?? d.channel : AGENT_USE_DEF[l.ref as keyof typeof AGENT_USE_DEF]?.name.toLowerCase() ?? l.ref}`;

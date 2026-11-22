@@ -12,7 +12,7 @@ import { safetyLabour } from '../departments/workfit';
 import { safetyPoolClaims } from '../departments/agents';
 import { believedCaseThreat, believedSabotage } from './covert';
 import { publishFinding } from './findings';
-import { CASE_RESOLVE, INV_FTE, INV_MAX_DAYS, caseRate, closeInvestigation, corruptOdds, daysToResolve, defaultTools, investigationFte, openInvestigation, safetyReHeads } from './investigations';
+import { CASE_RESOLVE, INV_FTE, INV_MAX_DAYS, caseH100e, caseRate, closeInvestigation, corruptOdds, daysToResolve, defaultTools, investigationFte, openInvestigation, safetyReHeads } from './investigations';
 import { patchFte } from './responses';
 import {
   DISCLOSE_CPS, PATCH_DAYS, PATCH_FLOOR, PATCH_FTE, PATCH_MULT, RESPONSE_INFO, RUN_PENALTY_OOM, applyResponse, bestDetector, discloseScrutiny, discloseTrust,
@@ -43,8 +43,8 @@ function defaultTarget(s: GameStateV2): { versionId: string; trait: TraitId } | 
   return { versionId: v.id, trait: responseTrait(v) };
 }
 
-/** F6e: the case's monthly clarity as monthlyGain computes it (caseRate: engineers × m of safety experiments, compute
- *  share), with the default tools (or the chosen ones) at BELIEVED strength and penalty on the measured level. */
+/** F6e: the case's monthly clarity as monthlyGain computes it (caseRate: engineers × m of safety experiments, the
+ *  case's H100e from its granted share), with the default tools (or the chosen ones) at BELIEVED strength and penalty on the measured level. */
 function investigationGain(s: GameStateV2, versionId: string, traits: TraitId[], tools: TechniqueState[], fte: number, computeShare: number): number {
   const v = versionById(s, versionId);
   if (!v) return 0;
@@ -52,7 +52,7 @@ function investigationGain(s: GameStateV2, versionId: string, traits: TraitId[],
   const x = oomOfLevel(s.hidden.timeline, L);
   let g = 0;
   for (const k of traits) g = Math.max(g, combineTools(tools.map((t) => ({ agenda: t.agenda, d: (t.coverage[k] ?? 0) * strengthBelieved(s, t, x) * believedPenalty(s, v, k, t.family, L) }))));
-  return caseRate(s, g, fte, computeShare);
+  return caseRate(s, g, fte, caseH100e(s, computeShare));
 }
 
 /** F6e: when the case resolves at that monthly clarity (estimate), or the clarity it reaches when it closes at the cap. */

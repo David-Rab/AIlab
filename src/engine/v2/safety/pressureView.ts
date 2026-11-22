@@ -130,7 +130,7 @@ export function basePressure(gPre: number, ai: number, safetyPretrain: boolean):
 export function plannedPressure(s: GameStateV2, p: LaunchRunParams): RunPressure | undefined {
   const plan = planRun(s, p);
   const base = p.baseId ? s.player.models.bases.find((b) => b.id === p.baseId) : undefined;
-  const run = { kind: p.kind, name: p.ida ? 'IDA' : p.kind, flopNeeded: plan.flopNeeded, ...(p.baseId ? { baseId: p.baseId } : {}), ...(p.post ? { post: p.post } : {}) };
+  const run = { kind: p.kind, name: p.kind, ...(p.grader ? { grader: p.grader } : {}), flopNeeded: plan.flopNeeded, ...(p.baseId ? { baseId: p.baseId } : {}), ...(p.post ? { post: p.post } : {}) };
   const om = runOmega(s, run);
   if (p.kind === 'base') {
     const L = plan.limits;
@@ -140,7 +140,7 @@ export function plannedPressure(s: GameStateV2, p: LaunchRunParams): RunPressure
   if (p.kind === 'post') {
     if (!p.post || !base || !(plan.flopNeeded > 0)) return undefined;
     const rho = plan.flopNeeded / Math.max(1, base.flop);
-    const k = p.ida ? OMEGA_KIND.ida : OMEGA_KIND.post;
+    const k = p.grader === 'teacher' ? OMEGA_KIND.ida : OMEGA_KIND.post;
     return { kind: 'post', rows: postPressure(s, p.post, rho), omega: { ...om, kind: k, rho, rlFactor: om.growth / k } };
   }
   if (p.kind === 'distill') return { kind: 'distill', rows: distillRows(), omega: { ...om, kind: OMEGA_KIND.distill }, imitation: imitationView(s, p.teacherVersionId ? [{ id: p.teacherVersionId, share: 1 }] : undefined) };
@@ -183,8 +183,8 @@ export function versionPressure(s: GameStateV2, versionId: string): { run?: RunP
     // The run that made it: a finished post-train on the same base with the same RL FLOP (its suites frozen at launch).
     const run = s.player.models.runs.find((r) => r.status === 'done' && r.kind === 'post' && r.baseId === v.baseId && Math.abs(r.flopNeeded - b.rlFlop) <= 1e-6 * b.rlFlop);
     const applied = b.signals?.S8 !== undefined ? clamp01((b.signals.S8 ?? 0) - (base?.signals?.S8 ?? 0)) : undefined;
-    const om = runOmega(s, { kind: 'post', name: run?.name ?? 'post', flopNeeded: b.rlFlop, baseId: v.baseId, post: v.design });
-    const k = run?.name?.startsWith('IDA') ? OMEGA_KIND.ida : OMEGA_KIND.post;
+    const om = runOmega(s, { kind: 'post', name: run?.name ?? 'post', ...(run?.grader ? { grader: run.grader } : {}), flopNeeded: b.rlFlop, baseId: v.baseId, post: v.design });
+    const k = run?.grader === 'teacher' ? OMEGA_KIND.ida : OMEGA_KIND.post;
     const rows = postPressure(s, v.design, rho, run?.recipe?.exploit, applied);
     // No frozen suites (a start model, or an older save): S2 reads today's suites; say so.
     if (!run?.recipe?.exploit) for (const r of rows) if (r.id === 'S2') r.q.todaySuites = true;

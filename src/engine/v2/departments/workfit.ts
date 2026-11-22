@@ -30,7 +30,6 @@ import { h50Of, versionDomainG } from '../models/capability';
 import { adopted } from '../models/paradigms';
 import { REF_RL_PROFILE } from '../models/effective';
 import { decimalYear } from '../core/time';
-import { spareServingToResearch } from '../worldfx/revenue';
 import { internalFx, tokEff } from '../worldfx/serving';
 import { decodeUtilNow } from '../models/stacks';
 import { ws4r } from '../actors/state';
@@ -231,9 +230,9 @@ function useLabour(s: GameStateV2, slot: LabourSlot): { v?: ModelVersion; h100e:
   const v = agentVersion(s, use);
   let h100e = 0;
   if (!off) {
-    h100e = p.computeOnline * agentSplitShare(s, use) + (use === 'capRoutine' ? spareServingToResearch(s) : 0);
+    h100e = p.computeOnline * agentSplitShare(s, use);
   }
-  const mult = useControl(s, v, monitorVersion(s, use)).usefulness;
+  const mult = useControl(s, v, monitorVersion(s, use), !!p.agents[use].control).usefulness;
   return { v, h100e, mult };
 }
 

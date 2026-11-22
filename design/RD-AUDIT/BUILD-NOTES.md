@@ -1603,3 +1603,128 @@ rolled speed; teams on P27 now count as AG17 staffing: harness fit and SAF_IDEAS
 - **Check:** tsc app + scripts/v2 clean; npm run build passes; grep `researchSpeed|syncParadigm|player.paradigms|priorMult`
   in src empty; `npx tsx scripts/v2/_r04/check.ts` (source clean; kyc gone, P27 an AG17 line node; new game: no mirror,
   ★ adopted; P27 works → known = adopted, doesn't → AG17 b + 1; rev-57 save migrates). hygiene's rev literals → 58 (not run).
+
+### RD-A05b
+
+Spare-compute policies removed per DD-19; one explicit Auto-split policy; real compute for cases. Moves calibration: **yes**
+(idle training compute no longer feeds data generation, the old default; spare serving no longer adds routine agents;
+share recovery always full speed; case rate reads H100e).
+
+- **Gone:** `policies.spareTraining` / `spareServing`, actions `runs.spareTraining` / `serving.spare`,
+  `spareServingToResearch`, `LENT_RECOVERY`, `spareServingEffect`, the idle / spare parts of `expPoolH100e`,
+  `synPoolH100e`, production.ts inputs (`mixUnit.idle/cIdle/spare/kSpare`), workfit `useLabour`, covert
+  `internalFleetCompute`; RefBot's spare options. `spareServing()` renamed `idleServing()` (H100e no product needs).
+- **Auto-split** (`departments/autoSplit.ts`): `policies.autoSplit = { on, to, last? }`, default off, to experiments.
+  Daily system order 62 (after revenue): moves unallocated + idle training + idle serving + monitors beyond coverage to the
+  listed uses in equal parts (min move 0.1 pt), logs it, keeps `last`. Action `compute.autoSplit {on?, to?}`.
+- **Cases:** `caseRate(s, g, fte, h100e)`; `caseH100e(s, share)` = online × split.safety × granted share (a demand inside the
+  safety research line, lines take the rest); reference `CASE_H100E_REF` = 5% of the reference start line [D].
+- **UI:** Split shows "Idle" under training, serving and monitors; Auto-split row (switch, idle now, uses to send it to).
+  Run queue "Idle" row; Products serving bar segment "idle"; Company Flow spare row gone; glossary idleCompute,
+  idleServing, autoSplit (old stale Auto-split entry replaced); watch item text.
+- **Save:** SCHEMA_REV 56; migration 55 drops the two policies, adds autoSplit off; hygiene pins → 56.
+- **Check:** `npx tsx scripts/v2/_a05b/check.ts`. Budget hit: 9/12 pass. Left: the check's setup does not create idle
+  serving on day400 (moving 10 pt training → serving gives idleServing 0: likely products absorb it or needH100e unset;
+  the "idle serving stays idle" assertion needs a setup that really leaves serving idle), and its "moved" test is too
+  strict (Auto-split moved 29.6 pt, mostly idle training). `npm run build` not run. grep: only the migration names the
+  old policy keys.
+
+### RD-A06
+
+AI staff packages name their model, have their own control layer, and internal tooling is its own owned item (DD-03).
+Moves calibration: **maybe** (eng / frontier / safety packages with no pick now run the newest cleared full model instead
+of following routine research; built Memory / Coding agent / Deep research no longer help internal work unless the lab
+builds the tool; feature upkeep of a feature on no product drops to keep-alive; Add control now covers the packages
+running that model, not every package).
+
+- **Model:** `newestInternal(s)` (departments/agents.ts) = newest ready / deployed full model (routine's while none);
+  `agentVersion` = own live pick, else that (the "as routine" fallback is gone). Lane flag `follows` → `newest`; the
+  picker's empty option reads "newest · Vx". Routine research still sets the internal deployment.
+- **Control:** `AgentPackage.control?`; `useControl(s, model, monitor, on)` reads the package; `underControl(s)` = any
+  package on. `syncInternalControl(s)` keeps the internal deployment's `controlLayer` (read by covert / incidents /
+  believed oversight containment) = a package running its model has control. Set by `agents.set {use, control}`, the
+  addControl / removeControl responses (packages on that model) and the E-event "Continue + control" (all packages).
+- **Tooling:** data/v2/features.ts `INTERNAL_TOOLS` (Coding harness ← Coding agent SWE +0.3 ×2 tok; Research harness ←
+  Deep research IDEAS +0.3 ×3 tok, P05 gate; Agent memory ← Memory horizon ×1.3 all, P07 gate; same team-weeks / cash);
+  `player.tooling`; build kind `tooling`; action `tooling.build {id}`; upkeep line `tooling` (always in use). `internalFx`
+  reads tooling + P05 orchestration only; the features' SWE / IDEAS work entries removed, effect texts say product only.
+  `featureInternal` deleted (productView `internal` now empty). Starts: `toolsFromFeatures(start features)` (leader none,
+  challenger Coding harness). Rivals: not yet (DD-03 rival part later).
+- **UI:** Company › Agents at work: per-lane "Control on/off" button (tooltip agentControl), a Tooling row (built ✓ /
+  building days / Build button with effect tooltip); BuildLoad labels; glossary agentTooling, agentControl.
+- **Save:** SCHEMA_REV 57; migration 56 → tooling from built features, package control from the internal deployment's
+  flag; hygiene pins → 57. Scripts setting `controlLayer` on the internal deployment also set package control.
+- **Check:** `npx tsx scripts/v2/_a06/check.ts` (12/12): features leave internal fit and build capacity unchanged; the
+  Coding harness via the build queue gives SWE +0.3 OOM; starts / rev-56 save own the equivalents; no pick = newest;
+  control on one package only. tsc (main, scripts) and `npm run build` pass.
+
+### RD-T01a
+
+A run kind field replaces the IDA name check (DD-06, TRN-08). Moves calibration: **no** (state hash identical to the
+previous commit with the new field stripped).
+- **Mapping:** every way a model is made is a TrainingRun `kind` plus one option. base / continue = pretraining (new or
+  continued base); distill = a small model on a teacher's outputs (`teacherVersionId`); post = RL on a base; IDA = post
+  with `grader: 'teacher'` (RL with the teacher, `teacherVersionId`, as grader; P18). The stream is not a run
+  (`models.stream`) and is unchanged. Imported / variant models are not runs either.
+- **Code:** `TrainingRun.grader?: 'teacher'`; `LaunchRunParams.ida` → `grader`. Every `name.startsWith('IDA')` is now
+  `grader === 'teacher'`: run completion (runs.ts), `runOmega` / `runRho` (traits.ts), `versionPressure` /
+  `plannedPressure` (pressureView.ts), `reOpsNeed` (research.ts), RefBot `askShare` (ref.ts); run-likes for previews
+  (selectors.ts, pressureView.ts, runs.ts) carry `grader` instead of the name "IDA". The run name stays "IDA n".
+- **Save:** SCHEMA_REV 58; migration 57 → 58 sets `grader: 'teacher'` on post runs named "IDA …"; hygiene pins → 58.
+- **Check:** `npx tsx scripts/v2/_t01a/check.ts`: IDA run carries the field, a post run does not, a rev-57 save gets it
+  back from the name; after 150 days (IDA finished) the stripped state hash is 9fd770432d0ac490 on this commit and on
+  the previous one (same script on an archive of HEAD~). tsc (main, scripts) pass; `grep "startsWith('IDA" src` empty.
+
+### RD-T01b
+
+Two training acts, engine structure only (DD-06, TRN-06; theme T). Commit fa60a15. Moves calibration: **no** (run,
+made-model and state hashes identical to the previous commit for all five former kinds).
+- **Acts.** `runAct(kind)`: `'pretrain'` (kinds base / continue / distill) or `'rl'` (kind post). The run kinds stay
+  the save format (no schema bump); the engine reads them as act + source / start.
+- **Pretraining** (`pretrain(s, src, rec?)`, one path): `PretrainSource` = `design` (new base on the portfolio),
+  `continue` (parent + added FLOP) or `teacher` (student size nS, tokens of teacher outputs). Sources come from launch
+  params (`pretrainSourceOfParams`) or a launched run (`pretrainSourceOfRun`); the result (`Pretrained`: FLOP needed,
+  cash, scale, flop / params / tokens / gPre / ePre / sD / fpt / monitorability) feeds both `planPretrain` and
+  `completePretrain`. Blueprint limits are read from the design source.
+- **RL** (`rlBuild(s, start, design, rec, extra)`, one path; replaces postBuild and idaBuild): `RlStart` = a base
+  (fresh RL: design focus weights, design effects, domain effects, run penalty at completion, design serve cost) or a
+  version (the teacher-as-grader option, IDA: more RL FLOP on its build, best of its and the run's recipe and suite
+  fidelity, its RL mix, serving, design and traits kept). Budget `rlFlopOf` = RL_BUDGET[design] or IDA_RL_SHARE × base
+  FLOP. `planRl` / `completeRl`.
+- **planRun / completeRun** are the act dispatch plus the shared tail (setup, ETA, cash / pause reasons, prediction).
+- **[Q] quirks kept, not fixed:** (1) a distilled student has no BaseModel of its own: it is a mini version on its
+  teacher's base whose build is the teacher's minus the gap (materialising a base would change state); (2) RL on a
+  version is reachable only with the teacher as grader (no launch parameter for plain RL on a version); (3) the IDA
+  preview's serve cost / monitorability are the fresh-RL formula (completion keeps the teacher's); (4) IDA ignores the
+  design's RL budget and focus (IDA_RL_SHARE, the teacher's mix); (5) only fresh RL consumes the pending run penalty.
+- **effective.ts** unchanged (its arithmetic already is per act: pretraining, RL, distillation).
+- **Check:** `npx tsx scripts/v2/_t01b/check.ts` (day-400 fixture; base, continue, post, distill, IDA each launched,
+  setup and FLOP forced, one tick): hashes before = after, e.g. base run 9eeaf8a0c2210830 / state d8a2b5f88780b9cc,
+  IDA run e879d56046092371 / state e3bce3a7bb61d547. tsc (main, scripts) and `npm run build` pass.
+
+### RD-T02
+
+Continue runs draw tokens from the portfolio (TRN-07; theme T). Commit f86f4fc. Moves calibration: **maybe** (on the
+unchanged day-400 portfolio a continue run already repeats: cumulative epochs 1.67, the added part's data factor 0.94,
+so continued bases are a little weaker than before).
+- **Draw.** `continueDrawNow(s, parent, addFlop)` (runs.ts): added tokens = added FLOP ÷ (6 · N_active), drawn with the
+  parent's data option through `playerDraw` (new optional `tokens` arg) / `drawData`, cumulative on the parent's
+  tokens (so each slice's epochs count the parent's use), plus `prevDEff` = D_eff of the parent's tokens alone on the
+  same portfolio. Stored in the launch snapshot (`RunRecipe.draw`, new `RunRecipe.prevDEff`); plan reads today's.
+- **[D] Added part's data factor** `continueFData` (effective.ts): effective compute adds, so f_add = (D_tot · f(D_tot)
+  − D_prev · f(D_prev)) ÷ D_add with f = fDataEff (Besiroglu, quality and repetition), both draws on the launch
+  portfolio; 1 on the 2025 reference data, ≥ 0. `continueGPre` takes it (new last arg, default 1). ePre still "what
+  remains", so it now carries f_add too. A snapshot without prevDEff (hand-built runs) keeps f_add 1.
+- **Base.** A continued base's `epochs` = the cumulative draw's (was copied from the parent); tokens unchanged formula.
+  Trait hook reads the cumulative draw (shares, so S5 barely moves).
+- **Schema 59:** migration 58 → 59 redraws in-flight (running / paused) continue runs on the save's day; idempotent
+  (skips runs with prevDEff). hygiene SCHEMA_REV literals 58 → 59.
+- **Check:** `npx tsx scripts/v2/_t02/check.ts` (day-400 fixture, continue launched and forced done; portfolio × 0.02 vs
+  × 1): epochs 83.5 vs 1.67, f_add 0.58 vs 0.94, gPre gain 0.219 vs 0.314 OOM; base epochs = draw epochs. tsc main +
+  scripts pass.
+
+### Merge rd into p3-c2
+
+rd's schema chain kept (56 A05b, 57 A06, 58 T01a, 59 T02); p3-c2's renumbered: 59 → 60 (RD-A04), 60 → 61 (RD-R02b),
+61 → 62 (RD-R04); SCHEMA_REV 62, hygiene rev literals 62. Cases: A04's casesServed() FTE with A05b's caseH100e compute; the
+agents' readout key reads adopted(P27) (R04) and the tooling list (A06); spareServingEffect gone (A05b) with R04's labSpeed* names.

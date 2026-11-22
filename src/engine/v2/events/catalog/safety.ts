@@ -16,6 +16,7 @@ import { discoveryOdds } from '../../actors/researchBodies';
 import { ws4 } from '../../actors/state';
 import { escapeResolved } from '../../safety/footholds';
 import { controlReadout } from '../../safety/dangerView';
+import { syncInternalControl } from '../../departments/agents';
 import { whistleOddsYear } from '../../security/security';
 import { L, P, ch, ev, pv, requestOnly } from '../kit';
 import { boardMood, MOOD_BASE, moodWeight } from '../../finance/mood';
@@ -148,7 +149,8 @@ export const SAFETY_EVENTS: EventDefV2[] = [
       }),
       // F6d: the control tax is E6's protocol (as on Safety › Add control); the red flag this choice counts is a cost.
       ch('Continue + control', ['control', 'balanced'], (s) => pv([L('progress', Math.round(controlReadout(s).tax * 100), 'of internal AI labour at most (control tax)', { unit: '%' }), redFlagLine(s)], [controlLayerGo(s)]), (s) => {
-        for (const dep of s.player.deployments) if (dep.channel === 'internal') dep.controlLayer = true;
+        for (const a of Object.values(s.player.agents)) a.control = true; // RD-A06: every agent package
+        syncInternalControl(s);
         ws4(s).redFlags++;
       }),
       // F6d: no "alignment 0.2" (never applied): the cost is the red flag it counts (leak odds) and the pledge's own break

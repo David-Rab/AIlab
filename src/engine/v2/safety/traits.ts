@@ -334,19 +334,19 @@ export const OMEGA_KIND = { base: 1, post: 0.6, continue: 0.5, distill: 0.4, ida
 export const OMEGA_RL_EXP = 0.25;
 export const rlMovement = (rho: number) => Math.pow(Math.max(1e-6, rho) / RHO_REF, OMEGA_RL_EXP);
 /** ω of a run: `growth` moves traits along the graph's edges; `safety` scales the run's safety-training removal. */
-export function runOmega(s: GameStateV2, run: Pick<TrainingRun, 'kind' | 'name' | 'baseId' | 'flopNeeded'> & { post?: PostDesign }): { growth: number; safety: number } {
+export function runOmega(s: GameStateV2, run: Pick<TrainingRun, 'kind' | 'name' | 'baseId' | 'flopNeeded' | 'grader'> & { post?: PostDesign }): { growth: number; safety: number } {
   if (run.kind === 'base') return { growth: OMEGA_KIND.base, safety: OMEGA_KIND.base };
   if (run.kind === 'continue') return { growth: OMEGA_KIND.continue, safety: OMEGA_KIND.continue };
   if (run.kind === 'distill') return { growth: OMEGA_KIND.distill, safety: OMEGA_KIND.distill };
-  const k = run.name?.startsWith('IDA') ? OMEGA_KIND.ida : OMEGA_KIND.post;
+  const k = run.grader === 'teacher' ? OMEGA_KIND.ida : OMEGA_KIND.post;
   const rho = runRho(s, run);
   return { growth: k * rlMovement(rho), safety: k };
 }
 /** ρ of a post/IDA run: its RL FLOP over its base's pretraining FLOP (the design's budget share when unknown). */
-export function runRho(s: GameStateV2, run: Pick<TrainingRun, 'kind' | 'name' | 'baseId' | 'flopNeeded'> & { post?: PostDesign }): number {
+export function runRho(s: GameStateV2, run: Pick<TrainingRun, 'kind' | 'name' | 'baseId' | 'flopNeeded' | 'grader'> & { post?: PostDesign }): number {
   const base = run.baseId ? s.player.models.bases.find((b) => b.id === run.baseId) : undefined;
   if (base && base.flop > 0 && run.flopNeeded > 0) return run.flopNeeded / base.flop;
-  if (run.name?.startsWith('IDA')) return IDA_RL_SHARE;
+  if (run.grader === 'teacher') return IDA_RL_SHARE;
   return RL_BUDGET[run.post?.rlBudget ?? 'standard'];
 }
 

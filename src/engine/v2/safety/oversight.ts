@@ -15,6 +15,7 @@ import {
 } from '../../../data/v2/oversight';
 import { gOfLevel, gV0, levelOfG } from '../models/capability';
 import { measuredLOf } from '../models/labs';
+import { AGENT_USES } from '../../../data/v2/agents';
 import type { GameStateV2, ModelVersion, TimelineWorld } from '../types';
 
 /** λ⁻¹: effective compute (OOM above the start model V0) of a model at display level L: gOfLevel(L) − G_V0, the one
@@ -76,9 +77,10 @@ function lerpTable(d: number, key: 'safety' | 'usefulness'): number {
   return T[T.length - 1][key];
 }
 
-/** Whether the lab's internal work runs under control protocols (the AG07 control layer on a live internal deployment). */
+/** Whether any of the lab's internal work runs under control protocols (RD-A06: the AG07 control layer is set per agent
+ *  package; before, one flag on the internal deployment stood for every internal use). */
 export function underControl(s: GameStateV2): boolean {
-  return s.player.deployments.some((d) => d.channel === 'internal' && d.status === 'live' && d.controlLayer);
+  return AGENT_USES.some((u) => !!s.player.agents?.[u]?.control);
 }
 
 export interface ControlReadout {
@@ -113,9 +115,9 @@ export function controlProtocol(gapOom: number | undefined, defer = CONTROL_DEFE
 }
 
 /** Control on one internal use (its model watched, its monitor the trusted model; a copy of itself = no gap). Measured
- *  levels: the tax is a design readout. Off when the control layer is off. */
-export function useControl(s: GameStateV2, model: ModelVersion | undefined, monitor: ModelVersion | undefined): ControlReadout {
-  if (!underControl(s) || !model) return NO_CONTROL;
+ *  levels: the tax is a design readout. Off when the package's control layer is off (`on`, RD-A06). */
+export function useControl(s: GameStateV2, model: ModelVersion | undefined, monitor: ModelVersion | undefined, on: boolean): ControlReadout {
+  if (!on || !model) return NO_CONTROL;
   const w = s.hidden.timeline;
   const gap = monitor ? oversightGap(w, measuredLOf(s, model).L, measuredLOf(s, monitor).L).oom : undefined;
   return controlProtocol(gap);

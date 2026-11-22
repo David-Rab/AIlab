@@ -62,7 +62,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   check(ext.length === 3 && ext.every((d) => d.kind === 'product' && d.price === 'standard' && d.priceIndex === 1 && !d.features.length && !d.monitorId && !d.miniVersionId),
     'P1 leader start: Chat, API, Enterprise are products at the standard tier with no features, mini or monitor');
   const pol = s.player.policies;
-  check(pol.servingAuto && pol.autoEvaluate && !pol.upgradeToNewest && pol.spareTraining === 'data', 'P1 policies: Auto serving on, auto-evaluate on, upgrade off; spare training → data generation');
+  check(pol.servingAuto && pol.autoEvaluate && !pol.upgradeToNewest && !pol.autoSplit.on, 'P1 policies: Auto serving on, auto-evaluate on, upgrade off; Auto-split idle compute off');
   check(s.player.features.join() === 'sectorPacks', 'P1 D5: the leader start has sector packs built (the ×1 baseline)', s.player.features.join());
   const v0 = s.player.models.versions[0];
   check(ext.every((d) => productDomains(s, d) === v0.domains), 'P2 a plain product uses its model\'s own domain record (neutral)');

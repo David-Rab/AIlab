@@ -13,7 +13,8 @@
 // buys coverage = budget ÷ (watched compute × the monitor's cost ratio) (AI 2027 fn 51). A monitor's strength = coverage × min(1, catch ÷ 85%): a monitor as capable as the
 // watched model, fully funded, is today's runtime monitoring exactly (strength 1).
 //
-// The default package (initialAgents): every use on the routine model, monitors 'same' on routine and frontier research,
+// The default package (initialAgents): routine research on the start model, the other uses on the newest internal
+// model (RD-A06: named in the UI, no hidden "as routine" fallback), control off per package, monitors 'same' on routine and frontier research,
 // the reference compute shares (DEFAULT_CAP_SHARES).
 import { flopPerToken } from './workfit';
 import {
@@ -43,14 +44,34 @@ export function routineVersion(s: GameStateV2): ModelVersion | undefined {
   return versionById(s, s.player.agents?.capRoutine.versionId);
 }
 
-/** Model running an internal use: its own pick when live, else the routine-research model. */
-export function agentVersion(s: GameStateV2, use: AgentUse): ModelVersion | undefined {
-  if (use !== 'capRoutine') {
-    const id = s.player.agents[use].versionId;
-    const v = id ? versionById(s, id) : undefined;
-    if (live(v)) return v;
+/** RD-A06: the newest internal model, the default of a package with no own pick (stated in the UI as "newest"): the
+ *  newest cleared (ready or deployed) full model; routine research's model while none is cleared. */
+export function newestInternal(s: GameStateV2): ModelVersion | undefined {
+  let best: ModelVersion | undefined;
+  for (const v of s.player.models.versions) {
+    if (v.variant !== 'full' || (v.status !== 'ready' && v.status !== 'deployed')) continue;
+    if (!best || v.day > best.day) best = v;
   }
-  return routineVersion(s);
+  return best ?? routineVersion(s);
+}
+
+/** Model running an internal use: its own pick when live, else the newest internal model (RD-A06: before, a hidden
+ *  fallback to the routine-research model). Routine research runs its own pick (the internal deployment's model). */
+export function agentVersion(s: GameStateV2, use: AgentUse): ModelVersion | undefined {
+  if (use === 'capRoutine') return routineVersion(s);
+  const id = s.player.agents[use].versionId;
+  const v = id ? versionById(s, id) : undefined;
+  return live(v) ? v : newestInternal(s);
+}
+
+/** RD-A06: the internal deployment's control-layer flag follows the packages (on when a package running its model has
+ *  the control layer), for the readers that ask the internal fleet's containment (covert, incidents, believed
+ *  oversight). Call after any package control change. */
+export function syncInternalControl(s: GameStateV2): void {
+  for (const d of s.player.deployments) {
+    if (d.channel !== 'internal') continue;
+    d.controlLayer = AGENT_USES.some((u) => !!s.player.agents[u].control && agentVersion(s, u)?.id === d.versionId);
+  }
 }
 
 /** Monitor model of an internal use ('same' = a copy of the watched model). */

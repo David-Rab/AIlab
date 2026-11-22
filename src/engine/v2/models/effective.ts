@@ -92,10 +92,22 @@ export function gPreOf(x: { flop: number; tpp: number; recipe: number; shape: Ba
   return { flop, recipe: x.recipe, shape, over, data, quality, design: x.designDg, total: flop + x.recipe + shape + over + data + quality + x.designDg };
 }
 
-/** Continued pretraining (§3.4): effective compute adds, G_new = log₁₀(10^G_old + FLOP_cont × 10^(recipe_now + shape)).
- *  Only the added part embodies today's recipe. No κ. */
-export const continueGPre = (gOld: number, flopCont: number, recipeNow: number, shape: BaseDesign['shape']) =>
-  Math.log10(Math.pow(10, gOld) + Math.max(0, flopCont) * Math.pow(10, recipeNow + SHAPE[shape].e));
+/** Continued pretraining (§3.4): effective compute adds, G_new = log₁₀(10^G_old + FLOP_cont × f_add × 10^(recipe_now + shape)).
+ *  Only the added part embodies today's recipe and its data (`fAdd`, continueFData: repetition and quality of the added
+ *  tokens, RD-T02; 1 = reference data). No κ. */
+export const continueGPre = (gOld: number, flopCont: number, recipeNow: number, shape: BaseDesign['shape'], fAdd = 1) =>
+  Math.log10(Math.pow(10, gOld) + Math.max(0, flopCont) * Math.max(0, fAdd) * Math.pow(10, recipeNow + SHAPE[shape].e));
+/** Data factor of a continue run's added tokens (RD-T02, TRN-07). Effective compute adds, so the added part is worth the
+ *  from-scratch effective compute of the cumulative draw (N, D_prev + D_add, its D_eff) minus that of the parent's tokens
+ *  on the same portfolio (D_prev, `prevDEff`), per added token: 1 when both draws are the 2025 reference data, below 1
+ *  when the added tokens repeat slices the parent already used, above 1 for better data. Never below 0. */
+export function continueFData(N: number, prevTokens: number, addTokens: number, dEffTot: number, prevDEff: number): number {
+  if (!(addTokens > 0)) return 1;
+  const tot = prevTokens + addTokens;
+  const fTot = fDataEff(N, tot, dEffTot);
+  const fPrev = prevTokens > 0 ? fDataEff(N, prevTokens, prevDEff) : 0;
+  return Math.max(0, (tot * fTot - prevTokens * fPrev) / addTokens);
+}
 
 /** Serving FLOP per token of a base design (model v3 V4, RD-U08): 2·N_active × the shape's token multiplier; stored
  *  as BaseModel.fpt and, through the serving stack and the post-training design, ModelVersion.fpt. */

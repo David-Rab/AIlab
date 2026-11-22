@@ -57,7 +57,7 @@ function plant(s: GameStateV2, kind: FootholdKind, v: ModelVersion, size: number
 /** Strong oversight: the control layer on every internal deployment and every AG07 containment tool real and full
  *  strength at any capability (efficacy 1, no decay). */
 function strongOversight(s: GameStateV2) {
-  for (const d of s.player.deployments) if (d.channel === 'internal') d.controlLayer = true;
+  for (const d of s.player.deployments) if (d.channel === 'internal') d.controlLayer = true; for (const a of Object.values(s.player.agents)) a.control = true;
   s.hidden.agendaEfficacy.AG07 = 1;
   for (const t of Object.values(s.player.safety.techniques)) {
     if (t.agenda !== 'AG07') continue;
@@ -177,7 +177,7 @@ for (const fx of ['day400.json', 'day900.json']) {
   const x = lab(14);
   const xv = internalVersion(x)!;
   setLevel(xv, 14);
-  for (const d of x.player.deployments) if (d.channel === 'internal') d.controlLayer = true;
+  for (const d of x.player.deployments) if (d.channel === 'internal') d.controlLayer = true; for (const a of Object.values(x.player.agents)) a.control = true;
   const p0 = exfiltrationHazard(x);
   plant(x, 'backdoor', xv, 0.5);
   const p1 = exfiltrationHazard(x);
@@ -323,7 +323,7 @@ for (const fx of ['day400.json', 'day900.json']) {
     asiTakeover: (s) => { internalVersion(s)!.traitsTrue = { ...BAD }; s.player.milestoneDays[6] = 0; },
     asiContested: (s) => {
       s.player.milestoneDays[6] = 0;
-      for (const d of s.player.deployments) if (d.channel === 'internal') d.controlLayer = true;
+      for (const d of s.player.deployments) if (d.channel === 'internal') d.controlLayer = true; for (const a of Object.values(s.player.agents)) a.control = true;
       s.flags['ws2.gatekeeper'] = s.time.day;
       const gate = s.player.safety.techniques['T-GATE'];
       if (gate) Object.assign(gate, { unlocked: true, active: true, falseValidated: false });

@@ -2,11 +2,13 @@
 // package (model, monitor, compute), the AI share of each role's work, and Trusted to AI (D4). One lane per internal
 // use: model chip, monitor chip with catch rate, compute bar with its budget, AI share of the role's work, cost, the
 // model's four risk families. A model or monitor pick opens a before → after preview (applies at the next tick).
+// RD-A06: every package names its model (no pick = the newest internal model, said so), has its own control switch, and
+// the agents' tooling (Coding harness, Research harness, Agent memory) is built here, not taken from product features.
 import { useMemo, useState, type ReactNode } from 'react';
 import { Crown, Gamepad2, Ghost, Pencil, ThumbsUp, X, type LucideIcon } from 'lucide-react';
 import { AGENT_USES, AGENT_USE_DEF, MONITOR_SAME, RISK_FAMILIES } from '../../../data/v2/agents';
 import {
-  agentChangeBlock, agentsView, dangerView, dateOf, fmtDate, previewAgentChange, previewTrusted, versionById,
+  agentChangeBlock, agentsView, dangerView, dateOf, fmtDate, newestInternal, previewAgentChange, previewTrusted, toolingView, versionById,
 } from '../../../engine/v2';
 import type { AgentChange, AgentLane, AgentUse, AgentsView, DangerRead, GameStateV2, RiskBadge } from '../../../engine/v2';
 import { ActBtn, Term, Tip, TipCard, type Params } from '../ui';
@@ -140,9 +142,9 @@ function Lane({ s, v, use, danger, draft, setDraft }: { s: GameStateV2; v: Agent
   const Ic = USE_ICON[use];
   const pkg = s.player.agents[use];
   const isRoutine = use === 'capRoutine';
-  const routine = v.lanes.capRoutine.version;
+  const newest = newestInternal(s);
   const models = [
-    ...(isRoutine ? [] : [{ value: '', label: `as routine · ${routine?.name ?? '—'}` }]),
+    ...(isRoutine ? [] : [{ value: '', label: `newest · ${newest?.name ?? '—'}` }]),
     ...modelOptions(s, (x) => x.variant !== 'open'),
   ];
   const monitors = [{ value: '', label: 'none' }, { value: MONITOR_SAME, label: `copy of ${l.version?.name ?? 'the model'}` }, ...modelOptions(s, (x) => x.variant !== 'open')];
@@ -188,6 +190,7 @@ function Lane({ s, v, use, danger, draft, setDraft }: { s: GameStateV2; v: Agent
             <div><div className="row-i"><HBar v={l.aiShare} max={1} color={C.good} w={120} /><b className="num" data-test={`ai-share.${use}`}>{F.pct(l.aiShare)}</b></div><div className="small dim">{aiSub}</div></div>
           </Tip>
         )}
+        <div className="small row-i"><Tip content={() => <TipCard title={<Term id="agentControl">Control layer</Term>} value={pkg.control ? 'on' : 'off'}>{pkg.control ? 'This package works under trusted monitoring with deferral. Turning it off ends its control tax, and its containment and deferral.' : 'Turn on to defer the most suspicious actions of this package to its monitor, at the control tax on this package only.'}</TipCard>}><span><ActBtn id="agents.set" testId={`agents.control.${use}`} params={{ use, control: !pkg.control }} label={pkg.control ? 'Control on' : 'Control off'} /></span></Tip></div>
         {l.control.on && l.compute > 0 && <div className="small"><Tip content={() => <TipCard title={<Term id="controlTax">Control tax</Term>} value={`−${F.pct(l.control.tax)} AI labour`} rows={[ { label: 'Actions deferred to the trusted model', value: F.pct(l.control.defer) }, { label: <Term id="oversightGap">Gap to the trusted model</Term>, value: l.monitor ? `${l.control.gapOom.toFixed(1)} OOM` : 'no monitor: humans redo them' }, { label: 'Bad actions slipping through', value: `×${l.control.missMult.toFixed(2)}` }, ]}>The control layer is on: this fleet works under trusted monitoring with deferral, so it does less useful work and gets caught more.</TipCard>}><span className="tag2 warn" data-test={`control-tax.${use}`}>control −{F.pct(l.control.tax)}</span></Tip></div>}
       </div>
       <Tip content={() => <TipCard title={<Term id="runCost">Cost / yr</Term>} value={F.money(l.cost + l.monitorCost, { perYear: true })} rows={[{ label: 'Agents', value: F.money(l.cost, { perYear: true }) }, { label: 'Monitor', value: F.money(l.monitorCost, { perYear: true }) }]}>At the rental-equivalent price of an H100e.</TipCard>}>
@@ -199,8 +202,26 @@ function Lane({ s, v, use, danger, draft, setDraft }: { s: GameStateV2; v: Agent
   );
 }
 
+/** RD-A06: the internal agents' tooling (owned items, built by engineers; product features do not act here). */
+function Tooling({ s }: { s: GameStateV2 }) {
+  const tools = toolingView(s);
+  return (
+    <div className="ag-tools row-i small" data-home="agentTooling" data-test="agent-tooling">
+      <Term id="agentTooling">Tooling</Term>
+      {tools.map((t) => (
+        <Tip key={t.id} content={() => <TipCard title={t.name} value={t.owned ? 'built' : t.etaDays !== undefined ? `building · ${Math.ceil(t.etaDays)} d` : 'not built'} rows={[
+          { label: 'Build', value: `${t.buildTW} team-weeks · ${F.money(t.cash)}` },
+        ]}>{t.effect}.</TipCard>}>
+          <span data-test={`tool.${t.id}`}>{t.owned ? <span className="tag2">{t.name} ✓</span> : t.etaDays !== undefined ? <span className="tag2 dim">{t.name} · {Math.ceil(t.etaDays)} d</span>
+            : <ActBtn id="tooling.build" testId={`tooling.build.${t.id}`} params={{ id: t.id }} label={`Build ${t.name}`} block={t.block} />}</span>
+        </Tip>
+      ))}
+    </div>
+  );
+}
+
 export function AgentsAtWork({ s }: { s: GameStateV2 }) {
-  const v = useMemo(() => agentsView(s), [s, s.time.day, JSON.stringify(s.player.agents), s.player.policies.trustedToAI, (s.player.split.routine + s.player.split.frontier), s.player.split.safety, s.player.deployments.some((d) => d.channel === 'internal' && d.controlLayer)]);
+  const v = useMemo(() => agentsView(s), [s, s.time.day, JSON.stringify(s.player.agents), (s.player.tooling ?? []).join(','), s.player.policies.trustedToAI, (s.player.split.routine + s.player.split.frontier), s.player.split.safety, s.player.deployments.some((d) => d.channel === 'internal' && d.controlLayer)]);
   // Model v3 E11: believed danger per lane (beliefs and measured levels only).
   const danger = useMemo(() => dangerView(s).lanes, [s, s.time.day, JSON.stringify(s.player.agents), (s.player.split.routine + s.player.split.frontier), s.player.split.safety, s.player.deployments.some((d) => d.channel === 'internal' && d.controlLayer)]);
   const [drafts, setDrafts] = useState<Partial<Record<AgentUse, AgentChange>>>({});
@@ -208,10 +229,11 @@ export function AgentsAtWork({ s }: { s: GameStateV2 }) {
   return (
     <Card id="ctl-agents" home="agents" className="agents-card"
       title={<span className="row-i"><ICON.agents size={15} /><Term id="agentPackage">Agents at work</Term></span>}
-      sub={<>model + monitor + compute per use · <Tip content={() => <TipCard title="Agents at work" rows={[...AGENT_USES.map((u) => ({ label: AGENT_USE_DEF[u].name, value: `${F.h100e(v.lanes[u].compute)} H100e · ${F.money(v.lanes[u].cost + v.lanes[u].monitorCost, { perYear: true })}` }))]}>Compute and yearly cost of all internal agent packages.</TipCard>}><span><span className="num">{F.h100e(v.total)}</span> <Term id="h100e">H100e</Term> · <span className="num">{F.money(v.totalCost, { perYear: true })}</span></span></Tip></>}
+      sub={<>model + monitor + control + compute per use · <Tip content={() => <TipCard title="Agents at work" rows={[...AGENT_USES.map((u) => ({ label: AGENT_USE_DEF[u].name, value: `${F.h100e(v.lanes[u].compute)} H100e · ${F.money(v.lanes[u].cost + v.lanes[u].monitorCost, { perYear: true })}` }))]}>Compute and yearly cost of all internal agent packages.</TipCard>}><span><span className="num">{F.h100e(v.total)}</span> <Term id="h100e">H100e</Term> · <span className="num">{F.money(v.totalCost, { perYear: true })}</span></span></Tip></>}
       right={<span className="row-i small"><Ref id="researchMix" to={{ panel: 'compute', tab: 'split', anchor: 'split-experiments' }}>Split experiments ↔ agents · engineering</Ref><Ref id="rdmult" to={{ panel: 'company', tab: 'flow' }}>Research speed</Ref></span>}>
       <div className="ag-head small dim"><span>Use · automates</span><span>Model</span><span>Monitor · catch</span><span>Compute · budget</span><span>AI share of the work</span><span>Cost/yr</span><span><Term id="riskFamily">Risk</Term> · <Term id="danger">danger</Term> acts/yr</span></div>
       {AGENT_USES.map((u) => <Lane key={u} s={s} v={v} use={u} danger={danger[u]} draft={drafts[u]} setDraft={setDraft(u)} />)}
+      <Tooling s={s} />
       <RiskLegend />
     </Card>
   );

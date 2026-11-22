@@ -70,7 +70,7 @@ const REQUIRED = [
   'techTree', 'knowHow', 'trainedIn', 'depth', 'layer', 'layerBackbone', 'layerTraining', 'layerScaffold', 'layerLab', 'effortClass', 'teamMonth', 'odds',
   'researchLine', 'lineHealth', 'diminishingReturns', 'projectQueue', 'autoAssign', 'diffusion', 'frontierMethods',
   'blueprint', 'effCompute', 'baseRun', 'postTrain', 'distillRun', 'continueRun', 'flop', 'wallTime', 'behindAtFinish', 'staleness', 'dataWall', 'goodput', 'activeParams', 'tokensPerParam', 'servingFlop', 'gGain', 'distillGap', 'graders',
-  'faultTolerant', 'buildQueue', 'teamWeek', 'poolShare', 'spareTraining', 'moe', 'neuralese', 'nativeMultimodal', 'hazardFilter', 'safetyPretrain',
+  'faultTolerant', 'buildQueue', 'teamWeek', 'poolShare', 'idleCompute', 'moe', 'neuralese', 'nativeMultimodal', 'hazardFilter', 'safetyPretrain',
   'rlFocus', 'hardenedGraders', 'cot', 'constitution', 'inoculation', 'honestyTraining', 'antiScheming', 'riskFamily', 'dataSpec', 'evals', 'autoEvaluate',
   'product', 'segmentShare', 'bestRivalProduct', 'bindingCause', 'qualityBound', 'priceBound', 'priceTier', 'safeguards', 'sectorPack',
   'feature', 'releaseClearance', 'freeTier', 'autoServing', 'servingCut', 'upgradePolicy', 'timeHorizon', 'agentTasks', 'runCost', 'revPerH100e',
