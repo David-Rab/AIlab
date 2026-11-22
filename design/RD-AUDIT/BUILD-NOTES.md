@@ -869,3 +869,29 @@ Outputs: %TEMP%/ai27ux/tests/cp1-full.txt, cp1-deep.txt; logs cp1logs/ (Phase 0 
   non-linear and past λ 15); rival-vs-China lead (usGapMonths → China centralisation / reweight rules) drops the
   (1 − share) term; intel's public-model read and its sd change; leadBetween(player, X) feeds theft hazard, race
   pressure, open weights and endings, so those move slightly too. Fixture hashes change (new series field). For CP2.
+
+### RD-L02
+- **Done (commit 3ae156b):** every "how far ahead" reader in theft, rivals and endings reads G gaps, the lead clock
+  `lagDays` or a lab's own frontier-G slope. Helpers next to lagDays (models/capability.ts): `frontierGAt(lab, day)`
+  (the series.G frontier line on a day; replaces the λ-series `frontierLevelAt`, aligned from the end for late labs)
+  and `frontierGPerYear(lab, windowDays)` with **`PACE_WINDOW_DAYS = 182` [D]** (slope over the last half-year of the
+  line to today's best G; a window under 28 d or with no rise falls back to the whole history, then the pre-game rate).
+- **Readers moved:** theft hazard vs the player and vs each rival (security.ts) = lagDays(China, victim); the stolen
+  copy = the victim's frontier line 60 d ago, player and rival alike (no 3·B clamp; short history: 60 d of the victim's
+  slope). Rivals: race pressure, open-weights gap to the frontier, revenue lead = lagDays; late release = the line `lag`
+  days ago (capped at internal G); `openAbsorbMonths` = half the G gap in months of China's own slope (≤ 2; dG =
+  months × that slope, so dG = min(gap/2, 2 months of China's slope)); `ownProgressDays` = dG ÷ the lab's slope;
+  `publishLeakG` / `poachLeakG` sized by the player's slope (DD-17 resizes). Endings: overtaken (endings.ts),
+  survival weights and the geopolitics China lead (scoring.ts), `alignedPower` near-test and `projectedMisAtAsi`
+  days = G gap ÷ the lab's own slope (**no × 0.7, no 0.3-pace floor** [D]) (epilogue.ts).
+- **Left (RD-L03):** `leadBetween` is now a one-line alias `lagDays(s, b, a)` (scripts ws4 / rivals read it);
+  `modelRate` / `paceOf` / `rateOf` stay defined in rivals.ts; actions.ts still reads `paceOf` (openReleaseG, C4, China
+  absorb) and init / rival start data B_G_PER_Y (RD-U04). The grep hits in rivals.ts are those definitions only.
+- **Check:** `npx tsx scripts/v2/leadreaders.ts` (seconds; synthetic 400-day series): frontierGAt, windowed slope,
+  leadBetween = lagDays, leak sizes / own-days, open-weights months, epilogue days, rival theft copy, source greps.
+  tsc main + scripts clean. Nothing else run.
+- **moves calibration: yes.** Theft timing (hazard gate at 90 lead-days vs China now on lagDays for rivals), China's
+  stolen and open-weights G, rival release G, race pressure among rivals (drops the (1 − share) term), and the
+  epilogue / survival score (days to ASI now on each lab's own slope: shorter for fast labs late, longer for slow ones
+  without the × 0.7). Recipe-leak previews and E16 / A4 sizes move with the player's slope vs paceOf. For CP2 (deep S5,
+  finance, worldfx).
