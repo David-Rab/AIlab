@@ -57,7 +57,6 @@ const JOBS: Job[] = [
   { id: 'tsc-scripts', argv: [process.execPath, TSC, '--noEmit', '-p', 'scripts/v2/tsconfig.json'], ...S(ALL, 30) } as Job,
   { id: 'tsc-main', argv: [process.execPath, TSC, '--noEmit', '-p', '.'], ...S(['quick'], 20) } as Job,
   { id: 'golden-timelines', script: 'golden-timelines.ts', ...S(['quick', 'cal', 'full'], 40) } as Job,
-  { id: 'identity', script: 'identity.ts', ...S(ALL, 20) } as Job,
   { id: 'effective', script: 'effective.ts', ...S(ALL, 25) } as Job,
   { id: 'data', script: 'data.ts', ...S(ALL, 20) } as Job,
   { id: 'suites', script: 'suites.ts', ...S(ALL, 20) } as Job,

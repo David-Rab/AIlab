@@ -11,7 +11,7 @@ import { decimalYear } from '../core/time';
 import { measuredLOf, versionById } from '../models/labs';
 import { setInternalAgent } from '../models/deployments';
 import { bestResearchMix, evalProduction, inputsAtMix, labInputs, tcoPerH100eYear } from '../production/production';
-import { Phi } from '../production/knots';
+import { Phi } from '../production/ces';
 import { safetyFleet } from '../safety/agents';
 import { believedResultThreat, believedSabotage } from '../safety/covert';
 import { resultsPerYearAt } from '../safety/agendas';

@@ -101,16 +101,11 @@ export const PROD_PRESETS: Partial<Record<WorldPresetId, Partial<ProdPreset>>> =
 export const H_REF_BASE = 2050;
 export const H_REF_PER_MONTH = 49.2;
 
-/** AI 2027 compute forecast: leading-lab average compute (H100e) by date (research/13 §1.2, R11 #11). Used only to
- *  generate the knot R curve for the AI 2027-family presets, as research/13 §1.5 did (acceptance test P2). */
+/** AI 2027 compute forecast: leading-lab average compute (H100e) by date (research/13 §1.2, R11 #11). Shown on the end
+ *  screen (v2's knot function that also read it is gone, RD-C01). */
 export const AI2027_COMPUTE_TABLE: { year: number; h100e: number }[] = [
   { year: 2025.5, h100e: 1e6 }, { year: 2026.5, h100e: 4e6 }, { year: 2027.125, h100e: 7e6 },
   { year: 2027.375, h100e: 9e6 }, { year: 2027.625, h100e: 12e6 }, { year: 2027.875, h100e: 15e6 },
-];
-
-/** research/13 §1.5 Stage-1 AI taste SD by Stage-1 fraction f (interpolated for every preset, §3.2.4 step 2). */
-export const R13_TABLE_SD: [f: number, sd: number][] = [
-  [0, -2.0], [0.126, -1.9], [0.25, -1.7], [0.378, -1.4], [0.5, -1.2], [0.656, -0.7], [0.75, -0.4], [0.896, 0.1], [1, 0.5],
 ];
 
 /** FLOP per H100e-day: 1e15 FLOP/s × 0.4 MFU × 86,400 (§3.1.1). */
@@ -146,24 +141,6 @@ export const REF_OFF: Record<DomainId, number[]> = {
 };
 /** RSCH takes this extra offset until paradigm P19 is adopted (R12 §0.4). */
 export const RSCH_TASTE_PENALTY = -0.5;
-
-/** research/13 §1.5 ai2027 knot table (acceptance test P2: generated knots within 2%). */
-export const R13_AI2027_KNOTS = [
-  { at: 'f=0', Mref: 1.25, A: 0.538, R: 2.58, lRef: 1.69, Xref: 1.25, Tref: 1.0, sdAI: -2.0 },
-  { at: 'f=0.126', Mref: 1.35, A: 0.646, R: 4.68, lRef: 2.05, Xref: 1.35, Tref: 1.0, sdAI: -1.9 },
-  { at: 'f=0.25', Mref: 1.5, A: 0.744, R: 10.0, lRef: 2.63, Xref: 1.5, Tref: 1.0, sdAI: -1.7 },
-  { at: 'f=0.378', Mref: 1.71, A: 0.838, R: 20.7, lRef: 3.65, Xref: 1.7, Tref: 1.01, sdAI: -1.4 },
-  { at: 'f=0.5', Mref: 2.0, A: 0.904, R: 48.4, lRef: 5.37, Xref: 1.98, Tref: 1.01, sdAI: -1.2 },
-  { at: 'f=0.656', Mref: 2.54, A: 0.96, R: 136, lRef: 9.71, Xref: 2.46, Tref: 1.03, sdAI: -0.7 },
-  { at: 'f=0.75', Mref: 3.0, A: 0.978, R: 276, lRef: 14.5, Xref: 2.84, Tref: 1.06, sdAI: -0.4 },
-  { at: 'f=0.896', Mref: 4.0, A: 0.993, R: 815, lRef: 27.3, Xref: 3.53, Tref: 1.13, sdAI: 0.1 },
-  { at: 'SC', Mref: 5, A: 1, R: 1730, lRef: 41.6, Xref: 4.06, Tref: 1.23, sdAI: 0.5 },
-  { at: '10x', Mref: 10, A: 1, R: 3660, lRef: 60.5, Xref: 4.58, Tref: 2.19, sdAI: 2.2 },
-  { at: 'SAR', Mref: 25, A: 1, R: 8410, lRef: 91.7, Xref: 5.2, Tref: 4.8, sdAI: 4.3 },
-  { at: '50x', Mref: 50, A: 1, R: 15600, lRef: 125, Xref: 5.71, Tref: 8.76, sdAI: 5.9 },
-  { at: 'SIAR', Mref: 250, A: 1, R: 56900, lRef: 238, Xref: 6.87, Tref: 36.4, sdAI: 9.6 },
-  { at: 'ASI', Mref: 2000, A: 1, R: 285000, lRef: 534, Xref: 8.54, Tref: 234, sdAI: 14.5 },
-];
 
 /** Expected golden dates (decimal years), research/11 §5 and V2-SPEC §7.1. null = no target; [lo, hi] = range. */
 export interface GoldenExpect { SC: number | [number, number]; SAR: number | null; SIAR: number | null; ASI: number | null; M?: Record<string, number>; h80?: { year: number; minutes: number } }

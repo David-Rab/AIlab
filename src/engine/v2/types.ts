@@ -184,7 +184,7 @@ export interface TimelineWorld {
   /** Milestone threshold shift (years) fitted so RefBot's best internal model hits research/11 dates (§7.1). */
   calShift: number;
   /** Production-function parameters (research/13 §1.4). The player and the other labs (model v3 F1) read only the CES
-   *  parameters (ρc, λ, u, v, ρ, ζ, m2b); the knots are v2's reference production function (the identity test). */
+   *  parameters (ρc, λ, u, v, ρ, ζ, m2b). */
   prod: ProdParams;
   /** Model v3 V3: per-preset work-type calibration (data/v2/workTypes.ts V3_CAL): G_SC (OOM of effective compute a
    *  superhuman coder needs), Δ_bm (best-to-median human gap, OOM), r (returns to research), sd_SC (AI research taste at
@@ -202,10 +202,7 @@ export interface ProdParams {
   m2b: number; // taste top/median (3.25 / 3.7)
   kappa: number; // η ∝ M^κ pre-SC (3)
   etaSC: number; // FTE per H100e of agent inference at SC (11.3)
-  knots: ProdKnot[]; // generated per preset at world creation (§3.2.4)
 }
-
-export interface ProdKnot { p: number; Mref: number; A: number; R: number; Tref: number; sdAI: number; }
 
 /** Six safety world latents, standard normal (research/14 §1.1). */
 export interface SafetyLatents {
@@ -797,16 +794,15 @@ export interface ProductionReadout {
   M: number; // AI R&D multiplier
   rate: number; // dpa/dt (years per year)
   stage: 1 | 2;
-  parts: { base: number; agents: number; taste: number; other: number }; // multiply to M
-  elast: { exp: number; humans: number; agents: number; taste: number; train: number; data: number };
+  parts: { agents: number; taste: number; other: number }; // multiply to M
+  elast: { exp: number; humans: number; agents: number; taste: number };
   perDollar: { exp: number; humans: number; agents: number }; // elasticity / cost
   ceilings: { humans: number; agents: number; exp: number };
   binding: 'experiments' | 'humans' | 'agents' | 'taste' | 'data';
   label: 'compute-bound' | 'labor-bound' | 'human-bound' | 'taste-bound';
   /** aEng (R7, player): AI share of engineers' work from the engineering agents (A_eng of their model × coverage). */
   labor: { A: number; aiFTE: number; copies: number; speed: number; wH: number; aEng?: number };
-  ratios: { h: number; k: number; c: number; d: number };
-  Ddata: number;
+  ratios: { h: number; k: number; c: number };
   /** What-ifs: M multiplier from 2× humans, 2×/0.1× agents, 2×/0.5× experiment compute (research/13 §1.6). */
   whatIf: { humans2: number; agents2: number; agents01: number; exp2: number; exp05: number };
   /** AI research taste in human SDs above the median (research/13 §2.4). */

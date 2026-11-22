@@ -52,9 +52,10 @@ export function withFixed(base: ComputeSplit, fixed: Partial<ComputeSplit>): Com
   return normalizeSplit(out);
 }
 
-/** Experiments share of Research when the mix is set by hand: the same range the Auto best-mix search covers. At 0%
- *  or 100% the production function has no meaning (it needs both experiments and agents), so this is a real engine
- *  range, shown on the slider, not a UI-only cap. */
+/** Experiments share of Research when the mix is set by hand, an engine range shown on the slider (not a UI-only cap).
+ *  It keeps a little of both: with no experiment compute a project's experiment CES gives ~0 throughput, and with no
+ *  agent compute the research agents stop. Narrower than the Auto search's [0.01, 0.99] (production.ts
+ *  bestResearchMix; INP-21 is to make them one constant). */
 export const MANUAL_MIX_RANGE: readonly [number, number] = [0.02, 0.98];
 
 const ratio = (a: number, b: number, dflt: number) => (a + b > 1e-12 ? a / (a + b) : dflt);

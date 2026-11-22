@@ -16,7 +16,7 @@ export function production(s: GameStateV2, lab: LabId): ProductionReadout {
 }
 
 /** What-if readout with modified inputs (UI sliders: "what if I double experiments?"). */
-export function productionWhatIf(s: GameStateV2, lab: LabId, change: Partial<Pick<LabInputs, 'h' | 'k' | 'c' | 'd' | 'tasteHire'>>): ProductionReadout | undefined {
+export function productionWhatIf(s: GameStateV2, lab: LabId, change: Partial<Pick<LabInputs, 'h' | 'k' | 'c'>>): ProductionReadout | undefined {
   const inp = labInputs(s, lab);
   return inp ? evalProduction(s.hidden.timeline, { ...inp, ...change }) : undefined;
 }

@@ -13,7 +13,7 @@ import { makeWorld } from '../../../data/world';
 import { CONTROL } from '../../../data/v2/danger';
 import { hash32 } from '../core/rng';
 import { Rng, clamp } from '../../rng';
-import { buildKnots, cesFromAsymptotes } from '../production/knots';
+import { cesFromAsymptotes } from '../production/ces';
 import type {
   AgendaId, EconPresetId, HiddenWorld, LabId, ProdParams, SafetyLatents, SafetyPosture, SetupV2, TimelineWorld, UModeId,
 } from '../types';
@@ -38,12 +38,11 @@ export function pickWeighted<T extends { id: string; weight: number }>(rng: Rng,
 }
 
 /** Production parameters for the world (§2.3 step 2). */
-export function prodParamsFor(rng: Rng, setup: Pick<SetupV2, 'world'>, w: Omit<TimelineWorld, 'prod' | 'v3'>): ProdParams {
+export function prodParamsFor(rng: Rng, setup: Pick<SetupV2, 'world'>): ProdParams {
   const base = { ...PROD_DEFAULT, ...(PROD_PRESETS[setup.world] ?? {}) };
   if (setup.world === 'sampled') base.La = 1 + rng.lognormal80(1, 200);
   const ces = cesFromAsymptotes(base.La, base.Ca, base.slow10);
-  const P: Omit<ProdParams, 'knots'> = { ...base, ...ces };
-  return { ...P, knots: buildKnots(w as TimelineWorld, P) };
+  return { ...base, ...ces };
 }
 
 const LATENT_KEYS: (keyof SafetyLatents)[] = ['legibility', 'cotLoadBearing', 'verificationAdvantage', 'benignGeneralization', 'formalizability', 'schemingDefault'];
@@ -66,7 +65,7 @@ export function timelineFor(rng: Rng, setup: Pick<SetupV2, 'world' | 'alignment'
   const tl0 = { ...w1, calShift: CAL_SHIFT[setup.world] };
   // 2. Production parameters.
   // Model v3 V3: the per-preset work-type calibration (G_SC, Δ_bm, r); no draw.
-  const timeline: TimelineWorld = { ...tl0, prod: prodParamsFor(rng, setup, tl0), v3: { ...V3_CAL[setup.world] } };
+  const timeline: TimelineWorld = { ...tl0, prod: prodParamsFor(rng, setup), v3: { ...V3_CAL[setup.world] } };
   // Model v3 V3b: the display bridge's shift is derived so v2's pm thresholds line up with the work-type levels
   // (models/capability.ts alignedCalShift). Rivals do not read it since model v3 F1.
   timeline.calShift = alignedCalShift(timeline);

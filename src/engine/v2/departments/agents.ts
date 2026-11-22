@@ -3,7 +3,7 @@
 // Four internal uses, each a package of model + optional monitor + compute:
 //   eng          engineering agents: AI share of engineers' work → build capacity (A_eng of this model × coverage)
 //   capRoutine   routine research: the production function's internal model (p_dep, A, R, ηmod) — the old internalAgent
-//   capFrontier  frontier research: research taste (qTaste in evalM, sdAI); its compute counts in k with routine's
+//   capFrontier  frontier research: research taste (sdAI); its compute counts in k with routine's
 //   safety       safety research agents (the old safety agent fleet), on a share of the safety pool
 // Engineering and the two research uses share the capabilities agent pool (split.agents); their `compute` are shares
 // of it. Monitors watch internal uses, paid first from the safety pool: the monitoring budget (a share of the pool, SAFMECH)

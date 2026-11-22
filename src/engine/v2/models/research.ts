@@ -43,7 +43,7 @@ import type {
   Allocation, CapProjectState, CapResult, Candidate, GameStateV2, ReNeed, StackKey, SystemCtx, Team,
 } from '../types';
 import { poolsOf } from '../compute/power';
-import { Phi, Xces } from '../production/knots';
+import { Phi, Xces } from '../production/ces';
 import { qualityZ, researchMods, starTaste, teamTaste, workContext } from '../departments/workfit';
 import { adopted } from './paradigms';
 import { idleTrainingShare } from './runs';

@@ -19,7 +19,7 @@ import { TRAIT_IDS } from '../../../data/v2/traits';
 import { clamp } from '../../rng';
 import { decimalYear } from '../core/time';
 import { playerDraw, uniqueTokens, type DataDraw } from '../production/data';
-import { frontierFlop } from '../production/knots';
+import { frontierFlop } from '../production/ces';
 import { tcoPerH100eYear } from '../production/production';
 import { consumeRunPenalty } from '../safety/responses';
 import { applyBaseToLineage, applyIdaCycle, applyRunToTraits, baseSignals, postSignals, runSignals } from '../safety/traits';

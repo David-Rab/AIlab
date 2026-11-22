@@ -24,7 +24,7 @@ import { referenceRate } from '../world/calibration';
 import { labMarketRevenue } from '../worldfx/revenue';
 import { worldMix, type WorldMix } from '../worldfx/mix';
 import { noisyPosture, rivalId } from '../world/hidden';
-import { hRef, refTotal } from '../production/knots';
+import { hRef, refTotal } from '../production/ces';
 import { ipAccessDaily } from '../finance/deals';
 import { parentFunded, rivalMoneyQ, rivalSpend } from '../finance/rivalFinance';
 import { decimalYear } from '../core/time';

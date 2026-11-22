@@ -30,7 +30,6 @@ import { revenueReadout, servingPool } from '../../src/engine/v2/worldfx/revenue
 import { FIXTURE_DIR, check, finish } from './lib';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { evalM, labInputs } from '../../src/engine/v2/production/production';
 import { agentSplitShare, fleetMonitor, internalFleets, monitorBudget, monitorCostRatio, monitorCoverage } from '../../src/engine/v2/departments/agents';
 import { MONITOR_SAME } from '../../src/data/v2/agents';
 const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
@@ -246,9 +245,6 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
 // ───────── R7: internal agent packages (Company › Agents at work) ─────────
 {
   const s = deserialize(readFileSync(join(FIXTURE_DIR, 'day900.json'), 'utf8'));
-  const inp = labInputs(s, 'player')!;
-  const w = s.hidden.timeline;
-  check(inp.qTaste === undefined && evalM(w, inp).M === evalM(w, { ...inp, qTaste: inp.qDep }).M, 'A1 default packages: no qTaste, and qTaste = qDep reproduces M exactly');
   // SAFMECH: monitoring coverage from monitoring compute (AI 2027 fn 51). The default package (a copy of the watched
   // model on routine and frontier research) at the default budget (20% of the safety pool).
   check(Math.abs(monitorCoverage(0.01, 1, 0.1) - 0.1) < 1e-12 && monitorCoverage(0.2, 1, 0.1) === 1 && monitorCoverage(0, 1, 0.1) === 0,

@@ -27,7 +27,7 @@ import { AG17_HARNESS, P27_AAR } from '../../../data/v2/safetyIdeas';
 import { LINE_MULT_MAX, SERIOUS_CAP } from '../../../data/v2/agendas';
 import { QUALITY, TEAM_COST_M } from '../../../data/v2/teams';
 import { CAPACITY_UNIT, PROJECT_BY_ID, SPECIALTY_BONUS, isLineNode } from '../../../data/v2/tree';
-import { Lrel, Phi, tasteSigma } from '../production/knots';
+import { Lrel, Phi, tasteSigma } from '../production/ces';
 import { gOfDomain, h50Of } from '../models/capability';
 import { adopted } from '../models/paradigms';
 import { payoffOf } from '../models/tree';

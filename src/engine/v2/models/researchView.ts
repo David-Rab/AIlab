@@ -7,7 +7,7 @@ import { COGNITIVE_WORK, MILESTONE_COVER, RE_UNIT, WORK_TYPES, type WorkTypeId }
 import { E_START } from '../../../data/v2/runDesign';
 import { COLUMN_LABEL } from '../../../data/v2/teams';
 import { PROJECT_BY_ID, TREE, type TreeNodeDef } from '../../../data/v2/tree';
-import { Xces } from '../production/knots';
+import { Xces } from '../production/ces';
 import { researchSpeedRel } from '../production/production';
 import { production } from '../production/readout';
 import { poolsOf } from '../compute/power';

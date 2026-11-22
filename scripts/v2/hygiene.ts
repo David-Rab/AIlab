@@ -23,7 +23,7 @@ import { START_BY_ID } from '../../src/data/v2/starts';
 import { ownedOnline, rentedOnline } from '../../src/engine/v2/compute/power';
 import { nodeKnown } from '../../src/engine/v2/models/tree';
 import { LEADER_ID } from '../../src/engine/v2/models/labs';
-import { hRef, refTotal } from '../../src/engine/v2/production/knots';
+import { hRef, refTotal } from '../../src/engine/v2/production/ces';
 import { uniqueTokens } from '../../src/engine/v2/production/data';
 import { lineNodeId } from '../../src/data/v2/tree';
 import type { Cadence, EngineSystem, GameStateV2, SetupV2, StreamId, WorkstreamId } from '../../src/engine/v2/types';
@@ -381,7 +381,7 @@ for (const rev of [1, 11, 12, 13, 14]) {
     msg = (e as Error).message;
   }
   // Model v3 V2 (schemaRev 13): V1 saves (12) are rejected too; model v3 V3 (schemaRev 14): V2 saves (13) too.
-  check(SCHEMA_REV === 43 && msg ===`no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
+  check(SCHEMA_REV === 44 && msg ===`no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
 }
 // Model v3 V4a (schemaRev 16): a V3b save (15) migrates (customer stocks start empty, versions get their FLOP per token).
 {
@@ -684,7 +684,7 @@ type Legacy = { pm?: number; pa?: number; paSync?: number };
     && g.player.models.versions.every((v, i) => Math.abs(v.G - cur.player.models.versions[i].G) < 1e-9) && Math.abs(g.knowledge.openWeightsG - cur.knowledge.openWeightsG) < 1e-9;
   const okLeak = !!g && Math.abs(g.china.lab.phys.rec.pre - cur.china.lab.phys.rec.pre - 0.01 * B_G_PER_Y) < 1e-9 && g.rivals.every((r, i) => Math.abs(r.phys.rec.pre - cur.rivals[i].phys.rec.pre) < 1e-9);
   const okGone = !!g && !/"(pm|pa|paSync|paIn|paAtStart|paTrack|openWeightsFrontier)":/.test(json);
-  check(okG && okLeak && okGone && g!.schemaRev === SCHEMA_REV && SCHEMA_REV === 43,
+  check(okG && okLeak && okGone && g!.schemaRev === SCHEMA_REV && SCHEMA_REV === 44,
     'save: a schemaRev-32 save migrates to 33 (every model\'s G from its pm, an unsynced know-how gain into the recipe, no pm / pa fields left)', msg || `G ${okG} leak ${okLeak} fields ${okGone}`);
   let same = false;
   try {
@@ -738,7 +738,7 @@ type Legacy = { pm?: number; pa?: number; paSync?: number };
     msg = (e as Error).message;
   }
   const lease = g?.player.finance.ledger.find((c) => c.id === 'L-fin-S9');
-  const okFin = !!g && g.schemaRev === SCHEMA_REV && SCHEMA_REV === 43 && lease?.kind === 'finLease' && lease.rate === 0.12 && !g.player.finance.deals.some((d) => d.id === 'D-old-spv')
+  const okFin = !!g && g.schemaRev === SCHEMA_REV && SCHEMA_REV === 44 && lease?.kind === 'finLease' && lease.rate === 0.12 && !g.player.finance.deals.some((d) => d.id === 'D-old-spv')
     && !('jv' in g.player.finance.ws3) && JSON.stringify(g.player.finance.ws3.opCash4q) === '[1.5]' && Array.isArray(g.player.finance.promises) && typeof g.player.finance.credibility === 'number'
     && (g.player.finance.valuation <= 0 || !!g.player.finance.ws3.mark) && g.rivals.every((r) => r.finance.poolQ !== undefined && r.finance.raised !== undefined);
   check(okFin, 'save: a schemaRev-33 save (model v3, old finance) migrates to 42 (SPV leaseback → financing lease, SPV deal and JV gone, operating cash history, promises, credibility, story marks)', msg || JSON.stringify({ lease: lease?.kind, rate: lease?.rate, opCash4q: g?.player.finance.ws3.opCash4q }));
@@ -782,8 +782,32 @@ type Legacy = { pm?: number; pa?: number; paSync?: number };
   } catch (e) {
     msg = (e as Error).message;
   }
-  check(!!g && g.schemaRev === SCHEMA_REV && SCHEMA_REV === 43 && g.player.policies.monitorBudget === 0.2 && same,
+  check(!!g && g.schemaRev === SCHEMA_REV && SCHEMA_REV === 44 && g.player.policies.monitorBudget === 0.2 && same,
     'save: a schemaRev-42 save migrates to 43 (monitoring budget = the old standard 20% of the safety pool; idempotent)', msg || `${g?.player.policies.monitorBudget}`);
+}
+// RD-C01 (schemaRev 44): a rev-43 save carries v2's knot table and the dead readout fields; the migration drops them, and
+// the loaded state equals the current one.
+{
+  const cur = run(detSetup, 30);
+  const old = JSON.parse(serialize(cur)) as GameStateV2;
+  old.schemaRev = 43;
+  (old.hidden.timeline.prod as unknown as Record<string, unknown>).knots = [{ p: 0, Mref: 1.25, A: 0.5, R: 2.6, Tref: 1, sdAI: -2 }];
+  const pc = old.player.prodCache as unknown as { Ddata?: number; parts: Record<string, number>; elast: Record<string, number>; ratios: Record<string, number> } | undefined;
+  if (pc) {
+    pc.Ddata = 1;
+    pc.parts.base = 1;
+    pc.elast.train = 0;
+    pc.elast.data = 0;
+    pc.ratios.d = 1;
+  }
+  let msg = '';
+  let same = false;
+  try {
+    same = stateHash(deserialize(JSON.stringify(old))) === stateHash(cur);
+  } catch (e) {
+    msg = (e as Error).message;
+  }
+  check(!!pc && same, 'save: a schemaRev-43 save migrates to 44 (knot table and dead readout fields dropped; then equal to the current state)', msg);
 }
 
 // ---------- 6. Cadences ----------

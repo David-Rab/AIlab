@@ -114,8 +114,11 @@ import { FIN } from '../actors/rivals';
  *  missing or still in its old form, so a state already at 42 labelled 33 loads unchanged (hygiene checks it). Saves
  *  written by the finance-v3 branch itself (its revs 12–20) collide with model v3's numbers and do not load.
  *  43 (SAFMECH): PlayerLab.policies.monitorBudget (the monitoring budget, a share of the safety pool, which sets the
- *  monitors' coverage). Migration 42 → 43 gives a save the old standard package's 20% (idempotent). */
-export const SCHEMA_REV = 43;
+ *  monitors' coverage). Migration 42 → 43 gives a save the old standard package's 20% (idempotent).
+ *  44 (RD-C01): v2's knot production function is gone — TimelineWorld.prod.knots and the dead readout fields of every
+ *  lab's prodCache (Ddata, parts.base, elast.train / data, ratios.d) are removed. Migration 43 → 44 drops them (the
+ *  cache is rebuilt the next day anyway). */
+export const SCHEMA_REV = 44;
 
 /** The retired bridge (model v3 V1–F2), for saves only: G of a model saved at progress pm, pm = pm(V0) + (G − G(V0))/B. */
 const legacyG = (w: TimelineWorld, pm: number) => gV0(w) + (pm - playerStart(w).target) * B_G_PER_Y;
@@ -656,6 +659,22 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   42: (raw) => {
     const p = (raw as unknown as GameStateV2).player;
     if (p?.policies && typeof p.policies.monitorBudget !== 'number') p.policies.monitorBudget = MONITOR_STD_POOL_SHARE;
+  },
+  /** 43 → 44 (RD-C01): drop the v2 knot table and the dead production-readout fields (idempotent). */
+  43: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const prod = s.hidden?.timeline?.prod as unknown as Record<string, unknown> | undefined;
+    if (prod) delete prod.knots;
+    const cores = [s.player, s.china?.lab?.core, ...(s.rivals ?? []).map((r) => r.core)];
+    for (const c of cores) {
+      const pc = c?.prodCache as unknown as { Ddata?: unknown; parts?: Record<string, unknown>; elast?: Record<string, unknown>; ratios?: Record<string, unknown> } | undefined;
+      if (!pc) continue;
+      delete pc.Ddata;
+      delete pc.parts?.base;
+      delete pc.elast?.train;
+      delete pc.elast?.data;
+      delete pc.ratios?.d;
+    }
   },
 };
 
