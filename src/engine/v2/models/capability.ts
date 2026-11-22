@@ -3,7 +3,7 @@
 // effective compute G; model v3 F3 retired the progress coordinate pm = Φ(G) and the know-how readout pa.
 import { B0_START_DAY, LEVEL_KNOTS, REF_OFF, RSCH_TASTE_PENALTY, DOMAIN_IDS, V0_DAY } from '../../../data/v2/calibration';
 import { B_G_PER_Y, E_B0, RL_BUDGET, REFERENCE_BASE } from '../../../data/v2/runDesign';
-import { milestoneThresholds, multiplierAt, stage1 } from '../../../data/world';
+import { multiplierAt, stage1 } from '../../../data/world';
 import { COGNITIVE_WORK, H50_PER_OOM, H50_V0_MIN, H80_OVER_H50, LEVEL_PER_OOM, WORK_TYPES, refDelta } from '../../../data/v2/workTypes';
 import { labMilestones } from '../departments/workfit';
 import { clamp } from '../../rng';
@@ -37,12 +37,6 @@ export function levelKnotsG(w: TimelineWorld): number[] {
   const g = [gV0(w), w.v3.gSC, ideas, best('IDEAS') + 2 * w.v3.dBM, Math.max(asi, best('IDEAS') + 2 * w.v3.dBM + 1e-3)];
   knotMemo.set(w, g);
   return g;
-}
-/** BRIDGE(V6): the world's calShift, derived per world (model v3 V3b): the SC threshold (milestoneThresholds[3] −
- *  calShift) at G_SC on v2's coordinate, so v2's thresholds (RefBot's pacing gates, bots/ref.ts gateLevel) line up with
- *  the work-type levels. Rivals no longer read it (model v3 F1: their milestones are λ(G) crossings). */
-export function alignedCalShift(w: TimelineWorld): number {
-  return milestoneThresholds(asV1World(w))[3] - playerStart(w).target - (w.v3.gSC - gV0(w)) / B_G_PER_Y;
 }
 /** Level knots (V0 L 5; SC 10, SAR 12, SIAR 13.5, ASI 15 = v2's LEVEL_KNOTS at those milestones). */
 const LEVEL_AT = [LEVEL_KNOTS[0], LEVEL_KNOTS[3], LEVEL_KNOTS[4], LEVEL_KNOTS[5], LEVEL_KNOTS[6]];
@@ -159,9 +153,7 @@ export const h80Of = (w: TimelineWorld, v: Pick<ModelVersion, 'G' | 'build'>, d:
 // ───────────────────────────── start state (§3.1.4 "Initial state") ─────────────────────────────
 
 /** Closed-form start: B0 started day −120 (pc extrapolated), V0 finished day −20, pa(t) = pa0 + r0·t before day 0
- *  (r0 = the reference software rate at start). pa0 is solved so that pm(V0) = p0 (§3.1.4). V0's v1-equivalent
- *  progress is q = p0 + calShift: calShift is the lag of RefBot's deployed model behind its know-how frontier that
- *  the shifted thresholds absorb (§7.1). */
+ *  (r0 = the reference software rate at start). pa0 is solved so that pm(V0) = p0 (§3.1.4). */
 const startCache = new WeakMap<TimelineWorld, ReturnType<typeof playerStartOf>>();
 /** Start state of world w (cached: the bridges read it every day). */
 export function playerStart(w: TimelineWorld): ReturnType<typeof playerStartOf> {

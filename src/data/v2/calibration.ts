@@ -3,9 +3,8 @@
 import type { ComputeSplit, DomainId, WorldPresetId } from '../../engine/v2/types';
 
 /** BRIDGE(V6): per-preset milestone threshold shift (years). Model v3 V3: the player's milestones are work-type statements
- *  (departments/workfit.ts; per-preset G_SC and Δ_bm in data/v2/workTypes.ts V3_CAL) and do not read it; since V3b the
- *  world's calShift is derived (models/capability.ts alignedCalShift) and this table seeds the knot build and RefBot's
- *  pacing gates (bots/ref.ts v2Level). Model v3 F1: rivals, China and the leader lab no longer read it.
+ *  (departments/workfit.ts; per-preset G_SC and Δ_bm in data/v2/workTypes.ts V3_CAL) and do not read it; its only reader is
+ *  RefBot's pacing gates (bots/ref.ts gateLevel; RD-C02 removed the derived per-world calShift). Model v3 F1: rivals, China and the leader lab no longer read it.
  *  History: fitted so RefBot's best internal model hit the golden dates (§7.1).
  *  [fit] by `npx tsx scripts/v2/calib.ts --fit` (bisection on SC, refined on a ±0.03 grid by the worst |Δ| over
  *  SC…ASI because SC(calShift) is step-like). `sampled` uses the ai2027 value. Never tune for balance (§7.4).

@@ -117,7 +117,7 @@ import { FIN } from '../actors/rivals';
  *  monitors' coverage). Migration 42 → 43 gives a save the old standard package's 20% (idempotent).
  *  44 (RD-C01): v2's knot production function is gone — TimelineWorld.prod.knots and the dead readout fields of every
  *  lab's prodCache (Ddata, parts.base, elast.train / data, ratios.d) are removed. Migration 43 → 44 drops them (the
- *  cache is rebuilt the next day anyway). */
+ *  cache is rebuilt the next day anyway); RD-C02, in the same bump, also drops TimelineWorld.calShift. */
 export const SCHEMA_REV = 44;
 
 /** The retired bridge (model v3 V1–F2), for saves only: G of a model saved at progress pm, pm = pm(V0) + (G − G(V0))/B. */
@@ -665,6 +665,8 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     const s = raw as unknown as GameStateV2;
     const prod = s.hidden?.timeline?.prod as unknown as Record<string, unknown> | undefined;
     if (prod) delete prod.knots;
+    // RD-C02 (same unreleased bump): the derived calShift bridge is gone.
+    if (s.hidden?.timeline) delete (s.hidden.timeline as unknown as Record<string, unknown>).calShift;
     const cores = [s.player, s.china?.lab?.core, ...(s.rivals ?? []).map((r) => r.core)];
     for (const c of cores) {
       const pc = c?.prodCache as unknown as { Ddata?: unknown; parts?: Record<string, unknown>; elast?: Record<string, unknown>; ratios?: Record<string, unknown> } | undefined;

@@ -2,9 +2,8 @@
 // Wraps src/data/world.ts makeWorld UNCHANGED (audited R11 presets) and adds the v2 latents and presets.
 import { CHINA_PRESETS, GOV_PRESETS, LAB_ARCHETYPES, PUBLIC_PRESETS } from '../../../data/actors';
 import { AGENDAS } from '../../../data/v2/agendas';
-import { CAL_SHIFT, PROD_DEFAULT, PROD_PRESETS } from '../../../data/v2/calibration';
+import { PROD_DEFAULT, PROD_PRESETS } from '../../../data/v2/calibration';
 import { V3_CAL } from '../../../data/v2/workTypes';
-import { alignedCalShift } from '../models/capability';
 import { EDGE_FACTOR_RANGE, EDGE_SIGMA_SCALE, EDGES, GRADE_SIGMA, type EdgeDef } from '../../../data/v2/edges';
 import { PARADIGMS } from '../../../data/v2/paradigms';
 import { ARCHETYPE_POSTURES, CHINA_POSTURE_BASE } from '../../../data/v2/postures';
@@ -62,14 +61,9 @@ export function noisyPosture(rng: Rng, p: SafetyPosture, noise: number): SafetyP
 export function timelineFor(rng: Rng, setup: Pick<SetupV2, 'world' | 'alignment' | 'baseline'>): TimelineWorld {
   // 1. Timeline world (unchanged audited presets; also draws v1 alignDifficulty and doomThreshold — step 10).
   const w1 = makeWorld(rng, setup.world, setup.alignment, setup.baseline);
-  const tl0 = { ...w1, calShift: CAL_SHIFT[setup.world] };
   // 2. Production parameters.
   // Model v3 V3: the per-preset work-type calibration (G_SC, Δ_bm, r); no draw.
-  const timeline: TimelineWorld = { ...tl0, prod: prodParamsFor(rng, setup), v3: { ...V3_CAL[setup.world] } };
-  // Model v3 V3b: the display bridge's shift is derived so v2's pm thresholds line up with the work-type levels
-  // (models/capability.ts alignedCalShift). Rivals do not read it since model v3 F1.
-  timeline.calShift = alignedCalShift(timeline);
-  return timeline;
+  return { ...w1, prod: prodParamsFor(rng, setup), v3: { ...V3_CAL[setup.world] } };
 }
 
 /**

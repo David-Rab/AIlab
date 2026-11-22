@@ -181,8 +181,6 @@ export interface TimelineWorld {
   computeElasticity: number; computeGrowth: number; alignDifficulty: number; doomThreshold: number;
   chinaEfficiency: number; neuraleseBoost: number;
   // v2 additions
-  /** Milestone threshold shift (years) fitted so RefBot's best internal model hits research/11 dates (§7.1). */
-  calShift: number;
   /** Production-function parameters (research/13 §1.4). The player and the other labs (model v3 F1) read only the CES
    *  parameters (ρc, λ, u, v, ρ, ζ, m2b). */
   prod: ProdParams;
