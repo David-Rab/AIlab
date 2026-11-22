@@ -841,3 +841,31 @@ Outputs: %TEMP%/ai27ux/tests/cp1-full.txt, cp1-deep.txt; logs cp1logs/ (Phase 0 
 - **Left over:** worktree %TEMP%/ai27ux/wt/cp1b (detached at 49b2f6e) was not removed (the removal command was denied
   by the permission classifier). It holds a `node_modules` **junction** to AI27-rd/node_modules: unlink it first
   (`cmd /c rmdir …\cp1b\node_modules`), then `git worktree remove --force`, or the real node_modules may be deleted.
+
+### RD-L01
+- **Done:** `series.G` (types.ts SeriesV2; record.ts) holds each lab's weekly best internal frontier G (player, each
+  rival, China; 4 decimals; a lab with no model records nothing and aligns to `series.day` from the end). One function
+  `lagDays(s, follower, leader)` in models/capability.ts: days since the leader's frontier line (the record corners of
+  series.G, closed by today's best G; linear between corners) stood at the follower's G; positive = leader ahead.
+  `follower` is a lab or a G value. Defined edge cases: follower ahead (lab) → `−lagDays(leader, follower)`; level or
+  self → 0; G value above the leader → −gap ÷ the leader's own frontier-G slope (`frontierGPerYear`, DD-10 pace; under 28
+  d of history it reads the pre-game rate); history too short (follower below the leader's first sample) → days since
+  that sample + the gap at the pre-game reference rate (the rate the start gaps were drawn at, kept until RD-U04 /
+  RD-U06 restate start gaps in OOM); no record → gap at that rate.
+- **Readers:** `trueLeadDays(other)` = `lagDays(other, player)`. Intel (actors/intel.ts) truth lead = lagDays; the
+  lead over a lab's public model = truth + `lagDays(public G, lab)` (its internal-over-public lag; also the release-lag
+  term in the sd), so the estimate is lagDays + assumed-release-lag error + noise; intel no longer reads leadBetween /
+  rateOf / B. China (actors/china.ts): `usGapMonths` and `chinaLeadHist` read lagDays (rival-vs-China was
+  leadBetween's (1 − share) rate conversion). LeadTrack and RiskMap both read the intel estimate, so one function is
+  behind them. Not changed (RD-L02 / L03): leadBetween for rival-vs-rival, theft (`frontierLevelAt` on series.L),
+  open weights, release lag, epilogue, scoring, paceOf / rateOf / modelRate.
+- **Save:** SCHEMA_REV 46 → 47; migration 46 → 47 seeds series.G from series.L via gOfLevel (approximate: λ was rounded
+  to 0.001 and capped at 15); idempotent. hygiene's rev literals 46 → 47; ws4 E3's synthetic rival history also sets
+  series.G.
+- **Check:** `npx tsx scripts/v2/lagdays.ts` (seconds): interpolation, staircase corners, antisymmetry, short history,
+  G above leader, late-recorded lab, trueLeadDays, intel = lagDays at zero noise and full access, RiskMap's what-if =
+  shifted estimates, usGapMonths = max lagDays, source greps. tsc main + scripts clean. Nothing else run.
+- **moves calibration: yes.** The player's lead now reads G rather than capped λ (differs where knot spacing is
+  non-linear and past λ 15); rival-vs-China lead (usGapMonths → China centralisation / reweight rules) drops the
+  (1 − share) term; intel's public-model read and its sd change; leadBetween(player, X) feeds theft hazard, race
+  pressure, open weights and endings, so those move slightly too. Fixture hashes change (new series field). For CP2.
