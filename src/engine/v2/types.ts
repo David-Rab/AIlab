@@ -377,7 +377,7 @@ export interface ModelVersion {
   build?: VersionBuild;
   /** RD-B17 (readout): the recipe it took from its own run. `rlDay` = launch day of the post-training or amplify run (RL
    *  recipe and environment suites frozen then); `post` = made by a post-training run (domain effects and the serving
-   *  stack read at its completion). Absent for distilled students, imports and older saves. */
+   *  stack frozen at its launch too, RD-B02). Absent for distilled students, imports and older saves. */
   trained?: { rlDay: Day; post: boolean };
   /** Consumer appeal from preference training (0.7–1.2, §3.3.2 D); visible; the consumer market reads it (worldfx/mix.ts appealOf, RD-B11: the one appeal table). */
   appeal?: number;

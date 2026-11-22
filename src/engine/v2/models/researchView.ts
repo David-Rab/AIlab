@@ -252,10 +252,9 @@ function revealedBy(s: GameStateV2, day: number, by: EmbodiedBy): ModelVersion |
   const vs = m.versions.filter((v) => v.status !== 'evaluating' && v.status !== 'rolledBack');
   const onBase = (ok: (b: (typeof m.bases)[number]) => boolean) => vs.find((v) => { const b = m.bases.find((x) => x.id === v.baseId); return !!b && ok(b); });
   const rl = () => vs.find((v) => (v.trained ? v.trained.rlDay > day : v.variant === 'full' && v.day > day));
-  const post = () => vs.find((v) => (v.trained ? v.trained.post && v.day > day : v.variant === 'full' && v.day > day));
+  const post = () => vs.find((v) => (v.trained ? v.trained.post && v.trained.rlDay > day : v.variant === 'full' && v.day > day));
   const started = () => onBase((b) => (b.startDay ?? b.day) > day);
   if (by === 'baseStart') return started();
-  if (by === 'baseDone') return onBase((b) => b.day > day);
   if (by === 'rl') return rl();
   if (by === 'post') return post();
   const a = started();
@@ -267,13 +266,13 @@ function adoptedView(s: GameStateV2, a: AdoptedIdea, by: EmbodiedBy): AdoptedVie
   const v = revealedBy(s, a.day, by);
   return { ...rest, embodiedBy: EMBODIED_TEXT[by], ...(v ? { realised: eff, seenIn: v.name } : {}) };
 }
-/** Where a domain or data effect lands: domain effects and serving at a post-trained version's completion; the data
- *  pipeline (synthetic quality, token worth) in a base finished after it; expert demonstrations in the RL suites a
- *  post-training run freezes at launch. */
+/** Where a domain or data effect lands, all frozen at a run's launch (RD-B02 snapshot): domain effects and serving in
+ *  a post-training run's recipe; the data pipeline (synthetic quality, token worth) in a base run's data draw; expert
+ *  demonstrations in the RL suites a post-training run freezes. */
 function otherEmbodiedBy(n: TreeNodeDef | undefined): EmbodiedBy {
   if (n?.effect?.domains) return 'post';
   if (n?.effect?.expert) return 'rl';
-  return 'baseDone';
+  return 'baseStart';
 }
 
 /** Recipe readout (RD-B17): per stack, in its own unit, its value now (at the latest base), headroom, what the internal

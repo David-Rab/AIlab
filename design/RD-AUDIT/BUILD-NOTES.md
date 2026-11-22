@@ -717,3 +717,19 @@ Research readouts, honest Recipe tab (SYNTHESIS B28, B29, B30; CAP-03, CAP-11, C
   batch of 3 counts 3; P09 / P10 not under a stack, own units; one card per stack and no `.reduce(` in Recipe.tsx; a
   mini or an earlier-launched post-train does not reveal an RL idea, a later one does and is named). lint-ux --doc run
   to regenerate GLOSSARY.md (it passed). `npm run build` ok. No other tier (RD test rule). Not screenshotted.
+
+### Phase 1 merge (p1-res into rd)
+
+- **Schema:** none. RD-B08 / B09 / B16 / B17 add only optional fields (`ModelVersion.trained`, `AdoptedIdea.kind` /
+  `b`, `research.last.opsServed` / `flopProj`, `gLastF`, `pubLast` / `pubRate`); SCHEMA_REV stays 46.
+- **Conflicts:** runs.ts completeRun reads RD-B02's snapshot (`pr`, serve × 10^−serveOom) and sets RD-B17's `trained`;
+  actions.ts keeps RD-B19's `publishRecipients` (preview and apply) on RD-B16's `playerRecipeG`; researchView /
+  Recipe.tsx / glossary take RD-B16 / B17's text with RD-B21's "ideas over the last 14 weeks"; types.ts both comments;
+  GLOSSARY.md regenerated (`lint-ux --doc`). In the merge too: RD-B19's stream preview lost its engineers' upkeep line
+  (`UPKEEP.stream`, deleted by RD-B09).
+- **Fixed after the merge:** RD-B17's `revealedBy` read serving, domain and data effects at completion; under RD-B02
+  they are frozen at launch, so serving / domain = a post-training run (not amplify) launched after (`trained.rlDay`),
+  data (P10 / P21) = a base started after (`baseDone` removed); realisedEffect copy follows. Glossary roleEng: "run
+  setups", not "training runs" (RD-B09).
+- **Tests:** tsc main + scripts clean; research full 46/46; hygiene full 199/199; lint-ux / lint-tips clean; build ok.
+  No other tier (RD test rule).

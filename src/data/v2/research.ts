@@ -112,11 +112,11 @@ export const STACK_UNIT: Record<StackKey, string> = {
 };
 /** RD-B17: the model that embodies an adopted idea, by where its effect lands (a realised value is revealed only by the
  *  evaluation of such a model). */
-export type EmbodiedBy = 'baseStart' | 'baseDone' | 'rl' | 'post' | 'baseOrRl';
+export type EmbodiedBy = 'baseStart' | 'rl' | 'post' | 'baseOrRl';
 export const EMBODIED_BY: Record<StackKey, EmbodiedBy> = { pre: 'baseStart', rlMid: 'rl', rlCeil: 'rl', train: 'baseOrRl', serve: 'post' };
 /** Player text: which model trains it in ("… after it was adopted"). */
 export const EMBODIED_TEXT: Record<EmbodiedBy, string> = {
-  baseStart: 'a base run started', baseDone: 'a base run finished', rl: 'a post-training run launched', post: 'a post-trained version finished',
+  baseStart: 'a base run started', rl: 'a post-training run launched', post: 'a post-training run (not an amplify cycle) launched',
   baseOrRl: 'a base or post-training run started',
 };
 
