@@ -1,6 +1,6 @@
 // Calibration constants (V2-SPEC §3.1–3.2, §7.1). Owner: WS1.
 // [fit] values are fitted by WS1 acceptance tests (scripts/v2/calib.ts, M1) and hard-coded here.
-import type { ComputeSplit, DomainId, WorldPresetId } from '../../engine/v2/types';
+import type { DomainId, WorldPresetId } from '../../engine/v2/types';
 
 /** Research efficiency of the simulated leader lab (setup.leaderLab, BUILD-PLAN R2), OOM: its research speed is ×10^LEADER_CAL
  *  the aggregate research function's at its inputs (actors/rivalModel.ts; the leader runs at the reference compute,
@@ -108,7 +108,7 @@ export const AI2027_COMPUTE_TABLE: { year: number; h100e: number }[] = [
 export const PHI_FLOP_PER_H100E_DAY = 3.46e19;
 
 /** Reference compute-usage shares by decimal year (§3.2.1; AI 2027 compute forecast). Linear interp, held after. */
-export const SHARE_REF: { year: number; share: Omit<ComputeSplit, 'engineering'> }[] = [
+export const SHARE_REF: { year: number; share: { training: number; experiments: number; agents: number; synthetic: number; serving: number; safety: number } }[] = [
   { year: 2025.5, share: { training: 0.4, experiments: 0.05, agents: 0.03, synthetic: 0.21, serving: 0.29, safety: 0.02 } },
   { year: 2026.5, share: { training: 0.4, experiments: 0.06, agents: 0.04, synthetic: 0.21, serving: 0.27, safety: 0.02 } },
   { year: 2027.125, share: { training: 0.3, experiments: 0.14, agents: 0.06, synthetic: 0.28, serving: 0.19, safety: 0.03 } },

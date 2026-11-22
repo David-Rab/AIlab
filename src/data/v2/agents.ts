@@ -1,6 +1,6 @@
 // Internal agent packages (STRUCTURE §4.9, BUILD-PLAN R7). Each internal use of a model is a package: a model, an
 // optional monitor model and compute. Routine research and frontier research share the research agent pool
-// (`split.agents`); engineering has its own line (`split.engineering`, RD-A02); safety research runs on a share of the
+// (RD-A05a: `split.routine` / `split.frontier`); engineering has its own line (`split.engineering`, RD-A02); safety research runs on a share of the
 // safety pool. Values marked [D] are design.
 import type { AgentUse, TeamRole, TraitId } from '../../engine/v2/types';
 
@@ -8,7 +8,7 @@ export const AGENT_USES: AgentUse[] = ['eng', 'capRoutine', 'capFrontier', 'safe
 /** Capabilities uses (watched by the capabilities monitors). */
 export const CAP_USES = ['eng', 'capRoutine', 'capFrontier'] as const;
 export type CapUse = (typeof CAP_USES)[number];
-/** Uses funded from the research agent pool (split.agents; their `compute` are shares of it, summing to 1). Engineering
+/** Uses funded from the research agent pool (RD-A05a: each on its own line of the flat allocation, split.routine / split.frontier). Engineering
  *  runs on its own split line (split.engineering) since RD-A02: its `compute` is 1 (all of that line). */
 export const RESEARCH_AGENT_USES = ['capRoutine', 'capFrontier'] as const;
 export type ResearchAgentUse = (typeof RESEARCH_AGENT_USES)[number];
@@ -48,7 +48,7 @@ export const DEFAULT_CAP_SHARES: Record<CapUse, number> = {
 /** Monitor id meaning "the model it watches" (a copy of the same model: as capable as the watched one, so no
  *  oversight gap). The default monitor on routine and frontier research; it follows model swaps. */
 export const MONITOR_SAME = 'same';
-/** Default monitoring budget, a share of the safety pool (policies.monitorBudget): the pre-R7 runtime-monitoring reserve
+/** Default monitoring budget, as a share of the old safety pool (RD-A05a: the reference allocation puts it on split.monitors): the pre-R7 runtime-monitoring reserve
  *  (`monitoringShare`) [D]. SAFMECH: a budget, not a price: what it watches is budget ÷ (watched compute × the monitor's
  *  cost ratio) (AI 2027 fn 51; departments/agents.ts monitorBudget). */
 export const MONITOR_STD_POOL_SHARE = 0.2;

@@ -457,7 +457,7 @@ export function researchSpeedView(s: GameStateV2): ResearchSpeedView {
   const x = s.player.research.last?.x;
   const mods = researchMods(s);
   const pools = poolsOf(s);
-  const r = pools.experiments + pools.agents;
+  const r = pools.experiments + (pools.routine + pools.frontier);
   return {
     rel: researchSpeedRel(s), mExp: x?.mExp ?? 1, mIdeas: x?.mIdeas ?? 1, mods: mods.speed / mods.rateMult,
     c: x?.c ?? 0, l: x?.l ?? 1, X: x?.X ?? 0, label: pr.label,

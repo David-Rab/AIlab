@@ -41,7 +41,7 @@ function lab(ag: AgendaId, o: { seed?: number; cap?: number; re?: number; c?: nu
   re.quality = 'strong';
   re.heads = (SAF_RE_UNIT * (o.re ?? 1)) / SAF_EXP_SHARE;
   p.research.queue = [id];
-  p.agents.safety.compute = 0;
+  p.split.safetyAgents = 0;
   p.computeOnline = 1e6;
   // Line pool = c × computeRef × 1e6 H100e (fixed point: the monitors' share does not depend on the safety split).
   const want = (o.c ?? 1) * AGENDA_BY_ID[ag].computeRef * 1e6;
@@ -207,7 +207,7 @@ function results(s: GameStateV2, id: string, n: number, maxDays = 4000, onResult
   // Stub (E2): a safety model with high SAF coverage, Trusted to AI 0.5 and a fleet.
   strong(s);
   s.player.policies.trustedToAI = 0.5;
-  s.player.agents.safety.compute = 0.3;
+  s.player.split.safetyAgents = 0.3;
   for (let i = 0; i < 4; i++) { resetSafAllocation(s); s.player.split.safety *= (AGENDA_BY_ID.AG08.computeRef * 1e6) / Math.max(1e-9, linePoolH100e(s)); }
   resetSafAllocation(s);
   const m = lineLabourMult(s, 'AG08');
@@ -231,7 +231,7 @@ function aiLab(ag: AgendaId, o: { t: number; pkg?: number; dg?: number; seed?: n
   const { s, id } = lab(ag, { seed: o.seed, re: o.re ?? 0.5, cap: o.cap ?? 0.5 });
   if (o.dg) strong(s, o.dg);
   s.player.policies.trustedToAI = o.t;
-  s.player.agents.safety.compute = o.pkg ?? 0.3;
+  s.player.split.safetyAgents = o.pkg ?? 0.3;
   for (let i = 0; i < 4; i++) { resetSafAllocation(s); s.player.split.safety *= (AGENDA_BY_ID[ag].computeRef * 1e6) / Math.max(1e-9, linePoolH100e(s)); }
   resetSafAllocation(s);
   return { s, id };

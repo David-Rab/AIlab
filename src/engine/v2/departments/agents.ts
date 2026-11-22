@@ -6,9 +6,10 @@
 //   capRoutine   routine research: research experiments (EXP; spare serving compute lent to research adds to it)
 //   capFrontier  frontier research: research ideas (IDEAS) and the AI research taste sdAI; its compute counts in the
 //                readout's k with routine's
-//   safety       safety research agents (the safety work types), on a share of the safety pool
-// The two research uses share the research agent pool (split.agents); their `compute` are shares of it. Engineering
-// runs on its own split line (split.engineering, RD-A02; it was a share of the agent pool, traded by the Auto mix). Monitors watch internal uses, paid first from the safety pool: the monitoring budget (a share of the pool, SAFMECH)
+//   safety       safety research agents (the safety work types)
+// RD-A05a: every use runs on its own line of the flat compute allocation (split.engineering / routine / frontier /
+// safetyAgents, shares of total compute; departments/split.ts). Monitors watch internal uses on their own line
+// (split.monitors, the monitoring budget, SAFMECH)
 // buys coverage = budget ÷ (watched compute × the monitor's cost ratio) (AI 2027 fn 51). A monitor's strength = coverage × min(1, catch ÷ 85%): a monitor as capable as the
 // watched model, fully funded, is today's runtime monitoring exactly (strength 1).
 //
@@ -16,20 +17,21 @@
 // the reference compute shares (DEFAULT_CAP_SHARES).
 import { flopPerToken } from './workfit';
 import {
-  AGENT_USES, CAP_USES, DEFAULT_CAP_SHARES, MONITOR_SAME, MONITOR_STD_POOL_SHARE, RISK_FAMILIES, RISK_UNSEEN_CLARITY, RISK_WATCH_EST,
+  AGENT_USES, CAP_USES, DEFAULT_CAP_SHARES, MONITOR_SAME, RISK_FAMILIES, RISK_UNSEEN_CLARITY, RISK_WATCH_EST,
   type CapUse,
 } from '../../../data/v2/agents';
 import { MONITOR_CATCH_BASE } from '../../../data/v2/features';
 import { versionById } from '../models/labs';
 import { catchRate, collusionTrait } from '../models/products';
-import type { AgentPackage, AgentUse, GameStateV2, ModelVersion, TraitId } from '../types';
+import { researchAgents } from './split';
+import type { AgentPackage, AgentUse, ComputeSplit, GameStateV2, ModelVersion, TraitId } from '../types';
 
 export function initialAgents(versionId = 'V0'): Record<AgentUse, AgentPackage> {
   return {
-    eng: { compute: DEFAULT_CAP_SHARES.eng },
-    capRoutine: { versionId, monitorId: MONITOR_SAME, compute: DEFAULT_CAP_SHARES.capRoutine },
-    capFrontier: { monitorId: MONITOR_SAME, compute: DEFAULT_CAP_SHARES.capFrontier },
-    safety: { compute: 0 },
+    eng: {},
+    capRoutine: { versionId, monitorId: MONITOR_SAME },
+    capFrontier: { monitorId: MONITOR_SAME },
+    safety: {},
   };
 }
 
@@ -60,106 +62,47 @@ export function monitorVersion(s: GameStateV2, use: AgentUse): ModelVersion | un
   return live(v) ? v : undefined;
 }
 
-/** Share of its pool a capabilities use runs on: engineering 1 (its own line, split.engineering); routine and frontier
- *  research their shares of the research agent pool (normalised to 1). */
+/** RD-A05a: the allocation line each use runs on (departments/split.ts; shares of total compute). */
+export const AGENT_LINE: Record<AgentUse, keyof ComputeSplit> = { eng: 'engineering', capRoutine: 'routine', capFrontier: 'frontier', safety: 'safetyAgents' };
+
+/** Share of the research agents' compute (routine + frontier) a research use runs on; engineering 1 (its own line).
+ *  A readout of the flat allocation (the frontier share sets the research taste lift, workfit). */
 export function capShare(s: GameStateV2, use: CapUse): number {
   if (use === 'eng') return 1;
-  const a = s.player.agents;
-  const sum = a.capRoutine.compute + a.capFrontier.compute;
-  if (Math.abs(sum - 1) < 1e-9) return a[use].compute;
-  return sum > 0 ? a[use].compute / sum : DEFAULT_CAP_SHARES[use];
+  const r = researchAgents(s.player.split);
+  return r > 0 ? s.player.split[AGENT_LINE[use]] / r : DEFAULT_CAP_SHARES[use];
 }
 
-/** Share of the player's total compute running a use (engineering: split.engineering; research uses: split.agents ×
- *  share; safety: split.safety × its GRANTED share of the safety pool, safetyPoolClaims). */
+/** Share of the player's total compute running a use: its own line of the flat allocation (RD-A05a). */
 export function agentSplitShare(s: GameStateV2, use: AgentUse): number {
-  const p = s.player;
-  if (use === 'eng') return p.split.engineering ?? 0;
-  return use === 'safety' ? p.split.safety * safetyAgentShare(s) : p.split.agents * capShare(s, use);
+  return s.player.split[AGENT_LINE[use]] ?? 0;
 }
 
-/** A claim on the safety pool: what the player's settings ask for and what it gets, both shares of the pool. */
+/** A claim on the safety research line: what it asks for and what it gets, both shares of the line. */
 export interface PoolClaim { requested: number; granted: number }
-/** RD-B07 (audit B10 / INP-18): the safety pool's claims, served in priority order so they never total more than the
- *  pool. Shares of the safety pool (split.safety). */
+/** RD-A05a: the safety research line (split.safety) serves open cases first (cut pro rata when they ask for more than
+ *  the line), the research lines take the rest. Monitors and safety agents have their own allocation lines. */
 export interface SafetyPoolClaims {
-  /** Monitors (paid first): min(monitoring budget, what full coverage of the running fleets needs). Requested is that
-   *  need at the requested safety-agent share, granted at the granted one (monitors do not watch compute a cut fleet no
-   *  longer runs). Never cut otherwise: the budget is at most the pool. */
-  monitors: PoolClaim;
-  /** Open investigations (Σ computeShare), second; cut pro rata (invScale) when the monitors leave less. */
   investigations: PoolClaim;
-  /** Safety agents (agents.safety.compute), third. */
-  agents: PoolClaim;
-  /** Research lines take the rest (requested = granted: they have no claim of their own). */
   lines: PoolClaim;
   /** granted ÷ requested of every investigation (1 when not cut). */
   invScale: number;
-  /** Σ requested of monitors, investigations and agents (may exceed 1); Σ granted of all four (≤ 1). */
+  /** Σ requested (may exceed 1); Σ granted (≤ 1). */
   requested: number;
   granted: number;
-  /** Monitor need at the granted agent share, a share of TOTAL compute (monitorBudget's need). */
-  need: number;
 }
 
 const openInvShare = (s: GameStateV2) => s.player.safety.investigations.filter((i) => !i.outcome).reduce((a, i) => a + i.computeShare, 0);
-const budgetPolicy = (s: GameStateV2) => Math.max(0, Math.min(1, s.player.policies.monitorBudget ?? MONITOR_STD_POOL_SHARE));
 
-/**
- * RD-B07: the safety pool served in priority order: monitors → investigations → safety agents → research lines (the
- * order the code already implied: monitors "paid first", lines "the rest"). Each claim gets min(its request, what the
- * claims before it leave), so the total is at most the pool and every cut is visible (requested vs granted). The
- * monitors' need grows with the safety agents' compute when the safety use is monitored, so a cut to the agents also
- * shrinks the monitors' claim: the agents get the largest a ≤ request with m(a) + investigations + a ≤ 1, where
- * m(a) = min(budget, capabilities uses' need + safety monitor's cost ratio × a) (piecewise linear, closed form).
- * `extraInv` adds a case being previewed (Investigate). Interim: the flat compute allocation (RD-A05a, SAFETY-REDESIGN
- * §5) replaces it.
- */
+/** The safety research line's claims (`extraInv` adds a case being previewed, Investigate). */
 export function safetyPoolClaims(s: GameStateV2, extraInv = 0): SafetyPoolClaims {
-  const p = s.player;
-  const ps = p.split.safety;
-  const B = budgetPolicy(s);
   const I = openInvShare(s) + Math.max(0, extraInv);
-  const A = Math.max(0, p.agents.safety.compute);
-  let needCap = 0; // monitor need of the capabilities uses, share of total compute
-  for (const u of CAP_USES) needCap += monitorNeedShare(s, u);
-  const nc = ps > 0 ? needCap / ps : 0;
-  const r = monitorCostRatio(s, 'safety');
-  // Monitors' pool share at agent share a, in monitorBudget's arithmetic (bit-identical when nothing is cut).
-  const mon = (a: number) => (ps > 0 ? Math.min(B * ps, needCap + r * (ps * a)) / ps : 0);
-  const m0 = mon(A);
-  let a = A;
-  let inv = I;
-  if (m0 + I + A > 1) {
-    const mMin = mon(0);
-    if (mMin + I >= 1) {
-      a = 0;
-      inv = Math.max(0, 1 - mMin);
-    } else {
-      const room = 1 - I; // solve m(a) + a = room (increasing in a)
-      const a1 = ps > 0 ? (room - nc) / (1 + r) : room; // monitors below their budget (none with an empty pool)
-      a = Math.max(0, Math.min(A, ps <= 0 || nc + r * a1 <= B ? a1 : room - B));
-    }
-  }
-  const m = mon(a);
-  const lines = Math.max(0, 1 - (m + a) - inv); // linePoolH100e's old arithmetic
+  const inv = Math.min(I, 1);
+  const lines = Math.max(0, 1 - inv);
   return {
-    monitors: { requested: m0, granted: m },
-    investigations: { requested: I, granted: inv },
-    agents: { requested: A, granted: a },
-    lines: { requested: lines, granted: lines },
-    invScale: I > 0 ? inv / I : 1,
-    requested: m0 + I + A,
-    granted: m + inv + a + lines,
-    need: needCap + r * (ps * a),
+    investigations: { requested: I, granted: inv }, lines: { requested: lines, granted: lines },
+    invScale: I > 0 ? inv / I : 1, requested: I + lines, granted: inv + lines,
   };
-}
-
-/** The safety agents' granted share of the safety pool (fast path: nothing can be cut while budget + cases + agents ≤ 1). */
-export function safetyAgentShare(s: GameStateV2): number {
-  const A = Math.max(0, s.player.agents.safety.compute);
-  if (budgetPolicy(s) + openInvShare(s) + A <= 1) return A;
-  return safetyPoolClaims(s).agents.granted;
 }
 
 /** H100e running a use. */
@@ -184,10 +127,10 @@ export interface MonitorBudget {
   /** Compute that would watch every forward pass of the monitored fleets (share of total compute): Σ over monitored uses
    *  of the use's compute × its monitor's cost ratio. */
   need: number;
-  /** The monitoring budget (policies.monitorBudget, a share of the safety pool) as a share of total compute. */
+  /** The monitors' allocation line (split.monitors), a share of total compute. */
   budget: number;
-  /** Share of the safety pool the monitors take (≤ the budget: what full coverage does not need stays with the lines). */
-  poolShare: number;
+  /** Share of total compute the monitors use (≤ the budget; the rest of the line is unused, shown). */
+  used: number;
   /** Share of the monitored fleets' forward passes the monitors watch: min(1, budget ÷ need). */
   coverage: number;
 }
@@ -202,25 +145,23 @@ export function monitorCoverage(budget: number, watched: number, costRatio: numb
 }
 
 /**
- * Monitors on internal uses are paid first from the safety pool (STRUCTURE §4.9: Safety funds monitors). SAFMECH: the
- * player sets the monitoring budget (policies.monitorBudget, a share of the safety pool; default MONITOR_STD_POOL_SHARE)
- * and the monitor model per use; the monitors watch the share of the fleets' forward passes that budget pays for
- * (monitorCoverage) at each monitor's cost ratio, so a distilled mini watches several times more than a copy of the
- * watched model. Coverage multiplies every monitor's catch and strength (monitorStrength). Budget beyond full coverage is
- * not spent. (Before SAFMECH the standard package cost 20% of the pool whatever it watched, at full coverage.)
+ * Monitors on internal uses run on their own allocation line (RD-A05a: split.monitors, a share of total compute; before,
+ * a budget inside the safety pool). SAFMECH: the monitors watch the share of the fleets' forward passes that line pays
+ * for (monitorCoverage) at each monitor's cost ratio, so a distilled mini watches several times more than a copy of the
+ * watched model. Coverage multiplies every monitor's catch and strength (monitorStrength). Budget beyond full coverage
+ * is not spent: it shows as unused (`budget − used`, DD-19), never moved to another use.
  */
 export function monitorBudget(s: GameStateV2): MonitorBudget {
   let need = 0;
   for (const u of AGENT_USES) need += monitorNeedShare(s, u);
-  const pool = s.player.split.safety;
-  const budget = Math.max(0, Math.min(1, s.player.policies.monitorBudget ?? MONITOR_STD_POOL_SHARE)) * pool;
-  if (need <= 0) return { need: 0, budget, poolShare: 0, coverage: 1 };
-  return { need, budget, poolShare: pool > 0 ? Math.min(budget, need) / pool : 0, coverage: monitorCoverage(budget, need, 1) };
+  const budget = Math.max(0, s.player.split.monitors ?? 0);
+  if (need <= 0) return { need: 0, budget, used: 0, coverage: 1 };
+  return { need, budget, used: Math.min(budget, need), coverage: monitorCoverage(budget, need, 1) };
 }
 
-/** H100e the monitor on one use takes from the safety pool. */
+/** H100e the monitor on one use runs on (its part of the monitors' used compute). */
 export function monitorH100e(s: GameStateV2, use: AgentUse, b = monitorBudget(s)): number {
-  return b.need > 0 ? (s.player.computeOnline * s.player.split.safety * b.poolShare * monitorNeedShare(s, use)) / b.need : 0;
+  return b.need > 0 ? (s.player.computeOnline * b.used * monitorNeedShare(s, use)) / b.need : 0;
 }
 
 /** Catch rate of a use's monitor (products' rule: 85% × 0.52^gap, AG07 control tools) and its strength: coverage ×

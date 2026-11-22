@@ -101,7 +101,7 @@ const uncaught = (s: GameStateV2, act: 'BACKDOOR' | 'HIDCOMP', v: ModelVersion, 
   v.traitsTrue.SAND = 0.5; v.traitsTrue.SCHEME = 0.5;
   s.player.policies.trustedToAI = 1;
   if (v.build) v.build.dg += 6;
-  s.player.agents.safety.compute = 0.3;
+  s.player.split.safetyAgents = 0.3;
   resetSafAllocation(s);
   s.player.policies.publishSafety = 'none';
   const ctx = makeCtx(s);

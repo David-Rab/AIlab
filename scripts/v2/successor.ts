@@ -42,7 +42,7 @@ function withFleet(o: Partial<TraitVector> = misTraits(), mut?: (s: GameStateV2)
   return s;
 }
 /** Scale the capabilities agent pool: at the start the agents are coverage-bound, so only a scarce pool lowers r. */
-const agentsTimes = (k: number) => (s: GameStateV2) => { s.player.split.agents *= k; };
+const agentsTimes = (k: number) => (s: GameStateV2) => { s.player.split.routine *= k; s.player.split.frontier *= k; };
 const fmtPull = (s: GameStateV2) => { const p = successorPull(s); return `r ${p.r.toFixed(3)}, ω ${p.omega.toFixed(3)}`; };
 
 // ---------- the rule: Σ shares = aiRdShare; ω_k = κ(SUCC_k)·share_k·(1 − oversight_k) ----------
@@ -68,7 +68,7 @@ const fmtPull = (s: GameStateV2) => { const p = successorPull(s); return `r ${p.
 
 // ---------- zero AI share: no pull ----------
 {
-  const s = withFleet(undefined, (x) => { x.player.split.agents = 0; });
+  const s = withFleet(undefined, (x) => { x.player.split.routine = 0; x.player.split.frontier = 0; });
   const p = successorPull(s);
   const x0 = clone(game().player.models.versions[0].traitsTrue);
   const x1 = applySuccessorPull(s, x0);

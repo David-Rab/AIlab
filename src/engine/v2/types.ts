@@ -234,12 +234,22 @@ export interface HiddenWorld {
 export interface StaffByRole { cap: number; saf: number; }
 
 /** Compute pools a lab splits its online compute into (§3.4.2). Fractions sum to 1. */
+/** RD-A05a: ONE flat allocation of a lab's compute to its uses, each a share of total compute, summing to 1 with
+ *  `idle` (departments/split.ts). The other labs' engineering, safetyAgents and monitors are 0. */
 export interface ComputeSplit {
-  training: number; experiments: number; agents: number; synthetic: number;
-  serving: number; safety: number;
-  /** RD-A02: engineering agents' own compute line (coding for the build queue); `agents` is research agents only.
-   *  0 for the other labs (their research model has no build queue). */
+  training: number; synthetic: number; experiments: number;
+  /** Routine and frontier research agents. */
+  routine: number; frontier: number;
+  /** Engineering agents (coding for the build queue). */
   engineering: number;
+  safetyAgents: number;
+  /** Monitors on the internal fleets (the monitoring budget). */
+  monitors: number;
+  /** Safety research: open cases first, the research lines the rest. */
+  safety: number;
+  serving: number;
+  /** Unallocated (DD-19: shown, never silently rerouted). */
+  idle: number;
 }
 
 export interface LabCore {
@@ -1102,7 +1112,6 @@ export type AgentUse = 'eng' | 'capRoutine' | 'capFrontier' | 'safety';
 export interface AgentPackage {
   versionId?: string;
   monitorId?: string;
-  compute: number;
 }
 
 // ───────────────────────────── Build queue (STRUCTURE §4.1, R5) ─────────────────────────────
@@ -1218,9 +1227,6 @@ export interface PlayerPolicies {
   /** Trusted to AI (R7): share of safety research and investigation work done by the safety agents (one policy; it
    *  replaces per-agenda automation). Works only above the AI-labour gate (B3). */
   trustedToAI: number;
-  /** SAFMECH: the monitoring budget, a share of the safety pool paid first to the monitors on internal uses (0–1). It sets
-   *  their coverage of the watched fleets' forward passes (departments/agents.ts monitorBudget; AI 2027 fn 51). */
-  monitorBudget: number;
 }
 
 // ───────────────────────────── Finance (§3.7) ─────────────────────────────

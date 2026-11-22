@@ -5,7 +5,7 @@ import { REFERENCE_BASE, REFERENCE_POST, STREAM_LAG_DAYS, STREAM_POOL_SHARE } fr
 import { RE_OPS } from '../../../data/v2/research';
 import { startOf } from '../../../data/v2/starts';
 import { decimalYear } from '../core/time';
-import { SPLIT_KEYS, TOP_KEYS, fromSpec, presetSplit, setSplit, specOf, type SplitPreset } from '../departments/split';
+import { SPLIT_KEYS, presetSplit, setSplit, type SplitPreset } from '../departments/split';
 import { STAR_HIRE } from '../../../data/v2/teams';
 import { hireStar } from '../departments/teams';
 import { starGain, TEAM_ACTIONS } from '../departments/teamActions';
@@ -321,15 +321,9 @@ function evalGains(s: GameStateV2, v: ModelVersion, depth: EvalDepth, by: 'self'
 
 // ───────────────────────────── departments ─────────────────────────────
 
-/** Split from action params: either top-level shares (training, research, serving, safety) with optional dataShare
- *  and expShare, or the six pool keys (bots, saves). Missing values keep the current split. */
+/** Allocation from action params: the flat use keys (RD-A05a; departments/split.ts SPLIT_KEYS, idle included).
+ *  Missing values keep the current allocation. */
 function splitFromParams(s: GameStateV2, p: Params): ComputeSplit {
-  if (TOP_KEYS.some((k) => k === 'research' && typeof p[k] === 'number') || typeof p.dataShare === 'number' || typeof p.expShare === 'number') {
-    const cur = specOf(s.player.split);
-    const top = { ...cur.top };
-    for (const k of TOP_KEYS) if (typeof p[k] === 'number') top[k] = p[k] as number;
-    return fromSpec({ top, dataShare: num(p, 'dataShare', cur.dataShare), expShare: num(p, 'expShare', cur.expShare) });
-  }
   const out = { ...s.player.split };
   for (const k of SPLIT_KEYS) if (typeof p[k] === 'number') out[k] = p[k] as number;
   return out;
@@ -345,12 +339,13 @@ function splitPreview(s: GameStateV2, next: ComputeSplit): Preview {
   const costs: CostLine[] = [];
   const gains: CostLine[] = [];
   const cur2cur: Record<keyof ComputeSplit, CostLine['currency']> = {
-    training: 'progress', experiments: 'progress', agents: 'progress', synthetic: 'progress', serving: 'revenue', safety: 'alignment', engineering: 'progress',
+    training: 'progress', experiments: 'progress', routine: 'progress', frontier: 'progress', synthetic: 'progress', serving: 'revenue',
+    safety: 'alignment', safetyAgents: 'alignment', monitors: 'alignment', engineering: 'progress', idle: 'compute',
   };
   const agg: Partial<Record<CostLine['currency'], number>> = {};
   for (const k of SPLIT_KEYS) agg[cur2cur[k]] = (agg[cur2cur[k]] ?? 0) + (next[k] - cur[k]);
   // RD-B19 (MEA-19): the lines are compute shares in percent points (a bare 'progress' line read as levels).
-  const what: Partial<Record<CostLine['currency'], string>> = { progress: 'of compute to training and research', revenue: 'of compute to serving', alignment: 'of compute to safety' };
+  const what: Partial<Record<CostLine['currency'], string>> = { progress: 'of compute to training and research', revenue: 'of compute to serving', alignment: 'of compute to safety', compute: 'of compute idle' };
   for (const [c, d] of Object.entries(agg) as [CostLine['currency'], number][]) {
     const line = { currency: c, amount: Math.round(d * 1000) / 10, unit: '%', target: what[c] };
     if (d > 1e-4) gains.push(line);

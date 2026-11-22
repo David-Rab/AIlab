@@ -18,7 +18,7 @@ import { familySeenTo, nearestDecay, understanding } from './understanding';
 import { exfiltrationHazard } from './incidents';
 import { safetyAgentVersion, safetyFleet, trustedShare } from './agents';
 import { lineLabour } from './lineProjects';
-import { safetyPoolClaims, type SafetyPoolClaims } from '../departments/agents';
+import { monitorBudget, safetyPoolClaims, type SafetyPoolClaims } from '../departments/agents';
 import { RISK_FAMILIES, RISK_UNSEEN_CLARITY } from '../../../data/v2/agents';
 import { CRITICAL_TRAITS } from '../../../data/v2/traits';
 import { PROJECT_BY_ID, TREE, isLineNode, lineNodeId } from '../../../data/v2/tree';
@@ -215,15 +215,18 @@ export function safetyUtilisation(s: GameStateV2): SafetyUtilisation {
   }
   const re = safetyRe(s);
   const online = s.player.computeOnline;
-  const pool = online * s.player.split.safety;
-  // RD-B07: granted shares (requested vs granted per claim in `claims`, for a later UI readout of what was cut).
+  // RD-A05a: all safety compute = its three allocation lines (safety agents, monitors, safety research); the monitors'
+  // unused budget and the research line's unused compute show as idle.
+  const sp = s.player.split;
+  const line = online * sp.safety;
+  const pool = online * (sp.safety + sp.monitors + sp.safetyAgents);
   const claims = safetyPoolClaims(s);
-  const monitoring = pool * claims.monitors.granted;
-  const invC = pool * claims.investigations.granted;
-  const agents = pool * claims.agents.granted;
+  const monitoring = online * monitorBudget(s).used;
+  const invC = line * claims.investigations.granted;
+  const agents = online * sp.safetyAgents;
   let got = 0;
   for (const a of AGENDAS) {
-    got += pool * dept.agendas[a.id].computeShare;
+    got += line * dept.agendas[a.id].computeShare;
   }
   const fl = safetyFleet(s);
   const v = safetyAgentVersion(s);

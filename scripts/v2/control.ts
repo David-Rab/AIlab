@@ -151,7 +151,7 @@ for (const fx of ['day400.json', 'day900.json']) {
   const s = lab(12);
   const v = routine(s);
   for (const x of s.player.models.versions) x.traitsTrue = { ...x.traitsTrue, SCHEME: 1, POWER: 1, AF: 1, SUCC: 1, COLLUDE: 1, HONEST: 0, CORRIG: 0 };
-  const h0 = 0.1 * s.player.computeOnline * s.player.split.agents; // inside the agent pool it hides in
+  const h0 = 0.1 * s.player.computeOnline * (s.player.split.routine + s.player.split.frontier); // inside the agent pool it hides in
   const hc = plant(s, 'hiddenCompute', v, h0);
   const e = controlTerms(s, v).exposure;
   const ctx = makeCtx(s);

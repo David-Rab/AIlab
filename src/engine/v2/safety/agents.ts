@@ -1,8 +1,7 @@
 // Safety agents (V2-SPEC §3.5.2 addendum; model v3 E2). Owner: WS2.
 //
 // AI labour on safety work runs on the safety-research agent package (R7, player.agents.safety):
-//   compute  = computeOnline × split.safety × agents.safety.compute   (a share of the safety pool; RD-B07: the granted
-//              share, safetyPoolClaims, after the monitors and investigations)
+//   compute  = computeOnline × split.safetyAgents   (RD-A05a: its own line of the flat allocation)
 //   model    = agents.safety.versionId (default: the routine-research model). An older, trusted model is weaker (lower
 //              SAF_* coverage) but its sabotage odds are its own.
 // Model v3 E2: the package's labour comes from the SAF_EXP and SAF_IDEAS work types through the capabilities labour
@@ -13,7 +12,7 @@
 import type { GameStateV2, ModelVersion } from '../types';
 import { SAF_STAGES } from '../../../data/v2/agendas';
 import { WORK_TYPES } from '../../../data/v2/workTypes';
-import { agentVersion, safetyAgentShare } from '../departments/agents';
+import { agentSplitShare, agentVersion } from '../departments/agents';
 import { safetyLabour } from '../departments/workfit';
 
 /** Version running the safety agents (falls back to the routine-research model when unset or retired). */
@@ -27,7 +26,7 @@ export function safetyAgentL(s: GameStateV2, v: ModelVersion | undefined = safet
 }
 
 /** H100e on safety agents (RD-B07: at the granted share of the pool). */
-export const safetyAgentCompute = (s: GameStateV2) => s.player.computeOnline * s.player.split.safety * safetyAgentShare(s);
+export const safetyAgentCompute = (s: GameStateV2) => s.player.computeOnline * agentSplitShare(s, 'safety');
 
 /** Trusted to AI in effect: the policy share while the safety agents run (a model and compute), else 0. */
 export const trustedShare = (s: GameStateV2): number => safetyLabour(s).t;

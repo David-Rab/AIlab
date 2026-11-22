@@ -30,7 +30,7 @@ import { PRICE_TIERS } from '../../../data/v2/features';
 import { deployGate } from '../models/deployments';
 import { EVENT_BY_ID } from '../core/registry';
 import { decimalYear } from '../core/time';
-import { playerShareRef, shareRefAt, TOP_KEYS, topOf, withFixed } from '../departments/split';
+import { playerShareRef, shareRefAt, SPLIT_KEYS, withFixed } from '../departments/split';
 import { financeAutopilot, REF_AUTOPILOT } from '../finance/plan';
 import { runwayOf } from '../finance/runway';
 import { hRef } from '../production/ces';
@@ -149,10 +149,16 @@ export function refAlignShare(year: number): number {
   return t[t.length - 1].share;
 }
 
-/** Share of the safety pool that is not safety research: the monitors (monitorBudget) and open investigations. */
+/** RD-A05a: the lab's safety compute = its three allocation lines (safety research, monitors, safety agents). */
+const safetyTotal = (sp: ComputeSplit) => sp.safety + sp.monitors + sp.safetyAgents;
+
+/** Share of the safety compute that is not safety research: the monitors' used compute and open investigations. */
 function safetyReserved(s: GameStateV2): number {
+  const sp = s.player.split;
+  const tot = safetyTotal(sp);
+  if (tot <= 0) return 0;
   const inv = s.player.safety.investigations.filter((i) => !i.outcome).reduce((a, i) => a + i.computeShare, 0);
-  return monitorBudget(s).poolShare + inv;
+  return (monitorBudget(s).used + Math.min(1, inv) * sp.safety) / tot;
 }
 
 /**
@@ -168,7 +174,7 @@ export function refSafetyShare(s: GameStateV2): number {
   const yr = decimalYear(s);
   const a = refAlignShare(yr);
   const r = shareRefAt(yr);
-  const research = (a / (1 - a)) * (r.experiments + r.agents);
+  const research = (a / (1 - a)) * (r.experiments + r.routine + r.frontier);
   return Math.min(1, research / Math.max(0.2, 1 - safetyReserved(s)));
 }
 
@@ -183,9 +189,10 @@ export function refSafetyShare(s: GameStateV2): number {
 export function refSafetyAgents(s: GameStateV2, api: EngineApi): void {
   if (s.time.day % 7 !== 3) return;
   const sp = s.player.split;
-  const res = sp.experiments + sp.agents;
-  const want = Math.max(1e-3, res > 0 ? Math.max(0, 1 - safetyReserved(s)) * (sp.agents / res) : 0);
-  const cur = s.player.agents.safety.compute;
+  const ag = sp.routine + sp.frontier;
+  const res = sp.experiments + ag;
+  const want = safetyTotal(sp) * Math.max(1e-3, res > 0 ? Math.max(0, 1 - safetyReserved(s)) * (ag / res) : 0);
+  const cur = sp.safetyAgents;
   if (Math.abs(want - cur) > 0.1 * Math.max(want, cur) + 1e-6) tryAct(s, api, 'agents.set', { use: 'safety', compute: want });
 }
 
@@ -223,10 +230,11 @@ export function refMonitors(s: GameStateV2, api: EngineApi): void {
     const want = best.id === v.id ? MONITOR_SAME : best.id;
     if (s.player.agents[use].monitorId !== want) tryAct(s, api, 'agents.set', { use, monitorId: want });
   }
-  const pool = s.player.computeOnline * s.player.split.safety;
-  if (pool <= 0) return;
-  const share = Math.min(0.8, (REF_MONITOR_SPEND * watched) / pool);
-  const cur = s.player.policies.monitorBudget;
+  const online = s.player.computeOnline;
+  const tot = safetyTotal(s.player.split);
+  if (online <= 0 || tot <= 0) return;
+  const share = Math.min(0.8 * tot, (REF_MONITOR_SPEND * watched) / online); // RD-A05a: share of total compute
+  const cur = s.player.split.monitors;
   if (Math.abs(share - cur) > 0.1 * Math.max(share, cur) + 1e-6) tryAct(s, api, 'agents.monitorBudget', { share });
 }
 
@@ -314,10 +322,15 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
     // RD-A02: the table's split set explicitly, the research mix included (AI 2027's experiments : automation rows; no
     // Auto mix re-splits it), with the reference lab's engineering share of its agent compute on the engineering line
     // (playerShareRef).
-    const ref: ComputeSplit = safShare === undefined ? playerShareRef(yr) : withFixed(playerShareRef(yr), { safety: safShare });
-    const now = topOf(p.split);
-    const want = topOf(ref);
-    const diff = TOP_KEYS.some((k) => Math.abs(want[k] - now[k]) > 1e-3) || Math.abs(ref.synthetic - p.split.synthetic) > 1e-3 || Math.abs(ref.experiments - p.split.experiments) > 1e-3;
+    // RD-A05a: the safety share is the total of the three safety lines, split as the lab's lines are now.
+    let ref: ComputeSplit = playerShareRef(yr);
+    if (safShare !== undefined) {
+      const tot = safetyTotal(p.split);
+      const src = tot > 0 ? p.split : ref;
+      const st = safetyTotal(src) || 1;
+      ref = withFixed(ref, { safety: (safShare * src.safety) / st, monitors: (safShare * src.monitors) / st, safetyAgents: (safShare * src.safetyAgents) / st });
+    }
+    const diff = SPLIT_KEYS.some((k) => Math.abs(ref[k] - p.split[k]) > 1e-3);
     if (diff) tryAct(s, api, 'setSplit', { ...ref });
     // Whole teams in the reference split (D2): round(share · H_ref(t + 6 wk) / size) per role.
     const H = hRef(yr + 0.12);

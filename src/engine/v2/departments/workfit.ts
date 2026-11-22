@@ -35,7 +35,7 @@ import { spareServingToResearch } from '../worldfx/revenue';
 import { internalFx, tokEff } from '../worldfx/serving';
 import { decodeUtilNow } from '../models/stacks';
 import { ws4r } from '../actors/state';
-import { agentSplitShare, agentVersion, capShare, monitorVersion, safetyAgentShare } from './agents';
+import { agentSplitShare, agentVersion, capShare, monitorVersion } from './agents';
 import { useControl } from '../safety/oversight';
 import type { DomainId, GameStateV2, ModelVersion, ProdParams, TeamQuality, TimelineWorld, VersionBuild } from '../types';
 
@@ -221,8 +221,7 @@ function useLabour(s: GameStateV2, slot: LabourSlot): { v?: ModelVersion; h100e:
   const v = agentVersion(s, use);
   let h100e = 0;
   if (!off) {
-    if (use === 'safety') h100e = p.computeOnline * p.split.safety * safetyAgentShare(s); // RD-B07: the granted share
-    else h100e = p.computeOnline * agentSplitShare(s, use) + (use === 'capRoutine' ? spareServingToResearch(s) : 0);
+    h100e = p.computeOnline * agentSplitShare(s, use) + (use === 'capRoutine' ? spareServingToResearch(s) : 0);
   }
   let mult = 1;
   if (adopted(s, 'P05')) mult *= 1.3;
@@ -306,7 +305,7 @@ export function workContext(s: GameStateV2): WorkContext {
   const p = s.player;
   const fv = agentVersion(s, 'capFrontier');
   const sdAI = fv ? sdAIOf(s.hidden.timeline, fitOf(s, fv, 'IDEAS') + internalFx(s, 'IDEAS').dG) : -6;
-  const on = Number(s.flags['ws4:agentsOffUntil'] ?? -1) <= s.time.day && p.split.agents > 0;
+  const on = Number(s.flags['ws4:agentsOffUntil'] ?? -1) <= s.time.day && (p.split.routine + p.split.frontier) > 0;
   const phi = on && fv ? Math.min(1, capShare(s, 'capFrontier') / DEFAULT_CAP_SHARES.capFrontier) : 0;
   const out: WorkContext = { day: s.time.day, slots, sdAI, phi };
   ctxMemo.set(s, out);

@@ -260,16 +260,16 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
     'M1 AI 2027 fn 51: "a monitoring budget of 1% of total compute" with "a distilled system that has 10% of the cost" monitors "1/10 of the forward passes" (capped at 1)', `${monitorCoverage(0.01, 1, 0.1)}`);
   s.player.agents.capRoutine.monitorId = MONITOR_SAME;
   s.player.agents.capFrontier.monitorId = MONITOR_SAME;
-  s.player.policies.monitorBudget = 0.2;
+  s.player.split.monitors = 0.2;
   const b = monitorBudget(s);
   const S = s.player.split.safety;
   const watched = agentSplitShare(s, 'capRoutine') + agentSplitShare(s, 'capFrontier') + (s.player.agents.eng.monitorId ? agentSplitShare(s, 'eng') : 0) + (s.player.agents.safety.monitorId ? agentSplitShare(s, 'safety') : 0);
-  check(Math.abs(b.need - watched) < 1e-12 && Math.abs(b.coverage - Math.min(1, (0.2 * S) / watched)) < 1e-12 && Math.abs(b.poolShare - Math.min(0.2, watched / S)) < 1e-12,
+  check(Math.abs(b.need - watched) < 1e-12 && Math.abs(b.coverage - Math.min(1, (0.2 * S) / watched)) < 1e-12 && Math.abs(b.used - Math.min(0.2, watched / S)) < 1e-12,
     'M2 copies of the watched models: coverage = budget (20% of the safety pool) ÷ the watched compute (cost ratio 1); unspent budget stays with the lines', JSON.stringify(b));
   const iv = internalVersion(s)!;
   check(Math.abs(fleetMonitor(s, iv) - b.coverage) < 1e-12 && internalFleets(s).length === 1 && internalFleets(s)[0].usage === 1, 'A1 default: one internal fleet at usage 1, monitor strength = coverage (no gap)', `${fleetMonitor(s, iv)}`);
   const more = clone(s);
-  more.player.policies.monitorBudget = 0.6;
+  more.player.split.monitors = 0.6;
   const mini = s.player.models.versions.find((v) => v.variant === 'mini' && (v.status === 'ready' || v.status === 'deployed'));
   check(monitorBudget(more).coverage > b.coverage || b.coverage === 1, 'M3 a larger monitoring budget watches more of the fleet', `${b.coverage.toFixed(3)} → ${monitorBudget(more).coverage.toFixed(3)}`);
   if (mini) {
@@ -295,10 +295,10 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   check(pe.after.build < pe.before.build && pe.after.mExp > pe.before.mExp, 'A5 less engineering compute: less build capacity, more research agents', `${pe.before.build.toFixed(1)} → ${pe.after.build.toFixed(1)}`);
   act(s, 'agents.set', { use: 'capRoutine', monitorId: '' });
   act(s, 'agents.set', { use: 'capFrontier', monitorId: '' });
-  check(monitorBudget(s).poolShare === 0 && fleetMonitor(s, iv) === 0, 'A6 no monitors: no safety compute reserved and no monitoring of the fleet');
+  check(monitorBudget(s).used === 0 && fleetMonitor(s, iv) === 0, 'A6 no monitors: no safety compute reserved and no monitoring of the fleet');
   const t0 = s.player.policies.trustedToAI;
   const r = act(s, 'agents.trusted', { share: 0.9 });
-  check(!r && Math.abs(s.player.policies.trustedToAI - 0.9) < 1e-12 && s.player.policies.trustedToAI > t0 && s.player.agents.safety.compute > 0, 'A7 Trusted to AI: any share 0–100% (E2: no cap); starts the safety agents', `${s.player.policies.trustedToAI} · ${s.player.agents.safety.compute}`);
+  check(!r && Math.abs(s.player.policies.trustedToAI - 0.9) < 1e-12 && s.player.policies.trustedToAI > t0 && s.player.split.safetyAgents > 0, 'A7 Trusted to AI: any share 0–100% (E2: no cap); starts the safety agents', `${s.player.policies.trustedToAI} · ${s.player.split.safetyAgents}`);
 }
 
 // ───────── C2: every feature acts where it is offered; feature upkeep ─────────

@@ -94,7 +94,7 @@ function EditPop({ s, use, c, close }: { s: GameStateV2; use: AgentUse; c: Agent
           {use === 'capFrontier' && row(<Term id="researchTaste">AI taste</Term>, b.sdAI, a.sdAI, (x) => `${F.num(x, 1, true)} SD`)}
           {row(<Term id="agentCopies">Copies</Term>, lb.copies, la.copies, (x) => F.count(x))}
           {(lb.monitor || la.monitor) && row(<Term id="catchRate">Catch</Term>, lb.catch, la.catch, (x) => F.pct(x))}
-          {row(<Term id="agentMonitor">Monitors</Term>, b.monitors.poolShare, a.monitors.poolShare, (x) => `${F.pct(x)} of safety`, false)}
+          {row(<Term id="agentMonitor">Monitors</Term>, b.monitors.used, a.monitors.used, (x) => `${F.pct(x, 1)} of compute`, false)}
           {row(<Term id="runCost">Cost / yr</Term>, lb.cost + lb.monitorCost, la.cost + la.monitorCost, (x) => F.money(x), false)}
         </div>
       )}
@@ -200,9 +200,9 @@ function Lane({ s, v, use, danger, draft, setDraft }: { s: GameStateV2; v: Agent
 }
 
 export function AgentsAtWork({ s }: { s: GameStateV2 }) {
-  const v = useMemo(() => agentsView(s), [s, s.time.day, JSON.stringify(s.player.agents), s.player.policies.trustedToAI, s.player.split.agents, s.player.split.safety, s.player.deployments.some((d) => d.channel === 'internal' && d.controlLayer)]);
+  const v = useMemo(() => agentsView(s), [s, s.time.day, JSON.stringify(s.player.agents), s.player.policies.trustedToAI, (s.player.split.routine + s.player.split.frontier), s.player.split.safety, s.player.deployments.some((d) => d.channel === 'internal' && d.controlLayer)]);
   // Model v3 E11: believed danger per lane (beliefs and measured levels only).
-  const danger = useMemo(() => dangerView(s).lanes, [s, s.time.day, JSON.stringify(s.player.agents), s.player.split.agents, s.player.split.safety, s.player.deployments.some((d) => d.channel === 'internal' && d.controlLayer)]);
+  const danger = useMemo(() => dangerView(s).lanes, [s, s.time.day, JSON.stringify(s.player.agents), (s.player.split.routine + s.player.split.frontier), s.player.split.safety, s.player.deployments.some((d) => d.channel === 'internal' && d.controlLayer)]);
   const [drafts, setDrafts] = useState<Partial<Record<AgentUse, AgentChange>>>({});
   const setDraft = (u: AgentUse) => (c: AgentChange | null) => setDrafts((d) => { const n = { ...d }; if (c) n[u] = c; else delete n[u]; return n; });
   return (

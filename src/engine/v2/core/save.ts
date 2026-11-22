@@ -3,7 +3,8 @@ import { ensureWs3 } from '../finance/ext';
 import { START_CREDIBILITY, typicalRound } from '../finance/promises';
 import { dMax } from '../finance/equity';
 import type { GameStateV2, LabCore, SectorId, VersionBuild } from '../types';
-import { DEFAULT_CAP_SHARES, MONITOR_STD_POOL_SHARE } from '../../../data/v2/agents';
+import { CAP_USES, DEFAULT_CAP_SHARES, MONITOR_STD_POOL_SHARE, REF_AGENT_SHARES } from '../../../data/v2/agents';
+import { monitorCostRatio, monitorNeedShare } from '../departments/agents';
 import { partnerDef, PARTNER_TERMS } from '../../../data/v2/deals';
 import { divisionOf } from '../finance/parent';
 import { privateRivals, sectorValue, seedLabRevenue } from '../finance/story';
@@ -54,7 +55,7 @@ import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
  *  recomputes the player's version domain levels as λ(G_d).
  *  50 (RD-U05): domain levels are scores against the domain's best human (models/capability.ts domainsOf); v2's display offsets are
  *  gone. Migration 49 → 50 recomputes every stored domain-level record. */
-export const SCHEMA_REV = 51;
+export const SCHEMA_REV = 52;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -226,7 +227,7 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
    *  pool). A save gets the old standard package's share (MONITOR_STD_POOL_SHARE); its coverage now follows from that
    *  budget, the monitors' cost ratios and the watched compute. Only where missing (idempotent). */
   42: (raw) => {
-    const p = (raw as unknown as GameStateV2).player;
+    const p = (raw as unknown as Record<string, any>).player; // eslint-disable-line @typescript-eslint/no-explicit-any
     if (p?.policies && typeof p.policies.monitorBudget !== 'number') p.policies.monitorBudget = MONITOR_STD_POOL_SHARE;
   },
   /** 43 → 44 (RD-C01): drop the v2 knot table and the dead production-readout fields (idempotent). */
@@ -401,13 +402,13 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
    *  its line). The other labs get engineering 0 (their research model has no build queue). */
   50: (raw) => {
     const s = raw as unknown as GameStateV2;
-    const p = s.player;
+    const p = s.player as unknown as { split: Record<string, number>; agents: Record<string, { compute: number }> };
     const a = p?.agents;
     const fresh = !!p?.split && typeof p.split.engineering !== 'number'; // idempotent: only a save without the line
     const cores = [s.player, ...(s.rivals ?? []).map((r) => r.core), s.china?.lab?.core].filter(Boolean) as LabCore[];
     for (const c of cores) {
       delete (c as unknown as Record<string, unknown>).researchManual;
-      if (c.split && typeof c.split.engineering !== 'number') c.split.engineering = 0;
+      if (c.split && typeof c.split.engineering !== 'number') (c.split as unknown as Record<string, number>).engineering = 0;
     }
     if (fresh && a) {
       const sum = a.eng.compute + a.capRoutine.compute + a.capFrontier.compute;
@@ -420,7 +421,75 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       a.eng.compute = 1;
     }
   },
+  /** 51 → 52 (RD-A05a): the nested split becomes ONE flat allocation of compute to uses (departments/split.ts). The
+   *  research agents' line splits into routine / frontier by the packages' old shares (agents.*.compute, deleted); the
+   *  safety pool splits into safety agents, monitors and the safety research line by the claims the old priority order
+   *  granted (monitors → investigations → safety agents → lines, RD-B07), so every use keeps the compute it had; the
+   *  monitoring budget (policies.monitorBudget, deleted) becomes the monitors' line at what they used; open cases'
+   *  computeShare are rescaled to shares of the safety research line. The other labs: agents → routine / frontier at
+   *  the reference ratio; safety agents, monitors 0. Everyone: idle 0. Idempotent (only a split with an agents key). */
+  51: (raw) => migrateFlatSplit(raw as unknown as GameStateV2),
 };
+
+type OldSplit = Record<string, number>;
+/** RD-A05a's migration (51 → 52), exported for the targeted check (scripts/v2/_a05a/check.ts). */
+export function migrateFlatSplit(s: GameStateV2): void {
+  const cores = [...(s.rivals ?? []).map((r) => r.core), s.china?.lab?.core].filter(Boolean) as LabCore[];
+  const flatOf = (o: OldSplit, routine: number, frontier: number) => ({
+    training: o.training ?? 0, synthetic: o.synthetic ?? 0, experiments: o.experiments ?? 0, routine, frontier,
+    engineering: o.engineering ?? 0, safetyAgents: 0, monitors: 0, safety: o.safety ?? 0, serving: o.serving ?? 0, idle: 0,
+  });
+  for (const c of cores) {
+    const o = c.split as unknown as OldSplit;
+    if (!o || typeof o.agents !== 'number') continue;
+    const fr = REF_AGENT_SHARES.capRoutine / (REF_AGENT_SHARES.capRoutine + REF_AGENT_SHARES.capFrontier);
+    c.split = flatOf(o, o.agents * fr, o.agents * (1 - fr));
+  }
+  const p = s.player;
+  const o = p?.split as unknown as OldSplit;
+  if (!o || typeof o.agents !== 'number') return;
+  const pk = p.agents as unknown as Record<string, { compute?: number }>;
+  const pol = p.policies as unknown as Record<string, unknown>;
+  const cr = Math.max(0, pk.capRoutine?.compute ?? DEFAULT_CAP_SHARES.capRoutine);
+  const cf = Math.max(0, pk.capFrontier?.compute ?? DEFAULT_CAP_SHARES.capFrontier);
+  const rs = cr + cf;
+  const fr = rs > 0 ? cr / rs : DEFAULT_CAP_SHARES.capRoutine;
+  const ps = o.safety ?? 0;
+  const A = Math.max(0, pk.safety?.compute ?? 0);
+  const B = Math.max(0, Math.min(1, typeof pol.monitorBudget === 'number' ? pol.monitorBudget : MONITOR_STD_POOL_SHARE));
+  const open = (p.safety?.investigations ?? []).filter((i) => !i.outcome);
+  const I = open.reduce((x, i) => x + i.computeShare, 0);
+  // The flat lines of the agent uses first (the monitors' need reads them), safety agents at the request for now.
+  p.split = { ...flatOf(o, o.agents * fr, o.agents * (1 - fr)), safetyAgents: ps * A };
+  for (const u of ['eng', 'capRoutine', 'capFrontier', 'safety']) delete pk[u]?.compute;
+  delete pol.monitorBudget;
+  // RD-B07's claims on the old pool (shares of it), as safetyPoolClaims computed them.
+  let needCap = 0;
+  for (const u of CAP_USES) needCap += monitorNeedShare(s, u);
+  const nc = ps > 0 ? needCap / ps : 0;
+  const r = monitorCostRatio(s, 'safety');
+  const mon = (x: number) => (ps > 0 ? Math.min(B * ps, needCap + r * (ps * x)) / ps : 0);
+  let ag = A;
+  let inv = I;
+  if (mon(A) + I + A > 1) {
+    const mMin = mon(0);
+    if (mMin + I >= 1) {
+      ag = 0;
+      inv = Math.max(0, 1 - mMin);
+    } else {
+      const room = 1 - I;
+      const a1 = ps > 0 ? (room - nc) / (1 + r) : room;
+      ag = Math.max(0, Math.min(A, ps <= 0 || nc + r * a1 <= B ? a1 : room - B));
+    }
+  }
+  const m = mon(ag);
+  const line = Math.max(0, 1 - m - ag); // cases + lines
+  p.split = { ...p.split, safetyAgents: ps * ag, monitors: ps * m, safety: ps * line };
+  // Cases: shares of the safety research line, at the compute they were granted (inv of the pool).
+  const k = line > 0 ? 1 / line : 0;
+  const scale = I > 0 ? inv / I : 1;
+  for (const i of open) i.computeShare = i.computeShare * scale * k;
+}
 
 export function serialize(s: GameStateV2): string {
   return JSON.stringify(s);

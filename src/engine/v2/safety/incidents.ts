@@ -140,7 +140,7 @@ function deploymentContain(s: GameStateV2, v: ModelVersion, d: Deployment): numb
 }
 
 function usageOf(s: GameStateV2, d: Deployment): number {
-  if (d.channel === 'internal') return s.player.split.agents > 0 ? 1 : 0;
+  if (d.channel === 'internal') return (s.player.split.routine + s.player.split.frontier) > 0 ? 1 : 0;
   return d.servingShare;
 }
 

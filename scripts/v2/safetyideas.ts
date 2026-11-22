@@ -46,7 +46,7 @@ const post = (o: Partial<PostDesign> = {}): PostDesign => ({ ...REFERENCE_POST, 
 /** Hand safety work to the agents: Trusted to AI t on the internal model with 20% of the safety pool. */
 function trust(s: GameStateV2, t: number) {
   s.player.policies.trustedToAI = t;
-  s.player.agents.safety.compute = Math.max(s.player.agents.safety.compute, 0.2);
+  s.player.split.safetyAgents = Math.max(s.player.split.safetyAgents, 0.2);
   resetSafAllocation(s);
 }
 

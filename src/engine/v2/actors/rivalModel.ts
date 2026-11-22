@@ -378,7 +378,7 @@ export function labReferenceSplit(s: GameStateV2, r: RivalLab): void {
   const keep = r.core.split.safety;
   const rest = 1 - ref.safety;
   const sp = { ...ref, safety: r.core.split.safety };
-  for (const k of ['training', 'experiments', 'agents', 'synthetic', 'serving'] as const) sp[k] = (ref[k] / rest) * (1 - keep);
+  for (const k of ['training', 'experiments', 'routine', 'frontier', 'synthetic', 'serving'] as const) sp[k] = (ref[k] / rest) * (1 - keep);
   r.core.split = normalizeSplit(sp);
 }
 
@@ -432,7 +432,7 @@ export function initRivalPhys(w: TimelineWorld, r: RivalLab, eff = 1, publicGapO
     let rs = 1;
     if (effRun !== undefined) {
       const fpt = fptOfBase({ params: baseParams(flop0, REF_TPP) });
-      const C = r.core.computeOnline * (r.core.split.experiments + r.core.split.agents);
+      const C = r.core.computeOnline * (r.core.split.experiments + (r.core.split.routine + r.core.split.frontier));
       const f = bestRivalMix(w, r.internal.G, fpt, r.core.staff.cap, C);
       rs = evalAggregate(w, r.internal.G, fpt, r.core.staff.cap, f, C, eff * effRun, 1).rs;
     }

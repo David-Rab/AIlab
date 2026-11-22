@@ -591,7 +591,7 @@ export function optionLocked(s: GameStateV2, slot: OptionSlot, value: string | b
 export function payoffOf(s: GameStateV2, id: string): number {
   const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
   if (id === 'P13') return clamp01((measuredDomain(s, 'RSCH') - 6.5) / 2);
-  if (id === 'P20') return clamp01((s.player.computeOnline * s.player.split.agents) / 2e6);
+  if (id === 'P20') return clamp01((s.player.computeOnline * (s.player.split.routine + s.player.split.frontier)) / 2e6);
   if (id === 'P24') return clamp01((1 - 1 / Math.max(1, s.player.research.last?.x?.mExp ?? 1) - 0.5) / 0.4);
   return 1;
 }

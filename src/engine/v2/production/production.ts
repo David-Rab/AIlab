@@ -22,6 +22,7 @@ import { CHINA_ID, LEADER_ID, PLAYER_ID, bestG, labCore, otherLabs, rivalLab } f
 import { advanceRecipe, bestRivalMix, evalRival, gOfSimple, recipeRates, rivalAgentFpt, rivalReadout, serveRate } from '../actors/rivalModel';
 import { addKnowledge, trainNow } from '../models/stacks';
 import { poolsOf } from '../compute/power';
+import { withResearchAgents } from '../departments/split';
 import { rivalSpeedMult } from '../actors/rivals';
 import { deliverData, syntheticAccrual, usageAccrual } from './data';
 import { spareServingToResearch } from '../worldfx/revenue';
@@ -108,7 +109,7 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
   // Research engineers not on run operations or evals (idle ones too): what experiments + tuning held before RD-B08
   // gave tuning a finite demand, so this lab-level proxy and its readers do not move (M goes with RD-R01 / RD-R04).
   const reRes = Math.max(0, alloc.total - alloc.re.ops - alloc.re.evals);
-  const Cag = off ? 0 : pools.agents;
+  const Cag = off ? 0 : (pools.routine + pools.frontier);
   const spare = off ? 0 : spareServingToResearch(s);
   const idle = p.policies.spareTraining !== 'data' ? idleTrainingShare(s) * pools.training : 0;
   const flopEff = Math.pow(10, trainNow(s)) * (adopted(s, 'P13') ? 1 + 0.5 * payoffOf(s, 'P13') : 1);
@@ -133,7 +134,7 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
     sdAI: wc.sdAI, aEng: wc.slots.SWE.fit.a, copies: ex.copies + wc.slots.IDEAS.copies, speed: ex.copies > 0 ? speedOfCopy() : 0, aiFte: ex.aiFte,
     stage2: p.milestoneDays[3] !== undefined,
   };
-  const Cres = pools.experiments + pools.agents;
+  const Cres = pools.experiments + (pools.routine + pools.frontier);
   return {
     yr, h, k, c, mods: v3.mods, rateMult: mod.rateMult,
     mixUnit: { c: Cres * cUnit, k: off ? 0 : Cres * kUnit, C: Cres, off, idle, cIdle: idle * cUnit, ...(spare > 0 ? { spare, kSpare: spare * kUnit } : {}) },
@@ -209,13 +210,12 @@ export function rivalResearch(s: GameStateV2, r: RivalLab, apply: boolean): Prod
   const core = r.core;
   const G = gOfSimple(w, r.internal);
   const fpt = rivalAgentFpt(r);
-  const res = core.split.experiments + core.split.agents;
+  const res = core.split.experiments + (core.split.routine + core.split.frontier);
   const C = core.computeOnline * res;
   let f = res > 0 ? core.split.experiments / res : 0.5;
   if (apply && res > 0) {
     f = bestRivalMix(w, G, fpt, core.staff.cap, C);
-    core.split.experiments = res * f;
-    core.split.agents = res * (1 - f);
+    core.split = { ...withResearchAgents(core.split, res * (1 - f)), experiments: res * f };
   }
   const treaty = s.gov.treaty === 'verified' ? 0.65 : 1;
   const x = evalRival(s, r, f, C, (r.phys?.eff ?? 1) * effLab(s, core.id), rivalSpeedMult(s, core.id) * treaty);
@@ -226,7 +226,7 @@ export function rivalResearch(s: GameStateV2, r: RivalLab, apply: boolean): Prod
     if (r.phys) r.phys.serve = (r.phys.serve ?? 0) + serveRate(s, r, x.rs) / 365;
   }
   const pools = poolsOf(s, core.id);
-  return rivalReadout(x, core.milestoneDays[3] !== undefined, { h: (x.units * RE_UNIT) / DAY0_REF.re, k: pools.agents / DAY0_REF.agents, c: x.c });
+  return rivalReadout(x, core.milestoneDays[3] !== undefined, { h: (x.units * RE_UNIT) / DAY0_REF.re, k: (pools.routine + pools.frontier) / DAY0_REF.agents, c: x.c });
 }
 
 /** Spare serving compute lent to research agents (J2 PR1) and what it adds to research speed today (experiment

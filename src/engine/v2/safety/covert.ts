@@ -188,7 +188,7 @@ export function noteCovert(s: GameStateV2, ctx: SystemCtx, v: ModelVersion, t: C
 }
 
 /** The internal fleet's compute (H100e): the agent pool plus spare serving lent to research (workfit useLabour). */
-export const internalFleetCompute = (s: GameStateV2) => s.player.computeOnline * s.player.split.agents + spareServingToResearch(s);
+export const internalFleetCompute = (s: GameStateV2) => s.player.computeOnline * (s.player.split.routine + s.player.split.frontier) + spareServingToResearch(s);
 
 /** Hidden record of an act (engine only): uncaught acts, their summed severity (footholds' acts and severity for the
  *  acts that leave one, model v3 E8; STEER's flags), caught acts. */

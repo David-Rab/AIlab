@@ -747,7 +747,7 @@ function ServingCard({ s, live, reads }: { s: GameStateV2; live: Deployment[]; r
   const lent = spareServingToResearch(s) > 0 || s.player.policies.spareServing !== 'headroom';
   // F6b: the bar is the pool; demand it cannot meet is a line under it (inline it squeezed the products to '…' at the start).
   const total = Math.max(1, rows.reduce((a, x) => a + used(x.r), 0) + spare);
-  const agentPool = s.player.computeOnline * s.player.split.agents;
+  const agentPool = s.player.computeOnline * (s.player.split.routine + s.player.split.frontier);
   const auto = s.player.policies.servingAuto;
   const order = [...rows].sort((a, b) => b.r.rpH - a.r.rpH);
   const [shares, setShares] = useState<Record<string, number>>({});

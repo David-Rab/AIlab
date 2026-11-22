@@ -5,7 +5,7 @@
 //   agents.trusted  {share}                                                          — Trusted to AI (0–100%)
 //   agents.monitorBudget {share}                                                     — SAFMECH: monitoring budget (share of the safety pool)
 import {
-  AGENT_USES, AGENT_USE_DEF, MONITOR_SAME, SAFETY_AGENT_DEFAULT_SHARE, SAFETY_AGENT_MAX_SHARE, type CapUse,
+  AGENT_USES, AGENT_USE_DEF, MONITOR_SAME, SAFETY_AGENT_DEFAULT_SHARE, type CapUse,
 } from '../../../data/v2/agents';
 import { decimalYear } from '../core/time';
 import { measuredLOf, versionById } from '../models/labs';
@@ -16,9 +16,9 @@ import { safetyFleet } from '../safety/agents';
 import { believedResultThreat, believedSabotage } from '../safety/covert';
 import { resultsPerYearAt } from '../safety/agendas';
 import { underControl, useControl, type ControlReadout } from '../safety/oversight';
-import type { ActionDef, AgentPackage, AgentUse, CostLine, GameStateV2, ModelVersion, ProductionReadout } from '../types';
+import type { ComputeSplit, ActionDef, AgentPackage, AgentUse, CostLine, GameStateV2, ModelVersion, ProductionReadout } from '../types';
 import {
-  agentSplitShare, agentVersion, capShare, isCapUse, monitorBudget, monitorH100e, monitorStrength, monitorVersion, riskBadges, type MonitorBudget,
+  agentSplitShare, agentVersion, capShare, monitorBudget, monitorH100e, monitorStrength, monitorVersion, riskBadges, type MonitorBudget,
   type RiskBadge,
 } from './agents';
 import { buildCapacity } from './teams';
@@ -31,11 +31,13 @@ const r3 = (x: number) => Math.round(x * 1000) / 1000;
 const isUse = (x: string | undefined): x is AgentUse => !!x && (AGENT_USES as string[]).includes(x);
 const live = (v: ModelVersion | undefined): v is ModelVersion => !!v && v.status !== 'retired' && v.status !== 'rolledBack';
 
-/** A change to one package: model (null = follow routine research), monitor (null = none, 'same', id), compute. */
+/** A change to one package: model (null = follow routine research), monitor (null = none, 'same', id), compute (RD-A05a:
+ *  written to the flat allocation, splitWithChange: routine / frontier = the routine share of the research agents'
+ *  compute; safety = its line as a share of total compute, taken from / given back to the safety research line). */
 export interface AgentChange { versionId?: string | null; monitorId?: string | null; compute?: number }
 
-/** The packages with one change applied (copies; the input is not mutated). Capabilities compute: the other two
- *  capabilities uses rescale to keep the shares summing to 1. */
+/** The packages with one change applied (copies; the input is not mutated). Compute is not part of a package
+ *  (RD-A05a): splitWithChange. */
 export function withAgentChange(s: GameStateV2, use: AgentUse, c: AgentChange): Record<AgentUse, AgentPackage> {
   const a = Object.fromEntries(AGENT_USES.map((u) => [u, { ...s.player.agents[u] }])) as Record<AgentUse, AgentPackage>;
   const p = a[use];
@@ -47,16 +49,23 @@ export function withAgentChange(s: GameStateV2, use: AgentUse, c: AgentChange): 
     if (c.monitorId) p.monitorId = c.monitorId;
     else delete p.monitorId;
   }
-  if (c.compute !== undefined) {
-    if (!isCapUse(use)) p.compute = Math.max(0, Math.min(SAFETY_AGENT_MAX_SHARE, c.compute));
-    else if (use !== 'eng') { // RD-A02: engineering's compute is its own split line (Compute › Split), not a share here
-      const x = Math.max(0, Math.min(1, c.compute));
-      const other = use === 'capRoutine' ? 'capFrontier' : 'capRoutine';
-      a[other].compute = 1 - x;
-      p.compute = x;
-    }
-  }
   return a;
+}
+
+/** The allocation with one package's compute change applied (copy; RD-A05a). */
+export function splitWithChange(s: GameStateV2, use: AgentUse, c: AgentChange): ComputeSplit {
+  const sp = { ...s.player.split };
+  if (c.compute === undefined || use === 'eng') return sp;
+  if (use === 'safety') {
+    const v = Math.max(0, Math.min(sp.safetyAgents + sp.safety, c.compute));
+    sp.safety -= v - sp.safetyAgents;
+    sp.safetyAgents = v;
+    return sp;
+  }
+  const r = sp.routine + sp.frontier;
+  const x = Math.max(0, Math.min(1, c.compute));
+  const own = use === 'capRoutine' ? x : 1 - x;
+  return { ...sp, routine: r * own, frontier: r * (1 - own) };
 }
 
 /** Why a change cannot apply (undefined = fine). */
@@ -70,8 +79,8 @@ export function agentChangeBlock(s: GameStateV2, use: AgentUse, c: AgentChange):
   return undefined;
 }
 
-const hypo = (s: GameStateV2, agents: Record<AgentUse, AgentPackage>, trusted?: number): GameStateV2 => ({
-  ...s, player: { ...s.player, agents, ...(trusted !== undefined ? { policies: { ...s.player.policies, trustedToAI: trusted } } : {}) },
+const hypo = (s: GameStateV2, agents: Record<AgentUse, AgentPackage>, trusted?: number, split?: ComputeSplit): GameStateV2 => ({
+  ...s, player: { ...s.player, agents, ...(split ? { split } : {}), ...(trusted !== undefined ? { policies: { ...s.player.policies, trustedToAI: trusted } } : {}) },
 });
 
 /** Production readout at the lab's research mix, from state (no mutation). */
@@ -136,7 +145,7 @@ export interface AgentsView {
 const viewMemo = new WeakMap<object, Map<string, AgentsView>>();
 const viewKey = (s: GameStateV2) => {
   const p = s.player;
-  return `${s.time.day}|${p.computeOnline}|${p.split.agents}|${p.split.safety}|${p.split.experiments}|${p.split.engineering}|${p.policies.trustedToAI}|${p.policies.monitorBudget}|${p.models.versions.length}|${p.teams.length}|${p.paradigms.P27?.status ?? ''}|${p.research.last?.x?.mExp ?? 0}|${JSON.stringify(p.agents)}|${underControl(s) ? 1 : 0}`;
+  return `${s.time.day}|${p.computeOnline}|${(p.split.routine + p.split.frontier)}|${p.split.safety}|${p.split.experiments}|${p.split.engineering}|${p.policies.trustedToAI}|${p.split.monitors}|${p.split.safetyAgents}|${p.models.versions.length}|${p.teams.length}|${p.paradigms.P27?.status ?? ''}|${p.research.last?.x?.mExp ?? 0}|${JSON.stringify(p.agents)}|${underControl(s) ? 1 : 0}`;
 };
 
 /** Everything the Agents-at-work panel shows, for the current packages (or a hypothetical state). */
@@ -176,7 +185,7 @@ function computeAgentsView(s: GameStateV2): AgentsView {
       use: u, version: v, L: measuredLOf(s, v).L, follows: u !== 'capRoutine' && !s.player.agents[u].versionId,
       monitor: mon, monitorSame: s.player.agents[u].monitorId === MONITOR_SAME,
       catch: ms.catch, strength: ms.strength, gap: ms.gap, copy: ms.copy, catchColl: ms.catchColl, control: useControl(s, v, mon),
-      compute, share: u === 'safety' ? s.player.agents.safety.compute : capShare(s, u as CapUse),
+      compute, share: u === 'safety' ? s.player.split.safetyAgents : capShare(s, u as CapUse),
       copies: v ? copiesOf(compute, agentFpt(s, v)) : 0, speed,
       aiShare, cost: compute * tco, monitorCost: monH * tco, monitorH100e: monH, risk: riskBadges(v),
     };
@@ -194,21 +203,23 @@ export interface AgentPreview { before: AgentsView; after: AgentsView; use: Agen
 
 /** Before → after of one package change (what the next tick computes; D7). */
 export function previewAgentChange(s: GameStateV2, use: AgentUse, c: AgentChange): AgentPreview {
-  return { before: agentsView(s), after: agentsView(hypo(s, withAgentChange(s, use, c))), use, block: agentChangeBlock(s, use, c), fromDay: s.time.day + 1 };
+  return { before: agentsView(s), after: agentsView(hypo(s, withAgentChange(s, use, c), undefined, splitWithChange(s, use, c))), use, block: agentChangeBlock(s, use, c), fromDay: s.time.day + 1 };
 }
 
 /** Before → after of a Trusted-to-AI change (safety results per year across staffed research lines; the AI share of
  *  safety work, which weighs false results). */
 export function previewTrusted(s: GameStateV2, share: number): { findingsBefore: number; findingsAfter: number; aiShareBefore: number; aiShareAfter: number } {
   const t = Math.max(0, Math.min(1, share));
-  const s2 = hypo(s, startAgents(s, t), t);
+  const s2 = hypo(s, s.player.agents, t, startAgents(s, t));
   return { findingsBefore: resultsPerYearAt(s), findingsAfter: resultsPerYearAt(s2), aiShareBefore: safetyFleet(s).aiShare, aiShareAfter: safetyFleet(s2).aiShare };
 }
 
-/** Packages after turning Trusted to AI on: safety agents get the default share of the safety pool if none run. */
-function startAgents(s: GameStateV2, t: number): Record<AgentUse, AgentPackage> {
-  if (t > 0 && s.player.agents.safety.compute <= 0) return withAgentChange(s, 'safety', { compute: SAFETY_AGENT_DEFAULT_SHARE });
-  return s.player.agents;
+/** Allocation after turning Trusted to AI on: safety agents get the default share of the safety research line if none
+ *  run (taken from that line, explicitly). */
+function startAgents(s: GameStateV2, t: number): ComputeSplit {
+  const sp = s.player.split;
+  if (t > 0 && sp.safetyAgents <= 0) return splitWithChange(s, 'safety', { compute: SAFETY_AGENT_DEFAULT_SHARE * sp.safety });
+  return sp;
 }
 
 /** Change from action params (absent keys = no change; versionId '' = follow routine research; monitorId '' = none). */
@@ -242,8 +253,10 @@ const AGENTS_SET: ActionDef = {
     const dCatch = r3(a.lanes[use].catch - b.lanes[use].catch);
     if (dCatch > 0) gains.push({ currency: 'alignment', amount: dCatch, target: `${AGENT_USE_DEF[use].name}: monitor catch` });
     else if (dCatch < 0) costs.push({ currency: 'alignment', amount: dCatch, target: `${AGENT_USE_DEF[use].name}: monitor catch` });
-    const dMon = a.monitors.poolShare - b.monitors.poolShare;
-    if (Math.abs(dMon) > 1e-6) (dMon > 0 ? costs : gains).push({ currency: 'compute', amount: r3(Math.abs(dMon) * 100), target: dMon > 0 ? '% of the safety pool to monitors' : '% of the safety pool back to safety research' });
+    const dMon = a.monitors.used - b.monitors.used;
+    if (Math.abs(dMon) > 1e-6) (dMon > 0 ? costs : gains).push({ currency: 'compute', amount: r3(Math.abs(dMon) * 100), target: dMon > 0 ? '% of compute: the monitors use more of their line' : '% of compute: the monitors use less of their line (unused, shown)' });
+    const dAg = a.lanes[use].compute - b.lanes[use].compute;
+    if (Math.abs(dAg) > 1e-6) (dAg > 0 ? costs : gains).push({ currency: 'compute', amount: Math.round(Math.abs(dAg)), unit: 'H100e', target: use === 'safety' ? (dAg > 0 ? 'from the safety research lines' : 'back to the safety research lines') : (dAg > 0 ? 'from the other research agents' : 'to the other research agents') });
     // RD-B18 (B33): build capacity before → after, also when a routine / frontier compute change re-normalises the
     // engineering share (withAgentChange). The old constant "security −0.05" line is gone: nothing applied it.
     const dB = r3(a.build - b.build);
@@ -266,6 +279,7 @@ const AGENTS_SET: ActionDef = {
       next.capRoutine.versionId = s.player.agents.capRoutine.versionId;
     }
     s.player.agents = next;
+    if (c.compute !== undefined) s.player.split = splitWithChange(s, use, c);
     const v = agentVersion(s, use);
     const mon = monitorVersion(s, use);
     if (c.versionId !== undefined || c.monitorId !== undefined) ctx.log('company', `${AGENT_USE_DEF[use].name} agents: ${v?.name ?? 'none'}${mon ? `, monitored by ${s.player.agents[use].monitorId === MONITOR_SAME ? 'a copy of itself' : mon.name}` : ', no monitor'}.`, 1);
@@ -280,9 +294,9 @@ const AGENTS_TRUSTED: ActionDef = {
     const pv = previewTrusted(s, share);
     const sab = believedSabotage(s, pv.aiShareAfter, believedResultThreat(s));
     const dY = r3(pv.findingsAfter - pv.findingsBefore);
-    const startsFleet = share > 0 && s.player.agents.safety.compute <= 0;
+    const startsFleet = share > 0 && s.player.split.safetyAgents <= 0;
     return {
-      costs: [{ currency: 'compute', amount: startsFleet ? SAFETY_AGENT_DEFAULT_SHARE * 100 : 0, target: startsFleet ? '% of the safety pool to start safety agents' : 'shares the safety agents' }],
+      costs: [{ currency: 'compute', amount: startsFleet ? SAFETY_AGENT_DEFAULT_SHARE * 100 : 0, target: startsFleet ? '% of the safety research line to start safety agents' : 'shares the safety agents' }],
       gains: dY !== 0 ? [{ currency: 'alignment', amount: dY, target: 'safety findings / yr' }] : [],
       // Model v3 E7: the safety model's sabotage attempts per result on the work it would do (covert.ts SAFSAB, from the
       // believed SAND + SCHEME and measured level): false or discarded results.
@@ -293,30 +307,39 @@ const AGENTS_TRUSTED: ActionDef = {
     const share = num(p, 'share');
     if (share === undefined) throw new Error('Trusted to AI: give a share');
     const t = Math.max(0, Math.min(1, share));
-    if (t > 0 && s.player.agents.safety.compute <= 0) {
-      s.player.agents = startAgents(s, t);
-      ctx.log('company', `Safety agents started on ${Math.round(SAFETY_AGENT_DEFAULT_SHARE * 100)}% of safety compute.`, 1);
+    if (t > 0 && s.player.split.safetyAgents <= 0) {
+      s.player.split = startAgents(s, t);
+      ctx.log('company', `Safety agents started on ${Math.round(SAFETY_AGENT_DEFAULT_SHARE * 100)}% of the safety research line.`, 1);
     }
     s.player.policies.trustedToAI = t;
     ctx.log('company', `Trusted to AI: ${Math.round(t * 100)}% of safety work.`, 1);
   },
 };
 
-/** SAFMECH: the monitoring budget's step in the UI and its range (a share of the safety pool). */
-export const MONITOR_BUDGET_STEP = 0.05;
+/** SAFMECH: the monitoring budget's step in the UI (RD-A05a: the monitors' line, a share of total compute). */
+export const MONITOR_BUDGET_STEP = 0.001;
 
-/** Monitoring readout at a budget (share of the safety pool): coverage and H100e spent (previews; no mutation). */
+/** The allocation with the monitors' line at `share` of total compute, the difference taken from / given back to the
+ *  safety research line (capped by it). */
+function withMonitors(s: GameStateV2, share: number): ComputeSplit {
+  const sp = { ...s.player.split };
+  const v = Math.max(0, Math.min(sp.monitors + sp.safety, share));
+  sp.safety -= v - sp.monitors;
+  sp.monitors = v;
+  return sp;
+}
+
+/** Monitoring readout at a budget (share of total compute): coverage and H100e used (previews; no mutation). */
 export function monitorAt(s: GameStateV2, share: number): MonitorBudget & { h100e: number } {
-  const h = { ...s, player: { ...s.player, policies: { ...s.player.policies, monitorBudget: share } } };
-  const b = monitorBudget(h);
-  return { ...b, h100e: s.player.computeOnline * s.player.split.safety * b.poolShare };
+  const b = monitorBudget({ ...s, player: { ...s.player, split: withMonitors(s, share) } });
+  return { ...b, h100e: s.player.computeOnline * b.used };
 }
 
 const AGENTS_MONITOR_BUDGET: ActionDef = {
   id: 'agents.monitorBudget', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Monitoring budget',
   available: () => true,
   preview(s, p) {
-    const cur = s.player.policies.monitorBudget;
+    const cur = s.player.split.monitors;
     const share = Math.max(0, Math.min(1, num(p, 'share') ?? cur + MONITOR_BUDGET_STEP));
     const a = monitorAt(s, cur);
     const b = monitorAt(s, share);
@@ -335,9 +358,9 @@ const AGENTS_MONITOR_BUDGET: ActionDef = {
   },
   apply(s, ctx, p) {
     const share = num(p, 'share');
-    if (share === undefined) throw new Error('Monitoring budget: give a share of the safety pool');
-    s.player.policies.monitorBudget = Math.max(0, Math.min(1, share));
-    ctx.log('company', `Monitoring budget: ${Math.round(s.player.policies.monitorBudget * 100)}% of safety compute (coverage ${Math.round(monitorBudget(s).coverage * 100)}%).`, 1);
+    if (share === undefined) throw new Error('Monitoring budget: give a share of total compute');
+    s.player.split = withMonitors(s, share);
+    ctx.log('company', `Monitoring budget: ${(s.player.split.monitors * 100).toFixed(1)}% of compute (coverage ${Math.round(monitorBudget(s).coverage * 100)}%).`, 1);
   },
 };
 

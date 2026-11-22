@@ -12,7 +12,6 @@ import { OOM_PER_HALVING } from '../../../data/v2/oversight';
 import { CAPACITY_UNIT, PROJECT_BY_ID, SPECIALTY_BONUS, isLineNode } from '../../../data/v2/tree';
 import { QUALITY } from '../../../data/v2/teams';
 import { safetyLabour } from '../departments/workfit';
-import { safetyPoolClaims } from '../departments/agents';
 import { EDGES } from '../../../data/v2/edges';
 import { internalVersion } from '../models/labs';
 import type { AgendaId, AgendaState, EngineSystem, GameStateV2, SafetyDept, SystemCtx, Team, TechniqueState } from '../types';
@@ -88,15 +87,8 @@ export function safetyRe(s: GameStateV2): { heads: number; investigations: numbe
 
 // ───────── compute ─────────
 
-/** Share of the safety pool taken before research lines (R7): monitors on internal uses (paid first), the safety agents
- *  (granted shares, RD-B07). */
-export function safetyReserved(s: GameStateV2): number {
-  const c = safetyPoolClaims(s);
-  return c.monitors.granted + c.agents.granted;
-}
-
 /**
- * Line compute shares of the safety pool (model v3 E1): the pool after monitors, the safety agents and investigations is
+ * Line compute shares of the safety pool (model v3 E1): the safety research line (split.safety, RD-A05a) after investigations is
  * shared by the line projects in experiments in proportion to their research engineers × their agenda's compute need
  * (computeRef, R14's cost column); a line not in experiments uses none (safety/lineProjects.ts safAllocation). Returns
  * the line pool (H100e).

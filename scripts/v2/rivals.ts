@@ -270,7 +270,7 @@ if (process.argv.includes('--ref')) {
       const G = gOfBuild(v.build);
       const fpt = v.fpt ?? 4e12;
       const pools = poolsOf(x);
-      const C = pools.experiments + pools.agents;
+      const C = pools.experiments + pools.routine + pools.frontier;
       const a = evalAggregate(w, G, fpt, x.player.staff.cap, bestRivalMix(w, G, fpt, x.player.staff.cap, C), C, 1, 1);
       const pool = { pre: u(x, ['L.scale', 'L.data', 'L.opt']), mid: u(x, ['L.rlalg']), ceil: u(x, ['L.env']) };
       const F = latestBaseFlop(x);

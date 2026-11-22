@@ -5,6 +5,7 @@ import type { ComputeSplit, EngineSystem, GameStateV2, LabId, PowerGrid, SystemC
 import { defaultPowerWS3, ensureWs3 } from '../finance/ext';
 import { labCore } from '../models/labs';
 import { hiddenComputeH } from '../safety/footholds';
+import { allocOf, emptySplit, SPLIT_KEYS } from '../departments/split';
 
 /** US large-load grid pool 1.5 GW/q at Q3 2025, ×1.25/yr (2.0 GW/q in 2026) [R15]; kW/H100e 0.93 → 0.70 (Q4 2026). */
 export function initialPower(): PowerGrid {
@@ -34,12 +35,14 @@ export function computeOnlineOf(s: GameStateV2): number {
   return ownedOnline(s) + rentedOnline(s);
 }
 
-/** Compute pools (H100e) of a lab: online × split (§3.4.2). WS1/WS2 read pools through this. */
+/** Compute per use (H100e) of a lab: online × its flat allocation (§3.4.2; RD-A05a: departments/split.ts allocOf, the
+ *  one allocation every reader uses). */
 export function poolsOf(s: GameStateV2, lab: LabId = 'player'): ComputeSplit {
   const c = labCore(s, lab);
-  const out: ComputeSplit = { training: 0, experiments: 0, agents: 0, synthetic: 0, serving: 0, safety: 0, engineering: 0 };
+  const out = emptySplit();
   if (!c) return out;
-  for (const k of Object.keys(out) as (keyof ComputeSplit)[]) out[k] = c.computeOnline * (c.split[k] ?? 0);
+  const a = lab === 'player' ? allocOf(s) : c.split;
+  for (const k of SPLIT_KEYS) out[k] = c.computeOnline * (a[k] ?? 0);
   return out;
 }
 

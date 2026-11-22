@@ -70,7 +70,7 @@ const misaligned = (v: ModelVersion, x: number) => { for (const t of Object.keys
     'opportunity: AI R&D share 0.2 → 0.8 raises research sabotage ×4 (overreach unchanged)');
   const s2 = fresh();
   const r0 = aiRdShare(s2);
-  s2.player.split.agents *= 0.01;
+  s2.player.split.routine *= 0.01; s2.player.split.frontier *= 0.01;
   resetWorkContext(s2);
   const r1 = aiRdShare(s2);
   check(r1 < r0, 'AI R&D share falls when the lab cuts its agent compute (V3 work types)', `${r0.toFixed(3)} → ${r1.toFixed(3)}`);
@@ -120,7 +120,7 @@ const misaligned = (v: ModelVersion, x: number) => { for (const t of Object.keys
   // Human review: less AI share of R&D → more of the work done (and reviewed) by humans → more caught inside the lab.
   const d = dep(s, 'internal');
   const c0 = row(dangerOf(s, d, v, 1), 'RH')!.catch;
-  s.player.split.agents *= 0.01;
+  s.player.split.routine *= 0.01; s.player.split.frontier *= 0.01;
   resetWorkContext(s);
   const c1 = row(dangerOf(s, d, v, 1), 'RH')!.catch;
   check(c1 > c0, 'oversight: human review rises as humans do more of the R&D', `catch ${c0.toFixed(3)} → ${c1.toFixed(3)}`);

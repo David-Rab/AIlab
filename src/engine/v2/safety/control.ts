@@ -227,7 +227,7 @@ export function controlStep(s: GameStateV2, ctx: SystemCtx): void {
         let e = 0;
         for (const fl of fleets) if (fl.usage > 0 && fl.v.status !== 'retired' && lineageOf(s, fl.v) === f.lineage) e = Math.max(e, controlTerms(s, fl.v).exposure);
         if (e <= 0) continue;
-        const pool = Math.max(0, s.player.computeOnline * (s.player.split.agents ?? 0));
+        const pool = Math.max(0, s.player.computeOnline * ((s.player.split.routine + s.player.split.frontier)));
         f.size = Math.min(Math.max(f.size, pool), f.size * (1 + CONTROL.hidCompGrowth * e * s.hidden.difficultyMult));
       }
     }

@@ -1,22 +1,31 @@
-// Compute split (moved from Company in R7: one home per control, BUILD-PLAN R7). HOME of the compute split %, the
-// research mix (experiments ↔ research agents, the player's own setting since RD-A02: no Auto), the engineering agents'
-// own line (RD-A02), spare training compute and the research response charts. The split between routine and frontier
-// research agents lives on Company › Agents at work.
+// Compute allocation (moved from Company in R7: one home per control, BUILD-PLAN R7). HOME of the compute allocation:
+// RD-A05a, ONE flat list of uses (training runs, data generation, experiments, each agent package, monitors, safety
+// research, products, idle), each a share of total compute summing to 1; no nested sub-sliders. Also home of spare
+// training / serving compute and the research response charts. Models per agent use: Company › Agents at work.
 import { useState } from 'react';
-import type { ReactNode } from 'react';
-import { LENT_RECOVERY, MIX_RANGE, actionView, idleTrainingShare, poolsOf, spareServing, specOf, SPLIT_PRESETS, TOP_KEYS } from '../../../engine/v2';
-import type { GameStateV2, SplitSpec, TopKey } from '../../../engine/v2';
+import { LENT_RECOVERY, actionView, idleTrainingShare, poolsOf, spareServing, SPLIT_KEYS, SPLIT_LABEL, SPLIT_PRESETS } from '../../../engine/v2';
+import type { ComputeSplit, GameStateV2 } from '../../../engine/v2';
 import { ResponseCharts } from './ResearchCharts';
 import { ActBtn, pct as pct0, Slider, Term, Tip, TipCard } from '../ui';
-import { Card, Ref } from '../kit';
+import { Card } from '../kit';
 import * as F from '../fmt';
 import { POOL_COLOR } from '../theme';
 
-const TOP_TERM: Record<TopKey, string> = { training: 'poolTraining', research: 'poolResearch', engineering: 'engAgents', serving: 'poolServing', safety: 'poolSafety' };
-const TOP_COLOR: Record<TopKey, string> = { training: POOL_COLOR.training, research: POOL_COLOR.experiments, engineering: POOL_COLOR.engineering, serving: POOL_COLOR.serving, safety: POOL_COLOR.safety };
-
-// ───────── Split ─────────
-const TOP_LABEL: Record<TopKey, string> = { training: 'Training', research: 'Research', engineering: 'Engineering agents', serving: 'Serving', safety: 'Safety' };
+type Key = keyof ComputeSplit;
+const TERM: Partial<Record<Key, string>> = {
+  training: 'poolTraining', synthetic: 'poolSynthetic', experiments: 'poolExperiments', routine: 'poolAgents', frontier: 'poolAgents',
+  engineering: 'engAgents', safetyAgents: 'safetyAgents', monitors: 'agentMonitor', safety: 'poolSafety', serving: 'poolServing',
+};
+const COLOR: Record<Key, string> = {
+  training: POOL_COLOR.training, synthetic: POOL_COLOR.synthetic, experiments: POOL_COLOR.experiments, routine: POOL_COLOR.agents, frontier: POOL_COLOR.agents,
+  engineering: POOL_COLOR.engineering, safetyAgents: POOL_COLOR.safety, monitors: POOL_COLOR.safety, safety: POOL_COLOR.safety, serving: POOL_COLOR.serving, idle: '#8a8f98',
+};
+const WHAT: Record<Key, string> = {
+  training: 'Training runs in the queue.', synthetic: 'Synthetic data for bigger bases.', experiments: 'Research experiments (with the research agents, the research engine).',
+  routine: 'AI agents doing routine research (experiments).', frontier: 'AI agents doing frontier research (ideas, research taste).',
+  engineering: 'AI agents coding for the build queue.', safetyAgents: 'AI agents doing safety research.', monitors: "Monitors watching the internal agents' forward passes; what full coverage does not need stays unused (shown on Safety).",
+  safety: 'Safety research: open cases first, the research lines take the rest.', serving: 'Inference for your products.', idle: 'Compute no use takes. Shown, never moved to a use on its own.',
+};
 
 /** Spare training compute (R5 policy; R6 default data generation): where training compute no run uses goes, with what
  *  each choice gives today. Home of the policy; the run queue shows the spare share and links here. */
@@ -47,7 +56,7 @@ function SpareRow({ s }: { s: GameStateV2 }) {
 function SpareServingRow({ s }: { s: GameStateV2 }) {
   const use = s.player.policies.spareServing;
   const spare = spareServing(s);
-  const agents = s.player.computeOnline * s.player.split.agents;
+  const agents = s.player.computeOnline * (s.player.split.routine + s.player.split.frontier);
   const toResearch = actionView(s, 'serving.spare', { use: 'research' });
   const gain = ([...toResearch.gains, ...toResearch.costs].find((c) => c.currency === 'progress')?.amount ?? 0) / 100; // the line is in % (F6b)
   return (
@@ -69,58 +78,41 @@ function SpareServingRow({ s }: { s: GameStateV2 }) {
 
 export function Split({ s }: { s: GameStateV2 }) {
   const p = s.player;
-  const cur = specOf(p.split);
-  const [spec, setSpec] = useState<SplitSpec>(cur);
-
-  const sum = TOP_KEYS.reduce((a, k) => a + spec.top[k], 0) || 1;
-  const totalH = s.player.computeOnline;
-  const norm = Object.fromEntries(TOP_KEYS.map((k) => [k, spec.top[k] / sum])) as Record<TopKey, number>;
-  const changed = TOP_KEYS.some((k) => Math.abs(norm[k] - cur.top[k]) > 1e-3) || Math.abs(spec.dataShare - cur.dataShare) > 1e-3 || Math.abs(spec.expShare - cur.expShare) > 1e-3;
-  const params: Record<string, number> = { ...norm, dataShare: spec.dataShare, expShare: spec.expShare };
-  const reset = () => setSpec(specOf(s.player.split));
-  // What a zero share does (no floors: the split always applies; these say what stops).
+  const cur = p.split;
+  const [alloc, setAlloc] = useState<ComputeSplit>(cur);
+  const sum = SPLIT_KEYS.reduce((a, k) => a + Math.max(0, alloc[k]), 0) || 1;
+  const totalH = p.computeOnline;
+  const norm = Object.fromEntries(SPLIT_KEYS.map((k) => [k, Math.max(0, alloc[k]) / sum])) as unknown as ComputeSplit;
+  const changed = SPLIT_KEYS.some((k) => Math.abs(norm[k] - cur[k]) > 1e-4);
+  const params: Record<string, number> = { ...norm };
+  const reset = () => setAlloc(s.player.split);
+  // What a zero share does (no floors: the allocation always applies; these say what stops).
   const warns: string[] = [];
-  if (norm.training * (1 - spec.dataShare) <= 1e-4 && p.models.runs.some((r) => r.status === 'running')) warns.push('Running training runs pause: no training compute');
+  if (norm.training <= 1e-4 && p.models.runs.some((r) => r.status === 'running')) warns.push('Running training runs pause: no training compute');
   if (norm.serving <= 1e-4 && p.deployments.some((d) => d.status === 'live' && d.channel !== 'internal' && d.channel !== 'open')) warns.push('Every product goes capacity-bound: no serving compute');
-  const row = (k: TopKey, sub?: ReactNode) => (
-    <div key={k} className="split-group" id={`ctl-split-${k}`}>
-      <div className="alloc-row split-row">
-        <span className="alloc-label"><span className="dot" style={{ background: TOP_COLOR[k] }} /><Term id={TOP_TERM[k]}>{TOP_LABEL[k]}</Term></span>
-        <Slider value={spec.top[k]} min={0} max={1} step={0.01} onChange={(v) => setSpec({ ...spec, top: { ...spec.top, [k]: v } })} width={260} />
-        <Tip content={() => <TipCard title={<Term id={TOP_TERM[k]}>{TOP_LABEL[k]}</Term>} value={pct0(norm[k])} rows={[{ label: 'Now', value: `${pct0(cur.top[k])} · ${F.h100e(cur.top[k] * totalH)} H100e` }, { label: 'After apply', value: `${pct0(norm[k])} · ${F.h100e(norm[k] * totalH)} H100e` }]}>Share of your compute online.</TipCard>}><span className="alloc-val num">{pct0(norm[k])}</span></Tip>
-        <Tip content={() => <TipCard title="Before the change" value={pct0(cur.top[k])}>Apply to make the new split take effect.</TipCard>}><span className={`num small ${Math.abs(norm[k] - cur.top[k]) > 1e-3 ? 'tone-warn' : 'dim'}`}>{Math.abs(norm[k] - cur.top[k]) > 1e-3 ? `was ${pct0(cur.top[k])}` : ''}</span></Tip>
-      </div>
-      {sub}
+  const label = (k: Key) => (TERM[k] ? <Term id={TERM[k] as string}>{SPLIT_LABEL[k]}</Term> : SPLIT_LABEL[k]);
+  const row = (k: Key) => (
+    <div key={k} className="alloc-row split-row" id={`ctl-split-${k}`}>
+      <span className="alloc-label"><span className="dot" style={{ background: COLOR[k] }} />{label(k)}</span>
+      <Slider value={alloc[k]} min={0} max={Math.min(1, Math.max(0.05, cur[k] * 4))} step={0.0005} onChange={(v) => setAlloc({ ...alloc, [k]: v })} width={260} />
+      <Tip content={() => <TipCard title={label(k)} value={pct0(norm[k])} rows={[{ label: 'Now', value: `${pct0(cur[k])} · ${F.h100e(cur[k] * totalH)} H100e` }, { label: 'After apply', value: `${pct0(norm[k])} · ${F.h100e(norm[k] * totalH)} H100e` }]}>{WHAT[k]} Share of your compute online.</TipCard>}><span className="alloc-val num">{F.pct(norm[k], 1)}</span></Tip>
+      <span className={`num small ${Math.abs(norm[k] - cur[k]) > 1e-4 ? 'tone-warn' : 'dim'}`}>{Math.abs(norm[k] - cur[k]) > 1e-4 ? `was ${F.pct(cur[k], 1)}` : `${F.h100e(cur[k] * totalH)} H100e`}</span>
     </div>
   );
   return (
     <div className="split-page">
-      <Card title={<Term id="split">Compute split</Term>} sub="drag, then apply" home="split" right={<div className="btn-row">{SPLIT_PRESETS.map((x) => <ActBtn key={x} id="splitPreset" testId={`splitPreset.${x}`} params={{ preset: x }} label={F.words(x)} onDone={reset} />)}</div>}>
-        <div className="split-bar">{TOP_KEYS.map((k) => <i key={k} style={{ flex: Math.max(0.0001, norm[k]), background: TOP_COLOR[k] }} title={TOP_LABEL[k]} />)}</div>
-        {row('training', (<>
-          <div className="alloc-row split-row split-sub" id="ctl-split-synthetic">
-            <span className="alloc-label small"><Term id="poolSynthetic">Data generation</Term></span>
-            <Slider value={spec.dataShare} min={0} max={1} step={0.01} onChange={(v) => setSpec({ ...spec, dataShare: v })} width={260} />
-            <Tip content={() => <TipCard title={<Term id="poolSynthetic">Data generation</Term>} value={pct0(spec.dataShare)}>Share of the training pool that generates synthetic data for bigger bases.</TipCard>}><span className="alloc-val num small">{pct0(spec.dataShare)}</span></Tip>
-            <span className="small dim">of training</span>
-          </div>
-          <SpareRow s={s} />
-        </>))}
-        {row('research', (
-          <div className="alloc-row split-row split-sub" id="ctl-split-experiments">
-            <span className="alloc-label small"><Term id="researchMix">Mix</Term></span>
-            <Slider value={spec.expShare} min={MIX_RANGE[0]} max={MIX_RANGE[1]} step={0.01} onChange={(v) => setSpec({ ...spec, expShare: v })} width={260} />
-            <Tip content={() => <TipCard title={<Term id="researchMix">Research mix</Term>} value={`${pct0(spec.expShare)} experiments`}>The rest of the research pool runs AI research agents (routine and frontier). It stays where you set it.</TipCard>}><span className="alloc-val num small">{pct0(spec.expShare)}</span></Tip>
-            <span className="small dim">experiments · rest <Term id="poolAgents">agents</Term></span><Ref id="agentPackage" to={{ panel: 'company', tab: 'people', anchor: 'agents' }}>agents by use</Ref>
+      <Card title={<Term id="split">Compute allocation</Term>} sub="every use a share of your compute · drag, then apply" home="split" right={<div className="btn-row">{SPLIT_PRESETS.map((x) => <ActBtn key={x} id="splitPreset" testId={`splitPreset.${x}`} params={{ preset: x }} label={F.words(x)} onDone={reset} />)}</div>}>
+        <div className="split-bar">{SPLIT_KEYS.map((k) => <i key={k} style={{ flex: Math.max(0.0001, norm[k]), background: COLOR[k] }} title={SPLIT_LABEL[k]} />)}</div>
+        {SPLIT_KEYS.map((k) => (
+          <div key={k} className="split-group">
+            {row(k)}
+            {k === 'training' && <SpareRow s={s} />}
+            {k === 'serving' && <SpareServingRow s={s} />}
           </div>
         ))}
-        {row('engineering')}
-        {row('serving')}
-        <SpareServingRow s={s} />
-        {row('safety')}
         {warns.map((w) => <div key={w} className="small tone-warn" data-test="split-warn">{w}</div>)}
         <div className="btn-row">
-          <ActBtn id="setSplit" params={params} label={changed ? 'Apply split' : 'Split (no change)'} primary={changed} onDone={reset} />
+          <ActBtn id="setSplit" params={params} label={changed ? 'Apply allocation' : 'Allocation (no change)'} primary={changed} onDone={reset} />
           <button className="btn btn-sm" onClick={reset}>Reset</button>
         </div>
       </Card>
@@ -132,4 +124,3 @@ export function Split({ s }: { s: GameStateV2 }) {
     </div>
   );
 }
-

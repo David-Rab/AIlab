@@ -152,7 +152,7 @@ function laneDanger(s: GameStateV2, use: AgentUse, o: Opts = {}): DangerRead | u
   const v = agentVersion(s, use);
   const d = s.player.deployments.find((x) => x.channel === 'internal' && x.status !== 'withdrawn');
   if (!v || !d || v.status === 'retired') return undefined;
-  const on = s.player.split.agents > 0 ? 1 : 0;
+  const on = (s.player.split.routine + s.player.split.frontier) > 0 ? 1 : 0;
   const usage = laneUsage(s, use) * (v.id === d.versionId ? on : 1);
   const layer = o.control ?? d.controlLayer;
   const restricted = d.status === 'restricted' || !!o.restrict;
