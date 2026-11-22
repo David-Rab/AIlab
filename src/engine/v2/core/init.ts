@@ -285,7 +285,7 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
   // The AI 2027 leader lab (BUILD-PLAN R2): after the sampled rivals, from its own stream, so 'world' draws (and
   // everything sampled from them) are the same with the flag on or off.
   if (setup.leaderLab) rivals.push(initialLeaderLab(new Rng(hash32(setup.seed, 'leaderLab')), hidden, setup, g0));
-  const china = initialChina(worldRng, hidden, g0, base.start.chinaGapYears);
+  const china = initialChina(worldRng, hidden, g0, base.start.chinaGapOom);
   for (const r of [...rivals, china.lab]) {
     r.core.milestoneDays = initialMilestones(w, Math.max(r.internal.G, r.publicModel?.G ?? -Infinity));
   }
@@ -316,7 +316,7 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
     power: start === 'leader' ? initialPower() : { ...initialPower(), queue: [] },
     capital: initialCapital(rSector),
     world: initialWorld(labIds),
-    knowledge: { publishedFindings: [], revealedUModes: [], sharedTechniquePool: 0.1, openWeightsG: openGs.length ? Math.max(...openGs) : g0 - B_G_PER_Y },
+    knowledge: { publishedFindings: [], revealedUModes: [], sharedTechniquePool: 0.1, openWeightsG: openGs.length ? Math.max(...openGs) : g0 - 1.2 /* was 1 progress-year */ },
     events: { pending: [], fired: {}, director: { tension: 0, lastCrisisDay: -999, quietUntil: 0, concurrentCrises: 0 } },
     log: [{ day: 0, kind: 'news', text: 'Agents stumble into the market: the first computer-use assistants ship. Adoption is slow.' }],
     headlines: [],

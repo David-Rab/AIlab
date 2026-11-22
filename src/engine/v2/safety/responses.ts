@@ -58,7 +58,7 @@ export function bestDetector(s: GameStateV2, v: ModelVersion, trait: TraitId): s
   return best;
 }
 
-/** Δp penalty (years) the next post-run should pay (patch/targeted training). WS1 reads and consumes it. */
+/** G penalty (OOM) the next post-run should pay (patch/targeted training). WS1 reads and consumes it. */
 export function pendingRunPenalty(s: GameStateV2): number {
   return flagNum(s, 'runPenalty');
 }
@@ -80,12 +80,12 @@ function removal(v: ModelVersion): number {
 // ───────────── F6e: the numbers each response applies, shared by applyResponse and the Respond preview ─────────────
 
 /** Patch signal: each edge into the trait × PATCH_MULT (drawn) lab-wide, floor PATCH_FLOOR; PATCH_FTE safety research
- *  engineers for PATCH_DAYS (drawn); the next post-training run pays RUN_PENALTY_Y years of progress. */
+ *  engineers for PATCH_DAYS (drawn); the next post-training run pays RUN_PENALTY_OOM OOM of G. */
 export const PATCH_MULT: [number, number] = [0.3, 0.6];
 export const PATCH_DAYS: [number, number] = [30, 90];
 export const PATCH_FTE = 10;
-/** Years of progress (Δp) the next post-training run loses after a patch or a targeted training (G −Δp·B_G_PER_Y). */
-export const RUN_PENALTY_Y = 0.02;
+/** OOM of G the next post-training run loses after a patch or a targeted training. Was 0.02 progress-years. */
+export const RUN_PENALTY_OOM = 0.024;
 
 /** What targeted training does with the lab's unlocked techniques: the share `cut` of each trait removed (× the U-mode
  *  removal multiplier when applied), traits raised by `add`, E25's EA × ANTISCHEME_EA_MULT, inoculation's E04 patch.
@@ -143,7 +143,7 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
         setFlag(s, key, Math.round(Math.max(PATCH_FLOOR, flagNum(s, key, 1) * rng.range(PATCH_MULT[0], PATCH_MULT[1])) * 1000) / 1000);
       }
       setFlag(s, 'patchUntil', Math.max(flagNum(s, 'patchUntil', 0), ctx.day + Math.round(rng.range(PATCH_DAYS[0], PATCH_DAYS[1]))));
-      setFlag(s, 'runPenalty', flagNum(s, 'runPenalty') + RUN_PENALTY_Y);
+      setFlag(s, 'runPenalty', flagNum(s, 'runPenalty') + RUN_PENALTY_OOM);
       break;
     }
     case 'retrainAgainst': {
@@ -167,7 +167,7 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
         setFlag(s, key, Math.round(flagNum(s, key, 1) * plan.patchE04 * 1000) / 1000);
       }
       for (const [k, a] of Object.entries(plan.add) as [TraitId, number][]) t[k] = clamp01(t[k] + a);
-      setFlag(s, 'runPenalty', flagNum(s, 'runPenalty') + RUN_PENALTY_Y);
+      setFlag(s, 'runPenalty', flagNum(s, 'runPenalty') + RUN_PENALTY_OOM);
       break;
     }
     case 'restrictContext': {

@@ -24,15 +24,14 @@ import { versionOom } from './oversight';
 import { observeVersion } from './detection';
 import { addKnowledge } from '../models/stacks';
 import { addRivalKnowledge } from '../actors/rivalModel';
-import { B_G_PER_Y } from '../../../data/v2/runDesign';
 import { decayAt, unlockTechnique } from './techniques';
 import { toolExposed } from './footholds';
 import type { Foothold } from '../types';
 import { discoverUMode, isDiscovered, revealToWorld } from './umodes';
 
-/** Safety spillover (a SPILL finding): 0.02 progress-years of v2 know-how, B OOM each (model v3 F3: OOM of G-equivalent),
+/** Safety spillover (a SPILL finding): 0.024 OOM of G-equivalent know-how (was 0.02 progress-years; model v3 F3),
  *  to the player's pretraining stack and, once published, to every other lab's recipe. */
-const SPILL_G = 0.02 * B_G_PER_Y;
+const SPILL_G = 0.024;
 
 const WB_AGENDAS: AgendaId[] = ['AG01', 'AG02', 'AG03', 'AG13'];
 const CROSS_CHECK: AgendaId[] = ['AG02', 'AG08'];

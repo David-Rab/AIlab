@@ -81,7 +81,7 @@ export function executeTheft(s: GameStateV2, ctx: SystemCtx, victim: LabId) {
     let G = src.G - (60 / 365) * rateOf(s, srcLab) * B_G_PER_Y;
     if (srcLab === 'player') {
       const L = frontierLevelAt(s, 'player', ctx.day - 60, src.Lg);
-      if (L !== undefined) G = Math.min(src.G, clamp(gOfLevel(tw, L), src.G - 3 * B_G_PER_Y, src.G));
+      if (L !== undefined) G = Math.min(src.G, clamp(gOfLevel(tw, L), src.G - 3.6 /* was 3 progress-years */, src.G));
     }
     return G;
   };

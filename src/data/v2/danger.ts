@@ -213,7 +213,7 @@ export const FOOTHOLD = {
   removal: {
     backdoor: { fte: 10, days: 30, downtime: 7, progress: 0 },
     hiddenCompute: { fte: 5, days: 14, downtime: 3, progress: 0 },
-    steeredSuccessor: { fte: 10, days: 30, downtime: 0, progress: 0.02 },
+    steeredSuccessor: { fte: 10, days: 30, downtime: 0, progress: 0.024 }, // progress: OOM of G off the next post-run (was 0.02 progress-years)
     corruptedTool: { fte: 5, days: 14, downtime: 0, progress: 0 },
   } as Record<Exclude<FootholdKind, 'exfiltratedCopy'>, { fte: number; days: number; downtime: number; progress: number }>,
   /** Model v3 E9: a hidden escaped copy (one security did not notice) leaves outbound traffic: suspected at `copyTrace`

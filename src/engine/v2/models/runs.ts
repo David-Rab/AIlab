@@ -11,7 +11,7 @@
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { PLAYER_MODEL_FAMILY } from '../../../data/v2/names';
 import {
-  B_G_PER_Y, CONTINUE_SHARE, FLOP_RL_REF, DISTILL_TPP, E_START, GOODPUT, IDA_RL_SHARE, MFU_RL_FACTOR, PARAM_RANGE, RL_BUDGET, RL_FAMILY_IDS,
+  CONTINUE_SHARE, FLOP_RL_REF, DISTILL_TPP, E_START, GOODPUT, IDA_RL_SHARE, MFU_RL_FACTOR, PARAM_RANGE, RL_BUDGET, RL_FAMILY_IDS,
   STREAM_LAG_DAYS, STREAM_POOL_SHARE, STUDENT_DEFAULT, TPP_FREE_MAX, TPP_RANGE, sizeScrutiny,
 } from '../../../data/v2/runDesign';
 import { buildEtas, buildWaitNew, engScale, queueBuild, runSetupTW, runWaiting } from '../departments/build';
@@ -91,9 +91,9 @@ export function serveTechMult(s: GameStateV2): number {
   return Math.pow(10, -serveFlopOomOf(serveNow(s)));
 }
 
-/** AI-designed successor (P24): next base +0.8 progress-years of recipe (× B OOM), paid off with the AI share of
+/** AI-designed successor (P24): next base +0.96 OOM of recipe (was 0.8 progress-years), paid off with the AI share of
  *  research labour. */
-const p24Dg = (s: GameStateV2) => (adopted(s, 'P24') ? 0.8 * B_G_PER_Y * payoffOf(s, 'P24') : 0);
+const p24Dg = (s: GameStateV2) => (adopted(s, 'P24') ? 0.96 * payoffOf(s, 'P24') : 0);
 
 /** Frontier (base/post) runs are paused until this day by WS4 (E17 Pause & investigate, pause pledges). */
 export const frontierPaused = (s: GameStateV2, day: Day = s.time.day) => ws4r(s).frontierPauseUntil > day;
@@ -631,7 +631,7 @@ function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
     return;
   }
   const build = postBuild(s, base, run.post, pr, run.flopNeeded);
-  build.dg -= consumeRunPenalty(s) * B_G_PER_Y;
+  build.dg -= consumeRunPenalty(s);
   const v = newVersion(s, run, base, build, parent, {
     serveCost: (base.serve ?? 0.5) * pe.serve * Math.pow(10, -pr.serveOom),
     monitorability: Math.min(base.monitorability ?? 1, pe.monitorability), appeal: pe.appeal, trained: { rlDay: rlDayOf(s, run), post: true },

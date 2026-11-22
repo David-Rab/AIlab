@@ -7,7 +7,7 @@
 import { LAB_ARCHETYPES } from '../../../data/actors';
 import { ARCHETYPE_CLAUSE, ARCHETYPE_POSTURES, LEADER_MAX_BINDINGNESS } from '../../../data/v2/postures';
 import { LEADER_CAL } from '../../../data/v2/calibration';
-import { POST_DAYS, START_PUBLIC_GAP_Y } from '../../../data/v2/rivalModel';
+import { POST_DAYS, START_PUBLIC_GAP_OOM } from '../../../data/v2/rivalModel';
 import { B_G_PER_Y } from '../../../data/v2/runDesign';
 import { LEADER_LAB_NAME, LEADER_MODEL_FAMILY, RIVAL_MODEL_FAMILIES, RIVAL_NAMES_V2 } from '../../../data/v2/names';
 import { TRAIT_START } from '../../../data/v2/traits';
@@ -79,7 +79,7 @@ export function initialRival(rng: Rng, h: HiddenWorld, i: number, playerG: numbe
   const fam = RIVAL_MODEL_FAMILIES[i % RIVAL_MODEL_FAMILIES.length];
   const uModes = drawUModes(rng, h, false);
   const internal = simpleModel(h, `${id}-b1p0`, `${fam}-1`, -30, G, uModes, false);
-  const publicModel = simpleModel(h, `${id}-b0`, `${fam}-1 public`, -60, G - 0.15 * B_G_PER_Y, uModes, true, arch.id === 'openweights');
+  const publicModel = simpleModel(h, `${id}-b0`, `${fam}-1 public`, -60, G - START_PUBLIC_GAP_OOM, uModes, true, arch.id === 'openweights');
   const totalStaff = Math.round(2500 * Math.max(0.3, arch.computeMult));
   const staff: StaffByRole = {
     cap: Math.round(totalStaff * 0.8), saf: Math.round(totalStaff * 0.15 * posture.safetyInvestment + 10),
@@ -107,7 +107,7 @@ export function initialRival(rng: Rng, h: HiddenWorld, i: number, playerG: numbe
     pressureDays: 0,
   };
   // Model v3 F1: its last base, recipe and models in G (the start model stays where the lead draw put it, T4).
-  initRivalPhys(h.timeline, lab, 1, START_PUBLIC_GAP_Y, 1);
+  initRivalPhys(h.timeline, lab, 1, START_PUBLIC_GAP_OOM, 1);
   return lab;
 }
 

@@ -249,7 +249,8 @@ export interface Baseline {
     globalCompute: number; // H100e
     staff: number;
     chinaShare: number;
-    chinaGapYears: number;
+    /** China's start gap in OOM of G under the player's V0 (was 0.6 progress-years). */
+    chinaGapOom: number;
     approval: number;
     concern: number;
     jobAnxiety: number;
@@ -266,7 +267,7 @@ export const BASELINES: Baseline[] = [
     startDate: '2025-07-01',
     start: {
       cash: 40, revenueRun: 12, valuation: 610, compute: 1.2e6, globalCompute: 13e6, staff: 2500,
-      chinaShare: 0.12, chinaGapYears: 0.6, approval: -25, concern: 50, jobAnxiety: 65, xrisk: 40, securityLevel: 2.4,
+      chinaShare: 0.12, chinaGapOom: 0.72, approval: -25, concern: 50, jobAnxiety: 65, xrisk: 40, securityLevel: 2.4,
     },
   },
   {
@@ -276,7 +277,7 @@ export const BASELINES: Baseline[] = [
     startDate: '2025-07-01',
     start: {
       cash: 45, revenueRun: 13, valuation: 300, compute: 1.0e6, globalCompute: 14e6, staff: 3000,
-      chinaShare: 0.13, chinaGapYears: 0.6, approval: -5, concern: 50, jobAnxiety: 71, xrisk: 43, securityLevel: 2.4,
+      chinaShare: 0.13, chinaGapOom: 0.72, approval: -5, concern: 50, jobAnxiety: 71, xrisk: 43, securityLevel: 2.4,
     },
   },
 ];

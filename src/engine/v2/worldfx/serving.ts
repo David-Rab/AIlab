@@ -23,7 +23,7 @@ import {
 } from '../../../data/v2/serving';
 import { CHANNEL_PRICE, FEATURE_BY_ID, MINI_CHANNELS, type FeatureFx, type FeatureId, type WorkScope } from '../../../data/v2/features';
 import { ECON, REGION_SCALE, SECTORS } from '../../../data/v2/sectors';
-import { B_G_PER_Y, DISTILL, REFERENCE_BASE, PARAM_RANGE } from '../../../data/v2/runDesign';
+import { DISTILL, REFERENCE_BASE, PARAM_RANGE } from '../../../data/v2/runDesign';
 import { ASSIST, COVER, H50_PER_OOM, H80_OVER_H50, PEAK_FLOPS, TOK_MIN, TOK_PER_RL_OOM, U_DECODE, U_PREFILL, type WorkTypeId } from '../../../data/v2/workTypes';
 import { dollarsPerH100eHour, domainG, flopPerToken, pSuccess, workFit } from '../departments/workfit';
 import { gV0, h50Of } from '../models/capability';
@@ -455,11 +455,11 @@ export function productOffer(s: GameStateV2, d: Deployment, sid: SectorId, uses 
  *  output (reasoning) tokens: the effort setting × the model's τ (tokEff); `ud` the serving lab's decode utilisation. */
 export const chatHoursPerDay = (fpt: number, tok: TokenProfile, effort = 1, ud = U_DECODE) => hphOf(fpt, tok.input, tok.output * effort, ud);
 /** A7: the free chat tier of a model with `nT` active parameters (data/v2/serving.ts FREE_TIER): the student that holds
- *  the model's fit less FREE_TIER.years × B_G_PER_Y OOM, sized by the cheapestAt rule (studentParamsFor; the 1B floor
+ *  the model's fit less FREE_TIER.oom OOM, sized by the cheapestAt rule (studentParamsFor; the 1B floor
  *  can leave it closer). Its size ratio to the teacher and its gap below it (OOM); ratio 1 and gap 0 when no student is
  *  DISTILL.a below the teacher (the model itself is the cheapest adequate one). */
 export function freeTierOf(nT: number): { r: number; gap: number } {
-  const nS = studentParamsFor(nT, FREE_TIER.years * B_G_PER_Y);
+  const nS = studentParamsFor(nT, FREE_TIER.oom);
   return nS < nT ? { r: nS / nT, gap: DISTILL.a + DISTILL.b * Math.log10(nT / nS) } : { r: 1, gap: 0 };
 }
 /** A7: what the free users of the player's Chat product get: its mini when the player set one, else the free tier of

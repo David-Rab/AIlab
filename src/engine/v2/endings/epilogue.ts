@@ -59,7 +59,7 @@ export function projectedMisAtAsi(s: GameStateV2, lab: LabId): { mis: number; da
   const asiG = gOfLevel(s.hidden.timeline, LEVEL_KNOTS[6]);
   const pace = paceOf(s) * B_G_PER_Y;
   const gap = Math.max(0, asiG - bestG(s, lab));
-  const days = Math.round((gap / Math.max(0.3 * B_G_PER_Y, pace)) * 365 * 0.7);
+  const days = Math.round((gap / Math.max(0.36, pace) /* floor was 0.3 progress-years */) * 365 * 0.7);
   if (lab === 'player') return { mis: misOf(s, 'player'), days };
   const r = labOf(s, lab);
   return { mis: r ? projectLabMis(s, r, asiG, days) : 0, days };
