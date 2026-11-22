@@ -11,6 +11,7 @@ import { FIN } from '../actors/rivals';
 import { fillRecipe } from '../models/runs';
 import { keepUnlockedSuite, unbuiltSuiteFamilies } from '../models/suites';
 import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
+import { gOfLevel } from '../models/capability';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev.
  *  Saves below MIN_SCHEMA_REV (33) do not load (designer decision DD-20, RD-C03): v1, v2 and model v3 V1–V3 saves
@@ -43,8 +44,10 @@ import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
  *  day and drops a certified sector no product carries.
  *  47 (RD-U08): serving cost is FLOP per token only: BaseModel.fpt and ModelVersion.fpt are required, BaseModel.serve,
  *  the versions' and run predictions' relative serve cost are gone (the relative 0.5-reference readout). Migration 46 → 47
- *  computes fpt as the old reader did and drops the old fields. */
-export const SCHEMA_REV = 47;
+ *  computes fpt as the old reader did and drops the old fields.
+ *  48 (RD-L01): SeriesV2.G, each lab's weekly best internal frontier G (the lead clock lagDays reads it). Migration
+ *  47 → 48 seeds it from the λ series (G = gOfLevel(λ); approximate: λ was rounded to 0.001 and capped at 15). */
+export const SCHEMA_REV = 48;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -317,6 +320,18 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       delete pr[OLD_SERVE];
     }
     for (const b of m.bases) delete (b as unknown as OldBase).serve;
+  },
+  /** 47 → 48 (RD-L01): series.G seeded from series.L per lab (gOfLevel on the save's own timeline). Idempotent: a lab
+   *  that already has a G series keeps it. */
+  47: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    if (!s.series) return;
+    const w = s.hidden?.timeline;
+    const G = (s.series.G ??= {});
+    for (const [id, xs] of Object.entries(s.series.L ?? {})) {
+      if (G[id] || !w) continue;
+      G[id] = xs.map((L) => Math.round(gOfLevel(w, L) * 10000) / 10000);
+    }
   },
 };
 

@@ -1,13 +1,14 @@
 // US government: meters, G-SEC / G-CHN ladders, statutes, nationalisation (V2-SPEC §3.10.1; research/07 §1.1). Owner: WS4.
 import { GOV_PRESETS } from '../../../data/actors';
-import { LEVEL_KNOTS } from '../../../data/v2/calibration';
 import { clamp } from '../../rng';
 import { dateOf, dayOfDate } from '../core/time';
-import { bestLg, internalVersion } from '../models/labs';
+import { gOfLevel, gV0 } from '../models/capability';
+import { bestG, internalVersion } from '../models/labs';
+import { versionMilestones } from '../departments/workfit';
 import { wslFloor } from '../security/security';
 import { POLICY_FLAGS } from '../worldfx/policy';
 import { unemploymentChange12m } from '../worldfx/readouts';
-import type { GameStateV2, GovActor, SystemCtx } from '../types';
+import type { GameStateV2, GovActor, MilestoneIdx, SystemCtx } from '../types';
 import { policyPressure } from './blocs';
 import { drift, trust } from './fx';
 import { request, ws4 } from './state';
@@ -50,6 +51,15 @@ export function govSeenL(s: GameStateV2): number {
   const briefed = b >= 2 ? measured : b === 1 ? measured - 1 : 0;
   const evalSeen = s.relations.stocks.evalGov.access >= 3 ? measured : 0;
   return Math.max(w.claimedL, w.leakedL, w.evalL, briefed, evalSeen);
+}
+
+/** Whether the government knows the player has met milestone i (RD-L04: the one work-type predicate, never a display
+ *  level): the player's evaluations show it (milestoneDays) and the government sees those evaluations (briefing 2+ or
+ *  evaluator rung 3+), or a deployed version meets it (anyone can evaluate a public model). */
+export function govSeesMilestone(s: GameStateV2, i: MilestoneIdx): boolean {
+  if (s.player.milestoneDays[i] === undefined) return false;
+  if (s.player.policies.govBriefing >= 2 || s.relations.stocks.evalGov.access >= 3) return true;
+  return s.player.models.versions.some((v) => v.status === 'deployed' && versionMilestones(s, v)[i]);
 }
 
 /** AI R&D multiplier as seen by government (full at briefing 3 or evaluator rung ≥ 3). */
@@ -96,14 +106,18 @@ export function govDaily(s: GameStateV2, ctx: SystemCtx) {
   const seenL = govSeenL(s);
   w.govSeenL = seenL;
   const seenM = govSeenM(s);
-  const trueL = bestLg(s, 'player');
+  // RD-L05: capability doses in OOM of effective compute above V0 (seen: the seen level read back to G; was display
+  // levels: 2.0 levels per OOM on ai2027, V0 → SC 2.49 OOM).
+  const tl = s.hidden.timeline;
+  const seenOom = gOfLevel(tl, seenL) - gV0(tl);
+  const trueOom = bestG(s, 'player') - gV0(tl);
 
-  drift(s, G, 'awareness', (clamp(100 - 30 * Math.max(0, trueL - seenL), 0, 100) - g.awareness) * 0.02, 0, 100, 'gov.awareness');
-  const prioT = clamp((55 + 7 * Math.max(0, seenL - 5) + 10 * detectedThefts(s) + (s.pub.salience > 10 ? 10 : 0)) * Math.sqrt(pre.accel), 0, 100);
+  drift(s, G, 'awareness', (clamp(100 - 60 * Math.max(0, trueOom - seenOom), 0, 100) - g.awareness) * 0.02, 0, 100, 'gov.awareness');
+  const prioT = clamp((55 + 14 * Math.max(0, seenOom) + 10 * detectedThefts(s) + (s.pub.salience > 10 ? 10 : 0)) * Math.sqrt(pre.accel), 0, 100);
   drift(s, G, 'aiPriority', (prioT - g.aiPriority) * 0.01, 0, 100, 'gov.aiPriority');
   // Security demand: rises with seen capability, thefts and the China ladder; access speeds it up (§3.9.3 rule 4).
   const a1 = s.commitments.some((c) => c.status === 'live' && c.kind === 'testingAgreement');
-  const secT = clamp((15 + 9 * Math.max(0, seenL - 5.5) + 15 * detectedThefts(s) + 5 * g.rungChn + (seenM >= 10 ? 20 : 0)) * pre.security, 0, 100);
+  const secT = clamp((15 + 18 * Math.max(0, seenOom - 0.25) + 15 * detectedThefts(s) + 5 * g.rungChn + (seenM >= 10 ? 20 : 0)) * pre.security, 0, 100);
   const k = secT > g.securityDemand ? 0.01 * (1 + 0.5 * (a1 ? 1 : 0) + 0.2 * s.player.policies.govBriefing) : 0.003;
   drift(s, G, 'securityDemand', (secT - g.securityDemand) * k, 0, 100, 'gov.securityDemand');
   // China hawkishness.
@@ -123,9 +137,9 @@ export function govDaily(s: GameStateV2, ctx: SystemCtx) {
   // ── G-SEC ladder (research/07; multipliers/levels instead of model names, §3.10.1).
   const cond = [
     false,
-    (seenL >= 6.5 || seenM >= 1.5) && g.aiPriority > 60,
-    detectedThefts(s) >= 1 || (seenL >= 8.5 && s.player.policies.govBriefing >= 1),
-    (seenL >= 10 && s.player.policies.govBriefing >= 1) || g.securityDemand > 70,
+    (govSeesMilestone(s, 1) || seenM >= 1.5) && g.aiPriority > 60, // RD-L05: Reliable agent (was seenL ≥ 6.5)
+    detectedThefts(s) >= 1 || (govSeesMilestone(s, 2) && s.player.policies.govBriefing >= 1), // RD-L05: Research agent (was seenL ≥ 8.5)
+    (s.player.policies.govBriefing >= 1 && govSeesMilestone(s, 3)) || g.securityDemand > 70,
     seenM >= 10 || detectedThefts(s) >= 2,
     (w.misalignmentLeak && s.pub.concern > 65) || g.nationalization > pre.natThreshold,
   ];
@@ -250,7 +264,6 @@ function policyMonthly(s: GameStateV2, ctx: SystemCtx) {
   const pre = govPresetOf(g.preset);
   const w = ws4(s);
   const day = ctx.day;
-  const seenL = w.govSeenL;
   const dU = unemploymentChange12m(s);
   const veto = !(pre.id === 'regulator' || (pre.id === 'populist' && p.concern > 70)); // R07 G-REG veto rule
   const discovered = (id: string) => s.world.techs[id]?.discoveredDay !== undefined;
@@ -290,7 +303,7 @@ function policyMonthly(s: GameStateV2, ctx: SystemCtx) {
     ['The US declares an AI arms race with China.', 'The verified agreement stands down the AI arms race.']);
   // Human judgment over force removed (AI 2027 Race 2028) [D]: during an arms race once the government sees SAR-level
   // AI; restored when the arms race ends or a human-in-the-loop mandate passes.
-  setPolicy(s, ctx, F.milLoopRemoved, !!s.flags[F.armsRace] && seenL >= LEVEL_KNOTS[4] && !s.flags[F.humanInLoop], !s.flags[F.armsRace] || !!s.flags[F.humanInLoop],
+  setPolicy(s, ctx, F.milLoopRemoved, !!s.flags[F.armsRace] && govSeesMilestone(s, 4) && !s.flags[F.humanInLoop], !s.flags[F.armsRace] || !!s.flags[F.humanInLoop],
     ['The Pentagon drops the human-judgment rule for AI weapons.', 'Human judgment over AI weapons is restored.']);
   // Economy-wide human-in-the-loop mandate (R16 §2.3 safety lever; R08 P31 usage red lines) [D]: a public misalignment
   // scare or mass protest, concern > 75, net bloc support, and no presidential veto. Off when concern < 55.
@@ -311,7 +324,7 @@ function policyMonthly(s: GameStateV2, ctx: SystemCtx) {
     ['Federal agencies start using frontier AI advisors.', 'The government AI-advisor program is suspended.']);
   // SEZs (R16 §1A "the government action 'SEZs'"; AI 2027 2028) [D]: the government sees superintelligent research
   // (SIAR level), AI priority ≥ 75, no mass movement (activism < 55). Closed if priority < 50 or activism > 70.
-  setPolicy(s, ctx, F.sez, seenL >= LEVEL_KNOTS[5] && g.aiPriority >= 75 && p.activism < 55, g.aiPriority < 50 || p.activism > 70,
+  setPolicy(s, ctx, F.sez, g.aiPriority >= 75 && p.activism < 55 && govSeesMilestone(s, 5), g.aiPriority < 50 || p.activism > 70,
     ['The government opens Special Economic Zones for AI-run industry.', 'The Special Economic Zones are wound down.']);
   // FDA fast-track for AI-designed drugs (R16 §3.1) [D]: an AI drug pipeline exists (W03), AI priority ≥ 70 and a
   // deregulatory executive (reg stance ≤ −20). Off if reg stance > 20 or priority < 50.

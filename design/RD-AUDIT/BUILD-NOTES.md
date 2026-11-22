@@ -890,3 +890,111 @@ Outputs: %TEMP%/ai27ux/tests/cp1-full.txt, cp1-deep.txt; logs cp1logs/ (Phase 0 
   not kept): new game, post-train and distill completed; every version's fpt equals the old derivation (V0, V1, V3
   7.071e11; mini V5 8.839e10), and a rev-46-shaped save (serve / serveCost, no fpt) migrates to the same fpt.
 - **Moves calibration:** no.
+
+### RD-L01
+- **Done:** `series.G` (types.ts SeriesV2; record.ts) holds each lab's weekly best internal frontier G (player, each
+  rival, China; 4 decimals; a lab with no model records nothing and aligns to `series.day` from the end). One function
+  `lagDays(s, follower, leader)` in models/capability.ts: days since the leader's frontier line (the record corners of
+  series.G, closed by today's best G; linear between corners) stood at the follower's G; positive = leader ahead.
+  `follower` is a lab or a G value. Defined edge cases: follower ahead (lab) → `−lagDays(leader, follower)`; level or
+  self → 0; G value above the leader → −gap ÷ the leader's own frontier-G slope (`frontierGPerYear`, DD-10 pace; under 28
+  d of history it reads the pre-game rate); history too short (follower below the leader's first sample) → days since
+  that sample + the gap at the pre-game reference rate (the rate the start gaps were drawn at, kept until RD-U04 /
+  RD-U06 restate start gaps in OOM); no record → gap at that rate.
+- **Readers:** `trueLeadDays(other)` = `lagDays(other, player)`. Intel (actors/intel.ts) truth lead = lagDays; the
+  lead over a lab's public model = truth + `lagDays(public G, lab)` (its internal-over-public lag; also the release-lag
+  term in the sd), so the estimate is lagDays + assumed-release-lag error + noise; intel no longer reads leadBetween /
+  rateOf / B. China (actors/china.ts): `usGapMonths` and `chinaLeadHist` read lagDays (rival-vs-China was
+  leadBetween's (1 − share) rate conversion). LeadTrack and RiskMap both read the intel estimate, so one function is
+  behind them. Not changed (RD-L02 / L03): leadBetween for rival-vs-rival, theft (`frontierLevelAt` on series.L),
+  open weights, release lag, epilogue, scoring, paceOf / rateOf / modelRate.
+- **Save:** SCHEMA_REV 47 → 48 (renumbered at the merge into rd: RD-U08 took 46 → 47); migration 47 → 48 seeds series.G from series.L via gOfLevel (approximate: λ was rounded
+  to 0.001 and capped at 15); idempotent. hygiene's rev literals → 48; ws4 E3's synthetic rival history also sets
+  series.G.
+- **Check:** `npx tsx scripts/v2/lagdays.ts` (seconds): interpolation, staircase corners, antisymmetry, short history,
+  G above leader, late-recorded lab, trueLeadDays, intel = lagDays at zero noise and full access, RiskMap's what-if =
+  shifted estimates, usGapMonths = max lagDays, source greps. tsc main + scripts clean. Nothing else run.
+- **moves calibration: yes.** The player's lead now reads G rather than capped λ (differs where knot spacing is
+  non-linear and past λ 15); rival-vs-China lead (usGapMonths → China centralisation / reweight rules) drops the
+  (1 − share) term; intel's public-model read and its sd change; leadBetween(player, X) feeds theft hazard, race
+  pressure, open weights and endings, so those move slightly too. Fixture hashes change (new series field). For CP2.
+
+### RD-L02
+- **Done (commit 3ae156b):** every "how far ahead" reader in theft, rivals and endings reads G gaps, the lead clock
+  `lagDays` or a lab's own frontier-G slope. Helpers next to lagDays (models/capability.ts): `frontierGAt(lab, day)`
+  (the series.G frontier line on a day; replaces the λ-series `frontierLevelAt`, aligned from the end for late labs)
+  and `frontierGPerYear(lab, windowDays)` with **`PACE_WINDOW_DAYS = 182` [D]** (slope over the last half-year of the
+  line to today's best G; a window under 28 d or with no rise falls back to the whole history, then the pre-game rate).
+- **Readers moved:** theft hazard vs the player and vs each rival (security.ts) = lagDays(China, victim); the stolen
+  copy = the victim's frontier line 60 d ago, player and rival alike (no 3·B clamp; short history: 60 d of the victim's
+  slope). Rivals: race pressure, open-weights gap to the frontier, revenue lead = lagDays; late release = the line `lag`
+  days ago (capped at internal G); `openAbsorbMonths` = half the G gap in months of China's own slope (≤ 2; dG =
+  months × that slope, so dG = min(gap/2, 2 months of China's slope)); `ownProgressDays` = dG ÷ the lab's slope;
+  `publishLeakG` / `poachLeakG` sized by the player's slope (DD-17 resizes). Endings: overtaken (endings.ts),
+  survival weights and the geopolitics China lead (scoring.ts), `alignedPower` near-test and `projectedMisAtAsi`
+  days = G gap ÷ the lab's own slope (**no × 0.7, no 0.3-pace floor** [D]) (epilogue.ts).
+- **Left (RD-L03):** `leadBetween` is now a one-line alias `lagDays(s, b, a)` (scripts ws4 / rivals read it);
+  `modelRate` / `paceOf` / `rateOf` stay defined in rivals.ts; actions.ts still reads `paceOf` (openReleaseG, C4, China
+  absorb) and init / rival start data B_G_PER_Y (RD-U04). The grep hits in rivals.ts are those definitions only.
+- **Check:** `npx tsx scripts/v2/leadreaders.ts` (seconds; synthetic 400-day series): frontierGAt, windowed slope,
+  leadBetween = lagDays, leak sizes / own-days, open-weights months, epilogue days, rival theft copy, source greps.
+  tsc main + scripts clean. Nothing else run.
+- **moves calibration: yes.** Theft timing (hazard gate at 90 lead-days vs China now on lagDays for rivals), China's
+  stolen and open-weights G, rival release G, race pressure among rivals (drops the (1 − share) term), and the
+  epilogue / survival score (days to ASI now on each lab's own slope: shorter for fast labs late, longer for slow ones
+  without the × 0.7). Recipe-leak previews and E16 / A4 sizes move with the player's slope vs paceOf. For CP2 (deep S5,
+  finance, worldfx).
+
+### RD-L04
+- **Done (commit 8efd698):** one milestone predicate for every lab (DD-09). departments/workfit.ts `milestonesOf(s, v,
+  fpt)` (work-type fit and coverage vs the best human, AI cost per work-hour vs the best engineers); the player's
+  `versionMilestones` = it on the version's build at its FLOP per token. `referenceProfileModel(G)`: a model known only
+  by G as a build with the reference RL profile (every domain at G; = the no-build read). models/capability.ts
+  `otherLabMilestones(s, r)` = the predicate on the internal and public model at `rivalServeFpt`; `recordMilestones`
+  (ordered first crossings) and `updateMilestones(s, day)` (player + every active lab) used by the milestones system and
+  by core/init.ts at day 0 (before the readouts, so Stage 2 reads it). `initialMilestones` (λ ≥ knot) and the rivals'
+  λ ≥ LEVEL_KNOTS path deleted; the measured-level notice deleted.
+- **Readers:** endings (another lab's ASI first, overtaken) and production's Stage 2 read `milestoneDays`, now the
+  same predicate for player and rivals (indices unchanged: overtaken stays rival SIAR vs player SAR). Notice: "[name]:
+  your evaluations show the criterion met ([player-language criterion])", flag `seenMilestone{i}` = that day (China's
+  seenMilestone1 / 2 readers unchanged, now on the predicate; day-0 ones set silently). Acts: SAR or M ≥ 25 → 4, Research
+  agent → 3, Reliable agent or day 150 → 2. Gov: `govSeesMilestone(s, i)` (player met it and briefing ≥ 2 or evaluator
+  rung ≥ 3, or a deployed version meets it) replaces seenL ≥ 10 / 12 / 13.5 (G-SEC rung 3, mil-loop removal, SEZs).
+  data/world.ts MILESTONES stays only as the EndScreen's canon dates.
+- **Left:** gov seenL 6.5 / 8.5 (G-SEC rungs 1–2), safety/control L ≥ 12, epilogue's ASI G, rival era / acts thresholds
+  outside milestones: RD-L05. glossary.ts still states the L knots (UI). domainG's P19 term reads the player's
+  adoption also for rival reference builds (rival paradigms, later).
+- **Check:** `npx tsx scripts/v2/milestonepred.ts` (seconds): day-0 records = the predicate for every lab; player
+  version (reference profile) and rival at the same G and fpt agree over a G sweep; reference build = general-G read;
+  rival credited SC + SAR on fit; rival at λ 13 with AI dearer than engineers gets no SC / SAR; player SC record, flag
+  and notice; source greps. tsc main + scripts clean. Nothing else run.
+- **moves calibration: yes.** Rivals' and China's milestone days now need coverage ≥ 0.9 and the cost test (SC / SAR
+  can come later than λ 10 / 12); Agent etc. are credited below λ 5 (every lab records Agent at day 0 on seed 11);
+  Stage 2 timing, endings (ASI first, overtaken), acts, China's escalation (flags 1 / 2 on the predicate) and gov
+  G-SEC 3 / mil-loop / SEZ timing all move. T1 golden dates to be re-checked at CP2.
+
+### RD-L05
+- **Done (commit e57b5cf):** between-knot display-level thresholds in mechanics restated. Milestone-aligned ones read
+  the predicate (`milestoneDays`, RD-L04): gov G-SEC rung 1 `govSeesMilestone(s, 1)` (Reliable agent, was seenL ≥ 6.5),
+  rung 2 `govSeesMilestone(s, 2)` + briefing ≥ 1 (Research agent, was seenL ≥ 8.5); safety/control rogue-copy gate =
+  player SAR met (was λ ≥ 12); rival S3 +0.3 and the SC u-mode tier (`tierAtLeastSC`, player and rivals) = SC met (was
+  λ ≥ SC_LEVEL; SC_LEVEL deleted). Doses go to OOM of effective compute above V0 (ai2027: V0 → SC 2.49 OOM, 2.0 levels
+  per OOM below SC): gov awareness 60 / OOM of (true − seen) (was 30 / level), priority 14 / OOM from V0 (was 7 / level
+  from L 5), security demand 18 / OOM from 0.25 OOM (was 9 / level from L 5.5), seen OOM = gOfLevel(seenL) − G_V0;
+  rival latent-reasoning era at 2.0 OOM (was Lg 9 = 1.99); rival misuse 2e-4 / OOM from 1.0 OOM (was 1e-4 / level
+  from L 7); CoT controllability 0.8·σ((x − 1.0)/0.3), x OOM above V0 (was σ((L − 7)/0.6)); callers pass versionOom /
+  oomOfLevel.
+- **Left (lint tags `level-lint-left`):** worldfx domain-level doses (techtree bio / cyber / persuasion sigmoids,
+  control internal ops AGENCY − 10 and INFRA CYBER − 11, sectors AGENCY − 8): restate in domain OOM above V0 with the
+  world-effects work. safety/common `tierOfLevel` (continuous tier over all seven v2 knots, traits priors) not flagged
+  by the lint (reads LEVEL_KNOTS via a local); goes with the safety redesign (RD-B04–06). Knot-aligned constants kept
+  (HUMAN_REVIEW_L / AG05 overseerL = SC knot, epilogue / incidents ASI knot): consistent physically by construction
+  (MEA-18 verifier).
+- **Check:** `npx tsx scripts/v2/levellint.ts` (new; seconds): flags level-like identifiers (L, Lg, …L, level…)
+  and domain levels compared with / minus / divided by a number literal, and comparisons with LEVEL_KNOTS[i] /
+  SC_LEVEL, in src/engine/v2 outside comments and strings; allows *View / readout / glossary / ui files and lines
+  tagged `level-lint-ok: <reason>` (run-card band, market pipeline length, WSL). tsc main + scripts clean. Nothing
+  else run.
+- **moves calibration: yes.** G-SEC rungs 1–2 now wait on the predicate and on the government seeing the evaluations
+  (briefing ≥ 2, evaluator rung 3 or a deployed version), so rung timing moves; rogue-copy and SC u-mode / S3 gates
+  move with the predicate days. OOM restatements are near-identical on ai2027 below SC (maybe on other presets).

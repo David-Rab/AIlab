@@ -2,12 +2,12 @@
 // leadDays/riskSources are EngineApi selectors: built from intel and BELIEFS, never from truth. The weekly intel
 // system is engine code: it turns truth into noisy evidence, always against the player's best INTERNAL version.
 import { clamp, sigmoid } from '../../rng';
-import { activeRivals, bestG, internalVersion } from '../models/labs';
-import { B_G_PER_Y } from '../../../data/v2/runDesign';
+import { activeRivals, internalVersion } from '../models/labs';
 import { misalignmentEstimate } from '../safety/traits';
 import { understanding } from '../safety/understanding';
 import type { EngineSystem, GameStateV2, LabId, RivalLab, RiskSource, SystemCtx } from '../types';
-import { leadBetween, rateOf, rivalMis, RELEASE_LAG } from './rivals';
+import { rivalMis, RELEASE_LAG } from './rivals';
+import { lagDays } from '../models/capability';
 import { ws4, ws4r } from './state';
 import { defenceIndex } from '../worldfx/readouts';
 
@@ -30,19 +30,21 @@ const PRIOR_BAND: Record<string, [number, number]> = {
 /** One lab's weekly intel update. Evidence: public releases, evaluator reports (external access), known incidents,
  *  stolen-model knowledge and the Index. sd shrinks with evidence; the estimate is vs the player's INTERNAL frontier. */
 export function updateIntel(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
-  const rate = ((rateOf(s, 'player') + rateOf(s, r.core.id)) / 2) * B_G_PER_Y; // G a year
   const rng = ctx.rng('actors');
   const id = r.core.id;
-  const playerG = bestG(s, 'player'); // best INTERNAL version (hidden G): what the player's own evals track
   const pub = r.publicModel ?? r.internal;
-  const vsPublic = ((playerG - pub.G) / rate) * 365;
+  // One lead clock (RD-L01): the true lead is lagDays(lab, player) on the recorded frontier-G histories (vs the player's
+  // best INTERNAL version); the lab's internal model leads its own public one by lagDays(public G, lab). The lead over
+  // their public model is the sum, so the raw read below is the true lag plus the error of the assumed release lag.
+  const truthLead = lagDays(s, id, 'player');
+  const pubLag = lagDays(s, pub.G, id);
+  const vsPublic = truthLead + pubLag;
   const access = r.core.kind === 'china' ? 0.05 : s.hidden.rivalPostures[id]?.externalAccess ?? 0.3;
   const evidence = (r.publicModel ? 1 : 0) + 1.5 * access + 0.2 * r.intel.knownIncidents.length + (r.core.security.stolen.length ? 0.5 : 0) + (r.visible.testers.length ? 0.5 : 0);
   const sd = 20 + 80 * Math.exp(-0.6 * evidence);
-  const trueLag = Math.max(0, ctx.day - (ws4(s).internalDay[id] ?? r.internal.day)) <= (RELEASE_LAG[r.archetype] ?? 60) ? ((r.internal.G - pub.G) / rate) * 365 : 0;
+  const trueLag = Math.max(0, ctx.day - (ws4(s).internalDay[id] ?? r.internal.day)) <= (RELEASE_LAG[r.archetype] ?? 60) ? pubLag : 0;
   const assumed = ASSUMED_LAG[r.visible.clauseType] ?? 60;
   // Raw read: lead vs their public model minus the assumed hidden lag; evaluator access reveals part of the truth.
-  const truthLead = leadBetween(s, 'player', id);
   const raw = (1 - access) * (vsPublic - assumed) + access * truthLead + rng.normal(0, sd * 0.5);
   r.intel.leadDaysEst = Math.round(0.6 * r.intel.leadDaysEst + 0.4 * raw);
   r.intel.leadDaysSd = Math.round(sd + 0.25 * Math.abs(trueLag - assumed));

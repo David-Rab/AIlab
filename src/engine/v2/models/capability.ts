@@ -5,13 +5,13 @@ import { B0_START_DAY, LEVEL_KNOTS, REF_OFF, RSCH_TASTE_PENALTY, DOMAIN_IDS, V0_
 import { B_G_PER_Y, E_B0, RL_BUDGET, REFERENCE_BASE } from '../../../data/v2/runDesign';
 import { multiplierAt, stage1 } from '../../../data/world';
 import { COGNITIVE_WORK, H50_PER_OOM, H50_V0_MIN, LEVEL_PER_OOM, WORK_TYPES, refDelta } from '../../../data/v2/workTypes';
-import { labMilestones } from '../departments/workfit';
+import { labMilestones, milestonesOf, referenceProfileModel } from '../departments/workfit';
 import { clamp } from '../../rng';
 import { START_DATE, dayOfDate, decimalYearOf } from '../core/time';
 import { asV1World, referenceRate } from '../world/calibration';
-import { bestLevelOf } from '../actors/rivalModel';
-import type { Day, DomainId, EngineSystem, GameStateV2, LabId, MilestoneIdx, ModelVersion, TimelineWorld, VersionBuild } from '../types';
-import { PLAYER_ID, bestG, internalVersion, labCore, otherLabs } from './labs';
+import { rivalServeFpt } from '../actors/rivalModel';
+import type { Day, DomainId, EngineSystem, GameStateV2, LabId, MilestoneIdx, ModelVersion, RivalLab, TimelineWorld, VersionBuild } from '../types';
+import { PLAYER_ID, bestG, labCore, otherLabs } from './labs';
 import { REF_RL_PROFILE, flopOfDesign, gPreOf, rlFamiliesAvailable, rlGains, rlWeights } from './effective';
 
 /** In-game milestone names (no canon tags, §3.1.6). */
@@ -182,86 +182,117 @@ const START_RETAIN = 0.7;
 
 // ───────────────────────────── lead (hidden) ─────────────────────────────
 
-// A lab's frontier history is its weekly level series. A version lab's series is a staircase (each new version is a
+// A lab's frontier history is its weekly series.G (record.ts), read by the lead clock lagDays, frontierGAt and the pace
+// frontierGPerYear. A version lab's series is a staircase (each new version is a
 // step), so interpolating between adjacent samples would put every intermediate level at the step and make the lag of
 // a smoothly progressing follower jump by a whole version interval each time it passes a step. The frontier LINE runs
 // instead through the "corners": the first sample at each new record level, plus today's level if it is higher (a
 // version newer than the last weekly sample). A continuous series (rivals, China) is all corners, so nothing changes
 // for it.
 
-/** Days since `lab`'s frontier line first reached `L`; undefined if the history does not reach back that far. */
-function daysSinceLevel(s: GameStateV2, lab: LabId, L: number, nowL: number): number | undefined {
-  const xs = s.series.L[lab];
-  const days = s.series.day;
-  if (!xs?.length) return undefined;
-  let pd = NaN;
-  let px = -Infinity;
-  const at = (d: number, x: number) => {
-    if (Number.isNaN(pd)) return undefined; // first corner already above L: history too short
-    const f = (L - px) / Math.max(1e-9, x - px);
-    return s.time.day - (pd + f * (d - pd));
-  };
-  for (let i = 0; i < xs.length; i++) {
-    const x = xs[i];
-    if (x <= px) continue; // not a new record level: not a corner
-    if (x >= L) return at(days[i], x);
-    pd = days[i];
-    px = x;
-  }
-  if (nowL > px && nowL >= L) return at(s.time.day, nowL);
-  return undefined;
-}
-
-/** Level of `lab`'s frontier line on `day` (≤ today; see above); undefined before its history starts. The inverse of
- *  daysSinceLevel: daysSinceLevel(frontierLevelAt(day)) = today − day wherever the line rises. */
-export function frontierLevelAt(s: GameStateV2, lab: LabId, day: Day, nowL: number): number | undefined {
-  const xs = s.series.L[lab];
-  const days = s.series.day;
-  if (!xs?.length || day < days[0]) return undefined;
-  let pd = days[0];
+/** G of `lab`'s frontier line on `day` (≤ today; corners of series.G closed by today's best G, as above); undefined
+ *  before its history starts. RD-L02: replaces the λ-series frontierLevelAt; theft's stolen copy, a rival's late
+ *  release and the windowed pace read it. */
+export function frontierGAt(s: GameStateV2, lab: LabId, day: Day): number | undefined {
+  const { xs, days, off } = gSeries(s, lab);
+  if (!xs.length || day < days[off]) return undefined;
+  const gNow = bestG(s, lab);
+  let pd = days[off];
   let px = xs[0];
   for (let i = 1; i < xs.length; i++) {
     const x = xs[i];
     if (x <= px) continue;
-    if (days[i] >= day) return px + ((x - px) * (day - pd)) / Math.max(1e-9, days[i] - pd);
-    pd = days[i];
+    if (days[i + off] >= day) return px + ((x - px) * (day - pd)) / Math.max(1e-9, days[i + off] - pd);
+    pd = days[i + off];
     px = x;
   }
-  if (nowL > px && s.time.day > pd) return px + ((nowL - px) * (day - pd)) / (s.time.day - pd);
+  if (Number.isFinite(gNow) && gNow > px && s.time.day > pd) return px + ((gNow - px) * (Math.min(day, s.time.day) - pd)) / (s.time.day - pd);
   return px;
 }
 
-/** Days a lab's true frontier lags the player's best internal version (positive = player ahead), from the weekly
- *  level history: how long ago the leader stood where the follower stands now. Hidden; engine use only (intel,
- *  endings, events). Falls back to gap / rate when the history does not reach back far enough. */
-export function trueLeadDays(s: GameStateV2, other: LabId): number {
-  const w = s.hidden.timeline;
-  const pPl = bestG(s, PLAYER_ID);
-  const pOt = bestG(s, other);
-  if (!Number.isFinite(pOt)) return 0;
-  const ahead = pPl >= pOt;
-  const leader = ahead ? PLAYER_ID : other;
-  const followerL = levelOfG(w, ahead ? pOt : pPl);
-  const d = daysSinceLevel(s, leader, followerL, levelOfG(w, ahead ? pPl : pOt));
-  if (d !== undefined && d >= 0) return ahead ? d : -d;
-  // The history does not reach back to the follower's level (the first weeks of a game): the leader's frontier line
-  // before its first sample is the pre-game frontier, which rose at the start's reference rate — the rate every start
-  // gap was drawn at (rivals.ts initialRival, china.ts initialChina) — so the lead is the days since the first sample
-  // plus the first sample's gap at that rate (model v3 F2: v2's fallback divided by the leader's current research rate,
-  // which reads a few weeks of stack growth and put China 390–450 d behind in days 30–60).
-  const lead = preHistoryLead(s, leader, ahead ? pPl : pOt, ahead ? pOt : pPl);
-  return ahead ? lead : -lead;
+/** The one lead clock (RD-L01, DD-10): how many days ago `leader`'s recorded frontier G stood where `follower` stands
+ *  now (positive = the leader is ahead). `follower` is a lab (its best internal G) or a G value (e.g. a released model).
+ *  Read from the weekly series.G (record.ts) along the frontier line's corners (as above, in G), linearly interpolated;
+ *  today's best G closes the line when it is newer than the last sample. Hidden truth; trueLeadDays, intel and China's
+ *  readouts read it, so LeadTrack and RiskMap have this one function behind them.
+ *  - Follower ahead of the leader (a lab): the lag the other way, negated: lagDays(f, l) = −lagDays(l, f). Level: 0.
+ *  - Follower a G value above the leader's frontier: −(gap ÷ the leader's frontier-G slope), i.e. how long until the
+ *    leader gets there at its own recorded pace (frontierGPerYear).
+ *  - History too short (the follower is below the leader's first sample, the first weeks of a game): the days since that
+ *    sample plus the gap to it at the pre-game reference frontier rate, the rate every start gap was drawn at
+ *    (rivals.ts initialRival, china.ts initialChina), i.e. the leader's true pre-history slope. RD-U04 / RD-U06 restate
+ *    the start gaps in OOM and replace this rate with the start data's.
+ *  - No record at all for the leader: the gap at the pre-game rate. Non-finite G: 0. */
+export function lagDays(s: GameStateV2, follower: LabId | number, leader: LabId): number {
+  const gL = bestG(s, leader);
+  if (typeof follower === 'string') {
+    if (follower === leader) return 0;
+    const gF = bestG(s, follower);
+    if (!Number.isFinite(gF) || !Number.isFinite(gL)) return 0;
+    return gL >= gF ? daysSinceG(s, leader, gF, gL) : -daysSinceG(s, follower, gL, gF);
+  }
+  if (!Number.isFinite(follower) || !Number.isFinite(gL)) return 0;
+  if (follower <= gL) return daysSinceG(s, leader, follower, gL);
+  return -((follower - gL) / Math.max(0.05 * B_G_PER_Y, frontierGPerYear(s, leader))) * 365;
 }
-/** Days since `leader`'s frontier line stood at G `gF`, for a level below its first sample: the time since that sample
- *  plus the gap at the pre-game reference frontier rate (referenceRate at the start, the start gaps' rate, × B G per
- *  progress-year). */
-function preHistoryLead(s: GameStateV2, leader: LabId, gLead: number, gF: number): number {
-  const w = s.hidden.timeline;
-  const rate = Math.max(0.05, preGameRate(w)) * B_G_PER_Y;
-  const xs = s.series.L[leader];
-  if (!xs?.length) return ((gLead - gF) / rate) * 365;
-  const g1 = clamp(gOfLevel(w, xs[0]), gF - 24, gLead + 24 /* was ±20 progress-years */);
-  return Math.max(0, s.time.day - s.series.day[0]) + ((g1 - gF) / rate) * 365;
+
+/** A lab's recorded frontier G samples aligned to series.day (a lab first recorded after day 0 aligns at the end). */
+function gSeries(s: GameStateV2, lab: LabId): { xs: number[]; days: Day[]; off: number } {
+  const xs = s.series.G?.[lab] ?? [];
+  const days = s.series.day;
+  return { xs, days, off: Math.max(0, days.length - xs.length) };
+}
+
+/** Days since `lab`'s frontier line (corners of series.G, then today's `gNow`) first reached `g` (g ≤ gNow). */
+function daysSinceG(s: GameStateV2, lab: LabId, g: number, gNow: number): number {
+  const { xs, days, off } = gSeries(s, lab);
+  const today = s.time.day;
+  const rate = Math.max(0.05, preGameRate(s.hidden.timeline)) * B_G_PER_Y; // G a year: the pre-history slope
+  if (!xs.length) return ((gNow - g) / rate) * 365;
+  if (g < xs[0]) return Math.max(0, today - days[off]) + ((xs[0] - g) / rate) * 365;
+  let pd = days[off];
+  let px = xs[0];
+  if (g <= px) return Math.max(0, today - pd);
+  const at = (d: number, x: number) => today - (pd + ((g - px) / Math.max(1e-12, x - px)) * (d - pd));
+  for (let i = 1; i < xs.length; i++) {
+    const x = xs[i];
+    if (x <= px) continue; // not a new record: not a corner
+    if (x >= g) return Math.max(0, at(days[i + off], x));
+    pd = days[i + off];
+    px = x;
+  }
+  if (gNow > px && today > pd) return Math.max(0, at(today, gNow));
+  return 0; // g between the last record and today's G with no time since: level
+}
+
+/** The window (days) over which the "how fast" readers take a lab's pace (RD-L02 [D]: half a year, so the slope follows
+ *  the lab's current speed and spans more than one version step of a staircase lab). */
+export const PACE_WINDOW_DAYS = 182;
+
+/** A lab's pace (DD-10): the slope of its own recorded frontier G in OOM a year, over the last `windowDays` of its
+ *  frontier line to today's best G (default: the whole recorded history). A window with under 28 days of history or no
+ *  rise reads the whole history; with under 28 days of that (or no rise yet) it reads the pre-game reference frontier
+ *  rate. Readers that need a rate ("days of its own progress", "G a release lag behind") use this with
+ *  PACE_WINDOW_DAYS, never a progress-year pace. */
+export function frontierGPerYear(s: GameStateV2, lab: LabId, windowDays = Infinity): number {
+  const { xs, days, off } = gSeries(s, lab);
+  const top = xs.length ? Math.max(...xs, bestG(s, lab)) : 0;
+  if (xs.length && Number.isFinite(windowDays)) {
+    const d0 = Math.max(days[off], s.time.day - windowDays);
+    const g0 = frontierGAt(s, lab, d0);
+    const w = s.time.day - d0;
+    if (g0 !== undefined && w >= 28 && top - g0 > 0) return ((top - g0) / w) * 365;
+  }
+  const span = xs.length ? s.time.day - days[off] : 0;
+  const rise = xs.length ? top - xs[0] : 0;
+  if (span >= 28 && rise > 0) return (rise / span) * 365;
+  return Math.max(0.05, preGameRate(s.hidden.timeline)) * B_G_PER_Y;
+}
+
+/** Days a lab's true frontier lags the player's best internal version (positive = player ahead): lagDays(other, player).
+ *  Hidden; engine use only (intel, endings, events). */
+export function trueLeadDays(s: GameStateV2, other: LabId): number {
+  return lagDays(s, other, PLAYER_ID);
 }
 /** The pre-game frontier rate (progress-years a year, the start gaps' unit): referenceRate at the start model and 2025.5. */
 const preRateMemo = new WeakMap<TimelineWorld, number>();
@@ -273,50 +304,79 @@ function preGameRate(w: TimelineWorld): number {
 
 // ───────────────────────────── milestones (§3.1.6) ─────────────────────────────
 
-/** milestones (50, daily): first-crossing record per lab (fixes v1 bug #3), SC day, act transitions. The player's are
- *  work-type milestones (model v3 V3.5, departments/workfit.ts: superhuman coder = SWE fit ≥ the best human with coverage
- *  ≥ 0.9 and a lower cost per work-hour, …), recorded in order. Rivals, China and the leader lab (model v3 F1): their
- *  best model's display level λ(G) crosses the milestone's level knot (L 10 = the reference recipe's SC point, …; one
- *  map for every lab, MODEL-V3 §2.2). */
+/** Player-language statement of each milestone's criterion (the notice when the player's evaluations first show it). */
+export const MILESTONE_CRITERIA = [
+  'agents complete a tenth of software work on their own',
+  'agents complete half of software work on their own',
+  'agents complete half of experiment work on their own',
+  'coding at or above the best human engineer on 90% of the work, for less than your engineers cost',
+  'coding, experiments and research ideas all at or above the best human researchers',
+  'research ideas far beyond the best human researchers',
+  'every kind of cognitive work far beyond the best humans',
+];
+
+/** Milestones a non-player lab (rival, China, the leader lab) meets today: the one predicate (departments/workfit.ts
+ *  milestonesOf) on a reference-profile build of its internal and public model (referenceProfileModel), at the FLOP
+ *  per token the lab serves it at (its serving stack). Any of the two meeting it counts. */
+export function otherLabMilestones(s: GameStateV2, r: RivalLab): boolean[] {
+  const out = [false, false, false, false, false, false, false];
+  for (const m of r.publicModel ? [r.internal, r.publicModel] : [r.internal]) {
+    const x = milestonesOf(s, referenceProfileModel(m.G, m.flop ?? 0), rivalServeFpt(r, m));
+    for (let i = 0; i < 7; i++) out[i] ||= x[i];
+  }
+  return out;
+}
+
+/** Record first crossings in order on `day` (fixes v1 bug #3): a later milestone is recorded no earlier than the one
+ *  before it (SC → SAR → SIAR → ASI). Returns the milestones newly recorded. */
+export function recordMilestones(core: NonNullable<ReturnType<typeof labCore>>, met: boolean[], day: Day): MilestoneIdx[] {
+  const out: MilestoneIdx[] = [];
+  for (let i = 0; i < 7; i++) {
+    const idx = i as MilestoneIdx;
+    if (core.milestoneDays[idx] !== undefined) continue;
+    if (i > 3 && core.milestoneDays[(i - 1) as MilestoneIdx] === undefined) break;
+    if (!met[i]) { if (i >= 3) break; continue; }
+    core.milestoneDays[idx] = day;
+    out.push(idx);
+    if (idx === 3 && core.scDay === undefined) core.scDay = day;
+  }
+  return out;
+}
+
+/** Every active lab's milestones on `day` by the one predicate (DD-09): the player's live versions on their builds
+ *  (labMilestones), every other lab by otherLabMilestones. Returns the player's newly recorded milestones. The
+ *  milestones system calls it daily; core/init.ts at day 0. */
+export function updateMilestones(s: GameStateV2, day: Day): MilestoneIdx[] {
+  let fresh: MilestoneIdx[] = [];
+  const pl = labCore(s, PLAYER_ID);
+  if (pl && pl.status === 'active' && pl.milestoneDays[6] === undefined) fresh = recordMilestones(pl, labMilestones(s), day);
+  for (const r of otherLabs(s)) {
+    const core = labCore(s, r.core.id); // China's lab core id is CHINA_ID
+    if (!core || core.status !== 'active' || core.milestoneDays[6] !== undefined) continue;
+    recordMilestones(core, otherLabMilestones(s, r), day);
+  }
+  return fresh;
+}
+
+/** milestones (50, daily): first-crossing record per lab, SC day, act transitions, by ONE predicate for every lab
+ *  (DD-09, RD-L04: departments/workfit.ts milestonesOf; superhuman coder = SWE fit ≥ the best human with coverage
+ *  ≥ 0.9 and a lower cost per work-hour, …). The display level's knots are not milestone thresholds. The player is told
+ *  when its evaluations first show a criterion (flag seenMilestone{i} = that day; China reads 1 and 2). */
 export const milestonesSystem: EngineSystem = {
   id: 'milestones', owner: 'WS1', cadence: 'daily', order: 50, system: 'models',
   run(s, ctx) {
-    const w = s.hidden.timeline;
-    const record = (core: NonNullable<ReturnType<typeof labCore>>, met: (i: number) => boolean) => {
-      for (let i = 0; i < 7; i++) {
-        const idx = i as MilestoneIdx;
-        if (core.milestoneDays[idx] !== undefined) continue;
-        // In order: a later milestone is recorded no earlier than the one before (SC → SAR → SIAR → ASI).
-        if (i > 3 && core.milestoneDays[(i - 1) as MilestoneIdx] === undefined) break;
-        if (!met(i)) { if (i >= 3) break; continue; }
-        core.milestoneDays[idx] = ctx.day;
-        if (idx === 3 && core.scDay === undefined) core.scDay = ctx.day;
-      }
-    };
-    const pl = labCore(s, PLAYER_ID);
-    if (pl && pl.status === 'active' && pl.milestoneDays[6] === undefined) {
-      const m = labMilestones(s);
-      record(pl, (i) => m[i]);
-    }
-    for (const r of otherLabs(s)) {
-      const core = labCore(s, r.core.id); // China's lab core id is CHINA_ID
-      if (!core || core.status !== 'active') continue;
-      const L = bestLevelOf(w, r);
-      record(core, (i) => L >= LEVEL_KNOTS[i] - 1e-9);
-    }
-
-    // The player is told when the MEASURED level crosses a milestone level (§3.1.6).
-    const L = Math.max(internalVersion(s)?.evals.measuredL ?? 0, ...s.player.models.versions.filter((v) => v.status !== 'retired').map((v) => v.evals.measuredL ?? 0));
-    for (let i = 1; i < LEVEL_KNOTS.length; i++) {
+    updateMilestones(s, ctx.day);
+    const md = s.player.milestoneDays;
+    for (let i = 1; i < 7; i++) {
       const key = `seenMilestone${i}`;
-      if (L >= LEVEL_KNOTS[i] && s.flags[key] === undefined) {
+      if (md[i as MilestoneIdx] !== undefined && s.flags[key] === undefined) {
         s.flags[key] = ctx.day;
-        ctx.log('milestone', `${MILESTONE_NAMES[i]}: measured level ${L.toFixed(1)}.`, 3);
+        ctx.log('milestone', `${MILESTONE_NAMES[i]}: your evaluations show the criterion met (${MILESTONE_CRITERIA[i]}).`, 3);
       }
     }
-    // Acts keyed to milestones (§1.5).
+    // Acts keyed to milestones (§1.5): SAR (or M ≥ 25) → 4, Research agent → 3, Reliable agent (or day 150) → 2.
     const M = s.player.prodCache?.M ?? 1;
-    const act = L >= 12 || M >= 25 ? 4 : L >= 8.5 ? 3 : L >= 6.5 || ctx.day >= 150 ? 2 : 1;
+    const act = md[4] !== undefined || M >= 25 ? 4 : md[2] !== undefined ? 3 : md[1] !== undefined || ctx.day >= 150 ? 2 : 1;
     if (act > s.tutorial.act) s.tutorial.act = act;
   },
 };

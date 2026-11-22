@@ -30,6 +30,7 @@ import { internalVersion } from '../../src/engine/v2/models/labs';
 import { planRun } from '../../src/engine/v2/models/runs';
 import { completeSuiteWork, exploitFloor, hardenCut, suiteWorkCost, suiteWorkEffect } from '../../src/engine/v2/models/suites';
 import { cotControllability, familyPenalty } from '../../src/engine/v2/safety/detection';
+import { oomOfLevel } from '../../src/engine/v2/safety/oversight';
 import { aarAuto, aarFindingOom, aiOversight, probeSteer, steerGrowth } from '../../src/engine/v2/safety/ideas';
 import { lineLabour, lineSpeed, resetSafAllocation } from '../../src/engine/v2/safety/lineProjects';
 import { applyRunToTraits, playerEnv, postSignals, stepTraits, zeroSignals } from '../../src/engine/v2/safety/traits';
@@ -188,7 +189,7 @@ function postRun(s: GameStateV2, design: PostDesign, from?: ModelVersion): Model
   const at = (cot: PostDesign['cot'], mon: number): ModelVersion => ({ ...v0, Lg: 12, monitorability: mon, design: post({ cot }), masks: { ...v0.masks, SCHEME: {} }, uModes: [] });
   const pV = familyPenalty(s, at('visible', 0.9), 'SCHEME', 'COT');
   const pF = familyPenalty(s, at('faithful', 0.98), 'SCHEME', 'COT');
-  const ctl = cotControllability(12);
+  const ctl = cotControllability(oomOfLevel(s.hidden.timeline, 12)); // RD-L05: ctl takes OOM above V0
   check(near(pV, 0.9 * (1 - Math.max(ctl, 0)), 0.02) && near(pF, 0.98 * (1 - ctl * (1 - FAITHFUL_COT.resist)), 0.02) && pF > 2 * pV,
     'P23: at L 12 the CoT family sees a faithful model × 0.98·(1 − ctl/2) instead of × 0.9·(1 − ctl): CoT monitors (AG09) stay strong',
     `ctl ${ctl.toFixed(3)}; COT penalty visible ${pV.toFixed(3)}, faithful ${pF.toFixed(3)}`);

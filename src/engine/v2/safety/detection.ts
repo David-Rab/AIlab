@@ -8,7 +8,7 @@ import { SAFETY_EVALS, TRAIT_BY_ID, TRAIT_IDS } from '../../../data/v2/traits';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
 import type { GameStateV2, ModelVersion, RngLike, SystemCtx, TechniqueState, ToolFamily, TraitBelief, TraitId } from '../types';
 import { clamp, clamp01, lambda2Delta, sigmoid, versionById } from './common';
-import { versionOom } from './oversight';
+import { oomOfLevel, versionOom } from './oversight';
 import { cotAlive } from './latents';
 import { believedMask, strengthTrue, techniqueRole } from './techniques';
 import { hiddenUModes } from './umodes';
@@ -27,9 +27,11 @@ export function updateBelief(b: TraitBelief, o: number, sigma: number, day: numb
   return { est, sd, clarity: Math.max(0, 1 - sd / SD_MAX), lastObsDay: day };
 }
 
-/** CoT controllability at level L: ctl(L) = 0.8·σ((L − 7)/0.6) (anchors 1.7% → 16% → 61%, R14 §1.6A). */
-export function cotControllability(L: number): number {
-  return 0.8 * sigmoid((L - 7) / 0.6);
+/** CoT controllability at x OOM of effective compute above V0: ctl(x) = 0.8·σ((x − 1.0)/0.3) (anchors 1.7% → 16% →
+ *  61%, R14 §1.6A). RD-L05: was 0.8·σ((L − 7)/0.6) in display levels; L 7 = 1.0 OOM above V0 on ai2027 and 0.6 levels
+ *  = 0.3 OOM there (2.0 levels per OOM). */
+export function cotControllability(x: number): number {
+  return 0.8 * sigmoid((x - 1.0) / 0.3);
 }
 
 /** Obfuscation beyond the baseline hides intent from CoT monitors (E15/E16, M4) [D]: the COT penalty uses
@@ -81,7 +83,7 @@ export function familyPenalty(s: GameStateV2, v: ModelVersion, trait: TraitId, f
   }
   if (family === 'COT') {
     if (!cotAlive(s)) return 0;
-    let p = v.monitorability * (1 - Math.max(cotControllability(v.Lg) * (1 - cotResist(v.design?.cot)), cotObfuscation(v.traitsTrue.OBF))) * (1 - mask);
+    let p = v.monitorability * (1 - Math.max(cotControllability(versionOom(s, v)) * (1 - cotResist(v.design?.cot)), cotObfuscation(v.traitsTrue.OBF))) * (1 - mask);
     for (const u of hidden) p *= 1 - (UMODE_BY_ID[u].effect.cotPenalty ?? 0);
     return Math.max(0, p);
   }
@@ -103,7 +105,7 @@ export function believedPenalty(s: GameStateV2, v: ModelVersion, trait: TraitId,
   }
   if (family === 'COT') {
     if (lambda2Delta(s) <= -2) return 0;
-    return Math.max(0, v.monitorability * (1 - Math.max(cotControllability(L) * (1 - cotResist(v.design?.cot)), cotObfuscation(v.beliefs.OBF?.est ?? 0))) * (1 - mask));
+    return Math.max(0, v.monitorability * (1 - Math.max(cotControllability(oomOfLevel(s.hidden.timeline, L)) * (1 - cotResist(v.design?.cot)), cotObfuscation(v.beliefs.OBF?.est ?? 0))) * (1 - mask));
   }
   if (family === 'WB') return 1 - mask;
   return 1;

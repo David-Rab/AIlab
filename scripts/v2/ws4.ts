@@ -151,6 +151,7 @@ const load = (i: number) => deserialize(fixtures[i]);
     const w = t.hidden.timeline;
     const base = bestG(t, 'player');
     t.series.L[rr.core.id] = t.series.L.player.map((x) => x + 0.5);
+    t.series.G[rr.core.id] = t.series.G.player.map((x) => x + 0.3 * B_G_PER_Y); // RD-L01: the lead clock reads series.G
     rr.internal = { ...rr.internal, G: base + 0.3 * B_G_PER_Y, Lg: levelOfG(w, base + 0.3 * B_G_PER_Y) };
     rr.publicModel = undefined;
     const behind = leadBetween(t, 'player', rr.core.id);

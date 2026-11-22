@@ -15,7 +15,7 @@ import { UMODES } from '../../../data/v2/umodes';
 import { Rng, clamp } from '../../rng';
 import { hash32 } from '../core/rng';
 import { shareRefAt, normalizeSplit } from '../departments/split';
-import { domainsOf, levelOfG, playerStart, trueLeadDays, yearOfDay } from '../models/capability';
+import { domainsOf, frontierGAt, frontierGPerYear, gV0, lagDays, levelOfG, PACE_WINDOW_DAYS, playerStart, yearOfDay } from '../models/capability';
 import { LEADER_ID, activeRivals, bestG, otherLabs } from '../models/labs';
 import { misalignment, rivalTraitStep as ws2RivalTraitStep } from '../safety/traits';
 import { drawSeverity, labModelHazards } from '../safety/incidents';
@@ -57,6 +57,13 @@ export const RELEASE_LAG: Record<string, number> = { safety: 120, bigtech: 60, m
 /** Base-model cadence, months (§3.10.3: 9–15 by archetype) [D]. */
 const BASE_MONTHS: Record<string, number> = { safety: 13, bigtech: 12, maverick: 9, openweights: 12, upstart: 15, deepcent: 12, leader: 9 };
 /** P(adopting latent reasoning) at the latent-reasoning era (§3.10.3 S4). */
+/** RD-L05: the latent-reasoning era in OOM of effective compute above the start model V0 (was display L 9 = 1.99 OOM
+ *  on ai2027, where V0 → SC is 2.49 OOM); a capability dose, not a milestone. */
+const LATENT_ERA_OOM = 2.0;
+/** RD-L05: rival misuse hazard grows from MISUSE_FROM_OOM above V0 at MISUSE_PER_OOM per OOM per day (was 1e-4 per
+ *  display level from L 7: L 7 = 1.0 OOM on ai2027, 2.0 levels per OOM there). */
+const MISUSE_FROM_OOM = 1.0;
+const MISUSE_PER_OOM = 2e-4;
 const LATENT_P: Record<string, number> = { maverick: 0.7, openweights: 0.6, bigtech: 0.5, safety: 0.2, upstart: 0.5, deepcent: 0.6, leader: 0.8 };
 
 /** A non-player lab's model at effective compute G (its design is set by initRivalPhys / setModelG). */
@@ -191,7 +198,8 @@ export function addPosture(s: GameStateV2, lab: LabId, key: keyof SafetyPosture,
 }
 
 /** Model-frontier progress rate (v2's years of progress per year; × B_G_PER_Y for G per year): the recipe rate plus, in
- *  Stage 1, v2's compute term (1 − share) that new bases add (§3.1.3) — the rate the lead conversions use. */
+ *  Stage 1, v2's compute term (1 − share) that new bases add (§3.1.3). RD-L02: no lead reader in rivals / theft /
+ *  endings uses it (they read lagDays and frontierGPerYear); actions.ts still does until RD-L03 deletes it. */
 function modelRate(s: GameStateV2, pr: { rate: number; stage: number } | undefined): number {
   return Math.max(0.05, (pr?.rate ?? 1) + (pr?.stage === 2 ? 0 : 1 - s.hidden.timeline.share));
 }
@@ -206,17 +214,8 @@ export function rateOf(s: GameStateV2, lab: LabId): number {
 }
 
 /** TRUE lead in days of lab `a` over lab `b` (positive = a ahead), from internal frontiers. Engine use only.
- *  The progress gap is converted with the mean of both labs' rates (trapezoid rule): if b follows a's path Δt
- *  later, gap ≈ ∫ rate ≈ Δt·(rate_a + rate_b)/2, which stays ≈ Δt through takeoff (the leader's rate alone shrinks
- *  the apparent lead as rates explode — the v1/M0 artifact; see WS1's trueLeadDays TODO). */
-export function leadBetween(s: GameStateV2, a: LabId, b: LabId): number {
-  // Against the player, use the engine's truth helper (WS1 trueLeadDays: "how long ago the leader stood where the
-  // follower stands now", from the level history) so WS4 logic, intel and the T3/T4 tests share one definition.
-  if (a === b) return 0;
-  if (a === 'player') return trueLeadDays(s, b);
-  if (b === 'player') return -trueLeadDays(s, a);
-  return ((bestG(s, a) - bestG(s, b)) / (((rateOf(s, a) + rateOf(s, b)) / 2) * B_G_PER_Y)) * 365;
-}
+ *  RD-L02: the one lead clock, lagDays(b, a) (DD-10; no progress-year rate). Kept for the scripts; RD-L03 deletes it. */
+export const leadBetween = (s: GameStateV2, a: LabId, b: LabId): number => lagDays(s, b, a);
 
 /** The current leader among active labs (player included) by TRUE internal frontier. */
 export function leaderOf(s: GameStateV2): LabId {
@@ -237,7 +236,7 @@ export function leaderOf(s: GameStateV2): LabId {
 export function racePressure(s: GameStateV2, lab: LabId): number {
   const leader = leaderOf(s);
   if (leader === lab) return 0;
-  const months = (leadBetween(s, leader, lab) / 365) * 12;
+  const months = (lagDays(s, lab, leader) / 365) * 12;
   return clamp(months / 6, 0, 1);
 }
 
@@ -254,7 +253,7 @@ export function rivalSpeedMult(s: GameStateV2, lab: LabId): number {
  * Projected hidden Mis of a non-player lab when it reaches ASI (the epilogue and the final score, endings/epilogue.ts):
  * its trait cadence fast-forwarded with the rule labDaily runs in play: WS2's rivalTraitStep after every post-training
  * (the mean of POST_DAYS apart, the first at the lab's scheduled one) and after every base run (BASE_MONTHS by
- * archetype from its next base day: a 'base' step, then a 'post' on it), with latent reasoning adopted once at Lg >= 9
+ * archetype from its next base day: a 'base' step, then a 'post' on it), with latent reasoning adopted once at LATENT_ERA_OOM above V0
  * (LATENT_P). The stated stand-in (DD-18): capability rises linearly in G from the internal model's to `asiG` over
  * `days`, every base starts a new lineage, and race pressure stays at today's. At most 120 steps (a guard: a ten-year
  * projection is ≈ 75). Pure: works on a clone and draws from a hash of the seed, lab and day (no stream).
@@ -277,7 +276,7 @@ export function projectLabMis(s: GameStateV2, r0: RivalLab, asiG: number, days: 
     const d = Math.min(nextPost, nextBase);
     if (d > end) break;
     setModelG(s.hidden.timeline, r.internal, G0 + ((G1 - G0) * (d - day0)) / days);
-    if (latent === undefined && r.internal.Lg >= 9) latent = rng.chance(LATENT_P[r.archetype] ?? 0.5);
+    if (latent === undefined && r.internal.G - gV0(s.hidden.timeline) >= LATENT_ERA_OOM) latent = rng.chance(LATENT_P[r.archetype] ?? 0.5);
     if (d === nextBase) {
       nextBase += baseEvery;
       ws2RivalTraitStep(s, rng, r, 'base');
@@ -324,9 +323,9 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   r.pressure = racePressure(s, id);
   r.pressureDays = r.pressure > 0.6 ? r.pressureDays + 1 : 0;
 
-  // Latent reasoning adoption at the era (Lg ≥ 9) — once per lab (S4).
+  // Latent reasoning adoption at the era (LATENT_ERA_OOM above V0) — once per lab (S4).
   const lk = `latent:${id}`;
-  if (s.flags[lk] === undefined && r.internal.Lg >= 9) s.flags[lk] = rng.chance(LATENT_P[arch] ?? 0.5);
+  if (s.flags[lk] === undefined && r.internal.G - gV0(s.hidden.timeline) >= LATENT_ERA_OOM) s.flags[lk] = rng.chance(LATENT_P[arch] ?? 0.5);
 
   w.internalDay[id] ??= r.internal.day;
   w.nextPost[id] ??= day + Math.round(rng.range(POST_DAYS[0], POST_DAYS[1]));
@@ -370,20 +369,22 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   // Releases: the public model lags the internal one (§3.10.3).
   // A lab whose lag exceeds its post-training interval (6–10 weeks) never had an internal version `lag` days old (each
   // post resets internalDay), so it never released: once the public model is a post interval staler than the lag,
-  // release the frontier as it stood `lag` days ago (internal G − lag·rate; `day` = that as-of day).
+  // release the frontier as it stood `lag` days ago (RD-L02: its recorded frontier line then, frontierGAt; a history
+  // shorter than that: internal G less the rest of the lag at its own frontier-G slope; `day` = that as-of day).
   const lag = RELEASE_LAG[arch] ?? 60;
   const age = day - w.internalDay[id];
   let rel: SimpleModel | undefined;
   if (!r.publicModel || (r.publicModel.id !== r.internal.id && !r.publicModel.id.startsWith(`${r.internal.id}~`))) {
     if (age >= lag) rel = r.internal;
     else if (day - (r.publicModel?.day ?? -1e9) >= lag + 56) {
-      const G = Math.max(r.publicModel ? gOfSimple(wl, r.publicModel) : -Infinity, gOfSimple(wl, r.internal) - ((lag - age) / 365) * rateOf(s, id) * B_G_PER_Y);
+      const gInt = gOfSimple(wl, r.internal);
+      const G = Math.max(r.publicModel ? gOfSimple(wl, r.publicModel) : -Infinity, Math.min(gInt, frontierGAt(s, id, day - lag) ?? gInt - ((lag - age) / 365) * frontierGPerYear(s, id, PACE_WINDOW_DAYS)));
       rel = { ...r.internal, id: `${r.internal.id}~${day}`, day: day - lag };
       setModelG(wl, rel, G);
     }
   } else if (r.publicModel.id !== r.internal.id && age >= lag) rel = r.internal;
   if (rel) {
-    const gapToFrontier = leadBetween(s, leaderOf(s), id);
+    const gapToFrontier = lagDays(s, id, leaderOf(s));
     let open = false;
     if (arch === 'openweights') {
       if (gapToFrontier < 90) r.meters.openness = Math.min(r.meters.openness, 40);
@@ -401,7 +402,7 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   const dep = r.publicModel ?? r.internal;
   const mitigation = clamp(0.5 * p.evalRigor + 0.3 * p.safetyInvestment, 0, 0.9);
   const rows = labModelHazards(dep, mitigation);
-  const misuseH = 1e-4 * Math.max(0, dep.Lg - 7) * (dep.openWeights ? 1 : 0.5) * (1 - 0.3) * (1 - 0.6 * p.evalRigor);
+  const misuseH = MISUSE_PER_OOM * Math.max(0, dep.G - gV0(s.hidden.timeline) - MISUSE_FROM_OOM) * (dep.openWeights ? 1 : 0.5) * (1 - 0.3) * (1 - 0.6 * p.evalRigor);
   if (misuseH > 0) rows.push({ source: 'misuse', apparent: 'misuse', h: misuseH, sev: 3, disposition: 1, capability: 1, opportunity: 1, block: 0 });
   const H = rows.reduce((a, x) => a + x.h, 0);
   if (H > 0 && rng.chance(Math.min(0.5, H))) {
@@ -423,20 +424,23 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
 
 /** RD-B19 (B40): hand-made recipe transfers to other labs, OOM into the recipient's pretraining recipe (addRivalKnowledge;
  *  it shows at that lab's next base or continual-learning refresh). Still sized by the player's pace (MEA-15; DD-17
- *  resizes them). The actions apply these and their previews read the same functions. A4 publish: 9 days × 0.3. */
-export const publishLeakG = (s: GameStateV2) => (9 / 365) * paceOf(s) * B_G_PER_Y * 0.3;
-/** E16 "let go": 0.1 years of the lead pace. */
-export const poachLeakG = (s: GameStateV2) => 0.1 * paceOf(s) * B_G_PER_Y;
-/** A recipe increment `dG` (OOM) in days of lab `id`'s own progress at today's rate: the previews' unit. */
-export const ownProgressDays = (s: GameStateV2, id: LabId, dG: number) => (dG * 365) / (rateOf(s, id) * B_G_PER_Y);
+ *  resizes them): RD-L02, the player's own frontier-G slope over PACE_WINDOW_DAYS. The actions apply these and their
+ *  previews read the same functions. A4 publish: 9 days × 0.3. */
+export const publishLeakG = (s: GameStateV2) => (9 / 365) * frontierGPerYear(s, 'player', PACE_WINDOW_DAYS) * 0.3;
+/** E16 "let go": 0.1 years of the player's frontier-G slope. */
+export const poachLeakG = (s: GameStateV2) => 0.1 * frontierGPerYear(s, 'player', PACE_WINDOW_DAYS);
+/** A recipe increment `dG` (OOM) in days of lab `id`'s own progress at its frontier-G slope (PACE_WINDOW_DAYS): the
+ *  previews' unit. */
+export const ownProgressDays = (s: GameStateV2, id: LabId, dG: number) => (dG * 365) / frontierGPerYear(s, id, PACE_WINDOW_DAYS);
 
-/** Months of its own recipe growth China absorbs from open weights at G (0 when China is inactive or ahead): the
- *  model-vs-model gap (G), half of it in months of the lead pace, at most 2 months (R10 R13), as public knowledge in
- *  its pretraining part (OOM). Read by openWeightsReleased and the open launch preview (RD-B20). */
+/** Months of its own recipe growth China absorbs from open weights at G (0 when China is inactive or ahead): half the
+ *  model-vs-model gap (G, OOM; RD-L02: no lead-pace conversion), at most 2 months of China's own frontier-G slope
+ *  (R10 R13), as public knowledge in its pretraining part (OOM). Returned in months of that slope, the unit
+ *  openWeightsReleased and the open launch preview (RD-B20) read. */
 export function openAbsorbMonths(s: GameStateV2, G: number): number {
   const cnG = bestG(s, 'china');
   if (s.china.lab.core.status !== 'active' || G <= cnG) return 0;
-  return Math.min(2, ((G - cnG) / (paceOf(s) * B_G_PER_Y)) * 12 * 0.5);
+  return Math.min(2, ((0.5 * (G - cnG)) / frontierGPerYear(s, 'china', PACE_WINDOW_DAYS)) * 12);
 }
 
 /** Open weights released by lab `id` at effective compute G: the world's open frontier rises, China absorbs part of the
@@ -448,7 +452,7 @@ export function openWeightsReleased(s: GameStateV2, ctx: SystemCtx, id: LabId, G
   const cn = s.china.lab;
   const months = id !== 'china' ? openAbsorbMonths(s, G) : 0;
   if (months > 0) {
-    const dG = (months / 12) * rateOf(s, 'china') * B_G_PER_Y;
+    const dG = (months / 12) * frontierGPerYear(s, 'china', PACE_WINDOW_DAYS);
     addRivalKnowledge(cn, dG);
     ctx.cause('china.recipe', dG, 'open weights absorbed', id);
   }
@@ -478,7 +482,7 @@ export function rivalFinanceQ(s: GameStateV2, ctx: SystemCtx) {
   let mix: WorldMix | undefined;
   for (const r of activeRivals(s)) {
     const f = r.finance;
-    const lead = leadBetween(s, 'player', r.core.id);
+    const lead = lagDays(s, r.core.id, 'player');
     // Revenue (M4): half-way each quarter toward what WS5's market pays this lab's public model (demand-side share of
     // sector and consumer spend), so the private-lab sector run-rate — and with it the investor pool (R15 §1.4) —
     // tracks the market [D]. Labs without a priced public model keep the archetype growth rule.

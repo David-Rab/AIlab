@@ -256,6 +256,7 @@ function stepPipelines(s: GameStateV2, B: number, ctx: SystemCtx) {
     while (pipe.length < p.L) pipe.push(0);
     const future = K[c] + pipe.reduce((a, b) => a + b, 0);
     const g = Math.min(p.gmax, Math.max(p.gmin, p.g0 + p.beta * trust * (B - 1)));
+    // level-lint-ok: p.L is the pipeline length, not a level
     pipe[p.L - 1] += future * (Math.pow(g, 0.25) - 1);
   }
   // Fast lever: wafer node conversion adds up to +10% K_wafer with L = 3, once per 4 quarters, when wafers bind [R15].

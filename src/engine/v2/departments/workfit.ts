@@ -29,6 +29,7 @@ import { CAPACITY_UNIT, PROJECT_BY_ID, SPECIALTY_BONUS, isLineNode } from '../..
 import { Lrel, Phi, tasteSigma } from '../production/ces';
 import { gOfDomain, h50Of } from '../models/capability';
 import { adopted } from '../models/paradigms';
+import { REF_RL_PROFILE } from '../models/effective';
 import { payoffOf } from '../models/tree';
 import { decimalYear } from '../core/time';
 import { spareServingToResearch } from '../worldfx/revenue';
@@ -37,7 +38,7 @@ import { decodeUtilNow } from '../models/stacks';
 import { ws4r } from '../actors/state';
 import { agentVersion, capShare, monitorVersion, safetyAgentShare } from './agents';
 import { useControl } from '../safety/oversight';
-import type { DomainId, GameStateV2, ModelVersion, ProdParams, TeamQuality, TimelineWorld } from '../types';
+import type { DomainId, GameStateV2, ModelVersion, ProdParams, TeamQuality, TimelineWorld, VersionBuild } from '../types';
 
 const LIVE = (v: ModelVersion) => v.status !== 'retired' && v.status !== 'rolledBack';
 const sig = (x: number) => 1 / (1 + Math.exp(-x));
@@ -394,22 +395,43 @@ export function safetyLabour(s: GameStateV2): SafetyLabour {
   return x;
 }
 
-// ───────────────────────────── milestones (V3.5) ─────────────────────────────
+// ───────────────────────────── milestones (V3.5; DD-09, RD-L04) ─────────────────────────────
 
-/** Which work-type milestones a version meets (index as MilestoneIdx: 0 Agent … 6 Superintelligence). */
-export function versionMilestones(s: GameStateV2, v: ModelVersion): boolean[] {
+/** THE milestone predicate (DD-09: one definition for every lab; the display level's knots are not thresholds). Which
+ *  work-type milestones a model meets (index as MilestoneIdx: 0 Agent … 6 Superintelligence), from its fit and
+ *  coverage against the best human and its AI cost per work-hour at serving FLOP per token `fpt`:
+ *  Agent = SWE coverage ≥ 0.1; Reliable agent = SWE coverage ≥ 0.5; Research agent = EXP coverage ≥ 0.5;
+ *  SC = SWE fit ≥ the best human with coverage ≥ 0.9 and AI cheaper than the lab's best engineers per work-hour;
+ *  SAR = SC and EXP and IDEAS likewise; SIAR = SAR and IDEAS 2·Δ_bm past the best human; ASI = SIAR and every cognitive
+ *  work type 2·Δ_bm past. The player's versions read it on their builds (versionMilestones), every other lab on a
+ *  reference-profile build of its model (referenceProfileModel; models/capability.ts otherLabMilestones). */
+export function milestonesOf(s: GameStateV2, v: Pick<ModelVersion, 'G' | 'build'>, fpt: number): boolean[] {
   const w = s.hidden.timeline;
   const f = (wt: WorkTypeId) => workFit(s, v, wt);
   const swe = f('SWE');
   const exp = f('EXP');
   const ideas = f('IDEAS');
-  const cost = costPerWorkHour(s, flopPerToken(s, v));
+  const cost = costPerWorkHour(s, fpt);
   const superhuman = (x: WorkFit) => x.fit >= x.best && x.a >= MILESTONE_COVER;
   const sc = superhuman(swe) && cost.ai < cost.human;
   const sar = sc && superhuman(exp) && superhuman(ideas);
   const siar = sar && ideas.fit >= ideas.best + 2 * w.v3.dBM;
   const asi = siar && COGNITIVE_WORK.every((wt) => { const x = f(wt); return x.fit >= x.best + 2 * w.v3.dBM; });
   return [swe.a >= 0.1, swe.a >= 0.5, exp.a >= 0.5, sc, sar, siar, asi];
+}
+
+/** Which work-type milestones a player version meets (the predicate on its own build and serving FLOP per token). */
+export const versionMilestones = (s: GameStateV2, v: ModelVersion): boolean[] => milestonesOf(s, v, flopPerToken(s, v));
+
+/** A model known only by its general G (a rival's or China's aggregate model) as a version for the milestone predicate
+ *  (RD-L04): its G with the reference RL profile (every domain's RL gain = the reference run's, so each domain reads
+ *  G_pre + 0 = G, gOfDomain), no data or design specialisation, horizon multiplier 1. Rivals train on the reference
+ *  recipe (actors/rivalModel.ts), so this is the build their G stands for. */
+export function referenceProfileModel(G: number, flopPre = 0): Pick<ModelVersion, 'G' | 'build'> {
+  const build: VersionBuild = {
+    gPre: G, flopPre, rlFlop: 0, rlW: {}, eRL: 0, dgRL: 0, dgRLd: { ...REF_RL_PROFILE }, dg: 0, sD: {}, offL: {}, off: {}, h80Mult: 1, signals: {},
+  };
+  return { G, build };
 }
 
 /** Milestones the lab's live versions meet today (any version meeting it counts). */
