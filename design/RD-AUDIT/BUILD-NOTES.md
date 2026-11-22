@@ -441,3 +441,32 @@ Product lifecycle fixes (SYNTHESIS B18, B19, B20). Schema 44 → 45.
   Hygiene: the SCHEMA_REV === 45 asserts → 46; the RD-B12 pack check runs on a rev-45 and a rev-44 save.
 - **Conflicts:** BUILD-NOTES (all blocks kept); models/runs.ts type imports (RivalLab dropped by RD-B14, RunRecipe
   kept from RD-B02); core/save.ts and hygiene.ts (both migrations and both checks kept).
+
+### RD-B20
+
+Preview truth 3, products (bugs B38, B39; PRD-05, PRD-12, PRD-13). Lines with no applied effect removed; the rest come
+from the function the action or the engine runs.
+- **Sector pack (wfx.sectorProduct).** `productGain` (exp(1.05), 0.06, ×35, ×2.8) deleted. New `packRevenueGain`
+  (worldfx/actions.ts): `revenueReadout` with the pack certified today on its host (fit bonus, Enterprise ×3 weight)
+  minus without, both with that sector's customer stock removed so it reads the target shares (the stock catches up
+  over CUSTOMER_TAU.sector, ~8 months; today's market). Line lag = build wait + 120 d. Removed: 15 product-team staff
+  time (`PRODUCT.prodFTE` deleted) and the labour approval risk. Preview and apply share `packTarget` (sector, host).
+  Not shown: the US friction cut −0.1 (acts on adoption over time, no one-number preview).
+- **Product actions (models/productOps.ts).** Removed: update "−2 product team" and "lead −5 p0.5"; launch "lead −10
+  p0.6", "approval −2 p0.2" and open "trust +3 academia"; retire "trust −1 p0.3"; serving "−1 Auto serving off";
+  feature toggle "−1"; products policy "−1", upgrade "lead −5 p0.5", auto-evaluate off "monitorability −0.05".
+  Retire now runs `previewDeployments` without the product (was −revenueRate: Auto serving moves its compute to the
+  other products, so the total can even rise). Launch, update and retire add the distillation line:
+  `distillDaysPerYear` = the strongest distiller's `distillationLeak` dG/day × 365 → progress-days (B_G_PER_Y),
+  after − before on `hypothetical`. Open launch: the invented −60 lead days → `openAbsorbMonths` (new in
+  actors/rivals.ts, the same formula openWeightsReleased now calls) × 365/12, only above the open frontier.
+- **makeVariant (models/actions.ts, B38).** Preview is one new version (unit "version"), no cost; the staff +10,
+  revenue +0.5, approval −1, and open's lead −60 / security −1 / trust +3 are gone (the copy charges nothing; the open
+  release is the Open weights launch). RD-B19 owns models/actions.ts otherwise; only this preview changed.
+- **Tests added:** products RD-B20 ×7 (pack cash / team-weeks as applied and only cash / staff / revenue lines; pack
+  revenue fn = the engine's certified pack minus without; retire revenue and distillation = the same-day state after
+  withdrawal; update / serving / feature / policy carry only market and distillation lines; launch team-weeks =
+  queued; makeVariant charges nothing; open launch lead = openAbsorbMonths).
+- **Moves calibration: no** (previews only; openWeightsReleased refactor is the same arithmetic).
+- **Tests run:** tsc main + scripts clean; products full 75 / 75; npm run build passes. test:ui not run (no UI file
+  changed; the "+ pack", Gov / Trusted / Open and retire buttons show the new lines).
