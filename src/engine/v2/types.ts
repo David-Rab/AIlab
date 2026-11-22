@@ -2086,6 +2086,8 @@ export interface CauseEntry { day: Day; delta: number; source: string; detail?: 
 export interface SeriesV2 {
   day: Day[]; // weekly samples
   L: Record<LabId, number[]>; // best internal Lg per lab (truth for end screen; UI uses measured)
+  /** Best internal frontier G per lab (OOM, weekly, aligned to day from the end): the lead clock lagDays reads it (RD-L01). */
+  G: Record<LabId, number[]>;
   Lmeasured: number[]; U: number[]; M: number[]; cash: number[]; revenue: number[]; valuation: number[];
   compute: number[]; approval: number[]; trustGov: number[]; scrutiny: number[]; gdpG: number[]; unemp: number[];
   misTrue: number[]; misEst: number[];

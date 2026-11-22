@@ -9,7 +9,8 @@ import { initialSecurity } from '../security/security';
 import { drawLineageUModes } from '../world/hidden';
 import type { ChinaActor, EngineSystem, GameStateV2, HiddenWorld, StaffByRole, SystemCtx } from '../types';
 import { cash, drift } from './fx';
-import { PHYS_PLACEHOLDER, goalpostsQ, leadBetween, rivalFinanceQ, simpleModel } from './rivals';
+import { PHYS_PLACEHOLDER, goalpostsQ, rivalFinanceQ, simpleModel } from './rivals';
+import { lagDays } from '../models/capability';
 import { initRivalPhys } from './rivalModel';
 import { START_PUBLIC_GAP_Y } from '../../../data/v2/rivalModel';
 import { B_G_PER_Y } from '../../../data/v2/runDesign';
@@ -81,10 +82,10 @@ export function chinaParams(s: GameStateV2) {
   return out;
 }
 
-/** Best US frontier (player or active rival) lead over China in months. */
+/** Best US frontier (player or active rival) lead over China in months: the lead clock lagDays (RD-L01). */
 export function usGapMonths(s: GameStateV2): number {
-  let best = leadBetween(s, 'player', CHINA_ID);
-  for (const r of activeRivals(s)) best = Math.max(best, leadBetween(s, r.core.id, CHINA_ID));
+  let best = lagDays(s, CHINA_ID, 'player');
+  for (const r of activeRivals(s)) best = Math.max(best, lagDays(s, CHINA_ID, r.core.id));
   return (best / 365) * 12;
 }
 
@@ -214,7 +215,7 @@ export function chinaDaily(s: GameStateV2, ctx: SystemCtx) {
 
   // Weekly lead history for "widening/shrinking" rules.
   if (day % 7 === 0) {
-    w.chinaLeadHist.push(Math.round(leadBetween(s, 'player', CHINA_ID)));
+    w.chinaLeadHist.push(Math.round(lagDays(s, CHINA_ID, 'player')));
     if (w.chinaLeadHist.length > 26) w.chinaLeadHist.shift();
   }
 }

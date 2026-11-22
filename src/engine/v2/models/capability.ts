@@ -182,38 +182,16 @@ const START_RETAIN = 0.7;
 
 // ───────────────────────────── lead (hidden) ─────────────────────────────
 
-// A lab's frontier history is its weekly level series. A version lab's series is a staircase (each new version is a
+// A lab's frontier history is its weekly series (series.G for the lead clock lagDays; series.L, λ, for frontierLevelAt
+// until RD-L02 moves theft to G). A version lab's series is a staircase (each new version is a
 // step), so interpolating between adjacent samples would put every intermediate level at the step and make the lag of
 // a smoothly progressing follower jump by a whole version interval each time it passes a step. The frontier LINE runs
 // instead through the "corners": the first sample at each new record level, plus today's level if it is higher (a
 // version newer than the last weekly sample). A continuous series (rivals, China) is all corners, so nothing changes
 // for it.
 
-/** Days since `lab`'s frontier line first reached `L`; undefined if the history does not reach back that far. */
-function daysSinceLevel(s: GameStateV2, lab: LabId, L: number, nowL: number): number | undefined {
-  const xs = s.series.L[lab];
-  const days = s.series.day;
-  if (!xs?.length) return undefined;
-  let pd = NaN;
-  let px = -Infinity;
-  const at = (d: number, x: number) => {
-    if (Number.isNaN(pd)) return undefined; // first corner already above L: history too short
-    const f = (L - px) / Math.max(1e-9, x - px);
-    return s.time.day - (pd + f * (d - pd));
-  };
-  for (let i = 0; i < xs.length; i++) {
-    const x = xs[i];
-    if (x <= px) continue; // not a new record level: not a corner
-    if (x >= L) return at(days[i], x);
-    pd = days[i];
-    px = x;
-  }
-  if (nowL > px && nowL >= L) return at(s.time.day, nowL);
-  return undefined;
-}
-
-/** Level of `lab`'s frontier line on `day` (≤ today; see above); undefined before its history starts. The inverse of
- *  daysSinceLevel: daysSinceLevel(frontierLevelAt(day)) = today − day wherever the line rises. */
+/** Level of `lab`'s frontier line on `day` (≤ today; see above); undefined before its history starts. On the λ
+ *  series; theft's only reader until RD-L02 moves it to G gaps. */
 export function frontierLevelAt(s: GameStateV2, lab: LabId, day: Day, nowL: number): number | undefined {
   const xs = s.series.L[lab];
   const days = s.series.day;
@@ -231,37 +209,75 @@ export function frontierLevelAt(s: GameStateV2, lab: LabId, day: Day, nowL: numb
   return px;
 }
 
-/** Days a lab's true frontier lags the player's best internal version (positive = player ahead), from the weekly
- *  level history: how long ago the leader stood where the follower stands now. Hidden; engine use only (intel,
- *  endings, events). Falls back to gap / rate when the history does not reach back far enough. */
-export function trueLeadDays(s: GameStateV2, other: LabId): number {
-  const w = s.hidden.timeline;
-  const pPl = bestG(s, PLAYER_ID);
-  const pOt = bestG(s, other);
-  if (!Number.isFinite(pOt)) return 0;
-  const ahead = pPl >= pOt;
-  const leader = ahead ? PLAYER_ID : other;
-  const followerL = levelOfG(w, ahead ? pOt : pPl);
-  const d = daysSinceLevel(s, leader, followerL, levelOfG(w, ahead ? pPl : pOt));
-  if (d !== undefined && d >= 0) return ahead ? d : -d;
-  // The history does not reach back to the follower's level (the first weeks of a game): the leader's frontier line
-  // before its first sample is the pre-game frontier, which rose at the start's reference rate — the rate every start
-  // gap was drawn at (rivals.ts initialRival, china.ts initialChina) — so the lead is the days since the first sample
-  // plus the first sample's gap at that rate (model v3 F2: v2's fallback divided by the leader's current research rate,
-  // which reads a few weeks of stack growth and put China 390–450 d behind in days 30–60).
-  const lead = preHistoryLead(s, leader, ahead ? pPl : pOt, ahead ? pOt : pPl);
-  return ahead ? lead : -lead;
+/** The one lead clock (RD-L01, DD-10): how many days ago `leader`'s recorded frontier G stood where `follower` stands
+ *  now (positive = the leader is ahead). `follower` is a lab (its best internal G) or a G value (e.g. a released model).
+ *  Read from the weekly series.G (record.ts) along the frontier line's corners (as above, in G), linearly interpolated;
+ *  today's best G closes the line when it is newer than the last sample. Hidden truth; trueLeadDays, intel and China's
+ *  readouts read it, so LeadTrack and RiskMap have this one function behind them.
+ *  - Follower ahead of the leader (a lab): the lag the other way, negated: lagDays(f, l) = −lagDays(l, f). Level: 0.
+ *  - Follower a G value above the leader's frontier: −(gap ÷ the leader's frontier-G slope), i.e. how long until the
+ *    leader gets there at its own recorded pace (frontierGPerYear).
+ *  - History too short (the follower is below the leader's first sample, the first weeks of a game): the days since that
+ *    sample plus the gap to it at the pre-game reference frontier rate, the rate every start gap was drawn at
+ *    (rivals.ts initialRival, china.ts initialChina), i.e. the leader's true pre-history slope. RD-U04 / RD-U06 restate
+ *    the start gaps in OOM and replace this rate with the start data's.
+ *  - No record at all for the leader: the gap at the pre-game rate. Non-finite G: 0. */
+export function lagDays(s: GameStateV2, follower: LabId | number, leader: LabId): number {
+  const gL = bestG(s, leader);
+  if (typeof follower === 'string') {
+    if (follower === leader) return 0;
+    const gF = bestG(s, follower);
+    if (!Number.isFinite(gF) || !Number.isFinite(gL)) return 0;
+    return gL >= gF ? daysSinceG(s, leader, gF, gL) : -daysSinceG(s, follower, gL, gF);
+  }
+  if (!Number.isFinite(follower) || !Number.isFinite(gL)) return 0;
+  if (follower <= gL) return daysSinceG(s, leader, follower, gL);
+  return -((follower - gL) / Math.max(0.05 * B_G_PER_Y, frontierGPerYear(s, leader))) * 365;
 }
-/** Days since `leader`'s frontier line stood at G `gF`, for a level below its first sample: the time since that sample
- *  plus the gap at the pre-game reference frontier rate (referenceRate at the start, the start gaps' rate, × B G per
- *  progress-year). */
-function preHistoryLead(s: GameStateV2, leader: LabId, gLead: number, gF: number): number {
-  const w = s.hidden.timeline;
-  const rate = Math.max(0.05, preGameRate(w)) * B_G_PER_Y;
-  const xs = s.series.L[leader];
-  if (!xs?.length) return ((gLead - gF) / rate) * 365;
-  const g1 = clamp(gOfLevel(w, xs[0]), gF - 20 * B_G_PER_Y, gLead + 20 * B_G_PER_Y);
-  return Math.max(0, s.time.day - s.series.day[0]) + ((g1 - gF) / rate) * 365;
+
+/** A lab's recorded frontier G samples aligned to series.day (a lab first recorded after day 0 aligns at the end). */
+function gSeries(s: GameStateV2, lab: LabId): { xs: number[]; days: Day[]; off: number } {
+  const xs = s.series.G?.[lab] ?? [];
+  const days = s.series.day;
+  return { xs, days, off: Math.max(0, days.length - xs.length) };
+}
+
+/** Days since `lab`'s frontier line (corners of series.G, then today's `gNow`) first reached `g` (g ≤ gNow). */
+function daysSinceG(s: GameStateV2, lab: LabId, g: number, gNow: number): number {
+  const { xs, days, off } = gSeries(s, lab);
+  const today = s.time.day;
+  const rate = Math.max(0.05, preGameRate(s.hidden.timeline)) * B_G_PER_Y; // G a year: the pre-history slope
+  if (!xs.length) return ((gNow - g) / rate) * 365;
+  if (g < xs[0]) return Math.max(0, today - days[off]) + ((xs[0] - g) / rate) * 365;
+  let pd = days[off];
+  let px = xs[0];
+  if (g <= px) return Math.max(0, today - pd);
+  const at = (d: number, x: number) => today - (pd + ((g - px) / Math.max(1e-12, x - px)) * (d - pd));
+  for (let i = 1; i < xs.length; i++) {
+    const x = xs[i];
+    if (x <= px) continue; // not a new record: not a corner
+    if (x >= g) return Math.max(0, at(days[i + off], x));
+    pd = days[i + off];
+    px = x;
+  }
+  if (gNow > px && today > pd) return Math.max(0, at(today, gNow));
+  return 0; // g between the last record and today's G with no time since: level
+}
+
+/** A lab's pace (DD-10): the slope of its own recorded frontier G in OOM a year, over the recorded history to today's
+ *  best G. With under 28 days of history (or no rise yet) it reads the pre-game reference frontier rate. */
+export function frontierGPerYear(s: GameStateV2, lab: LabId): number {
+  const { xs, days, off } = gSeries(s, lab);
+  const span = xs.length ? s.time.day - days[off] : 0;
+  const rise = xs.length ? Math.max(...xs, bestG(s, lab)) - xs[0] : 0;
+  if (span >= 28 && rise > 0) return (rise / span) * 365;
+  return Math.max(0.05, preGameRate(s.hidden.timeline)) * B_G_PER_Y;
+}
+
+/** Days a lab's true frontier lags the player's best internal version (positive = player ahead): lagDays(other, player).
+ *  Hidden; engine use only (intel, endings, events). */
+export function trueLeadDays(s: GameStateV2, other: LabId): number {
+  return lagDays(s, other, PLAYER_ID);
 }
 /** The pre-game frontier rate (progress-years a year, the start gaps' unit): referenceRate at the start model and 2025.5. */
 const preRateMemo = new WeakMap<TimelineWorld, number>();
