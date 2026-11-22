@@ -26,7 +26,7 @@ import {
 import { recipeOf } from '../../src/engine/v2/actors/rivalModel';
 import { secretsLeakDaily } from '../../src/engine/v2/security/theft';
 import { capProjectView, otherEffectViews, softwareRate, stackViews, STAGES } from '../../src/engine/v2/models/researchView';
-import { autoAssign, projectEta } from '../../src/engine/v2/models/tree';
+import { projectEta } from '../../src/engine/v2/models/tree';
 import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
 import { AGENDA_BY_ID } from '../../src/data/v2/agendas';
 import { serialize, deserialize } from '../../src/engine/v2/core/save';
@@ -635,7 +635,6 @@ if (process.argv.includes('--rd-a03')) {
   const stage0 = s.player.tree['L.scale']?.cap?.stage;
   s.player.split.routine += s.player.split.experiments;
   s.player.split.experiments = 0;
-  s.player.policies.spareTraining = 'data';
   for (let d = 0; d < 200; d++) tick(s, { skip: ['endings'] });
   const t1 = s.player.tree['L.scale']?.cap?.test;
   check(tested && !!t1 && t1.c.k === t0?.c.k && s.player.tree['L.scale']?.cap?.stage === stage0 && t1.work <= w0 + 1e-9,
@@ -857,22 +856,6 @@ if (process.argv.includes('--rd-a03')) {
     const gotStalls = lines.filter((l) => /stalls|gets going/.test(String(l.target))).length;
     const words = JSON.stringify(m);
     check(JSON.stringify(want) === JSON.stringify(got) && stalls === gotStalls && !/idle teams follow/.test(words), 'RD-B18 Reorder preview = each capability project\'s ETA change after the re-plan on a copy (no "idle teams follow")', `preview ${got.join(', ')} (${gotStalls} start / stall) vs copy ${want.join(', ')} (${stalls})`);
-  }
-  // B35 Auto-assign: counts the safety scientists the policy places (on a copy), never capability teams.
-  {
-    const c = cl(s);
-    c.player.research.autoAssign = false;
-    const capT = c.player.teams.find((t) => t.role === 'sci' && t.dept === 'cap');
-    const safT = c.player.teams.find((t) => t.role === 'sci' && t.dept === 'saf');
-    if (capT) delete capT.projectId;
-    if (safT) delete safT.projectId;
-    const on = pv(c, 'research.autoAssign', { on: true });
-    const d = cl(c);
-    apply(d, 'research.autoAssign', { on: true });
-    autoAssign(d);
-    const placed = d.player.teams.filter((t) => t.role === 'sci' && !c.player.teams.find((x) => x.id === t.id)?.projectId && t.projectId).reduce((a, t) => a + t.heads, 0);
-    const placedSaf = d.player.teams.filter((t) => t.role === 'sci' && t.dept === 'saf' && !c.player.teams.find((x) => x.id === t.id)?.projectId && t.projectId).reduce((a, t) => a + t.heads, 0);
-    check(on.gains[0].amount === Math.round(placedSaf) && placed === placedSaf && !!safT && !!capT, 'RD-B18 Auto-assign preview = the safety scientists the policy places on a copy (an idle capability team is not counted)', `preview ${on.gains[0].amount}, copy places ${placedSaf} safety (${placed} in all)`);
   }
   // B35 Reopen: the speculative attempt's own preview (lower prior, half the odds), as the reopened copy shows it; no
   // "+0.05 progress"; Research risk shows no κ as progress.

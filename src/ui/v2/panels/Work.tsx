@@ -5,7 +5,7 @@
 // overflow: the player's broad allocation). Below: the work-type milestones with the distance to each criterion.
 import type { ReactNode } from 'react';
 import { ChevronDown, ChevronUp, GripVertical } from 'lucide-react';
-import { buildSplit, capPriorityList, dateOf, engAllocView, fmtDate, milestoneViews, reAllocView, workTypeViews } from '../../../engine/v2';
+import { buildSplit, capPriorityList, dateOf, engAllocView, fmtDate, milestoneViews, reAllocView, safReAllocView, workTypeViews } from '../../../engine/v2';
 import type { AllocView, GameStateV2, MilestoneView, NeedView, WorkTypeView } from '../../../engine/v2';
 import { store } from '../store';
 import { Term, Tip, TipCard } from '../ui';
@@ -21,9 +21,9 @@ const ROLE_OF: Record<string, Role> = { SWE: 'eng', EXP: 're', IDEAS: 'sci' };
 const ROLE_NAME: Record<Role, string> = { eng: 'Engineers', re: 'Research engineers', sci: 'Scientists' };
 const ROLE_ICON: Record<Role, typeof ICON.L> = { eng: ICON.roleEng, re: ICON.roleRE, sci: ICON.roleSci };
 const ROLE_TERM: Record<Role, string> = { eng: 'roleEng', re: 'roleRE', sci: 'roleSci' };
-const NEED_TERM: Record<string, string> = { ops: 'runOps', evals: 'evals', exp: 'reNeeds', runs: 'engNeeds', upkeep: 'productUpkeep', builds: 'buildQueue' };
-const NEED_COLOR: Record<string, string> = { ops: '#9b6be0', evals: '#c06bb0', exp: '#7d55c0', runs: '#9b6be0', upkeep: '#b08e1a', builds: '#3a8ae0' };
-const NEED_SHORT: Record<string, string> = { ops: 'Run operations', evals: 'Evaluations', exp: 'Project experiments', runs: 'Setups & adoptions', upkeep: 'Product upkeep', builds: 'Builds' };
+const NEED_TERM: Record<string, string> = { ops: 'runOps', evals: 'evals', exp: 'reNeeds', runs: 'engNeeds', upkeep: 'productUpkeep', builds: 'buildQueue', cases: 'investigation', patches: 'safReNeeds', safExp: 'safReNeeds', reval: 'toolUpkeep' };
+const NEED_COLOR: Record<string, string> = { ops: '#9b6be0', evals: '#c06bb0', exp: '#7d55c0', runs: '#9b6be0', upkeep: '#b08e1a', builds: '#3a8ae0', cases: '#d0604a', patches: '#c08a3a', safExp: '#3aa88a', reval: '#4f8fd1' };
+const NEED_SHORT: Record<string, string> = { ops: 'Run operations', evals: 'Evaluations', exp: 'Project experiments', runs: 'Setups & adoptions', upkeep: 'Product upkeep', builds: 'Builds', cases: 'Open cases', patches: 'Patches & removals', safExp: 'Line experiments', reval: 'Tool re-validation' };
 const SHARES = [0.25, 0.5, 0.75, 0.9];
 const COUNTS = [1, 2, 4, 8, 16];
 const fmtH = (min: number) => (min >= 60 * 24 * 365 ? `${F.short(min / (60 * 24 * 365))} y` : min >= 60 * 24 ? `${F.short(min / (60 * 24))} d` : min >= 60 ? `${F.short(min / 60)} h` : `${Math.round(min)} min`);
@@ -196,6 +196,17 @@ function Criterion({ c }: { c: MilestoneView['criteria'][number] }) {
   );
 }
 
+/** RD-A04 (OD-9): the safety research engineers' needs list lives here, in LAB, beside the capability one. */
+function SafReCard({ s }: { s: GameStateV2 }) {
+  const a = safReAllocView(s);
+  return (
+    <Card className="wk-role" home="work.safRe" title={<span className="row-i"><ICON.roleRE size={15} /><Term id="safReNeeds">Safety research engineers</Term></span>}
+      sub={<span className="small dim">{F.short(a.cap)} people · where they go, priority order</span>}>
+      <NeedList a={a} act="research.safReAlloc" unit="people" />
+    </Card>
+  );
+}
+
 const MS_TERM = ['milestone', 'reliableAgent', 'researchAgent', 'sc', 'sar', 'siar', 'asi'];
 function Milestones({ s }: { s: GameStateV2 }) {
   const ms = milestoneViews(s);
@@ -232,6 +243,7 @@ export function Work({ s }: { s: GameStateV2 }) {
   return (
     <div className="wk-wrap" data-test="work-tab">
       <div className="wk-roles">{ws.map((w) => <RoleCard key={w.wt} s={s} w={w} />)}</div>
+      <SafReCard s={s} />
       <Milestones s={s} />
     </div>
   );

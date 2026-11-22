@@ -11,7 +11,6 @@ import type { ActionDef, Channel, CostLine, Deployment, EngineSystem, GameStateV
 import { hypothetical, previewDeployments, type EditPreview } from '../worldfx/productView';
 import { frontierGPerYear, PACE_WINDOW_DAYS } from './capability';
 import { openAbsorbMonths } from '../actors/rivals';
-import { spareServing } from '../worldfx/revenue';
 import { CHANNEL_VARIANTS, deploy, deployGate, distillationLeak, effortLock, setServing, withdraw } from './deployments';
 import { activeRivals, versionById } from './labs';
 import { autoEvaluate, featureBuildBlock, featureToggleBlock, isProduct, launchEffortBlock, launchFeatures, newestCleared, priceIndexOf, relaunchPacks } from './products';
@@ -405,24 +404,6 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
       const on = p.on !== false;
       const feats = on ? [...new Set([...d.features, id])] : d.features.filter((x) => x !== id);
       fail(applyEdit(s, ctx, d, { features: feats }));
-    },
-  },
-  {
-    // J2 PR1: where serving compute no product needs goes (research agents by default; or headroom on the products).
-    id: 'serving.spare', verb: 'policy', system: 'products', sphere: 'models', owner: 'WS1', title: 'Spare serving compute',
-    available: () => true,
-    preview: (s, p) => {
-      const use = str(p, 'use', s.player.policies.spareServing === 'headroom' ? 'research' : 'headroom');
-      const spare = Math.round(spareServing(s));
-      // RD-R01: the compute itself (routine research agents' H100e), not an aggregate elasticity.
-      const research = { currency: 'compute' as const, amount: spare, target: 'routine research agents' };
-      const headroom = { currency: 'compute' as const, amount: spare, target: 'serving headroom (eroded share recovers 2× faster)' };
-      return use === 'headroom' ? { costs: [research], gains: [headroom], exposure: [] } : { costs: [headroom], gains: [research], exposure: [] };
-    },
-    apply: (s, _ctx, p) => {
-      const use = str(p, 'use', '');
-      if (use !== 'research' && use !== 'headroom') return fail('Use research or headroom');
-      s.player.policies.spareServing = use;
     },
   },
   {

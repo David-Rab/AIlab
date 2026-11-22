@@ -181,17 +181,18 @@ export function stacksGEquiv(s: GameStateV2): number {
  *  knowledge and spillover inflow, addPublic). The public-knowledge readout is its daily change (RD-B16). */
 export const publicBase = (s: GameStateV2) => STACK_KEYS.reduce((a, k) => a + stacksOf(s)[k].base, 0);
 
-/** The recipe a version embodies, as its G-equivalent (OOM, gEquivOf at its base's FLOP): the continual-learning
- *  stream's tracked recipe while the stream runs on it, else the recipe it was trained with (its base's pretraining
- *  recipe, its own RL recipe). Known to the lab (the stacks it adopted), so the auto-evaluate policy reads it to see
- *  whether a version changed in place since its last suite (model v3 F6: it read the true level before). Only the
- *  stream changes a version in place (models/runs.ts advanceStream, startStream). */
+/** The recipe a version embodies, as its G-equivalent (OOM, gEquivOf at its build's FLOP): the
+ *  recipe it was trained with (its base's pretraining recipe, its own RL recipe); RD-T03: once the stream continued its
+ *  pretraining, the pretraining recipe its build now embodies (what remains of its G_pre past its base's physical part
+ *  at its FLOP, as a continued base's ePre). Known to the lab (the stacks it adopted), so the auto-evaluate policy reads
+ *  it to see whether a version changed in place since its last suite (model v3 F6: it read the true level before).
+ *  Only the stream changes a version in place (models/runs.ts applyStreamPeriod). */
 export function inPlaceRecipe(s: GameStateV2, v: ModelVersion): number {
-  const st = s.player.models.stream;
   const base = s.player.models.bases.find((b) => b.id === v.baseId);
-  const F = v.build?.flopPre ?? base?.flop ?? FLOP_RL_REF;
-  const t = st?.versionId === v.id && st.track ? st.track : { pre: base?.ePre ?? 0, rlMid: v.build?.eRL ?? 0, rlCeil: v.build?.aRL ?? 0 };
-  return gEquivOf(F, t.pre, t.rlMid, t.rlCeil);
+  const b = v.build;
+  const F = b?.flopPre ?? base?.flop ?? FLOP_RL_REF;
+  const pre = base && b?.addTokens !== undefined ? b.gPre - (base.gPre - base.ePre) - Math.log10(F / base.flop) : (base?.ePre ?? 0);
+  return gEquivOf(F, pre, b?.eRL ?? 0, b?.aRL ?? 0);
 }
 
 /** Knowledge that arrives from outside (diffusion, tacit knowledge, safety spillover), dG OOM of effective compute: added

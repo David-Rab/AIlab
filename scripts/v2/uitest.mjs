@@ -409,15 +409,12 @@ await nav('models');
   ok('Run queue: actual share and ETA per run', rq[0], rq[1] + ' | spare ' + rq[2]);
 }
 await check('Run queue: − lowers a pool share', 'JSON.stringify(s.player.models.runs.map((r) => r.poolShare))', () => page.locator('[data-act^="run-share-dn."]:not([disabled])').first().click());
-ok('Run queue: spare row links to the policy on the split', !!(await page.$('[data-home=runQueue] [data-run=spare] [data-ref=spareTraining]')));
+ok('Run queue: idle row links to Auto-split on the split', !!(await page.$('[data-home=runQueue] [data-run=spare] [data-ref=idleCompute]')));
 await nav('compute');
 await tabTo('split');
-{
-  const use = JSON.parse(await get('s.player.policies.spareTraining'));
-  ok('Split: spare training shows the policy in use', !!(await page.$(`[data-home=spareTraining] [data-test="spare-on.${use}"]`)), use);
-  await check('Split: spare training switches use (effect on the button)', 's.player.policies.spareTraining', () => page.click('[data-home=spareTraining] [data-act^="spare."]'));
-  await check('Split: spare training switches back', 's.player.policies.spareTraining', () => page.click('[data-home=spareTraining] [data-act^="spare."]'));
-}
+ok('Split: idle training compute shows under training (RD-A05b)', !!(await page.$('[data-test="split-idle.training"]')));
+await check('Split: Auto-split switches on', 's.player.policies.autoSplit.on', () => page.click('[data-home=autoSplit] [data-act="autoSplit.toggle"]'));
+await check('Split: Auto-split switches off', 's.player.policies.autoSplit.on', () => page.click('[data-home=autoSplit] [data-act="autoSplit.toggle"]'));
 await nav('company');
 await tabTo('work');
 ok('Company: engineers show the build queue', !!(await page.$('[data-panel=company] [data-test=build-queue]')));
@@ -2021,8 +2018,7 @@ await page.evaluate(() => { for (const d of window.ai27v2.state.player.deploymen
 await wait(100);
 await nav('compute');
 await tabTo('split');
-ok('J2 PR1: Compute › Split is the home of the spare-serving policy', !!(await page.$('[data-home=spareServing]')));
-await check('J2 PR1: spare serving policy switches', 's.player.policies.spareServing', () => page.click('[data-home=spareServing] [data-act^="spare-serving."]'), 200);
+ok('RD-A05b: Compute › Split shows idle serving compute under products', !!(await page.$('[data-test="split-idle.serving"]')));
 await shot('51-j2-split-spare');
 await nav('products');
 {

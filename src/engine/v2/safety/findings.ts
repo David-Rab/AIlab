@@ -15,7 +15,7 @@ import { EDGES } from '../../../data/v2/edges';
 import { FINDINGS, FINDING_BY_ID, type FindingDef } from '../../../data/v2/findings';
 import { OOM_PER_HALVING } from '../../../data/v2/oversight';
 import { TECHNIQUES, TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
-import { PROJECT_BY_ID } from '../../../data/v2/tree';
+import { TREE, type TreeNodeDef } from '../../../data/v2/tree';
 import { UMODE_BY_ID, UMODES } from '../../../data/v2/umodes';
 import { CHINA_ID, internalVersion } from '../models/labs';
 import type { AgendaId, FindingRecord, FindingType, GameStateV2, SystemCtx, TechniqueState, ToolFamily, TraitId, UModeId } from '../types';
@@ -210,11 +210,110 @@ export function revealFalse(s: GameStateV2, ctx: SystemCtx, techniqueId: string)
   ctx.log('research', `We were wrong: a validated ${AGENDA_BY_ID[t.agenda].name} tool was masking, not detecting.`, 4, techniqueId);
 }
 
-/**
- * Fire one finding for an agenda (§3.5.3): draw the type, select the catalog row (or a generic upgrade), apply its
- * effects, move the posterior, record it, auto-publish under the 'all' policy. R8: called when a research-line
- * project (`nodeId`) reaches progress 1; the type draw is unchanged (driven by the line's hidden efficacy).
- */
+/** RD-R02b: a node's own catalog row (its finding, or the row that unlocks its technique), if any. */
+export const ownRow = (n: TreeNodeDef): FindingDef | undefined =>
+  FINDINGS.find((r) => r.id === n.finding || (!!n.technique && r.effects.includes(`unlock:${n.technique}`)));
+/** Catalog rows a safety node owns: an open study never fires them (SAF-08: a result unlocks only its own node). */
+const NODE_ROWS = new Set(TREE.filter((n) => n.agenda && !n.followUp).map((n) => ownRow(n)?.id).filter((x): x is string => !!x));
+
+/** F49 (model v3 E7, SAFMECH): the safety model's sabotage of a result that is on track (\`threat\` > 0). 'caught' (an
+ *  internal incident, the result is lost), 'rigged' (uncaught: a working tool becomes a FALSE result, a discovery or a
+ *  cross-check a dead end) or no outcome, with the foothold noted. */
+function sabotage(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId, threat: number, rigsTool: boolean, u: () => number): { out?: 'caught' | 'rigged'; fh?: Foothold } {
+  const sv = threat > 0 ? safetyAgentVersion(s) : undefined;
+  const sab = sv ? safetySabotage(s, lineLabour(s, agenda).aiShare, threat) : undefined;
+  if (!sv || !sab || sab.attempts <= 0) return {};
+  const out = covertOutcome(sab, u());
+  let fh: Foothold | undefined;
+  if (out === 'caught' || (out === 'uncaught' && rigsTool)) fh = noteCovert(s, ctx, sv, sab, out, u());
+  if (out === 'caught') return { out, fh };
+  if (out === 'uncaught') {
+    if (!rigsTool) noteSandbagged(s);
+    return { out: 'rigged', fh };
+  }
+  return { fh };
+}
+
+/** The masking tool of a FALSE result: a false-validated detector on the agenda's family (MacDiarmid et al.). */
+function falseTool(s: GameStateV2, agenda: AgendaId, id: string, fh: Foothold | undefined) {
+  const def = AGENDA_BY_ID[agenda];
+  const dept = s.player.safety;
+  const fam: ToolFamily = (['BB', 'COT', 'WB', 'OR'] as ToolFamily[]).includes(def.family as ToolFamily) ? (def.family as ToolFamily) : 'BB';
+  const cov: Partial<Record<TraitId, number>> = {};
+  for (const t of def.coverage) if (t !== 'CORRIG') cov[t] = 0.6;
+  if (!Object.keys(cov).length) cov.SCHEME = 0.5;
+  dept.techniques[`T-${id}`] = {
+    id: `T-${id}`, agenda, family: fam, unlocked: true, active: true, s0: 0.8, oHalf: Math.max(4.218 /* SAR, v2 M½ 25 */, def.oHalf), k: Math.max(0.5, def.k),
+    goodhart: def.G, trainedAgainst: 0, trainedAgainstOn: null, falseValidated: true, coverage: cov,
+    validatedOn: internalVersion(s)?.id ?? null, validatedOom: versionOom(s, internalVersion(s)),
+  };
+  // Model v3 E8: the masking tool is a corrupted-tool foothold of the safety model that falsified it.
+  if (fh) {
+    fh.ref = `T-${id}`;
+    fh.size = dept.techniques[`T-${id}`].s0;
+  }
+}
+
+function record(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId, id: string, shown: FindingType, type: FindingType, title: string, nodeId?: string): FindingRecord {
+  const rec: FindingRecord = { id, agenda, type: shown, trueType: type, day: ctx.day, published: false, ...(nodeId ? { nodeId } : {}) };
+  s.player.safety.findings.push(rec);
+  ctx.log('research', `${AGENDA_BY_ID[agenda].name}: ${title}.`, type === 'DISC' || type === 'NEG' ? 3 : 2, id);
+  if (s.player.policies.publishSafety === 'all' && type !== 'SPILL') publishFinding(s, ctx, id);
+  return rec;
+}
+
+/** RD-R02b (SAFETY-REDESIGN §3.1): the result of a safety node's one test. Works → the node's own technique or finding
+ *  (its catalog row's effects, its generic tool, or the idea itself), posterior a + 1; a row that cannot fire in this
+ *  world (its `requires` fail, SAF-V02) ends as a failure. Doesn't → a dead end for this attempt, posterior b + 1 (the
+ *  project retries at the posterior odds). A working result can be sabotaged (SAFSAB, the line's threat): caught → the
+ *  result is lost; uncaught → a FALSE result (a masking tool; the lab takes the node as known, its real technique is not
+ *  unlocked). Never another node's row and never past `needs`. Undefined when nothing is recorded (caught). */
+export function nodeTestResult(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, works: boolean): FindingRecord | undefined {
+  const agenda = n.agenda as AgendaId;
+  const st = s.player.safety.agendas[agenda];
+  const rng = ctx.rng('safety');
+  const own = ownRow(n);
+  const tech = n.technique;
+  const generic = !!tech && TECHNIQUE_BY_ID[tech]?.unlockedBy === 'generic';
+  const ok = works && (own ? !fired(s, own.id) && requiresOk(s, own.requires, agenda) : generic || (!tech && !n.finding));
+  if (!ok) {
+    st.posterior.b += 1;
+    return record(s, ctx, agenda, nextId(s, `${agenda}-DEAD`), 'DEAD', 'DEAD', `${n.name}: does not work on this attempt`, n.id);
+  }
+  const sv = safetyAgentVersion(s);
+  const sab = sabotage(s, ctx, agenda, sv ? lineThreat(s, agenda, sv) : 0, true, () => rng.float());
+  if (sab.out === 'caught') return undefined;
+  st.posterior.a += 1;
+  const fam = AGENDA_BY_ID[agenda].family;
+  const shownTool: FindingType = own?.type ?? (fam === 'BB' || fam === 'BB+' ? 'EVAL' : 'TECH');
+  const markKnown = () => {
+    const t = (s.player.tree[n.id] ??= { status: 'known', progress: 1 });
+    t.status = 'known';
+    t.day = ctx.day;
+  };
+  if (sab.out === 'rigged') {
+    const id = fired(s, 'F49') ? nextId(s, 'F49') : 'F49';
+    falseTool(s, agenda, id, sab.fh);
+    markKnown();
+    return record(s, ctx, agenda, id, shownTool, 'FALSE', `${n.name} works (AI-validated)`, n.id);
+  }
+  if (own) {
+    applyEffects(s, ctx, agenda, own.effects);
+    return record(s, ctx, agenda, own.id, own.type, own.type, own.title, n.id);
+  }
+  if (tech) {
+    unlockTechnique(s, tech);
+    ctx.log('research', `New tool: ${TECHNIQUE_BY_ID[tech].name}.`, 2, tech);
+    return record(s, ctx, agenda, nextId(s, `${agenda}-${shownTool}`), shownTool, 'TECH', `${TECHNIQUE_BY_ID[tech].name} validated`, n.id);
+  }
+  markKnown();
+  return record(s, ctx, agenda, nextId(s, `${agenda}-TECH`), 'TECH', 'TECH', `${n.name} works`, n.id);
+}
+
+/** A line's open study (its follow-up project) ends: an event drawn from the line's hidden efficacy (a tool no node owns,
+ *  a dead end, a negative result or cross-check, a discovery, a spillover), moving the posterior. RD-R02b: node projects
+ *  resolve in nodeTestResult. Draws the type, selects the catalog row (or a generic upgrade), applies its effects, moves
+ *  the posterior, records it, auto-publishes under the 'all' policy (§3.5.3). */
 export function fireFinding(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId, nodeId?: string): FindingRecord | undefined {
   const dept = s.player.safety;
   const st = dept.agendas[agenda];
@@ -246,52 +345,19 @@ export function fireFinding(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId, no
   const onTrack = type === 'TECH' || type === 'DISC' || (type === 'NEG' && !!falseT);
   const sv = onTrack ? safetyAgentVersion(s) : undefined;
   const threat = sv ? (type === 'NEG' ? 1 : lineThreat(s, agenda, sv)) : 0;
-  const sab = threat > 0 ? safetySabotage(s, lineLabour(s, agenda).aiShare, threat) : undefined;
-  let fh: Foothold | undefined;
-  if (sv && sab && sab.attempts > 0) {
-    const u = rng.float();
-    const out = covertOutcome(sab, u);
-    if (out === 'caught' || (out === 'uncaught' && type === 'TECH')) fh = noteCovert(s, ctx, sv, sab, out, rng.float());
-    if (out === 'caught') return undefined;
-    if (out === 'uncaught') {
-      if (type === 'TECH') type = 'FALSE';
-      else {
-        noteSandbagged(s);
-        type = 'DEAD';
-      }
-    }
-  }
+  const sab = sabotage(s, ctx, agenda, threat, type === 'TECH', () => rng.float());
+  const fh = sab.fh;
+  if (sab.out === 'caught') return undefined;
+  if (sab.out === 'rigged') type = type === 'TECH' ? 'FALSE' : 'DEAD';
 
   let id = '';
   let shown: FindingType = type;
   let title = '';
   switch (type) {
     case 'TECH': {
-      const rows = candidates(s, agenda, ['TECH', 'EVAL']);
-      // R8: a working result of a node's project is that node's catalog row (or its generic tool, or the idea itself);
-      // a follow-up, or a node whose row cannot fire in this world (e.g. F05 needs e > 0.7), takes the line's next row.
-      const n = nodeId ? PROJECT_BY_ID[nodeId] : undefined;
-      const tech = n && !n.followUp ? n.technique : undefined;
-      const own = n && !n.followUp ? rows.find((r) => r.id === n.finding || (!!tech && r.effects.includes(`unlock:${tech}`))) : undefined;
-      const generic = tech && TECHNIQUE_BY_ID[tech]?.unlockedBy === 'generic' && !dept.techniques[tech]?.unlocked;
-      if (own) {
-        id = own.id;
-        shown = own.type;
-        title = own.title;
-        applyEffects(s, ctx, agenda, own.effects);
-      } else if (generic && tech) {
-        unlockTechnique(s, tech);
-        shown = def.family === 'BB' || def.family === 'BB+' ? 'EVAL' : 'TECH';
-        id = nextId(s, `${agenda}-${shown}`);
-        title = `${TECHNIQUE_BY_ID[tech].name} validated`;
-        ctx.log('research', `New tool: ${TECHNIQUE_BY_ID[tech].name}.`, 2, tech);
-      } else if (n && !n.followUp && !n.technique && !n.finding) {
-        // An idea with no catalog row (safety pretraining): it works.
-        id = nextId(s, `${agenda}-TECH`);
-        shown = 'TECH';
-        title = `${n.name} works`;
-        s.player.tree[n.id] = { status: 'known', progress: 1, day: ctx.day };
-      } else if (rows.length) {
+      // RD-R02b: an open study's tool is a row no node owns (a node's row comes only from its own test, SAF-08).
+      const rows = candidates(s, agenda, ['TECH', 'EVAL']).filter((r) => !NODE_ROWS.has(r.id));
+      if (rows.length) {
         const row = rows[0];
         id = row.id;
         shown = row.type;
@@ -366,31 +432,14 @@ export function fireFinding(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId, no
     case 'FALSE': {
       id = fired(s, 'F49') ? nextId(s, 'F49') : 'F49';
       shown = 'TECH';
-      const fam: ToolFamily = (['BB', 'COT', 'WB', 'OR'] as ToolFamily[]).includes(def.family as ToolFamily) ? (def.family as ToolFamily) : 'BB';
-      const cov: Partial<Record<TraitId, number>> = {};
-      for (const t of def.coverage) if (t !== 'CORRIG') cov[t] = 0.6;
-      if (!Object.keys(cov).length) cov.SCHEME = 0.5;
-      dept.techniques[`T-${id}`] = {
-        id: `T-${id}`, agenda, family: fam, unlocked: true, active: true, s0: 0.8, oHalf: Math.max(4.218 /* SAR, v2 M½ 25 */, def.oHalf), k: Math.max(0.5, def.k),
-        goodhart: def.G, trainedAgainst: 0, trainedAgainstOn: null, falseValidated: true, coverage: cov,
-        validatedOn: internalVersion(s)?.id ?? null, validatedOom: versionOom(s, internalVersion(s)),
-      };
+      falseTool(s, agenda, id, fh);
       title = `AI-validated ${def.name} detector`;
-      // Model v3 E8: the masking tool is a corrupted-tool foothold of the safety model that falsified it.
-      if (fh) {
-        fh.ref = `T-${id}`;
-        fh.size = dept.techniques[`T-${id}`].s0;
-      }
       st.posterior.a += 1;
       break;
     }
   }
   if (!id) return undefined;
-  const rec: FindingRecord = { id, agenda, type: shown, trueType: type, day: ctx.day, published: false, ...(nodeId ? { nodeId } : {}) };
-  dept.findings.push(rec);
-  ctx.log('research', `${def.name}: ${title}.`, type === 'DISC' || type === 'NEG' ? 3 : 2, id);
-  if (s.player.policies.publishSafety === 'all' && type !== 'SPILL') publishFinding(s, ctx, id);
-  return rec;
+  return record(s, ctx, agenda, id, shown, type, title, nodeId);
 }
 
 /**

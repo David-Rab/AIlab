@@ -46,9 +46,13 @@ import { committedFte, safetyReHeads } from '../safety/investigations';
 import { gOfLevel, gV0 } from '../models/capability';
 import { missingNeeds, nodeKnown, optionLocked } from '../models/tree';
 import { suiteRef, unbuiltSuiteFamilies } from '../models/suites';
-import { TREE_BY_ID, TREE_RETRY_DAYS } from '../../../data/v2/tree';
+import { TREE_BY_ID } from '../../../data/v2/tree';
+/** RefBot's own retry pacing: it reopens a failed idea as speculative this many days after the failure (v2's retry
+ *  delay, kept as the bot's habit; the player can reopen at once). */
+const REF_RETRY_DAYS = 180;
 import { COLUMN_DEPT } from '../../../data/v2/teams';
 import { sizedTarget, staffLines, type LinePlan } from './common';
+import { adopted } from '../models/paradigms';
 
 type Params = Record<string, number | string | boolean>;
 
@@ -253,15 +257,6 @@ export interface RefPlayOpts {
    *  see competeRelease), 'mini' (the newest distilled mini to consumer/api, enterprise the best full version near it;
    *  frontier internal) or 'frontier' (newest full version to consumer/api). */
   release?: 'compete' | 'mini' | 'frontier';
-  /** Spare-training policy (R5). Default 'data': the AI 2027 reference lab's research compute is fixed by its
-   *  compute-usage table (shareRef), so the training compute RefBot's run cadence leaves unused generates data
-   *  instead of raising experiments (data never binds on the reference path, so this is neutral). */
-  spareTraining?: 'research' | 'data';
-  /** Spare-serving policy (J2 PR1). Default 'headroom': as with spare training, the reference lab's research compute is
-   *  its compute-usage table (shareRef), so the serving compute its products do not need stays on them as headroom
-   *  (today's behaviour exactly) instead of running research agents. Measured: with 'research' RefBot's spare serving
-   *  (up to 4× its agent pool in late 2025) would add an unearned speed-up (design/PROGRESS.md J2). */
-  spareServing?: 'research' | 'headroom';
   /** A5: distil a cheap API tier (MKT: a student holding the API model's level less FREE_TIER.oom) once per API model,
    *  set as the API's mini. Default off (TIERS): every sector product sells its lineup (data/v2/serving.ts LINEUP), as
    *  the rivals' do, so RefBot needs no extra distil; the option stays for experiments. */
@@ -346,13 +341,8 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
     }
   }
 
-  const spare = o.spareTraining ?? 'data';
-  if (p.policies.spareTraining !== spare) tryAct(s, api, 'runs.spareTraining', { use: spare });
-  const spareServe = o.spareServing ?? 'headroom';
-  if (p.policies.spareServing !== spareServe) tryAct(s, api, 'serving.spare', { use: spareServe });
-
   // Research (model v3 V2): each goal goes to the top of the priority list once its start condition holds and its
-  // prerequisites are known (a failed idea is reopened as speculative after TREE_RETRY_DAYS, v2's retry pacing); the
+  // prerequisites are known (a failed idea is reopened as speculative after REF_RETRY_DAYS, v2's retry pacing); the
   // research lines follow, with teams wanted in proportion to REF_RESEARCH_LINES. The assignment places the teams.
   const goals = o.tree?.(s) ?? REF_TREE;
   const queue = p.research.queue;
@@ -360,7 +350,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
     if (queue.includes(g.id) || nodeKnown(s, g.id) || missingNeeds(s, g.id).length) continue;
     const st = p.tree[g.id];
     if (st?.status === 'failed') {
-      if (day - (st.day ?? day) >= TREE_RETRY_DAYS && (!g.when || g.when(s))) tryAct(s, api, 'research.reopen', { id: g.id });
+      if (day - (st.day ?? day) >= REF_RETRY_DAYS && (!g.when || g.when(s))) tryAct(s, api, 'research.reopen', { id: g.id });
       continue;
     }
     if (st?.cap && st.cap.stage !== 'ideation' && st.cap.stage !== 'small' && st.cap.stage !== 'scale' && st.cap.stage !== 'test') continue;
@@ -383,13 +373,12 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
     const n = wOf(l) > 0 ? Math.max(1, Math.round((wOf(l) / wSum) * free)) : 0;
     if ((p.research.want[l.id] ?? 1) !== n) tryAct(s, api, 'research.want', { id: l.id, n });
   }
-  if (!p.research.autoAssign) tryAct(s, api, 'research.autoAssign', { on: true });
 
   // Base runs: a base every 9 months; once neuralese (P17) is adopted the next base is latent and starts at once
   // (AI 2027's Agent-3 is a neuralese model at SC).
   const baseRunning = m.runs.some((r) => r.kind === 'base' && r.status === 'running');
   const lastBase = flag(s, 'lastBase', m.bases[m.bases.length - 1]?.startDay ?? -120);
-  const latent = p.paradigms.P17?.status === 'adopted' && goals.some((g) => g.id === 'P17');
+  const latent = adopted(s, 'P17') && goals.some((g) => g.id === 'P17');
   const latentDue = latent && !m.bases.some((b) => b.design.shape === 'latent') && !m.runs.some((r) => r.status === 'running' && r.base?.shape === 'latent');
   if ((!baseRunning && day - lastBase >= BASE_EVERY) || latentDue) {
     // The bot's own staleness rule (the engine has no cap since R5): the base is sized so it trains in the target length
@@ -421,7 +410,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
     if (!(streamOnNewest && pending)) {
       const design = known(s, o.post?.(s) ?? {});
       let cot = String(design.cot ?? 'visible');
-      if (cot === 'faithful' && p.paradigms.P23?.status !== 'adopted') cot = 'visible';
+      if (cot === 'faithful' && !adopted(s, 'P23')) cot = 'visible';
       if (newestBase.design.shape === 'latent') cot = 'latent';
       else if (cot === 'latent') cot = 'visible';
       if (tryAct(s, api, 'launchPost', { ...design, baseId: newestBase.id, cot, poolShare: 0.5 })) setFlag(s, 'lastPost', day);
@@ -435,7 +424,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   const nv = newestFull(s);
   const sv = m.stream ? m.versions.find((v) => v.id === m.stream?.versionId) : undefined;
   const baseIdx = (v?: ModelVersion) => (v ? m.bases.findIndex((b) => b.id === v.baseId) : -1);
-  if (p.paradigms.P08?.status === 'adopted' && nv) {
+  if (adopted(s, 'P08') && nv) {
     if (!sv || baseIdx(nv) > baseIdx(sv)) tryAct(s, api, 'startStream', { versionId: nv.id });
     const cur = m.stream?.versionId;
     if (cur && p.agents.capRoutine.versionId !== cur) tryAct(s, api, 'agents.set', { use: 'capRoutine', versionId: cur });
@@ -657,7 +646,7 @@ function capacityPricing(s: GameStateV2, api: EngineApi) {
 
 /** Pool share each kind of run asks for (RefBot's launch shares; the base share is the one it launched with). */
 const askShare = (s: GameStateV2, r: TrainingRun) =>
-  r.kind === 'base' ? flag(s, 'baseShare', 0.6) : r.kind === 'post' ? (r.name.startsWith('IDA') ? 0.3 : 0.5) : r.kind === 'distill' ? 0.1 : 0.3;
+  r.kind === 'base' ? flag(s, 'baseShare', 0.6) : r.kind === 'post' ? (r.grader === 'teacher' ? 0.3 : 0.5) : r.kind === 'distill' ? 0.1 : 0.3;
 
 /** R5 made the pool allocation proportional. RefBot keeps the pre-R5 priority (base and continue runs keep their
  *  share; the other runs share what is left) by setting every run's pool share to what that rule gives it, so its

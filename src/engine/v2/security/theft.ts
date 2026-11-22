@@ -8,6 +8,7 @@ import { bestPlayerVersion, bestG, CHINA_ID } from '../models/labs';
 import type { GameStateV2, LabId, RivalBase, RivalLab, SecurityState, SimpleModel, SystemCtx } from '../types';
 import { request, ws4 } from '../actors/state';
 import { WS4_TUNING } from '../actors/tuning';
+import { adopted } from '../models/paradigms';
 
 /** P(successful theft in 2 months) = 1/(1 + 19·6^(d−a)) (R11 #24: 5% at d = a, base 6 per level). */
 export function theftP2mo(defence: number, attacker: number): number {
@@ -40,7 +41,7 @@ export const P25_DEFENCE = 0.5;
 export function theftHazardOn(s: GameStateV2, sec: SecurityState, leadDays: number, gulf = 0): number {
   if (leadDays <= 90 || s.china.lab.core.status !== 'active' || s.china.rung < WS4_TUNING.theftMinRung) return 0; // China holds nothing worth stealing
   // P25 Formal verification at scale (model v3 V2): verified infrastructure, +0.5 defence level for the player.
-  const p = theftP2mo(effectiveDefence(sec, gulf) + (sec === s.player.security && s.player.paradigms.P25?.status === 'adopted' ? P25_DEFENCE : 0), attackerLevel(s));
+  const p = theftP2mo(effectiveDefence(sec, gulf) + (sec === s.player.security && adopted(s, 'P25') ? P25_DEFENCE : 0), attackerLevel(s));
   return (-Math.log(1 - Math.min(0.999, p)) / 61) * (s.china.meters.theftIntent / 100);
 }
 

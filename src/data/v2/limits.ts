@@ -20,12 +20,10 @@ export interface LimitDef {
 
 export const LIMITS: readonly LimitDef[] = [
   // ── models and research ──
-  { id: 'tree.retry', title: 'Retry after a failure', rule: 'A safety idea that fails can be retried after 180 days; each failure halves its odds. (Capability projects reopen as speculative at once.)', source: 'TECH-TREE T5 [D]', engine: 'models/tree.ts', home: { panel: 'research', tab: 'tree' } },
   { id: 'research.maxTeams', title: 'Teams per project', rule: 'One capability project takes at most 6 science teams (teams wanted 0–6); progress grows with the square root of capacity.', source: 'MODEL-V3 §5.6 [D]', engine: 'models/research.ts', home: { panel: 'research', tab: 'projects' } },
   { id: 'research.rePerProject', title: 'Research engineers per project', rule: 'A project in experiments uses at most 2 research-engineer team-equivalents; the rest go to routine tuning.', source: 'MODEL-V3 §5.6 [D]', engine: 'models/research.ts', home: { panel: 'research', tab: 'projects' } },
   { id: 'run.stream', title: 'Continual-learning share', rule: 'A continual-learning stream takes 15% of the training pool before any run.', source: 'V2-SPEC §3.3.6 [D]', engine: 'models/runs.ts', home: { panel: 'models' } },
   { id: 'model.dataSpec', title: 'Data specialisation cap', rule: 'A base\'s data mix moves a domain by at most ±1.3 OOM of effective compute (what a 50% share of one domain gains).', source: 'research/20 A2', engine: 'production/data.ts', home: { panel: 'models' } },
-  { id: 'speed.serialCap', title: 'Agent serial speed', rule: 'Research agents think at most 50× human serial speed.', source: 'R11 #23', engine: 'production/production.ts', home: { panel: 'company', tab: 'flow' } },
   { id: 'speed.pause', title: 'Research pause', rule: 'While a pause of frontier experiments is in force, research runs at ×0.1.', source: 'V2-SPEC §3.1.2', engine: 'production/production.ts', home: { panel: 'company', tab: 'flow' } },
   { id: 'speed.diffusion', title: 'Knowledge diffusion', rule: 'While the frontier leader\'s public model is ahead of your best model, its published ideas add 2.0 × the gap to your pretraining recipe per year (public ideas).', source: 'research/18 §0.2 catch-up [D, fit]', engine: 'production/production.ts', home: { panel: 'company', tab: 'flow' } },
   // ── compute ──

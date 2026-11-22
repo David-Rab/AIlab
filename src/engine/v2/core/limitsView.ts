@@ -1,11 +1,9 @@
 // Read-only views of the limits the player can hit (STRUCTURE R11, data/v2/limits.ts): the live reading of each cap,
 // floor or gate where the UI shows it. Pure selectors; nothing here changes state or reads hidden truth.
 import { RESTRICT, controlOn, isRestricted, productUsageMult, restrictMult } from '../safety/safeguards';
-import { SPEED_CAP } from '../../../data/v2/workTypes';
 import { SITE_PATHS } from '../../../data/v2/deals';
 import { decimalYear } from './time';
 import { diffusionPerDay } from '../production/production';
-import { speedOfCopy } from '../departments/workfit';
 import { LEADER_ID } from '../models/labs';
 import { SPEC_CAP } from '../../../data/v2/dataAssets';
 import { ws4r } from '../actors/state';
@@ -23,7 +21,7 @@ import { outsidersWithAccess } from '../safety/incidents';
 import type { Deployment, DomainId, GameStateV2, ModelVersion } from '../types';
 
 export interface SpeedLimitLine {
-  id: 'speed.serialCap' | 'speed.pause' | 'speed.diffusion';
+  id: 'speed.pause' | 'speed.diffusion';
   /** Multiplier on research speed (or know-how rate) it applies today; 1 = not binding. */
   mult: number;
   /** Short reading for the line. */
@@ -33,21 +31,15 @@ export interface SpeedLimitLine {
   fix?: string[];
 }
 
-/** Research-speed limit lines (LIMITS "Research speed"): the agents' serial speed cap, a pause, knowledge diffusion. Lines that
+/** Research-speed limit lines (LIMITS "Research speed"): a pause, knowledge diffusion. Lines that
  *  cannot apply in this game (no leader lab to learn from, no pause) are omitted. Model v3 V2b: the v2 "frontier methods"
  *  ratio and the serving-cost clamp are gone (research runs on explicit compute and labour; copies follow FLOP per token). */
-export function researchSpeedLimits(s: GameStateV2): SpeedLimitLine[] {
+export function labSpeedLimits(s: GameStateV2): SpeedLimitLine[] {
   const out: SpeedLimitLine[] = [];
   const p = s.player;
-  const r = p.prodCache;
-  // Serial speed of research agents (R11 #23 cap).
-  if (r) {
-    const raw = speedOfCopy();
-    out.push({ id: 'speed.serialCap', mult: 1, binding: raw >= SPEED_CAP, text: raw >= SPEED_CAP ? `capped at ${SPEED_CAP}×` : `${Math.round(raw)}× of ${SPEED_CAP}×` });
-  }
   // Pause of frontier experiments.
   const until = ws4r(s).frontierPauseUntil;
-  if (s.flags.paused || until > s.time.day) out.push({ id: 'speed.pause', mult: 0.1, binding: true, text: until > s.time.day ? `×0.1 for ${until - s.time.day} d` : '×0.1 while paused' });
+  if (s.flags.paused || until > s.time.day) out.push({ id: 'speed.pause', mult: 0, binding: true, text: until > s.time.day ? `no experiment FLOP for capability projects for ${until - s.time.day} d (ideation goes on)` : 'no experiment FLOP for capability projects while paused (ideation goes on)' });
   // Knowledge diffusion from the simulated frontier leader (follower starts).
   const L = s.rivals.find((x) => x.core.id === LEADER_ID && x.core.status === 'active');
   if (L) {
@@ -153,9 +145,9 @@ export function idleStocks(s: GameStateV2): IdleStock[] {
   const sci = p.teams.filter((t) => t.role === 'sci');
   const idle = idleTeams(s);
   if (idle.length) out.push({ id: 'scienceTeams', amount: idle.length, unit: 'teams', share: idle.length / Math.max(1, sci.length) });
-  // J2 PR1: spare serving runs research agents by default; it is idle only when kept as headroom.
+  // Serving compute no product needs stays idle on the serving line (DD-19).
   const pool = servingPool(s);
-  if (pool > 0 && p.policies.spareServing === 'headroom') {
+  if (pool > 0) {
     const need = revenueReadout(s).deps.reduce((a, d) => a + d.needH100e, 0);
     const spare = pool - need;
     if (spare > 0.25 * pool && spare > 5000) out.push({ id: 'serving', amount: spare, unit: 'H100e', share: spare / pool });

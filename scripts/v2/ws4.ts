@@ -258,7 +258,7 @@ const load = (i: number) => deserialize(fixtures[i]);
     s.player.milestoneDays[6] = 0;
     if (contain) {
       // §5.2 Cont = Contain(2000) + 0.2·[F32 verified gatekeeper] + 0.1·[AG10 e > 0.6 adopted].
-      for (const d of s.player.deployments) if (d.channel === 'internal') setControl(d, true);
+      for (const d of s.player.deployments) if (d.channel === 'internal') setControl(d, true); for (const a of Object.values(s.player.agents)) a.control = true;
       s.flags['ws2.gatekeeper'] = s.time.day;
       const gate = s.player.safety.techniques['T-GATE'];
       if (gate) Object.assign(gate, { unlocked: true, active: true, falseValidated: false });

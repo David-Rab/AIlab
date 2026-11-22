@@ -52,7 +52,7 @@ export function readDay(s: GameStateV2, teams: Team[], edit?: (c: GameStateV2) =
   return readState(c);
 }
 /** Today's read and the changed reads, memoised per state, day and staffing (every hire chip compares against it). */
-const teamsKey = (s: GameStateV2) => `${s.time.day}|${s.player.research.queue.join(',')}|${s.player.research.autoAssign ? 1 : 0}|${s.player.teams.map((t) => `${t.id}:${t.heads}:${t.projectId ?? ''}:${t.dept}`).join(',')}`;
+const teamsKey = (s: GameStateV2) => `${s.time.day}|${s.player.research.queue.join(',')}|${s.player.teams.map((t) => `${t.id}:${t.heads}:${t.projectId ?? ''}:${t.dept}`).join(',')}`;
 const readMemo = new WeakMap<GameStateV2, { key: string; m: Map<string, DayRead> }>();
 function memoRead(s: GameStateV2, tag: string, teams: () => Team[], edit?: (c: GameStateV2) => void): DayRead {
   const key = teamsKey(s);
@@ -70,10 +70,10 @@ const baseRead = (s: GameStateV2) => memoRead(s, 'base', () => s.player.teams);
 const r2 = (x: number) => Math.round(x * 100) / 100;
 /** The line of a team change in its department's currency: engineers' build capacity; capability teams the project
  *  whose ETA moves most (days; research engineers no project needs show as idle); safety results per year. */
-export function effectLine(s: GameStateV2, before: DayRead, after: DayRead, t: Pick<Team, 'role' | 'dept'>, none?: string): CostLine {
+export function effectLine(_s: GameStateV2, before: DayRead, after: DayRead, t: Pick<Team, 'role' | 'dept'>, none?: string): CostLine {
   if (t.role === 'eng') return { currency: 'staffTime', amount: r2(after.build - before.build), unit: 'team-weeks / week', target: 'build capacity' };
   if (t.dept === 'saf') {
-    return { currency: 'alignment', amount: r2(after.saf - before.saf), unit: 'results / yr', target: s.player.research.autoAssign || t.role === 're' ? 'safety research results' : 'safety research results (Auto-assign is off: a new science team waits for you)' };
+    return { currency: 'alignment', amount: r2(after.saf - before.saf), unit: 'results / yr', target: t.role === 're' ? 'safety research results' : 'safety research results (a new science team joins the safety projects on the priority list; with none it waits idle)' };
   }
   let best: { id: string; d: number; stall?: 'starts' | 'stops' } | undefined;
   let moved = 0;

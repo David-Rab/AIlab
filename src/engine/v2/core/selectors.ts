@@ -25,7 +25,7 @@ export { goodputOf, paramsOfVersion, runFlopPerShareDay } from '../models/runs';
 export type { LaunchRunParams, RunPlan } from '../models/runs';
 export { PARADIGM_BY_ID } from '../models/paradigms';
 export { capEta, effortClassOf, effortOfNode, isCapProject, stagesOf } from '../models/research';
-export { assignBlock, effortOf, idleTeams, isProject, missingNeeds, nextLineProject, nodeDept, nodeKnown, nodeOdds, nodeStatus, optionLocked, payoffOf, projectCapacity, projectEta, projectRate, projectReady, projectTeams, PRIORITY_W, researchSpeed, teamGain as projectTeamGain, teamsOn, treeCounts } from '../models/tree';
+export { assignBlock, effortOf, idleTeams, isProject, safIdleFlag, missingNeeds, nextLineProject, nodeDept, nodeKnown, nodeOdds, nodeStatus, optionLocked, projectCapacity, projectEta, projectRate, projectReady, projectTeams, teamGain as projectTeamGain, teamsOn, treeCounts } from '../models/tree';
 export type { NodeStatus } from '../models/tree';
 export { benchName, benchGen, measuredSd } from '../models/benchmarks';
 export { evalDaysFor, evalDaysEstimate, evalCost, evalDepthView, evalMeasureView, evalPolicyView, evalQueueView, gateDepth, policyDepth } from '../models/evals';
@@ -34,6 +34,7 @@ export { deployGate, effortLock, CHANNEL_VARIANTS, distillationAccess } from '..
 export { bestMeasuredL, internalVersion, measuredLOf, versionById } from '../models/labs';
 export { MILESTONE_NAMES } from '../models/capability';
 export { presetSplit, shareRefAt, SPLIT_KEYS, SPLIT_PRESETS } from '../departments/split';
+export { AUTO_SPLIT_USES, autoSplitPlan, idleShares } from '../departments/autoSplit';
 export { teamGain } from '../departments/teamActions';
 export { aiShareByRole, buildCapacity, fillWeeks, laneWeights, fullTeamPayroll, keyOf, payrollOf, playerH, queuedOfKey, teamLabel, teamPayroll, teamsOfKey, weeklyHireCap } from '../departments/teams';
 export { RUN_PARAM_DEFAULTS, baseFromParams, postFromParams } from '../models/actions';
@@ -54,9 +55,9 @@ export { INV_FTE, INV_MAX_DAYS } from '../safety/investigations';
 export { safetyAgentVersion, safetyFleet, trustedShare } from '../safety/agents';
 export { lineLabour } from '../safety/lineProjects';
 // R7 internal agent packages (Company › Agents at work).
-export { agentVersion, monitorBudget, monitoredUses, monitorVersion, riskBadges, usesOf } from '../departments/agents';
+export { agentVersion, newestInternal, monitorBudget, monitoredUses, monitorVersion, riskBadges, usesOf } from '../departments/agents';
 export type { RiskBadge } from '../departments/agents';
-export { agentChangeBlock, agentsView, MONITOR_BUDGET_STEP, monitorAt, previewAgentChange, previewTrusted, withAgentChange } from '../departments/agentActions';
+export { agentChangeBlock, agentsView, toolingView, MONITOR_BUDGET_STEP, monitorAt, previewAgentChange, previewTrusted, withAgentChange } from '../departments/agentActions';
 export type { AgentChange, AgentLane, AgentPreview, AgentsView } from '../departments/agentActions';
 // WS5 world readouts (observables only).
 export { automationShare, dowYtd, firmAdoption, remoteWorkAutomation, unemploymentChange12m, workUse, youthExposedEmployment } from '../worldfx/readouts';
@@ -130,7 +131,7 @@ export function runTraitPressure(s: GameStateV2, p: LaunchRunParams): Partial<Re
   if (!prior) return {};
   const plan = planRun(s, p);
   const base = p.baseId ? s.player.models.bases.find((b) => b.id === p.baseId) : undefined;
-  const runLike = { kind: p.kind, name: p.ida ? 'IDA' : p.kind, flopNeeded: plan.flopNeeded, ...(p.baseId ? { baseId: p.baseId } : {}), ...(p.post ? { post: p.post } : {}) };
+  const runLike = { kind: p.kind, name: p.kind, ...(p.grader ? { grader: p.grader } : {}), flopNeeded: plan.flopNeeded, ...(p.baseId ? { baseId: p.baseId } : {}), ...(p.post ? { post: p.post } : {}) };
   const om = runOmega(s, runLike);
   const lh = runHack(s, runLike).lambda; // E16: learned hacking from the planned run's suites and RL budget
   const next = predictBeliefs(s, prior, plan.prediction.signals as Signals, om.growth, p.kind === 'post' ? p.post : undefined, base?.lineage ?? 'L-unknown', om.safety, undefined, lh, plan.g.G > 0 ? plan.g.G : undefined, p.kind === 'base' || p.kind === 'continue'); // E18: the AF gate at the planned model's G; E20: no E13 / E27 in pretraining
@@ -149,12 +150,11 @@ export { editBlock, editedProduct, previewEdit } from '../models/productOps';
 export type { ProductChanges } from '../models/productOps';
 export { activeFeatures, agentsGate, catchRate, collusionTrait, sameLineage, featureBuildBlock, featureToggleBlock, isProduct, measuredHorizonH, monitorOverhead } from '../models/products';
 export { monitorCatchAt, type ControlReadout } from '../safety/oversight';
-export { LENT_RECOVERY, servingPool, spareServing, spareServingToResearch } from '../worldfx/revenue';
-export { spareServingEffect } from '../production/production';
+export { idleServing, servingPool } from '../worldfx/revenue';
 // Model v3 V2b research UI: projects, recipe stacks, allocations, AI labour per work type, milestones, research speed.
 export {
   STAGES, UNLOCK_STAGES, PROJECT_MAX_TEAMS, addableProjects, buildSplit, capPriorityList, capProjectView, engAllocView, milestoneViews,
-  otherEffectViews, reAllocView, researchSpeedView, softwareRate, stackViews, workTypeViews,
+  otherEffectViews, reAllocView, safReAllocView, labSpeedView, softwareRate, stackViews, workTypeViews,
 } from '../models/researchView';
 export type { AdoptedView, AllocView, CapProjectView, EffectRowView, MilestoneView, NeedView, OtherEffectView, ResearchSpeedView, StackView, StageId, WorkTypeView } from '../models/researchView';
 // Model v3 E11: the player's danger readout per product and internal lane, and the control readout (beliefs only).

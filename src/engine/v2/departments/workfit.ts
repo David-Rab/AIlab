@@ -30,9 +30,7 @@ import { Lrel, Phi, tasteSigma } from '../production/ces';
 import { h50Of, versionDomainG } from '../models/capability';
 import { adopted } from '../models/paradigms';
 import { REF_RL_PROFILE } from '../models/effective';
-import { payoffOf } from '../models/tree';
 import { decimalYear } from '../core/time';
-import { spareServingToResearch } from '../worldfx/revenue';
 import { internalFx, tokEff } from '../worldfx/serving';
 import { decodeUtilNow } from '../models/stacks';
 import { ws4r } from '../actors/state';
@@ -223,9 +221,9 @@ export interface WorkContext {
   sAI: number;
 }
 
-/** Agent compute (H100e) of a capabilities use, with the AI-labour multipliers of adopted ideas: P05 orchestration ×1.3,
- *  P20 agent societies ×(1 + 0.1·payoff), and the control tax under the AG07 control layer (model v3 E6, Greenblatt et
- *  al. 2023: the usefulness of trusted monitoring with deferral, 93–97% by the gap to the use's trusted monitor). */
+/** Agent compute (H100e) of a use and the control tax under the AG07 control layer (model v3 E6, Greenblatt et al. 2023:
+ *  the usefulness of trusted monitoring with deferral, 93–97% by the gap to the use's trusted monitor). RD-E01b: no
+ *  flat paradigm multipliers; P05 orchestration is a typed scaffold (internalFx), P20 is deleted. */
 function useLabour(s: GameStateV2, slot: LabourSlot): { v?: ModelVersion; h100e: number; mult: number } {
   const p = s.player;
   const off = Number(s.flags['ws4:agentsOffUntil'] ?? -1) > s.time.day;
@@ -233,38 +231,55 @@ function useLabour(s: GameStateV2, slot: LabourSlot): { v?: ModelVersion; h100e:
   const v = agentVersion(s, use);
   let h100e = 0;
   if (!off) {
-    h100e = p.computeOnline * agentSplitShare(s, use) + (use === 'capRoutine' ? spareServingToResearch(s) : 0);
+    h100e = p.computeOnline * agentSplitShare(s, use);
     // SR-13b: the control protocol's trusted-model compute the monitors' line cannot pay runs on the agents' own.
     const b = monitorBudget(s);
     if (b.controlShort > 1e-12 && b.control > 0) h100e *= 1 - (b.controlShort / b.control) * controlComputeShare(labControlSetting(s));
   }
-  let mult = 1;
-  if (adopted(s, 'P05')) mult *= 1.3;
-  if (adopted(s, 'P20')) mult *= 1 + 0.1 * payoffOf(s, 'P20');
-  mult *= useControl(s, v, monitorVersion(s, use)).usefulness;
+  let mult = useControl(s, v, monitorVersion(s, use), !!p.agents[use].control).usefulness;
   // SR-13: the comms-lockdown safeguard's Slowdown on internal work.
   if (lockdownOn(s)) mult *= 1 - LOCKDOWN_SLOWDOWN;
   return { v, h100e, mult };
 }
 
-/** Research-speed and labour modifiers (as the v2 production function's): a pause of frontier experiments ×0.1, a
- *  verified treaty ×0.65, siloing −5% per level, a custom-ASIC migration −15% (speed); E12 clearances sideline 10% of
- *  staff for 60 days (humans). */
-export function researchMods(s: GameStateV2): { speed: number; rateMult: number; humans: number } {
+/** RD-A07: the research modifiers as the physical thing each stands for; one helper read by both departments
+ *  (capability: models/research.ts, safety: safety/lineProjects.ts, the lab readout: production/production.ts).
+ *  - frontierExp: the share of its experiment FLOP a frontier project may use. A frontier pause (flags.paused or the
+ *    ws4 frontierPauseUntil) = 0 while it lasts: frontier projects are the capability department's ('cap'), whose tests
+ *    run on the frontier experiment pool and scale toward the frontier run. Ideation (science teams) goes on; safety
+ *    research-line projects (agenda-sized compute, far below frontier scale) keep their FLOP.
+ *  - speed: the [D] multipliers with no physical counterpart modelled, on both departments' science and experiment
+ *    rates. Siloing −5% per level [D: compartmentalisation friction; who cannot share experiments is not modelled];
+ *    a custom-ASIC migration −15% [D: toolchain and kernel porting churn; the port itself is not modelled]; a verified
+ *    treaty ×0.65 [D: the treaty state (gov.treaty) carries no compute limit to cap experiment FLOP with] (= rateMult).
+ *  - sidelined: E12 security clearances take SIDELINE_SHARE of every team's heads off the teams for their 60 days
+ *    (onDuty: capacity, not a speed factor). */
+export const SIDELINE_SHARE = 0.1;
+export interface ResearchMods { speed: number; rateMult: number; frontierExp: number; sidelined: number }
+export function researchMods(s: GameStateV2): ResearchMods {
   const p = s.player;
   const day = s.time.day;
   let mods = 1 - 0.05 * p.security.siloing;
   if ((p.finance.ws3.asicMigrationUntil ?? -1) > day) mods *= 0.85;
-  let rateMult = 1;
-  if (s.flags.paused || ws4r(s).frontierPauseUntil > day) rateMult *= 0.1;
-  if (s.gov.treaty === 'verified') rateMult *= 0.65;
-  return { speed: mods * rateMult, rateMult, humans: Number(s.flags['ws4:sidelinedUntil'] ?? -1) > day ? 0.9 : 1 };
+  const rateMult = s.gov.treaty === 'verified' ? 0.65 : 1;
+  const frontierExp = s.flags.paused || ws4r(s).frontierPauseUntil > day ? 0 : 1;
+  const sidelined = Number(s.flags['ws4:sidelinedUntil'] ?? -1) > day ? SIDELINE_SHARE : 0;
+  return { speed: mods * rateMult, rateMult, frontierExp, sidelined };
+}
+/** Experiment FLOP a project of department `dept` may use out of `flop` (RD-A07: a frontier pause stops the
+ *  capability department's). */
+export const expFlopAllowed = (s: GameStateV2, dept: 'cap' | 'saf', flop: number) => (dept === 'cap' ? flop * researchMods(s).frontierExp : flop);
+/** A team as it works today: its heads less those sidelined by clearances (RD-A07; heads, rounded per team). */
+export function onDuty<T extends { heads: number }>(s: GameStateV2, t: T): T {
+  const sl = researchMods(s).sidelined;
+  return sl > 0 ? { ...t, heads: t.heads - Math.round(t.heads * sl) } : t;
 }
 
 /** Human team-equivalents of a role in the lab. */
 export function humansOf(s: GameStateV2, slot: LabourSlot): number {
   let h = 0;
-  for (const t of s.player.teams) {
+  for (const t0 of s.player.teams) {
+    const t = onDuty(s, t0);
     const q = QUALITY[t.quality].out;
     if (slot === 'SWE' && t.role === 'eng') h += (t.heads / WORK_TYPES.SWE.heads) * q;
     else if (slot === 'EXP' && t.role === 're' && t.dept === 'cap') h += (t.heads / WORK_TYPES.EXP.heads) * q;
@@ -273,7 +288,7 @@ export function humansOf(s: GameStateV2, slot: LabourSlot): number {
     // Safety scientists on research-line projects (the work the safety agents can be handed).
     else if (slot === 'SAF_IDEAS' && t.role === 'sci' && t.projectId && onLine(t.projectId)) h += (t.heads / WORK_TYPES.SAF_IDEAS.heads) * q;
   }
-  return h * researchMods(s).humans;
+  return h;
 }
 const onLine = (id: string) => { const n = PROJECT_BY_ID[id]; return !!n && isLineNode(n); };
 

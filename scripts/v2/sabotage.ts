@@ -132,7 +132,7 @@ const f3 = (x: number) => x.toFixed(3);
   // Oversight: the AG07 control layer on the internal deployment (containment blocks, deferral cuts misses).
   const off = itemTerms(s, v, 'STEER', 1, 8);
   const ctl = clone(s);
-  for (const d of ctl.player.deployments) if (d.channel === 'internal') setControl(d, true);
+  for (const d of ctl.player.deployments) if (d.channel === 'internal') setControl(d, true); for (const a of Object.values(ctl.player.agents)) a.control = true;
   resetWorkContext(ctl);
   const on = itemTerms(ctl, ctl.player.models.versions.find((x) => x.id === v.id)!, 'STEER', 1, 8);
   check(on.oversight > off.oversight && on.rate < off.rate && Math.abs(on.attempts - off.attempts) < 1e-12, 'oversight: the control layer raises oversight and cuts the acts that get through (attempts unchanged)', `oversight ${f3(off.oversight)} → ${f3(on.oversight)}; uncaught ${pct(off.rate)} → ${pct(on.rate)}`);

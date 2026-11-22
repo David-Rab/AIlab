@@ -13,7 +13,7 @@ export interface LineageDrawOpts {
 
 /**
  * U-modes present in a new lineage (§3.5.5): p = propensity × modifiers (synthetic → U01 ×1.5, P08 → U14 ×1.3,
- * safety pretraining → U07 ×0.5, P20 → U19 ×1.3); publicly revealed modes × 0.7 for every lab.
+ * safety pretraining → U07 ×0.5; RD-E01b: P20 → U19 ×1.3 gone with P20); publicly revealed modes × 0.7 for every lab.
  */
 export function drawLineageUModesV2(s: GameStateV2, rng: RngLike, o: LineageDrawOpts): UModeId[] {
   const out: UModeId[] = [];
@@ -25,7 +25,6 @@ export function drawLineageUModesV2(s: GameStateV2, rng: RngLike, o: LineageDraw
     if (o.base?.curation.safetyPretrain && u.id === 'U07') p *= UMODE_PRESENCE.safetyPretrainU07;
     if (o.player) {
       if (u.id === 'U14' && adopted(s, 'P08')) p *= UMODE_PRESENCE.p08U14;
-      if (u.id === 'U19' && adopted(s, 'P20')) p *= UMODE_PRESENCE.p20U19;
     }
     if (revealed.has(u.id)) p *= UMODE_PRESENCE.revealed;
     if (rng.chance(Math.min(1, p))) out.push(u.id);

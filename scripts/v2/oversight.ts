@@ -176,7 +176,7 @@ const reset = (s: GameStateV2) => { resetWorkContext(s); resetSafetyLabour(s); }
   const offSwe = labourOf(s, 'SWE');
   const catchOff = catchOf(s, internal, v, { source: 'POWER', apparent: 'POWER' });
   const ovOff = internalOversight(s, v, 'POWER');
-  setControl(internal, true);
+  setControl(internal, true); for (const a of Object.values(s.player.agents)) a.control = true;
   reset(s);
   const on = labourOf(s, 'EXP'); // routine research: monitor = a copy (no gap) → 97%
   const onSwe = labourOf(s, 'SWE'); // engineering: no monitor → deferred actions go to humans: 93%
@@ -194,9 +194,9 @@ const reset = (s: GameStateV2) => { resetWorkContext(s); resetSafetyLabour(s); }
   // A weaker trusted monitor: the per-deferral loss grows with the gap.
   const mini = cloneVersion(s, v, 'VMINI', { baseId: 'B-mini' });
   mini.evals.measuredL = (v.evals.measuredL ?? v.Lg) - 1;
-  const c1 = useControl(s, v, mini);
+  const c1 = useControl(s, v, mini, true);
   check(c1.tax > 0.03 && c1.tax <= 0.07 + 1e-12, 'control tax: grows with the gap to the trusted model (between 3% and 7%)', `${c1.gapOom.toFixed(2)} OOM: ${(c1.tax * 100).toFixed(1)}%`);
-  setControl(internal, false);
+  setControl(internal, false); for (const a of Object.values(s.player.agents)) delete a.control;
   reset(s);
   check(!agentsView(s).lanes.eng.control.on && near(labourOf(s, 'SWE').aiFte, offSwe.aiFte), 'control tax: none without the control layer');
 }

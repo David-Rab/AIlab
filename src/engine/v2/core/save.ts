@@ -6,15 +6,19 @@ import type { GameStateV2, LabCore, RunRecipe, SectorId, VersionBuild } from '..
 import { CAP_USES, DEFAULT_CAP_SHARES, MONITOR_STD_POOL_SHARE, REF_AGENT_SHARES } from '../../../data/v2/agents';
 import { monitorCostRatio, monitorNeedShare } from '../departments/agents';
 import { partnerDef, PARTNER_TERMS } from '../../../data/v2/deals';
+import { toolsFromFeatures } from '../../../data/v2/features';
 import { divisionOf } from '../finance/parent';
 import { privateRivals, sectorValue, seedLabRevenue } from '../finance/story';
 import { FIN } from '../actors/rivals';
-import { fillRecipe } from '../models/runs';
+import { continueDrawNow, fillRecipe } from '../models/runs';
 import { domainsOf, gOfLevel, refreshLevels } from '../models/capability';
 import { addIdea } from '../models/stacks';
 import { techniqueRole } from '../safety/techniques';
 import { keepUnlockedSuite, unbuiltSuiteFamilies } from '../models/suites';
 import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
+import { DEFAULT_SAF_RE_ALLOC } from '../../../data/v2/research';
+import { AGENDA_BY_ID } from '../../../data/v2/agendas';
+import { PROJECT_BY_ID } from '../../../data/v2/tree';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev.
  *  Saves below MIN_SCHEMA_REV (33) do not load (designer decision DD-20, RD-C03): v1, v2 and model v3 V1–V3 saves
@@ -35,7 +39,7 @@ import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
  *  44 (RD-C01): v2's knot production function is gone — TimelineWorld.prod.knots and the dead readout fields of every
  *  lab's prodCache (Ddata, parts.base, elast.train / data, ratios.d) are removed. Migration 43 → 44 drops them (the
  *  cache is rebuilt the next day anyway); RD-C02, in the same bump, also drops TimelineWorld.calShift, and RD-C07
- *  the cut paradigm P26 (player.paradigms.P26, hidden.paradigmSuccess.P26) and RD-C04 the unread fields
+ *  the cut paradigm P26 (its paradigm state and hidden.paradigmSuccess.P26) and RD-C04 the unread fields
  *  TimelineWorld.prod.kappa / etaSC, BaseModel.scale and VersionBuild.misuseMult (every lab).
  *  45 (RD-B02): TrainingRun.recipe is the run's whole launch snapshot (RunRecipe: + the base's DataDraw and P24 bonus, a
  *  continue run's draw, a post-train's domainG, P07 flag and serving FLOP part); completion and the trait hook read
@@ -63,18 +67,39 @@ import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
  *  pretraining stack: RunRecipe.p24 is gone. Migration 53 → 54 drops P13 / P19 state and draws, folds a run's frozen
  *  P24 bonus into its frozen pretraining stack, gives an adopted P24 its bonus on the save's day as a stack idea, and
  *  recomputes stored domain levels without P19.
- *  55 (SR-01): the dead-end latch and the tool On/Off toggle are gone: AgendaState.status loses 'deadEnd'; owned
- *  detection / containment tools are always active. Migration 54 → 55 unlatches lines and sets those tools active.
- *  56 (SR-06): every TraitBelief carries an evidence list. Migration 55 → 56 gives existing beliefs (player versions'
+ *  55 (RD-E01b, DD-14): paradigm P20 is deleted; P05 is a typed scaffold and P07 multiplies the long-tasks RL family's
+ *  horizon (no stored shape changes: versions keep their frozen h80Mult). Migration 54 → 55 drops P20 state and draw.
+ *  56 (RD-A05b, DD-19): the spare-training and spare-serving policies are gone (idle compute stays idle); the explicit
+ *  auto-split policy replaces them. Migration 55 → 56 drops the two policies and adds autoSplit off.
+ *  58 (RD-T01a, DD-06): an IDA run is an RL (post) run with the teacher as grader (TrainingRun.grader), no longer
+ *  recognised by its name. Migration 57 → 58 sets grader 'teacher' on post runs named "IDA …".
+ *  59 (RD-T02, TRN-07): a continue run draws its added tokens from the portfolio (RunRecipe.draw cumulative, prevDEff).
+ *  Migration 58 → 59 redraws in-flight continue runs on the save's day (their launch portfolio is gone).
+ *  60 (RD-T03, DD-05): the stream spends the FLOP it accrues (stream.flop, periodDay) on continued pretraining and an
+ *  RL refresh; its tracked recipe (stream.track) is gone. Migration 59 → 60 starts a running stream's period on the
+ *  save's day (the version keeps what it absorbed). Rivals' stream state (RivalPhys.cl) is set lazily.
+ *  61 (RD-A04): safety research engineers by need (research.safRe, the player's order). Migration 60 → 61 adds the
+ *  default order.
+ *  62 (RD-R02b): a safety project is one test (SafProjectState {work, workNeed, flop}); the candidate pool, its beliefs
+ *  and stages are gone. Migration 61 → 62 restates a running project's state at its progress (work = progress × T₁).
+ *  63 (RD-R04): the rolled tree path and the paradigm mirror are gone: PlayerLab.paradigms (adopted() reads the tree),
+ *  the rolled-node fields of TreeNodeState (odds multiplier, retry day), the kyc node (the per-product KYC setting stays), P27's hidden paradigm draw.
+ *  Migration 62 → 63 drops them and restates P27 as a safety project of line AG17 (running: its test at its progress;
+ *  failed: open again, next attempt).
+ *  64 (RD-T11): TrainingRun.scale is gone (scrutiny reads the run's FLOP against the largest rival run). Migration
+ *  63 → 64 drops it.
+ *  65 (SR-01): the dead-end latch and the tool On/Off toggle are gone: AgendaState.status loses 'deadEnd'; owned
+ *  detection / containment tools are always active. Migration 64 → 65 unlatches lines and sets those tools active.
+ *  66 (SR-06): every TraitBelief carries an evidence list. Migration 65 → 66 gives existing beliefs (player versions'
  *  and any other model's) an empty list.
- *  57 (SR-13): Deployment.controlLayer and status 'restricted' are gone; Deployment.guards holds safeguard items (control
- *  protocol, human review, restriction, comms lockdown). Migration 56 → 57 maps the flag / status to items, gives
+ *  67 (SR-13): Deployment.controlLayer and status 'restricted' are gone; Deployment.guards holds safeguard items (control
+ *  protocol, human review, restriction, comms lockdown). Migration 66 → 67 maps the flag / status to items, gives
  *  internal deployments human review, and an owned T-LOCK a comms lockdown on them.
- *  58 (SR-08): detect techniques are instruments: TechniqueState.validatedOn / validatedOom (the model it was validated
+ *  68 (SR-08): detect techniques are instruments: TechniqueState.validatedOn / validatedOom (the model it was validated
  *  on; reliability decays with the capability gap from it, oHalf is that gap's half point) and trainedAgainstOn.
- *  Migration 57 → 58 sets every technique validated on the start model (gap = OOM above V0, as before) and
+ *  Migration 67 → 68 sets every technique validated on the start model (gap = OOM above V0, as before) and
  *  trainedAgainstOn null. */
-export const SCHEMA_REV = 58;
+export const SCHEMA_REV = 68;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -261,8 +286,8 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     }
     // RD-C02 (same unreleased bump): the derived calShift bridge is gone.
     if (s.hidden?.timeline) delete (s.hidden.timeline as unknown as Record<string, unknown>).calShift;
-    // RD-C07 (same bump): the cut paradigm P26 leaves the paradigm data (its state and hidden draw are dropped).
-    if (s.player?.paradigms) delete s.player.paradigms.P26;
+    // RD-C07 (same bump): the cut paradigm P26 leaves the paradigm data (its hidden draw is dropped; RD-R04's 61 → 62
+    // drops the whole paradigm mirror).
     if (s.hidden?.paradigmSuccess) delete s.hidden.paradigmSuccess.P26;
     const cores = [s.player, s.china?.lab?.core, ...(s.rivals ?? []).map((r) => r.core)];
     for (const c of cores) {
@@ -471,9 +496,8 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   53: (raw) => {
     const s = raw as unknown as GameStateV2;
     const p = s.player;
-    const hadP24 = p?.paradigms?.P24?.status === 'adopted';
+    const hadP24 = (p as unknown as OldParadigms | undefined)?.paradigms?.P24?.status === 'adopted';
     for (const id of ['P13', 'P19']) {
-      if (p?.paradigms) delete p.paradigms[id];
       if (p?.tree) delete p.tree[id];
       if (s.hidden?.paradigmSuccess) delete s.hidden.paradigmSuccess[id];
     }
@@ -498,18 +522,115 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       for (const m of [o.internal, o.publicModel]) if (m && m.domains) m.domains = domainsOf(w, m.G, m.build && 'gPre' in m.build ? m.build : undefined);
     }
   },
-  /** 54 → 55 (SR-01): the dead-end latch and the tool On/Off toggle are gone. A line latched 'deadEnd' becomes 'idle'
+  /** 54 → 55 (RD-E01b): P20 leaves the paradigm, tree and hidden-draw data (queues and teams drop unknown nodes
+   *  themselves). Idempotent. */
+  54: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    if (s.player?.tree) delete s.player.tree.P20;
+    if (s.hidden?.paradigmSuccess) delete s.hidden.paradigmSuccess.P20;
+  },
+  /** 55 → 56 (RD-A05b): the two spare-compute policies leave; autoSplit starts off. Idempotent. */
+  55: (raw) => {
+    const pol = (raw as unknown as GameStateV2).player?.policies as unknown as Record<string, unknown> | undefined;
+    if (!pol) return;
+    delete pol.spareTraining;
+    delete pol.spareServing;
+    if (!pol.autoSplit) pol.autoSplit = { on: false, to: ['experiments'] };
+  },
+  /** 56 → 57 (RD-A06): the internal tools equivalent to the built features (features no longer act on the internal
+   *  agents), and the control layer per agent package (on for every package when the internal deployment had it, as
+   *  that one flag ruled every internal use). Idempotent. */
+  56: (raw) => {
+    const p = (raw as unknown as GameStateV2).player;
+    if (!p) return;
+    if (!Array.isArray(p.tooling)) p.tooling = toolsFromFeatures(p.features ?? []);
+    const on = (p.deployments ?? []).some((d) => d.channel === 'internal' && d.status === 'live' && (d as unknown as { controlLayer?: boolean }).controlLayer);
+    if (on && p.agents) for (const a of Object.values(p.agents)) a.control = true;
+  },
+  /** 57 → 58 (RD-T01a): the IDA run kind from its name ("IDA n", the only way it was recognised). Idempotent. */
+  57: (raw) => {
+    for (const r of (raw as unknown as GameStateV2).player?.models?.runs ?? []) if (r.kind === 'post' && /^IDA\b/.test(r.name ?? '')) r.grader = 'teacher';
+  },
+  /** 58 → 59 (RD-T02): in-flight continue runs draw their added tokens on the save's day. Idempotent (skips a run that
+   *  has prevDEff). */
+  58: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    for (const r of s.player?.models?.runs ?? []) {
+      if (r.kind !== 'continue' || (r.status !== 'running' && r.status !== 'paused') || r.recipe?.prevDEff !== undefined) continue;
+      const parent = s.player.models.bases.find((b) => b.id === r.baseId);
+      if (parent) Object.assign((r.recipe ??= {}), continueDrawNow(s, parent, r.flopNeeded));
+    }
+  },
+  /** 59 → 60 (RD-T03): a running stream drops its tracked recipe and starts a period on the save's day. Idempotent. */
+  59: (raw) => {
+    const st = (raw as unknown as GameStateV2).player?.models?.stream as (Record<string, unknown> & { periodDay?: number; flop?: number }) | undefined;
+    if (!st) return;
+    delete st.track;
+    st.periodDay ??= (raw as unknown as GameStateV2).time?.day ?? 0;
+    st.flop ??= 0;
+  },
+  /** 60 → 61 (RD-A04): the safety research engineers' needs list at its default order. Idempotent. */
+  60: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    if (s.player?.research && !s.player.research.safRe) s.player.research.safRe = { order: [...DEFAULT_SAF_RE_ALLOC.order], max: {}, share: {} };
+  },
+  /** 61 → 62 (RD-R02b): a safety project's candidate-pool state becomes its one test at the project's progress (the
+   *  agenda's T₁ months of work; FLOP used restarts at 0). Idempotent. */
+  61: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    for (const [id, ts] of Object.entries(s.player?.tree ?? {})) {
+      const old = ts.saf as unknown as { workNeed?: number } | undefined;
+      if (!old || typeof old.workNeed === 'number' && !('cands' in old)) continue;
+      const ag = PROJECT_BY_ID[id]?.agenda;
+      const T1 = ag ? AGENDA_BY_ID[ag as keyof typeof AGENDA_BY_ID]?.T1 : undefined;
+      if (!T1) {
+        delete ts.saf;
+        continue;
+      }
+      ts.saf = { work: Math.min(1, Math.max(0, ts.progress ?? 0)) * T1, workNeed: T1, flop: 0 };
+    }
+  },
+  /** 62 → 63 (RD-R04): the rolled path's fields, the kyc node and the paradigm mirror go; P27 becomes a project of line
+   *  AG17 (a rolled attempt in progress: its test at that progress; a failed one: open, the next attempt). Idempotent. */
+  62: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const p = s.player;
+    if (!p) return;
+    delete (p as unknown as OldParadigms).paradigms;
+    if (s.hidden?.paradigmSuccess) delete s.hidden.paradigmSuccess.P27;
+    // Every tree record keeps only today's TreeNodeState fields (the rolled path's odds multiplier and retry day go).
+    for (const ts of Object.values(p.tree ?? {})) {
+      const o = ts as unknown as Record<string, unknown>;
+      for (const k of Object.keys(o)) if (!TREE_NODE_FIELDS.has(k)) delete o[k];
+    }
+    if (p.tree) delete p.tree.kyc;
+    if (p.research?.queue) p.research.queue = p.research.queue.filter((id) => id !== 'kyc');
+    for (const t of p.teams ?? []) if (t.projectId === 'kyc') {
+      delete t.projectId;
+      delete t.manual;
+    }
+    const st = p.tree?.P27;
+    const T1 = AGENDA_BY_ID.AG17.T1;
+    if (st?.status === 'failed') p.tree.P27 = { status: 'researching', progress: 0, attempts: (st.attempts ?? 1) + 1 };
+    else if (st?.status === 'researching' && !st.saf) st.saf = { work: Math.min(1, Math.max(0, st.progress ?? 0)) * T1, workNeed: T1, flop: 0 };
+  },
+  /** 63 → 64 (RD-T11): TrainingRun.scale goes. Idempotent. */
+  63: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    for (const r of s.player?.models?.runs ?? []) delete (r as unknown as Record<string, unknown>).scale;
+  },
+  /** 64 → 65 (SR-01): the dead-end latch and the tool On/Off toggle are gone. A line latched 'deadEnd' becomes 'idle'
    *  (the safety step sets active / idle from staffing on the next day); every owned detection or containment tool is
    *  in use (active), as unlockTechnique sets it. Fix methods keep their flag. Idempotent. */
-  54: (raw) => {
+  64: (raw) => {
     const s = raw as unknown as GameStateV2;
     const dept = s.player?.safety;
     if (!dept) return;
     for (const a of Object.values(dept.agendas ?? {})) if ((a.status as string) === 'deadEnd') a.status = 'idle';
     for (const t of Object.values(dept.techniques ?? {})) if (t.unlocked && techniqueRole(t) !== 'fix') t.active = true;
   },
-  56: (raw) => {
-    // SR-13: the control-layer flag, the 'restricted' status, always-on internal human review and an owned T-LOCK
+  66: (raw) => {
+    // 66 → 67 (SR-13): the control-layer flag, the 'restricted' status, always-on internal human review and an owned T-LOCK
     // become safeguard items on each deployment.
     const p = (raw as { player?: { deployments?: Record<string, unknown>[]; safety?: { techniques?: Record<string, { unlocked?: boolean }> } } }).player;
     const lock = !!p?.safety?.techniques?.['T-LOCK']?.unlocked;
@@ -522,8 +643,8 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       d.guards = g;
     }
   },
-  55: (raw) => {
-    // Any object under a `beliefs` key whose values look like TraitBeliefs (est, sd) gets an empty evidence list.
+  65: (raw) => {
+    // 65 → 66 (SR-06): any object under a `beliefs` key whose values look like TraitBeliefs (est, sd) gets an empty evidence list.
     const walk = (x: unknown, depth: number) => {
       if (!x || typeof x !== 'object' || depth > 12) return;
       if (Array.isArray(x)) {
@@ -541,8 +662,8 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     };
     walk(raw, 0);
   },
-  57: (raw) => {
-    // Any record under a `techniques` key whose values look like TechniqueStates (s0, oHalf) gets the SR-08 fields.
+  67: (raw) => {
+    // 67 → 68 (SR-08): any record under a `techniques` key whose values look like TechniqueStates (s0, oHalf) gets the SR-08 fields.
     const walk = (x: unknown, depth: number) => {
       if (!x || typeof x !== 'object' || depth > 10) return;
       if (Array.isArray(x)) {
@@ -563,6 +684,11 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     walk(raw, 0);
   },
 };
+
+/** TreeNodeState's fields since 62 (RD-R04). */
+const TREE_NODE_FIELDS = new Set(['status', 'progress', 'day', 'attempts', 'tm', 'cap', 'saf']);
+/** Saves before 62 (RD-R04) carried a per-paradigm mirror of the tree on the player. */
+type OldParadigms = { paradigms?: Record<string, { status?: string }> };
 
 type OldSplit = Record<string, number>;
 /** RD-A05a's migration (51 → 52), exported for the targeted check (scripts/v2/_a05a/check.ts). */

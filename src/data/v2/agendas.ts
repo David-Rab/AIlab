@@ -2,6 +2,8 @@
 // Every numeric parameter is a research/14 [D] value (R14 states there is no expert survey of per-agenda credences);
 // Compute ranges are R14's "serious programme at one frontier lab" column, `computeRef` is their midpoint.
 import type { AgendaId, Column, SafetyLatents, ToolFamily, TraitId } from '../../engine/v2/types';
+import { PHI_FLOP_PER_H100E_DAY } from './calibration';
+import { C_UNIT_FLOP_PER_DAY } from './workTypes';
 
 export type AgendaFamily = ToolFamily | 'fix' | 'contain' | 'meta' | 'BB+';
 
@@ -30,6 +32,10 @@ export interface AgendaDef {
   /** R14 compute range as a fraction of the lab's total compute; `computeRef` is the midpoint (C_ref). */
   computeRange: [number, number];
   computeRef: number;
+  /** RD-R02a: the line project's experiment-compute need as a multiple of a capability project's (C_UNIT_FLOP_PER_DAY):
+   *  computeRef × the leader lab's day-0 compute (1e6 H100e) × PHI ÷ C_UNIT = computeRef × 96.8 (the pre-RD-R02a reference
+   *  compute, restated in the shared unit). At this compute a line's c = 1. */
+  computeNeed: number;
   /** Latent the agenda's tools mainly rest on: tools sharing it are correlated evidence (§3.5.6, R14 §1.6B). */
   mainLatent: keyof SafetyLatents | 'none';
   /** Tree column of the line's follow-up project (the column most of its nodes sit in). */
@@ -39,7 +45,7 @@ export interface AgendaDef {
 const INF = 1e9;
 const mid = (r: [number, number]) => (r[0] + r[1]) / 2;
 
-type Row = Omit<AgendaDef, 'computeRef' | 'column'>;
+type Row = Omit<AgendaDef, 'computeRef' | 'computeNeed' | 'column'>;
 const ROWS: Row[] = [
   { id: 'AG01', name: 'Ambitious mech interp', prior: [1.5, 4], loadings: { legibility: 0.09 }, T1: 9, oHalf: 13.788, k: 0.5, G: 0.5, auto: 0.6, family: 'WB', coverage: ['SCHEME', 'AF', 'SUCC'], computeRange: [0.03, 0.08], mainLatent: 'legibility' },
   { id: 'AG02', name: 'Applied interp', prior: [3, 3], loadings: { legibility: 0.09 }, T1: 4, oHalf: 10.018, k: 0.7, G: 0.8, auto: 0.9, family: 'WB', coverage: ['EA', 'TGAME', 'AF', 'SCHEME'], computeRange: [0.01, 0.03], mainLatent: 'legibility' },
@@ -68,11 +74,13 @@ const LINE_COLUMN: Record<AgendaId, Column> = {
   AG10: 'evals', AG11: 'evals', AG12: 'alignment', AG13: 'interp', AG14: 'evals', AG15: 'alignment', AG16: 'evals', AG17: 'evals', AG18: 'alignment',
 };
 
-export const AGENDAS: AgendaDef[] = ROWS.map((r) => ({
-  ...r,
-  computeRef: Math.max(0.0005, mid(r.computeRange)),
-  column: LINE_COLUMN[r.id],
-}));
+/** RD-R02a conversion of computeRef (a share of the leader lab's day-0 compute, 1e6 H100e) into capability project
+ *  compute units: 1e6 × PHI ÷ C_UNIT_FLOP_PER_DAY = 11 × 0.88 ÷ (0.05 × RE_LABOUR_UNIT) = 96.8. */
+const NEED_PER_REF = (1e6 * PHI_FLOP_PER_H100E_DAY) / C_UNIT_FLOP_PER_DAY;
+export const AGENDAS: AgendaDef[] = ROWS.map((r) => {
+  const computeRef = Math.max(0.0005, mid(r.computeRange));
+  return { ...r, computeRef, computeNeed: computeRef * NEED_PER_REF, column: LINE_COLUMN[r.id] };
+});
 
 export const AGENDA_IDS: AgendaId[] = AGENDAS.map((a) => a.id);
 export const AGENDA_BY_ID = Object.fromEntries(AGENDAS.map((a) => [a.id, a])) as Record<AgendaId, AgendaDef>;
@@ -90,30 +98,18 @@ export const SERIOUS_CAP = 4;
 // MODEL-V3 §11.7 / §5.3: a line project's stages are ideation (safety scientists with taste), small experiments and a
 // validation on the frontier model (safety research engineers with experiment compute from the safety pool, the
 // project-level experiment CES of capability projects). Reference inputs (rate 1 in every stage): a serious programme
-// (science capacity SERIOUS_CAP, a Strong team's taste), SAF_RE_UNIT research engineers and the agenda's reference
-// compute share (computeRef) of the leader lab's day-0 compute; there the first result arrives after T₁ months, the
+// (science capacity SERIOUS_CAP, a Strong team's taste), SAF_RE_ASK labour units of research engineers and the agenda's
+// compute need (computeNeed × C_UNIT_FLOP_PER_DAY, = computeRef of the leader lab's day-0 compute); there the first result arrives after T₁ months, the
 // pre-E1 pacing (research/14 §1.2–1.3). Above or below it every stage speeds up or slows down with its own inputs.
 
 /** Shares of T₁ each stage takes at reference inputs (they sum to 1, so the first result takes T₁) [D: ideation is the
  *  shortest step of a safety project; validation on the frontier model the longest]. */
 export const SAF_STAGES = { idea: 0.2, small: 0.35, val: 0.45 } as const;
-/** Safety research-engineer heads (× quality) that make one unit of experiment labour (ℓ = 1) on a line project: a
- *  serious programme's engineers [D, calibration]; a project asks for engineers in proportion to its science staffing (×
- *  capacity ÷ SERIOUS_CAP, at most LINE_MULT_MAX). */
-export const SAF_RE_UNIT = 50;
-/** Share of the free safety research engineers (after investigations and patches) experiments may take by default, so
- *  tool upkeep keeps the rest (as capability experiments ≤ 75% leave routine tuning some) [D, calibration]. */
-export const SAF_EXP_SHARE = 0.5;
-/** Compute reference: the leader lab's day-0 compute (H100e); a line's experiment FLOP per day at its reference share of
- *  it is one unit (c = 1) [D, fixed physical unit as capability's C_UNIT: never the calendar]. */
-export const SAF_C0_H100E = 1e6;
-/** A line project tests its first candidate as soon as it has one; scientists keep ideating up to this many waiting
- *  [D]. */
-export const SAF_PICK_AT = 1;
-export const SAF_POOL_MAX = 2;
-/** Belief noise (sd on the chance of a working result): the scientists' reading ÷ taste, then the small-experiment and
- *  validation readings [D; MODEL-V3 §5.3 "better taste = lower noise"]. The team starts from the line's posterior. */
-export const SAF_BELIEF = { idea: 0.3, small: 0.3, val: 0.25 } as const;
+/** RD-R02a: a serious programme's line experiments ask this many experiment-labour units (RE_LABOUR_UNIT research-engineer
+ *  team-equivalents each, the capability unit): 0.25 = 50 heads × quality (the pre-RD-R02a SAF_RE_UNIT) [D, calibration];
+ *  a project asks in proportion to its science staffing (× capacity ÷ SERIOUS_CAP, at most LINE_MULT_MAX). A staffing
+ *  need, as capability's RE_MAX_PER_PROJECT, not a unit. */
+export const SAF_RE_ASK = 0.25;
 
 /** Cap on the line multiplier (capacity ÷ SERIOUS_CAP) where the pre-R8 code read funding (AG18 healing): the old Major
  *  level. */

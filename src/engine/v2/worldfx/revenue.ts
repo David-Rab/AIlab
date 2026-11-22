@@ -183,9 +183,10 @@ export function servingPool(s: GameStateV2): number {
   return Math.max(0, s.player.computeOnline * s.player.split.serving - moonshotH100e(s));
 }
 
-/** Serving compute no product needs (H100e; J2 PR1): the pool minus what each product uses (its serving up to its
- *  need, as the revenue system last computed it). 0 until every product has been served once. */
-export function spareServing(s: GameStateV2): number {
+/** Idle serving compute (H100e; J2 PR1, RD-A05b): serving compute no product needs, the pool minus what each product uses (its serving up to
+ *  its need, as the revenue system last computed it). 0 until every product has been served once. It stays idle on the
+ *  serving line (DD-19) unless the auto-split policy moves it. */
+export function idleServing(s: GameStateV2): number {
   const pool = servingPool(s);
   if (pool <= 0) return 0;
   let used = 0;
@@ -199,14 +200,6 @@ export function spareServing(s: GameStateV2): number {
   const spare = pool - used;
   return spare > 0.5 * n ? spare : 0;
 }
-
-/** Spare serving compute that runs research agents under the default policy (J2 PR1; 'headroom' keeps it on the
- *  products). Products take it back first when their demand rises (tomorrow's split). */
-export const spareServingToResearch = (s: GameStateV2) => (s.player.policies.spareServing === 'headroom' ? 0 : spareServing(s));
-
-/** Share-recovery speed with spare serving lent to research [D]: products get it back only when demand rises, so
- *  capacity slack wins back eroded share at half speed ('headroom' keeps full speed). */
-export const LENT_RECOVERY = 0.5;
 
 export interface ServingRow { h: number; need: number; cut: number; rpH: number }
 /** A product's serving need in segments: paying work first (its revenue per H100e-year), then any free use (Chat's free
@@ -637,10 +630,8 @@ export function applyRevenue(s: GameStateV2, ctx: SystemCtx): RevenueReadout {
   revenueToParent(s, ctx, rd.total / 365); // a division's revenue goes to the parent (R9)
   advanceCustomers(s, mix);
 
-  // Share erosion when capacity-bound (0.5%/day of the unserved share of the need), slow recovery when there is slack
-  // (half speed when the spare serving runs research agents, J2 PR1).
+  // Share erosion when capacity-bound (0.5%/day of the unserved share of the need), slow recovery when there is slack.
   const pen = s.world.fx.capPenalty;
-  const rec = s.player.policies.spareServing === 'headroom' ? 1 : LENT_RECOVERY;
   const upd = (key: 'consumer' | 'sector', sel: (x: DeploymentRevenue) => boolean) => {
     let need = 0;
     let got = 0;
@@ -653,7 +644,7 @@ export function applyRevenue(s: GameStateV2, ctx: SystemCtx): RevenueReadout {
       return;
     }
     if (need > got) pen[key] = Math.min(PENALTY_MAX, pen[key] + 0.005 * ((need - got) / need));
-    else pen[key] = Math.max(0, pen[key] - 0.03 * rec * ((got - need) / Math.max(got, 1e-9)));
+    else pen[key] = Math.max(0, pen[key] - 0.03 * ((got - need) / Math.max(got, 1e-9)));
   };
   upd('consumer', (x) => x.channel === 'consumer');
   upd('sector', (x) => x.channel !== 'consumer');

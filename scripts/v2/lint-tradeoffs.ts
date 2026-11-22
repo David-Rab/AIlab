@@ -12,7 +12,7 @@ import { measuredSd } from '../../src/engine/v2/models/benchmarks';
 import { evalDepthView, openEval } from '../../src/engine/v2/models/evals';
 import { externallyEvaluated } from '../../src/engine/v2/models/deployments';
 import { activeRivals, internalVersion } from '../../src/engine/v2/models/labs';
-import { planRun, runForecast, streamRecipeGap } from '../../src/engine/v2/models/runs';
+import { planRun, runForecast, streamPeriodGain } from '../../src/engine/v2/models/runs';
 import { inPlaceRecipe } from '../../src/engine/v2/models/stacks';
 import { ownProgressDays, poachLeakG, publishLeakG } from '../../src/engine/v2/actors/rivals';
 import { STREAM_POOL_SHARE } from '../../src/data/v2/runDesign';
@@ -177,9 +177,9 @@ const iv = internalVersion(s4)!;
     `mid ${fc?.mid} ref ${ref?.name} sd ${ref ? measuredSd(ref) : NaN} gain ${fc?.gain} → ${fc2?.gain} line ${JSON.stringify(g)}`);
 }
 {
-  // B37: the stream's recipe line is what the version absorbs; costs as charged; stopping keeps the version.
+  // B37 / RD-T03: the stream's gain line is what a period's FLOP buys (the mechanism on a copy); costs as charged; stopping keeps the version.
   const c = clone(s4);
-  c.player.paradigms.P08 = { ...(c.player.paradigms.P08 ?? { progress: 1 }), status: 'adopted' };
+  c.player.tree.P08 = { status: 'known', progress: 1 };
   delete c.player.models.stream;
   const v = c.player.models.versions.find((x) => x.id === iv.id)!;
   const pv = pvOf(c, 'startStream', { versionId: v.id });
@@ -190,13 +190,13 @@ const iv = internalVersion(s4)!;
   const absorbed = inPlaceRecipe(c, v) - r0;
   const share = pv.costs.find((l) => l.currency === 'compute')?.amount;
   const sp = pvOf(c, 'stopStream');
-  const left = streamRecipeGap(c, v.id);
+  const left = streamPeriodGain(c, v.id).dG;
   const G0 = v.G;
   const e2 = act(c, 'stopStream');
   check(!e && !e2 && share === STREAM_POOL_SHARE && !pv.exposure.length && !linesOf(pv).some((l) => l.currency === 'monitorability' || l.currency === 'alignment')
-    && absorbed >= gap * (1 - Math.exp(-6)) - 1e-3 && near(-(sp.costs[0]?.amount ?? NaN), Math.round(left * 1000) / 1000, 1e-9) && !c.player.models.stream && v.G === G0
+    && gap > 0 && absorbed > 0 && near(-(sp.costs[0]?.amount ?? NaN), Math.round(left * 1000) / 1000, 1e-9) && !c.player.models.stream && v.G === G0
     && !linesOf(sp).some((l) => l.currency === 'monitorability'),
-    'RD-B19 stream: the recipe line is what the version absorbs (7-day lag), costs as charged, no invented monitorability / alignment lines; stopping keeps the version',
+    'RD-B19 / RD-T03 stream: the gain line is what a period of FLOP buys, costs as charged, no invented monitorability / alignment lines; stopping keeps the version',
     `${e ?? ''}${e2 ?? ''} gap ${gap} absorbed ${absorbed} stop ${JSON.stringify(sp.costs[0])} left ${left}`);
 }
 {

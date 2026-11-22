@@ -111,7 +111,7 @@ export interface FeatureDef {
 
 export const FEATURES: FeatureDef[] = [
   { id: 'memory', name: 'Memory', node: 'P07', products: ['consumer', 'agents', 'enterprise'], buildTW: 12, cash: 0.1,
-    effect: 'Horizon extender: time horizon ×1.3 on all work, here and for internal agents; opens 10% more Chat users (people who come back)',
+    effect: 'Horizon extender: time horizon ×1.3 on all work in this product; opens 10% more Chat users (people who come back)',
     fx: [{ kind: 'horizon', mult: 1.3, work: 'all' }, { kind: 'enabler', consumer: true, share: 0.1 }],
     risk: 'Successor-alignment incidents ×1.2 (memory carries goals forward)', hazard: { SUCC: 1.2 } },
   { id: 'deepThink', name: 'Deep think', node: 'P05', products: ['consumer', 'api', 'agents', 'enterprise'], buildTW: 8, cash: 0.05,
@@ -128,12 +128,12 @@ export const FEATURES: FeatureDef[] = [
     fx: [{ kind: 'enabler', consumer: true, sectors: ['MEDIA'], share: 0.15 }] },
   // C2: not on Chat: its scaffold lists Science, Finance, Legal and internal research, none of which Chat sells.
   { id: 'deepResearch', name: 'Deep research', node: 'P05', products: ['enterprise'], buildTW: 8, cash: 0.05,
-    effect: 'Scaffold: long research reports, +0.3 OOM of fit in Science, Finance and Legal work and for internal research ideas, at ×3 tokens',
-    fx: [{ kind: 'scaffold', dG: 0.3, tokens: 3, work: ['SCI', 'FIN', 'LEGAL', 'IDEAS'] }],
+    effect: 'Scaffold: long research reports, +0.3 OOM of fit in Science, Finance and Legal work, at ×3 tokens',
+    fx: [{ kind: 'scaffold', dG: 0.3, tokens: 3, work: ['SCI', 'FIN', 'LEGAL'] }],
     risk: 'Cost per work-hour ×3 where it applies (long agent runs)' },
   { id: 'codingAgent', name: 'Coding agent', products: ['agents', 'api'], buildTW: 12, cash: 0.1,
-    effect: 'Scaffold: a coding harness, +0.3 OOM of fit in Software & IT and for internal engineering agents, at ×2 tokens',
-    fx: [{ kind: 'scaffold', dG: 0.3, tokens: 2, work: ['SOFT', 'SWE'] }],
+    effect: 'Scaffold: a coding harness, +0.3 OOM of fit in Software & IT work, at ×2 tokens',
+    fx: [{ kind: 'scaffold', dG: 0.3, tokens: 2, work: ['SOFT'] }],
     risk: 'Reward-hacking incidents ×1.2 (agents gaming tests)', hazard: { RH: 1.2 } },
   { id: 'companion', name: 'Companion mode', node: 'engagement', products: ['consumer'], buildTW: 4, cash: 0.05,
     effect: 'Task enabler: a persistent persona, opening 20% more Chat users', fx: [{ kind: 'enabler', consumer: true, share: 0.2 }],
@@ -142,6 +142,38 @@ export const FEATURES: FeatureDef[] = [
     effect: 'Task enabler: sector products; a certified sector pack adds +0.42 OOM of fit in that sector (each pack: $0.4B, 120 days)',
     fx: [{ kind: 'enabler', packs: true, share: 0 }] },
 ];
+/** RD-E01b (DD-14): Multi-agent orchestration (P05), once adopted, is a scaffold on the lab's internal agents in
+ *  capabilities engineering and research (SWE, EXP, IDEAS; not the safety package) — a lead agent planning and checking
+ *  parallel subagents — through the same typed effect as a feature's (worldfx/serving.ts internalFx). Tokens ×3.75: a
+ *  multi-agent system uses ~15× the tokens of a chat, a single agent ~4× [P Anthropic, research/12 §3], so ~3.75× the
+ *  single-agent profile per work-hour. ΔG +0.26 OOM [D], set so that at the reference fit (coverage 0.5, the fit at
+ *  θ_w) with AI labour not the bottleneck (the regime the game runs in: AI team-equivalents ≫ humans) the slot's
+ *  effective labour is ×1.3, today's "agent research throughput ×1.3": with ρc = −2, L ∝ (1 − a)^−1.5, so ×1.3 needs
+ *  a: 0.5 → 0.580, logit +0.324 × COVER.s 0.8 = 0.26. Anthropic's +90% on internal research evals [P] is a larger gain
+ *  on an easier, parallel task (breadth-first search). The deep-think effort stays the node's option unlock. */
+export const P05_ORCHESTRATION: FeatureFx = { kind: 'scaffold', dG: 0.26, tokens: 3.75, work: ['SWE', 'EXP', 'IDEAS'] };
+/** RD-A06 (DD-03): internal tooling, owned on the research side and separate from product features (a product feature
+ *  acts only inside its product's offer: Memory's horizon still lists 'all', which internalFx no longer reads). Each tool
+ *  is the internal equivalent of one product feature's typed effect on the lab's own agents (the effects those features
+ *  gave internal work before RD-A06): built by engineers on the build queue (the feature's team-weeks, cash, upkeep and
+ *  idea gate), and the lab has it only once built. Starts own the tools whose feature they had built (`from`), so no
+ *  start changes. Rivals acquire tools later (DD-03, rival part). */
+export type ToolId = 'codingHarness' | 'researchHarness' | 'agentMemory';
+export interface ToolDef { id: ToolId; name: string; node?: string; buildTW: number; cash: number; from: FeatureId; effect: string; fx: FeatureFx[] }
+export const INTERNAL_TOOLS: ToolDef[] = [
+  { id: 'codingHarness', name: 'Coding harness', buildTW: 12, cash: 0.1, from: 'codingAgent',
+    effect: 'Engineering agents work in a coding harness: +0.3 OOM of fit on software engineering, at ×2 tokens',
+    fx: [{ kind: 'scaffold', dG: 0.3, tokens: 2, work: ['SWE'] }] },
+  { id: 'researchHarness', name: 'Research harness', node: 'P05', buildTW: 8, cash: 0.05, from: 'deepResearch',
+    effect: 'Frontier research agents run long literature and analysis passes: +0.3 OOM of fit on research ideas, at ×3 tokens',
+    fx: [{ kind: 'scaffold', dG: 0.3, tokens: 3, work: ['IDEAS'] }] },
+  { id: 'agentMemory', name: 'Agent memory', node: 'P07', buildTW: 12, cash: 0.1, from: 'memory',
+    effect: 'Agents keep memory across tasks: time horizon ×1.3 on all internal work',
+    fx: [{ kind: 'horizon', mult: 1.3, work: 'all' }] },
+];
+export const TOOL_BY_ID = Object.fromEntries(INTERNAL_TOOLS.map((t) => [t.id, t])) as Record<ToolId, ToolDef>;
+/** Internal tools equivalent to a set of built product features (starts, the RD-A06 save migration). */
+export const toolsFromFeatures = (features: readonly string[]): ToolId[] => INTERNAL_TOOLS.filter((t) => features.includes(t.from)).map((t) => t.id);
 export const FEATURE_BY_ID = Object.fromEntries(FEATURES.map((f) => [f.id, f])) as Record<FeatureId, FeatureDef>;
 /** The frontier-leader start's built features (D5 baseline). */
 export const LEADER_FEATURES: FeatureId[] = FEATURES.filter((f) => f.leader).map((f) => f.id);

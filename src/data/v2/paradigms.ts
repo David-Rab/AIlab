@@ -29,7 +29,8 @@ export const PARADIGMS: ParadigmDef[] = [
   { id: 'P16', name: 'AI kernels / HW co-design', prior: 0.8 },
   { id: 'P17', name: 'Neuralese recurrence', prior: 0.7 },
   { id: 'P18', name: 'Iterated distillation & amplification', prior: 0.65 },
-  { id: 'P20', name: 'Massive agent societies', prior: 0.8 },
+  // P20 (Massive agent societies) was deleted by RD-E01b (DD-14): no primary source for an effect beyond the copies the
+  // AI-labour mechanism already counts (research/12 #20: AI 2027's 200k-300k copies). Its draw is skipped at the draw site.
   { id: 'P21', name: 'Brain-like sample efficiency', prior: 0.45 },
   { id: 'P22', name: 'Robotics foundation models', prior: 0.6 },
   { id: 'P23', name: 'Faithful-CoT architecture', prior: 0.75 },
@@ -37,5 +38,6 @@ export const PARADIGMS: ParadigmDef[] = [
   { id: 'P25', name: 'Formal verification at scale', prior: 0.5 },
   // P26 (Superhuman persuasion) was cut in model v3 V2 (superpersuasion is the SOCIAL level); its hidden draw is
   // skipped explicitly at the draw site (world/hidden.ts, RD-C07).
-  { id: 'P27', name: 'Automated alignment research', prior: 0.7 },
+  // P27 (Automated alignment research at scale) is a safety project of line AG17 since RD-R04 (its result is the line's
+  // works draw); its hidden paradigm draw is skipped at the draw site (world/hidden.ts).
 ];

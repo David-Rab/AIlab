@@ -38,7 +38,6 @@ import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
 import { hash32 } from '../core/rng';
 import { internalFleets } from '../departments/agents';
 import { workContext, type CapSlot } from '../departments/workfit';
-import { spareServingToResearch } from '../worldfx/revenue';
 import type { GameStateV2, ModelVersion, SystemCtx, TraitId } from '../types';
 import { clamp01, flagNum, setFlag, versionById } from './common';
 import { autonomyOf, capabilityOf, dispositionOf, drawSeverity, internalOversight, recordInternalIncident, siteOf } from './incidents';
@@ -189,7 +188,7 @@ export function noteCovert(s: GameStateV2, ctx: SystemCtx, v: ModelVersion, t: C
 }
 
 /** The internal fleet's compute (H100e): the agent pool plus spare serving lent to research (workfit useLabour). */
-export const internalFleetCompute = (s: GameStateV2) => s.player.computeOnline * (s.player.split.routine + s.player.split.frontier) + spareServingToResearch(s);
+export const internalFleetCompute = (s: GameStateV2) => s.player.computeOnline * (s.player.split.routine + s.player.split.frontier);
 
 /** Hidden record of an act (engine only): uncaught acts, their summed severity (footholds' acts and severity for the
  *  acts that leave one, model v3 E8; STEER's flags), caught acts. */

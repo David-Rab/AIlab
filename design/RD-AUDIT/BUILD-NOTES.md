@@ -1646,3 +1646,419 @@ likely range, BLIND/AHEAD and the detection grid.
 Check: `npx tsx scripts/v2/_sr11/check.ts` (day 0: efficacy posteriors up → 5.55 → 5.75; validated 3 OOM further back
 → 5.55 → 5.45; range 5.45–5.65 brackets the point). Passes.
 Moves calibration: maybe (S5 reads U): the U range now draws efficacy only (narrower), point value unchanged.
+
+### RD-E01b
+
+Paradigm typed effects, part 2 (DD-14; SYNTHESIS RD-E01b; CAP-02). Commit f7fff3f.
+- **P05** (multi-agent orchestration): the flat ×1.3 on all agent FTE (useLabour; it also hit the safety package) is
+  gone. Adopted, it is a scaffold on the lab's internal agents in SWE / EXP / IDEAS (data/v2/features.ts
+  P05_ORCHESTRATION, pushed in worldfx/serving.ts internalFx like a built feature): ΔG +0.26 OOM [D], tokens ×3.75
+  (multi-agent ~15× chat tokens ÷ single agent ~4× [P Anthropic, research/12 §3]). ΔG is set so that at the reference
+  fit (coverage 0.5) with AI labour abundant (ρc −2: L ∝ (1 − a)^−1.5) the slot's effective labour is ×1.3. The old
+  ×1.3 on FTE did almost nothing in play: AI team-equivalents are ~200–400× the humans at the start, so FTE are not the
+  bottleneck. Start lab (ai2027, seed 1) with P05: EXP L 15.17 → 16.39, SWE 9.01 → 10.52; AI taste on IDEAS rises
+  with the fit (workContext reads internalFx). Safety work no longer gets it. Deep-think effort unlock kept.
+- **P20 deleted** (no primary source in research/ for an effect beyond the copies AI labour already counts; research/12
+  #20 cites only AI 2027's copy counts). Gone with it: ×(1 + 0.1·payoff), S8 = 1 override (S8 = copies / 300k +
+  0.2·[P05]), U19 ×1.3 presence (UMODE_PRESENCE.p20U19), the Pressure row's P20 text. **payoffOf deleted** (selectors,
+  Research card's "now x%"); nodes' `payoff` text stays.
+- **Draw order:** SKIPPED_DRAWS is now id → list: { P14: [0.75], P21: [0.6 (P19), 0.8 (P20)], P27: [0.8] }; every
+  other paradigm's draw is unchanged.
+- **P07:** no ×1.2 on every post-train's h80Mult. It multiplies the long-tasks RL family's h80Mult (2 → 2.4) on
+  post-trains launched after adoption (frozen PostRecipe.p07): data/v2/runDesign.ts P07_LONG_TASKS_HORIZON, applied in
+  models/design.ts rlFocusEffect via postEffect(d, longTasks), the place family horizon multipliers already live.
+  Broad-focus and other-family runs get nothing from P07 now. Existing versions keep their frozen h80Mult.
+- **Save:** SCHEMA_REV 55 (on p3-c 50; renumbered at the merge into rd), migration 54 → 55 drops P20 paradigm, tree and draw entries. hygiene rev checks → 55.
+- **Check (scripts/v2/.tmp-rde01b.ts, run alone, untracked):** no P20 node / paradigm / prerequisite / state / draw;
+  payoffOf not exported; adopting P05 gives EXP +0.26 OOM fit, ×3.75 tokens, AI FTE ÷ 3.75 (no ×1.3), SAF_EXP
+  untouched; deep think still locked behind P05; ×1.3012 effective labour at coverage 0.5, AI/H 300; postEffect
+  long-tasks h80Mult 2.4 with P07, 2 without, broad / swe 1. tsc main and scripts clean; `npm run build` passes.
+- **Not touched:** design/TECH-TREE.md P07 / P05 / P20 rows (still the old text); calib.ts `--fit-tree` targets.
+- **Moves calibration: yes** (P05's gain changes shape and size and leaves safety work; P20's agent and S8 / U19
+  effects gone; P07 only on long-tasks-focus runs; RefBot researches P05 / P07; refit at CP2).
+
+### RD-A08
+
+- **Done:** the serial-speed limit line is gone (core/limitsView.ts row, data/v2/limits.ts `speed.serialCap`, the
+  Company label). The duplicate cap (PROD_SPEED_CAP in calibration.ts) was already gone; SPEED_CAP stays only inside
+  workfit `speedOfCopy` (copies / speed readouts). S8 (player `deploymentS8` and rival postures) now reads
+  `prodCache.labor.agentFte` (new field: AI FTE of Experiments + Research ideas agents, a rival's whole agent pool;
+  fteOfFpt × compute) against `S8_FTE_REF` = 7.1M FTE (the old 300k copies at 5.4× × 8,766 / 2,000 h). Pressure tab
+  and glossary text say AI FTE.
+- **copiesOf kept:** safety/incidents.ts (serving incident size) and the copies readouts (workfit slots,
+  agentActions, rivalModel, researchView / production `copies`).
+- **Check:** tsc main and scripts clean; `npm run build` passes; targeted check (day 0, ai2027 seed 2027): S8 0.079 /
+  0.317 / 1 at 1× / 4× / 16× compute; no `speed.serialCap` row.
+- **Moves calibration: maybe** (same S8 scale; S8 now includes per-version usefulness and token overhead inside AI
+  FTE, which copies did not).
+
+### RD-A04
+
+One allocator for the safety research engineers (theme A, SAFETY-REDESIGN §5, OD-9 (a)). Commit bfec9fb.
+Moves calibration: **maybe**.
+
+- **Needs list:** `SafReNeed` = cases (open investigations' fte), patches (patch + foothold removals, patchFte),
+  safExp (line experiments: each experimenting project in priority order asks SAF_RE_UNIT × min(LINE_MULT_MAX,
+  cap ÷ SERIOUS_CAP), as before), reval (tool re-validation: `revalDemand` = tools in upkeep × (UPKEEP_MIN + UPKEEP_MAX ×
+  UPKEEP_REF) ÷ m of safety experiments, the engineers per tool at which the upkeep rate saturates; 0 with no fading
+  tool). `safAllocation` runs models/research.ts `allocate()` over `research.safRe` (the player's order, caps as the
+  capability list); what no need takes is `idle` (SafAlloc.idle, safetyRe().idle, safety view staff.idleRe). Compute
+  part unchanged (the flat allocation's safety line; flop by engineers × computeRef).
+- **Default order** = the pre-RD-A04 sequence: cases, patches, line experiments, re-validation (DEFAULT_SAF_RE_ALLOC),
+  without the 50% cap. SAF_EXP_SHARE deleted.
+- **Served amounts act:** a case below its staffing gains clarity at the engineers it gets (`casesServed`, investigations
+  caseRate × share served). Patches / removals keep fixed durations (their need is served or not; effect → RD-S05).
+  Tool upkeep and the validation lead (reValidationMult) read the re-validation need's engineers.
+- **Behaviour changes (why "maybe"):** experiments are no longer capped at 50% of the free engineers (a lab short of
+  engineers now fills its projects before upkeep); re-validation takes at most its demand and the rest is idle, so the
+  validation lead (believed U only; RD-S04 deletes it) no longer counts free engineers when no tool fades.
+- **Action / UI:** `research.safReAlloc` (order, need + max / share); Company › Work card "Safety research engineers"
+  (NeedList with gets / needs, caps, idle); `safReAllocView`; glossary `safReNeeds`, toolUpkeep reworded (GLOSSARY.md
+  not regenerated).
+- **Save:** SCHEMA_REV 56; migration 55 → 56 adds research.safRe at the default order; hygiene rev pins → 56.
+  scripts/v2/safetyresearch.ts' rig keeps twice the ask of engineers (was ask ÷ SAF_EXP_SHARE).
+- **Check:** `npx tsx scripts/v2/_a04/check.ts` (day-400 fixture migrates with the default order; with 60 people over
+  cases 40 / patches 10 / experiments 37.5 the served amounts follow the default and a reordered list; partial order
+  ignored; a cap flows down; spare engineers idle; no SAF_EXP_SHARE in src). tsc (app, scripts/v2) clean; npm run build
+  passes. Not run: safety suite, test:cal (RD test rule; CP2). The re-validation demand is not exercised by the fixture
+  (no fading tool at day 400).
+
+### RD-R02a
+
+Safety line projects on the shared units and the shared experiment-pool rule (theme R, SAFETY-REDESIGN §3.1; SAF-02,
+SAF-03). Commit dca648d. Moves calibration: **maybe**.
+
+- **Labour:** ℓ = (m_exp × engineers ÷ RE_LABOUR_UNIT)^λ, engineers in research-engineer team-equivalents
+  (heads × quality ÷ TEAM_SIZE.re; the allocator still works in heads × quality, so lineProjects converts at
+  HEADS_PER_LABOUR_UNIT = RE_LABOUR_UNIT × TEAM_SIZE.re = 200). A serious programme asks `SAF_RE_ASK` = 0.25 labour
+  units (= the old 50 heads; a staffing need like RE_MAX_PER_PROJECT, not a unit) × min(LINE_MULT_MAX, cap ÷ SERIOUS_CAP).
+- **Compute:** c = project FLOP/day ÷ (computeNeed × C_UNIT_FLOP_PER_DAY). `AgendaDef.computeNeed` = computeRef ×
+  1e6 H100e × PHI ÷ C_UNIT = computeRef × 96.8 (11 × 0.88 ÷ (0.05 × RE_LABOUR_UNIT)): the agenda's demand multiplier
+  relative to a capability project; c at the old reference compute is exactly the old c. Codex row shows it.
+- **Pacing conversion:** at reference ℓ = SAF_RE_ASK^λ (0.5 at λ 0.5), not 1, so the stage rate is X ÷ X_ref with
+  X_ref = Xces(P, 1, SAF_RE_ASK^λ): rate 1 and first result at T₁ at reference inputs. Away from reference the CES mix
+  differs from the old one (the old ℓ = 1 point sits at ℓ = 0.5 in the shared unit; ζ ≠ 1 so this is not an exact
+  rescale): why "maybe".
+- **FLOP by need** (RD-B08 rule): line pool ÷ Σ needs (ask × computeNeed per experimenting project); a project with
+  engineers takes its full share, one with none leaves it unused (was: by engineers got × computeRef, shares moving to
+  the others). `share` per agenda and recomputeComputeShares follow.
+- **Deleted:** SAF_RE_UNIT, SAF_C0_H100E. SERIOUS_CAP stays (the reference science staffing; ideation keeps
+  (m × cap ÷ SERIOUS_CAP)^λ; RD-R02b's one stepper decides it). scripts/v2/safetyresearch.ts compiles (REF_RE_HEADS),
+  not run.
+- **Check:** `npx tsx scripts/v2/_r02a/check.ts`: every agenda's first result at reference inputs vs T₁, worst 0.8%
+  (±5%), c = 1.000, ℓ = 0.500. tsc app + scripts/v2 clean.
+
+### RD-R02b
+
+Safety projects on the shared project stepper (SAFETY-REDESIGN §3.1; replaces DD-15 / DD-16's candidate pool; SAF-01,
+SAF-08, SAF-V02). Commit fcc5614. **Moves calibration: yes (safety).**
+
+- **One stepper.** `stepProject(s, ctx, n, day: ProjectDay)` (models/research.ts): `dept: 'cap'` runs the capability
+  lifecycle as before; `dept: 'saf'` runs one "does it work" test (SafProjectState {work, workNeed = the agenda's T₁
+  months, flop}) through `stepTest`, the same day-step RD-R05's unlock projects now use: the science rate ((m_ideas ×
+  capacity ÷ SERIOUS_CAP)^λ × taste × speed ÷ 30) and the experiment CES rate (X × speed ÷ 30 X_ref, RD-R02a units) add
+  on the same work, so at reference inputs a test takes T₁ ÷ 2 (as unlock projects: science time counts toward the
+  whole effort). Rates: safety/lineProjects.ts lineRates (`idea` → `sci`). speed = researchMods (lineSpeed and its
+  dead-end half speed gone; RD-A07 still owns the flat modifiers).
+- **Works draw.** `safetyWorks`: hash32(seed, 'saf:'+id+':'+attempt) < the agenda's true efficacy. Works → findings.ts
+  `nodeTestResult`: the node's own catalog row (`ownRow`), its generic technique, or the idea itself; never another
+  node's row, never past `needs`; a row whose `requires` fail in this world ends as failure (SAF-V02). Posterior a + 1.
+  Doesn't → `<AG>-DEAD` record (nodeId set), posterior b + 1 (was + 2), deadEnd status below 25%; the project restarts
+  (attempt + 1) at the posterior odds; the attempt's team-months go to the line's dead-end count as before.
+- **SAFSAB kept** (shared `sabotage` helper): on a working node result with the line's threat; caught → result lost
+  (no record, retry); uncaught → FALSE (masking tool `falseTool`, record trueType FALSE shown as the tool, the lab
+  takes the node as known; its real technique is not unlocked). fireFinding uses the same helper.
+- **Open study.** A line's follow-up keeps fireFinding's events (TECH / DEAD / NEG / DISC / SPILL / FALSE); its TECH
+  draws only rows no node owns (`NODE_ROWS`, SAF-08).
+- **Deleted:** candidate pool (SafCandidate, cands, newSafCandidate, readStage, betaBand / readInto), SafStage,
+  SAF_PICK_AT, SAF_POOL_MAX, SAF_BELIEF, lineSpeed, stepLineProject. SCHEMA_REV 57: migration 56 → 57 restates a
+  running safety project at its progress (work = progress × T₁).
+- **Readouts:** lineEtaDays = work left ÷ (sci + exp); lineCycleDays = T₁ ÷ (sci + exp).
+- **Scripts:** safetyresearch.ts compiles on the new stepper (section 3, belief noise, removed; its E1 pacing
+  expectations are stale: T₁ ÷ 2, no pipeline overlap), safetyideas.ts reads researchMods for lineSpeed, _r02a/check.ts
+  on stepProject (now expects T₁ ÷ 2), hygiene.ts rev 57. None run.
+- **Check:** tsc app + scripts/v2 clean; npm run build passes; `npx tsx scripts/v2/_r02b/check.ts` (no pool / beliefs /
+  lineSpeed / line stepper in the source; one stepProject for dept cap and saf; all 33 safety nodes: works → only own
+  row / technique, doesn't → dead end with b + 1; a node run on the real stepper ends in DEAD or its own row).
+
+### RD-R03
+
+Safety science teams on the capability planner (SAFETY-REDESIGN §3.1, §5; SAF-03, SAF-23, INP-15). Commit c9ff03f.
+**Moves calibration: maybe** (safety teams beyond the bots' staffed lines now idle; lines no longer auto-continue).
+
+- **One planner.** `planAssignment(s, ready, dept = 'cap', valueOf?)` (models/research.ts) serves both departments:
+  priority list, teams wanted (`research.want`, shared), one swap pass and spares by value under PROJECT_MAX_TEAMS.
+  models/tree.ts `assignSafTeams` / `planSafAssignment` run it daily for 'saf' over `safReady` (queued, ready safety
+  projects in queue order); each team gets a `why`.
+- **Value proxy [D]:** `safProjectValue` = (m_ideas × C ÷ SERIOUS_CAP)^λ × taste × speed ÷ 30 (the science part of
+  lineRates) ÷ the test's workNeed × chance it works (nodeOdds, the line's posterior mean) × `SAF_LINE_WEIGHT[agenda]`
+  (data/v2/research.ts, default 1; only ratios matter within the department).
+- **Idle stays idle.** Nothing queued → no safety team placed, nothing queued for the player. `safIdleFlag(s)`:
+  "2 safety teams idle — add projects to the priority list" (or the planner's reason when projects exist but none
+  gains); shown on Safety › Research lines (replaces "· N idle").
+- **Deleted:** autoAssignDept, autoAssign, lineForTeam, onLine, PRIORITY_W, continueLine (a finished node's teams are
+  freed; the line's next project waits for the player), the `research.autoAssign` action and `ResearchState.autoAssign`
+  (old saves keep a stale field, unread). RefBot no longer turns the toggle on (its staffLines places its line teams
+  by hand as before). scripts/v2/research.ts B35 auto-assign preview check removed; worktypes.ts no longer sets it.
+- **Player text:** glossary `autoAssign` → "Safety team placement"; Company team-effect tooltip and team hire preview
+  say a new safety science team joins the queued safety projects or waits idle.
+- **Check:** tsc app + scripts/v2 clean; npm run build passes; `npx tsx scripts/v2/_r03/check.ts` (no auto-assign
+  left; nothing queued → 0 placed, flag text; queued two lines → priority / teams wanted honoured, priority 1 wanting
+  every team takes them all; after a research day teams only on queued projects).
+
+### RD-R04
+
+Rolled tree path and the paradigm mirror gone (SYNTHESIS §6 Phase 3; CAP-15, SAF-18). Commit 1ff5271.
+**Moves calibration: maybe** (P27 now resolves on AG17's works draw at the line's T₁, not its paradigm prior at the old
+rolled speed; teams on P27 now count as AG17 staffing: harness fit and SAF_IDEAS labour; P27 waits on AG17's safety-model gate).
+
+- **Deleted (models/tree.ts):** roll(), researchSpeed, the rolled branch of researchDay (progress bar, retry date, odds
+  halving), syncParadigm; projectRate / projectEta are research-line only (else 0 / Infinity); projectReady's retry
+  reason; nodeOdds has no multiplier. TreeNodeState.priorMult / retryDay gone (TreeNodeState left one interface: [D]
+  the discriminated union skipped for the budget). TREE_RETRY_DAYS gone from data; RefBot keeps `REF_RETRY_DAYS` 180.
+- **kyc:** node deleted (and from the starts' known lists); the per-product KYC setting stays ungated.
+- **P27:** an `S` node of line AG17 (no `paradigm` flag; effort = AG17's line effort); effects unchanged (workfit
+  `adopted(s, 'P27')`, safety/ideas.ts aarAuto). Removed from PARADIGMS; its hidden draw is consumed in place
+  (world/hidden.ts TRAILING_DRAWS [0.8 P26, 0.7 P27]), so later world draws keep their values.
+- **Mirror:** PlayerLab / LabCore `paradigms` and ParadigmState gone; initialParadigms gone. `adopted(id)` (models/paradigms.ts
+  and safety/common.ts) = `tree[id].status === 'known'`. Readers repointed: RefBot (P08, P17, P23), actions (P08, P18),
+  theft (P25), agent-action cache key (P27). completeAdoption's onKnown is optional (build.ts passes none).
+- **Player text:** glossary `retryRule` and limit `tree.retry` gone (and the tree's retry readouts); [D] to satisfy the
+  `researchSpeed` grep, researchSpeedLimits / researchSpeedView / researchSpeedRel and the glossary id `researchSpeed`
+  are renamed `labSpeed*` / `labSpeed` (title unchanged; GLOSSARY.md not regenerated).
+- **Schema:** SCHEMA_REV 58; migration 57 → 58 drops player.paradigms, hidden.paradigmSuccess.P27, the kyc record / queue
+  entry / team placement, every tree record's fields outside TreeNodeState; a rolled P27 attempt becomes its AG17 test at
+  its progress (work = progress × T₁), a failed one reopens. Older migrations no longer touch the mirror (53 reads P24 via a cast).
+- **Check:** tsc app + scripts/v2 clean; npm run build passes; grep `researchSpeed|syncParadigm|player.paradigms|priorMult`
+  in src empty; `npx tsx scripts/v2/_r04/check.ts` (source clean; kyc gone, P27 an AG17 line node; new game: no mirror,
+  ★ adopted; P27 works → known = adopted, doesn't → AG17 b + 1; rev-57 save migrates). hygiene's rev literals → 58 (not run).
+
+### RD-A05b
+
+Spare-compute policies removed per DD-19; one explicit Auto-split policy; real compute for cases. Moves calibration: **yes**
+(idle training compute no longer feeds data generation, the old default; spare serving no longer adds routine agents;
+share recovery always full speed; case rate reads H100e).
+
+- **Gone:** `policies.spareTraining` / `spareServing`, actions `runs.spareTraining` / `serving.spare`,
+  `spareServingToResearch`, `LENT_RECOVERY`, `spareServingEffect`, the idle / spare parts of `expPoolH100e`,
+  `synPoolH100e`, production.ts inputs (`mixUnit.idle/cIdle/spare/kSpare`), workfit `useLabour`, covert
+  `internalFleetCompute`; RefBot's spare options. `spareServing()` renamed `idleServing()` (H100e no product needs).
+- **Auto-split** (`departments/autoSplit.ts`): `policies.autoSplit = { on, to, last? }`, default off, to experiments.
+  Daily system order 62 (after revenue): moves unallocated + idle training + idle serving + monitors beyond coverage to the
+  listed uses in equal parts (min move 0.1 pt), logs it, keeps `last`. Action `compute.autoSplit {on?, to?}`.
+- **Cases:** `caseRate(s, g, fte, h100e)`; `caseH100e(s, share)` = online × split.safety × granted share (a demand inside the
+  safety research line, lines take the rest); reference `CASE_H100E_REF` = 5% of the reference start line [D].
+- **UI:** Split shows "Idle" under training, serving and monitors; Auto-split row (switch, idle now, uses to send it to).
+  Run queue "Idle" row; Products serving bar segment "idle"; Company Flow spare row gone; glossary idleCompute,
+  idleServing, autoSplit (old stale Auto-split entry replaced); watch item text.
+- **Save:** SCHEMA_REV 56; migration 55 drops the two policies, adds autoSplit off; hygiene pins → 56.
+- **Check:** `npx tsx scripts/v2/_a05b/check.ts`. Budget hit: 9/12 pass. Left: the check's setup does not create idle
+  serving on day400 (moving 10 pt training → serving gives idleServing 0: likely products absorb it or needH100e unset;
+  the "idle serving stays idle" assertion needs a setup that really leaves serving idle), and its "moved" test is too
+  strict (Auto-split moved 29.6 pt, mostly idle training). `npm run build` not run. grep: only the migration names the
+  old policy keys.
+
+### RD-A06
+
+AI staff packages name their model, have their own control layer, and internal tooling is its own owned item (DD-03).
+Moves calibration: **maybe** (eng / frontier / safety packages with no pick now run the newest cleared full model instead
+of following routine research; built Memory / Coding agent / Deep research no longer help internal work unless the lab
+builds the tool; feature upkeep of a feature on no product drops to keep-alive; Add control now covers the packages
+running that model, not every package).
+
+- **Model:** `newestInternal(s)` (departments/agents.ts) = newest ready / deployed full model (routine's while none);
+  `agentVersion` = own live pick, else that (the "as routine" fallback is gone). Lane flag `follows` → `newest`; the
+  picker's empty option reads "newest · Vx". Routine research still sets the internal deployment.
+- **Control:** `AgentPackage.control?`; `useControl(s, model, monitor, on)` reads the package; `underControl(s)` = any
+  package on. `syncInternalControl(s)` keeps the internal deployment's `controlLayer` (read by covert / incidents /
+  believed oversight containment) = a package running its model has control. Set by `agents.set {use, control}`, the
+  addControl / removeControl responses (packages on that model) and the E-event "Continue + control" (all packages).
+- **Tooling:** data/v2/features.ts `INTERNAL_TOOLS` (Coding harness ← Coding agent SWE +0.3 ×2 tok; Research harness ←
+  Deep research IDEAS +0.3 ×3 tok, P05 gate; Agent memory ← Memory horizon ×1.3 all, P07 gate; same team-weeks / cash);
+  `player.tooling`; build kind `tooling`; action `tooling.build {id}`; upkeep line `tooling` (always in use). `internalFx`
+  reads tooling + P05 orchestration only; the features' SWE / IDEAS work entries removed, effect texts say product only.
+  `featureInternal` deleted (productView `internal` now empty). Starts: `toolsFromFeatures(start features)` (leader none,
+  challenger Coding harness). Rivals: not yet (DD-03 rival part later).
+- **UI:** Company › Agents at work: per-lane "Control on/off" button (tooltip agentControl), a Tooling row (built ✓ /
+  building days / Build button with effect tooltip); BuildLoad labels; glossary agentTooling, agentControl.
+- **Save:** SCHEMA_REV 57; migration 56 → tooling from built features, package control from the internal deployment's
+  flag; hygiene pins → 57. Scripts setting `controlLayer` on the internal deployment also set package control.
+- **Check:** `npx tsx scripts/v2/_a06/check.ts` (12/12): features leave internal fit and build capacity unchanged; the
+  Coding harness via the build queue gives SWE +0.3 OOM; starts / rev-56 save own the equivalents; no pick = newest;
+  control on one package only. tsc (main, scripts) and `npm run build` pass.
+
+### RD-T01a
+
+A run kind field replaces the IDA name check (DD-06, TRN-08). Moves calibration: **no** (state hash identical to the
+previous commit with the new field stripped).
+- **Mapping:** every way a model is made is a TrainingRun `kind` plus one option. base / continue = pretraining (new or
+  continued base); distill = a small model on a teacher's outputs (`teacherVersionId`); post = RL on a base; IDA = post
+  with `grader: 'teacher'` (RL with the teacher, `teacherVersionId`, as grader; P18). The stream is not a run
+  (`models.stream`) and is unchanged. Imported / variant models are not runs either.
+- **Code:** `TrainingRun.grader?: 'teacher'`; `LaunchRunParams.ida` → `grader`. Every `name.startsWith('IDA')` is now
+  `grader === 'teacher'`: run completion (runs.ts), `runOmega` / `runRho` (traits.ts), `versionPressure` /
+  `plannedPressure` (pressureView.ts), `reOpsNeed` (research.ts), RefBot `askShare` (ref.ts); run-likes for previews
+  (selectors.ts, pressureView.ts, runs.ts) carry `grader` instead of the name "IDA". The run name stays "IDA n".
+- **Save:** SCHEMA_REV 58; migration 57 → 58 sets `grader: 'teacher'` on post runs named "IDA …"; hygiene pins → 58.
+- **Check:** `npx tsx scripts/v2/_t01a/check.ts`: IDA run carries the field, a post run does not, a rev-57 save gets it
+  back from the name; after 150 days (IDA finished) the stripped state hash is 9fd770432d0ac490 on this commit and on
+  the previous one (same script on an archive of HEAD~). tsc (main, scripts) pass; `grep "startsWith('IDA" src` empty.
+
+### RD-T01b
+
+Two training acts, engine structure only (DD-06, TRN-06; theme T). Commit fa60a15. Moves calibration: **no** (run,
+made-model and state hashes identical to the previous commit for all five former kinds).
+- **Acts.** `runAct(kind)`: `'pretrain'` (kinds base / continue / distill) or `'rl'` (kind post). The run kinds stay
+  the save format (no schema bump); the engine reads them as act + source / start.
+- **Pretraining** (`pretrain(s, src, rec?)`, one path): `PretrainSource` = `design` (new base on the portfolio),
+  `continue` (parent + added FLOP) or `teacher` (student size nS, tokens of teacher outputs). Sources come from launch
+  params (`pretrainSourceOfParams`) or a launched run (`pretrainSourceOfRun`); the result (`Pretrained`: FLOP needed,
+  cash, scale, flop / params / tokens / gPre / ePre / sD / fpt / monitorability) feeds both `planPretrain` and
+  `completePretrain`. Blueprint limits are read from the design source.
+- **RL** (`rlBuild(s, start, design, rec, extra)`, one path; replaces postBuild and idaBuild): `RlStart` = a base
+  (fresh RL: design focus weights, design effects, domain effects, run penalty at completion, design serve cost) or a
+  version (the teacher-as-grader option, IDA: more RL FLOP on its build, best of its and the run's recipe and suite
+  fidelity, its RL mix, serving, design and traits kept). Budget `rlFlopOf` = RL_BUDGET[design] or IDA_RL_SHARE × base
+  FLOP. `planRl` / `completeRl`.
+- **planRun / completeRun** are the act dispatch plus the shared tail (setup, ETA, cash / pause reasons, prediction).
+- **[Q] quirks kept, not fixed:** (1) a distilled student has no BaseModel of its own: it is a mini version on its
+  teacher's base whose build is the teacher's minus the gap (materialising a base would change state); (2) RL on a
+  version is reachable only with the teacher as grader (no launch parameter for plain RL on a version); (3) the IDA
+  preview's serve cost / monitorability are the fresh-RL formula (completion keeps the teacher's); (4) IDA ignores the
+  design's RL budget and focus (IDA_RL_SHARE, the teacher's mix); (5) only fresh RL consumes the pending run penalty.
+- **effective.ts** unchanged (its arithmetic already is per act: pretraining, RL, distillation).
+- **Check:** `npx tsx scripts/v2/_t01b/check.ts` (day-400 fixture; base, continue, post, distill, IDA each launched,
+  setup and FLOP forced, one tick): hashes before = after, e.g. base run 9eeaf8a0c2210830 / state d8a2b5f88780b9cc,
+  IDA run e879d56046092371 / state e3bce3a7bb61d547. tsc (main, scripts) and `npm run build` pass.
+
+### RD-T02
+
+Continue runs draw tokens from the portfolio (TRN-07; theme T). Commit f86f4fc. Moves calibration: **maybe** (on the
+unchanged day-400 portfolio a continue run already repeats: cumulative epochs 1.67, the added part's data factor 0.94,
+so continued bases are a little weaker than before).
+- **Draw.** `continueDrawNow(s, parent, addFlop)` (runs.ts): added tokens = added FLOP ÷ (6 · N_active), drawn with the
+  parent's data option through `playerDraw` (new optional `tokens` arg) / `drawData`, cumulative on the parent's
+  tokens (so each slice's epochs count the parent's use), plus `prevDEff` = D_eff of the parent's tokens alone on the
+  same portfolio. Stored in the launch snapshot (`RunRecipe.draw`, new `RunRecipe.prevDEff`); plan reads today's.
+- **[D] Added part's data factor** `continueFData` (effective.ts): effective compute adds, so f_add = (D_tot · f(D_tot)
+  − D_prev · f(D_prev)) ÷ D_add with f = fDataEff (Besiroglu, quality and repetition), both draws on the launch
+  portfolio; 1 on the 2025 reference data, ≥ 0. `continueGPre` takes it (new last arg, default 1). ePre still "what
+  remains", so it now carries f_add too. A snapshot without prevDEff (hand-built runs) keeps f_add 1.
+- **Base.** A continued base's `epochs` = the cumulative draw's (was copied from the parent); tokens unchanged formula.
+  Trait hook reads the cumulative draw (shares, so S5 barely moves).
+- **Schema 59:** migration 58 → 59 redraws in-flight (running / paused) continue runs on the save's day; idempotent
+  (skips runs with prevDEff). hygiene SCHEMA_REV literals 58 → 59.
+- **Check:** `npx tsx scripts/v2/_t02/check.ts` (day-400 fixture, continue launched and forced done; portfolio × 0.02 vs
+  × 1): epochs 83.5 vs 1.67, f_add 0.58 vs 0.94, gPre gain 0.219 vs 0.314 OOM; base epochs = draw epochs. tsc main +
+  scripts pass.
+
+### RD-T03
+
+The continual-learning stream on the FLOP actually spent (DD-05, TRN-02; theme T). Commit 1903239. Moves calibration:
+**yes (SIAR/ASI)** (the player's stream no longer re-applies today's whole recipe for free, rivals stream from day 0
+with no L 8.5 threshold; on the day-400 fixture one player period adds 0.119 OOM, one rival week 0.141 OOM).
+- **Player** (models/runs.ts): the stream's pool share (STREAM_POOL_SHARE × training pool × goodput × ops served)
+  accrues FLOP daily (`stream.flop`); every STREAM_PERIOD_DAYS = 7 (was the 7-day tracking lag; `periodDay`) it is spent
+  on the two acts on the streamed version: a continued-pretraining increment (the continue source on the version's
+  weights: tokens drawn with the base's mix cumulative on the base's and earlier periods' tokens, new
+  `VersionBuild.addTokens`; continueFData; continueGPre with today's recipe at the new FLOP; flopPre grows) then an RL
+  refresh (rlAddOnVersion: effective RL compute adds, e_RL the FLOP-weighted mean in 10^e units; ceiling raise and suite
+  fidelity move by the added FLOP's share, never down). **[D]** Split: the stream's pool time as the version's own
+  pretraining : RL FLOP; RL at MFU_RL_FACTOR. `startStream` changes nothing until the first period. `stream.track`,
+  trackNow / trackOf / streamBuild / startTrack / streamRecipeGap gone; stacks.ts inPlaceRecipe reads the build.
+- **Previews** (models/actions.ts): start / stop read `streamPeriodGain`, the mechanism (streamPeriodBuild) run on a
+  copy of the version at today's pool for one period (not previewTick: the stream acts once a period, a one-day tick
+  would show 0); the gain line names the period's FLOP.
+- **Rivals** (actors/rivalModel.ts, DD-18 stand-in): `clRefresh` every CL_DAYS spends the FLOP of CL_POOL_SHARE (0.15,
+  the player's share) of the training pool since the last period (`clApply`): continued pretraining of the internal
+  model's streamed G_pre (continueGPre, reference data) and an RL refresh at the reference RL FLOP (effective RL compute
+  adds; ceiling by FLOP share); RL : pretraining split = RL_BUDGET.standard [D]. New `RivalPhys.cl` (streamed state on
+  base gen/flop, lazy); `clReset` after each post version / new base (RL at today's recipe, streamed pretraining kept);
+  newVersionG keeps the streamed G_pre. CL_LEVEL, clG, learnsOnline removed: no level threshold, from day 0.
+- **[Q]** the rival post-training cadence still re-applies today's RL recipe at a reference budget without counting
+  FLOP (unchanged); rivals' stream needs no P08-like adoption (the task's rule: no threshold).
+- **Schema 60:** migration 59 → 60 drops `stream.track`, starts the period on the save's day. hygiene literals 59 → 60.
+  Glossary `stream` text updated (GLOSSARY.md not regenerated). lint-tradeoffs' B37 block adapted, not run.
+- **Check:** `npx tsx scripts/v2/_t03/check.ts` (day-400 fixture, mechanism called directly): player 0 FLOP adds
+  nothing; effective compute per FLOP constant (pre 51.4 vs 51.7 at ×0.5 / ×2, RL exact); the daily system spends the
+  period on day 7 only; rival 0 FLOP 0, effective compute ×2 for 2× FLOP, same ΔG at L 8.4 and 8.6. tsc main +
+  scripts and `npm run build` pass.
+
+### Merge rd into p3-c2
+
+rd's schema chain kept (56 A05b, 57 A06, 58 T01a, 59 T02); p3-c2's renumbered: 59 → 60 (RD-A04), 60 → 61 (RD-R02b),
+61 → 62 (RD-R04); SCHEMA_REV 62, hygiene rev literals 62. Cases: A04's casesServed() FTE with A05b's caseH100e compute; the
+agents' readout key reads adopted(P27) (R04) and the tooling list (A06); spareServingEffect gone (A05b) with R04's labSpeed* names.
+
+### RD-A07
+
+Flat research modifiers made physical, one helper for both departments (departments/workfit.ts `researchMods`, read
+by models/research.ts, safety/lineProjects.ts, production/production.ts). Commit cb2cb96. **Moves calibration: maybe.**
+
+- **Pause = no experiment FLOP for frontier projects** (`frontierExp` 0, `expFlopAllowed(s, dept, flop)`). Frontier =
+  the capability department's projects (their tests run on the frontier experiment pool and scale toward the frontier
+  run): capResearchDay's project FLOP is 0 while the pause lasts, so their tests stall. Ideation goes on at full rate;
+  safety research-line projects (agenda-sized compute) keep their FLOP (they were ×0.1 before). The lab readout
+  (production.ts) puts the experiment compute c to 0 instead of ×0.1; LIMITS line reads "no experiment FLOP".
+- **Clearances = heads off the teams for 60 days** (`onDuty(s, t)`: heads − round(10% × heads)): sciOn, safSciOn,
+  capReCapacity, humansOf. The `humans` ×0.9 factor is gone.
+- **[D] multipliers kept (speed):** siloing −5%/level (who cannot share experiments is not modelled), ASIC migration
+  −15% (the port is not modelled), verified treaty ×0.65 (gov.treaty has no compute limit to cap FLOP with; = rateMult).
+- **Check:** `npx tsx scripts/v2/_a07/check.ts` (pause: cap experiment FLOP and rate → 0, safety FLOP and ideation
+  inputs unchanged; clearance: speed unchanged, science and RE capacity −10%, back after). tsc app + scripts/v2 clean.
+
+### RD-T04
+
+RL midpoint in absolute RL FLOP (DD-06, TRN-09; theme T). Commit 9993cd4. Moves calibration: **yes** (every base not at
+B0's FLOP: students, small and large rival bases, later player bases; start-lab lags re-solve for rivals whose last base
+differs from B0).
+- **Change:** `C_mid = c0 / 10^e_RL` (models/effective.ts rlGains, rlGainGeneral), no longer `c0 · FLOP_pre / 10^e_RL`,
+  so FLOP_pre no longer cancels out of the RL gain. c0 (now in FLOP, ≈ 6.97e24) is solved once, as before, on the
+  reference base (FLOP_RL_REF = 3e26 = B0) with the standard budget, broad, e_RL = 0 → RL_REF_GAIN 0.7; V0's gain is
+  unchanged (0.667988 both ways). Rivals follow automatically (stacks.ts refRlGain / rlGOfBuild read rlGainGeneral).
+  Docs: runDesign.ts RL_CURVE, runs.ts rlAddOnVersion comment.
+- **Effect at the standard share (0.15):** 0.1× B0 base 0.038 (was 0.630), B0 0.700, 10× B0 1.092. A 10× base reaches
+  the reference gain at share 0.0126.
+- **Saturation (read the task's wording carefully):** with an absolute midpoint every base reaches 95% of its own
+  ceiling at the same absolute RL FLOP (≈ 1.5e26); a 10× smaller base therefore needs a 10× **higher** share (5.1 vs
+  0.51), not a lower one, and saturates at a lower ceiling (0.90 vs 1.00). "Small bases saturate sooner" holds only in
+  absolute FLOP relative to their pretraining cost being smaller, not as a budget share. If a lower share is wanted, the
+  midpoint needs a sublinear base term (C_mid ∝ FLOP_pre^k, 0 < k < 1) — not done.
+- **Check:** `npx tsx scripts/v2/_t04/check.ts` (V0 unchanged; reference gain 0.7; gain depends on base size at fixed
+  share; bigger base reaches the reference gain at a smaller share; 10× smaller base saturates at the same absolute RL
+  FLOP). tsc app + scripts/v2 clean.
+
+### RD-T05
+
+RL families as explicit lists; horizon gain from long-tasks RL (theme T, TRN-10). Commit ef7476b. Moves calibration:
+**maybe** (transfer unchanged; the reference broad and long-tasks-focus runs on B0 keep ×1 / ×2 (×2.4 with P07), but
+every other run's horizon now follows its long-task RL: bigger bases, heavy budget or a better long-tasks suite (P12)
+raise it even on broad runs; light budgets or small bases on a long-tasks focus get less than ×2).
+- **Families:** data/v2/runDesign.ts RL_FAMILIES `{ own, adjacent, taskH? }`; `v` and `h80Mult` deleted. models/
+  effective.ts TRANSFER reads own (1.0) / adjacent (0.4) / far (0.15); suites.ts familyDomain = `own`. Tree captions
+  (rl.* nodes, P06) rewritten: "Mainly improves X; also helps Y, Z; a little carries over to the rest".
+- **Horizon:** h80Mult = (LONG_TASKS_HORIZON.perFocus 2 × P07 1.2-if-frozen)^x, x = max(0, (g − g_broad) ÷ (g_focus −
+  g_broad)); g = rlGains(…).perFamily.longHorizon (its RL share on the base ceiling × suite fidelity), anchors = the
+  reference run (B0, standard, e_RL 0, fid 1) broad / long-tasks focus (effective.ts longTasksHorizonMult, set in
+  runs.ts rlBuild). postEffect / rlFocusEffect no longer carry h80Mult. On B0, standard budget, by long-task share:
+  ≤ 1/6 ×1, 0.3 ×1.49, 0.5 ×1.85, 0.7 ×2.00, 1.0 ×2.10. Floor ×1 (other focuses do not shorten the horizon).
+- **Not changed:** RL on an existing version keeps its frozen h80Mult; saves keep stored h80Mult (no schema bump).
+- **Check (scripts/v2/.tmp-rdt05.ts, run alone, untracked):** transfer matrix identical to the old v-derived one; no
+  `v` / `h80Mult` on any family; reference broad ×1, long-tasks focus ×2, with P07 ×2.4, swe focus ×1; horizon
+  monotone in long-task share. tsc main and scripts clean; `npm run build` passes.
+
+### RD-T11
+
+Scrutiny against the largest rival run; `scale` removed. Commit 609c699. Moves calibration: maybe (gov).
+- **Rule.** A base run's public scrutiny is sizeScrutiny(FLOP ÷ rivalRunFlop) (+5 per ×3 above, 0 at or below), at
+  the blueprint preview and at launch (models/runs.ts runScrutiny). rivalRunFlop = the largest training run of any active
+  non-player lab (US rivals and China): a run in progress at its planned FLOP (FLOP so far + baseFlopPerDay × days to its
+  due day) or a base finished in the last SCRUTINY_WINDOW_DAYS = 365 [D]; none in the window: the largest current base.
+- **Removed.** TrainingRun.scale, the pretrain plan's `scale`, runs.ts scaleOf (and its frontierFlop import). The RD-C06
+  lint exemption on scaleOf has nothing left to exempt there.
+- **Save.** SCHEMA_REV 63 → 64; migration 63 drops TrainingRun.scale (idempotent). hygiene.ts's two `SCHEMA_REV === 63`
+  pins moved to 64.
+- **Check.** scripts/v2/_t11/check.ts (day-0 reference 6.3e26 FLOP; 0 at ≤ 1×, +5 at 3×; migration drops the field):
+  pass. tsc (app, scripts/v2) clean.
+- **Calibration.** The reference changed from F(t) to the rival frontier (not compared at day 0), so the gov
+  scrutiny bump can fire at different times. Not measured (no cal run in this task).

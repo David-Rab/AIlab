@@ -268,7 +268,6 @@ export interface LabCore {
   models: ModelsState;
   deployments: Deployment[];
   security: SecurityState;
-  paradigms: Record<ParadigmId, ParadigmState>;
   /** Cached production readout from the last daily tick (not authoritative; recomputable). */
   prodCache?: ProductionReadout;
   milestoneDays: Partial<Record<MilestoneIdx, Day>>; // first crossings only (v1 bug #3 fix)
@@ -280,11 +279,12 @@ export interface ModelsState {
   bases: BaseModel[];
   versions: ModelVersion[];
   runs: TrainingRun[];
-  /** Continual-learning stream (P08) if active: the version id being updated in place. */
+  /** Continual-learning stream (P08) if active: the version id being updated in place. RD-T03: pool FLOP accrues daily
+   *  (`flop`) and is spent every STREAM_PERIOD_DAYS from `periodDay` on continued pretraining and an RL refresh. */
   stream?: {
     versionId: string; startedDay: Day; lastAuditDay: Day;
-    /** Model v3 V2: the recipe the stream has absorbed (7-day lag): e_pre at its base's FLOP, RL efficiency, RL ceiling. */
-    track?: { pre: number; rlMid: number; rlCeil: number };
+    periodDay?: Day;
+    flop?: number;
   };
   nextName: number; // naming counter
   /** Model v3 D7: eval suites queued or running (work: research engineers, engineers, inference compute). */
@@ -392,10 +392,12 @@ export interface ModelVersion {
 
 /** Capability build of a version (MODEL-V3 §2, §4): G = gPre + dgRL + dg. Hidden. */
 export interface VersionBuild {
-  /** Pretraining effective compute of its base (OOM; a stream re-applies today's recipe). */
+  /** Pretraining effective compute of its base (OOM; a stream's continued pretraining adds to it, RD-T03). */
   gPre: number;
-  /** Physical pretraining FLOP of the base (the RL curve's midpoint scales with it). */
+  /** Physical pretraining FLOP of the base (the RL curve's midpoint scales with it), plus the stream's. */
   flopPre: number;
+  /** RD-T03: tokens the stream's continued pretraining drew on this version, on top of its base's. */
+  addTokens?: number;
   /** RL FLOP of the version (all families), its family weights and the RL recipe e_RL frozen at launch (OOM). */
   rlFlop: number;
   rlW: Partial<Record<RLFamily, number>>;
@@ -463,8 +465,12 @@ export type RunKind = 'base' | 'post' | 'continue' | 'distill';
 export interface RunRecipe {
   /** Pretraining recipe efficiency e_pre at the run's FLOP (OOM; base, continue). */
   pre?: number;
-  /** The data the base draws from the portfolio at launch (model v3 D3 / D11; base, continue). */
+  /** The data the base draws from the portfolio at launch (model v3 D3 / D11; base, continue). A continue run's draw is
+   *  cumulative: its parent's tokens plus the added ones (added FLOP ÷ 6·N_active), with the parent's mix (RD-T02). */
   draw?: DataDraw;
+  /** Continue run: D_eff of the parent's tokens alone, drawn on the same portfolio at launch (the added part's data is
+   *  the cumulative draw minus this; models/effective.ts continueFData, RD-T02). */
+  prevDEff?: number;
   /** RL stack efficiency and ceiling (OOM); the environment suites' fidelity and exploitability per family (model v3 D5). */
   rlMid?: number;
   rlCeil?: number;
@@ -489,7 +495,11 @@ export interface TrainingRun {
   poolShare: number; // share of the training pool this run takes (player sets priority)
   cashCost: Money; // environment/data budget committed at launch (compute is the pool)
   baseId?: string; // for post/continue/distill
-  teacherVersionId?: string; // distill / synthetic-heavy
+  teacherVersionId?: string; // distill / synthetic-heavy; the grader of an RL run with grader "teacher"
+  /** RD-T01a (DD-06): RL with the teacher as grader. On a post (RL) run, `teacher` puts teacherVersionId in the loop:
+   *  today's IDA cycle (P18). The ways a model is made: kind base or continue (pretraining), post (RL; with this field,
+   *  IDA), distill (a small model on a teacher's outputs); the continual-learning stream is models.stream, not a run. */
+  grader?: 'teacher';
   base?: BaseDesign;
   post?: PostDesign;
   predicted: RunPrediction; // shown on the run card, with noise band
@@ -501,9 +511,6 @@ export interface TrainingRun {
   /** Everything the run's result depends on, frozen at launch (model v3 V2, D5; RD-B02): completion and the WS2 trait hook
    *  read only this. Absent only on a run-like built for a preview (a launch today). */
   recipe?: RunRecipe;
-  /** Base/continue run scale vs the reference frontier run F(t) at launch (scrutiny only; engineering reads FLOP, S5
-   *  reads G). Removed by RD-T11 (SYNTHESIS §6 Phase 6). */
-  scale?: number;
   /** Distillation: student active parameters; distillation and continued-pretraining runs: tokens. */
   studentParams?: number;
   tokens?: number;
@@ -621,13 +628,7 @@ export interface Deployment {
 
 // ───────────────────────────── Paradigms (§3.3.5) ─────────────────────────────
 
-/** Mirror of the paradigm's tree node (R4): readers check `status === 'adopted'`. The tree (PlayerLab.tree) holds the
- *  project state. */
-export interface ParadigmState {
-  status: 'available' | 'researching' | 'failed' | 'adopted';
-  progress: number; // 0..1
-  revealedDay?: Day;
-}
+/** RD-R04: a paradigm's state is its tree node (PlayerLab.tree; known = adopted, models/paradigms.ts adopted()). */
 
 // ───────────────────────────── Tech tree (TECH-TREE.md, BUILD-PLAN R4) ─────────────────────────────
 
@@ -637,42 +638,23 @@ export interface TreeNodeState {
   progress: number; // 0..1 of the current attempt
   /** Day it became known or failed. */
   day?: Day;
-  /** Attempts started (1 = first; paradigm nodes use the hidden draw on the first). */
+  /** Attempts started (1 = first; capability paradigms use the hidden draw on the first). */
   attempts?: number;
-  /** Odds multiplier for the next attempt (halved per failure). */
-  priorMult?: number;
-  /** A failed idea can be retried from this day. */
-  retryDay?: Day;
   /** Research-line projects (R8): team-months spent on the current attempt (counted as lost if it dead-ends). */
   tm?: number;
   /** Capability projects (model v3 V2): the lifecycle state (models/research.ts). */
   cap?: CapProjectState;
-  /** Safety research-line projects (model v3 E1): the lifecycle state (safety/lineProjects.ts). */
+  /** Safety projects (RD-R02b): the one test's state (safety/lineProjects.ts). */
   saf?: SafProjectState;
 }
 
-/** Stage of a safety research-line project (MODEL-V3 §11.7, E1): ideation by safety scientists (also while waiting for a
- *  candidate), small experiments and validation on the frontier model by safety research engineers with compute. */
-export type SafStage = 'ideation' | 'small' | 'validation';
-/** A candidate approach on a safety line. Belief = the team's estimate of the line's chance of a working result (the
- *  hidden efficacy read with noise ÷ taste, narrowed by the experiments); visible, nothing hidden is stored. */
-export interface SafCandidate {
-  /** Candidate number within the project (hash key of its readings). */
-  k: number;
-  /** Taste of the scientists who found it (a Strong team = 1). */
-  q: number;
-  /** Belief: mean and sd. */
-  mu: number;
-  sd: number;
-}
+/** A safety project's one "does it work" test (RD-R02b, SAFETY-REDESIGN §3.1; the shared stepper, models/research.ts
+ *  stepProject): work done / needed (months of work at reference inputs, the agenda's T₁) and the experiment FLOP used.
+ *  No candidates and no beliefs: at the end the hidden works draw (a node) or the open study's event (a follow-up). */
 export interface SafProjectState {
-  stage: SafStage;
-  /** Ideation progress toward the next candidate (0..1). */
-  idea: number;
-  cands: SafCandidate[];
-  /** The candidate in test and its stage work (months of work at unit experiment throughput X = 1). */
-  test?: { c: SafCandidate; work: number; workNeed: number };
-  next: number;
+  work: number;
+  workNeed: number;
+  flop: number;
 }
 
 // ───────────────────────────── Research projects (model v3 V2: MODEL-V3 §5) ─────────────────────────────
@@ -798,6 +780,10 @@ export type RiskPolicy = 'safe' | 'balanced' | 'speculative';
 /** Research-engineer needs (V3-BUILD V2.5): run operations, evaluations (model v3 D7), project experiments. Capacity
  *  none of them takes is idle (RD-E03 removed routine tuning). */
 export type ReNeed = 'ops' | 'evals' | 'exp';
+/** Safety research-engineer needs (RD-A04, SAFETY-REDESIGN §5): open cases (investigations), patches and foothold
+ *  removals, line-project experiments (by project priority), tool re-validation (upkeep). Each has a real demand;
+ *  capacity none takes is idle. */
+export type SafReNeed = 'cases' | 'patches' | 'safExp' | 'reval';
 /** Engineer needs: run operations and setups, product upkeep, builds (features, adoptions, launches, packs). */
 export type EngNeed = 'runs' | 'upkeep' | 'builds';
 /** A broad allocation: needs in priority order and optional caps per need: a team count (`max`, team-equivalents) and a
@@ -807,11 +793,7 @@ export interface Allocation<K extends string> { order: K[]; max: Partial<Record<
 export interface ResearchState {
   /** Projects in priority order (node ids). Teams work on the ones that are ready; the rest wait. */
   queue: string[];
-  /** Policy: idle science teams join the highest-priority ready project of their department in their specialty; a
-   *  safety team whose project resolves keeps working its research line (R8). Capability science teams are always
-   *  placed by the assignment (V3-BUILD V2.5); the flag only affects safety teams. */
-  autoAssign: boolean;
-  /** Teams wanted per capability project (default 1; PROJECT_MAX_TEAMS = "max"). */
+  /** Teams wanted per project, both departments (RD-R03) (default 1; PROJECT_MAX_TEAMS = "max"). */
   want: Record<string, number>;
   /** B4: capability projects on "auto" teams wanted (the game picks the number by priority and fit): one team first,
    *  then spare teams where they add the most progress. A project here ignores its `want` number. */
@@ -820,6 +802,8 @@ export interface ResearchState {
   risk: RiskPolicy;
   /** Research engineers (capabilities) by need. */
   re: Allocation<ReNeed>;
+  /** Safety research engineers by need (RD-A04; OD-9: the order is set in LAB, Company › Work). */
+  safRe: Allocation<SafReNeed>;
   /** Recipe stacks. */
   stacks: Record<StackKey, StackState>;
   /** Adopted domain effects for versions trained after them (OOM per domain: test-time training, self-play, robotics). */
@@ -866,7 +850,9 @@ export interface ProductionReadout {
   binding: 'experiments' | 'humans' | 'agents' | 'taste' | 'data';
   label: 'compute-bound' | 'labor-bound' | 'human-bound' | 'taste-bound';
   /** aEng (R7, player): AI share of engineers' work from the engineering agents (A_eng of their model × coverage). */
-  labor: { A: number; aiFTE: number; copies: number; speed: number; wH: number; aEng?: number };
+  labor: { A: number; aiFTE: number; copies: number; speed: number; wH: number; aEng?: number;
+    /** RD-A08: AI FTE of all research agents (Experiments + Research ideas; a rival: its whole agent pool); S8 reads it. */
+    agentFte: number };
   ratios: { h: number; k: number; c: number };
   /** AI research taste in human SDs above the median (research/13 §2.4). */
   sdAI: number;
@@ -1060,8 +1046,12 @@ export interface PlayerLab extends LabCore {
   research: ResearchState;
   /** Engineers' build queue (BUILD-PLAN R5): run setups now; product features, eval harnesses and safeguards from R6. */
   build: BuildState;
-  /** Product features built lab-wide (R6; ids of data/v2/features.ts). Switched on per product (Deployment.features). */
+  /** Product features built lab-wide (R6; ids of data/v2/features.ts). Switched on per product (Deployment.features);
+   *  RD-A06: they act only inside a product's offer. */
   features: string[];
+  /** RD-A06 (DD-03): internal tooling the lab owns (ids of data/v2/features.ts INTERNAL_TOOLS): built by engineers, acts
+   *  on the internal agents (worldfx/serving.ts internalFx). */
+  tooling: string[];
   morale: { overall: number; safety: number }; // 0..100
   /** Model v3 D1: the data portfolio (MODEL-V3 §9; production/data.ts). Replaces v2's dataAssets token counts. */
   dataPortfolio: DataPortfolio;
@@ -1137,13 +1127,17 @@ export type AgentUse = 'eng' | 'capRoutine' | 'capFrontier' | 'safety';
  *  (absent = none; 'same' = a copy of the watched model) and compute: for engineering and capabilities research a share
  *  of the capabilities agent pool (the three sum to 1); for safety a share of the safety pool. */
 export interface AgentPackage {
+  /** RD-A06: the package's own model; unset = the newest internal model (departments/agents.ts newestInternal), shown
+   *  as such. Routine research always names one (the internal deployment follows it). */
   versionId?: string;
   monitorId?: string;
+  /** RD-A06: the control layer (trusted monitoring with deferral, safety/oversight.ts useControl) on this package. */
+  control?: boolean;
 }
 
 // ───────────────────────────── Build queue (STRUCTURE §4.1, R5) ─────────────────────────────
 
-export type BuildKind = 'runSetup' | 'feature' | 'harness' | 'safeguard' | 'launch' | 'sectorPack' | 'adopt' | 'suite' | 'eval';
+export type BuildKind = 'runSetup' | 'feature' | 'tooling' | 'harness' | 'safeguard' | 'launch' | 'sectorPack' | 'adopt' | 'suite' | 'eval';
 /** A product launch waiting for its build (J2 P1): the product goes live with these settings once built. */
 export interface PendingLaunch {
   channel: Channel;
@@ -1232,6 +1226,14 @@ export interface TeamHiring {
   nextId: number;
 }
 
+/** RD-A05b: the explicit auto-split policy (PlayerPolicies.autoSplit). */
+export interface AutoSplitPolicy {
+  on: boolean;
+  to: Exclude<keyof ComputeSplit, 'idle'>[];
+  /** The latest move: its day and the share of total compute moved. */
+  last?: { day: Day; share: number };
+}
+
 export interface PlayerPolicies {
   whistleblowerChannel: boolean;
   publishSafety: 'none' | 'selective' | 'all';
@@ -1239,11 +1241,10 @@ export interface PlayerPolicies {
   shareWithAllies: boolean;
   transitionFund: Money; // $B/yr
   communityBenefits: boolean;
-  /** Where training compute that no run uses goes (R5): data generation (default since R6) or research experiments. */
-  spareTraining: 'research' | 'data';
-  /** Where serving compute no product needs goes (J2 PR1): research agents (default; products take it back first when
-   *  demand rises, so eroded market share recovers at half speed) or kept on the products as headroom. */
-  spareServing: 'research' | 'headroom';
+  /** Auto-split idle compute (RD-A05b, DD-19). Off by default: idle compute stays idle and shows as idle in its use.
+   *  On: once a day the idle shares (unallocated, training no run uses, serving no product needs, monitors beyond full
+   *  coverage) move to the listed uses in equal parts, logged. */
+  autoSplit: AutoSplitPolicy;
   /** Auto serving (R6): serve the products earning most per H100e first; the cut is recorded. Off = shares by hand. */
   servingAuto: boolean;
   /** Move products to the newest cleared model of the same kind when it measures better (R6). */
@@ -1847,8 +1848,12 @@ export interface RivalPhys {
    *  aggregate level: grows from the lab's research speed with the Inference-efficiency line's returns; its first 0.33 OOM
    *  raise decode utilisation, the rest cuts FLOP per token (models/stacks.ts serveSplit). */
   serve: number;
-  /** Day of the last continual-learning refresh. */
+  /** Day of the last continual-learning period (RD-T03: the stream spends the FLOP accrued since). */
   clDay?: Day;
+  /** RD-T03: the internal model's streamed state on base (gen, flop): its pretraining G, its RL recipe as the
+   *  equivalent at the reference RL FLOP (mid), its RL ceiling raise and RL FLOP. Absent or on another base: the base's
+   *  G_pre at today's RL recipe (actors/rivalModel.ts clStateOf). */
+  cl?: { gen: number; flop: number; gPre: number; mid: number; ceil: number; rl: number };
   /** The recipe (model v3 F2): pretraining efficiency realised at the run's FLOP (OOM over the leader's day-0 recipe),
    *  RL efficiency and RL ceiling (OOM, the player's rlMid / rlCeil stacks). */
   rec: { pre: number; mid: number; ceil: number };
@@ -1875,7 +1880,7 @@ export interface RivalFinance {
 }
 
 export interface RivalLab {
-  core: Omit<LabCore, 'deployments' | 'models' | 'paradigms'>;
+  core: Omit<LabCore, 'deployments' | 'models'>;
   archetype: string; // LAB_ARCHETYPES id
   internal: SimpleModel;
   publicModel?: SimpleModel;

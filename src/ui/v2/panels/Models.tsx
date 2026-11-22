@@ -230,7 +230,7 @@ export function RunQueue({ s }: { s: GameStateV2 }) {
   const alloc = poolAllocation(s);
   const stream = streamShare(s);
   const spare = idleTrainingShare(s);
-  const spareUse = s.player.policies.spareTraining;
+  const auto = s.player.policies.autoSplit;
   return (
     <Card title="Runs in progress" home="runQueue" right={<button className="btn btn-sm" data-nav-to="blueprint" onClick={() => store.setPanel('blueprint')}>Blueprint ›</button>}>
       {runs.length === 0 && <div className="dim small">No runs</div>}
@@ -268,11 +268,11 @@ export function RunQueue({ s }: { s: GameStateV2 }) {
       })}
       <div className="run-row run-pool small" data-run="stream"><span className="ellip"><b><Term id="stream">Stream</Term></b> <span className="dim">{stream > 0 ? 'continual learning' : 'off'}</span></span><span /><span /><Tip content={() => <TipCard title={<Term id="stream">Stream share</Term>} value={F.pct(stream)}>Share of the training pool the continual-learning stream takes before any run.</TipCard>}><span className="num">{F.pct(stream)}</span></Tip><span /><Limit id="run.stream" tone={stream > 0 ? 'warn' : 'quiet'}>{stream > 0 ? 'taken first' : 'takes 15% first when on'}</Limit><span /></div>
       <div className="run-row run-pool small" data-run="spare">
-        <span className="ellip"><b><Term id="spareTraining">Spare</Term></b></span><span /><span />
-        <Tip content={() => <TipCard title={<Term id="spareTraining">Spare training compute</Term>} value={F.pct(spare)}>Share of the training pool no run uses now; it goes to {spareUse === 'research' ? 'experiments' : 'data generation'}.</TipCard>}><span className="num" data-test="spare-share">{F.pct(spare)}</span></Tip>
+        <span className="ellip"><b><Term id="idleCompute">Idle</Term></b></span><span /><span />
+        <Tip content={() => <TipCard title={<Term id="idleCompute">Idle training compute</Term>} value={F.pct(spare)}>Share of the training compute no run uses now. It stays idle{auto.on && !auto.to.includes('training') ? ', unless Auto-split moves it (on)' : ''}; lower the training share or turn on Auto-split in Compute › Split.</TipCard>}><span className="num" data-test="spare-share">{F.pct(spare)}</span></Tip>
         <span className="run-spare">
-          <span className="dim">→ {spareUse === 'research' ? 'experiments' : 'data generation'}</span>
-          <Ref id="spareTraining" to={{ panel: 'compute', tab: 'split', anchor: 'split-spare' }}>Split</Ref>
+          <span className="dim">{auto.on && !auto.to.includes('training') ? '→ Auto-split' : 'idle'}</span>
+          <Ref id="idleCompute" to={{ panel: 'compute', tab: 'split', anchor: 'split-auto' }}>Split</Ref>
         </span>
       </div>
     </Card>

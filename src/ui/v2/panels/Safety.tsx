@@ -14,7 +14,7 @@ import { PROJECT_BY_ID, TREE, isLineNode } from '../../../data/v2/tree';
 import { COLUMN_LABEL } from '../../../data/v2/teams';
 import {
   beliefView, dateOf, sightGrid, sightLimit, evalDaysFor, fmtDate, footholdView, INV_FTE, INV_MAX_DAYS, internalVersion, MONITOR_BUDGET_STEP, monitorAt, monitoredUses, nodeKnown, PATCH_FLOOR, patchLevel, projectEta, publicTimerRules,
-  projectReady, riskFamilies, safetyAgentVersion, safetyFleet, safetyView, successorPullView, teamsOn, versionById,
+  projectReady, riskFamilies, safIdleFlag, safetyAgentVersion, safetyFleet, safetyView, successorPullView, teamsOn, versionById,
 } from '../../../engine/v2';
 import type { FindingType, GameStateV2, LineRow, ResponseKind, TraitId } from '../../../engine/v2';
 import { store } from '../store';
@@ -508,13 +508,12 @@ function LinesTab({ s, sv }: { s: GameStateV2; sv: SV }) {
   const [all, setAll] = useState(false);
   const staffed = sv.lines.filter((l) => l.teams.length);
   const rest = sv.lines.filter((l) => !l.teams.length).sort((a, b) => b.band.mean - a.band.mean);
-  const u = sv.utilisation.staff;
   const sci = s.player.teams.filter((t) => t.role === 'sci' && t.dept === 'saf').length;
   const idle = sv.lineBadges.promisingIdle;
   return (
     <div className="sf-lines">
       <Card title={<Term id="researchLine">Research lines</Term>} home="researchLines" id="ctl-lines"
-        sub={<>{staffed.length} staffed · {sci} safety science teams{u.idleTeams ? <span className="tone-warn"> · {u.idleTeams} idle</span> : null} · <Term id="deadEnd">{F.num(sv.lineBadges.deadEndTM, 0)} team-mo lost</Term> on dead ends</>}
+        sub={<>{staffed.length} staffed · {sci} safety science teams{safIdleFlag(s) ? <span className="tone-warn" data-test="saf-idle"> · {safIdleFlag(s)}</span> : null} · <Term id="deadEnd">{F.num(sv.lineBadges.deadEndTM, 0)} team-mo lost</Term> on dead ends</>}
         right={<button className="btn btn-sm" data-test="lines-all" onClick={() => setAll(!all)}>{all ? 'Staffed only' : `Show all ${sv.lines.length}`}</button>}>
         <div className="sf-lhd small dim"><span>Line</span><span><Term id="lineHealth">Health</Term></span><span>Teams</span><span>Project · next result</span><span>Results</span><span><Term id="deadEnd">Dead ends</Term></span><span /></div>
         {staffed.map((l) => <LineRowView key={l.id} s={s} l={l} />)}

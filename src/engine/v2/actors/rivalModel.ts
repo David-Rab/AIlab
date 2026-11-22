@@ -19,18 +19,18 @@
 //              archetype cadence (rivals.ts BASE_MONTHS): G_pre = log₁₀(FLOP) + E_START + e_pre at launch + the shape
 //              terms (effective.ts gPreOf); N_active = √(FLOP/(6·tpp)), FLOP per token 2·N_active
 //   versions   post-training every 6–10 weeks: G = G_pre + the reference RL run's gain on the base at today's RL recipe;
-//              from the Research-agent level the internal model re-applies today's whole recipe weekly (continual
-//              learning, as the player's P08 stream)
+//              a stream (continual learning, the player's P08 rule at aggregate level, RD-T03) spends CL_POOL_SHARE of
+//              the training pool weekly on continued pretraining and an RL refresh of the internal model
 // Nothing here reads a calendar path, pm or pm thresholds, CAL_SHIFT, the v2 knots or the rivals' old FLOP bridge.
-import { BASE_POOL_SHARE, BASE_RUN_DAYS, CL_DAYS, CL_LEVEL, PRE_RATE0, RIVAL_TPP, SERVE_RATE0, START_PUBLIC_GAP_OOM } from '../../../data/v2/rivalModel';
+import { BASE_POOL_SHARE, BASE_RUN_DAYS, CL_DAYS, CL_POOL_SHARE, PRE_RATE0, RIVAL_TPP, SERVE_RATE0, START_PUBLIC_GAP_OOM } from '../../../data/v2/rivalModel';
 import { DEFAULT_LINES, LINE_STAGES, SMALL_TO_TEST, SURVIVE_FRAC, S_RANGE } from '../../../data/v2/research';
 import { TREE_BY_ID } from '../../../data/v2/tree';
-import { E_START, GOODPUT, PARAM_RANGE, B0_PARAMS, REFERENCE_BASE, REF_TPP, SHAPE } from '../../../data/v2/runDesign';
+import { E_START, GOODPUT, MFU_RL_FACTOR, PARAM_RANGE, B0_PARAMS, REFERENCE_BASE, REF_TPP, RL_BUDGET, SHAPE } from '../../../data/v2/runDesign';
 import { B0_DAY, H_REF_BASE, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { C_UNIT_FLOP_PER_DAY, DAY0_REF, H50_PER_OOM, H50_V0_MIN, RE_LABOUR_UNIT, WORK_TYPES } from '../../../data/v2/workTypes';
 import { clamp } from '../../rng';
 import { domainsOf, gV0, levelOfG, startLab } from '../models/capability';
-import { flopOfDesign, gPreOf, paramsForFlop } from '../models/effective';
+import { continueGPre, flopOfDesign, gPreOf, paramsForFlop } from '../models/effective';
 import { decodeUtilOf, RECIPE_F, recipeG, refRlGain, serveFlopOomOf } from '../models/stacks';
 import { agentFptEq, aiIdeasShare, assistOf, copiesOf, coverage, effLabour, fteOfFpt, sdAIOf, speedOfCopy, teamTaste, winRate } from '../departments/workfit';
 import { tokEff } from '../worldfx/serving';
@@ -149,9 +149,6 @@ export function makeBase(gen: number, day: number, flop: number, ePre: number, t
 export const versionG = (base: RivalBase, mid: number, ceil: number) => base.gPre + rlOnBase(base.flop, mid, ceil);
 /** G of a version on `base` at recipe `rec` (post-training embodies today's RL recipe, not its pretraining part). */
 export const postG = (base: RivalBase, rec: RivalRecipe) => versionG(base, rec.mid, rec.ceil);
-/** G of the continual learner on `base` at recipe `rec`: today's whole recipe re-applied to the base's physical part
- *  (the player's P08 stream semantics, V1 notes), never below the base's own G_pre (a stolen base keeps what it had). */
-export const clG = (base: RivalBase, rec: RivalRecipe) => Math.max(base.gPre, baseGPre(base.flop, base.tpp, rec.pre)) + rlOnBase(base.flop, rec.mid, rec.ceil);
 /** Serving FLOP per token of a base: 2·N_active × the MoE token multiplier. */
 export const fptOfBase = (b: Pick<RivalBase, 'params'>) => 2 * b.params * SHAPE.moe.tokenMult;
 
@@ -211,7 +208,7 @@ export interface RivalResearch {
   c: number; l: number; X: number; Xh: number; units: number;
   /** AI labour on Experiments (coverage, AI FTE) and on Research ideas (labour multiplier), copies; human share of the
    *  experiment margin; AI taste (SD) and the scientists' taste with it. */
-  a: number; aiFte: number; mIdeas: number; copies: number; wH: number; sdAI: number; taste: number;
+  a: number; aiFte: number; mIdeas: number; copies: number; agentFte: number; wH: number; sdAI: number; taste: number;
 }
 /** Research of lab `r` with experiment share `f` of its research compute `C` (H100e), its internal model doing the AI
  *  work. `eff` = the lab's research-efficiency multiplier, `mods` the speed modifiers. */
@@ -246,7 +243,7 @@ function rawAggregate(w: TimelineWorld, G: number, fpt: number, staffCap: number
   const taste = rivalTaste(k, LI);
   return {
     E: X * units * taste, Eh: Xh * units, I: Math.pow(LI, P.lam) * taste * taste, Ih: Math.pow(S, P.lam),
-    c, l, X, Xh, units, a, aiFte, mIdeas: LI / S, copies: copiesOf(kAg, fpt), wH, sdAI: k.sdAI, taste,
+    c, l, X, Xh, units, a, aiFte, mIdeas: LI / S, copies: copiesOf(kAg, fpt), agentFte: kAg * k.fte, wH, sdAI: k.sdAI, taste,
   };
 }
 /** P4: rawAggregate's E and I alone (what the mix search reads), by the same expressions, without the readout parts. */
@@ -368,7 +365,7 @@ export function advanceRecipe(r: Pick<RivalLab, 'phys'>, x: RecipeRates, dt: num
 export function rivalReadout(x: RivalResearch, stage2: boolean, ratios: ProductionReadout['ratios']): ProductionReadout {
   return {
     stage: stage2 ? 2 : 1, binding: 'experiments', label: x.wH > 0.5 ? 'human-bound' : 'compute-bound',
-    labor: { A: x.a, aiFTE: x.aiFte, copies: x.copies, speed: x.copies > 0 ? speedOfCopy() : 0, wH: x.wH },
+    labor: { A: x.a, aiFTE: x.aiFte, copies: x.copies, speed: x.copies > 0 ? speedOfCopy() : 0, wH: x.wH, agentFte: x.agentFte },
     ratios, sdAI: x.sdAI,
   };
 }
@@ -459,19 +456,65 @@ export function finishRun(r: RivalLab, day: number): RivalBase | undefined {
   return makeBase(r.phys.base.gen + 1, day, run.flop, run.ePre);
 }
 
-/** Continual learning: is the lab's internal model past the Research-agent level? */
-export const learnsOnline = (w: TimelineWorld, r: RivalLab) => levelOfG(w, gOfSimple(w, r.internal)) >= CL_LEVEL;
-/** G of a new version on `base` today (a post-training run; the continual learner's refresh once it learns online). */
-export function newVersionG(s: GameStateV2, r: RivalLab, base: RivalBase): number {
-  return learnsOnline(s.hidden.timeline, r) ? clG(base, r.phys.rec) : postG(base, r.phys.rec);
+// RD-T03 (DD-05, DD-18): continual learning at aggregate level, the player's stream rule (models/runs.ts): every CL_DAYS
+// the FLOP CL_POOL_SHARE of the lab's training pool delivered is spent on continued pretraining of the internal model
+// (continueGPre: only the added part at today's pretraining recipe, reference data) and an RL refresh (the added RL FLOP
+// at today's RL recipe: effective RL compute adds on the reference RL run). No level threshold, no free re-application.
+
+/** Pool FLOP a day of the lab's stream: CL_POOL_SHARE of its training pool at the reference MFU and goodput. */
+export const clFlopPerDay = (r: Pick<RivalLab, 'core'>) => r.core.computeOnline * r.core.split.training * CL_POOL_SHARE * PHI_FLOP_PER_H100E_DAY * GOODPUT;
+/** RL share of the stream's pool time: the reference version's RL : pretraining FLOP (RL_BUDGET.standard) [D, stand-in
+ *  for the player's per-version mix]. */
+const CL_RL_Q = RL_BUDGET.standard / (1 + RL_BUDGET.standard);
+type ClState = NonNullable<RivalPhys['cl']>;
+/** The streamed state of the internal model on the current base: its pretraining G, its RL recipe as the equivalent at
+ *  the reference RL FLOP, its RL ceiling raise and its RL FLOP. A new base (or a stolen one) starts from the base's
+ *  G_pre at today's RL recipe (the post-training it gets). */
+function clStateOf(r: RivalLab): ClState {
+  const b = r.phys.base;
+  const c = r.phys.cl;
+  if (c && c.gen === b.gen && c.flop === b.flop) return c;
+  return { gen: b.gen, flop: b.flop, gPre: b.gPre, mid: r.phys.rec.mid, ceil: r.phys.rec.ceil, rl: RL_BUDGET.standard * b.flop };
 }
-/** Weekly continual-learning refresh of the internal model in place (never down). Returns true if it moved. */
-export function clRefresh(s: GameStateV2, r: RivalLab, day: number): boolean {
+/** G of a new version on `base` today (a post-training run at today's RL recipe), on the pretraining the stream has
+ *  already added to that base's weights. */
+export function newVersionG(_s: GameStateV2, r: RivalLab, base: RivalBase): number {
+  const c = r.phys.cl;
+  const gPre = c && c.gen === base.gen && c.flop === base.flop ? Math.max(base.gPre, c.gPre) : base.gPre;
+  return gPre + rlOnBase(base.flop, r.phys.rec.mid, r.phys.rec.ceil);
+}
+/** After a post-training run or a new base: the internal model's RL recipe is today's, its streamed pretraining kept. */
+export function clReset(r: RivalLab) {
+  const c = clStateOf(r);
+  r.phys.cl = { ...c, mid: r.phys.rec.mid, ceil: r.phys.rec.ceil, rl: RL_BUDGET.standard * r.phys.base.flop };
+}
+/** The stream's period on the internal model: continued pretraining then the RL refresh on `poolFlop` of pool FLOP. ΔG ≥ 0
+ *  (0 with no FLOP); the model's G moves by it. Returns ΔG. */
+export function clApply(s: GameStateV2, r: RivalLab, poolFlop: number): number {
+  if (!(poolFlop > 0)) return 0;
   const w = s.hidden.timeline;
-  if (!learnsOnline(w, r) || day - (r.phys.clDay ?? -1e9) < CL_DAYS) return false;
+  const b = r.phys.base;
+  const rec = r.phys.rec;
+  const c = clStateOf(r);
+  const pre = poolFlop * (1 - CL_RL_Q);
+  const a = poolFlop * CL_RL_Q * MFU_RL_FACTOR;
+  const gPre = continueGPre(c.gPre, pre, E_START + rec.pre, 'moe');
+  const R0 = RL_BUDGET.standard * b.flop;
+  const mid = Math.log10(Math.pow(10, c.mid) + (a * Math.pow(10, rec.mid)) / R0);
+  const ceil = Math.max(c.ceil, c.ceil + (a / (c.rl + a)) * (rec.ceil - c.ceil));
+  const dG = gPre + rlOnBase(b.flop, mid, ceil) - (c.gPre + rlOnBase(b.flop, c.mid, c.ceil));
+  r.phys.cl = { ...c, gPre, mid, ceil, rl: c.rl + a };
+  if (dG > 0) setModelG(w, r.internal, gOfSimple(w, r.internal) + dG, b);
+  return Math.max(0, dG);
+}
+/** Every CL_DAYS: spend the FLOP the stream accrued since the last period (clApply). Returns true if the model moved. */
+export function clRefresh(s: GameStateV2, r: RivalLab, day: number): boolean {
+  if (r.phys.clDay === undefined) {
+    r.phys.clDay = day;
+    return false;
+  }
+  const dt = day - r.phys.clDay;
+  if (dt < CL_DAYS) return false;
   r.phys.clDay = day;
-  const G = clG(r.phys.base, r.phys.rec);
-  if (G <= gOfSimple(w, r.internal) + 1e-12) return false;
-  setModelG(w, r.internal, G, r.phys.base);
-  return true;
+  return clApply(s, r, clFlopPerDay(r) * dt) > 0;
 }

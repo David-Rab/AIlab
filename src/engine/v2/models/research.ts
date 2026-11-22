@@ -42,22 +42,22 @@ import {
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { C_UNIT_FLOP_PER_DAY, RE_LABOUR_UNIT } from '../../../data/v2/workTypes';
 import { EFFORT_TM, PROJECT_BY_ID, TREE, type EffortClass, type TreeNodeDef } from '../../../data/v2/tree';
-import { AGENDA_BY_ID, SAF_PICK_AT, SAF_STAGES } from '../../../data/v2/agendas';
+import { AGENDA_BY_ID, SAF_STAGES } from '../../../data/v2/agendas';
 import { COLUMN_DEPT } from '../../../data/v2/teams';
 import { hash32 } from '../core/rng';
 import { reCapacity, teamCapacity } from '../departments/capacity';
 import type {
-  AgendaId, Allocation, CapProjectState, CapResult, Candidate, GameStateV2, ReNeed, StackKey, SystemCtx, Team,
+  AgendaId, Allocation, CapProjectState, CapResult, Candidate, GameStateV2, ReNeed, StackKey, SystemCtx, Team, TeamDept,
 } from '../types';
 import { poolsOf } from '../compute/power';
 import { Phi, Xces } from '../production/ces';
-import { qualityZ, researchMods, starTaste, teamTaste, workContext } from '../departments/workfit';
+import { expFlopAllowed, onDuty, qualityZ, researchMods, starTaste, teamTaste, workContext } from '../departments/workfit';
 import { PARADIGM_BY_ID } from './paradigms';
-import { idleTrainingShare } from './runs';
 import { evalReDemand, evalsDay } from './evals';
 import { addSuiteExpertData } from './suites';
 import { addIdea, latestBaseFlop, publicBase, researchG, STACK_KEYS, trainNow, stacksGEquiv } from './stacks';
 import { steerAdoption } from '../safety/covert';
+import { trueEfficacy } from '../safety/common';
 
 const node = (id: string): TreeNodeDef | undefined => PROJECT_BY_ID[id];
 
@@ -163,7 +163,7 @@ export function candidateTruth(s: GameStateV2, n: TreeNodeDef, st: CapProjectSta
 /** Science teams of the capabilities department. */
 export const capSciTeams = (s: GameStateV2) => s.player.teams.filter((t) => t.role === 'sci' && t.dept === 'cap');
 /** Capabilities research engineers, team-equivalents. */
-export const capReCapacity = (s: GameStateV2) => s.player.teams.reduce((a, t) => a + (t.role === 're' && t.dept === 'cap' ? reCapacity(t) : 0), 0);
+export const capReCapacity = (s: GameStateV2) => s.player.teams.reduce((a, t) => a + (t.role === 're' && t.dept === 'cap' ? reCapacity(onDuty(s, t)) : 0), 0);
 
 /** Capacity and taste of the science teams on a project. Taste (MODEL-V3 §8, V3.4) is each team's E[max(human, AI)] on
  *  the AIFM taste distribution (quality sets the team's place in it, the frontier-research model's AI taste lifts it),
@@ -178,7 +178,7 @@ export function sciOn(s: GameStateV2, id: string, teams = s.player.teams): { cap
   let qw = 0;
   for (const t of teams) {
     if (t.projectId !== id || t.role !== 'sci') continue;
-    const c = teamCapacity(t, n.column);
+    const c = teamCapacity(onDuty(s, t), n.column);
     cap += c;
     qw += c * teamTaste(qualityZ(t.quality), wc.sdAI, wc.sAI, m2b, star);
   }
@@ -242,9 +242,9 @@ export function effortOfNode(n: TreeNodeDef): { sci: number; exp: number; unit: 
     const sg = stagesOf(n);
     return { sci: PICK_AT * sg.idea, exp: sg.small + sg.scale, unit: 'team-months' };
   }
-  if (n.agenda && !n.paradigm) {
+  if (n.agenda) {
     const T1 = AGENDA_BY_ID[n.agenda as AgendaId].T1;
-    return { sci: SAF_PICK_AT * SAF_STAGES.idea * T1, exp: (SAF_STAGES.small + SAF_STAGES.val) * T1, unit: 'months' };
+    return { sci: SAF_STAGES.idea * T1, exp: (SAF_STAGES.small + SAF_STAGES.val) * T1, unit: 'months' };
   }
   return { sci: n.effortTM ?? EFFORT_TM[n.effort ?? 'M'], exp: 0, unit: 'team-months' };
 }
@@ -403,13 +403,18 @@ function gainText(withT: number, without: number): string {
   return withT > 0 ? "carries all of this project's yearly gain" : 'adds nothing to this project for now';
 }
 
-/** Deterministic assignment of capabilities science teams to the ready projects (in priority order). Returns the team
- *  → project map and why each team is there; teams placed by hand stay. Pure (does not mutate the state).
+/** A project's term in the science-team planner: expected value per day as a function of science capacity and taste. */
+export type ProjectValueFn = (cap: number, q: number) => number;
+
+/** Deterministic assignment of one department's science teams to its ready projects (in priority order). Returns the
+ *  team → project map and why each team is there; teams placed by hand stay. Pure (does not mutate the state).
  *  RD-A03: the priority list and teams wanted are the player's controls; value (projectValue, expected OOM per day)
- *  decides the swaps and the spare teams. A one-off idea in its tests releases its teams (releasesTeams). */
-export function planAssignment(s: GameStateV2, ready: string[]): Map<string, { p?: string; why: string }> {
+ *  decides the swaps and the spare teams. A one-off idea in its tests releases its teams (releasesTeams).
+ *  RD-R03: safety science teams use the same planner (`dept` 'saf') with the caller's value proxy (models/tree.ts
+ *  safProjectValue: chance it works × the line's weight); with nothing ready they stay idle. */
+export function planAssignment(s: GameStateV2, ready: string[], dept: TeamDept = 'cap', valueOf?: (id: string) => ProjectValueFn): Map<string, { p?: string; why: string }> {
   const out = new Map<string, { p?: string; why: string }>();
-  const all = capSciTeams(s);
+  const all = dept === 'cap' ? capSciTeams(s) : s.player.teams.filter((t) => t.role === 'sci' && t.dept === dept);
   const manual = all.filter((t) => t.manual && t.projectId && ready.includes(t.projectId));
   for (const t of manual) out.set(t.id, { p: t.projectId, why: 'Placed by hand' });
   const pool = all.filter((t) => !out.has(t.id)).sort((a, b) => (a.id < b.id ? -1 : 1));
@@ -443,7 +448,7 @@ export function planAssignment(s: GameStateV2, ready: string[]): Map<string, { p
   const capRows: { id: string; cap: number[]; f: (cap: number, q: number) => number }[] = [];
   for (const id of ready) {
     const n = node(id);
-    if (n) capRows.push({ id, cap: all.map((t) => teamCapacity(t, n.column)), f: projectValue(s, id, env) });
+    if (n) capRows.push({ id, cap: all.map((t) => teamCapacity(t, n.column)), f: valueOf ? valueOf(id) : projectValue(s, id, env) });
   }
   const sums = (row: (typeof capRows)[number], skip = -1) => {
     let cap = 0;
@@ -527,7 +532,7 @@ export function planAssignment(s: GameStateV2, ready: string[]): Map<string, { p
     const spec = t.specialty === node(e.p)?.column ? ' (its specialty)' : '';
     e.why = row ? `${pre}${spec}; ${gainText(term(row), term(row, k))}` : `${pre}${spec}`;
   }
-  if (!ready.length) for (const t of pool) out.set(t.id, { why: 'Idle: no capability project is ready (rank one on Research)' });
+  if (!ready.length) for (const t of pool) out.set(t.id, { why: dept === 'cap' ? 'Idle: no capability project is ready (rank one on Research)' : 'Idle: no safety project on the priority list (add one on Research)' });
   return out;
 }
 
@@ -551,7 +556,7 @@ export function reOpsNeed(s: GameStateV2): number {
   let need = 0;
   for (const r of s.player.models.runs) {
     if (r.status !== 'running' || (r.setupId !== undefined && r.readyDay === undefined)) continue;
-    need += r.kind === 'base' ? RE_OPS.base : r.kind === 'continue' || (r.kind === 'post' && !r.name.startsWith('IDA')) ? RE_OPS.mid : RE_OPS.small;
+    need += r.kind === 'base' ? RE_OPS.base : r.kind === 'continue' || (r.kind === 'post' && r.grader !== 'teacher') ? RE_OPS.mid : RE_OPS.small;
   }
   if (s.player.models.stream) need += RE_OPS.stream;
   return need;
@@ -625,20 +630,18 @@ export function expShares(alloc: ReAllocation, avail: number): { units: number; 
 
 // ───────────────────────────── research inputs in physical units (V3.4) ─────────────────────────────
 
-/** Experiment FLOP the lab's research can use per day: the experiments pool (and idle training compute unless the
- *  policy sends it to data, R5) at today's training throughput. */
+/** Experiment FLOP the lab's research can use per day: the experiments pool at today's training throughput (idle
+ *  training compute stays idle, DD-19). */
 export function projectFlopPerDay(s: GameStateV2): number {
   return expPoolH100e(s) * PHI_FLOP_PER_H100E_DAY * Math.pow(10, trainNow(s));
 }
-/** H100e of the experiments pool (and idle training compute unless the policy sends it to data) today. */
+/** H100e of the experiments pool today. */
 export function expPoolH100e(s: GameStateV2): number {
-  const pools = poolsOf(s);
-  const idle = s.player.policies.spareTraining !== 'data' ? idleTrainingShare(s) * pools.training : 0;
-  return pools.experiments + idle;
+  return poolsOf(s).experiments;
 }
 
 /** The lab's research inputs today: labour multipliers (AI in experiments and in ideas), the speed modifiers (pauses,
- *  treaty, siloing, migrations), the experiment FLOP per RE_LABOUR_UNIT of `reRes` (capResearchDay passes the needs' units of
+ *  treaty, siloing, migrations; RD-A07: a pause is no experiment FLOP, applied by capResearchDay), the experiment FLOP per RE_LABOUR_UNIT of `reRes` (capResearchDay passes the needs' units of
  *  expShares, so c is a full project's) and the X of a unit project. */
 export interface ResearchInputs { mExp: number; mIdeas: number; speed: number; flopDay: number; reRes: number; c: number; l: number; X: number }
 export function researchInputs(s: GameStateV2, reRes: number, flopDay = projectFlopPerDay(s)): ResearchInputs {
@@ -772,7 +775,7 @@ function queueAdoption(n: TreeNodeDef, st: CapProjectState, queueBuild: (tw: num
 
 /** The engineers finished building a result in: its TRUE effect enters the stack (or the lever unlocks); the R&D fleet
  *  may steer the build (model v3 E7). */
-export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, buildId: string, onKnown: (id: string) => void) {
+export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, buildId: string, onKnown?: (id: string) => void) {
   const n = node(id);
   const ts = s.player.tree[id];
   const st = ts?.cap;
@@ -782,7 +785,7 @@ export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, bui
     delete st.trial;
     ts.status = 'known';
     ts.day = ctx.day;
-    onKnown(id);
+    onKnown?.(id);
     ctx.log('research', `${n.name} is built into the lab's recipe.`, 2, id);
     return;
   }
@@ -833,7 +836,7 @@ export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, bui
     delete st.result;
     ts.status = 'known';
     ts.day = ctx.day;
-    onKnown(id);
+    onKnown?.(id);
     ctx.log('research', `${n.name} is built into the lab's recipe.`, 2, id);
   }
 }
@@ -1011,9 +1014,48 @@ function stepFlow(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: CapProject
   return flopDay * phi * Math.min(1, (k * f.w) / work);
 }
 
-/** One day of one project's lifecycle. `reCap` = research-engineer team-equivalents on it today (human); `flopDay` = its
- *  share of the experiment FLOP per day (consumed while it experiments; returns what it used). */
-export function stepProject(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, inp: ResearchInputs, reCap: number, flopDay: number, queueBuild: (tw: number) => string): number {
+/** RD-R02b: one project day's department-specific inputs. Capability: the research inputs, the project's research-engineer
+ *  team-equivalents `reCap` and experiment FLOP share `flopDay`, and the build queue. Safety (a node of a safety line, or a
+ *  line's open study): the project's one test state, its work rates from the science teams and from the experiment CES
+ *  (safety/lineProjects.ts lineRates, months of work per day), its FLOP per day, and the result handler (`works` = the
+ *  draw from the agenda's hidden efficacy; undefined for an open study, whose result is an event). */
+export type ProjectDay =
+  | { dept: 'cap'; inp: ResearchInputs; reCap: number; flopDay: number; queueBuild: (tw: number) => string }
+  | { dept: 'saf'; trial: ProjectTrial; sciRate: number; expRate: number; flopDay: number; onResult: (works: boolean | undefined) => void };
+/** A one-question test's state: work done / needed and FLOP used (capability unlock projects, safety projects). */
+export interface ProjectTrial { work: number; workNeed: number; flop: number }
+
+/** RD-R02b: one day of a one-question test (RD-R05's unlock projects and every safety project). The science teams' and
+ *  the experiment CES's work rates add up on the same work; returns the FLOP used and whether the work is done. */
+function stepTest(tr: ProjectTrial, sciRate: number, expRate: number, flopDay: number): { used: number; done: boolean } {
+  const rate = sciRate + expRate;
+  if (rate <= 0) return { used: 0, done: false };
+  const need = Math.max(0, tr.workNeed - tr.work);
+  const step = Math.min(1, need / rate);
+  tr.work = rate < need ? tr.work + rate : tr.workNeed;
+  const used = expRate > 0 ? flopDay * step : 0;
+  tr.flop += used;
+  return { used, done: tr.work >= tr.workNeed - 1e-12 };
+}
+
+/** RD-R02b: does a safety node's test work on this attempt? A hidden per-world draw against the agenda's true efficacy
+ *  (deterministic: hash32(seed, 'saf:'+id+':'+attempt)), never read by the views (they show the posterior). */
+export function safetyWorks(s: GameStateV2, n: TreeNodeDef, attempt: number): boolean {
+  if (!n.agenda) return false;
+  return hash32(s.setup.seed, `saf:${n.id}:${attempt}`) / 4294967296 < trueEfficacy(s, n.agenda as AgendaId);
+}
+
+/** One day of one project's lifecycle, for both departments (RD-R02b). Capability: `reCap` = research-engineer
+ *  team-equivalents on it today (human); `flopDay` = its share of the experiment FLOP per day (consumed while it
+ *  experiments). Safety: one "does it work" test, as an unlock project; at its end the works draw (node projects) or the
+ *  open study's event. Returns the FLOP used. */
+export function stepProject(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, day: ProjectDay): number {
+  if (day.dept === 'saf') {
+    const r = stepTest(day.trial, day.sciRate, day.expRate, day.flopDay);
+    if (r.done) day.onResult(n.followUp ? undefined : safetyWorks(s, n, s.player.tree[n.id]?.attempts ?? 1));
+    return r.used;
+  }
+  const { inp, reCap, flopDay, queueBuild } = day;
   const st = capState(s, n.id);
   if (st.stage === 'failed' || st.stage === 'adopting') return 0;
   const P = s.hidden.timeline.prod;
@@ -1074,14 +1116,8 @@ export function stepProject(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, inp:
  *  the FLOP used. */
 function stepTrial(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: CapProjectState, inp: ResearchInputs, sci: { cap: number; q: number }, expRate: number, flopDay: number, queueBuild: (tw: number) => string): number {
   const tr = trialOf(n, st);
-  const rate = sciWorkRate(s, inp.mIdeas, sci, inp.speed) + expRate;
-  if (rate <= 0) return 0;
-  const need = Math.max(0, tr.workNeed - tr.work);
-  const step = Math.min(1, need / rate);
-  tr.work = rate < need ? tr.work + rate : tr.workNeed;
-  const used = expRate > 0 ? flopDay * step : 0;
-  tr.flop += used;
-  if (tr.work < tr.workNeed - 1e-12) return used;
+  const { used, done } = stepTest(tr, sciWorkRate(s, inp.mIdeas, sci, inp.speed), expRate, flopDay);
+  if (!done) return used;
   const spec = st.spec ?? 0;
   const ts = s.player.tree[n.id];
   if (works(s, n, spec)) {
@@ -1214,7 +1250,7 @@ export function capResearchDay(s: GameStateV2, ctx: SystemCtx, ready: string[], 
   // experiments pool before the projects.
   const pool = expPoolH100e(s);
   const evH = evalsDay(s, ctx, alloc.re.evals, Math.max(1, workContext(s).slots.EXP.m), pool);
-  const avail = projectFlopPerDay(s) * (pool > 0 ? Math.max(0, 1 - evH / pool) : 1);
+  const avail = expFlopAllowed(s, 'cap', projectFlopPerDay(s) * (pool > 0 ? Math.max(0, 1 - evH / pool) : 1)); // RD-A07: a pause = none
   // Experiment FLOP by need (RD-B08): each project in experiments with research engineers a full share.
   const sh = expShares(alloc, avail);
   // The unit project's inputs: a full project's share (RE_MAX_PER_PROJECT of the needs' units; the whole pool for the first
@@ -1225,7 +1261,7 @@ export function capResearchDay(s: GameStateV2, ctx: SystemCtx, ready: string[], 
     const n = node(id) as TreeNodeDef;
     // A test that starts today gets research engineers (and FLOP) from tomorrow's allocation.
     const re = alloc.perProject.get(id) ?? 0;
-    used += stepProject(s, ctx, n, inp, re, sh.perProject.get(id) ?? 0, (tw) => queueBuild(id, tw));
+    used += stepProject(s, ctx, n, { dept: 'cap', inp, reCap: re, flopDay: sh.perProject.get(id) ?? 0, queueBuild: (tw) => queueBuild(id, tw) });
     const ts = p.tree[id];
     if (ts?.cap) ts.progress = capProgress(ts.cap);
   }
@@ -1257,7 +1293,6 @@ export function reopenProject(s: GameStateV2, id: string): string | undefined {
   ts.status = 'researching';
   ts.progress = 0;
   ts.attempts = (ts.attempts ?? 1) + 1;
-  delete ts.retryDay;
   ts.cap = freshCap(spec);
   return undefined;
 }

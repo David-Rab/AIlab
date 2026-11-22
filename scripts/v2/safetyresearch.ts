@@ -3,7 +3,7 @@
 // capability projects' experiment CES; taste lowers the belief noise; result types still follow the hidden efficacy.
 // Model v3 E2 (§5b): AI labour from the SAF_EXP / SAF_IDEAS work types through the capabilities labour function, the
 // Trusted-to-AI share, parity with capability work, sabotage ∝ the work AI does (design/notes/E2.md).
-import { AGENDA_BY_ID, AGENDA_IDS, SAF_EXP_SHARE, SAF_RE_UNIT, SAF_STAGES, SERIOUS_CAP } from '../../src/data/v2/agendas';
+import { AGENDA_BY_ID, AGENDA_IDS, SAF_RE_ASK, SAF_STAGES, SERIOUS_CAP } from '../../src/data/v2/agendas';
 import { PROJECT_BY_ID, lineNodeId } from '../../src/data/v2/tree';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { makeCtx } from '../../src/engine/v2/core/loop';
@@ -11,16 +11,21 @@ import { deserialize, serialize } from '../../src/engine/v2/core/save';
 import { fireFinding } from '../../src/engine/v2/safety/findings';
 import { trueEfficacy } from '../../src/engine/v2/safety/common';
 import {
-  freshSaf, resetSafAllocation, lineCycleDays, lineEtaDays, lineLabour, lineLabourMult, linePoolH100e, lineRates, newSafCandidate, safAllocation, safSciOn, stepLineProject,
+  freshSaf, resetSafAllocation, lineCycleDays, lineEtaDays, lineLabour, lineLabourMult, linePoolH100e, lineRates, safAllocation, safSciOn,
 } from '../../src/engine/v2/safety/lineProjects';
 import { safetyRe } from '../../src/engine/v2/safety/agendas';
 import { safetyAgentVersion, safetyFleet } from '../../src/engine/v2/safety/agents';
 import { WORK_TYPES } from '../../src/data/v2/workTypes';
 import { labourOf, resetWorkContext, safetyLabour, workContext } from '../../src/engine/v2/departments/workfit';
-import type { AgendaId, FindingType, GameStateV2, ModelVersion, Team } from '../../src/engine/v2/types';
+import type { AgendaId, FindingType, GameStateV2, ModelVersion, SystemCtx, Team } from '../../src/engine/v2/types';
+import { stepProject } from '../../src/engine/v2/models/research';
 import { check, finish } from './lib';
+import { RE_LABOUR_UNIT } from '../../src/data/v2/workTypes';
+import { TEAM_SIZE } from '../../src/data/v2/teams';
 
-const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
+/** A serious programme's line-experiment engineers in heads × quality (RD-R02a: SAF_RE_ASK labour units). */
+const REF_RE_HEADS = SAF_RE_ASK * RE_LABOUR_UNIT * TEAM_SIZE.re;
+
 
 /** A leader-start lab with one research line staffed: science capacity `cap` (× SERIOUS_CAP) on the line's follow-up
  *  project, `re` research-engineer units on experiments, the line pool at `c` × the agenda's reference compute share of
@@ -39,7 +44,7 @@ function lab(ag: AgendaId, o: { seed?: number; cap?: number; re?: number; c?: nu
   sci.projectId = id;
   sci.manual = true;
   re.quality = 'strong';
-  re.heads = (SAF_RE_UNIT * (o.re ?? 1)) / SAF_EXP_SHARE;
+  re.heads = REF_RE_HEADS * (o.re ?? 1) * 2; // twice the ask (pre-RD-A04: the ask at SAF_EXP_SHARE 0.5); the rest re-validates or idles
   p.research.queue = [id];
   p.split.safetyAgents = 0;
   p.computeOnline = 1e6;
@@ -62,14 +67,19 @@ function strong(s: GameStateV2, dg = 6) {
 /** Run a line project day by day (stages only) and return the days of its first `n` results. */
 function results(s: GameStateV2, id: string, n: number, maxDays = 4000, onResult?: () => void): number[] {
   const ts = (s.player.tree[id] ??= { status: 'researching', progress: 0, attempts: 1 });
-  ts.saf ??= freshSaf();
+  const nd = PROJECT_BY_ID[id];
   const out: number[] = [];
   for (let d = 1; d <= maxDays && out.length < n; d++) {
     resetSafAllocation(s);
-    stepLineProject(s, id, ts, safAllocation(s), () => {
-      out.push(d);
-      onResult?.();
-      return out.length < n;
+    const r = lineRates(s, id, safAllocation(s));
+    // RD-R02b: the shared stepper; each finished test is one result (the next attempt starts fresh).
+    stepProject(s, {} as SystemCtx, nd, {
+      dept: 'saf', trial: (ts.saf ??= freshSaf(nd)), sciRate: r.sci, expRate: r.exp, flopDay: r.flop,
+      onResult: () => {
+        out.push(d);
+        onResult?.();
+        ts.saf = freshSaf(nd);
+      },
     });
   }
   return out;
@@ -88,7 +98,7 @@ function results(s: GameStateV2, id: string, n: number, maxDays = 4000, onResult
     if (['AG18', 'AG02', 'AG01', 'AG12'].includes(ag)) rows.push(`${ag} T₁ ${AGENDA_BY_ID[ag].T1} mo: first ${days[0]} d, next +${days[1] - days[0]} d (c ${r.c.toFixed(2)}, ℓ ${r.l.toFixed(2)}, X ${r.X.toFixed(2)})`);
   }
   console.log(`      ${rows.join('\n      ')}`);
-  check(worst <= 0.02, 'E1 reference inputs (serious staffing, SAF_RE_UNIT engineers, reference compute at day-0 compute): first result after T₁ (±2%), every line', `worst ${(worst * 100).toFixed(1)}%`);
+  check(worst <= 0.02, 'E1 reference inputs (serious staffing, SAF_RE_ASK engineers, reference compute at day-0 compute): first result after T₁ (±2%), every line', `worst ${(worst * 100).toFixed(1)}%`);
   const { s, id } = lab('AG08');
   const d = results(s, id, 3);
   const steady = (d[2] - d[1]) / (30 * AGENDA_BY_ID.AG08.T1);
@@ -127,50 +137,17 @@ function results(s: GameStateV2, id: string, n: number, maxDays = 4000, onResult
   resetSafAllocation(u);
   const before = safetyRe(u);
   results(u, uid, 0, 1);
-  const st = u.player.tree[uid].saf;
-  if (st && !st.test) st.test = { c: { k: 99, q: 1, mu: 0.5, sd: 0.2 }, work: 0, workNeed: 1 };
   resetSafAllocation(u);
   const after = safetyRe(u);
-  check(before.experiments === 0 && Math.abs(after.experiments - SAF_RE_UNIT) < 1e-9 && Math.abs(after.upkeep - (before.upkeep - SAF_RE_UNIT)) < 1e-9, 'E1 a project in experiments takes SAF_RE_UNIT engineers from tool upkeep (none while it ideates)', `upkeep ${before.upkeep} → ${after.upkeep}`);
+  check(before.experiments === 0 && Math.abs(after.experiments - REF_RE_HEADS) < 1e-9 && Math.abs(after.upkeep - (before.upkeep - REF_RE_HEADS)) < 1e-9, 'E1 a project in experiments takes SAF_RE_ASK engineers from tool upkeep (none while it ideates)', `upkeep ${before.upkeep} → ${after.upkeep}`);
   // Science capacity speeds ideation as √capacity (λ = 0.5 in ai2027).
   const { s: a, id: aid } = lab('AG07', { cap: 1 });
   const { s: b, id: bid } = lab('AG07', { cap: 4 });
-  const ri = lineRates(b, bid, safAllocation(b, bid)).idea / lineRates(a, aid, safAllocation(a, aid)).idea;
+  const ri = lineRates(b, bid, safAllocation(b, bid)).sci / lineRates(a, aid, safAllocation(a, aid)).sci;
   check(Math.abs(ri - Math.pow(4, a.hidden.timeline.prod.lam)) < 1e-6, 'E1 ideation runs at (capacity ÷ SERIOUS_CAP)^λ × taste, as capability projects', `×${ri.toFixed(3)} for 4× capacity`);
 }
 
-// ───────────────────────────── 3. taste lowers the belief noise ─────────────────────────────
-{
-  const err = (quality: Team['quality']) => {
-    const e: number[] = [];
-    for (let seed = 1; seed <= 60; seed++) {
-      const { s, id } = lab('AG02', { seed, quality });
-      const st = freshSaf();
-      const q = lineRates(s, id, safAllocation(s, id)).q;
-      const tru = trueEfficacy(s, 'AG02');
-      for (let k = 0; k < 10; k++) e.push(Math.abs(newSafCandidate(s, PROJECT_BY_ID[id], st, q).mu - tru));
-    }
-    return mean(e);
-  };
-  const solid = err('solid');
-  const strong = err('strong');
-  const elite = err('elite');
-  check(elite < strong && strong < solid, 'E1 better taste lowers the belief error of a new candidate (Solid > Strong > Elite)', `mean |belief − truth| ${solid.toFixed(3)} / ${strong.toFixed(3)} / ${elite.toFixed(3)}`);
-  // Experiments narrow it further.
-  const { s, id } = lab('AG02', { seed: 5 });
-  const ts = (s.player.tree[id] ??= { status: 'researching', progress: 0, attempts: 1 });
-  ts.saf = freshSaf();
-  let sd0 = 0;
-  let sd1 = 0;
-  for (let d = 0; d < 400; d++) {
-    resetSafAllocation(s);
-    stepLineProject(s, id, ts, safAllocation(s), () => false);
-    const t = ts.saf.test;
-    if (t && t.work === 0 && ts.saf.stage === 'small' && !sd0) sd0 = t.c.sd;
-    if (t && ts.saf.stage === 'validation') { sd1 = t.c.sd; break; }
-  }
-  check(sd0 > 0 && sd1 > 0 && sd1 < sd0, 'E1 small experiments narrow the belief', `sd ${sd0.toFixed(3)} → ${sd1.toFixed(3)}`);
-}
+// 3. (taste lowering the belief noise) removed with the candidate pool (RD-R02b).
 
 // ───────────────────────────── 4. result types follow the hidden efficacy ─────────────────────────────
 {
@@ -218,10 +195,10 @@ function results(s: GameStateV2, id: string, n: number, maxDays = 4000, onResult
   const { s: h, id: hid } = lab('AG08', { re: 0.5 * m.exp, cap: 0.5 * m.exp });
   const { s: hi, id: hiid } = lab('AG08', { re: 0.5, cap: 0.5 * m.ideas });
   const ri = lineRates(hi, hiid, safAllocation(hi, hiid));
-  const rh = { l: lineRates(h, hid, safAllocation(h, hid)).l, idea: ri.idea, q: ri.q };
-  check(m.exp > 1 && r1.idea > r0.idea && r1.X > r0.X, 'E1 AI labour (stub: a covering safety model) speeds ideation and experiments', `m ${m.exp.toFixed(2)}: ideation ×${(r1.idea / r0.idea).toFixed(2)}, X ×${(r1.X / r0.X).toFixed(2)}`);
+  const rh = { l: lineRates(h, hid, safAllocation(h, hid)).l, sci: ri.sci, q: ri.q };
+  check(m.exp > 1 && r1.sci > r0.sci && r1.X > r0.X, 'E1 AI labour (stub: a covering safety model) speeds ideation and experiments', `m ${m.exp.toFixed(2)}: ideation ×${(r1.sci / r0.sci).toFixed(2)}, X ×${(r1.X / r0.X).toFixed(2)}`);
   // Ideation also gets the safety model's AI taste (E2), so compare it with the taste divided out.
-  check(Math.abs(r1.l - rh.l) < 1e-9 && Math.abs(r1.idea / r1.q / (rh.idea / rh.q) - 1) < 1e-6, 'E1 AI labour is the same input as human labour (m × engineers in ℓ, m × capacity in ideation)', `ℓ ${r1.l.toFixed(4)} vs ${rh.l.toFixed(4)}`);
+  check(Math.abs(r1.l - rh.l) < 1e-9 && Math.abs(r1.sci / r1.q / (rh.sci / rh.q) - 1) < 1e-6, 'E1 AI labour is the same input as human labour (m × engineers in ℓ, m × capacity in ideation)', `ℓ ${r1.l.toFixed(4)} vs ${rh.l.toFixed(4)}`);
 }
 
 // ───────────────────────────── 5b. E2: AI labour from the safety work types ─────────────────────────────
@@ -294,7 +271,7 @@ function aiLab(ag: AgendaId, o: { t: number; pkg?: number; dg?: number; seed?: n
   const r = lineRates(s, id, safAllocation(s, id));
   const { s: b, id: bid } = aiLab('AG08', { t: 0 });
   const rb = lineRates(b, bid, safAllocation(b, bid));
-  check(l.exp === 1 && l.ideas === 1 && l.aiShare === 0 && safetyLabour(s).exp.m === 1 && Math.abs(r.idea / rb.idea - 1) < 1e-9 && Math.abs(r.X / rb.X - 1) < 1e-9, 'E2 Trusted to AI 0: no AI labour on lines, cases or upkeep (a covering model and a fleet notwithstanding)', `m ${l.exp}/${l.ideas}, SAF_EXP m ${safetyLabour(s).exp.m}`);
+  check(l.exp === 1 && l.ideas === 1 && l.aiShare === 0 && safetyLabour(s).exp.m === 1 && Math.abs(r.sci / rb.sci - 1) < 1e-9 && Math.abs(r.X / rb.X - 1) < 1e-9, 'E2 Trusted to AI 0: no AI labour on lines, cases or upkeep (a covering model and a fleet notwithstanding)', `m ${l.exp}/${l.ideas}, SAF_EXP m ${safetyLabour(s).exp.m}`);
   // No fleet (no compute) → nothing is handed.
   const { s: n } = aiLab('AG08', { t: 1, dg: 6, pkg: 0 });
   check(safetyLabour(n).t === 0 && lineLabour(n, 'AG08').exp === 1, 'E2 no safety agents running (no compute): nothing is handed, whatever the policy');

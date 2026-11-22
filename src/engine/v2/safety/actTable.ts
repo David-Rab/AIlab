@@ -348,6 +348,6 @@ export function actTable(s: GameStateV2, target: ActTarget, believed: boolean, o
   if (!a) return undefined;
   const rows = siteActs(s, a, believed);
   if (!o.core) rows.push(...(a.site.internal ? labRows(s, a, believed) : misuseRows(s, a, believed)));
-  const gap = a.use ? useControl(s, a.v, monitorVersion(s, a.use)).gapOom : undefined;
+  const gap = a.use ? useControl(s, a.v, monitorVersion(s, a.use), true).gapOom : undefined;
   return { site: a, rows, guards: safeguardLines(a.d, { block: a.contain, human: a.human, gapOom: gap, humanShare: a.site.internal ? 1 - a.site.rd : 0 }) };
 }

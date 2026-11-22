@@ -1,5 +1,5 @@
 // Response menu per confirmed finding or incident (V2-SPEC §3.5.9). Owner: WS2.
-import { LOCKDOWN_SLOWDOWN, addSafeguard, controlOn, isRestricted, lockdownOnDep, removeSafeguard, setControl } from './safeguards';
+import { LOCKDOWN_SLOWDOWN, addSafeguard, controlOn, isRestricted, labControlSetting, lockdownOnDep, removeSafeguard, setControl } from './safeguards';
 import { EDGES } from '../../../data/v2/edges';
 import { CRITICAL_TRAITS } from '../../../data/v2/traits';
 import type { GameStateV2, Incident, ModelVersion, ResponseKind, SystemCtx, TraitId, UModeId } from '../types';
@@ -10,6 +10,8 @@ import { strengthBelieved, techniqueRole } from './techniques';
 import { crystalMult, revealToWorld, uModeRemovalMult } from './umodes';
 import { removalFte } from './footholds';
 import { removeFoothold } from './footholdDetection';
+import { AGENT_USES } from '../../../data/v2/agents';
+import { agentVersion, syncInternalControl } from '../departments/agents';
 
 export const RESPONSE_INFO: Record<ResponseKind, { title: string; note: string }> = {
   patchSignal: { title: 'Patch signal', note: 'Fix the training signal: edge weight × 0.3–0.6 for every later run (lab-wide); 10 safety research engineers are busy 30–90 days.' },
@@ -187,15 +189,22 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
       break;
     }
     case 'addControl': {
+      // RD-A06: products on the model and every agent package running it (the control layer is per package).
       const deps = s.player.deployments.filter((d) => d.versionId === v.id && d.status !== 'withdrawn');
-      if (!deps.length) return 'Model is not deployed';
-      for (const d of deps) setControl(d, true);
+      const uses = AGENT_USES.filter((u) => agentVersion(s, u)?.id === v.id);
+      if (!deps.length && !uses.length) return 'Model is not deployed';
+      for (const d of deps) setControl(d, true, labControlSetting(s), s.time.day);
+      for (const u of uses) s.player.agents[u].control = true;
+      syncInternalControl(s);
       break;
     }
     case 'removeControl': {
       const deps = s.player.deployments.filter((d) => d.versionId === v.id && d.status !== 'withdrawn' && controlOn(d));
-      if (!deps.length) return 'No control layer on this model';
+      const uses = AGENT_USES.filter((u) => s.player.agents[u].control && agentVersion(s, u)?.id === v.id);
+      if (!deps.length && !uses.length) return 'No control layer on this model';
       for (const d of deps) setControl(d, false);
+      for (const u of uses) s.player.agents[u].control = false;
+      syncInternalControl(s);
       break;
     }
     case 'addLockdown': {

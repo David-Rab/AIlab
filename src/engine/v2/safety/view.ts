@@ -194,7 +194,7 @@ export function traitGraph(s: GameStateV2) {
 /** What the safety department's people, compute and agents are doing right now (R8: science teams on research lines,
  *  research engineers on cases, patches and tool upkeep). */
 export interface SafetyUtilisation {
-  staff: { sci: number; onLines: number; idleSci: number; idleTeams: number; re: number; investigations: number; patches: number; upkeep: number };
+  staff: { sci: number; onLines: number; idleSci: number; idleTeams: number; re: number; investigations: number; patches: number; upkeep: number; idleRe: number };
   /** H100e. idle = safety compute nobody uses (after monitoring, investigations, agents and the lines' shares). */
   compute: { pool: number; monitoring: number; investigations: number; agents: number; idle: number; claims: SafetyPoolClaims };
   fleet: { versionId?: string; versionName?: string; level: number; copies: number; aiFte: number; perFte: number; automated: number; idle: boolean };
@@ -230,7 +230,7 @@ export function safetyUtilisation(s: GameStateV2): SafetyUtilisation {
   const v = safetyAgentVersion(s);
   const automated = trustedShare(s) > 0 ? AGENDAS.filter((a) => lineTeams(s, a.id).length > 0).length + dept.investigations.filter((i) => !i.outcome).length : 0;
   return {
-    staff: { sci, onLines, idleSci: sci - onLines, idleTeams, re: re.heads, investigations: re.investigations, patches: re.patches, upkeep: re.upkeep },
+    staff: { sci, onLines, idleSci: sci - onLines, idleTeams, re: re.heads, investigations: re.investigations, patches: re.patches, upkeep: re.upkeep, idleRe: re.idle },
     compute: { pool, monitoring, investigations: invC, agents, idle: Math.max(0, pool - monitoring - invC - agents - got), claims },
     fleet: { versionId: v?.id, versionName: v?.name, level: v?.evals.measuredL ?? 0, copies: fl.copies, aiFte: fl.aiFte, perFte: fl.perFte, automated, idle: fl.compute > 0 && automated === 0 },
   };

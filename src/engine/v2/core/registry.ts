@@ -46,6 +46,7 @@ import { CHINA_EVENTS } from '../events/catalog/china';
 import { RIVALS_EVENTS } from '../events/catalog/rivals';
 // WS5
 import { revenueSystem } from '../worldfx/revenue';
+import { autoSplitSystem } from '../departments/autoSplit';
 import { worldDailySystem } from '../worldfx/sectors';
 import { macroSystem } from '../worldfx/macro';
 import { WORLD_ACTIONS } from '../worldfx/actions';
@@ -61,6 +62,7 @@ export const SYSTEMS: readonly EngineSystem[] = [
   continualSystem, // 45 WS1+WS2 daily
   milestonesSystem, // 50 WS1 daily
   revenueSystem, // 60 WS5 daily
+  autoSplitSystem, // 62 WS1 daily (RD-A05b: Auto-split idle compute, off by default)
   safetyResearchSystem, // 70 WS2 daily
   traitsDailySystem, // 75 WS2 daily
   incidentsSystem, // 80 WS2 daily

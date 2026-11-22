@@ -1,9 +1,10 @@
 // Compute allocation (moved from Company in R7: one home per control, BUILD-PLAN R7). HOME of the compute allocation:
 // RD-A05a, ONE flat list of uses (training runs, data generation, experiments, each agent package, monitors, safety
-// research, products, idle), each a share of total compute summing to 1; no nested sub-sliders. Also home of spare
-// training / serving compute and the research response charts. Models per agent use: Company › Agents at work.
+// research, products, idle), each a share of total compute summing to 1; no nested sub-sliders. Idle compute inside a
+// use shows under it (DD-19); home of Auto-split (RD-A05b) and the research response charts. Models per agent use: Company › Agents at work.
 import { useState } from 'react';
-import { LENT_RECOVERY, actionView, idleTrainingShare, poolsOf, spareServing, SPLIT_KEYS, SPLIT_LABEL, SPLIT_PRESETS } from '../../../engine/v2';
+import { AUTO_SPLIT_USES, autoSplitPlan, idleServing, idleShares, idleTrainingShare, monitorBudget, poolsOf, SPLIT_KEYS, SPLIT_LABEL, SPLIT_PRESETS } from '../../../engine/v2';
+import type { AutoSplitUse } from '../../../engine/v2/departments/autoSplit';
 import type { ComputeSplit, GameStateV2 } from '../../../engine/v2';
 import { ResponseCharts } from './ResearchCharts';
 import { ActBtn, pct as pct0, Slider, Term, Tip, TipCard } from '../ui';
@@ -24,54 +25,47 @@ const WHAT: Record<Key, string> = {
   training: 'Training runs in the queue.', synthetic: 'Synthetic data for bigger bases.', experiments: 'Research experiments (with the research agents, the research engine).',
   routine: 'AI agents doing routine research (experiments).', frontier: 'AI agents doing frontier research (ideas, research taste).',
   engineering: 'AI agents coding for the build queue.', safetyAgents: 'AI agents doing safety research.', monitors: "Monitors watching the internal agents' forward passes; what full coverage does not need stays unused (shown on Safety).",
-  safety: 'Safety research: open cases first, the research lines take the rest.', serving: 'Inference for your products.', idle: 'Compute no use takes. Shown, never moved to a use on its own.',
+  safety: 'Safety research: open cases take their compute first, the research lines take the rest.', serving: 'Inference for your products.', idle: 'Compute you have not given to any use. It stays idle unless Auto-split is on.',
 };
 
-/** Spare training compute (R5 policy; R6 default data generation): where training compute no run uses goes, with what
- *  each choice gives today. Home of the policy; the run queue shows the spare share and links here. */
-function SpareRow({ s }: { s: GameStateV2 }) {
-  const use = s.player.policies.spareTraining;
-  const spareH = idleTrainingShare(s) * poolsOf(s).training;
-  const toResearch = actionView(s, 'runs.spareTraining', { use: 'research' });
-  const gain = ([...toResearch.gains, ...toResearch.costs].find((c) => c.currency === 'progress')?.amount ?? 0) / 100; // the line is in % (F6b)
+/** Idle compute inside a use (RD-A05b, DD-19): what the use does not need today. It stays idle, shown here, unless
+ *  Auto-split is on. */
+function IdleRow({ s, k, h, what }: { s: GameStateV2; k: Key; h: number; what: string }) {
+  const auto = s.player.policies.autoSplit;
+  const moves = auto.on && !auto.to.includes(k as AutoSplitUse);
   return (
-    <div className="alloc-row split-row split-sub" id="ctl-split-spare" data-home="spareTraining">
-      <Tip content={() => <TipCard title={<Term id="spareTraining">Spare training compute</Term>} value={`${F.h100e(spareH)} H100e idle now`} rows={[
-        { label: 'Data generation', value: 'synthetic tokens for bigger bases (the reference lab)' },
-        { label: 'Research experiments', value: `research speed +${F.pct(gain, 1)} today` },
-      ]}>Training compute that no run uses between runs. Nothing is wasted: it goes to one of these.</TipCard>}>
-        <span className="alloc-label small"><Term id="spareTraining">Spare</Term> <span className="num dim">{spareH >= 1 ? `${F.h100e(spareH)} idle` : 'none idle now'}</span></span>
+    <div className="alloc-row split-row split-sub" id={`ctl-split-idle-${k}`} data-test={`split-idle.${k}`}>
+      <Tip content={() => <TipCard title={<Term id="idleCompute">Idle compute</Term>} value={`${F.h100e(h)} H100e`}>{what} It stays idle{moves ? ': Auto-split moves it to your listed uses once a day' : ''}. Lower this share, or turn on Auto-split below.</TipCard>}>
+        <span className="alloc-label small"><Term id="idleCompute">Idle</Term> <span className="num dim">{h >= 1 ? `${F.h100e(h)} H100e${moves ? ' → Auto-split' : ''}` : 'none now'}</span></span>
       </Tip>
-      <span className="row-i">
-        {(['data', 'research'] as const).map((u) => u === use
-          ? <span key={u} className="tag2 good" data-test={`spare-on.${u}`}>{u === 'data' ? 'Data generation' : 'Research experiments'}</span>
-          : <ActBtn key={u} id="runs.spareTraining" params={{ use: u }} testId={`spare.${u}`} label={u === 'data' ? 'Use for data' : <>Use for experiments{gain > 5e-4 && <span className="tone-pos"> +{F.pct(gain, 1)} speed</span>}</>} />)}
-      </span>
     </div>
   );
 }
 
-/** Spare serving compute (J2 PR1): serving compute no product needs runs research agents by default, or stays on the
- *  products as headroom. Home of the policy; Products › Serving shows the spare segment, Company › Flow its effect. */
-function SpareServingRow({ s }: { s: GameStateV2 }) {
-  const use = s.player.policies.spareServing;
-  const spare = spareServing(s);
-  const agents = s.player.computeOnline * (s.player.split.routine + s.player.split.frontier);
-  const toResearch = actionView(s, 'serving.spare', { use: 'research' });
-  const gain = ([...toResearch.gains, ...toResearch.costs].find((c) => c.currency === 'progress')?.amount ?? 0) / 100; // the line is in % (F6b)
+/** Auto-split idle compute (RD-A05b): the one policy that moves idle compute, off by default. Lists the uses it feeds. */
+function AutoSplitRow({ s }: { s: GameStateV2 }) {
+  const pol = s.player.policies.autoSplit;
+  const idle = idleShares(s);
+  const moved = autoSplitPlan(s).moved;
+  const toggle = (k: AutoSplitUse) => (pol.to.includes(k) ? pol.to.filter((x) => x !== k) : [...pol.to, k]).join(',');
   return (
-    <div className="alloc-row split-row split-sub" id="ctl-split-spare-serving" data-home="spareServing">
-      <Tip content={() => <TipCard title={<Term id="spareServing">Spare serving compute</Term>} value={`${F.h100e(spare)} H100e no product needs`} rows={[
-        { label: 'Research agents', value: `+${F.pct(spare / Math.max(1, agents))} agent compute · research speed +${F.pct(gain, 1)}` },
-        { label: 'Headroom', value: `eroded share wins back at full speed (${F.pct(LENT_RECOVERY)} when lent)` },
-      ]}>Products take lent compute back first when their demand rises.</TipCard>}>
-        <span className="alloc-label small"><Term id="spareServing">Spare</Term> <span className="num dim">{spare >= 1 ? `${F.h100e(spare)} unused` : 'none unused now'}</span></span>
-      </Tip>
-      <span className="row-i">
-        {(['research', 'headroom'] as const).map((u) => u === use
-          ? <span key={u} className="tag2 good" data-test={`spare-serving-on.${u}`}>{u === 'research' ? 'Research agents' : 'Headroom'}</span>
-          : <ActBtn key={u} id="serving.spare" params={{ use: u }} testId={`spare-serving.${u}`} label={u === 'headroom' ? 'Keep as headroom' : <>Lend to research{gain > 5e-4 && <span className="tone-pos"> +{F.pct(gain, 1)} speed</span>}</>} />)}
-      </span>
+    <div className="split-auto" id="ctl-split-auto" data-home="autoSplit">
+      <div className="row-i">
+        <ActBtn id="compute.autoSplit" testId="autoSplit.toggle" params={{ on: !pol.on }} label={<span className="psw"><span className={`sw ${pol.on ? 'on' : ''}`}><i /></span><Term id="autoSplit">Auto-split idle compute</Term></span>} />
+        <Tip content={() => <TipCard title={<Term id="idleCompute">Idle compute now</Term>} value={F.pct(idle.total, 1)} rows={[
+          { label: 'Unallocated', value: F.pct(idle.unallocated, 1) }, { label: 'Training no run uses', value: F.pct(idle.training, 1) },
+          { label: 'Serving no product needs', value: F.pct(idle.serving, 1) }, { label: 'Monitors beyond full coverage', value: F.pct(idle.monitors, 1) },
+        ]}>Compute that does nothing today. Off: it stays idle where it is. On: once a day it moves to the uses you pick (in equal parts) and the log says so.</TipCard>}>
+          <span className="num small dim" data-test="autoSplit.idle">{F.pct(idle.total, 1)} idle now{pol.on && moved > 0 ? ` · moves ${F.pct(moved, 1)} today` : ''}</span>
+        </Tip>
+        {pol.last && <span className="small dim">last moved {F.pct(pol.last.share, 1)}</span>}
+      </div>
+      <div className="row-i small">
+        <span className="dim">Send it to</span>
+        {AUTO_SPLIT_USES.map((k) => pol.to.includes(k)
+          ? <ActBtn key={k} id="compute.autoSplit" testId={`autoSplit.to.${k}`} params={{ to: toggle(k) }} label={<span className="tag2 good">{SPLIT_LABEL[k]}</span>} />
+          : <ActBtn key={k} id="compute.autoSplit" testId={`autoSplit.to.${k}`} params={{ to: toggle(k) }} label={<span className="dim">{SPLIT_LABEL[k]}</span>} />)}
+      </div>
     </div>
   );
 }
@@ -106,10 +100,12 @@ export function Split({ s }: { s: GameStateV2 }) {
         {SPLIT_KEYS.map((k) => (
           <div key={k} className="split-group">
             {row(k)}
-            {k === 'training' && <SpareRow s={s} />}
-            {k === 'serving' && <SpareServingRow s={s} />}
+            {k === 'training' && <IdleRow s={s} k="training" h={idleTrainingShare(s) * poolsOf(s).training} what="Training compute no run uses now." />}
+            {k === 'serving' && <IdleRow s={s} k="serving" h={idleServing(s)} what="Serving compute no product needs today." />}
+            {k === 'monitors' && monitorBudget(s).need > 0 && <IdleRow s={s} k="monitors" h={(monitorBudget(s).budget - monitorBudget(s).used) * p.computeOnline} what="Monitoring compute beyond full coverage." />}
           </div>
         ))}
+        <AutoSplitRow s={s} />
         {warns.map((w) => <div key={w} className="small tone-warn" data-test="split-warn">{w}</div>)}
         <div className="btn-row">
           <ActBtn id="setSplit" params={params} label={changed ? 'Apply allocation' : 'Allocation (no change)'} primary={changed} onDone={reset} />

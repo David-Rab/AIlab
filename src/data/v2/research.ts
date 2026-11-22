@@ -2,7 +2,7 @@
 // Constants of the capability-project lifecycle (models/research.ts), the recipe stacks (models/stacks.ts) and the broad
 // allocations of research engineers and engineers. Tags: [R20 xx] research/20, [D] design value, [fit] fitted by the
 // calibration harness (scripts/v2/calib.ts --fit-lines).
-import type { Allocation, EngNeed, ReNeed, RiskPolicy, StackKey } from '../../engine/v2/types';
+import type { Allocation, EngNeed, ReNeed, RiskPolicy, SafReNeed, StackKey } from '../../engine/v2/types';
 
 // ───────────────────────────── start priority list (model v3 V4.0) ─────────────────────────────
 
@@ -138,6 +138,10 @@ export const AUTO_RANK_W = 0.8;
  *  of new versions) counts `domainOom` of a software OOM; an unlock (no typed effect: an RL focus, option, feature) and
  *  a data / expert-data effect count `unlock` OOM × the attempt's odds (about one mid-sized stack idea, 0.02–0.06 OOM). */
 export const VALUE_PROXY = { domainOom: 0.1, unlock: 0.05 };
+/** RD-R03: the safety planner's per-line weight [D] (value proxy = results per day × chance it works × weight; the
+ *  safety department is planned on its own, so only ratios between lines matter). 1 for every line until a line's
+ *  results are priced (SAFETY-REDESIGN §3.1); a line listed here counts that much more or less. */
+export const SAF_LINE_WEIGHT: Partial<Record<string, number>> = {};
 /** Most research-engineer team-equivalents one project in experiments takes (an allocation cap; a policy number, not
  *  the labour unit RE_LABOUR_UNIT, though both are 2 today) [D]. */
 export const RE_MAX_PER_PROJECT = 2;
@@ -151,5 +155,9 @@ export const RE_OPS = { base: 1, mid: 0.5, small: 0.2, stream: 0.5 };
  *  release waits on them; they are small). */
 export const DEFAULT_RE_ALLOC: Allocation<ReNeed> = { order: ['ops', 'evals', 'exp'], max: {}, share: {} };
 export const DEFAULT_ENG_ALLOC: Allocation<EngNeed> = { order: ['runs', 'upkeep', 'builds'], max: {}, share: {} };
+/** RD-A04: the safety research engineers' default order is the pre-RD-A04 sequence (cases and patches first, then line
+ *  experiments, the rest on tool re-validation), without the old SAF_EXP_SHARE cap. */
+export const DEFAULT_SAF_RE_ALLOC: Allocation<SafReNeed> = { order: ['cases', 'patches', 'safExp', 'reval'], max: {}, share: {} };
+export const SAF_RE_NEED_LABEL: Record<SafReNeed, string> = { cases: 'Open cases', patches: 'Patches & removals', safExp: 'Line experiments', reval: 'Tool re-validation' };
 export const RE_NEED_LABEL: Record<ReNeed, string> = { ops: 'Run operations', evals: 'Evaluations', exp: 'Project experiments' };
 export const ENG_NEED_LABEL: Record<EngNeed, string> = { runs: 'Run setups, research adoptions, eval harness', upkeep: 'Product upkeep', builds: 'Builds (features, launches, sector packs)' };
