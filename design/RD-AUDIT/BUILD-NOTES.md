@@ -1853,3 +1853,35 @@ from production.ts rivalResearch after the recipe step; state `RivalPhys.ideas {
 - **moves calibration: maybe.** Sizes now scale with gaps rather than the player's pace: A4 / E16 larger when far ahead,
   zero at parity; theft lands China nearer the source than the 60-day rule when its gap is small; China's open-weights
   absorb is uncapped. Lead days, T3 China lead → CP2.
+
+### RD-P01a
+- **Done (commit dbe699f), player side only (rivals' lineups: RD-P02).** `Deployment.miniVersionId` → `lineup?: string[]`
+  (real versions after the main model, the player's order) and Chat's `freeTierId?` (types.ts). serving.ts:
+  `lineupVersions` / `productTierUses` (each entry its own FLOP per token), `productLineup(s, d, sid, main, fx, tiers)` =
+  main + every entry through `productOffer` (own fit, own serving cost, the product's markup × channel price; no
+  `lineupOf` rungs for the player); `productMiniUses` deleted. Buyers still choose per band among all tiers (mix.ts;
+  the player's lineup entries are kind `mini`, `student` is now rivals' / China's only); `playerMiniW` gone, readouts
+  `depTau` blends τ over `playerTierW`.
+- **Chat free tier.** `freeTierVersion`: `freeTierId` if it is in the lineup, else the lineup's lowest FLOP per token;
+  with only the main model, free users run the main model at its real cost. `chatFreeTier` returns that model's fit /
+  fpt / τ (and id); the phantom `freeTierOf` student is gone for the player (still used for rivals' free tiers: RD-P02).
+- **Edits.** `product.update` takes `lineup` (comma list) and `freeTierId`; a new entry must be ready, evaluated (when
+  an eval gate is on) and of a variant the channel sells (a mini where full models sell). Any product channel can hold
+  a lineup (MINI_CHANNELS deleted). A version in a live lineup cannot be retired. Ref bot's cheap tier sets the API's
+  lineup.
+- **Migration 62 → 63 (SCHEMA_REV 63):** an existing mini becomes the second lineup entry (Chat: also its free tier);
+  idempotent. Hygiene SCHEMA_REV asserts → 63.
+- **UI.** Products card, under the Model row: the lineup's models with a remove button, a "+ add a model" picker, and
+  on Chat a free-tier picker ("cheapest (name)" default). The Lineup block's rows are the real models (no "student"
+  rows, serving cost per token ratio); glossary `lineup`, `cheapTier`, `freeTier` rewritten.
+- **Check:** tsc main + scripts clean; npm run build passes; `scripts/v2/.tmp-rdp01a.ts` (untracked, run alone) 8 / 8:
+  no lineup → every cell sells the main model alone; API + a 1/2.8 mini → both sell (hours 0.91 / 0.09, the mini on 1
+  of 8 US Software bands, its cost 1/2.8 of the main's); Chat alone → the main model's real fpt, + a mini → the mini by
+  default, slot override; migration. Not run: test:quick / full. Expected failures to update: serving TIERS E7 / A5 E7
+  (count `lineupOf` rungs for the player), data A6 usage (expects the old 0.4 / 0.6 free blend and freeTierOf), RD-B11
+  B15 free-fit delta, any fixture / glossary lint reading the old wording.
+- **Left:** lineup entries do not yet raise their own incidents / hazards (incidents read `d.versionId` only); day-0
+  real minis and the auto cheap-tier policy (RD-P01b); rivals' lineups as lab state (RD-P02).
+- **moves calibration: yes (finance/serving).** The player loses the three free students on every sector product
+  (cheap easy-band hours go to rivals or the main model at its cost) and Chat's free users now cost the main model's
+  serving unless a mini is in the lineup: serving need, revenue, margins and F-tier finance readouts move.
