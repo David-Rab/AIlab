@@ -208,6 +208,16 @@ redesign, in progress). Work happens on branch `rd` (worktree `../AI27-rd`), in 
 [RD-AUDIT/BUILD-NOTES.md](RD-AUDIT/BUILD-NOTES.md) (not V3-BUILD, which other sessions edit). The task protocol above
 applies; commits go on the lane branch. Phases 2–9 stay in SYNTHESIS §6 until their decisions are final.
 
+**Test rule for RD (user, 2026-11-22: "limit what we test and how often"; overrides the tiers above for section H).**
+Per task: `tsc` (main and scripts) and the task's OWN new targeted test (a single script or check, seconds, no
+multi-seed simulation tiers); no test:quick, test:cal, suite `--tier full`, fixtures, UI tests. Each task's notes state
+"moves calibration: yes / no / maybe". Heavy runs (test:quick + test:cal + test:full + test:deep + test:ui + fixtures
+regenerated) happen only at four checkpoints: **CP1** end of RD Phase 1; **CP2** after the engine unification (Phases
+2–3); **CP3** after Phases 4–7 (safety, rivals, training, products); **CP4** after the UI, before the merge to master.
+Exception: a task expected to move the timeline a lot (one research engine, removing headroom, rivals' paradigm
+adoption) runs `test:cal` once itself. A checkpoint failure is bisected over the task commits, "moves calibration:
+yes" first. One heavy run on the machine at a time.
+
 Supersedes **TIERS2** (DD-01: lineups of real models replace the phantom students). Waits on the safety redesign:
 RD-B04, RD-B05, RD-B06 (safety bugs B05–B09). Dropped: RD-B10 (DD-19 removes spare-compute rerouting), RD-B13 (DD-01).
 
