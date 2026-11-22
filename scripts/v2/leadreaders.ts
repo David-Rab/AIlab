@@ -6,7 +6,8 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { openAbsorbMonths, ownProgressDays, poachLeakG, publishLeakG } from '../../src/engine/v2/actors/rivals';
+import { openAbsorbG, ownProgressDays, poachLeakG, publishLeakG } from '../../src/engine/v2/actors/rivals';
+import { labRecipeG, RECIPE_LEAK_SHARE, TACIT_FIRM_SHARE } from '../../src/engine/v2/production/diffusion';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { makeCtx } from '../../src/engine/v2/core/loop';
 import { frontierGAt, frontierGPerYear, gOfLevel, lagDays, PACE_WINDOW_DAYS } from '../../src/engine/v2/models/capability';
@@ -49,12 +50,12 @@ const rWin = frontierGPerYear(s, R, PACE_WINDOW_DAYS);
 check(near(rWin, 1.0, 1e-6) && frontierGPerYear(s, R) < 0.7, 'frontierGPerYear over the window = the recent slope', `${rWin.toFixed(4)} vs whole ${frontierGPerYear(s, R).toFixed(4)}`);
 // 3. Rival-vs-rival lead is the lead clock (no rate conversion; RD-L03 deleted the leadBetween alias).
 check(lagDays(s, Q, R) === -lagDays(s, R, Q), 'lead clock antisymmetric (rival vs rival)');
-// 4. Recipe-leak previews: days of the recipient's own slope; leak sizes from the player's own slope.
-const pW = frontierGPerYear(s, 'player', PACE_WINDOW_DAYS);
-check(near(ownProgressDays(s, Q, 0.05), (0.05 * 365) / 0.5, 1e-6) && near(publishLeakG(s), (9 / 365) * pW * 0.3) && near(poachLeakG(s), 0.1 * pW), 'ownProgressDays / publishLeakG / poachLeakG on frontier-G slopes', `${ownProgressDays(s, Q, 0.05).toFixed(2)} d`);
-// 5. Open weights: half the G gap over China, in months of China's own slope, at most 2.
-const cnG = bestG(s, 'china');
-check(near(openAbsorbMonths(s, cnG + 0.02), ((0.5 * 0.02) / 0.4) * 12, 1e-6) && openAbsorbMonths(s, cnG + 5) === 2 && openAbsorbMonths(s, cnG - 1) === 0, 'openAbsorbMonths: half the G gap at China’s slope, ≤ 2 months', `${openAbsorbMonths(s, cnG + 0.02).toFixed(3)}`);
+// 4. Recipe-leak previews: days of the recipient's own slope; RD-X04b leak sizes = share × the recipient's recipe gap.
+const gapQ = Math.max(0, labRecipeG(s, 'player') - labRecipeG(s, Q));
+check(near(ownProgressDays(s, Q, 0.05), (0.05 * 365) / 0.5, 1e-6) && near(publishLeakG(s, Q), RECIPE_LEAK_SHARE.publish * gapQ) && near(poachLeakG(s, Q, s.player.staff.cap * 0.1), TACIT_FIRM_SHARE * 0.1 * gapQ), 'ownProgressDays / publishLeakG / poachLeakG: share of the recipe gap', `${ownProgressDays(s, Q, 0.05).toFixed(2)} d`);
+// 5. Open weights: RECIPE_LEAK_SHARE.openWeights of China's recipe gap to the revealed recipe; none at or below it.
+const cnR = labRecipeG(s, 'china');
+check(near(openAbsorbG(s, cnR + 0.02), RECIPE_LEAK_SHARE.openWeights * 0.02, 1e-9) && openAbsorbG(s, cnR - 1) === 0, 'openAbsorbG: share of China’s recipe gap', `${openAbsorbG(s, cnR + 0.02).toFixed(4)}`);
 // 6. Epilogue: days to ASI = G gap ÷ the lab's own windowed slope (no × 0.7, no player pace).
 const asiG = gOfLevel(s.hidden.timeline, LEVEL_KNOTS[6]);
 const pj = projectedMisAtAsi(s, Q);

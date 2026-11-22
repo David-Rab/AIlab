@@ -40,7 +40,7 @@ import { evalDaysFor } from '../../src/engine/v2/models/evals';
 import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
 import { packRevenueGain } from '../../src/engine/v2/worldfx/actions';
 import { distillDaysPerYear } from '../../src/engine/v2/models/productOps';
-import { openAbsorbMonths } from '../../src/engine/v2/actors/rivals';
+import { openAbsorbG, ownProgressDays, releaseRecG } from '../../src/engine/v2/actors/rivals';
 
 const game = () => newGame(defaultSetupV2({ seed: 2027, world: 'ai2027', alignment: 'medium', baseline: 'classic', tutorial: false }));
 const run = (s: GameStateV2, n: number) => {
@@ -510,7 +510,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const v = o.player.models.versions.find((x) => x.id === api.versionId)!;
   const op = pvOf(o, 'product.launch', { channel: 'open', versionId: v.id });
   const days = -signed(op, 'leadDays');
-  const want = v.G > o.knowledge.openWeightsG ? Math.round((openAbsorbMonths(o, v.G) / 12) * 365) : 0;
+  const want = v.G > o.knowledge.openWeightsG ? Math.round(ownProgressDays(o, o.china.lab.core.id, openAbsorbG(o, v.recG ?? releaseRecG(o, 'player', v.G)))) : 0;
   check(only(op, ['leadDays', 'compute']) && days === want && op.gains.length === 0,
     'RD-B20 open launch preview: China\'s absorbed progress from openWeightsReleased, no academia trust gain', `${days} vs ${want} ${JSON.stringify(op)}`);
 }

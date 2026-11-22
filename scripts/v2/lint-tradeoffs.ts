@@ -218,10 +218,11 @@ const iv = internalVersion(s4)!;
   const a = clone(s4);
   const pa = pvOf(a, 'A4');
   const ra = recs(a);
+  const wantA = new Map(labs(a).map((r) => [r.core.id, publishLeakG(a, r.core.id)] as const));
   const ea = act(a, 'A4');
   const moved = labs(a).filter((r) => r.phys.rec.pre - (ra.get(r.core.id) ?? 0) > 0);
   const maxA = Math.round(Math.max(0, ...moved.map((r) => ownDays(a, ra, r.core.id))));
-  check(!ea && moved.every((r) => near(r.phys.rec.pre - ra.get(r.core.id)!, publishLeakG(a), 1e-9)) && near(days(pa)[0], maxA, 0.5),
+  check(!ea && moved.every((r) => near(r.phys.rec.pre - ra.get(r.core.id)!, wantA.get(r.core.id)!, 1e-9)) && near(days(pa)[0], maxA, 0.5),
     'RD-B19 A4: the lead line is the recipe publishing adds to the labs behind you, in their own days', `${ea ?? ''} preview ${days(pa)} applied ${maxA} labs ${moved.length}`);
   // E16 "Let go"
   const letGo = EVENT_BY_ID.get('E16')!.choices.find((ch) => ch.label === 'Let go')!;
@@ -229,9 +230,10 @@ const iv = internalVersion(s4)!;
   const lab = activeRivals(b)[0].core.id;
   const pb = letGo.preview(b, { lab });
   const rb = recs(b);
+  const wantB = poachLeakG(b, lab, Math.round(b.player.staff.cap * 0.03));
   letGo.apply(b, makeCtx(b), { lab });
   const dB = (recs(b).get(lab) ?? 0) - (rb.get(lab) ?? 0);
-  check(near(dB, poachLeakG(b), 1e-9) && near(days(pb)[0], Math.round(ownProgressDays(b, lab, dB)), 0.5),
+  check(near(dB, wantB, 1e-9) && near(days(pb)[0], Math.round(ownProgressDays(b, lab, dB)), 0.5),
     'RD-B19 E16 let go: the lead line is the recipe that rival takes, in its own days', `preview ${days(pb)} applied ${ownProgressDays(b, lab, dB)}`);
   // C6
   const o = clone(s4);

@@ -202,14 +202,18 @@ export function distillationAccess(s: GameStateV2, lab: LabId): number {
  * production/diffusion.ts distillLift with the player's products as the only teachers; the lift applies at X's
  * post-training, not daily), and the best open-weights G among them (absorbed outright by WS4's security system).
  */
-export function distillationLeak(s: GameStateV2, lab: LabId): { dG: number; openG: number } {
+export function distillationLeak(s: GameStateV2, lab: LabId): { dG: number; openG: number; openRecG?: number } {
   const x = rivalLab(s, lab);
   if (!x) return { dG: 0, openG: -Infinity };
   let openG = -Infinity;
+  let openRecG: number | undefined; // RD-X04b: the recipe the best open version reveals (its recG stamp)
   for (const d of s.player.deployments) {
     if (d.status !== 'live' || d.channel !== 'open') continue;
     const v = versionById(s, d.versionId);
-    if (v) openG = Math.max(openG, v.G);
+    if (v && v.G > openG) {
+      openG = v.G;
+      openRecG = v.recG;
+    }
   }
-  return { dG: distillLift(s, lab, bestG(s, lab), x.phys.base.params, true).dG, openG };
+  return { dG: distillLift(s, lab, bestG(s, lab), x.phys.base.params, true).dG, openG, openRecG };
 }

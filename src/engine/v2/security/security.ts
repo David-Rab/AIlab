@@ -91,7 +91,7 @@ export const securitySystem: EngineSystem = {
     const cn = s.china.lab;
     for (const lab of [...activeRivals(s), ...(cn.core.status === 'active' ? [cn] : [])]) {
       const leak = distillationLeak(s, lab.core.id);
-      if (leak.openG > s.knowledge.openWeightsG) openWeightsReleased(s, ctx, 'player', leak.openG);
+      if (leak.openG > s.knowledge.openWeightsG) openWeightsReleased(s, ctx, 'player', leak.openG, leak.openRecG);
     }
     if (cn.core.status === 'active') {
       const leak = secretsLeakDaily(s);

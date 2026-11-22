@@ -16,7 +16,7 @@ import { Rng, clamp } from '../../rng';
 import { hash32 } from '../core/rng';
 import { shareRefAt, normalizeSplit } from '../departments/split';
 import { domainsOf, frontierGAt, frontierGPerYear, gV0, lagDays, levelOfG, PACE_WINDOW_DAYS, yearOfDay } from '../models/capability';
-import { LEADER_ID, activeRivals, bestG, otherLabs } from '../models/labs';
+import { CHINA_ID, LEADER_ID, activeRivals, bestG, otherLabs } from '../models/labs';
 import { misalignment, rivalTraitStep as ws2RivalTraitStep } from '../safety/traits';
 import { drawSeverity, labModelHazards } from '../safety/incidents';
 import { placeLabOrder, RIVAL_GROWTH_Q } from '../compute/market';
@@ -31,7 +31,7 @@ import { decimalYear } from '../core/time';
 import type {
   BaselineId, EngineSystem, GameStateV2, HiddenWorld, LabId, RivalLab, RngLike, SafetyPosture, SetupV2, SimpleModel, StaffByRole, SystemCtx, UModeId,
 } from '../types';
-import { distillLift } from '../production/diffusion';
+import { distillLift, labRecipeG, RECIPE_LEAK_SHARE, recipeLeakG, tacitLeakG } from '../production/diffusion';
 import { addRivalKnowledge, clRefresh, recipeOf, finishRun, gOfSimple, growLabStaff, initRivalPhys, labReferenceSplit, makeBase, newVersionG, rivalDomainDg, setModelG, trainDay } from './rivalModel';
 import { chinaDaily } from './china';
 import { ws4, ws4r } from './state';
@@ -374,7 +374,7 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
     }
     if (r.core.kind === 'china') open = s.china.meters.openWeights > 50 && s.china.rung < 3;
     r.publicModel = { ...rel, traitsTrue: { ...rel.traitsTrue }, uModes: [...rel.uModes], isPublic: true, openWeights: open };
-    if (open) openWeightsReleased(s, ctx, id, rel.G);
+    if (open) openWeightsReleased(s, ctx, id, rel.G, rel.recG ?? recipeOf(s, r));
   }
 
   // Incidents: WS2's danger formula on the lab's deployed model at a generic product site (E5) plus a
@@ -404,37 +404,36 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   }
 }
 
-/** RD-B19 (B40): hand-made recipe transfers to other labs, OOM into the recipient's pretraining recipe (addRivalKnowledge;
- *  it shows at that lab's next base or continual-learning refresh). Still sized by the player's pace (MEA-15; DD-17
- *  resizes them): RD-L02, the player's own frontier-G slope over PACE_WINDOW_DAYS. The actions apply these and their
- *  previews read the same functions. A4 publish: 9 days × 0.3. */
-export const publishLeakG = (s: GameStateV2) => (9 / 365) * frontierGPerYear(s, 'player', PACE_WINDOW_DAYS) * 0.3;
-/** E16 "let go": 0.1 years of the player's frontier-G slope. */
-export const poachLeakG = (s: GameStateV2) => 0.1 * frontierGPerYear(s, 'player', PACE_WINDOW_DAYS);
+/** RD-X04b (DD-17; research/RD-X04r §3C): hand-made recipe transfers to other labs, OOM into the recipient's
+ *  pretraining recipe (addRivalKnowledge; it shows at that lab's next base or continual-learning refresh), sized by what
+ *  moves: a share of the recipient's recipe gap (production/diffusion.ts). The actions apply these and their previews
+ *  read the same functions. A4 publish: RECIPE_LEAK_SHARE.publish of `dst`'s gap to the player's recipe. */
+export const publishLeakG = (s: GameStateV2, dst: LabId) => recipeLeakG(s, labRecipeG(s, 'player'), dst, RECIPE_LEAK_SHARE.publish);
+/** E16 "let go": the tacit knowledge `moved` of the player's capabilities staff carry into `dst` (tacitLeakG). */
+export const poachLeakG = (s: GameStateV2, dst: LabId, moved: number) => tacitLeakG(s, 'player', dst, moved, s.player.staff.cap);
 /** A recipe increment `dG` (OOM) in days of lab `id`'s own progress at its frontier-G slope (PACE_WINDOW_DAYS): the
  *  previews' unit. */
 export const ownProgressDays = (s: GameStateV2, id: LabId, dG: number) => (dG * 365) / frontierGPerYear(s, id, PACE_WINDOW_DAYS);
 
-/** Months of its own recipe growth China absorbs from open weights at G (0 when China is inactive or ahead): half the
- *  model-vs-model gap (G, OOM; RD-L02: no lead-pace conversion), at most 2 months of China's own frontier-G slope
- *  (R10 R13), as public knowledge in its pretraining part (OOM). Returned in months of that slope, the unit
- *  openWeightsReleased and the open launch preview (RD-B20) read. */
-export function openAbsorbMonths(s: GameStateV2, G: number): number {
-  const cnG = bestG(s, 'china');
-  if (s.china.lab.core.status !== 'active' || G <= cnG) return 0;
-  return Math.min(2, ((0.5 * (G - cnG)) / frontierGPerYear(s, 'china', PACE_WINDOW_DAYS)) * 12);
+/** The recipe an open-weights release at G reveals: the releaser's recipe less the release's distance below its best
+ *  model (an older model, an older recipe) [D]. A stamped version passes its own recG instead. */
+export const releaseRecG = (s: GameStateV2, id: LabId, G: number) => labRecipeG(s, id) - Math.max(0, bestG(s, id) - G);
+/** OOM of recipe China absorbs from open weights revealing recipe `recG` (0 when China is inactive or at / above it):
+ *  RECIPE_LEAK_SHARE.openWeights of its recipe gap. The open launch preview (RD-B20) and C6 read it. */
+export function openAbsorbG(s: GameStateV2, recG: number): number {
+  if (s.china.lab.core.status !== 'active') return 0;
+  return recipeLeakG(s, recG, CHINA_ID, RECIPE_LEAK_SHARE.openWeights);
 }
 
-/** Open weights released by lab `id` at effective compute G: the world's open frontier rises, China absorbs part of the
- *  gap (R10 R13: −1 to −3 months), rivals' moats fall. */
-export function openWeightsReleased(s: GameStateV2, ctx: SystemCtx, id: LabId, G: number) {
+/** Open weights released by lab `id` at effective compute G (revealing recipe `recG`): the world's open frontier rises,
+ *  China absorbs part of its recipe gap (openAbsorbG), rivals' moats fall. */
+export function openWeightsReleased(s: GameStateV2, ctx: SystemCtx, id: LabId, G: number, recG = releaseRecG(s, id, G)) {
   const k = s.knowledge;
   if (G <= k.openWeightsG) return;
   k.openWeightsG = G;
   const cn = s.china.lab;
-  const months = id !== 'china' ? openAbsorbMonths(s, G) : 0;
-  if (months > 0) {
-    const dG = (months / 12) * frontierGPerYear(s, 'china', PACE_WINDOW_DAYS);
+  const dG = id !== CHINA_ID ? openAbsorbG(s, recG) : 0;
+  if (dG > 0) {
     addRivalKnowledge(cn, dG);
     ctx.cause('china.recipe', dG, 'open weights absorbed', id);
   }

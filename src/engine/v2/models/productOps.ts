@@ -10,7 +10,7 @@ import { bookCash } from '../finance/ledger';
 import type { ActionDef, Channel, CostLine, Deployment, EngineSystem, GameStateV2, ModelVersion, PriceTier, SystemCtx } from '../types';
 import { hypothetical, previewDeployments, type EditPreview } from '../worldfx/productView';
 import { frontierGPerYear, PACE_WINDOW_DAYS } from './capability';
-import { openAbsorbMonths } from '../actors/rivals';
+import { openAbsorbG, ownProgressDays, releaseRecG } from '../actors/rivals';
 import { CHANNEL_VARIANTS, deploy, deployGate, distillationLeak, effortLock, setServing, withdraw } from './deployments';
 import { activeRivals, versionById } from './labs';
 import { autoEvaluate, featureBuildBlock, featureToggleBlock, isProduct, launchEffortBlock, launchFeatures, newestCleared, priceIndexOf, relaunchPacks } from './products';
@@ -226,7 +226,7 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
       const exposure: CostLine[] = [];
       // RD-B20: what openWeightsReleased does at release (China absorbs part of the gap above the open frontier).
       if (ch === 'open' && v && v.G > s.knowledge.openWeightsG) {
-        const days = Math.round((openAbsorbMonths(s, v.G) / 12) * 365);
+        const days = Math.round(ownProgressDays(s, s.china.lab.core.id, openAbsorbG(s, v.recG ?? releaseRecG(s, 'player', v.G))));
         if (days > 0) costs.push({ currency: 'leadDays', amount: -days, target: `days of China's own progress: it absorbs the weights` });
       }
       if (v && ch !== 'open' && ch !== 'internal') {
