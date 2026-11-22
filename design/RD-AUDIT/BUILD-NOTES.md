@@ -1516,3 +1516,20 @@ running that model, not every package).
 - **Check:** `npx tsx scripts/v2/_a06/check.ts` (12/12): features leave internal fit and build capacity unchanged; the
   Coding harness via the build queue gives SWE +0.3 OOM; starts / rev-56 save own the equivalents; no pick = newest;
   control on one package only. tsc (main, scripts) and `npm run build` pass.
+
+### RD-T01a
+
+A run kind field replaces the IDA name check (DD-06, TRN-08). Moves calibration: **no** (state hash identical to the
+previous commit with the new field stripped).
+- **Mapping:** every way a model is made is a TrainingRun `kind` plus one option. base / continue = pretraining (new or
+  continued base); distill = a small model on a teacher's outputs (`teacherVersionId`); post = RL on a base; IDA = post
+  with `grader: 'teacher'` (RL with the teacher, `teacherVersionId`, as grader; P18). The stream is not a run
+  (`models.stream`) and is unchanged. Imported / variant models are not runs either.
+- **Code:** `TrainingRun.grader?: 'teacher'`; `LaunchRunParams.ida` → `grader`. Every `name.startsWith('IDA')` is now
+  `grader === 'teacher'`: run completion (runs.ts), `runOmega` / `runRho` (traits.ts), `versionPressure` /
+  `plannedPressure` (pressureView.ts), `reOpsNeed` (research.ts), RefBot `askShare` (ref.ts); run-likes for previews
+  (selectors.ts, pressureView.ts, runs.ts) carry `grader` instead of the name "IDA". The run name stays "IDA n".
+- **Save:** SCHEMA_REV 58; migration 57 → 58 sets `grader: 'teacher'` on post runs named "IDA …"; hygiene pins → 58.
+- **Check:** `npx tsx scripts/v2/_t01a/check.ts`: IDA run carries the field, a post run does not, a rev-57 save gets it
+  back from the name; after 150 days (IDA finished) the stripped state hash is 9fd770432d0ac490 on this commit and on
+  the previous one (same script on an archive of HEAD~). tsc (main, scripts) pass; `grep "startsWith('IDA" src` empty.
