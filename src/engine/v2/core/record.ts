@@ -36,7 +36,7 @@ export function sampleSeries(s: GameStateV2) {
   const U = r3(understanding(s).U);
   noteUnderstandingMove(s, U, S.U[S.U.length - 1]);
   S.U.push(U);
-  // Hidden: L − U_true drives trait drift (WS2 traits.ts understandingGapGrowth, M4).
+  // Hidden: L − U_true, read by bot diagnostics only (SR-02 removed the trait-growth amplifier).
   const tu = trueUnderstanding(s);
   s.flags['ws2.gapTrue'] = r3(Math.max(0, tu.L - tu.U));
   S.M.push(r3(s.player.research.last?.x?.mExp ?? 1)); // RD-R01: the engine's AI labour multiplier in experiments (was the aggregate M)

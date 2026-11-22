@@ -17,7 +17,7 @@ import type {
   SimpleModel, SystemCtx, ToolFamily, TrainingRun, TraitBelief, TraitId, TraitVector, UModeId,
 } from '../types';
 import { gOfLevel, gV0 } from '../models/capability';
-import { adopted, clamp01, copyRec, flagNum, labLevel, setFlag, tierOfLevel, trueEfficacy, versionById } from './common';
+import { adopted, clamp01, copyRec, labLevel, setFlag, tierOfLevel, trueEfficacy, versionById } from './common';
 import { lineMultCapped, lineStaffed } from './agendas';
 import { SD_MAX, eaCoef, eaSuppression, stackDetectionMap, takesEaPenalty } from './detection';
 import { techniqueRole } from './techniques';
@@ -699,17 +699,6 @@ export function runMemoryOn(s: GameStateV2, run?: Pick<TrainingRun, 'recipe'>) {
   return (run?.recipe?.p07 ?? adopted(s, 'P07')) || adopted(s, 'P08');
 }
 
-/** Understanding-gap amplification (M4, §1.2 T1) [D]: while capability outruns understanding (L > U), behaviour the
- *  safety stack can no longer see is reinforced instead of caught, so trait growth rises by GAP_GROWTH_K per level of
- *  gap, up to GAP_CAP_L levels. The gap is the TRUE one (L − U_true, sampled weekly by record into 'ws2.gapTrue'),
- *  so not looking does not slow drift. */
-export const GAP_GROWTH_K = 0.4;
-export const GAP_CAP_L = 2.5;
-export function understandingGapGrowth(s: GameStateV2): number {
-  const gap = flagNum(s, 'gapTrue');
-  return 1 + GAP_GROWTH_K * Math.min(GAP_CAP_L, Math.max(0, gap));
-}
-
 /**
  * Alignment training that generalises (M4, §3.5.4) [D]: training on the lab's spec and character data heals value
  * traits whether or not the stack can see them — the R14 λ4 "benign generalization" bet, carried by AG18
@@ -747,7 +736,7 @@ export function playerEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: nu
   const tier = tierOfLevel(labLevel(s));
   return {
     signals: sg, omega, D: s.hidden.difficultyMult, w: s.hidden.edgeWeights, mods, amp: uModeAmp(uModes), removal,
-    removalMult: uModeRemovalMult(uModes), crystalAt: crystalThreshold(uModes), tierF: tier / 3, memory: memoryOn(s), growthMult: understandingGapGrowth(s),
+    removalMult: uModeRemovalMult(uModes), crystalAt: crystalThreshold(uModes), tierF: tier / 3, memory: memoryOn(s), growthMult: 1,
     bracket: { constitution: post?.pref === 'constitution', heavy: post?.safety === 'heavy', persuasion: post?.pref === 'persuasion', cast: inRun(s, post, 'T-CAST') },
     eaMult, hackGen: post?.inoculation ? INOC_MULT : 1,
     // E18: the trained model's G (the new version's, a base's pretraining G; else the lab's best model).
