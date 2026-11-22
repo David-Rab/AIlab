@@ -98,7 +98,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const s = game();
   const v0 = s.player.models.versions[0];
   // V4: the monitor overhead reads FLOP per token (a quarter-size mini: ×0.25).
-  const mini = cloneVersion(s, v0, 'VM', { variant: 'mini', serveCost: v0.serveCost * 0.25, fpt: (v0.fpt ?? 2e12) * 0.25 });
+  const mini = cloneVersion(s, v0, 'VM', { variant: 'mini', fpt: v0.fpt * 0.25 });
   const api = prod(s, 'api');
   api.monitorId = mini.id;
   check(Math.abs(monitorOverhead(s, api) - MONITOR_OVERHEAD * 0.25) < 1e-9, 'P4 D7: a mini monitor on its full model costs 0.25 × 0.25 = 6.25% of serving need', monitorOverhead(s, api).toFixed(4));

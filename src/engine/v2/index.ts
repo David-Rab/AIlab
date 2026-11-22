@@ -35,9 +35,6 @@ import { ACTIONS as REG_ACTIONS, ACTION_BY_ID as REG_ACTION_BY_ID, EVENTS as REG
 import { planRun as planRunUI, runForecast, type LaunchRunParams as LaunchRunParamsUI } from './models/runs';
 import { measuredDomain } from './actors/commitments';
 import { DOMAIN_IDS } from '../../data/v2/calibration';
-import { SHAPE } from '../../data/v2/runDesign';
-import { flopPerToken } from './departments/workfit';
-import { versionById } from './models/labs';
 
 export const ACTION_DEFS: readonly ActionDef[] = REG_ACTIONS;
 export const EVENT_DEFS: readonly EventDefV2[] = REG_EVENTS;
@@ -100,27 +97,11 @@ export function runCard(s: GameStateV2, p: LaunchRunParamsUI) {
   const pr = plan.prediction;
   const fc = runForecast(s, pr);
   return {
-    fpt: planFpt(s, p, pr.serveCost),
-    band: fc?.band ?? [0, 0] as [number, number], domains: fc?.domains ?? ({} as typeof pr.domains), forecastRef: fc?.refName, forecastSd: fc?.sd ?? 0, signals: pr.signals, etaDays: plan.etaDays, serveCost: pr.serveCost, monitorability: pr.monitorability,
+    fpt: pr.fpt,
+    band: fc?.band ?? [0, 0] as [number, number], domains: fc?.domains ?? ({} as typeof pr.domains), forecastRef: fc?.refName, forecastSd: fc?.sd ?? 0, signals: pr.signals, etaDays: plan.etaDays, monitorability: pr.monitorability,
     flop: plan.flopNeeded, cash: plan.cashCost, poolShare: plan.poolShare, reason: plan.reason, g: plan.g,
     effShare: plan.effShare, setupTW: plan.setupTW, setupDays: plan.setupDays, limits: plan.limits,
   };
-}
-
-/** B4 (readout only): physical FLOP per token of the model a run would make (what fptOfBuild sets on the version):
- *  2 × active parameters × the shape's token multiplier × the serving efficiency relative to its base (post-train) or
- *  teacher (distillation). The relative serve cost is only the bridge between the two. */
-function planFpt(s: GameStateV2, p: LaunchRunParamsUI, serve: number): number {
-  const m = s.player.models;
-  if (p.kind === 'base') return p.base ? 2 * p.base.params * SHAPE[p.base.shape].tokenMult : 0;
-  if (p.kind === 'distill') {
-    const t = versionById(s, p.teacherVersionId);
-    return t && t.serveCost > 0 ? flopPerToken(s, t) * (serve / t.serveCost) : 0;
-  }
-  const b = p.baseId ? m.bases.find((x) => x.id === p.baseId) : undefined;
-  if (!b) return 0;
-  const rel = b.serve && b.serve > 0 ? serve / b.serve : 1;
-  return 2 * b.params * SHAPE[b.design.shape].tokenMult * rel;
 }
 
 /** Forecast band of a launched run (run queue; RD-B19: today's measured reference plus the run's step, ± its evaluation

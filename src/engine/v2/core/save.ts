@@ -10,6 +10,7 @@ import { privateRivals, sectorValue, seedLabRevenue } from '../finance/story';
 import { FIN } from '../actors/rivals';
 import { fillRecipe } from '../models/runs';
 import { keepUnlockedSuite, unbuiltSuiteFamilies } from '../models/suites';
+import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev.
  *  Saves below MIN_SCHEMA_REV (33) do not load (designer decision DD-20, RD-C03): v1, v2 and model v3 V1–V3 saves
@@ -39,8 +40,11 @@ import { keepUnlockedSuite, unbuiltSuiteFamilies } from '../models/suites';
  *  but never stored its suite (it read as a free start-quality one) keeps it, stored, before the runs are filled.
  *  46 (RD-B12): sector packs live on their product (DeploymentV2.packs: {sector, certDay}[]); world.fx.certDay and
  *  the product's sectorFocus are gone. Migration 45 → 46 moves each pack onto its product with the world's certification
- *  day and drops a certified sector no product carries. */
-export const SCHEMA_REV = 46;
+ *  day and drops a certified sector no product carries.
+ *  47 (RD-U08): serving cost is FLOP per token only: BaseModel.fpt and ModelVersion.fpt are required, BaseModel.serve,
+ *  the versions' and run predictions' relative serve cost are gone (the relative 0.5-reference readout). Migration 46 → 47
+ *  computes fpt as the old reader did and drops the old fields. */
+export const SCHEMA_REV = 47;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -272,6 +276,47 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       delete o.sectorFocus;
     }
     if (fx) delete fx.certDay;
+  },
+  /** 46 → 47 (RD-U08): serving cost is carried once, as FLOP per token. Every base gets fpt = 2·N_active × the shape's
+   *  token multiplier; a version without fpt gets what the old reader derived (its base's fpt × its relative serve cost ÷ the base's);
+   *  a run's prediction gets fpt the same way. BaseModel.serve and the relative serve cost of versions and run predictions
+   *  (OLD_SERVE) are dropped. Idempotent. */
+  46: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const m = s.player?.models;
+    if (!m) return;
+    type OldBase = { serve?: number; fpt?: number };
+    const OLD_SERVE = 'serve' + 'Cost'; // the removed field's name (kept out of the source on purpose: RD-U08 grep)
+    type Old = Record<string, number | undefined>;
+    const oldServe = new Map<string, number | undefined>();
+    for (const b of m.bases) {
+      const o = b as unknown as OldBase;
+      oldServe.set(b.id, o.serve);
+      if (!(Number(o.fpt) > 0)) b.fpt = 2 * b.params * (SHAPE[b.design.shape]?.tokenMult ?? 1);
+    }
+    const fptOf = (baseId: string | undefined, serve: number | undefined, params?: number) => {
+      const b = m.bases.find((x) => x.id === baseId);
+      if (!b) return 2 * (params ?? B0_PARAMS);
+      const bs = oldServe.get(b.id);
+      return b.fpt * (bs && bs > 0 && serve !== undefined ? serve / bs : 1);
+    };
+    for (const v of m.versions) {
+      const o = v as unknown as Old;
+      if (!(Number(o.fpt) > 0)) v.fpt = fptOf(v.baseId, o[OLD_SERVE], v.params);
+      delete o[OLD_SERVE];
+    }
+    for (const r of m.runs ?? []) {
+      const pr = r.predicted as unknown as Old | undefined;
+      if (!pr) continue;
+      if (pr.fpt === undefined) {
+        const t = r.teacherVersionId ? m.versions.find((v) => v.id === r.teacherVersionId) : undefined;
+        pr.fpt = r.kind === 'base' && r.base ? 2 * r.base.params * (SHAPE[r.base.shape]?.tokenMult ?? 1)
+          : r.kind === 'distill' && t ? fptOf(t.baseId, pr[OLD_SERVE])
+          : fptOf(r.baseId, pr[OLD_SERVE]);
+      }
+      delete pr[OLD_SERVE];
+    }
+    for (const b of m.bases) delete (b as unknown as OldBase).serve;
   },
 };
 

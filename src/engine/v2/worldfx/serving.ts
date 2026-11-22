@@ -15,7 +15,7 @@
 //                         the sector's median professional as reference (θ_s, SECTOR_REF), fit = Σ ω_d G_d + ΔG(effort,
 //                         safeguards, scaffolds), h50 × horizon extenders
 // Rivals and China serve their own designs (model v3 F1, actors/rivalModel.ts): FLOP per token 2·N_active of their base,
-// fit their G. Nothing here reads serveCost, the research-speed multiplier M or the level bridge for prices, costs or
+// fit their G. Nothing here reads a relative serve cost, the research-speed multiplier M or the level bridge for prices, costs or
 // coverage.
 import {
   AGENT_WORK, CHAT_WORK, CHINA_MARKUP, CONSUMER_MKT, CONTROL_LAYER_DG, consumerPlanPrice, EFFORT_CAP_OOM, EFFORT_OOM_PER_10X, EFFORT_TOKENS, FREE_TIER, LINEUP, MARKUP, RIVAL_MARKUP,

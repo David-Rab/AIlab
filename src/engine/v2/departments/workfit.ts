@@ -21,7 +21,6 @@ import {
   U_DECODE, U_PREFILL, WORK_TYPES, type WorkTypeDef, type WorkTypeId,
 } from '../../../data/v2/workTypes';
 import { RSCH_TASTE_PENALTY } from '../../../data/v2/calibration';
-import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
 import { DEFAULT_CAP_SHARES } from '../../../data/v2/agents';
 import { AG17_HARNESS, P27_AAR } from '../../../data/v2/safetyIdeas';
 import { LINE_MULT_MAX, SERIOUS_CAP } from '../../../data/v2/agendas';
@@ -124,20 +123,9 @@ export const sdAIOf = (w: TimelineWorld, fitIdeas: number, wt: WorkTypeId = 'IDE
 
 // ───────────────────────────── AI labour (physical) ─────────────────────────────
 
-/** Serving FLOP per token of a version: 2·N_active × the shape's token multiplier × its serving efficiency relative to
- *  its base (the serving stack and distillation; MODEL-V3 §7.3). */
-export function flopPerToken(s: GameStateV2, v: Pick<ModelVersion, 'baseId' | 'serveCost' | 'params' | 'fpt'>): number {
-  if (v.fpt) return v.fpt;
-  return fptOfBuild(s, v);
-}
-/** FLOP per token from the version's base and its serving efficiency relative to the base (set once on the version as
- *  `fpt` when it is made; old versions without it are read through this). */
-export function fptOfBuild(s: GameStateV2, v: Pick<ModelVersion, 'baseId' | 'serveCost' | 'params'>): number {
-  const b = s.player.models.bases.find((x) => x.id === v.baseId);
-  if (!b) return 2 * (v.params ?? B0_PARAMS);
-  const rel = b.serve && b.serve > 0 ? v.serveCost / b.serve : 1;
-  return 2 * b.params * SHAPE[b.design.shape].tokenMult * rel;
-}
+/** Serving FLOP per token of a version (ModelVersion.fpt, set when it is made): 2·N_active × the shape's token
+ *  multiplier × the serving stack and design at creation (MODEL-V3 §7.3). */
+export const flopPerToken = (_s: GameStateV2, v: Pick<ModelVersion, 'fpt'>): number => v.fpt;
 /** Model v3 D10: the FLOP per token on the internal agentic profile that costs the same H100e-hours per work-hour as
  *  `fpt` does at reasoning-token multiplier τ (output tokens) and decode utilisation `ud` (exact for this one profile:
  *  the internal agents' readers keep their fpt signatures). */

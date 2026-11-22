@@ -37,10 +37,9 @@ import { addOff, addSig, baseEffect, clampSignals, monitorabilityClass, postEffe
 import { domainsOf, finishBuild, gOfDomain, levelOfG, refreshLevels } from './capability';
 import { ePreAt, gEquivOf, rlCeilNow, rlMidNow, serveFlopOomOf, serveNow, trainNow } from './stacks';
 import { stackRate } from './research';
-import { fptOfBuild } from '../departments/workfit';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import {
-  continueGPre, daysFor, distillFlop, distillGap, fDataEff, flopOfDesign, gPreOf, rlGains, rlWeights, serveOfBase,
+  continueGPre, daysFor, distillFlop, distillGap, fDataEff, flopOfDesign, gPreOf, rlGains, rlWeights, fptOfDesign,
   servingFlop, type FamilyMap, type GPreParts, type RlGains,
 } from './effective';
 import { internalVersion, uniqueVersionName, versionById } from './labs';
@@ -193,8 +192,7 @@ export interface BaseLimits {
   fQual: number;
   draw: DataDraw;
   sD: Off;
-  /** Serving cost of versions on this base (display, 0.5 = reference) and serving FLOP per token (2·N_active). */
-  serve: number;
+  /** Serving FLOP per token (2·N_active). */
   servingFlop: number;
   /** Compute-equivalent cost of the run's FLOP at today's TCO ($B; the pool is already paid for). */
   computeCost: number;
@@ -363,7 +361,7 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
   let rlOut: RlGains | undefined;
   let gap: number | undefined;
   let signals = {};
-  let serve = 0.5;
+  let fpt = 0;
   let mon = 0.9;
   let scale = 1;
   const base = p.baseId ? m.bases.find((b) => b.id === p.baseId) : undefined;
@@ -382,14 +380,14 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
     cash = flopCost(s, flopNeeded) * be.cashMult; // F6: no per-run licensed-data cost (D1/D2: licences are data assets on Models › Data)
     build = referencePostOn(s, bg.parts.total, bg.flop, bg.sD);
     signals = baseSignals(d, { gPre: bg.parts.total, draw: bg.draw });
-    serve = serveOfBase(d.params, bg.flop, d.shape) * serveTechMult(s);
+    fpt = fptOfDesign(d.params, d.shape);
     mon = be.monitorability;
     const setupDays = buildWaitNew(s, runSetupTW('base', engScale(flopNeeded)), 'runSetup');
     const wallDays = setupDays + Math.ceil(daysFor(flopNeeded, rate));
     const best = Math.max(-Infinity, ...m.bases.map((b) => b.gPre));
     limits = {
       params: d.params, tpp: d.tpp, tokens: bg.tokens, wallDays, behind: adoptedDuring(s, wallDays), tokensUnique: bg.U, epochs: bg.epochs, fData: bg.fD, fQual: bg.fQ, draw: bg.draw, sD: bg.sD,
-      serve, servingFlop: servingFlop(d.params), computeCost: flopCost(s, flopNeeded), scrutiny: sizeScrutiny(scale), gPre: bg.parts,
+      servingFlop: servingFlop(d.params), computeCost: flopCost(s, flopNeeded), scrutiny: sizeScrutiny(scale), gPre: bg.parts,
       gGain: Number.isFinite(best) ? bg.parts.total - best : 0,
     };
   } else if (p.kind === 'post') {
@@ -415,7 +413,7 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
     }
     rlOut = rlGains(build.flopPre, build.rlFlop, build.rlW, build.eRL, build.aRL ?? 0, build.rlFid);
     // Model v3 D5: no per-run grader cash any more; the suites are assets (built and hardened on the build queue).
-    serve = (base.serve ?? 0.5) * pe.serve * serveTechMult(s);
+    fpt = base.fpt * pe.serve * serveTechMult(s);
     mon = Math.min(base.monitorability ?? 1, pe.monitorability);
   } else if (p.kind === 'distill') {
     if (!teacher) return failPlan('Pick a teacher version');
@@ -427,7 +425,7 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
     flopNeeded = distillFlop(nT, nS, tokens);
     gap = distillGap(nT, nS, tokens);
     build = distillBuild(teacher, gap);
-    serve = teacher.serveCost * (nS / nT);
+    fpt = teacher.fpt * (nS / nT);
     mon = teacher.monitorability;
   } else {
     if (!base) return failPlan('Pick a base');
@@ -435,7 +433,7 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
     scale = scaleOf(s, flopNeeded);
     const g = continueGPre(base.gPre, flopNeeded, E_START + ePreAt(s, base.flop + flopNeeded), base.design.shape);
     build = referencePostOn(s, g, base.flop + flopNeeded, base.sD ?? {});
-    serve = base.serve ?? 0.5;
+    fpt = base.fpt;
     mon = base.monitorability ?? 1;
   }
   const setupTW = runSetupTW(p.kind, engScale(flopNeeded), p.ida);
@@ -453,7 +451,7 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
     Lg: [Lg - 0.25, Lg + 0.25],
     domains: Object.fromEntries(Object.entries(doms).map(([k, v]) => [k, [v - 0.25, v + 0.25]])) as RunPrediction['domains'],
     signals: { S1: 0, S2: 0, S3: 0, S4: 0, S5: 0, S6: 0, S7: 0, S8: 0, S9: 0, ...clampSignals(ws2Signals) },
-    etaDays, serveCost: serve, monitorability: monitorabilityClass(mon),
+    etaDays, fpt, monitorability: monitorabilityClass(mon),
   };
   const G = build.gPre + build.dgRL + build.dg;
   const gD = Object.fromEntries(DOMAIN_IDS.map((d) => [d, gOfDomain(build as VersionBuild, d)])) as Partial<Record<DomainId, number>>;
@@ -461,7 +459,7 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
 
   function failPlan(why: string): RunPlan {
     const zero = { S1: 0, S2: 0, S3: 0, S4: 0, S5: 0, S6: 0, S7: 0, S8: 0, S9: 0 };
-    return { flopNeeded: 0, cashCost: 0, etaDays: 0, poolShare, effShare, setupTW: 0, setupDays: 0, reason: why, g: { G: 0 }, prediction: { Lg: [0, 0], domains: {} as RunPrediction['domains'], signals: zero, etaDays: 0, serveCost: 0.5, monitorability: 'high' } };
+    return { flopNeeded: 0, cashCost: 0, etaDays: 0, poolShare, effShare, setupTW: 0, setupDays: 0, reason: why, g: { G: 0 }, prediction: { Lg: [0, 0], domains: {} as RunPrediction['domains'], signals: zero, etaDays: 0, fpt: 0, monitorability: 'high' } };
   }
 }
 
@@ -554,11 +552,10 @@ function newVersion(s: GameStateV2, run: TrainingRun, base: BaseModel, build: Ve
     variant: 'full', design: run.post ? { ...run.post } : { ...(parent?.design ?? { pref: 'constitution', rlFocus: 'broad', rlBudget: 'standard', inoculation: false, cot: 'visible', safety: 'standard', techniques: [], trainAgainst: [] }) },
     G, Lg: levelOfG(w, G), domains: domainsOf(w, G, build.off, adopted(s, 'P19')),
     traitsTrue: { ...(parent?.traitsTrue ?? base.traitsTrue) }, masks: copyMasks(parent), uModes: [...base.uModes],
-    monitorability: 0.9, serveCost: base.serve ?? 0.5, evals: { bench: {}, safety: {} }, beliefs: blankBeliefs(parent ?? versionById(s, s.player.agents.capRoutine.versionId)),
+    monitorability: 0.9, fpt: base.fpt, evals: { bench: {}, safety: {} }, beliefs: blankBeliefs(parent ?? versionById(s, s.player.agents.capRoutine.versionId)),
     status: 'evaluating', flags: {}, build, ...extra,
   };
   if (parent) v.parentVersionId = parent.id;
-  v.fpt ??= fptOfBuild(s, v);
   return v;
 }
 
@@ -576,7 +573,7 @@ function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
     const b: BaseModel = {
       id: `B${nb}`, name: `${PLAYER_MODEL_FAMILY}-${nb}`, day: s.time.day, startDay: run.startDay, flop: bg.flop, params: d.params, tokens: bg.tokens,
       gPre: bg.parts.total, ePre: bg.parts.recipe, design: d, sD: bg.sD, epochs: bg.epochs,
-      serve: serveOfBase(d.params, bg.flop, d.shape), monitorability: be.monitorability, signals: clampSignals(baseSignals(d, { gPre: bg.parts.total, draw: bg.draw })),
+      fpt: fptOfDesign(d.params, d.shape), monitorability: be.monitorability, signals: clampSignals(baseSignals(d, { gPre: bg.parts.total, draw: bg.draw })),
       lineage: `L-player-${nb}`, traitsTrue: { ...m.bases[0].traitsTrue }, uModes: [], // placeholder: applyBaseToLineage sets them from the draw's synthetic teachers
     };
     m.bases.push(b);
@@ -609,7 +606,7 @@ function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
     const nT = paramsOfVersion(s, t);
     const nS = run.studentParams ?? nT * STUDENT_DEFAULT;
     const build = distillBuild(t, distillGap(nT, nS, run.tokens ?? DISTILL_TPP * nS));
-    const v = newVersion(s, run, base, build, t, { variant: 'mini', params: nS, serveCost: t.serveCost * (nS / nT), monitorability: t.monitorability, design: { ...t.design }, appeal: t.appeal ?? 1 });
+    const v = newVersion(s, run, base, build, t, { variant: 'mini', params: nS, fpt: t.fpt * (nS / nT), monitorability: t.monitorability, design: { ...t.design }, appeal: t.appeal ?? 1 });
     v.name = uniqueVersionName(s, `${t.name}-mini`);
     m.versions.push(v);
     afterVersion(s, ctx, run, v);
@@ -625,7 +622,7 @@ function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
     const t = versionById(s, run.teacherVersionId);
     if (!t) return;
     const build = idaBuild(s, t, run.flopNeeded, pr);
-    const v = newVersion(s, run, base, build, t, { serveCost: t.serveCost, monitorability: t.monitorability, design: { ...t.design }, appeal: t.appeal ?? 1, trained: { rlDay: rlDayOf(s, run), post: false } });
+    const v = newVersion(s, run, base, build, t, { fpt: t.fpt, monitorability: t.monitorability, design: { ...t.design }, appeal: t.appeal ?? 1, trained: { rlDay: rlDayOf(s, run), post: false } });
     m.versions.push(v);
     afterVersion(s, ctx, run, v, t);
     return;
@@ -633,7 +630,7 @@ function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
   const build = postBuild(s, base, run.post, pr, run.flopNeeded);
   build.dg -= consumeRunPenalty(s);
   const v = newVersion(s, run, base, build, parent, {
-    serveCost: (base.serve ?? 0.5) * pe.serve * Math.pow(10, -pr.serveOom),
+    fpt: base.fpt * pe.serve * Math.pow(10, -pr.serveOom),
     monitorability: Math.min(base.monitorability ?? 1, pe.monitorability), appeal: pe.appeal, trained: { rlDay: rlDayOf(s, run), post: true },
   });
   m.versions.push(v);

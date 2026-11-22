@@ -5,7 +5,7 @@ import { MONITOR_STD_POOL_SHARE } from '../../../data/v2/agents';
 import { LEADER_FEATURES } from '../../../data/v2/features';
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
 import { PLAYER_MODEL_FAMILY } from '../../../data/v2/names';
-import { B_G_PER_Y, E_B0, REFERENCE_BASE, REFERENCE_POST, RL_BUDGET, SHAPE } from '../../../data/v2/runDesign';
+import { B_G_PER_Y, E_B0, REFERENCE_BASE, REFERENCE_POST, RL_BUDGET } from '../../../data/v2/runDesign';
 import { B0_DAY, B0_START_DAY, LEVEL_KNOTS, SHARE_REF } from '../../../data/v2/calibration';
 import { START_BY_ID } from '../../../data/v2/starts';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
@@ -33,7 +33,7 @@ import { benchScore } from '../models/benchmarks';
 import { domainsOf, finishBuild, gV0, levelOfG, playerStart, startVintage } from '../models/capability';
 import { initialStacks } from '../models/stacks';
 import { fillRecipe } from '../models/runs';
-import { flopOfDesign, gPreOf, rlFamiliesAvailable, rlGains, rlWeights, serveOfBase } from '../models/effective';
+import { flopOfDesign, gPreOf, rlFamiliesAvailable, rlGains, rlWeights, fptOfDesign } from '../models/effective';
 import { labCore } from '../models/labs';
 import { initialParadigms } from '../models/paradigms';
 import { initialResearch, initialTree } from '../models/tree';
@@ -112,7 +112,7 @@ function startRun(w: TimelineWorld, ps: ReturnType<typeof playerStart>, b0Flop: 
     poolShare: 0.5, cashCost: 0, baseId: 'B0', post: { ...REFERENCE_POST, techniques: [], trainAgainst: [] },
     predicted: {
       Lg: [Lg, Lg + 0.5], domains: Object.fromEntries(Object.entries(domains).map(([d, v]) => [d, [v, v + 0.5]])) as Record<DomainId, [number, number]>,
-      signals: zero, etaDays: 7, serveCost: 0.5, monitorability: 'high',
+      signals: zero, etaDays: 7, fpt: fptOfDesign(REFERENCE_BASE.params, REFERENCE_BASE.shape), monitorability: 'high',
     },
     status: 'running', signals: {},
     // Its RL recipe is the start lab's on its launch day (model v3 V2: frozen at launch).
@@ -138,7 +138,7 @@ function startModels(w: TimelineWorld, ps: ReturnType<typeof playerStart>, uniqu
     h80Mult: 1, signals: {},
   };
   const G = finishBuild(w, build);
-  return { flop, tokens, gPre, ePre: recipe, epochs: tokens / Math.max(1, uniqueT), build, G, serve: serveOfBase(d.params, flop, d.shape) };
+  return { flop, tokens, gPre, ePre: recipe, epochs: tokens / Math.max(1, uniqueT), build, G, fpt: fptOfDesign(d.params, d.shape) };
 }
 
 /** The player's start (BUILD-PLAN R9). The frontier-leader start is today's (and the calibration anchor): every value
@@ -194,7 +194,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   }
   const V0: ModelVersion = {
     id: 'V0', name: def.imported ? 'Open-weight import' : `${PLAYER_MODEL_FAMILY}-1.0`, baseId: 'B0', day: -20, variant: def.imported ? 'imported' : 'full', design: { ...REFERENCE_POST },
-    G: G0, Lg, domains, traitsTrue: { ...TRAIT_START }, masks, uModes, monitorability: 0.9, serveCost: sm.serve, fpt: 2 * REFERENCE_BASE.params * SHAPE[REFERENCE_BASE.shape].tokenMult,
+    G: G0, Lg, domains, traitsTrue: { ...TRAIT_START }, masks, uModes, monitorability: 0.9, fpt: sm.fpt,
     evals: startEvals(domains, Math.round(Lg * 100) / 100, -20), beliefs, status: 'deployed', flags: {}, build, appeal: 1,
   };
   const dep = (id: string, channel: Deployment['channel'], servingShare: number, kyc: Deployment['kyc']): Deployment => ({
@@ -227,7 +227,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
       bases: [{
         id: 'B0', name: def.imported ? 'Open-weight base (imported)' : `${PLAYER_MODEL_FAMILY}-1`, day: B0_DAY, startDay: B0_START_DAY, flop: sm.flop,
         params: REFERENCE_BASE.params, tokens: sm.tokens, gPre: sm.gPre, ePre: sm.ePre, epochs: sm.epochs,
-        design: { ...REFERENCE_BASE, curation: { ...REFERENCE_BASE.curation } }, sD: {}, off: {}, serve: sm.serve, monitorability: 1, signals: {},
+        design: { ...REFERENCE_BASE, curation: { ...REFERENCE_BASE.curation } }, sD: {}, off: {}, fpt: sm.fpt, monitorability: 1, signals: {},
         lineage, traitsTrue: { ...TRAIT_START }, uModes: [...uModes],
       }],
       versions: [V0],
