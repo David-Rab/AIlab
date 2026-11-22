@@ -22,7 +22,7 @@ import {
   SYN_START_T, USAGE_ELIGIBLE, USAGE_MIX, USAGE_POLICY_SHARE, USAGE_QUALITY, ALPHA_DATA, SPEC_CAP, type DomainMix, type LicenceTier,
 } from '../../../data/v2/dataAssets';
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
-import { BASE_DATA, REFERENCE_BASE } from '../../../data/v2/runDesign';
+import { BASE_DATA, HAZARD_FILTER, QUALITY_FILTER, REFERENCE_BASE } from '../../../data/v2/runDesign';
 import { effectiveTokens, fDataEff } from '../models/effective';
 import { TOKENS } from '../../../data/v2/serving';
 import { chatFreeTier } from '../worldfx/serving';
@@ -109,11 +109,17 @@ export const pretrainMix = (p: DataPortfolio) => mixOf(p.assets.filter(isPretrai
  *  natural mix), which the 2025 domain profile o_d was fitted with. */
 export const REF_SHARE: DomainMix = pretrainMix(startPortfolio());
 
-/** A mix target (the blueprint's data option, runDesign BASE_DATA): the domain shares it starts from — `reference`, the
- *  2025 recipe's shares (REF_SHARE), or `natural`, the portfolio's own quality-weighted mix — times domain tilts and
- *  kind weights (absent = 1). */
-export interface MixTarget { base: 'reference' | 'natural'; tilt: DomainMix; kinds: Partial<Record<DataKind, number>> }
-export const NATURAL_MIX: MixTarget = { base: 'natural', tilt: {}, kinds: {} };
+/** A mix target (the blueprint's data option, runDesign BASE_DATA; RD-T08): the domain shares it starts from — `shares`
+ *  when given (RefBot's fixed 2025 shares), else the portfolio's own quality-weighted mix — times per-domain weights and
+ *  kind weights (absent = 1), and the curation filters that act on the drawn slices (runDesign QUALITY_FILTER,
+ *  HAZARD_FILTER). */
+export interface MixTarget { shares?: DomainMix; weights: DomainMix; kinds: Partial<Record<DataKind, number>>; filter?: { quality?: boolean; hazard?: boolean } }
+export const NATURAL_MIX: MixTarget = { weights: {}, kinds: {} };
+/** The mix target of a base design: its preset's weights, its explicit shares (if any) and its curation filters. */
+export function designTarget(d: BaseDesign): MixTarget {
+  const t = BASE_DATA[d.data] ?? BASE_DATA.balanced;
+  return { ...(d.mixShares ? { shares: d.mixShares } : {}), weights: t.weights, kinds: t.kinds, filter: { quality: d.curation.quality, hazard: d.curation.hazard } };
+}
 
 /** What a base of `tokens` tokens draws from a portfolio (tokens are counts, not trillions). */
 export interface DataDraw {
@@ -191,10 +197,14 @@ function drawWith(p: DataPortfolio, tokens: number, target: MixTarget, opts: { w
   const slices: { kind: DataKind; d: DomainId; u: number; r: number; k: number; q: number; w: number; teacher?: string }[] = [];
   const Ud: DomainMix = {};
   const Kd: DomainMix = {};
+  // RD-T08: the quality filter drops the worst QUALITY_FILTER.cut of an unfiltered kind's raw tokens; the rest are
+  // qMult× the quality (applied before the weights: the filtered stock is what the mix samples from).
+  const qf = target.filter?.quality ? QUALITY_FILTER : undefined;
   for (const a of p.assets) {
     if (!isPretrain(a)) continue;
-    const q = assetQuality(a);
-    const u = q * assetTokensT(a) * 1e12;
+    const filtered = !!qf && qf.kinds.includes(a.kind);
+    const q = assetQuality(a) * (filtered ? qf!.qMult : 1);
+    const u = q * assetTokensT(a) * (filtered ? 1 - qf!.cut : 1) * 1e12;
     if (!(u > 0)) continue;
     const k = target.kinds[a.kind] ?? 1;
     if (!(k > 0)) continue;
@@ -214,13 +224,21 @@ function drawWith(p: DataPortfolio, tokens: number, target: MixTarget, opts: { w
   // Domain weight M_d and slice weight w = M_d · U_i,d·k / K_d; the slice's epochs ∝ w/U_i,d = M_d·k/K_d.
   const M: DomainMix = {};
   for (const d of Object.keys(Ud) as DomainId[]) {
-    const B = target.base === 'natural' ? (Ud[d] ?? 0) : (REF_SHARE[d] ?? 0);
-    M[d] = (Ud[d] ?? 0) > 0 ? (B * (target.tilt[d] ?? 1) * (Kd[d] ?? 0)) / (Ud[d] ?? 1) : 0;
+    const B = target.shares ? (target.shares[d] ?? 0) : (Ud[d] ?? 0);
+    M[d] = (Ud[d] ?? 0) > 0 ? (B * (target.weights[d] ?? 1) * (Kd[d] ?? 0)) / (Ud[d] ?? 1) : 0;
   }
   let W = 0;
   let maxE = 0;
   for (const x of slices) {
     x.w = ((M[x.d] ?? 0) * x.u * x.k) / Math.max(1e-300, Kd[x.d] ?? 0);
+    // RD-T08: the hazard filter removes its share of a hazardous domain's tokens from the draw (after the weights: the
+    // domain draws that much less, its epochs per own token unchanged, the other domains take the freed share).
+    const h = target.filter?.hazard ? (HAZARD_FILTER[x.d] ?? 0) : 0;
+    if (h > 0) {
+      x.w *= 1 - h;
+      x.u *= 1 - h;
+      x.r *= 1 - h;
+    }
     W += x.w;
     if (x.w > 0) maxE = Math.max(maxE, x.w / x.r);
   }
@@ -263,16 +281,15 @@ function drawWith(p: DataPortfolio, tokens: number, target: MixTarget, opts: { w
   };
 }
 
-/** Q_REF: mean quality of the 2025 reference draw — the reference recipe (balanced, B0's size) on the start portfolio,
- *  (270·1 + 30·1 + 10·0.5)/310 = 0.984 — which the start G and the golden dates were fitted with. It defines q = 1 in
+/** Q_REF: mean quality of the 2025 reference draw — the reference recipe (balanced, quality filter on, B0's size) on the
+ *  start portfolio (≈ 1.20 with the filter, RD-T08; 0.984 before) — which the start G and the golden dates were fitted with. It defines q = 1 in
  *  the loss law (model v3 D11), so only a mix better or worse than 2025's moves G. */
-export const Q_REF: number = drawWith(startPortfolio(), REFERENCE_BASE.params * REFERENCE_BASE.tpp, BASE_DATA.balanced, {}, 1).quality;
+export const Q_REF: number = drawWith(startPortfolio(), REFERENCE_BASE.params * REFERENCE_BASE.tpp, designTarget(REFERENCE_BASE), {}, 1).quality;
 
-/** The player's draw for a base design (its data option as the mix target; adopted data efficiency as the tokens' worth);
- *  `tokens` defaults to the design's (a continue run draws its parent's plus its added tokens, RD-T02). */
+/** The player's draw for a base design (its data option and filters as the mix target; adopted data efficiency as the
+ *  tokens' worth); `tokens` defaults to the design's (a continue run draws its parent's plus its added tokens, RD-T02). */
 export function playerDraw(s: GameStateV2, d: BaseDesign, tokens: number = d.params * d.tpp): DataDraw {
-  const t = BASE_DATA[d.data] ?? BASE_DATA.balanced;
-  return drawData(s.player.dataPortfolio, tokens, t, { worth: tokenWorth(s) });
+  return drawData(s.player.dataPortfolio, tokens, designTarget(d), { worth: tokenWorth(s) });
 }
 
 /** Public-web tokens the lab trains on without a licence (copyright litigation, actors/china.ts; data.license 'web'). */
@@ -437,7 +454,7 @@ export function dataDelta(s: GameStateV2, change: (p: DataPortfolio) => void, do
   const b = s.player.models.bases[s.player.models.bases.length - 1]?.design;
   const params = b ? b.params : REFERENCE_BASE.params;
   const tokens = b ? b.params * b.tpp : REFERENCE_BASE.params * REFERENCE_BASE.tpp;
-  const target = (b && BASE_DATA[b.data]) ?? BASE_DATA.balanced;
+  const target = designTarget(b ?? REFERENCE_BASE);
   const read = (p: DataPortfolio) => {
     const nat = drawData(p, tokens, NATURAL_MIX, { worth });
     const bp = drawData(p, tokens, target, { worth });

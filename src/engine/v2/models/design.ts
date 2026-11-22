@@ -1,7 +1,7 @@
 // Run design → design effects, signals, predictions (V2-SPEC §3.3.2; model v3 V1; data in src/data/v2/runDesign.ts).
 // Owner: WS1. Capability effects are in effective-compute OOMs (ΔG); size, tokens and RL compute are physical and
 // enter through models/effective.ts.
-import { BASE_DATA, CURATION, POST_COT, POST_PREF, POST_SAFETY, SHAPE, SIGNAL_IDS } from '../../../data/v2/runDesign';
+import { POST_COT, POST_PREF, POST_SAFETY, SAFETY_PRETRAIN_DG, SHAPE, SIGNAL_IDS } from '../../../data/v2/runDesign';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import type { BaseDesign, DomainId, PostDesign, SignalId } from '../types';
 
@@ -19,25 +19,13 @@ export const addSig = (a: Sig, b: Sig, k = 1): Sig => {
   return out;
 };
 
-/** Base-run design effects: curation as OOM (general ΔG; the hazard filter's domain ΔG, OOM),
- *  the data option's FLOP and cash multipliers. The data mix's domain specialisation and repetition come from the draw
- *  (production/data.ts drawData, model v3 D3), the training signals from the base's G and drawn data (safety/traits.ts
- *  baseSignals, model v3 E3), not from here. */
-export interface BaseEffect { dg: number; sD: Off; monitorability: number; flopMult: number; cashMult: number }
+/** Base-run design effects: safety pretraining's general ΔG (OOM, [D]) and the shape's monitorability. The quality and
+ *  hazard filters, the data mix's domain specialisation and repetition all come from the draw (production/data.ts
+ *  drawData, RD-T08), the training signals from the base's G and drawn data (safety/traits.ts baseSignals), not from
+ *  here. */
+export interface BaseEffect { dg: number; monitorability: number }
 export function baseEffect(b: BaseDesign): BaseEffect {
-  const sh = SHAPE[b.shape];
-  const da = BASE_DATA[b.data];
-  let dg = 0;
-  let sD: Off = {};
-  if (!b.curation.quality) dg += CURATION.qualityOffDg;
-  if (b.curation.hazard) {
-    dg += CURATION.hazard.dg;
-    sD = addOff(sD, CURATION.hazard.dgD);
-  }
-  if (b.curation.safetyPretrain) dg += CURATION.safetyPretrain.dg;
-  return {
-    dg, sD, monitorability: sh.monitorability ?? 1, flopMult: da.flopMult, cashMult: da.cashMult,
-  };
+  return { dg: b.curation.safetyPretrain ? SAFETY_PRETRAIN_DG : 0, monitorability: SHAPE[b.shape].monitorability ?? 1 };
 }
 
 /** Post-training design effects (choices D–H): ΔG (OOM), domain ΔG (preference, OOM), serving and monitorability of the

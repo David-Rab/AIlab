@@ -14,7 +14,7 @@ import {
 import { TRAIT_BY_ID } from '../../../data/v2/traits';
 import { OPTION_NODE, TREE_BY_ID } from '../../../data/v2/tree';
 import {
-  PARAM_SNAPS, POOL_SHARE_RANGE, REF_TPP, RUN_PARAM_DEFAULTS, RUN_POOL_DEFAULT, STUDENT_DEFAULT, RL_BUDGET, TPP_FREE_MAX, TPP_SNAPS, baseFromParams, dateOf, evalDaysFor, fmtDate, fmtMonth, internalEval, internalVersion,
+  PARAM_SNAPS, POOL_SHARE_RANGE, REF_TPP, RUN_PARAM_DEFAULTS, RUN_POOL_DEFAULT, STUDENT_DEFAULT, RL_BUDGET, TPP_SNAPS, baseFromParams, dateOf, evalDaysFor, fmtDate, fmtMonth, internalEval, internalVersion,
   drawByDomain, flopPerToken, liveCommitments, measuredDomains, mixTargetOf, nodeStatus, optionLocked, plannedPressure, postFromParams, runCard, runEtaDays, runFlopPerShareDay, runTraitPressure, runStall, studentToHold, successorPullView, suitesView, tppLabel,
   useHourCost, versionById,
 } from '../../../engine/v2';
@@ -61,7 +61,7 @@ interface Opt { v: Val; label: string }
 interface Slot { field: string; label: string; sub?: string; term: string; lockSlot: string; opts: Opt[]; multi?: 'focus' | 'toggle' }
 const BACKBONE: Slot[] = [
   { field: 'shape', label: 'Architecture', term: 'shape', lockSlot: 'shape', opts: [{ v: 'moe', label: 'MoE' }, { v: 'dense', label: 'Dense' }, { v: 'latent', label: 'Latent-recurrent' }] },
-  { field: 'data', label: 'Data', term: 'dataMix', lockSlot: 'data', opts: [{ v: 'balanced', label: 'Balanced' }, { v: 'natural', label: 'Natural' }, { v: 'codeMath', label: 'Code & math' }, { v: 'science', label: 'Science' }, { v: 'synthetic', label: 'Synthetic' }, { v: 'multimodal', label: 'Multimodal' }] },
+  { field: 'data', label: 'Data', term: 'dataMix', lockSlot: 'data', opts: [{ v: 'balanced', label: 'Balanced' }, { v: 'codeMath', label: 'Code & math' }, { v: 'science', label: 'Science' }, { v: 'synthetic', label: 'Synthetic-heavy' }, { v: 'multimodal', label: 'Multimodal' }] },
   { field: 'filter', label: 'Data filter', term: 'hazardFilter', lockSlot: 'curation', multi: 'toggle', opts: [{ v: 'quality', label: 'Quality' }, { v: 'hazard', label: 'Hazard' }, { v: 'safetyPretrain', label: 'Safety pretraining' }] },
 ];
 const TRAINING: Slot[] = [
@@ -385,13 +385,11 @@ function SizeCtl({ s, params, tpp, ghost, card, onSize }: { s: GameStateV2; para
       Training FLOP = 6 × active parameters × tokens. More parameters: more capability, longer run, dearer serving.
     </TipCard>
   );
-  const tppNode = OPTION_NODE['tpp:over'];
-  const tppLock = (v: number) => (v > TPP_FREE_MAX && v !== tpp && optionLocked(s, 'tpp', 'over') ? tppNode : undefined);
   const tTip = (v: number) => () => (
-    <TipCard title={<>{v} <Term id="tokensPerParam">tokens per parameter</Term>{tppLock(v) ? <> <Lock size={11} /></> : null}</>} value={tppLock(v) ? <span className="tag2">locked: {TREE_BY_ID[tppNode]?.name}</span> : tppLabel(v)} rows={[
+    <TipCard title={<>{v} <Term id="tokensPerParam">tokens per parameter</Term></>} value={tppLabel(v)} rows={[
       { label: 'Effective compute kept', value: F.pct(Math.pow(10, -0.2 * Math.pow(Math.log10(v / 20), 2))) },
       { label: <Term id="tokensPerParam">Tokens</Term>, value: fmtTok(params * v) },
-    ]} footer="Overtraining: the same FLOP on fewer parameters serves cheaper but is worth less effective compute (Besiroglu et al. 2024).">Tokens per active parameter.</TipCard>
+    ]} footer="The same FLOP on fewer parameters and more tokens serves cheaper (fewer FLOP per token) but is worth less effective compute (Besiroglu et al. 2024).">Cheaper to serve or more capable per FLOP: tokens per active parameter.</TipCard>
   );
   return (
     <div className="bp-size" id="ctl-size">
@@ -400,7 +398,8 @@ function SizeCtl({ s, params, tpp, ghost, card, onSize }: { s: GameStateV2; para
       <SnapTrack snaps={snaps} at={params} walls={walls} label={fmtParams} ghost={ghost} test="bp-params" tip={pTip} onPick={(v) => onSize({ params: v })}
         tick={lastBase ? { v: lastBase.params, name: lastBase.name, tip: () => <TipCard title={lastBase.name}>Your latest base: {fmtParams(lastBase.params)} active × {lastBase.design.tpp} tokens per parameter.</TipCard> } : undefined} />
       <div className="row-i small dim"><Term id="tokensPerParam">Tokens per parameter</Term><span className="sp" />{tppLabel(tpp)}</div>
-      <SnapTrack snaps={TPP_SNAPS} at={tpp} label={(v) => String(v)} test="bp-tpp" tip={(v) => tTip(v)} lock={tppLock} onPick={(v) => onSize({ tpp: v })} />
+      <div className="row-i small dim"><span>← more capable per FLOP</span><span className="sp" /><span>cheaper to serve →</span></div>
+      <SnapTrack snaps={TPP_SNAPS} at={tpp} label={(v) => String(v)} test="bp-tpp" tip={(v) => tTip(v)} onPick={(v) => onSize({ tpp: v })} />
     </div>
   );
 }
@@ -614,7 +613,7 @@ function SuitesRow({ s, p }: { s: GameStateV2; p: Params }) {
   );
 }
 
-const PRESET_LABEL: Record<string, string> = { balanced: 'Balanced', natural: 'Natural', codeMath: 'Code & math', science: 'Science', synthetic: 'Synthetic', multimodal: 'Multimodal' };
+const PRESET_LABEL: Record<string, string> = { balanced: 'Balanced', codeMath: 'Code & math', science: 'Science', synthetic: 'Synthetic-heavy', multimodal: 'Multimodal' };
 /** The base's draw from the data portfolio (model v3 D4): drawn (effective) share per domain against the reference
  *  share, the specialisation per domain with its ±1.3 OOM cap, and repetition (unique tokens this mix can use vs the
  *  base's tokens, the most-repeated domain's epochs). The portfolio and its natural mix live on Models › Data. */
@@ -624,10 +623,10 @@ function DrawRow({ s, card, preset }: { s: GameStateV2; card: Card_; preset: str
   const t = mixTargetOf(preset);
   const max = Math.sqrt(Math.max(0.05, ...rows.map((r) => Math.max(r.effShare, r.ref))));
   const h = (x: number) => `${Math.min(1, Math.sqrt(Math.max(0, x)) / max) * 100}%`;
-  const tilts = t ? Object.entries(t.tilt).map(([d, x]) => `${d} ×${x}`).concat(Object.entries(t.kinds).map(([k, x]) => `${k} ×${x}`)).join(', ') : '';
+  const tilts = t ? Object.entries(t.weights).map(([d, x]) => `${d} ×${x}`).concat(Object.entries(t.kinds).map(([k, x]) => `${k} ×${x}`)).join(', ') : '';
   const presetTip = () => (
     <TipCard title={<Term id="drawnMix">Drawn mix</Term>} value={PRESET_LABEL[preset] ?? preset} rows={[
-      { label: 'Starts from', value: t?.base === 'natural' ? 'your natural mix' : 'reference shares' }, { label: 'Tilts', value: tilts || 'none' },
+      { label: 'Starts from', value: 'your natural mix' }, { label: 'Weights', value: tilts || 'none' },
       { label: <Term id="dataQuality">Mean quality drawn</Term>, value: L.draw.quality.toFixed(2) },
       ...(Object.entries(L.draw.byKind) as [string, number][]).map(([k, x]) => ({ label: `Tokens from ${k}`, value: fmtTok(x) })),
     ]} footer="The portfolio and its natural mix: Models › Data.">What this base draws from your [[dataPortfolio|data portfolio]] by domain.</TipCard>

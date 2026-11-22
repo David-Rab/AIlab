@@ -89,7 +89,10 @@ export function drawByDomain(_s: GameStateV2, draw: DataDraw): { rows: DrawDomai
   return { rows, most };
 }
 /** A preset's mix target (Blueprint tooltips). */
-export const mixTargetOf = (preset: string): MixTarget | undefined => BASE_DATA[preset as keyof typeof BASE_DATA];
+export const mixTargetOf = (preset: string): MixTarget | undefined => {
+  const t = BASE_DATA[preset as keyof typeof BASE_DATA];
+  return t ? { weights: t.weights, kinds: t.kinds } : undefined;
+};
 
 // ───────── action forms (structured before → after) ─────────
 

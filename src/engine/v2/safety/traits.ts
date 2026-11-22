@@ -7,11 +7,11 @@
 import { EDGE_BY_ID, EDGES } from '../../../data/v2/edges';
 import { TRAIT_BY_ID, TRAIT_IDS, TRAIT_ORDER, TRAIT_START } from '../../../data/v2/traits';
 import { UMODES } from '../../../data/v2/umodes';
-import { BASE_DATA, IDA_RL_SHARE, REFERENCE_BASE, RL_BUDGET, RL_FAMILIES as RL_FAMILY_DEF, RL_FAMILY_IDS, RL_FAMILY_NEEDS } from '../../../data/v2/runDesign';
+import { IDA_RL_SHARE, REFERENCE_BASE, RL_BUDGET, RL_FAMILIES as RL_FAMILY_DEF, RL_FAMILY_IDS, RL_FAMILY_NEEDS } from '../../../data/v2/runDesign';
 import { rlWeights, type FamilyMap } from '../models/effective';
 import { suiteExploitMap, suiteRlWeights, suiteS2 } from '../models/suites';
 import { bestPlayerVersion, CHINA_ID, PLAYER_ID } from '../models/labs';
-import { drawData, playerDraw, startPortfolio, type DataDraw } from '../production/data';
+import { designTarget, drawData, playerDraw, startPortfolio, type DataDraw } from '../production/data';
 import type {
   BaseDesign, BaseModel, DomainId, EngineSystem, GameStateV2, ModelVersion, PostDesign, RivalLab, RLFamily, RngLike, SafetyPosture, SignalId,
   SimpleModel, SystemCtx, ToolFamily, TrainingRun, TraitBelief, TraitId, TraitVector, UModeId,
@@ -253,7 +253,7 @@ export const syntheticShare = (draw: BaseQuantities['draw']) => (draw.byKind.syn
 let refDraw: { ai: number; syn: number } | undefined;
 export function referenceBaseShares(): { ai: number; syn: number } {
   if (!refDraw) {
-    const d = drawData(startPortfolio(), REFERENCE_BASE.params * REFERENCE_BASE.tpp, { base: BASE_DATA.balanced.base, tilt: BASE_DATA.balanced.tilt, kinds: BASE_DATA.balanced.kinds });
+    const d = drawData(startPortfolio(), REFERENCE_BASE.params * REFERENCE_BASE.tpp, designTarget(REFERENCE_BASE));
     refDraw = { ai: aiDataShare(d), syn: syntheticShare(d) };
   }
   return refDraw;

@@ -30,8 +30,9 @@ export const LOSS_LAW = { E: 1.8172, A: 482.01, B: 2085.43, alpha: 0.3478, beta:
 export const OPT_TPP = 20;
 /** Muennighoff et al. 2023 repetition constant R*_D [R20 A3]. */
 export const REPEAT_R_STAR = 15.4;
-/** Architecture: effective-compute offset (OOM) and active/total parameter ratio. MoE is the reference; dense −0.3 OOM
- *  (v2's −0.24 y × B); latent-recurrent +0.5 OOM (v2's +0.4 y × B, needs P17). MoE active = total ÷ 8 [D]. */
+/** Architecture: effective-compute offset (OOM) and active/total parameter ratio [D]. MoE is the reference; dense −0.3 OOM
+ *  (a dense model gets less capability from the same training FLOP than a sparse mixture of experts); latent-recurrent
+ *  +0.5 OOM (it reasons in its hidden state, needs P17). MoE active = total ÷ 8. */
 export const SHAPE: Record<BaseDesign['shape'], { e: number; activeShare: number; tokenMult: number; restart?: never; monitorability?: number }> = {
   moe: { e: 0, activeShare: 1 / 8, tokenMult: 1 },
   dense: { e: -0.3, activeShare: 1, tokenMult: 1 },
@@ -53,9 +54,10 @@ export const TPP_RANGE: readonly [number, number] = [5, 5000];
  *  FLOP per served token falls ×2.8 (A6: the old 1T-active V0 served at ≈ 5–10× the 2025 FLOP per token). */
 export const REF_TPP = 400;
 export const B0_PARAMS = Math.sqrt(3e26 / (6 * REF_TPP));
-/** Tokens per parameter above this need the "Overtrained compact" idea (long-run data pipelines) [D]: the reference
- *  ratio is free (every 2025 lab trains at it), heavier overtraining is the idea. */
-export const TPP_FREE_MAX = REF_TPP;
+/** RD-T08 (TRN-31): tokens per parameter is a plain trade-off, no research gate: more tokens on fewer parameters is
+ *  cheaper to serve (FLOP per token ∝ active parameters), fewer tokens on more parameters is more capable per training
+ *  FLOP (models/effective.ts fOver). The Blueprint labels the ends so. */
+export const TPP_TRADE = { low: 'more capable per FLOP', high: 'cheaper to serve' } as const;
 
 /** Goodput: share of a run's wall time spent training (interruptions, restarts) [R20 A4: 0.90; 0.95 with fault-tolerant
  *  training, the top of the 0.80–0.95 range]. Replaces v2's per-run restart roll. */
@@ -133,42 +135,42 @@ export const sizeScrutiny = (ratio: number) => (ratio > 1 ? (5 * Math.log(ratio)
  *  progress (at its planned FLOP: FLOP so far + the lab's base-run rate × the days to its due day). */
 export const SCRUTINY_WINDOW_DAYS = 365;
 
-/** Data-mix presets (model v3 D3): the blueprint's data option is a mix target for the draw from the data portfolio
- *  (production/data.ts drawData): domain shares from `base` × the domain tilt × the kind weights' pull (absent = 1),
- *  each domain's tokens taken from its assets in proportion to their quality-weighted unique tokens × kind weight.
- *  `base` 'reference' = the 2025 reference recipe's shares (the start portfolio's natural mix, which o_d was fitted
- *  with) for every preset [D]: "balanced" is the portfolio's natural mix at the start and stays at the reference shares
- *  after, so a lab whose stock fills with code-heavy synthetic data does not drift into a code model unless it picks a
- *  mix that draws it (with 'natural' RefBot's bases specialised in code and moved the golden dates by up to −1.4 y,
- *  design/notes/D3.md). The base's domain specialisation and repetition follow from what it drew (s_d,data, MODEL-V3
- *  §2.3), not from fixed offsets. Tilts and kind weights [D]: code & math = code ×3, math (REASON) ×2, research papers ×2, security ×1.5;
- *  science = bio ×3, math and research ×1.5; synthetic-heavy = synthetic assets ×4; multimodal = media and physical ×3,
- *  agency (screens, actions) ×2. `flopMult`: multimodal tokens cost +20% FLOP; `cashMult`: science journals +5% of
- *  the run's compute cost. Training pressure (S5 AI-related data, S6 synthetic data) follows from what the base drew
- *  (model v3 E3, safety/traits.ts baseSignals), not from the preset. */
-export const BASE_DATA: Record<BaseDesign['data'], { base: 'reference' | 'natural'; tilt: Off; kinds: Partial<Record<DataKind, number>>; flopMult: number; cashMult: number }> = {
-  balanced: { base: 'reference', tilt: {}, kinds: {}, flopMult: 1, cashMult: 0 },
-  // model v3 D4 [D, the lead's call in D3]: the portfolio's own quality-weighted mix (no tilt): draws every token once
-  // before any repeats (uMix = U), and specialises the base wherever the stock has drifted from the reference shares.
-  // A player choice only; RefBot keeps 'balanced'.
-  natural: { base: 'natural', tilt: {}, kinds: {}, flopMult: 1, cashMult: 0 },
-  codeMath: { base: 'reference', tilt: { CODE: 3, REASON: 2, RSCH: 2, CYBER: 1.5 }, kinds: {}, flopMult: 1, cashMult: 0 },
-  science: { base: 'reference', tilt: { BIO: 3, REASON: 1.5, RSCH: 1.5 }, kinds: {}, flopMult: 1, cashMult: 0.05 },
-  synthetic: { base: 'reference', tilt: {}, kinds: { synthetic: 4 }, flopMult: 1, cashMult: 0 },
-  multimodal: { base: 'reference', tilt: { MEDIA: 3, PHYS: 3, AGENCY: 2 }, kinds: {}, flopMult: 1.2, cashMult: 0 },
+/** Data-mix presets (model v3 D3; RD-T08, TRN-20): named per-domain weight targets for the draw from the data portfolio
+ *  (production/data.ts drawData). Each domain's share of the base's tokens = the portfolio's own quality-weighted mix ×
+ *  the preset's domain weight × the kind weights' pull (absent = 1); each domain's tokens come from its assets in
+ *  proportion to their quality-weighted unique tokens × kind weight. "Balanced" draws every domain in proportion to the
+ *  data you hold. The base's domain specialisation, repetition and FLOP (6 × parameters × tokens, whatever the tokens
+ *  are) follow from what it drew, not from the preset. Weights [D]: code & math = code ×3, math (REASON) ×2, research
+ *  papers ×2, security ×1.5; science = bio ×3, math and research ×1.5; synthetic-heavy = synthetic assets ×4;
+ *  multimodal = media and physical ×3, agency (screens, actions) ×2. RefBot draws its own fixed 2025 shares
+ *  (bots/ref.ts REFBOT_DATA_SHARES, BaseDesign.mixShares) so a stock that drifts toward code does not move the golden
+ *  dates. Training pressure (S5 AI-related data, S6 synthetic data) follows from what the base drew (safety/traits.ts). */
+export const BASE_DATA: Record<BaseDesign['data'], { weights: Off; kinds: Partial<Record<DataKind, number>> }> = {
+  balanced: { weights: {}, kinds: {} },
+  codeMath: { weights: { CODE: 3, REASON: 2, RSCH: 2, CYBER: 1.5 }, kinds: {} },
+  science: { weights: { BIO: 3, REASON: 1.5, RSCH: 1.5 }, kinds: {} },
+  synthetic: { weights: {}, kinds: { synthetic: 4 } },
+  multimodal: { weights: { MEDIA: 3, PHYS: 3, AGENCY: 2 }, kinds: {} },
 };
-/** Curation (OOM: v2's Δp × B). The hazard filter's `dgD` is a domain ΔG in OOM of the domain's effective compute
- *  (RD-U01): BIO −0.5 OOM, was −1.0 L at v2's ΔL = 2·ΔG (the engine's conversion, so the mechanics are unchanged). */
-export const CURATION = {
-  qualityOffDg: -0.24,
-  hazard: { dg: -0.024, dgD: { BIO: -0.5 } as Off }, // was BIO −1.0 L
-  safetyPretrain: { dg: -0.024 }, // S5: it filters AI-related data (safety/traits.ts SAFETY_PRETRAIN_AI_CUT)
-};
+/** RD-T08 (TRN-11): curation acts through the draw (production/data.ts drawWith), not as flat offsets.
+ *  Quality filter [D]: drops the worst quarter of the raw tokens of the unfiltered kinds (the public crawl and product
+ *  usage logs; licences and synthetic data arrive curated); the kept three quarters are 1.25× the quality (the dropped
+ *  quarter was 0.25×, so the quality-weighted stock falls only 6%). The drawn tokens' mean quality rises and the unique
+ *  tokens fall, so a big base repeats sooner. The reference recipe has it on. */
+export const QUALITY_FILTER: { kinds: readonly DataKind[]; cut: number; qMult: number } = { kinds: ['public', 'usage'], cut: 0.25, qMult: 1.25 };
+/** Hazard filter [D]: removes the hazardous share of the bio and cyber tokens (dual-use virology, exploit write-ups:
+ *  a third of each domain's tokens, every asset) from the draw; the base draws correspondingly fewer tokens of those
+ *  domains, so its BIO / CYBER specialisation falls (ALPHA_DATA × log₁₀(2/3) ≈ −0.26 OOM) and the other domains take the
+ *  freed share. */
+export const HAZARD_FILTER: Partial<Record<DomainId, number>> = { BIO: 1 / 3, CYBER: 1 / 3 };
+/** Safety pretraining [D]: −0.02 OOM of effective compute (the AI-related text it filters and the alignment text it
+ *  adds displace some capability data); its S5 cut is safety/traits.ts SAFETY_PRETRAIN_AI_CUT. */
+export const SAFETY_PRETRAIN_DG = -0.02;
 
 // ── Post choices ──
-/** Preference training: `dg` OOM (v2's Δp × B); `dgD` a domain ΔG in OOM of the domain's effective compute (RD-U01:
- *  v2's level offsets ÷ 1.2, the conversion the fit applied, so the mechanics are unchanged; the displayed domain level
- *  is λ of the same G). */
+/** Preference training [D]: `dg` general ΔG (OOM; minimal −0.06: a thin preference stage leaves the model harder to
+ *  use); `dgD` a domain ΔG in OOM of the domain's effective compute (RD-U01; the displayed domain level is λ of the
+ *  same G). */
 /** A method's approval-reward pressure (S1) is safety/traits.ts PREF_S1 × the run's preference-RL share (model v3 E3). */
 export const POST_PREF: Record<PostDesign['pref'], { dg: number; dgD: Off; appeal: number }> = {
   minimal: { dg: -0.06, dgD: {}, appeal: 0.7 },
@@ -185,11 +187,12 @@ export const POST_COT: Record<PostDesign['cot'], { dg: number; serveMult: number
   faithful: { dg: FAITHFUL_COT.dOom, serveMult: FAITHFUL_COT.fptMult, monitorability: FAITHFUL_COT.monitorability }, // needs P23 (E13 typed: data/v2/safetyIdeas.ts)
   latent: { dg: 0, serveMult: 1, monitorability: 0.05 }, // only on a latent base (its gain is the architecture's)
 };
-/** Alignment training: `dg` OOM. v2's extra wall days are gone (no minimum lengths). */
+/** Alignment training [D]: `dg` OOM (the alignment tax: heavier refusal and honesty training costs a little capability,
+ *  minimal gains a little). */
 export const POST_SAFETY: Record<PostDesign['safety'], { dg: number }> = {
-  minimal: { dg: 0.024 },
+  minimal: { dg: 0.02 },
   standard: { dg: 0 },
-  heavy: { dg: -0.048 }, // SCHEME −0.95×, EA ×2 (WS2, E25)
+  heavy: { dg: -0.05 }, // SCHEME −0.95×, EA ×2 (WS2, E25)
 };
 
 /** RL families (RD-T05): each family's `own` domain (RL transfers in full, RL_TRANSFER.same) and its `adjacent`

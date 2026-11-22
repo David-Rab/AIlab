@@ -515,7 +515,11 @@ export interface BaseDesign {
   /** Training tokens per active parameter (20 = compute-optimal; more = overtrained: cheaper to serve, weaker per FLOP). */
   tpp: number;
   shape: 'dense' | 'moe' | 'latent';
-  data: 'balanced' | 'natural' | 'codeMath' | 'science' | 'synthetic' | 'multimodal';
+  /** Data-mix preset: a named per-domain weight target for the draw (data/v2/runDesign.ts BASE_DATA). */
+  data: 'balanced' | 'codeMath' | 'science' | 'synthetic' | 'multimodal';
+  /** RD-T08: explicit target domain shares for the draw, in place of the portfolio's own mix (RefBot's fixed 2025
+   *  shares, bots/ref.ts REFBOT_DATA_SHARES); the preset's weights apply on top. */
+  mixShares?: Partial<Record<DomainId, number>>;
   curation: { quality: boolean; hazard: boolean; safetyPretrain: boolean };
 }
 

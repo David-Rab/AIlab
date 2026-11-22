@@ -417,7 +417,7 @@ check(!cmPlan.reason && (cm.CODE ?? 0) > 0.3 && (cm.RSCH ?? 0) > 0.1 && (cm.SOCI
   `${cmPlan.reason ?? ''} s ${fmtS(cm)}; domain G vs balanced CODE ${dG(cmPlan, 'CODE').toFixed(2)}, SOCIAL ${dG(cmPlan, 'SOCIAL').toFixed(2)}; quality ${cmQ.toFixed(4)} OOM`);
 const shareCode = cmPlan.limits!.draw.share.CODE ?? 0;
 check(near(cm.CODE ?? 0, Math.min(SPEC_CAP, ALPHA_DATA * Math.log10(shareCode / REF_SHARE.CODE!)), 1e-9), 's_d,data = α_data · log₁₀(drawn share ÷ reference share) (α 1.5, cap ±1.3 OOM, research/20 A2)', `code share ${(shareCode * 100).toFixed(1)}% vs ${(REF_SHARE.CODE! * 100).toFixed(1)}%`);
-const capDraw = drawData(s0.player.dataPortfolio, 10e12, { base: 'reference', tilt: { CODE: 1000 }, kinds: {} });
+const capDraw = drawData(s0.player.dataPortfolio, 10e12, { shares: REF_SHARE, weights: { CODE: 1000 }, kinds: {} });
 check(capDraw.sD.CODE === SPEC_CAP && Object.values(capDraw.sD).every((x) => Math.abs(x ?? 0) <= SPEC_CAP), 'draw: specialisation is capped at ±1.3 OOM', fmtS(capDraw.sD));
 // The other presets specialise their domains.
 for (const [opt, node, up] of [['science', 'scienceData', 'BIO'], ['multimodal', 'multimodal', 'PHYS']] as const) {
@@ -431,7 +431,7 @@ const mmBig = plan(sO, 'multimodal', big).limits!;
 const balBig = plan(s0, 'balanced', big).limits!;
 check(mmBig.epochs > 2 && mmBig.epochs > balBig.epochs && mmBig.fData < balBig.fData && (mmBig.draw.effShare.PHYS ?? 0) < (mmBig.draw.share.PHYS ?? 0) - 1e-3,
   'draw: a short domain repeats (Muennighoff per domain) and loses value', `multimodal ${mmBig.epochs.toFixed(2)} epochs (PHYS), f_data ${mmBig.fData.toFixed(4)} vs balanced ${balBig.epochs.toFixed(2)} / ${balBig.fData.toFixed(4)}; PHYS share drawn ${((mmBig.draw.share.PHYS ?? 0) * 100).toFixed(1)}% → effective ${((mmBig.draw.effShare.PHYS ?? 0) * 100).toFixed(1)}%`);
-const tiny = drawData(s0.player.dataPortfolio, 400e12, { base: 'reference', tilt: { PHYS: 6 }, kinds: {} });
+const tiny = drawData(s0.player.dataPortfolio, 400e12, { shares: REF_SHARE, weights: { PHYS: 6 }, kinds: {} });
 const sNaive = ALPHA_DATA * Math.log10((tiny.share.PHYS ?? 0) / REF_SHARE.PHYS!);
 check(tiny.epochs > 4 && tiny.dEff < 0.98 * tiny.tokens && sNaive < SPEC_CAP && (tiny.sD.PHYS ?? 0) < sNaive - 0.03,
   'draw: a domain drawn beyond its tokens (PHYS ×6 on 400T) is worth less: specialisation reads the effective share', `PHYS ${tiny.epochs.toFixed(1)} epochs, s ${tiny.sD.PHYS?.toFixed(2)} OOM vs ${sNaive.toFixed(2)} on the drawn share; D_eff ${(tiny.dEff / T).toFixed(0)}T of 400T`);
@@ -461,7 +461,7 @@ check(synQ < -0.005 &&synPlan.draw.qRel < 0.97 && near(synQ, Math.log10(fDataEff
   'quality: a synthetic-heavy draw of q 0.5 data lowers G (mean quality below the reference draw\'s)', `mean q ×${synPlan.draw.qRel.toFixed(3)} → ${synQ.toFixed(4)} OOM`);
 // Balanced keeps the reference shares when the portfolio drifts (lots of code-heavy synthetic data, RefBot's path); the
 // natural mix specialises with it. The reference recipe's shares were what o_d was fitted to (design/notes/D3.md).
-const drift = drawData(sFx.player.dataPortfolio, 100e12, BASE_DATA.balanced);
+const drift = drawData(sFx.player.dataPortfolio, 100e12, { shares: REF_SHARE, weights: {}, kinds: {} }); // RefBot's fixed target (RD-T08)
 const driftNat = drawData(sFx.player.dataPortfolio, 100e12, NATURAL_MIX);
 check(Object.keys(drift.sD).length === 0 && (driftNat.sD.CODE ?? 0) > 0.2, 'draw: on the day-400 portfolio balanced keeps the reference shares (no specialisation while no domain repeats); the natural mix specialises in code',
   `balanced ${fmtS(drift.sD) || 'none'}; natural ${fmtS(driftNat.sD)}`);

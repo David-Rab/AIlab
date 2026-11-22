@@ -34,9 +34,10 @@ import { playerShareRef, shareRefAt, SPLIT_KEYS, withFixed } from '../department
 import { financeAutopilot, REF_AUTOPILOT } from '../finance/plan';
 import { runwayOf } from '../finance/runway';
 import { hRef } from '../production/ces';
+import { REF_SHARE } from '../production/data';
 import { DEFAULT_LINES } from '../../../data/v2/research';
 import { REF_ROLE_SHARE, SAF_ROLE_SHARE, TEAM_SIZE } from '../../../data/v2/teams';
-import type { AgentUse, BotPolicy, ComputeSplit, EngineApi, GameStateV2, ModelVersion, PendingDecision, TeamKey, TrainingRun } from '../types';
+import type { AgentUse, BotPolicy, DomainId, ComputeSplit, EngineApi, GameStateV2, ModelVersion, PendingDecision, TeamKey, TrainingRun } from '../types';
 import { bestMeasuredL, internalVersion, versionById } from '../models/labs';
 import { believedInternalOversight } from '../safety/believedOversight';
 import { believedResultThreat, believedSabotage } from '../safety/covert';
@@ -267,6 +268,10 @@ export interface RefPlayOpts {
   capacityPrice?: boolean;
 }
 
+/** RD-T08 (TRN-20): RefBot's fixed data target, the 2025 reference shares (the start portfolio's natural mix, which the
+ *  domain profile o_d was fitted with). Its bases draw these shares whatever its stock drifts to (synthetic data fills
+ *  with code), so the golden dates do not move with the stock; the player's presets weight the player's own mix. */
+export const REFBOT_DATA_SHARES: Readonly<Partial<Record<DomainId, number>>> = { ...REF_SHARE };
 const flag = (s: GameStateV2, k: string, d = -1e9) => Number(s.flags[`ref:${k}`] ?? d);
 /** Design options a bot asks for that the tree has not unlocked yet fall back to off (R8: safety ideas such as
  *  inoculation, hazard filtering and safety pretraining are research projects now). */
@@ -390,7 +395,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
     const poolShare = 0.6;
     const flop = poolShare * runFlopPerShareDay(s, { kind: 'base' }) * days;
     const params = paramsForFlop(flop, REF_TPP);
-    if (flop > 0 && tryAct(s, api, 'launchBase', { ...bp, params, tpp: REF_TPP, poolShare })) {
+    if (flop > 0 && tryAct(s, api, 'launchBase', { ...bp, params, tpp: REF_TPP, poolShare, mixShares: JSON.stringify(REFBOT_DATA_SHARES) })) {
       setFlag(s, 'baseShare', poolShare);
       setFlag(s, 'lastBase', day);
     }

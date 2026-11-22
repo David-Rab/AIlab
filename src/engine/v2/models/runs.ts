@@ -14,7 +14,7 @@ import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { PLAYER_MODEL_FAMILY } from '../../../data/v2/names';
 import {
   CONTINUE_SHARE, DISTILL_TPP, E_START, GOODPUT, IDA_RL_SHARE, MFU_RL_FACTOR, P07_LONG_TASKS_HORIZON, PARAM_RANGE, RL_BUDGET, RL_FAMILY_IDS,
-  STREAM_PERIOD_DAYS, STREAM_POOL_SHARE, STUDENT_DEFAULT, TPP_FREE_MAX, TPP_RANGE, sizeScrutiny, SCRUTINY_WINDOW_DAYS,
+  STREAM_PERIOD_DAYS, STREAM_POOL_SHARE, STUDENT_DEFAULT, TPP_RANGE, sizeScrutiny, SCRUTINY_WINDOW_DAYS,
 } from '../../../data/v2/runDesign';
 import { buildEtas, buildWaitNew, engScale, queueBuild, runSetupTW, runWaiting } from '../departments/build';
 import { TRAIT_IDS } from '../../../data/v2/traits';
@@ -34,7 +34,7 @@ import { adopted } from './paradigms';
 import { optionLocked } from './tree';
 import type { DomainMap } from './effective';
 import { releaseEvals } from './evals';
-import { addOff, addSig, baseEffect, clampSignals, monitorabilityClass, postEffect, type Off } from './design';
+import { addSig, baseEffect, clampSignals, monitorabilityClass, postEffect, type Off } from './design';
 import { domainsOf, gOfBuild, gOfDomain, levelOfG, refreshLevels } from './capability';
 import { ePreAt, rlCeilNow, rlMidNow, serveFlopOomOf, serveNow, trainNow } from './stacks';
 import { stackRate } from './research';
@@ -254,7 +254,7 @@ function baseG(s: GameStateV2, d: BaseDesign, fz: BaseFreeze = baseFreezeNow(s, 
   const fQ = fDataEff(d.params, tokens, draw.dQual);
   const fD = Math.min(1, fAll / fQ);
   const parts = gPreOf({ flop, tpp: d.tpp, recipe: E_START + fz.pre, shape: d.shape, fData: fD, fQual: fQ, designDg: be.dg });
-  return { parts, flop, tokens, epochs: draw.epochs, fD, fQ, U: draw.uMix, sD: addOff(draw.sD, be.sD), draw };
+  return { parts, flop, tokens, epochs: draw.epochs, fD, fQ, U: draw.uMix, sD: { ...draw.sD }, draw };
 }
 
 /** The RL recipe a post-training run launched today freezes: the RL stack's efficiency and ceiling, and (model v3 D5)
@@ -422,9 +422,9 @@ function pretrain(s: GameStateV2, src: PretrainSource, rec?: RunRecipe): Pretrai
     const d = src.design;
     const be = baseEffect(d);
     const bg = baseG(s, d, rec ? { pre: rec.pre!, draw: rec.draw! } : baseFreezeNow(s, d));
-    const flopNeeded = bg.flop * be.flopMult;
+    const flopNeeded = bg.flop; // RD-T08: FLOP = 6·N·D whatever the tokens are; no data-option cash (licences are paid at signing)
     return {
-      flopNeeded, cash: flopCost(s, flopNeeded) * be.cashMult, // F6: no per-run licensed-data cost (D1/D2)
+      flopNeeded, cash: 0,
       flop: bg.flop, params: d.params, tokens: bg.tokens, gPre: bg.parts.total, ePre: bg.parts.recipe, sD: bg.sD,
       fpt: fptOfDesign(d.params, d.shape), monitorability: be.monitorability, signals: baseSignals(d, { gPre: bg.parts.total, draw: bg.draw }), bg,
     };
@@ -507,7 +507,7 @@ function planPretrain(s: GameStateV2, p: LaunchRunParams, rate: number): ActPlan
   if (src.from === 'design') {
     const d = src.design;
     reason = optionLocked(s, 'shape', d.shape) ?? optionLocked(s, 'data', d.data) ?? (d.curation.hazard ? optionLocked(s, 'curation', 'hazard') : undefined)
-      ?? (d.curation.safetyPretrain ? optionLocked(s, 'curation', 'safetyPretrain') : undefined) ?? (d.tpp > TPP_FREE_MAX + 1e-9 ? optionLocked(s, 'tpp', 'over') : undefined);
+      ?? (d.curation.safetyPretrain ? optionLocked(s, 'curation', 'safetyPretrain') : undefined);
     if (!(d.params >= PARAM_RANGE[0] && d.params <= PARAM_RANGE[1])) reason = 'Active parameters out of range';
     if (!(d.tpp >= TPP_RANGE[0] && d.tpp <= TPP_RANGE[1])) reason = 'Tokens per parameter out of range';
   }

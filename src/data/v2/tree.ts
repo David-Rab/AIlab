@@ -26,7 +26,7 @@ import { P10_SYN_Q_RAISE, P21_WORTH_OOM } from './dataAssets';
 export type Layer = 'backbone' | 'training' | 'scaffold' | 'lab';
 export type EffortClass = 'S' | 'M' | 'L' | 'XL';
 /** Design-option slots a node can unlock (run designer, deployments). */
-export type OptionSlot = 'shape' | 'tpp' | 'data' | 'curation' | 'pref' | 'rlFocus' | 'cot' | 'inoculation' | 'effort';
+export type OptionSlot = 'shape' | 'data' | 'curation' | 'pref' | 'rlFocus' | 'cot' | 'inoculation' | 'effort';
 
 /** Capability project kinds (MODEL-V3 §5.1, V3-BUILD V2.2). */
 export type ProjectKind = 'line' | 'idea' | 'axis';
@@ -136,16 +136,15 @@ const SAFETY_COLUMNS_SET = new Set<Column>(['alignment', 'interp', 'evals']);
 export const TREE: TreeNodeDef[] = [
   // ── Pretraining (Backbone unless noted) ──
   STAR('moe', 'MoE', 'pretraining', 'backbone', {}, { options: [['shape', 'moe']], cap: 'Reference architecture: 8× total parameters per active one', cost: 'Memory for 8× the active parameters' }),
-  STAR('dense', 'Dense', 'pretraining', 'backbone', { cap: -1 }, { options: [['shape', 'dense']], cap: '−0.3 OOM effective compute vs MoE', cost: 'Same serving FLOP per active parameter' }),
-  STAR('qualityFilter', 'Quality filter', 'pretraining', 'backbone', {}, { options: [['data', 'balanced']], cap: 'Balanced mix: every domain in proportion to the data you hold' }),
-  STAR('codeMath', 'Code & math data', 'pretraining', 'backbone', { cap: 1 }, { options: [['data', 'codeMath']], cap: 'Draw code ×3, math and research papers ×2, security ×1.5: raises CODE, REASON, RSCH; lowers the rest' }),
+  STAR('dense', 'Dense', 'pretraining', 'backbone', { cap: -1 }, { options: [['shape', 'dense']], cap: 'Every parameter works on every token: −0.3 OOM effective compute against MoE for the same training FLOP', cost: 'No 8× memory: total parameters = active ones' }),
+  STAR('qualityFilter', 'Quality filter', 'pretraining', 'backbone', {}, { options: [['curation', 'quality']], cap: 'Drops the worst quarter of crawled and usage text: the tokens you train on are better, but you have fewer unique ones, so a big base repeats its data sooner' }),
+  STAR('codeMath', 'Code & math data', 'pretraining', 'backbone', { cap: 1 }, { options: [['data', 'codeMath']], cap: 'Trains on more code (×3), math and research papers (×2) and security text (×1.5) than you hold: stronger CODE, REASON, RSCH; weaker elsewhere; short domains repeat sooner' }),
   LINE('L.scale', 'Scaling recipes', 'pretraining', [], { stack: 'pre', mean: 0.012, s: [0.05, 0.04], rShare: 0.36 }, { cap: 'Architecture and compute rebalancing at scale: pretraining efficiency (OOM); grows with run FLOP', payoff: 'Most measured algorithmic progress is scale-dependent (Gundlach et al.)' }),
   LINE('L.data', 'Data filtering & mixing', 'pretraining', [], { stack: 'pre', mean: 0.012, s: [0, 0.05], rShare: 0.22 }, { cap: 'Better data for the same tokens: pretraining efficiency (OOM)' }),
   LINE('L.opt', 'Optimizer & architecture tweaks', 'pretraining', [], { stack: 'pre', mean: 0.02, s: [-0.25, 0.2], rShare: 0.22 }, { cap: 'Small scale-invariant gains: pretraining efficiency (OOM); a quarter of small-scale wins survive at scale' }),
   LINE('L.latent', 'Recurrent architectures', 'pretraining', ['P17'], { stack: 'pre', mean: 0.012, s: [0.05, 0.04], rShare: 0.22 }, { cap: 'A fresh pool opened by neuralese recurrence: pretraining efficiency (OOM)' }),
-  N('scienceData', 'Science data', 'pretraining', 'backbone', [], 'S', 0.95, { cap: 1, saf: -1 }, { options: [['data', 'science']], cap: 'Draw bio ×3, math and research ×1.5: raises BIO; lowers the rest', saf: 'Bio-uplift flag risk', cost: '+5% run cash' }),
-  N('multimodal', 'Native multimodal', 'pretraining', 'backbone', [], 'M', 0.9, { cap: 1 }, { options: [['data', 'multimodal']], cap: 'Draw media and physical ×3, agency ×2: raises MEDIA, PHYS, AGENCY; lowers the rest', cost: '+20% FLOP' }),
-  STAR('overtrained', 'Overtrained compact', 'pretraining', 'backbone', { cap: -1 }, { options: [['tpp', 'over']], cap: 'More than 400 tokens per parameter: overtraining costs effective compute (800 → ×0.31, 1,600 → ×0.19)', cost: 'Serves cheaper: fewer active parameters for the same FLOP' }),
+  N('scienceData', 'Science data', 'pretraining', 'backbone', [], 'S', 0.95, { cap: 1, saf: -1 }, { options: [['data', 'science']], cap: 'Trains on more biology (×3), math and research (×1.5): stronger BIO, REASON, RSCH; weaker elsewhere', saf: 'More bio capability: higher misuse uplift' }),
+  N('multimodal', 'Native multimodal', 'pretraining', 'backbone', [], 'M', 0.9, { cap: 1 }, { options: [['data', 'multimodal']], cap: 'Trains on more images, video and physical data (×3) and screens and actions (×2): stronger MEDIA, PHYS, AGENCY; weaker elsewhere' }),
   STAR('faultTolerant', 'Fault-tolerant training', 'pretraining', 'backbone', {}, { cap: 'Checkpointing and restarts: part of the 0.90 goodput every lab has' }),
   N('elastic', 'Elastic training', 'pretraining', 'backbone', [], 'M', 0.9, { cap: 1 }, { kind: 'idea', effect: { stack: 'train', mean: 0.023, sd: 0.3 }, cap: 'Training throughput +0.023 OOM (goodput 0.90 → 0.95)' }),
   P('P10', 'Synthetic data flywheel', 'pretraining', 'backbone', ['codeMath'], 'L', { cap: 1, saf: -1 }, { kind: 'axis', effect: { mean: 1, sd: 0.3, data: { synQMax: P10_SYN_Q_RAISE } }, options: [['data', 'synthetic']], cap: 'Generated data can beat web text: the quality ceiling of synthetic data rises from the web\'s 1 to 1.5 (strong teachers, rephrasing, filtering); unlocks the synthetic-heavy mix', saf: 'Reward-model exploitation ×1.5; inherits teacher traits', payoff: 'Pays off with a teacher well above V0 (quality 1 at +2 OOM, 1.5 at +4 OOM)' }),
@@ -199,8 +198,8 @@ export const TREE: TreeNodeDef[] = [
   S('T-HARDEN', 'Environment hardening', 'alignment', 'training', [], 'AG18', undefined, {}, { star: true, saf: 'No effect of its own: it leads to inoculation prompting. Suites are hardened on the Suites tab' }),
   S('T-CONFESS', 'Honesty & confession training', 'alignment', 'training', ['T-SPEC'], 'AG18', 'M', { saf: 1 }, { saf: 'Concealment removal' }),
   S('T-INOC', 'Inoculation prompting', 'alignment', 'training', ['T-HARDEN'], 'AG18', 'S', { saf: 1 }, { options: [['inoculation', 'true']], saf: 'Hacking → misalignment ×0.15 (persona, learned hacking, proxy goals)' }),
-  S('T-FILTER', 'Hazard data filtering', 'alignment', 'backbone', [], 'AG15', 'M', { cap: -1, saf: 1 }, { options: [['curation', 'hazard']], cap: 'Δ −0.02 y; BIO −1.0', saf: 'Survives fine-tuning (open weights)' }),
-  S('safetyPretrain', 'Safety pretraining', 'alignment', 'backbone', [], 'AG15', 'M', { cap: -1, saf: 1 }, { options: [['curation', 'safetyPretrain']], cap: 'Δ −0.02 y', saf: 'Situational-awareness pressure −' }),
+  S('T-FILTER', 'Hazard data filtering', 'alignment', 'backbone', [], 'AG15', 'M', { cap: -1, saf: 1 }, { options: [['curation', 'hazard']], cap: 'Removes a third of the bio and cyber training text (dual-use virology, exploit write-ups): weaker BIO and CYBER, the rest barely changed', saf: 'Survives fine-tuning (open weights)' }),
+  S('safetyPretrain', 'Safety pretraining', 'alignment', 'backbone', [], 'AG15', 'M', { cap: -1, saf: 1 }, { options: [['curation', 'safetyPretrain']], cap: 'Filters text about AI and adds alignment examples: −0.02 OOM effective compute', saf: 'Situational-awareness pressure −' }),
   S('T-PERSONA', 'Persona vectors', 'alignment', 'training', ['T-STEER'], 'AG03', 'M', { saf: 1 }, { saf: 'Sycophancy / persona fix' }),
   S('T-W2S', 'Weak-to-strong training', 'alignment', 'training', ['T-CONFESS'], 'AG06', 'M', { saf: 1 }, { saf: 'Sycophancy / proxy-goal fix' }),
   S('T-UNDO', 'Unlearning', 'alignment', 'training', ['T-FILTER'], 'AG15', 'M', {}, { saf: 'No effect in play yet: nothing applies unlearning to a model' }),

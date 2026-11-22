@@ -262,6 +262,9 @@ export const distillFlop = (teacherParams: number, studentParams: number, tokens
 /** Days to finish `flop` at `flopPerDay` (already net of share, utilisation and goodput). No minimum. */
 export const daysFor = (flop: number, flopPerDay: number) => (flop <= 0 ? 0 : flopPerDay > 0 ? flop / flopPerDay : Infinity);
 
-/** Reference-tokens-per-parameter label: "compute-optimal" at ≤ 20, else "overtrained ×n". */
-export const tppLabel = (tpp: number) => (tpp <= OPT_TPP + 1e-9 ? 'compute-optimal' : `overtrained ×${+(tpp / OPT_TPP).toFixed(1)}`);
+/** RD-T08 (TRN-31): the tokens-per-parameter choice by its trade-off: at or below 20 the most capable per training
+ *  FLOP; below the 2025 practice (400) more capable per FLOP but dearer to serve; above it cheaper to serve but less
+ *  capable per FLOP. */
+export const tppLabel = (tpp: number) => (tpp <= OPT_TPP + 1e-9 ? 'most capable per FLOP' : tpp < REF_TPP - 1e-9 ? 'more capable per FLOP, dearer to serve'
+  : tpp <= REF_TPP + 1e-9 ? '2025 practice' : 'cheaper to serve, less capable per FLOP');
 export { REF_TPP };

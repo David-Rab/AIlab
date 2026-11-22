@@ -92,8 +92,11 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
  *  each bought domain stock (delivered or pending) to the suites of its families (split evenly over those with a
  *  suite), drops stock no suite maps to, and restarts a P12 under test as a plain unlock project at its progress.
  *  66 (RD-T07, DD-07): EnvSuite.tasks, the live tasks (fidelity = f(tasks × grader quality), decaying without
- *  upkeep). Migration 65 → 66 sets each stored suite's tasks from its expert data (nothing stale yet). */
-export const SCHEMA_REV = 66;
+ *  upkeep). Migration 65 → 66 sets each stored suite's tasks from its expert data (nothing stale yet).
+ *  67 (RD-T08): the 'natural' data preset merges into 'balanced' (every preset now weights the lab's own mix;
+ *  BaseDesign.mixShares carries RefBot's fixed shares); the "Overtrained compact" node goes (tokens per parameter is
+ *  ungated). Migration 66 → 67 renames the preset in every stored base design and drops the node's tree state. */
+export const SCHEMA_REV = 67;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -635,6 +638,30 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   65: (raw) => {
     const s = raw as unknown as GameStateV2;
     if (s.player?.dataPortfolio) restateSuiteTasks(s);
+  },
+  /** 66 → 67 (RD-T08): data preset 'natural' → 'balanced' in every stored base design; the 'overtrained' node goes. Idempotent. */
+  66: (raw) => {
+    const seen = new Set<object>();
+    const walk = (o: unknown) => {
+      if (!o || typeof o !== 'object' || seen.has(o)) return;
+      seen.add(o);
+      if (Array.isArray(o)) {
+        for (const x of o) walk(x);
+        return;
+      }
+      const r = o as Record<string, unknown>;
+      if (r.data === 'natural' && 'curation' in r && 'tpp' in r) r.data = 'balanced';
+      for (const v of Object.values(r)) walk(v);
+    };
+    walk(raw);
+    const p = (raw as unknown as GameStateV2).player;
+    if (!p) return;
+    if (p.tree) delete p.tree.overtrained;
+    if (p.research?.queue) p.research.queue = p.research.queue.filter((id) => id !== 'overtrained');
+    for (const t of p.teams ?? []) if (t.projectId === 'overtrained') {
+      delete t.projectId;
+      delete t.manual;
+    }
   },
 };
 

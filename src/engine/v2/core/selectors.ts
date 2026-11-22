@@ -20,7 +20,7 @@ export { adoptedDuring, idleTrainingShare, planRun, poolAllocation, POOL_SHARE_R
 export type { BaseLimits } from '../models/runs';
 export { buildEtas, buildPerDay, buildRates, buildWaitNew, featureInUse, featureUpkeepTW, LAUNCH_TW, pendingLaunch, pendingPack, productUpkeepTW, runSetupTW, runWaiting, SECTOR_PACK_TW, upkeepLines, upkeepSplit, UPKEEP } from '../departments/build';
 export type { UpkeepLine } from '../departments/build';
-export { PARAM_RANGE, PARAM_SNAPS, REF_TPP, RL_BUDGET, STREAM_POOL_SHARE, STUDENT_DEFAULT, TPP_FREE_MAX, TPP_RANGE, TPP_SNAPS } from '../../../data/v2/runDesign';
+export { PARAM_RANGE, PARAM_SNAPS, REF_TPP, RL_BUDGET, STREAM_POOL_SHARE, STUDENT_DEFAULT, TPP_RANGE, TPP_SNAPS } from '../../../data/v2/runDesign';
 export { fOver, flopOfDesign, paramsForFlop, servingFlop, tppLabel } from '../models/effective';
 export { goodputOf, paramsOfVersion, runFlopPerShareDay } from '../models/runs';
 export type { LaunchRunParams, RunPlan } from '../models/runs';

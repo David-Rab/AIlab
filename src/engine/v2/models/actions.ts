@@ -50,12 +50,26 @@ const evalDepthParam = (p: Params): EvalDepth => {
 const latestBase = (s: GameStateV2) => s.player.models.bases[s.player.models.bases.length - 1];
 const latestFull = (s: GameStateV2) => [...s.player.models.versions].reverse().find((v) => v.variant === 'full' && v.status !== 'retired');
 
+/** RD-T08: explicit draw shares (`mixShares`, a JSON object of domain → share; RefBot's fixed 2025 target, bots/ref.ts),
+ *  or undefined when absent or malformed. */
+function mixSharesParam(p: Params): BaseDesign['mixShares'] {
+  if (typeof p.mixShares !== 'string') return undefined;
+  try {
+    const o = JSON.parse(p.mixShares) as Record<string, unknown>;
+    const out: NonNullable<BaseDesign['mixShares']> = {};
+    for (const [d, x] of Object.entries(o)) if (typeof x === 'number' && x >= 0 && Number.isFinite(x)) out[d as keyof typeof out] = x;
+    return Object.keys(out).length ? out : undefined;
+  } catch {
+    return undefined;
+  }
+}
 /** Base design from params (defaults = reference recipe). */
 export function baseFromParams(p: Params): BaseDesign {
   const r = REFERENCE_BASE;
+  const shares = mixSharesParam(p);
   return {
     params: num(p, 'params', r.params), tpp: num(p, 'tpp', r.tpp), shape: str(p, 'shape', r.shape) as BaseDesign['shape'],
-    data: str(p, 'data', r.data) as BaseDesign['data'],
+    data: str(p, 'data', r.data) as BaseDesign['data'], ...(shares ? { mixShares: shares } : {}),
     curation: { quality: bool(p, 'quality', r.curation.quality), hazard: bool(p, 'hazard', r.curation.hazard), safetyPretrain: bool(p, 'safetyPretrain', r.curation.safetyPretrain) },  };
 }
 
