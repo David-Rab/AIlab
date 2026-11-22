@@ -1580,3 +1580,24 @@ lockdown after researching T-LOCK (before, owning it was enough); product contro
 `controlLayer` term not renamed; stray untracked `scripts/v2/_sr13/{rep,bulk}.cjs` (edit helpers) can be removed.
 Moves calibration: maybe (S4/S5): new games lose T-LOCK's effect unless a lockdown is added, and a lockdown costs 3% of
 internal work; otherwise same formulas and floats.
+
+### SR-13b
+
+Safeguard costs are charged as their lines show (designer rule: a cost shown is applied).
+- **Slowdown**: internal control (useControl usefulness) and lockdown (×(1 − 3%)) were already on the package's AI labour
+  (workfit useLabour). New: a product's control protocol cuts its usage by the Slowdown at the full trusted gap, with the
+  restriction in one multiplier `productUsageMult(d)` (revenue.ts sector and Chat paths; limitsView line "Control protocol").
+- **Compute**: `controlComputeShare(setting)` = deferred share × CONTROL_TRUSTED_COST. Internal: `monitorBudget` pays the
+  control compute (Σ agent compute × share) first from split.monitors (`control`, `controlShort`); monitor coverage uses
+  what is left; any shortfall comes out of the agents' own H100e (useLabour). Products: `productSafeguardOverhead(d)` added
+  to the serving overhead next to monitorOverhead. Add control preview shows the compute line.
+- **People**: `safeguardFte(s)` = reviewStaff(1 − aiRdShare) when human review is on (the line's people); `committedFte`
+  (investigations + patches + safeguards) replaces the free-engineer sums (actions, footholdDetection, investigations,
+  lineProjects, bots/ref); `safetyRe().safeguards`. Review stop is not scaled down when engineers run short (open).
+- **Lockdown verb**: responses `addLockdown` / `removeLockdown` (preview + apply; cannotAdd gates on T-LOCK); Control card
+  buttons. Bots: `keepLockdown` (bots/common.ts, run from staffLines) adds the lockdown to live internal packages once
+  T-LOCK is unlocked, so ref / safe / mixed keep T-LOCK's effect.
+Check: `npx tsx scripts/v2/_sr13b/check.ts` (day400: control ×0.97 AI FTE and its compute on the monitors' line; lockdown
+added, ×0.97; product control usage ×0.93, +1% serving). Passes.
+Moves calibration: maybe (S4/S5): review now takes up to 50 safety engineers early (human share ≈ 1), fewer free for
+experiments / cases; product control costs usage; bots now pay the 3% lockdown Slowdown.
