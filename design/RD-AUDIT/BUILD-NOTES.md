@@ -2094,3 +2094,30 @@ drift; staffed: done in 30 d, validated on Atlas-2.7, each measured within 3 sd 
 0.203; never-measured range wider; no upkeep code in src). tsc (app, scripts/v2) clean; npm run build passes.
 Moves calibration: yes (S4/S5): oHalf no longer rises with spare engineers (tools fade faster unless validated on each
 model, which re-anchors the gap); validation takes engineers and some line compute.
+
+### SR-14
+Safety methods are run-plan options (SAFETY-REDESIGN §2.2 concept 8, §3.4; SAF-04a/b/c, SAF-05, SAF-06; OD-11).
+- **Field**: PostDesign.techniques / trainAgainst → one `methods` list: method ids (safety/methods.ts METHODS: T-PERSONA,
+  T-CAST, T-W2S, T-CONFESS, T-ANTISCHEME, T-UNDO) and `against:<instrument>` (train against an instrument, flagged).
+  `usesMethod` is the only switch; `inRun` no longer reads lineStaffed. T-TMON's E14 / E22 follow the monitor deployment
+  (routineMonitor), not AG07 staffing.
+- **Healing (AG18)**: HEAL_K · e_AG18 · √min(2.5, 1 + AG18 methods used: confession, anti-scheming, inoculation option) ·
+  pref · safety factor; no staffing term (was 0 without AG18 staffing).
+- **Policy**: SafetyDept.useAllMethods (on); `safety.methodPolicy`; postFromParams(p, s) with no `methods` param fills
+  every owned method (never train-against). Run preview: each method's effect (gain) and its cost where one exists
+  (anti-scheming EA ×2 first time on a lineage); train-against: visible −70–90%, true −20–40%, trained-against mark.
+  No method has a cash / compute / staff cost of its own yet.
+- **Folded**: T-SPEC (Rewarded for: Constitution), T-HARDEN (suite hardening), T-INOC (Inoculation option), T-FILTER
+  (base Hazard filter: the open-weights rule now reads base.design.curation.hazard), T-CCLASS (safeguard); not listed as
+  tools on SAFETY. T-UNDO: misuse capability ×UNDO_MISUSE_MULT 0.5 [D] for models trained with it.
+- **UI**: Blueprint post-train Methods row (toggle per owned method, ⚑ vs each instrument, policy toggle); glossary
+  safetyMethod; tree T-UNDO card.
+- **Save**: SCHEMA_REV 70; migration 69 → 70 (every post design: methods = techniques + against:trainAgainst; policy on);
+  hygiene pins → 70.
+- **Not done**: inoculation stays a boolean run option (not in `methods`); Heavy safety still includes anti-scheming /
+  confession effects; the incident response "Retrain against" stays; prediction of healing / method effects (SR-15).
+Check: `npx tsx scripts/v2/_sr14/check.ts` (day 400 migrates, 22 designs; persona E05 and anti-scheming E28 only when
+listed; healing 0.258 → 0.407 with two AG18 methods; mods and healing equal without 12 science teams; T-UNDO halves
+misuse; policy on fills 4 owned methods, off none; explicit list wins). tsc (app, scripts/v2) clean; npm run build passes.
+Moves calibration: yes (S4/S5): methods now apply to every policy-filled run regardless of staffing (bots included),
+healing no longer needs AG18 staffing, monitoring edges no longer need AG07 staffing.
