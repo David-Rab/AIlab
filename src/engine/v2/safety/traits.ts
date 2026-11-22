@@ -534,13 +534,18 @@ export function misalignmentEstimate(v: ModelVersion): number {
   return misalignment(est);
 }
 
-/** Visible band on Mis from belief sd (±1.64 sd propagated through the Mis weights). */
-export function misalignmentBand(v: ModelVersion): [number, number] {
+/** sd of the belief on Mis: belief sds through the Mis weights (traits independent; a missing belief at SD_MAX). */
+export function misalignmentSd(v: ModelVersion): number {
   const W: Partial<Record<TraitId, number>> = { SCHEME: 0.25, AF: 0.15, POWER: 0.15, SUCC: 0.15, COLLUDE: 0.1, SAND: 0.1, TGAME: 0.05, OBF: 0.05, HONEST: 0.1, CORRIG: 0.1 };
   let varSum = 0;
   for (const [t, w] of Object.entries(W) as [TraitId, number][]) varSum += (w * (v.beliefs[t]?.sd ?? SD_MAX)) ** 2;
+  return Math.sqrt(varSum);
+}
+
+/** Visible band on Mis from belief sd (±1.64 sd propagated through the Mis weights). */
+export function misalignmentBand(v: ModelVersion): [number, number] {
   const m = misalignmentEstimate(v);
-  const h = 1.64 * Math.sqrt(varSum);
+  const h = 1.64 * misalignmentSd(v);
   return [clamp01(m - h), clamp01(m + h)];
 }
 

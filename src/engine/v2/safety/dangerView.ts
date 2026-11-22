@@ -28,6 +28,7 @@ import { versionById } from './common';
 import { actSite, siteActs, type ActOpts, type ActRow, type ActSite } from './actTable';
 import { believedLowest, believedTerms, controlView } from './control';
 import { footholdView } from './footholdDetection';
+import { lossOfControlRisk, unstoppedHarmPerYear, type LossRisk } from './lossRisk';
 import { controlProtocol, oversightGap, underControl, type ControlReadout } from './oversight';
 
 /** Restricted status scales opportunity (incidents.ts siteOf), and usage, revenue and misuse reach (revenue.ts,
@@ -210,6 +211,9 @@ export interface ControlRead {
   layer: boolean; tax: number; missMult: number; taxUse?: AgentUse;
   /** The model whose internal deployment carries the layer (the Remove control response's target; model v3 F6). */
   layerVersionId?: string;
+  /** SR-04 headline: Loss-of-control risk of the riskiest model the lab runs ("if it could act now") and the
+   *  companion Unstopped harm / yr (severity-weighted) with the unweighted unstopped acts / yr. */
+  risk?: LossRisk; harm: number; harmActs: number;
 }
 
 /** The control readout on Safety › Overview: believed only (never effectiveControl.level, exposure or the tolerance). */
@@ -240,6 +244,8 @@ export function controlReadout(s: GameStateV2): ControlRead {
     if (!best || c.tax > best.tax) { best = c; bestUse = u; }
   }
   const p = best ?? controlProtocol(undefined);
+  const risk = lossOfControlRisk(s);
+  const h = unstoppedHarmPerYear(s);
   return {
     believed: cv.believed, band: controlBand(cv.believed), versionId: v?.id, name: v?.name,
     mis: t.mis, oversight: t.oversight, F: t.F, exposure: t.exposure,
@@ -248,5 +254,6 @@ export function controlReadout(s: GameStateV2): ControlRead {
     suspected: fv.suspected, located: fv.located, removed: fv.removed,
     layer, tax: p.tax, missMult: p.missMult, taxUse: bestUse,
     layerVersionId: s.player.deployments.find((d) => d.channel === 'internal' && d.status === 'live' && d.controlLayer)?.versionId,
+    risk, harm: h.harm, harmActs: h.acts,
   };
 }

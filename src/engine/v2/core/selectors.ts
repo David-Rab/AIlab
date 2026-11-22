@@ -175,6 +175,9 @@ export type { AdoptedView, AllocView, CapProjectView, EffectRowView, MilestoneVi
 // Model v3 E11: the player's danger readout per product and internal lane, and the control readout (beliefs only).
 export { CONTROL_BANDS, controlBand, controlReadout, dangerView } from '../safety/dangerView';
 export type { ControlBand, ControlRead, DangerActRead, DangerLever, DangerRead } from '../safety/dangerView';
+// SR-04: the SAFETY headline (Loss-of-control risk, "if it could act now") and its companion (Unstopped harm / yr).
+export { lossOfControlRisk, unstoppedHarmPerYear } from '../safety/lossRisk';
+export type { LossRisk } from '../safety/lossRisk';
 export { ousterVote, ousterLive, ousterPassesBelow, OUSTER, OUSTER_BC, OUSTER_NOTICE_D, BC_WARN, BC_CLEAR, CRITICS, criticsAvailable, criticsSide, criticsSeat, trustVote } from '../finance/board'; // jank ST3 + FIN3b: board review, ouster vote, critics' seat
 export { charterRights, charterHolds } from '../finance/charter'; // FIN3b: charter rights
 export { teamCapacity } from '../departments/capacity';
