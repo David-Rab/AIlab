@@ -164,3 +164,60 @@ Stale comments and BRIDGE tags (SYNTHESIS §4.9). Commit 5a0a250. Comments only,
 - Not touched: glossary / player-facing text (B47); other stale-looking comments outside the §4.9 list
   (finance/observe.ts "until MODEL-V3 lands", runDesign serveCost readout).
 - **Tests:** tsc main + scripts clean. No test run (comments only).
+
+### RD-B08
+
+Research-engineer allocation (SYNTHESIS B11; INP-02, INP-V01). Commits ba0776b (engine, research suite, copy), 71c0b53
+(evals EV3). Interim per DD-12: headroom stays; RD-E03 removes it.
+- **Tuning demand:** `reDemand.tune = TUNE_RE_PER_OOM × headroomTotal(s)` (stacks.ts: Σ stacks' headroom at the
+  reference run FLOP). [D] TUNE_RE_PER_OOM = 100 (one team-equivalent per 0.01 OOM; about the 2.5–4 teams tuning held
+  mid-game on ai2027 when unlimited). Human team-equivalents, not ÷ m_EXP (as the experiments need). Spare research
+  engineers are idle (reAllocView already shows idle).
+- **Served after the projects:** DEFAULT_RE_ALLOC loses `share: { exp: 0.75 }` (that cap is what starved the 7th project,
+  INP-V01). [D] The player's order and caps still apply (research.reAlloc); tuning is last only by default.
+  **Open:** existing saves keep their stored `share.exp 0.75` (no migration, no schema bump); the player can clear it in
+  Company › Work, or a later bump drops it.
+- **FLOP by need:** new `expShares(alloc, avail)`: the pool is divided over the demands (RE_PER_PROJECT per project in
+  experiments + tuning's demand); a project with any research engineers takes a full share; tuning takes the rest
+  (including the shares of projects with none). [D] A project short of RE_PER_PROJECT still gets its full FLOP share
+  (FLOP does not follow headcount). The unit project's inputs (`last.x`, line batching) use
+  max(units, RE_PER_PROJECT), i.e. a full project's share. `experimentRate` extracted from stepProject (shared with the
+  test).
+- **Readouts:** `research.last.flopProj` (new optional readout field; researchView's project FLOP and c read it; c no
+  longer scales with a project's research engineers). Deviation [D]: production.ts's M proxy keeps h = research
+  engineers not on ops / evals (idle included), i.e. what exp + tune held before, so M and its readers (non-line safety
+  nodes, gov, previews) do not move (→ RD-R01 / RD-R04). Copy: glossary routineTuning / expCompute / reNeeds, Work.tsx
+  overflow tip; GLOSSARY.md regenerated.
+- **Probe** (`%TEMP%/ai27ux/probes/rdb08/probe.ts`, RefBot ai2027 seed 2027, +1 / +3 RE teams at days 30–600):
+  - Before: day 600 seven projects in experiments, P05 at 0 RE while tuning held 3.94 (day 450 too); tuning took 22–81%
+    of experiment FLOP; saturated projects ×0.965–0.977 (+1 team), ×0.907–0.937 (+3 teams).
+  - After: no experimenting project at 0 RE while tuning holds any (0 of 5 checkpoints); day 30 8.3 RE idle and tuning
+    0% of FLOP (no headroom); day 300 tuning 1.4 of 5.98 wanted (projects first); per-project FLOP flat with +RE; worst
+    rate ×0.998 (+3 teams, day 600). That 0.2% is m_EXP = L/H spreading the same AI labour over the extra idle humans
+    (workfit labourOf), not the allocation: with m_EXP held the ratio is ×1.000. Left for DD-11 / DD-13.
+- **Tests:** research suite +3 checks (tuning demand ∝ headroom; tuning only after every project is full over 15
+  capacities; +RE never lowers a project's RE, FLOP (exact) or rate (≥ ×0.995, the m_EXP note); tuning takes the FLOP
+  projects leave, no headroom → no tuning and idle engineers); the overflow check now expects tuning up to its demand
+  and the rest idle; evals EV3's order check reworded (behind tuning, evals get what it leaves). tsc main + scripts
+  clean; research full 33/33; evals 30/30; test:quick 31/34 (fixtures stale ×5, worldfx A2a 6.7% / W4 23.4%: known; no
+  fixtures committed); lint-ux clean.
+- **test:cal: 47 pass, 2 FAIL** (9.1 min, load 95%). T1 20-seed medians, Δ vs golden in years (M11 in brackets; Phase
+  0 was behaviour-neutral):
+
+  | preset | SC | SAR | SIAR | ASI |
+  |---|---|---|---|---|
+  | ai2027 | +0.001 (0.000) | −0.086 (−0.079) | −0.086 (−0.078) | −0.049 (−0.010) |
+  | authors2026 | +0.036 (+0.052) | −0.090 (−0.030) | **−0.270 (−0.045) FAIL** | **−0.487 (+0.004) FAIL** |
+  | fast | +0.011 (+0.022) | +0.099 (+0.096) | −0.007 (−0.022) | −0.085 (−0.103) |
+  | slow | +0.049 (+0.049) | | | |
+
+  T1L (leader lab) unchanged: authors2026 SIAR / ASI WARN −0.74 / −1.49 y as M11. **Stop rule reached:** authors2026 ASI
+  is 0.37 y past its ±44 d tolerance and no value is named for a refit, so nothing was refitted.
+- **Mechanism** (`probes/rdb08/late.ts`, RefBot authors2026 seed 2027): the slow world's lab has far more research
+  engineers (22–28) than its 5–6 experimenting projects need (10–12), and post-SAR headroom is small (0.006–0.019 OOM →
+  tuning wants 0.6–1.9). Under the headcount split tuning held 50–64% of experiment FLOP from day 900 (the projects'
+  share 22–50%); by need the projects get 87–94%. After SAR the projects are compute-bound (m_EXP 600–260 000), so
+  roughly ×2 FLOP per project shortens SAR → SIAR → ASI. ai2027's lab is short of research engineers, so it barely
+  moves. This is the fix working (DD-12: "research gets slightly faster (refit)"). For the lead: refit authors2026's
+  post-SAR pace (the preset's G_SC / CAL_SHIFT-type values, not named here), or accept and restate; TUNE_RE_PER_OOM is
+  [D] and also sets tuning's FLOP share (∝ √K at equilibrium), but tuning it to the dates would be a forcing refit.
