@@ -22,10 +22,11 @@ export const BASE_POOL_SHARE = 0.6;
  *  serve their models overtrain them like 2025 production models (DeepSeek-V3 ≈ 400 per active parameter, research/20
  *  A1) [R20 A1, D]. Active parameters N = √(FLOP / (6 · tpp)), MoE shape. */
 export const RIVAL_TPP = REF_TPP;
-/** Continual learning (the AI 2027 online learner, P08 for the player): from this display level (the Research-agent
- *  milestone, v2's simple-lab rule) a lab's internal model re-applies today's recipe to its base every week, as the
- *  player's P08 stream does (V1 notes) [D]. */
-export const CL_LEVEL = 8.5;
+/** Continual learning (the AI 2027 online learner, P08 for the player; RD-T03, DD-05): a lab's stream takes this share
+ *  of its training pool (the player's STREAM_POOL_SHARE; the base run's 0.6 leaves 0.4 for post-training, smaller runs
+ *  and the stream) and every CL_DAYS spends the FLOP it delivered on continued pretraining and an RL refresh of the
+ *  internal model, from the start (no level threshold) [D: stand-in, the player's rule at aggregate level]. */
+export const CL_POOL_SHARE = 0.15;
 export const CL_DAYS = 7;
 /** Post-training cadence (days between versions on one base): Anthropic shipped 8 frontier versions in 16 months
  *  (research/12 §0.1) [R12]. */

@@ -280,11 +280,12 @@ export interface ModelsState {
   bases: BaseModel[];
   versions: ModelVersion[];
   runs: TrainingRun[];
-  /** Continual-learning stream (P08) if active: the version id being updated in place. */
+  /** Continual-learning stream (P08) if active: the version id being updated in place. RD-T03: pool FLOP accrues daily
+   *  (`flop`) and is spent every STREAM_PERIOD_DAYS from `periodDay` on continued pretraining and an RL refresh. */
   stream?: {
     versionId: string; startedDay: Day; lastAuditDay: Day;
-    /** Model v3 V2: the recipe the stream has absorbed (7-day lag): e_pre at its base's FLOP, RL efficiency, RL ceiling. */
-    track?: { pre: number; rlMid: number; rlCeil: number };
+    periodDay?: Day;
+    flop?: number;
   };
   nextName: number; // naming counter
   /** Model v3 D7: eval suites queued or running (work: research engineers, engineers, inference compute). */
@@ -392,10 +393,12 @@ export interface ModelVersion {
 
 /** Capability build of a version (MODEL-V3 §2, §4): G = gPre + dgRL + dg. Hidden. */
 export interface VersionBuild {
-  /** Pretraining effective compute of its base (OOM; a stream re-applies today's recipe). */
+  /** Pretraining effective compute of its base (OOM; a stream's continued pretraining adds to it, RD-T03). */
   gPre: number;
-  /** Physical pretraining FLOP of the base (the RL curve's midpoint scales with it). */
+  /** Physical pretraining FLOP of the base (the RL curve's midpoint scales with it), plus the stream's. */
   flopPre: number;
+  /** RD-T03: tokens the stream's continued pretraining drew on this version, on top of its base's. */
+  addTokens?: number;
   /** RL FLOP of the version (all families), its family weights and the RL recipe e_RL frozen at launch (OOM). */
   rlFlop: number;
   rlW: Partial<Record<RLFamily, number>>;
@@ -1855,8 +1858,12 @@ export interface RivalPhys {
    *  aggregate level: grows from the lab's research speed with the Inference-efficiency line's returns; its first 0.33 OOM
    *  raise decode utilisation, the rest cuts FLOP per token (models/stacks.ts serveSplit). */
   serve: number;
-  /** Day of the last continual-learning refresh. */
+  /** Day of the last continual-learning period (RD-T03: the stream spends the FLOP accrued since). */
   clDay?: Day;
+  /** RD-T03: the internal model's streamed state on base (gen, flop): its pretraining G, its RL recipe as the
+   *  equivalent at the reference RL FLOP (mid), its RL ceiling raise and RL FLOP. Absent or on another base: the base's
+   *  G_pre at today's RL recipe (actors/rivalModel.ts clStateOf). */
+  cl?: { gen: number; flop: number; gPre: number; mid: number; ceil: number; rl: number };
   /** The recipe (model v3 F2): pretraining efficiency realised at the run's FLOP (OOM over the leader's day-0 recipe),
    *  RL efficiency and RL ceiling (OOM, the player's rlMid / rlCeil stacks). */
   rec: { pre: number; mid: number; ceil: number };

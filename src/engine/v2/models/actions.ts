@@ -1,7 +1,7 @@
 // Player actions in the Models and Departments spheres (ActionDef catalog, V2-SPEC §2.7, §3.3, §3.4). Owner: WS1.
 // Every preview shows what apply() does (§2.7, lint-tradeoffs). Previews must work with
 // empty params (defaults below). apply() throws on an invalid request; core/loop act() turns that into an error.
-import { REFERENCE_BASE, REFERENCE_POST, STREAM_LAG_DAYS, STREAM_POOL_SHARE } from '../../../data/v2/runDesign';
+import { REFERENCE_BASE, REFERENCE_POST, STREAM_PERIOD_DAYS, STREAM_POOL_SHARE } from '../../../data/v2/runDesign';
 import { RE_OPS } from '../../../data/v2/research';
 import { startOf } from '../../../data/v2/starts';
 import { decimalYear } from '../core/time';
@@ -23,7 +23,7 @@ import { AGENT_ACTIONS } from '../departments/agentActions';
 import { PRODUCT_ACTIONS } from './productOps';
 import { internalVersion, versionById } from './labs';
 import { TREE_ACTIONS } from './treeActions';
-import { POOL_SHARE_RANGE, launchRun, planRun, runForecast, startStream, streamRecipeGap, type LaunchRunParams } from './runs';
+import { POOL_SHARE_RANGE, launchRun, planRun, runForecast, startStream, streamPeriodGain, type LaunchRunParams } from './runs';
 import { AUTO_SPLIT_USES, autoSplitPlan, idleShares, type AutoSplitUse } from '../departments/autoSplit';
 import { studentToHold } from '../worldfx/serving';
 import { clamp } from '../../rng';
@@ -197,14 +197,15 @@ const RUN_ACTIONS: ActionDef[] = [
   {
     id: 'startStream', verb: 'train', system: 'models', sphere: 'models', owner: 'WS1', title: 'Continual learning',
     available: (s) => (s.player.paradigms.P08?.status === 'adopted' ? true : 'Needs continual learning (P08)'),
-    // RD-B19 (B37): the stream's standing load as charged and the recipe the version absorbs (streamRecipeGap, closed
-    // with the 7-day lag). Its slow drift in dispositions has no one-number preview.
+    // RD-T03: the stream's standing load as charged and what its first period buys: the mechanism (continued pretraining
+    // and an RL refresh on the period's FLOP) run on a copy of the version (streamPeriodGain). Its slow drift in
+    // dispositions has no one-number preview.
     preview: (s, p) => {
       const v = versionById(s, str(p, 'versionId', internalVersion(s)?.id ?? ''));
-      const gap = v ? Math.round(streamRecipeGap(s, v.id) * 1000) / 1000 : 0;
+      const g = v ? streamPeriodGain(s, v.id) : { dG: 0, flop: 0 };
       return {
         costs: streamCosts(),
-        gains: [{ currency: 'progress', amount: gap, unit: 'OOM', lagDays: STREAM_LAG_DAYS, target: `effective compute from your recipe that ${v?.name ?? 'the version'} absorbs (it keeps tracking new recipe)` }],
+        gains: [{ currency: 'progress', amount: Math.round(g.dG * 1000) / 1000, unit: 'OOM', lagDays: STREAM_PERIOD_DAYS, target: `effective compute ${v?.name ?? 'the version'} gains each ${STREAM_PERIOD_DAYS} days from ${g.flop.toExponential(1)} FLOP of continued pretraining and RL at today's pool` }],
         exposure: [],
       };
     },
@@ -213,12 +214,12 @@ const RUN_ACTIONS: ActionDef[] = [
   {
     id: 'stopStream', verb: 'train', system: 'models', sphere: 'models', owner: 'WS1', title: 'Stop stream',
     available: (s) => (s.player.models.stream ? true : 'No stream'),
-    // RD-B19 (B37): the version keeps what it absorbed; it stops taking up the recipe still ahead of it (streamRecipeGap).
+    // RD-T03: the version keeps what it gained; it forgoes the next period's gain (streamPeriodGain on a copy).
     preview: (s) => {
       const id = s.player.models.stream?.versionId ?? '';
-      const gap = Math.round(streamRecipeGap(s, id) * 1000) / 1000;
+      const g = streamPeriodGain(s, id);
       return {
-        costs: [{ currency: 'progress', amount: -gap, unit: 'OOM', target: `effective compute from your recipe that ${versionById(s, id)?.name ?? 'the version'} no longer absorbs (it keeps what it has)` }],
+        costs: [{ currency: 'progress', amount: -Math.round(g.dG * 1000) / 1000, unit: 'OOM', target: `effective compute ${versionById(s, id)?.name ?? 'the version'} no longer gains each ${STREAM_PERIOD_DAYS} days (it keeps what it has)` }],
         gains: streamCosts(),
         exposure: [],
       };

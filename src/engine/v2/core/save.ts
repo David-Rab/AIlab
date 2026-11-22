@@ -70,8 +70,11 @@ import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
  *  58 (RD-T01a, DD-06): an IDA run is an RL (post) run with the teacher as grader (TrainingRun.grader), no longer
  *  recognised by its name. Migration 57 → 58 sets grader 'teacher' on post runs named "IDA …".
  *  59 (RD-T02, TRN-07): a continue run draws its added tokens from the portfolio (RunRecipe.draw cumulative, prevDEff).
- *  Migration 58 → 59 redraws in-flight continue runs on the save's day (their launch portfolio is gone). */
-export const SCHEMA_REV = 59;
+ *  Migration 58 → 59 redraws in-flight continue runs on the save's day (their launch portfolio is gone).
+ *  60 (RD-T03, DD-05): the stream spends the FLOP it accrues (stream.flop, periodDay) on continued pretraining and an
+ *  RL refresh; its tracked recipe (stream.track) is gone. Migration 59 → 60 starts a running stream's period on the
+ *  save's day (the version keeps what it absorbed). Rivals' stream state (RivalPhys.cl) is set lazily. */
+export const SCHEMA_REV = 60;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -534,6 +537,14 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       const parent = s.player.models.bases.find((b) => b.id === r.baseId);
       if (parent) Object.assign((r.recipe ??= {}), continueDrawNow(s, parent, r.flopNeeded));
     }
+  },
+  /** 59 → 60 (RD-T03): a running stream drops its tracked recipe and starts a period on the save's day. Idempotent. */
+  59: (raw) => {
+    const st = (raw as unknown as GameStateV2).player?.models?.stream as (Record<string, unknown> & { periodDay?: number; flop?: number }) | undefined;
+    if (!st) return;
+    delete st.track;
+    st.periodDay ??= (raw as unknown as GameStateV2).time?.day ?? 0;
+    st.flop ??= 0;
   },
 };
 

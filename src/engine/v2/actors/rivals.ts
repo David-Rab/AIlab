@@ -31,7 +31,7 @@ import { decimalYear } from '../core/time';
 import type {
   BaselineId, EngineSystem, GameStateV2, HiddenWorld, LabId, RivalLab, RngLike, SafetyPosture, SetupV2, SimpleModel, StaffByRole, SystemCtx, UModeId,
 } from '../types';
-import { addRivalKnowledge, clRefresh, finishRun, gOfSimple, growLabStaff, initRivalPhys, labReferenceSplit, makeBase, newVersionG, setModelG, trainDay } from './rivalModel';
+import { addRivalKnowledge, clRefresh, clReset, finishRun, gOfSimple, growLabStaff, initRivalPhys, labReferenceSplit, makeBase, newVersionG, setModelG, trainDay } from './rivalModel';
 import { chinaDaily } from './china';
 import { ws4, ws4r } from './state';
 
@@ -318,6 +318,7 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
     const G = Math.max(gOfSimple(wl, r.internal), newVersionG(s, r, r.phys.base));
     r.internal = { ...r.internal, id: `${id}-b${gen}p${post + 1}`, name: `${fam}-${gen}.${post + 1}`, day, traitsTrue: { ...r.internal.traitsTrue }, uModes: [...r.internal.uModes] };
     setModelG(wl, r.internal, G, r.phys.base);
+    clReset(r);
     w.internalDay[id] = day;
     ws2RivalTraitStep(s, rng, r, 'post', { latent: s.flags[lk] === true });
   };
@@ -336,12 +337,13 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
       r.phys.clDay = day;
       r.internal = { ...r.internal, id: `${id}-b${g2}p0`, name: `${fam}-${g2}`, day, traitsTrue: { ...r.internal.traitsTrue }, uModes: [...r.internal.uModes], isPublic: false, openWeights: false };
       setModelG(wl, r.internal, gNew, nb);
+      clReset(r);
       w.internalDay[id] = day;
       ws2RivalTraitStep(s, rng, r, 'base');
       ws2RivalTraitStep(s, rng, r, 'post', { latent: s.flags[lk] === true });
     } else postVersion();
   } else if (day >= w.nextPost[id]) postVersion();
-  // Continual learning past the Research-agent level: the internal model re-applies today's recipe weekly, in place.
+  // Continual learning (RD-T03): every CL_DAYS the stream spends the FLOP its pool share delivered on the internal model.
   else clRefresh(s, r, day);
 
   // Releases: the public model lags the internal one (§3.10.3).

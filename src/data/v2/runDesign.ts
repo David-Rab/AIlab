@@ -103,9 +103,11 @@ export const CONTINUE_SHARE = 0.3;
 /** Amplification cycle (IDA, P18): extra RL FLOP as a share of the base's pretraining FLOP [D: one standard budget]. */
 export const IDA_RL_SHARE = 0.15;
 
-/** Continual-learning stream: share of the training pool used continuously and the tracking lag (§3.3.1). */
+/** Continual-learning stream: share of the training pool used continuously (§3.3.1) and its period (RD-T03, DD-05): every
+ *  STREAM_PERIOD_DAYS the FLOP that share delivered is spent on a continued-pretraining increment and an RL refresh of
+ *  the streamed version (models/runs.ts) [D: weekly, the old tracking cadence]. */
 export const STREAM_POOL_SHARE = 0.15;
-export const STREAM_LAG_DAYS = 7;
+export const STREAM_PERIOD_DAYS = 7;
 
 // ───────────────────────────── the reference recipe ─────────────────────────────
 

@@ -13,8 +13,8 @@
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { PLAYER_MODEL_FAMILY } from '../../../data/v2/names';
 import {
-  CONTINUE_SHARE, FLOP_RL_REF, DISTILL_TPP, E_START, GOODPUT, IDA_RL_SHARE, MFU_RL_FACTOR, P07_LONG_TASKS_HORIZON, PARAM_RANGE, RL_BUDGET, RL_FAMILY_IDS,
-  STREAM_LAG_DAYS, STREAM_POOL_SHARE, STUDENT_DEFAULT, TPP_FREE_MAX, TPP_RANGE, sizeScrutiny,
+  CONTINUE_SHARE, DISTILL_TPP, E_START, GOODPUT, IDA_RL_SHARE, MFU_RL_FACTOR, P07_LONG_TASKS_HORIZON, PARAM_RANGE, RL_BUDGET, RL_FAMILY_IDS,
+  STREAM_PERIOD_DAYS, STREAM_POOL_SHARE, STUDENT_DEFAULT, TPP_FREE_MAX, TPP_RANGE, sizeScrutiny,
 } from '../../../data/v2/runDesign';
 import { buildEtas, buildWaitNew, engScale, queueBuild, runSetupTW, runWaiting } from '../departments/build';
 import { TRAIT_IDS } from '../../../data/v2/traits';
@@ -37,7 +37,7 @@ import type { DomainMap } from './effective';
 import { releaseEvals } from './evals';
 import { addOff, addSig, baseEffect, clampSignals, monitorabilityClass, postEffect, type Off } from './design';
 import { domainsOf, gOfBuild, gOfDomain, levelOfG, refreshLevels } from './capability';
-import { ePreAt, gEquivOf, rlCeilNow, rlMidNow, serveFlopOomOf, serveNow, trainNow } from './stacks';
+import { ePreAt, rlCeilNow, rlMidNow, serveFlopOomOf, serveNow, trainNow } from './stacks';
 import { stackRate } from './research';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import {
@@ -424,8 +424,8 @@ function pretrain(s: GameStateV2, src: PretrainSource, rec?: RunRecipe): Pretrai
     const cd = rec?.draw ? { draw: rec.draw, prevDEff: rec.prevDEff } : continueDrawNow(s, b, src.addFlop);
     const fAdd = cd.prevDEff === undefined ? 1 : continueFData(b.params, b.tokens, addTokens, cd.draw.dEff, cd.prevDEff);
     const gPre = continueGPre(b.gPre, src.addFlop, E_START + (rec ? rec.pre! : ePreAt(s, flop)), b.design.shape, fAdd);
-    // Physical part grows by the added FLOP; the recipe efficiency is what remains (a stream re-applies today's; it now
-    // also carries the added part's data factor).
+    // Physical part grows by the added FLOP; the recipe efficiency is what remains (it also carries the added part's
+    // data factor; the stream's continued pretraining uses the same rule on a version, RD-T03).
     const ePre = gPre - (b.gPre - b.ePre) - Math.log10(flop / b.flop);
     return {
       flopNeeded: src.addFlop, cash: 0, scale: scaleOf(s, src.addFlop), flop, params: b.params, tokens: b.tokens + addTokens,
@@ -788,31 +788,89 @@ export const runsSystem: EngineSystem = {
   },
 };
 
-type Track = { pre: number; rlMid: number; rlCeil: number };
-/** The recipe a stream would absorb today: the pretraining stack at its base's FLOP and the RL stack. */
-function trackNow(s: GameStateV2, v: ModelVersion): Track {
-  const base = s.player.models.bases.find((x) => x.id === v.baseId);
-  return { pre: E_START + ePreAt(s, base?.flop ?? v.build?.flopPre ?? 3e26), rlMid: rlMidNow(s), rlCeil: rlCeilNow(s) };
-}
-/** The recipe a version already embodies (its base's pretraining recipe and its own RL recipe). */
-function trackOf(s: GameStateV2, v: ModelVersion, b: VersionBuild): Track {
-  const base = s.player.models.bases.find((x) => x.id === v.baseId);
-  return { pre: base?.ePre ?? E_START, rlMid: b.eRL, rlCeil: b.aRL ?? 0 };
-}
-/** A stream version's build at the tracked recipe: continual learning keeps applying today's pretraining and RL stacks
- *  to the deployed model in place (the AI 2027 online learner; model v3 V2: the stacks, not the know-how number). The
- *  physical part of its base (FLOP, shape, data) is unchanged. Its RL runs on the lab's suites today (model v3 D5). */
-function streamBuild(s: GameStateV2, v: ModelVersion, b: VersionBuild, tr: Track): VersionBuild {
-  const base = s.player.models.bases.find((x) => x.id === v.baseId);
-  const gPre = base ? base.gPre - base.ePre + tr.pre : b.gPre;
-  const rlFid = suiteFidMap(s);
-  const rl = rlGains(b.flopPre, b.rlFlop, b.rlW, tr.rlMid, tr.rlCeil, rlFid);
-  return { ...b, gPre, eRL: tr.rlMid, aRL: tr.rlCeil, rlFid, dgRL: rl.general, dgRLd: rl.perDomain };
+// ───────────────────────────── continual-learning stream (P08) ─────────────────────────────
+// RD-T03 (DD-05, TRN-02): the stream is a scheduled pair of the two acts on the FLOP it actually spends. Every
+// STREAM_PERIOD_DAYS the streamed version gets a continued-pretraining increment (the pretraining act's "continue": the
+// FLOP the stream's pool share delivered in the period, its tokens drawn from the portfolio, only the added part at
+// today's pretraining recipe, continueGPre) followed by an RL refresh (the RL act on the version: the period's RL FLOP,
+// only the added part at today's RL recipe and suites). No recipe is re-applied for free: 0 FLOP adds nothing.
+
+/** Pool FLOP the stream delivers per day (before its pretraining / RL split): STREAM_POOL_SHARE of the training pool ×
+ *  goodput × the run operations served (RD-B09). */
+export const streamFlopPerDay = (s: GameStateV2) => STREAM_POOL_SHARE * trainingFlopPerDay(s) * goodputOf(s) * runOpsServed(s);
+
+/** The period's pool FLOP split between the acts as the version's own pretraining : RL FLOP [D: the stream keeps the
+ *  version's mix]; the RL part runs at MFU_RL_FACTOR (its rollouts are inference), as an RL run does. */
+function streamSplit(b: VersionBuild, poolFlop: number): { pre: number; rl: number } {
+  const rho = Math.max(0, b.rlFlop) / Math.max(1, b.flopPre);
+  const q = rho / (1 + rho);
+  return { pre: Math.max(0, poolFlop) * (1 - q), rl: Math.max(0, poolFlop) * q * MFU_RL_FACTOR };
 }
 
-/** Stream (P08): the version tracks the stacks with a 7-day lag (first-order; slower when run operations are short). WS2 adds trait drift (1/42 of a
- *  post-train run per day) via its own hook on `stream`. */
-function advanceStream(s: GameStateV2) {
+/** The RL act on a version with only the added part at today's recipe: effective RL compute adds (the curve reads
+ *  rlFlop · 10^eRL ÷ FLOP_pre), so e_RL is the FLOP-weighted mean of its and today's in that unit; the ceiling raise and
+ *  each family's suite fidelity move toward today's by the added FLOP's share, never down. `extra` 0 changes nothing. */
+function rlAddOnVersion(s: GameStateV2, tb: VersionBuild, extra: number, rec: RlRecipe = rlRecipeNow(s)): VersionBuild {
+  if (!(extra > 0)) return tb;
+  const tot = tb.rlFlop + extra;
+  const share = extra / tot;
+  const eRL = Math.log10((tb.rlFlop * Math.pow(10, tb.eRL) + extra * Math.pow(10, rec.rlMid)) / tot);
+  const a0 = tb.aRL ?? 0;
+  const aRL = Math.max(a0, a0 + share * (rec.rlCeil - a0));
+  const rlFid: FamilyMap = { ...tb.rlFid };
+  for (const [f, v] of Object.entries(rec.fid ?? {}) as [RLFamily, number][]) {
+    const o = rlFid[f] ?? 1;
+    rlFid[f] = Math.max(o, o + share * (v - o));
+  }
+  const rl = rlGains(tb.flopPre, tot, tb.rlW, eRL, aRL, rlFid);
+  return { ...tb, rlFlop: tot, eRL, aRL, rlFid, dgRL: rl.general, dgRLd: rl.perDomain };
+}
+
+/** One stream period on version `v` with `poolFlop` of pool FLOP: continued pretraining then the RL refresh (above).
+ *  Returns the new build (the caller writes it). A version without a base of its own gets the RL part only. */
+export function streamPeriodBuild(s: GameStateV2, v: ModelVersion, poolFlop: number): VersionBuild {
+  const b = v.build ?? fallbackBuild(v);
+  if (!(poolFlop > 0)) return b;
+  const { pre, rl } = streamSplit(b, poolFlop);
+  let nb: VersionBuild = b;
+  const base = s.player.models.bases.find((x) => x.id === v.baseId);
+  if (base && pre > 0) {
+    // The pretraining act's continue source on the version's weights: tokens drawn with the base's mix, cumulative on
+    // what the base and earlier stream periods used (RD-T02's draw), the added part at today's recipe at the new FLOP.
+    const prevTok = base.tokens + (b.addTokens ?? 0);
+    const add = pre / (6 * base.params);
+    const tot = playerDraw(s, base.design, prevTok + add);
+    const fAdd = continueFData(base.params, prevTok, add, tot.dEff, playerDraw(s, base.design, prevTok).dEff);
+    const flopPre = b.flopPre + pre;
+    nb = { ...b, gPre: continueGPre(b.gPre, pre, E_START + ePreAt(s, flopPre), base.design.shape, fAdd), flopPre, addTokens: prevTok + add - base.tokens };
+  }
+  return rlAddOnVersion(s, nb, rl);
+}
+
+/** Apply a stream period to `v` in place: its build moves, its G only up. */
+function applyStreamPeriod(s: GameStateV2, v: ModelVersion, poolFlop: number) {
+  const nb = streamPeriodBuild(s, v, poolFlop);
+  v.build = nb;
+  const G = gOfBuild(nb);
+  if (G > v.G) {
+    v.G = G;
+    refreshLevels(s.hidden.timeline, v);
+  }
+}
+
+/** Gain (OOM of G) and pool FLOP of the stream's next period on version `id` at today's pool: the mechanism run on a
+ *  copy of the version (the start and stop previews read it). */
+export function streamPeriodGain(s: GameStateV2, versionId: string): { dG: number; flop: number } {
+  const v = versionById(s, versionId);
+  if (!v) return { dG: 0, flop: 0 };
+  const flop = streamFlopPerDay(s) * STREAM_PERIOD_DAYS;
+  const nb = streamPeriodBuild(s, structuredClone(v), flop);
+  return { dG: Math.max(0, gOfBuild(nb) - Math.max(v.G, gOfBuild(v.build ?? fallbackBuild(v)))), flop };
+}
+
+/** Stream (P08): FLOP accrues daily at the stream's pool share; every STREAM_PERIOD_DAYS the period's FLOP is spent on
+ *  the two acts (applyStreamPeriod). WS2 adds trait drift via its own hook on `stream`. */
+function advanceStream(s: GameStateV2, day: Day) {
   const st = s.player.models.stream;
   if (!st) return;
   const v = versionById(s, st.versionId);
@@ -820,71 +878,30 @@ function advanceStream(s: GameStateV2) {
     delete s.player.models.stream;
     return;
   }
-  const b = v.build ?? fallbackBuild(v);
-  // RD-B09: the stream tracks at the run operations served (its research engineers are part of the ops need).
-  const a = (1 - Math.exp(-1 / STREAM_LAG_DAYS)) * runOpsServed(s);
-  const cur = st.track ?? trackOf(s, v, b);
-  const now = trackNow(s, v);
-  st.track = { pre: cur.pre + a * (now.pre - cur.pre), rlMid: cur.rlMid + a * (now.rlMid - cur.rlMid), rlCeil: cur.rlCeil + a * (now.rlCeil - cur.rlCeil) };
-  const nb = streamBuild(s, v, b, st.track);
-  const G = gOfBuild(nb);
-  v.build = nb;
-  if (G > v.G) {
-    v.G = G;
-    refreshLevels(s.hidden.timeline, v);
-  }
+  st.flop = (st.flop ?? 0) + streamFlopPerDay(s);
+  st.periodDay ??= day;
+  if (day - st.periodDay < STREAM_PERIOD_DAYS) return;
+  applyStreamPeriod(s, v, st.flop);
+  st.flop = 0;
+  st.periodDay = day;
 }
 
-/** The track a stream started on `v` today begins from. The stream continues from the recipe the version already
- *  embodies; moving a running stream onto a version (e.g. on a newer base) carries the RL recipe it already absorbed,
- *  and the pretraining recipe re-applies at the new base [D]. */
-function startTrack(s: GameStateV2, v: ModelVersion, b: VersionBuild): Track {
-  const old = s.player.models.stream;
-  const own = trackOf(s, v, b);
-  return old && old.versionId !== v.id && old.track
-    ? { pre: Math.max(own.pre, old.track.pre), rlMid: Math.max(own.rlMid, old.track.rlMid), rlCeil: Math.max(own.rlCeil, old.track.rlCeil) }
-    : own;
-}
-
-/** RD-B19 (B37): recipe (OOM of effective compute, stacks.ts inPlaceRecipe's measure, known to the lab) a version on the
- *  stream has still to absorb: today's stacks (trackNow, what advanceStream closes in on with the STREAM_LAG_DAYS lag)
- *  minus the track it holds (the running stream's, or startStream's start track). At least 0: the stream never lowers
- *  a version. The start and stop previews read it. */
-export function streamRecipeGap(s: GameStateV2, versionId: string): number {
-  const v = versionById(s, versionId);
-  if (!v) return 0;
-  const b = v.build ?? fallbackBuild(v);
-  const st = s.player.models.stream;
-  const tr = st?.versionId === v.id && st.track ? st.track : startTrack(s, v, b);
-  const now = trackNow(s, v);
-  const F = v.build?.flopPre ?? s.player.models.bases.find((x) => x.id === v.baseId)?.flop ?? FLOP_RL_REF;
-  return Math.max(0, gEquivOf(F, now.pre, now.rlMid, now.rlCeil) - gEquivOf(F, tr.pre, tr.rlMid, tr.rlCeil));
-}
-
-/** Start a continual-learning stream on a version (needs P08). Returns an error string or undefined. */
+/** Start a continual-learning stream on a version (needs P08). Returns an error string or undefined. Nothing changes
+ *  until the first period's FLOP is spent. */
 export function startStream(s: GameStateV2, versionId: string, day: Day = s.time.day): string | undefined {
   if (!adopted(s, 'P08')) return 'Needs continual learning (P08)';
   const v = versionById(s, versionId);
   if (!v || v.variant !== 'full') return 'Pick a full version';
-  const b = v.build ?? fallbackBuild(v);
-  const track = startTrack(s, v, b);
-  const nb = streamBuild(s, v, b, track);
-  const G = gOfBuild(nb);
-  v.build = nb;
-  if (G > v.G) {
-    v.G = G;
-    refreshLevels(s.hidden.timeline, v);
-  }
-  s.player.models.stream = { versionId, startedDay: day, lastAuditDay: day, track };
+  s.player.models.stream = { versionId, startedDay: day, lastAuditDay: day, periodDay: day, flop: 0 };
   return undefined;
 }
 
-/** continual (45, daily): stream versions track the stacks. Rival and China labs run one daily policy, WS4's labDaily
+/** continual (45, daily): the stream accrues and spends its FLOP. Rival and China labs run one daily policy, WS4's labDaily
  *  (actors/rivals.ts, order 100); the old WS1 default policy is gone (RD-B14: it doubled day-1 staff growth and training). */
 export const continualSystem: EngineSystem = {
   id: 'continual', owner: 'WS1', cadence: 'daily', order: 45, system: 'models',
-  run(s) {
-    advanceStream(s);
+  run(s, ctx) {
+    advanceStream(s, ctx.day);
   },
 };
 
