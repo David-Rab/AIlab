@@ -980,3 +980,29 @@ Headroom removed (DD-12; SYNTHESIS §6 Phase 3; CAP-18). Commit eb8792d.
 - **Checks:** tsc (app and scripts/v2) clean; npm run build passes.
 - **Moves calibration: yes** (the 30% of every adopted idea that waited for tuning now lands at once, and the research
   engineers tuning held go idle; expect earlier milestones, most on presets with many adoptions; refit at CP2).
+
+### RD-A03
+
+Science-team planner by value (CAP-08; SYNTHESIS theme A, §6 Phase 3). Commit faa8d47.
+- **Value:** `models/research.ts` `projectValue(s, id)` = expected value per day (lab-wide software OOM) as a function of
+  the capacity C and capacity-weighted taste q on a project; ideation at (m_IDEAS·C)^λ × q × speed per team-month of
+  ideation work (as stepProject). Line: candidates/day × the pool's prior mean of a batch (`valueOom`). One-off idea in
+  ideation: candidates/day ÷ PICK_AT × attempt odds × prior mean (taste's lift included). Unlock: (science work + the
+  experiment CES work)/day ÷ trialWork × odds × `VALUE_PROXY.unlock`. Proxies [D] (data/v2/research.ts `VALUE_PROXY`):
+  a domain OOM = 0.1 software OOM; an unlock or a data / expert-data effect = 0.05 OOM × its size (about one mid-sized
+  stack idea). `assignmentValue(s, projects, teams)` sums projectValue (signature gained `s`).
+- **Release in tests:** `releasesTeams(n, st)`: a one-off idea (typed effect, not a line) in stage small / scale gets no
+  teams and value 0 (its new candidates only mattered after a drop); lines keep ideating; an unlock's test keeps them.
+  `takesTeams` unchanged (capEta, tree status, ref bot).
+- **Planner:** priority pass (teams wanted, best specialty first) unchanged except released projects are skipped; the
+  swap pass and the spare pass maximise value. Spares: auto projects first, then any project under PROJECT_MAX_TEAMS,
+  by marginal value × AUTO_RANK_W per rank (spares no longer all join the top project when every project is fixed);
+  no gain anywhere: idle. "Why here": the reason (priority / swapped / auto / spare, specialty) + "adds ~x% to this
+  project's yearly gain" (value with the team ÷ without − 1; a sole team "carries all of this project's yearly gain").
+- **Tests:** `tsx scripts/v2/research.ts --rd-a03` (a one-off idea in its small test gets no team, a line in its test
+  keeps one, back in ideation it gets one; the spare goes to P16 over the top-ranked elastic, gains shown; every why
+  states the value). B4 check updated: all-fixed spares go by value (no longer 4 on the top project); brute-force
+  check now on value. Not run: the full research suite, test:cal (RD test rule; CP2).
+- **Checks:** tsc (app and scripts/v2) clean; npm run build passes.
+- **Moves calibration: yes** (teams leave one-off ideas during their tests and spares follow effect size: more science
+  on lines and big-effect ideas, P13-type projects' ideation pace changes; refit at CP2).
