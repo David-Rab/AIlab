@@ -44,7 +44,7 @@ export function causeText(r: PressureRow, kind: RunPressure['kind']): string {
       : q.legacy ? `scale G ${F.num(n(q.gPre), 1)} (AI-data share not recorded for this base)` : `AI-related data ${F.pct(n(q.ai), 1)} of tokens (reference ${F.pct(n(q.aiRef), 1)})${q.safetyPretrain ? ' after safety pretraining' : ''} + scale G ${F.num(n(q.gPre), 1)}`;
     case 'S6': return 'no fine-tune on narrow harmful or deceptive data (none of the run kinds is one)';
     case 'S7': return `${rel(n(q.rho), n(q.rhoRef))} · ${F.pct(n(q.mlShare))} of RL on ML research${n(q.bb) ? ` · ${n(q.bb)} behavioural detector${n(q.bb) > 1 ? 's' : ''} trained against` : ''}`;
-    case 'S8': return `${F.count(n(q.copies))} internal agent copies${q.p05 ? ' · shared memory (P05)' : ''}${q.applied ? '' : ' (today)'}`;
+    case 'S8': return `${F.count(n(q.agentFte))} research-agent AI FTE (full at ${F.count(n(q.fteRef))})${q.p05 ? ' · shared memory (P05)' : ''}${q.applied ? '' : ' (today)'}`;
     case 'S9': return n(q.bb) ? `${n(q.bb)} behavioural detector${n(q.bb) > 1 ? 's' : ''} trained against: penalised only where seen` : 'every training episode graded alike';
   }
 }

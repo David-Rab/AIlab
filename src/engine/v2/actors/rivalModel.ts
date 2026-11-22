@@ -212,7 +212,7 @@ export interface RivalResearch {
   c: number; l: number; X: number; Xh: number; units: number;
   /** AI labour on Experiments (coverage, AI FTE) and on Research ideas (labour multiplier), copies; human share of the
    *  experiment margin; AI taste (SD) and the scientists' taste with it. */
-  a: number; aiFte: number; mIdeas: number; copies: number; wH: number; sdAI: number; taste: number;
+  a: number; aiFte: number; mIdeas: number; copies: number; agentFte: number; wH: number; sdAI: number; taste: number;
 }
 /** Research of lab `r` with experiment share `f` of its research compute `C` (H100e), its internal model doing the AI
  *  work. `eff` = the lab's research-efficiency multiplier, `mods` the speed modifiers. */
@@ -247,7 +247,7 @@ function rawAggregate(w: TimelineWorld, G: number, fpt: number, staffCap: number
   const taste = rivalTaste(k, LI);
   return {
     E: X * units * taste, Eh: Xh * units, I: Math.pow(LI, P.lam) * taste * taste, Ih: Math.pow(S, P.lam),
-    c, l, X, Xh, units, a, aiFte, mIdeas: LI / S, copies: copiesOf(kAg, fpt), wH, sdAI: k.sdAI, taste,
+    c, l, X, Xh, units, a, aiFte, mIdeas: LI / S, copies: copiesOf(kAg, fpt), agentFte: kAg * k.fte, wH, sdAI: k.sdAI, taste,
   };
 }
 /** P4: rawAggregate's E and I alone (what the mix search reads), by the same expressions, without the readout parts. */
@@ -375,7 +375,7 @@ export function rivalReadout(x: RivalResearch, eRate: number, stage2: boolean, r
     parts: { agents: x.X / Math.max(1e-12, x.Xh), taste: x.taste, other: M / Math.max(1e-12, (x.X / Math.max(1e-12, x.Xh)) * x.taste) },
     elast: { exp: 0, humans: 0, agents: 0, taste: 0 }, perDollar: { exp: 0, humans: 0, agents: 0 },
     ceilings: { humans: 1, agents: 1, exp: 1 }, binding: 'experiments', label: x.wH > 0.5 ? 'human-bound' : 'compute-bound',
-    labor: { A: x.a, aiFTE: x.aiFte, copies: x.copies, speed: x.copies > 0 ? speedOfCopy() : 0, wH: x.wH },
+    labor: { A: x.a, aiFTE: x.aiFte, copies: x.copies, speed: x.copies > 0 ? speedOfCopy() : 0, wH: x.wH, agentFte: x.agentFte },
     ratios, whatIf: one, sdAI: x.sdAI,
   };
 }

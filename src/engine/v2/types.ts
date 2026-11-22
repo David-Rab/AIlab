@@ -852,7 +852,9 @@ export interface ProductionReadout {
   binding: 'experiments' | 'humans' | 'agents' | 'taste' | 'data';
   label: 'compute-bound' | 'labor-bound' | 'human-bound' | 'taste-bound';
   /** aEng (R7, player): AI share of engineers' work from the engineering agents (A_eng of their model × coverage). */
-  labor: { A: number; aiFTE: number; copies: number; speed: number; wH: number; aEng?: number };
+  labor: { A: number; aiFTE: number; copies: number; speed: number; wH: number; aEng?: number;
+    /** RD-A08: AI FTE of all research agents (Experiments + Research ideas; a rival: its whole agent pool); S8 reads it. */
+    agentFte: number };
   ratios: { h: number; k: number; c: number };
   /** What-ifs: M multiplier from 2× humans, 2×/0.1× agents, 2×/0.5× experiment compute (research/13 §1.6). */
   whatIf: { humans2: number; agents2: number; agents01: number; exp2: number; exp05: number };

@@ -50,7 +50,7 @@ export interface V3Inputs {
   /** Speed modifiers inside M (siloing, migrations) and on the rate (pause, treaty). */
   mods: number; rateMult: number;
   /** Readout pieces of the work-type layer. */
-  sdAI: number; aEng: number; copies: number; speed: number; aiFte: number;
+  sdAI: number; aEng: number; copies: number; speed: number; aiFte: number; agentFte: number;
   /** Software progress of the stacks, OOM per year (smoothed). */
   gRate: number;
   /** The lab has reached its superhuman coder (stage 2 for the readers of `stage`). */
@@ -156,6 +156,7 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
     h0: h, k0: k, reRes0: reRes, H0: Math.max(1e-9, capReCapacity(s) * mod.humans), AI0: Cag + spare > 0 ? ex.AI : 0, a: ex.fit.a, assist: ex.fit.assist,
     flopEff, Tai: cap > 0 ? tai / cap : 1, Th: cap > 0 ? th / cap : 1, mods: mod.speed / mod.rateMult, rateMult: mod.rateMult,
     sdAI: wc.sdAI, aEng: wc.slots.SWE.fit.a, copies: ex.copies + wc.slots.IDEAS.copies, speed: ex.copies > 0 ? speedOfCopy() : 0, aiFte: ex.aiFte,
+    agentFte: ex.aiFte + wc.slots.IDEAS.aiFte,
     gRate: (p.research.gRate ?? 0) * 365, stage2: p.milestoneDays[3] !== undefined,
   };
   const Cres = pools.experiments + pools.agents;
@@ -208,7 +209,7 @@ function evalProductionV3(w: TimelineWorld, inp: LabInputs, detail: boolean): Pr
   else if (label === 'labor-bound' && e.wH > 0.5) label = 'human-bound';
   return {
     M: e.M, rate, stage, parts, elast, perDollar, ceilings, binding, label,
-    labor: { A: v.a, aiFTE: v.aiFte, copies: v.copies, speed: v.speed, wH: e.wH, aEng: v.aEng },
+    labor: { A: v.a, aiFTE: v.aiFte, copies: v.copies, speed: v.speed, wH: e.wH, aEng: v.aEng, agentFte: v.agentFte },
     ratios: { h: inp.h, k: inp.k, c: inp.c },
     whatIf, sdAI: v.sdAI,
   };
