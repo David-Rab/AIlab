@@ -7,7 +7,7 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Building2, CircleCheck, CircleDashed, CircleX, Hourglass, Layers, LoaderCircle, WandSparkles, Wrench, X } from 'lucide-react';
 import {
-  dateOf, effortClassOf, effortOfNode, fmtDate, isCapProject, missingNeeds, nodeOdds, nodeStatus, payoffOf, projectCapacity, projectEta, projectReady, stagesOf, teamsOn, treeCounts,
+  dateOf, effortClassOf, effortOfNode, fmtDate, isCapProject, missingNeeds, nodeOdds, nodeStatus, projectCapacity, projectEta, projectReady, stagesOf, teamsOn, treeCounts,
 } from '../../../engine/v2';
 import type { Column, GameStateV2, NodeStatus } from '../../../engine/v2';
 import { PICK_AT } from '../../../data/v2/research';
@@ -256,7 +256,6 @@ function NodeCard({ s, n, st }: { s: GameStateV2; n: TreeNodeDef; st: NodeStatus
   const teams = teamsOn(s, n.id);
   const etaNow = projectEta(s, n.id);
   const etaOne = projectEta(s, n.id, 1);
-  const payoff = n.payoff ? payoffOf(s, n.id) : undefined;
   const Ic = COL_ICON[n.column];
   const children = TREE_CHILDREN[n.id] ?? [];
   const efRow = (icon: ReactNode, label: string, v?: string, tone = '') => v ? <div className="rs-efrow"><span>{icon}</span><span className="dim">{label}</span><span className={tone}>{v}</span></div> : null;
@@ -278,7 +277,7 @@ function NodeCard({ s, n, st }: { s: GameStateV2; n: TreeNodeDef; st: NodeStatus
         {efRow(<ICON.capabilities size={13} style={{ color: C.cap }} />, 'Capability', n.cap ?? 'none', n.fx.cap && n.fx.cap < 0 ? 'tone-neg' : '')}
         {efRow(<ICON.safety size={13} style={{ color: C.und }} />, 'Safety', n.saf, n.fx.saf && n.fx.saf < 0 ? 'tone-neg' : 'tone-pos')}
         {efRow(<ICON.cash size={13} />, 'Cost', n.cost, 'tone-warn')}
-        {n.payoff && <div className="rs-efrow"><span><ICON.M size={13} /></span><span className="dim">Pays off</span><span>{n.payoff}{payoff !== undefined && n.paradigm && n.id === 'P20' ? <b className="num"> · now {F.pct(payoff)}</b> : null}</span></div>}
+        {n.payoff && <div className="rs-efrow"><span><ICON.M size={13} /></span><span className="dim">Pays off</span><span>{n.payoff}</span></div>}
       </div>
       <div className="sec">
         <div className="k"><Term id="odds">Odds</Term></div>

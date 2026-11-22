@@ -29,7 +29,6 @@ import { Lrel, Phi, tasteSigma } from '../production/ces';
 import { h50Of, versionDomainG } from '../models/capability';
 import { adopted } from '../models/paradigms';
 import { REF_RL_PROFILE } from '../models/effective';
-import { payoffOf } from '../models/tree';
 import { decimalYear } from '../core/time';
 import { spareServingToResearch } from '../worldfx/revenue';
 import { internalFx, tokEff } from '../worldfx/serving';
@@ -222,9 +221,9 @@ export interface WorkContext {
   sAI: number;
 }
 
-/** Agent compute (H100e) of a capabilities use, with the AI-labour multipliers of adopted ideas: P05 orchestration ×1.3,
- *  P20 agent societies ×(1 + 0.1·payoff), and the control tax under the AG07 control layer (model v3 E6, Greenblatt et
- *  al. 2023: the usefulness of trusted monitoring with deferral, 93–97% by the gap to the use's trusted monitor). */
+/** Agent compute (H100e) of a use and the control tax under the AG07 control layer (model v3 E6, Greenblatt et al. 2023:
+ *  the usefulness of trusted monitoring with deferral, 93–97% by the gap to the use's trusted monitor). RD-E01b: no
+ *  flat paradigm multipliers; P05 orchestration is a typed scaffold (internalFx), P20 is deleted. */
 function useLabour(s: GameStateV2, slot: LabourSlot): { v?: ModelVersion; h100e: number; mult: number } {
   const p = s.player;
   const off = Number(s.flags['ws4:agentsOffUntil'] ?? -1) > s.time.day;
@@ -234,10 +233,7 @@ function useLabour(s: GameStateV2, slot: LabourSlot): { v?: ModelVersion; h100e:
   if (!off) {
     h100e = p.computeOnline * agentSplitShare(s, use) + (use === 'capRoutine' ? spareServingToResearch(s) : 0);
   }
-  let mult = 1;
-  if (adopted(s, 'P05')) mult *= 1.3;
-  if (adopted(s, 'P20')) mult *= 1 + 0.1 * payoffOf(s, 'P20');
-  mult *= useControl(s, v, monitorVersion(s, use)).usefulness;
+  const mult = useControl(s, v, monitorVersion(s, use)).usefulness;
   return { v, h100e, mult };
 }
 

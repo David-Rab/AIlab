@@ -856,7 +856,9 @@ export interface ProductionReadout {
   binding: 'experiments' | 'humans' | 'agents' | 'taste' | 'data';
   label: 'compute-bound' | 'labor-bound' | 'human-bound' | 'taste-bound';
   /** aEng (R7, player): AI share of engineers' work from the engineering agents (A_eng of their model × coverage). */
-  labor: { A: number; aiFTE: number; copies: number; speed: number; wH: number; aEng?: number };
+  labor: { A: number; aiFTE: number; copies: number; speed: number; wH: number; aEng?: number;
+    /** RD-A08: AI FTE of all research agents (Experiments + Research ideas; a rival: its whole agent pool); S8 reads it. */
+    agentFte: number };
   ratios: { h: number; k: number; c: number };
   /** AI research taste in human SDs above the median (research/13 §2.4). */
   sdAI: number;

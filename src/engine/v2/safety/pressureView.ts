@@ -21,7 +21,7 @@ import { controlProtocol, gapFactor, oomOfLevel, oversightGap, underControl } fr
 import { HUMAN_REVIEW_L } from '../../../data/v2/oversight';
 import {
   COT_S4, G_S5_0, K_GAO, K_S3, K_S5G, OMEGA_KIND, OMEGA_RL_EXP, PREF_S1, RHO_REF, S5_AI, S5_LONG, S6_NARROW_HARMFUL, S7_BASE, S7_EVAL_ENV, S7_PER_BB, S9_PER_BB,
-  INOC_MULT, LH_FULL, LH_ONSET, aiDataShare, deploymentS8, s9OfDetectors, hackShare, kappaSucc, learnedHackingOf, optimisationPressure, prefShare, referenceBaseShares, runOmega, s7OfRl,
+  INOC_MULT, LH_FULL, S8_FTE_REF, LH_ONSET, aiDataShare, deploymentS8, s9OfDetectors, hackShare, kappaSucc, learnedHackingOf, optimisationPressure, prefShare, referenceBaseShares, runOmega, s7OfRl,
 } from './traits';
 
 export type FamilyId = (typeof RISK_FAMILIES)[number]['id'];
@@ -95,7 +95,7 @@ export function postPressure(s: GameStateV2, post: PostDesign, rho: number, expl
   const s3f = famTerms(w, (f, wf) => { const h = RL_FAMILY_DEF[f].taskH ?? 0; return { x: h, term: K_S3 * wf * Math.log10(1 + h) }; }).filter((r) => r.x > 0);
   const cotMonitor = post.trainAgainst.some((id) => s.player.safety.techniques[id]?.family === 'COT');
   const bb = post.trainAgainst.filter((id) => s.player.safety.techniques[id]?.family === 'BB').length;
-  const copies = s.player.prodCache?.labor.copies ?? 0;
+  const agentFte = s.player.prodCache?.labor.agentFte ?? 0;
   const ps = prefShare(rho);
   const rows: PressureRow[] = [
     { id: 'S1', value: PREF_S1[post.pref] * (ps / prefShare(RHO_REF)), q: { method: post.pref, bias: PREF_S1[post.pref], prefShare: ps, prefShareRef: prefShare(RHO_REF) } },
@@ -105,7 +105,7 @@ export function postPressure(s: GameStateV2, post: PostDesign, rho: number, expl
     { id: 'S5', value: S5_LONG * (w.longHorizon ?? 0), q: { longShare: w.longHorizon ?? 0, k: S5_LONG } },
     { id: 'S6', value: S6_NARROW_HARMFUL, q: {} }, // AF2: no narrow harmful fine-tune in any run kind
     { id: 'S7', value: S7_BASE + s7OfRl(rho) + S7_EVAL_ENV * (w.mlResearch ?? 0) + S7_PER_BB * bb, q: { base: S7_BASE, rl: s7OfRl(rho), mlShare: w.mlResearch ?? 0, kMl: S7_EVAL_ENV, bb, kBb: S7_PER_BB, rho, rhoRef: RHO_REF } },
-    { id: 'S8', value: s8 ?? deploymentS8(s), q: { copies, p05: adopted(s, 'P05'), p20: adopted(s, 'P20'), applied: s8 !== undefined } },
+    { id: 'S8', value: s8 ?? deploymentS8(s), q: { agentFte, fteRef: S8_FTE_REF, p05: adopted(s, 'P05'), applied: s8 !== undefined } },
     // E17: oversight-conditional reward (→ alignment faking), split from S7.
     { id: 'S9', value: s9OfDetectors(bb), q: { bb, kBb: S9_PER_BB } },
   ];

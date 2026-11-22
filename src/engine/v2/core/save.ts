@@ -61,8 +61,10 @@ import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
  *  54 (RD-E01a, DD-14): paradigms P13 and P19 are deleted (with P19's RSCH gain) and P24 is an idea in the
  *  pretraining stack: RunRecipe.p24 is gone. Migration 53 → 54 drops P13 / P19 state and draws, folds a run's frozen
  *  P24 bonus into its frozen pretraining stack, gives an adopted P24 its bonus on the save's day as a stack idea, and
- *  recomputes stored domain levels without P19. */
-export const SCHEMA_REV = 54;
+ *  recomputes stored domain levels without P19.
+ *  55 (RD-E01b, DD-14): paradigm P20 is deleted; P05 is a typed scaffold and P07 multiplies the long-tasks RL family's
+ *  horizon (no stored shape changes: versions keep their frozen h80Mult). Migration 54 → 55 drops P20 state and draw. */
+export const SCHEMA_REV = 55;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -485,6 +487,14 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       const o = r as unknown as { internal?: M; publicModel?: M };
       for (const m of [o.internal, o.publicModel]) if (m && m.domains) m.domains = domainsOf(w, m.G, m.build && 'gPre' in m.build ? m.build : undefined);
     }
+  },
+  /** 54 → 55 (RD-E01b): P20 leaves the paradigm, tree and hidden-draw data (queues and teams drop unknown nodes
+   *  themselves). Idempotent. */
+  54: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    if (s.player?.paradigms) delete s.player.paradigms.P20;
+    if (s.player?.tree) delete s.player.tree.P20;
+    if (s.hidden?.paradigmSuccess) delete s.hidden.paradigmSuccess.P20;
   },
 };
 

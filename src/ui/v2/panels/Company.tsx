@@ -119,7 +119,6 @@ function Flow({ s }: { s: GameStateV2 }) {
 }
 
 const SPEED_LIMIT_LABEL: Record<SpeedLimitLine['id'], ReactNode> = {
-  'speed.serialCap': <Term id="agentCopies">Serial speed</Term>,
   'speed.pause': 'Pause',
   'speed.diffusion': <Term id="diffusion">Knowledge diffusion</Term>,
 };

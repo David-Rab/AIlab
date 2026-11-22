@@ -11,7 +11,7 @@
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { PLAYER_MODEL_FAMILY } from '../../../data/v2/names';
 import {
-  CONTINUE_SHARE, FLOP_RL_REF, DISTILL_TPP, E_START, GOODPUT, IDA_RL_SHARE, MFU_RL_FACTOR, PARAM_RANGE, RL_BUDGET, RL_FAMILY_IDS,
+  CONTINUE_SHARE, FLOP_RL_REF, DISTILL_TPP, E_START, GOODPUT, IDA_RL_SHARE, MFU_RL_FACTOR, P07_LONG_TASKS_HORIZON, PARAM_RANGE, RL_BUDGET, RL_FAMILY_IDS,
   STREAM_LAG_DAYS, STREAM_POOL_SHARE, STUDENT_DEFAULT, TPP_FREE_MAX, TPP_RANGE, sizeScrutiny,
 } from '../../../data/v2/runDesign';
 import { buildEtas, buildWaitNew, engScale, queueBuild, runSetupTW, runWaiting } from '../departments/build';
@@ -161,11 +161,6 @@ function flopCost(s: GameStateV2, flop: number): number {
   return (flop / PHI_FLOP_PER_H100E_DAY / 365) * tcoPerH100eYear(s, decimalYear(s));
 }
 
-/** Horizon extender (MODEL-V3 §7.2, typed: × h50 of versions trained after adoption). Long context + memory (P07) ×1.2
- *  [D]: research/12 #7 proposed ×1.5 [G, no primary source]; CL-Bench 2026 finds dedicated memory systems not yet beating
- *  in-context learning [P, research/12 §2], so a smaller multi-day-continuity effect. (Long-horizon human demos, P12,
- *  act through the long-tasks suite's expert data since model v3 D9, not as a horizon multiplier.) */
-export const P07_HORIZON = 1.2;
 /** A run's scale vs the reference frontier run F(t), read only for public scrutiny (engineering uses the physical FLOP
  *  since model v3 V3, departments/build.ts engScale; S5 the base's G and drawn data since model v3 E3). Until RD-T11
  *  (SYNTHESIS §6 Phase 6) measures scrutiny against the largest rival run. */
@@ -282,11 +277,13 @@ function withDomainG(domainG: Partial<Record<DomainId, number>>, sD: Off): Domai
 
 /** Post-training build on `base` with design `d` at the frozen recipe `rec` (no penalty, no paradigm offsets). */
 function postBuild(s: GameStateV2, base: BaseModel, d: PostDesign, rec: PostRecipe, rlFlop: number): VersionBuild {
-  const pe = postEffect(d);
+  // RD-E01b: P07 (frozen at launch) multiplies the long-tasks RL family's horizon (data/v2/runDesign.ts). Long-horizon
+  // human demos (P12) act through the long-tasks suite's expert data since model v3 D9, not as a horizon multiplier.
+  const pe = postEffect(d, rec.p07 ? P07_LONG_TASKS_HORIZON : 1);
   const rlW = recipeWeights(s, d.rlFocus, rec);
   const fid = rec.fid ?? suiteFidMap(s);
   const rl = rlGains(base.flop, rlFlop, rlW, rec.rlMid, rec.rlCeil, fid);
-  const h80Mult = pe.h80Mult * (rec.p07 ? P07_HORIZON : 1);
+  const h80Mult = pe.h80Mult;
   // The version's signals are the engine's (model v3 E3): its base's and this run's, from their quantities.
   const sig = addSig(base.signals ?? {}, postSignals(s, d, rec.exploit, { rho: rlFlop / Math.max(1, base.flop) }));
   return {

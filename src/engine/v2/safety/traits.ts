@@ -203,12 +203,15 @@ export const COT_S4: Record<PostDesign['cot'], number> = { visible: 0, pressured
 const START_FAMS = RL_FAMILY_IDS.filter((f) => !RL_FAMILY_NEEDS[f]);
 export const K_S3 = 0.75 / START_FAMS.reduce((a, f) => a + taskTerm(f) / START_FAMS.length, 0);
 
-/** S8 from deployment (§3.5.4): min(1, internal copies / 300k) + 0.2·[P05]; P20 (agent societies) sets S8 = 1. */
+/** S8 reference in AI FTE [fit]: the old 300k internal copies at the serial speed 5.4× (60 tok/s over 40k output tokens
+ *  a work-hour) × 8,766 / 2,000 h = 7.1M FTE, so S8 keeps its scale. RD-A08 (INP-23): the copies count divided FTE by
+ *  a constant display-only speed; S8 now reads the agents' AI FTE (fteOfFpt × compute) directly. */
+export const S8_FTE_REF = 7.1e6;
+/** S8 from deployment (§3.5.4): min(1, research agents' AI FTE / S8_FTE_REF) + 0.2·[P05] (RD-E01b: P20 deleted; the
+ *  agents' FTE carries agent societies). */
 export function deploymentS8(s: GameStateV2): number {
-  const copies = s.player.prodCache?.labor.copies ?? 0;
-  let s8 = Math.min(1, copies / 3e5) + (adopted(s, 'P05') ? 0.2 : 0);
-  if (adopted(s, 'P20')) s8 = Math.max(s8, 1);
-  return s8;
+  const fte = s.player.prodCache?.labor.agentFte ?? 0;
+  return Math.min(1, fte / S8_FTE_REF) + (adopted(s, 'P05') ? 0.2 : 0);
 }
 
 // ── base runs: S5 from scale and AI-related data, S6 from synthetic data ──
@@ -1200,7 +1203,7 @@ export function rivalSignals(_s: GameStateV2, lab: RivalLab, posture: SafetyPost
   sg.S5 = 0.2 + 0.1 * tier;
   sg.S6 = S6_NARROW_HARMFUL; // AF2: was 0.2 (the post runs' benign SFT), not Betley's condition
   sg.S7 = 0.2 + 0.2 * posture.evalRigor;
-  sg.S8 = Math.min(1, (lab.core.prodCache?.labor.copies ?? 0) / 3e5);
+  sg.S8 = Math.min(1, (lab.core.prodCache?.labor.agentFte ?? 0) / S8_FTE_REF);
   // S9 (oversight-conditional reward, E17) stays 0: a posture has no training against detectors, and an ordinary run
   // grades every training episode alike (the player's reference run has S9 = 0 too).
   return sg;

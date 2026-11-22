@@ -1417,3 +1417,48 @@ Paradigm typed effects, part 1 (DD-14; SYNTHESIS RD-E01a; CAP-02). Commit abaffe
 - **Moves calibration: yes** (the player loses P13's up-to-×1.5 experiment FLOP and P24's payoff-gated bonus becomes a
   drawn stack idea; RSCH display levels +0.5 for every lab, which shifts anything gated on measured RSCH; RefBot no
   longer researches P13 / P19; refit at CP2).
+
+### RD-E01b
+
+Paradigm typed effects, part 2 (DD-14; SYNTHESIS RD-E01b; CAP-02). Commit f7fff3f.
+- **P05** (multi-agent orchestration): the flat ×1.3 on all agent FTE (useLabour; it also hit the safety package) is
+  gone. Adopted, it is a scaffold on the lab's internal agents in SWE / EXP / IDEAS (data/v2/features.ts
+  P05_ORCHESTRATION, pushed in worldfx/serving.ts internalFx like a built feature): ΔG +0.26 OOM [D], tokens ×3.75
+  (multi-agent ~15× chat tokens ÷ single agent ~4× [P Anthropic, research/12 §3]). ΔG is set so that at the reference
+  fit (coverage 0.5) with AI labour abundant (ρc −2: L ∝ (1 − a)^−1.5) the slot's effective labour is ×1.3. The old
+  ×1.3 on FTE did almost nothing in play: AI team-equivalents are ~200–400× the humans at the start, so FTE are not the
+  bottleneck. Start lab (ai2027, seed 1) with P05: EXP L 15.17 → 16.39, SWE 9.01 → 10.52; AI taste on IDEAS rises
+  with the fit (workContext reads internalFx). Safety work no longer gets it. Deep-think effort unlock kept.
+- **P20 deleted** (no primary source in research/ for an effect beyond the copies AI labour already counts; research/12
+  #20 cites only AI 2027's copy counts). Gone with it: ×(1 + 0.1·payoff), S8 = 1 override (S8 = copies / 300k +
+  0.2·[P05]), U19 ×1.3 presence (UMODE_PRESENCE.p20U19), the Pressure row's P20 text. **payoffOf deleted** (selectors,
+  Research card's "now x%"); nodes' `payoff` text stays.
+- **Draw order:** SKIPPED_DRAWS is now id → list: { P14: [0.75], P21: [0.6 (P19), 0.8 (P20)], P27: [0.8] }; every
+  other paradigm's draw is unchanged.
+- **P07:** no ×1.2 on every post-train's h80Mult. It multiplies the long-tasks RL family's h80Mult (2 → 2.4) on
+  post-trains launched after adoption (frozen PostRecipe.p07): data/v2/runDesign.ts P07_LONG_TASKS_HORIZON, applied in
+  models/design.ts rlFocusEffect via postEffect(d, longTasks), the place family horizon multipliers already live.
+  Broad-focus and other-family runs get nothing from P07 now. Existing versions keep their frozen h80Mult.
+- **Save:** SCHEMA_REV 55 (on p3-c 50; renumbered at the merge into rd), migration 54 → 55 drops P20 paradigm, tree and draw entries. hygiene rev checks → 55.
+- **Check (scripts/v2/.tmp-rde01b.ts, run alone, untracked):** no P20 node / paradigm / prerequisite / state / draw;
+  payoffOf not exported; adopting P05 gives EXP +0.26 OOM fit, ×3.75 tokens, AI FTE ÷ 3.75 (no ×1.3), SAF_EXP
+  untouched; deep think still locked behind P05; ×1.3012 effective labour at coverage 0.5, AI/H 300; postEffect
+  long-tasks h80Mult 2.4 with P07, 2 without, broad / swe 1. tsc main and scripts clean; `npm run build` passes.
+- **Not touched:** design/TECH-TREE.md P07 / P05 / P20 rows (still the old text); calib.ts `--fit-tree` targets.
+- **Moves calibration: yes** (P05's gain changes shape and size and leaves safety work; P20's agent and S8 / U19
+  effects gone; P07 only on long-tasks-focus runs; RefBot researches P05 / P07; refit at CP2).
+
+### RD-A08
+
+- **Done:** the serial-speed limit line is gone (core/limitsView.ts row, data/v2/limits.ts `speed.serialCap`, the
+  Company label). The duplicate cap (PROD_SPEED_CAP in calibration.ts) was already gone; SPEED_CAP stays only inside
+  workfit `speedOfCopy` (copies / speed readouts). S8 (player `deploymentS8` and rival postures) now reads
+  `prodCache.labor.agentFte` (new field: AI FTE of Experiments + Research ideas agents, a rival's whole agent pool;
+  fteOfFpt × compute) against `S8_FTE_REF` = 7.1M FTE (the old 300k copies at 5.4× × 8,766 / 2,000 h). Pressure tab
+  and glossary text say AI FTE.
+- **copiesOf kept:** safety/incidents.ts (serving incident size) and the copies readouts (workfit slots,
+  agentActions, rivalModel, researchView / production `copies`).
+- **Check:** tsc main and scripts clean; `npm run build` passes; targeted check (day 0, ai2027 seed 2027): S8 0.079 /
+  0.317 / 1 at 1× / 4× / 16× compute; no `speed.serialCap` row.
+- **Moves calibration: maybe** (same S8 scale; S8 now includes per-version usefulness and token overhead inside AI
+  FTE, which copies did not).

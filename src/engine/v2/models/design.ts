@@ -40,15 +40,16 @@ export function baseEffect(b: BaseDesign): BaseEffect {
   };
 }
 
-/** RL focus: the horizon multiplier of the focus families (§3.3.2 E). Domain gains come from the RL
- *  curve (models/effective.ts rlGains), training signals from the RL compute shares (safety/traits.ts postSignals). */
-function rlFocusEffect(focus: RLFamily[] | 'broad'): { h80Mult: number } {
+/** RL focus: the horizon multiplier of the focus families (§3.3.2 E); `longTasks` multiplies the long-tasks family's
+ *  (P07, RD-E01b: runDesign.ts P07_LONG_TASKS_HORIZON). Domain gains come from the RL curve (models/effective.ts
+ *  rlGains), training signals from the RL compute shares (safety/traits.ts postSignals). */
+function rlFocusEffect(focus: RLFamily[] | 'broad', longTasks = 1): { h80Mult: number } {
   let h80Mult = 1;
   if (focus === 'broad') return { h80Mult };
   for (const f of RL_FAMILY_IDS) {
     if (!focus.includes(f)) continue;
     const fam = RL_FAMILIES[f];
-    if (fam.h80Mult) h80Mult *= fam.h80Mult;
+    if (fam.h80Mult) h80Mult *= fam.h80Mult * (f === 'longHorizon' ? longTasks : 1);
   }
   return { h80Mult };
 }
@@ -56,15 +57,16 @@ function rlFocusEffect(focus: RLFamily[] | 'broad'): { h80Mult: number } {
 /** Post-training design effects (choices D–H): ΔG (OOM), domain ΔG (preference, OOM), serving and monitorability of the
  *  reasoning mode. The RL budget's capability effect is the RL curve (runs.ts); the environment suites (model v3 D5,
  *  models/suites.ts) set the RL ceiling per family; the training signals are the run's quantities (safety/traits.ts
- *  postSignals, model v3 E3). */
+ *  postSignals, model v3 E3). `longTasks`: the long-tasks family's horizon multiplier from P07 (frozen in the run's
+ *  recipe, PostRecipe.p07). */
 export interface PostEffect {
   dg: number; dgD: Off; serve: number; monitorability: number; h80Mult: number; appeal: number;
 }
-export function postEffect(p: PostDesign): PostEffect {
+export function postEffect(p: PostDesign, longTasks = 1): PostEffect {
   const pr = POST_PREF[p.pref];
   const cot = POST_COT[p.cot];
   const sf = POST_SAFETY[p.safety];
-  const rl = rlFocusEffect(p.rlFocus);
+  const rl = rlFocusEffect(p.rlFocus, longTasks);
   return {
     dg: pr.dg + cot.dg + sf.dg, dgD: { ...pr.dgD }, serve: cot.serveMult, monitorability: cot.monitorability,
     h80Mult: rl.h80Mult, appeal: pr.appeal,

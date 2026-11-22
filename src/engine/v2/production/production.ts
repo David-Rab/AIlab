@@ -48,7 +48,7 @@ export interface V3Inputs {
   /** Speed modifiers inside M (siloing, migrations) and on the rate (pause, treaty). */
   mods: number; rateMult: number;
   /** Readout pieces of the work-type layer. */
-  sdAI: number; aEng: number; copies: number; speed: number; aiFte: number;
+  sdAI: number; aEng: number; copies: number; speed: number; aiFte: number; agentFte: number;
   /** The lab has reached its superhuman coder (stage 2 for the readers of `stage`). */
   stage2: boolean;
 }
@@ -130,6 +130,7 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
     h0: h, k0: k, reRes0: reRes, H0: Math.max(1e-9, capReCapacity(s) * mod.humans), AI0: Cag + spare > 0 ? ex.AI : 0, a: ex.fit.a, assist: ex.fit.assist,
     flopEff, Tai: cap > 0 ? tai / cap : 1, mods: mod.speed / mod.rateMult, rateMult: mod.rateMult,
     sdAI: wc.sdAI, aEng: wc.slots.SWE.fit.a, copies: ex.copies + wc.slots.IDEAS.copies, speed: ex.copies > 0 ? speedOfCopy() : 0, aiFte: ex.aiFte,
+    agentFte: ex.aiFte + wc.slots.IDEAS.aiFte,
     stage2: p.milestoneDays[3] !== undefined,
   };
   const Cres = pools.experiments + (pools.routine + pools.frontier);
@@ -159,7 +160,7 @@ function playerReadout(s: GameStateV2, inp: LabInputs): ProductionReadout {
   const binding: ProductionReadout['binding'] = label === 'compute-bound' ? 'experiments' : label === 'human-bound' ? 'humans' : 'agents';
   return {
     stage: v.stage2 ? 2 : 1, binding, label,
-    labor: { A: v.a, aiFTE: v.aiFte, copies: v.copies, speed: v.speed, wH, aEng: v.aEng },
+    labor: { A: v.a, aiFTE: v.aiFte, copies: v.copies, speed: v.speed, wH, aEng: v.aEng, agentFte: v.agentFte },
     ratios: { h: inp.h, k: inp.k, c: inp.c },
     sdAI: v.sdAI,
   };
