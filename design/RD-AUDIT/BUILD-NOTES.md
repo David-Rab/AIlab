@@ -852,3 +852,23 @@ Outputs: %TEMP%/ai27ux/tests/cp1-full.txt, cp1-deep.txt; logs cp1logs/ (Phase 0 
   the old computed value (±0.001). scripts/v2/oversight.ts: the M → OOM table check is gone; the half-point check reads
   the literals.
 - **Moves calibration:** no (values identical up to 3-decimal rounding).
+
+### RD-U04
+
+- **What:** data constants written in progress-years are OOM literals (value × 1.2, comment "was X progress-years"):
+  START_PUBLIC_GAP_Y 0.15 → START_PUBLIC_GAP_OOM 0.18 (also the two inline 0.15·B public-model gaps in china.ts /
+  rivals.ts); world.ts `chinaGapYears` 0.6 → `chinaGapOom` 0.72; P24 0.8 → 0.96; RUN_PENALTY_Y 0.02 → RUN_PENALTY_OOM
+  0.024 and FOOTHOLD steeredSuccessor `progress` 0.02 → 0.024 (the `runPenalty` flag is now OOM; the patch cost line
+  reads "−0.024 OOM of G"); SPILL_G 0.024; FREE_TIER `{ years: 1 }` → `{ oom: 1.2 }`; distillation threshold 0.00048;
+  epilogue pace floor 0.36; theft clamp 3.6; start-lineup clamp ±24; fallback openWeightsG g0 − 1.2.
+- **Not converted (runtime, RD-L03's):** the C4 / poach / publish leak sizes are days × `paceOf`·B (the B converts the
+  runtime pace, not a data constant). Remaining B_G_PER_Y readers: actors/actions.ts (openReleaseG, C4, China
+  knowledge), china.ts (intel start estimate chinaGapOom ÷ B), intel.ts, rivalModel.ts (`B`, prodCache rate), rivals.ts
+  (rate0, leadBetween, release lag, publish / poach leak, ownProgressDays, open-weights absorb), bots/ref.ts:84,
+  core/init.ts (follower lagY, initialStacks), limitsView.ts, epilogue.ts (pace), capability.ts (startVintage,
+  preGameRate), productOps.ts:193, tree.ts (re-export), production.ts:180, theft.ts:81.
+- **Checks:** tsc (app and scripts/v2) clean. fixtures.ts with and without the patch: the same 5 stale-fixture
+  failures (already stale since RD-U03) and the same seed-2027 player SC / SAR / SIAR days (586 / 724 / 870).
+  3 × 1.2 = 3.5999999999999996 vs the literal 3.6 is the only last-digit difference (theft clamp). Old saves with a
+  pending run penalty would read it as OOM (×1/1.2 too small).
+- **Moves calibration:** no.
