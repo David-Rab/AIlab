@@ -2,7 +2,7 @@
 // Everything here is what the player's lab knows: beliefs, its own allocations and inputs, its recipe as built, the
 // preset's public reference points. Candidate truths (models/research.ts candidateTruth) are never read; an adopted
 // idea's realised value is shown only once a model trained after its adoption has been evaluated.
-import { DEFAULT_ENG_ALLOC, ENG_NEED_LABEL, MAX_DROPS, PICK_AT, PROJECT_MAX_TEAMS, RE_NEED_LABEL, STACK_LABEL, STACK_UNIT, EMBODIED_BY, EMBODIED_TEXT, type EmbodiedBy } from '../../../data/v2/research';
+import { DEFAULT_ENG_ALLOC, ENG_NEED_LABEL, MAX_DROPS, PICK_AT, PROJECT_MAX_TEAMS, RE_NEED_LABEL, DEFAULT_SAF_RE_ALLOC, SAF_RE_NEED_LABEL, STACK_LABEL, STACK_UNIT, EMBODIED_BY, EMBODIED_TEXT, type EmbodiedBy } from '../../../data/v2/research';
 import { COGNITIVE_WORK, MILESTONE_COVER, WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
 import { E_START } from '../../../data/v2/runDesign';
 import { COLUMN_LABEL } from '../../../data/v2/teams';
@@ -23,7 +23,8 @@ import {
 } from './research';
 import { adoptedAt, latestBaseFlop, rlCeilNow, rlMidNow, STACK_KEYS, stackAt, trainNow } from './stacks';
 import { nodeStatus, projectReady } from './tree';
-import type { AdoptedIdea, CapStage, GameStateV2, MilestoneIdx, ModelVersion, ReNeed, EngNeed, StackKey, Team } from '../types';
+import { safAllocation } from '../safety/lineProjects';
+import type { AdoptedIdea, CapStage, GameStateV2, MilestoneIdx, ModelVersion, ReNeed, SafReNeed, EngNeed, StackKey, Team } from '../types';
 
 // ───────────────────────────── projects ─────────────────────────────
 
@@ -340,6 +341,24 @@ export function reAllocView(s: GameStateV2): AllocView<ReNeed> & { m: number; pe
   });
   const used = needs.reduce((x, n) => x + n.got, 0);
   return { cap, order: [...a.order], needs, idle: Math.max(0, cap - used), unit: 'team-eq', m, perProject: Object.fromEntries(al.perProject) };
+}
+
+/** RD-A04: safety research engineers by need today (heads × quality, the player's order): demand, what each got,
+ *  caps, unmet demand, idle. */
+export function safReAllocView(s: GameStateV2): AllocView<SafReNeed> {
+  const a = s.player.research.safRe ?? DEFAULT_SAF_RE_ALLOC;
+  const al = safAllocation(s);
+  const cap = al.heads;
+  const needs = a.order.map((k) => {
+    const lim = Math.min(a.max[k] ?? Infinity, (a.share[k] ?? Infinity) * cap);
+    const d = al.demand[k];
+    const got = al.got[k] ?? 0;
+    return {
+      k, label: SAF_RE_NEED_LABEL[k], demand: d, got, ...(a.max[k] !== undefined ? { max: a.max[k] } : {}), ...(a.share[k] !== undefined ? { share: a.share[k] } : {}),
+      capped: Number.isFinite(lim) && got >= lim - 1e-9 && d > got + 1e-9, short: Math.max(0, d - got),
+    };
+  });
+  return { cap, order: [...a.order], needs, idle: al.idle, unit: 'people' };
 }
 
 /** Engineers by need this week (team-weeks per week of effective build capacity). */

@@ -101,9 +101,6 @@ export const SAF_STAGES = { idea: 0.2, small: 0.35, val: 0.45 } as const;
  *  serious programme's engineers [D, calibration]; a project asks for engineers in proportion to its science staffing (×
  *  capacity ÷ SERIOUS_CAP, at most LINE_MULT_MAX). */
 export const SAF_RE_UNIT = 50;
-/** Share of the free safety research engineers (after investigations and patches) experiments may take by default, so
- *  tool upkeep keeps the rest (as capability experiments ≤ 75% leave routine tuning some) [D, calibration]. */
-export const SAF_EXP_SHARE = 0.5;
 /** Compute reference: the leader lab's day-0 compute (H100e); a line's experiment FLOP per day at its reference share of
  *  it is one unit (c = 1) [D, fixed physical unit as capability's C_UNIT: never the calendar]. */
 export const SAF_C0_H100E = 1e6;

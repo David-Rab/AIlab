@@ -21,6 +21,7 @@ import { discoverUMode, isDiscovered } from './umodes';
 import { caseThreat, safetySabotage } from './covert';
 import { patchFte } from './responses';
 import { caseOnModel } from './footholdDetection';
+import { casesServed } from './lineProjects';
 import { QUALITY } from '../../../data/v2/teams';
 
 /** Safety research engineers (heads × quality): who staffs cases, patches and tool upkeep (R8). */
@@ -121,7 +122,7 @@ export function monthlyGain(s: GameStateV2, inv: Investigation): number {
   }
   // Model v3 E2: AI labour is the same input as the case's engineers: effective FTE = FTE × m of safety experiments
   // (SAF_EXP through the Trusted-to-AI share; departments/workfit.ts safetyLabour).
-  return caseRate(s, g, inv.fte, inv.computeShare * safetyPoolClaims(s).invScale); // RD-B07: the granted share
+  return caseRate(s, g, inv.fte * casesServed(s), inv.computeShare * safetyPoolClaims(s).invScale); // RD-B07: the granted share
 }
 
 /** Monthly clarity from the tools' combined detection g, the case's engineers (× m of safety experiments) and compute

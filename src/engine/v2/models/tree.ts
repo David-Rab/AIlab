@@ -47,7 +47,7 @@ import {
 } from './research';
 import { safetyAgentL } from '../safety/agents';
 import { fireFinding } from '../safety/findings';
-import { DEFAULT_LINES, DEFAULT_RE_ALLOC } from '../../../data/v2/research';
+import { DEFAULT_LINES, DEFAULT_RE_ALLOC, DEFAULT_SAF_RE_ALLOC } from '../../../data/v2/research';
 import { initialStacks } from './stacks';
 
 export type NodeStatus = 'known' | 'active' | 'queued' | 'open' | 'locked' | 'failed' | 'soon';
@@ -104,9 +104,10 @@ export function assignCapNow(s: GameStateV2) {
 /** Model v3 V2 research fields (stacks from initialStacks; the start lag is applied by core/init). The software-rate
  *  readout (gRate) starts unset and warms up over its 14-day average (RD-L03: no seed; no lead reader reads it, the
  *  pace readers use frontierGPerYear). */
-export function initialCapResearch(): Pick<ResearchState, 'want' | 'wantAuto' | 'risk' | 're' | 'stacks' | 'adopted' | 'hist' | 'domainG'> {
+export function initialCapResearch(): Pick<ResearchState, 'want' | 'wantAuto' | 'risk' | 're' | 'safRe' | 'stacks' | 'adopted' | 'hist' | 'domainG'> {
   return {
     want: {}, wantAuto: [], risk: 'balanced', re: { order: [...DEFAULT_RE_ALLOC.order], max: { ...DEFAULT_RE_ALLOC.max }, share: { ...DEFAULT_RE_ALLOC.share } },
+    safRe: { order: [...DEFAULT_SAF_RE_ALLOC.order], max: {}, share: {} },
     stacks: initialStacks(0), adopted: [], hist: [], domainG: {},
   };
 }

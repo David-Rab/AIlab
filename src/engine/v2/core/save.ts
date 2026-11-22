@@ -14,6 +14,7 @@ import { domainsOf, gOfLevel, refreshLevels } from '../models/capability';
 import { addIdea } from '../models/stacks';
 import { keepUnlockedSuite, unbuiltSuiteFamilies } from '../models/suites';
 import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
+import { DEFAULT_SAF_RE_ALLOC } from '../../../data/v2/research';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev.
  *  Saves below MIN_SCHEMA_REV (33) do not load (designer decision DD-20, RD-C03): v1, v2 and model v3 V1–V3 saves
@@ -63,8 +64,10 @@ import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
  *  P24 bonus into its frozen pretraining stack, gives an adopted P24 its bonus on the save's day as a stack idea, and
  *  recomputes stored domain levels without P19.
  *  55 (RD-E01b, DD-14): paradigm P20 is deleted; P05 is a typed scaffold and P07 multiplies the long-tasks RL family's
- *  horizon (no stored shape changes: versions keep their frozen h80Mult). Migration 54 → 55 drops P20 state and draw. */
-export const SCHEMA_REV = 55;
+ *  horizon (no stored shape changes: versions keep their frozen h80Mult). Migration 54 → 55 drops P20 state and draw.
+ *  56 (RD-A04): safety research engineers by need (research.safRe, the player's order). Migration 55 → 56 adds the
+ *  default order. */
+export const SCHEMA_REV = 56;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -495,6 +498,11 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     if (s.player?.paradigms) delete s.player.paradigms.P20;
     if (s.player?.tree) delete s.player.tree.P20;
     if (s.hidden?.paradigmSuccess) delete s.hidden.paradigmSuccess.P20;
+  },
+  /** 55 → 56 (RD-A04): the safety research engineers' needs list at its default order. Idempotent. */
+  55: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    if (s.player?.research && !s.player.research.safRe) s.player.research.safRe = { order: [...DEFAULT_SAF_RE_ALLOC.order], max: {}, share: {} };
   },
 };
 

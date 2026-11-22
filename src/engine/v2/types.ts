@@ -788,6 +788,10 @@ export type RiskPolicy = 'safe' | 'balanced' | 'speculative';
 /** Research-engineer needs (V3-BUILD V2.5): run operations, evaluations (model v3 D7), project experiments. Capacity
  *  none of them takes is idle (RD-E03 removed routine tuning). */
 export type ReNeed = 'ops' | 'evals' | 'exp';
+/** Safety research-engineer needs (RD-A04, SAFETY-REDESIGN §5): open cases (investigations), patches and foothold
+ *  removals, line-project experiments (by project priority), tool re-validation (upkeep). Each has a real demand;
+ *  capacity none takes is idle. */
+export type SafReNeed = 'cases' | 'patches' | 'safExp' | 'reval';
 /** Engineer needs: run operations and setups, product upkeep, builds (features, adoptions, launches, packs). */
 export type EngNeed = 'runs' | 'upkeep' | 'builds';
 /** A broad allocation: needs in priority order and optional caps per need: a team count (`max`, team-equivalents) and a
@@ -810,6 +814,8 @@ export interface ResearchState {
   risk: RiskPolicy;
   /** Research engineers (capabilities) by need. */
   re: Allocation<ReNeed>;
+  /** Safety research engineers by need (RD-A04; OD-9: the order is set in LAB, Company › Work). */
+  safRe: Allocation<SafReNeed>;
   /** Recipe stacks. */
   stacks: Record<StackKey, StackState>;
   /** Adopted domain effects for versions trained after them (OOM per domain: test-time training, self-play, robotics). */

@@ -18,16 +18,19 @@
 // compute) every stage runs at rate 1, so the first result takes T₁ (research/14's pacing). The belief is a readout (the
 // project card's "the team thinks …"); the result's type never reads it.
 //
-// Research engineers: investigations and patches first, then line experiments in priority order (SAF_RE_UNIT each, at
-// most SAF_EXP_SHARE of the free engineers), the rest keeps tools validated (agendas.ts upkeep). Compute: the safety
+// Research engineers (RD-A04): one needs list in the player's order (research.safRe, models/research.ts allocate, the
+// capability engineers' allocator): open cases, patches and removals, line experiments (each project in priority order
+// asks SAF_RE_UNIT × its science staffing), tool re-validation (agendas.ts revalDemand); the rest is idle. Compute: the safety
 // pool after monitors, safety agents and investigations is shared by the projects in experiments in proportion to
 // engineers × their agenda's compute need. AI labour enters as the effective-labour multipliers m_ideas and m_exp from
 // the SAF_IDEAS / SAF_EXP work types (lineLabour, model v3 E2) and as AI taste in ideation (safSciOn).
 import {
-  AGENDA_BY_ID, LINE_MULT_MAX, SAF_BELIEF, SAF_C0_H100E, SAF_EXP_SHARE, SAF_PICK_AT, SAF_POOL_MAX, SAF_RE_UNIT, SAF_STAGES, SERIOUS_CAP,
+  AGENDA_BY_ID, LINE_MULT_MAX, SAF_BELIEF, SAF_C0_H100E, SAF_PICK_AT, SAF_POOL_MAX, SAF_RE_UNIT, SAF_STAGES, SERIOUS_CAP,
 } from '../../../data/v2/agendas';
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
-import { RISK_KAPPA } from '../../../data/v2/research';
+import { DEFAULT_SAF_RE_ALLOC, RISK_KAPPA } from '../../../data/v2/research';
+import { allocate } from '../models/research';
+import { revalDemand } from './agendas';
 import { PROJECT_BY_ID, isLineNode, type TreeNodeDef } from '../../../data/v2/tree';
 import { teamCapacity } from '../departments/capacity';
 import { hash32 } from '../core/rng';
@@ -35,7 +38,7 @@ import { safetyPoolClaims } from '../departments/agents';
 import { handedLabour, qualityZ, resetSafetyLabour, safetyLabour, sdAIOf, shiftFit, teamTaste, type LabourOf } from '../departments/workfit';
 import { Xces } from '../production/ces';
 import { trainNow } from '../models/stacks';
-import type { AgendaId, GameStateV2, SafCandidate, SafProjectState, TreeNodeState } from '../types';
+import type { AgendaId, GameStateV2, SafReNeed, SafCandidate, SafProjectState, TreeNodeState } from '../types';
 import { aiShareOf } from './agents';
 import { safetySandbag } from './covert';
 import { trueEfficacy } from './common';
@@ -203,13 +206,22 @@ export function linePoolH100e(s: GameStateV2): number {
 
 /** Today's safety research-engineer and compute allocation. Heads are heads × quality. */
 export interface SafAlloc {
-  /** Engineers not on investigations or patches; on line experiments; left for tool upkeep. */
-  free: number; exp: number; upkeep: number;
+  /** Engineers not on cases or patches; on line experiments; on tool re-validation (upkeep); idle (no need takes them). */
+  free: number; exp: number; upkeep: number; idle: number;
+  /** RD-A04: capacity (heads × quality), each need's demand and what it got (player's order). */
+  heads: number; demand: Record<SafReNeed, number>; got: Record<SafReNeed, number>;
   /** Engineers and experiment FLOP per day per project in experiments. */
   re: Map<string, number>; flop: Map<string, number>;
   /** Line pool (H100e) and its share per agenda. */
   pool: number; share: Partial<Record<AgendaId, number>>;
 }
+/** RD-A04: share of the open cases' engineers served today (1 with no case): a case below its staffing gains clarity at
+ *  the engineers it gets. */
+export function casesServed(s: GameStateV2): number {
+  const a = safAllocation(s);
+  return a.demand.cases > 1e-12 ? Math.min(1, a.got.cases / a.demand.cases) : 1;
+}
+
 /** Today's allocation is memoised per state and day (understanding and the readouts ask for it many times a tick); the
  *  research system and every player action recompute it (resetSafAllocation). Previews (extra) are never memoised. */
 const allocMemo = new WeakMap<GameStateV2, { day: number; a: SafAlloc }>();
@@ -223,17 +235,26 @@ export function safAllocation(s: GameStateV2, extra?: string, extraCap?: number)
     if (hit && hit.day === s.time.day) return hit.a;
   }
   const heads = safetyReHeads(s);
-  const free = Math.max(0, heads - investigationFte(s) - patchFte(s));
-  let left = SAF_EXP_SHARE * free;
   const ids = experimenting(s, extra);
+  // A project asks for engineers in proportion to its science staffing (a serious programme: SAF_RE_UNIT; at most the
+  // old Major level); the asks sum to the line experiments' demand and are served in priority order.
+  const ask = new Map<string, number>();
+  let askSum = 0;
+  for (const id of ids) {
+    const m = (id === extra && extraCap !== undefined ? extraCap : safSciOn(s, id).cap) / SERIOUS_CAP;
+    const x = SAF_RE_UNIT * Math.min(LINE_MULT_MAX, m);
+    ask.set(id, x);
+    askSum += x;
+  }
+  const demand: Record<SafReNeed, number> = { cases: investigationFte(s), patches: patchFte(s), safExp: askSum, reval: revalDemand(s) };
+  const got = allocate(heads, s.player.research.safRe ?? DEFAULT_SAF_RE_ALLOC, demand);
+  const free = Math.max(0, heads - got.cases - got.patches);
+  let left = got.safExp;
   const re = new Map<string, number>();
   let w = 0;
   const wOf = new Map<string, number>();
   for (const id of ids) {
-    // A project asks for engineers in proportion to its science staffing (a serious programme: SAF_RE_UNIT; at most the
-    // old Major level), in priority order.
-    const m = (id === extra && extraCap !== undefined ? extraCap : safSciOn(s, id).cap) / SERIOUS_CAP;
-    const x = Math.min(SAF_RE_UNIT * Math.min(LINE_MULT_MAX, m), left);
+    const x = Math.min(ask.get(id) ?? 0, left);
     left -= x;
     re.set(id, x);
     const k = x * AGENDA_BY_ID[agendaOf(node(id) as TreeNodeDef)].computeRef;
@@ -252,7 +273,8 @@ export function safAllocation(s: GameStateV2, extra?: string, extraCap?: number)
     const ag = agendaOf(node(id) as TreeNodeDef);
     share[ag] = (share[ag] ?? 0) + f;
   }
-  const a: SafAlloc = { free, exp, upkeep: Math.max(0, free - exp), re, flop, pool, share };
+  const used = got.cases + got.patches + got.safExp + got.reval;
+  const a: SafAlloc = { free, exp, upkeep: got.reval, idle: Math.max(0, heads - used), heads, demand, got, re, flop, pool, share };
   if (extra === undefined) allocMemo.set(s, { day: s.time.day, a });
   return a;
 }
