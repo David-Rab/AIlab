@@ -511,11 +511,12 @@ for (const d of [400, 900]) {
     check(bad1 === 0, `B1 ${label}: paid seats are a subset of the workers who use AI (0 ≤ σ ≤ 1; seats sold ≤ σ·W·E ≤ W·E)`, `${(seats / 1e6).toFixed(0)}M seats sold of ${(workers / 1e6).toFixed(0)}M workers using AI`);
     check(bad2 === 0, `B2 ${label}: adopted (billed per hour) + seated (billed by the seat) + unseated (unbilled) hours = the hours of use`);
   }
-  // B3 seat revenue = seats × seat price × 12; the seat price never below the seat's serving cost.
+  // B3 seat revenue = seats × seat price × 12; the seat price never below the seat's serving cost. The price is the
+  // lineup tiers' weighted blend (worldfx/mix.ts), so it equals the list price only up to float rounding (RD-B14).
   const s = game();
   run(s, 3);
   const ent = revenueReadout(s).deps.find((x) => x.channel === 'enterprise')!;
-  check((ent.seats ?? 0) > 1e6 && near(ent.seatDemand ?? 0, ((ent.seats ?? 0) * (ent.seatPrice ?? 0) * 12) / 1e9, 1e-9) && (ent.seatPrice ?? 0) >= (ent.seatCost ?? 0) && (ent.seatPrice ?? 0) === SEATS.price,
+  check((ent.seats ?? 0) > 1e6 && near(ent.seatDemand ?? 0, ((ent.seats ?? 0) * (ent.seatPrice ?? 0) * 12) / 1e9, 1e-9) && (ent.seatPrice ?? 0) >= (ent.seatCost ?? 0) && near(ent.seatPrice ?? 0, SEATS.price, 1e-12),
     'B3 Enterprise seat revenue = seats × seat price × 12 (list $25 at the standard tier, ≥ the seat\'s serving cost)',
     `${((ent.seats ?? 0) / 1e6).toFixed(1)}M × $${(ent.seatPrice ?? 0).toFixed(0)} × 12 = $${(ent.seatDemand ?? 0).toFixed(2)}B; serving cost $${(ent.seatCost ?? 0).toFixed(2)}/seat-month`);
   // B4 unseated hours bill no one: more unseated use (W up, no seats) leaves sector spend and the player's need unchanged.

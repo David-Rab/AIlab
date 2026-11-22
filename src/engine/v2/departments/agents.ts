@@ -69,10 +69,94 @@ export function capShare(s: GameStateV2, use: CapUse): number {
 }
 
 /** Share of the player's total compute running a use (capabilities uses: split.agents × share; safety: split.safety ×
- *  its share of the safety pool). */
+ *  its GRANTED share of the safety pool, safetyPoolClaims). */
 export function agentSplitShare(s: GameStateV2, use: AgentUse): number {
   const p = s.player;
-  return use === 'safety' ? p.split.safety * p.agents.safety.compute : p.split.agents * capShare(s, use);
+  return use === 'safety' ? p.split.safety * safetyAgentShare(s) : p.split.agents * capShare(s, use);
+}
+
+/** A claim on the safety pool: what the player's settings ask for and what it gets, both shares of the pool. */
+export interface PoolClaim { requested: number; granted: number }
+/** RD-B07 (audit B10 / INP-18): the safety pool's claims, served in priority order so they never total more than the
+ *  pool. Shares of the safety pool (split.safety). */
+export interface SafetyPoolClaims {
+  /** Monitors (paid first): min(monitoring budget, what full coverage of the running fleets needs). Requested is that
+   *  need at the requested safety-agent share, granted at the granted one (monitors do not watch compute a cut fleet no
+   *  longer runs). Never cut otherwise: the budget is at most the pool. */
+  monitors: PoolClaim;
+  /** Open investigations (Σ computeShare), second; cut pro rata (invScale) when the monitors leave less. */
+  investigations: PoolClaim;
+  /** Safety agents (agents.safety.compute), third. */
+  agents: PoolClaim;
+  /** Research lines take the rest (requested = granted: they have no claim of their own). */
+  lines: PoolClaim;
+  /** granted ÷ requested of every investigation (1 when not cut). */
+  invScale: number;
+  /** Σ requested of monitors, investigations and agents (may exceed 1); Σ granted of all four (≤ 1). */
+  requested: number;
+  granted: number;
+  /** Monitor need at the granted agent share, a share of TOTAL compute (monitorBudget's need). */
+  need: number;
+}
+
+const openInvShare = (s: GameStateV2) => s.player.safety.investigations.filter((i) => !i.outcome).reduce((a, i) => a + i.computeShare, 0);
+const budgetPolicy = (s: GameStateV2) => Math.max(0, Math.min(1, s.player.policies.monitorBudget ?? MONITOR_STD_POOL_SHARE));
+
+/**
+ * RD-B07: the safety pool served in priority order: monitors → investigations → safety agents → research lines (the
+ * order the code already implied: monitors "paid first", lines "the rest"). Each claim gets min(its request, what the
+ * claims before it leave), so the total is at most the pool and every cut is visible (requested vs granted). The
+ * monitors' need grows with the safety agents' compute when the safety use is monitored, so a cut to the agents also
+ * shrinks the monitors' claim: the agents get the largest a ≤ request with m(a) + investigations + a ≤ 1, where
+ * m(a) = min(budget, capabilities uses' need + safety monitor's cost ratio × a) (piecewise linear, closed form).
+ * `extraInv` adds a case being previewed (Investigate). Interim: the flat compute allocation (RD-A05a, SAFETY-REDESIGN
+ * §5) replaces it.
+ */
+export function safetyPoolClaims(s: GameStateV2, extraInv = 0): SafetyPoolClaims {
+  const p = s.player;
+  const ps = p.split.safety;
+  const B = budgetPolicy(s);
+  const I = openInvShare(s) + Math.max(0, extraInv);
+  const A = Math.max(0, p.agents.safety.compute);
+  let needCap = 0; // monitor need of the capabilities uses, share of total compute
+  for (const u of CAP_USES) needCap += monitorNeedShare(s, u);
+  const nc = ps > 0 ? needCap / ps : 0;
+  const r = monitorCostRatio(s, 'safety');
+  // Monitors' pool share at agent share a, in monitorBudget's arithmetic (bit-identical when nothing is cut).
+  const mon = (a: number) => (ps > 0 ? Math.min(B * ps, needCap + r * (ps * a)) / ps : 0);
+  const m0 = mon(A);
+  let a = A;
+  let inv = I;
+  if (m0 + I + A > 1) {
+    const mMin = mon(0);
+    if (mMin + I >= 1) {
+      a = 0;
+      inv = Math.max(0, 1 - mMin);
+    } else {
+      const room = 1 - I; // solve m(a) + a = room (increasing in a)
+      const a1 = ps > 0 ? (room - nc) / (1 + r) : room; // monitors below their budget (none with an empty pool)
+      a = Math.max(0, Math.min(A, ps <= 0 || nc + r * a1 <= B ? a1 : room - B));
+    }
+  }
+  const m = mon(a);
+  const lines = Math.max(0, 1 - (m + a) - inv); // linePoolH100e's old arithmetic
+  return {
+    monitors: { requested: m0, granted: m },
+    investigations: { requested: I, granted: inv },
+    agents: { requested: A, granted: a },
+    lines: { requested: lines, granted: lines },
+    invScale: I > 0 ? inv / I : 1,
+    requested: m0 + I + A,
+    granted: m + inv + a + lines,
+    need: needCap + r * (ps * a),
+  };
+}
+
+/** The safety agents' granted share of the safety pool (fast path: nothing can be cut while budget + cases + agents ≤ 1). */
+export function safetyAgentShare(s: GameStateV2): number {
+  const A = Math.max(0, s.player.agents.safety.compute);
+  if (budgetPolicy(s) + openInvShare(s) + A <= 1) return A;
+  return safetyPoolClaims(s).agents.granted;
 }
 
 /** H100e running a use. */

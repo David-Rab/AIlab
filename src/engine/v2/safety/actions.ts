@@ -10,6 +10,7 @@ import type { ActionDef, CostLine, GameStateV2, ResponseKind, SafetyDept, Techni
 import { believedEfficacy, clamp01, flagNum, versionById } from './common';
 import { measuredOom, oomOfLevel } from './oversight';
 import { safetyLabour } from '../departments/workfit';
+import { safetyPoolClaims } from '../departments/agents';
 import { believedCaseThreat, believedSabotage } from './covert';
 import { publishFinding } from './findings';
 import { CASE_RESOLVE, INV_FTE, INV_MAX_DAYS, caseRate, closeInvestigation, corruptOdds, daysToResolve, defaultTools, investigationFte, openInvestigation, safetyReHeads } from './investigations';
@@ -81,7 +82,8 @@ const INVESTIGATE: ActionDef = {
     const cs = clamp01(num(p, 'computeShare') ?? 0.05);
     const ids = str(p, 'tools')?.split(',').filter(Boolean);
     const tools = (ids?.length ? ids : defaultTools(s, traits)).map((id) => s.player.safety.techniques[id]).filter((x): x is TechniqueState => !!x?.unlocked);
-    const gm = investigationGain(s, versionId, traits, tools, fte, cs);
+    const csScale = safetyPoolClaims(s, cs).invScale; // RD-B07: the cases' granted share after the monitors
+    const gm = investigationGain(s, versionId, traits, tools, fte, cs * csScale);
     // Share of the case's work AI does (safety experiments, model v3 E2): what a sabotaging model can corrupt; model v3
     // E7: its sabotage attempts on that share (covert.ts SAFSAB, from beliefs and the measured level) × (1 − the tools'
     // verifiability), the odds resolveInvestigation draws.
@@ -91,7 +93,7 @@ const INVESTIGATE: ActionDef = {
     return {
       costs: [
         { currency: 'staffTime', amount: fte, target: `safety research engineers until it resolves (≤ ${INV_MAX_DAYS} d; tool upkeep slows)` },
-        { currency: 'compute', amount: cs, target: 'of the safety compute pool' },
+        { currency: 'compute', amount: cs, target: csScale < 1 ? `of the safety compute pool (gets ${Math.round(cs * csScale * 1000) / 10}%: the monitors come first)` : 'of the safety compute pool' },
       ],
       gains: tools.length
         ? [{ currency: 'alignment', amount: r2(gm), unit: 'clarity / mo', target: `on ${on} with ${tools.length} tool${tools.length === 1 ? '' : 's'}: ${resolveText(gm)}` }]

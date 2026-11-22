@@ -18,7 +18,7 @@ import { familySeenTo, nearestDecay, understanding } from './understanding';
 import { exfiltrationHazard } from './incidents';
 import { safetyAgentVersion, safetyFleet, trustedShare } from './agents';
 import { lineLabour } from './lineProjects';
-import { monitorBudget } from '../departments/agents';
+import { safetyPoolClaims, type SafetyPoolClaims } from '../departments/agents';
 import { RISK_FAMILIES, RISK_UNSEEN_CLARITY } from '../../../data/v2/agents';
 import { CRITICAL_TRAITS } from '../../../data/v2/traits';
 import { PROJECT_BY_ID, TREE, isLineNode, lineNodeId } from '../../../data/v2/tree';
@@ -198,7 +198,7 @@ export function traitGraph(s: GameStateV2) {
 export interface SafetyUtilisation {
   staff: { sci: number; onLines: number; idleSci: number; idleTeams: number; re: number; investigations: number; patches: number; upkeep: number };
   /** H100e. idle = safety compute nobody uses (after monitoring, investigations, agents and the lines' shares). */
-  compute: { pool: number; monitoring: number; investigations: number; agents: number; idle: number };
+  compute: { pool: number; monitoring: number; investigations: number; agents: number; idle: number; claims: SafetyPoolClaims };
   fleet: { versionId?: string; versionName?: string; level: number; copies: number; aiFte: number; perFte: number; automated: number; idle: boolean };
 }
 
@@ -216,9 +216,11 @@ export function safetyUtilisation(s: GameStateV2): SafetyUtilisation {
   const re = safetyRe(s);
   const online = s.player.computeOnline;
   const pool = online * s.player.split.safety;
-  const monitoring = pool * monitorBudget(s).poolShare;
-  const invC = pool * dept.investigations.filter((i) => !i.outcome).reduce((a, i) => a + i.computeShare, 0);
-  const agents = pool * s.player.agents.safety.compute;
+  // RD-B07: granted shares (requested vs granted per claim in `claims`, for a later UI readout of what was cut).
+  const claims = safetyPoolClaims(s);
+  const monitoring = pool * claims.monitors.granted;
+  const invC = pool * claims.investigations.granted;
+  const agents = pool * claims.agents.granted;
   let got = 0;
   for (const a of AGENDAS) {
     got += pool * dept.agendas[a.id].computeShare;
@@ -228,7 +230,7 @@ export function safetyUtilisation(s: GameStateV2): SafetyUtilisation {
   const automated = trustedShare(s) > 0 ? AGENDAS.filter((a) => lineTeams(s, a.id).length > 0).length + dept.investigations.filter((i) => !i.outcome).length : 0;
   return {
     staff: { sci, onLines, idleSci: sci - onLines, idleTeams, re: re.heads, investigations: re.investigations, patches: re.patches, upkeep: re.upkeep },
-    compute: { pool, monitoring, investigations: invC, agents, idle: Math.max(0, pool - monitoring - invC - agents - got) },
+    compute: { pool, monitoring, investigations: invC, agents, idle: Math.max(0, pool - monitoring - invC - agents - got), claims },
     fleet: { versionId: v?.id, versionName: v?.name, level: v?.evals.measuredL ?? 0, copies: fl.copies, aiFte: fl.aiFte, perFte: fl.perFte, automated, idle: fl.compute > 0 && automated === 0 },
   };
 }

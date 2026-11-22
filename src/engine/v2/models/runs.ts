@@ -26,7 +26,7 @@ import { applyBaseToLineage, applyIdaCycle, applyRunToTraits, baseSignals, postS
 import { suiteExploitMap, suiteFidMap, suiteOf, suiteRlWeights } from './suites';
 import { RL_FAMILY_LABEL } from '../../../data/v2/suites';
 import type {
-  BaseDesign, BaseModel, Day, DomainId, EngineSystem, GameStateV2, ModelVersion, PostDesign, RivalLab, RLFamily, RunKind, RunPrediction, SystemCtx,
+  BaseDesign, BaseModel, Day, DomainId, EngineSystem, GameStateV2, ModelVersion, PostDesign, RLFamily, RunKind, RunPrediction, SystemCtx,
   RunRecipe, ToolFamily, TraitBelief, TraitId, TrainingRun, VersionBuild,
 } from '../types';
 import { adopted } from './paradigms';
@@ -35,7 +35,6 @@ import type { DomainMap } from './effective';
 import { releaseEvals } from './evals';
 import { addOff, addSig, baseEffect, clampSignals, monitorabilityClass, postEffect, type Off } from './design';
 import { domainsOf, finishBuild, gOfDomain, levelOfG, refreshLevels } from './capability';
-import { clRefresh, gOfSimple, growLabStaff, labReferenceSplit, setModelG, trainDay } from '../actors/rivalModel';
 import { ePreAt, rlCeilNow, rlMidNow, serveFlopOomOf, serveNow, trainNow } from './stacks';
 import { stackRate } from './research';
 import { fptOfBuild } from '../departments/workfit';
@@ -647,22 +646,6 @@ export const runsSystem: EngineSystem = {
   },
 };
 
-// ───────────────────────────── lab API for non-player labs (WS4 drives them) ─────────────────────────────
-
-/** Default policy for non-player labs not managed by WS4: reference split, staff growth, the base run trains and the
- *  continual learner refreshes (model v3 F1, actors/rivalModel.ts; versions and releases are WS4's cadence), and the
- *  public model trailing by 0.15 y. */
-function defaultLabPolicy(s: GameStateV2, r: RivalLab) {
-  if (r.managed || r.core.status !== 'active') return;
-  const w = s.hidden.timeline;
-  labReferenceSplit(s, r);
-  growLabStaff(s, r);
-  trainDay(s, r, s.time.day);
-  clRefresh(s, r, s.time.day);
-  const G = gOfSimple(w, r.internal) - 0.15 * B_G_PER_Y;
-  if (r.publicModel && G > gOfSimple(w, r.publicModel)) setModelG(w, r.publicModel, G);
-}
-
 type Track = { pre: number; rlMid: number; rlCeil: number };
 /** The recipe a stream would absorb today: the pretraining stack at its base's FLOP and the RL stack. */
 function trackNow(s: GameStateV2, v: ModelVersion): Track {
@@ -733,12 +716,12 @@ export function startStream(s: GameStateV2, versionId: string, day: Day = s.time
   return undefined;
 }
 
-/** continual (45, daily): stream versions track the stacks; default frontier tracking for unmanaged rival/China labs. */
+/** continual (45, daily): stream versions track the stacks. Rival and China labs run one daily policy, WS4's labDaily
+ *  (actors/rivals.ts, order 100); the old WS1 default policy is gone (RD-B14: it doubled day-1 staff growth and training). */
 export const continualSystem: EngineSystem = {
   id: 'continual', owner: 'WS1', cadence: 'daily', order: 45, system: 'models',
   run(s) {
     advanceStream(s);
-    for (const r of [...s.rivals, s.china.lab]) defaultLabPolicy(s, r);
   },
 };
 

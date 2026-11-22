@@ -271,3 +271,94 @@ A family unlocked later starts with no suite (B04; TRN-14; DD-07). Commit 5ab418
   P06". Per the RD test rule, test:quick, test:cal, test:ui and fixtures were not run.
 - **moves calibration: maybe.** Only where P06 becomes known in a RefBot game: computer use joins broad RL after the
   build (days later than before) instead of on the day the idea is known; fixtures that reach P06 would move.
+
+### RD-B14
+
+Delete `defaultLabPolicy` (B21 / MEA-21). Commits on `p1-riv`.
+- **Fix:** removed `defaultLabPolicy` from models/runs.ts (the continual system now only advances the player's stream)
+  and the `RivalLab.managed` flag (types.ts; it was set only inside labDaily, so the fallback also ran on day 1:
+  split, staff, base-run training, CL refresh and a public-model bump twice). Every active rival, the leader lab and
+  China run one daily policy, WS4's `labDaily` (actors/rivals.ts, rivalsChina system, order 100); no lab is left
+  without one (labDaily covers `activeRivals` + China while active, exactly the labs the fallback served). No schema
+  bump (optional field dropped; old saves carry an ignored `managed: true`).
+- **Regression check:** rivals R10: on day 1 every rival's and China's staff ratio equals one hRef step
+  (1.00078904 for all six labs; before: 1.0015787 = step²).
+- **Side effect [D]:** serving B3 compared the enterprise seat price with `=== SEATS.price`; the price is the lineup
+  tiers' weighted blend (worldfx/mix.ts), so it came out 24.999999999999993 once rival paths moved. B3 now uses
+  `near(…, 1e-12)`. Verified the pre-change code gave exactly 25 and the post-change 25 − 7e-15 (float rounding only).
+- **Tests:** tsc main + scripts clean. rivals full 17/0. serving 90/0. test:quick: fails are fixtures (stale, expected:
+  the merge regenerates them) and worldfx A2a 6.7% / W4 23.3% (known since F1). test:cal 49/0 (WARNs as after M11).
+  Golden medians now (20 seeds; target): ai2027 SC 638 (638), SAR 762 (791), SIAR 854.5 (883), ASI 911.5 (915);
+  authors2026 SC 1514 (1495); fast SC 888 (880); slow SC 4776 (4758); T1L ai2027 SC/SAR/SIAR/ASI 611/802/900/943;
+  T1L authors2026 SIAR −0.745 y, ASI −1.495 y (M11: −0.74 / −1.49). All inside tolerance; no pre-change cal run
+  kept here, so day deltas vs the base are not measured (the shift is a one-day ×1.00079 on rival staff and one extra
+  day of base-run FLOP, so ≲ 1 d expected).
+
+### RD-B15
+
+The now-part of B22 (MEA-25, MEA-V02): the epilogue / final score projected rival Mis at ASI with a stand-in trait
+model. Commit cd1d7a1 on `p1-riv`.
+- **Fix:** `projectedMisAtAsi` (endings/epilogue.ts) now calls `projectLabMis` (actors/rivals.ts), which fast-forwards
+  the lab's trait cadence on WS2's `rivalTraitStep` (safety/traits.ts), the rule `labDaily` runs in play: a 'post'
+  step every mean POST_DAYS (56 d, first at the lab's scheduled `nextPost`), and at each base (BASE_MONTHS by
+  archetype from `nextBaseDay`) a 'base' step then a 'post'; latent reasoning adopted once at Lg ≥ 9 with LATENT_P.
+  Deleted the stand-in `rivalTraitStep` and its private `rivalSignals` / `effSafety` / `capIndexOfLevel`, and the
+  WS4_TUNING knobs `rivalDriftK` / `rivalPullback` (no other caller). No caller of the stand-in remains.
+- **[D] The stated stand-in (DD-18):** capability rises linearly in G from the internal model's to the ASI point over
+  the projected days; every base starts a new lineage; race pressure stays at today's. Draws from
+  `Rng(hash32(seed, projectMis:<lab>:<day>))`, no stream (pure; the control.ts "no roll" check still passes). Step
+  guard 120 (the old cap was 40 posts; with bases included a 40-step cap stopped long projections short of ASI).
+  Reads the lab's hidden posture (`labPosture`, as in play), not `postureOf`'s player-action deltas.
+- **Not in scope (theme L, RD-L02):** the days to ASI still use `paceOf` (the player's rate) × 0.7, and
+  `epilogueSurvival` still weights labs by rival-vs-rival `leadBetween` with the (1 − share) term. Readout for L: on
+  RefBot and idle snapshots at day 250–500 the projected days are 1700–3700 (the player's slow early rate), so the
+  projection spans several rival base runs; this horizon, not the trait step, drives most of the drift below.
+- **Score drift** (probe scripts/v2/_b15drift.ts, gitignored; ai2027 / medium, company-loss `ousted` scored on
+  snapshots; only the survival axis moves, other axes identical). Survival old → new:
+  - RefBot seed 1: d250 28 → 44, d500 30 → 33, d750 23 → 24. Seed 7: 23 → 41, 21 → 34, 36 → 40.
+    Seed 2027: 23 → 37, 33 → 39, 5 → 10. Seed 42: 28 → 93, 56 → 88, 86 → 85.
+  - Idle seed 1: 16 → 39, 5 → 7, 1 → 7. Seed 7: 14 → 30, 3 → 11, 1 → 17. Seed 2027: 14 → 30, 4 → 5, 1 → 5.
+    Seed 42: 24 → 92, 6 → 73, 2 → 70.
+  - Epilogue misAtAsi of the leading competitor: the stand-in saturated at 0.95–1.00 on long projections; now
+    0.11–1.00 (median ≈ 0.52). Near ASI (RefBot d750, 107–297 days out) it moves −0.07 … −0.28 (seed 42 +0.07).
+  - Attribution: the same projection with posts only (no base steps) reproduces the old survival within ≈ 1 point on
+    17 of 24 snapshots (seed 42 +6 … +23, near-ASI +1 … +4; 40-step cap) (the stand-in's rivalDriftK was fitted to WS2's post drift); the base resets (a fresh lineage's
+    prior, as in play) carry the rise. Seed 42's large move is its low-difficulty world (rival Mis 0.06–0.15 now).
+- **Tests:** tsc main + scripts clean. test:quick 32/34: fixtures stale (from RD-B14; fixture games stop before any
+  ending, so this change cannot move them) and worldfx A2a 6.7% / W4 23.3% (known). ws4 full 25/0, control full 32/0
+  (endings "no roll", every ASI ending reachable). The deep tier has no scoring / endings suite (deep = safety S5
+  only), so no deep run.
+
+### RD-B07
+
+Safety pool claims normalised in priority order (B10 / INP-18). Commits on `p1-riv`.
+- **Fix:** `safetyPoolClaims(s, extraInv?)` (departments/agents.ts) serves the safety pool in the order the code already
+  implied: **monitors → investigations → safety agents → research lines**. Each claim gets min(request, what the claims
+  before it leave). The monitoring budget is ≤ the pool, so monitors are never cut by others; open cases are cut pro rata
+  (`invScale`); the safety agents get the rest up to their share; lines take what remains. [D] The monitors' need
+  includes the monitored safety fleet, so it is taken at the agents' *granted* share (monitors do not watch compute that
+  no longer runs): the agents get the largest a ≤ request with m(a) + cases + a ≤ 1, m(a) = min(budget, capabilities
+  need + safety monitor cost ratio × a), in closed form (piecewise linear).
+- **Readers on granted shares:** `agentSplitShare('safety')` (→ monitor need / coverage, fleets, incidents, danger
+  view), `useLabour` (workfit.ts) and `safetyAgentCompute` via `safetyAgentShare`, `linePoolH100e` (= pool × lines
+  granted), `monthlyGain` (case compute × invScale), the Investigate preview (its case's granted share; the cost line
+  says "gets x%: the monitors come first" when cut), agendas `safetyReserved`, `safetyUtilisation`.
+- **Readout for the UI (later):** `safetyUtilisation(s).compute.claims` = `SafetyPoolClaims`: per claim
+  `{ requested, granted }` (shares of the pool) for monitors, investigations, agents, lines, plus `invScale`, Σ requested
+  (may exceed 1), Σ granted (≤ 1). Not wired into a panel (Agents.tsx still shows the requested safety share; RD-A05a's
+  flat allocation replaces this with one visible allocator, SAFETY-REDESIGN §5, which this does not contradict).
+- **Neutral when nothing is cut:** fast path (budget + cases + agents ≤ 1 → requested share), and the cut-free arithmetic
+  repeats monitorBudget's / the old linePoolH100e's operations, so states are bit-identical. Instrumented the cut path on
+  RefBot 500–503, safe-only 700–701 and mixed 900–901 (safety-emu play) and RefBot runRef seeds 2027 / 500 to day 1000:
+  it never fires (RefBot's budget + agents stay ≈ 0.2 of the pool). So S4 / S5 are unchanged by this task.
+- **Probe (verify_inp13, copied to this worktree):** pool sum before 140% / 144% / 160% (days 30 / 300 / 600), after
+  100% / 100% / 100%. Day 600: requested monitors 100% + agents 60%; granted monitors 72.5% (coverage 0.95 → 1.00: the cut
+  agents need no watching), agents 27.5%, lines 0.
+- **Regression test:** safety suite "RD-B07" (day400 fixture): default settings cut nothing; extreme settings alone,
+  + a 30% case, + a 90% case: readers' H100e sum ≤ 100% and the cut shows (146% → 100%; 176% → 100% with cases kept at
+  30%; 236% → 100% with cases cut to 74%, agents 0).
+- **Tests:** tsc main + scripts clean. test:quick 32/34 (fixtures stale since RD-B14; worldfx A2a 6.7% / W4 23.3%, known).
+  safety full 25/0: S4 RefBot 0.659, S4 safe-only 0.039, S5 RefBot below in 57% of 40 (median U − L −0.91), mixed bot
+  margin 0.42 (same before and after: the cut never fires in bot play; no separate pre-change run).
+  test:cal and safetyresearch full were started, then stopped under the new RD test rule (no result).
+- **Moves calibration: no** (bit-identical unless the claims exceed the pool, which no bot reaches).
