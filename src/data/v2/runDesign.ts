@@ -106,11 +106,6 @@ export const CONTINUE_SHARE = 0.3;
 /** Amplification cycle (IDA, P18): extra RL FLOP as a share of the base's pretraining FLOP [D: one standard budget]. */
 export const IDA_RL_SHARE = 0.15;
 
-/** Display readout (model v3 V4 removed its BRIDGE role): serving cost relative to the reference design trained on the same FLOP (0.5 = a B0-style MoE at REF_TPP tokens
- *  per parameter): 0.5 × N_active/N_ref(FLOP) with N_ref = √(FLOP/(6·REF_TPP)). So revenue and agent copies keep their
- *  calibration while serving FLOP per token (2·N_active) is shown; V4 replaces it with tokens → cost. */
-export const SERVE_REF = 0.5;
-
 /** Continual-learning stream: share of the training pool used continuously and the tracking lag (§3.3.1). */
 export const STREAM_POOL_SHARE = 0.15;
 export const STREAM_LAG_DAYS = 7;

@@ -166,8 +166,8 @@ function postRun(s: GameStateV2, design: PostDesign, from?: ModelVersion): Model
   s.player.paradigms.P23 = { status: 'adopted', progress: 1 };
   const pv = planRun(s, { kind: 'post', baseId: 'B0', post: post() });
   const pf = planRun(s, { kind: 'post', baseId: 'B0', post: post({ cot: 'faithful' }) });
-  check(!pf.reason && near(pf.g.G - pv.g.G, FAITHFUL_COT.dOom, 1e-9) && near(pf.prediction.serveCost / pv.prediction.serveCost, FAITHFUL_COT.fptMult, 1e-9),
-    'P23: the run card shows the cost: G −0.29 OOM, serving cost (→ FLOP per token) × 1.2', `G ${pv.g.G.toFixed(3)} → ${pf.g.G.toFixed(3)}; serve ${pv.prediction.serveCost.toFixed(3)} → ${pf.prediction.serveCost.toFixed(3)}`);
+  check(!pf.reason && near(pf.g.G - pv.g.G, FAITHFUL_COT.dOom, 1e-9) && near(pf.prediction.fpt / pv.prediction.fpt, FAITHFUL_COT.fptMult, 1e-9),
+    'P23: the run card shows the cost: G −0.29 OOM, serving cost (→ FLOP per token) × 1.2', `G ${pv.g.G.toFixed(3)} → ${pf.g.G.toFixed(3)}; fpt ${pv.prediction.fpt.toExponential(3)} → ${pf.prediction.fpt.toExponential(3)}`);
   const vs = postSignals(s, post({ trainAgainst: ['T-COTMON'] })).S4;
   const fs = postSignals(s, post({ cot: 'faithful', trainAgainst: ['T-COTMON'] })).S4;
   check(near(vs, 0.8, 1e-12) && near(fs, 0.8 * (1 - FAITHFUL_COT.resist), 1e-12) && postSignals(s, post({ cot: 'faithful' })).S4 === 0,

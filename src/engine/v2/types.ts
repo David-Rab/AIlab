@@ -327,8 +327,8 @@ export interface BaseModel {
   off?: Partial<Record<DomainId, number>>;
   /** Data repetition at training: epochs over the unique tokens. */
   epochs?: number;
-  /** Serve cost of models on this base (display readout, 0.5 = reference; costs read FLOP per token, V4). */
-  serve?: number;
+  /** Serving FLOP per token of the base (2·N_active × the shape's token multiplier; model v3 V4), set when it is made. */
+  fpt: number;
   /** Monitorability cap from the base shape (latent = 0.05). */
   monitorability?: number;
   /** Trait-pressure signals from the base design (S4, S5, S6 …) for WS2. */
@@ -361,11 +361,9 @@ export interface ModelVersion {
   masks: Record<TraitId, Partial<Record<ToolFamily, number>>>; // hidden: how much each family is fooled
   uModes: UModeId[]; // hidden
   monitorability: number; // 0..1, visible (from design + measured controllability)
-  /** Serving cost relative to the reference design at the same training FLOP (0.5 = reference), visible: a design readout
-   *  only; costs, prices and capacity read the physical FLOP per token `fpt` (model v3 V4). */
-  serveCost: number;
-  /** Serving FLOP per token (2·N_active × the shape's token multiplier × the serving stack at creation; V4). */
-  fpt?: number;
+  /** Serving FLOP per token (2·N_active × the shape's token multiplier × the serving stack and design at creation;
+   *  model v3 V4), set when the version is made; costs, prices and capacity read it. */
+  fpt: number;
   /** Active parameters when they differ from the base's (a distilled student). */
   params?: number;
   evals: EvalRecord; // what the player has measured
@@ -539,7 +537,8 @@ export interface RunPrediction {
   domains: Record<DomainId, [number, number]>;
   signals: Record<SignalId, number>; // shown as ▲ arrows (trait pressure)
   etaDays: number;
-  serveCost: number;
+  /** Serving FLOP per token of the model the run would make (ModelVersion.fpt; a base run: the base's). */
+  fpt: number;
   monitorability: 'high' | 'medium' | 'low' | 'none';
 }
 

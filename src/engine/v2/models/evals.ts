@@ -52,7 +52,7 @@ export interface EvalCost {
 }
 
 /** Work of one suite of `depth` on version `v` (its FLOP per token sets the compute). */
-export function evalCost(s: GameStateV2, v: Pick<ModelVersion, 'baseId' | 'serveCost' | 'params' | 'fpt'>, depth: EvalDepth, by: Evaluator = 'self'): EvalCost {
+export function evalCost(s: GameStateV2, v: Pick<ModelVersion, 'fpt'>, depth: EvalDepth, by: Evaluator = 'self'): EvalCost {
   const D = EVAL_DEPTHS[depth];
   const rollouts = SUITE_BENCHMARKS * D.rollouts;
   const tin = EVAL_TOKENS.input * D.tokMult;
@@ -268,7 +268,7 @@ export function evalQueueView(s: GameStateV2): EvalTaskView[] {
     const want = t.by === 'self' ? suiteWant(t, m) : 0;
     const h = t.by === 'self' ? Math.min(share, want) : 0;
     share -= h;
-    const reTW = t.by === 'self' ? t.reTW : evalCost(s, v ?? { baseId: '', serveCost: 1, params: 0 }, t.depth).reTW;
+    const reTW = t.by === 'self' ? t.reTW : evalCost(s, v ?? { fpt: 0 }, t.depth).reTW;
     const rate = t.by === 'self' ? (h * m) / 7 : EXT_EVAL_STAFF / TEAM_SIZE.re / 7;
     const left = 1 - t.progress;
     const rem = left * reTW;

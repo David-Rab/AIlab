@@ -16,11 +16,10 @@ export interface AgendaDef {
   /** Months to the first expected result at serious staffing (R8: the effort of every project on the line). */
   T1: number;
   /** Capability robustness (model v3 E6): strength halves when the overseen model is oHalf OOM of effective compute above
-   *  the start model V0; k = slope (data/v2/oversight.ts: D = 1/(1 + 10^(k·κ·(x − oHalf)))). Stored as v2's M½ (Infinity
-   *  encoded as 1e9); the engine converts it on the ai2027 reference path (safety/oversight.ts agendaOHalf / oomOfRefM,
-   *  derived from the level knots since M7): M½ 25 = SAR (4.30 OOM since A6b; 4.38 at E6), 30 → 4.64, 250 = SIAR
-   *  (8.70), 2000 = ASI (11.56). */
-  mHalf: number;
+   *  the start model V0; k = slope (data/v2/oversight.ts: D = 1/(1 + 10^(k·κ·(x − oHalf)))). OOM literal (1e9 = never
+   *  decays). RD-U03: these are the values v2's M½ gave on the ai2027 reference path before the conversion was removed
+   *  (M½ 25 → 4.218, 30 → 4.678, 250 → 10.018, 2000 → 13.788). */
+  oHalf: number;
   k: number;
   /** Goodhart susceptibility G. */
   G: number;
@@ -42,25 +41,25 @@ const mid = (r: [number, number]) => (r[0] + r[1]) / 2;
 
 type Row = Omit<AgendaDef, 'computeRef' | 'column'>;
 const ROWS: Row[] = [
-  { id: 'AG01', name: 'Ambitious mech interp', prior: [1.5, 4], loadings: { legibility: 0.09 }, T1: 9, mHalf: 2000, k: 0.5, G: 0.5, auto: 0.6, family: 'WB', coverage: ['SCHEME', 'AF', 'SUCC'], computeRange: [0.03, 0.08], mainLatent: 'legibility' },
-  { id: 'AG02', name: 'Applied interp', prior: [3, 3], loadings: { legibility: 0.09 }, T1: 4, mHalf: 250, k: 0.7, G: 0.8, auto: 0.9, family: 'WB', coverage: ['EA', 'TGAME', 'AF', 'SCHEME'], computeRange: [0.01, 0.03], mainLatent: 'legibility' },
-  { id: 'AG03', name: 'RepE / steering', prior: [2.5, 3], loadings: { legibility: 0.09 }, T1: 4, mHalf: 250, k: 0.7, G: 0.6, auto: 0.9, family: 'WB', coverage: ['SYC', 'PERSONA', 'EA'], computeRange: [0.005, 0.01], mainLatent: 'legibility' },
-  { id: 'AG04', name: 'Heuristic args / ELK', prior: [1, 6], loadings: { legibility: 0.045, formalizability: 0.15 }, T1: 24, mHalf: INF, k: 0, G: 0.1, auto: 0.5, family: 'OR', coverage: ['SCHEME', 'AF'], computeRange: [0.001, 0.003], mainLatent: 'formalizability' },
-  { id: 'AG05', name: 'Scalable oversight', prior: [2, 4], loadings: { cotLoadBearing: 0.09, verificationAdvantage: 0.15, schemingDefault: -0.09 }, T1: 9, mHalf: 250, k: 1, G: 0.3, auto: 0.6, family: 'BB+', coverage: ['SYC', 'RH', 'CONCEAL', 'PROXY'], computeRange: [0.03, 0.1], mainLatent: 'verificationAdvantage' },
-  { id: 'AG06', name: 'Weak-to-strong', prior: [2, 4], loadings: { verificationAdvantage: 0.09, benignGeneralization: 0.09, schemingDefault: -0.09 }, T1: 6, mHalf: 25, k: 1, G: 0.2, auto: 0.8, family: 'fix', coverage: ['SYC', 'PROXY'], computeRange: [0.01, 0.03], mainLatent: 'verificationAdvantage' },
-  { id: 'AG07', name: 'AI control', prior: [4, 2.5], loadings: { cotLoadBearing: 0.09 }, T1: 3, mHalf: 30, k: 2, G: 0.2, auto: 1.0, family: 'contain', coverage: ['SCHEME', 'POWER', 'COLLUDE'], computeRange: [0.01, 0.05], mainLatent: 'cotLoadBearing' },
-  { id: 'AG08', name: 'Model organisms & evals', prior: [4, 2], loadings: { verificationAdvantage: 0.09, schemingDefault: -0.09 }, T1: 3, mHalf: 25, k: 1, G: 0.5, auto: 1.0, family: 'BB', coverage: ['RH', 'EA', 'AF', 'SCHEME', 'SAND', 'POWER'], computeRange: [0.01, 0.03], mainLatent: 'verificationAdvantage' },
-  { id: 'AG09', name: 'CoT monitorability', prior: [3.5, 2.5], loadings: { cotLoadBearing: 0.15 }, T1: 3, mHalf: 250, k: 1, G: 0.9, auto: 0.9, family: 'COT', coverage: ['RH', 'CONCEAL', 'AF', 'SAND', 'SCHEME'], computeRange: [0.004, 0.006], mainLatent: 'cotLoadBearing' },
-  { id: 'AG10', name: 'Guaranteed-safe AI', prior: [1, 5], loadings: { formalizability: 0.15 }, T1: 18, mHalf: INF, k: 0, G: 0, auto: 0.8, family: 'OR', coverage: [], computeRange: [0.008, 0.012], mainLatent: 'formalizability' },
-  { id: 'AG11', name: 'Scientist AI guardrail', prior: [1.5, 5], loadings: { formalizability: 0.09 }, T1: 18, mHalf: 250, k: 0.5, G: 0.2, auto: 0.6, family: 'OR', coverage: ['POWER'], computeRange: [0.02, 0.05], mainLatent: 'formalizability' },
-  { id: 'AG12', name: 'Agent foundations', prior: [1, 8], loadings: {}, T1: 36, mHalf: INF, k: 0, G: 0, auto: 0.2, family: 'fix', coverage: ['CORRIG'], computeRange: [0, 0.002], mainLatent: 'none' },
-  { id: 'AG13', name: 'Dev interp / SLT', prior: [1.5, 5], loadings: { legibility: 0.09, benignGeneralization: 0.09 }, T1: 12, mHalf: 250, k: 0.5, G: 0.3, auto: 0.6, family: 'WB', coverage: ['TGAME', 'AF'], computeRange: [0.005, 0.01], mainLatent: 'legibility' },
-  { id: 'AG14', name: 'Cooperative AI', prior: [2, 4], loadings: {}, T1: 9, mHalf: 250, k: 1, G: 0.4, auto: 0.7, family: 'BB', coverage: ['COLLUDE', 'SUCC'], computeRange: [0.004, 0.006], mainLatent: 'none' },
-  { id: 'AG15', name: 'Unlearning & curation', prior: [3, 3], loadings: { benignGeneralization: 0.09 }, T1: 6, mHalf: 250, k: 0.7, G: 0.2, auto: 0.9, family: 'fix', coverage: [], computeRange: [0.01, 0.03], mainLatent: 'benignGeneralization' },
-  { id: 'AG16', name: 'Adversarial robustness', prior: [3, 3], loadings: {}, T1: 3, mHalf: 250, k: 1, G: 0, auto: 1.0, family: 'fix', coverage: [], computeRange: [0.02, 0.05], mainLatent: 'none' },
+  { id: 'AG01', name: 'Ambitious mech interp', prior: [1.5, 4], loadings: { legibility: 0.09 }, T1: 9, oHalf: 13.788, k: 0.5, G: 0.5, auto: 0.6, family: 'WB', coverage: ['SCHEME', 'AF', 'SUCC'], computeRange: [0.03, 0.08], mainLatent: 'legibility' },
+  { id: 'AG02', name: 'Applied interp', prior: [3, 3], loadings: { legibility: 0.09 }, T1: 4, oHalf: 10.018, k: 0.7, G: 0.8, auto: 0.9, family: 'WB', coverage: ['EA', 'TGAME', 'AF', 'SCHEME'], computeRange: [0.01, 0.03], mainLatent: 'legibility' },
+  { id: 'AG03', name: 'RepE / steering', prior: [2.5, 3], loadings: { legibility: 0.09 }, T1: 4, oHalf: 10.018, k: 0.7, G: 0.6, auto: 0.9, family: 'WB', coverage: ['SYC', 'PERSONA', 'EA'], computeRange: [0.005, 0.01], mainLatent: 'legibility' },
+  { id: 'AG04', name: 'Heuristic args / ELK', prior: [1, 6], loadings: { legibility: 0.045, formalizability: 0.15 }, T1: 24, oHalf: INF, k: 0, G: 0.1, auto: 0.5, family: 'OR', coverage: ['SCHEME', 'AF'], computeRange: [0.001, 0.003], mainLatent: 'formalizability' },
+  { id: 'AG05', name: 'Scalable oversight', prior: [2, 4], loadings: { cotLoadBearing: 0.09, verificationAdvantage: 0.15, schemingDefault: -0.09 }, T1: 9, oHalf: 10.018, k: 1, G: 0.3, auto: 0.6, family: 'BB+', coverage: ['SYC', 'RH', 'CONCEAL', 'PROXY'], computeRange: [0.03, 0.1], mainLatent: 'verificationAdvantage' },
+  { id: 'AG06', name: 'Weak-to-strong', prior: [2, 4], loadings: { verificationAdvantage: 0.09, benignGeneralization: 0.09, schemingDefault: -0.09 }, T1: 6, oHalf: 4.218, k: 1, G: 0.2, auto: 0.8, family: 'fix', coverage: ['SYC', 'PROXY'], computeRange: [0.01, 0.03], mainLatent: 'verificationAdvantage' },
+  { id: 'AG07', name: 'AI control', prior: [4, 2.5], loadings: { cotLoadBearing: 0.09 }, T1: 3, oHalf: 4.678, k: 2, G: 0.2, auto: 1.0, family: 'contain', coverage: ['SCHEME', 'POWER', 'COLLUDE'], computeRange: [0.01, 0.05], mainLatent: 'cotLoadBearing' },
+  { id: 'AG08', name: 'Model organisms & evals', prior: [4, 2], loadings: { verificationAdvantage: 0.09, schemingDefault: -0.09 }, T1: 3, oHalf: 4.218, k: 1, G: 0.5, auto: 1.0, family: 'BB', coverage: ['RH', 'EA', 'AF', 'SCHEME', 'SAND', 'POWER'], computeRange: [0.01, 0.03], mainLatent: 'verificationAdvantage' },
+  { id: 'AG09', name: 'CoT monitorability', prior: [3.5, 2.5], loadings: { cotLoadBearing: 0.15 }, T1: 3, oHalf: 10.018, k: 1, G: 0.9, auto: 0.9, family: 'COT', coverage: ['RH', 'CONCEAL', 'AF', 'SAND', 'SCHEME'], computeRange: [0.004, 0.006], mainLatent: 'cotLoadBearing' },
+  { id: 'AG10', name: 'Guaranteed-safe AI', prior: [1, 5], loadings: { formalizability: 0.15 }, T1: 18, oHalf: INF, k: 0, G: 0, auto: 0.8, family: 'OR', coverage: [], computeRange: [0.008, 0.012], mainLatent: 'formalizability' },
+  { id: 'AG11', name: 'Scientist AI guardrail', prior: [1.5, 5], loadings: { formalizability: 0.09 }, T1: 18, oHalf: 10.018, k: 0.5, G: 0.2, auto: 0.6, family: 'OR', coverage: ['POWER'], computeRange: [0.02, 0.05], mainLatent: 'formalizability' },
+  { id: 'AG12', name: 'Agent foundations', prior: [1, 8], loadings: {}, T1: 36, oHalf: INF, k: 0, G: 0, auto: 0.2, family: 'fix', coverage: ['CORRIG'], computeRange: [0, 0.002], mainLatent: 'none' },
+  { id: 'AG13', name: 'Dev interp / SLT', prior: [1.5, 5], loadings: { legibility: 0.09, benignGeneralization: 0.09 }, T1: 12, oHalf: 10.018, k: 0.5, G: 0.3, auto: 0.6, family: 'WB', coverage: ['TGAME', 'AF'], computeRange: [0.005, 0.01], mainLatent: 'legibility' },
+  { id: 'AG14', name: 'Cooperative AI', prior: [2, 4], loadings: {}, T1: 9, oHalf: 10.018, k: 1, G: 0.4, auto: 0.7, family: 'BB', coverage: ['COLLUDE', 'SUCC'], computeRange: [0.004, 0.006], mainLatent: 'none' },
+  { id: 'AG15', name: 'Unlearning & curation', prior: [3, 3], loadings: { benignGeneralization: 0.09 }, T1: 6, oHalf: 10.018, k: 0.7, G: 0.2, auto: 0.9, family: 'fix', coverage: [], computeRange: [0.01, 0.03], mainLatent: 'benignGeneralization' },
+  { id: 'AG16', name: 'Adversarial robustness', prior: [3, 3], loadings: {}, T1: 3, oHalf: 10.018, k: 1, G: 0, auto: 1.0, family: 'fix', coverage: [], computeRange: [0.02, 0.05], mainLatent: 'none' },
   // AG17 "5-15 FTE plus lots of compute (OpenAI pledged 20%)": compute ref [D] 5-15%.
-  { id: 'AG17', name: 'Automated alignment research', prior: [3, 3], loadings: { verificationAdvantage: 0.15, schemingDefault: -0.09 }, T1: 3, mHalf: 250, k: 1, G: 0, auto: 1.0, family: 'meta', coverage: [], computeRange: [0.05, 0.15], mainLatent: 'verificationAdvantage' },
-  { id: 'AG18', name: 'Training-signal design', prior: [3.5, 3], loadings: { benignGeneralization: 0.15 }, T1: 3, mHalf: 25, k: 1, G: 0.5, auto: 1.0, family: 'fix', coverage: ['SYC', 'RH', 'PERSONA', 'CONCEAL', 'SCHEME'], computeRange: [0.02, 0.1], mainLatent: 'benignGeneralization' },
+  { id: 'AG17', name: 'Automated alignment research', prior: [3, 3], loadings: { verificationAdvantage: 0.15, schemingDefault: -0.09 }, T1: 3, oHalf: 10.018, k: 1, G: 0, auto: 1.0, family: 'meta', coverage: [], computeRange: [0.05, 0.15], mainLatent: 'verificationAdvantage' },
+  { id: 'AG18', name: 'Training-signal design', prior: [3.5, 3], loadings: { benignGeneralization: 0.15 }, T1: 3, oHalf: 4.218, k: 1, G: 0.5, auto: 1.0, family: 'fix', coverage: ['SYC', 'RH', 'PERSONA', 'CONCEAL', 'SCHEME'], computeRange: [0.02, 0.1], mainLatent: 'benignGeneralization' },
 ];
 
 /** Column of each line's follow-up project (TECH-TREE §2.4–2.6: where its nodes sit). */
@@ -139,8 +138,8 @@ export const UPKEEP_MIN = 15;
 export const UPKEEP_REF = 40;
 export const UPKEEP_MAX = 1.5;
 
-/** AG09 under latent reasoning (R14 §1.2: "250 / 1 legible → 5 / 2 neuralese"; M½ 5 = the SC level, 2.45 OOM above V0 since A6b, 2.53 at E6; converted by the engine's oomOfRefM). */
-export const AG09_LATENT = { mHalf: 5, k: 2 };
+/** AG09 under latent reasoning (R14 §1.2: "250 / 1 legible → 5 / 2 neuralese"; v2 M½ 5 = the SC level; RD-U03: OOM literal, the value the removed reference-path conversion gave). */
+export const AG09_LATENT = { oHalf: 2.492, k: 2 };
 /** Measured level of the safety agent model needed to fund AG17, automated alignment research (§3.5.2). */
 export const AG17_MIN_L = 10;
 /** Tool verifiability for investigation corruption (§3.5.8). */

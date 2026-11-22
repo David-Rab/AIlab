@@ -1,7 +1,6 @@
 // Player actions in the Safety sphere (ActionDef catalog, V2-SPEC §3.4.3 Safety row, §3.5). Owner: WS2.
 // Every preview shows costs, gains and exposure computed from VISIBLE inputs (posteriors, beliefs, FTE, compute);
 // none reads truth; each shows what apply() does (§2.7, lint-tradeoffs).
-import { B_G_PER_Y } from '../../../data/v2/runDesign';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { CRITICAL_TRAITS, TRAIT_BY_ID, TRAIT_IDS } from '../../../data/v2/traits';
 import { evalDaysFor } from '../models/evals';
@@ -16,7 +15,7 @@ import { publishFinding } from './findings';
 import { CASE_RESOLVE, INV_FTE, INV_MAX_DAYS, caseRate, closeInvestigation, corruptOdds, daysToResolve, defaultTools, investigationFte, openInvestigation, safetyReHeads } from './investigations';
 import { patchFte } from './responses';
 import {
-  DISCLOSE_CPS, PATCH_DAYS, PATCH_FLOOR, PATCH_FTE, PATCH_MULT, RESPONSE_INFO, RUN_PENALTY_Y, applyResponse, bestDetector, discloseScrutiny, discloseTrust,
+  DISCLOSE_CPS, PATCH_DAYS, PATCH_FLOOR, PATCH_FTE, PATCH_MULT, RESPONSE_INFO, RUN_PENALTY_OOM, applyResponse, bestDetector, discloseScrutiny, discloseTrust,
   patchLevel, pendingRunPenalty, responseTrait, restrictTargets, targetedPlan,
 } from './responses';
 import { ANTISCHEME_EA_MULT, RETRAIN_OBF, RETRAIN_TRUE, RETRAIN_VISIBLE } from './traits';
@@ -150,7 +149,7 @@ const SHORT = 'at most: less if the model gradient-hacks or its training gaming 
 /** F6e: the next post-training run's cost of a patch or targeted training (consumeRunPenalty in models/runs.ts). */
 function runPenaltyLine(s: GameStateV2): CostLine {
   const pending = pendingRunPenalty(s);
-  return { currency: 'progress', amount: -RUN_PENALTY_Y, unit: 'yr', target: `of progress off the next post-training run (G −${(RUN_PENALTY_Y * B_G_PER_Y).toFixed(3)})${pending > 0 ? `; ${pending.toFixed(2)} yr already pending` : ''}` };
+  return { currency: 'progress', amount: -RUN_PENALTY_OOM, unit: 'OOM', target: `of G off the next post-training run${pending > 0 ? `; ${pending.toFixed(3)} OOM already pending` : ''}` };
 }
 
 function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | undefined, incidentId: string | undefined, o: { footholdId?: string; trait?: TraitId; techniqueId?: string } = {}): Preview {

@@ -676,11 +676,11 @@ const adoptResult = (s: GameStateV2, id: string) => {
   finishRun(D, pid);
   const vC = C.player.models.versions.at(-1)!;
   const vD = D.player.models.versions.at(-1)!;
-  const keysV = ['G', 'Lg', 'domains', 'serveCost', 'fpt', 'monitorability', 'traitsTrue'];
+  const keysV = ['G', 'Lg', 'domains', 'fpt', 'monitorability', 'traitsTrue'];
   check(!!pid && vC.id === vD.id && vC.baseId === postP.baseId && pick(vC, keysV) === pick(vD, keysV) && JSON.stringify(vC.build) === JSON.stringify(vD.build)
-    && (planD.g.gD?.CODE ?? 0) - (planC.g.gD?.CODE ?? 0) > 0.25 && planD.prediction.serveCost < planC.prediction.serveCost,
+    && (planD.g.gD?.CODE ?? 0) - (planC.g.gD?.CODE ?? 0) > 0.25 && planD.prediction.fpt < planC.prediction.fpt,
     'RD-B02: a post-train frozen at launch: domain effects, P07, the RL and serving stacks adopted while it trains leave the version unchanged; a plan today moves',
-    `${typeof r1 === 'string' ? r1 : ''} G ${vC.G.toFixed(4)} vs ${vD.G.toFixed(4)}; serve ${vC.serveCost.toFixed(4)} vs ${vD.serveCost.toFixed(4)}; plan CODE ${(planC.g.gD?.CODE ?? 0).toFixed(3)} → ${(planD.g.gD?.CODE ?? 0).toFixed(3)}; plan serve ${planC.prediction.serveCost.toFixed(4)} → ${planD.prediction.serveCost.toFixed(4)}; differs: ${[...keysV.filter((k) => pick(vC, [k]) !== pick(vD, [k])), ...(JSON.stringify(vC.build) === JSON.stringify(vD.build) ? [] : ['build'])].join(', ') || 'none'}`);
+    `${typeof r1 === 'string' ? r1 : ''} G ${vC.G.toFixed(4)} vs ${vD.G.toFixed(4)}; fpt ${vC.fpt.toExponential(4)} vs ${vD.fpt.toExponential(4)}; plan CODE ${(planC.g.gD?.CODE ?? 0).toFixed(3)} → ${(planD.g.gD?.CODE ?? 0).toFixed(3)}; plan fpt ${planC.prediction.fpt.toExponential(4)} → ${planD.prediction.fpt.toExponential(4)}; differs: ${[...keysV.filter((k) => pick(vC, [k]) !== pick(vD, [k])), ...(JSON.stringify(vC.build) === JSON.stringify(vD.build) ? [] : ['build'])].join(', ') || 'none'}`);
 }
 
 // ---------- saves ----------

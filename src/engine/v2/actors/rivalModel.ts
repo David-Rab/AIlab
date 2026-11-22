@@ -22,7 +22,7 @@
 //              from the Research-agent level the internal model re-applies today's whole recipe weekly (continual
 //              learning, as the player's P08 stream)
 // Nothing here reads a calendar path, pm or pm thresholds, CAL_SHIFT, the v2 knots or the rivals' old FLOP bridge.
-import { BASE_POOL_SHARE, BASE_RUN_DAYS, CL_DAYS, CL_LEVEL, PRE_RATE0, RIVAL_TPP, SERVE_RATE0, START_PUBLIC_GAP_Y } from '../../../data/v2/rivalModel';
+import { BASE_POOL_SHARE, BASE_RUN_DAYS, CL_DAYS, CL_LEVEL, PRE_RATE0, RIVAL_TPP, SERVE_RATE0, START_PUBLIC_GAP_OOM } from '../../../data/v2/rivalModel';
 import { DEFAULT_LINES, LINE_STAGES, SMALL_TO_TEST, SURVIVE_FRAC, S_RANGE } from '../../../data/v2/research';
 import { TREE_BY_ID } from '../../../data/v2/tree';
 import { B_G_PER_Y, E_START, GOODPUT, PARAM_RANGE, B0_PARAMS, REFERENCE_BASE, REF_TPP, SHAPE } from '../../../data/v2/runDesign';
@@ -419,8 +419,8 @@ export function trainDay(_s: GameStateV2, r: RivalLab, day: number) {
  *  the pretraining and RL-efficiency parts (as the player's follower stacks, stacks.ts initialStacks) and k back on
  *  those research pools; k is solved so that version is the start model. The leader lab (B0 itself, V0) starts at k = 0,
  *  the leader's day-0 recipe, with B0's vintage solved so its start version is V0. The public model: the same base,
- *  publicGapY progress-years lower; the run toward the next base is already under way. */
-export function initRivalPhys(w: TimelineWorld, r: RivalLab, eff = 1, publicGapY = START_PUBLIC_GAP_Y, effRun?: number) {
+ *  publicGapOom OOM lower; the run toward the next base is already under way. */
+export function initRivalPhys(w: TimelineWorld, r: RivalLab, eff = 1, publicGapOom = START_PUBLIC_GAP_OOM, effRun?: number) {
   const pool = r.core.computeOnline * r.core.split.training;
   const flop0 = Math.max(1e24, START_BASE_FLOP * (pool / LEADER_DAY0_TRAIN));
   const G0 = r.internal.G;
@@ -470,7 +470,7 @@ export function initRivalPhys(w: TimelineWorld, r: RivalLab, eff = 1, publicGapY
   const base = makeBase(1, B0_DAY, flop0, k - m * v.pre * dPre, REF_TPP);
   r.phys = { base, eff, serve: 0, rec: { pre: k, mid: k, ceil: 0 }, pool: poolAt(k) };
   setModelG(w, r.internal, versionG(base, k - m * v.mid * dPost, -m * v.ceil * dPost), base);
-  if (r.publicModel) setModelG(w, r.publicModel, gOfSimple(w, r.internal) - publicGapY * B, base);
+  if (r.publicModel) setModelG(w, r.publicModel, gOfSimple(w, r.internal) - publicGapOom, base);
   const start = r.nextBaseDay - BASE_RUN_DAYS;
   if (start < 0) r.phys.run = { day: start, flop: -start * baseFlopPerDay(r), ePre: k + (m * v.pre * start) / 365 };
 }

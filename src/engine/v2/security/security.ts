@@ -12,7 +12,6 @@ import { leadBetween, openWeightsReleased, postureOf } from '../actors/rivals';
 import { request, ws4 } from '../actors/state';
 import { distillFlowDaily, executeTheft, secretsLeakDaily, theftHazardDaily, theftHazardOn } from './theft';
 import { addRivalKnowledge } from '../actors/rivalModel';
-import { B_G_PER_Y } from '../../../data/v2/runDesign';
 
 /** The weight-security target the player can set (B4: one range for the engine and the slider). */
 export const WSL_TARGET_RANGE: readonly [number, number] = [2, 5];
@@ -102,8 +101,8 @@ export const securitySystem: EngineSystem = {
       addRivalKnowledge(cn, leak + dist);
       w.drift['china.recipe'] = (w.drift['china.recipe'] ?? 0) + leak + dist;
       chinaDist += dist;
-      // Sustained distillation: more than 0.0004 progress-years (× B OOM) a day.
-      w.distillDays = chinaDist > 0.0004 * B_G_PER_Y ? w.distillDays + 1 : 0;
+      // Sustained distillation: more than 0.00048 OOM a day (was 0.0004 progress-years).
+      w.distillDays = chinaDist > 0.00048 ? w.distillDays + 1 : 0;
     }
 
     // Exfiltration of an internal agent (WS2 hazard) → E25 and the hunt. Model v3 E9: security notices it with the

@@ -11,7 +11,7 @@ import type { ChinaActor, EngineSystem, GameStateV2, HiddenWorld, StaffByRole, S
 import { cash, drift } from './fx';
 import { PHYS_PLACEHOLDER, goalpostsQ, leadBetween, rivalFinanceQ, simpleModel } from './rivals';
 import { initRivalPhys } from './rivalModel';
-import { START_PUBLIC_GAP_Y } from '../../../data/v2/rivalModel';
+import { START_PUBLIC_GAP_OOM } from '../../../data/v2/rivalModel';
 import { B_G_PER_Y } from '../../../data/v2/runDesign';
 import { CHINA_CAL } from '../../../data/v2/calibration';
 import { request, ws4 } from './state';
@@ -20,11 +20,11 @@ import { copyrightExposure } from '../finance/observe';
 
 export const chinaPresetOf = (id: string) => CHINA_PRESETS.find((p) => p.id === id) ?? CHINA_PRESETS[0];
 
-/** China at Jul 2025 (research/10 §1.1). DeepCent starts ≈0.6 progress-years (≈150–200 d) behind (§9 #17). */
-export function initialChina(rng: Rng, h: HiddenWorld, playerG: number, chinaGapYears: number): ChinaActor {
+/** China at Jul 2025 (research/10 §1.1). DeepCent starts ≈0.72 OOM (was 0.6 progress-years, ≈150–200 d) behind (§9 #17). */
+export function initialChina(rng: Rng, h: HiddenWorld, playerG: number, chinaGapOom: number): ChinaActor {
   const p = chinaPresetOf(h.actorPresets.china);
-  // The start gap in progress-years of the pre-game frontier (§9 #17), B G per progress-year.
-  const G = playerG - chinaGapYears * B_G_PER_Y;
+  // The start gap in OOM of G (§9 #17).
+  const G = playerG - chinaGapOom;
   const uModes = drawLineageUModes(rng, h, false);
   const staff: StaffByRole = { cap: 1500, saf: 60 };
   const meters: ChinaActor['meters'] = {
@@ -46,12 +46,12 @@ export function initialChina(rng: Rng, h: HiddenWorld, playerG: number, chinaGap
       },
       archetype: 'deepcent',
       internal: simpleModel(h, 'china-b1p0', `${CHINA_MODEL_FAMILY}-1`, -30, G, uModes, false),
-      publicModel: simpleModel(h, 'china-b0', `${CHINA_MODEL_FAMILY}-1 open`, -45, G - 0.15 * B_G_PER_Y, uModes, true, true),
+      publicModel: simpleModel(h, 'china-b0', `${CHINA_MODEL_FAMILY}-1 open`, -45, G - START_PUBLIC_GAP_OOM, uModes, true, true),
       nextBaseDay: Math.round(rng.range(60, 240)),
       phys: PHYS_PLACEHOLDER(),
       finance: { cash: 30, revenueRun: 1, valuation: 0, commitments: 0, distress: false },
       visible: { frameworkVersion: 0, clauseType: 'state', testers: [] },
-      intel: { leadDaysEst: Math.round(chinaGapYears * 365 * 0.8), leadDaysSd: 75, misalignBand: [0.05, 0.5], knownIncidents: [] },
+      intel: { leadDaysEst: Math.round((chinaGapOom / B_G_PER_Y) * 365 * 0.8), leadDaysSd: 75, misalignBand: [0.05, 0.5], knownIncidents: [] },
       meters: { poachAggression: 20, cooperation: 10, lobbyStance: 0, openness: 85 },
       pressure: 0,
       pressureDays: 0,
@@ -64,7 +64,7 @@ export function initialChina(rng: Rng, h: HiddenWorld, playerG: number, chinaGap
     presetWeights: Object.fromEntries(CHINA_PRESETS.map((x) => [x.id, 0.4 * (x.weight / total) + (x.id === p.id ? 0.6 : 0)])),
   };
   // Model v3 F1: DeepCent's last base, recipe and models in G (its research efficiency effLab applies at run time).
-  initRivalPhys(h.timeline, out.lab, 1, START_PUBLIC_GAP_Y, h.timeline.chinaEfficiency * p.efficiency * CHINA_CAL.effScale);
+  initRivalPhys(h.timeline, out.lab, 1, START_PUBLIC_GAP_OOM, h.timeline.chinaEfficiency * p.efficiency * CHINA_CAL.effScale);
   return out;
 }
 

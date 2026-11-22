@@ -260,7 +260,7 @@ function preHistoryLead(s: GameStateV2, leader: LabId, gLead: number, gF: number
   const rate = Math.max(0.05, preGameRate(w)) * B_G_PER_Y;
   const xs = s.series.L[leader];
   if (!xs?.length) return ((gLead - gF) / rate) * 365;
-  const g1 = clamp(gOfLevel(w, xs[0]), gF - 20 * B_G_PER_Y, gLead + 20 * B_G_PER_Y);
+  const g1 = clamp(gOfLevel(w, xs[0]), gF - 24, gLead + 24 /* was ±20 progress-years */);
   return Math.max(0, s.time.day - s.series.day[0]) + ((g1 - gF) / rate) * 365;
 }
 /** The pre-game frontier rate (progress-years a year, the start gaps' unit): referenceRate at the start model and 2025.5. */

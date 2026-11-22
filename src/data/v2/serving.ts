@@ -185,7 +185,7 @@ export const MULTI_HOMING = { providers: 2, tau: 3 } as const;
  *  gives a student 1/12.5 the size of its teacher (28B active under the 354B V0): a free message ≈ 0.65 H100e-s ≈ 0.13 Wh
  *  of accelerator energy, against Google's measured 0.24 Wh median Gemini Apps prompt (0.14 Wh on the accelerators;
  *  arXiv 2508.15734 [P]). */
-export const FREE_TIER = { years: 1 } as const;
+export const FREE_TIER = { oom: 1.2 } as const; // was 1 progress-year
 
 /** TIERS: product lineups (design/V3-BUILD.md "TIERS notes"). Every provider (the player's sector products, rivals, China) sells
  *  its model and distilled students of it at these sizes relative to the model's active parameters, so at these prices

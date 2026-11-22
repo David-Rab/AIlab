@@ -6,7 +6,7 @@
 // state live in models/capability.ts.
 import {
   COGNITIVE, DISTILL, DISTILL_TOKEN_SLOPE, DISTILL_TPP, LOSS_LAW, OPT_TPP, REF_TPP, REPEAT_R_STAR, RL_BUDGET, RL_CURVE,
-  RL_FAMILIES, RL_FAMILY_IDS, RL_FAMILY_NEEDS, RL_FOCUS_SHARE, RL_REF_GAIN, RL_TRANSFER, FLOP_RL_REF, SERVE_REF, SHAPE,
+  RL_FAMILIES, RL_FAMILY_IDS, RL_FAMILY_NEEDS, RL_FOCUS_SHARE, RL_REF_GAIN, RL_TRANSFER, FLOP_RL_REF, SHAPE,
 } from '../../../data/v2/runDesign';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import type { BaseDesign, DomainId, RLFamily } from '../types';
@@ -97,10 +97,9 @@ export function gPreOf(x: { flop: number; tpp: number; recipe: number; shape: Ba
 export const continueGPre = (gOld: number, flopCont: number, recipeNow: number, shape: BaseDesign['shape']) =>
   Math.log10(Math.pow(10, gOld) + Math.max(0, flopCont) * Math.pow(10, recipeNow + SHAPE[shape].e));
 
-/** Display readout (model v3 V4: costs read FLOP per token, ModelVersion.fpt): serving cost relative to the reference design trained on the same FLOP (0.5 = reference): SERVE_REF ×
- *  N_active ÷ √(FLOP/(6·REF_TPP)) × the shape's token multiplier. Physical FLOP per token is 2·N_active (servingFlop). */
-export const serveOfBase = (params: number, flop: number, shape: BaseDesign['shape']) =>
-  (SERVE_REF * params * SHAPE[shape].tokenMult) / Math.max(1, paramsForFlop(flop, REF_TPP));
+/** Serving FLOP per token of a base design (model v3 V4, RD-U08): 2·N_active × the shape's token multiplier; stored
+ *  as BaseModel.fpt and, through the serving stack and the post-training design, ModelVersion.fpt. */
+export const fptOfDesign = (params: number, shape: BaseDesign['shape']) => 2 * params * SHAPE[shape].tokenMult;
 /** Serving FLOP per token: 2 · N_active [R20 D1]. */
 export const servingFlop = (params: number) => 2 * params;
 

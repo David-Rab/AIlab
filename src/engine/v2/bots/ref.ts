@@ -277,7 +277,7 @@ export interface RefPlayOpts {
    *  (today's behaviour exactly) instead of running research agents. Measured: with 'research' RefBot's spare serving
    *  (up to 4× its agent pool in late 2025) would add an unearned speed-up (design/PROGRESS.md J2). */
   spareServing?: 'research' | 'headroom';
-  /** A5: distil a cheap API tier (MKT: a student holding the API model's level less FREE_TIER.years) once per API model,
+  /** A5: distil a cheap API tier (MKT: a student holding the API model's level less FREE_TIER.oom) once per API model,
    *  set as the API's mini. Default off (TIERS): every sector product sells its lineup (data/v2/serving.ts LINEUP), as
    *  the rivals' do, so RefBot needs no extra distil; the option stays for experiments. */
   cheapTier?: boolean;
@@ -485,7 +485,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   }
   // A5 (option `cheapTier`, off since TIERS: the product lineups carry the cheap tiers): the API's cheap tier, a student of the internal model distilled once
   // per API model alongside a public-mini distil (it is small) and set as the API's mini when ready; not a public release.
-  // MKT: it holds the API model's fit less FREE_TIER.years of the reference frontier's progress (the rule every lab's free
+  // MKT: it holds the API model's fit less FREE_TIER.oom of the reference frontier's progress (the rule every lab's free
   // chat tier follows, A7: worldfx/serving.ts freeTierOf; the cheapestAt rule on one teacher), not the previous public
   // release, which in the 2027 takeoff sits only ≈ 0.3–0.9 OOM under the API model (≈ 1.2 OOM above V0's work by Feb
   // 2027). Labs sell their small tier a generation or more below the frontier: ChatGPT's free fallback GPT-4.1 mini is an
@@ -494,7 +494,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   const apiDep = p.deployments.find((d) => d.channel === 'api' && d.status === 'live');
   const apiV = apiDep ? versionById(s, apiDep.versionId) : undefined;
   if (cheapTier && apiDep && apiV && iv && s.flags['ref:cheapFor'] !== apiV.id && !m.runs.some((r) => r.status === 'running' && cheapRun(r))) {
-    const nS = studentParamsFor(paramsOfVersion(s, iv), workFit(s, iv, 'SWE').fit - (workFit(s, apiV, 'SWE').fit - FREE_TIER.years * B_G_PER_Y));
+    const nS = studentParamsFor(paramsOfVersion(s, iv), workFit(s, iv, 'SWE').fit - (workFit(s, apiV, 'SWE').fit - FREE_TIER.oom));
     if (nS <= CHEAP_MAX * paramsOfVersion(s, iv) && tryAct(s, api, 'launchDistill', { teacherVersionId: iv.id, studentParams: nS })) {
       s.flags['ref:cheapFor'] = apiV.id;
       s.flags['ref:cheapParams'] = nS;

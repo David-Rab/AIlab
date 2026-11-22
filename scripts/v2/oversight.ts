@@ -13,7 +13,7 @@ import { gV0, levelOfG } from '../../src/engine/v2/models/capability';
 import { catchRate } from '../../src/engine/v2/models/products';
 import { catchOf, internalOversight } from '../../src/engine/v2/safety/incidents';
 import {
-  controlProtocol, gapFactor, humanReviewFactor, levelOfOom, monitorCatchAt, oomOfLevel, oomOfRefM, oversightGap, useControl,
+  controlProtocol, gapFactor, humanReviewFactor, levelOfOom, monitorCatchAt, oomOfLevel, oversightGap, useControl,
 } from '../../src/engine/v2/safety/oversight';
 import { decayAt, decayOom, strengthTrue } from '../../src/engine/v2/safety/techniques';
 import { understanding } from '../../src/engine/v2/safety/understanding';
@@ -35,10 +35,6 @@ const reset = (s: GameStateV2) => { resetWorkContext(s); resetSafetyLabour(s); }
   const w = s.hidden.timeline;
   const trip = [0.5, 3, 5, 7.5, 10, 11, 12, 13, 14.5].every((L) => near(levelOfOom(w, oomOfLevel(w, L)), L, 1e-9));
   check(trip && near(oomOfLevel(w, LEVEL_KNOTS[0]), 0, 1e-12), 'map: oomOfLevel is the inverse of λ(G) (round trip on 0.5 … 14.5; V0 = 0 OOM)');
-  // The reference conversion table (save migration, agenda data) sits on this world's knots.
-  const ok = [[5, 10], [25, 12], [250, 13.5], [2000, 15]].every(([M, L]) => near(oomOfRefM(M), oomOfLevel(w, L), 0.002));
-  check(ok, 'map: the reference M → OOM table is ai2027\'s λ knots (M 5 / 25 / 250 / 2000 at SC / SAR / SIAR / ASI)',
-    [10, 12, 13.5, 15].map((L) => `L${L} ${oomOfLevel(w, L).toFixed(3)}`).join(', '));
   check([0, 1.5, 3, 6, 9].every((x) => near(levelOfOom(w, x), levelOfG(w, gV0(w) + x))), 'map: levelOfOom(x) = λ(G_V0 + x)');
 }
 
@@ -97,9 +93,9 @@ const reset = (s: GameStateV2) => { resetWorkContext(s); resetSafetyLabour(s); }
   const str = xs.map((x) => strengthTrue(s, t, x));
   check(str.every((x, i) => i === 0 || x < str[i - 1]), 'decay: a tool\'s strength falls as the overseen model grows past its validated capability (0 → 12 OOM)', str.map((x) => x.toFixed(3)).join(' '));
   check(near(decayAt(s, t, t.oHalf, false), 0.5) && near(t.oHalf, oomOfLevel(w, 12), 0.005), 'decay: half strength at oHalf; AG08\'s is the SAR level (v2 M½ 25)', `oHalf ${t.oHalf} ≈ L${levelOfOom(w, t.oHalf).toFixed(2)}`);
-  // v2 equivalence on the reference path at the half points: 1/(1 + (M/M½)^k) = ½ at M = M½ ↔ x = oomOfRefM(M½).
-  const pts: [string, number][] = [['T-PROP', 25], ['T-TMON', 30], ['T-PROBE', 250], ['T-COTMON', 250]];
-  check(pts.every(([id, M]) => near(decayAt(s, s.player.safety.techniques[id], oomOfRefM(M), false), 0.5, 0.01)), 'decay: v2\'s half points kept on the reference path (AG08 M½ 25, AG07 30, AG02/AG09 250)');
+  // v2 equivalence at the half points: 1/(1 + (M/M½)^k) = ½ at M = M½; RD-U03 stores those points as OOM literals.
+  const pts: [string, number][] = [['T-PROP', 4.218], ['T-TMON', 4.678], ['T-PROBE', 10.018], ['T-COTMON', 10.018]];
+  check(pts.every(([id, x]) => near(decayAt(s, s.player.safety.techniques[id], x, false), 0.5, 0.01)), 'decay: v2\'s half points kept as OOM literals (AG08 4.218, AG07 4.678, AG02/AG09 10.018)');
   // Re-validation (tool upkeep) raises oHalf: the same model is seen better.
   const x = oomOfLevel(w, 12.5);
   const before = strengthTrue(s, t, x);

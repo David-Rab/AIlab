@@ -70,7 +70,7 @@ export interface LabInputs {
   mixUnit: { c: number; k: number; C: number; off: boolean; idle?: number; cIdle?: number; spare?: number; kSpare?: number };
   mods: number;
   rateMult: number;
-  abs: { H: number; Cagents: number; Cexp: number; serveCost: number; tcoPerYr: number; staffCostPerYr: number };
+  abs: { H: number; Cagents: number; Cexp: number; tcoPerYr: number; staffCostPerYr: number };
   /** Model v3 V3: the player's work-type research inputs. */
   v3: V3Inputs;
 }
@@ -164,7 +164,7 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
   return {
     yr, h, k, c, mods: v3.mods, rateMult: mod.rateMult,
     mixUnit: { c: Cres * cUnit, k: off ? 0 : Cres * kUnit, C: Cres, off, idle, cIdle: idle * cUnit, ...(spare > 0 ? { spare, kSpare: spare * kUnit } : {}) },
-    abs: { H: capReCapacity(s) * 100, Cagents: Cag + spare, Cexp: pools.experiments + idle, serveCost: 0.5, tcoPerYr: tcoPerH100eYear(s, yr), staffCostPerYr: 0.8e-3 },
+    abs: { H: capReCapacity(s) * 100, Cagents: Cag + spare, Cexp: pools.experiments + idle, tcoPerYr: tcoPerH100eYear(s, yr), staffCostPerYr: 0.8e-3 },
     v3,
   };
 }

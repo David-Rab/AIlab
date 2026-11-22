@@ -9,7 +9,7 @@ import { AG05_OVERSIGHT, DECAY_KAPPA, OOM_PER_400_ELO } from '../../../data/v2/o
 import { TECHNIQUES, TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import type { GameStateV2, TechniqueId, TechniqueState, ToolFamily } from '../types';
 import { believedEfficacy, flag, lambda2Delta, trueEfficacy } from './common';
-import { agendaOHalf, oomOfLevel, oomOfRefM } from './oversight';
+import { oomOfLevel } from './oversight';
 
 /** Half-strength decay in OOM: 1/(1 + 10^(k·κ·(x − x½))); k ≤ 0 or x½ = ∞ never decays. */
 export function decayOom(x: number, oHalf: number, k: number): number {
@@ -33,7 +33,7 @@ export function decayAt(s: GameStateV2, t: TechniqueState, x: number, latentKnow
     const gap = Math.max(0, x - xo - (flag(s, 'debate') ? AG05_OVERSIGHT.debateCreditOom : 0));
     return Math.pow(AG05_OVERSIGHT.base, gap / OOM_PER_400_ELO);
   }
-  if (t.agenda === 'AG09' && latentKnown) return decayOom(x, Math.min(t.oHalf, oomOfRefM(AG09_LATENT.mHalf)), AG09_LATENT.k);
+  if (t.agenda === 'AG09' && latentKnown) return decayOom(x, Math.min(t.oHalf, AG09_LATENT.oHalf), AG09_LATENT.k);
   return decayOom(x, t.oHalf, t.k);
 }
 
@@ -56,7 +56,7 @@ export function techniqueFromDef(id: TechniqueId, unlocked: boolean): TechniqueS
   const a = AGENDA_BY_ID[d.agenda];
   return {
     id, agenda: d.agenda, family: d.family, unlocked, active: unlocked && d.role !== 'fix',
-    s0: d.s0, oHalf: agendaOHalf(a), k: a.k, goodhart: a.G, trainedAgainst: 0, falseValidated: false, coverage: { ...d.coverage },
+    s0: d.s0, oHalf: a.oHalf, k: a.k, goodhart: a.G, trainedAgainst: 0, falseValidated: false, coverage: { ...d.coverage },
   };
 }
 
