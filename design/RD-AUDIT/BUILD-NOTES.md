@@ -297,3 +297,34 @@ CAP-V2, CAP-12 seed part). Commit bad7924.
   rateOf('player') change. Leaks: the player-vs-China gap drops the throughput stack and is at 3e26, so it is smaller
   (fewer secrets leaks to China, wherever the player is ahead). Fixture hashes change (new readout fields, the rate).
   test:cal and the golden timelines should be re-reported at the merge.
+
+### RD-B17
+
+Research readouts, honest Recipe tab (SYNTHESIS B28, B29, B30; CAP-03, CAP-11, CAP-V3). Commit 33db305.
+- **B28 (units):** STACK_GROUPS deleted; `stackViews` returns one `StackView` per stack key (pre, rlMid, rlCeil, train,
+  serve) with `unit` (data/v2/research.ts STACK_UNIT, read after "OOM"), its own headroom / not-trained-in (pre, rlMid,
+  rlCeil only); Recipe.tsx shows five stack cards and a "Domain & data effects" card, no sums in the panel. Domain and
+  data effects push `res.adopted` entries with `kind: 'domain' | 'data'` (no `stack`; AdoptedIdea.stack now optional,
+  `b` = batch size); `otherEffectViews` lists them with rows in their own units (domain: est/true × weight, OOM for new
+  versions; P10 quality ceiling "web text = 1"; P21 OOM token worth; P12 B tokens). Old saves' domain entries with
+  `stack: 'pre'` are read as domain effects (the tree node has no stack). Label "true effect"; its tooltip names the
+  model ("Seen in V5's evaluation…") or says which model would reveal it. Glossary: new `oom`, `otherEffects`;
+  `realisedEffect` retitled "True effect"; `knowHow`, `recipeStack`, `stackEfficiency` say each stack is its own unit.
+  GLOSSARY.md regenerated.
+- **B29 (counts):** `addIdea(st, x, sx, fTest, count = 1)`; completeAdoption passes `r.c.b` and 0 for `also`. Readers of
+  `st.n` / hist n (softwareRate ideas/yr, Blueprint adoptedDuring) are readouts. [D] Count = Σb (all ideas in the batch,
+  not the expected survivors). Domain and data ideas are not in the stacks' count (tooltip says "into the stacks").
+  Existing saves keep their old counts (a one-off mixed hist window).
+- **B30 (who reveals):** new optional `ModelVersion.trained = { rlDay, post }` (readout only): post-training runs set
+  rlDay = launch day (frozen recipe; today if the run predates frozen recipes), post true; amplify (IDA) post false;
+  distills / imports none. `revealedBy` by EMBODIED_BY: pre = a base started after (as before); rlMid / rlCeil / expert
+  data = rlDay after; serve / domain = a post-trained version finished after (serveTechMult and domainG are read at
+  post completion; IDA and distills copy the teacher's); train = either a base started or an RL launch after;
+  P10 / P21 = a base finished after (draw read at completion). Versions without `trained` (older saves) count if
+  variant 'full' and v.day after (old rule minus minis). Streams do not reveal (the stream's model was evaluated before).
+- **Moves calibration: no** (readouts only; new state fields `trained`, `kind`, `b` and the n counts change state
+  hashes, not behaviour). No schema bump (all optional).
+- **Tests:** tsc main + scripts clean; scripts/v2/research.ts all pass with four new RD-B17 checks (P16 counts 1 and a
+  batch of 3 counts 3; P09 / P10 not under a stack, own units; one card per stack and no `.reduce(` in Recipe.tsx; a
+  mini or an earlier-launched post-train does not reveal an RL idea, a later one does and is named). lint-ux --doc run
+  to regenerate GLOSSARY.md (it passed). `npm run build` ok. No other tier (RD test rule). Not screenshotted.
