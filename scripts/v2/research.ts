@@ -161,6 +161,41 @@ if (process.argv.includes('--rd-r07')) {
   finish('research');
 }
 
+// ---------- RD-A03 science-team planner by value (run alone: `tsx scripts/v2/research.ts --rd-a03`) ----------
+if (process.argv.includes('--rd-a03')) {
+  const s = mk(2);
+  const others = s.player.teams.filter((x) => !(x.role === 'sci' && x.dept === 'cap'));
+  const teams: Team[] = [0, 1, 2, 3].map((i) => ({ id: `V${i}`, role: 'sci', dept: 'cap', size: 40, heads: 40, quality: 'strong', specialty: 'systems' }));
+  s.player.teams = [...others, ...teams];
+  const projs = ['elastic', 'P16', 'L.scale'];
+  s.player.research.queue = [...projs];
+  for (const id of projs) s.player.research.want[id] = 1;
+  const on = (plan: ReturnType<typeof planAssignment>, id: string) => teams.filter((x) => plan.get(x.id)?.p === id).length;
+  // (a) A one-off idea in its small (or big) test releases its scientists; a line in its test keeps them.
+  s.player.tree.elastic = { status: 'researching', progress: 0.4, attempts: 1, cap: { ...freshCap(), stage: 'small' } };
+  s.player.tree['L.scale'] = { status: 'researching', progress: 0.4, attempts: 1, cap: { ...freshCap(), stage: 'scale' } };
+  const testing = planAssignment(s, projs);
+  s.player.tree.elastic = { status: 'researching', progress: 0, attempts: 1, cap: freshCap() };
+  const ideating = planAssignment(s, projs);
+  check(on(testing, 'elastic') === 0 && on(testing, 'L.scale') >= 1 && on(ideating, 'elastic') >= 1,
+    'RD-A03 a one-off idea in its test releases its scientists (a line in its test keeps them; back in ideation it gets them)',
+    `in test: elastic ${on(testing, 'elastic')}, L.scale ${on(testing, 'L.scale')}; ideating: elastic ${on(ideating, 'elastic')}`);
+  // (b) A spare team goes where it adds the most value (× AUTO_RANK_W per rank), not to the top project by default.
+  const two = ['elastic', 'P16'];
+  const with3 = (id: string) => [{ t: teams[0], p: 'elastic' }, { t: teams[1], p: 'P16' }, { t: teams[2], p: id }];
+  const base = assignmentValue(s, two, [{ t: teams[0], p: 'elastic' }, { t: teams[1], p: 'P16' }]);
+  const gE = assignmentValue(s, two, with3('elastic')) - base;
+  const gP = (assignmentValue(s, two, with3('P16')) - base) * 0.8;
+  s.player.teams = [...others, ...teams.slice(0, 3)];
+  const spare = planAssignment(s, two);
+  const where = teams.slice(0, 3).map((x) => spare.get(x.id)?.p);
+  check(where.filter((p) => p === 'P16').length === 2 && gP > gE, 'RD-A03 a spare team goes to the higher-value project (P16 over the top-ranked elastic)',
+    `teams → ${where.join(', ')}; spare gains: elastic ${gE.toExponential(2)}, P16 ×0.8 ${gP.toExponential(2)} OOM/day`);
+  const whys = [...spare.values()].map((v) => v.why);
+  check(whys.every((w) => /adds ~(<1|\d+)% to this project's yearly gain|carries all of this project's yearly gain/.test(w)), 'RD-A03 "why here" states the value in player language', whys.join(' | '));
+  finish('research');
+}
+
 // ---------- RD-R06 drop and give-up rules (run alone: `tsx scripts/v2/research.ts --rd-r06`) ----------
 {
   // A candidate under the floor but better than the pool's best goes on; under the floor and under the pool's best, or
@@ -318,14 +353,14 @@ if (process.argv.includes('--rd-r07')) {
     t.player.research.queue = projs;
     for (const p of projs) t.player.research.want[p] = 1 + Math.floor(r() * 2);
     const plan = planAssignment(t, projs);
-    const got = assignmentValue(projs, teams.map((x) => ({ t: x, p: plan.get(x.id)?.p })));
+    const got = assignmentValue(t, projs, teams.map((x) => ({ t: x, p: plan.get(x.id)?.p })));
     const counts = projs.map((p) => teams.filter((x) => plan.get(x.id)?.p === p).length);
     // Every assignment with the same team count per project.
     let best = 0;
     const assign: (string | undefined)[] = new Array(nT).fill(undefined);
     const rec = (i: number, left: number[]) => {
       if (i === nT) {
-        if (left.every((x) => x === 0)) best = Math.max(best, assignmentValue(projs, teams.map((x, j) => ({ t: x, p: assign[j] }))));
+        if (left.every((x) => x === 0)) best = Math.max(best, assignmentValue(t, projs, teams.map((x, j) => ({ t: x, p: assign[j] }))));
         return;
       }
       for (let k = 0; k < projs.length; k++) if (left[k] > 0) { left[k]--; assign[i] = projs[k]; rec(i + 1, left); left[k]++; }
@@ -344,7 +379,7 @@ if (process.argv.includes('--rd-r07')) {
 {
   // Six capability science teams on three projects: one fixed at 1 team, two on auto. The fixed project gets exactly its
   // number, each auto project at least one team, and the spare teams go to the auto projects (none idle, none to the
-  // fixed project) where they add the most progress; with every project fixed at 1 the spares all join the top project.
+  // fixed project) where they add the most value; with every project fixed at 1 the spares go by value (RD-A03).
   const t = mk(2);
   const others = t.player.teams.filter((x) => !(x.role === 'sci' && x.dept === 'cap'));
   const cols = ['pretraining', 'posttraining', 'systems', 'pretraining', 'posttraining', 'systems'] as const;
@@ -358,12 +393,12 @@ if (process.argv.includes('--rd-r07')) {
   const auto = planAssignment(t, projs);
   const n = (plan: typeof auto, id: string) => teams.filter((x) => plan.get(x.id)?.p === id).length;
   const idle = teams.filter((x) => !auto.get(x.id)?.p).length;
-  const vF = assignmentValue(projs, teams.map((x) => ({ t: x, p: fixed.get(x.id)?.p })));
-  const vA = assignmentValue(projs, teams.map((x) => ({ t: x, p: auto.get(x.id)?.p })));
-  check(n(auto, 'L.scale') === 1 && n(auto, 'L.data') >= 1 && n(auto, 'L.rlalg') >= 1 && idle === 0 && n(fixed, 'L.scale') === 4,
+  const vF = assignmentValue(t, projs, teams.map((x) => ({ t: x, p: fixed.get(x.id)?.p })));
+  const vA = assignmentValue(t, projs, teams.map((x) => ({ t: x, p: auto.get(x.id)?.p })));
+  check(n(auto, 'L.scale') === 1 && n(auto, 'L.data') >= 1 && n(auto, 'L.rlalg') >= 1 && idle === 0 && projs.reduce((a2, id) => a2 + n(fixed, id), 0) === 6,
     'auto teams wanted: a fixed project gets its number, auto projects one team and then the spares; none idle',
     `auto: ${projs.map((id) => `${id} ${n(auto, id)}`).join(', ')}; all fixed at 1: ${projs.map((id) => `${id} ${n(fixed, id)}`).join(', ')}`);
-  check(vA > vF, 'auto teams wanted: spreading the spares by fit beats piling them on the top project', `progress value ${vF.toFixed(3)} → ${vA.toFixed(3)}`);
+  check(vF >= vA * (1 - 1e-9), 'RD-A03 every project fixed: the spares go where they add the most value (no less than limited to the auto projects)', `value ${vA.toExponential(3)} → ${vF.toExponential(3)} OOM/day`);
   check(teams.filter((x) => auto.get(x.id)?.p === 'L.data' || auto.get(x.id)?.p === 'L.rlalg').some((x) => /^Auto: /.test(auto.get(x.id)?.why ?? '')), 'auto teams wanted: a spare team says it is there on auto');
   // The action: auto on, a number takes it off again; the view shows the placed count as the number.
   const s2 = mk(3);

@@ -128,9 +128,14 @@ export const ADOPT_TW = { base: 0.5, perOom: 2, unlock: 1, max: 8 };
 
 /** Most science teams one capability project takes ("max" teams wanted) [D: √capacity returns]. */
 export const PROJECT_MAX_TEAMS = 6;
-/** B4 "auto" teams wanted: a spare science team goes to the auto project where it adds the most progress (√capacity ÷
- *  ideation effort), weighted by this factor per rank down the list, so higher priority wins close calls [D]. */
+/** B4 "auto" teams wanted: a spare science team goes to the project (auto ones first) where it adds the most expected
+ *  value per day (RD-A03, models/research.ts projectValue), weighted by this factor per rank down the list, so higher
+ *  priority wins close calls [D]. */
 export const AUTO_RANK_W = 0.8;
+/** RD-A03: the science-team planner's value proxies, in lab-wide software OOM [D]. A domain OOM (one capability domain
+ *  of new versions) counts `domainOom` of a software OOM; an unlock (no typed effect: an RL focus, option, feature) and
+ *  a data / expert-data effect count `unlock` OOM × the attempt's odds (about one mid-sized stack idea, 0.02–0.06 OOM). */
+export const VALUE_PROXY = { domainOom: 0.1, unlock: 0.05 };
 /** Most research-engineer team-equivalents one project in experiments takes (an allocation cap; a policy number, not
  *  the labour unit RE_LABOUR_UNIT, though both are 2 today) [D]. */
 export const RE_MAX_PER_PROJECT = 2;

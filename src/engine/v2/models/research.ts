@@ -30,13 +30,14 @@
 // (a full share each that has research engineers, RD-B08), and consumed while they run.
 //
 // Allocation without micromanagement (V2.5): capability science teams go down the priority list (teams wanted per
-// project, best specialty first), then one pass of pairwise swaps that raise total progress, then leftovers to the
-// highest-priority project under PROJECT_MAX_TEAMS. Research engineers serve needs in the player's order (run
+// project, best specialty first; a one-off idea in its tests releases its teams), then one pass of pairwise swaps that
+// raise the total expected value (RD-A03 projectValue: expected OOM per day), then each spare team where it adds the most
+// value (auto projects first) under PROJECT_MAX_TEAMS. Research engineers serve needs in the player's order (run
 // operations → project experiments by priority → routine tuning), with optional caps; overflow flows down.
 import {
   BELIEF_NOISE, CAND, DROP_FRAC, DUD_SD, EXP_NOISE, IDEA_DEFAULT_TM, IDEA_STAGES, LINE_FIT, LINE_STAGES, MAX_DROPS, PACE_BATCH,
   AUTO_RANK_W, PICK_AT, POOL_MAX, PROJECT_MAX_TEAMS, PROJECT_SD, RE_OPS, RE_MAX_PER_PROJECT, RISK_KAPPA, SMALL_TO_TEST,
-  SPECULATIVE, SURVIVE_FRAC, S_RANGE, S_READ_SD, TASTE_MEAN, TEST_READ_SD, ADOPT_TW,
+  SPECULATIVE, SURVIVE_FRAC, S_RANGE, S_READ_SD, TASTE_MEAN, TEST_READ_SD, ADOPT_TW, VALUE_PROXY,
 } from '../../../data/v2/research';
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { C_UNIT_FLOP_PER_DAY, RE_LABOUR_UNIT } from '../../../data/v2/workTypes';
@@ -307,21 +308,107 @@ export const wantIsAuto = (s: GameStateV2, id: string) => !!s.player.research.wa
 /** Teams wanted for a project (default 1; an auto project asks for 1 in the first pass and takes spare teams after). */
 export const teamsWanted = (s: GameStateV2, id: string) => Math.max(0, Math.min(PROJECT_MAX_TEAMS, Math.round(s.player.research.want[id] ?? 1)));
 
-/** Progress value of an assignment: Σ over projects of √capacity ÷ ideation effort (candidates per day at unit inputs). */
-export function assignmentValue(projects: string[], teams: { t: Team; p: string | undefined }[]): number {
+/** RD-A03 (CAP-08): a one-off idea (typed effect, not a line) in its small or big test releases its science teams: new
+ *  candidates only matter after a drop, so the teams go elsewhere (lines keep ideating; an unlock's test uses them). */
+export const releasesTeams = (n: TreeNodeDef | undefined, st: CapProjectState | undefined): boolean =>
+  !!n && n.kind !== 'line' && !isUnlockProject(n) && (st?.stage === 'small' || st?.stage === 'scale');
+
+/** Lab-wide inputs of the planner's value (read once per plan): m_IDEAS, research speed, the unit throughput X (a line's
+ *  batch) and an unlock's experiment work per day (as capEta, from the research-engineer allocation). */
+function valueEnv(s: GameStateV2) {
+  const x = s.player.research.last?.x;
+  const speed = researchMods(s).speed;
+  let alloc: ReAllocation | undefined;
+  return {
+    mIdeas: Math.max(1e-12, x?.mIdeas ?? 1),
+    speed,
+    X: x?.X ?? 1,
+    expRate: (id: string) => {
+      alloc ??= reAllocation(s);
+      const { X } = projectExpInputs(s, id, alloc);
+      return X > 0 ? (X * speed * Math.sqrt(RE_LABOUR_UNIT)) / 30 : 0;
+    },
+  };
+}
+
+/** Each team's taste (as sciOn: E[max(human, AI)] on the AIFM taste distribution; 1 = a Strong team without AI). */
+function tasteOf(s: GameStateV2): (t: Team) => number {
+  const wc = workContext(s);
+  const m2b = s.hidden.timeline.prod.m2b;
+  const star = starTaste(s);
+  return (t) => teamTaste(qualityZ(t.quality), wc.sdAI, wc.phi, m2b, star);
+}
+
+/** A result's value in lab-wide software OOM: a stack effect's OOM (with its `also` stacks); a domain effect's OOM ×
+ *  VALUE_PROXY.domainOom; a data / expert-data effect VALUE_PROXY.unlock × its size multiplier [D]. */
+const valueOom = (n: TreeNodeDef, x: number) =>
+  n.effect?.stack ? oomOf(n, x) : n.effect?.domains ? oomOf(n, x) * VALUE_PROXY.domainOom : Math.abs(x) * VALUE_PROXY.unlock;
+
+/** RD-A03 (CAP-08): a project's term in the science-team planner, the expected value it delivers per day (lab-wide
+ *  software OOM; VALUE_PROXY for domain, data and unlock effects [D]) as a function of the science capacity C on it and
+ *  the teams' capacity-weighted taste q. Ideation runs at (m_IDEAS·C)^λ × q × speed per team-month of ideation work, as
+ *  stepProject runs it:
+ *  - a line: candidates per day × the pool's prior mean of a batch (each result is tested and adopted);
+ *  - a one-off idea in ideation: candidates per day ÷ PICK_AT (one result per PICK_AT candidates) × the attempt's odds ×
+ *    the prior mean (taste lifts it); in its small or big test 0 (releasesTeams);
+ *  - an unlock: its share of the test work per day (science teams + the experiment CES) × odds × VALUE_PROXY.unlock.
+ *  m_IDEAS and speed are lab-wide (they scale every term alike); they are in so that the value is in real units. */
+export function projectValue(s: GameStateV2, id: string, env = valueEnv(s)): (cap: number, q: number) => number {
+  const n = node(id);
+  const st = s.player.tree[id]?.cap;
+  if (!n || !isCapProject(n) || releasesTeams(n, st) || st?.stage === 'adopting' || st?.stage === 'failed') return () => 0;
+  const lam = s.hidden.timeline.prod.lam;
+  const work = (cap: number, q: number) => (cap > 0 ? (Math.pow(env.mIdeas * cap, lam) * q * env.speed) / 30 : 0);
+  const spec = st?.spec ?? 0;
+  const odds = attemptOdds(n, spec);
+  if (isUnlockProject(n)) {
+    const exp = env.expRate(id);
+    const v = (odds * VALUE_PROXY.unlock) / trialWork(n);
+    return (cap, q) => (work(cap, q) + exp) * v;
+  }
+  const sg = stagesOf(n);
+  if (n.kind === 'line') {
+    const b = batchOf(env.X);
+    return (cap, q) => (cap > 0 ? (work(cap, q) / (sg.idea * b)) * valueOom(n, b * priorMean(s, n, { q, b })) : 0);
+  }
+  return (cap, q) => (cap > 0 ? (work(cap, q) / (sg.idea * PICK_AT)) * odds * valueOom(n, priorMean(s, n, { q }, spec)) : 0);
+}
+
+/** Value of an assignment: Σ over projects of projectValue at the capacity and taste the teams give it (expected OOM per
+ *  day). */
+export function assignmentValue(s: GameStateV2, projects: string[], teams: { t: Team; p: string | undefined }[]): number {
+  const env = valueEnv(s);
+  const taste = tasteOf(s);
   let v = 0;
   for (const id of projects) {
     const n = node(id);
     if (!n) continue;
     let cap = 0;
-    for (const x of teams) if (x.p === id) cap += teamCapacity(x.t, n.column);
-    v += Math.sqrt(cap) / stagesOf(n).idea;
+    let qw = 0;
+    for (const x of teams) {
+      if (x.p !== id) continue;
+      const c = teamCapacity(x.t, n.column);
+      cap += c;
+      qw += c * taste(x.t);
+    }
+    v += projectValue(s, id, env)(cap, cap > 0 ? qw / cap : 1);
   }
   return v;
 }
 
+/** "adds ~x% to this project's yearly gain": what a team adds to its project's expected value (player language). */
+function gainText(withT: number, without: number): string {
+  if (without > 1e-15) {
+    const x = withT / without - 1;
+    return `adds ~${x < 0.01 ? '<1' : Math.round(100 * x)}% to this project's yearly gain`;
+  }
+  return withT > 0 ? "carries all of this project's yearly gain" : 'adds nothing to this project for now';
+}
+
 /** Deterministic assignment of capabilities science teams to the ready projects (in priority order). Returns the team
- *  → project map and why each team is there; teams placed by hand stay. Pure (does not mutate the state). */
+ *  → project map and why each team is there; teams placed by hand stay. Pure (does not mutate the state).
+ *  RD-A03: the priority list and teams wanted are the player's controls; value (projectValue, expected OOM per day)
+ *  decides the swaps and the spare teams. A one-off idea in its tests releases its teams (releasesTeams). */
 export function planAssignment(s: GameStateV2, ready: string[]): Map<string, { p?: string; why: string }> {
   const out = new Map<string, { p?: string; why: string }>();
   const all = capSciTeams(s);
@@ -329,38 +416,48 @@ export function planAssignment(s: GameStateV2, ready: string[]): Map<string, { p
   for (const t of manual) out.set(t.id, { p: t.projectId, why: 'Placed by hand' });
   const pool = all.filter((t) => !out.has(t.id)).sort((a, b) => (a.id < b.id ? -1 : 1));
   const count = new Map<string, number>(ready.map((id) => [id, manual.filter((t) => t.projectId === id).length]));
+  const released = new Set(ready.filter((id) => releasesTeams(node(id), s.player.tree[id]?.cap)));
   const left = [...pool];
+  // Why each placed team is there (the value part is added at the end, on the final assignment).
+  const kind = new Map<string, string>();
   // 1. Down the list: each project up to its teams wanted, best specialty match (then capacity) first.
   ready.forEach((id, rank) => {
+    if (released.has(id)) return;
     const n = node(id) as TreeNodeDef;
     const auto = wantIsAuto(s, id);
     let need = (auto ? 1 : teamsWanted(s, id)) - (count.get(id) ?? 0);
     while (need > 0 && left.length) {
       left.sort((a, b) => teamCapacity(b, n.column) - teamCapacity(a, n.column) || (a.id < b.id ? -1 : 1));
       const t = left.shift() as Team;
-      out.set(t.id, { p: id, why: `Priority ${rank + 1}: ${n.name} ${auto ? 'is on auto (first team)' : `wants ${teamsWanted(s, id)} team${teamsWanted(s, id) === 1 ? '' : 's'}`}${t.specialty === n.column ? ' (its specialty)' : ''}` });
+      out.set(t.id, { p: id, why: '' });
+      kind.set(t.id, `Priority ${rank + 1}: ${n.name} ${auto ? 'is on auto (first team)' : `wants ${teamsWanted(s, id)} team${teamsWanted(s, id) === 1 ? '' : 's'}`}`);
       count.set(id, (count.get(id) ?? 0) + 1);
       need--;
     }
   });
-  // 2. One improvement pass: swap two teams on different projects when that raises total progress.
-  //    P2: assignmentValue(ready, all with their current project) evaluated on precomputed capacities (same sums in the
-  //    same order), and the value before a swap carried over (it only changes when a swap is kept).
+  // 2. One improvement pass: swap two teams on different projects when that raises the total expected value.
+  //    Capacities and tastes are precomputed; each row's term is recomputed only for the two projects a swap touches
+  //    (the same ordered sum), the total re-added in row order.
   const placed = pool.filter((t) => out.get(t.id)?.p);
   const ents = all.map((t) => out.get(t.id));
-  const capRows: { id: string; cap: number[]; idea: number }[] = [];
+  const env = valueEnv(s);
+  const tq = all.map(tasteOf(s));
+  const capRows: { id: string; cap: number[]; f: (cap: number, q: number) => number }[] = [];
   for (const id of ready) {
     const n = node(id);
-    if (n) capRows.push({ id, cap: all.map((t) => teamCapacity(t, n.column)), idea: stagesOf(n).idea });
+    if (n) capRows.push({ id, cap: all.map((t) => teamCapacity(t, n.column)), f: projectValue(s, id, env) });
   }
-  // Each row's term √cap ÷ idea is recomputed only for the two projects a swap touches (the same ordered sum), the
-  // total re-added in row order.
-  const term = (row: (typeof capRows)[number]) => {
+  const sums = (row: (typeof capRows)[number], skip = -1) => {
     let cap = 0;
-    for (let k = 0; k < ents.length; k++) if (ents[k]?.p === row.id) cap += row.cap[k];
-    return Math.sqrt(cap) / row.idea;
+    let qw = 0;
+    for (let k = 0; k < ents.length; k++) if (k !== skip && ents[k]?.p === row.id) { cap += row.cap[k]; qw += row.cap[k] * tq[k]; }
+    return { cap, q: cap > 0 ? qw / cap : 1 };
   };
-  const terms = capRows.map(term);
+  const term = (row: (typeof capRows)[number], skip = -1) => {
+    const x = sums(row, skip);
+    return row.f(x.cap, x.q);
+  };
+  const terms = capRows.map((r) => term(r));
   const total = () => {
     let v = 0;
     for (const x of terms) v += x;
@@ -381,10 +478,10 @@ export function planAssignment(s: GameStateV2, ready: string[]): Map<string, { p
       b.p = pa;
       retouch(pa, pb);
       const after = total();
-      if (after > before + 1e-9) {
+      if (after > before * (1 + 1e-9)) {
         before = after;
-        a.why = `Swapped onto ${node(a.p as string)?.name}: a better fit for total progress`;
-        b.why = `Swapped onto ${node(b.p as string)?.name}: a better fit for total progress`;
+        kind.set(placed[i].id, `Swapped onto ${node(a.p as string)?.name}: a better fit`);
+        kind.set(placed[j].id, `Swapped onto ${node(b.p as string)?.name}: a better fit`);
       } else {
         b.p = a.p;
         a.p = pa;
@@ -392,34 +489,45 @@ export function planAssignment(s: GameStateV2, ready: string[]): Map<string, { p
       }
     }
   }
-  // 3. Leftovers. B4: auto projects first, each spare team where it adds the most progress (√capacity ÷ ideation
-  //    effort, × AUTO_RANK_W per rank); then the highest-priority project still under the most a project takes.
-  const autos = ready.filter((id) => wantIsAuto(s, id));
-  const capOn = new Map<string, number>();
-  if (autos.length) for (const t of all) { const p = out.get(t.id)?.p; if (p && autos.includes(p)) capOn.set(p, (capOn.get(p) ?? 0) + teamCapacity(t, (node(p) as TreeNodeDef).column)); }
+  // 3. Leftovers: each spare team where it adds the most expected value (× AUTO_RANK_W per rank), auto projects first,
+  //    then any project under PROJECT_MAX_TEAMS; where none gains (every project full or released), idle.
+  const rowOf = new Map(capRows.map((r) => [r.id, r]));
   for (const t of left) {
-    let best: string | undefined;
+    const k = all.indexOf(t);
+    let best: (typeof capRows)[number] | undefined;
     let bestGain = 0;
-    for (const a of autos) {
-      if ((count.get(a) ?? 0) >= PROJECT_MAX_TEAMS) continue;
-      const n = node(a) as TreeNodeDef;
-      const c0 = capOn.get(a) ?? 0;
-      const gain = ((Math.sqrt(c0 + teamCapacity(t, n.column)) - Math.sqrt(c0)) / stagesOf(n).idea) * AUTO_RANK_W ** ready.indexOf(a);
-      if (gain > bestGain) { best = a; bestGain = gain; }
+    for (const autosFirst of [true, false]) {
+      for (const r of capRows) {
+        if (wantIsAuto(s, r.id) !== autosFirst || released.has(r.id) || (count.get(r.id) ?? 0) >= PROJECT_MAX_TEAMS) continue;
+        const x = sums(r);
+        const c1 = x.cap + r.cap[k];
+        const gain = (r.f(c1, c1 > 0 ? (x.cap * x.q + r.cap[k] * tq[k]) / c1 : 1) - r.f(x.cap, x.q)) * AUTO_RANK_W ** ready.indexOf(r.id);
+        if (gain > bestGain) { best = r; bestGain = gain; }
+      }
+      if (best) break;
     }
-    if (best) {
-      count.set(best, (count.get(best) ?? 0) + 1);
-      capOn.set(best, (capOn.get(best) ?? 0) + teamCapacity(t, (node(best) as TreeNodeDef).column));
-      out.set(t.id, { p: best, why: `Auto: ${node(best)?.name} (priority ${ready.indexOf(best) + 1}) gains the most progress from it${t.specialty === node(best)?.column ? ' (its specialty)' : ''}` });
+    if (!best) {
+      const full = ready.every((id) => released.has(id) || (count.get(id) ?? 0) >= PROJECT_MAX_TEAMS);
+      out.set(t.id, { why: full ? 'Idle: every ready project has the most teams it can use or is in its tests' : 'Idle: no ready project gains from another team' });
       continue;
     }
-    const id = ready.find((x) => (count.get(x) ?? 0) < PROJECT_MAX_TEAMS);
-    if (!id) {
-      out.set(t.id, { why: 'Idle: every ready project has the most teams it can use' });
-      continue;
-    }
-    count.set(id, (count.get(id) ?? 0) + 1);
-    out.set(t.id, { p: id, why: `Spare: every project has its teams wanted, so it joins the top project (${node(id)?.name})` });
+    count.set(best.id, (count.get(best.id) ?? 0) + 1);
+    const e = { p: best.id, why: '' };
+    out.set(t.id, e);
+    ents[k] = e;
+    const name = node(best.id)?.name;
+    const rank = ready.indexOf(best.id) + 1;
+    kind.set(t.id, wantIsAuto(s, best.id) ? `Auto: ${name} (priority ${rank}) gains the most from it` : `Spare: every project has its teams wanted; ${name} (priority ${rank}) gains the most from it`);
+  }
+  // Why here, in player language: what the team adds to its project's expected yearly gain.
+  for (let k = 0; k < all.length; k++) {
+    const t = all[k];
+    const e = ents[k];
+    const pre = kind.get(t.id);
+    if (!e?.p || pre === undefined) continue;
+    const row = rowOf.get(e.p);
+    const spec = t.specialty === node(e.p)?.column ? ' (its specialty)' : '';
+    e.why = row ? `${pre}${spec}; ${gainText(term(row), term(row, k))}` : `${pre}${spec}`;
   }
   if (!ready.length) for (const t of pool) out.set(t.id, { why: 'Idle: no capability project is ready (rank one on Research)' });
   return out;
