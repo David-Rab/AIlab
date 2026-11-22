@@ -25,11 +25,9 @@ import { poolsOf } from '../compute/power';
 import { withResearchAgents } from '../departments/split';
 import { rivalSpeedMult } from '../actors/rivals';
 import { deliverData, syntheticAccrual, usageAccrual } from './data';
-import { spareServingToResearch } from '../worldfx/revenue';
 import { Xces } from './ces';
 import { effLabour, qualityZ, researchMods, speedOfCopy, starTaste, teamTaste, workContext } from '../departments/workfit';
 import { capReCapacity, reAllocation } from '../models/research';
-import { idleTrainingShare } from '../models/runs';
 import type { EngineSystem, GameStateV2, LabId, ProductionReadout, RivalLab, TimelineWorld } from '../types';
 
 /** The player's research inputs (model v3 V3) as of today: what the readout needs to re-evaluate research speed at other
@@ -59,9 +57,8 @@ export interface LabInputs {
   yr: number;
   h: number; k: number; c: number;
   /** c and k this lab would have with all of its research compute (experiments + agents) on experiments / on agents;
-   *  C = that research compute (H100e), off = agents switched off. idle = training compute no run uses (H100e, R5) and
-   *  spare = serving compute no product needs (H100e, J2 PR1), in c and k units as cIdle and kSpare. */
-  mixUnit: { c: number; k: number; C: number; off: boolean; idle?: number; cIdle?: number; spare?: number; kSpare?: number };
+   *  C = that research compute (H100e), off = agents switched off. Idle compute is not research compute (DD-19). */
+  mixUnit: { c: number; k: number; C: number; off: boolean };
   mods: number;
   rateMult: number;
   /** Model v3 V3: the player's work-type research inputs. */
@@ -72,7 +69,7 @@ export interface LabInputs {
 
 /** RD-R01: the one aggregate piece left, the lab's experiment throughput at inputs (h, k, c): X(c̄, ℓ) of a unit project
  *  and the number of unit projects. READOUTS ONLY since RD-A02 (no mechanism, no Auto mix): the response charts
- *  (readout.ts), researchSpeedRel and spareServingEffect. */
+ *  (readout.ts), and researchSpeedRel. */
 function throughputAt(w: TimelineWorld, inp: LabInputs, c: number, k: number, h: number): { X: number; units: number } {
   const v = inp.v3 as V3Inputs;
   const Pp = w.prod;
@@ -108,13 +105,11 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
   // gave tuning a finite demand, so this lab-level proxy and its readers do not move (M goes with RD-R01 / RD-R04).
   const reRes = Math.max(0, alloc.total - alloc.re.ops - alloc.re.evals);
   const Cag = off ? 0 : (pools.routine + pools.frontier);
-  const spare = off ? 0 : spareServingToResearch(s);
-  const idle = p.policies.spareTraining !== 'data' ? idleTrainingShare(s) * pools.training : 0;
   const flopEff = Math.pow(10, trainNow(s));
   const kUnit = 1 / DAY0_REF.agents;
   const cUnit = PHI_FLOP_PER_H100E_DAY / DAY0_REF.flop;
-  const k = (Cag + spare) * kUnit;
-  const c = (pools.experiments + idle) * cUnit;
+  const k = Cag * kUnit;
+  const c = pools.experiments * cUnit;
   const h = reRes / DAY0_REF.re;
   // Taste: capacity-weighted over the capabilities science teams (a Strong team without AI = 1).
   const m2b = w.prod.m2b;
@@ -127,7 +122,7 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
     tai += t.heads * teamTaste(qualityZ(t.quality), wc.sdAI, wc.sAI, m2b, star);
   }
   const v3: V3Inputs = {
-    h0: h, k0: k, reRes0: reRes, H0: Math.max(1e-9, capReCapacity(s) * mod.humans), AI0: Cag + spare > 0 ? ex.AI : 0, a: ex.fit.a, assist: ex.fit.assist,
+    h0: h, k0: k, reRes0: reRes, H0: Math.max(1e-9, capReCapacity(s) * mod.humans), AI0: Cag > 0 ? ex.AI : 0, a: ex.fit.a, assist: ex.fit.assist,
     flopEff, Tai: cap > 0 ? tai / cap : 1, mods: mod.speed / mod.rateMult, rateMult: mod.rateMult,
     sdAI: wc.sdAI, aEng: wc.slots.SWE.fit.a, copies: ex.copies + wc.slots.IDEAS.copies, speed: ex.copies > 0 ? speedOfCopy() : 0, aiFte: ex.aiFte,
     agentFte: ex.aiFte + wc.slots.IDEAS.aiFte,
@@ -136,7 +131,7 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
   const Cres = pools.experiments + (pools.routine + pools.frontier);
   return {
     yr, h, k, c, mods: v3.mods, rateMult: mod.rateMult,
-    mixUnit: { c: Cres * cUnit, k: off ? 0 : Cres * kUnit, C: Cres, off, idle, cIdle: idle * cUnit, ...(spare > 0 ? { spare, kSpare: spare * kUnit } : {}) },
+    mixUnit: { c: Cres * cUnit, k: off ? 0 : Cres * kUnit, C: Cres, off },
     v3,
   };
 }
@@ -226,16 +221,6 @@ export function rivalResearch(s: GameStateV2, r: RivalLab, apply: boolean): Prod
   }
   const pools = poolsOf(s, core.id);
   return rivalReadout(x, core.milestoneDays[3] !== undefined, { h: (x.units * RE_LABOUR_UNIT) / DAY0_REF.re, k: (pools.routine + pools.frontier) / DAY0_REF.agents, c: x.c });
-}
-
-/** Spare serving compute lent to research agents (J2 PR1) and what it adds to research speed today (experiment
- *  throughput with it ÷ without − 1; the research-speed breakdown). */
-export function spareServingEffect(s: GameStateV2): { h100e: number; dM: number } {
-  const inp = labInputs(s, PLAYER_ID);
-  const ks = inp?.mixUnit.kSpare ?? 0;
-  if (!inp || ks <= 0) return { h100e: 0, dM: 0 };
-  const w = s.hidden.timeline;
-  return { h100e: inp.mixUnit.spare ?? 0, dM: expThroughput(w, inp) / Math.max(1e-12, expThroughput(w, inp, { k: Math.max(1e-12, inp.k - ks) })) - 1 };
 }
 
 /** Production readout for a lab, computed from current state (§3.2.2/§3.2.5; the other labs' from rivalResearch). */

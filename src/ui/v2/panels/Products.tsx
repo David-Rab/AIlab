@@ -20,7 +20,7 @@ import { TREE_BY_ID } from '../../../data/v2/tree';
 import {
   CHANNEL_VARIANTS, agentsGate, dangerView, buildEtas, catchRate, dateOf, deployGate, editBlock, editedProduct, effortLock, fmtDate, isProduct, measuredHorizonH,
   demandModifiers, featureView, measuredLOf, nodeKnown, PENALTY_MAX, previewEdit, productReadouts, servingPool, versionById, CONVERGED,
-  LAUNCH_TW, LENT_RECOVERY, pendingLaunch, spareServing, spareServingToResearch, charterHolds,
+  LAUNCH_TW, pendingLaunch, idleServing, charterHolds,
 } from '../../../engine/v2';
 import type { Channel, CustomerView, DangerRead, Deployment, FeatureKind, GameStateV2, LineupRow, ModelVersion, PriceTier, ProductChanges, ProductRead } from '../../../engine/v2';
 import { store } from '../store';
@@ -741,13 +741,11 @@ function ServingCard({ s, live, reads }: { s: GameStateV2; live: Deployment[]; r
   const pool = servingPool(s);
   const rows = live.map((d) => ({ d, r: reads.get(d.id) })).filter((x) => x.r) as { d: Deployment; r: ProductRead }[];
   const cut = rows.reduce((a, x) => a + x.r.cutH100e, 0);
-  // J2 PR1: each product uses up to its need; the rest of the pool is spare (research agents by default).
+  // J2 PR1: each product uses up to its need; the rest of the pool is idle (DD-19: it stays idle unless Auto-split moves it).
   const used = (r: ProductRead) => Math.min(r.servedH100e, r.needH100e);
-  const spare = spareServing(s);
-  const lent = spareServingToResearch(s) > 0 || s.player.policies.spareServing !== 'headroom';
+  const spare = idleServing(s);
   // F6b: the bar is the pool; demand it cannot meet is a line under it (inline it squeezed the products to '…' at the start).
   const total = Math.max(1, rows.reduce((a, x) => a + used(x.r), 0) + spare);
-  const agentPool = s.player.computeOnline * (s.player.split.routine + s.player.split.frontier);
   const auto = s.player.policies.servingAuto;
   const order = [...rows].sort((a, b) => b.r.rpH - a.r.rpH);
   const [shares, setShares] = useState<Record<string, number>>({});
@@ -767,16 +765,13 @@ function ServingCard({ s, live, reads }: { s: GameStateV2; live: Deployment[]; r
             <span className={`sv-seg ${r.bound === 'capacity' ? 'cap' : ''}`} data-serve={d.id}><b>{F.h100e(used(r))}</b></span>
           </Tip>
         ))}
-        {spare > 0.5 && <Tip className="sv-w" style={{ width: `${(spare / total) * 100}%` }} content={() => <TipCard title={<Term id="spareServing">Spare serving</Term>} value={`${F.h100e(spare)} H100e`} rows={[
-          { label: lent ? 'Runs research agents' : 'Kept as headroom', value: lent ? `+${F.pct(spare / Math.max(1, agentPool))} on the agent pool` : 'on the products' },
-          { label: 'Eroded share wins back', value: lent ? `${F.pct(LENT_RECOVERY)} speed (products take it back first)` : 'full speed' },
-        ]}>Serving compute no product needs today. Policy: Compute › Split; research-speed effect: Company › Flow.</TipCard>}>
-          <span className="sv-seg spare" data-test="serving-spare" style={{ background: lent ? '#b28cf0' : undefined, color: lent ? '#1b2430' : undefined }}><b>{F.h100e(spare)}</b></span>
+        {spare > 0.5 && <Tip className="sv-w" style={{ width: `${(spare / total) * 100}%` }} content={() => <TipCard title={<Term id="idleServing">Idle serving</Term>} value={`${F.h100e(spare)} H100e`}>Serving compute no product needs today. It stays idle (headroom when demand rises); lower the serving share or turn on Auto-split in Compute › Split.</TipCard>}>
+          <span className="sv-seg spare" data-test="serving-spare"><b>{F.h100e(spare)}</b></span>
         </Tip>}
       </div>
       <div className="sv-leg">
         {rows.map(({ d, r }) => <span key={d.id} className="sv-l" style={{ width: `${(used(r) / total) * 100}%` }}>{PRODUCT_DEFS[d.channel]?.name}{r.bound === 'capacity' && <span className="tone-neg"> · capacity-bound</span>}</span>)}
-        {spare > 0.5 && <span className="sv-l" style={{ width: `${(spare / total) * 100}%` }}>{lent ? 'spare → research' : 'headroom'}</span>}
+        {spare > 0.5 && <span className="sv-l" style={{ width: `${(spare / total) * 100}%` }}>idle</span>}
       </div>
       <div className="sv-cutrow">
         {cut > 0 && <Tip content={() => <TipCard title={<Term id="servingCut">Cut by Auto</Term>} value={`${F.h100e(cut)} H100e`} rows={rows.filter((x) => x.r.cutH100e > 0).map((x) => ({ label: PRODUCT_DEFS[x.d.channel]?.name ?? x.d.channel, value: `${F.h100e(x.r.cutH100e)} H100e · ${F.money(x.r.unserved, { perYear: true })}`, tone: 'neg' as const }))}>Demand the serving pool cannot meet. {auto ? 'Auto cut the products earning least per H100e.' : 'Your shares leave it unserved.'}</TipCard>}>

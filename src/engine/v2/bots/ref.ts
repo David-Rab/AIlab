@@ -254,15 +254,6 @@ export interface RefPlayOpts {
    *  see competeRelease), 'mini' (the newest distilled mini to consumer/api, enterprise the best full version near it;
    *  frontier internal) or 'frontier' (newest full version to consumer/api). */
   release?: 'compete' | 'mini' | 'frontier';
-  /** Spare-training policy (R5). Default 'data': the AI 2027 reference lab's research compute is fixed by its
-   *  compute-usage table (shareRef), so the training compute RefBot's run cadence leaves unused generates data
-   *  instead of raising experiments (data never binds on the reference path, so this is neutral). */
-  spareTraining?: 'research' | 'data';
-  /** Spare-serving policy (J2 PR1). Default 'headroom': as with spare training, the reference lab's research compute is
-   *  its compute-usage table (shareRef), so the serving compute its products do not need stays on them as headroom
-   *  (today's behaviour exactly) instead of running research agents. Measured: with 'research' RefBot's spare serving
-   *  (up to 4× its agent pool in late 2025) would add an unearned speed-up (design/PROGRESS.md J2). */
-  spareServing?: 'research' | 'headroom';
   /** A5: distil a cheap API tier (MKT: a student holding the API model's level less FREE_TIER.oom) once per API model,
    *  set as the API's mini. Default off (TIERS): every sector product sells its lineup (data/v2/serving.ts LINEUP), as
    *  the rivals' do, so RefBot needs no extra distil; the option stays for experiments. */
@@ -346,11 +337,6 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
       }
     }
   }
-
-  const spare = o.spareTraining ?? 'data';
-  if (p.policies.spareTraining !== spare) tryAct(s, api, 'runs.spareTraining', { use: spare });
-  const spareServe = o.spareServing ?? 'headroom';
-  if (p.policies.spareServing !== spareServe) tryAct(s, api, 'serving.spare', { use: spareServe });
 
   // Research (model v3 V2): each goal goes to the top of the priority list once its start condition holds and its
   // prerequisites are known (a failed idea is reopened as speculative after TREE_RETRY_DAYS, v2's retry pacing); the

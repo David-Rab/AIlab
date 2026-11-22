@@ -143,9 +143,9 @@ export function idleStocks(s: GameStateV2): IdleStock[] {
   const sci = p.teams.filter((t) => t.role === 'sci');
   const idle = idleTeams(s);
   if (idle.length) out.push({ id: 'scienceTeams', amount: idle.length, unit: 'teams', share: idle.length / Math.max(1, sci.length) });
-  // J2 PR1: spare serving runs research agents by default; it is idle only when kept as headroom.
+  // Serving compute no product needs stays idle on the serving line (DD-19).
   const pool = servingPool(s);
-  if (pool > 0 && p.policies.spareServing === 'headroom') {
+  if (pool > 0) {
     const need = revenueReadout(s).deps.reduce((a, d) => a + d.needH100e, 0);
     const spare = pool - need;
     if (spare > 0.25 * pool && spare > 5000) out.push({ id: 'serving', amount: spare, unit: 'H100e', share: spare / pool });

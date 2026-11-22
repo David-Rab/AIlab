@@ -5,7 +5,7 @@ import { REFERENCE_BASE, REFERENCE_POST, STREAM_LAG_DAYS, STREAM_POOL_SHARE } fr
 import { RE_OPS } from '../../../data/v2/research';
 import { startOf } from '../../../data/v2/starts';
 import { decimalYear } from '../core/time';
-import { SPLIT_KEYS, presetSplit, setSplit, type SplitPreset } from '../departments/split';
+import { SPLIT_KEYS, SPLIT_LABEL, presetSplit, setSplit, type SplitPreset } from '../departments/split';
 import { STAR_HIRE } from '../../../data/v2/teams';
 import { hireStar } from '../departments/teams';
 import { starGain, TEAM_ACTIONS } from '../departments/teamActions';
@@ -23,8 +23,8 @@ import { AGENT_ACTIONS } from '../departments/agentActions';
 import { PRODUCT_ACTIONS } from './productOps';
 import { internalVersion, versionById } from './labs';
 import { TREE_ACTIONS } from './treeActions';
-import { POOL_SHARE_RANGE, idleTrainingShare, launchRun, planRun, runForecast, startStream, streamRecipeGap, type LaunchRunParams } from './runs';
-import { poolsOf } from '../compute/power';
+import { POOL_SHARE_RANGE, launchRun, planRun, runForecast, startStream, streamRecipeGap, type LaunchRunParams } from './runs';
+import { AUTO_SPLIT_USES, autoSplitPlan, idleShares, type AutoSplitUse } from '../departments/autoSplit';
 import { studentToHold } from '../worldfx/serving';
 import { clamp } from '../../rng';
 import { bookCash } from '../finance/ledger';
@@ -182,23 +182,6 @@ const RUN_ACTIONS: ActionDef[] = [
     },
   },
   {
-    id: 'runs.spareTraining', verb: 'policy', system: 'models', sphere: 'models', owner: 'WS1', title: 'Spare training compute',
-    available: () => true,
-    preview: (s, p) => {
-      const use = str(p, 'use', s.player.policies.spareTraining === 'data' ? 'research' : 'data');
-      const spare = Math.round(idleTrainingShare(s) * poolsOf(s).training);
-      const toData = { currency: 'compute' as const, amount: spare, target: 'data generation' };
-      // RD-R01: the compute itself (what the research engine's experiments get), not an aggregate elasticity.
-      const research = { currency: 'compute' as const, amount: spare, target: 'research experiments' };
-      return use === 'data' ? { costs: [research], gains: [toData], exposure: [] } : { costs: [toData], gains: [research], exposure: [] };
-    },
-    apply: (s, _ctx, p) => {
-      const use = str(p, 'use', '');
-      if (use !== 'research' && use !== 'data') return fail('Use research or data');
-      s.player.policies.spareTraining = use;
-    },
-  },
-  {
     id: 'cancelRun', verb: 'train', system: 'models', sphere: 'models', owner: 'WS1', title: 'Cancel run',
     available: (s) => (s.player.models.runs.some((r) => r.status === 'running') ? true : 'No running runs'),
     preview: (s, p) => {
@@ -329,6 +312,12 @@ function splitFromParams(s: GameStateV2, p: Params): ComputeSplit {
   return out;
 }
 
+/** Auto-split's listed uses from params (`to`: comma-separated use keys; undefined when absent). */
+function autoSplitTo(p: Params): AutoSplitUse[] | undefined {
+  if (typeof p.to !== 'string') return undefined;
+  return [...new Set(p.to.split(',').map((x) => x.trim()).filter((x): x is AutoSplitUse => AUTO_SPLIT_USES.includes(x as AutoSplitUse)))];
+}
+
 /** Apply a split (RD-A02: the research mix is part of it; no Auto mix). */
 function applySplit(s: GameStateV2, sp: ComputeSplit): string | undefined {
   return setSplit(s, sp);
@@ -367,6 +356,28 @@ export const DEPARTMENT_ACTIONS: ActionDef[] = [
     available: () => true,
     preview: (s, p) => splitPreview(s, presetSplit(str(p, 'preset', 'reference') as SplitPreset, decimalYear(s), s.player.split)),
     apply: (s, _ctx, p) => fail(applySplit(s, presetSplit(str(p, 'preset', 'reference') as SplitPreset, decimalYear(s), s.player.split))),
+  },
+  {
+    // RD-A05b (DD-19): the one policy that reassigns idle compute. Params: on (boolean), to (comma-separated uses).
+    id: 'compute.autoSplit', verb: 'policy', system: 'compute', sphere: 'departments', owner: 'WS1', title: 'Auto-split idle compute',
+    available: () => true,
+    preview: (s, p) => {
+      const pol = s.player.policies.autoSplit;
+      const on = typeof p.on === 'boolean' ? p.on : !pol.on;
+      const to = autoSplitTo(p) ?? pol.to;
+      const idle = idleShares(s).total;
+      if (!on) return { costs: [], gains: [{ currency: 'compute', amount: Math.round(idle * 1000) / 10, unit: '%', target: 'of compute stays idle where it is' }], exposure: [] };
+      const moved = autoSplitPlan({ ...s, player: { ...s.player, policies: { ...s.player.policies, autoSplit: { ...pol, on, to } } } }).moved;
+      return { costs: [], gains: [{ currency: 'compute', amount: Math.round(moved * 1000) / 10, unit: '%', target: `of compute (idle now) moves to ${to.map((k) => SPLIT_LABEL[k].toLowerCase()).join(', ') || 'no use'} each day` }], exposure: [] };
+    },
+    apply: (s, ctx, p) => {
+      const pol = s.player.policies.autoSplit;
+      const to = autoSplitTo(p);
+      if (to && !to.length) return fail('List at least one use');
+      if (to) pol.to = to;
+      if (typeof p.on === 'boolean') pol.on = p.on;
+      ctx.log('company', pol.on ? `Auto-split on: idle compute moves to ${pol.to.map((k) => SPLIT_LABEL[k].toLowerCase()).join(', ')} each day.` : 'Auto-split off: idle compute stays idle.');
+    },
   },
   ...TEAM_ACTIONS,
   ...BUILD_ACTIONS,

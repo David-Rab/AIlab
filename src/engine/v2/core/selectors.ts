@@ -35,6 +35,7 @@ export { deployGate, effortLock, CHANNEL_VARIANTS, distillationAccess } from '..
 export { bestMeasuredL, internalVersion, measuredLOf, versionById } from '../models/labs';
 export { MILESTONE_NAMES } from '../models/capability';
 export { presetSplit, shareRefAt, SPLIT_KEYS, SPLIT_PRESETS } from '../departments/split';
+export { AUTO_SPLIT_USES, autoSplitPlan, idleShares } from '../departments/autoSplit';
 export { teamGain } from '../departments/teamActions';
 export { aiShareByRole, buildCapacity, fillWeeks, laneWeights, fullTeamPayroll, keyOf, payrollOf, playerH, queuedOfKey, teamLabel, teamPayroll, teamsOfKey, weeklyHireCap } from '../departments/teams';
 export { RUN_PARAM_DEFAULTS, baseFromParams, postFromParams } from '../models/actions';
@@ -164,8 +165,7 @@ export { editBlock, editedProduct, previewEdit } from '../models/productOps';
 export type { ProductChanges } from '../models/productOps';
 export { activeFeatures, agentsGate, catchRate, collusionTrait, sameLineage, featureBuildBlock, featureToggleBlock, isProduct, measuredHorizonH, monitorOverhead } from '../models/products';
 export { monitorCatchAt, type ControlReadout } from '../safety/oversight';
-export { LENT_RECOVERY, servingPool, spareServing, spareServingToResearch } from '../worldfx/revenue';
-export { spareServingEffect } from '../production/production';
+export { idleServing, servingPool } from '../worldfx/revenue';
 // Model v3 V2b research UI: projects, recipe stacks, allocations, AI labour per work type, milestones, research speed.
 export {
   STAGES, UNLOCK_STAGES, PROJECT_MAX_TEAMS, addableProjects, buildSplit, capPriorityList, capProjectView, engAllocView, milestoneViews,

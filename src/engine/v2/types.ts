@@ -1217,6 +1217,14 @@ export interface TeamHiring {
   nextId: number;
 }
 
+/** RD-A05b: the explicit auto-split policy (PlayerPolicies.autoSplit). */
+export interface AutoSplitPolicy {
+  on: boolean;
+  to: Exclude<keyof ComputeSplit, 'idle'>[];
+  /** The latest move: its day and the share of total compute moved. */
+  last?: { day: Day; share: number };
+}
+
 export interface PlayerPolicies {
   whistleblowerChannel: boolean;
   publishSafety: 'none' | 'selective' | 'all';
@@ -1224,11 +1232,10 @@ export interface PlayerPolicies {
   shareWithAllies: boolean;
   transitionFund: Money; // $B/yr
   communityBenefits: boolean;
-  /** Where training compute that no run uses goes (R5): data generation (default since R6) or research experiments. */
-  spareTraining: 'research' | 'data';
-  /** Where serving compute no product needs goes (J2 PR1): research agents (default; products take it back first when
-   *  demand rises, so eroded market share recovers at half speed) or kept on the products as headroom. */
-  spareServing: 'research' | 'headroom';
+  /** Auto-split idle compute (RD-A05b, DD-19). Off by default: idle compute stays idle and shows as idle in its use.
+   *  On: once a day the idle shares (unallocated, training no run uses, serving no product needs, monitors beyond full
+   *  coverage) move to the listed uses in equal parts, logged. */
+  autoSplit: AutoSplitPolicy;
   /** Auto serving (R6): serve the products earning most per H100e first; the cut is recorded. Off = shares by hand. */
   servingAuto: boolean;
   /** Move products to the newest cleared model of the same kind when it measures better (R6). */

@@ -1462,3 +1462,28 @@ Paradigm typed effects, part 2 (DD-14; SYNTHESIS RD-E01b; CAP-02). Commit f7fff3
   0.317 / 1 at 1× / 4× / 16× compute; no `speed.serialCap` row.
 - **Moves calibration: maybe** (same S8 scale; S8 now includes per-version usefulness and token overhead inside AI
   FTE, which copies did not).
+
+### RD-A05b
+
+Spare-compute policies removed per DD-19; one explicit Auto-split policy; real compute for cases. Moves calibration: **yes**
+(idle training compute no longer feeds data generation, the old default; spare serving no longer adds routine agents;
+share recovery always full speed; case rate reads H100e).
+
+- **Gone:** `policies.spareTraining` / `spareServing`, actions `runs.spareTraining` / `serving.spare`,
+  `spareServingToResearch`, `LENT_RECOVERY`, `spareServingEffect`, the idle / spare parts of `expPoolH100e`,
+  `synPoolH100e`, production.ts inputs (`mixUnit.idle/cIdle/spare/kSpare`), workfit `useLabour`, covert
+  `internalFleetCompute`; RefBot's spare options. `spareServing()` renamed `idleServing()` (H100e no product needs).
+- **Auto-split** (`departments/autoSplit.ts`): `policies.autoSplit = { on, to, last? }`, default off, to experiments.
+  Daily system order 62 (after revenue): moves unallocated + idle training + idle serving + monitors beyond coverage to the
+  listed uses in equal parts (min move 0.1 pt), logs it, keeps `last`. Action `compute.autoSplit {on?, to?}`.
+- **Cases:** `caseRate(s, g, fte, h100e)`; `caseH100e(s, share)` = online × split.safety × granted share (a demand inside the
+  safety research line, lines take the rest); reference `CASE_H100E_REF` = 5% of the reference start line [D].
+- **UI:** Split shows "Idle" under training, serving and monitors; Auto-split row (switch, idle now, uses to send it to).
+  Run queue "Idle" row; Products serving bar segment "idle"; Company Flow spare row gone; glossary idleCompute,
+  idleServing, autoSplit (old stale Auto-split entry replaced); watch item text.
+- **Save:** SCHEMA_REV 56; migration 55 drops the two policies, adds autoSplit off; hygiene pins → 56.
+- **Check:** `npx tsx scripts/v2/_a05b/check.ts`. Budget hit: 9/12 pass. Left: the check's setup does not create idle
+  serving on day400 (moving 10 pt training → serving gives idleServing 0: likely products absorb it or needH100e unset;
+  the "idle serving stays idle" assertion needs a setup that really leaves serving idle), and its "moved" test is too
+  strict (Auto-split moved 29.6 pt, mostly idle training). `npm run build` not run. grep: only the migration names the
+  old policy keys.

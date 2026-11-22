@@ -13,7 +13,7 @@
 import * as E from '../../src/engine/v2/index';
 import * as R from '../../src/engine/v2/worldfx/readouts';
 import { bestPublicOf, worldMix } from '../../src/engine/v2/worldfx/mix';
-import { labMarketRevenue, revenueReadout, servingPool, spareServing } from '../../src/engine/v2/worldfx/revenue';
+import { labMarketRevenue, revenueReadout, servingPool, idleServing } from '../../src/engine/v2/worldfx/revenue';
 import type { GameStateV2 } from '../../src/engine/v2/types';
 
 /** Exports that change the game or build a new one: never called by the sweep. */
@@ -31,7 +31,7 @@ export function sweptFunctions(): [string, Fn][] {
   };
   for (const [k, v] of Object.entries(E)) add(k, v);
   for (const [k, v] of Object.entries(R)) add(k, v);
-  for (const [k, v] of Object.entries({ worldMix, bestPublicOf, labMarketRevenue, revenueReadout, servingPool, spareServing })) add(k, v);
+  for (const [k, v] of Object.entries({ worldMix, bestPublicOf, labMarketRevenue, revenueReadout, servingPool, idleServing })) add(k, v);
   return out;
 }
 

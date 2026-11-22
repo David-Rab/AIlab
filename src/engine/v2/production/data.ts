@@ -28,7 +28,6 @@ import { chatFreeTier } from '../worldfx/serving';
 import { PEAK_FLOPS, U_DECODE, U_PREFILL } from '../../../data/v2/workTypes';
 import { gOfBuild, gV0 } from '../models/capability';
 import { internalVersion, versionById } from '../models/labs';
-import { idleTrainingShare } from '../models/runs';
 import type { BaseDesign, DataAsset, DataKind, DataPortfolio, Deployment, DomainId, GameStateV2, ModelVersion, OwnedDataAsset, SystemCtx } from '../types';
 
 // ───────────────────────────── assets ─────────────────────────────
@@ -371,10 +370,9 @@ export function syntheticAccrual(s: GameStateV2) {
   generate(s, versionById(s, job.teacherId), cSyn * f);
   if (f < 1) generate(s, synTeacher(s), cSyn * (1 - f));
 }
-/** H100e generating synthetic data today: the synthetic pool plus spare training compute sent to data (R5). */
+/** H100e generating synthetic data today: the synthetic pool (idle training compute stays idle, DD-19). */
 export function synPoolH100e(s: GameStateV2): number {
-  const spare = s.player.policies.spareTraining === 'data' ? idleTrainingShare(s) * s.player.split.training : 0;
-  return s.player.computeOnline * (s.player.split.synthetic + spare);
+  return s.player.computeOnline * s.player.split.synthetic;
 }
 /** The synthetic asset a teacher's data goes to (`syn:<versionId>`; q from its G, inherits its traits). */
 export function synAssetFor(s: GameStateV2, t: ModelVersion | undefined, tokensT = 0): OwnedDataAsset {

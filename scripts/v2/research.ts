@@ -635,7 +635,6 @@ if (process.argv.includes('--rd-a03')) {
   const stage0 = s.player.tree['L.scale']?.cap?.stage;
   s.player.split.routine += s.player.split.experiments;
   s.player.split.experiments = 0;
-  s.player.policies.spareTraining = 'data';
   for (let d = 0; d < 200; d++) tick(s, { skip: ['endings'] });
   const t1 = s.player.tree['L.scale']?.cap?.test;
   check(tested && !!t1 && t1.c.k === t0?.c.k && s.player.tree['L.scale']?.cap?.stage === stage0 && t1.work <= w0 + 1e-9,

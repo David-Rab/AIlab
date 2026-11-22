@@ -53,7 +53,6 @@ import { poolsOf } from '../compute/power';
 import { Phi, Xces } from '../production/ces';
 import { qualityZ, researchMods, starTaste, teamTaste, workContext } from '../departments/workfit';
 import { PARADIGM_BY_ID } from './paradigms';
-import { idleTrainingShare } from './runs';
 import { evalReDemand, evalsDay } from './evals';
 import { addSuiteExpertData } from './suites';
 import { addIdea, latestBaseFlop, publicBase, researchG, STACK_KEYS, trainNow, stacksGEquiv } from './stacks';
@@ -625,16 +624,14 @@ export function expShares(alloc: ReAllocation, avail: number): { units: number; 
 
 // ───────────────────────────── research inputs in physical units (V3.4) ─────────────────────────────
 
-/** Experiment FLOP the lab's research can use per day: the experiments pool (and idle training compute unless the
- *  policy sends it to data, R5) at today's training throughput. */
+/** Experiment FLOP the lab's research can use per day: the experiments pool at today's training throughput (idle
+ *  training compute stays idle, DD-19). */
 export function projectFlopPerDay(s: GameStateV2): number {
   return expPoolH100e(s) * PHI_FLOP_PER_H100E_DAY * Math.pow(10, trainNow(s));
 }
-/** H100e of the experiments pool (and idle training compute unless the policy sends it to data) today. */
+/** H100e of the experiments pool today. */
 export function expPoolH100e(s: GameStateV2): number {
-  const pools = poolsOf(s);
-  const idle = s.player.policies.spareTraining !== 'data' ? idleTrainingShare(s) * pools.training : 0;
-  return pools.experiments + idle;
+  return poolsOf(s).experiments;
 }
 
 /** The lab's research inputs today: labour multipliers (AI in experiments and in ideas), the speed modifiers (pauses,

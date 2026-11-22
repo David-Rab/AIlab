@@ -8,6 +8,8 @@
 import { safetyLabour } from '../departments/workfit';
 import { safetyPoolClaims } from '../departments/agents';
 import { VERIFIABILITY } from '../../../data/v2/agendas';
+import { SHARE_REF } from '../../../data/v2/calibration';
+import { MONITOR_STD_POOL_SHARE } from '../../../data/v2/agents';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { CRITICAL_TRAITS, TRAIT_IDS } from '../../../data/v2/traits';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
@@ -121,14 +123,22 @@ export function monthlyGain(s: GameStateV2, inv: Investigation): number {
   }
   // Model v3 E2: AI labour is the same input as the case's engineers: effective FTE = FTE × m of safety experiments
   // (SAF_EXP through the Trusted-to-AI share; departments/workfit.ts safetyLabour).
-  return caseRate(s, g, inv.fte, inv.computeShare * safetyPoolClaims(s).invScale); // RD-B07: the granted share
+  return caseRate(s, g, inv.fte, caseH100e(s, inv.computeShare * safetyPoolClaims(s).invScale)); // RD-B07: the granted share
 }
 
-/** Monthly clarity from the tools' combined detection g, the case's engineers (× m of safety experiments) and compute
- *  share. F6e: shared with the Investigate preview (which passes g at believed strengths). */
-export function caseRate(s: GameStateV2, g: number, fte: number, computeShare: number): number {
+/** RD-A05b: a case's compute (H100e) that gives the reference compute term (×1): 5% of the reference lab's safety research
+ *  line at the start (1.2M H100e × the start safety share × the share left after the standard monitors) [D]. */
+export const CASE_H100E_REF = 0.05 * 1.2e6 * SHARE_REF[0].share.safety * (1 - MONITOR_STD_POOL_SHARE);
+/** RD-A05b: H100e a case runs on: its granted share of the safety research line (a demand inside that use of the flat
+ *  allocation; the lines take the rest, departments/agents.ts safetyPoolClaims). */
+export const caseH100e = (s: GameStateV2, grantedShare: number) => s.player.computeOnline * Math.max(0, s.player.split.safety) * Math.max(0, grantedShare);
+
+/** Monthly clarity from the tools' combined detection g, the case's engineers (× m of safety experiments) and its
+ *  compute in H100e (RD-A05b: real compute, so a bigger safety line speeds a case of the same share). F6e: shared with
+ *  the Investigate preview (which passes g at believed strengths). */
+export function caseRate(s: GameStateV2, g: number, fte: number, h100e: number): number {
   const m = safetyLabour(s).exp.m;
-  return clamp01(g * Math.sqrt((fte * m) / 15) * Math.min(1.5, Math.pow(Math.max(0.01, computeShare) / 0.05, 0.2)));
+  return clamp01(g * Math.sqrt((fte * m) / 15) * Math.min(1.5, Math.pow(Math.max(0.01 * CASE_H100E_REF, h100e) / CASE_H100E_REF, 0.2)));
 }
 
 /** Days for clarity to reach CASE_RESOLVE at a monthly gain (as investigationsStep compounds it), capped at INV_MAX_DAYS. */

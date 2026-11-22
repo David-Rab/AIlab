@@ -306,7 +306,6 @@ check(c2.fromStockT === 0 && near(c2.cashB, SUITE_BUILD.tokensT * EXPERT_PRICE_B
 // ---------- synthetic data ----------
 const syn = (share: number) => {
   const s = game();
-  s.player.policies.spareTraining = 'research';
   s.player.split.synthetic = share;
   const before = portfolioByKind(s.player.dataPortfolio).find((r) => r.kind === 'synthetic')!.tokensT;
   syntheticAccrual(s);

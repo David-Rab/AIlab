@@ -63,8 +63,10 @@ import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
  *  P24 bonus into its frozen pretraining stack, gives an adopted P24 its bonus on the save's day as a stack idea, and
  *  recomputes stored domain levels without P19.
  *  55 (RD-E01b, DD-14): paradigm P20 is deleted; P05 is a typed scaffold and P07 multiplies the long-tasks RL family's
- *  horizon (no stored shape changes: versions keep their frozen h80Mult). Migration 54 → 55 drops P20 state and draw. */
-export const SCHEMA_REV = 55;
+ *  horizon (no stored shape changes: versions keep their frozen h80Mult). Migration 54 → 55 drops P20 state and draw.
+ *  56 (RD-A05b, DD-19): the spare-training and spare-serving policies are gone (idle compute stays idle); the explicit
+ *  auto-split policy replaces them. Migration 55 → 56 drops the two policies and adds autoSplit off. */
+export const SCHEMA_REV = 56;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -495,6 +497,14 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     if (s.player?.paradigms) delete s.player.paradigms.P20;
     if (s.player?.tree) delete s.player.tree.P20;
     if (s.hidden?.paradigmSuccess) delete s.hidden.paradigmSuccess.P20;
+  },
+  /** 55 → 56 (RD-A05b): the two spare-compute policies leave; autoSplit starts off. Idempotent. */
+  55: (raw) => {
+    const pol = (raw as unknown as GameStateV2).player?.policies as unknown as Record<string, unknown> | undefined;
+    if (!pol) return;
+    delete pol.spareTraining;
+    delete pol.spareServing;
+    if (!pol.autoSplit) pol.autoSplit = { on: false, to: ['experiments'] };
   },
 };
 
