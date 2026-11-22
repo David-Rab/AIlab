@@ -14,7 +14,7 @@ import type { DecisionSnapshot, GameStateV2, HiddenWorld, SignalId, TraitId } fr
 
 export { production, researchMixCurve, responseCurves, RESPONSE_SCALES } from '../production/readout';
 export type { MixCurve, ResponseCurves } from '../production/readout';
-export { MANUAL_MIX_RANGE, specOf, topOf, TOP_KEYS } from '../departments/split';
+export { MIX_RANGE, specOf, topOf, TOP_KEYS } from '../departments/split';
 export type { SplitSpec, TopKey, TopSplit } from '../departments/split';
 // WS1 model / department selectors and helpers for the UI (visible data only).
 export { adoptedDuring, idleTrainingShare, planRun, poolAllocation, POOL_SHARE_RANGE, RUN_POOL_DEFAULT, runEtaDays, runStall, serveTechMult, shareIfLaunched, streamShare, trainingFlopPerDay } from '../models/runs';

@@ -2,6 +2,7 @@
 // `production(s, lab)` = the bottleneck bar: decomposition (parts multiply to M), elasticities, per-$ values,
 // ceilings, what-ifs, label/binding, labour (copies × speed), ratios vs the reference path.
 import { bestResearchMix, computeProduction, evalM, inputsAtMix, labInputs, type LabInputs } from './production';
+import { MIX_RANGE } from '../departments/split';
 import type { GameStateV2, LabId, ProductionReadout } from '../types';
 
 /** EngineApi.production: the lab's readout (cached by the daily production system, recomputed if absent). Other
@@ -23,7 +24,7 @@ export function researchMixCurve(s: GameStateV2, n = 41): MixCurve | undefined {
   const at = (f: number) => evalM(w, inputsAtMix(inp, f)).M;
   const points: { f: number; M: number }[] = [];
   for (let i = 0; i < n; i++) {
-    const f = 0.02 + (0.96 * i) / (n - 1);
+    const f = MIX_RANGE[0] + ((MIX_RANGE[1] - MIX_RANGE[0]) * i) / (n - 1);
     points.push({ f, M: at(f) });
   }
   const sp = s.player.split;

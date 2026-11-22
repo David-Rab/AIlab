@@ -52,11 +52,11 @@ export function withFixed(base: ComputeSplit, fixed: Partial<ComputeSplit>): Com
   return normalizeSplit(out);
 }
 
-/** Experiments share of Research when the mix is set by hand, an engine range shown on the slider (not a UI-only cap).
- *  It keeps a little of both: with no experiment compute a project's experiment CES gives ~0 throughput, and with no
- *  agent compute the research agents stop. Narrower than the Auto search's [0.01, 0.99] (production.ts
- *  bestResearchMix; INP-21 is to make them one constant). */
-export const MANUAL_MIX_RANGE: readonly [number, number] = [0.02, 0.98];
+/** Experiments share of Research: one range for the manual slider, the Auto best-mix search (production.ts
+ *  bestResearchMix) and the mix chart (readout.ts). An engine range, not a UI-only cap: it keeps a little of both, since
+ *  with no experiment compute a project's experiment CES gives ~0 throughput, and with no agent compute the research
+ *  agents stop. */
+export const MIX_RANGE: readonly [number, number] = [0.01, 0.99];
 
 const ratio = (a: number, b: number, dflt: number) => (a + b > 1e-12 ? a / (a + b) : dflt);
 
@@ -76,7 +76,7 @@ export function fromSpec(spec: SplitSpec): ComputeSplit {
   const sum = TOP_KEYS.reduce((a, k) => a + Math.max(0, t[k]), 0) || 1;
   const n = (k: TopKey) => Math.max(0, t[k]) / sum;
   const ds = Math.min(1, Math.max(0, spec.dataShare));
-  const es = Math.min(MANUAL_MIX_RANGE[1], Math.max(MANUAL_MIX_RANGE[0], spec.expShare));
+  const es = Math.min(MIX_RANGE[1], Math.max(MIX_RANGE[0], spec.expShare));
   return {
     training: n('training') * (1 - ds), synthetic: n('training') * ds,
     experiments: n('research') * es, agents: n('research') * (1 - es),

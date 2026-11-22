@@ -30,6 +30,7 @@ import { spareServingToResearch } from '../worldfx/revenue';
 import { Phi, Xces } from './ces';
 import { effLabour, qualityZ, researchMods, resetWorkContext, speedOfCopy, starTaste, teamTaste, workContext } from '../departments/workfit';
 import { capReCapacity, reAllocation } from '../models/research';
+import { MIX_RANGE } from '../departments/split';
 import { idleTrainingShare } from '../models/runs';
 import { adopted } from '../models/paradigms';
 import { payoffOf } from '../models/tree';
@@ -311,8 +312,8 @@ export function bestResearchMix(s: GameStateV2, inp: LabInputs): number {
   const w = s.hidden.timeline;
   const f = (x: number) => xAtMix(w, inp, x);
   const g = (Math.sqrt(5) - 1) / 2;
-  let lo = 0.01;
-  let hi = 0.99;
+  let lo = MIX_RANGE[0];
+  let hi = MIX_RANGE[1];
   let x1 = hi - g * (hi - lo);
   let x2 = lo + g * (hi - lo);
   let f1 = f(x1);

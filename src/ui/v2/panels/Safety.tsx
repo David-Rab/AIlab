@@ -543,10 +543,10 @@ function LineRowView({ s, l }: { s: GameStateV2; l: LineRow }) {
         { label: 'Ideas known', value: `${l.ideasKnown} of ${l.ideasTotal}` }, { label: 'First result at serious staffing', value: `${l.T1} mo` },
         { label: <Term id="seriousStaffing">Staffing</Term>, value: `${F.num(l.mult * 100, 0)}% of serious` }, { label: 'Compute share', value: F.pct(l.computeShare) },
         { label: <Term id="aiDoneShare">Work AI does</Term>, value: F.pct(l.aiLabour) },
-      ]}>A serious programme is about four matching teams' capacity. Results arrive faster with more teams (√ capacity), compute and AI labour.</TipCard>}>
+      ]}>A serious programme is about four matching teams' capacity. More teams find candidates faster (with diminishing returns); research engineers and compute speed the experiments; AI labour speeds both.</TipCard>}>
         <span className="sf-lname ellip"><Ic size={13} /> {l.name}</span>
       </Tip>
-      <Tip content={() => <TipCard title={<Term id="lineHealth">{l.band.label}</Term>} value={F.pct(l.band.mean)} rows={[{ label: '90% band', value: `${F.pct(l.band.lo)}–${F.pct(l.band.hi)}` }, { label: 'Results so far', value: l.findings }]}>Estimated chance a project here gives a working tool, from the results so far; the true efficacy stays unknown.</TipCard>}>
+      <Tip content={() => <TipCard title={<Term id="lineHealth">{l.band.label}</Term>} value={F.pct(l.band.mean)} rows={[{ label: '90% band', value: `${F.pct(l.band.lo)}–${F.pct(l.band.hi)}` }, { label: 'Results so far', value: l.findings }]}>Estimated chance a project here gives a working tool, from the results so far; the true efficacy stays unknown. The same hidden efficacy also sets how strong this line's tools are, and some results need it high.</TipCard>}>
         <span className="sf-health"><Pill kind={HEALTH_TONE[l.band.label] as 'good' | 'warn' | 'bad'}>{l.band.label}</Pill><span className="sf-band"><i style={{ left: `${l.band.lo * 100}%`, width: `${(l.band.hi - l.band.lo) * 100}%` }} /><b style={{ left: `${l.band.mean * 100}%` }} /></span></span>
       </Tip>
       <span className="sf-teams">
@@ -561,7 +561,7 @@ function LineRowView({ s, l }: { s: GameStateV2; l: LineRow }) {
           <span key={p.id} className="sf-pj" onClick={() => { if (!p.followUp) { store.setTab('research.sel', p.id); store.goto('research', { tab: 'tree' }); } }}>
             <span className="ellip small">{p.followUp ? 'Follow-up' : p.name}</span>
             <span className="rs-bar"><i style={{ width: `${p.progress * 100}%` }} /></span>
-            <Tip content={() => <TipCard title="ETA" value={eta(p.eta)} rows={[{ label: 'Progress', value: F.pct(p.progress) }]}>At today's teams and research speed.</TipCard>}><span className="num small">{eta(p.eta)}</span></Tip>
+            <Tip content={() => <TipCard title="ETA" value={eta(p.eta)} rows={[{ label: 'Progress', value: F.pct(p.progress) }]}>At today's teams, engineers, compute and AI labour.</TipCard>}><span className="num small">{eta(p.eta)}</span></Tip>
           </span>
         )) : <span className="dim small ellip">{l.next ? <>next: {PROJECT_BY_ID[l.next]?.followUp ? 'follow-up' : PROJECT_BY_ID[l.next]?.name}</> : l.nextReason}</span>}
       </span>

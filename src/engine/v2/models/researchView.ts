@@ -270,7 +270,8 @@ export function stackViews(s: GameStateV2): StackGroupView[] {
   });
 }
 
-/** Software progress of the recipe (OOM of effective compute per year, 14-day average) and the ideas adopted per year. */
+/** Software progress of the recipe (OOM of effective compute per year, 14-day average) and the ideas adopted per year (over
+ *  the last 14 weekly samples). */
 export function softwareRate(s: GameStateV2): { oomPerYear: number; ideasPerYear: number } {
   const h = s.player.research.hist;
   const ideas = h.length >= 2 ? ((h[h.length - 1].n - h[0].n) / Math.max(1, h[h.length - 1].day - h[0].day)) * 365 : 0;

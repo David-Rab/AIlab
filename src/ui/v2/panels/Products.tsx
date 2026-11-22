@@ -14,7 +14,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { AGENT_TASK_HOURS, CHANNEL_PRICE, FEATURES, PRICE_TIER_IDS, PRODUCT_DEFS, PRODUCT_ORDER, type FeatureDef } from '../../../data/v2/features';
-import { EFFORT_OOM_PER_10X, EFFORT_TOKENS, MARKUP, consumerPlanPrice } from '../../../data/v2/serving';
+import { EFFORT_OOM_PER_10X, EFFORT_TOKENS, MARKUP, SAFEGUARD_DG, consumerPlanPrice } from '../../../data/v2/serving';
 import { SECTORS } from '../../../data/v2/sectors';
 import { TREE_BY_ID } from '../../../data/v2/tree';
 import {
@@ -214,7 +214,7 @@ function ProductCard({ s, d, r, danger, draft, setDraft }: { s: GameStateV2; d: 
         <div className="pc-row">
           <Tip content={() => <TipCard title={<Term id="safeguards">Safeguards</Term>} rows={[
             { label: 'Misuse hazard', value: 'minimal ×1 · standard ×0.7 · classifiers ×0.4 · hardened ×0.15' },
-            { label: 'Quality', value: 'classifiers −0.05 L · hardened −0.2 L' },
+            { label: 'Quality', value: `classifiers ${F.num(SAFEGUARD_DG.classifiers, 2, true)} OOM · hardened ${F.num(SAFEGUARD_DG.hardened, 2, true)} OOM` },
             { label: <Term id="usagePolicy">Usage policy</Term>, value: Object.entries(d.usagePolicy).filter(([, x]) => x).map(([k]) => F.words(k)).join(', ') || 'none' },
           ]} />}><span className="pc-k"><Shield size={11} />Safeguards</span></Tip>
           <select className="msel small" data-test={`prod-sg.${d.id}`} value={n.safeguards} onChange={(e) => set({ safeguards: e.target.value as Deployment['safeguards'] })}>

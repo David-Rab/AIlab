@@ -126,8 +126,8 @@ export const EFFORT_TOKENS = { low: 0.3, max: 1, deep: 4 } as const;
 export const EFFORT_OOM_PER_10X = 0.4;
 export const EFFORT_CAP_OOM = 1.5;
 
-/** Safeguards and the AI-control layer cost fit (v2's level offsets at 1.2 L per OOM) [D]: hardened −0.2 L, classifiers
- *  −0.05 L, control layer −0.1 L. */
+/** Safeguards and the AI-control layer cost fit, in OOM (v2's level offsets ÷ 1.2 levels per OOM) [D]: hardened −0.17,
+ *  classifiers −0.04, control layer −0.08. The UI shows these OOM values. */
 export const SAFEGUARD_DG: Record<'minimal' | 'standard' | 'classifiers' | 'hardened', number> = { minimal: 0, standard: 0, classifiers: -0.05 / 1.2, hardened: -0.2 / 1.2 };
 export const CONTROL_LAYER_DG = -0.1 / 1.2;
 
