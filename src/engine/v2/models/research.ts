@@ -572,7 +572,9 @@ export function allocate<K extends string>(cap: number, alloc: Allocation<K>, de
   const out = {} as Record<K, number>;
   let left = Math.max(0, cap);
   for (const k of alloc.order) {
-    const lim = Math.min(alloc.max[k] ?? Infinity, (alloc.share[k] ?? Infinity) * cap);
+    // An uncapped need (no share) is limited only by what is left: Infinity · cap would be NaN at zero capacity.
+    const sh = alloc.share[k];
+    const lim = Math.min(alloc.max[k] ?? Infinity, sh === undefined ? Infinity : sh * Math.max(0, cap));
     const take = Math.max(0, Math.min(left, demand[k] ?? 0, lim));
     out[k] = take;
     left -= take;
