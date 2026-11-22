@@ -4,7 +4,8 @@ import { cadencesDue, decimalYear } from '../core/time';
 import { activeRivals } from '../models/labs';
 import { defenceIndex } from '../worldfx/readouts';
 import type { EndingV2, EngineSystem, GameStateV2, LabId, PowerOutcome, RivalLab, SystemCtx } from '../types';
-import { labOf, leadBetween } from '../actors/rivals';
+import { labOf } from '../actors/rivals';
+import { lagDays } from '../models/capability';
 import { ws4 } from '../actors/state';
 import { escapeResolved } from '../safety/footholds';
 import { rogueCopy } from '../safety/control';
@@ -127,7 +128,7 @@ export const endingsSystem: EngineSystem = {
     for (const r of [...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])] as RivalLab[]) {
       const id = r.core.id;
       if (r.core.milestoneDays[5] !== undefined && pSAR === undefined) return lossEnding(s, ctx, 'overtaken', id);
-      if (r.core.milestoneDays[3] !== undefined && leadBetween(s, id, 'player') >= 365) w.overtakenDays[id] = (w.overtakenDays[id] ?? 0) + 1;
+      if (r.core.milestoneDays[3] !== undefined && lagDays(s, 'player', id) >= 365) w.overtakenDays[id] = (w.overtakenDays[id] ?? 0) + 1;
       else delete w.overtakenDays[id];
       if ((w.overtakenDays[id] ?? 0) >= 180) return lossEnding(s, ctx, 'overtaken', id);
     }

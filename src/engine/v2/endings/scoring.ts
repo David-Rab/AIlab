@@ -2,7 +2,7 @@
 import { clamp } from '../../rng';
 import { bestG, otherLabs } from '../models/labs';
 import type { EndingV2, GameStateV2, LabId, PowerOutcome } from '../types';
-import { leadBetween } from '../actors/rivals';
+import { lagDays } from '../models/capability';
 import { ws4r } from '../actors/state';
 import { pMisOf, projectedMisAtAsi } from './epilogue';
 
@@ -16,7 +16,8 @@ const SURVIVAL_BASE: Partial<Record<EndingV2['id'], number>> = {
 const FREEDOM_BASE: Record<PowerOutcome, number> = { democratic: 85, treaty: 75, multipolar: 65, committee: 60, government: 40, corporate: 35, beijing: 15, none: 10 };
 const FREEDOM_NONE: Partial<Record<EndingV2['id'], number>> = { asiTakeover: 5, rivalTakeover: 5, chinaTakeover: 5, rogue: 10, war: 30, catastropheBio: 40, catastropheCyber: 45, asiContested: 35 };
 
-/** Epilogue survival: 100·(1 − Σ_X w_X·P_mis(X)) over active labs, w_X ∝ exp(−leadBehindLeader/180 d). */
+/** Epilogue survival: 100·(1 − Σ_X w_X·P_mis(X)) over active labs, w_X ∝ exp(−leadBehindLeader/180 d); the lead behind
+ *  the leader is the one lead clock lagDays (RD-L02, DD-10: no progress-year pace, no (1 − share) term). */
 export function epilogueSurvival(s: GameStateV2): number {
   const ids: LabId[] = [...otherLabs(s).filter((r) => r.core.status === 'active').map((r) => r.core.id)];
   if (s.player.status === 'active') ids.push('player');
@@ -26,7 +27,7 @@ export function epilogueSurvival(s: GameStateV2): number {
   let wsum = 0;
   let acc = 0;
   for (const id of ids) {
-    const behind = Math.max(0, leadBetween(s, leader, id));
+    const behind = Math.max(0, lagDays(s, id, leader));
     const w = Math.exp(-behind / 180);
     wsum += w;
     acc += w * pMisOf(s, projectedMisAtAsi(s, id).mis);
@@ -67,7 +68,7 @@ export function scoreEnding(s: GameStateV2, id: EndingV2['id'], power: PowerOutc
     company = 20 * Math.log10(V / 100) + (playerFirst ? 40 : 0) + (independent ? 20 : 0);
   }
   // Geopolitics
-  const leadChina = s.china.lab.core.status === 'active' ? leadBetween(s, 'player', 'china') : 180;
+  const leadChina = s.china.lab.core.status === 'active' ? lagDays(s, 'china', 'player') : 180;
   const geo = 50 + clamp(leadChina / 6, -30, 30) + (s.gov.treaty === 'verified' ? 25 : 0) - (id === 'war' ? 30 : 0) - (s.flags['ws4:taiwanEver'] ? 15 : 0) - (s.china.rung >= 5 ? 10 : 0);
   const r = (x: number) => Math.round(clamp(x, 0, 100));
   return { survival: r(survival), freedom: r(freedom), prosperity: r(prosperity), company: r(company), geopolitics: r(geo) };

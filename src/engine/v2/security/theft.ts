@@ -1,12 +1,11 @@
 // Theft, secrets leak, distillation, insider leaks (V2-SPEC §3.6; research/11 #16, #24; research/02 §1.7–1.10). Owner: WS4.
 import { clamp } from '../../rng';
-import { frontierLevelAt, gOfLevel } from '../models/capability';
-import { B_G_PER_Y, REF_TPP } from '../../../data/v2/runDesign';
+import { frontierGAt, frontierGPerYear, lagDays, PACE_WINDOW_DAYS } from '../models/capability';
+import { REF_TPP } from '../../../data/v2/runDesign';
 import { baseParams, fptOfBase, gOfSimple, recipeOf, rlOnBase, setModelG } from '../actors/rivalModel';
 import { playerRecipeG } from '../models/stacks';
 import { bestPlayerVersion, bestG, CHINA_ID } from '../models/labs';
 import type { GameStateV2, LabId, RivalBase, RivalLab, SecurityState, SimpleModel, SystemCtx } from '../types';
-import { leadBetween, rateOf } from '../actors/rivals';
 import { request, ws4 } from '../actors/state';
 import { WS4_TUNING } from '../actors/tuning';
 
@@ -47,7 +46,7 @@ export function theftHazardOn(s: GameStateV2, sec: SecurityState, leadDays: numb
 
 /** Daily theft hazard against the player (§3.6). */
 export function theftHazardDaily(s: GameStateV2): number {
-  return theftHazardOn(s, s.player.security, leadBetween(s, 'player', CHINA_ID), gulfShare(s));
+  return theftHazardOn(s, s.player.security, lagDays(s, CHINA_ID, 'player'), gulfShare(s));
 }
 
 /** Daily China recipe gain (OOM) from leaked secrets: k·spies·clamp(3.5 − ssl, 0, 2)·gap (§3.6), gap = the player's
@@ -72,18 +71,13 @@ export function executeTheft(s: GameStateV2, ctx: SystemCtx, victim: LabId) {
   const w = ws4(s);
   const cn = s.china.lab;
   const tw = s.hidden.timeline;
-  // A stolen model is ≈ 60 d behind its source once adapted and deployed (§3.6, T3): China's internal model is the
-  // stolen copy 60 d of the victim's model-frontier rate behind. Against the player the lead is WS1's trueLeadDays (time
-  // since the player's frontier line stood at China's level), so the stolen copy sits where that line stood 60 d ago —
-  // exactly 60 lead-days, never above the source. Rival victims (and a player history too short) use the gap/rate
-  // conversion of the rival-vs-rival lead.
-  const adoptG = (src: { G: number; Lg: number }, srcLab: LabId) => {
-    let G = src.G - (60 / 365) * rateOf(s, srcLab) * B_G_PER_Y;
-    if (srcLab === 'player') {
-      const L = frontierLevelAt(s, 'player', ctx.day - 60, src.Lg);
-      if (L !== undefined) G = Math.min(src.G, clamp(gOfLevel(tw, L), src.G - 3 * B_G_PER_Y, src.G));
-    }
-    return G;
+  // A stolen model is ≈ 60 d behind its source once adapted and deployed (§3.6, T3). RD-L02 (DD-10): China's internal
+  // model is where the victim's recorded frontier line (series.G, capability.ts frontierGAt) stood 60 d ago, never above
+  // the source: exactly 60 days of the lead clock lagDays behind the victim, player or rival alike. A history shorter
+  // than 60 d: the source G less 60 d of the victim's own frontier-G slope (frontierGPerYear over PACE_WINDOW_DAYS).
+  const adoptG = (src: { G: number }, srcLab: LabId) => {
+    const at = frontierGAt(s, srcLab, ctx.day - 60);
+    return Math.min(src.G, at ?? src.G - (60 / 365) * frontierGPerYear(s, srcLab, PACE_WINDOW_DAYS));
   };
   // Model v3 F1: weights, not a recipe. China holds the stolen base (its FLOP, size and the G_pre that copy embodies) and
   // post-trains it at its own recipe; its own next base replaces it only if better (actors/rivals.ts labDaily). Its

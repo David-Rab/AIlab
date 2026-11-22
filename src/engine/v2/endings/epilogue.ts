@@ -5,15 +5,14 @@ import { bestPlayerVersion, bestG, otherLabs } from '../models/labs';
 import { trueEfficacy } from '../safety/common';
 import { containAtAsi } from '../safety/incidents';
 import { misalignment } from '../safety/traits';
-import { gOfLevel } from '../models/capability';
+import { frontierGPerYear, gOfLevel, lagDays, PACE_WINDOW_DAYS } from '../models/capability';
 import { LEVEL_KNOTS } from '../../../data/v2/calibration';
-import { B_G_PER_Y } from '../../../data/v2/runDesign';
 import { leverage } from '../worldfx/control';
 import type { EndingV2, GameStateV2, LabId, PowerOutcome } from '../types';
 import { CONTROL } from '../../../data/v2/danger';
 import { asiControl, lossThreshold } from '../safety/control';
 import { keptShare } from '../actors/commitments';
-import { labOf, leadBetween, paceOf, postureOf, projectLabMis, rivalMis } from '../actors/rivals';
+import { labOf, postureOf, projectLabMis, rivalMis } from '../actors/rivals';
 import { ws4r } from '../actors/state';
 
 /** v1 doom curve σ((Mis − doomThreshold)/0.06) (§5.2): since model v3 E9 the odds over worlds of losing control with
@@ -51,15 +50,15 @@ export function misOf(s: GameStateV2, lab: LabId): number {
   return r ? rivalMis(r) : 0;
 }
 
-/** Projected Mis when lab X reaches ASI: the days to ASI from the lead-conversion pace (paceOf × 0.7, B22's lead part:
- *  theme L), and for a rival or China its own trait cadence over those days on WS2's rival trait step (rivals.ts
+/** Projected Mis when lab X reaches ASI: the days to ASI = the G gap to the ASI point ÷ the lab's own frontier-G slope
+ *  over PACE_WINDOW_DAYS (RD-L02, DD-10, B22's lead part; was the player's progress-year pace × 0.7 with a 0.3-pace
+ *  floor), and for a rival or China its own trait cadence over those days on WS2's rival trait step (rivals.ts
  *  projectLabMis, the rule labs use in play). The player's is its current frontier's Mis. Pure. */
 export function projectedMisAtAsi(s: GameStateV2, lab: LabId): { mis: number; days: number } {
-  // The ASI point on the display scale (λ = 15, the level knot every lab's ASI milestone reads), G a year at the lead pace.
+  // The ASI point on the display scale (λ = 15, the level knot every lab's ASI milestone reads), at the lab's own pace.
   const asiG = gOfLevel(s.hidden.timeline, LEVEL_KNOTS[6]);
-  const pace = paceOf(s) * B_G_PER_Y;
   const gap = Math.max(0, asiG - bestG(s, lab));
-  const days = Math.round((gap / Math.max(0.3 * B_G_PER_Y, pace)) * 365 * 0.7);
+  const days = Math.round((gap / frontierGPerYear(s, lab, PACE_WINDOW_DAYS)) * 365);
   if (lab === 'player') return { mis: misOf(s, 'player'), days };
   const r = labOf(s, lab);
   return { mis: r ? projectLabMis(s, r, asiG, days) : 0, days };
@@ -71,7 +70,7 @@ const ARCH_POWER: Record<string, PowerOutcome> = { safety: 'democratic', bigtech
 export function alignedPower(s: GameStateV2, lab: LabId): PowerOutcome {
   if (s.gov.treaty === 'verified') return 'treaty';
   if (lab === 'china') return 'beijing';
-  const near = [...otherLabs(s).filter((r) => r.core.status === 'active').map((r) => r.core.id), 'player'].some((id) => id !== lab && Math.abs(leadBetween(s, lab, id)) < 90 && (id !== 'player' || s.player.status === 'active'));
+  const near = [...otherLabs(s).filter((r) => r.core.status === 'active').map((r) => r.core.id), 'player'].some((id) => id !== lab && Math.abs(lagDays(s, id, lab)) < 90 && (id !== 'player' || s.player.status === 'active'));
   if (lab !== 'player') {
     if (near) return 'multipolar';
     return ARCH_POWER[labOf(s, lab)?.archetype ?? 'bigtech'] ?? 'corporate';

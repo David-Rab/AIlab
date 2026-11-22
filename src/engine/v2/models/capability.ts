@@ -182,30 +182,31 @@ const START_RETAIN = 0.7;
 
 // ───────────────────────────── lead (hidden) ─────────────────────────────
 
-// A lab's frontier history is its weekly series (series.G for the lead clock lagDays; series.L, λ, for frontierLevelAt
-// until RD-L02 moves theft to G). A version lab's series is a staircase (each new version is a
+// A lab's frontier history is its weekly series.G (record.ts), read by the lead clock lagDays, frontierGAt and the pace
+// frontierGPerYear. A version lab's series is a staircase (each new version is a
 // step), so interpolating between adjacent samples would put every intermediate level at the step and make the lag of
 // a smoothly progressing follower jump by a whole version interval each time it passes a step. The frontier LINE runs
 // instead through the "corners": the first sample at each new record level, plus today's level if it is higher (a
 // version newer than the last weekly sample). A continuous series (rivals, China) is all corners, so nothing changes
 // for it.
 
-/** Level of `lab`'s frontier line on `day` (≤ today; see above); undefined before its history starts. On the λ
- *  series; theft's only reader until RD-L02 moves it to G gaps. */
-export function frontierLevelAt(s: GameStateV2, lab: LabId, day: Day, nowL: number): number | undefined {
-  const xs = s.series.L[lab];
-  const days = s.series.day;
-  if (!xs?.length || day < days[0]) return undefined;
-  let pd = days[0];
+/** G of `lab`'s frontier line on `day` (≤ today; corners of series.G closed by today's best G, as above); undefined
+ *  before its history starts. RD-L02: replaces the λ-series frontierLevelAt; theft's stolen copy, a rival's late
+ *  release and the windowed pace read it. */
+export function frontierGAt(s: GameStateV2, lab: LabId, day: Day): number | undefined {
+  const { xs, days, off } = gSeries(s, lab);
+  if (!xs.length || day < days[off]) return undefined;
+  const gNow = bestG(s, lab);
+  let pd = days[off];
   let px = xs[0];
   for (let i = 1; i < xs.length; i++) {
     const x = xs[i];
     if (x <= px) continue;
-    if (days[i] >= day) return px + ((x - px) * (day - pd)) / Math.max(1e-9, days[i] - pd);
-    pd = days[i];
+    if (days[i + off] >= day) return px + ((x - px) * (day - pd)) / Math.max(1e-9, days[i + off] - pd);
+    pd = days[i + off];
     px = x;
   }
-  if (nowL > px && s.time.day > pd) return px + ((nowL - px) * (day - pd)) / (s.time.day - pd);
+  if (Number.isFinite(gNow) && gNow > px && s.time.day > pd) return px + ((gNow - px) * (Math.min(day, s.time.day) - pd)) / (s.time.day - pd);
   return px;
 }
 
@@ -264,12 +265,26 @@ function daysSinceG(s: GameStateV2, lab: LabId, g: number, gNow: number): number
   return 0; // g between the last record and today's G with no time since: level
 }
 
-/** A lab's pace (DD-10): the slope of its own recorded frontier G in OOM a year, over the recorded history to today's
- *  best G. With under 28 days of history (or no rise yet) it reads the pre-game reference frontier rate. */
-export function frontierGPerYear(s: GameStateV2, lab: LabId): number {
+/** The window (days) over which the "how fast" readers take a lab's pace (RD-L02 [D]: half a year, so the slope follows
+ *  the lab's current speed and spans more than one version step of a staircase lab). */
+export const PACE_WINDOW_DAYS = 182;
+
+/** A lab's pace (DD-10): the slope of its own recorded frontier G in OOM a year, over the last `windowDays` of its
+ *  frontier line to today's best G (default: the whole recorded history). A window with under 28 days of history or no
+ *  rise reads the whole history; with under 28 days of that (or no rise yet) it reads the pre-game reference frontier
+ *  rate. Readers that need a rate ("days of its own progress", "G a release lag behind") use this with
+ *  PACE_WINDOW_DAYS, never a progress-year pace. */
+export function frontierGPerYear(s: GameStateV2, lab: LabId, windowDays = Infinity): number {
   const { xs, days, off } = gSeries(s, lab);
+  const top = xs.length ? Math.max(...xs, bestG(s, lab)) : 0;
+  if (xs.length && Number.isFinite(windowDays)) {
+    const d0 = Math.max(days[off], s.time.day - windowDays);
+    const g0 = frontierGAt(s, lab, d0);
+    const w = s.time.day - d0;
+    if (g0 !== undefined && w >= 28 && top - g0 > 0) return ((top - g0) / w) * 365;
+  }
   const span = xs.length ? s.time.day - days[off] : 0;
-  const rise = xs.length ? Math.max(...xs, bestG(s, lab)) - xs[0] : 0;
+  const rise = xs.length ? top - xs[0] : 0;
   if (span >= 28 && rise > 0) return (rise / span) * 365;
   return Math.max(0.05, preGameRate(s.hidden.timeline)) * B_G_PER_Y;
 }

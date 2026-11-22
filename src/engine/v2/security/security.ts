@@ -8,7 +8,8 @@ import { misalignment } from '../safety/traits';
 import { footholdFromEscape } from '../safety/footholds';
 import { escapeNoticed } from '../safety/control';
 import type { EngineSystem, GameStateV2, SecurityState, StaffByRole } from '../types';
-import { leadBetween, openWeightsReleased, postureOf } from '../actors/rivals';
+import { openWeightsReleased, postureOf } from '../actors/rivals';
+import { lagDays } from '../models/capability';
 import { request, ws4 } from '../actors/state';
 import { distillFlowDaily, executeTheft, secretsLeakDaily, theftHazardDaily, theftHazardOn } from './theft';
 import { addRivalKnowledge } from '../actors/rivalModel';
@@ -79,7 +80,7 @@ export const securitySystem: EngineSystem = {
       rs.wsl = Math.max(rs.wsl, floor + 0.4 * postureOf(s, r.core.id).safetyInvestment);
       rs.ssl = rs.wsl - 0.6;
       rs.spies = privilegedOf(r.core.staff, 0) * spyRate(s);
-      if (rng.chance(0.5 * theftHazardOn(s, rs, leadBetween(s, r.core.id, CHINA_ID)))) executeTheft(s, ctx, r.core.id);
+      if (rng.chance(0.5 * theftHazardOn(s, rs, lagDays(s, CHINA_ID, r.core.id)))) executeTheft(s, ctx, r.core.id);
     }
 
     // Distillation of the player's external deployments (WS1 distillationLeak, §3.3.5) for every active lab; an
