@@ -887,3 +887,30 @@ One capability currency (SYNTHESIS theme U; MEA-02, TRN-03 (a) and the hazard pa
 - **Moves calibration: maybe.** Levels drive gates: paradigm gates on domain levels (P13 RSCH ≥ 8.5 now fires 0.5 L
   earlier for every lab), benchmarks / danger flags / rival hazards read version domain levels (SOCIAL, RSCH), RefBot's
   measured-level decisions. Dates and fits should move little; RSCH-gated research and danger flags may.
+
+### RD-U05
+
+Domain difficulty in one place (MEA-04, TRN-27's last column). Commit 731e8c2.
+- **Formula:** L_d = clamp(λ(G_d − (best_d − G_SC)), 0, 15), best_d = G_SC + δ_d·Δ_bm, δ_d = refDelta(sd_SC)[d] (the
+  per-domain best human the work fit's refPoints read). So 10 = the domain's best human (the SC knot is the CODE /
+  AGENCY best human), λ(G_SC − Δ_bm) = its median expert, and one OOM counts as on the general λ scale. New
+  `domainRefShift(w, d)` = δ_d·Δ_bm in models/capability.ts; `domainsOf` is the only reader. REF_OFF (data/v2/calibration.ts)
+  deleted; its readers were capability.ts `domainsOf` (benchmarks.ts, rivals.ts, rivalModel.ts, runs.ts, init.ts read
+  domain levels through it) and scripts currency.ts / effective.ts (rewritten on the new formula).
+- **Danger flags / dangerous benches / misuse, exfiltration, covert capability / rival hazards / worldfx control:** same
+  source, the domain score above (v.domains, unchanged readers). **Their thresholds (data/v2/benchmarks.ts
+  DANGER_THRESHOLD and m_L, safety/incidents.ts MISUSE / EXFIL θ, covert defs, control.ts AGENCY − 10, paradigm gates on
+  domain levels such as P13 RSCH ≥ 8.5) were set on the old REF_OFF-shifted levels and need a source review** (not done).
+- **Size of the change (V0, seed 2027):** ai2027 (Δ_bm 2.9) CODE / AGENCY 5.00, RSCH / REASON 1.55, SOCIAL / MEDIA / CYBER /
+  BIO / PHYS 0.00 (clamped; best human 5.5 OOM up); authors2026 RSCH 3.79, others 0; slow RSCH 4.14, expert domains 2.81;
+  fast (Δ_bm 0.3) 4.2–4.8 everywhere. Was CODE 5, AGENCY 4, CYBER 4, PHYS 1, rest ≈ 5. So on ai2027 / authors2026 the
+  expert domains show 0 at the start and the danger thresholds are reached several OOM later than before.
+- **Schema:** SCHEMA_REV 47 → **48**; migration 47 → 48 recomputes every stored G + Lg + domains record (player with its
+  build and P19; rivals and hidden from G). hygiene's `SCHEMA_REV === 47` literals bumped. Fixtures not regenerated.
+- Glossary `domains` body reworded (GLOSSARY.md not regenerated).
+- **Check:** `npx tsx scripts/v2/domainref.ts` (new, registered in run.ts: grep, formula and the 10-at-best-human point
+  in 4 worlds, migration). currency.ts and effective.ts's profile check pass on the new formula. tsc main and scripts clean.
+- **Moves calibration: yes.** Mechanics (fit, coverage, horizon, milestone dates) are unchanged, but every gate read on a
+  domain level moves: P13's RSCH gate (RSCH now ≈ 3.5 L lower on ai2027) delays that paradigm and whatever it feeds,
+  danger flags / misuse / exfiltration / rival hazards fire much later or not at all, SOCIAL-based control reads lower.
+  Run test:cal at CP2 with the threshold review; watch RSCH-gated research and safety S4 / S5.
